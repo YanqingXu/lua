@@ -24,7 +24,7 @@ To build and run the project, you will need:
 
 1. Clone the repository:
    ```bash
-   git clone <repository-url>
+   git clone https://github.com/YanqingXu/lua
    cd lua
    ```
 
@@ -68,7 +68,7 @@ Contributions are welcome! If you'd like to contribute, please fork the reposito
 
 ## License
 
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License. See the [LICENSE](./LICENSE) file for details.
 
 ## Acknowledgments
 
