@@ -75,6 +75,6 @@ namespace Lua {
         Compiler();
         
         // 编译AST，生成函数对象
-        Ptr<Function> compile(const Vec<UniquePtr<Stmt>>& statements);
+        Ptr<Function> compile(const Vec<UPtr<Stmt>>& statements);
     };
 }

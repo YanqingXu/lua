@@ -261,7 +261,7 @@ namespace Lua {
         }
     }
     
-    Ptr<Function> Compiler::compile(const Vec<UniquePtr<Stmt>>& statements) {
+    Ptr<Function> Compiler::compile(const Vec<UPtr<Stmt>>& statements) {
         try {
             // 编译每个语句
             for (const auto& stmt : statements) {

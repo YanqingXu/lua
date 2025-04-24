@@ -2,9 +2,12 @@
 
 #include <cstdint>
 #include <string>
+#include <string_view>
 #include <vector>
 #include <unordered_map>
 #include <memory>
+#include <variant>
+#include <optional>
 #include <utility>
 #include <stdexcept>
 
@@ -31,7 +34,7 @@ namespace Lua {
 
     // String types
     using Str = std::string;
-    using StringView = std::string_view;  // Added for efficient string references
+    using StrView = std::string_view;  // Added for efficient string references
 
     // Container templates
     template<typename T>
@@ -40,15 +43,22 @@ namespace Lua {
     template<typename K, typename V>
     using HashMap = std::unordered_map<K, V>;
 
+    // 其他类型工具
+    template<typename... Types>
+    using Var = std::variant<Types...>;
+
+    template<typename T>
+    using Opt = std::optional<T>;
+
     // Smart pointers
     template<typename T>
     using Ptr = std::shared_ptr<T>;
 
     template<typename T>
-    using WeakPtr = std::weak_ptr<T>;
+    using WPtr = std::weak_ptr<T>;
 
     template<typename T>
-    using UniquePtr = std::unique_ptr<T>;
+    using UPtr = std::unique_ptr<T>;
 
     // Create a shared_ptr
     template<typename T, typename... Args>
@@ -58,7 +68,7 @@ namespace Lua {
 
     // Create a unique_ptr
     template<typename T, typename... Args>
-    UniquePtr<T> make_unique(Args&&... args) {
+    UPtr<T> make_unique(Args&&... args) {
         return std::make_unique<T>(std::forward<Args>(args)...);
     }
 

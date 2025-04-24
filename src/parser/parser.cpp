@@ -151,7 +151,7 @@ namespace Lua {
         return nullptr;
     }
     
-    UniquePtr<Stmt> Parser::statement() {
+    UPtr<Stmt> Parser::statement() {
         if (match(TokenType::Local)) {
             return localDeclaration();
         }
@@ -159,17 +159,17 @@ namespace Lua {
         return expressionStatement();
     }
     
-    UniquePtr<Stmt> Parser::expressionStatement() {
+    UPtr<Stmt> Parser::expressionStatement() {
         auto expr = expression();
         // 在Lua中分号是可选的
         match(TokenType::Semicolon);
         return std::make_unique<ExprStmt>(std::move(expr));
     }
     
-    UniquePtr<Stmt> Parser::localDeclaration() {
+    UPtr<Stmt> Parser::localDeclaration() {
         Token name = consume(TokenType::Name, "Expect variable name after 'local'.");
         
-        UniquePtr<Expr> initializer = nullptr;
+        UPtr<Expr> initializer = nullptr;
         if (match(TokenType::Assign)) {
             initializer = expression();
         }
@@ -180,8 +180,8 @@ namespace Lua {
         return std::make_unique<LocalStmt>(name.lexeme, std::move(initializer));
     }
     
-    Vec<UniquePtr<Stmt>> Parser::parse() {
-        Vec<UniquePtr<Stmt>> statements;
+    Vec<UPtr<Stmt>> Parser::parse() {
+        Vec<UPtr<Stmt>> statements;
         
         while (!check(TokenType::Eof)) {
             try {
