@@ -12,9 +12,13 @@ namespace Lua {
     }
     
     Value print(State* state, int nargs) {
+        int stackTop = state->getTop();
+
         for (int i = 1; i <= nargs; i++) {
             if (i > 1) std::cout << "\t";
-            std::cout << state->toString(i);
+
+            int index = stackTop - nargs + i;
+            std::cout << state->toString(index);
         }
         std::cout << std::endl;
         return Value(nullptr); // 返回nil

@@ -13,75 +13,93 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="common">
+      <UniqueIdentifier>{b6c04bba-8779-4841-b9fb-2da55834544f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="compiler">
+      <UniqueIdentifier>{986ee517-af90-42a8-b9c6-5da4fbfaedf5}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="lexer">
+      <UniqueIdentifier>{59e0b0d1-2fe2-42c9-be41-af5b47c866f4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="lib">
+      <UniqueIdentifier>{a68d46a3-949a-4ce3-91e1-b550bed6d796}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="parser">
+      <UniqueIdentifier>{a56f02c5-be98-41cc-b9a7-a87b1332326c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="vm">
+      <UniqueIdentifier>{cc9ca1e3-12d3-4572-9620-051950d98d37}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="src\lexer\lexer.cpp">
-      <Filter>源文件</Filter>
-    </ClCompile>
-    <ClCompile Include="src\lib\base_lib.cpp">
-      <Filter>源文件</Filter>
-    </ClCompile>
     <ClCompile Include="src\main.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="src\vm\function.cpp">
-      <Filter>源文件</Filter>
-    </ClCompile>
-    <ClCompile Include="src\vm\state.cpp">
-      <Filter>源文件</Filter>
-    </ClCompile>
-    <ClCompile Include="src\vm\table.cpp">
-      <Filter>源文件</Filter>
-    </ClCompile>
-    <ClCompile Include="src\vm\value.cpp">
-      <Filter>源文件</Filter>
-    </ClCompile>
     <ClCompile Include="src\vm\vm.cpp">
-      <Filter>源文件</Filter>
-    </ClCompile>
-    <ClCompile Include="src\compiler\compiler.cpp">
-      <Filter>源文件</Filter>
+      <Filter>vm</Filter>
     </ClCompile>
     <ClCompile Include="src\parser\parser.cpp">
-      <Filter>源文件</Filter>
+      <Filter>parser</Filter>
+    </ClCompile>
+    <ClCompile Include="src\lexer\lexer.cpp">
+      <Filter>lexer</Filter>
+    </ClCompile>
+    <ClCompile Include="src\lib\base_lib.cpp">
+      <Filter>lib</Filter>
+    </ClCompile>
+    <ClCompile Include="src\compiler\compiler.cpp">
+      <Filter>compiler</Filter>
+    </ClCompile>
+    <ClCompile Include="src\vm\function.cpp">
+      <Filter>vm</Filter>
+    </ClCompile>
+    <ClCompile Include="src\vm\state.cpp">
+      <Filter>vm</Filter>
+    </ClCompile>
+    <ClCompile Include="src\vm\value.cpp">
+      <Filter>vm</Filter>
+    </ClCompile>
+    <ClCompile Include="src\vm\table.cpp">
+      <Filter>vm</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="src\common\defines.hpp">
-      <Filter>头文件</Filter>
-    </ClInclude>
-    <ClInclude Include="src\common\opcodes.hpp">
-      <Filter>头文件</Filter>
-    </ClInclude>
-    <ClInclude Include="src\lexer\lexer.hpp">
-      <Filter>头文件</Filter>
-    </ClInclude>
     <ClInclude Include="src\lib\base_lib.hpp">
-      <Filter>头文件</Filter>
-    </ClInclude>
-    <ClInclude Include="src\types.hpp">
-      <Filter>头文件</Filter>
-    </ClInclude>
-    <ClInclude Include="src\vm\function.hpp">
-      <Filter>头文件</Filter>
-    </ClInclude>
-    <ClInclude Include="src\vm\state.hpp">
-      <Filter>头文件</Filter>
-    </ClInclude>
-    <ClInclude Include="src\vm\table.hpp">
-      <Filter>头文件</Filter>
-    </ClInclude>
-    <ClInclude Include="src\vm\value.hpp">
-      <Filter>头文件</Filter>
-    </ClInclude>
-    <ClInclude Include="src\vm\vm.hpp">
-      <Filter>头文件</Filter>
+      <Filter>lib</Filter>
     </ClInclude>
     <ClInclude Include="src\compiler\compiler.hpp">
-      <Filter>头文件</Filter>
+      <Filter>compiler</Filter>
+    </ClInclude>
+    <ClInclude Include="src\common\opcodes.hpp">
+      <Filter>common</Filter>
+    </ClInclude>
+    <ClInclude Include="src\common\defines.hpp">
+      <Filter>common</Filter>
     </ClInclude>
     <ClInclude Include="src\parser\parser.hpp">
-      <Filter>头文件</Filter>
+      <Filter>parser</Filter>
+    </ClInclude>
+    <ClInclude Include="src\lexer\lexer.hpp">
+      <Filter>lexer</Filter>
+    </ClInclude>
+    <ClInclude Include="src\vm\function.hpp">
+      <Filter>vm</Filter>
+    </ClInclude>
+    <ClInclude Include="src\vm\state.hpp">
+      <Filter>vm</Filter>
+    </ClInclude>
+    <ClInclude Include="src\vm\vm.hpp">
+      <Filter>vm</Filter>
+    </ClInclude>
+    <ClInclude Include="src\vm\value.hpp">
+      <Filter>vm</Filter>
+    </ClInclude>
+    <ClInclude Include="src\vm\table.hpp">
+      <Filter>vm</Filter>
+    </ClInclude>
+    <ClInclude Include="src\types.hpp">
+      <Filter>common</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

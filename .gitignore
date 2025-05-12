@@ -2,3 +2,4 @@ lua-5.1.1/
 .vs
 lua/
 x64/
+build/

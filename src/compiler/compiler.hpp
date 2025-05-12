@@ -11,9 +11,10 @@ namespace Lua {
         Str name;
         int depth;
         bool isCaptured;
+        int slot;    // 寄存器索引
         
-        Local(const Str& name, int depth)
-            : name(name), depth(depth), isCaptured(false) {}
+        Local(const Str& name, int depth, int slot)
+            : name(name), depth(depth), isCaptured(false), slot(slot) {}
     };
 
     class Expr;
@@ -47,12 +48,12 @@ namespace Lua {
         std::vector<int> breaks;
         
         // 编译表达式
-        void compileExpr(const Expr* expr);
-        void compileLiteral(const LiteralExpr* expr);
-        void compileVariable(const VariableExpr* expr);
-        void compileUnary(const UnaryExpr* expr);
-        void compileBinary(const BinaryExpr* expr);
-        void compileCall(const CallExpr* expr);
+        int compileExpr(const Expr* expr);
+        int compileLiteral(const LiteralExpr* expr);
+        int compileVariable(const VariableExpr* expr);
+        int compileUnary(const UnaryExpr* expr);
+        int compileBinary(const BinaryExpr* expr);
+        int compileCall(const CallExpr* expr);
         
         // 编译语句
         void compileStmt(const Stmt* stmt);
@@ -62,11 +63,15 @@ namespace Lua {
         
         // 辅助方法
         int addConstant(const Value& value);
-        void emitByte(u8 byte);
-        void emitBytes(u8 byte1, u8 byte2);
-        void emitInstruction(Instruction instr);
-        int emitJump(u8 instruction);
-        void patchJump(int offset);
+        void emitInstruction(const Instruction& instr);
+        int emitJump();
+        void patchJump(int from);
+        
+        // 寄存器管理
+        int nextReg = 0;
+        int allocReg() { return nextReg++; }
+        void freeReg() { if (nextReg>0) --nextReg; }
+        
         void beginScope();
         void endScope();
         int resolveLocal(const Str& name);

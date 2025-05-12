@@ -1,7 +1,7 @@
 #pragma once
 
 #include "../types.hpp"
-#include "../common/opcodes.hpp"
+#include "instruction.hpp"
 #include "value.hpp"
 
 namespace Lua {

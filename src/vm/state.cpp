@@ -4,6 +4,7 @@
 #include "../common/defines.hpp"
 #include "../parser/parser.hpp"
 #include "../compiler/compiler.hpp"
+#include "../vm/vm.hpp"
 #include <stdexcept>
 #include <fstream>
 #include <sstream>
@@ -66,11 +67,17 @@ namespace Lua {
             return;
         }
         
-        // 检查索引是否在范围内
-        if (abs_idx < 0 || abs_idx >= top) {
-            return;
+        // 自动扩展栈以容纳新的索引
+        if (abs_idx < 0) {
+            return; // invalid
         }
-        
+        if (abs_idx >= top) {
+            // 需要将 top 扩展到 abs_idx+1
+            if (abs_idx >= LUAI_MAXSTACK) {
+                throw LuaException("stack overflow");
+            }
+            top = abs_idx + 1;
+        }
         stack[abs_idx] = value;
     }
     
@@ -201,15 +208,15 @@ namespace Lua {
                 return false;
             }
             
-            // 3. 调用函数
-            // 注意：完整的实现需要调用VM执行生成的字节码
-            // 这里我们使用简化的实现
-            push(function);
-            call(function, {});
+            // 3. 使用虚拟机执行字节码
+            VM vm(this);
+            vm.execute(function);
             
             return true;
         } catch (const LuaException& e) {
             // 可以在这里处理或记录错误
+            return false;
+        } catch (const std::exception& e) {
             return false;
         }
     }

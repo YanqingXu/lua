@@ -77,9 +77,6 @@ namespace Lua {
     using LuaNumber = f64;
     using LuaBoolean = bool;
 
-    // Lua instruction is an unsigned 32-bit integer
-    using Instruction = u32;
-
     // Error handling
     class LuaException : public std::runtime_error {
     public:

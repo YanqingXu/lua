@@ -10,38 +10,23 @@ namespace Lua {
         return constants.size() - 1;
     }
     
-    void Compiler::emitByte(u8 byte) {
-        code->push_back(byte);
-    }
-    
-    void Compiler::emitBytes(u8 byte1, u8 byte2) {
-        emitByte(byte1);
-        emitByte(byte2);
-    }
-    
-    void Compiler::emitInstruction(Instruction instr) {
+    void Compiler::emitInstruction(const Instruction& instr) {
         code->push_back(instr);
     }
     
-    int Compiler::emitJump(u8 instruction) {
-        emitByte(instruction);
-        emitByte(0xff);
-        emitByte(0xff);
-        return code->size() - 2;
+    int Compiler::emitJump() {
+        // Emit placeholder jump with sBx = 0, will patch later.
+        emitInstruction(Instruction::createJMP(0));
+        return static_cast<int>(code->size()) - 1;
     }
     
-    void Compiler::patchJump(int offset) {
-        // 计算跳转距离
-        int jump = code->size() - offset - 2;
-        
-        if (jump > 0xffff) {
-            // 跳转过远，无法编码
-            throw LuaException("Too much code to jump over.");
+    void Compiler::patchJump(int from) {
+        int to = static_cast<int>(code->size());
+        int sbx = to - from - 1; // distance to jump over next instructions
+        if (sbx < -32768 || sbx > 32767) {
+            throw LuaException("Jump offset out of range");
         }
-        
-        // 更新跳转指令的操作数
-        (*code)[offset] = (jump >> 8) & 0xff;
-        (*code)[offset + 1] = jump & 0xff;
+        (*code)[from].setSBx(static_cast<i16>(sbx));
     }
     
     void Compiler::beginScope() {
@@ -55,9 +40,9 @@ namespace Lua {
         while (!locals.empty() && locals.back().depth > scopeDepth) {
             // 如果变量被捕获，则发出关闭上值的指令
             if (locals.back().isCaptured) {
-                emitByte(OP_CLOSE_UPVALUE);
+                emitInstruction(Instruction::createCLOSE(locals.back().slot));
             } else {
-                emitByte(OP_POP);
+                emitInstruction(Instruction::createPOP(locals.back().slot));
             }
             locals.pop_back();
         }
@@ -74,149 +59,150 @@ namespace Lua {
         return -1; // 未找到
     }
     
-    void Compiler::compileLiteral(const LiteralExpr* expr) {
+    int Compiler::compileLiteral(const LiteralExpr* expr) {
         const Value& value = expr->getValue();
         
-        // 针对不同类型的字面量生成不同的指令
+        int dst = allocReg();
+        
         if (value.isNil()) {
-            emitByte(OP_NIL);
+            emitInstruction(Instruction::createLOADNIL(dst));
         } else if (value.isBoolean()) {
-            emitByte(value.asBoolean() ? OP_TRUE : OP_FALSE);
-        } else if (value.isNumber()) {
-            // 为数字创建常量
+            emitInstruction(Instruction::createLOADBOOL(dst, value.asBoolean()));
+        } else if (value.isNumber() || value.isString()) {
             int constant = addConstant(value);
-            emitBytes(OP_CONSTANT, constant);
-        } else if (value.isString()) {
-            // 为字符串创建常量
-            int constant = addConstant(value);
-            emitBytes(OP_CONSTANT, constant);
+            emitInstruction(Instruction::createLOADK(dst, static_cast<u16>(constant)));
         } else {
-            // 不支持的字面量类型
             throw LuaException("Unsupported literal type.");
         }
+        return dst;
     }
     
-    void Compiler::compileVariable(const VariableExpr* expr) {
+    int Compiler::compileVariable(const VariableExpr* expr) {
         // 查找变量名
         int slot = resolveLocal(expr->getName());
         
         if (slot != -1) {
-            // 局部变量
-            emitBytes(OP_GET_LOCAL, slot);
+            // 局部变量直接返回其寄存器编号
+            return slot;
         } else {
-            // 全局变量
+            int dst = allocReg();
             int constant = addConstant(expr->getName());
-            emitBytes(OP_GET_GLOBAL, constant);
+            emitInstruction(Instruction::createGETGLOBAL(dst, static_cast<u16>(constant)));
+            return dst;
         }
     }
     
-    void Compiler::compileUnary(const UnaryExpr* expr) {
+    int Compiler::compileUnary(const UnaryExpr* expr) {
         // 先编译操作数
-        compileExpr(expr->getRight());
+        int rhs = compileExpr(expr->getRight());
+        int dst = allocReg();
         
-        // 生成一元操作指令
         switch (expr->getOperator()) {
             case TokenType::Minus:
-                emitByte(OP_NEGATE);
+                emitInstruction(Instruction::createUNM(dst, rhs));
                 break;
             case TokenType::Not:
-                emitByte(OP_NOT);
+                emitInstruction(Instruction::createNOT(dst, rhs));
                 break;
             default:
-                // 不支持的一元操作符
                 throw LuaException("Unsupported unary operator.");
         }
+        return dst;
     }
     
-    void Compiler::compileBinary(const BinaryExpr* expr) {
+    int Compiler::compileBinary(const BinaryExpr* expr) {
         // 先编译左侧和右侧表达式
-        compileExpr(expr->getLeft());
-        compileExpr(expr->getRight());
+        int ra = compileExpr(expr->getLeft());
+        int rb = compileExpr(expr->getRight());
+        int dst = allocReg();
         
-        // 生成二元操作指令
         switch (expr->getOperator()) {
             case TokenType::Plus:
-                emitByte(OP_ADD);
+                emitInstruction(Instruction::createADD(dst, ra, rb));
                 break;
             case TokenType::Minus:
-                emitByte(OP_SUBTRACT);
+                emitInstruction(Instruction::createSUB(dst, ra, rb));
                 break;
             case TokenType::Star:
-                emitByte(OP_MULTIPLY);
+                emitInstruction(Instruction::createMUL(dst, ra, rb));
                 break;
             case TokenType::Slash:
-                emitByte(OP_DIVIDE);
+                emitInstruction(Instruction::createDIV(dst, ra, rb));
                 break;
             case TokenType::Percent:
-                emitByte(OP_MODULO);
+                emitInstruction(Instruction::createMOD(dst, ra, rb));
                 break;
             case TokenType::Equal:
-                emitByte(OP_EQUAL);
-                break;
-            case TokenType::NotEqual:
-                emitBytes(OP_EQUAL, OP_NOT);
+                emitInstruction(Instruction::createEQ(dst, ra, rb));
                 break;
             case TokenType::Less:
-                emitByte(OP_LESS);
+                emitInstruction(Instruction::createLT(dst, ra, rb));
                 break;
             case TokenType::LessEqual:
-                emitBytes(OP_GREATER, OP_NOT);
-                break;
-            case TokenType::Greater:
-                emitByte(OP_GREATER);
-                break;
-            case TokenType::GreaterEqual:
-                emitBytes(OP_LESS, OP_NOT);
+                emitInstruction(Instruction::createLE(dst, ra, rb));
                 break;
             default:
-                // 不支持的二元操作符
                 throw LuaException("Unsupported binary operator.");
         }
+        return dst;
     }
     
-    void Compiler::compileCall(const CallExpr* expr) {
+    int Compiler::compileCall(const CallExpr* expr) {
         // 编译被调用的函数或变量
-        compileExpr(expr->getCallee());
+        int base = compileExpr(expr->getCallee());
         
         // 编译参数
         int argCount = 0;
         for (const auto& arg : expr->getArguments()) {
-            compileExpr(arg.get());
+            int reg = compileExpr(arg.get());
+            // ensure arguments are contiguous; simplistic approach assumes they already are
             argCount++;
         }
         
         // 发出调用指令，指定参数数量
-        emitBytes(OP_CALL, argCount);
+        emitInstruction(Instruction::createCALL(base, argCount + 1, 1));
+        return base; // result in base
     }
     
-    void Compiler::compileExpr(const Expr* expr) {
-        if (expr == nullptr) return;
+    int Compiler::compileExpr(const Expr* expr) {
+        if (expr == nullptr) return 0;
         
         switch (expr->getType()) {
             case ExprType::Literal:
-                compileLiteral(static_cast<const LiteralExpr*>(expr));
-                break;
+                return compileLiteral(static_cast<const LiteralExpr*>(expr));
             case ExprType::Variable:
-                compileVariable(static_cast<const VariableExpr*>(expr));
-                break;
+                return compileVariable(static_cast<const VariableExpr*>(expr));
             case ExprType::Unary:
-                compileUnary(static_cast<const UnaryExpr*>(expr));
-                break;
+                return compileUnary(static_cast<const UnaryExpr*>(expr));
             case ExprType::Binary:
-                compileBinary(static_cast<const BinaryExpr*>(expr));
-                break;
+                return compileBinary(static_cast<const BinaryExpr*>(expr));
             case ExprType::Call:
-                compileCall(static_cast<const CallExpr*>(expr));
-                break;
+                return compileCall(static_cast<const CallExpr*>(expr));
             default:
                 throw LuaException("Unsupported expression type.");
         }
+        return 0; // unreachable
     }
     
     void Compiler::compileExprStmt(const ExprStmt* stmt) {
-        compileExpr(stmt->getExpression());
-        // 表达式语句执行后，结果值被丢弃
-        emitByte(OP_POP);
+        int r = compileExpr(stmt->getExpression());
+        // 结果不再需要
+        nextReg = r; // reset reg pointer to allow reuse (simplistic)
+    }
+    
+    void Compiler::compileLocalStmt(const LocalStmt* stmt) {
+        // 为局部变量分配寄存器槽
+        int slot = allocReg();
+        // 先将变量记录到 locals，方便之后 endScope 关闭
+        locals.emplace_back(stmt->getName(), scopeDepth, slot);
+
+        if (stmt->getInitializer() != nullptr) {
+            int r = compileExpr(stmt->getInitializer());
+            emitInstruction(Instruction::createMOVE(slot, r));
+            freeReg(); // 释放临时寄存器 r
+        } else {
+            emitInstruction(Instruction::createLOADNIL(slot));
+        }
     }
     
     void Compiler::compileBlockStmt(const BlockStmt* stmt) {
@@ -228,19 +214,6 @@ namespace Lua {
         }
         
         endScope();
-    }
-    
-    void Compiler::compileLocalStmt(const LocalStmt* stmt) {
-        // 编译初始化器
-        if (stmt->getInitializer() != nullptr) {
-            compileExpr(stmt->getInitializer());
-        } else {
-            // 默认为nil
-            emitByte(OP_NIL);
-        }
-        
-        // 添加局部变量到作用域
-        locals.push_back(Local(stmt->getName(), scopeDepth));
     }
     
     void Compiler::compileStmt(const Stmt* stmt) {
@@ -269,7 +242,7 @@ namespace Lua {
             }
             
             // 添加返回指令
-            emitByte(OP_RETURN);
+            emitInstruction(Instruction::createRETURN(0, 0));
             
             // 创建函数对象
             return Function::createLua(code, constants);
