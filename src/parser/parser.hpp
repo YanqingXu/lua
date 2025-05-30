@@ -178,6 +178,7 @@ namespace Lua {
         UPtr<Expr> term();
         UPtr<Expr> factor();
         UPtr<Expr> primary();
+        UPtr<Expr> finishCall(UPtr<Expr> callee);
         
         // 解析语句
         UPtr<Stmt> statement();

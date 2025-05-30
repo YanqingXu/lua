@@ -136,7 +136,14 @@ namespace Lua {
         }
         
         if (match(TokenType::Name)) {
-            return std::make_unique<VariableExpr>(previous.lexeme);
+            auto expr = std::make_unique<VariableExpr>(previous.lexeme);
+            
+            // 检查是否是函数调用
+            if (check(TokenType::LeftParen)) {
+                return finishCall(std::move(expr));
+            }
+            
+            return expr;
         }
         
         if (match(TokenType::LeftParen)) {
@@ -145,10 +152,25 @@ namespace Lua {
             return expr;
         }
         
-        // 处理其他基本表达式...
-        
         error("Expect expression.");
         return nullptr;
+    }
+    
+    // 添加新方法来处理函数调用
+    std::unique_ptr<Expr> Parser::finishCall(std::unique_ptr<Expr> callee) {
+        consume(TokenType::LeftParen, "Expect '(' for function call.");
+        
+        Vec<UPtr<Expr>> arguments;
+        
+        if (!check(TokenType::RightParen)) {
+            do {
+                arguments.push_back(expression());
+            } while (match(TokenType::Comma));
+        }
+        
+        consume(TokenType::RightParen, "Expect ')' after arguments.");
+        
+        return std::make_unique<CallExpr>(std::move(callee), std::move(arguments));
     }
     
     UPtr<Stmt> Parser::statement() {
