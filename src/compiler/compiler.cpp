@@ -78,11 +78,11 @@ namespace Lua {
     }
     
     int Compiler::compileVariable(const VariableExpr* expr) {
-        // 查找变量名
+        // Find variable name
         int slot = resolveLocal(expr->getName());
         
         if (slot != -1) {
-            // 局部变量直接返回其寄存器编号
+            // Local variable directly returns its register number
             return slot;
         } else {
             int dst = allocReg();
@@ -93,7 +93,7 @@ namespace Lua {
     }
     
     int Compiler::compileUnary(const UnaryExpr* expr) {
-        // 先编译操作数
+        // Compile operand first
         int rhs = compileExpr(expr->getRight());
         int dst = allocReg();
         
@@ -111,7 +111,7 @@ namespace Lua {
     }
     
     int Compiler::compileBinary(const BinaryExpr* expr) {
-        // 先编译左侧和右侧表达式
+        // Compile left and right expressions first
         int ra = compileExpr(expr->getLeft());
         int rb = compileExpr(expr->getRight());
         int dst = allocReg();
@@ -148,10 +148,10 @@ namespace Lua {
     }
     
     int Compiler::compileCall(const CallExpr* expr) {
-        // 编译被调用的函数或变量
+        // Compile the called function or variable
         int base = compileExpr(expr->getCallee());
         
-        // 编译参数
+        // Compile arguments
         int argCount = 0;
         for (const auto& arg : expr->getArguments()) {
             int reg = compileExpr(arg.get());
@@ -159,7 +159,7 @@ namespace Lua {
             argCount++;
         }
         
-        // 发出调用指令，指定参数数量
+        // Emit call instruction, specifying argument count
         emitInstruction(Instruction::createCALL(base, argCount + 1, 1));
         return base; // result in base
     }
@@ -186,7 +186,7 @@ namespace Lua {
     
     void Compiler::compileExprStmt(const ExprStmt* stmt) {
         int r = compileExpr(stmt->getExpression());
-        // 结果不再需要
+        // Result no longer needed
         nextReg = r; // reset reg pointer to allow reuse (simplistic)
     }
     

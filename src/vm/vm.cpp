@@ -130,7 +130,7 @@ namespace Lua {
                 break;
             case OpCode::RETURN:
                 op_return(i);
-                return false;  // 停止执行
+                return false;  // Stop execution
             default:
                 throw LuaException("Unimplemented opcode: " + std::to_string(static_cast<int>(op)));
         }
