@@ -3,7 +3,7 @@
 #include <unordered_map>
 
 namespace Lua {
-    // 关键字映射表
+    // Keyword mapping table
     static const std::unordered_map<std::string, TokenType> keywords = {
         {"and", TokenType::And},
         {"break", TokenType::Break},
@@ -35,21 +35,21 @@ namespace Lua {
     Token Lexer::nextToken() {
         skipWhitespace();
         
-        // 标记开始位置
+        // Mark start position
         start = current;
         
         if (isAtEnd()) return makeToken(TokenType::Eof);
         
         char c = advance();
         
-        // 标识符
+        // Identifier
         if (isalpha(c) || c == '_') return identifier();
         
-        // 数字
+        // Number
         if (isdigit(c)) return number();
         
         switch (c) {
-            // 单字符标记
+            // Single character tokens
             case '(': return makeToken(TokenType::LeftParen);
             case ')': return makeToken(TokenType::RightParen);
             case '{': return makeToken(TokenType::LeftBrace);
@@ -67,7 +67,7 @@ namespace Lua {
             case '^': return makeToken(TokenType::Caret);
             case '#': return makeToken(TokenType::Hash);
             
-            // 可能是双字符标记
+            // Possible double character tokens
             case '=':
                 return makeToken(match('=') ? TokenType::Equal : TokenType::Assign);
             case '<':
@@ -77,7 +77,7 @@ namespace Lua {
             case '~':
                 return makeToken(match('=') ? TokenType::NotEqual : TokenType::Error);
                 
-            // 点操作符 (., .., ...)
+            // Dot operator (., .., ...)
             case '.':
                 if (match('.')) {
                     if (match('.')) {
@@ -89,7 +89,7 @@ namespace Lua {
                     return makeToken(TokenType::Dot);
                 }
                 
-            // 字符串
+            // String
             case '"': return string();
             case '\'': return string();
                 
@@ -152,9 +152,9 @@ namespace Lua {
                     advance();
                     break;
                 case '-':
-                    // 检查是否是注释 (--...)
+                    // Check if it's a comment (--...)
                     if (peekNext() == '-') {
-                        // 注释一直到行尾
+                        // Comment until end of line
                         while (peek() != '\n' && !isAtEnd()) {
                             advance();
                         }
@@ -173,7 +173,7 @@ namespace Lua {
             advance();
         }
         
-        // 查找是否是关键字
+        // Check if it's a keyword
         std::string text = source.substr(start, current - start);
         auto it = keywords.find(text);
         TokenType type = (it != keywords.end()) ? it->second : TokenType::Name;
@@ -182,32 +182,32 @@ namespace Lua {
     }
     
     Token Lexer::number() {
-        // 整数部分
+        // Integer part
         while (isdigit(peek())) {
             advance();
         }
         
-        // 小数部分
+        // Decimal part
         if (peek() == '.' && isdigit(peekNext())) {
-            // 消费 '.'
+            // Consume '.'
             advance();
             
-            // 消费小数部分
+            // Consume decimal part
             while (isdigit(peek())) {
                 advance();
             }
         }
         
-        // 科学计数法
+        // Scientific notation
         if (peek() == 'e' || peek() == 'E') {
             advance();
             
-            // 可选符号
+            // Optional sign
             if (peek() == '+' || peek() == '-') {
                 advance();
             }
             
-            // 指数
+            // Exponent
             if (!isdigit(peek())) {
                 return errorToken("Invalid number: expected digits in exponent");
             }
@@ -217,32 +217,32 @@ namespace Lua {
             }
         }
         
-        // 解析数字
+        // Parse number
         Token token = makeToken(TokenType::Number);
         token.value.number = std::stod(token.lexeme);
         return token;
     }
     
     Token Lexer::string() {
-        char delimiter = source[start]; // 保存字符串定界符 (' 或 ")
+        char delimiter = source[start]; // Save string delimiter (' or ")
         
-        // 消费直到匹配的定界符
+        // Consume until matching delimiter
         while (peek() != delimiter && !isAtEnd()) {
             if (peek() == '\n') {
                 line++;
                 column = 0;
             }
             
-            // 处理转义序列
+            // Handle escape sequences
             if (peek() == '\\') {
-                advance(); // 消费反斜杠
+                advance(); // Consume backslash
                 
-                // 处理其他转义字符...
+                // Handle other escape characters...
                 if (peek() == 'n' || peek() == 't' || peek() == 'r' || peek() == '\\' || 
                     peek() == '\'' || peek() == '\"') {
                     advance();
                 } else {
-                    // 未处理的转义序列
+                    // Unhandled escape sequence
                 }
             } else {
                 advance();
@@ -253,10 +253,10 @@ namespace Lua {
             return errorToken("Unterminated string.");
         }
         
-        // 结束定界符
+        // Closing delimiter
         advance();
         
-        // 提取字符串内容 (不包括引号)
+        // Extract string content (excluding quotes)
         Str value = source.substr(start + 1, current - start - 2);
         Token token = makeToken(TokenType::String);
         token.value.string = new Str(value);

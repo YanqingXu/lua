@@ -18,16 +18,16 @@ namespace Lua {
             throw LuaException("Cannot execute non-Lua function");
         }
         
-        // 保存当前上下文
+        // Save current context
         auto oldFunction = currentFunction;
         auto oldCode = code;
         auto oldConstants = constants;
         auto oldPC = pc;
         
-        // 设置新上下文
+        // Set new context
         currentFunction = function;
         
-        // 获取函数的字节码和常量表
+        // Get function bytecode and constant table
         const auto& functionCode = function->getCode();
         code = const_cast<Vec<Instruction>*>(&functionCode);
         
@@ -36,31 +36,31 @@ namespace Lua {
         
         pc = 0;
         
-        // 执行函数
+        // Execute function
         Value result;
         
         try {
-            // 执行字节码
+            // Execute bytecode
             while (pc < code->size()) {
                 if (!runInstruction()) {
-                    break;  // 碰到return指令
+                    break;  // Hit return instruction
                 }
             }
             
-            // 默认返回nil
+            // Default return nil
             result = Value(nullptr);
         } catch (const std::exception& e) {
-            // 恢复旧上下文
+            // Restore old context
             currentFunction = oldFunction;
             code = oldCode;
             constants = oldConstants;
             pc = oldPC;
             
-            // 重新抛出异常
+            // Re-throw exception
             throw;
         }
         
-        // 恢复旧上下文
+        // Restore old context
         currentFunction = oldFunction;
         code = oldCode;
         constants = oldConstants;
@@ -70,10 +70,10 @@ namespace Lua {
     }
     
     bool VM::runInstruction() {
-        // 获取当前指令
+        // Get current instruction
         Instruction i = (*code)[pc++];
         
-        // 根据操作码分派
+        // Dispatch based on opcode
         OpCode op = i.getOpCode();
         
         switch (op) {
@@ -145,7 +145,7 @@ namespace Lua {
         return (*constants)[idx];
     }
     
-    // 指令实现
+    // Instruction implementations
     void VM::op_move(Instruction i) {
         u8 a = i.getA();
         u8 b = i.getB();
@@ -168,7 +168,7 @@ namespace Lua {
         state->set(a + 1, Value(b != 0));
         
         if (c != 0) {
-            pc++;  // 跳过下一条指令
+            pc++;  // Skip next instruction
         }
     }
     
@@ -302,7 +302,7 @@ namespace Lua {
         bool equal = (bval == cval);
         
         if (equal == (a != 0)) {
-            pc++;  // 跳过下一条指令
+            pc++;  // Skip next instruction
         }
     }
     
@@ -325,7 +325,7 @@ namespace Lua {
         }
         
         if (result == (a != 0)) {
-            pc++;  // 跳过下一条指令
+            pc++;  // Skip next instruction
         }
     }
     
@@ -348,7 +348,7 @@ namespace Lua {
         }
         
         if (result == (a != 0)) {
-            pc++;  // 跳过下一条指令
+            pc++;  // Skip next instruction
         }
     }
     
@@ -358,43 +358,43 @@ namespace Lua {
     }
     
     void VM::op_call(Instruction i) {
-        u8 a = i.getA();  // 函数寄存器
-        u8 b = i.getB();  // 参数数量+1，如果为0则表示使用从a+1到栈顶的所有值
-        u8 c = i.getC();  // 期望的返回值数量+1，如果为0表示所有返回值都需要
+        u8 a = i.getA();  // Function register
+        u8 b = i.getB();  // Number of arguments + 1, if 0 means use all values from a+1 to top
+        u8 c = i.getC();  // Expected number of return values + 1, if 0 means all return values needed
         
-        // 获取函数对象
+        // Get function object
         Value func = state->get(a + 1);
         
-        // 检查是否为函数
+        // Check if it's a function
         if (!func.isFunction()) {
             throw LuaException("attempt to call a non-function value");
         }
         
-        // 获取参数数量
+        // Get number of arguments
         int nargs = (b == 0) ? (state->getTop() - a) : (b - 1);
         
-        // 准备参数列表
+        // Prepare argument list
         Vec<Value> args;
         for (int i = 1; i <= nargs; ++i) {
             args.push_back(state->get(a + 1 + i));
         }
         
-        // 调用函数
+        // Call function
         try {
             Value result = state->call(func, args);
             
-            // 将结果放入a寄存器
+            // Put result in register a
             state->set(a + 1, result);
             
-            // 清理额外的栈空间(简化处理)
+            // Clean up extra stack space (simplified handling)
             if (state->getTop() > a + 1) {
-                // 保留一个返回值
+                // Keep one return value
                 for (int i = state->getTop(); i > a + 1; --i) {
                     state->pop();
                 }
             }
         } catch (const LuaException& e) {
-            throw; // 重新抛出异常
+            throw; // Re-throw exception
         }
     }
     
@@ -402,11 +402,11 @@ namespace Lua {
         u8 a = i.getA();
         u8 b = i.getB();
         
-        // b-1是要返回的值的数量，如果b=0，表示返回从a开始到栈顶的所有值
-        // 简化处理：我们目前只支持最多返回一个值
+        // b-1 is the number of values to return, if b=0, return all values from a to top
+        // Simplified handling: we currently only support returning at most one value
         if (b == 0 || b > 1) {
-            // 返回寄存器a中的值
-            // 实际应实现多返回值处理
+            // Return value in register a
+            // Should implement multi-return value handling in practice
         }
     }
 }

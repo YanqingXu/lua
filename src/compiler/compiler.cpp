@@ -36,9 +36,9 @@ namespace Lua {
     void Compiler::endScope() {
         scopeDepth--;
         
-        // 移除当前作用域的局部变量
+        // Remove local variables from current scope
         while (!locals.empty() && locals.back().depth > scopeDepth) {
-            // 如果变量被捕获，则发出关闭上值的指令
+            // If variable is captured, emit close upvalue instruction
             if (locals.back().isCaptured) {
                 emitInstruction(Instruction::createCLOSE(locals.back().slot));
             } else {
@@ -49,14 +49,14 @@ namespace Lua {
     }
     
     int Compiler::resolveLocal(const Str& name) {
-        // 从后向前搜索，查找变量名称
+        // Search backwards to find variable name
         for (int i = locals.size() - 1; i >= 0; i--) {
             if (locals[i].name == name) {
                 return i;
             }
         }
         
-        return -1; // 未找到
+        return -1; // Not found
     }
     
     int Compiler::compileLiteral(const LiteralExpr* expr) {
@@ -191,15 +191,15 @@ namespace Lua {
     }
     
     void Compiler::compileLocalStmt(const LocalStmt* stmt) {
-        // 为局部变量分配寄存器槽
+        // Allocate register slot for local variable
         int slot = allocReg();
-        // 先将变量记录到 locals，方便之后 endScope 关闭
+        // Record variable to locals first for later endScope cleanup
         locals.emplace_back(stmt->getName(), scopeDepth, slot);
 
         if (stmt->getInitializer() != nullptr) {
             int r = compileExpr(stmt->getInitializer());
             emitInstruction(Instruction::createMOVE(slot, r));
-            freeReg(); // 释放临时寄存器 r
+            freeReg(); // Release temporary register r
         } else {
             emitInstruction(Instruction::createLOADNIL(slot));
         }
@@ -208,7 +208,7 @@ namespace Lua {
     void Compiler::compileBlockStmt(const BlockStmt* stmt) {
         beginScope();
         
-        // 编译块中的每个语句
+        // Compile each statement in the block
         for (const auto& statement : stmt->getStatements()) {
             compileStmt(statement.get());
         }
@@ -236,18 +236,18 @@ namespace Lua {
     
     Ptr<Function> Compiler::compile(const Vec<UPtr<Stmt>>& statements) {
         try {
-            // 编译每个语句
+            // Compile each statement
             for (const auto& stmt : statements) {
                 compileStmt(stmt.get());
             }
             
-            // 添加返回指令
+            // Add return instruction
             emitInstruction(Instruction::createRETURN(0, 0));
             
-            // 创建函数对象
+            // Create function object
             return Function::createLua(code, constants);
         } catch (const LuaException& e) {
-            // 编译错误，返回nullptr
+            // Compilation error, return nullptr
             return nullptr;
         }
     }

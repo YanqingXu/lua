@@ -5,13 +5,13 @@
 #include "value.hpp"
 
 namespace Lua {
-    // 前向声明
+    // Forward declaration
     class State;
     
-    // 原生函数类型
+    // Native function type
     using NativeFn = Value(*)(State* state, int nargs);
     
-    // 函数类
+    // Function class
     class Function {
     public:
         enum class Type { Lua, Native };
@@ -19,7 +19,7 @@ namespace Lua {
     private:
         Type type;
         
-        // Lua函数数据
+        // Lua function data
         struct LuaData {
             Ptr<Vec<Instruction>> code;
             Vec<Value> constants;
@@ -27,23 +27,23 @@ namespace Lua {
             u8 nlocals;
             u8 nupvalues;
             
-            // 添加默认构造函数
+            // Add default constructor
             LuaData() : code(nullptr), constants{}, nparams(0), nlocals(0), nupvalues(0) {}
         } lua;
         
-        // 原生函数数据
+        // Native function data
         struct NativeData {
             NativeFn fn;
             
-            // 添加默认构造函数
+            // Add default constructor
             NativeData() : fn(nullptr) {}
         } native;
         
     public:
-        // 构造函数
+        // Constructor
         explicit Function(Type type);
         
-        // 创建Lua函数
+        // Create Lua function
         static Ptr<Function> createLua(
             Ptr<Vec<Instruction>> code, 
             const Vec<Value>& constants,
@@ -52,28 +52,28 @@ namespace Lua {
             u8 nupvalues = 0
         );
         
-        // 创建原生函数
+        // Create native function
         static Ptr<Function> createNative(NativeFn fn);
         
-        // 获取函数类型
+        // Get function type
         Type getType() const { return type; }
         
-        // 获取Lua函数的字节码
+        // Get Lua function bytecode
         const Vec<Instruction>& getCode() const;
         
-        // 获取常量表
+        // Get constant table
         const Vec<Value>& getConstants() const;
         
-        // 获取原生函数
+        // Get native function
         NativeFn getNative() const;
         
-        // 获取参数数量
+        // Get parameter count
         u8 getParamCount() const { return type == Type::Lua ? lua.nparams : 0; }
         
-        // 获取局部变量数量
+        // Get local variable count
         u8 getLocalCount() const { return type == Type::Lua ? lua.nlocals : 0; }
         
-        // 获取上值数量
+        // Get upvalue count
         u8 getUpvalueCount() const { return type == Type::Lua ? lua.nupvalues : 0; }
     };
 }

@@ -5,28 +5,28 @@
 #include <vector>
 
 namespace Lua {
-    // 标记类型
+    // Token types
     enum class TokenType {
-        // 关键字
+        // Keywords
         And, Break, Do, Else, Elseif, End, False, For, Function,
         If, In, Local, Nil, Not, Or, Repeat, Return, Then, True, Until, While,
-        // 符号
+        // Symbols
         Plus, Minus, Star, Slash, Percent, Caret, Hash, Equal, LessEqual,
         GreaterEqual, Less, Greater, NotEqual, Assign, LeftParen, RightParen,
         LeftBrace, RightBrace, LeftBracket, RightBracket, Semicolon, Colon,
         Comma, Dot, DotDot, DotDotDot,
-        // 其他
+        // Others
         Number, String, Name, Eof, Error
     };
     
-    // 标记结构
+    // Token structure
     struct Token {
         TokenType type;
         Str lexeme;
         int line;
         int column;
         
-        // 值 (用于数字和字符串)
+        // Value (for numbers and strings)
         union {
             LuaNumber number;
             Str* string;
@@ -42,7 +42,7 @@ namespace Lua {
         }
     };
     
-    // 词法分析器
+    // Lexer
     class Lexer {
     private:
         Str source;
@@ -54,31 +54,31 @@ namespace Lua {
     public:
         Lexer(const Str& source);
         
-        // 获取下一个标记
+        // Get next token
         Token nextToken();
         
     private:
-        // 辅助方法
+        // Helper methods
         bool isAtEnd() const;
         char advance();
         char peek() const;
         char peekNext() const;
         bool match(char expected);
         
-        // 创建标记
+        // Create tokens
         Token makeToken(TokenType type);
         Token errorToken(const Str& message);
         
-        // 跳过空白字符和注释
+        // Skip whitespace and comments
         void skipWhitespace();
         
-        // 标识符和关键字
+        // Identifiers and keywords
         Token identifier();
         
-        // 数字
+        // Numbers
         Token number();
         
-        // 字符串
+        // Strings
         Token string();
     };
 }

@@ -2,7 +2,7 @@
 
 namespace Lua {
     Parser::Parser(const Str& source) : lexer(source), hadError(false) {
-        // 初始化后立即获取第一个标记
+        // Initialize and immediately get the first token
         advance();
     }
     
@@ -10,7 +10,7 @@ namespace Lua {
         previous = current;
         current = lexer.nextToken();
         
-        // 跳过错误标记
+        // Skip error tokens
         while (current.type == TokenType::Error) {
             error(current.lexeme);
             current = lexer.nextToken();
@@ -45,16 +45,16 @@ namespace Lua {
         }
         
         error(message);
-        return previous; // 错误恢复
+        return previous; // Error recovery
     }
     
     void Parser::error(const Str& message) {
         hadError = true;
-        // 这里可以添加更详细的错误处理和报告
+        // More detailed error handling and reporting can be added here
     }
     
     void Parser::synchronize() {
-        // 错误恢复：跳转到下一个语句
+        // Error recovery: jump to next statement
         advance();
         
         while (!check(TokenType::Eof)) {
@@ -138,7 +138,7 @@ namespace Lua {
         if (match(TokenType::Name)) {
             auto expr = std::make_unique<VariableExpr>(previous.lexeme);
             
-            // 检查是否是函数调用
+            // Check if it's a function call
             if (check(TokenType::LeftParen)) {
                 return finishCall(std::move(expr));
             }
@@ -156,7 +156,7 @@ namespace Lua {
         return nullptr;
     }
     
-    // 添加新方法来处理函数调用
+    // Add new method to handle function calls
     std::unique_ptr<Expr> Parser::finishCall(std::unique_ptr<Expr> callee) {
         consume(TokenType::LeftParen, "Expect '(' for function call.");
         
@@ -183,7 +183,7 @@ namespace Lua {
     
     UPtr<Stmt> Parser::expressionStatement() {
         auto expr = expression();
-        // 在Lua中分号是可选的
+        // Semicolon is optional in Lua
         match(TokenType::Semicolon);
         return std::make_unique<ExprStmt>(std::move(expr));
     }
@@ -196,7 +196,7 @@ namespace Lua {
             initializer = expression();
         }
         
-        // 在Lua中分号是可选的
+        // Semicolon is optional in Lua
         match(TokenType::Semicolon);
         
         return std::make_unique<LocalStmt>(name.lexeme, std::move(initializer));

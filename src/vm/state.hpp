@@ -16,13 +16,13 @@ namespace Lua {
         State();
         ~State();
         
-        // 栈操作
+        // Stack operations
         void push(const Value& value);
         Value pop();
         Value& get(int idx);
         void set(int idx, const Value& value);
         
-        // 检查栈元素类型
+        // Check stack element types
         bool isNil(int idx) const;
         bool isBoolean(int idx) const;
         bool isNumber(int idx) const;
@@ -30,21 +30,21 @@ namespace Lua {
         bool isTable(int idx) const;
         bool isFunction(int idx) const;
         
-        // 转换栈元素
+        // Convert stack elements
         LuaBoolean toBoolean(int idx) const;
         LuaNumber toNumber(int idx) const;
         Str toString(int idx) const;
         Ptr<Table> toTable(int idx);
         Ptr<Function> toFunction(int idx);
         
-        // 全局变量操作
+        // Global variable operations
         void setGlobal(const Str& name, const Value& value);
         Value getGlobal(const Str& name);
         
-        // 获取栈大小
+        // Get stack size
         int getTop() const { return top; }
         
-        // 调用函数
+        // Call function
         Value call(const Value& func, const Vec<Value>& args);
         
         // Code execution

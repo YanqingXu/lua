@@ -11,12 +11,12 @@
 
 namespace Lua {
     State::State() : top(0) {
-        // 初始化栈空间
+        // Initialize stack space
         stack.resize(LUAI_MAXSTACK);
     }
     
     State::~State() {
-        // 清理资源
+        // Clean up resources
     }
     
     void State::push(const Value& value) {
@@ -34,20 +34,20 @@ namespace Lua {
     }
     
     Value& State::get(int idx) {
-        static Value nil;  // 静态nil值用于无效索引的返回
+        static Value nil;  // Static nil value for invalid index returns
         
-        // 处理绝对索引和相对索引
+        // Handle absolute and relative indices
         int abs_idx;
         if (idx > 0) {
-            abs_idx = idx - 1;  // 将1-based转为0-based
+            abs_idx = idx - 1;  // Convert 1-based to 0-based
         } else if (idx < 0) {
-            abs_idx = top + idx;  // 相对于栈顶的索引
+            abs_idx = top + idx;  // Index relative to stack top
         } else {
-            // 索引为0是无效的
+            // Index 0 is invalid
             return nil;
         }
         
-        // 检查索引是否在范围内
+        // Check if index is within range
         if (abs_idx < 0 || abs_idx >= top) {
             return nil;
         }
@@ -56,23 +56,23 @@ namespace Lua {
     }
     
     void State::set(int idx, const Value& value) {
-        // 处理绝对索引和相对索引
+        // Handle absolute and relative indices
         int abs_idx;
         if (idx > 0) {
-            abs_idx = idx - 1;  // 将1-based转为0-based
+            abs_idx = idx - 1;  // Convert 1-based to 0-based
         } else if (idx < 0) {
-            abs_idx = top + idx;  // 相对于栈顶的索引
+            abs_idx = top + idx;  // Index relative to stack top
         } else {
-            // 索引为0是无效的
+            // Index 0 is invalid
             return;
         }
         
-        // 自动扩展栈以容纳新的索引
+        // Automatically extend stack to accommodate new index
         if (abs_idx < 0) {
             return; // invalid
         }
         if (abs_idx >= top) {
-            // 需要将 top 扩展到 abs_idx+1
+            // Need to extend top to abs_idx+1
             if (abs_idx >= LUAI_MAXSTACK) {
                 throw LuaException("stack overflow");
             }
@@ -81,7 +81,7 @@ namespace Lua {
         stack[abs_idx] = value;
     }
     
-    // 类型检查函数
+    // Type checking functions
     bool State::isNil(int idx) const {
         if (idx <= 0 || idx > top) return true;
         return stack[idx - 1].isNil();
@@ -112,7 +112,7 @@ namespace Lua {
         return stack[idx - 1].isFunction();
     }
     
-    // 类型转换函数
+    // Type conversion functions
     LuaBoolean State::toBoolean(int idx) const {
         if (idx <= 0 || idx > top) return false;
         return stack[idx - 1].asBoolean();
@@ -138,7 +138,7 @@ namespace Lua {
         return stack[idx - 1].asFunction();
     }
     
-    // 全局变量操作
+    // Global variable operations
     void State::setGlobal(const Str& name, const Value& value) {
         globals[name] = value;
     }
@@ -151,7 +151,7 @@ namespace Lua {
         return Value(nullptr);  // nil
     }
     
-    // 函数调用
+    // Function call
     Value State::call(const Value& func, const Vec<Value>& args) {
         if (!func.isFunction()) {
             throw LuaException("attempt to call a non-function value");
@@ -159,48 +159,48 @@ namespace Lua {
         
         auto function = func.asFunction();
         
-        // 原生函数调用
+        // Native function call
         if (function->getType() == Function::Type::Native) {
             auto nativeFn = function->getNative();
             if (!nativeFn) {
                 throw LuaException("attempt to call a nil value");
             }
             
-            // 保存当前栈顶
+            // Save current stack top
             int oldTop = top;
             
-            // 将参数压入栈
+            // Push arguments onto stack
             for (const auto& arg : args) {
                 push(arg);
             }
             
-            // 调用函数
+            // Call function
             Value result = nativeFn(this, args.size());
             
-            // 恢复栈顶
+            // Restore stack top
             top = oldTop;
             
             return result;
         }
         
-        // 对于Lua函数的调用，在实际的VM中实现
-        // 简化版本中，我们暂时不实现完整的Lua函数调用
+        // For Lua function calls, implement in actual VM
+        // In simplified version, we don't implement complete Lua function calls
         throw LuaException("Lua function call not implemented");
     }
     
-    // 执行字符串中的Lua代码
+    // Execute Lua code from string
     bool State::doString(const Str& code) {
         try {
-            // 1. 使用我们的语法分析器解析代码
+            // 1. Parse code using our parser
             Parser parser(code);
             auto statements = parser.parse();
             
-            // 检查语法分析阶段是否有错误
+            // Check if there are errors in parsing phase
             if (parser.hasError()) {
                 return false;
             }
             
-            // 2. 使用编译器生成字节码
+            // 2. Generate bytecode using compiler
             Compiler compiler;
             Ptr<Function> function = compiler.compile(statements);
             
@@ -208,39 +208,39 @@ namespace Lua {
                 return false;
             }
             
-            // 3. 使用虚拟机执行字节码
+            // 3. Execute bytecode using virtual machine
             VM vm(this);
             vm.execute(function);
             
             return true;
         } catch (const LuaException& e) {
-            // 可以在这里处理或记录错误
+            // Can handle or log errors here
             return false;
         } catch (const std::exception& e) {
             return false;
         }
     }
     
-    // 从文件加载并执行Lua代码
+    // Load and execute Lua code from file
     bool State::doFile(const Str& filename) {
         try {
-            // 1. 打开指定文件
+            // 1. Open specified file
             std::ifstream file(filename);
             if (!file.is_open()) {
                 return false;
             }
             
-            // 2. 读取文件内容到字符串
+            // 2. Read file content to string
             std::stringstream buffer;
             buffer << file.rdbuf();
             
-            // 3. 关闭文件
+            // 3. Close file
             file.close();
             
-            // 4. 调用doString执行该字符串
+            // 4. Call doString to execute the string
             return doString(buffer.str());
         } catch (const std::exception& e) {
-            // 文件操作可能会抛出各种异常
+            // File operations may throw various exceptions
             return false;
         }
     }

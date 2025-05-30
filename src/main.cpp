@@ -13,7 +13,7 @@
 
 using namespace Lua;
 
-// 读取文件内容
+// Read file content
 std::string readFile(const std::string& path) {
     std::ifstream file(path);
     if (!file) {
@@ -25,7 +25,7 @@ std::string readFile(const std::string& path) {
     return buffer.str();
 }
 
-// 测试词法分析器
+// Test lexer
 void testLexer(const std::string& source) {
     std::cout << "Lexer Test:" << std::endl;
     std::cout << "Source: " << source << std::endl;
@@ -40,7 +40,7 @@ void testLexer(const std::string& source) {
     } while (token.type != TokenType::Eof && token.type != TokenType::Error);
 }
 
-// 测试Lua值
+// Test Lua values
 void testValues() {
     std::cout << "\nValue Test:" << std::endl;
     
@@ -54,7 +54,7 @@ void testValues() {
     std::cout << "number: " << number.toString() << std::endl;
     std::cout << "string: " << string.toString() << std::endl;
     
-    // 测试表
+    // Test table
     auto table = make_ptr<Table>();
     table->set(Value(1), Value("one"));
     table->set(Value(2), Value("two"));
@@ -67,16 +67,16 @@ void testValues() {
     std::cout << "table['name']: " << table->get(Value("name")).toString() << std::endl;
 }
 
-// 测试状态
+// Test state
 void testState() {
     std::cout << "\nState Test:" << std::endl;
     
     State state;
     
-    // 注册基础库
+    // Register base library
     registerBaseLib(&state);
     
-    // 测试全局变量
+    // Test global variables
     state.setGlobal("x", Value(10));
     state.setGlobal("y", Value(20));
     state.setGlobal("z", Value("Lua"));
@@ -85,7 +85,7 @@ void testState() {
     std::cout << "y: " << state.getGlobal("y").toString() << std::endl;
     std::cout << "z: " << state.getGlobal("z").toString() << std::endl;
     
-    // 测试栈操作
+    // Test stack operations
     state.push(Value(1));
     state.push(Value(2));
     state.push(Value(3));
@@ -95,7 +95,7 @@ void testState() {
     std::cout << "Stack[2]: " << state.get(2).toString() << std::endl;
     std::cout << "Stack[3]: " << state.get(3).toString() << std::endl;
     
-    // 调用原生函数
+    // Call native function
     Value printFn = state.getGlobal("print");
     if (printFn.isFunction()) {
         Vec<Value> args;
@@ -104,14 +104,14 @@ void testState() {
     }
 }
 
-// 测试执行lua代码
+// Test executing lua code
 void testExecute() {
     std::cout << "\nExecute Test:" << std::endl;
     
     State state;
     registerBaseLib(&state);
     
-    // 执行简单的Lua代码
+    // Execute simple Lua code
     state.doString("print('Hello from Lua!')");
 }
 
@@ -119,16 +119,12 @@ int main(int argc, char** argv) {
     try {
         std::cout << LUA_VERSION << " " << LUA_COPYRIGHT << std::endl;
         
-        // 测试词法分析器
         testLexer("local x = 10 + 20");
-        
-        // 测试值
+    
         testValues();
         
-        // 测试状态
         testState();
         
-        // 测试执行Lua代码
         testExecute();
         
         return 0;

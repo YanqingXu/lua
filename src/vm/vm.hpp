@@ -11,22 +11,22 @@ namespace Lua {
         Ptr<Function> currentFunction;
         Vec<Instruction>* code;
         Vec<Value>* constants;
-        size_t pc; // 程序计数器
+        size_t pc; // Program counter
         
     public:
         explicit VM(State* state);
         
-        // 执行函数
+        // Execute function
         Value execute(Ptr<Function> function);
         
     private:
-        // 运行一条指令
+        // Run one instruction
         bool runInstruction();
         
-        // 获取常量
+        // Get constant
         Value getConstant(u32 idx) const;
         
-        // 处理各种操作码
+        // Handle various opcodes
         void op_move(Instruction i);
         void op_loadk(Instruction i);
         void op_loadbool(Instruction i);

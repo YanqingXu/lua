@@ -43,7 +43,7 @@ namespace Lua {
     template<typename K, typename V>
     using HashMap = std::unordered_map<K, V>;
 
-    // 其他类型工具
+    // Other type utilities
     template<typename... Types>
     using Var = std::variant<Types...>;
 

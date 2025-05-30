@@ -6,12 +6,12 @@
 #include "../common/opcodes.hpp"
 
 namespace Lua {
-    // 本地变量
+    // Local variable
     struct Local {
         Str name;
         int depth;
         bool isCaptured;
-        int slot;    // 寄存器索引
+        int slot;    // Register index
         
         Local(const Str& name, int depth, int slot)
             : name(name), depth(depth), isCaptured(false), slot(slot) {}
@@ -29,25 +29,25 @@ namespace Lua {
     class Stmt;
 
     
-    // 编译器类
+    // Compiler class
     class Compiler {
     private:
-        // 当前作用域深度
+        // Current scope depth
         int scopeDepth;
         
-        // 局部变量
+        // Local variables
         Vec<Local> locals;
         
-        // 常量表
+        // Constant table
         Vec<Value> constants;
         
-        // 字节码
+        // Bytecode
         Ptr<Vec<Instruction>> code;
         
-        // 当前块的跳转指令位置
+        // Jump instruction positions for current block
         std::vector<int> breaks;
         
-        // 编译表达式
+        // Compile expressions
         int compileExpr(const Expr* expr);
         int compileLiteral(const LiteralExpr* expr);
         int compileVariable(const VariableExpr* expr);
@@ -55,19 +55,19 @@ namespace Lua {
         int compileBinary(const BinaryExpr* expr);
         int compileCall(const CallExpr* expr);
         
-        // 编译语句
+        // Compile statements
         void compileStmt(const Stmt* stmt);
         void compileExprStmt(const ExprStmt* stmt);
         void compileBlockStmt(const BlockStmt* stmt);
         void compileLocalStmt(const LocalStmt* stmt);
         
-        // 辅助方法
+        // Helper methods
         int addConstant(const Value& value);
         void emitInstruction(const Instruction& instr);
         int emitJump();
         void patchJump(int from);
         
-        // 寄存器管理
+        // Register management
         int nextReg = 0;
         int allocReg() { return nextReg++; }
         void freeReg() { if (nextReg>0) --nextReg; }
@@ -79,7 +79,7 @@ namespace Lua {
     public:
         Compiler();
         
-        // 编译AST，生成函数对象
+        // Compile AST, generate function object
         Ptr<Function> compile(const Vec<UPtr<Stmt>>& statements);
     };
 }

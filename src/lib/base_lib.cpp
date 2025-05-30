@@ -4,7 +4,7 @@
 
 namespace Lua {
     void registerBaseLib(State* state) {
-        // 注册基础库函数
+        // Register base library functions
         state->setGlobal("print", Function::createNative(print));
         state->setGlobal("tonumber", Function::createNative(tonumber));
         state->setGlobal("tostring", Function::createNative(tostring));
@@ -21,7 +21,7 @@ namespace Lua {
             std::cout << state->toString(index);
         }
         std::cout << std::endl;
-        return Value(nullptr); // 返回nil
+        return Value(nullptr); // Return nil
     }
     
     Value tonumber(State* state, int nargs) {
@@ -35,11 +35,11 @@ namespace Lua {
                 double num = std::stod(val.asString());
                 return Value(num);
             } catch (...) {
-                // 转换失败
+                // Conversion failed
             }
         }
         
-        return Value(nullptr); // 无法转换，返回nil
+        return Value(nullptr); // Cannot convert, return nil
     }
     
     Value tostring(State* state, int nargs) {

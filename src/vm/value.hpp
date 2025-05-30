@@ -3,15 +3,15 @@
 #include "../types.hpp"
 #include <variant>
 #include <iostream>
-#include <functional>   // 用于std::less
-#include <cmath>        // 用于浮点数操作
+#include <functional>   // For std::less
+#include <cmath>        // For floating point operations
 
 namespace Lua {
-    // 前向声明
+    // Forward declarations
     class Table;
     class Function;
     
-    // Lua值类型
+    // Lua value types
     enum class ValueType {
         Nil,
         Boolean,
@@ -21,10 +21,10 @@ namespace Lua {
         Function
     };
     
-    // Lua值
+    // Lua value
     class Value {
     private:
-        // 使用std::variant来存储不同类型的值
+        // Use std::variant to store different types of values
         using ValueVariant = std::variant<
             std::monostate,      // Nil
             LuaBoolean,          // Boolean
@@ -37,31 +37,31 @@ namespace Lua {
         ValueVariant data;
         
     public:
-        // 构造函数
+        // Constructors
         Value() : data(std::monostate{}) {}
         Value(std::nullptr_t) : data(std::monostate{}) {}
         Value(LuaBoolean val) : data(val) {}
         Value(LuaNumber val) : data(val) {}
-        Value(i32 val) : data(static_cast<LuaNumber>(val)) {}  // 接受32位整数
-        Value(i64 val) : data(static_cast<LuaNumber>(val)) {}  // 接受64位整数
+        Value(i32 val) : data(static_cast<LuaNumber>(val)) {}  // Accept 32-bit integer
+        Value(i64 val) : data(static_cast<LuaNumber>(val)) {}  // Accept 64-bit integer
         Value(const Str& val) : data(make_ptr<Str>(val)) {}
         Value(const char* val) : data(make_ptr<Str>(val)) {}
         Value(Ptr<Table> val) : data(val) {}
         Value(Ptr<Function> val) : data(val) {}
         
-        // 复制构造函数
+        // Copy constructor
         Value(const Value& other) = default;
         
-        // 移动构造函数
+        // Move constructor
         Value(Value&& other) noexcept = default;
         
-        // 复制赋值运算符
+        // Copy assignment operator
         Value& operator=(const Value& other) = default;
         
-        // 移动赋值运算符
+        // Move assignment operator
         Value& operator=(Value&& other) noexcept = default;
         
-        // 类型检查
+        // Type checking
         ValueType type() const;
         bool isNil() const { return type() == ValueType::Nil; }
         bool isBoolean() const { return type() == ValueType::Boolean; }
@@ -70,31 +70,31 @@ namespace Lua {
         bool isTable() const { return type() == ValueType::Table; }
         bool isFunction() const { return type() == ValueType::Function; }
         
-        // 获取值
+        // Get values
         LuaBoolean asBoolean() const;
         LuaNumber asNumber() const;
         const Str& asString() const;
         Ptr<Table> asTable() const;
         Ptr<Function> asFunction() const;
         
-        // 转换为字符串用于打印
+        // Convert to string for printing
         Str toString() const;
         
-        // 相等比较
+        // Equality comparison
         bool operator==(const Value& other) const;
         bool operator!=(const Value& other) const { return !(*this == other); }
         
-        // 小于比较，用于map排序
+        // Less than comparison, for map sorting
         bool operator<(const Value& other) const {
-            // 首先按类型排序
+            // First sort by type
             if (type() != other.type()) {
                 return static_cast<int>(type()) < static_cast<int>(other.type());
             }
             
-            // 同类型比较
+            // Same type comparison
             switch (type()) {
                 case ValueType::Nil:
-                    return false; // nil不小于nil
+                    return false; // nil is not less than nil
                 case ValueType::Boolean:
                     return asBoolean() < other.asBoolean();
                 case ValueType::Number:
@@ -103,8 +103,8 @@ namespace Lua {
                     return asString() < other.asString();
                 case ValueType::Table:
                 case ValueType::Function:
-                    // 比较指针地址
-                    // 使用std::less确保指针比较的安全性
+                    // Compare pointer addresses
+                    // Use std::less to ensure pointer comparison safety
                     return std::less<void*>()(asTable().get(), other.asTable().get());
                 default:
                     return false;

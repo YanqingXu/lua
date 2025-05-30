@@ -1,5 +1,5 @@
 #include "function.hpp"
-#include <cmath>        // 用于std::floor
+#include <cmath>        // For std::floor
 
 namespace Lua {
     Function::Function(Type type) : type(type) {
@@ -20,22 +20,22 @@ namespace Lua {
         u8 nlocals,
         u8 nupvalues
     ) {
-        // 创建一个新的Function对象
+        // Create a new Function object
         Ptr<Function> func = make_ptr<Function>(Type::Lua);
         
-        // 设置代码
+        // Set code
         func->lua.code = code;
         
-        // 小心处理constants，避免使用直接赋值
-        // 先预留空间
+        // Handle constants carefully, avoid using direct assignment
+        // Reserve space first
         func->lua.constants.reserve(constants.size());
         
-        // 逐个添加元素而不是整体赋值
+        // Add elements one by one instead of bulk assignment
         for (const auto& value : constants) {
             func->lua.constants.push_back(value);
         }
         
-        // 遣过常规的向量操作
+        // Through regular vector operations
         func->lua.nparams = nparams;
         func->lua.nlocals = nlocals;
         func->lua.nupvalues = nupvalues;

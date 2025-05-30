@@ -8,24 +8,24 @@
 #include <vector>
 
 namespace Lua {
-    // 表达式类型
+    // Expression types
     enum class ExprType {
-        Binary,     // 二元表达式
-        Unary,      // 一元表达式
-        Literal,    // 字面量
-        Variable,   // 变量
-        Call,       // 函数调用
-        Table       // 表构造
+        Binary,     // Binary expression
+        Unary,      // Unary expression
+        Literal,    // Literal
+        Variable,   // Variable
+        Call,       // Function call
+        Table       // Table construction
     };
     
-    // 表达式基类
+    // Expression base class
     class Expr {
     public:
         virtual ~Expr() = default;
         virtual ExprType getType() const = 0;
     };
     
-    // 字面量表达式 (数字、字符串、布尔值、nil)
+    // Literal expression (numbers, strings, booleans, nil)
     class LiteralExpr : public Expr {
     private:
         Value value;
@@ -37,7 +37,7 @@ namespace Lua {
         const Value& getValue() const { return value; }
     };
     
-    // 变量表达式
+    // Variable expression
     class VariableExpr : public Expr {
     private:
         Str name;
@@ -49,7 +49,7 @@ namespace Lua {
         const Str& getName() const { return name; }
     };
     
-    // 一元表达式
+    // Unary expression
     class UnaryExpr : public Expr {
     private:
         TokenType op;
@@ -64,7 +64,7 @@ namespace Lua {
         const Expr* getRight() const { return right.get(); }
     };
     
-    // 二元表达式
+    // Binary expression
     class BinaryExpr : public Expr {
     private:
         UPtr<Expr> left;
@@ -81,7 +81,7 @@ namespace Lua {
         const Expr* getRight() const { return right.get(); }
     };
     
-    // 函数调用表达式
+    // Function call expression
     class CallExpr : public Expr {
     private:
         UPtr<Expr> callee;
@@ -96,25 +96,25 @@ namespace Lua {
         const Vec<UPtr<Expr>>& getArguments() const { return arguments; }
     };
     
-    // 语句类型
+    // Statement types
     enum class StmtType {
-        Expression,  // 表达式语句
-        Block,       // 块语句
-        If,          // if语句
-        While,       // while循环
-        Function,    // 函数定义
-        Return,      // return语句
-        Local        // 局部变量声明
+        Expression,  // Expression statement
+        Block,       // Block statement
+        If,          // if statement
+        While,       // while loop
+        Function,    // Function definition
+        Return,      // return statement
+        Local        // Local variable declaration
     };
     
-    // 语句基类
+    // Statement base class
     class Stmt {
     public:
         virtual ~Stmt() = default;
         virtual StmtType getType() const = 0;
     };
     
-    // 表达式语句
+    // Expression statement
     class ExprStmt : public Stmt {
     private:
         UPtr<Expr> expression;
@@ -127,7 +127,7 @@ namespace Lua {
         const Expr* getExpression() const { return expression.get(); }
     };
     
-    // 块语句 (多条语句组成的块)
+    // Block statement (block composed of multiple statements)
     class BlockStmt : public Stmt {
     private:
         Vec<UPtr<Stmt>> statements;
@@ -140,7 +140,7 @@ namespace Lua {
         const Vec<UPtr<Stmt>>& getStatements() const { return statements; }
     };
     
-    // 局部变量声明语句
+    // Local variable declaration statement
     class LocalStmt : public Stmt {
     private:
         Str name;
@@ -155,7 +155,7 @@ namespace Lua {
         const Expr* getInitializer() const { return initializer.get(); }
     };
     
-    // 语法分析器类
+    // Parser class
     class Parser {
     private:
         Lexer lexer;
@@ -163,7 +163,7 @@ namespace Lua {
         Token previous;
         bool hadError;
         
-        // 辅助方法
+        // Helper methods
         void advance();
         bool check(TokenType type) const;
         bool match(TokenType type);
@@ -172,7 +172,7 @@ namespace Lua {
         void error(const Str& message);
         void synchronize();
         
-        // 解析表达式
+        // Parse expressions
         UPtr<Expr> expression();
         UPtr<Expr> simpleExpression();
         UPtr<Expr> term();
@@ -180,7 +180,7 @@ namespace Lua {
         UPtr<Expr> primary();
         UPtr<Expr> finishCall(UPtr<Expr> callee);
         
-        // 解析语句
+        // Parse statements
         UPtr<Stmt> statement();
         UPtr<Stmt> expressionStatement();
         UPtr<Stmt> localDeclaration();
@@ -188,10 +188,10 @@ namespace Lua {
     public:
         explicit Parser(const Str& source);
         
-        // 解析整个程序
+        // Parse entire program
         Vec<UPtr<Stmt>> parse();
         
-        // 检查是否有错误
+        // Check if there are errors
         bool hasError() const { return hadError; }
     };
 }

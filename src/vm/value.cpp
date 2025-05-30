@@ -11,7 +11,7 @@ namespace Lua {
         if (std::holds_alternative<Ptr<Str>>(data)) return ValueType::String;
         if (std::holds_alternative<Ptr<Table>>(data)) return ValueType::Table;
         if (std::holds_alternative<Ptr<Function>>(data)) return ValueType::Function;
-        return ValueType::Nil; // 默认情况，不应该到达这里
+        return ValueType::Nil; // Default case, should not reach here
     }
     
     LuaBoolean Value::asBoolean() const {
@@ -19,7 +19,7 @@ namespace Lua {
             return std::get<LuaBoolean>(data);
         }
         
-        // 在Lua中，只有nil和false为假，其他值都为真
+        // In Lua, only nil and false are falsy, all other values are truthy
         return !isNil();
     }
     
@@ -28,12 +28,12 @@ namespace Lua {
             return std::get<LuaNumber>(data);
         }
         
-        // 可以添加从字符串到数字的转换
+        // Can add string to number conversion
         if (isString()) {
             try {
                 return std::stod(asString());
             } catch (...) {
-                // 转换失败
+                // Conversion failed
             }
         }
         
@@ -87,9 +87,9 @@ namespace Lua {
     }
     
     bool Value::operator==(const Value& other) const {
-        // 类型不同，直接不相等（除非是数字和字符串可以转换）
+        // Different types are not equal (unless number and string can be converted)
         if (type() != other.type()) {
-            // 特殊情况：数字和可转为数字的字符串比较
+            // Special case: number and convertible string comparison
             if (isNumber() && other.isString()) {
                 try {
                     double num = std::stod(other.asString());
@@ -109,10 +109,10 @@ namespace Lua {
             return false;
         }
         
-        // 同类型比较
+        // Same type comparison
         switch (type()) {
             case ValueType::Nil:
-                return true; // nil始终等于nil
+                return true; // nil is always equal to nil
             case ValueType::Boolean:
                 return std::get<LuaBoolean>(data) == std::get<LuaBoolean>(other.data);
             case ValueType::Number:
@@ -120,9 +120,9 @@ namespace Lua {
             case ValueType::String:
                 return *std::get<Ptr<Str>>(data) == *std::get<Ptr<Str>>(other.data);
             case ValueType::Table:
-                return std::get<Ptr<Table>>(data) == std::get<Ptr<Table>>(other.data); // 比较地址
+                return std::get<Ptr<Table>>(data) == std::get<Ptr<Table>>(other.data); // Compare addresses
             case ValueType::Function:
-                return std::get<Ptr<Function>>(data) == std::get<Ptr<Function>>(other.data); // 比较地址
+                return std::get<Ptr<Function>>(data) == std::get<Ptr<Function>>(other.data); // Compare addresses
             default:
                 return false;
         }

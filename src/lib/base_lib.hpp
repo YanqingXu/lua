@@ -4,10 +4,10 @@
 #include "../vm/state.hpp"
 
 namespace Lua {
-    // 注册基础库
+    // Register base library
     void registerBaseLib(State* state);
     
-    // 内置函数
+    // Built-in functions
     Value print(State* state, int nargs);
     Value tonumber(State* state, int nargs);
     Value tostring(State* state, int nargs);

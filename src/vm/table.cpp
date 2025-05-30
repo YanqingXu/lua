@@ -1,8 +1,8 @@
 #include "table.hpp"
-#include <cmath>        // 用于std::floor
+#include <cmath>        // For std::floor
 
 namespace Lua {
-    // 在entries中查找键的索引，如果找不到返回-1
+    // Find the index of a key in entries, return -1 if not found
     int Table::findEntry(const Value& key) const {
         for (size_t i = 0; i < entries.size(); i++) {
             if (entries[i].key == key) {
@@ -13,41 +13,41 @@ namespace Lua {
     }
     
     Value Table::get(const Value& key) {
-        // 如果是整数键且在数组范围内
+        // If it's an integer key and within array range
         if (key.isNumber()) {
             LuaNumber n = key.asNumber();
             if (n == std::floor(n) && n >= 1 && n <= array.size()) {
-                size_t index = static_cast<size_t>(n - 1);  // Lua索引从1开始
+                size_t index = static_cast<size_t>(n - 1);  // Lua index starts from 1
                 return array[index];
             }
         }
         
-        // 在entries中查找
+        // Search in entries
         int index = findEntry(key);
         if (index >= 0) {
             return entries[index].value;
         }
         
-        // 找不到返回nil
+        // Return nil if not found
         return Value(nullptr);
     }
     
     void Table::set(const Value& key, const Value& value) {
-        // 不能使用nil作为键
+        // Cannot use nil as key
         if (key.isNil()) {
             return;
         }
         
-        // 处理整数键，尝试存储在数组部分
+        // Handle integer keys, try to store in array part
         if (key.isNumber()) {
             LuaNumber n = key.asNumber();
-            if (n == std::floor(n) && n >= 1) {  // 是整数且大于等于1
-                size_t index = static_cast<size_t>(n - 1);  // Lua索引从1开始
+            if (n == std::floor(n) && n >= 1) {  // Is integer and >= 1
+                size_t index = static_cast<size_t>(n - 1);  // Lua index starts from 1
                 
-                // 如果需要扩展数组
+                // If need to expand array
                 if (index >= array.size()) {
                     if (value.isNil()) {
-                        return;  // 不需要为nil值扩展数组
+                        return;  // No need to expand array for nil value
                     }
                     array.resize(index + 1, Value(nullptr));
                 }
@@ -57,25 +57,25 @@ namespace Lua {
             }
         }
         
-        // 查找现有键
+        // Find existing key
         int index = findEntry(key);
         
         if (value.isNil()) {
-            // 删除元素（如果存在）
+            // Delete element (if exists)
             if (index >= 0) {
-                // 将要删除的元素与最后一个元素交换，然后移除最后一个元素
-                // 这样避免了向量中的空洞
+                // Swap the element to be deleted with the last element, then remove the last element
+                // This avoids holes in the vector
                 if (index < static_cast<int>(entries.size()) - 1) {
                     entries[index] = entries.back();
                 }
                 entries.pop_back();
             }
         } else {
-            // 更新现有元素
+            // Update existing element
             if (index >= 0) {
                 entries[index].value = value;
             } else {
-                // 添加新元素
+                // Add new element
                 entries.emplace_back(key, value);
             }
         }
