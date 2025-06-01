@@ -127,7 +127,7 @@ namespace Lua {
     }
     
     Token Lexer::makeToken(TokenType type) {
-        Token token(type, source.substr(start, current - start), line, column - (current - start));
+        Token token(type, source.substr(start, current - start), line, column - static_cast<int>(current - start));
         return token;
     }
     

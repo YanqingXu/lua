@@ -45,7 +45,7 @@ namespace Lua {
         Ptr<Vec<Instruction>> code;
         
         // Jump instruction positions for current block
-        std::vector<int> breaks;
+        Vec<int> breaks;
         
         // Compile expressions
         int compileExpr(const Expr* expr);

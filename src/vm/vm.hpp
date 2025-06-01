@@ -11,7 +11,7 @@ namespace Lua {
         Ptr<Function> currentFunction;
         Vec<Instruction>* code;
         Vec<Value>* constants;
-        size_t pc; // Program counter
+        usize pc; // Program counter
         
     public:
         explicit VM(State* state);

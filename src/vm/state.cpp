@@ -175,7 +175,7 @@ namespace Lua {
             }
             
             // Call function
-            Value result = nativeFn(this, args.size());
+            Value result = nativeFn(this, static_cast<int>(args.size()));
             
             // Restore stack top
             top = oldTop;
@@ -215,8 +215,11 @@ namespace Lua {
             return true;
         } catch (const LuaException& e) {
             // Can handle or log errors here
+            std::cerr << "Lua error: " << e.what() << std::endl;
             return false;
         } catch (const std::exception& e) {
+            // Handle other exceptions that may occur
+            std::cerr << "Standard error: " << e.what() << std::endl;
             return false;
         }
     }
@@ -241,6 +244,7 @@ namespace Lua {
             return doString(buffer.str());
         } catch (const std::exception& e) {
             // File operations may throw various exceptions
+            std::cerr << "File error: " << e.what() << std::endl;
             return false;
         }
     }

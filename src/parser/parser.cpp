@@ -76,11 +76,11 @@ namespace Lua {
         }
     }
     
-    std::unique_ptr<Expr> Parser::expression() {
+    UPtr<Expr> Parser::expression() {
         return simpleExpression();
     }
     
-    std::unique_ptr<Expr> Parser::simpleExpression() {
+    UPtr<Expr> Parser::simpleExpression() {
         auto expr = term();
         
         while (match({TokenType::Plus, TokenType::Minus})) {
@@ -92,7 +92,7 @@ namespace Lua {
         return expr;
     }
     
-    std::unique_ptr<Expr> Parser::term() {
+    UPtr<Expr> Parser::term() {
         auto expr = factor();
         
         while (match({TokenType::Star, TokenType::Slash, TokenType::Percent})) {
@@ -104,7 +104,7 @@ namespace Lua {
         return expr;
     }
     
-    std::unique_ptr<Expr> Parser::factor() {
+    UPtr<Expr> Parser::factor() {
         if (match({TokenType::Minus, TokenType::Not})) {
             TokenType op = previous.type;
             auto right = factor();
@@ -114,7 +114,7 @@ namespace Lua {
         return primary();
     }
     
-    std::unique_ptr<Expr> Parser::primary() {
+    UPtr<Expr> Parser::primary() {
         if (match(TokenType::False)) {
             return std::make_unique<LiteralExpr>(Value(false));
         }
@@ -157,7 +157,7 @@ namespace Lua {
     }
     
     // Add new method to handle function calls
-    std::unique_ptr<Expr> Parser::finishCall(std::unique_ptr<Expr> callee) {
+    UPtr<Expr> Parser::finishCall(UPtr<Expr> callee) {
         consume(TokenType::LeftParen, "Expect '(' for function call.");
         
         Vec<UPtr<Expr>> arguments;

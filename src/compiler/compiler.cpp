@@ -7,7 +7,7 @@ namespace Lua {
     
     int Compiler::addConstant(const Value& value) {
         constants.push_back(value);
-        return constants.size() - 1;
+        return static_cast<int>(constants.size()) - 1;
     }
     
     void Compiler::emitInstruction(const Instruction& instr) {
@@ -50,7 +50,7 @@ namespace Lua {
     
     int Compiler::resolveLocal(const Str& name) {
         // Search backwards to find variable name
-        for (int i = locals.size() - 1; i >= 0; i--) {
+        for (int i = static_cast<int>(locals.size()) - 1; i >= 0; i--) {
             if (locals[i].name == name) {
                 return i;
             }
@@ -248,6 +248,7 @@ namespace Lua {
             return Function::createLua(code, constants);
         } catch (const LuaException& e) {
             // Compilation error, return nullptr
+            std::cerr << "Compilation error: " << e.what() << std::endl;
             return nullptr;
         }
     }

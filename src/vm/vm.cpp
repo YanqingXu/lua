@@ -50,6 +50,8 @@ namespace Lua {
             // Default return nil
             result = Value(nullptr);
         } catch (const std::exception& e) {
+            std::cerr << "VM execution error: " << e.what() << std::endl;
+
             // Restore old context
             currentFunction = oldFunction;
             code = oldCode;
@@ -176,7 +178,7 @@ namespace Lua {
         u8 a = i.getA();
         u8 b = i.getB();
         
-        for (u32 j = a; j <= a + b; j++) {
+        for (u32 j = a; j <= static_cast<u32>(a + b); j++) {
             state->set(j + 1, Value(nullptr));
         }
     }
@@ -394,6 +396,7 @@ namespace Lua {
                 }
             }
         } catch (const LuaException& e) {
+            std::cerr << "Error during function call: " << e.what() << std::endl;
             throw; // Re-throw exception
         }
     }
