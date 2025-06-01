@@ -142,6 +142,7 @@
     <ClInclude Include="src\parser\parser.hpp" />
     <ClInclude Include="src\types.hpp" />
     <ClInclude Include="src\vm\function.hpp" />
+    <ClInclude Include="src\vm\gc.hpp" />
     <ClInclude Include="src\vm\state.hpp" />
     <ClInclude Include="src\vm\table.hpp" />
     <ClInclude Include="src\vm\value.hpp" />
@@ -154,6 +155,7 @@
     <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\parser\parser.cpp" />
     <ClCompile Include="src\vm\function.cpp" />
+    <ClCompile Include="src\vm\gc.cpp" />
     <ClCompile Include="src\vm\state.cpp" />
     <ClCompile Include="src\vm\table.cpp" />
     <ClCompile Include="src\vm\value.cpp" />

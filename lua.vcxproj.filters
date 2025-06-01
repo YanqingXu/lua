@@ -63,6 +63,9 @@
     <ClCompile Include="src\vm\table.cpp">
       <Filter>vm</Filter>
     </ClCompile>
+    <ClCompile Include="src\vm\gc.cpp">
+      <Filter>vm</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\lib\base_lib.hpp">
@@ -100,6 +103,9 @@
     </ClInclude>
     <ClInclude Include="src\types.hpp">
       <Filter>common</Filter>
+    </ClInclude>
+    <ClInclude Include="src\vm\gc.hpp">
+      <Filter>vm</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

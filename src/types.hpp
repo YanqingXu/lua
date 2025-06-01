@@ -5,6 +5,7 @@
 #include <string_view>
 #include <vector>
 #include <unordered_map>
+#include <unordered_set>
 #include <memory>
 #include <variant>
 #include <optional>
@@ -42,6 +43,9 @@ namespace Lua {
 
     template<typename K, typename V>
     using HashMap = std::unordered_map<K, V>;
+
+	template<typename T>
+	using HashSet = std::unordered_set<T>;
 
     // Other type utilities
     template<typename... Types>
