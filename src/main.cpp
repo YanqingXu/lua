@@ -204,6 +204,9 @@ void testParser() {
                         case ExprType::Table:
                             std::cout << "Table";
                             break;
+                        case ExprType::Member:
+                            std::cout << "Member";
+                            break;
                     }
                     std::cout << std::endl;
                 }

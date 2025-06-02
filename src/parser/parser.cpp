@@ -179,6 +179,18 @@ namespace Lua {
     UPtr<Expr> Parser::power() {
         auto expr = primary();
         
+        // Handle member access and function calls
+        while (true) {
+            if (match(TokenType::Dot)) {
+                Token name = consume(TokenType::Name, "Expect property name after '.'.");
+                expr = std::make_unique<MemberExpr>(std::move(expr), name.lexeme);
+            } else if (check(TokenType::LeftParen)) {
+                expr = finishCall(std::move(expr));
+            } else {
+                break;
+            }
+        }
+        
         // Power operator is right-associative
         if (match(TokenType::Caret)) {
             TokenType op = previous.type;
@@ -211,14 +223,7 @@ namespace Lua {
         }
         
         if (match(TokenType::Name)) {
-            auto expr = std::make_unique<VariableExpr>(previous.lexeme);
-            
-            // Check if it's a function call
-            if (check(TokenType::LeftParen)) {
-                return finishCall(std::move(expr));
-            }
-            
-            return expr;
+            return std::make_unique<VariableExpr>(previous.lexeme);
         }
         
         if (match(TokenType::LeftParen)) {

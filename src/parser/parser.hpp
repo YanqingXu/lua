@@ -15,7 +15,8 @@ namespace Lua {
         Literal,    // Literal
         Variable,   // Variable
         Call,       // Function call
-        Table       // Table construction
+        Table,      // Table construction
+        Member      // Member access (obj.field)
     };
     
     // Expression base class
@@ -94,6 +95,21 @@ namespace Lua {
         ExprType getType() const override { return ExprType::Call; }
         const Expr* getCallee() const { return callee.get(); }
         const Vec<UPtr<Expr>>& getArguments() const { return arguments; }
+    };
+    
+    // Member access expression (obj.field)
+    class MemberExpr : public Expr {
+    private:
+        UPtr<Expr> object;
+        Str name;
+        
+    public:
+        MemberExpr(UPtr<Expr> object, const Str& name)
+            : object(std::move(object)), name(name) {}
+            
+        ExprType getType() const override { return ExprType::Member; }
+        const Expr* getObject() const { return object.get(); }
+        const Str& getName() const { return name; }
     };
     
     // Statement types
