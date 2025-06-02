@@ -8,6 +8,7 @@
 #include "vm/table.hpp"
 #include "vm/function.hpp"
 #include "lexer/lexer.hpp"
+#include "parser/parser.hpp"
 #include "common/defines.hpp"
 #include "lib/base_lib.hpp"
 
@@ -115,6 +116,104 @@ void testExecute() {
     state.doString("print('Hello from Lua!')");
 }
 
+// Test parser expressions
+void testParser() {
+    std::cout << "\nParser Test:" << std::endl;
+    
+    // Test cases for different expression types
+    std::vector<std::string> testCases = {
+        // Basic arithmetic
+        "1 + 2",
+        "3 * 4 + 5",
+        "10 - 2 * 3",
+        "(1 + 2) * 3",
+        
+        // Comparison operators
+        "x == y",
+        "a < b",
+        "c >= d",
+        "e ~= f",
+        
+        // Logical operators
+        "true and false",
+        "x > 0 or y < 10",
+        "not (a and b)",
+        
+        // String concatenation
+        "\"hello\" .. \" world\"",
+        "a .. b .. c",
+        
+        // Power operator
+        "2 ^ 3",
+        "2 ^ 3 ^ 2",
+        
+        // Complex expressions
+        "a + b * c == d and e or f",
+        "x ^ 2 + y ^ 2 < r ^ 2",
+        "not a or b and c > d",
+        
+        // Function calls
+        "print(\"hello\")",
+        "math.max(a, b)",
+        "func(1, 2, 3)",
+        
+        // Unary operators
+        "-x",
+        "#table",
+        "not flag",
+        
+        // Mixed expressions
+        "a + b * c ^ d - e / f % g",
+        "(a + b) * (c - d) / (e + f)"
+    };
+    
+    for (const auto& testCase : testCases) {
+        std::cout << "\nTesting: " << testCase << std::endl;
+        
+        try {
+            Parser parser(testCase);
+            auto statements = parser.parse();
+            
+            if (parser.hasError()) {
+                std::cout << "  Parse Error!" << std::endl;
+            } else {
+                std::cout << "  Parsed successfully! (" << statements.size() << " statements)" << std::endl;
+                
+                // Print basic info about the parsed expression
+                if (!statements.empty() && statements[0]->getType() == StmtType::Expression) {
+                    auto exprStmt = static_cast<const ExprStmt*>(statements[0].get());
+                    auto expr = exprStmt->getExpression();
+                    
+                    std::cout << "  Expression type: ";
+                    switch (expr->getType()) {
+                        case ExprType::Binary:
+                            std::cout << "Binary";
+                            break;
+                        case ExprType::Unary:
+                            std::cout << "Unary";
+                            break;
+                        case ExprType::Literal:
+                            std::cout << "Literal";
+                            break;
+                        case ExprType::Variable:
+                            std::cout << "Variable";
+                            break;
+                        case ExprType::Call:
+                            std::cout << "Call";
+                            break;
+                        case ExprType::Table:
+                            std::cout << "Table";
+                            break;
+                    }
+                    std::cout << std::endl;
+                }
+            }
+        } catch (const std::exception& e) {
+            std::cout << "  Exception: " << e.what() << std::endl;
+        }
+    }
+}
+
 int main(int argc, char** argv) {
     try {
         std::cout << LUA_VERSION << " " << LUA_COPYRIGHT << std::endl;
@@ -124,6 +223,9 @@ int main(int argc, char** argv) {
         testValues();
         
         testState();
+        
+        // Add parser test
+        testParser();
         
         testExecute();
         

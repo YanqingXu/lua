@@ -174,9 +174,15 @@ namespace Lua {
         
         // Parse expressions
         UPtr<Expr> expression();
+        UPtr<Expr> logicalOr();
+        UPtr<Expr> logicalAnd();
+        UPtr<Expr> equality();
+        UPtr<Expr> comparison();
+        UPtr<Expr> concatenation();
         UPtr<Expr> simpleExpression();
         UPtr<Expr> term();
-        UPtr<Expr> factor();
+        UPtr<Expr> unary();
+        UPtr<Expr> power();
         UPtr<Expr> primary();
         UPtr<Expr> finishCall(UPtr<Expr> callee);
         

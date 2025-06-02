@@ -77,7 +77,69 @@ namespace Lua {
     }
     
     UPtr<Expr> Parser::expression() {
-        return simpleExpression();
+        return logicalOr();
+    }
+    
+    UPtr<Expr> Parser::logicalOr() {
+        auto expr = logicalAnd();
+        
+        while (match(TokenType::Or)) {
+            TokenType op = previous.type;
+            auto right = logicalAnd();
+            expr = std::make_unique<BinaryExpr>(std::move(expr), op, std::move(right));
+        }
+        
+        return expr;
+    }
+    
+    UPtr<Expr> Parser::logicalAnd() {
+        auto expr = equality();
+        
+        while (match(TokenType::And)) {
+            TokenType op = previous.type;
+            auto right = equality();
+            expr = std::make_unique<BinaryExpr>(std::move(expr), op, std::move(right));
+        }
+        
+        return expr;
+    }
+    
+    UPtr<Expr> Parser::equality() {
+        auto expr = comparison();
+        
+        while (match({TokenType::NotEqual, TokenType::Equal})) {
+            TokenType op = previous.type;
+            auto right = comparison();
+            expr = std::make_unique<BinaryExpr>(std::move(expr), op, std::move(right));
+        }
+        
+        return expr;
+    }
+    
+    UPtr<Expr> Parser::comparison() {
+        auto expr = concatenation();
+        
+        while (match({TokenType::Greater, TokenType::GreaterEqual, 
+                     TokenType::Less, TokenType::LessEqual})) {
+            TokenType op = previous.type;
+            auto right = concatenation();
+            expr = std::make_unique<BinaryExpr>(std::move(expr), op, std::move(right));
+        }
+        
+        return expr;
+    }
+    
+    UPtr<Expr> Parser::concatenation() {
+        auto expr = simpleExpression();
+        
+        // String concatenation is right-associative
+        if (match(TokenType::DotDot)) {
+            TokenType op = previous.type;
+            auto right = concatenation(); // Right-associative recursion
+            expr = std::make_unique<BinaryExpr>(std::move(expr), op, std::move(right));
+        }
+        
+        return expr;
     }
     
     UPtr<Expr> Parser::simpleExpression() {
@@ -93,25 +155,38 @@ namespace Lua {
     }
     
     UPtr<Expr> Parser::term() {
-        auto expr = factor();
+        auto expr = unary();
         
         while (match({TokenType::Star, TokenType::Slash, TokenType::Percent})) {
             TokenType op = previous.type;
-            auto right = factor();
+            auto right = unary();
             expr = std::make_unique<BinaryExpr>(std::move(expr), op, std::move(right));
         }
         
         return expr;
     }
     
-    UPtr<Expr> Parser::factor() {
-        if (match({TokenType::Minus, TokenType::Not})) {
+    UPtr<Expr> Parser::unary() {
+        if (match({TokenType::Not, TokenType::Minus, TokenType::Hash})) {
             TokenType op = previous.type;
-            auto right = factor();
+            auto right = unary();
             return std::make_unique<UnaryExpr>(op, std::move(right));
         }
         
-        return primary();
+        return power();
+    }
+    
+    UPtr<Expr> Parser::power() {
+        auto expr = primary();
+        
+        // Power operator is right-associative
+        if (match(TokenType::Caret)) {
+            TokenType op = previous.type;
+            auto right = unary(); // Right-associative, but unary has higher precedence
+            expr = std::make_unique<BinaryExpr>(std::move(expr), op, std::move(right));
+        }
+        
+        return expr;
     }
     
     UPtr<Expr> Parser::primary() {
