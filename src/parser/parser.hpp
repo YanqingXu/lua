@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "../types.hpp"
 #include "../lexer/lexer.hpp"
@@ -16,7 +16,9 @@ namespace Lua {
         Variable,   // Variable
         Call,       // Function call
         Table,      // Table construction
-        Member      // Member access (obj.field)
+        Member,     // Member access (obj.field)
+        Index,      // Index access (obj[key])
+        Function    // Function expression
     };
     
     // Expression base class
@@ -112,6 +114,43 @@ namespace Lua {
         const Str& getName() const { return name; }
     };
     
+    // Table field for table construction
+    struct TableField {
+        UPtr<Expr> key;    // nil for array-style fields
+        UPtr<Expr> value;
+        
+        TableField(UPtr<Expr> key, UPtr<Expr> value)
+            : key(std::move(key)), value(std::move(value)) {}
+    };
+    
+    // Table construction expression {key = value, [expr] = value, value}
+    class TableExpr : public Expr {
+    private:
+        Vec<TableField> fields;
+        
+    public:
+        explicit TableExpr(Vec<TableField> fields)
+            : fields(std::move(fields)) {}
+            
+        ExprType getType() const override { return ExprType::Table; }
+        const Vec<TableField>& getFields() const { return fields; }
+    };
+    
+    // Index access expression (obj[key])
+    class IndexExpr : public Expr {
+    private:
+        UPtr<Expr> object;
+        UPtr<Expr> index;
+        
+    public:
+        IndexExpr(UPtr<Expr> object, UPtr<Expr> index)
+            : object(std::move(object)), index(std::move(index)) {}
+            
+        ExprType getType() const override { return ExprType::Index; }
+        const Expr* getObject() const { return object.get(); }
+        const Expr* getIndex() const { return index.get(); }
+    };
+    
     // Statement types
     enum class StmtType {
         Expression,  // Expression statement
@@ -120,7 +159,8 @@ namespace Lua {
         While,       // while loop
         Function,    // Function definition
         Return,      // return statement
-        Local        // Local variable declaration
+        Local,       // Local variable declaration
+        Assign       // Assignment statement
     };
     
     // Statement base class
@@ -171,6 +211,38 @@ namespace Lua {
         const Expr* getInitializer() const { return initializer.get(); }
     };
     
+    // Assignment statement (var = expr, obj.field = expr, obj[key] = expr)
+    class AssignStmt : public Stmt {
+    private:
+        UPtr<Expr> target;
+        UPtr<Expr> value;
+        
+    public:
+        AssignStmt(UPtr<Expr> target, UPtr<Expr> value)
+            : target(std::move(target)), value(std::move(value)) {}
+            
+        StmtType getType() const override { return StmtType::Assign; }
+        const Expr* getTarget() const { return target.get(); }
+        const Expr* getValue() const { return value.get(); }
+    };
+    
+    // If statement (if condition then body [else elseBody] end)
+    class IfStmt : public Stmt {
+    private:
+        UPtr<Expr> condition;
+        UPtr<Stmt> thenBranch;
+        UPtr<Stmt> elseBranch;
+        
+    public:
+        IfStmt(UPtr<Expr> condition, UPtr<Stmt> thenBranch, UPtr<Stmt> elseBranch = nullptr)
+            : condition(std::move(condition)), thenBranch(std::move(thenBranch)), elseBranch(std::move(elseBranch)) {}
+            
+        StmtType getType() const override { return StmtType::If; }
+        const Expr* getCondition() const { return condition.get(); }
+        const Stmt* getThenBranch() const { return thenBranch.get(); }
+        const Stmt* getElseBranch() const { return elseBranch.get(); }
+    };
+    
     // Parser class
     class Parser {
     private:
@@ -201,11 +273,19 @@ namespace Lua {
         UPtr<Expr> power();
         UPtr<Expr> primary();
         UPtr<Expr> finishCall(UPtr<Expr> callee);
+        UPtr<Expr> tableConstructor();
+        UPtr<Expr> functionExpression();  // 添加这一行
         
         // Parse statements
         UPtr<Stmt> statement();
         UPtr<Stmt> expressionStatement();
         UPtr<Stmt> localDeclaration();
+        UPtr<Stmt> assignmentStatement();
+        UPtr<Stmt> ifStatement();
+        UPtr<Stmt> blockStatement();
+        
+        // Helper for assignment target validation
+        bool isValidAssignmentTarget(const Expr* expr) const;
         
     public:
         explicit Parser(const Str& source);
@@ -215,5 +295,21 @@ namespace Lua {
         
         // Check if there are errors
         bool hasError() const { return hadError; }
+    };
+
+    // Function expression
+    class FunctionExpr : public Expr {
+    private:
+        Vec<Str> parameters;
+        UPtr<Stmt> body;
+
+    public:
+        FunctionExpr(Vec<Str> params, UPtr<Stmt> body)
+            : parameters(std::move(params)), body(std::move(body)) {
+        }
+
+        ExprType getType() const override { return ExprType::Function; }
+        const Vec<Str>& getParameters() const { return parameters; }
+        const Stmt* getBody() const { return body.get(); }
     };
 }

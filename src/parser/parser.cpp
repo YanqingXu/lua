@@ -1,4 +1,4 @@
-#include "parser.hpp"
+﻿#include "parser.hpp"
 
 namespace Lua {
     Parser::Parser(const Str& source) : lexer(source), hadError(false) {
@@ -176,14 +176,63 @@ namespace Lua {
         return power();
     }
     
+    UPtr<Expr> Parser::primary() {
+        if (match(TokenType::True)) {
+            return std::make_unique<LiteralExpr>(Value(true));
+        }
+        
+        if (match(TokenType::False)) {
+            return std::make_unique<LiteralExpr>(Value(false));
+        }
+        
+        if (match(TokenType::Nil)) {
+            return std::make_unique<LiteralExpr>(Value());
+        }
+        
+        if (match(TokenType::Number)) {
+            return std::make_unique<LiteralExpr>(Value(std::stod(previous.lexeme)));
+        }
+        
+        if (match(TokenType::String)) {
+            return std::make_unique<LiteralExpr>(Value(previous.lexeme));
+        }
+        
+        if (match(TokenType::Name)) {
+            return std::make_unique<VariableExpr>(previous.lexeme);
+        }
+        
+        if (match(TokenType::LeftParen)) {
+            auto expr = expression();
+            consume(TokenType::RightParen, "Expect ')' after expression.");
+            return expr;
+        }
+        
+        // Table constructor
+        if (match(TokenType::LeftBrace)) {
+            return tableConstructor();
+        }
+        
+        // Function expression
+        if (match(TokenType::Function)) {
+            return functionExpression();
+        }
+        
+        error("Expect expression.");
+        return nullptr;
+    }
+    
     UPtr<Expr> Parser::power() {
         auto expr = primary();
         
-        // Handle member access and function calls
+        // Handle member access, index access and function calls
         while (true) {
             if (match(TokenType::Dot)) {
                 Token name = consume(TokenType::Name, "Expect property name after '.'.");
                 expr = std::make_unique<MemberExpr>(std::move(expr), name.lexeme);
+            } else if (match(TokenType::LeftBracket)) {
+                auto index = expression();
+                consume(TokenType::RightBracket, "Expect ']' after index.");
+                expr = std::make_unique<IndexExpr>(std::move(expr), std::move(index));
             } else if (check(TokenType::LeftParen)) {
                 expr = finishCall(std::move(expr));
             } else {
@@ -201,39 +250,115 @@ namespace Lua {
         return expr;
     }
     
-    UPtr<Expr> Parser::primary() {
-        if (match(TokenType::False)) {
-            return std::make_unique<LiteralExpr>(Value(false));
+    UPtr<Expr> Parser::tableConstructor() {
+        Vec<TableField> fields;
+        
+        if (!check(TokenType::RightBrace)) {
+            do {
+                UPtr<Expr> key = nullptr;
+                UPtr<Expr> value = nullptr;
+                
+                if (match(TokenType::LeftBracket)) {
+                    // [expr] = value
+                    key = expression();
+                    consume(TokenType::RightBracket, "Expect ']' after table key.");
+                    consume(TokenType::Assign, "Expect '=' after table key.");
+                    value = expression();
+                } else if (check(TokenType::Name)) {
+                    Token nameToken = current;
+                    advance();
+                    
+                    if (match(TokenType::Assign)) {
+                        // name = value
+                        key = std::make_unique<LiteralExpr>(Value(nameToken.lexeme));
+                        value = expression();
+                    } else {
+                        // Just a value (array-style)
+                        // Put the name back as a variable expression
+                        auto nameExpr = std::make_unique<VariableExpr>(nameToken.lexeme);
+                        value = std::move(nameExpr);
+                    }
+                } else {
+                    // Just a value (array-style)
+                    value = expression();
+                }
+                
+                fields.emplace_back(std::move(key), std::move(value));
+                
+            } while (match({TokenType::Comma, TokenType::Semicolon}));
         }
         
-        if (match(TokenType::True)) {
-            return std::make_unique<LiteralExpr>(Value(true));
+        consume(TokenType::RightBrace, "Expect '}' after table fields.");
+        return std::make_unique<TableExpr>(std::move(fields));
+    }
+    
+    UPtr<Stmt> Parser::statement() {
+        if (match(TokenType::Local)) {
+            return localDeclaration();
         }
         
-        if (match(TokenType::Nil)) {
-            return std::make_unique<LiteralExpr>(Value(nullptr));
+        if (match(TokenType::If)) {
+            return ifStatement();
         }
         
-        if (match(TokenType::Number)) {
-            return std::make_unique<LiteralExpr>(Value(previous.value.number));
+        // Look ahead to determine if it's an assignment
+        // This requires more sophisticated parsing or backtracking
+        return assignmentStatement(); // Keep current logic for now
+    }
+    
+    UPtr<Stmt> Parser::assignmentStatement() {
+        auto expr = expression();
+        
+        // Check if this is an assignment
+        if (match(TokenType::Assign)) {
+            if (!isValidAssignmentTarget(expr.get())) {
+                error("Invalid assignment target.");
+                return std::make_unique<ExprStmt>(std::move(expr));
+            }
+            
+            auto value = expression();
+            match(TokenType::Semicolon); // Optional semicolon
+            return std::make_unique<AssignStmt>(std::move(expr), std::move(value));
         }
         
-        if (match(TokenType::String)) {
-            return std::make_unique<LiteralExpr>(Value(*previous.value.string));
+        // It's just an expression statement
+        match(TokenType::Semicolon); // Optional semicolon
+        return std::make_unique<ExprStmt>(std::move(expr));
+    }
+    
+    UPtr<Stmt> Parser::ifStatement() {
+        auto condition = expression();
+        consume(TokenType::Then, "Expect 'then' after if condition.");
+        
+        auto thenBranch = blockStatement();
+        
+        UPtr<Stmt> elseBranch = nullptr;
+        if (match(TokenType::Else)) {
+            elseBranch = blockStatement();
         }
         
-        if (match(TokenType::Name)) {
-            return std::make_unique<VariableExpr>(previous.lexeme);
+        consume(TokenType::End, "Expect 'end' after if statement.");
+        
+        return std::make_unique<IfStmt>(std::move(condition), std::move(thenBranch), std::move(elseBranch));
+    }
+    
+    UPtr<Stmt> Parser::blockStatement() {
+        Vec<UPtr<Stmt>> statements;
+        
+        while (!check(TokenType::End) && !check(TokenType::Else) && !check(TokenType::Eof)) {
+            statements.push_back(statement());
         }
         
-        if (match(TokenType::LeftParen)) {
-            auto expr = expression();
-            consume(TokenType::RightParen, "Expect ')' after expression.");
-            return expr;
-        }
+        return std::make_unique<BlockStmt>(std::move(statements));
+    }
+    
+    bool Parser::isValidAssignmentTarget(const Expr* expr) const {
+        if (!expr) return false;
         
-        error("Expect expression.");
-        return nullptr;
+        ExprType type = expr->getType();
+        return type == ExprType::Variable || 
+               type == ExprType::Member || 
+               type == ExprType::Index;
     }
     
     // Add new method to handle function calls
@@ -253,35 +378,6 @@ namespace Lua {
         return std::make_unique<CallExpr>(std::move(callee), std::move(arguments));
     }
     
-    UPtr<Stmt> Parser::statement() {
-        if (match(TokenType::Local)) {
-            return localDeclaration();
-        }
-        
-        return expressionStatement();
-    }
-    
-    UPtr<Stmt> Parser::expressionStatement() {
-        auto expr = expression();
-        // Semicolon is optional in Lua
-        match(TokenType::Semicolon);
-        return std::make_unique<ExprStmt>(std::move(expr));
-    }
-    
-    UPtr<Stmt> Parser::localDeclaration() {
-        Token name = consume(TokenType::Name, "Expect variable name after 'local'.");
-        
-        UPtr<Expr> initializer = nullptr;
-        if (match(TokenType::Assign)) {
-            initializer = expression();
-        }
-        
-        // Semicolon is optional in Lua
-        match(TokenType::Semicolon);
-        
-        return std::make_unique<LocalStmt>(name.lexeme, std::move(initializer));
-    }
-    
     Vec<UPtr<Stmt>> Parser::parse() {
         Vec<UPtr<Stmt>> statements;
         
@@ -295,4 +391,47 @@ namespace Lua {
         
         return statements;
     }
+
+    UPtr<Stmt> Parser::expressionStatement() {
+        auto expr = expression();
+        match(TokenType::Semicolon); // Optional semicolon
+        return std::make_unique<ExprStmt>(std::move(expr));
+    }
+
+    UPtr<Stmt> Parser::localDeclaration() {
+        // Parse local variable declaration: local name = value
+        Token name = consume(TokenType::Name, "Expect variable name.");
+
+        UPtr<Expr> initializer = nullptr;
+        if (match(TokenType::Assign)) {
+            initializer = expression();
+        }
+
+        match(TokenType::Semicolon); // Optional semicolon
+        return std::make_unique<LocalStmt>(name.lexeme, std::move(initializer));
+    }
+    
+    // 在文件末尾添加 functionExpression 方法的实现
+    UPtr<Expr> Parser::functionExpression() {
+        consume(TokenType::LeftParen, "Expect '(' after 'function'.");
+        
+        Vec<Str> parameters;
+        if (!check(TokenType::RightParen)) {
+            do {
+                Token param = consume(TokenType::Name, "Expect parameter name.");
+                parameters.push_back(param.lexeme);
+            } while (match(TokenType::Comma));
+        }
+        
+        consume(TokenType::RightParen, "Expect ')' after parameters.");
+        
+        // Parse function body as a block statement
+        auto body = blockStatement();
+        
+        consume(TokenType::End, "Expect 'end' after function body.");
+        
+        return std::make_unique<FunctionExpr>(std::move(parameters), std::move(body));
+    }
 }
+
+

@@ -1,4 +1,4 @@
-#include <iostream>
+﻿#include <iostream>
 #include <fstream>
 #include <sstream>
 #include <string>
@@ -165,6 +165,28 @@ void testParser() {
         // Mixed expressions
         "a + b * c ^ d - e / f % g",
         "(a + b) * (c - d) / (e + f)"
+        
+        // Expression statements (测试 expressionStatement)
+        "x",
+        "42",
+        "print(\"hello\")",
+        "a + b",
+        "func(1, 2, 3);",
+        "math.max(10, 20);",
+        
+        // Local declarations (测试 localDeclaration)
+        "local x",
+        "local y = 10",
+        "local name = \"John\"",
+        "local result = a + b * c",
+        "local flag = true",
+        "local table = {1, 2, 3}",
+        "local func = function() end",
+        "local pi = 3.14159;",
+        
+        // Mixed statements
+        "local x = 5; x = x + 1",
+        "local a, b = 1, 2",  // 如果支持多重赋值
     };
     
     for (const auto& testCase : testCases) {
@@ -207,6 +229,82 @@ void testParser() {
                         case ExprType::Member:
                             std::cout << "Member";
                             break;
+                        case ExprType::Index:
+                            std::cout << "Index";
+                            break;
+                        case ExprType::Function:
+                            std::cout << "Function";
+                            break;
+                    }
+                    std::cout << std::endl;
+                }
+            }
+        } catch (const std::exception& e) {
+            std::cout << "  Exception: " << e.what() << std::endl;
+        }
+    }
+}
+
+void testStatements() {
+    std::cout << "\nStatement Parsing Test:" << std::endl;
+    
+    std::vector<std::string> statementTests = {
+        // Expression statements
+        "42",
+        "x",
+        "print(\"test\")",
+        "a + b * c",
+        
+        // Local declarations
+        "local x",
+        "local y = 10",
+        "local name = \"Alice\"",
+        "local result = 2 + 3 * 4",
+        "local flag = true and false",
+        
+        // Assignment statements
+        "x = 5",
+        "table[key] = value",
+        "obj.property = \"new value\"",
+        
+        // If statements
+        "if x > 0 then print(\"positive\") end",
+        "if a == b then return true else return false end"
+    };
+    
+    for (const auto& test : statementTests) {
+        std::cout << "\nTesting statement: " << test << std::endl;
+        
+        try {
+            Parser parser(test);
+            auto statements = parser.parse();
+            
+            if (parser.hasError()) {
+                std::cout << "  Parse Error!" << std::endl;
+            } else {
+                std::cout << "  Parsed successfully! (" << statements.size() << " statements)" << std::endl;
+                
+                for (const auto& stmt : statements) {
+                    std::cout << "  Statement type: ";
+                    switch (stmt->getType()) {
+                        case StmtType::Expression:
+                            std::cout << "Expression";
+                            break;
+                        case StmtType::Local:
+                            std::cout << "Local Declaration";
+                            break;
+                        case StmtType::Assign:
+                            std::cout << "Assignment";
+                            break;
+                        case StmtType::If:
+                            std::cout << "If Statement";
+                            break;
+                        case StmtType::Block:
+                            std::cout << "Block";
+                            break;
+                        default:
+                            std::cout << "Unknown";
+                            break;
                     }
                     std::cout << std::endl;
                 }
@@ -229,6 +327,9 @@ int main(int argc, char** argv) {
         
         // Add parser test
         testParser();
+        
+        // Add statement parsing test
+        testStatements();
         
         testExecute();
         
