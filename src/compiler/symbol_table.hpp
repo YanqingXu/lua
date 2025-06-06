@@ -2,10 +2,6 @@
 
 #include "../types.hpp"
 #include "../vm/value.hpp"
-#include <string>
-#include <vector>
-#include <unordered_map>
-#include <optional>
 
 namespace Lua {
 
@@ -30,7 +26,7 @@ namespace Lua {
 
     class SymbolTable {
     private:
-        std::vector<std::unordered_map<Str, Symbol>> scopes;
+        Vec<HashMap<Str, Symbol>> scopes;
         int currentScopeLevel;
 
     public:
@@ -45,7 +41,7 @@ namespace Lua {
 
         // Resolves a symbol by searching from the current scope outwards.
         // Returns an optional Symbol. If the symbol is not found, returns std::nullopt.
-        std::optional<Symbol> resolve(const Str& name) const;
+        Opt<Symbol> resolve(const Str& name) const;
 
         // Checks if a symbol is defined in the current (innermost) scope.
         bool isDefinedInCurrentScope(const Str& name) const;

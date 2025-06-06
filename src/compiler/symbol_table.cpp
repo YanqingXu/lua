@@ -11,7 +11,7 @@ namespace Lua {
         currentScopeLevel++;
         // Add a new scope if we're entering a scope deeper than what we have
         if (currentScopeLevel >= static_cast<int>(scopes.size())) {
-            scopes.push_back(std::unordered_map<Str, Symbol>());
+            scopes.push_back(HashMap<Str, Symbol>());
         }
     }
 
@@ -38,7 +38,7 @@ namespace Lua {
         return true;
     }
 
-    std::optional<Symbol> SymbolTable::resolve(const Str& name) const {
+    Opt<Symbol> SymbolTable::resolve(const Str& name) const {
         // Search from current scope outward
         for (int level = currentScopeLevel; level >= 0; level--) {
             auto& scope = scopes[level];
