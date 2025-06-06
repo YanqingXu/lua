@@ -12,5 +12,5 @@ namespace Lua {
     
     // String constants
     constexpr const char* LUA_VERSION = "Lua 5.1.1";
-    constexpr const char* LUA_COPYRIGHT = "Copyright (C) 1994-2006 Lua.org, PUC-Rio";
+    constexpr const char* LUA_COPYRIGHT = "Copyright (c) 2025 YanqingXu";
 }

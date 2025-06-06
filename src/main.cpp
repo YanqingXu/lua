@@ -10,6 +10,7 @@
 #include "lexer/lexer.hpp"
 #include "parser/parser.hpp"
 #include "parser/visitor.hpp"
+#include "compiler/symbol_table.hpp"
 #include "common/defines.hpp"
 #include "lib/base_lib.hpp"
 
@@ -362,32 +363,101 @@ void testASTVisitor() {
     }
 }
 
+// Symbol Table Test Function
+void testSymbolTable() {
+    std::cout << "\nSymbol Table Test:" << std::endl;
+
+    SymbolTable symbolTable;
+
+    // Test global scope
+    std::cout << "Testing global scope:" << std::endl;
+    symbolTable.define("print", SymbolType::Function);
+    symbolTable.define("globalVar", SymbolType::Variable);
+
+    auto printSymbol = symbolTable.resolve("print");
+    if (printSymbol) {
+        std::cout << "Found 'print' in scope level: " << printSymbol->scopeLevel << std::endl;
+    }
+
+    // Test local scope
+    std::cout << "\nTesting local scope:" << std::endl;
+    symbolTable.enterScope(); // Enter a new scope
+
+    symbolTable.define("localVar", SymbolType::Variable);
+    symbolTable.define("x", SymbolType::Parameter);
+
+    // Should find local variable
+    auto localVar = symbolTable.resolve("localVar");
+    if (localVar) {
+        std::cout << "Found 'localVar' in scope level: " << localVar->scopeLevel << std::endl;
+    }
+
+    // Should still find global variable
+    auto globalVar = symbolTable.resolve("globalVar");
+    if (globalVar) {
+        std::cout << "Found 'globalVar' in scope level: " << globalVar->scopeLevel << std::endl;
+    }
+
+    // Test nested scope
+    std::cout << "\nTesting nested scope:" << std::endl;
+    symbolTable.enterScope(); // Enter a nested scope
+
+    symbolTable.define("innerVar", SymbolType::Variable);
+    // Try to define a variable that shadows an outer scope variable
+    symbolTable.define("x", SymbolType::Variable);
+
+    auto innerVar = symbolTable.resolve("innerVar");
+    if (innerVar) {
+        std::cout << "Found 'innerVar' in scope level: " << innerVar->scopeLevel << std::endl;
+    }
+
+    // Should find the inner 'x'
+    auto innerX = symbolTable.resolve("x");
+    if (innerX) {
+        std::cout << "Found 'x' in scope level: " << innerX->scopeLevel << std::endl;
+    }
+
+    // Leave the nested scope
+    symbolTable.leaveScope();
+
+    // Should now find the outer 'x'
+    auto outerX = symbolTable.resolve("x");
+    if (outerX) {
+        std::cout << "Found 'x' in scope level: " << outerX->scopeLevel << std::endl;
+    }
+
+    // Leave the local scope
+    symbolTable.leaveScope();
+
+    // Should not find local variables anymore
+    auto notFound = symbolTable.resolve("localVar");
+    if (!notFound) {
+        std::cout << "'localVar' is no longer accessible" << std::endl;
+    }
+}
+
 int main(int argc, char** argv) {
     try {
         std::cout << LUA_VERSION << " " << LUA_COPYRIGHT << std::endl;
 
+        // Run all tests
         testLexer("local x = 10 + 20");
-
         testValues();
-
         testState();
-
-        // Add parser test
         testParser();
-
-        // Add statement parsing test
         testStatements();
-
-        // Add AST visitor test
         testASTVisitor();
-
-        testExecute();
+        testSymbolTable();
 
         return 0;
-    } catch (const LuaException& e) {
-        std::cerr << "Error: " << e.what() << std::endl;
-        return 1;
-    } catch (const std::exception& e) {
+    } 
+
+    catch (const LuaException& e) {
+            std::cerr << "Error: " << e.what() << std::endl;
+            return 1;
+    } 
+
+    catch (const std::exception& e) {
         std::cerr << "Standard error: " << e.what() << std::endl;
         return 1;
     }

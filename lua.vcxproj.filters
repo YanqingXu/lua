@@ -69,6 +69,9 @@
     <ClCompile Include="src\parser\visitor.cpp">
       <Filter>parser</Filter>
     </ClCompile>
+    <ClCompile Include="src\compiler\symbol_table.cpp">
+      <Filter>compiler</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\lib\base_lib.hpp">
@@ -112,6 +115,9 @@
     </ClInclude>
     <ClInclude Include="src\parser\visitor.hpp">
       <Filter>parser</Filter>
+    </ClInclude>
+    <ClInclude Include="src\compiler\symbol_table.hpp">
+      <Filter>compiler</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>
