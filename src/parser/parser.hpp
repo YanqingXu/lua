@@ -241,6 +241,20 @@ namespace Lua {
         const Stmt* getElseBranch() const { return elseBranch.get(); }
     };
 
+    // 在IfStmt类定义之后添加
+    class ReturnStmt : public Stmt {
+    private:
+        UPtr<Expr> value; // 可选的返回值
+
+    public:
+        ReturnStmt(UPtr<Expr> value = nullptr)
+            : value(std::move(value)) {
+        }
+
+        StmtType getType() const override { return StmtType::Return; }
+        const Expr* getValue() const { return value.get(); }
+    };
+
     // Parser class
     class Parser {
     private:
@@ -257,6 +271,7 @@ namespace Lua {
         Token consume(TokenType type, const Str& message);
         void error(const Str& message);
         void synchronize();
+        bool isAtEnd() const;
 
         // Parse expressions
         UPtr<Expr> expression();
@@ -281,6 +296,7 @@ namespace Lua {
         UPtr<Stmt> assignmentStatement();
         UPtr<Stmt> ifStatement();
         UPtr<Stmt> blockStatement();
+        UPtr<Stmt> returnStatement();
 
         // Helper for assignment target validation
         bool isValidAssignmentTarget(const Expr* expr) const;

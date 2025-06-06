@@ -76,6 +76,10 @@ namespace Lua {
         }
     }
 
+    bool Parser::isAtEnd() const {
+        return current.type == TokenType::Eof;
+    }
+
     UPtr<Expr> Parser::expression() {
         return logicalOr();
     }
@@ -296,14 +300,16 @@ namespace Lua {
         if (match(TokenType::Local)) {
             return localDeclaration();
         }
-
+    
         if (match(TokenType::If)) {
             return ifStatement();
         }
-
-        // Look ahead to determine if it's an assignment
-        // This requires more sophisticated parsing or backtracking
-        return assignmentStatement(); // Keep current logic for now
+    
+        if (match(TokenType::Return)) {
+            return returnStatement();
+        }
+    
+        return assignmentStatement();
     }
 
     UPtr<Stmt> Parser::assignmentStatement() {
@@ -350,6 +356,19 @@ namespace Lua {
         }
 
         return std::make_unique<BlockStmt>(std::move(statements));
+    }
+
+    UPtr<Stmt> Parser::returnStatement() {
+        UPtr<Expr> value = nullptr;
+
+        // check if there is a value to return
+        if (!check(TokenType::End) && !check(TokenType::Else) &&
+            !check(TokenType::Semicolon) && !isAtEnd()) {
+            value = expression();
+        }
+
+        match(TokenType::Semicolon);
+        return std::make_unique<ReturnStmt>(std::move(value));
     }
 
     bool Parser::isValidAssignmentTarget(const Expr* expr) const {
