@@ -9,6 +9,7 @@
 #include "vm/function.hpp"
 #include "lexer/lexer.hpp"
 #include "parser/parser.hpp"
+#include "parser/visitor.hpp"
 #include "common/defines.hpp"
 #include "lib/base_lib.hpp"
 
@@ -314,6 +315,53 @@ void testStatements() {
     }
 }
 
+// Test AST visitor functionality
+void testASTVisitor() {
+    std::cout << "\nAST Visitor Test:" << std::endl;
+
+    std::vector<std::string> visitorTests = {
+        // Test complex expressions and statements
+        "local x = 10 + 20 * 30",
+        "if a > b then\n    print(a)\n    return true\nelse\n    print(b)\n    return false\nend",
+        "local function add(a, b)\n    return a + b\nend",
+        "local tbl = {x = 1, y = 2, [\"key\"] = \"value\"}"
+    };
+
+    for (const auto& test : visitorTests) {
+        std::cout << "\nTesting AST for: " << test << std::endl;
+
+        try {
+            Parser parser(test);
+            auto statements = parser.parse();
+
+            if (!parser.hasError()) {
+                // Print AST structure
+                std::cout << "AST Structure:" << std::endl;
+                std::cout << ASTUtils::printAST(statements) << std::endl;
+
+                // Count nodes
+                int nodeCount = ASTUtils::countNodes(statements);
+                std::cout << "Total nodes: " << nodeCount << std::endl;
+
+                // Collect variables
+                auto variables = ASTUtils::collectVariables(statements);
+                std::cout << "Variables used:";
+                for (const auto& var : variables) {
+                    std::cout << " " << var;
+                }
+                std::cout << std::endl;
+
+                // Test specific variable presence
+                std::cout << "Contains 'x': " << (ASTUtils::hasVariable(statements, "x") ? "yes" : "no") << std::endl;
+            } else {
+                std::cout << "Parse error!" << std::endl;
+            }
+        } catch (const std::exception& e) {
+            std::cout << "Exception: " << e.what() << std::endl;
+        }
+    }
+}
+
 int main(int argc, char** argv) {
     try {
         std::cout << LUA_VERSION << " " << LUA_COPYRIGHT << std::endl;
@@ -329,6 +377,9 @@ int main(int argc, char** argv) {
 
         // Add statement parsing test
         testStatements();
+
+        // Add AST visitor test
+        testASTVisitor();
 
         testExecute();
 

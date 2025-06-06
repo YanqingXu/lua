@@ -1,4 +1,4 @@
-﻿#include "parser.hpp"
+#include "parser.hpp"
 
 namespace Lua {
     Parser::Parser(const Str& source) : lexer(source), hadError(false) {
@@ -418,7 +418,16 @@ namespace Lua {
     }
 
     UPtr<Stmt> Parser::localDeclaration() {
-        // Parse local variable declaration: local name = value
+        // Check if it's a local function definition: local function name ...
+        if (match(TokenType::Function)) {
+            Token name = consume(TokenType::Name, "Expect function name after 'local function'.");
+            auto funcExpr = functionExpression(); // This will parse parameters and body
+            // The functionExpression already returns a FunctionExpr, which is an Expr.
+            // We need to wrap this in a LocalStmt.
+            return std::make_unique<LocalStmt>(name.lexeme, std::move(funcExpr));
+        }
+
+        // Regular local variable declaration: local name = value
         Token name = consume(TokenType::Name, "Expect variable name.");
 
         UPtr<Expr> initializer = nullptr;

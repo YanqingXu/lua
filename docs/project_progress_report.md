@@ -141,7 +141,7 @@
 | 表系统 | 90% | ✅ | vm/table.hpp, vm/table.cpp |
 | 状态管理 | 85% | ✅ | vm/state.hpp, vm/state.cpp |
 | 词法分析器 | 100% | ✅ | lexer/lexer.hpp, lexer/lexer.cpp |
-| 语法分析器 | 60% | 🔄 | parser/parser.hpp, parser/parser.cpp |
+| 语法分析器 | 85% | ✅ | parser/parser.hpp, parser/parser.cpp |
 | 编译器 | 40% | 🔄 | compiler/compiler.hpp, compiler/compiler.cpp |
 | 虚拟机 | 30% | 🔄 | vm/vm.hpp, vm/vm.cpp |
 | 函数系统 | 50% | 🔄 | vm/function.hpp, vm/function.cpp |

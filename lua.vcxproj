@@ -140,6 +140,7 @@
     <ClInclude Include="src\lexer\lexer.hpp" />
     <ClInclude Include="src\lib\base_lib.hpp" />
     <ClInclude Include="src\parser\parser.hpp" />
+    <ClInclude Include="src\parser\visitor.hpp" />
     <ClInclude Include="src\types.hpp" />
     <ClInclude Include="src\vm\function.hpp" />
     <ClInclude Include="src\vm\gc.hpp" />
@@ -154,6 +155,7 @@
     <ClCompile Include="src\lib\base_lib.cpp" />
     <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\parser\parser.cpp" />
+    <ClCompile Include="src\parser\visitor.cpp" />
     <ClCompile Include="src\vm\function.cpp" />
     <ClCompile Include="src\vm\gc.cpp" />
     <ClCompile Include="src\vm\state.cpp" />
