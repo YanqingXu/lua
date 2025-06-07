@@ -1,7 +1,7 @@
 #pragma once
 
 #include "../types.hpp"
-#include "../parser/parser.hpp"
+#include "../parser/parser_new.hpp"
 #include "../vm/function.hpp"
 #include "../common/opcodes.hpp"
 

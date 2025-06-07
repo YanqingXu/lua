@@ -1,0 +1,116 @@
+﻿#pragma once
+
+#include "ast_base.hpp"
+#include "expressions.hpp"
+
+namespace Lua {
+    // Expression statement
+    class ExprStmt : public Stmt {
+    private:
+        UPtr<Expr> expression;
+
+    public:
+        explicit ExprStmt(UPtr<Expr> expression)
+            : expression(std::move(expression)) {}
+
+        StmtType getType() const override { return StmtType::Expression; }
+        const Expr* getExpression() const { return expression.get(); }
+    };
+
+    // Block statement (block composed of multiple statements)
+    class BlockStmt : public Stmt {
+    private:
+        Vec<UPtr<Stmt>> statements;
+
+    public:
+        explicit BlockStmt(Vec<UPtr<Stmt>> statements)
+            : statements(std::move(statements)) {}
+
+        StmtType getType() const override { return StmtType::Block; }
+        const Vec<UPtr<Stmt>>& getStatements() const { return statements; }
+    };
+
+    // Local variable declaration statement
+    class LocalStmt : public Stmt {
+    private:
+        Str name;
+        UPtr<Expr> initializer;
+
+    public:
+        LocalStmt(const Str& name, UPtr<Expr> initializer)
+            : name(name), initializer(std::move(initializer)) {}
+
+        StmtType getType() const override { return StmtType::Local; }
+        const Str& getName() const { return name; }
+        const Expr* getInitializer() const { return initializer.get(); }
+    };
+
+    // Assignment statement (var = expr, obj.field = expr, obj[key] = expr)
+    class AssignStmt : public Stmt {
+    private:
+        UPtr<Expr> target;
+        UPtr<Expr> value;
+
+    public:
+        AssignStmt(UPtr<Expr> target, UPtr<Expr> value)
+            : target(std::move(target)), value(std::move(value)) {}
+
+        StmtType getType() const override { return StmtType::Assign; }
+        const Expr* getTarget() const { return target.get(); }
+        const Expr* getValue() const { return value.get(); }
+    };
+
+    // If statement (if condition then body [else elseBody] end)
+    class IfStmt : public Stmt {
+    private:
+        UPtr<Expr> condition;
+        UPtr<Stmt> thenBranch;
+        UPtr<Stmt> elseBranch;
+
+    public:
+        IfStmt(UPtr<Expr> condition, UPtr<Stmt> thenBranch, UPtr<Stmt> elseBranch = nullptr)
+            : condition(std::move(condition)), thenBranch(std::move(thenBranch)), elseBranch(std::move(elseBranch)) {}
+
+        StmtType getType() const override { return StmtType::If; }
+        const Expr* getCondition() const { return condition.get(); }
+        const Stmt* getThenBranch() const { return thenBranch.get(); }
+        const Stmt* getElseBranch() const { return elseBranch.get(); }
+    };
+
+    // While statement (while condition do body end)
+    class WhileStmt : public Stmt {
+    private:
+        UPtr<Expr> condition;
+        UPtr<Stmt> body;
+
+    public:
+        WhileStmt(UPtr<Expr> condition, UPtr<Stmt> body)
+            : condition(std::move(condition)), body(std::move(body)) {}
+
+        StmtType getType() const override { return StmtType::While; }
+        const Expr* getCondition() const { return condition.get(); }
+        const Stmt* getBody() const { return body.get(); }
+    };
+
+    // Return statement
+    class ReturnStmt : public Stmt {
+    private:
+        UPtr<Expr> value; // 可选的返回值
+
+    public:
+        ReturnStmt(UPtr<Expr> value = nullptr)
+            : value(std::move(value)) {
+        }
+
+        StmtType getType() const override { return StmtType::Return; }
+        const Expr* getValue() const { return value.get(); }
+    };
+
+    // Break statement
+    class BreakStmt : public Stmt {
+    public:
+        BreakStmt() {}
+
+        StmtType getType() const override { return StmtType::Break; }
+    };
+}
