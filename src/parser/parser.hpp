@@ -58,6 +58,7 @@ namespace Lua {
         UPtr<Stmt> blockStatement();
         UPtr<Stmt> returnStatement();
         UPtr<Stmt> breakStatement();
+        UPtr<Stmt> functionStatement();
 
         // Helper for assignment target validation
         bool isValidAssignmentTarget(const Expr* expr) const;

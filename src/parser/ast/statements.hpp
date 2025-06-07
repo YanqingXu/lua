@@ -166,4 +166,21 @@ namespace Lua {
         const Stmt* getBody() const { return body.get(); }
         const Expr* getCondition() const { return condition.get(); }
     };
+
+    // Function definition statement (function name(params) body end)
+    class FunctionStmt : public Stmt {
+    private:
+        Str name;                // Function name
+        Vec<Str> parameters;     // Parameter list
+        UPtr<Stmt> body;         // Function body
+
+    public:
+        FunctionStmt(const Str& name, const Vec<Str>& parameters, UPtr<Stmt> body)
+            : name(name), parameters(parameters), body(std::move(body)) {}
+
+        StmtType getType() const override { return StmtType::Function; }
+        const Str& getName() const { return name; }
+        const Vec<Str>& getParameters() const { return parameters; }
+        const Stmt* getBody() const { return body.get(); }
+    };
 }

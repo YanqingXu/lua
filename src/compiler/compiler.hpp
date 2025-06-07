@@ -27,7 +27,8 @@ namespace Lua {
     class BlockStmt;
     class LocalStmt;
     class ForInStmt;
-class RepeatUntilStmt;
+    class RepeatUntilStmt;
+    class FunctionStmt;
     class Stmt;
 
     
@@ -64,6 +65,7 @@ class RepeatUntilStmt;
         void compileLocalStmt(const LocalStmt* stmt);
         void compileForInStmt(const ForInStmt* stmt);
         void compileRepeatUntilStmt(const RepeatUntilStmt* stmt);
+        void compileFunctionStmt(const FunctionStmt* stmt);
         
         // Helper methods
         int addConstant(const Value& value);

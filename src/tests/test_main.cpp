@@ -1,6 +1,7 @@
 #include "test_main.hpp"
 #include "forin_test.hpp"
 #include "repeat_test.hpp"
+#include "function_test.hpp"
 #include <iostream>
 
 namespace Lua {
@@ -34,6 +35,9 @@ void runAllTests() {
         
         // Run repeat-until loop tests
         runRepeatUntilTests();
+        
+        // Run function tests
+        runFunctionTests();
         
         std::cout << "\n=== All Tests Completed ===" << std::endl;
         

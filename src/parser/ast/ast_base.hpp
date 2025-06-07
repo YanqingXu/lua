@@ -29,7 +29,8 @@ namespace Lua {
         ForIn,      // For-in loop (iterator)
         RepeatUntil,// Repeat-until loop
         Return,     // Return statement
-        Break       // Break statement
+        Break,      // Break statement
+        Function    // Function definition statement
     };
 
     // Expression base class

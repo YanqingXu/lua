@@ -235,6 +235,9 @@ namespace Lua {
             case StmtType::RepeatUntil:
                 compileRepeatUntilStmt(static_cast<const RepeatUntilStmt*>(stmt));
                 break;
+            case StmtType::Function:
+                compileFunctionStmt(static_cast<const FunctionStmt*>(stmt));
+                break;
             default:
                 throw LuaException("Unsupported statement type.");
         }
@@ -356,6 +359,28 @@ namespace Lua {
         
         // Free the condition register
         freeReg();
+        
+        endScope();
+    }
+    
+    void Compiler::compileFunctionStmt(const FunctionStmt* stmt) {
+        // Function definition compilation:
+        // 1. Create a new function object for the function body
+        // 2. Compile the function body in a new scope
+        // 3. Store the function as a constant
+        // 4. Assign the function to the global variable with the function name
+        
+        beginScope();
+        
+        // TODO: For now, we'll create a simple placeholder implementation
+        // In a full implementation, we would:
+        // - Create a new compiler instance for the function body
+        // - Set up parameter registers
+        // - Compile the function body
+        // - Create a closure instruction
+        
+        // For now, just compile the body as a block (simplified)
+        compileBlockStmt(static_cast<const BlockStmt*>(stmt->getBody()));
         
         endScope();
     }

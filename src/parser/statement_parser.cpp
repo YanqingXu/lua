@@ -29,7 +29,11 @@ namespace Lua {
         if (match(TokenType::Break)) {
             return breakStatement();
         }
-    
+
+        if (match(TokenType::Function)) {
+            return functionStatement();
+        }
+
         return assignmentStatement();
     }
 
@@ -228,5 +232,31 @@ namespace Lua {
         auto body = std::make_unique<BlockStmt>(std::move(statements));
         
         return std::make_unique<RepeatUntilStmt>(std::move(body), std::move(condition));
+    }
+
+    UPtr<Stmt> Parser::functionStatement() {
+        // Parse function name
+        Token name = consume(TokenType::Name, "Expect function name.");
+        
+        // Parse parameter list
+        consume(TokenType::LeftParen, "Expect '(' after function name.");
+        
+        Vec<Str> parameters;
+        if (!check(TokenType::RightParen)) {
+            do {
+                Token param = consume(TokenType::Name, "Expect parameter name.");
+                parameters.push_back(param.lexeme);
+            } while (match(TokenType::Comma));
+        }
+        
+        consume(TokenType::RightParen, "Expect ')' after parameters.");
+        
+        // Parse function body
+        auto body = blockStatement();
+        
+        // Expect 'end'
+        consume(TokenType::End, "Expect 'end' after function body.");
+        
+        return std::make_unique<FunctionStmt>(name.lexeme, parameters, std::move(body));
     }
 }
