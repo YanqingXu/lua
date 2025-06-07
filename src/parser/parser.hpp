@@ -158,7 +158,8 @@ namespace Lua {
         Function,    // Function definition
         Return,      // return statement
         Local,       // Local variable declaration
-        Assign       // Assignment statement
+        Assign,      // Assignment statement
+        Break        // Break statement
     };
 
     // Statement base class
@@ -241,7 +242,22 @@ namespace Lua {
         const Stmt* getElseBranch() const { return elseBranch.get(); }
     };
 
-    // 在IfStmt类定义之后添加
+    // While statement (while condition do body end)
+    class WhileStmt : public Stmt {
+    private:
+        UPtr<Expr> condition;
+        UPtr<Stmt> body;
+
+    public:
+        WhileStmt(UPtr<Expr> condition, UPtr<Stmt> body)
+            : condition(std::move(condition)), body(std::move(body)) {}
+
+        StmtType getType() const override { return StmtType::While; }
+        const Expr* getCondition() const { return condition.get(); }
+        const Stmt* getBody() const { return body.get(); }
+    };
+
+    // Return statement
     class ReturnStmt : public Stmt {
     private:
         UPtr<Expr> value; // 可选的返回值
@@ -253,6 +269,14 @@ namespace Lua {
 
         StmtType getType() const override { return StmtType::Return; }
         const Expr* getValue() const { return value.get(); }
+    };
+
+    // Break statement
+    class BreakStmt : public Stmt {
+    public:
+        BreakStmt() {}
+
+        StmtType getType() const override { return StmtType::Break; }
     };
 
     // Parser class
@@ -295,8 +319,10 @@ namespace Lua {
         UPtr<Stmt> localDeclaration();
         UPtr<Stmt> assignmentStatement();
         UPtr<Stmt> ifStatement();
+        UPtr<Stmt> whileStatement();
         UPtr<Stmt> blockStatement();
         UPtr<Stmt> returnStatement();
+        UPtr<Stmt> breakStatement();
 
         // Helper for assignment target validation
         bool isValidAssignmentTarget(const Expr* expr) const;

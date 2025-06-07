@@ -1,4 +1,4 @@
-#include "parser.hpp"
+﻿#include "parser.hpp"
 
 namespace Lua {
     Parser::Parser(const Str& source) : lexer(source), hadError(false) {
@@ -305,8 +305,16 @@ namespace Lua {
             return ifStatement();
         }
     
+        if (match(TokenType::While)) {
+            return whileStatement();
+        }
+    
         if (match(TokenType::Return)) {
             return returnStatement();
+        }
+    
+        if (match(TokenType::Break)) {
+            return breakStatement();
         }
     
         return assignmentStatement();
@@ -458,6 +466,29 @@ namespace Lua {
         consume(TokenType::End, "Expect 'end' after function body.");
 
         return std::make_unique<FunctionExpr>(std::move(parameters), std::move(body));
+    }
+
+    UPtr<Stmt> Parser::whileStatement() {
+        // Parse condition expression
+        auto condition = expression();
+        
+        // Expect 'do' keyword
+        consume(TokenType::Do, "Expect 'do' after while condition.");
+        
+        // Parse body as a block statement
+        auto body = blockStatement();
+        
+        // Expect 'end' keyword
+        consume(TokenType::End, "Expect 'end' after while body.");
+        
+        return std::make_unique<WhileStmt>(std::move(condition), std::move(body));
+    }
+
+    UPtr<Stmt> Parser::breakStatement() {
+        // Optional semicolon after break
+        match(TokenType::Semicolon);
+        
+        return std::make_unique<BreakStmt>();
     }
 }
 
