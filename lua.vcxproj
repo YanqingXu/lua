@@ -145,6 +145,12 @@
     <ClInclude Include="src\parser\ast\statements.hpp" />
     <ClInclude Include="src\parser\parser.hpp" />
     <ClInclude Include="src\parser\visitor.hpp" />
+    <ClInclude Include="src\tests\lexer_test.hpp" />
+    <ClInclude Include="src\tests\parser_test.hpp" />
+    <ClInclude Include="src\tests\state_test.hpp" />
+    <ClInclude Include="src\tests\symbol_table_test.hpp" />
+    <ClInclude Include="src\tests\test_main.hpp" />
+    <ClInclude Include="src\tests\value_test.hpp" />
     <ClInclude Include="src\types.hpp" />
     <ClInclude Include="src\vm\function.hpp" />
     <ClInclude Include="src\vm\gc.hpp" />
@@ -163,6 +169,12 @@
     <ClCompile Include="src\parser\parser_utils.cpp" />
     <ClCompile Include="src\parser\statement_parser.cpp" />
     <ClCompile Include="src\parser\visitor.cpp" />
+    <ClCompile Include="src\tests\lexer_test.cpp" />
+    <ClCompile Include="src\tests\parser_test.cpp" />
+    <ClCompile Include="src\tests\state_test.cpp" />
+    <ClCompile Include="src\tests\symbol_table_test.cpp" />
+    <ClCompile Include="src\tests\test_main.cpp" />
+    <ClCompile Include="src\tests\value_test.cpp" />
     <ClCompile Include="src\vm\function.cpp" />
     <ClCompile Include="src\vm\gc.cpp" />
     <ClCompile Include="src\vm\state.cpp" />

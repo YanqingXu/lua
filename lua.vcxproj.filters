@@ -34,6 +34,9 @@
     <Filter Include="parser\ast">
       <UniqueIdentifier>{55025240-88f2-415e-a4ca-e520ad69e646}</UniqueIdentifier>
     </Filter>
+    <Filter Include="tests">
+      <UniqueIdentifier>{eccc84fa-0552-4712-9739-3c7fd257f1cc}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\main.cpp">
@@ -80,6 +83,24 @@
     </ClCompile>
     <ClCompile Include="src\parser\statement_parser.cpp">
       <Filter>parser</Filter>
+    </ClCompile>
+    <ClCompile Include="src\tests\lexer_test.cpp">
+      <Filter>tests</Filter>
+    </ClCompile>
+    <ClCompile Include="src\tests\parser_test.cpp">
+      <Filter>tests</Filter>
+    </ClCompile>
+    <ClCompile Include="src\tests\state_test.cpp">
+      <Filter>tests</Filter>
+    </ClCompile>
+    <ClCompile Include="src\tests\symbol_table_test.cpp">
+      <Filter>tests</Filter>
+    </ClCompile>
+    <ClCompile Include="src\tests\test_main.cpp">
+      <Filter>tests</Filter>
+    </ClCompile>
+    <ClCompile Include="src\tests\value_test.cpp">
+      <Filter>tests</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -136,6 +157,24 @@
     </ClInclude>
     <ClInclude Include="src\parser\ast\statements.hpp">
       <Filter>parser\ast</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tests\lexer_test.hpp">
+      <Filter>tests</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tests\parser_test.hpp">
+      <Filter>tests</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tests\state_test.hpp">
+      <Filter>tests</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tests\symbol_table_test.hpp">
+      <Filter>tests</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tests\test_main.hpp">
+      <Filter>tests</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tests\value_test.hpp">
+      <Filter>tests</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>
