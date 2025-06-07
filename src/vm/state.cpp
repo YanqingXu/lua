@@ -2,7 +2,7 @@
 #include "table.hpp"
 #include "function.hpp"
 #include "../common/defines.hpp"
-#include "../parser/parser_new.hpp"
+#include "../parser/parser.hpp"
 #include "../compiler/compiler.hpp"
 #include "../vm/vm.hpp"
 #include <stdexcept>

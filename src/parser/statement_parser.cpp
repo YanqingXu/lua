@@ -1,4 +1,4 @@
-#include "parser_new.hpp"
+#include "parser.hpp"
 
 namespace Lua {
     UPtr<Stmt> Parser::statement() {

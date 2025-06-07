@@ -8,7 +8,7 @@
 #include "vm/table.hpp"
 #include "vm/function.hpp"
 #include "lexer/lexer.hpp"
-#include "parser/parser_new.hpp"
+#include "parser/parser.hpp"
 #include "parser/visitor.hpp"
 #include "compiler/symbol_table.hpp"
 #include "common/defines.hpp"

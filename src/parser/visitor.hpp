@@ -1,6 +1,6 @@
 #pragma once
 
-#include "parser_new.hpp"
+#include "parser.hpp"
 #include "../types.hpp"
 
 namespace Lua {
