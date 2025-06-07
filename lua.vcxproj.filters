@@ -31,6 +31,9 @@
     <Filter Include="vm">
       <UniqueIdentifier>{cc9ca1e3-12d3-4572-9620-051950d98d37}</UniqueIdentifier>
     </Filter>
+    <Filter Include="parser\ast">
+      <UniqueIdentifier>{55025240-88f2-415e-a4ca-e520ad69e646}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\main.cpp">
@@ -38,9 +41,6 @@
     </ClCompile>
     <ClCompile Include="src\vm\vm.cpp">
       <Filter>vm</Filter>
-    </ClCompile>
-    <ClCompile Include="src\parser\parser.cpp">
-      <Filter>parser</Filter>
     </ClCompile>
     <ClCompile Include="src\lexer\lexer.cpp">
       <Filter>lexer</Filter>
@@ -71,6 +71,15 @@
     </ClCompile>
     <ClCompile Include="src\compiler\symbol_table.cpp">
       <Filter>compiler</Filter>
+    </ClCompile>
+    <ClCompile Include="src\parser\expression_parser.cpp">
+      <Filter>parser</Filter>
+    </ClCompile>
+    <ClCompile Include="src\parser\parser_utils.cpp">
+      <Filter>parser</Filter>
+    </ClCompile>
+    <ClCompile Include="src\parser\statement_parser.cpp">
+      <Filter>parser</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -118,6 +127,15 @@
     </ClInclude>
     <ClInclude Include="src\compiler\symbol_table.hpp">
       <Filter>compiler</Filter>
+    </ClInclude>
+    <ClInclude Include="src\parser\ast\ast_base.hpp">
+      <Filter>parser\ast</Filter>
+    </ClInclude>
+    <ClInclude Include="src\parser\ast\expressions.hpp">
+      <Filter>parser\ast</Filter>
+    </ClInclude>
+    <ClInclude Include="src\parser\ast\statements.hpp">
+      <Filter>parser\ast</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>
