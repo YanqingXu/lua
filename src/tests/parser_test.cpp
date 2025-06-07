@@ -70,6 +70,16 @@ void testParser() {
         "local func = function() end",
         "local pi = 3.14159;",
 
+        // While loops
+        "while x > 0 do x = x - 1 end",
+        "while true do break end",
+
+        // For loops
+        "for i = 1, 10 do print(i) end",
+        "for i = 1, 10, 2 do print(i) end",
+        "for j = 10, 1, -1 do print(j) end",
+        "for k = start, finish do k = k + 1 end",
+
         // Mixed statements
         "local x = 5; x = x + 1"
     };

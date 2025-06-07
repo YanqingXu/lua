@@ -92,6 +92,27 @@ namespace Lua {
         const Stmt* getBody() const { return body.get(); }
     };
 
+    // For statement (for var = start, end [, step] do body end)
+    class ForStmt : public Stmt {
+    private:
+        Str variable;        // Loop variable name
+        UPtr<Expr> start;    // Start value
+        UPtr<Expr> end;      // End value
+        UPtr<Expr> step;     // Step value (optional, defaults to 1)
+        UPtr<Stmt> body;     // Loop body
+
+    public:
+        ForStmt(const Str& variable, UPtr<Expr> start, UPtr<Expr> end, UPtr<Expr> step, UPtr<Stmt> body)
+            : variable(variable), start(std::move(start)), end(std::move(end)), step(std::move(step)), body(std::move(body)) {}
+
+        StmtType getType() const override { return StmtType::For; }
+        const Str& getVariable() const { return variable; }
+        const Expr* getStart() const { return start.get(); }
+        const Expr* getEnd() const { return end.get(); }
+        const Expr* getStep() const { return step.get(); }
+        const Stmt* getBody() const { return body.get(); }
+    };
+
     // Return statement
     class ReturnStmt : public Stmt {
     private:

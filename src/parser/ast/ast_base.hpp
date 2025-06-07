@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "../../types.hpp"
 #include "../../vm/value.hpp"
@@ -25,6 +25,7 @@ namespace Lua {
         Assign,     // Assignment statement
         If,         // If statement
         While,      // While loop
+        For,        // For loop
         Return,     // Return statement
         Break       // Break statement
     };

@@ -14,6 +14,10 @@ namespace Lua {
             return whileStatement();
         }
     
+        if (match(TokenType::For)) {
+            return forStatement();
+        }
+    
         if (match(TokenType::Return)) {
             return returnStatement();
         }
@@ -133,5 +137,39 @@ namespace Lua {
         match(TokenType::Semicolon);
         
         return std::make_unique<BreakStmt>();
+    }
+
+    UPtr<Stmt> Parser::forStatement() {
+        // Parse variable name
+        Token variable = consume(TokenType::Name, "Expect variable name after 'for'.");
+        
+        // Expect '=' 
+        consume(TokenType::Assign, "Expect '=' after for variable.");
+        
+        // Parse start expression
+        auto start = expression();
+        
+        // Expect ','
+        consume(TokenType::Comma, "Expect ',' after for start value.");
+        
+        // Parse end expression
+        auto end = expression();
+        
+        // Parse optional step expression
+        UPtr<Expr> step = nullptr;
+        if (match(TokenType::Comma)) {
+            step = expression();
+        }
+        
+        // Expect 'do'
+        consume(TokenType::Do, "Expect 'do' after for range.");
+        
+        // Parse body as a block statement
+        auto body = blockStatement();
+        
+        // Expect 'end'
+        consume(TokenType::End, "Expect 'end' after for body.");
+        
+        return std::make_unique<ForStmt>(variable.lexeme, std::move(start), std::move(end), std::move(step), std::move(body));
     }
 }

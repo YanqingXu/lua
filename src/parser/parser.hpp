@@ -52,6 +52,7 @@ namespace Lua {
         UPtr<Stmt> assignmentStatement();
         UPtr<Stmt> ifStatement();
         UPtr<Stmt> whileStatement();
+        UPtr<Stmt> forStatement();
         UPtr<Stmt> blockStatement();
         UPtr<Stmt> returnStatement();
         UPtr<Stmt> breakStatement();
