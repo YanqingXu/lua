@@ -4,31 +4,13 @@
 #include "../parser/parser.hpp"
 #include "../vm/function.hpp"
 #include "../common/opcodes.hpp"
+#include "compiler_utils.hpp"
 
 namespace Lua {
-    // Local variable
-    struct Local {
-        Str name;
-        int depth;
-        bool isCaptured;
-        int slot;    // Register index
-        
-        Local(const Str& name, int depth, int slot)
-            : name(name), depth(depth), isCaptured(false), slot(slot) {}
-    };
-
+    // Forward declarations
+    class ExpressionCompiler;
+    class StatementCompiler;
     class Expr;
-    class LiteralExpr;
-    class VariableExpr;
-    class UnaryExpr;
-    class BinaryExpr;
-    class CallExpr;
-    class ExprStmt;
-    class BlockStmt;
-    class LocalStmt;
-    class ForInStmt;
-    class RepeatUntilStmt;
-    class FunctionStmt;
     class Stmt;
 
     
@@ -50,42 +32,66 @@ namespace Lua {
         // Jump instruction positions for current block
         Vec<int> breaks;
         
-        // Compile expressions
-        int compileExpr(const Expr* expr);
-        int compileLiteral(const LiteralExpr* expr);
-        int compileVariable(const VariableExpr* expr);
-        int compileUnary(const UnaryExpr* expr);
-        int compileBinary(const BinaryExpr* expr);
-        int compileCall(const CallExpr* expr);
+        // Next available register
+        int nextRegister;
         
-        // Compile statements
-        void compileStmt(const Stmt* stmt);
-        void compileExprStmt(const ExprStmt* stmt);
-        void compileBlockStmt(const BlockStmt* stmt);
-        void compileLocalStmt(const LocalStmt* stmt);
-        void compileForInStmt(const ForInStmt* stmt);
-        void compileRepeatUntilStmt(const RepeatUntilStmt* stmt);
-        void compileFunctionStmt(const FunctionStmt* stmt);
+        // Utility helper
+        CompilerUtils utils;
         
-        // Helper methods
-        int addConstant(const Value& value);
-        void emitInstruction(const Instruction& instr);
-        int emitJump();
-        void patchJump(int from);
-        
-        // Register management
-        int nextReg = 0;
-        int allocReg() { return nextReg++; }
-        void freeReg() { if (nextReg>0) --nextReg; }
-        
-        void beginScope();
-        void endScope();
-        int resolveLocal(const Str& name);
+        // Compiler modules
+        UPtr<ExpressionCompiler> exprCompiler;
+        UPtr<StatementCompiler> stmtCompiler;
         
     public:
-        Compiler();
+        explicit Compiler();
+        ~Compiler();
         
-        // Compile AST, generate function object
+        // Main compilation interface
         Ptr<Function> compile(const Vec<UPtr<Stmt>>& statements);
+        
+        // Compilation methods
+        int compileExpr(const Expr* expr);
+        void compileStmt(const Stmt* stmt);
+        
+        // Access to compiler modules
+        ExpressionCompiler* getExpressionCompiler() const { return exprCompiler.get(); }
+        StatementCompiler* getStatementCompiler() const { return stmtCompiler.get(); }
+        
+        // Register management
+        int allocReg() { return utils.allocateRegister(nextRegister); }
+        void freeReg() { utils.freeRegister(nextRegister); }
+        
+        // Constant management
+        int addConstant(const Value& value);
+        
+        // Local variable management
+        int resolveLocal(const Str& name);
+        void addLocal(const Str& name, int slot) { utils.addLocal(locals, name, scopeDepth, slot); }
+        
+        // Scope management
+        void beginScope();
+        void endScope();
+        
+        // Instruction emission
+        void emitInstruction(const Instruction& instr);
+        int emitJump();
+        void patchJump(int jumpAddr);
+        
+        // Break statement support
+        void addBreakJump(int jumpAddr) { breaks.push_back(jumpAddr); }
+        void patchBreakJumps(int targetAddr) {
+            for (int jumpAddr : breaks) {
+                utils.patchJump(*code, jumpAddr, targetAddr);
+            }
+            breaks.clear();
+        }
+        
+        // Code access
+        size_t getCodeSize() const { return code->size(); }
+        
+    private:
+        // Initialize compiler modules
+        void initializeModules();
+        
     };
 }

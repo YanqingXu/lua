@@ -111,6 +111,15 @@
     <ClCompile Include="src\tests\function_test.cpp">
       <Filter>tests</Filter>
     </ClCompile>
+    <ClCompile Include="src\compiler\compiler_utils.cpp">
+      <Filter>compiler</Filter>
+    </ClCompile>
+    <ClCompile Include="src\compiler\expression_compiler.cpp">
+      <Filter>compiler</Filter>
+    </ClCompile>
+    <ClCompile Include="src\compiler\statement_compiler.cpp">
+      <Filter>compiler</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\lib\base_lib.hpp">
@@ -193,6 +202,15 @@
     </ClInclude>
     <ClInclude Include="src\tests\function_test.hpp">
       <Filter>tests</Filter>
+    </ClInclude>
+    <ClInclude Include="src\compiler\compiler_utils.hpp">
+      <Filter>compiler</Filter>
+    </ClInclude>
+    <ClInclude Include="src\compiler\expression_compiler.hpp">
+      <Filter>compiler</Filter>
+    </ClInclude>
+    <ClInclude Include="src\compiler\statement_compiler.hpp">
+      <Filter>compiler</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

@@ -106,6 +106,33 @@ namespace Lua {
             return i;
         }
         
+        static Instruction createGETTABLE(u8 a, u8 b, u8 c) {
+            Instruction i;
+            i.setOpCode(OpCode::GETTABLE);
+            i.setA(a);
+            i.setB(b);
+            i.setC(c);
+            return i;
+        }
+        
+        static Instruction createSETTABLE(u8 a, u8 b, u8 c) {
+            Instruction i;
+            i.setOpCode(OpCode::SETTABLE);
+            i.setA(a);
+            i.setB(b);
+            i.setC(c);
+            return i;
+        }
+        
+        static Instruction createNEWTABLE(u8 a, u8 b, u8 c) {
+            Instruction i;
+            i.setOpCode(OpCode::NEWTABLE);
+            i.setA(a);
+            i.setB(b);
+            i.setC(c);
+            return i;
+        }
+        
         static Instruction createCALL(u8 a, u8 b, u8 c) {
             Instruction i;
             i.setOpCode(OpCode::CALL);
@@ -158,12 +185,16 @@ namespace Lua {
             Instruction i; i.setOpCode(OpCode::DIV); i.setA(a); i.setB(b); i.setC(c); return i; }
         static Instruction createMOD(u8 a, u8 b, u8 c) {
             Instruction i; i.setOpCode(OpCode::MOD); i.setA(a); i.setB(b); i.setC(c); return i; }
+        static Instruction createPOW(u8 a, u8 b, u8 c) {
+            Instruction i; i.setOpCode(OpCode::POW); i.setA(a); i.setB(b); i.setC(c); return i; }
         
         // Unary operations
         static Instruction createUNM(u8 a, u8 b) { // dst=a, operand=b
             Instruction i; i.setOpCode(OpCode::UNM); i.setA(a); i.setB(b); return i; }
         static Instruction createNOT(u8 a, u8 b) {
             Instruction i; i.setOpCode(OpCode::NOT); i.setA(a); i.setB(b); return i; }
+        static Instruction createLEN(u8 a, u8 b) {
+            Instruction i; i.setOpCode(OpCode::LEN); i.setA(a); i.setB(b); return i; }
         
         // Comparison
         static Instruction createEQ(u8 a, u8 b, u8 c) { Instruction i; i.setOpCode(OpCode::EQ); i.setA(a); i.setB(b); i.setC(c); return i; }

@@ -137,6 +137,9 @@
     <ClInclude Include="src\common\defines.hpp" />
     <ClInclude Include="src\common\opcodes.hpp" />
     <ClInclude Include="src\compiler\compiler.hpp" />
+    <ClInclude Include="src\compiler\compiler_utils.hpp" />
+    <ClInclude Include="src\compiler\expression_compiler.hpp" />
+    <ClInclude Include="src\compiler\statement_compiler.hpp" />
     <ClInclude Include="src\compiler\symbol_table.hpp" />
     <ClInclude Include="src\lexer\lexer.hpp" />
     <ClInclude Include="src\lib\base_lib.hpp" />
@@ -164,6 +167,9 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\compiler\compiler.cpp" />
+    <ClCompile Include="src\compiler\compiler_utils.cpp" />
+    <ClCompile Include="src\compiler\expression_compiler.cpp" />
+    <ClCompile Include="src\compiler\statement_compiler.cpp" />
     <ClCompile Include="src\compiler\symbol_table.cpp" />
     <ClCompile Include="src\lexer\lexer.cpp" />
     <ClCompile Include="src\lib\base_lib.cpp" />
