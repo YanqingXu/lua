@@ -151,4 +151,19 @@ namespace Lua {
 
         StmtType getType() const override { return StmtType::Break; }
     };
+
+    // Repeat-until statement (repeat body until condition)
+    class RepeatUntilStmt : public Stmt {
+    private:
+        UPtr<Stmt> body;      // Loop body
+        UPtr<Expr> condition; // Until condition
+
+    public:
+        RepeatUntilStmt(UPtr<Stmt> body, UPtr<Expr> condition)
+            : body(std::move(body)), condition(std::move(condition)) {}
+
+        StmtType getType() const override { return StmtType::RepeatUntil; }
+        const Stmt* getBody() const { return body.get(); }
+        const Expr* getCondition() const { return condition.get(); }
+    };
 }

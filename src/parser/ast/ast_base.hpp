@@ -27,6 +27,7 @@ namespace Lua {
         While,      // While loop
         For,        // For loop (numeric)
         ForIn,      // For-in loop (iterator)
+        RepeatUntil,// Repeat-until loop
         Return,     // Return statement
         Break       // Break statement
     };

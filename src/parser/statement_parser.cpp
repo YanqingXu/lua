@@ -18,6 +18,10 @@ namespace Lua {
             return forStatement();
         }
     
+        if (match(TokenType::Repeat)) {
+            return repeatUntilStatement();
+        }
+    
         if (match(TokenType::Return)) {
             return returnStatement();
         }
@@ -204,5 +208,25 @@ namespace Lua {
             
             return std::make_unique<ForInStmt>(variables, std::move(iterators), std::move(body));
         }
+    }
+
+    UPtr<Stmt> Parser::repeatUntilStatement() {
+        // Parse body statements until 'until' keyword
+        Vec<UPtr<Stmt>> statements;
+        
+        while (!check(TokenType::Until) && !isAtEnd()) {
+            statements.push_back(statement());
+        }
+        
+        // Expect 'until'
+        consume(TokenType::Until, "Expect 'until' after repeat body.");
+        
+        // Parse condition expression
+        auto condition = expression();
+        
+        // Create block statement for body
+        auto body = std::make_unique<BlockStmt>(std::move(statements));
+        
+        return std::make_unique<RepeatUntilStmt>(std::move(body), std::move(condition));
     }
 }

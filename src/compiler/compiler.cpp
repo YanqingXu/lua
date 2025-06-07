@@ -232,6 +232,9 @@ namespace Lua {
             case StmtType::ForIn:
                 compileForInStmt(static_cast<const ForInStmt*>(stmt));
                 break;
+            case StmtType::RepeatUntil:
+                compileRepeatUntilStmt(static_cast<const RepeatUntilStmt*>(stmt));
+                break;
             default:
                 throw LuaException("Unsupported statement type.");
         }
@@ -314,6 +317,45 @@ namespace Lua {
         
         // Patch exit jump
         patchJump(exitJump);
+        
+        endScope();
+    }
+    
+    void Compiler::compileRepeatUntilStmt(const RepeatUntilStmt* stmt) {
+        // Repeat-until loop compilation:
+        // 1. Mark loop start position
+        // 2. Compile loop body
+        // 3. Evaluate until condition
+        // 4. If condition is false, jump back to loop start
+        
+        beginScope();
+        
+        // Mark loop start position
+        int loopStart = static_cast<int>(code->size());
+        
+        // Compile loop body
+        compileStmt(stmt->getBody());
+        
+        // Evaluate until condition
+        int conditionReg = compileExpr(stmt->getCondition());
+        
+        // In repeat-until, we continue looping while condition is false
+        // So we need to jump back if condition is false (nil or false)
+        // We can use a conditional jump that jumps when condition is true (to exit)
+        // and fall through to jump back when condition is false
+        
+        // Emit a conditional jump that will be patched to exit the loop
+        int exitJump = emitJump();
+        
+        // Jump back to loop start (this executes when condition is false)
+        int backJump = static_cast<int>(code->size()) - loopStart + 1;
+        emitInstruction(Instruction::createJMP(-backJump));
+        
+        // Patch the exit jump to point here (after the loop)
+        patchJump(exitJump);
+        
+        // Free the condition register
+        freeReg();
         
         endScope();
     }

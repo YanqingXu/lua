@@ -86,6 +86,12 @@ void testParser() {
         "for key in next, table do print(key) end",
         "for a, b, c in iterator() do print(a, b, c) end",
 
+        // Repeat-until loops
+        "repeat x = x + 1 until x > 10",
+        "repeat print(i); i = i + 1 until i >= 5",
+        "repeat local temp = getValue() until temp ~= nil",
+        "repeat doSomething() until condition == true",
+
         // Mixed statements
         "local x = 5; x = x + 1"
     };

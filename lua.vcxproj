@@ -148,6 +148,7 @@
     <ClInclude Include="src\tests\forin_test.hpp" />
     <ClInclude Include="src\tests\lexer_test.hpp" />
     <ClInclude Include="src\tests\parser_test.hpp" />
+    <ClInclude Include="src\tests\repeat_test.hpp" />
     <ClInclude Include="src\tests\state_test.hpp" />
     <ClInclude Include="src\tests\symbol_table_test.hpp" />
     <ClInclude Include="src\tests\test_main.hpp" />
@@ -173,6 +174,7 @@
     <ClCompile Include="src\tests\forin_test.cpp" />
     <ClCompile Include="src\tests\lexer_test.cpp" />
     <ClCompile Include="src\tests\parser_test.cpp" />
+    <ClCompile Include="src\tests\repeat_test.cpp" />
     <ClCompile Include="src\tests\state_test.cpp" />
     <ClCompile Include="src\tests\symbol_table_test.cpp" />
     <ClCompile Include="src\tests\test_main.cpp" />
