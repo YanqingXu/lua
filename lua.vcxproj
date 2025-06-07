@@ -145,6 +145,7 @@
     <ClInclude Include="src\parser\ast\statements.hpp" />
     <ClInclude Include="src\parser\parser.hpp" />
     <ClInclude Include="src\parser\visitor.hpp" />
+    <ClInclude Include="src\tests\forin_test.hpp" />
     <ClInclude Include="src\tests\lexer_test.hpp" />
     <ClInclude Include="src\tests\parser_test.hpp" />
     <ClInclude Include="src\tests\state_test.hpp" />
@@ -169,6 +170,7 @@
     <ClCompile Include="src\parser\parser_utils.cpp" />
     <ClCompile Include="src\parser\statement_parser.cpp" />
     <ClCompile Include="src\parser\visitor.cpp" />
+    <ClCompile Include="src\tests\forin_test.cpp" />
     <ClCompile Include="src\tests\lexer_test.cpp" />
     <ClCompile Include="src\tests\parser_test.cpp" />
     <ClCompile Include="src\tests\state_test.cpp" />

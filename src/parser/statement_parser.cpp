@@ -140,36 +140,69 @@ namespace Lua {
     }
 
     UPtr<Stmt> Parser::forStatement() {
-        // Parse variable name
-        Token variable = consume(TokenType::Name, "Expect variable name after 'for'.");
+        // Parse first variable name
+        Token firstVar = consume(TokenType::Name, "Expect variable name after 'for'.");
         
-        // Expect '=' 
-        consume(TokenType::Assign, "Expect '=' after for variable.");
-        
-        // Parse start expression
-        auto start = expression();
-        
-        // Expect ','
-        consume(TokenType::Comma, "Expect ',' after for start value.");
-        
-        // Parse end expression
-        auto end = expression();
-        
-        // Parse optional step expression
-        UPtr<Expr> step = nullptr;
-        if (match(TokenType::Comma)) {
-            step = expression();
+        // Check if this is a numeric for loop (=) or for-in loop (,/in)
+        if (check(TokenType::Assign)) {
+            // Numeric for loop: for var = start, end [, step] do body end
+            advance(); // consume '='
+            
+            // Parse start expression
+            auto start = expression();
+            
+            // Expect ','
+            consume(TokenType::Comma, "Expect ',' after for start value.");
+            
+            // Parse end expression
+            auto end = expression();
+            
+            // Parse optional step expression
+            UPtr<Expr> step = nullptr;
+            if (match(TokenType::Comma)) {
+                step = expression();
+            }
+            
+            // Expect 'do'
+            consume(TokenType::Do, "Expect 'do' after for range.");
+            
+            // Parse body as a block statement
+            auto body = blockStatement();
+            
+            // Expect 'end'
+            consume(TokenType::End, "Expect 'end' after for body.");
+            
+            return std::make_unique<ForStmt>(firstVar.lexeme, std::move(start), std::move(end), std::move(step), std::move(body));
+        } else {
+            // For-in loop: for var1, var2, ... in expr do body end
+            Vec<Str> variables;
+            variables.push_back(firstVar.lexeme);
+            
+            // Parse additional variables
+            while (match(TokenType::Comma)) {
+                Token var = consume(TokenType::Name, "Expect variable name after ','.");
+                variables.push_back(var.lexeme);
+            }
+            
+            // Expect 'in'
+            consume(TokenType::In, "Expect 'in' after for variables.");
+            
+            // Parse iterator expression list
+            Vec<UPtr<Expr>> iterators;
+            do {
+                iterators.push_back(expression());
+            } while (match(TokenType::Comma));
+            
+            // Expect 'do'
+            consume(TokenType::Do, "Expect 'do' after for iterator.");
+            
+            // Parse body as a block statement
+            auto body = blockStatement();
+            
+            // Expect 'end'
+            consume(TokenType::End, "Expect 'end' after for body.");
+            
+            return std::make_unique<ForInStmt>(variables, std::move(iterators), std::move(body));
         }
-        
-        // Expect 'do'
-        consume(TokenType::Do, "Expect 'do' after for range.");
-        
-        // Parse body as a block statement
-        auto body = blockStatement();
-        
-        // Expect 'end'
-        consume(TokenType::End, "Expect 'end' after for body.");
-        
-        return std::make_unique<ForStmt>(variable.lexeme, std::move(start), std::move(end), std::move(step), std::move(body));
     }
 }

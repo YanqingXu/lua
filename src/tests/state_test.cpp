@@ -37,6 +37,22 @@ void testState() {
         args.push_back(Value("Hello from native function!"));
         state.call(printFn, args);
     }
+    
+    // Test ipairs and pairs functions
+    Value ipairsFn = state.getGlobal("ipairs");
+    Value pairsFn = state.getGlobal("pairs");
+    
+    if (ipairsFn.isFunction()) {
+        std::cout << "ipairs function registered successfully" << std::endl;
+    } else {
+        std::cout << "ERROR: ipairs function not found" << std::endl;
+    }
+    
+    if (pairsFn.isFunction()) {
+        std::cout << "pairs function registered successfully" << std::endl;
+    } else {
+        std::cout << "ERROR: pairs function not found" << std::endl;
+    }
 }
 
 void testExecute() {

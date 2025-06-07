@@ -1,4 +1,5 @@
 #include "test_main.hpp"
+#include "forin_test.hpp"
 #include <iostream>
 
 namespace Lua {
@@ -26,6 +27,9 @@ void runAllTests() {
         
         // Run symbol table tests
         testSymbolTable();
+        
+        // Run for-in loop tests
+        runForInTests();
         
         std::cout << "\n=== All Tests Completed ===" << std::endl;
         

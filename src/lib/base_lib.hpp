@@ -12,4 +12,6 @@ namespace Lua {
     Value tonumber(State* state, int nargs);
     Value tostring(State* state, int nargs);
     Value type(State* state, int nargs);
+    Value ipairs(State* state, int nargs);
+    Value pairs(State* state, int nargs);
 }

@@ -113,6 +113,23 @@ namespace Lua {
         const Stmt* getBody() const { return body.get(); }
     };
 
+    // For-in statement (for var1, var2, ... in expr-list do body end)
+    class ForInStmt : public Stmt {
+    private:
+        Vec<Str> variables;        // Loop variable names
+        Vec<UPtr<Expr>> iterators; // Iterator expression list
+        UPtr<Stmt> body;           // Loop body
+
+    public:
+        ForInStmt(const Vec<Str>& variables, Vec<UPtr<Expr>> iterators, UPtr<Stmt> body)
+            : variables(variables), iterators(std::move(iterators)), body(std::move(body)) {}
+
+        StmtType getType() const override { return StmtType::ForIn; }
+        const Vec<Str>& getVariables() const { return variables; }
+        const Vec<UPtr<Expr>>& getIterators() const { return iterators; }
+        const Stmt* getBody() const { return body.get(); }
+    };
+
     // Return statement
     class ReturnStmt : public Stmt {
     private:

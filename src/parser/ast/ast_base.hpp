@@ -25,7 +25,8 @@ namespace Lua {
         Assign,     // Assignment statement
         If,         // If statement
         While,      // While loop
-        For,        // For loop
+        For,        // For loop (numeric)
+        ForIn,      // For-in loop (iterator)
         Return,     // Return statement
         Break       // Break statement
     };

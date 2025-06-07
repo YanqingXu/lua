@@ -26,6 +26,7 @@ namespace Lua {
     class ExprStmt;
     class BlockStmt;
     class LocalStmt;
+    class ForInStmt;
     class Stmt;
 
     
@@ -60,6 +61,7 @@ namespace Lua {
         void compileExprStmt(const ExprStmt* stmt);
         void compileBlockStmt(const BlockStmt* stmt);
         void compileLocalStmt(const LocalStmt* stmt);
+        void compileForInStmt(const ForInStmt* stmt);
         
         // Helper methods
         int addConstant(const Value& value);

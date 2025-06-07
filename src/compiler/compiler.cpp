@@ -229,9 +229,93 @@ namespace Lua {
             case StmtType::Local:
                 compileLocalStmt(static_cast<const LocalStmt*>(stmt));
                 break;
+            case StmtType::ForIn:
+                compileForInStmt(static_cast<const ForInStmt*>(stmt));
+                break;
             default:
                 throw LuaException("Unsupported statement type.");
         }
+    }
+    
+    void Compiler::compileForInStmt(const ForInStmt* stmt) {
+        // For-in loop compilation:
+        // 1. Evaluate iterator expression list
+        // 2. Call iterator function to get values
+        // 3. Assign values to loop variables
+        // 4. Compile loop body
+        // 5. Jump back to iterator call
+        
+        beginScope();
+        
+        // Allocate registers for iterator function, state, and control variable
+        int iterReg = allocReg();     // Iterator function
+        int stateReg = allocReg();    // Iterator state
+        int controlReg = allocReg();  // Control variable
+        
+        // Compile iterator expression list (e.g., next, table)
+        const auto& iterators = stmt->getIterators();
+        int exprReg = allocReg();
+        
+        if (iterators.size() == 1) {
+            // Single expression case (e.g., pairs(table))
+            exprReg = compileExpr(iterators[0].get());
+            emitInstruction(Instruction::createCALL(exprReg, 1, 4)); // Call with 0 args, expect 3 results
+        } else {
+            // Multiple expressions case (e.g., next, table)
+            for (size_t i = 0; i < iterators.size() && i < 3; ++i) {
+                int tempReg = compileExpr(iterators[i].get());
+                emitInstruction(Instruction::createMOVE(exprReg + static_cast<int>(i), tempReg));
+                freeReg();
+            }
+        }
+        
+        // Move results to our allocated registers
+        emitInstruction(Instruction::createMOVE(iterReg, exprReg));
+        emitInstruction(Instruction::createMOVE(stateReg, exprReg + 1));
+        emitInstruction(Instruction::createMOVE(controlReg, exprReg + 2));
+        
+        // Free the temporary expression register
+        freeReg();
+        
+        // Loop start position
+        int loopStart = static_cast<int>(code->size());
+        
+        // Call iterator function with state and control variable
+        emitInstruction(Instruction::createMOVE(exprReg, iterReg));
+        emitInstruction(Instruction::createMOVE(exprReg + 1, stateReg));
+        emitInstruction(Instruction::createMOVE(exprReg + 2, controlReg));
+        emitInstruction(Instruction::createCALL(exprReg, 3, static_cast<int>(stmt->getVariables().size()) + 1));
+        
+        // Check if first result is nil (end of iteration)
+        int exitJump = emitJump(); // Will be patched to jump to loop end
+        
+        // Declare loop variables and assign values from iterator call
+        for (size_t i = 0; i < stmt->getVariables().size(); ++i) {
+            const auto& varName = stmt->getVariables()[i];
+            int varSlot = allocReg();
+            locals.emplace_back(varName, scopeDepth, varSlot);
+            
+            // Move result to variable slot
+            if (i == 0) {
+                // First variable gets the control value for next iteration
+                emitInstruction(Instruction::createMOVE(varSlot, exprReg));
+                emitInstruction(Instruction::createMOVE(controlReg, exprReg));
+            } else {
+                emitInstruction(Instruction::createMOVE(varSlot, exprReg + static_cast<int>(i)));
+            }
+        }
+        
+        // Compile loop body
+        compileStmt(stmt->getBody());
+        
+        // Jump back to loop start
+        int backJump = static_cast<int>(code->size()) - loopStart;
+        emitInstruction(Instruction::createJMP(-backJump));
+        
+        // Patch exit jump
+        patchJump(exitJump);
+        
+        endScope();
     }
     
     Ptr<Function> Compiler::compile(const Vec<UPtr<Stmt>>& statements) {

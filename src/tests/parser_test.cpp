@@ -80,6 +80,12 @@ void testParser() {
         "for j = 10, 1, -1 do print(j) end",
         "for k = start, finish do k = k + 1 end",
 
+        // For-in loops
+        "for k, v in pairs(table) do print(k, v) end",
+        "for i, v in ipairs(array) do print(i, v) end",
+        "for key in next, table do print(key) end",
+        "for a, b, c in iterator() do print(a, b, c) end",
+
         // Mixed statements
         "local x = 5; x = x + 1"
     };
