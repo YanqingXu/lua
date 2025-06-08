@@ -158,6 +158,7 @@
     <ClInclude Include="src\tests\symbol_table_test.hpp" />
     <ClInclude Include="src\tests\test_main.hpp" />
     <ClInclude Include="src\tests\value_test.hpp" />
+    <ClInclude Include="src\tests\variable_compiler_test.hpp" />
     <ClInclude Include="src\types.hpp" />
     <ClInclude Include="src\vm\function.hpp" />
     <ClInclude Include="src\vm\gc.hpp" />
@@ -189,6 +190,7 @@
     <ClCompile Include="src\tests\symbol_table_test.cpp" />
     <ClCompile Include="src\tests\test_main.cpp" />
     <ClCompile Include="src\tests\value_test.cpp" />
+    <ClCompile Include="src\tests\variable_compiler_test.cpp" />
     <ClCompile Include="src\vm\function.cpp" />
     <ClCompile Include="src\vm\gc.cpp" />
     <ClCompile Include="src\vm\state.cpp" />

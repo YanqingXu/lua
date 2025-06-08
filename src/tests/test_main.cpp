@@ -3,6 +3,7 @@
 #include "repeat_test.hpp"
 #include "function_test.hpp"
 #include "literal_compiler_test.hpp"
+#include "variable_compiler_test.hpp"
 #include <iostream>
 
 namespace Lua {
@@ -42,6 +43,9 @@ void runAllTests() {
         
         // Run literal compiler tests
         LiteralCompilerTest::runAllTests();
+        
+        // Run variable compiler tests
+        VariableCompilerTest::runAllTests();
         
         std::cout << "\n=== All Tests Completed ===" << std::endl;
         

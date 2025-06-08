@@ -79,6 +79,10 @@ namespace Lua {
     }
     
     int ExpressionCompiler::compileVariable(const VariableExpr* expr) {
+        if (!expr) {
+            throw LuaException("Null variable expression in compilation");
+        }
+        
         const Str& name = expr->getName();
         
         // Try to find local variable

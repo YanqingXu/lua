@@ -88,6 +88,7 @@ namespace Lua {
         
         // Code access
         size_t getCodeSize() const { return code->size(); }
+        size_t getConstantCount() const { return constants.size(); }
         
     private:
         // Initialize compiler modules
