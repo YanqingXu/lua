@@ -34,24 +34,45 @@ namespace Lua {
     }
     
     int ExpressionCompiler::compileLiteral(const LiteralExpr* expr) {
+        if (!expr) {
+            throw LuaException("Null literal expression in compilation");
+        }
+        
         int reg = compiler->allocReg();
         
         switch (expr->getValue().type()) {
             case ValueType::Nil:
                 compiler->emitInstruction(Instruction::createLOADNIL(reg));
                 break;
+                
             case ValueType::Boolean:
                 compiler->emitInstruction(Instruction::createLOADBOOL(reg, 
                     expr->getValue().asBoolean()));
                 break;
+                
             case ValueType::Number:
             case ValueType::String: {
                 int constIdx = compiler->addConstant(expr->getValue());
-                compiler->emitInstruction(Instruction::createLOADK(reg, constIdx));
+                if (constIdx < 0 || constIdx > 65535) {
+                    throw LuaException("Constant index out of range for LOADK instruction");
+                }
+                compiler->emitInstruction(Instruction::createLOADK(reg, static_cast<u16>(constIdx)));
                 break;
             }
+            
+            case ValueType::Table:
+            case ValueType::Function: {
+                // For complex literals like tables and functions, add to constant table
+                int constIdx = compiler->addConstant(expr->getValue());
+                if (constIdx < 0 || constIdx > 65535) {
+                    throw LuaException("Constant index out of range for LOADK instruction");
+                }
+                compiler->emitInstruction(Instruction::createLOADK(reg, static_cast<u16>(constIdx)));
+                break;
+            }
+            
             default:
-                throw LuaException("Unsupported literal type");
+                throw LuaException("Unsupported literal type in compilation");
         }
         
         return reg;

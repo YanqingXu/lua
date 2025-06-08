@@ -2,6 +2,7 @@
 #include "forin_test.hpp"
 #include "repeat_test.hpp"
 #include "function_test.hpp"
+#include "literal_compiler_test.hpp"
 #include <iostream>
 
 namespace Lua {
@@ -38,6 +39,9 @@ void runAllTests() {
         
         // Run function tests
         runFunctionTests();
+        
+        // Run literal compiler tests
+        LiteralCompilerTest::runAllTests();
         
         std::cout << "\n=== All Tests Completed ===" << std::endl;
         

@@ -151,6 +151,7 @@
     <ClInclude Include="src\tests\forin_test.hpp" />
     <ClInclude Include="src\tests\function_test.hpp" />
     <ClInclude Include="src\tests\lexer_test.hpp" />
+    <ClInclude Include="src\tests\literal_compiler_test.hpp" />
     <ClInclude Include="src\tests\parser_test.hpp" />
     <ClInclude Include="src\tests\repeat_test.hpp" />
     <ClInclude Include="src\tests\state_test.hpp" />
@@ -181,6 +182,7 @@
     <ClCompile Include="src\tests\forin_test.cpp" />
     <ClCompile Include="src\tests\function_test.cpp" />
     <ClCompile Include="src\tests\lexer_test.cpp" />
+    <ClCompile Include="src\tests\literal_compiler_test.cpp" />
     <ClCompile Include="src\tests\parser_test.cpp" />
     <ClCompile Include="src\tests\repeat_test.cpp" />
     <ClCompile Include="src\tests\state_test.cpp" />

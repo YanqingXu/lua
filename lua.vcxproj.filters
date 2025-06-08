@@ -120,6 +120,9 @@
     <ClCompile Include="src\compiler\statement_compiler.cpp">
       <Filter>compiler</Filter>
     </ClCompile>
+    <ClCompile Include="src\tests\literal_compiler_test.cpp">
+      <Filter>tests</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\lib\base_lib.hpp">
@@ -211,6 +214,9 @@
     </ClInclude>
     <ClInclude Include="src\compiler\statement_compiler.hpp">
       <Filter>compiler</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tests\literal_compiler_test.hpp">
+      <Filter>tests</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>
