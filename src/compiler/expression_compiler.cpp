@@ -2,6 +2,7 @@
 #include "compiler.hpp"
 #include "../common/opcodes.hpp"
 #include <stdexcept>
+#include <cmath>
 
 namespace Lua {
     ExpressionCompiler::ExpressionCompiler(Compiler* compiler) : compiler(compiler) {}
@@ -10,6 +11,8 @@ namespace Lua {
         if (!expr) {
             throw LuaException("Null expression in compilation");
         }
+        
+        // std::cout << "compileExpr: Expression type = " << static_cast<int>(expr->getType()) << std::endl;
         
         switch (expr->getType()) {
             case ExprType::Literal:
@@ -122,9 +125,31 @@ namespace Lua {
     }
     
     int ExpressionCompiler::compileBinary(const BinaryExpr* expr) {
+        // std::cout << "compileBinary: Starting compilation" << std::endl;
         TokenType op = expr->getOperator();
+        // std::cout << "compileBinary: Operator = " << static_cast<int>(op) << std::endl;
         
-        // Handle different types of binary operations
+        // Handle logical operators with short-circuit evaluation
+        if (op == TokenType::And || op == TokenType::Or) {
+            return compileLogicalOp(expr);
+        }
+        
+        // Try constant folding optimization
+        if (tryConstantFolding(expr)) {
+            // If both operands are constants, compute at compile time
+            Value result = evaluateConstantBinary(expr);
+            int constIdx = compiler->addConstant(result);
+            int resultReg = compiler->allocReg();
+            compiler->emitInstruction(Instruction::createLOADK(resultReg, constIdx));
+            return resultReg;
+        }
+        
+        // Compile operands
+        int leftReg = compileExpr(expr->getLeft());
+        int rightReg = compileExpr(expr->getRight());
+        int resultReg = compiler->allocReg();
+        
+        // Generate appropriate instruction based on operator
         switch (op) {
             case TokenType::Plus:
             case TokenType::Minus:
@@ -132,26 +157,28 @@ namespace Lua {
             case TokenType::Slash:
             case TokenType::Percent:
             case TokenType::Caret:
-                return compileArithmeticOp(expr);
-                
+                compileArithmeticOp(op, resultReg, leftReg, rightReg);
+                break;
             case TokenType::Equal:
             case TokenType::NotEqual:
             case TokenType::Less:
             case TokenType::LessEqual:
             case TokenType::Greater:
             case TokenType::GreaterEqual:
-                return compileComparisonOp(expr);
-                
-            case TokenType::And:
-            case TokenType::Or:
-                return compileLogicalOp(expr);
-                
+                compileComparisonOp(op, resultReg, leftReg, rightReg);
+                break;
             case TokenType::DotDot:
-                return compileConcatenationOp(expr);
-                
+                // Generate CONCAT instruction: result = left .. right
+                compiler->emitInstruction(Instruction::createCONCAT(resultReg, leftReg, rightReg));
+                break;
             default:
-                throw LuaException("Unknown binary operator");
+                throw LuaException("Unsupported binary operator");
         }
+        
+        compiler->freeReg(); // Free right operand register
+        compiler->freeReg(); // Free left operand register
+        
+        return resultReg;
     }
     
     int ExpressionCompiler::compileCall(const CallExpr* expr) {
@@ -186,12 +213,56 @@ namespace Lua {
     
     int ExpressionCompiler::compileTableConstructor(const TableExpr* expr) {
         int tableReg = compiler->allocReg();
+        const auto& fields = expr->getFields();
         
-        // Create new table
-        compiler->emitInstruction(Instruction::createNEWTABLE(tableReg, 0, 0));
+        // Count array and hash parts for table pre-sizing
+        int arraySize = 0;
+        int hashSize = 0;
         
-        // TODO: Implement table field initialization
-        // This would involve compiling field expressions and using SETTABLE instructions
+        for (const auto& field : fields) {
+            if (field.key == nullptr) {
+                arraySize++; // Array-style field: {value}
+            } else {
+                hashSize++; // Hash-style field: {key = value} or {[expr] = value}
+            }
+        }
+        
+        // Create new table with pre-sizing hints
+        compiler->emitInstruction(Instruction::createNEWTABLE(tableReg, 
+            static_cast<u8>(std::min(arraySize, 255)), 
+            static_cast<u8>(std::min(hashSize, 255))));
+        
+        // Initialize table fields
+        int arrayIndex = 1; // Lua arrays start at index 1
+        
+        for (const auto& field : fields) {
+            if (field.key == nullptr) {
+                // Array-style field: table[arrayIndex] = value
+                int valueReg = compileExpr(field.value.get());
+                int indexReg = compiler->allocReg();
+                
+                // Load array index as constant
+                int indexConstant = compiler->addConstant(Value(static_cast<double>(arrayIndex)));
+                compiler->emitInstruction(Instruction::createLOADK(indexReg, indexConstant));
+                
+                // Set table field: SETTABLE table[index] = value
+                compiler->emitInstruction(Instruction::createSETTABLE(tableReg, indexReg, valueReg));
+                
+                compiler->freeReg(); // Free value register
+                compiler->freeReg(); // Free index register
+                arrayIndex++;
+            } else {
+                // Hash-style field: table[key] = value
+                int keyReg = compileExpr(field.key.get());
+                int valueReg = compileExpr(field.value.get());
+                
+                // Set table field: SETTABLE table[key] = value
+                compiler->emitInstruction(Instruction::createSETTABLE(tableReg, keyReg, valueReg));
+                
+                compiler->freeReg(); // Free value register
+                compiler->freeReg(); // Free key register
+            }
+        }
         
         return tableReg;
     }
@@ -223,12 +294,8 @@ namespace Lua {
         return resultReg;
     }
     
-    int ExpressionCompiler::compileArithmeticOp(const BinaryExpr* expr) {
-        int leftReg = compileExpr(expr->getLeft());
-        int rightReg = compileExpr(expr->getRight());
-        int resultReg = compiler->allocReg();
-        
-        switch (expr->getOperator()) {
+    void ExpressionCompiler::compileArithmeticOp(TokenType op, int resultReg, int leftReg, int rightReg) {
+        switch (op) {
             case TokenType::Plus:
                 compiler->emitInstruction(Instruction::createADD(resultReg, leftReg, rightReg));
                 break;
@@ -250,19 +317,10 @@ namespace Lua {
             default:
                 throw LuaException("Unknown arithmetic operator");
         }
-        
-        compiler->freeReg(); // Free right register
-        compiler->freeReg(); // Free left register
-        
-        return resultReg;
     }
     
-    int ExpressionCompiler::compileComparisonOp(const BinaryExpr* expr) {
-        int leftReg = compileExpr(expr->getLeft());
-        int rightReg = compileExpr(expr->getRight());
-        int resultReg = compiler->allocReg();
-        
-        switch (expr->getOperator()) {
+    void ExpressionCompiler::compileComparisonOp(TokenType op, int resultReg, int leftReg, int rightReg) {
+        switch (op) {
             case TokenType::Equal:
                 compiler->emitInstruction(Instruction::createEQ(resultReg, leftReg, rightReg));
                 break;
@@ -285,11 +343,6 @@ namespace Lua {
             default:
                 throw LuaException("Unknown comparison operator");
         }
-        
-        compiler->freeReg(); // Free right register
-        compiler->freeReg(); // Free left register
-        
-        return resultReg;
     }
     
     int ExpressionCompiler::compileLogicalOp(const BinaryExpr* expr) {
@@ -316,17 +369,118 @@ namespace Lua {
         }
     }
     
-    int ExpressionCompiler::compileConcatenationOp(const BinaryExpr* expr) {
-        int leftReg = compileExpr(expr->getLeft());
-        int rightReg = compileExpr(expr->getRight());
-        int resultReg = compiler->allocReg();
+
+    
+    // Optimization methods implementation
+    bool ExpressionCompiler::tryConstantFolding(const BinaryExpr* expr) {
+        return isConstantExpression(expr->getLeft()) && isConstantExpression(expr->getRight());
+    }
+    
+    Value ExpressionCompiler::evaluateConstantBinary(const BinaryExpr* expr) {
+        Value left = getConstantValue(expr->getLeft());
+        Value right = getConstantValue(expr->getRight());
+        TokenType op = expr->getOperator();
         
-        // Generate CONCAT instruction: result = left .. right
-        compiler->emitInstruction(Instruction::createCONCAT(resultReg, leftReg, rightReg));
+        // Only handle numeric operations for now
+        if (left.type() != ValueType::Number || right.type() != ValueType::Number) {
+            throw LuaException("Constant folding only supports numeric operations");
+        }
         
-        compiler->freeReg(); // Free right register
-        compiler->freeReg(); // Free left register
+        double leftVal = left.asNumber();
+        double rightVal = right.asNumber();
         
-        return resultReg;
+        switch (op) {
+            case TokenType::Plus:
+                return Value(leftVal + rightVal);
+            case TokenType::Minus:
+                return Value(leftVal - rightVal);
+            case TokenType::Star:
+                return Value(leftVal * rightVal);
+            case TokenType::Slash:
+                if (rightVal == 0.0) {
+                    throw LuaException("Division by zero in constant expression");
+                }
+                return Value(leftVal / rightVal);
+            case TokenType::Percent:
+                if (rightVal == 0.0) {
+                    throw LuaException("Modulo by zero in constant expression");
+                }
+                return Value(fmod(leftVal, rightVal));
+            case TokenType::Caret:
+                return Value(pow(leftVal, rightVal));
+            case TokenType::Equal:
+                return Value(leftVal == rightVal);
+            case TokenType::NotEqual:
+                return Value(leftVal != rightVal);
+            case TokenType::Less:
+                return Value(leftVal < rightVal);
+            case TokenType::LessEqual:
+                return Value(leftVal <= rightVal);
+            case TokenType::Greater:
+                return Value(leftVal > rightVal);
+            case TokenType::GreaterEqual:
+                return Value(leftVal >= rightVal);
+            default:
+                throw LuaException("Unsupported operator for constant folding");
+        }
+    }
+    
+    bool ExpressionCompiler::isConstantExpression(const Expr* expr) {
+        if (!expr) return false;
+        
+        switch (expr->getType()) {
+            case ExprType::Literal:
+                return true;
+            case ExprType::Binary: {
+                const BinaryExpr* binExpr = static_cast<const BinaryExpr*>(expr);
+                return isConstantExpression(binExpr->getLeft()) && 
+                       isConstantExpression(binExpr->getRight());
+            }
+            case ExprType::Unary: {
+                const UnaryExpr* unExpr = static_cast<const UnaryExpr*>(expr);
+                return isConstantExpression(unExpr->getRight());
+            }
+            default:
+                return false;
+        }
+    }
+    
+    Value ExpressionCompiler::getConstantValue(const Expr* expr) {
+        if (!expr || !isConstantExpression(expr)) {
+            throw LuaException("Expression is not a constant");
+        }
+        
+        switch (expr->getType()) {
+            case ExprType::Literal: {
+                const LiteralExpr* litExpr = static_cast<const LiteralExpr*>(expr);
+                return litExpr->getValue();
+            }
+            case ExprType::Binary: {
+                const BinaryExpr* binExpr = static_cast<const BinaryExpr*>(expr);
+                return evaluateConstantBinary(binExpr);
+            }
+            case ExprType::Unary: {
+                const UnaryExpr* unExpr = static_cast<const UnaryExpr*>(expr);
+                Value operand = getConstantValue(unExpr->getRight());
+                
+                switch (unExpr->getOperator()) {
+                    case TokenType::Minus:
+                        if (operand.type() == ValueType::Number) {
+                            return Value(-operand.asNumber());
+                        }
+                        break;
+                    case TokenType::Not:
+                        return Value(!operand.asBoolean());
+                    case TokenType::Hash:
+                        if (operand.type() == ValueType::String) {
+                            return Value(static_cast<double>(operand.asString().length()));
+                        }
+                        break;
+                }
+                throw LuaException("Unsupported unary operator for constant folding");
+            }
+            default:
+                throw LuaException("Unsupported expression type for constant value");
+        }
     }
 }

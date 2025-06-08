@@ -1,10 +1,16 @@
 #include "test_main.hpp"
-#include "forin_test.hpp"
-#include "repeat_test.hpp"
-#include "function_test.hpp"
+#include "lexer_test.hpp"
+#include "parser_test.hpp"
+#include "value_test.hpp"
+#include "state_test.hpp"
+#include "symbol_table_test.hpp"
 #include "literal_compiler_test.hpp"
 #include "variable_compiler_test.hpp"
 #include "binary_expression_test.hpp"
+#include "function_test.hpp"
+#include "forin_test.hpp"
+#include "repeat_test.hpp"
+#include "expression_compiler_test.hpp"
 #include <iostream>
 
 namespace Lua {
@@ -50,6 +56,9 @@ void runAllTests() {
         
         // Run binary expression tests
         BinaryExpressionTest::runAllTests();
+        
+        // Run expression compiler tests
+        ExpressionCompilerTest::runAllTests();
         
         std::cout << "\n=== All Tests Completed ===" << std::endl;
         

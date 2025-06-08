@@ -28,10 +28,19 @@ namespace Lua {
         int compileMemberAccess(const MemberExpr* expr);
         
     private:
-        // Helper methods for expression compilation
-        int compileArithmeticOp(const BinaryExpr* expr);
-        int compileComparisonOp(const BinaryExpr* expr);
+        // Helper methods for different operation types
+        void compileArithmeticOp(TokenType op, int resultReg, int leftReg, int rightReg);
+        void compileComparisonOp(TokenType op, int resultReg, int leftReg, int rightReg);
         int compileLogicalOp(const BinaryExpr* expr);
-        int compileConcatenationOp(const BinaryExpr* expr);
+
+        
+        // Optimization methods
+        bool tryConstantFolding(const BinaryExpr* expr);
+        Value evaluateConstantBinary(const BinaryExpr* expr);
+        
+    public:
+        // Public methods for testing
+        bool isConstantExpression(const Expr* expr);
+        Value getConstantValue(const Expr* expr);
     };
 }

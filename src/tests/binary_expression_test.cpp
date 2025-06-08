@@ -31,15 +31,20 @@ void BinaryExpressionTest::testArithmeticOperations() {
     Compiler compiler;
     ExpressionCompiler exprCompiler(&compiler);
     
-    // Test addition: 5 + 3
-    auto left = std::make_unique<LiteralExpr>(Value(5.0));
-    auto right = std::make_unique<LiteralExpr>(Value(3.0));
+    // Test addition: a + b (using variables to avoid constant folding)
+    std::cout << "Creating expressions..." << std::endl;
+    auto left = std::make_unique<VariableExpr>("a");
+    auto right = std::make_unique<VariableExpr>("b");
     auto addExpr = std::make_unique<BinaryExpr>(std::move(left), TokenType::Plus, std::move(right));
     
+    std::cout << "Compiling expression..." << std::endl;
     u8 resultReg = exprCompiler.compileExpr(addExpr.get());
+    std::cout << "Expression compiled successfully." << std::endl;
     
     // Check that instructions were generated
-    assert(compiler.getCodeSize() >= 3); // LOADK, LOADK, ADD
+    std::cout << "Code size: " << compiler.getCodeSize() << std::endl;
+    assert(compiler.getCodeSize() >= 3); // GETGLOBAL, GETGLOBAL, ADD
+    std::cout << "Addition test passed." << std::endl;
     
     // Test other arithmetic operations
     testArithmeticOp(TokenType::Minus, OpCode::SUB);
@@ -53,14 +58,15 @@ void BinaryExpressionTest::testArithmeticOp(TokenType op, OpCode expectedOpCode)
     Compiler compiler;
     ExpressionCompiler exprCompiler(&compiler);
     
-    auto left = std::make_unique<LiteralExpr>(Value(10.0));
-    auto right = std::make_unique<LiteralExpr>(Value(2.0));
+    // Use variables to avoid constant folding
+    auto left = std::make_unique<VariableExpr>("x");
+    auto right = std::make_unique<VariableExpr>("y");
     auto expr = std::make_unique<BinaryExpr>(std::move(left), op, std::move(right));
     
     exprCompiler.compileExpr(expr.get());
     
     // Verify instruction generation
-    assert(compiler.getCodeSize() >= 3); // LOADK, LOADK, operation
+    assert(compiler.getCodeSize() >= 3); // GETGLOBAL, GETGLOBAL, operation
 }
 
 void BinaryExpressionTest::testComparisonOperations() {
@@ -78,14 +84,15 @@ void BinaryExpressionTest::testComparisonOp(TokenType op, OpCode expectedOpCode)
     Compiler compiler;
     ExpressionCompiler exprCompiler(&compiler);
     
-    auto left = std::make_unique<LiteralExpr>(Value(5.0));
-    auto right = std::make_unique<LiteralExpr>(Value(3.0));
+    // Use variables to avoid constant folding
+    auto left = std::make_unique<VariableExpr>("p");
+    auto right = std::make_unique<VariableExpr>("q");
     auto expr = std::make_unique<BinaryExpr>(std::move(left), op, std::move(right));
     
     exprCompiler.compileExpr(expr.get());
     
     // Verify instruction generation
-    assert(compiler.getCodeSize() >= 3); // LOADK, LOADK, operation
+    assert(compiler.getCodeSize() >= 3); // GETGLOBAL, GETGLOBAL, operation
 }
 
 void BinaryExpressionTest::testLogicalOperations() {
@@ -95,21 +102,22 @@ void BinaryExpressionTest::testLogicalOperations() {
     Compiler compiler;
     ExpressionCompiler exprCompiler(&compiler);
     
-    auto left = std::make_unique<LiteralExpr>(Value(true));
-    auto right = std::make_unique<LiteralExpr>(Value(false));
+    // Use variables to avoid constant folding
+    auto left = std::make_unique<VariableExpr>("flag1");
+    auto right = std::make_unique<VariableExpr>("flag2");
     auto andExpr = std::make_unique<BinaryExpr>(std::move(left), TokenType::And, std::move(right));
     
     exprCompiler.compileExpr(andExpr.get());
     
     // AND should generate conditional logic, not a simple instruction
-    assert(compiler.getCodeSize() > 2); // Should have more than just LOADK instructions
+    assert(compiler.getCodeSize() > 2); // Should have more than just GETGLOBAL instructions
     
     // Test OR operation
     Compiler compiler2;
     ExpressionCompiler exprCompiler2(&compiler2);
     
-    auto left2 = std::make_unique<LiteralExpr>(Value(false));
-    auto right2 = std::make_unique<LiteralExpr>(Value(true));
+    auto left2 = std::make_unique<VariableExpr>("flag3");
+    auto right2 = std::make_unique<VariableExpr>("flag4");
     auto orExpr = std::make_unique<BinaryExpr>(std::move(left2), TokenType::Or, std::move(right2));
     
     exprCompiler2.compileExpr(orExpr.get());
@@ -123,59 +131,62 @@ void BinaryExpressionTest::testStringConcatenation() {
     Compiler compiler;
     ExpressionCompiler exprCompiler(&compiler);
     
-    auto left = std::make_unique<LiteralExpr>(Value("Hello"));
-    auto right = std::make_unique<LiteralExpr>(Value(" World"));
+    // Use variables to avoid constant folding
+    auto left = std::make_unique<VariableExpr>("str1");
+    auto right = std::make_unique<VariableExpr>("str2");
     auto concatExpr = std::make_unique<BinaryExpr>(std::move(left), TokenType::DotDot, std::move(right));
     
     exprCompiler.compileExpr(concatExpr.get());
     
     // Verify instruction generation
-    assert(compiler.getCodeSize() >= 3); // LOADK, LOADK, CONCAT
+    assert(compiler.getCodeSize() >= 3); // GETGLOBAL, GETGLOBAL, CONCAT
 }
 
 void BinaryExpressionTest::testOperatorPrecedence() {
     std::cout << "Testing operator precedence..." << std::endl;
     
     // Test that multiplication has higher precedence than addition
-    // Expression: 2 + 3 * 4 should be compiled as 2 + (3 * 4)
+    // Expression: a + b * c should be compiled as a + (b * c)
     Compiler compiler;
     ExpressionCompiler exprCompiler(&compiler);
     
-    auto two = std::make_unique<LiteralExpr>(Value(2.0));
-    auto three = std::make_unique<LiteralExpr>(Value(3.0));
-    auto four = std::make_unique<LiteralExpr>(Value(4.0));
+    // Use variables to avoid constant folding
+    auto a = std::make_unique<VariableExpr>("a");
+    auto b = std::make_unique<VariableExpr>("b");
+    auto c = std::make_unique<VariableExpr>("c");
     
-    // Create 3 * 4
-    auto mulExpr = std::make_unique<BinaryExpr>(std::move(three), TokenType::Star, std::move(four));
-    // Create 2 + (3 * 4)
-    auto addExpr = std::make_unique<BinaryExpr>(std::move(two), TokenType::Plus, std::move(mulExpr));
+    // Create b * c
+    auto mulExpr = std::make_unique<BinaryExpr>(std::move(b), TokenType::Star, std::move(c));
+    // Create a + (b * c)
+    auto addExpr = std::make_unique<BinaryExpr>(std::move(a), TokenType::Plus, std::move(mulExpr));
     
     exprCompiler.compileExpr(addExpr.get());
     
     // Verify instruction generation
-    assert(compiler.getCodeSize() >= 5); // Multiple LOADK and arithmetic operations
+    assert(compiler.getCodeSize() >= 5); // Multiple GETGLOBAL and arithmetic operations
 }
 
 void BinaryExpressionTest::testNestedExpressions() {
     std::cout << "Testing nested expressions..." << std::endl;
     
-    // Test deeply nested expression: (1 + 2) * (3 - 4)
+    // Test deeply nested expression: (w + x) * (y - z)
     Compiler compiler;
     ExpressionCompiler exprCompiler(&compiler);
     
-    auto one = std::make_unique<LiteralExpr>(Value(1.0));
-    auto two = std::make_unique<LiteralExpr>(Value(2.0));
-    auto three = std::make_unique<LiteralExpr>(Value(3.0));
-    auto four = std::make_unique<LiteralExpr>(Value(4.0));
+    // Use variables to avoid constant folding
+    auto w = std::make_unique<VariableExpr>("w");
+    auto x = std::make_unique<VariableExpr>("x");
+    auto y = std::make_unique<VariableExpr>("y");
+    auto z = std::make_unique<VariableExpr>("z");
     
-    auto addExpr = std::make_unique<BinaryExpr>(std::move(one), TokenType::Plus, std::move(two));
-    auto subExpr = std::make_unique<BinaryExpr>(std::move(three), TokenType::Minus, std::move(four));
+    auto addExpr = std::make_unique<BinaryExpr>(std::move(w), TokenType::Plus, std::move(x));
+    auto subExpr = std::make_unique<BinaryExpr>(std::move(y), TokenType::Minus, std::move(z));
     auto mulExpr = std::make_unique<BinaryExpr>(std::move(addExpr), TokenType::Star, std::move(subExpr));
     
     exprCompiler.compileExpr(mulExpr.get());
     
     // Verify instruction generation
-    assert(compiler.getCodeSize() >= 7); // Multiple LOADK and arithmetic operations
+    assert(compiler.getCodeSize() >= 7); // Multiple GETGLOBAL and arithmetic operations
 }
 
 void BinaryExpressionTest::testErrorHandling() {
