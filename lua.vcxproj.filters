@@ -126,6 +126,9 @@
     <ClCompile Include="src\tests\variable_compiler_test.cpp">
       <Filter>tests</Filter>
     </ClCompile>
+    <ClCompile Include="src\tests\binary_expression_test.cpp">
+      <Filter>tests</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\lib\base_lib.hpp">
@@ -222,6 +225,9 @@
       <Filter>tests</Filter>
     </ClInclude>
     <ClInclude Include="src\tests\variable_compiler_test.hpp">
+      <Filter>tests</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tests\binary_expression_test.hpp">
       <Filter>tests</Filter>
     </ClInclude>
   </ItemGroup>

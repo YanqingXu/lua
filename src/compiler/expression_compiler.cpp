@@ -321,9 +321,8 @@ namespace Lua {
         int rightReg = compileExpr(expr->getRight());
         int resultReg = compiler->allocReg();
         
-        // TODO: Implement string concatenation instruction
-        // For now, use a placeholder
-        compiler->emitInstruction(Instruction::createADD(resultReg, leftReg, rightReg));
+        // Generate CONCAT instruction: result = left .. right
+        compiler->emitInstruction(Instruction::createCONCAT(resultReg, leftReg, rightReg));
         
         compiler->freeReg(); // Free right register
         compiler->freeReg(); // Free left register

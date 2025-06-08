@@ -209,5 +209,9 @@ namespace Lua {
             Instruction i; i.setOpCode(OpCode::CLOSE); i.setA(a); return i; }
         
         static Instruction createPOP(u8 a) { Instruction i; i.setOpCode(OpCode::POP); i.setA(a); return i; }
+        
+        // String concatenation
+        static Instruction createCONCAT(u8 a, u8 b, u8 c) {
+            Instruction i; i.setOpCode(OpCode::CONCAT); i.setA(a); i.setB(b); i.setC(c); return i; }
     };
 }
