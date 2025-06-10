@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../types.hpp"
+#include "../common/types.hpp"
 #include "../parser/parser.hpp"
 #include "../vm/function.hpp"
 #include "../common/opcodes.hpp"

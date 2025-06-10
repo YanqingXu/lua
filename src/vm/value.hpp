@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../types.hpp"
+#include "../common/types.hpp"
 #include <variant>
 #include <iostream>
 #include <functional>   // For std::less

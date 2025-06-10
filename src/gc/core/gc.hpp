@@ -1,7 +1,8 @@
 #pragma once
 
-#include "../types.hpp"
-#include "value.hpp"
+#include "../../types.hpp"
+#include "../../vm/value.hpp"
+#include "../utils/gc_types.hpp"
 
 namespace Lua {
     // Forward declarations

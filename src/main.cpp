@@ -2,7 +2,7 @@
 #include <fstream>
 #include <sstream>
 #include <string>
-#include "types.hpp"
+#include "common/types.hpp"
 #include "vm/state.hpp"
 #include "vm/value.hpp"
 #include "vm/table.hpp"

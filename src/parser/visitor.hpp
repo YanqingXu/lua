@@ -1,7 +1,7 @@
 #pragma once
 
 #include "parser.hpp"
-#include "../types.hpp"
+#include "../common/types.hpp"
 
 namespace Lua {
     // Forward declarations

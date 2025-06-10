@@ -37,6 +37,27 @@
     <Filter Include="tests">
       <UniqueIdentifier>{eccc84fa-0552-4712-9739-3c7fd257f1cc}</UniqueIdentifier>
     </Filter>
+    <Filter Include="gc">
+      <UniqueIdentifier>{26215f2a-d6d3-4e75-abc4-01efe3b87429}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="gc\algorithms">
+      <UniqueIdentifier>{5eb7f4e2-8926-42fd-aed7-55dee1fe926f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="gc\core">
+      <UniqueIdentifier>{c437e4c3-4322-4cbc-85e5-790d4b397251}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="gc\features">
+      <UniqueIdentifier>{8f2875ec-fda8-4dda-a71b-bb148db10dbc}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="gc\integration">
+      <UniqueIdentifier>{dc92d0be-9a21-4755-af97-c726c5fc28f6}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="gc\memory">
+      <UniqueIdentifier>{ec18ad05-a7ee-446b-a5ca-6014890b9148}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="gc\utils">
+      <UniqueIdentifier>{d064a294-a3d4-4927-b472-e8e30e361b55}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\main.cpp">
@@ -64,9 +85,6 @@
       <Filter>vm</Filter>
     </ClCompile>
     <ClCompile Include="src\vm\table.cpp">
-      <Filter>vm</Filter>
-    </ClCompile>
-    <ClCompile Include="src\vm\gc.cpp">
       <Filter>vm</Filter>
     </ClCompile>
     <ClCompile Include="src\parser\visitor.cpp">
@@ -167,12 +185,6 @@
     <ClInclude Include="src\vm\table.hpp">
       <Filter>vm</Filter>
     </ClInclude>
-    <ClInclude Include="src\types.hpp">
-      <Filter>common</Filter>
-    </ClInclude>
-    <ClInclude Include="src\vm\gc.hpp">
-      <Filter>vm</Filter>
-    </ClInclude>
     <ClInclude Include="src\parser\visitor.hpp">
       <Filter>parser</Filter>
     </ClInclude>
@@ -235,6 +247,12 @@
     </ClInclude>
     <ClInclude Include="src\tests\expression_compiler_test.hpp">
       <Filter>tests</Filter>
+    </ClInclude>
+    <ClInclude Include="src\common\types.hpp">
+      <Filter>common</Filter>
+    </ClInclude>
+    <ClInclude Include="src\gc\utils\gc_types.hpp">
+      <Filter>gc\utils</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

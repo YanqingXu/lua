@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../types.hpp"
+#include "../common/types.hpp"
 #include "../lexer/lexer.hpp"
 #include "../compiler/compiler.hpp"
 #include "../vm/value.hpp"

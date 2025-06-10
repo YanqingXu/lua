@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../types.hpp"
+#include "../common/types.hpp"
 
 namespace Lua {
     // Operation codes used by the VM / compiler (subset of Lua 5.1).

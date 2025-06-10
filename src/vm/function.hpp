@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../types.hpp"
+#include "../common/types.hpp"
 #include "instruction.hpp"
 #include "value.hpp"
 

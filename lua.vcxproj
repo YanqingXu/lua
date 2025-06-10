@@ -110,6 +110,7 @@
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp23</LanguageStandard>
+      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -136,11 +137,13 @@
   <ItemGroup>
     <ClInclude Include="src\common\defines.hpp" />
     <ClInclude Include="src\common\opcodes.hpp" />
+    <ClInclude Include="src\common\types.hpp" />
     <ClInclude Include="src\compiler\compiler.hpp" />
     <ClInclude Include="src\compiler\compiler_utils.hpp" />
     <ClInclude Include="src\compiler\expression_compiler.hpp" />
     <ClInclude Include="src\compiler\statement_compiler.hpp" />
     <ClInclude Include="src\compiler\symbol_table.hpp" />
+    <ClInclude Include="src\gc\utils\gc_types.hpp" />
     <ClInclude Include="src\lexer\lexer.hpp" />
     <ClInclude Include="src\lib\base_lib.hpp" />
     <ClInclude Include="src\parser\ast\ast_base.hpp" />
@@ -161,9 +164,7 @@
     <ClInclude Include="src\tests\test_main.hpp" />
     <ClInclude Include="src\tests\value_test.hpp" />
     <ClInclude Include="src\tests\variable_compiler_test.hpp" />
-    <ClInclude Include="src\types.hpp" />
     <ClInclude Include="src\vm\function.hpp" />
-    <ClInclude Include="src\vm\gc.hpp" />
     <ClInclude Include="src\vm\state.hpp" />
     <ClInclude Include="src\vm\table.hpp" />
     <ClInclude Include="src\vm\value.hpp" />
@@ -196,7 +197,6 @@
     <ClCompile Include="src\tests\value_test.cpp" />
     <ClCompile Include="src\tests\variable_compiler_test.cpp" />
     <ClCompile Include="src\vm\function.cpp" />
-    <ClCompile Include="src\vm\gc.cpp" />
     <ClCompile Include="src\vm\state.cpp" />
     <ClCompile Include="src\vm\table.cpp" />
     <ClCompile Include="src\vm\value.cpp" />

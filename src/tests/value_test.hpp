@@ -3,7 +3,7 @@
 #include <iostream>
 #include "../vm/value.hpp"
 #include "../vm/table.hpp"
-#include "../types.hpp"
+#include "../common/types.hpp"
 
 namespace Lua {
 namespace Tests {

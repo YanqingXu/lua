@@ -1,7 +1,7 @@
 #include "gc.hpp"
-#include "table.hpp"
-#include "function.hpp"
-#include "state.hpp"
+#include "../../vm/table.hpp"
+#include "../../vm/function.hpp"
+#include "../../vm/state.hpp"
 #include <algorithm>
 #include <iostream>
 
