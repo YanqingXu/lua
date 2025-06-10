@@ -120,7 +120,7 @@ end
 function mathDemo()
     print("Math Calculation Demo:")
     print("")
-    
+
     -- Basic operations
     local a = 10
     local b = 3
@@ -129,14 +129,14 @@ function mathDemo()
     print("  Multiplication: " .. a .. " * " .. b .. " = " .. multiply(a, b))
     print("  Power: " .. a .. " ^ " .. b .. " = " .. power(a, b))
     print("")
-    
+
     -- Sequence calculations
     print("Sequence Calculations:")
     for i = 1, 8 do
         print("  Factorial " .. i .. "! = " .. factorial(i))
     end
     print("")
-    
+
     for i = 1, 10 do
         print("  Fibonacci F(" .. i .. ") = " .. fibonacci(i))
     end
@@ -147,20 +147,20 @@ end
 function dataDemo()
     print("Data Processing Demo:")
     print("")
-    
+
     -- Array operations
     print("Test Array: {1, 5, 3, 9, 2, 8, 4}")
     print("  Array Length: " .. #testNumbers)
     print("  Maximum Value: " .. findMax(testNumbers))
     print("  Sum: " .. sumArray(testNumbers))
     print("")
-    
+
     -- String operations
     print("String Operations:")
     print("  " .. greet(userName))
     print("  Repeated String: " .. repeatString("*", 5))
     print("")
-    
+
     -- Conditional demonstration
     print("Conditional Demo:")
     for i = 1, 10 do
@@ -177,7 +177,7 @@ end
 function loopDemo()
     print("Loop Control Demo:")
     print("")
-    
+
     -- while loop
     print("While Loop (Countdown):")
     local count = 5
@@ -187,14 +187,14 @@ function loopDemo()
     end
     print("  Launch!")
     print("")
-    
+
     -- for loop
     print("For Loop (Square Numbers):")
     for i = 1, 5 do
         print("  " .. i .. "^2 = " .. (i * i))
     end
     print("")
-    
+
     -- repeat-until loop
     print("Repeat-until Loop:")
     local x = 1
@@ -213,12 +213,12 @@ end
 function main()
     -- Initialize program
     initProgram()
-    
+
     -- Run demonstration modules
     mathDemo()
     dataDemo()
     loopDemo()
-    
+
     -- Program completion
     print("Program demonstration completed!")
     print("This program demonstrates the syntax features supported by the current Lua interpreter project.")
