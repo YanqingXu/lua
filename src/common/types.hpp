@@ -6,6 +6,7 @@
 #include <vector>
 #include <unordered_map>
 #include <unordered_set>
+#include <atomic>
 #include <memory>
 #include <variant>
 #include <optional>
@@ -53,6 +54,9 @@ namespace Lua {
 
     template<typename T>
     using Opt = std::optional<T>;
+
+    template<typename T>
+    using Atom = std::atomic<T>;
 
     // Smart pointers
     template<typename T>

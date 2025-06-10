@@ -150,6 +150,15 @@
     <ClCompile Include="src\tests\expression_compiler_test.cpp">
       <Filter>tests</Filter>
     </ClCompile>
+    <ClCompile Include="src\gc\memory\allocator.cpp">
+      <Filter>gc\memory</Filter>
+    </ClCompile>
+    <ClCompile Include="src\gc\memory\memory_pool.cpp">
+      <Filter>gc\memory</Filter>
+    </ClCompile>
+    <ClCompile Include="src\gc\memory\optimized_allocator.cpp">
+      <Filter>gc\memory</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\lib\base_lib.hpp">
@@ -253,6 +262,18 @@
     </ClInclude>
     <ClInclude Include="src\gc\utils\gc_types.hpp">
       <Filter>gc\utils</Filter>
+    </ClInclude>
+    <ClInclude Include="src\gc\core\gc_object.hpp">
+      <Filter>gc\core</Filter>
+    </ClInclude>
+    <ClInclude Include="src\gc\memory\allocator.hpp">
+      <Filter>gc\memory</Filter>
+    </ClInclude>
+    <ClInclude Include="src\gc\memory\memory_pool.hpp">
+      <Filter>gc\memory</Filter>
+    </ClInclude>
+    <ClInclude Include="src\gc\memory\optimized_allocator.hpp">
+      <Filter>gc\memory</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

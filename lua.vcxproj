@@ -143,6 +143,10 @@
     <ClInclude Include="src\compiler\expression_compiler.hpp" />
     <ClInclude Include="src\compiler\statement_compiler.hpp" />
     <ClInclude Include="src\compiler\symbol_table.hpp" />
+    <ClInclude Include="src\gc\core\gc_object.hpp" />
+    <ClInclude Include="src\gc\memory\allocator.hpp" />
+    <ClInclude Include="src\gc\memory\memory_pool.hpp" />
+    <ClInclude Include="src\gc\memory\optimized_allocator.hpp" />
     <ClInclude Include="src\gc\utils\gc_types.hpp" />
     <ClInclude Include="src\lexer\lexer.hpp" />
     <ClInclude Include="src\lib\base_lib.hpp" />
@@ -176,6 +180,9 @@
     <ClCompile Include="src\compiler\expression_compiler.cpp" />
     <ClCompile Include="src\compiler\statement_compiler.cpp" />
     <ClCompile Include="src\compiler\symbol_table.cpp" />
+    <ClCompile Include="src\gc\memory\allocator.cpp" />
+    <ClCompile Include="src\gc\memory\memory_pool.cpp" />
+    <ClCompile Include="src\gc\memory\optimized_allocator.cpp" />
     <ClCompile Include="src\lexer\lexer.cpp" />
     <ClCompile Include="src\lib\base_lib.cpp" />
     <ClCompile Include="src\main.cpp" />
