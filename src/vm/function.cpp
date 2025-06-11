@@ -2,6 +2,7 @@
 #include "value.hpp"
 #include "../gc/core/garbage_collector.hpp"
 #include "../gc/core/gc_ref.hpp"
+#include "../gc/memory/allocator.hpp"
 #include <cmath>        // For std::floor
 
 namespace Lua {
@@ -23,8 +24,17 @@ namespace Lua {
         u8 nlocals,
         u8 nupvalues
     ) {
-        // Create a new Function object
-        GCRef<Function> func = make_gc_ref<Function>(GCObjectType::Function, Type::Lua);
+        // Create a new Function object using GC allocator
+        extern GCAllocator* g_gcAllocator;
+        GCRef<Function> func;
+        if (g_gcAllocator) {
+            Function* obj = g_gcAllocator->allocateObject<Function>(GCObjectType::Function, Type::Lua);
+            func = GCRef<Function>(obj);
+        } else {
+            // Fallback to direct allocation
+            Function* obj = new Function(Type::Lua);
+            func = GCRef<Function>(obj);
+        }
         
         // Set code
         func->lua.code = code;
@@ -50,7 +60,17 @@ namespace Lua {
     }
     
     GCRef<Function> Function::createNative(NativeFn fn) {
-        GCRef<Function> func = make_gc_ref<Function>(GCObjectType::Function, Type::Native);
+        // Create a new Function object using GC allocator
+        extern GCAllocator* g_gcAllocator;
+        GCRef<Function> func;
+        if (g_gcAllocator) {
+            Function* obj = g_gcAllocator->allocateObject<Function>(GCObjectType::Function, Type::Native);
+            func = GCRef<Function>(obj);
+        } else {
+            // Fallback to direct allocation
+            Function* obj = new Function(Type::Native);
+            func = GCRef<Function>(obj);
+        }
         func->native.fn = fn;
         return func;
     }

@@ -2,11 +2,15 @@
 
 #include "../common/types.hpp"
 #include "value.hpp"
+#include "../gc/core/gc_object.hpp"
 #include <vector>
 #include <unordered_map>
 
 namespace Lua {
-    class State {
+    // Forward declarations
+    class GarbageCollector;
+    
+    class State : public GCObject {
     private:
         Vec<Value> stack;
         int top;
@@ -15,6 +19,11 @@ namespace Lua {
     public:
         State();
         ~State();
+        
+        // Override GCObject virtual functions
+        void markReferences(GarbageCollector* gc) override;
+        usize getSize() const override;
+        usize getAdditionalSize() const override;
         
         // Stack operations
         void push(const Value& value);

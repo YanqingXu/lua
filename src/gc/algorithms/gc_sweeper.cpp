@@ -287,6 +287,11 @@ namespace Lua {
                 case GCObjectType::Proto:
                     // Function prototypes typically don't need finalization
                     break;
+                    
+                case GCObjectType::State:
+                    // Lua state objects don't need special finalization
+                    // Their destructor will handle cleanup
+                    break;
             }
         }
     }

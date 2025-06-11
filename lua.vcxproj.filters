@@ -58,6 +58,9 @@
     <Filter Include="gc\utils">
       <UniqueIdentifier>{d064a294-a3d4-4927-b472-e8e30e361b55}</UniqueIdentifier>
     </Filter>
+    <Filter Include="examples">
+      <UniqueIdentifier>{0884faa8-8638-47eb-9cbc-0038f94f98d6}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\main.cpp">
@@ -188,6 +191,15 @@
     </ClCompile>
     <ClCompile Include="src\lib\string_lib.cpp">
       <Filter>lib</Filter>
+    </ClCompile>
+    <ClCompile Include="src\vm\state_factory.cpp">
+      <Filter>vm</Filter>
+    </ClCompile>
+    <ClCompile Include="src\tests\string_pool_demo_test.cpp">
+      <Filter>tests</Filter>
+    </ClCompile>
+    <ClCompile Include="src\tests\gc_integration_test.cpp">
+      <Filter>tests</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -343,6 +355,15 @@
     </ClInclude>
     <ClInclude Include="src\lib\string_lib.hpp">
       <Filter>lib</Filter>
+    </ClInclude>
+    <ClInclude Include="src\vm\state_factory.hpp">
+      <Filter>vm</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tests\string_pool_demo_test.hpp">
+      <Filter>tests</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tests\gc_integration_test.hpp">
+      <Filter>tests</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

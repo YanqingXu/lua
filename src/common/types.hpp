@@ -45,8 +45,8 @@ namespace Lua {
     template<typename K, typename V>
     using HashMap = std::unordered_map<K, V>;
 
-	template<typename T>
-	using HashSet = std::unordered_set<T>;
+	template<typename... Args>
+	using HashSet = std::unordered_set<Args...>;
 
     // Other type utilities
     template<typename... Types>

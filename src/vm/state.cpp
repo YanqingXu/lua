@@ -5,13 +5,14 @@
 #include "../parser/parser.hpp"
 #include "../compiler/compiler.hpp"
 #include "../vm/vm.hpp"
+#include "../gc/core/garbage_collector.hpp"
 #include <stdexcept>
 #include <fstream>
-//#include <sstream>
+#include <sstream>
 #include <iostream>
 
 namespace Lua {
-    State::State() : top(0) {
+    State::State() : GCObject(GCObjectType::State, sizeof(State)), top(0) {
         // Initialize stack space
         stack.resize(LUAI_MAXSTACK);
     }
@@ -248,5 +249,29 @@ namespace Lua {
             std::cerr << "File error: " << e.what() << std::endl;
             return false;
         }
+    }
+    
+    // GCObject virtual function implementations
+    void State::markReferences(GarbageCollector* gc) {
+        // Mark all values in the stack
+        for (int i = 0; i < top; i++) {
+            stack[i].markReferences(gc);
+        }
+        
+        // Mark all global variables
+        for (auto& pair : globals) {
+            pair.second.markReferences(gc);
+        }
+    }
+    
+    usize State::getSize() const {
+        return sizeof(State);
+    }
+    
+    usize State::getAdditionalSize() const {
+        // Calculate additional memory used by vectors and maps
+        usize stackSize = stack.capacity() * sizeof(Value);
+        usize globalsSize = globals.size() * (sizeof(Str) + sizeof(Value));
+        return stackSize + globalsSize;
     }
 }

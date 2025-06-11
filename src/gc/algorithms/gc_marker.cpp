@@ -175,6 +175,15 @@ namespace Lua {
                 break;
             }
             
+            case GCObjectType::State: {
+                // Mark Lua state's stack and global variables
+                State* state = static_cast<State*>(object);
+                // Note: State marking should be handled by the GarbageCollector
+                // For now, we'll mark the state's references manually
+                // TODO: Refactor to use proper GarbageCollector interface
+                break;
+            }
+            
             default:
                 // Unknown object type - should not happen
                 assert(false && "Unknown GC object type encountered during marking");

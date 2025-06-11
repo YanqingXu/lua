@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "../../common/types.hpp"
 #include <chrono>
@@ -38,7 +38,8 @@ namespace Lua {
         Function,   // Function object
         Userdata,   // User data
         Thread,     // Coroutine object
-        Proto       // Function prototype
+        Proto,      // Function prototype
+        State       // Lua state object
     };
 
     // GC configuration parameters

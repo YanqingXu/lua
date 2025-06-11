@@ -2,7 +2,6 @@
 
 #include "../../common/types.hpp"
 #include "gc_string.hpp"
-#include <unordered_set>
 #include <mutex>
 
 namespace Lua {
@@ -22,7 +21,7 @@ namespace Lua {
     class StringPool {
     private:
         // Hash set to store unique GCString objects
-        std::unordered_set<GCString*, GCStringHash, GCStringEqual> pool;
+        HashSet<GCString*, GCStringHash, GCStringEqual> pool;
         
         // Mutex for thread safety
         mutable std::mutex poolMutex;

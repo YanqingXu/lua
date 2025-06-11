@@ -50,11 +50,11 @@ namespace Lua {
         
     public:
         explicit ObjectPool(usize objSize, usize chunkSz = 64 * 1024)
-            : objectSize(objSize), chunkSize(chunkSz)
-            , objectsPerChunk(chunkSz / objSize), freeList(nullptr)
+            : objectSize(objSize), chunkSize(std::max(chunkSz, objSize))
+            , objectsPerChunk(std::max(chunkSz, objSize) / objSize), freeList(nullptr)
             , totalObjects(0), freeObjects(0) {
             assert(objSize >= sizeof(MemoryBlockHeader));
-            assert(chunkSz >= objSize);
+            assert(this->chunkSize >= objSize);
         }
         
         ~ObjectPool() {
