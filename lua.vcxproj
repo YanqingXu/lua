@@ -156,6 +156,11 @@
     <ClInclude Include="src\gc\utils\gc_types.hpp" />
     <ClInclude Include="src\lexer\lexer.hpp" />
     <ClInclude Include="src\lib\base_lib.hpp" />
+    <ClInclude Include="src\lib\lib_common.hpp" />
+    <ClInclude Include="src\lib\lib_init.hpp" />
+    <ClInclude Include="src\lib\lib_manager.hpp" />
+    <ClInclude Include="src\lib\lib_utils.hpp" />
+    <ClInclude Include="src\lib\string_lib.hpp" />
     <ClInclude Include="src\parser\ast\ast_base.hpp" />
     <ClInclude Include="src\parser\ast\expressions.hpp" />
     <ClInclude Include="src\parser\ast\statements.hpp" />
@@ -199,6 +204,10 @@
     <ClCompile Include="src\gc\memory\optimized_allocator.cpp" />
     <ClCompile Include="src\lexer\lexer.cpp" />
     <ClCompile Include="src\lib\base_lib.cpp" />
+    <ClCompile Include="src\lib\lib_init.cpp" />
+    <ClCompile Include="src\lib\lib_manager.cpp" />
+    <ClCompile Include="src\lib\lib_utils.cpp" />
+    <ClCompile Include="src\lib\string_lib.cpp" />
     <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\parser\expression_parser.cpp" />
     <ClCompile Include="src\parser\parser_utils.cpp" />

@@ -177,6 +177,18 @@
     <ClCompile Include="src\gc\core\string_pool.cpp">
       <Filter>gc\core</Filter>
     </ClCompile>
+    <ClCompile Include="src\lib\lib_init.cpp">
+      <Filter>lib</Filter>
+    </ClCompile>
+    <ClCompile Include="src\lib\lib_manager.cpp">
+      <Filter>lib</Filter>
+    </ClCompile>
+    <ClCompile Include="src\lib\lib_utils.cpp">
+      <Filter>lib</Filter>
+    </ClCompile>
+    <ClCompile Include="src\lib\string_lib.cpp">
+      <Filter>lib</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\lib\base_lib.hpp">
@@ -316,6 +328,21 @@
     </ClInclude>
     <ClInclude Include="src\vm\table_impl.hpp">
       <Filter>vm</Filter>
+    </ClInclude>
+    <ClInclude Include="src\lib\lib_common.hpp">
+      <Filter>lib</Filter>
+    </ClInclude>
+    <ClInclude Include="src\lib\lib_init.hpp">
+      <Filter>lib</Filter>
+    </ClInclude>
+    <ClInclude Include="src\lib\lib_manager.hpp">
+      <Filter>lib</Filter>
+    </ClInclude>
+    <ClInclude Include="src\lib\lib_utils.hpp">
+      <Filter>lib</Filter>
+    </ClInclude>
+    <ClInclude Include="src\lib\string_lib.hpp">
+      <Filter>lib</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

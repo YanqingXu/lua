@@ -5,23 +5,6 @@
 #include <vector>
 #include <memory>
 
-// Undefine any potential macro conflicts from Windows headers
-#ifdef key
-#undef key
-#endif
-#ifdef value
-#undef value
-#endif
-#ifdef Entry
-#undef Entry
-#endif
-#ifdef array
-#undef array
-#endif
-#ifdef size
-#undef size
-#endif
-
 namespace Lua {
     // Forward declarations
     class GarbageCollector;

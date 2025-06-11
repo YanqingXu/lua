@@ -5,6 +5,7 @@
 #include "instruction.hpp"
 #include "../gc/core/gc_ref.hpp"
 #include "../vm/Value.hpp"
+#include <functional>
 
 namespace Lua {
     // Forward declarations
@@ -14,7 +15,7 @@ namespace Lua {
     template<typename T> class GCRef;
     
     // Native function type
-    using NativeFn = Value(*)(State* state, int nargs);
+    using NativeFn = std::function<Value(State* state, int nargs)>;
     
     // Function class
     class Function : public GCObject {
