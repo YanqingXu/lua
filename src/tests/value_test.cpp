@@ -17,7 +17,7 @@ void testValues() {
     std::cout << "string: " << string.toString() << std::endl;
 
     // Test table
-    auto table = make_ptr<Table>();
+    auto table = make_gc_table();
     table->set(Value(1), Value("one"));
     table->set(Value(2), Value("two"));
     table->set(Value("name"), Value("lua"));

@@ -2,7 +2,9 @@
 #include "table.hpp"
 #include "instruction.hpp"
 #include "../common/opcodes.hpp"
+#include "../gc/core/gc_ref.hpp"
 #include <stdexcept>
+#include <iostream>
 
 namespace Lua {
     VM::VM(State* state) : 
@@ -13,7 +15,7 @@ namespace Lua {
         pc(0) {
     }
     
-    Value VM::execute(Ptr<Function> function) {
+    Value VM::execute(GCRef<Function> function) {
         if (!function || function->getType() != Function::Type::Lua) {
             throw LuaException("Cannot execute non-Lua function");
         }
@@ -209,7 +211,7 @@ namespace Lua {
     
     void VM::op_newtable(Instruction i) {
         u8 a = i.getA();
-        state->set(a + 1, make_ptr<Table>());
+        state->set(a + 1, make_gc_table());
     }
     
     void VM::op_add(Instruction i) {

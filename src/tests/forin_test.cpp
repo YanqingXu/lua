@@ -3,6 +3,7 @@
 #include "../vm/state.hpp"
 #include "../vm/table.hpp"
 #include "../lib/base_lib.hpp"
+#include "../gc/core/gc_ref.hpp"
 #include <iostream>
 
 namespace Lua {
@@ -72,7 +73,7 @@ namespace Lua {
                 std::cout << "\nTesting table iteration with pairs:" << std::endl;
                 
                 // Create a test table
-                auto table = std::make_shared<Table>();
+                auto table = make_gc_table();
                 table->set(Value("a"), Value(1.0));
                 table->set(Value("b"), Value(2.0));
                 table->set(Value("c"), Value(3.0));
@@ -91,7 +92,7 @@ namespace Lua {
                 // Test array iteration with ipairs
                 std::cout << "\nTesting array iteration with ipairs:" << std::endl;
                 
-                auto arrayTable = std::make_shared<Table>();
+                auto arrayTable = make_gc_table();
                 arrayTable->set(Value(1.0), Value(10.0));
                 arrayTable->set(Value(2.0), Value(20.0));
                 arrayTable->set(Value(3.0), Value(30.0));

@@ -1,18 +1,23 @@
 #pragma once
 
 #include "../common/types.hpp"
+#include "../gc/core/gc_object.hpp"
 #include "instruction.hpp"
-#include "value.hpp"
+#include "../gc/core/gc_ref.hpp"
+#include "../vm/Value.hpp"
 
 namespace Lua {
-    // Forward declaration
+    // Forward declarations
     class State;
+    //class Value;
+    class GarbageCollector;
+    template<typename T> class GCRef;
     
     // Native function type
     using NativeFn = Value(*)(State* state, int nargs);
     
     // Function class
-    class Function {
+    class Function : public GCObject {
     public:
         enum class Type { Lua, Native };
         
@@ -23,12 +28,14 @@ namespace Lua {
         struct LuaData {
             Ptr<Vec<Instruction>> code;
             Vec<Value> constants;
+            Vec<Value*> upvalues;  // Store upvalue references
+            Function* prototype;    // Function prototype (parent function)
             u8 nparams;
             u8 nlocals;
             u8 nupvalues;
             
             // Add default constructor
-            LuaData() : code(nullptr), constants{}, nparams(0), nlocals(0), nupvalues(0) {}
+            LuaData() : code(nullptr), constants{}, upvalues{}, prototype(nullptr), nparams(0), nlocals(0), nupvalues(0) {}
         } lua;
         
         // Native function data
@@ -43,8 +50,13 @@ namespace Lua {
         // Constructor
         explicit Function(Type type);
         
+        // Override GCObject virtual functions
+        void markReferences(GarbageCollector* gc) override;
+        usize getSize() const override;
+        usize getAdditionalSize() const override;
+        
         // Create Lua function
-        static Ptr<Function> createLua(
+        static GCRef<Function> createLua(
             Ptr<Vec<Instruction>> code, 
             const Vec<Value>& constants,
             u8 nparams = 0,
@@ -53,7 +65,7 @@ namespace Lua {
         );
         
         // Create native function
-        static Ptr<Function> createNative(NativeFn fn);
+        static GCRef<Function> createNative(NativeFn fn);
         
         // Get function type
         Type getType() const { return type; }
@@ -75,5 +87,26 @@ namespace Lua {
         
         // Get upvalue count
         u8 getUpvalueCount() const { return type == Type::Lua ? lua.nupvalues : 0; }
+        
+        // Get upvalue by index
+        Value* getUpvalue(usize index) const;
+        
+        // Set upvalue by index
+        void setUpvalue(usize index, Value* upvalue);
+        
+        // Get constant count
+        usize getConstantCount() const;
+        
+        // Get constant by index
+        const Value& getConstant(usize index) const;
+        
+        // Get function prototype
+        Function* getPrototype() const { return type == Type::Lua ? lua.prototype : nullptr; }
+        
+        // Set function prototype
+        void setPrototype(Function* proto);
+        
+        // Close upvalues (for garbage collection)
+        void closeUpvalues();
     };
 }

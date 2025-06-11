@@ -150,7 +150,7 @@ namespace Lua {
             Compiler compiler;
             
             // Test table literal (empty table)
-            auto table = make_ptr<Table>();
+            auto table = make_gc_table();
             Value tableValue(table);
             LiteralExpr tableExpr(tableValue);
             int reg1 = compiler.compileExpr(&tableExpr);

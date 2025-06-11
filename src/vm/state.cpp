@@ -7,7 +7,8 @@
 #include "../vm/vm.hpp"
 #include <stdexcept>
 #include <fstream>
-#include <sstream>
+//#include <sstream>
+#include <iostream>
 
 namespace Lua {
     State::State() : top(0) {
@@ -128,12 +129,12 @@ namespace Lua {
         return stack[idx - 1].toString();
     }
     
-    Ptr<Table> State::toTable(int idx) {
+    GCRef<Table> State::toTable(int idx) {
         if (idx <= 0 || idx > top) return nullptr;
         return stack[idx - 1].asTable();
     }
     
-    Ptr<Function> State::toFunction(int idx) {
+    GCRef<Function> State::toFunction(int idx) {
         if (idx <= 0 || idx > top) return nullptr;
         return stack[idx - 1].asFunction();
     }
@@ -202,7 +203,7 @@ namespace Lua {
             
             // 2. Generate bytecode using compiler
             Compiler compiler;
-            Ptr<Function> function = compiler.compile(statements);
+            GCRef<Function> function = compiler.compile(statements);
             
             if (!function) {
                 return false;

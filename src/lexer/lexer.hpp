@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../common/types.hpp"
+#include "../gc/core/gc_string.hpp"
 #include <string>
 #include <vector>
 
@@ -29,7 +30,7 @@ namespace Lua {
         // Value (for numbers and strings)
         union {
             LuaNumber number;
-            Str* string;
+            GCString* string;
         } value;
         
         Token() : type(TokenType::Error), line(1), column(1) {

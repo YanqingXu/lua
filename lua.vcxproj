@@ -143,7 +143,13 @@
     <ClInclude Include="src\compiler\expression_compiler.hpp" />
     <ClInclude Include="src\compiler\statement_compiler.hpp" />
     <ClInclude Include="src\compiler\symbol_table.hpp" />
+    <ClInclude Include="src\gc\algorithms\gc_marker.hpp" />
+    <ClInclude Include="src\gc\algorithms\gc_sweeper.hpp" />
+    <ClInclude Include="src\gc\core\garbage_collector.hpp" />
     <ClInclude Include="src\gc\core\gc_object.hpp" />
+    <ClInclude Include="src\gc\core\gc_ref.hpp" />
+    <ClInclude Include="src\gc\core\gc_string.hpp" />
+    <ClInclude Include="src\gc\core\string_pool.hpp" />
     <ClInclude Include="src\gc\memory\allocator.hpp" />
     <ClInclude Include="src\gc\memory\memory_pool.hpp" />
     <ClInclude Include="src\gc\memory\optimized_allocator.hpp" />
@@ -169,8 +175,10 @@
     <ClInclude Include="src\tests\value_test.hpp" />
     <ClInclude Include="src\tests\variable_compiler_test.hpp" />
     <ClInclude Include="src\vm\function.hpp" />
+    <ClInclude Include="src\vm\instruction.hpp" />
     <ClInclude Include="src\vm\state.hpp" />
     <ClInclude Include="src\vm\table.hpp" />
+    <ClInclude Include="src\vm\table_impl.hpp" />
     <ClInclude Include="src\vm\value.hpp" />
     <ClInclude Include="src\vm\vm.hpp" />
   </ItemGroup>
@@ -180,6 +188,12 @@
     <ClCompile Include="src\compiler\expression_compiler.cpp" />
     <ClCompile Include="src\compiler\statement_compiler.cpp" />
     <ClCompile Include="src\compiler\symbol_table.cpp" />
+    <ClCompile Include="src\gc\algorithms\gc_marker.cpp" />
+    <ClCompile Include="src\gc\algorithms\gc_sweeper.cpp" />
+    <ClCompile Include="src\gc\core\garbage_collector.cpp" />
+    <ClCompile Include="src\gc\core\gc_ref.cpp" />
+    <ClCompile Include="src\gc\core\gc_string.cpp" />
+    <ClCompile Include="src\gc\core\string_pool.cpp" />
     <ClCompile Include="src\gc\memory\allocator.cpp" />
     <ClCompile Include="src\gc\memory\memory_pool.cpp" />
     <ClCompile Include="src\gc\memory\optimized_allocator.cpp" />

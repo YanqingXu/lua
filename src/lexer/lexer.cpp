@@ -259,7 +259,7 @@ namespace Lua {
         // Extract string content (excluding quotes)
         Str value = source.substr(start + 1, current - start - 2);
         Token token = makeToken(TokenType::String);
-        token.value.string = new Str(value);
+        token.value.string = GCString::create(value);
         return token;
     }
 }

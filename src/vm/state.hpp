@@ -34,8 +34,8 @@ namespace Lua {
         LuaBoolean toBoolean(int idx) const;
         LuaNumber toNumber(int idx) const;
         Str toString(int idx) const;
-        Ptr<Table> toTable(int idx);
-        Ptr<Function> toFunction(int idx);
+        GCRef<Table> toTable(int idx);
+        GCRef<Function> toFunction(int idx);
         
         // Global variable operations
         void setGlobal(const Str& name, const Value& value);

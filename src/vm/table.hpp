@@ -1,36 +1,56 @@
 #pragma once
 
 #include "../common/types.hpp"
-#include "value.hpp"
+#include "../gc/core/gc_object.hpp"
 #include <vector>
+#include <memory>
+
+// Undefine any potential macro conflicts from Windows headers
+#ifdef key
+#undef key
+#endif
+#ifdef value
+#undef value
+#endif
+#ifdef Entry
+#undef Entry
+#endif
+#ifdef array
+#undef array
+#endif
+#ifdef size
+#undef size
+#endif
 
 namespace Lua {
+    // Forward declarations
+    class GarbageCollector;
+    class State;
+    class Value;
+    
     // Simplified Table implementation
-    class Table {
+    class Table : public GCObject {
     private:
-        // Use simple shared element tuples to store key-value pairs
-        struct Entry {
-            Value key;
-            Value value;
-            
-            // Add complete set of construction, assignment and move operations
-            Entry() = default;
-            Entry(const Value& k, const Value& v) : key(k), value(v) {}
-            Entry(const Entry& other) = default;
-            Entry(Entry&& other) noexcept = default;
-            Entry& operator=(const Entry& other) = default;
-            Entry& operator=(Entry&& other) noexcept = default;
-            ~Entry() = default;
-        };
+        // Forward declaration of Entry
+        struct Entry;
         
         // Array part
         Vec<Value> array;
         
         // Hash table part implemented with simple vector
-        Vec<Entry> entries;
+        Vec<void*> entries;
+        
+        // Metatable for this table
+        Table* metatable = nullptr;
         
     public:
-        Table() = default;
+        Table() : GCObject(GCObjectType::Table, sizeof(Table)) {}
+        ~Table();
+        
+        // Override GCObject virtual functions
+        void markReferences(GarbageCollector* gc) override;
+        usize getSize() const override;
+        usize getAdditionalSize() const override;
         
         // Get value from table
         Value get(const Value& key);
@@ -39,7 +59,26 @@ namespace Lua {
         void set(const Value& key, const Value& value);
         
         // Get table length
-        size_t length() const { return array.size(); }
+        size_t length() const;
+        
+        // Get array size for GC marking
+        usize getArraySize() const;
+        
+        // Get array element for GC marking
+        const Value& getArrayElement(usize index) const;
+        
+        // Iterate over hash entries for GC marking
+        template<typename Func>
+        void forEachHashEntry(Func&& func) const;
+        
+        // Get metatable
+        Table* getMetatable() const { return metatable; }
+        
+        // Set metatable
+        void setMetatable(Table* mt) { metatable = mt; }
+        
+        // Clear weak references (for garbage collection)
+        void clearWeakReferences();
         
     private:
         // Find key in entries

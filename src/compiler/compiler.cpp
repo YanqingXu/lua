@@ -61,7 +61,7 @@ namespace Lua {
         stmtCompiler->compileStmt(stmt);
     }
     
-    Ptr<Function> Compiler::compile(const Vec<UPtr<Stmt>>& statements) {
+    GCRef<Function> Compiler::compile(const Vec<UPtr<Stmt>>& statements) {
         try {
             // Compile each statement
             for (const auto& stmt : statements) {

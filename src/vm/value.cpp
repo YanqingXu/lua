@@ -1,4 +1,5 @@
 #include "value.hpp"
+#include "../gc/core/garbage_collector.hpp"
 #include "table.hpp"
 #include "function.hpp"
 #include <sstream>
@@ -8,9 +9,9 @@ namespace Lua {
         if (std::holds_alternative<std::monostate>(data)) return ValueType::Nil;
         if (std::holds_alternative<LuaBoolean>(data)) return ValueType::Boolean;
         if (std::holds_alternative<LuaNumber>(data)) return ValueType::Number;
-        if (std::holds_alternative<Ptr<Str>>(data)) return ValueType::String;
-        if (std::holds_alternative<Ptr<Table>>(data)) return ValueType::Table;
-        if (std::holds_alternative<Ptr<Function>>(data)) return ValueType::Function;
+        if (std::holds_alternative<GCRef<GCString>>(data)) return ValueType::String;
+        if (std::holds_alternative<GCRef<Table>>(data)) return ValueType::Table;
+        if (std::holds_alternative<GCRef<Function>>(data)) return ValueType::Function;
         return ValueType::Nil; // Default case, should not reach here
     }
     
@@ -44,22 +45,35 @@ namespace Lua {
         static const Str empty;
         
         if (isString()) {
-            return *std::get<Ptr<Str>>(data);
+            return std::get<GCRef<GCString>>(data)->getString();
         }
         
         return empty;
     }
     
-    Ptr<Table> Value::asTable() const {
+    GCRef<Table> Value::asTable() const {
         if (isTable()) {
-            return std::get<Ptr<Table>>(data);
+            return std::get<GCRef<Table>>(data);
         }
-        return nullptr;
+        return GCRef<Table>(nullptr);
     }
     
-    Ptr<Function> Value::asFunction() const {
+    GCRef<Function> Value::asFunction() const {
         if (isFunction()) {
-            return std::get<Ptr<Function>>(data);
+            return std::get<GCRef<Function>>(data);
+        }
+        return GCRef<Function>(nullptr);
+    }
+    
+    GCObject* Value::asGCObject() const {
+        if (isString()) {
+            return std::get<GCRef<GCString>>(data).get();
+        }
+        if (isTable()) {
+            return asTable().get();
+        }
+        if (isFunction()) {
+            return asFunction().get();
         }
         return nullptr;
     }
@@ -76,7 +90,7 @@ namespace Lua {
                 return ss.str();
             }
             case ValueType::String:
-                return *std::get<Ptr<Str>>(data);
+                return std::get<GCRef<GCString>>(data)->getString();
             case ValueType::Table:
                 return "table";
             case ValueType::Function:
@@ -118,11 +132,50 @@ namespace Lua {
             case ValueType::Number:
                 return std::get<LuaNumber>(data) == std::get<LuaNumber>(other.data);
             case ValueType::String:
-                return *std::get<Ptr<Str>>(data) == *std::get<Ptr<Str>>(other.data);
+                return *std::get<GCRef<GCString>>(data) == *std::get<GCRef<GCString>>(other.data);
             case ValueType::Table:
-                return std::get<Ptr<Table>>(data) == std::get<Ptr<Table>>(other.data); // Compare addresses
+                return std::get<GCRef<Table>>(data) == std::get<GCRef<Table>>(other.data); // Compare addresses
             case ValueType::Function:
-                return std::get<Ptr<Function>>(data) == std::get<Ptr<Function>>(other.data); // Compare addresses
+                return std::get<GCRef<Function>>(data) == std::get<GCRef<Function>>(other.data); // Compare addresses
+            default:
+                return false;
+        }
+    }
+    
+    void Value::markReferences(GarbageCollector* gc) const {
+        if (isString()) {
+            gc->markObject(std::get<GCRef<GCString>>(data).get());
+        } else if (isTable()) {
+            gc->markObject(asTable().get());
+        } else if (isFunction()) {
+            gc->markObject(asFunction().get());
+        }
+    }
+    
+    bool Value::operator<(const Value& other) const {
+        // First sort by type
+        if (type() != other.type()) {
+            return static_cast<int>(type()) < static_cast<int>(other.type());
+        }
+        
+        // Same type comparison
+        switch (type()) {
+            case ValueType::Nil:
+                return false; // nil is not less than nil
+            case ValueType::Boolean:
+                return asBoolean() < other.asBoolean();
+            case ValueType::Number:
+                return asNumber() < other.asNumber();
+            case ValueType::String:
+                return asString() < other.asString();
+            case ValueType::Table:
+                // Compare pointer addresses
+                // Use std::less to ensure pointer comparison safety
+                return std::less<void*>()(asTable().get(), other.asTable().get());
+            case ValueType::Function:
+                // Compare pointer addresses
+                // Use std::less to ensure pointer comparison safety
+                return std::less<void*>()(asFunction().get(), other.asFunction().get());
             default:
                 return false;
         }

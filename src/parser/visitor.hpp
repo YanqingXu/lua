@@ -1,5 +1,6 @@
 #pragma once
 
+#include <type_traits>
 #include "parser.hpp"
 #include "../common/types.hpp"
 
@@ -62,7 +63,13 @@ namespace Lua {
         
         // Dispatch methods for expressions
         R visit(const Expr* expr) {
-            if (!expr) return R{};
+            if (!expr) {
+                if constexpr (std::is_void_v<R>) {
+                    return;
+                } else {
+                    return R{};
+                }
+            }
             
             switch (expr->getType()) {
                 case ExprType::Literal:
@@ -90,7 +97,13 @@ namespace Lua {
         
         // Dispatch methods for statements
         R visit(const Stmt* stmt) {
-            if (!stmt) return R{};
+            if (!stmt) {
+                if constexpr (std::is_void_v<R>) {
+                    return;
+                } else {
+                    return R{};
+                }
+            }
             
             switch (stmt->getType()) {
                 case StmtType::Expression:

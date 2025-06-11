@@ -47,7 +47,7 @@ namespace Lua {
         ~Compiler();
         
         // Main compilation interface
-        Ptr<Function> compile(const Vec<UPtr<Stmt>>& statements);
+        GCRef<Function> compile(const Vec<UPtr<Stmt>>& statements);
         
         // Compilation methods
         int compileExpr(const Expr* expr);

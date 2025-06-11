@@ -1,8 +1,11 @@
 #pragma once
 
 #include "../common/types.hpp"
+#include "../gc/core/gc_object.hpp"
+#include "../gc/core/gc_string.hpp"
+#include "../gc/core/gc_ref.hpp"
 #include <variant>
-#include <iostream>
+#include <memory>
 #include <functional>   // For std::less
 #include <cmath>        // For floating point operations
 
@@ -10,6 +13,12 @@ namespace Lua {
     // Forward declarations
     class Table;
     class Function;
+    class GCString;
+    template<typename T> class GCRef;
+    
+    // Forward declare utility functions
+    GCRef<GCString> make_gc_string(const Str& str);
+    GCRef<GCString> make_gc_string(const char* str);
     
     // Lua value types
     enum class ValueType {
@@ -29,9 +38,9 @@ namespace Lua {
             std::monostate,      // Nil
             LuaBoolean,          // Boolean
             LuaNumber,           // Number
-            Ptr<Str>,      // String
-            Ptr<Table>,          // Table
-            Ptr<Function>        // Function
+            GCRef<GCString>,     // String
+            GCRef<Table>,        // Table
+            GCRef<Function>      // Function
         >;
         
         ValueVariant data;
@@ -44,10 +53,10 @@ namespace Lua {
         Value(LuaNumber val) : data(val) {}
         Value(i32 val) : data(static_cast<LuaNumber>(val)) {}  // Accept 32-bit integer
         Value(i64 val) : data(static_cast<LuaNumber>(val)) {}  // Accept 64-bit integer
-        Value(const Str& val) : data(make_ptr<Str>(val)) {}
-        Value(const char* val) : data(make_ptr<Str>(val)) {}
-        Value(Ptr<Table> val) : data(val) {}
-        Value(Ptr<Function> val) : data(val) {}
+        Value(const Str& val) : data(make_gc_string(val)) {}
+        Value(const char* val) : data(make_gc_string(val)) {}
+        Value(GCRef<Table> val) : data(val) {}
+        Value(GCRef<Function> val) : data(val) {}
         
         // Copy constructor
         Value(const Value& other) = default;
@@ -70,12 +79,19 @@ namespace Lua {
         bool isTable() const { return type() == ValueType::Table; }
         bool isFunction() const { return type() == ValueType::Function; }
         
+        // GC object checking
+        bool isGCObject() const { return isString() || isTable() || isFunction(); }
+        GCObject* asGCObject() const;
+        
         // Get values
         LuaBoolean asBoolean() const;
         LuaNumber asNumber() const;
         const Str& asString() const;
-        Ptr<Table> asTable() const;
-        Ptr<Function> asFunction() const;
+        GCRef<Table> asTable() const;
+        GCRef<Function> asFunction() const;
+        
+        // GC integration
+        void markReferences(class GarbageCollector* gc) const;
         
         // Convert to string for printing
         Str toString() const;
@@ -85,30 +101,6 @@ namespace Lua {
         bool operator!=(const Value& other) const { return !(*this == other); }
         
         // Less than comparison, for map sorting
-        bool operator<(const Value& other) const {
-            // First sort by type
-            if (type() != other.type()) {
-                return static_cast<int>(type()) < static_cast<int>(other.type());
-            }
-            
-            // Same type comparison
-            switch (type()) {
-                case ValueType::Nil:
-                    return false; // nil is not less than nil
-                case ValueType::Boolean:
-                    return asBoolean() < other.asBoolean();
-                case ValueType::Number:
-                    return asNumber() < other.asNumber();
-                case ValueType::String:
-                    return asString() < other.asString();
-                case ValueType::Table:
-                case ValueType::Function:
-                    // Compare pointer addresses
-                    // Use std::less to ensure pointer comparison safety
-                    return std::less<void*>()(asTable().get(), other.asTable().get());
-                default:
-                    return false;
-            }
-        }
+        bool operator<(const Value& other) const;
     };
 }

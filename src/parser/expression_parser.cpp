@@ -148,7 +148,8 @@ namespace Lua {
         }
 
         if (match(TokenType::String)) {
-            return std::make_unique<LiteralExpr>(Value(previous.lexeme));
+            // Use the GCString from token instead of creating a new string from lexeme
+            return std::make_unique<LiteralExpr>(Value(previous.value.string->getString()));
         }
 
         if (match(TokenType::Name)) {

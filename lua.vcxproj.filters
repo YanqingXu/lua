@@ -159,6 +159,24 @@
     <ClCompile Include="src\gc\memory\optimized_allocator.cpp">
       <Filter>gc\memory</Filter>
     </ClCompile>
+    <ClCompile Include="src\gc\algorithms\gc_marker.cpp">
+      <Filter>gc\algorithms</Filter>
+    </ClCompile>
+    <ClCompile Include="src\gc\algorithms\gc_sweeper.cpp">
+      <Filter>gc\algorithms</Filter>
+    </ClCompile>
+    <ClCompile Include="src\gc\core\garbage_collector.cpp">
+      <Filter>gc\core</Filter>
+    </ClCompile>
+    <ClCompile Include="src\gc\core\gc_ref.cpp">
+      <Filter>gc\core</Filter>
+    </ClCompile>
+    <ClCompile Include="src\gc\core\gc_string.cpp">
+      <Filter>gc\core</Filter>
+    </ClCompile>
+    <ClCompile Include="src\gc\core\string_pool.cpp">
+      <Filter>gc\core</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\lib\base_lib.hpp">
@@ -274,6 +292,30 @@
     </ClInclude>
     <ClInclude Include="src\gc\memory\optimized_allocator.hpp">
       <Filter>gc\memory</Filter>
+    </ClInclude>
+    <ClInclude Include="src\gc\algorithms\gc_marker.hpp">
+      <Filter>gc\algorithms</Filter>
+    </ClInclude>
+    <ClInclude Include="src\gc\algorithms\gc_sweeper.hpp">
+      <Filter>gc\algorithms</Filter>
+    </ClInclude>
+    <ClInclude Include="src\gc\core\garbage_collector.hpp">
+      <Filter>gc\core</Filter>
+    </ClInclude>
+    <ClInclude Include="src\gc\core\gc_ref.hpp">
+      <Filter>gc\core</Filter>
+    </ClInclude>
+    <ClInclude Include="src\gc\core\gc_string.hpp">
+      <Filter>gc\core</Filter>
+    </ClInclude>
+    <ClInclude Include="src\gc\core\string_pool.hpp">
+      <Filter>gc\core</Filter>
+    </ClInclude>
+    <ClInclude Include="src\vm\instruction.hpp">
+      <Filter>vm</Filter>
+    </ClInclude>
+    <ClInclude Include="src\vm\table_impl.hpp">
+      <Filter>vm</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

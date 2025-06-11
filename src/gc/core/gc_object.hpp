@@ -125,10 +125,25 @@ namespace Lua {
         virtual void finalize(State* state) {}
         
         /**
+         * @brief Optional finalizer called before object destruction (no state)
+         * 
+         * This overload is called when no Lua state is available during finalization.
+         */
+        virtual void finalize() {}
+        
+        /**
          * @brief Check if this object has a finalizer
          * @return true if the object needs finalization
          */
         virtual bool hasFinalizer() const { return false; }
+        
+        /**
+         * @brief Check if this object needs finalization
+         * @return true if the object has a finalizer and hasn't been finalized yet
+         */
+        bool needsFinalization() const {
+            return hasFinalizer() && !isFinalized();
+        }
         
         /**
          * @brief Get the size of this object for memory accounting

@@ -1,13 +1,28 @@
 #include "table.hpp"
-#include <cmath>        // For std::floor
+#include "value.hpp"
+#include "../gc/memory/allocator.hpp"
+#include "../gc/core/gc_ref.hpp"
+#include "../gc/core/garbage_collector.hpp"
+#include "table_impl.hpp"
+#include <functional>   // For std::function
 
 namespace Lua {
+    
+    // Table destructor to clean up dynamically allocated entries
+    Table::~Table() {
+        for (void* entryPtr : entries) {
+            delete static_cast<Entry*>(entryPtr);
+        }
+    }
+    
     // Find the index of a key in entries, return -1 if not found
     int Table::findEntry(const Value& key) const {
         for (size_t i = 0; i < entries.size(); i++) {
-            if (entries[i].key == key) {
+            Entry* entry = static_cast<Entry*>(entries[i]);
+            if (entry->key == key) {
                 return static_cast<int>(i);
             }
+            
         }
         return -1;
     }
@@ -25,7 +40,8 @@ namespace Lua {
         // Search in entries
         int index = findEntry(key);
         if (index >= 0) {
-            return entries[index].value;
+            Entry* entry = static_cast<Entry*>(entries[index]);
+            return entry->value;
         }
         
         // Return nil if not found
@@ -63,8 +79,8 @@ namespace Lua {
         if (value.isNil()) {
             // Delete element (if exists)
             if (index >= 0) {
-                // Swap the element to be deleted with the last element, then remove the last element
-                // This avoids holes in the vector
+                // Delete the entry and swap with last element
+                delete static_cast<Entry*>(entries[index]);
                 if (index < static_cast<int>(entries.size()) - 1) {
                     entries[index] = entries.back();
                 }
@@ -73,11 +89,89 @@ namespace Lua {
         } else {
             // Update existing element
             if (index >= 0) {
-                entries[index].value = value;
+                Entry* entry = static_cast<Entry*>(entries[index]);
+                entry->value = value;
             } else {
                 // Add new element
-                entries.emplace_back(key, value);
+                Entry* newEntry = new Entry(key, value);
+                entries.push_back(newEntry);
             }
         }
+    }
+    
+    // GCObject virtual function implementations
+    void Table::markReferences(GarbageCollector* gc) {
+        // Mark array part
+        for (const auto& value : array) {
+            if (value.isGCObject()) {
+                gc->markObject(value.asGCObject());
+            }
+        }
+        
+        // Mark hash part
+        for (const auto& entryPtr : entries) {
+            Entry* entry = static_cast<Entry*>(entryPtr);
+            if (entry->key.isGCObject()) {
+                gc->markObject(entry->key.asGCObject());
+            }
+            if (entry->value.isGCObject()) {
+                gc->markObject(entry->value.asGCObject());
+            }
+        }
+        
+        // Mark metatable if present
+        if (metatable != nullptr) {
+            gc->markObject(metatable);
+        }
+    }
+    
+    void Table::clearWeakReferences() {
+        // Clear weak references in array part
+        // For now, we don't implement weak references, so this is a no-op
+        // In a full implementation, this would remove entries where the key or value
+        // is a weak reference to a collected object
+        
+        // Clear weak references in hash part
+        // This would iterate through hashPart and remove entries with collected weak references
+        
+        // Note: This is a placeholder implementation
+        // Full weak reference support would require additional metadata
+    }
+    
+    usize Table::getSize() const {
+        return sizeof(Table);
+    }
+    
+    usize Table::getAdditionalSize() const {
+        // Calculate additional memory used by vectors
+        usize arraySize = array.capacity() * sizeof(Value);
+        usize entriesSize = entries.capacity() * sizeof(void*) + entries.size() * sizeof(Entry);
+        return arraySize + entriesSize;
+    }
+    
+    size_t Table::length() const {
+        return array.size();
+    }
+    
+    usize Table::getArraySize() const {
+        return array.size();
+    }
+    
+    const Value& Table::getArrayElement(usize index) const {
+        return array[index];
+    }
+    
+    
+    // Implementation of make_gc_table to avoid circular dependencies
+    GCRef<Table> make_gc_table() {
+        extern GCAllocator* g_gcAllocator;
+        if (g_gcAllocator) {
+            Table* obj = g_gcAllocator->allocateObject<Table>(GCObjectType::Table);
+            return GCRef<Table>(obj);
+        }
+        
+        // Fallback to direct allocation
+        Table* obj = new Table();
+        return GCRef<Table>(obj);
     }
 }

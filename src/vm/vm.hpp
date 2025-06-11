@@ -8,7 +8,7 @@ namespace Lua {
     class VM {
     private:
         State* state;
-        Ptr<Function> currentFunction;
+        GCRef<Function> currentFunction;
         Vec<Instruction>* code;
         Vec<Value>* constants;
         usize pc; // Program counter
@@ -17,7 +17,7 @@ namespace Lua {
         explicit VM(State* state);
         
         // Execute function
-        Value execute(Ptr<Function> function);
+        Value execute(GCRef<Function> function);
         
     private:
         // Run one instruction
