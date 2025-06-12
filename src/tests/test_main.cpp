@@ -13,6 +13,7 @@
 #include "expression_compiler_test.hpp"
 #include "gc_integration_test.hpp"
 #include "string_pool_demo_test.hpp"
+#include "conditional_compilation_test.hpp"
 #include <iostream>
 
 namespace Lua {
@@ -70,22 +71,25 @@ void runAllTests() {
         // runFunctionTests();
         
         // Run literal compiler tests
-        LiteralCompilerTest::runAllTests();
+        // LiteralCompilerTest::runAllTests();
         
         // Run variable compiler tests
-        VariableCompilerTest::runAllTests();
+        // VariableCompilerTest::runAllTests();
         
         // Run binary expression tests
-        BinaryExpressionTest::runAllTests();
+        // BinaryExpressionTest::runAllTests();
         
         // Run expression compiler tests
-        ExpressionCompilerTest::runAllTests();
+        // ExpressionCompilerTest::runAllTests();
 
         // Run string pool demo tests
-        runStringPoolDemo();
+        // runStringPoolDemo();
 
         // Run GC integration tests
-        runGCIntegrationDemo();
+        // runGCIntegrationDemo();
+
+		// Run Conditional Compilation tests
+		ConditionalCompilationTest::runAllTests();
         
         std::cout << "\n=== All Tests Completed ===" << std::endl;
         

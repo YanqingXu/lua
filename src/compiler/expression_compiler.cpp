@@ -347,26 +347,50 @@ namespace Lua {
     
     int ExpressionCompiler::compileLogicalOp(const BinaryExpr* expr) {
         int leftReg = compileExpr(expr->getLeft());
+        int resultReg = compiler->allocReg();
+        
+        // Move left value to result register first
+        compiler->emitInstruction(Instruction::createMOVE(resultReg, leftReg));
         
         if (expr->getOperator() == TokenType::And) {
-            // Short-circuit AND: if left is false, result is left; otherwise result is right
-            int jumpIfFalse = compiler->emitJump();
-            compiler->freeReg(); // Free left register
+            // Short-circuit AND: if left is false/nil, result is left; otherwise evaluate right
+            // TEST leftReg, 0 - test if leftReg is false/nil
+            compiler->emitInstruction(Instruction::createTEST(leftReg, 0));
             
+            // If left is false/nil, skip right evaluation (jump to end)
+            int jumpToEnd = compiler->emitJump();
+            
+            // Left is true, evaluate right operand
             int rightReg = compileExpr(expr->getRight());
-            compiler->patchJump(jumpIfFalse);
             
-            return rightReg;
+            // Move right result to result register
+            compiler->emitInstruction(Instruction::createMOVE(resultReg, rightReg));
+            compiler->freeReg(); // Free right register
+            
+            // Patch jump to end
+            compiler->patchJump(jumpToEnd);
+            
         } else { // TokenType::Or
-            // Short-circuit OR: if left is true, result is left; otherwise result is right
-            int jumpIfTrue = compiler->emitJump();
-            compiler->freeReg(); // Free left register
+            // Short-circuit OR: if left is true, result is left; otherwise evaluate right
+            // TEST leftReg, 1 - test if leftReg is true (invert test)
+            compiler->emitInstruction(Instruction::createTEST(leftReg, 1));
             
+            // If left is true, skip right evaluation (jump to end)
+            int jumpToEnd = compiler->emitJump();
+            
+            // Left is false/nil, evaluate right operand
             int rightReg = compileExpr(expr->getRight());
-            compiler->patchJump(jumpIfTrue);
             
-            return rightReg;
+            // Move right result to result register
+            compiler->emitInstruction(Instruction::createMOVE(resultReg, rightReg));
+            compiler->freeReg(); // Free right register
+            
+            // Patch jump to end
+            compiler->patchJump(jumpToEnd);
         }
+        
+        compiler->freeReg(); // Free left register
+        return resultReg;
     }
     
 

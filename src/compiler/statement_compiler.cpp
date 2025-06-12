@@ -11,7 +11,7 @@ namespace Lua {
         if (!stmt) {
             throw LuaException("Null statement in compilation");
         }
-        
+
         switch (stmt->getType()) {
             case StmtType::Expression:
                 compileExprStmt(static_cast<const ExprStmt*>(stmt));
@@ -52,6 +52,79 @@ namespace Lua {
             default:
                 throw LuaException("Unknown statement type in compilation");
         }
+    }
+    
+    // Helper methods implementation
+    void StatementCompiler::compileConditionalJump(const Expr* condition, bool jumpIfTrue, int& jumpAddr) {
+        // Compile condition expression
+        int conditionReg = compiler->getExpressionCompiler()->compileExpr(condition);
+        
+        // Create TEST instruction based on jump direction
+        if (jumpIfTrue) {
+            // Jump if condition is true (invert test)
+            compiler->emitInstruction(Instruction::createTEST(conditionReg, 1));
+        } else {
+            // Jump if condition is false/nil
+            compiler->emitInstruction(Instruction::createTEST(conditionReg, 0));
+        }
+        
+        compiler->freeReg(); // Free condition register
+        
+        // Create jump placeholder
+        jumpAddr = compiler->emitJump();
+    }
+    
+    void StatementCompiler::compileNestedCondition(const Expr* condition, int& jumpToElse, int& jumpToEnd) {
+        // Handle complex nested conditions with proper jump management
+        if (condition->getType() == ExprType::Binary) {
+            const auto* binExpr = static_cast<const BinaryExpr*>(condition);
+            TokenType op = binExpr->getOperator();
+            
+            if (op == TokenType::And || op == TokenType::Or) {
+                // For logical operators, let expression compiler handle short-circuiting
+                int conditionReg = compiler->getExpressionCompiler()->compileExpr(condition);
+                
+                // Test final result
+                compiler->emitInstruction(Instruction::createTEST(conditionReg, 0));
+                compiler->freeReg();
+                
+                jumpToElse = compiler->emitJump();
+                jumpToEnd = -1; // Will be set later if needed
+                return;
+            }
+        }
+        
+        // For simple conditions, use standard compilation
+        compileConditionalJump(condition, false, jumpToElse);
+        jumpToEnd = -1;
+    }
+    
+    void StatementCompiler::patchConditionalJumps(int jumpToElse, int jumpToEnd, bool hasElse) {
+        // Patch the jump to else/end
+        if (jumpToElse != -1) {
+            compiler->patchJump(jumpToElse);
+        }
+        
+        // Patch the jump to end if there was an else branch
+        if (hasElse && jumpToEnd != -1) {
+            compiler->patchJump(jumpToEnd);
+        }
+    }
+    
+    void StatementCompiler::compileLoopBody(const Stmt* body, int loopStart) {
+        // Begin new scope for loop body
+        compiler->beginScope();
+        
+        // Compile loop body
+        compileStmt(body);
+        
+        // End loop scope
+        compiler->endScope();
+    }
+    
+    void StatementCompiler::handleBreakStatements(int loopEnd) {
+        // Patch all break statements to jump to loop end
+        compiler->patchBreakJumps(loopEnd);
     }
     
     void StatementCompiler::compileExprStmt(const ExprStmt* stmt) {
@@ -120,31 +193,38 @@ namespace Lua {
     }
     
     void StatementCompiler::compileIfStmt(const IfStmt* stmt) {
-        // Compile condition
+        // Compile condition expression
         int conditionReg = compiler->getExpressionCompiler()->compileExpr(stmt->getCondition());
         
-        // Test condition and skip next instruction if false
+        // Test condition: if false, skip to else/end
+        // TEST instruction tests if register is false/nil and skips next instruction if so
         compiler->emitInstruction(Instruction::createTEST(conditionReg, 0));
         compiler->freeReg(); // Free condition register
         
-        // Jump to else/end if condition is false
+        // Create jump placeholder for false condition (jump to else/end)
         int jumpToElse = compiler->emitJump();
         
         // Compile then branch
+        compiler->beginScope();
         compileStmt(stmt->getThenBranch());
+        compiler->endScope();
         
         int jumpToEnd = -1;
         if (stmt->getElseBranch()) {
-            // Jump over else branch
+            // If there's an else branch, we need to jump over it after then branch
             jumpToEnd = compiler->emitJump();
         }
         
-        // Patch jump to else
+        // Patch the jump to else/end - this is where false condition lands
         compiler->patchJump(jumpToElse);
         
         // Compile else branch if present
         if (stmt->getElseBranch()) {
+            compiler->beginScope();
             compileStmt(stmt->getElseBranch());
+            compiler->endScope();
+            
+            // Patch the jump to end after then branch
             if (jumpToEnd != -1) {
                 compiler->patchJump(jumpToEnd);
             }
@@ -347,32 +427,5 @@ namespace Lua {
         compileStmt(stmt->getBody());
         
         compiler->endScope();
-    }
-    
-    void StatementCompiler::compileConditionalJump(const Expr* condition, bool jumpIfTrue, int& jumpAddr) {
-        int conditionReg = compiler->getExpressionCompiler()->compileExpr(condition);
-        
-        if (jumpIfTrue) {
-            jumpAddr = compiler->emitJump();
-        } else {
-            jumpAddr = compiler->emitJump();
-        }
-        
-        compiler->freeReg(); // Free condition register
-    }
-    
-    void StatementCompiler::compileLoopBody(const Stmt* body, int loopStart) {
-        compiler->beginScope();
-        compileStmt(body);
-        compiler->endScope();
-        
-        // Jump back to loop start
-        int backJump = static_cast<int>(compiler->getCodeSize()) - loopStart;
-        compiler->emitInstruction(Instruction::createJMP(-backJump));
-    }
-    
-    void StatementCompiler::handleBreakStatements(int loopEnd) {
-        // Patch all break jumps to point to loop end
-        compiler->patchBreakJumps(loopEnd);
     }
 }

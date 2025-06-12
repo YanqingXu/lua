@@ -35,5 +35,9 @@ namespace Lua {
         void compileConditionalJump(const Expr* condition, bool jumpIfTrue, int& jumpAddr);
         void compileLoopBody(const Stmt* body, int loopStart);
         void handleBreakStatements(int loopEnd);
+        
+        // Helper methods for nested conditions
+        void compileNestedCondition(const Expr* condition, int& jumpToElse, int& jumpToEnd);
+        void patchConditionalJumps(int jumpToElse, int jumpToEnd, bool hasElse);
     };
 }
