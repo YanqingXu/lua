@@ -1,6 +1,6 @@
 ﻿#include "function_test.hpp"
-#include "../parser/parser.hpp"
-#include "../parser/ast/statements.hpp"
+#include "../../parser/parser.hpp"
+#include "../../parser/ast/statements.hpp"
 #include <iostream>
 #include <memory>
 

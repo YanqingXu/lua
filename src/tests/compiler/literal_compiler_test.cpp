@@ -1,9 +1,9 @@
 #include "literal_compiler_test.hpp"
-#include "../compiler/expression_compiler.hpp"
-#include "../compiler/compiler.hpp"
-#include "../vm/value.hpp"
-#include "../vm/table.hpp"
-#include "../parser/ast/expressions.hpp"
+#include "../../compiler/expression_compiler.hpp"
+#include "../../compiler/compiler.hpp"
+#include "../../vm/value.hpp"
+#include "../../vm/table.hpp"
+#include "../../parser/ast/expressions.hpp"
 #include <cassert>
 #include <iostream>
 

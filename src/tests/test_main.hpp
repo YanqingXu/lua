@@ -2,11 +2,11 @@
 #define TEST_MAIN_HPP
 
 // Include all test headers
-#include "lexer_test.hpp"
-#include "value_test.hpp"
-#include "state_test.hpp"
-#include "parser_test.hpp"
-#include "symbol_table_test.hpp"
+#include "lexer/lexer_test.hpp"
+#include "vm/value_test.hpp"
+#include "vm/state_test.hpp"
+#include "parser/parser_test.hpp"
+#include "compiler/symbol_table_test.hpp"
 
 namespace Lua {
 namespace Tests {

@@ -1,5 +1,4 @@
-#ifndef IF_STATEMENT_TEST_HPP
-#define IF_STATEMENT_TEST_HPP
+#pragma once
 
 namespace Lua {
     class IfStatementTest {
@@ -14,5 +13,3 @@ namespace Lua {
         static void testIfStatementExecution();
     };
 }
-
-#endif // IF_STATEMENT_TEST_HPP

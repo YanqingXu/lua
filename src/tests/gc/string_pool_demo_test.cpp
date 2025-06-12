@@ -1,6 +1,6 @@
 ﻿#include "string_pool_demo_test.hpp"
-#include "../gc/core/string_pool.hpp"
-#include "../gc/core/gc_string.hpp"
+#include "../../gc/core/string_pool.hpp"
+#include "../../gc/core/gc_string.hpp"
 #include <iostream>
 #include <chrono>
 #include <vector>

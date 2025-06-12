@@ -2,7 +2,7 @@
 
 #include <iostream>
 #include <string>
-#include "../lexer/lexer.hpp"
+#include "../../lexer/lexer.hpp"
 
 namespace Lua {
 namespace Tests {

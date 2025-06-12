@@ -1,9 +1,9 @@
 #include "repeat_test.hpp"
-#include "../parser/parser.hpp"
-#include "../parser/ast/statements.hpp"
-#include "../compiler/compiler.hpp"
-#include "../vm/state.hpp"
-#include "../vm/table.hpp"
+#include "../../parser/parser.hpp"
+#include "../../parser/ast/statements.hpp"
+#include "../../compiler/compiler.hpp"
+#include "../../vm/state.hpp"
+#include "../../vm/table.hpp"
 #include <iostream>
 #include <memory>
 

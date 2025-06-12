@@ -1,10 +1,10 @@
 #include "binary_expression_test.hpp"
-#include "../compiler/compiler.hpp"
-#include "../compiler/expression_compiler.hpp"
-#include "../parser/ast/expressions.hpp"
-#include "../vm/instruction.hpp"
-#include "../common/opcodes.hpp"
-#include "../vm/value.hpp"
+#include "../../compiler/compiler.hpp"
+#include "../../compiler/expression_compiler.hpp"
+#include "../../parser/ast/expressions.hpp"
+#include "../../vm/instruction.hpp"
+#include "../../common/opcodes.hpp"
+#include "../../vm/value.hpp"
 #include <iostream>
 #include <cassert>
 

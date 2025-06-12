@@ -1,8 +1,8 @@
 #pragma once
 
-#include "../common/opcodes.hpp"
-#include "../parser/ast/expressions.hpp"
-#include "../lexer/lexer.hpp"
+#include "../../common/opcodes.hpp"
+#include "../../parser/ast/expressions.hpp"
+#include "../../lexer/lexer.hpp"
 
 namespace Lua {
 namespace Tests {

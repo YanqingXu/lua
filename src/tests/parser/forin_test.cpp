@@ -1,9 +1,9 @@
 #include "forin_test.hpp"
-#include "../parser/parser.hpp"
-#include "../vm/state.hpp"
-#include "../vm/table.hpp"
-#include "../lib/base_lib.hpp"
-#include "../gc/core/gc_ref.hpp"
+#include "../../parser/parser.hpp"
+#include "../../vm/state.hpp"
+#include "../../vm/table.hpp"
+#include "../../lib/base_lib.hpp"
+#include "../../gc/core/gc_ref.hpp"
 #include <iostream>
 
 namespace Lua {

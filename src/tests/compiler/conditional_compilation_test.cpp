@@ -1,9 +1,9 @@
 #include "conditional_compilation_test.hpp"
-#include "../compiler/compiler.hpp"
-#include "../parser/parser.hpp"
-#include "../lexer/lexer.hpp"
-#include "../vm/vm.hpp"
-#include "../vm/state.hpp"
+#include "../../compiler/compiler.hpp"
+#include "../../parser/parser.hpp"
+#include "../../lexer/lexer.hpp"
+#include "../../vm/vm.hpp"
+#include "../../vm/state.hpp"
 #include <iostream>
 #include <cassert>
 

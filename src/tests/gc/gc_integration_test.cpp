@@ -1,12 +1,12 @@
 ﻿#include "gc_integration_test.hpp"
-#include "../gc/core/garbage_collector.hpp"
-#include "../gc/core/gc_ref.hpp"
-#include "../vm/state.hpp"
-#include "../vm/state_factory.hpp"
-#include "../vm/table.hpp"
-#include "../vm/function.hpp"
-#include "../vm/value.hpp"
-#include "../gc/memory/allocator.hpp"
+#include "../../gc/core/garbage_collector.hpp"
+#include "../../gc/core/gc_ref.hpp"
+#include "../../vm/state.hpp"
+#include "../../vm/state_factory.hpp"
+#include "../../vm/table.hpp"
+#include "../../vm/function.hpp"
+#include "../../vm/value.hpp"
+#include "../../gc/memory/allocator.hpp"
 #include <iostream>
 #include <cassert>
 

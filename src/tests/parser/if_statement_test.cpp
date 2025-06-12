@@ -1,9 +1,9 @@
 #include "if_statement_test.hpp"
-#include "../compiler/compiler.hpp"
-#include "../parser/parser.hpp"
-#include "../lexer/lexer.hpp"
-#include "../vm/vm.hpp"
-#include "../vm/state_factory.hpp"
+#include "../../compiler/compiler.hpp"
+#include "../../parser/parser.hpp"
+#include "../../lexer/lexer.hpp"
+#include "../../vm/vm.hpp"
+#include "../../vm/state_factory.hpp"
 #include <iostream>
 #include <cassert>
 

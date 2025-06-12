@@ -3,8 +3,8 @@
 #include <iostream>
 #include <vector>
 #include <string>
-#include "../parser/parser.hpp"
-#include "../parser/visitor.hpp"
+#include "../../parser/parser.hpp"
+#include "../../parser/visitor.hpp"
 
 namespace Lua {
 namespace Tests {

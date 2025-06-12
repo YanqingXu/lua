@@ -1,8 +1,8 @@
 #include "variable_compiler_test.hpp"
-#include "../compiler/expression_compiler.hpp"
-#include "../compiler/compiler.hpp"
-#include "../vm/value.hpp"
-#include "../parser/ast/expressions.hpp"
+#include "../../compiler/expression_compiler.hpp"
+#include "../../compiler/compiler.hpp"
+#include "../../vm/value.hpp"
+#include "../../parser/ast/expressions.hpp"
 #include <cassert>
 #include <iostream>
 
