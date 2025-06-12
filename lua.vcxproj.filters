@@ -61,6 +61,21 @@
     <Filter Include="examples">
       <UniqueIdentifier>{0884faa8-8638-47eb-9cbc-0038f94f98d6}</UniqueIdentifier>
     </Filter>
+    <Filter Include="tests\compiler">
+      <UniqueIdentifier>{5874c9f0-8bd1-4787-9a83-167052eee2c6}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="tests\gc">
+      <UniqueIdentifier>{fcedba5d-93ba-4ff7-a92c-97b544add0e0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="tests\lexer">
+      <UniqueIdentifier>{a99e3e85-70b1-466d-86ad-da84d4e5ecbf}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="tests\parser">
+      <UniqueIdentifier>{03355153-702a-4d5c-bb45-681d39d2ca3e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="tests\vm">
+      <UniqueIdentifier>{8e48cf89-2d4e-41ab-8adf-aae91bd60f59}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\main.cpp">
@@ -105,31 +120,7 @@
     <ClCompile Include="src\parser\statement_parser.cpp">
       <Filter>parser</Filter>
     </ClCompile>
-    <ClCompile Include="src\tests\lexer_test.cpp">
-      <Filter>tests</Filter>
-    </ClCompile>
-    <ClCompile Include="src\tests\parser_test.cpp">
-      <Filter>tests</Filter>
-    </ClCompile>
-    <ClCompile Include="src\tests\state_test.cpp">
-      <Filter>tests</Filter>
-    </ClCompile>
-    <ClCompile Include="src\tests\symbol_table_test.cpp">
-      <Filter>tests</Filter>
-    </ClCompile>
     <ClCompile Include="src\tests\test_main.cpp">
-      <Filter>tests</Filter>
-    </ClCompile>
-    <ClCompile Include="src\tests\value_test.cpp">
-      <Filter>tests</Filter>
-    </ClCompile>
-    <ClCompile Include="src\tests\forin_test.cpp">
-      <Filter>tests</Filter>
-    </ClCompile>
-    <ClCompile Include="src\tests\repeat_test.cpp">
-      <Filter>tests</Filter>
-    </ClCompile>
-    <ClCompile Include="src\tests\function_test.cpp">
       <Filter>tests</Filter>
     </ClCompile>
     <ClCompile Include="src\compiler\compiler_utils.cpp">
@@ -140,18 +131,6 @@
     </ClCompile>
     <ClCompile Include="src\compiler\statement_compiler.cpp">
       <Filter>compiler</Filter>
-    </ClCompile>
-    <ClCompile Include="src\tests\literal_compiler_test.cpp">
-      <Filter>tests</Filter>
-    </ClCompile>
-    <ClCompile Include="src\tests\variable_compiler_test.cpp">
-      <Filter>tests</Filter>
-    </ClCompile>
-    <ClCompile Include="src\tests\binary_expression_test.cpp">
-      <Filter>tests</Filter>
-    </ClCompile>
-    <ClCompile Include="src\tests\expression_compiler_test.cpp">
-      <Filter>tests</Filter>
     </ClCompile>
     <ClCompile Include="src\gc\memory\allocator.cpp">
       <Filter>gc\memory</Filter>
@@ -195,17 +174,53 @@
     <ClCompile Include="src\vm\state_factory.cpp">
       <Filter>vm</Filter>
     </ClCompile>
-    <ClCompile Include="src\tests\string_pool_demo_test.cpp">
-      <Filter>tests</Filter>
+    <ClCompile Include="src\tests\parser\forin_test.cpp">
+      <Filter>tests\parser</Filter>
     </ClCompile>
-    <ClCompile Include="src\tests\gc_integration_test.cpp">
-      <Filter>tests</Filter>
+    <ClCompile Include="src\tests\parser\function_test.cpp">
+      <Filter>tests\parser</Filter>
     </ClCompile>
-    <ClCompile Include="src\tests\if_statement_test.cpp">
-      <Filter>tests</Filter>
+    <ClCompile Include="src\tests\parser\if_statement_test.cpp">
+      <Filter>tests\parser</Filter>
     </ClCompile>
-    <ClCompile Include="src\tests\conditional_compilation_test.cpp">
-      <Filter>tests</Filter>
+    <ClCompile Include="src\tests\parser\parser_test.cpp">
+      <Filter>tests\parser</Filter>
+    </ClCompile>
+    <ClCompile Include="src\tests\parser\repeat_test.cpp">
+      <Filter>tests\parser</Filter>
+    </ClCompile>
+    <ClCompile Include="src\tests\vm\state_test.cpp">
+      <Filter>tests\vm</Filter>
+    </ClCompile>
+    <ClCompile Include="src\tests\vm\value_test.cpp">
+      <Filter>tests\vm</Filter>
+    </ClCompile>
+    <ClCompile Include="src\tests\lexer\lexer_test.cpp">
+      <Filter>tests\lexer</Filter>
+    </ClCompile>
+    <ClCompile Include="src\tests\gc\gc_integration_test.cpp">
+      <Filter>tests\gc</Filter>
+    </ClCompile>
+    <ClCompile Include="src\tests\gc\string_pool_demo_test.cpp">
+      <Filter>tests\gc</Filter>
+    </ClCompile>
+    <ClCompile Include="src\tests\compiler\binary_expression_test.cpp">
+      <Filter>tests\compiler</Filter>
+    </ClCompile>
+    <ClCompile Include="src\tests\compiler\conditional_compilation_test.cpp">
+      <Filter>tests\compiler</Filter>
+    </ClCompile>
+    <ClCompile Include="src\tests\compiler\expression_compiler_test.cpp">
+      <Filter>tests\compiler</Filter>
+    </ClCompile>
+    <ClCompile Include="src\tests\compiler\literal_compiler_test.cpp">
+      <Filter>tests\compiler</Filter>
+    </ClCompile>
+    <ClCompile Include="src\tests\compiler\symbol_table_test.cpp">
+      <Filter>tests\compiler</Filter>
+    </ClCompile>
+    <ClCompile Include="src\tests\compiler\variable_compiler_test.cpp">
+      <Filter>tests\compiler</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -257,31 +272,7 @@
     <ClInclude Include="src\parser\ast\statements.hpp">
       <Filter>parser\ast</Filter>
     </ClInclude>
-    <ClInclude Include="src\tests\lexer_test.hpp">
-      <Filter>tests</Filter>
-    </ClInclude>
-    <ClInclude Include="src\tests\parser_test.hpp">
-      <Filter>tests</Filter>
-    </ClInclude>
-    <ClInclude Include="src\tests\state_test.hpp">
-      <Filter>tests</Filter>
-    </ClInclude>
-    <ClInclude Include="src\tests\symbol_table_test.hpp">
-      <Filter>tests</Filter>
-    </ClInclude>
     <ClInclude Include="src\tests\test_main.hpp">
-      <Filter>tests</Filter>
-    </ClInclude>
-    <ClInclude Include="src\tests\value_test.hpp">
-      <Filter>tests</Filter>
-    </ClInclude>
-    <ClInclude Include="src\tests\forin_test.hpp">
-      <Filter>tests</Filter>
-    </ClInclude>
-    <ClInclude Include="src\tests\repeat_test.hpp">
-      <Filter>tests</Filter>
-    </ClInclude>
-    <ClInclude Include="src\tests\function_test.hpp">
       <Filter>tests</Filter>
     </ClInclude>
     <ClInclude Include="src\compiler\compiler_utils.hpp">
@@ -292,18 +283,6 @@
     </ClInclude>
     <ClInclude Include="src\compiler\statement_compiler.hpp">
       <Filter>compiler</Filter>
-    </ClInclude>
-    <ClInclude Include="src\tests\literal_compiler_test.hpp">
-      <Filter>tests</Filter>
-    </ClInclude>
-    <ClInclude Include="src\tests\variable_compiler_test.hpp">
-      <Filter>tests</Filter>
-    </ClInclude>
-    <ClInclude Include="src\tests\binary_expression_test.hpp">
-      <Filter>tests</Filter>
-    </ClInclude>
-    <ClInclude Include="src\tests\expression_compiler_test.hpp">
-      <Filter>tests</Filter>
     </ClInclude>
     <ClInclude Include="src\common\types.hpp">
       <Filter>common</Filter>
@@ -365,17 +344,53 @@
     <ClInclude Include="src\vm\state_factory.hpp">
       <Filter>vm</Filter>
     </ClInclude>
-    <ClInclude Include="src\tests\string_pool_demo_test.hpp">
-      <Filter>tests</Filter>
+    <ClInclude Include="src\tests\parser\forin_test.hpp">
+      <Filter>tests\parser</Filter>
     </ClInclude>
-    <ClInclude Include="src\tests\gc_integration_test.hpp">
-      <Filter>tests</Filter>
+    <ClInclude Include="src\tests\parser\function_test.hpp">
+      <Filter>tests\parser</Filter>
     </ClInclude>
-    <ClInclude Include="src\tests\if_statement_test.hpp">
-      <Filter>tests</Filter>
+    <ClInclude Include="src\tests\parser\if_statement_test.hpp">
+      <Filter>tests\parser</Filter>
     </ClInclude>
-    <ClInclude Include="src\tests\conditional_compilation_test.hpp">
-      <Filter>tests</Filter>
+    <ClInclude Include="src\tests\parser\parser_test.hpp">
+      <Filter>tests\parser</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tests\parser\repeat_test.hpp">
+      <Filter>tests\parser</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tests\vm\state_test.hpp">
+      <Filter>tests\vm</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tests\vm\value_test.hpp">
+      <Filter>tests\vm</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tests\lexer\lexer_test.hpp">
+      <Filter>tests\lexer</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tests\gc\gc_integration_test.hpp">
+      <Filter>tests\gc</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tests\gc\string_pool_demo_test.hpp">
+      <Filter>tests\gc</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tests\compiler\binary_expression_test.hpp">
+      <Filter>tests\compiler</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tests\compiler\conditional_compilation_test.hpp">
+      <Filter>tests\compiler</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tests\compiler\expression_compiler_test.hpp">
+      <Filter>tests\compiler</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tests\compiler\literal_compiler_test.hpp">
+      <Filter>tests\compiler</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tests\compiler\symbol_table_test.hpp">
+      <Filter>tests\compiler</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tests\compiler\variable_compiler_test.hpp">
+      <Filter>tests\compiler</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>
