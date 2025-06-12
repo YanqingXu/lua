@@ -192,16 +192,22 @@ namespace Lua {
         // Calculate properly aligned header size
         constexpr usize headerAlign = alignof(MemoryBlockHeader);
         constexpr usize headerSize = (sizeof(MemoryBlockHeader) + headerAlign - 1) & ~(headerAlign - 1);
-        usize totalSize = size + headerSize;
         
-        void* rawPtr = _aligned_malloc(totalSize, std::max(alignof(std::max_align_t), headerAlign));
+        // Ensure we have enough space for both header and user data
+        usize requiredAlign = std::max(alignof(std::max_align_t), headerAlign);
+        usize totalSize = headerSize + size;
+        
+        void* rawPtr = _aligned_malloc(totalSize, requiredAlign);
         if (!rawPtr) {
             return nullptr;
         }
     
-        // Initialize header
+        // Verify we have enough space before placement new
+        static_assert(sizeof(MemoryBlockHeader) <= 64, "MemoryBlockHeader too large");
+        
+        // Initialize header with placement new
         MemoryBlockHeader* header = new(rawPtr) 
-        MemoryBlockHeader(size, type, alignof(std::max_align_t), isGCObject);
+        MemoryBlockHeader(size, type, static_cast<u8>(requiredAlign), isGCObject);
     
         // Store in large objects map
         void* userPtr = reinterpret_cast<char*>(rawPtr) + headerSize;
