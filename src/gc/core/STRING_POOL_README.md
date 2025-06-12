@@ -204,19 +204,19 @@ No changes required in user code - interning happens transparently.
 1. **调用链分析**:
    ```
    StringPool::intern(const Str& str)
-   ├── std::lock_guard<std::mutex> lock(poolMutex)  // 获取锁
+   ├── ScopedLock lock(poolMutex)  // 获取锁
    ├── GCString* temp = new GCString(str)           // 创建临时对象
    └── delete temp                                  // 删除临时对象
        └── ~GCString()                              // 析构函数
            └── StringPool::remove(this)             // 试图再次获取锁 ❌
-               └── std::lock_guard<std::mutex> lock(poolMutex)  // 死锁！
+               └── ScopedLock lock(poolMutex)  // 死锁！
    ```
 
 2. **问题代码 (Problematic Code)**:
    ```cpp
    // 原始有问题的代码
    GCString* StringPool::intern(const Str& str) {
-       std::lock_guard<std::mutex> lock(poolMutex);  // 获取锁
+       ScopedLock lock(poolMutex);  // 获取锁
        
        GCString* temp = new GCString(str);           // 创建临时对象
        auto it = pool.find(temp);
@@ -237,7 +237,7 @@ No changes required in user code - interning happens transparently.
 **修复后的代码**:
 ```cpp
 GCString* StringPool::intern(const Str& str) {
-    std::lock_guard<std::mutex> lock(poolMutex);
+    ScopedLock lock(poolMutex);
     
     // 直接遍历池中的字符串进行内容比较，避免创建临时对象
     for (auto it = pool.begin(); it != pool.end(); ++it) {

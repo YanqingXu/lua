@@ -12,7 +12,7 @@ namespace Lua {
 
     // ObjectPool implementation
     void* ObjectPool::allocate(GCObjectType type) {
-        std::lock_guard<std::mutex> lock(poolMutex);
+        ScopedLock lock(poolMutex);
     
         if (!freeList) {
             allocateChunk();
@@ -41,7 +41,7 @@ namespace Lua {
     void ObjectPool::deallocate(void* ptr) {
         if (!ptr) return;
     
-        std::lock_guard<std::mutex> lock(poolMutex);
+        ScopedLock lock(poolMutex);
     
         // Get block header
         MemoryBlockHeader* block = reinterpret_cast<MemoryBlockHeader*>(
@@ -62,7 +62,7 @@ namespace Lua {
     bool ObjectPool::owns(void* ptr) const {
         if (!ptr) return false;
     
-        std::lock_guard<std::mutex> lock(poolMutex);
+        ScopedLock lock(poolMutex);
     
         for (void* chunk : chunks) {
             char* chunkStart = reinterpret_cast<char*>(chunk);
@@ -187,7 +187,7 @@ namespace Lua {
     }
 
     void* GCAllocator::allocateLargeObject(usize size, GCObjectType type, bool isGCObject) {
-        std::lock_guard<std::mutex> lock(allocatorMutex);
+        ScopedLock lock(allocatorMutex);
     
         // Calculate properly aligned header size
         constexpr usize headerAlign = alignof(MemoryBlockHeader);
@@ -233,7 +233,7 @@ namespace Lua {
     }
 
     void GCAllocator::deallocateLargeObject(void* ptr) {
-        std::lock_guard<std::mutex> lock(allocatorMutex);
+        ScopedLock lock(allocatorMutex);
     
         auto it = largeObjects.find(ptr);
         if (it != largeObjects.end()) {
@@ -338,7 +338,7 @@ namespace Lua {
     }
 
     void GCAllocator::defragment() {
-        std::lock_guard<std::mutex> lock(allocatorMutex);
+        ScopedLock lock(allocatorMutex);
     
         // For object pools, defragmentation is limited since we use fixed-size chunks
         // We could implement chunk compaction here if needed

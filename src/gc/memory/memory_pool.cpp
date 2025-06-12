@@ -121,7 +121,7 @@ namespace Lua {
     }
     
     void* FixedSizePool::allocate() {
-        std::lock_guard<std::mutex> lock(poolMutex);
+        ScopedLock lock(poolMutex);
         
         // Try to allocate from current chunk
         if (currentChunk && !currentChunk->isFull()) {
@@ -173,7 +173,7 @@ namespace Lua {
             return;
         }
         
-        std::lock_guard<std::mutex> lock(poolMutex);
+        ScopedLock lock(poolMutex);
         
         MemoryChunk* chunk = findOwningChunk(ptr);
         if (chunk) {
@@ -188,17 +188,17 @@ namespace Lua {
             return false;
         }
         
-        std::lock_guard<std::mutex> lock(poolMutex);
+        ScopedLock lock(poolMutex);
         return findOwningChunk(ptr) != nullptr;
     }
     
     void FixedSizePool::shrink() {
-        std::lock_guard<std::mutex> lock(poolMutex);
+        ScopedLock lock(poolMutex);
         removeEmptyChunks();
     }
     
     void FixedSizePool::cleanup() {
-        std::lock_guard<std::mutex> lock(poolMutex);
+        ScopedLock lock(poolMutex);
         
         MemoryChunk* chunk = chunks;
         while (chunk) {
@@ -215,7 +215,7 @@ namespace Lua {
     }
     
     bool FixedSizePool::canShrink() const {
-        std::lock_guard<std::mutex> lock(poolMutex);
+        ScopedLock lock(poolMutex);
         
         MemoryChunk* chunk = chunks;
         while (chunk) {
@@ -364,7 +364,7 @@ namespace Lua {
         
         // Try large objects first
         {
-            std::lock_guard<std::mutex> lock(managerMutex);
+            ScopedLock lock(managerMutex);
             auto it = largeObjects.find(ptr);
             if (it != largeObjects.end()) {
                 usize objectSize = it->second;
@@ -411,7 +411,7 @@ namespace Lua {
         
         // Check if it's a large object
         {
-            std::lock_guard<std::mutex> lock(managerMutex);
+            ScopedLock lock(managerMutex);
             auto it = largeObjects.find(ptr);
             if (it != largeObjects.end()) {
                 usize currentSize = it->second;
@@ -447,7 +447,7 @@ namespace Lua {
         
         // Check large objects
         {
-            std::lock_guard<std::mutex> lock(managerMutex);
+            ScopedLock lock(managerMutex);
             if (largeObjects.find(ptr) != largeObjects.end()) {
                 return true;
             }
@@ -491,7 +491,7 @@ namespace Lua {
         pools.clear();
         
         // Clean up large objects
-        std::lock_guard<std::mutex> lock(managerMutex);
+        ScopedLock lock(managerMutex);
         for (const auto& entry : largeObjects) {
             void* ptr = entry.first;
             std::free(ptr);
@@ -557,7 +557,7 @@ namespace Lua {
     void* MemoryPoolManager::allocateLarge(usize size) {
         void* ptr = std::malloc(size);
         if (ptr) {
-            std::lock_guard<std::mutex> lock(managerMutex);
+            ScopedLock lock(managerMutex);
             largeObjects[ptr] = size;
             updateStats(static_cast<isize>(size), true);
             largeAllocCount.fetch_add(1);
@@ -566,7 +566,7 @@ namespace Lua {
     }
     
     void MemoryPoolManager::deallocateLarge(void* ptr) {
-        std::lock_guard<std::mutex> lock(managerMutex);
+        ScopedLock lock(managerMutex);
         auto it = largeObjects.find(ptr);
         if (it != largeObjects.end()) {
             usize size = it->second;
@@ -599,7 +599,7 @@ namespace Lua {
         void* ptr = poolManager.allocate(size);
         if (ptr) {
             // Track GC object type
-            std::lock_guard<std::mutex> lock(gcMutex);
+            ScopedLock lock(gcMutex);
             gcObjects[ptr] = type;
             
             updateGCStats(static_cast<isize>(size));
@@ -615,7 +615,7 @@ namespace Lua {
         // Get allocated size for statistics
         usize size = 0;
         {
-            std::lock_guard<std::mutex> lock(gcMutex);
+            ScopedLock lock(gcMutex);
             auto it = gcObjects.find(ptr);
             if (it != gcObjects.end()) {
                 gcObjects.erase(it);
@@ -644,7 +644,7 @@ namespace Lua {
         // Get old type
         GCObjectType type = GCObjectType::String;
         {
-            std::lock_guard<std::mutex> lock(gcMutex);
+            ScopedLock lock(gcMutex);
             auto it = gcObjects.find(ptr);
             if (it != gcObjects.end()) {
                 type = it->second;
@@ -654,7 +654,7 @@ namespace Lua {
         
         void* newPtr = poolManager.reallocate(ptr, 0, newSize); // oldSize unknown
         if (newPtr) {
-            std::lock_guard<std::mutex> lock(gcMutex);
+            ScopedLock lock(gcMutex);
             gcObjects[newPtr] = type;
         }
         

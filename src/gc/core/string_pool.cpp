@@ -11,7 +11,7 @@ namespace Lua {
     }
     
     GCString* StringPool::intern(const Str& str) {
-        std::lock_guard<std::mutex> lock(poolMutex);
+        ScopedLock lock(poolMutex);
         
         // Search for existing string by comparing string content directly
         // to avoid creating temporary GCString objects that would call destructors
@@ -36,7 +36,7 @@ namespace Lua {
     }
     
     GCString* StringPool::intern(Str&& str) {
-        std::lock_guard<std::mutex> lock(poolMutex);
+        ScopedLock lock(poolMutex);
         
         // Search for existing string by comparing string content directly
         // to avoid creating temporary GCString objects that would call destructors
@@ -56,14 +56,14 @@ namespace Lua {
     void StringPool::remove(GCString* gcString) {
         if (!gcString) return;
         
-        std::lock_guard<std::mutex> lock(poolMutex);
+        ScopedLock lock(poolMutex);
         pool.erase(gcString);
     }
     
     void StringPool::markAll(GarbageCollector* gc) {
         if (!gc) return;
         
-        std::lock_guard<std::mutex> lock(poolMutex);
+        ScopedLock lock(poolMutex);
         
         // Mark all strings in the pool as reachable
         for (GCString* str : pool) {
@@ -74,22 +74,22 @@ namespace Lua {
     }
     
     usize StringPool::size() const {
-        std::lock_guard<std::mutex> lock(poolMutex);
+        ScopedLock lock(poolMutex);
         return pool.size();
     }
     
     bool StringPool::empty() const {
-        std::lock_guard<std::mutex> lock(poolMutex);
+        ScopedLock lock(poolMutex);
         return pool.empty();
     }
     
     void StringPool::clear() {
-        std::lock_guard<std::mutex> lock(poolMutex);
+        ScopedLock lock(poolMutex);
         pool.clear();
     }
     
     usize StringPool::getMemoryUsage() const {
-        std::lock_guard<std::mutex> lock(poolMutex);
+        ScopedLock lock(poolMutex);
         
         usize totalSize = 0;
         
@@ -109,7 +109,7 @@ namespace Lua {
     }
     
     std::vector<GCString*> StringPool::getAllStrings() const {
-        std::lock_guard<std::mutex> lock(poolMutex);
+        ScopedLock lock(poolMutex);
         
         std::vector<GCString*> result;
         result.reserve(pool.size());

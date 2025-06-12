@@ -199,7 +199,7 @@ namespace Lua {
         // Configuration
         const GCConfig& getConfig() const { return config; }
         void updateConfig(const GCConfig& newConfig) {
-            std::lock_guard<std::mutex> lock(allocatorMutex);
+            ScopedLock lock(allocatorMutex);
             config = newConfig;
             gcThreshold.store(config.initialThreshold);
         }

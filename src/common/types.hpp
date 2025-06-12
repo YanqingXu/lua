@@ -8,6 +8,7 @@
 #include <unordered_set>
 #include <atomic>
 #include <memory>
+#include <mutex>
 #include <variant>
 #include <optional>
 #include <utility>
@@ -57,6 +58,8 @@ namespace Lua {
 
     template<typename T>
     using Atom = std::atomic<T>;
+
+    using ScopedLock = std::scoped_lock<std::mutex>;
 
     // Smart pointers
     template<typename T>

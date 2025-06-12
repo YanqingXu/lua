@@ -4,7 +4,6 @@
 #include "../utils/gc_types.hpp"
 #include "../core/gc_object.hpp"
 #include "memory_pool.hpp"
-#include <mutex>
 #include <array>
 #include <cassert>
 
@@ -36,7 +35,6 @@ namespace Lua {
      */
     class HybridObjectPool {
     private:
-        using ScopedLock = std::scoped_lock<std::mutex>;
         
         usize objectSize;              // Size of objects in this pool
         usize chunkSize;               // Size of each memory chunk
@@ -170,7 +168,6 @@ namespace Lua {
         State* luaState;               // Reference to Lua state
         
         // Thread safety
-        using ScopedLock = std::scoped_lock<std::mutex>;
         mutable std::mutex allocatorMutex;
         
         // Configuration
