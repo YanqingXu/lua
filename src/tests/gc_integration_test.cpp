@@ -22,7 +22,7 @@ namespace Tests {
      * 3. Garbage collection can be triggered
      * 4. Object marking and collection work correctly
      */
-    bool testGCIntegration() {
+    bool GCIntegrationTest::testGCIntegration() {
         std::cout << "=== GC Integration Test ===\n";
         
         try {
@@ -94,7 +94,7 @@ namespace Tests {
     /**
      * @brief Test GC object marking with complex reference patterns
      */
-    bool testGCMarking() {
+    bool GCIntegrationTest::testGCMarking() {
         std::cout << "\n=== GC Marking Test ===\n";
         
         try {
@@ -131,13 +131,13 @@ namespace Tests {
     /**
      * @brief Run all GC integration tests
      */
-    bool runGCIntegrationTests() {
+    bool GCIntegrationTest::runAllTests() {
         std::cout << "Running GC Integration Tests...\n\n";
         
         bool allPassed = true;
         
-        allPassed &= testGCIntegration();
-        allPassed &= testGCMarking();
+        allPassed &= GCIntegrationTest::testGCIntegration();
+        allPassed &= GCIntegrationTest::testGCMarking();
         
         if (allPassed) {
             std::cout << "\n[OK] All GC Integration Tests passed!\n";

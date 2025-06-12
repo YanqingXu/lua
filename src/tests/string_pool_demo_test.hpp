@@ -4,34 +4,41 @@ namespace Lua {
 namespace Tests {
 
     /**
-     * @brief Test basic string interning functionality
-     * @return true if test passes, false otherwise
+     * Test class for string pool demo functionality
+     * Demonstrates string interning, memory efficiency, and performance
      */
-    bool testBasicStringInterning();
-    
-    /**
-     * @brief Test memory efficiency of string pool
-     * @return true if test passes, false otherwise
-     */
-    bool testStringPoolMemoryEfficiency();
-    
-    /**
-     * @brief Test string pool performance
-     * @return true if test passes, false otherwise
-     */
-    bool testStringPoolPerformance();
-    
-    /**
-     * @brief Test string pool statistics
-     * @return true if test passes, false otherwise
-     */
-    bool testStringPoolStatistics();
-    
-    /**
-     * @brief Run all string pool demo tests
-     * @return true if all tests pass, false otherwise
-     */
-    bool runStringPoolDemoTests();
+    class StringPoolDemoTest {
+    public:
+        /**
+         * Run all string pool demo tests
+         */
+        static bool runAllTests();
+        
+    private:
+        /**
+         * @brief Test basic string interning functionality
+         * @return true if test passes, false otherwise
+         */
+        static bool testBasicStringInterning();
+        
+        /**
+         * @brief Test memory efficiency of string pool
+         * @return true if test passes, false otherwise
+         */
+        static bool testStringPoolMemoryEfficiency();
+        
+        /**
+         * @brief Test string pool performance
+         * @return true if test passes, false otherwise
+         */
+        static bool testStringPoolPerformance();
+        
+        /**
+         * @brief Test string pool statistics
+         * @return true if test passes, false otherwise
+         */
+        static bool testStringPoolStatistics();
+    };
 
 } // namespace Tests
 } // namespace Lua

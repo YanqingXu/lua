@@ -37,17 +37,7 @@ int main(int argc, char** argv) {
         if (argc > 1) {
             std::string arg = argv[1];
             
-            if (arg == "--gc-demo" || arg == "-g") {
-                // Run GC integration demo
-                std::cout << "Running GC Integration Demo...\n\n";
-                Lua::Tests::runGCIntegrationDemo();
-                std::cout << "\nGC Integration Demo completed!\n";
-            } else if (arg == "--string-pool" || arg == "-s") {
-                // Run String Pool demo
-                std::cout << "Running String Pool Demo...\n\n";
-                Lua::Tests::runStringPoolDemo();
-                std::cout << "\nString Pool Demo completed!\n";
-            } else if (arg == "--test" || arg == "-t") {
+            if (arg == "--test" || arg == "-t") {
                  // Run all tests
                  std::cout << "Running All Tests...\n\n";
                  Lua::Tests::runAllTests();

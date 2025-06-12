@@ -17,7 +17,7 @@ using namespace std::chrono;
 /**
  * @brief Test basic string interning functionality with timeout
  */
-bool testBasicStringInterning() {
+bool StringPoolDemoTest::testBasicStringInterning() {
     std::cout << "=== Basic String Interning Test ===\n";
     std::cout.flush();
     
@@ -81,7 +81,7 @@ bool testBasicStringInterning() {
 /**
  * @brief Test memory efficiency of string pool
  */
-bool testStringPoolMemoryEfficiency() {
+bool StringPoolDemoTest::testStringPoolMemoryEfficiency() {
     std::cout << "=== String Pool Memory Efficiency Test ===\n";
     
     try {
@@ -145,7 +145,7 @@ bool testStringPoolMemoryEfficiency() {
 /**
  * @brief Test string pool performance
  */
-bool testStringPoolPerformance() {
+bool StringPoolDemoTest::testStringPoolPerformance() {
     std::cout << "=== String Pool Performance Test ===\n";
     
     try {
@@ -209,7 +209,7 @@ bool testStringPoolPerformance() {
 /**
  * @brief Test string pool statistics
  */
-bool testStringPoolStatistics() {
+bool StringPoolDemoTest::testStringPoolStatistics() {
     std::cout << "=== String Pool Statistics Test ===\n";
     
     try {
@@ -244,15 +244,15 @@ bool testStringPoolStatistics() {
 /**
  * @brief Run all string pool demo tests
  */
-bool runStringPoolDemoTests() {
+bool StringPoolDemoTest::runAllTests() {
     std::cout << "Running String Pool Demo Tests...\n\n";
     
     bool allPassed = true;
     
-    allPassed &= testBasicStringInterning();
-    allPassed &= testStringPoolMemoryEfficiency();
-    allPassed &= testStringPoolPerformance();
-    allPassed &= testStringPoolStatistics();
+    allPassed &= StringPoolDemoTest::testBasicStringInterning();
+    allPassed &= StringPoolDemoTest::testStringPoolMemoryEfficiency();
+    allPassed &= StringPoolDemoTest::testStringPoolPerformance();
+    allPassed &= StringPoolDemoTest::testStringPoolStatistics();
     
     if (allPassed) {
         std::cout << "[OK] All String Pool Demo Tests passed!\n";

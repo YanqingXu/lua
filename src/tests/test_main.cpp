@@ -18,26 +18,12 @@
 
 namespace Lua {
 namespace Tests {
-
-// Demo functions moved from main.cpp
-void runStringPoolDemo() {
-    try {
-        Lua::Tests::runStringPoolDemoTests();
-    } catch (const std::exception& e) {
-        std::cerr << "Error: " << e.what() << std::endl;
-        throw;
-    }
-}
-
-void runGCIntegrationDemo() {
-    try {
-        Lua::Tests::runGCIntegrationTests();
-    } catch (const std::exception& e) {
-        std::cerr << "Error: " << e.what() << std::endl;
-        throw;
-    }
-}
-
+/**
+ * @brief Run all Lua interpreter tests
+ * 
+ * This function executes all the test cases defined in the Lua interpreter test suite.
+ * It handles exceptions and reports the results of each test.
+ */
 void runAllTests() {
     std::cout << "=== Running Lua Interpreter Tests ===" << std::endl;
     
@@ -80,13 +66,11 @@ void runAllTests() {
         // BinaryExpressionTest::runAllTests();
         
         // Run expression compiler tests
-        // ExpressionCompilerTest::runAllTests();
-
-        // Run string pool demo tests
-        // runStringPoolDemo();
+        // ExpressionCompilerTest::runAllTests();        // Run string pool demo tests
+        // StringPoolDemoTest::runAllTests();
 
         // Run GC integration tests
-        // runGCIntegrationDemo();
+        // GCIntegrationTest::runAllTests();
 
 		// Run Conditional Compilation tests
 		ConditionalCompilationTest::runAllTests();
