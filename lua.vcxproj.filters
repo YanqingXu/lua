@@ -222,6 +222,18 @@
     <ClCompile Include="src\tests\compiler\variable_compiler_test.cpp">
       <Filter>tests\compiler</Filter>
     </ClCompile>
+    <ClCompile Include="src\tests\compiler\test_compiler.cpp">
+      <Filter>tests\compiler</Filter>
+    </ClCompile>
+    <ClCompile Include="src\tests\gc\test_gc.cpp">
+      <Filter>tests\gc</Filter>
+    </ClCompile>
+    <ClCompile Include="src\tests\vm\test_vm.cpp">
+      <Filter>tests\vm</Filter>
+    </ClCompile>
+    <ClCompile Include="src\tests\parser\test_parser.cpp">
+      <Filter>tests\parser</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\lib\base_lib.hpp">
@@ -391,6 +403,18 @@
     </ClInclude>
     <ClInclude Include="src\tests\compiler\variable_compiler_test.hpp">
       <Filter>tests\compiler</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tests\compiler\test_compiler.hpp">
+      <Filter>tests\compiler</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tests\gc\test_gc.hpp">
+      <Filter>tests\gc</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tests\vm\test_vm.hpp">
+      <Filter>tests\vm</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tests\parser\test_parser.hpp">
+      <Filter>tests\parser</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>
