@@ -1,6 +1,8 @@
 #pragma once
 
 namespace Lua {
+namespace Tests {
+
     /**
      * Test class for conditional statement compilation functionality
      * Tests if-then-else statements, short-circuit logical operators, and nested conditions
@@ -43,4 +45,6 @@ namespace Lua {
          */
         static void testComplexConditions();
     };
-}
+
+} // namespace Tests
+} // namespace Lua

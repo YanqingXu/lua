@@ -3,7 +3,19 @@
 namespace Lua {
 namespace Tests {
 
-void testLexer(const std::string& source) {
+void LexerTest::runAllTests() {
+    std::cout << "\n========================================" << std::endl;
+    std::cout << "Running Lexer Tests" << std::endl;
+    std::cout << "========================================" << std::endl;
+    
+    testLexer("local x = 42 + 3.14");
+    
+    std::cout << "\n========================================" << std::endl;
+    std::cout << "Lexer Tests Completed" << std::endl;
+    std::cout << "========================================" << std::endl;
+}
+
+void LexerTest::testLexer(const std::string& source) {
     std::cout << "Lexer Test:" << std::endl;
     std::cout << "Source: " << source << std::endl;
 

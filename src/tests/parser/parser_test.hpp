@@ -9,10 +9,16 @@
 namespace Lua {
 namespace Tests {
 
-void testParser();
-void testStatements();
-void testWhileLoop();
-void testASTVisitor();
+class ParserTest {
+public:
+    static void runAllTests();
+    
+private:
+    static void testParser();
+    static void testStatements();
+    static void testWhileLoop();
+    static void testASTVisitor();
+};
 
 } // namespace Tests
 } // namespace Lua

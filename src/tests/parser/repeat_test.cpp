@@ -8,7 +8,22 @@
 #include <memory>
 
 namespace Lua {
-    void testRepeatUntilSyntax() {
+namespace Tests {
+
+    void RepeatTest::runAllTests() {
+        std::cout << "\n" << std::string(50, '=') << std::endl;
+        std::cout << "Running Repeat-Until Loop Tests" << std::endl;
+        std::cout << std::string(50, '=') << std::endl;
+        
+        testRepeatUntilSyntax();
+        testRepeatUntilExecution();
+        
+        std::cout << "\n" << std::string(50, '=') << std::endl;
+        std::cout << "Repeat-Until Loop Tests Completed" << std::endl;
+        std::cout << std::string(50, '=') << std::endl;
+    }
+
+    void RepeatTest::testRepeatUntilSyntax() {
         std::cout << "\n=== Testing Repeat-Until Loop Syntax ===" << std::endl;
         
         // Test cases for repeat-until loop parsing
@@ -55,7 +70,7 @@ namespace Lua {
         std::cout << "  Repeat-until syntax test completed" << std::endl;
     }
     
-    void testRepeatUntilExecution() {
+    void RepeatTest::testRepeatUntilExecution() {
         std::cout << "\n=== Testing Repeat-Until Loop Execution ===" << std::endl;
         
         try {
@@ -87,17 +102,5 @@ namespace Lua {
         
         std::cout << "  Repeat-until execution test completed" << std::endl;
     }
-    
-    void runRepeatUntilTests() {
-        std::cout << "\n" << std::string(50, '=') << std::endl;
-        std::cout << "Running Repeat-Until Loop Tests" << std::endl;
-        std::cout << std::string(50, '=') << std::endl;
-        
-        testRepeatUntilSyntax();
-        testRepeatUntilExecution();
-        
-        std::cout << "\n" << std::string(50, '=') << std::endl;
-        std::cout << "Repeat-Until Loop Tests Completed" << std::endl;
-        std::cout << std::string(50, '=') << std::endl;
-    }
-}
+  } // namespace Tests
+} // namespace Lua

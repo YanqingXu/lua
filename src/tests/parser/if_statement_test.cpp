@@ -8,6 +8,8 @@
 #include <cassert>
 
 namespace Lua {
+namespace Tests {
+
     void IfStatementTest::runAllTests() {
         std::cout << "Running If Statement Tests..." << std::endl;
         
@@ -129,4 +131,6 @@ namespace Lua {
             throw;
         }
     }
-}
+
+} // namespace Tests
+} // namespace Lua

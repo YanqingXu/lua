@@ -8,8 +8,14 @@
 namespace Lua {
 namespace Tests {
 
-void testState();
-void testExecute();
+class StateTest {
+public:
+    static void runAllTests();
+    
+private:
+    static void testState();
+    static void testExecute();
+};
 
 } // namespace Tests
 } // namespace Lua

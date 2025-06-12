@@ -3,7 +3,19 @@
 namespace Lua {
 namespace Tests {
 
-void testSymbolTable() {
+void SymbolTableTest::runAllTests() {
+    std::cout << "\n========================================" << std::endl;
+    std::cout << "Running Symbol Table Tests" << std::endl;
+    std::cout << "========================================" << std::endl;
+    
+    testSymbolTable();
+    
+    std::cout << "\n========================================" << std::endl;
+    std::cout << "Symbol Table Tests Completed" << std::endl;
+    std::cout << "========================================" << std::endl;
+}
+
+void SymbolTableTest::testSymbolTable() {
     std::cout << "\nSymbol Table Test:" << std::endl;
 
     SymbolTable symbolTable;

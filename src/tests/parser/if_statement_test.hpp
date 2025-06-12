@@ -1,6 +1,8 @@
 #pragma once
 
 namespace Lua {
+namespace Tests {
+
     class IfStatementTest {
     public:
         static void runAllTests();
@@ -12,4 +14,6 @@ namespace Lua {
         static void testIfWithComplexCondition();
         static void testIfStatementExecution();
     };
-}
+
+} // namespace Tests
+} // namespace Lua

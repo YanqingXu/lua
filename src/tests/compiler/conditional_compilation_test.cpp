@@ -8,6 +8,8 @@
 #include <cassert>
 
 namespace Lua {
+namespace Tests {
+
     void ConditionalCompilationTest::runAllTests() {
         std::cout << "Running Conditional Compilation Tests..." << std::endl;
         
@@ -187,4 +189,6 @@ namespace Lua {
             throw;
         }
     }
-}
+
+} // namespace Tests
+} // namespace Lua

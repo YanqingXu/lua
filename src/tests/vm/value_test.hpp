@@ -8,7 +8,13 @@
 namespace Lua {
 namespace Tests {
 
-void testValues();
+class ValueTest {
+public:
+    static void runAllTests();
+    
+private:
+    static void testValues();
+};
 
 } // namespace Tests
 } // namespace Lua

@@ -5,7 +5,24 @@
 #include <memory>
 
 namespace Lua {
-    void testFunctionSyntax() {
+namespace Tests {
+
+    void FunctionTest::runAllTests() {
+        std::cout << "\n========================================" << std::endl;
+        std::cout << "         FUNCTION TESTS" << std::endl;
+        std::cout << "========================================" << std::endl;
+        
+        testFunctionSyntax();
+        testFunctionParameters();
+        testFunctionBody();
+        testFunctionCompilation();
+        
+        std::cout << "\n========================================" << std::endl;
+        std::cout << "      FUNCTION TESTS COMPLETED" << std::endl;
+        std::cout << "========================================" << std::endl;
+    }
+
+    void FunctionTest::testFunctionSyntax() {
         std::cout << "\n=== Testing Function Definition Syntax ===" << std::endl;
         
         // Test cases for function definition parsing
@@ -65,7 +82,7 @@ namespace Lua {
         std::cout << "  Function syntax test completed" << std::endl;
     }
     
-    void testFunctionParameters() {
+    void FunctionTest::testFunctionParameters() {
         std::cout << "\n=== Testing Function Parameter Parsing ===" << std::endl;
         
         // Test cases focusing on parameter parsing
@@ -118,7 +135,7 @@ namespace Lua {
         std::cout << "  Function parameter test completed" << std::endl;
     }
     
-    void testFunctionBody() {
+    void FunctionTest::testFunctionBody() {
         std::cout << "\n=== Testing Function Body Parsing ===" << std::endl;
         
         // Test cases for function body parsing
@@ -158,7 +175,7 @@ namespace Lua {
         std::cout << "  Function body test completed" << std::endl;
     }
     
-    void testFunctionCompilation() {
+    void FunctionTest::testFunctionCompilation() {
         std::cout << "\n=== Testing Function Compilation ===" << std::endl;
         
         // Test simple function parsing (compilation test simplified)
@@ -184,19 +201,5 @@ namespace Lua {
         
         std::cout << "  Function compilation test completed" << std::endl;
     }
-    
-    void runFunctionTests() {
-        std::cout << "\n========================================" << std::endl;
-        std::cout << "         FUNCTION TESTS" << std::endl;
-        std::cout << "========================================" << std::endl;
-        
-        testFunctionSyntax();
-        testFunctionParameters();
-        testFunctionBody();
-        testFunctionCompilation();
-        
-        std::cout << "\n========================================" << std::endl;
-        std::cout << "      FUNCTION TESTS COMPLETED" << std::endl;
-        std::cout << "========================================" << std::endl;
-    }
-}
+  } // namespace Tests
+} // namespace Lua

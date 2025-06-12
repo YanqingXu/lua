@@ -7,6 +7,7 @@
 #include <cassert>
 
 namespace Lua {
+namespace Tests {
     void ExpressionCompilerTest::runAllTests() {
         std::cout << "Running Expression Compiler Tests..." << std::endl;
         
@@ -172,7 +173,7 @@ namespace Lua {
         
         reg = exprCompiler->compileExpr(lenExpr.get());
         assert(reg >= 0);
-        
-        std::cout << "Unary expression compilation tests passed." << std::endl;
+          std::cout << "Unary expression compilation tests passed." << std::endl;
     }
-}
+} // namespace Tests
+} // namespace Lua

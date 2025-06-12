@@ -3,7 +3,22 @@
 namespace Lua {
 namespace Tests {
 
-void testParser() {
+void ParserTest::runAllTests() {
+    std::cout << "\n========================================" << std::endl;
+    std::cout << "Running Parser Tests" << std::endl;
+    std::cout << "========================================" << std::endl;
+    
+    testParser();
+    testStatements();
+    testWhileLoop();
+    testASTVisitor();
+    
+    std::cout << "\n========================================" << std::endl;
+    std::cout << "Parser Tests Completed" << std::endl;
+    std::cout << "========================================" << std::endl;
+}
+
+void ParserTest::testParser() {
     std::cout << "\nParser Test:" << std::endl;
 
     // Test cases for different expression types
@@ -152,7 +167,7 @@ void testParser() {
     }
 }
 
-void testStatements() {
+void ParserTest::testStatements() {
     std::cout << "\nStatement Parsing Test:" << std::endl;
 
     std::vector<std::string> statementTests = {
@@ -222,7 +237,7 @@ void testStatements() {
     }
 }
 
-void testWhileLoop() {
+void ParserTest::testWhileLoop() {
     std::cout << "\nWhile Loop Parsing Test:" << std::endl;
 
     std::vector<std::string> whileTests = {
@@ -340,7 +355,7 @@ void testWhileLoop() {
     }
 }
 
-void testASTVisitor() {
+void ParserTest::testASTVisitor() {
     std::cout << "\nAST Visitor Test:" << std::endl;
 
     std::vector<std::string> visitorTests = {

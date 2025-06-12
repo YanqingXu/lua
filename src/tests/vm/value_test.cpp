@@ -3,7 +3,19 @@
 namespace Lua {
 namespace Tests {
 
-void testValues() {
+void ValueTest::runAllTests() {
+    std::cout << "\n========================================" << std::endl;
+    std::cout << "Running Value Tests" << std::endl;
+    std::cout << "========================================" << std::endl;
+    
+    testValues();
+    
+    std::cout << "\n========================================" << std::endl;
+    std::cout << "Value Tests Completed" << std::endl;
+    std::cout << "========================================" << std::endl;
+}
+
+void ValueTest::testValues() {
     std::cout << "\nValue Test:" << std::endl;
 
     Value nil;

@@ -3,7 +3,20 @@
 namespace Lua {
 namespace Tests {
 
-void testState() {
+void StateTest::runAllTests() {
+    std::cout << "\n========================================" << std::endl;
+    std::cout << "Running State Tests" << std::endl;
+    std::cout << "========================================" << std::endl;
+    
+    testState();
+    testExecute();
+    
+    std::cout << "\n========================================" << std::endl;
+    std::cout << "State Tests Completed" << std::endl;
+    std::cout << "========================================" << std::endl;
+}
+
+void StateTest::testState() {
     std::cout << "\nState Test:" << std::endl;
 
     State state;
@@ -55,7 +68,7 @@ void testState() {
     }
 }
 
-void testExecute() {
+void StateTest::testExecute() {
     std::cout << "\nExecute Test:" << std::endl;
 
     State state;

@@ -7,8 +7,22 @@
 #include <iostream>
 
 namespace Lua {
-    namespace Tests {
-        void testForInSyntax() {
+namespace Tests {
+
+    void ForInTest::runAllTests() {
+        std::cout << "\n========================================" << std::endl;
+        std::cout << "Running For-In Loop Tests" << std::endl;
+        std::cout << "========================================" << std::endl;
+        
+        testForInSyntax();
+        testForInExecution();
+        
+        std::cout << "\n========================================" << std::endl;
+        std::cout << "For-In Loop Tests Completed" << std::endl;
+        std::cout << "========================================" << std::endl;
+    }
+
+    void ForInTest::testForInSyntax() {
             std::cout << "\n=== Testing For-In Loop Syntax ===" << std::endl;
             
             // Test cases for for-in loop parsing
@@ -59,7 +73,7 @@ namespace Lua {
             }
         }
         
-        void testForInExecution() {
+        void ForInTest::testForInExecution() {
             std::cout << "\n=== Testing For-In Loop Execution ===" << std::endl;
             
             try {
@@ -112,18 +126,5 @@ namespace Lua {
                 std::cout << "  Exception during execution test: " << e.what() << std::endl;
             }
         }
-        
-        void runForInTests() {
-            std::cout << "\n========================================" << std::endl;
-            std::cout << "Running For-In Loop Tests" << std::endl;
-            std::cout << "========================================" << std::endl;
-            
-            testForInSyntax();
-            testForInExecution();
-            
-            std::cout << "\n========================================" << std::endl;
-            std::cout << "For-In Loop Tests Completed" << std::endl;
-            std::cout << "========================================" << std::endl;
-        }
-    }
-}
+  } // namespace Tests
+} // namespace Lua

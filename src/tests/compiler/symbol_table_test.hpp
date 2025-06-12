@@ -6,7 +6,13 @@
 namespace Lua {
 namespace Tests {
 
-void testSymbolTable();
+class SymbolTableTest {
+public:
+    static void runAllTests();
+    
+private:
+    static void testSymbolTable();
+};
 
 } // namespace Tests
 } // namespace Lua

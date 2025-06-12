@@ -1,6 +1,8 @@
 #pragma once
 
 namespace Lua {
+namespace Tests {
+
     class ExpressionCompilerTest {
     public:
         static void runAllTests();
@@ -12,4 +14,6 @@ namespace Lua {
         static void testConstantFolding();
         static void testUnaryExpressionCompilation();
     };
-}
+
+} // namespace Tests
+} // namespace Lua

@@ -7,7 +7,13 @@
 namespace Lua {
 namespace Tests {
 
-void testLexer(const std::string& source);
+class LexerTest {
+public:
+    static void runAllTests();
+    
+private:
+    static void testLexer(const std::string& source);
+};
 
 } // namespace Tests
 } // namespace Lua

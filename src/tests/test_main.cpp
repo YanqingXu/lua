@@ -28,52 +28,53 @@ void runAllTests() {
     std::cout << "=== Running Lua Interpreter Tests ===" << std::endl;
     
     try {
-        // // Run lexer tests
-        // testLexer("local x = 42 + 3.14");
+        // Run lexer tests
+        LexerTest::runAllTests();
         
-        // // Run value tests
-        // testValues();
+        // Run value tests
+        ValueTest::runAllTests();
         
-        // // Run state tests
-        // testState();
-        // testExecute();
+        // Run state tests
+        StateTest::runAllTests();
         
-        // // Run parser tests
-        // testParser();
-        // testStatements();
-        // testWhileLoop();
-        // testASTVisitor();
+        // Run parser tests
+        ParserTest::runAllTests();
         
-        // // Run symbol table tests
-        // testSymbolTable();
+        // Run symbol table tests
+        SymbolTableTest::runAllTests();
         
-        // // Run for-in loop tests
-        // runForInTests();
+        // Run for-in loop tests
+        ForInTest::runAllTests();
         
-        // // Run repeat-until loop tests
-        // runRepeatUntilTests();
+        // Run repeat-until loop tests
+        RepeatTest::runAllTests();
         
-        // // Run function tests
-        // runFunctionTests();
+        // Run function tests
+        FunctionTest::runAllTests();
+        
+        // Run if statement tests
+        IfStatementTest::runAllTests();
         
         // Run literal compiler tests
-        // LiteralCompilerTest::runAllTests();
+        LiteralCompilerTest::runAllTests();
         
         // Run variable compiler tests
-        // VariableCompilerTest::runAllTests();
+        VariableCompilerTest::runAllTests();
         
         // Run binary expression tests
-        // BinaryExpressionTest::runAllTests();
+        BinaryExpressionTest::runAllTests();
         
         // Run expression compiler tests
-        // ExpressionCompilerTest::runAllTests();        // Run string pool demo tests
-        // StringPoolDemoTest::runAllTests();
+        ExpressionCompilerTest::runAllTests();
+        
+        // Run string pool demo tests
+        StringPoolDemoTest::runAllTests();
 
         // Run GC integration tests
-        // GCIntegrationTest::runAllTests();
+        GCIntegrationTest::runAllTests();
 
-		// Run Conditional Compilation tests
-		ConditionalCompilationTest::runAllTests();
+        // Run Conditional Compilation tests
+        ConditionalCompilationTest::runAllTests();
         
         std::cout << "\n=== All Tests Completed ===" << std::endl;
         

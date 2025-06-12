@@ -1,14 +1,19 @@
 #pragma once
 
 namespace Lua {
-    namespace Tests {
+namespace Tests {
+
+    class ForInTest {
+    public:
+        static void runAllTests();
+        
+    private:
         // Test for-in loop syntax parsing
-        void testForInSyntax();
+        static void testForInSyntax();
         
         // Test for-in loop execution
-        void testForInExecution();
-        
-        // Run all for-in loop tests
-        void runForInTests();
-    }
-}
+        static void testForInExecution();
+    };
+
+} // namespace Tests
+} // namespace Lua
