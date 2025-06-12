@@ -6,6 +6,8 @@
 #include <vector>
 #include <string>
 #include <cassert>
+#include <thread>
+#include <future>
 
 namespace Lua {
 namespace Tests {
@@ -13,16 +15,37 @@ namespace Tests {
 using namespace std::chrono;
 
 /**
- * @brief Test basic string interning functionality
+ * @brief Test basic string interning functionality with timeout
  */
 bool testBasicStringInterning() {
     std::cout << "=== Basic String Interning Test ===\n";
+    std::cout.flush();
     
     try {
-        // Create multiple strings with the same content
+        std::cout << "   About to create first string...\n";
+        std::cout.flush();
+        
+        // Simplified version without timeout - direct call
         GCString* str1 = GCString::create("Hello, World!");
+        
+        std::cout << "   First string created successfully\n";
+        std::cout.flush();
+        
+        std::cout << "   About to create second string...\n";
+        std::cout.flush();
+        
         GCString* str2 = GCString::create("Hello, World!");
+        
+        std::cout << "   Second string created successfully\n";
+        std::cout.flush();
+        
+        std::cout << "   About to create third string...\n";
+        std::cout.flush();
+        
         GCString* str3 = GCString::create(std::string("Hello, World!"));
+        
+        std::cout << "   Third string created successfully\n";
+        std::cout.flush();
         
         std::cout << "   str1 address: " << static_cast<void*>(str1) << "\n";
         std::cout << "   str2 address: " << static_cast<void*>(str2) << "\n";

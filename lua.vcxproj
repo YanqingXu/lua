@@ -171,6 +171,7 @@
     <ClInclude Include="src\tests\forin_test.hpp" />
     <ClInclude Include="src\tests\function_test.hpp" />
     <ClInclude Include="src\tests\gc_integration_test.hpp" />
+    <ClInclude Include="src\tests\if_statement_test.hpp" />
     <ClInclude Include="src\tests\lexer_test.hpp" />
     <ClInclude Include="src\tests\literal_compiler_test.hpp" />
     <ClInclude Include="src\tests\parser_test.hpp" />
@@ -221,6 +222,7 @@
     <ClCompile Include="src\tests\forin_test.cpp" />
     <ClCompile Include="src\tests\function_test.cpp" />
     <ClCompile Include="src\tests\gc_integration_test.cpp" />
+    <ClCompile Include="src\tests\if_statement_test.cpp" />
     <ClCompile Include="src\tests\lexer_test.cpp" />
     <ClCompile Include="src\tests\literal_compiler_test.cpp" />
     <ClCompile Include="src\tests\parser_test.cpp" />

@@ -123,9 +123,12 @@ namespace Lua {
         // Compile condition
         int conditionReg = compiler->getExpressionCompiler()->compileExpr(stmt->getCondition());
         
+        // Test condition and skip next instruction if false
+        compiler->emitInstruction(Instruction::createTEST(conditionReg, 0));
+        compiler->freeReg(); // Free condition register
+        
         // Jump to else/end if condition is false
         int jumpToElse = compiler->emitJump();
-        compiler->freeReg(); // Free condition register
         
         // Compile then branch
         compileStmt(stmt->getThenBranch());
@@ -142,7 +145,9 @@ namespace Lua {
         // Compile else branch if present
         if (stmt->getElseBranch()) {
             compileStmt(stmt->getElseBranch());
-            compiler->patchJump(jumpToEnd);
+            if (jumpToEnd != -1) {
+                compiler->patchJump(jumpToEnd);
+            }
         }
     }
     

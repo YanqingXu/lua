@@ -205,6 +205,10 @@ namespace Lua {
         static Instruction createJMP(i16 sbx) {
             Instruction i; i.setOpCode(OpCode::JMP); i.setSBx(sbx); return i; }
         
+        // Test instruction (A = register to test, C = skip next instruction if test fails)
+        static Instruction createTEST(u8 a, u8 c) {
+            Instruction i; i.setOpCode(OpCode::TEST); i.setA(a); i.setC(c); return i; }
+        
         static Instruction createCLOSE(u8 a) {
             Instruction i; i.setOpCode(OpCode::CLOSE); i.setA(a); return i; }
         

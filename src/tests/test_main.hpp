@@ -14,6 +14,10 @@ namespace Tests {
 // Function to run all tests
 void runAllTests();
 
+// Demo functions moved from main.cpp
+void runStringPoolDemo();
+void runGCIntegrationDemo();
+
 } // namespace Tests
 } // namespace Lua
 

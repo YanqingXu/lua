@@ -2,6 +2,7 @@
 #include "string_pool.hpp"
 #include "garbage_collector.hpp"
 #include <functional>
+#include <iostream>
 
 namespace Lua {
     

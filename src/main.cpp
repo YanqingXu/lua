@@ -14,8 +14,7 @@
 #include "common/defines.hpp"
 #include "lib/base_lib.hpp"
 #include "examples/gc_demo_functions.cpp"
-#include "tests/gc_integration_test.hpp"
-#include "tests/string_pool_demo_test.hpp"
+#include "tests/test_main.hpp"
 
 using namespace Lua;
 
@@ -31,29 +30,7 @@ std::string readFile(const std::string& path) {
     return buffer.str();
 }
 
-// Forward declarations
-void runStringPoolDemo();
-void runGCIntegrationDemo();
-        
-
-
-void runStringPoolDemo() {
-    try {
-        Lua::Tests::runStringPoolDemoTests();
-    } catch (const std::exception& e) {
-        std::cerr << "Error: " << e.what() << std::endl;
-        throw;
-    }
-}
-
-void runGCIntegrationDemo() {
-    try {
-        Lua::Tests::runGCIntegrationTests();
-    } catch (const std::exception& e) {
-        std::cerr << "Error: " << e.what() << std::endl;
-        throw;
-    }
-}
+// All test functions are now in tests/test_main.cpp
 
 int main(int argc, char** argv) {
     try {
@@ -63,17 +40,18 @@ int main(int argc, char** argv) {
             if (arg == "--gc-demo" || arg == "-g") {
                 // Run GC integration demo
                 std::cout << "Running GC Integration Demo...\n\n";
-                runGCIntegrationDemo();
+                Lua::Tests::runGCIntegrationDemo();
                 std::cout << "\nGC Integration Demo completed!\n";
             } else if (arg == "--string-pool" || arg == "-s") {
                 // Run String Pool demo
                 std::cout << "Running String Pool Demo...\n\n";
-                runStringPoolDemo();
+                Lua::Tests::runStringPoolDemo();
                 std::cout << "\nString Pool Demo completed!\n";
             } else if (arg == "--test" || arg == "-t") {
-                 // Run tests
-                 std::cout << "Test functionality not available in this build.\n";
-                 std::cout << "Use --gc-demo to run GC integration demo instead.\n";
+                 // Run all tests
+                 std::cout << "Running All Tests...\n\n";
+                 Lua::Tests::runAllTests();
+                 std::cout << "\nAll Tests completed!\n";
             } else {
                 // Run file
                 std::string filename = arg;
@@ -84,13 +62,18 @@ int main(int argc, char** argv) {
                 state.doString(source);
             }
         } else {
-            // Show usage
-            std::cout << "Usage:\n";
-            std::cout << "  " << argv[0] << " <filename>        - Run Lua file\n";
-            std::cout << "  " << argv[0] << " --test|-t        - Run all tests\n";
-            std::cout << "  " << argv[0] << " --gc-demo|-g     - Run GC integration demo\n";
-            std::cout << "  " << argv[0] << " --string-pool|-s - Run String Pool demo\n";
-            std::cout << "  " << argv[0] << "                   - Show this help\n";
+            // // Show usage
+            // std::cout << "Usage:\n";
+            // std::cout << "  " << argv[0] << " <filename>        - Run Lua file\n";
+            // std::cout << "  " << argv[0] << " --test|-t        - Run all tests\n";
+            // std::cout << "  " << argv[0] << " --gc-demo|-g     - Run GC integration demo\n";
+            // std::cout << "  " << argv[0] << " --string-pool|-s - Run String Pool demo\n";
+            // std::cout << "  " << argv[0] << "                   - Show this help\n";
+
+            // Run all tests
+            std::cout << "Running All Tests...\n\n";
+            Lua::Tests::runAllTests();
+            std::cout << "\nAll Tests completed!\n";
         }
     } catch (const std::exception& e) {
         std::cerr << "Error: " << e.what() << std::endl;

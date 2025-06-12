@@ -43,6 +43,7 @@ namespace Lua {
         void op_lt(Instruction i);
         void op_le(Instruction i);
         void op_jmp(Instruction i);
+        void op_test(Instruction i);
         void op_call(Instruction i);
         void op_return(Instruction i);
     };

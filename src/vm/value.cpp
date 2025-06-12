@@ -180,4 +180,16 @@ namespace Lua {
                 return false;
         }
     }
+    
+    bool Value::isTruthy() const {
+        // In Lua, only nil and false are falsy, all other values are truthy
+        if (isNil()) {
+            return false;
+        }
+        if (isBoolean()) {
+            return asBoolean();
+        }
+        // All other values (numbers, strings, tables, functions) are truthy
+        return true;
+    }
 }

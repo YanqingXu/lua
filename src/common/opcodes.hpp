@@ -41,6 +41,7 @@ namespace Lua {
 
         // Jump / branching
         JMP,
+        TEST,
 
         // Function call / return
         CALL,

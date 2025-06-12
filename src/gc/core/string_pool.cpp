@@ -1,6 +1,7 @@
 #include "string_pool.hpp"
 #include "garbage_collector.hpp"
 #include <algorithm>
+#include <iostream>
 
 namespace Lua {
     
@@ -12,15 +13,13 @@ namespace Lua {
     GCString* StringPool::intern(const Str& str) {
         std::lock_guard<std::mutex> lock(poolMutex);
         
-        // Create a temporary GCString for lookup
-        // We use a stack-allocated object to avoid unnecessary heap allocation
-        GCString temp(str);
-        
-        // Try to find existing string in the pool
-        auto it = pool.find(&temp);
-        if (it != pool.end()) {
-            // Found existing string, return it
-            return *it;
+        // Search for existing string by comparing string content directly
+        // to avoid creating temporary GCString objects that would call destructors
+        for (auto it = pool.begin(); it != pool.end(); ++it) {
+            if ((*it)->getString() == str) {
+                // Found existing string, return it
+                return *it;
+            }
         }
         
         // String not found, create new one and add to pool
@@ -39,14 +38,13 @@ namespace Lua {
     GCString* StringPool::intern(Str&& str) {
         std::lock_guard<std::mutex> lock(poolMutex);
         
-        // Create a temporary GCString for lookup
-        GCString temp(str); // Note: we don't move here to preserve str for potential creation
-        
-        // Try to find existing string in the pool
-        auto it = pool.find(&temp);
-        if (it != pool.end()) {
-            // Found existing string, return it
-            return *it;
+        // Search for existing string by comparing string content directly
+        // to avoid creating temporary GCString objects that would call destructors
+        for (auto it = pool.begin(); it != pool.end(); ++it) {
+            if ((*it)->getString() == str) {
+                // Found existing string, return it
+                return *it;
+            }
         }
         
         // String not found, create new one with move semantics and add to pool

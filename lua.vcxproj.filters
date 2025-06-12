@@ -201,6 +201,9 @@
     <ClCompile Include="src\tests\gc_integration_test.cpp">
       <Filter>tests</Filter>
     </ClCompile>
+    <ClCompile Include="src\tests\if_statement_test.cpp">
+      <Filter>tests</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\lib\base_lib.hpp">
@@ -363,6 +366,9 @@
       <Filter>tests</Filter>
     </ClInclude>
     <ClInclude Include="src\tests\gc_integration_test.hpp">
+      <Filter>tests</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tests\if_statement_test.hpp">
       <Filter>tests</Filter>
     </ClInclude>
   </ItemGroup>

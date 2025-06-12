@@ -132,6 +132,9 @@ namespace Lua {
             case OpCode::JMP:
                 op_jmp(i);
                 break;
+            case OpCode::TEST:
+                op_test(i);
+                break;
             case OpCode::RETURN:
                 op_return(i);
                 return false;  // Stop execution
@@ -359,6 +362,19 @@ namespace Lua {
     void VM::op_jmp(Instruction i) {
         int sbx = i.getSBx();
         pc += sbx;
+    }
+    
+    void VM::op_test(Instruction i) {
+        u8 a = i.getA();  // Register to test
+        u8 c = i.getC();  // Skip next instruction if test fails
+        
+        Value val = state->get(a + 1);
+        bool isTrue = val.isTruthy();
+        
+        // If condition is false and C is 0, or condition is true and C is 1, skip next instruction
+        if ((c == 0 && !isTrue) || (c == 1 && isTrue)) {
+            pc++;  // Skip next instruction
+        }
     }
     
     void VM::op_call(Instruction i) {

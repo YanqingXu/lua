@@ -102,5 +102,8 @@ namespace Lua {
         
         // Less than comparison, for map sorting
         bool operator<(const Value& other) const;
+        
+        // Truthiness test (Lua semantics: only nil and false are falsy)
+        bool isTruthy() const;
     };
 }

@@ -3,6 +3,7 @@
 #include "../../common/types.hpp"
 #include "gc_string.hpp"
 #include <mutex>
+#include <iostream>
 
 namespace Lua {
     // Forward declarations
@@ -27,7 +28,8 @@ namespace Lua {
         mutable std::mutex poolMutex;
         
         // Private constructor for singleton pattern
-        StringPool() = default;
+        StringPool() {
+        }
         
     public:
         // Disable copy and move operations

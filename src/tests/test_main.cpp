@@ -11,10 +11,31 @@
 #include "forin_test.hpp"
 #include "repeat_test.hpp"
 #include "expression_compiler_test.hpp"
+#include "gc_integration_test.hpp"
+#include "string_pool_demo_test.hpp"
 #include <iostream>
 
 namespace Lua {
 namespace Tests {
+
+// Demo functions moved from main.cpp
+void runStringPoolDemo() {
+    try {
+        Lua::Tests::runStringPoolDemoTests();
+    } catch (const std::exception& e) {
+        std::cerr << "Error: " << e.what() << std::endl;
+        throw;
+    }
+}
+
+void runGCIntegrationDemo() {
+    try {
+        Lua::Tests::runGCIntegrationTests();
+    } catch (const std::exception& e) {
+        std::cerr << "Error: " << e.what() << std::endl;
+        throw;
+    }
+}
 
 void runAllTests() {
     std::cout << "=== Running Lua Interpreter Tests ===" << std::endl;
@@ -59,6 +80,12 @@ void runAllTests() {
         
         // Run expression compiler tests
         ExpressionCompilerTest::runAllTests();
+
+        // Run string pool demo tests
+        runStringPoolDemo();
+
+        // Run GC integration tests
+        runGCIntegrationDemo();
         
         std::cout << "\n=== All Tests Completed ===" << std::endl;
         
