@@ -59,7 +59,7 @@ namespace Lua {
         
         ~ObjectPool() {
             for (void* chunk : chunks) {
-                std::free(chunk);
+                _aligned_free(chunk);
             }
         }
         

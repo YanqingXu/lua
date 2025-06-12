@@ -245,7 +245,7 @@ namespace Lua {
         
             // Free memory
             void* rawPtr = reinterpret_cast<char*>(ptr) - sizeof(MemoryBlockHeader);
-            std::free(rawPtr);
+            _aligned_free(rawPtr);
         
             // Update statistics
             updateStats(-static_cast<isize>(size));

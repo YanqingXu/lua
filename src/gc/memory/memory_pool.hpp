@@ -39,7 +39,7 @@ namespace Lua {
         
         ~MemoryChunk() {
             if (memory) {
-                std::free(memory);
+                _aligned_free(memory);
             }
         }
         
