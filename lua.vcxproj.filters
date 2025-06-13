@@ -87,9 +87,6 @@
     <ClCompile Include="src\lexer\lexer.cpp">
       <Filter>lexer</Filter>
     </ClCompile>
-    <ClCompile Include="src\lib\base_lib.cpp">
-      <Filter>lib</Filter>
-    </ClCompile>
     <ClCompile Include="src\compiler\compiler.cpp">
       <Filter>compiler</Filter>
     </ClCompile>
@@ -159,18 +156,6 @@
     <ClCompile Include="src\gc\core\string_pool.cpp">
       <Filter>gc\core</Filter>
     </ClCompile>
-    <ClCompile Include="src\lib\lib_init.cpp">
-      <Filter>lib</Filter>
-    </ClCompile>
-    <ClCompile Include="src\lib\lib_manager.cpp">
-      <Filter>lib</Filter>
-    </ClCompile>
-    <ClCompile Include="src\lib\lib_utils.cpp">
-      <Filter>lib</Filter>
-    </ClCompile>
-    <ClCompile Include="src\lib\string_lib.cpp">
-      <Filter>lib</Filter>
-    </ClCompile>
     <ClCompile Include="src\vm\state_factory.cpp">
       <Filter>vm</Filter>
     </ClCompile>
@@ -234,11 +219,32 @@
     <ClCompile Include="src\tests\parser\test_parser.cpp">
       <Filter>tests\parser</Filter>
     </ClCompile>
+    <ClCompile Include="src\lib\base_lib.cpp">
+      <Filter>lib</Filter>
+    </ClCompile>
+    <ClCompile Include="src\lib\lib_init.cpp">
+      <Filter>lib</Filter>
+    </ClCompile>
+    <ClCompile Include="src\lib\lib_manager.cpp">
+      <Filter>lib</Filter>
+    </ClCompile>
+    <ClCompile Include="src\lib\lib_utils.cpp">
+      <Filter>lib</Filter>
+    </ClCompile>
+    <ClCompile Include="src\lib\string_lib.cpp">
+      <Filter>lib</Filter>
+    </ClCompile>
+    <ClCompile Include="src\lib\table_lib.cpp">
+      <Filter>lib</Filter>
+    </ClCompile>
+    <ClCompile Include="src\tests\parser\source_location_test.cpp">
+      <Filter>tests\parser</Filter>
+    </ClCompile>
+    <ClCompile Include="src\parser\ast\source_location.cpp">
+      <Filter>parser\ast</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="src\lib\base_lib.hpp">
-      <Filter>lib</Filter>
-    </ClInclude>
     <ClInclude Include="src\compiler\compiler.hpp">
       <Filter>compiler</Filter>
     </ClInclude>
@@ -338,21 +344,6 @@
     <ClInclude Include="src\vm\table_impl.hpp">
       <Filter>vm</Filter>
     </ClInclude>
-    <ClInclude Include="src\lib\lib_common.hpp">
-      <Filter>lib</Filter>
-    </ClInclude>
-    <ClInclude Include="src\lib\lib_init.hpp">
-      <Filter>lib</Filter>
-    </ClInclude>
-    <ClInclude Include="src\lib\lib_manager.hpp">
-      <Filter>lib</Filter>
-    </ClInclude>
-    <ClInclude Include="src\lib\lib_utils.hpp">
-      <Filter>lib</Filter>
-    </ClInclude>
-    <ClInclude Include="src\lib\string_lib.hpp">
-      <Filter>lib</Filter>
-    </ClInclude>
     <ClInclude Include="src\vm\state_factory.hpp">
       <Filter>vm</Filter>
     </ClInclude>
@@ -415,6 +406,33 @@
     </ClInclude>
     <ClInclude Include="src\tests\parser\test_parser.hpp">
       <Filter>tests\parser</Filter>
+    </ClInclude>
+    <ClInclude Include="src\lib\base_lib.hpp">
+      <Filter>lib</Filter>
+    </ClInclude>
+    <ClInclude Include="src\lib\lib_common.hpp">
+      <Filter>lib</Filter>
+    </ClInclude>
+    <ClInclude Include="src\lib\lib_init.hpp">
+      <Filter>lib</Filter>
+    </ClInclude>
+    <ClInclude Include="src\lib\lib_manager.hpp">
+      <Filter>lib</Filter>
+    </ClInclude>
+    <ClInclude Include="src\lib\lib_utils.hpp">
+      <Filter>lib</Filter>
+    </ClInclude>
+    <ClInclude Include="src\lib\string_lib.hpp">
+      <Filter>lib</Filter>
+    </ClInclude>
+    <ClInclude Include="src\lib\table_lib.hpp">
+      <Filter>lib</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tests\parser\source_location_test.hpp">
+      <Filter>tests\parser</Filter>
+    </ClInclude>
+    <ClInclude Include="src\parser\ast\source_location.hpp">
+      <Filter>parser\ast</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

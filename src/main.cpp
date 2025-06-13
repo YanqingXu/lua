@@ -13,7 +13,6 @@
 #include "compiler/symbol_table.hpp"
 #include "common/defines.hpp"
 #include "lib/base_lib.hpp"
-#include "examples/gc_demo_functions.cpp"
 #include "tests/test_main.hpp"
 
 using namespace Lua;

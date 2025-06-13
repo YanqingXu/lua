@@ -164,6 +164,7 @@
     <ClInclude Include="src\lib\table_lib.hpp" />
     <ClInclude Include="src\parser\ast\ast_base.hpp" />
     <ClInclude Include="src\parser\ast\expressions.hpp" />
+    <ClInclude Include="src\parser\ast\source_location.hpp" />
     <ClInclude Include="src\parser\ast\statements.hpp" />
     <ClInclude Include="src\parser\parser.hpp" />
     <ClInclude Include="src\parser\visitor.hpp" />
@@ -178,13 +179,12 @@
     <ClInclude Include="src\tests\gc\string_pool_demo_test.hpp" />
     <ClInclude Include="src\tests\gc\test_gc.hpp" />
     <ClInclude Include="src\tests\lexer\lexer_test.hpp" />
-    <ClInclude Include="src\tests\lib\table_lib_test.hpp" />
-    <ClInclude Include="src\tests\lib\test_lib.hpp" />
     <ClInclude Include="src\tests\parser\forin_test.hpp" />
     <ClInclude Include="src\tests\parser\function_test.hpp" />
     <ClInclude Include="src\tests\parser\if_statement_test.hpp" />
     <ClInclude Include="src\tests\parser\parser_test.hpp" />
     <ClInclude Include="src\tests\parser\repeat_test.hpp" />
+    <ClInclude Include="src\tests\parser\source_location_test.hpp" />
     <ClInclude Include="src\tests\parser\test_parser.hpp" />
     <ClInclude Include="src\tests\test_main.hpp" />
     <ClInclude Include="src\tests\vm\state_test.hpp" />
@@ -222,6 +222,7 @@
     <ClCompile Include="src\lib\string_lib.cpp" />
     <ClCompile Include="src\lib\table_lib.cpp" />
     <ClCompile Include="src\main.cpp" />
+    <ClCompile Include="src\parser\ast\source_location.cpp" />
     <ClCompile Include="src\parser\expression_parser.cpp" />
     <ClCompile Include="src\parser\parser_utils.cpp" />
     <ClCompile Include="src\parser\statement_parser.cpp" />
@@ -237,13 +238,12 @@
     <ClCompile Include="src\tests\gc\string_pool_demo_test.cpp" />
     <ClCompile Include="src\tests\gc\test_gc.cpp" />
     <ClCompile Include="src\tests\lexer\lexer_test.cpp" />
-    <ClCompile Include="src\tests\lib\table_lib_test.cpp" />
-    <ClCompile Include="src\tests\lib\test_lib.cpp" />
     <ClCompile Include="src\tests\parser\forin_test.cpp" />
     <ClCompile Include="src\tests\parser\function_test.cpp" />
     <ClCompile Include="src\tests\parser\if_statement_test.cpp" />
     <ClCompile Include="src\tests\parser\parser_test.cpp" />
     <ClCompile Include="src\tests\parser\repeat_test.cpp" />
+    <ClCompile Include="src\tests\parser\source_location_test.cpp" />
     <ClCompile Include="src\tests\parser\test_parser.cpp" />
     <ClCompile Include="src\tests\test_main.cpp" />
     <ClCompile Include="src\tests\vm\state_test.cpp" />

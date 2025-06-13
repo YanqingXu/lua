@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "ast_base.hpp"
 #include "../../lexer/lexer.hpp"
@@ -10,7 +10,8 @@ namespace Lua {
         Value value;
 
     public:
-        explicit LiteralExpr(const Value& value) : value(value) {}
+        explicit LiteralExpr(const Value& value, const SourceLocation& location = SourceLocation()) 
+            : Expr(location), value(value) {}
 
         ExprType getType() const override { return ExprType::Literal; }
         const Value& getValue() const { return value; }
@@ -22,7 +23,8 @@ namespace Lua {
         Str name;
 
     public:
-        explicit VariableExpr(const Str& name) : name(name) {}
+        explicit VariableExpr(const Str& name, const SourceLocation& location = SourceLocation()) 
+            : Expr(location), name(name) {}
 
         ExprType getType() const override { return ExprType::Variable; }
         const Str& getName() const { return name; }
@@ -35,8 +37,8 @@ namespace Lua {
         UPtr<Expr> right;
 
     public:
-        UnaryExpr(TokenType op, UPtr<Expr> right)
-            : op(op), right(std::move(right)) {}
+        UnaryExpr(TokenType op, UPtr<Expr> right, const SourceLocation& location = SourceLocation())
+            : Expr(location), op(op), right(std::move(right)) {}
 
         ExprType getType() const override { return ExprType::Unary; }
         TokenType getOperator() const { return op; }
@@ -51,8 +53,8 @@ namespace Lua {
         UPtr<Expr> right;
 
     public:
-        BinaryExpr(UPtr<Expr> left, TokenType op, UPtr<Expr> right)
-            : left(std::move(left)), op(op), right(std::move(right)) {}
+        BinaryExpr(UPtr<Expr> left, TokenType op, UPtr<Expr> right, const SourceLocation& location = SourceLocation())
+            : Expr(location), left(std::move(left)), op(op), right(std::move(right)) {}
 
         ExprType getType() const override { return ExprType::Binary; }
         const Expr* getLeft() const { return left.get(); }
@@ -67,8 +69,8 @@ namespace Lua {
         Vec<UPtr<Expr>> arguments;
 
     public:
-        CallExpr(UPtr<Expr> callee, Vec<UPtr<Expr>> arguments)
-            : callee(std::move(callee)), arguments(std::move(arguments)) {}
+        CallExpr(UPtr<Expr> callee, Vec<UPtr<Expr>> arguments, const SourceLocation& location = SourceLocation())
+            : Expr(location), callee(std::move(callee)), arguments(std::move(arguments)) {}
 
         ExprType getType() const override { return ExprType::Call; }
         const Expr* getCallee() const { return callee.get(); }
@@ -82,8 +84,8 @@ namespace Lua {
         Str name;
 
     public:
-        MemberExpr(UPtr<Expr> object, const Str& name)
-            : object(std::move(object)), name(name) {}
+        MemberExpr(UPtr<Expr> object, const Str& name, const SourceLocation& location = SourceLocation())
+            : Expr(location), object(std::move(object)), name(name) {}
 
         ExprType getType() const override { return ExprType::Member; }
         const Expr* getObject() const { return object.get(); }
@@ -105,8 +107,8 @@ namespace Lua {
         Vec<TableField> fields;
 
     public:
-        explicit TableExpr(Vec<TableField> fields)
-            : fields(std::move(fields)) {}
+        explicit TableExpr(Vec<TableField> fields, const SourceLocation& location = SourceLocation())
+            : Expr(location), fields(std::move(fields)) {}
 
         ExprType getType() const override { return ExprType::Table; }
         const Vec<TableField>& getFields() const { return fields; }
@@ -119,8 +121,8 @@ namespace Lua {
         UPtr<Expr> index;
 
     public:
-        IndexExpr(UPtr<Expr> object, UPtr<Expr> index)
-            : object(std::move(object)), index(std::move(index)) {}
+        IndexExpr(UPtr<Expr> object, UPtr<Expr> index, const SourceLocation& location = SourceLocation())
+            : Expr(location), object(std::move(object)), index(std::move(index)) {}
 
         ExprType getType() const override { return ExprType::Index; }
         const Expr* getObject() const { return object.get(); }
@@ -134,8 +136,8 @@ namespace Lua {
         UPtr<Stmt> body;
 
     public:
-        FunctionExpr(Vec<Str> params, UPtr<Stmt> body)
-            : parameters(std::move(params)), body(std::move(body)) {
+        FunctionExpr(Vec<Str> params, UPtr<Stmt> body, const SourceLocation& location = SourceLocation())
+            : Expr(location), parameters(std::move(params)), body(std::move(body)) {
         }
 
         ExprType getType() const override { return ExprType::Function; }

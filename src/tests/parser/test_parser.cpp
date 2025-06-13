@@ -38,6 +38,11 @@ void ParserTestSuite::runAllTests() {
         RepeatTest::runAllTests();
         printSectionFooter();
         
+        // 6. Source Location Tests (源码位置测试)
+        printSectionHeader("Source Location Tests");
+        SourceLocationTest::runAllTests();
+        printSectionFooter();
+        
         // 总结
         std::cout << "\n" << std::string(60, '=') << std::endl;
         std::cout << "    [OK] ALL PARSER TESTS COMPLETED SUCCESSFULLY" << std::endl;

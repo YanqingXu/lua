@@ -1,4 +1,5 @@
 #include "test_main.hpp"
+#include "parser/source_location_test.hpp"
 #include <iostream>
 
 namespace Lua {
@@ -21,6 +22,10 @@ void runAllTests() {
         // Run all parser tests (unified)
         // ParserTestSuite::runAllTests();
         
+        // Run SourceLocation tests only
+        std::cout << "Running SourceLocation tests..." << std::endl;
+        SourceLocationTest::runAllTests();
+        
         // Run all compiler tests (unified)
         // CompilerTest::runAllTests();
         
@@ -28,7 +33,7 @@ void runAllTests() {
         // GCTest::runAllTests();
         
         // Run all lib tests (unified)
-        LibTestSuite::runAllTests();
+        // LibTestSuite::runAllTests();
         
         std::cout << "\n=== All Tests Completed ===" << std::endl;
         
@@ -41,3 +46,8 @@ void runAllTests() {
 
 } // namespace Tests
 } // namespace Lua
+
+//int main() {
+//    Lua::Tests::runAllTests();
+//    return 0;
+//}

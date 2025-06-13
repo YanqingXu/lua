@@ -10,8 +10,8 @@ namespace Lua {
         UPtr<Expr> expression;
 
     public:
-        explicit ExprStmt(UPtr<Expr> expression)
-            : expression(std::move(expression)) {}
+        explicit ExprStmt(UPtr<Expr> expression, const SourceLocation& location = SourceLocation())
+            : Stmt(location), expression(std::move(expression)) {}
 
         StmtType getType() const override { return StmtType::Expression; }
         const Expr* getExpression() const { return expression.get(); }
@@ -23,8 +23,8 @@ namespace Lua {
         Vec<UPtr<Stmt>> statements;
 
     public:
-        explicit BlockStmt(Vec<UPtr<Stmt>> statements)
-            : statements(std::move(statements)) {}
+        explicit BlockStmt(Vec<UPtr<Stmt>> statements, const SourceLocation& location = SourceLocation())
+            : Stmt(location), statements(std::move(statements)) {}
 
         StmtType getType() const override { return StmtType::Block; }
         const Vec<UPtr<Stmt>>& getStatements() const { return statements; }
@@ -37,8 +37,8 @@ namespace Lua {
         UPtr<Expr> initializer;
 
     public:
-        LocalStmt(const Str& name, UPtr<Expr> initializer)
-            : name(name), initializer(std::move(initializer)) {}
+        LocalStmt(const Str& name, UPtr<Expr> initializer, const SourceLocation& location = SourceLocation())
+            : Stmt(location), name(name), initializer(std::move(initializer)) {}
 
         StmtType getType() const override { return StmtType::Local; }
         const Str& getName() const { return name; }
@@ -52,8 +52,8 @@ namespace Lua {
         UPtr<Expr> value;
 
     public:
-        AssignStmt(UPtr<Expr> target, UPtr<Expr> value)
-            : target(std::move(target)), value(std::move(value)) {}
+        AssignStmt(UPtr<Expr> target, UPtr<Expr> value, const SourceLocation& location = SourceLocation())
+            : Stmt(location), target(std::move(target)), value(std::move(value)) {}
 
         StmtType getType() const override { return StmtType::Assign; }
         const Expr* getTarget() const { return target.get(); }
@@ -68,8 +68,8 @@ namespace Lua {
         UPtr<Stmt> elseBranch;
 
     public:
-        IfStmt(UPtr<Expr> condition, UPtr<Stmt> thenBranch, UPtr<Stmt> elseBranch = nullptr)
-            : condition(std::move(condition)), thenBranch(std::move(thenBranch)), elseBranch(std::move(elseBranch)) {}
+        IfStmt(UPtr<Expr> condition, UPtr<Stmt> thenBranch, UPtr<Stmt> elseBranch = nullptr, const SourceLocation& location = SourceLocation())
+            : Stmt(location), condition(std::move(condition)), thenBranch(std::move(thenBranch)), elseBranch(std::move(elseBranch)) {}
 
         StmtType getType() const override { return StmtType::If; }
         const Expr* getCondition() const { return condition.get(); }
@@ -84,8 +84,8 @@ namespace Lua {
         UPtr<Stmt> body;
 
     public:
-        WhileStmt(UPtr<Expr> condition, UPtr<Stmt> body)
-            : condition(std::move(condition)), body(std::move(body)) {}
+        WhileStmt(UPtr<Expr> condition, UPtr<Stmt> body, const SourceLocation& location = SourceLocation())
+            : Stmt(location), condition(std::move(condition)), body(std::move(body)) {}
 
         StmtType getType() const override { return StmtType::While; }
         const Expr* getCondition() const { return condition.get(); }
@@ -102,8 +102,8 @@ namespace Lua {
         UPtr<Stmt> body;     // Loop body
 
     public:
-        ForStmt(const Str& variable, UPtr<Expr> start, UPtr<Expr> end, UPtr<Expr> step, UPtr<Stmt> body)
-            : variable(variable), start(std::move(start)), end(std::move(end)), step(std::move(step)), body(std::move(body)) {}
+        ForStmt(const Str& variable, UPtr<Expr> start, UPtr<Expr> end, UPtr<Expr> step, UPtr<Stmt> body, const SourceLocation& location = SourceLocation())
+            : Stmt(location), variable(variable), start(std::move(start)), end(std::move(end)), step(std::move(step)), body(std::move(body)) {}
 
         StmtType getType() const override { return StmtType::For; }
         const Str& getVariable() const { return variable; }
@@ -121,8 +121,8 @@ namespace Lua {
         UPtr<Stmt> body;           // Loop body
 
     public:
-        ForInStmt(const Vec<Str>& variables, Vec<UPtr<Expr>> iterators, UPtr<Stmt> body)
-            : variables(variables), iterators(std::move(iterators)), body(std::move(body)) {}
+        ForInStmt(const Vec<Str>& variables, Vec<UPtr<Expr>> iterators, UPtr<Stmt> body, const SourceLocation& location = SourceLocation())
+            : Stmt(location), variables(variables), iterators(std::move(iterators)), body(std::move(body)) {}
 
         StmtType getType() const override { return StmtType::ForIn; }
         const Vec<Str>& getVariables() const { return variables; }
@@ -136,8 +136,8 @@ namespace Lua {
         UPtr<Expr> value; // 可选的返回值
 
     public:
-        ReturnStmt(UPtr<Expr> value = nullptr)
-            : value(std::move(value)) {
+        ReturnStmt(UPtr<Expr> value = nullptr, const SourceLocation& location = SourceLocation())
+            : Stmt(location), value(std::move(value)) {
         }
 
         StmtType getType() const override { return StmtType::Return; }
@@ -147,7 +147,7 @@ namespace Lua {
     // Break statement
     class BreakStmt : public Stmt {
     public:
-        BreakStmt() {}
+        BreakStmt(const SourceLocation& location = SourceLocation()) : Stmt(location) {}
 
         StmtType getType() const override { return StmtType::Break; }
     };
@@ -159,8 +159,8 @@ namespace Lua {
         UPtr<Expr> condition; // Until condition
 
     public:
-        RepeatUntilStmt(UPtr<Stmt> body, UPtr<Expr> condition)
-            : body(std::move(body)), condition(std::move(condition)) {}
+        RepeatUntilStmt(UPtr<Stmt> body, UPtr<Expr> condition, const SourceLocation& location = SourceLocation())
+            : Stmt(location), body(std::move(body)), condition(std::move(condition)) {}
 
         StmtType getType() const override { return StmtType::RepeatUntil; }
         const Stmt* getBody() const { return body.get(); }
@@ -175,8 +175,8 @@ namespace Lua {
         UPtr<Stmt> body;         // Function body
 
     public:
-        FunctionStmt(const Str& name, const Vec<Str>& parameters, UPtr<Stmt> body)
-            : name(name), parameters(parameters), body(std::move(body)) {}
+        FunctionStmt(const Str& name, const Vec<Str>& parameters, UPtr<Stmt> body, const SourceLocation& location = SourceLocation())
+            : Stmt(location), name(name), parameters(parameters), body(std::move(body)) {}
 
         StmtType getType() const override { return StmtType::Function; }
         const Str& getName() const { return name; }
