@@ -4,53 +4,54 @@
 #include <string>
 #include <ostream>
 
-// 前向声明
+// Forward declaration
 namespace Lua {
     struct Token;
 }
 
 namespace Lua {
     /**
-     * @brief 源码位置信息类
+     * @brief Source code location class
      * 
-     * 用于存储AST节点在源代码中的位置信息，包括文件名、行号、列号。
-     * 这些信息对于错误报告、调试信息生成和IDE集成至关重要。
+     * Stores position information in source code for AST nodes,
+     * including filename, line number, and column number.
+     * This information is crucial for error reporting, debugging, and IDE integration.
      */
     class SourceLocation {
     private:
-        Str filename_;      // 文件名
-        int line_;          // 行号 (从1开始)
-        int column_;        // 列号 (从1开始)
+        Str filename_;      // Filename
+        int line_;          // Line number (starting from 1)
+        int column_;        // Column number (starting from 1)
         
     public:
         /**
-         * @brief 默认构造函数
-         * 创建一个无效的位置信息
+         * @brief Default constructor
+         * Creates an invalid location
          */
         SourceLocation() : filename_("<unknown>"), line_(0), column_(0) {}
         
         /**
-         * @brief 构造函数
-         * @param filename 文件名
-         * @param line 行号 (从1开始)
-         * @param column 列号 (从1开始)
+         * @brief Constructor
+         * @param filename File name
+         * @param line Line number (starting from 1)
+         * @param column Column number (starting from 1)
          */
         SourceLocation(const Str& filename, int line, int column)
             : filename_(filename), line_(line), column_(column) {}
         
         /**
-         * @brief 从Token创建位置信息
-         * @param token 词法分析器的Token
-         * @param filename 文件名
-         * 注意：此方法需要在包含lexer.hpp后才能使用
+         * @brief Create location from a Token
+         * @param token Lexer token
+         * @param filename File name
+         * Note: This method requires including lexer.hpp
          */
         static SourceLocation fromToken(const struct Token& token, const Str& filename = "<input>");
         
         /**
-         * @brief 从行号和列号创建位置信息的便利方法
-         * @param line 行号
-         * @param column 列号
-         * @param filename 文件名
+         * @brief Convenience method to create location from line and column
+         * @param line Line number
+         * @param column Column number
+         * @param filename File name
          */
         static SourceLocation fromLineColumn(int line, int column, const Str& filename = "<input>") {
             return SourceLocation(filename, line, column);
@@ -67,28 +68,28 @@ namespace Lua {
         void setColumn(int column) { column_ = column; }
         
         /**
-         * @brief 检查位置信息是否有效
-         * @return 如果行号和列号都大于0则返回true
+         * @brief Check if location is valid
+         * @return True if both line and column are greater than 0
          */
         bool isValid() const {
             return line_ > 0 && column_ > 0;
         }
         
         /**
-         * @brief 创建一个范围位置信息
-         * @param start 开始位置
-         * @param end 结束位置
-         * @return 表示范围的位置信息（使用开始位置的坐标）
+         * @brief Create a location range
+         * @param start Start location
+         * @param end End location
+         * @return A location representing the range (uses the start location)
          */
         static SourceLocation makeRange(const SourceLocation& start, const SourceLocation& end) {
-            // 对于范围，我们使用开始位置的坐标
-            // 未来可以扩展为包含结束位置的信息
+            // For ranges, we use the start location
+            // Can be extended in future to include end location
             return start;
         }
         
         /**
-         * @brief 格式化位置信息为字符串
-         * @return 格式化的位置字符串，如 "file.lua:10:5"
+         * @brief Format location as string
+         * @return Formatted string like "file.lua:10:5"
          */
         Str toString() const {
             if (!isValid()) {
@@ -98,7 +99,7 @@ namespace Lua {
         }
         
         /**
-         * @brief 比较操作符
+         * @brief Comparison operator
          */
         bool operator==(const SourceLocation& other) const {
             return filename_ == other.filename_ && 
@@ -111,8 +112,8 @@ namespace Lua {
         }
         
         /**
-         * @brief 小于操作符，用于排序
-         * 按文件名、行号、列号的顺序比较
+         * @brief Less-than operator for sorting
+         * Compares by filename, then line, then column
          */
         bool operator<(const SourceLocation& other) const {
             if (filename_ != other.filename_) {
@@ -125,21 +126,21 @@ namespace Lua {
         }
         
         /**
-         * @brief 小于等于操作符
+         * @brief Less-than-or-equal operator
          */
         bool operator<=(const SourceLocation& other) const {
             return *this < other || *this == other;
         }
         
         /**
-         * @brief 大于操作符
+         * @brief Greater-than operator
          */
         bool operator>(const SourceLocation& other) const {
             return other < *this;
         }
         
         /**
-         * @brief 大于等于操作符
+         * @brief Greater-than-or-equal operator
          */
         bool operator>=(const SourceLocation& other) const {
             return !(*this < other);
@@ -147,41 +148,41 @@ namespace Lua {
     };
     
     /**
-     * @brief 输出流操作符
-     * 允许直接将SourceLocation输出到流中
+     * @brief Output stream operator
+     * Allows printing SourceLocation to output stream
      */
     inline std::ostream& operator<<(std::ostream& os, const SourceLocation& loc) {
         return os << loc.toString();
     }
     
     /**
-     * @brief 源码范围信息类
+     * @brief Source code range class
      * 
-     * 表示源码中的一个范围，包含开始和结束位置。
-     * 用于表示跨越多行或多列的语法结构。
+     * Represents a range in source code with start and end locations.
+     * Used to represent syntax elements spanning multiple lines or columns.
      */
     class SourceRange {
     private:
-        SourceLocation start_;  // 开始位置
-        SourceLocation end_;    // 结束位置
+        SourceLocation start_;  // Start location
+        SourceLocation end_;    // End location
         
     public:
         /**
-         * @brief 默认构造函数
+         * @brief Default constructor
          */
         SourceRange() = default;
         
         /**
-         * @brief 构造函数
-         * @param start 开始位置
-         * @param end 结束位置
+         * @brief Constructor
+         * @param start Start location
+         * @param end End location
          */
         SourceRange(const SourceLocation& start, const SourceLocation& end)
             : start_(start), end_(end) {}
         
         /**
-         * @brief 从单个位置创建范围
-         * @param location 位置信息
+         * @brief Create range from a single location
+         * @param location Location information
          */
         explicit SourceRange(const SourceLocation& location)
             : start_(location), end_(location) {}
@@ -195,23 +196,23 @@ namespace Lua {
         void setEnd(const SourceLocation& end) { end_ = end; }
         
         /**
-         * @brief 检查范围是否有效
+         * @brief Check if range is valid
          */
         bool isValid() const {
             return start_.isValid() && end_.isValid();
         }
         
         /**
-         * @brief 检查位置是否在范围内
-         * @param location 要检查的位置
-         * @return 如果位置在范围内返回true
+         * @brief Check if location is within the range
+         * @param location Location to check
+         * @return True if location is within the range
          */
         bool contains(const SourceLocation& location) const {
             return start_ <= location && location <= end_;
         }
         
         /**
-         * @brief 格式化范围信息为字符串
+         * @brief Format range as string
          */
         Str toString() const {
             if (start_ == end_) {
@@ -222,7 +223,7 @@ namespace Lua {
     };
     
     /**
-     * @brief 输出流操作符
+     * @brief Output stream operator
      */
     inline std::ostream& operator<<(std::ostream& os, const SourceRange& range) {
         return os << range.toString();
