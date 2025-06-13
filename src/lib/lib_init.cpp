@@ -2,6 +2,8 @@
 #include "lib_manager.hpp"
 #include "lib_utils.hpp"
 #include "base_lib.hpp"
+#include "string_lib.hpp"
+#include "table_lib.hpp"
 #include <iostream>
 #include <chrono>
 #include <thread>
@@ -143,9 +145,9 @@ namespace Lua {
                 return std::make_unique<BaseLibWrapper>();
             });
             
-            // TODO: Register other libraries when implemented
-            // manager.registerLibrary("string", []() { return std::make_unique<StringLib>(); });
-            // manager.registerLibrary("table", []() { return std::make_unique<TableLib>(); });
+            // Register other libraries
+            manager.registerLibrary("string", []() { return std::make_unique<StringLib>(); });
+            manager.registerLibrary("table", []() { return std::make_unique<TableLib>(); });
             // manager.registerLibrary("math", []() { return std::make_unique<MathLib>(); });
             // manager.registerLibrary("io", []() { return std::make_unique<IOLib>(); });
             // manager.registerLibrary("os", []() { return std::make_unique<OSLib>(); });

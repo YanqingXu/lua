@@ -7,18 +7,6 @@
 
 namespace Lua {
 namespace LibUtils {
-
-    // ArgChecker functions are implemented as inline functions in the header file
-    
-
-    
-
-    
-    // Convert functions are implemented as inline functions in the header file
-    
-    // String functions are implemented as inline functions in the header file
-    
-    // TableUtils functions are implemented as inline functions in the header file
     
     // Error namespace implementation
     namespace Error {

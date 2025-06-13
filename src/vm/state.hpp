@@ -14,7 +14,7 @@ namespace Lua {
     private:
         Vec<Value> stack;
         int top;
-        std::unordered_map<Str, Value> globals;
+        HashMap<Str, Value> globals;
         
     public:
         State();

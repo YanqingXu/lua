@@ -161,6 +161,7 @@
     <ClInclude Include="src\lib\lib_manager.hpp" />
     <ClInclude Include="src\lib\lib_utils.hpp" />
     <ClInclude Include="src\lib\string_lib.hpp" />
+    <ClInclude Include="src\lib\table_lib.hpp" />
     <ClInclude Include="src\parser\ast\ast_base.hpp" />
     <ClInclude Include="src\parser\ast\expressions.hpp" />
     <ClInclude Include="src\parser\ast\statements.hpp" />
@@ -177,6 +178,8 @@
     <ClInclude Include="src\tests\gc\string_pool_demo_test.hpp" />
     <ClInclude Include="src\tests\gc\test_gc.hpp" />
     <ClInclude Include="src\tests\lexer\lexer_test.hpp" />
+    <ClInclude Include="src\tests\lib\table_lib_test.hpp" />
+    <ClInclude Include="src\tests\lib\test_lib.hpp" />
     <ClInclude Include="src\tests\parser\forin_test.hpp" />
     <ClInclude Include="src\tests\parser\function_test.hpp" />
     <ClInclude Include="src\tests\parser\if_statement_test.hpp" />
@@ -217,6 +220,7 @@
     <ClCompile Include="src\lib\lib_manager.cpp" />
     <ClCompile Include="src\lib\lib_utils.cpp" />
     <ClCompile Include="src\lib\string_lib.cpp" />
+    <ClCompile Include="src\lib\table_lib.cpp" />
     <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\parser\expression_parser.cpp" />
     <ClCompile Include="src\parser\parser_utils.cpp" />
@@ -233,6 +237,8 @@
     <ClCompile Include="src\tests\gc\string_pool_demo_test.cpp" />
     <ClCompile Include="src\tests\gc\test_gc.cpp" />
     <ClCompile Include="src\tests\lexer\lexer_test.cpp" />
+    <ClCompile Include="src\tests\lib\table_lib_test.cpp" />
+    <ClCompile Include="src\tests\lib\test_lib.cpp" />
     <ClCompile Include="src\tests\parser\forin_test.cpp" />
     <ClCompile Include="src\tests\parser\function_test.cpp" />
     <ClCompile Include="src\tests\parser\if_statement_test.cpp" />

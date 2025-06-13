@@ -7,6 +7,7 @@
 #include "parser/test_parser.hpp"
 #include "compiler/test_compiler.hpp"
 #include "gc/test_gc.hpp"
+#include "lib/test_lib.hpp"
 
 namespace Lua {
 namespace Tests {

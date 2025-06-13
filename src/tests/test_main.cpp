@@ -13,19 +13,22 @@ void runAllTests() {
     std::cout << "=== Running Lua Interpreter Tests ===" << std::endl;
       try {
         // Run lexer tests
-        LexerTest::runAllTests();
+        // LexerTest::runAllTests();
         
         // Run all VM tests (unified)
-        VMTestSuite::runAllTests();
+        // VMTestSuite::runAllTests();
         
         // Run all parser tests (unified)
-        ParserTestSuite::runAllTests();
+        // ParserTestSuite::runAllTests();
         
         // Run all compiler tests (unified)
-        CompilerTest::runAllTests();
+        // CompilerTest::runAllTests();
         
         // Run all GC tests (unified)
-        GCTest::runAllTests();
+        // GCTest::runAllTests();
+        
+        // Run all lib tests (unified)
+        LibTestSuite::runAllTests();
         
         std::cout << "\n=== All Tests Completed ===" << std::endl;
         

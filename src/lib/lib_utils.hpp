@@ -1,12 +1,10 @@
 #pragma once
 
+#include "../common/types.hpp"
 #include "lib_common.hpp"
 #include "../vm/state.hpp"
 #include "../vm/value.hpp"
 #include "../vm/table.hpp"
-#include <string>
-#include <optional>
-#include <vector>
 #include <algorithm>
 #include <cctype>
 
@@ -37,7 +35,7 @@ namespace Lua {
             }
             
             // Get next argument as number
-            std::optional<LuaNumber> getNumber() {
+            Opt<LuaNumber> getNumber() {
                 if (current_arg_ > nargs_) return std::nullopt;
                 
                 Value val = state_->get(current_arg_++);
@@ -50,7 +48,7 @@ namespace Lua {
             }
             
             // Get next argument as string
-            std::optional<std::string> getString() {
+            Opt<Str> getString() {
                 if (current_arg_ > nargs_) return std::nullopt;
                 
                 Value val = state_->get(current_arg_++);
@@ -63,7 +61,7 @@ namespace Lua {
             }
             
             // Get next argument as table
-            std::optional<Table*> getTable() {
+            Opt<Table*> getTable() {
                 if (current_arg_ > nargs_) return std::nullopt;
                 
                 Value val = state_->get(current_arg_++);
@@ -76,7 +74,7 @@ namespace Lua {
             }
             
             // Get next argument as function
-            std::optional<Function*> getFunction() {
+            Opt<Function*> getFunction() {
                 if (current_arg_ > nargs_) return std::nullopt;
                 
                 Value val = state_->get(current_arg_++);
@@ -89,7 +87,7 @@ namespace Lua {
             }
             
             // Get next argument as any value
-            std::optional<Value> getValue() {
+            Opt<Value> getValue() {
                 if (current_arg_ > nargs_) return std::nullopt;
                 return state_->get(current_arg_++);
             }
@@ -119,7 +117,7 @@ namespace Lua {
         namespace Convert {
             
             // Convert ValueType to string
-            inline std::string typeToString(ValueType type) {
+            inline Str typeToString(ValueType type) {
                 switch (type) {
                     case ValueType::Nil: return "nil";
                     case ValueType::Boolean: return "boolean";
@@ -152,7 +150,7 @@ namespace Lua {
             }
             
             // Convert value to string
-            inline std::string toString(const Value& val) {
+            inline Str toString(const Value& val) {
                 if (val.isString()) {
                     return val.asString();
                 } else if (val.isNumber()) {
@@ -210,7 +208,7 @@ namespace Lua {
         namespace String {
             
             // Check if string represents a valid number
-            inline bool isNumeric(const std::string& str) {
+            inline bool isNumeric(const Str& str) {
                 try {
                     static_cast<void>(std::stod(str));
                     return true;
@@ -220,18 +218,18 @@ namespace Lua {
             }
             
             // Trim whitespace from string
-            inline std::string trim(const std::string& str) {
+            inline Str trim(const Str& str) {
                 size_t start = str.find_first_not_of(" \t\n\r");
-                if (start == std::string::npos) return "";
+                if (start == Str::npos) return "";
                 
                 size_t end = str.find_last_not_of(" \t\n\r");
                 return str.substr(start, end - start + 1);
             }
             
             // Split string by delimiter
-            inline std::vector<std::string> split(const std::string& str, char delimiter) {
-                std::vector<std::string> result;
-                std::string current;
+            inline Vec<Str> split(const Str& str, char delimiter) {
+                Vec<Str> result;
+                Str current;
                 
                 for (char c : str) {
                     if (c == delimiter) {
@@ -250,15 +248,15 @@ namespace Lua {
             }
             
             // Convert string to uppercase
-            inline std::string toUpper(const std::string& str) {
-                std::string result = str;
+            inline Str toUpper(const Str& str) {
+                Str result = str;
                 std::transform(result.begin(), result.end(), result.begin(), ::toupper);
                 return result;
             }
             
             // Convert string to lowercase
-            inline std::string toLower(const std::string& str) {
-                std::string result = str;
+            inline Str toLower(const Str& str) {
+                Str result = str;
                 std::transform(result.begin(), result.end(), result.begin(), ::tolower);
                 return result;
             }
@@ -297,8 +295,8 @@ namespace Lua {
             }
             
             // Convert table to vector (array part only)
-            inline std::vector<Value> toVector(Table* table) {
-                std::vector<Value> result;
+            inline Vec<Value> toVector(Table* table) {
+                Vec<Value> result;
                 if (!table) return result;
                 
                 size_t length = getArrayLength(table);
@@ -316,7 +314,7 @@ namespace Lua {
         namespace Error {
             
             // Create formatted error message
-            inline std::string format(const std::string& message, const std::string& detail = "") {
+            inline Str format(const Str& message, const Str& detail = "") {
                 if (detail.empty()) {
                     return message;
                 }
@@ -324,21 +322,21 @@ namespace Lua {
             }
             
             // Throw argument error
-            inline void argumentError(State* state, int arg_index, const std::string& expected_type) {
-                std::string msg = "bad argument #" + std::to_string(arg_index) + " (" + expected_type + " expected)";
+            inline void argumentError(State* state, int arg_index, const Str& expected_type) {
+                Str msg = "bad argument #" + std::to_string(arg_index) + " (" + expected_type + " expected)";
                 throw std::runtime_error(msg);
             }
             
             // Throw range error
-            inline void rangeError(State* state, const std::string& message) {
+            inline void rangeError(State* state, const Str& message) {
                 throw std::runtime_error(format(LibErrors::OUT_OF_RANGE, message));
             }
             
             // Function declarations for lib_utils.cpp implementations
-            void throwError(State* state, const std::string& message, int level = 1);
-            void throwTypeError(State* state, int argIndex, const std::string& expectedType, const std::string& actualType);
-            void throwArgError(State* state, int argIndex, const std::string& message);
-            std::string formatError(const std::string& functionName, const std::string& message);
+            void throwError(State* state, const Str& message, int level = 1);
+            void throwTypeError(State* state, int argIndex, const Str& expectedType, const Str& actualType);
+            void throwArgError(State* state, int argIndex, const Str& message);
+            Str formatError(const Str& functionName, const Str& message);
         }
     }
 }
