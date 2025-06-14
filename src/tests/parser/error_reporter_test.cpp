@@ -290,7 +290,7 @@ void ErrorReporterTest::testJsonOutput() {
     // Test required JSON fields
     assert(json.find("\"errors\"") != std::string::npos);
     assert(json.find("\"count\"") != std::string::npos);
-    // assert(json.find("\"summary\"") != std::string::npos); // summary字段不存在，已移除
+    // assert(json.find("\"summary\"") != std::string::npos); // summary field does not exist, removed
     
     // Test error data serialization
     assert(json.find("\"type\"") != std::string::npos);

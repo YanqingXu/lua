@@ -13,52 +13,52 @@ void ParserTestSuite::runAllTests() {
     std::cout << std::string(60, '=') << std::endl;
     
     try {
-        // 1. Basic Parser Tests (基础解析测试)
+        // 1. Basic Parser Tests
         printSectionHeader("Basic Parser Tests");
         ParserTest::runAllTests();
         printSectionFooter();
         
-        // 2. Function Definition Tests (函数定义测试)
+        // 2. Function Definition Tests
         printSectionHeader("Function Definition Tests");
         FunctionTest::runAllTests();
         printSectionFooter();
         
-        // 3. If Statement Tests (条件语句测试)
+        // 3. If Statement Tests
         printSectionHeader("If Statement Tests");
         IfStatementTest::runAllTests();
         printSectionFooter();
         
-        // 4. For-In Loop Tests (for-in 循环测试)
+        // 4. For-In Loop Tests
         printSectionHeader("For-In Loop Tests");
         ForInTest::runAllTests();
         printSectionFooter();
         
-        // 5. Repeat-Until Loop Tests (repeat-until 循环测试)
+        // 5. Repeat-Until Loop Tests
         printSectionHeader("Repeat-Until Loop Tests");
         RepeatTest::runAllTests();
         printSectionFooter();
         
-        // 6. Source Location Tests (源码位置测试)
+        // 6. Source Location Tests
         printSectionHeader("Source Location Tests");
         SourceLocationTest::runAllTests();
         printSectionFooter();
         
-        // 7. Parse Error Tests (解析错误测试)
+        // 7. Parse Error Tests
         printSectionHeader("Parse Error Tests");
         ParseErrorTest::runAllTests();
         printSectionFooter();
 
-		// 8. Error Reporter Tests (错误报告器测试)
+		// 8. Error Reporter Tests
 		printSectionHeader("Error Reporter Tests");
 		ErrorReporterTest::runAllTests();
 		printSectionFooter();
 		
-		// 9. Enhanced Parser Error Tests (增强解析错误测试)
+		// 9. Enhanced Parser Error Tests
 		printSectionHeader("Enhanced Parser Error Tests");
 		EnhancedParserErrorTest::runAllTests();
 		printSectionFooter();
         
-        // 总结
+        // Summary
         std::cout << "\n" << std::string(60, '=') << std::endl;
         std::cout << "    [OK] ALL PARSER TESTS COMPLETED SUCCESSFULLY" << std::endl;
         std::cout << std::string(60, '=') << std::endl;

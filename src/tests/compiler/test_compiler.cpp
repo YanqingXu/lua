@@ -43,7 +43,7 @@ void CompilerTest::runAllTests() {
         ConditionalCompilationTest::runAllTests();
         printSectionFooter();
         
-        // 总结
+        // Summary
         std::cout << "\n" << std::string(60, '=') << std::endl;
         std::cout << "    [OK] ALL COMPILER TESTS COMPLETED SUCCESSFULLY" << std::endl;
         std::cout << std::string(60, '=') << std::endl;

@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "ast_base.hpp"
 #include "expressions.hpp"
@@ -133,7 +133,7 @@ namespace Lua {
     // Return statement
     class ReturnStmt : public Stmt {
     private:
-        UPtr<Expr> value; // 可选的返回值
+        UPtr<Expr> value; // Optional return value
 
     public:
         ReturnStmt(UPtr<Expr> value = nullptr, const SourceLocation& location = SourceLocation())

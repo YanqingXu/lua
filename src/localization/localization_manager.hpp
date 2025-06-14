@@ -8,28 +8,28 @@
 #pragma warning(disable: 4566)
 
 namespace Lua {
-    // 支持的语言枚举
+    // Supported language enumeration
     enum class Language {
-        English,    // 英语
-        Chinese,    // 中文
-        Japanese,   // 日语
-        Korean,     // 韩语
-        French,     // 法语
-        German,     // 德语
-        Spanish,    // 西班牙语
-        Russian     // 俄语
+        English,    // English
+        Chinese,    // Chinese
+        Japanese,   // Japanese
+        Korean,     // Korean
+        French,     // French
+        German,     // German
+        Spanish,    // Spanish
+        Russian     // Russian
     };
     
-    // 消息类别枚举
+    // Message category enumeration
     enum class MessageCategory {
-        ErrorType,      // 错误类型
-        ErrorMessage,   // 错误消息
-        Severity,       // 严重程度
-        FixSuggestion,  // 修复建议
-        General         // 通用消息
+        ErrorType,      // Error type
+        ErrorMessage,   // Error message
+        Severity,       // Severity level
+        FixSuggestion,  // Fix suggestion
+        General         // General message
     };
     
-    // 消息键结构体
+    // Message key structure
     struct MessageKey {
         MessageCategory category;
         Str key;
@@ -41,7 +41,7 @@ namespace Lua {
         }
     };
     
-    // 消息键的哈希函数
+    // Hash function for message key
     struct MessageKeyHash {
         size_t operator()(const MessageKey& mk) const {
             return std::hash<int>()(static_cast<int>(mk.category)) ^ 
@@ -49,7 +49,7 @@ namespace Lua {
         }
     };
     
-    // 消息目录类 - 存储特定语言的所有消息
+    // Message catalog class - stores all messages for a specific language
     class MessageCatalog {
     private:
         Language language_;
@@ -58,52 +58,52 @@ namespace Lua {
     public:
         explicit MessageCatalog(Language lang) : language_(lang) {}
         
-        // 添加消息
+        // Add message
         void addMessage(MessageCategory category, const Str& key, const Str& message) {
             messages_[MessageKey(category, key)] = message;
         }
         
-        // 获取消息
+        // Get message
         Str getMessage(MessageCategory category, const Str& key) const {
             auto it = messages_.find(MessageKey(category, key));
-            return (it != messages_.end()) ? it->second : key; // 如果找不到，返回键本身
+            return (it != messages_.end()) ? it->second : key; // If not found, return the key itself
         }
         
-        // 检查是否包含消息
+        // Check if message exists
         bool hasMessage(MessageCategory category, const Str& key) const {
             return messages_.find(MessageKey(category, key)) != messages_.end();
         }
         
-        // 获取语言
+        // Get language
         Language getLanguage() const { return language_; }
         
-        // 获取消息数量
+        // Get message count
         size_t getMessageCount() const { return messages_.size(); }
     };
     
-    // 本地化管理器类 - 单例模式
+    // Localization manager class - singleton pattern
     class LocalizationManager {
     private:
         static std::unique_ptr<LocalizationManager> instance_;
         Language currentLanguage_;
         std::unordered_map<Language, std::unique_ptr<MessageCatalog>> catalogs_;
         
-        // 私有构造函数
+        // Private constructor
         LocalizationManager() : currentLanguage_(Language::English) {
             initializeDefaultCatalogs();
         }
         
-        // 初始化默认消息目录
+        // Initialize default message catalogs
         void initializeDefaultCatalogs();
         
-        // 初始化英文消息
+        // Initialize English messages
         void initializeEnglishMessages(MessageCatalog& catalog);
         
-        // 初始化中文消息
+        // Initialize Chinese messages
         void initializeChineseMessages(MessageCatalog& catalog);
         
     public:
-        // 获取单例实例
+        // Get singleton instance
         static LocalizationManager& getInstance() {
             if (!instance_) {
                 instance_ = std::unique_ptr<LocalizationManager>(new LocalizationManager());
@@ -111,52 +111,52 @@ namespace Lua {
             return *instance_;
         }
         
-        // 禁用拷贝构造和赋值
+        // Disable copy constructor and assignment
         LocalizationManager(const LocalizationManager&) = delete;
         LocalizationManager& operator=(const LocalizationManager&) = delete;
         
-        // 设置当前语言
+        // Set current language
         void setLanguage(Language language) {
             if (catalogs_.find(language) != catalogs_.end()) {
                 currentLanguage_ = language;
             }
         }
         
-        // 获取当前语言
+        // Get current language
         Language getCurrentLanguage() const { return currentLanguage_; }
         
-        // 获取本地化消息
+        // Get localized message
         Str getMessage(MessageCategory category, const Str& key) const {
             auto it = catalogs_.find(currentLanguage_);
             if (it != catalogs_.end()) {
                 return it->second->getMessage(category, key);
             }
-            // 如果当前语言不可用，回退到英语
+            // If current language is not available, fallback to English
             auto englishIt = catalogs_.find(Language::English);
             if (englishIt != catalogs_.end()) {
                 return englishIt->second->getMessage(category, key);
             }
-            return key; // 最后回退到键本身
+            return key; // Final fallback to the key itself
         }
         
-        // 获取格式化消息（支持参数替换）
+        // Get formatted message (supports parameter substitution)
         Str getFormattedMessage(MessageCategory category, const Str& key, 
                                const std::vector<Str>& args) const {
             Str message = getMessage(category, key);
             return formatMessage(message, args);
         }
         
-        // 添加自定义消息目录
+        // Add custom message catalog
         void addCatalog(Language language, std::unique_ptr<MessageCatalog> catalog) {
             catalogs_[language] = std::move(catalog);
         }
         
-        // 检查语言是否支持
+        // Check if language is supported
         bool isLanguageSupported(Language language) const {
             return catalogs_.find(language) != catalogs_.end();
         }
         
-        // 获取支持的语言列表
+        // Get list of supported languages
         std::vector<Language> getSupportedLanguages() const {
             std::vector<Language> languages;
             for (const auto& pair : catalogs_) {
@@ -165,7 +165,7 @@ namespace Lua {
             return languages;
         }
         
-        // 语言枚举转字符串
+        // Convert language enum to string
         static Str languageToString(Language language) {
             switch (language) {
                 case Language::English: return "English";
@@ -180,7 +180,7 @@ namespace Lua {
             }
         }
         
-        // 字符串转语言枚举
+        // Convert string to language enum
         static Language stringToLanguage(const Str& languageStr) {
             if (languageStr == "Chinese" || languageStr == "zh" || languageStr == "中文") {
                 return Language::Chinese;
@@ -197,11 +197,11 @@ namespace Lua {
             } else if (languageStr == "Russian" || languageStr == "ru" || languageStr == "Русский") {
                 return Language::Russian;
             }
-            return Language::English; // 默认英语
+            return Language::English; // Default to English
         }
         
     private:
-        // 格式化消息（替换占位符）
+        // Format message (replace placeholders)
         Str formatMessage(const Str& message, const std::vector<Str>& args) const {
             Str result = message;
             for (size_t i = 0; i < args.size(); ++i) {
@@ -215,7 +215,7 @@ namespace Lua {
         }
     };
     
-    // 便捷函数
+    // Convenience functions
     inline Str getLocalizedMessage(MessageCategory category, const Str& key) {
         return LocalizationManager::getInstance().getMessage(category, key);
     }

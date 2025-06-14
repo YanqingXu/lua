@@ -1,4 +1,4 @@
-﻿#include "test_lib.hpp"
+#include "test_lib.hpp"
 #include "table_lib_test.hpp"
 #include "../../lib/lib_init.hpp"
 #include <iostream>
@@ -31,7 +31,7 @@ void LibTestSuite::runAllTests() {
         // MathLibTest::runAllTests();
         // printSectionFooter();
         
-        // 总结
+        // Summary
         std::cout << "\n" << std::string(60, '=') << std::endl;
         std::cout << "    [OK] ALL LIBRARY TESTS COMPLETED SUCCESSFULLY" << std::endl;
         std::cout << std::string(60, '=') << std::endl;

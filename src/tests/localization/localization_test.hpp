@@ -8,26 +8,26 @@ namespace Lua {
 namespace Tests {
 
 /**
- * @brief 本地化管理器测试类
+ * @brief Localization manager test class
  * 
- * 测试本地化管理器的各种功能，包括：
- * - 基本消息获取
- * - 语言切换
- * - 消息格式化
- * - 错误处理
- * - 语言支持检查
+ * Tests various functionalities of the localization manager, including:
+ * - Basic message retrieval
+ * - Language switching
+ * - Message formatting
+ * - Error handling
+ * - Language support checking
  */
 class LocalizationTest {
 public:
     /**
-     * @brief 运行所有测试
+     * @brief Run all tests
      * 
-     * 执行这个测试类中的所有测试用例
+     * Execute all test cases in this test class
      */
     static void runAllTests();
     
 private:
-    // 私有测试方法
+    // Private test methods
     static void testBasicLocalization();
     static void testLanguageSwitching();
     static void testMessageFormatting();
@@ -37,7 +37,7 @@ private:
     static void testStringToLanguageConversion();
     static void testLanguageToStringConversion();
     
-    // 辅助方法
+    // Helper methods
     static void printTestResult(const std::string& testName, bool passed);
     static void resetToDefaultLanguage();
 };

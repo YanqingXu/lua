@@ -25,7 +25,7 @@ void GCTest::runAllTests() {
             std::cout << "[WARNING]  Warning: Some GC integration tests failed" << std::endl;
         }        printSectionFooter();
         
-        // 总结
+        // Summary
         std::cout << "\n" << std::string(60, '=') << std::endl;
         std::cout << "    [OK] ALL GC TESTS COMPLETED SUCCESSFULLY" << std::endl;
         std::cout << std::string(60, '=') << std::endl;

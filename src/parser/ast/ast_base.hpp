@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "../../common/types.hpp"
 #include "../../vm/value.hpp"
@@ -37,17 +37,17 @@ namespace Lua {
     // Expression base class
     class Expr {
     protected:
-        SourceLocation location_;  // 源码位置信息
+        SourceLocation location_;  // Source location information
         
     public:
         virtual ~Expr() = default;
         virtual ExprType getType() const = 0;
         
-        // 位置信息相关方法
+        // Location information related methods
         const SourceLocation& getLocation() const { return location_; }
         void setLocation(const SourceLocation& location) { location_ = location; }
         
-        // 便利构造函数
+        // Convenience constructor
         explicit Expr(const SourceLocation& location = SourceLocation()) 
             : location_(location) {}
     };
@@ -55,17 +55,17 @@ namespace Lua {
     // Statement base class
     class Stmt {
     protected:
-        SourceLocation location_;  // 源码位置信息
+        SourceLocation location_;  // Source location information
         
     public:
         virtual ~Stmt() = default;
         virtual StmtType getType() const = 0;
         
-        // 位置信息相关方法
+        // Location information related methods
         const SourceLocation& getLocation() const { return location_; }
         void setLocation(const SourceLocation& location) { location_ = location; }
         
-        // 便利构造函数
+        // Convenience constructor
         explicit Stmt(const SourceLocation& location = SourceLocation()) 
             : location_(location) {}
     };
