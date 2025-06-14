@@ -276,6 +276,12 @@
     <ClCompile Include="src\lib\table_lib.cpp">
       <Filter>lib</Filter>
     </ClCompile>
+    <ClCompile Include="src\lib\string_lib.cpp">
+      <Filter>lib</Filter>
+    </ClCompile>
+    <ClCompile Include="src\tests\lib\string_lib_test.cpp">
+      <Filter>tests\lib</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\compiler\compiler.hpp">
@@ -496,6 +502,12 @@
     </ClInclude>
     <ClInclude Include="src\lib\type_conversion.hpp">
       <Filter>lib</Filter>
+    </ClInclude>
+    <ClInclude Include="src\lib\string_lib.hpp">
+      <Filter>lib</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tests\lib\string_lib_test.hpp">
+      <Filter>tests\lib</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

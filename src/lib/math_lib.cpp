@@ -310,8 +310,8 @@ namespace Lua {
     Value MathLib::minFunc(State* state, i32 nargs) {
         ErrorUtils::checkArgCount(nargs, 1, "min");
         
-        f64 result = TypeConverter::toF64(state->get(0), "min");
-        for (i32 i = 1; i < nargs; ++i) {
+        f64 result = TypeConverter::toF64(state->get(1), "min");
+        for (i32 i = 2; i <= nargs; ++i) {
             f64 value = TypeConverter::toF64(state->get(i), "min");
             result = std::min(result, value);
         }
@@ -321,8 +321,8 @@ namespace Lua {
     Value MathLib::maxFunc(State* state, i32 nargs) {
         ErrorUtils::checkArgCount(nargs, 1, "max");
         
-        f64 result = TypeConverter::toF64(state->get(0), "max");
-        for (i32 i = 1; i < nargs; ++i) {
+        f64 result = TypeConverter::toF64(state->get(1), "max");
+        for (i32 i = 2; i <= nargs; ++i) {
             f64 value = TypeConverter::toF64(state->get(i), "max");
             result = std::max(result, value);
         }

@@ -160,6 +160,7 @@
     <ClInclude Include="src\lib\lib_manager.hpp" />
     <ClInclude Include="src\lib\lib_module.hpp" />
     <ClInclude Include="src\lib\math_lib.hpp" />
+    <ClInclude Include="src\lib\string_lib.hpp" />
     <ClInclude Include="src\lib\table_lib.hpp" />
     <ClInclude Include="src\lib\type_conversion.hpp" />
     <ClInclude Include="src\localization\localization_manager.hpp" />
@@ -183,6 +184,7 @@
     <ClInclude Include="src\tests\lexer\lexer_test.hpp" />
     <ClInclude Include="src\tests\lib\base_lib_test.hpp" />
     <ClInclude Include="src\tests\lib\math_lib_test.hpp" />
+    <ClInclude Include="src\tests\lib\string_lib_test.hpp" />
     <ClInclude Include="src\tests\lib\table_lib_test.hpp" />
     <ClInclude Include="src\tests\lib\test_lib.hpp" />
     <ClInclude Include="src\tests\localization\localization_test.hpp" />
@@ -230,6 +232,7 @@
     <ClCompile Include="src\lib\lib_manager.cpp" />
     <ClCompile Include="src\lib\lib_module.cpp" />
     <ClCompile Include="src\lib\math_lib.cpp" />
+    <ClCompile Include="src\lib\string_lib.cpp" />
     <ClCompile Include="src\lib\table_lib.cpp" />
     <ClCompile Include="src\localization\localization_manager.cpp" />
     <ClCompile Include="src\main.cpp" />
@@ -251,6 +254,7 @@
     <ClCompile Include="src\tests\lexer\lexer_test.cpp" />
     <ClCompile Include="src\tests\lib\base_lib_test.cpp" />
     <ClCompile Include="src\tests\lib\math_lib_test.cpp" />
+    <ClCompile Include="src\tests\lib\string_lib_test.cpp" />
     <ClCompile Include="src\tests\lib\table_lib_test.cpp" />
     <ClCompile Include="src\tests\lib\test_lib.cpp" />
     <ClCompile Include="src\tests\localization\localization_test.cpp" />

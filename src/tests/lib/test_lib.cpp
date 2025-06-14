@@ -2,6 +2,7 @@
 #include "table_lib_test.hpp"
 #include "base_lib_test.hpp"
 #include "math_lib_test.hpp"
+#include "string_lib_test.hpp"
 #include <iostream>
 
 namespace Lua {
@@ -28,7 +29,7 @@ void LibTestSuite::runAllTests() {
         
         // TODO: Add other library tests here
         // StringLibTest stringTest;
-        // stringTest.runAllTests();
+        StringLibTest::runAllTests();
         
         // IOLibTest ioTest;
         // ioTest.runAllTests();

@@ -51,6 +51,10 @@ namespace Lua {
         // Get stack size
         int getTop() const { return top; }
         
+        // Set stack size (for clearing stack)
+        void setTop(int newTop) { top = newTop; }
+        void clearStack() { top = 0; }
+        
         // Call function
         Value call(const Value& func, const Vec<Value>& args);
         
