@@ -164,6 +164,7 @@
     <ClInclude Include="src\lib\table_lib.hpp" />
     <ClInclude Include="src\parser\ast\ast_base.hpp" />
     <ClInclude Include="src\parser\ast\expressions.hpp" />
+    <ClInclude Include="src\parser\ast\parse_error.hpp" />
     <ClInclude Include="src\parser\ast\source_location.hpp" />
     <ClInclude Include="src\parser\ast\statements.hpp" />
     <ClInclude Include="src\parser\parser.hpp" />
@@ -183,6 +184,7 @@
     <ClInclude Include="src\tests\parser\function_test.hpp" />
     <ClInclude Include="src\tests\parser\if_statement_test.hpp" />
     <ClInclude Include="src\tests\parser\parser_test.hpp" />
+    <ClInclude Include="src\tests\parser\parse_error_test.hpp" />
     <ClInclude Include="src\tests\parser\repeat_test.hpp" />
     <ClInclude Include="src\tests\parser\source_location_test.hpp" />
     <ClInclude Include="src\tests\parser\test_parser.hpp" />
@@ -242,6 +244,7 @@
     <ClCompile Include="src\tests\parser\function_test.cpp" />
     <ClCompile Include="src\tests\parser\if_statement_test.cpp" />
     <ClCompile Include="src\tests\parser\parser_test.cpp" />
+    <ClCompile Include="src\tests\parser\parse_error_test.cpp" />
     <ClCompile Include="src\tests\parser\repeat_test.cpp" />
     <ClCompile Include="src\tests\parser\source_location_test.cpp" />
     <ClCompile Include="src\tests\parser\test_parser.cpp" />

@@ -7,6 +7,7 @@
 #include "repeat_test.hpp"
 #include "if_statement_test.hpp"
 #include "source_location_test.hpp"
+#include "parse_error_test.hpp"
 
 namespace Lua {
 namespace Tests {

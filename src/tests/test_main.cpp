@@ -20,11 +20,7 @@ void runAllTests() {
         // VMTestSuite::runAllTests();
         
         // Run all parser tests (unified)
-        // ParserTestSuite::runAllTests();
-        
-        // Run SourceLocation tests only
-        std::cout << "Running SourceLocation tests..." << std::endl;
-        SourceLocationTest::runAllTests();
+        ParserTestSuite::runAllTests();
         
         // Run all compiler tests (unified)
         // CompilerTest::runAllTests();
@@ -48,6 +44,6 @@ void runAllTests() {
 } // namespace Lua
 
 //int main() {
-//    Lua::Tests::runAllTests();
-//    return 0;
+//   Lua::Tests::runAllTests();
+//   return 0;
 //}

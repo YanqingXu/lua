@@ -43,6 +43,11 @@ void ParserTestSuite::runAllTests() {
         SourceLocationTest::runAllTests();
         printSectionFooter();
         
+        // 7. Parse Error Tests (解析错误测试)
+        printSectionHeader("Parse Error Tests");
+        ParseErrorTest::runAllTests();
+        printSectionFooter();
+        
         // 总结
         std::cout << "\n" << std::string(60, '=') << std::endl;
         std::cout << "    [OK] ALL PARSER TESTS COMPLETED SUCCESSFULLY" << std::endl;

@@ -58,9 +58,6 @@
     <Filter Include="gc\utils">
       <UniqueIdentifier>{d064a294-a3d4-4927-b472-e8e30e361b55}</UniqueIdentifier>
     </Filter>
-    <Filter Include="examples">
-      <UniqueIdentifier>{0884faa8-8638-47eb-9cbc-0038f94f98d6}</UniqueIdentifier>
-    </Filter>
     <Filter Include="tests\compiler">
       <UniqueIdentifier>{5874c9f0-8bd1-4787-9a83-167052eee2c6}</UniqueIdentifier>
     </Filter>
@@ -242,6 +239,9 @@
     </ClCompile>
     <ClCompile Include="src\parser\ast\source_location.cpp">
       <Filter>parser\ast</Filter>
+    </ClCompile>
+    <ClCompile Include="src\tests\parser\parse_error_test.cpp">
+      <Filter>tests\parser</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -432,6 +432,12 @@
       <Filter>tests\parser</Filter>
     </ClInclude>
     <ClInclude Include="src\parser\ast\source_location.hpp">
+      <Filter>parser\ast</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tests\parser\parse_error_test.hpp">
+      <Filter>tests\parser</Filter>
+    </ClInclude>
+    <ClInclude Include="src\parser\ast\parse_error.hpp">
       <Filter>parser\ast</Filter>
     </ClInclude>
   </ItemGroup>
