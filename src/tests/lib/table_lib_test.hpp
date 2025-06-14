@@ -1,4 +1,5 @@
-﻿#pragma once
+﻿#ifndef TABLE_LIB_TEST_HPP
+#define TABLE_LIB_TEST_HPP
 
 #include "../../common/types.hpp"
 #include <iostream>
@@ -8,39 +9,46 @@ namespace Lua {
 namespace Tests {
 
     /**
-     * @brief Table库测试类
+     * @brief Table library test class
      * 
-     * 测试Lua table库的所有功能，包括：
-     * - table.insert: 插入元素
-     * - table.remove: 移除元素
-     * - table.concat: 连接元素
-     * - table.sort: 排序
-     * - table.pack: 打包参数
-     * - table.unpack: 解包表
-     * - table.move: 移动元素
-     * - table.maxn: 最大索引
+     * Tests all Lua table library functions, including:
+     * - table.concat: Concatenate table elements
+     * - table.insert: Insert element into table
+     * - table.remove: Remove element from table
+     * - table.sort: Sort table elements
+     * - table.pack: Pack arguments into table
+     * - table.unpack: Unpack table elements
+     * - table.move: Move table elements
      */
     class TableLibTest {
     public:
-        static void runAllTests();
+        /**
+         * @brief Run all tests
+         * 
+         * Execute all test cases in this test class
+         */
+        void runAllTests();
         
     private:
         // Individual test methods
-        static void testInsert();
-        static void testRemove();
-        static void testConcat();
-        static void testSort();
-        static void testPack();
-        static void testUnpack();
-        static void testMove();
-        static void testMaxn();
+        void testConcat();
+        void testInsert();
+        void testRemove();
+        void testSort();
+        void testPack();
+        void testUnpack();
+        void testMove();
+        
+        // Error handling tests
+        void testErrorHandling();
         
         // Helper methods
-        static void printTestHeader(const std::string& testName);
-        static void printTestResult(const std::string& testName, bool passed);
-        static void printTestResult(const std::string& testName, bool passed, const std::exception& e);
-        static void assertTrue(bool condition, const std::string& message);
+        void printTestResult(const std::string& testName, bool passed);
+        void printSectionHeader(const std::string& sectionName);
+        void printSectionFooter();
     };
 
 } // namespace Tests
 } // namespace Lua
+
+#endif // TABLE_LIB_TEST_HPP

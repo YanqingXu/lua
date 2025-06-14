@@ -1,8 +1,6 @@
 ﻿#pragma once
 
 #include "../../common/types.hpp"
-#include <iostream>
-#include <string>
 
 namespace Lua {
 namespace Tests {

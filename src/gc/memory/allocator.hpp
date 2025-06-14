@@ -6,6 +6,13 @@
 #include <mutex>
 #include <array>
 #include <cassert>
+#include <cstdlib>
+
+// Define custom assert to avoid macro conflicts
+#ifdef assert
+#undef assert
+#endif
+#define lua_assert(expr) ((void)((expr) || (std::abort(), 0)))
 
 namespace Lua {
     // Forward declarations
@@ -53,8 +60,8 @@ namespace Lua {
             : objectSize(objSize), chunkSize(std::max(chunkSz, objSize))
             , objectsPerChunk(std::max(chunkSz, objSize) / objSize), freeList(nullptr)
             , totalObjects(0), freeObjects(0) {
-            assert(objSize >= sizeof(MemoryBlockHeader));
-            assert(this->chunkSize >= objSize);
+            lua_assert(objSize >= sizeof(MemoryBlockHeader));
+        lua_assert(this->chunkSize >= objSize);
         }
         
         ~ObjectPool() {

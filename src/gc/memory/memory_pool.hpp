@@ -9,6 +9,16 @@
 #include <cstdlib>
 #include <cstring>
 #include <algorithm>
+#include <memory>
+#include <vector>
+#include <cstddef>
+#include <type_traits>
+
+// Define custom assert to avoid macro conflicts
+#ifdef assert
+#undef assert
+#endif
+#define lua_assert(expr) ((void)((expr) || (std::abort(), 0)))
 
 namespace Lua {
     // Forward declarations
@@ -34,7 +44,7 @@ namespace Lua {
             : memory(nullptr), size(chunkSize), objectSize(objSize)
             , objectCount(chunkSize / objSize), freeCount(0)
             , freeList(nullptr), next(nullptr) {
-            assert(objSize > 0 && chunkSize >= objSize);
+            lua_assert(objSize > 0 && chunkSize >= objSize);
         }
         
         ~MemoryChunk() {
@@ -95,8 +105,8 @@ namespace Lua {
             , chunks(nullptr), currentChunk(nullptr), totalChunks(0)
             , totalObjects(0), freeObjects(0), allocCount(0)
             , deallocCount(0), chunkAllocCount(0) {
-            assert(objSize > 0);
-            assert(chunkSz >= objSize);
+            lua_assert(objSize > 0);
+            lua_assert(chunkSz >= objSize);
         }
         
         ~FixedSizePool() {

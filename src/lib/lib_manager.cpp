@@ -1,161 +1,172 @@
-#include "lib_manager.hpp"
-#include "lib_utils.hpp"
-#include <iostream>
-#include <algorithm>
+﻿#include "lib_manager.hpp"
+#include "../vm/state.hpp"
+#include "../vm/value.hpp"
 
 namespace Lua {
     
-    // Implementation is mostly in header due to template nature
-    // This file can contain additional utility functions if needed
+    // LibManager 类的实现
     
-    namespace LibManagerUtils {
-        
-        // Validate library name
-        bool isValidLibraryName(const std::string& name) {
-            if (name.empty()) return false;
-            
-            // Check for valid characters (alphanumeric and underscore)
-            return std::all_of(name.begin(), name.end(), [](char c) {
-                return std::isalnum(c) || c == '_';
-            });
+    LibManager::LibManager(UPtr<FunctionRegistry> registry)
+        : registry_(registry ? std::move(registry) : std::make_unique<FunctionRegistry>()) {}
+    
+    void LibManager::registerModule(UPtr<LibModule> module) {
+        if (!module) {
+            throw LuaException("Module cannot be null");
         }
         
-        // Get library priority for loading order
-        int getLibraryPriority(const std::string& name) {
-            // Define loading order priorities
-            static const std::unordered_map<std::string, int> priorities = {
-                {"base", 1},     // Load base library first
-                {"string", 2},  // String library
-                {"table", 3},   // Table library
-                {"math", 4},    // Math library
-                {"io", 5},      // IO library
-                {"os", 6},      // OS library
-                {"debug", 7},   // Debug library
-                {"coroutine", 8}, // Coroutine library
-                {"package", 9}  // Package library
-            };
-            
-            auto it = priorities.find(name);
-            return (it != priorities.end()) ? it->second : 100; // Unknown libraries get low priority
-        }
-        
-        // Sort libraries by priority
-        std::vector<std::string> sortLibrariesByPriority(const std::vector<std::string>& libraries) {
-            std::vector<std::string> sorted = libraries;
-            
-            std::sort(sorted.begin(), sorted.end(), [](const std::string& a, const std::string& b) {
-                return getLibraryPriority(a) < getLibraryPriority(b);
-            });
-            
-            return sorted;
-        }
+        auto name = Str(module->getName());
+        modules_[name] = std::move(module);
     }
     
-    // Extended LibManager functionality
-    namespace LibManagerExtensions {
+    void LibManager::registerModuleFactory(UPtr<ModuleFactory> factory) {
+        if (!factory) {
+            throw LuaException("Factory cannot be null");
+        }
         
-        // Load libraries in dependency order
-        bool loadLibrariesInOrder(State* state, const std::vector<std::string>& libraries) {
-            auto sorted_libs = LibManagerUtils::sortLibrariesByPriority(libraries);
-            
-            for (const std::string& lib : sorted_libs) {
-                if (!LibManager::getInstance().loadLibrary(state, lib)) {
-                    std::cerr << "Failed to load library: " << lib << std::endl;
-                    return false;
-                }
-            }
-            
+        auto name = Str(factory->getModuleName());
+        factories_[name] = std::move(factory);
+    }
+    
+    bool LibManager::loadModule(StrView name, State* state) {
+        auto nameStr = Str(name);
+        
+        // 检查是否已加载
+        if (loadedModules_.find(nameStr) != loadedModules_.end()) {
             return true;
         }
         
-        // Get library dependencies (placeholder for future implementation)
-        std::vector<std::string> getLibraryDependencies(const std::string& library) {
-            // For now, return empty dependencies
-            // In the future, this could be extended to handle complex dependencies
-            static const std::unordered_map<std::string, std::vector<std::string>> dependencies = {
-                {"io", {"base"}},
-                {"os", {"base"}},
-                {"debug", {"base"}},
-                {"coroutine", {"base"}},
-                {"package", {"base", "string"}}
-            };
-            
-            auto it = dependencies.find(library);
-            return (it != dependencies.end()) ? it->second : std::vector<std::string>{};
+        // 尝试从已注册模块加载
+        auto moduleIt = modules_.find(nameStr);
+        if (moduleIt != modules_.end()) {
+            moduleIt->second->registerFunctions(*registry_);
+            moduleIt->second->initialize(state);
+            loadedModules_.insert(nameStr);
+            return true;
         }
         
-        // Load library with dependencies
-        bool loadLibraryWithDependencies(State* state, const std::string& library) {
-            // Load dependencies first
-            auto deps = getLibraryDependencies(library);
-            for (const std::string& dep : deps) {
-                if (!LibManager::getInstance().loadLibrary(state, dep)) {
-                    std::cerr << "Failed to load dependency: " << dep << " for library: " << library << std::endl;
-                    return false;
-                }
+        // 尝试从工厂创建并加载
+        auto factoryIt = factories_.find(nameStr);
+        if (factoryIt != factories_.end()) {
+            auto module = factoryIt->second->createModule();
+            module->registerFunctions(*registry_);
+            module->initialize(state);
+            
+            // 保存模块实例
+            modules_[nameStr] = std::move(module);
+            loadedModules_.insert(nameStr);
+            return true;
+        }
+        
+        return false; // 模块未找到
+    }
+    
+    void LibManager::loadAllModules(State* state) {
+        // 加载直接注册的模块
+        for (const auto& [name, module] : modules_) {
+            loadModule(name, state);
+        }
+        
+        // 加载工厂模块
+        for (const auto& [name, factory] : factories_) {
+            loadModule(name, state);
+        }
+    }
+    
+    bool LibManager::unloadModule(StrView name, State* state) {
+        auto nameStr = Str(name);
+        
+        auto it = loadedModules_.find(nameStr);
+        if (it == loadedModules_.end()) {
+            return false; // 模块未加载
+        }
+        
+        // 调用清理钩子
+        auto moduleIt = modules_.find(nameStr);
+        if (moduleIt != modules_.end()) {
+            moduleIt->second->cleanup(state);
+        }
+        
+        // 从已加载列表中移除
+        loadedModules_.erase(it);
+        
+        // TODO: 从函数注册表中移除该模块的函数
+        // 这需要FunctionRegistry支持按模块移除函数
+        
+        return true;
+    }
+    
+    bool LibManager::isModuleLoaded(StrView name) const noexcept {
+        return loadedModules_.find(Str(name)) != loadedModules_.end();
+    }
+    
+    Vec<Str> LibManager::getLoadedModules() const {
+        Vec<Str> result;
+        result.reserve(loadedModules_.size());
+        for (const auto& name : loadedModules_) {
+            result.push_back(name);
+        }
+        return result;
+    }
+    
+    Value LibManager::callFunction(StrView name, State* state, i32 nargs) const {
+        return registry_->callFunction(name, state, nargs);
+    }
+    
+    bool LibManager::hasFunction(StrView name) const noexcept {
+        return registry_->hasFunction(name);
+    }
+    
+    FunctionRegistry& LibManager::getRegistry() {
+        return *registry_;
+    }
+    
+    const FunctionRegistry& LibManager::getRegistry() const {
+        return *registry_;
+    }
+    
+    void LibManager::clear(State* state) {
+        if (state) {
+            for (const auto& [name, module] : modules_) {
+                module->cleanup(state);
             }
-            
-            // Load the library itself
-            return LibManager::getInstance().loadLibrary(state, library);
+        }
+        modules_.clear();
+        factories_.clear();
+        loadedModules_.clear();
+        registry_->clear();
+    }
+    
+    LibManager::LibManagerStats LibManager::getStats() const {
+        LibManagerStats stats;
+        stats.totalModules = modules_.size() + factories_.size();
+        stats.loadedModules = loadedModules_.size();
+        stats.totalFunctions = registry_->size();
+        
+        // 收集模块名称
+        for (const auto& [name, _] : modules_) {
+            stats.moduleNames.push_back(name);
+        }
+        for (const auto& [name, _] : factories_) {
+            stats.moduleNames.push_back(name);
         }
         
-        // Validate library compatibility
-        bool validateLibraryCompatibility(const std::string& library) {
-            // Placeholder for compatibility checks
-            // Could check version compatibility, platform support, etc.
-            return LibManagerUtils::isValidLibraryName(library);
-        }
+        return stats;
+    }
+    
+    // 便利函数的实现
+    
+    UPtr<LibManager> createStandardLibManager() {
+        auto manager = make_unique<LibManager>();
         
-        // Get library statistics
-        struct LibraryStats {
-            size_t total_registered;
-            size_t total_loaded;
-            std::vector<std::string> failed_loads;
-        };
+        // 这里可以注册标准库模块
+        // manager->registerModule(make_unique<BaseLib>());
+        // manager->registerModule(make_unique<StringLib>());
+        // manager->registerModule(make_unique<TableLib>());
         
-        LibraryStats getLibraryStats() {
-            LibraryStats stats;
-            
-            auto& manager = LibManager::getInstance();
-            auto registered = manager.getRegisteredLibraries();
-            auto loaded = manager.getLoadedLibraries();
-            
-            stats.total_registered = registered.size();
-            stats.total_loaded = loaded.size();
-            
-            // Find failed loads (registered but not loaded)
-            for (const std::string& lib : registered) {
-                if (std::find(loaded.begin(), loaded.end(), lib) == loaded.end()) {
-                    stats.failed_loads.push_back(lib);
-                }
-            }
-            
-            return stats;
-        }
-        
-        // Print library status
-        void printLibraryStatus() {
-            auto stats = getLibraryStats();
-            auto info = LibManager::getInstance().getLibraryInfo();
-            
-            std::cout << "=== Library Status ===" << std::endl;
-            std::cout << "Total Registered: " << stats.total_registered << std::endl;
-            std::cout << "Total Loaded: " << stats.total_loaded << std::endl;
-            
-            if (!stats.failed_loads.empty()) {
-                std::cout << "Failed Loads: ";
-                for (size_t i = 0; i < stats.failed_loads.size(); ++i) {
-                    if (i > 0) std::cout << ", ";
-                    std::cout << stats.failed_loads[i];
-                }
-                std::cout << std::endl;
-            }
-            
-            std::cout << "\n=== Library Details ===" << std::endl;
-            for (const auto& lib : info) {
-                std::cout << lib.name << " (v" << lib.version << ") - " 
-                         << (lib.loaded ? "LOADED" : "NOT LOADED") << std::endl;
-            }
-        }
+        return manager;
+    }
+    
+    void initStandardLibraries(State* state, LibManager& manager) {
+        manager.loadAllModules(state);
     }
 }

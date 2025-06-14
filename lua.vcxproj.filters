@@ -79,6 +79,9 @@
     <Filter Include="tests\localization">
       <UniqueIdentifier>{eb38306f-3d90-454e-93d1-da8cbb475289}</UniqueIdentifier>
     </Filter>
+    <Filter Include="tests\lib">
+      <UniqueIdentifier>{cb84f0b7-0ef8-481e-b6c4-c90905cd87bb}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\main.cpp">
@@ -222,24 +225,6 @@
     <ClCompile Include="src\tests\parser\test_parser.cpp">
       <Filter>tests\parser</Filter>
     </ClCompile>
-    <ClCompile Include="src\lib\base_lib.cpp">
-      <Filter>lib</Filter>
-    </ClCompile>
-    <ClCompile Include="src\lib\lib_init.cpp">
-      <Filter>lib</Filter>
-    </ClCompile>
-    <ClCompile Include="src\lib\lib_manager.cpp">
-      <Filter>lib</Filter>
-    </ClCompile>
-    <ClCompile Include="src\lib\lib_utils.cpp">
-      <Filter>lib</Filter>
-    </ClCompile>
-    <ClCompile Include="src\lib\string_lib.cpp">
-      <Filter>lib</Filter>
-    </ClCompile>
-    <ClCompile Include="src\lib\table_lib.cpp">
-      <Filter>lib</Filter>
-    </ClCompile>
     <ClCompile Include="src\tests\parser\source_location_test.cpp">
       <Filter>tests\parser</Filter>
     </ClCompile>
@@ -260,6 +245,36 @@
     </ClCompile>
     <ClCompile Include="src\tests\localization\localization_test.cpp">
       <Filter>tests\localization</Filter>
+    </ClCompile>
+    <ClCompile Include="src\lib\base_lib.cpp">
+      <Filter>lib</Filter>
+    </ClCompile>
+    <ClCompile Include="src\lib\error_handling.cpp">
+      <Filter>lib</Filter>
+    </ClCompile>
+    <ClCompile Include="src\lib\lib_manager.cpp">
+      <Filter>lib</Filter>
+    </ClCompile>
+    <ClCompile Include="src\lib\lib_module.cpp">
+      <Filter>lib</Filter>
+    </ClCompile>
+    <ClCompile Include="src\lib\math_lib.cpp">
+      <Filter>lib</Filter>
+    </ClCompile>
+    <ClCompile Include="src\tests\lib\base_lib_test.cpp">
+      <Filter>tests\lib</Filter>
+    </ClCompile>
+    <ClCompile Include="src\tests\lib\math_lib_test.cpp">
+      <Filter>tests\lib</Filter>
+    </ClCompile>
+    <ClCompile Include="src\tests\lib\table_lib_test.cpp">
+      <Filter>tests\lib</Filter>
+    </ClCompile>
+    <ClCompile Include="src\tests\lib\test_lib.cpp">
+      <Filter>tests\lib</Filter>
+    </ClCompile>
+    <ClCompile Include="src\lib\table_lib.cpp">
+      <Filter>lib</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -425,27 +440,6 @@
     <ClInclude Include="src\tests\parser\test_parser.hpp">
       <Filter>tests\parser</Filter>
     </ClInclude>
-    <ClInclude Include="src\lib\base_lib.hpp">
-      <Filter>lib</Filter>
-    </ClInclude>
-    <ClInclude Include="src\lib\lib_common.hpp">
-      <Filter>lib</Filter>
-    </ClInclude>
-    <ClInclude Include="src\lib\lib_init.hpp">
-      <Filter>lib</Filter>
-    </ClInclude>
-    <ClInclude Include="src\lib\lib_manager.hpp">
-      <Filter>lib</Filter>
-    </ClInclude>
-    <ClInclude Include="src\lib\lib_utils.hpp">
-      <Filter>lib</Filter>
-    </ClInclude>
-    <ClInclude Include="src\lib\string_lib.hpp">
-      <Filter>lib</Filter>
-    </ClInclude>
-    <ClInclude Include="src\lib\table_lib.hpp">
-      <Filter>lib</Filter>
-    </ClInclude>
     <ClInclude Include="src\tests\parser\source_location_test.hpp">
       <Filter>tests\parser</Filter>
     </ClInclude>
@@ -469,6 +463,39 @@
     </ClInclude>
     <ClInclude Include="src\tests\localization\localization_test.hpp">
       <Filter>tests\localization</Filter>
+    </ClInclude>
+    <ClInclude Include="src\lib\base_lib.hpp">
+      <Filter>lib</Filter>
+    </ClInclude>
+    <ClInclude Include="src\lib\error_handling.hpp">
+      <Filter>lib</Filter>
+    </ClInclude>
+    <ClInclude Include="src\lib\lib_manager.hpp">
+      <Filter>lib</Filter>
+    </ClInclude>
+    <ClInclude Include="src\lib\lib_module.hpp">
+      <Filter>lib</Filter>
+    </ClInclude>
+    <ClInclude Include="src\lib\math_lib.hpp">
+      <Filter>lib</Filter>
+    </ClInclude>
+    <ClInclude Include="src\lib\type_conversion.hpp">
+      <Filter>lib</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tests\lib\base_lib_test.hpp">
+      <Filter>tests\lib</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tests\lib\math_lib_test.hpp">
+      <Filter>tests\lib</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tests\lib\table_lib_test.hpp">
+      <Filter>tests\lib</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tests\lib\test_lib.hpp">
+      <Filter>tests\lib</Filter>
+    </ClInclude>
+    <ClInclude Include="src\lib\table_lib.hpp">
+      <Filter>lib</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

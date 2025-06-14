@@ -29,10 +29,10 @@ void runAllTests() {
         // GCTest::runAllTests();
         
         // Run all lib tests (unified)
-        // LibTestSuite::runAllTests();
+        LibTestSuite::runAllTests();
 
         // Run all localization tests (unified)
-        LocalizationTest::runAllTests();
+        // LocalizationTest::runAllTests();
         
         std::cout << "\n=== All Tests Completed ===" << std::endl;
         

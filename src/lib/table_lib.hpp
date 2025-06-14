@@ -1,65 +1,152 @@
-﻿#pragma once
+﻿#ifndef TABLE_LIB_HPP
+#define TABLE_LIB_HPP
 
+#include "lib_module.hpp"
+#include "error_handling.hpp"
+#include "type_conversion.hpp"
 #include "../common/types.hpp"
-#include "lib_common.hpp"
-#include "lib_utils.hpp"
+#include "../vm/state.hpp"
 #include "../vm/value.hpp"
 #include "../vm/table.hpp"
 #include <algorithm>
 #include <functional>
 
 namespace Lua {
-
-    // Forward declarations
-    class State;
-    class Function;
-
+    
     /**
-     * @brief Lua表库模块
-     * 
-     * 提供表操作相关的函数，包括：
-     * - table.insert: 向表中插入元素
-     * - table.remove: 从表中移除元素
-     * - table.concat: 连接表中的元素为字符串
-     * - table.sort: 对表进行排序
-     * - table.pack: 将参数打包成表
-     * - table.unpack: 将表解包为参数
-     * - table.move: 移动表中的元素
-     * - table.maxn: 获取表中最大数字索引
+     * Table库实现
+     * 提供Lua标准table操作函数
      */
     class TableLib : public LibModule {
     public:
-        // LibModule interface implementation
-        const Str& getName() const override { 
-            static const Str name = "table";
-            return name;
-        }
-        const Str& getVersion() const override { 
-            static const Str version = "1.0.0";
-            return version;
-        }
-        void registerModule(State* state) override;
+        /**
+         * 获取模块名称
+         */
+        StrView getName() const noexcept override;
         
-        // Table library functions
-        static Value insert(State* state, int nargs);
-        static Value remove(State* state, int nargs);
-        static Value concat(State* state, int nargs);
-        static Value sort(State* state, int nargs);
-        static Value pack(State* state, int nargs);
-        static Value unpack(State* state, int nargs);
-        static Value move(State* state, int nargs);
-        static Value maxn(State* state, int nargs);
+        /**
+         * 注册函数到注册表
+         */
+        void registerFunctions(FunctionRegistry& registry) override;
+        
+        /**
+         * 可选的初始化逻辑
+         */
+        void initialize(State* state) override;
+        
+    public:
+        // Table库函数实现
+        
+        /**
+         * table.concat(list [, sep [, start [, end]]])
+         * 连接表中的字符串元素
+         */
+        static Value concat(State* state, i32 nargs);
+        
+        /**
+         * table.insert(list, [pos,] value)
+         * 在表中插入元素
+         */
+        static Value insert(State* state, i32 nargs);
+        
+        /**
+         * table.remove(list [, pos])
+         * 从表中移除元素
+         */
+        static Value remove(State* state, i32 nargs);
+        
+        /**
+         * table.sort(list [, comp])
+         * 对表进行排序
+         */
+        static Value sort(State* state, i32 nargs);
+        
+        /**
+         * table.pack(...)
+         * 将参数打包成表
+         */
+        static Value pack(State* state, i32 nargs);
+        
+        /**
+         * table.unpack(list [, start [, end]])
+         * 解包表中的元素
+         */
+        static Value unpack(State* state, i32 nargs);
+        
+        /**
+         * table.move(a1, f, e, t [, a2])
+         * 移动表中的元素
+         */
+        static Value move(State* state, i32 nargs);
+        
+        /**
+         * table.getn(table)
+         * 获取表的长度（兼容性函数）
+         */
+        static Value getn(State* state, i32 nargs);
+        
+        /**
+         * table.setn(table, n)
+         * 设置表的长度（兼容性函数）
+         */
+        static Value setn(State* state, i32 nargs);
+        
+        /**
+         * table.maxn(table)
+         * 获取表中最大的数字索引
+         */
+        static Value maxn(State* state, i32 nargs);
+        
+        /**
+         * table.foreach(table, func)
+         * 遍历表中的所有元素（兼容性函数）
+         */
+        static Value foreach(State* state, i32 nargs);
+        
+        /**
+         * table.foreachi(table, func)
+         * 遍历表中的数组部分（兼容性函数）
+         */
+        static Value foreachi(State* state, i32 nargs);
         
     private:
-        // Helper functions
-        static int getTableLength(const Table& table);
-        static void quickSort(Table& table, int left, int right, const std::function<bool(const Value&, const Value&)>& compare);
-        static int partition(Table& table, int left, int right, const std::function<bool(const Value&, const Value&)>& compare);
+        // 辅助函数
+        
+        /**
+         * 获取表的有效长度
+         */
+        static i32 getTableLength(Table* table);
+        
+        /**
+         * 检查索引是否有效
+         */
+        static bool isValidIndex(i32 index, i32 length);
+        
+        /**
+         * 将表转换为字符串数组（用于concat）
+         */
+        static Vec<Str> tableToStringArray(Table* table, i32 start, i32 end);
+        
+        /**
+         * 默认比较函数（用于sort）
+         */
         static bool defaultCompare(const Value& a, const Value& b);
         
-        // Validation helpers
-        static bool isValidArrayIndex(const Value& index);
-        static int toArrayIndex(const Value& index);
+        /**
+         * 使用自定义比较函数进行排序
+         */
+        static void sortWithComparator(State* state, Table* table, Value comparator);
+        
+        /**
+         * 验证表参数
+         */
+        static Table* validateTableArg(State* state, i32 argIndex, StrView funcName);
     };
+    
+    /**
+     * 注册table库到状态
+     */
+    void registerTableLib(State* state);
+}
 
-} // namespace Lua
+#endif // TABLE_LIB_HPP

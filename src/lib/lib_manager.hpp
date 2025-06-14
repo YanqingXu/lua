@@ -1,206 +1,113 @@
-#pragma once
+﻿#pragma once
 
+#include "lib_module.hpp"
 #include "../common/types.hpp"
-#include "lib_common.hpp"
+#include "../vm/state.hpp"
+#include "../vm/value.hpp"
 
 namespace Lua {
     
-    // Library manager for registering and managing standard library modules
+    /**
+     * 新的库管理器设计
+     * 移除单例模式，支持依赖注入
+     */
     class LibManager {
     public:
-        // Singleton instance
-        static LibManager& getInstance() {
-            static LibManager instance;
-            return instance;
-        }
+        /**
+         * 构造函数
+         * 可以传入自定义的函数注册表
+         */
+        explicit LibManager(UPtr<FunctionRegistry> registry = nullptr);
         
-        // Register a library module
-        void registerLibrary(const Str& name, std::function<UPtr<LibModule>()> factory) {
-            libraries_[name] = factory;
-        }
+        /**
+         * 注册模块
+         */
+        void registerModule(UPtr<LibModule> module);
         
-        // Load a specific library into state
-        bool loadLibrary(State* state, const Str& name) {
-            auto it = libraries_.find(name);
-            if (it == libraries_.end()) {
-                return false;
-            }
-            
-            // Check if already loaded
-            auto loaded_it = loaded_modules_.find(name);
-            if (loaded_it != loaded_modules_.end()) {
-                return true; // Already loaded
-            }
-            
-            // Create and register module
-            auto module = it->second();
-            if (module) {
-                module->registerModule(state);
-                loaded_modules_[name] = std::move(module);
-                return true;
-            }
-            
-            return false;
-        }
+        /**
+         * 通过工厂注册模块
+         */
+        void registerModuleFactory(UPtr<ModuleFactory> factory);
         
-        // Load all registered libraries
-        void loadAllLibraries(State* state) {
-            for (const auto& [name, factory] : libraries_) {
-                loadLibrary(state, name);
-            }
-        }
+        /**
+         * 加载单个模块
+         */
+        bool loadModule(StrView name, State* state);
         
-        // Load core libraries (base, string, table, math)
-        void loadCoreLibraries(State* state) {
-            const Vec<Str> core_libs = {
-                "base", "string", "table", "math"
-            };
-            
-            for (const Str& lib : core_libs) {
-                loadLibrary(state, lib);
-            }
-        }
+        /**
+         * 加载所有已注册的模块
+         */
+        void loadAllModules(State* state);
         
-        // Load extended libraries (io, os)
-        void loadExtendedLibraries(State* state) {
-            const Vec<Str> extended_libs = {
-                "io", "os"
-            };
-            
-            for (const Str& lib : extended_libs) {
-                loadLibrary(state, lib);
-            }
-        }
+        /**
+         * 卸载模块
+         */
+        bool unloadModule(StrView name, State* state = nullptr);
         
-        // Check if library is registered
-        bool isRegistered(const Str& name) const {
-            return libraries_.find(name) != libraries_.end();
-        }
+        /**
+         * 检查模块是否已加载
+         */
+        bool isModuleLoaded(StrView name) const noexcept;
         
-        // Check if library is loaded
-        bool isLoaded(const Str& name) const {
-            auto it = loaded_modules_.find(name);
-            return it != loaded_modules_.end() && it->second->isLoaded();
-        }
+        /**
+         * 获取已加载的模块列表
+         */
+        Vec<Str> getLoadedModules() const;
         
-        // Get list of registered libraries
-        Vec<Str> getRegisteredLibraries() const {
-            Vec<Str> result;
-            result.reserve(libraries_.size());
-            
-            for (const auto& [name, factory] : libraries_) {
-                result.push_back(name);
-            }
-            
-            return result;
-        }
+        /**
+         * 调用函数
+         */
+        Value callFunction(StrView name, State* state, i32 nargs) const;
         
-        // Get list of loaded libraries
-        Vec<Str> getLoadedLibraries() const {
-            Vec<Str> result;
-            result.reserve(loaded_modules_.size());
-            
-            for (const auto& [name, module] : loaded_modules_) {
-                if (module->isLoaded()) {
-                    result.push_back(name);
-                }
-            }
-            
-            return result;
-        }
+        /**
+         * 检查函数是否存在
+         */
+        bool hasFunction(StrView name) const noexcept;
         
-        // Get module by name
-        LibModule* getModule(const Str& name) {
-            auto it = loaded_modules_.find(name);
-            return (it != loaded_modules_.end()) ? it->second.get() : nullptr;
-        }
+        /**
+         * 获取函数注册表（用于高级操作）
+         */
+        FunctionRegistry& getRegistry();
+        const FunctionRegistry& getRegistry() const;
         
-        // Unload a library
-        void unloadLibrary(const Str& name) {
-            loaded_modules_.erase(name);
-        }
+        /**
+         * 清空所有模块
+         */
+        void clear(State* state = nullptr);
         
-        // Unload all libraries
-        void unloadAllLibraries() {
-            loaded_modules_.clear();
-        }
-        
-        // Get library information
-        struct LibraryInfo {
-            Str name;
-            Str version;
-            bool loaded;
+        /**
+         * 库管理器统计信息
+         */
+        struct LibManagerStats {
+            usize totalModules = 0;
+            usize loadedModules = 0;
+            usize totalFunctions = 0;
+            Vec<Str> moduleNames;
         };
         
-        Vec<LibraryInfo> getLibraryInfo() const {
-            Vec<LibraryInfo> result;
-            
-            for (const auto& [name, factory] : libraries_) {
-                LibraryInfo info;
-                info.name = name;
-                info.loaded = isLoaded(name);
-                
-                // Try to get version from loaded module
-                auto loaded_it = loaded_modules_.find(name);
-                if (loaded_it != loaded_modules_.end()) {
-                    info.version = loaded_it->second->getVersion();
-                } else {
-                    info.version = "unknown";
-                }
-                
-                result.push_back(info);
-            }
-            
-            return result;
-        }
+        LibManagerStats getStats() const;
         
     private:
-        LibManager() = default;
-        ~LibManager() = default;
+        // 已注册的模块
+        HashMap<Str, UPtr<LibModule>> modules_;
         
-        // Non-copyable
-        LibManager(const LibManager&) = delete;
-        LibManager& operator=(const LibManager&) = delete;
+        // 模块工厂
+        HashMap<Str, UPtr<ModuleFactory>> factories_;
         
-        // Registered library factories
-        HashMap<Str, std::function<UPtr<LibModule>()>> libraries_;
+        // 已加载的模块名称
+        HashSet<Str> loadedModules_;
         
-        // Loaded modules
-        HashMap<Str, UPtr<LibModule>> loaded_modules_;
+        // 函数注册表
+        UPtr<FunctionRegistry> registry_;
     };
     
-    // Helper macros for library registration
-    #define REGISTER_LIB(name, class_name) \
-        LibManager::getInstance().registerLibrary(name, []() -> UPtr<LibModule> { \
-            return std::make_unique<class_name>(); \
-        })
+    /**
+     * 创建标准库管理器的便利函数
+     */
+    UPtr<LibManager> createStandardLibManager();
     
-    // Convenience functions
-    namespace Lib {
-        
-        // Initialize standard libraries
-        inline void initStandardLibraries(State* state) {
-            LibManager::getInstance().loadCoreLibraries(state);
-        }
-        
-        // Initialize all libraries
-        inline void initAllLibraries(State* state) {
-            LibManager::getInstance().loadAllLibraries(state);
-        }
-        
-        // Load specific library
-        inline bool load(State* state, const Str& name) {
-            return LibManager::getInstance().loadLibrary(state, name);
-        }
-        
-        // Check if library is available
-        inline bool isAvailable(const Str& name) {
-            return LibManager::getInstance().isRegistered(name);
-        }
-        
-        // Check if library is loaded
-        inline bool isLoaded(const Str& name) {
-            return LibManager::getInstance().isLoaded(name);
-        }
-    }
+    /**
+     * 快速初始化标准库的便利函数
+     */
+    void initStandardLibraries(State* state, LibManager& manager);
 }
