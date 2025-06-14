@@ -32,67 +32,67 @@ namespace Lua {
     
     void MathLib::registerFunctions(FunctionRegistry& registry) {
         // 基础数学函数
-        registry.registerFunction("abs", [this](State* s, i32 n) -> Value { return absFunc(s, n); });
-        registry.registerFunction("floor", [this](State* s, i32 n) -> Value { return floorFunc(s, n); });
-        registry.registerFunction("ceil", [this](State* s, i32 n) -> Value { return ceilFunc(s, n); });
-        registry.registerFunction("round", [this](State* s, i32 n) -> Value { return roundFunc(s, n); });
-        registry.registerFunction("trunc", [this](State* s, i32 n) -> Value { return truncFunc(s, n); });
+        REGISTER_FUNCTION(registry, abs, absFunc);
+        REGISTER_FUNCTION(registry, floor, floorFunc);
+        REGISTER_FUNCTION(registry, ceil, ceilFunc);
+        REGISTER_FUNCTION(registry, round, roundFunc);
+        REGISTER_FUNCTION(registry, trunc, truncFunc);
         
         // 幂函数
-        registry.registerFunction("pow", [this](State* s, i32 n) -> Value { return powFunc(s, n); });
-        registry.registerFunction("sqrt", [this](State* s, i32 n) -> Value { return sqrtFunc(s, n); });
-        registry.registerFunction("cbrt", [this](State* s, i32 n) -> Value { return cbrtFunc(s, n); });
-        registry.registerFunction("exp", [this](State* s, i32 n) -> Value { return expFunc(s, n); });
-        registry.registerFunction("exp2", [this](State* s, i32 n) -> Value { return exp2Func(s, n); });
+        REGISTER_FUNCTION(registry, pow, powFunc);
+        REGISTER_FUNCTION(registry, sqrt, sqrtFunc);
+        REGISTER_FUNCTION(registry, cbrt, cbrtFunc);
+        REGISTER_FUNCTION(registry, exp, expFunc);
+        REGISTER_FUNCTION(registry, exp2, exp2Func);
         
         // 对数函数
-        registry.registerFunction("log", [this](State* s, i32 n) -> Value { return logFunc(s, n); });
-        registry.registerFunction("log2", [this](State* s, i32 n) -> Value { return log2Func(s, n); });
-        registry.registerFunction("log10", [this](State* s, i32 n) -> Value { return log10Func(s, n); });
+        REGISTER_FUNCTION(registry, log, logFunc);
+        REGISTER_FUNCTION(registry, log2, log2Func);
+        REGISTER_FUNCTION(registry, log10, log10Func);
         
         // 三角函数
-        registry.registerFunction("sin", [this](State* s, i32 n) -> Value { return sinFunc(s, n); });
-        registry.registerFunction("cos", [this](State* s, i32 n) -> Value { return cosFunc(s, n); });
-        registry.registerFunction("tan", [this](State* s, i32 n) -> Value { return tanFunc(s, n); });
-        registry.registerFunction("asin", [this](State* s, i32 n) -> Value { return asinFunc(s, n); });
-        registry.registerFunction("acos", [this](State* s, i32 n) -> Value { return acosFunc(s, n); });
-        registry.registerFunction("atan", [this](State* s, i32 n) -> Value { return atanFunc(s, n); });
-        registry.registerFunction("atan2", [this](State* s, i32 n) -> Value { return atan2Func(s, n); });
+        REGISTER_FUNCTION(registry, sin, sinFunc);
+        REGISTER_FUNCTION(registry, cos, cosFunc);
+        REGISTER_FUNCTION(registry, tan, tanFunc);
+        REGISTER_FUNCTION(registry, asin, asinFunc);
+        REGISTER_FUNCTION(registry, acos, acosFunc);
+        REGISTER_FUNCTION(registry, atan, atanFunc);
+        REGISTER_FUNCTION(registry, atan2, atan2Func);
         
         // 双曲函数
-        registry.registerFunction("sinh", [this](State* s, i32 n) -> Value { return sinhFunc(s, n); });
-        registry.registerFunction("cosh", [this](State* s, i32 n) -> Value { return coshFunc(s, n); });
-        registry.registerFunction("tanh", [this](State* s, i32 n) -> Value { return tanhFunc(s, n); });
+        REGISTER_FUNCTION(registry, sinh, sinhFunc);
+        REGISTER_FUNCTION(registry, cosh, coshFunc);
+        REGISTER_FUNCTION(registry, tanh, tanhFunc);
         
         // 角度转换
-        registry.registerFunction("deg", [this](State* s, i32 n) -> Value { return degFunc(s, n); });
-        registry.registerFunction("rad", [this](State* s, i32 n) -> Value { return radFunc(s, n); });
+        REGISTER_FUNCTION(registry, deg, degFunc);
+        REGISTER_FUNCTION(registry, rad, radFunc);
         
         // 最值函数
-        registry.registerFunction("min", [this](State* s, i32 n) -> Value { return minFunc(s, n); });
-        registry.registerFunction("max", [this](State* s, i32 n) -> Value { return maxFunc(s, n); });
-        registry.registerFunction("clamp", [this](State* s, i32 n) -> Value { return clampFunc(s, n); });
+        REGISTER_FUNCTION(registry, min, minFunc);
+        REGISTER_FUNCTION(registry, max, maxFunc);
+        REGISTER_FUNCTION(registry, clamp, clampFunc);
         
-        // 随机数函数
+        // 随机数函数（非静态函数，需要特殊处理）
         registry.registerFunction("random", [this](State* s, i32 n) -> Value { return randomFunc(s, n); });
         registry.registerFunction("randomseed", [this](State* s, i32 n) -> Value { return randomseedFunc(s, n); });
         registry.registerFunction("randomint", [this](State* s, i32 n) -> Value { return randomintFunc(s, n); });
         
         // 工具函数
-        registry.registerFunction("sign", [this](State* s, i32 n) -> Value { return signFunc(s, n); });
-        registry.registerFunction("fmod", [this](State* s, i32 n) -> Value { return fmodFunc(s, n); });
-        registry.registerFunction("modf", [this](State* s, i32 n) -> Value { return modfFunc(s, n); });
-        registry.registerFunction("frexp", [this](State* s, i32 n) -> Value { return frexpFunc(s, n); });
-        registry.registerFunction("ldexp", [this](State* s, i32 n) -> Value { return ldexpFunc(s, n); });
+        REGISTER_FUNCTION(registry, sign, signFunc);
+        REGISTER_FUNCTION(registry, fmod, fmodFunc);
+        REGISTER_FUNCTION(registry, modf, modfFunc);
+        REGISTER_FUNCTION(registry, frexp, frexpFunc);
+        REGISTER_FUNCTION(registry, ldexp, ldexpFunc);
         
         // 检查函数
-        registry.registerFunction("isfinite", [this](State* s, i32 n) -> Value { return isfiniteFunc(s, n); });
-        registry.registerFunction("isnan", [this](State* s, i32 n) -> Value { return isnanFunc(s, n); });
-        registry.registerFunction("isinf", [this](State* s, i32 n) -> Value { return isinfFunc(s, n); });
+        REGISTER_FUNCTION(registry, isfinite, isfiniteFunc);
+        REGISTER_FUNCTION(registry, isnan, isnanFunc);
+        REGISTER_FUNCTION(registry, isinf, isinfFunc);
         
         // 插值函数
-        registry.registerFunction("lerp", [this](State* s, i32 n) -> Value { return lerpFunc(s, n); });
-        registry.registerFunction("smoothstep", [this](State* s, i32 n) -> Value { return smoothstepFunc(s, n); });
+        REGISTER_FUNCTION(registry, lerp, lerpFunc);
+        REGISTER_FUNCTION(registry, smoothstep, smoothstepFunc);
         
         // 注册常量
         registerConstants(registry);

@@ -30,10 +30,6 @@ namespace Lua {
         REGISTER_FUNCTION(registry, rawset, rawset);
         REGISTER_FUNCTION(registry, rawlen, rawlen);
         REGISTER_FUNCTION(registry, rawequal, rawequal);
-        REGISTER_FUNCTION(registry, pcall, pcall);
-        REGISTER_FUNCTION(registry, xpcall, xpcall);
-        REGISTER_FUNCTION(registry, error, error);
-        REGISTER_FUNCTION(registry, lua_assert, assert_func);
         REGISTER_FUNCTION(registry, select, select);
         REGISTER_FUNCTION(registry, unpack, unpack);
     }
@@ -121,26 +117,6 @@ namespace Lua {
     
     Value BaseLib::rawequal(State* state, i32 nargs) {
         // 实现rawequal逻辑
-        return Value(nullptr); // 占位符
-    }
-    
-    Value BaseLib::pcall(State* state, i32 nargs) {
-        // 实现pcall逻辑
-        return Value(nullptr); // 占位符
-    }
-    
-    Value BaseLib::xpcall(State* state, i32 nargs) {
-        // 实现xpcall逻辑
-        return Value(nullptr); // 占位符
-    }
-    
-    Value BaseLib::error(State* state, i32 nargs) {
-        // 实现error逻辑
-        return Value(nullptr); // 占位符
-    }
-    
-    Value BaseLib::assert_func(State* state, i32 nargs) {
-        // 实现assert逻辑
         return Value(nullptr); // 占位符
     }
     

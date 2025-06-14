@@ -32,10 +32,6 @@ void BaseLibTest::runAllTests() {
         testRawset();
         testRawlen();
         testRawequal();
-        testPcall();
-        testXpcall();
-        testError();
-        testAssert();
         testSelect();
         testUnpack();
         
@@ -282,74 +278,6 @@ void BaseLibTest::testRawequal() {
         
     } catch (const std::exception& e) {
         printTestResult("rawequal", false);
-        std::cout << "[FAIL] Test failed with exception: " << e.what() << std::endl;
-    }
-}
-
-void BaseLibTest::testPcall() {
-    std::cout << "\nTesting pcall():" << std::endl;
-    
-    try {
-        auto state = std::make_unique<State>();
-        
-        // Test pcall function
-        Value result = BaseLib::pcall(state.get(), 0);
-        
-        printTestResult("pcall", true);
-        
-    } catch (const std::exception& e) {
-        printTestResult("pcall", false);
-        std::cout << "[FAIL] Test failed with exception: " << e.what() << std::endl;
-    }
-}
-
-void BaseLibTest::testXpcall() {
-    std::cout << "\nTesting xpcall():" << std::endl;
-    
-    try {
-        auto state = std::make_unique<State>();
-        
-        // Test xpcall function
-        Value result = BaseLib::xpcall(state.get(), 0);
-        
-        printTestResult("xpcall", true);
-        
-    } catch (const std::exception& e) {
-        printTestResult("xpcall", false);
-        std::cout << "[FAIL] Test failed with exception: " << e.what() << std::endl;
-    }
-}
-
-void BaseLibTest::testError() {
-    std::cout << "\nTesting error():" << std::endl;
-    
-    try {
-        auto state = std::make_unique<State>();
-        
-        // Test error function
-        Value result = BaseLib::error(state.get(), 0);
-        
-        printTestResult("error", true);
-        
-    } catch (const std::exception& e) {
-        printTestResult("error", false);
-        std::cout << "[FAIL] Test failed with exception: " << e.what() << std::endl;
-    }
-}
-
-void BaseLibTest::testAssert() {
-    std::cout << "\nTesting assert():" << std::endl;
-    
-    try {
-        auto state = std::make_unique<State>();
-        
-        // Test assert function
-        Value result = BaseLib::assert_func(state.get(), 0);
-        
-        printTestResult("assert", true);
-        
-    } catch (const std::exception& e) {
-        printTestResult("assert", false);
         std::cout << "[FAIL] Test failed with exception: " << e.what() << std::endl;
     }
 }

@@ -1,10 +1,8 @@
 #pragma once
 
 #include "../common/types.hpp"
-#include "value.hpp"
 #include "../gc/core/gc_object.hpp"
-#include <vector>
-#include <unordered_map>
+#include "value.hpp"
 
 namespace Lua {
     // Forward declarations

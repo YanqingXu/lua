@@ -56,10 +56,6 @@ namespace Tests {
         static void testRawset();
         static void testRawlen();
         static void testRawequal();
-        static void testPcall();
-        static void testXpcall();
-        static void testError();
-        static void testAssert();
         static void testSelect();
         static void testUnpack();
         
