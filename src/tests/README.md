@@ -1,4 +1,4 @@
-# 测试文件组织结构
+# Modern C++ Lua 解释器测试框架
 
 本目录包含了 Modern C++ Lua 解释器项目的所有测试文件，按模块进行了分类组织。
 
@@ -54,203 +54,435 @@ tests/
 │   ├── gc_integration_test.hpp
 │   ├── string_pool_demo_test.cpp       # 字符串池演示测试
 │   └── string_pool_demo_test.hpp
-├── lib/                        # 标准库测试 (预留)
-└── integration/                # 集成测试 (预留)
+├── lib/                        # 标准库测试
+│   ├── test_lib.cpp                    # 标准库测试统一入口
+│   ├── test_lib.hpp                    # 标准库测试统一入口头文件
+│   ├── table_lib_test.cpp              # 表库测试
+│   └── table_lib_test.hpp
+└── localization/               # 本地化测试 (示例)
+    ├── localization_test.cpp           # 本地化功能测试
+    └── localization_test.hpp
 ```
 
-## 模块说明
+## 如何添加新的测试文件
 
-### lexer/ - 词法分析器测试
-测试词法分析器的功能，包括：
-- Token 识别和分类
-- 词法错误处理
-- 特殊字符和关键字处理
+### 步骤 1: 确定测试类型和位置
 
-### parser/ - 语法分析器测试
-测试语法分析器的功能，包括：
-- **test_parser.hpp/.cpp**: 语法分析器测试统一入口，调用所有解析器相关测试
-- **parser_test**: 基础语法分析和 AST 构建测试
-- **function_test**: 函数定义和参数解析测试
-- **if_statement_test**: 条件语句（if-then-else）解析测试
-- **forin_test**: for-in 循环语句解析测试
-- **repeat_test**: repeat-until 循环语句解析测试
+根据你要测试的功能，选择合适的目录：
 
-语法分析器测试覆盖了从基础表达式到复杂语言结构的解析，确保 AST 能够正确构建。
+- **lexer/**: 词法分析相关功能
+- **parser/**: 语法分析相关功能  
+- **compiler/**: 编译器相关功能
+- **vm/**: 虚拟机运行时功能
+- **gc/**: 垃圾回收器功能
+- **lib/**: 标准库功能
+- **新模块/**: 如果是全新的模块，创建新目录
 
-### compiler/ - 编译器测试
-测试编译器的功能，包括：
-- **test_compiler.hpp/.cpp**: 编译器测试统一入口，调用所有编译器相关测试
-- **symbol_table_test**: 符号表管理和作用域处理
-- **literal_compiler_test**: 字面量（nil、boolean、number、string）编译
-- **variable_compiler_test**: 变量访问和解析编译
-- **binary_expression_test**: 二元表达式（算术、比较、逻辑）编译
-- **expression_compiler_test**: 复杂表达式编译器
-- **conditional_compilation_test**: 条件语句和短路逻辑编译
+### 步骤 2: 创建测试文件
 
-编译器测试按功能模块组织，从基础的符号表到复杂的表达式编译，确保编译过程的每个环节都能正确工作。
-
-### vm/ - 虚拟机测试
-测试虚拟机核心功能，包括：
-- **test_vm.hpp/.cpp**: 虚拟机测试统一入口，调用所有虚拟机相关测试
-- **value_test**: 值系统测试（nil、boolean、number、string、table 等）
-- **state_test**: 状态管理测试（全局变量、栈操作、函数调用等）
-
-虚拟机测试专注于运行时环境的正确性，包括值的表示、状态管理和执行环境。
-
-### gc/ - 垃圾回收器测试
-测试垃圾回收器功能，包括：
-- **test_gc.hpp/.cpp**: GC 测试统一入口，调用所有垃圾回收器相关测试
-- **string_pool_demo_test**: 字符串池演示和基本功能测试
-- **gc_integration_test**: GC 与核心类型的集成测试，复杂引用模式测试
-
-GC 测试模块专注于内存管理的正确性，包括对象标记、清除、字符串池管理等关键功能。
-
-### lib/ - 标准库测试 (预留)
-未来用于测试 Lua 标准库实现
-
-### integration/ - 集成测试 (预留)
-未来用于端到端的集成测试
-
-## 使用方法
-
-### 运行所有测试
-```cpp
-#include "test_main.hpp"
-Lua::Tests::runAllTests();
-```
-
-### 运行特定模块测试
-```cpp
-// 运行所有编译器测试（推荐）
-#include "compiler/test_compiler.hpp"
-CompilerTest::runAllTests();
-
-// 运行所有 GC 测试（推荐）
-#include "gc/test_gc.hpp"
-GCTest::runAllTests();
-
-// 运行所有语法分析器测试（推荐）
-#include "parser/test_parser.hpp"
-ParserTestSuite::runAllTests();
-
-// 运行所有虚拟机测试（推荐）
-#include "vm/test_vm.hpp"
-VMTestSuite::runAllTests();
-
-// 运行单个编译器测试
-#include "compiler/conditional_compilation_test.hpp"
-ConditionalCompilationTest::runAllTests();
-
-// 运行单个 GC 测试
-#include "gc/gc_integration_test.hpp"
-GCIntegrationTest::runAllTests();
-```
-
-## 测试命名规范
-
-1. **测试类命名**: `<Module><Function>Test`
-   - 例如: `ConditionalCompilationTest`, `GCIntegrationTest`
-
-2. **测试方法命名**: `test<SpecificFeature>()`
-   - 例如: `testSimpleIfStatement()`, `testBasicStringInterning()`
-
-3. **主入口方法**: `runAllTests()`
-   - 每个测试类都应该有这个静态方法
-
-## 文件组织原则
-
-1. **按功能模块分类**: 每个目录对应解释器的一个主要模块
-2. **头文件和源文件配对**: `.hpp` 和 `.cpp` 文件放在同一目录
-3. **测试类结构统一**: 使用静态类和 `runAllTests()` 方法
-4. **清晰的依赖关系**: 通过目录结构体现模块间的关系
-
-这种组织方式使得测试代码更加模块化、易于维护和扩展。
-
-### 编译器测试模块详细说明
-
-编译器测试模块现在提供了统一的测试入口 `CompilerTest`，它按逻辑顺序执行所有编译器相关测试：
+#### 2.1 创建头文件 (.hpp)
 
 ```cpp
-// 完整的编译器测试流程
-#include "compiler/test_compiler.hpp"
+#ifndef YOUR_TEST_NAME_HPP
+#define YOUR_TEST_NAME_HPP
 
-// 这将按以下顺序执行所有编译器测试：
-// 1. SymbolTableTest - 符号表和作用域管理
-// 2. LiteralCompilerTest - 字面量编译
-// 3. VariableCompilerTest - 变量访问编译  
-// 4. BinaryExpressionTest - 二元表达式编译
-// 5. ExpressionCompilerTest - 复杂表达式编译
-// 6. ConditionalCompilationTest - 条件语句编译
-CompilerTest::runAllTests();
+#include <iostream>
+#include "../../path/to/your/module.hpp"  // 包含被测试的模块
+
+namespace Lua {
+namespace Tests {
+
+/**
+ * @brief 你的测试类描述
+ * 
+ * 详细说明这个测试类测试什么功能
+ */
+class YourTestName {
+public:
+    /**
+     * @brief 运行所有测试
+     * 
+     * 执行这个测试类中的所有测试用例
+     */
+    static void runAllTests();
+    
+private:
+    // 私有测试方法
+    static void testSpecificFeature1();
+    static void testSpecificFeature2();
+    static void testErrorHandling();
+    
+    // 辅助方法
+    static void printTestResult(const std::string& testName, bool passed);
+};
+
+} // namespace Tests
+} // namespace Lua
+
+#endif // YOUR_TEST_NAME_HPP
 ```
 
-每个子测试都可以单独运行，用于调试特定的编译器功能。
-
-### GC 测试模块详细说明
-
-GC 测试模块现在提供了统一的测试入口 `GCTest`，它按逻辑顺序执行所有垃圾回收器相关测试：
+#### 2.2 创建实现文件 (.cpp)
 
 ```cpp
-// 完整的 GC 测试流程
-#include "gc/test_gc.hpp"
+#include "your_test_name.hpp"
 
-// 这将按以下顺序执行所有 GC 测试：
-// 1. StringPoolDemoTest - 字符串池演示和基本功能
-// 2. GCIntegrationTest - GC 与核心类型集成，复杂引用模式测试
-GCTest::runAllTests();
+namespace Lua {
+namespace Tests {
+
+void YourTestName::runAllTests() {
+    std::cout << "\n========================================" << std::endl;
+    std::cout << "Running Your Test Name Tests" << std::endl;
+    std::cout << "========================================" << std::endl;
+    
+    // 运行所有测试方法
+    testSpecificFeature1();
+    testSpecificFeature2();
+    testErrorHandling();
+    
+    std::cout << "\n========================================" << std::endl;
+    std::cout << "Your Test Name Tests Completed" << std::endl;
+    std::cout << "========================================" << std::endl;
+}
+
+void YourTestName::testSpecificFeature1() {
+    std::cout << "\nTesting Specific Feature 1:" << std::endl;
+    
+    try {
+        // 测试代码
+        // 例如：创建对象，调用方法，验证结果
+        
+        // 示例测试逻辑
+        bool testPassed = true; // 根据实际测试结果设置
+        
+        printTestResult("Specific Feature 1", testPassed);
+        
+    } catch (const std::exception& e) {
+        std::cout << "[FAIL] Test failed with exception: " << e.what() << std::endl;
+    }
+}
+
+void YourTestName::testSpecificFeature2() {
+    std::cout << "\nTesting Specific Feature 2:" << std::endl;
+    
+    // 类似的测试实现
+}
+
+void YourTestName::testErrorHandling() {
+    std::cout << "\nTesting Error Handling:" << std::endl;
+    
+    // 测试错误情况的处理
+}
+
+void YourTestName::printTestResult(const std::string& testName, bool passed) {
+    if (passed) {
+        std::cout << "[PASS] " << testName << " test passed" << std::endl;
+    } else {
+        std::cout << "[FAIL] " << testName << " test failed" << std::endl;
+    }
+}
+
+} // namespace Tests
+} // namespace Lua
 ```
 
-每个子测试都可以单独运行，用于调试特定的 GC 功能。
+### 步骤 3: 集成到测试套件
 
-### Parser 测试模块详细说明
+#### 3.1 如果是现有模块的新测试
 
-Parser 测试模块现在提供了统一的测试入口 `ParserTestSuite`，它按逻辑顺序执行所有语法分析器相关测试：
+将你的测试添加到对应模块的统一入口文件中：
+
+**在模块的 test_xxx.hpp 中添加包含：**
+```cpp
+#include "your_test_name.hpp"
+```
+
+**在模块的 test_xxx.cpp 中添加调用：**
+```cpp
+void ModuleTest::runAllTests() {
+    // ... 现有测试 ...
+    
+    // 添加你的测试
+    printSectionHeader("Your Test Name Tests");
+    YourTestName::runAllTests();
+    printSectionFooter();
+    
+    // ... 其他测试 ...
+}
+```
+
+#### 3.2 如果是全新模块的测试
+
+**创建模块统一入口文件：**
+
+`your_module/test_your_module.hpp`:
+```cpp
+#ifndef TEST_YOUR_MODULE_HPP
+#define TEST_YOUR_MODULE_HPP
+
+#include "your_test_name.hpp"
+// 包含其他测试文件
+
+namespace Lua {
+namespace Tests {
+
+class YourModuleTest {
+public:
+    static void runAllTests();
+    
+private:
+    static void printSectionHeader(const std::string& title);
+    static void printSectionFooter();
+};
+
+} // namespace Tests
+} // namespace Lua
+
+#endif // TEST_YOUR_MODULE_HPP
+```
+
+`your_module/test_your_module.cpp`:
+```cpp
+#include "test_your_module.hpp"
+#include <iostream>
+#include <string>
+
+namespace Lua {
+namespace Tests {
+
+void YourModuleTest::runAllTests() {
+    std::cout << "\n" << std::string(60, '=') << std::endl;
+    std::cout << "          YOUR MODULE TEST SUITE" << std::endl;
+    std::cout << std::string(60, '=') << std::endl;
+    std::cout << "Running all your-module-related tests..." << std::endl;
+    std::cout << std::string(60, '=') << std::endl;
+    
+    try {
+        printSectionHeader("Your Test Name Tests");
+        YourTestName::runAllTests();
+        printSectionFooter();
+        
+        // 添加其他测试...
+        
+        std::cout << "\n" << std::string(60, '=') << std::endl;
+        std::cout << "    [OK] ALL YOUR MODULE TESTS COMPLETED SUCCESSFULLY" << std::endl;
+        std::cout << std::string(60, '=') << std::endl;
+        
+    } catch (const std::exception& e) {
+        std::cout << "\n[ERROR] Your Module test suite failed: " << e.what() << std::endl;
+    }
+}
+
+void YourModuleTest::printSectionHeader(const std::string& title) {
+    std::cout << "\n" << std::string(40, '-') << std::endl;
+    std::cout << title << std::endl;
+    std::cout << std::string(40, '-') << std::endl;
+}
+
+void YourModuleTest::printSectionFooter() {
+    std::cout << std::string(40, '-') << std::endl;
+}
+
+} // namespace Tests
+} // namespace Lua
+```
+
+### 步骤 4: 更新主测试入口
+
+**在 test_main.hpp 中添加包含：**
+```cpp
+#include "your_module/test_your_module.hpp"
+```
+
+**在 test_main.cpp 中添加调用：**
+```cpp
+void runAllTests() {
+    std::cout << "=== Running Lua Interpreter Tests ===" << std::endl;
+    try {
+        // ... 现有测试 ...
+        
+        // 添加你的模块测试
+        YourModuleTest::runAllTests();
+        
+        std::cout << "\n=== All Tests Completed ===" << std::endl;
+        
+    } catch (const std::exception& e) {
+        std::cout << "\nTest execution failed with exception: " << e.what() << std::endl;
+    }
+}
+```
+
+## 测试编写最佳实践
+
+### 1. 测试命名规范
+
+- **测试类命名**: `<ModuleName>Test`
+  - 例如: `LocalizationTest`, `ErrorHandlerTest`
+
+- **测试方法命名**: `test<SpecificFeature>()`
+  - 例如: `testLanguageSwitching()`, `testErrorMessageFormatting()`
+
+- **主入口方法**: `runAllTests()`
+  - 每个测试类都应该有这个静态方法
+
+### 2. 测试结构模式
 
 ```cpp
-// 完整的 Parser 测试流程
-#include "parser/test_parser.hpp"
-
-// 这将按以下顺序执行所有 Parser 测试：
-// 1. ParserTest - 基础语法分析和 AST 构建
-// 2. FunctionTest - 函数定义和参数解析
-// 3. IfStatementTest - 条件语句解析
-// 4. ForInTest - for-in 循环解析
-// 5. RepeatTest - repeat-until 循环解析
-ParserTestSuite::runAllTests();
+// 1. 设置测试环境
+// 2. 执行被测试的操作
+// 3. 验证结果
+// 4. 清理资源（如果需要）
 ```
 
-### VM 测试模块详细说明
+### 3. 错误处理
 
-VM 测试模块现在提供了统一的测试入口 `VMTestSuite`，它按逻辑顺序执行所有虚拟机相关测试：
+- 使用 try-catch 块捕获异常
+- 提供清晰的错误信息
+- 测试正常情况和异常情况
 
+### 4. 输出格式
+
+- 使用统一的输出格式
+- 明确标识测试通过/失败
+- 提供有意义的测试描述
+
+### 5. 测试独立性
+
+- 每个测试应该独立运行
+- 不依赖其他测试的执行顺序
+- 清理测试产生的副作用
+
+## 示例：添加本地化测试
+
+假设我们要为本地化功能添加测试，以下是完整的实现示例：
+
+### localization/localization_test.hpp
 ```cpp
-// 完整的 VM 测试流程
-#include "vm/test_vm.hpp"
+#ifndef LOCALIZATION_TEST_HPP
+#define LOCALIZATION_TEST_HPP
 
-// 这将按以下顺序执行所有 VM 测试：
-// 1. ValueTest - 值系统测试（各种数据类型）
-// 2. StateTest - 状态管理测试（全局变量、栈操作、函数调用）
-VMTestSuite::runAllTests();
+#include <iostream>
+#include "../../localization/localization_manager.hpp"
+
+namespace Lua {
+namespace Tests {
+
+class LocalizationTest {
+public:
+    static void runAllTests();
+    
+private:
+    static void testBasicLocalization();
+    static void testLanguageSwitching();
+    static void testMissingTranslation();
+    static void printTestResult(const std::string& testName, bool passed);
+};
+
+} // namespace Tests
+} // namespace Lua
+
+#endif // LOCALIZATION_TEST_HPP
 ```
 
-### 测试模块组织总结
+### localization/localization_test.cpp
+```cpp
+#include "localization_test.hpp"
 
-项目现在采用了完全分层的测试组织结构：
+namespace Lua {
+namespace Tests {
 
-#### 主层级 - 完整测试套件
-- **主测试入口**: `test_main.hpp/.cpp` - 运行所有测试模块
+void LocalizationTest::runAllTests() {
+    std::cout << "\n========================================" << std::endl;
+    std::cout << "Running Localization Tests" << std::endl;
+    std::cout << "========================================" << std::endl;
+    
+    testBasicLocalization();
+    testLanguageSwitching();
+    testMissingTranslation();
+    
+    std::cout << "\n========================================" << std::endl;
+    std::cout << "Localization Tests Completed" << std::endl;
+    std::cout << "========================================" << std::endl;
+}
 
-#### 模块层级 - 各功能模块统一入口
-1. **词法分析器**: `lexer/lexer_test.hpp/.cpp` - 词法分析功能测试
-2. **语法分析器**: `parser/test_parser.hpp/.cpp` - 所有语法分析相关测试
-3. **编译器**: `compiler/test_compiler.hpp/.cpp` - 所有编译器相关测试
-4. **虚拟机**: `vm/test_vm.hpp/.cpp` - 所有虚拟机相关测试
-5. **垃圾回收器**: `gc/test_gc.hpp/.cpp` - 所有垃圾回收器相关测试
+void LocalizationTest::testBasicLocalization() {
+    std::cout << "\nTesting Basic Localization:" << std::endl;
+    
+    try {
+        LocalizationManager manager;
+        
+        // 测试英文消息
+        std::string englishMsg = manager.getMessage("error.syntax", "en");
+        bool englishTest = !englishMsg.empty();
+        printTestResult("English Message Retrieval", englishTest);
+        
+        // 测试中文消息
+        std::string chineseMsg = manager.getMessage("error.syntax", "zh");
+        bool chineseTest = !chineseMsg.empty();
+        printTestResult("Chinese Message Retrieval", chineseTest);
+        
+    } catch (const std::exception& e) {
+        std::cout << "[FAIL] Basic localization test failed: " << e.what() << std::endl;
+    }
+}
 
-#### 子模块层级 - 具体功能测试
-每个模块下包含多个具体的测试类，负责测试特定功能。
+void LocalizationTest::testLanguageSwitching() {
+    std::cout << "\nTesting Language Switching:" << std::endl;
+    
+    try {
+        LocalizationManager manager;
+        
+        // 设置为英文
+        manager.setLanguage("en");
+        std::string msg1 = manager.getCurrentMessage("error.syntax");
+        
+        // 切换到中文
+        manager.setLanguage("zh");
+        std::string msg2 = manager.getCurrentMessage("error.syntax");
+        
+        // 验证消息不同
+        bool switchTest = (msg1 != msg2);
+        printTestResult("Language Switching", switchTest);
+        
+    } catch (const std::exception& e) {
+        std::cout << "[FAIL] Language switching test failed: " << e.what() << std::endl;
+    }
+}
 
-#### 测试执行层次
+void LocalizationTest::testMissingTranslation() {
+    std::cout << "\nTesting Missing Translation Handling:" << std::endl;
+    
+    try {
+        LocalizationManager manager;
+        
+        // 测试不存在的消息键
+        std::string missingMsg = manager.getMessage("nonexistent.key", "en");
+        
+        // 应该返回默认消息或键名
+        bool missingTest = !missingMsg.empty();
+        printTestResult("Missing Translation Handling", missingTest);
+        
+    } catch (const std::exception& e) {
+        std::cout << "[FAIL] Missing translation test failed: " << e.what() << std::endl;
+    }
+}
+
+void LocalizationTest::printTestResult(const std::string& testName, bool passed) {
+    if (passed) {
+        std::cout << "[PASS] " << testName << " test passed" << std::endl;
+    } else {
+        std::cout << "[FAIL] " << testName << " test failed" << std::endl;
+    }
+}
+
+} // namespace Tests
+} // namespace Lua
+```
+
+然后在主测试入口中添加对本地化测试的调用。
+
+## 测试执行层次
+
 ```
 runAllTests()
 ├── LexerTest::runAllTests()
@@ -270,9 +502,14 @@ runAllTests()
 │   ├── BinaryExpressionTest::runAllTests()
 │   ├── ExpressionCompilerTest::runAllTests()
 │   └── ConditionalCompilationTest::runAllTests()
-└── GCTest::runAllTests()
-    ├── StringPoolDemoTest::runAllTests()
-    └── GCIntegrationTest::runAllTests()
+├── GCTest::runAllTests()
+│   ├── StringPoolDemoTest::runAllTests()
+│   └── GCIntegrationTest::runAllTests()
+├── LibTestSuite::runAllTests()
+│   └── TableLibTest::runAllTests()
+└── YourModuleTest::runAllTests()  # 新添加的模块
+    ├── YourTest1::runAllTests()
+    └── YourTest2::runAllTests()
 ```
 
 这种结构提供了极大的灵活性：
@@ -282,7 +519,7 @@ runAllTests()
 - ✅ **易于维护**: 清晰的组织结构和统一的接口
 - ✅ **易于扩展**: 新测试可以轻松添加到对应模块
 
-### 构建和运行说明
+## 构建和运行说明
 
 **注意**: 当前项目有两个测试目录：
 
@@ -291,7 +528,7 @@ runAllTests()
 
 要使用新的测试组织结构，你可以：
 
-#### 方法 1: 直接在代码中调用
+### 方法 1: 直接在代码中调用
 ```cpp
 #include "src/tests/test_main.hpp"
 
@@ -301,14 +538,14 @@ int main() {
 }
 ```
 
-#### 方法 2: 编译为独立可执行文件
+### 方法 2: 编译为独立可执行文件
 ```bash
 # 在项目根目录执行
-g++ -std=c++17 -I src src/tests/test_organization_demo.cpp -o test_demo
-./test_demo
+g++ -std=c++17 -I src src/tests/test_main.cpp src/tests/*/*.cpp -o test_runner
+./test_runner
 ```
 
-#### 方法 3: 集成到现有 CMakeLists.txt 
+### 方法 3: 集成到现有 CMakeLists.txt 
 将以下内容添加到 CMakeLists.txt：
 ```cmake
 # 新的模块化测试
@@ -320,3 +557,15 @@ add_executable(modular_tests
 )
 target_link_libraries(modular_tests PRIVATE lua_lib)
 ```
+
+## 总结
+
+通过遵循这个指南，你可以：
+
+1. **快速添加新测试**: 使用标准化的模板和结构
+2. **保持代码一致性**: 遵循统一的命名和组织规范
+3. **便于维护**: 清晰的模块化结构
+4. **灵活运行**: 支持全量测试、模块测试和单个测试
+5. **易于调试**: 清晰的输出格式和错误处理
+
+记住：好的测试不仅验证功能正确性，还能作为代码的活文档，帮助其他开发者理解系统的行为和预期。

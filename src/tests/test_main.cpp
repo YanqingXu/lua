@@ -30,6 +30,9 @@ void runAllTests() {
         
         // Run all lib tests (unified)
         // LibTestSuite::runAllTests();
+
+        // Run all localization tests (unified)
+        LocalizationTest::runAllTests();
         
         std::cout << "\n=== All Tests Completed ===" << std::endl;
         
