@@ -262,4 +262,62 @@ namespace Lua {
         token.value.string = GCString::create(value);
         return token;
     }
+    
+    Str tokenTypeToString(TokenType type) {
+        switch (type) {
+            case TokenType::And: return "and";
+            case TokenType::Break: return "break";
+            case TokenType::Do: return "do";
+            case TokenType::Else: return "else";
+            case TokenType::Elseif: return "elseif";
+            case TokenType::End: return "end";
+            case TokenType::False: return "false";
+            case TokenType::For: return "for";
+            case TokenType::Function: return "function";
+            case TokenType::If: return "if";
+            case TokenType::In: return "in";
+            case TokenType::Local: return "local";
+            case TokenType::Nil: return "nil";
+            case TokenType::Not: return "not";
+            case TokenType::Or: return "or";
+            case TokenType::Repeat: return "repeat";
+            case TokenType::Return: return "return";
+            case TokenType::Then: return "then";
+            case TokenType::True: return "true";
+            case TokenType::Until: return "until";
+            case TokenType::While: return "while";
+            case TokenType::Plus: return "+";
+            case TokenType::Minus: return "-";
+            case TokenType::Star: return "*";
+            case TokenType::Slash: return "/";
+            case TokenType::Percent: return "%";
+            case TokenType::Caret: return "^";
+            case TokenType::Hash: return "#";
+            case TokenType::Equal: return "==";
+            case TokenType::LessEqual: return "<=";
+            case TokenType::GreaterEqual: return ">=";
+            case TokenType::Less: return "<";
+            case TokenType::Greater: return ">";
+            case TokenType::NotEqual: return "~=";
+            case TokenType::Assign: return "=";
+            case TokenType::LeftParen: return "(";
+            case TokenType::RightParen: return ")";
+            case TokenType::LeftBrace: return "{";
+            case TokenType::RightBrace: return "}";
+            case TokenType::LeftBracket: return "[";
+            case TokenType::RightBracket: return "]";
+            case TokenType::Semicolon: return ";";
+            case TokenType::Colon: return ":";
+            case TokenType::Comma: return ",";
+            case TokenType::Dot: return ".";
+            case TokenType::DotDot: return "..";
+            case TokenType::DotDotDot: return "...";
+            case TokenType::Number: return "number";
+            case TokenType::String: return "string";
+            case TokenType::Name: return "identifier";
+            case TokenType::Eof: return "end of file";
+            case TokenType::Error: return "error";
+            default: return "unknown";
+        }
+    }
 }

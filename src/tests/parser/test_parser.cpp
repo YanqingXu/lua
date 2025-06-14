@@ -52,6 +52,11 @@ void ParserTestSuite::runAllTests() {
 		printSectionHeader("Error Reporter Tests");
 		ErrorReporterTest::runAllTests();
 		printSectionFooter();
+		
+		// 9. Enhanced Parser Error Tests (增强解析错误测试)
+		printSectionHeader("Enhanced Parser Error Tests");
+		EnhancedParserErrorTest::runAllTests();
+		printSectionFooter();
         
         // 总结
         std::cout << "\n" << std::string(60, '=') << std::endl;

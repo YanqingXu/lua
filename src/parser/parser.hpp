@@ -9,6 +9,7 @@
 #include "ast/ast_base.hpp"
 #include "ast/expressions.hpp"
 #include "ast/statements.hpp"
+#include "ast/parse_error.hpp"
 
 namespace Lua {
     // Parser class
@@ -18,14 +19,24 @@ namespace Lua {
         Token current;
         Token previous;
         bool hadError;
+        ErrorReporter errorReporter_;
 
         // Helper methods
         void advance();
         bool check(TokenType type) const;
         bool match(TokenType type);
         bool match(std::initializer_list<TokenType> types);
+        
+    public:
+        // Made public for testing purposes
         Token consume(TokenType type, const Str& message);
         void error(const Str& message);
+        void error(ErrorType type, const Str& message);
+        void error(ErrorType type, const Str& message, const Str& details);
+        void error(ErrorType type, const SourceLocation& location, const Str& message);
+        void error(ErrorType type, const SourceLocation& location, const Str& message, const Str& details);
+        
+    private:
         void synchronize();
         bool isAtEnd() const;
 
@@ -71,5 +82,14 @@ namespace Lua {
 
         // Check if there are errors
         bool hasError() const { return hadError; }
+        
+        // Error reporting methods
+        const ErrorReporter& getErrorReporter() const { return errorReporter_; }
+        const Vec<ParseError>& getErrors() const { return errorReporter_.getErrors(); }
+        size_t getErrorCount() const { return errorReporter_.getErrorCount(); }
+        bool hasErrorsOrWarnings() const { return errorReporter_.hasErrorsOrWarnings(); }
+        
+        // Clear errors
+        void clearErrors() { errorReporter_.clear(); hadError = false; }
     };
 }

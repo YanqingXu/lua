@@ -43,6 +43,9 @@ namespace Lua {
         }
     };
     
+    // Utility function to convert TokenType to string
+    Str tokenTypeToString(TokenType type);
+    
     // Lexer
     class Lexer {
     private:

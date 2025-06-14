@@ -1,7 +1,7 @@
-#include "parser.hpp"
+﻿#include "parser.hpp"
 
 namespace Lua {
-    Parser::Parser(const Str& source) : lexer(source), hadError(false) {
+    Parser::Parser(const Str& source) : lexer(source), hadError(false), errorReporter_(ErrorReporter::createDefault()) {
         // Initialize and immediately get the first token
         advance();
     }
@@ -12,7 +12,8 @@ namespace Lua {
 
         // Skip error tokens
         while (current.type == TokenType::Error) {
-            error(current.lexeme);
+            SourceLocation location = SourceLocation::fromToken(current);
+            error(ErrorType::UnexpectedCharacter, location, "Lexical error: " + current.lexeme);
             current = lexer.nextToken();
         }
     }
@@ -44,14 +45,41 @@ namespace Lua {
             return token;
         }
 
-        error(message);
+        // Use a more specific error type and details
+        SourceLocation location = SourceLocation::fromToken(current);
+        Str details = "Expected '" + tokenTypeToString(type) + "' but found '" + current.lexeme + "'";
+        error(ErrorType::MissingToken, location, message, details);
         return previous; // Error recovery
     }
 
     void Parser::error(const Str& message) {
         hadError = true;
-        // In a real implementation, you'd want better error reporting
-        // For now, we'll just set the error flag
+
+        // Create a detailed error report using the current token's location
+        SourceLocation location = SourceLocation::fromToken(current);
+        errorReporter_.reportError(ErrorType::Unknown, location, message);
+    }
+    
+    void Parser::error(ErrorType type, const Str& message) {
+        hadError = true;
+        SourceLocation location = SourceLocation::fromToken(current);
+        errorReporter_.reportError(type, location, message);
+    }
+    
+    void Parser::error(ErrorType type, const Str& message, const Str& details) {
+        hadError = true;
+        SourceLocation location = SourceLocation::fromToken(current);
+        errorReporter_.reportError(type, location, message, details);
+    }
+    
+    void Parser::error(ErrorType type, const SourceLocation& location, const Str& message) {
+        hadError = true;
+        errorReporter_.reportError(type, location, message);
+    }
+    
+    void Parser::error(ErrorType type, const SourceLocation& location, const Str& message, const Str& details) {
+        hadError = true;
+        errorReporter_.reportError(type, location, message, details);
     }
 
     void Parser::synchronize() {

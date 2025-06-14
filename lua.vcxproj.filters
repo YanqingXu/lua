@@ -246,6 +246,9 @@
     <ClCompile Include="src\tests\parser\error_reporter_test.cpp">
       <Filter>tests\parser</Filter>
     </ClCompile>
+    <ClCompile Include="src\tests\parser\enhanced_parser_error_test.cpp">
+      <Filter>tests\parser</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\compiler\compiler.hpp">
@@ -444,6 +447,9 @@
       <Filter>parser\ast</Filter>
     </ClInclude>
     <ClInclude Include="src\tests\parser\error_reporter_test.hpp">
+      <Filter>tests\parser</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tests\parser\enhanced_parser_error_test.hpp">
       <Filter>tests\parser</Filter>
     </ClInclude>
   </ItemGroup>

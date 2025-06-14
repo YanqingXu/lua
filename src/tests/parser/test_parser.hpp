@@ -9,6 +9,7 @@
 #include "source_location_test.hpp"
 #include "parse_error_test.hpp"
 #include "error_reporter_test.hpp"
+#include "enhanced_parser_error_test.hpp"
 
 namespace Lua {
 namespace Tests {
