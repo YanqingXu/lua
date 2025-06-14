@@ -1,4 +1,4 @@
-#include "test_parser.hpp"
+﻿#include "test_parser.hpp"
 #include <iostream>
 #include <string>
 
@@ -47,6 +47,11 @@ void ParserTestSuite::runAllTests() {
         printSectionHeader("Parse Error Tests");
         ParseErrorTest::runAllTests();
         printSectionFooter();
+
+		// 8. Error Reporter Tests (错误报告器测试)
+		printSectionHeader("Error Reporter Tests");
+		ErrorReporterTest::runAllTests();
+		printSectionFooter();
         
         // 总结
         std::cout << "\n" << std::string(60, '=') << std::endl;

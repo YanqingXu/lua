@@ -179,6 +179,17 @@ namespace Lua {
             return error;
         }
         
+        // 严重程度转字符串（公有静态方法）
+        static Str severityToString(ErrorSeverity severity) {
+            switch (severity) {
+                case ErrorSeverity::Info: return "info";
+                case ErrorSeverity::Warning: return "warning";
+                case ErrorSeverity::Error: return "error";
+                case ErrorSeverity::Fatal: return "fatal";
+                default: return "unknown";
+            }
+        }
+        
         // 错误类型转字符串
         static Str errorTypeToString(ErrorType type) {
             switch (type) {
@@ -309,6 +320,211 @@ namespace Lua {
             for (size_t i = 0; i < errors_.size(); ++i) {
                 if (i > 0) result += "\n\n";
                 result += errors_[i].toDetailedString();
+            }
+            return result;
+        }
+    };
+    
+    // 错误报告器配置
+    struct ErrorReporterConfig {
+        size_t maxErrors = 100;          // 最大错误数
+        bool stopOnFirstError = false;   // 遇到第一个错误时停止
+        bool includeWarnings = true;     // 是否包含警告
+        bool includeInfo = false;        // 是否包含信息
+        
+        ErrorReporterConfig() = default;
+        ErrorReporterConfig(size_t max, bool stopFirst = false, bool warnings = true, bool info = false)
+            : maxErrors(max), stopOnFirstError(stopFirst), includeWarnings(warnings), includeInfo(info) {}
+    };
+    
+    // 错误报告器类 - 统一管理错误收集和报告
+    class ErrorReporter {
+    private:
+        ErrorCollector collector_;
+        ErrorReporterConfig config_;
+        
+    public:
+        explicit ErrorReporter(const ErrorReporterConfig& config = ErrorReporterConfig())
+            : collector_(config.maxErrors), config_(config) {}
+            
+        // 基础错误报告方法
+        void reportError(ErrorType type, const SourceLocation& location, const Str& message,
+                        ErrorSeverity severity = ErrorSeverity::Error) {
+            if (!shouldReportError(severity)) return;
+            
+            ParseError error(type, location, message, severity);
+            collector_.addError(std::move(error));
+        }
+        
+        void reportError(ErrorType type, const SourceLocation& location, const Str& message,
+                        const Str& details, ErrorSeverity severity = ErrorSeverity::Error) {
+            if (!shouldReportError(severity)) return;
+            
+            ParseError error(type, location, message, details, severity);
+            collector_.addError(std::move(error));
+        }
+        
+        // 直接添加ParseError对象
+        void addError(ParseError&& error) {
+            if (!shouldReportError(error.getSeverity())) return;
+            collector_.addError(std::move(error));
+        }
+        
+        // 便捷的错误报告方法
+        void reportSyntaxError(const SourceLocation& location, const Str& message) {
+            reportError(ErrorType::InvalidExpression, location, message, ErrorSeverity::Error);
+        }
+        
+        void reportUnexpectedToken(const SourceLocation& location, const Str& expected, const Str& actual) {
+            Str message = "Expected '" + expected + "', but got '" + actual + "'";
+            auto error = ParseError::unexpectedToken(location, expected, actual);
+            addError(std::move(error));
+        }
+        
+        void reportMissingToken(const SourceLocation& location, const Str& expected) {
+            auto error = ParseError::missingToken(location, expected);
+            addError(std::move(error));
+        }
+        
+        void reportSemanticError(const SourceLocation& location, const Str& message) {
+            reportError(ErrorType::UndefinedVariable, location, message, ErrorSeverity::Error);
+        }
+        
+        void reportWarning(const SourceLocation& location, const Str& message) {
+            reportError(ErrorType::Unknown, location, message, ErrorSeverity::Warning);
+        }
+        
+        void reportInfo(const SourceLocation& location, const Str& message) {
+            reportError(ErrorType::Unknown, location, message, ErrorSeverity::Info);
+        }
+        
+        // 查询方法
+        bool hasErrors() const { return collector_.hasErrors(); }
+        bool hasErrorsOrWarnings() const {
+            const auto& errors = collector_.getErrors();
+            for (const auto& error : errors) {
+                if (error.getSeverity() == ErrorSeverity::Error || 
+                    error.getSeverity() == ErrorSeverity::Fatal ||
+                    (config_.includeWarnings && error.getSeverity() == ErrorSeverity::Warning)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        
+        size_t getErrorCount() const { return collector_.getErrorCount(); }
+        size_t getErrorCount(ErrorSeverity severity) const {
+            return collector_.getErrorsBySeverity(severity).size();
+        }
+        
+        const Vec<ParseError>& getErrors() const { return collector_.getErrors(); }
+        Vec<const ParseError*> getErrorsBySeverity(ErrorSeverity severity) const {
+            return collector_.getErrorsBySeverity(severity);
+        }
+        
+        bool shouldStopParsing() const {
+            if (config_.stopOnFirstError && hasErrors()) return true;
+            return collector_.hasMaxErrors();
+        }
+        
+        // 控制方法
+        void clear() { collector_.clear(); }
+        void setMaxErrors(size_t maxErrors) {
+            config_.maxErrors = maxErrors;
+            // 注意：这里不能直接修改collector_的maxErrors，需要重新创建
+        }
+        
+        const ErrorReporterConfig& getConfig() const { return config_; }
+        void setConfig(const ErrorReporterConfig& config) { config_ = config; }
+        
+        // 输出方法
+        Str toString() const {
+            return collector_.toString();
+        }
+        
+        Str toDetailedString() const {
+            return collector_.toDetailedString();
+        }
+        
+        Str toShortString() const {
+            if (!hasErrors()) return "No errors";
+            
+            size_t errorCount = getErrorCount(ErrorSeverity::Error) + getErrorCount(ErrorSeverity::Fatal);
+            size_t warningCount = getErrorCount(ErrorSeverity::Warning);
+            
+            Str result = std::to_string(errorCount) + " error(s)";
+            if (warningCount > 0) {
+                result += ", " + std::to_string(warningCount) + " warning(s)";
+            }
+            return result;
+        }
+        
+        // JSON格式输出（简单实现）
+        Str toJson() const {
+            Str result = "{\"errors\":[";
+            const auto& errors = collector_.getErrors();
+            for (size_t i = 0; i < errors.size(); ++i) {
+                if (i > 0) result += ",";
+                result += "{";
+                result += "\"type\":\"" + ParseError::errorTypeToString(errors[i].getType()) + "\",";
+                result += "\"severity\":\"" + ParseError::severityToString(errors[i].getSeverity()) + "\",";
+                result += "\"line\":" + std::to_string(errors[i].getLocation().getLine()) + ",";
+                result += "\"column\":" + std::to_string(errors[i].getLocation().getColumn()) + ",";
+                result += "\"message\":\"" + escapeJsonString(errors[i].getMessage()) + "\"";
+                result += "}";
+            }
+            result += "],\"count\":" + std::to_string(errors.size()) + "}";
+            return result;
+        }
+        
+        // 静态工厂方法
+        static ErrorReporter createDefault() {
+            return ErrorReporter();
+        }
+        
+        static ErrorReporter createStrict() {
+            ErrorReporterConfig config;
+            config.stopOnFirstError = true;
+            config.includeWarnings = true;
+            config.includeInfo = false;
+            return ErrorReporter(config);
+        }
+        
+        static ErrorReporter createPermissive() {
+            ErrorReporterConfig config;
+            config.maxErrors = 1000;
+            config.stopOnFirstError = false;
+            config.includeWarnings = true;
+            config.includeInfo = true;
+            return ErrorReporter(config);
+        }
+        
+    private:
+        bool shouldReportError(ErrorSeverity severity) const {
+            switch (severity) {
+                case ErrorSeverity::Info:
+                    return config_.includeInfo;
+                case ErrorSeverity::Warning:
+                    return config_.includeWarnings;
+                case ErrorSeverity::Error:
+                case ErrorSeverity::Fatal:
+                    return true;
+                default:
+                    return true;
+            }
+        }
+        
+        Str escapeJsonString(const Str& str) const {
+            Str result;
+            for (char c : str) {
+                switch (c) {
+                    case '"': result += "\\\""; break;
+                    case '\\': result += "\\\\"; break;
+                    case '\n': result += "\\n"; break;
+                    case '\r': result += "\\r"; break;
+                    case '\t': result += "\\t"; break;
+                    default: result += c; break;
+                }
             }
             return result;
         }

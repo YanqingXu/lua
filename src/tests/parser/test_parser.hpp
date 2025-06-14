@@ -8,6 +8,7 @@
 #include "if_statement_test.hpp"
 #include "source_location_test.hpp"
 #include "parse_error_test.hpp"
+#include "error_reporter_test.hpp"
 
 namespace Lua {
 namespace Tests {

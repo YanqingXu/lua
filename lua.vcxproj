@@ -180,6 +180,7 @@
     <ClInclude Include="src\tests\gc\string_pool_demo_test.hpp" />
     <ClInclude Include="src\tests\gc\test_gc.hpp" />
     <ClInclude Include="src\tests\lexer\lexer_test.hpp" />
+    <ClInclude Include="src\tests\parser\error_reporter_test.hpp" />
     <ClInclude Include="src\tests\parser\forin_test.hpp" />
     <ClInclude Include="src\tests\parser\function_test.hpp" />
     <ClInclude Include="src\tests\parser\if_statement_test.hpp" />
@@ -240,6 +241,7 @@
     <ClCompile Include="src\tests\gc\string_pool_demo_test.cpp" />
     <ClCompile Include="src\tests\gc\test_gc.cpp" />
     <ClCompile Include="src\tests\lexer\lexer_test.cpp" />
+    <ClCompile Include="src\tests\parser\error_reporter_test.cpp" />
     <ClCompile Include="src\tests\parser\forin_test.cpp" />
     <ClCompile Include="src\tests\parser\function_test.cpp" />
     <ClCompile Include="src\tests\parser\if_statement_test.cpp" />
