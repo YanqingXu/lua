@@ -45,6 +45,7 @@ add_executable(lua_tests
   tests/main_test.cpp
   tests/benchmark_tests.cpp
   tests/compatibility_tests.cpp
+  src/tests/plugin/plugin_integration_test.cpp
 )
 
 # 链接Google Test和项目库

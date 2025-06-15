@@ -160,6 +160,13 @@
     <ClInclude Include="src\lib\lib_manager.hpp" />
     <ClInclude Include="src\lib\lib_module.hpp" />
     <ClInclude Include="src\lib\math_lib.hpp" />
+    <ClInclude Include="src\lib\plugin\plugin.hpp" />
+    <ClInclude Include="src\lib\plugin\plugin_context.hpp" />
+    <ClInclude Include="src\lib\plugin\plugin_interface.hpp" />
+    <ClInclude Include="src\lib\plugin\plugin_loader.hpp" />
+    <ClInclude Include="src\lib\plugin\plugin_manager.hpp" />
+    <ClInclude Include="src\lib\plugin\plugin_registry.hpp" />
+    <ClInclude Include="src\lib\plugin\plugin_sandbox.hpp" />
     <ClInclude Include="src\lib\string_lib.hpp" />
     <ClInclude Include="src\lib\table_lib.hpp" />
     <ClInclude Include="src\lib\type_conversion.hpp" />
@@ -198,6 +205,7 @@
     <ClInclude Include="src\tests\parser\repeat_test.hpp" />
     <ClInclude Include="src\tests\parser\source_location_test.hpp" />
     <ClInclude Include="src\tests\parser\test_parser.hpp" />
+    <ClInclude Include="src\tests\plugin\plugin_integration_test.hpp" />
     <ClInclude Include="src\tests\test_main.hpp" />
     <ClInclude Include="src\tests\vm\state_test.hpp" />
     <ClInclude Include="src\tests\vm\test_vm.hpp" />
@@ -232,6 +240,13 @@
     <ClCompile Include="src\lib\lib_manager.cpp" />
     <ClCompile Include="src\lib\lib_module.cpp" />
     <ClCompile Include="src\lib\math_lib.cpp" />
+    <ClCompile Include="src\lib\plugin\plugin.cpp" />
+    <ClCompile Include="src\lib\plugin\plugin_context.cpp" />
+    <ClCompile Include="src\lib\plugin\plugin_interface.cpp" />
+    <ClCompile Include="src\lib\plugin\plugin_loader.cpp" />
+    <ClCompile Include="src\lib\plugin\plugin_manager.cpp" />
+    <ClCompile Include="src\lib\plugin\plugin_registry.cpp" />
+    <ClCompile Include="src\lib\plugin\plugin_sandbox.cpp" />
     <ClCompile Include="src\lib\string_lib.cpp" />
     <ClCompile Include="src\lib\table_lib.cpp" />
     <ClCompile Include="src\localization\localization_manager.cpp" />
@@ -268,6 +283,7 @@
     <ClCompile Include="src\tests\parser\repeat_test.cpp" />
     <ClCompile Include="src\tests\parser\source_location_test.cpp" />
     <ClCompile Include="src\tests\parser\test_parser.cpp" />
+    <ClCompile Include="src\tests\plugin\plugin_integration_test.cpp" />
     <ClCompile Include="src\tests\test_main.cpp" />
     <ClCompile Include="src\tests\vm\state_test.cpp" />
     <ClCompile Include="src\tests\vm\test_vm.cpp" />

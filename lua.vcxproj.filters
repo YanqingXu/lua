@@ -82,6 +82,12 @@
     <Filter Include="tests\lib">
       <UniqueIdentifier>{cb84f0b7-0ef8-481e-b6c4-c90905cd87bb}</UniqueIdentifier>
     </Filter>
+    <Filter Include="lib\plugin">
+      <UniqueIdentifier>{b9b37814-b51b-4a52-8c1e-4d3cb3a659dc}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="tests\plugin">
+      <UniqueIdentifier>{9b5f5e8a-ba66-4971-b067-d639db0c1d0f}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\main.cpp">
@@ -243,9 +249,6 @@
     <ClCompile Include="src\localization\localization_manager.cpp">
       <Filter>localization</Filter>
     </ClCompile>
-    <ClCompile Include="src\tests\localization\localization_test.cpp">
-      <Filter>tests\localization</Filter>
-    </ClCompile>
     <ClCompile Include="src\lib\base_lib.cpp">
       <Filter>lib</Filter>
     </ClCompile>
@@ -281,6 +284,33 @@
     </ClCompile>
     <ClCompile Include="src\tests\lib\string_lib_test.cpp">
       <Filter>tests\lib</Filter>
+    </ClCompile>
+    <ClCompile Include="src\lib\plugin\plugin.cpp">
+      <Filter>lib\plugin</Filter>
+    </ClCompile>
+    <ClCompile Include="src\lib\plugin\plugin_context.cpp">
+      <Filter>lib\plugin</Filter>
+    </ClCompile>
+    <ClCompile Include="src\lib\plugin\plugin_loader.cpp">
+      <Filter>lib\plugin</Filter>
+    </ClCompile>
+    <ClCompile Include="src\lib\plugin\plugin_manager.cpp">
+      <Filter>lib\plugin</Filter>
+    </ClCompile>
+    <ClCompile Include="src\lib\plugin\plugin_interface.cpp">
+      <Filter>lib\plugin</Filter>
+    </ClCompile>
+    <ClCompile Include="src\lib\plugin\plugin_registry.cpp">
+      <Filter>lib\plugin</Filter>
+    </ClCompile>
+    <ClCompile Include="src\lib\plugin\plugin_sandbox.cpp">
+      <Filter>lib\plugin</Filter>
+    </ClCompile>
+    <ClCompile Include="src\tests\plugin\plugin_integration_test.cpp">
+      <Filter>tests\plugin</Filter>
+    </ClCompile>
+    <ClCompile Include="src\tests\localization\localization_test.cpp">
+      <Filter>tests\localization</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -467,9 +497,6 @@
     <ClInclude Include="src\localization\localization_manager.hpp">
       <Filter>localization</Filter>
     </ClInclude>
-    <ClInclude Include="src\tests\localization\localization_test.hpp">
-      <Filter>tests\localization</Filter>
-    </ClInclude>
     <ClInclude Include="src\lib\base_lib.hpp">
       <Filter>lib</Filter>
     </ClInclude>
@@ -508,6 +535,33 @@
     </ClInclude>
     <ClInclude Include="src\tests\lib\string_lib_test.hpp">
       <Filter>tests\lib</Filter>
+    </ClInclude>
+    <ClInclude Include="src\lib\plugin\plugin.hpp">
+      <Filter>lib\plugin</Filter>
+    </ClInclude>
+    <ClInclude Include="src\lib\plugin\plugin_context.hpp">
+      <Filter>lib\plugin</Filter>
+    </ClInclude>
+    <ClInclude Include="src\lib\plugin\plugin_interface.hpp">
+      <Filter>lib\plugin</Filter>
+    </ClInclude>
+    <ClInclude Include="src\lib\plugin\plugin_loader.hpp">
+      <Filter>lib\plugin</Filter>
+    </ClInclude>
+    <ClInclude Include="src\lib\plugin\plugin_manager.hpp">
+      <Filter>lib\plugin</Filter>
+    </ClInclude>
+    <ClInclude Include="src\lib\plugin\plugin_registry.hpp">
+      <Filter>lib\plugin</Filter>
+    </ClInclude>
+    <ClInclude Include="src\lib\plugin\plugin_sandbox.hpp">
+      <Filter>lib\plugin</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tests\plugin\plugin_integration_test.hpp">
+      <Filter>tests\plugin</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tests\localization\localization_test.hpp">
+      <Filter>tests\localization</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

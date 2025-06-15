@@ -34,6 +34,9 @@ void runAllTests() {
         // Run all localization tests (unified)
         // LocalizationTest::runAllTests();
         
+        // Run plugin integration tests
+        PluginIntegrationTest::runAllTests();
+        
         std::cout << "\n=== All Tests Completed ===" << std::endl;
         
     } catch (const std::exception& e) {
