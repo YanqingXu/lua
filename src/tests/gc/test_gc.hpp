@@ -3,6 +3,7 @@
 // Include all GC test headers
 #include "gc_integration_test.hpp"
 #include "string_pool_demo_test.hpp"
+#include "garbage_collector_test.hpp"
 #include <string>
 
 namespace Lua {

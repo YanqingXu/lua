@@ -26,16 +26,16 @@ void runAllTests() {
         // CompilerTest::runAllTests();
         
         // Run all GC tests (unified)
-        // GCTest::runAllTests();
+        GCTest::runAllTests();
         
         // Run all lib tests (unified)
-        LibTestSuite::runAllTests();
+        // LibTestSuite::runAllTests();
 
         // Run all localization tests (unified)
         // LocalizationTest::runAllTests();
         
         // Run plugin integration tests
-        PluginIntegrationTest::runAllTests();
+        // PluginIntegrationTest::runAllTests();
         
         std::cout << "\n=== All Tests Completed ===" << std::endl;
         

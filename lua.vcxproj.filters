@@ -312,6 +312,9 @@
     <ClCompile Include="src\tests\localization\localization_test.cpp">
       <Filter>tests\localization</Filter>
     </ClCompile>
+    <ClCompile Include="src\tests\gc\garbage_collector_test.cpp">
+      <Filter>tests\gc</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\compiler\compiler.hpp">
@@ -562,6 +565,9 @@
     </ClInclude>
     <ClInclude Include="src\tests\localization\localization_test.hpp">
       <Filter>tests\localization</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tests\gc\garbage_collector_test.hpp">
+      <Filter>tests\gc</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

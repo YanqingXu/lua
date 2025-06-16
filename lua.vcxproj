@@ -185,6 +185,7 @@
     <ClInclude Include="src\tests\compiler\symbol_table_test.hpp" />
     <ClInclude Include="src\tests\compiler\test_compiler.hpp" />
     <ClInclude Include="src\tests\compiler\variable_compiler_test.hpp" />
+    <ClInclude Include="src\tests\gc\garbage_collector_test.hpp" />
     <ClInclude Include="src\tests\gc\gc_integration_test.hpp" />
     <ClInclude Include="src\tests\gc\string_pool_demo_test.hpp" />
     <ClInclude Include="src\tests\gc\test_gc.hpp" />
@@ -263,6 +264,7 @@
     <ClCompile Include="src\tests\compiler\symbol_table_test.cpp" />
     <ClCompile Include="src\tests\compiler\test_compiler.cpp" />
     <ClCompile Include="src\tests\compiler\variable_compiler_test.cpp" />
+    <ClCompile Include="src\tests\gc\garbage_collector_test.cpp" />
     <ClCompile Include="src\tests\gc\gc_integration_test.cpp" />
     <ClCompile Include="src\tests\gc\string_pool_demo_test.cpp" />
     <ClCompile Include="src\tests\gc\test_gc.cpp" />

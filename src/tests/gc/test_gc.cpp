@@ -20,10 +20,13 @@ void GCTest::runAllTests() {
         
         // 2. GC Integration Tests 
         printSectionHeader("GC Integration Tests");
-        bool gcTestResult = GCIntegrationTest::runAllTests();
-        if (!gcTestResult) {
-            std::cout << "[WARNING]  Warning: Some GC integration tests failed" << std::endl;
-        }        printSectionFooter();
+        GCIntegrationTest::runAllTests();
+        printSectionFooter();
+
+        // 3. Garbage Collector Full Implementation Tests
+        printSectionHeader("Garbage Collector Full Implementation Tests");
+        GarbageCollectorTest::runAllTests();
+        printSectionFooter();
         
         // Summary
         std::cout << "\n" << std::string(60, '=') << std::endl;

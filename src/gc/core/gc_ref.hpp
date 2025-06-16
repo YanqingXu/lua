@@ -12,10 +12,6 @@ namespace Lua {
     class GCAllocator;
     class Table;
     class Function;
-    
-    // Include complete type definitions
-    class Table;
-    class Function;
 
     /**
      * @brief Lightweight reference to a garbage-collected object
