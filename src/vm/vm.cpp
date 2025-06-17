@@ -1,8 +1,10 @@
 #include "vm.hpp"
 #include "table.hpp"
 #include "instruction.hpp"
+#include "upvalue.hpp"
 #include "../common/opcodes.hpp"
 #include "../gc/core/gc_ref.hpp"
+#include "../gc/core/garbage_collector.hpp"
 #include <stdexcept>
 #include <iostream>
 
@@ -12,7 +14,8 @@ namespace Lua {
         currentFunction(nullptr),
         code(nullptr),
         constants(nullptr),
-        pc(0) {
+        pc(0),
+        openUpvalues(nullptr) {
     }
     
     Value VM::execute(GCRef<Function> function) {
@@ -38,22 +41,30 @@ namespace Lua {
         
         pc = 0;
         
-        // Execute function
-        Value result;
+        // Clear call frame upvalues for new execution
+        callFrameUpvalues.clear();
+        
+        Value result = Value(nullptr);  // Default return value is nil
         
         try {
             // Execute bytecode
             while (pc < code->size()) {
                 if (!runInstruction()) {
-                    break;  // Hit return instruction
+                    // Hit return instruction, get return value from stack top
+                    if (state->getTop() > 0) {
+                        result = state->get(-1);  // Get top value
+                        state->pop();  // Remove return value from stack
+                    }
+                    break;
                 }
             }
-            
-            // Default return nil
-            result = Value(nullptr);
         } catch (const std::exception& e) {
             std::cerr << "VM execution error: " << e.what() << std::endl;
 
+            // Close upvalues and clean up before restoring context
+            closeAllUpvalues();
+            callFrameUpvalues.clear();
+            
             // Restore old context
             currentFunction = oldFunction;
             code = oldCode;
@@ -63,6 +74,10 @@ namespace Lua {
             // Re-throw exception
             throw;
         }
+        
+        // Close upvalues when function execution ends
+        closeAllUpvalues();
+        callFrameUpvalues.clear();
         
         // Restore old context
         currentFunction = oldFunction;
@@ -138,6 +153,15 @@ namespace Lua {
             case OpCode::RETURN:
                 op_return(i);
                 return false;  // Stop execution
+            case OpCode::CLOSURE:
+                op_closure(i);
+                break;
+            case OpCode::GETUPVAL:
+                op_getupval(i);
+                break;
+            case OpCode::SETUPVAL:
+                op_setupval(i);
+                break;
             default:
                 throw LuaException("Unimplemented opcode: " + std::to_string(static_cast<int>(op)));
         }
@@ -426,8 +450,208 @@ namespace Lua {
         // b-1 is the number of values to return, if b=0, return all values from a to top
         // Simplified handling: we currently only support returning at most one value
         if (b == 0 || b > 1) {
-            // Return value in register a
-            // Should implement multi-return value handling in practice
+            // Return all values from register a to top
+            // For now, just return the value in register a
+            if (a < state->getTop()) {
+                Value returnValue = state->get(a + 1);  // Get value from register a (1-indexed)
+                state->push(returnValue);  // Push return value to stack top
+            } else {
+                state->push(Value(nullptr));  // Push nil if register is invalid
+            }
+        } else if (b == 1) {
+            // No return values, push nil
+            state->push(Value(nullptr));
+        } else {
+            // Return exactly b-1 values, for now just handle single value
+            if (a < state->getTop()) {
+                Value returnValue = state->get(a + 1);  // Get value from register a (1-indexed)
+                state->push(returnValue);  // Push return value to stack top
+            } else {
+                state->push(Value(nullptr));  // Push nil if register is invalid
+            }
+        }
+    }
+    
+    void VM::op_closure(Instruction i) {
+        u8 a = i.getA();  // Target register
+        u16 bx = i.getBx(); // Function prototype index
+        
+        // Get function prototype from current function's prototypes
+        if (!currentFunction || currentFunction->getType() != Function::Type::Lua) {
+            throw LuaException("CLOSURE instruction outside Lua function");
+        }
+        
+        // Get the prototype from the current function's prototype list
+        // Note: In a full implementation, prototypes would be stored in the current function
+        // For now, we'll create a simple closure from the constant table
+        if (bx >= constants->size()) {
+            throw LuaException("Invalid prototype index in CLOSURE instruction");
+        }
+        
+        Value prototypeValue = getConstant(bx);
+        if (!prototypeValue.isFunction()) {
+            throw LuaException("CLOSURE instruction expects function prototype");
+        }
+        
+        GCRef<Function> prototype = prototypeValue.asFunction();
+        
+        // Create a new closure (copy of the prototype)
+        // In a full implementation, this would properly handle upvalue binding
+        GCRef<Function> closure = Function::createLua(
+            std::make_shared<Vec<Instruction>>(prototype->getCode()),
+            prototype->getConstants(),
+            prototype->getParamCount(),
+            prototype->getLocalCount(),
+            prototype->getUpvalueCount()
+        );
+        
+        // Bind upvalues from the current environment
+        for (u32 upvalIndex = 0; upvalIndex < prototype->getUpvalueCount(); upvalIndex++) {
+            // Read the next instruction to get upvalue binding info
+            pc++;
+            if (pc >= code->size()) break;
+            
+            Instruction upvalInstr = (*code)[pc];
+            u8 isLocal = upvalInstr.getA();
+            u8 index = upvalInstr.getB();
+            
+            GCRef<Upvalue> upvalue;
+            
+            if (isLocal) {
+                // Capture a local variable from the current stack frame
+                Value* location = &state->get(index + 1);
+                upvalue = findOrCreateUpvalue(location);
+            } else {
+                // Inherit an upvalue from the current function
+                if (currentFunction && index < currentFunction->getUpvalueCount()) {
+                    // Get upvalue from current function
+                    upvalue = currentFunction->getUpvalue(index);
+                }
+            }
+            
+            // Set upvalue in the new closure
+            closure->setUpvalue(upvalIndex, upvalue);
+        }
+        
+        // Store the closure in the target register
+        state->set(a + 1, Value(closure));
+    }
+    
+    void VM::op_getupval(Instruction i) {
+        u8 a = i.getA();  // Target register
+        u8 b = i.getB();  // Upvalue index
+        
+        // Get upvalue from current function
+        if (!currentFunction || currentFunction->getType() != Function::Type::Lua) {
+            throw LuaException("GETUPVAL instruction outside Lua function");
+        }
+        
+        if (b >= currentFunction->getUpvalueCount()) {
+            throw LuaException("Invalid upvalue index in GETUPVAL instruction");
+        }
+        
+        GCRef<Upvalue> upvalue = currentFunction->getUpvalue(b);
+        if (!upvalue) {
+            // Upvalue not bound, return nil
+            state->set(a + 1, Value(nullptr));
+        } else {
+            // Get value from upvalue (handles Open/Closed state)
+            state->set(a + 1, upvalue->getValue());
+        }
+    }
+    
+    void VM::op_setupval(Instruction i) {
+        u8 a = i.getA();  // Source register
+        u8 b = i.getB();  // Upvalue index
+        
+        // Set upvalue from register value
+        if (!currentFunction || currentFunction->getType() != Function::Type::Lua) {
+            throw LuaException("SETUPVAL instruction outside Lua function");
+        }
+        
+        if (b >= currentFunction->getUpvalueCount()) {
+            throw LuaException("Invalid upvalue index in SETUPVAL instruction");
+        }
+        
+        GCRef<Upvalue> upvalue = currentFunction->getUpvalue(b);
+        if (upvalue) {
+            // Update upvalue with register value (handles Open/Closed state)
+            upvalue->setValue(state->get(a + 1));
+        }
+        // If upvalue is null, we ignore the assignment (upvalue not bound)
+    }
+    
+    GCRef<Upvalue> VM::findOrCreateUpvalue(Value* location) {
+        // Search for existing open upvalue pointing to this location
+        Upvalue* current = openUpvalues.get();
+        Upvalue* prev = nullptr;
+        
+        // Walk the linked list to find the upvalue or insertion point
+        while (current && current->getStackLocation() > location) {
+            prev = current;
+            current = current->getNext();
+        }
+        
+        // If we found an existing upvalue for this location, return it
+        if (current && current->pointsTo(location)) {
+            return GCRef<Upvalue>(current);
+        }
+        
+        // Create a new upvalue
+        GCRef<Upvalue> newUpvalue = Upvalue::create(location);
+        
+        // Insert into the sorted linked list
+        newUpvalue->setNext(current);
+        if (prev) {
+            prev->setNext(newUpvalue.get());
+        } else {
+            openUpvalues = newUpvalue;
+        }
+        
+        return newUpvalue;
+    }
+    
+    void VM::closeUpvalues(Value* level) {
+        // Close all upvalues at or above the given stack level
+        while (openUpvalues && openUpvalues->getStackLocation() >= level) {
+            Upvalue* upvalue = openUpvalues.get();
+            openUpvalues = GCRef<Upvalue>(upvalue->getNext());
+            
+            // Close the upvalue
+            upvalue->close();
+            upvalue->setNext(nullptr);
+        }
+    }
+    
+    void VM::closeAllUpvalues() {
+        // Close all open upvalues
+        while (openUpvalues) {
+            Upvalue* upvalue = openUpvalues.get();
+            openUpvalues = GCRef<Upvalue>(upvalue->getNext());
+            
+            upvalue->close();
+            upvalue->setNext(nullptr);
+        }
+    }
+    
+    void VM::markReferences(GarbageCollector* gc) {
+        // Mark current function
+        if (currentFunction) {
+            gc->markObject(currentFunction.get());
+        }
+        
+        // Mark all open upvalues
+        Upvalue* current = openUpvalues.get();
+        while (current) {
+            gc->markObject(current);
+            current = current->getNext();
+        }
+        
+        // Mark upvalues in call frame
+        for (const auto& upvalue : callFrameUpvalues) {
+            if (upvalue) {
+                gc->markObject(upvalue.get());
+            }
         }
     }
 }

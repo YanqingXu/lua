@@ -133,9 +133,9 @@ namespace Lua {
                 
                 // Mark upvalues
                 for (usize i = 0; i < func->getUpvalueCount(); ++i) {
-                    Value* upvalue = func->getUpvalue(i);
-                    if (upvalue != nullptr && upvalue->isGCObject()) {
-                        markObject(upvalue->asGCObject(), currentWhite);
+                    GCRef<Upvalue> upvalue = func->getUpvalue(i);
+                    if (upvalue) {
+                        markObject(upvalue.get(), currentWhite);
                     }
                 }
                 

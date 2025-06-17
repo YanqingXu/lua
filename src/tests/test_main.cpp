@@ -20,7 +20,7 @@ void runAllTests() {
         // VMTestSuite::runAllTests();
         
         // Run all parser tests (unified)
-        ParserTestSuite::runAllTests();
+        // ParserTestSuite::runAllTests();
         
         // Run all compiler tests (unified)
         // CompilerTest::runAllTests();

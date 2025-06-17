@@ -212,7 +212,7 @@ namespace Lua {
             
             // 3. Execute bytecode using virtual machine
             VM vm(this);
-            vm.execute(function);
+            Value result = vm.execute(function);  // Get return value but don't use it for doString
             
             return true;
         } catch (const LuaException& e) {
@@ -253,13 +253,13 @@ namespace Lua {
     
     // GCObject virtual function implementations
     void State::markReferences(GarbageCollector* gc) {
-        // Mark all values in the stack
-        for (int i = 0; i < top; i++) {
-            stack[i].markReferences(gc);
+        // Mark all values on the stack
+        for (const Value& value : stack) {
+            value.markReferences(gc);
         }
         
         // Mark all global variables
-        for (auto& pair : globals) {
+        for (const auto& pair : globals) {
             pair.second.markReferences(gc);
         }
     }

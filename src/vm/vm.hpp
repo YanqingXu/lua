@@ -1,8 +1,10 @@
-#pragma once
+﻿#pragma once
 
 #include "../common/types.hpp"
 #include "state.hpp"
 #include "function.hpp"
+#include "upvalue.hpp"
+#include "../gc/core/gc_ref.hpp"
 
 namespace Lua {
     class VM {
@@ -13,11 +15,23 @@ namespace Lua {
         Vec<Value>* constants;
         usize pc; // Program counter
         
+        // Upvalue management
+        GCRef<Upvalue> openUpvalues; // Linked list of open upvalues
+        Vec<GCRef<Upvalue>> callFrameUpvalues; // Upvalues for current call frame
+        
     public:
         explicit VM(State* state);
         
         // Execute function
         Value execute(GCRef<Function> function);
+        
+        // GC integration
+        void markReferences(GarbageCollector* gc);
+        
+        // Public methods for testing
+        GCRef<Upvalue> findOrCreateUpvalue(Value* location);
+        void closeUpvalues(Value* level);
+        void closeAllUpvalues();
         
     private:
         // Run one instruction
@@ -46,5 +60,8 @@ namespace Lua {
         void op_test(Instruction i);
         void op_call(Instruction i);
         void op_return(Instruction i);
+        void op_closure(Instruction i);
+        void op_getupval(Instruction i);
+        void op_setupval(Instruction i);
     };
 }

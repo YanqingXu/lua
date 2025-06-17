@@ -218,6 +218,7 @@
     <ClInclude Include="src\vm\state_factory.hpp" />
     <ClInclude Include="src\vm\table.hpp" />
     <ClInclude Include="src\vm\table_impl.hpp" />
+    <ClInclude Include="src\vm\upvalue.hpp" />
     <ClInclude Include="src\vm\value.hpp" />
     <ClInclude Include="src\vm\vm.hpp" />
   </ItemGroup>
@@ -296,6 +297,7 @@
     <ClCompile Include="src\vm\state.cpp" />
     <ClCompile Include="src\vm\state_factory.cpp" />
     <ClCompile Include="src\vm\table.cpp" />
+    <ClCompile Include="src\vm\upvalue.cpp" />
     <ClCompile Include="src\vm\value.cpp" />
     <ClCompile Include="src\vm\vm.cpp" />
   </ItemGroup>

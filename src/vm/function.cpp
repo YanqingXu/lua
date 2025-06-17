@@ -3,7 +3,6 @@
 #include "../gc/core/garbage_collector.hpp"
 #include "../gc/core/gc_ref.hpp"
 #include "../gc/memory/allocator.hpp"
-#include <cmath>        // For std::floor
 
 namespace Lua {
     Function::Function(Type type) : GCObject(GCObjectType::Function, sizeof(Function)), type(type) {
@@ -54,7 +53,7 @@ namespace Lua {
         func->lua.nupvalues = nupvalues;
         
         // Initialize upvalues array
-        func->lua.upvalues.resize(nupvalues, nullptr);
+        func->lua.upvalues.resize(nupvalues);
         
         return func;
     }
@@ -103,10 +102,10 @@ namespace Lua {
                 }
             }
             
-            // Mark all upvalues that are GC objects
-             for (Value* upvalue : lua.upvalues) {
-                 if (upvalue != nullptr && upvalue->isGCObject()) {
-                     gc->markObject(upvalue->asGCObject());
+            // Mark all upvalues
+             for (const auto& upvalue : lua.upvalues) {
+                 if (upvalue) {
+                     gc->markObject(upvalue.get());
                  }
              }
              
@@ -144,14 +143,14 @@ namespace Lua {
         return additionalSize;
     }
     
-    Value* Function::getUpvalue(usize index) const {
+    GCRef<Upvalue> Function::getUpvalue(usize index) const {
         if (type != Type::Lua || index >= lua.upvalues.size()) {
-            return nullptr;
+            return GCRef<Upvalue>();
         }
         return lua.upvalues[index];
     }
     
-    void Function::setUpvalue(usize index, Value* upvalue) {
+    void Function::setUpvalue(usize index, GCRef<Upvalue> upvalue) {
          if (type == Type::Lua && index < lua.upvalues.size()) {
              lua.upvalues[index] = upvalue;
          }
@@ -173,13 +172,12 @@ namespace Lua {
      
      void Function::closeUpvalues() {
          if (type == Type::Lua) {
-             // Close all upvalues by setting them to nil
-             // In a full implementation, this would properly close upvalues
-             // by moving their values from the stack to the upvalue itself
-             for (size_t i = 0; i < lua.upvalues.size(); ++i) {
-                 // For now, we just set them to nullptr
-                 // A full implementation would handle the upvalue closing protocol
-                 lua.upvalues[i] = nullptr;
+             // Close all upvalues by calling their close method
+             // This properly handles the upvalue closing protocol
+             for (auto& upvalue : lua.upvalues) {
+                 if (upvalue) {
+                     upvalue->close();
+                 }
              }
          }
      }

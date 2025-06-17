@@ -318,6 +318,9 @@
     <ClCompile Include="src\compiler\upvalue_analyzer.cpp">
       <Filter>compiler</Filter>
     </ClCompile>
+    <ClCompile Include="src\vm\upvalue.cpp">
+      <Filter>vm</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\compiler\compiler.hpp">
@@ -574,6 +577,9 @@
     </ClInclude>
     <ClInclude Include="src\compiler\upvalue_analyzer.hpp">
       <Filter>compiler</Filter>
+    </ClInclude>
+    <ClInclude Include="src\vm\upvalue.hpp">
+      <Filter>vm</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

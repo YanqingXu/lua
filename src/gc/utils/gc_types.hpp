@@ -39,7 +39,8 @@ namespace Lua {
         Userdata,   // User data
         Thread,     // Coroutine object
         Proto,      // Function prototype
-        State       // Lua state object
+        State,      // Lua state object
+        Upvalue     // Upvalue object
     };
 
     // GC configuration parameters

@@ -1,0 +1,97 @@
+﻿#include "upvalue.hpp"
+#include "../gc/core/garbage_collector.hpp"
+#include "../gc/memory/allocator.hpp"
+#include <stdexcept>
+
+namespace Lua {
+    Upvalue::Upvalue(Value* location) 
+        : GCObject(GCObjectType::Upvalue, sizeof(Upvalue))
+        , state(State::Open)
+        , stackLocation(location)
+        , next(nullptr) {
+        if (location == nullptr) {
+            throw std::invalid_argument("Upvalue location cannot be null");
+        }
+    }
+    
+    Upvalue::~Upvalue() {
+        // If the upvalue is closed, we need to properly destruct the value
+        if (state == State::Closed) {
+            closedValue.~Value();
+        }
+    }
+    
+    void Upvalue::markReferences(GarbageCollector* gc) {
+        if (state == State::Closed && closedValue.isGCObject()) {
+            gc->markObject(closedValue.asGCObject());
+        }
+        // Note: When open, the value is on the stack and will be marked
+        // by the State object's markReferences method
+    }
+    
+    usize Upvalue::getSize() const {
+        return sizeof(Upvalue);
+    }
+    
+    usize Upvalue::getAdditionalSize() const {
+        // Upvalue doesn't have additional dynamic memory
+        return 0;
+    }
+    
+    Value Upvalue::getValue() const {
+        if (state == State::Open) {
+            return *stackLocation;
+        } else {
+            return closedValue;
+        }
+    }
+    
+    void Upvalue::setValue(const Value& value) {
+        if (state == State::Open) {
+            *stackLocation = value;
+        } else {
+            closedValue = value;
+        }
+    }
+    
+    void Upvalue::close() {
+        if (state == State::Open) {
+            // Move the value from stack to closed storage
+            Value valueToClose = *stackLocation;
+            
+            // Change state to closed
+            state = State::Closed;
+            
+            // Use placement new to construct the closed value
+            new (&closedValue) Value(valueToClose);
+            
+            // stackLocation is no longer valid
+            stackLocation = nullptr;
+        }
+    }
+    
+    Value* Upvalue::getStackLocation() const {
+        if (state == State::Open) {
+            return stackLocation;
+        }
+        return nullptr;
+    }
+    
+    bool Upvalue::pointsTo(Value* location) const {
+        return state == State::Open && stackLocation == location;
+    }
+    
+    // Factory function to create upvalues using GC allocator
+    GCRef<Upvalue> Upvalue::create(Value* location) {
+        extern GCAllocator* g_gcAllocator;
+        
+        if (g_gcAllocator) {
+            Upvalue* obj = g_gcAllocator->allocateObject<Upvalue>(GCObjectType::Upvalue, location);
+            return GCRef<Upvalue>(obj);
+        } else {
+            // Fallback to direct allocation
+            Upvalue* obj = new Upvalue(location);
+            return GCRef<Upvalue>(obj);
+        }
+    }
+}

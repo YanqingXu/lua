@@ -5,6 +5,7 @@
 #include "instruction.hpp"
 #include "../gc/core/gc_ref.hpp"
 #include "../vm/Value.hpp"
+#include "../vm/upvalue.hpp"
 #include <functional>
 
 namespace Lua {
@@ -29,7 +30,7 @@ namespace Lua {
         struct LuaData {
             Ptr<Vec<Instruction>> code;
             Vec<Value> constants;
-            Vec<Value*> upvalues;  // Store upvalue references
+            Vec<GCRef<Upvalue>> upvalues;  // Store upvalue references
             Function* prototype;    // Function prototype (parent function)
             u8 nparams;
             u8 nlocals;
@@ -90,10 +91,10 @@ namespace Lua {
         u8 getUpvalueCount() const { return type == Type::Lua ? lua.nupvalues : 0; }
         
         // Get upvalue by index
-        Value* getUpvalue(usize index) const;
+        GCRef<Upvalue> getUpvalue(usize index) const;
         
         // Set upvalue by index
-        void setUpvalue(usize index, Value* upvalue);
+        void setUpvalue(usize index, GCRef<Upvalue> upvalue);
         
         // Get constant count
         usize getConstantCount() const;
