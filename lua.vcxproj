@@ -227,6 +227,7 @@
     <ClCompile Include="src\compiler\expression_compiler.cpp" />
     <ClCompile Include="src\compiler\statement_compiler.cpp" />
     <ClCompile Include="src\compiler\symbol_table.cpp" />
+    <ClCompile Include="src\compiler\upvalue_analyzer.cpp" />
     <ClCompile Include="src\gc\algorithms\gc_marker.cpp" />
     <ClCompile Include="src\gc\algorithms\gc_sweeper.cpp" />
     <ClCompile Include="src\gc\core\garbage_collector.cpp" />

@@ -315,6 +315,9 @@
     <ClCompile Include="src\tests\gc\garbage_collector_test.cpp">
       <Filter>tests\gc</Filter>
     </ClCompile>
+    <ClCompile Include="src\compiler\upvalue_analyzer.cpp">
+      <Filter>compiler</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\compiler\compiler.hpp">
