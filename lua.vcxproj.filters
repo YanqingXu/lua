@@ -569,5 +569,8 @@
     <ClInclude Include="src\tests\gc\garbage_collector_test.hpp">
       <Filter>tests\gc</Filter>
     </ClInclude>
+    <ClInclude Include="src\compiler\upvalue_analyzer.hpp">
+      <Filter>compiler</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

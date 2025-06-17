@@ -489,6 +489,337 @@ Value result = vm.execute(luaFunc);
    - 改进上值管理
    - 减少 GC 压力
 
+## 🚀 闭包功能开发详细计划
+
+### 📊 项目现状分析
+
+#### ✅ 已完成的基础设施
+- **数据结构支持**: Function类中已定义完整的upvalue支持
+- **指令集架构**: opcodes.hpp中已定义CLOSURE指令
+- **垃圾回收集成**: GC系统已支持闭包对象管理
+- **测试框架**: function_tests.cpp中已有闭包测试结构
+
+#### ❌ 待实现的核心组件
+- **编译器逻辑**: `compileFunctionStmt` 中的闭包编译逻辑
+- **虚拟机执行**: CLOSURE指令的执行实现
+- **作用域分析**: 词法作用域和upvalue捕获机制
+
+### 🎯 技术架构设计
+
+#### 核心组件架构
+```
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   词法作用域     │───▶│   编译器增强     │───▶│   虚拟机执行     │
+│   分析器        │    │                │    │                │
+│                │    │ compileFunctionStmt │    │ CLOSURE指令处理 │
+│ - 自由变量检测   │    │ - upvalue捕获   │    │ - 闭包对象创建   │
+│ - 作用域嵌套     │    │ - CLOSURE生成   │    │ - upvalue绑定   │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+```
+
+#### 新增指令集
+```cpp
+// 需要在opcodes.hpp中补充
+GETUPVAL,    // 获取upvalue值
+SETUPVAL,    // 设置upvalue值
+CLOSE,       // 关闭upvalue
+```
+
+### 📅 开发阶段规划
+
+#### 🔄 阶段1: 词法作用域分析器 (2周)
+**目标**: 实现嵌套作用域管理和自由变量检测
+
+**第1周: 作用域系统设计**
+- **任务1.1**: 扩展 symbol_table.hpp
+  ```cpp
+  class ScopeManager {
+      struct Scope {
+          std::unordered_map<std::string, Variable> locals;
+          std::vector<std::string> upvalues;
+          Scope* parent;
+      };
+      std::stack<std::unique_ptr<Scope>> scopes;
+  public:
+      void enterScope();
+      void exitScope();
+      Variable* findVariable(const std::string& name);
+      bool isUpvalue(const std::string& name);
+  };
+  ```
+
+- **任务1.2**: 实现变量查找算法
+  - 本地变量查找
+  - 上级作用域遍历
+  - upvalue标记机制
+
+**第2周: 自由变量检测**
+- **任务1.3**: 实现自由变量分析
+  ```cpp
+  class UpvalueAnalyzer {
+  public:
+      std::vector<std::string> analyzeFunction(const FunctionStmt* func);
+      bool isLocalVariable(const std::string& name, const Scope* scope);
+      bool isFreeVariable(const std::string& name, const Scope* scope);
+  };
+  ```
+
+- **任务1.4**: 集成测试
+  - 嵌套函数作用域测试
+  - 变量遮蔽处理测试
+  - 自由变量检测准确性测试
+
+**交付物**: 完整的作用域管理系统，通过所有作用域相关测试
+
+#### 🔄 阶段2: 编译器实现 (2周)
+**目标**: 完成函数编译和闭包创建逻辑
+
+**第3周: 函数编译核心**
+- **任务2.1**: 实现 `compileFunctionStmt` 在 statement_compiler.cpp
+  ```cpp
+  void StatementCompiler::compileFunctionStmt(const FunctionStmt* stmt) {
+      // 1. 创建新的编译上下文
+      // 2. 分析upvalue需求
+      // 3. 编译函数体
+      // 4. 生成CLOSURE指令
+      // 5. 处理upvalue绑定
+  }
+  ```
+
+- **任务2.2**: upvalue捕获机制
+  - 识别需要捕获的变量
+  - 生成upvalue描述符
+  - 处理嵌套捕获
+
+**第4周: 指令生成优化**
+- **任务2.3**: CLOSURE指令生成
+  ```cpp
+  // 生成闭包创建指令
+  emitInstruction(OpCode::CLOSURE, functionIndex, upvalueCount);
+  
+  // 为每个upvalue生成绑定指令
+  for (const auto& upvalue : upvalues) {
+      if (upvalue.isLocal) {
+          emitInstruction(OpCode::GETLOCAL, upvalue.index);
+      } else {
+          emitInstruction(OpCode::GETUPVAL, upvalue.index);
+      }
+  }
+  ```
+
+- **任务2.4**: 编译器集成测试
+  - 简单闭包编译测试
+  - 嵌套闭包编译测试
+  - 指令序列正确性验证
+
+**交付物**: 完整的闭包编译功能，生成正确的字节码
+
+#### 🔄 阶段3: 虚拟机执行 (1.5周)
+**目标**: 实现闭包指令的运行时执行
+
+**第5周: 指令执行实现**
+- **任务3.1**: 在 vm.cpp 中实现CLOSURE指令
+  ```cpp
+  case OpCode::CLOSURE: {
+      u8 functionIndex = readByte();
+      u8 upvalueCount = readByte();
+      
+      // 创建闭包对象
+      auto closure = Function::createLua(/* ... */);
+      
+      // 绑定upvalues
+      for (u8 i = 0; i < upvalueCount; ++i) {
+          // 从栈中获取upvalue值并绑定
+      }
+      
+      push(Value(closure));
+      break;
+  }
+  ```
+
+- **任务3.2**: 实现GETUPVAL/SETUPVAL指令
+  ```cpp
+  case OpCode::GETUPVAL: {
+      u8 index = readByte();
+      Value upvalue = currentFunction->getUpvalue(index);
+      push(upvalue);
+      break;
+  }
+  
+  case OpCode::SETUPVAL: {
+      u8 index = readByte();
+      Value value = pop();
+      currentFunction->setUpvalue(index, value);
+      break;
+  }
+  ```
+
+**第6周前半: 内存管理**
+- **任务3.3**: upvalue生命周期管理
+  - 实现upvalue关闭机制
+  - 处理栈到堆的upvalue迁移
+  - 确保GC正确处理闭包引用
+
+**交付物**: 完整的闭包运行时支持，通过基础执行测试
+
+#### 🔄 阶段4: 测试验证与优化 (1.5周)
+**目标**: 全面测试和性能优化
+
+**第6周后半: 功能测试**
+- **任务4.1**: 完善 function_tests.cpp
+  ```cpp
+  TEST_F(FunctionTest, BasicClosure) {
+      // 测试基本闭包功能
+  }
+  
+  TEST_F(FunctionTest, NestedClosure) {
+      // 测试嵌套闭包
+  }
+  
+  TEST_F(FunctionTest, UpvalueLifecycle) {
+      // 测试upvalue生命周期
+  }
+  ```
+
+- **任务4.2**: 集成测试
+  - 编译器+VM端到端测试
+  - 复杂闭包场景测试
+  - 内存泄漏检测
+
+**第7周: 性能优化**
+- **任务4.3**: 性能基准测试
+  - 建立闭包性能基线
+  - 对比原生函数调用开销
+  - 优化热点路径
+
+- **任务4.4**: 文档和示例
+  - 更新API文档
+  - 添加闭包使用示例
+  - 性能指南
+
+**交付物**: 生产就绪的闭包功能，完整测试覆盖
+
+### ⚠️ 风险管理
+
+#### 高风险项
+1. **作用域链复杂性** 🔴
+   - **风险**: 多层嵌套和变量遮蔽处理错误
+   - **缓解**: 详细的作用域测试，参考Lua官方实现
+   - **应急方案**: 简化初始实现，后续迭代优化
+
+2. **内存管理复杂性** 🔴
+   - **风险**: upvalue生命周期管理错误，内存泄漏
+   - **缓解**: 严格的内存测试，使用智能指针
+   - **应急方案**: 保守的GC策略，确保正确性优先
+
+#### 中风险项
+3. **性能影响** 🟡
+   - **风险**: 闭包调用开销过大
+   - **缓解**: 性能基准测试，优化关键路径
+   - **应急方案**: 接受合理的性能损失，后续优化
+
+4. **与现有系统集成** 🟡
+   - **风险**: 破坏现有功能
+   - **缓解**: 渐进式集成，完整的回归测试
+   - **应急方案**: 功能开关，可选启用闭包
+
+### 📈 资源需求
+
+#### 人力资源
+- **核心开发者**: 1名 (全职7周)
+- **技能要求**: 
+  - 熟悉编译原理和虚拟机设计
+  - 精通C++17和现代C++特性
+  - 了解Lua语言特性和闭包概念
+
+#### 技术资源
+- **开发环境**: 现有环境即可
+- **测试工具**: 现有测试框架
+- **参考资料**: Lua官方实现，相关论文
+
+### 🎯 里程碑和验收标准
+
+#### 里程碑1 (第2周末): 作用域分析完成
+- ✅ 嵌套作用域正确管理
+- ✅ 自由变量准确检测
+- ✅ 作用域相关测试100%通过
+
+#### 里程碑2 (第4周末): 编译器实现完成
+- ✅ `compileFunctionStmt` 完整实现
+- ✅ 正确生成CLOSURE指令序列
+- ✅ 编译器测试90%通过
+
+#### 里程碑3 (第5.5周末): VM执行完成
+- ✅ CLOSURE/GETUPVAL/SETUPVAL指令正确执行
+- ✅ upvalue生命周期正确管理
+- ✅ 基础闭包功能可运行
+
+#### 里程碑4 (第7周末): 项目完成
+- ✅ 所有闭包测试通过 (覆盖率>90%)
+- ✅ 性能开销<20%
+- ✅ 文档和示例完整
+- ✅ 代码审查通过
+
+### 🔄 质量保证
+
+#### 测试策略
+- **TDD方法**: 每个功能先写测试
+- **测试层次**: 单元测试 → 集成测试 → 功能测试
+- **覆盖率目标**: >90%
+- **性能测试**: 建立基准，监控回归
+
+#### 代码质量
+- **代码审查**: 关键组件必须审查
+- **静态分析**: 使用现有工具检查
+- **内存检查**: Valgrind等工具验证
+
+### 🚀 后续扩展规划
+
+#### 短期扩展 (3个月内)
+- **尾调用优化**: 优化递归闭包性能
+- **调试支持**: 闭包调试信息增强
+- **性能优化**: 进一步优化upvalue访问
+
+#### 长期规划 (6个月内)
+- **协程集成**: 闭包与协程的结合
+- **JIT编译**: 闭包的即时编译优化
+- **高级特性**: 支持更多Lua高级特性
+
+### 📊 成功指标
+
+#### 功能指标
+- ✅ 支持所有标准Lua闭包语义
+- ✅ 正确处理嵌套和递归闭包
+- ✅ 内存管理无泄漏
+
+#### 性能指标
+- ✅ 闭包调用开销 < 20%
+- ✅ 内存使用增长 < 15%
+- ✅ 编译时间增长 < 10%
+
+#### 质量指标
+- ✅ 测试覆盖率 > 90%
+- ✅ 零关键bug
+- ✅ 代码审查100%通过
+
+### 📝 开发进展记录
+
+#### 当前状态 (2025年1月)
+- **阶段**: 准备阶段
+- **完成度**: 0%
+- **基础设施**: ✅ 已完备
+- **下一步**: 开始阶段1 - 词法作用域分析器开发
+
+#### 更新日志
+- **2025年1月**: 制定详细开发计划，确定技术架构和实施路径
+- **待更新**: 各阶段实际进展和遇到的技术挑战
+
+---
+
+**总结**: 这个7周的开发计划基于项目现有的坚实基础，采用渐进式开发方法，重点关注正确性和可维护性。通过系统性的风险管理和质量保证，确保闭包功能的成功交付。
+
 ## 总结
 
 `Function` 类是 Lua 解释器的核心组件，它提供了统一的函数表示和执行机制。通过精心设计的字节码虚拟机和 GC 集成，实现了高效、安全的函数调用系统。该设计在性能、功能性和可维护性之间取得了良好的平衡，为 Lua 语言的核心特性提供了坚实的基础。
+
+随着闭包功能开发计划的制定，项目将进入一个新的发展阶段。闭包作为Lua语言的核心特性之一，其实现将显著提升解释器的功能完整性和语言表达能力。通过系统性的开发规划和严格的质量控制，我们有信心在7周内交付高质量的闭包功能实现。

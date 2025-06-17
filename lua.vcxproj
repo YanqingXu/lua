@@ -143,6 +143,7 @@
     <ClInclude Include="src\compiler\expression_compiler.hpp" />
     <ClInclude Include="src\compiler\statement_compiler.hpp" />
     <ClInclude Include="src\compiler\symbol_table.hpp" />
+    <ClInclude Include="src\compiler\upvalue_analyzer.hpp" />
     <ClInclude Include="src\gc\algorithms\gc_marker.hpp" />
     <ClInclude Include="src\gc\algorithms\gc_sweeper.hpp" />
     <ClInclude Include="src\gc\core\garbage_collector.hpp" />

@@ -1,7 +1,9 @@
-#pragma once
+﻿#pragma once
 
 #include "../common/types.hpp"
 #include "../vm/value.hpp"
+#include <stack>
+#include <memory>
 
 namespace Lua {
 
@@ -9,7 +11,34 @@ namespace Lua {
         Variable,
         Function,
         Parameter,
-        // Add other types as needed (e.g., Local, Global, Upvalue)
+        Local,
+        Global,
+        Upvalue
+    };
+
+    // Variable information for scope management
+    struct Variable {
+        Str name;
+        SymbolType type;
+        int scopeLevel;
+        int stackIndex;     // Stack position for local variables
+        bool isUpvalue;     // Whether this variable is captured as upvalue
+        bool isCaptured;    // Whether this variable is captured by inner functions
+        
+        Variable(const Str& name, SymbolType type, int scopeLevel, int stackIndex = -1)
+            : name(name), type(type), scopeLevel(scopeLevel), stackIndex(stackIndex),
+              isUpvalue(false), isCaptured(false) {}
+    };
+
+    // Upvalue descriptor for closure compilation
+    struct UpvalueDescriptor {
+        Str name;
+        int index;          // Index in upvalue array
+        bool isLocal;       // True if captures local variable, false if captures upvalue
+        int stackIndex;     // Stack index if isLocal=true, upvalue index if isLocal=false
+        
+        UpvalueDescriptor(const Str& name, int index, bool isLocal, int stackIndex)
+            : name(name), index(index), isLocal(isLocal), stackIndex(stackIndex) {}
     };
 
     struct Symbol {
@@ -47,6 +76,60 @@ namespace Lua {
         bool isDefinedInCurrentScope(const Str& name) const;
 
         int getCurrentScopeLevel() const { return currentScopeLevel; }
+    };
+
+    // Advanced scope manager for closure support
+    class ScopeManager {
+    public:
+        // Scope structure for nested scope management
+        struct Scope {
+            HashMap<Str, Variable> locals;          // Local variables in this scope
+            Vec<UpvalueDescriptor> upvalues;        // Upvalues captured by this scope
+            Scope* parent;                          // Parent scope pointer
+            int level;                              // Scope nesting level
+            int localCount;                         // Number of local variables
+            
+            Scope(Scope* parent = nullptr, int level = 0)
+                : parent(parent), level(level), localCount(0) {}
+        };
+
+    private:
+        std::stack<UPtr<Scope>> scopes;
+        Scope* currentScope;
+        int globalScopeLevel;
+
+    public:
+        ScopeManager();
+        ~ScopeManager() = default;
+
+        // Scope management
+        void enterScope();
+        void exitScope();
+        
+        // Variable management
+        bool defineLocal(const Str& name, int stackIndex = -1);
+        Variable* findVariable(const Str& name);
+        const Variable* findVariable(const Str& name) const;
+        
+        // Upvalue management
+        bool isUpvalue(const Str& name) const;
+        bool markAsCaptured(const Str& name);
+        int addUpvalue(const Str& name, bool isLocal, int index);
+        const Vec<UpvalueDescriptor>& getUpvalues() const;
+        
+        // Scope queries
+        bool isInCurrentScope(const Str& name) const;
+        bool isLocalVariable(const Str& name) const;
+        bool isFreeVariable(const Str& name) const;
+        
+        // Getters
+        int getCurrentScopeLevel() const;
+        int getLocalCount() const;
+        Scope* getCurrentScope() const { return currentScope; }
+        
+        // Debug and utility
+        void dumpScopes() const;
+        void clear();
     };
 
 } // namespace Lua
