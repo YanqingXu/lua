@@ -88,6 +88,9 @@
     <Filter Include="tests\plugin">
       <UniqueIdentifier>{9b5f5e8a-ba66-4971-b067-d639db0c1d0f}</UniqueIdentifier>
     </Filter>
+    <Filter Include="tests\vm\closure">
+      <UniqueIdentifier>{1a9c95e0-36d0-4c66-866d-eab2e673120b}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\main.cpp">
@@ -320,6 +323,24 @@
     </ClCompile>
     <ClCompile Include="src\vm\upvalue.cpp">
       <Filter>vm</Filter>
+    </ClCompile>
+    <ClCompile Include="src\tests\vm\closure\closure_performance_test.cpp">
+      <Filter>tests\vm\closure</Filter>
+    </ClCompile>
+    <ClCompile Include="src\tests\vm\closure\closure_advanced_test.cpp">
+      <Filter>tests\vm\closure</Filter>
+    </ClCompile>
+    <ClCompile Include="src\tests\vm\closure\closure_basic_test.cpp">
+      <Filter>tests\vm\closure</Filter>
+    </ClCompile>
+    <ClCompile Include="src\tests\vm\closure\closure_error_test.cpp">
+      <Filter>tests\vm\closure</Filter>
+    </ClCompile>
+    <ClCompile Include="src\tests\vm\closure\closure_memory_test.cpp">
+      <Filter>tests\vm\closure</Filter>
+    </ClCompile>
+    <ClCompile Include="src\tests\vm\closure\test_closure.cpp">
+      <Filter>tests\vm\closure</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -580,6 +601,24 @@
     </ClInclude>
     <ClInclude Include="src\vm\upvalue.hpp">
       <Filter>vm</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tests\vm\closure\closure_performance_test.hpp">
+      <Filter>tests\vm\closure</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tests\vm\closure\closure_advanced_test.hpp">
+      <Filter>tests\vm\closure</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tests\vm\closure\closure_basic_test.hpp">
+      <Filter>tests\vm\closure</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tests\vm\closure\closure_error_test.hpp">
+      <Filter>tests\vm\closure</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tests\vm\closure\closure_memory_test.hpp">
+      <Filter>tests\vm\closure</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tests\vm\closure\test_closure.hpp">
+      <Filter>tests\vm\closure</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>
