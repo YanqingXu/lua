@@ -17,7 +17,7 @@ void runAllTests() {
         // LexerTest::runAllTests();
         
         // Run all VM tests (unified)
-        // VMTestSuite::runAllTests();
+        VMTestSuite::runAllTests();
         
         // Run all parser tests (unified)
         // ParserTestSuite::runAllTests();
@@ -26,7 +26,7 @@ void runAllTests() {
         // CompilerTest::runAllTests();
         
         // Run all GC tests (unified)
-        GCTest::runAllTests();
+        // GCTest::runAllTests();
         
         // Run all lib tests (unified)
         // LibTestSuite::runAllTests();

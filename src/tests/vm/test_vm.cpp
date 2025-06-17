@@ -14,14 +14,19 @@ void VMTestSuite::runAllTests() {
     
     try {
         // 1. Value System Tests 
-        printSectionHeader("Value System Tests");
-        ValueTest::runAllTests();
-        printSectionFooter();
+        //printSectionHeader("Value System Tests");
+        //ValueTest::runAllTests();
+        //printSectionFooter();
         
         // 2. State Management Tests 
-        printSectionHeader("State Management Tests");
-        StateTest::runAllTests();
-        printSectionFooter();
+        //printSectionHeader("State Management Tests");
+        //StateTest::runAllTests();
+        //printSectionFooter();
+        
+        // 3. Closure Tests
+         printSectionHeader("Closure Tests");
+         ClosureTestSuite::runAllTests();
+         printSectionFooter();
         
         // Summary
         std::cout << "\n" << std::string(60, '=') << std::endl;

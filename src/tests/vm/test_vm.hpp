@@ -3,6 +3,7 @@
 // Include all VM test headers
 #include "value_test.hpp"
 #include "state_test.hpp"
+#include "closure/test_closure.hpp"
 
 namespace Lua {
 namespace Tests {

@@ -314,16 +314,67 @@ void runAllTests() {
 
 ## 测试编写最佳实践
 
-### 1. 测试命名规范
+### 1. 测试文件命名规范
 
-- **测试类命名**: `<ModuleName>Test`
-  - 例如: `LocalizationTest`, `ErrorHandlerTest`
+#### 1.1 目录和主测试文件命名
+
+- **功能目录**: 以功能名称命名，例如 `closure/`, `parser/`, `compiler/`
+- **主测试文件**: `test_<目录名称>.hpp` 和 `test_<目录名称>.cpp`
+  - 例如: `test_closure.hpp`, `test_closure.cpp`
+  - 例如: `test_parser.hpp`, `test_parser.cpp`
+
+#### 1.2 子功能测试文件命名
+
+- **子功能测试文件**: `<功能名称>_<子功能>_test.hpp` 和 `<功能名称>_<子功能>_test.cpp`
+  - 注意: 后缀使用单数形式 `test`
+  - 例如: `closure_basic_test.hpp`, `closure_basic_test.cpp`
+  - 例如: `closure_advanced_test.hpp`, `closure_advanced_test.cpp`
+  - 例如: `closure_memory_test.hpp`, `closure_memory_test.cpp`
+  - 例如: `closure_performance_test.hpp`, `closure_performance_test.cpp`
+  - 例如: `closure_error_test.hpp`, `closure_error_test.cpp`
+
+#### 1.3 测试类命名
+
+- **主测试类**: `<ModuleName>TestSuite`
+  - 例如: `ClosureTestSuite`, `ParserTestSuite`
+
+- **子功能测试类**: `<ModuleName><SubFeature>Test`
+  - 例如: `ClosureBasicTest`, `ClosureAdvancedTest`
+  - 例如: `ParserExpressionTest`, `ParserStatementTest`
+
+#### 1.4 测试方法命名
 
 - **测试方法命名**: `test<SpecificFeature>()`
-  - 例如: `testLanguageSwitching()`, `testErrorMessageFormatting()`
+  - 例如: `testBasicClosureCreation()`, `testUpvalueCapture()`
 
 - **主入口方法**: `runAllTests()`
   - 每个测试类都应该有这个静态方法
+
+#### 1.5 命名规范示例（以closure为例）
+
+```
+closure/
+├── test_closure.hpp              # 主测试套件头文件
+├── test_closure.cpp              # 主测试套件实现文件
+├── closure_basic_test.hpp        # 基础功能测试头文件
+├── closure_basic_test.cpp        # 基础功能测试实现文件
+├── closure_advanced_test.hpp     # 高级功能测试头文件
+├── closure_advanced_test.cpp     # 高级功能测试实现文件
+├── closure_memory_test.hpp       # 内存管理测试头文件
+├── closure_memory_test.cpp       # 内存管理测试实现文件
+├── closure_performance_test.hpp  # 性能测试头文件
+├── closure_performance_test.cpp  # 性能测试实现文件
+├── closure_error_test.hpp        # 错误处理测试头文件
+└── closure_error_test.cpp        # 错误处理测试实现文件
+```
+
+对应的测试类：
+- `ClosureTestSuite` - 主协调器
+- `ClosureBasicTest` - 基础功能测试
+- `ClosureAdvancedTest` - 高级功能测试
+- `ClosureMemoryTest` - 内存管理测试
+- `ClosurePerformanceTest` - 性能测试
+- `ClosureErrorTest` - 错误处理测试
 
 ### 2. 代码注释规范
 
@@ -361,6 +412,52 @@ void runAllTests() {
 - 每个测试应该独立运行
 - 不依赖其他测试的执行顺序
 - 清理测试产生的副作用
+
+### 7. 编译规范
+
+为确保子测试文件的编译正确性，在创建子测试文件后需要进行独立编译验证：
+
+#### 7.1 编译验证流程
+
+1. **添加临时main函数**：在子测试文件（如 `closure_basic_test.cpp`）末尾添加临时main函数
+   ```cpp
+   // Temporary main function for compilation testing
+   int main() {
+       Lua::Tests::ClosureBasicTest::runAllTests();
+       return 0;
+   }
+   ```
+
+2. **独立编译测试**：使用g++单独编译该子测试文件
+   ```bash
+   g++ -std=c++17 -I../../../ closure_basic_test.cpp -o test_basic
+   ```
+
+3. **修复编译错误**：根据编译器输出修复所有编译错误，包括：
+   - 缺失的头文件包含
+   - 未定义的符号引用
+   - 类型不匹配
+   - 链接错误
+
+4. **验证编译成功**：编译成功后运行测试用例，若有测试用例未通过，应深入分析代码未通过的原因，然后修复代码
+
+5. **移除临时main函数**：编译验证完成后，删除临时添加的main函数
+
+#### 7.2 编译规范要点
+
+- **完整性检查**：确保子测试文件包含所有必要的依赖
+- **独立性验证**：每个子测试文件都应该能够独立编译
+- **错误修复**：及时修复编译过程中发现的问题
+- **清理工作**：完成验证后移除临时代码
+
+#### 7.3 常见编译问题及解决方案
+
+- **缺失头文件**：添加必要的 `#include` 语句
+- **未定义符号**：检查类名、方法名是否正确
+- **路径问题**：确保相对路径正确指向依赖文件
+- **链接错误**：添加必要的库文件或源文件
+
+这个编译验证流程确保了测试文件的质量和可维护性。
 
 ## 示例：添加本地化测试
 
