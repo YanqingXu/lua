@@ -30,6 +30,7 @@ namespace Lua {
         struct LuaData {
             Ptr<Vec<Instruction>> code;
             Vec<Value> constants;
+            Vec<GCRef<Function>> prototypes;  // Nested function prototypes
             Vec<GCRef<Upvalue>> upvalues;  // Store upvalue references
             Function* prototype;    // Function prototype (parent function)
             u8 nparams;
@@ -37,7 +38,7 @@ namespace Lua {
             u8 nupvalues;
             
             // Add default constructor
-            LuaData() : code(nullptr), constants{}, upvalues{}, prototype(nullptr), nparams(0), nlocals(0), nupvalues(0) {}
+            LuaData() : code(nullptr), constants{}, prototypes{}, upvalues{}, prototype(nullptr), nparams(0), nlocals(0), nupvalues(0) {}
         } lua;
         
         // Native function data
@@ -61,6 +62,7 @@ namespace Lua {
         static GCRef<Function> createLua(
             Ptr<Vec<Instruction>> code, 
             const Vec<Value>& constants,
+            const Vec<GCRef<Function>>& prototypes = {},
             u8 nparams = 0,
             u8 nlocals = 0,
             u8 nupvalues = 0
@@ -77,6 +79,9 @@ namespace Lua {
         
         // Get constant table
         const Vec<Value>& getConstants() const;
+        
+        // Get prototypes
+        const Vec<GCRef<Function>>& getPrototypes() const;
         
         // Get native function
         NativeFn getNative() const;

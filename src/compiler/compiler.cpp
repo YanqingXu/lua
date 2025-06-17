@@ -72,7 +72,7 @@ namespace Lua {
             emitInstruction(Instruction::createRETURN(0, 0));
             
             // Create function object
-            return Function::createLua(code, constants);
+            return Function::createLua(code, constants, {});
         } catch (const LuaException& e) {
             // Compilation error, return nullptr
             CompilerUtils::reportCompilerError(e.what());

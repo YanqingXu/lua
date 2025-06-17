@@ -19,6 +19,7 @@ namespace Lua {
     GCRef<Function> Function::createLua(
         Ptr<Vec<Instruction>> code, 
         const Vec<Value>& constants,
+        const Vec<GCRef<Function>>& prototypes,
         u8 nparams,
         u8 nlocals,
         u8 nupvalues
@@ -45,6 +46,12 @@ namespace Lua {
         // Add elements one by one instead of bulk assignment
         for (const auto& value : constants) {
             func->lua.constants.push_back(value);
+        }
+        
+        // Handle prototypes
+        func->lua.prototypes.reserve(prototypes.size());
+        for (const auto& prototype : prototypes) {
+            func->lua.prototypes.push_back(prototype);
         }
         
         // Through regular vector operations
@@ -84,6 +91,11 @@ namespace Lua {
         return type == Type::Lua ? lua.constants : empty;
     }
     
+    const Vec<GCRef<Function>>& Function::getPrototypes() const {
+        static const Vec<GCRef<Function>> empty;
+        return type == Type::Lua ? lua.prototypes : empty;
+    }
+    
     usize Function::getConstantCount() const {
         return type == Type::Lua ? lua.constants.size() : 0;
     }
@@ -99,6 +111,13 @@ namespace Lua {
             for (const auto& constant : lua.constants) {
                 if (constant.isGCObject()) {
                     gc->markObject(constant.asGCObject());
+                }
+            }
+            
+            // Mark all prototypes
+            for (const auto& prototype : lua.prototypes) {
+                if (prototype) {
+                    gc->markObject(prototype.get());
                 }
             }
             
@@ -130,6 +149,9 @@ namespace Lua {
         if (type == Type::Lua) {
             // Calculate size of constants vector
             additionalSize += lua.constants.capacity() * sizeof(Value);
+            
+            // Calculate size of prototypes vector
+            additionalSize += lua.prototypes.capacity() * sizeof(GCRef<Function>);
             
             // Calculate size of upvalues vector
             additionalSize += lua.upvalues.capacity() * sizeof(Value*);

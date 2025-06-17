@@ -1,4 +1,4 @@
-﻿#include "gc_integration_test.hpp"
+#include "gc_integration_test.hpp"
 #include "../../gc/core/garbage_collector.hpp"
 #include "../../gc/core/gc_ref.hpp"
 #include "../../vm/state.hpp"
@@ -65,6 +65,7 @@ namespace Tests {
             GCRef<Function> func = Function::createLua(
                 std::make_shared<Vec<Instruction>>(code),
                 constants,
+                {}, // prototypes
                 0, 0, 0
             );
             state->setGlobal("myFunction", Value(func));

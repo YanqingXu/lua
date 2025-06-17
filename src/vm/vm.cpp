@@ -482,24 +482,22 @@ namespace Lua {
         }
         
         // Get the prototype from the current function's prototype list
-        // Note: In a full implementation, prototypes would be stored in the current function
-        // For now, we'll create a simple closure from the constant table
-        if (bx >= constants->size()) {
+        const Vec<GCRef<Function>>& prototypes = currentFunction->getPrototypes();
+        if (bx >= prototypes.size()) {
             throw LuaException("Invalid prototype index in CLOSURE instruction");
         }
         
-        Value prototypeValue = getConstant(bx);
-        if (!prototypeValue.isFunction()) {
-            throw LuaException("CLOSURE instruction expects function prototype");
+        GCRef<Function> prototype = prototypes[bx];
+        if (!prototype) {
+            throw LuaException("Null prototype in CLOSURE instruction");
         }
         
-        GCRef<Function> prototype = prototypeValue.asFunction();
-        
-        // Create a new closure (copy of the prototype)
-        // In a full implementation, this would properly handle upvalue binding
+        // Create a new closure that shares code and constants with the prototype
+        // but has its own upvalue bindings
         GCRef<Function> closure = Function::createLua(
-            std::make_shared<Vec<Instruction>>(prototype->getCode()),
-            prototype->getConstants(),
+            std::make_shared<Vec<Instruction>>(prototype->getCode()),  // Share code
+            prototype->getConstants(),  // Share constants
+            prototype->getPrototypes(), // Share nested prototypes
             prototype->getParamCount(),
             prototype->getLocalCount(),
             prototype->getUpvalueCount()
@@ -530,7 +528,9 @@ namespace Lua {
             }
             
             // Set upvalue in the new closure
-            closure->setUpvalue(upvalIndex, upvalue);
+            if (upvalue) {
+                closure->setUpvalue(upvalIndex, upvalue);
+            }
         }
         
         // Store the closure in the target register

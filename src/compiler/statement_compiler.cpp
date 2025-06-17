@@ -453,6 +453,7 @@ namespace Lua {
         auto functionProto = Function::createLua(
             functionCode,
             functionCompiler.getConstants(),
+            {}, // prototypes - empty for now
             static_cast<u8>(stmt->getParameters().size()),
             static_cast<u8>(functionCompiler.getLocals().size()),
             static_cast<u8>(upvalues.size())
