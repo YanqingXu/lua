@@ -1,4 +1,4 @@
-#include "compiler_utils.hpp"
+﻿#include "compiler_utils.hpp"
 #include "../common/opcodes.hpp"
 #include <iostream>
 #include <iomanip>
@@ -202,6 +202,8 @@ namespace Lua {
             case OpCode::CALL: opName = "CALL"; break;
             case OpCode::RETURN: opName = "RETURN"; break;
             case OpCode::CLOSURE: opName = "CLOSURE"; break;
+        case OpCode::GETUPVAL: opName = "GETUPVAL"; break;
+        case OpCode::SETUPVAL: opName = "SETUPVAL"; break;
             default: opName = "UNKNOWN"; break;
         }
         

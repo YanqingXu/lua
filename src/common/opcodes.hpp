@@ -49,6 +49,8 @@ namespace Lua {
 
         // Closures & misc
         CLOSURE,
+        GETUPVAL,
+        SETUPVAL,
         CONCAT,
         CLOSE
     };

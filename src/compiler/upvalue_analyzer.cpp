@@ -3,18 +3,26 @@
 
 namespace Lua {
     UpvalueAnalyzer::UpvalueAnalyzer(ScopeManager& scopeManager)
-        : scopeManager_(scopeManager) {
+        : scopeManager_(&scopeManager) {
+    }
+    
+    UpvalueAnalyzer::UpvalueAnalyzer()
+        : scopeManager_(nullptr) {
     }
 
     Vec<UpvalueDescriptor> UpvalueAnalyzer::analyzeFunction(const FunctionExpr* funcExpr) {
         reset();
 
+        // Create local scope manager if none provided
+        ScopeManager localScopeManager;
+        ScopeManager* sm = scopeManager_ ? scopeManager_ : &localScopeManager;
+
         // Enter function scope
-        scopeManager_.enterScope();
+        sm->enterScope();
 
         // Define parameters as local variables
         for (const auto& param : funcExpr->getParameters()) {
-            bool success = scopeManager_.defineLocal(param);
+            bool success = sm->defineLocal(param);
             if (!success) {
                 // Parameter definition failed, possibly duplicate definition
                 // Should report error in actual application, continue for testing here
@@ -30,7 +38,7 @@ namespace Lua {
         }
 
         // Exit function scope
-        scopeManager_.exitScope();
+        sm->exitScope();
 
         return upvalues_;
     }
@@ -38,12 +46,16 @@ namespace Lua {
     Vec<UpvalueDescriptor> UpvalueAnalyzer::analyzeFunction(const FunctionStmt* funcStmt) {
         reset();
 
+        // Create local scope manager if none provided
+        ScopeManager localScopeManager;
+        ScopeManager* sm = scopeManager_ ? scopeManager_ : &localScopeManager;
+
         // Enter function scope
-        scopeManager_.enterScope();
+        sm->enterScope();
 
         // Define parameters as local variables
         for (const auto& param : funcStmt->getParameters()) {
-            bool success = scopeManager_.defineLocal(param);
+            bool success = sm->defineLocal(param);
             if (!success) {
                 // Parameter definition failed, possibly due to duplicate definition
                 // In actual application should report error, here continue for testing
@@ -59,17 +71,17 @@ namespace Lua {
         }
 
         // Exit function scope
-        scopeManager_.exitScope();
+        sm->exitScope();
 
         return upvalues_;
     }
 
     bool UpvalueAnalyzer::isLocalVariable(const Str& name) const {
-        return scopeManager_.isLocalVariable(name);
+        return scopeManager_ ? scopeManager_->isLocalVariable(name) : false;
     }
 
     bool UpvalueAnalyzer::isFreeVariable(const Str& name) const {
-        return scopeManager_.isFreeVariable(name);
+        return scopeManager_ ? !scopeManager_->isLocalVariable(name) : true;
     }
 
     void UpvalueAnalyzer::analyzeExpression(const Expr* expr) {
@@ -100,7 +112,7 @@ namespace Lua {
         case ExprType::Function: {
             // Nested functions require recursive analysis
             const auto* funcExpr = static_cast<const FunctionExpr*>(expr);
-            UpvalueAnalyzer nestedAnalyzer(scopeManager_);
+            UpvalueAnalyzer nestedAnalyzer(*scopeManager_);
             nestedAnalyzer.analyzeFunction(funcExpr);
             break;
         }
@@ -157,12 +169,12 @@ namespace Lua {
         const Str& name = varExpr->getName();
 
         // If not a local variable, it might be a free variable
-        if (!scopeManager_.isLocalVariable(name)) {
+        if (!scopeManager_->isLocalVariable(name)) {
             // Check if it's a variable from outer scope
-            if (scopeManager_.isFreeVariable(name)) {
+            if (scopeManager_->isFreeVariable(name)) {
                 freeVars_.insert(name);
                 // Mark as captured variable
-                scopeManager_.markAsCaptured(name);
+                scopeManager_->markAsCaptured(name);
             }
         }
     }
@@ -218,7 +230,7 @@ namespace Lua {
         }
 
         // Then define local variable
-        scopeManager_.defineLocal(localStmt->getName());
+        scopeManager_->defineLocal(localStmt->getName());
     }
 
     void UpvalueAnalyzer::analyzeAssignStmt(const AssignStmt* assignStmt) {
@@ -241,7 +253,7 @@ namespace Lua {
 
     void UpvalueAnalyzer::analyzeForStmt(const ForStmt* forStmt) {
         // Enter for loop scope
-        scopeManager_.enterScope();
+        scopeManager_->enterScope();
 
         // Analyze loop range expressions
         analyzeExpression(forStmt->getStart());
@@ -251,18 +263,18 @@ namespace Lua {
         }
 
         // Define loop variable
-        scopeManager_.defineLocal(forStmt->getVariable());
+        scopeManager_->defineLocal(forStmt->getVariable());
 
         // Analyze loop body
         analyzeStatement(forStmt->getBody());
 
         // Exit for loop scope
-        scopeManager_.exitScope();
+        scopeManager_->exitScope();
     }
 
     void UpvalueAnalyzer::analyzeForInStmt(const ForInStmt* forInStmt) {
         // Enter for-in loop scope
-        scopeManager_.enterScope();
+        scopeManager_->enterScope();
 
         // Analyze iterator expressions
         for (const auto& iterator : forInStmt->getIterators()) {
@@ -271,14 +283,14 @@ namespace Lua {
 
         // Define loop variables
         for (const auto& var : forInStmt->getVariables()) {
-            scopeManager_.defineLocal(var);
+            scopeManager_->defineLocal(var);
         }
 
         // Analyze loop body
         analyzeStatement(forInStmt->getBody());
 
         // Exit for-in loop scope
-        scopeManager_.exitScope();
+        scopeManager_->exitScope();
     }
 
     void UpvalueAnalyzer::analyzeReturnStmt(const ReturnStmt* returnStmt) {
@@ -294,7 +306,7 @@ namespace Lua {
 
     void UpvalueAnalyzer::analyzeFunctionStmt(const FunctionStmt* funcStmt) {
         // Nested function definitions require recursive analysis
-        UpvalueAnalyzer nestedAnalyzer(scopeManager_);
+        UpvalueAnalyzer nestedAnalyzer(*scopeManager_);
         nestedAnalyzer.analyzeFunction(funcStmt);
     }
 
@@ -304,13 +316,15 @@ namespace Lua {
         int stackIndex = 0;
 
         // Find variable information
-        auto* variable = scopeManager_.findVariable(name);
-        if (variable) {
-            // Check if variable is in direct outer scope
-            if (scopeManager_.isUpvalue(name)) {
-                isLocal = false;
+        if (scopeManager_) {
+            auto* variable = scopeManager_->findVariable(name);
+            if (variable) {
+                // Check if variable is in direct outer scope
+                if (scopeManager_->isUpvalue(name)) {
+                    isLocal = false;
+                }
+                stackIndex = variable->stackIndex;
             }
-            stackIndex = variable->stackIndex;
         }
 
         return UpvalueDescriptor(name, index, isLocal, stackIndex);

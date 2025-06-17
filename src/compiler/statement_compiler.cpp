@@ -1,7 +1,9 @@
 #include "statement_compiler.hpp"
 #include "compiler.hpp"
 #include "expression_compiler.hpp"
+#include "upvalue_analyzer.hpp"
 #include "../common/opcodes.hpp"
+#include "../vm/value.hpp"
 #include <stdexcept>
 
 namespace Lua {
@@ -420,12 +422,70 @@ namespace Lua {
     }
     
     void StatementCompiler::compileFunctionStmt(const FunctionStmt* stmt) {
-        compiler->beginScope();
+        // Create a new compiler instance for the function body
+        Compiler functionCompiler;
         
-        // TODO: Implement proper function compilation
-        // For now, compile the body as a block
-        compileStmt(stmt->getBody());
+        // Analyze upvalues using UpvalueAnalyzer
+        UpvalueAnalyzer analyzer;
+        analyzer.analyzeFunction(stmt);
+        const auto& upvalues = analyzer.getUpvalues();
         
-        compiler->endScope();
+        // Enter function scope and define parameters
+        functionCompiler.beginScope();
+        for (const auto& param : stmt->getParameters()) {
+            int paramReg = functionCompiler.allocReg();
+            functionCompiler.addLocal(param, paramReg);
+        }
+        
+        // Compile function body
+        functionCompiler.getStatementCompiler()->compileStmt(stmt->getBody());
+        
+        // Add implicit return if needed
+        if (functionCompiler.getCodeSize() == 0 || 
+            functionCompiler.getCode()->back().getOpCode() != OpCode::RETURN) {
+            functionCompiler.emitInstruction(Instruction::createRETURN(0, 0));
+        }
+        
+        functionCompiler.endScope();
+        
+        // Create function prototype
+        auto functionCode = std::make_shared<Vec<Instruction>>(*functionCompiler.getCode());
+        auto functionProto = Function::createLua(
+            functionCode,
+            functionCompiler.getConstants(),
+            static_cast<u8>(stmt->getParameters().size()),
+            static_cast<u8>(functionCompiler.getLocals().size()),
+            static_cast<u8>(upvalues.size())
+        );
+        
+        // Add prototype to current compiler
+        int prototypeIndex = compiler->addPrototype(functionProto);
+        
+        // Allocate register for the closure
+        int closureReg = compiler->allocReg();
+        
+        // Generate CLOSURE instruction
+        compiler->emitInstruction(Instruction::createCLOSURE(closureReg, prototypeIndex));
+        
+        // Generate upvalue binding instructions
+        for (const auto& upvalue : upvalues) {
+            if (upvalue.isLocal) {
+                // Capture local variable - move to upvalue
+                int localReg = compiler->resolveLocal(upvalue.name);
+                if (localReg >= 0) {
+                    compiler->emitInstruction(Instruction::createMOVE(upvalue.index, localReg));
+                }
+            } else {
+                // Capture upvalue from parent - get upvalue
+                compiler->emitInstruction(Instruction::createGETUPVAL(upvalue.index, upvalue.stackIndex));
+            }
+        }
+        
+        // Store function in global or local variable
+        int nameConstant = compiler->addConstant(Value(stmt->getName()));
+        compiler->emitInstruction(Instruction::createSETGLOBAL(closureReg, nameConstant));
+        
+        // Free closure register
+        compiler->freeReg();
     }
 }

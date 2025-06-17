@@ -29,6 +29,9 @@ namespace Lua {
         // Bytecode
         Ptr<Vec<Instruction>> code;
         
+        // Function prototypes for nested functions
+        Vec<GCRef<Function>> prototypes;
+        
         // Jump instruction positions for current block
         Vec<int> breaks;
         
@@ -86,9 +89,22 @@ namespace Lua {
             breaks.clear();
         }
         
+        // Function prototype management
+        int addPrototype(GCRef<Function> prototype) {
+            prototypes.push_back(prototype);
+            return static_cast<int>(prototypes.size() - 1);
+        }
+        
+        const Vec<GCRef<Function>>& getPrototypes() const { return prototypes; }
+        
         // Code access
         size_t getCodeSize() const { return code->size(); }
         size_t getConstantCount() const { return constants.size(); }
+        
+        // Access to internal data for function compilation
+        const Ptr<Vec<Instruction>>& getCode() const { return code; }
+        const Vec<Value>& getConstants() const { return constants; }
+        const Vec<Local>& getLocals() const { return locals; }
         
     private:
         // Initialize compiler modules

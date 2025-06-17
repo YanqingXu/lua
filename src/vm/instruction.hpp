@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "../common/types.hpp"
 #include "../common/opcodes.hpp"
@@ -208,6 +208,17 @@ namespace Lua {
         // Test instruction (A = register to test, C = skip next instruction if test fails)
         static Instruction createTEST(u8 a, u8 c) {
             Instruction i; i.setOpCode(OpCode::TEST); i.setA(a); i.setC(c); return i; }
+        
+        // Closure creation (A = target register, Bx = function prototype index)
+        static Instruction createCLOSURE(u8 a, u16 bx) {
+            Instruction i; i.setOpCode(OpCode::CLOSURE); i.setA(a); i.setBx(bx); return i; }
+        
+        // Upvalue operations
+        static Instruction createGETUPVAL(u8 a, u8 b) {
+            Instruction i; i.setOpCode(OpCode::GETUPVAL); i.setA(a); i.setB(b); return i; }
+        
+        static Instruction createSETUPVAL(u8 a, u8 b) {
+            Instruction i; i.setOpCode(OpCode::SETUPVAL); i.setA(a); i.setB(b); return i; }
         
         static Instruction createCLOSE(u8 a) {
             Instruction i; i.setOpCode(OpCode::CLOSE); i.setA(a); return i; }

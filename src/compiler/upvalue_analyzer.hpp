@@ -19,18 +19,22 @@ namespace Lua {
      */
     class UpvalueAnalyzer {
     private:
-        ScopeManager& scopeManager_;           // Scope manager
+        ScopeManager* scopeManager_;           // Scope manager (optional)
         Vec<UpvalueDescriptor> upvalues_; // Current function's upvalue list
         HashSet<Str> freeVars_; // Free variables set
 
     public:
         explicit UpvalueAnalyzer(ScopeManager& scopeManager);
+        UpvalueAnalyzer(); // Default constructor
 
         // Analyze function expression and return upvalue descriptor list
         Vec<UpvalueDescriptor> analyzeFunction(const FunctionExpr* funcExpr);
 
         // Analyze function statement and return upvalue descriptor list
         Vec<UpvalueDescriptor> analyzeFunction(const FunctionStmt* funcStmt);
+        
+        // Get current upvalues
+        const Vec<UpvalueDescriptor>& getUpvalues() const { return upvalues_; }
 
         // Check if variable is a local variable
         bool isLocalVariable(const Str& name) const;
