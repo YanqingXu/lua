@@ -91,6 +91,12 @@
     <Filter Include="tests\vm\closure">
       <UniqueIdentifier>{1a9c95e0-36d0-4c66-866d-eab2e673120b}</UniqueIdentifier>
     </Filter>
+    <Filter Include="tests\parser\expr">
+      <UniqueIdentifier>{1cd767d5-a6fb-4db0-ae18-b32bbe10a69e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="tests\formatting">
+      <UniqueIdentifier>{e0416218-a6f7-41d9-af98-1c1e49d581cc}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\main.cpp">
@@ -174,21 +180,6 @@
     <ClCompile Include="src\vm\state_factory.cpp">
       <Filter>vm</Filter>
     </ClCompile>
-    <ClCompile Include="src\tests\parser\forin_test.cpp">
-      <Filter>tests\parser</Filter>
-    </ClCompile>
-    <ClCompile Include="src\tests\parser\function_test.cpp">
-      <Filter>tests\parser</Filter>
-    </ClCompile>
-    <ClCompile Include="src\tests\parser\if_statement_test.cpp">
-      <Filter>tests\parser</Filter>
-    </ClCompile>
-    <ClCompile Include="src\tests\parser\parser_test.cpp">
-      <Filter>tests\parser</Filter>
-    </ClCompile>
-    <ClCompile Include="src\tests\parser\repeat_test.cpp">
-      <Filter>tests\parser</Filter>
-    </ClCompile>
     <ClCompile Include="src\tests\vm\state_test.cpp">
       <Filter>tests\vm</Filter>
     </ClCompile>
@@ -231,23 +222,8 @@
     <ClCompile Include="src\tests\vm\test_vm.cpp">
       <Filter>tests\vm</Filter>
     </ClCompile>
-    <ClCompile Include="src\tests\parser\test_parser.cpp">
-      <Filter>tests\parser</Filter>
-    </ClCompile>
-    <ClCompile Include="src\tests\parser\source_location_test.cpp">
-      <Filter>tests\parser</Filter>
-    </ClCompile>
     <ClCompile Include="src\parser\ast\source_location.cpp">
       <Filter>parser\ast</Filter>
-    </ClCompile>
-    <ClCompile Include="src\tests\parser\parse_error_test.cpp">
-      <Filter>tests\parser</Filter>
-    </ClCompile>
-    <ClCompile Include="src\tests\parser\error_reporter_test.cpp">
-      <Filter>tests\parser</Filter>
-    </ClCompile>
-    <ClCompile Include="src\tests\parser\enhanced_parser_error_test.cpp">
-      <Filter>tests\parser</Filter>
     </ClCompile>
     <ClCompile Include="src\localization\localization_manager.cpp">
       <Filter>localization</Filter>
@@ -341,6 +317,24 @@
     </ClCompile>
     <ClCompile Include="src\tests\vm\closure\test_closure.cpp">
       <Filter>tests\vm\closure</Filter>
+    </ClCompile>
+    <ClCompile Include="src\tests\parser\expr\binary_expr_test.cpp">
+      <Filter>tests\parser\expr</Filter>
+    </ClCompile>
+    <ClCompile Include="src\tests\parser\expr\test_expr.cpp">
+      <Filter>tests\parser\expr</Filter>
+    </ClCompile>
+    <ClCompile Include="src\tests\formatting\format_strategies.cpp">
+      <Filter>tests\formatting</Filter>
+    </ClCompile>
+    <ClCompile Include="src\tests\formatting\test_colors.cpp">
+      <Filter>tests\formatting</Filter>
+    </ClCompile>
+    <ClCompile Include="src\tests\formatting\test_config.cpp">
+      <Filter>tests\formatting</Filter>
+    </ClCompile>
+    <ClCompile Include="src\tests\formatting\test_formatter.cpp">
+      <Filter>tests\formatting</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -446,21 +440,6 @@
     <ClInclude Include="src\vm\state_factory.hpp">
       <Filter>vm</Filter>
     </ClInclude>
-    <ClInclude Include="src\tests\parser\forin_test.hpp">
-      <Filter>tests\parser</Filter>
-    </ClInclude>
-    <ClInclude Include="src\tests\parser\function_test.hpp">
-      <Filter>tests\parser</Filter>
-    </ClInclude>
-    <ClInclude Include="src\tests\parser\if_statement_test.hpp">
-      <Filter>tests\parser</Filter>
-    </ClInclude>
-    <ClInclude Include="src\tests\parser\parser_test.hpp">
-      <Filter>tests\parser</Filter>
-    </ClInclude>
-    <ClInclude Include="src\tests\parser\repeat_test.hpp">
-      <Filter>tests\parser</Filter>
-    </ClInclude>
     <ClInclude Include="src\tests\vm\state_test.hpp">
       <Filter>tests\vm</Filter>
     </ClInclude>
@@ -506,23 +485,11 @@
     <ClInclude Include="src\tests\parser\test_parser.hpp">
       <Filter>tests\parser</Filter>
     </ClInclude>
-    <ClInclude Include="src\tests\parser\source_location_test.hpp">
-      <Filter>tests\parser</Filter>
-    </ClInclude>
     <ClInclude Include="src\parser\ast\source_location.hpp">
       <Filter>parser\ast</Filter>
     </ClInclude>
-    <ClInclude Include="src\tests\parser\parse_error_test.hpp">
-      <Filter>tests\parser</Filter>
-    </ClInclude>
     <ClInclude Include="src\parser\ast\parse_error.hpp">
       <Filter>parser\ast</Filter>
-    </ClInclude>
-    <ClInclude Include="src\tests\parser\error_reporter_test.hpp">
-      <Filter>tests\parser</Filter>
-    </ClInclude>
-    <ClInclude Include="src\tests\parser\enhanced_parser_error_test.hpp">
-      <Filter>tests\parser</Filter>
     </ClInclude>
     <ClInclude Include="src\localization\localization_manager.hpp">
       <Filter>localization</Filter>
@@ -619,6 +586,30 @@
     </ClInclude>
     <ClInclude Include="src\tests\vm\closure\test_closure.hpp">
       <Filter>tests\vm\closure</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tests\parser\expr\binary_expr_test.hpp">
+      <Filter>tests\parser\expr</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tests\parser\expr\test_expr.hpp">
+      <Filter>tests\parser\expr</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tests\test_utils.hpp">
+      <Filter>tests</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tests\formatting\format_strategies.hpp">
+      <Filter>tests\formatting</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tests\formatting\test_colors.hpp">
+      <Filter>tests\formatting</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tests\formatting\test_config.hpp">
+      <Filter>tests\formatting</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tests\formatting\test_define.hpp">
+      <Filter>tests\formatting</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tests\formatting\test_formatter.hpp">
+      <Filter>tests\formatting</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

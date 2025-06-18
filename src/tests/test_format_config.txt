@@ -1,0 +1,18 @@
+# Test Format Configuration File
+# Simple key=value format for test output configuration
+
+# Enable or disable color output
+colorEnabled=true
+
+# Color theme (default, dark, light)
+theme=default
+
+# Example usage:
+# To disable colors: colorEnabled=false
+# To use dark theme: theme=dark
+# To use light theme: theme=light
+
+# Environment variables can also be used:
+# NO_COLOR=1          - Disable colors
+# FORCE_COLOR=1       - Force enable colors
+# TEST_THEME=dark     - Set theme to dark

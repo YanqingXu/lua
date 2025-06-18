@@ -38,6 +38,7 @@ namespace Lua {
         
     private:
         void synchronize();
+        void skipBalancedDelimiters();
         bool isAtEnd() const;
 
         // Parse expressions
@@ -79,6 +80,9 @@ namespace Lua {
 
         // Parse entire program
         Vec<UPtr<Stmt>> parse();
+        
+        // Parse single expression (for testing)
+        UPtr<Expr> parseExpression();
 
         // Check if there are errors
         bool hasError() const { return hadError; }

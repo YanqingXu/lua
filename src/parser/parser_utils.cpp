@@ -1,9 +1,13 @@
-﻿#include "parser.hpp"
+#include "parser.hpp"
 
 namespace Lua {
     Parser::Parser(const Str& source) : lexer(source), hadError(false), errorReporter_(ErrorReporter::createDefault()) {
         // Initialize and immediately get the first token
         advance();
+    }
+
+    UPtr<Expr> Parser::parseExpression() {
+        return expression();
     }
 
     void Parser::advance() {
@@ -83,23 +87,125 @@ namespace Lua {
     }
 
     void Parser::synchronize() {
+        // Skip the current erroneous token
         advance();
-
-        while (!isAtEnd()) {
-            if (previous.type == TokenType::Semicolon) return;
-
+        
+        // Track how many tokens we've skipped to avoid infinite loops
+        int tokensSkipped = 0;
+        const int maxTokensToSkip = 50; // Reasonable limit
+        
+        while (!isAtEnd() && tokensSkipped < maxTokensToSkip) {
+            // Primary synchronization point: after semicolon
+            if (previous.type == TokenType::Semicolon) {
+                return;
+            }
+            
+            // Statement-level synchronization points
             switch (current.type) {
-                case TokenType::Function:
-                case TokenType::Local:
+                // Control flow statements
                 case TokenType::If:
                 case TokenType::While:
-                case TokenType::Return:
+                case TokenType::For:
+                case TokenType::Repeat:
+                case TokenType::Do:
                     return;
+                    
+                // Declaration statements
+                case TokenType::Function:
+                case TokenType::Local:
+                    return;
+                    
+                // Flow control statements
+                case TokenType::Return:
+                case TokenType::Break:
+                    return;
+                    
+                // Block terminators - good recovery points
+                case TokenType::End:
+                case TokenType::Until:
+                case TokenType::Else:
+                case TokenType::Elseif:
+                    return;
+                    
+                // Expression terminators in certain contexts
+                case TokenType::Then:
+                    // Only synchronize on 'then' if we're likely in an if condition
+                    return;
+                    
                 default:
                     break;
             }
-
+            
+            // Block-level synchronization: look for balanced braces/brackets
+            if (current.type == TokenType::LeftBrace || 
+                current.type == TokenType::LeftBracket || 
+                current.type == TokenType::LeftParen) {
+                // Skip balanced delimiters to avoid getting stuck inside them
+                skipBalancedDelimiters();
+                tokensSkipped++;
+                continue;
+            }
+            
+            // If we encounter a closing delimiter without matching opening,
+            // it might be a good synchronization point
+            if (current.type == TokenType::RightBrace || 
+                current.type == TokenType::RightBracket || 
+                current.type == TokenType::RightParen) {
+                advance();
+                return;
+            }
+            
             advance();
+            tokensSkipped++;
+        }
+        
+        // If we've skipped too many tokens, report a warning
+        if (tokensSkipped >= maxTokensToSkip) {
+            error(ErrorType::InternalError, 
+                  "Error recovery skipped too many tokens. Parser may be confused.");
+        }
+    }
+
+    void Parser::skipBalancedDelimiters() {
+        TokenType openType = current.type;
+        TokenType closeType;
+        
+        // Determine the matching closing delimiter
+        switch (openType) {
+            case TokenType::LeftParen:
+                closeType = TokenType::RightParen;
+                break;
+            case TokenType::LeftBrace:
+                closeType = TokenType::RightBrace;
+                break;
+            case TokenType::LeftBracket:
+                closeType = TokenType::RightBracket;
+                break;
+            default:
+                // Not a delimiter we handle
+                return;
+        }
+        
+        int depth = 0;
+        int maxDepth = 20; // Prevent infinite loops in malformed code
+        
+        while (!isAtEnd() && depth < maxDepth) {
+            if (current.type == openType) {
+                depth++;
+            } else if (current.type == closeType) {
+                depth--;
+                if (depth == 0) {
+                    advance(); // Consume the closing delimiter
+                    return;
+                }
+            }
+            advance();
+        }
+        
+        // If we exit due to max depth, report an error
+        if (depth >= maxDepth) {
+            error(ErrorType::MismatchedParentheses, 
+                  "Deeply nested or unmatched delimiters detected during error recovery.");
         }
     }
 

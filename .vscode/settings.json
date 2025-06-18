@@ -66,6 +66,8 @@
         "variant": "cpp",
         "bitset": "cpp",
         "regex": "cpp",
-        "future": "cpp"
+        "future": "cpp",
+        "codecvt": "cpp",
+        "shared_mutex": "cpp"
     }
 }

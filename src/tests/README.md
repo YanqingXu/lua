@@ -2,6 +2,218 @@
 
 本目录包含了 Modern C++ Lua 解释器项目的所有测试文件，按模块进行了分类组织。
 
+# Test Formatting System
+
+这是一个模块化的测试输出格式化系统，提供了层级化的测试输出、颜色支持和可配置的格式化选项。
+
+## 特性
+
+- **层级化输出**: 支持 MAIN、SUITE、GROUP、INDIVIDUAL 四个层级
+- **颜色支持**: 自动检测终端颜色支持，提供多种颜色主题
+- **可配置**: 支持配置文件和环境变量配置
+- **跨平台**: 支持 Windows 和 Unix-like 系统
+- **模块化设计**: 清晰的代码结构，易于维护和扩展
+
+## 文件结构
+
+```
+tests/
+├── test_utils.hpp              # 主接口文件（简化的门面）
+├── example_usage.cpp           # 使用示例
+├── test_format_config.txt      # 配置文件示例
+├── Makefile                    # 编译脚本
+├── README.md                   # 说明文档
+└── formatting/                 # 格式化模块
+    ├── test_formatter.hpp      # 核心格式化器
+    ├── test_formatter.cpp
+    ├── test_config.hpp         # 配置管理
+    ├── test_config.cpp
+    ├── test_colors.hpp         # 颜色管理
+    ├── test_colors.cpp
+    ├── format_strategies.hpp   # 格式化策略
+    └── format_strategies.cpp
+```
+
+## 快速开始
+
+### 1. 编译示例
+
+```bash
+cd tests
+make
+```
+
+### 2. 运行示例
+
+```bash
+make run
+```
+
+或者直接运行：
+
+```bash
+./example_usage
+```
+
+## 使用方法
+
+### 基本使用
+
+```cpp
+#include "test_utils.hpp"
+
+// 使用宏进行层级化测试
+RUN_MAIN_TEST("主测试", []() {
+    RUN_TEST_SUITE(MyTestSuite);
+});
+
+// 手动使用不同层级
+TestUtils::printLevelHeader(TestUtils::TestLevel::MAIN, "主测试");
+TestUtils::printLevelHeader(TestUtils::TestLevel::SUITE, "测试套件");
+TestUtils::printLevelHeader(TestUtils::TestLevel::GROUP, "测试组");
+TestUtils::printLevelHeader(TestUtils::TestLevel::INDIVIDUAL, "单个测试");
+
+// 输出测试结果
+TestUtils::printTestResult("测试名称", true);  // 通过
+TestUtils::printTestResult("测试名称", false); // 失败
+
+// 输出信息
+TestUtils::printInfo("信息消息");
+TestUtils::printWarning("警告消息");
+TestUtils::printError("错误消息");
+```
+
+### 配置系统
+
+#### 使用配置文件
+
+创建 `test_format_config.txt`：
+
+```
+# 启用颜色
+colorEnabled=true
+
+# 设置主题 (default, dark, light, mono)
+theme=dark
+```
+
+在代码中加载：
+
+```cpp
+TestUtils::loadConfig("test_format_config.txt");
+```
+
+#### 使用环境变量
+
+```bash
+# 禁用颜色
+export NO_COLOR=1
+
+# 强制启用颜色
+export FORCE_COLOR=1
+
+# 设置主题
+export TEST_THEME=dark
+```
+
+#### 运行时配置
+
+```cpp
+// 设置颜色
+TestUtils::setColorEnabled(true);
+
+// 设置主题
+TestUtils::setTheme("dark");
+```
+
+### 可用的颜色主题
+
+- **default**: 标准颜色方案
+- **dark**: 适合深色背景的鲜艳颜色
+- **light**: 适合浅色背景的柔和颜色
+- **mono**: 单色方案，只使用文本格式化
+
+## 层级说明
+
+### MAIN 层级
+- 用于最顶层的测试执行
+- 使用双线边框和强调色
+- 适合整个测试程序的开始和结束
+
+### SUITE 层级
+- 用于测试套件
+- 使用单线边框
+- 适合一组相关测试的分组
+
+### GROUP 层级
+- 用于测试组
+- 使用简洁的树形结构
+- 适合套件内的子分组
+
+### INDIVIDUAL 层级
+- 用于单个测试
+- 使用简单的项目符号
+- 适合最小的测试单元
+
+## 跨平台支持
+
+### Windows
+- 自动启用 ANSI 转义序列支持（Windows 10+）
+- 检测 Windows Terminal 和现代终端
+- 提供降级支持
+
+### Unix-like 系统
+- 自动检测终端颜色支持
+- 支持标准的 TERM 环境变量
+- 兼容各种终端模拟器
+
+## 扩展开发
+
+### 添加新的格式化策略
+
+1. 在 `format_strategies.hpp` 中定义新的策略类
+2. 实现 `IFormatStrategy` 接口
+3. 在 `TestFormatter` 中注册新策略
+
+### 添加新的颜色主题
+
+1. 在 `test_colors.cpp` 的 `initializeColorSchemes()` 中添加新主题
+2. 定义各种颜色类型的 ANSI 代码
+
+### 添加新的配置选项
+
+1. 在 `TestConfig` 类中添加新的成员变量
+2. 在配置文件解析和环境变量检查中添加支持
+3. 提供相应的 getter/setter 方法
+
+## 性能考虑
+
+- 使用单例模式避免重复初始化
+- 颜色检测只在启动时进行一次
+- 策略模式允许高效的格式化选择
+- 最小化字符串操作和内存分配
+
+## 故障排除
+
+### 颜色不显示
+1. 检查 `NO_COLOR` 环境变量
+2. 确认终端支持 ANSI 转义序列
+3. 尝试设置 `FORCE_COLOR=1`
+
+### 编译错误
+1. 确保使用 C++14 或更高版本
+2. 检查包含路径设置
+3. 确认所有源文件都已编译
+
+### 配置文件不生效
+1. 检查文件路径是否正确
+2. 确认文件格式（key=value）
+3. 查看是否有语法错误
+
+## 许可证
+
+本项目遵循与主项目相同的许可证。
+
 ## 目录结构
 
 ```
@@ -76,6 +288,9 @@ tests/
 - **vm/**: 虚拟机运行时功能
 - **gc/**: 垃圾回收器功能
 - **lib/**: 标准库功能
+- **localization/**: 本地化和国际化功能
+- **plugin/**: 插件系统功能
+- **integration/**: 集成测试功能
 - **新模块/**: 如果是全新的模块，创建新目录
 
 ### 步骤 2: 创建测试文件
@@ -395,6 +610,21 @@ closure/
 // 4. Cleanup resources (if needed)
 ```
 
+#### 测试调用规范
+
+- **主测试文件调用其他主测试文件时**：使用 `RUN_TEST_SUITE(TestClass)` 宏
+- **调用子测试文件时**：使用 `RUN_TEST(TestClass, TestMethod)` 宏
+
+```cpp
+// 示例：主测试文件调用其他主测试文件
+RUN_TEST_SUITE(ParserTestSuite);
+RUN_TEST_SUITE(LexerTestSuite);
+
+// 示例：调用具体的测试方法
+RUN_TEST(BasicParserTest, testTokenParsing);
+RUN_TEST(BasicParserTest, testExpressionParsing);
+```
+
 ### 4. 错误处理
 
 - 使用 try-catch 块捕获异常
@@ -402,6 +632,8 @@ closure/
 - 测试正常情况和异常情况
 
 ### 5. 输出格式
+
+详细的输出格式指南请参考：[OUTPUT_FORMAT_GUIDE.md](OUTPUT_FORMAT_GUIDE.md)
 
 - 使用统一的输出格式
 - 明确标识测试通过/失败
