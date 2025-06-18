@@ -27,9 +27,10 @@ namespace Lua {
 
     // Test level enumeration for different test types
     enum class TestLevel {
-        MAIN,      // main test suite
-        SUITE,     // test suite
-        GROUP,     // test group
+        MAIN,      // main test suite (top level)
+        MODULE,    // module level (e.g., parser, lexer, vm)
+        SUITE,     // test suite (e.g., ExprTestSuite, StmtTestSuite)
+        GROUP,     // test group (e.g., BinaryExprTest, UnaryExprTest)
         INDIVIDUAL // individual test case
     };
 }}}

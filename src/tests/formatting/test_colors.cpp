@@ -1,4 +1,4 @@
-﻿#include "test_colors.hpp"
+#include "test_colors.hpp"
 #include "test_config.hpp"
 #include <iostream>
 #include <cstdlib>
@@ -13,8 +13,10 @@ namespace Tests {
 namespace TestFormatting {
 
 TestColorManager::TestColorManager() {
+    initializeColorCodes();
     initializeColorSupport();
     initializeColorSchemes();
+    currentTheme_ = "default";
 }
 
 std::string TestColorManager::getColor(ColorType type) const {
@@ -189,6 +191,113 @@ void TestColorManager::initializeColorSchemes() {
     monoScheme[ColorType::EMPHASIS] = "\033[1m";       // Bold
     monoScheme[ColorType::DIM] = "\033[2m";            // Dim
     colorSchemes_["mono"] = monoScheme;
+}
+
+Str TestColorManager::colorize(const Str& text, Color color) const {
+    if (!colorSupported_) {
+        return text;
+    }
+    
+    Str colorCode;
+    auto it = colorCodes_.find(color);
+    if (it != colorCodes_.end()) {
+        colorCode = it->second;
+    }
+    
+    if (colorCode.empty()) {
+        return text;
+    }
+    
+    return colorCode + text + colorCodes_.at(Color::RESET);
+}
+
+Str TestColorManager::colorize(const Str& text, const Str& colorName) const {
+    if (!colorSupported_) {
+        return text;
+    }
+    
+    // Map color names to Color enum values
+    static const HashMap<Str, Color> colorMap = {
+        {"reset", Color::RESET},
+        {"black", Color::BLACK},
+        {"red", Color::RED},
+        {"green", Color::GREEN},
+        {"yellow", Color::YELLOW},
+        {"blue", Color::BLUE},
+        {"magenta", Color::MAGENTA},
+        {"cyan", Color::CYAN},
+        {"white", Color::WHITE},
+        {"bright_black", Color::BRIGHT_BLACK},
+        {"bright_red", Color::BRIGHT_RED},
+        {"bright_green", Color::BRIGHT_GREEN},
+        {"bright_yellow", Color::BRIGHT_YELLOW},
+        {"bright_blue", Color::BRIGHT_BLUE},
+        {"bright_magenta", Color::BRIGHT_MAGENTA},
+        {"bright_cyan", Color::BRIGHT_CYAN},
+        {"bright_white", Color::BRIGHT_WHITE}
+    };
+    
+    auto it = colorMap.find(colorName);
+    if (it != colorMap.end()) {
+        return colorize(text, it->second);
+    }
+    
+    return text;
+}
+
+bool TestColorManager::supportsColor() const {
+    return colorSupported_;
+}
+
+void TestColorManager::detectTerminalCapabilities() {
+    initializeColorSupport();
+}
+
+void TestColorManager::setTheme(const Str& theme) {
+    if (colorSchemes_.find(theme) != colorSchemes_.end()) {
+        currentTheme_ = theme;
+        TestConfig::getInstance().setTheme(theme);
+    }
+}
+
+Str TestColorManager::getTheme() const {
+    return currentTheme_;
+}
+
+Str TestColorManager::success(const Str& text) const {
+    return getColor(ColorType::SUCCESS) + text + getColor(ColorType::RESET);
+}
+
+Str TestColorManager::error(const Str& text) const {
+    return getColor(ColorType::ERROR_COLOR) + text + getColor(ColorType::RESET);
+}
+
+Str TestColorManager::warning(const Str& text) const {
+    return getColor(ColorType::WARNING) + text + getColor(ColorType::RESET);
+}
+
+Str TestColorManager::info(const Str& text) const {
+    return getColor(ColorType::INFO) + text + getColor(ColorType::RESET);
+}
+
+Str TestColorManager::header(const Str& text, TestLevel level) const {
+    ColorType colorType;
+    switch (level) {
+        case TestLevel::MAIN:
+        case TestLevel::MODULE:
+            colorType = ColorType::HEADER;
+            break;
+        case TestLevel::SUITE:
+        case TestLevel::GROUP:
+            colorType = ColorType::SUBHEADER;
+            break;
+        case TestLevel::INDIVIDUAL:
+        default:
+            colorType = ColorType::EMPHASIS;
+            break;
+    }
+    
+    return getColor(colorType) + text + getColor(ColorType::RESET);
 }
 
 } // namespace TestFormatting

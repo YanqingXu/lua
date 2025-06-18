@@ -31,6 +31,16 @@ public:
                    const TestColorManager& colorManager) override;
 };
 
+// Module level formatting strategy
+class ModuleFormatStrategy : public IFormatStrategy {
+public:
+    void printHeader(const Str& title, 
+                   const Str& description,
+                   const TestColorManager& colorManager) override;
+    void printFooter(const Str& message,
+                   const TestColorManager& colorManager) override;
+};
+
 // Suite level formatting strategy
 class SuiteFormatStrategy : public IFormatStrategy {
 public:

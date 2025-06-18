@@ -1,6 +1,71 @@
 # Modern C++ Lua 解释器测试框架
 
+# Lua 编译器测试目录
+
 本目录包含了 Modern C++ Lua 解释器项目的所有测试文件，按模块进行了分类组织。
+
+## 测试重构完成总结
+
+### 完成的工作 ✅
+
+1. **代码结构统一化**: 将所有测试文件从函数式结构转换为类式结构，统一使用 `namespace Lua::Tests` 命名空间，所有测试类都实现 `static void runAllTests()` 方法
+
+2. **目录结构模块化**: 按功能模块重新组织测试目录结构（lexer、parser、compiler、vm、gc等）
+
+3. **测试统一入口创建**: 为每个模块创建了统一的测试入口文件
+
+4. **主测试入口更新**: 更新 `test_main.hpp/.cpp` 以使用新的模块化测试结构
+
+5. **文档完善**: 提供完整的使用示例和构建说明
+
+### 项目优势
+
+- **模块化**: 测试按功能模块清晰组织
+- **可维护性**: 统一的代码结构和命名规范
+- **可扩展性**: 新测试可以轻松添加到相应模块
+- **灵活性**: 支持运行全部测试、模块测试或单个测试
+- **清晰性**: 每个测试的作用和位置都有明确的文档说明
+
+## 测试层次结构
+
+我们的测试框架采用5级层次结构：
+
+```
+MAIN (主测试)
+├── MODULE (模块测试)
+│   ├── SUITE (套件测试)
+│   │   ├── GROUP (组测试)
+│   │   │   └── INDIVIDUAL (个别测试)
+```
+
+### 层次说明和宏使用
+
+1. **MAIN 级别**: 整个项目的最高级别测试入口点
+   - 宏: `RUN_MAIN_TEST(TestName, TestFunction)`
+   - 使用场景: 在主测试文件中调用，运行整个项目的所有测试
+
+2. **MODULE 级别**: 特定功能模块的测试协调器
+   - 宏: `RUN_TEST_MODULE(ModuleName, ModuleTestClass)`
+   - 使用场景: 在主测试函数中调用各个模块，组织不同功能模块的测试
+
+3. **SUITE 级别**: 模块内相关功能的测试套件
+   - 宏: `RUN_TEST_SUITE(TestSuiteName)`
+   - 使用场景: 在模块测试类中调用，组织相关功能的测试
+
+4. **GROUP 级别**: 套件内特定功能区域的测试组
+   - 宏: `RUN_TEST_GROUP(GroupName, GroupFunction)`
+   - 使用场景: 在测试套件类中调用，组织特定功能的测试
+
+5. **INDIVIDUAL 级别**: 单个测试用例的执行
+   - 宏: `RUN_TEST(ClassName, methodName)` 或 `SAFE_RUN_TEST(ClassName, methodName)`
+   - 使用场景: 在测试组函数中调用，执行具体的测试方法
+
+### 命名约定
+
+- **模块类**: `[ModuleName]TestSuite` (如 `ParserTestSuite`)
+- **套件类**: `[FeatureName]TestSuite` (如 `ExprTestSuite`)
+- **测试类**: `[SpecificFeature]Test` (如 `BinaryExprTest`)
+- **测试方法**: `test[SpecificCase]` (如 `testAddition`)
 
 # Test Formatting System
 
@@ -57,7 +122,41 @@ make run
 
 ## 使用方法
 
-### 基本使用
+### 运行所有测试
+
+```cpp
+#include "test_main.hpp"
+Lua::Tests::runAllTests();
+```
+
+### 运行特定模块测试
+
+```cpp
+// 编译器模块
+#include "compiler/test_compiler.hpp"
+CompilerTest::runAllTests();
+
+// GC 模块
+#include "gc/test_gc.hpp"
+GCTest::runAllTests();
+
+// Parser 模块
+#include "parser/test_parser.hpp"
+ParserTestSuite::runAllTests();
+
+// VM 模块
+#include "vm/test_vm.hpp"
+VMTestSuite::runAllTests();
+```
+
+### 运行单个测试类
+
+```cpp
+#include "parser/function_test.hpp"
+FunctionTest::runAllTests();
+```
+
+### 基本输出格式使用
 
 ```cpp
 #include "test_utils.hpp"
@@ -81,6 +180,50 @@ TestUtils::printTestResult("测试名称", false); // 失败
 TestUtils::printInfo("信息消息");
 TestUtils::printWarning("警告消息");
 TestUtils::printError("错误消息");
+```
+
+### 输出格式规范
+
+#### 层次结构
+- **测试套件级别**: 使用 `printSimpleSectionHeader/Footer`
+- **测试组级别**: 使用 `printSectionHeader/Footer`
+- **单个测试级别**: 使用 `printTestResult`
+- **信息级别**: 使用 `printInfo/Warning/Error`
+
+#### 缩进规范
+- 节标题：无缩进
+- 测试结果：4个空格缩进
+- 信息消息：4个空格缩进
+
+#### 标识符规范
+- `[PASS]`：测试通过
+- `[FAIL]`：测试失败
+- `[INFO]`：信息消息
+- `[WARN]`：警告消息
+- `[ERROR]`：错误消息
+- `[OK]`：节完成
+
+### 宏函数使用
+
+#### RUN_TEST 宏
+用于执行单个测试方法，自动处理异常和输出格式：
+
+```cpp
+RUN_TEST(SynchronizeTest, testBasicSynchronization);
+```
+
+#### RUN_TEST_SUITE 宏
+用于执行整个测试套件：
+
+```cpp
+RUN_TEST_SUITE(SynchronizeTest);
+```
+
+#### SAFE_RUN_TEST 宏
+用于安全执行测试，不会重新抛出异常：
+
+```cpp
+SAFE_RUN_TEST(SynchronizeTest, testBasicSynchronization);
 ```
 
 ### 配置系统
@@ -133,7 +276,7 @@ TestUtils::setTheme("dark");
 - **light**: 适合浅色背景的柔和颜色
 - **mono**: 单色方案，只使用文本格式化
 
-## 层级说明
+## 输出层级说明
 
 ### MAIN 层级
 - 用于最顶层的测试执行
@@ -154,6 +297,30 @@ TestUtils::setTheme("dark");
 - 用于单个测试
 - 使用简单的项目符号
 - 适合最小的测试单元
+
+### 输出格式示例
+
+```
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                           MAIN: Lua Compiler Tests                          ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                            MODULE: Parser Module                            │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  ┌───────────────────────────────────────────────────────────────────────────┐
+  │                        SUITE: ExprTestSuite                              │
+  └───────────────────────────────────────────────────────────────────────────┘
+
+    ┌─────────────────────────────────────────────────────────────────────────┐
+    │                    GROUP: Binary Expression Tests                      │
+    └─────────────────────────────────────────────────────────────────────────┘
+
+      ✓ INDIVIDUAL: BinaryExprTest::testAddition
+      ✓ INDIVIDUAL: BinaryExprTest::testSubtraction
+      ✗ INDIVIDUAL: BinaryExprTest::testDivision
+```
 
 ## 跨平台支持
 
@@ -221,6 +388,16 @@ tests/
 ├── README.md                    # 本文件 - 测试目录说明
 ├── test_main.cpp               # 主测试入口
 ├── test_main.hpp               # 主测试头文件
+├── test_utils.hpp              # 测试工具和宏定义
+├── formatting/                 # 格式化模块
+│   ├── test_formatter.hpp      # 核心格式化器
+│   ├── test_formatter.cpp
+│   ├── test_config.hpp         # 配置管理
+│   ├── test_config.cpp
+│   ├── test_colors.hpp         # 颜色管理
+│   ├── test_colors.cpp
+│   ├── format_strategies.hpp   # 格式化策略
+│   └── format_strategies.cpp
 ├── lexer/                      # 词法分析器测试
 │   ├── lexer_test.cpp
 │   └── lexer_test.hpp
@@ -271,10 +448,27 @@ tests/
 │   ├── test_lib.hpp                    # 标准库测试统一入口头文件
 │   ├── table_lib_test.cpp              # 表库测试
 │   └── table_lib_test.hpp
-└── localization/               # 本地化测试 (示例)
-    ├── localization_test.cpp           # 本地化功能测试
-    └── localization_test.hpp
+├── localization/               # 本地化测试 (示例)
+│   ├── localization_test.cpp           # 本地化功能测试
+│   └── localization_test.hpp
+├── integration/                # 集成测试
+└── plugin/                     # 插件系统测试
 ```
+
+### 统一测试入口文件
+
+- **编译器测试统一入口**: `compiler/test_compiler.hpp/.cpp` - 包含所有编译器相关测试的统一调用
+- **GC 测试统一入口**: `gc/test_gc.hpp/.cpp` - 包含所有垃圾回收器相关测试的统一调用
+- **Parser 测试统一入口**: `parser/test_parser.hpp/.cpp` - 包含所有语法分析器相关测试的统一调用
+- **VM 测试统一入口**: `vm/test_vm.hpp/.cpp` - 包含所有虚拟机相关测试的统一调用
+
+## 最佳实践
+
+1. **保持层次清晰**: 每个层次都有明确的职责
+2. **使用正确的宏**: 根据层次选择合适的宏
+3. **添加文档**: 为测试类添加层次说明
+4. **逐步迁移**: 可以逐步迁移现有代码，不需要一次性全部更改
+5. **测试独立性**: 确保每个层次的测试都是独立的
 
 ## 如何添加新的测试文件
 

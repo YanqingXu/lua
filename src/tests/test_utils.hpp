@@ -147,9 +147,13 @@ public:
 } // namespace Lua
 
 /**
- * Macro for unified test execution
+ * Macro for individual test execution (individual level - INDIVIDUAL)
  * Usage: RUN_TEST(ClassName, methodName)
- * Example: RUN_TEST(SynchronizeTest, testBasicSynchronization)
+ * Example: RUN_TEST(BinaryExprTest, testAddition)
+ * 
+ * This macro is used for running individual test cases within a test group.
+ * It provides exception handling and result reporting for single test methods.
+ * Should be called from within test group functions.
  */
 #define RUN_TEST(TestClass, TestMethod) \
     do { \
@@ -169,9 +173,12 @@ public:
     } while(0)
 
 /**
- * Macro for main test execution (top level)
+ * Macro for main test execution (top level - MAIN)
  * Usage: RUN_MAIN_TEST(TestName, TestFunction)
  * Example: RUN_MAIN_TEST("All Tests", runAllTests)
+ * 
+ * This is the highest level macro for running the entire test suite.
+ * It should only be used in the main test entry point.
  */
 #define RUN_MAIN_TEST(TestName, TestFunction) \
     do { \
@@ -189,9 +196,36 @@ public:
     } while(0)
 
 /**
- * Macro for unified test suite execution (middle level)
+ * Macro for module test execution (module level - MODULE)
+ * Usage: RUN_TEST_MODULE(ModuleName, ModuleTestClass)
+ * Example: RUN_TEST_MODULE("Parser Module", ParserTestSuite)
+ * 
+ * This macro is used for running tests of a specific module (e.g., parser, lexer, vm).
+ * It provides clear separation between different functional modules.
+ */
+#define RUN_TEST_MODULE(ModuleName, ModuleTestClass) \
+    do { \
+        try { \
+            Lua::Tests::TestUtils::printLevelHeader(Lua::Tests::TestUtils::TestLevel::MODULE, ModuleName, "Running module tests"); \
+            Lua::Tests::ModuleTestClass::runAllTests(); \
+            Lua::Tests::TestUtils::printLevelFooter(Lua::Tests::TestUtils::TestLevel::MODULE, ModuleName " module tests completed successfully"); \
+        } catch (const std::exception& e) { \
+            Lua::Tests::TestUtils::printError(ModuleName " module failed with exception: " + std::string(e.what())); \
+            throw; \
+        } catch (...) { \
+            Lua::Tests::TestUtils::printError(ModuleName " module failed with unknown exception"); \
+            throw; \
+        } \
+    } while(0)
+
+/**
+ * Macro for test suite execution (suite level - SUITE)
  * Usage: RUN_TEST_SUITE(TestSuiteName)
- * Example: RUN_TEST_SUITE(SynchronizeTest)
+ * Example: RUN_TEST_SUITE(ExprTestSuite)
+ * 
+ * This macro is used for running a specific test suite within a module.
+ * Test suites group related functionality tests (e.g., expression tests, statement tests).
+ * Should be called from within module-level test classes.
  */
 #define RUN_TEST_SUITE(TestSuite) \
     do { \
@@ -209,9 +243,13 @@ public:
     } while(0)
 
 /**
- * Macro for test group execution (bottom level)
+ * Macro for test group execution (group level - GROUP)
  * Usage: RUN_TEST_GROUP(GroupName, GroupFunction)
- * Example: RUN_TEST_GROUP("Basic Operations", testBasicOperations)
+ * Example: RUN_TEST_GROUP("Binary Expression Tests", testBinaryExpressions)
+ * 
+ * This macro is used for running a group of related tests within a test suite.
+ * Test groups organize tests by specific functionality or feature area.
+ * Should be called from within test suite classes.
  */
 #define RUN_TEST_GROUP(GroupName, GroupFunction) \
     do { \
@@ -229,9 +267,13 @@ public:
     } while(0)
 
 /**
- * Macro for safe test execution with automatic error handling
+ * Macro for safe individual test execution (individual level - INDIVIDUAL)
  * Usage: SAFE_RUN_TEST(ClassName, methodName)
- * This version catches exceptions and continues execution instead of re-throwing
+ * Example: SAFE_RUN_TEST(BinaryExprTest, testAddition)
+ * 
+ * This is the safe version of RUN_TEST that catches exceptions and continues execution
+ * instead of re-throwing. Useful for running multiple tests where one failure
+ * shouldn't stop the entire test run. Should be called from within test group functions.
  */
 #define SAFE_RUN_TEST(TestClass, TestMethod) \
     do { \

@@ -1,4 +1,4 @@
-﻿#include "format_strategies.hpp"
+#include "format_strategies.hpp"
 #include "test_colors.hpp"
 #include <iostream>
 
@@ -7,73 +7,97 @@ namespace Tests {
 namespace TestFormatting {
 
 // MainFormatStrategy Implementation
-void MainFormatStrategy::printHeader(const std::string& title, const std::string& description, const TestColorManager& colorManager) {
-    std::string headerColor = colorManager.getColor(ColorType::HEADER);
-    std::string emphasisColor = colorManager.getColor(ColorType::EMPHASIS);
-    std::string resetColor = colorManager.getColor(ColorType::RESET);
+void MainFormatStrategy::printHeader(const Str& title, const Str& description, const TestColorManager& colorManager) {
+    Str headerColor = colorManager.getColor(ColorType::HEADER);
+    Str emphasisColor = colorManager.getColor(ColorType::EMPHASIS);
+    Str resetColor = colorManager.getColor(ColorType::RESET);
     
-    std::cout << "\n" << headerColor << std::string(80, '=') << resetColor << std::endl;
+    std::cout << "\n" << headerColor << Str(80, '=') << resetColor << std::endl;
     std::cout << headerColor << "  " << emphasisColor << title << resetColor << std::endl;
     if (!description.empty()) {
         std::cout << headerColor << "  " << description << resetColor << std::endl;
     }
-    std::cout << headerColor << std::string(80, '=') << resetColor << std::endl;
+    std::cout << headerColor << Str(80, '=') << resetColor << std::endl;
 }
 
-void MainFormatStrategy::printFooter(const std::string& message, const TestColorManager& colorManager) {
-    std::string headerColor = colorManager.getColor(ColorType::HEADER);
-    std::string resetColor = colorManager.getColor(ColorType::RESET);
+void MainFormatStrategy::printFooter(const Str& message, const TestColorManager& colorManager) {
+    Str headerColor = colorManager.getColor(ColorType::HEADER);
+    Str resetColor = colorManager.getColor(ColorType::RESET);
     
-    std::cout << headerColor << std::string(80, '=') << resetColor << std::endl;
+    std::cout << headerColor << Str(80, '=') << resetColor << std::endl;
     if (!message.empty()) {
         std::cout << headerColor << "  " << message << resetColor << std::endl;
-        std::cout << headerColor << std::string(80, '=') << resetColor << std::endl;
+        std::cout << headerColor << Str(80, '=') << resetColor << std::endl;
+    }
+    std::cout << std::endl;
+}
+
+// ModuleFormatStrategy Implementation
+void ModuleFormatStrategy::printHeader(const Str& title, const Str& description, const TestColorManager& colorManager) {
+    Str headerColor = colorManager.getColor(ColorType::HEADER);
+    Str emphasisColor = colorManager.getColor(ColorType::EMPHASIS);
+    Str resetColor = colorManager.getColor(ColorType::RESET);
+    
+    std::cout << "\n" << headerColor << "+" << Str(70, '-') << "+" << resetColor << std::endl;
+    std::cout << headerColor << "| " << emphasisColor << title << Str(70 - title.length() - 1, ' ') << headerColor << "|" << resetColor << std::endl;
+    if (!description.empty()) {
+        std::cout << headerColor << "| " << description << Str(70 - description.length() - 1, ' ') << "|" << resetColor << std::endl;
+    }
+    std::cout << headerColor << "+" << Str(70, '-') << "+" << resetColor << std::endl;
+}
+
+void ModuleFormatStrategy::printFooter(const Str& message, const TestColorManager& colorManager) {
+    Str headerColor = colorManager.getColor(ColorType::HEADER);
+    Str resetColor = colorManager.getColor(ColorType::RESET);
+    
+    if (!message.empty()) {
+        std::cout << headerColor << "+- " << message << resetColor << std::endl;
     }
     std::cout << std::endl;
 }
 
 // SuiteFormatStrategy Implementation
-void SuiteFormatStrategy::printHeader(const std::string& title, const std::string& description, const TestColorManager& colorManager) {
-    std::string subheaderColor = colorManager.getColor(ColorType::SUBHEADER);
-    std::string emphasisColor = colorManager.getColor(ColorType::EMPHASIS);
-    std::string resetColor = colorManager.getColor(ColorType::RESET);
+void SuiteFormatStrategy::printHeader(const Str& title, const Str& description, const TestColorManager& colorManager) {
+    Str subheaderColor = colorManager.getColor(ColorType::SUBHEADER);
+    Str emphasisColor = colorManager.getColor(ColorType::EMPHASIS);
+    Str resetColor = colorManager.getColor(ColorType::RESET);
     
-    std::cout << "\n" << subheaderColor << std::string(60, '-') << resetColor << std::endl;
-    std::cout << subheaderColor << " " << emphasisColor << title << resetColor << std::endl;
+    std::cout << "\n" << subheaderColor << "  +" << Str(60, '-') << "+" << resetColor << std::endl;
+    std::cout << subheaderColor << "  | " << emphasisColor << title << Str(60 - title.length() - 1, ' ') << subheaderColor << "|" << resetColor << std::endl;
     if (!description.empty()) {
-        std::cout << subheaderColor << " " << description << resetColor << std::endl;
+        std::cout << subheaderColor << "  | " << description << Str(60 - description.length() - 1, ' ') << "|" << resetColor << std::endl;
     }
-    std::cout << subheaderColor << std::string(60, '-') << resetColor << std::endl;
+    std::cout << subheaderColor << "  +" << Str(60, '-') << "+" << resetColor << std::endl;
 }
 
-void SuiteFormatStrategy::printFooter(const std::string& message, const TestColorManager& colorManager) {
-    std::string subheaderColor = colorManager.getColor(ColorType::SUBHEADER);
-    std::string resetColor = colorManager.getColor(ColorType::RESET);
+void SuiteFormatStrategy::printFooter(const Str& message, const TestColorManager& colorManager) {
+    Str subheaderColor = colorManager.getColor(ColorType::SUBHEADER);
+    Str resetColor = colorManager.getColor(ColorType::RESET);
     
     if (!message.empty()) {
-        std::cout << subheaderColor << " " << message << resetColor << std::endl;
+        std::cout << subheaderColor << "  +- " << message << resetColor << std::endl;
     }
-    std::cout << subheaderColor << std::string(60, '-') << resetColor << std::endl;
+    std::cout << std::endl;
 }
 
 // GroupFormatStrategy Implementation
-void GroupFormatStrategy::printHeader(const std::string& title, const std::string& description, const TestColorManager& colorManager) {
-    std::string infoColor = colorManager.getColor(ColorType::INFO);
-    std::string emphasisColor = colorManager.getColor(ColorType::EMPHASIS);
-    std::string resetColor = colorManager.getColor(ColorType::RESET);
+void GroupFormatStrategy::printHeader(const Str& title, const Str& description, const TestColorManager& colorManager) {
+    Str infoColor = colorManager.getColor(ColorType::INFO);
+    Str emphasisColor = colorManager.getColor(ColorType::EMPHASIS);
+    Str resetColor = colorManager.getColor(ColorType::RESET);
     
-    std::cout << "\n" << infoColor << "┌─ " << emphasisColor << title << resetColor;
+    std::cout << "\n" << infoColor << "+- " << emphasisColor << title << resetColor;
     if (!description.empty()) {
         std::cout << infoColor << " - " << description << resetColor;
     }
     std::cout << std::endl;
 }
 
-void GroupFormatStrategy::printFooter(const std::string& message, const TestColorManager& colorManager) {
-    std::string infoColor = colorManager.getColor(ColorType::INFO);
-    std::string resetColor = colorManager.getColor(ColorType::RESET);
+void GroupFormatStrategy::printFooter(const Str& message, const TestColorManager& colorManager) {
+    Str infoColor = colorManager.getColor(ColorType::INFO);
+    Str resetColor = colorManager.getColor(ColorType::RESET);
     
-    std::cout << infoColor << "└─";
+    std::cout << infoColor << "+-";
     if (!message.empty()) {
         std::cout << " " << message;
     }
@@ -81,9 +105,9 @@ void GroupFormatStrategy::printFooter(const std::string& message, const TestColo
 }
 
 // IndividualFormatStrategy Implementation
-void IndividualFormatStrategy::printHeader(const std::string& title, const std::string& description, const TestColorManager& colorManager) {
-    std::string dimColor = colorManager.getColor(ColorType::DIM);
-    std::string resetColor = colorManager.getColor(ColorType::RESET);
+void IndividualFormatStrategy::printHeader(const Str& title, const Str& description, const TestColorManager& colorManager) {
+    Str dimColor = colorManager.getColor(ColorType::DIM);
+    Str resetColor = colorManager.getColor(ColorType::RESET);
     
     std::cout << dimColor << "  - " << title;
     if (!description.empty()) {
@@ -92,9 +116,9 @@ void IndividualFormatStrategy::printHeader(const std::string& title, const std::
     std::cout << resetColor << std::endl;
 }
 
-void IndividualFormatStrategy::printFooter(const std::string& message, const TestColorManager& colorManager) {
-    std::string dimColor = colorManager.getColor(ColorType::DIM);
-    std::string resetColor = colorManager.getColor(ColorType::RESET);
+void IndividualFormatStrategy::printFooter(const Str& message, const TestColorManager& colorManager) {
+    Str dimColor = colorManager.getColor(ColorType::DIM);
+    Str resetColor = colorManager.getColor(ColorType::RESET);
     
     if (!message.empty()) {
         std::cout << dimColor << "    " << message << resetColor << std::endl;

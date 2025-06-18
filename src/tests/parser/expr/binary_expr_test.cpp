@@ -8,32 +8,52 @@ using namespace Lua;
 using namespace Tests;
 
 void BinaryExprTest::runAllTests() {
+    // Group tests
+    SAFE_RUN_TEST(BinaryExprTest, testArithmeticOperators);
+    SAFE_RUN_TEST(BinaryExprTest, testComparisonOperators);
+    SAFE_RUN_TEST(BinaryExprTest, testLogicalOperators);
+    
+    // Individual arithmetic tests
     SAFE_RUN_TEST(BinaryExprTest, testAddition);
     SAFE_RUN_TEST(BinaryExprTest, testSubtraction);
     SAFE_RUN_TEST(BinaryExprTest, testMultiplication);
     SAFE_RUN_TEST(BinaryExprTest, testDivision);
-
     SAFE_RUN_TEST(BinaryExprTest, testModulo);
     SAFE_RUN_TEST(BinaryExprTest, testExponentiation);
+    
+    // Individual comparison tests
     SAFE_RUN_TEST(BinaryExprTest, testEquality);
     SAFE_RUN_TEST(BinaryExprTest, testInequality);
-
     SAFE_RUN_TEST(BinaryExprTest, testLessThan);
     SAFE_RUN_TEST(BinaryExprTest, testLessEqual);
     SAFE_RUN_TEST(BinaryExprTest, testGreaterThan);
     SAFE_RUN_TEST(BinaryExprTest, testGreaterEqual);
 
+    // Individual logical tests
     SAFE_RUN_TEST(BinaryExprTest, testLogicalAnd);
     SAFE_RUN_TEST(BinaryExprTest, testLogicalOr);
+    
+    // Other tests
     SAFE_RUN_TEST(BinaryExprTest, testStringConcatenation);
     SAFE_RUN_TEST(BinaryExprTest, testOperatorPrecedence);
-
     SAFE_RUN_TEST(BinaryExprTest, testLeftAssociativity);
     SAFE_RUN_TEST(BinaryExprTest, testRightAssociativity);
     SAFE_RUN_TEST(BinaryExprTest, testMixedPrecedence);
     SAFE_RUN_TEST(BinaryExprTest, testNestedExpressions);
-
+    
+    // Complex expression tests
+    SAFE_RUN_TEST(BinaryExprTest, testParenthesizedExpressions);
+    SAFE_RUN_TEST(BinaryExprTest, testComplexArithmetic);
+    SAFE_RUN_TEST(BinaryExprTest, testComplexLogical);
+    SAFE_RUN_TEST(BinaryExprTest, testMixedOperatorTypes);
+    
+    // Edge case tests
+    SAFE_RUN_TEST(BinaryExprTest, testWithLiterals);
+    SAFE_RUN_TEST(BinaryExprTest, testWithVariables);
+    SAFE_RUN_TEST(BinaryExprTest, testWithUnaryExpressions);
     SAFE_RUN_TEST(BinaryExprTest, testChainedComparisons);
+    
+    // Error handling tests
     SAFE_RUN_TEST(BinaryExprTest, testInvalidOperators);
     SAFE_RUN_TEST(BinaryExprTest, testMissingOperands);
     SAFE_RUN_TEST(BinaryExprTest, testInvalidSyntax);
@@ -902,4 +922,317 @@ std::string BinaryExprTest::tokenTypeToString(TokenType type) {
         case TokenType::DotDot: return "..";
         default: return "unknown";
     }
+}
+
+// Group test implementations
+void BinaryExprTest::testArithmeticOperators() {
+    std::cout << "Testing arithmetic operators group..." << std::endl;
+    
+    // Test all arithmetic operators
+    testBinaryParsing("3 + 5", TokenType::Plus, "Addition operator");
+    testBinaryParsing("10 - 3", TokenType::Minus, "Subtraction operator");
+    testBinaryParsing("4 * 6", TokenType::Star, "Multiplication operator");
+    testBinaryParsing("15 / 3", TokenType::Slash, "Division operator");
+    testBinaryParsing("10 % 3", TokenType::Percent, "Modulo operator");
+    testBinaryParsing("2 ^ 3", TokenType::Caret, "Exponentiation operator");
+    
+    std::cout << "Arithmetic operators group test completed." << std::endl;
+}
+
+void BinaryExprTest::testComparisonOperators() {
+    std::cout << "Testing comparison operators group..." << std::endl;
+    
+    // Test all comparison operators
+    testBinaryParsing("5 == 5", TokenType::Equal, "Equality operator");
+    testBinaryParsing("5 ~= 3", TokenType::NotEqual, "Inequality operator");
+    testBinaryParsing("3 < 5", TokenType::Less, "Less than operator");
+    testBinaryParsing("3 <= 5", TokenType::LessEqual, "Less equal operator");
+    testBinaryParsing("5 > 3", TokenType::Greater, "Greater than operator");
+    testBinaryParsing("5 >= 3", TokenType::GreaterEqual, "Greater equal operator");
+    
+    std::cout << "Comparison operators group test completed." << std::endl;
+}
+
+void BinaryExprTest::testLogicalOperators() {
+    std::cout << "Testing logical operators group..." << std::endl;
+    
+    // Test all logical operators
+    testBinaryParsing("true and false", TokenType::And, "Logical AND operator");
+    testBinaryParsing("true or false", TokenType::Or, "Logical OR operator");
+    testBinaryParsing("a and b", TokenType::And, "Logical AND with variables");
+    testBinaryParsing("x or y", TokenType::Or, "Logical OR with variables");
+    
+    std::cout << "Logical operators group test completed." << std::endl;
+}
+
+// Complex expression test implementations
+void BinaryExprTest::testParenthesizedExpressions() {
+    std::cout << "Testing parenthesized expressions..." << std::endl;
+    
+    // Test expressions with parentheses
+    try {
+        std::string input1 = "(3 + 5) * 2";
+        Parser parser1(input1);
+        auto expr1 = parser1.parseExpression();
+        if (expr1) {
+            std::cout << "[OK] Parsed '" << input1 << "' successfully" << std::endl;
+        } else {
+            std::cout << "[Failed] Failed to parse '" << input1 << "'" << std::endl;
+        }
+    } catch (const std::exception& e) {
+        std::cout << "[Failed] Exception parsing parenthesized expression: " << e.what() << std::endl;
+    }
+    
+    try {
+        std::string input2 = "2 * (a + b)";
+        Parser parser2(input2);
+        auto expr2 = parser2.parseExpression();
+        if (expr2) {
+            std::cout << "[OK] Parsed '" << input2 << "' successfully" << std::endl;
+        } else {
+            std::cout << "[Failed] Failed to parse '" << input2 << "'" << std::endl;
+        }
+    } catch (const std::exception& e) {
+        std::cout << "[Failed] Exception parsing parenthesized expression: " << e.what() << std::endl;
+    }
+    
+    std::cout << "Parenthesized expressions test completed." << std::endl;
+}
+
+void BinaryExprTest::testComplexArithmetic() {
+    std::cout << "Testing complex arithmetic expressions..." << std::endl;
+    
+    // Test complex arithmetic combinations
+    try {
+        std::string input1 = "a + b * c - d / e";
+        Parser parser1(input1);
+        auto expr1 = parser1.parseExpression();
+        if (expr1) {
+            std::cout << "[OK] Parsed complex arithmetic '" << input1 << "' successfully" << std::endl;
+        } else {
+            std::cout << "[Failed] Failed to parse complex arithmetic '" << input1 << "'" << std::endl;
+        }
+    } catch (const std::exception& e) {
+        std::cout << "[Failed] Exception parsing complex arithmetic: " << e.what() << std::endl;
+    }
+    
+    try {
+        std::string input2 = "2 ^ 3 + 4 * 5 - 6 / 2";
+        Parser parser2(input2);
+        auto expr2 = parser2.parseExpression();
+        if (expr2) {
+            std::cout << "[OK] Parsed complex arithmetic '" << input2 << "' successfully" << std::endl;
+        } else {
+            std::cout << "[Failed] Failed to parse complex arithmetic '" << input2 << "'" << std::endl;
+        }
+    } catch (const std::exception& e) {
+        std::cout << "[Failed] Exception parsing complex arithmetic: " << e.what() << std::endl;
+    }
+    
+    std::cout << "Complex arithmetic expressions test completed." << std::endl;
+}
+
+void BinaryExprTest::testComplexLogical() {
+    std::cout << "Testing complex logical expressions..." << std::endl;
+    
+    // Test complex logical combinations
+    try {
+        std::string input1 = "a and b or c";
+        Parser parser1(input1);
+        auto expr1 = parser1.parseExpression();
+        if (expr1) {
+            std::cout << "[OK] Parsed complex logical '" << input1 << "' successfully" << std::endl;
+        } else {
+            std::cout << "[Failed] Failed to parse complex logical '" << input1 << "'" << std::endl;
+        }
+    } catch (const std::exception& e) {
+        std::cout << "[Failed] Exception parsing complex logical: " << e.what() << std::endl;
+    }
+    
+    try {
+        std::string input2 = "(a > b) and (c < d) or (e == f)";
+        Parser parser2(input2);
+        auto expr2 = parser2.parseExpression();
+        if (expr2) {
+            std::cout << "[OK] Parsed complex logical '" << input2 << "' successfully" << std::endl;
+        } else {
+            std::cout << "[Failed] Failed to parse complex logical '" << input2 << "'" << std::endl;
+        }
+    } catch (const std::exception& e) {
+        std::cout << "[Failed] Exception parsing complex logical: " << e.what() << std::endl;
+    }
+    
+    std::cout << "Complex logical expressions test completed." << std::endl;
+}
+
+void BinaryExprTest::testMixedOperatorTypes() {
+    std::cout << "Testing mixed operator types..." << std::endl;
+    
+    // Test mixing different operator types
+    try {
+        std::string input1 = "a + b > c";
+        Parser parser1(input1);
+        auto expr1 = parser1.parseExpression();
+        if (expr1) {
+            std::cout << "[OK] Parsed mixed operators '" << input1 << "' successfully" << std::endl;
+        } else {
+            std::cout << "[Failed] Failed to parse mixed operators '" << input1 << "'" << std::endl;
+        }
+    } catch (const std::exception& e) {
+        std::cout << "[Failed] Exception parsing mixed operators: " << e.what() << std::endl;
+    }
+    
+    try {
+        std::string input2 = "x * y == z and w";
+        Parser parser2(input2);
+        auto expr2 = parser2.parseExpression();
+        if (expr2) {
+            std::cout << "[OK] Parsed mixed operators '" << input2 << "' successfully" << std::endl;
+        } else {
+            std::cout << "[Failed] Failed to parse mixed operators '" << input2 << "'" << std::endl;
+        }
+    } catch (const std::exception& e) {
+        std::cout << "[Failed] Exception parsing mixed operators: " << e.what() << std::endl;
+    }
+    
+    std::cout << "Mixed operator types test completed." << std::endl;
+}
+
+// Edge case test implementations
+void BinaryExprTest::testWithLiterals() {
+    std::cout << "Testing binary expressions with literals..." << std::endl;
+    
+    // Test with different literal types
+    try {
+        std::string input1 = "42 + 3.14";
+        Parser parser1(input1);
+        auto expr1 = parser1.parseExpression();
+        if (expr1) {
+            std::cout << "[OK] Parsed literals '" << input1 << "' successfully" << std::endl;
+        } else {
+            std::cout << "[Failed] Failed to parse literals '" << input1 << "'" << std::endl;
+        }
+    } catch (const std::exception& e) {
+        std::cout << "[Failed] Exception parsing literals: " << e.what() << std::endl;
+    }
+    
+    try {
+        std::string input2 = "\"hello\" .. \"world\"";
+        Parser parser2(input2);
+        auto expr2 = parser2.parseExpression();
+        if (expr2) {
+            std::cout << "[OK] Parsed string literals '" << input2 << "' successfully" << std::endl;
+        } else {
+            std::cout << "[Failed] Failed to parse string literals '" << input2 << "'" << std::endl;
+        }
+    } catch (const std::exception& e) {
+        std::cout << "[Failed] Exception parsing string literals: " << e.what() << std::endl;
+    }
+    
+    try {
+        std::string input3 = "true and false";
+        Parser parser3(input3);
+        auto expr3 = parser3.parseExpression();
+        if (expr3) {
+            std::cout << "[OK] Parsed boolean literals '" << input3 << "' successfully" << std::endl;
+        } else {
+            std::cout << "[Failed] Failed to parse boolean literals '" << input3 << "'" << std::endl;
+        }
+    } catch (const std::exception& e) {
+        std::cout << "[Failed] Exception parsing boolean literals: " << e.what() << std::endl;
+    }
+    
+    std::cout << "Binary expressions with literals test completed." << std::endl;
+}
+
+void BinaryExprTest::testWithVariables() {
+    std::cout << "Testing binary expressions with variables..." << std::endl;
+    
+    // Test with different variable combinations
+    try {
+        std::string input1 = "x + y";
+        Parser parser1(input1);
+        auto expr1 = parser1.parseExpression();
+        if (expr1) {
+            std::cout << "[OK] Parsed variables '" << input1 << "' successfully" << std::endl;
+        } else {
+            std::cout << "[Failed] Failed to parse variables '" << input1 << "'" << std::endl;
+        }
+    } catch (const std::exception& e) {
+        std::cout << "[Failed] Exception parsing variables: " << e.what() << std::endl;
+    }
+    
+    try {
+        std::string input2 = "variable1 * variable2";
+        Parser parser2(input2);
+        auto expr2 = parser2.parseExpression();
+        if (expr2) {
+            std::cout << "[OK] Parsed long variables '" << input2 << "' successfully" << std::endl;
+        } else {
+            std::cout << "[Failed] Failed to parse long variables '" << input2 << "'" << std::endl;
+        }
+    } catch (const std::exception& e) {
+        std::cout << "[Failed] Exception parsing long variables: " << e.what() << std::endl;
+    }
+    
+    try {
+        std::string input3 = "a == b and c ~= d";
+        Parser parser3(input3);
+        auto expr3 = parser3.parseExpression();
+        if (expr3) {
+            std::cout << "[OK] Parsed variable comparison '" << input3 << "' successfully" << std::endl;
+        } else {
+            std::cout << "[Failed] Failed to parse variable comparison '" << input3 << "'" << std::endl;
+        }
+    } catch (const std::exception& e) {
+        std::cout << "[Failed] Exception parsing variable comparison: " << e.what() << std::endl;
+    }
+    
+    std::cout << "Binary expressions with variables test completed." << std::endl;
+}
+
+void BinaryExprTest::testWithUnaryExpressions() {
+    std::cout << "Testing binary expressions with unary expressions..." << std::endl;
+    
+    // Test with unary expressions as operands
+    try {
+        std::string input1 = "-a + b";
+        Parser parser1(input1);
+        auto expr1 = parser1.parseExpression();
+        if (expr1) {
+            std::cout << "[OK] Parsed unary operand '" << input1 << "' successfully" << std::endl;
+        } else {
+            std::cout << "[Failed] Failed to parse unary operand '" << input1 << "'" << std::endl;
+        }
+    } catch (const std::exception& e) {
+        std::cout << "[Failed] Exception parsing unary operand: " << e.what() << std::endl;
+    }
+    
+    try {
+        std::string input2 = "not a and b";
+        Parser parser2(input2);
+        auto expr2 = parser2.parseExpression();
+        if (expr2) {
+            std::cout << "[OK] Parsed logical unary '" << input2 << "' successfully" << std::endl;
+        } else {
+            std::cout << "[Failed] Failed to parse logical unary '" << input2 << "'" << std::endl;
+        }
+    } catch (const std::exception& e) {
+        std::cout << "[Failed] Exception parsing logical unary: " << e.what() << std::endl;
+    }
+    
+    try {
+        std::string input3 = "a + -b";
+        Parser parser3(input3);
+        auto expr3 = parser3.parseExpression();
+        if (expr3) {
+            std::cout << "[OK] Parsed right unary '" << input3 << "' successfully" << std::endl;
+        } else {
+            std::cout << "[Failed] Failed to parse right unary '" << input3 << "'" << std::endl;
+        }
+    } catch (const std::exception& e) {
+        std::cout << "[Failed] Exception parsing right unary: " << e.what() << std::endl;
+    }
+    
+    std::cout << "Binary expressions with unary expressions test completed." << std::endl;
 }

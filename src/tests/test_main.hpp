@@ -14,9 +14,25 @@
 namespace Lua {
 namespace Tests {
 
-	// Function to run all tests
+	/**
+	 * Function to run all tests across all modules
+	 * 
+	 * This is the main entry point for the entire test suite.
+	 * It runs tests for all major modules in the Lua compiler.
+	 * 
+	 * Test Hierarchy:
+	 * MAIN (runAllTests) -> MODULE (ParserTestSuite, etc.) -> SUITE -> GROUP -> INDIVIDUAL
+	 */
 	void runAllTests() {
-		RUN_TEST_SUITE(ParserTestSuite);
+		// Run parser module tests
+		RUN_TEST_MODULE("Parser Module", ParserTestSuite);
+		
+		// TODO: Add other modules as they are implemented
+		// RUN_TEST_MODULE("Lexer Module", LexerTestSuite);
+		// RUN_TEST_MODULE("VM Module", VMTestSuite);
+		// RUN_TEST_MODULE("Compiler Module", CompilerTestSuite);
+		// RUN_TEST_MODULE("GC Module", GCTestSuite);
+		// RUN_TEST_MODULE("Library Module", LibTestSuite);
 	}
 
 } // namespace Tests

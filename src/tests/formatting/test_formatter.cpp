@@ -1,4 +1,4 @@
-﻿#include "test_formatter.hpp"
+#include "test_formatter.hpp"
 #include "test_config.hpp"
 #include "test_colors.hpp"
 #include "format_strategies.hpp"
@@ -18,6 +18,7 @@ public:
     Impl() {
         // Initialize strategies for each test level
         strategies[TestLevel::MAIN] = std::make_unique<MainFormatStrategy>();
+        strategies[TestLevel::MODULE] = std::make_unique<ModuleFormatStrategy>();
         strategies[TestLevel::SUITE] = std::make_unique<SuiteFormatStrategy>();
         strategies[TestLevel::GROUP] = std::make_unique<GroupFormatStrategy>();
         strategies[TestLevel::INDIVIDUAL] = std::make_unique<IndividualFormatStrategy>();
