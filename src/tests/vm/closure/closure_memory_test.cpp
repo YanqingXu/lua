@@ -1,32 +1,29 @@
-﻿#include "closure_memory_test.hpp"
+#include "closure_memory_test.hpp"
+#include "../../test_utils.hpp"
 
 namespace Lua {
 namespace Tests {
 
 void ClosureMemoryTest::runAllTests() {
-    printSectionHeader("Closure Memory and Lifecycle Tests");
-    
-    setupTestEnvironment();
-    
+    RUN_TEST_GROUP("Closure Memory and Lifecycle Tests", runMemoryAndLifecycleTests);
+}
+
+void ClosureMemoryTest::runMemoryAndLifecycleTests() {
     // Run memory and lifecycle tests
-    testClosureLifecycle();
-    testUpvalueLifecycle();
-    testGarbageCollection();
-    testMemoryLeaks();
-    testUpvalueReferences();
-    testClosureReferences();
-    testCircularReferences();
-    testWeakReferences();
+    RUN_TEST(ClosureMemoryTest, testClosureLifecycle);
+    RUN_TEST(ClosureMemoryTest, testUpvalueLifecycle);
+    RUN_TEST(ClosureMemoryTest, testGarbageCollection);
+    RUN_TEST(ClosureMemoryTest, testMemoryLeaks);
+    RUN_TEST(ClosureMemoryTest, testUpvalueReferences);
+    RUN_TEST(ClosureMemoryTest, testClosureReferences);
+    RUN_TEST(ClosureMemoryTest, testCircularReferences);
+    RUN_TEST(ClosureMemoryTest, testWeakReferences);
     
     // Run memory measurement tests
-    measureClosureMemoryUsage();
-    measureUpvalueMemoryUsage();
-    testMemoryGrowth();
-    testMemoryFragmentation();
-    
-    cleanupTestEnvironment();
-    
-    printSectionFooter();
+    RUN_TEST(ClosureMemoryTest, measureClosureMemoryUsage);
+    RUN_TEST(ClosureMemoryTest, measureUpvalueMemoryUsage);
+    RUN_TEST(ClosureMemoryTest, testMemoryGrowth);
+    RUN_TEST(ClosureMemoryTest, testMemoryFragmentation);
 }
 
 void ClosureMemoryTest::testClosureLifecycle() {
@@ -53,7 +50,7 @@ void ClosureMemoryTest::testClosureLifecycle() {
     )";
     
     bool test1 = executeClosureTest(luaCode1, "42");
-    printTestResult("Basic closure creation and destruction", test1);
+    TestUtils::printTestResult("Basic closure creation and destruction", test1);
     
     // Test 2: Multiple closure instances lifecycle
     std::string luaCode2 = R"(
@@ -88,7 +85,7 @@ void ClosureMemoryTest::testClosureLifecycle() {
     )";
     
     bool test2 = executeClosureTest(luaCode2, "165"); // 11+21+31+41+51 = 155, need to verify
-    printTestResult("Multiple closure instances lifecycle", test2);
+    TestUtils::printTestResult("Multiple closure instances lifecycle", test2);
     
     // Test 3: Nested closure lifecycle
     std::string luaCode3 = R"(
@@ -118,7 +115,7 @@ void ClosureMemoryTest::testClosureLifecycle() {
     )";
     
     bool test3 = executeClosureTest(luaCode3, "30");
-    printTestResult("Nested closure lifecycle", test3);
+    TestUtils::printTestResult("Nested closure lifecycle", test3);
 }
 
 void ClosureMemoryTest::testUpvalueLifecycle() {
@@ -154,7 +151,7 @@ void ClosureMemoryTest::testUpvalueLifecycle() {
     )";
     
     bool test1 = executeClosureTest(luaCode1, "306"); // 101+102+103 = 306
-    printTestResult("Upvalue creation and cleanup", test1);
+    TestUtils::printTestResult("Upvalue creation and cleanup", test1);
     
     // Test 2: Upvalue modification and lifecycle
     std::string luaCode2 = R"(
@@ -187,7 +184,7 @@ void ClosureMemoryTest::testUpvalueLifecycle() {
     )";
     
     bool test2 = executeClosureTest(luaCode2, "23"); // 5 + 10 + 8 = 23
-    printTestResult("Upvalue modification and lifecycle", test2);
+    TestUtils::printTestResult("Upvalue modification and lifecycle", test2);
 }
 
 void ClosureMemoryTest::testGarbageCollection() {
@@ -230,7 +227,7 @@ void ClosureMemoryTest::testGarbageCollection() {
     )";
     
     bool test1 = executeClosureTest(luaCode1, "110"); // 2+4+6+8+10+12+14+16+18+20 = 110
-    printTestResult("Closure garbage collection", test1);
+    TestUtils::printTestResult("Closure garbage collection", test1);
     
     // Test 2: Upvalue garbage collection
     std::string luaCode2 = R"(
@@ -272,7 +269,7 @@ void ClosureMemoryTest::testGarbageCollection() {
     )";
     
     bool test2 = executeClosureTest(luaCode2, "15"); // 1+2+3+4+5 = 15
-    printTestResult("Upvalue garbage collection", test2);
+    TestUtils::printTestResult("Upvalue garbage collection", test2);
 }
 
 void ClosureMemoryTest::testMemoryLeaks() {
@@ -313,7 +310,7 @@ void ClosureMemoryTest::testMemoryLeaks() {
     )";
     
     bool test1 = executeClosureTest(luaCode1, "true");
-    printTestResult("Closure memory leak detection", test1);
+    TestUtils::printTestResult("Closure memory leak detection", test1);
     
     // Test 2: Upvalue memory leak detection
     std::string luaCode2 = R"(
@@ -353,7 +350,7 @@ void ClosureMemoryTest::testMemoryLeaks() {
     )";
     
     bool test2 = executeClosureTest(luaCode2, "true");
-    printTestResult("Upvalue memory leak detection", test2);
+    TestUtils::printTestResult("Upvalue memory leak detection", test2);
 }
 
 void ClosureMemoryTest::testUpvalueReferences() {
@@ -389,7 +386,7 @@ void ClosureMemoryTest::testUpvalueReferences() {
     )";
     
     bool test1 = executeClosureTest(luaCode1, "45"); // 1+3+6+10+15 = 35, need to verify
-    printTestResult("Multiple closures referencing same upvalue", test1);
+    TestUtils::printTestResult("Multiple closures referencing same upvalue", test1);
 }
 
 void ClosureMemoryTest::testClosureReferences() {
@@ -423,7 +420,7 @@ void ClosureMemoryTest::testClosureReferences() {
     )";
     
     bool test1 = executeClosureTest(luaCode1, "84"); // 42 + 42 = 84
-    printTestResult("Closure reference counting", test1);
+    TestUtils::printTestResult("Closure reference counting", test1);
 }
 
 void ClosureMemoryTest::testCircularReferences() {
@@ -464,7 +461,7 @@ void ClosureMemoryTest::testCircularReferences() {
     )";
     
     bool test1 = executeClosureTest(luaCode1, "3"); // 1 + 2 = 3
-    printTestResult("Circular reference detection and cleanup", test1);
+    TestUtils::printTestResult("Circular reference detection and cleanup", test1);
 }
 
 void ClosureMemoryTest::testWeakReferences() {
@@ -494,7 +491,7 @@ void ClosureMemoryTest::testWeakReferences() {
     )";
     
     bool test1 = executeClosureTest(luaCode1, "100");
-    printTestResult("Weak reference behavior", test1);
+    TestUtils::printTestResult("Weak reference behavior", test1);
 }
 
 void ClosureMemoryTest::measureClosureMemoryUsage() {
@@ -609,7 +606,7 @@ void ClosureMemoryTest::testMemoryGrowth() {
     
     // Analyze memory growth pattern
     bool growthIsLinear = true; // Simplified check
-    printTestResult("Memory growth is predictable", growthIsLinear);
+    TestUtils::printTestResult("Memory growth is predictable", growthIsLinear);
 }
 
 void ClosureMemoryTest::testMemoryFragmentation() {
@@ -658,26 +655,10 @@ void ClosureMemoryTest::testMemoryFragmentation() {
     )";
     
     bool test1 = executeClosureTest(luaCode);
-    printTestResult("Memory fragmentation handling", test1);
+    TestUtils::printTestResult("Memory fragmentation handling", test1);
 }
 
 // Helper method implementations
-void ClosureMemoryTest::printTestResult(const std::string& testName, bool passed, const std::string& details) {
-    std::cout << "    [" << (passed ? "PASS" : "FAIL") << "] " << testName;
-    if (!details.empty()) {
-        std::cout << " - " << details;
-    }
-    std::cout << std::endl;
-}
-
-void ClosureMemoryTest::printSectionHeader(const std::string& sectionName) {
-    std::cout << "\n=== " << sectionName << " ===" << std::endl;
-}
-
-void ClosureMemoryTest::printSectionFooter() {
-    std::cout << "\n=== Memory Tests Completed ===\n" << std::endl;
-}
-
 void ClosureMemoryTest::printMemoryResult(const std::string& testName, size_t memoryBytes) {
     std::cout << "    [INFO] " << testName << ": " << memoryBytes << " bytes" << std::endl;
 }
@@ -712,14 +693,5 @@ void ClosureMemoryTest::forceGarbageCollection() {
     // Placeholder implementation
     // In a real implementation, this would trigger garbage collection
 }
-
-void ClosureMemoryTest::setupTestEnvironment() {
-    // Initialize test environment
-}
-
-void ClosureMemoryTest::cleanupTestEnvironment() {
-    // Clean up test environment
-}
-
 } // namespace Tests
 } // namespace Lua

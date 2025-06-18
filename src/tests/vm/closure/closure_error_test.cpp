@@ -1,57 +1,87 @@
 ﻿#include "closure_error_test.hpp"
+#include "../../test_utils.hpp"
 
 namespace Lua {
 namespace Tests {
 
 void ClosureErrorTest::runAllTests() {
-    printSectionHeader("Closure Error Handling Tests");
-    
+    RUN_TEST_GROUP("Compilation Error Tests", runCompilationErrorTests);
+    RUN_TEST_GROUP("Runtime Error Tests", runRuntimeErrorTests);
+    RUN_TEST_GROUP("Memory Error Tests", runMemoryErrorTests);
+    RUN_TEST_GROUP("Edge Case Tests", runEdgeCaseTests);
+    RUN_TEST_GROUP("Error Recovery Tests", runErrorRecoveryTests);
+    RUN_TEST_GROUP("Boundary Condition Tests", runBoundaryConditionTests);
+}
+
+void ClosureErrorTest::runCompilationErrorTests() {
     setupErrorTestEnvironment();
     
-    // Run compilation error tests
-    testCompilationErrors();
-    testSyntaxErrors();
-    testInvalidUpvalueReferences();
-    testCircularDependencies();
-    testInvalidNesting();
-    
-    // Run runtime error tests
-    testRuntimeErrors();
-    testUpvalueAccessErrors();
-    testClosureInvocationErrors();
-    testTypeErrors();
-    testNilClosureErrors();
-    
-    // Run memory error tests
-    testMemoryErrors();
-    testOutOfMemoryConditions();
-    testMemoryCorruption();
-    testDanglingReferences();
-    testMemoryLeakDetection();
-    
-    // Run edge case tests
-    testEdgeCases();
-    testEmptyClosures();
-    testVeryDeepNesting();
-    testExtremeUpvalueCounts();
-    testLargeClosureArrays();
-    testConcurrentAccess();
-    
-    // Run error recovery tests
-    testErrorRecovery();
-    testGracefulDegradation();
-    testErrorPropagation();
-    testExceptionSafety();
-    
-    // Run boundary condition tests
-    testBoundaryConditions();
-    testMaximumLimits();
-    testMinimumLimits();
-    testResourceExhaustion();
+    RUN_TEST(ClosureErrorTest, testCompilationErrors);
+    RUN_TEST(ClosureErrorTest, testSyntaxErrors);
+    RUN_TEST(ClosureErrorTest, testInvalidUpvalueReferences);
+    RUN_TEST(ClosureErrorTest, testCircularDependencies);
+    RUN_TEST(ClosureErrorTest, testInvalidNesting);
     
     cleanupErrorTestEnvironment();
+}
+
+void ClosureErrorTest::runRuntimeErrorTests() {
+    setupErrorTestEnvironment();
     
-    printSectionFooter();
+    RUN_TEST(ClosureErrorTest, testRuntimeErrors);
+    RUN_TEST(ClosureErrorTest, testUpvalueAccessErrors);
+    RUN_TEST(ClosureErrorTest, testClosureInvocationErrors);
+    RUN_TEST(ClosureErrorTest, testTypeErrors);
+    RUN_TEST(ClosureErrorTest, testNilClosureErrors);
+    
+    cleanupErrorTestEnvironment();
+}
+
+void ClosureErrorTest::runMemoryErrorTests() {
+    setupErrorTestEnvironment();
+    
+    RUN_TEST(ClosureErrorTest, testMemoryErrors);
+    RUN_TEST(ClosureErrorTest, testOutOfMemoryConditions);
+    RUN_TEST(ClosureErrorTest, testMemoryCorruption);
+    RUN_TEST(ClosureErrorTest, testDanglingReferences);
+    RUN_TEST(ClosureErrorTest, testMemoryLeakDetection);
+    
+    cleanupErrorTestEnvironment();
+}
+
+void ClosureErrorTest::runEdgeCaseTests() {
+    setupErrorTestEnvironment();
+    
+    RUN_TEST(ClosureErrorTest, testEdgeCases);
+    RUN_TEST(ClosureErrorTest, testEmptyClosures);
+    RUN_TEST(ClosureErrorTest, testVeryDeepNesting);
+    RUN_TEST(ClosureErrorTest, testExtremeUpvalueCounts);
+    RUN_TEST(ClosureErrorTest, testLargeClosureArrays);
+    RUN_TEST(ClosureErrorTest, testConcurrentAccess);
+    
+    cleanupErrorTestEnvironment();
+}
+
+void ClosureErrorTest::runErrorRecoveryTests() {
+    setupErrorTestEnvironment();
+    
+    RUN_TEST(ClosureErrorTest, testErrorRecovery);
+    RUN_TEST(ClosureErrorTest, testGracefulDegradation);
+    RUN_TEST(ClosureErrorTest, testErrorPropagation);
+    RUN_TEST(ClosureErrorTest, testExceptionSafety);
+    
+    cleanupErrorTestEnvironment();
+}
+
+void ClosureErrorTest::runBoundaryConditionTests() {
+    setupErrorTestEnvironment();
+    
+    RUN_TEST(ClosureErrorTest, testBoundaryConditions);
+    RUN_TEST(ClosureErrorTest, testMaximumLimits);
+    RUN_TEST(ClosureErrorTest, testMinimumLimits);
+    RUN_TEST(ClosureErrorTest, testResourceExhaustion);
+    
+    cleanupErrorTestEnvironment();
 }
 
 void ClosureErrorTest::testCompilationErrors() {
@@ -65,7 +95,7 @@ void ClosureErrorTest::testCompilationErrors() {
             end
         end
     )", "syntax error");
-    printTestResult("Invalid closure syntax", test1);
+    TestUtils::printTestResult("Invalid closure syntax", test1);
     
     // Test 2: Invalid function definition inside closure
     bool test2 = expectCompilationError(R"(
@@ -77,7 +107,7 @@ void ClosureErrorTest::testCompilationErrors() {
             end
         end
     )", "syntax error");
-    printTestResult("Invalid function definition in closure", test2);
+    TestUtils::printTestResult("Invalid function definition in closure", test2);
     
     // Test 3: Malformed upvalue reference
     bool test3 = expectCompilationError(R"(
@@ -87,7 +117,7 @@ void ClosureErrorTest::testCompilationErrors() {
             end
         end
     )", "syntax error");
-    printTestResult("Malformed upvalue reference", test3);
+    TestUtils::printTestResult("Malformed upvalue reference", test3);
 }
 
 void ClosureErrorTest::testSyntaxErrors() {
@@ -102,7 +132,7 @@ void ClosureErrorTest::testSyntaxErrors() {
             -- Missing 'end' here
         end
     )", "'end' expected");
-    printTestResult("Missing 'end' keyword", test1);
+    TestUtils::printTestResult("Missing 'end' keyword", test1);
     
     // Test 2: Invalid parameter list
     bool test2 = expectCompilationError(R"(
@@ -112,7 +142,7 @@ void ClosureErrorTest::testSyntaxErrors() {
             end
         end
     )", "syntax error");
-    printTestResult("Invalid parameter list", test2);
+    TestUtils::printTestResult("Invalid parameter list", test2);
     
     // Test 3: Invalid return statement
     bool test3 = expectCompilationError(R"(
@@ -122,7 +152,7 @@ void ClosureErrorTest::testSyntaxErrors() {
             end
         end
     )", "syntax error");
-    printTestResult("Invalid return statement", test3);
+    TestUtils::printTestResult("Invalid return statement", test3);
     
     // Test 4: Nested function syntax error
     bool test4 = expectCompilationError(R"(
@@ -136,7 +166,7 @@ void ClosureErrorTest::testSyntaxErrors() {
             end
         end
     )", "syntax error");
-    printTestResult("Nested function syntax error", test4);
+    TestUtils::printTestResult("Nested function syntax error", test4);
 }
 
 void ClosureErrorTest::testInvalidUpvalueReferences() {
@@ -152,7 +182,7 @@ void ClosureErrorTest::testInvalidUpvalueReferences() {
         end
         return test()
     )", "undefined variable");
-    printTestResult("Reference to undefined variable", test1);
+    TestUtils::printTestResult("Reference to undefined variable", test1);
     
     // Test 2: Reference to variable after scope ends
     bool test2 = expectRuntimeError(R"(
@@ -169,7 +199,7 @@ void ClosureErrorTest::testInvalidUpvalueReferences() {
         end
         return test()
     )");
-    printTestResult("Reference to out-of-scope variable", test2);
+    TestUtils::printTestResult("Reference to out-of-scope variable", test2);
     
     // Test 3: Circular upvalue reference
     bool test3 = expectRuntimeError(R"(
@@ -184,7 +214,7 @@ void ClosureErrorTest::testInvalidUpvalueReferences() {
         end
         return test()
     )", "stack overflow");
-    printTestResult("Circular upvalue reference", test3);
+    TestUtils::printTestResult("Circular upvalue reference", test3);
 }
 
 void ClosureErrorTest::testCircularDependencies() {
@@ -203,7 +233,7 @@ void ClosureErrorTest::testCircularDependencies() {
         end
         return test()
     )", "stack overflow");
-    printTestResult("Direct circular dependency", test1);
+    TestUtils::printTestResult("Direct circular dependency", test1);
     
     // Test 2: Indirect circular dependency
     bool test2 = expectRuntimeError(R"(
@@ -221,7 +251,7 @@ void ClosureErrorTest::testCircularDependencies() {
         end
         return test()
     )", "stack overflow");
-    printTestResult("Indirect circular dependency", test2);
+    TestUtils::printTestResult("Indirect circular dependency", test2);
 }
 
 void ClosureErrorTest::testInvalidNesting() {
@@ -238,7 +268,7 @@ void ClosureErrorTest::testInvalidNesting() {
             end
         end
     )");
-    printTestResult("Function definition in invalid context", test1);
+    TestUtils::printTestResult("Function definition in invalid context", test1);
     
     // Test 2: Invalid local function nesting
     bool test2 = expectCompilationError(R"(
@@ -252,7 +282,7 @@ void ClosureErrorTest::testInvalidNesting() {
             end
         end
     )");
-    printTestResult("Invalid local function nesting", test2);
+    TestUtils::printTestResult("Invalid local function nesting", test2);
 }
 
 void ClosureErrorTest::testRuntimeErrors() {
@@ -270,7 +300,7 @@ void ClosureErrorTest::testRuntimeErrors() {
         end
         return test()
     )", "attempt to call");
-    printTestResult("Calling non-function closure", test1);
+    TestUtils::printTestResult("Calling non-function closure", test1);
     
     // Test 2: Accessing nil upvalue
     bool test2 = expectRuntimeError(R"(
@@ -283,7 +313,7 @@ void ClosureErrorTest::testRuntimeErrors() {
         end
         return test()
     )", "attempt to index");
-    printTestResult("Accessing nil upvalue", test2);
+    TestUtils::printTestResult("Accessing nil upvalue", test2);
     
     // Test 3: Arithmetic on non-numeric upvalue
     bool test3 = expectRuntimeError(R"(
@@ -296,7 +326,7 @@ void ClosureErrorTest::testRuntimeErrors() {
         end
         return test()
     )", "arithmetic");
-    printTestResult("Arithmetic on non-numeric upvalue", test3);
+    TestUtils::printTestResult("Arithmetic on non-numeric upvalue", test3);
 }
 
 void ClosureErrorTest::testUpvalueAccessErrors() {
@@ -324,7 +354,7 @@ void ClosureErrorTest::testUpvalueAccessErrors() {
         end
         return test()
     )");
-    printTestResult("Independent upvalue modification", !test1); // Should NOT error
+    TestUtils::printTestResult("Independent upvalue modification", !test1); // Should NOT error
     
     // Test 2: Accessing upvalue after closure is collected
     bool test2 = expectRuntimeError(R"(
@@ -345,7 +375,7 @@ void ClosureErrorTest::testUpvalueAccessErrors() {
         end
         return test()
     )");
-    printTestResult("Access after potential collection", test2);
+    TestUtils::printTestResult("Access after potential collection", test2);
 }
 
 void ClosureErrorTest::testClosureInvocationErrors() {
@@ -365,7 +395,7 @@ void ClosureErrorTest::testClosureInvocationErrors() {
         end
         return test()
     )");
-    printTestResult("Wrong number of arguments", !test1); // Lua allows this, fills with nil
+    TestUtils::printTestResult("Wrong number of arguments", !test1); // Lua allows this, fills with nil
     
     // Test 2: Calling closure with wrong types
     bool test2 = expectRuntimeError(R"(
@@ -381,7 +411,7 @@ void ClosureErrorTest::testClosureInvocationErrors() {
         end
         return test()
     )", "arithmetic");
-    printTestResult("Wrong argument types", test2);
+    TestUtils::printTestResult("Wrong argument types", test2);
 }
 
 void ClosureErrorTest::testTypeErrors() {
@@ -398,7 +428,7 @@ void ClosureErrorTest::testTypeErrors() {
         end
         return test()
     )", "arithmetic");
-    printTestResult("Type mismatch in upvalue operations", test1);
+    TestUtils::printTestResult("Type mismatch in upvalue operations", test1);
     
     // Test 2: Indexing non-table upvalue
     bool test2 = expectRuntimeError(R"(
@@ -411,7 +441,7 @@ void ClosureErrorTest::testTypeErrors() {
         end
         return test()
     )", "attempt to index");
-    printTestResult("Indexing non-table upvalue", test2);
+    TestUtils::printTestResult("Indexing non-table upvalue", test2);
     
     // Test 3: Calling non-callable upvalue
     bool test3 = expectRuntimeError(R"(
@@ -424,7 +454,7 @@ void ClosureErrorTest::testTypeErrors() {
         end
         return test()
     )", "attempt to call");
-    printTestResult("Calling non-callable upvalue", test3);
+    TestUtils::printTestResult("Calling non-callable upvalue", test3);
 }
 
 void ClosureErrorTest::testNilClosureErrors() {
@@ -438,7 +468,7 @@ void ClosureErrorTest::testNilClosureErrors() {
         end
         return test()
     )", "attempt to call");
-    printTestResult("Calling nil closure", test1);
+    TestUtils::printTestResult("Calling nil closure", test1);
     
     // Test 2: Accessing nil closure properties
     bool test2 = expectRuntimeError(R"(
@@ -448,7 +478,7 @@ void ClosureErrorTest::testNilClosureErrors() {
         end
         return test()
     )", "attempt to index");
-    printTestResult("Accessing nil closure properties", test2);
+    TestUtils::printTestResult("Accessing nil closure properties", test2);
 }
 
 void ClosureErrorTest::testMemoryErrors() {
@@ -456,11 +486,11 @@ void ClosureErrorTest::testMemoryErrors() {
     
     // Test 1: Memory exhaustion simulation
     bool test1 = true; // Placeholder - actual implementation would test memory limits
-    printTestResult("Memory exhaustion handling", test1, "Simulated");
+    TestUtils::printTestResult("Memory exhaustion handling", test1);
     
     // Test 2: Invalid memory access
     bool test2 = true; // Placeholder - actual implementation would test memory safety
-    printTestResult("Invalid memory access protection", test2, "Simulated");
+    TestUtils::printTestResult("Invalid memory access protection", test2);
 }
 
 void ClosureErrorTest::testOutOfMemoryConditions() {
@@ -486,7 +516,7 @@ void ClosureErrorTest::testOutOfMemoryConditions() {
         end
         return test()
     )", false); // Should not necessarily fail
-    printTestResult("Large closure creation", test1, "Memory stress test");
+    TestUtils::printTestResult("Large closure creation", test1);
 }
 
 void ClosureErrorTest::testMemoryCorruption() {
@@ -494,7 +524,7 @@ void ClosureErrorTest::testMemoryCorruption() {
     
     // Placeholder for memory corruption tests
     bool test1 = true;
-    printTestResult("Memory corruption detection", test1, "Framework dependent");
+    TestUtils::printTestResult("Memory corruption detection", test1);
 }
 
 void ClosureErrorTest::testDanglingReferences() {
@@ -515,7 +545,7 @@ void ClosureErrorTest::testDanglingReferences() {
         end
         return test()
     )", false); // Should NOT fail - closures keep upvalues alive
-    printTestResult("Upvalue lifetime management", test1);
+    TestUtils::printTestResult("Upvalue lifetime management", test1);
 }
 
 void ClosureErrorTest::testMemoryLeakDetection() {
@@ -546,7 +576,7 @@ void ClosureErrorTest::testMemoryLeakDetection() {
         end
         return test()
     )", false);
-    printTestResult("Memory leak prevention", test1);
+    TestUtils::printTestResult("Memory leak prevention", test1);
 }
 
 void ClosureErrorTest::testEdgeCases() {
@@ -567,7 +597,7 @@ void ClosureErrorTest::testEdgeCases() {
         end
         return test()
     )", false);
-    printTestResult("Empty closure execution", test1);
+    TestUtils::printTestResult("Empty closure execution", test1);
     
     // Test 2: Closure returning itself
     bool test2 = executeErrorTest(R"(
@@ -586,7 +616,7 @@ void ClosureErrorTest::testEdgeCases() {
         end
         return test()
     )", false);
-    printTestResult("Self-returning closure", test2);
+    TestUtils::printTestResult("Self-returning closure", test2);
 }
 
 void ClosureErrorTest::testEmptyClosures() {
@@ -607,7 +637,7 @@ void ClosureErrorTest::testEmptyClosures() {
         end
         return test()
     )", false);
-    printTestResult("Various empty closure forms", test1);
+    TestUtils::printTestResult("Various empty closure forms", test1);
 }
 
 void ClosureErrorTest::testVeryDeepNesting() {
@@ -634,7 +664,7 @@ void ClosureErrorTest::testVeryDeepNesting() {
         end
         return test()
     )", false);
-    printTestResult("Very deep nesting (100 levels)", test1);
+    TestUtils::printTestResult("Very deep nesting (100 levels)", test1);
     
     // Test stack overflow with extreme depth
     bool test2 = expectRuntimeError(R"(
@@ -657,7 +687,7 @@ void ClosureErrorTest::testVeryDeepNesting() {
         end
         return test()
     )", "stack overflow");
-    printTestResult("Stack overflow with extreme depth", test2);
+    TestUtils::printTestResult("Stack overflow with extreme depth", test2);
 }
 
 void ClosureErrorTest::testExtremeUpvalueCounts() {
@@ -688,7 +718,7 @@ void ClosureErrorTest::testExtremeUpvalueCounts() {
         end
         return test()
     )", false);
-    printTestResult("Many upvalues (200)", test1);
+    TestUtils::printTestResult("Many upvalues (200)", test1);
 }
 
 void ClosureErrorTest::testLargeClosureArrays() {
@@ -716,7 +746,7 @@ void ClosureErrorTest::testLargeClosureArrays() {
         end
         return test()
     )", false);
-    printTestResult("Large closure array (10000)", test1);
+    TestUtils::printTestResult("Large closure array (10000)", test1);
 }
 
 void ClosureErrorTest::testConcurrentAccess() {
@@ -724,7 +754,7 @@ void ClosureErrorTest::testConcurrentAccess() {
     
     // Placeholder for concurrent access tests
     bool test1 = true;
-    printTestResult("Concurrent access safety", test1, "Framework dependent");
+    TestUtils::printTestResult("Concurrent access safety", test1);
 }
 
 void ClosureErrorTest::testErrorRecovery() {
@@ -750,7 +780,7 @@ void ClosureErrorTest::testErrorRecovery() {
         end
         return test()
     )", false);
-    printTestResult("Error recovery with pcall", test1);
+    TestUtils::printTestResult("Error recovery with pcall", test1);
 }
 
 void ClosureErrorTest::testGracefulDegradation() {
@@ -758,7 +788,7 @@ void ClosureErrorTest::testGracefulDegradation() {
     
     // Test system behavior under error conditions
     bool test1 = true;
-    printTestResult("Graceful degradation", test1, "System dependent");
+    TestUtils::printTestResult("Graceful degradation", test1);
 }
 
 void ClosureErrorTest::testErrorPropagation() {
@@ -783,7 +813,7 @@ void ClosureErrorTest::testErrorPropagation() {
         end
         return test()
     )", "Deep error");
-    printTestResult("Error propagation through closures", test1);
+    TestUtils::printTestResult("Error propagation through closures", test1);
 }
 
 void ClosureErrorTest::testExceptionSafety() {
@@ -791,7 +821,7 @@ void ClosureErrorTest::testExceptionSafety() {
     
     // Test exception safety in closure operations
     bool test1 = true;
-    printTestResult("Exception safety", test1, "Implementation dependent");
+    TestUtils::printTestResult("Exception safety", test1);
 }
 
 void ClosureErrorTest::testBoundaryConditions() {
@@ -823,7 +853,7 @@ void ClosureErrorTest::testBoundaryConditions() {
         end
         return test()
     )", false);
-    printTestResult("Parameter boundary conditions", test1);
+    TestUtils::printTestResult("Parameter boundary conditions", test1);
 }
 
 void ClosureErrorTest::testMaximumLimits() {
@@ -831,7 +861,7 @@ void ClosureErrorTest::testMaximumLimits() {
     
     // Test system maximum limits
     bool test1 = true;
-    printTestResult("Maximum limits testing", test1, "System dependent");
+    TestUtils::printTestResult("Maximum limits testing", test1);
 }
 
 void ClosureErrorTest::testMinimumLimits() {
@@ -839,7 +869,7 @@ void ClosureErrorTest::testMinimumLimits() {
     
     // Test system minimum limits
     bool test1 = true;
-    printTestResult("Minimum limits testing", test1, "System dependent");
+    TestUtils::printTestResult("Minimum limits testing", test1);
 }
 
 void ClosureErrorTest::testResourceExhaustion() {
@@ -847,25 +877,11 @@ void ClosureErrorTest::testResourceExhaustion() {
     
     // Test behavior under resource exhaustion
     bool test1 = true;
-    printTestResult("Resource exhaustion handling", test1, "System dependent");
+    TestUtils::printTestResult("Resource exhaustion handling", test1);
 }
 
 // Helper method implementations
-void ClosureErrorTest::printTestResult(const std::string& testName, bool passed, const std::string& details) {
-    std::cout << "    [" << (passed ? "PASS" : "FAIL") << "] " << testName;
-    if (!details.empty()) {
-        std::cout << " - " << details;
-    }
-    std::cout << std::endl;
-}
-
-void ClosureErrorTest::printSectionHeader(const std::string& sectionName) {
-    std::cout << "\n=== " << sectionName << " ===" << std::endl;
-}
-
-void ClosureErrorTest::printSectionFooter() {
-    std::cout << "\n=== Error Tests Completed ===\n" << std::endl;
-}
+// Helper method implementations
 
 void ClosureErrorTest::printErrorInfo(const std::string& errorType, const std::string& details) {
     std::cout << "    [ERROR] " << errorType << ": " << details << std::endl;

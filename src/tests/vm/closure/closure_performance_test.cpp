@@ -4,37 +4,49 @@ namespace Lua {
 namespace Tests {
 
 void ClosurePerformanceTest::runAllTests() {
-    printSectionHeader("Closure Performance Tests");
-    
-    setupTestEnvironment();
-    
+    RUN_TEST_GROUP("Closure Performance Tests", runPerformanceTests);
+}
+
+void ClosurePerformanceTest::runPerformanceTests() {
     // Run performance benchmark tests
-    benchmarkClosureCreation();
-    benchmarkUpvalueAccess();
-    benchmarkNestedClosures();
-    benchmarkClosureInvocation();
-    benchmarkComplexScenarios();
+    RUN_TEST_GROUP("Benchmark Tests", runBenchmarkTests);
     
     // Run scalability tests
-    testScalability();
-    testDeepNesting();
-    testManyUpvalues();
-    testLargeClosureCount();
+    RUN_TEST_GROUP("Scalability Tests", runScalabilityTests);
     
     // Run comparison tests
-    comparePerformance();
-    compareWithRegularFunctions();
-    compareUpvalueVsGlobal();
-    compareNestedVsFlat();
+    RUN_TEST_GROUP("Comparison Tests", runComparisonTests);
     
     // Run memory performance tests
-    measureMemoryPerformance();
-    testMemoryAllocationSpeed();
-    testGarbageCollectionImpact();
-    
-    cleanupTestEnvironment();
-    
-    printSectionFooter();
+    RUN_TEST_GROUP("Memory Performance Tests", runMemoryTests);
+}
+
+void ClosurePerformanceTest::runBenchmarkTests() {
+    RUN_TEST(ClosurePerformanceTest, benchmarkClosureCreation);
+    RUN_TEST(ClosurePerformanceTest, benchmarkUpvalueAccess);
+    RUN_TEST(ClosurePerformanceTest, benchmarkNestedClosures);
+    RUN_TEST(ClosurePerformanceTest, benchmarkClosureInvocation);
+    RUN_TEST(ClosurePerformanceTest, benchmarkComplexScenarios);
+}
+
+void ClosurePerformanceTest::runScalabilityTests() {
+    RUN_TEST(ClosurePerformanceTest, testScalability);
+    RUN_TEST(ClosurePerformanceTest, testDeepNesting);
+    RUN_TEST(ClosurePerformanceTest, testManyUpvalues);
+    RUN_TEST(ClosurePerformanceTest, testLargeClosureCount);
+}
+
+void ClosurePerformanceTest::runComparisonTests() {
+    RUN_TEST(ClosurePerformanceTest, comparePerformance);
+    RUN_TEST(ClosurePerformanceTest, compareWithRegularFunctions);
+    RUN_TEST(ClosurePerformanceTest, compareUpvalueVsGlobal);
+    RUN_TEST(ClosurePerformanceTest, compareNestedVsFlat);
+}
+
+void ClosurePerformanceTest::runMemoryTests() {
+    RUN_TEST(ClosurePerformanceTest, measureMemoryPerformance);
+    RUN_TEST(ClosurePerformanceTest, testMemoryAllocationSpeed);
+    RUN_TEST(ClosurePerformanceTest, testGarbageCollectionImpact);
 }
 
 void ClosurePerformanceTest::benchmarkClosureCreation() {
@@ -67,8 +79,7 @@ void ClosurePerformanceTest::benchmarkClosureCreation() {
     printPerformanceResult("Simple closure creation (1000 closures)", simpleTime);
     
     bool simplePass = simpleTime < CLOSURE_CREATION_THRESHOLD;
-    printTestResult("Simple closure creation performance", simplePass, 
-                   "Time: " + std::to_string(simpleTime) + "ms");
+    TestUtils::printTestResult("Simple closure creation performance", simplePass);
     
     // Test 2: Complex closure creation benchmark
     auto complexCreationTest = []() {
@@ -100,8 +111,7 @@ void ClosurePerformanceTest::benchmarkClosureCreation() {
     printPerformanceResult("Complex closure creation (500 closures)", complexTime);
     
     bool complexPass = complexTime < CLOSURE_CREATION_THRESHOLD * 2;
-    printTestResult("Complex closure creation performance", complexPass,
-                   "Time: " + std::to_string(complexTime) + "ms");
+    TestUtils::printTestResult("Complex closure creation performance", complexPass);
     
     // Test 3: Closure creation with many upvalues
     auto manyUpvaluesTest = []() {
@@ -133,8 +143,7 @@ void ClosurePerformanceTest::benchmarkClosureCreation() {
     printPerformanceResult("Closure creation with many upvalues (1000 closures)", manyUpvaluesTime);
     
     bool manyUpvaluesPass = manyUpvaluesTime < CLOSURE_CREATION_THRESHOLD * 1.5;
-    printTestResult("Many upvalues creation performance", manyUpvaluesPass,
-                   "Time: " + std::to_string(manyUpvaluesTime) + "ms");
+    TestUtils::printTestResult("Many upvalues creation performance", manyUpvaluesPass);
 }
 
 void ClosurePerformanceTest::benchmarkUpvalueAccess() {
@@ -171,8 +180,7 @@ void ClosurePerformanceTest::benchmarkUpvalueAccess() {
     printPerformanceResult("Single upvalue access (10000 accesses)", singleTime);
     
     bool singlePass = singleTime < UPVALUE_ACCESS_THRESHOLD * 100;
-    printTestResult("Single upvalue access performance", singlePass,
-                   "Time: " + std::to_string(singleTime) + "ms");
+    TestUtils::printTestResult("Single upvalue access performance", singlePass);
     
     // Test 2: Multiple upvalue access benchmark
     auto multipleUpvalueTest = []() {
@@ -206,8 +214,7 @@ void ClosurePerformanceTest::benchmarkUpvalueAccess() {
     printPerformanceResult("Multiple upvalue access (5000 accesses)", multipleTime);
     
     bool multiplePass = multipleTime < UPVALUE_ACCESS_THRESHOLD * 50;
-    printTestResult("Multiple upvalue access performance", multiplePass,
-                   "Time: " + std::to_string(multipleTime) + "ms");
+    TestUtils::printTestResult("Multiple upvalue access performance", multiplePass);
     
     // Test 3: Upvalue modification benchmark
     auto modificationTest = []() {
@@ -241,8 +248,7 @@ void ClosurePerformanceTest::benchmarkUpvalueAccess() {
     printPerformanceResult("Upvalue modification (5000 modifications)", modificationTime);
     
     bool modificationPass = modificationTime < UPVALUE_ACCESS_THRESHOLD * 50;
-    printTestResult("Upvalue modification performance", modificationPass,
-                   "Time: " + std::to_string(modificationTime) + "ms");
+    TestUtils::printTestResult("Upvalue modification performance", modificationPass);
 }
 
 void ClosurePerformanceTest::benchmarkNestedClosures() {
@@ -279,8 +285,7 @@ void ClosurePerformanceTest::benchmarkNestedClosures() {
     printPerformanceResult("Two-level nested closures (1000 operations)", twoLevelTime);
     
     bool twoLevelPass = twoLevelTime < NESTED_CLOSURE_THRESHOLD;
-    printTestResult("Two-level nesting performance", twoLevelPass,
-                   "Time: " + std::to_string(twoLevelTime) + "ms");
+    TestUtils::printTestResult("Two-level nesting performance", twoLevelPass);
     
     // Test 2: Deep nesting benchmark
     auto deepNestingTest = []() {
@@ -318,8 +323,7 @@ void ClosurePerformanceTest::benchmarkNestedClosures() {
     printPerformanceResult("Deep nested closures (100 operations, depth 5)", deepTime);
     
     bool deepPass = deepTime < NESTED_CLOSURE_THRESHOLD * 2;
-    printTestResult("Deep nesting performance", deepPass,
-                   "Time: " + std::to_string(deepTime) + "ms");
+    TestUtils::printTestResult("Deep nesting performance", deepPass);
 }
 
 void ClosurePerformanceTest::benchmarkClosureInvocation() {
@@ -355,8 +359,7 @@ void ClosurePerformanceTest::benchmarkClosureInvocation() {
     printPerformanceResult("Simple closure invocation (10000 calls)", simpleInvocationTime);
     
     bool simpleInvocationPass = simpleInvocationTime < INVOCATION_THRESHOLD * 200;
-    printTestResult("Simple invocation performance", simpleInvocationPass,
-                   "Time: " + std::to_string(simpleInvocationTime) + "ms");
+    TestUtils::printTestResult("Simple invocation performance", simpleInvocationPass);
     
     // Test 2: Complex invocation benchmark
     auto complexInvocationTest = []() {
@@ -388,8 +391,7 @@ void ClosurePerformanceTest::benchmarkClosureInvocation() {
     printPerformanceResult("Complex closure invocation (5000 calls)", complexInvocationTime);
     
     bool complexInvocationPass = complexInvocationTime < INVOCATION_THRESHOLD * 100;
-    printTestResult("Complex invocation performance", complexInvocationPass,
-                   "Time: " + std::to_string(complexInvocationTime) + "ms");
+    TestUtils::printTestResult("Complex invocation performance", complexInvocationPass);
 }
 
 void ClosurePerformanceTest::benchmarkComplexScenarios() {
@@ -438,8 +440,7 @@ void ClosurePerformanceTest::benchmarkComplexScenarios() {
     printPerformanceResult("Closure factory scenario (1000 operations)", factoryTime);
     
     bool factoryPass = factoryTime < NESTED_CLOSURE_THRESHOLD * 2;
-    printTestResult("Closure factory performance", factoryPass,
-                   "Time: " + std::to_string(factoryTime) + "ms");
+    TestUtils::printTestResult("Closure factory performance", factoryPass);
 }
 
 void ClosurePerformanceTest::testScalability() {
@@ -495,7 +496,7 @@ void ClosurePerformanceTest::testScalability() {
         }
     }
     
-    printTestResult("Scalability is reasonable", scalingReasonable);
+    TestUtils::printTestResult("Scalability is reasonable", scalingReasonable);
 }
 
 void ClosurePerformanceTest::testDeepNesting() {
@@ -541,8 +542,7 @@ void ClosurePerformanceTest::testDeepNesting() {
         printPerformanceResult("Deep nesting (depth " + std::to_string(depth) + ")", time);
         
         bool depthPass = time < NESTED_CLOSURE_THRESHOLD * depth;
-        printTestResult("Deep nesting depth " + std::to_string(depth) + " performance", depthPass,
-                       "Time: " + std::to_string(time) + "ms");
+        TestUtils::printTestResult("Deep nesting depth " + std::to_string(depth) + " performance", depthPass);
     }
 }
 
@@ -591,8 +591,7 @@ void ClosurePerformanceTest::testManyUpvalues() {
         printPerformanceResult("Many upvalues (" + std::to_string(count) + " upvalues)", time);
         
         bool upvaluePass = time < UPVALUE_ACCESS_THRESHOLD * count * 10;
-        printTestResult("Many upvalues (" + std::to_string(count) + ") performance", upvaluePass,
-                       "Time: " + std::to_string(time) + "ms");
+        TestUtils::printTestResult("Many upvalues (" + std::to_string(count) + ") performance", upvaluePass);
     }
 }
 
@@ -636,8 +635,7 @@ void ClosurePerformanceTest::testLargeClosureCount() {
         printPerformanceResult("Large closure count (" + std::to_string(count) + " closures)", time);
         
         bool largeCountPass = time < SCALABILITY_THRESHOLD;
-        printTestResult("Large closure count (" + std::to_string(count) + ") performance", largeCountPass,
-                       "Time: " + std::to_string(time) + "ms");
+        TestUtils::printTestResult("Large closure count (" + std::to_string(count) + ") performance", largeCountPass);
     }
 }
 
@@ -646,7 +644,7 @@ void ClosurePerformanceTest::comparePerformance() {
     
     // This method would contain various performance comparisons
     // For now, just indicate that comparisons are being performed
-    printTestResult("Performance comparison framework", true, "Ready for comparisons");
+    TestUtils::printTestResult("Performance comparison framework", true);
 }
 
 void ClosurePerformanceTest::compareWithRegularFunctions() {
@@ -707,8 +705,7 @@ void ClosurePerformanceTest::compareWithRegularFunctions() {
     printPerformanceResult("Regular function performance", regularTime);
     
     double ratio = closureTime / regularTime;
-    printTestResult("Closure vs regular function ratio", ratio < 3.0,
-                   "Ratio: " + std::to_string(ratio));
+    TestUtils::printTestResult("Closure vs regular function ratio", ratio < 3.0);
 }
 
 void ClosurePerformanceTest::compareUpvalueVsGlobal() {
@@ -773,8 +770,7 @@ void ClosurePerformanceTest::compareUpvalueVsGlobal() {
     printPerformanceResult("Global access performance", globalTime);
     
     double ratio = upvalueTime / globalTime;
-    printTestResult("Upvalue vs global access ratio", ratio < 2.0,
-                   "Ratio: " + std::to_string(ratio));
+    TestUtils::printTestResult("Upvalue vs global access ratio", ratio < 2.0);
 }
 
 void ClosurePerformanceTest::compareNestedVsFlat() {
@@ -838,8 +834,7 @@ void ClosurePerformanceTest::compareNestedVsFlat() {
     printPerformanceResult("Flat closure performance", flatTime);
     
     double ratio = nestedTime / flatTime;
-    printTestResult("Nested vs flat closure ratio", ratio < 2.0,
-                   "Ratio: " + std::to_string(ratio));
+    TestUtils::printTestResult("Nested vs flat closure ratio", ratio < 2.0);
 }
 
 void ClosurePerformanceTest::measureMemoryPerformance() {
@@ -892,8 +887,7 @@ void ClosurePerformanceTest::measureMemoryPerformance() {
     printPerformanceResult("Memory allocation/deallocation performance", memoryTime);
     
     bool memoryPass = memoryTime < SCALABILITY_THRESHOLD;
-    printTestResult("Memory performance", memoryPass,
-                   "Time: " + std::to_string(memoryTime) + "ms");
+    TestUtils::printTestResult("Memory performance", memoryPass);
 }
 
 void ClosurePerformanceTest::testMemoryAllocationSpeed() {
@@ -930,8 +924,7 @@ void ClosurePerformanceTest::testMemoryAllocationSpeed() {
     printPerformanceResult("Memory allocation speed", allocationTime);
     
     bool allocationPass = allocationTime < SCALABILITY_THRESHOLD / 2;
-    printTestResult("Memory allocation speed", allocationPass,
-                   "Time: " + std::to_string(allocationTime) + "ms");
+    TestUtils::printTestResult("Memory allocation speed", allocationPass);
 }
 
 void ClosurePerformanceTest::testGarbageCollectionImpact() {
@@ -988,27 +981,10 @@ void ClosurePerformanceTest::testGarbageCollectionImpact() {
     printPerformanceResult("Garbage collection impact", gcTime);
     
     bool gcPass = gcTime < SCALABILITY_THRESHOLD * 2;
-    printTestResult("Garbage collection impact", gcPass,
-                   "Time: " + std::to_string(gcTime) + "ms");
+    TestUtils::printTestResult("Garbage collection impact", gcPass);
 }
 
 // Helper method implementations
-void ClosurePerformanceTest::printTestResult(const std::string& testName, bool passed, const std::string& details) {
-    std::cout << "    [" << (passed ? "PASS" : "FAIL") << "] " << testName;
-    if (!details.empty()) {
-        std::cout << " - " << details;
-    }
-    std::cout << std::endl;
-}
-
-void ClosurePerformanceTest::printSectionHeader(const std::string& sectionName) {
-    std::cout << "\n=== " << sectionName << " ===" << std::endl;
-}
-
-void ClosurePerformanceTest::printSectionFooter() {
-    std::cout << "\n=== Performance Tests Completed ===\n" << std::endl;
-}
-
 void ClosurePerformanceTest::printPerformanceResult(const std::string& testName, double timeMs, const std::string& unit) {
     std::cout << "    [PERF] " << testName << ": " << std::fixed << std::setprecision(3) << timeMs << " " << unit << std::endl;
 }
@@ -1058,14 +1034,6 @@ double ClosurePerformanceTest::measureAverageTime(const std::function<void()>& o
     }
     
     return totalTime / iterations;
-}
-
-void ClosurePerformanceTest::setupTestEnvironment() {
-    // Initialize performance testing environment
-}
-
-void ClosurePerformanceTest::cleanupTestEnvironment() {
-    // Clean up performance testing environment
 }
 
 } // namespace Tests

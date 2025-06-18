@@ -18,6 +18,7 @@
 #include "../../../vm/value.hpp"
 #include "../../../vm/function.hpp"
 #include "../../../vm/upvalue.hpp"
+#include "../../test_utils.hpp"
 
 namespace Lua {
 namespace Tests {
@@ -37,6 +38,12 @@ public:
     static void runAllTests();
 
 private:
+    // Test group methods
+    static void runPerformanceTests();
+    static void runBenchmarkTests();
+    static void runScalabilityTests();
+    static void runComparisonTests();
+    static void runMemoryTests();
     // Performance benchmark tests
     static void benchmarkClosureCreation();
     static void benchmarkUpvalueAccess();
@@ -62,9 +69,7 @@ private:
     static void testGarbageCollectionImpact();
     
     // Helper methods
-    static void printTestResult(const std::string& testName, bool passed, const std::string& details = "");
-    static void printSectionHeader(const std::string& sectionName);
-    static void printSectionFooter();
+    static void printTestResult(const std::string& testName, bool passed);
     static void printPerformanceResult(const std::string& testName, double timeMs, const std::string& unit = "ms");
     static void printThroughputResult(const std::string& testName, double operationsPerSecond);
     

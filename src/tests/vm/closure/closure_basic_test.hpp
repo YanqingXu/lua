@@ -1,4 +1,4 @@
-﻿#ifndef LUA_CLOSURE_BASIC_TESTS_HPP
+#ifndef LUA_CLOSURE_BASIC_TESTS_HPP
 #define LUA_CLOSURE_BASIC_TESTS_HPP
 
 #include <iostream>
@@ -41,9 +41,6 @@ private:
     static void testSimpleUpvalueModification();
     
     // Helper methods
-    static void printTestResult(const std::string& testName, bool passed, const std::string& details = "");
-    static void printSectionHeader(const std::string& sectionName);
-    static void printSectionFooter();
     
     static bool compileAndExecute(const std::string& luaCode);
     static bool executeClosureTest(const std::string& luaCode, const std::string& expectedResult = "");

@@ -10,6 +10,18 @@ namespace Lua {
     constexpr int LUAI_MAXVARS = 200;        // Maximum local variable count
     constexpr int LUAI_MAXUPVALUES = 60;     // Maximum upvalue count
     
+    // Enhanced boundary limits for closure handling
+    constexpr u8 MAX_UPVALUES_PER_CLOSURE = 255;    // Maximum upvalues per closure
+    constexpr u8 MAX_FUNCTION_NESTING_DEPTH = 200;  // Maximum function nesting depth
+    constexpr u32 MAX_CLOSURE_MEMORY_SIZE = 1024 * 1024; // 1MB limit per closure
+    
+    // Error messages for boundary violations
+    constexpr const char* ERR_TOO_MANY_UPVALUES = "Too many upvalues in closure";
+    constexpr const char* ERR_NESTING_TOO_DEEP = "Function nesting too deep";
+    constexpr const char* ERR_MEMORY_EXHAUSTED = "Memory exhausted during closure creation";
+    constexpr const char* ERR_INVALID_UPVALUE_INDEX = "Invalid upvalue index";
+    constexpr const char* ERR_DESTROYED_UPVALUE = "Accessing destroyed upvalue";
+    
     // String constants
     constexpr const char* LUA_VERSION = "Lua 5.1.1";
     constexpr const char* LUA_COPYRIGHT = "Copyright (c) 2025 YanqingXu";

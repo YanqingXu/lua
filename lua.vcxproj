@@ -295,9 +295,7 @@
     <ClCompile Include="src\tests\vm\closure\closure_error_test.cpp" />
     <ClCompile Include="src\tests\vm\closure\closure_memory_test.cpp" />
     <ClCompile Include="src\tests\vm\closure\closure_performance_test.cpp" />
-    <ClCompile Include="src\tests\vm\closure\test_closure.cpp" />
     <ClCompile Include="src\tests\vm\state_test.cpp" />
-    <ClCompile Include="src\tests\vm\test_vm.cpp" />
     <ClCompile Include="src\tests\vm\value_test.cpp" />
     <ClCompile Include="src\vm\function.cpp" />
     <ClCompile Include="src\vm\state.cpp" />

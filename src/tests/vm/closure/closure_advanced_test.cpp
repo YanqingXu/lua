@@ -1,26 +1,19 @@
-﻿#include "closure_advanced_test.hpp"
+#include "closure_advanced_test.hpp"
+#include "../../test_utils.hpp"
 
 namespace Lua {
 namespace Tests {
 
 void ClosureAdvancedTest::runAllTests() {
-    printSectionHeader("Advanced Closure Functionality Tests");
-    
-    setupTestEnvironment();
-    
     // Run advanced scenario tests
-    testMultipleUpvalues();
-    testComplexUpvalueModification();
-    testClosureAsParameter();
-    testClosureAsReturnValue();
-    testComplexNesting();
-    testClosureChaining();
-    testUpvalueSharing();
-    testRecursiveClosures();
-    
-    cleanupTestEnvironment();
-    
-    printSectionFooter();
+    RUN_TEST_GROUP("Multiple Upvalues Tests", testMultipleUpvalues);
+    RUN_TEST_GROUP("Complex Upvalue Modification Tests", testComplexUpvalueModification);
+    RUN_TEST_GROUP("Closure as Parameter Tests", testClosureAsParameter);
+    RUN_TEST_GROUP("Closure as Return Value Tests", testClosureAsReturnValue);
+    RUN_TEST_GROUP("Complex Nesting Tests", testComplexNesting);
+    RUN_TEST_GROUP("Closure Chaining Tests", testClosureChaining);
+    RUN_TEST_GROUP("Upvalue Sharing Tests", testUpvalueSharing);
+    RUN_TEST_GROUP("Recursive Closures Tests", testRecursiveClosures);
 }
 
 void ClosureAdvancedTest::testMultipleUpvalues() {
@@ -42,7 +35,7 @@ void ClosureAdvancedTest::testMultipleUpvalues() {
     )";
     
     bool test1 = executeClosureTest(luaCode1, "36"); // 1+2+3+4+5+6+7+8 = 36
-    printTestResult("Multiple upvalues from different scopes", test1);
+    TestUtils::printTestResult("Multiple upvalues from different scopes", test1);
     
     // Test 2: Upvalues with different types
     std::string luaCode2 = R"(
@@ -65,7 +58,7 @@ void ClosureAdvancedTest::testMultipleUpvalues() {
     )";
     
     bool test2 = executeClosureTest(luaCode2, "hello 42");
-    printTestResult("Multiple upvalues with different types", test2);
+    TestUtils::printTestResult("Multiple upvalues with different types", test2);
     
     // Test 3: Upvalues modified in different closures
     std::string luaCode3 = R"(
@@ -96,7 +89,7 @@ void ClosureAdvancedTest::testMultipleUpvalues() {
     )";
     
     bool test3 = executeClosureTest(luaCode3, "15");
-    printTestResult("Multiple upvalues modified in different closures", test3);
+    TestUtils::printTestResult("Multiple upvalues modified in different closures", test3);
 }
 
 void ClosureAdvancedTest::testComplexUpvalueModification() {
@@ -129,7 +122,7 @@ void ClosureAdvancedTest::testComplexUpvalueModification() {
     )";
     
     bool test1 = executeClosureTest(luaCode1, "15"); // 2 + 4 + 5 + 4 = 15
-    printTestResult("Conditional upvalue modification", test1);
+    TestUtils::printTestResult("Conditional upvalue modification", test1);
     
     // Test 2: Upvalue modification with table operations
     std::string luaCode2 = R"(
@@ -162,7 +155,7 @@ void ClosureAdvancedTest::testComplexUpvalueModification() {
     )";
     
     bool test2 = executeClosureTest(luaCode2, "32"); // 10 + 20 + 2 = 32
-    printTestResult("Upvalue modification with table operations", test2);
+    TestUtils::printTestResult("Upvalue modification with table operations", test2);
 }
 
 void ClosureAdvancedTest::testClosureAsParameter() {
@@ -185,7 +178,7 @@ void ClosureAdvancedTest::testClosureAsParameter() {
     )";
     
     bool test1 = executeClosureTest(luaCode1, "12"); // double(double(3)) = double(6) = 12
-    printTestResult("Higher-order function with closure", test1);
+    TestUtils::printTestResult("Higher-order function with closure", test1);
     
     // Test 2: Map-like operation with closure
     std::string luaCode2 = R"(
@@ -211,7 +204,7 @@ void ClosureAdvancedTest::testClosureAsParameter() {
     )";
     
     bool test2 = executeClosureTest(luaCode2, "36"); // 11 + 12 + 13 = 36
-    printTestResult("Map-like operation with closure", test2);
+    TestUtils::printTestResult("Map-like operation with closure", test2);
 }
 
 void ClosureAdvancedTest::testClosureAsReturnValue() {
@@ -236,7 +229,7 @@ void ClosureAdvancedTest::testClosureAsReturnValue() {
     )";
     
     bool test1 = executeClosureTest(luaCode1, "16"); // 8 + 8 = 16
-    printTestResult("Factory function returning different closures", test1);
+    TestUtils::printTestResult("Factory function returning different closures", test1);
     
     // Test 2: Closure returning closure
     std::string luaCode2 = R"(
@@ -255,7 +248,7 @@ void ClosureAdvancedTest::testClosureAsReturnValue() {
     )";
     
     bool test2 = executeClosureTest(luaCode2, "25"); // 10 + (5 * 3) = 25
-    printTestResult("Closure returning closure", test2);
+    TestUtils::printTestResult("Closure returning closure", test2);
 }
 
 void ClosureAdvancedTest::testComplexNesting() {
@@ -281,7 +274,7 @@ void ClosureAdvancedTest::testComplexNesting() {
     )";
     
     bool test1 = executeClosureTest(luaCode1, "19"); // 1+2+2+4+3+2+4 = 18, need to verify calculation
-    printTestResult("Deep nesting with multiple upvalues", test1);
+    TestUtils::printTestResult("Deep nesting with multiple upvalues", test1);
     
     // Test 2: Nested closures with shared state
     std::string luaCode2 = R"(
@@ -313,7 +306,7 @@ void ClosureAdvancedTest::testComplexNesting() {
     )";
     
     bool test2 = executeClosureTest(luaCode2, "46"); // (5+15) + (8+23) = 20 + 31 = 51, need to verify
-    printTestResult("Nested closures with shared state", test2);
+    TestUtils::printTestResult("Nested closures with shared state", test2);
 }
 
 void ClosureAdvancedTest::testClosureChaining() {
@@ -348,7 +341,7 @@ void ClosureAdvancedTest::testClosureChaining() {
     )";
     
     bool test1 = executeClosureTest(luaCode1, "17"); // ((5+3)*2)+1 = 17
-    printTestResult("Method chaining with closures", test1);
+    TestUtils::printTestResult("Method chaining with closures", test1);
 }
 
 void ClosureAdvancedTest::testUpvalueSharing() {
@@ -393,7 +386,7 @@ void ClosureAdvancedTest::testUpvalueSharing() {
     )";
     
     bool test1 = executeClosureTest(luaCode1, "62"); // (100-30-20+10) + 2 = 60 + 2 = 62
-    printTestResult("Multiple closures sharing upvalues", test1);
+    TestUtils::printTestResult("Multiple closures sharing upvalues", test1);
 }
 
 void ClosureAdvancedTest::testRecursiveClosures() {
@@ -418,7 +411,7 @@ void ClosureAdvancedTest::testRecursiveClosures() {
     )";
     
     bool test1 = executeClosureTest(luaCode1, "120"); // 5! = 120
-    printTestResult("Factorial using recursive closure", test1);
+    TestUtils::printTestResult("Factorial using recursive closure", test1);
     
     // Test 2: Fibonacci using recursive closure with memoization
     std::string luaCode2 = R"(
@@ -450,25 +443,10 @@ void ClosureAdvancedTest::testRecursiveClosures() {
     )";
     
     bool test2 = executeClosureTest(luaCode2, "55"); // fib(10) = 55
-    printTestResult("Memoized Fibonacci using recursive closure", test2);
+    TestUtils::printTestResult("Memoized Fibonacci using recursive closure", test2);
 }
 
 // Helper method implementations
-void ClosureAdvancedTest::printTestResult(const std::string& testName, bool passed, const std::string& details) {
-    std::cout << "    [" << (passed ? "PASS" : "FAIL") << "] " << testName;
-    if (!details.empty()) {
-        std::cout << " - " << details;
-    }
-    std::cout << std::endl;
-}
-
-void ClosureAdvancedTest::printSectionHeader(const std::string& sectionName) {
-    std::cout << "\n=== " << sectionName << " ===" << std::endl;
-}
-
-void ClosureAdvancedTest::printSectionFooter() {
-    std::cout << "\n=== Advanced Closure Tests Completed ===\n" << std::endl;
-}
 
 bool ClosureAdvancedTest::compileAndExecute(const std::string& luaCode) {
     try {
@@ -504,14 +482,6 @@ bool ClosureAdvancedTest::executeClosureTest(const std::string& luaCode, const s
         std::cout << "    Execution error: " << e.what() << std::endl;
         return false;
     }
-}
-
-void ClosureAdvancedTest::setupTestEnvironment() {
-    // Initialize any necessary test environment
-}
-
-void ClosureAdvancedTest::cleanupTestEnvironment() {
-    // Clean up test environment
 }
 
 } // namespace Tests

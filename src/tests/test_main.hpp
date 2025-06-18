@@ -29,7 +29,7 @@ namespace Tests {
 		
 		// TODO: Add other modules as they are implemented
 		// RUN_TEST_MODULE("Lexer Module", LexerTestSuite);
-		// RUN_TEST_MODULE("VM Module", VMTestSuite);
+		RUN_TEST_MODULE("VM Module", VMTestSuite);
 		// RUN_TEST_MODULE("Compiler Module", CompilerTestSuite);
 		// RUN_TEST_MODULE("GC Module", GCTestSuite);
 		// RUN_TEST_MODULE("Library Module", LibTestSuite);

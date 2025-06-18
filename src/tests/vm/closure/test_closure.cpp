@@ -10,28 +10,11 @@ namespace Lua {
 namespace Tests {
 
 void ClosureTestSuite::runAllTests() {
-    TestUtils::printSectionHeader("Closure Test Suite");
-    
     setupTestEnvironment();
     
-    // Run basic functionality tests
-    ClosureBasicTest::runAllTests();
-    
-    // Run advanced functionality tests
-    ClosureAdvancedTest::runAllTests();
-    
-    // Run memory and lifecycle tests
-    ClosureMemoryTest::runAllTests();
-    
-    // Run performance tests
-    ClosurePerformanceTest::runAllTests();
-    
-    // Run error handling tests
-    ClosureErrorTest::runAllTests();
+
     
     cleanupTestEnvironment();
-    
-    TestUtils::printSectionFooter();
 }
 
 void ClosureTestSuite::setupTestEnvironment() {

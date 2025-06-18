@@ -1,23 +1,16 @@
-﻿#include "closure_basic_test.hpp"
+#include "closure_basic_test.hpp"
+#include "../../test_utils.hpp"
 
 namespace Lua {
 namespace Tests {
 
 void ClosureBasicTest::runAllTests() {
-    printSectionHeader("Basic Closure Functionality Tests");
-    
-    setupTestEnvironment();
-    
     // Run core functionality tests
-    testBasicClosureCreation();
-    testUpvalueCapture();
-    testNestedClosures();
-    testClosureInvocation();
-    testSimpleUpvalueModification();
-    
-    cleanupTestEnvironment();
-    
-    printSectionFooter();
+    RUN_TEST_GROUP("Basic Closure Creation Tests", testBasicClosureCreation);
+    RUN_TEST_GROUP("Upvalue Capture Tests", testUpvalueCapture);
+    RUN_TEST_GROUP("Nested Closure Tests", testNestedClosures);
+    RUN_TEST_GROUP("Closure Invocation Tests", testClosureInvocation);
+    RUN_TEST_GROUP("Simple Upvalue Modification Tests", testSimpleUpvalueModification);
 }
 
 void ClosureBasicTest::testBasicClosureCreation() {
@@ -37,7 +30,7 @@ void ClosureBasicTest::testBasicClosureCreation() {
     )";
     
     bool test1 = executeClosureTest(luaCode1, "10");
-    printTestResult("Simple closure creation", test1);
+    TestUtils::printTestResult("Simple closure creation", test1);
     
     // Test 2: Closure with parameters
     std::string luaCode2 = R"(
@@ -52,7 +45,7 @@ void ClosureBasicTest::testBasicClosureCreation() {
     )";
     
     bool test2 = executeClosureTest(luaCode2, "8");
-    printTestResult("Closure with parameters", test2);
+    TestUtils::printTestResult("Closure with parameters", test2);
     
     // Test 3: Multiple closures from same function
     std::string luaCode3 = R"(
@@ -74,7 +67,7 @@ void ClosureBasicTest::testBasicClosureCreation() {
     )";
     
     bool test3 = executeClosureTest(luaCode3, "4"); // 1+2+1 = 4
-    printTestResult("Multiple closures from same function", test3);
+    TestUtils::printTestResult("Multiple closures from same function", test3);
 }
 
 void ClosureBasicTest::testUpvalueCapture() {
@@ -94,7 +87,7 @@ void ClosureBasicTest::testUpvalueCapture() {
     )";
     
     bool test1 = executeClosureTest(luaCode1, "42");
-    printTestResult("Single upvalue capture", test1);
+    TestUtils::printTestResult("Single upvalue capture", test1);
     
     // Test 2: Multiple upvalue capture
     std::string luaCode2 = R"(
@@ -110,7 +103,7 @@ void ClosureBasicTest::testUpvalueCapture() {
     )";
     
     bool test2 = executeClosureTest(luaCode2, "6");
-    printTestResult("Multiple upvalue capture", test2);
+    TestUtils::printTestResult("Multiple upvalue capture", test2);
     
     // Test 3: Upvalue capture with local variables
     std::string luaCode3 = R"(
@@ -126,7 +119,7 @@ void ClosureBasicTest::testUpvalueCapture() {
     )";
     
     bool test3 = executeClosureTest(luaCode3, "18"); // 5 + 10 + 3 = 18
-    printTestResult("Upvalue capture with local variables", test3);
+    TestUtils::printTestResult("Upvalue capture with local variables", test3);
 }
 
 void ClosureBasicTest::testNestedClosures() {
@@ -147,7 +140,7 @@ void ClosureBasicTest::testNestedClosures() {
     )";
     
     bool test1 = executeClosureTest(luaCode1, "6");
-    printTestResult("Two-level nested closures", test1);
+    TestUtils::printTestResult("Two-level nested closures", test1);
     
     // Test 2: Nested closures with shared upvalues
     std::string luaCode2 = R"(
@@ -173,7 +166,7 @@ void ClosureBasicTest::testNestedClosures() {
     )";
     
     bool test2 = executeClosureTest(luaCode2, "2"); // 1 + 2 + 1 = 4, but 1+2-1 = 2
-    printTestResult("Nested closures with shared upvalues", test2);
+    TestUtils::printTestResult("Nested closures with shared upvalues", test2);
 }
 
 void ClosureBasicTest::testClosureInvocation() {
@@ -191,7 +184,7 @@ void ClosureBasicTest::testClosureInvocation() {
     )";
     
     bool test1 = executeClosureTest(luaCode1, "25");
-    printTestResult("Direct closure invocation", test1);
+    TestUtils::printTestResult("Direct closure invocation", test1);
     
     // Test 2: Stored closure invocation
     std::string luaCode2 = R"(
@@ -208,7 +201,7 @@ void ClosureBasicTest::testClosureInvocation() {
     )";
     
     bool test2 = executeClosureTest(luaCode2, "14"); // 8 + 6 = 14
-    printTestResult("Stored closure invocation", test2);
+    TestUtils::printTestResult("Stored closure invocation", test2);
     
     // Test 3: Closure as callback
     std::string luaCode3 = R"(
@@ -227,7 +220,7 @@ void ClosureBasicTest::testClosureInvocation() {
     )";
     
     bool test3 = executeClosureTest(luaCode3, "15");
-    printTestResult("Closure as callback", test3);
+    TestUtils::printTestResult("Closure as callback", test3);
 }
 
 void ClosureBasicTest::testSimpleUpvalueModification() {
@@ -249,7 +242,7 @@ void ClosureBasicTest::testSimpleUpvalueModification() {
     )";
     
     bool test1 = executeClosureTest(luaCode1, "6"); // 1 + 2 + 3 = 6
-    printTestResult("Basic upvalue modification", test1);
+    TestUtils::printTestResult("Basic upvalue modification", test1);
     
     // Test 2: Upvalue modification with multiple closures
     std::string luaCode2 = R"(
@@ -275,25 +268,10 @@ void ClosureBasicTest::testSimpleUpvalueModification() {
     )";
     
     bool test2 = executeClosureTest(luaCode2, "2");
-    printTestResult("Upvalue modification with multiple closures", test2);
+    TestUtils::printTestResult("Upvalue modification with multiple closures", test2);
 }
 
 // Helper method implementations
-void ClosureBasicTest::printTestResult(const std::string& testName, bool passed, const std::string& details) {
-    std::cout << "    [" << (passed ? "PASS" : "FAIL") << "] " << testName;
-    if (!details.empty()) {
-        std::cout << " - " << details;
-    }
-    std::cout << std::endl;
-}
-
-void ClosureBasicTest::printSectionHeader(const std::string& sectionName) {
-    std::cout << "\n=== " << sectionName << " ===" << std::endl;
-}
-
-void ClosureBasicTest::printSectionFooter() {
-    std::cout << "\n=== Basic Closure Tests Completed ===\n" << std::endl;
-}
 
 bool ClosureBasicTest::compileAndExecute(const std::string& luaCode) {
     try {
@@ -329,16 +307,6 @@ bool ClosureBasicTest::executeClosureTest(const std::string& luaCode, const std:
         std::cout << "    Execution error: " << e.what() << std::endl;
         return false;
     }
-}
-
-void ClosureBasicTest::setupTestEnvironment() {
-    // Initialize any necessary test environment
-    // This might include setting up the VM, allocating memory, etc.
-}
-
-void ClosureBasicTest::cleanupTestEnvironment() {
-    // Clean up test environment
-    // This might include deallocating memory, resetting VM state, etc.
 }
 
 } // namespace Tests

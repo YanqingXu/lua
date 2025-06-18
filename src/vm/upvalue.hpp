@@ -1,6 +1,7 @@
-﻿#pragma once
+#pragma once
 
 #include "../common/types.hpp"
+#include "../common/defines.hpp"
 #include "../gc/core/gc_object.hpp"
 #include "value.hpp"
 
@@ -36,11 +37,17 @@ namespace Lua {
         usize getSize() const override;
         usize getAdditionalSize() const override;
         
-        // Get the current value
+        // Get the current value with boundary checking
         Value getValue() const;
         
-        // Set the current value
+        // Set the current value with boundary checking
         void setValue(const Value& value);
+        
+        // Safe getValue with explicit boundary checking
+        Value getSafeValue() const;
+        
+        // Check if upvalue is in a valid state for access
+        bool isValidForAccess() const;
         
         // Close the upvalue (move from stack to closed state)
         void close();

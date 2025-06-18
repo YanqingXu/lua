@@ -4,6 +4,7 @@
 #include "value_test.hpp"
 #include "state_test.hpp"
 #include "closure/test_closure.hpp"
+#include "../test_utils.hpp"
 
 namespace Lua {
 namespace Tests {
@@ -23,19 +24,9 @@ public:
      * Executes all virtual machine-related test suites in a logical order.
      * Tests are run from basic value types to complex state management.
      */
-    static void runAllTests();
-    
-private:
-    /**
-     * @brief Print section header for test organization
-     * @param sectionName Name of the test section
-     */
-    static void printSectionHeader(const std::string& sectionName);
-    
-    /**
-     * @brief Print section footer
-     */
-    static void printSectionFooter();
+    static void runAllTests() {
+		RUN_TEST_MODULE("Closure Module", ClosureTestSuite);
+    }
 };
 
 } // namespace Tests

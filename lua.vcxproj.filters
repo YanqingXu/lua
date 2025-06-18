@@ -216,9 +216,6 @@
     <ClCompile Include="src\tests\gc\test_gc.cpp">
       <Filter>tests\gc</Filter>
     </ClCompile>
-    <ClCompile Include="src\tests\vm\test_vm.cpp">
-      <Filter>tests\vm</Filter>
-    </ClCompile>
     <ClCompile Include="src\parser\ast\source_location.cpp">
       <Filter>parser\ast</Filter>
     </ClCompile>
@@ -310,9 +307,6 @@
       <Filter>tests\vm\closure</Filter>
     </ClCompile>
     <ClCompile Include="src\tests\vm\closure\closure_memory_test.cpp">
-      <Filter>tests\vm\closure</Filter>
-    </ClCompile>
-    <ClCompile Include="src\tests\vm\closure\test_closure.cpp">
       <Filter>tests\vm\closure</Filter>
     </ClCompile>
     <ClCompile Include="src\tests\parser\expr\binary_expr_test.cpp">

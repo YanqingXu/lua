@@ -4,11 +4,14 @@
 #include <iostream>
 #include <string>
 
+#include "../../test_utils.hpp"
 #include "closure_basic_test.hpp"
 #include "closure_advanced_test.hpp"
 #include "closure_memory_test.hpp"
 #include "closure_performance_test.hpp"
 #include "closure_error_test.hpp"
+
+
 
 namespace Lua {
 namespace Tests {
@@ -29,7 +32,22 @@ public:
      * the execution of all closure test modules including basic tests,
      * advanced tests, memory tests, performance tests, and error tests.
      */
-    static void runAllTests();
+    static void runAllTests() {
+        // Run basic functionality tests
+        RUN_TEST_SUITE(ClosureBasicTest);
+
+        // Run advanced functionality tests
+        RUN_TEST_SUITE(ClosureAdvancedTest);
+
+        // Run memory and lifecycle tests
+        RUN_TEST_SUITE(ClosureMemoryTest);
+
+        // Run performance tests
+        RUN_TEST_SUITE(ClosurePerformanceTest);
+
+        // Run error handling tests
+        RUN_TEST_SUITE(ClosureErrorTest);
+    }
 
 private:
     static void setupTestEnvironment();

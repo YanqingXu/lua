@@ -3,6 +3,7 @@
 #include "instruction.hpp"
 #include "upvalue.hpp"
 #include "../common/opcodes.hpp"
+#include "../common/defines.hpp"
 #include "../gc/core/gc_ref.hpp"
 #include "../gc/core/garbage_collector.hpp"
 #include <stdexcept>
@@ -15,6 +16,7 @@ namespace Lua {
         code(nullptr),
         constants(nullptr),
         pc(0),
+        callDepth(0),
         openUpvalues(nullptr) {
     }
     
@@ -23,11 +25,20 @@ namespace Lua {
             throw LuaException("Cannot execute non-Lua function");
         }
         
+        // Boundary check: Function nesting depth
+        if (callDepth >= MAX_FUNCTION_NESTING_DEPTH) {
+            throw LuaException(ERR_NESTING_TOO_DEEP);
+        }
+        
+        // Increment call depth
+        ++callDepth;
+        
         // Save current context
         auto oldFunction = currentFunction;
         auto oldCode = code;
         auto oldConstants = constants;
         auto oldPC = pc;
+        auto oldCallDepth = callDepth - 1;
         
         // Set new context
         currentFunction = function;
@@ -70,6 +81,7 @@ namespace Lua {
             code = oldCode;
             constants = oldConstants;
             pc = oldPC;
+            callDepth = oldCallDepth;
             
             // Re-throw exception
             throw;
@@ -84,6 +96,7 @@ namespace Lua {
         code = oldCode;
         constants = oldConstants;
         pc = oldPC;
+        callDepth = oldCallDepth;
         
         return result;
     }
@@ -406,6 +419,11 @@ namespace Lua {
         u8 b = i.getB();  // Number of arguments + 1, if 0 means use all values from a+1 to top
         u8 c = i.getC();  // Expected number of return values + 1, if 0 means all return values needed
         
+        // Boundary check: Function nesting depth before call
+        if (callDepth >= MAX_FUNCTION_NESTING_DEPTH - 1) {
+            throw LuaException(ERR_NESTING_TOO_DEEP);
+        }
+        
         // Get function object
         Value func = state->get(a + 1);
         
@@ -492,16 +510,32 @@ namespace Lua {
             throw LuaException("Null prototype in CLOSURE instruction");
         }
         
+        // Boundary check 1: Upvalue count limit
+        if (prototype->getUpvalueCount() > MAX_UPVALUES_PER_CLOSURE) {
+            throw LuaException(ERR_TOO_MANY_UPVALUES);
+        }
+        
+        // Boundary check 2: Memory usage estimation
+        usize estimatedSize = prototype->estimateMemoryUsage();
+        if (estimatedSize > MAX_CLOSURE_MEMORY_SIZE) {
+            throw LuaException(ERR_MEMORY_EXHAUSTED);
+        }
+        
         // Create a new closure that shares code and constants with the prototype
         // but has its own upvalue bindings
-        GCRef<Function> closure = Function::createLua(
-            std::make_shared<Vec<Instruction>>(prototype->getCode()),  // Share code
-            prototype->getConstants(),  // Share constants
-            prototype->getPrototypes(), // Share nested prototypes
-            prototype->getParamCount(),
-            prototype->getLocalCount(),
-            prototype->getUpvalueCount()
-        );
+        GCRef<Function> closure;
+        try {
+            closure = Function::createLua(
+                std::make_shared<Vec<Instruction>>(prototype->getCode()),  // Share code
+                prototype->getConstants(),  // Share constants
+                prototype->getPrototypes(), // Share nested prototypes
+                prototype->getParamCount(),
+                prototype->getLocalCount(),
+                prototype->getUpvalueCount()
+            );
+        } catch (const std::bad_alloc&) {
+            throw LuaException(ERR_MEMORY_EXHAUSTED);
+        }
         
         // Bind upvalues from the current environment
         for (u32 upvalIndex = 0; upvalIndex < prototype->getUpvalueCount(); upvalIndex++) {
@@ -541,44 +575,69 @@ namespace Lua {
         u8 a = i.getA();  // Target register
         u8 b = i.getB();  // Upvalue index
         
-        // Get upvalue from current function
         if (!currentFunction || currentFunction->getType() != Function::Type::Lua) {
             throw LuaException("GETUPVAL instruction outside Lua function");
         }
         
-        if (b >= currentFunction->getUpvalueCount()) {
-            throw LuaException("Invalid upvalue index in GETUPVAL instruction");
+        // Boundary check 1: Valid upvalue index
+        if (!currentFunction->isValidUpvalueIndex(b)) {
+            throw LuaException(ERR_INVALID_UPVALUE_INDEX);
         }
         
         GCRef<Upvalue> upvalue = currentFunction->getUpvalue(b);
         if (!upvalue) {
-            // Upvalue not bound, return nil
-            state->set(a + 1, Value(nullptr));
-        } else {
-            // Get value from upvalue (handles Open/Closed state)
-            state->set(a + 1, upvalue->getValue());
+            throw LuaException("Null upvalue in GETUPVAL instruction");
         }
+        
+        // Boundary check 2: Upvalue lifecycle validation
+        if (!upvalue->isValidForAccess()) {
+            throw LuaException(ERR_DESTROYED_UPVALUE);
+        }
+        
+        // Get the value from the upvalue safely
+        Value value;
+        try {
+            value = upvalue->getSafeValue();
+        } catch (const std::runtime_error& e) {
+            throw LuaException(e.what());
+        }
+        
+        // Store in target register
+        state->set(a + 1, value);
     }
     
     void VM::op_setupval(Instruction i) {
         u8 a = i.getA();  // Source register
         u8 b = i.getB();  // Upvalue index
         
-        // Set upvalue from register value
         if (!currentFunction || currentFunction->getType() != Function::Type::Lua) {
             throw LuaException("SETUPVAL instruction outside Lua function");
         }
         
-        if (b >= currentFunction->getUpvalueCount()) {
-            throw LuaException("Invalid upvalue index in SETUPVAL instruction");
+        // Boundary check 1: Valid upvalue index
+        if (!currentFunction->isValidUpvalueIndex(b)) {
+            throw LuaException(ERR_INVALID_UPVALUE_INDEX);
         }
         
         GCRef<Upvalue> upvalue = currentFunction->getUpvalue(b);
-        if (upvalue) {
-            // Update upvalue with register value (handles Open/Closed state)
-            upvalue->setValue(state->get(a + 1));
+        if (!upvalue) {
+            throw LuaException("Null upvalue in SETUPVAL instruction");
         }
-        // If upvalue is null, we ignore the assignment (upvalue not bound)
+        
+        // Boundary check 2: Upvalue lifecycle validation
+        if (!upvalue->isValidForAccess()) {
+            throw LuaException(ERR_DESTROYED_UPVALUE);
+        }
+        
+        // Get the value from the source register
+        Value value = state->get(a + 1);
+        
+        // Set the value in the upvalue safely
+        try {
+            upvalue->setValue(value);
+        } catch (const std::runtime_error& e) {
+            throw LuaException(e.what());
+        }
     }
     
     GCRef<Upvalue> VM::findOrCreateUpvalue(Value* location) {

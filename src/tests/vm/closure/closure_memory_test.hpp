@@ -1,4 +1,4 @@
-﻿#ifndef LUA_CLOSURE_MEMORY_TESTS_HPP
+#ifndef LUA_CLOSURE_MEMORY_TESTS_HPP
 #define LUA_CLOSURE_MEMORY_TESTS_HPP
 
 #include <iostream>
@@ -31,6 +31,11 @@ public:
      * Run all memory and lifecycle tests
      */
     static void runAllTests();
+    
+    /**
+     * Run memory and lifecycle tests group
+     */
+    static void runMemoryAndLifecycleTests();
 
 private:
     // Memory and lifecycle tests
@@ -50,18 +55,12 @@ private:
     static void testMemoryFragmentation();
     
     // Helper methods
-    static void printTestResult(const std::string& testName, bool passed, const std::string& details = "");
-    static void printSectionHeader(const std::string& sectionName);
-    static void printSectionFooter();
     static void printMemoryResult(const std::string& testName, size_t memoryBytes);
     
     static bool compileAndExecute(const std::string& luaCode);
     static bool executeClosureTest(const std::string& luaCode, const std::string& expectedResult = "");
     static size_t measureMemoryUsage();
     static void forceGarbageCollection();
-    
-    static void setupTestEnvironment();
-    static void cleanupTestEnvironment();
 };
 
 } // namespace Tests

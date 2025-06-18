@@ -1,4 +1,4 @@
-﻿#ifndef LUA_TESTS_VM_CLOSURE_ERROR_TESTS_HPP
+#ifndef LUA_TESTS_VM_CLOSURE_ERROR_TESTS_HPP
 #define LUA_TESTS_VM_CLOSURE_ERROR_TESTS_HPP
 
 #include <iostream>
@@ -28,6 +28,14 @@ public:
      * edge cases.
      */
     static void runAllTests();
+    
+    // Test group methods
+    static void runCompilationErrorTests();
+    static void runRuntimeErrorTests();
+    static void runMemoryErrorTests();
+    static void runEdgeCaseTests();
+    static void runErrorRecoveryTests();
+    static void runBoundaryConditionTests();
 
 private:
     // Compilation error tests
@@ -72,9 +80,6 @@ private:
     static void testResourceExhaustion();
     
     // Helper methods
-    static void printTestResult(const std::string& testName, bool passed, const std::string& details = "");
-    static void printSectionHeader(const std::string& sectionName);
-    static void printSectionFooter();
     static void printErrorInfo(const std::string& errorType, const std::string& details);
     
     static bool expectCompilationError(const std::string& luaCode, const std::string& expectedError = "");

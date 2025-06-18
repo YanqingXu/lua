@@ -1,4 +1,4 @@
-﻿#include "upvalue.hpp"
+#include "upvalue.hpp"
 #include "../gc/core/garbage_collector.hpp"
 #include "../gc/memory/allocator.hpp"
 #include <stdexcept>
@@ -79,6 +79,23 @@ namespace Lua {
     
     bool Upvalue::pointsTo(Value* location) const {
         return state == State::Open && stackLocation == location;
+    }
+    
+    Value Upvalue::getSafeValue() const {
+        if (!isValidForAccess()) {
+            throw std::runtime_error(ERR_DESTROYED_UPVALUE);
+        }
+        return getValue();
+    }
+    
+    bool Upvalue::isValidForAccess() const {
+        if (state == State::Open) {
+            // Check if stack location is still valid
+            return stackLocation != nullptr;
+        } else {
+            // For closed upvalues, always valid
+            return true;
+        }
     }
     
     // Factory function to create upvalues using GC allocator

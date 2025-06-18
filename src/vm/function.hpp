@@ -1,6 +1,7 @@
-#pragma once
+﻿#pragma once
 
 #include "../common/types.hpp"
+#include "../common/defines.hpp"
 #include "../gc/core/gc_object.hpp"
 #include "instruction.hpp"
 #include "../gc/core/gc_ref.hpp"
@@ -115,5 +116,17 @@ namespace Lua {
         
         // Close upvalues (for garbage collection)
         void closeUpvalues();
+        
+        // Boundary validation methods
+        bool validateUpvalueCount() const;
+
+        // Validate function nesting depth
+        bool validateNestingDepth(u8 currentDepth) const;
+        
+        // Estimate memory usage for boundary checking
+        usize estimateMemoryUsage() const;
+        
+        // Validate upvalue index bounds
+        bool isValidUpvalueIndex(usize index) const;
     };
 }

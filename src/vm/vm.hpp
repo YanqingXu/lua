@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "../common/types.hpp"
 #include "state.hpp"
@@ -14,6 +14,9 @@ namespace Lua {
         Vec<Instruction>* code;
         Vec<Value>* constants;
         usize pc; // Program counter
+        
+        // Call depth tracking for nesting boundary checks
+        usize callDepth;
         
         // Upvalue management
         GCRef<Upvalue> openUpvalues; // Linked list of open upvalues

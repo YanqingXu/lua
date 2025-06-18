@@ -1,4 +1,4 @@
-#include "function.hpp"
+﻿#include "function.hpp"
 #include "value.hpp"
 #include "../gc/core/garbage_collector.hpp"
 #include "../gc/core/gc_ref.hpp"
@@ -193,14 +193,57 @@ namespace Lua {
      }
      
      void Function::closeUpvalues() {
-         if (type == Type::Lua) {
-             // Close all upvalues by calling their close method
-             // This properly handles the upvalue closing protocol
-             for (auto& upvalue : lua.upvalues) {
-                 if (upvalue) {
-                     upvalue->close();
-                 }
-             }
-         }
-     }
+        if (type == Type::Lua) {
+            // Close all upvalues by calling their close method
+            // This properly handles the upvalue closing protocol
+            for (auto& upvalue : lua.upvalues) {
+                if (upvalue) {
+                    upvalue->close();
+                }
+            }
+        }
+    }
+    
+    usize Function::estimateMemoryUsage() const {
+        if (type != Type::Lua) {
+            return sizeof(Function);
+        }
+        
+        usize totalSize = sizeof(Function);
+        
+        // Add code size
+        if (lua.code) {
+            totalSize += lua.code->size() * sizeof(Instruction);
+        }
+        
+        // Add constants size (rough estimate)
+        totalSize += lua.constants.size() * sizeof(Value);
+        
+        // Add upvalues size
+        totalSize += lua.upvalues.size() * sizeof(GCRef<Upvalue>);
+        
+        // Add prototypes size (recursive)
+        for (const auto& proto : lua.prototypes) {
+            if (proto) {
+                totalSize += proto->estimateMemoryUsage();
+            }
+        }
+        
+        return totalSize;
+    }
+    
+    bool Function::validateUpvalueCount() const {
+        return getUpvalueCount() <= MAX_UPVALUES_PER_CLOSURE;
+    }
+    
+    bool Function::validateNestingDepth(u8 currentDepth) const {
+        return currentDepth <= MAX_FUNCTION_NESTING_DEPTH;
+    }
+    
+    bool Function::isValidUpvalueIndex(usize index) const {
+        if (type != Type::Lua) {
+            return false;
+        }
+        return index < lua.nupvalues;
+    }
 }
