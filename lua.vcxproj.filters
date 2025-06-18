@@ -138,9 +138,6 @@
     <ClCompile Include="src\parser\statement_parser.cpp">
       <Filter>parser</Filter>
     </ClCompile>
-    <ClCompile Include="src\tests\test_main.cpp">
-      <Filter>tests</Filter>
-    </ClCompile>
     <ClCompile Include="src\compiler\compiler_utils.cpp">
       <Filter>compiler</Filter>
     </ClCompile>

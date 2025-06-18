@@ -290,7 +290,6 @@
     <ClCompile Include="src\tests\parser\expr\binary_expr_test.cpp" />
     <ClCompile Include="src\tests\parser\expr\test_expr.cpp" />
     <ClCompile Include="src\tests\plugin\plugin_integration_test.cpp" />
-    <ClCompile Include="src\tests\test_main.cpp" />
     <ClCompile Include="src\tests\vm\closure\closure_advanced_test.cpp" />
     <ClCompile Include="src\tests\vm\closure\closure_basic_test.cpp" />
     <ClCompile Include="src\tests\vm\closure\closure_error_test.cpp" />

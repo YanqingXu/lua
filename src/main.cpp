@@ -29,45 +29,24 @@ std::string readFile(const std::string& path) {
     return buffer.str();
 }
 
-// All test functions are now in tests/test_main.cpp
-
 int main(int argc, char** argv) {
     try {
         if (argc > 1) {
-            std::string arg = argv[1];
-            
-            if (arg == "--test" || arg == "-t") {
-                 // Run all tests
-                 std::cout << "Running All Tests...\n\n";
-                 Lua::Tests::runAllTests();
-                 std::cout << "\nAll Tests completed!\n";
-            } else {
-                // Run file
-                std::string filename = arg;
-                std::string source = readFile(filename);
-                
-                State state;
-                registerBaseLib(&state);
-                state.doString(source);
-            }
-        } else {
-            // // Show usage
-            // std::cout << "Usage:\n";
-            // std::cout << "  " << argv[0] << " <filename>        - Run Lua file\n";
-            // std::cout << "  " << argv[0] << " --test|-t        - Run all tests\n";
-            // std::cout << "  " << argv[0] << " --gc-demo|-g     - Run GC integration demo\n";
-            // std::cout << "  " << argv[0] << " --string-pool|-s - Run String Pool demo\n";
-            // std::cout << "  " << argv[0] << "                   - Show this help\n";
+            // Run file
+            std::string filename = argv[1];
+            std::string source = readFile(filename);
 
-            // Run all tests
-            std::cout << "Running All Tests...\n\n";
-            Lua::Tests::runAllTests();
-            std::cout << "\nAll Tests completed!\n";
+            State state;
+            registerBaseLib(&state);
+            state.doString(source);
+        } else {
+            // Run all tests by default
+            RUN_MAIN_TEST("Lua Interpreter Tests", Lua::Tests::runAllTests);
         }
     } catch (const std::exception& e) {
         std::cerr << "Error: " << e.what() << std::endl;
         return 1;
     }
-    
+
     return 0;
 }

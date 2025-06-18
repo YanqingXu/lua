@@ -48,12 +48,12 @@ void BinaryExprTest::testAddition() {
         Parser parser1(input1);
         auto expr1 = parser1.parseExpression();
         if (expr1) {
-            std::cout << "✓ Parsed '" << input1 << "' successfully" << std::endl;
+            std::cout << "[OK] Parsed '" << input1 << "' successfully" << std::endl;
         } else {
-            std::cout << "✗ Failed to parse '" << input1 << "'" << std::endl;
+            std::cout << "[Failed] Failed to parse '" << input1 << "'" << std::endl;
         }
     } catch (const std::exception& e) {
-        std::cout << "✗ Failed to parse '" << input1 << "': " << e.what() << std::endl;
+        std::cout << "[Failed] Failed to parse '" << input1 << "': " << e.what() << std::endl;
     }
     
     // Test addition with variables
@@ -62,12 +62,12 @@ void BinaryExprTest::testAddition() {
         Parser parser2(input2);
         auto expr2 = parser2.parseExpression();
         if (expr2) {
-            std::cout << "✓ Parsed '" << input2 << "' successfully" << std::endl;
+            std::cout << "[OK] Parsed '" << input2 << "' successfully" << std::endl;
         } else {
-            std::cout << "✗ Failed to parse '" << input2 << "'" << std::endl;
+            std::cout << "[Failed] Failed to parse '" << input2 << "'" << std::endl;
         }
     } catch (const std::exception& e) {
-        std::cout << "✗ Failed to parse '" << input2 << "': " << e.what() << std::endl;
+        std::cout << "[Failed] Failed to parse '" << input2 << "': " << e.what() << std::endl;
     }
 }
 
@@ -80,12 +80,12 @@ void BinaryExprTest::testSubtraction() {
         Parser parser1(input1);
         auto expr1 = parser1.parseExpression();
         if (expr1) {
-            std::cout << "✓ Parsed '" << input1 << "' successfully" << std::endl;
+            std::cout << "[OK] Parsed '" << input1 << "' successfully" << std::endl;
         } else {
-            std::cout << "✗ Failed to parse '" << input1 << "'" << std::endl;
+            std::cout << "[Failed] Failed to parse '" << input1 << "'" << std::endl;
         }
     } catch (const std::exception& e) {
-        std::cout << "✗ Failed to parse '" << input1 << "': " << e.what() << std::endl;
+        std::cout << "[Failed] Failed to parse '" << input1 << "': " << e.what() << std::endl;
     }
     
     // Test subtraction with variables
@@ -94,12 +94,12 @@ void BinaryExprTest::testSubtraction() {
         Parser parser2(input2);
         auto expr2 = parser2.parseExpression();
         if (expr2) {
-            std::cout << "✓ Parsed '" << input2 << "' successfully" << std::endl;
+            std::cout << "[OK] Parsed '" << input2 << "' successfully" << std::endl;
         } else {
-            std::cout << "✗ Failed to parse '" << input2 << "'" << std::endl;
+            std::cout << "[Failed] Failed to parse '" << input2 << "'" << std::endl;
         }
     } catch (const std::exception& e) {
-        std::cout << "✗ Failed to parse '" << input2 << "': " << e.what() << std::endl;
+        std::cout << "[Failed] Failed to parse '" << input2 << "': " << e.what() << std::endl;
     }
 }
 
@@ -112,12 +112,12 @@ void BinaryExprTest::testMultiplication() {
         Parser parser1(input1);
         auto expr1 = parser1.parseExpression();
         if (expr1) {
-            std::cout << "✓ Parsed '" << input1 << "' successfully" << std::endl;
+            std::cout << "[OK] Parsed '" << input1 << "' successfully" << std::endl;
         } else {
-            std::cout << "✗ Failed to parse '" << input1 << "'" << std::endl;
+            std::cout << "[Failed] Failed to parse '" << input1 << "'" << std::endl;
         }
     } catch (const std::exception& e) {
-        std::cout << "✗ Failed to parse '" << input1 << "': " << e.what() << std::endl;
+        std::cout << "[Failed] Failed to parse '" << input1 << "': " << e.what() << std::endl;
     }
     
     // Test multiplication with variables
@@ -126,12 +126,12 @@ void BinaryExprTest::testMultiplication() {
         Parser parser2(input2);
         auto expr2 = parser2.parseExpression();
         if (expr2) {
-            std::cout << "✓ Parsed '" << input2 << "' successfully" << std::endl;
+            std::cout << "[OK] Parsed '" << input2 << "' successfully" << std::endl;
         } else {
-            std::cout << "✗ Failed to parse '" << input2 << "'" << std::endl;
+            std::cout << "[Failed] Failed to parse '" << input2 << "'" << std::endl;
         }
     } catch (const std::exception& e) {
-        std::cout << "✗ Failed to parse '" << input2 << "': " << e.what() << std::endl;
+        std::cout << "[Failed] Failed to parse '" << input2 << "': " << e.what() << std::endl;
     }
 }
 
@@ -144,12 +144,12 @@ void BinaryExprTest::testDivision() {
         Parser parser1(input1);
         auto expr1 = parser1.parseExpression();
         if (expr1) {
-            std::cout << "✓ Parsed '" << input1 << "' successfully" << std::endl;
+            std::cout << "[OK] Parsed '" << input1 << "' successfully" << std::endl;
         } else {
-            std::cout << "✗ Failed to parse '" << input1 << "'" << std::endl;
+            std::cout << "[Failed] Failed to parse '" << input1 << "'" << std::endl;
         }
     } catch (const std::exception& e) {
-        std::cout << "✗ Failed to parse '" << input1 << "': " << e.what() << std::endl;
+        std::cout << "[Failed] Failed to parse '" << input1 << "': " << e.what() << std::endl;
     }
     
     // Test division with variables
@@ -158,12 +158,12 @@ void BinaryExprTest::testDivision() {
         Parser parser2(input2);
         auto expr2 = parser2.parseExpression();
         if (expr2) {
-            std::cout << "✓ Parsed '" << input2 << "' successfully" << std::endl;
+            std::cout << "[OK] Parsed '" << input2 << "' successfully" << std::endl;
         } else {
-            std::cout << "✗ Failed to parse '" << input2 << "'" << std::endl;
+            std::cout << "[Failed] Failed to parse '" << input2 << "'" << std::endl;
         }
     } catch (const std::exception& e) {
-        std::cout << "✗ Failed to parse '" << input2 << "': " << e.what() << std::endl;
+        std::cout << "[Failed] Failed to parse '" << input2 << "': " << e.what() << std::endl;
     }
 }
 
@@ -176,12 +176,12 @@ void BinaryExprTest::testModulo() {
         Parser parser1(input1);
         auto expr1 = parser1.parseExpression();
         if (expr1) {
-            std::cout << "✓ Parsed '" << input1 << "' successfully" << std::endl;
+            std::cout << "[OK] Parsed '" << input1 << "' successfully" << std::endl;
         } else {
-            std::cout << "✗ Failed to parse '" << input1 << "'" << std::endl;
+            std::cout << "[Failed] Failed to parse '" << input1 << "'" << std::endl;
         }
     } catch (const std::exception& e) {
-        std::cout << "✗ Failed to parse '" << input1 << "': " << e.what() << std::endl;
+        std::cout << "[Failed] Failed to parse '" << input1 << "': " << e.what() << std::endl;
     }
     
     // Test modulo with variables
@@ -190,12 +190,12 @@ void BinaryExprTest::testModulo() {
         Parser parser2(input2);
         auto expr2 = parser2.parseExpression();
         if (expr2) {
-            std::cout << "✓ Parsed '" << input2 << "' successfully" << std::endl;
+            std::cout << "[OK] Parsed '" << input2 << "' successfully" << std::endl;
         } else {
-            std::cout << "✗ Failed to parse '" << input2 << "'" << std::endl;
+            std::cout << "[Failed] Failed to parse '" << input2 << "'" << std::endl;
         }
     } catch (const std::exception& e) {
-        std::cout << "✗ Failed to parse '" << input2 << "': " << e.what() << std::endl;
+        std::cout << "[Failed] Failed to parse '" << input2 << "': " << e.what() << std::endl;
     }
 }
 
@@ -208,12 +208,12 @@ void BinaryExprTest::testExponentiation() {
         Parser parser1(input1);
         auto expr1 = parser1.parseExpression();
         if (expr1) {
-            std::cout << "✓ Parsed '" << input1 << "' successfully" << std::endl;
+            std::cout << "[OK] Parsed '" << input1 << "' successfully" << std::endl;
         } else {
-            std::cout << "✗ Failed to parse '" << input1 << "'" << std::endl;
+            std::cout << "[Failed] Failed to parse '" << input1 << "'" << std::endl;
         }
     } catch (const std::exception& e) {
-        std::cout << "✗ Failed to parse '" << input1 << "': " << e.what() << std::endl;
+        std::cout << "[Failed] Failed to parse '" << input1 << "': " << e.what() << std::endl;
     }
     
     // Test exponentiation with variables
@@ -222,12 +222,12 @@ void BinaryExprTest::testExponentiation() {
         Parser parser2(input2);
         auto expr2 = parser2.parseExpression();
         if (expr2) {
-            std::cout << "✓ Parsed '" << input2 << "' successfully" << std::endl;
+            std::cout << "[OK] Parsed '" << input2 << "' successfully" << std::endl;
         } else {
-            std::cout << "✗ Failed to parse '" << input2 << "'" << std::endl;
+            std::cout << "[Failed] Failed to parse '" << input2 << "'" << std::endl;
         }
     } catch (const std::exception& e) {
-        std::cout << "✗ Failed to parse '" << input2 << "': " << e.what() << std::endl;
+        std::cout << "[Failed] Failed to parse '" << input2 << "': " << e.what() << std::endl;
     }
 }
 
@@ -240,12 +240,12 @@ void BinaryExprTest::testEquality() {
         Parser parser1(input1);
         auto expr1 = parser1.parseExpression();
         if (expr1) {
-            std::cout << "✓ Parsed '" << input1 << "' successfully" << std::endl;
+            std::cout << "[OK] Parsed '" << input1 << "' successfully" << std::endl;
         } else {
-            std::cout << "✗ Failed to parse '" << input1 << "'" << std::endl;
+            std::cout << "[Failed] Failed to parse '" << input1 << "'" << std::endl;
         }
     } catch (const std::exception& e) {
-        std::cout << "✗ Failed to parse '" << input1 << "': " << e.what() << std::endl;
+        std::cout << "[Failed] Failed to parse '" << input1 << "': " << e.what() << std::endl;
     }
     
     // Test equality with variables
@@ -254,12 +254,12 @@ void BinaryExprTest::testEquality() {
         Parser parser2(input2);
         auto expr2 = parser2.parseExpression();
         if (expr2) {
-            std::cout << "✓ Parsed '" << input2 << "' successfully" << std::endl;
+            std::cout << "[OK] Parsed '" << input2 << "' successfully" << std::endl;
         } else {
-            std::cout << "✗ Failed to parse '" << input2 << "'" << std::endl;
+            std::cout << "[Failed] Failed to parse '" << input2 << "'" << std::endl;
         }
     } catch (const std::exception& e) {
-        std::cout << "✗ Failed to parse '" << input2 << "': " << e.what() << std::endl;
+        std::cout << "[Failed] Failed to parse '" << input2 << "': " << e.what() << std::endl;
     }
 }
 
@@ -272,12 +272,12 @@ void BinaryExprTest::testInequality() {
         Parser parser1(input1);
         auto expr1 = parser1.parseExpression();
         if (expr1) {
-            std::cout << "✓ Parsed '" << input1 << "' successfully" << std::endl;
+            std::cout << "[OK] Parsed '" << input1 << "' successfully" << std::endl;
         } else {
-            std::cout << "✗ Failed to parse '" << input1 << "'" << std::endl;
+            std::cout << "[Failed] Failed to parse '" << input1 << "'" << std::endl;
         }
     } catch (const std::exception& e) {
-        std::cout << "✗ Failed to parse '" << input1 << "': " << e.what() << std::endl;
+        std::cout << "[Failed] Failed to parse '" << input1 << "': " << e.what() << std::endl;
     }
     
     // Test inequality with variables
@@ -286,12 +286,12 @@ void BinaryExprTest::testInequality() {
         Parser parser2(input2);
         auto expr2 = parser2.parseExpression();
         if (expr2) {
-            std::cout << "✓ Parsed '" << input2 << "' successfully" << std::endl;
+            std::cout << "[OK] Parsed '" << input2 << "' successfully" << std::endl;
         } else {
-            std::cout << "✗ Failed to parse '" << input2 << "'" << std::endl;
+            std::cout << "[Failed] Failed to parse '" << input2 << "'" << std::endl;
         }
     } catch (const std::exception& e) {
-        std::cout << "✗ Failed to parse '" << input2 << "': " << e.what() << std::endl;
+        std::cout << "[Failed] Failed to parse '" << input2 << "': " << e.what() << std::endl;
     }
 }
 
@@ -304,12 +304,12 @@ void BinaryExprTest::testLessThan() {
         Parser parser1(input1);
         auto expr1 = parser1.parseExpression();
         if (expr1) {
-            std::cout << "✓ Parsed '" << input1 << "' successfully" << std::endl;
+            std::cout << "[OK] Parsed '" << input1 << "' successfully" << std::endl;
         } else {
-            std::cout << "✗ Failed to parse '" << input1 << "'" << std::endl;
+            std::cout << "[Failed] Failed to parse '" << input1 << "'" << std::endl;
         }
     } catch (const std::exception& e) {
-        std::cout << "✗ Failed to parse '" << input1 << "': " << e.what() << std::endl;
+        std::cout << "[Failed] Failed to parse '" << input1 << "': " << e.what() << std::endl;
     }
     
     // Test less than with variables
@@ -318,12 +318,12 @@ void BinaryExprTest::testLessThan() {
         Parser parser2(input2);
         auto expr2 = parser2.parseExpression();
         if (expr2) {
-            std::cout << "✓ Parsed '" << input2 << "' successfully" << std::endl;
+            std::cout << "[OK] Parsed '" << input2 << "' successfully" << std::endl;
         } else {
-            std::cout << "✗ Failed to parse '" << input2 << "'" << std::endl;
+            std::cout << "[Failed] Failed to parse '" << input2 << "'" << std::endl;
         }
     } catch (const std::exception& e) {
-        std::cout << "✗ Failed to parse '" << input2 << "': " << e.what() << std::endl;
+        std::cout << "[Failed] Failed to parse '" << input2 << "': " << e.what() << std::endl;
     }
 }
 
@@ -336,12 +336,12 @@ void BinaryExprTest::testLessEqual() {
         Parser parser1(input1);
         auto expr1 = parser1.parseExpression();
         if (expr1) {
-            std::cout << "✓ Parsed '" << input1 << "' successfully" << std::endl;
+            std::cout << "[OK] Parsed '" << input1 << "' successfully" << std::endl;
         } else {
-            std::cout << "✗ Failed to parse '" << input1 << "'" << std::endl;
+            std::cout << "[Failed] Failed to parse '" << input1 << "'" << std::endl;
         }
     } catch (const std::exception& e) {
-        std::cout << "✗ Failed to parse '" << input1 << "': " << e.what() << std::endl;
+        std::cout << "[Failed] Failed to parse '" << input1 << "': " << e.what() << std::endl;
     }
     
     // Test less than or equal with variables
@@ -350,12 +350,12 @@ void BinaryExprTest::testLessEqual() {
         Parser parser2(input2);
         auto expr2 = parser2.parseExpression();
         if (expr2) {
-            std::cout << "✓ Parsed '" << input2 << "' successfully" << std::endl;
+            std::cout << "[OK] Parsed '" << input2 << "' successfully" << std::endl;
         } else {
-            std::cout << "✗ Failed to parse '" << input2 << "'" << std::endl;
+            std::cout << "[Failed] Failed to parse '" << input2 << "'" << std::endl;
         }
     } catch (const std::exception& e) {
-        std::cout << "✗ Failed to parse '" << input2 << "': " << e.what() << std::endl;
+        std::cout << "[Failed] Failed to parse '" << input2 << "': " << e.what() << std::endl;
     }
 }
 
@@ -368,12 +368,12 @@ void BinaryExprTest::testGreaterThan() {
         Parser parser1(input1);
         auto expr1 = parser1.parseExpression();
         if (expr1) {
-            std::cout << "✓ Parsed '" << input1 << "' successfully" << std::endl;
+            std::cout << "[OK] Parsed '" << input1 << "' successfully" << std::endl;
         } else {
-            std::cout << "✗ Failed to parse '" << input1 << "'" << std::endl;
+            std::cout << "[Failed] Failed to parse '" << input1 << "'" << std::endl;
         }
     } catch (const std::exception& e) {
-        std::cout << "✗ Failed to parse '" << input1 << "': " << e.what() << std::endl;
+        std::cout << "[Failed] Failed to parse '" << input1 << "': " << e.what() << std::endl;
     }
     
     // Test greater than with variables
@@ -382,12 +382,12 @@ void BinaryExprTest::testGreaterThan() {
         Parser parser2(input2);
         auto expr2 = parser2.parseExpression();
         if (expr2) {
-            std::cout << "✓ Parsed '" << input2 << "' successfully" << std::endl;
+            std::cout << "[OK] Parsed '" << input2 << "' successfully" << std::endl;
         } else {
-            std::cout << "✗ Failed to parse '" << input2 << "'" << std::endl;
+            std::cout << "[Failed] Failed to parse '" << input2 << "'" << std::endl;
         }
     } catch (const std::exception& e) {
-        std::cout << "✗ Failed to parse '" << input2 << "': " << e.what() << std::endl;
+        std::cout << "[Failed] Failed to parse '" << input2 << "': " << e.what() << std::endl;
     }
 }
 
@@ -400,12 +400,12 @@ void BinaryExprTest::testGreaterEqual() {
         Parser parser1(input1);
         auto expr1 = parser1.parseExpression();
         if (expr1) {
-            std::cout << "✓ Parsed '" << input1 << "' successfully" << std::endl;
+            std::cout << "[OK] Parsed '" << input1 << "' successfully" << std::endl;
         } else {
-            std::cout << "✗ Failed to parse '" << input1 << "'" << std::endl;
+            std::cout << "[Failed] Failed to parse '" << input1 << "'" << std::endl;
         }
     } catch (const std::exception& e) {
-        std::cout << "✗ Failed to parse '" << input1 << "': " << e.what() << std::endl;
+        std::cout << "[Failed] Failed to parse '" << input1 << "': " << e.what() << std::endl;
     }
     
     // Test greater than or equal with variables
@@ -414,12 +414,12 @@ void BinaryExprTest::testGreaterEqual() {
         Parser parser2(input2);
         auto expr2 = parser2.parseExpression();
         if (expr2) {
-            std::cout << "✓ Parsed '" << input2 << "' successfully" << std::endl;
+            std::cout << "[OK] Parsed '" << input2 << "' successfully" << std::endl;
         } else {
-            std::cout << "✗ Failed to parse '" << input2 << "'" << std::endl;
+            std::cout << "[Failed] Failed to parse '" << input2 << "'" << std::endl;
         }
     } catch (const std::exception& e) {
-        std::cout << "✗ Failed to parse '" << input2 << "': " << e.what() << std::endl;
+        std::cout << "[Failed] Failed to parse '" << input2 << "': " << e.what() << std::endl;
     }
 }
 
@@ -432,12 +432,12 @@ void BinaryExprTest::testLogicalAnd() {
         Parser parser1(input1);
         auto expr1 = parser1.parseExpression();
         if (expr1) {
-            std::cout << "✓ Parsed '" << input1 << "' successfully" << std::endl;
+            std::cout << "[OK] Parsed '" << input1 << "' successfully" << std::endl;
         } else {
-            std::cout << "✗ Failed to parse '" << input1 << "'" << std::endl;
+            std::cout << "[Failed] Failed to parse '" << input1 << "'" << std::endl;
         }
     } catch (const std::exception& e) {
-        std::cout << "✗ Failed to parse '" << input1 << "': " << e.what() << std::endl;
+        std::cout << "[Failed] Failed to parse '" << input1 << "': " << e.what() << std::endl;
     }
     
     // Test logical and with variables
@@ -446,12 +446,12 @@ void BinaryExprTest::testLogicalAnd() {
         Parser parser2(input2);
         auto expr2 = parser2.parseExpression();
         if (expr2) {
-            std::cout << "✓ Parsed '" << input2 << "' successfully" << std::endl;
+            std::cout << "[OK] Parsed '" << input2 << "' successfully" << std::endl;
         } else {
-            std::cout << "✗ Failed to parse '" << input2 << "'" << std::endl;
+            std::cout << "[Failed] Failed to parse '" << input2 << "'" << std::endl;
         }
     } catch (const std::exception& e) {
-        std::cout << "✗ Failed to parse '" << input2 << "': " << e.what() << std::endl;
+        std::cout << "[Failed] Failed to parse '" << input2 << "': " << e.what() << std::endl;
     }
 }
 
@@ -464,12 +464,12 @@ void BinaryExprTest::testLogicalOr() {
         Parser parser1(input1);
         auto expr1 = parser1.parseExpression();
         if (expr1) {
-            std::cout << "✓ Parsed '" << input1 << "' successfully" << std::endl;
+            std::cout << "[OK] Parsed '" << input1 << "' successfully" << std::endl;
         } else {
-            std::cout << "✗ Failed to parse '" << input1 << "'" << std::endl;
+            std::cout << "[Failed] Failed to parse '" << input1 << "'" << std::endl;
         }
     } catch (const std::exception& e) {
-        std::cout << "✗ Failed to parse '" << input1 << "': " << e.what() << std::endl;
+        std::cout << "[Failed] Failed to parse '" << input1 << "': " << e.what() << std::endl;
     }
     
     // Test logical or with variables
@@ -478,12 +478,12 @@ void BinaryExprTest::testLogicalOr() {
         Parser parser2(input2);
         auto expr2 = parser2.parseExpression();
         if (expr2) {
-            std::cout << "✓ Parsed '" << input2 << "' successfully" << std::endl;
+            std::cout << "[OK] Parsed '" << input2 << "' successfully" << std::endl;
         } else {
-            std::cout << "✗ Failed to parse '" << input2 << "'" << std::endl;
+            std::cout << "[Failed] Failed to parse '" << input2 << "'" << std::endl;
         }
     } catch (const std::exception& e) {
-        std::cout << "✗ Failed to parse '" << input2 << "': " << e.what() << std::endl;
+        std::cout << "[Failed] Failed to parse '" << input2 << "': " << e.what() << std::endl;
     }
 }
 
@@ -496,12 +496,12 @@ void BinaryExprTest::testStringConcatenation() {
         Parser parser1(input1);
         auto expr1 = parser1.parseExpression();
         if (expr1) {
-            std::cout << "✓ Parsed '" << input1 << "' successfully" << std::endl;
+            std::cout << "[OK] Parsed '" << input1 << "' successfully" << std::endl;
         } else {
-            std::cout << "✗ Failed to parse '" << input1 << "'" << std::endl;
+            std::cout << "[Failed] Failed to parse '" << input1 << "'" << std::endl;
         }
     } catch (const std::exception& e) {
-        std::cout << "✗ Failed to parse '" << input1 << "': " << e.what() << std::endl;
+        std::cout << "[Failed] Failed to parse '" << input1 << "': " << e.what() << std::endl;
     }
     
     // Test string concatenation with variables
@@ -510,12 +510,12 @@ void BinaryExprTest::testStringConcatenation() {
         Parser parser2(input2);
         auto expr2 = parser2.parseExpression();
         if (expr2) {
-            std::cout << "✓ Parsed '" << input2 << "' successfully" << std::endl;
+            std::cout << "[OK] Parsed '" << input2 << "' successfully" << std::endl;
         } else {
-            std::cout << "✗ Failed to parse '" << input2 << "'" << std::endl;
+            std::cout << "[Failed] Failed to parse '" << input2 << "'" << std::endl;
         }
     } catch (const std::exception& e) {
-        std::cout << "✗ Failed to parse '" << input2 << "': " << e.what() << std::endl;
+        std::cout << "[Failed] Failed to parse '" << input2 << "': " << e.what() << std::endl;
     }
 }
 
@@ -528,12 +528,12 @@ void BinaryExprTest::testOperatorPrecedence() {
         Parser parser1(input1);
         auto expr1 = parser1.parseExpression();
         if (expr1) {
-            std::cout << "✓ Parsed '" << input1 << "' successfully" << std::endl;
+            std::cout << "[OK] Parsed '" << input1 << "' successfully" << std::endl;
         } else {
-            std::cout << "✗ Failed to parse '" << input1 << "'" << std::endl;
+            std::cout << "[Failed] Failed to parse '" << input1 << "'" << std::endl;
         }
     } catch (const std::exception& e) {
-        std::cout << "✗ Failed to parse '" << input1 << "': " << e.what() << std::endl;
+        std::cout << "[Failed] Failed to parse '" << input1 << "': " << e.what() << std::endl;
     }
     
     // Test exponentiation before multiplication
@@ -542,12 +542,12 @@ void BinaryExprTest::testOperatorPrecedence() {
         Parser parser2(input2);
         auto expr2 = parser2.parseExpression();
         if (expr2) {
-            std::cout << "✓ Parsed '" << input2 << "' successfully" << std::endl;
+            std::cout << "[OK] Parsed '" << input2 << "' successfully" << std::endl;
         } else {
-            std::cout << "✗ Failed to parse '" << input2 << "'" << std::endl;
+            std::cout << "[Failed] Failed to parse '" << input2 << "'" << std::endl;
         }
     } catch (const std::exception& e) {
-        std::cout << "✗ Failed to parse '" << input2 << "': " << e.what() << std::endl;
+        std::cout << "[Failed] Failed to parse '" << input2 << "': " << e.what() << std::endl;
     }
 }
 
@@ -560,12 +560,12 @@ void BinaryExprTest::testLeftAssociativity() {
         Parser parser1(input1);
         auto expr1 = parser1.parseExpression();
         if (expr1) {
-            std::cout << "✓ Parsed '" << input1 << "' successfully" << std::endl;
+            std::cout << "[OK] Parsed '" << input1 << "' successfully" << std::endl;
         } else {
-            std::cout << "✗ Failed to parse '" << input1 << "'" << std::endl;
+            std::cout << "[Failed] Failed to parse '" << input1 << "'" << std::endl;
         }
     } catch (const std::exception& e) {
-        std::cout << "✗ Failed to parse '" << input1 << "': " << e.what() << std::endl;
+        std::cout << "[Failed] Failed to parse '" << input1 << "': " << e.what() << std::endl;
     }
     
     // Test left associativity for subtraction
@@ -574,12 +574,12 @@ void BinaryExprTest::testLeftAssociativity() {
         Parser parser2(input2);
         auto expr2 = parser2.parseExpression();
         if (expr2) {
-            std::cout << "✓ Parsed '" << input2 << "' successfully" << std::endl;
+            std::cout << "[OK] Parsed '" << input2 << "' successfully" << std::endl;
         } else {
-            std::cout << "✗ Failed to parse '" << input2 << "'" << std::endl;
+            std::cout << "[Failed] Failed to parse '" << input2 << "'" << std::endl;
         }
     } catch (const std::exception& e) {
-        std::cout << "✗ Failed to parse '" << input2 << "': " << e.what() << std::endl;
+        std::cout << "[Failed] Failed to parse '" << input2 << "': " << e.what() << std::endl;
     }
 }
 
@@ -592,12 +592,12 @@ void BinaryExprTest::testRightAssociativity() {
         Parser parser1(input1);
         auto expr1 = parser1.parseExpression();
         if (expr1) {
-            std::cout << "✓ Parsed '" << input1 << "' successfully" << std::endl;
+            std::cout << "[OK] Parsed '" << input1 << "' successfully" << std::endl;
         } else {
-            std::cout << "✗ Failed to parse '" << input1 << "'" << std::endl;
+            std::cout << "[Failed] Failed to parse '" << input1 << "'" << std::endl;
         }
     } catch (const std::exception& e) {
-        std::cout << "✗ Failed to parse '" << input1 << "': " << e.what() << std::endl;
+        std::cout << "[Failed] Failed to parse '" << input1 << "': " << e.what() << std::endl;
     }
     
     // Test right associativity for string concatenation
@@ -606,12 +606,12 @@ void BinaryExprTest::testRightAssociativity() {
         Parser parser2(input2);
         auto expr2 = parser2.parseExpression();
         if (expr2) {
-            std::cout << "✓ Parsed '" << input2 << "' successfully" << std::endl;
+            std::cout << "[OK] Parsed '" << input2 << "' successfully" << std::endl;
         } else {
-            std::cout << "✗ Failed to parse '" << input2 << "'" << std::endl;
+            std::cout << "[Failed] Failed to parse '" << input2 << "'" << std::endl;
         }
     } catch (const std::exception& e) {
-        std::cout << "✗ Failed to parse '" << input2 << "': " << e.what() << std::endl;
+        std::cout << "[Failed] Failed to parse '" << input2 << "': " << e.what() << std::endl;
     }
 }
 
@@ -624,12 +624,12 @@ void BinaryExprTest::testMixedPrecedence() {
         Parser parser1(input1);
         auto expr1 = parser1.parseExpression();
         if (expr1) {
-            std::cout << "✓ Parsed '" << input1 << "' successfully" << std::endl;
+            std::cout << "[OK] Parsed '" << input1 << "' successfully" << std::endl;
         } else {
-            std::cout << "✗ Failed to parse '" << input1 << "'" << std::endl;
+            std::cout << "[Failed] Failed to parse '" << input1 << "'" << std::endl;
         }
     } catch (const std::exception& e) {
-        std::cout << "✗ Failed to parse '" << input1 << "': " << e.what() << std::endl;
+        std::cout << "[Failed] Failed to parse '" << input1 << "': " << e.what() << std::endl;
     }
     
     // Test expression with comparison and arithmetic
@@ -638,12 +638,12 @@ void BinaryExprTest::testMixedPrecedence() {
         Parser parser2(input2);
         auto expr2 = parser2.parseExpression();
         if (expr2) {
-            std::cout << "✓ Parsed '" << input2 << "' successfully" << std::endl;
+            std::cout << "[OK] Parsed '" << input2 << "' successfully" << std::endl;
         } else {
-            std::cout << "✗ Failed to parse '" << input2 << "'" << std::endl;
+            std::cout << "[Failed] Failed to parse '" << input2 << "'" << std::endl;
         }
     } catch (const std::exception& e) {
-        std::cout << "✗ Failed to parse '" << input2 << "': " << e.what() << std::endl;
+        std::cout << "[Failed] Failed to parse '" << input2 << "': " << e.what() << std::endl;
     }
 }
 
@@ -656,12 +656,12 @@ void BinaryExprTest::testNestedExpressions() {
         Parser parser1(input1);
         auto expr1 = parser1.parseExpression();
         if (expr1) {
-            std::cout << "✓ Parsed '" << input1 << "' successfully" << std::endl;
+            std::cout << "[OK] Parsed '" << input1 << "' successfully" << std::endl;
         } else {
-            std::cout << "✗ Failed to parse '" << input1 << "'" << std::endl;
+            std::cout << "[Failed] Failed to parse '" << input1 << "'" << std::endl;
         }
     } catch (const std::exception& e) {
-        std::cout << "✗ Failed to parse '" << input1 << "': " << e.what() << std::endl;
+        std::cout << "[Failed] Failed to parse '" << input1 << "': " << e.what() << std::endl;
     }
     
     // Test deeply nested expressions
@@ -670,12 +670,12 @@ void BinaryExprTest::testNestedExpressions() {
         Parser parser2(input2);
         auto expr2 = parser2.parseExpression();
         if (expr2) {
-            std::cout << "✓ Parsed '" << input2 << "' successfully" << std::endl;
+            std::cout << "[OK] Parsed '" << input2 << "' successfully" << std::endl;
         } else {
-            std::cout << "✗ Failed to parse '" << input2 << "'" << std::endl;
+            std::cout << "[Failed] Failed to parse '" << input2 << "'" << std::endl;
         }
     } catch (const std::exception& e) {
-        std::cout << "✗ Failed to parse '" << input2 << "': " << e.what() << std::endl;
+        std::cout << "[Failed] Failed to parse '" << input2 << "': " << e.what() << std::endl;
     }
 }
 
@@ -688,12 +688,12 @@ void BinaryExprTest::testChainedComparisons() {
         Parser parser1(input1);
         auto expr1 = parser1.parseExpression();
         if (expr1) {
-            std::cout << "✓ Parsed '" << input1 << "' successfully" << std::endl;
+            std::cout << "[OK] Parsed '" << input1 << "' successfully" << std::endl;
         } else {
-            std::cout << "✗ Failed to parse '" << input1 << "'" << std::endl;
+            std::cout << "[Failed] Failed to parse '" << input1 << "'" << std::endl;
         }
     } catch (const std::exception& e) {
-        std::cout << "✗ Failed to parse '" << input1 << "': " << e.what() << std::endl;
+        std::cout << "[Failed] Failed to parse '" << input1 << "': " << e.what() << std::endl;
     }
     
     // Test chained equality
@@ -702,12 +702,12 @@ void BinaryExprTest::testChainedComparisons() {
         Parser parser2(input2);
         auto expr2 = parser2.parseExpression();
         if (expr2) {
-            std::cout << "✓ Parsed '" << input2 << "' successfully" << std::endl;
+            std::cout << "[OK] Parsed '" << input2 << "' successfully" << std::endl;
         } else {
-            std::cout << "✗ Failed to parse '" << input2 << "'" << std::endl;
+            std::cout << "[Failed] Failed to parse '" << input2 << "'" << std::endl;
         }
     } catch (const std::exception& e) {
-        std::cout << "✗ Failed to parse '" << input2 << "': " << e.what() << std::endl;
+        std::cout << "[Failed] Failed to parse '" << input2 << "': " << e.what() << std::endl;
     }
 }
 
@@ -720,12 +720,12 @@ void BinaryExprTest::testInvalidOperators() {
         Parser parser1(input1);
         auto expr1 = parser1.parseExpression();
         if (!expr1) {
-            std::cout << "✓ Correctly rejected '" << input1 << "'" << std::endl;
+            std::cout << "[OK] Correctly rejected '" << input1 << "'" << std::endl;
         } else {
-            std::cout << "✗ Incorrectly accepted '" << input1 << "'" << std::endl;
+            std::cout << "[Failed] Incorrectly accepted '" << input1 << "'" << std::endl;
         }
     } catch (const std::exception& e) {
-        std::cout << "✓ Correctly rejected '" << input1 << "': " << e.what() << std::endl;
+        std::cout << "[OK] Correctly rejected '" << input1 << "': " << e.what() << std::endl;
     }
     
     // Test invalid bitwise or operator
@@ -734,12 +734,12 @@ void BinaryExprTest::testInvalidOperators() {
         Parser parser2(input2);
         auto expr2 = parser2.parseExpression();
         if (!expr2) {
-            std::cout << "✓ Correctly rejected '" << input2 << "'" << std::endl;
+            std::cout << "[OK] Correctly rejected '" << input2 << "'" << std::endl;
         } else {
-            std::cout << "✗ Incorrectly accepted '" << input2 << "'" << std::endl;
+            std::cout << "[Failed] Incorrectly accepted '" << input2 << "'" << std::endl;
         }
     } catch (const std::exception& e) {
-        std::cout << "✓ Correctly rejected '" << input2 << "': " << e.what() << std::endl;
+        std::cout << "[OK] Correctly rejected '" << input2 << "': " << e.what() << std::endl;
     }
 }
 
@@ -752,12 +752,12 @@ void BinaryExprTest::testMissingOperands() {
         Parser parser1(input1);
         auto expr1 = parser1.parseExpression();
         if (!expr1) {
-            std::cout << "✓ Correctly rejected '" << input1 << "'" << std::endl;
+            std::cout << "[OK] Correctly rejected '" << input1 << "'" << std::endl;
         } else {
-            std::cout << "✗ Incorrectly accepted '" << input1 << "'" << std::endl;
+            std::cout << "[Failed] Incorrectly accepted '" << input1 << "'" << std::endl;
         }
     } catch (const std::exception& e) {
-        std::cout << "✓ Correctly rejected '" << input1 << "': " << e.what() << std::endl;
+        std::cout << "[OK] Correctly rejected '" << input1 << "': " << e.what() << std::endl;
     }
     
     // Test missing right operand
@@ -766,12 +766,12 @@ void BinaryExprTest::testMissingOperands() {
         Parser parser2(input2);
         auto expr2 = parser2.parseExpression();
         if (!expr2) {
-            std::cout << "✓ Correctly rejected '" << input2 << "'" << std::endl;
+            std::cout << "[OK] Correctly rejected '" << input2 << "'" << std::endl;
         } else {
-            std::cout << "✗ Incorrectly accepted '" << input2 << "'" << std::endl;
+            std::cout << "[Failed] Incorrectly accepted '" << input2 << "'" << std::endl;
         }
     } catch (const std::exception& e) {
-        std::cout << "✓ Correctly rejected '" << input2 << "': " << e.what() << std::endl;
+        std::cout << "[OK] Correctly rejected '" << input2 << "': " << e.what() << std::endl;
     }
 }
 
@@ -784,12 +784,12 @@ void BinaryExprTest::testInvalidSyntax() {
         Parser parser1(input1);
         auto expr1 = parser1.parseExpression();
         if (!expr1) {
-            std::cout << "✓ Correctly rejected '" << input1 << "'" << std::endl;
+            std::cout << "[OK] Correctly rejected '" << input1 << "'" << std::endl;
         } else {
-            std::cout << "✗ Incorrectly accepted '" << input1 << "'" << std::endl;
+            std::cout << "[Failed] Incorrectly accepted '" << input1 << "'" << std::endl;
         }
     } catch (const std::exception& e) {
-        std::cout << "✓ Correctly rejected '" << input1 << "': " << e.what() << std::endl;
+        std::cout << "[OK] Correctly rejected '" << input1 << "': " << e.what() << std::endl;
     }
     
     // Test consecutive operators
@@ -798,12 +798,12 @@ void BinaryExprTest::testInvalidSyntax() {
         Parser parser2(input2);
         auto expr2 = parser2.parseExpression();
         if (!expr2) {
-            std::cout << "✓ Correctly rejected '" << input2 << "'" << std::endl;
+            std::cout << "[OK] Correctly rejected '" << input2 << "'" << std::endl;
         } else {
-            std::cout << "✗ Incorrectly accepted '" << input2 << "'" << std::endl;
+            std::cout << "[Failed] Incorrectly accepted '" << input2 << "'" << std::endl;
         }
     } catch (const std::exception& e) {
-        std::cout << "✓ Correctly rejected '" << input2 << "': " << e.what() << std::endl;
+        std::cout << "[OK] Correctly rejected '" << input2 << "': " << e.what() << std::endl;
     }
 }
 

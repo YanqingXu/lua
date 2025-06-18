@@ -14,8 +14,10 @@
 namespace Lua {
 namespace Tests {
 
-// Function to run all tests
-void runAllTests();
+	// Function to run all tests
+	void runAllTests() {
+		RUN_TEST_SUITE(ParserTestSuite);
+	}
 
 } // namespace Tests
 } // namespace Lua
