@@ -134,9 +134,42 @@ namespace Lua {
         try {
             ErrorUtils::checkArgCount(nargs, 1, "pcall");
             
-            // 简化的pcall实现
-            // 在实际实现中，这里会调用函数并捕获异常
-            return Value(true);
+            // 获取要调用的函数
+            if (nargs < 1) {
+                state->push(Value(false));
+                state->push(Value("pcall: no function provided"));
+                return Value(2);
+            }
+            
+            Value func = state->get(1);
+            if (!func.isFunction()) {
+                state->push(Value(false));
+                state->push(Value("pcall: argument is not a function"));
+                return Value(2);
+            }
+            
+            try {
+                // 准备参数列表
+                Vec<Value> args;
+                for (int i = 2; i <= nargs; i++) {
+                    args.push_back(state->get(i));
+                }
+                
+                // 实际执行函数
+                Value result = state->call(func, args);
+                
+                // 函数成功执行，返回true和结果
+                state->push(Value(true));
+                state->push(result);
+                return Value(2);
+                
+            } catch (const std::exception& e) {
+                // 捕获到异常，返回false和错误信息
+                state->push(Value(false));
+                state->push(Value(e.what()));
+                return Value(2);
+            }
+            
         } catch (const LibException& e) {
             // 返回false和错误信息
             state->push(Value(false));

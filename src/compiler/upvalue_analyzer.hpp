@@ -9,6 +9,30 @@
 
 namespace Lua {
     /**
+     * RAII Scope Guard for automatic scope management
+     * Ensures proper scope entry and exit even in case of exceptions
+     */
+    class ScopeGuard {
+    private:
+        ScopeManager& scopeManager_;
+        
+    public:
+        explicit ScopeGuard(ScopeManager& sm) : scopeManager_(sm) {
+            scopeManager_.enterScope();
+        }
+        
+        ~ScopeGuard() {
+            scopeManager_.exitScope();
+        }
+        
+        // Non-copyable and non-movable
+        ScopeGuard(const ScopeGuard&) = delete;
+        ScopeGuard& operator=(const ScopeGuard&) = delete;
+        ScopeGuard(ScopeGuard&&) = delete;
+        ScopeGuard& operator=(ScopeGuard&&) = delete;
+    };
+
+    /**
      * UpvalueAnalyzer - Analyzes function AST nodes to identify free variables for closure creation
      *
      * This class is responsible for:
@@ -16,16 +40,39 @@ namespace Lua {
      * 2. Distinguishing between local variables and free variables
      * 3. Creating upvalue descriptors for free variables
      * 4. Supporting upvalue analysis for nested functions
+     *
+     * Design principles:
+     * - Uses dependency injection: ScopeManager is provided by caller
+     * - Caller is responsible for ScopeManager lifetime management
+     * - Simple and reliable: only one construction method
+     * - RAII scope management for exception safety
      */
     class UpvalueAnalyzer {
     private:
-        ScopeManager* scopeManager_;           // Scope manager (optional)
+        ScopeManager& scopeManager_;      // Reference to external ScopeManager
         Vec<UpvalueDescriptor> upvalues_; // Current function's upvalue list
-        HashSet<Str> freeVars_; // Free variables set
+        HashSet<Str> freeVars_;          // Free variables set
 
     public:
-        explicit UpvalueAnalyzer(ScopeManager& scopeManager);
-        UpvalueAnalyzer(); // Default constructor
+        // Constructor: accepts ScopeManager reference
+        // Caller is responsible for ScopeManager lifetime
+        explicit UpvalueAnalyzer(ScopeManager& scopeManager)
+            : scopeManager_(scopeManager) {}
+        
+        // Non-copyable and non-movable to ensure reference validity
+        UpvalueAnalyzer(const UpvalueAnalyzer&) = delete;
+        UpvalueAnalyzer& operator=(const UpvalueAnalyzer&) = delete;
+        UpvalueAnalyzer(UpvalueAnalyzer&&) = delete;
+        UpvalueAnalyzer& operator=(UpvalueAnalyzer&&) = delete;
+        
+        // Direct access to ScopeManager
+        ScopeManager& getScopeManager() {
+            return scopeManager_;
+        }
+        
+        const ScopeManager& getScopeManager() const {
+            return scopeManager_;
+        }
 
         // Analyze function expression and return upvalue descriptor list
         Vec<UpvalueDescriptor> analyzeFunction(const FunctionExpr* funcExpr);

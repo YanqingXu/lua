@@ -210,6 +210,7 @@
     <ClInclude Include="src\tests\test_utils.hpp" />
     <ClInclude Include="src\tests\vm\closure\closure_advanced_test.hpp" />
     <ClInclude Include="src\tests\vm\closure\closure_basic_test.hpp" />
+    <ClInclude Include="src\tests\vm\closure\closure_boundary_test.hpp" />
     <ClInclude Include="src\tests\vm\closure\closure_error_test.hpp" />
     <ClInclude Include="src\tests\vm\closure\closure_memory_test.hpp" />
     <ClInclude Include="src\tests\vm\closure\closure_performance_test.hpp" />
@@ -292,6 +293,7 @@
     <ClCompile Include="src\tests\plugin\plugin_integration_test.cpp" />
     <ClCompile Include="src\tests\vm\closure\closure_advanced_test.cpp" />
     <ClCompile Include="src\tests\vm\closure\closure_basic_test.cpp" />
+    <ClCompile Include="src\tests\vm\closure\closure_boundary_test.cpp" />
     <ClCompile Include="src\tests\vm\closure\closure_error_test.cpp" />
     <ClCompile Include="src\tests\vm\closure\closure_memory_test.cpp" />
     <ClCompile Include="src\tests\vm\closure\closure_performance_test.cpp" />

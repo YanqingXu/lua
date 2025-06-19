@@ -1,6 +1,9 @@
 #include "expression_compiler.hpp"
 #include "compiler.hpp"
+#include "symbol_table.hpp"
+#include "upvalue_analyzer.hpp"
 #include "../common/opcodes.hpp"
+#include "../common/defines.hpp"
 #include <stdexcept>
 #include <cmath>
 
@@ -31,6 +34,8 @@ namespace Lua {
                 return compileIndexAccess(static_cast<const IndexExpr*>(expr));
             case ExprType::Member:
                 return compileMemberAccess(static_cast<const MemberExpr*>(expr));
+            case ExprType::Function:
+                return compileFunctionExpr(static_cast<const FunctionExpr*>(expr));
             default:
                 throw LuaException("Unknown expression type in compilation");
         }
@@ -506,5 +511,97 @@ namespace Lua {
             default:
                 throw LuaException("Unsupported expression type for constant value");
         }
+    }
+    
+    int ExpressionCompiler::compileFunctionExpr(const FunctionExpr* expr) {
+        if (!expr) {
+            throw LuaException("Null function expression in compilation");
+        }
+        
+        // Check function nesting depth before proceeding
+        compiler->enterFunctionScope();
+        
+        // Create a new compiler instance for the function body
+        Compiler functionCompiler;
+        // Inherit the nesting depth from parent compiler
+        for (int i = 0; i < compiler->getFunctionNestingDepth(); ++i) {
+            functionCompiler.enterFunctionScope();
+        }
+        
+        // Create ScopeManager for upvalue analysis
+        ScopeManager scopeManager;
+        
+        // Analyze upvalues using UpvalueAnalyzer
+        UpvalueAnalyzer analyzer(scopeManager);
+        analyzer.analyzeFunction(expr);
+        const auto& upvalues = analyzer.getUpvalues();
+        
+        // Enter function scope and define parameters
+        functionCompiler.beginScope();
+        for (const auto& param : expr->getParameters()) {
+            int paramReg = functionCompiler.allocReg();
+            functionCompiler.addLocal(param, paramReg);
+        }
+        
+        // Compile function body
+        functionCompiler.compileStmt(expr->getBody());
+        
+        // End function scope
+        functionCompiler.endScope();
+        
+        // Create function object and add to prototypes
+        auto function = Function::createLua(
+            functionCompiler.getCode(),
+            functionCompiler.getConstants(),
+            functionCompiler.getPrototypes(),
+            static_cast<u8>(expr->getParameters().size()),
+            static_cast<u8>(functionCompiler.getLocals().size()),
+            static_cast<u8>(upvalues.size())
+        );
+        int prototypeIndex = compiler->addPrototype(function);
+        
+        // Check prototype index bounds for CLOSURE instruction
+        if (prototypeIndex > 65535) { // u16 max value
+            throw LuaException("Too many function prototypes in compilation unit");
+        }
+        
+        // Allocate register for the function
+        int reg = compiler->allocReg();
+        
+        // Emit CLOSURE instruction to create closure
+        compiler->emitInstruction(Instruction::createCLOSURE(reg, static_cast<u16>(prototypeIndex)));
+        
+        // Handle upvalues if any
+        // VM expects upvalue binding instructions immediately after CLOSURE
+        // Check if we have too many upvalues to avoid register overflow
+        if (upvalues.size() > MAX_UPVALUES_PER_CLOSURE) {
+            throw LuaException("Too many upvalues in closure: " + std::to_string(upvalues.size()) + 
+                             " (max: " + std::to_string(MAX_UPVALUES_PER_CLOSURE) + ")");
+        }
+        
+        for (const auto& upvalue : upvalues) {
+            // Create upvalue binding instruction for VM
+            // A = isLocal flag (1 for local, 0 for upvalue)
+            // B = source index (local variable index or parent upvalue index)
+            u8 isLocal = upvalue.isLocal ? 1 : 0;
+            u8 sourceIndex = static_cast<u8>(upvalue.index);
+            
+            // Validate source index bounds
+            if (sourceIndex > 255) {
+                throw LuaException("Upvalue source index out of bounds: " + std::to_string(sourceIndex));
+            }
+            
+            // Use a generic instruction format for upvalue binding
+            // This will be interpreted by VM's op_closure method
+            Instruction upvalBinding;
+            upvalBinding.setA(isLocal);
+            upvalBinding.setB(sourceIndex);
+            compiler->emitInstruction(upvalBinding);
+        }
+        
+        // Exit function scope
+        compiler->exitFunctionScope();
+        
+        return reg;
     }
 }

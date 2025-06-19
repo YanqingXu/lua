@@ -61,12 +61,24 @@ namespace Lua {
     }
 
     // ScopeManager implementation
-    ScopeManager::ScopeManager() : currentScope(nullptr), globalScopeLevel(0) {
+    ScopeManager::ScopeManager() : currentScope(nullptr), globalScopeLevel(0), maxRecursionDepth(DEFAULT_MAX_RECURSION_DEPTH) {
         // Start with global scope
         enterScope();
     }
 
     void ScopeManager::enterScope() {
+        // Check recursion depth limit
+        if (scopes.size() >= static_cast<size_t>(maxRecursionDepth)) {
+            throw std::runtime_error("Scope stack depth exceeded: " + std::to_string(maxRecursionDepth) + 
+                                    " (current stack size: " + std::to_string(scopes.size()) + ")");
+        }
+        
+        // Validate current scope before proceeding
+        if (currentScope && !currentScope->isValid()) {
+            throw std::runtime_error("Current scope memory corruption detected in enterScope at stack depth " + 
+                                    std::to_string(scopes.size()));
+        }
+        
         int level = currentScope ? currentScope->level + 1 : globalScopeLevel;
         auto newScope = std::make_unique<Scope>(currentScope, level);
         currentScope = newScope.get();
@@ -79,9 +91,18 @@ namespace Lua {
             return;
         }
         
+        // Validate current scope before exit
+        if (currentScope && !currentScope->isValid()) {
+            throw std::runtime_error("Current scope memory corruption detected in exitScope");
+        }
+        
         scopes.pop();
         if (!scopes.empty()) {
             currentScope = scopes.top().get();
+            // Validate new current scope
+            if (currentScope && !currentScope->isValid()) {
+                throw std::runtime_error("New current scope memory corruption detected after exitScope");
+            }
         } else {
             currentScope = nullptr;
         }
@@ -90,6 +111,11 @@ namespace Lua {
     bool ScopeManager::defineLocal(const Str& name, int stackIndex) {
         if (!currentScope) {
             return false;
+        }
+        
+        // Validate scope memory integrity
+        if (!currentScope->isValid()) {
+            throw std::runtime_error("Current scope memory corruption detected in defineLocal");
         }
         
         // Check if variable already exists in current scope
@@ -186,14 +212,51 @@ namespace Lua {
 
     const Vec<UpvalueDescriptor>& ScopeManager::getUpvalues() const {
         static Vec<UpvalueDescriptor> empty;
-        return currentScope ? currentScope->upvalues : empty;
+        if (!currentScope) {
+            return empty;
+        }
+        
+        // Validate scope before accessing upvalues
+        if (!currentScope->isValid()) {
+            throw std::runtime_error("Current scope memory corruption detected in getUpvalues");
+        }
+        
+        return currentScope->upvalues;
+    }
+    
+    bool ScopeManager::validateCurrentScope() const {
+        if (!currentScope) {
+            return true; // null is valid state
+        }
+        return currentScope->isValid();
+    }
+    
+    void ScopeManager::validateAllScopes() const {
+        // Validate scopes by traversing from current scope upward
+        Scope* scope = currentScope;
+        while (scope) {
+            if (!scope->isValid()) {
+                throw std::runtime_error("Scope memory corruption detected in scope validation");
+            }
+            scope = scope->parent;
+        }
     }
 
     bool ScopeManager::isInCurrentScope(const Str& name) const {
         if (!currentScope) {
             return false;
         }
-        return currentScope->locals.find(name) != currentScope->locals.end();
+        
+        // Validate scope memory integrity
+        if (!currentScope->isValid()) {
+            throw std::runtime_error("Current scope memory corruption detected in isInCurrentScope");
+        }
+        
+        try {
+            return currentScope->locals.find(name) != currentScope->locals.end();
+        } catch (const std::exception& e) {
+            throw std::runtime_error("Exception in scope locals access: " + std::string(e.what()));
+        }
     }
 
     bool ScopeManager::isLocalVariable(const Str& name) const {
@@ -239,6 +302,7 @@ namespace Lua {
     }
 
     void ScopeManager::clear() {
+        // Safely clear all scopes
         while (!scopes.empty()) {
             scopes.pop();
         }

@@ -9,6 +9,7 @@ namespace Lua {
     Compiler::Compiler() : 
         scopeDepth(0),
         nextRegister(0),
+        functionNestingDepth(0),
         code(std::make_shared<Vec<Instruction>>()),
         utils() {
         initializeModules();
@@ -48,6 +49,25 @@ namespace Lua {
     
     int Compiler::resolveLocal(const Str& name) {
         return utils.resolveLocal(locals, name, scopeDepth);
+    }
+    
+    void Compiler::enterFunctionScope() {
+        functionNestingDepth++;
+        checkFunctionNestingDepth();
+    }
+    
+    void Compiler::exitFunctionScope() {
+        if (functionNestingDepth > 0) {
+            functionNestingDepth--;
+        }
+    }
+    
+    void Compiler::checkFunctionNestingDepth() const {
+        if (functionNestingDepth > MAX_FUNCTION_NESTING_DEPTH) {
+            throw std::runtime_error("Function nesting depth exceeded: " + 
+                std::to_string(MAX_FUNCTION_NESTING_DEPTH) + 
+                " (current depth: " + std::to_string(functionNestingDepth) + ")");
+        }
     }
     
     // All compilation methods have been moved to specialized compilers

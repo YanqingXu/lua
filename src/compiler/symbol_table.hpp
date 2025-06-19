@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "../common/types.hpp"
 #include "../vm/value.hpp"
@@ -88,17 +88,30 @@ namespace Lua {
             Scope* parent;                          // Parent scope pointer
             int level;                              // Scope nesting level
             int localCount;                         // Number of local variables
+            uint32_t magic;                         // Magic number for memory validation
+            
+            static constexpr uint32_t SCOPE_MAGIC = 0xDEADBEEF;
             
             Scope(Scope* parent = nullptr, int level = 0)
-                : parent(parent), level(level), localCount(0) {}
+                : parent(parent), level(level), localCount(0), magic(SCOPE_MAGIC) {}
+                
+            ~Scope() {
+                magic = 0; // Invalidate magic on destruction
+            }
+            
+            bool isValid() const {
+                return magic == SCOPE_MAGIC;
+            }
         };
 
     private:
         std::stack<UPtr<Scope>> scopes;
         Scope* currentScope;
         int globalScopeLevel;
+        int maxRecursionDepth;
 
     public:
+        static constexpr int DEFAULT_MAX_RECURSION_DEPTH = 250;
         ScopeManager();
         ~ScopeManager() = default;
 
@@ -130,6 +143,12 @@ namespace Lua {
         // Debug and utility
         void dumpScopes() const;
         void clear();
+        
+        // Safety and configuration
+        void setMaxRecursionDepth(int depth) { maxRecursionDepth = depth; }
+        int getMaxRecursionDepth() const { return maxRecursionDepth; }
+        bool validateCurrentScope() const;
+        void validateAllScopes() const;
     };
 
 } // namespace Lua

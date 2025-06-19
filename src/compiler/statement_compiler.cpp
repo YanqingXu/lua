@@ -2,6 +2,7 @@
 #include "compiler.hpp"
 #include "expression_compiler.hpp"
 #include "upvalue_analyzer.hpp"
+#include "symbol_table.hpp"
 #include "../common/opcodes.hpp"
 #include "../vm/value.hpp"
 #include <stdexcept>
@@ -422,11 +423,18 @@ namespace Lua {
     }
     
     void StatementCompiler::compileFunctionStmt(const FunctionStmt* stmt) {
+        // Check function nesting depth before proceeding
+        compiler->enterFunctionScope();
+        
         // Create a new compiler instance for the function body
         Compiler functionCompiler;
+        // Note: Do not inherit nesting depth - the parent compiler already tracks it
+        
+        // Create ScopeManager for upvalue analysis
+        ScopeManager scopeManager;
         
         // Analyze upvalues using UpvalueAnalyzer
-        UpvalueAnalyzer analyzer;
+        UpvalueAnalyzer analyzer(scopeManager);
         analyzer.analyzeFunction(stmt);
         const auto& upvalues = analyzer.getUpvalues();
         
@@ -488,5 +496,8 @@ namespace Lua {
         
         // Free closure register
         compiler->freeReg();
+        
+        // Exit function scope
+        compiler->exitFunctionScope();
     }
 }

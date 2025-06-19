@@ -38,6 +38,9 @@ namespace Lua {
         // Next available register
         int nextRegister;
         
+        // Function nesting depth tracking
+        int functionNestingDepth;
+        
         // Utility helper
         CompilerUtils utils;
         
@@ -106,9 +109,17 @@ namespace Lua {
         const Vec<Value>& getConstants() const { return constants; }
         const Vec<Local>& getLocals() const { return locals; }
         
+        // Function nesting depth management
+        void enterFunctionScope();
+        void exitFunctionScope();
+        int getFunctionNestingDepth() const { return functionNestingDepth; }
+        
     private:
         // Initialize compiler modules
         void initializeModules();
+        
+        // Check function nesting depth limit
+        void checkFunctionNestingDepth() const;
         
     };
 }

@@ -55,6 +55,17 @@
   - Boundary conditions
   - Error recovery mechanisms
 
+#### Boundary Condition Tests (`closure_boundary_test.hpp/.cpp`)
+- **Purpose**: Comprehensive boundary condition validation
+- **Test Class**: `ClosureBoundaryTest`
+- **Coverage**:
+  - Upvalue count limits (MAX_UPVALUES_PER_CLOSURE = 255)
+  - Function nesting depth limits (MAX_FUNCTION_NESTING_DEPTH = 200)
+  - Upvalue lifecycle boundaries
+  - Resource exhaustion handling (MAX_CLOSURE_MEMORY_SIZE = 1MB)
+  - Invalid upvalue index access protection
+  - Integration and stress testing
+
 ### Test Content
 
 #### ClosureTestSuite (Main Coordinator)
@@ -77,6 +88,33 @@ Advanced closure scenario tests:
 - Closures as parameters and return values
 - Complex nesting scenarios
 - Closure chaining and sharing
+
+#### ClosureBoundaryTests
+Comprehensive boundary condition tests:
+- **Upvalue Count Limits**: Tests for MAX_UPVALUES_PER_CLOSURE = 255
+  - Valid count scenarios (≤255)
+  - Excessive count detection (>255)
+  - Runtime validation
+- **Nesting Depth Limits**: Tests for MAX_FUNCTION_NESTING_DEPTH = 200
+  - Valid nesting scenarios (≤200)
+  - Deep nesting detection (>200)
+  - Exception-safe depth recovery
+- **Lifecycle Boundaries**: Upvalue lifecycle management
+  - State transition validation (Open/Closed)
+  - Destroyed upvalue access protection
+  - Safe access methods
+- **Resource Exhaustion**: Memory limit testing (MAX_CLOSURE_MEMORY_SIZE = 1MB)
+  - Memory usage estimation
+  - Large closure handling
+  - Allocation failure recovery
+- **Index Access Validation**: Upvalue index checking
+  - Valid index verification
+  - Invalid index protection
+  - Non-Lua function handling
+- **Integration Testing**: Combined boundary scenarios
+  - Stress testing
+  - Performance under boundaries
+  - Error recovery mechanisms
 
 #### ClosureMemoryTests
 Memory management and lifecycle tests:
@@ -173,6 +211,7 @@ ClosureAdvancedTests::runAllTests();
 ClosureMemoryTests::runAllTests();
 ClosurePerformanceTests::runAllTests();
 ClosureErrorTests::runAllTests();
+ClosureBoundaryTests::runAllTests();  // New boundary condition tests
 ```
 
 ## Performance Thresholds

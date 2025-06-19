@@ -10,6 +10,7 @@
 #include "closure_memory_test.hpp"
 #include "closure_performance_test.hpp"
 #include "closure_error_test.hpp"
+#include "closure_boundary_test.hpp"
 
 
 
@@ -31,8 +32,7 @@ public:
      * Executes the complete suite of closure tests by coordinating
      * the execution of all closure test modules including basic tests,
      * advanced tests, memory tests, performance tests, and error tests.
-     */
-    static void runAllTests() {
+     */    static void runAllTests() {
         // Run basic functionality tests
         RUN_TEST_SUITE(ClosureBasicTest);
 
@@ -47,11 +47,10 @@ public:
 
         // Run error handling tests
         RUN_TEST_SUITE(ClosureErrorTest);
-    }
 
-private:
-    static void setupTestEnvironment();
-    static void cleanupTestEnvironment();
+        // Run boundary condition tests
+        RUN_TEST_SUITE(ClosureBoundaryTest);
+    }
 };
 
 } // namespace Tests

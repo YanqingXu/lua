@@ -327,6 +327,9 @@
     <ClCompile Include="src\tests\formatting\test_formatter.cpp">
       <Filter>tests\formatting</Filter>
     </ClCompile>
+    <ClCompile Include="src\tests\vm\closure\closure_boundary_test.cpp">
+      <Filter>tests\vm\closure</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\compiler\compiler.hpp">
@@ -601,6 +604,9 @@
     </ClInclude>
     <ClInclude Include="src\tests\formatting\test_formatter.hpp">
       <Filter>tests\formatting</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tests\vm\closure\closure_boundary_test.hpp">
+      <Filter>tests\vm\closure</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

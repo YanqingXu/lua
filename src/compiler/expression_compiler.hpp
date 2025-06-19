@@ -26,6 +26,7 @@ namespace Lua {
         int compileTableConstructor(const TableExpr* expr);
         int compileIndexAccess(const IndexExpr* expr);
         int compileMemberAccess(const MemberExpr* expr);
+        int compileFunctionExpr(const FunctionExpr* expr);
         
     private:
         // Helper methods for different operation types
