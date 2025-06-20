@@ -286,7 +286,6 @@
     <ClCompile Include="src\tests\lib\math_lib_test.cpp" />
     <ClCompile Include="src\tests\lib\string_lib_test.cpp" />
     <ClCompile Include="src\tests\lib\table_lib_test.cpp" />
-    <ClCompile Include="src\tests\lib\test_lib.cpp" />
     <ClCompile Include="src\tests\localization\localization_test.cpp" />
     <ClCompile Include="src\tests\parser\expr\binary_expr_test.cpp" />
     <ClCompile Include="src\tests\parser\expr\test_expr.cpp" />

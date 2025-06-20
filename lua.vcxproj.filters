@@ -246,9 +246,6 @@
     <ClCompile Include="src\tests\lib\table_lib_test.cpp">
       <Filter>tests\lib</Filter>
     </ClCompile>
-    <ClCompile Include="src\tests\lib\test_lib.cpp">
-      <Filter>tests\lib</Filter>
-    </ClCompile>
     <ClCompile Include="src\lib\table_lib.cpp">
       <Filter>lib</Filter>
     </ClCompile>
