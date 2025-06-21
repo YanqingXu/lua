@@ -18,11 +18,7 @@ public:
      * 
      * Execute all test groups for symbol table functionality
      */
-    static void runAllTests() {
-        RUN_TEST_GROUP("Basic Symbol Table Operations", testBasicOperations);
-        RUN_TEST_GROUP("Scope Management", testScopeManagement);
-        RUN_TEST_GROUP("Symbol Resolution", testSymbolResolution);
-    }
+    static void runAllTests();
     
 private:
     static void testBasicOperations();
@@ -31,6 +27,16 @@ private:
     
     // Legacy test method - to be refactored
     static void testSymbolTable();
+    
+    // Detailed test methods
+    static void testBasicScopeOperations();
+    static void testNestedScopes();
+    static void testScopeManagerOperations();
+    static void testUpvalueManagement();
+    static void testSymbolLookup();
+    static void testSymbolShadowing();
+    static void testCrossScopeResolution();
+    static void testVariableTypes();
 };
 
 } // namespace Lua::Tests

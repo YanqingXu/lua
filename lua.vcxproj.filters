@@ -321,6 +321,18 @@
     <ClCompile Include="src\tests\compiler\compiler_conditional_test.cpp">
       <Filter>tests\compiler</Filter>
     </ClCompile>
+    <ClCompile Include="src\tests\compiler\compiler_literal_test.cpp">
+      <Filter>tests\compiler</Filter>
+    </ClCompile>
+    <ClCompile Include="src\tests\compiler\compiler_multi_return_test.cpp">
+      <Filter>tests\compiler</Filter>
+    </ClCompile>
+    <ClCompile Include="src\tests\compiler\compiler_symbol_table_test.cpp">
+      <Filter>tests\compiler</Filter>
+    </ClCompile>
+    <ClCompile Include="src\tests\compiler\compiler_variable_test.cpp">
+      <Filter>tests\compiler</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\compiler\compiler.hpp">
@@ -594,6 +606,18 @@
       <Filter>tests\compiler</Filter>
     </ClInclude>
     <ClInclude Include="src\tests\compiler\compiler_conditional_test.hpp">
+      <Filter>tests\compiler</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tests\compiler\compiler_literal_test.hpp">
+      <Filter>tests\compiler</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tests\compiler\compiler_multi_return_test.hpp">
+      <Filter>tests\compiler</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tests\compiler\compiler_symbol_table_test.hpp">
+      <Filter>tests\compiler</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tests\compiler\compiler_variable_test.hpp">
       <Filter>tests\compiler</Filter>
     </ClInclude>
   </ItemGroup>

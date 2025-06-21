@@ -1,9 +1,9 @@
 #pragma once
 
 #include "../test_utils.hpp"
-//#include "compiler_symbol_table_test.hpp"
+#include "compiler_symbol_table_test.hpp"
 //#include "compiler_literal_test.hpp"
-//#include "compiler_variable_test.hpp"
+#include "compiler_variable_test.hpp"
 //#include "compiler_binary_expression_test.hpp"
 //#include "compiler_conditional_test.hpp"
 #include "compiler_multi_return_test.hpp"
@@ -28,10 +28,10 @@ public:
     static void runAllTests() {
         //RUN_TEST_SUITE(CompilerSymbolTableTest);
         //RUN_TEST_SUITE(CompilerLiteralTest);
-        //RUN_TEST_SUITE(CompilerVariableTest);
+        RUN_TEST_SUITE(CompilerVariableTest);
         //RUN_TEST_SUITE(CompilerBinaryExpressionTest);
         //RUN_TEST_SUITE(CompilerConditionalTest);
-        RUN_TEST_SUITE(CompilerMultiReturnTest);
+        //RUN_TEST_SUITE(CompilerMultiReturnTest);
         
         // TODO: Add other test suites here when available
     }

@@ -182,6 +182,10 @@
     <ClInclude Include="src\parser\visitor.hpp" />
     <ClInclude Include="src\tests\compiler\compiler_binary_expression_test.hpp" />
     <ClInclude Include="src\tests\compiler\compiler_conditional_test.hpp" />
+    <ClInclude Include="src\tests\compiler\compiler_literal_test.hpp" />
+    <ClInclude Include="src\tests\compiler\compiler_multi_return_test.hpp" />
+    <ClInclude Include="src\tests\compiler\compiler_symbol_table_test.hpp" />
+    <ClInclude Include="src\tests\compiler\compiler_variable_test.hpp" />
     <ClInclude Include="src\tests\compiler\test_compiler.hpp" />
     <ClInclude Include="src\tests\formatting\format_strategies.hpp" />
     <ClInclude Include="src\tests\formatting\test_colors.hpp" />
@@ -268,6 +272,10 @@
     <ClCompile Include="src\parser\visitor.cpp" />
     <ClCompile Include="src\tests\compiler\compiler_binary_expression_test.cpp" />
     <ClCompile Include="src\tests\compiler\compiler_conditional_test.cpp" />
+    <ClCompile Include="src\tests\compiler\compiler_literal_test.cpp" />
+    <ClCompile Include="src\tests\compiler\compiler_multi_return_test.cpp" />
+    <ClCompile Include="src\tests\compiler\compiler_symbol_table_test.cpp" />
+    <ClCompile Include="src\tests\compiler\compiler_variable_test.cpp" />
     <ClCompile Include="src\tests\formatting\format_strategies.cpp" />
     <ClCompile Include="src\tests\formatting\test_colors.cpp" />
     <ClCompile Include="src\tests\formatting\test_config.cpp" />
