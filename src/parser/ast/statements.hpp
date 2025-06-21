@@ -133,15 +133,37 @@ namespace Lua {
     // Return statement
     class ReturnStmt : public Stmt {
     private:
-        UPtr<Expr> value; // Optional return value
+        Vec<UPtr<Expr>> values; // Return value list (supports multiple return values)
 
     public:
+        // Constructor for single return value (backward compatibility)
         ReturnStmt(UPtr<Expr> value = nullptr, const SourceLocation& location = SourceLocation())
-            : Stmt(location), value(std::move(value)) {
+            : Stmt(location) {
+            if (value) {
+                values.push_back(std::move(value));
+            }
+        }
+
+        // Constructor for multiple return values
+        ReturnStmt(Vec<UPtr<Expr>> values, const SourceLocation& location = SourceLocation())
+            : Stmt(location), values(std::move(values)) {
         }
 
         StmtType getType() const override { return StmtType::Return; }
-        const Expr* getValue() const { return value.get(); }
+        
+        // Get all return values
+        const Vec<UPtr<Expr>>& getValues() const { return values; }
+        
+        // Get single return value (for backward compatibility)
+        const Expr* getValue() const { 
+            return values.empty() ? nullptr : values[0].get(); 
+        }
+        
+        // Check if has return values
+        bool hasValues() const { return !values.empty(); }
+        
+        // Get number of return values
+        size_t getValueCount() const { return values.size(); }
     };
 
     // Break statement

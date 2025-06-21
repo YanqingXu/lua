@@ -16,28 +16,28 @@ namespace Lua {
         // Initialize stack space
         stack.resize(LUAI_MAXSTACK);
     }
-    
+
     State::~State() {
         // Clean up resources
     }
-    
+
     void State::push(const Value& value) {
         if (top >= LUAI_MAXSTACK) {
             throw LuaException("stack overflow");
         }
         stack[top++] = value;
     }
-    
+
     Value State::pop() {
         if (top <= 0) {
             throw LuaException("stack underflow");
         }
         return stack[--top];
     }
-    
+
     Value& State::get(int idx) {
         static Value nil;  // Static nil value for invalid index returns
-        
+
         // Handle absolute and relative indices
         int abs_idx;
         if (idx > 0) {
@@ -48,15 +48,15 @@ namespace Lua {
             // Index 0 is invalid
             return nil;
         }
-        
+
         // Check if index is within range
         if (abs_idx < 0 || abs_idx >= top) {
             return nil;
         }
-        
+
         return stack[abs_idx];
     }
-    
+
     void State::set(int idx, const Value& value) {
         // Handle absolute and relative indices
         int abs_idx;
@@ -68,7 +68,7 @@ namespace Lua {
             // Index 0 is invalid
             return;
         }
-        
+
         // Automatically extend stack to accommodate new index
         if (abs_idx < 0) {
             return; // invalid
@@ -82,69 +82,69 @@ namespace Lua {
         }
         stack[abs_idx] = value;
     }
-    
+
     // Type checking functions
     bool State::isNil(int idx) const {
         if (idx <= 0 || idx > top) return true;
         return stack[idx - 1].isNil();
     }
-    
+
     bool State::isBoolean(int idx) const {
         if (idx <= 0 || idx > top) return false;
         return stack[idx - 1].isBoolean();
     }
-    
+
     bool State::isNumber(int idx) const {
         if (idx <= 0 || idx > top) return false;
         return stack[idx - 1].isNumber();
     }
-    
+
     bool State::isString(int idx) const {
         if (idx <= 0 || idx > top) return false;
         return stack[idx - 1].isString();
     }
-    
+
     bool State::isTable(int idx) const {
         if (idx <= 0 || idx > top) return false;
         return stack[idx - 1].isTable();
     }
-    
+
     bool State::isFunction(int idx) const {
         if (idx <= 0 || idx > top) return false;
         return stack[idx - 1].isFunction();
     }
-    
+
     // Type conversion functions
     LuaBoolean State::toBoolean(int idx) const {
         if (idx <= 0 || idx > top) return false;
         return stack[idx - 1].asBoolean();
     }
-    
+
     LuaNumber State::toNumber(int idx) const {
         if (idx <= 0 || idx > top) return 0.0;
         return stack[idx - 1].asNumber();
     }
-    
+
     Str State::toString(int idx) const {
         if (idx <= 0 || idx > top) return "";
         return stack[idx - 1].toString();
     }
-    
+
     GCRef<Table> State::toTable(int idx) {
         if (idx <= 0 || idx > top) return nullptr;
         return stack[idx - 1].asTable();
     }
-    
+
     GCRef<Function> State::toFunction(int idx) {
         if (idx <= 0 || idx > top) return nullptr;
         return stack[idx - 1].asFunction();
     }
-    
+
     // Global variable operations
     void State::setGlobal(const Str& name, const Value& value) {
         globals[name] = value;
     }
-    
+
     Value State::getGlobal(const Str& name) {
         auto it = globals.find(name);
         if (it != globals.end()) {
@@ -152,56 +152,56 @@ namespace Lua {
         }
         return Value(nullptr);  // nil
     }
-    
+
     // Function call
     Value State::call(const Value& func, const Vec<Value>& args) {
         if (!func.isFunction()) {
             throw LuaException("attempt to call a non-function value");
         }
-        
+
         auto function = func.asFunction();
-        
+
         // Native function call
         if (function->getType() == Function::Type::Native) {
             auto nativeFn = function->getNative();
             if (!nativeFn) {
                 throw LuaException("attempt to call a nil value");
             }
-            
+
             // Save current stack top
             int oldTop = top;
-            
+
             // Push arguments onto stack
-            for (const auto& arg : args) {
-                push(arg);
+            for (size_t i = 0; i < args.size(); ++i) {
+                push(args[i]);
             }
-            
+
             // Call function
             Value result = nativeFn(this, static_cast<int>(args.size()));
-            
+
             // Restore stack top
             top = oldTop;
-            
+
             return result;
         }
-        
+
         // For Lua function calls, use VM to execute
         try {
             // Save current state
             int oldTop = top;
-            
+
             // Push arguments onto stack
             for (const auto& arg : args) {
                 push(arg);
             }
-            
+
             // Create VM instance and execute function
             VM vm(this);
             Value result = vm.execute(function);
-            
-            // Restore stack top
+
+            // Restore stack top after VM execution
             top = oldTop;
-            
+
             return result;
         } catch (const LuaException& e) {
             // For testing purposes, if function contains error, return nil
@@ -210,31 +210,31 @@ namespace Lua {
             return Value(nullptr);
         }
     }
-    
+
     // Execute Lua code from string
     bool State::doString(const Str& code) {
         try {
             // 1. Parse code using our parser
             Parser parser(code);
             auto statements = parser.parse();
-            
+
             // Check if there are errors in parsing phase
             if (parser.hasError()) {
                 return false;
             }
-            
+
             // 2. Generate bytecode using compiler
             Compiler compiler;
             GCRef<Function> function = compiler.compile(statements);
-            
+
             if (!function) {
                 return false;
             }
-            
+
             // 3. Execute bytecode using virtual machine
             VM vm(this);
             Value result = vm.execute(function);  // Get return value but don't use it for doString
-            
+
             return true;
         } catch (const LuaException& e) {
             // Can handle or log errors here
@@ -246,7 +246,7 @@ namespace Lua {
             return false;
         }
     }
-    
+
     // Load and execute Lua code from file
     bool State::doFile(const Str& filename) {
         try {
@@ -255,14 +255,14 @@ namespace Lua {
             if (!file.is_open()) {
                 return false;
             }
-            
+
             // 2. Read file content to string
             std::stringstream buffer;
             buffer << file.rdbuf();
-            
+
             // 3. Close file
             file.close();
-            
+
             // 4. Call doString to execute the string
             return doString(buffer.str());
         } catch (const std::exception& e) {
@@ -271,24 +271,24 @@ namespace Lua {
             return false;
         }
     }
-    
+
     // GCObject virtual function implementations
     void State::markReferences(GarbageCollector* gc) {
         // Mark all values on the stack
         for (const Value& value : stack) {
             value.markReferences(gc);
         }
-        
+
         // Mark all global variables
         for (const auto& pair : globals) {
             pair.second.markReferences(gc);
         }
     }
-    
+
     usize State::getSize() const {
         return sizeof(State);
     }
-    
+
     usize State::getAdditionalSize() const {
         // Calculate additional memory used by vectors and maps
         usize stackSize = stack.capacity() * sizeof(Value);

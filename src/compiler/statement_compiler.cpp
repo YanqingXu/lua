@@ -186,7 +186,7 @@ namespace Lua {
             } else {
                 // Global variable assignment
                 int nameIdx = compiler->addConstant(Value(name));
-                compiler->emitInstruction(Instruction::createSETGLOBAL(valueReg, nameIdx));
+                compiler->emitInstruction(Instruction::createSETGLOBAL(valueReg - 1, nameIdx));
             }
         }
         // TODO: Handle table assignments (IndexAccessExpr, MemberAccessExpr)
@@ -399,20 +399,50 @@ namespace Lua {
     }
     
     void StatementCompiler::compileReturnStmt(const ReturnStmt* stmt) {
-        const auto* value = stmt->getValue();
+        const auto& values = stmt->getValues();
         
-        if (value == nullptr) {
-            // Return nil
+        if (values.empty()) {
+            // Return nil (no values)
             compiler->emitInstruction(Instruction::createRETURN(0, 0));
-        } else {
-            // Compile return value
-            int reg = compiler->getExpressionCompiler()->compileExpr(value);
+        } else if (values.size() == 1) {
+            // Single return value (backward compatibility)
+            int reg = compiler->getExpressionCompiler()->compileExpr(values[0].get());
             
-            // Emit return instruction
-            compiler->emitInstruction(Instruction::createRETURN(reg, 1));
+            // Emit return instruction (B=2 means return 1 value)
+            // A parameter should be reg-1 because VM registers are 1-based but instruction A is 0-based
+            compiler->emitInstruction(Instruction::createRETURN(reg - 1, 2));
             
             // Free value register
             compiler->freeReg();
+        } else {
+            // Multiple return values
+            Vec<int> valueRegs;
+            
+            // Compile all return expressions
+            for (const auto& value : values) {
+                int reg = compiler->getExpressionCompiler()->compileExpr(value.get());
+                valueRegs.push_back(reg);
+            }
+            
+            // For multiple return values, we need to ensure they are in consecutive registers
+            // starting from the first allocated register
+            int startReg = valueRegs.empty() ? 0 : valueRegs[0];
+            
+            // Move values to consecutive registers if needed
+            for (size_t i = 1; i < valueRegs.size(); ++i) {
+                if (valueRegs[i] != startReg + static_cast<int>(i)) {
+                    compiler->emitInstruction(Instruction::createMOVE(startReg + static_cast<int>(i), valueRegs[i]));
+                }
+            }
+            
+            // Emit return instruction (B = number of values + 1)
+            // A parameter should be startReg-1 because VM registers are 1-based but instruction A is 0-based
+            compiler->emitInstruction(Instruction::createRETURN(startReg - 1, static_cast<u8>(values.size() + 1)));
+            
+            // Free all value registers
+            for (size_t i = 0; i < valueRegs.size(); ++i) {
+                compiler->freeReg();
+            }
         }
     }
     

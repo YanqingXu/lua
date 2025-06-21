@@ -363,7 +363,7 @@ namespace Lua {
         /**
          * 注册静态插件工厂
          */
-        void registerFactory(StrView name, UPtr<IPluginFactory> factory);
+        void registerFactory(StrView name, IPluginFactory* factory);
         
     private:
         // 核心组件

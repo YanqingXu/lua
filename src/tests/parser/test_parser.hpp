@@ -2,6 +2,7 @@
 
 // Include all parser test headers
 #include "expr/test_expr.hpp"
+#include "stmt/test_stmt.hpp"
 
 namespace Lua {
 namespace Tests {
@@ -41,8 +42,10 @@ public:
         // Run expression parsing test suite
         RUN_TEST_SUITE(ExprTestSuite);
         
+        // Run statement parsing test suite
+        RUN_TEST_SUITE(StmtTestSuite);
+        
         // TODO: Add other parser test suites as they are implemented
-        // RUN_TEST_SUITE(StmtTestSuite);
         // RUN_TEST_SUITE(FuncTestSuite);
         // RUN_TEST_SUITE(ControlTestSuite);
     }

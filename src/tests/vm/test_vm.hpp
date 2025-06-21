@@ -5,6 +5,8 @@
 #include "state_test.hpp"
 #include "closure/test_closure.hpp"
 #include "../test_utils.hpp"
+//#include "closure/test_closure.hpp"
+#include "state/test_state.hpp"
 
 namespace Lua {
 namespace Tests {
@@ -25,7 +27,8 @@ public:
      * Tests are run from basic value types to complex state management.
      */
     static void runAllTests() {
-		RUN_TEST_MODULE("Closure Module", ClosureTestSuite);
+      RUN_TEST_MODULE("State Module", StateTestSuite);
+      //RUN_TEST_MODULE("Closure Module", ClosureTestSuite);
     }
 };
 

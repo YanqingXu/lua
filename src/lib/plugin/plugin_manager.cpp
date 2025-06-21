@@ -1097,9 +1097,9 @@ void PluginManager::logError(StrView message) const {
 
 // === 静态插件注册 ===
 
-void PluginManager::registerFactory(StrView name, UPtr<IPluginFactory> factory) {
-    StaticPluginRegistry::registerFactory(name, factory.release());
-    logInfo("Registered static plugin factory: " + Str(name));
-}
+//void PluginManager::registerFactory(StrView name, UPtr<IPluginFactory> factory) {
+//    StaticPluginRegistry::registerFactory(name, factory.release());
+//    logInfo("Registered static plugin factory: " + Str(name));
+//}
 
 } // namespace Lua

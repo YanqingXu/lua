@@ -207,8 +207,9 @@ namespace Lua {
         }
         
         void visitReturnStmt(const ReturnStmt* stmt) override {
-            if (stmt->getValue()) {
-                visit(stmt->getValue());
+            // Visit all return values
+            for (const auto& value : stmt->getValues()) {
+                visit(value.get());
             }
         }
         
@@ -339,8 +340,14 @@ namespace Lua {
         
         Str visitReturnStmt(const ReturnStmt* stmt) override {
             Str result = getIndent() + "Return";
-            if (stmt->getValue()) {
-                result += "(" + visit(stmt->getValue()) + ")";
+            if (stmt->hasValues()) {
+                result += "(";
+                const auto& values = stmt->getValues();
+                for (size_t i = 0; i < values.size(); ++i) {
+                    if (i > 0) result += ", ";
+                    result += visit(values[i].get());
+                }
+                result += ")";
             }
             return result;
         }

@@ -190,28 +190,49 @@ namespace Lua {
         // Compile function expression
         int funcReg = compileExpr(expr->getCallee());
         
-        // Compile arguments
+        // Allocate a new register for the call base
+        int callBase = compiler->allocReg();
+        
+        // Move function to callBase + 1
+        compiler->emitInstruction(Instruction::createMOVE(callBase + 1, funcReg));
+        
+        // Compile arguments and place them after function
         const auto& args = expr->getArguments();
         Vec<int> argRegs;
         
-        for (const auto& arg : args) {
-            int argReg = compileExpr(arg.get());
+        for (size_t i = 0; i < args.size(); ++i) {
+            int argReg = compileExpr(args[i].get());
             argRegs.push_back(argReg);
+            // Move argument to position after function register
+            int targetReg = callBase + 2 + static_cast<int>(i);
+            if (argReg != targetReg) {
+                compiler->emitInstruction(Instruction::createMOVE(targetReg, argReg));
+            }
         }
         
         // Emit call instruction
-        int resultReg = compiler->allocReg();
-        compiler->emitInstruction(Instruction::createCALL(funcReg, 
-            static_cast<int>(args.size()), 1));
+        // VM expects: function at register a+1, args at a+2, a+3, etc.
+        // Function is at callBase+1, args at callBase+2, callBase+3, etc.
+        // So we use callBase as 'a' parameter
+        compiler->emitInstruction(Instruction::createCALL(callBase, 
+            static_cast<int>(args.size()) + 1, 1));
         
-        // Move result to result register
-        compiler->emitInstruction(Instruction::createMOVE(resultReg, funcReg));
+        // Result will be in callBase+1, move it to funcReg
+        // MOVE instruction: createMOVE(target_a, source_b) -> moves from b+1 to a+1
+        // So to move from callBase+1 to funcReg, we need createMOVE(funcReg, callBase)
+        compiler->emitInstruction(Instruction::createMOVE(funcReg, callBase));
+        std::cout << "Compiler: Generated MOVE from register " << (callBase + 1) << " to register " << (funcReg + 1) << std::endl;
+        
+        // Free the call base register
+        compiler->freeReg();
+        
+        // Function register now contains the result
+        int resultReg = funcReg;
         
         // Free argument registers
         for (size_t i = 0; i < argRegs.size(); ++i) {
             compiler->freeReg();
         }
-        compiler->freeReg(); // Free function register
         
         return resultReg;
     }

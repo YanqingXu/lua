@@ -52,7 +52,15 @@ namespace Lua {
         int getTop() const { return top; }
         
         // Set stack size (for clearing stack)
-        void setTop(int newTop) { top = newTop; }
+        void setTop(int newTop) {
+            if (newTop > top) {
+                // Fill new positions with nil when increasing stack size
+                for (int i = top; i < newTop; i++) {
+                    stack[i] = Value();  // Default Value constructor creates nil
+                }
+            }
+            top = newTop;
+        }
         void clearStack() { top = 0; }
         
         // Call function

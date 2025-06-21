@@ -111,6 +111,7 @@
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp23</LanguageStandard>
       <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -179,13 +180,9 @@
     <ClInclude Include="src\parser\ast\statements.hpp" />
     <ClInclude Include="src\parser\parser.hpp" />
     <ClInclude Include="src\parser\visitor.hpp" />
-    <ClInclude Include="src\tests\compiler\binary_expression_test.hpp" />
-    <ClInclude Include="src\tests\compiler\conditional_compilation_test.hpp" />
-    <ClInclude Include="src\tests\compiler\expression_compiler_test.hpp" />
-    <ClInclude Include="src\tests\compiler\literal_compiler_test.hpp" />
-    <ClInclude Include="src\tests\compiler\symbol_table_test.hpp" />
+    <ClInclude Include="src\tests\compiler\compiler_binary_expression_test.hpp" />
+    <ClInclude Include="src\tests\compiler\compiler_conditional_test.hpp" />
     <ClInclude Include="src\tests\compiler\test_compiler.hpp" />
-    <ClInclude Include="src\tests\compiler\variable_compiler_test.hpp" />
     <ClInclude Include="src\tests\formatting\format_strategies.hpp" />
     <ClInclude Include="src\tests\formatting\test_colors.hpp" />
     <ClInclude Include="src\tests\formatting\test_config.hpp" />
@@ -205,7 +202,6 @@
     <ClInclude Include="src\tests\parser\expr\binary_expr_test.hpp" />
     <ClInclude Include="src\tests\parser\expr\test_expr.hpp" />
     <ClInclude Include="src\tests\parser\test_parser.hpp" />
-    <ClInclude Include="src\tests\plugin\plugin_integration_test.hpp" />
     <ClInclude Include="src\tests\test_main.hpp" />
     <ClInclude Include="src\tests\test_utils.hpp" />
     <ClInclude Include="src\tests\vm\closure\closure_advanced_test.hpp" />
@@ -215,6 +211,10 @@
     <ClInclude Include="src\tests\vm\closure\closure_memory_test.hpp" />
     <ClInclude Include="src\tests\vm\closure\closure_performance_test.hpp" />
     <ClInclude Include="src\tests\vm\closure\test_closure.hpp" />
+    <ClInclude Include="src\tests\vm\state\state_basic_test.hpp" />
+    <ClInclude Include="src\tests\vm\state\state_function_test.hpp" />
+    <ClInclude Include="src\tests\vm\state\state_stack_test.hpp" />
+    <ClInclude Include="src\tests\vm\state\test_state.hpp" />
     <ClInclude Include="src\tests\vm\state_test.hpp" />
     <ClInclude Include="src\tests\vm\test_vm.hpp" />
     <ClInclude Include="src\tests\vm\value_test.hpp" />
@@ -266,13 +266,8 @@
     <ClCompile Include="src\parser\parser_utils.cpp" />
     <ClCompile Include="src\parser\statement_parser.cpp" />
     <ClCompile Include="src\parser\visitor.cpp" />
-    <ClCompile Include="src\tests\compiler\binary_expression_test.cpp" />
-    <ClCompile Include="src\tests\compiler\conditional_compilation_test.cpp" />
-    <ClCompile Include="src\tests\compiler\expression_compiler_test.cpp" />
-    <ClCompile Include="src\tests\compiler\literal_compiler_test.cpp" />
-    <ClCompile Include="src\tests\compiler\symbol_table_test.cpp" />
-    <ClCompile Include="src\tests\compiler\test_compiler.cpp" />
-    <ClCompile Include="src\tests\compiler\variable_compiler_test.cpp" />
+    <ClCompile Include="src\tests\compiler\compiler_binary_expression_test.cpp" />
+    <ClCompile Include="src\tests\compiler\compiler_conditional_test.cpp" />
     <ClCompile Include="src\tests\formatting\format_strategies.cpp" />
     <ClCompile Include="src\tests\formatting\test_colors.cpp" />
     <ClCompile Include="src\tests\formatting\test_config.cpp" />
@@ -289,13 +284,15 @@
     <ClCompile Include="src\tests\localization\localization_test.cpp" />
     <ClCompile Include="src\tests\parser\expr\binary_expr_test.cpp" />
     <ClCompile Include="src\tests\parser\expr\test_expr.cpp" />
-    <ClCompile Include="src\tests\plugin\plugin_integration_test.cpp" />
     <ClCompile Include="src\tests\vm\closure\closure_advanced_test.cpp" />
     <ClCompile Include="src\tests\vm\closure\closure_basic_test.cpp" />
     <ClCompile Include="src\tests\vm\closure\closure_boundary_test.cpp" />
     <ClCompile Include="src\tests\vm\closure\closure_error_test.cpp" />
     <ClCompile Include="src\tests\vm\closure\closure_memory_test.cpp" />
     <ClCompile Include="src\tests\vm\closure\closure_performance_test.cpp" />
+    <ClCompile Include="src\tests\vm\state\state_basic_test.cpp" />
+    <ClCompile Include="src\tests\vm\state\state_function_test.cpp" />
+    <ClCompile Include="src\tests\vm\state\state_stack_test.cpp" />
     <ClCompile Include="src\tests\vm\state_test.cpp" />
     <ClCompile Include="src\tests\vm\value_test.cpp" />
     <ClCompile Include="src\vm\function.cpp" />

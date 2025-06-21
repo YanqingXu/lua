@@ -18,6 +18,7 @@ namespace Lua {
         pc(0),
         callDepth(0),
         openUpvalues(nullptr) {
+        std::cerr << "VM constructor - stack top: " << state->getTop() << std::endl;
     }
     
     Value VM::execute(GCRef<Function> function) {
@@ -25,35 +26,38 @@ namespace Lua {
             throw LuaException("Cannot execute non-Lua function");
         }
         
-        // Boundary check: Function nesting depth
-        if (callDepth >= MAX_FUNCTION_NESTING_DEPTH) {
-            throw LuaException(ERR_NESTING_TOO_DEEP);
-        }
-        
-        // Increment call depth
-        ++callDepth;
-        
-        // Save current context
-        auto oldFunction = currentFunction;
-        auto oldCode = code;
-        auto oldConstants = constants;
-        auto oldPC = pc;
-        auto oldCallDepth = callDepth - 1;
-        
-        // Set new context
+        // Set current function
         currentFunction = function;
         
-        // Get function bytecode and constant table
-        const auto& functionCode = function->getCode();
-        code = const_cast<Vec<Instruction>*>(&functionCode);
+        // Get code and constants
+        code = const_cast<Vec<Instruction>*>(&function->getCode());
+        constants = const_cast<Vec<Value>*>(&function->getConstants());
         
-        const auto& functionConstants = function->getConstants();
-        constants = const_cast<Vec<Value>*>(&functionConstants);
-        
+        // Initialize program counter
         pc = 0;
         
-        // Clear call frame upvalues for new execution
-        callFrameUpvalues.clear();
+        std::cerr << "VM::execute - stackTop: " << state->getTop() << std::endl;
+        for (int i = 0; i < state->getTop(); ++i) {
+            std::cerr << "Stack[" << i << "] type: " << (int)state->get(i + 1).type() << std::endl;
+        }
+        
+        // Copy function arguments from stack to registers
+        // Arguments are the last N values on stack (pushed by State::call)
+        // We need to identify which values are actual function arguments
+        int stackSize = state->getTop();
+        int expectedArgs = function->getParamCount();
+        
+        // Arguments are the last 'expectedArgs' values on the stack
+        for (int i = 0; i < expectedArgs && i < stackSize; ++i) {
+            // Get argument from the end of stack (most recent pushes)
+            int stackPos = stackSize - expectedArgs + i + 1;  // +1 for 1-based indexing
+            Value arg = state->get(stackPos);
+            state->set(i + 1, arg);  // Set to register (parameters start at register 0)
+            std::cerr << "Setting register " << i << " to arg from stack[" << (stackPos-1) << "] type " << (int)arg.type() << std::endl;
+        }
+        
+        // Keep arguments on stack - don't clear it as other instructions may need stack access
+        std::cerr << "VM::execute - keeping " << state->getTop() << " arguments on stack" << std::endl;
         
         Value result = Value(nullptr);  // Default return value is nil
         
@@ -71,32 +75,8 @@ namespace Lua {
             }
         } catch (const std::exception& e) {
             std::cerr << "VM execution error: " << e.what() << std::endl;
-
-            // Close upvalues and clean up before restoring context
-            closeAllUpvalues();
-            callFrameUpvalues.clear();
-            
-            // Restore old context
-            currentFunction = oldFunction;
-            code = oldCode;
-            constants = oldConstants;
-            pc = oldPC;
-            callDepth = oldCallDepth;
-            
-            // Re-throw exception
             throw;
         }
-        
-        // Close upvalues when function execution ends
-        closeAllUpvalues();
-        callFrameUpvalues.clear();
-        
-        // Restore old context
-        currentFunction = oldFunction;
-        code = oldCode;
-        constants = oldConstants;
-        pc = oldPC;
-        callDepth = oldCallDepth;
         
         return result;
     }
@@ -107,6 +87,12 @@ namespace Lua {
         
         // Dispatch based on opcode
         OpCode op = i.getOpCode();
+        
+        // Debug output for instruction execution
+        std::cerr << "Executing instruction: " << static_cast<int>(op) 
+                  << " A=" << (int)i.getA() 
+                  << " B=" << (int)i.getB() 
+                  << " C=" << (int)i.getC() << std::endl;
         
         switch (op) {
             case OpCode::MOVE:
@@ -194,7 +180,20 @@ namespace Lua {
         u8 a = i.getA();
         u8 b = i.getB();
         
-        state->set(a + 1, state->get(b + 1));
+        Value val = state->get(b + 1);
+        state->set(a + 1, val);
+        
+        std::cerr << "MOVE: from register " << (int)(b+1) << " to register " << (int)(a+1) << ", value: ";
+        if (val.isNil()) {
+            std::cerr << "nil";
+        } else if (val.isNumber()) {
+            std::cerr << val.asNumber();
+        } else if (val.isString()) {
+            std::cerr << "\"" << val.asString() << "\"";
+        } else {
+            std::cerr << "type " << (int)val.type();
+        }
+        std::cerr << std::endl;
     }
     
     void VM::op_loadk(Instruction i) {
@@ -234,7 +233,9 @@ namespace Lua {
             throw LuaException("Global name must be a string");
         }
         
-        state->set(a + 1, state->getGlobal(key.asString()));
+        Value globalValue = state->getGlobal(key.asString());
+        
+        state->set(a + 1, globalValue);
     }
     
     void VM::op_setglobal(Instruction i) {
@@ -246,7 +247,20 @@ namespace Lua {
             throw LuaException("Global name must be a string");
         }
         
-        state->setGlobal(key.asString(), state->get(a + 1));
+        Value val = state->get(a + 1);
+        state->setGlobal(key.asString(), val);
+        
+        std::cerr << "SETGLOBAL: setting global '" << key.asString() << "' from register " << (int)(a+1) << ", value: ";
+        if (val.isNil()) {
+            std::cerr << "nil";
+        } else if (val.isNumber()) {
+            std::cerr << val.asNumber();
+        } else if (val.isString()) {
+            std::cerr << "\"" << val.asString() << "\"";
+        } else {
+            std::cerr << "type " << (int)val.type();
+        }
+        std::cerr << std::endl;
     }
     
     void VM::op_newtable(Instruction i) {
@@ -296,10 +310,15 @@ namespace Lua {
         Value bval = state->get(b + 1);
         Value cval = state->get(c + 1);
         
+        std::cerr << "MUL: a=" << (int)a << " b=" << (int)b << " c=" << (int)c << std::endl;
+        std::cerr << "MUL: bval=" << bval.asNumber() << " cval=" << cval.asNumber() << std::endl;
+        
         if (bval.isNumber() && cval.isNumber()) {
             LuaNumber bn = bval.asNumber();
             LuaNumber cn = cval.asNumber();
-            state->set(a + 1, Value(bn * cn));
+            LuaNumber result = bn * cn;
+            state->set(a + 1, Value(result));
+            std::cerr << "MUL: result=" << result << " stored in register " << (int)(a + 1) << std::endl;
         } else {
             throw LuaException("attempt to perform arithmetic on non-number values");
         }
@@ -445,13 +464,34 @@ namespace Lua {
         try {
             Value result = state->call(func, args);
             
-            // Put result in register a
-            state->set(a + 1, result);
+            // Handle return values based on expected count (c parameter)
+            int expectedReturns = (c == 0) ? -1 : (c - 1);  // -1 means all returns needed
             
-            // Clean up extra stack space (simplified handling)
-            if (state->getTop() > a + 1) {
-                // Keep one return value
-                for (int i = state->getTop(); i > a + 1; --i) {
+            if (expectedReturns == 0) {
+                // No return values expected, just clean up
+                std::cerr << "CALL: no return values expected" << std::endl;
+            } else if (expectedReturns == 1 || expectedReturns == -1) {
+                // Single return value or all returns (simplified to single for now)
+                state->set(a + 1, result);
+                std::cerr << "CALL: storing result type " << (int)result.type() << " in register " << (a+1) << std::endl;
+            } else {
+                // Multiple return values expected
+                // For now, we only handle single return value from state->call
+                // In a full implementation, state->call would need to return multiple values
+                state->set(a + 1, result);
+                
+                // Fill remaining expected slots with nil
+                for (int i = 1; i < expectedReturns; ++i) {
+                    state->set(a + 1 + i, Value(nullptr));
+                }
+                
+                std::cerr << "CALL: storing " << expectedReturns << " return values (padded with nil)" << std::endl;
+            }
+            
+            // Clean up extra stack space
+            if (state->getTop() > a + 1 + std::max(1, expectedReturns)) {
+                int targetTop = a + 1 + std::max(1, expectedReturns);
+                for (int i = state->getTop(); i > targetTop; --i) {
                     state->pop();
                 }
             }
@@ -466,26 +506,33 @@ namespace Lua {
         u8 b = i.getB();
         
         // b-1 is the number of values to return, if b=0, return all values from a to top
-        // Simplified handling: we currently only support returning at most one value
-        if (b == 0 || b > 1) {
+        if (b == 0) {
             // Return all values from register a to top
-            // For now, just return the value in register a
-            if (a < state->getTop()) {
-                Value returnValue = state->get(a + 1);  // Get value from register a (1-indexed)
-                state->push(returnValue);  // Push return value to stack top
+            // Calculate how many values to return
+            int numValues = state->getTop() - a;
+            if (numValues <= 0) {
+                // No values to return, push nil
+                state->push(Value(nullptr));
+                std::cerr << "RETURN: returning nil (no values from a to top)" << std::endl;
             } else {
-                state->push(Value(nullptr));  // Push nil if register is invalid
+                // Return all values from register a onwards
+                for (int i = 0; i < numValues; ++i) {
+                    Value returnValue = state->get(a + 1 + i);
+                    state->push(returnValue);
+                    std::cerr << "RETURN: returning value " << i << " from register " << (a + 1 + i) << " (get(" << (a + 1 + i) << ")) type " << (int)returnValue.type() << std::endl;
+                }
             }
         } else if (b == 1) {
             // No return values, push nil
             state->push(Value(nullptr));
+            std::cerr << "RETURN: returning nil (no values)" << std::endl;
         } else {
-            // Return exactly b-1 values, for now just handle single value
-            if (a < state->getTop()) {
-                Value returnValue = state->get(a + 1);  // Get value from register a (1-indexed)
+            // Return exactly b-1 values
+            int numValues = b - 1;
+            for (int i = 0; i < numValues; ++i) {
+                Value returnValue = state->get(a + 1 + i);  // Get value from register a+i
                 state->push(returnValue);  // Push return value to stack top
-            } else {
-                state->push(Value(nullptr));  // Push nil if register is invalid
+                std::cerr << "RETURN: returning value " << i << " from register " << (a + 1 + i) << " (get(" << (a + 1 + i) << ")) type " << (int)returnValue.type() << std::endl;
             }
         }
     }
@@ -496,33 +543,18 @@ namespace Lua {
         
         // Get function prototype from current function's prototypes
         if (!currentFunction || currentFunction->getType() != Function::Type::Lua) {
-            // For simplified VM, create a dummy function
-            GCRef<Function> dummyFunction = Function::createNative([](State* state, int nargs) -> Value {
-                return Value(); // Return nil
-            });
-            state->set(a + 1, Value(dummyFunction));
-            return;
+            throw LuaException("CLOSURE instruction outside Lua function");
         }
         
         // Get the prototype from the current function's prototype list
         const Vec<GCRef<Function>>& prototypes = currentFunction->getPrototypes();
         if (bx >= prototypes.size()) {
-            // For simplified VM, create a dummy function instead of throwing
-            GCRef<Function> dummyFunction = Function::createNative([](State* state, int nargs) -> Value {
-                return Value(); // Return nil
-            });
-            state->set(a + 1, Value(dummyFunction));
-            return;
+            throw LuaException("Invalid prototype index in CLOSURE instruction");
         }
         
         GCRef<Function> prototype = prototypes[bx];
         if (!prototype) {
-            // For simplified VM, create a dummy function instead of throwing
-            GCRef<Function> dummyFunction = Function::createNative([](State* state, int nargs) -> Value {
-                return Value(); // Return nil
-            });
-            state->set(a + 1, Value(dummyFunction));
-            return;
+            throw LuaException("Null prototype in CLOSURE instruction");
         }
         
         // Boundary check 1: Upvalue count limit

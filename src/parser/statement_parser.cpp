@@ -128,16 +128,32 @@ namespace Lua {
     }
 
     UPtr<Stmt> Parser::returnStatement() {
-        UPtr<Expr> value = nullptr;
+        Vec<UPtr<Expr>> values;
 
-        // check if there is a value to return
+        // check if there are values to return
         if (!check(TokenType::End) && !check(TokenType::Else) &&
             !check(TokenType::Semicolon) && !isAtEnd()) {
-            value = expression();
+            // Parse first expression
+            values.push_back(expression());
+            
+            // Parse additional expressions separated by commas
+            while (match(TokenType::Comma)) {
+                values.push_back(expression());
+            }
         }
 
         match(TokenType::Semicolon);
-        return std::make_unique<ReturnStmt>(std::move(value));
+        
+        // Use appropriate constructor based on number of values
+        if (values.empty()) {
+            return std::make_unique<ReturnStmt>();
+        } else if (values.size() == 1) {
+            // Use single-value constructor for backward compatibility
+            return std::make_unique<ReturnStmt>(std::move(values[0]));
+        } else {
+            // Use multi-value constructor
+            return std::make_unique<ReturnStmt>(std::move(values));
+        }
     }
 
     UPtr<Stmt> Parser::breakStatement() {

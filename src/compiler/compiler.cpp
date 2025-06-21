@@ -88,11 +88,13 @@ namespace Lua {
                 stmtCompiler->compileStmt(stmt.get());
             }
             
-            // Add return instruction
-            emitInstruction(Instruction::createRETURN(0, 0));
+            // Add return instruction for main chunk
+            // Main chunk should return nil without affecting global variables
+            emitInstruction(Instruction::createRETURN(0, 1));
             
-            // Create function object
-            return Function::createLua(code, constants, {});
+            // Create function object with proper parameters
+            // Main function has 0 parameters and includes all nested function prototypes
+            return Function::createLua(code, constants, prototypes, 0);
         } catch (const LuaException& e) {
             // Compilation error, return nullptr
             CompilerUtils::reportCompilerError(e.what());

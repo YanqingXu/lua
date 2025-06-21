@@ -97,6 +97,9 @@
     <Filter Include="tests\formatting">
       <UniqueIdentifier>{e0416218-a6f7-41d9-af98-1c1e49d581cc}</UniqueIdentifier>
     </Filter>
+    <Filter Include="tests\vm\state">
+      <UniqueIdentifier>{68b917f1-ef58-4a78-b114-e5b37902f080}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\main.cpp">
@@ -192,27 +195,6 @@
     <ClCompile Include="src\tests\gc\string_pool_demo_test.cpp">
       <Filter>tests\gc</Filter>
     </ClCompile>
-    <ClCompile Include="src\tests\compiler\binary_expression_test.cpp">
-      <Filter>tests\compiler</Filter>
-    </ClCompile>
-    <ClCompile Include="src\tests\compiler\conditional_compilation_test.cpp">
-      <Filter>tests\compiler</Filter>
-    </ClCompile>
-    <ClCompile Include="src\tests\compiler\expression_compiler_test.cpp">
-      <Filter>tests\compiler</Filter>
-    </ClCompile>
-    <ClCompile Include="src\tests\compiler\literal_compiler_test.cpp">
-      <Filter>tests\compiler</Filter>
-    </ClCompile>
-    <ClCompile Include="src\tests\compiler\symbol_table_test.cpp">
-      <Filter>tests\compiler</Filter>
-    </ClCompile>
-    <ClCompile Include="src\tests\compiler\variable_compiler_test.cpp">
-      <Filter>tests\compiler</Filter>
-    </ClCompile>
-    <ClCompile Include="src\tests\compiler\test_compiler.cpp">
-      <Filter>tests\compiler</Filter>
-    </ClCompile>
     <ClCompile Include="src\tests\gc\test_gc.cpp">
       <Filter>tests\gc</Filter>
     </ClCompile>
@@ -276,9 +258,6 @@
     <ClCompile Include="src\lib\plugin\plugin_sandbox.cpp">
       <Filter>lib\plugin</Filter>
     </ClCompile>
-    <ClCompile Include="src\tests\plugin\plugin_integration_test.cpp">
-      <Filter>tests\plugin</Filter>
-    </ClCompile>
     <ClCompile Include="src\tests\localization\localization_test.cpp">
       <Filter>tests\localization</Filter>
     </ClCompile>
@@ -326,6 +305,21 @@
     </ClCompile>
     <ClCompile Include="src\tests\vm\closure\closure_boundary_test.cpp">
       <Filter>tests\vm\closure</Filter>
+    </ClCompile>
+    <ClCompile Include="src\tests\vm\state\state_basic_test.cpp">
+      <Filter>tests\vm\state</Filter>
+    </ClCompile>
+    <ClCompile Include="src\tests\vm\state\state_stack_test.cpp">
+      <Filter>tests\vm\state</Filter>
+    </ClCompile>
+    <ClCompile Include="src\tests\vm\state\state_function_test.cpp">
+      <Filter>tests\vm\state</Filter>
+    </ClCompile>
+    <ClCompile Include="src\tests\compiler\compiler_binary_expression_test.cpp">
+      <Filter>tests\compiler</Filter>
+    </ClCompile>
+    <ClCompile Include="src\tests\compiler\compiler_conditional_test.cpp">
+      <Filter>tests\compiler</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -446,27 +440,6 @@
     <ClInclude Include="src\tests\gc\string_pool_demo_test.hpp">
       <Filter>tests\gc</Filter>
     </ClInclude>
-    <ClInclude Include="src\tests\compiler\binary_expression_test.hpp">
-      <Filter>tests\compiler</Filter>
-    </ClInclude>
-    <ClInclude Include="src\tests\compiler\conditional_compilation_test.hpp">
-      <Filter>tests\compiler</Filter>
-    </ClInclude>
-    <ClInclude Include="src\tests\compiler\expression_compiler_test.hpp">
-      <Filter>tests\compiler</Filter>
-    </ClInclude>
-    <ClInclude Include="src\tests\compiler\literal_compiler_test.hpp">
-      <Filter>tests\compiler</Filter>
-    </ClInclude>
-    <ClInclude Include="src\tests\compiler\symbol_table_test.hpp">
-      <Filter>tests\compiler</Filter>
-    </ClInclude>
-    <ClInclude Include="src\tests\compiler\variable_compiler_test.hpp">
-      <Filter>tests\compiler</Filter>
-    </ClInclude>
-    <ClInclude Include="src\tests\compiler\test_compiler.hpp">
-      <Filter>tests\compiler</Filter>
-    </ClInclude>
     <ClInclude Include="src\tests\gc\test_gc.hpp">
       <Filter>tests\gc</Filter>
     </ClInclude>
@@ -545,9 +518,6 @@
     <ClInclude Include="src\lib\plugin\plugin_sandbox.hpp">
       <Filter>lib\plugin</Filter>
     </ClInclude>
-    <ClInclude Include="src\tests\plugin\plugin_integration_test.hpp">
-      <Filter>tests\plugin</Filter>
-    </ClInclude>
     <ClInclude Include="src\tests\localization\localization_test.hpp">
       <Filter>tests\localization</Filter>
     </ClInclude>
@@ -604,6 +574,27 @@
     </ClInclude>
     <ClInclude Include="src\tests\vm\closure\closure_boundary_test.hpp">
       <Filter>tests\vm\closure</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tests\vm\state\state_basic_test.hpp">
+      <Filter>tests\vm\state</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tests\vm\state\test_state.hpp">
+      <Filter>tests\vm\state</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tests\vm\state\state_stack_test.hpp">
+      <Filter>tests\vm\state</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tests\vm\state\state_function_test.hpp">
+      <Filter>tests\vm\state</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tests\compiler\test_compiler.hpp">
+      <Filter>tests\compiler</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tests\compiler\compiler_binary_expression_test.hpp">
+      <Filter>tests\compiler</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tests\compiler\compiler_conditional_test.hpp">
+      <Filter>tests\compiler</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

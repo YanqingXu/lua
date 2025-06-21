@@ -89,8 +89,9 @@ namespace Lua {
         
         int visitReturnStmt(const ReturnStmt* stmt) override {
             int count = 1;
-            if (stmt->getValue()) {
-                count += visit(stmt->getValue());
+            // Count all return values
+            for (const auto& value : stmt->getValues()) {
+                count += visit(value.get());
             }
             return count;
         }
