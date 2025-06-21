@@ -3,7 +3,7 @@
 namespace Lua {
 namespace Tests {
 
-    class ExpressionCompilerTest {
+    class CompilerExpressionTest {
     public:
         static void runAllTests();
         

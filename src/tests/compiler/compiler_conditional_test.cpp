@@ -1,4 +1,4 @@
-#include "conditional_compilation_test.hpp"
+﻿#include "compiler_conditional_test.hpp"
 #include "../../compiler/compiler.hpp"
 #include "../../parser/parser.hpp"
 #include "../../lexer/lexer.hpp"
@@ -7,24 +7,10 @@
 #include <iostream>
 #include <cassert>
 
-namespace Lua {
-namespace Tests {
-
-    void ConditionalCompilationTest::runAllTests() {
-        std::cout << "Running Conditional Compilation Tests..." << std::endl;
-        
-        testSimpleIfStatement();
-        testIfElseStatement();
-        testNestedIfStatement();
-        testShortCircuitAnd();
-        testShortCircuitOr();
-        testComplexConditions();
-        
-        std::cout << "All Conditional Compilation Tests Passed!" << std::endl;
-    }
+namespace Lua::Tests {
     
-    void ConditionalCompilationTest::testSimpleIfStatement() {
-        std::cout << "Testing simple if statement..." << std::endl;
+    void CompilerConditionalTest::testSimpleIfStatement() {
+        TestUtils::printInfo("Testing simple if statement compilation...");
         
         const char* code = R"(
             local x = 5
@@ -41,15 +27,15 @@ namespace Tests {
             auto function = compiler.compile(statements);
             
             assert(function != nullptr);
-            std::cout << "Simple if statement compilation successful" << std::endl;
+            TestUtils::printTestResult("Simple if statement compilation", true);
         } catch (const LuaException& e) {
-            std::cerr << "Error in simple if test: " << e.what() << std::endl;
+            TestUtils::printError("Simple if statement compilation failed: " + std::string(e.what()));
             throw;
         }
     }
     
-    void ConditionalCompilationTest::testIfElseStatement() {
-        std::cout << "Testing if-else statement..." << std::endl;
+    void CompilerConditionalTest::testIfElseStatement() {
+        TestUtils::printInfo("Testing if-else statement compilation...");
         
         const char* code = R"(
             local x = 2
@@ -68,15 +54,15 @@ namespace Tests {
             auto function = compiler.compile(statements);
             
             assert(function != nullptr);
-            std::cout << "If-else statement compilation successful" << std::endl;
+            TestUtils::printTestResult("If-else statement compilation", true);
         } catch (const LuaException& e) {
-            std::cerr << "Error in if-else test: " << e.what() << std::endl;
+            TestUtils::printError("If-else statement compilation failed: " + std::string(e.what()));
             throw;
         }
     }
     
-    void ConditionalCompilationTest::testNestedIfStatement() {
-        std::cout << "Testing nested if statement..." << std::endl;
+    void CompilerConditionalTest::testNestedIfStatement() {
+        TestUtils::printInfo("Testing nested if statement compilation...");
         
         const char* code = R"(
             local x = 5
@@ -98,15 +84,15 @@ namespace Tests {
             auto function = compiler.compile(statements);
             
             assert(function != nullptr);
-            std::cout << "Nested if statement compilation successful" << std::endl;
+            TestUtils::printTestResult("Nested if statement compilation", true);
         } catch (const LuaException& e) {
-            std::cerr << "Error in nested if test: " << e.what() << std::endl;
+            TestUtils::printError("Nested if statement compilation failed: " + std::string(e.what()));
             throw;
         }
     }
     
-    void ConditionalCompilationTest::testShortCircuitAnd() {
-        std::cout << "Testing short-circuit AND operator..." << std::endl;
+    void CompilerConditionalTest::testShortCircuitAnd() {
+        TestUtils::printInfo("Testing short-circuit AND operator compilation...");
         
         const char* code = R"(
             local x = 5
@@ -124,15 +110,15 @@ namespace Tests {
             auto function = compiler.compile(statements);
             
             assert(function != nullptr);
-            std::cout << "Short-circuit AND compilation successful" << std::endl;
+            TestUtils::printTestResult("Short-circuit AND compilation", true);
         } catch (const LuaException& e) {
-            std::cerr << "Error in short-circuit AND test: " << e.what() << std::endl;
+            TestUtils::printError("Short-circuit AND compilation failed: " + std::string(e.what()));
             throw;
         }
     }
     
-    void ConditionalCompilationTest::testShortCircuitOr() {
-        std::cout << "Testing short-circuit OR operator..." << std::endl;
+    void CompilerConditionalTest::testShortCircuitOr() {
+        TestUtils::printInfo("Testing short-circuit OR operator compilation...");
         
         const char* code = R"(
             local x = 5
@@ -150,15 +136,15 @@ namespace Tests {
             auto function = compiler.compile(statements);
             
             assert(function != nullptr);
-            std::cout << "Short-circuit OR compilation successful" << std::endl;
+            TestUtils::printTestResult("Short-circuit OR compilation", true);
         } catch (const LuaException& e) {
-            std::cerr << "Error in short-circuit OR test: " << e.what() << std::endl;
+            TestUtils::printError("Short-circuit OR compilation failed: " + std::string(e.what()));
             throw;
         }
     }
     
-    void ConditionalCompilationTest::testComplexConditions() {
-        std::cout << "Testing complex conditions..." << std::endl;
+    void CompilerConditionalTest::testComplexConditionCombinations() {
+        TestUtils::printInfo("Testing complex conditional combinations...");
         
         const char* code = R"(
             local x = 5
@@ -183,12 +169,11 @@ namespace Tests {
             auto function = compiler.compile(statements);
             
             assert(function != nullptr);
-            std::cout << "Complex conditions compilation successful" << std::endl;
+            TestUtils::printTestResult("Complex conditional combinations compilation", true);
         } catch (const LuaException& e) {
-            std::cerr << "Error in complex conditions test: " << e.what() << std::endl;
+            TestUtils::printError("Complex conditions compilation failed: " + std::string(e.what()));
             throw;
         }
     }
 
-} // namespace Tests
-} // namespace Lua
+} // namespace Lua::Tests

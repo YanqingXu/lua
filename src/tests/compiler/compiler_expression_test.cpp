@@ -1,4 +1,4 @@
-#include "expression_compiler_test.hpp"
+#include "compiler_expression_test.hpp"
 #include "../../compiler/expression_compiler.hpp"
 #include "../../compiler/compiler.hpp"
 #include "../../parser/ast/expressions.hpp"
@@ -8,7 +8,7 @@
 
 namespace Lua {
 namespace Tests {
-    void ExpressionCompilerTest::runAllTests() {
+    void CompilerExpressionTest::runAllTests() {
         std::cout << "Running Expression Compiler Tests..." << std::endl;
         
         testLiteralCompilation();
@@ -20,7 +20,7 @@ namespace Tests {
         std::cout << "All Expression Compiler Tests Passed!" << std::endl;
     }
     
-    void ExpressionCompilerTest::testLiteralCompilation() {
+    void CompilerExpressionTest::testLiteralCompilation() {
         std::cout << "Testing literal compilation..." << std::endl;
         
         Compiler compiler;
@@ -49,7 +49,7 @@ namespace Tests {
         std::cout << "Literal compilation tests passed." << std::endl;
     }
     
-    void ExpressionCompilerTest::testBinaryExpressionCompilation() {
+    void CompilerExpressionTest::testBinaryExpressionCompilation() {
         std::cout << "Testing binary expression compilation..." << std::endl;
         
         Compiler compiler;
@@ -74,7 +74,7 @@ namespace Tests {
         std::cout << "Binary expression compilation tests passed." << std::endl;
     }
     
-    void ExpressionCompilerTest::testTableConstructorCompilation() {
+    void CompilerExpressionTest::testTableConstructorCompilation() {
         std::cout << "Testing table constructor compilation..." << std::endl;
         
         Compiler compiler;
@@ -115,7 +115,7 @@ namespace Tests {
         std::cout << "Table constructor compilation tests passed." << std::endl;
     }
     
-    void ExpressionCompilerTest::testConstantFolding() {
+    void CompilerExpressionTest::testConstantFolding() {
         std::cout << "Testing constant folding optimization..." << std::endl;
         
         Compiler compiler;
@@ -147,7 +147,7 @@ namespace Tests {
         std::cout << "Constant folding tests passed." << std::endl;
     }
     
-    void ExpressionCompilerTest::testUnaryExpressionCompilation() {
+    void CompilerExpressionTest::testUnaryExpressionCompilation() {
         std::cout << "Testing unary expression compilation..." << std::endl;
         
         Compiler compiler;

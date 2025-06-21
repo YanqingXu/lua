@@ -1,4 +1,4 @@
-#include "variable_compiler_test.hpp"
+#include "compiler_variable_test.hpp"
 #include "../../compiler/expression_compiler.hpp"
 #include "../../compiler/compiler.hpp"
 #include "../../vm/value.hpp"
@@ -8,7 +8,7 @@
 
 namespace Lua {
     namespace Tests {
-        void VariableCompilerTest::runAllTests() {
+        void CompilerVariableTest::runAllTests() {
             std::cout << "=== Running Variable Compiler Tests ===" << std::endl;
             
             testLocalVariableAccess();
@@ -22,7 +22,7 @@ namespace Lua {
             std::cout << "All Variable Compiler Tests Passed!" << std::endl;
         }
         
-        void VariableCompilerTest::testLocalVariableAccess() {
+        void CompilerVariableTest::testLocalVariableAccess() {
             std::cout << "Testing local variable access..." << std::endl;
             
             Compiler compiler;
@@ -47,7 +47,7 @@ namespace Lua {
             std::cout << "[OK] Local variable access test passed" << std::endl;
         }
         
-        void VariableCompilerTest::testGlobalVariableAccess() {
+        void CompilerVariableTest::testGlobalVariableAccess() {
             std::cout << "Testing global variable access..." << std::endl;
             
             Compiler compiler;
@@ -68,7 +68,7 @@ namespace Lua {
             std::cout << "[OK] Global variable access test passed" << std::endl;
         }
         
-        void VariableCompilerTest::testVariableResolution() {
+        void CompilerVariableTest::testVariableResolution() {
             std::cout << "Testing variable resolution priority..." << std::endl;
             
             Compiler compiler;
@@ -98,7 +98,7 @@ namespace Lua {
             std::cout << "[OK] Variable resolution test passed" << std::endl;
         }
         
-        void VariableCompilerTest::testScopeHandling() {
+        void CompilerVariableTest::testScopeHandling() {
             std::cout << "Testing scope handling..." << std::endl;
             
             Compiler compiler;
@@ -130,7 +130,7 @@ namespace Lua {
             std::cout << "[OK] Scope handling test passed" << std::endl;
         }
         
-        void VariableCompilerTest::testRegisterAllocation() {
+        void CompilerVariableTest::testRegisterAllocation() {
             std::cout << "Testing register allocation for variables..." << std::endl;
             
             Compiler compiler;
@@ -155,7 +155,7 @@ namespace Lua {
             std::cout << "[OK] Register allocation test passed" << std::endl;
         }
         
-        void VariableCompilerTest::testInstructionGeneration() {
+        void CompilerVariableTest::testInstructionGeneration() {
             std::cout << "Testing instruction generation for variables..." << std::endl;
             
             Compiler compiler;
@@ -183,7 +183,7 @@ namespace Lua {
             std::cout << "[OK] Instruction generation test passed" << std::endl;
         }
         
-        void VariableCompilerTest::testErrorHandling() {
+        void CompilerVariableTest::testErrorHandling() {
             std::cout << "Testing error handling for variable compilation..." << std::endl;
             
             Compiler compiler;

@@ -2,7 +2,7 @@
 
 namespace Lua {
     namespace Tests {
-        class VariableCompilerTest {
+        class CompilerVariableTest {
         public:
             static void runAllTests();
             
