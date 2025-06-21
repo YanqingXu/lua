@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "../../common/types.hpp"
 #include "../test_utils.hpp"
@@ -18,10 +18,10 @@ public:
      * @brief Run all literal compiler tests
      */
     static void runAllTests() {
-        RUN_TEST_GROUP(CompilerLiteralTest, testBasicLiterals);
-        RUN_TEST_GROUP(CompilerLiteralTest, testConstantManagement);
-        RUN_TEST_GROUP(CompilerLiteralTest, testInstructionGeneration);
-        RUN_TEST_GROUP(CompilerLiteralTest, testErrorHandling);
+        RUN_TEST_GROUP("CompilerLiteralTest", testBasicLiterals);
+        RUN_TEST_GROUP("CompilerLiteralTest", testConstantManagement);
+        RUN_TEST_GROUP("CompilerLiteralTest", testInstructionGeneration);
+        RUN_TEST_GROUP("CompilerLiteralTest", testErrorHandling);
     }
     
     /**

@@ -1,4 +1,4 @@
-#include "compiler_literal_test.hpp"
+﻿#include "compiler_literal_test.hpp"
 #include "../../compiler/expression_compiler.hpp"
 #include "../../compiler/compiler.hpp"
 #include "../../vm/value.hpp"
@@ -69,7 +69,8 @@ void CompilerLiteralTest::testErrorHandling() {
         compiler.compileExpr(nullptr);
         TestUtils::printTestResult("Null expression throws exception", false);
     } catch (const LuaException& e) {
-        TestUtils::printTestResult("Null expression throws exception", true);
+		std::string msg = e.what();
+        TestUtils::printTestResult("Null expression throws exception" + msg, true);
     }
 }
         
@@ -265,61 +266,6 @@ void CompilerLiteralTest::testRegisterAllocation() {
     
     TestUtils::printTestResult("All registers are different", allDifferent);
 }
-        
-        void CompilerLiteralTest::testInstructionGeneration() {
-            std::cout << "Testing instruction generation for literals..." << std::endl;
-            
-            Compiler compiler;
-            
-            // Test nil literal instruction
-            Value nilValue;
-            LiteralExpr nilExpr(nilValue);
-            int reg1 = compiler.compileExpr(&nilExpr);
-            
-            // Verify LOADNIL instruction was generated
-            assert(compiler.getCodeSize() == 1);
-            
-            // Test boolean literal instruction
-            Value boolValue(true);
-            LiteralExpr boolExpr(boolValue);
-            int reg2 = compiler.compileExpr(&boolExpr);
-            
-            // Verify LOADBOOL instruction was generated
-            assert(compiler.getCodeSize() == 2);
-            
-            // Test number literal instruction
-            Value numValue(42.5);
-            LiteralExpr numExpr(numValue);
-            int reg3 = compiler.compileExpr(&numExpr);
-            
-            // Verify LOADK instruction was generated
-            assert(compiler.getCodeSize() == 3);
-            
-            // Test string literal instruction
-            Value strValue("hello");
-            LiteralExpr strExpr(strValue);
-            int reg4 = compiler.compileExpr(&strExpr);
-            
-            // Verify LOADK instruction was generated
-            assert(compiler.getCodeSize() == 4);
-            
-            std::cout << "[OK] Instruction generation test passed" << std::endl;
-        }
-        
-        void CompilerLiteralTest::testErrorHandling() {
-            std::cout << "Testing error handling for literal compilation..." << std::endl;
-            
-            Compiler compiler;
-            
-            // Test null expression handling
-            try {
-                compiler.compileExpr(nullptr);
-                assert(false); // Should throw exception
-            } catch (const LuaException& e) {
-                // Expected exception
-				std::cout << "[OK] Caught expected exception: " << e.what() << std::endl;
-            }
-            
-}
 
+        
 } // namespace Lua::Tests
