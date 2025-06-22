@@ -94,11 +94,20 @@
     <Filter Include="tests\parser\expr">
       <UniqueIdentifier>{1cd767d5-a6fb-4db0-ae18-b32bbe10a69e}</UniqueIdentifier>
     </Filter>
-    <Filter Include="tests\formatting">
-      <UniqueIdentifier>{e0416218-a6f7-41d9-af98-1c1e49d581cc}</UniqueIdentifier>
-    </Filter>
     <Filter Include="tests\vm\state">
       <UniqueIdentifier>{68b917f1-ef58-4a78-b114-e5b37902f080}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="test_framework">
+      <UniqueIdentifier>{f648b9ea-16b7-4b83-8c27-001bd35bfa17}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="test_framework\core">
+      <UniqueIdentifier>{21303159-60b8-46f7-b732-9996832d4c2b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="test_framework\formatting">
+      <UniqueIdentifier>{ec52d11a-2357-4aed-a119-04a151c0a528}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="test_framework\config">
+      <UniqueIdentifier>{c1d63268-1965-42f4-b301-7396c57040e5}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -180,12 +189,6 @@
     <ClCompile Include="src\vm\state_factory.cpp">
       <Filter>vm</Filter>
     </ClCompile>
-    <ClCompile Include="src\tests\vm\state_test.cpp">
-      <Filter>tests\vm</Filter>
-    </ClCompile>
-    <ClCompile Include="src\tests\vm\value_test.cpp">
-      <Filter>tests\vm</Filter>
-    </ClCompile>
     <ClCompile Include="src\parser\ast\source_location.cpp">
       <Filter>parser\ast</Filter>
     </ClCompile>
@@ -207,23 +210,11 @@
     <ClCompile Include="src\lib\math_lib.cpp">
       <Filter>lib</Filter>
     </ClCompile>
-    <ClCompile Include="src\tests\lib\base_lib_test.cpp">
-      <Filter>tests\lib</Filter>
-    </ClCompile>
-    <ClCompile Include="src\tests\lib\math_lib_test.cpp">
-      <Filter>tests\lib</Filter>
-    </ClCompile>
-    <ClCompile Include="src\tests\lib\table_lib_test.cpp">
-      <Filter>tests\lib</Filter>
-    </ClCompile>
     <ClCompile Include="src\lib\table_lib.cpp">
       <Filter>lib</Filter>
     </ClCompile>
     <ClCompile Include="src\lib\string_lib.cpp">
       <Filter>lib</Filter>
-    </ClCompile>
-    <ClCompile Include="src\tests\lib\string_lib_test.cpp">
-      <Filter>tests\lib</Filter>
     </ClCompile>
     <ClCompile Include="src\lib\plugin\plugin.cpp">
       <Filter>lib\plugin</Filter>
@@ -246,92 +237,26 @@
     <ClCompile Include="src\lib\plugin\plugin_sandbox.cpp">
       <Filter>lib\plugin</Filter>
     </ClCompile>
-    <ClCompile Include="src\tests\localization\localization_test.cpp">
-      <Filter>tests\localization</Filter>
-    </ClCompile>
     <ClCompile Include="src\compiler\upvalue_analyzer.cpp">
       <Filter>compiler</Filter>
     </ClCompile>
     <ClCompile Include="src\vm\upvalue.cpp">
       <Filter>vm</Filter>
     </ClCompile>
-    <ClCompile Include="src\tests\vm\closure\closure_performance_test.cpp">
-      <Filter>tests\vm\closure</Filter>
+    <ClCompile Include="src\test_framework\core\test_memory.cpp">
+      <Filter>test_framework\core</Filter>
     </ClCompile>
-    <ClCompile Include="src\tests\vm\closure\closure_advanced_test.cpp">
-      <Filter>tests\vm\closure</Filter>
+    <ClCompile Include="src\test_framework\formatting\format_colors.cpp">
+      <Filter>test_framework\formatting</Filter>
     </ClCompile>
-    <ClCompile Include="src\tests\vm\closure\closure_basic_test.cpp">
-      <Filter>tests\vm\closure</Filter>
+    <ClCompile Include="src\test_framework\formatting\format_config.cpp">
+      <Filter>test_framework\formatting</Filter>
     </ClCompile>
-    <ClCompile Include="src\tests\vm\closure\closure_error_test.cpp">
-      <Filter>tests\vm\closure</Filter>
+    <ClCompile Include="src\test_framework\formatting\format_formatter.cpp">
+      <Filter>test_framework\formatting</Filter>
     </ClCompile>
-    <ClCompile Include="src\tests\vm\closure\closure_memory_test.cpp">
-      <Filter>tests\vm\closure</Filter>
-    </ClCompile>
-    <ClCompile Include="src\tests\parser\expr\binary_expr_test.cpp">
-      <Filter>tests\parser\expr</Filter>
-    </ClCompile>
-    <ClCompile Include="src\tests\parser\expr\test_expr.cpp">
-      <Filter>tests\parser\expr</Filter>
-    </ClCompile>
-    <ClCompile Include="src\tests\formatting\format_strategies.cpp">
-      <Filter>tests\formatting</Filter>
-    </ClCompile>
-    <ClCompile Include="src\tests\formatting\test_colors.cpp">
-      <Filter>tests\formatting</Filter>
-    </ClCompile>
-    <ClCompile Include="src\tests\formatting\test_config.cpp">
-      <Filter>tests\formatting</Filter>
-    </ClCompile>
-    <ClCompile Include="src\tests\formatting\test_formatter.cpp">
-      <Filter>tests\formatting</Filter>
-    </ClCompile>
-    <ClCompile Include="src\tests\vm\closure\closure_boundary_test.cpp">
-      <Filter>tests\vm\closure</Filter>
-    </ClCompile>
-    <ClCompile Include="src\tests\vm\state\state_basic_test.cpp">
-      <Filter>tests\vm\state</Filter>
-    </ClCompile>
-    <ClCompile Include="src\tests\vm\state\state_stack_test.cpp">
-      <Filter>tests\vm\state</Filter>
-    </ClCompile>
-    <ClCompile Include="src\tests\vm\state\state_function_test.cpp">
-      <Filter>tests\vm\state</Filter>
-    </ClCompile>
-    <ClCompile Include="src\tests\compiler\compiler_binary_expression_test.cpp">
-      <Filter>tests\compiler</Filter>
-    </ClCompile>
-    <ClCompile Include="src\tests\compiler\compiler_conditional_test.cpp">
-      <Filter>tests\compiler</Filter>
-    </ClCompile>
-    <ClCompile Include="src\tests\compiler\compiler_literal_test.cpp">
-      <Filter>tests\compiler</Filter>
-    </ClCompile>
-    <ClCompile Include="src\tests\compiler\compiler_multi_return_test.cpp">
-      <Filter>tests\compiler</Filter>
-    </ClCompile>
-    <ClCompile Include="src\tests\compiler\compiler_symbol_table_test.cpp">
-      <Filter>tests\compiler</Filter>
-    </ClCompile>
-    <ClCompile Include="src\tests\compiler\compiler_variable_test.cpp">
-      <Filter>tests\compiler</Filter>
-    </ClCompile>
-    <ClCompile Include="src\tests\lexer\lexer_basic_test.cpp">
-      <Filter>tests\lexer</Filter>
-    </ClCompile>
-    <ClCompile Include="src\tests\lexer\lexer_error_test.cpp">
-      <Filter>tests\lexer</Filter>
-    </ClCompile>
-    <ClCompile Include="src\tests\compiler\compiler_error_test.cpp">
-      <Filter>tests\compiler</Filter>
-    </ClCompile>
-    <ClCompile Include="src\common\memory_leak_detector.cpp">
-      <Filter>common</Filter>
-    </ClCompile>
-    <ClCompile Include="src\common\timeout_memory_detector.cpp">
-      <Filter>common</Filter>
+    <ClCompile Include="src\test_framework\formatting\format_strategies.cpp">
+      <Filter>test_framework\formatting</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -437,17 +362,8 @@
     <ClInclude Include="src\vm\state_factory.hpp">
       <Filter>vm</Filter>
     </ClInclude>
-    <ClInclude Include="src\tests\vm\state_test.hpp">
-      <Filter>tests\vm</Filter>
-    </ClInclude>
-    <ClInclude Include="src\tests\vm\value_test.hpp">
-      <Filter>tests\vm</Filter>
-    </ClInclude>
     <ClInclude Include="src\tests\gc\test_gc.hpp">
       <Filter>tests\gc</Filter>
-    </ClInclude>
-    <ClInclude Include="src\tests\vm\test_vm.hpp">
-      <Filter>tests\vm</Filter>
     </ClInclude>
     <ClInclude Include="src\tests\parser\test_parser.hpp">
       <Filter>tests\parser</Filter>
@@ -476,15 +392,6 @@
     <ClInclude Include="src\lib\math_lib.hpp">
       <Filter>lib</Filter>
     </ClInclude>
-    <ClInclude Include="src\tests\lib\base_lib_test.hpp">
-      <Filter>tests\lib</Filter>
-    </ClInclude>
-    <ClInclude Include="src\tests\lib\math_lib_test.hpp">
-      <Filter>tests\lib</Filter>
-    </ClInclude>
-    <ClInclude Include="src\tests\lib\table_lib_test.hpp">
-      <Filter>tests\lib</Filter>
-    </ClInclude>
     <ClInclude Include="src\tests\lib\test_lib.hpp">
       <Filter>tests\lib</Filter>
     </ClInclude>
@@ -496,9 +403,6 @@
     </ClInclude>
     <ClInclude Include="src\lib\string_lib.hpp">
       <Filter>lib</Filter>
-    </ClInclude>
-    <ClInclude Include="src\tests\lib\string_lib_test.hpp">
-      <Filter>tests\lib</Filter>
     </ClInclude>
     <ClInclude Include="src\lib\plugin\plugin.hpp">
       <Filter>lib\plugin</Filter>
@@ -521,110 +425,53 @@
     <ClInclude Include="src\lib\plugin\plugin_sandbox.hpp">
       <Filter>lib\plugin</Filter>
     </ClInclude>
-    <ClInclude Include="src\tests\localization\localization_test.hpp">
-      <Filter>tests\localization</Filter>
-    </ClInclude>
     <ClInclude Include="src\compiler\upvalue_analyzer.hpp">
       <Filter>compiler</Filter>
     </ClInclude>
     <ClInclude Include="src\vm\upvalue.hpp">
       <Filter>vm</Filter>
     </ClInclude>
-    <ClInclude Include="src\tests\vm\closure\closure_performance_test.hpp">
-      <Filter>tests\vm\closure</Filter>
-    </ClInclude>
-    <ClInclude Include="src\tests\vm\closure\closure_advanced_test.hpp">
-      <Filter>tests\vm\closure</Filter>
-    </ClInclude>
-    <ClInclude Include="src\tests\vm\closure\closure_basic_test.hpp">
-      <Filter>tests\vm\closure</Filter>
-    </ClInclude>
-    <ClInclude Include="src\tests\vm\closure\closure_error_test.hpp">
-      <Filter>tests\vm\closure</Filter>
-    </ClInclude>
-    <ClInclude Include="src\tests\vm\closure\closure_memory_test.hpp">
-      <Filter>tests\vm\closure</Filter>
-    </ClInclude>
     <ClInclude Include="src\tests\vm\closure\test_closure.hpp">
       <Filter>tests\vm\closure</Filter>
-    </ClInclude>
-    <ClInclude Include="src\tests\parser\expr\binary_expr_test.hpp">
-      <Filter>tests\parser\expr</Filter>
     </ClInclude>
     <ClInclude Include="src\tests\parser\expr\test_expr.hpp">
       <Filter>tests\parser\expr</Filter>
     </ClInclude>
-    <ClInclude Include="src\tests\test_utils.hpp">
-      <Filter>tests</Filter>
-    </ClInclude>
-    <ClInclude Include="src\tests\formatting\format_strategies.hpp">
-      <Filter>tests\formatting</Filter>
-    </ClInclude>
-    <ClInclude Include="src\tests\formatting\test_colors.hpp">
-      <Filter>tests\formatting</Filter>
-    </ClInclude>
-    <ClInclude Include="src\tests\formatting\test_config.hpp">
-      <Filter>tests\formatting</Filter>
-    </ClInclude>
-    <ClInclude Include="src\tests\formatting\test_define.hpp">
-      <Filter>tests\formatting</Filter>
-    </ClInclude>
-    <ClInclude Include="src\tests\formatting\test_formatter.hpp">
-      <Filter>tests\formatting</Filter>
-    </ClInclude>
-    <ClInclude Include="src\tests\vm\closure\closure_boundary_test.hpp">
-      <Filter>tests\vm\closure</Filter>
-    </ClInclude>
-    <ClInclude Include="src\tests\vm\state\state_basic_test.hpp">
-      <Filter>tests\vm\state</Filter>
-    </ClInclude>
     <ClInclude Include="src\tests\vm\state\test_state.hpp">
-      <Filter>tests\vm\state</Filter>
-    </ClInclude>
-    <ClInclude Include="src\tests\vm\state\state_stack_test.hpp">
-      <Filter>tests\vm\state</Filter>
-    </ClInclude>
-    <ClInclude Include="src\tests\vm\state\state_function_test.hpp">
       <Filter>tests\vm\state</Filter>
     </ClInclude>
     <ClInclude Include="src\tests\compiler\test_compiler.hpp">
       <Filter>tests\compiler</Filter>
     </ClInclude>
-    <ClInclude Include="src\tests\compiler\compiler_binary_expression_test.hpp">
-      <Filter>tests\compiler</Filter>
-    </ClInclude>
-    <ClInclude Include="src\tests\compiler\compiler_conditional_test.hpp">
-      <Filter>tests\compiler</Filter>
-    </ClInclude>
-    <ClInclude Include="src\tests\compiler\compiler_literal_test.hpp">
-      <Filter>tests\compiler</Filter>
-    </ClInclude>
-    <ClInclude Include="src\tests\compiler\compiler_multi_return_test.hpp">
-      <Filter>tests\compiler</Filter>
-    </ClInclude>
-    <ClInclude Include="src\tests\compiler\compiler_symbol_table_test.hpp">
-      <Filter>tests\compiler</Filter>
-    </ClInclude>
-    <ClInclude Include="src\tests\compiler\compiler_variable_test.hpp">
-      <Filter>tests\compiler</Filter>
-    </ClInclude>
     <ClInclude Include="src\tests\lexer\test_lexer.hpp">
       <Filter>tests\lexer</Filter>
     </ClInclude>
-    <ClInclude Include="src\tests\lexer\lexer_basic_test.hpp">
-      <Filter>tests\lexer</Filter>
+    <ClInclude Include="src\test_framework\formatting\format_define.hpp">
+      <Filter>test_framework\formatting</Filter>
     </ClInclude>
-    <ClInclude Include="src\tests\lexer\lexer_error_test.hpp">
-      <Filter>tests\lexer</Filter>
+    <ClInclude Include="src\test_framework\core\test_macros.hpp">
+      <Filter>test_framework\core</Filter>
     </ClInclude>
-    <ClInclude Include="src\tests\compiler\compiler_error_test.hpp">
-      <Filter>tests\compiler</Filter>
+    <ClInclude Include="src\test_framework\core\test_memory.hpp">
+      <Filter>test_framework\core</Filter>
     </ClInclude>
-    <ClInclude Include="src\common\memory_leak_detector.hpp">
-      <Filter>common</Filter>
+    <ClInclude Include="src\test_framework\core\test_runner.hpp">
+      <Filter>test_framework\core</Filter>
     </ClInclude>
-    <ClInclude Include="src\common\timeout_memory_detector.hpp">
-      <Filter>common</Filter>
+    <ClInclude Include="src\test_framework\core\test_utils.hpp">
+      <Filter>test_framework\core</Filter>
+    </ClInclude>
+    <ClInclude Include="src\test_framework\formatting\format_colors.hpp">
+      <Filter>test_framework\formatting</Filter>
+    </ClInclude>
+    <ClInclude Include="src\test_framework\formatting\format_config.hpp">
+      <Filter>test_framework\formatting</Filter>
+    </ClInclude>
+    <ClInclude Include="src\test_framework\formatting\format_formatter.hpp">
+      <Filter>test_framework\formatting</Filter>
+    </ClInclude>
+    <ClInclude Include="src\test_framework\formatting\format_strategies.hpp">
+      <Filter>test_framework\formatting</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

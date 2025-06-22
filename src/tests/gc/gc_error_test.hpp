@@ -1,6 +1,5 @@
 #pragma once
 
-#include "../test_utils.hpp"
 #include "../../vm/vm.hpp"
 #include "../../vm/value.hpp"
 #include "../../gc/core/garbage_collector.hpp"

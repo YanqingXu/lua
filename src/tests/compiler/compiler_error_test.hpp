@@ -6,7 +6,7 @@
 #include "../../compiler/compiler.hpp"
 #include "../../parser/parser.hpp"
 #include "../../lexer/lexer.hpp"
-#include "../test_utils.hpp"
+#include "../../test_framework/core/test_macros.hpp"
 
 namespace Lua {
 namespace Tests {

@@ -1,10 +1,126 @@
 # Modern C++ Lua 解释器测试框架
 
+> **版本**: v2.1 | **最后更新**: 2025年6月 | **维护者**: YanqingXu
+
+## 📋 快速导航
+
+| 章节 | 内容 | 适用场景 |
+|------|------|----------|
+| [🚀 快速开始](#快速开始) | 5分钟上手指南 | 新手入门 |
+| [📋 规范速查](#规范速查表) | 核心规范一览 | 日常开发 |
+| [❓ 常见问题](#常见问题faq) | 故障排除指南 | 问题解决 |
+| [🏗️ 测试层次结构](#测试层次结构) | 框架架构说明 | 架构理解 |
+| [📁 模块测试规范](#模块测试文件规范) | 文件组织规范 | 规范开发 |
+| [🎯 命名约定](#命名约定) | 命名规则详解 | 标准化开发 |
+| [🔧 编译规范](#编译规范) | 编译验证流程 | 质量保证 |
+| [🚀 最佳实践](#测试编写最佳实践) | 高级开发技巧 | 进阶开发 |
+
+---
+
 # Lua 编译器测试目录
 
 本目录包含了 Modern C++ Lua 解释器项目的所有测试文件，按模块进行了分类组织。
 
-## 测试重构完成总结
+## 🚀 快速开始
+
+### 5分钟上手指南
+
+1. **创建新测试文件**
+   ```bash
+   # 模块测试文件
+   touch src/tests/lexer/test_lexer.hpp
+   
+   # 子模块测试文件
+   touch src/tests/parser/expr/parser_binary_expr_test.cpp
+   ```
+
+2. **基本文件结构**
+   ```cpp
+   // test_lexer.hpp
+   #pragma once
+   #include "../test_base.hpp"
+   
+   namespace lua::tests::lexer {
+       class LexerTest : public TestBase {
+       public:
+           void run_all_tests() override;
+       private:
+           void test_tokenize();
+       };
+   }
+   ```
+
+3. **编译验证**
+   ```bash
+   g++ -std=c++17 -I. test_lexer.cpp -o test_lexer && ./test_lexer
+   ```
+
+4. **运行测试**
+   ```bash
+   cd src/tests && ./run_tests.sh
+   ```
+
+## 📋 规范速查表
+
+### 核心命名规范
+
+| 类型 | 格式 | 示例 | 说明 |
+|------|------|------|------|
+| **模块测试文件** | `test_{module}.hpp` | `test_lexer.hpp` | 主测试文件 |
+| **子模块测试文件** | `{module}_{feature}_test.cpp` | `parser_binary_expr_test.cpp` | 具体功能测试 |
+| **主测试文件** | `test_{主模块}_{子模块}.hpp` | `test_parser_expr.hpp` | 子模块主测试 |
+| **测试类** | `{Module}Test` | `LexerTest` | 测试类命名 |
+| **命名空间** | `lua::tests::{module}` | `lua::tests::lexer` | 命名空间层级 |
+
+### 快速检查清单
+
+- [ ] 文件名符合命名规范
+- [ ] 包含正确的命名空间
+- [ ] 继承自 `TestBase`
+- [ ] 实现 `run_all_tests()` 方法
+- [ ] 使用 `TEST_ASSERT` 宏
+- [ ] 编译通过验证
+- [ ] 测试独立运行
+
+## ❓ 常见问题(FAQ)
+
+### Q1: 编译错误 "undefined reference to TestBase"
+**解决方案**: 确保包含了正确的基类头文件
+```cpp
+#include "../test_base.hpp"  // 相对路径要正确
+```
+
+### Q2: 命名空间冲突
+**解决方案**: 检查命名空间层级是否正确
+```cpp
+namespace lua::tests::parser {  // 正确
+namespace lua::parser::tests {  // 错误
+```
+
+### Q3: 测试文件找不到
+**解决方案**: 检查文件路径和包含语句
+```cpp
+#include "parser_binary_expr_test.hpp"  // 同目录
+#include "../lexer/test_lexer.hpp"      // 上级目录
+```
+
+### Q4: 如何添加新的测试模块？
+**步骤**:
+1. 在 `src/tests/` 下创建模块目录
+2. 创建 `test_{module}.hpp` 主测试文件
+3. 添加具体的 `{module}_{feature}_test.cpp` 文件
+4. 更新主测试文件的包含列表
+
+### Q5: 测试运行失败但编译成功
+**排查步骤**:
+1. 检查测试逻辑是否正确
+2. 确认测试数据是否有效
+3. 验证断言条件是否合理
+4. 查看错误输出信息
+
+---
+
+## 测试重构总结
 
 ### 完成的工作 ✅
 
@@ -1461,6 +1577,496 @@ add_executable(modular_tests
 target_link_libraries(modular_tests PRIVATE lua_lib)
 ```
 
+## 子模块测试规范：命名空间隔离方案
+
+### 🎯 问题背景
+
+在复杂的项目中，不同模块可能包含相似的测试套件名称，例如：
+- `parser/expr/ExprTestSuite` - 解析器表达式测试
+- `compiler/expr/ExprTestSuite` - 编译器表达式测试
+- `vm/expr/ExprTestSuite` - 虚拟机表达式测试
+
+传统的平坦命名方式无法有效区分这些测试套件的归属，容易造成命名冲突和维护困难。
+
+### 🏗️ 解决方案：命名空间隔离
+
+采用**命名空间隔离**方案，通过层级化的命名空间明确区分不同模块和子模块的测试套件。
+
+#### 命名空间层级结构
+
+```cpp
+namespace Lua {
+    namespace Tests {
+        namespace Parser {        // 解析器模块
+            namespace Expr {      // 表达式子模块
+                class ExprTestSuite { /* ... */ };
+                class BinaryExprTest { /* ... */ };
+                class UnaryExprTest { /* ... */ };
+            }
+            namespace Stmt {      // 语句子模块
+                class StmtTestSuite { /* ... */ };
+                class IfStmtTest { /* ... */ };
+            }
+        }
+        namespace Compiler {      // 编译器模块
+            namespace Expr {
+                class ExprTestSuite { /* ... */ };
+                class ExprCompilerTest { /* ... */ };
+            }
+        }
+        namespace VM {            // 虚拟机模块
+            namespace Expr {
+                class ExprTestSuite { /* ... */ };
+                class ExprExecutorTest { /* ... */ };
+            }
+        }
+    }
+}
+```
+
+#### 调用方式
+
+```cpp
+// 明确的命名空间调用
+Lua::Tests::Parser::Expr::ExprTestSuite::runAllTests();
+Lua::Tests::Compiler::Expr::ExprTestSuite::runAllTests();
+Lua::Tests::VM::Expr::ExprTestSuite::runAllTests();
+
+// 或使用 using 声明简化
+using namespace Lua::Tests::Parser;
+Expr::ExprTestSuite::runAllTests();
+Stmt::StmtTestSuite::runAllTests();
+```
+
+### 📁 文件组织结构
+
+#### 目录结构
+```
+src/tests/
+├── parser/
+│   ├── test_parser.hpp                    # Lua::Tests::Parser::ParserTestSuite
+│   ├── expr/
+│   │   ├── test_parser_expr.hpp           # Lua::Tests::Parser::Expr::ExprTestSuite
+│   │   ├── parser_binary_expr_test.hpp    # Lua::Tests::Parser::Expr::ParserBinaryExprTest (声明)
+│   │   ├── parser_binary_expr_test.cpp    # Lua::Tests::Parser::Expr::ParserBinaryExprTest (实现)
+│   │   ├── parser_unary_expr_test.hpp     # Lua::Tests::Parser::Expr::ParserUnaryExprTest (声明)
+│   │   ├── parser_unary_expr_test.cpp     # Lua::Tests::Parser::Expr::ParserUnaryExprTest (实现)
+│   │   ├── parser_literal_expr_test.hpp   # Lua::Tests::Parser::Expr::ParserLiteralExprTest (声明)
+│   │   └── parser_literal_expr_test.cpp   # Lua::Tests::Parser::Expr::ParserLiteralExprTest (实现)
+│   └── stmt/
+│       ├── test_parser_stmt.hpp           # Lua::Tests::Parser::Stmt::StmtTestSuite
+│       ├── parser_if_stmt_test.hpp        # Lua::Tests::Parser::Stmt::ParserIfStmtTest (声明)
+│       ├── parser_if_stmt_test.cpp        # Lua::Tests::Parser::Stmt::ParserIfStmtTest (实现)
+│       ├── parser_while_stmt_test.hpp     # Lua::Tests::Parser::Stmt::ParserWhileStmtTest (声明)
+│       ├── parser_while_stmt_test.cpp     # Lua::Tests::Parser::Stmt::ParserWhileStmtTest (实现)
+│       ├── parser_function_stmt_test.hpp  # Lua::Tests::Parser::Stmt::ParserFunctionStmtTest (声明)
+│       └── parser_function_stmt_test.cpp  # Lua::Tests::Parser::Stmt::ParserFunctionStmtTest (实现)
+├── compiler/
+│   ├── test_compiler.hpp                  # Lua::Tests::Compiler::CompilerTestSuite
+│   └── expr/
+│       ├── test_compiler_expr.hpp         # Lua::Tests::Compiler::Expr::ExprTestSuite
+│       ├── compiler_binary_expr_test.hpp  # Lua::Tests::Compiler::Expr::CompilerBinaryExprTest (声明)
+│       ├── compiler_binary_expr_test.cpp  # Lua::Tests::Compiler::Expr::CompilerBinaryExprTest (实现)
+│       ├── compiler_unary_expr_test.hpp   # Lua::Tests::Compiler::Expr::CompilerUnaryExprTest (声明)
+│       ├── compiler_unary_expr_test.cpp   # Lua::Tests::Compiler::Expr::CompilerUnaryExprTest (实现)
+│       ├── compiler_literal_expr_test.hpp # Lua::Tests::Compiler::Expr::CompilerLiteralExprTest (声明)
+│       └── compiler_literal_expr_test.cpp # Lua::Tests::Compiler::Expr::CompilerLiteralExprTest (实现)
+└── vm/
+    ├── test_vm.hpp                        # Lua::Tests::VM::VMTestSuite
+    └── expr/
+        ├── test_vm_expr.hpp               # Lua::Tests::VM::Expr::ExprTestSuite
+        ├── vm_binary_expr_test.hpp        # Lua::Tests::VM::Expr::VMBinaryExprTest (声明)
+        ├── vm_binary_expr_test.cpp        # Lua::Tests::VM::Expr::VMBinaryExprTest (实现)
+        ├── vm_unary_expr_test.hpp         # Lua::Tests::VM::Expr::VMUnaryExprTest (声明)
+        ├── vm_unary_expr_test.cpp         # Lua::Tests::VM::Expr::VMUnaryExprTest (实现)
+        ├── vm_literal_expr_test.hpp       # Lua::Tests::VM::Expr::VMLiteralExprTest (声明)
+        └── vm_literal_expr_test.cpp       # Lua::Tests::VM::Expr::VMLiteralExprTest (实现)
+```
+
+#### 实现示例
+
+**`src/tests/parser/expr/test_expr.hpp`**
+```cpp
+#pragma once
+
+#include "../../test_utils.hpp"
+#include "binary_expr_test.hpp"
+#include "unary_expr_test.hpp"
+#include "literal_expr_test.hpp"
+#include "call_expr_test.hpp"
+#include "table_expr_test.hpp"
+#include "member_expr_test.hpp"
+#include "variable_expr_test.hpp"
+
+namespace Lua {
+namespace Tests {
+namespace Parser {
+namespace Expr {
+
+/**
+ * @brief Parser Expression Test Suite
+ * 
+ * Coordinates all parser expression-related tests
+ * Namespace: Lua::Tests::Parser::Expr
+ */
+class ExprTestSuite {
+public:
+    /**
+     * @brief Run all parser expression tests
+     * 
+     * Execute all expression parsing test suites
+     */
+    static void runAllTests() {
+        RUN_TEST_SUITE(BinaryExprTest);
+        RUN_TEST_SUITE(UnaryExprTest);
+        RUN_TEST_SUITE(LiteralExprTest);
+        RUN_TEST_SUITE(CallExprTest);
+        RUN_TEST_SUITE(TableExprTest);
+        RUN_TEST_SUITE(MemberExprTest);
+        RUN_TEST_SUITE(VariableExprTest);
+    }
+};
+
+} // namespace Expr
+} // namespace Parser
+} // namespace Tests
+} // namespace Lua
+```
+
+**`src/tests/parser/expr/test_expr.cpp`**
+```cpp
+#include "test_expr.hpp"
+
+// 实现已在头文件中内联定义，此文件可选
+// 如需要额外的实现代码，可在此添加
+```
+
+**`src/tests/parser/test_parser.hpp`**
+```cpp
+#pragma once
+
+#include "../test_utils.hpp"
+#include "expr/test_expr.hpp"
+#include "stmt/test_stmt.hpp"
+
+namespace Lua {
+namespace Tests {
+namespace Parser {
+
+/**
+ * @brief Parser Test Suite
+ * 
+ * Coordinates all parser-related tests
+ * Namespace: Lua::Tests::Parser
+ */
+class ParserTestSuite {
+public:
+    /**
+     * @brief Run all parser tests
+     * 
+     * Execute all parser test suites including expressions and statements
+     */
+    static void runAllTests() {
+        RUN_TEST_SUITE(Expr::ExprTestSuite);
+        RUN_TEST_SUITE(Stmt::StmtTestSuite);
+    }
+};
+
+} // namespace Parser
+} // namespace Tests
+} // namespace Lua
+```
+
+### 🎯 规范要点
+
+#### 1. **命名空间层级**
+- **L1**: `Lua::Tests` - 项目根命名空间
+- **L2**: `Lua::Tests::<Module>` - 模块命名空间（如 `Parser`, `Compiler`, `VM`）
+- **L3**: `Lua::Tests::<Module>::<SubModule>` - 子模块命名空间（如 `Expr`, `Stmt`）
+- **L4**: 可根据需要进一步细分
+
+#### 2. **类命名规范**
+- **测试套件**: `<Feature>TestSuite` （如 `ExprTestSuite`, `StmtTestSuite`）
+- **具体测试**: `<Specific>Test` （如 `BinaryExprTest`, `IfStmtTest`）
+
+#### 3. **文件命名规范**
+- **测试套件文件**: `test_<feature>.hpp` （如 `test_expr.hpp`, `test_stmt.hpp`）
+- **具体测试文件**: `<specific>_test.hpp` （如 `binary_expr_test.hpp`）
+
+#### 4. **前缀命名策略**（避免跨模块文件重名）
+
+为了避免不同模块间测试文件重名问题，采用**前缀命名策略**：
+
+##### 命名规则
+- **Parser 模块测试文件**: `parser_<feature>_test.hpp/cpp`
+- **Compiler 模块测试文件**: `compiler_<feature>_test.hpp/cpp`
+- **VM 模块测试文件**: `vm_<feature>_test.hpp/cpp`
+- **其他模块**: `<module>_<feature>_test.hpp/cpp`
+
+##### 示例对比
+
+**传统命名（可能重名）**:
+```
+src/tests/parser/expr/binary_expr_test.hpp
+src/tests/compiler/expr/binary_expr_test.hpp  # 重名！
+src/tests/vm/expr/binary_expr_test.hpp         # 重名！
+```
+
+**前缀命名（避免重名）**:
+```
+src/tests/parser/expr/parser_binary_expr_test.hpp
+src/tests/compiler/expr/compiler_binary_expr_test.hpp
+src/tests/vm/expr/vm_binary_expr_test.hpp
+```
+
+##### 类名对应关系
+```cpp
+// Parser 模块
+namespace Lua::Tests::Parser::Expr {
+    class ParserBinaryExprTest { /* ... */ };  // 文件: parser_binary_expr_test.hpp
+    class ParserLiteralExprTest { /* ... */ }; // 文件: parser_literal_expr_test.hpp
+}
+
+// Compiler 模块
+namespace Lua::Tests::Compiler::Expr {
+    class CompilerBinaryExprTest { /* ... */ }; // 文件: compiler_binary_expr_test.hpp
+    class CompilerLiteralExprTest { /* ... */ }; // 文件: compiler_literal_expr_test.hpp
+}
+```
+
+##### 优势
+1. **🎯 唯一性保证**: 确保跨模块文件名不重复
+2. **🔍 快速识别**: 文件名即可识别所属模块
+3. **🛠️ IDE友好**: 支持更好的文件搜索和导航
+4. **📁 组织清晰**: 保持目录结构的同时避免命名冲突
+5. **🔧 维护便利**: 重构时减少文件名冲突的风险
+6. **📄 头文件分离**: 采用.hpp/.cpp文件对，符合C++最佳实践
+
+##### 头文件/实现文件分离规范
+
+**文件组织方式**:
+- **头文件(.hpp)**: 包含类声明、接口定义、内联函数
+- **实现文件(.cpp)**: 包含具体的测试实现、测试逻辑
+
+**示例结构**:
+```cpp
+// parser_binary_expr_test.hpp - 测试类声明
+#pragma once
+#include "../test_base.hpp"
+
+namespace lua::tests::parser {
+    class ParserBinaryExprTest : public TestBase {
+    public:
+        void run_all_tests() override;
+        
+    private:
+        void test_addition_expression();
+        void test_subtraction_expression();
+        void test_multiplication_expression();
+        void test_division_expression();
+        void test_nested_expressions();
+        void test_operator_precedence();
+        void test_error_handling();
+    };
+}
+```
+
+```cpp
+// parser_binary_expr_test.cpp - 测试实现
+#include "parser_binary_expr_test.hpp"
+#include "../../parser/expression_parser.hpp"
+
+namespace lua::tests::parser {
+    
+void ParserBinaryExprTest::run_all_tests() {
+    test_addition_expression();
+    test_subtraction_expression();
+    test_multiplication_expression();
+    test_division_expression();
+    test_nested_expressions();
+    test_operator_precedence();
+    test_error_handling();
+}
+
+void ParserBinaryExprTest::test_addition_expression() {
+    // 具体的测试实现
+    auto parser = ExpressionParser();
+    auto result = parser.parse("1 + 2");
+    TEST_ASSERT(result.is_valid(), "Addition expression should parse successfully");
+}
+
+// ... 其他测试方法的实现
+
+} // namespace lua::tests::parser
+```
+
+**分离的优势**:
+1. **🚀 编译效率**: 头文件变更时只需重新编译相关文件
+2. **📖 接口清晰**: 头文件提供清晰的测试接口概览
+3. **🔧 维护性**: 实现细节与接口分离，便于维护
+4. **📦 模块化**: 支持更好的模块化设计
+5. **🎯 复用性**: 头文件可以被其他测试文件引用
+6. **📏 代码组织**: 符合C++项目的标准组织方式
+
+#### 5. **主测试文件命名规范**（子模块测试协调器）
+
+为了与子测试文件的前缀命名策略保持一致，**子模块的主测试文件**也应采用前缀命名：
+
+##### 命名规则
+- **格式**: `test_{主模块名}_{子模块名}.hpp`
+- **作用**: 作为子模块内所有测试的协调器和统一入口
+
+##### 示例对比
+
+**传统命名**:
+```
+src/tests/parser/expr/test_expr.hpp          # 不明确所属主模块
+src/tests/compiler/expr/test_expr.hpp        # 可能重名
+src/tests/vm/instruction/test_instruction.hpp # 不一致
+```
+
+**前缀命名（推荐）**:
+```
+src/tests/parser/expr/test_parser_expr.hpp
+src/tests/compiler/expr/test_compiler_expr.hpp
+src/tests/vm/instruction/test_vm_instruction.hpp
+```
+
+##### 文件内容结构
+```cpp
+// test_parser_expr.hpp
+#ifndef TEST_PARSER_EXPR_HPP
+#define TEST_PARSER_EXPR_HPP
+
+#include "../../test_utils.hpp"
+#include "parser_binary_expr_test.hpp"
+#include "parser_literal_expr_test.hpp"
+// ... 其他子测试文件
+
+namespace Lua {
+namespace Tests {
+namespace Parser {
+namespace Expr {
+
+/**
+ * @brief Parser Expression Test Suite
+ * 
+ * Coordinates all parser expression-related tests
+ * Namespace: Lua::Tests::Parser::Expr
+ */
+class ExprTestSuite {
+public:
+    static void runAllTests() {
+        TestUtils::printInfo("Running Parser Expression Tests...");
+        
+        RUN_TEST_SUITE(Lua::Tests::Parser::Expr::ParserBinaryExprTest);
+        RUN_TEST_SUITE(Lua::Tests::Parser::Expr::ParserLiteralExprTest);
+        // ... 其他测试套件
+        
+        TestUtils::printInfo("Parser Expression Tests completed.");
+    }
+};
+
+} // namespace Expr
+} // namespace Parser
+} // namespace Tests
+} // namespace Lua
+
+#endif // TEST_PARSER_EXPR_HPP
+```
+
+##### 命名一致性
+- **主测试文件**: `test_parser_expr.hpp`
+- **子测试文件**: `parser_binary_expr_test.hpp`, `parser_literal_expr_test.hpp`
+- **测试类名**: `ExprTestSuite` (主协调器), `ParserBinaryExprTest` (具体测试)
+- **命名空间**: `Lua::Tests::Parser::Expr`
+
+##### 优势
+1. **🎯 命名一致性**: 与子测试文件的前缀策略保持一致
+2. **🔍 模块识别**: 文件名清晰标识所属的主模块和子模块
+3. **🚫 避免重名**: 防止不同模块的主测试文件重名
+4. **📁 层次清晰**: 文件名体现了模块的层次结构
+5. **🔧 维护友好**: IDE中更容易搜索和识别文件
+
+#### 6. **调用规范**
+- **完整调用**: `Lua::Tests::<Module>::<SubModule>::<TestSuite>::runAllTests()`
+- **简化调用**: 使用 `using namespace` 或 `using` 声明
+
+### 🚀 优势
+
+1. **🎯 命名清晰**: 通过命名空间明确区分不同模块的测试
+2. **🔒 避免冲突**: 消除同名测试套件的命名冲突
+3. **📁 结构清晰**: 文件组织与命名空间结构一致
+4. **🔧 易于维护**: 模块化的组织便于代码维护
+5. **📈 可扩展**: 支持任意层级的子模块扩展
+6. **🎨 IDE友好**: 现代IDE能够很好地支持命名空间导航
+
+### 📋 迁移指南
+
+#### 现有代码迁移步骤
+
+1. **添加命名空间**
+   ```cpp
+   // 迁移前
+   class ExprTestSuite { /* ... */ };
+   
+   // 迁移后
+   namespace Lua::Tests::Parser::Expr {
+       class ExprTestSuite { /* ... */ };
+   }
+   ```
+
+2. **更新调用代码**
+   ```cpp
+   // 迁移前
+   ExprTestSuite::runAllTests();
+   
+   // 迁移后
+   Lua::Tests::Parser::Expr::ExprTestSuite::runAllTests();
+   ```
+
+3. **更新包含文件**
+   ```cpp
+   // 确保包含路径正确
+   #include "parser/expr/test_expr.hpp"
+   ```
+
+#### 新代码开发规范
+
+1. **确定模块归属**: 明确测试属于哪个模块和子模块
+2. **选择合适的命名空间**: 遵循项目的命名空间层级
+3. **保持一致性**: 与同模块的其他测试保持命名风格一致
+4. **文档注释**: 在类注释中明确标注命名空间信息
+
+### 🔍 最佳实践
+
+1. **命名空间注释**: 在每个命名空间结束处添加注释
+   ```cpp
+   } // namespace Expr
+   } // namespace Parser
+   } // namespace Tests
+   } // namespace Lua
+   ```
+
+2. **using声明**: 在需要频繁调用时使用using声明
+   ```cpp
+   using ParserExprTests = Lua::Tests::Parser::Expr;
+   ParserExprTests::ExprTestSuite::runAllTests();
+   ```
+
+3. **文档说明**: 在类文档中明确标注命名空间
+   ```cpp
+   /**
+    * @brief Expression Test Suite for Parser Module
+    * @namespace Lua::Tests::Parser::Expr
+    */
+   class ExprTestSuite { /* ... */ };
+   ```
+
+4. **一致性检查**: 定期检查命名空间使用的一致性
+
+通过采用命名空间隔离方案，我们能够构建一个清晰、可维护、可扩展的测试体系，有效避免命名冲突，提高代码的可读性和维护性。
+
 ## 总结
 
 通过遵循这个指南，你可以：
@@ -1470,5 +2076,190 @@ target_link_libraries(modular_tests PRIVATE lua_lib)
 3. **便于维护**: 清晰的模块化结构
 4. **灵活运行**: 支持全量测试、模块测试和单个测试
 5. **易于调试**: 清晰的输出格式和错误处理
+6. **避免命名冲突**: 通过命名空间隔离确保测试套件的唯一性
+7. **提高可维护性**: 层级化的命名空间结构便于代码组织和维护
 
-记住：好的测试不仅验证功能正确性，还能作为代码的活文档，帮助其他开发者理解系统的行为和预期。
+记住：好的测试不仅验证功能正确性，还能作为代码的活文档，帮助其他开发者理解系统的行为和预期。通过合理的命名空间设计，我们能够构建一个更加清晰、可维护的测试体系。
+
+---
+
+## 📚 附录
+
+### 🔧 工具支持
+
+#### 自动化脚本
+
+**测试文件生成器**
+```bash
+#!/bin/bash
+# generate_test.sh - 快速生成测试文件模板
+
+MODULE=$1
+FEATURE=$2
+
+if [ -z "$MODULE" ] || [ -z "$FEATURE" ]; then
+    echo "Usage: $0 <module> <feature>"
+    echo "Example: $0 parser binary_expr"
+    exit 1
+fi
+
+# 创建测试文件
+cat > "${MODULE}_${FEATURE}_test.cpp" << EOF
+#pragma once
+#include "../test_base.hpp"
+
+namespace lua::tests::${MODULE} {
+    class ${MODULE^}${FEATURE^}Test : public TestBase {
+    public:
+        void run_all_tests() override;
+    private:
+        void test_basic_functionality();
+        void test_edge_cases();
+        void test_error_handling();
+    };
+}
+EOF
+
+echo "Generated ${MODULE}_${FEATURE}_test.cpp"
+```
+
+**规范检查工具**
+```python
+#!/usr/bin/env python3
+# check_naming.py - 检查命名规范
+
+import os
+import re
+from pathlib import Path
+
+def check_test_files(directory):
+    """检查测试文件命名规范"""
+    issues = []
+    
+    for root, dirs, files in os.walk(directory):
+        for file in files:
+            if file.endswith(('.hpp', '.cpp')):
+                if not check_naming_convention(file, root):
+                    issues.append(f"{root}/{file}")
+    
+    return issues
+
+def check_naming_convention(filename, path):
+    """检查单个文件的命名规范"""
+    # 主测试文件规范
+    if filename.startswith('test_'):
+        return re.match(r'test_[a-z_]+\.hpp$', filename)
+    
+    # 子模块测试文件规范
+    if filename.endswith('_test.cpp'):
+        return re.match(r'[a-z]+_[a-z_]+_test\.cpp$', filename)
+    
+    return True
+
+if __name__ == "__main__":
+    issues = check_test_files("src/tests")
+    if issues:
+        print("命名规范问题:")
+        for issue in issues:
+            print(f"  - {issue}")
+    else:
+        print("✅ 所有文件都符合命名规范")
+```
+
+#### IDE 配置
+
+**VS Code 配置**
+```json
+// .vscode/settings.json
+{
+    "files.associations": {
+        "*test*.hpp": "cpp",
+        "*test*.cpp": "cpp"
+    },
+    "C_Cpp.default.includePath": [
+        "${workspaceFolder}/src",
+        "${workspaceFolder}/src/tests"
+    ],
+    "editor.rulers": [80, 120],
+    "files.trimTrailingWhitespace": true
+}
+```
+
+**代码片段**
+```json
+// .vscode/snippets/cpp.json
+{
+    "Test Class Template": {
+        "prefix": "testclass",
+        "body": [
+            "#pragma once",
+            "#include \"../test_base.hpp\"",
+            "",
+            "namespace lua::tests::${1:module} {",
+            "    class ${2:Module}${3:Feature}Test : public TestBase {",
+            "    public:",
+            "        void run_all_tests() override;",
+            "    private:",
+            "        void test_${4:basic_functionality}();",
+            "        void test_edge_cases();",
+            "        void test_error_handling();",
+            "    };",
+            "}"
+        ],
+        "description": "Create a test class template"
+    }
+}
+```
+
+### 📈 版本历史
+
+| 版本 | 日期 | 更新内容 | 贡献者 |
+|------|------|----------|--------|
+| **v2.1** | 2024-12 | 文档结构优化、快速导航、FAQ | 团队 |
+| **v2.0** | 2024-11 | 主测试文件命名规范、工具支持 | 团队 |
+| **v1.5** | 2024-10 | 子模块测试规范、前缀命名策略 | 团队 |
+| **v1.0** | 2024-09 | 基础测试框架、模块化结构 | 团队 |
+
+### 🤝 贡献指南
+
+#### 如何贡献
+
+1. **报告问题**
+   - 在 GitHub Issues 中报告 bug
+   - 提供详细的重现步骤
+   - 包含相关的错误信息
+
+2. **提出改进建议**
+   - 在 Issues 中提出功能请求
+   - 描述期望的行为和用例
+   - 考虑向后兼容性
+
+3. **提交代码**
+   - Fork 项目并创建特性分支
+   - 遵循现有的代码规范
+   - 添加相应的测试用例
+   - 更新相关文档
+
+#### 代码审查清单
+
+- [ ] 遵循命名规范
+- [ ] 包含适当的测试
+- [ ] 更新相关文档
+- [ ] 通过所有现有测试
+- [ ] 代码风格一致
+- [ ] 性能影响评估
+
+### 📞 支持与联系
+
+- **项目主页**: [GitHub Repository](https://github.com/YanqingXu/lua)
+- **文档**: [在线文档](https://your-org.github.io/lua/docs)
+- **问题反馈**: [GitHub Issues](https://github.com/YanqingXu/lua/issues)
+- **讨论**: [GitHub Discussions](https://github.com/YanqingXu/lua/discussions)
+
+### 📄 许可证
+
+本项目采用 [MIT License](LICENSE) 开源许可证。
+
+---
+
+**最后更新**: 2025年6月 | **文档版本**: v2.1 | **维护者**: YanqingXu

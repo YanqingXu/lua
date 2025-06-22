@@ -9,7 +9,7 @@
 在任何测试函数的入口处添加以下宏即可启用内存泄漏检测：
 
 ```cpp
-#include "../../common/memory_leak_detector.hpp"
+#include "../../src/test_framework/core/test_memory.hpp"
 
 void MyTest::testSomeFunction() {
     AUTO_MEMORY_LEAK_TEST_GUARD();  // 添加这一行
@@ -285,7 +285,7 @@ for (const auto& leak : leaks) {
 
 1. 在测试文件中包含头文件：
 ```cpp
-#include "../../common/memory_leak_detector.hpp"
+#include "../../src/test_framework/core/test_memory.hpp"
 ```
 
 2. 在每个测试函数开头添加宏：

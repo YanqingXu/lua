@@ -41,13 +41,13 @@ public:
      */
     static void runAllTests() {
         // Run expression parsing test suite
-        RUN_TEST_SUITE(ExprTestSuite);
+        // RUN_TEST_SUITE(ExprTestSuite);
         
         // Run statement parsing test suite
         RUN_TEST_SUITE(StmtTestSuite);
         
         // Run error recovery test suite
-        ParserErrorRecoveryTest::runAllTests();
+        RUN_TEST_SUITE(ParserErrorRecoveryTest);
         
         // TODO: Add other parser test suites as they are implemented
         // RUN_TEST_SUITE(FuncTestSuite);

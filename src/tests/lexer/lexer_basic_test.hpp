@@ -4,7 +4,7 @@
 #include <string>
 #include "../../lexer/lexer.hpp"
 // Note: test_lexer_error.hpp is included in test_lexer.hpp
-#include "../test_utils.hpp"
+#include "../../test_framework/core/test_macros.hpp"
 
 namespace Lua {
 namespace Tests {

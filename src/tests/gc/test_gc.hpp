@@ -1,6 +1,5 @@
 #pragma once
 
-#include "../test_utils.hpp"
 #include "gc_integration_test.hpp"
 #include "gc_string_pool_test.hpp"
 #include "gc_basic_test.hpp"

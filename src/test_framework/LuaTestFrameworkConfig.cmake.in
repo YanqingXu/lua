@@ -1,0 +1,149 @@
+# LuaTestFramework CMake配置文件
+# 此文件允许其他项目通过find_package(LuaTestFramework)来使用测试框架
+
+@PACKAGE_INIT@
+
+# 设置版本信息
+set(LuaTestFramework_VERSION @PROJECT_VERSION@)
+set(LuaTestFramework_VERSION_MAJOR @PROJECT_VERSION_MAJOR@)
+set(LuaTestFramework_VERSION_MINOR @PROJECT_VERSION_MINOR@)
+set(LuaTestFramework_VERSION_PATCH @PROJECT_VERSION_PATCH@)
+
+# 检查依赖
+include(CMakeFindDependencyMacro)
+
+# 包含目标文件
+include("${CMAKE_CURRENT_LIST_DIR}/LuaTestFrameworkTargets.cmake")
+
+# 设置变量
+set(LuaTestFramework_FOUND TRUE)
+set(LuaTestFramework_INCLUDE_DIRS "@PACKAGE_CMAKE_INSTALL_PREFIX@/include")
+set(LuaTestFramework_LIBRARIES LuaTestFramework::lua_test_framework)
+
+# 检查所有必需的组件
+check_required_components(LuaTestFramework)
+
+# 提供便捷宏
+macro(lua_add_test target_name)
+    # 解析参数
+    set(options MEMORY_CHECK)
+    set(oneValueArgs SOURCE)
+    set(multiValueArgs SOURCES DEPENDENCIES)
+    cmake_parse_arguments(LUA_TEST "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+    
+    # 创建测试目标
+    if(LUA_TEST_SOURCE)
+        add_executable(${target_name} ${LUA_TEST_SOURCE})
+    elseif(LUA_TEST_SOURCES)
+        add_executable(${target_name} ${LUA_TEST_SOURCES})
+    else()
+        message(FATAL_ERROR "lua_add_test: No source files specified")
+    endif()
+    
+    # 链接测试框架
+    target_link_libraries(${target_name} PRIVATE LuaTestFramework::lua_test_framework)
+    
+    # 添加依赖
+    if(LUA_TEST_DEPENDENCIES)
+        target_link_libraries(${target_name} PRIVATE ${LUA_TEST_DEPENDENCIES})
+    endif()
+    
+    # 设置编译特性
+    target_compile_features(${target_name} PRIVATE cxx_std_17)
+    
+    # 如果启用了内存检查，添加相应的编译定义
+    if(LUA_TEST_MEMORY_CHECK)
+        target_compile_definitions(${target_name} PRIVATE LUA_TEST_MEMORY_CHECK_ENABLED)
+    endif()
+    
+    # 添加到测试套件
+    if(CMAKE_TESTING_ENABLED OR BUILD_TESTING)
+        add_test(NAME ${target_name} COMMAND ${target_name})
+        
+        # 设置测试属性
+        set_tests_properties(${target_name} PROPERTIES
+            TIMEOUT 300  # 5分钟超时
+        )
+        
+        if(LUA_TEST_MEMORY_CHECK)
+            set_tests_properties(${target_name} PROPERTIES
+                LABELS "memory_check"
+            )
+        endif()
+    endif()
+endmacro()
+
+# 提供模块查找宏
+macro(lua_add_module_test module_name)
+    set(options MEMORY_CHECK)
+    set(oneValueArgs TEST_SUITE)
+    set(multiValueArgs SOURCES DEPENDENCIES)
+    cmake_parse_arguments(LUA_MODULE "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+    
+    set(target_name "test_${module_name}")
+    
+    # 如果没有指定源文件，尝试自动查找
+    if(NOT LUA_MODULE_SOURCES)
+        file(GLOB_RECURSE module_sources 
+            "tests/${module_name}/*.cpp"
+            "tests/${module_name}/*.hpp"
+        )
+        set(LUA_MODULE_SOURCES ${module_sources})
+    endif()
+    
+    # 创建模块测试
+    if(LUA_MODULE_SOURCES)
+        lua_add_test(${target_name}
+            SOURCES ${LUA_MODULE_SOURCES}
+            DEPENDENCIES ${LUA_MODULE_DEPENDENCIES}
+            ${LUA_MODULE_MEMORY_CHECK}
+        )
+        
+        # 设置模块标签
+        if(CMAKE_TESTING_ENABLED OR BUILD_TESTING)
+            set_tests_properties(${target_name} PROPERTIES
+                LABELS "module;${module_name}"
+            )
+        endif()
+    else()
+        message(WARNING "No source files found for module: ${module_name}")
+    endif()
+endmacro()
+
+# 提供快速测试设置宏
+macro(lua_setup_testing)
+    # 启用测试
+    enable_testing()
+    
+    # 设置通用测试属性
+    if(CMAKE_TESTING_ENABLED OR BUILD_TESTING)
+        # 创建测试组
+        add_custom_target(run_all_tests
+            COMMAND ${CMAKE_CTEST_COMMAND} --verbose
+            COMMENT "Running all Lua tests"
+        )
+        
+        add_custom_target(run_module_tests
+            COMMAND ${CMAKE_CTEST_COMMAND} --verbose -L module
+            COMMENT "Running module tests"
+        )
+        
+        add_custom_target(run_memory_tests
+            COMMAND ${CMAKE_CTEST_COMMAND} --verbose -L memory_check
+            COMMENT "Running memory check tests"
+        )
+        
+        # 快速测试（排除内存检查）
+        add_custom_target(run_quick_tests
+            COMMAND ${CMAKE_CTEST_COMMAND} --verbose -LE memory_check
+            COMMENT "Running quick tests (no memory check)"
+        )
+    endif()
+endmacro()
+
+# 打印配置信息
+if(NOT LuaTestFramework_FIND_QUIETLY)
+    message(STATUS "Found LuaTestFramework: ${LuaTestFramework_VERSION}")
+    message(STATUS "  Include dirs: ${LuaTestFramework_INCLUDE_DIRS}")
+    message(STATUS "  Libraries: ${LuaTestFramework_LIBRARIES}")
+endif()

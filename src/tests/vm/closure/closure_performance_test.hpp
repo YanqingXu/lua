@@ -18,7 +18,6 @@
 #include "../../../vm/value.hpp"
 #include "../../../vm/function.hpp"
 #include "../../../vm/upvalue.hpp"
-#include "../../test_utils.hpp"
 
 namespace Lua {
 namespace Tests {

@@ -4,7 +4,7 @@
 #include "value_test.hpp"
 #include "state_test.hpp"
 #include "closure/test_closure.hpp"
-#include "../test_utils.hpp"
+#include "../../test_framework/core/test_macros.hpp"
 //#include "closure/test_closure.hpp"
 #include "state/test_state.hpp"
 #include "vm_error_test.hpp"

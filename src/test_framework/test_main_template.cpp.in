@@ -1,0 +1,271 @@
+/**
+ * @file test_main_new.cpp
+ * @brief 新测试框架主程序（由CMake生成）
+ * 
+ * 这个文件由CMake从模板生成，用于运行新的测试框架。
+ * 它包含了所有必要的头文件和测试套件。
+ * 
+ * 生成时间: @CMAKE_CONFIGURE_TIME@
+ * CMake版本: @CMAKE_VERSION@
+ * 项目版本: @PROJECT_VERSION@
+ */
+
+// 包含新的测试框架
+#include "test_framework/test_framework.hpp"
+
+// 包含所有测试模块
+#include "tests/lexer/test_lexer.hpp"
+#include "tests/parser/test_parser.hpp"
+#include "tests/compiler/test_compiler.hpp"
+#include "tests/vm/test_vm.hpp"
+#include "tests/gc/test_gc.hpp"
+#include "tests/lib/test_lib.hpp"
+
+#include <iostream>
+#include <exception>
+#include <string>
+
+using namespace Lua::TestFramework;
+
+/**
+ * @brief 新测试框架主测试套件
+ */
+class NewMainTestSuite {
+public:
+    /**
+     * @brief 运行所有测试
+     */
+    static void runAllTests() {
+        TestUtils::printLevelHeader(TestLevel::MAIN, "Lua Interpreter Test Suite (New Framework)");
+        
+        // 运行各个模块的测试
+        RUN_TEST_MODULE("Lexer", Lua::Tests::Lexer::LexerTestSuite::runAllTests);
+        RUN_TEST_MODULE("Parser", Lua::Tests::Parser::ParserTestSuite::runAllTests);
+        RUN_TEST_MODULE("Compiler", Lua::Tests::Compiler::CompilerTestSuite::runAllTests);
+        RUN_TEST_MODULE("VM", Lua::Tests::VM::VMTestSuite::runAllTests);
+        RUN_TEST_MODULE("GC", Lua::Tests::GC::GCTestSuite::runAllTests);
+        RUN_TEST_MODULE("Lib", Lua::Tests::Lib::LibTestSuite::runAllTests);
+        
+        TestUtils::printLevelFooter(TestLevel::MAIN, "All Tests Completed");
+    }
+    
+    /**
+     * @brief 运行指定模块的测试
+     * @param moduleName 模块名称
+     */
+    static void runModuleTests(const std::string& moduleName) {
+        TestUtils::printLevelHeader(TestLevel::MAIN, "Running Module: " + moduleName);
+        
+        if (moduleName == "lexer" || moduleName == "Lexer") {
+            RUN_TEST_MODULE("Lexer", Lua::Tests::Lexer::LexerTestSuite::runAllTests);
+        } else if (moduleName == "parser" || moduleName == "Parser") {
+            RUN_TEST_MODULE("Parser", Lua::Tests::Parser::ParserTestSuite::runAllTests);
+        } else if (moduleName == "compiler" || moduleName == "Compiler") {
+            RUN_TEST_MODULE("Compiler", Lua::Tests::Compiler::CompilerTestSuite::runAllTests);
+        } else if (moduleName == "vm" || moduleName == "VM") {
+            RUN_TEST_MODULE("VM", Lua::Tests::VM::VMTestSuite::runAllTests);
+        } else if (moduleName == "gc" || moduleName == "GC") {
+            RUN_TEST_MODULE("GC", Lua::Tests::GC::GCTestSuite::runAllTests);
+        } else if (moduleName == "lib" || moduleName == "Lib") {
+            RUN_TEST_MODULE("Lib", Lua::Tests::Lib::LibTestSuite::runAllTests);
+        } else {
+            TestUtils::printError("Unknown module: " + moduleName);
+            TestUtils::printInfo("Available modules: lexer, parser, compiler, vm, gc, lib");
+            throw std::runtime_error("Invalid module name: " + moduleName);
+        }
+        
+        TestUtils::printLevelFooter(TestLevel::MAIN, "Module " + moduleName + " Completed");
+    }
+    
+    /**
+     * @brief 运行快速测试（跳过耗时的测试）
+     */
+    static void runQuickTests() {
+        TestUtils::printLevelHeader(TestLevel::MAIN, "Quick Test Suite");
+        TestUtils::setColorEnabled(false); // 快速模式禁用颜色以提高性能
+        
+        // 运行核心功能的快速测试
+        RUN_TEST_GROUP("Quick Lexer Tests", []() {
+            // 这里应该包含快速的lexer测试
+            TestUtils::printInfo("Running quick lexer tests...");
+        });
+        
+        RUN_TEST_GROUP("Quick Parser Tests", []() {
+            // 这里应该包含快速的parser测试
+            TestUtils::printInfo("Running quick parser tests...");
+        });
+        
+        TestUtils::printLevelFooter(TestLevel::MAIN, "Quick Tests Completed");
+    }
+    
+    /**
+     * @brief 运行内存安全测试
+     */
+    static void runMemorySafetyTests() {
+        TestUtils::printLevelHeader(TestLevel::MAIN, "Memory Safety Test Suite");
+        
+        // 运行带内存检测的测试
+        RUN_TEST_SUITE_WITH_MEMORY_CHECK([]() {
+            TestUtils::printInfo("Running memory safety tests for all modules...");
+            
+            // 这里应该包含所有模块的内存安全测试
+            RUN_TEST_GROUP_WITH_MEMORY_CHECK("Lexer Memory Tests", []() {
+                TestUtils::printInfo("Lexer memory safety tests...");
+            });
+            
+            RUN_TEST_GROUP_WITH_MEMORY_CHECK("Parser Memory Tests", []() {
+                TestUtils::printInfo("Parser memory safety tests...");
+            });
+            
+            RUN_TEST_GROUP_WITH_MEMORY_CHECK("VM Memory Tests", []() {
+                TestUtils::printInfo("VM memory safety tests...");
+            });
+        });
+        
+        TestUtils::printLevelFooter(TestLevel::MAIN, "Memory Safety Tests Completed");
+    }
+};
+
+/**
+ * @brief 打印使用帮助
+ */
+void printUsage(const char* programName) {
+    std::cout << "Usage: " << programName << " [options]\n";
+    std::cout << "\n";
+    std::cout << "Options:\n";
+    std::cout << "  --help, -h          Show this help message\n";
+    std::cout << "  --version, -v       Show version information\n";
+    std::cout << "  --all               Run all tests (default)\n";
+    std::cout << "  --module <name>     Run tests for specific module\n";
+    std::cout << "  --quick             Run quick tests only\n";
+    std::cout << "  --memory            Run memory safety tests\n";
+    std::cout << "  --no-color          Disable colored output\n";
+    std::cout << "  --theme <name>      Set color theme (modern, classic, minimal)\n";
+    std::cout << "  --verbose           Enable verbose output\n";
+    std::cout << "\n";
+    std::cout << "Examples:\n";
+    std::cout << "  " << programName << "                    # Run all tests\n";
+    std::cout << "  " << programName << " --module parser     # Run parser tests only\n";
+    std::cout << "  " << programName << " --quick             # Run quick tests\n";
+    std::cout << "  " << programName << " --memory            # Run memory safety tests\n";
+    std::cout << "  " << programName << " --no-color --quick  # Quick tests without color\n";
+}
+
+/**
+ * @brief 主函数
+ */
+int main(int argc, char* argv[]) {
+    try {
+        // 解析命令行参数
+        bool runAll = true;
+        bool runQuick = false;
+        bool runMemory = false;
+        bool showHelp = false;
+        bool showVersion = false;
+        bool enableColor = true;
+        bool verbose = false;
+        std::string moduleName;
+        std::string themeName = "modern";
+        
+        for (int i = 1; i < argc; ++i) {
+            std::string arg = argv[i];
+            
+            if (arg == "--help" || arg == "-h") {
+                showHelp = true;
+            } else if (arg == "--version" || arg == "-v") {
+                showVersion = true;
+            } else if (arg == "--all") {
+                runAll = true;
+                runQuick = false;
+                runMemory = false;
+            } else if (arg == "--quick") {
+                runQuick = true;
+                runAll = false;
+                runMemory = false;
+            } else if (arg == "--memory") {
+                runMemory = true;
+                runAll = false;
+                runQuick = false;
+            } else if (arg == "--module" && i + 1 < argc) {
+                moduleName = argv[++i];
+                runAll = false;
+                runQuick = false;
+                runMemory = false;
+            } else if (arg == "--no-color") {
+                enableColor = false;
+            } else if (arg == "--theme" && i + 1 < argc) {
+                themeName = argv[++i];
+            } else if (arg == "--verbose") {
+                verbose = true;
+            } else {
+                std::cerr << "Unknown option: " << arg << "\n";
+                printUsage(argv[0]);
+                return 1;
+            }
+        }
+        
+        if (showHelp) {
+            printUsage(argv[0]);
+            return 0;
+        }
+        
+        if (showVersion) {
+            Version::printVersion();
+            return 0;
+        }
+        
+        // 初始化测试框架
+        TestUtils::setColorEnabled(enableColor);
+        TestUtils::setVerbose(verbose);
+        
+        // 设置主题
+        if (themeName == "modern") {
+            TestUtils::setTheme(ColorTheme::MODERN);
+        } else if (themeName == "classic") {
+            TestUtils::setTheme(ColorTheme::CLASSIC);
+        } else if (themeName == "minimal") {
+            TestUtils::setTheme(ColorTheme::MINIMAL);
+        } else {
+            TestUtils::printWarning("Unknown theme: " + themeName + ", using default");
+            TestUtils::setTheme(ColorTheme::MODERN);
+        }
+        
+        // 显示版本信息
+        Version::printVersion();
+        std::cout << "\n";
+        
+        // 运行测试
+        if (!moduleName.empty()) {
+            NewMainTestSuite::runModuleTests(moduleName);
+        } else if (runQuick) {
+            NewMainTestSuite::runQuickTests();
+        } else if (runMemory) {
+            NewMainTestSuite::runMemorySafetyTests();
+        } else {
+            NewMainTestSuite::runAllTests();
+        }
+        
+        // 显示测试统计
+        std::cout << "\n";
+        auto stats = TestUtils::getTestStatistics();
+        TestUtils::printInfo("=== Test Summary ===");
+        TestUtils::printInfo("Total: " + std::to_string(stats.totalTests));
+        TestUtils::printInfo("Passed: " + std::to_string(stats.passedTests));
+        TestUtils::printInfo("Failed: " + std::to_string(stats.failedTests));
+        
+        if (stats.failedTests == 0) {
+            TestUtils::printInfo("🎉 All tests passed!");
+            return 0;
+        } else {
+            TestUtils::printError("❌ " + std::to_string(stats.failedTests) + " test(s) failed");
+            return 1;
+        }
+        
+    } catch (const std::exception& e) {
+        std::cerr << "Error: " << e.what() << "\n";
+        return 2;
+    } catch (...) {
+        std::cerr << "Unknown error occurred\n";
+        return 3;
+    }
+}

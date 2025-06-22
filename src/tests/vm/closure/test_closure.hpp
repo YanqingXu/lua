@@ -4,7 +4,7 @@
 #include <iostream>
 #include <string>
 
-#include "../../test_utils.hpp"
+#include "../../../test_framework/core/test_macros.hpp"
 #include "closure_basic_test.hpp"
 #include "closure_advanced_test.hpp"
 #include "closure_memory_test.hpp"

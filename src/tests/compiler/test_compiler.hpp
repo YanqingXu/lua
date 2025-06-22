@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../test_utils.hpp"
+#include "../../test_framework/core/test_macros.hpp"
 #include "compiler_symbol_table_test.hpp"
 //#include "compiler_literal_test.hpp"
 #include "compiler_variable_test.hpp"

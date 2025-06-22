@@ -17,7 +17,7 @@
 ### 基本用法
 
 ```cpp
-#include "../../common/timeout_memory_detector.hpp"
+#include "../../src/test_framework/core/test_memory.hpp"
 
 void MyTest::testSomeFunction() {
     AUTO_COMPREHENSIVE_TEST_GUARD_DEFAULT();  // 30秒超时，包含所有检测

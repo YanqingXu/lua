@@ -14,6 +14,7 @@
 #include "common/defines.hpp"
 #include "lib/base_lib.hpp"
 #include "tests/test_main.hpp"
+#include "test_framework/core/test_macros.hpp"
 
 using namespace Lua;
 
