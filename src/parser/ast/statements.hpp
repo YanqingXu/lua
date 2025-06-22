@@ -205,4 +205,17 @@ namespace Lua {
         const Vec<Str>& getParameters() const { return parameters; }
         const Stmt* getBody() const { return body.get(); }
     };
+
+    // Do statement (do body end)
+    class DoStmt : public Stmt {
+    private:
+        UPtr<Stmt> body;  // Block body
+
+    public:
+        DoStmt(UPtr<Stmt> body, const SourceLocation& location = SourceLocation())
+            : Stmt(location), body(std::move(body)) {}
+
+        StmtType getType() const override { return StmtType::Do; }
+        const Stmt* getBody() const { return body.get(); }
+    };
 }

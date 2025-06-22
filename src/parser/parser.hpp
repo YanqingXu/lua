@@ -39,6 +39,14 @@ namespace Lua {
     private:
         void synchronize();
         void skipBalancedDelimiters();
+        bool trySkipBalancedDelimiters();
+        void reportRecoveryInfo(const SourceLocation& start, const SourceLocation& end, 
+                               int tokensSkipped, bool foundSyncPoint);
+        
+        // Expression validation helpers
+        bool isLogicalOperator(TokenType op) const;
+        bool isValidLogicalOperand(const Expr* expr) const;
+        bool isValidLengthOperand(const Expr* expr) const;
         bool isAtEnd() const;
 
         // Parse expressions
@@ -71,6 +79,7 @@ namespace Lua {
         UPtr<Stmt> returnStatement();
         UPtr<Stmt> breakStatement();
         UPtr<Stmt> functionStatement();
+        UPtr<Stmt> doStatement();
 
         // Helper for assignment target validation
         bool isValidAssignmentTarget(const Expr* expr) const;

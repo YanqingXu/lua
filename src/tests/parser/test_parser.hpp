@@ -3,6 +3,7 @@
 // Include all parser test headers
 #include "expr/test_expr.hpp"
 #include "stmt/test_stmt.hpp"
+#include "error_recovery_test.hpp"
 
 namespace Lua {
 namespace Tests {
@@ -44,6 +45,9 @@ public:
         
         // Run statement parsing test suite
         RUN_TEST_SUITE(StmtTestSuite);
+        
+        // Run error recovery test suite
+        ParserErrorRecoveryTest::runAllTests();
         
         // TODO: Add other parser test suites as they are implemented
         // RUN_TEST_SUITE(FuncTestSuite);

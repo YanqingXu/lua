@@ -34,6 +34,10 @@ namespace Lua {
             return functionStatement();
         }
 
+        if (match(TokenType::Do)) {
+            return doStatement();
+        }
+
         return assignmentStatement();
     }
 
@@ -53,20 +57,57 @@ namespace Lua {
             return std::make_unique<LocalStmt>(name.lexeme, std::move(funcExpr));
         }
 
-        // Regular local variable declaration: local name = value
-        Token name = consume(TokenType::Name, "Expect variable name.");
+        // Regular local variable declaration: local name1, name2, ... = value1, value2, ...
+        Vec<Str> names;
+        
+        // Parse variable names
+        do {
+            Token name = consume(TokenType::Name, "Expect variable name.");
+            names.push_back(name.lexeme);
+        } while (match(TokenType::Comma));
 
-        UPtr<Expr> initializer = nullptr;
+        // Parse initializers if present
+        Vec<UPtr<Expr>> initializers;
         if (match(TokenType::Assign)) {
-            initializer = expression();
+            do {
+                auto expr = expression();
+                if (expr) {
+                    initializers.push_back(std::move(expr));
+                } else {
+                    // If expression parsing fails, break to avoid infinite loop
+                    error("Failed to parse initializer expression.");
+                    break;
+                }
+            } while (match(TokenType::Comma));
         }
 
         match(TokenType::Semicolon); // Optional semicolon
-        return std::make_unique<LocalStmt>(name.lexeme, std::move(initializer));
+        
+        // For now, create multiple LocalStmt for each variable
+        // In a more complete implementation, you'd want a MultiLocalStmt
+        if (names.size() == 1) {
+            UPtr<Expr> init = initializers.empty() ? nullptr : std::move(initializers[0]);
+            return std::make_unique<LocalStmt>(names[0], std::move(init));
+        } else {
+            // For multiple variables, create a block with multiple LocalStmt
+            Vec<UPtr<Stmt>> statements;
+            for (size_t i = 0; i < names.size(); ++i) {
+                UPtr<Expr> init = (i < initializers.size()) ? std::move(initializers[i]) : nullptr;
+                statements.push_back(std::make_unique<LocalStmt>(names[i], std::move(init)));
+            }
+            return std::make_unique<BlockStmt>(std::move(statements));
+        }
     }
 
     UPtr<Stmt> Parser::assignmentStatement() {
         auto expr = expression();
+        
+        // If expression parsing failed, return null to avoid infinite loop
+        if (!expr) {
+            error("Failed to parse expression in assignment statement.");
+            synchronize(); // Try to recover
+            return nullptr;
+        }
 
         // Check if this is an assignment
         if (match(TokenType::Assign)) {
@@ -76,6 +117,11 @@ namespace Lua {
             }
 
             auto value = expression();
+            if (!value) {
+                error("Failed to parse assignment value.");
+                return std::make_unique<ExprStmt>(std::move(expr));
+            }
+            
             match(TokenType::Semicolon); // Optional semicolon
             return std::make_unique<AssignStmt>(std::move(expr), std::move(value));
         }
@@ -86,33 +132,102 @@ namespace Lua {
     }
 
     UPtr<Stmt> Parser::ifStatement() {
-        auto condition = expression();
-        consume(TokenType::Then, "Expect 'then' after if condition.");
+        SourceLocation ifLocation = SourceLocation::fromToken(previous);
+        
+        UPtr<Expr> condition;
+        try {
+            condition = expression();
+        } catch (...) {
+            // If condition parsing fails, try to recover
+            error(ErrorType::InvalidExpression, "Invalid condition in if statement");
+            synchronize();
+            // Create a dummy condition to continue parsing
+            condition = std::make_unique<LiteralExpr>(Value(false));
+        }
+        
+        if (consume(TokenType::Then, "Expect 'then' after if condition.").type != TokenType::Then) {
+            // Try to recover from missing 'then'
+            auto missingThenError = ParseError::missingToken(SourceLocation::fromToken(current), "then");
+            missingThenError.addSuggestion(FixType::Insert, SourceLocation::fromToken(current), 
+                "Insert 'then' keyword", "then");
+            errorReporter_.addError(std::move(missingThenError));
+            
+            // Try to find the then block anyway
+            if (current.type != TokenType::End && current.type != TokenType::Else && 
+                current.type != TokenType::Elseif && !isAtEnd()) {
+                // Assume the then block starts here
+            } else {
+                synchronize();
+            }
+        }
 
-        auto thenBranch = blockStatement();
+        UPtr<Stmt> thenBranch;
+        try {
+            thenBranch = blockStatement();
+        } catch (...) {
+            error(ErrorType::InvalidStatement, "Invalid then block in if statement");
+            synchronize();
+            thenBranch = std::make_unique<BlockStmt>(Vec<UPtr<Stmt>>());
+        }
 
         UPtr<Stmt> elseBranch = nullptr;
         if (match(TokenType::Else)) {
-            elseBranch = blockStatement();
+            try {
+                elseBranch = blockStatement();
+            } catch (...) {
+                error(ErrorType::InvalidStatement, "Invalid else block in if statement");
+                synchronize();
+                elseBranch = std::make_unique<BlockStmt>(Vec<UPtr<Stmt>>());
+            }
         }
 
-        consume(TokenType::End, "Expect 'end' after if statement.");
+        if (consume(TokenType::End, "Expect 'end' after if statement.").type != TokenType::End) {
+            // Try to recover from missing 'end'
+            auto missingEndError = ParseError::missingToken(SourceLocation::fromToken(current), "end");
+            missingEndError.addSuggestion(FixType::Insert, SourceLocation::fromToken(current), 
+                "Insert 'end' keyword to close if statement", "end");
+            missingEndError.setDetails("If statement started at " + ifLocation.toString());
+            errorReporter_.addError(std::move(missingEndError));
+        }
 
         return std::make_unique<IfStmt>(std::move(condition), std::move(thenBranch), std::move(elseBranch));
     }
 
     UPtr<Stmt> Parser::whileStatement() {
-        // Parse condition expression
-        auto condition = expression();
+        SourceLocation whileLocation = SourceLocation::fromToken(previous);
         
-        // Expect 'do' keyword
-        consume(TokenType::Do, "Expect 'do' after while condition.");
+        UPtr<Expr> condition;
+        try {
+            condition = expression();
+        } catch (...) {
+            error(ErrorType::InvalidExpression, "Invalid condition in while statement");
+            synchronize();
+            condition = std::make_unique<LiteralExpr>(Value(false));
+        }
         
-        // Parse body as a block statement
-        auto body = blockStatement();
-        
-        // Expect 'end' keyword
-        consume(TokenType::End, "Expect 'end' after while body.");
+        if (consume(TokenType::Do, "Expect 'do' after while condition.").type != TokenType::Do) {
+            auto missingDoError = ParseError::missingToken(SourceLocation::fromToken(current), "do");
+            missingDoError.addSuggestion(FixType::Insert, SourceLocation::fromToken(current), 
+                "Insert 'do' keyword", "do");
+            errorReporter_.addError(std::move(missingDoError));
+        }
+
+        UPtr<Stmt> body;
+        try {
+            body = blockStatement();
+        } catch (...) {
+            error(ErrorType::InvalidStatement, "Invalid body in while statement");
+            synchronize();
+            body = std::make_unique<BlockStmt>(Vec<UPtr<Stmt>>());
+        }
+
+        if (consume(TokenType::End, "Expect 'end' after while body.").type != TokenType::End) {
+            auto missingEndError = ParseError::missingToken(SourceLocation::fromToken(current), "end");
+            missingEndError.addSuggestion(FixType::Insert, SourceLocation::fromToken(current), 
+                "Insert 'end' keyword to close while statement", "end");
+            missingEndError.setDetails("While statement started at " + whileLocation.toString());
+            errorReporter_.addError(std::move(missingEndError));
+        }
         
         return std::make_unique<WhileStmt>(std::move(condition), std::move(body));
     }
@@ -274,5 +389,15 @@ namespace Lua {
         consume(TokenType::End, "Expect 'end' after function body.");
         
         return std::make_unique<FunctionStmt>(name.lexeme, parameters, std::move(body));
+    }
+
+    UPtr<Stmt> Parser::doStatement() {
+        // Parse the block body
+        auto body = blockStatement();
+        
+        // Expect 'end'
+        consume(TokenType::End, "Expect 'end' after do block.");
+        
+        return std::make_unique<DoStmt>(std::move(body));
     }
 }

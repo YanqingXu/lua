@@ -87,86 +87,118 @@ namespace Lua {
     }
 
     void Parser::synchronize() {
+        // Enhanced error recovery with context-aware synchronization
+        SourceLocation errorStart = SourceLocation::fromToken(current);
+        
         // Skip the current erroneous token
         advance();
         
-        // Track how many tokens we've skipped to avoid infinite loops
+        // Track recovery context and statistics
         int tokensSkipped = 0;
-        const int maxTokensToSkip = 50; // Reasonable limit
+        int nestingLevel = 0;
+        const int maxTokensToSkip = 100; // Increased limit for better recovery
+        bool foundGoodSyncPoint = false;
         
-        while (!isAtEnd() && tokensSkipped < maxTokensToSkip) {
-            // Primary synchronization point: after semicolon
+        while (!isAtEnd() && tokensSkipped < maxTokensToSkip && !foundGoodSyncPoint) {
+            // Primary synchronization point: after semicolon (statement boundary)
             if (previous.type == TokenType::Semicolon) {
-                return;
+                foundGoodSyncPoint = true;
+                break;
             }
             
-            // Statement-level synchronization points
-            switch (current.type) {
-                // Control flow statements
-                case TokenType::If:
-                case TokenType::While:
-                case TokenType::For:
-                case TokenType::Repeat:
-                case TokenType::Do:
-                    return;
-                    
-                // Declaration statements
-                case TokenType::Function:
-                case TokenType::Local:
-                    return;
-                    
-                // Flow control statements
-                case TokenType::Return:
-                case TokenType::Break:
-                    return;
-                    
-                // Block terminators - good recovery points
-                case TokenType::End:
-                case TokenType::Until:
-                case TokenType::Else:
-                case TokenType::Elseif:
-                    return;
-                    
-                // Expression terminators in certain contexts
-                case TokenType::Then:
-                    // Only synchronize on 'then' if we're likely in an if condition
-                    return;
-                    
-                default:
-                    break;
-            }
-            
-            // Block-level synchronization: look for balanced braces/brackets
+            // Track nesting level for better context awareness
             if (current.type == TokenType::LeftBrace || 
                 current.type == TokenType::LeftBracket || 
                 current.type == TokenType::LeftParen) {
-                // Skip balanced delimiters to avoid getting stuck inside them
-                skipBalancedDelimiters();
-                tokensSkipped++;
-                continue;
+                nestingLevel++;
+            } else if (current.type == TokenType::RightBrace || 
+                       current.type == TokenType::RightBracket || 
+                       current.type == TokenType::RightParen) {
+                nestingLevel--;
+                // If we're back to top level, this is a good sync point
+                if (nestingLevel <= 0) {
+                    advance();
+                    foundGoodSyncPoint = true;
+                    break;
+                }
             }
             
-            // If we encounter a closing delimiter without matching opening,
-            // it might be a good synchronization point
-            if (current.type == TokenType::RightBrace || 
-                current.type == TokenType::RightBracket || 
-                current.type == TokenType::RightParen) {
-                advance();
-                return;
+            // Statement-level synchronization points (only at top level)
+            if (nestingLevel <= 0) {
+                switch (current.type) {
+                    // Control flow statements - excellent sync points
+                    case TokenType::If:
+                    case TokenType::While:
+                    case TokenType::For:
+                    case TokenType::Repeat:
+                    case TokenType::Do:
+                        foundGoodSyncPoint = true;
+                        break;
+                        
+                    // Declaration statements - very good sync points
+                    case TokenType::Function:
+                    case TokenType::Local:
+                        foundGoodSyncPoint = true;
+                        break;
+                        
+                    // Flow control statements - good sync points
+                    case TokenType::Return:
+                    case TokenType::Break:
+                        foundGoodSyncPoint = true;
+                        break;
+                        
+                    // Block terminators - context-dependent sync points
+                    case TokenType::End:
+                    case TokenType::Until:
+                    case TokenType::Else:
+                    case TokenType::Elseif:
+                        foundGoodSyncPoint = true;
+                        break;
+                        
+                    // Expression terminators in control flow contexts
+                    case TokenType::Then:
+                        // Good sync point for if-then constructs
+                        foundGoodSyncPoint = true;
+                        break;
+                        
+                    default:
+                        break;
+                }
+            }
+            
+            if (foundGoodSyncPoint) break;
+            
+            // Handle balanced delimiters more intelligently
+            if (current.type == TokenType::LeftBrace || 
+                current.type == TokenType::LeftBracket || 
+                current.type == TokenType::LeftParen) {
+                // Try to skip balanced delimiters, but be more careful
+                if (!trySkipBalancedDelimiters()) {
+                    // If we can't skip balanced delimiters, just advance
+                    advance();
+                }
+                tokensSkipped++;
+                continue;
             }
             
             advance();
             tokensSkipped++;
         }
         
-        // If we've skipped too many tokens, report a warning
+        // Report recovery statistics and suggestions
+        if (tokensSkipped > 0) {
+            SourceLocation errorEnd = SourceLocation::fromToken(previous);
+            reportRecoveryInfo(errorStart, errorEnd, tokensSkipped, foundGoodSyncPoint);
+        }
+        
+        // If we've skipped too many tokens without finding a good sync point
         if (tokensSkipped >= maxTokensToSkip) {
             error(ErrorType::InternalError, 
-                  "Error recovery skipped too many tokens. Parser may be confused.");
+                  "Error recovery failed: too many tokens skipped without finding synchronization point.");
         }
     }
 
-    void Parser::skipBalancedDelimiters() {
+    bool Parser::trySkipBalancedDelimiters() {
         TokenType openType = current.type;
         TokenType closeType;
         
@@ -183,30 +215,127 @@ namespace Lua {
                 break;
             default:
                 // Not a delimiter we handle
-                return;
+                return false;
         }
         
+        SourceLocation startLocation = SourceLocation::fromToken(current);
         int depth = 0;
-        int maxDepth = 20; // Prevent infinite loops in malformed code
+        int tokensInDelimiters = 0;
+        const int maxDepth = 50; // Increased limit for complex expressions
+        const int maxTokensInDelimiters = 200; // Prevent runaway parsing
         
-        while (!isAtEnd() && depth < maxDepth) {
+        while (!isAtEnd() && depth < maxDepth && tokensInDelimiters < maxTokensInDelimiters) {
             if (current.type == openType) {
                 depth++;
             } else if (current.type == closeType) {
                 depth--;
                 if (depth == 0) {
                     advance(); // Consume the closing delimiter
-                    return;
+                    return true; // Successfully skipped balanced delimiters
                 }
             }
+            
             advance();
+            tokensInDelimiters++;
         }
         
-        // If we exit due to max depth, report an error
+        // If we reach here, we have unmatched or overly complex delimiters
         if (depth >= maxDepth) {
-            error(ErrorType::MismatchedParentheses, 
-                  "Deeply nested or unmatched delimiters detected during error recovery.");
+            auto error = ParseError::mismatchedParentheses(startLocation, 
+                tokenTypeToString(closeType));
+            error.setDetails("Deeply nested delimiters detected during error recovery (depth: " + 
+                           std::to_string(depth) + ")");
+            errorReporter_.addError(std::move(error));
+        } else if (tokensInDelimiters >= maxTokensInDelimiters) {
+            error(ErrorType::MismatchedParentheses, startLocation,
+                  "Extremely long delimiter block detected during error recovery",
+                  "Consider breaking down complex expressions into smaller parts");
         }
+        
+        return false; // Failed to skip balanced delimiters
+    }
+    
+    void Parser::skipBalancedDelimiters() {
+        // Legacy method - now uses the enhanced version
+        trySkipBalancedDelimiters();
+    }
+    
+    void Parser::reportRecoveryInfo(const SourceLocation& start, const SourceLocation& end, 
+                                   int tokensSkipped, bool foundSyncPoint) {
+        if (tokensSkipped <= 3) {
+            // Minor recovery - just a note
+            return;
+        }
+        
+        Str message;
+        ErrorSeverity severity;
+        
+        if (foundSyncPoint) {
+            if (tokensSkipped <= 10) {
+                message = "Recovered from syntax error by skipping " + std::to_string(tokensSkipped) + " tokens";
+                severity = ErrorSeverity::Info;
+            } else {
+                message = "Recovered from syntax error by skipping " + std::to_string(tokensSkipped) + " tokens";
+                severity = ErrorSeverity::Warning;
+            }
+        } else {
+            message = "Partial recovery: skipped " + std::to_string(tokensSkipped) + " tokens without finding clear synchronization point";
+            severity = ErrorSeverity::Warning;
+        }
+        
+        auto recoveryError = ParseError(ErrorType::InternalError, start, message, severity);
+        
+        // Add helpful suggestions based on recovery context
+        if (tokensSkipped > 20) {
+            recoveryError.addSuggestion(FixType::Insert, start, 
+                "Consider adding missing delimiters or keywords", "");
+        }
+        
+        if (!foundSyncPoint) {
+            recoveryError.addSuggestion(FixType::Insert, end, 
+                "Add a statement terminator (semicolon) or block delimiter", ";");
+        }
+        
+        recoveryError.setDetails("Recovery span: " + start.toString() + " to " + end.toString());
+        errorReporter_.addError(std::move(recoveryError));
+    }
+    
+    bool Parser::isLogicalOperator(TokenType op) const {
+        return op == TokenType::And || op == TokenType::Or;
+    }
+    
+    bool Parser::isValidLogicalOperand(const Expr* expr) const {
+        if (!expr) return false;
+        
+        // For now, accept all expressions as potentially valid logical operands
+        // In a more sophisticated implementation, we could check for:
+        // - Boolean literals
+        // - Comparison expressions
+        // - Function calls that return booleans
+        // - Variables that might contain booleans
+        return true;
+    }
+    
+    bool Parser::isValidLengthOperand(const Expr* expr) const {
+        if (!expr) return false;
+        
+        // Check if the expression is likely to be a string or table
+        if (auto literal = dynamic_cast<const LiteralExpr*>(expr)) {
+            // Check if it's a string literal
+            return literal->getValue().isString();
+        }
+        
+        if (auto table = dynamic_cast<const TableExpr*>(expr)) {
+            return true;
+        }
+        
+        if (auto variable = dynamic_cast<const VariableExpr*>(expr)) {
+            // Variables could potentially be strings or tables
+            return true;
+        }
+        
+        // For other expressions (function calls, etc.), assume they might be valid
+        return true;
     }
 
     bool Parser::isAtEnd() const {
@@ -215,12 +344,32 @@ namespace Lua {
 
     Vec<UPtr<Stmt>> Parser::parse() {
         Vec<UPtr<Stmt>> statements;
+        Token lastToken = current;
+        int stuckCount = 0;
+        const int maxStuckIterations = 3;
 
         while (!isAtEnd()) {
             auto stmt = statement();
             if (stmt) {
                 statements.push_back(std::move(stmt));
+                stuckCount = 0; // Reset stuck counter on successful parsing
             }
+            
+            // Check if we're stuck in an infinite loop
+            if (current.type == lastToken.type && 
+                current.line == lastToken.line && 
+                current.column == lastToken.column) {
+                stuckCount++;
+                if (stuckCount >= maxStuckIterations) {
+                    error("Parser stuck in infinite loop, forcing advance.");
+                    advance(); // Force advance to break the loop
+                    stuckCount = 0;
+                }
+            } else {
+                stuckCount = 0;
+            }
+            
+            lastToken = current;
         }
 
         return statements;

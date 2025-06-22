@@ -186,18 +186,6 @@
     <ClCompile Include="src\tests\vm\value_test.cpp">
       <Filter>tests\vm</Filter>
     </ClCompile>
-    <ClCompile Include="src\tests\lexer\lexer_test.cpp">
-      <Filter>tests\lexer</Filter>
-    </ClCompile>
-    <ClCompile Include="src\tests\gc\gc_integration_test.cpp">
-      <Filter>tests\gc</Filter>
-    </ClCompile>
-    <ClCompile Include="src\tests\gc\string_pool_demo_test.cpp">
-      <Filter>tests\gc</Filter>
-    </ClCompile>
-    <ClCompile Include="src\tests\gc\test_gc.cpp">
-      <Filter>tests\gc</Filter>
-    </ClCompile>
     <ClCompile Include="src\parser\ast\source_location.cpp">
       <Filter>parser\ast</Filter>
     </ClCompile>
@@ -260,9 +248,6 @@
     </ClCompile>
     <ClCompile Include="src\tests\localization\localization_test.cpp">
       <Filter>tests\localization</Filter>
-    </ClCompile>
-    <ClCompile Include="src\tests\gc\garbage_collector_test.cpp">
-      <Filter>tests\gc</Filter>
     </ClCompile>
     <ClCompile Include="src\compiler\upvalue_analyzer.cpp">
       <Filter>compiler</Filter>
@@ -332,6 +317,21 @@
     </ClCompile>
     <ClCompile Include="src\tests\compiler\compiler_variable_test.cpp">
       <Filter>tests\compiler</Filter>
+    </ClCompile>
+    <ClCompile Include="src\tests\lexer\lexer_basic_test.cpp">
+      <Filter>tests\lexer</Filter>
+    </ClCompile>
+    <ClCompile Include="src\tests\lexer\lexer_error_test.cpp">
+      <Filter>tests\lexer</Filter>
+    </ClCompile>
+    <ClCompile Include="src\tests\compiler\compiler_error_test.cpp">
+      <Filter>tests\compiler</Filter>
+    </ClCompile>
+    <ClCompile Include="src\common\memory_leak_detector.cpp">
+      <Filter>common</Filter>
+    </ClCompile>
+    <ClCompile Include="src\common\timeout_memory_detector.cpp">
+      <Filter>common</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -443,15 +443,6 @@
     <ClInclude Include="src\tests\vm\value_test.hpp">
       <Filter>tests\vm</Filter>
     </ClInclude>
-    <ClInclude Include="src\tests\lexer\lexer_test.hpp">
-      <Filter>tests\lexer</Filter>
-    </ClInclude>
-    <ClInclude Include="src\tests\gc\gc_integration_test.hpp">
-      <Filter>tests\gc</Filter>
-    </ClInclude>
-    <ClInclude Include="src\tests\gc\string_pool_demo_test.hpp">
-      <Filter>tests\gc</Filter>
-    </ClInclude>
     <ClInclude Include="src\tests\gc\test_gc.hpp">
       <Filter>tests\gc</Filter>
     </ClInclude>
@@ -532,9 +523,6 @@
     </ClInclude>
     <ClInclude Include="src\tests\localization\localization_test.hpp">
       <Filter>tests\localization</Filter>
-    </ClInclude>
-    <ClInclude Include="src\tests\gc\garbage_collector_test.hpp">
-      <Filter>tests\gc</Filter>
     </ClInclude>
     <ClInclude Include="src\compiler\upvalue_analyzer.hpp">
       <Filter>compiler</Filter>
@@ -619,6 +607,24 @@
     </ClInclude>
     <ClInclude Include="src\tests\compiler\compiler_variable_test.hpp">
       <Filter>tests\compiler</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tests\lexer\test_lexer.hpp">
+      <Filter>tests\lexer</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tests\lexer\lexer_basic_test.hpp">
+      <Filter>tests\lexer</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tests\lexer\lexer_error_test.hpp">
+      <Filter>tests\lexer</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tests\compiler\compiler_error_test.hpp">
+      <Filter>tests\compiler</Filter>
+    </ClInclude>
+    <ClInclude Include="src\common\memory_leak_detector.hpp">
+      <Filter>common</Filter>
+    </ClInclude>
+    <ClInclude Include="src\common\timeout_memory_detector.hpp">
+      <Filter>common</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

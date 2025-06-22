@@ -137,7 +137,9 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="src\common\defines.hpp" />
+    <ClInclude Include="src\common\memory_leak_detector.hpp" />
     <ClInclude Include="src\common\opcodes.hpp" />
+    <ClInclude Include="src\common\timeout_memory_detector.hpp" />
     <ClInclude Include="src\common\types.hpp" />
     <ClInclude Include="src\compiler\compiler.hpp" />
     <ClInclude Include="src\compiler\compiler_utils.hpp" />
@@ -182,6 +184,7 @@
     <ClInclude Include="src\parser\visitor.hpp" />
     <ClInclude Include="src\tests\compiler\compiler_binary_expression_test.hpp" />
     <ClInclude Include="src\tests\compiler\compiler_conditional_test.hpp" />
+    <ClInclude Include="src\tests\compiler\compiler_error_test.hpp" />
     <ClInclude Include="src\tests\compiler\compiler_literal_test.hpp" />
     <ClInclude Include="src\tests\compiler\compiler_multi_return_test.hpp" />
     <ClInclude Include="src\tests\compiler\compiler_symbol_table_test.hpp" />
@@ -192,11 +195,10 @@
     <ClInclude Include="src\tests\formatting\test_config.hpp" />
     <ClInclude Include="src\tests\formatting\test_define.hpp" />
     <ClInclude Include="src\tests\formatting\test_formatter.hpp" />
-    <ClInclude Include="src\tests\gc\garbage_collector_test.hpp" />
-    <ClInclude Include="src\tests\gc\gc_integration_test.hpp" />
-    <ClInclude Include="src\tests\gc\string_pool_demo_test.hpp" />
     <ClInclude Include="src\tests\gc\test_gc.hpp" />
-    <ClInclude Include="src\tests\lexer\lexer_test.hpp" />
+    <ClInclude Include="src\tests\lexer\lexer_basic_test.hpp" />
+    <ClInclude Include="src\tests\lexer\lexer_error_test.hpp" />
+    <ClInclude Include="src\tests\lexer\test_lexer.hpp" />
     <ClInclude Include="src\tests\lib\base_lib_test.hpp" />
     <ClInclude Include="src\tests\lib\math_lib_test.hpp" />
     <ClInclude Include="src\tests\lib\string_lib_test.hpp" />
@@ -233,6 +235,8 @@
     <ClInclude Include="src\vm\vm.hpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="src\common\memory_leak_detector.cpp" />
+    <ClCompile Include="src\common\timeout_memory_detector.cpp" />
     <ClCompile Include="src\compiler\compiler.cpp" />
     <ClCompile Include="src\compiler\compiler_utils.cpp" />
     <ClCompile Include="src\compiler\expression_compiler.cpp" />
@@ -272,6 +276,7 @@
     <ClCompile Include="src\parser\visitor.cpp" />
     <ClCompile Include="src\tests\compiler\compiler_binary_expression_test.cpp" />
     <ClCompile Include="src\tests\compiler\compiler_conditional_test.cpp" />
+    <ClCompile Include="src\tests\compiler\compiler_error_test.cpp" />
     <ClCompile Include="src\tests\compiler\compiler_literal_test.cpp" />
     <ClCompile Include="src\tests\compiler\compiler_multi_return_test.cpp" />
     <ClCompile Include="src\tests\compiler\compiler_symbol_table_test.cpp" />
@@ -280,11 +285,8 @@
     <ClCompile Include="src\tests\formatting\test_colors.cpp" />
     <ClCompile Include="src\tests\formatting\test_config.cpp" />
     <ClCompile Include="src\tests\formatting\test_formatter.cpp" />
-    <ClCompile Include="src\tests\gc\garbage_collector_test.cpp" />
-    <ClCompile Include="src\tests\gc\gc_integration_test.cpp" />
-    <ClCompile Include="src\tests\gc\string_pool_demo_test.cpp" />
-    <ClCompile Include="src\tests\gc\test_gc.cpp" />
-    <ClCompile Include="src\tests\lexer\lexer_test.cpp" />
+    <ClCompile Include="src\tests\lexer\lexer_basic_test.cpp" />
+    <ClCompile Include="src\tests\lexer\lexer_error_test.cpp" />
     <ClCompile Include="src\tests\lib\base_lib_test.cpp" />
     <ClCompile Include="src\tests\lib\math_lib_test.cpp" />
     <ClCompile Include="src\tests\lib\string_lib_test.cpp" />

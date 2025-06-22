@@ -1,42 +1,33 @@
 #pragma once
 
-// Include all GC test headers
+#include "../test_utils.hpp"
 #include "gc_integration_test.hpp"
-#include "string_pool_demo_test.hpp"
-#include "garbage_collector_test.hpp"
-#include <string>
+#include "gc_string_pool_test.hpp"
+#include "gc_basic_test.hpp"
+#include "gc_error_test.hpp"
 
-namespace Lua {
-namespace Tests {
+namespace Lua::Tests {
 
 /**
- * @brief Garbage Collector Test Suite
+ * @brief GC module test suite
  * 
- * This class provides a unified interface to run all garbage collector-related tests.
- * It includes tests for GC integration, string pool management, and memory management.
+ * Coordinates all garbage collector related tests
  */
-class GCTest {
+class GCTestSuite {
 public:
     /**
-     * @brief Run all GC tests
+     * @brief Run all GC module tests
      * 
-     * Executes all garbage collector-related test suites in a logical order.
-     * Tests are run from basic string pool functionality to complex GC integration.
+     * Execute all test suites in this module
      */
-    static void runAllTests();
-    
-private:
-    /**
-     * @brief Print section header for test organization
-     * @param sectionName Name of the test section
-     */
-    static void printSectionHeader(const std::string& sectionName);
-    
-    /**
-     * @brief Print section footer
-     */
-    static void printSectionFooter();
+    static void runAllTests() {
+        RUN_TEST_SUITE(GCStringPoolTestSuite);
+        RUN_TEST_SUITE(GCIntegrationTestSuite);
+        RUN_TEST_SUITE(GCBasicTestSuite);
+        RUN_TEST_SUITE(GCErrorTestSuite);
+        
+        // TODO: Add other test suites here when available
+    }
 };
 
-} // namespace Tests
-} // namespace Lua
+} // namespace Lua::Tests

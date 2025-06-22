@@ -1,18 +1,18 @@
-﻿#pragma once
+#pragma once
 
-namespace Lua {
-namespace Tests {
+namespace Lua::Tests {
 
+/**
+ * @brief String pool demo test suite
+ * 
+ * Demonstrates string interning, memory efficiency, and performance
+ */
+class GCStringPoolTestSuite {
+public:
     /**
-     * Test class for string pool demo functionality
-     * Demonstrates string interning, memory efficiency, and performance
+     * @brief Run all string pool demo tests
      */
-    class StringPoolDemoTest {
-    public:
-        /**
-         * Run all string pool demo tests
-         */
-        static bool runAllTests();
+    static void runAllTests();
         
     private:
         /**
@@ -40,5 +40,4 @@ namespace Tests {
         static bool testStringPoolStatistics();
     };
 
-} // namespace Tests
-} // namespace Lua
+} // namespace Lua::Tests

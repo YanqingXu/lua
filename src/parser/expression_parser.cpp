@@ -1,5 +1,6 @@
 #include "parser.hpp"
 
+
 namespace Lua {
     UPtr<Expr> Parser::expression() {
         return logicalOr();
@@ -94,8 +95,36 @@ namespace Lua {
     UPtr<Expr> Parser::unary() {
         if (match({TokenType::Not, TokenType::Minus, TokenType::Hash})) {
             TokenType op = previous.type;
-            auto right = unary();
-            return std::make_unique<UnaryExpr>(op, std::move(right));
+            SourceLocation opLocation = SourceLocation::fromToken(previous);
+            
+            UPtr<Expr> expr;
+            try {
+                expr = unary();
+            } catch (...) {
+                auto unaryOpError = ParseError(ErrorType::InvalidExpression, 
+                    opLocation, 
+                    "Invalid operand for unary operator");
+                unaryOpError.addSuggestion(FixType::Insert, 
+                    SourceLocation::fromToken(current), 
+                    "Add valid expression after unary operator", "nil");
+                errorReporter_.addError(std::move(unaryOpError));
+                
+                synchronize();
+                expr = std::make_unique<LiteralExpr>(Value()); // Recovery value
+            }
+            
+            // Validate unary operator usage
+            if (op == TokenType::Hash && !isValidLengthOperand(expr.get())) {
+                auto lengthOpError = ParseError(ErrorType::InvalidExpression, 
+                    opLocation, 
+                    "Length operator (#) can only be applied to strings and tables");
+                lengthOpError.addSuggestion(FixType::Replace, 
+                    opLocation, 
+                    "Use string or table expression", "\"\"" );
+                errorReporter_.addError(std::move(lengthOpError));
+            }
+            
+            return std::make_unique<UnaryExpr>(op, std::move(expr));
         }
 
         return power();
@@ -131,6 +160,8 @@ namespace Lua {
     }
 
     UPtr<Expr> Parser::primary() {
+        SourceLocation startLocation = SourceLocation::fromToken(current);
+        
         if (match(TokenType::True)) {
             return std::make_unique<LiteralExpr>(Value(true));
         }
@@ -144,7 +175,21 @@ namespace Lua {
         }
 
         if (match(TokenType::Number)) {
-            return std::make_unique<LiteralExpr>(Value(std::stod(previous.lexeme)));
+            try {
+                double value = std::stod(previous.lexeme);
+                return std::make_unique<LiteralExpr>(Value(value));
+            } catch (const std::exception& e) {
+                error(ErrorType::InvalidNumber, "Invalid number format: " + previous.lexeme + 
+                    " (" + e.what() + ")");
+                auto invalidNumberError = ParseError(ErrorType::InvalidNumber, 
+                    SourceLocation::fromToken(previous), 
+                    "Invalid number format: " + previous.lexeme);
+                invalidNumberError.addSuggestion(FixType::Replace, 
+                    SourceLocation::fromToken(previous), 
+                    "Use valid number format", "0");
+                errorReporter_.addError(std::move(invalidNumberError));
+                return std::make_unique<LiteralExpr>(Value(0.0)); // Recovery value
+            }
         }
 
         if (match(TokenType::String)) {
@@ -157,23 +202,70 @@ namespace Lua {
         }
 
         if (match(TokenType::LeftParen)) {
-            auto expr = expression();
-            consume(TokenType::RightParen, "Expect ')' after expression.");
+            UPtr<Expr> expr;
+            try {
+                expr = expression();
+            } catch (...) {
+                error(ErrorType::InvalidExpression, "Invalid expression in parentheses");
+                synchronize();
+                expr = std::make_unique<LiteralExpr>(Value()); // nil as recovery
+            }
+            
+            if (consume(TokenType::RightParen, "Expect ')' after expression.").type != TokenType::RightParen) {
+                auto mismatchedParenError = ParseError::mismatchedParentheses(
+                    SourceLocation::fromToken(current), ")");
+                mismatchedParenError.setDetails("Opening parenthesis at " + startLocation.toString());
+                errorReporter_.addError(std::move(mismatchedParenError));
+            }
             return expr;
         }
 
         // Table constructor
         if (match(TokenType::LeftBrace)) {
-            return tableConstructor();
+            try {
+                return tableConstructor();
+            } catch (...) {
+                error(ErrorType::InvalidExpression, "Invalid table constructor");
+                synchronize();
+                return std::make_unique<TableExpr>(Vec<TableField>());
+            }
         }
 
         // Function expression
         if (match(TokenType::Function)) {
-            return functionExpression();
+            try {
+                return functionExpression();
+            } catch (...) {
+                error(ErrorType::InvalidExpression, "Invalid function expression");
+                synchronize();
+                // Return a dummy function expression
+                return std::make_unique<FunctionExpr>(Vec<Str>(), 
+                    std::make_unique<BlockStmt>(Vec<UPtr<Stmt>>()));
+            }
         }
 
-        error("Expect expression.");
-        return nullptr;
+        // Enhanced error reporting for unexpected tokens
+        auto unexpectedError = ParseError::unexpectedToken(startLocation, 
+            "expression", current.lexeme);
+        
+        // Provide context-specific suggestions
+        if (current.type == TokenType::RightParen || 
+            current.type == TokenType::RightBrace || 
+            current.type == TokenType::RightBracket) {
+            unexpectedError.addSuggestion(FixType::Delete, startLocation, 
+                "Remove unmatched closing delimiter", "");
+        } else if (current.type == TokenType::Assign) {
+            unexpectedError.addSuggestion(FixType::Insert, startLocation, 
+                "Add variable name before assignment", "variable");
+        } else {
+            unexpectedError.addSuggestion(FixType::Replace, startLocation, 
+                "Replace with valid expression", "nil");
+        }
+        
+        errorReporter_.addError(std::move(unexpectedError));
+        
+        // Return a recovery expression
+        return std::make_unique<LiteralExpr>(Value());
     }
 
     UPtr<Expr> Parser::finishCall(UPtr<Expr> callee) {

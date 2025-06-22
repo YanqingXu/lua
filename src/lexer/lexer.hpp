@@ -2,8 +2,6 @@
 
 #include "../common/types.hpp"
 #include "../gc/core/gc_string.hpp"
-#include <string>
-#include <vector>
 
 namespace Lua {
     // Token types

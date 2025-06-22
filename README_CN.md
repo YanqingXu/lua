@@ -120,10 +120,9 @@ tests/
 
 ### 前置要求
 
-构建和运行项目需要：
+要构建和运行该项目，您需要：
 
-- 支持 C++17 或更高版本的 C++ 编译器（如 GCC、Clang 或 MSVC）
-- CMake（版本 3.15 或更高）
+- 支持 C++17 或更高版本的 C++ 编译器（如 GCC、Clang 或 MSVC）。
 - 构建系统（如 Make、Ninja 或 Visual Studio）
 
 ### 构建项目
@@ -140,15 +139,7 @@ tests/
    cd build
    ```
 
-3. 使用 CMake 配置项目：
-   ```bash
-   cmake ..
-   ```
-
-4. 构建项目：
-   ```bash
-   cmake --build .
-   ```
+3. 使用您首选的构建系统或 IDE 构建项目。
 
 ### 运行解释器
 

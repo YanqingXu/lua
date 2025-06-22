@@ -122,8 +122,7 @@ tests/
 
 To build and run the project, you will need:
 
-- A C++ compiler that supports C++17 or later (e.g., GCC, Clang, or MSVC).
-- CMake (version 3.15 or later).
+- A C++17 compatible compiler (GCC 7+, Clang 5+, MSVC 2017+).
 - A build system (e.g., Make, Ninja, or Visual Studio).
 
 ### Building the Project
@@ -140,15 +139,7 @@ To build and run the project, you will need:
    cd build
    ```
 
-3. Configure the project with CMake:
-   ```bash
-   cmake ..
-   ```
-
-4. Build the project:
-   ```bash
-   cmake --build .
-   ```
+3. Build the project using your preferred build system or IDE.
 
 ### Running the Interpreter
 

@@ -14,7 +14,7 @@
 ### ✅ 基础架构 (100%)
 - **类型系统**: 完整实现了现代C++类型别名和智能指针封装
 - **异常处理**: 实现了LuaException类用于统一错误处理
-- **项目构建**: CMake构建系统配置完成，支持主程序和测试
+- **项目构建**: 构建系统配置完成，支持主程序和测试
 
 ### 🔄 虚拟机核心 (80%)
 - **值系统**: 完整实现Lua值类型系统（nil、boolean、number、string、table、function）
@@ -965,7 +965,7 @@ public:
 - ✅ `vm/state_test.hpp/.cpp` → `StateTest::runAllTests()`
 - ✅ `parser/parser_test.hpp/.cpp` → `ParserTest::runAllTests()`
 - ✅ `compiler/symbol_table_test.hpp/.cpp` → `SymbolTableTest::runAllTests()`
-- ✅ `lexer/lexer_test.hpp/.cpp` → `LexerTest::runAllTests()`
+- ✅ `lexer/test_lexer.hpp/.cpp` → `LexerTestSuite::runAllTests()`
 - ✅ `parser/function_test.hpp/.cpp` → `FunctionTest::runAllTests()`
 - ✅ `parser/forin_test.hpp/.cpp` → `ForInTest::runAllTests()`
 - ✅ `parser/repeat_test.hpp/.cpp` → `RepeatTest::runAllTests()`

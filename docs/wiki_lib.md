@@ -961,11 +961,11 @@ namespace Lua {
 
 在项目的构建文件中添加新的源文件：
 
-**CMakeLists.txt (如果使用 CMake):**
+**构建配置示例:**
 
-```cmake
-# 添加新的库源文件
-set(LIB_SOURCES
+```
+# 添加新的库源文件到您的构建系统
+# 包含以下文件：
     src/lib/lib_common.cpp
     src/lib/lib_manager.cpp
     src/lib/lib_init.cpp
@@ -974,10 +974,8 @@ set(LIB_SOURCES
     src/lib/string_lib.cpp
     src/lib/table_lib.cpp
     src/lib/mylib.cpp  # 新添加的库
-)
 
 # 添加测试文件
-set(TEST_SOURCES
     src/tests/lib/base_lib_test.cpp
     src/tests/lib/string_lib_test.cpp
     src/tests/lib/table_lib_test.cpp

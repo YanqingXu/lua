@@ -2,14 +2,13 @@
 #define TEST_MAIN_HPP
 
 // Include all test headers
-#include "lexer/lexer_test.hpp"
+#include "lexer/test_lexer.hpp"
 #include "vm/test_vm.hpp"
 #include "parser/test_parser.hpp"
 #include "compiler/test_compiler.hpp"
 #include "gc/test_gc.hpp"
 #include "lib/test_lib.hpp"
-#include "localization/localization_test.hpp"
-#include "plugin/plugin_integration_test.hpp"
+#include "error_handling_suite.hpp"
 
 namespace Lua {
 namespace Tests {
@@ -33,6 +32,9 @@ namespace Tests {
 		RUN_TEST_MODULE("Compiler Module", CompilerTestSuite);
 		// RUN_TEST_MODULE("GC Module", GCTestSuite);
 		// RUN_TEST_MODULE("Library Module", LibTestSuite);
+		
+		// Comprehensive Error Handling Tests
+		//RUN_TEST_MODULE("Error Handling Suite", ErrorHandlingSuite);
 	}
 
 } // namespace Tests

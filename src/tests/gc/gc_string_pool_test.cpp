@@ -1,4 +1,4 @@
-﻿#include "string_pool_demo_test.hpp"
+#include "string_pool_demo_test.hpp"
 #include "../../gc/core/string_pool.hpp"
 #include "../../gc/core/gc_string.hpp"
 #include <iostream>
@@ -9,15 +9,14 @@
 #include <thread>
 #include <future>
 
-namespace Lua {
-namespace Tests {
+namespace Lua::Tests {
 
 using namespace std::chrono;
 
 /**
  * @brief Test basic string interning functionality with timeout
  */
-bool StringPoolDemoTest::testBasicStringInterning() {
+bool GCStringPoolTestSuite::testBasicStringInterning() {
     std::cout << "=== Basic String Interning Test ===\n";
     std::cout.flush();
     
@@ -81,7 +80,7 @@ bool StringPoolDemoTest::testBasicStringInterning() {
 /**
  * @brief Test memory efficiency of string pool
  */
-bool StringPoolDemoTest::testStringPoolMemoryEfficiency() {
+bool GCStringPoolTestSuite::testStringPoolMemoryEfficiency() {
     std::cout << "=== String Pool Memory Efficiency Test ===\n";
     
     try {
@@ -145,7 +144,7 @@ bool StringPoolDemoTest::testStringPoolMemoryEfficiency() {
 /**
  * @brief Test string pool performance
  */
-bool StringPoolDemoTest::testStringPoolPerformance() {
+bool GCStringPoolTestSuite::testStringPoolPerformance() {
     std::cout << "=== String Pool Performance Test ===\n";
     
     try {
@@ -209,7 +208,7 @@ bool StringPoolDemoTest::testStringPoolPerformance() {
 /**
  * @brief Test string pool statistics
  */
-bool StringPoolDemoTest::testStringPoolStatistics() {
+bool GCStringPoolTestSuite::testStringPoolStatistics() {
     std::cout << "=== String Pool Statistics Test ===\n";
     
     try {
@@ -244,15 +243,15 @@ bool StringPoolDemoTest::testStringPoolStatistics() {
 /**
  * @brief Run all string pool demo tests
  */
-bool StringPoolDemoTest::runAllTests() {
+void GCStringPoolTestSuite::runAllTests() {
     std::cout << "Running String Pool Demo Tests...\n\n";
     
     bool allPassed = true;
     
-    allPassed &= StringPoolDemoTest::testBasicStringInterning();
-    allPassed &= StringPoolDemoTest::testStringPoolMemoryEfficiency();
-    allPassed &= StringPoolDemoTest::testStringPoolPerformance();
-    allPassed &= StringPoolDemoTest::testStringPoolStatistics();
+    allPassed &= GCStringPoolTestSuite::testBasicStringInterning();
+    allPassed &= GCStringPoolTestSuite::testStringPoolMemoryEfficiency();
+    allPassed &= GCStringPoolTestSuite::testStringPoolPerformance();
+    allPassed &= GCStringPoolTestSuite::testStringPoolStatistics();
     
     if (allPassed) {
         std::cout << "[OK] All String Pool Demo Tests passed!\n";
@@ -264,9 +263,6 @@ bool StringPoolDemoTest::runAllTests() {
     } else {
         std::cout << "[FAILED] Some String Pool Demo Tests failed!\n";
     }
-    
-    return allPassed;
 }
 
-} // namespace Tests
-} // namespace Lua
+} // namespace Lua::Tests

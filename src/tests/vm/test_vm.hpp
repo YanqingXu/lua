@@ -7,6 +7,7 @@
 #include "../test_utils.hpp"
 //#include "closure/test_closure.hpp"
 #include "state/test_state.hpp"
+#include "vm_error_test.hpp"
 
 namespace Lua {
 namespace Tests {
@@ -29,6 +30,7 @@ public:
     static void runAllTests() {
       RUN_TEST_MODULE("State Module", StateTestSuite);
       //RUN_TEST_MODULE("Closure Module", ClosureTestSuite);
+      RUN_TEST_MODULE("VM Error Handling Module", VMErrorTest);
     }
 };
 

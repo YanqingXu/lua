@@ -1,8 +1,10 @@
-﻿#ifndef TEST_UTILS_HPP
+#ifndef TEST_UTILS_HPP
 #define TEST_UTILS_HPP
 
 #include "formatting/test_formatter.hpp"
 #include "formatting/test_config.hpp"
+#include "../common/memory_leak_detector.hpp"
+#include "../common/timeout_memory_detector.hpp"
 #include <iostream>
 #include <string>
 
@@ -87,6 +89,32 @@ public:
     static void printError(const std::string& message) {
         getFormatter().printError(message);
     }
+
+    /**
+     * Print exception information with consistent formatting
+     * @param e The exception object
+     * @param context Optional context information (e.g., test name, function name)
+     */
+    static void printException(const std::exception& e, const std::string& context = "") {
+        std::string message = "Exception caught";
+        if (!context.empty()) {
+            message += " in " + context;
+        }
+        message += ": " + std::string(e.what());
+        getFormatter().printError(message);
+    }
+
+    /**
+     * Print unknown exception information with consistent formatting
+     * @param context Optional context information (e.g., test name, function name)
+     */
+    static void printUnknownException(const std::string& context = "") {
+        std::string message = "Unknown exception caught";
+        if (!context.empty()) {
+            message += " in " + context;
+        }
+        getFormatter().printError(message);
+    }
     
     // New hierarchical interface
     /**
@@ -154,20 +182,22 @@ public:
  * This macro is used for running individual test cases within a test group.
  * It provides exception handling and result reporting for single test methods.
  * Should be called from within test group functions.
+ * Includes automatic memory leak detection.
  */
 #define RUN_TEST(TestClass, TestMethod) \
     do { \
+        MEMORY_LEAK_TEST_GUARD(#TestClass "::" #TestMethod); \
         try { \
             Lua::Tests::TestUtils::printInfo("Running " #TestClass "::" #TestMethod "..."); \
             Lua::Tests::TestClass::TestMethod(); \
             Lua::Tests::TestUtils::printTestResult(#TestClass "::" #TestMethod, true); \
         } catch (const std::exception& e) { \
             Lua::Tests::TestUtils::printTestResult(#TestClass "::" #TestMethod, false); \
-            Lua::Tests::TestUtils::printError("Exception in " #TestClass "::" #TestMethod ": " + std::string(e.what())); \
+            Lua::Tests::TestUtils::printException(e, #TestClass "::" #TestMethod); \
             throw; \
         } catch (...) { \
             Lua::Tests::TestUtils::printTestResult(#TestClass "::" #TestMethod, false); \
-            Lua::Tests::TestUtils::printError("Unknown exception in " #TestClass "::" #TestMethod); \
+            Lua::Tests::TestUtils::printUnknownException(#TestClass "::" #TestMethod); \
             throw; \
         } \
     } while(0)
@@ -187,10 +217,10 @@ public:
             TestFunction(); \
             Lua::Tests::TestUtils::printLevelFooter(Lua::Tests::TestUtils::TestLevel::MAIN, "All tests completed successfully"); \
         } catch (const std::exception& e) { \
-            Lua::Tests::TestUtils::printError("Main test failed with exception: " + std::string(e.what())); \
+            Lua::Tests::TestUtils::printException(e, "Main test"); \
             throw; \
         } catch (...) { \
-            Lua::Tests::TestUtils::printError("Main test failed with unknown exception"); \
+            Lua::Tests::TestUtils::printUnknownException("Main test"); \
             throw; \
         } \
     } while(0)
@@ -210,10 +240,10 @@ public:
             Lua::Tests::ModuleTestClass::runAllTests(); \
             Lua::Tests::TestUtils::printLevelFooter(Lua::Tests::TestUtils::TestLevel::MODULE, ModuleName " module tests completed successfully"); \
         } catch (const std::exception& e) { \
-            Lua::Tests::TestUtils::printError(ModuleName " module failed with exception: " + std::string(e.what())); \
+            Lua::Tests::TestUtils::printException(e, ModuleName " module"); \
             throw; \
         } catch (...) { \
-            Lua::Tests::TestUtils::printError(ModuleName " module failed with unknown exception"); \
+            Lua::Tests::TestUtils::printUnknownException(ModuleName " module"); \
             throw; \
         } \
     } while(0)
@@ -234,10 +264,10 @@ public:
             Lua::Tests::TestSuite::runAllTests(); \
             Lua::Tests::TestUtils::printLevelFooter(Lua::Tests::TestUtils::TestLevel::SUITE, #TestSuite " tests completed successfully"); \
         } catch (const std::exception& e) { \
-            Lua::Tests::TestUtils::printError(#TestSuite " test suite failed with exception: " + std::string(e.what())); \
+            Lua::Tests::TestUtils::printException(e, #TestSuite " test suite"); \
             throw; \
         } catch (...) { \
-            Lua::Tests::TestUtils::printError(#TestSuite " test suite failed with unknown exception"); \
+            Lua::Tests::TestUtils::printUnknownException(#TestSuite " test suite"); \
             throw; \
         } \
     } while(0)
@@ -258,10 +288,10 @@ public:
             GroupFunction(); \
             Lua::Tests::TestUtils::printLevelFooter(Lua::Tests::TestUtils::TestLevel::GROUP, GroupName " completed"); \
         } catch (const std::exception& e) { \
-            Lua::Tests::TestUtils::printError(GroupName " failed with exception: " + std::string(e.what())); \
+            Lua::Tests::TestUtils::printException(e, GroupName); \
             throw; \
         } catch (...) { \
-            Lua::Tests::TestUtils::printError(GroupName " failed with unknown exception"); \
+            Lua::Tests::TestUtils::printUnknownException(GroupName); \
             throw; \
         } \
     } while(0)
@@ -274,19 +304,126 @@ public:
  * This is the safe version of RUN_TEST that catches exceptions and continues execution
  * instead of re-throwing. Useful for running multiple tests where one failure
  * shouldn't stop the entire test run. Should be called from within test group functions.
+ * Includes automatic memory leak detection.
  */
 #define SAFE_RUN_TEST(TestClass, TestMethod) \
     do { \
+        MEMORY_LEAK_TEST_GUARD(#TestClass "::" #TestMethod); \
         try { \
             Lua::Tests::TestUtils::printInfo("Running " #TestClass "::" #TestMethod "..."); \
             Lua::Tests::TestClass::TestMethod(); \
             Lua::Tests::TestUtils::printTestResult(#TestClass "::" #TestMethod, true); \
         } catch (const std::exception& e) { \
             Lua::Tests::TestUtils::printTestResult(#TestClass "::" #TestMethod, false); \
-            Lua::Tests::TestUtils::printError("Exception in " #TestClass "::" #TestMethod ": " + std::string(e.what())); \
+            Lua::Tests::TestUtils::printException(e, #TestClass "::" #TestMethod); \
         } catch (...) { \
             Lua::Tests::TestUtils::printTestResult(#TestClass "::" #TestMethod, false); \
-            Lua::Tests::TestUtils::printError("Unknown exception in " #TestClass "::" #TestMethod); \
+            Lua::Tests::TestUtils::printUnknownException(#TestClass "::" #TestMethod); \
+        } \
+    } while(0)
+
+/**
+ * Macro for comprehensive test execution with memory leak, timeout, and deadlock detection
+ * Usage: RUN_COMPREHENSIVE_TEST(ClassName, methodName, timeoutMs)
+ * Example: RUN_COMPREHENSIVE_TEST(BinaryExprTest, testAddition, 5000)
+ * 
+ * This macro provides the most comprehensive testing with all detection features enabled.
+ * Includes memory leak detection, timeout detection, deadlock detection, and recursion detection.
+ */
+#define RUN_COMPREHENSIVE_TEST(TestClass, TestMethod, timeoutMs) \
+    do { \
+        COMPREHENSIVE_TEST_GUARD(#TestClass "::" #TestMethod, timeoutMs); \
+        try { \
+            Lua::Tests::TestUtils::printInfo("Running comprehensive test " #TestClass "::" #TestMethod "..."); \
+            Lua::Tests::TestClass::TestMethod(); \
+            Lua::Tests::TestUtils::printTestResult(#TestClass "::" #TestMethod, true); \
+        } catch (const std::exception& e) { \
+            Lua::Tests::TestUtils::printTestResult(#TestClass "::" #TestMethod, false); \
+            Lua::Tests::TestUtils::printException(e, #TestClass "::" #TestMethod); \
+            throw; \
+        } catch (...) { \
+            Lua::Tests::TestUtils::printTestResult(#TestClass "::" #TestMethod, false); \
+            Lua::Tests::TestUtils::printUnknownException(#TestClass "::" #TestMethod); \
+            throw; \
+        } \
+    } while(0)
+
+/**
+ * Macro for comprehensive test execution with default timeout
+ * Usage: RUN_COMPREHENSIVE_TEST_DEFAULT(ClassName, methodName)
+ * Example: RUN_COMPREHENSIVE_TEST_DEFAULT(BinaryExprTest, testAddition)
+ * 
+ * Uses default 30-second timeout for comprehensive testing.
+ */
+#define RUN_COMPREHENSIVE_TEST_DEFAULT(TestClass, TestMethod) \
+    RUN_COMPREHENSIVE_TEST(TestClass, TestMethod, 30000)
+
+/**
+ * Macro for safe comprehensive test execution
+ * Usage: SAFE_RUN_COMPREHENSIVE_TEST(ClassName, methodName, timeoutMs)
+ * Example: SAFE_RUN_COMPREHENSIVE_TEST(BinaryExprTest, testAddition, 5000)
+ * 
+ * Safe version that doesn't re-throw exceptions, allowing test suite to continue.
+ */
+#define SAFE_RUN_COMPREHENSIVE_TEST(TestClass, TestMethod, timeoutMs) \
+    do { \
+        COMPREHENSIVE_TEST_GUARD(#TestClass "::" #TestMethod, timeoutMs); \
+        try { \
+            Lua::Tests::TestUtils::printInfo("Running comprehensive test " #TestClass "::" #TestMethod "..."); \
+            Lua::Tests::TestClass::TestMethod(); \
+            Lua::Tests::TestUtils::printTestResult(#TestClass "::" #TestMethod, true); \
+        } catch (const std::exception& e) { \
+            Lua::Tests::TestUtils::printTestResult(#TestClass "::" #TestMethod, false); \
+            Lua::Tests::TestUtils::printException(e, #TestClass "::" #TestMethod); \
+        } catch (...) { \
+            Lua::Tests::TestUtils::printTestResult(#TestClass "::" #TestMethod, false); \
+            Lua::Tests::TestUtils::printUnknownException(#TestClass "::" #TestMethod); \
+        } \
+    } while(0)
+
+/**
+ * Macro for test group execution with memory leak detection
+ * Usage: RUN_TEST_GROUP_WITH_MEMORY_CHECK(GroupName, GroupFunction)
+ * Example: RUN_TEST_GROUP_WITH_MEMORY_CHECK("Binary Expression Tests", testBinaryExpressions)
+ * 
+ * Enhanced version of RUN_TEST_GROUP that includes memory leak detection for the entire group.
+ */
+#define RUN_TEST_GROUP_WITH_MEMORY_CHECK(GroupName, GroupFunction) \
+    do { \
+        MEMORY_LEAK_TEST_GUARD(GroupName); \
+        try { \
+            Lua::Tests::TestUtils::printLevelHeader(Lua::Tests::TestUtils::TestLevel::GROUP, GroupName); \
+            GroupFunction(); \
+            Lua::Tests::TestUtils::printLevelFooter(Lua::Tests::TestUtils::TestLevel::GROUP, GroupName " completed"); \
+        } catch (const std::exception& e) { \
+            Lua::Tests::TestUtils::printException(e, GroupName); \
+            throw; \
+        } catch (...) { \
+            Lua::Tests::TestUtils::printUnknownException(GroupName); \
+            throw; \
+        } \
+    } while(0)
+
+/**
+ * Macro for test suite execution with memory leak detection
+ * Usage: RUN_TEST_SUITE_WITH_MEMORY_CHECK(TestSuiteName)
+ * Example: RUN_TEST_SUITE_WITH_MEMORY_CHECK(ExprTestSuite)
+ * 
+ * Enhanced version of RUN_TEST_SUITE that includes memory leak detection for the entire suite.
+ */
+#define RUN_TEST_SUITE_WITH_MEMORY_CHECK(TestSuite) \
+    do { \
+        MEMORY_LEAK_TEST_GUARD(#TestSuite " Test Suite"); \
+        try { \
+            Lua::Tests::TestUtils::printLevelHeader(Lua::Tests::TestUtils::TestLevel::SUITE, #TestSuite " Test Suite"); \
+            Lua::Tests::TestSuite::runAllTests(); \
+            Lua::Tests::TestUtils::printLevelFooter(Lua::Tests::TestUtils::TestLevel::SUITE, #TestSuite " tests completed successfully"); \
+        } catch (const std::exception& e) { \
+            Lua::Tests::TestUtils::printException(e, #TestSuite " test suite"); \
+            throw; \
+        } catch (...) { \
+            Lua::Tests::TestUtils::printUnknownException(#TestSuite " test suite"); \
+            throw; \
         } \
     } while(0)
 

@@ -31,7 +31,8 @@ namespace Lua {
         RepeatUntil,// Repeat-until loop
         Return,     // Return statement
         Break,      // Break statement
-        Function    // Function definition statement
+        Function,   // Function definition statement
+        Do          // Do block statement
     };
 
     // Expression base class

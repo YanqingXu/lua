@@ -254,7 +254,6 @@ tests/
 ├── test_utils.hpp              # 主接口文件（简化的门面）
 ├── example_usage.cpp           # 使用示例
 ├── test_format_config.txt      # 配置文件示例
-├── Makefile                    # 编译脚本
 ├── README.md                   # 说明文档
 └── formatting/                 # 格式化模块
     ├── test_formatter.hpp      # 核心格式化器
@@ -273,13 +272,13 @@ tests/
 
 ```bash
 cd tests
-make
+# 使用您首选的构建系统编译项目
 ```
 
 ### 2. 运行示例
 
 ```bash
-make run
+./example_usage
 ```
 
 或者直接运行：
@@ -567,8 +566,8 @@ tests/
 │   ├── format_strategies.hpp   # 格式化策略
 │   └── format_strategies.cpp
 ├── lexer/                      # 词法分析器测试
-│   ├── lexer_test.cpp
-│   └── lexer_test.hpp
+│   ├── test_lexer_basic.cpp
+│   └── test_lexer.hpp
 ├── parser/                     # 语法分析器测试
 │   ├── test_parser.hpp                 # 语法分析器测试统一入口头文件
 │   ├── parser_test.cpp
@@ -897,67 +896,195 @@ void runAllTests() {
 
 ## 测试编写最佳实践
 
-### 1. 测试文件命名规范
+### 1. 测试文件命名规范 🎯
 
-#### 1.1 目录和主测试文件命名
+> **📋 快速识别指南**  
+> **L1 模块**: `test_<module>.hpp` (主协调器)  
+> **L2 功能**: `<module>_<feature>_test.hpp` (功能测试)  
+> **L3 细节**: `<module>_<feature>_<detail>_test.hpp` (详细测试)  
+> **类名**: `<Module><Feature>Test` (PascalCase)  
+> **方法**: `test<SpecificCase>()` (camelCase)
 
-- **功能目录**: 以功能名称命名，例如 `closure/`, `parser/`, `compiler/`
-- **主测试文件**: `test_<目录名称>.hpp` 和 `test_<目录名称>.cpp`
-  - 例如: `test_closure.hpp`, `test_closure.cpp`
-  - 例如: `test_parser.hpp`, `test_parser.cpp`
+#### 1.1 🏗️ 功能层级架构
 
-#### 1.2 子功能测试文件命名
-
-- **子功能测试文件**: `<功能名称>_<子功能>_test.hpp` 和 `<功能名称>_<子功能>_test.cpp`
-  - 注意: 后缀使用单数形式 `test`
-  - 例如: `closure_basic_test.hpp`, `closure_basic_test.cpp`
-  - 例如: `closure_advanced_test.hpp`, `closure_advanced_test.cpp`
-  - 例如: `closure_memory_test.hpp`, `closure_memory_test.cpp`
-  - 例如: `closure_performance_test.hpp`, `closure_performance_test.cpp`
-  - 例如: `closure_error_test.hpp`, `closure_error_test.cpp`
-
-#### 1.3 测试类命名
-
-- **主测试类**: `<ModuleName>TestSuite`
-  - 例如: `ClosureTestSuite`, `ParserTestSuite`
-
-- **子功能测试类**: `<ModuleName><SubFeature>Test`
-  - 例如: `ClosureBasicTest`, `ClosureAdvancedTest`
-  - 例如: `ParserExpressionTest`, `ParserStatementTest`
-
-#### 1.4 测试方法命名
-
-- **测试方法命名**: `test<SpecificFeature>()`
-  - 例如: `testBasicClosureCreation()`, `testUpvalueCapture()`
-
-- **主入口方法**: `runAllTests()`
-  - 每个测试类都应该有这个静态方法
-
-#### 1.5 命名规范示例（以closure为例）
+测试文件按照三层功能架构组织：
 
 ```
-closure/
-├── test_closure.hpp              # 主测试套件头文件
-├── test_closure.cpp              # 主测试套件实现文件
-├── closure_basic_test.hpp        # 基础功能测试头文件
-├── closure_basic_test.cpp        # 基础功能测试实现文件
-├── closure_advanced_test.hpp     # 高级功能测试头文件
-├── closure_advanced_test.cpp     # 高级功能测试实现文件
-├── closure_memory_test.hpp       # 内存管理测试头文件
-├── closure_memory_test.cpp       # 内存管理测试实现文件
-├── closure_performance_test.hpp  # 性能测试头文件
-├── closure_performance_test.cpp  # 性能测试实现文件
-├── closure_error_test.hpp        # 错误处理测试头文件
-└── closure_error_test.cpp        # 错误处理测试实现文件
+📁 <module>/                     # L1: 模块层 (Module Level)
+├── 📄 test_<module>.hpp         # 主测试套件 (Test Suite Coordinator)
+├── 📄 test_<module>.cpp         # 主测试套件实现
+├── 📄 <module>_<feature>_test.* # L2: 功能层 (Feature Level)
+├── 📄 <module>_<detail>_test.*  # L3: 细节层 (Detail Level)
+└── 📁 <submodule>/              # 子模块 (可选)
+    ├── 📄 <submodule>_<feature>_test.*
+    └── 📄 test_<submodule>.hpp
 ```
 
-对应的测试类：
-- `ClosureTestSuite` - 主协调器
-- `ClosureBasicTest` - 基础功能测试
-- `ClosureAdvancedTest` - 高级功能测试
-- `ClosureMemoryTest` - 内存管理测试
-- `ClosurePerformanceTest` - 性能测试
-- `ClosureErrorTest` - 错误处理测试
+#### 1.2 📝 命名规范矩阵
+
+| 层级 | 文件命名格式 | 类命名格式 | 用途 | 示例 |
+|------|-------------|------------|------|------|
+| **L1 模块** | `test_<module>.hpp` | `<Module>TestSuite` | 主协调器，统一入口 | `test_parser.hpp` → `ParserTestSuite` |
+| **L2 功能** | `<module>_<feature>_test.hpp` | `<Module><Feature>Test` | 核心功能测试 | `parser_expression_test.hpp` → `ParserExpressionTest` |
+| **L3 细节** | `<module>_<feature>_<detail>_test.hpp` | `<Module><Feature><Detail>Test` | 具体实现测试 | `parser_expression_binary_test.hpp` → `ParserExpressionBinaryTest` |
+| **错误处理** | `<module>_error_test.hpp` | `<Module>ErrorTest` | 错误场景测试 | `parser_error_test.hpp` → `ParserErrorTest` |
+| **性能测试** | `<module>_performance_test.hpp` | `<Module>PerformanceTest` | 性能基准测试 | `parser_performance_test.hpp` → `ParserPerformanceTest` |
+| **集成测试** | `<module>_integration_test.hpp` | `<Module>IntegrationTest` | 模块间集成 | `parser_integration_test.hpp` → `ParserIntegrationTest` |
+
+#### 1.3 🎨 标准功能分类
+
+每个模块应包含以下标准功能测试：
+
+| 功能类型 | 命名后缀 | 测试内容 | 优先级 |
+|----------|----------|----------|--------|
+| **基础功能** | `_basic_test` | 核心API、基本操作 | 🔴 必须 |
+| **高级功能** | `_advanced_test` | 复杂场景、组合操作 | 🟡 重要 |
+| **错误处理** | `_error_test` | 异常情况、边界条件 | 🔴 必须 |
+| **内存管理** | `_memory_test` | 内存分配、泄漏检测 | 🟡 重要 |
+| **性能测试** | `_performance_test` | 性能基准、压力测试 | 🟢 可选 |
+| **集成测试** | `_integration_test` | 模块间协作 | 🟡 重要 |
+
+#### 1.4 📂 目录结构示例
+
+##### 简单模块 (如 lexer)
+```
+lexer/
+├── test_lexer.hpp              # L1: LexerTestSuite
+├── test_lexer.cpp
+├── lexer_basic_test.hpp        # L2: LexerBasicTest
+├── lexer_basic_test.cpp
+├── test_lexer_error.hpp        # L2: LexerErrorTestSuite
+└── test_lexer_error.cpp
+```
+
+##### 复杂模块 (如 parser)
+```
+parser/
+├── test_parser.hpp             # L1: ParserTestSuite
+├── test_parser.cpp
+├── parser_basic_test.hpp       # L2: ParserBasicTest
+├── parser_error_test.hpp       # L2: ParserErrorTest
+├── expr/                       # 子模块: 表达式解析
+│   ├── test_expr.hpp           # L1: ExprTestSuite
+│   ├── binary_expr_test.hpp    # L2: BinaryExprTest
+│   ├── unary_expr_test.hpp     # L2: UnaryExprTest
+│   └── literal_expr_test.hpp   # L2: LiteralExprTest
+└── stmt/                       # 子模块: 语句解析
+    ├── test_stmt.hpp           # L1: StmtTestSuite
+    └── return_stmt_test.hpp    # L2: ReturnStmtTest
+```
+
+##### 超复杂模块 (如 vm)
+```
+vm/
+├── test_vm.hpp                 # L1: VMTestSuite
+├── vm_basic_test.hpp           # L2: VMBasicTest
+├── vm_error_test.hpp           # L2: VMErrorTest
+├── closure/                    # 子模块: 闭包
+│   ├── test_closure.hpp        # L1: ClosureTestSuite
+│   ├── closure_basic_test.hpp  # L2: ClosureBasicTest
+│   ├── closure_advanced_test.hpp # L2: ClosureAdvancedTest
+│   ├── closure_memory_test.hpp # L2: ClosureMemoryTest
+│   └── closure_error_test.hpp  # L2: ClosureErrorTest
+└── state/                      # 子模块: 状态管理
+    ├── test_state.hpp          # L1: StateTestSuite
+    ├── state_basic_test.hpp    # L2: StateBasicTest
+    ├── state_stack_test.hpp    # L2: StateStackTest
+    └── state_gc_test.hpp       # L2: StateGCTest
+```
+
+#### 1.5 🏷️ 类和方法命名规范
+
+##### 类命名规范
+```cpp
+// L1 主测试套件
+class ParserTestSuite {          // <Module>TestSuite
+    static void runAllTests();
+};
+
+// L2 功能测试类
+class ParserExpressionTest {     // <Module><Feature>Test
+    static void runAllTests();
+    static void testBinaryExpression();
+    static void testUnaryExpression();
+};
+
+// L3 详细测试类
+class ParserExpressionBinaryTest { // <Module><Feature><Detail>Test
+    static void runAllTests();
+    static void testArithmeticOperators();
+    static void testLogicalOperators();
+};
+```
+
+##### 方法命名规范
+```cpp
+class CompilerTest {
+public:
+    // 主入口方法 (必须)
+    static void runAllTests();
+    
+private:
+    // 功能测试方法
+    static void testBasicCompilation();     // test<SpecificFeature>()
+    static void testExpressionCompilation();
+    static void testStatementCompilation();
+    
+    // 辅助方法
+    static void printTestResult(const std::string& testName, bool passed);
+    static bool compileAndVerify(const std::string& source);
+};
+```
+
+#### 1.6 🔍 命名空间规范
+
+```cpp
+namespace Lua {
+namespace Tests {
+    // 模块命名空间 (可选，用于复杂模块)
+    namespace Parser {
+        class ParserTestSuite { /* ... */ };
+        class ParserExpressionTest { /* ... */ };
+        
+        namespace Expression {
+            class BinaryExprTest { /* ... */ };
+            class UnaryExprTest { /* ... */ };
+        }
+    }
+    
+    namespace Compiler {
+        class CompilerTestSuite { /* ... */ };
+        class CompilerBasicTest { /* ... */ };
+    }
+}
+}
+```
+
+#### 1.7 ✅ 命名规范检查清单
+
+**文件命名检查:**
+- [ ] L1主测试文件: `test_<module>.hpp`
+- [ ] L2功能测试: `<module>_<feature>_test.hpp`
+- [ ] L3详细测试: `<module>_<feature>_<detail>_test.hpp`
+- [ ] 错误测试: `<module>_error_test.hpp`
+- [ ] 文件名全小写，使用下划线分隔
+
+**类命名检查:**
+- [ ] 主测试套件: `<Module>TestSuite`
+- [ ] 功能测试类: `<Module><Feature>Test`
+- [ ] 类名使用PascalCase
+- [ ] 避免缩写，使用完整单词
+
+**方法命名检查:**
+- [ ] 主入口方法: `runAllTests()`
+- [ ] 测试方法: `test<SpecificFeature>()`
+- [ ] 方法名使用camelCase
+- [ ] 方法名描述具体测试内容
+
+**目录结构检查:**
+- [ ] 模块目录名与功能对应
+- [ ] 子模块目录结构清晰
+- [ ] 文件组织符合功能层级
 
 ### 2. 代码注释规范
 
@@ -1299,7 +1426,7 @@ runAllTests()
 
 **注意**: 当前项目有两个测试目录：
 
-1. **`tests/`** - 基于 Google Test 的原始测试文件，在 CMakeLists.txt 中已配置
+1. **`tests/`** - 基于 Google Test 的原始测试文件
 2. **`src/tests/`** - 新组织的模块化测试文件（本文档描述的结构）
 
 要使用新的测试组织结构，你可以：
@@ -1321,9 +1448,9 @@ g++ -std=c++17 -I src src/tests/test_main.cpp src/tests/*/*.cpp -o test_runner
 ./test_runner
 ```
 
-### 方法 3: 集成到现有 CMakeLists.txt 
-将以下内容添加到 CMakeLists.txt：
-```cmake
+### 方法 3: 集成到构建系统
+根据您使用的构建系统，添加相应的配置：
+```
 # 新的模块化测试
 add_executable(modular_tests
   src/tests/test_main.cpp

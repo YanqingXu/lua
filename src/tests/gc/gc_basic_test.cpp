@@ -1,4 +1,4 @@
-﻿#include "garbage_collector_test.hpp"
+#include "garbage_collector_test.hpp"
 #include "../../gc/core/garbage_collector.hpp"
 #include "../../vm/state.hpp"
 #include "../../vm/table.hpp"
@@ -6,10 +6,9 @@
 #include "../../gc/core/gc_ref.hpp"
 #include <iostream>
 
-namespace Lua {
-namespace Tests {
+namespace Lua::Tests {
 
-    void GarbageCollectorTest::runAllTests() {
+    void GCBasicTestSuite::runAllTests() {
         std::cout << "\n" << std::string(60, '=') << std::endl;
         std::cout << "      GARBAGE COLLECTOR IMPLEMENTATION TEST" << std::endl;
         std::cout << std::string(60, '=') << std::endl;
@@ -40,7 +39,7 @@ namespace Tests {
         }
     }
     
-    void GarbageCollectorTest::testBasicGCFunctionality() {
+    void GCBasicTestSuite::testBasicGCFunctionality() {
         std::cout << "\n=== Test 1: Basic GC Functionality ===\n";
         
         // Create a Lua state and GC
@@ -63,7 +62,7 @@ namespace Tests {
         std::cout << "[OK] Basic GC functionality test passed\n";
     }
     
-    void GarbageCollectorTest::testGCCollectionCycle() {
+    void GCBasicTestSuite::testGCCollectionCycle() {
         std::cout << "\n=== Test 2: GC Collection Cycle ===\n";
         
         // Create a Lua state and GC
@@ -110,7 +109,7 @@ namespace Tests {
         std::cout << "[OK] GC collection cycle test passed\n";
     }
     
-    void GarbageCollectorTest::testMemoryManagement() {
+    void GCBasicTestSuite::testMemoryManagement() {
         std::cout << "\n=== Test 3: Memory Management ===\n";
         
         auto state = std::make_unique<State>();
@@ -145,7 +144,7 @@ namespace Tests {
         std::cout << "[OK] Memory management test passed\n";
     }
     
-    void GarbageCollectorTest::testGCTriggering() {
+    void GCBasicTestSuite::testGCTriggering() {
         std::cout << "\n=== Test 4: GC Triggering Logic ===\n";
         
         auto state = std::make_unique<State>();
@@ -175,5 +174,4 @@ namespace Tests {
         std::cout << "[OK] GC triggering logic test passed\n";
     }
 
-} // namespace Tests
-} // namespace Lua
+} // namespace Lua::Tests

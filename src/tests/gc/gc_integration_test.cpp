@@ -10,19 +10,18 @@
 #include <iostream>
 #include <cassert>
 
-namespace Lua {
-namespace Tests {
+namespace Lua::Tests {
 
-    /**
-     * @brief Test GC integration with core types
-     * 
-     * This test verifies:
-     * 1. GC-managed objects can be created (State, Table, Function)
-     * 2. GCRef provides safe references
-     * 3. Garbage collection can be triggered
-     * 4. Object marking and collection work correctly
-     */
-    bool GCIntegrationTest::testGCIntegration() {
+/**
+ * @brief Test GC integration with core types
+ * 
+ * This test verifies:
+ * 1. GC-managed objects can be created (State, Table, Function)
+ * 2. GCRef provides safe references
+ * 3. Garbage collection can be triggered
+ * 4. Object marking and collection work correctly
+ */
+bool GCIntegrationTestSuite::testGCIntegration() {
         std::cout << "=== GC Integration Test ===\n";
         
         try {
@@ -95,7 +94,7 @@ namespace Tests {
     /**
      * @brief Test GC object marking with complex reference patterns
      */
-    bool GCIntegrationTest::testGCMarking() {
+    bool GCIntegrationTestSuite::testGCMarking() {
         std::cout << "\n=== GC Marking Test ===\n";
         
         try {
@@ -132,22 +131,19 @@ namespace Tests {
     /**
      * @brief Run all GC integration tests
      */
-    bool GCIntegrationTest::runAllTests() {
+    void GCIntegrationTestSuite::runAllTests() {
         std::cout << "Running GC Integration Tests...\n\n";
         
         bool allPassed = true;
         
-        allPassed &= GCIntegrationTest::testGCIntegration();
-        allPassed &= GCIntegrationTest::testGCMarking();
+        allPassed &= GCIntegrationTestSuite::testGCIntegration();
+        allPassed &= GCIntegrationTestSuite::testGCMarking();
         
         if (allPassed) {
             std::cout << "\n[OK] All GC Integration Tests passed!\n";
         } else {
             std::cout << "\n[FAILED] Some GC Integration Tests failed!\n";
         }
-        
-        return allPassed;
     }
 
-} // namespace Tests
-} // namespace Lua
+} // namespace Lua::Tests

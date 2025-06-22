@@ -40,7 +40,7 @@ Modern C++ Lua Interpreter是一个使用现代C++17技术重新实现的Lua解�
 ### 环境要求
 
 - **编译器**：支持C++17的编译器（GCC 7+, Clang 5+, MSVC 2017+）
-- **构建系统**：CMake 3.15+
+- **构建系统**：Make, Ninja, Visual Studio 或其他构建系统
 - **操作系统**：Windows, Linux, macOS
 
 ### 编译步骤
@@ -50,14 +50,8 @@ Modern C++ Lua Interpreter是一个使用现代C++17技术重新实现的Lua解�
 git clone https://github.com/YanqingXu/lua.git
 cd lua
 
-# 创建构建目录
-mkdir build && cd build
-
-# 配置项目
-cmake ..
-
-# 编译
-cmake --build . --config Release
+# 使用您首选的构建系统编译项目
+# 例如使用 Visual Studio、Make 或其他 IDE
 ```
 
 ### 运行示例
@@ -515,51 +509,13 @@ void some_function() {
 
 ### 🔧 构建系统
 
-#### CMake配置
-项目使用CMake作为构建系统，主要配置文件：
-
-```cmake
-# CMakeLists.txt
-cmake_minimum_required(VERSION 3.15)
-project(lua CXX)
-
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-
-# 编译选项
-if(MSVC)
-    add_compile_options(/W4)
-else()
-    add_compile_options(-Wall -Wextra -Wpedantic)
-endif()
-
-# 源文件
-file(GLOB_RECURSE SOURCES "src/*.cpp")
-file(GLOB_RECURSE HEADERS "src/*.hpp")
-
-# 可执行文件
-add_executable(lua ${SOURCES} ${HEADERS})
-
-# 测试
-enable_testing()
-add_subdirectory(tests)
-```
-
 #### 构建配置
-```bash
-# Debug构建
-cmake -DCMAKE_BUILD_TYPE=Debug ..
-make
+项目支持多种构建系统，请根据您的环境选择合适的构建方式：
 
-# Release构建
-cmake -DCMAKE_BUILD_TYPE=Release ..
-make
-
-# 带测试的构建
-cmake -DBUILD_TESTING=ON ..
-make
-ctest
-```
+- **Visual Studio**: 打开项目文件夹或解决方案文件
+- **Make**: 使用 Makefile 进行编译
+- **Ninja**: 快速并行构建
+- **其他 IDE**: 导入源代码并配置编译选项
 
 ## API文档
 
@@ -982,8 +938,8 @@ set(CMAKE_CXX_STANDARD 17)
 
 **问题**: 链接错误 `undefined reference`
 **解决**: 检查库依赖和链接顺序
-```cmake
-target_link_libraries(lua ${REQUIRED_LIBS})
+```
+# 根据您的构建系统链接所需的库
 ```
 
 #### 运行时错误
@@ -999,7 +955,8 @@ gdb ./lua
 
 2. 启用地址消毒器
 ```bash
-cmake -DCMAKE_CXX_FLAGS="-fsanitize=address" ..
+# 在编译时添加地址消毒器标志
+g++ -fsanitize=address ...
 ```
 
 **问题**: 内存泄漏
