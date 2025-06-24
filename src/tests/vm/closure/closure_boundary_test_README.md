@@ -286,16 +286,16 @@ Example output:
 ========================================
 
 --- Upvalue Count Limit Tests ---
-✓ Max upvalue count (255)
-✓ Excessive upvalue count (256)
-✓ Upvalue count validation
-✓ Runtime upvalue count check
+[OK] Max upvalue count (255)
+[OK] Excessive upvalue count (256)
+[OK] Upvalue count validation
+[OK] Runtime upvalue count check
 
 --- Nesting Depth Limit Tests ---
-✓ Max nesting depth (200)
-✓ Excessive nesting depth (201)
-✓ Nesting depth tracking
-✓ Exception safe depth recovery
+[OK] Max nesting depth (200)
+[OK] Excessive nesting depth (201)
+[OK] Nesting depth tracking
+[OK] Exception safe depth recovery
 
 [... more test results ...]
 

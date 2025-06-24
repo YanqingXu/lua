@@ -4,7 +4,7 @@
 #include "../../../vm/state.hpp"
 #include "../../../vm/value.hpp"
 #include "../../../common/defines.hpp"
-#include "../../test_utils.hpp"
+#include "../../../test_framework/core/test_utils.hpp"
 #include <cassert>
 #include <stdexcept>
 #include <string>

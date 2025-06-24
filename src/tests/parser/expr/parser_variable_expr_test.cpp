@@ -1,5 +1,8 @@
-#include "variable_expr_test.hpp"
+#include "parser_variable_expr_test.hpp"
 #include "../../../lexer/lexer.hpp"
+#include "../../../parser/parser.hpp"
+#include "../../../parser/ast/expressions.hpp"
+#include "../../../test_framework/core/test_macros.hpp"
 
 namespace Lua {
 namespace Tests {

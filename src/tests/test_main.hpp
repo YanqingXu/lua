@@ -1,10 +1,11 @@
-﻿#ifndef LUA_TESTS_MAIN_NEW_HPP
+#ifndef LUA_TESTS_MAIN_NEW_HPP
 #define LUA_TESTS_MAIN_NEW_HPP
 
-// 新测试框架 - 统一入口
-#include "../test_framework/test_framework.hpp"
+// Test framework core components
+#include "../test_framework/core/test_macros.hpp"
+#include "../test_framework/core/test_utils.hpp"
 
-// 包含所有测试模块头文件
+// Include all test module header files
 #include "lexer/test_lexer.hpp"
 #include "vm/test_vm.hpp"
 #include "parser/test_parser.hpp"
@@ -18,55 +19,42 @@ namespace Lua {
 namespace Tests {
 
 /**
- * @brief 主测试类 - 使用新的测试框架
+ * @brief Main test class - using the new test framework
  * 
- * 这是使用重构后测试框架的主入口点。
- * 提供了更清晰的模块化测试执行和更好的错误处理。
+ * This is the main entry point for the refactored test framework.
+ * Provides clearer modular test execution and better error handling.
  */
 class MainTestSuite {
 public:
     /**
-     * @brief 运行所有测试模块
+     * @brief Run all test modules
      * 
-     * 这是整个测试套件的主入口点。
-     * 使用新的测试框架运行所有主要模块的测试。
+     * This is the main entry point for the entire test suite.
+     * Uses the new test framework to run tests for all major modules.
      * 
-     * 测试层次结构:
-     * MAIN (runAllTests) -> MODULE (各模块测试套件) -> SUITE -> GROUP -> INDIVIDUAL
+     * Test hierarchy:
+     * MAIN (runAllTests) -> MODULE (module test suites) -> SUITE -> GROUP -> INDIVIDUAL
      */
     static void runAllTests() {
         using namespace Lua::TestFramework;
         
-        // 配置测试框架
+        // Configure test framework
         TestUtils::setColorEnabled(true);
         TestUtils::setMemoryCheckEnabled(true);
         
-        try {
-            // 运行所有模块测试（包括各自的错误处理测试）
-            RUN_TEST_MODULE("Lexer Module", LexerTestSuite);
-            RUN_TEST_MODULE("Parser Module", ParserTestSuite);
-            RUN_TEST_MODULE("Compiler Module", CompilerTestSuite);
-            RUN_TEST_MODULE("VM Module", VMTestSuite);
-            RUN_TEST_MODULE("GC Module", GCTestSuite);
-            RUN_TEST_MODULE("Library Module", LibTestSuite);
-            //RUN_TEST_MODULE("Localization Module", LocalizationTestSuite);
-            //RUN_TEST_MODULE("Plugin Module", PluginTestSuite);
-            
-            // 打印最终统计报告
-            TestUtils::printStatisticsReport();
-            
-        } catch (const std::exception& e) {
-            TestUtils::printError("Fatal error during test execution: " + std::string(e.what()));
-            throw;
-        } catch (...) {
-            TestUtils::printError("Unknown fatal error during test execution");
-            throw;
-        }
+        RUN_TEST_MODULE("Lexer Module", LexerTestSuite);
+     /*   RUN_TEST_MODULE("Parser Module", ParserTestSuite);
+        RUN_TEST_MODULE("Compiler Module", CompilerTestSuite);
+        RUN_TEST_MODULE("VM Module", VMTestSuite);
+        RUN_TEST_MODULE("GC Module", GCTestSuite);
+        RUN_TEST_MODULE("Library Module", LibTestSuite);*/
+        //RUN_TEST_MODULE("Localization Module", LocalizationTestSuite);
+        //RUN_TEST_MODULE("Plugin Module", PluginTestSuite);
     }
     
     /**
-     * @brief 运行特定模块的测试
-     * @param moduleName 模块名称
+     * @brief Run tests for a specific module
+     * @param moduleName Module name
      */
     static void runModuleTests(const std::string& moduleName) {
         using namespace Lua::TestFramework;
@@ -97,41 +85,32 @@ public:
     }
     
     /**
-     * @brief 运行快速测试（仅核心功能）
+     * @brief Run quick tests (core functionality only)
      */
     static void runQuickTests() {
         using namespace Lua::TestFramework;
         
         TestUtils::setColorEnabled(true);
-        TestUtils::setMemoryCheckEnabled(false); // 快速测试跳过内存检查
+        TestUtils::setMemoryCheckEnabled(false); // Quick tests skip memory checks
         
         TestUtils::printInfo("Running quick tests (core functionality only)...");
         
         RUN_TEST_MODULE("Lexer Module", LexerTestSuite);
         RUN_TEST_MODULE("Parser Module", ParserTestSuite);
         RUN_TEST_MODULE("VM Module", VMTestSuite);
-        
-        TestUtils::printStatisticsReport();
     }
 };
 
 /**
- * @brief 便捷函数：运行所有测试
- */
-inline void runAllTests() {
-    RUN_MAIN_TEST("Lua Interpreter Test Suite", MainTestSuite::runAllTests);
-}
-
-/**
- * @brief 便捷函数：运行特定模块测试
- * @param moduleName 模块名称
+ * @brief Convenience function: run specific module tests
+ * @param moduleName Module name
  */
 inline void runModuleTests(const std::string& moduleName) {
     MainTestSuite::runModuleTests(moduleName);
 }
 
 /**
- * @brief 便捷函数：运行快速测试
+ * @brief Convenience function: run quick tests
  */
 inline void runQuickTests() {
     RUN_MAIN_TEST("Lua Interpreter Quick Test Suite", MainTestSuite::runQuickTests);

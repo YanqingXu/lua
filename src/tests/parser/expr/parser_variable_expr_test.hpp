@@ -3,6 +3,7 @@
 
 #include <iostream>
 #include "../../../parser/parser.hpp"
+#include "../../../parser/ast/ast_base.hpp"
 #include "../../../parser/ast/expressions.hpp"
 #include "../../../test_framework/core/test_macros.hpp"
 
@@ -59,7 +60,7 @@ private:
     // Helper methods
     static void testVariableParsing(const std::string& input, const std::string& expectedName, const std::string& testName);
     static void testVariableParsingError(const std::string& input, const std::string& testName);
-    //static bool verifyVariableName(const Expr* expr, const std::string& expectedName);
+    static bool verifyVariableName(const Lua::Expr* expr, const std::string& expectedName);
 };
 
 } // namespace Expr

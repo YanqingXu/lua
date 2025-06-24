@@ -4,6 +4,7 @@
 #include "../core/test_macros.hpp"
 #include "../core/test_utils.hpp"
 #include "../core/test_memory.hpp"
+#include "common/types.hpp"
 #include <stdexcept>
 #include <iostream>
 
@@ -76,7 +77,7 @@ public:
         TestUtils::printInfo("Testing basic functionality...");
         
         // 模拟一些基础测试
-        int result = 2 + 2;
+        i32 result = 2 + 2;
         if (result != 4) {
             throw std::runtime_error("Basic math failed: 2 + 2 != 4");
         }
@@ -90,9 +91,9 @@ public:
     static void testStringOperations() {
         TestUtils::printInfo("Testing string operations...");
         
-        std::string str1 = "Hello";
-        std::string str2 = "World";
-        std::string result = str1 + " " + str2;
+        Str str1 = "Hello";
+        Str str2 = "World";
+        Str result = str1 + " " + str2;
         
         if (result != "Hello World") {
             throw std::runtime_error("String concatenation failed");
@@ -108,8 +109,8 @@ public:
         TestUtils::printInfo("Testing math operations...");
         
         // 测试各种数学操作
-        double a = 10.5;
-        double b = 3.2;
+        f64 a = 10.5;
+        f64 b = 3.2;
         
         if (a + b < 13.0 || a + b > 14.0) {
             throw std::runtime_error("Addition test failed");
@@ -131,15 +132,15 @@ public:
         TestUtils::printInfo("Testing memory allocation...");
         
         // 分配一些内存
-        int* ptr = new int[100];
+        i32* ptr = new i32[100];
         
         // 使用内存
-        for (int i = 0; i < 100; ++i) {
+        for (i32 i = 0; i < 100; ++i) {
             ptr[i] = i;
         }
         
         // 验证内存内容
-        for (int i = 0; i < 100; ++i) {
+        for (i32 i = 0; i < 100; ++i) {
             if (ptr[i] != i) {
                 delete[] ptr;
                 throw std::runtime_error("Memory content verification failed");
@@ -161,7 +162,7 @@ public:
         TestUtils::printInfo("Testing memory deallocation...");
         
         // 测试多次分配和释放
-        for (int i = 0; i < 10; ++i) {
+        for (i32 i = 0; i < 10; ++i) {
             char* buffer = new char[1024];
             // 使用buffer
             buffer[0] = 'A';
@@ -185,7 +186,7 @@ public:
             throw std::runtime_error("Test exception");
         } catch (const std::runtime_error& e) {
             exceptionCaught = true;
-            TestUtils::printInfo("Caught expected exception: " + std::string(e.what()));
+            TestUtils::printInfo("Caught expected exception: " + Str(e.what()));
         }
         
         if (!exceptionCaught) {
@@ -228,8 +229,8 @@ public:
         TestUtils::printInfo("Testing for memory leaks...");
         
         // 执行一些可能导致内存泄漏的操作
-        for (int i = 0; i < 100; ++i) {
-            std::string* str = new std::string("Test string " + std::to_string(i));
+        for (i32 i = 0; i < 100; ++i) {
+            Str* str = new Str("Test string " + std::to_string(i));
             // 正确释放内存
             delete str;
         }
@@ -247,8 +248,8 @@ public:
         
         // 创建需要清理的资源
         struct Resource {
-            int* data;
-            Resource() : data(new int[50]) {}
+            i32* data;
+            Resource() : data(new i32[50]) {}
             ~Resource() { delete[] data; }
         };
         

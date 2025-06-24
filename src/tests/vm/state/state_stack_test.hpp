@@ -5,7 +5,7 @@
 #include "../../../vm/value.hpp"
 #include "../../../vm/table.hpp"
 #include "../../../vm/function.hpp"
-#include "../../test_framework/core/test_macros.hpp"
+#include "../../../test_framework/core/test_macros.hpp"
 #include <cassert>
 #include <stdexcept>
 

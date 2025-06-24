@@ -1,6 +1,6 @@
-﻿#pragma once
+#pragma once
 
-#include "../test_utils.hpp"
+#include "../../test_framework/core/test_utils.hpp"
 
 namespace Lua::Tests {
 

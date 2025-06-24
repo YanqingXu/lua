@@ -1,4 +1,4 @@
-﻿#include "format_config.hpp"
+#include "format_config.hpp"
 
 #include <fstream>
 #include <sstream>
@@ -6,25 +6,32 @@
 #include <algorithm>
 #include <cctype>
 #include <iostream>
-#include <string>
+
+namespace Lua {
+namespace Tests {
+namespace TestFormatting {
 
 // Cross-platform safe getenv function
-std::string safe_getenv(const char* name) {
+Str safe_getenv(const char* name) {
 #ifdef _MSC_VER
     char* value = nullptr;
-    size_t len = 0;
+    usize len = 0;
     errno_t err = _dupenv_s(&value, &len, name);
     if (err == 0 && value != nullptr) {
-        std::string result(value);
+        Str result(value);
         free(value);
         return result;
     }
-    return std::string();
+    return Str();
 #else
     const char* value = std::getenv(name);
-    return value ? std::string(value) : std::string();
+    return value ? Str(value) : Str();
 #endif
 }
+
+} // namespace TestFormatting
+} // namespace Tests
+} // namespace Lua
 
 namespace Lua {
 namespace Tests {
@@ -99,7 +106,7 @@ bool TestConfig::loadFromFile(const Str& filename) {
         }
         
         // Parse key=value pairs
-        size_t equalPos = line.find('=');
+        usize equalPos = line.find('=');
         if (equalPos != Str::npos) {
             Str key = trim(line.substr(0, equalPos));
             Str value = trim(line.substr(equalPos + 1));
@@ -130,21 +137,22 @@ bool TestConfig::saveToFile(const Str& filename) const {
 }
 
 void TestConfig::loadFromEnvironment() {
-    std::string noColor = safe_getenv("NO_COLOR");
+    Str noColor = safe_getenv("NO_COLOR");
     if (!noColor.empty()) {
         colorEnabled_ = false;
     }
     
-    std::string forceColorFlag = safe_getenv("FORCE_COLOR");
+    Str forceColorFlag = safe_getenv("FORCE_COLOR");
     if (forceColorFlag == "1") {
         colorEnabled_ = true;
     }
     
-    std::string testTheme = safe_getenv("TEST_THEME");
+    Str testTheme = safe_getenv("TEST_THEME");
     if (!testTheme.empty()) {
         theme_ = testTheme;
     }
 }
-}
-}
-}// namespace Lua
+
+} // namespace TestFormatting
+} // namespace Tests
+} // namespace Lua

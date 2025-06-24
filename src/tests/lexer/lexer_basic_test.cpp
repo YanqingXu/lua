@@ -1,6 +1,8 @@
 #include "lexer_basic_test.hpp"
 
 namespace Lua {
+	using namespace TestFramework;
+
 namespace Tests {
 
 // LexerBasicTest implementation

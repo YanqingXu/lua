@@ -1,7 +1,8 @@
-﻿#pragma once
+#pragma once
 
 #include "../../common/types.hpp"
-#include "../test_utils.hpp"
+#include "../../test_framework/core/test_utils.hpp"
+#include "../../test_framework/core/test_macros.hpp"
 
 namespace Lua::Tests {
 

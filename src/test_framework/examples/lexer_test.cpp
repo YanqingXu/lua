@@ -3,14 +3,18 @@
  * @brief 简单的TokenType测试
  */
 
+#include "../core/test_macros.hpp"
+#include "../core/test_utils.hpp"
+#include "../core/test_memory.hpp"
 #include "../../lexer/lexer.hpp"
+#include "common/types.hpp"
 #include <iostream>
 #include <string>
 
 using namespace Lua;
 
 // 独立的tokenTypeToString实现，避免依赖GC系统
-std::string simpleTokenTypeToString(TokenType type) {
+Str simpleTokenTypeToString(TokenType type) {
     switch (type) {
         case TokenType::And: return "and";
         case TokenType::Break: return "break";

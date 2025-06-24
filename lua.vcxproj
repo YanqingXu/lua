@@ -182,6 +182,8 @@
     <ClInclude Include="src\parser\visitor.hpp" />
     <ClInclude Include="src\tests\compiler\test_compiler.hpp" />
     <ClInclude Include="src\tests\gc\test_gc.hpp" />
+    <ClInclude Include="src\tests\lexer\lexer_basic_test.hpp" />
+    <ClInclude Include="src\tests\lexer\lexer_error_test.hpp" />
     <ClInclude Include="src\tests\lexer\test_lexer.hpp" />
     <ClInclude Include="src\tests\lib\test_lib.hpp" />
     <ClInclude Include="src\tests\parser\expr\test_expr.hpp" />
@@ -189,9 +191,9 @@
     <ClInclude Include="src\tests\test_main.hpp" />
     <ClInclude Include="src\tests\vm\closure\test_closure.hpp" />
     <ClInclude Include="src\tests\vm\state\test_state.hpp" />
+    <ClInclude Include="src\tests\vm\test_vm.hpp" />
     <ClInclude Include="src\test_framework\core\test_macros.hpp" />
     <ClInclude Include="src\test_framework\core\test_memory.hpp" />
-    <ClInclude Include="src\test_framework\core\test_runner.hpp" />
     <ClInclude Include="src\test_framework\core\test_utils.hpp" />
     <ClInclude Include="src\test_framework\formatting\format_colors.hpp" />
     <ClInclude Include="src\test_framework\formatting\format_config.hpp" />
@@ -246,6 +248,8 @@
     <ClCompile Include="src\parser\parser_utils.cpp" />
     <ClCompile Include="src\parser\statement_parser.cpp" />
     <ClCompile Include="src\parser\visitor.cpp" />
+    <ClCompile Include="src\tests\lexer\lexer_basic_test.cpp" />
+    <ClCompile Include="src\tests\lexer\lexer_error_test.cpp" />
     <ClCompile Include="src\test_framework\core\test_memory.cpp" />
     <ClCompile Include="src\test_framework\formatting\format_colors.cpp" />
     <ClCompile Include="src\test_framework\formatting\format_config.cpp" />

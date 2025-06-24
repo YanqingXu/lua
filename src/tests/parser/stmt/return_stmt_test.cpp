@@ -1,7 +1,7 @@
 #include "return_stmt_test.hpp"
 #include "../../../parser/parser.hpp"
 #include "../../../lexer/lexer.hpp"
-#include "../../test_utils.hpp"
+#include "../../../test_framework/core/test_utils.hpp"
 
 namespace Lua {
     void ReturnStmtTest::runAllTests() {

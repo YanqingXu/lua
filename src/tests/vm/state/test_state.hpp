@@ -2,7 +2,7 @@
 #define TEST_STATE_SUITE_HPP
 
 #include "../../../vm/state.hpp"
-#include "../../test_framework/core/test_macros.hpp"
+#include "../../../test_framework/core/test_macros.hpp"
 #include "state_basic_test.hpp"
 #include "state_stack_test.hpp"
 //#include "state_global_test.hpp"

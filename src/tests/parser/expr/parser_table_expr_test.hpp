@@ -1,10 +1,10 @@
-﻿#ifndef TABLE_EXPR_TEST_HPP
+#ifndef TABLE_EXPR_TEST_HPP
 #define TABLE_EXPR_TEST_HPP
 
 #include <iostream>
 #include "../../../parser/parser.hpp"
 #include "../../../parser/ast/expressions.hpp"
-#include "../../../test_framework/core/test_macros.hpp"`
+#include "../../../test_framework/core/test_macros.hpp"
 
 namespace Lua {
 namespace Tests {

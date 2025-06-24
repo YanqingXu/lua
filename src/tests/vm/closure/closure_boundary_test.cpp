@@ -1,5 +1,5 @@
 #include "closure_boundary_test.hpp"
-#include "../../test_utils.hpp"
+#include "../../../test_framework/core/test_utils.hpp"
 #include "../../../vm/state.hpp"
 #include "../../../common/defines.hpp"
 

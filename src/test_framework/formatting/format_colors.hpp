@@ -1,10 +1,10 @@
-﻿#pragma once
-
+#pragma once
 #include "../../common/types.hpp"
 #include "format_define.hpp"
 #include <string>
 #include <unordered_map>
 #include <iostream>
+#include <vector>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -62,6 +62,11 @@ class TestColorManager {
         
         void setTheme(const Str& theme);
         Str getTheme() const;
+        
+        // Custom theme support
+        void addCustomTheme(const Str& name, const ColorScheme& scheme);
+        bool hasTheme(const Str& theme) const;
+        Vec<Str> getAvailableThemes() const;
         
         // Get color code for ColorType
         Str getColor(ColorType type) const;

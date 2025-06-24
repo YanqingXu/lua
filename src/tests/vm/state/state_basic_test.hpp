@@ -3,7 +3,7 @@
 
 #include "../../../vm/state.hpp"
 #include "../../../vm/value.hpp"
-#include "../../test_framework/core/test_macros.hpp"
+#include "../../../test_framework/core/test_macros.hpp"
 #include <cassert>
 
 namespace Lua {

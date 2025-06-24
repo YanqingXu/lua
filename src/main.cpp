@@ -42,7 +42,7 @@ int main(int argc, char** argv) {
             state.doString(source);
         } else {
             // Run all tests by default
-            RUN_MAIN_TEST("Lua Interpreter Tests", Lua::Tests::runAllTests);
+            RUN_MAIN_TEST("Lua Interpreter Tests", Lua::Tests::MainTestSuite::runAllTests);
         }
     } catch (const std::exception& e) {
         std::cerr << "Error: " << e.what() << std::endl;

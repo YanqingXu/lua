@@ -6,7 +6,7 @@
 #include "../../../vm/table.hpp"
 #include "../../../vm/function.hpp"
 #include "../../../gc/core/garbage_collector.hpp"
-#include "../../test_utils.hpp"
+#include "../../../test_framework/core/test_utils.hpp"
 #include <cassert>
 #include <memory>
 

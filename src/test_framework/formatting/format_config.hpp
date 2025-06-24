@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include "../../common/types.hpp"
 #include "format_define.hpp"
 #include <fstream>
@@ -12,14 +12,14 @@ namespace TestFormatting {
     struct LevelConfig {
         Str headerChar = "=";
         Str footerChar = "=";
-        int width = 80;
-        int indent = 0;
+        i32 width = 80;
+        i32 indent = 0;
         bool showTimestamp = true;
         bool showStatistics = true;
         bool useDoubleLines = false;
         
         LevelConfig() = default;
-        LevelConfig(const Str& hChar, const Str& fChar, int w, int ind, 
+        LevelConfig(const Str& hChar, const Str& fChar, i32 w, i32 ind, 
                    bool timestamp = true, bool stats = true, bool doubleLine = false)
             : headerChar(hChar), footerChar(fChar), width(w), indent(ind), 
               showTimestamp(timestamp), showStatistics(stats), useDoubleLines(doubleLine) {}

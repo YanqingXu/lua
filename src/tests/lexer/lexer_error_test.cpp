@@ -1,50 +1,46 @@
 ﻿#include "lexer_error_test.hpp"
 
 namespace Lua {
+    using namespace TestFramework;
 namespace Tests {
 
 void LexerErrorTest::runAllTests() {
-    TestUtils::printLevelHeader(TestUtils::TestLevel::GROUP, "Lexer Error Handling Tests", 
-                               "Testing lexer error detection and handling");
-    
     // Run test groups
     RUN_TEST_GROUP("Invalid Characters", testInvalidCharacters);
     RUN_TEST_GROUP("String Errors", testStringErrors);
     RUN_TEST_GROUP("Number Errors", testNumberErrors);
     RUN_TEST_GROUP("Escape Sequence Errors", testEscapeSequenceErrors);
     RUN_TEST_GROUP("Edge Cases", testEdgeCases);
-    
-    TestUtils::printLevelFooter(TestUtils::TestLevel::GROUP, "Lexer Error Handling Tests completed");
 }
 
 void LexerErrorTest::testInvalidCharacters() {
-    SAFE_RUN_TEST(LexerErrorTest, testInvalidSymbols);
-    SAFE_RUN_TEST(LexerErrorTest, testInvalidUnicodeCharacters);
-    SAFE_RUN_TEST(LexerErrorTest, testControlCharacters);
+    SAFE_RUN_TEST(LexerErrorTest, testInvalidSymbols, 5000);
+    SAFE_RUN_TEST(LexerErrorTest, testInvalidUnicodeCharacters, 5000);
+    SAFE_RUN_TEST(LexerErrorTest, testControlCharacters, 5000);
 }
 
 void LexerErrorTest::testStringErrors() {
-    SAFE_RUN_TEST(LexerErrorTest, testUnterminatedString);
-    SAFE_RUN_TEST(LexerErrorTest, testUnterminatedMultilineString);
-    SAFE_RUN_TEST(LexerErrorTest, testInvalidStringEscapes);
+    SAFE_RUN_TEST(LexerErrorTest, testUnterminatedString, 5000);
+    SAFE_RUN_TEST(LexerErrorTest, testUnterminatedMultilineString, 5000);
+    SAFE_RUN_TEST(LexerErrorTest, testInvalidStringEscapes, 5000);
 }
 
 void LexerErrorTest::testNumberErrors() {
-    SAFE_RUN_TEST(LexerErrorTest, testMalformedNumbers);
-    SAFE_RUN_TEST(LexerErrorTest, testInvalidHexNumbers);
-    SAFE_RUN_TEST(LexerErrorTest, testNumberOverflow);
+    SAFE_RUN_TEST(LexerErrorTest, testMalformedNumbers, 5000);
+    SAFE_RUN_TEST(LexerErrorTest, testInvalidHexNumbers, 5000);
+    SAFE_RUN_TEST(LexerErrorTest, testNumberOverflow, 5000);
 }
 
 void LexerErrorTest::testEscapeSequenceErrors() {
-    SAFE_RUN_TEST(LexerErrorTest, testInvalidEscapeSequences);
-    SAFE_RUN_TEST(LexerErrorTest, testIncompleteEscapeSequences);
+    SAFE_RUN_TEST(LexerErrorTest, testInvalidEscapeSequences, 5000);
+    SAFE_RUN_TEST(LexerErrorTest, testIncompleteEscapeSequences, 5000);
 }
 
 void LexerErrorTest::testEdgeCases() {
-    SAFE_RUN_TEST(LexerErrorTest, testEmptyInput);
-    SAFE_RUN_TEST(LexerErrorTest, testOnlyWhitespace);
-    SAFE_RUN_TEST(LexerErrorTest, testVeryLongTokens);
-    SAFE_RUN_TEST(LexerErrorTest, testMixedValidInvalidTokens);
+    SAFE_RUN_TEST(LexerErrorTest, testEmptyInput, 5000);
+    SAFE_RUN_TEST(LexerErrorTest, testOnlyWhitespace, 5000);
+    SAFE_RUN_TEST(LexerErrorTest, testVeryLongTokens, 5000);
+    SAFE_RUN_TEST(LexerErrorTest, testMixedValidInvalidTokens, 5000);
 }
 
 // Individual test implementations

@@ -197,7 +197,7 @@ MAIN (主测试)
 // test_module.hpp - 推荐的模块测试文件结构
 #pragma once
 
-#include "../test_utils.hpp"
+#include "../../test_framework/core/test_utils.hpp"
 #include "specific_test1.hpp"
 #include "specific_test2.hpp"
 // ... 其他测试套件包含
@@ -275,7 +275,7 @@ void ModuleTestSuite::runAllTests() {
 
 #### 6. **头文件包含**
 ```cpp
-#include "../test_utils.hpp"           // 测试框架工具
+#include "../../test_framework/core/test_utils.hpp"           // 测试框架工具
 #include "specific_test1.hpp"          // 模块内的具体测试套件
 #include "specific_test2.hpp"          // 更多测试套件...
 #include "../../common/types.hpp"      // 如需要的公共类型
@@ -308,7 +308,7 @@ void LibTestSuite::runAllTests() {
 // test_lib.hpp
 #pragma once
 
-#include "../test_utils.hpp"
+#include "../../test_framework/core/test_utils.hpp"
 #include "base_lib_test.hpp"
 #include "table_lib_test.hpp"
 
@@ -367,7 +367,7 @@ public:
 
 ```
 tests/
-├── test_utils.hpp              # 主接口文件（简化的门面）
+├── test_main.hpp               # 主接口文件
 ├── example_usage.cpp           # 使用示例
 ├── test_format_config.txt      # 配置文件示例
 ├── README.md                   # 说明文档
@@ -442,7 +442,7 @@ FunctionTest::runAllTests();
 ### 基本输出格式使用
 
 ```cpp
-#include "test_utils.hpp"
+#include "../test_framework/core/test_utils.hpp"
 
 // 使用宏进行层级化测试
 RUN_MAIN_TEST("主测试", []() {
@@ -600,8 +600,8 @@ TestUtils::setTheme("dark");
     │                    GROUP: Binary Expression Tests                      │
     └─────────────────────────────────────────────────────────────────────────┘
 
-      ✓ INDIVIDUAL: BinaryExprTest::testAddition
-      ✓ INDIVIDUAL: BinaryExprTest::testSubtraction
+      [OK] INDIVIDUAL: BinaryExprTest::testAddition
+      [OK] INDIVIDUAL: BinaryExprTest::testSubtraction
       ✗ INDIVIDUAL: BinaryExprTest::testDivision
 ```
 
@@ -671,7 +671,7 @@ tests/
 ├── README.md                    # 本文件 - 测试目录说明
 ├── test_main.cpp               # 主测试入口
 ├── test_main.hpp               # 主测试头文件
-├── test_utils.hpp              # 测试工具和宏定义
+├── test_main.hpp               # 测试主入口
 ├── formatting/                 # 格式化模块
 │   ├── test_formatter.hpp      # 核心格式化器
 │   ├── test_formatter.cpp
@@ -1689,7 +1689,7 @@ src/tests/
 ```cpp
 #pragma once
 
-#include "../../test_utils.hpp"
+#include "../../../test_framework/core/test_utils.hpp"
 #include "binary_expr_test.hpp"
 #include "unary_expr_test.hpp"
 #include "literal_expr_test.hpp"
@@ -1745,7 +1745,7 @@ public:
 ```cpp
 #pragma once
 
-#include "../test_utils.hpp"
+#include "../../test_framework/core/test_utils.hpp"
 #include "expr/test_expr.hpp"
 #include "stmt/test_stmt.hpp"
 
@@ -1938,7 +1938,7 @@ src/tests/vm/instruction/test_vm_instruction.hpp
 #ifndef TEST_PARSER_EXPR_HPP
 #define TEST_PARSER_EXPR_HPP
 
-#include "../../test_utils.hpp"
+#include "../../../test_framework/core/test_utils.hpp"
 #include "parser_binary_expr_test.hpp"
 #include "parser_literal_expr_test.hpp"
 // ... 其他子测试文件

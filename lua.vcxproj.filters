@@ -106,9 +106,6 @@
     <Filter Include="test_framework\formatting">
       <UniqueIdentifier>{ec52d11a-2357-4aed-a119-04a151c0a528}</UniqueIdentifier>
     </Filter>
-    <Filter Include="test_framework\config">
-      <UniqueIdentifier>{c1d63268-1965-42f4-b301-7396c57040e5}</UniqueIdentifier>
-    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\main.cpp">
@@ -257,6 +254,12 @@
     </ClCompile>
     <ClCompile Include="src\test_framework\formatting\format_strategies.cpp">
       <Filter>test_framework\formatting</Filter>
+    </ClCompile>
+    <ClCompile Include="src\tests\lexer\lexer_basic_test.cpp">
+      <Filter>tests\lexer</Filter>
+    </ClCompile>
+    <ClCompile Include="src\tests\lexer\lexer_error_test.cpp">
+      <Filter>tests\lexer</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -455,9 +458,6 @@
     <ClInclude Include="src\test_framework\core\test_memory.hpp">
       <Filter>test_framework\core</Filter>
     </ClInclude>
-    <ClInclude Include="src\test_framework\core\test_runner.hpp">
-      <Filter>test_framework\core</Filter>
-    </ClInclude>
     <ClInclude Include="src\test_framework\core\test_utils.hpp">
       <Filter>test_framework\core</Filter>
     </ClInclude>
@@ -472,6 +472,15 @@
     </ClInclude>
     <ClInclude Include="src\test_framework\formatting\format_strategies.hpp">
       <Filter>test_framework\formatting</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tests\vm\test_vm.hpp">
+      <Filter>tests\vm</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tests\lexer\lexer_basic_test.hpp">
+      <Filter>tests\lexer</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tests\lexer\lexer_error_test.hpp">
+      <Filter>tests\lexer</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

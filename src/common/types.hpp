@@ -59,7 +59,8 @@ namespace Lua {
     template<typename T>
     using Atom = std::atomic<T>;
 
-    using ScopedLock = std::scoped_lock<std::mutex>;
+    using Mtx = std::mutex;
+    using ScopedLock = std::scoped_lock<Mtx>;
 
     // Smart pointers
     template<typename T>

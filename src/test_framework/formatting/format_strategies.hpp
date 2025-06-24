@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include "../../common/types.hpp"
 #include "format_define.hpp"
 #include "format_colors.hpp"

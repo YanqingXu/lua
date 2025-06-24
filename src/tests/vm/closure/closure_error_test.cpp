@@ -1,5 +1,5 @@
-﻿#include "closure_error_test.hpp"
-#include "../../test_utils.hpp"
+#include "closure_error_test.hpp"
+#include "../../../test_framework/core/test_utils.hpp"
 
 namespace Lua {
 namespace Tests {

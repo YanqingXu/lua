@@ -1,4 +1,5 @@
 #include "vm_error_test.hpp"
+#include "../../test_framework/core/test_macros.hpp"
 
 namespace Lua {
 namespace Tests {

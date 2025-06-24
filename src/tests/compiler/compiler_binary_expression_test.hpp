@@ -1,9 +1,9 @@
-﻿#pragma once
+#pragma once
 
 #include "../../common/opcodes.hpp"
 #include "../../parser/ast/expressions.hpp"
 #include "../../lexer/lexer.hpp"
-#include "../test_utils.hpp"
+#include "../../test_framework/core/test_utils.hpp"
 
 namespace Lua::Tests {
 
