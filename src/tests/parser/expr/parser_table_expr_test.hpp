@@ -1,15 +1,11 @@
 #ifndef TABLE_EXPR_TEST_HPP
 #define TABLE_EXPR_TEST_HPP
 
-#include <iostream>
-#include "../../../parser/parser.hpp"
+#include <string>
 #include "../../../parser/ast/expressions.hpp"
-#include "../../../test_framework/core/test_macros.hpp"
 
 namespace Lua {
 namespace Tests {
-namespace Parser {
-namespace Expr {
 
 /**
  * @brief Table Expression Parser Test Class
@@ -23,7 +19,7 @@ namespace Expr {
  * - Mixed initialization patterns
  * - Nested table structures
  */
-class TableExprTest {
+class ParserTableExprTest {
 public:
     /**
      * @brief Run all table expression tests
@@ -84,13 +80,10 @@ private:
     // Helper methods
     static void testTableParsing(const std::string& input, int expectedElementCount, const std::string& testName);
     static void testTableParsingError(const std::string& input, const std::string& testName);
-    //static bool verifyTableExpression(const Expr* expr, int expectedElementCount);
+    static bool verifyTableExpression(const Expr* expr, int expectedElementCount);
     static void printTableExpressionInfo(const TableExpr* tableExpr);
-    static std::string getTableElementType(const TableField& element);
+    static std::string getTableElementType(const Lua::TableField& element);
 };
-
-} // namespace Expr
-} // namespace Parser
 } // namespace Tests
 } // namespace Lua
 

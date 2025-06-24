@@ -261,6 +261,27 @@
     <ClCompile Include="src\tests\lexer\lexer_error_test.cpp">
       <Filter>tests\lexer</Filter>
     </ClCompile>
+    <ClCompile Include="src\tests\parser\expr\parser_literal_expr_test.cpp">
+      <Filter>tests\parser\expr</Filter>
+    </ClCompile>
+    <ClCompile Include="src\tests\parser\expr\parser_binary_expr_test.cpp">
+      <Filter>tests\parser\expr</Filter>
+    </ClCompile>
+    <ClCompile Include="src\tests\parser\expr\parser_call_expr_test.cpp">
+      <Filter>tests\parser\expr</Filter>
+    </ClCompile>
+    <ClCompile Include="src\tests\parser\expr\parser_member_expr_test.cpp">
+      <Filter>tests\parser\expr</Filter>
+    </ClCompile>
+    <ClCompile Include="src\tests\parser\expr\parser_table_expr_test.cpp">
+      <Filter>tests\parser\expr</Filter>
+    </ClCompile>
+    <ClCompile Include="src\tests\parser\expr\parser_unary_expr_test.cpp">
+      <Filter>tests\parser\expr</Filter>
+    </ClCompile>
+    <ClCompile Include="src\tests\parser\expr\parser_variable_expr_test.cpp">
+      <Filter>tests\parser\expr</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\compiler\compiler.hpp">
@@ -437,9 +458,6 @@
     <ClInclude Include="src\tests\vm\closure\test_closure.hpp">
       <Filter>tests\vm\closure</Filter>
     </ClInclude>
-    <ClInclude Include="src\tests\parser\expr\test_expr.hpp">
-      <Filter>tests\parser\expr</Filter>
-    </ClInclude>
     <ClInclude Include="src\tests\vm\state\test_state.hpp">
       <Filter>tests\vm\state</Filter>
     </ClInclude>
@@ -481,6 +499,30 @@
     </ClInclude>
     <ClInclude Include="src\tests\lexer\lexer_error_test.hpp">
       <Filter>tests\lexer</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tests\parser\expr\parser_literal_expr_test.hpp">
+      <Filter>tests\parser\expr</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tests\parser\expr\test_parser_expr.hpp">
+      <Filter>tests\parser\expr</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tests\parser\expr\parser_binary_expr_test.hpp">
+      <Filter>tests\parser\expr</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tests\parser\expr\parser_call_expr_test.hpp">
+      <Filter>tests\parser\expr</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tests\parser\expr\parser_member_expr_test.hpp">
+      <Filter>tests\parser\expr</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tests\parser\expr\parser_table_expr_test.hpp">
+      <Filter>tests\parser\expr</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tests\parser\expr\parser_unary_expr_test.hpp">
+      <Filter>tests\parser\expr</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tests\parser\expr\parser_variable_expr_test.hpp">
+      <Filter>tests\parser\expr</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

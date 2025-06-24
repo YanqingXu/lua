@@ -1,16 +1,11 @@
 #ifndef UNARY_EXPR_TEST_HPP
 #define UNARY_EXPR_TEST_HPP
 
-#include <iostream>
-#include "../../../parser/parser.hpp"
+#include <string>
 #include "../../../parser/ast/expressions.hpp"
-#include "../../../test_framework/core/test_macros.hpp"
 
 namespace Lua {
 namespace Tests {
-namespace Parser {
-namespace Expr {
-
 /**
  * @brief Unary Expression Parser Test Class
  * 
@@ -24,7 +19,7 @@ namespace Expr {
  * - Nested unary expressions
  * - Complex combinations
  */
-class UnaryExprTest {
+class ParserUnaryExprTest {
 public:
     /**
      * @brief Run all unary expression tests
@@ -61,12 +56,9 @@ private:
     // Helper methods
     static void testUnaryParsing(const std::string& input, TokenType expectedOp, const std::string& testName);
     static void testUnaryParsingError(const std::string& input, const std::string& testName);
-    //static bool verifyUnaryExpression(const Expr* expr, TokenType expectedOp);
+    static bool verifyUnaryExpression(const Expr* expr, TokenType expectedOp);
     static void printUnaryExpressionInfo(const UnaryExpr* unaryExpr);
 };
-
-} // namespace Expr
-} // namespace Parser
 } // namespace Tests
 } // namespace Lua
 

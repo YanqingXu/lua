@@ -1,5 +1,5 @@
-#ifndef TEST_EXPR_HPP
-#define TEST_EXPR_HPP
+#ifndef TEST_PARSER_EXPR_HPP
+#define TEST_PARSER_EXPR_HPP
 
 #include "../../../test_framework/core/test_macros.hpp"
 #include "parser_binary_expr_test.hpp"
@@ -12,8 +12,6 @@
 
 namespace Lua {
 namespace Tests {
-namespace Parser {
-namespace Expr {
 
 /**
  * @brief Parser Expression Test Suite
@@ -24,7 +22,7 @@ namespace Expr {
  * Comprehensive test suite for all expression parsing functionality
  * including literals, variables, operators, function calls, tables, and member access
  */
-class ExprTestSuite {
+class ParserExprTestSuite {
 public:
     /**
      * @brief Run all parser expression tests
@@ -33,18 +31,16 @@ public:
      * using standardized test macros for consistent output formatting
      */
     static void runAllTests() {
-        RUN_TEST_SUITE(Lua::Tests::Parser::Expr::BinaryExprTest);
-        RUN_TEST_SUITE(Lua::Tests::Parser::Expr::UnaryExprTest);
-        RUN_TEST_SUITE(Lua::Tests::Parser::Expr::CallExprTest);
-        RUN_TEST_SUITE(Lua::Tests::Parser::Expr::TableExprTest);
-        RUN_TEST_SUITE(Lua::Tests::Parser::Expr::MemberExprTest);
-        RUN_TEST_SUITE(Lua::Tests::Parser::Expr::LiteralExprTest);
-        RUN_TEST_SUITE(Lua::Tests::Parser::Expr::VariableExprTest);
+        RUN_TEST_SUITE(Lua::Tests::ParserBinaryExprTest);
+        RUN_TEST_SUITE(Lua::Tests::ParserUnaryExprTest);
+        RUN_TEST_SUITE(Lua::Tests::ParserCallExprTest);
+        RUN_TEST_SUITE(Lua::Tests::ParserTableExprTest);
+        RUN_TEST_SUITE(Lua::Tests::ParserMemberExprTest);
+        RUN_TEST_SUITE(Lua::Tests::ParserLiteralExprTest);
+        RUN_TEST_SUITE(Lua::Tests::ParserVariableExprTest);
     }
 };
 
-} // namespace Expr
-} // namespace Parser
 } // namespace Tests
 } // namespace Lua
 

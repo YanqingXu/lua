@@ -1,73 +1,71 @@
-#include "binary_expr_test.hpp"
+#include "parser_binary_expr_test.hpp"
 #include "../../../parser/parser.hpp"
+#include "../../../test_framework/core/test_macros.hpp"
 #include "../../../test_framework/core/test_utils.hpp"
-#include <iostream>
-#include <stdexcept>
 
 using namespace Lua;
 using namespace Tests;
-using namespace Parser;
-using namespace Expr;
+using namespace TestFramework;
 
-void BinaryExprTest::runAllTests() {
+void ParserBinaryExprTest::runAllTests() {
     // Group tests
-    SAFE_RUN_TEST(BinaryExprTest, testArithmeticOperators);
-    SAFE_RUN_TEST(BinaryExprTest, testComparisonOperators);
-    SAFE_RUN_TEST(BinaryExprTest, testLogicalOperators);
+    RUN_TEST(ParserBinaryExprTest, testArithmeticOperators);
+    RUN_TEST(ParserBinaryExprTest, testComparisonOperators);
+    RUN_TEST(ParserBinaryExprTest, testLogicalOperators);
     
     // Individual arithmetic tests
-    SAFE_RUN_TEST(BinaryExprTest, testAddition);
-    SAFE_RUN_TEST(BinaryExprTest, testSubtraction);
-    SAFE_RUN_TEST(BinaryExprTest, testMultiplication);
-    SAFE_RUN_TEST(BinaryExprTest, testDivision);
-    SAFE_RUN_TEST(BinaryExprTest, testModulo);
-    SAFE_RUN_TEST(BinaryExprTest, testExponentiation);
+    RUN_TEST(ParserBinaryExprTest, testAddition);
+    RUN_TEST(ParserBinaryExprTest, testSubtraction);
+    RUN_TEST(ParserBinaryExprTest, testMultiplication);
+    RUN_TEST(ParserBinaryExprTest, testDivision);
+    RUN_TEST(ParserBinaryExprTest, testModulo);
+    RUN_TEST(ParserBinaryExprTest, testExponentiation);
     
     // Individual comparison tests
-    SAFE_RUN_TEST(BinaryExprTest, testEquality);
-    SAFE_RUN_TEST(BinaryExprTest, testInequality);
-    SAFE_RUN_TEST(BinaryExprTest, testLessThan);
-    SAFE_RUN_TEST(BinaryExprTest, testLessEqual);
-    SAFE_RUN_TEST(BinaryExprTest, testGreaterThan);
-    SAFE_RUN_TEST(BinaryExprTest, testGreaterEqual);
+    RUN_TEST(ParserBinaryExprTest, testEquality);
+    RUN_TEST(ParserBinaryExprTest, testInequality);
+    RUN_TEST(ParserBinaryExprTest, testLessThan);
+    RUN_TEST(ParserBinaryExprTest, testLessEqual);
+    RUN_TEST(ParserBinaryExprTest, testGreaterThan);
+    RUN_TEST(ParserBinaryExprTest, testGreaterEqual);
 
     // Individual logical tests
-    SAFE_RUN_TEST(BinaryExprTest, testLogicalAnd);
-    SAFE_RUN_TEST(BinaryExprTest, testLogicalOr);
+    RUN_TEST(ParserBinaryExprTest, testLogicalAnd);
+    RUN_TEST(ParserBinaryExprTest, testLogicalOr);
     
     // Other tests
-    SAFE_RUN_TEST(BinaryExprTest, testStringConcatenation);
-    SAFE_RUN_TEST(BinaryExprTest, testOperatorPrecedence);
-    SAFE_RUN_TEST(BinaryExprTest, testLeftAssociativity);
-    SAFE_RUN_TEST(BinaryExprTest, testRightAssociativity);
-    SAFE_RUN_TEST(BinaryExprTest, testMixedPrecedence);
-    SAFE_RUN_TEST(BinaryExprTest, testNestedExpressions);
+    RUN_TEST(ParserBinaryExprTest, testStringConcatenation);
+    RUN_TEST(ParserBinaryExprTest, testOperatorPrecedence);
+    RUN_TEST(ParserBinaryExprTest, testLeftAssociativity);
+    RUN_TEST(ParserBinaryExprTest, testRightAssociativity);
+    RUN_TEST(ParserBinaryExprTest, testMixedPrecedence);
+    RUN_TEST(ParserBinaryExprTest, testNestedExpressions);
     
     // Complex expression tests
-    SAFE_RUN_TEST(BinaryExprTest, testParenthesizedExpressions);
-    SAFE_RUN_TEST(BinaryExprTest, testComplexArithmetic);
-    SAFE_RUN_TEST(BinaryExprTest, testComplexLogical);
-    SAFE_RUN_TEST(BinaryExprTest, testMixedOperatorTypes);
+    RUN_TEST(ParserBinaryExprTest, testParenthesizedExpressions);
+    RUN_TEST(ParserBinaryExprTest, testComplexArithmetic);
+    RUN_TEST(ParserBinaryExprTest, testComplexLogical);
+    RUN_TEST(ParserBinaryExprTest, testMixedOperatorTypes);
     
     // Edge case tests
-    SAFE_RUN_TEST(BinaryExprTest, testWithLiterals);
-    SAFE_RUN_TEST(BinaryExprTest, testWithVariables);
-    SAFE_RUN_TEST(BinaryExprTest, testWithUnaryExpressions);
-    SAFE_RUN_TEST(BinaryExprTest, testChainedComparisons);
+    RUN_TEST(ParserBinaryExprTest, testWithLiterals);
+    RUN_TEST(ParserBinaryExprTest, testWithVariables);
+    RUN_TEST(ParserBinaryExprTest, testWithUnaryExpressions);
+    RUN_TEST(ParserBinaryExprTest, testChainedComparisons);
     
     // Error handling tests
-    SAFE_RUN_TEST(BinaryExprTest, testInvalidOperators);
-    SAFE_RUN_TEST(BinaryExprTest, testMissingOperands);
-    SAFE_RUN_TEST(BinaryExprTest, testInvalidSyntax);
+    RUN_TEST(ParserBinaryExprTest, testInvalidOperators);
+    RUN_TEST(ParserBinaryExprTest, testMissingOperands);
+    RUN_TEST(ParserBinaryExprTest, testInvalidSyntax);
 }
 
-void BinaryExprTest::testAddition() {
+void ParserBinaryExprTest::testAddition() {
     std::cout << "Testing addition..." << std::endl;
     
     // Test simple addition
     std::string input1 = "3 + 5";
     try {
-        Parser parser1(input1);
+        Lua::Parser parser1(input1);
         auto expr1 = parser1.parseExpression();
         if (expr1) {
             std::cout << "[OK] Parsed '" << input1 << "' successfully" << std::endl;
@@ -81,7 +79,7 @@ void BinaryExprTest::testAddition() {
     // Test addition with variables
     std::string input2 = "a + b";
     try {
-        Parser parser2(input2);
+        Lua::Parser parser2(input2);
         auto expr2 = parser2.parseExpression();
         if (expr2) {
             std::cout << "[OK] Parsed '" << input2 << "' successfully" << std::endl;
@@ -93,13 +91,13 @@ void BinaryExprTest::testAddition() {
     }
 }
 
-void BinaryExprTest::testSubtraction() {
+void ParserBinaryExprTest::testSubtraction() {
     std::cout << "Testing subtraction..." << std::endl;
     
     // Test simple subtraction
     std::string input1 = "10 - 3";
     try {
-        Parser parser1(input1);
+        Lua::Parser parser1(input1);
         auto expr1 = parser1.parseExpression();
         if (expr1) {
             std::cout << "[OK] Parsed '" << input1 << "' successfully" << std::endl;
@@ -113,7 +111,7 @@ void BinaryExprTest::testSubtraction() {
     // Test subtraction with variables
     std::string input2 = "x - y";
     try {
-        Parser parser2(input2);
+        Lua::Parser parser2(input2);
         auto expr2 = parser2.parseExpression();
         if (expr2) {
             std::cout << "[OK] Parsed '" << input2 << "' successfully" << std::endl;
@@ -125,13 +123,13 @@ void BinaryExprTest::testSubtraction() {
     }
 }
 
-void BinaryExprTest::testMultiplication() {
+void ParserBinaryExprTest::testMultiplication() {
     std::cout << "Testing multiplication..." << std::endl;
     
     // Test simple multiplication
     std::string input1 = "4 * 6";
     try {
-        Parser parser1(input1);
+        Lua::Parser parser1(input1);
         auto expr1 = parser1.parseExpression();
         if (expr1) {
             std::cout << "[OK] Parsed '" << input1 << "' successfully" << std::endl;
@@ -145,7 +143,7 @@ void BinaryExprTest::testMultiplication() {
     // Test multiplication with variables
     std::string input2 = "a * b";
     try {
-        Parser parser2(input2);
+        Lua::Parser parser2(input2);
         auto expr2 = parser2.parseExpression();
         if (expr2) {
             std::cout << "[OK] Parsed '" << input2 << "' successfully" << std::endl;
@@ -157,13 +155,13 @@ void BinaryExprTest::testMultiplication() {
     }
 }
 
-void BinaryExprTest::testDivision() {
+void ParserBinaryExprTest::testDivision() {
     std::cout << "Testing division..." << std::endl;
     
     // Test simple division
     std::string input1 = "15 / 3";
     try {
-        Parser parser1(input1);
+        Lua::Parser parser1(input1);
         auto expr1 = parser1.parseExpression();
         if (expr1) {
             std::cout << "[OK] Parsed '" << input1 << "' successfully" << std::endl;
@@ -177,7 +175,7 @@ void BinaryExprTest::testDivision() {
     // Test division with variables
     std::string input2 = "x / y";
     try {
-        Parser parser2(input2);
+        Lua::Parser parser2(input2);
         auto expr2 = parser2.parseExpression();
         if (expr2) {
             std::cout << "[OK] Parsed '" << input2 << "' successfully" << std::endl;
@@ -189,13 +187,13 @@ void BinaryExprTest::testDivision() {
     }
 }
 
-void BinaryExprTest::testModulo() {
+void ParserBinaryExprTest::testModulo() {
     std::cout << "Testing modulo..." << std::endl;
     
     // Test simple modulo
     std::string input1 = "10 % 3";
     try {
-        Parser parser1(input1);
+        Lua::Parser parser1(input1);
         auto expr1 = parser1.parseExpression();
         if (expr1) {
             std::cout << "[OK] Parsed '" << input1 << "' successfully" << std::endl;
@@ -209,7 +207,7 @@ void BinaryExprTest::testModulo() {
     // Test modulo with variables
     std::string input2 = "a % b";
     try {
-        Parser parser2(input2);
+        Lua::Parser parser2(input2);
         auto expr2 = parser2.parseExpression();
         if (expr2) {
             std::cout << "[OK] Parsed '" << input2 << "' successfully" << std::endl;
@@ -221,13 +219,13 @@ void BinaryExprTest::testModulo() {
     }
 }
 
-void BinaryExprTest::testExponentiation() {
+void ParserBinaryExprTest::testExponentiation() {
     std::cout << "Testing exponentiation..." << std::endl;
     
     // Test simple exponentiation
     std::string input1 = "2 ^ 3";
     try {
-        Parser parser1(input1);
+        Lua::Parser parser1(input1);
         auto expr1 = parser1.parseExpression();
         if (expr1) {
             std::cout << "[OK] Parsed '" << input1 << "' successfully" << std::endl;
@@ -241,7 +239,7 @@ void BinaryExprTest::testExponentiation() {
     // Test exponentiation with variables
     std::string input2 = "x ^ y";
     try {
-        Parser parser2(input2);
+        Lua::Parser parser2(input2);
         auto expr2 = parser2.parseExpression();
         if (expr2) {
             std::cout << "[OK] Parsed '" << input2 << "' successfully" << std::endl;
@@ -253,13 +251,13 @@ void BinaryExprTest::testExponentiation() {
     }
 }
 
-void BinaryExprTest::testEquality() {
+void ParserBinaryExprTest::testEquality() {
     std::cout << "Testing equality..." << std::endl;
     
     // Test simple equality
     std::string input1 = "5 == 5";
     try {
-        Parser parser1(input1);
+        Lua::Parser parser1(input1);
         auto expr1 = parser1.parseExpression();
         if (expr1) {
             std::cout << "[OK] Parsed '" << input1 << "' successfully" << std::endl;
@@ -273,7 +271,7 @@ void BinaryExprTest::testEquality() {
     // Test equality with variables
     std::string input2 = "a == b";
     try {
-        Parser parser2(input2);
+        Lua::Parser parser2(input2);
         auto expr2 = parser2.parseExpression();
         if (expr2) {
             std::cout << "[OK] Parsed '" << input2 << "' successfully" << std::endl;
@@ -285,13 +283,13 @@ void BinaryExprTest::testEquality() {
     }
 }
 
-void BinaryExprTest::testInequality() {
+void ParserBinaryExprTest::testInequality() {
     std::cout << "Testing inequality..." << std::endl;
     
     // Test simple inequality
     std::string input1 = "5 ~= 3";
     try {
-        Parser parser1(input1);
+        Lua::Parser parser1(input1);
         auto expr1 = parser1.parseExpression();
         if (expr1) {
             std::cout << "[OK] Parsed '" << input1 << "' successfully" << std::endl;
@@ -305,7 +303,7 @@ void BinaryExprTest::testInequality() {
     // Test inequality with variables
     std::string input2 = "x ~= y";
     try {
-        Parser parser2(input2);
+        Lua::Parser parser2(input2);
         auto expr2 = parser2.parseExpression();
         if (expr2) {
             std::cout << "[OK] Parsed '" << input2 << "' successfully" << std::endl;
@@ -317,13 +315,13 @@ void BinaryExprTest::testInequality() {
     }
 }
 
-void BinaryExprTest::testLessThan() {
+void ParserBinaryExprTest::testLessThan() {
     std::cout << "Testing less than..." << std::endl;
     
     // Test simple less than
     std::string input1 = "3 < 5";
     try {
-        Parser parser1(input1);
+        Lua::Parser parser1(input1);
         auto expr1 = parser1.parseExpression();
         if (expr1) {
             std::cout << "[OK] Parsed '" << input1 << "' successfully" << std::endl;
@@ -337,7 +335,7 @@ void BinaryExprTest::testLessThan() {
     // Test less than with variables
     std::string input2 = "a < b";
     try {
-        Parser parser2(input2);
+        Lua::Parser parser2(input2);
         auto expr2 = parser2.parseExpression();
         if (expr2) {
             std::cout << "[OK] Parsed '" << input2 << "' successfully" << std::endl;
@@ -349,13 +347,13 @@ void BinaryExprTest::testLessThan() {
     }
 }
 
-void BinaryExprTest::testLessEqual() {
+void ParserBinaryExprTest::testLessEqual() {
     std::cout << "Testing less than or equal..." << std::endl;
     
     // Test simple less than or equal
     std::string input1 = "3 <= 5";
     try {
-        Parser parser1(input1);
+        Lua::Parser parser1(input1);
         auto expr1 = parser1.parseExpression();
         if (expr1) {
             std::cout << "[OK] Parsed '" << input1 << "' successfully" << std::endl;
@@ -369,7 +367,7 @@ void BinaryExprTest::testLessEqual() {
     // Test less than or equal with variables
     std::string input2 = "a <= b";
     try {
-        Parser parser2(input2);
+        Lua::Parser parser2(input2);
         auto expr2 = parser2.parseExpression();
         if (expr2) {
             std::cout << "[OK] Parsed '" << input2 << "' successfully" << std::endl;
@@ -381,13 +379,13 @@ void BinaryExprTest::testLessEqual() {
     }
 }
 
-void BinaryExprTest::testGreaterThan() {
+void ParserBinaryExprTest::testGreaterThan() {
     std::cout << "Testing greater than..." << std::endl;
     
     // Test simple greater than
     std::string input1 = "5 > 3";
     try {
-        Parser parser1(input1);
+        Lua::Parser parser1(input1);
         auto expr1 = parser1.parseExpression();
         if (expr1) {
             std::cout << "[OK] Parsed '" << input1 << "' successfully" << std::endl;
@@ -401,7 +399,7 @@ void BinaryExprTest::testGreaterThan() {
     // Test greater than with variables
     std::string input2 = "a > b";
     try {
-        Parser parser2(input2);
+        Lua::Parser parser2(input2);
         auto expr2 = parser2.parseExpression();
         if (expr2) {
             std::cout << "[OK] Parsed '" << input2 << "' successfully" << std::endl;
@@ -413,13 +411,13 @@ void BinaryExprTest::testGreaterThan() {
     }
 }
 
-void BinaryExprTest::testGreaterEqual() {
+void ParserBinaryExprTest::testGreaterEqual() {
     std::cout << "Testing greater than or equal..." << std::endl;
     
     // Test simple greater than or equal
     std::string input1 = "5 >= 3";
     try {
-        Parser parser1(input1);
+        Lua::Parser parser1(input1);
         auto expr1 = parser1.parseExpression();
         if (expr1) {
             std::cout << "[OK] Parsed '" << input1 << "' successfully" << std::endl;
@@ -433,7 +431,7 @@ void BinaryExprTest::testGreaterEqual() {
     // Test greater than or equal with variables
     std::string input2 = "a >= b";
     try {
-        Parser parser2(input2);
+        Lua::Parser parser2(input2);
         auto expr2 = parser2.parseExpression();
         if (expr2) {
             std::cout << "[OK] Parsed '" << input2 << "' successfully" << std::endl;
@@ -445,13 +443,13 @@ void BinaryExprTest::testGreaterEqual() {
     }
 }
 
-void BinaryExprTest::testLogicalAnd() {
+void ParserBinaryExprTest::testLogicalAnd() {
     std::cout << "Testing logical and..." << std::endl;
     
     // Test simple logical and
     std::string input1 = "true and false";
     try {
-        Parser parser1(input1);
+        Lua::Parser parser1(input1);
         auto expr1 = parser1.parseExpression();
         if (expr1) {
             std::cout << "[OK] Parsed '" << input1 << "' successfully" << std::endl;
@@ -465,7 +463,7 @@ void BinaryExprTest::testLogicalAnd() {
     // Test logical and with variables
     std::string input2 = "a and b";
     try {
-        Parser parser2(input2);
+        Lua::Parser parser2(input2);
         auto expr2 = parser2.parseExpression();
         if (expr2) {
             std::cout << "[OK] Parsed '" << input2 << "' successfully" << std::endl;
@@ -477,13 +475,13 @@ void BinaryExprTest::testLogicalAnd() {
     }
 }
 
-void BinaryExprTest::testLogicalOr() {
+void ParserBinaryExprTest::testLogicalOr() {
     std::cout << "Testing logical or..." << std::endl;
     
     // Test simple logical or
     std::string input1 = "true or false";
     try {
-        Parser parser1(input1);
+        Lua::Parser parser1(input1);
         auto expr1 = parser1.parseExpression();
         if (expr1) {
             std::cout << "[OK] Parsed '" << input1 << "' successfully" << std::endl;
@@ -497,7 +495,7 @@ void BinaryExprTest::testLogicalOr() {
     // Test logical or with variables
     std::string input2 = "a or b";
     try {
-        Parser parser2(input2);
+        Lua::Parser parser2(input2);
         auto expr2 = parser2.parseExpression();
         if (expr2) {
             std::cout << "[OK] Parsed '" << input2 << "' successfully" << std::endl;
@@ -509,13 +507,13 @@ void BinaryExprTest::testLogicalOr() {
     }
 }
 
-void BinaryExprTest::testStringConcatenation() {
+void ParserBinaryExprTest::testStringConcatenation() {
     std::cout << "Testing string concatenation..." << std::endl;
     
     // Test simple string concatenation
     std::string input1 = "\"hello\" .. \"world\"";
     try {
-        Parser parser1(input1);
+        Lua::Parser parser1(input1);
         auto expr1 = parser1.parseExpression();
         if (expr1) {
             std::cout << "[OK] Parsed '" << input1 << "' successfully" << std::endl;
@@ -529,7 +527,7 @@ void BinaryExprTest::testStringConcatenation() {
     // Test string concatenation with variables
     std::string input2 = "a .. b";
     try {
-        Parser parser2(input2);
+        Lua::Parser parser2(input2);
         auto expr2 = parser2.parseExpression();
         if (expr2) {
             std::cout << "[OK] Parsed '" << input2 << "' successfully" << std::endl;
@@ -541,13 +539,13 @@ void BinaryExprTest::testStringConcatenation() {
     }
 }
 
-void BinaryExprTest::testOperatorPrecedence() {
+void ParserBinaryExprTest::testOperatorPrecedence() {
     std::cout << "Testing operator precedence..." << std::endl;
     
     // Test multiplication before addition
     std::string input1 = "2 + 3 * 4";
     try {
-        Parser parser1(input1);
+        Lua::Parser parser1(input1);
         auto expr1 = parser1.parseExpression();
         if (expr1) {
             std::cout << "[OK] Parsed '" << input1 << "' successfully" << std::endl;
@@ -561,7 +559,7 @@ void BinaryExprTest::testOperatorPrecedence() {
     // Test exponentiation before multiplication
     std::string input2 = "2 * 3 ^ 2";
     try {
-        Parser parser2(input2);
+        Lua::Parser parser2(input2);
         auto expr2 = parser2.parseExpression();
         if (expr2) {
             std::cout << "[OK] Parsed '" << input2 << "' successfully" << std::endl;
@@ -573,13 +571,13 @@ void BinaryExprTest::testOperatorPrecedence() {
     }
 }
 
-void BinaryExprTest::testLeftAssociativity() {
+void ParserBinaryExprTest::testLeftAssociativity() {
     std::cout << "Testing left associativity..." << std::endl;
     
     // Test left associativity for addition
     std::string input1 = "1 + 2 + 3";
     try {
-        Parser parser1(input1);
+        Lua::Parser parser1(input1);
         auto expr1 = parser1.parseExpression();
         if (expr1) {
             std::cout << "[OK] Parsed '" << input1 << "' successfully" << std::endl;
@@ -593,7 +591,7 @@ void BinaryExprTest::testLeftAssociativity() {
     // Test left associativity for subtraction
     std::string input2 = "10 - 3 - 2";
     try {
-        Parser parser2(input2);
+        Lua::Parser parser2(input2);
         auto expr2 = parser2.parseExpression();
         if (expr2) {
             std::cout << "[OK] Parsed '" << input2 << "' successfully" << std::endl;
@@ -605,13 +603,13 @@ void BinaryExprTest::testLeftAssociativity() {
     }
 }
 
-void BinaryExprTest::testRightAssociativity() {
+void ParserBinaryExprTest::testRightAssociativity() {
     std::cout << "Testing right associativity..." << std::endl;
     
     // Test right associativity for exponentiation
     std::string input1 = "2 ^ 3 ^ 2";
     try {
-        Parser parser1(input1);
+        Lua::Parser parser1(input1);
         auto expr1 = parser1.parseExpression();
         if (expr1) {
             std::cout << "[OK] Parsed '" << input1 << "' successfully" << std::endl;
@@ -625,7 +623,7 @@ void BinaryExprTest::testRightAssociativity() {
     // Test right associativity for string concatenation
     std::string input2 = "a .. b .. c";
     try {
-        Parser parser2(input2);
+        Lua::Parser parser2(input2);
         auto expr2 = parser2.parseExpression();
         if (expr2) {
             std::cout << "[OK] Parsed '" << input2 << "' successfully" << std::endl;
@@ -637,13 +635,13 @@ void BinaryExprTest::testRightAssociativity() {
     }
 }
 
-void BinaryExprTest::testMixedPrecedence() {
+void ParserBinaryExprTest::testMixedPrecedence() {
     std::cout << "Testing mixed precedence..." << std::endl;
     
     // Test complex expression with mixed operators
     std::string input1 = "a + b * c - d / e";
     try {
-        Parser parser1(input1);
+        Lua::Parser parser1(input1);
         auto expr1 = parser1.parseExpression();
         if (expr1) {
             std::cout << "[OK] Parsed '" << input1 << "' successfully" << std::endl;
@@ -657,7 +655,7 @@ void BinaryExprTest::testMixedPrecedence() {
     // Test expression with comparison and arithmetic
     std::string input2 = "a + b < c * d";
     try {
-        Parser parser2(input2);
+        Lua::Parser parser2(input2);
         auto expr2 = parser2.parseExpression();
         if (expr2) {
             std::cout << "[OK] Parsed '" << input2 << "' successfully" << std::endl;
@@ -669,13 +667,13 @@ void BinaryExprTest::testMixedPrecedence() {
     }
 }
 
-void BinaryExprTest::testNestedExpressions() {
+void ParserBinaryExprTest::testNestedExpressions() {
     std::cout << "Testing nested expressions..." << std::endl;
     
     // Test parenthesized expressions
     std::string input1 = "(a + b) * (c - d)";
     try {
-        Parser parser1(input1);
+        Lua::Parser parser1(input1);
         auto expr1 = parser1.parseExpression();
         if (expr1) {
             std::cout << "[OK] Parsed '" << input1 << "' successfully" << std::endl;
@@ -689,7 +687,7 @@ void BinaryExprTest::testNestedExpressions() {
     // Test deeply nested expressions
     std::string input2 = "((a + b) * c) / (d - e)";
     try {
-        Parser parser2(input2);
+        Lua::Parser parser2(input2);
         auto expr2 = parser2.parseExpression();
         if (expr2) {
             std::cout << "[OK] Parsed '" << input2 << "' successfully" << std::endl;
@@ -701,13 +699,13 @@ void BinaryExprTest::testNestedExpressions() {
     }
 }
 
-void BinaryExprTest::testChainedComparisons() {
+void ParserBinaryExprTest::testChainedComparisons() {
     std::cout << "Testing chained comparisons..." << std::endl;
     
     // Test chained less than
     std::string input1 = "a < b < c";
     try {
-        Parser parser1(input1);
+        Lua::Parser parser1(input1);
         auto expr1 = parser1.parseExpression();
         if (expr1) {
             std::cout << "[OK] Parsed '" << input1 << "' successfully" << std::endl;
@@ -721,7 +719,7 @@ void BinaryExprTest::testChainedComparisons() {
     // Test chained equality
     std::string input2 = "x == y == z";
     try {
-        Parser parser2(input2);
+        Lua::Parser parser2(input2);
         auto expr2 = parser2.parseExpression();
         if (expr2) {
             std::cout << "[OK] Parsed '" << input2 << "' successfully" << std::endl;
@@ -733,13 +731,13 @@ void BinaryExprTest::testChainedComparisons() {
     }
 }
 
-void BinaryExprTest::testInvalidOperators() {
+void ParserBinaryExprTest::testInvalidOperators() {
     std::cout << "Testing invalid operators..." << std::endl;
     
     // Test invalid bitwise and operator
     std::string input1 = "a & b";
     try {
-        Parser parser1(input1);
+        Lua::Parser parser1(input1);
         auto expr1 = parser1.parseExpression();
         if (!expr1) {
             std::cout << "[OK] Correctly rejected '" << input1 << "'" << std::endl;
@@ -753,7 +751,7 @@ void BinaryExprTest::testInvalidOperators() {
     // Test invalid bitwise or operator
     std::string input2 = "x | y";
     try {
-        Parser parser2(input2);
+        Lua::Parser parser2(input2);
         auto expr2 = parser2.parseExpression();
         if (!expr2) {
             std::cout << "[OK] Correctly rejected '" << input2 << "'" << std::endl;
@@ -765,13 +763,13 @@ void BinaryExprTest::testInvalidOperators() {
     }
 }
 
-void BinaryExprTest::testMissingOperands() {
+void ParserBinaryExprTest::testMissingOperands() {
     std::cout << "Testing missing operands..." << std::endl;
     
     // Test missing left operand
     std::string input1 = "+ 5";
     try {
-        Parser parser1(input1);
+        Lua::Parser parser1(input1);
         auto expr1 = parser1.parseExpression();
         if (!expr1) {
             std::cout << "[OK] Correctly rejected '" << input1 << "'" << std::endl;
@@ -785,7 +783,7 @@ void BinaryExprTest::testMissingOperands() {
     // Test missing right operand
     std::string input2 = "5 +";
     try {
-        Parser parser2(input2);
+        Lua::Parser parser2(input2);
         auto expr2 = parser2.parseExpression();
         if (!expr2) {
             std::cout << "[OK] Correctly rejected '" << input2 << "'" << std::endl;
@@ -797,13 +795,13 @@ void BinaryExprTest::testMissingOperands() {
     }
 }
 
-void BinaryExprTest::testInvalidSyntax() {
+void ParserBinaryExprTest::testInvalidSyntax() {
     std::cout << "Testing invalid syntax..." << std::endl;
     
     // Test double operators
     std::string input1 = "a + + b";
     try {
-        Parser parser1(input1);
+        Lua::Parser parser1(input1);
         auto expr1 = parser1.parseExpression();
         if (!expr1) {
             std::cout << "[OK] Correctly rejected '" << input1 << "'" << std::endl;
@@ -817,7 +815,7 @@ void BinaryExprTest::testInvalidSyntax() {
     // Test consecutive operators
     std::string input2 = "a * / b";
     try {
-        Parser parser2(input2);
+        Lua::Parser parser2(input2);
         auto expr2 = parser2.parseExpression();
         if (!expr2) {
             std::cout << "[OK] Correctly rejected '" << input2 << "'" << std::endl;
@@ -829,9 +827,9 @@ void BinaryExprTest::testInvalidSyntax() {
     }
 }
 
-void BinaryExprTest::testBinaryParsing(const std::string& input, TokenType expectedOp, const std::string& testName) {
+void ParserBinaryExprTest::testBinaryParsing(const std::string& input, TokenType expectedOp, const std::string& testName) {
     try {
-        Parser parser(input);
+        Lua::Parser parser(input);
         auto expr = parser.parseExpression();
         
         if (!expr) {
@@ -860,9 +858,9 @@ void BinaryExprTest::testBinaryParsing(const std::string& input, TokenType expec
     }
 }
 
-void BinaryExprTest::testBinaryParsingError(const std::string& input, const std::string& testName) {
+void ParserBinaryExprTest::testBinaryParsingError(const std::string& input, const std::string& testName) {
     try {
-        Parser parser(input);
+        Lua::Parser parser(input);
         auto expr = parser.parseExpression();
         
         if (!expr) {
@@ -880,7 +878,7 @@ void BinaryExprTest::testBinaryParsingError(const std::string& input, const std:
     }
 }
 
-bool BinaryExprTest::verifyBinaryExpression(const Expr* expr, TokenType expectedOp) {
+bool ParserBinaryExprTest::verifyBinaryExpression(const Expr* expr, TokenType expectedOp) {
     if (!expr) {
         return false;
     }
@@ -893,7 +891,7 @@ bool BinaryExprTest::verifyBinaryExpression(const Expr* expr, TokenType expected
     return binaryExpr->getOperator() == expectedOp;
 }
 
-void BinaryExprTest::printBinaryExpressionInfo(const BinaryExpr* binaryExpr) {
+void ParserBinaryExprTest::printBinaryExpressionInfo(const BinaryExpr* binaryExpr) {
     if (!binaryExpr) {
         return;
     }
@@ -905,7 +903,7 @@ void BinaryExprTest::printBinaryExpressionInfo(const BinaryExpr* binaryExpr) {
     TestUtils::printInfo("  Has right operand: " + std::string(binaryExpr->getRight() ? "yes" : "no"));
 }
 
-std::string BinaryExprTest::tokenTypeToString(TokenType type) {
+std::string ParserBinaryExprTest::tokenTypeToString(TokenType type) {
     switch (type) {
         case TokenType::Plus: return "+";
         case TokenType::Minus: return "-";
@@ -927,7 +925,7 @@ std::string BinaryExprTest::tokenTypeToString(TokenType type) {
 }
 
 // Group test implementations
-void BinaryExprTest::testArithmeticOperators() {
+void ParserBinaryExprTest::testArithmeticOperators() {
     std::cout << "Testing arithmetic operators group..." << std::endl;
     
     // Test all arithmetic operators
@@ -941,7 +939,7 @@ void BinaryExprTest::testArithmeticOperators() {
     std::cout << "Arithmetic operators group test completed." << std::endl;
 }
 
-void BinaryExprTest::testComparisonOperators() {
+void ParserBinaryExprTest::testComparisonOperators() {
     std::cout << "Testing comparison operators group..." << std::endl;
     
     // Test all comparison operators
@@ -955,7 +953,7 @@ void BinaryExprTest::testComparisonOperators() {
     std::cout << "Comparison operators group test completed." << std::endl;
 }
 
-void BinaryExprTest::testLogicalOperators() {
+void ParserBinaryExprTest::testLogicalOperators() {
     std::cout << "Testing logical operators group..." << std::endl;
     
     // Test all logical operators
@@ -968,13 +966,13 @@ void BinaryExprTest::testLogicalOperators() {
 }
 
 // Complex expression test implementations
-void BinaryExprTest::testParenthesizedExpressions() {
+void ParserBinaryExprTest::testParenthesizedExpressions() {
     std::cout << "Testing parenthesized expressions..." << std::endl;
     
     // Test expressions with parentheses
     try {
         std::string input1 = "(3 + 5) * 2";
-        Parser parser1(input1);
+        Lua::Parser parser1(input1);
         auto expr1 = parser1.parseExpression();
         if (expr1) {
             std::cout << "[OK] Parsed '" << input1 << "' successfully" << std::endl;
@@ -987,7 +985,7 @@ void BinaryExprTest::testParenthesizedExpressions() {
     
     try {
         std::string input2 = "2 * (a + b)";
-        Parser parser2(input2);
+        Lua::Parser parser2(input2);
         auto expr2 = parser2.parseExpression();
         if (expr2) {
             std::cout << "[OK] Parsed '" << input2 << "' successfully" << std::endl;
@@ -1001,13 +999,13 @@ void BinaryExprTest::testParenthesizedExpressions() {
     std::cout << "Parenthesized expressions test completed." << std::endl;
 }
 
-void BinaryExprTest::testComplexArithmetic() {
+void ParserBinaryExprTest::testComplexArithmetic() {
     std::cout << "Testing complex arithmetic expressions..." << std::endl;
     
     // Test complex arithmetic combinations
     try {
         std::string input1 = "a + b * c - d / e";
-        Parser parser1(input1);
+        Lua::Parser parser1(input1);
         auto expr1 = parser1.parseExpression();
         if (expr1) {
             std::cout << "[OK] Parsed complex arithmetic '" << input1 << "' successfully" << std::endl;
@@ -1020,7 +1018,7 @@ void BinaryExprTest::testComplexArithmetic() {
     
     try {
         std::string input2 = "2 ^ 3 + 4 * 5 - 6 / 2";
-        Parser parser2(input2);
+        Lua::Parser parser2(input2);
         auto expr2 = parser2.parseExpression();
         if (expr2) {
             std::cout << "[OK] Parsed complex arithmetic '" << input2 << "' successfully" << std::endl;
@@ -1034,13 +1032,13 @@ void BinaryExprTest::testComplexArithmetic() {
     std::cout << "Complex arithmetic expressions test completed." << std::endl;
 }
 
-void BinaryExprTest::testComplexLogical() {
+void ParserBinaryExprTest::testComplexLogical() {
     std::cout << "Testing complex logical expressions..." << std::endl;
     
     // Test complex logical combinations
     try {
         std::string input1 = "a and b or c";
-        Parser parser1(input1);
+        Lua::Parser parser1(input1);
         auto expr1 = parser1.parseExpression();
         if (expr1) {
             std::cout << "[OK] Parsed complex logical '" << input1 << "' successfully" << std::endl;
@@ -1053,7 +1051,7 @@ void BinaryExprTest::testComplexLogical() {
     
     try {
         std::string input2 = "(a > b) and (c < d) or (e == f)";
-        Parser parser2(input2);
+        Lua::Parser parser2(input2);
         auto expr2 = parser2.parseExpression();
         if (expr2) {
             std::cout << "[OK] Parsed complex logical '" << input2 << "' successfully" << std::endl;
@@ -1067,13 +1065,13 @@ void BinaryExprTest::testComplexLogical() {
     std::cout << "Complex logical expressions test completed." << std::endl;
 }
 
-void BinaryExprTest::testMixedOperatorTypes() {
+void ParserBinaryExprTest::testMixedOperatorTypes() {
     std::cout << "Testing mixed operator types..." << std::endl;
     
     // Test mixing different operator types
     try {
         std::string input1 = "a + b > c";
-        Parser parser1(input1);
+        Lua::Parser parser1(input1);
         auto expr1 = parser1.parseExpression();
         if (expr1) {
             std::cout << "[OK] Parsed mixed operators '" << input1 << "' successfully" << std::endl;
@@ -1086,7 +1084,7 @@ void BinaryExprTest::testMixedOperatorTypes() {
     
     try {
         std::string input2 = "x * y == z and w";
-        Parser parser2(input2);
+        Lua::Parser parser2(input2);
         auto expr2 = parser2.parseExpression();
         if (expr2) {
             std::cout << "[OK] Parsed mixed operators '" << input2 << "' successfully" << std::endl;
@@ -1101,13 +1099,13 @@ void BinaryExprTest::testMixedOperatorTypes() {
 }
 
 // Edge case test implementations
-void BinaryExprTest::testWithLiterals() {
+void ParserBinaryExprTest::testWithLiterals() {
     std::cout << "Testing binary expressions with literals..." << std::endl;
     
     // Test with different literal types
     try {
         std::string input1 = "42 + 3.14";
-        Parser parser1(input1);
+        Lua::Parser parser1(input1);
         auto expr1 = parser1.parseExpression();
         if (expr1) {
             std::cout << "[OK] Parsed literals '" << input1 << "' successfully" << std::endl;
@@ -1120,7 +1118,7 @@ void BinaryExprTest::testWithLiterals() {
     
     try {
         std::string input2 = "\"hello\" .. \"world\"";
-        Parser parser2(input2);
+        Lua::Parser parser2(input2);
         auto expr2 = parser2.parseExpression();
         if (expr2) {
             std::cout << "[OK] Parsed string literals '" << input2 << "' successfully" << std::endl;
@@ -1133,7 +1131,7 @@ void BinaryExprTest::testWithLiterals() {
     
     try {
         std::string input3 = "true and false";
-        Parser parser3(input3);
+        Lua::Parser parser3(input3);
         auto expr3 = parser3.parseExpression();
         if (expr3) {
             std::cout << "[OK] Parsed boolean literals '" << input3 << "' successfully" << std::endl;
@@ -1147,13 +1145,13 @@ void BinaryExprTest::testWithLiterals() {
     std::cout << "Binary expressions with literals test completed." << std::endl;
 }
 
-void BinaryExprTest::testWithVariables() {
+void ParserBinaryExprTest::testWithVariables() {
     std::cout << "Testing binary expressions with variables..." << std::endl;
     
     // Test with different variable combinations
     try {
         std::string input1 = "x + y";
-        Parser parser1(input1);
+        Lua::Parser parser1(input1);
         auto expr1 = parser1.parseExpression();
         if (expr1) {
             std::cout << "[OK] Parsed variables '" << input1 << "' successfully" << std::endl;
@@ -1166,7 +1164,7 @@ void BinaryExprTest::testWithVariables() {
     
     try {
         std::string input2 = "variable1 * variable2";
-        Parser parser2(input2);
+        Lua::Parser parser2(input2);
         auto expr2 = parser2.parseExpression();
         if (expr2) {
             std::cout << "[OK] Parsed long variables '" << input2 << "' successfully" << std::endl;
@@ -1179,7 +1177,7 @@ void BinaryExprTest::testWithVariables() {
     
     try {
         std::string input3 = "a == b and c ~= d";
-        Parser parser3(input3);
+        Lua::Parser parser3(input3);
         auto expr3 = parser3.parseExpression();
         if (expr3) {
             std::cout << "[OK] Parsed variable comparison '" << input3 << "' successfully" << std::endl;
@@ -1193,13 +1191,13 @@ void BinaryExprTest::testWithVariables() {
     std::cout << "Binary expressions with variables test completed." << std::endl;
 }
 
-void BinaryExprTest::testWithUnaryExpressions() {
+void ParserBinaryExprTest::testWithUnaryExpressions() {
     std::cout << "Testing binary expressions with unary expressions..." << std::endl;
     
     // Test with unary expressions as operands
     try {
         std::string input1 = "-a + b";
-        Parser parser1(input1);
+        Lua::Parser parser1(input1);
         auto expr1 = parser1.parseExpression();
         if (expr1) {
             std::cout << "[OK] Parsed unary operand '" << input1 << "' successfully" << std::endl;
@@ -1212,7 +1210,7 @@ void BinaryExprTest::testWithUnaryExpressions() {
     
     try {
         std::string input2 = "not a and b";
-        Parser parser2(input2);
+        Lua::Parser parser2(input2);
         auto expr2 = parser2.parseExpression();
         if (expr2) {
             std::cout << "[OK] Parsed logical unary '" << input2 << "' successfully" << std::endl;
@@ -1225,7 +1223,7 @@ void BinaryExprTest::testWithUnaryExpressions() {
     
     try {
         std::string input3 = "a + -b";
-        Parser parser3(input3);
+        Lua::Parser parser3(input3);
         auto expr3 = parser3.parseExpression();
         if (expr3) {
             std::cout << "[OK] Parsed right unary '" << input3 << "' successfully" << std::endl;
@@ -1238,8 +1236,3 @@ void BinaryExprTest::testWithUnaryExpressions() {
     
     std::cout << "Binary expressions with unary expressions test completed." << std::endl;
 }
-
-} // namespace Expr
-} // namespace Parser
-} // namespace Tests
-} // namespace Lua

@@ -2,6 +2,7 @@
 
 #include "ast_base.hpp"
 #include "../../lexer/lexer.hpp"
+#include "../../vm/value.hpp"
 
 namespace Lua {
     // Literal expression (numbers, strings, booleans, nil)

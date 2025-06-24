@@ -8,8 +8,6 @@
 
 namespace Lua {
 namespace Tests {
-namespace Parser {
-namespace Expr {
 
 /**
  * @brief Call Expression Parser Test Class
@@ -23,7 +21,7 @@ namespace Expr {
  * - Nested function calls
  * - Error handling for malformed calls
  */
-class CallExprTest {
+class ParserCallExprTest {
 public:
     /**
      * @brief Run all call expression tests
@@ -72,17 +70,17 @@ private:
     static void testInvalidMethodCalls();
     
     // Helper methods
-    static void testCallParsing(const std::string& input, const std::string& expectedFunction, int expectedArgCount, const std::string& testName);
-    static void testMethodCallParsing(const std::string& input, const std::string& expectedObject, const std::string& expectedMethod, int expectedArgCount, const std::string& testName);
+    static void testCallParsing(const std::string& input, const std::string& expectedCallee, 
+                                int expectedArgCount, const std::string& testName);
+    static void testMethodCallParsing(const std::string& input, const std::string& expectedObject,
+                                      const std::string& expectedMethod, int expectedArgCount, 
+                                      const std::string& testName);
     static void testCallParsingError(const std::string& input, const std::string& testName);
-    //static bool verifyCallExpression(const Expr* expr, const std::string& expectedFunction, int expectedArgCount);
-    //static bool verifyMethodCallExpression(const Expr* expr, const std::string& expectedObject, const std::string& expectedMethod, int expectedArgCount);
-    static void printCallExpressionInfo(const CallExpr* callExpr);
-    //static std::string extractVariableName(const Expr* expr);
+    static bool verifyCallExpression(const Lua::Expr* expr, const std::string& expectedCallee, 
+                                    int expectedArgCount);
+    static bool verifyMethodCallExpression(const Lua::Expr* expr, const std::string& expectedObject,
+                                          const std::string& expectedMethod, int expectedArgCount);
 };
-
-} // namespace Expr
-} // namespace Parser
 } // namespace Tests
 } // namespace Lua
 

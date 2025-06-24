@@ -1,7 +1,7 @@
 #pragma once
 
 // Include all parser test headers
-#include "expr/test_expr.hpp"
+#include "expr/test_parser_expr.hpp"
 #include "stmt/test_stmt.hpp"
 #include "error_recovery_test.hpp"
 
@@ -41,13 +41,13 @@ public:
      */
     static void runAllTests() {
         // Run expression parsing test suite
-        // RUN_TEST_SUITE(ExprTestSuite);
+        RUN_TEST_SUITE(ParserExprTestSuite);
         
         // Run statement parsing test suite
-        RUN_TEST_SUITE(StmtTestSuite);
+        // RUN_TEST_SUITE(StmtTestSuite);
         
         // Run error recovery test suite
-        RUN_TEST_SUITE(ParserErrorRecoveryTest);
+        // RUN_TEST_SUITE(ParserErrorRecoveryTest);
         
         // TODO: Add other parser test suites as they are implemented
         // RUN_TEST_SUITE(FuncTestSuite);

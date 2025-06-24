@@ -1,16 +1,11 @@
 #ifndef BINARY_EXPR_TEST_HPP
 #define BINARY_EXPR_TEST_HPP
 
-#include <iostream>
-#include "../../../parser/ast/ast_base.hpp"
-#include "../../../parser/parser.hpp"
+#include <string>
 #include "../../../parser/ast/expressions.hpp"
-#include "../../../test_framework/core/test_macros.hpp"
 
 namespace Lua {
 namespace Tests {
-namespace Parser {
-namespace Expr {
 /**
  * @brief Binary Expression Parser Test Class
  * 
@@ -24,7 +19,7 @@ namespace Expr {
  * - Operator precedence and associativity
  * - Complex nested expressions
  */
-class BinaryExprTest {
+class ParserBinaryExprTest {
 public:
     /**
      * @brief Run all binary expression tests
@@ -87,13 +82,11 @@ private:
     // Helper methods
     static void testBinaryParsing(const std::string& input, TokenType expectedOp, const std::string& testName);
     static void testBinaryParsingError(const std::string& input, const std::string& testName);
-    //static bool verifyBinaryExpression(const Expr* expr, TokenType expectedOp);
+    static bool verifyBinaryExpression(const Expr* expr, TokenType expectedOp);
     static void printBinaryExpressionInfo(const BinaryExpr* binaryExpr);
     static std::string tokenTypeToString(TokenType type);
 };
 
-} // namespace Expr
-} // namespace Parser
 } // namespace Tests
 } // namespace Lua
 

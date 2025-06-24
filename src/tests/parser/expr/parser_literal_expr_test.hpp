@@ -1,15 +1,11 @@
 #ifndef LITERAL_EXPR_TEST_HPP
 #define LITERAL_EXPR_TEST_HPP
 
-#include <iostream>
-#include "../../../parser/parser.hpp"
+#include <string>
 #include "../../../parser/ast/expressions.hpp"
-#include "../../../test_framework/core/test_macros.hpp"
 
 namespace Lua {
 namespace Tests {
-namespace Parser {
-namespace Expr {
 
 /**
  * @brief Literal Expression Parser Test Class
@@ -23,7 +19,7 @@ namespace Expr {
  * - Nil literal
  * - Special number formats (hex, scientific notation)
  */
-class LiteralExprTest {
+class ParserLiteralExprTest {
 public:
     /**
      * @brief Run all literal expression tests
@@ -58,11 +54,9 @@ private:
     // Helper methods
     static void testLiteralParsing(const std::string& input, const std::string& testName);
     static void testLiteralParsingError(const std::string& input, const std::string& testName);
-    //static bool verifyLiteralValue(const Expr* expr, const Value& expectedValue);
+    static bool verifyLiteralValue(const Expr* expr, const Lua::Value& expectedValue);
 };
 
-} // namespace Expr
-} // namespace Parser
 } // namespace Tests
 } // namespace Lua
 

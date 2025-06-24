@@ -8,8 +8,6 @@
 
 namespace Lua {
 namespace Tests {
-namespace Parser {
-namespace Expr {
 
 /**
  * @brief Member Expression Parser Test Class
@@ -23,7 +21,7 @@ namespace Expr {
  * - Mixed access patterns
  * - Error handling for invalid syntax
  */
-class MemberExprTest {
+class ParserMemberExprTest {
 public:
     /**
      * @brief Run all member expression tests
@@ -90,14 +88,11 @@ private:
     static void testMemberParsing(const std::string& input, const std::string& expectedObject, const std::string& expectedMember, const std::string& testName);
     static void testBracketMemberParsing(const std::string& input, const std::string& expectedObject, const std::string& testName);
     static void testMemberParsingError(const std::string& input, const std::string& testName);
-    //static bool verifyMemberExpression(const Expr* expr, const std::string& expectedObject, const std::string& expectedMember);
-    //static bool verifyBracketMemberExpression(const Expr* expr, const std::string& expectedObject);
-    //static void printMemberExpressionInfo(const MemberExpr* memberExpr);
-    //static std::string extractObjectName(const Expr* expr);
+    static bool verifyMemberExpression(const Expr* expr, const std::string& expectedObject, const std::string& expectedMember);
+    static bool verifyBracketMemberExpression(const Expr* expr, const std::string& expectedObject);
+    static void printMemberExpressionInfo(const MemberExpr* memberExpr);
+    static std::string extractObjectName(const Expr* expr);
 };
-
-} // namespace Expr
-} // namespace Parser
 } // namespace Tests
 } // namespace Lua
 

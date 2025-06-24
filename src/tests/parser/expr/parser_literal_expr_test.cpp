@@ -1,36 +1,40 @@
-#include "literal_expr_test.hpp"
+#include "parser_literal_expr_test.hpp"
 #include "../../../lexer/lexer.hpp"
+#include "../../../parser/parser.hpp"
+#include "../../../test_framework/core/test_macros.hpp"
+#include "../../../test_framework/core/test_utils.hpp"
+
 
 namespace Lua {
 namespace Tests {
-namespace Parser {
-namespace Expr {
 
-void LiteralExprTest::runAllTests() {
+    using namespace TestFramework;
+
+void ParserLiteralExprTest::runAllTests() {
     // Number literal tests
-    RUN_TEST(LiteralExprTest, testIntegerLiterals);
-    RUN_TEST(LiteralExprTest, testFloatLiterals);
-    RUN_TEST(LiteralExprTest, testScientificNotation);
-    RUN_TEST(LiteralExprTest, testHexadecimalNumbers);
+    RUN_TEST(ParserLiteralExprTest, testIntegerLiterals);
+    RUN_TEST(ParserLiteralExprTest, testFloatLiterals);
+    RUN_TEST(ParserLiteralExprTest, testScientificNotation);
+    RUN_TEST(ParserLiteralExprTest, testHexadecimalNumbers);
     
     // String literal tests
-    RUN_TEST(LiteralExprTest, testSingleQuoteStrings);
-    RUN_TEST(LiteralExprTest, testDoubleQuoteStrings);
-    RUN_TEST(LiteralExprTest, testLongStrings);
-    RUN_TEST(LiteralExprTest, testEscapeSequences);
-    RUN_TEST(LiteralExprTest, testEmptyStrings);
+    RUN_TEST(ParserLiteralExprTest, testSingleQuoteStrings);
+    RUN_TEST(ParserLiteralExprTest, testDoubleQuoteStrings);
+    RUN_TEST(ParserLiteralExprTest, testLongStrings);
+    RUN_TEST(ParserLiteralExprTest, testEscapeSequences);
+    RUN_TEST(ParserLiteralExprTest, testEmptyStrings);
     
     // Boolean and nil literal tests
-    RUN_TEST(LiteralExprTest, testBooleanLiterals);
-    RUN_TEST(LiteralExprTest, testNilLiteral);
+    RUN_TEST(ParserLiteralExprTest, testBooleanLiterals);
+    RUN_TEST(ParserLiteralExprTest, testNilLiteral);
     
     // Error handling tests
-    RUN_TEST(LiteralExprTest, testInvalidNumberFormats);
-    RUN_TEST(LiteralExprTest, testUnterminatedStrings);
-    RUN_TEST(LiteralExprTest, testInvalidEscapeSequences);
+    RUN_TEST(ParserLiteralExprTest, testInvalidNumberFormats);
+    RUN_TEST(ParserLiteralExprTest, testUnterminatedStrings);
+    RUN_TEST(ParserLiteralExprTest, testInvalidEscapeSequences);
 }
 
-void LiteralExprTest::testIntegerLiterals() {
+void ParserLiteralExprTest::testIntegerLiterals() {
     TestUtils::printInfo("Testing integer literal parsing...");
     
     // Test positive integers
@@ -44,7 +48,7 @@ void LiteralExprTest::testIntegerLiterals() {
     TestUtils::printTestResult("Integer literals", true);
 }
 
-void LiteralExprTest::testFloatLiterals() {
+void ParserLiteralExprTest::testFloatLiterals() {
     TestUtils::printInfo("Testing float literal parsing...");
     
     // Test decimal numbers
@@ -57,7 +61,7 @@ void LiteralExprTest::testFloatLiterals() {
     TestUtils::printTestResult("Float literals", true);
 }
 
-void LiteralExprTest::testScientificNotation() {
+void ParserLiteralExprTest::testScientificNotation() {
     TestUtils::printInfo("Testing scientific notation parsing...");
     
     // Test scientific notation
@@ -69,7 +73,7 @@ void LiteralExprTest::testScientificNotation() {
     TestUtils::printTestResult("Scientific notation", true);
 }
 
-void LiteralExprTest::testHexadecimalNumbers() {
+void ParserLiteralExprTest::testHexadecimalNumbers() {
     TestUtils::printInfo("Testing hexadecimal number parsing...");
     
     // Test hexadecimal numbers
@@ -81,7 +85,7 @@ void LiteralExprTest::testHexadecimalNumbers() {
     TestUtils::printTestResult("Hexadecimal numbers", true);
 }
 
-void LiteralExprTest::testSingleQuoteStrings() {
+void ParserLiteralExprTest::testSingleQuoteStrings() {
     TestUtils::printInfo("Testing single quote string parsing...");
     
     // Test single quote strings
@@ -93,7 +97,7 @@ void LiteralExprTest::testSingleQuoteStrings() {
     TestUtils::printTestResult("Single quote strings", true);
 }
 
-void LiteralExprTest::testDoubleQuoteStrings() {
+void ParserLiteralExprTest::testDoubleQuoteStrings() {
     TestUtils::printInfo("Testing double quote string parsing...");
     
     // Test double quote strings
@@ -105,7 +109,7 @@ void LiteralExprTest::testDoubleQuoteStrings() {
     TestUtils::printTestResult("Double quote strings", true);
 }
 
-void LiteralExprTest::testLongStrings() {
+void ParserLiteralExprTest::testLongStrings() {
     TestUtils::printInfo("Testing long string parsing...");
     
     // Test long strings
@@ -117,7 +121,7 @@ void LiteralExprTest::testLongStrings() {
     TestUtils::printTestResult("Long strings", true);
 }
 
-void LiteralExprTest::testEscapeSequences() {
+void ParserLiteralExprTest::testEscapeSequences() {
     TestUtils::printInfo("Testing escape sequence parsing...");
     
     // Test escape sequences
@@ -129,7 +133,7 @@ void LiteralExprTest::testEscapeSequences() {
     TestUtils::printTestResult("Escape sequences", true);
 }
 
-void LiteralExprTest::testEmptyStrings() {
+void ParserLiteralExprTest::testEmptyStrings() {
     TestUtils::printInfo("Testing empty string parsing...");
     
     // Test empty strings
@@ -140,7 +144,7 @@ void LiteralExprTest::testEmptyStrings() {
     TestUtils::printTestResult("Empty strings", true);
 }
 
-void LiteralExprTest::testBooleanLiterals() {
+void ParserLiteralExprTest::testBooleanLiterals() {
     TestUtils::printInfo("Testing boolean literal parsing...");
     
     // Test boolean literals
@@ -150,7 +154,7 @@ void LiteralExprTest::testBooleanLiterals() {
     TestUtils::printTestResult("Boolean literals", true);
 }
 
-void LiteralExprTest::testNilLiteral() {
+void ParserLiteralExprTest::testNilLiteral() {
     TestUtils::printInfo("Testing nil literal parsing...");
     
     // Test nil literal
@@ -159,7 +163,7 @@ void LiteralExprTest::testNilLiteral() {
     TestUtils::printTestResult("Nil literal", true);
 }
 
-void LiteralExprTest::testInvalidNumberFormats() {
+void ParserLiteralExprTest::testInvalidNumberFormats() {
     TestUtils::printInfo("Testing invalid number format error handling...");
     
     // Test invalid number formats
@@ -171,7 +175,7 @@ void LiteralExprTest::testInvalidNumberFormats() {
     TestUtils::printTestResult("Invalid number format error handling", true);
 }
 
-void LiteralExprTest::testUnterminatedStrings() {
+void ParserLiteralExprTest::testUnterminatedStrings() {
     TestUtils::printInfo("Testing unterminated string error handling...");
     
     // Test unterminated strings
@@ -182,7 +186,7 @@ void LiteralExprTest::testUnterminatedStrings() {
     TestUtils::printTestResult("Unterminated string error handling", true);
 }
 
-void LiteralExprTest::testInvalidEscapeSequences() {
+void ParserLiteralExprTest::testInvalidEscapeSequences() {
     TestUtils::printInfo("Testing invalid escape sequence error handling...");
     
     // Test invalid escape sequences
@@ -192,9 +196,9 @@ void LiteralExprTest::testInvalidEscapeSequences() {
     TestUtils::printTestResult("Invalid escape sequence error handling", true);
 }
 
-void LiteralExprTest::testLiteralParsing(const std::string& input, const std::string& testName) {
+void ParserLiteralExprTest::testLiteralParsing(const std::string& input, const std::string& testName) {
     try {
-        Parser parser(input);
+        Lua::Parser parser(input);
         
         auto expr = parser.parseExpression();
         
@@ -215,9 +219,9 @@ void LiteralExprTest::testLiteralParsing(const std::string& input, const std::st
     }
 }
 
-void LiteralExprTest::testLiteralParsingError(const std::string& input, const std::string& testName) {
+void ParserLiteralExprTest::testLiteralParsingError(const std::string& input, const std::string& testName) {
     try {
-        Parser parser(input);
+        Lua::Parser parser(input);
         
         auto expr = parser.parseExpression();
         
@@ -229,13 +233,13 @@ void LiteralExprTest::testLiteralParsingError(const std::string& input, const st
     }
 }
 
-bool LiteralExprTest::verifyLiteralValue(const Expr* expr, const Value& expectedValue) {
-    if (!expr || expr->getType() != ExprType::Literal) {
+bool ParserLiteralExprTest::verifyLiteralValue(const Expr* expr, const Lua::Value& expectedValue) {
+    if (!expr || expr->getType() != Lua::ExprType::Literal) {
         return false;
     }
     
-    const LiteralExpr* literalExpr = static_cast<const LiteralExpr*>(expr);
-    const Value& actualValue = literalExpr->getValue();
+    const Lua::LiteralExpr* literalExpr = static_cast<const Lua::LiteralExpr*>(expr);
+    const Lua::Value& actualValue = literalExpr->getValue();
     
     // Compare values based on type
     if (actualValue.type() != expectedValue.type()) {
@@ -243,20 +247,18 @@ bool LiteralExprTest::verifyLiteralValue(const Expr* expr, const Value& expected
     }
     
     switch (actualValue.type()) {
-        case ValueType::Number:
+        case Lua::ValueType::Number:
             return actualValue.asNumber() == expectedValue.asNumber();
-        case ValueType::String:
+        case Lua::ValueType::String:
             return actualValue.asString() == expectedValue.asString();
-        case ValueType::Boolean:
+        case Lua::ValueType::Boolean:
             return actualValue.asBoolean() == expectedValue.asBoolean();
-        case ValueType::Nil:
+        case Lua::ValueType::Nil:
             return true; // Both are nil
         default:
             return false;
     }
 }
 
-} // namespace Expr
-} // namespace Parser
 } // namespace Tests
 } // namespace Lua

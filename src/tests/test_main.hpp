@@ -43,11 +43,11 @@ public:
         TestUtils::setMemoryCheckEnabled(true);
         
         RUN_TEST_MODULE("Lexer Module", LexerTestSuite);
-     /*   RUN_TEST_MODULE("Parser Module", ParserTestSuite);
-        RUN_TEST_MODULE("Compiler Module", CompilerTestSuite);
-        RUN_TEST_MODULE("VM Module", VMTestSuite);
-        RUN_TEST_MODULE("GC Module", GCTestSuite);
-        RUN_TEST_MODULE("Library Module", LibTestSuite);*/
+        RUN_TEST_MODULE("Parser Module", ParserTestSuite);
+        //RUN_TEST_MODULE("Compiler Module", CompilerTestSuite);
+        //RUN_TEST_MODULE("VM Module", VMTestSuite);
+        //RUN_TEST_MODULE("GC Module", GCTestSuite);
+        //RUN_TEST_MODULE("Library Module", LibTestSuite);
         //RUN_TEST_MODULE("Localization Module", LocalizationTestSuite);
         //RUN_TEST_MODULE("Plugin Module", PluginTestSuite);
     }

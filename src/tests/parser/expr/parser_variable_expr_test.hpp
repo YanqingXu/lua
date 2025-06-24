@@ -1,16 +1,14 @@
 #ifndef VARIABLE_EXPR_TEST_HPP
 #define VARIABLE_EXPR_TEST_HPP
 
-#include <iostream>
-#include "../../../parser/parser.hpp"
-#include "../../../parser/ast/ast_base.hpp"
-#include "../../../parser/ast/expressions.hpp"
-#include "../../../test_framework/core/test_macros.hpp"
+#include <string>
+
+namespace Lua {
+    class Expr;
+}
 
 namespace Lua {
 namespace Tests {
-namespace Parser {
-namespace Expr {
 
 /**
  * @brief Variable Expression Parser Test Class
@@ -24,7 +22,7 @@ namespace Expr {
  * - Reserved keyword handling
  * - Invalid variable name detection
  */
-class VariableExprTest {
+class ParserVariableExprTest {
 public:
     /**
      * @brief Run all variable expression tests
@@ -37,7 +35,7 @@ private:
     // Basic variable tests
     static void testSimpleVariables();
     static void testVariableNaming();
-    static void testUnicodeVariables();
+    static void testUnicodeVariablesWithErrorHandling();
     
     // Variable validation tests
     static void testValidIdentifiers();
@@ -60,11 +58,10 @@ private:
     // Helper methods
     static void testVariableParsing(const std::string& input, const std::string& expectedName, const std::string& testName);
     static void testVariableParsingError(const std::string& input, const std::string& testName);
+    static void testUnicodeVariableParsing(const std::string& input, const std::string& expectedName, const std::string& testName);
     static bool verifyVariableName(const Lua::Expr* expr, const std::string& expectedName);
 };
 
-} // namespace Expr
-} // namespace Parser
 } // namespace Tests
 } // namespace Lua
 
