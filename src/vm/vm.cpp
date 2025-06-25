@@ -8,6 +8,7 @@
 #include "../gc/core/garbage_collector.hpp"
 #include <stdexcept>
 #include <iostream>
+#include <cmath>
 
 namespace Lua {
     VM::VM(State* state) : 
@@ -131,8 +132,23 @@ namespace Lua {
             case OpCode::DIV:
                 op_div(i);
                 break;
+            case OpCode::MOD:
+                op_mod(i);
+                break;
+            case OpCode::POW:
+                op_pow(i);
+                break;
+            case OpCode::UNM:
+                op_unm(i);
+                break;
             case OpCode::NOT:
                 op_not(i);
+                break;
+            case OpCode::LEN:
+                op_len(i);
+                break;
+            case OpCode::CONCAT:
+                op_concat(i);
                 break;
             case OpCode::EQ:
                 op_eq(i);
@@ -738,6 +754,105 @@ namespace Lua {
             upvalue->close();
             upvalue->setNext(nullptr);
         }
+    }
+    
+    void VM::op_mod(Instruction i) {
+        u8 a = i.getA();
+        u8 b = i.getB();
+        u8 c = i.getC();
+        
+        Value bval = state->get(b + 1);
+        Value cval = state->get(c + 1);
+        
+        if (bval.isNumber() && cval.isNumber()) {
+            LuaNumber bn = bval.asNumber();
+            LuaNumber cn = cval.asNumber();
+            
+            if (cn == 0) {
+                throw LuaException("attempt to perform modulo by zero");
+            }
+            
+            state->set(a + 1, Value(fmod(bn, cn)));
+        } else {
+            throw LuaException("attempt to perform arithmetic on non-number values");
+        }
+    }
+    
+    void VM::op_pow(Instruction i) {
+        u8 a = i.getA();
+        u8 b = i.getB();
+        u8 c = i.getC();
+        
+        Value bval = state->get(b + 1);
+        Value cval = state->get(c + 1);
+        
+        if (bval.isNumber() && cval.isNumber()) {
+            LuaNumber bn = bval.asNumber();
+            LuaNumber cn = cval.asNumber();
+            state->set(a + 1, Value(pow(bn, cn)));
+        } else {
+            throw LuaException("attempt to perform arithmetic on non-number values");
+        }
+    }
+    
+    void VM::op_unm(Instruction i) {
+        u8 a = i.getA();
+        u8 b = i.getB();
+        
+        Value bval = state->get(b + 1);
+        
+        if (bval.isNumber()) {
+            state->set(a + 1, Value(-bval.asNumber()));
+        } else {
+            throw LuaException("attempt to perform arithmetic on non-number value");
+        }
+    }
+    
+    void VM::op_len(Instruction i) {
+        u8 a = i.getA();
+        u8 b = i.getB();
+        
+        Value bval = state->get(b + 1);
+        
+        if (bval.isString()) {
+            state->set(a + 1, Value(static_cast<LuaNumber>(bval.asString().length())));
+        } else if (bval.isTable()) {
+            // For tables, get the array part length
+            auto table = bval.asTable();
+            state->set(a + 1, Value(static_cast<LuaNumber>(table->getArraySize())));
+        } else {
+            throw LuaException("attempt to get length of non-string/table value");
+        }
+    }
+    
+    void VM::op_concat(Instruction i) {
+        u8 a = i.getA();
+        u8 b = i.getB();
+        u8 c = i.getC();
+        
+        Value bval = state->get(b + 1);
+        Value cval = state->get(c + 1);
+        
+        // Convert values to strings and concatenate
+        Str bstr, cstr;
+        
+        if (bval.isString()) {
+            bstr = bval.asString();
+        } else if (bval.isNumber()) {
+            bstr = std::to_string(bval.asNumber());
+        } else {
+            throw LuaException("attempt to concatenate non-string/number value");
+        }
+        
+        if (cval.isString()) {
+            cstr = cval.asString();
+        } else if (cval.isNumber()) {
+            cstr = std::to_string(cval.asNumber());
+        } else {
+            throw LuaException("attempt to concatenate non-string/number value");
+        }
+        
+        state->set(a + 1, Value(bstr + cstr));
     }
     
     void VM::markReferences(GarbageCollector* gc) {

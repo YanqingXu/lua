@@ -195,15 +195,17 @@ namespace Lua {
         Str name;                // Function name
         Vec<Str> parameters;     // Parameter list
         UPtr<Stmt> body;         // Function body
+        bool isVariadic;         // Whether function accepts variable arguments
 
     public:
-        FunctionStmt(const Str& name, const Vec<Str>& parameters, UPtr<Stmt> body, const SourceLocation& location = SourceLocation())
-            : Stmt(location), name(name), parameters(parameters), body(std::move(body)) {}
+        FunctionStmt(const Str& name, const Vec<Str>& parameters, UPtr<Stmt> body, bool variadic = false, const SourceLocation& location = SourceLocation())
+            : Stmt(location), name(name), parameters(parameters), body(std::move(body)), isVariadic(variadic) {}
 
         StmtType getType() const override { return StmtType::Function; }
         const Str& getName() const { return name; }
         const Vec<Str>& getParameters() const { return parameters; }
         const Stmt* getBody() const { return body.get(); }
+        bool getIsVariadic() const { return isVariadic; }
     };
 
     // Do statement (do body end)

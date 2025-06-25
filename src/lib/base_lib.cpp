@@ -3,6 +3,7 @@
 #include "../vm/state.hpp"
 #include "../vm/value.hpp"
 #include "../vm/table.hpp"
+#include "../vm/function.hpp"
 #include "../gc/core/gc_ref.hpp"
 #include <iostream>
 #include <sstream>
@@ -188,8 +189,26 @@ namespace Lua {
     
     // 注册基础库到状态
     void registerBaseLib(State* state) {
-        // 这里可以直接注册基础函数到状态
-        // 为了简化，暂时留空或添加基本的注册逻辑
-        // 在实际实现中，这里会将基础库函数注册到全局环境
+        // 注册print函数到全局环境
+        auto printFunc = Function::createNative([](State* s, i32 nargs) -> Value {
+            return BaseLib::print(s, nargs);
+        });
+        state->setGlobal("print", Value(printFunc));
+        
+        // 注册其他基础函数
+        auto tonumberFunc = Function::createNative([](State* s, i32 nargs) -> Value {
+            return BaseLib::tonumber(s, nargs);
+        });
+        state->setGlobal("tonumber", Value(tonumberFunc));
+        
+        auto tostringFunc = Function::createNative([](State* s, i32 nargs) -> Value {
+            return BaseLib::tostring(s, nargs);
+        });
+        state->setGlobal("tostring", Value(tostringFunc));
+        
+        auto typeFunc = Function::createNative([](State* s, i32 nargs) -> Value {
+            return BaseLib::type(s, nargs);
+        });
+        state->setGlobal("type", Value(typeFunc));
     }
 }

@@ -135,14 +135,16 @@ namespace Lua {
     private:
         Vec<Str> parameters;
         UPtr<Stmt> body;
+        bool isVariadic;
 
     public:
-        FunctionExpr(Vec<Str> params, UPtr<Stmt> body, const SourceLocation& location = SourceLocation())
-            : Expr(location), parameters(std::move(params)), body(std::move(body)) {
+        FunctionExpr(Vec<Str> params, UPtr<Stmt> body, bool variadic = false, const SourceLocation& location = SourceLocation())
+            : Expr(location), parameters(std::move(params)), body(std::move(body)), isVariadic(variadic) {
         }
 
         ExprType getType() const override { return ExprType::Function; }
         const Vec<Str>& getParameters() const { return parameters; }
         const Stmt* getBody() const { return body.get(); }
+        bool getIsVariadic() const { return isVariadic; }
     };
 }

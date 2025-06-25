@@ -1032,8 +1032,8 @@ void runAllTests() {
 ├── 📄 <module>_<feature>_test.* # L2: 功能层 (Feature Level)
 ├── 📄 <module>_<detail>_test.*  # L3: 细节层 (Detail Level)
 └── 📁 <submodule>/              # 子模块 (可选)
-    ├── 📄 <submodule>_<feature>_test.*
-    └── 📄 test_<submodule>.hpp
+    ├── 📄 <module>_<submodule>_<feature>_test.*
+    └── 📄 test_<module>_<submodule>.hpp
 ```
 
 #### 1.2 📝 命名规范矩阵
@@ -1157,22 +1157,14 @@ private:
 ```cpp
 namespace Lua {
 namespace Tests {
-    // 模块命名空间 (可选，用于复杂模块)
-    namespace Parser {
         class ParserTestSuite { /* ... */ };
-        class ParserExpressionTest { /* ... */ };
-        
-        namespace Expression {
-            class BinaryExprTest { /* ... */ };
-            class UnaryExprTest { /* ... */ };
-        }
-    }
-    
-    namespace Compiler {
+        class ParserExprTestSuite { /* ... */ };
+        class ParserStmtTestSuite { /* ... */ };
+
         class CompilerTestSuite { /* ... */ };
-        class CompilerBasicTest { /* ... */ };
+        class CompilerExprTestSuit { /* ... */ };
+        class CompilerStmtTestSuit { /* ... */ };
     }
-}
 }
 ```
 

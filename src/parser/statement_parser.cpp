@@ -373,10 +373,18 @@ namespace Lua {
         consume(TokenType::LeftParen, "Expect '(' after function name.");
         
         Vec<Str> parameters;
+        bool isVariadic = false;
+        
         if (!check(TokenType::RightParen)) {
             do {
-                Token param = consume(TokenType::Name, "Expect parameter name.");
-                parameters.push_back(param.lexeme);
+                if (check(TokenType::DotDotDot)) {
+                    advance(); // consume '...'
+                    isVariadic = true;
+                    break; // '...' must be the last parameter
+                } else {
+                    Token param = consume(TokenType::Name, "Expect parameter name.");
+                    parameters.push_back(param.lexeme);
+                }
             } while (match(TokenType::Comma));
         }
         
@@ -388,7 +396,7 @@ namespace Lua {
         // Expect 'end'
         consume(TokenType::End, "Expect 'end' after function body.");
         
-        return std::make_unique<FunctionStmt>(name.lexeme, parameters, std::move(body));
+        return std::make_unique<FunctionStmt>(name.lexeme, parameters, std::move(body), isVariadic);
     }
 
     UPtr<Stmt> Parser::doStatement() {

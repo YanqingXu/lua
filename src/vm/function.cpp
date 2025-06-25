@@ -1,4 +1,4 @@
-﻿#include "function.hpp"
+#include "function.hpp"
 #include "value.hpp"
 #include "../gc/core/garbage_collector.hpp"
 #include "../gc/core/gc_ref.hpp"
@@ -22,7 +22,8 @@ namespace Lua {
         const Vec<GCRef<Function>>& prototypes,
         u8 nparams,
         u8 nlocals,
-        u8 nupvalues
+        u8 nupvalues,
+        bool isVariadic
     ) {
         // Create a new Function object using GC allocator
         extern GCAllocator* g_gcAllocator;
@@ -58,6 +59,7 @@ namespace Lua {
         func->lua.nparams = nparams;
         func->lua.nlocals = nlocals;
         func->lua.nupvalues = nupvalues;
+        func->lua.isVariadic = isVariadic;
         
         // Initialize upvalues array
         func->lua.upvalues.resize(nupvalues);

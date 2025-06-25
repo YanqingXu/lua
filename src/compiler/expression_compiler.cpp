@@ -564,6 +564,12 @@ namespace Lua {
             functionCompiler.addLocal(param, paramReg);
         }
         
+        // Handle variadic functions - reserve space for vararg table if needed
+        if (expr->getIsVariadic()) {
+            // In Lua, variadic functions can access extra arguments via ...
+            // This is typically handled at runtime by the VM
+        }
+        
         // Compile function body
         functionCompiler.compileStmt(expr->getBody());
         
@@ -577,7 +583,8 @@ namespace Lua {
             functionCompiler.getPrototypes(),
             static_cast<u8>(expr->getParameters().size()),
             static_cast<u8>(functionCompiler.getLocals().size()),
-            static_cast<u8>(upvalues.size())
+            static_cast<u8>(upvalues.size()),
+            expr->getIsVariadic()
         );
         int prototypeIndex = compiler->addPrototype(function);
         

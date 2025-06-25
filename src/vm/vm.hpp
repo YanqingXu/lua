@@ -55,7 +55,12 @@ namespace Lua {
         void op_sub(Instruction i);
         void op_mul(Instruction i);
         void op_div(Instruction i);
+        void op_mod(Instruction i);
+        void op_pow(Instruction i);
+        void op_unm(Instruction i);
         void op_not(Instruction i);
+        void op_len(Instruction i);
+        void op_concat(Instruction i);
         void op_eq(Instruction i);
         void op_lt(Instruction i);
         void op_le(Instruction i);

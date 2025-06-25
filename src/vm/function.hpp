@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "../common/types.hpp"
 #include "../common/defines.hpp"
@@ -37,9 +37,10 @@ namespace Lua {
             u8 nparams;
             u8 nlocals;
             u8 nupvalues;
+            bool isVariadic;        // Whether function accepts variable arguments
             
             // Add default constructor
-            LuaData() : code(nullptr), constants{}, prototypes{}, upvalues{}, prototype(nullptr), nparams(0), nlocals(0), nupvalues(0) {}
+            LuaData() : code(nullptr), constants{}, prototypes{}, upvalues{}, prototype(nullptr), nparams(0), nlocals(0), nupvalues(0), isVariadic(false) {}
         } lua;
         
         // Native function data
@@ -66,7 +67,8 @@ namespace Lua {
             const Vec<GCRef<Function>>& prototypes = {},
             u8 nparams = 0,
             u8 nlocals = 0,
-            u8 nupvalues = 0
+            u8 nupvalues = 0,
+            bool isVariadic = false
         );
         
         // Create native function
@@ -95,6 +97,9 @@ namespace Lua {
         
         // Get upvalue count
         u8 getUpvalueCount() const { return type == Type::Lua ? lua.nupvalues : 0; }
+        
+        // Get variadic flag
+        bool getIsVariadic() const { return type == Type::Lua ? lua.isVariadic : false; }
         
         // Get upvalue by index
         GCRef<Upvalue> getUpvalue(usize index) const;
