@@ -101,25 +101,9 @@ namespace Lua {
     }
     
     bool Value::operator==(const Value& other) const {
-        // Different types are not equal (unless number and string can be converted)
+        // Different types are never equal in Lua
+        // (No automatic type conversion for equality comparison)
         if (type() != other.type()) {
-            // Special case: number and convertible string comparison
-            if (isNumber() && other.isString()) {
-                try {
-                    double num = std::stod(other.asString());
-                    return std::get<LuaNumber>(data) == num;
-                } catch (...) {}
-                return false;
-            }
-            
-            if (isString() && other.isNumber()) {
-                try {
-                    double num = std::stod(asString());
-                    return num == std::get<LuaNumber>(other.data);
-                } catch (...) {}
-                return false;
-            }
-            
             return false;
         }
         

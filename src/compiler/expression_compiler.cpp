@@ -1,4 +1,4 @@
-#include "expression_compiler.hpp"
+﻿#include "expression_compiler.hpp"
 #include "compiler.hpp"
 #include "symbol_table.hpp"
 #include "upvalue_analyzer.hpp"
@@ -60,11 +60,13 @@ namespace Lua {
                 
             case ValueType::Number:
             case ValueType::String: {
-                int constIdx = compiler->addConstant(expr->getValue());
+                Value val = expr->getValue();
+                int constIdx = compiler->addConstant(val);
                 if (constIdx < 0 || constIdx > 65535) {
                     throw LuaException("Constant index out of range for LOADK instruction");
                 }
-                compiler->emitInstruction(Instruction::createLOADK(reg, static_cast<u16>(constIdx)));
+                // 注意：VM使用1基索引，所以需要减1
+                compiler->emitInstruction(Instruction::createLOADK(reg - 1, static_cast<u16>(constIdx)));
                 break;
             }
             
@@ -75,7 +77,8 @@ namespace Lua {
                 if (constIdx < 0 || constIdx > 65535) {
                     throw LuaException("Constant index out of range for LOADK instruction");
                 }
-                compiler->emitInstruction(Instruction::createLOADK(reg, static_cast<u16>(constIdx)));
+                // 注意：VM使用1基索引，所以需要减1
+                compiler->emitInstruction(Instruction::createLOADK(reg - 1, static_cast<u16>(constIdx)));
                 break;
             }
             
@@ -102,7 +105,8 @@ namespace Lua {
         // Global variable access
         int reg = compiler->allocReg();
         int nameIdx = compiler->addConstant(Value(name));
-        compiler->emitInstruction(Instruction::createGETGLOBAL(reg, nameIdx));
+        // 注意：VM使用1基索引，所以需要减1
+        compiler->emitInstruction(Instruction::createGETGLOBAL(reg - 1, nameIdx));
         
         return reg;
     }
@@ -119,13 +123,14 @@ namespace Lua {
                 compiler->emitInstruction(Instruction::createNOT(resultReg, operandReg));
                 break;
             case TokenType::Hash:
-                compiler->emitInstruction(Instruction::createLEN(resultReg, operandReg));
+                // 注意：VM使用1基索引，所以需要减1
+                compiler->emitInstruction(Instruction::createLEN(resultReg - 1, operandReg - 1));
                 break;
             default:
                 throw LuaException("Unknown unary operator");
         }
         
-        compiler->freeReg(); // Free operand register
+        // 暂时不释放寄存器
         return resultReg;
     }
     
@@ -153,6 +158,8 @@ namespace Lua {
         int leftReg = compileExpr(expr->getLeft());
         int rightReg = compileExpr(expr->getRight());
         int resultReg = compiler->allocReg();
+
+        // Debug output disabled for production
         
         // Generate appropriate instruction based on operator
         switch (op) {
@@ -174,73 +181,80 @@ namespace Lua {
                 break;
             case TokenType::DotDot:
                 // Generate CONCAT instruction: result = left .. right
-                compiler->emitInstruction(Instruction::createCONCAT(resultReg, leftReg, rightReg));
+                // 注意：VM使用1基索引，所以需要减1
+                compiler->emitInstruction(Instruction::createCONCAT(resultReg - 1, leftReg - 1, rightReg - 1));
                 break;
             default:
                 throw LuaException("Unsupported binary operator");
         }
-        
-        compiler->freeReg(); // Free right operand register
-        compiler->freeReg(); // Free left operand register
-        
+
+        // 暂时不释放寄存器，避免混乱
+        // TODO: 实现正确的寄存器生命周期管理
+
         return resultReg;
     }
     
     int ExpressionCompiler::compileCall(const CallExpr* expr) {
-        // Compile function expression
-        int funcReg = compileExpr(expr->getCallee());
-        
-        // Allocate a new register for the call base
-        int callBase = compiler->allocReg();
-        
-        // Move function to callBase + 1
-        compiler->emitInstruction(Instruction::createMOVE(callBase + 1, funcReg));
-        
-        // Compile arguments and place them after function
+        // 完全重写：最简单、最直接的实现
         const auto& args = expr->getArguments();
-        Vec<int> argRegs;
-        
-        for (size_t i = 0; i < args.size(); ++i) {
+        int nargs = static_cast<int>(args.size());
+
+
+
+        // 新策略：分配连续寄存器，然后直接编译到目标位置
+        // 这样避免寄存器冲突
+
+        // 步骤1：分配连续的寄存器块
+        int base = compiler->allocReg();  // 函数寄存器
+
+
+        Vec<int> argTargets;
+        for (int i = 0; i < nargs; i++) {
+            int argTarget = compiler->allocReg();
+            argTargets.push_back(argTarget);
+
+        }
+
+        // 步骤2：编译函数到临时寄存器，然后移动
+        int funcReg = compileExpr(expr->getCallee());
+
+
+        if (funcReg != base) {
+            compiler->emitInstruction(Instruction::createMOVE(base - 1, funcReg - 1));
+
+        }
+
+        // 步骤3：编译每个参数到临时寄存器，然后移动
+        for (int i = 0; i < nargs; i++) {
             int argReg = compileExpr(args[i].get());
-            argRegs.push_back(argReg);
-            // Move argument to position after function register
-            int targetReg = callBase + 2 + static_cast<int>(i);
-            if (argReg != targetReg) {
-                compiler->emitInstruction(Instruction::createMOVE(targetReg, argReg));
+
+
+            if (argReg != argTargets[i]) {
+                compiler->emitInstruction(Instruction::createMOVE(argTargets[i] - 1, argReg - 1));
+
             }
         }
-        
-        // Emit call instruction
-        // VM expects: function at register a+1, args at a+2, a+3, etc.
-        // Function is at callBase+1, args at callBase+2, callBase+3, etc.
-        // So we use callBase as 'a' parameter
-        compiler->emitInstruction(Instruction::createCALL(callBase, 
-            static_cast<int>(args.size()) + 1, 1));
-        
-        // Result will be in callBase+1, move it to funcReg
-        // MOVE instruction: createMOVE(target_a, source_b) -> moves from b+1 to a+1
-        // So to move from callBase+1 to funcReg, we need createMOVE(funcReg, callBase)
-        compiler->emitInstruction(Instruction::createMOVE(funcReg, callBase));
-        std::cout << "Compiler: Generated MOVE from register " << (callBase + 1) << " to register " << (funcReg + 1) << std::endl;
-        
-        // Free the call base register
-        compiler->freeReg();
-        
-        // Function register now contains the result
-        int resultReg = funcReg;
-        
-        // Free argument registers
-        for (size_t i = 0; i < argRegs.size(); ++i) {
-            compiler->freeReg();
-        }
-        
-        return resultReg;
+
+        // 步骤5：发出CALL指令
+        // CALL a b c: 函数在(a+1)，参数在(a+2)..(a+b)，结果在(a+1)
+        int callA = base - 1;
+        int callB = nargs + 1;  // 包括函数本身
+        int callC = 2;          // 期望1个返回值
+
+
+
+        compiler->emitInstruction(Instruction::createCALL(callA, callB, callC));
+
+        // 步骤6：返回结果寄存器（函数调用后结果在base）
+
+
+        return base;
     }
     
     int ExpressionCompiler::compileTableConstructor(const TableExpr* expr) {
         int tableReg = compiler->allocReg();
         const auto& fields = expr->getFields();
-        
+
         // Count array and hash parts for table pre-sizing
         int arraySize = 0;
         int hashSize = 0;
@@ -254,8 +268,9 @@ namespace Lua {
         }
         
         // Create new table with pre-sizing hints
-        compiler->emitInstruction(Instruction::createNEWTABLE(tableReg, 
-            static_cast<u8>(std::min(arraySize, 255)), 
+        // 注意：VM使用1基索引，所以需要减1
+        compiler->emitInstruction(Instruction::createNEWTABLE(tableReg - 1,
+            static_cast<u8>(std::min(arraySize, 255)),
             static_cast<u8>(std::min(hashSize, 255))));
         
         // Initialize table fields
@@ -269,10 +284,12 @@ namespace Lua {
                 
                 // Load array index as constant
                 int indexConstant = compiler->addConstant(Value(static_cast<double>(arrayIndex)));
-                compiler->emitInstruction(Instruction::createLOADK(indexReg, indexConstant));
-                
+                // 注意：VM使用1基索引，所以需要减1
+                compiler->emitInstruction(Instruction::createLOADK(indexReg - 1, indexConstant));
+
                 // Set table field: SETTABLE table[index] = value
-                compiler->emitInstruction(Instruction::createSETTABLE(tableReg, indexReg, valueReg));
+                // 注意：VM使用1基索引，所以需要减1
+                compiler->emitInstruction(Instruction::createSETTABLE(tableReg - 1, indexReg - 1, valueReg - 1));
                 
                 compiler->freeReg(); // Free value register
                 compiler->freeReg(); // Free index register
@@ -283,7 +300,8 @@ namespace Lua {
                 int valueReg = compileExpr(field.value.get());
                 
                 // Set table field: SETTABLE table[key] = value
-                compiler->emitInstruction(Instruction::createSETTABLE(tableReg, keyReg, valueReg));
+                // 注意：VM使用1基索引，所以需要减1
+                compiler->emitInstruction(Instruction::createSETTABLE(tableReg - 1, keyReg - 1, valueReg - 1));
                 
                 compiler->freeReg(); // Free value register
                 compiler->freeReg(); // Free key register
@@ -297,26 +315,27 @@ namespace Lua {
         int tableReg = compileExpr(expr->getObject());
         int indexReg = compileExpr(expr->getIndex());
         int resultReg = compiler->allocReg();
-        
-        compiler->emitInstruction(Instruction::createGETTABLE(resultReg, tableReg, indexReg));
-        
-        compiler->freeReg(); // Free index register
-        compiler->freeReg(); // Free table register
-        
+
+        // 注意：VM使用1基索引，所以需要减1
+        compiler->emitInstruction(Instruction::createGETTABLE(resultReg - 1, tableReg - 1, indexReg - 1));
+
+        // 暂时不释放寄存器
+
         return resultReg;
     }
     
     int ExpressionCompiler::compileMemberAccess(const MemberExpr* expr) {
         int tableReg = compileExpr(expr->getObject());
         int resultReg = compiler->allocReg();
-        
+
         // Convert member name to string constant
         int nameIdx = compiler->addConstant(Value(expr->getName()));
-        
-        compiler->emitInstruction(Instruction::createGETTABLE(resultReg, tableReg, nameIdx));
-        
+
+        // 注意：VM使用1基索引，所以需要减1
+        compiler->emitInstruction(Instruction::createGETTABLE(resultReg - 1, tableReg - 1, nameIdx));
+
         compiler->freeReg(); // Free table register
-        
+
         return resultReg;
     }
     
@@ -346,25 +365,26 @@ namespace Lua {
     }
     
     void ExpressionCompiler::compileComparisonOp(TokenType op, int resultReg, int leftReg, int rightReg) {
+        // 注意：VM使用1基索引，所以需要减1
         switch (op) {
             case TokenType::Equal:
-                compiler->emitInstruction(Instruction::createEQ(resultReg, leftReg, rightReg));
+                compiler->emitInstruction(Instruction::createEQ(resultReg - 1, leftReg - 1, rightReg - 1));
                 break;
             case TokenType::NotEqual:
-                compiler->emitInstruction(Instruction::createEQ(resultReg, leftReg, rightReg));
-                compiler->emitInstruction(Instruction::createNOT(resultReg, resultReg));
+                compiler->emitInstruction(Instruction::createEQ(resultReg - 1, leftReg - 1, rightReg - 1));
+                compiler->emitInstruction(Instruction::createNOT(resultReg - 1, resultReg - 1));
                 break;
             case TokenType::Less:
-                compiler->emitInstruction(Instruction::createLT(resultReg, leftReg, rightReg));
+                compiler->emitInstruction(Instruction::createLT(resultReg - 1, leftReg - 1, rightReg - 1));
                 break;
             case TokenType::LessEqual:
-                compiler->emitInstruction(Instruction::createLE(resultReg, leftReg, rightReg));
+                compiler->emitInstruction(Instruction::createLE(resultReg - 1, leftReg - 1, rightReg - 1));
                 break;
             case TokenType::Greater:
-                compiler->emitInstruction(Instruction::createLT(resultReg, rightReg, leftReg));
+                compiler->emitInstruction(Instruction::createLT(resultReg - 1, rightReg - 1, leftReg - 1));
                 break;
             case TokenType::GreaterEqual:
-                compiler->emitInstruction(Instruction::createLE(resultReg, rightReg, leftReg));
+                compiler->emitInstruction(Instruction::createLE(resultReg - 1, rightReg - 1, leftReg - 1));
                 break;
             default:
                 throw LuaException("Unknown comparison operator");

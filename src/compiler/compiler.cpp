@@ -1,14 +1,15 @@
-#include "compiler.hpp"
+﻿#include "compiler.hpp"
 #include "expression_compiler.hpp"
 #include "statement_compiler.hpp"
 #include "../vm/instruction.hpp"
 #include "../common/opcodes.hpp"
 #include <stdexcept>
+#include <iostream>
 
 namespace Lua {
-    Compiler::Compiler() : 
+    Compiler::Compiler() :
         scopeDepth(0),
-        nextRegister(0),
+        nextRegister(1),  // Start from register 1, reserve register 0 for special use
         functionNestingDepth(0),
         code(std::make_shared<Vec<Instruction>>()),
         utils() {

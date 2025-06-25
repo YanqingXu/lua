@@ -1,10 +1,11 @@
-#pragma once
+﻿#pragma once
 
 #include "../common/types.hpp"
 #include "../parser/parser.hpp"
 #include "../vm/function.hpp"
 #include "../common/opcodes.hpp"
 #include "compiler_utils.hpp"
+#include <iostream>
 
 namespace Lua {
     // Forward declarations
@@ -63,9 +64,17 @@ namespace Lua {
         ExpressionCompiler* getExpressionCompiler() const { return exprCompiler.get(); }
         StatementCompiler* getStatementCompiler() const { return stmtCompiler.get(); }
         
-        // Register management
-        int allocReg() { return utils.allocateRegister(nextRegister); }
-        void freeReg() { utils.freeRegister(nextRegister); }
+        // Register management (简化版本)
+        int allocReg() {
+            int reg = nextRegister++;
+            return reg;
+        }
+        void freeReg() {
+            if (nextRegister > 1) {
+                nextRegister--;
+            }
+        }
+        int getNextReg() const { return nextRegister; }
         
         // Constant management
         int addConstant(const Value& value);

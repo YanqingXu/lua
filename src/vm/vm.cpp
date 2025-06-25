@@ -1,4 +1,4 @@
-#include "vm.hpp"
+﻿#include "vm.hpp"
 #include "table.hpp"
 #include "instruction.hpp"
 #include "upvalue.hpp"
@@ -17,9 +17,10 @@ namespace Lua {
         code(nullptr),
         constants(nullptr),
         pc(0),
+        registerBase(0),
         callDepth(0),
         openUpvalues(nullptr) {
-        std::cerr << "VM constructor - stack top: " << state->getTop() << std::endl;
+
     }
     
     Value VM::execute(GCRef<Function> function) {
@@ -37,63 +38,63 @@ namespace Lua {
         // Initialize program counter
         pc = 0;
         
-        std::cerr << "VM::execute - stackTop: " << state->getTop() << std::endl;
-        for (int i = 0; i < state->getTop(); ++i) {
-            std::cerr << "Stack[" << i << "] type: " << (int)state->get(i + 1).type() << std::endl;
-        }
-        
-        // Copy function arguments from stack to registers
-        // Arguments are the last N values on stack (pushed by State::call)
-        // We need to identify which values are actual function arguments
-        int stackSize = state->getTop();
+        // Create new stack frame for this function
         int expectedArgs = function->getParamCount();
-        
-        // Arguments are the last 'expectedArgs' values on the stack
-        for (int i = 0; i < expectedArgs && i < stackSize; ++i) {
-            // Get argument from the end of stack (most recent pushes)
-            int stackPos = stackSize - expectedArgs + i + 1;  // +1 for 1-based indexing
-            Value arg = state->get(stackPos);
-            state->set(i + 1, arg);  // Set to register (parameters start at register 0)
-            std::cerr << "Setting register " << i << " to arg from stack[" << (stackPos-1) << "] type " << (int)arg.type() << std::endl;
+        int stackSize = state->getTop();
+
+        // Lua 5.1 calling convention:
+        // Stack layout: [function] [arg1] [arg2] [arg3] ...
+        // Register 0 = function, Register 1 = arg1, Register 2 = arg2, etc.
+        //
+        // 对于主函数：stackSize=0, expectedArgs=0, registerBase应该=0
+        // 对于被调用函数：State::call压入了函数和参数
+        int oldRegisterBase = this->registerBase;
+        if (stackSize == 0) {
+            // 主函数，从栈位置0开始
+            this->registerBase = 0;
+        } else {
+            // 被调用函数，函数在stackSize-1-expectedArgs位置
+            this->registerBase = stackSize - 1 - expectedArgs;
         }
-        
-        // Keep arguments on stack - don't clear it as other instructions may need stack access
-        std::cerr << "VM::execute - keeping " << state->getTop() << " arguments on stack" << std::endl;
+
+
+
+        // 调试：显示栈内容
+        for (int i = 0; i < stackSize; ++i) {
+            Value val = state->get(i);
+
+        }
         
         Value result = Value(nullptr);  // Default return value is nil
         
-        try {
-            // Execute bytecode
-            while (pc < code->size()) {
-                if (!runInstruction()) {
-                    // Hit return instruction, get return value from stack top
-                    if (state->getTop() > 0) {
-                        result = state->get(-1);  // Get top value
-                        state->pop();  // Remove return value from stack
-                    }
-                    break;
+        // Execute bytecode
+        while (pc < code->size()) {
+            if (!runInstruction()) {
+                // Hit return instruction, get return value from stack top
+                if (state->getTop() > 0) {
+                    result = state->get(-1);  // Get top value from stack
+                    state->pop();  // Remove return value from stack
                 }
+                break;
             }
-        } catch (const std::exception& e) {
-            std::cerr << "VM execution error: " << e.what() << std::endl;
-            throw;
         }
-        
+
+        // Restore previous register base
+        this->registerBase = oldRegisterBase;
+
         return result;
     }
     
     bool VM::runInstruction() {
         // Get current instruction
-        Instruction i = (*code)[pc++];
-        
+        Instruction i = (*code)[pc];
+
+        pc++;
+
         // Dispatch based on opcode
         OpCode op = i.getOpCode();
-        
-        // Debug output for instruction execution
-        std::cerr << "Executing instruction: " << static_cast<int>(op) 
-                  << " A=" << (int)i.getA() 
-                  << " B=" << (int)i.getB() 
-                  << " C=" << (int)i.getC() << std::endl;
+
+
         
         switch (op) {
             case OpCode::MOVE:
@@ -113,6 +114,12 @@ namespace Lua {
                 break;
             case OpCode::SETGLOBAL:
                 op_setglobal(i);
+                break;
+            case OpCode::GETTABLE:
+                op_gettable(i);
+                break;
+            case OpCode::SETTABLE:
+                op_settable(i);
                 break;
             case OpCode::NEWTABLE:
                 op_newtable(i);
@@ -180,7 +187,9 @@ namespace Lua {
             default:
                 throw LuaException("Unimplemented opcode: " + std::to_string(static_cast<int>(op)));
         }
-        
+
+        // Debug output disabled for production
+
         return true;
     }
     
@@ -190,33 +199,41 @@ namespace Lua {
         }
         return (*constants)[idx];
     }
+
+    Value VM::getReg(int reg) const {
+        // Convert VM register (1-based) to stack position using register base
+        int stackPos = registerBase + reg;
+        // Debug output disabled for production
+        return state->get(stackPos);
+    }
+
+    void VM::setReg(int reg, const Value& value) {
+        // Convert VM register (1-based) to stack position using register base
+        state->set(registerBase + reg, value);
+    }
+
+    Value* VM::getRegPtr(int reg) {
+        // Convert VM register (1-based) to stack position using register base
+        return state->getPtr(registerBase + reg);
+    }
     
     // Instruction implementations
     void VM::op_move(Instruction i) {
         u8 a = i.getA();
         u8 b = i.getB();
-        
-        Value val = state->get(b + 1);
-        state->set(a + 1, val);
-        
-        std::cerr << "MOVE: from register " << (int)(b+1) << " to register " << (int)(a+1) << ", value: ";
-        if (val.isNil()) {
-            std::cerr << "nil";
-        } else if (val.isNumber()) {
-            std::cerr << val.asNumber();
-        } else if (val.isString()) {
-            std::cerr << "\"" << val.asString() << "\"";
-        } else {
-            std::cerr << "type " << (int)val.type();
-        }
-        std::cerr << std::endl;
+
+        Value val = getReg(b + 1);
+
+        setReg(a + 1, val);
     }
     
     void VM::op_loadk(Instruction i) {
         u8 a = i.getA();
         u16 bx = i.getBx();
-        
-        state->set(a + 1, getConstant(bx));
+
+        Value constant = getConstant(bx);
+
+        setReg(a + 1, constant);
     }
     
     void VM::op_loadbool(Instruction i) {
@@ -224,7 +241,7 @@ namespace Lua {
         u8 b = i.getB();
         u8 c = i.getC();
         
-        state->set(a + 1, Value(b != 0));
+        setReg(a + 1, Value(b != 0));
         
         if (c != 0) {
             pc++;  // Skip next instruction
@@ -236,22 +253,24 @@ namespace Lua {
         u8 b = i.getB();
         
         for (u32 j = a; j <= static_cast<u32>(a + b); j++) {
-            state->set(j + 1, Value(nullptr));
+            setReg(j + 1, Value(nullptr));
         }
     }
     
     void VM::op_getglobal(Instruction i) {
         u8 a = i.getA();
         u16 bx = i.getBx();
-        
+
         Value key = getConstant(bx);
         if (!key.isString()) {
             throw LuaException("Global name must be a string");
         }
-        
+
         Value globalValue = state->getGlobal(key.asString());
-        
-        state->set(a + 1, globalValue);
+
+
+
+        setReg(a + 1, globalValue);
     }
     
     void VM::op_setglobal(Instruction i) {
@@ -263,41 +282,81 @@ namespace Lua {
             throw LuaException("Global name must be a string");
         }
         
-        Value val = state->get(a + 1);
+        Value val = getReg(a + 1);
         state->setGlobal(key.asString(), val);
         
-        std::cerr << "SETGLOBAL: setting global '" << key.asString() << "' from register " << (int)(a+1) << ", value: ";
-        if (val.isNil()) {
-            std::cerr << "nil";
-        } else if (val.isNumber()) {
-            std::cerr << val.asNumber();
-        } else if (val.isString()) {
-            std::cerr << "\"" << val.asString() << "\"";
-        } else {
-            std::cerr << "type " << (int)val.type();
-        }
-        std::cerr << std::endl;
+
     }
     
+    void VM::op_gettable(Instruction i) {
+        u8 a = i.getA();  // Target register
+        u8 b = i.getB();  // Table register
+        u8 c = i.getC();  // Key register
+
+        Value table = getReg(b + 1);
+        Value key = getReg(c + 1);
+
+        if (table.isNil()) {
+            throw LuaException("attempt to index nil value");
+        } else if (!table.isTable()) {
+            throw LuaException("attempt to index a non-table value (type: " +
+                             std::to_string(static_cast<int>(table.type())) + ")");
+        }
+
+        Value result = table.asTable()->get(key);
+        setReg(a + 1, result);
+    }
+
+    void VM::op_settable(Instruction i) {
+        u8 a = i.getA();  // Table register
+        u8 b = i.getB();  // Key register
+        u8 c = i.getC();  // Value register
+
+        Value table = getReg(a + 1);
+        Value key = getReg(b + 1);
+        Value value = getReg(c + 1);
+
+        if (table.isNil()) {
+            throw LuaException("attempt to index nil value");
+        } else if (!table.isTable()) {
+            throw LuaException("attempt to index a non-table value (type: " +
+                             std::to_string(static_cast<int>(table.type())) + ")");
+        }
+
+        table.asTable()->set(key, value);
+    }
+
     void VM::op_newtable(Instruction i) {
         u8 a = i.getA();
-        state->set(a + 1, make_gc_table());
+        u8 b = i.getB();
+        u8 c = i.getC();
+
+        GCRef<Table> table = make_gc_table();
+        setReg(a + 1, Value(table));
     }
     
     void VM::op_add(Instruction i) {
         u8 a = i.getA();
         u8 b = i.getB();
         u8 c = i.getC();
-        
-        Value bval = state->get(b + 1);
-        Value cval = state->get(c + 1);
-        
-        if (bval.isNumber() && cval.isNumber()) {
+
+        Value bval = getReg(b + 1);
+        Value cval = getReg(c + 1);
+
+        // nil值不能用于算术运算
+        if (bval.isNil()) {
+            throw LuaException("attempt to perform arithmetic on nil value (left operand)");
+        } else if (cval.isNil()) {
+            throw LuaException("attempt to perform arithmetic on nil value (right operand)");
+        } else if (bval.isNumber() && cval.isNumber()) {
             LuaNumber bn = bval.asNumber();
             LuaNumber cn = cval.asNumber();
-            state->set(a + 1, Value(bn + cn));
+            LuaNumber result = bn + cn;
+            setReg(a + 1, Value(result));
         } else {
-            throw LuaException("attempt to perform arithmetic on non-number values");
+            throw LuaException("attempt to perform arithmetic on non-number values (types: " +
+                             std::to_string(static_cast<int>(bval.type())) + " and " +
+                             std::to_string(static_cast<int>(cval.type())) + ")");
         }
     }
     
@@ -305,16 +364,23 @@ namespace Lua {
         u8 a = i.getA();
         u8 b = i.getB();
         u8 c = i.getC();
-        
-        Value bval = state->get(b + 1);
-        Value cval = state->get(c + 1);
-        
-        if (bval.isNumber() && cval.isNumber()) {
+
+        Value bval = getReg(b + 1);
+        Value cval = getReg(c + 1);
+
+        // nil值不能用于算术运算
+        if (bval.isNil()) {
+            throw LuaException("attempt to perform arithmetic on nil value (left operand)");
+        } else if (cval.isNil()) {
+            throw LuaException("attempt to perform arithmetic on nil value (right operand)");
+        } else if (bval.isNumber() && cval.isNumber()) {
             LuaNumber bn = bval.asNumber();
             LuaNumber cn = cval.asNumber();
-            state->set(a + 1, Value(bn - cn));
+            setReg(a + 1, Value(bn - cn));
         } else {
-            throw LuaException("attempt to perform arithmetic on non-number values");
+            throw LuaException("attempt to perform arithmetic on non-number values (types: " +
+                             std::to_string(static_cast<int>(bval.type())) + " and " +
+                             std::to_string(static_cast<int>(cval.type())) + ")");
         }
     }
     
@@ -323,20 +389,23 @@ namespace Lua {
         u8 b = i.getB();
         u8 c = i.getC();
         
-        Value bval = state->get(b + 1);
-        Value cval = state->get(c + 1);
-        
-        std::cerr << "MUL: a=" << (int)a << " b=" << (int)b << " c=" << (int)c << std::endl;
-        std::cerr << "MUL: bval=" << bval.asNumber() << " cval=" << cval.asNumber() << std::endl;
-        
-        if (bval.isNumber() && cval.isNumber()) {
+        Value bval = getReg(b + 1);
+        Value cval = getReg(c + 1);
+
+        // nil值不能用于算术运算
+        if (bval.isNil()) {
+            throw LuaException("attempt to perform arithmetic on nil value (left operand)");
+        } else if (cval.isNil()) {
+            throw LuaException("attempt to perform arithmetic on nil value (right operand)");
+        } else if (bval.isNumber() && cval.isNumber()) {
             LuaNumber bn = bval.asNumber();
             LuaNumber cn = cval.asNumber();
             LuaNumber result = bn * cn;
-            state->set(a + 1, Value(result));
-            std::cerr << "MUL: result=" << result << " stored in register " << (int)(a + 1) << std::endl;
+            setReg(a + 1, Value(result));
         } else {
-            throw LuaException("attempt to perform arithmetic on non-number values");
+            throw LuaException("attempt to perform arithmetic on non-number values (types: " +
+                             std::to_string(static_cast<int>(bval.type())) + " and " +
+                             std::to_string(static_cast<int>(cval.type())) + ")");
         }
     }
     
@@ -345,8 +414,8 @@ namespace Lua {
         u32 b = i.getB();
         u32 c = i.getC();
         
-        Value bval = state->get(b + 1);
-        Value cval = state->get(c + 1);
+        Value bval = getReg(b + 1);
+        Value cval = getReg(c + 1);
         
         if (bval.isNumber() && cval.isNumber()) {
             LuaNumber bn = bval.asNumber();
@@ -356,7 +425,7 @@ namespace Lua {
                 throw LuaException("attempt to divide by zero");
             }
             
-            state->set(a + 1, Value(bn / cn));
+            setReg(a + 1, Value(bn / cn));
         } else {
             throw LuaException("attempt to perform arithmetic on non-number values");
         }
@@ -366,69 +435,79 @@ namespace Lua {
         u32 a = i.getA();
         u32 b = i.getB();
         
-        Value bval = state->get(b + 1);
-        state->set(a + 1, Value(!bval.asBoolean()));
+        Value bval = getReg(b + 1);
+        setReg(a + 1, Value(!bval.asBoolean()));
     }
     
     void VM::op_eq(Instruction i) {
-        u32 a = i.getA();
-        u32 b = i.getB();
-        u32 c = i.getC();
-        
-        Value bval = state->get(b + 1);
-        Value cval = state->get(c + 1);
-        
-        bool equal = (bval == cval);
-        
-        if (equal == (a != 0)) {
-            pc++;  // Skip next instruction
+        u8 a = i.getA();
+        u8 b = i.getB();
+        u8 c = i.getC();
+
+        Value bval = getReg(b + 1);
+        Value cval = getReg(c + 1);
+
+        // nil值可以与任何值比较，只有两个nil相等
+        bool equal;
+        if (bval.isNil() && cval.isNil()) {
+            equal = true;
+        } else if (bval.isNil() || cval.isNil()) {
+            equal = false;
+        } else {
+            equal = (bval == cval);
         }
+
+        setReg(a + 1, Value(equal));
     }
     
     void VM::op_lt(Instruction i) {
-        u32 a = i.getA();
-        u32 b = i.getB();
-        u32 c = i.getC();
-        
-        Value bval = state->get(b + 1);
-        Value cval = state->get(c + 1);
-        
+        u8 a = i.getA();
+        u8 b = i.getB();
+        u8 c = i.getC();
+
+        Value bval = getReg(b + 1);
+        Value cval = getReg(c + 1);
+
         bool result;
-        
-        if (bval.isNumber() && cval.isNumber()) {
+
+        // nil值不能用于大小比较
+        if (bval.isNil() || cval.isNil()) {
+            throw LuaException("attempt to compare nil value");
+        } else if (bval.isNumber() && cval.isNumber()) {
             result = bval.asNumber() < cval.asNumber();
         } else if (bval.isString() && cval.isString()) {
             result = bval.asString() < cval.asString();
         } else {
-            throw LuaException("attempt to compare incompatible values");
+            throw LuaException("attempt to compare incompatible values (types: " +
+                             std::to_string(static_cast<int>(bval.type())) + " and " +
+                             std::to_string(static_cast<int>(cval.type())) + ")");
         }
-        
-        if (result == (a != 0)) {
-            pc++;  // Skip next instruction
-        }
+        setReg(a + 1, Value(result));
     }
     
     void VM::op_le(Instruction i) {
-        u32 a = i.getA();
-        u32 b = i.getB();
-        u32 c = i.getC();
-        
-        Value bval = state->get(b + 1);
-        Value cval = state->get(c + 1);
-        
+        u8 a = i.getA();
+        u8 b = i.getB();
+        u8 c = i.getC();
+
+        Value bval = getReg(b + 1);
+        Value cval = getReg(c + 1);
+
         bool result;
-        
-        if (bval.isNumber() && cval.isNumber()) {
+
+        // nil值不能用于大小比较
+        if (bval.isNil() || cval.isNil()) {
+            throw LuaException("attempt to compare nil value");
+        } else if (bval.isNumber() && cval.isNumber()) {
             result = bval.asNumber() <= cval.asNumber();
         } else if (bval.isString() && cval.isString()) {
             result = bval.asString() <= cval.asString();
         } else {
-            throw LuaException("attempt to compare incompatible values");
+            throw LuaException("attempt to compare incompatible values (types: " +
+                             std::to_string(static_cast<int>(bval.type())) + " and " +
+                             std::to_string(static_cast<int>(cval.type())) + ")");
         }
-        
-        if (result == (a != 0)) {
-            pc++;  // Skip next instruction
-        }
+        setReg(a + 1, Value(result));
     }
     
     void VM::op_jmp(Instruction i) {
@@ -440,7 +519,7 @@ namespace Lua {
         u8 a = i.getA();  // Register to test
         u8 c = i.getC();  // Skip next instruction if test fails
         
-        Value val = state->get(a + 1);
+        Value val = getReg(a + 1);
         bool isTrue = val.isTruthy();
         
         // If condition is false and C is 0, or condition is true and C is 1, skip next instruction
@@ -453,15 +532,17 @@ namespace Lua {
         u8 a = i.getA();  // Function register
         u8 b = i.getB();  // Number of arguments + 1, if 0 means use all values from a+1 to top
         u8 c = i.getC();  // Expected number of return values + 1, if 0 means all return values needed
-        
+
+        // Debug output disabled for production
+
         // Boundary check: Function nesting depth before call
         if (callDepth >= MAX_FUNCTION_NESTING_DEPTH - 1) {
             throw LuaException(ERR_NESTING_TOO_DEEP);
         }
-        
+
         // Get function object
-        Value func = state->get(a + 1);
-        
+        Value func = getReg(a + 1);
+
         // Check if it's a function
         if (!func.isFunction()) {
             throw LuaException("attempt to call a non-function value");
@@ -473,54 +554,50 @@ namespace Lua {
         // Prepare argument list
         Vec<Value> args;
         for (int i = 1; i <= nargs; ++i) {
-            args.push_back(state->get(a + 1 + i));
+            int argReg = a + 1 + i;
+            Value arg = getReg(argReg);
+
+            args.push_back(arg);
         }
         
         // Call function
-        try {
-            Value result = state->call(func, args);
-            
-            // Handle return values based on expected count (c parameter)
-            int expectedReturns = (c == 0) ? -1 : (c - 1);  // -1 means all returns needed
-            
-            if (expectedReturns == 0) {
-                // No return values expected, just clean up
-                std::cerr << "CALL: no return values expected" << std::endl;
-            } else if (expectedReturns == 1 || expectedReturns == -1) {
-                // Single return value or all returns (simplified to single for now)
-                state->set(a + 1, result);
-                std::cerr << "CALL: storing result type " << (int)result.type() << " in register " << (a+1) << std::endl;
-            } else {
-                // Multiple return values expected
-                // For now, we only handle single return value from state->call
-                // In a full implementation, state->call would need to return multiple values
-                state->set(a + 1, result);
-                
-                // Fill remaining expected slots with nil
-                for (int i = 1; i < expectedReturns; ++i) {
-                    state->set(a + 1 + i, Value(nullptr));
-                }
-                
-                std::cerr << "CALL: storing " << expectedReturns << " return values (padded with nil)" << std::endl;
+        Value result = state->call(func, args);
+
+        // Handle return values based on expected count (c parameter)
+        int expectedReturns = (c == 0) ? -1 : (c - 1);  // -1 means all returns needed
+
+        if (expectedReturns == 0) {
+            // No return values expected, just clean up
+        }
+        else if (expectedReturns == 1 || expectedReturns == -1) {
+            // Single return value or all returns (simplified to single for now)
+            setReg(a + 1, result);
+        }
+        else {
+            // Multiple return values expected
+            // For now, we only handle single return value from state->call
+            // In a full implementation, state->call would need to return multiple values
+            setReg(a + 1, result);
+
+            // Fill remaining expected slots with nil
+            for (int i = 1; i < expectedReturns; ++i) {
+                setReg(a + 1 + i, Value(nullptr));
             }
-            
-            // Clean up extra stack space
-            if (state->getTop() > a + 1 + std::max(1, expectedReturns)) {
-                int targetTop = a + 1 + std::max(1, expectedReturns);
-                for (int i = state->getTop(); i > targetTop; --i) {
-                    state->pop();
-                }
+        }
+
+        // Clean up extra stack space
+        if (state->getTop() > a + 1 + std::max(1, expectedReturns)) {
+            int targetTop = a + 1 + std::max(1, expectedReturns);
+            for (int i = state->getTop(); i > targetTop; --i) {
+                state->pop();
             }
-        } catch (const LuaException& e) {
-            std::cerr << "Error during function call: " << e.what() << std::endl;
-            throw; // Re-throw exception
         }
     }
     
     void VM::op_return(Instruction i) {
         u8 a = i.getA();
         u8 b = i.getB();
-        
+
         // b-1 is the number of values to return, if b=0, return all values from a to top
         if (b == 0) {
             // Return all values from register a to top
@@ -529,26 +606,25 @@ namespace Lua {
             if (numValues <= 0) {
                 // No values to return, push nil
                 state->push(Value(nullptr));
-                std::cerr << "RETURN: returning nil (no values from a to top)" << std::endl;
+
             } else {
                 // Return all values from register a onwards
                 for (int i = 0; i < numValues; ++i) {
-                    Value returnValue = state->get(a + 1 + i);
+                    Value returnValue = getReg(a + 1 + i);
                     state->push(returnValue);
-                    std::cerr << "RETURN: returning value " << i << " from register " << (a + 1 + i) << " (get(" << (a + 1 + i) << ")) type " << (int)returnValue.type() << std::endl;
+
                 }
             }
         } else if (b == 1) {
             // No return values, push nil
             state->push(Value(nullptr));
-            std::cerr << "RETURN: returning nil (no values)" << std::endl;
+
         } else {
             // Return exactly b-1 values
             int numValues = b - 1;
             for (int i = 0; i < numValues; ++i) {
-                Value returnValue = state->get(a + 1 + i);  // Get value from register a+i
+                Value returnValue = getReg(a + 1 + i);  // Get value from register a+i
                 state->push(returnValue);  // Push return value to stack top
-                std::cerr << "RETURN: returning value " << i << " from register " << (a + 1 + i) << " (get(" << (a + 1 + i) << ")) type " << (int)returnValue.type() << std::endl;
             }
         }
     }
@@ -614,7 +690,7 @@ namespace Lua {
             
             if (isLocal) {
                 // Capture a local variable from the current stack frame
-                Value* location = &state->get(index + 1);
+                Value* location = getRegPtr(index + 1);
                 upvalue = findOrCreateUpvalue(location);
             } else {
                 // Inherit an upvalue from the current function
@@ -631,7 +707,7 @@ namespace Lua {
         }
         
         // Store the closure in the target register
-        state->set(a + 1, Value(closure));
+        setReg(a + 1, Value(closure));
     }
     
     void VM::op_getupval(Instruction i) {
@@ -666,7 +742,7 @@ namespace Lua {
         }
         
         // Store in target register
-        state->set(a + 1, value);
+        setReg(a + 1, value);
     }
     
     void VM::op_setupval(Instruction i) {
@@ -693,7 +769,7 @@ namespace Lua {
         }
         
         // Get the value from the source register
-        Value value = state->get(a + 1);
+        Value value = getReg(a + 1);
         
         // Set the value in the upvalue safely
         try {
@@ -761,8 +837,8 @@ namespace Lua {
         u8 b = i.getB();
         u8 c = i.getC();
         
-        Value bval = state->get(b + 1);
-        Value cval = state->get(c + 1);
+        Value bval = getReg(b + 1);
+        Value cval = getReg(c + 1);
         
         if (bval.isNumber() && cval.isNumber()) {
             LuaNumber bn = bval.asNumber();
@@ -772,7 +848,7 @@ namespace Lua {
                 throw LuaException("attempt to perform modulo by zero");
             }
             
-            state->set(a + 1, Value(fmod(bn, cn)));
+            setReg(a + 1, Value(fmod(bn, cn)));
         } else {
             throw LuaException("attempt to perform arithmetic on non-number values");
         }
@@ -783,13 +859,13 @@ namespace Lua {
         u8 b = i.getB();
         u8 c = i.getC();
         
-        Value bval = state->get(b + 1);
-        Value cval = state->get(c + 1);
+        Value bval = getReg(b + 1);
+        Value cval = getReg(c + 1);
         
         if (bval.isNumber() && cval.isNumber()) {
             LuaNumber bn = bval.asNumber();
             LuaNumber cn = cval.asNumber();
-            state->set(a + 1, Value(pow(bn, cn)));
+            setReg(a + 1, Value(pow(bn, cn)));
         } else {
             throw LuaException("attempt to perform arithmetic on non-number values");
         }
@@ -799,10 +875,10 @@ namespace Lua {
         u8 a = i.getA();
         u8 b = i.getB();
         
-        Value bval = state->get(b + 1);
+        Value bval = getReg(b + 1);
         
         if (bval.isNumber()) {
-            state->set(a + 1, Value(-bval.asNumber()));
+            setReg(a + 1, Value(-bval.asNumber()));
         } else {
             throw LuaException("attempt to perform arithmetic on non-number value");
         }
@@ -811,17 +887,22 @@ namespace Lua {
     void VM::op_len(Instruction i) {
         u8 a = i.getA();
         u8 b = i.getB();
-        
-        Value bval = state->get(b + 1);
-        
-        if (bval.isString()) {
-            state->set(a + 1, Value(static_cast<LuaNumber>(bval.asString().length())));
+
+        Value bval = getReg(b + 1);
+
+        if (bval.isNil()) {
+            throw LuaException("attempt to get length of nil value");
+        } else if (bval.isString()) {
+            LuaNumber length = static_cast<LuaNumber>(bval.asString().length());
+            setReg(a + 1, Value(length));
         } else if (bval.isTable()) {
             // For tables, get the array part length
             auto table = bval.asTable();
-            state->set(a + 1, Value(static_cast<LuaNumber>(table->getArraySize())));
+            LuaNumber length = static_cast<LuaNumber>(table->getArraySize());
+            setReg(a + 1, Value(length));
         } else {
-            throw LuaException("attempt to get length of non-string/table value");
+            throw LuaException("attempt to get length of non-string/table value (type: " +
+                             std::to_string(static_cast<int>(bval.type())) + ")");
         }
     }
     
@@ -829,30 +910,51 @@ namespace Lua {
         u8 a = i.getA();
         u8 b = i.getB();
         u8 c = i.getC();
-        
-        Value bval = state->get(b + 1);
-        Value cval = state->get(c + 1);
-        
+
+        Value bval = getReg(b + 1);
+        Value cval = getReg(c + 1);
+
         // Convert values to strings and concatenate
         Str bstr, cstr;
-        
-        if (bval.isString()) {
+
+        // 处理左操作数
+        if (bval.isNil()) {
+            throw LuaException("attempt to concatenate nil value (left operand)");
+        } else if (bval.isString()) {
             bstr = bval.asString();
         } else if (bval.isNumber()) {
-            bstr = std::to_string(bval.asNumber());
+            // Format number as integer if it's a whole number, otherwise as float
+            LuaNumber num = bval.asNumber();
+            if (num == std::floor(num)) {
+                bstr = std::to_string(static_cast<long long>(num));
+            } else {
+                bstr = std::to_string(num);
+            }
         } else {
-            throw LuaException("attempt to concatenate non-string/number value");
+            throw LuaException("attempt to concatenate non-string/number value (left operand type: " +
+                             std::to_string(static_cast<int>(bval.type())) + ")");
         }
-        
-        if (cval.isString()) {
+
+        // 处理右操作数
+        if (cval.isNil()) {
+            throw LuaException("attempt to concatenate nil value (right operand)");
+        } else if (cval.isString()) {
             cstr = cval.asString();
         } else if (cval.isNumber()) {
-            cstr = std::to_string(cval.asNumber());
+            // Format number as integer if it's a whole number, otherwise as float
+            LuaNumber num = cval.asNumber();
+            if (num == std::floor(num)) {
+                cstr = std::to_string(static_cast<long long>(num));
+            } else {
+                cstr = std::to_string(num);
+            }
         } else {
-            throw LuaException("attempt to concatenate non-string/number value");
+            throw LuaException("attempt to concatenate non-string/number value (right operand type: " +
+                             std::to_string(static_cast<int>(cval.type())) + ")");
         }
-        
-        state->set(a + 1, Value(bstr + cstr));
+
+        Str result = bstr + cstr;
+        setReg(a + 1, Value(result));
     }
     
     void VM::markReferences(GarbageCollector* gc) {

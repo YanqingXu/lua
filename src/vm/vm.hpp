@@ -14,7 +14,8 @@ namespace Lua {
         Vec<Instruction>* code;
         Vec<Value>* constants;
         usize pc; // Program counter
-        
+        int registerBase; // Base of current function's registers (like Lua 5.1 CallInfo.base)
+
         // Call depth tracking for nesting boundary checks
         usize callDepth;
         
@@ -42,6 +43,11 @@ namespace Lua {
         
         // Get constant
         Value getConstant(u32 idx) const;
+
+        // Register access with frame base
+        Value getReg(int reg) const;
+        void setReg(int reg, const Value& value);
+        Value* getRegPtr(int reg);  // Get pointer to register for upvalue access
         
         // Handle various opcodes
         void op_move(Instruction i);
@@ -50,6 +56,8 @@ namespace Lua {
         void op_loadnil(Instruction i);
         void op_getglobal(Instruction i);
         void op_setglobal(Instruction i);
+        void op_gettable(Instruction i);
+        void op_settable(Instruction i);
         void op_newtable(Instruction i);
         void op_add(Instruction i);
         void op_sub(Instruction i);

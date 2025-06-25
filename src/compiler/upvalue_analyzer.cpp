@@ -71,7 +71,7 @@ namespace Lua {
     }
 
     bool UpvalueAnalyzer::isFreeVariable(const Str& name) const {
-        return !scopeManager_.isLocalVariable(name);
+        return scopeManager_.isFreeVariable(name);
     }
 
     void UpvalueAnalyzer::analyzeExpression(const Expr* expr) {
@@ -242,23 +242,28 @@ namespace Lua {
     }
 
     void UpvalueAnalyzer::analyzeForStmt(const ForStmt* forStmt) {
-        // Use RAII scope guard for automatic scope management
-        ScopeGuard scopeGuard(scopeManager_);
-        
-        // Analyze loop range expressions
+        // Analyze loop range expressions in the current scope
         analyzeExpression(forStmt->getStart());
         analyzeExpression(forStmt->getEnd());
         if (forStmt->getStep()) {
             analyzeExpression(forStmt->getStep());
         }
 
-        // Define loop variable
-        scopeManager_.defineLocal(forStmt->getVariable());
+        // For upvalue analysis, we don't need to create a new scope for the loop variable
+        // The loop variable is only visible within the loop body, but for upvalue analysis
+        // we can treat it as a temporary local variable in the current scope
 
-        // Analyze loop body
+        // Temporarily define loop variable in current scope
+        bool wasAlreadyDefined = scopeManager_.isLocalVariable(forStmt->getVariable());
+        if (!wasAlreadyDefined) {
+            scopeManager_.defineLocal(forStmt->getVariable());
+        }
+
+        // Analyze loop body in the same scope
         analyzeStatement(forStmt->getBody());
-        
-        // Scope automatically exits when scopeGuard destructs
+
+        // Note: We don't remove the loop variable from scope as it might be referenced
+        // by inner functions. The scope cleanup will happen at the function level.
     }
 
     void UpvalueAnalyzer::analyzeForInStmt(const ForInStmt* forInStmt) {

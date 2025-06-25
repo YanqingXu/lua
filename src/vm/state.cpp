@@ -83,6 +83,26 @@ namespace Lua {
         stack[abs_idx] = value;
     }
 
+    Value* State::getPtr(int idx) {
+        // Handle absolute and relative indices
+        int abs_idx;
+        if (idx > 0) {
+            abs_idx = idx - 1;  // Convert 1-based to 0-based
+        } else if (idx < 0) {
+            abs_idx = top + idx;  // Index relative to stack top
+        } else {
+            // Index 0 is invalid
+            return nullptr;
+        }
+
+        // Check bounds
+        if (abs_idx < 0 || abs_idx >= top) {
+            return nullptr;
+        }
+
+        return &stack[abs_idx];
+    }
+
     // Type checking functions
     bool State::isNil(int idx) const {
         if (idx <= 0 || idx > top) return true;
@@ -189,6 +209,13 @@ namespace Lua {
         try {
             // Save current state
             int oldTop = top;
+
+            // Lua 5.1 calling convention:
+            // Stack layout: [function] [arg1] [arg2] [arg3] ...
+            // Register 0 = function, Register 1 = arg1, Register 2 = arg2, etc.
+
+            // Push function onto stack first
+            push(Value(function));
 
             // Push arguments onto stack
             for (const auto& arg : args) {

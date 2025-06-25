@@ -42,9 +42,13 @@ namespace Lua {
     
     // 基础库函数实现（保持与原版相同的签名）
     Value BaseLib::print(State* state, i32 nargs) {
-        for (i32 i = 1; i <= nargs; i++) {
-            if (i > 1) std::cout << "\t";
-            auto val = state->get(i);
+        // Arguments are at the top of the stack
+        // Read from stack top backwards: top-nargs+1, top-nargs+2, ..., top
+        int stackTop = state->getTop();
+        for (i32 i = 0; i < nargs; i++) {
+            if (i > 0) std::cout << "\t";
+            int argIndex = stackTop - nargs + 1 + i;
+            auto val = state->get(argIndex);
             std::cout << val.toString();
         }
         std::cout << std::endl;

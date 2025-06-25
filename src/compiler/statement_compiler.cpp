@@ -158,7 +158,8 @@ namespace Lua {
             // Compile initializer expression
             int initReg = compiler->getExpressionCompiler()->compileExpr(initializer);
             // Move initializer value to variable slot
-            compiler->emitInstruction(Instruction::createMOVE(varSlot, initReg));
+            // 注意：VM使用1基索引，所以需要减1
+            compiler->emitInstruction(Instruction::createMOVE(varSlot - 1, initReg - 1));
             // Free initializer register
             compiler->freeReg();
         } else {
@@ -283,12 +284,12 @@ namespace Lua {
         }
         
         int loopStart = static_cast<int>(compiler->getCodeSize());
-        
+
         // Check loop condition (var <= limit for positive step, var >= limit for negative step)
         int condReg = compiler->allocReg();
-        compiler->emitInstruction(Instruction::createLE(condReg, varSlot, limitReg));
-        
-        // Jump to end if condition is false
+        compiler->emitInstruction(Instruction::createLE(1, varSlot, limitReg));
+
+        // Jump to end if condition is false (LE instruction will skip next instruction if condition is false)
         int exitJump = compiler->emitJump();
         compiler->freeReg(); // Free condition register
         
@@ -299,7 +300,8 @@ namespace Lua {
         compiler->emitInstruction(Instruction::createADD(varSlot, varSlot, stepReg));
         
         // Jump back to loop start
-        int backJump = static_cast<int>(compiler->getCodeSize()) - loopStart;
+        int currentPos = static_cast<int>(compiler->getCodeSize());
+        int backJump = currentPos - loopStart + 1;  // +1 because JMP instruction itself advances PC
         compiler->emitInstruction(Instruction::createJMP(-backJump));
         
         // Patch exit jump
@@ -407,11 +409,14 @@ namespace Lua {
         } else if (values.size() == 1) {
             // Single return value (backward compatibility)
             int reg = compiler->getExpressionCompiler()->compileExpr(values[0].get());
-            
+
+            // Debug output disabled for production
+
             // Emit return instruction (B=2 means return 1 value)
-            // A parameter should be reg-1 because VM registers are 1-based but instruction A is 0-based
-            compiler->emitInstruction(Instruction::createRETURN(reg - 1, 2));
-            
+            // A parameter should be reg because VM will read from register a+1
+            // If reg is compiler register index, VM register is reg+1, so a should be reg
+            compiler->emitInstruction(Instruction::createRETURN(reg, 2));
+
             // Free value register
             compiler->freeReg();
         } else {
@@ -453,6 +458,8 @@ namespace Lua {
     }
     
     void StatementCompiler::compileFunctionStmt(const FunctionStmt* stmt) {
+        //std::cerr << "=== COMPILING FUNCTION: " << stmt->getName() << " ===" << std::endl;
+
         // Check function nesting depth before proceeding
         compiler->enterFunctionScope();
         
@@ -504,8 +511,9 @@ namespace Lua {
         int closureReg = compiler->allocReg();
         
         // Generate CLOSURE instruction
-        compiler->emitInstruction(Instruction::createCLOSURE(closureReg, prototypeIndex));
-        
+        //std::cerr << "FUNCTION: generating CLOSURE instruction, reg=" << closureReg << " prototypeIndex=" << prototypeIndex << std::endl;
+        compiler->emitInstruction(Instruction::createCLOSURE(closureReg - 1, prototypeIndex));
+
         // Generate upvalue binding instructions
         for (const auto& upvalue : upvalues) {
             if (upvalue.isLocal) {
@@ -522,7 +530,8 @@ namespace Lua {
         
         // Store function in global or local variable
         int nameConstant = compiler->addConstant(Value(stmt->getName()));
-        compiler->emitInstruction(Instruction::createSETGLOBAL(closureReg, nameConstant));
+        //std::cerr << "FUNCTION: generating SETGLOBAL instruction, reg=" << closureReg << " nameConstant=" << nameConstant << std::endl;
+        compiler->emitInstruction(Instruction::createSETGLOBAL(closureReg - 1, nameConstant));
         
         // Free closure register
         compiler->freeReg();

@@ -28,6 +28,7 @@ namespace Lua {
         Value pop();
         Value& get(int idx);
         void set(int idx, const Value& value);
+        Value* getPtr(int idx);  // Get pointer to stack element
         
         // Check stack element types
         bool isNil(int idx) const;

@@ -31,6 +31,10 @@ namespace Lua {
         static int allocateRegister(int& nextReg, int maxRegs = 255);
         static void freeRegister(int& nextReg);
         static bool isValidRegister(int reg);
+
+        // Advanced register management
+        static int reserveRegisters(int& nextReg, int count, int maxRegs = 255);
+        static void freeRegisters(int& nextReg, int count);
         
         // Constant table management
         static int addConstant(Vec<Value>& constants, const Value& value);

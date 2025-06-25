@@ -17,6 +17,23 @@ namespace Lua {
             nextReg--;
         }
     }
+
+    int CompilerUtils::reserveRegisters(int& nextReg, int count, int maxRegs) {
+        if (nextReg + count > maxRegs) {
+            throw LuaException("Too many registers in use");
+        }
+        int baseReg = nextReg;
+        nextReg += count;
+        return baseReg;
+    }
+
+    void CompilerUtils::freeRegisters(int& nextReg, int count) {
+        if (nextReg >= count) {
+            nextReg -= count;
+        } else {
+            nextReg = 0;
+        }
+    }
     
     bool CompilerUtils::isValidRegister(int reg) {
         return reg >= 0 && reg < 255;
