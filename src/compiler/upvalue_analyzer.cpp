@@ -311,11 +311,18 @@ namespace Lua {
         // Find variable information
         auto* variable = scopeManager_.findVariable(name);
         if (variable) {
-            // Check if variable is in direct outer scope
+            // Check if variable is in parent scope (upvalue from our perspective)
             if (scopeManager_.isUpvalue(name)) {
+                // Variable is in parent scope, so we capture it as a local variable
+                isLocal = true;
+            } else {
+                // Variable is in current scope, this shouldn't happen for upvalues
                 isLocal = false;
             }
             stackIndex = variable->stackIndex;
+
+
+
         }
 
         return UpvalueDescriptor(name, index, isLocal, stackIndex);

@@ -6,6 +6,7 @@
 #include "../common/opcodes.hpp"
 #include "compiler_utils.hpp"
 #include "register_manager.hpp"
+#include "symbol_table.hpp"
 #include <iostream>
 
 namespace Lua {
@@ -15,52 +16,68 @@ namespace Lua {
     class Expr;
     class Stmt;
 
-    
+    // Forward declaration
+    class Compiler;
+
+    // Compilation context for nested function support
+    struct CompilationContext {
+        ScopeManager* parentScope;              // Parent scope manager
+        Vec<UpvalueDescriptor>* parentUpvalues; // Parent function's upvalues
+        Compiler* parentCompiler;               // Parent compiler instance
+
+        CompilationContext(ScopeManager* scope, Vec<UpvalueDescriptor>* upvalues, Compiler* compiler)
+            : parentScope(scope), parentUpvalues(upvalues), parentCompiler(compiler) {}
+    };
+
     // Compiler class
     class Compiler {
     private:
-        // Current scope depth
-        int scopeDepth;
-        
-        // Local variables
-        Vec<Local> locals;
-        
+        // Unified scope management
+        ScopeManager scopeManager_;
+
+        // Current upvalues for this function
+        Vec<UpvalueDescriptor> currentUpvalues_;
+
         // Constant table
         Vec<Value> constants;
-        
+
         // Bytecode
         Ptr<Vec<Instruction>> code;
-        
+
         // Function prototypes for nested functions
         Vec<GCRef<Function>> prototypes;
-        
+
         // Jump instruction positions for current block
         Vec<int> breaks;
-        
+
         // Lua 5.1官方寄存器管理器
         RegisterManager registerManager_;
-        
+
         // Function nesting depth tracking
         int functionNestingDepth;
-        
+
+        // Compilation context for nested functions
+        Ptr<CompilationContext> parentContext_;
+
         // Utility helper
         CompilerUtils utils;
-        
+
         // Compiler modules
         UPtr<ExpressionCompiler> exprCompiler;
         UPtr<StatementCompiler> stmtCompiler;
         
     public:
         explicit Compiler();
+        explicit Compiler(Ptr<CompilationContext> parentContext);
         ~Compiler();
-        
+
         // Main compilation interface
         GCRef<Function> compile(const Vec<UPtr<Stmt>>& statements);
-        
+
         // Compilation methods
         int compileExpr(const Expr* expr);
         void compileStmt(const Stmt* stmt);
-        
+
         // Access to compiler modules
         ExpressionCompiler* getExpressionCompiler() const { return exprCompiler.get(); }
         StatementCompiler* getStatementCompiler() const { return stmtCompiler.get(); }
@@ -95,14 +112,30 @@ namespace Lua {
         
         // Constant management
         int addConstant(const Value& value);
-        
-        // Local variable management
-        int resolveLocal(const Str& name);
-        void addLocal(const Str& name, int slot) { utils.addLocal(locals, name, scopeDepth, slot); }
-        
+
+        // Variable resolution (unified local/upvalue/global)
+        enum class VariableType { Local, Upvalue, Global };
+        struct VariableInfo {
+            VariableType type;
+            int index;  // Register index for local, upvalue index for upvalue, constant index for global
+
+            VariableInfo(VariableType t, int i) : type(t), index(i) {}
+        };
+        VariableInfo resolveVariable(const Str& name);
+
         // Scope management
-        void beginScope();
-        void endScope();
+        void beginScope() { scopeManager_.enterScope(); }
+        void endScope() { scopeManager_.exitScope(); }
+
+        // Local variable management
+        int defineLocal(const Str& name, int stackIndex = -1);
+
+        // Upvalue management
+        int addUpvalue(const Str& name, bool isLocal, int index);
+        const Vec<UpvalueDescriptor>& getCurrentUpvalues() const { return currentUpvalues_; }
+
+        // Scope manager access
+        ScopeManager& getScopeManager() { return scopeManager_; }
         
         // Instruction emission
         void emitInstruction(const Instruction& instr);
@@ -133,7 +166,11 @@ namespace Lua {
         // Access to internal data for function compilation
         const Ptr<Vec<Instruction>>& getCode() const { return code; }
         const Vec<Value>& getConstants() const { return constants; }
-        const Vec<Local>& getLocals() const { return locals; }
+
+        // Context access for nested compilation
+        Ptr<CompilationContext> createChildContext() {
+            return std::make_shared<CompilationContext>(&scopeManager_, &currentUpvalues_, this);
+        }
         
         // Function nesting depth management
         void enterFunctionScope();

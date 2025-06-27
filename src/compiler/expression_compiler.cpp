@@ -93,31 +93,45 @@ namespace Lua {
         if (!expr) {
             throw LuaException("Null variable expression in compilation");
         }
-        
+
         const Str& name = expr->getName();
-        
-        // Try to find local variable
-        int localSlot = compiler->resolveLocal(name);
-        if (localSlot != -1) {
-            // Lua官方设计：编译器和VM都使用0基索引，直接返回
+
+        // Use unified variable resolution
+        auto varInfo = compiler->resolveVariable(name);
+
+        switch (varInfo.type) {
+            case Compiler::VariableType::Local: {
+                // Local variable - return register directly
 #ifdef DEBUG_COMPILER
-            std::cout << "[DEBUG] COMPILE VAR LOCAL: name='" << name
-                      << "', slot=" << localSlot << std::endl;
+                std::cout << "[DEBUG] COMPILE VAR LOCAL: name='" << name
+                          << "', slot=" << varInfo.index << std::endl;
 #endif
-            return localSlot;
+                return varInfo.index;
+            }
+
+            case Compiler::VariableType::Upvalue: {
+                // Upvalue - generate GETUPVAL instruction
+                int reg = compiler->allocReg();
+
+                compiler->emitInstruction(Instruction::createGETUPVAL(reg, varInfo.index));
+                return reg;
+            }
+
+            case Compiler::VariableType::Global: {
+                // Global variable - generate GETGLOBAL instruction
+                int reg = compiler->allocReg();
+#ifdef DEBUG_COMPILER
+                std::cout << "[DEBUG] COMPILE VAR GLOBAL: name='" << name
+                          << "', constant_index=" << varInfo.index
+                          << ", target_reg=" << reg << std::endl;
+#endif
+                compiler->emitInstruction(Instruction::createGETGLOBAL(reg, varInfo.index));
+                return reg;
+            }
+
+            default:
+                throw LuaException("Unknown variable type for: " + name);
         }
-
-        // Global variable access
-        int reg = compiler->allocReg();
-        int nameIdx = compiler->addConstant(Value(name));
-
-#ifdef DEBUG_COMPILER
-        std::cout << "[DEBUG] COMPILE VAR GLOBAL: name='" << name
-                  << "', reg=" << reg << ", nameIdx=" << nameIdx << std::endl;
-#endif
-        compiler->emitInstruction(Instruction::createGETGLOBAL(reg, nameIdx));
-        
-        return reg;
     }
     
     int ExpressionCompiler::compileUnary(const UnaryExpr* expr) {
@@ -578,30 +592,44 @@ namespace Lua {
         if (!expr) {
             throw LuaException("Null function expression in compilation");
         }
-        
+
         // Check function nesting depth before proceeding
         compiler->enterFunctionScope();
-        
-        // Create a new compiler instance for the function body
-        Compiler functionCompiler;
+
+        // Create compilation context for the nested function
+        auto childContext = compiler->createChildContext();
+
+        // Create a new compiler instance for the function body with parent context
+        Compiler functionCompiler(childContext);
+
         // Inherit the nesting depth from parent compiler
         for (int i = 0; i < compiler->getFunctionNestingDepth(); ++i) {
             functionCompiler.enterFunctionScope();
         }
-        
-        // Create ScopeManager for upvalue analysis
-        ScopeManager scopeManager;
-        
-        // Analyze upvalues using UpvalueAnalyzer
-        UpvalueAnalyzer analyzer(scopeManager);
+
+        // Analyze upvalues using the parent compiler's scope manager
+        // This allows the analyzer to see variables from outer scopes
+        UpvalueAnalyzer analyzer(compiler->getScopeManager());
+
+        // Analyze the function body to find upvalues
         analyzer.analyzeFunction(expr);
         const auto& upvalues = analyzer.getUpvalues();
+
+        // Store upvalues in the function compiler
+        for (const auto& upvalue : upvalues) {
+            functionCompiler.addUpvalue(upvalue.name, upvalue.isLocal, upvalue.stackIndex);
+        }
         
         // Enter function scope and define parameters
         functionCompiler.beginScope();
+
+        // Lua 5.1官方调用约定：寄存器0是函数，参数从寄存器1开始
+        // 先分配寄存器0给函数本身（虽然不会直接使用）
+        functionCompiler.defineLocal("function");  // 寄存器0保留给函数
+
+        // 然后分配参数寄存器（从寄存器1开始）
         for (const auto& param : expr->getParameters()) {
-            int paramReg = functionCompiler.allocReg();
-            functionCompiler.addLocal(param, paramReg);
+            functionCompiler.defineLocal(param);  // 寄存器1, 2, 3...
         }
         
         // Handle variadic functions - reserve space for vararg table if needed
@@ -622,7 +650,7 @@ namespace Lua {
             functionCompiler.getConstants(),
             functionCompiler.getPrototypes(),
             static_cast<u8>(expr->getParameters().size()),
-            static_cast<u8>(functionCompiler.getLocals().size()),
+            static_cast<u8>(functionCompiler.getScopeManager().getLocalCount()),
             static_cast<u8>(upvalues.size()),
             expr->getIsVariadic()
         );
@@ -650,15 +678,15 @@ namespace Lua {
         for (const auto& upvalue : upvalues) {
             // Create upvalue binding instruction for VM
             // A = isLocal flag (1 for local, 0 for upvalue)
-            // B = source index (local variable index or parent upvalue index)
+            // B = source index (local variable register index or parent upvalue index)
             u8 isLocal = upvalue.isLocal ? 1 : 0;
-            u8 sourceIndex = static_cast<u8>(upvalue.index);
-            
+            u8 sourceIndex = static_cast<u8>(upvalue.stackIndex);  // Use stackIndex, not index
+
             // Validate source index bounds
             if (sourceIndex > 255) {
                 throw LuaException("Upvalue source index out of bounds: " + std::to_string(sourceIndex));
             }
-            
+
             // Use a generic instruction format for upvalue binding
             // This will be interpreted by VM's op_closure method
             Instruction upvalBinding;

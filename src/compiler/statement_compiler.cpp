@@ -167,14 +167,13 @@ namespace Lua {
         const Str& name = stmt->getName();
         const Expr* initializer = stmt->getInitializer();
         
-        // Declare local variable using Lua 5.1 official design
-        int varSlot = compiler->allocLocalReg(name);
+        // Declare local variable using unified scope management
+        int varSlot = compiler->defineLocal(name);
 
 #ifdef DEBUG_COMPILER
         std::cout << "[DEBUG] LOCAL ALLOC: name='" << name
                   << "', varSlot=" << varSlot << std::endl;
 #endif
-        compiler->addLocal(name, varSlot);
         
         if (initializer != nullptr) {
     #ifdef DEBUG_COMPILER
@@ -225,14 +224,24 @@ namespace Lua {
             const auto* varExpr = static_cast<const VariableExpr*>(target);
             const Str& name = varExpr->getName();
 
-            // Try to find local variable
-            int localSlot = compiler->resolveLocal(name);
-            if (localSlot != -1) {
-                compiler->emitInstruction(Instruction::createMOVE(localSlot, valueReg));
-            } else {
-                // Global variable assignment
-                int nameIdx = compiler->addConstant(Value(name));
-                compiler->emitInstruction(Instruction::createSETGLOBAL(valueReg, nameIdx));
+            // Use unified variable resolution
+            auto varInfo = compiler->resolveVariable(name);
+
+            switch (varInfo.type) {
+                case Compiler::VariableType::Local:
+                    compiler->emitInstruction(Instruction::createMOVE(varInfo.index, valueReg));
+                    break;
+
+                case Compiler::VariableType::Upvalue:
+                    compiler->emitInstruction(Instruction::createSETUPVAL(valueReg, varInfo.index));
+                    break;
+
+                case Compiler::VariableType::Global:
+                    compiler->emitInstruction(Instruction::createSETGLOBAL(valueReg, varInfo.index));
+                    break;
+
+                default:
+                    throw LuaException("Unknown variable type for assignment: " + name);
             }
         }
         else if (target->getType() == ExprType::Index) {
@@ -334,17 +343,16 @@ namespace Lua {
     
     void StatementCompiler::compileForStmt(const ForStmt* stmt) {
         compiler->beginScope();
-        
+
         // Initialize loop variable
         const Str& varName = stmt->getVariable();
-        int varSlot = compiler->allocReg();
-        compiler->addLocal(varName, varSlot);
-        
+        int varSlot = compiler->defineLocal(varName);
+
         // Compile initial value
         int initReg = compiler->getExpressionCompiler()->compileExpr(stmt->getStart());
         compiler->emitInstruction(Instruction::createMOVE(varSlot, initReg));
         compiler->freeReg();
-        
+
         // Compile limit and step
         int limitReg = compiler->getExpressionCompiler()->compileExpr(stmt->getEnd());
         int stepReg = -1;
@@ -356,35 +364,53 @@ namespace Lua {
             int oneIdx = compiler->addConstant(Value(1.0));
             compiler->emitInstruction(Instruction::createLOADK(stepReg, oneIdx));
         }
-        
+
         int loopStart = static_cast<int>(compiler->getCodeSize());
 
-        // Check loop condition (var <= limit for positive step, var >= limit for negative step)
+        // Check loop condition based on step value
         int condReg = compiler->allocReg();
-        compiler->emitInstruction(Instruction::createLE(1, varSlot, limitReg));
 
-        // Jump to end if condition is false (LE instruction will skip next instruction if condition is false)
+        // Try to determine step sign at compile time
+        bool isStepNegative = false;
+        if (stmt->getStep() && compiler->getExpressionCompiler()->isConstantExpression(stmt->getStep())) {
+            Value stepValue = compiler->getExpressionCompiler()->getConstantValue(stmt->getStep());
+            if (stepValue.isNumber() && stepValue.asNumber() < 0) {
+                isStepNegative = true;
+            }
+        }
+
+        if (isStepNegative) {
+            // For negative step: var >= limit (equivalent to limit <= var)
+            compiler->emitInstruction(Instruction::createLE(condReg, limitReg, varSlot));
+        } else {
+            // For positive step: var <= limit
+            compiler->emitInstruction(Instruction::createLE(condReg, varSlot, limitReg));
+        }
+
+        // Jump to end if condition is false
+        compiler->emitInstruction(Instruction::createTEST(condReg, 1));
         int exitJump = compiler->emitJump();
-        compiler->freeReg(); // Free condition register
-        
+
+        compiler->freeReg(); // condReg
+
         // Compile loop body
         compileStmt(stmt->getBody());
-        
+
         // Increment loop variable
         compiler->emitInstruction(Instruction::createADD(varSlot, varSlot, stepReg));
-        
+
         // Jump back to loop start
         int currentPos = static_cast<int>(compiler->getCodeSize());
         int backJump = currentPos - loopStart + 1;  // +1 because JMP instruction itself advances PC
         compiler->emitInstruction(Instruction::createJMP(-backJump));
-        
+
         // Patch exit jump
         compiler->patchJump(exitJump);
-        
+
         // Free limit and step registers
         compiler->freeReg(); // step
         compiler->freeReg(); // limit
-        
+
         compiler->endScope();
     }
     
@@ -418,8 +444,7 @@ namespace Lua {
         const auto& variables = stmt->getVariables();
         for (size_t i = 0; i < variables.size(); ++i) {
             const Str& varName = variables[i];
-            int varSlot = compiler->allocReg();
-            compiler->addLocal(varName, varSlot);
+            int varSlot = compiler->defineLocal(varName);
             
             if (i == 0) {
                 compiler->emitInstruction(Instruction::createMOVE(varSlot, exprReg));
@@ -536,30 +561,36 @@ namespace Lua {
 
         // Check function nesting depth before proceeding
         compiler->enterFunctionScope();
-        
-        // Create a new compiler instance for the function body
-        Compiler functionCompiler;
-        // Note: Do not inherit nesting depth - the parent compiler already tracks it
-        
-        // Create ScopeManager for upvalue analysis
-        ScopeManager scopeManager;
-        
-        // Analyze upvalues using UpvalueAnalyzer
-        UpvalueAnalyzer analyzer(scopeManager);
+
+        // Create compilation context for the nested function
+        auto childContext = compiler->createChildContext();
+
+        // Create a new compiler instance for the function body with parent context
+        Compiler functionCompiler(childContext);
+
+        // Analyze upvalues using the parent compiler's scope manager
+        // This allows the analyzer to see variables from outer scopes
+        UpvalueAnalyzer analyzer(compiler->getScopeManager());
+
+        // Analyze the function body to find upvalues
         analyzer.analyzeFunction(stmt);
         const auto& upvalues = analyzer.getUpvalues();
+
+        // Store upvalues in the function compiler
+        for (const auto& upvalue : upvalues) {
+            functionCompiler.addUpvalue(upvalue.name, upvalue.isLocal, upvalue.stackIndex);
+        }
         
         // Enter function scope and define parameters
         functionCompiler.beginScope();
 
         // Lua 5.1官方调用约定：寄存器0是函数，参数从寄存器1开始
         // 先分配寄存器0给函数本身（虽然不会直接使用）
-        functionCompiler.allocReg();  // 寄存器0保留给函数
+        functionCompiler.defineLocal("function");  // 寄存器0保留给函数
 
         // 然后分配参数寄存器（从寄存器1开始）
         for (const auto& param : stmt->getParameters()) {
-            int paramReg = functionCompiler.allocReg();  // 寄存器1, 2, 3...
-            functionCompiler.addLocal(param, paramReg);
+            functionCompiler.defineLocal(param);  // 寄存器1, 2, 3...
         }
         
         // Compile function body
@@ -578,9 +609,9 @@ namespace Lua {
         auto functionProto = Function::createLua(
             functionCode,
             functionCompiler.getConstants(),
-            {}, // prototypes - empty for now
+            functionCompiler.getPrototypes(),
             static_cast<u8>(stmt->getParameters().size()),
-            static_cast<u8>(functionCompiler.getLocals().size()),
+            static_cast<u8>(functionCompiler.getScopeManager().getLocalCount()),
             static_cast<u8>(upvalues.size())
         );
         
@@ -596,22 +627,45 @@ namespace Lua {
 
         // Generate upvalue binding instructions
         for (const auto& upvalue : upvalues) {
-            if (upvalue.isLocal) {
-                // Capture local variable - move to upvalue
-                int localReg = compiler->resolveLocal(upvalue.name);
-                if (localReg >= 0) {
-                    compiler->emitInstruction(Instruction::createMOVE(upvalue.index, localReg));
-                }
-            } else {
-                // Capture upvalue from parent - get upvalue
-                compiler->emitInstruction(Instruction::createGETUPVAL(upvalue.index, upvalue.stackIndex));
+            // Create upvalue binding instruction for VM
+            // A = isLocal flag (1 for local, 0 for upvalue)
+            // B = source index (local variable register index or parent upvalue index)
+            u8 isLocal = upvalue.isLocal ? 1 : 0;
+            u8 sourceIndex = static_cast<u8>(upvalue.stackIndex);  // Use stackIndex, not index
+
+
+
+            // Validate source index bounds
+            if (sourceIndex > 255) {
+                throw LuaException("Upvalue source index out of bounds: " + std::to_string(sourceIndex));
             }
+
+            // Use a generic instruction format for upvalue binding
+            // This will be interpreted by VM's op_closure method
+            // Note: These are not real instructions, just data for upvalue binding
+            Instruction upvalBinding;
+            upvalBinding.setOpCode(OpCode::MOVE);  // Use MOVE as a placeholder opcode
+            upvalBinding.setA(isLocal);
+            upvalBinding.setB(sourceIndex);
+
+
+
+            compiler->emitInstruction(upvalBinding);
         }
-        
+
         // Store function in global or local variable
-        int nameConstant = compiler->addConstant(Value(stmt->getName()));
-        //std::cerr << "FUNCTION: generating SETGLOBAL instruction, reg=" << closureReg << " nameConstant=" << nameConstant << std::endl;
-        compiler->emitInstruction(Instruction::createSETGLOBAL(closureReg, nameConstant));
+        auto varInfo = compiler->resolveVariable(stmt->getName());
+        switch (varInfo.type) {
+            case Compiler::VariableType::Local:
+                compiler->emitInstruction(Instruction::createMOVE(varInfo.index, closureReg));
+                break;
+            case Compiler::VariableType::Upvalue:
+                compiler->emitInstruction(Instruction::createSETUPVAL(closureReg, varInfo.index));
+                break;
+            case Compiler::VariableType::Global:
+                compiler->emitInstruction(Instruction::createSETGLOBAL(closureReg, varInfo.index));
+                break;
+        }
         
         // Free closure register
         compiler->freeReg();

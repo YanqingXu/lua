@@ -311,4 +311,16 @@ namespace Lua {
         enterScope();
     }
 
+    void ScopeManager::setParentScope(ScopeManager* parentScopeManager) {
+        if (parentScopeManager && parentScopeManager->currentScope) {
+            // If we don't have a current scope, create one
+            if (!currentScope) {
+                enterScope();
+            }
+
+            // Set the parent scope chain
+            currentScope->parent = parentScopeManager->currentScope;
+        }
+    }
+
 } // namespace Lua

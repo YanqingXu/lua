@@ -236,7 +236,8 @@ namespace Lua {
 
     Value* VM::getRegPtr(int reg) {
         // Convert VM register (0-based) to stack position using register base
-        return state->getPtr(registerBase + reg);
+        // State::getPtr expects 1-based index, so we add 1
+        return state->getPtr(registerBase + reg + 1);
     }
     
     // Instruction implementations
@@ -729,6 +730,8 @@ namespace Lua {
     void VM::op_closure(Instruction i) {
         u8 a = i.getA();  // Target register
         u16 bx = i.getBx(); // Function prototype index
+
+
         
         // Get function prototype from current function's prototypes
         if (!currentFunction || currentFunction->getType() != Function::Type::Lua) {
@@ -774,14 +777,18 @@ namespace Lua {
         }
         
         // Bind upvalues from the current environment
+
         for (u32 upvalIndex = 0; upvalIndex < prototype->getUpvalueCount(); upvalIndex++) {
             // Read the next instruction to get upvalue binding info
-            pc++;
+            // Note: pc was already incremented in runInstruction, so we read from current pc
             if (pc >= code->size()) break;
             
             Instruction upvalInstr = (*code)[pc];
+            pc++;  // Advance to next instruction for next iteration
             u8 isLocal = upvalInstr.getA();
             u8 index = upvalInstr.getB();
+
+
             
             GCRef<Upvalue> upvalue;
             
@@ -789,6 +796,11 @@ namespace Lua {
                 // Capture a local variable from the current stack frame
                 // Lua 5.1官方设计：使用0基索引，直接使用寄存器编号
                 Value* location = getRegPtr(index);
+
+
+
+
+
                 upvalue = findOrCreateUpvalue(location);
             } else {
                 // Inherit an upvalue from the current function
@@ -839,7 +851,9 @@ namespace Lua {
         } catch (const std::runtime_error& e) {
             throw LuaException(e.what());
         }
-        
+
+
+
         // Store in target register
         // Lua 5.1官方设计：使用0基索引，直接使用寄存器编号
         setReg(a, value);

@@ -118,6 +118,7 @@ namespace Lua {
         // Scope management
         void enterScope();
         void exitScope();
+        void setParentScope(ScopeManager* parentScopeManager);
         
         // Variable management
         bool defineLocal(const Str& name, int stackIndex = -1);

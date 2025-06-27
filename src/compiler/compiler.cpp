@@ -8,14 +8,32 @@
 
 namespace Lua {
     Compiler::Compiler() :
-        scopeDepth(0),
+        scopeManager_(),
         functionNestingDepth(0),
         code(std::make_shared<Vec<Instruction>>()),
+        parentContext_(nullptr),
         utils(),
         registerManager_() {  // Lua 5.1官方寄存器管理器
         initializeModules();
     }
-    
+
+    Compiler::Compiler(Ptr<CompilationContext> parentContext) :
+        scopeManager_(),
+        functionNestingDepth(0),
+        code(std::make_shared<Vec<Instruction>>()),
+        parentContext_(parentContext),
+        utils(),
+        registerManager_() {
+        initializeModules();
+
+        // If we have a parent context, inherit the parent scope chain
+        if (parentContext_ && parentContext_->parentScope) {
+            // Set the parent scope in our scope manager
+            // This allows isFreeVariable to work correctly
+            scopeManager_.setParentScope(parentContext_->parentScope);
+        }
+    }
+
     Compiler::~Compiler() = default;
     
     void Compiler::initializeModules() {
@@ -40,18 +58,79 @@ namespace Lua {
         utils.patchJump(*code, from, static_cast<int>(code->size()));
     }
     
-    void Compiler::beginScope() {
-        utils.enterScope(scopeDepth);
-        registerManager_.enterScope();
+    int Compiler::defineLocal(const Str& name, int stackIndex) {
+        if (stackIndex == -1) {
+            stackIndex = registerManager_.allocateLocal(name);
+        }
+
+        bool success = scopeManager_.defineLocal(name, stackIndex);
+        if (!success) {
+            throw LuaException("Failed to define local variable: " + name);
+        }
+
+        return stackIndex;
     }
 
-    void Compiler::endScope() {
-        utils.exitScope(scopeDepth, locals);
-        registerManager_.exitScope();
+    int Compiler::addUpvalue(const Str& name, bool isLocal, int index) {
+        // Check if upvalue already exists
+        for (size_t i = 0; i < currentUpvalues_.size(); ++i) {
+            if (currentUpvalues_[i].name == name) {
+                return static_cast<int>(i);
+            }
+        }
+
+        // Add new upvalue
+        int upvalueIndex = static_cast<int>(currentUpvalues_.size());
+        currentUpvalues_.emplace_back(name, upvalueIndex, isLocal, index);
+
+        return upvalueIndex;
     }
-    
-    int Compiler::resolveLocal(const Str& name) {
-        return utils.resolveLocal(locals, name, scopeDepth);
+
+    Compiler::VariableInfo Compiler::resolveVariable(const Str& name) {
+        // 1. Check if it's a local variable in current scope
+        Variable* localVar = scopeManager_.findVariable(name);
+        if (localVar && scopeManager_.isLocalVariable(name)) {
+            return VariableInfo(VariableType::Local, localVar->stackIndex);
+        }
+
+        // 2. Check if it's an upvalue (variable from outer scope)
+        if (scopeManager_.isFreeVariable(name)) {
+            // Find the variable in parent scopes
+            Variable* parentVar = nullptr;
+            bool isLocal = true;
+            int sourceIndex = 0;
+
+            // Check if we have parent context
+            if (parentContext_ && parentContext_->parentScope) {
+                parentVar = parentContext_->parentScope->findVariable(name);
+                if (parentVar) {
+                    // Check if it's a local variable in the immediate parent
+                    if (parentContext_->parentScope->isLocalVariable(name)) {
+                        isLocal = true;
+                        sourceIndex = parentVar->stackIndex;
+                    } else {
+                        // It's an upvalue in the parent, need to find it in parent's upvalues
+                        isLocal = false;
+                        if (parentContext_->parentUpvalues) {
+                            for (size_t i = 0; i < parentContext_->parentUpvalues->size(); ++i) {
+                                if ((*parentContext_->parentUpvalues)[i].name == name) {
+                                    sourceIndex = static_cast<int>(i);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+
+                    // Add this as an upvalue in current function
+                    int upvalueIndex = addUpvalue(name, isLocal, sourceIndex);
+                    return VariableInfo(VariableType::Upvalue, upvalueIndex);
+                }
+            }
+        }
+
+        // 3. It's a global variable
+        int constantIndex = addConstant(Value(name));
+        return VariableInfo(VariableType::Global, constantIndex);
     }
     
     void Compiler::enterFunctionScope() {
@@ -86,18 +165,26 @@ namespace Lua {
     
     GCRef<Function> Compiler::compile(const Vec<UPtr<Stmt>>& statements) {
         try {
+            // Initialize global scope for main chunk
+            beginScope();
+
             // Compile each statement
             for (const auto& stmt : statements) {
                 stmtCompiler->compileStmt(stmt.get());
             }
-            
+
             // Add return instruction for main chunk
             // Main chunk should return nil without affecting global variables
             emitInstruction(Instruction::createRETURN(0, 1));
-            
+
+            // End global scope
+            endScope();
+
             // Create function object with proper parameters
             // Main function has 0 parameters and includes all nested function prototypes
-            return Function::createLua(code, constants, prototypes, 0);
+            return Function::createLua(code, constants, prototypes, 0,
+                                     static_cast<u8>(scopeManager_.getLocalCount()),
+                                     static_cast<u8>(currentUpvalues_.size()));
         } catch (const LuaException& e) {
             // Compilation error, return nullptr
             CompilerUtils::reportCompilerError(e.what());
