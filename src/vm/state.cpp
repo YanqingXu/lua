@@ -1,4 +1,4 @@
-#include "state.hpp"
+﻿#include "state.hpp"
 #include "table.hpp"
 #include "function.hpp"
 #include "../common/defines.hpp"
@@ -40,13 +40,10 @@ namespace Lua {
 
         // Handle absolute and relative indices
         int abs_idx;
-        if (idx > 0) {
-            abs_idx = idx - 1;  // Convert 1-based to 0-based
-        } else if (idx < 0) {
-            abs_idx = top + idx;  // Index relative to stack top
+        if (idx >= 0) {
+            abs_idx = idx;  // Direct 0-based indexing
         } else {
-            // Index 0 is invalid
-            return nil;
+            abs_idx = top + idx;  // Index relative to stack top
         }
 
         // Check if index is within range
@@ -60,13 +57,10 @@ namespace Lua {
     void State::set(int idx, const Value& value) {
         // Handle absolute and relative indices
         int abs_idx;
-        if (idx > 0) {
-            abs_idx = idx - 1;  // Convert 1-based to 0-based
-        } else if (idx < 0) {
-            abs_idx = top + idx;  // Index relative to stack top
+        if (idx >= 0) {
+            abs_idx = idx;  // Direct 0-based indexing
         } else {
-            // Index 0 is invalid
-            return;
+            abs_idx = top + idx;  // Index relative to stack top
         }
 
         // Automatically extend stack to accommodate new index
@@ -173,7 +167,7 @@ namespace Lua {
         return Value(nullptr);  // nil
     }
 
-    // Function call
+    // Function call (Lua 5.1官方设计)
     Value State::call(const Value& func, const Vec<Value>& args) {
         if (!func.isFunction()) {
             throw LuaException("attempt to call a non-function value");
@@ -188,6 +182,7 @@ namespace Lua {
                 throw LuaException("attempt to call a nil value");
             }
 
+            // 使用传统的参数传递方式（保持兼容性）
             // Save current stack top
             int oldTop = top;
 
@@ -236,6 +231,31 @@ namespace Lua {
             std::cerr << "Lua error: " << e.what() << std::endl;
             return Value(nullptr);
         }
+    }
+
+    // Native function call with arguments already on stack (Lua 5.1 design)
+    Value State::callNative(const Value& func, int nargs) {
+        if (!func.isFunction()) {
+            throw LuaException("attempt to call a non-function value");
+        }
+
+        auto function = func.asFunction();
+
+        // Only handle native functions
+        if (function->getType() != Function::Type::Native) {
+            throw LuaException("callNative can only call native functions");
+        }
+
+        auto nativeFn = function->getNative();
+        if (!nativeFn) {
+            throw LuaException("attempt to call a nil value");
+        }
+
+        // Lua 5.1官方设计：参数已经在栈顶，直接调用
+        // Native函数会使用State::get(stackTop - nargs + 1 + i)来访问参数
+        Value result = nativeFn(this, nargs);
+
+        return result;
     }
 
     // Execute Lua code from string

@@ -142,6 +142,8 @@
     <ClInclude Include="src\compiler\compiler.hpp" />
     <ClInclude Include="src\compiler\compiler_utils.hpp" />
     <ClInclude Include="src\compiler\expression_compiler.hpp" />
+    <ClInclude Include="src\compiler\register_manager.hpp" />
+    <ClInclude Include="src\compiler\simple_register_allocator.hpp" />
     <ClInclude Include="src\compiler\statement_compiler.hpp" />
     <ClInclude Include="src\compiler\symbol_table.hpp" />
     <ClInclude Include="src\compiler\upvalue_analyzer.hpp" />
@@ -221,6 +223,7 @@
     <ClCompile Include="src\compiler\compiler.cpp" />
     <ClCompile Include="src\compiler\compiler_utils.cpp" />
     <ClCompile Include="src\compiler\expression_compiler.cpp" />
+    <ClCompile Include="src\compiler\register_manager.cpp" />
     <ClCompile Include="src\compiler\statement_compiler.cpp" />
     <ClCompile Include="src\compiler\symbol_table.cpp" />
     <ClCompile Include="src\compiler\upvalue_analyzer.cpp" />

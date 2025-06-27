@@ -5,6 +5,7 @@
 #include "../vm/function.hpp"
 #include "../common/opcodes.hpp"
 #include "compiler_utils.hpp"
+#include "register_manager.hpp"
 #include <iostream>
 
 namespace Lua {
@@ -36,8 +37,8 @@ namespace Lua {
         // Jump instruction positions for current block
         Vec<int> breaks;
         
-        // Next available register
-        int nextRegister;
+        // Lua 5.1官方寄存器管理器
+        RegisterManager registerManager_;
         
         // Function nesting depth tracking
         int functionNestingDepth;
@@ -64,17 +65,33 @@ namespace Lua {
         ExpressionCompiler* getExpressionCompiler() const { return exprCompiler.get(); }
         StatementCompiler* getStatementCompiler() const { return stmtCompiler.get(); }
         
-        // Register management (简化版本)
+        // Register management (Lua 5.1官方设计)
         int allocReg() {
-            int reg = nextRegister++;
-            return reg;
+            return registerManager_.allocateTemp("expr");
         }
-        void freeReg() {
-            if (nextRegister > 1) {
-                nextRegister--;
-            }
+        int allocTempReg(const std::string& name = "temp") {
+            return registerManager_.allocateTemp(name);
         }
-        int getNextReg() const { return nextRegister; }
+        int allocLocalReg(const std::string& name = "") {
+            return registerManager_.allocateLocal(name);
+        }
+        void freeTempReg() {
+            registerManager_.freeTemp();
+        }
+        void freeReg() {  // 保持兼容性
+            registerManager_.freeTemp();
+        }
+        int getNextReg() const {
+            return registerManager_.getStackTop();
+        }
+        int getLocalCount() const {
+            return registerManager_.getLocalCount();
+        }
+
+
+
+        // 寄存器管理器访问
+        RegisterManager& getRegisterManager() { return registerManager_; }
         
         // Constant management
         int addConstant(const Value& value);

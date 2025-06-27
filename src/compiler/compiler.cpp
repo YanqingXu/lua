@@ -9,10 +9,10 @@
 namespace Lua {
     Compiler::Compiler() :
         scopeDepth(0),
-        nextRegister(1),  // Start from register 1, reserve register 0 for special use
         functionNestingDepth(0),
         code(std::make_shared<Vec<Instruction>>()),
-        utils() {
+        utils(),
+        registerManager_() {  // Lua 5.1官方寄存器管理器
         initializeModules();
     }
     
@@ -42,10 +42,12 @@ namespace Lua {
     
     void Compiler::beginScope() {
         utils.enterScope(scopeDepth);
+        registerManager_.enterScope();
     }
-    
+
     void Compiler::endScope() {
         utils.exitScope(scopeDepth, locals);
+        registerManager_.exitScope();
     }
     
     int Compiler::resolveLocal(const Str& name) {

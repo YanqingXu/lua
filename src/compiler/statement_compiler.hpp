@@ -29,6 +29,7 @@ namespace Lua {
         void compileReturnStmt(const ReturnStmt* stmt);
         void compileBreakStmt(const BreakStmt* stmt);
         void compileFunctionStmt(const FunctionStmt* stmt);
+        void compileDoStmt(const DoStmt* stmt);
         
     private:
         // Helper methods for control flow

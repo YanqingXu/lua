@@ -2,6 +2,7 @@
 
 #include "../common/types.hpp"
 #include "../common/opcodes.hpp"
+#include <iostream>
 
 namespace Lua {
     // Instruction format (simplified based on Lua 5.1 instruction format)
@@ -79,6 +80,10 @@ namespace Lua {
             i.setOpCode(OpCode::MOVE);
             i.setA(a);
             i.setB(b);
+
+#ifdef DEBUG_INSTRUCTION_CREATION
+            std::cout << "[DEBUG] CREATE MOVE: a=" << (int)a << ", b=" << (int)b << std::endl;
+#endif
             return i;
         }
         

@@ -1,4 +1,4 @@
-#include "statement_compiler.hpp"
+﻿#include "statement_compiler.hpp"
 #include "compiler.hpp"
 #include "expression_compiler.hpp"
 #include "upvalue_analyzer.hpp"
@@ -51,6 +51,9 @@ namespace Lua {
                 break;
             case StmtType::Function:
                 compileFunctionStmt(static_cast<const FunctionStmt*>(stmt));
+                break;
+            case StmtType::Do:
+                compileDoStmt(static_cast<const DoStmt*>(stmt));
                 break;
             default:
                 throw LuaException("Unknown statement type in compilation");
@@ -137,32 +140,74 @@ namespace Lua {
     }
     
     void StatementCompiler::compileBlockStmt(const BlockStmt* stmt) {
-        compiler->beginScope();
-        
+        // 检测是否是多重局部变量声明的BlockStmt
+        bool isMultiLocalBlock = true;
+        for (const auto& statement : stmt->getStatements()) {
+            if (statement->getType() != StmtType::Local) {
+                isMultiLocalBlock = false;
+                break;
+            }
+        }
+
+        // 如果是多重局部变量声明，不创建新的作用域
+        if (!isMultiLocalBlock) {
+            compiler->beginScope();
+        }
+
         for (const auto& statement : stmt->getStatements()) {
             compileStmt(statement.get());
         }
-        
-        compiler->endScope();
+
+        if (!isMultiLocalBlock) {
+            compiler->endScope();
+        }
     }
     
     void StatementCompiler::compileLocalStmt(const LocalStmt* stmt) {
         const Str& name = stmt->getName();
         const Expr* initializer = stmt->getInitializer();
         
-        // Declare local variable
-        int varSlot = compiler->allocReg();
+        // Declare local variable using Lua 5.1 official design
+        int varSlot = compiler->allocLocalReg(name);
+
+#ifdef DEBUG_COMPILER
+        std::cout << "[DEBUG] LOCAL ALLOC: name='" << name
+                  << "', varSlot=" << varSlot << std::endl;
+#endif
         compiler->addLocal(name, varSlot);
         
         if (initializer != nullptr) {
-            // Compile initializer expression
+    #ifdef DEBUG_COMPILER
+            std::cout << "[DEBUG] LOCAL has initializer for '" << name << "'" << std::endl;
+#endif
+            // TODO: 优化 - 直接将初始化表达式编译到局部变量槽位
+            // 当前实现：先编译到临时寄存器，再移动（保持兼容性）
             int initReg = compiler->getExpressionCompiler()->compileExpr(initializer);
-            // Move initializer value to variable slot
-            // 注意：VM使用1基索引，所以需要减1
-            compiler->emitInstruction(Instruction::createMOVE(varSlot - 1, initReg - 1));
-            // Free initializer register
-            compiler->freeReg();
+
+#ifdef DEBUG_COMPILER
+            std::cout << "[DEBUG] LOCAL initializer compiled to reg=" << initReg << std::endl;
+#endif
+
+            if (initReg != varSlot) {
+                // 只有当初始化寄存器与变量槽位不同时才需要移动
+#ifdef DEBUG_COMPILER
+                std::cout << "[DEBUG] LOCAL MOVE: name='" << name
+                          << "', varSlot=" << varSlot
+                          << ", initReg=" << initReg << std::endl;
+#endif
+                compiler->emitInstruction(Instruction::createMOVE(varSlot, initReg));
+                // Free initializer register
+                compiler->freeReg();
+            } else {
+#ifdef DEBUG_COMPILER
+                std::cout << "[DEBUG] LOCAL NO MOVE: initReg=" << initReg
+                          << " == varSlot=" << varSlot << std::endl;
+#endif
+            }
         } else {
+#ifdef DEBUG_COMPILER
+            std::cout << "[DEBUG] LOCAL no initializer for '" << name << "', setting to nil" << std::endl;
+#endif
             // Initialize with nil
             compiler->emitInstruction(Instruction::createLOADNIL(varSlot));
         }
@@ -177,9 +222,9 @@ namespace Lua {
         
         // Assign to target
         if (target->getType() == ExprType::Variable) {
-                const auto* varExpr = static_cast<const VariableExpr*>(target);
-                const Str& name = varExpr->getName();
-                
+            const auto* varExpr = static_cast<const VariableExpr*>(target);
+            const Str& name = varExpr->getName();
+
             // Try to find local variable
             int localSlot = compiler->resolveLocal(name);
             if (localSlot != -1) {
@@ -187,10 +232,39 @@ namespace Lua {
             } else {
                 // Global variable assignment
                 int nameIdx = compiler->addConstant(Value(name));
-                compiler->emitInstruction(Instruction::createSETGLOBAL(valueReg - 1, nameIdx));
+                compiler->emitInstruction(Instruction::createSETGLOBAL(valueReg, nameIdx));
             }
         }
-        // TODO: Handle table assignments (IndexAccessExpr, MemberAccessExpr)
+        else if (target->getType() == ExprType::Index) {
+            // Table index assignment: table[key] = value
+            const auto* indexExpr = static_cast<const IndexExpr*>(target);
+            int tableReg = compiler->getExpressionCompiler()->compileExpr(indexExpr->getObject());
+            int keyReg = compiler->getExpressionCompiler()->compileExpr(indexExpr->getIndex());
+
+            // SETTABLE table[key] = value
+            compiler->emitInstruction(Instruction::createSETTABLE(tableReg, keyReg, valueReg));
+
+            // Free registers
+            compiler->freeReg(); // Free key register
+            compiler->freeReg(); // Free table register
+        }
+        else if (target->getType() == ExprType::Member) {
+            // Table member assignment: table.member = value
+            const auto* memberExpr = static_cast<const MemberExpr*>(target);
+            int tableReg = compiler->getExpressionCompiler()->compileExpr(memberExpr->getObject());
+
+            // Convert member name to string constant
+            int nameIdx = compiler->addConstant(Value(memberExpr->getName()));
+
+            // SETTABLE table[name] = value
+            compiler->emitInstruction(Instruction::createSETTABLE(tableReg, nameIdx, valueReg));
+
+            // Free table register
+            compiler->freeReg();
+        }
+        else {
+            throw LuaException("Invalid assignment target");
+        }
         
         // Free value register
         compiler->freeReg();
@@ -531,12 +605,18 @@ namespace Lua {
         // Store function in global or local variable
         int nameConstant = compiler->addConstant(Value(stmt->getName()));
         //std::cerr << "FUNCTION: generating SETGLOBAL instruction, reg=" << closureReg << " nameConstant=" << nameConstant << std::endl;
-        compiler->emitInstruction(Instruction::createSETGLOBAL(closureReg - 1, nameConstant));
+        compiler->emitInstruction(Instruction::createSETGLOBAL(closureReg, nameConstant));
         
         // Free closure register
         compiler->freeReg();
         
         // Exit function scope
         compiler->exitFunctionScope();
+    }
+
+    void StatementCompiler::compileDoStmt(const DoStmt* stmt) {
+        // Do statement is just a block with its own scope
+        // The body is already a block statement, so we just compile it
+        compileStmt(stmt->getBody());
     }
 }

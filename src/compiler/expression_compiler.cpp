@@ -65,8 +65,8 @@ namespace Lua {
                 if (constIdx < 0 || constIdx > 65535) {
                     throw LuaException("Constant index out of range for LOADK instruction");
                 }
-                // 注意：VM使用1基索引，所以需要减1
-                compiler->emitInstruction(Instruction::createLOADK(reg - 1, static_cast<u16>(constIdx)));
+                // Lua官方设计：使用0基索引，直接使用寄存器编号
+                compiler->emitInstruction(Instruction::createLOADK(reg, static_cast<u16>(constIdx)));
                 break;
             }
             
@@ -77,8 +77,8 @@ namespace Lua {
                 if (constIdx < 0 || constIdx > 65535) {
                     throw LuaException("Constant index out of range for LOADK instruction");
                 }
-                // 注意：VM使用1基索引，所以需要减1
-                compiler->emitInstruction(Instruction::createLOADK(reg - 1, static_cast<u16>(constIdx)));
+                // Lua 5.1官方设计：使用0基索引，直接使用寄存器编号
+                compiler->emitInstruction(Instruction::createLOADK(reg, static_cast<u16>(constIdx)));
                 break;
             }
             
@@ -99,14 +99,23 @@ namespace Lua {
         // Try to find local variable
         int localSlot = compiler->resolveLocal(name);
         if (localSlot != -1) {
-            return localSlot; // Local variables are already in registers
+            // Lua官方设计：编译器和VM都使用0基索引，直接返回
+#ifdef DEBUG_COMPILER
+            std::cout << "[DEBUG] COMPILE VAR LOCAL: name='" << name
+                      << "', slot=" << localSlot << std::endl;
+#endif
+            return localSlot;
         }
-        
+
         // Global variable access
         int reg = compiler->allocReg();
         int nameIdx = compiler->addConstant(Value(name));
-        // 注意：VM使用1基索引，所以需要减1
-        compiler->emitInstruction(Instruction::createGETGLOBAL(reg - 1, nameIdx));
+
+#ifdef DEBUG_COMPILER
+        std::cout << "[DEBUG] COMPILE VAR GLOBAL: name='" << name
+                  << "', reg=" << reg << ", nameIdx=" << nameIdx << std::endl;
+#endif
+        compiler->emitInstruction(Instruction::createGETGLOBAL(reg, nameIdx));
         
         return reg;
     }
@@ -123,8 +132,8 @@ namespace Lua {
                 compiler->emitInstruction(Instruction::createNOT(resultReg, operandReg));
                 break;
             case TokenType::Hash:
-                // 注意：VM使用1基索引，所以需要减1
-                compiler->emitInstruction(Instruction::createLEN(resultReg - 1, operandReg - 1));
+                // Lua官方设计：使用0基索引，直接使用寄存器编号
+                compiler->emitInstruction(Instruction::createLEN(resultReg, operandReg));
                 break;
             default:
                 throw LuaException("Unknown unary operator");
@@ -181,15 +190,17 @@ namespace Lua {
                 break;
             case TokenType::DotDot:
                 // Generate CONCAT instruction: result = left .. right
-                // 注意：VM使用1基索引，所以需要减1
-                compiler->emitInstruction(Instruction::createCONCAT(resultReg - 1, leftReg - 1, rightReg - 1));
+                // Lua官方设计：使用0基索引，直接使用寄存器编号
+                compiler->emitInstruction(Instruction::createCONCAT(resultReg, leftReg, rightReg));
                 break;
             default:
                 throw LuaException("Unsupported binary operator");
         }
 
-        // 暂时不释放寄存器，避免混乱
-        // TODO: 实现正确的寄存器生命周期管理
+        // 释放操作数寄存器（Lua 5.1官方设计）
+        // 注意：只有当操作数是临时值时才释放，局部变量不释放
+        compiler->freeReg(); // 释放rightReg
+        compiler->freeReg(); // 释放leftReg
 
         return resultReg;
     }
@@ -204,15 +215,23 @@ namespace Lua {
         // 新策略：分配连续寄存器，然后直接编译到目标位置
         // 这样避免寄存器冲突
 
-        // 步骤1：分配连续的寄存器块
-        int base = compiler->allocReg();  // 函数寄存器
+        // 步骤1：分配连续的寄存器块（Lua 5.1官方设计）
+        int callFrameSize = 1 + nargs;  // 函数 + 参数
+        int base = compiler->getRegisterManager().allocateCallFrame(callFrameSize, "call");
 
+#ifdef DEBUG_COMPILER
+        std::cout << "[DEBUG] CALL COMPILE: base=" << base << ", nargs=" << nargs << std::endl;
+#endif
 
+        // 参数寄存器是连续的
         Vec<int> argTargets;
         for (int i = 0; i < nargs; i++) {
-            int argTarget = compiler->allocReg();
+            int argTarget = base + 1 + i;  // 参数从base+1开始
             argTargets.push_back(argTarget);
 
+#ifdef DEBUG_COMPILER
+            std::cout << "[DEBUG] CALL ARG TARGET: arg[" << i << "] -> reg=" << argTarget << std::endl;
+#endif
         }
 
         // 步骤2：编译函数到临时寄存器，然后移动
@@ -220,7 +239,7 @@ namespace Lua {
 
 
         if (funcReg != base) {
-            compiler->emitInstruction(Instruction::createMOVE(base - 1, funcReg - 1));
+            compiler->emitInstruction(Instruction::createMOVE(base, funcReg));
 
         }
 
@@ -228,20 +247,21 @@ namespace Lua {
         for (int i = 0; i < nargs; i++) {
             int argReg = compileExpr(args[i].get());
 
+#ifdef DEBUG_COMPILER
+            std::cout << "[DEBUG] CALL ARG COMPILE: arg[" << i << "] compiled to reg=" << argReg
+                      << ", target=" << argTargets[i] << std::endl;
+#endif
 
             if (argReg != argTargets[i]) {
-                compiler->emitInstruction(Instruction::createMOVE(argTargets[i] - 1, argReg - 1));
-
+                compiler->emitInstruction(Instruction::createMOVE(argTargets[i], argReg));
             }
         }
 
         // 步骤5：发出CALL指令
-        // CALL a b c: 函数在(a+1)，参数在(a+2)..(a+b)，结果在(a+1)
-        int callA = base - 1;
+        // CALL a b c: 函数在a，参数在a+1..a+nargs，结果在a
+        int callA = base;
         int callB = nargs + 1;  // 包括函数本身
         int callC = 2;          // 期望1个返回值
-
-
 
         compiler->emitInstruction(Instruction::createCALL(callA, callB, callC));
 
@@ -268,8 +288,8 @@ namespace Lua {
         }
         
         // Create new table with pre-sizing hints
-        // 注意：VM使用1基索引，所以需要减1
-        compiler->emitInstruction(Instruction::createNEWTABLE(tableReg - 1,
+        // Lua 5.1官方设计：使用0基索引，直接使用寄存器编号
+        compiler->emitInstruction(Instruction::createNEWTABLE(tableReg,
             static_cast<u8>(std::min(arraySize, 255)),
             static_cast<u8>(std::min(hashSize, 255))));
         
@@ -284,12 +304,12 @@ namespace Lua {
                 
                 // Load array index as constant
                 int indexConstant = compiler->addConstant(Value(static_cast<double>(arrayIndex)));
-                // 注意：VM使用1基索引，所以需要减1
-                compiler->emitInstruction(Instruction::createLOADK(indexReg - 1, indexConstant));
+                // Lua官方设计：使用0基索引，直接使用寄存器编号
+                compiler->emitInstruction(Instruction::createLOADK(indexReg, indexConstant));
 
                 // Set table field: SETTABLE table[index] = value
-                // 注意：VM使用1基索引，所以需要减1
-                compiler->emitInstruction(Instruction::createSETTABLE(tableReg - 1, indexReg - 1, valueReg - 1));
+                // Lua官方设计：使用0基索引，直接使用寄存器编号
+                compiler->emitInstruction(Instruction::createSETTABLE(tableReg, indexReg, valueReg));
                 
                 compiler->freeReg(); // Free value register
                 compiler->freeReg(); // Free index register
@@ -300,8 +320,8 @@ namespace Lua {
                 int valueReg = compileExpr(field.value.get());
                 
                 // Set table field: SETTABLE table[key] = value
-                // 注意：VM使用1基索引，所以需要减1
-                compiler->emitInstruction(Instruction::createSETTABLE(tableReg - 1, keyReg - 1, valueReg - 1));
+                // Lua官方设计：使用0基索引，直接使用寄存器编号
+                compiler->emitInstruction(Instruction::createSETTABLE(tableReg, keyReg, valueReg));
                 
                 compiler->freeReg(); // Free value register
                 compiler->freeReg(); // Free key register
@@ -316,8 +336,8 @@ namespace Lua {
         int indexReg = compileExpr(expr->getIndex());
         int resultReg = compiler->allocReg();
 
-        // 注意：VM使用1基索引，所以需要减1
-        compiler->emitInstruction(Instruction::createGETTABLE(resultReg - 1, tableReg - 1, indexReg - 1));
+        // Lua官方设计：使用0基索引，直接使用寄存器编号
+        compiler->emitInstruction(Instruction::createGETTABLE(resultReg, tableReg, indexReg));
 
         // 暂时不释放寄存器
 
@@ -331,8 +351,8 @@ namespace Lua {
         // Convert member name to string constant
         int nameIdx = compiler->addConstant(Value(expr->getName()));
 
-        // 注意：VM使用1基索引，所以需要减1
-        compiler->emitInstruction(Instruction::createGETTABLE(resultReg - 1, tableReg - 1, nameIdx));
+        // Lua 5.1官方设计：使用0基索引，直接使用寄存器编号
+        compiler->emitInstruction(Instruction::createGETTABLE(resultReg, tableReg, nameIdx));
 
         compiler->freeReg(); // Free table register
 
@@ -365,26 +385,26 @@ namespace Lua {
     }
     
     void ExpressionCompiler::compileComparisonOp(TokenType op, int resultReg, int leftReg, int rightReg) {
-        // 注意：VM使用1基索引，所以需要减1
+        // Lua官方设计：使用0基索引，直接使用寄存器编号
         switch (op) {
             case TokenType::Equal:
-                compiler->emitInstruction(Instruction::createEQ(resultReg - 1, leftReg - 1, rightReg - 1));
+                compiler->emitInstruction(Instruction::createEQ(resultReg, leftReg, rightReg));
                 break;
             case TokenType::NotEqual:
-                compiler->emitInstruction(Instruction::createEQ(resultReg - 1, leftReg - 1, rightReg - 1));
-                compiler->emitInstruction(Instruction::createNOT(resultReg - 1, resultReg - 1));
+                compiler->emitInstruction(Instruction::createEQ(resultReg, leftReg, rightReg));
+                compiler->emitInstruction(Instruction::createNOT(resultReg, resultReg));
                 break;
             case TokenType::Less:
-                compiler->emitInstruction(Instruction::createLT(resultReg - 1, leftReg - 1, rightReg - 1));
+                compiler->emitInstruction(Instruction::createLT(resultReg, leftReg, rightReg));
                 break;
             case TokenType::LessEqual:
-                compiler->emitInstruction(Instruction::createLE(resultReg - 1, leftReg - 1, rightReg - 1));
+                compiler->emitInstruction(Instruction::createLE(resultReg, leftReg, rightReg));
                 break;
             case TokenType::Greater:
-                compiler->emitInstruction(Instruction::createLT(resultReg - 1, rightReg - 1, leftReg - 1));
+                compiler->emitInstruction(Instruction::createLT(resultReg, rightReg, leftReg));
                 break;
             case TokenType::GreaterEqual:
-                compiler->emitInstruction(Instruction::createLE(resultReg - 1, rightReg - 1, leftReg - 1));
+                compiler->emitInstruction(Instruction::createLE(resultReg, rightReg, leftReg));
                 break;
             default:
                 throw LuaException("Unknown comparison operator");
