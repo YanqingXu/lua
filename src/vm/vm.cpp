@@ -60,10 +60,16 @@ namespace Lua {
 
 
         // 调试：显示栈内容
+#ifdef DEBUG_VM_INSTRUCTIONS
+        std::cout << "[DEBUG] VM::execute stackSize=" << stackSize
+                  << ", expectedArgs=" << expectedArgs
+                  << ", registerBase=" << this->registerBase << std::endl;
         for (int i = 0; i < stackSize; ++i) {
             Value val = state->get(i);
-
+            std::cout << "[DEBUG] Stack[" << i << "] = " << val.toString()
+                      << " (type=" << (int)val.type() << ")" << std::endl;
         }
+#endif
         
         Value result = Value(nullptr);  // Default return value is nil
         
@@ -633,8 +639,20 @@ namespace Lua {
             state->push(arg);  // 将参数push到栈顶
         }
 
-        // 3. 调用函数（现在参数在正确的栈位置）
-        Value result = state->callNative(func, nargs);
+        // 3. 调用函数（根据函数类型选择调用方法）
+        Value result;
+        if (func.isFunction()) {
+            auto function = func.asFunction();
+            if (function->getType() == Function::Type::Native) {
+                // Native函数调用
+                result = state->callNative(func, nargs);
+            } else {
+                // Lua函数调用
+                result = state->callLua(func, nargs);
+            }
+        } else {
+            throw LuaException("attempt to call a non-function value");
+        }
 
         // 4. 恢复栈状态
         state->setTop(oldTop);
@@ -662,8 +680,9 @@ namespace Lua {
         }
 
         // Clean up extra stack space
-        if (state->getTop() > a + 1 + std::max(1, expectedReturns)) {
-            int targetTop = a + 1 + std::max(1, expectedReturns);
+        // Lua 5.1官方设计：使用0基索引，直接使用寄存器编号
+        if (state->getTop() > a + std::max(1, expectedReturns)) {
+            int targetTop = a + std::max(1, expectedReturns);
             for (int i = state->getTop(); i > targetTop; --i) {
                 state->pop();
             }
@@ -685,8 +704,9 @@ namespace Lua {
 
             } else {
                 // Return all values from register a onwards
+                // Lua 5.1官方设计：使用0基索引，直接使用寄存器编号
                 for (int i = 0; i < numValues; ++i) {
-                    Value returnValue = getReg(a + 1 + i);
+                    Value returnValue = getReg(a + i);
                     state->push(returnValue);
 
                 }
@@ -699,7 +719,8 @@ namespace Lua {
             // Return exactly b-1 values
             int numValues = b - 1;
             for (int i = 0; i < numValues; ++i) {
-                Value returnValue = getReg(a + 1 + i);  // Get value from register a+i
+                // Lua 5.1官方设计：使用0基索引，直接使用寄存器编号
+                Value returnValue = getReg(a + i);  // Get value from register a+i
                 state->push(returnValue);  // Push return value to stack top
             }
         }
@@ -766,7 +787,8 @@ namespace Lua {
             
             if (isLocal) {
                 // Capture a local variable from the current stack frame
-                Value* location = getRegPtr(index + 1);
+                // Lua 5.1官方设计：使用0基索引，直接使用寄存器编号
+                Value* location = getRegPtr(index);
                 upvalue = findOrCreateUpvalue(location);
             } else {
                 // Inherit an upvalue from the current function
@@ -783,7 +805,8 @@ namespace Lua {
         }
         
         // Store the closure in the target register
-        setReg(a + 1, Value(closure));
+        // Lua 5.1官方设计：使用0基索引，直接使用寄存器编号
+        setReg(a, Value(closure));
     }
     
     void VM::op_getupval(Instruction i) {
@@ -818,7 +841,8 @@ namespace Lua {
         }
         
         // Store in target register
-        setReg(a + 1, value);
+        // Lua 5.1官方设计：使用0基索引，直接使用寄存器编号
+        setReg(a, value);
     }
     
     void VM::op_setupval(Instruction i) {
@@ -845,7 +869,8 @@ namespace Lua {
         }
         
         // Get the value from the source register
-        Value value = getReg(a + 1);
+        // Lua 5.1官方设计：使用0基索引，直接使用寄存器编号
+        Value value = getReg(a);
         
         // Set the value in the upvalue safely
         try {

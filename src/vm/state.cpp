@@ -258,6 +258,58 @@ namespace Lua {
         return result;
     }
 
+    // Lua function call with arguments already on stack
+    Value State::callLua(const Value& func, int nargs) {
+        if (!func.isFunction()) {
+            throw LuaException("attempt to call a non-function value");
+        }
+
+        auto function = func.asFunction();
+
+        // Only handle Lua functions
+        if (function->getType() != Function::Type::Lua) {
+            throw LuaException("callLua can only call Lua functions");
+        }
+
+        // Lua 5.1官方函数调用实现
+        try {
+            // 保存当前栈状态
+            int oldTop = top;
+
+            // Lua 5.1调用约定：
+            // 参数已经在栈顶：[arg1] [arg2] [arg3] ...
+            // 我们需要重新排列为：[function] [arg1] [arg2] [arg3] ...
+
+            // 1. 先扩展栈顶，为函数腾出空间
+            push(Value(nullptr));  // 临时占位
+
+            // 2. 将参数向后移动一位
+            for (int i = nargs - 1; i >= 0; i--) {
+                Value arg = get(top - nargs - 1 + i);  // 从原位置读取
+                set(top - nargs + i, arg);             // 写入新位置
+            }
+
+            // 3. 将函数放在最前面
+            set(top - nargs - 1, func);
+
+            // 栈布局现在是：[function] [arg1] [arg2] [arg3] ...
+
+            // 4. 创建VM实例并执行函数
+            VM vm(this);
+            Value result = vm.execute(function);
+
+            // 5. 恢复栈状态
+            top = oldTop;
+
+            return result;
+
+        } catch (const LuaException& e) {
+            // 函数执行出错，返回nil（类似pcall的行为）
+            std::cerr << "Lua function error: " << e.what() << std::endl;
+            return Value(nullptr);
+        }
+    }
+
     // Execute Lua code from string
     bool State::doString(const Str& code) {
         try {

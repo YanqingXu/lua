@@ -69,6 +69,9 @@ namespace Lua {
 
         // Native function call with arguments already on stack (Lua 5.1 design)
         Value callNative(const Value& func, int nargs);
+
+        // Lua function call with arguments already on stack
+        Value callLua(const Value& func, int nargs);
         
         // Code execution
         bool doString(const Str& code);

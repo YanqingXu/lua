@@ -515,8 +515,8 @@ namespace Lua {
             }
             
             // Emit return instruction (B = number of values + 1)
-            // A parameter should be startReg-1 because VM registers are 1-based but instruction A is 0-based
-            compiler->emitInstruction(Instruction::createRETURN(startReg - 1, static_cast<u8>(values.size() + 1)));
+            // Lua 5.1官方设计：使用0基索引，直接使用寄存器编号
+            compiler->emitInstruction(Instruction::createRETURN(startReg, static_cast<u8>(values.size() + 1)));
             
             // Free all value registers
             for (size_t i = 0; i < valueRegs.size(); ++i) {
@@ -551,8 +551,14 @@ namespace Lua {
         
         // Enter function scope and define parameters
         functionCompiler.beginScope();
+
+        // Lua 5.1官方调用约定：寄存器0是函数，参数从寄存器1开始
+        // 先分配寄存器0给函数本身（虽然不会直接使用）
+        functionCompiler.allocReg();  // 寄存器0保留给函数
+
+        // 然后分配参数寄存器（从寄存器1开始）
         for (const auto& param : stmt->getParameters()) {
-            int paramReg = functionCompiler.allocReg();
+            int paramReg = functionCompiler.allocReg();  // 寄存器1, 2, 3...
             functionCompiler.addLocal(param, paramReg);
         }
         
@@ -584,9 +590,9 @@ namespace Lua {
         // Allocate register for the closure
         int closureReg = compiler->allocReg();
         
-        // Generate CLOSURE instruction
+        // Generate CLOSURE instruction (Lua 5.1官方设计：使用0基索引)
         //std::cerr << "FUNCTION: generating CLOSURE instruction, reg=" << closureReg << " prototypeIndex=" << prototypeIndex << std::endl;
-        compiler->emitInstruction(Instruction::createCLOSURE(closureReg - 1, prototypeIndex));
+        compiler->emitInstruction(Instruction::createCLOSURE(closureReg, prototypeIndex));
 
         // Generate upvalue binding instructions
         for (const auto& upvalue : upvalues) {

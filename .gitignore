@@ -3,4 +3,5 @@ lua-5.1.1/
 lua/
 x64/
 build/
-bin/
+bin/lua.exe
+bin/lua.pdb
