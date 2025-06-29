@@ -102,7 +102,7 @@ src/
 ### Building the Interpreter
 ```bash
 # Clone the repository
-git clone https://github.com/your-repo/modern-cpp-lua-interpreter.git
+git clone https://github.com/YanqingXu/lua
 cd modern-cpp-lua-interpreter
 
 # Build the project
@@ -437,7 +437,7 @@ We welcome contributions from the community! Here's how you can help:
 
 ### Getting Started
 1. **Fork** the repository
-2. **Clone** your fork: `git clone https://github.com/yourusername/lua.git`
+2. **Clone** your fork: `git clone https://github.com/YanqingXu/lua`
 3. **Create** a feature branch: `git checkout -b feature/amazing-feature`
 4. **Make** your changes
 5. **Test** thoroughly: `ctest`

@@ -102,7 +102,7 @@ src/
 ### 构建解释器
 ```bash
 # 克隆仓库
-git clone https://github.com/your-repo/modern-cpp-lua-interpreter.git
+git clone https://github.com/YanqingXu/lua
 cd modern-cpp-lua-interpreter
 
 # 构建项目
@@ -433,7 +433,7 @@ local v3 = v1 + v2  -- {x = 4, y = 6}
 
 ### 开始贡献
 1. **Fork** 仓库
-2. **克隆**您的 fork：`git clone https://github.com/yourusername/lua.git`
+2. **克隆**您的 fork：`git clone https://github.com/YanqingXu/lua`
 3. **创建**功能分支：`git checkout -b feature/amazing-feature`
 4. **进行**更改
 5. **彻底测试**：`ctest`
