@@ -58,7 +58,7 @@ namespace Lua {
     UPtr<Expr> Parser::concatenation() {
         auto expr = simpleExpression();
 
-        // String concatenation is right-associative
+        // String concatenation is right-associative (lower precedence than +/-)
         if (match(TokenType::DotDot)) {
             TokenType op = previous.type;
             auto right = concatenation(); // Right-associative recursion

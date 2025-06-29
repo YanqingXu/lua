@@ -201,8 +201,12 @@ namespace Lua {
             case TokenType::DotDot:
                 // Generate CONCAT instruction: result = left .. right
                 // Lua官方设计：使用0基索引，直接使用寄存器编号
+
                 compiler->emitInstruction(Instruction::createCONCAT(resultReg, leftReg, rightReg));
-                break;
+
+                // Special handling for concatenation: don't free operand registers
+                // to avoid register conflicts in complex concatenation expressions
+                return resultReg;
             default:
                 throw LuaException("Unsupported binary operator");
         }
