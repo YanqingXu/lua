@@ -45,7 +45,7 @@ namespace Lua {
     UPtr<Expr> Parser::comparison() {
         auto expr = concatenation();
 
-        while (match({TokenType::Greater, TokenType::GreaterEqual, 
+        while (match({TokenType::Greater, TokenType::GreaterEqual,
                      TokenType::Less, TokenType::LessEqual})) {
             TokenType op = previous.type;
             auto right = concatenation();

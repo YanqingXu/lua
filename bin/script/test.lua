@@ -52,14 +52,14 @@ function fibonacci(n)
     if n <= 1 then
         return n
     else
-        local a = 0
-        local b = 1
+        local prev = 0
+        local curr = 1
         for i = 2, n do
-            local temp = a + b
-            a = b
-            b = temp
+            local next = prev + curr
+            prev = curr
+            curr = next
         end
-        return b
+        return curr
     end
 end
 

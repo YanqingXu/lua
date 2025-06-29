@@ -359,14 +359,19 @@ namespace Lua {
         compiler->emitInstruction(Instruction::createMOVE(varSlot, initReg));
         compiler->freeReg();
 
-        // Compile limit and step
-        int limitReg = compiler->getExpressionCompiler()->compileExpr(stmt->getEnd());
-        int stepReg = -1;
+        // Compile limit and step as local variables to avoid register conflicts
+        int limitReg = compiler->defineLocal("__limit");
+        int limitExprReg = compiler->getExpressionCompiler()->compileExpr(stmt->getEnd());
+        compiler->emitInstruction(Instruction::createMOVE(limitReg, limitExprReg));
+        compiler->freeReg();
+
+        int stepReg = compiler->defineLocal("__step");
         if (stmt->getStep()) {
-            stepReg = compiler->getExpressionCompiler()->compileExpr(stmt->getStep());
+            int stepExprReg = compiler->getExpressionCompiler()->compileExpr(stmt->getStep());
+            compiler->emitInstruction(Instruction::createMOVE(stepReg, stepExprReg));
+            compiler->freeReg();
         } else {
             // Default step is 1
-            stepReg = compiler->allocReg();
             int oneIdx = compiler->addConstant(Value(1.0));
             compiler->emitInstruction(Instruction::createLOADK(stepReg, oneIdx));
         }
@@ -399,8 +404,11 @@ namespace Lua {
 
         compiler->freeReg(); // condReg
 
-        // Compile loop body
+        // Compile loop body with independent scope for each iteration
+        // This ensures that local variables in the loop body don't conflict across iterations
+        compiler->beginScope();
         compileStmt(stmt->getBody());
+        compiler->endScope();
 
         // Increment loop variable
         compiler->emitInstruction(Instruction::createADD(varSlot, varSlot, stepReg));
@@ -413,9 +421,7 @@ namespace Lua {
         // Patch exit jump
         compiler->patchJump(exitJump);
 
-        // Free limit and step registers
-        compiler->freeReg(); // step
-        compiler->freeReg(); // limit
+        // limit and step are now local variables, no need to free them manually
 
         compiler->endScope();
     }
