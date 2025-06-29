@@ -166,9 +166,11 @@ namespace Lua {
     void StatementCompiler::compileLocalStmt(const LocalStmt* stmt) {
         const Str& name = stmt->getName();
         const Expr* initializer = stmt->getInitializer();
-        
+
         // Declare local variable using unified scope management
         int varSlot = compiler->defineLocal(name);
+
+        // Debug output disabled
 
 #ifdef DEBUG_COMPILER
         std::cout << "[DEBUG] LOCAL ALLOC: name='" << name
@@ -282,12 +284,12 @@ namespace Lua {
     void StatementCompiler::compileIfStmt(const IfStmt* stmt) {
         // Compile condition expression
         int conditionReg = compiler->getExpressionCompiler()->compileExpr(stmt->getCondition());
-        
-        // Test condition: if false, skip to else/end
-        // TEST instruction tests if register is false/nil and skips next instruction if so
-        compiler->emitInstruction(Instruction::createTEST(conditionReg, 0));
+
+        // Test condition: if true, skip the jump (continue to then branch)
+        // if false, execute the jump (go to else/end)
+        compiler->emitInstruction(Instruction::createTEST(conditionReg, 1));
         compiler->freeReg(); // Free condition register
-        
+
         // Create jump placeholder for false condition (jump to else/end)
         int jumpToElse = compiler->emitJump();
         
@@ -347,6 +349,8 @@ namespace Lua {
         // Initialize loop variable
         const Str& varName = stmt->getVariable();
         int varSlot = compiler->defineLocal(varName);
+
+        // Debug output disabled
 
         // Compile initial value
         int initReg = compiler->getExpressionCompiler()->compileExpr(stmt->getStart());
@@ -602,17 +606,25 @@ namespace Lua {
             functionCompiler.emitInstruction(Instruction::createRETURN(0, 0));
         }
         
+        // Get local count BEFORE ending scope (which resets the count)
+        int paramCount = static_cast<int>(stmt->getParameters().size());
+        int localCount = functionCompiler.getRegisterManager().getLocalCount();
+        int upvalueCount = static_cast<int>(upvalues.size());
+
         functionCompiler.endScope();
-        
+
         // Create function prototype
         auto functionCode = std::make_shared<Vec<Instruction>>(*functionCompiler.getCode());
+
+        // Debug output disabled
+
         auto functionProto = Function::createLua(
             functionCode,
             functionCompiler.getConstants(),
             functionCompiler.getPrototypes(),
-            static_cast<u8>(stmt->getParameters().size()),
-            static_cast<u8>(functionCompiler.getScopeManager().getLocalCount()),
-            static_cast<u8>(upvalues.size())
+            static_cast<u8>(paramCount),
+            static_cast<u8>(localCount),
+            static_cast<u8>(upvalueCount)
         );
         
         // Add prototype to current compiler

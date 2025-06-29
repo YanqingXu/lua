@@ -42,6 +42,8 @@ namespace Lua {
         int expectedArgs = function->getParamCount();
         int stackSize = state->getTop();
 
+        // Debug output disabled
+
         // Lua 5.1 calling convention:
         // Stack layout: [function] [arg1] [arg2] [arg3] ...
         // Register 0 = function, Register 1 = arg1, Register 2 = arg2, etc.
@@ -57,19 +59,29 @@ namespace Lua {
             this->registerBase = stackSize - 1 - expectedArgs;
         }
 
+        // Debug output disabled
+
+        // 为函数的局部变量扩展栈空间
+        int localCount = function->getLocalCount();
+        // 简单的栈扩展策略：为函数分配足够的空间
+        int minRequiredSize = this->registerBase + localCount + 20; // 保守估计
+
+        // 扩展栈到所需大小
+        while (state->getTop() < minRequiredSize) {
+            state->push(Value(nullptr)); // 用nil填充
+        }
+
 
 
         // 调试：显示栈内容
-#ifdef DEBUG_VM_INSTRUCTIONS
-        std::cout << "[DEBUG] VM::execute stackSize=" << stackSize
-                  << ", expectedArgs=" << expectedArgs
-                  << ", registerBase=" << this->registerBase << std::endl;
-        for (int i = 0; i < stackSize; ++i) {
-            Value val = state->get(i);
-            std::cout << "[DEBUG] Stack[" << i << "] = " << val.toString()
-                      << " (type=" << (int)val.type() << ")" << std::endl;
-        }
-#endif
+        // std::cout << "[DEBUG] VM::execute stackSize=" << stackSize
+        //           << ", expectedArgs=" << expectedArgs
+        //           << ", registerBase=" << this->registerBase << std::endl;
+        // for (int i = 0; i < stackSize; ++i) {
+        //     Value val = state->get(i);
+        //     std::cout << "[DEBUG] Stack[" << i << "] = " << val.toString()
+        //               << " (type=" << (int)val.type() << ")" << std::endl;
+        // }
         
         Value result = Value(nullptr);  // Default return value is nil
         
@@ -210,6 +222,7 @@ namespace Lua {
         // Convert VM register (0-based) to stack position using register base
         // Lua官方设计：每个函数有独立的寄存器空间，从0开始
         int stackPos = registerBase + reg;
+
         Value val = state->get(stackPos);
 
 #ifdef DEBUG_VM_REGISTERS
@@ -225,12 +238,15 @@ namespace Lua {
         // Convert VM register (0-based) to stack position using register base
         int stackPos = registerBase + reg;
 
+        // Debug output disabled
+
 #ifdef DEBUG_VM_REGISTERS
         std::cout << "[DEBUG] setReg: reg=" << reg
                   << ", stackPos=" << stackPos
                   << ", registerBase=" << registerBase
                   << ", value_type=" << (int)value.type() << std::endl;
 #endif
+
         state->set(stackPos, value);
     }
 
@@ -270,6 +286,7 @@ namespace Lua {
                   << ", value_type=" << (int)constant.type()
                   << ", value=" << constant.toString() << std::endl;
 #endif
+
         setReg(a, constant);
     }
     
@@ -405,13 +422,21 @@ namespace Lua {
         u8 b = i.getB();
         u8 c = i.getC();
 
+        // std::cout << "[DEBUG] ADD instruction: a=" << (int)a << ", b=" << (int)b << ", c=" << (int)c
+        //           << ", registerBase=" << registerBase << std::endl;
+
         Value bval = getReg(b);
         Value cval = getReg(c);
 
+        // std::cout << "[DEBUG] ADD values: bval=" << bval.toString() << " (type=" << (int)bval.type()
+        //           << "), cval=" << cval.toString() << " (type=" << (int)cval.type() << ")" << std::endl;
+
         // nil值不能用于算术运算
         if (bval.isNil()) {
+            std::cerr << "[DEBUG] ADD: Left operand is nil, reg=" << (int)b << std::endl;
             throw LuaException("attempt to perform arithmetic on nil value (left operand)");
         } else if (cval.isNil()) {
+            std::cerr << "[DEBUG] ADD: Right operand is nil, reg=" << (int)c << std::endl;
             throw LuaException("attempt to perform arithmetic on nil value (right operand)");
         } else if (bval.isNumber() && cval.isNumber()) {
             LuaNumber bn = bval.asNumber();
@@ -533,6 +558,9 @@ namespace Lua {
         Value bval = getReg(b);
         Value cval = getReg(c);
 
+        // std::cout << "[DEBUG] LT: a=" << (int)a << ", b=" << (int)b << ", c=" << (int)c
+        //           << ", bval=" << bval.toString() << ", cval=" << cval.toString() << std::endl;
+
         bool result;
 
         // nil值不能用于大小比较
@@ -540,6 +568,7 @@ namespace Lua {
             throw LuaException("attempt to compare nil value");
         } else if (bval.isNumber() && cval.isNumber()) {
             result = bval.asNumber() < cval.asNumber();
+            // std::cout << "[DEBUG] LT result: " << bval.asNumber() << " < " << cval.asNumber() << " = " << result << std::endl;
         } else if (bval.isString() && cval.isString()) {
             result = bval.asString() < cval.asString();
         } else {
@@ -562,6 +591,9 @@ namespace Lua {
 
         // nil值不能用于大小比较
         if (bval.isNil() || cval.isNil()) {
+            std::cerr << "[DEBUG] LE: Comparing with nil value, reg_b=" << (int)b
+                      << " (nil=" << bval.isNil() << "), reg_c=" << (int)c
+                      << " (nil=" << cval.isNil() << ")" << std::endl;
             throw LuaException("attempt to compare nil value");
         } else if (bval.isNumber() && cval.isNumber()) {
             result = bval.asNumber() <= cval.asNumber();
@@ -583,13 +615,19 @@ namespace Lua {
     void VM::op_test(Instruction i) {
         u8 a = i.getA();  // Register to test
         u8 c = i.getC();  // Skip next instruction if test fails
-        
+
         Value val = getReg(a);
         bool isTrue = val.isTruthy();
-        
+
+        // std::cout << "[DEBUG] TEST: a=" << (int)a << ", c=" << (int)c
+        //           << ", val=" << val.toString() << ", isTrue=" << isTrue << std::endl;
+
         // If condition is false and C is 0, or condition is true and C is 1, skip next instruction
         if ((c == 0 && !isTrue) || (c == 1 && isTrue)) {
+            // std::cout << "[DEBUG] TEST: Skipping next instruction" << std::endl;
             pc++;  // Skip next instruction
+        } else {
+            // std::cout << "[DEBUG] TEST: Not skipping" << std::endl;
         }
     }
     
@@ -598,7 +636,7 @@ namespace Lua {
         u8 b = i.getB();  // Number of arguments + 1, if 0 means use all values from a+1 to top
         u8 c = i.getC();  // Expected number of return values + 1, if 0 means all return values needed
 
-        // Debug output disabled for production
+        // Debug output disabled
 
         // Boundary check: Function nesting depth before call
         if (callDepth >= MAX_FUNCTION_NESTING_DEPTH - 1) {
@@ -632,11 +670,10 @@ namespace Lua {
             int argReg = a + i;  // 参数在寄存器a+1, a+2, ...
             Value arg = getReg(argReg);
 
-#ifdef DEBUG_VM_INSTRUCTIONS
-            std::cout << "[DEBUG] CALL ARG: i=" << i << ", argReg=" << argReg
-                      << ", value_type=" << (int)arg.type()
-                      << ", value=" << arg.toString() << std::endl;
-#endif
+            // std::cout << "[DEBUG] CALL ARG: i=" << i << ", argReg=" << argReg
+            //           << ", value_type=" << (int)arg.type()
+            //           << ", value=" << arg.toString() << std::endl;
+
             state->push(arg);  // 将参数push到栈顶
         }
 
@@ -655,7 +692,10 @@ namespace Lua {
             throw LuaException("attempt to call a non-function value");
         }
 
+        // Debug output disabled
+
         // 4. 恢复栈状态
+        // Debug output disabled
         state->setTop(oldTop);
 
         // Handle return values based on expected count (c parameter)
@@ -681,10 +721,11 @@ namespace Lua {
         }
 
         // Clean up extra stack space
-        // Lua 5.1官方设计：使用0基索引，直接使用寄存器编号
-        if (state->getTop() > a + std::max(1, expectedReturns)) {
-            int targetTop = a + std::max(1, expectedReturns);
-            for (int i = state->getTop(); i > targetTop; --i) {
+        // 确保不会清理当前函数的寄存器空间
+        int minRequiredTop = registerBase + a + std::max(1, expectedReturns);
+        if (state->getTop() > minRequiredTop) {
+            // Debug output disabled
+            for (int i = state->getTop(); i > minRequiredTop; --i) {
                 state->pop();
             }
         }
@@ -693,6 +734,8 @@ namespace Lua {
     void VM::op_return(Instruction i) {
         u8 a = i.getA();
         u8 b = i.getB();
+
+        // Debug output disabled
 
         // b-1 is the number of values to return, if b=0, return all values from a to top
         if (b == 0) {
@@ -824,26 +867,26 @@ namespace Lua {
     void VM::op_getupval(Instruction i) {
         u8 a = i.getA();  // Target register
         u8 b = i.getB();  // Upvalue index
-        
+
         if (!currentFunction || currentFunction->getType() != Function::Type::Lua) {
             throw LuaException("GETUPVAL instruction outside Lua function");
         }
-        
+
         // Boundary check 1: Valid upvalue index
         if (!currentFunction->isValidUpvalueIndex(b)) {
             throw LuaException(ERR_INVALID_UPVALUE_INDEX);
         }
-        
+
         GCRef<Upvalue> upvalue = currentFunction->getUpvalue(b);
         if (!upvalue) {
             throw LuaException("Null upvalue in GETUPVAL instruction");
         }
-        
+
         // Boundary check 2: Upvalue lifecycle validation
         if (!upvalue->isValidForAccess()) {
             throw LuaException(ERR_DESTROYED_UPVALUE);
         }
-        
+
         // Get the value from the upvalue safely
         Value value;
         try {
@@ -851,8 +894,6 @@ namespace Lua {
         } catch (const std::runtime_error& e) {
             throw LuaException(e.what());
         }
-
-
 
         // Store in target register
         // Lua 5.1官方设计：使用0基索引，直接使用寄存器编号
@@ -1028,6 +1069,8 @@ namespace Lua {
 
         Value bval = getReg(b);
         Value cval = getReg(c);
+
+        // Debug output disabled
 
         // Convert values to strings and concatenate
         Str bstr, cstr;

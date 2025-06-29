@@ -195,7 +195,7 @@ namespace Lua {
             Value result = nativeFn(this, static_cast<int>(args.size()));
 
             // Restore stack top
-            top = oldTop;
+            setTop(oldTop);
 
             return result;
         }
@@ -222,12 +222,19 @@ namespace Lua {
             Value result = vm.execute(function);
 
             // Restore stack top after VM execution
-            top = oldTop;
+            setTop(oldTop);
 
             return result;
         } catch (const LuaException& e) {
-            // For testing purposes, if function contains error, return nil
-            // This allows pcall to work properly
+            // 只有在特定情况下才返回nil，其他情况应该重新抛出异常
+            std::string errorMsg = e.what();
+
+            // 如果是运行时错误（如nil值操作），应该重新抛出
+            if (errorMsg.find("attempt to") != std::string::npos) {
+                throw; // 重新抛出异常
+            }
+
+            // 其他情况下返回nil（类似pcall的行为）
             std::cerr << "Lua error: " << e.what() << std::endl;
             return Value(nullptr);
         }
@@ -299,12 +306,20 @@ namespace Lua {
             Value result = vm.execute(function);
 
             // 5. 恢复栈状态
-            top = oldTop;
+            setTop(oldTop);
 
             return result;
 
         } catch (const LuaException& e) {
-            // 函数执行出错，返回nil（类似pcall的行为）
+            // 只有在特定情况下才返回nil，其他情况应该重新抛出异常
+            std::string errorMsg = e.what();
+
+            // 如果是运行时错误（如nil值操作），应该重新抛出
+            if (errorMsg.find("attempt to") != std::string::npos) {
+                throw; // 重新抛出异常
+            }
+
+            // 其他情况下返回nil（类似pcall的行为）
             std::cerr << "Lua function error: " << e.what() << std::endl;
             return Value(nullptr);
         }

@@ -102,10 +102,8 @@ namespace Lua {
         switch (varInfo.type) {
             case Compiler::VariableType::Local: {
                 // Local variable - return register directly
-#ifdef DEBUG_COMPILER
-                std::cout << "[DEBUG] COMPILE VAR LOCAL: name='" << name
-                          << "', slot=" << varInfo.index << std::endl;
-#endif
+                // std::cout << "[DEBUG] COMPILE VAR LOCAL: name='" << name
+                //           << "', slot=" << varInfo.index << std::endl;
                 return varInfo.index;
             }
 
@@ -120,11 +118,9 @@ namespace Lua {
             case Compiler::VariableType::Global: {
                 // Global variable - generate GETGLOBAL instruction
                 int reg = compiler->allocReg();
-#ifdef DEBUG_COMPILER
-                std::cout << "[DEBUG] COMPILE VAR GLOBAL: name='" << name
-                          << "', constant_index=" << varInfo.index
-                          << ", target_reg=" << reg << std::endl;
-#endif
+                // std::cout << "[DEBUG] COMPILE VAR GLOBAL: name='" << name
+                //           << "', constant_index=" << varInfo.index
+                //           << ", target_reg=" << reg << std::endl;
                 compiler->emitInstruction(Instruction::createGETGLOBAL(reg, varInfo.index));
                 return reg;
             }
@@ -484,12 +480,46 @@ namespace Lua {
         Value left = getConstantValue(expr->getLeft());
         Value right = getConstantValue(expr->getRight());
         TokenType op = expr->getOperator();
-        
-        // Only handle numeric operations for now
-        if (left.type() != ValueType::Number || right.type() != ValueType::Number) {
-            throw LuaException("Constant folding only supports numeric operations");
+
+        // Handle string concatenation
+        if (op == TokenType::DotDot) {
+            // Convert operands to strings
+            std::string leftStr, rightStr;
+
+            if (left.isString()) {
+                leftStr = left.asString();
+            } else if (left.isNumber()) {
+                LuaNumber num = left.asNumber();
+                if (num == std::floor(num)) {
+                    leftStr = std::to_string(static_cast<long long>(num));
+                } else {
+                    leftStr = std::to_string(num);
+                }
+            } else {
+                throw LuaException("attempt to concatenate non-string/number value (left operand)");
+            }
+
+            if (right.isString()) {
+                rightStr = right.asString();
+            } else if (right.isNumber()) {
+                LuaNumber num = right.asNumber();
+                if (num == std::floor(num)) {
+                    rightStr = std::to_string(static_cast<long long>(num));
+                } else {
+                    rightStr = std::to_string(num);
+                }
+            } else {
+                throw LuaException("attempt to concatenate non-string/number value (right operand)");
+            }
+
+            return Value(leftStr + rightStr);
         }
-        
+
+        // Handle numeric operations
+        if (left.type() != ValueType::Number || right.type() != ValueType::Number) {
+            throw LuaException("Constant folding only supports numeric and string concatenation operations");
+        }
+
         double leftVal = left.asNumber();
         double rightVal = right.asNumber();
         

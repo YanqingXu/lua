@@ -63,11 +63,15 @@ namespace Lua {
             stackIndex = registerManager_.allocateLocal(name);
         }
 
+        // std::cout << "[DEBUG] DEFINE LOCAL: name='" << name << "', stackIndex=" << stackIndex << std::endl;
+
         bool success = scopeManager_.defineLocal(name, stackIndex);
         if (!success) {
+            // std::cout << "[DEBUG] DEFINE LOCAL FAILED: name='" << name << "'" << std::endl;
             throw LuaException("Failed to define local variable: " + name);
         }
 
+        // std::cout << "[DEBUG] DEFINE LOCAL SUCCESS: name='" << name << "', stackIndex=" << stackIndex << std::endl;
         return stackIndex;
     }
 
@@ -87,44 +91,54 @@ namespace Lua {
     }
 
     Compiler::VariableInfo Compiler::resolveVariable(const Str& name) {
-        // 1. Check if it's a local variable in current scope
+        // 1. Check if it's a local variable in current function
         Variable* localVar = scopeManager_.findVariable(name);
-        if (localVar && scopeManager_.isLocalVariable(name)) {
-            return VariableInfo(VariableType::Local, localVar->stackIndex);
+
+        if (localVar) {
+            // We found the variable, now check if it's in current function or parent function
+            if (parentContext_) {
+                // We're in a nested function
+                // Check if this variable was defined in the current function
+                // by checking if it's NOT in the parent scope
+                Variable* parentVar = parentContext_->parentScope->findVariable(name);
+                bool isInParent = (parentVar != nullptr);
+
+                if (!isInParent) {
+                    // Variable is not in parent scope, so it's local to current function
+                    return VariableInfo(VariableType::Local, localVar->stackIndex);
+                }
+                // If it's in parent scope, it will be handled as upvalue below
+            } else {
+                // We're in the main function - all found variables are local
+                return VariableInfo(VariableType::Local, localVar->stackIndex);
+            }
         }
 
-        // 2. Check if it's an upvalue (variable from outer scope)
-        if (scopeManager_.isFreeVariable(name)) {
-            // Find the variable in parent scopes
-            Variable* parentVar = nullptr;
-            bool isLocal = true;
-            int sourceIndex = 0;
+        // 2. Check if it's an upvalue (variable from parent function)
+        // Only check if we have a parent context (i.e., we're in a nested function)
+        if (parentContext_ && parentContext_->parentScope) {
+            // Check if variable exists in parent function's scope
+            Variable* parentVar = parentContext_->parentScope->findVariable(name);
+            if (parentVar) {
+                // Found in parent function - create upvalue
+                bool isLocal = parentContext_->parentScope->isInCurrentScope(name);
+                int sourceIndex = parentVar->stackIndex;
 
-            // Check if we have parent context
-            if (parentContext_ && parentContext_->parentScope) {
-                parentVar = parentContext_->parentScope->findVariable(name);
-                if (parentVar) {
-                    // Check if it's a local variable in the immediate parent
-                    if (parentContext_->parentScope->isLocalVariable(name)) {
-                        isLocal = true;
-                        sourceIndex = parentVar->stackIndex;
-                    } else {
-                        // It's an upvalue in the parent, need to find it in parent's upvalues
-                        isLocal = false;
-                        if (parentContext_->parentUpvalues) {
-                            for (size_t i = 0; i < parentContext_->parentUpvalues->size(); ++i) {
-                                if ((*parentContext_->parentUpvalues)[i].name == name) {
-                                    sourceIndex = static_cast<int>(i);
-                                    break;
-                                }
+                if (!isLocal) {
+                    // It's an upvalue in the parent, need to find it in parent's upvalues
+                    if (parentContext_->parentUpvalues) {
+                        for (size_t i = 0; i < parentContext_->parentUpvalues->size(); ++i) {
+                            if ((*parentContext_->parentUpvalues)[i].name == name) {
+                                sourceIndex = static_cast<int>(i);
+                                break;
                             }
                         }
                     }
-
-                    // Add this as an upvalue in current function
-                    int upvalueIndex = addUpvalue(name, isLocal, sourceIndex);
-                    return VariableInfo(VariableType::Upvalue, upvalueIndex);
                 }
+
+                // Add this as an upvalue in current function
+                int upvalueIndex = addUpvalue(name, isLocal, sourceIndex);
+                return VariableInfo(VariableType::Upvalue, upvalueIndex);
             }
         }
 

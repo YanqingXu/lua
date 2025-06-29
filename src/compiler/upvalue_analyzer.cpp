@@ -158,8 +158,9 @@ namespace Lua {
     void UpvalueAnalyzer::analyzeVariableExpr(const VariableExpr* varExpr) {
         const Str& name = varExpr->getName();
 
-        // If not a local variable, it might be a free variable
-        if (!scopeManager_.isLocalVariable(name)) {
+        // Check if it's defined in the current function scope
+        // (i.e., in the scope we just entered for this function)
+        if (!scopeManager_.isInCurrentScope(name)) {
             // Check if it's a variable from outer scope
             if (scopeManager_.isFreeVariable(name)) {
                 freeVars_.insert(name);

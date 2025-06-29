@@ -260,7 +260,10 @@ namespace Lua {
     }
 
     bool ScopeManager::isLocalVariable(const Str& name) const {
-        return isInCurrentScope(name);
+        // A local variable is one that exists in the current scope or any parent scope
+        // within the same function (not crossing function boundaries)
+        const Variable* var = findVariable(name);
+        return var != nullptr;
     }
 
     bool ScopeManager::isFreeVariable(const Str& name) const {

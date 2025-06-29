@@ -124,8 +124,14 @@ namespace Lua {
         VariableInfo resolveVariable(const Str& name);
 
         // Scope management
-        void beginScope() { scopeManager_.enterScope(); }
-        void endScope() { scopeManager_.exitScope(); }
+        void beginScope() {
+            scopeManager_.enterScope();
+            registerManager_.enterScope();
+        }
+        void endScope() {
+            scopeManager_.exitScope();
+            registerManager_.exitScope();
+        }
 
         // Local variable management
         int defineLocal(const Str& name, int stackIndex = -1);
