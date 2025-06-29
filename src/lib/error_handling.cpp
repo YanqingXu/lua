@@ -69,12 +69,12 @@ namespace Lua {
         return "error";
     }
     
-    void ErrorHandlingLib::registerFunctions(FunctionRegistry& registry) {
+    void ErrorHandlingLib::registerFunctions(FunctionRegistry& registry, const LibraryContext& context) {
         // 注册错误处理函数
-        REGISTER_FUNCTION(registry, pcall, pcall);
-        REGISTER_FUNCTION(registry, xpcall, xpcall);
-        REGISTER_FUNCTION(registry, error, error);
-        REGISTER_FUNCTION(registry, assert, assert);
+        LUA_REGISTER_FUNCTION(registry, pcall, pcall);
+        LUA_REGISTER_FUNCTION(registry, xpcall, xpcall);
+        LUA_REGISTER_FUNCTION(registry, error, error);
+        LUA_REGISTER_FUNCTION(registry, assert, assert);
         
         // 注册类型检查函数
         registry.registerFunction("checktype", [](State* state, i32 nargs) -> Value {

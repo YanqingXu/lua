@@ -1,9 +1,7 @@
 ﻿#ifndef TABLE_LIB_HPP
 #define TABLE_LIB_HPP
 
-#include "lib_module.hpp"
-#include "error_handling.hpp"
-#include "type_conversion.hpp"
+#include "lib_framework.hpp"
 #include "../common/types.hpp"
 #include "../vm/state.hpp"
 #include "../vm/value.hpp"
@@ -27,12 +25,12 @@ namespace Lua {
         /**
          * 注册函数到注册表
          */
-        void registerFunctions(FunctionRegistry& registry) override;
-        
+        void registerFunctions(FunctionRegistry& registry, const LibraryContext& context) override;
+
         /**
          * 可选的初始化逻辑
          */
-        void initialize(State* state) override;
+        void initialize(State* state, const LibraryContext& context) override;
         
     public:
         // Table库函数实现

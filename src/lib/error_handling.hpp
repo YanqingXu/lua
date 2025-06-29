@@ -1,6 +1,6 @@
 ﻿#pragma once
 
-#include "lib_module.hpp"
+#include "lib_framework.hpp"
 #include "../common/types.hpp"
 #include "../vm/state.hpp"
 #include "../vm/value.hpp"
@@ -80,7 +80,7 @@ namespace Lua {
     class ErrorHandlingLib : public LibModule {
     public:
         StrView getName() const noexcept override;
-        void registerFunctions(FunctionRegistry& registry) override;
+        void registerFunctions(FunctionRegistry& registry, const LibraryContext& context) override;
         
     private:
         static Value pcall(State* state, i32 nargs);

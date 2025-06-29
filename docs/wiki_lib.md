@@ -1166,27 +1166,27 @@ public:
 };
 ```
 
-### 3. 动态库加载
+### 3. 模块化加载
 
-#### 插件接口
+#### 模块工厂接口
 
 ```cpp
-class PluginInterface {
+class ModuleFactory {
 public:
-    virtual ~PluginInterface() = default;
+    virtual ~ModuleFactory() = default;
     virtual UPtr<LibModule> createLibrary() = 0;
     virtual Str getLibraryName() const = 0;
     virtual Version getLibraryVersion() const = 0;
 };
 
-// 动态库导出函数
-extern "C" {
-    PluginInterface* createPlugin() {
-        return new MyPlugin();
+// 模块创建函数
+namespace ModuleFactories {
+    std::unique_ptr<LibModule> createMathModule() {
+        return std::make_unique<MathLib>();
     }
-    
-    void destroyPlugin(PluginInterface* plugin) {
-        delete plugin;
+
+    std::unique_ptr<LibModule> createStringModule() {
+        return std::make_unique<StringLib>();
     }
 }
 ```

@@ -1,113 +1,217 @@
 ﻿#pragma once
 
-#include "lib_module.hpp"
+#include "lib_framework.hpp"
 #include "../common/types.hpp"
 #include "../vm/state.hpp"
 #include "../vm/value.hpp"
+#include <memory>
+#include <unordered_map>
+#include <unordered_set>
+#include <vector>
+#include <functional>
 
 namespace Lua {
-    
+
     /**
-     * 新的库管理器设计
-     * 移除单例模式，支持依赖注入
+     * Modern library manager with dependency injection and lifecycle management
      */
     class LibManager {
     public:
+        enum class LoadStrategy {
+            Immediate,  // Load immediately when registered
+            Lazy,       // Load when first accessed
+            Manual      // Load only when explicitly requested
+        };
+
+        enum class ModuleStatus {
+            Registered, // Module is registered but not loaded
+            Loading,    // Module is currently being loaded
+            Loaded,     // Module is loaded and ready
+            Failed,     // Module failed to load
+            Unloaded    // Module was unloaded
+        };
+
         /**
-         * 构造函数
-         * 可以传入自定义的函数注册表
+         * Module information
          */
-        explicit LibManager(UPtr<FunctionRegistry> registry = nullptr);
-        
+        struct ModuleInfo {
+            Str name;
+            Str version;
+            ModuleStatus status = ModuleStatus::Registered;
+            LoadStrategy strategy = LoadStrategy::Immediate;
+            std::vector<Str> dependencies;
+            Str errorMessage; // If status is Failed
+            size_t functionCount = 0;
+            
+            ModuleInfo() = default;
+            ModuleInfo(StrView n, StrView v = "1.0") 
+                : name(n), version(v) {}
+        };
+
         /**
-         * 注册模块
+         * Statistics
          */
-        void registerModule(UPtr<LibModule> module);
-        
+        struct Statistics {
+            size_t totalModules = 0;
+            size_t loadedModules = 0;
+            size_t failedModules = 0;
+            size_t totalFunctions = 0;
+            std::vector<Str> failedModuleNames;
+        };
+
         /**
-         * 通过工厂注册模块
+         * Constructor with optional context
          */
-        void registerModuleFactory(UPtr<ModuleFactory> factory);
-        
+        explicit LibManager(std::shared_ptr<LibraryContext> context = nullptr);
+
         /**
-         * 加载单个模块
+         * Register module
+         */
+        void registerModule(std::unique_ptr<LibModule> module, LoadStrategy strategy = LoadStrategy::Immediate);
+
+        /**
+         * Register module factory for lazy loading
+         */
+        void registerModuleFactory(StrView name, 
+                                 std::function<std::unique_ptr<LibModule>()> factory,
+                                 LoadStrategy strategy = LoadStrategy::Lazy);
+
+        /**
+         * Load single module
          */
         bool loadModule(StrView name, State* state);
-        
+
         /**
-         * 加载所有已注册的模块
+         * Load all registered modules
          */
         void loadAllModules(State* state);
-        
+
         /**
-         * 卸载模块
+         * Unload module
          */
         bool unloadModule(StrView name, State* state = nullptr);
-        
+
         /**
-         * 检查模块是否已加载
+         * Check if module is loaded
          */
         bool isModuleLoaded(StrView name) const noexcept;
-        
+
         /**
-         * 获取已加载的模块列表
+         * Get module status
          */
-        Vec<Str> getLoadedModules() const;
-        
+        ModuleStatus getModuleStatus(StrView name) const;
+
         /**
-         * 调用函数
+         * Get module information
+         */
+        std::optional<ModuleInfo> getModuleInfo(StrView name) const;
+
+        /**
+         * Get all module names
+         */
+        std::vector<Str> getModuleNames() const;
+
+        /**
+         * Get loaded module names
+         */
+        std::vector<Str> getLoadedModules() const;
+
+        /**
+         * Call function
          */
         Value callFunction(StrView name, State* state, i32 nargs) const;
-        
+
         /**
-         * 检查函数是否存在
+         * Check if function exists
          */
         bool hasFunction(StrView name) const noexcept;
-        
+
         /**
-         * 获取函数注册表（用于高级操作）
+         * Get function metadata
+         */
+        const FunctionMetadata* getFunctionMetadata(StrView name) const;
+
+        /**
+         * Get all function names
+         */
+        std::vector<Str> getAllFunctionNames() const;
+
+        /**
+         * Get function registry (for advanced operations)
          */
         FunctionRegistry& getRegistry();
         const FunctionRegistry& getRegistry() const;
-        
+
         /**
-         * 清空所有模块
+         * Get library context
+         */
+        LibraryContext& getContext();
+        const LibraryContext& getContext() const;
+
+        /**
+         * Clear all modules
          */
         void clear(State* state = nullptr);
-        
+
         /**
-         * 库管理器统计信息
+         * Get statistics
          */
-        struct LibManagerStats {
-            usize totalModules = 0;
-            usize loadedModules = 0;
-            usize totalFunctions = 0;
-            Vec<Str> moduleNames;
-        };
-        
-        LibManagerStats getStats() const;
-        
+        Statistics getStatistics() const;
+
     private:
-        // 已注册的模块
-        HashMap<Str, UPtr<LibModule>> modules_;
-        
-        // 模块工厂
-        HashMap<Str, UPtr<ModuleFactory>> factories_;
-        
-        // 已加载的模块名称
-        HashSet<Str> loadedModules_;
-        
-        // 函数注册表
-        UPtr<FunctionRegistry> registry_;
+        // Internal helper methods
+        bool loadModuleInternal(const Str& name, State* state);
+        bool resolveDependencies(const Str& name, State* state);
+        void updateGlobalRegistry();
+
+        // Data members
+        std::unordered_map<Str, std::unique_ptr<LibModule>> modules_;
+        std::unordered_map<Str, std::function<std::unique_ptr<LibModule>()>> factories_;
+        std::unordered_map<Str, ModuleInfo> moduleInfo_;
+        std::unordered_map<Str, std::unique_ptr<FunctionRegistry>> moduleRegistries_;
+        std::unique_ptr<FunctionRegistry> globalRegistry_;
+        std::shared_ptr<LibraryContext> context_;
+        std::unordered_set<Str> currentlyLoading_; // For circular dependency detection
     };
-    
+
     /**
-     * 创建标准库管理器的便利函数
+     * Factory functions for common configurations
      */
-    UPtr<LibManager> createStandardLibManager();
-    
+    namespace ManagerFactory {
+        /**
+         * Create standard library manager with all standard modules
+         */
+        std::unique_ptr<LibManager> createStandardManager();
+
+        /**
+         * Create minimal library manager with only essential modules
+         */
+        std::unique_ptr<LibManager> createMinimalManager();
+
+        /**
+         * Create custom library manager with specified modules
+         */
+        std::unique_ptr<LibManager> createCustomManager(const std::vector<Str>& moduleNames);
+    }
+
     /**
-     * 快速初始化标准库的便利函数
+     * Quick setup functions for common use cases
      */
-    void initStandardLibraries(State* state, LibManager& manager);
-}
+    namespace QuickSetup {
+        /**
+         * Open standard libraries in state
+         */
+        void openStandardLibraries(State* state);
+
+        /**
+         * Open specific library
+         */
+        void openLibrary(State* state, StrView libraryName);
+
+        /**
+         * Open multiple libraries
+         */
+        void openLibraries(State* state, const std::vector<Str>& libraryNames);
+    }
+
+} // namespace Lua

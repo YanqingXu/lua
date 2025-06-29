@@ -1,8 +1,8 @@
-#include "lib_manager_v2.hpp"
-#include "base_lib_v2.hpp"
-#include "math_lib_v2.hpp"
-#include "error_handling_v2.hpp"
-#include "type_conversion_v2.hpp"
+﻿#include "lib_manager.hpp"
+#include "base_lib.hpp"
+#include "math_lib.hpp"
+#include "error_handling.hpp"
+#include "type_conversion.hpp"
 #include "../common/types.hpp"
 #include "../vm/state.hpp"
 #include "../vm/value.hpp"
@@ -21,7 +21,7 @@ namespace Lua {
             return "test";
         }
         
-        void registerFunctions(FunctionRegistry& registry) override {
+        void registerFunctions(FunctionRegistry& registry, const LibraryContext& context) override {
             // 测试基础类型转换
             REGISTER_SAFE_FUNCTION(registry, test_types, testTypes);
             REGISTER_SAFE_FUNCTION(registry, test_containers, testContainers);

@@ -322,23 +322,25 @@ namespace Lua {
     
     void StatementCompiler::compileWhileStmt(const WhileStmt* stmt) {
         int loopStart = static_cast<int>(compiler->getCodeSize());
-        
-        // Compile condition
+
+        // Compile condition (same pattern as for loop)
         int conditionReg = compiler->getExpressionCompiler()->compileExpr(stmt->getCondition());
-        
-        // Jump to end if condition is false
+
+        // Test condition: if true, skip the jump to end (continue with loop body)
+        compiler->emitInstruction(Instruction::createTEST(conditionReg, 1));
         int exitJump = compiler->emitJump();
         compiler->freeReg(); // Free condition register
-        
+
         // Compile loop body
         compiler->beginScope();
         compileStmt(stmt->getBody());
         compiler->endScope();
-        
+
         // Jump back to loop start
-        int backJump = static_cast<int>(compiler->getCodeSize()) - loopStart;
+        int currentPos = static_cast<int>(compiler->getCodeSize());
+        int backJump = currentPos - loopStart + 1;  // +1 because JMP instruction itself advances PC
         compiler->emitInstruction(Instruction::createJMP(-backJump));
-        
+
         // Patch exit jump
         compiler->patchJump(exitJump);
     }
@@ -478,28 +480,28 @@ namespace Lua {
     
     void StatementCompiler::compileRepeatUntilStmt(const RepeatUntilStmt* stmt) {
         compiler->beginScope();
-        
+
         int loopStart = static_cast<int>(compiler->getCodeSize());
-        
+
         // Compile loop body
         compileStmt(stmt->getBody());
-        
-        // Evaluate until condition
+
+        // Compile until condition
         int conditionReg = compiler->getExpressionCompiler()->compileExpr(stmt->getCondition());
-        
-        // Jump to exit if condition is true
+
+        // Test condition: if false, skip the jump to exit (continue looping)
+        compiler->emitInstruction(Instruction::createTEST(conditionReg, 0));
         int exitJump = compiler->emitJump();
-        
+        compiler->freeReg(); // Free condition register
+
         // Jump back to loop start (when condition is false)
-        int backJump = static_cast<int>(compiler->getCodeSize()) - loopStart + 1;
+        int currentPos = static_cast<int>(compiler->getCodeSize());
+        int backJump = currentPos - loopStart + 1;  // +1 because JMP instruction itself advances PC
         compiler->emitInstruction(Instruction::createJMP(-backJump));
-        
+
         // Patch the exit jump
         compiler->patchJump(exitJump);
-        
-        // Free condition register
-        compiler->freeReg();
-        
+
         compiler->endScope();
     }
     

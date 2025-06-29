@@ -82,12 +82,6 @@
     <Filter Include="tests\lib">
       <UniqueIdentifier>{cb84f0b7-0ef8-481e-b6c4-c90905cd87bb}</UniqueIdentifier>
     </Filter>
-    <Filter Include="lib\plugin">
-      <UniqueIdentifier>{b9b37814-b51b-4a52-8c1e-4d3cb3a659dc}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="tests\plugin">
-      <UniqueIdentifier>{9b5f5e8a-ba66-4971-b067-d639db0c1d0f}</UniqueIdentifier>
-    </Filter>
     <Filter Include="tests\vm\closure">
       <UniqueIdentifier>{1a9c95e0-36d0-4c66-866d-eab2e673120b}</UniqueIdentifier>
     </Filter>
@@ -192,48 +186,6 @@
     <ClCompile Include="src\localization\localization_manager.cpp">
       <Filter>localization</Filter>
     </ClCompile>
-    <ClCompile Include="src\lib\base_lib.cpp">
-      <Filter>lib</Filter>
-    </ClCompile>
-    <ClCompile Include="src\lib\error_handling.cpp">
-      <Filter>lib</Filter>
-    </ClCompile>
-    <ClCompile Include="src\lib\lib_manager.cpp">
-      <Filter>lib</Filter>
-    </ClCompile>
-    <ClCompile Include="src\lib\lib_module.cpp">
-      <Filter>lib</Filter>
-    </ClCompile>
-    <ClCompile Include="src\lib\math_lib.cpp">
-      <Filter>lib</Filter>
-    </ClCompile>
-    <ClCompile Include="src\lib\table_lib.cpp">
-      <Filter>lib</Filter>
-    </ClCompile>
-    <ClCompile Include="src\lib\string_lib.cpp">
-      <Filter>lib</Filter>
-    </ClCompile>
-    <ClCompile Include="src\lib\plugin\plugin.cpp">
-      <Filter>lib\plugin</Filter>
-    </ClCompile>
-    <ClCompile Include="src\lib\plugin\plugin_context.cpp">
-      <Filter>lib\plugin</Filter>
-    </ClCompile>
-    <ClCompile Include="src\lib\plugin\plugin_loader.cpp">
-      <Filter>lib\plugin</Filter>
-    </ClCompile>
-    <ClCompile Include="src\lib\plugin\plugin_manager.cpp">
-      <Filter>lib\plugin</Filter>
-    </ClCompile>
-    <ClCompile Include="src\lib\plugin\plugin_interface.cpp">
-      <Filter>lib\plugin</Filter>
-    </ClCompile>
-    <ClCompile Include="src\lib\plugin\plugin_registry.cpp">
-      <Filter>lib\plugin</Filter>
-    </ClCompile>
-    <ClCompile Include="src\lib\plugin\plugin_sandbox.cpp">
-      <Filter>lib\plugin</Filter>
-    </ClCompile>
     <ClCompile Include="src\compiler\upvalue_analyzer.cpp">
       <Filter>compiler</Filter>
     </ClCompile>
@@ -281,6 +233,30 @@
     </ClCompile>
     <ClCompile Include="src\tests\parser\expr\parser_variable_expr_test.cpp">
       <Filter>tests\parser\expr</Filter>
+    </ClCompile>
+    <ClCompile Include="src\compiler\register_manager.cpp">
+      <Filter>compiler</Filter>
+    </ClCompile>
+    <ClCompile Include="src\lib\base_lib.cpp">
+      <Filter>lib</Filter>
+    </ClCompile>
+    <ClCompile Include="src\lib\error_handling.cpp">
+      <Filter>lib</Filter>
+    </ClCompile>
+    <ClCompile Include="src\lib\lib_framework.cpp">
+      <Filter>lib</Filter>
+    </ClCompile>
+    <ClCompile Include="src\lib\lib_manager.cpp">
+      <Filter>lib</Filter>
+    </ClCompile>
+    <ClCompile Include="src\lib\math_lib.cpp">
+      <Filter>lib</Filter>
+    </ClCompile>
+    <ClCompile Include="src\lib\string_lib.cpp">
+      <Filter>lib</Filter>
+    </ClCompile>
+    <ClCompile Include="src\lib\table_lib.cpp">
+      <Filter>lib</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -401,53 +377,8 @@
     <ClInclude Include="src\localization\localization_manager.hpp">
       <Filter>localization</Filter>
     </ClInclude>
-    <ClInclude Include="src\lib\base_lib.hpp">
-      <Filter>lib</Filter>
-    </ClInclude>
-    <ClInclude Include="src\lib\error_handling.hpp">
-      <Filter>lib</Filter>
-    </ClInclude>
-    <ClInclude Include="src\lib\lib_manager.hpp">
-      <Filter>lib</Filter>
-    </ClInclude>
-    <ClInclude Include="src\lib\lib_module.hpp">
-      <Filter>lib</Filter>
-    </ClInclude>
-    <ClInclude Include="src\lib\math_lib.hpp">
-      <Filter>lib</Filter>
-    </ClInclude>
     <ClInclude Include="src\tests\lib\test_lib.hpp">
       <Filter>tests\lib</Filter>
-    </ClInclude>
-    <ClInclude Include="src\lib\table_lib.hpp">
-      <Filter>lib</Filter>
-    </ClInclude>
-    <ClInclude Include="src\lib\type_conversion.hpp">
-      <Filter>lib</Filter>
-    </ClInclude>
-    <ClInclude Include="src\lib\string_lib.hpp">
-      <Filter>lib</Filter>
-    </ClInclude>
-    <ClInclude Include="src\lib\plugin\plugin.hpp">
-      <Filter>lib\plugin</Filter>
-    </ClInclude>
-    <ClInclude Include="src\lib\plugin\plugin_context.hpp">
-      <Filter>lib\plugin</Filter>
-    </ClInclude>
-    <ClInclude Include="src\lib\plugin\plugin_interface.hpp">
-      <Filter>lib\plugin</Filter>
-    </ClInclude>
-    <ClInclude Include="src\lib\plugin\plugin_loader.hpp">
-      <Filter>lib\plugin</Filter>
-    </ClInclude>
-    <ClInclude Include="src\lib\plugin\plugin_manager.hpp">
-      <Filter>lib\plugin</Filter>
-    </ClInclude>
-    <ClInclude Include="src\lib\plugin\plugin_registry.hpp">
-      <Filter>lib\plugin</Filter>
-    </ClInclude>
-    <ClInclude Include="src\lib\plugin\plugin_sandbox.hpp">
-      <Filter>lib\plugin</Filter>
     </ClInclude>
     <ClInclude Include="src\compiler\upvalue_analyzer.hpp">
       <Filter>compiler</Filter>
@@ -523,6 +454,33 @@
     </ClInclude>
     <ClInclude Include="src\tests\parser\expr\parser_variable_expr_test.hpp">
       <Filter>tests\parser\expr</Filter>
+    </ClInclude>
+    <ClInclude Include="src\compiler\register_manager.hpp">
+      <Filter>compiler</Filter>
+    </ClInclude>
+    <ClInclude Include="src\lib\base_lib.hpp">
+      <Filter>lib</Filter>
+    </ClInclude>
+    <ClInclude Include="src\lib\error_handling.hpp">
+      <Filter>lib</Filter>
+    </ClInclude>
+    <ClInclude Include="src\lib\lib_framework.hpp">
+      <Filter>lib</Filter>
+    </ClInclude>
+    <ClInclude Include="src\lib\lib_manager.hpp">
+      <Filter>lib</Filter>
+    </ClInclude>
+    <ClInclude Include="src\lib\math_lib.hpp">
+      <Filter>lib</Filter>
+    </ClInclude>
+    <ClInclude Include="src\lib\string_lib.hpp">
+      <Filter>lib</Filter>
+    </ClInclude>
+    <ClInclude Include="src\lib\table_lib.hpp">
+      <Filter>lib</Filter>
+    </ClInclude>
+    <ClInclude Include="src\lib\type_conversion.hpp">
+      <Filter>lib</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

@@ -6,7 +6,7 @@
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-blue.svg)](https://en.cppreference.com/w/cpp/17)
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)](#)
 
-A modern reimplementation of the Lua interpreter using cutting-edge C++ techniques and design patterns. This project has achieved **98-99% completion** with a fully functional core VM capable of executing complex Lua programs including advanced features like upvalues, closures, and complex string operations. The implementation provides a clean, efficient, and maintainable codebase while preserving full compatibility with the original Lua language specification.
+A modern reimplementation of the Lua interpreter using cutting-edge C++ techniques and design patterns. This project has achieved **85-90% completion** with a fully functional core VM capable of executing complex Lua programs including advanced features like upvalues, closures, and complex string operations. While the core language features are well-implemented, several standard library modules and advanced features are still under development. The implementation provides a clean, efficient, and maintainable codebase with a strong foundation for completing full Lua 5.1 compatibility.
 
 ## 🎯 Project Overview
 
@@ -83,19 +83,35 @@ src/
 | 🌳 **Parser & AST** | 🔄 Refactoring | 55% | Source location support, progressive refactoring |
 | ⚙️ **Compiler** | 🔄 Optimization | 85% | Expression/statement compilation, upvalue analysis |
 | 🖥️ **Virtual Machine** | ✅ Near Complete | 95% | Register-based VM, function calls, complex expression execution |
-| 🗑️ **Garbage Collector** | 🔄 Integration | 87% | Tri-color mark-sweep, advanced features |
-| 🔧 **Function System** | ✅ Complete | 98% | **Closures, upvalues, complex string operations** |
-| 📚 **Standard Library** | 🔄 In Progress | 42% | BaseLib, StringLib core, modular architecture |
+| 🗑️ **Garbage Collector** | 🔄 Integration | 70% | Tri-color mark-sweep, **missing incremental GC** |
+| 🔧 **Function System** | ✅ Complete | 95% | **Closures, upvalues, complex string operations** |
+| 📚 **Standard Library** | 🔄 **Major Gap** | 35% | **Missing IO, OS, Debug libraries** |
 | 🧪 **Test Framework** | ✅ Revolutionary | 98% | **Modular architecture, enterprise-grade testing** |
 
-**Overall Project Completion: ~98-99%** 🚀
+**Overall Project Completion: ~85-90%** �
+
+### 🚨 **Critical Missing Features**
+- ❌ **Coroutines** (0% complete) - Core Lua feature
+- ❌ **File I/O System** (10% complete) - Essential for practical use
+- ❌ **OS Interface** (5% complete) - System interaction capabilities
+- ❌ **Advanced Metatables** (20% complete) - Language expressiveness
+- ❌ **Module System** (30% complete) - Code organization
+- ❌ **Debug Support** (15% complete) - Development tools
 
 ### 🎉 Latest Major Breakthroughs (June 29, 2025)
 - **Upvalue System Complete**: Full implementation of upvalue capture, access, and lexical scoping
 - **Complex Expression Support**: Multi-level string concatenation with function calls in nested contexts
 - **Function Call Stack Fixed**: Advanced register allocation and stack management for nested function calls
-- **Production Ready**: Core functionality ready for real-world Lua program execution with advanced features
-- **Real Program Success**: Successfully executes complex demonstration programs with all major Lua features
+- **Core VM Ready**: Core functionality ready for real-world Lua program execution with advanced features
+- **Real Program Success**: Successfully executes complex demonstration programs with implemented features
+
+### ⚠️ **Current Limitations**
+While the core VM is highly functional, the following limitations affect production readiness:
+- **No File Operations**: Cannot read/write files or handle I/O streams
+- **No System Integration**: Missing time, environment, and OS interaction
+- **Limited Standard Library**: Many essential Lua functions are not implemented
+- **No Coroutine Support**: Cannot use Lua's cooperative multitasking features
+- **Basic Metatable Support**: Advanced metamethods and object-oriented features limited
 
 ## 🚀 Quick Start
 
@@ -372,57 +388,71 @@ local v3 = v1 + v2  -- {x = 4, y = 6}
 ## 📊 Performance Benchmarks
 
 ### Current Status
-*Performance benchmarking is planned for completion after core functionality reaches 90%+*
+*Performance benchmarking is planned for completion after standard library reaches 70%+*
 
-| Component | Status | Performance Target |
-|-----------|--------|-------------------|
-| **Function Calls** | ✅ Ready | Closure overhead < 10% vs native functions |
-| **Memory Management** | 🔄 In Progress | GC pause times < 5ms for typical workloads |
-| **Compilation Speed** | ✅ Ready | Expression compilation < 1ms average |
-| **VM Execution** | 🔄 Optimizing | Register-based efficiency gains |
-| **Test Execution** | ✅ Excellent | 95% coverage with fast execution |
+| Component | Status | Performance Target | Completion |
+|-----------|--------|-------------------|------------|
+| **Function Calls** | ✅ Ready | Closure overhead < 10% vs native functions | 95% |
+| **Memory Management** | 🔄 **Limited** | GC pause times < 5ms for typical workloads | 70% |
+| **Compilation Speed** | ✅ Ready | Expression compilation < 1ms average | 85% |
+| **VM Execution** | 🔄 **Core Ready** | Register-based efficiency gains | 95% |
+| **Standard Library** | ❌ **Major Gap** | Function call overhead optimization | 35% |
+| **I/O Operations** | ❌ **Not Available** | File operation performance | 10% |
+| **Test Execution** | ✅ Excellent | 95% coverage with fast execution | 98% |
 
 ### Preliminary Results
+- **Core VM Performance**: Excellent execution speed for implemented features
 - **Closure Performance**: Comprehensive test suite shows excellent memory efficiency
 - **Compilation Speed**: Expression and statement compilation performs well
 - **Test Suite**: 95% coverage executes rapidly with modular architecture
 - **Memory Usage**: Smart pointer overhead minimal with RAII design
+- **⚠️ Limited Scope**: Performance only measured for implemented features
 
-### Planned Benchmarks (Version 1.1)
-- Fibonacci recursion performance
-- Table operation throughput
-- String manipulation efficiency  
-- Function call overhead analysis
-- Memory allocation patterns
-- Garbage collection pause times
+### Performance Limitations
+- **No I/O Benchmarks**: File operations not implemented
+- **No System Call Performance**: OS interface missing
+- **Limited Standard Library**: Many functions unavailable for testing
+- **No Coroutine Performance**: Feature not implemented
+- **Basic GC Performance**: Advanced features missing
 
-*Detailed benchmarking will be conducted once VM optimization phase completes*
+### Planned Benchmarks (After Standard Library Completion)
+- File I/O operation throughput
+- System call overhead analysis
+- Coroutine switching performance
+- String pattern matching efficiency
+- Garbage collection pause times with real workloads
+- Memory allocation patterns under load
+- Standard library function call overhead
+
+*Comprehensive benchmarking will be conducted once critical missing features are implemented*
 
 ## 🗺️ Roadmap
 
-### Version 1.0 - MVP (Target: Q2 2025)
-- ✅ Core language implementation (75-78% complete)
-- 🎉 **Function system with closures** (90-95% complete)
+### Version 1.0 - Core Completion (Target: Q3 2025) **[REVISED]**
+- ✅ Core language implementation (85% complete)
+- ✅ **Function system with closures** (95% complete)
 - ✅ Revolutionary test architecture (98% complete)
-- 🔄 Standard library core modules (42% complete)
-- 🔄 Garbage collector integration (87% complete)
-- 🔄 Parser refactoring completion (55% → 95%)
-- 🔄 VM optimization and performance tuning
+- 🔄 **Standard library critical modules** (35% → 70% target)
+  - 🔥 **IO Library** (10% → 90%) - File operations, streams
+  - 🔥 **OS Library** (5% → 80%) - System calls, time, environment
+  - 🔥 **Module System** (30% → 80%) - require, package management
+- 🔄 Garbage collector advanced features (70% → 85%)
+- 🔄 Parser refactoring completion (55% → 80%)
 
-### Version 1.1 - Feature Complete (Target: Q3 2025)
-- ❌ Complete standard library (IOLib, MathLib, OSLib)
-- ❌ Advanced garbage collection features
-- ❌ Coroutine implementation
-- ❌ Enhanced error handling and debugging
+### Version 1.1 - Feature Complete (Target: Q4 2025) **[REVISED]**
+- 🔥 **Coroutine implementation** (0% → 90%) - **Critical missing feature**
+- 🔥 **Advanced metamethods** (20% → 90%) - **Language completeness**
+- ❌ Enhanced error handling and debugging (15% → 80%)
+- ❌ String pattern matching engine (60% → 95%)
 - ❌ Performance optimization and benchmarking
 - ❌ Comprehensive documentation
 
-### Version 1.2 - Production Ready (Target: Q4 2025)
+### Version 1.2 - Production Ready (Target: Q1 2026) **[REVISED]**
 - ❌ Lua 5.1 full compatibility testing
-- ❌ Advanced metamethods and metatables
+- ❌ Advanced garbage collection (incremental, weak references)
 - ❌ Memory optimization and profiling tools
 - ❌ IDE integration and debugging support
-- ❌ Package management system
+- ❌ Performance benchmarking and optimization
 
 ### Version 2.0 - Advanced Features (Target: 2026)
 - ❌ Lua 5.4 compatibility features
@@ -430,6 +460,24 @@ local v3 = v1 + v2  -- {x = 4, y = 6}
 - ❌ Multi-threading support
 - ❌ Native C++ module integration
 - ❌ Advanced development tools
+
+## 🚨 **Critical Development Priorities**
+
+### **Immediate (Next 2-3 months)**
+1. **File I/O System** - Essential for practical applications
+2. **OS Interface** - Time, environment variables, system calls
+3. **Module System** - require() and package management
+4. **Advanced Metatables** - Core language features
+
+### **High Priority (3-6 months)**
+5. **Coroutine System** - Major Lua language feature
+6. **Debug Library** - Development tools and stack tracing
+7. **String Pattern Matching** - Complete text processing
+8. **Incremental Garbage Collection** - Performance optimization
+
+### **Medium Priority (6-12 months)**
+9. **Performance Optimization** - JIT compilation research
+10. **Advanced Error Handling** - Better debugging experience
 
 ## 🤝 Contributing
 

@@ -1,6 +1,6 @@
 ﻿#pragma once
 
-#include "lib_module.hpp"
+#include "lib_framework.hpp"
 #include "error_handling.hpp"
 #include "../common/types.hpp"
 #include "../vm/state.hpp"
@@ -206,7 +206,7 @@ namespace Lua {
             return "typeconv";
         }
         
-        void registerFunctions(FunctionRegistry& registry) override {
+        void registerFunctions(FunctionRegistry& registry, const LibraryContext& context) override {
             // 基础类型转换
             REGISTER_SAFE_FUNCTION(registry, toint8, toInt8);
             REGISTER_SAFE_FUNCTION(registry, toint16, toInt16);

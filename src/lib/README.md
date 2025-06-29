@@ -623,36 +623,11 @@ private:
 
 #### 第二阶段：扩展性增强与错误处理（2-3个月）
 
-**目标**：建立插件化架构，完善错误处理
+**目标**：完善错误处理和模块化架构
 
 **主要任务**：
 
-1. **设计插件接口标准**
-   ```cpp
-   class LibraryPlugin {
-   public:
-       virtual ~LibraryPlugin() = default;
-       virtual std::string_view getName() const = 0;
-       virtual std::string_view getVersion() const = 0;
-       virtual bool isCompatible(const Version& interpreterVersion) const = 0;
-       virtual void initialize(PluginContext& context) = 0;
-       virtual void cleanup() = 0;
-   };
-   ```
-
-2. **实现动态库加载**
-   ```cpp
-   class PluginManager {
-   public:
-       bool loadPlugin(const std::filesystem::path& pluginPath);
-       void unloadPlugin(std::string_view name);
-       std::vector<std::string> getLoadedPlugins() const;
-   private:
-       std::unordered_map<std::string, std::unique_ptr<PluginHandle>> plugins_;
-   };
-   ```
-
-3. **建立统一错误处理框架**
+1. **建立统一错误处理框架**
    ```cpp
    enum class LibErrorCode {
        Success = 0,
