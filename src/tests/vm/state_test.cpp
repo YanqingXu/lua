@@ -22,7 +22,7 @@ void StateTest::testState() {
     State state;
 
     // Register base library
-    registerBaseLib(&state);
+    Lua::Lib::registerBaseLib(&state);
 
     // Test global variables
     state.setGlobal("x", Value(10));
@@ -72,7 +72,7 @@ void StateTest::testExecute() {
     std::cout << "\nExecute Test:" << std::endl;
 
     State state;
-    registerBaseLib(&state);
+    Lua::Lib::registerBaseLib(&state);
 
     // Execute simple Lua code
     state.doString("print('Hello from Lua!')");

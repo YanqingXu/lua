@@ -4,7 +4,7 @@
 #include "../../../vm/state.hpp"
 #include "../../../vm/value.hpp"
 #include "../../../vm/function.hpp"
-#include "../../../lib/base_lib.hpp"
+#include "../../../lib/base/base_lib.hpp"
 #include "../../../test_framework/core/test_macros.hpp"
 #include <cassert>
 #include <stdexcept>

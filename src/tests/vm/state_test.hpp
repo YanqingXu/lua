@@ -3,7 +3,8 @@
 #include <iostream>
 #include "../../vm/state.hpp"
 #include "../../vm/value.hpp"
-#include "../../lib/base_lib.hpp"
+#include "../../lib/base/base_lib.hpp"
+#include "../../lib/lib_base_utils.hpp"
 
 namespace Lua {
 namespace Tests {

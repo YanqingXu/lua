@@ -1,56 +1,29 @@
-﻿#ifndef BASE_LIB_TEST_HPP
-#define BASE_LIB_TEST_HPP
+#pragma once
 
 #include "../../common/types.hpp"
-#include <string>
 
 namespace Lua::Tests {
 
 /**
- * @brief Base library test suite
+ * @brief 新 Base Library 测试套件
  * 
- * Tests all Lua base library functions organized into logical groups:
- * - Type Conversion: tonumber, tostring, type
- * - Table Access: rawget, rawset, rawlen, rawequal  
- * - Iterator Functions: pairs, ipairs, next
- * - Metatable Functions: getmetatable, setmetatable
- * - Utility Functions: print, select, unpack
+ * 展示统一架构设计的测试覆盖和使用方式
+ * 测试内容包括：
+ * - 核心函数：print, type, tostring, tonumber, error, assert
+ * - 表操作：pairs, ipairs, next
+ * - 元表操作：getmetatable, setmetatable
+ * - 原始访问：rawget, rawset, rawlen, rawequal
+ * - 错误处理：pcall, xpcall
+ * - 工具函数：select, unpack
  */
 class BaseLibTestSuite {
 public:
     /**
-     * @brief Run all base library tests
+     * @brief 运行所有新架构的基础库测试
      * 
-     * Execute all test groups in this test suite
+     * 执行完整的测试套件，验证统一架构的正确性
      */
     static void runAllTests();
-    
-private:
-    // Test group methods
-    static void runTypeConversionTests();
-    static void runTableAccessTests();
-    static void runIteratorTests();
-    static void runMetatableTests();
-    static void runUtilityTests();
-    
-    // Individual test methods
-    static void testPrint();
-    static void testTonumber();
-    static void testTostring();
-    static void testType();
-    static void testIpairs();
-    static void testPairs();
-    static void testNext();
-    static void testGetmetatable();
-    static void testSetmetatable();
-    static void testRawget();
-    static void testRawset();
-    static void testRawlen();
-    static void testRawequal();
-    static void testSelect();
-    static void testUnpack();
 };
 
 } // namespace Lua::Tests
-
-#endif // BASE_LIB_TEST_HPP
