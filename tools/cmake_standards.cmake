@@ -149,7 +149,7 @@ function(enable_strict_compilation target_name)
 endfunction()
 
 # 示例使用方法：
-# add_library(base_lib src/lib/base_lib_new.cpp)
+# add_library(base_lib src/lib/base_lib.cpp)
 # enable_strict_compilation(base_lib)
 
 # 测试配置

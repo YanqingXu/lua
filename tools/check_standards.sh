@@ -235,7 +235,7 @@ show_summary() {
 main() {
     if [ $# -eq 0 ]; then
         echo "使用方法: $0 <文件路径>"
-        echo "示例: $0 src/lib/base_lib_new.cpp"
+        echo "示例: $0 src/lib/base_lib.cpp"
         exit 1
     fi
     

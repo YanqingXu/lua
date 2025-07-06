@@ -16,7 +16,7 @@ set check_failed=0
 REM 检查文件是否存在
 if "%~1"=="" (
     echo 使用方法: %0 ^<文件路径^>
-    echo 示例: %0 src\lib\base_lib_new.cpp
+    echo 示例: %0 src\lib\base_lib.cpp
     exit /b 1
 )
 

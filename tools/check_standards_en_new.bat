@@ -13,7 +13,7 @@ set check_failed=0
 REM Check if file exists
 if "%~1"=="" (
     echo Usage: %0 ^<file_path^>
-    echo Example: %0 src\lib\base_lib_new.cpp
+    echo Example: %0 src\lib\base_lib.cpp
     exit /b 1
 )
 
