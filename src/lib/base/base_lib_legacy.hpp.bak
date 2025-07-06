@@ -1,0 +1,90 @@
+﻿#pragma once
+
+#include "lib_define.hpp"
+#include "lib_module.hpp"
+#include "lib_utils.hpp"
+#include "lib_context.hpp"
+#include "lib_func_registry.hpp"
+
+namespace Lua {
+    class State; // Forward declaration
+}
+
+namespace Lua {
+    namespace Lib {
+        /**
+         * Base library implementation using the new framework
+         * Provides essential Lua functions like print, type, etc.
+         */
+        class BaseLib : public LibModule {
+        public:
+            /**
+             * Get module name
+             */
+            StrView getName() const noexcept override;
+
+            /**
+             * Get module version
+             */
+            StrView getVersion() const noexcept override;
+
+            /**
+             * Register functions to registry
+             */
+            void registerFunctions(LibFuncRegistry& registry, const LibContext& context) override;
+
+            /**
+             * Initialize module
+             */
+            void initialize(State* state, const LibContext& context) override;
+
+            /**
+             * Cleanup module
+             */
+            void cleanup(State* state, const LibContext& context) override;
+
+        public:
+            // Base library function implementations
+            LUA_FUNCTION(print);
+            LUA_FUNCTION(tonumber);
+            LUA_FUNCTION(tostring);
+            LUA_FUNCTION(type);
+            LUA_FUNCTION(ipairs);
+            LUA_FUNCTION(pairs);
+            LUA_FUNCTION(next);
+            LUA_FUNCTION(getmetatable);
+            LUA_FUNCTION(setmetatable);
+            LUA_FUNCTION(rawget);
+            LUA_FUNCTION(rawset);
+            LUA_FUNCTION(rawlen);
+            LUA_FUNCTION(rawequal);
+            LUA_FUNCTION(pcall);
+            LUA_FUNCTION(xpcall);
+            LUA_FUNCTION(error);
+            LUA_FUNCTION(assert_func);
+            LUA_FUNCTION(select);
+            LUA_FUNCTION(unpack);
+            LUA_FUNCTION(load);
+            LUA_FUNCTION(loadstring);
+            LUA_FUNCTION(dofile);
+            LUA_FUNCTION(loadfile);
+
+        private:
+            // Helper functions - moved to global namespace
+            // static Str valueToString(const Value& value);
+            // static bool isValidNumber(StrView str);
+            // static f64 stringToNumber(StrView str);
+        };
+
+        // MinimalBaseLib functionality has been merged into BaseLib
+
+        // Only standard BaseLib for Lua 5.1 basic functions
+
+        // Factory function for creating standard Lua 5.1 base library
+        /**
+         * Create standard base library with Lua 5.1 functions
+         */
+        std::unique_ptr<LibModule> createBaseLib();
+
+    } // namespace Lib
+} // namespace Lua

@@ -1,0 +1,349 @@
+﻿#include "base_lib.hpp"
+#include "lib_manager.hpp"
+#include "lib_base_utils.hpp"
+#include "../vm/state.hpp"
+#include "../vm/value.hpp"
+#include "../vm/table.hpp"
+#include "../vm/function.hpp"
+#include "../gc/core/gc_ref.hpp"
+#include <iostream>
+#include <sstream>
+#include <iomanip>
+#include <algorithm>
+#include <cctype>
+
+namespace Lua {
+    namespace Lib {
+        // BaseLib implementation
+        StrView BaseLib::getName() const noexcept {
+            return "base";
+        }
+
+        StrView BaseLib::getVersion() const noexcept {
+            return "1.0.0";
+        }
+
+        void BaseLib::registerFunctions(LibFuncRegistry& registry, const LibContext& context) {
+            // Essential functions with metadata
+            {
+                FunctionMetadata meta("print");
+                meta.withDescription("Print values to standard output")
+                    .withArgs(0, -1)
+                    .withVariadic();
+                registry.registerFunction(meta, [](State* s, i32 n) { return BaseLib::print(s, n); });
+            }
+            
+            {
+                FunctionMetadata meta("type");
+                meta.withDescription("Return the type of a value")
+                    .withArgs(1, 1);
+                registry.registerFunction(meta, [](State* s, i32 n) { return BaseLib::type(s, n); });
+            }
+            
+            {
+                FunctionMetadata meta("tostring");
+                meta.withDescription("Convert value to string")
+                    .withArgs(1, 1);
+                registry.registerFunction(meta, [](State* s, i32 n) { return BaseLib::tostring(s, n); });
+            }
+            
+            {
+                FunctionMetadata meta("tonumber");
+                meta.withDescription("Convert value to number")
+                    .withArgs(1, 2);
+                registry.registerFunction(meta, [](State* s, i32 n) { return BaseLib::tonumber(s, n); });
+            }
+            
+            {
+                FunctionMetadata meta("error");
+                meta.withDescription("Terminate execution with error")
+                    .withArgs(1, 2);
+                registry.registerFunction(meta, [](State* s, i32 n) { return BaseLib::error(s, n); });
+            }
+            
+            {
+                FunctionMetadata meta("assert");
+                meta.withDescription("Assert condition is true")
+                    .withArgs(1, -1)
+                    .withVariadic();
+                registry.registerFunction(meta, [](State* s, i32 n) { return BaseLib::assert_func(s, n); });
+            }
+            
+            // Table iteration functions
+            {
+                FunctionMetadata meta("ipairs");
+                meta.withDescription("Iterator for indexed arrays")
+                    .withArgs(1, 1);
+                registry.registerFunction(meta, [](State* s, i32 n) { return BaseLib::ipairs(s, n); });
+            }
+            
+            {
+                FunctionMetadata meta("pairs");
+                meta.withDescription("Iterator for key-value pairs")
+                    .withArgs(1, 1);
+                registry.registerFunction(meta, [](State* s, i32 n) { return BaseLib::pairs(s, n); });
+            }
+            
+            {
+                FunctionMetadata meta("next");
+                meta.withDescription("Get next key-value pair")
+                    .withArgs(1, 2);
+                registry.registerFunction(meta, [](State* s, i32 n) { return BaseLib::next(s, n); });
+            }
+            
+            // Metatable functions
+            {
+                FunctionMetadata meta("getmetatable");
+                meta.withDescription("Get object's metatable")
+                    .withArgs(1, 1);
+                registry.registerFunction(meta, [](State* s, i32 n) { return BaseLib::getmetatable(s, n); });
+            }
+            
+            {
+                FunctionMetadata meta("setmetatable");
+                meta.withDescription("Set object's metatable")
+                    .withArgs(2, 2);
+                registry.registerFunction(meta, [](State* s, i32 n) { return BaseLib::setmetatable(s, n); });
+            }
+            
+            // Raw access functions (bypassing metamethods)
+            {
+                FunctionMetadata meta("rawget");
+                meta.withDescription("Get table value without metamethods")
+                    .withArgs(2, 2);
+                registry.registerFunction(meta, [](State* s, i32 n) { return BaseLib::rawget(s, n); });
+            }
+            
+            {
+                FunctionMetadata meta("rawset");
+                meta.withDescription("Set table value without metamethods")
+                    .withArgs(3, 3);
+                registry.registerFunction(meta, [](State* s, i32 n) { return BaseLib::rawset(s, n); });
+            }
+            
+            {
+                FunctionMetadata meta("rawlen");
+                meta.withDescription("Get length without metamethods")
+                    .withArgs(1, 1);
+                registry.registerFunction(meta, [](State* s, i32 n) { return BaseLib::rawlen(s, n); });
+            }
+            
+            {
+                FunctionMetadata meta("rawequal");
+                meta.withDescription("Compare values without metamethods")
+                    .withArgs(2, 2);
+                registry.registerFunction(meta, [](State* s, i32 n) { return BaseLib::rawequal(s, n); });
+            }
+            
+            // Control flow functions
+            {
+                FunctionMetadata meta("pcall");
+                meta.withDescription("Protected call (catches errors)")
+                    .withArgs(1, -1)
+                    .withVariadic();
+                registry.registerFunction(meta, [](State* s, i32 n) { return BaseLib::pcall(s, n); });
+            }
+            
+            {
+                FunctionMetadata meta("xpcall");
+                meta.withDescription("Extended protected call with error handler")
+                    .withArgs(2, -1)
+                    .withVariadic();
+                registry.registerFunction(meta, [](State* s, i32 n) { return BaseLib::xpcall(s, n); });
+            }
+            
+            // Utility functions
+            {
+                FunctionMetadata meta("select");
+                meta.withDescription("Select from variable arguments")
+                    .withArgs(1, -1)
+                    .withVariadic();
+                registry.registerFunction(meta, [](State* s, i32 n) { return BaseLib::select(s, n); });
+            }
+            
+            {
+                FunctionMetadata meta("unpack");
+                meta.withDescription("Unpack array into multiple values")
+                    .withArgs(1, 3);
+                registry.registerFunction(meta, [](State* s, i32 n) { return BaseLib::unpack(s, n); });
+            }
+            
+            // Loading and execution functions
+            {
+                FunctionMetadata meta("load");
+                meta.withDescription("Load chunk from reader function")
+                    .withArgs(1, 4);
+                registry.registerFunction(meta, [](State* s, i32 n) { return BaseLib::load(s, n); });
+            }
+            
+            {
+                FunctionMetadata meta("loadstring");
+                meta.withDescription("Load chunk from string")
+                    .withArgs(1, 2);
+                registry.registerFunction(meta, [](State* s, i32 n) { return BaseLib::loadstring(s, n); });
+            }
+            
+            {
+                FunctionMetadata meta("dofile");
+                meta.withDescription("Execute Lua file")
+                    .withArgs(0, 1);
+                registry.registerFunction(meta, [](State* s, i32 n) { return BaseLib::dofile(s, n); });
+            }
+            
+            {
+                FunctionMetadata meta("loadfile");
+                meta.withDescription("Load chunk from file")
+                    .withArgs(0, 2);
+                registry.registerFunction(meta, [](State* s, i32 n) { return BaseLib::loadfile(s, n); });
+            }
+        }
+
+        void BaseLib::initialize(State* state, const LibContext& context) {
+            // Initialization logic if needed
+        }
+
+        void BaseLib::cleanup(State* state, const LibContext& context) {
+            // Cleanup logic if needed
+        }
+
+        // Factory implementation
+        std::unique_ptr<LibModule> createBaseLib() {
+            return std::make_unique<BaseLib>();
+        }
+
+    } // namespace Lib
+} // namespace Lua
+
+// Static function implementations - following development standards
+namespace Lua {
+    namespace Lib {
+        Value BaseLib::print(State* state, i32 nargs) {
+            for (i32 i = 1; i <= nargs; ++i) {
+                if (i > 1) std::cout << "\t";
+                Value val = state->get(i);
+                std::cout << Lua::Lib::valueToString(val);
+            }
+            std::cout << std::endl;
+            return Value(); // Return nil
+        }
+
+        Value BaseLib::type(State* state, i32 nargs) {
+            if (nargs < 1) {
+                return Value("nil");
+            }
+            Value val = state->get(1);
+            return Value(Lua::Lib::getValueTypeName(val));
+        }
+
+        Value BaseLib::tostring(State* state, i32 nargs) {
+            if (nargs < 1) {
+                return Value("nil");
+            }
+            Value val = state->get(1);
+            return Value(Lua::Lib::valueToString(val));
+        }
+
+        Value BaseLib::tonumber(State* state, i32 nargs) {
+            if (nargs < 1) {
+                return Value(); // Return nil
+            }
+            Value val = state->get(1);
+            if (val.isNumber()) {
+                return val;
+            } else if (val.isString()) {
+                StrView str = val.asString();
+                if (Lua::Lib::isValidNumber(str)) {
+                    return Value(Lua::Lib::stringToNumber(str));
+                }
+            }
+            return Value(); // nil
+        }
+
+        Value BaseLib::error(State* state, i32 nargs) {
+            if (nargs >= 1) {
+                Value msg = state->get(1);
+                std::string errorMsg = Lua::Lib::valueToString(msg);
+                std::cerr << "Error: " << errorMsg << std::endl;
+            }
+            return Value(); // nil
+        }
+
+        Value BaseLib::assert_func(State* state, i32 nargs) {
+            if (nargs < 1) {
+                std::cerr << "Error: assertion failed!" << std::endl;
+                return Value(); // nil
+            }
+            Value val = state->get(1);
+            if (!Lua::Lib::isTruthy(val)) {
+                std::string msg = "assertion failed!";
+                if (nargs >= 2) {
+                    Value msgVal = state->get(2);
+                    msg = Lua::Lib::valueToString(msgVal);
+                }
+                std::cerr << "Error: " << msg << std::endl;
+            }
+            return val;
+        }
+
+        Value BaseLib::ipairs(State* state, i32 nargs) {
+            return Value();
+        }
+
+        Value BaseLib::pairs(State* state, i32 nargs) {
+            return Value();
+        }
+
+        Value BaseLib::next(State* state, i32 nargs) {
+            return Value();
+        }
+
+        Value BaseLib::getmetatable(State* state, i32 nargs) {
+            return Value();
+        }
+
+        Value BaseLib::setmetatable(State* state, i32 nargs) {
+            return Value();
+        }
+
+        Value BaseLib::rawget(State* state, i32 nargs) {
+            return Value();
+        }
+
+        Value BaseLib::rawset(State* state, i32 nargs) {
+            return Value();
+        }
+
+        Value BaseLib::rawlen(State* state, i32 nargs) {
+            return Value();
+        }
+
+        Value BaseLib::rawequal(State* state, i32 nargs) {
+            return Value();
+        }
+
+        Value BaseLib::pcall(State* state, i32 nargs) {
+            return Value();
+        }
+
+        Value BaseLib::xpcall(State* state, i32 nargs) {
+            return Value();
+        }
+
+        Value BaseLib::select(State* state, i32 nargs) {
+            return Value();
+        }
+
+        Value BaseLib::unpack(State* state, i32 nargs) {
+            return Value();
+        }
+
+        Value BaseLib::load(State* state, i32 nargs) {
+            return Value();
+        }
+
+        Value BaseLib::loadstring(State* state, i32 nargs) {
+            return Value();
+        }
+
+    } // namespace Lib
+} // namespace Lua
