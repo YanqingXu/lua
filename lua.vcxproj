@@ -160,8 +160,13 @@
     <ClInclude Include="src\lexer\lexer.hpp" />
     <ClInclude Include="src\lib\base_lib.hpp" />
     <ClInclude Include="src\lib\error_handling.hpp" />
-    <ClInclude Include="src\lib\lib_framework.hpp" />
+    <ClInclude Include="src\lib\lib_base_utils.hpp" />
+    <ClInclude Include="src\lib\lib_context.hpp" />
+    <ClInclude Include="src\lib\lib_define.hpp" />
+    <ClInclude Include="src\lib\lib_func_registry.hpp" />
     <ClInclude Include="src\lib\lib_manager.hpp" />
+    <ClInclude Include="src\lib\lib_module.hpp" />
+    <ClInclude Include="src\lib\lib_utils.hpp" />
     <ClInclude Include="src\lib\math_lib.hpp" />
     <ClInclude Include="src\lib\string_lib.hpp" />
     <ClInclude Include="src\lib\table_lib.hpp" />
@@ -231,8 +236,10 @@
     <ClCompile Include="src\lexer\lexer.cpp" />
     <ClCompile Include="src\lib\base_lib.cpp" />
     <ClCompile Include="src\lib\error_handling.cpp" />
-    <ClCompile Include="src\lib\lib_framework.cpp" />
+    <ClCompile Include="src\lib\lib_base_utils.cpp" />
+    <ClCompile Include="src\lib\lib_func_registry.cpp" />
     <ClCompile Include="src\lib\lib_manager.cpp" />
+    <ClCompile Include="src\lib\lib_utils.cpp" />
     <ClCompile Include="src\lib\math_lib.cpp" />
     <ClCompile Include="src\lib\string_lib.cpp" />
     <ClCompile Include="src\lib\table_lib.cpp" />

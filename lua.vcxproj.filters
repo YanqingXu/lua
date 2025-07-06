@@ -243,9 +243,6 @@
     <ClCompile Include="src\lib\error_handling.cpp">
       <Filter>lib</Filter>
     </ClCompile>
-    <ClCompile Include="src\lib\lib_framework.cpp">
-      <Filter>lib</Filter>
-    </ClCompile>
     <ClCompile Include="src\lib\lib_manager.cpp">
       <Filter>lib</Filter>
     </ClCompile>
@@ -256,6 +253,15 @@
       <Filter>lib</Filter>
     </ClCompile>
     <ClCompile Include="src\lib\table_lib.cpp">
+      <Filter>lib</Filter>
+    </ClCompile>
+    <ClCompile Include="src\lib\lib_func_registry.cpp">
+      <Filter>lib</Filter>
+    </ClCompile>
+    <ClCompile Include="src\lib\lib_utils.cpp">
+      <Filter>lib</Filter>
+    </ClCompile>
+    <ClCompile Include="src\lib\lib_base_utils.cpp">
       <Filter>lib</Filter>
     </ClCompile>
   </ItemGroup>
@@ -464,9 +470,6 @@
     <ClInclude Include="src\lib\error_handling.hpp">
       <Filter>lib</Filter>
     </ClInclude>
-    <ClInclude Include="src\lib\lib_framework.hpp">
-      <Filter>lib</Filter>
-    </ClInclude>
     <ClInclude Include="src\lib\lib_manager.hpp">
       <Filter>lib</Filter>
     </ClInclude>
@@ -480,6 +483,24 @@
       <Filter>lib</Filter>
     </ClInclude>
     <ClInclude Include="src\lib\type_conversion.hpp">
+      <Filter>lib</Filter>
+    </ClInclude>
+    <ClInclude Include="src\lib\lib_context.hpp">
+      <Filter>lib</Filter>
+    </ClInclude>
+    <ClInclude Include="src\lib\lib_define.hpp">
+      <Filter>lib</Filter>
+    </ClInclude>
+    <ClInclude Include="src\lib\lib_func_registry.hpp">
+      <Filter>lib</Filter>
+    </ClInclude>
+    <ClInclude Include="src\lib\lib_module.hpp">
+      <Filter>lib</Filter>
+    </ClInclude>
+    <ClInclude Include="src\lib\lib_utils.hpp">
+      <Filter>lib</Filter>
+    </ClInclude>
+    <ClInclude Include="src\lib\lib_base_utils.hpp">
       <Filter>lib</Filter>
     </ClInclude>
   </ItemGroup>
