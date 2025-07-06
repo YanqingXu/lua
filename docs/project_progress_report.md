@@ -1188,10 +1188,10 @@ src/lib/
 基于深度分析和统一架构设计方案，已完成新架构的完整实现：
 
 **核心架构文件**:
-- ✅ `src/lib/base_lib_new.hpp` - 统一的Base Library头文件
-- ✅ `src/lib/base_lib_new.cpp` - 完整的统一实现  
-- ✅ `src/tests/lib/base_lib_new_test.hpp` - 新架构测试套件头文件
-- ✅ `src/tests/lib/base_lib_new_test.cpp` - 完整的测试实现
+- ✅ `src/lib/base_lib.hpp` - 统一的Base Library头文件
+- ✅ `src/lib/base_lib.cpp` - 完整的统一实现  
+- ✅ `src/tests/lib/base_lib_test.hpp` - 新架构测试套件头文件
+- ✅ `src/tests/lib/base_lib_test.cpp` - 完整的测试实现
 - ✅ `docs/base_lib_architecture_comparison.md` - 新旧架构对比文档
 
 ### **新架构核心特点**

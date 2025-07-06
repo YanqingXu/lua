@@ -35,7 +35,7 @@ error C1083: 无法打开包括文件: "lib_manager_v2.hpp": No such file or dir
 #include "lib_context.hpp"
 #include "lib_module.hpp"
 #include "lib_manager.hpp"
-#include "base_lib_new.hpp"
+#include "base_lib.hpp"
 #include "math_lib.hpp"
 #include "error_handling.hpp"
 #include "type_conversion.hpp"
@@ -156,7 +156,7 @@ g++ -std=c++17 -I. -c src/lib/compile_test.cpp -o compile_test.o
 - ✅ `lib_context.hpp` - 上下文管理
 - ✅ `lib_module.hpp` - 模块接口
 - ✅ `lib_manager.hpp` - 库管理器接口
-- ✅ `base_lib_new.hpp` - 新基础库接口
+- ✅ `base_lib.hpp` - 新基础库接口
 - ✅ `string_lib.hpp` - 字符串库接口
 - ✅ `table_lib.hpp` - 表格库接口
 - ✅ `math_lib.hpp` - 数学库接口

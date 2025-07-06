@@ -235,8 +235,8 @@ Function 'add' metadata:
 5. **`src/lib/lib_module.hpp`** - 模块接口定义 ✅
 6. **`src/lib/lib_manager.hpp`** - 库管理器接口 ✅
 7. **`src/lib/lib_manager.cpp`** - 库管理器实现 ✅
-8. **`src/lib/base_lib_new.hpp`** - 新基础库接口 ✅
-9. **`src/lib/base_lib_new.cpp`** - 新基础库实现 ✅
+8. **`src/lib/base_lib.hpp`** - 新基础库接口 ✅
+9. **`src/lib/base_lib.cpp`** - 新基础库实现 ✅
 
 ### 示例和测试文件
 7. **`src/lib/modern_lib_example.hpp`** - 使用示例和集成模式 ✅

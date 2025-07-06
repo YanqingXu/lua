@@ -11,7 +11,7 @@
 ### 当前问题
 
 1. **架构分散化**
-   - 多套不同的库实现并存（`base_lib.hpp/cpp`, `base_lib_new.hpp/cpp`）
+   - 多套不同的库实现并存（`base_lib.hpp/cpp`, `base_lib.hpp/cpp`）
    - 各库模块缺乏统一的接口规范
    - 依赖关系混乱，存在过时依赖（如已移除的`lib_framework.hpp`）
 

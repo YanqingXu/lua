@@ -105,7 +105,7 @@ base_lib.hpp
 
 ### 新架构依赖图
 ```
-base_lib_new.hpp
+base_lib.hpp
 ├── lib_define.hpp
 ├── lib_func_registry.hpp
 ├── lib_context.hpp
@@ -172,7 +172,7 @@ void BaseLibNewTestSuite::testIpairs() {
 ```cpp
 // 可以同时使用新旧架构
 #include "base_lib.hpp"      // 旧架构
-#include "base_lib_new.hpp"  // 新架构
+#include "base_lib.hpp"  // 新架构
 
 // 逐步测试和验证新架构
 ```

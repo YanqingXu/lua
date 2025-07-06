@@ -229,7 +229,7 @@ src/lib/                          ✅ 正常
 ├── lib_context.hpp              ✅ 保留
 ├── lib_module.hpp               ✅ 保留
 ├── lib_manager.hpp/cpp          ✅ 保留
-├── base_lib_new.hpp/cpp         ✅ 保留
+├── base_lib.hpp/cpp         ✅ 保留
 └── [其他标准库文件]             ✅ 保留
 
 src/tests/                        ✅ 正常

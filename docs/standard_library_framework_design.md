@@ -317,7 +317,7 @@ struct FunctionMetadata {
 
 ### 1. BaseLib 重构完善
 
-**当前状态**: 已有新架构框架 (`base_lib_new.hpp/cpp`)，需要完善实现
+**当前状态**: 已有新架构框架 (`base_lib.hpp/cpp`)，需要完善实现
 
 **重构重点**:
 ```cpp

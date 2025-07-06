@@ -60,7 +60,7 @@ Value FunctionRegistry::callFunction(StrView name, State* state, i32 nargs) cons
 #### 解决方案
 将工厂函数的实现移动到相应的实现文件中：
 
-- **BaseLibFactory** 函数移动到 `base_lib_new.cpp`
+- **BaseLibFactory** 函数移动到 `base_lib.cpp`
 - **ManagerFactory** 函数移动到 `lib_manager.cpp`
 - **QuickSetup** 函数移动到各自的实现文件
 
@@ -88,7 +88,7 @@ public:
 
 ### 修复的文件
 - ✅ `src/lib/error_handling.cpp` - 修复错误处理机制
-- ✅ `src/lib/base_lib_new.cpp` - 添加工厂函数和 MinimalBaseLib 实现
+- ✅ `src/lib/base_lib.cpp` - 添加工厂函数和 MinimalBaseLib 实现
 - ✅ `src/lib/lib_manager.cpp` - 添加管理器工厂函数实现
 
 ### 修复的错误类型
@@ -112,7 +112,7 @@ g++ -std=c++17 -I. -c src/lib/lib_func_registry.cpp -o lib_func_registry.o
 
 ### 基础库文件编译测试
 ```bash
-g++ -std=c++17 -I. -c src/lib/base_lib_new.cpp -o base_lib_new.o
+g++ -std=c++17 -I. -c src/lib/base_lib.cpp -o base_lib.o
 # ✅ 编译成功，无错误，无警告
 ```
 
@@ -166,7 +166,7 @@ g++ -std=c++17 -I. -c src/lib/lib_manager.cpp -o lib_manager.o
 ├── lib_context.hpp - 上下文管理
 ├── lib_module.hpp - 标准模块接口
 
-base_lib_new.cpp
+base_lib.cpp
 ├── BaseLib 实现
 ├── MinimalBaseLib 实现  
 └── BaseLibFactory 实现
