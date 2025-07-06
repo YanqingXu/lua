@@ -122,7 +122,7 @@ namespace Lua {
          * 
          * @param state Pointer to the Lua state
          */
-        virtual void finalize(State* state) {}
+        virtual void finalize(State* /*state*/) {}
         
         /**
          * @brief Optional finalizer called before object destruction (no state)

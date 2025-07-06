@@ -12,9 +12,8 @@
 #include "parser/visitor.hpp"
 #include "compiler/symbol_table.hpp"
 #include "common/defines.hpp"
-#include "lib/base_lib.hpp"
-#include "tests/test_main.hpp"
-#include "test_framework/core/test_macros.hpp"
+#include "lib/base/base_lib.hpp"
+#include "lib/core/lib_module.hpp"
 
 using namespace Lua;
 
@@ -38,11 +37,22 @@ int main(int argc, char** argv) {
             std::string source = readFile(filename);
 
             State state;
-            registerBaseLib(&state);
+            // Register BaseLib using new modular interface
+            auto baseLib = createBaseLib();
+            Lib::LibContext context;
+            baseLib->initialize(&state, context);
             state.doString(source);
         } else {
-            // Run all tests by default
-            RUN_MAIN_TEST("Lua Interpreter Tests", Lua::Tests::MainTestSuite::runAllTests);
+            // Interactive mode or show usage
+            std::cout << "Lua Interpreter (Minimal Version)" << std::endl;
+            std::cout << "Usage: " << argv[0] << " <script.lua>" << std::endl;
+            std::cout << std::endl;
+            std::cout << "This minimal version includes:" << std::endl;
+            std::cout << "- Core VM components" << std::endl;
+            std::cout << "- Lexer and Parser" << std::endl;
+            std::cout << "- Compiler" << std::endl;
+            std::cout << "- BaseLib (core functions)" << std::endl;
+            std::cout << "- Basic garbage collection" << std::endl;
         }
     } catch (const std::exception& e) {
         std::cerr << "Error: " << e.what() << std::endl;

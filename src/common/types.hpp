@@ -9,6 +9,8 @@
 #include <atomic>
 #include <memory>
 #include <mutex>
+#include <shared_mutex>
+#include <functional>
 #include <variant>
 #include <optional>
 #include <utility>
@@ -61,6 +63,9 @@ namespace Lua {
 
     using Mtx = std::mutex;
     using ScopedLock = std::scoped_lock<Mtx>;
+    using SharedMtx = std::shared_mutex;
+    using UniqueLock = std::unique_lock<SharedMtx>;
+    using SharedLock = std::shared_lock<SharedMtx>;
 
     // Smart pointers
     template<typename T>
