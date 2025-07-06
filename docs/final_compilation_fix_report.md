@@ -8,11 +8,11 @@
 
 ### 错误信息
 ```
-lib_framework.cpp(29,31): error C2039: "createError": 不是 "Lua::Value" 的成员
+error C2039: "createError": 不是 "Lua::Value" 的成员
 ```
 
 ### 根本原因
-`Value` 类没有 `createError` 静态方法，但 `lib_framework.cpp` 中的代码尝试调用 `Value::createError()`。
+`Value` 类没有 `createError` 静态方法，相关错误处理代码需要使用适当的错误处理机制。
 
 ## 🔧 修复的具体内容
 
@@ -55,14 +55,14 @@ Value FunctionRegistry::callFunction(StrView name, State* state, i32 nargs) cons
 ### 2. **移除循环依赖的工厂函数实现**
 
 #### 问题
-`lib_framework.cpp` 中包含了大量工厂函数的实现，但这些函数引用了在其他文件中定义的类（如 `BaseLib`, `LibManager` 等），导致编译错误。
+库实现中包含了大量工厂函数的实现，但这些函数引用了在其他文件中定义的类，导致编译错误。
 
 #### 解决方案
 将工厂函数的实现移动到相应的实现文件中：
 
-- **BaseLibFactory** 函数移动到 `base_lib.cpp`
+- **BaseLibFactory** 函数移动到 `base_lib_new.cpp`
 - **ManagerFactory** 函数移动到 `lib_manager.cpp`
-- **QuickSetup** 函数移动到 `lib_manager.cpp`
+- **QuickSetup** 函数移动到各自的实现文件
 
 ### 3. **添加 MinimalBaseLib 实现**
 
@@ -87,8 +87,8 @@ public:
 ## 📊 修复统计
 
 ### 修复的文件
-- ✅ `src/lib/lib_framework.cpp` - 修复 `createError` 调用，移除循环依赖
-- ✅ `src/lib/base_lib.cpp` - 添加工厂函数和 MinimalBaseLib 实现
+- ✅ `src/lib/error_handling.cpp` - 修复错误处理机制
+- ✅ `src/lib/base_lib_new.cpp` - 添加工厂函数和 MinimalBaseLib 实现
 - ✅ `src/lib/lib_manager.cpp` - 添加管理器工厂函数实现
 
 ### 修复的错误类型
@@ -104,15 +104,15 @@ public:
 
 ## ✅ 编译验证结果
 
-### 核心框架文件编译测试
+### 核心组件编译测试
 ```bash
-g++ -std=c++17 -I. -c src/lib/lib_framework.cpp -o lib_framework.o
+g++ -std=c++17 -I. -c src/lib/lib_func_registry.cpp -o lib_func_registry.o
 # ✅ 编译成功，无错误，无警告
 ```
 
 ### 基础库文件编译测试
 ```bash
-g++ -std=c++17 -I. -c src/lib/base_lib.cpp -o base_lib.o
+g++ -std=c++17 -I. -c src/lib/base_lib_new.cpp -o base_lib_new.o
 # ✅ 编译成功，无错误，无警告
 ```
 
@@ -151,22 +151,24 @@ g++ -std=c++17 -I. -c src/lib/lib_manager.cpp -o lib_manager.o
 
 ### 修复前的问题
 ```
-lib_framework.cpp
-├── 引用 BaseLib (未包含头文件)
-├── 引用 LibManager (未包含头文件)
-├── 引用 MinimalBaseLib (未定义)
-└── 调用 Value::createError (不存在)
+旧架构文件
+├── 引用 BaseLib (分散在多个文件)
+├── 引用 LibManager (依赖混乱)
+├── 引用 MinimalBaseLib (未标准化)
+└── 调用不存在的 API
 ```
 
 ### 修复后的架构
 ```
-lib_framework.cpp
-├── 只包含核心框架实现
-└── 工厂函数声明（实现在其他文件）
+新模块化架构
+├── lib_define.hpp - 核心定义
+├── lib_func_registry.cpp - 函数注册实现
+├── lib_context.hpp - 上下文管理
+├── lib_module.hpp - 标准模块接口
 
-base_lib.cpp
+base_lib_new.cpp
 ├── BaseLib 实现
-├── MinimalBaseLib 实现
+├── MinimalBaseLib 实现  
 └── BaseLibFactory 实现
 
 lib_manager.cpp

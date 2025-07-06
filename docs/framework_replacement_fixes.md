@@ -30,9 +30,12 @@ error C1083: 无法打开包括文件: "lib_manager_v2.hpp": No such file or dir
 #include "type_conversion_v2.hpp"
 
 // 修复后
-#include "lib_framework.hpp"
+#include "lib_define.hpp"
+#include "lib_func_registry.hpp" 
+#include "lib_context.hpp"
+#include "lib_module.hpp"
 #include "lib_manager.hpp"
-#include "base_lib.hpp"
+#include "base_lib_new.hpp"
 #include "math_lib.hpp"
 #include "error_handling.hpp"
 #include "type_conversion.hpp"
@@ -95,7 +98,7 @@ error: 'createError' is not a member of 'Lua::Value'
 ```
 
 #### 修复的文件
-- ✅ `src/lib/lib_framework.hpp` - `ErrorUtils::protectedCall`
+- ✅ `src/lib/error_handling.hpp` - 错误处理工具函数
 
 #### 修复内容
 ```cpp
@@ -148,9 +151,12 @@ g++ -std=c++17 -I. -c src/lib/compile_test.cpp -o compile_test.o
 ```
 
 ### 验证的组件
-- ✅ `lib_framework.hpp` - 核心框架接口
+- ✅ `lib_define.hpp` - 核心定义和宏
+- ✅ `lib_func_registry.hpp` - 函数注册系统  
+- ✅ `lib_context.hpp` - 上下文管理
+- ✅ `lib_module.hpp` - 模块接口
 - ✅ `lib_manager.hpp` - 库管理器接口
-- ✅ `base_lib.hpp` - 基础库接口
+- ✅ `base_lib_new.hpp` - 新基础库接口
 - ✅ `string_lib.hpp` - 字符串库接口
 - ✅ `table_lib.hpp` - 表格库接口
 - ✅ `math_lib.hpp` - 数学库接口

@@ -19,12 +19,12 @@
 - ❌ `src/lib/base_lib.cpp` - 旧基础库实现
 
 ### 新增的现代框架文件
-- ✅ `src/lib/lib_framework.hpp` - 现代框架核心接口
-- ✅ `src/lib/lib_framework.cpp` - 现代框架核心实现
-- ✅ `src/lib/lib_manager.hpp` - 现代库管理器接口
-- ✅ `src/lib/lib_manager.cpp` - 现代库管理器实现
-- ✅ `src/lib/base_lib.hpp` - 现代基础库接口
-- ✅ `src/lib/base_lib.cpp` - 现代基础库实现
+- ✅ `src/lib/lib_define.hpp` - 核心定义和宏
+- ✅ `src/lib/lib_func_registry.hpp` - 函数注册系统
+- ✅ `src/lib/lib_context.hpp` - 上下文管理
+- ✅ `src/lib/lib_module.hpp` - 模块接口定义
+- ✅ `src/lib/base_lib_new.hpp` - 新基础库接口
+- ✅ `src/lib/base_lib_new.cpp` - 新基础库实现
 
 ### 更新的现有文件
 - 🔄 `src/lib/string_lib.hpp` - 更新为使用新框架
@@ -168,7 +168,10 @@ g++ -std=c++17 -O2 src/lib/simple_replacement_test.cpp -o simple_replacement_tes
    #include "lib_module.hpp"
    
    // 新方式
-   #include "lib_framework.hpp"
+   #include "lib_define.hpp"
+   #include "lib_func_registry.hpp"
+   #include "lib_context.hpp"
+   #include "lib_module.hpp"
    ```
 
 2. **更新函数注册**:
