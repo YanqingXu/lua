@@ -478,12 +478,169 @@ tests/                       # 集成测试
 tools/                       # 开发工具
 ```
 
+### 📚 文档组织规范 ⭐ **新增规范**
+
+#### 1. 文档目录结构要求 (强制执行)
+
+**所有技术文档必须放入 `docs/` 目录下，保持项目根目录整洁**
+
+```
+docs/
+├── core/                    # 核心架构文档
+│   ├── framework_design.md
+│   ├── memory_management.md
+│   └── gc_implementation.md
+├── lib/                     # 标准库文档
+│   ├── base_lib_complete.md
+│   ├── string_lib_guide.md
+│   └── math_lib_api.md
+├── vm/                      # 虚拟机文档
+│   ├── bytecode_spec.md
+│   └── instruction_set.md
+├── test_framework/          # 测试框架文档
+│   └── testing_guide.md
+├── api/                     # API参考文档
+│   └── public_api.md
+└── development/             # 开发相关文档
+    ├── milestone_reports.md
+    └── architecture_decisions.md
+```
+
+#### 2. 根目录文档限制 (强制要求)
+
+**项目根目录只允许存放以下核心文档**：
+- ✅ `README.md` - 项目介绍和快速开始
+- ✅ `README_CN.md` - 中文版项目介绍
+- ✅ `current_develop_plan.md` - 当前开发计划
+- ✅ `DEVELOPMENT_STANDARDS.md` - 开发规范文档
+
+**所有其他文档必须迁移到 `docs/` 目录下**
+
+#### 3. 功能完结文档要求 (强制执行)
+
+**每完成一个重要功能模块，必须在 `docs/` 目录下创建功能完结总结文档**
+
+##### 文档命名规范
+```
+docs/
+├── [module]_[feature]_complete.md     # 功能完成总结
+├── [module]_[feature]_implementation.md # 实现细节
+└── [module]_[feature]_test_report.md  # 测试报告
+```
+
+##### 功能完结文档必需内容
+```markdown
+# [Module] [Feature] 功能完结报告
+
+## 📋 功能概述
+- 功能描述
+- 实现范围
+- 关键特性
+
+## ✅ 完成的工作
+- [ ] 核心功能实现
+- [ ] 单元测试覆盖
+- [ ] 集成测试验证
+- [ ] API文档编写
+- [ ] 性能优化完成
+
+## 🧪 测试验证
+- 测试覆盖率: XX%
+- 性能基准测试结果
+- 内存泄漏检查结果
+
+## 📊 性能指标
+- 功能响应时间
+- 内存使用情况
+- 并发处理能力
+
+## 🔧 技术细节
+- 核心算法说明
+- 关键数据结构
+- 重要设计决策
+
+## 📝 API参考
+- 公共接口列表
+- 参数说明
+- 使用示例
+
+## 🚀 后续优化计划
+- 已知限制
+- 优化建议
+- 扩展方向
+
+## 📅 完成信息
+- 完成日期: YYYY-MM-DD
+- 负责人: [Name]
+- 审查人: [Name]
+- 状态: ✅ 已完成
+```
+
+#### 4. 文档模块化管理
+
+**当 `docs/` 目录文档过多时，必须按模块创建子目录进行分类管理**
+
+##### 推荐模块划分
+- `core/` - 核心架构和设计文档
+- `lib/` - 标准库相关文档
+- `vm/` - 虚拟机相关文档
+- `gc/` - 垃圾回收器文档
+- `parser/` - 解析器文档
+- `lexer/` - 词法分析器文档
+- `test_framework/` - 测试框架文档
+- `api/` - API参考文档
+- `development/` - 开发过程文档
+- `reports/` - 里程碑和进度报告
+
+#### 5. 文档更新要求
+
+- **同步更新**: 代码变更时必须同时更新相关文档
+- **版本标记**: 文档需要标明对应的代码版本
+- **审查流程**: 重要文档变更需要经过代码审查
+- **索引维护**: 在 `docs/docs_overview.md` 中维护文档索引
+
+##### 文档索引示例
+```markdown
+# 项目文档索引
+
+## 📚 核心文档
+- [框架设计](core/framework_design.md)
+- [架构决策](development/architecture_decisions.md)
+
+## 🔧 实现文档
+- [Base Library 完成报告](lib/base_lib_complete.md)
+- [String Library 实现指南](lib/string_lib_implementation.md)
+
+## 🧪 测试文档
+- [测试框架指南](test_framework/testing_guide.md)
+- [自动化测试报告](reports/automated_test_report.md)
+
+## 📊 进度报告
+- [项目里程碑](reports/milestone_reports.md)
+- [性能基准测试](reports/performance_benchmarks.md)
+```
+
 ### 包含文件顺序
 1. 对应的头文件 (对于 .cpp 文件)
 2. 系统标准库头文件
 3. 第三方库头文件
 4. 项目基础头文件 (`common/types.hpp` 等)
 5. 项目其他头文件
+
+---
+
+## ⚖️ 规范违规处理
+
+### 文档规范违规处理
+1. **文档放置错误**: 发现技术文档在根目录下，要求立即迁移到 `docs/` 目录
+2. **缺失功能文档**: 功能完成但未创建完结文档，阻止功能标记为完成
+3. **文档不同步**: 代码变更但文档未更新，要求同步更新文档
+4. **缺失文档索引**: `docs/` 目录无索引或索引过时，要求更新维护
+
+### 编译规范违规处理
+1. **编译失败**: 代码编译错误，要求立即修复
+2. **警告存在**: 编译警告未处理，要求全部修复
+3. **跳过验证**: 未执行编译验证直接提交，要求补充验证
 
 ---
 
@@ -634,6 +791,76 @@ public:
 -std=c++17 -Wall -Wextra -Werror -O3 -DNDEBUG
 ```
 
+### 📋 强制编译验证要求 ⭐ **新增规范**
+
+**每次修改C++代码后必须执行编译验证**：
+
+#### 1. 编译验证流程 (强制执行)
+```bash
+# 编译单个文件验证语法
+g++ -std=c++17 -Wall -Wextra -Werror -c [filename].cpp -o [filename].o
+
+# 示例：编译lib_context.cpp
+g++ -std=c++17 -Wall -Wextra -Werror -c src/lib/lib_context.cpp -o src/lib/lib_context.o
+```
+
+#### 2. 错误修复要求
+- ✅ **必须修复所有编译错误**: 任何编译错误都必须立即修复
+- ✅ **必须修复所有警告**: 使用`-Werror`将警告视为错误
+- ✅ **必须通过语法检查**: 确保C++17标准兼容性
+- ✅ **必须验证头文件依赖**: 确保所有#include正确
+- ✅ **编译成功后清理**: 编译成功没有报错则删除生成的目标文件
+
+#### 3. 编译验证检查清单
+- [ ] 编译命令执行成功 (返回代码0)
+- [ ] 无语法错误
+- [ ] 无类型错误
+- [ ] 无未定义符号
+- [ ] 无缺失头文件
+- [ ] 无警告信息
+- [ ] 编译成功后删除生成的目标文件
+
+#### 4. 常见编译错误处理
+```bash
+# 缺失头文件
+error: 'std::string' has not been declared
+解决: #include <string>
+
+# 类型不匹配
+error: cannot convert 'int' to 'size_t'
+解决: 使用正确的类型转换或类型定义
+
+# 未定义符号
+error: 'function_name' was not declared in this scope
+解决: 添加正确的函数声明或包含头文件
+```
+
+#### 5. 自动化编译脚本 (推荐)
+```bash
+#!/bin/bash
+# compile_check.sh - 自动编译检查脚本
+
+compile_file() {
+    local file=$1
+    local output=${file%.cpp}.o
+    
+    echo "Compiling $file..."
+    if g++ -std=c++17 -Wall -Wextra -Werror -c "$file" -o "$output"; then
+        echo "✅ $file compiled successfully"
+        # Clean up generated object file after successful compilation
+        rm -f "$output"
+        echo "🗑️ Cleaned up $output"
+        return 0
+    else
+        echo "❌ $file compilation failed"
+        return 1
+    fi
+}
+
+# 使用示例
+compile_file "src/lib/lib_context.cpp"
+```
+
 ### clang-format 配置
 ```yaml
 # .clang-format
@@ -703,10 +930,27 @@ Closes #123
 
 ---
 
-**版本**: 1.0  
+**版本**: 1.1  
 **创建日期**: 2025年7月6日  
 **最后更新**: 2025年7月6日  
 **维护者**: 项目开发团队  
 **状态**: ✅ 正式发布
+
+## 📝 版本更新记录
+
+### v1.1 (2025年7月6日)
+- ✅ **新增**: 强制编译验证要求规范
+- ✅ **新增**: 文档组织规范和模块化管理要求
+- ✅ **新增**: 功能完结文档强制要求
+- ✅ **新增**: 违规处理流程明确化
+- ✅ **完善**: 根目录文档限制规则
+
+### v1.0 (2025年7月6日)
+- 🎯 初始版本发布
+- 📋 基础开发规范制定
+- 🔧 类型系统规范确立
+- 📝 注释和命名规范制定
+
+---
 
 所有团队成员都必须严格遵循本规范，违反规范的代码不得合并到主分支。

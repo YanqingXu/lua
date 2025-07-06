@@ -68,6 +68,7 @@
         "regex": "cpp",
         "future": "cpp",
         "codecvt": "cpp",
-        "shared_mutex": "cpp"
+        "shared_mutex": "cpp",
+        "charconv": "cpp"
     }
 }
