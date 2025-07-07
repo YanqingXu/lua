@@ -8,6 +8,17 @@
 - **[技术评估文档](core/modern_cpp_lua_design_evaluation.md)** - 现代C++在Lua解释器开发中的技术评估和设计决策
 - **[项目进度报告](core/project_progress_report.md)** - 项目整体进度、完成状态和里程碑报告
 
+### 📊 模块开发报告 (modules/)
+- **[模块报告中心](modules/README.md)** - 所有模块的开发状态总览和导航
+- **核心模块报告**:
+  - [VM模块](modules/vm_module_report.md) - 虚拟机开发状态 (95%完成)
+  - [Compiler模块](modules/compiler_module_report.md) - 编译器开发状态 (85%完成)
+  - [GC模块](modules/gc_module_report.md) - 垃圾回收器开发状态 (70%完成)
+  - [Lib模块](modules/lib_module_report.md) - 标准库开发状态 (35%完成)
+  - [Parser模块](modules/parser_module_report.md) - 解析器开发状态 (55%完成)
+  - [Lexer模块](modules/lexer_module_report.md) - 词法分析器开发状态 (100%完成)
+  - [Test Framework模块](modules/test_framework_module_report.md) - 测试框架开发状态 (80%完成)
+
 ### 📖 Wiki 文档系列 (wiki/)
 - **[主 Wiki 文档](wiki/wiki.md)** - 项目的完整技术文档和开发指南
 - **组件 Wiki 文档** (wiki/components/):
@@ -36,9 +47,10 @@
 4. 浏览 [主 Wiki 文档](wiki/wiki.md) 获取详细技术信息
 
 ### 🔍 深入了解
-- **开发者**: 重点关注 [开发规范](../DEVELOPMENT_STANDARDS.md) 和相关组件 Wiki
+- **开发者**: 重点关注 [开发规范](../DEVELOPMENT_STANDARDS.md) 和 [模块开发报告](modules/README.md)
 - **架构师**: 重点关注 [技术评估文档](core/modern_cpp_lua_design_evaluation.md) 和 [虚拟机 Wiki](wiki/components/wiki_vm.md)
-- **贡献者**: 查看 [当前开发计划](../current_develop_plan.md) 了解可参与的任务
+- **贡献者**: 查看 [当前开发计划](../current_develop_plan.md) 和 [模块报告](modules/README.md) 了解可参与的任务
+- **项目经理**: 查看 [模块状态总览](modules/README.md) 了解整体开发进度
 
 ## 📊 文档状态
 
