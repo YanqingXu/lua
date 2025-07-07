@@ -1,204 +1,117 @@
-﻿#pragma once
+#pragma once
 
-#include "lib_define.hpp"
-#include "lib_utils.hpp"
-#include <cmath>
-#include <random>
-#include <algorithm>
-#include <memory>
-#include <limits>
+#include "../core/lib_module.hpp"
+#include "../core/lib_registry.hpp"
 
 namespace Lua {
+
+/**
+ * @brief Math library implementation
+ *
+ * Provides Lua mathematical functions:
+ * - abs: Absolute value
+ * - floor: Floor function
+ * - ceil: Ceiling function
+ * - sqrt: Square root
+ * - pow: Power operation
+ * - sin, cos, tan: Trigonometric functions
+ * - min, max: Min/max functions
+ *
+ * This implementation follows the simplified framework design
+ * for better performance and maintainability.
+ */
+class MathLib : public LibModule {
+public:
     /**
-     * 数学常量
-     * 使用简化的类型系统
+     * @brief Get module name
+     * @return Module name as string literal
      */
-    namespace MathConstants {
-        constexpr f64 PI = 3.14159265358979323846;
-        constexpr f64 E = 2.71828182845904523536;
-        constexpr f64 SQRT2 = 1.41421356237309504880;
-        constexpr f64 SQRT3 = 1.73205080756887729352;
-        constexpr f64 LN2 = 0.69314718055994530942;
-        constexpr f64 LN10 = 2.30258509299404568402;
-        constexpr f64 LOG2E = 1.44269504088896340736;
-        constexpr f64 LOG10E = 0.43429448190325182765;
-    }
-    
+    const char* getName() const override { return "math"; }
+
     /**
-     * 数学工具函数
+     * @brief Register math library functions to the state
+     * @param state Lua state to register functions to
+     * @throws std::invalid_argument if state is null
      */
-    namespace MathUtils {
-        /**
-         * 角度转弧度
-         */
-        inline f64 degToRad(f64 degrees) {
-            return degrees * MathConstants::PI / 180.0;
-        }
-        
-        /**
-         * 弧度转角度
-         */
-        inline f64 radToDeg(f64 radians) {
-            return radians * 180.0 / MathConstants::PI;
-        }
-        
-        /**
-         * 检查是否为有限数
-         */
-        inline bool isFinite(f64 value) {
-            return std::isfinite(value);
-        }
-        
-        /**
-         * 检查是否为NaN
-         */
-        inline bool isNaN(f64 value) {
-            return std::isnan(value);
-        }
-        
-        /**
-         * 检查是否为无穷大
-         */
-        inline bool isInfinite(f64 value) {
-            return std::isinf(value);
-        }
-        
-        /**
-         * 安全的除法
-         */
-        inline f64 safeDivide(f64 a, f64 b, f64 defaultValue = 0.0) {
-            if (std::abs(b) < std::numeric_limits<f64>::epsilon()) {
-                return defaultValue;
-            }
-            return a / b;
-        }
-        
-        /**
-         * 线性插值
-         */
-        inline f64 lerp(f64 a, f64 b, f64 t) {
-            return a + t * (b - a);
-        }
-        
-        /**
-         * 平滑步函数
-         */
-        inline f64 smoothstep(f64 edge0, f64 edge1, f64 x) {
-            f64 t = std::clamp((x - edge0) / (edge1 - edge0), 0.0, 1.0);
-            return t * t * (3.0 - 2.0 * t);
-        }
-    }
-    
+    void registerFunctions(State* state) override;
+
     /**
-     * 随机数生成器
+     * @brief Initialize the math library with constants
+     * @param state Lua state to initialize
+     * @throws std::invalid_argument if state is null
      */
-    class RandomGenerator {
-    public:
-        RandomGenerator();
-        explicit RandomGenerator(u32 seed);
-        
-        /**
-         * 生成[0, 1)范围的随机数
-         */
-        f64 random();
-        
-        /**
-         * 生成[min, max)范围的随机数
-         */
-        f64 random(f64 min, f64 max);
-        
-        /**
-         * 生成[min, max]范围的随机整数
-         */
-        i32 randomInt(i32 min, i32 max);
-        
-        /**
-         * 设置种子
-         */
-        void setSeed(u32 seed);
-        
-    private:
-        std::mt19937 gen_;
-        std::uniform_real_distribution<f64> dist_;
-    };
-    
+    void initialize(State* state) override;
+
+    // Basic math function declarations with proper documentation
     /**
-     * 数学库模块
-     * 提供各种数学函数和常量
+     * @brief Absolute value function
+     * @param state Lua state containing number argument
+     * @param nargs Number of arguments (should be 1)
+     * @return Absolute value of the argument
+     * @throws std::invalid_argument if state is null
      */
-    class MathLib : public Lib::LibModule {
-    public:
-        MathLib();
-        
-        StrView getName() const noexcept override;
-        void registerFunctions(Lib::LibFuncRegistry& registry, const Lib::LibContext& context) override;
-        
-    private:
-        UPtr<RandomGenerator> rng_;
-        
-        void registerConstants(Lib::LibFuncRegistry& registry);
-        
-        // 基础数学函数声明
-        static Value absFunc(State* state, i32 nargs);
-        static Value floorFunc(State* state, i32 nargs);
-        static Value ceilFunc(State* state, i32 nargs);
-        static Value roundFunc(State* state, i32 nargs);
-        static Value truncFunc(State* state, i32 nargs);
-        
-        // 幂函数声明
-        static Value powFunc(State* state, i32 nargs);
-        static Value sqrtFunc(State* state, i32 nargs);
-        static Value cbrtFunc(State* state, i32 nargs);
-        static Value expFunc(State* state, i32 nargs);
-        static Value exp2Func(State* state, i32 nargs);
-        
-        // 对数函数声明
-        static Value logFunc(State* state, i32 nargs);
-        static Value log2Func(State* state, i32 nargs);
-        static Value log10Func(State* state, i32 nargs);
-        
-        // 三角函数声明
-        static Value sinFunc(State* state, i32 nargs);
-        static Value cosFunc(State* state, i32 nargs);
-        static Value tanFunc(State* state, i32 nargs);
-        static Value asinFunc(State* state, i32 nargs);
-        static Value acosFunc(State* state, i32 nargs);
-        static Value atanFunc(State* state, i32 nargs);
-        static Value atan2Func(State* state, i32 nargs);
-        
-        // 双曲函数声明
-        static Value sinhFunc(State* state, i32 nargs);
-        static Value coshFunc(State* state, i32 nargs);
-        static Value tanhFunc(State* state, i32 nargs);
-        
-        // 角度转换声明
-        static Value degFunc(State* state, i32 nargs);
-        static Value radFunc(State* state, i32 nargs);
-        
-        // 最值函数声明
-        static Value minFunc(State* state, i32 nargs);
-        static Value maxFunc(State* state, i32 nargs);
-        static Value clampFunc(State* state, i32 nargs);
-        
-        // 随机数函数声明（非静态，需要访问实例成员）
-        Value randomFunc(State* state, i32 nargs);
-        Value randomseedFunc(State* state, i32 nargs);
-        Value randomintFunc(State* state, i32 nargs);
-        
-        // 工具函数声明
-        static Value signFunc(State* state, i32 nargs);
-        static Value fmodFunc(State* state, i32 nargs);
-        static Value modfFunc(State* state, i32 nargs);
-        static Value frexpFunc(State* state, i32 nargs);
-        static Value ldexpFunc(State* state, i32 nargs);
-        
-        // 检查函数声明
-        static Value isfiniteFunc(State* state, i32 nargs);
-        static Value isnanFunc(State* state, i32 nargs);
-        static Value isinfFunc(State* state, i32 nargs);
-        
-        // 插值函数声明
-        static Value lerpFunc(State* state, i32 nargs);
-        static Value smoothstepFunc(State* state, i32 nargs);
-    };
-}
+    static Value abs(State* state, i32 nargs);
+
+    /**
+     * @brief Floor function
+     * @param state Lua state containing number argument
+     * @param nargs Number of arguments (should be 1)
+     * @return Floor of the argument
+     * @throws std::invalid_argument if state is null
+     */
+    static Value floor(State* state, i32 nargs);
+
+    /**
+     * @brief Ceiling function
+     * @param state Lua state containing number argument
+     * @param nargs Number of arguments (should be 1)
+     * @return Ceiling of the argument
+     * @throws std::invalid_argument if state is null
+     */
+    static Value ceil(State* state, i32 nargs);
+
+    /**
+     * @brief Square root function
+     * @param state Lua state containing number argument
+     * @param nargs Number of arguments (should be 1)
+     * @return Square root of the argument
+     * @throws std::invalid_argument if state is null
+     */
+    static Value sqrt(State* state, i32 nargs);
+
+    /**
+     * @brief Power function
+     * @param state Lua state containing base and exponent
+     * @param nargs Number of arguments (should be 2)
+     * @return Base raised to the power of exponent
+     * @throws std::invalid_argument if state is null
+     */
+    static Value pow(State* state, i32 nargs);
+
+    // Trigonometric function declarations
+    static Value sin(State* state, i32 nargs);
+    static Value cos(State* state, i32 nargs);
+    static Value tan(State* state, i32 nargs);
+
+    // Logarithmic and exponential functions
+    static Value log(State* state, i32 nargs);
+    static Value exp(State* state, i32 nargs);
+
+    // Min/max functions
+    static Value min(State* state, i32 nargs);
+    static Value max(State* state, i32 nargs);
+
+    // Other utility functions
+    static Value fmod(State* state, i32 nargs);
+    static Value deg(State* state, i32 nargs);
+    static Value rad(State* state, i32 nargs);
+};
+
+/**
+ * @brief Convenient MathLib initialization function
+ * @param state Lua state to initialize math library for
+ * @throws std::invalid_argument if state is null
+ */
+void initializeMathLib(State* state);
+
+} // namespace Lua

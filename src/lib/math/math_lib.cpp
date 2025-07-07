@@ -1,6 +1,8 @@
-﻿#include "math_lib.hpp"
+#include "math_lib.hpp"
+#include "../../vm/table.hpp"
 #include <cmath>
 #include <algorithm>
+#include <iostream>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -8,233 +10,279 @@
 
 namespace Lua {
 
-    StrView MathLib::getName() const noexcept {
-        return "math";
+// ===================================================================
+// MathLib Implementation
+// ===================================================================
+
+void MathLib::registerFunctions(State* state) {
+    if (!state) {
+        throw std::invalid_argument("State cannot be null");
     }
 
-    void MathLib::registerFunctions(Lib::LibFuncRegistry& registry, const Lib::LibContext& context) {
-        // Basic mathematical functions with comprehensive metadata
-        {
-            FunctionMetadata meta("abs");
-            meta.withDescription("Absolute value")
-                .withArgs(1, 1);
-            registry.registerFunction(meta, [](State* s, i32 n) { return MathLib::absFunc(s, n); });
-        }
-        
-        {
-            FunctionMetadata meta("floor");
-            meta.withDescription("Floor function (largest integer <= x)")
-                .withArgs(1, 1);
-            registry.registerFunction(meta, [](State* s, i32 n) { return MathLib::floorFunc(s, n); });
-        }
-        
-        {
-            FunctionMetadata meta("ceil");
-            meta.withDescription("Ceiling function (smallest integer >= x)")
-                .withArgs(1, 1);
-            registry.registerFunction(meta, [](State* s, i32 n) { return MathLib::ceilFunc(s, n); });
-        }
-        
-        // Trigonometric functions
-        {
-            FunctionMetadata meta("sin");
-            meta.withDescription("Sine function")
-                .withArgs(1, 1);
-            registry.registerFunction(meta, [](State* s, i32 n) { return MathLib::sinFunc(s, n); });
-        }
-        
-        {
-            FunctionMetadata meta("cos");
-            meta.withDescription("Cosine function")
-                .withArgs(1, 1);
-            registry.registerFunction(meta, [](State* s, i32 n) { return MathLib::cosFunc(s, n); });
-        }
-        
-        {
-            FunctionMetadata meta("tan");
-            meta.withDescription("Tangent function")
-                .withArgs(1, 1);
-            registry.registerFunction(meta, [](State* s, i32 n) { return MathLib::tanFunc(s, n); });
-        }
-        
-        // Power and logarithmic functions
-        {
-            FunctionMetadata meta("sqrt");
-            meta.withDescription("Square root")
-                .withArgs(1, 1);
-            registry.registerFunction(meta, [](State* s, i32 n) { return MathLib::sqrtFunc(s, n); });
-        }
-        
-        {
-            FunctionMetadata meta("pow");
-            meta.withDescription("Power function (x^y)")
-                .withArgs(2, 2);
-            registry.registerFunction(meta, [](State* s, i32 n) { return MathLib::powFunc(s, n); });
-        }
-        
-        {
-            FunctionMetadata meta("exp");
-            meta.withDescription("Exponential function (e^x)")
-                .withArgs(1, 1);
-            registry.registerFunction(meta, [](State* s, i32 n) { return MathLib::expFunc(s, n); });
-        }
-        
-        {
-            FunctionMetadata meta("log");
-            meta.withDescription("Natural logarithm")
-                .withArgs(1, 1);
-            registry.registerFunction(meta, [](State* s, i32 n) { return MathLib::logFunc(s, n); });
-        }
-        
-        // Angle conversion functions
-        {
-            FunctionMetadata meta("deg");
-            meta.withDescription("Convert radians to degrees")
-                .withArgs(1, 1);
-            registry.registerFunction(meta, [](State* s, i32 n) { return MathLib::degFunc(s, n); });
-        }
-        
-        {
-            FunctionMetadata meta("rad");
-            meta.withDescription("Convert degrees to radians")
-                .withArgs(1, 1);
-            registry.registerFunction(meta, [](State* s, i32 n) { return MathLib::radFunc(s, n); });
-        }
-        
-        // Min/max functions
-        {
-            FunctionMetadata meta("min");
-            meta.withDescription("Minimum value")
-                .withArgs(1, -1)
-                .withVariadic();
-            registry.registerFunction(meta, [](State* s, i32 n) { return MathLib::minFunc(s, n); });
-        }
-        
-        {
-            FunctionMetadata meta("max");
-            meta.withDescription("Maximum value")
-                .withArgs(1, -1)
-                .withVariadic();
-            registry.registerFunction(meta, [](State* s, i32 n) { return MathLib::maxFunc(s, n); });
-        }
-        
-        {
-            FunctionMetadata meta("fmod");
-            meta.withDescription("Floating-point remainder")
-                .withArgs(2, 2);
-            registry.registerFunction(meta, [](State* s, i32 n) { return MathLib::fmodFunc(s, n); });
+    // Create math library table
+    Value mathTable = LibRegistry::createLibTable(state, "math");
+
+    // Register basic math functions
+    REGISTER_TABLE_FUNCTION(state, mathTable, abs, abs);
+    REGISTER_TABLE_FUNCTION(state, mathTable, floor, floor);
+    REGISTER_TABLE_FUNCTION(state, mathTable, ceil, ceil);
+    REGISTER_TABLE_FUNCTION(state, mathTable, sqrt, sqrt);
+    REGISTER_TABLE_FUNCTION(state, mathTable, pow, pow);
+
+    // Register trigonometric functions
+    REGISTER_TABLE_FUNCTION(state, mathTable, sin, sin);
+    REGISTER_TABLE_FUNCTION(state, mathTable, cos, cos);
+    REGISTER_TABLE_FUNCTION(state, mathTable, tan, tan);
+
+    // Register logarithmic and exponential functions
+    REGISTER_TABLE_FUNCTION(state, mathTable, log, log);
+    REGISTER_TABLE_FUNCTION(state, mathTable, exp, exp);
+
+    // Register min/max functions
+    REGISTER_TABLE_FUNCTION(state, mathTable, min, min);
+    REGISTER_TABLE_FUNCTION(state, mathTable, max, max);
+
+    // Register other utility functions
+    REGISTER_TABLE_FUNCTION(state, mathTable, fmod, fmod);
+    REGISTER_TABLE_FUNCTION(state, mathTable, deg, deg);
+    REGISTER_TABLE_FUNCTION(state, mathTable, rad, rad);
+}
+
+void MathLib::initialize(State* state) {
+    if (!state) {
+        throw std::invalid_argument("State cannot be null");
+    }
+
+    // Set mathematical constants
+    Value mathTable = state->getGlobal("math");
+    if (mathTable.isTable()) {
+        auto table = mathTable.asTable();
+        table->set(Value("pi"), Value(M_PI));
+        table->set(Value("huge"), Value(HUGE_VAL));
+    }
+
+    std::cout << "[MathLib] Initialized successfully!" << std::endl;
+}
+
+// ===================================================================
+// Basic Math Function Implementations
+// ===================================================================
+
+Value MathLib::abs(State* state, i32 nargs) {
+    if (nargs < 1) return Value();
+
+    Value val = state->get(1);
+    if (!val.isNumber()) return Value();
+
+    f64 num = val.asNumber();
+    return Value(std::abs(num));
+}
+
+Value MathLib::floor(State* state, i32 nargs) {
+    if (nargs < 1) return Value();
+
+    Value val = state->get(1);
+    if (!val.isNumber()) return Value();
+
+    f64 num = val.asNumber();
+    return Value(std::floor(num));
+}
+
+Value MathLib::ceil(State* state, i32 nargs) {
+    if (nargs < 1) return Value();
+
+    Value val = state->get(1);
+    if (!val.isNumber()) return Value();
+
+    f64 num = val.asNumber();
+    return Value(std::ceil(num));
+}
+
+Value MathLib::sqrt(State* state, i32 nargs) {
+    if (nargs < 1) return Value();
+
+    Value val = state->get(1);
+    if (!val.isNumber()) return Value();
+
+    f64 num = val.asNumber();
+    if (num < 0) return Value(); // nil for negative numbers
+
+    return Value(std::sqrt(num));
+}
+
+Value MathLib::pow(State* state, i32 nargs) {
+    if (nargs < 2) return Value();
+
+    Value baseVal = state->get(1);
+    Value expVal = state->get(2);
+
+    if (!baseVal.isNumber() || !expVal.isNumber()) return Value();
+
+    f64 base = baseVal.asNumber();
+    f64 exp = expVal.asNumber();
+
+    return Value(std::pow(base, exp));
+}
+
+// ===================================================================
+// Trigonometric Function Implementations
+// ===================================================================
+
+Value MathLib::sin(State* state, i32 nargs) {
+    if (nargs < 1) return Value();
+
+    Value val = state->get(1);
+    if (!val.isNumber()) return Value();
+
+    f64 num = val.asNumber();
+    return Value(std::sin(num));
+}
+
+Value MathLib::cos(State* state, i32 nargs) {
+    if (nargs < 1) return Value();
+
+    Value val = state->get(1);
+    if (!val.isNumber()) return Value();
+
+    f64 num = val.asNumber();
+    return Value(std::cos(num));
+}
+
+Value MathLib::tan(State* state, i32 nargs) {
+    if (nargs < 1) return Value();
+
+    Value val = state->get(1);
+    if (!val.isNumber()) return Value();
+
+    f64 num = val.asNumber();
+    return Value(std::tan(num));
+}
+
+// ===================================================================
+// Logarithmic and Exponential Function Implementations
+// ===================================================================
+
+Value MathLib::log(State* state, i32 nargs) {
+    if (nargs < 1) return Value();
+
+    Value val = state->get(1);
+    if (!val.isNumber()) return Value();
+
+    f64 num = val.asNumber();
+    if (num <= 0) return Value(); // nil for non-positive numbers
+
+    return Value(std::log(num));
+}
+
+Value MathLib::exp(State* state, i32 nargs) {
+    if (nargs < 1) return Value();
+
+    Value val = state->get(1);
+    if (!val.isNumber()) return Value();
+
+    f64 num = val.asNumber();
+    return Value(std::exp(num));
+}
+
+// ===================================================================
+// Min/Max Function Implementations
+// ===================================================================
+
+Value MathLib::min(State* state, i32 nargs) {
+    if (nargs < 1) return Value();
+
+    f64 minVal = HUGE_VAL;
+    bool hasValidNumber = false;
+
+    for (i32 i = 1; i <= nargs; ++i) {
+        Value val = state->get(i);
+        if (val.isNumber()) {
+            f64 num = val.asNumber();
+            if (!hasValidNumber || num < minVal) {
+                minVal = num;
+                hasValidNumber = true;
+            }
         }
     }
 
-    // Helper function to get number argument
-    f64 getNumberArg(State* state, i32 index, f64 defaultValue = 0.0) {
-        if (index > state->getTop()) return defaultValue;
-        Value val = state->get(index);
-        return val.isNumber() ? val.asNumber() : defaultValue;
-    }
+    return hasValidNumber ? Value(minVal) : Value();
+}
 
-    // Simplified function implementations
-    Value MathLib::absFunc(State* state, i32 nargs) {
-        if (nargs < 1) return Value();
-        f64 x = getNumberArg(state, 1);
-        return Value(std::abs(x));
-    }
+Value MathLib::max(State* state, i32 nargs) {
+    if (nargs < 1) return Value();
 
-    Value MathLib::floorFunc(State* state, i32 nargs) {
-        if (nargs < 1) return Value();
-        f64 x = getNumberArg(state, 1);
-        return Value(std::floor(x));
-    }
+    f64 maxVal = -HUGE_VAL;
+    bool hasValidNumber = false;
 
-    Value MathLib::ceilFunc(State* state, i32 nargs) {
-        if (nargs < 1) return Value();
-        f64 x = getNumberArg(state, 1);
-        return Value(std::ceil(x));
-    }
-
-    Value MathLib::sinFunc(State* state, i32 nargs) {
-        if (nargs < 1) return Value();
-        f64 x = getNumberArg(state, 1);
-        return Value(std::sin(x));
-    }
-
-    Value MathLib::cosFunc(State* state, i32 nargs) {
-        if (nargs < 1) return Value();
-        f64 x = getNumberArg(state, 1);
-        return Value(std::cos(x));
-    }
-
-    Value MathLib::tanFunc(State* state, i32 nargs) {
-        if (nargs < 1) return Value();
-        f64 x = getNumberArg(state, 1);
-        return Value(std::tan(x));
-    }
-
-    Value MathLib::sqrtFunc(State* state, i32 nargs) {
-        if (nargs < 1) return Value();
-        f64 x = getNumberArg(state, 1);
-        if (x < 0) return Value(); // Return nil for negative input
-        return Value(std::sqrt(x));
-    }
-
-    Value MathLib::powFunc(State* state, i32 nargs) {
-        if (nargs < 2) return Value();
-        f64 x = getNumberArg(state, 1);
-        f64 y = getNumberArg(state, 2);
-        return Value(std::pow(x, y));
-    }
-
-    Value MathLib::expFunc(State* state, i32 nargs) {
-        if (nargs < 1) return Value();
-        f64 x = getNumberArg(state, 1);
-        return Value(std::exp(x));
-    }
-
-    Value MathLib::logFunc(State* state, i32 nargs) {
-        if (nargs < 1) return Value();
-        f64 x = getNumberArg(state, 1);
-        if (x <= 0) return Value(); // Return nil for non-positive input
-        return Value(std::log(x));
-    }
-
-    Value MathLib::degFunc(State* state, i32 nargs) {
-        if (nargs < 1) return Value();
-        f64 x = getNumberArg(state, 1);
-        return Value(x * 180.0 / M_PI);
-    }
-
-    Value MathLib::radFunc(State* state, i32 nargs) {
-        if (nargs < 1) return Value();
-        f64 x = getNumberArg(state, 1);
-        return Value(x * M_PI / 180.0);
-    }
-
-    Value MathLib::minFunc(State* state, i32 nargs) {
-        if (nargs < 1) return Value();
-        f64 result = getNumberArg(state, 1);
-        for (i32 i = 2; i <= nargs; ++i) {
-            f64 value = getNumberArg(state, i);
-            result = std::min(result, value);
+    for (i32 i = 1; i <= nargs; ++i) {
+        Value val = state->get(i);
+        if (val.isNumber()) {
+            f64 num = val.asNumber();
+            if (!hasValidNumber || num > maxVal) {
+                maxVal = num;
+                hasValidNumber = true;
+            }
         }
-        return Value(result);
     }
 
-    Value MathLib::maxFunc(State* state, i32 nargs) {
-        if (nargs < 1) return Value();
-        f64 result = getNumberArg(state, 1);
-        for (i32 i = 2; i <= nargs; ++i) {
-            f64 value = getNumberArg(state, i);
-            result = std::max(result, value);
-        }
-        return Value(result);
-    }
+    return hasValidNumber ? Value(maxVal) : Value();
+}
 
-    Value MathLib::fmodFunc(State* state, i32 nargs) {
-        if (nargs < 2) return Value();
-        f64 x = getNumberArg(state, 1);
-        f64 y = getNumberArg(state, 2);
-        if (y == 0) return Value(); // Return nil for division by zero
-        return Value(std::fmod(x, y));
+// ===================================================================
+// Other Utility Function Implementations
+// ===================================================================
+
+Value MathLib::fmod(State* state, i32 nargs) {
+    if (nargs < 2) return Value();
+
+    Value xVal = state->get(1);
+    Value yVal = state->get(2);
+
+    if (!xVal.isNumber() || !yVal.isNumber()) return Value();
+
+    f64 x = xVal.asNumber();
+    f64 y = yVal.asNumber();
+
+    if (y == 0) return Value(); // nil for division by zero
+
+    return Value(std::fmod(x, y));
+}
+
+Value MathLib::deg(State* state, i32 nargs) {
+    if (nargs < 1) return Value();
+
+    Value val = state->get(1);
+    if (!val.isNumber()) return Value();
+
+    f64 radians = val.asNumber();
+    return Value(radians * 180.0 / M_PI);
+}
+
+Value MathLib::rad(State* state, i32 nargs) {
+    if (nargs < 1) return Value();
+
+    Value val = state->get(1);
+    if (!val.isNumber()) return Value();
+
+    f64 degrees = val.asNumber();
+    return Value(degrees * M_PI / 180.0);
+}
+
+// ===================================================================
+// Convenient Initialization Functions
+// ===================================================================
+
+void initializeMathLib(State* state) {
+    MathLib mathLib;
+    mathLib.registerFunctions(state);
+    mathLib.initialize(state);
+}
+
+// For backward compatibility, provide old function names
+namespace Lua {
+    std::unique_ptr<LibModule> createMathLib() {
+        return std::make_unique<MathLib>();
     }
+}
 
 } // namespace Lua

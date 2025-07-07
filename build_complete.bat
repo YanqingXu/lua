@@ -47,14 +47,14 @@ set SOURCES=%SOURCES% src\gc\core\gc_ref.cpp
 set SOURCES=%SOURCES% src\gc\algorithms\gc_marker.cpp
 set SOURCES=%SOURCES% src\gc\algorithms\gc_sweeper.cpp
 
-REM BaseLib (the only fully working standard library)
-set SOURCES=%SOURCES% src\lib\base\base_lib.cpp
-set SOURCES=%SOURCES% src\lib\base\lib_base_utils.cpp
-
-REM Lib core (framework)
-set SOURCES=%SOURCES% src\lib\core\lib_func_registry.cpp
-set SOURCES=%SOURCES% src\lib\core\lib_context.cpp
+REM Simplified Standard Libraries (new framework)
+set SOURCES=%SOURCES% src\lib\core\lib_registry.cpp
 set SOURCES=%SOURCES% src\lib\core\lib_manager.cpp
+set SOURCES=%SOURCES% src\lib\base\base_lib.cpp
+set SOURCES=%SOURCES% src\lib\string\string_lib.cpp
+set SOURCES=%SOURCES% src\lib\math\math_lib.cpp
+
+REM Lib core (framework) - removed, using simplified framework
 
 REM Localization
 set SOURCES=%SOURCES% src\localization\localization_manager.cpp
@@ -92,8 +92,8 @@ if %ERRORLEVEL% equ 0 (
     echo - Garbage Collector
     echo - BaseLib ^(core functions^)
     echo.
-    echo Note: String/Math/Table libraries are not yet included
-    echo due to ongoing refactoring.
+    echo Note: Using simplified standard library framework!
+    echo String and Math libraries are now working with basic functions.
     echo.
 ) else (
     echo.

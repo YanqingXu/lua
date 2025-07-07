@@ -12,8 +12,7 @@
 #include "parser/visitor.hpp"
 #include "compiler/symbol_table.hpp"
 #include "common/defines.hpp"
-#include "lib/base/base_lib.hpp"
-#include "lib/core/lib_module.hpp"
+#include "lib/core/lib_manager.hpp"
 
 using namespace Lua;
 
@@ -37,22 +36,24 @@ int main(int argc, char** argv) {
             std::string source = readFile(filename);
 
             State state;
-            // Register BaseLib using new modular interface
-            auto baseLib = createBaseLib();
-            Lib::LibContext context;
-            baseLib->initialize(&state, context);
+
+            // Initialize all standard libraries using simplified framework
+            StandardLibrary::initializeAll(&state);
+
             state.doString(source);
         } else {
             // Interactive mode or show usage
-            std::cout << "Lua Interpreter (Minimal Version)" << std::endl;
+            std::cout << "Lua Interpreter (Simplified Standard Library)" << std::endl;
             std::cout << "Usage: " << argv[0] << " <script.lua>" << std::endl;
             std::cout << std::endl;
-            std::cout << "This minimal version includes:" << std::endl;
+            std::cout << "This version includes:" << std::endl;
             std::cout << "- Core VM components" << std::endl;
             std::cout << "- Lexer and Parser" << std::endl;
             std::cout << "- Compiler" << std::endl;
-            std::cout << "- BaseLib (core functions)" << std::endl;
-            std::cout << "- Basic garbage collection" << std::endl;
+            std::cout << "- Simplified BaseLib (core functions)" << std::endl;
+            std::cout << "- Simplified StringLib (string functions)" << std::endl;
+            std::cout << "- Simplified MathLib (math functions)" << std::endl;
+            std::cout << "- Garbage collection" << std::endl;
         }
     } catch (const std::exception& e) {
         std::cerr << "Error: " << e.what() << std::endl;

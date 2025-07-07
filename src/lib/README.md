@@ -1,147 +1,143 @@
-# Lua Standard Library Framework - Modular Structure
+# Lua Standard Library Framework - Simplified Structure
 
 ## 📁 Directory Structure
 
-The Lua standard library has been reorganized into a modular structure for better maintainability and clarity:
+The Lua standard library uses a clean, simplified framework for better maintainability and performance:
 
 ```
 src/lib/
-├── lua_lib.hpp                 # Main library header (include this for full framework)
-│
 ├── core/                       # Core framework components
-│   ├── core.hpp               # Core framework aggregation header
-│   ├── lib_define.hpp         # Core definitions and macros
-│   ├── lib_module.hpp         # Base module interface
-│   ├── lib_context.hpp/.cpp   # Configuration and dependency injection
-│   ├── lib_func_registry.hpp/.cpp  # Function registration system
-│   └── lib_manager.hpp/.cpp   # Central library manager
+│   ├── lib_module.hpp         # Base module interface (LibModule)
+│   ├── lib_registry.hpp/.cpp  # Function registration helper (LibRegistry)
+│   └── lib_manager.hpp/.cpp   # Standard library manager (StandardLibrary)
 │
 ├── base/                       # Base library (fundamental Lua functions)
-│   ├── base_lib.hpp/.cpp     # Modern base library implementation
-│   ├── base_lib.hpp/.cpp      # Legacy base library (to be removed)
-│   └── lib_base_utils.hpp/.cpp # Base library utilities
+│   └── base_lib.hpp/.cpp      # BaseLib implementation
 │
 ├── string/                     # String manipulation library
-│   ├── string.hpp             # String library aggregation header
-│   └── string_lib.hpp/.cpp    # String library implementation
+│   └── string_lib.hpp/.cpp    # StringLib implementation
 │
-├── math/                       # Mathematical functions library
-│   ├── math.hpp               # Math library aggregation header
-│   └── math_lib.hpp/.cpp      # Math library implementation
-│
-├── table/                      # Table manipulation library
-│   ├── table.hpp              # Table library aggregation header
-│   └── table_lib.hpp/.cpp     # Table library implementation
-│
-└── utils/                      # Common utilities and helpers
-    ├── utils.hpp              # Utilities aggregation header
-    ├── lib_utils.hpp/.cpp     # General library utilities
-    ├── error_handling.hpp/.cpp # Error handling utilities
-    └── type_conversion.hpp    # Type conversion utilities
+└── math/                       # Mathematical functions library
+    └── math_lib.hpp/.cpp      # MathLib implementation
 ```
 
 ## 🎯 Design Principles
 
-### 1. **Modular Organization**
-- Each standard library (base, string, math, table) has its own directory
-- Core framework components are separated from library implementations
-- Utilities are centralized for reuse across modules
+### 1. **Simplified Architecture**
+- Clean base class interface (`LibModule`) for all libraries
+- Direct function registration through `LibRegistry` helper
+- Unified initialization via `StandardLibrary` manager
+- No complex dependency injection or context management
 
-### 2. **Clear Dependencies**
-- Core framework provides the foundation for all modules
-- Libraries depend on core framework and utilities
-- No circular dependencies between library modules
+### 2. **Performance First**
+- Direct registration to Lua State (no intermediate layers)
+- Minimal overhead for function calls
+- Static function implementations for better optimization
+- Efficient memory usage with smart pointers
 
-### 3. **Aggregation Headers**
-- Each module provides a single header file for easy inclusion
-- Main `lua_lib.hpp` provides access to the entire framework
-- Selective inclusion possible for specific modules
+### 3. **Easy to Use**
+- Convenient macros for function registration
+- Simple inheritance model for new libraries
+- Clear separation of concerns
+- Comprehensive error handling
 
 ## 🔧 Usage Examples
 
-### Include Entire Framework
+### Initialize All Libraries
 ```cpp
-#include "lib/lua_lib.hpp"
+#include "lib/core/lib_manager.hpp"
 
 // Initialize complete standard library
-Lua::Lib::initializeStandardLibrary(state);
+StandardLibrary::initializeAll(state);
 ```
 
-### Include Specific Modules
+### Initialize Specific Libraries
 ```cpp
-#include "lib/core/core.hpp"
 #include "lib/base/base_lib.hpp"
+#include "lib/string/string_lib.hpp"
 
-// Initialize only base library
-auto manager = std::make_unique<Lua::Lib::LibraryManager>();
-auto baseLib = std::make_unique<Lua::Lib::Base::BaseLib>();
-manager->registerLibrary(std::move(baseLib));
+// Initialize only specific libraries
+initializeBaseLib(state);
+initializeStringLib(state);
 ```
 
-### Core Framework Only
+### Create Custom Library
 ```cpp
-#include "lib/core/core.hpp"
+#include "lib/core/lib_module.hpp"
+#include "lib/core/lib_registry.hpp"
 
-// Use framework components directly
-Lua::Lib::LibContext context;
-Lua::Lib::LibFuncRegistry registry;
+class MyLib : public LibModule {
+public:
+    const char* getName() const override { return "mylib"; }
+
+    void registerFunctions(State* state) override {
+        REGISTER_GLOBAL_FUNCTION(state, myfunction, myfunction);
+    }
+
+    void initialize(State* state) override {
+        // Optional initialization
+    }
+
+    static Value myfunction(State* state, i32 nargs) {
+        // Function implementation
+        return Value();
+    }
+};
 ```
 
-## 🚀 Migration Benefits
+## 🚀 Framework Benefits
 
-### 1. **Better Code Organization**
-- Related files are grouped together
-- Clear separation of concerns
-- Easier navigation and maintenance
+### 1. **Simplified Architecture**
+- Clean inheritance model with single base class
+- Direct function registration without complex layers
+- Minimal boilerplate code for new libraries
+- Easy to understand and maintain
 
-### 2. **Improved Build Times**
-- Selective compilation possible
-- Reduced include dependencies
-- Better incremental builds
+### 2. **High Performance**
+- Direct registration to Lua State (no overhead)
+- Static function implementations for optimization
+- Efficient memory usage with smart pointers
+- Fast library initialization
 
-### 3. **Enhanced Modularity**
-- Independent development of library modules
-- Easy addition of new libraries
+### 3. **Developer Friendly**
+- Convenient macros for common operations
+- Comprehensive error handling and validation
+- Clear documentation and examples
+- Consistent coding patterns
+
+### 4. **Extensible Design**
+- Easy to add new standard libraries
 - Plugin-friendly architecture
-
-### 4. **Cleaner Dependencies**
-- Explicit dependency relationships
-- Reduced coupling between modules
-- Better testability
+- Modular compilation support
+- Future-proof design
 
 ## 📝 Development Guidelines
 
 ### 1. **File Naming Convention**
-- Module implementation: `module_lib.hpp/.cpp`
-- Module aggregation: `module.hpp`
+- Library implementation: `module_lib.hpp/.cpp`
 - Core components: `lib_component.hpp/.cpp`
+- Use consistent naming across all modules
 
-### 2. **Include Path Updates**
-- Use relative paths from module directory
+### 2. **Include Paths**
 - Core framework: `../core/`
 - VM components: `../../vm/`
 - Common types: `../../common/`
+- GC components: `../../gc/core/`
 
-### 3. **Namespace Organization**
-- Core framework: `Lua::Lib::Core::`
-- Standard libraries: `Lua::Lib::ModuleName::`
-- Utilities: `Lua::Lib::Utils::`
+### 3. **Coding Standards**
+- Use project type system (`i32`, `f64`, `Str`, etc.)
+- English-only comments and documentation
+- Proper error handling with exceptions
+- Doxygen-style documentation
 
-## 🔄 Next Steps
+## 📊 Current Status
 
-1. **Update Include Paths**: Complete the update of all include paths in moved files
-2. **Test Compilation**: Verify that all modules compile correctly
-3. **Update Build Scripts**: Modify CMake/build files to reflect new structure
-4. **Documentation Update**: Update all documentation references
-5. **Legacy Cleanup**: Remove old base_lib files after migration complete
+- ✅ **Core Framework**: LibModule, LibRegistry, StandardLibrary
+- ✅ **Base Library**: print, type, tostring, tonumber, error
+- ✅ **String Library**: len, sub, upper, lower, reverse, rep
+- ✅ **Math Library**: abs, floor, ceil, sqrt, sin, cos, tan, min, max
+- ✅ **Build System**: Complete project builds successfully
+- ✅ **Documentation**: Comprehensive API documentation
+- ✅ **Testing**: All libraries initialize and function correctly
 
-## 📊 Migration Status
-
-- ✅ **Directory Structure Created**: All module directories established
-- ✅ **Files Moved**: All library files moved to appropriate directories
-- 🔄 **Include Paths**: In progress - updating file references
-- 🔄 **Build System**: Pending - CMake updates needed
-- 🔄 **Testing**: Pending - compilation verification needed
-- 🔄 **Documentation**: Pending - reference updates needed
-
-This modular structure provides a solid foundation for the continued development and maintenance of the Lua standard library framework.
+This simplified framework provides an excellent foundation for Lua standard library development with optimal performance and maintainability.

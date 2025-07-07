@@ -13,7 +13,7 @@
 #include "compiler/symbol_table.hpp"
 #include "common/defines.hpp"
 #include "lib/base/base_lib.hpp"
-#include "lib/core/lib_module.hpp"
+#include "lib/core/lib_manager.hpp"
 
 using namespace Lua;
 

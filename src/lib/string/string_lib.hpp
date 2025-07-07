@@ -1,109 +1,114 @@
-﻿#pragma once
+#pragma once
 
-#include "../core/lib_define.hpp"
-#include "../utils/lib_utils.hpp"
-#include <string>
-#include <regex>
-#include <algorithm>
-#include <cctype>
-#include <sstream>
-#include <iomanip>
+#include "../core/lib_module.hpp"
+#include "../core/lib_registry.hpp"
 
 namespace Lua {
-    // Forward declarations
-    namespace Tests {
-        class StringLibTest;
-    }
-    
+
+/**
+ * @brief String library implementation
+ *
+ * Provides Lua string manipulation functions:
+ * - len: Get string length
+ * - sub: Extract substring
+ * - upper: Convert to uppercase
+ * - lower: Convert to lowercase
+ * - reverse: Reverse string
+ * - rep: Repeat string
+ *
+ * This implementation follows the simplified framework design
+ * for better performance and maintainability.
+ */
+class StringLib : public LibModule {
+public:
     /**
-     * @brief String library implementation
-     * 
-     * Provides string manipulation functions including:
-     * - Basic operations: len, sub, upper, lower, reverse
-     * - Pattern matching: find, match, gmatch, gsub
-     * - Formatting: format, rep
-     * - Character operations: byte, char
-     * - Utility functions: trim, split, join
+     * @brief Get module name
+     * @return Module name as string literal
      */
-    class StringLib : public Lib::LibModule {
-        friend class Tests::StringLibTest;
-        
-    public:
-        StringLib() = default;
-        
-        StrView getName() const noexcept override;
-        void registerFunctions(Lib::LibFuncRegistry& registry, const Lib::LibContext& context) override;
-        
-    private:
-        // Basic string functions
-        static Value len(State* state, i32 nargs);
-        static Value sub(State* state, i32 nargs);
-        static Value upper(State* state, i32 nargs);
-        static Value lower(State* state, i32 nargs);
-        static Value reverse(State* state, i32 nargs);
-        
-        // Pattern matching functions
-        static Value find(State* state, i32 nargs);
-        static Value match(State* state, i32 nargs);
-        static Value gmatch(State* state, i32 nargs);
-        static Value gsub(State* state, i32 nargs);
-        
-        // Formatting functions
-        static Value format(State* state, i32 nargs);
-        static Value rep(State* state, i32 nargs);
-        
-        // Character functions
-        static Value byte_func(State* state, i32 nargs);
-        static Value char_func(State* state, i32 nargs);
-        
-        // Utility functions
-        static Value trim(State* state, i32 nargs);
-        static Value split(State* state, i32 nargs);
-        static Value join(State* state, i32 nargs);
-        static Value startswith(State* state, i32 nargs);
-        static Value endswith(State* state, i32 nargs);
-        static Value contains(State* state, i32 nargs);
-        
-        // Helper functions
-        static Str escapePattern(const Str& pattern);
-        static bool isValidUtf8(const Str& str);
-        static usize utf8Length(const Str& str);
-        static Str utf8Substring(const Str& str, usize start, usize length);
-        
-        // Pattern matching helpers
-        static bool matchPattern(const Str& text, const Str& pattern, usize& start, usize& end);
-        static Str replacePattern(const Str& text, const Str& pattern, const Str& replacement);
-        
-        // Validation helpers
-        static void validateStringArg(const Value& val, const Str& funcName, i32 argIndex);
-        static void validateNumberArg(const Value& val, const Str& funcName, i32 argIndex);
-        static void validateRange(i32 start, i32 end, usize strLen, const Str& funcName);
-    };
-    
+    const char* getName() const override { return "string"; }
+
     /**
-     * @brief String formatting utilities
-     * 
-     * Helper class for string.format implementation
+     * @brief Register string library functions to the state
+     * @param state Lua state to register functions to
+     * @throws std::invalid_argument if state is null
      */
-    class StringFormatter {
-    public:
-        static Str format(const Str& formatStr, const Vec<Value>& args);
-        
-    private:
-        struct FormatSpec {
-            char type = 's';        // Format type (s, d, f, x, etc.)
-            i32 width = 0;          // Field width
-            i32 precision = -1;     // Precision for floating point
-            bool leftAlign = false; // Left alignment flag
-            bool showSign = false;  // Show sign for numbers
-            bool padZero = false;   // Pad with zeros
-            char fill = ' ';        // Fill character
-        };
-        
-        static FormatSpec parseFormatSpec(const Str& spec);
-        static Str formatValue(const Value& value, const FormatSpec& spec);
-        static Str formatString(const Str& str, const FormatSpec& spec);
-        static Str formatNumber(f64 num, const FormatSpec& spec);
-        static Str formatInteger(i64 num, const FormatSpec& spec);
-    };
-}
+    void registerFunctions(State* state) override;
+
+    /**
+     * @brief Initialize the string library
+     * @param state Lua state to initialize
+     * @throws std::invalid_argument if state is null
+     */
+    void initialize(State* state) override;
+
+    // String function declarations with proper documentation
+    /**
+     * @brief Get string length function
+     * @param state Lua state containing string argument
+     * @param nargs Number of arguments (should be 1)
+     * @return Number value representing string length
+     * @throws std::invalid_argument if state is null
+     */
+    static Value len(State* state, i32 nargs);
+
+    /**
+     * @brief Extract substring function
+     * @param state Lua state containing string and indices
+     * @param nargs Number of arguments (2 or 3)
+     * @return String value containing substring
+     * @throws std::invalid_argument if state is null
+     */
+    static Value sub(State* state, i32 nargs);
+
+    /**
+     * @brief Convert string to uppercase
+     * @param state Lua state containing string argument
+     * @param nargs Number of arguments (should be 1)
+     * @return String value in uppercase
+     * @throws std::invalid_argument if state is null
+     */
+    static Value upper(State* state, i32 nargs);
+
+    /**
+     * @brief Convert string to lowercase
+     * @param state Lua state containing string argument
+     * @param nargs Number of arguments (should be 1)
+     * @return String value in lowercase
+     * @throws std::invalid_argument if state is null
+     */
+    static Value lower(State* state, i32 nargs);
+
+    /**
+     * @brief Reverse string function
+     * @param state Lua state containing string argument
+     * @param nargs Number of arguments (should be 1)
+     * @return String value reversed
+     * @throws std::invalid_argument if state is null
+     */
+    static Value reverse(State* state, i32 nargs);
+
+    /**
+     * @brief Repeat string function
+     * @param state Lua state containing string and count
+     * @param nargs Number of arguments (should be 2)
+     * @return String value repeated specified times
+     * @throws std::invalid_argument if state is null
+     */
+    static Value rep(State* state, i32 nargs);
+
+    // 模式匹配函数（简化版本）
+    static Value find(State* state, i32 nargs);
+    static Value match(State* state, i32 nargs);
+    static Value gsub(State* state, i32 nargs);
+
+    // 格式化函数
+    static Value format(State* state, i32 nargs);
+};
+
+/**
+ * @brief 便捷的StringLib初始化函数
+ * @param state Lua状态机
+ */
+void initializeStringLib(State* state);
+
+} // namespace Lua
