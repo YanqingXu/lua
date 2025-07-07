@@ -1,4 +1,4 @@
-#include "lib_manager.hpp"
+﻿#include "lib_manager.hpp"
 #include "../base/base_lib.hpp"
 #include "../string/string_lib.hpp"
 #include "../math/math_lib.hpp"

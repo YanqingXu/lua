@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "lib_module.hpp"
 #include "../../vm/value.hpp"

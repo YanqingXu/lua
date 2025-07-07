@@ -1,4 +1,4 @@
-#include "string_lib.hpp"
+﻿#include "string_lib.hpp"
 #include <algorithm>
 #include <cctype>
 #include <iostream>
@@ -67,7 +67,7 @@ Value StringLib::sub(State* state, i32 nargs) {
 
     std::string str = strVal.toString();
     int start = static_cast<int>(startVal.asNumber()) - 1; // Lua索引从1开始
-    int end = str.length();
+    int end = static_cast<int>(str.length());
 
     if (nargs >= 3) {
         Value endVal = state->get(3);
@@ -77,12 +77,12 @@ Value StringLib::sub(State* state, i32 nargs) {
     }
 
     // 处理负数索引
-    if (start < 0) start = str.length() + start + 1;
-    if (end < 0) end = str.length() + end + 1;
+    if (start < 0) start =  static_cast<int>(str.length() + start + 1);
+    if (end < 0) end = static_cast<int>(str.length() + end + 1);
 
     // 边界检查
     if (start < 0) start = 0;
-    if (end > static_cast<int>(str.length())) end = str.length();
+    if (end > static_cast<int>(str.length())) end = static_cast<int>(str.length());
     if (start >= end) return Value("");
 
     return Value(str.substr(start, end - start));

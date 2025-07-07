@@ -1,4 +1,4 @@
-#include "lib_registry.hpp"
+﻿#include "lib_registry.hpp"
 #include "../../vm/function.hpp"
 #include "../../vm/table.hpp"
 #include "../../gc/core/gc_ref.hpp"

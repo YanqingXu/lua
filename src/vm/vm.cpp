@@ -225,12 +225,10 @@ namespace Lua {
 
         Value val = state->get(stackPos);
 
-#ifdef DEBUG_VM_REGISTERS
-        std::cout << "[DEBUG] getReg: reg=" << reg
+        /*std::cout << "[VM DEBUG] getReg: reg=" << reg
                   << ", stackPos=" << stackPos
                   << ", registerBase=" << registerBase
-                  << ", value_type=" << (int)val.type() << std::endl;
-#endif
+                  << ", value_type=" << static_cast<int>(val.type()) << std::endl;*/
         return val;
     }
 
@@ -238,14 +236,10 @@ namespace Lua {
         // Convert VM register (0-based) to stack position using register base
         int stackPos = registerBase + reg;
 
-        // Debug output disabled
-
-#ifdef DEBUG_VM_REGISTERS
-        std::cout << "[DEBUG] setReg: reg=" << reg
+        /*std::cout << "[VM DEBUG] setReg: reg=" << reg
                   << ", stackPos=" << stackPos
                   << ", registerBase=" << registerBase
-                  << ", value_type=" << (int)value.type() << std::endl;
-#endif
+                  << ", value_type=" << static_cast<int>(value.type()) << std::endl;*/
 
         state->set(stackPos, value);
     }
@@ -264,12 +258,10 @@ namespace Lua {
         // Lua官方设计：指令中的寄存器编号就是0基的
         Value val = getReg(b);
 
-#ifdef DEBUG_VM_INSTRUCTIONS
-        std::cout << "[DEBUG] MOVE: from_reg=" << (int)b
-                  << " to_reg=" << (int)a
-                  << ", value_type=" << (int)val.type()
-                  << ", value=" << val.toString() << std::endl;
-#endif
+        /*std::cout << "[VM DEBUG] MOVE: from_reg=" << static_cast<int>(b)
+                  << " to_reg=" << static_cast<int>(a)
+                  << ", value_type=" << static_cast<int>(val.type())
+                  << ", is_function=" << val.isFunction() << std::endl;*/
 
         setReg(a, val);
     }
@@ -646,11 +638,9 @@ namespace Lua {
         // Get function object
         Value func = getReg(a);
 
-#ifdef DEBUG_VM_INSTRUCTIONS
-        std::cout << "[DEBUG] CALL: reg=" << (int)a
-                  << ", value_type=" << (int)func.type()
-                  << ", is_function=" << func.isFunction() << std::endl;
-#endif
+        /*std::cout << "[VM DEBUG] CALL: Getting function from register " << static_cast<int>(a)
+                  << ", value_type=" << static_cast<int>(func.type())
+                  << ", is_function=" << func.isFunction() << std::endl;*/
 
         // Check if it's a function
         if (!func.isFunction()) {

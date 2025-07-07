@@ -100,6 +100,24 @@
     <Filter Include="test_framework\formatting">
       <UniqueIdentifier>{ec52d11a-2357-4aed-a119-04a151c0a528}</UniqueIdentifier>
     </Filter>
+    <Filter Include="lib\base">
+      <UniqueIdentifier>{27357e4e-5796-4061-ba77-73b8ced00e34}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="lib\core">
+      <UniqueIdentifier>{cfe74770-feac-4225-b689-8760fedb8c27}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="lib\math">
+      <UniqueIdentifier>{2abffdfd-f832-4ba4-ae27-913110bbbb5c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="lib\string">
+      <UniqueIdentifier>{2d03b363-d695-4b85-818b-ad00e0934d80}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="lib\table">
+      <UniqueIdentifier>{c29ade06-2c4b-483e-9a90-18915c801b4b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="lib\utils">
+      <UniqueIdentifier>{dcc2642a-c020-4c70-b5b1-242e2ad32e8e}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\main.cpp">
@@ -237,32 +255,20 @@
     <ClCompile Include="src\compiler\register_manager.cpp">
       <Filter>compiler</Filter>
     </ClCompile>
-    <ClCompile Include="src\lib\base_lib.cpp">
-      <Filter>lib</Filter>
+    <ClCompile Include="src\lib\base\base_lib.cpp">
+      <Filter>lib\base</Filter>
     </ClCompile>
-    <ClCompile Include="src\lib\error_handling.cpp">
-      <Filter>lib</Filter>
+    <ClCompile Include="src\lib\core\lib_manager.cpp">
+      <Filter>lib\core</Filter>
     </ClCompile>
-    <ClCompile Include="src\lib\lib_manager.cpp">
-      <Filter>lib</Filter>
+    <ClCompile Include="src\lib\core\lib_registry.cpp">
+      <Filter>lib\core</Filter>
     </ClCompile>
-    <ClCompile Include="src\lib\math_lib.cpp">
-      <Filter>lib</Filter>
+    <ClCompile Include="src\lib\math\math_lib.cpp">
+      <Filter>lib\math</Filter>
     </ClCompile>
-    <ClCompile Include="src\lib\string_lib.cpp">
-      <Filter>lib</Filter>
-    </ClCompile>
-    <ClCompile Include="src\lib\table_lib.cpp">
-      <Filter>lib</Filter>
-    </ClCompile>
-    <ClCompile Include="src\lib\lib_func_registry.cpp">
-      <Filter>lib</Filter>
-    </ClCompile>
-    <ClCompile Include="src\lib\lib_utils.cpp">
-      <Filter>lib</Filter>
-    </ClCompile>
-    <ClCompile Include="src\lib\lib_base_utils.cpp">
-      <Filter>lib</Filter>
+    <ClCompile Include="src\lib\string\string_lib.cpp">
+      <Filter>lib\string</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -464,44 +470,23 @@
     <ClInclude Include="src\compiler\register_manager.hpp">
       <Filter>compiler</Filter>
     </ClInclude>
-    <ClInclude Include="src\lib\base_lib.hpp">
-      <Filter>lib</Filter>
+    <ClInclude Include="src\lib\base\base_lib.hpp">
+      <Filter>lib\base</Filter>
     </ClInclude>
-    <ClInclude Include="src\lib\error_handling.hpp">
-      <Filter>lib</Filter>
+    <ClInclude Include="src\lib\core\lib_manager.hpp">
+      <Filter>lib\core</Filter>
     </ClInclude>
-    <ClInclude Include="src\lib\lib_manager.hpp">
-      <Filter>lib</Filter>
+    <ClInclude Include="src\lib\core\lib_module.hpp">
+      <Filter>lib\core</Filter>
     </ClInclude>
-    <ClInclude Include="src\lib\math_lib.hpp">
-      <Filter>lib</Filter>
+    <ClInclude Include="src\lib\core\lib_registry.hpp">
+      <Filter>lib\core</Filter>
     </ClInclude>
-    <ClInclude Include="src\lib\string_lib.hpp">
-      <Filter>lib</Filter>
+    <ClInclude Include="src\lib\math\math_lib.hpp">
+      <Filter>lib\math</Filter>
     </ClInclude>
-    <ClInclude Include="src\lib\table_lib.hpp">
-      <Filter>lib</Filter>
-    </ClInclude>
-    <ClInclude Include="src\lib\type_conversion.hpp">
-      <Filter>lib</Filter>
-    </ClInclude>
-    <ClInclude Include="src\lib\lib_context.hpp">
-      <Filter>lib</Filter>
-    </ClInclude>
-    <ClInclude Include="src\lib\lib_define.hpp">
-      <Filter>lib</Filter>
-    </ClInclude>
-    <ClInclude Include="src\lib\lib_func_registry.hpp">
-      <Filter>lib</Filter>
-    </ClInclude>
-    <ClInclude Include="src\lib\lib_module.hpp">
-      <Filter>lib</Filter>
-    </ClInclude>
-    <ClInclude Include="src\lib\lib_utils.hpp">
-      <Filter>lib</Filter>
-    </ClInclude>
-    <ClInclude Include="src\lib\lib_base_utils.hpp">
-      <Filter>lib</Filter>
+    <ClInclude Include="src\lib\string\string_lib.hpp">
+      <Filter>lib\string</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

@@ -1,4 +1,4 @@
-#include "base_lib.hpp"
+﻿#include "base_lib.hpp"
 #include <iostream>
 #include <sstream>
 
@@ -69,7 +69,10 @@ Value BaseLib::print(State* state, i32 nargs) {
             std::cout << "\t";
         }
 
-        Value val = state->get(i);
+        // Convert 1-based Lua index to 0-based stack index
+        // Arguments are at stack[top-nargs] to stack[top-1]
+        int stackIdx = state->getTop() - nargs + (i - 1);
+        Value val = state->get(stackIdx);
         std::cout << val.toString();
     }
     std::cout << std::endl;
@@ -86,7 +89,9 @@ Value BaseLib::type(State* state, i32 nargs) {
         return Value("nil");
     }
 
-    Value val = state->get(1);
+    // Convert 1-based Lua index to 0-based stack index
+    int stackIdx = state->getTop() - nargs;
+    Value val = state->get(stackIdx);
 
     if (val.isNil()) return Value("nil");
     if (val.isBoolean()) return Value("boolean");

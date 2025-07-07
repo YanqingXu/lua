@@ -1,4 +1,4 @@
-#include "math_lib.hpp"
+﻿#include "math_lib.hpp"
 #include "../../vm/table.hpp"
 #include <cmath>
 #include <algorithm>

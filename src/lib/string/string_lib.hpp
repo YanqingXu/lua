@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "../core/lib_module.hpp"
 #include "../core/lib_registry.hpp"
