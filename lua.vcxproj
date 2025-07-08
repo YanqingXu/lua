@@ -72,6 +72,7 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <OutDir>.\bin\</OutDir>
+    <IncludePath>E:\Programming\Compiler\lua\src\;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -162,8 +163,12 @@
     <ClInclude Include="src\lib\core\lib_manager.hpp" />
     <ClInclude Include="src\lib\core\lib_module.hpp" />
     <ClInclude Include="src\lib\core\lib_registry.hpp" />
+    <ClInclude Include="src\lib\debug\debug_lib.hpp" />
+    <ClInclude Include="src\lib\io\io_lib.hpp" />
     <ClInclude Include="src\lib\math\math_lib.hpp" />
+    <ClInclude Include="src\lib\os\os_lib.hpp" />
     <ClInclude Include="src\lib\string\string_lib.hpp" />
+    <ClInclude Include="src\lib\table\table_lib.hpp" />
     <ClInclude Include="src\localization\localization_manager.hpp" />
     <ClInclude Include="src\parser\ast\ast_base.hpp" />
     <ClInclude Include="src\parser\ast\expressions.hpp" />
@@ -177,6 +182,13 @@
     <ClInclude Include="src\tests\lexer\lexer_basic_test.hpp" />
     <ClInclude Include="src\tests\lexer\lexer_error_test.hpp" />
     <ClInclude Include="src\tests\lexer\test_lexer.hpp" />
+    <ClInclude Include="src\tests\lib\base_lib_test.hpp" />
+    <ClInclude Include="src\tests\lib\debug_lib_test.hpp" />
+    <ClInclude Include="src\tests\lib\io_lib_test.hpp" />
+    <ClInclude Include="src\tests\lib\math_lib_test.hpp" />
+    <ClInclude Include="src\tests\lib\os_lib_test.hpp" />
+    <ClInclude Include="src\tests\lib\string_lib_test.hpp" />
+    <ClInclude Include="src\tests\lib\table_lib_test.hpp" />
     <ClInclude Include="src\tests\lib\test_lib.hpp" />
     <ClInclude Include="src\tests\parser\expr\parser_binary_expr_test.hpp" />
     <ClInclude Include="src\tests\parser\expr\parser_call_expr_test.hpp" />
@@ -230,8 +242,12 @@
     <ClCompile Include="src\lib\base\base_lib.cpp" />
     <ClCompile Include="src\lib\core\lib_manager.cpp" />
     <ClCompile Include="src\lib\core\lib_registry.cpp" />
+    <ClCompile Include="src\lib\debug\debug_lib.cpp" />
+    <ClCompile Include="src\lib\io\io_lib.cpp" />
     <ClCompile Include="src\lib\math\math_lib.cpp" />
+    <ClCompile Include="src\lib\os\os_lib.cpp" />
     <ClCompile Include="src\lib\string\string_lib.cpp" />
+    <ClCompile Include="src\lib\table\table_lib.cpp" />
     <ClCompile Include="src\localization\localization_manager.cpp" />
     <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\parser\ast\source_location.cpp" />
@@ -241,6 +257,13 @@
     <ClCompile Include="src\parser\visitor.cpp" />
     <ClCompile Include="src\tests\lexer\lexer_basic_test.cpp" />
     <ClCompile Include="src\tests\lexer\lexer_error_test.cpp" />
+    <ClCompile Include="src\tests\lib\base_lib_test.cpp" />
+    <ClCompile Include="src\tests\lib\debug_lib_test.cpp" />
+    <ClCompile Include="src\tests\lib\io_lib_test.cpp" />
+    <ClCompile Include="src\tests\lib\math_lib_test.cpp" />
+    <ClCompile Include="src\tests\lib\os_lib_test.cpp" />
+    <ClCompile Include="src\tests\lib\string_lib_test.cpp" />
+    <ClCompile Include="src\tests\lib\table_lib_test.cpp" />
     <ClCompile Include="src\tests\parser\expr\parser_binary_expr_test.cpp" />
     <ClCompile Include="src\tests\parser\expr\parser_call_expr_test.cpp" />
     <ClCompile Include="src\tests\parser\expr\parser_literal_expr_test.cpp" />

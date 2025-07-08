@@ -118,6 +118,15 @@
     <Filter Include="lib\utils">
       <UniqueIdentifier>{dcc2642a-c020-4c70-b5b1-242e2ad32e8e}</UniqueIdentifier>
     </Filter>
+    <Filter Include="lib\io">
+      <UniqueIdentifier>{6182a9ab-713e-4831-b160-65e5f9b0cac4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="lib\os">
+      <UniqueIdentifier>{4bfd534f-f00d-432c-a524-ff5e54cce8a2}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="lib\debug">
+      <UniqueIdentifier>{ec3cc82b-1065-4ce1-848b-b99bf5ae88f3}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\main.cpp">
@@ -264,11 +273,44 @@
     <ClCompile Include="src\lib\core\lib_registry.cpp">
       <Filter>lib\core</Filter>
     </ClCompile>
-    <ClCompile Include="src\lib\math\math_lib.cpp">
-      <Filter>lib\math</Filter>
+    <ClCompile Include="src\tests\lib\base_lib_test.cpp">
+      <Filter>tests\lib</Filter>
+    </ClCompile>
+    <ClCompile Include="src\tests\lib\math_lib_test.cpp">
+      <Filter>tests\lib</Filter>
+    </ClCompile>
+    <ClCompile Include="src\tests\lib\string_lib_test.cpp">
+      <Filter>tests\lib</Filter>
+    </ClCompile>
+    <ClCompile Include="src\tests\lib\table_lib_test.cpp">
+      <Filter>tests\lib</Filter>
+    </ClCompile>
+    <ClCompile Include="src\tests\lib\io_lib_test.cpp">
+      <Filter>tests\lib</Filter>
+    </ClCompile>
+    <ClCompile Include="src\tests\lib\os_lib_test.cpp">
+      <Filter>tests\lib</Filter>
     </ClCompile>
     <ClCompile Include="src\lib\string\string_lib.cpp">
       <Filter>lib\string</Filter>
+    </ClCompile>
+    <ClCompile Include="src\lib\table\table_lib.cpp">
+      <Filter>lib\table</Filter>
+    </ClCompile>
+    <ClCompile Include="src\lib\os\os_lib.cpp">
+      <Filter>lib\os</Filter>
+    </ClCompile>
+    <ClCompile Include="src\lib\debug\debug_lib.cpp">
+      <Filter>lib\debug</Filter>
+    </ClCompile>
+    <ClCompile Include="src\lib\io\io_lib.cpp">
+      <Filter>lib\io</Filter>
+    </ClCompile>
+    <ClCompile Include="src\lib\math\math_lib.cpp">
+      <Filter>lib\math</Filter>
+    </ClCompile>
+    <ClCompile Include="src\tests\lib\debug_lib_test.cpp">
+      <Filter>tests\lib</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -482,11 +524,44 @@
     <ClInclude Include="src\lib\core\lib_registry.hpp">
       <Filter>lib\core</Filter>
     </ClInclude>
-    <ClInclude Include="src\lib\math\math_lib.hpp">
-      <Filter>lib\math</Filter>
+    <ClInclude Include="src\tests\lib\base_lib_test.hpp">
+      <Filter>tests\lib</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tests\lib\math_lib_test.hpp">
+      <Filter>tests\lib</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tests\lib\string_lib_test.hpp">
+      <Filter>tests\lib</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tests\lib\table_lib_test.hpp">
+      <Filter>tests\lib</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tests\lib\io_lib_test.hpp">
+      <Filter>tests\lib</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tests\lib\os_lib_test.hpp">
+      <Filter>tests\lib</Filter>
     </ClInclude>
     <ClInclude Include="src\lib\string\string_lib.hpp">
       <Filter>lib\string</Filter>
+    </ClInclude>
+    <ClInclude Include="src\lib\table\table_lib.hpp">
+      <Filter>lib\table</Filter>
+    </ClInclude>
+    <ClInclude Include="src\lib\os\os_lib.hpp">
+      <Filter>lib\os</Filter>
+    </ClInclude>
+    <ClInclude Include="src\lib\debug\debug_lib.hpp">
+      <Filter>lib\debug</Filter>
+    </ClInclude>
+    <ClInclude Include="src\lib\io\io_lib.hpp">
+      <Filter>lib\io</Filter>
+    </ClInclude>
+    <ClInclude Include="src\lib\math\math_lib.hpp">
+      <Filter>lib\math</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tests\lib\debug_lib_test.hpp">
+      <Filter>tests\lib</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

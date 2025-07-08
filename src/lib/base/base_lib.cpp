@@ -34,7 +34,7 @@ void BaseLib::registerFunctions(State* state) {
     REGISTER_GLOBAL_FUNCTION(state, rawequal, rawequal);
 
     // Register other utility functions
-    REGISTER_GLOBAL_FUNCTION(state, assert, assert);
+    //REGISTER_GLOBAL_FUNCTION(state, assert, assert);
     REGISTER_GLOBAL_FUNCTION(state, select, select);
     REGISTER_GLOBAL_FUNCTION(state, unpack, unpack);
 }
@@ -218,24 +218,24 @@ Value BaseLib::rawequal(State* state, i32 nargs) {
 // Other Utility Function Implementations (Simplified Versions)
 // ===================================================================
 
-Value BaseLib::assert(State* state, i32 nargs) {
-    if (nargs < 1) {
-        std::cerr << "Lua error: assertion failed!" << std::endl;
-        return Value();
-    }
-
-    Value val = state->get(1);
-    if (val.isNil() || (val.isBoolean() && !val.asBoolean())) {
-        std::string message = "assertion failed!";
-        if (nargs >= 2) {
-            Value msgVal = state->get(2);
-            message = msgVal.toString();
-        }
-        std::cerr << "Lua error: " << message << std::endl;
-    }
-
-    return val;
-}
+//Value BaseLib::assert(State* state, i32 nargs) {
+//    if (nargs < 1) {
+//        std::cerr << "Lua error: assertion failed!" << std::endl;
+//        return Value();
+//    }
+//
+//    Value val = state->get(1);
+//    if (val.isNil() || (val.isBoolean() && !val.asBoolean())) {
+//        std::string message = "assertion failed!";
+//        if (nargs >= 2) {
+//            Value msgVal = state->get(2);
+//            message = msgVal.toString();
+//        }
+//        std::cerr << "Lua error: " << message << std::endl;
+//    }
+//
+//    return val;
+//}
 
 Value BaseLib::select(State* state, i32 nargs) {
     (void)state; (void)nargs; // Not yet implemented

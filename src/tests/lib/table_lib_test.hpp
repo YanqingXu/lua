@@ -1,54 +1,56 @@
-﻿#ifndef TABLE_LIB_TEST_HPP
-#define TABLE_LIB_TEST_HPP
+﻿#pragma once
 
-#include "../../common/types.hpp"
+// System headers
 #include <iostream>
-#include <string>
+#include <cassert>
+
+// Project base headers
+#include "common/types.hpp"
+
+// Project other headers
+#include "test_framework/core/test_macros.hpp"
+#include "test_framework/core/test_utils.hpp"
+#include "lib/table/table_lib.hpp"
+
+// Use TestUtils namespace
+using namespace Lua::TestFramework;
 
 namespace Lua {
 namespace Tests {
 
+/**
+ * @brief Table Library test suite
+ *
+ * Complete test suite for table library functionality following hierarchical pattern:
+ * SUITE �?GROUP �?INDIVIDUAL
+ */
+class TableLibTestSuite {
+public:
     /**
-     * @brief Table library test class
-     * 
-     * Tests all Lua table library functions, including:
-     * - table.concat: Concatenate table elements
-     * - table.insert: Insert element into table
-     * - table.remove: Remove element from table
-     * - table.sort: Sort table elements
-     * - table.pack: Pack arguments into table
-     * - table.unpack: Unpack table elements
-     * - table.move: Move table elements
+     * @brief Run all table library tests (SUITE level)
      */
-    class TableLibTest {
-    public:
-        /**
-         * @brief Run all tests
-         * 
-         * Execute all test cases in this test class
-         */
-        void runAllTests();
-        
-    private:
-        // Individual test methods
-        void testConcat();
-        void testInsert();
-        void testRemove();
-        void testSort();
-        void testPack();
-        void testUnpack();
-        void testMove();
-        
-        // Error handling tests
-        void testErrorHandling();
-        
-        // Helper methods
-        void printTestResult(const std::string& testName, bool passed);
-        void printSectionHeader(const std::string& sectionName);
-        void printSectionFooter();
-    };
+    static void runAllTests() {
+        RUN_TEST_GROUP("Table Operations", runTableOperationsTests);
+        RUN_TEST_GROUP("Length Operations", runLengthTests);
+        RUN_TEST_GROUP("Error Handling", runTableErrorHandlingTests);
+    }
+
+private:
+    // GROUP level function declarations
+    static void runTableOperationsTests();
+    static void runLengthTests();
+    static void runTableErrorHandlingTests();
+
+    // INDIVIDUAL level test function declarations
+    static void testInsert();
+    static void testRemove();
+    static void testSort();
+    static void testConcat();
+    static void testGetn();
+    static void testMaxn();
+    static void testErrorHandling();
+    static void testEdgeCases();
+};
 
 } // namespace Tests
 } // namespace Lua
-
-#endif // TABLE_LIB_TEST_HPP

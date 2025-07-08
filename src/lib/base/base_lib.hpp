@@ -100,7 +100,7 @@ public:
     static Value rawequal(State* state, i32 nargs);
 
     // Other utility functions (simplified implementations)
-    static Value assert(State* state, i32 nargs);
+    //static Value assert(State* state, i32 nargs);
     static Value select(State* state, i32 nargs);
     static Value unpack(State* state, i32 nargs);
 };

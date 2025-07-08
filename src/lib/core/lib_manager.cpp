@@ -1,7 +1,7 @@
 ﻿#include "lib_manager.hpp"
 #include "../base/base_lib.hpp"
-#include "../string/string_lib.hpp"
-#include "../math/math_lib.hpp"
+//#include "../string/string_lib.hpp"
+//#include "../math/math_lib.hpp"
 #include <iostream>
 
 namespace Lua {
@@ -40,7 +40,7 @@ void StandardLibrary::initializeString(State* state) {
         return;
     }
 
-    initializeStringLib(state);
+    //initializeStringLib(state);
 }
 
 void StandardLibrary::initializeMath(State* state) {
@@ -49,7 +49,7 @@ void StandardLibrary::initializeMath(State* state) {
         return;
     }
 
-    initializeMathLib(state);
+    //initializeMathLib(state);
 }
 
 } // namespace Lua
