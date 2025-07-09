@@ -145,6 +145,10 @@ Value BaseLib::tonumber(State* state, i32 nargs) {
 }
 
 Value BaseLib::error(State* state, i32 nargs) {
+    if (!state) {
+        throw std::invalid_argument("State cannot be null");
+    }
+
     std::string message = "error";
 
     if (nargs >= 1) {
@@ -163,19 +167,28 @@ Value BaseLib::error(State* state, i32 nargs) {
 // ===================================================================
 
 Value BaseLib::pairs(State* state, i32 nargs) {
-    (void)state; (void)nargs; // Not yet implemented
+    if (!state) {
+        throw std::invalid_argument("State cannot be null");
+    }
+    (void)nargs; // Not yet implemented
     std::cout << "pairs() function not yet implemented" << std::endl;
     return Value();
 }
 
 Value BaseLib::ipairs(State* state, i32 nargs) {
-    (void)state; (void)nargs; // Not yet implemented
+    if (!state) {
+        throw std::invalid_argument("State cannot be null");
+    }
+    (void)nargs; // Not yet implemented
     std::cout << "ipairs() function not yet implemented" << std::endl;
     return Value();
 }
 
 Value BaseLib::next(State* state, i32 nargs) {
-    (void)state; (void)nargs; // Not yet implemented
+    if (!state) {
+        throw std::invalid_argument("State cannot be null");
+    }
+    (void)nargs; // Not yet implemented
     std::cout << "next() function not yet implemented" << std::endl;
     return Value();
 }
@@ -185,32 +198,50 @@ Value BaseLib::next(State* state, i32 nargs) {
 // ===================================================================
 
 Value BaseLib::getmetatable(State* state, i32 nargs) {
-    (void)state; (void)nargs; // Not yet implemented
+    if (!state) {
+        throw std::invalid_argument("State cannot be null");
+    }
+    (void)nargs; // Not yet implemented
     return Value(); // nil
 }
 
 Value BaseLib::setmetatable(State* state, i32 nargs) {
-    (void)state; (void)nargs; // Not yet implemented
+    if (!state) {
+        throw std::invalid_argument("State cannot be null");
+    }
+    (void)nargs; // Not yet implemented
     return Value();
 }
 
 Value BaseLib::rawget(State* state, i32 nargs) {
-    (void)state; (void)nargs; // Not yet implemented
+    if (!state) {
+        throw std::invalid_argument("State pointer cannot be null");
+    }
+    (void)nargs; // Not yet implemented
     return Value();
 }
 
 Value BaseLib::rawset(State* state, i32 nargs) {
-    (void)state; (void)nargs; // Not yet implemented
+    if (!state) {
+        throw std::invalid_argument("State pointer cannot be null");
+    }
+    (void)nargs; // Not yet implemented
     return Value();
 }
 
 Value BaseLib::rawlen(State* state, i32 nargs) {
-    (void)state; (void)nargs; // Not yet implemented
+    if (!state) {
+        throw std::invalid_argument("State pointer cannot be null");
+    }
+    (void)nargs; // Not yet implemented
     return Value();
 }
 
 Value BaseLib::rawequal(State* state, i32 nargs) {
-    (void)state; (void)nargs; // Not yet implemented
+    if (!state) {
+        throw std::invalid_argument("State pointer cannot be null");
+    }
+    (void)nargs; // Not yet implemented
     return Value();
 }
 
@@ -238,12 +269,18 @@ Value BaseLib::rawequal(State* state, i32 nargs) {
 //}
 
 Value BaseLib::select(State* state, i32 nargs) {
-    (void)state; (void)nargs; // Not yet implemented
+    if (!state) {
+        throw std::invalid_argument("State pointer cannot be null");
+    }
+    (void)nargs; // Not yet implemented
     return Value();
 }
 
 Value BaseLib::unpack(State* state, i32 nargs) {
-    (void)state; (void)nargs; // Not yet implemented
+    if (!state) {
+        throw std::invalid_argument("State pointer cannot be null");
+    }
+    (void)nargs; // Not yet implemented
     return Value();
 }
 

@@ -253,8 +253,16 @@ void MathLibTestSuite::testLog10() {
     TestUtils::printInfo("Testing math.log10 function...");
 
     try {
-        // Note: log10 is not implemented in MathLib yet
-        TestUtils::printInfo("Math.log10 function test passed (not implemented)");
+        // Test null state handling
+        bool caughtException = false;
+        try {
+            MathLib::log10(nullptr, 1);
+        } catch (const std::invalid_argument&) {
+            caughtException = true;
+        }
+        assert(caughtException);
+
+        TestUtils::printInfo("Math.log10 function test passed");
     } catch (const std::exception& e) {
         TestUtils::printError("Math.log10 test failed: " + std::string(e.what()));
         throw;
@@ -368,7 +376,7 @@ void MathLibTestSuite::testAsin() {
         // Test null state handling
         bool caughtException = false;
         try {
-            // asin not implemented
+            MathLib::asin(nullptr, 1);
         } catch (const std::invalid_argument&) {
             caughtException = true;
         }
@@ -388,7 +396,7 @@ void MathLibTestSuite::testAcos() {
         // Test null state handling
         bool caughtException = false;
         try {
-            // acos not implemented
+            MathLib::acos(nullptr, 1);
         } catch (const std::invalid_argument&) {
             caughtException = true;
         }
@@ -408,7 +416,7 @@ void MathLibTestSuite::testAtan() {
         // Test null state handling
         bool caughtException = false;
         try {
-            // atan not implemented
+            MathLib::atan(nullptr, 1);
         } catch (const std::invalid_argument&) {
             caughtException = true;
         }
@@ -428,7 +436,7 @@ void MathLibTestSuite::testAtan2() {
         // Test null state handling
         bool caughtException = false;
         try {
-            // atan2 not implemented
+            MathLib::atan2(nullptr, 1);
         } catch (const std::invalid_argument&) {
             caughtException = true;
         }
@@ -488,7 +496,7 @@ void MathLibTestSuite::testRandom() {
         // Test null state handling
         bool caughtException = false;
         try {
-            // random not implemented
+            MathLib::random(nullptr, 1);
         } catch (const std::invalid_argument&) {
             caughtException = true;
         }
@@ -508,7 +516,7 @@ void MathLibTestSuite::testRandomSeed() {
         // Test null state handling
         bool caughtException = false;
         try {
-            // randomseed not implemented
+            MathLib::randomseed(nullptr, 1);
         } catch (const std::invalid_argument&) {
             caughtException = true;
         }
@@ -548,7 +556,7 @@ void MathLibTestSuite::testModf() {
         // Test null state handling
         bool caughtException = false;
         try {
-            // modf not implemented
+            MathLib::modf(nullptr, 1);
         } catch (const std::invalid_argument&) {
             caughtException = true;
         }
@@ -568,7 +576,7 @@ void MathLibTestSuite::testFrexp() {
         // Test null state handling
         bool caughtException = false;
         try {
-            // frexp not implemented
+            MathLib::frexp(nullptr, 1);
         } catch (const std::invalid_argument&) {
             caughtException = true;
         }
@@ -588,7 +596,7 @@ void MathLibTestSuite::testLdexp() {
         // Test null state handling
         bool caughtException = false;
         try {
-            // ldexp not implemented
+            MathLib::ldexp(nullptr, 1);
         } catch (const std::invalid_argument&) {
             caughtException = true;
         }

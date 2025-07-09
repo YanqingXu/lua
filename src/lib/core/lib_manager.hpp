@@ -52,6 +52,35 @@ public:
      */
     static void initializeMath(State* state);
 
+    /**
+     * @brief Initialize table library only
+     * @param state Lua state to initialize table library for
+     * @throws std::invalid_argument if state is null
+     */
+    static void initializeTable(State* state);
+
+    /**
+     * @brief Initialize IO library only
+     * @param state Lua state to initialize IO library for
+     * @throws std::invalid_argument if state is null
+     */
+    static void initializeIO(State* state);
+
+    /**
+     * @brief Initialize OS library only
+     * @param state Lua state to initialize OS library for
+     * @throws std::invalid_argument if state is null
+     */
+    static void initializeOS(State* state);
+
+    /**
+     * @brief Initialize debug library only
+     * @param state Lua state to initialize debug library for
+     * @throws std::invalid_argument if state is null
+     */
+    static void initializeDebug(State* state);
+;
+
 private:
     // Private constructor - this is a utility class with only static methods
     StandardLibrary() = delete;

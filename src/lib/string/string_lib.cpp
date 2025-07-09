@@ -48,6 +48,9 @@ void StringLib::initialize(State* state) {
 // ===================================================================
 
 Value StringLib::len(State* state, i32 nargs) {
+    if (!state) {
+        throw std::invalid_argument("State pointer cannot be null");
+    }
     if (nargs < 1) return Value();
 
     Value strVal = state->get(1);
@@ -58,6 +61,9 @@ Value StringLib::len(State* state, i32 nargs) {
 }
 
 Value StringLib::sub(State* state, i32 nargs) {
+    if (!state) {
+        throw std::invalid_argument("State pointer cannot be null");
+    }
     if (nargs < 2) return Value();
 
     Value strVal = state->get(1);
@@ -89,6 +95,9 @@ Value StringLib::sub(State* state, i32 nargs) {
 }
 
 Value StringLib::upper(State* state, i32 nargs) {
+    if (!state) {
+        throw std::invalid_argument("State pointer cannot be null");
+    }
     if (nargs < 1) return Value();
 
     Value strVal = state->get(1);
@@ -101,6 +110,9 @@ Value StringLib::upper(State* state, i32 nargs) {
 }
 
 Value StringLib::lower(State* state, i32 nargs) {
+    if (!state) {
+        throw std::invalid_argument("State pointer cannot be null");
+    }
     if (nargs < 1) return Value();
 
     Value strVal = state->get(1);
@@ -113,6 +125,9 @@ Value StringLib::lower(State* state, i32 nargs) {
 }
 
 Value StringLib::reverse(State* state, i32 nargs) {
+    if (!state) {
+        throw std::invalid_argument("State pointer cannot be null");
+    }
     if (nargs < 1) return Value();
 
     Value strVal = state->get(1);
@@ -125,6 +140,9 @@ Value StringLib::reverse(State* state, i32 nargs) {
 }
 
 Value StringLib::rep(State* state, i32 nargs) {
+    if (!state) {
+        throw std::invalid_argument("State pointer cannot be null");
+    }
     if (nargs < 2) return Value();
 
     Value strVal = state->get(1);
@@ -152,25 +170,37 @@ Value StringLib::rep(State* state, i32 nargs) {
 // ===================================================================
 
 Value StringLib::find(State* state, i32 nargs) {
-    (void)state; (void)nargs; // Not yet implemented
+    if (!state) {
+        throw std::invalid_argument("State pointer cannot be null");
+    }
+    (void)nargs; // Not yet implemented
     std::cout << "string.find() function not yet implemented" << std::endl;
     return Value();
 }
 
 Value StringLib::match(State* state, i32 nargs) {
-    (void)state; (void)nargs; // Not yet implemented
+    if (!state) {
+        throw std::invalid_argument("State pointer cannot be null");
+    }
+    (void)nargs; // Not yet implemented
     std::cout << "string.match() function not yet implemented" << std::endl;
     return Value();
 }
 
 Value StringLib::gsub(State* state, i32 nargs) {
-    (void)state; (void)nargs; // Not yet implemented
+    if (!state) {
+        throw std::invalid_argument("State pointer cannot be null");
+    }
+    (void)nargs; // Not yet implemented
     std::cout << "string.gsub() function not yet implemented" << std::endl;
     return Value();
 }
 
 Value StringLib::format(State* state, i32 nargs) {
-    (void)state; (void)nargs; // Not yet implemented
+    if (!state) {
+        throw std::invalid_argument("State pointer cannot be null");
+    }
+    (void)nargs; // Not yet implemented
     std::cout << "string.format() function not yet implemented" << std::endl;
     return Value();
 }

@@ -1,7 +1,11 @@
 ﻿#include "lib_manager.hpp"
-#include "../base/base_lib.hpp"
-//#include "../string/string_lib.hpp"
-//#include "../math/math_lib.hpp"
+#include "lib/base/base_lib.hpp"
+#include "lib/string/string_lib.hpp"
+#include "lib/math/math_lib.hpp"
+#include "lib/table/table_lib.hpp"
+#include "lib/io/io_lib.hpp"
+#include "lib/os/os_lib.hpp"
+#include "lib/debug/debug_lib.hpp"
 #include <iostream>
 
 namespace Lua {
@@ -21,6 +25,10 @@ void StandardLibrary::initializeAll(State* state) {
     initializeBase(state);
     initializeString(state);
     initializeMath(state);
+    initializeTable(state);
+    initializeIO(state);
+    initializeOS(state);
+    initializeDebug(state);
 
     std::cout << "[StandardLibrary] All standard libraries initialized successfully!" << std::endl;
 }
@@ -40,7 +48,7 @@ void StandardLibrary::initializeString(State* state) {
         return;
     }
 
-    //initializeStringLib(state);
+    initializeStringLib(state);
 }
 
 void StandardLibrary::initializeMath(State* state) {
@@ -49,7 +57,43 @@ void StandardLibrary::initializeMath(State* state) {
         return;
     }
 
-    //initializeMathLib(state);
+    initializeMathLib(state);
+}
+
+void StandardLibrary::initializeTable(State* state) {
+    if (!state) {
+        std::cerr << "Error: State is null in initializeTable" << std::endl;
+        return;
+    }
+
+    initializeTableLib(state);
+}
+
+void StandardLibrary::initializeIO(State* state) {
+    if (!state) {
+        std::cerr << "Error: State is null in initializeIO" << std::endl;
+        return;
+    }
+
+    initializeIOLib(state);
+}
+
+void StandardLibrary::initializeOS(State* state) {
+    if (!state) {
+        std::cerr << "Error: State is null in initializeOS" << std::endl;
+        return;
+    }
+
+    initializeOSLib(state);
+}
+
+void StandardLibrary::initializeDebug(State* state) {
+    if (!state) {
+        std::cerr << "Error: State is null in initializeDebug" << std::endl;
+        return;
+    }
+
+    initializeDebugLib(state);
 }
 
 } // namespace Lua

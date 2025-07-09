@@ -92,17 +92,29 @@ public:
     static Value sin(State* state, i32 nargs);
     static Value cos(State* state, i32 nargs);
     static Value tan(State* state, i32 nargs);
+    static Value asin(State* state, i32 nargs);
+    static Value acos(State* state, i32 nargs);
+    static Value atan(State* state, i32 nargs);
+    static Value atan2(State* state, i32 nargs);
 
     // Logarithmic and exponential functions
     static Value log(State* state, i32 nargs);
+    static Value log10(State* state, i32 nargs);
     static Value exp(State* state, i32 nargs);
 
     // Min/max functions
     static Value min(State* state, i32 nargs);
     static Value max(State* state, i32 nargs);
 
+    // Random functions
+    static Value random(State* state, i32 nargs);
+    static Value randomseed(State* state, i32 nargs);
+
     // Other utility functions
     static Value fmod(State* state, i32 nargs);
+    static Value modf(State* state, i32 nargs);
+    static Value frexp(State* state, i32 nargs);
+    static Value ldexp(State* state, i32 nargs);
     static Value deg(State* state, i32 nargs);
     static Value rad(State* state, i32 nargs);
 };
