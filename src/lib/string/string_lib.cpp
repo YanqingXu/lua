@@ -40,7 +40,6 @@ void StringLib::initialize(State* state) {
     }
 
     // String library doesn't need special initialization
-    std::cout << "[StringLib] Initialized successfully!" << std::endl;
 }
 
 // ===================================================================
@@ -53,7 +52,9 @@ Value StringLib::len(State* state, i32 nargs) {
     }
     if (nargs < 1) return Value();
 
-    Value strVal = state->get(1);
+    // Convert 1-based Lua index to 0-based stack index
+    int stackIdx = state->getTop() - nargs;
+    Value strVal = state->get(stackIdx);
     if (!strVal.isString()) return Value();
 
     std::string str = strVal.toString();
@@ -66,8 +67,10 @@ Value StringLib::sub(State* state, i32 nargs) {
     }
     if (nargs < 2) return Value();
 
-    Value strVal = state->get(1);
-    Value startVal = state->get(2);
+    // Convert 1-based Lua index to 0-based stack index
+    int stackIdx = state->getTop() - nargs;
+    Value strVal = state->get(stackIdx);
+    Value startVal = state->get(stackIdx + 1);
 
     if (!strVal.isString() || !startVal.isNumber()) return Value();
 
@@ -76,7 +79,7 @@ Value StringLib::sub(State* state, i32 nargs) {
     int end = static_cast<int>(str.length());
 
     if (nargs >= 3) {
-        Value endVal = state->get(3);
+        Value endVal = state->get(stackIdx + 2);
         if (endVal.isNumber()) {
             end = static_cast<int>(endVal.asNumber());
         }
@@ -100,7 +103,9 @@ Value StringLib::upper(State* state, i32 nargs) {
     }
     if (nargs < 1) return Value();
 
-    Value strVal = state->get(1);
+    // Convert 1-based Lua index to 0-based stack index
+    int stackIdx = state->getTop() - nargs;
+    Value strVal = state->get(stackIdx);
     if (!strVal.isString()) return Value();
 
     std::string str = strVal.toString();
@@ -115,7 +120,9 @@ Value StringLib::lower(State* state, i32 nargs) {
     }
     if (nargs < 1) return Value();
 
-    Value strVal = state->get(1);
+    // Convert 1-based Lua index to 0-based stack index
+    int stackIdx = state->getTop() - nargs;
+    Value strVal = state->get(stackIdx);
     if (!strVal.isString()) return Value();
 
     std::string str = strVal.toString();
@@ -130,7 +137,9 @@ Value StringLib::reverse(State* state, i32 nargs) {
     }
     if (nargs < 1) return Value();
 
-    Value strVal = state->get(1);
+    // Convert 1-based Lua index to 0-based stack index
+    int stackIdx = state->getTop() - nargs;
+    Value strVal = state->get(stackIdx);
     if (!strVal.isString()) return Value();
 
     std::string str = strVal.toString();
@@ -145,8 +154,10 @@ Value StringLib::rep(State* state, i32 nargs) {
     }
     if (nargs < 2) return Value();
 
-    Value strVal = state->get(1);
-    Value countVal = state->get(2);
+    // Convert 1-based Lua index to 0-based stack index
+    int stackIdx = state->getTop() - nargs;
+    Value strVal = state->get(stackIdx);
+    Value countVal = state->get(stackIdx + 1);
 
     if (!strVal.isString() || !countVal.isNumber()) return Value();
 
@@ -174,7 +185,6 @@ Value StringLib::find(State* state, i32 nargs) {
         throw std::invalid_argument("State pointer cannot be null");
     }
     (void)nargs; // Not yet implemented
-    std::cout << "string.find() function not yet implemented" << std::endl;
     return Value();
 }
 
@@ -183,7 +193,6 @@ Value StringLib::match(State* state, i32 nargs) {
         throw std::invalid_argument("State pointer cannot be null");
     }
     (void)nargs; // Not yet implemented
-    std::cout << "string.match() function not yet implemented" << std::endl;
     return Value();
 }
 
@@ -192,7 +201,6 @@ Value StringLib::gsub(State* state, i32 nargs) {
         throw std::invalid_argument("State pointer cannot be null");
     }
     (void)nargs; // Not yet implemented
-    std::cout << "string.gsub() function not yet implemented" << std::endl;
     return Value();
 }
 
@@ -201,7 +209,6 @@ Value StringLib::format(State* state, i32 nargs) {
         throw std::invalid_argument("State pointer cannot be null");
     }
     (void)nargs; // Not yet implemented
-    std::cout << "string.format() function not yet implemented" << std::endl;
     return Value();
 }
 

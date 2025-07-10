@@ -32,9 +32,15 @@ void LibRegistry::registerGlobalFunction(State* state, const char* name, LuaCFun
 
 void LibRegistry::registerTableFunction(State* state, Value table, const char* name, LuaCFunction func) {
     if (!state || !name || !func || !table.isTable()) {
-        std::cerr << "Error: Invalid parameters for registerTableFunction" << std::endl;
+        std::cerr << "Error: Invalid parameters for registerTableFunction - ";
+        std::cerr << "state=" << (state ? "OK" : "NULL") << ", ";
+        std::cerr << "name=" << (name ? name : "NULL") << ", ";
+        std::cerr << "func=" << (func ? "OK" : "NULL") << ", ";
+        std::cerr << "table.isTable()=" << (table.isTable() ? "true" : "false") << std::endl;
         return;
     }
+
+    std::cout << "[LibRegistry] Registering table function: " << name << std::endl;
 
     // Create Native function object and add to table
     NativeFn nativeFn = [func](State* s, int n) -> Value {
@@ -45,9 +51,7 @@ void LibRegistry::registerTableFunction(State* state, Value table, const char* n
     auto tableRef = table.asTable();
     tableRef->set(Value(name), Value(cfunction));
 
-    #ifdef DEBUG_LIB_REGISTRATION
-    std::cout << "[LibRegistry] Registered table function: " << name << std::endl;
-    #endif
+    std::cout << "[LibRegistry] Successfully registered table function: " << name << std::endl;
 }
 
 Value LibRegistry::createLibTable(State* state, const char* libName) {
@@ -56,6 +60,8 @@ Value LibRegistry::createLibTable(State* state, const char* libName) {
         return Value();
     }
     
+    std::cout << "[LibRegistry] Creating library table: " << libName << std::endl;
+    
     // Create new table
     auto table = GCRef<Table>(new Table());
     Value tableValue(table);
@@ -63,9 +69,7 @@ Value LibRegistry::createLibTable(State* state, const char* libName) {
     // Register to global environment
     state->setGlobal(libName, tableValue);
     
-    #ifdef DEBUG_LIB_REGISTRATION
-    std::cout << "[LibRegistry] Created library table: " << libName << std::endl;
-    #endif
+    std::cout << "[LibRegistry] Successfully created library table: " << libName << std::endl;
     
     return tableValue;
 }

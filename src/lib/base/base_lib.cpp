@@ -158,7 +158,9 @@ Value BaseLib::error(State* state, i32 nargs) {
     std::string message = "error";
 
     if (nargs >= 1) {
-        Value val = state->get(1);
+        // Convert 1-based Lua index to 0-based stack index
+        int stackIdx = state->getTop() - nargs;
+        Value val = state->get(stackIdx);
         message = val.toString();
     }
 
@@ -258,11 +260,14 @@ Value BaseLib::rawequal(State* state, i32 nargs) {
 //        return Value();
 //    }
 //
-//    Value val = state->get(1);
+//    // Convert 1-based Lua index to 0-based stack index
+//    int stackIdx = state->getTop() - nargs;
+//    Value val = state->get(stackIdx);
 //    if (val.isNil() || (val.isBoolean() && !val.asBoolean())) {
 //        std::string message = "assertion failed!";
 //        if (nargs >= 2) {
-//            Value msgVal = state->get(2);
+//            // Second argument is at stackIdx + 1
+//            Value msgVal = state->get(stackIdx + 1);
 //            message = msgVal.toString();
 //        }
 //        std::cerr << "Lua error: " << message << std::endl;
