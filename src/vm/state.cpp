@@ -327,36 +327,50 @@ namespace Lua {
 
     // Execute Lua code from string
     bool State::doString(const Str& code) {
+        std::cout << "[DEBUG] State::doString: Starting execution" << std::endl;
+        std::cout << "[DEBUG] State::doString: Code length=" << code.length() << std::endl;
+
         try {
             // 1. Parse code using our parser
+            std::cout << "[DEBUG] State::doString: Creating parser" << std::endl;
             Parser parser(code);
+            std::cout << "[DEBUG] State::doString: Parsing code" << std::endl;
             auto statements = parser.parse();
 
             // Check if there are errors in parsing phase
             if (parser.hasError()) {
+                std::cout << "[ERROR] State::doString: Parser has errors" << std::endl;
                 return false;
             }
+            std::cout << "[DEBUG] State::doString: Parsing completed successfully" << std::endl;
 
             // 2. Generate bytecode using compiler
+            std::cout << "[DEBUG] State::doString: Creating compiler" << std::endl;
             Compiler compiler;
+            std::cout << "[DEBUG] State::doString: Compiling statements" << std::endl;
             GCRef<Function> function = compiler.compile(statements);
 
             if (!function) {
+                std::cout << "[ERROR] State::doString: Compilation failed" << std::endl;
                 return false;
             }
+            std::cout << "[DEBUG] State::doString: Compilation completed successfully" << std::endl;
 
             // 3. Execute bytecode using virtual machine
+            std::cout << "[DEBUG] State::doString: Creating VM" << std::endl;
             VM vm(this);
+            std::cout << "[DEBUG] State::doString: Executing function" << std::endl;
             Value result = vm.execute(function);  // Get return value but don't use it for doString
+            std::cout << "[DEBUG] State::doString: Execution completed successfully" << std::endl;
 
             return true;
         } catch (const LuaException& e) {
             // Can handle or log errors here
-            std::cerr << "Lua error: " << e.what() << std::endl;
+            std::cerr << "[ERROR] State::doString: Lua error: " << e.what() << std::endl;
             return false;
         } catch (const std::exception& e) {
             // Handle other exceptions that may occur
-            std::cerr << "Standard error: " << e.what() << std::endl;
+            std::cerr << "[ERROR] State::doString: Standard error: " << e.what() << std::endl;
             return false;
         }
     }

@@ -30,20 +30,29 @@ std::string readFile(const std::string& path) {
     return buffer.str();
 }
 
-int main(int argc, char** argv) {  
-   try {  
-       if (argc > 1) {  
-           // Run file  
-           std::string filename = argv[1];  
-           std::string source = readFile(filename);  
+int main(int argc, char** argv) {
+   std::cout << "[DEBUG] Main: Starting Lua interpreter" << std::endl;
+   std::cout << "[DEBUG] Main: argc=" << argc << std::endl;
 
-           State state;  
+   try {
+       if (argc > 1) {
+           // Run file
+           std::string filename = argv[1];
+           std::cout << "[DEBUG] Main: Reading file: " << filename << std::endl;
+           std::string source = readFile(filename);
+           std::cout << "[DEBUG] Main: File content length: " << source.length() << std::endl;
 
-           // Initialize all standard libraries using simplified framework  
-           StandardLibrary::initializeAll(&state);  
+           std::cout << "[DEBUG] Main: Creating State" << std::endl;
+           State state;
 
-           state.doString(source);  
-       } else {  
+           std::cout << "[DEBUG] Main: Initializing standard libraries" << std::endl;
+           // Initialize all standard libraries using simplified framework
+           StandardLibrary::initializeAll(&state);
+
+           std::cout << "[DEBUG] Main: Executing Lua code" << std::endl;
+           state.doString(source);
+           std::cout << "[DEBUG] Main: Execution completed" << std::endl;
+       } else {
            RUN_MAIN_TEST("MainTestSuite", Lua::Tests::MainTestSuite::runAllTests);
 
            // Interactive mode or show usage  

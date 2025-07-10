@@ -46,8 +46,6 @@ void BaseLib::initialize(State* state) {
 
     // Set global constants
     state->setGlobal("_VERSION", Value("Lua 5.1.1 (Modern C++ Implementation)"));
-
-    std::cout << "[BaseLib] Initialized successfully!" << std::endl;
 }
 
 // ===================================================================
@@ -112,8 +110,13 @@ Value BaseLib::tostring(State* state, i32 nargs) {
         return Value("nil");
     }
 
-    Value val = state->get(1);
-    return Value(val.toString());
+    // Convert 1-based Lua index to 0-based stack index
+    // Arguments are at stack[top-nargs] to stack[top-1]
+    int stackIdx = state->getTop() - nargs;
+    Value val = state->get(stackIdx);
+    Str result = val.toString();
+
+    return Value(result);
 }
 
 Value BaseLib::tonumber(State* state, i32 nargs) {
@@ -125,7 +128,10 @@ Value BaseLib::tonumber(State* state, i32 nargs) {
         return Value(); // nil
     }
 
-    Value val = state->get(1);
+    // Convert 1-based Lua index to 0-based stack index
+    // Arguments are at stack[top-nargs] to stack[top-1]
+    int stackIdx = state->getTop() - nargs;
+    Value val = state->get(stackIdx);
 
     if (val.isNumber()) {
         return val;
@@ -140,7 +146,7 @@ Value BaseLib::tonumber(State* state, i32 nargs) {
             return Value(); // nil if conversion fails
         }
     }
-    
+
     return Value(); // nil
 }
 
@@ -171,7 +177,6 @@ Value BaseLib::pairs(State* state, i32 nargs) {
         throw std::invalid_argument("State cannot be null");
     }
     (void)nargs; // Not yet implemented
-    std::cout << "pairs() function not yet implemented" << std::endl;
     return Value();
 }
 
@@ -180,7 +185,6 @@ Value BaseLib::ipairs(State* state, i32 nargs) {
         throw std::invalid_argument("State cannot be null");
     }
     (void)nargs; // Not yet implemented
-    std::cout << "ipairs() function not yet implemented" << std::endl;
     return Value();
 }
 
@@ -189,7 +193,6 @@ Value BaseLib::next(State* state, i32 nargs) {
         throw std::invalid_argument("State cannot be null");
     }
     (void)nargs; // Not yet implemented
-    std::cout << "next() function not yet implemented" << std::endl;
     return Value();
 }
 
@@ -289,6 +292,10 @@ Value BaseLib::unpack(State* state, i32 nargs) {
 // ===================================================================
 
 void initializeBaseLib(State* state) {
+    if (!state) {
+        return;
+    }
+
     BaseLib baseLib;
     baseLib.registerFunctions(state);
     baseLib.initialize(state);

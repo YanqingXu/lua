@@ -15,20 +15,42 @@ namespace Lua {
 // ===================================================================
 
 void StandardLibrary::initializeAll(State* state) {
+    std::cout << "[DEBUG] StandardLibrary::initializeAll called" << std::endl;
+
     if (!state) {
-        std::cerr << "Error: State is null in initializeAll" << std::endl;
+        std::cerr << "[ERROR] StandardLibrary::initializeAll: State is null!" << std::endl;
         return;
     }
 
     std::cout << "[StandardLibrary] Initializing all standard libraries..." << std::endl;
 
+    std::cout << "[DEBUG] StandardLibrary: Initializing Base library" << std::endl;
     initializeBase(state);
+    std::cout << "[DEBUG] StandardLibrary: Base library initialized" << std::endl;
+
+    std::cout << "[DEBUG] StandardLibrary: Initializing String library" << std::endl;
     initializeString(state);
+    std::cout << "[DEBUG] StandardLibrary: String library initialized" << std::endl;
+
+    std::cout << "[DEBUG] StandardLibrary: Initializing Math library" << std::endl;
     initializeMath(state);
+    std::cout << "[DEBUG] StandardLibrary: Math library initialized" << std::endl;
+
+    std::cout << "[DEBUG] StandardLibrary: Initializing Table library" << std::endl;
     initializeTable(state);
+    std::cout << "[DEBUG] StandardLibrary: Table library initialized" << std::endl;
+
+    std::cout << "[DEBUG] StandardLibrary: Initializing IO library" << std::endl;
     initializeIO(state);
+    std::cout << "[DEBUG] StandardLibrary: IO library initialized" << std::endl;
+
+    std::cout << "[DEBUG] StandardLibrary: Initializing OS library" << std::endl;
     initializeOS(state);
+    std::cout << "[DEBUG] StandardLibrary: OS library initialized" << std::endl;
+
+    std::cout << "[DEBUG] StandardLibrary: Initializing Debug library" << std::endl;
     initializeDebug(state);
+    std::cout << "[DEBUG] StandardLibrary: Debug library initialized" << std::endl;
 
     std::cout << "[StandardLibrary] All standard libraries initialized successfully!" << std::endl;
 }
