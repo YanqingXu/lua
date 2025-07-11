@@ -16,10 +16,10 @@ namespace Lua {
     private:
         // Forward declaration of Entry
         struct Entry;
-        
+
         // Array part
         Vec<Value> array;
-        
+
         // Hash table part implemented with simple vector
         Vec<void*> entries;
         
@@ -46,7 +46,7 @@ namespace Lua {
         
         // Get array size for GC marking
         usize getArraySize() const;
-        
+
         // Get array element for GC marking
         const Value& getArrayElement(usize index) const;
         

@@ -14,6 +14,7 @@ namespace Lua {
     class Table;
     class Function;
     class GCString;
+    class Userdata;
     template<typename T> class GCRef;
     
     // Forward declare utility functions
@@ -27,7 +28,8 @@ namespace Lua {
         Number,
         String,
         Table,
-        Function
+        Function,
+        Userdata
     };
     
     // Lua value
@@ -40,7 +42,8 @@ namespace Lua {
             LuaNumber,           // Number
             GCRef<GCString>,     // String
             GCRef<Table>,        // Table
-            GCRef<Function>      // Function
+            GCRef<Function>,     // Function
+            GCRef<Userdata>      // Userdata
         >;
         
         ValueVariant data;
@@ -57,6 +60,7 @@ namespace Lua {
         Value(const char* val) : data(make_gc_string(val)) {}
         Value(GCRef<Table> val) : data(val) {}
         Value(GCRef<Function> val) : data(val) {}
+        Value(GCRef<Userdata> val) : data(val) {}
         
         // Copy constructor
         Value(const Value& other) = default;
@@ -78,9 +82,10 @@ namespace Lua {
         bool isString() const { return type() == ValueType::String; }
         bool isTable() const { return type() == ValueType::Table; }
         bool isFunction() const { return type() == ValueType::Function; }
+        bool isUserdata() const { return type() == ValueType::Userdata; }
         
         // GC object checking
-        bool isGCObject() const { return isString() || isTable() || isFunction(); }
+        bool isGCObject() const { return isString() || isTable() || isFunction() || isUserdata(); }
         GCObject* asGCObject() const;
         
         // Get values
@@ -89,6 +94,7 @@ namespace Lua {
         const Str& asString() const;
         GCRef<Table> asTable() const;
         GCRef<Function> asFunction() const;
+        GCRef<Userdata> asUserdata() const;
         
         // GC integration
         void markReferences(class GarbageCollector* gc) const;

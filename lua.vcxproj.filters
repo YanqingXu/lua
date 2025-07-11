@@ -312,6 +312,9 @@
     <ClCompile Include="src\tests\lib\debug_lib_test.cpp">
       <Filter>tests\lib</Filter>
     </ClCompile>
+    <ClCompile Include="src\vm\userdata.cpp">
+      <Filter>vm</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\compiler\compiler.hpp">
@@ -562,6 +565,9 @@
     </ClInclude>
     <ClInclude Include="src\tests\lib\debug_lib_test.hpp">
       <Filter>tests\lib</Filter>
+    </ClInclude>
+    <ClInclude Include="src\vm\userdata.hpp">
+      <Filter>vm</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

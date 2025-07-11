@@ -2,6 +2,7 @@
 #include "../gc/core/garbage_collector.hpp"
 #include "table.hpp"
 #include "function.hpp"
+#include "userdata.hpp"
 #include <sstream>
 
 namespace Lua {
@@ -12,6 +13,7 @@ namespace Lua {
         if (std::holds_alternative<GCRef<GCString>>(data)) return ValueType::String;
         if (std::holds_alternative<GCRef<Table>>(data)) return ValueType::Table;
         if (std::holds_alternative<GCRef<Function>>(data)) return ValueType::Function;
+        if (std::holds_alternative<GCRef<Userdata>>(data)) return ValueType::Userdata;
         return ValueType::Nil; // Default case, should not reach here
     }
     
@@ -64,6 +66,13 @@ namespace Lua {
         }
         return GCRef<Function>(nullptr);
     }
+
+    GCRef<Userdata> Value::asUserdata() const {
+        if (isUserdata()) {
+            return std::get<GCRef<Userdata>>(data);
+        }
+        return GCRef<Userdata>(nullptr);
+    }
     
     GCObject* Value::asGCObject() const {
         if (isString()) {
@@ -74,6 +83,9 @@ namespace Lua {
         }
         if (isFunction()) {
             return asFunction().get();
+        }
+        if (isUserdata()) {
+            return asUserdata().get();
         }
         return nullptr;
     }
@@ -95,6 +107,8 @@ namespace Lua {
                 return "table";
             case ValueType::Function:
                 return "function";
+            case ValueType::Userdata:
+                return "userdata";
             default:
                 return "unknown";
         }
@@ -121,6 +135,8 @@ namespace Lua {
                 return std::get<GCRef<Table>>(data) == std::get<GCRef<Table>>(other.data); // Compare addresses
             case ValueType::Function:
                 return std::get<GCRef<Function>>(data) == std::get<GCRef<Function>>(other.data); // Compare addresses
+            case ValueType::Userdata:
+                return std::get<GCRef<Userdata>>(data) == std::get<GCRef<Userdata>>(other.data); // Compare addresses
             default:
                 return false;
         }
@@ -133,6 +149,8 @@ namespace Lua {
             gc->markObject(asTable().get());
         } else if (isFunction()) {
             gc->markObject(asFunction().get());
+        } else if (isUserdata()) {
+            gc->markObject(asUserdata().get());
         }
     }
     
@@ -160,6 +178,10 @@ namespace Lua {
                 // Compare pointer addresses
                 // Use std::less to ensure pointer comparison safety
                 return std::less<void*>()(asFunction().get(), other.asFunction().get());
+            case ValueType::Userdata:
+                // Compare pointer addresses
+                // Use std::less to ensure pointer comparison safety
+                return std::less<void*>()(asUserdata().get(), other.asUserdata().get());
             default:
                 return false;
         }
@@ -173,7 +195,7 @@ namespace Lua {
         if (isBoolean()) {
             return asBoolean();
         }
-        // All other values (numbers, strings, tables, functions) are truthy
+        // All other values (numbers, strings, tables, functions, userdata) are truthy
         return true;
     }
 }
