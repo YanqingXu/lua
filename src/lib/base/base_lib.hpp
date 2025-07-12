@@ -4,6 +4,9 @@
 #include "../core/lib_registry.hpp"
 
 namespace Lua {
+    // Forward declarations
+    class Table;
+    class Userdata;
 
 /**
  * @brief Base library implementation using the new framework

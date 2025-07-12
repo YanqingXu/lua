@@ -5,6 +5,48 @@
 #include <iostream>
 
 namespace Lua {
+    // Lua 5.1 official constant indexing definitions
+    // Based on Lua 5.1.5 lopcodes.h but adapted for 8-bit operands
+    
+    // For 8-bit operands (our current implementation)
+    static const u8 BITRK_8 = (1 << 7);  // 128, this bit 1 means constant for 8-bit
+    static const u8 MAXINDEXRK_8 = (BITRK_8 - 1);  // 127, maximum constant index for 8-bit
+    
+    // For 9-bit operands (Lua 5.1 official)
+    static const u16 BITRK_9 = (1 << 8);  // 256, this bit 1 means constant for 9-bit
+    static const u16 MAXINDEXRK_9 = (BITRK_9 - 1);  // 255, maximum constant index for 9-bit
+    
+    // 8-bit versions (for our current instruction format)
+    inline bool ISK(u8 x) {
+        return (x & BITRK_8) != 0;
+    }
+    
+    inline u8 RKASK(u8 x) {
+        return x | BITRK_8;
+    }
+    
+    inline u8 INDEXK(u8 r) {
+        return r & ~BITRK_8;
+    }
+    
+    // Legacy compatibility - use RKASK instead
+    inline u8 RK(u8 x) {
+        return RKASK(x);
+    }
+    
+    // 16-bit versions (for potential future Lua 5.1 full compatibility)
+    inline bool ISK(u16 x) {
+        return (x & BITRK_9) != 0;
+    }
+    
+    inline u16 RKASK(u16 x) {
+        return x | BITRK_9;
+    }
+    
+    inline u16 INDEXK(u16 r) {
+        return r & ~BITRK_9;
+    }
+    
     // Instruction format (simplified based on Lua 5.1 instruction format)
     // 32-bit instruction containing opcode and operands
     struct Instruction {
@@ -80,10 +122,6 @@ namespace Lua {
             i.setOpCode(OpCode::MOVE);
             i.setA(a);
             i.setB(b);
-
-#ifdef DEBUG_INSTRUCTION_CREATION
-            std::cout << "[DEBUG] CREATE MOVE: a=" << (int)a << ", b=" << (int)b << std::endl;
-#endif
             return i;
         }
         
@@ -233,5 +271,48 @@ namespace Lua {
         // String concatenation
         static Instruction createCONCAT(u8 a, u8 b, u8 c) {
             Instruction i; i.setOpCode(OpCode::CONCAT); i.setA(a); i.setB(b); i.setC(c); return i; }
+
+        // Metamethod-aware operations
+        static Instruction createGETTABLE_MM(u8 a, u8 b, u8 c) {
+            Instruction i; i.setOpCode(OpCode::GETTABLE_MM); i.setA(a); i.setB(b); i.setC(c); return i; }
+
+        static Instruction createSETTABLE_MM(u8 a, u8 b, u8 c) {
+            Instruction i; i.setOpCode(OpCode::SETTABLE_MM); i.setA(a); i.setB(b); i.setC(c); return i; }
+
+        static Instruction createCALL_MM(u8 a, u8 b, u8 c) {
+            Instruction i; i.setOpCode(OpCode::CALL_MM); i.setA(a); i.setB(b); i.setC(c); return i; }
+
+        static Instruction createADD_MM(u8 a, u8 b, u8 c) {
+            Instruction i; i.setOpCode(OpCode::ADD_MM); i.setA(a); i.setB(b); i.setC(c); return i; }
+
+        static Instruction createSUB_MM(u8 a, u8 b, u8 c) {
+            Instruction i; i.setOpCode(OpCode::SUB_MM); i.setA(a); i.setB(b); i.setC(c); return i; }
+
+        static Instruction createMUL_MM(u8 a, u8 b, u8 c) {
+            Instruction i; i.setOpCode(OpCode::MUL_MM); i.setA(a); i.setB(b); i.setC(c); return i; }
+
+        static Instruction createDIV_MM(u8 a, u8 b, u8 c) {
+            Instruction i; i.setOpCode(OpCode::DIV_MM); i.setA(a); i.setB(b); i.setC(c); return i; }
+
+        static Instruction createMOD_MM(u8 a, u8 b, u8 c) {
+            Instruction i; i.setOpCode(OpCode::MOD_MM); i.setA(a); i.setB(b); i.setC(c); return i; }
+
+        static Instruction createPOW_MM(u8 a, u8 b, u8 c) {
+            Instruction i; i.setOpCode(OpCode::POW_MM); i.setA(a); i.setB(b); i.setC(c); return i; }
+
+        static Instruction createUNM_MM(u8 a, u8 b) {
+            Instruction i; i.setOpCode(OpCode::UNM_MM); i.setA(a); i.setB(b); return i; }
+
+        static Instruction createCONCAT_MM(u8 a, u8 b, u8 c) {
+            Instruction i; i.setOpCode(OpCode::CONCAT_MM); i.setA(a); i.setB(b); i.setC(c); return i; }
+
+        static Instruction createEQ_MM(u8 a, u8 b, u8 c) {
+            Instruction i; i.setOpCode(OpCode::EQ_MM); i.setA(a); i.setB(b); i.setC(c); return i; }
+
+        static Instruction createLT_MM(u8 a, u8 b, u8 c) {
+            Instruction i; i.setOpCode(OpCode::LT_MM); i.setA(a); i.setB(b); i.setC(c); return i; }
+
+        static Instruction createLE_MM(u8 a, u8 b, u8 c) {
+            Instruction i; i.setOpCode(OpCode::LE_MM); i.setA(a); i.setB(b); i.setC(c); return i; }
     };
 }

@@ -69,6 +69,8 @@
         "future": "cpp",
         "codecvt": "cpp",
         "shared_mutex": "cpp",
-        "charconv": "cpp"
+        "charconv": "cpp",
+        "format": "cpp",
+        "span": "cpp"
     }
 }

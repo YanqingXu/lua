@@ -2,6 +2,7 @@
 
 #include "../common/types.hpp"
 #include "../gc/core/gc_object.hpp"
+#include "../gc/core/gc_ref.hpp"
 #include <vector>
 #include <memory>
 
@@ -24,10 +25,10 @@ namespace Lua {
         Vec<void*> entries;
         
         // Metatable for this table
-        Table* metatable = nullptr;
+        GCRef<Table> metatable;
         
     public:
-        Table() : GCObject(GCObjectType::Table, sizeof(Table)) {}
+        Table() : GCObject(GCObjectType::Table, sizeof(Table)), metatable(nullptr) {}
         ~Table();
         
         // Override GCObject virtual functions
@@ -55,10 +56,10 @@ namespace Lua {
         void forEachHashEntry(Func&& func) const;
         
         // Get metatable
-        Table* getMetatable() const { return metatable; }
-        
+        GCRef<Table> getMetatable() const { return metatable; }
+
         // Set metatable
-        void setMetatable(Table* mt) { metatable = mt; }
+        void setMetatable(GCRef<Table> mt) { metatable = mt; }
         
         // Clear weak references (for garbage collection)
         void clearWeakReferences();

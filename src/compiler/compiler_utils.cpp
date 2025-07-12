@@ -65,37 +65,17 @@ namespace Lua {
     }
     
     int CompilerUtils::resolveLocal(const Vec<Local>& locals, const Str& name, int scopeDepth) {
-#ifdef DEBUG_COMPILER
-        std::cout << "[DEBUG] RESOLVE LOCAL: name='" << name << "', scopeDepth=" << scopeDepth
-                  << ", locals.size()=" << locals.size() << std::endl;
-#endif
-
         // Search from most recent to oldest
         for (int i = static_cast<int>(locals.size()) - 1; i >= 0; --i) {
             const Local& local = locals[i];
-#ifdef DEBUG_COMPILER
-            std::cout << "[DEBUG] RESOLVE LOCAL: checking local[" << i << "] name='" << local.name
-                      << "', depth=" << local.depth << ", slot=" << local.slot << std::endl;
-#endif
             if (local.name == name && local.depth <= scopeDepth) {
-#ifdef DEBUG_COMPILER
-                std::cout << "[DEBUG] RESOLVE LOCAL: FOUND slot=" << local.slot << std::endl;
-#endif
                 return local.slot;
             }
         }
-#ifdef DEBUG_COMPILER
-        std::cout << "[DEBUG] RESOLVE LOCAL: NOT FOUND" << std::endl;
-#endif
         return -1; // Not found
     }
     
     void CompilerUtils::addLocal(Vec<Local>& locals, const Str& name, int depth, int slot) {
-#ifdef DEBUG_COMPILER
-        std::cout << "[DEBUG] ADD LOCAL: name='" << name << "', depth=" << depth
-                  << ", slot=" << slot << ", before_size=" << locals.size() << std::endl;
-#endif
-
         if (locals.size() >= 255) {
             throw LuaException("Too many local variables");
         }
@@ -109,10 +89,6 @@ namespace Lua {
         }
 
         locals.emplace_back(name, depth, slot);
-
-#ifdef DEBUG_COMPILER
-        std::cout << "[DEBUG] ADD LOCAL: after_size=" << locals.size() << std::endl;
-#endif
     }
     
     void CompilerUtils::removeLocalsAtDepth(Vec<Local>& locals, int depth) {

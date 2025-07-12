@@ -31,27 +31,18 @@ std::string readFile(const std::string& path) {
 }
 
 int main(int argc, char** argv) {
-   std::cout << "[DEBUG] Main: Starting Lua interpreter" << std::endl;
-   std::cout << "[DEBUG] Main: argc=" << argc << std::endl;
-
    try {
        if (argc > 1) {
            // Run file
            std::string filename = argv[1];
-           std::cout << "[DEBUG] Main: Reading file: " << filename << std::endl;
            std::string source = readFile(filename);
-           std::cout << "[DEBUG] Main: File content length: " << source.length() << std::endl;
 
-           std::cout << "[DEBUG] Main: Creating State" << std::endl;
            State state;
 
-           std::cout << "[DEBUG] Main: Initializing standard libraries" << std::endl;
            // Initialize all standard libraries using simplified framework
            StandardLibrary::initializeAll(&state);
 
-           std::cout << "[DEBUG] Main: Executing Lua code" << std::endl;
            state.doString(source);
-           std::cout << "[DEBUG] Main: Execution completed" << std::endl;
        } else {
            RUN_MAIN_TEST("MainTestSuite", Lua::Tests::MainTestSuite::runAllTests);
 

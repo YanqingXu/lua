@@ -170,45 +170,18 @@ namespace Lua {
         // Declare local variable using unified scope management
         int varSlot = compiler->defineLocal(name);
 
-        // Debug output disabled
-
-#ifdef DEBUG_COMPILER
-        std::cout << "[DEBUG] LOCAL ALLOC: name='" << name
-                  << "', varSlot=" << varSlot << std::endl;
-#endif
-        
         if (initializer != nullptr) {
-    #ifdef DEBUG_COMPILER
-            std::cout << "[DEBUG] LOCAL has initializer for '" << name << "'" << std::endl;
-#endif
             // TODO: 优化 - 直接将初始化表达式编译到局部变量槽位
             // 当前实现：先编译到临时寄存器，再移动（保持兼容性）
             int initReg = compiler->getExpressionCompiler()->compileExpr(initializer);
 
-#ifdef DEBUG_COMPILER
-            std::cout << "[DEBUG] LOCAL initializer compiled to reg=" << initReg << std::endl;
-#endif
-
             if (initReg != varSlot) {
                 // 只有当初始化寄存器与变量槽位不同时才需要移动
-#ifdef DEBUG_COMPILER
-                std::cout << "[DEBUG] LOCAL MOVE: name='" << name
-                          << "', varSlot=" << varSlot
-                          << ", initReg=" << initReg << std::endl;
-#endif
                 compiler->emitInstruction(Instruction::createMOVE(varSlot, initReg));
                 // Free initializer register
                 compiler->freeReg();
-            } else {
-#ifdef DEBUG_COMPILER
-                std::cout << "[DEBUG] LOCAL NO MOVE: initReg=" << initReg
-                          << " == varSlot=" << varSlot << std::endl;
-#endif
             }
         } else {
-#ifdef DEBUG_COMPILER
-            std::cout << "[DEBUG] LOCAL no initializer for '" << name << "', setting to nil" << std::endl;
-#endif
             // Initialize with nil
             compiler->emitInstruction(Instruction::createLOADNIL(varSlot));
         }
@@ -252,7 +225,7 @@ namespace Lua {
             int tableReg = compiler->getExpressionCompiler()->compileExpr(indexExpr->getObject());
             int keyReg = compiler->getExpressionCompiler()->compileExpr(indexExpr->getIndex());
 
-            // SETTABLE table[key] = value
+            // Use basic table assignment first, metamethods will be handled at runtime if needed
             compiler->emitInstruction(Instruction::createSETTABLE(tableReg, keyReg, valueReg));
 
             // Free registers
@@ -267,8 +240,20 @@ namespace Lua {
             // Convert member name to string constant
             int nameIdx = compiler->addConstant(Value(memberExpr->getName()));
 
-            // SETTABLE table[name] = value
-            compiler->emitInstruction(Instruction::createSETTABLE(tableReg, nameIdx, valueReg));
+            // Use basic table assignment first, metamethods will be handled at runtime if needed
+            // Use RK encoding for constant index (Lua 5.1 standard with 8-bit operands)
+            if (nameIdx <= MAXINDEXRK_8) {
+                u8 keyParam = RK(static_cast<u8>(nameIdx));
+                std::cout << "Member assignment: nameIdx=" << nameIdx << ", keyParam=" << (int)keyParam << " (RK encoded)" << std::endl;
+                compiler->emitInstruction(Instruction::createSETTABLE(tableReg, keyParam, valueReg));
+            } else {
+                // Fallback to register approach for large constant indices
+                std::cout << "Member assignment: nameIdx=" << nameIdx << " too large, using register" << std::endl;
+                int keyReg = compiler->allocReg();
+                compiler->emitInstruction(Instruction::createLOADK(keyReg, nameIdx));
+                compiler->emitInstruction(Instruction::createSETTABLE(tableReg, keyReg, valueReg));
+                compiler->freeReg(); // Free key register
+            }
 
             // Free table register
             compiler->freeReg();

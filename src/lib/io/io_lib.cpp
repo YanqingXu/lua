@@ -1,6 +1,7 @@
 ﻿#include "io_lib.hpp"
 #include "lib/core/lib_registry.hpp"
 #include "vm/table.hpp"
+#include "../../common/defines.hpp"
 #include <iostream>
 #include <sstream>
 #include <fstream>
@@ -51,7 +52,7 @@ void IOLib::initialize(State* state) {
         table->set(Value("stderr"), Value());
     }
 
-    std::cout << "[IOLib] Initialized successfully!" << std::endl;
+    // IO library initialized
 }
 
 // ===================================================================

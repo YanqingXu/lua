@@ -2,6 +2,18 @@
 
 #include "../common/types.hpp"
 
+// Debug configuration - all debug output disabled
+#define DEBUG_OUTPUT 0
+#define DEBUG_LIB_REGISTRATION 0
+#define DEBUG_VM_EXECUTION 0
+#define DEBUG_STATE_OPERATIONS 0
+#define DEBUG_COMPILER 0
+#define DEBUG_VM_INSTRUCTIONS 0
+
+// Debug macros - all disabled
+#define DEBUG_PRINT(msg) ((void)0)
+#define DEBUG_PRINT_VAR(name, value) ((void)0)
+
 namespace Lua {
     // Constant definitions
     constexpr int LUAI_MAXSTACK = 1000;      // Maximum stack size

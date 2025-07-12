@@ -1,6 +1,7 @@
 ﻿#include "os_lib.hpp"
 #include "lib/core/lib_registry.hpp"
 #include "vm/table.hpp"
+#include "../../common/defines.hpp"
 #include <iostream>
 #include <cstdlib>
 #include <ctime>
@@ -44,7 +45,7 @@ void OSLib::initialize(State* state) {
     }
 
     // OS library doesn't need special initialization
-    std::cout << "[OSLib] Initialized successfully!" << std::endl;
+    // OS library initialized
 }
 
 // ===================================================================

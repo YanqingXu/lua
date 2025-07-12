@@ -6,6 +6,7 @@
 #include "../common/defines.hpp"
 #include <stdexcept>
 #include <cmath>
+#include <iostream>
 
 namespace Lua {
     ExpressionCompiler::ExpressionCompiler(Compiler* compiler) : compiler(compiler) {}
@@ -102,8 +103,6 @@ namespace Lua {
         switch (varInfo.type) {
             case Compiler::VariableType::Local: {
                 // Local variable - return register directly
-                // std::cout << "[DEBUG] COMPILE VAR LOCAL: name='" << name
-                //           << "', slot=" << varInfo.index << std::endl;
                 return varInfo.index;
             }
 
@@ -118,9 +117,6 @@ namespace Lua {
             case Compiler::VariableType::Global: {
                 // Global variable - generate GETGLOBAL instruction
                 int reg = compiler->allocReg();
-                // std::cout << "[DEBUG] COMPILE VAR GLOBAL: name='" << name
-                //           << "', constant_index=" << varInfo.index
-                //           << ", target_reg=" << reg << std::endl;
                 compiler->emitInstruction(Instruction::createGETGLOBAL(reg, varInfo.index));
                 return reg;
             }
@@ -136,6 +132,7 @@ namespace Lua {
         
         switch (expr->getOperator()) {
             case TokenType::Minus:
+                // Use basic unary minus, metamethods will be handled at runtime if needed
                 compiler->emitInstruction(Instruction::createUNM(resultReg, operandReg));
                 break;
             case TokenType::Not:
@@ -199,9 +196,7 @@ namespace Lua {
                 compileComparisonOp(op, resultReg, leftReg, rightReg);
                 break;
             case TokenType::DotDot:
-                // Generate CONCAT instruction: result = left .. right
-                // Lua官方设计：使用0基索引，直接使用寄存器编号
-
+                // Use basic concatenation, metamethods will be handled at runtime if needed
                 compiler->emitInstruction(Instruction::createCONCAT(resultReg, leftReg, rightReg));
 
                 // Special handling for concatenation: don't free operand registers
@@ -233,19 +228,11 @@ namespace Lua {
         int callFrameSize = 1 + nargs;  // 函数 + 参数
         int base = compiler->getRegisterManager().allocateCallFrame(callFrameSize, "call");
 
-#ifdef DEBUG_COMPILER
-        std::cout << "[DEBUG] CALL COMPILE: base=" << base << ", nargs=" << nargs << std::endl;
-#endif
-
         // 参数寄存器是连续的
         Vec<int> argTargets;
         for (int i = 0; i < nargs; i++) {
             int argTarget = base + 1 + i;  // 参数从base+1开始
             argTargets.push_back(argTarget);
-
-#ifdef DEBUG_COMPILER
-            std::cout << "[DEBUG] CALL ARG TARGET: arg[" << i << "] -> reg=" << argTarget << std::endl;
-#endif
         }
 
         // 步骤2：编译函数到临时寄存器，然后移动
@@ -260,11 +247,6 @@ namespace Lua {
         // 步骤3：编译每个参数到临时寄存器，然后移动
         for (int i = 0; i < nargs; i++) {
             int argReg = compileExpr(args[i].get());
-
-#ifdef DEBUG_COMPILER
-            std::cout << "[DEBUG] CALL ARG COMPILE: arg[" << i << "] compiled to reg=" << argReg
-                      << ", target=" << argTargets[i] << std::endl;
-#endif
 
             if (argReg != argTargets[i]) {
                 compiler->emitInstruction(Instruction::createMOVE(argTargets[i], argReg));
@@ -289,6 +271,11 @@ namespace Lua {
         int tableReg = compiler->allocReg();
         const auto& fields = expr->getFields();
 
+        // DEBUG: Print table compilation info
+        std::cout << "=== DEBUG: Table Constructor Compilation ===" << std::endl;
+        std::cout << "Table register: " << tableReg << std::endl;
+        std::cout << "Total fields: " << fields.size() << std::endl;
+
         // Count array and hash parts for table pre-sizing
         int arraySize = 0;
         int hashSize = 0;
@@ -296,52 +283,74 @@ namespace Lua {
         for (const auto& field : fields) {
             if (field.key == nullptr) {
                 arraySize++; // Array-style field: {value}
+                std::cout << "  Array field found" << std::endl;
             } else {
                 hashSize++; // Hash-style field: {key = value} or {[expr] = value}
+                std::cout << "  Hash field found" << std::endl;
             }
         }
         
+        std::cout << "Array size: " << arraySize << ", Hash size: " << hashSize << std::endl;
+        
         // Create new table with pre-sizing hints
         // Lua 5.1官方设计：使用0基索引，直接使用寄存器编号
+        std::cout << "Emitting NEWTABLE instruction" << std::endl;
         compiler->emitInstruction(Instruction::createNEWTABLE(tableReg,
             static_cast<u8>(std::min(arraySize, 255)),
             static_cast<u8>(std::min(hashSize, 255))));
         
         // Initialize table fields
         int arrayIndex = 1; // Lua arrays start at index 1
+        int fieldIndex = 0;
         
         for (const auto& field : fields) {
+            std::cout << "Processing field " << fieldIndex++ << std::endl;
+            
             if (field.key == nullptr) {
                 // Array-style field: table[arrayIndex] = value
+                std::cout << "  Array field: index=" << arrayIndex << std::endl;
                 int valueReg = compileExpr(field.value.get());
+                std::cout << "  Value compiled to register: " << valueReg << std::endl;
                 int indexReg = compiler->allocReg();
-                
+                std::cout << "  Index register allocated: " << indexReg << std::endl;
+
                 // Load array index as constant
                 int indexConstant = compiler->addConstant(Value(static_cast<double>(arrayIndex)));
-                // Lua官方设计：使用0基索引，直接使用寄存器编号
+                std::cout << "  Index constant added: " << indexConstant << std::endl;
                 compiler->emitInstruction(Instruction::createLOADK(indexReg, indexConstant));
+                std::cout << "  LOADK instruction emitted" << std::endl;
 
                 // Set table field: SETTABLE table[index] = value
-                // Lua官方设计：使用0基索引，直接使用寄存器编号
+                std::cout << "  Emitting SETTABLE: table=" << tableReg << ", index=" << indexReg << ", value=" << valueReg << std::endl;
                 compiler->emitInstruction(Instruction::createSETTABLE(tableReg, indexReg, valueReg));
-                
+
+                // Free registers in reverse order
                 compiler->freeReg(); // Free value register
                 compiler->freeReg(); // Free index register
+                std::cout << "  Registers freed" << std::endl;
                 arrayIndex++;
             } else {
                 // Hash-style field: table[key] = value
+                std::cout << "  Hash field processing" << std::endl;
                 int keyReg = compileExpr(field.key.get());
+                std::cout << "  Key compiled to register: " << keyReg << std::endl;
                 int valueReg = compileExpr(field.value.get());
-                
+                std::cout << "  Value compiled to register: " << valueReg << std::endl;
+
                 // Set table field: SETTABLE table[key] = value
-                // Lua官方设计：使用0基索引，直接使用寄存器编号
+                // Note: SETTABLE instruction format is SETTABLE A B C where:
+                // A = table register, B = key register, C = value register
+                std::cout << "  Emitting SETTABLE: table=" << tableReg << ", key=" << keyReg << ", value=" << valueReg << std::endl;
                 compiler->emitInstruction(Instruction::createSETTABLE(tableReg, keyReg, valueReg));
-                
-                compiler->freeReg(); // Free value register
-                compiler->freeReg(); // Free key register
+
+                // DON'T free registers here - let them be reused by the next field
+                // The registers will be automatically managed by the compiler's scope
+                std::cout << "  Registers NOT freed (fixed)" << std::endl;
             }
         }
         
+        std::cout << "Table constructor compilation completed, returning register: " << tableReg << std::endl;
+        std::cout << "===================================================" << std::endl;
         return tableReg;
     }
     
@@ -350,7 +359,7 @@ namespace Lua {
         int indexReg = compileExpr(expr->getIndex());
         int resultReg = compiler->allocReg();
 
-        // Lua官方设计：使用0基索引，直接使用寄存器编号
+        // Use basic table access first, metamethods will be handled at runtime if needed
         compiler->emitInstruction(Instruction::createGETTABLE(resultReg, tableReg, indexReg));
 
         // 暂时不释放寄存器
@@ -365,8 +374,19 @@ namespace Lua {
         // Convert member name to string constant
         int nameIdx = compiler->addConstant(Value(expr->getName()));
 
-        // Lua 5.1官方设计：使用0基索引，直接使用寄存器编号
-        compiler->emitInstruction(Instruction::createGETTABLE(resultReg, tableReg, nameIdx));
+        // Use RK encoding for constant index (Lua 5.1 standard with 8-bit operands)
+        if (nameIdx <= MAXINDEXRK_8) {
+            u8 keyParam = RK(static_cast<u8>(nameIdx));
+            std::cout << "Member access: nameIdx=" << nameIdx << ", keyParam=" << (int)keyParam << " (RK encoded)" << std::endl;
+            compiler->emitInstruction(Instruction::createGETTABLE(resultReg, tableReg, keyParam));
+        } else {
+            // Fallback to register approach for large constant indices
+            std::cout << "Member access: nameIdx=" << nameIdx << " too large, using register" << std::endl;
+            int keyReg = compiler->allocReg();
+            compiler->emitInstruction(Instruction::createLOADK(keyReg, nameIdx));
+            compiler->emitInstruction(Instruction::createGETTABLE(resultReg, tableReg, keyReg));
+            compiler->freeReg(); // Free key register
+        }
 
         compiler->freeReg(); // Free table register
 
@@ -374,6 +394,7 @@ namespace Lua {
     }
     
     void ExpressionCompiler::compileArithmeticOp(TokenType op, int resultReg, int leftReg, int rightReg) {
+        // Use basic arithmetic instructions, metamethods will be handled at runtime if needed
         switch (op) {
             case TokenType::Plus:
                 compiler->emitInstruction(Instruction::createADD(resultReg, leftReg, rightReg));
@@ -399,7 +420,7 @@ namespace Lua {
     }
     
     void ExpressionCompiler::compileComparisonOp(TokenType op, int resultReg, int leftReg, int rightReg) {
-        // Lua官方设计：使用0基索引，直接使用寄存器编号
+        // Use basic comparison instructions, metamethods will be handled at runtime if needed
         switch (op) {
             case TokenType::Equal:
                 compiler->emitInstruction(Instruction::createEQ(resultReg, leftReg, rightReg));

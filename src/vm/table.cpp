@@ -120,8 +120,8 @@ namespace Lua {
         }
         
         // Mark metatable if present
-        if (metatable != nullptr) {
-            gc->markObject(metatable);
+        if (metatable) {
+            gc->markObject(metatable.get());
         }
     }
     

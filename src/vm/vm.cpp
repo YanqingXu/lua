@@ -2,10 +2,13 @@
 #include "table.hpp"
 #include "instruction.hpp"
 #include "upvalue.hpp"
+#include "metamethod_manager.hpp"
+#include "core_metamethods.hpp"
 #include "../common/opcodes.hpp"
 #include "../common/defines.hpp"
 #include "../gc/core/gc_ref.hpp"
 #include "../gc/core/garbage_collector.hpp"
+#include <iostream>
 #include <stdexcept>
 #include <iostream>
 #include <cmath>
@@ -73,15 +76,7 @@ namespace Lua {
 
 
 
-        // 调试：显示栈内容
-        // std::cout << "[DEBUG] VM::execute stackSize=" << stackSize
-        //           << ", expectedArgs=" << expectedArgs
-        //           << ", registerBase=" << this->registerBase << std::endl;
-        // for (int i = 0; i < stackSize; ++i) {
-        //     Value val = state->get(i);
-        //     std::cout << "[DEBUG] Stack[" << i << "] = " << val.toString()
-        //               << " (type=" << (int)val.type() << ")" << std::endl;
-        // }
+        // Stack initialization complete
         
         Value result = Value(nullptr);  // Default return value is nil
         
@@ -202,6 +197,50 @@ namespace Lua {
             case OpCode::SETUPVAL:
                 op_setupval(i);
                 break;
+
+            // Metamethod-aware operations
+            case OpCode::GETTABLE_MM:
+                op_gettable_mm(i);
+                break;
+            case OpCode::SETTABLE_MM:
+                op_settable_mm(i);
+                break;
+            case OpCode::CALL_MM:
+                op_call_mm(i);
+                break;
+            case OpCode::ADD_MM:
+                op_add_mm(i);
+                break;
+            case OpCode::SUB_MM:
+                op_sub_mm(i);
+                break;
+            case OpCode::MUL_MM:
+                op_mul_mm(i);
+                break;
+            case OpCode::DIV_MM:
+                op_div_mm(i);
+                break;
+            case OpCode::MOD_MM:
+                op_mod_mm(i);
+                break;
+            case OpCode::POW_MM:
+                op_pow_mm(i);
+                break;
+            case OpCode::UNM_MM:
+                op_unm_mm(i);
+                break;
+            case OpCode::CONCAT_MM:
+                op_concat_mm(i);
+                break;
+            case OpCode::EQ_MM:
+                op_eq_mm(i);
+                break;
+            case OpCode::LT_MM:
+                op_lt_mm(i);
+                break;
+            case OpCode::LE_MM:
+                op_le_mm(i);
+                break;
             default:
                 throw LuaException("Unimplemented opcode: " + std::to_string(static_cast<int>(op)));
         }
@@ -225,10 +264,7 @@ namespace Lua {
 
         Value val = state->get(stackPos);
 
-        /*std::cout << "[VM DEBUG] getReg: reg=" << reg
-                  << ", stackPos=" << stackPos
-                  << ", registerBase=" << registerBase
-                  << ", value_type=" << static_cast<int>(val.type()) << std::endl;*/
+        // Get register value
         return val;
     }
 
@@ -236,10 +272,7 @@ namespace Lua {
         // Convert VM register (0-based) to stack position using register base
         int stackPos = registerBase + reg;
 
-        /*std::cout << "[VM DEBUG] setReg: reg=" << reg
-                  << ", stackPos=" << stackPos
-                  << ", registerBase=" << registerBase
-                  << ", value_type=" << static_cast<int>(value.type()) << std::endl;*/
+        // Set register value
 
         state->set(stackPos, value);
     }
@@ -258,10 +291,7 @@ namespace Lua {
         // Lua官方设计：指令中的寄存器编号就是0基的
         Value val = getReg(b);
 
-        /*std::cout << "[VM DEBUG] MOVE: from_reg=" << static_cast<int>(b)
-                  << " to_reg=" << static_cast<int>(a)
-                  << ", value_type=" << static_cast<int>(val.type())
-                  << ", is_function=" << val.isFunction() << std::endl;*/
+        // Move value between registers
 
         setReg(a, val);
     }
@@ -272,12 +302,7 @@ namespace Lua {
 
         Value constant = getConstant(bx);
 
-#ifdef DEBUG_VM_INSTRUCTIONS
-        std::cout << "[DEBUG] LOADK: reg=" << (int)a
-                  << ", constIdx=" << bx
-                  << ", value_type=" << (int)constant.type()
-                  << ", value=" << constant.toString() << std::endl;
-#endif
+        // Load constant to register
 
         setReg(a, constant);
     }
@@ -314,12 +339,7 @@ namespace Lua {
 
         Value globalValue = state->getGlobal(key.asString());
 
-#ifdef DEBUG_VM_INSTRUCTIONS
-        std::cout << "[DEBUG] GETGLOBAL: key='" << key.asString()
-                  << "', reg=" << (int)a
-                  << ", value_type=" << (int)globalValue.type()
-                  << ", is_function=" << globalValue.isFunction() << std::endl;
-#endif
+        // Get global variable
 
         setReg(a, globalValue);
     }
@@ -342,18 +362,19 @@ namespace Lua {
     void VM::op_gettable(Instruction i) {
         u8 a = i.getA();  // Target register
         u8 b = i.getB();  // Table register
-        u8 c = i.getC();  // Key register
+        u8 c = i.getC();  // Key register or constant index
 
         Value table = getReg(b);
-        Value key = getReg(c);
 
-#ifdef DEBUG_VM_INSTRUCTIONS
-        std::cout << "[DEBUG] GETTABLE: table_reg=" << (int)b
-                  << ", key_reg=" << (int)c
-                  << ", table_type=" << (int)table.type()
-                  << ", key_type=" << (int)key.type() << std::endl;
-#endif
+        // Handle key: use ISK to check if it's a constant index
+        Value key;
+        if (ISK(c)) {
+            key = getConstant(INDEXK(c));
+        } else {
+            key = getReg(c);
+        }
 
+        // Get table element
         if (table.isNil()) {
             throw LuaException("attempt to index nil value");
         } else if (!table.isTable()) {
@@ -361,36 +382,122 @@ namespace Lua {
                              std::to_string(static_cast<int>(table.type())) + ")");
         }
 
+        // Try direct table access first
         Value result = table.asTable()->get(key);
+
+        // If result is nil and table has metatable, try __index metamethod
+        if (result.isNil()) {
+            auto tablePtr = table.asTable();
+            auto metatable = tablePtr->getMetatable();
+            if (metatable) {
+                // Try __index metamethod directly since we already did raw access
+                Value indexHandler = MetaMethodManager::getMetaMethod(table, MetaMethod::Index);
+                if (!indexHandler.isNil()) {
+                    if (indexHandler.isFunction()) {
+                        // __index is a function: call it with (table, key)
+                        Vec<Value> args = {table, key};
+                        result = CoreMetaMethods::handleMetaMethodCall(state, indexHandler, args);
+                    } else if (indexHandler.isTable()) {
+                        // __index is a table: recursively look up key in that table
+                        result = CoreMetaMethods::handleIndex(state, indexHandler, key);
+                    }
+                }
+            }
+        }
+
         setReg(a, result);
     }
 
     void VM::op_settable(Instruction i) {
         u8 a = i.getA();  // Table register
-        u8 b = i.getB();  // Key register
-        u8 c = i.getC();  // Value register
+        u8 b = i.getB();  // Key register or constant index
+        u8 c = i.getC();  // Value register or constant index
+
+        // DEBUG: Print SETTABLE instruction details
+        std::cout << "=== DEBUG: SETTABLE Instruction ===" << std::endl;
+        std::cout << "A (table reg): " << static_cast<int>(a) << std::endl;
+        std::cout << "B (key): " << static_cast<int>(b) << std::endl;
+        std::cout << "C (value): " << static_cast<int>(c) << std::endl;
 
         Value table = getReg(a);
-        Value key = getReg(b);
-        Value value = getReg(c);
+        std::cout << "Table value type: " << static_cast<int>(table.type()) << std::endl;
 
-#ifdef DEBUG_VM_INSTRUCTIONS
-        std::cout << "[DEBUG] SETTABLE: table_reg=" << (int)a
-                  << ", key_reg=" << (int)b
-                  << ", value_reg=" << (int)c
-                  << ", table_type=" << (int)table.type()
-                  << ", key_type=" << (int)key.type()
-                  << ", value_type=" << (int)value.type() << std::endl;
-#endif
+        // Handle key: use ISK to check if it's a constant
+        Value key;
+        if (ISK(b)) {
+            key = getConstant(INDEXK(b));
+            std::cout << "Key from constant[" << static_cast<int>(INDEXK(b)) << "] (ISK encoded)" << std::endl;
+        } else {
+            key = getReg(b);
+            std::cout << "Key from register[" << static_cast<int>(b) << "]" << std::endl;
+        }
+        std::cout << "Key value type: " << static_cast<int>(key.type()) << std::endl;
 
+        // Handle value: use ISK to check if it's a constant
+        Value value;
+        if (ISK(c)) {
+            value = getConstant(INDEXK(c));
+            std::cout << "Value from constant[" << static_cast<int>(INDEXK(c)) << "] (ISK encoded)" << std::endl;
+        } else {
+            value = getReg(c);
+            std::cout << "Value from register[" << static_cast<int>(c) << "]" << std::endl;
+        }
+        std::cout << "Value type: " << static_cast<int>(value.type()) << std::endl;
+
+        // Set table element
+        std::cout << "Setting table element..." << std::endl;
         if (table.isNil()) {
+            std::cout << "ERROR: Table is nil!" << std::endl;
             throw LuaException("attempt to index nil value");
         } else if (!table.isTable()) {
+            std::cout << "ERROR: Not a table, type: " << static_cast<int>(table.type()) << std::endl;
             throw LuaException("attempt to index a non-table value (type: " +
                              std::to_string(static_cast<int>(table.type())) + ")");
         }
 
-        table.asTable()->set(key, value);
+        // Check if key already exists in table
+        auto tablePtr = table.asTable();
+        Value existingValue = tablePtr->get(key);
+        std::cout << "Existing value type: " << static_cast<int>(existingValue.type()) << std::endl;
+
+        if (!existingValue.isNil()) {
+            // Key exists, perform direct assignment
+            std::cout << "Key exists, performing direct assignment" << std::endl;
+            tablePtr->set(key, value);
+        } else {
+            std::cout << "Key doesn't exist, checking for __newindex metamethod" << std::endl;
+            // Key doesn't exist, check for __newindex metamethod
+            auto metatable = tablePtr->getMetatable();
+            if (metatable) {
+                std::cout << "Metatable exists, checking __newindex" << std::endl;
+                // Try __newindex metamethod only if metatable exists
+                Value newindexHandler = MetaMethodManager::getMetaMethod(table, MetaMethod::NewIndex);
+                if (!newindexHandler.isNil()) {
+                    std::cout << "__newindex metamethod found" << std::endl;
+                    if (newindexHandler.isFunction()) {
+                        // __newindex is a function: call it with (table, key, value)
+                        Vec<Value> args = {table, key, value};
+                        CoreMetaMethods::handleMetaMethodCall(state, newindexHandler, args);
+                        std::cout << "Called __newindex function" << std::endl;
+                        return; // Don't set in original table
+                    } else if (newindexHandler.isTable()) {
+                        // __newindex is a table: recursively set key in that table
+                        CoreMetaMethods::handleNewIndex(state, newindexHandler, key, value);
+                        std::cout << "Called __newindex table" << std::endl;
+                        return; // Don't set in original table
+                    }
+                } else {
+                    std::cout << "No __newindex metamethod found" << std::endl;
+                }
+            } else {
+                std::cout << "No metatable" << std::endl;
+            }
+            // No __newindex metamethod or no metatable, perform direct assignment
+            std::cout << "Performing direct assignment" << std::endl;
+            tablePtr->set(key, value);
+        }
+        std::cout << "SETTABLE completed successfully" << std::endl;
+        std::cout << "=================================" << std::endl;
     }
 
     void VM::op_newtable(Instruction i) {
@@ -398,15 +505,9 @@ namespace Lua {
         u8 b = i.getB();
         u8 c = i.getC();
 
-#ifdef DEBUG_VM_INSTRUCTIONS
-        std::cout << "[DEBUG] NEWTABLE: reg=" << (int)a << std::endl;
-#endif
+        // Create new table
         GCRef<Table> table = make_gc_table();
         setReg(a, Value(table));
-
-#ifdef DEBUG_VM_INSTRUCTIONS
-        std::cout << "[DEBUG] NEWTABLE: created table, type=" << (int)Value(table).type() << std::endl;
-#endif
     }
     
     void VM::op_add(Instruction i) {
@@ -414,31 +515,23 @@ namespace Lua {
         u8 b = i.getB();
         u8 c = i.getC();
 
-        // std::cout << "[DEBUG] ADD instruction: a=" << (int)a << ", b=" << (int)b << ", c=" << (int)c
-        //           << ", registerBase=" << registerBase << std::endl;
+        Value lhs = getReg(b);
+        Value rhs = getReg(c);
 
-        Value bval = getReg(b);
-        Value cval = getReg(c);
-
-        // std::cout << "[DEBUG] ADD values: bval=" << bval.toString() << " (type=" << (int)bval.type()
-        //           << "), cval=" << cval.toString() << " (type=" << (int)cval.type() << ")" << std::endl;
-
-        // nil值不能用于算术运算
-        if (bval.isNil()) {
-            std::cerr << "[DEBUG] ADD: Left operand is nil, reg=" << (int)b << std::endl;
-            throw LuaException("attempt to perform arithmetic on nil value (left operand)");
-        } else if (cval.isNil()) {
-            std::cerr << "[DEBUG] ADD: Right operand is nil, reg=" << (int)c << std::endl;
-            throw LuaException("attempt to perform arithmetic on nil value (right operand)");
-        } else if (bval.isNumber() && cval.isNumber()) {
-            LuaNumber bn = bval.asNumber();
-            LuaNumber cn = cval.asNumber();
-            LuaNumber result = bn + cn;
+        // Try basic arithmetic first
+        if (lhs.isNumber() && rhs.isNumber()) {
+            LuaNumber result = lhs.asNumber() + rhs.asNumber();
             setReg(a, Value(result));
-        } else {
-            throw LuaException("attempt to perform arithmetic on non-number values (types: " +
-                             std::to_string(static_cast<int>(bval.type())) + " and " +
-                             std::to_string(static_cast<int>(cval.type())) + ")");
+            return;
+        }
+
+        // Basic arithmetic failed, try metamethod
+        try {
+            Value result = MetaMethodManager::callBinaryMetaMethod(state, MetaMethod::Add, lhs, rhs);
+            setReg(a, result);
+        } catch (const LuaException&) {
+            // No metamethod found, throw appropriate error
+            throw LuaException("attempt to perform arithmetic on non-number values");
         }
     }
     
@@ -550,8 +643,7 @@ namespace Lua {
         Value bval = getReg(b);
         Value cval = getReg(c);
 
-        // std::cout << "[DEBUG] LT: a=" << (int)a << ", b=" << (int)b << ", c=" << (int)c
-        //           << ", bval=" << bval.toString() << ", cval=" << cval.toString() << std::endl;
+        // Less than comparison
 
         bool result;
 
@@ -560,7 +652,6 @@ namespace Lua {
             throw LuaException("attempt to compare nil value");
         } else if (bval.isNumber() && cval.isNumber()) {
             result = bval.asNumber() < cval.asNumber();
-            // std::cout << "[DEBUG] LT result: " << bval.asNumber() << " < " << cval.asNumber() << " = " << result << std::endl;
         } else if (bval.isString() && cval.isString()) {
             result = bval.asString() < cval.asString();
         } else {
@@ -583,9 +674,6 @@ namespace Lua {
 
         // nil值不能用于大小比较
         if (bval.isNil() || cval.isNil()) {
-            std::cerr << "[DEBUG] LE: Comparing with nil value, reg_b=" << (int)b
-                      << " (nil=" << bval.isNil() << "), reg_c=" << (int)c
-                      << " (nil=" << cval.isNil() << ")" << std::endl;
             throw LuaException("attempt to compare nil value");
         } else if (bval.isNumber() && cval.isNumber()) {
             result = bval.asNumber() <= cval.asNumber();
@@ -611,15 +699,9 @@ namespace Lua {
         Value val = getReg(a);
         bool isTrue = val.isTruthy();
 
-        // std::cout << "[DEBUG] TEST: a=" << (int)a << ", c=" << (int)c
-        //           << ", val=" << val.toString() << ", isTrue=" << isTrue << std::endl;
-
         // If condition is false and C is 0, or condition is true and C is 1, skip next instruction
         if ((c == 0 && !isTrue) || (c == 1 && isTrue)) {
-            // std::cout << "[DEBUG] TEST: Skipping next instruction" << std::endl;
             pc++;  // Skip next instruction
-        } else {
-            // std::cout << "[DEBUG] TEST: Not skipping" << std::endl;
         }
     }
     
@@ -638,9 +720,7 @@ namespace Lua {
         // Get function object
         Value func = getReg(a);
 
-        /*std::cout << "[VM DEBUG] CALL: Getting function from register " << static_cast<int>(a)
-                  << ", value_type=" << static_cast<int>(func.type())
-                  << ", is_function=" << func.isFunction() << std::endl;*/
+        // Get function from register
 
         // Check if it's a function
         if (!func.isFunction()) {
@@ -660,9 +740,7 @@ namespace Lua {
             int argReg = a + i;  // 参数在寄存器a+1, a+2, ...
             Value arg = getReg(argReg);
 
-            // std::cout << "[DEBUG] CALL ARG: i=" << i << ", argReg=" << argReg
-            //           << ", value_type=" << (int)arg.type()
-            //           << ", value=" << arg.toString() << std::endl;
+            // Push argument to stack
 
             state->push(arg);  // 将参数push到栈顶
         }
@@ -1020,12 +1098,21 @@ namespace Lua {
     void VM::op_unm(Instruction i) {
         u8 a = i.getA();
         u8 b = i.getB();
-        
-        Value bval = getReg(b);
 
-        if (bval.isNumber()) {
-            setReg(a, Value(-bval.asNumber()));
-        } else {
+        Value operand = getReg(b);
+
+        // Try basic arithmetic first
+        if (operand.isNumber()) {
+            setReg(a, Value(-operand.asNumber()));
+            return;
+        }
+
+        // Basic arithmetic failed, try metamethod
+        try {
+            Value result = MetaMethodManager::callUnaryMetaMethod(state, MetaMethod::Unm, operand);
+            setReg(a, result);
+        } catch (const LuaException&) {
+            // No metamethod found, throw appropriate error
             throw LuaException("attempt to perform arithmetic on non-number value");
         }
     }
@@ -1057,52 +1144,48 @@ namespace Lua {
         u8 b = i.getB();
         u8 c = i.getC();
 
-        Value bval = getReg(b);
-        Value cval = getReg(c);
+        Value lhs = getReg(b);
+        Value rhs = getReg(c);
 
-        // Debug output disabled
+        // Try basic string/number concatenation first
+        if ((lhs.isString() || lhs.isNumber()) && (rhs.isString() || rhs.isNumber())) {
+            // Convert to strings and concatenate
+            Str lstr, rstr;
 
-        // Convert values to strings and concatenate
-        Str bstr, cstr;
-
-        // 处理左操作数
-        if (bval.isNil()) {
-            throw LuaException("attempt to concatenate nil value (left operand)");
-        } else if (bval.isString()) {
-            bstr = bval.asString();
-        } else if (bval.isNumber()) {
-            // Format number as integer if it's a whole number, otherwise as float
-            LuaNumber num = bval.asNumber();
-            if (num == std::floor(num)) {
-                bstr = std::to_string(static_cast<long long>(num));
+            if (lhs.isString()) {
+                lstr = lhs.asString();
             } else {
-                bstr = std::to_string(num);
+                LuaNumber num = lhs.asNumber();
+                if (num == std::floor(num)) {
+                    lstr = std::to_string(static_cast<long long>(num));
+                } else {
+                    lstr = std::to_string(num);
+                }
             }
-        } else {
-            throw LuaException("attempt to concatenate non-string/number value (left operand type: " +
-                             std::to_string(static_cast<int>(bval.type())) + ")");
+
+            if (rhs.isString()) {
+                rstr = rhs.asString();
+            } else {
+                LuaNumber num = rhs.asNumber();
+                if (num == std::floor(num)) {
+                    rstr = std::to_string(static_cast<long long>(num));
+                } else {
+                    rstr = std::to_string(num);
+                }
+            }
+
+            setReg(a, Value(lstr + rstr));
+            return;
         }
 
-        // 处理右操作数
-        if (cval.isNil()) {
-            throw LuaException("attempt to concatenate nil value (right operand)");
-        } else if (cval.isString()) {
-            cstr = cval.asString();
-        } else if (cval.isNumber()) {
-            // Format number as integer if it's a whole number, otherwise as float
-            LuaNumber num = cval.asNumber();
-            if (num == std::floor(num)) {
-                cstr = std::to_string(static_cast<long long>(num));
-            } else {
-                cstr = std::to_string(num);
-            }
-        } else {
-            throw LuaException("attempt to concatenate non-string/number value (right operand type: " +
-                             std::to_string(static_cast<int>(cval.type())) + ")");
+        // Basic concatenation failed, try metamethod
+        try {
+            Value result = MetaMethodManager::callBinaryMetaMethod(state, MetaMethod::Concat, lhs, rhs);
+            setReg(a, result);
+        } catch (const LuaException&) {
+            // No metamethod found, throw appropriate error
+            throw LuaException("attempt to concatenate non-string/number values");
         }
-
-        Str result = bstr + cstr;
-        setReg(a, Value(result));
     }
     
     void VM::markReferences(GarbageCollector* gc) {
@@ -1110,19 +1193,429 @@ namespace Lua {
         if (currentFunction) {
             gc->markObject(currentFunction.get());
         }
-        
+
         // Mark all open upvalues
         Upvalue* current = openUpvalues.get();
         while (current) {
             gc->markObject(current);
             current = current->getNext();
         }
-        
+
         // Mark upvalues in call frame
         for (const auto& upvalue : callFrameUpvalues) {
             if (upvalue) {
                 gc->markObject(upvalue.get());
             }
         }
+    }
+
+    // === Metamethod-aware Operations Implementation ===
+
+    Value VM::getTableValueMM(const Value& table, const Value& key) {
+        return CoreMetaMethods::handleIndex(state, table, key);
+    }
+
+    void VM::setTableValueMM(const Value& table, const Value& key, const Value& value) {
+        CoreMetaMethods::handleNewIndex(state, table, key, value);
+    }
+
+    Value VM::callValueMM(const Value& func, const Vec<Value>& args) {
+        return CoreMetaMethods::handleCall(state, func, args);
+    }
+
+    // === Arithmetic Operations with Metamethods ===
+
+    Value VM::performAddMM(const Value& lhs, const Value& rhs) {
+        // Try direct numeric operation first
+        if (lhs.isNumber() && rhs.isNumber()) {
+            return Value(lhs.asNumber() + rhs.asNumber());
+        }
+
+        // Try metamethod
+        return MetaMethodManager::callBinaryMetaMethod(state, MetaMethod::Add, lhs, rhs);
+    }
+
+    Value VM::performSubMM(const Value& lhs, const Value& rhs) {
+        // Try direct numeric operation first
+        if (lhs.isNumber() && rhs.isNumber()) {
+            return Value(lhs.asNumber() - rhs.asNumber());
+        }
+
+        // Try metamethod
+        return MetaMethodManager::callBinaryMetaMethod(state, MetaMethod::Sub, lhs, rhs);
+    }
+
+    Value VM::performMulMM(const Value& lhs, const Value& rhs) {
+        // Try direct numeric operation first
+        if (lhs.isNumber() && rhs.isNumber()) {
+            return Value(lhs.asNumber() * rhs.asNumber());
+        }
+
+        // Try metamethod
+        return MetaMethodManager::callBinaryMetaMethod(state, MetaMethod::Mul, lhs, rhs);
+    }
+
+    Value VM::performDivMM(const Value& lhs, const Value& rhs) {
+        // Try direct numeric operation first
+        if (lhs.isNumber() && rhs.isNumber()) {
+            LuaNumber divisor = rhs.asNumber();
+            if (divisor == 0) {
+                throw LuaException("attempt to divide by zero");
+            }
+            return Value(lhs.asNumber() / divisor);
+        }
+
+        // Try metamethod
+        return MetaMethodManager::callBinaryMetaMethod(state, MetaMethod::Div, lhs, rhs);
+    }
+
+    Value VM::performModMM(const Value& lhs, const Value& rhs) {
+        // Try direct numeric operation first
+        if (lhs.isNumber() && rhs.isNumber()) {
+            LuaNumber divisor = rhs.asNumber();
+            if (divisor == 0) {
+                throw LuaException("attempt to perform modulo by zero");
+            }
+            return Value(fmod(lhs.asNumber(), divisor));
+        }
+
+        // Try metamethod
+        return MetaMethodManager::callBinaryMetaMethod(state, MetaMethod::Mod, lhs, rhs);
+    }
+
+    Value VM::performPowMM(const Value& lhs, const Value& rhs) {
+        // Try direct numeric operation first
+        if (lhs.isNumber() && rhs.isNumber()) {
+            return Value(pow(lhs.asNumber(), rhs.asNumber()));
+        }
+
+        // Try metamethod
+        return MetaMethodManager::callBinaryMetaMethod(state, MetaMethod::Pow, lhs, rhs);
+    }
+
+    Value VM::performUnmMM(const Value& operand) {
+        // Try direct numeric operation first
+        if (operand.isNumber()) {
+            return Value(-operand.asNumber());
+        }
+
+        // Try metamethod
+        return MetaMethodManager::callUnaryMetaMethod(state, MetaMethod::Unm, operand);
+    }
+
+    Value VM::performConcatMM(const Value& lhs, const Value& rhs) {
+        // Try direct string/number concatenation first
+        if ((lhs.isString() || lhs.isNumber()) && (rhs.isString() || rhs.isNumber())) {
+            // Convert to strings and concatenate
+            Str lstr, rstr;
+
+            if (lhs.isString()) {
+                lstr = lhs.asString();
+            } else {
+                LuaNumber num = lhs.asNumber();
+                if (num == std::floor(num)) {
+                    lstr = std::to_string(static_cast<long long>(num));
+                } else {
+                    lstr = std::to_string(num);
+                }
+            }
+
+            if (rhs.isString()) {
+                rstr = rhs.asString();
+            } else {
+                LuaNumber num = rhs.asNumber();
+                if (num == std::floor(num)) {
+                    rstr = std::to_string(static_cast<long long>(num));
+                } else {
+                    rstr = std::to_string(num);
+                }
+            }
+
+            return Value(lstr + rstr);
+        }
+
+        // Try metamethod, but if not found, throw appropriate error
+        try {
+            return MetaMethodManager::callBinaryMetaMethod(state, MetaMethod::Concat, lhs, rhs);
+        } catch (const LuaException&) {
+            // If no metamethod found, throw concatenation-specific error
+            throw LuaException("attempt to concatenate non-string/number values");
+        }
+    }
+
+    // === Comparison Operations with Metamethods ===
+
+    bool VM::performEqMM(const Value& lhs, const Value& rhs) {
+        // Try direct comparison first
+        if (lhs.type() == rhs.type()) {
+            // Same type, try direct comparison
+            if (lhs.isNil()) {
+                return true; // nil == nil
+            } else if (lhs.isBoolean()) {
+                return lhs.asBoolean() == rhs.asBoolean();
+            } else if (lhs.isNumber()) {
+                return lhs.asNumber() == rhs.asNumber();
+            } else if (lhs.isString()) {
+                return lhs.asString() == rhs.asString();
+            }
+            // For tables, functions, userdata, try metamethod
+        } else {
+            // Different types, only equal if both have same __eq metamethod
+            Value lhsHandler = MetaMethodManager::getMetaMethod(lhs, MetaMethod::Eq);
+            Value rhsHandler = MetaMethodManager::getMetaMethod(rhs, MetaMethod::Eq);
+
+            if (lhsHandler.isNil() || rhsHandler.isNil() || !(lhsHandler == rhsHandler)) {
+                return false; // No metamethod or different metamethods
+            }
+        }
+
+        // Try metamethod
+        try {
+            Value result = MetaMethodManager::callBinaryMetaMethod(state, MetaMethod::Eq, lhs, rhs);
+            return result.isTruthy();
+        } catch (const LuaException&) {
+            return false; // No metamethod found
+        }
+    }
+
+    bool VM::performLtMM(const Value& lhs, const Value& rhs) {
+        // Try direct comparison first
+        if (lhs.type() == rhs.type()) {
+            if (lhs.isNumber() && rhs.isNumber()) {
+                return lhs.asNumber() < rhs.asNumber();
+            } else if (lhs.isString() && rhs.isString()) {
+                return lhs.asString() < rhs.asString();
+            }
+        }
+
+        // Try metamethod
+        Value result = MetaMethodManager::callBinaryMetaMethod(state, MetaMethod::Lt, lhs, rhs);
+        return result.isTruthy();
+    }
+
+    bool VM::performLeMM(const Value& lhs, const Value& rhs) {
+        // Try direct comparison first
+        if (lhs.type() == rhs.type()) {
+            if (lhs.isNumber() && rhs.isNumber()) {
+                return lhs.asNumber() <= rhs.asNumber();
+            } else if (lhs.isString() && rhs.isString()) {
+                return lhs.asString() <= rhs.asString();
+            }
+        }
+
+        // Try metamethod
+        Value result = MetaMethodManager::callBinaryMetaMethod(state, MetaMethod::Le, lhs, rhs);
+        return result.isTruthy();
+    }
+
+    // === Metamethod-aware Instruction Handlers ===
+
+    void VM::op_gettable_mm(Instruction i) {
+        u8 a = i.getA();  // Target register
+        u8 b = i.getB();  // Table register
+        u8 c = i.getC();  // Key register or constant index
+
+        Value table = getReg(b);
+
+        // Handle key: if c >= 256, it's a constant index (c-256)
+        Value key;
+        if (c >= 256) {
+            key = getConstant(c - 256);
+        } else {
+            key = getReg(c);
+        }
+
+        Value result = getTableValueMM(table, key);
+        setReg(a, result);
+    }
+
+    void VM::op_settable_mm(Instruction i) {
+        u8 a = i.getA();  // Table register
+        u8 b = i.getB();  // Key register or constant index
+        u8 c = i.getC();  // Value register or constant index
+
+        Value table = getReg(a);
+
+        // Handle key: if b >= 256, it's a constant index (b-256)
+        Value key;
+        if (b >= 256) {
+            key = getConstant(b - 256);
+        } else {
+            key = getReg(b);
+        }
+
+        // Handle value: if c >= 256, it's a constant index (c-256)
+        Value value;
+        if (c >= 256) {
+            value = getConstant(c - 256);
+        } else {
+            value = getReg(c);
+        }
+
+        setTableValueMM(table, key, value);
+    }
+
+    void VM::op_call_mm(Instruction i) {
+        u8 a = i.getA();  // Function register
+        u8 b = i.getB();  // Number of arguments + 1
+        u8 c = i.getC();  // Expected number of return values + 1
+
+        Value func = getReg(a);
+
+        // Get arguments
+        int nargs = (b == 0) ? (state->getTop() - a) : (b - 1);
+        Vec<Value> args;
+        args.reserve(nargs);
+
+        for (int i = 1; i <= nargs; ++i) {
+            args.push_back(getReg(a + i));
+        }
+
+        // Call with metamethod support
+        Value result = callValueMM(func, args);
+
+        // Handle return values
+        int expectedReturns = (c == 0) ? -1 : (c - 1);
+        if (expectedReturns == 0) {
+            // No return values expected
+        } else {
+            // Store result in function register
+            setReg(a, result);
+
+            // Fill remaining expected slots with nil
+            for (int i = 1; i < expectedReturns; ++i) {
+                setReg(a + i, Value());
+            }
+        }
+    }
+
+    void VM::op_add_mm(Instruction i) {
+        u8 a = i.getA();
+        u8 b = i.getB();
+        u8 c = i.getC();
+
+        Value lhs = getReg(b);
+        Value rhs = getReg(c);
+
+        Value result = performAddMM(lhs, rhs);
+        setReg(a, result);
+    }
+
+    void VM::op_sub_mm(Instruction i) {
+        u8 a = i.getA();
+        u8 b = i.getB();
+        u8 c = i.getC();
+
+        Value lhs = getReg(b);
+        Value rhs = getReg(c);
+
+        Value result = performSubMM(lhs, rhs);
+        setReg(a, result);
+    }
+
+    void VM::op_mul_mm(Instruction i) {
+        u8 a = i.getA();
+        u8 b = i.getB();
+        u8 c = i.getC();
+
+        Value lhs = getReg(b);
+        Value rhs = getReg(c);
+
+        Value result = performMulMM(lhs, rhs);
+        setReg(a, result);
+    }
+
+    void VM::op_div_mm(Instruction i) {
+        u8 a = i.getA();
+        u8 b = i.getB();
+        u8 c = i.getC();
+
+        Value lhs = getReg(b);
+        Value rhs = getReg(c);
+
+        Value result = performDivMM(lhs, rhs);
+        setReg(a, result);
+    }
+
+    void VM::op_mod_mm(Instruction i) {
+        u8 a = i.getA();
+        u8 b = i.getB();
+        u8 c = i.getC();
+
+        Value lhs = getReg(b);
+        Value rhs = getReg(c);
+
+        Value result = performModMM(lhs, rhs);
+        setReg(a, result);
+    }
+
+    void VM::op_pow_mm(Instruction i) {
+        u8 a = i.getA();
+        u8 b = i.getB();
+        u8 c = i.getC();
+
+        Value lhs = getReg(b);
+        Value rhs = getReg(c);
+
+        Value result = performPowMM(lhs, rhs);
+        setReg(a, result);
+    }
+
+    void VM::op_unm_mm(Instruction i) {
+        u8 a = i.getA();
+        u8 b = i.getB();
+
+        Value operand = getReg(b);
+
+        Value result = performUnmMM(operand);
+        setReg(a, result);
+    }
+
+    void VM::op_concat_mm(Instruction i) {
+        u8 a = i.getA();
+        u8 b = i.getB();
+        u8 c = i.getC();
+
+        Value lhs = getReg(b);
+        Value rhs = getReg(c);
+
+        Value result = performConcatMM(lhs, rhs);
+        setReg(a, result);
+    }
+
+    void VM::op_eq_mm(Instruction i) {
+        u8 a = i.getA();
+        u8 b = i.getB();
+        u8 c = i.getC();
+
+        Value lhs = getReg(b);
+        Value rhs = getReg(c);
+
+        bool result = performEqMM(lhs, rhs);
+        setReg(a, Value(result));
+    }
+
+    void VM::op_lt_mm(Instruction i) {
+        u8 a = i.getA();
+        u8 b = i.getB();
+        u8 c = i.getC();
+
+        Value lhs = getReg(b);
+        Value rhs = getReg(c);
+
+        bool result = performLtMM(lhs, rhs);
+        setReg(a, Value(result));
+    }
+
+    void VM::op_le_mm(Instruction i) {
+        u8 a = i.getA();
+        u8 b = i.getB();
+        u8 c = i.getC();
+
+        Value lhs = getReg(b);
+        Value rhs = getReg(c);
+
+        bool result = performLeMM(lhs, rhs);
+        setReg(a, Value(result));
     }
 }

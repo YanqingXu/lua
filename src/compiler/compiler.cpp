@@ -3,6 +3,7 @@
 #include "statement_compiler.hpp"
 #include "../vm/instruction.hpp"
 #include "../common/opcodes.hpp"
+#include "../common/defines.hpp"
 #include <stdexcept>
 #include <iostream>
 
@@ -63,15 +64,10 @@ namespace Lua {
             stackIndex = registerManager_.allocateLocal(name);
         }
 
-        // std::cout << "[DEBUG] DEFINE LOCAL: name='" << name << "', stackIndex=" << stackIndex << std::endl;
-
         bool success = scopeManager_.defineLocal(name, stackIndex);
         if (!success) {
-            // std::cout << "[DEBUG] DEFINE LOCAL FAILED: name='" << name << "'" << std::endl;
             throw LuaException("Failed to define local variable: " + name);
         }
-
-        // std::cout << "[DEBUG] DEFINE LOCAL SUCCESS: name='" << name << "', stackIndex=" << stackIndex << std::endl;
         return stackIndex;
     }
 
@@ -193,6 +189,13 @@ namespace Lua {
 
             // End global scope
             endScope();
+
+            // Debug output: dump bytecode
+            #if DEBUG_COMPILER
+            std::cout << "\n=== Compiled Function Bytecode ===" << std::endl;
+            utils.dumpBytecode(*code, constants);
+            std::cout << "=== End Bytecode ===" << std::endl;
+            #endif
 
             // Create function object with proper parameters
             // Main function has 0 parameters and includes all nested function prototypes

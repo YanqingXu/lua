@@ -72,7 +72,7 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <OutDir>.\bin\</OutDir>
-    <IncludePath>E:\Programming\Compiler\lua\src\;$(IncludePath)</IncludePath>
+    <IncludePath>E:\github\lua\src\;E:\Programming\Compiler\lua\src\;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -211,8 +211,10 @@
     <ClInclude Include="src\test_framework\formatting\format_define.hpp" />
     <ClInclude Include="src\test_framework\formatting\format_formatter.hpp" />
     <ClInclude Include="src\test_framework\formatting\format_strategies.hpp" />
+    <ClInclude Include="src\vm\core_metamethods.hpp" />
     <ClInclude Include="src\vm\function.hpp" />
     <ClInclude Include="src\vm\instruction.hpp" />
+    <ClInclude Include="src\vm\metamethod_manager.hpp" />
     <ClInclude Include="src\vm\state.hpp" />
     <ClInclude Include="src\vm\state_factory.hpp" />
     <ClInclude Include="src\vm\table.hpp" />
@@ -277,7 +279,9 @@
     <ClCompile Include="src\test_framework\formatting\format_config.cpp" />
     <ClCompile Include="src\test_framework\formatting\format_formatter.cpp" />
     <ClCompile Include="src\test_framework\formatting\format_strategies.cpp" />
+    <ClCompile Include="src\vm\core_metamethods.cpp" />
     <ClCompile Include="src\vm\function.cpp" />
+    <ClCompile Include="src\vm\metamethod_manager.cpp" />
     <ClCompile Include="src\vm\state.cpp" />
     <ClCompile Include="src\vm\state_factory.cpp" />
     <ClCompile Include="src\vm\table.cpp" />

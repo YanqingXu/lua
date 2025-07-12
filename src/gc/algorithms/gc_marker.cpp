@@ -121,8 +121,9 @@ namespace Lua {
                 });
                 
                 // Mark metatable if present
-                if (table->getMetatable() != nullptr) {
-                    markObject(table->getMetatable(), currentWhite);
+                auto metatable = table->getMetatable();
+                if (metatable) {
+                    markObject(metatable.get(), currentWhite);
                 }
                 break;
             }

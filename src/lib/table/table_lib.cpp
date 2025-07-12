@@ -1,6 +1,7 @@
 #include "table_lib.hpp"
 #include "lib/core/lib_registry.hpp"
 #include "vm/table.hpp"
+#include "../../common/defines.hpp"
 #include <iostream>
 #include <algorithm>
 #include <sstream>
@@ -30,7 +31,7 @@ void TableLib::initialize(State* state) {
     }
 
     // Table library doesn't need special initialization
-    std::cout << "[TableLib] Initialized successfully!" << std::endl;
+    // Table library initialized
 }
 
 // ===================================================================

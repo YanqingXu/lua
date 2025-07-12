@@ -1,6 +1,7 @@
 ﻿#include "debug_lib.hpp"
 #include "lib/core/lib_registry.hpp"
 #include "vm/table.hpp"
+#include "../../common/defines.hpp"
 #include <iostream>
 #include <sstream>
 
@@ -37,7 +38,7 @@ void DebugLib::initialize(State* state) {
     }
 
     // Debug library doesn't need special initialization
-    std::cout << "[DebugLib] Initialized successfully!" << std::endl;
+    // Debug library initialized
 }
 
 // ===================================================================
@@ -51,8 +52,7 @@ Value DebugLib::debug(State* state, i32 nargs) {
 
     (void)nargs; // Suppress unused parameter warning
 
-    // Simplified implementation - just print a message
-    std::cout << "Debug mode not implemented in this simplified version" << std::endl;
+    // Simplified implementation - debug mode not implemented
     return Value(); // nil
 }
 

@@ -315,6 +315,12 @@
     <ClCompile Include="src\vm\userdata.cpp">
       <Filter>vm</Filter>
     </ClCompile>
+    <ClCompile Include="src\vm\core_metamethods.cpp">
+      <Filter>vm</Filter>
+    </ClCompile>
+    <ClCompile Include="src\vm\metamethod_manager.cpp">
+      <Filter>vm</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\compiler\compiler.hpp">
@@ -567,6 +573,12 @@
       <Filter>tests\lib</Filter>
     </ClInclude>
     <ClInclude Include="src\vm\userdata.hpp">
+      <Filter>vm</Filter>
+    </ClInclude>
+    <ClInclude Include="src\vm\core_metamethods.hpp">
+      <Filter>vm</Filter>
+    </ClInclude>
+    <ClInclude Include="src\vm\metamethod_manager.hpp">
       <Filter>vm</Filter>
     </ClInclude>
   </ItemGroup>

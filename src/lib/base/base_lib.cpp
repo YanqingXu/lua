@@ -1,4 +1,7 @@
 ﻿#include "base_lib.hpp"
+#include "../../vm/table.hpp"
+#include "../../vm/userdata.hpp"
+#include "../../vm/metamethod_manager.hpp"
 #include <iostream>
 #include <sstream>
 
@@ -206,16 +209,89 @@ Value BaseLib::getmetatable(State* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }
-    (void)nargs; // Not yet implemented
-    return Value(); // nil
+
+    if (nargs < 1) {
+        throw std::invalid_argument("getmetatable requires at least 1 argument");
+    }
+
+    // Get the object from stack (1-based Lua index to 0-based stack index)
+    int stackIdx = state->getTop() - nargs;
+    Value obj = state->get(stackIdx);
+
+    // Only tables and userdata can have metatables in our implementation
+    try {
+        if (obj.isTable()) {
+            auto table = obj.asTable();
+            if (table) {
+                GCRef<Table> metatable = table->getMetatable();
+                if (metatable) {
+                    // Return the metatable directly
+                    return Value(metatable);
+                }
+            }
+        } else if (obj.isUserdata()) {
+            auto userdata = obj.asUserdata();
+            if (userdata) {
+                auto metatable = userdata->getMetatable();
+                if (metatable) {
+                    return Value(metatable);
+                }
+            }
+        }
+    } catch (...) {
+        // If there's any error accessing metatable, return nil
+    }
+
+    return Value(); // nil if no metatable
 }
 
 Value BaseLib::setmetatable(State* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }
-    (void)nargs; // Not yet implemented
-    return Value();
+
+    if (nargs < 2) {
+        throw std::invalid_argument("setmetatable requires 2 arguments");
+    }
+
+    // Get arguments from stack
+    int stackIdx = state->getTop() - nargs;
+    Value table = state->get(stackIdx);
+    Value metatable = state->get(stackIdx + 1);
+
+    // First argument must be a table
+    if (!table.isTable()) {
+        throw std::invalid_argument("setmetatable: first argument must be a table");
+    }
+
+    // Second argument must be a table or nil
+    if (!metatable.isTable() && !metatable.isNil()) {
+        throw std::invalid_argument("setmetatable: second argument must be a table or nil");
+    }
+
+    try {
+        auto tablePtr = table.asTable();
+        if (!tablePtr) {
+            throw std::invalid_argument("setmetatable: invalid table");
+        }
+
+        if (metatable.isNil()) {
+            // Remove metatable
+            tablePtr->setMetatable(GCRef<Table>(nullptr));
+        } else {
+            // Set metatable
+            auto metatablePtr = metatable.asTable();
+            if (!metatablePtr) {
+                throw std::invalid_argument("setmetatable: invalid metatable");
+            }
+            tablePtr->setMetatable(metatablePtr);
+        }
+    } catch (const std::exception& e) {
+        throw std::invalid_argument(std::string("setmetatable: ") + e.what());
+    }
+
+    // Return the table (first argument)
+    return table;
 }
 
 Value BaseLib::rawget(State* state, i32 nargs) {

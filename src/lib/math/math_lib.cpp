@@ -1,5 +1,6 @@
 ﻿#include "math_lib.hpp"
 #include "../../vm/table.hpp"
+#include "../../common/defines.hpp"
 #include <cmath>
 #include <algorithm>
 #include <iostream>
@@ -63,7 +64,7 @@ void MathLib::initialize(State* state) {
         table->set(Value("huge"), Value(HUGE_VAL));
     }
 
-    std::cout << "[MathLib] Initialized successfully!" << std::endl;
+    // Math library initialized
 }
 
 // ===================================================================

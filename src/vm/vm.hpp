@@ -36,6 +36,26 @@ namespace Lua {
         GCRef<Upvalue> findOrCreateUpvalue(Value* location);
         void closeUpvalues(Value* level);
         void closeAllUpvalues();
+
+        // Metamethod-aware operations
+        Value getTableValueMM(const Value& table, const Value& key);
+        void setTableValueMM(const Value& table, const Value& key, const Value& value);
+        Value callValueMM(const Value& func, const Vec<Value>& args);
+
+        // Arithmetic operations with metamethods
+        Value performAddMM(const Value& lhs, const Value& rhs);
+        Value performSubMM(const Value& lhs, const Value& rhs);
+        Value performMulMM(const Value& lhs, const Value& rhs);
+        Value performDivMM(const Value& lhs, const Value& rhs);
+        Value performModMM(const Value& lhs, const Value& rhs);
+        Value performPowMM(const Value& lhs, const Value& rhs);
+        Value performUnmMM(const Value& operand);
+        Value performConcatMM(const Value& lhs, const Value& rhs);
+
+        // Comparison operations with metamethods
+        bool performEqMM(const Value& lhs, const Value& rhs);
+        bool performLtMM(const Value& lhs, const Value& rhs);
+        bool performLeMM(const Value& lhs, const Value& rhs);
         
     private:
         // Run one instruction
@@ -79,5 +99,21 @@ namespace Lua {
         void op_closure(Instruction i);
         void op_getupval(Instruction i);
         void op_setupval(Instruction i);
+
+        // Metamethod-aware instruction handlers
+        void op_gettable_mm(Instruction i);
+        void op_settable_mm(Instruction i);
+        void op_call_mm(Instruction i);
+        void op_add_mm(Instruction i);
+        void op_sub_mm(Instruction i);
+        void op_mul_mm(Instruction i);
+        void op_div_mm(Instruction i);
+        void op_mod_mm(Instruction i);
+        void op_pow_mm(Instruction i);
+        void op_unm_mm(Instruction i);
+        void op_concat_mm(Instruction i);
+        void op_eq_mm(Instruction i);
+        void op_lt_mm(Instruction i);
+        void op_le_mm(Instruction i);
     };
 }
