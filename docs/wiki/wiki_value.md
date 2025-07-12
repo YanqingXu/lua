@@ -199,6 +199,71 @@ Value nativeValue(nativeFunc);
 - 闭包和上值支持
 - 字节码执行环境
 
+#### 4. Userdata 类型
+
+**Userdata 设计：**
+```cpp
+class Userdata : public GCObject {
+public:
+    enum class UserdataType : u8 {
+        Light,      // 轻量级用户数据 (指针)
+        Full        // 完整用户数据 (带元表)
+    };
+    
+private:
+    UserdataType type_;              // 用户数据类型
+    usize size_;                     // 数据大小（字节）
+    void* data_;                     // 数据指针
+    GCRef<Table> metatable_;         // 元表（仅完整用户数据）
+    
+public:
+    // 创建轻量级用户数据
+    static GCRef<Userdata> createLight(void* ptr);
+    
+    // 创建完整用户数据
+    static GCRef<Userdata> createFull(usize size);
+};
+```
+
+**使用示例：**
+```cpp
+// 创建轻量级用户数据
+i32 testValue = 42;
+auto lightUD = Userdata::createLight(&testValue);
+Value lightValue(lightUD);
+
+// 创建完整用户数据
+auto fullUD = Userdata::createFull(256);
+Value fullValue(fullUD);
+
+// 类型安全的用户数据创建
+struct MyData {
+    i32 x, y;
+    f64 value;
+};
+
+MyData data{10, 20, 3.14};
+auto typedUD = makeFullUserdata(data);
+Value typedValue(typedUD);
+
+// 获取用户数据
+if (typedValue.isUserdata()) {
+    auto ud = typedValue.asUserdata();
+    if (ud->isFullUserdata()) {
+        MyData* retrievedData = ud->getTypedData<MyData>();
+        // 使用 retrievedData
+    }
+}
+```
+
+**特性：**
+- **双重类型**: 支持轻量级和完整两种用户数据类型
+- **类型安全**: 提供模板化的类型安全接口
+- **元表支持**: 完整用户数据支持元表机制
+- **内存管理**: 完整用户数据由 GC 自动管理
+- **外部集成**: 轻量级用户数据可包装外部 C++ 对象
+- **灵活存储**: 支持任意大小的用户定义数据结构
+
 ## 操作接口
 
 ### 类型检查接口
@@ -216,12 +281,12 @@ public:
     bool isString() const;
     bool isTable() const;
     bool isFunction() const;
+    bool isUserdata() const;
     
     // GC 对象检查
     bool isGCObject() const;
     GCObject* asGCObject() const;
-};
-```
+};```
 
 ### 值获取接口
 
@@ -234,8 +299,8 @@ public:
     const Str& asString() const;     // 返回字符串引用
     GCRef<Table> asTable() const;    // 返回表引用
     GCRef<Function> asFunction() const; // 返回函数引用
-};
-```
+    GCRef<Userdata> asUserdata() const; // 返回用户数据引用
+};```
 
 **类型转换规则：**
 
@@ -251,6 +316,10 @@ public:
 3. **String 转换**:
    - 直接字符串：返回引用
    - 其他类型：返回空字符串引用
+
+4. **Userdata 转换**:
+   - 直接用户数据：返回 GCRef 引用
+   - 其他类型：返回空引用（nullptr）
 
 ### 比较操作
 
@@ -276,6 +345,7 @@ bool Value::operator==(const Value& other) const {
         case ValueType::Boolean: return asBoolean() == other.asBoolean();
         case ValueType::Number: return asNumber() == other.asNumber();
         case ValueType::String: return *asGCObject() == *other.asGCObject();
+        case ValueType::Userdata: return asUserdata() == other.asUserdata();
         // ... 其他类型
     }
 }
@@ -297,6 +367,7 @@ bool Value::operator<(const Value& other) const {
             return asString() < other.asString();
         case ValueType::Table:
         case ValueType::Function:
+        case ValueType::Userdata:
             // 指针地址比较（确保一致性）
             return std::less<void*>()(asGCObject(), other.asGCObject());
         // ...
@@ -324,6 +395,8 @@ Str Value::toString() const {
             return "table";
         case ValueType::Function:
             return "function";
+        case ValueType::Userdata:
+            return "userdata";
     }
 }
 ```
@@ -341,6 +414,8 @@ void Value::markReferences(GarbageCollector* gc) const {
         gc->markObject(asTable().get());
     } else if (isFunction()) {
         gc->markObject(asFunction().get());
+    } else if (isUserdata()) {
+        gc->markObject(asUserdata().get());
     }
     // 基本类型无需标记
 }
@@ -369,6 +444,33 @@ GCRef<Table> make_gc_table() {
 // 使用示例
 auto table = make_gc_table();
 Value tableValue(table);
+```
+
+**用户数据创建：**
+```cpp
+// 轻量级用户数据工厂函数
+template<typename T>
+GCRef<Userdata> makeLightUserdata(T* ptr) {
+    return Userdata::createLight(static_cast<void*>(ptr));
+}
+
+// 完整用户数据工厂函数
+template<typename T>
+GCRef<Userdata> makeFullUserdata(const T& obj) {
+    auto ud = Userdata::createFull(sizeof(T));
+    ud->setTypedData(obj);
+    return ud;
+}
+
+// 使用示例
+i32 value = 42;
+auto lightUD = makeLightUserdata(&value);
+Value lightValue(lightUD);
+
+struct MyStruct { i32 x, y; };
+MyStruct data{10, 20};
+auto fullUD = makeFullUserdata(data);
+Value fullValue(fullUD);
 ```
 
 ### 内存优化策略
@@ -463,18 +565,28 @@ void benchmarkTypeCheck() {
 #### 1. 扩展 ValueType 枚举
 ```cpp
 enum class ValueType {
-    // 现有类型...
-    UserData,    // 新增用户数据类型
-    Thread       // 新增协程类型
+    Nil,
+    Boolean,
+    Number,
+    String,
+    Table,
+    Function,
+    Userdata,    // 已实现的用户数据类型
+    Thread       // 新增协程类型（待实现）
 };
 ```
 
 #### 2. 扩展 ValueVariant
 ```cpp
 using ValueVariant = std::variant<
-    // 现有类型...
-    GCRef<UserData>,  // 新增用户数据
-    GCRef<Thread>     // 新增协程
+    std::monostate,      // Nil
+    LuaBoolean,          // Boolean
+    LuaNumber,           // Number
+    GCRef<GCString>,     // String
+    GCRef<Table>,        // Table
+    GCRef<Function>,     // Function
+    GCRef<Userdata>,     // 已实现的用户数据
+    GCRef<Thread>        // 新增协程（待实现）
 >;
 ```
 
@@ -482,13 +594,13 @@ using ValueVariant = std::variant<
 ```cpp
 class Value {
 public:
-    // 新增类型检查
-    bool isUserData() const { return type() == ValueType::UserData; }
-    bool isThread() const { return type() == ValueType::Thread; }
+    // 类型检查（userdata 已实现）
+    bool isUserdata() const { return type() == ValueType::Userdata; }
+    bool isThread() const { return type() == ValueType::Thread; }  // 待实现
     
-    // 新增值获取
-    GCRef<UserData> asUserData() const;
-    GCRef<Thread> asThread() const;
+    // 值获取（userdata 已实现）
+    GCRef<Userdata> asUserdata() const;
+    GCRef<Thread> asThread() const;  // 待实现
 };
 ```
 
@@ -595,6 +707,62 @@ void typeConversionExample() {
     std::cout << "'': " << emptyStr.isTruthy() << std::endl;   // true
     std::cout << "nil: " << nil.isTruthy() << std::endl;       // false
     std::cout << "false: " << falseVal.isTruthy() << std::endl; // false
+}
+```
+
+### 用户数据使用示例
+
+```cpp
+void userdataExample() {
+    // 轻量级用户数据示例
+    struct Point {
+        f64 x, y;
+        Point(f64 x, f64 y) : x(x), y(y) {}
+    };
+    
+    Point point(3.14, 2.71);
+    auto lightUD = makeLightUserdata(&point);
+    Value lightValue(lightUD);
+    
+    // 类型检查
+    if (lightValue.isUserdata()) {
+        auto ud = lightValue.asUserdata();
+        if (ud->isLightUserdata()) {
+            Point* retrievedPoint = static_cast<Point*>(ud->getData());
+            std::cout << "Point: (" << retrievedPoint->x << ", " 
+                      << retrievedPoint->y << ")" << std::endl;
+        }
+    }
+    
+    // 完整用户数据示例
+    struct ComplexData {
+        i32 id;
+        Str name;
+        f64 value;
+    };
+    
+    ComplexData data{42, "test", 3.14159};
+    auto fullUD = makeFullUserdata(data);
+    Value fullValue(fullUD);
+    
+    // 设置元表
+    auto metatable = make_gc_table();
+    fullUD->setMetatable(metatable);
+    
+    // 获取数据
+    if (fullValue.isUserdata()) {
+        auto ud = fullValue.asUserdata();
+        if (ud->isFullUserdata()) {
+            ComplexData* retrievedData = ud->getTypedData<ComplexData>();
+            std::cout << "Data: id=" << retrievedData->id 
+                      << ", name=" << retrievedData->name
+                      << ", value=" << retrievedData->value << std::endl;
+        }
+    }
+    
+    // 字符串表示
+    std::cout << "Light userdata: " << lightValue.toString() << std::endl;
+    std::cout << "Full userdata: " << fullValue.toString() << std::endl;
 }
 ```
 
@@ -720,9 +888,9 @@ void safeValueOperation(const Value& value) {
 ### 功能扩展
 
 #### 1. 新数据类型
-- **UserData**: 用户自定义数据类型
 - **Thread**: 协程支持
 - **BigInt**: 大整数支持
+- **WeakRef**: 弱引用支持
 
 #### 2. 操作增强
 - **深拷贝**: 支持值的深度复制
@@ -750,6 +918,7 @@ Lua Value 系统是一个设计精良的类型系统，具有以下核心特点�
 - **内存效率**: 智能的 GC 集成和内存优化
 - **操作简洁**: 直观的 API 设计和操作接口
 - **性能优异**: 高效的类型检查和转换机制
+- **完整类型支持**: 包含 nil、boolean、number、string、table、function、userdata 七种核心类型
 
 ### 设计亮点
 - **统一表示**: 所有 Lua 类型的统一抽象
