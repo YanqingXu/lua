@@ -1,6 +1,7 @@
 ﻿#include "core_metamethods.hpp"
 #include "state.hpp"
 #include "table.hpp"
+#include "function.hpp"
 #include "common/types.hpp"
 #include <sstream>
 
@@ -81,24 +82,23 @@ namespace Lua {
         if (!state) {
             throw std::invalid_argument("State cannot be null");
         }
-        
+
         // Check if value is directly callable (function)
         if (func.isFunction()) {
-            // TODO: Implement function call mechanism
-            // For now, return nil as placeholder
-            return Value();
+            // Direct function call - use direct function call to avoid recursion
+            return callFunctionDirect(state, func, args);
         }
-        
+
         // Try __call metamethod
         Value callHandler = MetaMethodManager::getMetaMethod(func, MetaMethod::Call);
         if (callHandler.isNil()) {
             throw LuaException("Attempt to call a non-callable value");
         }
-        
+
         if (!callHandler.isFunction()) {
             throw LuaException("__call metamethod is not a function");
         }
-        
+
         // Call __call metamethod with func as first argument, followed by args
         Vec<Value> callArgs;
         callArgs.reserve(args.size() + 1);
@@ -106,8 +106,9 @@ namespace Lua {
         for (const auto& arg : args) {
             callArgs.push_back(arg);
         }
-        
-        return handleMetaMethodCall(state, callHandler, callArgs);
+
+        // Use direct function call for metamethod to avoid recursion
+        return callFunctionDirect(state, callHandler, callArgs);
     }
     
     Value CoreMetaMethods::handleToString(State* state, const Value& obj) {
@@ -206,14 +207,61 @@ namespace Lua {
             throw LuaException("Metamethod handler is not a function");
         }
 
-        // Simplified metamethod call implementation
-        // For now, we'll use the state's call mechanism if available
+        // Use direct function call to avoid recursion
+        return callFunctionDirect(state, handler, args);
+    }
+
+    Value CoreMetaMethods::callFunctionDirect(State* state, const Value& func, const Vec<Value>& args) {
+        if (!func.isFunction()) {
+            throw LuaException("Attempt to call a non-function value");
+        }
+
+        auto function = func.asFunction();
+
+        // Handle native functions directly
+        if (function->getType() == Function::Type::Native) {
+            auto nativeFn = function->getNative();
+            if (!nativeFn) {
+                throw LuaException("Attempt to call a nil value");
+            }
+
+            // Save current stack state
+            int oldTop = state->getTop();
+
+            // Push arguments onto stack
+            for (const auto& arg : args) {
+                state->push(arg);
+            }
+
+            // Call native function
+            Value result = nativeFn(state, static_cast<int>(args.size()));
+
+            // Restore stack state
+            state->setTop(oldTop);
+
+            return result;
+        }
+
+        // For Lua functions, we need to use VM execution
+        // Push arguments onto stack first, then call
         try {
-            auto function = handler.asFunction();
-            return state->call(function, args);
+            // Save current stack state
+            int oldTop = state->getTop();
+
+            // Push arguments onto stack
+            for (const auto& arg : args) {
+                state->push(arg);
+            }
+
+            // Call Lua function with arguments on stack
+            Value result = state->callLua(func, static_cast<int>(args.size()));
+
+            // Restore stack state
+            state->setTop(oldTop);
+
+            return result;
         } catch (const LuaException&) {
             // If function call fails, return nil
-            // This allows the system to continue working even with incomplete function support
             return Value();
         }
     }

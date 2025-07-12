@@ -71,6 +71,7 @@ namespace Lua {
         UPtr<Stmt> localDeclaration();
         UPtr<Stmt> assignmentStatement();
         UPtr<Stmt> ifStatement();
+        UPtr<Stmt> parseElseIfChain();  // Helper for parsing elseif chains
         UPtr<Stmt> whileStatement();
         UPtr<Stmt> forStatement();
         UPtr<Stmt> repeatUntilStatement();

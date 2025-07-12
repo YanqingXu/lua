@@ -170,16 +170,8 @@ namespace Lua {
             thenBranch = std::make_unique<BlockStmt>(Vec<UPtr<Stmt>>());
         }
 
-        UPtr<Stmt> elseBranch = nullptr;
-        if (match(TokenType::Else)) {
-            try {
-                elseBranch = blockStatement();
-            } catch (...) {
-                error(ErrorType::InvalidStatement, "Invalid else block in if statement");
-                synchronize();
-                elseBranch = std::make_unique<BlockStmt>(Vec<UPtr<Stmt>>());
-            }
-        }
+        // Handle elseif and else branches
+        UPtr<Stmt> elseBranch = parseElseIfChain();
 
         if (consume(TokenType::End, "Expect 'end' after if statement.").type != TokenType::End) {
             // Try to recover from missing 'end'
@@ -191,6 +183,56 @@ namespace Lua {
         }
 
         return std::make_unique<IfStmt>(std::move(condition), std::move(thenBranch), std::move(elseBranch));
+    }
+
+    UPtr<Stmt> Parser::parseElseIfChain() {
+        // Handle elseif chains by converting them to nested if-else statements
+        if (match(TokenType::Elseif)) {
+            // Parse elseif condition
+            UPtr<Expr> elseifCondition;
+            try {
+                elseifCondition = expression();
+            } catch (...) {
+                error(ErrorType::InvalidExpression, "Invalid condition in elseif statement");
+                synchronize();
+                elseifCondition = std::make_unique<LiteralExpr>(Value(false));
+            }
+
+            if (consume(TokenType::Then, "Expect 'then' after elseif condition.").type != TokenType::Then) {
+                auto missingThenError = ParseError::missingToken(SourceLocation::fromToken(current), "then");
+                missingThenError.addSuggestion(FixType::Insert, SourceLocation::fromToken(current),
+                    "Insert 'then' keyword", "then");
+                errorReporter_.addError(std::move(missingThenError));
+            }
+
+            // Parse elseif then branch
+            UPtr<Stmt> elseifThenBranch;
+            try {
+                elseifThenBranch = blockStatement();
+            } catch (...) {
+                error(ErrorType::InvalidStatement, "Invalid then block in elseif statement");
+                synchronize();
+                elseifThenBranch = std::make_unique<BlockStmt>(Vec<UPtr<Stmt>>());
+            }
+
+            // Recursively parse remaining elseif/else chain
+            UPtr<Stmt> nestedElseBranch = parseElseIfChain();
+
+            // Create nested if statement for this elseif
+            return std::make_unique<IfStmt>(std::move(elseifCondition), std::move(elseifThenBranch), std::move(nestedElseBranch));
+        } else if (match(TokenType::Else)) {
+            // Handle final else clause
+            try {
+                return blockStatement();
+            } catch (...) {
+                error(ErrorType::InvalidStatement, "Invalid else block in if statement");
+                synchronize();
+                return std::make_unique<BlockStmt>(Vec<UPtr<Stmt>>());
+            }
+        }
+
+        // No elseif or else clause
+        return nullptr;
     }
 
     UPtr<Stmt> Parser::whileStatement() {
@@ -235,7 +277,7 @@ namespace Lua {
     UPtr<Stmt> Parser::blockStatement() {
         Vec<UPtr<Stmt>> statements;
 
-        while (!check(TokenType::End) && !check(TokenType::Else) && !check(TokenType::Eof)) {
+        while (!check(TokenType::End) && !check(TokenType::Else) && !check(TokenType::Elseif) && !check(TokenType::Eof)) {
             statements.push_back(statement());
         }
 

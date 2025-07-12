@@ -132,8 +132,8 @@ namespace Lua {
         
         switch (expr->getOperator()) {
             case TokenType::Minus:
-                // Use basic unary minus, metamethods will be handled at runtime if needed
-                compiler->emitInstruction(Instruction::createUNM(resultReg, operandReg));
+                // Use metamethod-aware unary minus for full Lua 5.1 compatibility
+                compiler->emitInstruction(Instruction::createUNM_MM(resultReg, operandReg));
                 break;
             case TokenType::Not:
                 compiler->emitInstruction(Instruction::createNOT(resultReg, operandReg));
@@ -253,13 +253,13 @@ namespace Lua {
             }
         }
 
-        // 步骤5：发出CALL指令
-        // CALL a b c: 函数在a，参数在a+1..a+nargs，结果在a
+        // 步骤5：发出CALL_MM指令（支持__call元方法）
+        // CALL_MM a b c: 函数在a，参数在a+1..a+nargs，结果在a
         int callA = base;
         int callB = nargs + 1;  // 包括函数本身
         int callC = 2;          // 期望1个返回值
 
-        compiler->emitInstruction(Instruction::createCALL(callA, callB, callC));
+        compiler->emitInstruction(Instruction::createCALL_MM(callA, callB, callC));
 
         // 步骤6：返回结果寄存器（函数调用后结果在base）
 
@@ -394,22 +394,22 @@ namespace Lua {
     }
     
     void ExpressionCompiler::compileArithmeticOp(TokenType op, int resultReg, int leftReg, int rightReg) {
-        // Use basic arithmetic instructions, metamethods will be handled at runtime if needed
+        // Use metamethod-aware arithmetic instructions for full Lua 5.1 compatibility
         switch (op) {
             case TokenType::Plus:
-                compiler->emitInstruction(Instruction::createADD(resultReg, leftReg, rightReg));
+                compiler->emitInstruction(Instruction::createADD_MM(resultReg, leftReg, rightReg));
                 break;
             case TokenType::Minus:
-                compiler->emitInstruction(Instruction::createSUB(resultReg, leftReg, rightReg));
+                compiler->emitInstruction(Instruction::createSUB_MM(resultReg, leftReg, rightReg));
                 break;
             case TokenType::Star:
-                compiler->emitInstruction(Instruction::createMUL(resultReg, leftReg, rightReg));
+                compiler->emitInstruction(Instruction::createMUL_MM(resultReg, leftReg, rightReg));
                 break;
             case TokenType::Slash:
-                compiler->emitInstruction(Instruction::createDIV(resultReg, leftReg, rightReg));
+                compiler->emitInstruction(Instruction::createDIV_MM(resultReg, leftReg, rightReg));
                 break;
             case TokenType::Percent:
-                compiler->emitInstruction(Instruction::createMOD(resultReg, leftReg, rightReg));
+                compiler->emitInstruction(Instruction::createMOD_MM(resultReg, leftReg, rightReg));
                 break;
             case TokenType::Caret:
                 compiler->emitInstruction(Instruction::createPOW(resultReg, leftReg, rightReg));
@@ -420,26 +420,26 @@ namespace Lua {
     }
     
     void ExpressionCompiler::compileComparisonOp(TokenType op, int resultReg, int leftReg, int rightReg) {
-        // Use basic comparison instructions, metamethods will be handled at runtime if needed
+        // Use metamethod-aware comparison instructions for full Lua 5.1 compatibility
         switch (op) {
             case TokenType::Equal:
-                compiler->emitInstruction(Instruction::createEQ(resultReg, leftReg, rightReg));
+                compiler->emitInstruction(Instruction::createEQ_MM(resultReg, leftReg, rightReg));
                 break;
             case TokenType::NotEqual:
-                compiler->emitInstruction(Instruction::createEQ(resultReg, leftReg, rightReg));
+                compiler->emitInstruction(Instruction::createEQ_MM(resultReg, leftReg, rightReg));
                 compiler->emitInstruction(Instruction::createNOT(resultReg, resultReg));
                 break;
             case TokenType::Less:
-                compiler->emitInstruction(Instruction::createLT(resultReg, leftReg, rightReg));
+                compiler->emitInstruction(Instruction::createLT_MM(resultReg, leftReg, rightReg));
                 break;
             case TokenType::LessEqual:
-                compiler->emitInstruction(Instruction::createLE(resultReg, leftReg, rightReg));
+                compiler->emitInstruction(Instruction::createLE_MM(resultReg, leftReg, rightReg));
                 break;
             case TokenType::Greater:
-                compiler->emitInstruction(Instruction::createLT(resultReg, rightReg, leftReg));
+                compiler->emitInstruction(Instruction::createLT_MM(resultReg, rightReg, leftReg));
                 break;
             case TokenType::GreaterEqual:
-                compiler->emitInstruction(Instruction::createLE(resultReg, rightReg, leftReg));
+                compiler->emitInstruction(Instruction::createLE_MM(resultReg, rightReg, leftReg));
                 break;
             default:
                 throw LuaException("Unknown comparison operator");

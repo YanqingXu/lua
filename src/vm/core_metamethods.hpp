@@ -137,6 +137,19 @@ namespace Lua {
          */
         static Value handleMetaMethodCall(State* state, const Value& handler, const Vec<Value>& args);
 
+        /**
+         * @brief Call a function directly without metamethod recursion
+         *
+         * This function provides direct function calling to avoid infinite
+         * recursion when handling __call metamethods.
+         *
+         * @param state The Lua state
+         * @param func The function to call
+         * @param args Arguments for the function
+         * @return Result of the function call
+         */
+        static Value callFunctionDirect(State* state, const Value& func, const Vec<Value>& args);
+
     private:
         // === Internal Helper Functions ===
 
