@@ -46,6 +46,7 @@ namespace Lua {
         // Function call / return
         CALL,
         RETURN,
+        VARARG,         // Vararg operation (...)
 
         // Closures & misc
         CLOSURE,

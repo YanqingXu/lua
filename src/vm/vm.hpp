@@ -18,7 +18,12 @@ namespace Lua {
 
         // Call depth tracking for nesting boundary checks
         usize callDepth;
-        
+
+        // Vararg support
+        Vec<Value> varargs;  // Store varargs for current function
+        int varargsCount;    // Number of varargs available
+        int actualArgsCount; // Actual number of arguments passed to function
+
         // Upvalue management
         GCRef<Upvalue> openUpvalues; // Linked list of open upvalues
         Vec<GCRef<Upvalue>> callFrameUpvalues; // Upvalues for current call frame
@@ -28,6 +33,9 @@ namespace Lua {
         
         // Execute function
         Value execute(GCRef<Function> function);
+
+        // Set actual argument count for vararg support
+        void setActualArgsCount(int count) { actualArgsCount = count; }
         
         // GC integration
         void markReferences(GarbageCollector* gc);
@@ -96,6 +104,7 @@ namespace Lua {
         void op_test(Instruction i);
         void op_call(Instruction i);
         void op_return(Instruction i);
+        void op_vararg(Instruction i);
         void op_closure(Instruction i);
         void op_getupval(Instruction i);
         void op_setupval(Instruction i);

@@ -201,6 +201,10 @@ namespace Lua {
             return std::make_unique<VariableExpr>(previous.lexeme);
         }
 
+        if (match(TokenType::DotDotDot)) {
+            return std::make_unique<VarargExpr>();
+        }
+
         if (match(TokenType::LeftParen)) {
             UPtr<Expr> expr;
             try {

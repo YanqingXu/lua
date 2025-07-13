@@ -37,6 +37,8 @@ namespace Lua {
                 return compileMemberAccess(static_cast<const MemberExpr*>(expr));
             case ExprType::Function:
                 return compileFunctionExpr(static_cast<const FunctionExpr*>(expr));
+            case ExprType::Vararg:
+                return compileVararg(static_cast<const VarargExpr*>(expr));
             default:
                 throw LuaException("Unknown expression type in compilation");
         }
@@ -219,7 +221,14 @@ namespace Lua {
         const auto& args = expr->getArguments();
         int nargs = static_cast<int>(args.size());
 
-
+        // 检查最后一个参数是否是可变参数表达式
+        bool hasVarargExpansion = false;
+        if (nargs > 0) {
+            const auto* lastArg = args[nargs - 1].get();
+            if (dynamic_cast<const VarargExpr*>(lastArg)) {
+                hasVarargExpansion = true;
+            }
+        }
 
         // 新策略：分配连续寄存器，然后直接编译到目标位置
         // 这样避免寄存器冲突
@@ -238,32 +247,42 @@ namespace Lua {
         // 步骤2：编译函数到临时寄存器，然后移动
         int funcReg = compileExpr(expr->getCallee());
 
-
         if (funcReg != base) {
             compiler->emitInstruction(Instruction::createMOVE(base, funcReg));
-
         }
 
         // 步骤3：编译每个参数到临时寄存器，然后移动
         for (int i = 0; i < nargs; i++) {
-            int argReg = compileExpr(args[i].get());
+            const auto* arg = args[i].get();
 
-            if (argReg != argTargets[i]) {
-                compiler->emitInstruction(Instruction::createMOVE(argTargets[i], argReg));
+            // 特殊处理可变参数表达式
+            if (dynamic_cast<const VarargExpr*>(arg)) {
+                // 如果是最后一个参数且是可变参数，展开所有可变参数
+                if (i == nargs - 1 && hasVarargExpansion) {
+                    // 生成VARARG指令，B=0表示获取所有可变参数
+                    compiler->emitInstruction(Instruction::createVARARG(argTargets[i], 0));
+                } else {
+                    // 否则只获取第一个可变参数
+                    compiler->emitInstruction(Instruction::createVARARG(argTargets[i], 2));
+                }
+            } else {
+                // 普通参数
+                int argReg = compileExpr(arg);
+                if (argReg != argTargets[i]) {
+                    compiler->emitInstruction(Instruction::createMOVE(argTargets[i], argReg));
+                }
             }
         }
 
         // 步骤5：发出CALL_MM指令（支持__call元方法）
         // CALL_MM a b c: 函数在a，参数在a+1..a+nargs，结果在a
         int callA = base;
-        int callB = nargs + 1;  // 包括函数本身
+        int callB = hasVarargExpansion ? 0 : (nargs + 1);  // 如果有可变参数展开，B=0表示使用栈顶
         int callC = 2;          // 期望1个返回值
 
         compiler->emitInstruction(Instruction::createCALL_MM(callA, callB, callC));
 
         // 步骤6：返回结果寄存器（函数调用后结果在base）
-
-
         return base;
     }
     
@@ -752,7 +771,25 @@ namespace Lua {
         
         // Exit function scope
         compiler->exitFunctionScope();
-        
+
+        return reg;
+    }
+
+    int ExpressionCompiler::compileVararg(const VarargExpr* expr) {
+        if (!expr) {
+            throw LuaException("Null vararg expression in compilation");
+        }
+
+        // Generate VARARG instruction
+        // In Lua 5.1, VARARG A B means:
+        // - A: starting register to store varargs
+        // - B: number of varargs to retrieve (0 means all, 1 means none, 2 means 1, etc.)
+        int reg = compiler->allocReg();
+
+        // For a simple vararg expression like "local x = ...", we want the first vararg
+        // So we use B=2 (which means 1 vararg)
+        compiler->emitInstruction(Instruction::createVARARG(reg, 2));
+
         return reg;
     }
 }

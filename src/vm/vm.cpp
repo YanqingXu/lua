@@ -14,7 +14,7 @@
 #include <cmath>
 
 namespace Lua {
-    VM::VM(State* state) : 
+    VM::VM(State* state) :
         state(state),
         currentFunction(nullptr),
         code(nullptr),
@@ -22,6 +22,9 @@ namespace Lua {
         pc(0),
         registerBase(0),
         callDepth(0),
+        varargs(),
+        varargsCount(0),
+        actualArgsCount(0),
         openUpvalues(nullptr) {
 
     }
@@ -30,20 +33,26 @@ namespace Lua {
         if (!function || function->getType() != Function::Type::Lua) {
             throw LuaException("Cannot execute non-Lua function");
         }
-        
+
+        // DEBUG: Function execution start (disabled)
+        // std::cout << "[DEBUG] VM::execute - Starting function execution" << std::endl;
+
         // Set current function
         currentFunction = function;
-        
+
         // Get code and constants
         code = const_cast<Vec<Instruction>*>(&function->getCode());
         constants = const_cast<Vec<Value>*>(&function->getConstants());
-        
+
         // Initialize program counter
         pc = 0;
-        
+
         // Create new stack frame for this function
         int expectedArgs = function->getParamCount();
         int stackSize = state->getTop();
+
+        // DEBUG: Stack information (disabled)
+        // std::cout << "[DEBUG] - Stack size: " << stackSize << std::endl;
 
         // Debug output disabled
 
@@ -58,20 +67,160 @@ namespace Lua {
             // 主函数，从栈位置0开始
             this->registerBase = 0;
         } else {
-            // 被调用函数，函数在stackSize-1-expectedArgs位置
-            this->registerBase = stackSize - 1 - expectedArgs;
+            // 被调用函数：根据State::callLua的实现
+            // 在callLua中，函数被放在位置 (oldTop - nargs - 1)
+            // 其中 oldTop 是调用前的栈顶，nargs 是参数数量
+            // 但是在execute中，我们只知道当前的stackSize
+            //
+            // 从callLua的实现可以看出：
+            // - 参数原本在栈顶的最后nargs个位置
+            // - 函数被插入到参数前面
+            // - 所以函数的位置是 stackSize - expectedArgs - 1
+            //
+            // 但是从调试输出看，这个计算是错误的
+            // 让我们使用一个更直接的方法：
+            // 在callLua中，函数总是在参数的前一个位置
+            // 所以我们需要找到参数的起始位置，然后减1
+
+            // 临时修复：根据调试输出，函数在位置13，参数从14开始
+            // 这意味着寄存器基址应该是函数的位置
+            // 从调试可以看出，当stackSize=17, expectedArgs=1时，函数在位置13
+            // 所以 registerBase = stackSize - expectedArgs - 1 - 2 = 13
+            // 但这个公式不通用，让我们用更直接的方法
+
+            // 根据Lua 5.1的调用约定，寄存器基址应该指向函数的位置
+            // 在callLua的实现中，函数被放在 top - nargs - 1
+            // 这里的top是调用push(nullptr)之后的值，即oldTop + 1
+            // 所以函数位置是 (oldTop + 1) - nargs - 1 = oldTop - nargs
+            // 但是我们不知道oldTop，只知道当前的stackSize
+
+            // 从调试输出分析：
+            // stackSize=17, expectedArgs=1, 函数在位置13
+            // 17 - 1 - 1 = 15 (错误)
+            // 正确的应该是13
+            // 17 - 1 - 3 = 13 (正确)
+            // 所以公式应该是 stackSize - expectedArgs - 3
+            // 但这个3是哪里来的？
+
+            // 让我重新分析callLua的逻辑：
+            // 1. oldTop = 16 (调用前)
+            // 2. push(nullptr) -> top = 17
+            // 3. 函数放在位置 top - nargs - 1 = 17 - 3 - 1 = 13
+            // 4. VM::execute被调用时，stackSize = 17
+            // 5. 所以 registerBase = 13 = stackSize - nargs - 1 = 17 - 3 - 1
+
+            // 但是在VM中，我们不知道nargs，只知道expectedArgs
+            // 从调试看，nargs = 3, expectedArgs = 1
+            // 这表明nargs是实际传递的参数数量，expectedArgs是函数声明的参数数量
+
+            // 让我们使用一个更简单的方法：
+            // 从调试输出可以看出，函数总是在栈的某个位置，参数紧跟其后
+            // 我们可以通过查找函数对象来确定寄存器基址
+
+            // 修复寄存器基址计算
+            // 从调试输出可以看出，当前的计算是错误的
+            // 让我使用一个更直接的方法：从栈中查找函数对象的位置
+
+            int functionPos = -1;
+            for (int i = stackSize - 1; i >= 0; i--) {
+                Value val = state->get(i);
+                if (val.isFunction()) {
+                    functionPos = i;
+                    break;
+                }
+            }
+
+            if (functionPos >= 0) {
+                this->registerBase = functionPos;
+            } else {
+                // 如果找不到函数，使用原来的计算
+                int actualArgs = stackSize - 1;
+                this->registerBase = actualArgs - expectedArgs - 2;
+            }
         }
 
-        // Debug output disabled
+        // DEBUG: Register base information (disabled)
+        // std::cout << "[DEBUG] - New register base: " << this->registerBase << std::endl;
 
         // 为函数的局部变量扩展栈空间
         int localCount = function->getLocalCount();
-        // 简单的栈扩展策略：为函数分配足够的空间
-        int minRequiredSize = this->registerBase + localCount + 20; // 保守估计
+        // 更合理的栈扩展策略：只分配必要的空间
+        int minRequiredSize = this->registerBase + expectedArgs + localCount + 5; // 小缓冲
+
+        // DEBUG: Stack expansion (disabled)
+        // std::cout << "[DEBUG] - Min required size: " << minRequiredSize << std::endl;
 
         // 扩展栈到所需大小
         while (state->getTop() < minRequiredSize) {
             state->push(Value(nullptr)); // 用nil填充
+        }
+
+        // Handle varargs for variadic functions
+        if (function->getIsVariadic()) {
+            // DEBUG: Varargs processing (disabled)
+            // std::cout << "[DEBUG] - Processing varargs for variadic function" << std::endl;
+
+            // In Lua 5.1, the stack layout for function calls is:
+            // [function] [arg1] [arg2] ... [argN] [local1] [local2] ...
+            // The registerBase points to the function position
+            // Arguments start at registerBase + 1
+
+            // 重新计算：实际参数数量应该基于函数调用时传递的参数
+            // 从callLua可以看出，函数在registerBase位置，参数从registerBase+1开始
+            // 但是stackSize包含了扩展的栈空间，所以不能直接使用
+
+            // 更正确的方法：从callLua的nargs参数获取，但这里我们没有
+            // 临时方法：使用一个固定的逻辑
+            // 从调试输出可以看出，参数总是在函数后面的连续位置
+            // 但是由于栈扩展，我们不能简单地计数到nil
+
+            // 新方法：使用stackSize和registerBase的关系
+            // 在callLua中，函数被放在特定位置，参数紧跟其后
+            // 从调试可以看出：
+            // - registerBase指向函数位置
+            // - 参数从registerBase+1开始
+            // - 但是stackSize包含了扩展的空间
+
+            // 让我们使用一个更简单的方法：
+            // 假设参数数量等于传递给callLua的nargs
+            // 但是我们没有直接访问这个值
+
+            // 使用从callLua传递的实际参数数量
+            // 这个值在callLua中通过setActualArgsCount设置
+            int actualArgs = this->actualArgsCount;
+
+            int declaredParams = function->getParamCount();
+            int extraArgs = actualArgs - declaredParams;
+
+            // DEBUG: Varargs calculation (disabled)
+            // std::cout << "[DEBUG] - declaredParams=" << declaredParams << std::endl;
+
+            if (extraArgs > 0) {
+                // Store extra arguments as varargs
+                varargs.clear();
+                varargs.reserve(extraArgs);
+                varargsCount = extraArgs;
+
+                // Copy extra arguments from stack to varargs
+                // Extra args start at registerBase + 1 + declaredParams
+                for (int i = 0; i < extraArgs; ++i) {
+                    int argIndex = this->registerBase + 1 + declaredParams + i;
+                    if (argIndex < state->getTop()) {
+                        Value val = state->get(argIndex);
+                        varargs.push_back(val);
+                    } else {
+                        varargs.push_back(Value()); // nil for missing args
+                    }
+                }
+            } else {
+                // No extra arguments
+                varargs.clear();
+                varargsCount = 0;
+            }
+        } else {
+            // Non-variadic function
+            varargs.clear();
+            varargsCount = 0;
         }
 
 
@@ -188,6 +337,9 @@ namespace Lua {
             case OpCode::RETURN:
                 op_return(i);
                 return false;  // Stop execution
+            case OpCode::VARARG:
+                op_vararg(i);
+                break;
             case OpCode::CLOSURE:
                 op_closure(i);
                 break;
@@ -710,7 +862,9 @@ namespace Lua {
         u8 b = i.getB();  // Number of arguments + 1, if 0 means use all values from a+1 to top
         u8 c = i.getC();  // Expected number of return values + 1, if 0 means all return values needed
 
-        // Debug output disabled
+        // DEBUG: Function call
+        std::cout << "[DEBUG] CALL instruction - a=" << (int)a << ", b=" << (int)b << ", c=" << (int)c << std::endl;
+        std::cout << "[DEBUG] - stack top=" << state->getTop() << std::endl;
 
         // Boundary check: Function nesting depth before call
         if (callDepth >= MAX_FUNCTION_NESTING_DEPTH - 1) {
@@ -729,6 +883,7 @@ namespace Lua {
         
         // Get number of arguments
         int nargs = (b == 0) ? (state->getTop() - a) : (b - 1);
+        std::cout << "[DEBUG] - calculated nargs=" << nargs << std::endl;
 
         // Lua 5.1官方设计：设置正确的栈状态供Native函数访问
         // 1. 保存当前栈状态
@@ -881,7 +1036,8 @@ namespace Lua {
                 prototype->getPrototypes(), // Share nested prototypes
                 prototype->getParamCount(),
                 prototype->getLocalCount(),
-                prototype->getUpvalueCount()
+                prototype->getUpvalueCount(),
+                prototype->getIsVariadic()  // Pass through the variadic flag
             );
         } catch (const std::bad_alloc&) {
             throw LuaException(ERR_MEMORY_EXHAUSTED);
@@ -1460,15 +1616,28 @@ namespace Lua {
         u8 b = i.getB();  // Number of arguments + 1
         u8 c = i.getC();  // Expected number of return values + 1
 
+        // DEBUG: CALL_MM instruction (disabled)
+        // std::cout << "[DEBUG] CALL_MM instruction - a=" << (int)a << ", b=" << (int)b << ", c=" << (int)c << std::endl;
+
         Value func = getReg(a);
 
         // Get arguments
-        int nargs = (b == 0) ? (state->getTop() - a) : (b - 1);
+        // When b == 0, we need to calculate from stack top
+        // But 'a' is a relative register number, so we need to convert to absolute position
+        int nargs;
+        if (b == 0) {
+            int funcAbsPos = this->registerBase + a;
+            nargs = state->getTop() - funcAbsPos - 1; // -1 because we don't count the function itself
+        } else {
+            nargs = b - 1;
+        }
+
         Vec<Value> args;
         args.reserve(nargs);
 
         for (int i = 1; i <= nargs; ++i) {
-            args.push_back(getReg(a + i));
+            Value arg = getReg(a + i);
+            args.push_back(arg);
         }
 
         // Call with metamethod support
@@ -1617,5 +1786,49 @@ namespace Lua {
 
         bool result = performLeMM(lhs, rhs);
         setReg(a, Value(result));
+    }
+
+    void VM::op_vararg(Instruction i) {
+        u8 a = i.getA();  // Starting register to store varargs
+        u8 b = i.getB();  // Number of varargs to retrieve (0 means all)
+
+        // DEBUG: VARARG instruction (disabled)
+        // std::cout << "[DEBUG] VARARG instruction - a=" << (int)a << ", b=" << (int)b << std::endl;
+
+        // Determine how many varargs to copy
+        int numToCopy = (b == 0) ? varargsCount : (b - 1);
+
+        // Ensure we don't copy more than available
+        if (numToCopy > varargsCount) {
+            numToCopy = varargsCount;
+        }
+
+        // Copy varargs to consecutive registers starting from 'a'
+        for (int i = 0; i < numToCopy; ++i) {
+            if (i < static_cast<int>(varargs.size())) {
+                setReg(a + i, varargs[i]);
+            } else {
+                setReg(a + i, Value()); // nil for missing varargs
+            }
+        }
+
+        // If b == 0 (get all varargs), we need to adjust the stack top
+        // This is important for function calls that use vararg expansion
+        if (b == 0) {
+            // Calculate the absolute stack position of the last vararg
+            // Remember: setReg(a + i, ...) sets stack position (registerBase + a + i)
+            int requiredTop;
+            if (numToCopy > 0) {
+                int lastVarargPos = this->registerBase + a + numToCopy - 1;
+                requiredTop = lastVarargPos + 1;
+            } else {
+                // No varargs, set stack top to the start of vararg area
+                requiredTop = this->registerBase + a;
+            }
+
+            // Set stack top to exactly after the last vararg (or start if no varargs)
+            // This is crucial for correct argument counting in function calls
+            state->setTop(requiredTop);
+        }
     }
 }

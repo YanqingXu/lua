@@ -17,6 +17,7 @@ namespace Lua {
     class TableExpr;
     class IndexExpr;
     class FunctionExpr;
+    class VarargExpr;
     class ExprStmt;
     class BlockStmt;
     class LocalStmt;
@@ -39,6 +40,7 @@ namespace Lua {
         virtual R visitTableExpr(const TableExpr* expr) = 0;
         virtual R visitIndexExpr(const IndexExpr* expr) = 0;
         virtual R visitFunctionExpr(const FunctionExpr* expr) = 0;
+        virtual R visitVarargExpr(const VarargExpr* expr) = 0;
     };
 
     // Abstract visitor interface for statements
@@ -90,6 +92,8 @@ namespace Lua {
                     return this->visitIndexExpr(static_cast<const IndexExpr*>(expr));
                 case ExprType::Function:
                     return this->visitFunctionExpr(static_cast<const FunctionExpr*>(expr));
+                case ExprType::Vararg:
+                    return this->visitVarargExpr(static_cast<const VarargExpr*>(expr));
                 default:
                     throw std::runtime_error("Unknown expression type");
             }
@@ -175,7 +179,11 @@ namespace Lua {
         void visitFunctionExpr(const FunctionExpr* expr) override {
             visit(expr->getBody());
         }
-        
+
+        void visitVarargExpr(const VarargExpr* expr) override {
+            // Vararg expressions have no children to traverse
+        }
+
         // Statement visitors - default implementations traverse children
         void visitExprStmt(const ExprStmt* stmt) override {
             visit(stmt->getExpression());
@@ -293,7 +301,11 @@ namespace Lua {
             }
             return result;
         }
-        
+
+        Str visitVarargExpr(const VarargExpr* expr) override {
+            return "Vararg(...)";
+        }
+
         // Statement visitors
         Str visitExprStmt(const ExprStmt* stmt) override {
             return getIndent() + "ExprStmt(" + visit(stmt->getExpression()) + ")";

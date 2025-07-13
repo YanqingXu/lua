@@ -27,6 +27,7 @@ namespace Lua {
         int compileIndexAccess(const IndexExpr* expr);
         int compileMemberAccess(const MemberExpr* expr);
         int compileFunctionExpr(const FunctionExpr* expr);
+        int compileVararg(const VarargExpr* expr);
         
     private:
         // Helper methods for different operation types

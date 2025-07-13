@@ -15,7 +15,8 @@ namespace Lua {
         Table,      // Table construction
         Member,     // Member access (obj.field)
         Index,      // Index access (obj[key])
-        Function    // Function expression
+        Function,   // Function expression
+        Vararg      // Vararg expression (...)
     };
 
     // Statement types

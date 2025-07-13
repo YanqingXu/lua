@@ -147,4 +147,13 @@ namespace Lua {
         const Stmt* getBody() const { return body.get(); }
         bool getIsVariadic() const { return isVariadic; }
     };
+
+    // Vararg expression (...)
+    class VarargExpr : public Expr {
+    public:
+        explicit VarargExpr(const SourceLocation& location = SourceLocation())
+            : Expr(location) {}
+
+        ExprType getType() const override { return ExprType::Vararg; }
+    };
 }

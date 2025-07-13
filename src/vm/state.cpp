@@ -282,6 +282,9 @@ namespace Lua {
             // 保存当前栈状态
             int oldTop = top;
 
+            // DEBUG: callLua start (disabled)
+            // std::cout << "[DEBUG] State::callLua - nargs=" << nargs << ", oldTop=" << oldTop << std::endl;
+
             // Lua 5.1调用约定：
             // 参数已经在栈顶：[arg1] [arg2] [arg3] ...
             // 我们需要重新排列为：[function] [arg1] [arg2] [arg3] ...
@@ -302,6 +305,7 @@ namespace Lua {
 
             // 4. 创建VM实例并执行函数
             VM vm(this);
+            vm.setActualArgsCount(nargs); // 设置实际参数数量
             Value result = vm.execute(function);
 
             // 5. 恢复栈状态

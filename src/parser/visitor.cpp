@@ -53,7 +53,11 @@ namespace Lua {
         int visitFunctionExpr(const FunctionExpr* expr) override {
             return 1 + visit(expr->getBody());
         }
-        
+
+        int visitVarargExpr(const VarargExpr* expr) override {
+            return 1;
+        }
+
         // Statement visitors
         int visitExprStmt(const ExprStmt* stmt) override {
             return 1 + visit(stmt->getExpression());

@@ -192,6 +192,14 @@ namespace Lua {
             i.setB(b);
             return i;
         }
+
+        static Instruction createVARARG(u8 a, u8 b) {
+            Instruction i;
+            i.setOpCode(OpCode::VARARG);
+            i.setA(a);
+            i.setB(b);
+            return i;
+        }
         
         // Load nil
         static Instruction createLOADNIL(u8 a) {

@@ -298,32 +298,127 @@ Value BaseLib::rawget(State* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State pointer cannot be null");
     }
-    (void)nargs; // Not yet implemented
-    return Value();
+
+    if (nargs < 2) {
+        throw std::invalid_argument("rawget: expected at least 2 arguments (table, key)");
+    }
+
+    // Get arguments from stack (1-based Lua index to 0-based stack index)
+    int stackIdx = state->getTop() - nargs;
+    Value table = state->get(stackIdx);
+    Value key = state->get(stackIdx + 1);
+
+    // Check if first argument is a table
+    if (!table.isTable()) {
+        throw std::invalid_argument("rawget: first argument must be a table");
+    }
+
+    // Perform raw table access (without metamethods)
+    auto tablePtr = table.asTable();
+    return tablePtr->get(key);
 }
 
 Value BaseLib::rawset(State* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State pointer cannot be null");
     }
-    (void)nargs; // Not yet implemented
-    return Value();
+
+    if (nargs < 3) {
+        throw std::invalid_argument("rawset: expected at least 3 arguments (table, key, value)");
+    }
+
+    // Get arguments from stack (1-based Lua index to 0-based stack index)
+    int stackIdx = state->getTop() - nargs;
+    Value table = state->get(stackIdx);
+    Value key = state->get(stackIdx + 1);
+    Value value = state->get(stackIdx + 2);
+
+    // Check if first argument is a table
+    if (!table.isTable()) {
+        throw std::invalid_argument("rawset: first argument must be a table");
+    }
+
+    // Perform raw table assignment (without metamethods)
+    auto tablePtr = table.asTable();
+    tablePtr->set(key, value);
+
+    // Return the table (first argument)
+    return table;
 }
 
 Value BaseLib::rawlen(State* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State pointer cannot be null");
     }
-    (void)nargs; // Not yet implemented
-    return Value();
+
+    if (nargs < 1) {
+        throw std::invalid_argument("rawlen: expected at least 1 argument");
+    }
+
+    // Get argument from stack (1-based Lua index to 0-based stack index)
+    int stackIdx = state->getTop() - nargs;
+    Value obj = state->get(stackIdx);
+
+    // Check object type and return length
+    if (obj.isTable()) {
+        auto tablePtr = obj.asTable();
+        return Value(static_cast<LuaNumber>(tablePtr->length()));
+    } else if (obj.isString()) {
+        const Str& str = obj.asString();
+        return Value(static_cast<LuaNumber>(str.length()));
+    } else {
+        throw std::invalid_argument("rawlen: object must be a table or string");
+    }
 }
 
 Value BaseLib::rawequal(State* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State pointer cannot be null");
     }
-    (void)nargs; // Not yet implemented
-    return Value();
+
+    if (nargs < 2) {
+        throw std::invalid_argument("rawequal: expected at least 2 arguments");
+    }
+
+    // Get arguments from stack (1-based Lua index to 0-based stack index)
+    int stackIdx = state->getTop() - nargs;
+    Value v1 = state->get(stackIdx);
+    Value v2 = state->get(stackIdx + 1);
+
+    // Perform raw equality comparison (without metamethods)
+    // This is a direct value comparison without calling __eq metamethod
+    bool equal = (v1.type() == v2.type());
+
+    if (equal) {
+        switch (v1.type()) {
+            case ValueType::Nil:
+                equal = true;
+                break;
+            case ValueType::Boolean:
+                equal = (v1.asBoolean() == v2.asBoolean());
+                break;
+            case ValueType::Number:
+                equal = (v1.asNumber() == v2.asNumber());
+                break;
+            case ValueType::String:
+                equal = (v1.asString() == v2.asString());
+                break;
+            case ValueType::Table:
+                equal = (v1.asTable() == v2.asTable());
+                break;
+            case ValueType::Function:
+                equal = (v1.asFunction() == v2.asFunction());
+                break;
+            case ValueType::Userdata:
+                equal = (v1.asUserdata() == v2.asUserdata());
+                break;
+            default:
+                equal = false;
+                break;
+        }
+    }
+
+    return Value(equal);
 }
 
 // ===================================================================
@@ -356,8 +451,39 @@ Value BaseLib::select(State* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State pointer cannot be null");
     }
-    (void)nargs; // Not yet implemented
-    return Value();
+
+    if (nargs < 1) {
+        throw std::invalid_argument("select: expected at least 1 argument");
+    }
+
+    // Get the first argument (index or "#")
+    int stackIdx = state->getTop() - nargs;
+    Value indexVal = state->get(stackIdx);
+
+    // Handle "#" case - return number of remaining arguments
+    if (indexVal.isString()) {
+        const Str& str = indexVal.asString();
+        if (str == "#") {
+            return Value(static_cast<LuaNumber>(nargs - 1));
+        }
+    }
+
+    // Handle numeric index case
+    if (!indexVal.isNumber()) {
+        throw std::invalid_argument("select: first argument must be a number or '#'");
+    }
+
+    i32 index = static_cast<i32>(indexVal.asNumber());
+
+    // Lua uses 1-based indexing
+    if (index < 1 || index >= nargs) {
+        throw std::invalid_argument("select: index out of range");
+    }
+
+    // Return the value at the specified index
+    // index is 1-based, so we need to adjust for the stack
+    Value result = state->get(stackIdx + index);
+    return result;
 }
 
 Value BaseLib::unpack(State* state, i32 nargs) {
