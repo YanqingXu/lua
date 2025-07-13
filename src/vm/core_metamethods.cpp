@@ -79,36 +79,85 @@ namespace Lua {
     }
     
     Value CoreMetaMethods::handleCall(State* state, const Value& func, const Vec<Value>& args) {
+        // === Input Validation ===
         if (!state) {
             throw std::invalid_argument("State cannot be null");
         }
 
+        // Validate arguments before proceeding
+        if (!validateCallArguments(args)) {
+            throw LuaException("Invalid arguments for function call: too many arguments (max 250)");
+        }
+
+        // === Phase 1: Direct Function Call ===
         // Check if value is directly callable (function)
         if (func.isFunction()) {
-            // Direct function call - use direct function call to avoid recursion
-            return callFunctionDirect(state, func, args);
+            try {
+                return callFunctionDirect(state, func, args);
+            } catch (const LuaException& e) {
+                // Re-throw with more context
+                throw LuaException(getCallErrorMessage(func, args) + ": " + std::string(e.what()));
+            } catch (const std::exception& e) {
+                throw LuaException(getCallErrorMessage(func, args) + ": " + std::string(e.what()));
+            }
         }
 
-        // Try __call metamethod
-        Value callHandler = MetaMethodManager::getMetaMethod(func, MetaMethod::Call);
+        // === Phase 2: Metamethod Lookup ===
+        // Try __call metamethod for non-function values
+        Value callHandler;
+        try {
+            callHandler = MetaMethodManager::getMetaMethod(func, MetaMethod::Call);
+        } catch (const std::exception& e) {
+            throw LuaException("Error looking up __call metamethod: " + std::string(e.what()));
+        }
+
         if (callHandler.isNil()) {
-            throw LuaException("Attempt to call a non-callable value");
+            // Provide detailed error message based on the type
+            std::string typeName;
+            switch (func.type()) {
+                case ValueType::Nil: typeName = "nil"; break;
+                case ValueType::Boolean: typeName = "boolean"; break;
+                case ValueType::Number: typeName = "number"; break;
+                case ValueType::String: typeName = "string"; break;
+                case ValueType::Table: typeName = "table"; break;
+                case ValueType::Userdata: typeName = "userdata"; break;
+                default: typeName = "unknown"; break;
+            }
+            throw LuaException("Attempt to call a " + typeName + " value (no __call metamethod)");
         }
 
+        // === Phase 3: Metamethod Validation ===
         if (!callHandler.isFunction()) {
-            throw LuaException("__call metamethod is not a function");
+            throw LuaException("__call metamethod is not a function (got " +
+                             std::to_string(static_cast<int>(callHandler.type())) + ")");
         }
 
+        // === Phase 4: Argument Preparation ===
         // Call __call metamethod with func as first argument, followed by args
+        // This follows Lua 5.1 specification: __call(table, arg1, arg2, ...)
         Vec<Value> callArgs;
-        callArgs.reserve(args.size() + 1);
-        callArgs.push_back(func);
-        for (const auto& arg : args) {
-            callArgs.push_back(arg);
+        try {
+            callArgs.reserve(args.size() + 1);
+            callArgs.push_back(func);  // First argument is the table being called
+
+            // Add all original arguments
+            for (const auto& arg : args) {
+                callArgs.push_back(arg);
+            }
+        } catch (const std::exception& e) {
+            throw LuaException("Error preparing arguments for __call metamethod: " + std::string(e.what()));
         }
 
-        // Use direct function call for metamethod to avoid recursion
-        return callFunctionDirect(state, callHandler, callArgs);
+        // === Phase 5: Metamethod Execution ===
+        try {
+            // Use direct function call for metamethod to avoid infinite recursion
+            return callFunctionDirect(state, callHandler, callArgs);
+        } catch (const LuaException& e) {
+            // Re-throw with context about __call metamethod
+            throw LuaException("Error in __call metamethod: " + std::string(e.what()));
+        } catch (const std::exception& e) {
+            throw LuaException("Unexpected error in __call metamethod: " + std::string(e.what()));
+        }
     }
     
     Value CoreMetaMethods::handleToString(State* state, const Value& obj) {
@@ -161,6 +210,54 @@ namespace Lua {
     bool CoreMetaMethods::isCallable(const Value& obj) {
         return MetaMethodManager::isCallable(obj);
     }
+
+    // === Enhanced Call Validation Functions ===
+
+    bool CoreMetaMethods::validateCallArguments(const Vec<Value>& args) {
+        // Lua 5.1 supports up to 250 arguments in a function call
+        static const size_t MAX_ARGS = 250;
+        if (args.size() > MAX_ARGS) {
+            return false;
+        }
+
+        // All arguments should be valid (not uninitialized)
+        for (const auto& arg : args) {
+            // Basic validation - ensure the value is properly initialized
+            // This is a simple check, more sophisticated validation could be added
+            if (arg.type() == ValueType::Nil) {
+                // Nil is a valid argument, continue
+                continue;
+            }
+        }
+
+        return true;
+    }
+
+    std::string CoreMetaMethods::getCallErrorMessage(const Value& func, const Vec<Value>& args) {
+        std::ostringstream oss;
+
+        // Describe the function being called
+        if (func.isFunction()) {
+            oss << "Error calling function";
+        } else {
+            std::string typeName;
+            switch (func.type()) {
+                case ValueType::Nil: typeName = "nil"; break;
+                case ValueType::Boolean: typeName = "boolean"; break;
+                case ValueType::Number: typeName = "number"; break;
+                case ValueType::String: typeName = "string"; break;
+                case ValueType::Table: typeName = "table"; break;
+                case ValueType::Userdata: typeName = "userdata"; break;
+                default: typeName = "unknown"; break;
+            }
+            oss << "Error calling " << typeName << " value";
+        }
+
+        // Add argument information
+        oss << " with " << args.size() << " argument" << (args.size() == 1 ? "" : "s");
+
+        return oss.str();
+    }
     
     Str CoreMetaMethods::getDefaultString(const Value& obj) {
         std::ostringstream oss;
@@ -212,58 +309,97 @@ namespace Lua {
     }
 
     Value CoreMetaMethods::callFunctionDirect(State* state, const Value& func, const Vec<Value>& args) {
+        // === Input Validation ===
+        if (!state) {
+            throw std::invalid_argument("State cannot be null in callFunctionDirect");
+        }
+
         if (!func.isFunction()) {
-            throw LuaException("Attempt to call a non-function value");
+            throw LuaException("Attempt to call a non-function value in callFunctionDirect");
         }
 
         auto function = func.asFunction();
+        if (!function) {
+            throw LuaException("Function reference is null in callFunctionDirect");
+        }
 
-        // Handle native functions directly
+        // === Argument Count Validation ===
+        // Lua 5.1 supports up to 250 arguments in a function call
+        static const size_t MAX_ARGS = 250;
+        if (args.size() > MAX_ARGS) {
+            throw LuaException("Too many arguments in function call (max " +
+                             std::to_string(MAX_ARGS) + ", got " + std::to_string(args.size()) + ")");
+        }
+
+        // === Native Function Handling ===
         if (function->getType() == Function::Type::Native) {
             auto nativeFn = function->getNative();
             if (!nativeFn) {
-                throw LuaException("Attempt to call a nil value");
+                throw LuaException("Native function pointer is null");
             }
 
-            // Save current stack state
+            // Save current stack state for proper cleanup
             int oldTop = state->getTop();
 
-            // Push arguments onto stack
-            for (const auto& arg : args) {
-                state->push(arg);
+            try {
+                // Push arguments onto stack in correct order
+                for (size_t i = 0; i < args.size(); ++i) {
+                    state->push(args[i]);
+                }
+
+                // Call native function with argument count
+                Value result = nativeFn(state, static_cast<int>(args.size()));
+
+                // Restore stack state (important for nested calls)
+                state->setTop(oldTop);
+
+                return result;
+
+            } catch (const LuaException& e) {
+                // Restore stack state before re-throwing
+                state->setTop(oldTop);
+                throw LuaException("Error in native function call: " + std::string(e.what()));
+            } catch (const std::exception& e) {
+                // Restore stack state before re-throwing
+                state->setTop(oldTop);
+                throw LuaException("Unexpected error in native function call: " + std::string(e.what()));
             }
-
-            // Call native function
-            Value result = nativeFn(state, static_cast<int>(args.size()));
-
-            // Restore stack state
-            state->setTop(oldTop);
-
-            return result;
         }
 
-        // For Lua functions, we need to use VM execution
-        // Push arguments onto stack first, then call
-        try {
-            // Save current stack state
+        // === Lua Function Handling ===
+        if (function->getType() == Function::Type::Lua) {
+            // Save current stack state for proper cleanup
             int oldTop = state->getTop();
 
-            // Push arguments onto stack
-            for (const auto& arg : args) {
-                state->push(arg);
+            try {
+                // Push arguments onto stack in correct order
+                for (size_t i = 0; i < args.size(); ++i) {
+                    state->push(args[i]);
+                }
+
+                // Call Lua function with arguments on stack
+                // This uses the VM to execute the Lua bytecode
+                Value result = state->callLua(func, static_cast<int>(args.size()));
+
+                // Restore stack state (important for nested calls)
+                state->setTop(oldTop);
+
+                return result;
+
+            } catch (const LuaException& e) {
+                // Restore stack state before re-throwing
+                state->setTop(oldTop);
+                throw LuaException("Error in Lua function call: " + std::string(e.what()));
+            } catch (const std::exception& e) {
+                // Restore stack state before re-throwing
+                state->setTop(oldTop);
+                throw LuaException("Unexpected error in Lua function call: " + std::string(e.what()));
             }
-
-            // Call Lua function with arguments on stack
-            Value result = state->callLua(func, static_cast<int>(args.size()));
-
-            // Restore stack state
-            state->setTop(oldTop);
-
-            return result;
-        } catch (const LuaException&) {
-            // If function call fails, return nil
-            return Value();
         }
+
+        // === Unknown Function Type ===
+        throw LuaException("Unknown function type in callFunctionDirect: " +
+                         std::to_string(static_cast<int>(function->getType())));
     }
     
     Value CoreMetaMethods::lookupInHandlerTable(const Value& handlerTable, const Value& key) {

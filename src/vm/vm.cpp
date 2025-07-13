@@ -6,6 +6,7 @@
 #include "core_metamethods.hpp"
 #include "../common/opcodes.hpp"
 #include "../common/defines.hpp"
+#include "../compiler/register_manager.hpp"  // For MAX_REGISTERS constant
 #include "../gc/core/gc_ref.hpp"
 #include "../gc/core/garbage_collector.hpp"
 #include <iostream>
@@ -1513,10 +1514,27 @@ namespace Lua {
                 return lhs.asNumber() == rhs.asNumber();
             } else if (lhs.isString()) {
                 return lhs.asString() == rhs.asString();
+            } else if (lhs.isFunction()) {
+                // Functions are equal if they are the same object (address comparison)
+                return lhs == rhs;
+            } else if (lhs.isTable()) {
+                // Tables are equal if they are the same object (address comparison)
+                return lhs == rhs;
+            } else if (lhs.isUserdata()) {
+                // Userdata are equal if they are the same object (address comparison)
+                return lhs == rhs;
             }
-            // For tables, functions, userdata, try metamethod
+            // If we reach here, try metamethod for unknown types
         } else {
-            // Different types, only equal if both have same __eq metamethod
+            // Different types are never equal in Lua, except when both have the same __eq metamethod
+            // But for basic types (nil, boolean, number, string, function), no metamethod lookup is needed
+            if (lhs.isNil() || rhs.isNil() || lhs.isBoolean() || rhs.isBoolean() ||
+                lhs.isNumber() || rhs.isNumber() || lhs.isString() || rhs.isString() ||
+                lhs.isFunction() || rhs.isFunction()) {
+                return false; // Basic types with different types are never equal
+            }
+
+            // For tables and userdata, check if both have same __eq metamethod
             Value lhsHandler = MetaMethodManager::getMetaMethod(lhs, MetaMethod::Eq);
             Value rhsHandler = MetaMethodManager::getMetaMethod(rhs, MetaMethod::Eq);
 
@@ -1525,12 +1543,14 @@ namespace Lua {
             }
         }
 
-        // Try metamethod
+        // Try metamethod for tables, functions, userdata that have __eq metamethod
         try {
             Value result = MetaMethodManager::callBinaryMetaMethod(state, MetaMethod::Eq, lhs, rhs);
             return result.isTruthy();
         } catch (const LuaException&) {
-            return false; // No metamethod found
+            // No metamethod found, for same-type objects this should not happen
+            // since we already handled direct comparison above
+            return false;
         }
     }
 
@@ -1616,45 +1636,106 @@ namespace Lua {
         u8 b = i.getB();  // Number of arguments + 1
         u8 c = i.getC();  // Expected number of return values + 1
 
-        // DEBUG: CALL_MM instruction (disabled)
-        // std::cout << "[DEBUG] CALL_MM instruction - a=" << (int)a << ", b=" << (int)b << ", c=" << (int)c << std::endl;
+        // === Debug Information (Optional) ===
+        #ifdef DEBUG_VM_CALLS
+        std::cout << "[DEBUG] CALL_MM instruction - a=" << (int)a << ", b=" << (int)b << ", c=" << (int)c << std::endl;
+        std::cout << "[DEBUG] - registerBase=" << registerBase << ", stackTop=" << state->getTop() << std::endl;
+        #endif
+
+        // === Input Validation ===
+        if (a >= RegisterManager::MAX_REGISTERS) {
+            throw LuaException("Invalid function register in CALL_MM: " + std::to_string(a));
+        }
 
         Value func = getReg(a);
 
-        // Get arguments
-        // When b == 0, we need to calculate from stack top
-        // But 'a' is a relative register number, so we need to convert to absolute position
+        // === Argument Count Calculation ===
         int nargs;
         if (b == 0) {
+            // Variable number of arguments - calculate from stack top
+            // Convert relative register 'a' to absolute stack position
             int funcAbsPos = this->registerBase + a;
+
+            // Validate stack bounds
+            if (funcAbsPos >= state->getTop()) {
+                throw LuaException("Invalid stack position in CALL_MM with variable args");
+            }
+
             nargs = state->getTop() - funcAbsPos - 1; // -1 because we don't count the function itself
+
+            // Ensure non-negative argument count
+            if (nargs < 0) {
+                nargs = 0;
+            }
         } else {
             nargs = b - 1;
         }
 
-        Vec<Value> args;
-        args.reserve(nargs);
-
-        for (int i = 1; i <= nargs; ++i) {
-            Value arg = getReg(a + i);
-            args.push_back(arg);
+        // === Argument Validation ===
+        if (nargs < 0) {
+            throw LuaException("Invalid argument count in CALL_MM: " + std::to_string(nargs));
         }
 
-        // Call with metamethod support
-        Value result = callValueMM(func, args);
+        // Lua 5.1 supports up to 250 arguments
+        static const int MAX_CALL_ARGS = 250;
+        if (nargs > MAX_CALL_ARGS) {
+            throw LuaException("Too many arguments in CALL_MM (max " + std::to_string(MAX_CALL_ARGS) +
+                             ", got " + std::to_string(nargs) + ")");
+        }
 
-        // Handle return values
+        // === Argument Collection ===
+        Vec<Value> args;
+        try {
+            args.reserve(static_cast<size_t>(nargs));
+
+            for (int i = 1; i <= nargs; ++i) {
+                // Validate register bounds
+                if (a + i >= RegisterManager::MAX_REGISTERS) {
+                    throw LuaException("Argument register out of bounds in CALL_MM: " + std::to_string(a + i));
+                }
+
+                Value arg = getReg(a + i);
+                args.push_back(arg);
+            }
+        } catch (const std::exception& e) {
+            throw LuaException("Error collecting arguments in CALL_MM: " + std::string(e.what()));
+        }
+
+        // === Function Call with Metamethod Support ===
+        Value result;
+        try {
+            result = callValueMM(func, args);
+        } catch (const LuaException& e) {
+            throw LuaException("Error in CALL_MM function call: " + std::string(e.what()));
+        } catch (const std::exception& e) {
+            throw LuaException("Unexpected error in CALL_MM: " + std::string(e.what()));
+        }
+
+        // === Return Value Handling ===
         int expectedReturns = (c == 0) ? -1 : (c - 1);
+
         if (expectedReturns == 0) {
-            // No return values expected
-        } else {
-            // Store result in function register
+            // No return values expected - nothing to do
+        } else if (expectedReturns == 1) {
+            // Single return value - most common case
+            setReg(a, result);
+        } else if (expectedReturns > 1) {
+            // Multiple return values expected
+            // Store the actual result in the first slot
             setReg(a, result);
 
-            // Fill remaining expected slots with nil
+            // Fill remaining expected slots with nil (Lua 5.1 behavior)
             for (int i = 1; i < expectedReturns; ++i) {
+                if (a + i >= RegisterManager::MAX_REGISTERS) {
+                    throw LuaException("Return value register out of bounds in CALL_MM: " + std::to_string(a + i));
+                }
                 setReg(a + i, Value());
             }
+        } else {
+            // expectedReturns == -1: Variable number of return values
+            // For now, just store the single result
+            // TODO: Implement proper multiple return value support
+            setReg(a, result);
         }
     }
 

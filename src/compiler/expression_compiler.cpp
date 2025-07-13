@@ -396,18 +396,19 @@ namespace Lua {
         // Use RK encoding for constant index (Lua 5.1 standard with 8-bit operands)
         if (nameIdx <= MAXINDEXRK_8) {
             u8 keyParam = RK(static_cast<u8>(nameIdx));
-            std::cout << "Member access: nameIdx=" << nameIdx << ", keyParam=" << (int)keyParam << " (RK encoded)" << std::endl;
+            // Use RK encoding for constant index access
             compiler->emitInstruction(Instruction::createGETTABLE(resultReg, tableReg, keyParam));
         } else {
             // Fallback to register approach for large constant indices
-            std::cout << "Member access: nameIdx=" << nameIdx << " too large, using register" << std::endl;
+            // Fallback to register approach for large constant indices
             int keyReg = compiler->allocReg();
             compiler->emitInstruction(Instruction::createLOADK(keyReg, nameIdx));
             compiler->emitInstruction(Instruction::createGETTABLE(resultReg, tableReg, keyReg));
             compiler->freeReg(); // Free key register
         }
 
-        compiler->freeReg(); // Free table register
+        // Note: Don't free table register here to avoid register allocation conflicts
+        // The caller is responsible for register management
 
         return resultReg;
     }

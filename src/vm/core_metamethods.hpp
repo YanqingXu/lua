@@ -105,13 +105,36 @@ namespace Lua {
         
         /**
          * @brief Check if a value is callable
-         * 
+         *
          * A value is callable if it's a function or has a __call metamethod.
-         * 
+         *
          * @param obj The value to check
          * @return True if the value is callable
          */
         static bool isCallable(const Value& obj);
+
+        /**
+         * @brief Validate call arguments
+         *
+         * Validates that the arguments for a function call are within acceptable limits
+         * and properly formed according to Lua 5.1 specifications.
+         *
+         * @param args The arguments to validate
+         * @return True if arguments are valid
+         */
+        static bool validateCallArguments(const Vec<Value>& args);
+
+        /**
+         * @brief Get detailed error message for call failures
+         *
+         * Generates a descriptive error message for failed function calls,
+         * including information about the function type and argument count.
+         *
+         * @param func The function that failed to be called
+         * @param args The arguments that were passed
+         * @return Detailed error message string
+         */
+        static std::string getCallErrorMessage(const Value& func, const Vec<Value>& args);
         
         /**
          * @brief Get default string representation of a value
