@@ -78,6 +78,14 @@ namespace Lua {
             }
             return count;
         }
+
+        int visitMultiLocalStmt(const MultiLocalStmt* stmt) override {
+            int count = 1;
+            for (const auto& initializer : stmt->getInitializers()) {
+                count += visit(initializer.get());
+            }
+            return count;
+        }
         
         int visitAssignStmt(const AssignStmt* stmt) override {
             return 1 + visit(stmt->getTarget()) + visit(stmt->getValue());
@@ -122,7 +130,17 @@ namespace Lua {
             }
             ASTTraverser::visitLocalStmt(stmt);
         }
-        
+
+        void visitMultiLocalStmt(const MultiLocalStmt* stmt) override {
+            for (const Str& name : stmt->getNames()) {
+                if (name == targetName) {
+                    found = true;
+                    break;
+                }
+            }
+            ASTTraverser::visitMultiLocalStmt(stmt);
+        }
+
         bool isFound() const { return found; }
         
         void reset() { found = false; }

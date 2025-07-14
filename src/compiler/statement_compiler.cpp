@@ -25,6 +25,9 @@ namespace Lua {
             case StmtType::Local:
                 compileLocalStmt(static_cast<const LocalStmt*>(stmt));
                 break;
+            case StmtType::MultiLocal:
+                compileMultiLocalStmt(static_cast<const MultiLocalStmt*>(stmt));
+                break;
             case StmtType::Assign:
                 compileAssignmentStmt(static_cast<const AssignStmt*>(stmt));
                 break;
@@ -186,7 +189,77 @@ namespace Lua {
             compiler->emitInstruction(Instruction::createLOADNIL(varSlot));
         }
     }
-    
+
+    void StatementCompiler::compileMultiLocalStmt(const MultiLocalStmt* stmt) {
+        const Vec<Str>& names = stmt->getNames();
+        const Vec<UPtr<Expr>>& initializers = stmt->getInitializers();
+
+        // Declare all local variables first
+        Vec<int> varSlots;
+        for (const Str& name : names) {
+            int varSlot = compiler->defineLocal(name);
+            varSlots.push_back(varSlot);
+        }
+
+        if (initializers.empty()) {
+            // No initializers - initialize all variables with nil
+            for (int varSlot : varSlots) {
+                compiler->emitInstruction(Instruction::createLOADNIL(varSlot));
+            }
+        } else if (initializers.size() == 1) {
+            // Single initializer - could be a function call returning multiple values
+            const Expr* init = initializers[0].get();
+
+            if (init->getType() == ExprType::Call) {
+                // Function call - compile with multi-return support
+                const CallExpr* callExpr = static_cast<const CallExpr*>(init);
+
+                // Compile the function call with expected return count
+                int expectedReturns = static_cast<int>(names.size());
+                int startReg = varSlots[0]; // Start from first variable slot
+
+                // Compile function call expression with multi-return support
+                compiler->getExpressionCompiler()->compileCallWithMultiReturn(callExpr, startReg, expectedReturns);
+
+                // The call instruction will place results in consecutive registers starting from startReg
+                // If we get fewer returns than expected, remaining slots will be nil
+                // If we get more returns than expected, excess returns are discarded
+            } else {
+                // Single non-call expression - assign to first variable, rest get nil
+                int initReg = compiler->getExpressionCompiler()->compileExpr(init);
+
+                // Move to first variable slot if needed
+                if (initReg != varSlots[0]) {
+                    compiler->emitInstruction(Instruction::createMOVE(varSlots[0], initReg));
+                    compiler->freeReg();
+                }
+
+                // Initialize remaining variables with nil
+                for (size_t i = 1; i < varSlots.size(); ++i) {
+                    compiler->emitInstruction(Instruction::createLOADNIL(varSlots[i]));
+                }
+            }
+        } else {
+            // Multiple initializers - assign one-to-one, remaining variables get nil
+            size_t minSize = std::min(names.size(), initializers.size());
+
+            // Compile and assign each initializer
+            for (size_t i = 0; i < minSize; ++i) {
+                int initReg = compiler->getExpressionCompiler()->compileExpr(initializers[i].get());
+
+                if (initReg != varSlots[i]) {
+                    compiler->emitInstruction(Instruction::createMOVE(varSlots[i], initReg));
+                    compiler->freeReg();
+                }
+            }
+
+            // Initialize remaining variables with nil
+            for (size_t i = minSize; i < varSlots.size(); ++i) {
+                compiler->emitInstruction(Instruction::createLOADNIL(varSlots[i]));
+            }
+        }
+    }
+
     void StatementCompiler::compileAssignmentStmt(const AssignStmt* stmt) {
         const Expr* target = stmt->getTarget();
         const Expr* value = stmt->getValue();

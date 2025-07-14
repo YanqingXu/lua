@@ -20,6 +20,7 @@ namespace Lua {
         void compileExprStmt(const ExprStmt* stmt);
         void compileBlockStmt(const BlockStmt* stmt);
         void compileLocalStmt(const LocalStmt* stmt);
+        void compileMultiLocalStmt(const MultiLocalStmt* stmt);
         void compileAssignmentStmt(const AssignStmt* stmt);
         void compileIfStmt(const IfStmt* stmt);
         void compileWhileStmt(const WhileStmt* stmt);

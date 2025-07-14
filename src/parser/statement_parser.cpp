@@ -82,20 +82,22 @@ namespace Lua {
         }
 
         match(TokenType::Semicolon); // Optional semicolon
-        
-        // For now, create multiple LocalStmt for each variable
-        // In a more complete implementation, you'd want a MultiLocalStmt
-        if (names.size() == 1) {
+
+        // Determine whether to use MultiLocalStmt or LocalStmt
+        // Use MultiLocalStmt if:
+        // 1. Multiple variables are declared, OR
+        // 2. Single variable with single initializer that could return multiple values (function call)
+        bool useMultiLocal = (names.size() > 1) ||
+                            (names.size() == 1 && initializers.size() == 1 &&
+                             (initializers[0]->getType() == ExprType::Call));
+
+        if (useMultiLocal) {
+            // Use MultiLocalStmt for proper multi-return value handling
+            return std::make_unique<MultiLocalStmt>(std::move(names), std::move(initializers));
+        } else {
+            // Single variable with single or no initializer - use traditional LocalStmt
             UPtr<Expr> init = initializers.empty() ? nullptr : std::move(initializers[0]);
             return std::make_unique<LocalStmt>(names[0], std::move(init));
-        } else {
-            // For multiple variables, create a block with multiple LocalStmt
-            Vec<UPtr<Stmt>> statements;
-            for (size_t i = 0; i < names.size(); ++i) {
-                UPtr<Expr> init = (i < initializers.size()) ? std::move(initializers[i]) : nullptr;
-                statements.push_back(std::make_unique<LocalStmt>(names[i], std::move(init)));
-            }
-            return std::make_unique<BlockStmt>(std::move(statements));
         }
     }
 

@@ -123,6 +123,9 @@ namespace Lua {
         // Analyze local variable declaration statements
         void analyzeLocalStmt(const LocalStmt* localStmt);
 
+        // Analyze multi-local variable declaration statements
+        void analyzeMultiLocalStmt(const MultiLocalStmt* multiLocalStmt);
+
         // Analyze assignment statements
         void analyzeAssignStmt(const AssignStmt* assignStmt);
 

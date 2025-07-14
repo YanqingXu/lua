@@ -355,7 +355,50 @@ namespace Lua {
         // 步骤6：返回结果寄存器（函数调用后结果在base）
         return base;
     }
-    
+
+    void ExpressionCompiler::compileCallWithMultiReturn(const CallExpr* expr, int startReg, int expectedReturns) {
+        // Similar to compileCallWithReturnCount but places results in specific registers
+        const auto& args = expr->getArguments();
+        int nargs = static_cast<int>(args.size());
+
+        // Check if last argument is vararg expansion
+        bool hasVarargExpansion = false;
+        if (nargs > 0) {
+            const auto* lastArg = args[nargs - 1].get();
+            if (dynamic_cast<const VarargExpr*>(lastArg)) {
+                hasVarargExpansion = true;
+            }
+        }
+
+        // Compile function expression to startReg
+        int funcReg = compiler->getExpressionCompiler()->compileExpr(expr->getCallee());
+        if (funcReg != startReg) {
+            compiler->emitInstruction(Instruction::createMOVE(startReg, funcReg));
+            compiler->freeReg();
+        }
+
+        // Compile arguments to consecutive registers starting from startReg + 1
+        for (int i = 0; i < nargs; ++i) {
+            int argReg = compiler->getExpressionCompiler()->compileExpr(args[i].get());
+            int targetReg = startReg + 1 + i;
+
+            if (argReg != targetReg) {
+                compiler->emitInstruction(Instruction::createMOVE(targetReg, argReg));
+                compiler->freeReg();
+            }
+        }
+
+        // Emit CALL_MM instruction with multi-return support
+        int callA = startReg;
+        int callB = hasVarargExpansion ? 0 : (nargs + 1);
+        int callC = (expectedReturns == -1) ? 0 : (expectedReturns + 1);
+
+        compiler->emitInstruction(Instruction::createCALL_MM(callA, callB, callC));
+
+        // Results will be placed in consecutive registers starting from startReg
+        // No need to return anything since we're placing results directly
+    }
+
     int ExpressionCompiler::compileTableConstructor(const TableExpr* expr) {
         int tableReg = compiler->allocReg();
         const auto& fields = expr->getFields();

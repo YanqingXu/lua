@@ -52,6 +52,7 @@ namespace Lua {
         virtual R visitExprStmt(const ExprStmt* stmt) = 0;
         virtual R visitBlockStmt(const BlockStmt* stmt) = 0;
         virtual R visitLocalStmt(const LocalStmt* stmt) = 0;
+        virtual R visitMultiLocalStmt(const MultiLocalStmt* stmt) = 0;
         virtual R visitAssignStmt(const AssignStmt* stmt) = 0;
         virtual R visitIfStmt(const IfStmt* stmt) = 0;
         virtual R visitReturnStmt(const ReturnStmt* stmt) = 0;
@@ -116,6 +117,8 @@ namespace Lua {
                     return this->visitBlockStmt(static_cast<const BlockStmt*>(stmt));
                 case StmtType::Local:
                     return this->visitLocalStmt(static_cast<const LocalStmt*>(stmt));
+                case StmtType::MultiLocal:
+                    return this->visitMultiLocalStmt(static_cast<const MultiLocalStmt*>(stmt));
                 case StmtType::Assign:
                     return this->visitAssignStmt(static_cast<const AssignStmt*>(stmt));
                 case StmtType::If:
@@ -198,6 +201,12 @@ namespace Lua {
         void visitLocalStmt(const LocalStmt* stmt) override {
             if (stmt->getInitializer()) {
                 visit(stmt->getInitializer());
+            }
+        }
+
+        void visitMultiLocalStmt(const MultiLocalStmt* stmt) override {
+            for (const auto& initializer : stmt->getInitializers()) {
+                visit(initializer.get());
             }
         }
         
@@ -326,6 +335,23 @@ namespace Lua {
             Str result = getIndent() + "Local(" + stmt->getName();
             if (stmt->getInitializer()) {
                 result += " = " + visit(stmt->getInitializer());
+            }
+            result += ")";
+            return result;
+        }
+
+        Str visitMultiLocalStmt(const MultiLocalStmt* stmt) override {
+            Str result = getIndent() + "MultiLocal(";
+            const auto& names = stmt->getNames();
+            for (size_t i = 0; i < names.size(); ++i) {
+                if (i > 0) result += ", ";
+                result += names[i];
+            }
+            result += " = ";
+            const auto& initializers = stmt->getInitializers();
+            for (size_t i = 0; i < initializers.size(); ++i) {
+                if (i > 0) result += ", ";
+                result += visit(initializers[i].get());
             }
             result += ")";
             return result;

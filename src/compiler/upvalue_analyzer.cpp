@@ -125,6 +125,9 @@ namespace Lua {
         case StmtType::Local:
             analyzeLocalStmt(static_cast<const LocalStmt*>(stmt));
             break;
+        case StmtType::MultiLocal:
+            analyzeMultiLocalStmt(static_cast<const MultiLocalStmt*>(stmt));
+            break;
         case StmtType::Assign:
             analyzeAssignStmt(static_cast<const AssignStmt*>(stmt));
             break;
@@ -222,6 +225,18 @@ namespace Lua {
 
         // Then define local variable
         scopeManager_.defineLocal(localStmt->getName());
+    }
+
+    void UpvalueAnalyzer::analyzeMultiLocalStmt(const MultiLocalStmt* multiLocalStmt) {
+        // First analyze all initialization expressions (may reference other variables)
+        for (const auto& initializer : multiLocalStmt->getInitializers()) {
+            analyzeExpression(initializer.get());
+        }
+
+        // Then define all local variables
+        for (const Str& name : multiLocalStmt->getNames()) {
+            scopeManager_.defineLocal(name);
+        }
     }
 
     void UpvalueAnalyzer::analyzeAssignStmt(const AssignStmt* assignStmt) {

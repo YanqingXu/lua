@@ -24,6 +24,7 @@ namespace Lua {
         Expression, // Expression statement
         Block,      // Block statement
         Local,      // Local variable declaration
+        MultiLocal, // Multi-local variable declaration (local a, b, c = ...)
         Assign,     // Assignment statement
         If,         // If statement
         While,      // While loop

@@ -45,6 +45,21 @@ namespace Lua {
         const Expr* getInitializer() const { return initializer.get(); }
     };
 
+    // Multi-local variable declaration statement (local a, b, c = expr1, expr2, ...)
+    class MultiLocalStmt : public Stmt {
+    private:
+        Vec<Str> names;
+        Vec<UPtr<Expr>> initializers;
+
+    public:
+        MultiLocalStmt(Vec<Str> names, Vec<UPtr<Expr>> initializers, const SourceLocation& location = SourceLocation())
+            : Stmt(location), names(std::move(names)), initializers(std::move(initializers)) {}
+
+        StmtType getType() const override { return StmtType::MultiLocal; }
+        const Vec<Str>& getNames() const { return names; }
+        const Vec<UPtr<Expr>>& getInitializers() const { return initializers; }
+    };
+
     // Assignment statement (var = expr, obj.field = expr, obj[key] = expr)
     class AssignStmt : public Stmt {
     private:
