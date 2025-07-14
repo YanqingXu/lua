@@ -6,6 +6,7 @@
 #include "lib/io/io_lib.hpp"
 #include "lib/os/os_lib.hpp"
 #include "lib/debug/debug_lib.hpp"
+#include "lib/package/package_lib.hpp"
 #include "../../common/defines.hpp"
 #include <iostream>
 
@@ -27,6 +28,7 @@ void StandardLibrary::initializeAll(State* state) {
     initializeIO(state);
     initializeOS(state);
     initializeDebug(state);
+    initializePackage(state);
 }
 
 void StandardLibrary::initializeBase(State* state) {
@@ -76,6 +78,13 @@ void StandardLibrary::initializeDebug(State* state) {
         return;
     }
     initializeDebugLib(state);
+}
+
+void StandardLibrary::initializePackage(State* state) {
+    if (!state) {
+        return;
+    }
+    initializePackageLib(state);
 }
 
 } // namespace Lua

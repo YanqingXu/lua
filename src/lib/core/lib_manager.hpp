@@ -79,7 +79,13 @@ public:
      * @throws std::invalid_argument if state is null
      */
     static void initializeDebug(State* state);
-;
+
+    /**
+     * @brief Initialize package library only
+     * @param state Lua state to initialize package library for
+     * @throws std::invalid_argument if state is null
+     */
+    static void initializePackage(State* state);
 
 private:
     // Private constructor - this is a utility class with only static methods
