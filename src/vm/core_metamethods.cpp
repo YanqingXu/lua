@@ -166,27 +166,12 @@ namespace Lua {
             throw std::invalid_argument("State cannot be null");
         }
 
-        std::cout << "=== DEBUG: handleCallMultiple ===" << std::endl;
-        std::cout << "Function type: " << static_cast<int>(func.type()) << std::endl;
-        std::cout << "Number of arguments: " << args.size() << std::endl;
-        for (size_t i = 0; i < args.size(); ++i) {
-            std::cout << "  Arg " << i << ": type=" << static_cast<int>(args[i].type());
-            if (args[i].isNumber()) {
-                std::cout << " value=" << args[i].asNumber();
-            } else if (args[i].isString()) {
-                std::cout << " value=\"" << args[i].asString() << "\"";
-            } else if (args[i].isNil()) {
-                std::cout << " value=nil";
-            } else {
-                std::cout << " value=<" << static_cast<int>(args[i].type()) << ">";
-            }
-            std::cout << std::endl;
-        }
+
 
         // === Phase 1: Direct Function Call ===
         // Check if value is directly callable (function)
         if (func.isFunction()) {
-            std::cout << "Taking direct function call path" << std::endl;
+
             try {
                 return callFunctionDirectMultiple(state, func, args);
             } catch (const LuaException& e) {
@@ -199,7 +184,7 @@ namespace Lua {
 
         // === Phase 2: Metamethod Lookup ===
         // Try __call metamethod for non-function values
-        std::cout << "Looking up __call metamethod for non-function value" << std::endl;
+
         Value callHandler;
         try {
             callHandler = MetaMethodManager::getMetaMethod(func, MetaMethod::Call);
@@ -207,9 +192,7 @@ namespace Lua {
             throw LuaException("Error looking up __call metamethod: " + std::string(e.what()));
         }
 
-        std::cout << "__call handler type: " << static_cast<int>(callHandler.type()) << std::endl;
         if (callHandler.isNil()) {
-            std::cout << "__call metamethod not found" << std::endl;
             // Provide detailed error message based on the type
             std::string typeName;
             switch (func.type()) {
@@ -232,19 +215,19 @@ namespace Lua {
 
         // === Phase 4: Argument Preparation ===
         // Call __call metamethod with func as first argument, followed by args
-        std::cout << "Preparing arguments for __call metamethod" << std::endl;
+
         Vec<Value> callArgs;
         try {
             callArgs.reserve(args.size() + 1);
             callArgs.push_back(func);  // First argument is the table being called
-            std::cout << "  Added self (func) as first argument: type=" << static_cast<int>(func.type()) << std::endl;
+
 
             // Add all original arguments
             for (size_t i = 0; i < args.size(); ++i) {
                 callArgs.push_back(args[i]);
-                std::cout << "  Added arg " << i << ": type=" << static_cast<int>(args[i].type()) << std::endl;
+
             }
-            std::cout << "Total arguments for __call: " << callArgs.size() << std::endl;
+
         } catch (const std::exception& e) {
             throw LuaException("Error preparing arguments for __call metamethod: " + std::string(e.what()));
         }
@@ -504,9 +487,7 @@ namespace Lua {
     }
 
     CallResult CoreMetaMethods::callFunctionDirectMultiple(State* state, const Value& func, const Vec<Value>& args) {
-        std::cout << "=== DEBUG: callFunctionDirectMultiple ===" << std::endl;
-        std::cout << "Function type: " << static_cast<int>(func.type()) << std::endl;
-        std::cout << "Number of arguments: " << args.size() << std::endl;
+
 
         // === Input Validation ===
         if (!state) {
@@ -566,14 +547,14 @@ namespace Lua {
         // === Lua Function Handling ===
         if (function->getType() == Function::Type::Lua) {
             try {
-                std::cout << "SYSTEM FIX: Using safe Lua function call with VM context detection" << std::endl;
+
 
                 // SYSTEM FIX: Use the new safe call mechanism that detects VM context
                 // This implements proper Lua 5.1 style in-context function calls
                 // No more VM instance conflicts!
 
                 CallResult result = state->callSafeMultiple(func, args);
-                std::cout << "Safe Lua function call completed successfully" << std::endl;
+
                 return result;
 
             } catch (const LuaException& e) {

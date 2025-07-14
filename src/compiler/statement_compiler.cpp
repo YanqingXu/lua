@@ -410,7 +410,7 @@ namespace Lua {
         const Str& varName = stmt->getVariable();
         int varSlot = compiler->defineLocal(varName);
 
-        // Debug output disabled
+
 
         // Compile initial value
         int initReg = compiler->getExpressionCompiler()->compileExpr(stmt->getStart());
@@ -579,7 +579,7 @@ namespace Lua {
             // Single return value (backward compatibility)
             int reg = compiler->getExpressionCompiler()->compileExpr(values[0].get());
 
-            // Debug output disabled for production
+
 
             // Emit return instruction (B=2 means return 1 value)
             // A parameter should be reg because VM will read from register a+1
@@ -627,7 +627,7 @@ namespace Lua {
     }
     
     void StatementCompiler::compileFunctionStmt(const FunctionStmt* stmt) {
-        //std::cerr << "=== COMPILING FUNCTION: " << stmt->getName() << " ===" << std::endl;
+
 
         // Check function nesting depth before proceeding
         compiler->enterFunctionScope();
@@ -682,7 +682,7 @@ namespace Lua {
         // Create function prototype
         auto functionCode = std::make_shared<Vec<Instruction>>(*functionCompiler.getCode());
 
-        // Debug output disabled
+
 
         auto functionProto = Function::createLua(
             functionCode,
@@ -700,7 +700,7 @@ namespace Lua {
         int closureReg = compiler->allocReg();
         
         // Generate CLOSURE instruction (Lua 5.1官方设计：使用0基索引)
-        //std::cerr << "FUNCTION: generating CLOSURE instruction, reg=" << closureReg << " prototypeIndex=" << prototypeIndex << std::endl;
+
         compiler->emitInstruction(Instruction::createCLOSURE(closureReg, prototypeIndex));
 
         // Generate upvalue binding instructions

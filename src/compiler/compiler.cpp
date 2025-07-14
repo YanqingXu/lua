@@ -190,12 +190,7 @@ namespace Lua {
             // End global scope
             endScope();
 
-            // Debug output: dump bytecode
-            #if DEBUG_COMPILER
-            std::cout << "\n=== Compiled Function Bytecode ===" << std::endl;
-            utils.dumpBytecode(*code, constants);
-            std::cout << "=== End Bytecode ===" << std::endl;
-            #endif
+
 
             // Create function object with proper parameters
             // Main function has 0 parameters and includes all nested function prototypes

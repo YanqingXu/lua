@@ -317,16 +317,10 @@ namespace Lua {
                 // The op_return instruction pushes return values to the stack
                 // We need to collect all values that were pushed
 
-                std::cout << "=== DEBUG: VM::executeMultiple return collection ===" << std::endl;
-
                 // Count how many values are on the stack above the original level
                 int originalTop = stackSize;
                 int currentTop = state->getTop();
                 int numReturnValues = currentTop - originalTop;
-
-                std::cout << "Original stack top: " << originalTop << std::endl;
-                std::cout << "Current stack top: " << currentTop << std::endl;
-                std::cout << "Number of return values: " << numReturnValues << std::endl;
 
                 if (numReturnValues > 0) {
                     // Collect return values from stack (they are at the top)
@@ -334,15 +328,7 @@ namespace Lua {
                     for (int i = 0; i < numReturnValues; ++i) {
                         // Get values from bottom to top (first return value first)
                         Value val = state->get(originalTop + i);
-                        std::cout << "Return value " << i << ": type=" << static_cast<int>(val.type());
-                        if (val.isNumber()) {
-                            std::cout << " value=" << val.asNumber();
-                        } else if (val.isString()) {
-                            std::cout << " value=\"" << val.asString() << "\"";
-                        } else if (val.isNil()) {
-                            std::cout << " value=nil";
-                        }
-                        std::cout << std::endl;
+
                         returnValues.push_back(val);
                     }
 
@@ -350,7 +336,7 @@ namespace Lua {
                     state->setTop(originalTop);
                 } else {
                     // No return values, return nil
-                    std::cout << "No return values, returning nil" << std::endl;
+
                     returnValues.push_back(Value());
                 }
                 break;
@@ -1474,9 +1460,7 @@ namespace Lua {
     }
 
     CallResult VM::callFunctionInContext(const Value& func, const Vec<Value>& args) {
-        std::cout << "=== DEBUG: callFunctionInContext ===" << std::endl;
-        std::cout << "Function type: " << static_cast<int>(func.type()) << std::endl;
-        std::cout << "Number of arguments: " << args.size() << std::endl;
+
 
         if (!func.isFunction()) {
             throw LuaException("Attempt to call a non-function value in callFunctionInContext");
@@ -1521,7 +1505,7 @@ namespace Lua {
 
         // === Lua Function Handling ===
         if (function->getType() == Function::Type::Lua) {
-            std::cout << "Lua function call in current VM context - NOT creating new VM instance" << std::endl;
+
 
             // CRITICAL: Do not create new VM instance!
             // Instead, we need to set up a function call within the current VM context
@@ -1529,7 +1513,7 @@ namespace Lua {
 
             // For now, return a placeholder to avoid VM conflicts
             // TODO: Implement proper in-context Lua function calls
-            std::cout << "WARNING: Lua function multi-return not yet implemented in-context" << std::endl;
+
             return CallResult(Value()); // Return nil for now
         }
 
@@ -1538,9 +1522,7 @@ namespace Lua {
     }
 
     Value VM::executeInContext(GCRef<Function> function, const Vec<Value>& args) {
-        std::cout << "=== DEBUG: VM::executeInContext ===" << std::endl;
-        std::cout << "Function type: " << static_cast<int>(function->getType()) << std::endl;
-        std::cout << "Number of arguments: " << args.size() << std::endl;
+
 
         if (function->getType() == Function::Type::Native) {
             // Handle native functions directly
@@ -1574,16 +1556,16 @@ namespace Lua {
             // This is a simplified version to ensure system stability
             // TODO: Implement full Lua 5.1 style in-context execution
 
-            std::cout << "Simplified Lua function call in current VM context" << std::endl;
+
 
             // For now, simulate a simple function that returns a predictable value
             // This ensures the system doesn't crash while we perfect the implementation
             if (args.size() > 0 && args[0].isNumber()) {
                 double x = args[0].asNumber();
-                std::cout << "Returning computed value: " << (x * 2) << std::endl;
+
                 return Value(x * 2); // Simple computation
             } else {
-                std::cout << "Returning default value: 42" << std::endl;
+
                 return Value(42.0); // Default value
             }
         }
@@ -1885,9 +1867,7 @@ namespace Lua {
         u8 b = i.getB();  // Number of arguments + 1
         u8 c = i.getC();  // Expected number of return values + 1
 
-        std::cout << "=== DEBUG: CALL_MM Instruction ===" << std::endl;
-        std::cout << "Instruction: a=" << static_cast<int>(a) << " b=" << static_cast<int>(b) << " c=" << static_cast<int>(c) << std::endl;
-        std::cout << "RegisterBase: " << registerBase << std::endl;
+
 
         // === Input Validation ===
         if (a >= RegisterManager::MAX_REGISTERS) {
@@ -1895,14 +1875,7 @@ namespace Lua {
         }
 
         Value func = getReg(a);
-        std::cout << "Function value type: " << static_cast<int>(func.type()) << std::endl;
-        if (func.isTable()) {
-            std::cout << "Function is a table (good for __call)" << std::endl;
-        } else if (func.isFunction()) {
-            std::cout << "Function is a function (direct call)" << std::endl;
-        } else {
-            std::cout << "Function is neither table nor function!" << std::endl;
-        }
+
 
         // === Argument Count Calculation ===
         int nargs;
@@ -1942,7 +1915,7 @@ namespace Lua {
         Vec<Value> args;
         try {
             args.reserve(static_cast<size_t>(nargs));
-            std::cout << "Collecting " << nargs << " arguments:" << std::endl;
+
 
             for (int i = 1; i <= nargs; ++i) {
                 // Validate register bounds
@@ -1951,17 +1924,7 @@ namespace Lua {
                 }
 
                 Value arg = getReg(a + i);
-                std::cout << "  Arg " << i << " (reg " << (a + i) << "): type=" << static_cast<int>(arg.type());
-                if (arg.isNumber()) {
-                    std::cout << " value=" << arg.asNumber();
-                } else if (arg.isString()) {
-                    std::cout << " value=\"" << arg.asString() << "\"";
-                } else if (arg.isNil()) {
-                    std::cout << " value=nil";
-                } else {
-                    std::cout << " value=<" << static_cast<int>(arg.type()) << ">";
-                }
-                std::cout << std::endl;
+
                 args.push_back(arg);
             }
         } catch (const std::exception& e) {
@@ -1972,19 +1935,7 @@ namespace Lua {
         CallResult callResult;
         try {
             callResult = callValueMMMultiple(func, args);
-            std::cout << "=== DEBUG: CallResult received ===" << std::endl;
-            std::cout << "CallResult count: " << callResult.count << std::endl;
-            for (size_t i = 0; i < callResult.count; ++i) {
-                std::cout << "  Return value " << i << ": type=" << static_cast<int>(callResult.values[i].type());
-                if (callResult.values[i].isNumber()) {
-                    std::cout << " value=" << callResult.values[i].asNumber();
-                } else if (callResult.values[i].isString()) {
-                    std::cout << " value=\"" << callResult.values[i].asString() << "\"";
-                } else if (callResult.values[i].isNil()) {
-                    std::cout << " value=nil";
-                }
-                std::cout << std::endl;
-            }
+
         } catch (const LuaException& e) {
             throw LuaException("Error in CALL_MM function call: " + std::string(e.what()));
         } catch (const std::exception& e) {
@@ -1994,15 +1945,13 @@ namespace Lua {
         // === Return Value Handling ===
         int expectedReturns = (c == 0) ? -1 : (c - 1);
 
-        std::cout << "=== DEBUG: Return Value Handling ===" << std::endl;
-        std::cout << "c=" << static_cast<int>(c) << " expectedReturns=" << expectedReturns << std::endl;
-        std::cout << "CallResult has " << callResult.count << " values" << std::endl;
+
 
         // EMERGENCY FIX: Smart detection of multi-return value assignment
         // If we have multiple return values but compiler only expects 1,
         // check if the next few registers are uninitialized (likely for multi-assignment)
         if (expectedReturns == 1 && callResult.count > 1) {
-            std::cout << "SMART DETECTION: Checking for multi-return value assignment pattern" << std::endl;
+
 
             // Check if registers a+1, a+2, etc. are available for multi-assignment
             int maxPossibleReturns = std::min(static_cast<int>(callResult.count), 5); // Limit to 5 for safety
@@ -2018,21 +1967,19 @@ namespace Lua {
             }
 
             if (actualExpectedReturns > 1) {
-                std::cout << "SMART DETECTION: Adjusting expectedReturns from " << expectedReturns
-                          << " to " << actualExpectedReturns << std::endl;
+
                 expectedReturns = actualExpectedReturns;
             }
         }
 
         if (expectedReturns == 0) {
             // No return values expected - nothing to do
-            std::cout << "No return values expected, doing nothing" << std::endl;
+
         } else if (expectedReturns == 1) {
             // EMERGENCY FIX: Check if we actually have multiple return values
             // If so, store all of them even though compiler only expects 1
             if (callResult.count > 1) {
-                std::cout << "EMERGENCY FIX: Compiler expects 1 return value but we have " << callResult.count << std::endl;
-                std::cout << "Storing all " << callResult.count << " return values anyway" << std::endl;
+
 
                 // Store all return values, not just the first one
                 for (size_t i = 0; i < callResult.count; ++i) {
@@ -2040,16 +1987,16 @@ namespace Lua {
                         throw LuaException("Return value register out of bounds in CALL_MM: " + std::to_string(a + i));
                     }
                     setReg(static_cast<int>(a + i), callResult.values[i]);
-                    std::cout << "  Stored return value " << i << " in register " << (a + i) << std::endl;
+
                 }
             } else {
                 // Single return value - normal case
-                std::cout << "Single return value, storing in register " << a << std::endl;
+
                 setReg(a, callResult.getFirst());
             }
         } else if (expectedReturns > 1) {
             // Multiple return values expected
-            std::cout << "Multiple return values expected: " << expectedReturns << std::endl;
+
             // Store actual return values up to the expected count
             for (int i = 0; i < expectedReturns; ++i) {
                 if (a + i >= RegisterManager::MAX_REGISTERS) {
@@ -2059,23 +2006,23 @@ namespace Lua {
                 if (i < static_cast<int>(callResult.count)) {
                     // Store actual return value
                     setReg(a + i, callResult.values[i]);
-                    std::cout << "  Stored return value " << i << " in register " << (a + i) << std::endl;
+
                 } else {
                     // Fill remaining slots with nil (Lua 5.1 behavior)
                     setReg(a + i, Value());
-                    std::cout << "  Filled register " << (a + i) << " with nil" << std::endl;
+
                 }
             }
         } else {
             // expectedReturns == -1: Variable number of return values
-            std::cout << "Variable number of return values, storing all " << callResult.count << std::endl;
+
             // Store all return values
             for (size_t i = 0; i < callResult.count; ++i) {
                 if (a + i >= RegisterManager::MAX_REGISTERS) {
                     throw LuaException("Return value register out of bounds in CALL_MM: " + std::to_string(a + i));
                 }
                 setReg(static_cast<int>(a + i), callResult.values[i]);
-                std::cout << "  Stored return value " << i << " in register " << (a + i) << std::endl;
+
             }
         }
     }

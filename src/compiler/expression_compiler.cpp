@@ -16,7 +16,7 @@ namespace Lua {
             throw LuaException("Null expression in compilation");
         }
         
-        // std::cout << "compileExpr: Expression type = " << static_cast<int>(expr->getType()) << std::endl;
+
         
         switch (expr->getType()) {
             case ExprType::Literal:
@@ -153,7 +153,7 @@ namespace Lua {
     }
     
     int ExpressionCompiler::compileBinary(const BinaryExpr* expr) {
-        // std::cout << "compileBinary: Starting compilation" << std::endl;
+
         TokenType op = expr->getOperator();
         // std::cout << "compileBinary: Operator = " << static_cast<int>(op) << std::endl;
         
@@ -177,7 +177,7 @@ namespace Lua {
         int rightReg = compileExpr(expr->getRight());
         int resultReg = compiler->allocReg();
 
-        // Debug output disabled for production
+
         
         // Generate appropriate instruction based on operator
         switch (op) {
@@ -403,10 +403,7 @@ namespace Lua {
         int tableReg = compiler->allocReg();
         const auto& fields = expr->getFields();
 
-        // DEBUG: Print table compilation info
-        std::cout << "=== DEBUG: Table Constructor Compilation ===" << std::endl;
-        std::cout << "Table register: " << tableReg << std::endl;
-        std::cout << "Total fields: " << fields.size() << std::endl;
+
 
         // Count array and hash parts for table pre-sizing
         int arraySize = 0;
@@ -415,18 +412,15 @@ namespace Lua {
         for (const auto& field : fields) {
             if (field.key == nullptr) {
                 arraySize++; // Array-style field: {value}
-                std::cout << "  Array field found" << std::endl;
+
             } else {
                 hashSize++; // Hash-style field: {key = value} or {[expr] = value}
-                std::cout << "  Hash field found" << std::endl;
+
             }
         }
-        
-        std::cout << "Array size: " << arraySize << ", Hash size: " << hashSize << std::endl;
-        
+
         // Create new table with pre-sizing hints
         // Lua 5.1官方设计：使用0基索引，直接使用寄存器编号
-        std::cout << "Emitting NEWTABLE instruction" << std::endl;
         compiler->emitInstruction(Instruction::createNEWTABLE(tableReg,
             static_cast<u8>(std::min(arraySize, 255)),
             static_cast<u8>(std::min(hashSize, 255))));
@@ -436,53 +430,37 @@ namespace Lua {
         int fieldIndex = 0;
         
         for (const auto& field : fields) {
-            std::cout << "Processing field " << fieldIndex++ << std::endl;
-            
             if (field.key == nullptr) {
                 // Array-style field: table[arrayIndex] = value
-                std::cout << "  Array field: index=" << arrayIndex << std::endl;
                 int valueReg = compileExpr(field.value.get());
-                std::cout << "  Value compiled to register: " << valueReg << std::endl;
                 int indexReg = compiler->allocReg();
-                std::cout << "  Index register allocated: " << indexReg << std::endl;
 
                 // Load array index as constant
                 int indexConstant = compiler->addConstant(Value(static_cast<double>(arrayIndex)));
-                std::cout << "  Index constant added: " << indexConstant << std::endl;
                 compiler->emitInstruction(Instruction::createLOADK(indexReg, indexConstant));
-                std::cout << "  LOADK instruction emitted" << std::endl;
 
                 // Set table field: SETTABLE table[index] = value
-                std::cout << "  Emitting SETTABLE: table=" << tableReg << ", index=" << indexReg << ", value=" << valueReg << std::endl;
                 compiler->emitInstruction(Instruction::createSETTABLE(tableReg, indexReg, valueReg));
 
                 // Free registers in reverse order
                 compiler->freeReg(); // Free value register
                 compiler->freeReg(); // Free index register
-                std::cout << "  Registers freed" << std::endl;
                 arrayIndex++;
             } else {
                 // Hash-style field: table[key] = value
-                std::cout << "  Hash field processing" << std::endl;
                 int keyReg = compileExpr(field.key.get());
-                std::cout << "  Key compiled to register: " << keyReg << std::endl;
                 int valueReg = compileExpr(field.value.get());
-                std::cout << "  Value compiled to register: " << valueReg << std::endl;
 
                 // Set table field: SETTABLE table[key] = value
                 // Note: SETTABLE instruction format is SETTABLE A B C where:
                 // A = table register, B = key register, C = value register
-                std::cout << "  Emitting SETTABLE: table=" << tableReg << ", key=" << keyReg << ", value=" << valueReg << std::endl;
                 compiler->emitInstruction(Instruction::createSETTABLE(tableReg, keyReg, valueReg));
 
                 // DON'T free registers here - let them be reused by the next field
                 // The registers will be automatically managed by the compiler's scope
-                std::cout << "  Registers NOT freed (fixed)" << std::endl;
             }
         }
-        
-        std::cout << "Table constructor compilation completed, returning register: " << tableReg << std::endl;
-        std::cout << "===================================================" << std::endl;
+
         return tableReg;
     }
     

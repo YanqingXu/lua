@@ -113,7 +113,10 @@ Value PackageLib::require(State* state, i32 nargs) {
         throw LuaException("require: module name expected");
     }
 
-    Value modnameVal = state->get(1);
+    // Get first argument using correct stack indexing
+    // Arguments are at stack[top-nargs] to stack[top-1]
+    int stackIdx = state->getTop() - nargs + 0; // First argument (0-based)
+    Value modnameVal = state->get(stackIdx);
     if (!modnameVal.isString()) {
         throw LuaException("require: module name must be a string");
     }
@@ -247,8 +250,10 @@ Value PackageLib::searchpath(State* state, i32 nargs) {
         return Value(); // nil - insufficient arguments
     }
 
-    Value nameVal = state->get(1);
-    Value pathVal = state->get(2);
+    // Get arguments using correct stack indexing
+    int stackBase = state->getTop() - nargs;
+    Value nameVal = state->get(stackBase + 0);
+    Value pathVal = state->get(stackBase + 1);
 
     if (!nameVal.isString() || !pathVal.isString()) {
         return Value(); // nil - invalid arguments
@@ -262,14 +267,14 @@ Value PackageLib::searchpath(State* state, i32 nargs) {
     Str rep = "/";
 
     if (nargs >= 3) {
-        Value sepVal = state->get(3);
+        Value sepVal = state->get(stackBase + 2);
         if (sepVal.isString()) {
             sep = sepVal.toString();
         }
     }
 
     if (nargs >= 4) {
-        Value repVal = state->get(4);
+        Value repVal = state->get(stackBase + 3);
         if (repVal.isString()) {
             rep = repVal.toString();
         }
