@@ -1680,7 +1680,21 @@ namespace Lua {
     }
 
     Value VM::performConcatMM(const Value& lhs, const Value& rhs) {
-        // Try direct string/number concatenation first
+        // Check for __concat metamethod first (Lua 5.1 behavior)
+        // If either operand has a __concat metamethod, use it
+        Value lhsHandler = MetaMethodManager::getMetaMethod(lhs, MetaMethod::Concat);
+        Value rhsHandler = MetaMethodManager::getMetaMethod(rhs, MetaMethod::Concat);
+
+        if (!lhsHandler.isNil() || !rhsHandler.isNil()) {
+            // At least one operand has __concat metamethod
+            try {
+                return MetaMethodManager::callBinaryMetaMethod(state, MetaMethod::Concat, lhs, rhs);
+            } catch (const LuaException&) {
+                // Metamethod call failed, fall through to direct concatenation or error
+            }
+        }
+
+        // Try direct string/number concatenation
         if ((lhs.isString() || lhs.isNumber()) && (rhs.isString() || rhs.isNumber())) {
             // Convert to strings and concatenate
             Str lstr, rstr;
@@ -1710,13 +1724,8 @@ namespace Lua {
             return Value(lstr + rstr);
         }
 
-        // Try metamethod, but if not found, throw appropriate error
-        try {
-            return MetaMethodManager::callBinaryMetaMethod(state, MetaMethod::Concat, lhs, rhs);
-        } catch (const LuaException&) {
-            // If no metamethod found, throw concatenation-specific error
-            throw LuaException("attempt to concatenate non-string/number values");
-        }
+        // No metamethod and not string/number concatenation
+        throw LuaException("attempt to concatenate non-string/number values");
     }
 
     // === Comparison Operations with Metamethods ===
@@ -1737,10 +1746,38 @@ namespace Lua {
                 // Functions are equal if they are the same object (address comparison)
                 return lhs == rhs;
             } else if (lhs.isTable()) {
-                // Tables are equal if they are the same object (address comparison)
+                // For tables, check for __eq metamethod first
+                Value lhsHandler = MetaMethodManager::getMetaMethod(lhs, MetaMethod::Eq);
+                Value rhsHandler = MetaMethodManager::getMetaMethod(rhs, MetaMethod::Eq);
+
+                // If both have the same __eq metamethod, use it
+                if (!lhsHandler.isNil() && !rhsHandler.isNil() && (lhsHandler == rhsHandler)) {
+                    try {
+                        Value result = MetaMethodManager::callBinaryMetaMethod(state, MetaMethod::Eq, lhs, rhs);
+                        return result.isTruthy();
+                    } catch (const LuaException&) {
+                        // Metamethod call failed, fall back to address comparison
+                    }
+                }
+
+                // No metamethod or metamethod failed, use address comparison
                 return lhs == rhs;
             } else if (lhs.isUserdata()) {
-                // Userdata are equal if they are the same object (address comparison)
+                // For userdata, check for __eq metamethod first
+                Value lhsHandler = MetaMethodManager::getMetaMethod(lhs, MetaMethod::Eq);
+                Value rhsHandler = MetaMethodManager::getMetaMethod(rhs, MetaMethod::Eq);
+
+                // If both have the same __eq metamethod, use it
+                if (!lhsHandler.isNil() && !rhsHandler.isNil() && (lhsHandler == rhsHandler)) {
+                    try {
+                        Value result = MetaMethodManager::callBinaryMetaMethod(state, MetaMethod::Eq, lhs, rhs);
+                        return result.isTruthy();
+                    } catch (const LuaException&) {
+                        // Metamethod call failed, fall back to address comparison
+                    }
+                }
+
+                // No metamethod or metamethod failed, use address comparison
                 return lhs == rhs;
             }
             // If we reach here, try metamethod for unknown types
@@ -1762,15 +1799,8 @@ namespace Lua {
             }
         }
 
-        // Try metamethod for tables, functions, userdata that have __eq metamethod
-        try {
-            Value result = MetaMethodManager::callBinaryMetaMethod(state, MetaMethod::Eq, lhs, rhs);
-            return result.isTruthy();
-        } catch (const LuaException&) {
-            // No metamethod found, for same-type objects this should not happen
-            // since we already handled direct comparison above
-            return false;
-        }
+        // If we reach here, no metamethod was found or applicable
+        return false;
     }
 
     bool VM::performLtMM(const Value& lhs, const Value& rhs) {

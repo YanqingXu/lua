@@ -2,6 +2,7 @@
 #include "../../vm/table.hpp"
 #include "../../vm/userdata.hpp"
 #include "../../vm/metamethod_manager.hpp"
+#include "../../vm/core_metamethods.hpp"
 #include <iostream>
 #include <sstream>
 
@@ -117,9 +118,19 @@ Value BaseLib::tostring(State* state, i32 nargs) {
     // Arguments are at stack[top-nargs] to stack[top-1]
     int stackIdx = state->getTop() - nargs;
     Value val = state->get(stackIdx);
-    Str result = val.toString();
 
-    return Value(result);
+    // CRITICAL FIX: Use CoreMetaMethods::handleToString to support __tostring metamethod
+    // This enables custom objects to define their string representation
+    try {
+        Value result = CoreMetaMethods::handleToString(state, val);
+        return result;
+    } catch (const std::exception& e) {
+        // Fallback to default string representation if metamethod fails
+        std::cerr << "Error in __tostring metamethod: " << e.what() << std::endl;
+
+        Str result = val.toString();
+        return Value(result);
+    }
 }
 
 Value BaseLib::tonumber(State* state, i32 nargs) {

@@ -198,8 +198,8 @@ namespace Lua {
                 compileComparisonOp(op, resultReg, leftReg, rightReg);
                 break;
             case TokenType::DotDot:
-                // Use basic concatenation, metamethods will be handled at runtime if needed
-                compiler->emitInstruction(Instruction::createCONCAT(resultReg, leftReg, rightReg));
+                // Use metamethod-aware concatenation for full Lua 5.1 compatibility
+                compiler->emitInstruction(Instruction::createCONCAT_MM(resultReg, leftReg, rightReg));
 
                 // Special handling for concatenation: don't free operand registers
                 // to avoid register conflicts in complex concatenation expressions
