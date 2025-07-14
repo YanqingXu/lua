@@ -2,6 +2,7 @@
 #include "state.hpp"
 #include "table.hpp"
 #include "function.hpp"
+#include "call_result.hpp"
 #include "common/types.hpp"
 #include <sstream>
 
@@ -159,7 +160,107 @@ namespace Lua {
             throw LuaException("Unexpected error in __call metamethod: " + std::string(e.what()));
         }
     }
-    
+
+    CallResult CoreMetaMethods::handleCallMultiple(State* state, const Value& func, const Vec<Value>& args) {
+        if (!state) {
+            throw std::invalid_argument("State cannot be null");
+        }
+
+        std::cout << "=== DEBUG: handleCallMultiple ===" << std::endl;
+        std::cout << "Function type: " << static_cast<int>(func.type()) << std::endl;
+        std::cout << "Number of arguments: " << args.size() << std::endl;
+        for (size_t i = 0; i < args.size(); ++i) {
+            std::cout << "  Arg " << i << ": type=" << static_cast<int>(args[i].type());
+            if (args[i].isNumber()) {
+                std::cout << " value=" << args[i].asNumber();
+            } else if (args[i].isString()) {
+                std::cout << " value=\"" << args[i].asString() << "\"";
+            } else if (args[i].isNil()) {
+                std::cout << " value=nil";
+            } else {
+                std::cout << " value=<" << static_cast<int>(args[i].type()) << ">";
+            }
+            std::cout << std::endl;
+        }
+
+        // === Phase 1: Direct Function Call ===
+        // Check if value is directly callable (function)
+        if (func.isFunction()) {
+            std::cout << "Taking direct function call path" << std::endl;
+            try {
+                return callFunctionDirectMultiple(state, func, args);
+            } catch (const LuaException& e) {
+                // Re-throw with more context
+                throw LuaException(getCallErrorMessage(func, args) + ": " + std::string(e.what()));
+            } catch (const std::exception& e) {
+                throw LuaException(getCallErrorMessage(func, args) + ": " + std::string(e.what()));
+            }
+        }
+
+        // === Phase 2: Metamethod Lookup ===
+        // Try __call metamethod for non-function values
+        std::cout << "Looking up __call metamethod for non-function value" << std::endl;
+        Value callHandler;
+        try {
+            callHandler = MetaMethodManager::getMetaMethod(func, MetaMethod::Call);
+        } catch (const std::exception& e) {
+            throw LuaException("Error looking up __call metamethod: " + std::string(e.what()));
+        }
+
+        std::cout << "__call handler type: " << static_cast<int>(callHandler.type()) << std::endl;
+        if (callHandler.isNil()) {
+            std::cout << "__call metamethod not found" << std::endl;
+            // Provide detailed error message based on the type
+            std::string typeName;
+            switch (func.type()) {
+                case ValueType::Nil: typeName = "nil"; break;
+                case ValueType::Boolean: typeName = "boolean"; break;
+                case ValueType::Number: typeName = "number"; break;
+                case ValueType::String: typeName = "string"; break;
+                case ValueType::Table: typeName = "table"; break;
+                case ValueType::Userdata: typeName = "userdata"; break;
+                default: typeName = "unknown"; break;
+            }
+            throw LuaException("Attempt to call a " + typeName + " value (no __call metamethod)");
+        }
+
+        // === Phase 3: Metamethod Validation ===
+        if (!callHandler.isFunction()) {
+            throw LuaException("__call metamethod is not a function (got " +
+                             std::to_string(static_cast<int>(callHandler.type())) + ")");
+        }
+
+        // === Phase 4: Argument Preparation ===
+        // Call __call metamethod with func as first argument, followed by args
+        std::cout << "Preparing arguments for __call metamethod" << std::endl;
+        Vec<Value> callArgs;
+        try {
+            callArgs.reserve(args.size() + 1);
+            callArgs.push_back(func);  // First argument is the table being called
+            std::cout << "  Added self (func) as first argument: type=" << static_cast<int>(func.type()) << std::endl;
+
+            // Add all original arguments
+            for (size_t i = 0; i < args.size(); ++i) {
+                callArgs.push_back(args[i]);
+                std::cout << "  Added arg " << i << ": type=" << static_cast<int>(args[i].type()) << std::endl;
+            }
+            std::cout << "Total arguments for __call: " << callArgs.size() << std::endl;
+        } catch (const std::exception& e) {
+            throw LuaException("Error preparing arguments for __call metamethod: " + std::string(e.what()));
+        }
+
+        // === Phase 5: Metamethod Execution ===
+        try {
+            // Use direct function call for metamethod to avoid infinite recursion
+            return callFunctionDirectMultiple(state, callHandler, callArgs);
+        } catch (const LuaException& e) {
+            // Re-throw with context about __call metamethod
+            throw LuaException("Error in __call metamethod: " + std::string(e.what()));
+        } catch (const std::exception& e) {
+            throw LuaException("Unexpected error in __call metamethod: " + std::string(e.what()));
+        }
+    }
+
     Value CoreMetaMethods::handleToString(State* state, const Value& obj) {
         if (!state) {
             throw std::invalid_argument("State cannot be null");
@@ -399,6 +500,91 @@ namespace Lua {
 
         // === Unknown Function Type ===
         throw LuaException("Unknown function type in callFunctionDirect: " +
+                         std::to_string(static_cast<int>(function->getType())));
+    }
+
+    CallResult CoreMetaMethods::callFunctionDirectMultiple(State* state, const Value& func, const Vec<Value>& args) {
+        std::cout << "=== DEBUG: callFunctionDirectMultiple ===" << std::endl;
+        std::cout << "Function type: " << static_cast<int>(func.type()) << std::endl;
+        std::cout << "Number of arguments: " << args.size() << std::endl;
+
+        // === Input Validation ===
+        if (!state) {
+            throw std::invalid_argument("State cannot be null in callFunctionDirectMultiple");
+        }
+
+        if (!func.isFunction()) {
+            throw LuaException("Attempt to call a non-function value in callFunctionDirectMultiple");
+        }
+
+        auto function = func.asFunction();
+        if (!function) {
+            throw LuaException("Function reference is null in callFunctionDirectMultiple");
+        }
+
+        // === Argument Count Validation ===
+        static const size_t MAX_ARGS = 250;
+        if (args.size() > MAX_ARGS) {
+            throw LuaException("Too many arguments in function call (max " +
+                             std::to_string(MAX_ARGS) + ", got " + std::to_string(args.size()) + ")");
+        }
+
+        // === Native Function Handling ===
+        // Note: Native functions currently only support single return values
+        // TODO: Extend native function interface to support multiple return values
+        if (function->getType() == Function::Type::Native) {
+            auto nativeFn = function->getNative();
+            if (!nativeFn) {
+                throw LuaException("Native function pointer is null");
+            }
+
+            int oldTop = state->getTop();
+
+            try {
+                // Push arguments onto stack
+                for (size_t i = 0; i < args.size(); ++i) {
+                    state->push(args[i]);
+                }
+
+                // Call native function (single return value for now)
+                Value result = nativeFn(state, static_cast<int>(args.size()));
+
+                // Restore stack state
+                state->setTop(oldTop);
+
+                return CallResult(result);
+
+            } catch (const LuaException& e) {
+                state->setTop(oldTop);
+                throw LuaException("Error in native function call: " + std::string(e.what()));
+            } catch (const std::exception& e) {
+                state->setTop(oldTop);
+                throw LuaException("Unexpected error in native function call: " + std::string(e.what()));
+            }
+        }
+
+        // === Lua Function Handling ===
+        if (function->getType() == Function::Type::Lua) {
+            try {
+                std::cout << "SYSTEM FIX: Using safe Lua function call with VM context detection" << std::endl;
+
+                // SYSTEM FIX: Use the new safe call mechanism that detects VM context
+                // This implements proper Lua 5.1 style in-context function calls
+                // No more VM instance conflicts!
+
+                CallResult result = state->callSafeMultiple(func, args);
+                std::cout << "Safe Lua function call completed successfully" << std::endl;
+                return result;
+
+            } catch (const LuaException& e) {
+                throw LuaException("Error in Lua function call: " + std::string(e.what()));
+            } catch (const std::exception& e) {
+                throw LuaException("Unexpected error in Lua function call: " + std::string(e.what()));
+            }
+        }
+
+        // === Unknown Function Type ===
+        throw LuaException("Unknown function type in callFunctionDirectMultiple: " +
                          std::to_string(static_cast<int>(function->getType())));
     }
     

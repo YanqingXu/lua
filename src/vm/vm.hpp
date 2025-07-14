@@ -4,6 +4,7 @@
 #include "state.hpp"
 #include "function.hpp"
 #include "upvalue.hpp"
+#include "call_result.hpp"
 #include "../gc/core/gc_ref.hpp"
 
 namespace Lua {
@@ -31,8 +32,11 @@ namespace Lua {
     public:
         explicit VM(State* state);
         
-        // Execute function
+        // Execute function (single return value for backward compatibility)
         Value execute(GCRef<Function> function);
+
+        // Execute function with multiple return values support
+        CallResult executeMultiple(GCRef<Function> function);
 
         // Set actual argument count for vararg support
         void setActualArgsCount(int count) { actualArgsCount = count; }
@@ -49,6 +53,14 @@ namespace Lua {
         Value getTableValueMM(const Value& table, const Value& key);
         void setTableValueMM(const Value& table, const Value& key, const Value& value);
         Value callValueMM(const Value& func, const Vec<Value>& args);
+        CallResult callValueMMMultiple(const Value& func, const Vec<Value>& args);
+
+        // In-context function call (avoids creating new VM instance)
+        CallResult callFunctionInContext(const Value& func, const Vec<Value>& args);
+
+        // Execute function in current VM context (Lua 5.1 style)
+        Value executeInContext(GCRef<Function> function, const Vec<Value>& args);
+        CallResult executeInContextMultiple(GCRef<Function> function, const Vec<Value>& args);
 
         // Arithmetic operations with metamethods
         Value performAddMM(const Value& lhs, const Value& rhs);

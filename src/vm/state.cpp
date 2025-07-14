@@ -12,7 +12,7 @@
 #include <iostream>
 
 namespace Lua {
-    State::State() : GCObject(GCObjectType::State, sizeof(State)), top(0) {
+    State::State() : GCObject(GCObjectType::State, sizeof(State)), top(0), currentVM(nullptr) {
         // Initialize stack space
         stack.resize(LUAI_MAXSTACK);
     }
@@ -239,6 +239,122 @@ namespace Lua {
         }
     }
 
+    CallResult State::callMultiple(const Value& func, const Vec<Value>& args) {
+        std::cout << "=== DEBUG: State::callMultiple ===" << std::endl;
+        std::cout << "Function type: " << static_cast<int>(func.type()) << std::endl;
+        std::cout << "Number of arguments: " << args.size() << std::endl;
+
+        if (!func.isFunction()) {
+            throw LuaException("attempt to call a non-function value");
+        }
+
+        auto function = func.asFunction();
+
+        // Native function call - for now, native functions only return single values
+        // TODO: Extend native function interface to support multiple return values
+        if (function->getType() == Function::Type::Native) {
+            auto nativeFn = function->getNative();
+            if (!nativeFn) {
+                throw LuaException("attempt to call a nil value");
+            }
+
+            // Save current stack top
+            int oldTop = top;
+
+            // Push arguments onto stack
+            for (size_t i = 0; i < args.size(); ++i) {
+                push(args[i]);
+            }
+
+            // Call function (single return value for now)
+            Value result = nativeFn(this, static_cast<int>(args.size()));
+
+            // Restore stack top
+            setTop(oldTop);
+
+            return CallResult(result);
+        }
+
+        // For Lua function calls, use VM to execute with multiple return values
+        try {
+            // Save current state
+            int oldTop = top;
+
+            // Lua 5.1 calling convention:
+            // Stack layout: [function] [arg1] [arg2] [arg3] ...
+            // Register 0 = function, Register 1 = arg1, Register 2 = arg2, etc.
+
+            // Push function onto stack first
+            push(Value(function));
+
+            // Push arguments onto stack
+            for (const auto& arg : args) {
+                push(arg);
+            }
+
+            // Create VM instance and execute function with multiple return values
+            VM vm(this);
+            CallResult result = vm.executeMultiple(function);
+
+            // Restore stack top after VM execution
+            setTop(oldTop);
+
+            return result;
+        } catch (const LuaException& e) {
+            // Handle errors similar to single-value call
+            std::string errorMsg = e.what();
+
+            if (errorMsg.find("attempt to") != std::string::npos) {
+                throw; // Re-throw runtime errors
+            }
+
+            // Return nil for other errors
+            return CallResult(Value());
+        }
+    }
+
+    Value State::callSafe(const Value& func, const Vec<Value>& args) {
+        std::cout << "=== DEBUG: State::callSafe ===" << std::endl;
+        std::cout << "Current VM: " << (currentVM ? "exists" : "null") << std::endl;
+
+        if (currentVM) {
+            // We are in VM execution context - use in-context call
+            std::cout << "Using VM in-context call (avoiding new VM instance)" << std::endl;
+
+            if (!func.isFunction()) {
+                throw LuaException("attempt to call a non-function value");
+            }
+
+            auto function = func.asFunction();
+            return currentVM->executeInContext(function, args);
+        } else {
+            // We are in top-level context - safe to create new VM
+            std::cout << "Using traditional call (creating new VM instance)" << std::endl;
+            return call(func, args);
+        }
+    }
+
+    CallResult State::callSafeMultiple(const Value& func, const Vec<Value>& args) {
+        std::cout << "=== DEBUG: State::callSafeMultiple ===" << std::endl;
+        std::cout << "Current VM: " << (currentVM ? "exists" : "null") << std::endl;
+
+        if (currentVM) {
+            // We are in VM execution context - use in-context call
+            std::cout << "Using VM in-context multiple call (avoiding new VM instance)" << std::endl;
+
+            if (!func.isFunction()) {
+                throw LuaException("attempt to call a non-function value");
+            }
+
+            auto function = func.asFunction();
+            return currentVM->executeInContextMultiple(function, args);
+        } else {
+            // We are in top-level context - safe to create new VM
+            std::cout << "Using traditional multiple call (creating new VM instance)" << std::endl;
+            return callMultiple(func, args);
+        }
+    }
+
     // Native function call with arguments already on stack (Lua 5.1 design)
     Value State::callNative(const Value& func, int nargs) {
         if (!func.isFunction()) {
@@ -282,8 +398,7 @@ namespace Lua {
             // 保存当前栈状态
             int oldTop = top;
 
-            // DEBUG: callLua start (disabled)
-            // std::cout << "[DEBUG] State::callLua - nargs=" << nargs << ", oldTop=" << oldTop << std::endl;
+            
 
             // Lua 5.1调用约定：
             // 参数已经在栈顶：[arg1] [arg2] [arg3] ...

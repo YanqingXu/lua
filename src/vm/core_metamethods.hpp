@@ -3,6 +3,7 @@
 #include "../common/types.hpp"
 #include "value.hpp"
 #include "metamethod_manager.hpp"
+#include "call_result.hpp"
 
 namespace Lua {
     // Forward declarations
@@ -53,17 +54,29 @@ namespace Lua {
         
         /**
          * @brief Handle __call metamethod
-         * 
+         *
          * The __call metamethod allows a table to be called like a function.
          * The metamethod function is called with the table as the first argument,
          * followed by the arguments passed to the call.
-         * 
+         *
          * @param state The Lua state
          * @param func The table/object being called
          * @param args Arguments passed to the call
          * @return The result of the call
          */
         static Value handleCall(State* state, const Value& func, const Vec<Value>& args);
+
+        /**
+         * @brief Handle __call metamethod with multiple return values
+         *
+         * Similar to handleCall but supports multiple return values.
+         *
+         * @param state The Lua state
+         * @param func The table/object being called
+         * @param args Arguments passed to the call
+         * @return CallResult containing all return values
+         */
+        static CallResult handleCallMultiple(State* state, const Value& func, const Vec<Value>& args);
         
         /**
          * @brief Handle __tostring metamethod
@@ -172,6 +185,18 @@ namespace Lua {
          * @return Result of the function call
          */
         static Value callFunctionDirect(State* state, const Value& func, const Vec<Value>& args);
+
+        /**
+         * @brief Direct function call with multiple return values support
+         *
+         * Similar to callFunctionDirect but supports multiple return values.
+         *
+         * @param state The Lua state
+         * @param func The function to call
+         * @param args Arguments for the function
+         * @return CallResult containing all return values
+         */
+        static CallResult callFunctionDirectMultiple(State* state, const Value& func, const Vec<Value>& args);
 
     private:
         // === Internal Helper Functions ===

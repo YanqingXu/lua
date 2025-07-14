@@ -23,6 +23,7 @@ namespace Lua {
         int compileUnary(const UnaryExpr* expr);
         int compileBinary(const BinaryExpr* expr);
         int compileCall(const CallExpr* expr);
+        int compileCallWithReturnCount(const CallExpr* expr, int expectedReturns);
         int compileTableConstructor(const TableExpr* expr);
         int compileIndexAccess(const IndexExpr* expr);
         int compileMemberAccess(const MemberExpr* expr);

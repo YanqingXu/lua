@@ -211,6 +211,7 @@
     <ClInclude Include="src\test_framework\formatting\format_define.hpp" />
     <ClInclude Include="src\test_framework\formatting\format_formatter.hpp" />
     <ClInclude Include="src\test_framework\formatting\format_strategies.hpp" />
+    <ClInclude Include="src\vm\call_result.hpp" />
     <ClInclude Include="src\vm\core_metamethods.hpp" />
     <ClInclude Include="src\vm\function.hpp" />
     <ClInclude Include="src\vm\instruction.hpp" />

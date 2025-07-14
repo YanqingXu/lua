@@ -278,7 +278,77 @@ namespace Lua {
         // CALL_MM a b c: 函数在a，参数在a+1..a+nargs，结果在a
         int callA = base;
         int callB = hasVarargExpansion ? 0 : (nargs + 1);  // 如果有可变参数展开，B=0表示使用栈顶
-        int callC = 2;          // 期望1个返回值
+        int callC = 2;          // 期望1个返回值（默认）
+
+        compiler->emitInstruction(Instruction::createCALL_MM(callA, callB, callC));
+
+        // 步骤6：返回结果寄存器（函数调用后结果在base）
+        return base;
+    }
+
+    int ExpressionCompiler::compileCallWithReturnCount(const CallExpr* expr, int expectedReturns) {
+        // 与compileCall相同的逻辑，但使用指定的返回值数量
+        const auto& args = expr->getArguments();
+        int nargs = static_cast<int>(args.size());
+
+        // 检查最后一个参数是否是可变参数表达式
+        bool hasVarargExpansion = false;
+        if (nargs > 0) {
+            const auto* lastArg = args[nargs - 1].get();
+            if (dynamic_cast<const VarargExpr*>(lastArg)) {
+                hasVarargExpansion = true;
+            }
+        }
+
+        // 步骤1：分配连续的寄存器块（Lua 5.1官方设计）
+        int callFrameSize = 1 + nargs;  // 函数 + 参数
+        int base = compiler->getRegisterManager().allocateCallFrame(callFrameSize, "call");
+
+        // 参数寄存器是连续的
+        Vec<int> argTargets;
+        for (int i = 0; i < nargs; i++) {
+            int argTarget = base + 1 + i;  // 参数从base+1开始
+            argTargets.push_back(argTarget);
+        }
+
+        // 步骤2：编译函数到临时寄存器，然后移动
+        int funcReg = compileExpr(expr->getCallee());
+
+        if (funcReg != base) {
+            compiler->emitInstruction(Instruction::createMOVE(base, funcReg));
+        }
+
+        // 步骤3：编译每个参数到临时寄存器，然后移动
+        for (int i = 0; i < nargs; i++) {
+            const auto* arg = args[i].get();
+
+            // 特殊处理可变参数表达式
+            if (dynamic_cast<const VarargExpr*>(arg)) {
+                // 如果是最后一个参数且是可变参数，展开所有可变参数
+                if (i == nargs - 1 && hasVarargExpansion) {
+                    // 生成VARARG指令，B=0表示获取所有可变参数
+                    compiler->emitInstruction(Instruction::createVARARG(argTargets[i], 0));
+                } else {
+                    // 否则只获取第一个可变参数
+                    compiler->emitInstruction(Instruction::createVARARG(argTargets[i], 2));
+                }
+            } else {
+                // 普通参数
+                int argReg = compileExpr(arg);
+                if (argReg != argTargets[i]) {
+                    compiler->emitInstruction(Instruction::createMOVE(argTargets[i], argReg));
+                }
+            }
+        }
+
+        // 步骤5：发出CALL_MM指令（支持__call元方法）
+        // CALL_MM a b c: 函数在a，参数在a+1..a+nargs，结果在a
+        int callA = base;
+        int callB = hasVarargExpansion ? 0 : (nargs + 1);  // 如果有可变参数展开，B=0表示使用栈顶
+        int callC = (expectedReturns == -1) ? 0 : (expectedReturns + 1);  // 使用指定的返回值数量
+
+        std::cout << "=== DEBUG: Compiler generating CALL_MM with expectedReturns=" << expectedReturns
+                  << " callC=" << callC << " ===" << std::endl;
 
         compiler->emitInstruction(Instruction::createCALL_MM(callA, callB, callC));
 
