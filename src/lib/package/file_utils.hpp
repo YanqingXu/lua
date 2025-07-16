@@ -114,8 +114,21 @@ public:
      * @param rep Path separator replacement (default: "/")
      * @return First existing file path, or empty string if not found
      */
-    static Str findModuleFile(const Str& modname, const Str& searchPath, 
+    static Str findModuleFile(const Str& modname, const Str& searchPath,
                              const Str& sep = ".", const Str& rep = "/");
+
+    /**
+     * @brief Find module file using search path and collect attempted paths
+     * @param modname Module name
+     * @param searchPath Semicolon-separated search paths
+     * @param sep Module name separator (default: ".")
+     * @param rep Path separator replacement (default: "/")
+     * @param attemptedPaths Output vector to collect attempted file paths
+     * @return First existing file path, or empty string if not found
+     */
+    static Str findModuleFileWithPaths(const Str& modname, const Str& searchPath,
+                                      const Str& sep, const Str& rep,
+                                      Vec<Str>& attemptedPaths);
 
     /**
      * @brief Split search path string into individual patterns

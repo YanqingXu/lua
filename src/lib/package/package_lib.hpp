@@ -88,7 +88,7 @@ private:
      * @brief package.searchpath(name, path [, sep [, rep]]) - Search for module file
      * @param state Lua state
      * @param nargs Number of arguments (1-4)
-     * @return File path if found, nil otherwise
+     * @return File path if found, nil plus error message otherwise
      */
     static Value searchpath(State* state, i32 nargs);
 

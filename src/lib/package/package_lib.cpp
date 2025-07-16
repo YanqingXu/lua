@@ -114,26 +114,27 @@ Value PackageLib::require(State* state, i32 nargs) {
     }
 
     // Get first argument using correct stack indexing
-    // Arguments are at stack[top-nargs] to stack[top-1]
-    int stackIdx = state->getTop() - nargs + 0; // First argument (0-based)
-    Value modnameVal = state->get(stackIdx);
+    // Arguments are at positions [top-nargs, top-nargs+1, ..., top-1]
+    int stackBase = state->getTop() - nargs;
+    Value modnameVal = state->get(stackBase);
     if (!modnameVal.isString()) {
         throw LuaException("require: module name must be a string");
     }
 
     Str modname = modnameVal.toString();
 
-    // Check if module is already loaded
-    Value loadedTable = getLoadedTable(state);
-    Value cached = loadedTable.asTable()->get(Value(modname));
-    
-    if (!cached.isNil()) {
-        return cached; // Return cached module
-    }
-
-    // Check for circular dependency
+    // Check for circular dependency FIRST
     if (checkCircularDependency(state, modname)) {
         throw LuaException("require: circular dependency detected for module '" + modname + "'");
+    }
+
+    // Check if module is already loaded (but not loading markers)
+    Value loadedTable = getLoadedTable(state);
+    Value cached = loadedTable.asTable()->get(Value(modname));
+
+    // Only return cached value if it's not a loading marker
+    if (!cached.isNil() && !cached.isBoolean()) {
+        return cached; // Return cached module
     }
 
     // Mark module as loading
@@ -166,7 +167,9 @@ Value PackageLib::loadfile(State* state, i32 nargs) {
         return Value(); // nil - insufficient arguments
     }
 
-    Value filenameVal = state->get(1);
+    // Get first argument using correct stack indexing
+    int stackBase = state->getTop() - nargs;
+    Value filenameVal = state->get(stackBase);
     if (!filenameVal.isString()) {
         return Value(); // nil - invalid filename
     }
@@ -216,7 +219,9 @@ Value PackageLib::dofile(State* state, i32 nargs) {
         throw LuaException("dofile: filename expected");
     }
 
-    Value filenameVal = state->get(1);
+    // Get first argument using correct stack indexing
+    int stackBase = state->getTop() - nargs;
+    Value filenameVal = state->get(stackBase);
     if (!filenameVal.isString()) {
         throw LuaException("dofile: filename must be a string");
     }
@@ -247,16 +252,19 @@ Value PackageLib::searchpath(State* state, i32 nargs) {
     }
 
     if (nargs < 2) {
-        return Value(); // nil - insufficient arguments
+        throw LuaException("package.searchpath: name and path expected");
     }
 
     // Get arguments using correct stack indexing
     int stackBase = state->getTop() - nargs;
-    Value nameVal = state->get(stackBase + 0);
+    Value nameVal = state->get(stackBase);
     Value pathVal = state->get(stackBase + 1);
 
-    if (!nameVal.isString() || !pathVal.isString()) {
-        return Value(); // nil - invalid arguments
+    if (!nameVal.isString()) {
+        throw LuaException("package.searchpath: name must be a string");
+    }
+    if (!pathVal.isString()) {
+        throw LuaException("package.searchpath: path must be a string");
     }
 
     Str name = nameVal.toString();
@@ -280,11 +288,14 @@ Value PackageLib::searchpath(State* state, i32 nargs) {
         }
     }
 
-    // Search for the file
-    Str result = FileUtils::findModuleFile(name, path, sep, rep);
-    
+    // Search for the file and collect attempted paths
+    Vec<Str> attemptedPaths;
+    Str result = FileUtils::findModuleFileWithPaths(name, path, sep, rep, attemptedPaths);
+
     if (result.empty()) {
-        return Value(); // nil - not found
+        // Return nil for now (Lua 5.1 should return nil, error_message)
+        // TODO: Implement proper multiple return values
+        return Value(); // nil
     }
 
     return Value(result);
@@ -331,8 +342,21 @@ Value PackageLib::findModule(State* state, const Str& modname) {
         }
     }
 
-    // Module not found
-    throw LuaException("module '" + modname + "' not found");
+    // Module not found - build detailed error message
+    Str errorMsg = "module '" + modname + "' not found:";
+
+    // Add information about attempted search paths
+    Value packagePath = getPackagePath(state);
+    if (packagePath.isString()) {
+        Vec<Str> attemptedPaths;
+        FileUtils::findModuleFileWithPaths(modname, packagePath.toString(), ".", "/", attemptedPaths);
+
+        for (const Str& path : attemptedPaths) {
+            errorMsg += "\n\tno file '" + path + "'";
+        }
+    }
+
+    throw LuaException(errorMsg);
 }
 
 Value PackageLib::loadLuaModule(State* state, const Str& filename, const Str& modname) {
@@ -421,7 +445,9 @@ Value PackageLib::searcherPreload(State* state, i32 nargs) {
         return Value(); // nil - insufficient arguments
     }
 
-    Value modnameVal = state->get(1);
+    // Get first argument using correct stack indexing
+    int stackBase = state->getTop() - nargs;
+    Value modnameVal = state->get(stackBase);
     if (!modnameVal.isString()) {
         return Value(); // nil - invalid module name
     }
@@ -448,7 +474,9 @@ Value PackageLib::searcherLua(State* state, i32 nargs) {
         return Value(); // nil - insufficient arguments
     }
 
-    Value modnameVal = state->get(1);
+    // Get first argument using correct stack indexing
+    int stackBase = state->getTop() - nargs;
+    Value modnameVal = state->get(stackBase);
     if (!modnameVal.isString()) {
         return Value(); // nil - invalid module name
     }

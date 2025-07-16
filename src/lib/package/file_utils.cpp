@@ -184,37 +184,48 @@ Str FileUtils::expandSearchPattern(const Str& pattern, const Str& modname) {
     return normalizePath(result);
 }
 
-Str FileUtils::findModuleFile(const Str& modname, const Str& searchPath, 
+Str FileUtils::findModuleFile(const Str& modname, const Str& searchPath,
                              const Str& sep, const Str& rep) {
+    Vec<Str> attemptedPaths; // Dummy vector for compatibility
+    return findModuleFileWithPaths(modname, searchPath, sep, rep, attemptedPaths);
+}
+
+Str FileUtils::findModuleFileWithPaths(const Str& modname, const Str& searchPath,
+                                      const Str& sep, const Str& rep,
+                                      Vec<Str>& attemptedPaths) {
+    attemptedPaths.clear();
+
     if (modname.empty() || searchPath.empty()) {
         return "";
     }
 
     // Convert module name to path
     Str modpath = moduleNameToPath(modname, sep, rep);
-    
+
     // Split search path and try each pattern
     Vec<Str> patterns = splitSearchPath(searchPath);
-    
+
     for (const Str& pattern : patterns) {
         if (pattern.empty()) {
             continue;
         }
-        
+
         // Replace ? with module path
         Str filepath = pattern;
         size_t pos = filepath.find('?');
         if (pos != Str::npos) {
             filepath.replace(pos, 1, modpath);
         }
-        
+
         // Normalize path and check if file exists
         filepath = normalizePath(filepath);
+        attemptedPaths.push_back(filepath);
+
         if (fileExists(filepath)) {
             return filepath;
         }
     }
-    
+
     return ""; // Not found
 }
 

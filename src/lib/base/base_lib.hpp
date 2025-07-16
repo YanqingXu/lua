@@ -89,6 +89,15 @@ public:
      */
     static Value error(State* state, i32 nargs);
 
+    /**
+     * @brief Protected call function (pcall)
+     * @param state Lua state containing function and arguments
+     * @param nargs Number of arguments (function + args)
+     * @return true/false + result/error_message
+     * @throws std::invalid_argument if state is null
+     */
+    static Value pcall(State* state, i32 nargs);
+
     // Table operation functions (simplified implementations)
     static Value pairs(State* state, i32 nargs);
     static Value ipairs(State* state, i32 nargs);

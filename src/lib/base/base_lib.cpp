@@ -23,6 +23,7 @@ void BaseLib::registerFunctions(State* state) {
     REGISTER_GLOBAL_FUNCTION(state, tostring, tostring);
     REGISTER_GLOBAL_FUNCTION(state, tonumber, tonumber);
     REGISTER_GLOBAL_FUNCTION(state, error, error);
+    REGISTER_GLOBAL_FUNCTION(state, pcall, pcall);
 
     // Register table operation functions
     REGISTER_GLOBAL_FUNCTION(state, pairs, pairs);
@@ -178,10 +179,48 @@ Value BaseLib::error(State* state, i32 nargs) {
         message = val.toString();
     }
 
-    // 简单的错误处理：输出错误信息
-    std::cerr << "Lua error: " << message << std::endl;
+    // Throw LuaException to be caught by pcall
+    throw LuaException(message);
+}
 
-    return Value(); // nil
+Value BaseLib::pcall(State* state, i32 nargs) {
+    if (!state) {
+        throw std::invalid_argument("State cannot be null");
+    }
+
+    if (nargs < 1) {
+        throw std::invalid_argument("pcall: function expected");
+    }
+
+    // Get function and arguments from stack
+    int stackBase = state->getTop() - nargs;
+    Value func = state->get(stackBase);
+
+    // Prepare arguments for the function call
+    Vec<Value> args;
+    for (int i = 1; i < nargs; ++i) {
+        args.push_back(state->get(stackBase + i));
+    }
+
+    try {
+        // Call the function
+        Value result = state->call(func, args);
+
+        // Return success (true) and result
+        // For now, return just true since we can't return multiple values easily
+        // TODO: Implement proper multiple return values
+        return Value(true);
+
+    } catch (const LuaException& e) {
+        // Return failure (false) and error message
+        // For now, return just false
+        // TODO: Implement proper multiple return values to return false, error_message
+        return Value(false);
+
+    } catch (const std::exception& e) {
+        // Return failure (false) and error message
+        return Value(false);
+    }
 }
 
 // ===================================================================
