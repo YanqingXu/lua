@@ -258,6 +258,7 @@
     <ClCompile Include="src\lib\table\table_lib.cpp" />
     <ClCompile Include="src\localization\localization_manager.cpp" />
     <ClCompile Include="src\main.cpp" />
+    <ClCompile Include="src\repl.cpp" />
     <ClCompile Include="src\parser\ast\source_location.cpp" />
     <ClCompile Include="src\parser\expression_parser.cpp" />
     <ClCompile Include="src\parser\parser_utils.cpp" />

@@ -1,4 +1,4 @@
-﻿#include <iostream>
+#include <iostream>
 #include <fstream>
 #include <sstream>
 #include <string>
@@ -18,6 +18,9 @@
 
 using namespace Lua;
 
+// Forward declaration for the REPL function from repl.cpp
+void run_repl();
+
 // Read file content
 std::string readFile(const std::string& path) {
     std::ifstream file(path);
@@ -33,16 +36,21 @@ std::string readFile(const std::string& path) {
 int main(int argc, char** argv) {
    try {
        if (argc > 1) {
-           // Run file
-           std::string filename = argv[1];
-           std::string source = readFile(filename);
+            std::string arg = argv[1];
+            if (arg == "-repl") {
+                run_repl();
+            } else {
+                // Run file
+                std::string filename = arg;
+                std::string source = readFile(filename);
 
-           State state;
+                State state;
 
-           // Initialize all standard libraries using simplified framework
-           StandardLibrary::initializeAll(&state);
+                // Initialize all standard libraries using simplified framework
+                StandardLibrary::initializeAll(&state);
 
-           state.doString(source);
+                state.doString(source);
+            }
        } else {
            RUN_MAIN_TEST("MainTestSuite", Lua::Tests::MainTestSuite::runAllTests);
 
