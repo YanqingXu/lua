@@ -1552,22 +1552,9 @@ namespace Lua {
         }
 
         if (function->getType() == Function::Type::Lua) {
-            // TEMPORARY IMPLEMENTATION: For Lua functions in VM context
-            // This is a simplified version to ensure system stability
-            // TODO: Implement full Lua 5.1 style in-context execution
-
-
-
-            // For now, simulate a simple function that returns a predictable value
-            // This ensures the system doesn't crash while we perfect the implementation
-            if (args.size() > 0 && args[0].isNumber()) {
-                double x = args[0].asNumber();
-
-                return Value(x * 2); // Simple computation
-            } else {
-
-                return Value(42.0); // Default value
-            }
+            // For now, use the original call mechanism for Lua functions
+            // TODO: Implement proper in-context execution later
+            return state->call(Value(function), args);
         }
 
         throw LuaException("Unknown function type in executeInContext: " +

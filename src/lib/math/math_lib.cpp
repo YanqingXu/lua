@@ -77,7 +77,7 @@ Value MathLib::abs(State* state, i32 nargs) {
     }
     if (nargs < 1) return Value();
 
-    Value val = state->get(1);
+    Value val = state->get(-nargs);  // First argument is at -nargs from top
     if (!val.isNumber()) return Value();
 
     f64 num = val.asNumber();
@@ -90,7 +90,7 @@ Value MathLib::floor(State* state, i32 nargs) {
     }
     if (nargs < 1) return Value();
 
-    Value val = state->get(1);
+    Value val = state->get(-nargs);  // First argument is at -nargs from top
     if (!val.isNumber()) return Value();
 
     f64 num = val.asNumber();
@@ -103,7 +103,7 @@ Value MathLib::ceil(State* state, i32 nargs) {
     }
     if (nargs < 1) return Value();
 
-    Value val = state->get(1);
+    Value val = state->get(-nargs);  // First argument is at -nargs from top
     if (!val.isNumber()) return Value();
 
     f64 num = val.asNumber();
@@ -116,7 +116,7 @@ Value MathLib::sqrt(State* state, i32 nargs) {
     }
     if (nargs < 1) return Value();
 
-    Value val = state->get(1);
+    Value val = state->get(-nargs);  // First argument is at -nargs from top
     if (!val.isNumber()) return Value();
 
     f64 num = val.asNumber();
@@ -131,8 +131,8 @@ Value MathLib::pow(State* state, i32 nargs) {
     }
     if (nargs < 2) return Value();
 
-    Value baseVal = state->get(1);
-    Value expVal = state->get(2);
+    Value baseVal = state->get(-nargs);      // First argument (base)
+    Value expVal = state->get(-nargs + 1);   // Second argument (exponent)
 
     if (!baseVal.isNumber() || !expVal.isNumber()) return Value();
 
@@ -152,7 +152,7 @@ Value MathLib::sin(State* state, i32 nargs) {
     }
     if (nargs < 1) return Value();
 
-    Value val = state->get(1);
+    Value val = state->get(-nargs);  // First argument is at -nargs from top
     if (!val.isNumber()) return Value();
 
     f64 num = val.asNumber();
@@ -165,7 +165,7 @@ Value MathLib::cos(State* state, i32 nargs) {
     }
     if (nargs < 1) return Value();
 
-    Value val = state->get(1);
+    Value val = state->get(-nargs);  // First argument is at -nargs from top
     if (!val.isNumber()) return Value();
 
     f64 num = val.asNumber();
@@ -178,7 +178,7 @@ Value MathLib::tan(State* state, i32 nargs) {
     }
     if (nargs < 1) return Value();
 
-    Value val = state->get(1);
+    Value val = state->get(-nargs);  // First argument is at -nargs from top
     if (!val.isNumber()) return Value();
 
     f64 num = val.asNumber();
@@ -232,8 +232,8 @@ Value MathLib::atan2(State* state, i32 nargs) {
     }
     if (nargs < 2) return Value();
 
-    Value yVal = state->get(1);
-    Value xVal = state->get(2);
+    Value yVal = state->get(-nargs);      // First argument (y)
+    Value xVal = state->get(-nargs + 1);  // Second argument (x)
 
     if (!yVal.isNumber() || !xVal.isNumber()) return Value();
 
@@ -303,8 +303,9 @@ Value MathLib::min(State* state, i32 nargs) {
     f64 minVal = HUGE_VAL;
     bool hasValidNumber = false;
 
-    for (i32 i = 1; i <= nargs; ++i) {
-        Value val = state->get(i);
+    // Iterate through all arguments using relative indexing from stack top
+    for (i32 i = 0; i < nargs; ++i) {
+        Value val = state->get(-nargs + i);  // First arg at -nargs, second at -nargs+1, etc.
         if (val.isNumber()) {
             f64 num = val.asNumber();
             if (!hasValidNumber || num < minVal) {
@@ -326,8 +327,9 @@ Value MathLib::max(State* state, i32 nargs) {
     f64 maxVal = -HUGE_VAL;
     bool hasValidNumber = false;
 
-    for (i32 i = 1; i <= nargs; ++i) {
-        Value val = state->get(i);
+    // Iterate through all arguments using relative indexing from stack top
+    for (i32 i = 0; i < nargs; ++i) {
+        Value val = state->get(-nargs + i);  // First arg at -nargs, second at -nargs+1, etc.
         if (val.isNumber()) {
             f64 num = val.asNumber();
             if (!hasValidNumber || num > maxVal) {
@@ -350,8 +352,8 @@ Value MathLib::fmod(State* state, i32 nargs) {
     }
     if (nargs < 2) return Value();
 
-    Value xVal = state->get(1);
-    Value yVal = state->get(2);
+    Value xVal = state->get(-nargs);      // First argument (x)
+    Value yVal = state->get(-nargs + 1);  // Second argument (y)
 
     if (!xVal.isNumber() || !yVal.isNumber()) return Value();
 
@@ -383,7 +385,7 @@ Value MathLib::random(State* state, i32 nargs) {
         return Value(static_cast<f64>(std::rand()) / RAND_MAX);
     } else if (nargs == 1) {
         // Return random integer between 1 and n
-        Value nVal = state->get(1);
+        Value nVal = state->get(-nargs);  // First argument
         if (!nVal.isNumber()) return Value();
 
         i32 n = static_cast<i32>(nVal.asNumber());
@@ -392,8 +394,8 @@ Value MathLib::random(State* state, i32 nargs) {
         return Value(static_cast<f64>(std::rand() % n + 1));
     } else if (nargs >= 2) {
         // Return random integer between m and n
-        Value mVal = state->get(1);
-        Value nVal = state->get(2);
+        Value mVal = state->get(-nargs);      // First argument (m)
+        Value nVal = state->get(-nargs + 1);  // Second argument (n)
 
         if (!mVal.isNumber() || !nVal.isNumber()) return Value();
 
@@ -414,7 +416,7 @@ Value MathLib::randomseed(State* state, i32 nargs) {
     }
     if (nargs < 1) return Value();
 
-    Value seedVal = state->get(1);
+    Value seedVal = state->get(-nargs);  // First argument
     if (!seedVal.isNumber()) return Value();
 
     unsigned int seed = static_cast<unsigned int>(seedVal.asNumber());

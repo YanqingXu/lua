@@ -5,6 +5,7 @@
 #include "value.hpp"
 #include "call_result.hpp"
 #include <iostream>
+#include <memory>
 
 namespace Lua {
     // Forward declarations
@@ -17,6 +18,9 @@ namespace Lua {
         int top;
         HashMap<Str, Value> globals;
         VM* currentVM; // Current VM instance (for context-aware calls)
+
+        // Persistent VM instance for REPL sessions
+        std::unique_ptr<VM> persistentVM;
         
     public:
         State();
@@ -91,5 +95,8 @@ namespace Lua {
         // Code execution
         bool doString(const Str& code);
         bool doFile(const Str& filename);
+
+        // Execute code and return result (for REPL)
+        Value doStringWithResult(const Str& code);
     };
 }

@@ -15,6 +15,9 @@ namespace Lua {
     State::State() : GCObject(GCObjectType::State, sizeof(State)), top(0), currentVM(nullptr) {
         // Initialize stack space
         stack.resize(LUAI_MAXSTACK);
+
+        // Initialize persistent VM for REPL sessions
+        persistentVM = std::make_unique<VM>(this);
     }
 
     State::~State() {
@@ -240,10 +243,6 @@ namespace Lua {
     }
 
     CallResult State::callMultiple(const Value& func, const Vec<Value>& args) {
-        std::cout << "=== DEBUG: State::callMultiple ===" << std::endl;
-        std::cout << "Function type: " << static_cast<int>(func.type()) << std::endl;
-        std::cout << "Number of arguments: " << args.size() << std::endl;
-
         if (!func.isFunction()) {
             throw LuaException("attempt to call a non-function value");
         }
@@ -314,13 +313,8 @@ namespace Lua {
     }
 
     Value State::callSafe(const Value& func, const Vec<Value>& args) {
-        std::cout << "=== DEBUG: State::callSafe ===" << std::endl;
-        std::cout << "Current VM: " << (currentVM ? "exists" : "null") << std::endl;
-
         if (currentVM) {
             // We are in VM execution context - use in-context call
-            std::cout << "Using VM in-context call (avoiding new VM instance)" << std::endl;
-
             if (!func.isFunction()) {
                 throw LuaException("attempt to call a non-function value");
             }
@@ -329,19 +323,13 @@ namespace Lua {
             return currentVM->executeInContext(function, args);
         } else {
             // We are in top-level context - safe to create new VM
-            std::cout << "Using traditional call (creating new VM instance)" << std::endl;
             return call(func, args);
         }
     }
 
     CallResult State::callSafeMultiple(const Value& func, const Vec<Value>& args) {
-        std::cout << "=== DEBUG: State::callSafeMultiple ===" << std::endl;
-        std::cout << "Current VM: " << (currentVM ? "exists" : "null") << std::endl;
-
         if (currentVM) {
             // We are in VM execution context - use in-context call
-            std::cout << "Using VM in-context multiple call (avoiding new VM instance)" << std::endl;
-
             if (!func.isFunction()) {
                 throw LuaException("attempt to call a non-function value");
             }
@@ -350,7 +338,6 @@ namespace Lua {
             return currentVM->executeInContextMultiple(function, args);
         } else {
             // We are in top-level context - safe to create new VM
-            std::cout << "Using traditional multiple call (creating new VM instance)" << std::endl;
             return callMultiple(func, args);
         }
     }
@@ -462,9 +449,8 @@ namespace Lua {
                 return false;
             }
 
-            // 3. Execute bytecode using virtual machine
-            VM vm(this);
-            Value result = vm.execute(function);  // Get return value but don't use it for doString
+            // 3. Execute bytecode using persistent VM to maintain state continuity
+            Value result = persistentVM->execute(function);  // Get return value but don't use it for doString
 
             return true;
         } catch (const LuaException& e) {
@@ -475,6 +461,36 @@ namespace Lua {
             // Handle other exceptions that may occur
             std::cerr << "Error executing Lua code: " << e.what() << std::endl;
             return false;
+        }
+    }
+
+    // Execute Lua code from string and return result (for REPL)
+    Value State::doStringWithResult(const Str& code) {
+        try {
+            // 1. Parse code using our parser
+            Parser parser(code);
+            auto statements = parser.parse();
+
+            // Check if there are errors in parsing phase
+            if (parser.hasError()) {
+                throw LuaException("Parse error");
+            }
+
+            // 2. Generate bytecode using compiler
+            Compiler compiler;
+            GCRef<Function> function = compiler.compile(statements);
+
+            if (!function) {
+                throw LuaException("Compile error");
+            }
+
+            // 3. Execute bytecode using persistent VM to maintain state continuity
+            return persistentVM->execute(function);
+
+        } catch (const LuaException& e) {
+            throw; // Re-throw Lua exceptions
+        } catch (const std::exception& e) {
+            throw LuaException("Error executing Lua code: " + std::string(e.what()));
         }
     }
 
