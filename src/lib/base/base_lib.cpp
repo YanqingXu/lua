@@ -199,14 +199,18 @@ i32 BaseLib::pcall(State* state) {
         throw std::invalid_argument("pcall: function expected");
     }
 
+    // DEBUG: Removed debug output for cleaner testing
+
     // Get function from stack (first argument) - now in clean stack environment
     Value func = state->get(0);
+    // DEBUG: Removed debug output for cleaner testing
 
     // Prepare arguments for the function call (skip the function itself)
     Vec<Value> args;
     for (int i = 1; i < nargs; ++i) {
         args.push_back(state->get(i));
     }
+    // DEBUG: Removed debug output for cleaner testing
 
     try {
         // Try to call the function with multiple return values
@@ -223,10 +227,12 @@ i32 BaseLib::pcall(State* state) {
             state->push(callResult.getValue(i));
         }
 
+        // DEBUG: Removed debug output for cleaner testing
         // Return total count (success flag + results)
         return static_cast<i32>(1 + callResult.count);
 
     } catch (const LuaException& e) {
+        // DEBUG: Removed debug output for cleaner testing
         // Clear the stack
         state->clearStack();
 
@@ -234,10 +240,12 @@ i32 BaseLib::pcall(State* state) {
         state->push(Value(false));
         state->push(Value(e.what()));
 
+        // DEBUG: Removed debug output for cleaner testing
         // Return 2 values (false, error_message)
         return 2;
 
     } catch (const std::exception& e) {
+        // DEBUG: Removed debug output for cleaner testing
         // Clear the stack
         state->clearStack();
 
@@ -245,6 +253,7 @@ i32 BaseLib::pcall(State* state) {
         state->push(Value(false));
         state->push(Value(e.what()));
 
+        // DEBUG: Removed debug output for cleaner testing
         // Return 2 values (false, error_message)
         return 2;
     }

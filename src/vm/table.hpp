@@ -38,7 +38,8 @@ namespace Lua {
         
         // Get value from table
         Value get(const Value& key);
-        
+        Value get(const Value& key) const;
+
         // Set value in table
         void set(const Value& key, const Value& value);
         

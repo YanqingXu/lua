@@ -4,10 +4,11 @@
 #include <stdexcept>
 
 namespace Lua {
-    Upvalue::Upvalue(Value* location) 
+    Upvalue::Upvalue(Value* location)
         : GCObject(GCObjectType::Upvalue, sizeof(Upvalue))
         , state(State::Open)
         , stackLocation(location)
+        , closedValue()  // Initialize closedValue to nil
         , next(nullptr) {
         if (location == nullptr) {
             throw std::invalid_argument("Upvalue location cannot be null");
@@ -15,10 +16,8 @@ namespace Lua {
     }
     
     Upvalue::~Upvalue() {
-        // If the upvalue is closed, we need to properly destruct the value
-        if (state == State::Closed) {
-            closedValue.~Value();
-        }
+        // No special cleanup needed since closedValue is now a regular member
+        // The Value destructor will be called automatically
     }
     
     void Upvalue::markReferences(GarbageCollector* gc) {
@@ -58,13 +57,16 @@ namespace Lua {
         if (state == State::Open) {
             // Move the value from stack to closed storage
             Value valueToClose = *stackLocation;
-            
+            // DEBUG: Removed debug output for cleaner testing
+
             // Change state to closed
             state = State::Closed;
-            
-            // Use placement new to construct the closed value
-            new (&closedValue) Value(valueToClose);
-            
+
+            // Simply assign the value (no placement new needed)
+            closedValue = valueToClose;
+
+            // DEBUG: Removed debug output for cleaner testing
+
             // stackLocation is no longer valid
             stackLocation = nullptr;
         }

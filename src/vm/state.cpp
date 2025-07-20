@@ -227,16 +227,9 @@ namespace Lua {
 
             return result;
         } catch (const LuaException& e) {
-            // 只有在特定情况下才返回nil，其他情况应该重新抛出异常
-            std::string errorMsg = e.what();
-
-            // 如果是运行时错误（如nil值操作），应该重新抛出
-            if (errorMsg.find("attempt to") != std::string::npos) {
-                throw; // 重新抛出异常
-            }
-
-            // 其他情况下返回nil（类似pcall的行为）
-            return Value(nullptr);
+            // CRITICAL FIX: Always re-throw LuaException for proper pcall error handling
+            // pcall should be the only place that catches and converts exceptions to return values
+            throw; // Re-throw all LuaExceptions to allow pcall to handle them properly
         }
     }
 
@@ -315,15 +308,9 @@ namespace Lua {
 
             return result;
         } catch (const LuaException& e) {
-            // Handle errors similar to single-value call
-            std::string errorMsg = e.what();
-
-            if (errorMsg.find("attempt to") != std::string::npos) {
-                throw; // Re-throw runtime errors
-            }
-
-            // Return nil for other errors
-            return CallResult(Value());
+            // CRITICAL FIX: Always re-throw LuaException for proper pcall error handling
+            // pcall should be the only place that catches and converts exceptions to return values
+            throw; // Re-throw all LuaExceptions to allow pcall to handle them properly
         }
     }
 
@@ -531,16 +518,9 @@ namespace Lua {
             return result;
 
         } catch (const LuaException& e) {
-            // 只有在特定情况下才返回nil，其他情况应该重新抛出异常
-            std::string errorMsg = e.what();
-
-            // 如果是运行时错误（如nil值操作），应该重新抛出
-            if (errorMsg.find("attempt to") != std::string::npos) {
-                throw; // 重新抛出异常
-            }
-
-            // 其他情况下返回nil（类似pcall的行为）
-            return Value(nullptr);
+            // CRITICAL FIX: Always re-throw LuaException for proper pcall error handling
+            // pcall should be the only place that catches and converts exceptions to return values
+            throw; // Re-throw all LuaExceptions to allow pcall to handle them properly
         }
     }
 

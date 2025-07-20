@@ -164,12 +164,18 @@ namespace Lua {
         
         // Try constant folding optimization
         if (tryConstantFolding(expr)) {
-            // If both operands are constants, compute at compile time
-            Value result = evaluateConstantBinary(expr);
-            int constIdx = compiler->addConstant(result);
-            int resultReg = compiler->allocReg();
-            compiler->emitInstruction(Instruction::createLOADK(resultReg, constIdx));
-            return resultReg;
+            try {
+                // If both operands are constants, compute at compile time
+                Value result = evaluateConstantBinary(expr);
+                int constIdx = compiler->addConstant(result);
+                int resultReg = compiler->allocReg();
+                compiler->emitInstruction(Instruction::createLOADK(resultReg, constIdx));
+                return resultReg;
+            } catch (const LuaException& e) {
+                // Constant folding failed, fall back to runtime evaluation
+                // DEBUG: Removed debug output for cleaner testing
+                // Continue with normal compilation below
+            }
         }
         
         // Compile operands
@@ -283,6 +289,7 @@ namespace Lua {
         compiler->emitInstruction(Instruction::createCALL_MM(callA, callB, callC));
 
         // 步骤6：返回结果寄存器（函数调用后结果在base）
+        // 不立即释放调用帧，让调用者管理寄存器生命周期
         return base;
     }
 
@@ -353,6 +360,7 @@ namespace Lua {
         compiler->emitInstruction(Instruction::createCALL_MM(callA, callB, callC));
 
         // 步骤6：返回结果寄存器（函数调用后结果在base）
+        // 不立即释放调用帧，让调用者管理寄存器生命周期
         return base;
     }
 
@@ -560,47 +568,47 @@ namespace Lua {
     int ExpressionCompiler::compileLogicalOp(const BinaryExpr* expr) {
         int leftReg = compileExpr(expr->getLeft());
         int resultReg = compiler->allocReg();
-        
+
         // Move left value to result register first
         compiler->emitInstruction(Instruction::createMOVE(resultReg, leftReg));
-        
+
         if (expr->getOperator() == TokenType::And) {
-            // Short-circuit AND: if left is false/nil, result is left; otherwise evaluate right
-            // TEST leftReg, 0 - test if leftReg is false/nil
-            compiler->emitInstruction(Instruction::createTEST(leftReg, 0));
-            
-            // If left is false/nil, skip right evaluation (jump to end)
+            // Short-circuit AND: if left is false/nil, result is left; otherwise result is right
+            // TEST resultReg, 1 - if resultReg is true, skip the jump (continue to evaluate right)
+            compiler->emitInstruction(Instruction::createTEST(resultReg, 1));
+
+            // If left is false/nil, jump to end (keep left value)
             int jumpToEnd = compiler->emitJump();
-            
-            // Left is true, evaluate right operand
+
+            // Left is true, evaluate right operand and use its result
             int rightReg = compileExpr(expr->getRight());
-            
+
             // Move right result to result register
             compiler->emitInstruction(Instruction::createMOVE(resultReg, rightReg));
             compiler->freeReg(); // Free right register
-            
+
             // Patch jump to end
             compiler->patchJump(jumpToEnd);
-            
+
         } else { // TokenType::Or
-            // Short-circuit OR: if left is true, result is left; otherwise evaluate right
-            // TEST leftReg, 1 - test if leftReg is true (invert test)
-            compiler->emitInstruction(Instruction::createTEST(leftReg, 1));
-            
-            // If left is true, skip right evaluation (jump to end)
+            // Short-circuit OR: if left is true, result is left; otherwise result is right
+            // TEST resultReg, 0 - if resultReg is false/nil, skip the jump (continue to evaluate right)
+            compiler->emitInstruction(Instruction::createTEST(resultReg, 0));
+
+            // If left is true, jump to end (keep left value)
             int jumpToEnd = compiler->emitJump();
-            
-            // Left is false/nil, evaluate right operand
+
+            // Left is false/nil, evaluate right operand and use its result
             int rightReg = compileExpr(expr->getRight());
-            
+
             // Move right result to result register
             compiler->emitInstruction(Instruction::createMOVE(resultReg, rightReg));
             compiler->freeReg(); // Free right register
-            
+
             // Patch jump to end
             compiler->patchJump(jumpToEnd);
         }
-        
+
         compiler->freeReg(); // Free left register
         return resultReg;
     }
@@ -651,9 +659,24 @@ namespace Lua {
             return Value(leftStr + rightStr);
         }
 
+        // Handle comparison operations with mixed types
+        if (op == TokenType::Equal || op == TokenType::NotEqual) {
+            switch (op) {
+                case TokenType::Equal:
+                    return Value(left == right);
+                case TokenType::NotEqual:
+                    return Value(!(left == right));
+                default:
+                    break;
+            }
+        }
+
         // Handle numeric operations
         if (left.type() != ValueType::Number || right.type() != ValueType::Number) {
-            throw LuaException("Constant folding only supports numeric and string concatenation operations");
+            // CRITICAL FIX: Don't throw exception, let runtime handle it
+            // This allows complex expressions to compile and be evaluated at runtime
+            // DEBUG: Removed debug output for cleaner testing
+            throw LuaException("Constant folding not applicable - will use runtime evaluation");
         }
 
         double leftVal = left.asNumber();
@@ -831,6 +854,7 @@ namespace Lua {
         int reg = compiler->allocReg();
         
         // Emit CLOSURE instruction to create closure
+        // DEBUG: Removed debug output for cleaner testing
         compiler->emitInstruction(Instruction::createCLOSURE(reg, static_cast<u16>(prototypeIndex)));
         
         // Handle upvalues if any

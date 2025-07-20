@@ -19,10 +19,8 @@ namespace Lua {
         
     private:
         State state;
-        union {
-            Value* stackLocation;  // When open: points to stack
-            Value closedValue;     // When closed: contains the value
-        };
+        Value* stackLocation;  // When open: points to stack
+        Value closedValue;     // When closed: contains the value
         Upvalue* next;  // For linked list of open upvalues
         
     public:

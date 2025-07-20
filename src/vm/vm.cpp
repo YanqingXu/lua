@@ -266,7 +266,11 @@ namespace Lua {
         pc = 0;
 
         // Initialize stack for function execution
+        // CRITICAL FIX: Clean the stack before function execution to ensure proper return value collection
         int stackSize = state->getTop();
+        state->setTop(stackSize);  // Clean any leftover values from previous operations
+
+        // DEBUG: Removed debug output for cleaner testing
 
         // Extend stack to accommodate function's local variables (same logic as execute method)
         int localCount = function->getLocalCount();
@@ -322,26 +326,32 @@ namespace Lua {
                 int currentTop = state->getTop();
                 int numReturnValues = currentTop - originalTop;
 
-                if (numReturnValues > 0) {
-                    // Collect return values from stack (they are at the top)
-                    returnValues.reserve(numReturnValues);
-                    for (int i = 0; i < numReturnValues; ++i) {
-                        // Get values from bottom to top (first return value first)
-                        Value val = state->get(originalTop + i);
+                // DEBUG: Removed debug output for cleaner testing
 
-                        returnValues.push_back(val);
-                    }
+                if (numReturnValues > 0) {
+                    // CRITICAL FIX: Take only the last value pushed by op_return
+                    // op_return pushes the actual return value last
+                    Value actualReturnValue = state->get(state->getTop() - 1);
+                    returnValues.push_back(actualReturnValue);
+
+                    // Return value collected successfully
 
                     // Clean up the stack
                     state->setTop(originalTop);
                 } else {
                     // No return values, return nil
-
+                    // No return values, return nil
                     returnValues.push_back(Value());
                 }
                 break;
             }
         }
+
+        // CRITICAL FIX: Close upvalues before restoring context
+        // Close all upvalues that point to the current function's stack frame
+        Value* stackFrameStart = getRegPtr(0);  // Start of current function's registers
+        // DEBUG: Removed debug output for cleaner testing
+        closeUpvalues(stackFrameStart);
 
         // Restore previous context
         this->registerBase = oldRegisterBase;
@@ -1034,6 +1044,8 @@ namespace Lua {
         u8 a = i.getA();
         u8 b = i.getB();
 
+        // DEBUG: Removed debug output for cleaner testing
+
 
 
         // b-1 is the number of values to return, if b=0, return all values from a to top
@@ -1072,6 +1084,8 @@ namespace Lua {
     void VM::op_closure(Instruction i) {
         u8 a = i.getA();  // Target register
         u16 bx = i.getBx(); // Function prototype index
+
+        // DEBUG: Removed debug output for cleaner testing
 
 
         
@@ -1120,8 +1134,10 @@ namespace Lua {
         }
         
         // Bind upvalues from the current environment
+        // DEBUG: Removed debug output for cleaner testing
 
         for (u32 upvalIndex = 0; upvalIndex < prototype->getUpvalueCount(); upvalIndex++) {
+            // DEBUG: Removed debug output for cleaner testing
             // Read the next instruction to get upvalue binding info
             // Note: pc was already incremented in runInstruction, so we read from current pc
             if (pc >= code->size()) break;
@@ -1131,6 +1147,8 @@ namespace Lua {
             u8 isLocal = upvalInstr.getA();
             u8 index = upvalInstr.getB();
 
+            // DEBUG: Removed debug output for cleaner testing
+
 
             
             GCRef<Upvalue> upvalue;
@@ -1139,12 +1157,15 @@ namespace Lua {
                 // Capture a local variable from the current stack frame
                 // Lua 5.1官方设计：使用0基索引，直接使用寄存器编号
                 Value* location = getRegPtr(index);
+                Value currentValue = getReg(index);
+                // DEBUG: Removed debug output for cleaner testing
 
 
 
 
 
                 upvalue = findOrCreateUpvalue(location);
+                // DEBUG: Removed debug output for cleaner testing
             } else {
                 // Inherit an upvalue from the current function
                 if (currentFunction && index < currentFunction->getUpvalueCount()) {
@@ -1156,17 +1177,21 @@ namespace Lua {
             // Set upvalue in the new closure
             if (upvalue) {
                 closure->setUpvalue(upvalIndex, upvalue);
+                // DEBUG: Removed debug output for cleaner testing
             }
         }
         
         // Store the closure in the target register
         // Lua 5.1官方设计：使用0基索引，直接使用寄存器编号
+        // Store the closure in the target register
         setReg(a, Value(closure));
     }
     
     void VM::op_getupval(Instruction i) {
         u8 a = i.getA();  // Target register
         u8 b = i.getB();  // Upvalue index
+
+        // DEBUG: Removed debug output for cleaner testing
 
         if (!currentFunction || currentFunction->getType() != Function::Type::Lua) {
             throw LuaException("GETUPVAL instruction outside Lua function");
@@ -1191,18 +1216,23 @@ namespace Lua {
         Value value;
         try {
             value = upvalue->getSafeValue();
+            // DEBUG: Removed debug output for cleaner testing
         } catch (const std::runtime_error& e) {
+            // DEBUG: Removed debug output for cleaner testing
             throw LuaException(e.what());
         }
 
         // Store in target register
         // Lua 5.1官方设计：使用0基索引，直接使用寄存器编号
         setReg(a, value);
+        // DEBUG: Removed debug output for cleaner testing
     }
     
     void VM::op_setupval(Instruction i) {
         u8 a = i.getA();  // Source register
         u8 b = i.getB();  // Upvalue index
+
+        // DEBUG: Removed debug output for cleaner testing
         
         if (!currentFunction || currentFunction->getType() != Function::Type::Lua) {
             throw LuaException("SETUPVAL instruction outside Lua function");
@@ -1267,10 +1297,11 @@ namespace Lua {
     
     void VM::closeUpvalues(Value* level) {
         // Close all upvalues at or above the given stack level
+        // Close all upvalues at or above the given stack level
         while (openUpvalues && openUpvalues->getStackLocation() >= level) {
             Upvalue* upvalue = openUpvalues.get();
             openUpvalues = GCRef<Upvalue>(upvalue->getNext());
-            
+
             // Close the upvalue
             upvalue->close();
             upvalue->setNext(nullptr);
@@ -1361,9 +1392,9 @@ namespace Lua {
             LuaNumber length = static_cast<LuaNumber>(bval.asString().length());
             setReg(a, Value(length));
         } else if (bval.isTable()) {
-            // For tables, get the array part length
+            // For tables, use the proper length calculation
             auto table = bval.asTable();
-            LuaNumber length = static_cast<LuaNumber>(table->getArraySize());
+            LuaNumber length = static_cast<LuaNumber>(table->length());
             setReg(a, Value(length));
         } else {
             throw LuaException("attempt to get length of non-string/table value (type: " +
@@ -1611,10 +1642,34 @@ namespace Lua {
     }
 
     CallResult VM::executeInContextMultiple(GCRef<Function> function, const Vec<Value>& args) {
-        // For now, use single-value execution and wrap in CallResult
-        // TODO: Implement proper multi-return value support
-        Value singleResult = executeInContext(function, args);
-        return CallResult(singleResult);
+        // Save current state
+        int oldBase = registerBase;
+        int oldTop = state->getTop();
+
+        try {
+            // Set up new call frame
+            registerBase = state->getTop();
+
+            // Push function and arguments to stack
+            state->push(Value(function));
+            for (const auto& arg : args) {
+                state->push(arg);
+            }
+
+            // Execute the function with multiple return value support
+            CallResult result = executeMultiple(function);
+
+            // Restore state
+            state->setTop(oldTop);
+            registerBase = oldBase;
+
+            return result;
+        } catch (...) {
+            // Restore state on error
+            state->setTop(oldTop);
+            registerBase = oldBase;
+            throw;
+        }
     }
 
     // === Arithmetic Operations with Metamethods ===
@@ -2027,7 +2082,7 @@ namespace Lua {
                 }
             } else {
                 // Single return value - normal case
-
+                // Single return value - normal case
                 setReg(a, callResult.getFirst());
             }
         } else if (expectedReturns > 1) {

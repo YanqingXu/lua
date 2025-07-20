@@ -36,14 +36,38 @@ namespace Lua {
                 return array[index];
             }
         }
-        
+
         // Search in entries
         int index = findEntry(key);
         if (index >= 0) {
             Entry* entry = static_cast<Entry*>(entries[index]);
             return entry->value;
         }
-        
+
+        // Return nil if not found
+        return Value(nullptr);
+    }
+
+    Value Table::get(const Value& key) const {
+        // If it's an integer key and within array range
+        if (key.isNumber()) {
+            LuaNumber n = key.asNumber();
+            if (n == std::floor(n) && n >= 1 && n <= array.size()) {
+                size_t index = static_cast<size_t>(n - 1);  // Lua index starts from 1
+                return array[index];
+            }
+        }
+
+        // Search in entries (const version)
+        for (size_t i = 0; i < entries.size(); ++i) {
+            if (entries[i]) {
+                Entry* entry = static_cast<Entry*>(entries[i]);
+                if (entry->key == key) {
+                    return entry->value;
+                }
+            }
+        }
+
         // Return nil if not found
         return Value(nullptr);
     }
@@ -150,7 +174,20 @@ namespace Lua {
     }
     
     size_t Table::length() const {
-        return array.size();
+        // Lua 5.1 table length: find the largest consecutive integer index starting from 1
+        size_t length = 0;
+
+        // Check consecutive integer keys starting from 1
+        for (size_t i = 1; ; ++i) {
+            Value key(static_cast<double>(i));
+            Value value = get(key);
+            if (value.isNil()) {
+                break; // Found the first nil value, length is i-1
+            }
+            length = i;
+        }
+
+        return length;
     }
     
     usize Table::getArraySize() const {

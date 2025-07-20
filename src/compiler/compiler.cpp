@@ -199,6 +199,7 @@ namespace Lua {
                                      static_cast<u8>(currentUpvalues_.size()));
         } catch (const LuaException& e) {
             // Compilation error, return nullptr
+            // DEBUG: Removed debug output for cleaner testing
             CompilerUtils::reportCompilerError(e.what());
             return nullptr;
         }

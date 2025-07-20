@@ -137,9 +137,17 @@ namespace Lua {
     }
     
     void StatementCompiler::compileExprStmt(const ExprStmt* stmt) {
+        // Save current register state
+        int oldStackTop = compiler->getRegisterManager().getStackTop();
+
         // Compile expression and discard result
         int exprReg = compiler->getExpressionCompiler()->compileExpr(stmt->getExpression());
-        compiler->freeReg(); // Free the expression result register
+
+        // Reset register stack to previous state to free all temporary registers
+        // This ensures function calls don't leave dangling register allocations
+        while (compiler->getRegisterManager().getStackTop() > oldStackTop) {
+            compiler->freeReg();
+        }
     }
     
     void StatementCompiler::compileBlockStmt(const BlockStmt* stmt) {
@@ -351,10 +359,8 @@ namespace Lua {
         // Create jump placeholder for false condition (jump to else/end)
         int jumpToElse = compiler->emitJump();
         
-        // Compile then branch
-        compiler->beginScope();
+        // Compile then branch (without scope management to avoid register conflicts)
         compileStmt(stmt->getThenBranch());
-        compiler->endScope();
         
         int jumpToEnd = -1;
         if (stmt->getElseBranch()) {
@@ -365,11 +371,9 @@ namespace Lua {
         // Patch the jump to else/end - this is where false condition lands
         compiler->patchJump(jumpToElse);
         
-        // Compile else branch if present
+        // Compile else branch if present (without scope management to avoid register conflicts)
         if (stmt->getElseBranch()) {
-            compiler->beginScope();
             compileStmt(stmt->getElseBranch());
-            compiler->endScope();
             
             // Patch the jump to end after then branch
             if (jumpToEnd != -1) {
@@ -401,6 +405,9 @@ namespace Lua {
 
         // Patch exit jump
         compiler->patchJump(exitJump);
+
+        // Handle break statements - patch them to jump to loop end
+        handleBreakStatements(static_cast<int>(compiler->getCodeSize()));
     }
     
     void StatementCompiler::compileForStmt(const ForStmt* stmt) {
@@ -478,6 +485,9 @@ namespace Lua {
 
         // Patch exit jump
         compiler->patchJump(exitJump);
+
+        // Handle break statements - patch them to jump to loop end
+        handleBreakStatements(static_cast<int>(compiler->getCodeSize()));
 
         // limit and step are now local variables, no need to free them manually
 
@@ -586,8 +596,8 @@ namespace Lua {
             // If reg is compiler register index, VM register is reg+1, so a should be reg
             compiler->emitInstruction(Instruction::createRETURN(reg, 2));
 
-            // Free value register
-            compiler->freeReg();
+            // Don't free value register - return statement terminates function execution
+            // compiler->freeReg();
         } else {
             // Multiple return values
             Vec<int> valueRegs;
