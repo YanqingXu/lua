@@ -1,4 +1,5 @@
 ﻿#include "math_lib.hpp"
+#include "../core/multi_return_helper.hpp"
 #include "../../vm/table.hpp"
 #include "../../common/defines.hpp"
 #include <cmath>
@@ -25,30 +26,35 @@ void MathLib::registerFunctions(State* state) {
     // Create math library table
     Value mathTable = LibRegistry::createLibTable(state, "math");
 
-    // Register basic math functions
-    REGISTER_TABLE_FUNCTION(state, mathTable, abs, abs);
-    REGISTER_TABLE_FUNCTION(state, mathTable, floor, floor);
-    REGISTER_TABLE_FUNCTION(state, mathTable, ceil, ceil);
-    REGISTER_TABLE_FUNCTION(state, mathTable, sqrt, sqrt);
-    REGISTER_TABLE_FUNCTION(state, mathTable, pow, pow);
+    // Register basic math functions (legacy)
+    LibRegistry::registerTableFunctionLegacy(state, mathTable, "abs", abs);
+    LibRegistry::registerTableFunctionLegacy(state, mathTable, "floor", floor);
+    LibRegistry::registerTableFunctionLegacy(state, mathTable, "ceil", ceil);
+    LibRegistry::registerTableFunctionLegacy(state, mathTable, "sqrt", sqrt);
+    LibRegistry::registerTableFunctionLegacy(state, mathTable, "pow", pow);
 
-    // Register trigonometric functions
-    REGISTER_TABLE_FUNCTION(state, mathTable, sin, sin);
-    REGISTER_TABLE_FUNCTION(state, mathTable, cos, cos);
-    REGISTER_TABLE_FUNCTION(state, mathTable, tan, tan);
+    // Register trigonometric functions (legacy)
+    LibRegistry::registerTableFunctionLegacy(state, mathTable, "sin", sin);
+    LibRegistry::registerTableFunctionLegacy(state, mathTable, "cos", cos);
+    LibRegistry::registerTableFunctionLegacy(state, mathTable, "tan", tan);
 
-    // Register logarithmic and exponential functions
-    REGISTER_TABLE_FUNCTION(state, mathTable, log, log);
-    REGISTER_TABLE_FUNCTION(state, mathTable, exp, exp);
+    // Register logarithmic and exponential functions (legacy)
+    LibRegistry::registerTableFunctionLegacy(state, mathTable, "log", log);
+    LibRegistry::registerTableFunctionLegacy(state, mathTable, "exp", exp);
 
-    // Register min/max functions
-    REGISTER_TABLE_FUNCTION(state, mathTable, min, min);
-    REGISTER_TABLE_FUNCTION(state, mathTable, max, max);
+    // Register min/max functions (legacy)
+    LibRegistry::registerTableFunctionLegacy(state, mathTable, "min", min);
+    LibRegistry::registerTableFunctionLegacy(state, mathTable, "max", max);
 
-    // Register other utility functions
-    REGISTER_TABLE_FUNCTION(state, mathTable, fmod, fmod);
-    REGISTER_TABLE_FUNCTION(state, mathTable, deg, deg);
-    REGISTER_TABLE_FUNCTION(state, mathTable, rad, rad);
+    // Register multi-return functions using new mechanism
+    LibRegistry::registerTableFunction(state, mathTable, "modf", modf);
+    LibRegistry::registerTableFunction(state, mathTable, "frexp", frexp);
+
+    // Register legacy single-return functions
+    LibRegistry::registerTableFunctionLegacy(state, mathTable, "fmod", fmod);
+    LibRegistry::registerTableFunctionLegacy(state, mathTable, "ldexp", ldexp);
+    LibRegistry::registerTableFunctionLegacy(state, mathTable, "deg", deg);
+    LibRegistry::registerTableFunctionLegacy(state, mathTable, "rad", rad);
 }
 
 void MathLib::initialize(State* state) {
@@ -429,42 +435,64 @@ Value MathLib::randomseed(State* state, i32 nargs) {
 // Additional Math Utility Functions
 // ===================================================================
 
-Value MathLib::modf(State* state, i32 nargs) {
+// New Lua 5.1 standard modf implementation (multi-return)
+i32 MathLib::modf(State* state) {
     if (!state) {
         throw std::invalid_argument("State pointer cannot be null");
     }
-    if (nargs < 1) return Value();
 
-    Value val = state->get(1);
-    if (!val.isNumber()) return Value();
+    int nargs = state->getTop();
+    if (nargs < 1) {
+        throw std::invalid_argument("math.modf: expected 1 argument (number)");
+    }
+
+    // Get the first argument (now in clean stack environment)
+    Value val = state->get(0);  // First argument is at index 0
+    if (!val.isNumber()) {
+        throw std::invalid_argument("math.modf: argument must be a number");
+    }
 
     f64 num = val.asNumber();
     f64 intpart;
     f64 fracpart = std::modf(num, &intpart);
 
-    // In Lua, modf returns two values: integer part and fractional part
-    // For now, just return the fractional part
-    // TODO: Implement proper multiple return values
-    return Value(fracpart);
+    // Clear arguments and push results
+    state->clearStack();
+    state->push(Value(intpart));   // Integer part first
+    state->push(Value(fracpart));  // Fractional part second
+
+    // Return 2 values
+    return 2;
 }
 
-Value MathLib::frexp(State* state, i32 nargs) {
+// New Lua 5.1 standard frexp implementation (multi-return)
+i32 MathLib::frexp(State* state) {
     if (!state) {
         throw std::invalid_argument("State pointer cannot be null");
     }
-    if (nargs < 1) return Value();
 
-    Value val = state->get(1);
-    if (!val.isNumber()) return Value();
+    int nargs = state->getTop();
+    if (nargs < 1) {
+        throw std::invalid_argument("math.frexp: expected 1 argument (number)");
+    }
+
+    // Get the first argument (now in clean stack environment)
+    Value val = state->get(0);  // First argument is at index 0
+    if (!val.isNumber()) {
+        throw std::invalid_argument("math.frexp: argument must be a number");
+    }
 
     f64 num = val.asNumber();
     int exp;
     f64 mantissa = std::frexp(num, &exp);
 
-    // In Lua, frexp returns two values: mantissa and exponent
-    // For now, just return the mantissa
-    // TODO: Implement proper multiple return values
-    return Value(mantissa);
+    // Clear arguments and push results
+    state->clearStack();
+    state->push(Value(mantissa));                    // Mantissa first
+    state->push(Value(static_cast<f64>(exp)));       // Exponent second (as number)
+
+    // Return 2 values
+    return 2;
 }
 
 Value MathLib::ldexp(State* state, i32 nargs) {

@@ -15,16 +15,16 @@ namespace Lua {
 class LibRegistry {
 public:
     /**
-     * @brief Register C function to global environment
+     * @brief Register C function to global environment (Lua 5.1 standard - multi-return)
      * @param state Lua state to register function to
      * @param name Function name in Lua
      * @param func C function pointer
      * @throws std::invalid_argument if any parameter is null
      */
     static void registerGlobalFunction(State* state, const char* name, LuaCFunction func);
-    
+
     /**
-     * @brief Register C function to specified table
+     * @brief Register C function to specified table (Lua 5.1 standard - multi-return)
      * @param state Lua state containing the table
      * @param table Target table to add function to
      * @param name Function name in the table
@@ -32,6 +32,25 @@ public:
      * @throws std::invalid_argument if any parameter is null or table is invalid
      */
     static void registerTableFunction(State* state, Value table, const char* name, LuaCFunction func);
+
+    /**
+     * @brief Register legacy C function to global environment (single return value)
+     * @param state Lua state to register function to
+     * @param name Function name in Lua
+     * @param func Legacy C function pointer
+     * @throws std::invalid_argument if any parameter is null
+     */
+    static void registerGlobalFunctionLegacy(State* state, const char* name, LuaCFunctionLegacy func);
+
+    /**
+     * @brief Register legacy C function to specified table (single return value)
+     * @param state Lua state containing the table
+     * @param table Target table to add function to
+     * @param name Function name in the table
+     * @param func Legacy C function pointer
+     * @throws std::invalid_argument if any parameter is null or table is invalid
+     */
+    static void registerTableFunctionLegacy(State* state, Value table, const char* name, LuaCFunctionLegacy func);
     
     /**
      * @brief Create and register library table

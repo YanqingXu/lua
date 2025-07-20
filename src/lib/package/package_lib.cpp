@@ -1,6 +1,7 @@
 ﻿#include "package_lib.hpp"
 #include "file_utils.hpp"
 #include "../core/lib_registry.hpp"
+#include "../core/multi_return_helper.hpp"
 #include "../../vm/table.hpp"
 #include "../../vm/function.hpp"
 #include "../../parser/parser.hpp"
@@ -8,6 +9,7 @@
 #include "../../common/defines.hpp"
 #include <iostream>
 #include <stdexcept>
+#include <sstream>
 
 namespace Lua {
 
@@ -20,16 +22,18 @@ void PackageLib::registerFunctions(State* state) {
         throw std::invalid_argument("State cannot be null");
     }
 
-    // Register global functions
-    REGISTER_GLOBAL_FUNCTION(state, require, require);
-    REGISTER_GLOBAL_FUNCTION(state, loadfile, loadfile);
-    REGISTER_GLOBAL_FUNCTION(state, dofile, dofile);
+    // Register multi-return functions using new mechanism
+    LibRegistry::registerGlobalFunction(state, "loadfile", loadfile);
+
+    // Register legacy single-return functions
+    LibRegistry::registerGlobalFunctionLegacy(state, "require", require);
+    LibRegistry::registerGlobalFunctionLegacy(state, "dofile", dofile);
 
     // Create package table
     Value packageTable = LibRegistry::createLibTable(state, "package");
 
     // Register package table functions
-    REGISTER_TABLE_FUNCTION(state, packageTable, searchpath, searchpath);
+    LibRegistry::registerTableFunction(state, packageTable, "searchpath", searchpath);
 }
 
 void PackageLib::initialize(State* state) {
@@ -63,14 +67,14 @@ void PackageLib::initialize(State* state) {
     auto loadersArray = GCRef<Table>(new Table());
     
     // Add default searchers to package.loaders
-    // 1. Preload searcher
-    loadersArray->set(Value(1), Value(Function::createNative([](State* s, int n) -> Value {
-        return searcherPreload(s, static_cast<i32>(n));
+    // 1. Preload searcher (legacy wrapper)
+    loadersArray->set(Value(1), Value(Function::createNativeLegacy([](State* s, i32 n) -> Value {
+        return searcherPreload(s, n);
     })));
-    
-    // 2. Lua file searcher
-    loadersArray->set(Value(2), Value(Function::createNative([](State* s, int n) -> Value {
-        return searcherLua(s, static_cast<i32>(n));
+
+    // 2. Lua file searcher (legacy wrapper)
+    loadersArray->set(Value(2), Value(Function::createNativeLegacy([](State* s, i32 n) -> Value {
+        return searcherLua(s, n);
     })));
 
     table->set(Value("loaders"), Value(loadersArray));
@@ -158,57 +162,67 @@ Value PackageLib::require(State* state, i32 nargs) {
     }
 }
 
-Value PackageLib::loadfile(State* state, i32 nargs) {
+// New Lua 5.1 standard loadfile implementation (multi-return)
+i32 PackageLib::loadfile(State* state) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }
 
+    int nargs = state->getTop();
     if (nargs < 1) {
-        return Value(); // nil - insufficient arguments
+        // Clear arguments and push error result
+        state->clearStack();
+        state->push(Value());  // nil
+        state->push(Value("loadfile: filename expected"));  // error message
+        return 2;
     }
 
-    // Get first argument using correct stack indexing
-    int stackBase = state->getTop() - nargs;
-    Value filenameVal = state->get(stackBase);
+    // Get filename argument (now in clean stack environment)
+    Value filenameVal = state->get(0);
     if (!filenameVal.isString()) {
-        return Value(); // nil - invalid filename
+        // Clear arguments and push error result
+        state->clearStack();
+        state->push(Value());  // nil
+        state->push(Value("loadfile: filename must be a string"));  // error message
+        return 2;
     }
 
-    Str filename = filenameVal.toString();
+    Str filename = filenameVal.asString();
 
     try {
-        // Check if file exists
+        // Try to load and compile the file
         if (!FileUtils::fileExists(filename)) {
-            return Value(); // nil - file not found
+            // Clear arguments and push error result
+            state->clearStack();
+            state->push(Value());  // nil
+            state->push(Value("loadfile: file not found: " + filename));  // error message
+            return 2;
         }
 
-        // Read file content
         Str source = FileUtils::readFile(filename);
 
-        // Parse the source code
+        // Parse and compile the source
         Parser parser(source);
-        auto statements = parser.parse();
+        auto ast = parser.parse();
 
-        if (parser.hasError()) {
-            return Value(); // nil - parse error
-        }
-
-        // Compile to bytecode
         Compiler compiler;
-        GCRef<Function> function = compiler.compile(statements);
+        auto function = compiler.compile(ast);
 
-        if (!function) {
-            return Value(); // nil - compilation error
-        }
+        // Clear arguments and push success result
+        state->clearStack();
+        state->push(Value(function));  // compiled function
+        return 1;  // Return 1 value on success
 
-        return Value(function);
     } catch (const std::exception& e) {
-        // Return nil on any error (loadfile doesn't throw)
-
-        std::cerr << "Error loading file '" << filename << "': " << e.what() << std::endl;
-        return Value();
+        // Clear arguments and push error result
+        state->clearStack();
+        state->push(Value());  // nil
+        state->push(Value(Str("loadfile: ") + e.what()));  // error message
+        return 2;
     }
 }
+
+
 
 Value PackageLib::dofile(State* state, i32 nargs) {
     if (!state) {
@@ -229,10 +243,17 @@ Value PackageLib::dofile(State* state, i32 nargs) {
     Str filename = filenameVal.toString();
 
     // Use loadfile to compile the file
+    state->clearStack();
     state->push(filenameVal);
-    Value function = loadfile(state, 1);
-    state->pop(); // Remove filename from stack
+    i32 returnCount = loadfile(state);
 
+    if (returnCount != 1) {
+        // loadfile returned error (nil, error_message)
+        Value errorMsg = state->get(1);
+        throw LuaException("dofile: " + errorMsg.asString());
+    }
+
+    Value function = state->get(0);
     if (function.isNil()) {
         throw LuaException("dofile: cannot load file '" + filename + "'");
     }
@@ -246,60 +267,117 @@ Value PackageLib::dofile(State* state, i32 nargs) {
 // Package Table Functions Implementation
 // ===================================================================
 
-Value PackageLib::searchpath(State* state, i32 nargs) {
+// New Lua 5.1 standard searchpath implementation (multi-return)
+i32 PackageLib::searchpath(State* state) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }
 
+    int nargs = state->getTop();
     if (nargs < 2) {
-        throw LuaException("package.searchpath: name and path expected");
+        // Clear arguments and push error result
+        state->clearStack();
+        state->push(Value());  // nil
+        state->push(Value("package.searchpath: name and path expected"));  // error message
+        return 2;
     }
 
-    // Get arguments using correct stack indexing
-    int stackBase = state->getTop() - nargs;
-    Value nameVal = state->get(stackBase);
-    Value pathVal = state->get(stackBase + 1);
+    // Get arguments (now in clean stack environment)
+    Value nameVal = state->get(0);      // First argument
+    Value pathVal = state->get(1);      // Second argument
 
     if (!nameVal.isString()) {
-        throw LuaException("package.searchpath: name must be a string");
+        // Clear arguments and push error result
+        state->clearStack();
+        state->push(Value());  // nil
+        state->push(Value("package.searchpath: name must be a string"));  // error message
+        return 2;
     }
     if (!pathVal.isString()) {
-        throw LuaException("package.searchpath: path must be a string");
+        // Clear arguments and push error result
+        state->clearStack();
+        state->push(Value());  // nil
+        state->push(Value("package.searchpath: path must be a string"));  // error message
+        return 2;
     }
 
-    Str name = nameVal.toString();
-    Str path = pathVal.toString();
+    Str name = nameVal.asString();
+    Str path = pathVal.asString();
 
     // Optional separator and replacement arguments
     Str sep = ".";
     Str rep = "/";
 
     if (nargs >= 3) {
-        Value sepVal = state->get(stackBase + 2);
+        Value sepVal = state->get(2);  // Third argument
         if (sepVal.isString()) {
-            sep = sepVal.toString();
+            sep = sepVal.asString();
         }
     }
 
     if (nargs >= 4) {
-        Value repVal = state->get(stackBase + 3);
+        Value repVal = state->get(3);  // Fourth argument
         if (repVal.isString()) {
-            rep = repVal.toString();
+            rep = repVal.asString();
         }
     }
 
-    // Search for the file and collect attempted paths
-    Vec<Str> attemptedPaths;
-    Str result = FileUtils::findModuleFileWithPaths(name, path, sep, rep, attemptedPaths);
+    try {
+        // Convert module name to file path
+        Str filename = name;
+        // Replace separator with replacement character
+        size_t pos = 0;
+        while ((pos = filename.find(sep, pos)) != Str::npos) {
+            filename.replace(pos, sep.length(), rep);
+            pos += rep.length();
+        }
 
-    if (result.empty()) {
-        // Return nil for now (Lua 5.1 should return nil, error_message)
-        // TODO: Implement proper multiple return values
-        return Value(); // nil
+        // Search through path patterns
+        std::istringstream pathStream(path);
+        Str pattern;
+        Str errorMessages;
+
+        while (std::getline(pathStream, pattern, ';')) {
+            if (pattern.empty()) continue;
+
+            // Replace ? with filename
+            Str filepath = pattern;
+            pos = filepath.find("?");
+            if (pos != Str::npos) {
+                filepath.replace(pos, 1, filename);
+            }
+
+            // Check if file exists
+            if (FileUtils::fileExists(filepath)) {
+                // Clear arguments and push success result
+                state->clearStack();
+                state->push(Value(filepath));  // found file path
+                return 1;  // Return 1 value on success
+            }
+
+            // Accumulate error messages
+            if (!errorMessages.empty()) {
+                errorMessages += "\n\t";
+            }
+            errorMessages += "no file '" + filepath + "'";
+        }
+
+        // Clear arguments and push error result
+        state->clearStack();
+        state->push(Value());  // nil
+        state->push(Value(errorMessages));  // error message
+        return 2;
+
+    } catch (const std::exception& e) {
+        // Clear arguments and push error result
+        state->clearStack();
+        state->push(Value());  // nil
+        state->push(Value(Str("package.searchpath: ") + e.what()));  // error message
+        return 2;
     }
-
-    return Value(result);
 }
+
+
 
 // ===================================================================
 // Internal Helper Functions Implementation
@@ -496,12 +574,12 @@ Value PackageLib::searcherLua(State* state, i32 nargs) {
         return Value(); // nil - file not found
     }
 
-    // Create loader function that loads the file
-    auto loaderFn = [filename, modname](State* s, int) -> Value {
+    // Create loader function that loads the file (legacy wrapper)
+    auto loaderFn = [filename, modname](State* s, i32) -> Value {
         return loadLuaModule(s, filename, modname);
     };
 
-    return Value(Function::createNative(loaderFn));
+    return Value(Function::createNativeLegacy(loaderFn));
 }
 
 // ===================================================================

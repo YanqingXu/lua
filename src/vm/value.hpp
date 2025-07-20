@@ -101,7 +101,10 @@ namespace Lua {
         
         // Convert to string for printing
         Str toString() const;
-        
+
+        // Get type name as string
+        Str getTypeName() const;
+
         // Equality comparison
         bool operator==(const Value& other) const;
         bool operator!=(const Value& other) const { return !(*this == other); }

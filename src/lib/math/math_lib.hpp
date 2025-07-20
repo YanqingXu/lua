@@ -2,6 +2,7 @@
 
 #include "../core/lib_module.hpp"
 #include "../core/lib_registry.hpp"
+#include "../../vm/call_result.hpp"
 
 namespace Lua {
 
@@ -112,8 +113,11 @@ public:
 
     // Other utility functions
     static Value fmod(State* state, i32 nargs);
-    static Value modf(State* state, i32 nargs);
-    static Value frexp(State* state, i32 nargs);
+
+    // Multi-return value functions (Lua 5.1 standard)
+    static i32 modf(State* state);
+    static i32 frexp(State* state);
+
     static Value ldexp(State* state, i32 nargs);
     static Value deg(State* state, i32 nargs);
     static Value rad(State* state, i32 nargs);

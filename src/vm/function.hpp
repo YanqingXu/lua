@@ -16,8 +16,11 @@ namespace Lua {
     class GarbageCollector;
     template<typename T> class GCRef;
     
-    // Native function type
-    using NativeFn = std::function<Value(State* state, int nargs)>;
+    // Native function type (Lua 5.1 standard - returns number of values pushed)
+    using NativeFn = std::function<i32(State* state)>;
+
+    // Legacy native function type (for backward compatibility)
+    using NativeFnLegacy = std::function<Value(State* state, int nargs)>;
     
     // Function class
     class Function : public GCObject {
@@ -45,10 +48,12 @@ namespace Lua {
         
         // Native function data
         struct NativeData {
-            NativeFn fn;
-            
+            NativeFn fn;                    // Multi-return function (Lua 5.1 standard)
+            NativeFnLegacy fnLegacy;        // Legacy single-return function
+            bool isLegacy;                  // Flag to indicate function type
+
             // Add default constructor
-            NativeData() : fn(nullptr) {}
+            NativeData() : fn(nullptr), fnLegacy(nullptr), isLegacy(false) {}
         } native;
         
     public:
@@ -71,8 +76,11 @@ namespace Lua {
             bool isVariadic = false
         );
         
-        // Create native function
+        // Create native function (Lua 5.1 standard - multiple return values)
         static GCRef<Function> createNative(NativeFn fn);
+
+        // Create legacy native function (single return value)
+        static GCRef<Function> createNativeLegacy(NativeFnLegacy fn);
         
         // Get function type
         Type getType() const { return type; }
@@ -86,8 +94,14 @@ namespace Lua {
         // Get prototypes
         const Vec<GCRef<Function>>& getPrototypes() const;
         
-        // Get native function
+        // Get native function (multi-return)
         NativeFn getNative() const;
+
+        // Get legacy native function (single-return)
+        NativeFnLegacy getNativeLegacy() const;
+
+        // Check if native function is legacy type
+        bool isNativeLegacy() const;
         
         // Get parameter count
         u8 getParamCount() const { return type == Type::Lua ? lua.nparams : 0; }

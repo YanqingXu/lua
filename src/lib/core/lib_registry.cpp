@@ -16,10 +16,9 @@ void LibRegistry::registerGlobalFunction(State* state, const char* name, LuaCFun
         return;
     }
 
-    // Create Native function object and register to global environment
-    // Need to convert LuaCFunction to NativeFn
-    NativeFn nativeFn = [func](State* s, int n) -> Value {
-        return func(s, static_cast<i32>(n));
+    // Create Native function object using new multi-return function type
+    NativeFn nativeFn = [func](State* s) -> i32 {
+        return func(s);
     };
 
     auto cfunction = Function::createNative(nativeFn);
@@ -31,9 +30,9 @@ void LibRegistry::registerTableFunction(State* state, Value table, const char* n
         return;
     }
 
-    // Create Native function object and add to table
-    NativeFn nativeFn = [func](State* s, int n) -> Value {
-        return func(s, static_cast<i32>(n));
+    // Create Native function object using new multi-return function type
+    NativeFn nativeFn = [func](State* s) -> i32 {
+        return func(s);
     };
 
     auto cfunction = Function::createNative(nativeFn);
@@ -54,6 +53,35 @@ Value LibRegistry::createLibTable(State* state, const char* libName) {
     state->setGlobal(libName, tableValue);
 
     return tableValue;
+}
+
+void LibRegistry::registerGlobalFunctionLegacy(State* state, const char* name, LuaCFunctionLegacy func) {
+    if (!state || !name || !func) {
+        return;
+    }
+
+    // Create Native function object using legacy function type
+    NativeFnLegacy nativeFn = [func](State* s, int n) -> Value {
+        return func(s, static_cast<i32>(n));
+    };
+
+    auto cfunction = Function::createNativeLegacy(nativeFn);
+    state->setGlobal(name, Value(cfunction));
+}
+
+void LibRegistry::registerTableFunctionLegacy(State* state, Value table, const char* name, LuaCFunctionLegacy func) {
+    if (!state || !name || !func || !table.isTable()) {
+        return;
+    }
+
+    // Create Native function object using legacy function type
+    NativeFnLegacy nativeFn = [func](State* s, int n) -> Value {
+        return func(s, static_cast<i32>(n));
+    };
+
+    auto cfunction = Function::createNativeLegacy(nativeFn);
+    auto tableRef = table.asTable();
+    tableRef->set(Value(name), Value(cfunction));
 }
 
 } // namespace Lua

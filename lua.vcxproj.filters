@@ -127,6 +127,9 @@
     <Filter Include="lib\debug">
       <UniqueIdentifier>{ec3cc82b-1065-4ce1-848b-b99bf5ae88f3}</UniqueIdentifier>
     </Filter>
+    <Filter Include="lib\package">
+      <UniqueIdentifier>{6ed13b33-eb3d-4b29-8441-3bdd39741c66}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\main.cpp">
@@ -320,6 +323,15 @@
     </ClCompile>
     <ClCompile Include="src\vm\metamethod_manager.cpp">
       <Filter>vm</Filter>
+    </ClCompile>
+    <ClCompile Include="src\repl.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="src\lib\package\file_utils.cpp">
+      <Filter>lib\package</Filter>
+    </ClCompile>
+    <ClCompile Include="src\lib\package\package_lib.cpp">
+      <Filter>lib\package</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -579,6 +591,15 @@
       <Filter>vm</Filter>
     </ClInclude>
     <ClInclude Include="src\vm\metamethod_manager.hpp">
+      <Filter>vm</Filter>
+    </ClInclude>
+    <ClInclude Include="src\lib\package\file_utils.hpp">
+      <Filter>lib\package</Filter>
+    </ClInclude>
+    <ClInclude Include="src\lib\package\package_lib.hpp">
+      <Filter>lib\package</Filter>
+    </ClInclude>
+    <ClInclude Include="src\vm\call_result.hpp">
       <Filter>vm</Filter>
     </ClInclude>
   </ItemGroup>

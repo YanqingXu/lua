@@ -16,13 +16,13 @@ void TableLib::registerFunctions(State* state) {
     // Create table library table
     Value tableTable = LibRegistry::createLibTable(state, "table");
 
-    // Register table manipulation functions
-    REGISTER_TABLE_FUNCTION(state, tableTable, insert, insert);
-    REGISTER_TABLE_FUNCTION(state, tableTable, remove, remove);
-    REGISTER_TABLE_FUNCTION(state, tableTable, sort, sort);
-    REGISTER_TABLE_FUNCTION(state, tableTable, concat, concat);
-    REGISTER_TABLE_FUNCTION(state, tableTable, getn, getn);
-    REGISTER_TABLE_FUNCTION(state, tableTable, maxn, maxn);
+    // Register table manipulation functions (all legacy single-return)
+    LibRegistry::registerTableFunctionLegacy(state, tableTable, "insert", insert);
+    LibRegistry::registerTableFunctionLegacy(state, tableTable, "remove", remove);
+    LibRegistry::registerTableFunctionLegacy(state, tableTable, "sort", sort);
+    LibRegistry::registerTableFunctionLegacy(state, tableTable, "concat", concat);
+    LibRegistry::registerTableFunctionLegacy(state, tableTable, "getn", getn);
+    LibRegistry::registerTableFunctionLegacy(state, tableTable, "maxn", maxn);
 }
 
 void TableLib::initialize(State* state) {

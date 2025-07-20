@@ -1473,33 +1473,72 @@ namespace Lua {
 
         // === Native Function Handling ===
         if (function->getType() == Function::Type::Native) {
-            auto nativeFn = function->getNative();
-            if (!nativeFn) {
-                throw LuaException("Native function pointer is null");
-            }
-
-            int oldTop = state->getTop();
-
-            try {
-                // Push arguments onto stack
-                for (size_t i = 0; i < args.size(); ++i) {
-                    state->push(args[i]);
+            // Check if it's a legacy function
+            if (function->isNativeLegacy()) {
+                auto nativeFnLegacy = function->getNativeLegacy();
+                if (!nativeFnLegacy) {
+                    throw LuaException("Legacy native function pointer is null");
                 }
 
-                // Call native function (single return value for now)
-                Value result = nativeFn(state, static_cast<int>(args.size()));
+                int oldTop = state->getTop();
 
-                // Restore stack state
-                state->setTop(oldTop);
+                try {
+                    // Push arguments onto stack
+                    for (size_t i = 0; i < args.size(); ++i) {
+                        state->push(args[i]);
+                    }
 
-                return CallResult(result);
+                    // Call legacy native function
+                    Value result = nativeFnLegacy(state, static_cast<int>(args.size()));
 
-            } catch (const LuaException& e) {
-                state->setTop(oldTop);
-                throw LuaException("Error in native function call: " + std::string(e.what()));
-            } catch (const std::exception& e) {
-                state->setTop(oldTop);
-                throw LuaException("Unexpected error in native function call: " + std::string(e.what()));
+                    // Restore stack state
+                    state->setTop(oldTop);
+
+                    return CallResult(result);
+
+                } catch (const LuaException& e) {
+                    state->setTop(oldTop);
+                    throw LuaException("Error in legacy native function call: " + std::string(e.what()));
+                } catch (const std::exception& e) {
+                    state->setTop(oldTop);
+                    throw LuaException("Unexpected error in legacy native function call: " + std::string(e.what()));
+                }
+            } else {
+                // New multi-return function
+                auto nativeFn = function->getNative();
+                if (!nativeFn) {
+                    throw LuaException("Native function pointer is null");
+                }
+
+                int oldTop = state->getTop();
+
+                try {
+                    // Push arguments onto stack
+                    for (size_t i = 0; i < args.size(); ++i) {
+                        state->push(args[i]);
+                    }
+
+                    // Call new multi-return function
+                    i32 returnCount = nativeFn(state);
+
+                    // Collect return values from stack
+                    Vec<Value> results;
+                    for (i32 i = 0; i < returnCount; ++i) {
+                        results.push_back(state->get(oldTop + i));
+                    }
+
+                    // Restore stack state
+                    state->setTop(oldTop);
+
+                    return CallResult(results);
+
+                } catch (const LuaException& e) {
+                    state->setTop(oldTop);
+                    throw LuaException("Error in native function call: " + std::string(e.what()));
+                } catch (const std::exception& e) {
+                    state->setTop(oldTop);
+                    throw LuaException("Unexpected error in native function call: " + std::string(e.what()));
+                }
             }
         }
 
@@ -1526,28 +1565,38 @@ namespace Lua {
 
         if (function->getType() == Function::Type::Native) {
             // Handle native functions directly
-            auto nativeFn = function->getNative();
-            if (!nativeFn) {
-                throw LuaException("Native function pointer is null");
-            }
-
-            int oldTop = state->getTop();
-            try {
-                // Push arguments onto stack
-                for (const auto& arg : args) {
-                    state->push(arg);
+            if (function->isNativeLegacy()) {
+                auto nativeFnLegacy = function->getNativeLegacy();
+                if (!nativeFnLegacy) {
+                    throw LuaException("Legacy native function pointer is null");
                 }
 
-                // Call native function
-                Value result = nativeFn(state, static_cast<int>(args.size()));
+                int oldTop = state->getTop();
+                try {
+                    // Push arguments onto stack
+                    for (const auto& arg : args) {
+                        state->push(arg);
+                    }
 
-                // Restore stack state
-                state->setTop(oldTop);
-                return result;
+                    // Call legacy native function
+                    Value result = nativeFnLegacy(state, static_cast<int>(args.size()));
 
-            } catch (const std::exception& e) {
-                state->setTop(oldTop);
-                throw LuaException("Error in native function call: " + std::string(e.what()));
+                    // Restore stack state
+                    state->setTop(oldTop);
+                    return result;
+
+                } catch (const std::exception& e) {
+                    state->setTop(oldTop);
+                    throw LuaException("Error in legacy native function call: " + std::string(e.what()));
+                }
+            } else {
+                // New multi-return function - return first value for compatibility
+                CallResult callResult = state->callMultiple(Value(function), args);
+                if (callResult.count > 0) {
+                    return callResult.getFirst();
+                } else {
+                    return Value();  // Return nil if no values
+                }
             }
         }
 

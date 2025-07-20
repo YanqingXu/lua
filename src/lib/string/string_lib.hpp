@@ -2,6 +2,7 @@
 
 #include "../core/lib_module.hpp"
 #include "../core/lib_registry.hpp"
+#include "../../vm/call_result.hpp"
 
 namespace Lua {
 
@@ -96,13 +97,19 @@ public:
      */
     static Value rep(State* state, i32 nargs);
 
-    // 模式匹配函数（简化版本）
-    static Value find(State* state, i32 nargs);
-    static Value match(State* state, i32 nargs);
-    static Value gsub(State* state, i32 nargs);
+    // 模式匹配函数（Lua 5.1 标准实现）
+    static i32 find(State* state);
+    static i32 gsub(State* state);
 
     // 格式化函数
     static Value format(State* state, i32 nargs);
+
+private:
+    // Helper functions for pattern matching
+    static Str convertLuaPatternToRegex(const Str& luaPattern);
+
+    // Helper function for string formatting
+    static Str performStringFormat(const Str& formatStr, const Vec<Value>& args);
 };
 
 /**

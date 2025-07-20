@@ -80,6 +80,24 @@ namespace Lua {
             func = GCRef<Function>(obj);
         }
         func->native.fn = fn;
+        func->native.isLegacy = false;
+        return func;
+    }
+
+    GCRef<Function> Function::createNativeLegacy(NativeFnLegacy fn) {
+        // Create a new Function object using GC allocator
+        extern GCAllocator* g_gcAllocator;
+        GCRef<Function> func;
+        if (g_gcAllocator) {
+            Function* obj = g_gcAllocator->allocateObject<Function>(GCObjectType::Function, Type::Native);
+            func = GCRef<Function>(obj);
+        } else {
+            // Fallback to direct allocation
+            Function* obj = new Function(Type::Native);
+            func = GCRef<Function>(obj);
+        }
+        func->native.fnLegacy = fn;
+        func->native.isLegacy = true;
         return func;
     }
     
@@ -103,7 +121,15 @@ namespace Lua {
     }
     
     NativeFn Function::getNative() const {
-        return type == Type::Native ? native.fn : nullptr;
+        return (type == Type::Native && !native.isLegacy) ? native.fn : nullptr;
+    }
+
+    NativeFnLegacy Function::getNativeLegacy() const {
+        return (type == Type::Native && native.isLegacy) ? native.fnLegacy : nullptr;
+    }
+
+    bool Function::isNativeLegacy() const {
+        return type == Type::Native && native.isLegacy;
     }
     
     // GCObject virtual function implementations

@@ -1,4 +1,4 @@
-#include <iostream>
+﻿#include <iostream>
 #include <string>
 #include <sstream>
 #include <stack>
@@ -142,6 +142,7 @@ private:
 
         } catch (const std::exception& e) {
             // If lexical analysis fails, might be incomplete input
+            std::cerr << "Error: " << e.what() << std::endl;
             return false;
         }
     }
@@ -245,8 +246,8 @@ void initializeREPL(Lua::State& state) {
     // Set version info
     state.setGlobal("_VERSION", Lua::Value("Lua 5.1.5"));
 
-    // Add REPL specific global functions
-    auto exitFunc = Lua::Function::createNative(Lua::replExit);
+    // Add REPL specific global functions (legacy)
+    auto exitFunc = Lua::Function::createNativeLegacy(Lua::replExit);
     state.setGlobal("exit", Lua::Value(exitFunc));
 
     // Set signal handling

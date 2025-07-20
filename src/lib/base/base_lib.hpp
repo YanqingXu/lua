@@ -2,6 +2,7 @@
 
 #include "../core/lib_module.hpp"
 #include "../core/lib_registry.hpp"
+#include "../../vm/call_result.hpp"
 
 namespace Lua {
     // Forward declarations
@@ -90,13 +91,12 @@ public:
     static Value error(State* state, i32 nargs);
 
     /**
-     * @brief Protected call function (pcall)
-     * @param state Lua state containing function and arguments
-     * @param nargs Number of arguments (function + args)
-     * @return true/false + result/error_message
+     * @brief Protected call function (pcall) - Lua 5.1 standard
+     * @param state Lua state containing function and arguments on stack
+     * @return Number of return values pushed to stack: (true, result...) or (false, error_message)
      * @throws std::invalid_argument if state is null
      */
-    static Value pcall(State* state, i32 nargs);
+    static i32 pcall(State* state);
 
     // Table operation functions (simplified implementations)
     static Value pairs(State* state, i32 nargs);

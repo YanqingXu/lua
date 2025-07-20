@@ -4,6 +4,7 @@
 #include "../gc/core/gc_object.hpp"
 #include "../gc/core/gc_ref.hpp"
 #include <memory>
+#include <cstring>
 
 namespace Lua {
     // Forward declarations

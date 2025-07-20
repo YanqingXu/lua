@@ -20,16 +20,16 @@ void IOLib::registerFunctions(State* state) {
     // Create io library table
     Value ioTable = LibRegistry::createLibTable(state, "io");
 
-    // Register file operation functions
-    REGISTER_TABLE_FUNCTION(state, ioTable, open, open);
-    REGISTER_TABLE_FUNCTION(state, ioTable, close, close);
-    REGISTER_TABLE_FUNCTION(state, ioTable, read, read);
-    REGISTER_TABLE_FUNCTION(state, ioTable, write, write);
-    REGISTER_TABLE_FUNCTION(state, ioTable, flush, flush);
-    REGISTER_TABLE_FUNCTION(state, ioTable, lines, lines);
-    REGISTER_TABLE_FUNCTION(state, ioTable, input, input);
-    REGISTER_TABLE_FUNCTION(state, ioTable, output, output);
-    REGISTER_TABLE_FUNCTION(state, ioTable, type, type);
+    // Register file operation functions (all legacy single-return)
+    LibRegistry::registerTableFunctionLegacy(state, ioTable, "open", open);
+    LibRegistry::registerTableFunctionLegacy(state, ioTable, "close", close);
+    LibRegistry::registerTableFunctionLegacy(state, ioTable, "read", read);
+    LibRegistry::registerTableFunctionLegacy(state, ioTable, "write", write);
+    LibRegistry::registerTableFunctionLegacy(state, ioTable, "flush", flush);
+    LibRegistry::registerTableFunctionLegacy(state, ioTable, "lines", lines);
+    LibRegistry::registerTableFunctionLegacy(state, ioTable, "input", input);
+    LibRegistry::registerTableFunctionLegacy(state, ioTable, "output", output);
+    LibRegistry::registerTableFunctionLegacy(state, ioTable, "type", type);
 }
 
 void IOLib::initialize(State* state) {

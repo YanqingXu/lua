@@ -417,36 +417,46 @@ namespace Lua {
 
         // === Native Function Handling ===
         if (function->getType() == Function::Type::Native) {
-            auto nativeFn = function->getNative();
-            if (!nativeFn) {
-                throw LuaException("Native function pointer is null");
-            }
-
-            // Save current stack state for proper cleanup
-            int oldTop = state->getTop();
-
-            try {
-                // Push arguments onto stack in correct order
-                for (size_t i = 0; i < args.size(); ++i) {
-                    state->push(args[i]);
+            // Check if it's a legacy function
+            if (function->isNativeLegacy()) {
+                auto nativeFnLegacy = function->getNativeLegacy();
+                if (!nativeFnLegacy) {
+                    throw LuaException("Legacy native function pointer is null");
                 }
 
-                // Call native function with argument count
-                Value result = nativeFn(state, static_cast<int>(args.size()));
+                // Save current stack state for proper cleanup
+                int oldTop = state->getTop();
 
-                // Restore stack state (important for nested calls)
-                state->setTop(oldTop);
+                try {
+                    // Push arguments onto stack in correct order
+                    for (size_t i = 0; i < args.size(); ++i) {
+                        state->push(args[i]);
+                    }
 
-                return result;
+                    // Call legacy native function with argument count
+                    Value result = nativeFnLegacy(state, static_cast<int>(args.size()));
 
-            } catch (const LuaException& e) {
-                // Restore stack state before re-throwing
-                state->setTop(oldTop);
-                throw LuaException("Error in native function call: " + std::string(e.what()));
-            } catch (const std::exception& e) {
-                // Restore stack state before re-throwing
-                state->setTop(oldTop);
-                throw LuaException("Unexpected error in native function call: " + std::string(e.what()));
+                    // Restore stack state (important for nested calls)
+                    state->setTop(oldTop);
+
+                    return result;
+                } catch (const LuaException& e) {
+                    // Restore stack state before re-throwing
+                    state->setTop(oldTop);
+                    throw LuaException("Error in legacy native function call: " + std::string(e.what()));
+                } catch (const std::exception& e) {
+                    // Restore stack state before re-throwing
+                    state->setTop(oldTop);
+                    throw LuaException("Unexpected error in legacy native function call: " + std::string(e.what()));
+                }
+            } else {
+                // New multi-return function - call and return first value for compatibility
+                CallResult callResult = state->callMultiple(Value(function), args);
+                if (callResult.count > 0) {
+                    return callResult.getFirst();
+                } else {
+                    return Value();  // Return nil if no values
+                }
             }
         }
 
@@ -511,36 +521,95 @@ namespace Lua {
         }
 
         // === Native Function Handling ===
-        // Note: Native functions currently only support single return values
-        // TODO: Extend native function interface to support multiple return values
         if (function->getType() == Function::Type::Native) {
-            auto nativeFn = function->getNative();
-            if (!nativeFn) {
-                throw LuaException("Native function pointer is null");
-            }
-
-            int oldTop = state->getTop();
-
-            try {
-                // Push arguments onto stack
-                for (size_t i = 0; i < args.size(); ++i) {
-                    state->push(args[i]);
+            // Check if it's a legacy function
+            if (function->isNativeLegacy()) {
+                auto nativeFnLegacy = function->getNativeLegacy();
+                if (!nativeFnLegacy) {
+                    throw LuaException("Legacy native function pointer is null");
                 }
 
-                // Call native function (single return value for now)
-                Value result = nativeFn(state, static_cast<int>(args.size()));
+                int oldTop = state->getTop();
 
-                // Restore stack state
-                state->setTop(oldTop);
+                try {
+                    // Push arguments onto stack
+                    for (size_t i = 0; i < args.size(); ++i) {
+                        state->push(args[i]);
+                    }
 
-                return CallResult(result);
+                    // Call legacy native function
+                    Value result = nativeFnLegacy(state, static_cast<int>(args.size()));
 
-            } catch (const LuaException& e) {
-                state->setTop(oldTop);
-                throw LuaException("Error in native function call: " + std::string(e.what()));
-            } catch (const std::exception& e) {
-                state->setTop(oldTop);
-                throw LuaException("Unexpected error in native function call: " + std::string(e.what()));
+                    // Restore stack state
+                    state->setTop(oldTop);
+
+                    return CallResult(result);
+
+                } catch (const LuaException& e) {
+                    state->setTop(oldTop);
+                    throw LuaException("Error in legacy native function call: " + std::string(e.what()));
+                } catch (const std::exception& e) {
+                    state->setTop(oldTop);
+                    throw LuaException("Unexpected error in legacy native function call: " + std::string(e.what()));
+                }
+            } else {
+                // New multi-return function - create clean stack environment
+                auto nativeFn = function->getNative();
+                if (!nativeFn) {
+                    throw LuaException("Native function pointer is null");
+                }
+
+                // Save current stack state manually
+                int oldTop = state->getTop();
+                Vec<Value> savedStack;
+                savedStack.reserve(oldTop);
+                for (int i = 0; i < oldTop; ++i) {
+                    savedStack.push_back(state->get(i));
+                }
+
+                try {
+                    // Create clean stack with only the arguments (Lua 5.1 standard)
+                    state->clearStack();
+                    for (size_t i = 0; i < args.size(); ++i) {
+                        state->push(args[i]);
+                    }
+
+                    // Call new multi-return function
+                    i32 returnCount = nativeFn(state);
+
+                    // Collect return values from clean stack
+                    Vec<Value> results;
+                    for (i32 i = 0; i < returnCount; ++i) {
+                        if (i < state->getTop()) {
+                            results.push_back(state->get(i));
+                        } else {
+                            results.push_back(Value()); // nil for missing values
+                        }
+                    }
+
+                    // Restore original stack state manually
+                    state->clearStack();
+                    for (const auto& val : savedStack) {
+                        state->push(val);
+                    }
+
+                    return CallResult(results);
+
+                } catch (const LuaException& e) {
+                    // Restore stack state before re-throwing
+                    state->clearStack();
+                    for (const auto& val : savedStack) {
+                        state->push(val);
+                    }
+                    throw LuaException("Error in native function call: " + std::string(e.what()));
+                } catch (const std::exception& e) {
+                    // Restore stack state before re-throwing
+                    state->clearStack();
+                    for (const auto& val : savedStack) {
+                        state->push(val);
+                    }
+                    throw LuaException("Unexpected error in native function call: " + std::string(e.what()));
+                }
             }
         }
 

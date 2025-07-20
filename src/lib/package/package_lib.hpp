@@ -4,6 +4,7 @@
 #include "../../common/types.hpp"
 #include "../../vm/state.hpp"
 #include "../../vm/value.hpp"
+#include "../../vm/call_result.hpp"
 #include <memory>
 #include <set>
 
@@ -65,12 +66,11 @@ private:
     static Value require(State* state, i32 nargs);
 
     /**
-     * @brief loadfile(filename) - Load Lua file without execution
-     * @param state Lua state
-     * @param nargs Number of arguments (should be 1)
-     * @return Compiled function or nil on error
+     * @brief loadfile(filename) - Load Lua file without execution (Lua 5.1 standard)
+     * @param state Lua state containing filename on stack
+     * @return Number of return values: (function) or (nil, error_message)
      */
-    static Value loadfile(State* state, i32 nargs);
+    static i32 loadfile(State* state);
 
     /**
      * @brief dofile(filename) - Load and execute Lua file
@@ -85,12 +85,11 @@ private:
     // ===================================================================
 
     /**
-     * @brief package.searchpath(name, path [, sep [, rep]]) - Search for module file
-     * @param state Lua state
-     * @param nargs Number of arguments (1-4)
-     * @return File path if found, nil plus error message otherwise
+     * @brief package.searchpath(name, path [, sep [, rep]]) - Search for module file (Lua 5.1 standard)
+     * @param state Lua state containing arguments on stack
+     * @return Number of return values: (filepath) or (nil, error_message)
      */
-    static Value searchpath(State* state, i32 nargs);
+    static i32 searchpath(State* state);
 
     // ===================================================================
     // Internal Helper Functions

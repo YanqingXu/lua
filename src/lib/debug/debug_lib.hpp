@@ -1,9 +1,9 @@
 ﻿#pragma once
 
-#include "common/types.hpp"
-#include "vm/state.hpp"
-#include "vm/value.hpp"
-#include "lib/core/lib_module.hpp"
+#include "../../common/types.hpp"
+#include "../../vm/state.hpp"
+#include "../../vm/value.hpp"
+#include "../core/lib_module.hpp"
 
 namespace Lua {
 
@@ -226,6 +226,13 @@ private:
      * @return Formatted traceback line
      */
     static Str formatTracebackLine(i32 level, const Str& functionName, const Str& sourceInfo);
+
+    // Interactive debug helper functions
+    static void printDebugHelp();
+    static void printStackInfo(State* state);
+    static void printGlobals(State* state);
+    static void evaluateExpression(State* state, const Str& expr);
+    static void executeAssignment(State* state, const Str& assignment);
 };
 
 /**

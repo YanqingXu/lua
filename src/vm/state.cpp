@@ -180,27 +180,25 @@ namespace Lua {
 
         // Native function call
         if (function->getType() == Function::Type::Native) {
-            auto nativeFn = function->getNative();
-            if (!nativeFn) {
-                throw LuaException("attempt to call a nil value");
+            // Check if it's a legacy function
+            if (function->isNativeLegacy()) {
+                auto nativeFnLegacy = function->getNativeLegacy();
+                if (!nativeFnLegacy) {
+                    throw LuaException("attempt to call a nil value");
+                }
+
+                // Legacy function call - return single value
+                Value result = nativeFnLegacy(this, static_cast<int>(args.size()));
+                return result;
+            } else {
+                // New multi-return function - call and return first value for compatibility
+                CallResult callResult = callMultiple(func, args);
+                if (callResult.count > 0) {
+                    return callResult.getFirst();
+                } else {
+                    return Value();  // Return nil if no values
+                }
             }
-
-            // 使用传统的参数传递方式（保持兼容性）
-            // Save current stack top
-            int oldTop = top;
-
-            // Push arguments onto stack
-            for (size_t i = 0; i < args.size(); ++i) {
-                push(args[i]);
-            }
-
-            // Call function
-            Value result = nativeFn(this, static_cast<int>(args.size()));
-
-            // Restore stack top
-            setTop(oldTop);
-
-            return result;
         }
 
         // For Lua function calls, use VM to execute
@@ -249,29 +247,46 @@ namespace Lua {
 
         auto function = func.asFunction();
 
-        // Native function call - for now, native functions only return single values
-        // TODO: Extend native function interface to support multiple return values
+        // Native function call with multiple return values support
         if (function->getType() == Function::Type::Native) {
-            auto nativeFn = function->getNative();
-            if (!nativeFn) {
-                throw LuaException("attempt to call a nil value");
+            // Check if it's a legacy function
+            if (function->isNativeLegacy()) {
+                auto nativeFnLegacy = function->getNativeLegacy();
+                if (!nativeFnLegacy) {
+                    throw LuaException("attempt to call a nil value");
+                }
+
+                // Legacy function call - convert to single return value
+                Value result = nativeFnLegacy(this, static_cast<int>(args.size()));
+                return CallResult(result);
+            } else {
+                auto nativeFn = function->getNative();
+                if (!nativeFn) {
+                    throw LuaException("attempt to call a nil value");
+                }
+
+                // Save current stack top
+                int oldTop = top;
+
+                // Push arguments onto stack
+                for (size_t i = 0; i < args.size(); ++i) {
+                    push(args[i]);
+                }
+
+                // Call new multi-return function
+                i32 returnCount = nativeFn(this);
+
+                // Collect return values from stack
+                Vec<Value> results;
+                for (i32 i = 0; i < returnCount; ++i) {
+                    results.push_back(get(oldTop + i));
+                }
+
+                // Restore stack top
+                setTop(oldTop);
+
+                return CallResult(results);
             }
-
-            // Save current stack top
-            int oldTop = top;
-
-            // Push arguments onto stack
-            for (size_t i = 0; i < args.size(); ++i) {
-                push(args[i]);
-            }
-
-            // Call function (single return value for now)
-            Value result = nativeFn(this, static_cast<int>(args.size()));
-
-            // Restore stack top
-            setTop(oldTop);
-
-            return CallResult(result);
         }
 
         // For Lua function calls, use VM to execute with multiple return values
@@ -355,16 +370,116 @@ namespace Lua {
             throw LuaException("callNative can only call native functions");
         }
 
-        auto nativeFn = function->getNative();
-        if (!nativeFn) {
-            throw LuaException("attempt to call a nil value");
+        // Check if it's a legacy function
+        if (function->isNativeLegacy()) {
+            auto nativeFnLegacy = function->getNativeLegacy();
+            if (!nativeFnLegacy) {
+                throw LuaException("attempt to call a nil value");
+            }
+
+            // Legacy function call - return single value
+            Value result = nativeFnLegacy(this, nargs);
+            return result;
+        } else {
+            // New multi-return function - call and return first value for compatibility
+            i32 returnCount = callNativeMultiple(func, nargs);
+            if (returnCount > 0) {
+                return get(top - returnCount);  // Return first value
+            } else {
+                return Value();  // Return nil if no values
+            }
+        }
+    }
+
+    // Native function call with multiple return values (Lua 5.1 standard)
+    i32 State::callNativeMultiple(const Value& func, int nargs) {
+        if (!func.isFunction()) {
+            throw LuaException("attempt to call a non-function value");
         }
 
-        // Lua 5.1官方设计：参数已经在栈顶，直接调用
-        // Native函数会使用State::get(stackTop - nargs + 1 + i)来访问参数
-        Value result = nativeFn(this, nargs);
+        auto function = func.asFunction();
 
-        return result;
+        // Only handle native functions
+        if (function->getType() != Function::Type::Native) {
+            throw LuaException("callNativeMultiple can only call native functions");
+        }
+
+        // Store the stack position before arguments
+        int stackBase = top - nargs;
+
+        i32 returnCount = 0;
+
+        // Check if it's a legacy function
+        if (function->isNativeLegacy()) {
+            auto nativeFnLegacy = function->getNativeLegacy();
+            if (!nativeFnLegacy) {
+                throw LuaException("attempt to call a nil value");
+            }
+
+            // Legacy function call - convert to single return value
+            Value result = nativeFnLegacy(this, nargs);
+
+            // Clear arguments and push single result
+            top = stackBase;
+            push(result);
+            returnCount = 1;
+        } else {
+            auto nativeFn = function->getNative();
+            if (!nativeFn) {
+                throw LuaException("attempt to call a nil value");
+            }
+
+            // Create a clean stack environment for the new function
+            // Save current stack state
+            int oldTop = top;
+            Vec<Value> oldStack = stack;
+
+            // Debug: Print original stack state
+            std::cout << "DEBUG callNativeMultiple: nargs=" << nargs << ", stackBase=" << stackBase << ", oldTop=" << oldTop << std::endl;
+            for (int i = 0; i < nargs; ++i) {
+                Value v = oldStack[stackBase + i];
+                std::cout << "DEBUG callNativeMultiple: arg[" << i << "] = " << (v.isNumber() ? std::to_string(v.asNumber()) : "other") << std::endl;
+            }
+
+            // Set up clean stack with only the arguments
+            stack.clear();
+            stack.resize(nargs);
+            for (int i = 0; i < nargs; ++i) {
+                stack[i] = oldStack[stackBase + i];
+            }
+            top = nargs;
+
+            // Lua 5.1 standard: C function receives arguments on stack and returns count
+            // The function will push return values and return the count
+            returnCount = nativeFn(this);
+
+            // Collect return values
+            Vec<Value> returnValues;
+            for (i32 i = 0; i < returnCount; ++i) {
+                if (i < static_cast<i32>(stack.size())) {
+                    returnValues.push_back(stack[i]);
+                } else {
+                    returnValues.push_back(Value()); // nil for missing values
+                }
+            }
+
+            // Restore original stack and place return values
+            stack = oldStack;
+            top = stackBase;
+            for (const auto& val : returnValues) {
+                push(val);
+            }
+
+            // Validate return count
+            if (returnCount < 0) {
+                throw LuaException("native function returned invalid return count");
+            }
+
+            // Return values have already been placed on the stack
+            // top is already set correctly
+        }
+
+        return returnCount;
     }
 
     // Lua function call with arguments already on stack
@@ -488,7 +603,8 @@ namespace Lua {
             return persistentVM->execute(function);
 
         } catch (const LuaException& e) {
-            throw; // Re-throw Lua exceptions
+            // Re-throw LuaException for specific Lua errors
+            throw LuaException("Lua error: " + std::string(e.what()));
         } catch (const std::exception& e) {
             throw LuaException("Error executing Lua code: " + std::string(e.what()));
         }

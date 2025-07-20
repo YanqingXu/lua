@@ -1,9 +1,11 @@
 ﻿#include "debug_lib.hpp"
-#include "lib/core/lib_registry.hpp"
-#include "vm/table.hpp"
+#include "../core/lib_registry.hpp"
+#include "../../vm/table.hpp"
 #include "../../common/defines.hpp"
 #include <iostream>
 #include <sstream>
+#include <string>
+#include <iomanip>
 
 namespace Lua {
 
@@ -15,21 +17,23 @@ void DebugLib::registerFunctions(State* state) {
     // Create debug library table
     Value debugTable = LibRegistry::createLibTable(state, "debug");
 
-    // Register debug functions
-    REGISTER_TABLE_FUNCTION(state, debugTable, debug, debug);
-    REGISTER_TABLE_FUNCTION(state, debugTable, getfenv, getfenv);
-    REGISTER_TABLE_FUNCTION(state, debugTable, gethook, gethook);
-    REGISTER_TABLE_FUNCTION(state, debugTable, getinfo, getinfo);
-    REGISTER_TABLE_FUNCTION(state, debugTable, getlocal, getlocal);
-    REGISTER_TABLE_FUNCTION(state, debugTable, getmetatable, getmetatable);
-    REGISTER_TABLE_FUNCTION(state, debugTable, getregistry, getregistry);
-    REGISTER_TABLE_FUNCTION(state, debugTable, getupvalue, getupvalue);
-    REGISTER_TABLE_FUNCTION(state, debugTable, setfenv, setfenv);
-    REGISTER_TABLE_FUNCTION(state, debugTable, sethook, sethook);
-    REGISTER_TABLE_FUNCTION(state, debugTable, setlocal, setlocal);
-    REGISTER_TABLE_FUNCTION(state, debugTable, setmetatable, setmetatable);
-    REGISTER_TABLE_FUNCTION(state, debugTable, setupvalue, setupvalue);
-    REGISTER_TABLE_FUNCTION(state, debugTable, traceback, traceback);
+    // Register debug functions (all legacy single-return for now)
+    // Note: When debug functions are fully implemented, gethook, getlocal,
+    // and getupvalue should be converted to multi-return functions
+    LibRegistry::registerTableFunctionLegacy(state, debugTable, "debug", debug);
+    LibRegistry::registerTableFunctionLegacy(state, debugTable, "getfenv", getfenv);
+    LibRegistry::registerTableFunctionLegacy(state, debugTable, "gethook", gethook);
+    LibRegistry::registerTableFunctionLegacy(state, debugTable, "getinfo", getinfo);
+    LibRegistry::registerTableFunctionLegacy(state, debugTable, "getlocal", getlocal);
+    LibRegistry::registerTableFunctionLegacy(state, debugTable, "getmetatable", getmetatable);
+    LibRegistry::registerTableFunctionLegacy(state, debugTable, "getregistry", getregistry);
+    LibRegistry::registerTableFunctionLegacy(state, debugTable, "getupvalue", getupvalue);
+    LibRegistry::registerTableFunctionLegacy(state, debugTable, "setfenv", setfenv);
+    LibRegistry::registerTableFunctionLegacy(state, debugTable, "sethook", sethook);
+    LibRegistry::registerTableFunctionLegacy(state, debugTable, "setlocal", setlocal);
+    LibRegistry::registerTableFunctionLegacy(state, debugTable, "setmetatable", setmetatable);
+    LibRegistry::registerTableFunctionLegacy(state, debugTable, "setupvalue", setupvalue);
+    LibRegistry::registerTableFunctionLegacy(state, debugTable, "traceback", traceback);
 }
 
 void DebugLib::initialize(State* state) {
@@ -50,9 +54,61 @@ Value DebugLib::debug(State* state, i32 nargs) {
         throw std::invalid_argument("State cannot be null");
     }
 
-    (void)nargs; // Suppress unused parameter warning
+    (void)nargs; // No arguments expected for debug()
 
-    // Simplified implementation - debug mode not implemented
+    std::cout << "\n=== Lua Debug Mode ===" << std::endl;
+    std::cout << "Type 'help' for available commands, 'cont' to continue execution" << std::endl;
+
+    // Interactive debug loop
+    std::string input;
+    bool continueExecution = false;
+
+    while (!continueExecution) {
+        std::cout << "lua_debug> ";
+        std::getline(std::cin, input);
+
+        // Trim whitespace
+        input.erase(0, input.find_first_not_of(" \t"));
+        input.erase(input.find_last_not_of(" \t") + 1);
+
+        if (input.empty()) {
+            continue;
+        }
+
+        // Process debug commands
+        if (input == "help" || input == "h") {
+            printDebugHelp();
+        }
+        else if (input == "cont" || input == "c") {
+            continueExecution = true;
+        }
+        else if (input == "stack" || input == "s") {
+            printStackInfo(state);
+        }
+        else if (input == "globals" || input == "g") {
+            printGlobals(state);
+        }
+        else if (input == "quit" || input == "q") {
+            std::cout << "Exiting debug mode..." << std::endl;
+            continueExecution = true;
+        }
+        else if (input.substr(0, 5) == "eval ") {
+            // Evaluate Lua expression
+            std::string expr = input.substr(5);
+            evaluateExpression(state, expr);
+        }
+        else if (input.substr(0, 4) == "set ") {
+            // Set variable (simplified)
+            std::string assignment = input.substr(4);
+            executeAssignment(state, assignment);
+        }
+        else {
+            std::cout << "Unknown command: " << input << std::endl;
+            std::cout << "Type 'help' for available commands" << std::endl;
+        }
+    }
+
+    std::cout << "Continuing execution..." << std::endl;
     return Value(); // nil
 }
 
@@ -333,6 +389,110 @@ Str DebugLib::formatTracebackLine(i32 level, const Str& functionName, const Str&
         line << " (level " << level << ")";
     }
     return line.str();
+}
+
+// ===================================================================
+// Debug Helper Functions Implementation
+// ===================================================================
+
+void DebugLib::printDebugHelp() {
+    std::cout << "\nAvailable debug commands:" << std::endl;
+    std::cout << "  help, h      - Show this help message" << std::endl;
+    std::cout << "  cont, c      - Continue execution" << std::endl;
+    std::cout << "  stack, s     - Show stack information" << std::endl;
+    std::cout << "  globals, g   - Show global variables" << std::endl;
+    std::cout << "  eval <expr>  - Evaluate Lua expression" << std::endl;
+    std::cout << "  set <var>=<val> - Set variable value" << std::endl;
+    std::cout << "  quit, q      - Exit debug mode" << std::endl;
+    std::cout << std::endl;
+}
+
+void DebugLib::printStackInfo(State* state) {
+    if (!state) {
+        std::cout << "Error: Invalid state" << std::endl;
+        return;
+    }
+
+    std::cout << "\n=== Stack Information ===" << std::endl;
+    std::cout << "Stack size: " << state->getTop() << std::endl;
+
+    // Show top few stack values
+    int top = state->getTop();
+    int showCount = std::min(top, 10); // Show up to 10 values
+
+    for (int i = 0; i < showCount; ++i) {
+        Value val = state->get(i);
+        std::cout << "  [" << i << "] " << val.toString() << " (" << val.getTypeName() << ")" << std::endl;
+    }
+
+    if (top > showCount) {
+        std::cout << "  ... and " << (top - showCount) << " more values" << std::endl;
+    }
+    std::cout << std::endl;
+}
+
+void DebugLib::printGlobals(State* state) {
+    if (!state) {
+        std::cout << "Error: Invalid state" << std::endl;
+        return;
+    }
+
+    std::cout << "\n=== Global Variables ===" << std::endl;
+
+    // Get global table
+    Value globalTable = state->getGlobal("_G");
+    if (globalTable.isTable()) {
+        auto table = globalTable.asTable();
+        std::cout << "Global table found with " << table->length() << " entries" << std::endl;
+
+        // Show some common globals
+        const char* commonGlobals[] = {"print", "type", "tostring", "tonumber", "_VERSION", "math", "string", "table"};
+        for (const char* name : commonGlobals) {
+            Value val = state->getGlobal(name);
+            if (!val.isNil()) {
+                std::cout << "  " << name << " = " << val.toString() << " (" << val.getTypeName() << ")" << std::endl;
+            }
+        }
+    } else {
+        std::cout << "Global table not available" << std::endl;
+    }
+    std::cout << std::endl;
+}
+
+void DebugLib::evaluateExpression(State* state, const Str& expr) {
+    if (!state || expr.empty()) {
+        std::cout << "Error: Invalid expression" << std::endl;
+        return;
+    }
+
+    try {
+        // Try to evaluate the expression as a return statement
+        std::string code = "return " + expr;
+        Value result = state->doStringWithResult(code);
+
+        std::cout << "Result: " << result.toString() << " (" << result.getTypeName() << ")" << std::endl;
+    } catch (const std::exception& e) {
+        std::cout << "Error evaluating expression: " << e.what() << std::endl;
+    }
+}
+
+void DebugLib::executeAssignment(State* state, const Str& assignment) {
+    if (!state || assignment.empty()) {
+        std::cout << "Error: Invalid assignment" << std::endl;
+        return;
+    }
+
+    try {
+        // Execute the assignment directly
+        bool success = state->doString(assignment);
+        if (success) {
+            std::cout << "Assignment executed successfully" << std::endl;
+        } else {
+            std::cout << "Assignment failed" << std::endl;
+        }
+    } catch (const std::exception& e) {
+        std::cout << "Error executing assignment: " << e.what() << std::endl;
+    }
 }
 
 void initializeDebugLib(State* state) {

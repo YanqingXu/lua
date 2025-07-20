@@ -1,10 +1,13 @@
 ﻿#include "base_lib.hpp"
+#include "../core/multi_return_helper.hpp"
 #include "../../vm/table.hpp"
 #include "../../vm/userdata.hpp"
 #include "../../vm/metamethod_manager.hpp"
 #include "../../vm/core_metamethods.hpp"
+#include "../../common/types.hpp"
 #include <iostream>
 #include <sstream>
+#include <stdexcept>
 
 namespace Lua {
 
@@ -17,31 +20,33 @@ void BaseLib::registerFunctions(State* state) {
         throw std::invalid_argument("State cannot be null");
     }
 
-    // Register core functions to global environment
-    REGISTER_GLOBAL_FUNCTION(state, print, print);
-    REGISTER_GLOBAL_FUNCTION(state, type, type);
-    REGISTER_GLOBAL_FUNCTION(state, tostring, tostring);
-    REGISTER_GLOBAL_FUNCTION(state, tonumber, tonumber);
-    REGISTER_GLOBAL_FUNCTION(state, error, error);
-    REGISTER_GLOBAL_FUNCTION(state, pcall, pcall);
+    // Register multi-return functions using new mechanism
+    LibRegistry::registerGlobalFunction(state, "pcall", pcall);
 
-    // Register table operation functions
-    REGISTER_GLOBAL_FUNCTION(state, pairs, pairs);
-    REGISTER_GLOBAL_FUNCTION(state, ipairs, ipairs);
-    REGISTER_GLOBAL_FUNCTION(state, next, next);
+    // Register legacy single-return functions
+    LibRegistry::registerGlobalFunctionLegacy(state, "print", print);
+    LibRegistry::registerGlobalFunctionLegacy(state, "type", type);
+    LibRegistry::registerGlobalFunctionLegacy(state, "tostring", tostring);
+    LibRegistry::registerGlobalFunctionLegacy(state, "tonumber", tonumber);
+    LibRegistry::registerGlobalFunctionLegacy(state, "error", error);
 
-    // Register metatable operation functions
-    REGISTER_GLOBAL_FUNCTION(state, getmetatable, getmetatable);
-    REGISTER_GLOBAL_FUNCTION(state, setmetatable, setmetatable);
-    REGISTER_GLOBAL_FUNCTION(state, rawget, rawget);
-    REGISTER_GLOBAL_FUNCTION(state, rawset, rawset);
-    REGISTER_GLOBAL_FUNCTION(state, rawlen, rawlen);
-    REGISTER_GLOBAL_FUNCTION(state, rawequal, rawequal);
+    // Register table operation functions (legacy)
+    LibRegistry::registerGlobalFunctionLegacy(state, "pairs", pairs);
+    LibRegistry::registerGlobalFunctionLegacy(state, "ipairs", ipairs);
+    LibRegistry::registerGlobalFunctionLegacy(state, "next", next);
 
-    // Register other utility functions
-    //REGISTER_GLOBAL_FUNCTION(state, assert, assert);
-    REGISTER_GLOBAL_FUNCTION(state, select, select);
-    REGISTER_GLOBAL_FUNCTION(state, unpack, unpack);
+    // Register metatable operation functions (legacy)
+    LibRegistry::registerGlobalFunctionLegacy(state, "getmetatable", getmetatable);
+    LibRegistry::registerGlobalFunctionLegacy(state, "setmetatable", setmetatable);
+    LibRegistry::registerGlobalFunctionLegacy(state, "rawget", rawget);
+    LibRegistry::registerGlobalFunctionLegacy(state, "rawset", rawset);
+    LibRegistry::registerGlobalFunctionLegacy(state, "rawlen", rawlen);
+    LibRegistry::registerGlobalFunctionLegacy(state, "rawequal", rawequal);
+
+    // Register other utility functions (legacy)
+    //LibRegistry::registerGlobalFunctionLegacy(state, "assert", assert);
+    LibRegistry::registerGlobalFunctionLegacy(state, "select", select);
+    LibRegistry::registerGlobalFunctionLegacy(state, "unpack", unpack);
 }
 
 void BaseLib::initialize(State* state) {
@@ -183,45 +188,69 @@ Value BaseLib::error(State* state, i32 nargs) {
     throw LuaException(message);
 }
 
-Value BaseLib::pcall(State* state, i32 nargs) {
+// New Lua 5.1 standard pcall implementation (multi-return)
+i32 BaseLib::pcall(State* state) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }
 
+    int nargs = state->getTop();
     if (nargs < 1) {
         throw std::invalid_argument("pcall: function expected");
     }
 
-    // Get function and arguments from stack
-    int stackBase = state->getTop() - nargs;
-    Value func = state->get(stackBase);
+    // Get function from stack (first argument) - now in clean stack environment
+    Value func = state->get(0);
 
-    // Prepare arguments for the function call
+    // Prepare arguments for the function call (skip the function itself)
     Vec<Value> args;
     for (int i = 1; i < nargs; ++i) {
-        args.push_back(state->get(stackBase + i));
+        args.push_back(state->get(i));
     }
 
     try {
-        // Call the function
-        Value result = state->call(func, args);
+        // Try to call the function with multiple return values
+        CallResult callResult = state->callMultiple(func, args);
 
-        // Return success (true) and result
-        // For now, return just true since we can't return multiple values easily
-        // TODO: Implement proper multiple return values
-        return Value(true);
+        // Clear the stack
+        state->clearStack();
+
+        // Push success flag
+        state->push(Value(true));
+
+        // Push all result values
+        for (size_t i = 0; i < callResult.count; ++i) {
+            state->push(callResult.getValue(i));
+        }
+
+        // Return total count (success flag + results)
+        return static_cast<i32>(1 + callResult.count);
 
     } catch (const LuaException& e) {
-        // Return failure (false) and error message
-        // For now, return just false
-        // TODO: Implement proper multiple return values to return false, error_message
-        return Value(false);
+        // Clear the stack
+        state->clearStack();
+
+        // Push error flag and message
+        state->push(Value(false));
+        state->push(Value(e.what()));
+
+        // Return 2 values (false, error_message)
+        return 2;
 
     } catch (const std::exception& e) {
-        // Return failure (false) and error message
-        return Value(false);
+        // Clear the stack
+        state->clearStack();
+
+        // Push error flag and message
+        state->push(Value(false));
+        state->push(Value(e.what()));
+
+        // Return 2 values (false, error_message)
+        return 2;
     }
 }
+
+
 
 // ===================================================================
 // Table Operation Function Implementations (Simplified Versions)

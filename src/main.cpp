@@ -37,8 +37,9 @@ int main(int argc, char** argv) {
    try {
        if (argc > 1) {
             std::string arg = argv[1];
-            if (arg == "-repl") {
-                run_repl();
+            if (arg == "-test") {
+                RUN_MAIN_TEST("MainTestSuite", Lua::Tests::MainTestSuite::runAllTests);
+                
             } else {
                 // Run file
                 std::string filename = arg;
@@ -52,20 +53,7 @@ int main(int argc, char** argv) {
                 state.doString(source);
             }
        } else {
-           RUN_MAIN_TEST("MainTestSuite", Lua::Tests::MainTestSuite::runAllTests);
-
-           // Interactive mode or show usage  
-           /*std::cout << "Lua Interpreter (Simplified Standard Library)" << std::endl;  
-           std::cout << "Usage: " << argv[0] << " <script.lua>" << std::endl;  
-           std::cout << std::endl;  
-           std::cout << "This version includes:" << std::endl;  
-           std::cout << "- Core VM components" << std::endl;  
-           std::cout << "- Lexer and Parser" << std::endl;  
-           std::cout << "- Compiler" << std::endl;  
-           std::cout << "- Simplified BaseLib (core functions)" << std::endl;  
-           std::cout << "- Simplified StringLib (string functions)" << std::endl;  
-           std::cout << "- Simplified MathLib (math functions)" << std::endl;  
-           std::cout << "- Garbage collection" << std::endl;*/  
+           run_repl();
        }  
    } catch (const std::exception& e) {  
        std::cerr << "Error: " << e.what() << std::endl;  

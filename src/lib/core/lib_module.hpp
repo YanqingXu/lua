@@ -23,14 +23,27 @@ namespace Lua {
 class State;
 
 /**
- * @brief Lua C function type definition
+ * @brief Lua C function type definition (Lua 5.1 standard)
  *
  * Represents a C function that can be called from Lua code.
+ * Following Lua 5.1 official standard, C functions:
+ * - Receive arguments from the stack via State::get()
+ * - Push return values to the stack via State::push()
+ * - Return the number of values pushed to the stack
+ *
+ * @param state Lua state containing function arguments on stack
+ * @return Number of return values pushed to the stack
+ */
+using LuaCFunction = i32(*)(State* state);
+
+/**
+ * @brief Legacy single-return C function type (for backward compatibility)
+ *
  * @param state Lua state containing function arguments
  * @param nargs Number of arguments passed to the function
- * @return Value returned to Lua
+ * @return Single value returned to Lua
  */
-using LuaCFunction = Value(*)(State* state, i32 nargs);
+using LuaCFunctionLegacy = Value(*)(State* state, i32 nargs);
 
 /**
  * @brief Library module base class

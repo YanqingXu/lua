@@ -113,7 +113,28 @@ namespace Lua {
                 return "unknown";
         }
     }
-    
+
+    Str Value::getTypeName() const {
+        switch (type()) {
+            case ValueType::Nil:
+                return "nil";
+            case ValueType::Boolean:
+                return "boolean";
+            case ValueType::Number:
+                return "number";
+            case ValueType::String:
+                return "string";
+            case ValueType::Table:
+                return "table";
+            case ValueType::Function:
+                return "function";
+            case ValueType::Userdata:
+                return "userdata";
+            default:
+                return "unknown";
+        }
+    }
+
     bool Value::operator==(const Value& other) const {
         // Different types are never equal in Lua
         // (No automatic type conversion for equality comparison)

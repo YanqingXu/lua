@@ -89,6 +89,9 @@ namespace Lua {
         // Native function call with arguments already on stack (Lua 5.1 design)
         Value callNative(const Value& func, int nargs);
 
+        // Native function call with multiple return values (Lua 5.1 standard)
+        i32 callNativeMultiple(const Value& func, int nargs);
+
         // Lua function call with arguments already on stack
         Value callLua(const Value& func, int nargs);
         

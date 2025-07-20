@@ -25,18 +25,18 @@ void OSLib::registerFunctions(State* state) {
     // Create os library table
     Value osTable = LibRegistry::createLibTable(state, "os");
 
-    // Register OS functions
-    REGISTER_TABLE_FUNCTION(state, osTable, clock, clock);
-    REGISTER_TABLE_FUNCTION(state, osTable, date, date);
-    REGISTER_TABLE_FUNCTION(state, osTable, difftime, difftime);
-    REGISTER_TABLE_FUNCTION(state, osTable, execute, execute);
-    REGISTER_TABLE_FUNCTION(state, osTable, exit, exit);
-    REGISTER_TABLE_FUNCTION(state, osTable, getenv, getenv);
-    REGISTER_TABLE_FUNCTION(state, osTable, remove, remove);
-    REGISTER_TABLE_FUNCTION(state, osTable, rename, rename);
-    REGISTER_TABLE_FUNCTION(state, osTable, setlocale, setlocale);
-    REGISTER_TABLE_FUNCTION(state, osTable, time, time);
-    REGISTER_TABLE_FUNCTION(state, osTable, tmpname, tmpname);
+    // Register OS functions (all legacy single-return)
+    LibRegistry::registerTableFunctionLegacy(state, osTable, "clock", clock);
+    LibRegistry::registerTableFunctionLegacy(state, osTable, "date", date);
+    LibRegistry::registerTableFunctionLegacy(state, osTable, "difftime", difftime);
+    LibRegistry::registerTableFunctionLegacy(state, osTable, "execute", execute);
+    LibRegistry::registerTableFunctionLegacy(state, osTable, "exit", exit);
+    LibRegistry::registerTableFunctionLegacy(state, osTable, "getenv", getenv);
+    LibRegistry::registerTableFunctionLegacy(state, osTable, "remove", remove);
+    LibRegistry::registerTableFunctionLegacy(state, osTable, "rename", rename);
+    LibRegistry::registerTableFunctionLegacy(state, osTable, "setlocale", setlocale);
+    LibRegistry::registerTableFunctionLegacy(state, osTable, "time", time);
+    LibRegistry::registerTableFunctionLegacy(state, osTable, "tmpname", tmpname);
 }
 
 void OSLib::initialize(State* state) {
