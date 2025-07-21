@@ -62,82 +62,30 @@ namespace Lua {
         // Register 0 = function, Register 1 = arg1, Register 2 = arg2, etc.
         //
         // 对于主函数：stackSize=0, expectedArgs=0, registerBase应该=0
-        // 对于被调用函数：State::call压入了函数和参数
+        // 对于被调用函数：State::callLua压入了函数和参数
         int oldRegisterBase = this->registerBase;
         if (stackSize == 0) {
             // 主函数，从栈位置0开始
             this->registerBase = 0;
+
         } else {
             // 被调用函数：根据State::callLua的实现
-            // 在callLua中，函数被放在位置 (oldTop - nargs - 1)
-            // 其中 oldTop 是调用前的栈顶，nargs 是参数数量
-            // 但是在execute中，我们只知道当前的stackSize
-            //
-            // 从callLua的实现可以看出：
-            // - 参数原本在栈顶的最后nargs个位置
-            // - 函数被插入到参数前面
-            // - 所以函数的位置是 stackSize - expectedArgs - 1
-            //
-            // 但是从调试输出看，这个计算是错误的
-            // 让我们使用一个更直接的方法：
-            // 在callLua中，函数总是在参数的前一个位置
-            // 所以我们需要找到参数的起始位置，然后减1
+            // 在callLua中，函数被重新排列到参数前面
+            // 栈布局：[function] [arg1] [arg2] [arg3] ...
+            // 我们需要找到函数在栈中的位置作为寄存器基址
 
-            // 临时修复：根据调试输出，函数在位置13，参数从14开始
-            // 这意味着寄存器基址应该是函数的位置
-            // 从调试可以看出，当stackSize=17, expectedArgs=1时，函数在位置13
-            // 所以 registerBase = stackSize - expectedArgs - 1 - 2 = 13
-            // 但这个公式不通用，让我们用更直接的方法
+            // 使用actualArgsCount来计算正确的寄存器基址
+            // 在callLua中，函数被放在 top - nargs - 1 的位置
+            // 其中nargs是实际参数数量，由setActualArgsCount设置
+            int nargs = this->actualArgsCount;
 
-            // 根据Lua 5.1的调用约定，寄存器基址应该指向函数的位置
-            // 在callLua的实现中，函数被放在 top - nargs - 1
-            // 这里的top是调用push(nullptr)之后的值，即oldTop + 1
-            // 所以函数位置是 (oldTop + 1) - nargs - 1 = oldTop - nargs
-            // 但是我们不知道oldTop，只知道当前的stackSize
+            // 根据callLua的实现：
+            // 1. push(nullptr) 扩展栈
+            // 2. 函数被放在 top - nargs - 1
+            // 3. 当前stackSize就是扩展后的top
+            this->registerBase = stackSize - nargs - 1;
 
-            // 从调试输出分析：
-            // stackSize=17, expectedArgs=1, 函数在位置13
-            // 17 - 1 - 1 = 15 (错误)
-            // 正确的应该是13
-            // 17 - 1 - 3 = 13 (正确)
-            // 所以公式应该是 stackSize - expectedArgs - 3
-            // 但这个3是哪里来的？
 
-            // 让我重新分析callLua的逻辑：
-            // 1. oldTop = 16 (调用前)
-            // 2. push(nullptr) -> top = 17
-            // 3. 函数放在位置 top - nargs - 1 = 17 - 3 - 1 = 13
-            // 4. VM::execute被调用时，stackSize = 17
-            // 5. 所以 registerBase = 13 = stackSize - nargs - 1 = 17 - 3 - 1
-
-            // 但是在VM中，我们不知道nargs，只知道expectedArgs
-            // 从调试看，nargs = 3, expectedArgs = 1
-            // 这表明nargs是实际传递的参数数量，expectedArgs是函数声明的参数数量
-
-            // 让我们使用一个更简单的方法：
-            // 从调试输出可以看出，函数总是在栈的某个位置，参数紧跟其后
-            // 我们可以通过查找函数对象来确定寄存器基址
-
-            // 修复寄存器基址计算
-            // 从调试输出可以看出，当前的计算是错误的
-            // 让我使用一个更直接的方法：从栈中查找函数对象的位置
-
-            int functionPos = -1;
-            for (int i = stackSize - 1; i >= 0; i--) {
-                Value val = state->get(i);
-                if (val.isFunction()) {
-                    functionPos = i;
-                    break;
-                }
-            }
-
-            if (functionPos >= 0) {
-                this->registerBase = functionPos;
-            } else {
-                // 如果找不到函数，使用原来的计算
-                int actualArgs = stackSize - 1;
-                this->registerBase = actualArgs - expectedArgs - 2;
-            }
         }
 
 
@@ -270,7 +218,19 @@ namespace Lua {
         int stackSize = state->getTop();
         state->setTop(stackSize);  // Clean any leftover values from previous operations
 
-        // DEBUG: Removed debug output for cleaner testing
+        // Set correct register base (same logic as execute method)
+        if (stackSize == 0) {
+            // Main function，从栈位置0开始
+            this->registerBase = 0;
+
+        } else {
+            // 被调用函数：根据State::callLua的实现
+            // 使用actualArgsCount来计算正确的寄存器基址
+            int nargs = this->actualArgsCount;
+            this->registerBase = stackSize - nargs - 1;
+
+
+        }
 
         // Extend stack to accommodate function's local variables (same logic as execute method)
         int localCount = function->getLocalCount();
@@ -535,6 +495,9 @@ namespace Lua {
 
         Value val = state->get(stackPos);
 
+        // Debug output for register access
+        // std::cout << "[DEBUG] getReg(" << reg << ") -> stackPos=" << stackPos << " registerBase=" << registerBase << " type=" << (int)val.type() << std::endl;
+
         // Get register value
         return val;
     }
@@ -543,8 +506,10 @@ namespace Lua {
         // Convert VM register (0-based) to stack position using register base
         int stackPos = registerBase + reg;
 
-        // Set register value
+        // Debug output for register setting
+        // std::cout << "[DEBUG] setReg(" << reg << ", type=" << (int)value.type() << ") -> stackPos=" << stackPos << " registerBase=" << registerBase << std::endl;
 
+        // Set register value
         state->set(stackPos, value);
     }
 
@@ -563,7 +528,6 @@ namespace Lua {
         Value val = getReg(b);
 
         // Move value between registers
-
         setReg(a, val);
     }
     
@@ -1085,10 +1049,6 @@ namespace Lua {
         u8 a = i.getA();  // Target register
         u16 bx = i.getBx(); // Function prototype index
 
-        // DEBUG: Removed debug output for cleaner testing
-
-
-        
         // Get function prototype from current function's prototypes
         if (!currentFunction || currentFunction->getType() != Function::Type::Lua) {
             throw LuaException("CLOSURE instruction outside Lua function");
@@ -1134,10 +1094,7 @@ namespace Lua {
         }
         
         // Bind upvalues from the current environment
-        // DEBUG: Removed debug output for cleaner testing
-
         for (u32 upvalIndex = 0; upvalIndex < prototype->getUpvalueCount(); upvalIndex++) {
-            // DEBUG: Removed debug output for cleaner testing
             // Read the next instruction to get upvalue binding info
             // Note: pc was already incremented in runInstruction, so we read from current pc
             if (pc >= code->size()) break;
@@ -1146,10 +1103,6 @@ namespace Lua {
             pc++;  // Advance to next instruction for next iteration
             u8 isLocal = upvalInstr.getA();
             u8 index = upvalInstr.getB();
-
-            // DEBUG: Removed debug output for cleaner testing
-
-
             
             GCRef<Upvalue> upvalue;
             
@@ -1158,14 +1111,8 @@ namespace Lua {
                 // Lua 5.1官方设计：使用0基索引，直接使用寄存器编号
                 Value* location = getRegPtr(index);
                 Value currentValue = getReg(index);
-                // DEBUG: Removed debug output for cleaner testing
-
-
-
-
 
                 upvalue = findOrCreateUpvalue(location);
-                // DEBUG: Removed debug output for cleaner testing
             } else {
                 // Inherit an upvalue from the current function
                 if (currentFunction && index < currentFunction->getUpvalueCount()) {
@@ -1177,7 +1124,6 @@ namespace Lua {
             // Set upvalue in the new closure
             if (upvalue) {
                 closure->setUpvalue(upvalIndex, upvalue);
-                // DEBUG: Removed debug output for cleaner testing
             }
         }
         
@@ -1190,8 +1136,6 @@ namespace Lua {
     void VM::op_getupval(Instruction i) {
         u8 a = i.getA();  // Target register
         u8 b = i.getB();  // Upvalue index
-
-        // DEBUG: Removed debug output for cleaner testing
 
         if (!currentFunction || currentFunction->getType() != Function::Type::Lua) {
             throw LuaException("GETUPVAL instruction outside Lua function");
@@ -1216,16 +1160,13 @@ namespace Lua {
         Value value;
         try {
             value = upvalue->getSafeValue();
-            // DEBUG: Removed debug output for cleaner testing
         } catch (const std::runtime_error& e) {
-            // DEBUG: Removed debug output for cleaner testing
             throw LuaException(e.what());
         }
 
         // Store in target register
         // Lua 5.1官方设计：使用0基索引，直接使用寄存器编号
         setReg(a, value);
-        // DEBUG: Removed debug output for cleaner testing
     }
     
     void VM::op_setupval(Instruction i) {
@@ -1647,14 +1588,22 @@ namespace Lua {
         int oldTop = state->getTop();
 
         try {
-            // Set up new call frame
-            registerBase = state->getTop();
+
 
             // Push function and arguments to stack
             state->push(Value(function));
             for (const auto& arg : args) {
                 state->push(arg);
             }
+
+            // Set up new call frame AFTER pushing function and arguments
+            // The register base should point to the function position
+            registerBase = oldTop;  // Function is at oldTop, args start at oldTop+1
+
+
+
+            // Set actual argument count for proper register base calculation
+            setActualArgsCount(static_cast<int>(args.size()));
 
             // Execute the function with multiple return value support
             CallResult result = executeMultiple(function);
@@ -2007,7 +1956,6 @@ namespace Lua {
         try {
             args.reserve(static_cast<size_t>(nargs));
 
-
             for (int i = 1; i <= nargs; ++i) {
                 // Validate register bounds
                 if (a + i >= RegisterManager::MAX_REGISTERS) {
@@ -2015,7 +1963,6 @@ namespace Lua {
                 }
 
                 Value arg = getReg(a + i);
-
                 args.push_back(arg);
             }
         } catch (const std::exception& e) {

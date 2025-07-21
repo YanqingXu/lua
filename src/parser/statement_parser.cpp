@@ -1,4 +1,5 @@
 #include "parser.hpp"
+#include <iostream>
 
 namespace Lua {
     UPtr<Stmt> Parser::statement() {
@@ -410,14 +411,31 @@ namespace Lua {
     }
 
     UPtr<Stmt> Parser::functionStatement() {
-        // Parse function name
+        // Parse function name (could be obj:method or obj.member)
         Token name = consume(TokenType::Name, "Expect function name.");
+        
+        // Check if this is a method definition (obj:method) or member function (obj.member)
+        bool isMethod = false;
+        bool isMemberFunction = false;
+        Token methodName;
+        if (match(TokenType::Colon)) {
+            isMethod = true;
+            methodName = consume(TokenType::Name, "Expect method name after ':'.");
+        } else if (match(TokenType::Dot)) {
+            isMemberFunction = true;
+            methodName = consume(TokenType::Name, "Expect member name after '.'.");
+        }
         
         // Parse parameter list
         consume(TokenType::LeftParen, "Expect '(' after function name.");
         
         Vec<Str> parameters;
         bool isVariadic = false;
+        
+        // For method definitions (colon syntax), add 'self' as the first parameter
+        if (isMethod) {
+            parameters.push_back("self");
+        }
         
         if (!check(TokenType::RightParen)) {
             do {
@@ -440,7 +458,34 @@ namespace Lua {
         // Expect 'end'
         consume(TokenType::End, "Expect 'end' after function body.");
         
-        return std::make_unique<FunctionStmt>(name.lexeme, parameters, std::move(body), isVariadic);
+        // For method definitions and member functions, we need to create a function assignment
+        // function obj:method(...) body end  →  obj.method = function(self, ...) body end
+        // function obj.member(...) body end  →  obj.member = function(...) body end
+        if (isMethod || isMemberFunction) {
+            // Debug output
+            std::cout << "[DEBUG] Function definition detected:" << std::endl;
+            std::cout << "  Object name: " << name.lexeme << std::endl;
+            std::cout << "  Member name: " << methodName.lexeme << std::endl;
+            std::cout << "  Is method (colon): " << (isMethod ? "true" : "false") << std::endl;
+            std::cout << "  Is member function (dot): " << (isMemberFunction ? "true" : "false") << std::endl;
+            std::cout << "  Parameters count: " << parameters.size() << std::endl;
+            for (size_t i = 0; i < parameters.size(); ++i) {
+                std::cout << "    Param[" << i << "]: " << parameters[i] << std::endl;
+            }
+            
+            // Create function expression
+            auto funcExpr = std::make_unique<FunctionExpr>(std::move(parameters), std::move(body), isVariadic);
+            
+            // Create member access: obj.method or obj.member
+            auto objExpr = std::make_unique<VariableExpr>(name.lexeme);
+            auto memberExpr = std::make_unique<MemberExpr>(std::move(objExpr), methodName.lexeme);
+            
+            // Create assignment: obj.method = function(...) or obj.member = function(...)
+            return std::make_unique<AssignStmt>(std::move(memberExpr), std::move(funcExpr));
+        } else {
+            // Regular function definition
+            return std::make_unique<FunctionStmt>(name.lexeme, parameters, std::move(body), isVariadic);
+        }
     }
 
     UPtr<Stmt> Parser::doStatement() {

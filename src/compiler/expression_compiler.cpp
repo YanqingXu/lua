@@ -102,15 +102,19 @@ namespace Lua {
         // Use unified variable resolution
         auto varInfo = compiler->resolveVariable(name);
 
+
+
         switch (varInfo.type) {
             case Compiler::VariableType::Local: {
                 // Local variable - return register directly
+
                 return varInfo.index;
             }
 
             case Compiler::VariableType::Upvalue: {
                 // Upvalue - generate GETUPVAL instruction
                 int reg = compiler->allocReg();
+
 
                 compiler->emitInstruction(Instruction::createGETUPVAL(reg, varInfo.index));
                 return reg;
@@ -119,6 +123,7 @@ namespace Lua {
             case Compiler::VariableType::Global: {
                 // Global variable - generate GETGLOBAL instruction
                 int reg = compiler->allocReg();
+
                 compiler->emitInstruction(Instruction::createGETGLOBAL(reg, varInfo.index));
                 return reg;
             }
@@ -155,7 +160,6 @@ namespace Lua {
     int ExpressionCompiler::compileBinary(const BinaryExpr* expr) {
 
         TokenType op = expr->getOperator();
-        // std::cout << "compileBinary: Operator = " << static_cast<int>(op) << std::endl;
         
         // Handle logical operators with short-circuit evaluation
         if (op == TokenType::And || op == TokenType::Or) {
@@ -214,11 +218,10 @@ namespace Lua {
                 throw LuaException("Unsupported binary operator");
         }
 
-        // 释放操作数寄存器（Lua 5.1官方设计）
-        // 注意：只有当操作数是临时值时才释放，局部变量不释放
-        compiler->freeReg(); // 释放rightReg
-        compiler->freeReg(); // 释放leftReg
-
+        // CRITICAL FIX: Don't automatically free operand registers
+        // Let the caller manage register lifecycles to avoid conflicts in nested expressions
+        // The compiler's register manager will handle cleanup at appropriate scope boundaries
+        
         return resultReg;
     }
     
@@ -226,6 +229,11 @@ namespace Lua {
         // 完全重写：最简单、最直接的实现
         const auto& args = expr->getArguments();
         int nargs = static_cast<int>(args.size());
+
+
+
+
+
 
         // 检查最后一个参数是否是可变参数表达式
         bool hasVarargExpansion = false;
@@ -242,17 +250,19 @@ namespace Lua {
         // 步骤1：分配连续的寄存器块（Lua 5.1官方设计）
         int callFrameSize = 1 + nargs;  // 函数 + 参数
         int base = compiler->getRegisterManager().allocateCallFrame(callFrameSize, "call");
+        
+
 
         // 参数寄存器是连续的
         Vec<int> argTargets;
         for (int i = 0; i < nargs; i++) {
             int argTarget = base + 1 + i;  // 参数从base+1开始
             argTargets.push_back(argTarget);
+
         }
 
         // 步骤2：编译函数到临时寄存器，然后移动
         int funcReg = compileExpr(expr->getCallee());
-
         if (funcReg != base) {
             compiler->emitInstruction(Instruction::createMOVE(base, funcReg));
         }
@@ -319,9 +329,12 @@ namespace Lua {
         }
 
         // 步骤2：编译函数到临时寄存器，然后移动
+        std::cout << "[CALL_DEBUG] Compiling function expression..." << std::endl;
         int funcReg = compileExpr(expr->getCallee());
+        std::cout << "[CALL_DEBUG] Function compiled to register " << funcReg << ", target base " << base << std::endl;
 
         if (funcReg != base) {
+            std::cout << "[CALL_DEBUG] Generating MOVE for function from " << funcReg << " to " << base << std::endl;
             compiler->emitInstruction(Instruction::createMOVE(base, funcReg));
         }
 
@@ -341,8 +354,13 @@ namespace Lua {
                 }
             } else {
                 // 普通参数
+                std::cout << "[CALL_DEBUG] Compiling argument " << i << "..." << std::endl;
                 int argReg = compileExpr(arg);
+                std::cout << "[CALL_DEBUG] Arg[" << i << "] compiled to register " << argReg
+                          << ", target register " << argTargets[i] << std::endl;
                 if (argReg != argTargets[i]) {
+                    std::cout << "[CALL_DEBUG] Generating MOVE for arg[" << i << "] from "
+                              << argReg << " to " << argTargets[i] << std::endl;
                     compiler->emitInstruction(Instruction::createMOVE(argTargets[i], argReg));
                 }
             }
@@ -354,9 +372,9 @@ namespace Lua {
         int callB = hasVarargExpansion ? 0 : (nargs + 1);  // 如果有可变参数展开，B=0表示使用栈顶
         int callC = (expectedReturns == -1) ? 0 : (expectedReturns + 1);  // 使用指定的返回值数量
 
-        std::cout << "=== DEBUG: Compiler generating CALL_MM with expectedReturns=" << expectedReturns
-                  << " callC=" << callC << " ===" << std::endl;
-
+        std::cout << "[CALL_DEBUG] Generating CALL_MM instruction: callA=" << callA
+                  << ", callB=" << callB << ", callC=" << callC << std::endl;
+        std::cout << "[CALL_DEBUG] ========== CALL COMPILATION END ==========" << std::endl;
         compiler->emitInstruction(Instruction::createCALL_MM(callA, callB, callC));
 
         // 步骤6：返回结果寄存器（函数调用后结果在base）
@@ -499,13 +517,11 @@ namespace Lua {
             compiler->emitInstruction(Instruction::createGETTABLE(resultReg, tableReg, keyParam));
         } else {
             // Fallback to register approach for large constant indices
-            // Fallback to register approach for large constant indices
             int keyReg = compiler->allocReg();
             compiler->emitInstruction(Instruction::createLOADK(keyReg, nameIdx));
             compiler->emitInstruction(Instruction::createGETTABLE(resultReg, tableReg, keyReg));
             compiler->freeReg(); // Free key register
         }
-
         // Note: Don't free table register here to avoid register allocation conflicts
         // The caller is responsible for register management
 
@@ -796,13 +812,37 @@ namespace Lua {
             functionCompiler.enterFunctionScope();
         }
 
-        // Analyze upvalues using the parent compiler's scope manager
-        // This allows the analyzer to see variables from outer scopes
+        // Analyze upvalues using the parent compiler's context
+        // This allows proper handling of nested closures
+        Vec<UpvalueDescriptor> upvalues;
+        
+        // Use the original analyzer but we'll fix the upvalue creation
         UpvalueAnalyzer analyzer(compiler->getScopeManager());
-
-        // Analyze the function body to find upvalues
         analyzer.analyzeFunction(expr);
-        const auto& upvalues = analyzer.getUpvalues();
+        const auto& originalUpvalues = analyzer.getUpvalues();
+        
+        // Now create proper upvalue descriptors using compiler's variable resolution
+        for (const auto& origUpvalue : originalUpvalues) {
+            auto varInfo = compiler->resolveVariable(origUpvalue.name);
+            
+            UpvalueDescriptor fixedUpvalue(origUpvalue.name, static_cast<int>(upvalues.size()), true, 0);
+            
+            if (varInfo.type == Compiler::VariableType::Local) {
+                // Variable is local to parent function
+                fixedUpvalue.isLocal = true;
+                fixedUpvalue.stackIndex = varInfo.index;
+            } else if (varInfo.type == Compiler::VariableType::Upvalue) {
+                // Variable is an upvalue in parent function
+                fixedUpvalue.isLocal = false; 
+                fixedUpvalue.stackIndex = varInfo.index;
+            } else {
+                // Fallback to original
+                fixedUpvalue.isLocal = origUpvalue.isLocal;
+                fixedUpvalue.stackIndex = origUpvalue.stackIndex;
+            }
+            
+            upvalues.push_back(fixedUpvalue);
+        }
 
         // Store upvalues in the function compiler
         for (const auto& upvalue : upvalues) {

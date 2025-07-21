@@ -103,7 +103,22 @@ namespace Lua {
             // Nested functions require recursive analysis
             const auto* funcExpr = static_cast<const FunctionExpr*>(expr);
             UpvalueAnalyzer nestedAnalyzer(scopeManager_);
-            nestedAnalyzer.analyzeFunction(funcExpr);
+            Vec<UpvalueDescriptor> nestedUpvalues = nestedAnalyzer.analyzeFunction(funcExpr);
+            
+            // For each upvalue needed by the nested function,
+            // check if it needs to be propagated up
+            for (const auto& nestedUpvalue : nestedUpvalues) {
+                const Str& varName = nestedUpvalue.name;
+                
+                // If this variable is not defined in the current function scope,
+                // then this function also needs to capture it
+                if (!scopeManager_.isInCurrentScope(varName)) {
+                    if (scopeManager_.isFreeVariable(varName)) {
+                        freeVars_.insert(varName);
+                        scopeManager_.markAsCaptured(varName);
+                    }
+                }
+            }
             break;
         }
         case ExprType::Literal:
@@ -336,9 +351,6 @@ namespace Lua {
                 isLocal = false;
             }
             stackIndex = variable->stackIndex;
-
-
-
         }
 
         return UpvalueDescriptor(name, index, isLocal, stackIndex);

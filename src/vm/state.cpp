@@ -301,6 +301,8 @@ namespace Lua {
 
             // Create VM instance and execute function with multiple return values
             VM vm(this);
+            vm.setActualArgsCount(static_cast<int>(args.size())); // 设置实际参数数量
+            std::cout << "[DEBUG] State::callMultiple: args.size()=" << args.size() << std::endl;
             CallResult result = vm.executeMultiple(function);
 
             // Restore stack top after VM execution

@@ -133,11 +133,22 @@ namespace Lua {
     UPtr<Expr> Parser::power() {
         auto expr = primary();
 
-        // Handle member access, index access and function calls
+        // Handle member access, index access, method calls and function calls
         while (true) {
             if (match(TokenType::Dot)) {
                 Token name = consume(TokenType::Name, "Expect property name after '.'.");
                 expr = std::make_unique<MemberExpr>(std::move(expr), name.lexeme);
+            } else if (match(TokenType::Colon)) {
+                Token methodName = consume(TokenType::Name, "Expect method name after ':'.");
+                // Create member access for the method
+                auto methodExpr = std::make_unique<MemberExpr>(std::move(expr), methodName.lexeme);
+                // Check if there's a function call following the method name
+                if (check(TokenType::LeftParen)) {
+                    expr = finishCall(std::move(methodExpr));
+                } else {
+                    // Method access without call (just return the method access)
+                    expr = std::move(methodExpr);
+                }
             } else if (match(TokenType::LeftBracket)) {
                 auto index = expression();
                 consume(TokenType::RightBracket, "Expect ']' after index.");
