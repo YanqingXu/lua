@@ -69,23 +69,27 @@ namespace Lua {
             this->registerBase = 0;
 
         } else {
-            // 被调用函数：根据State::callLua的实现
-            // 在callLua中，函数被重新排列到参数前面
-            // 栈布局：[function] [arg1] [arg2] [arg3] ...
-            // 我们需要找到函数在栈中的位置作为寄存器基址
+            // 被调用函数：根据修复后的State::callLua实现
+            // 修复后的栈布局：[function] [arg1] [arg2] [arg3] ...
+            // 函数在栈底，参数紧跟其后
 
-            // 使用actualArgsCount来计算正确的寄存器基址
-            // 在callLua中，函数被放在 top - nargs - 1 的位置
-            // 其中nargs是实际参数数量，由setActualArgsCount设置
+            // 关键修复：正确计算寄存器基址
+            // 在修复后的callLua中：
+            // 1. 函数被推送到 oldTop 位置
+            // 2. 参数从 oldTop + 1 开始
+            // 3. 当前stackSize = oldTop + 1 + nargs
+
             int nargs = this->actualArgsCount;
 
-            // 根据callLua的实现：
-            // 1. push(nullptr) 扩展栈
-            // 2. 函数被放在 top - nargs - 1
-            // 3. 当前stackSize就是扩展后的top
+            // 修复：寄存器基址指向函数位置
+            // 函数位置 = 当前栈大小 - 参数数量 - 1
             this->registerBase = stackSize - nargs - 1;
 
-
+            // 验证：寄存器映射
+            // R0 = function (at registerBase)
+            // R1 = arg1 (at registerBase + 1)
+            // R2 = arg2 (at registerBase + 2)
+            // ...
         }
 
 
@@ -102,63 +106,52 @@ namespace Lua {
             state->push(Value(nullptr)); // 用nil填充
         }
 
-        // Handle varargs for variadic functions
+        // Handle varargs for variadic functions - 架构修复
         if (function->getIsVariadic()) {
-
-
-            // In Lua 5.1, the stack layout for function calls is:
+            // 修复后的Lua 5.1栈布局：
             // [function] [arg1] [arg2] ... [argN] [local1] [local2] ...
-            // The registerBase points to the function position
-            // Arguments start at registerBase + 1
+            // registerBase指向函数位置，参数从registerBase+1开始
 
-            // 重新计算：实际参数数量应该基于函数调用时传递的参数
-            // 从callLua可以看出，函数在registerBase位置，参数从registerBase+1开始
-            // 但是stackSize包含了扩展的栈空间，所以不能直接使用
-
-            // 更正确的方法：从callLua的nargs参数获取，但这里我们没有
-            // 临时方法：使用一个固定的逻辑
-            // 从调试输出可以看出，参数总是在函数后面的连续位置
-            // 但是由于栈扩展，我们不能简单地计数到nil
-
-            // 新方法：使用stackSize和registerBase的关系
-            // 在callLua中，函数被放在特定位置，参数紧跟其后
-            // 从调试可以看出：
-            // - registerBase指向函数位置
-            // - 参数从registerBase+1开始
-            // - 但是stackSize包含了扩展的空间
-
-            // 让我们使用一个更简单的方法：
-            // 假设参数数量等于传递给callLua的nargs
-            // 但是我们没有直接访问这个值
-
-            // 使用从callLua传递的实际参数数量
-            // 这个值在callLua中通过setActualArgsCount设置
+            // 关键修复：使用正确的actualArgsCount
+            // 这个值由callLua通过setActualArgsCount正确设置
             int actualArgs = this->actualArgsCount;
-
             int declaredParams = function->getParamCount();
+
+            // 计算额外参数数量（varargs）
             int extraArgs = actualArgs - declaredParams;
+
+            // Setup varargs
+
+            // 调试信息（临时）
+            // std::cout << "[DEBUG] Varargs Setup: actualArgs=" << actualArgs
+            //           << ", declaredParams=" << declaredParams
+            //           << ", extraArgs=" << extraArgs << std::endl;
 
 
 
             if (extraArgs > 0) {
-                // Store extra arguments as varargs
+                // 修复：正确存储额外参数作为varargs
                 varargs.clear();
                 varargs.reserve(extraArgs);
                 varargsCount = extraArgs;
 
-                // Copy extra arguments from stack to varargs
-                // Extra args start at registerBase + 1 + declaredParams
+                // 修复：从正确位置复制额外参数
+                // 额外参数位置：registerBase + 1 + declaredParams 开始
                 for (int i = 0; i < extraArgs; ++i) {
                     int argIndex = this->registerBase + 1 + declaredParams + i;
+
+                    // 边界检查和参数复制
                     if (argIndex < state->getTop()) {
                         Value val = state->get(argIndex);
                         varargs.push_back(val);
+
+                        // Store vararg value
                     } else {
                         varargs.push_back(Value()); // nil for missing args
                     }
                 }
             } else {
-                // No extra arguments
+                // 没有额外参数
                 varargs.clear();
                 varargsCount = 0;
             }
@@ -666,6 +659,10 @@ namespace Lua {
             value = getReg(c);
         }
 
+        // 调试输出：检查寄存器内容
+        // std::cout << "[DEBUG] op_settable: a=" << (int)a << ", b=" << (int)b << ", c=" << (int)c
+        //           << ", key=" << key.toString() << ", value=" << value.toString() << std::endl;
+
         // Set table element
         if (table.isNil()) {
             throw LuaException("attempt to index nil value");
@@ -941,13 +938,20 @@ namespace Lua {
         int oldBase = registerBase;
 
         // 2. 将寄存器中的参数复制到栈顶（按Lua 5.1官方约定）
+        // 修复：确保参数按正确顺序传递
         for (int i = 1; i <= nargs; ++i) {
             int argReg = a + i;  // 参数在寄存器a+1, a+2, ...
             Value arg = getReg(argReg);
 
-            // Push argument to stack
+            // 验证参数有效性
+            if (argReg >= state->getTop()) {
+                // 如果寄存器超出范围，使用nil
+                arg = Value();
+            }
 
-            state->push(arg);  // 将参数push到栈顶
+            // Collect argument from register
+
+            state->push(arg);  // 将参数按顺序push到栈顶
         }
 
         // 3. 调用函数（根据函数类型选择调用方法）
@@ -1907,7 +1911,7 @@ namespace Lua {
         u8 b = i.getB();  // Number of arguments + 1
         u8 c = i.getC();  // Expected number of return values + 1
 
-
+        // CALL_MM instruction: function call with metamethod support
 
         // === Input Validation ===
         if (a >= RegisterManager::MAX_REGISTERS) {
@@ -1939,6 +1943,8 @@ namespace Lua {
             nargs = b - 1;
         }
 
+        // Execute CALL_MM instruction
+
         // === Argument Validation ===
         if (nargs < 0) {
             throw LuaException("Invalid argument count in CALL_MM: " + std::to_string(nargs));
@@ -1963,6 +1969,9 @@ namespace Lua {
                 }
 
                 Value arg = getReg(a + i);
+
+                // Collect argument from register
+
                 args.push_back(arg);
             }
         } catch (const std::exception& e) {
@@ -2199,7 +2208,7 @@ namespace Lua {
         u8 a = i.getA();  // Starting register to store varargs
         u8 b = i.getB();  // Number of varargs to retrieve (0 means all)
 
-
+        // Execute VARARG instruction
 
         // Determine how many varargs to copy
         int numToCopy = (b == 0) ? varargsCount : (b - 1);
@@ -2209,11 +2218,15 @@ namespace Lua {
             numToCopy = varargsCount;
         }
 
+        // std::cout << "[DEBUG] numToCopy=" << numToCopy << std::endl;
+
         // Copy varargs to consecutive registers starting from 'a'
         for (int i = 0; i < numToCopy; ++i) {
             if (i < static_cast<int>(varargs.size())) {
+                // Copy vararg to register
                 setReg(a + i, varargs[i]);
             } else {
+                // std::cout << "[DEBUG] Setting nil to register " << (a + i) << std::endl;
                 setReg(a + i, Value()); // nil for missing varargs
             }
         }

@@ -53,9 +53,10 @@ Value StringLib::len(State* state, i32 nargs) {
     }
     if (nargs < 1) return Value();
 
-    // Convert 1-based Lua index to 0-based stack index
+    // Legacy function: arguments are directly on stack without module parameter
     int stackIdx = state->getTop() - nargs;
     Value strVal = state->get(stackIdx);
+
     if (!strVal.isString()) return Value();
 
     std::string str = strVal.toString();
@@ -68,7 +69,7 @@ Value StringLib::sub(State* state, i32 nargs) {
     }
     if (nargs < 2) return Value();
 
-    // Convert 1-based Lua index to 0-based stack index
+    // Legacy function: arguments are directly on stack without module parameter
     int stackIdx = state->getTop() - nargs;
     Value strVal = state->get(stackIdx);
     Value startVal = state->get(stackIdx + 1);
@@ -188,13 +189,16 @@ i32 StringLib::find(State* state) {
     }
 
     int nargs = state->getTop();
-    if (nargs < 2) {
+    if (nargs < 3) { // Need at least string module + string + pattern
         throw std::invalid_argument("string.find: expected at least 2 arguments (string, pattern)");
     }
 
-    // Get arguments from stack (now in clean stack environment)
-    Value strVal = state->get(0);      // First argument
-    Value patternVal = state->get(1);  // Second argument
+    // For string library functions called as string.find(str, pattern):
+    // - First argument is the string module itself (skip it)
+    // - Second argument is the string to search in
+    // - Third argument is the pattern to search for
+    Value strVal = state->get(1);      // Skip string module
+    Value patternVal = state->get(2);  // Pattern argument
 
     if (!strVal.isString() || !patternVal.isString()) {
         throw std::invalid_argument("string.find: arguments must be strings");
@@ -205,8 +209,8 @@ i32 StringLib::find(State* state) {
 
     // Optional start position (default: 1)
     size_t startPos = 1;
-    if (nargs >= 3) {
-        Value startVal = state->get(2); // Third argument
+    if (nargs >= 4) { // string module + string + pattern + start
+        Value startVal = state->get(3); // Fourth argument (start position)
         if (startVal.isNumber()) {
             f64 start = startVal.asNumber();
             if (start >= 1) {
@@ -217,8 +221,8 @@ i32 StringLib::find(State* state) {
 
     // Optional plain flag (default: false)
     bool plainSearch = false;
-    if (nargs >= 4) {
-        Value plainVal = state->get(3); // Fourth argument
+    if (nargs >= 5) { // string module + string + pattern + start + plain
+        Value plainVal = state->get(4); // Fifth argument (plain flag)
         if (plainVal.isBoolean()) {
             plainSearch = plainVal.asBoolean();
         }
@@ -278,14 +282,18 @@ i32 StringLib::gsub(State* state) {
     }
 
     int nargs = state->getTop();
-    if (nargs < 3) {
+    if (nargs < 4) { // Need at least string module + string + pattern + replacement
         throw std::invalid_argument("string.gsub: expected at least 3 arguments (string, pattern, replacement)");
     }
 
-    // Get arguments from stack (now in clean stack environment)
-    Value strVal = state->get(0);          // First argument
-    Value patternVal = state->get(1);      // Second argument
-    Value replacementVal = state->get(2);  // Third argument
+    // For string library functions called as string.gsub(str, pattern, replacement):
+    // - First argument is the string module itself (skip it)
+    // - Second argument is the string to operate on
+    // - Third argument is the pattern
+    // - Fourth argument is the replacement
+    Value strVal = state->get(1);          // Skip string module
+    Value patternVal = state->get(2);      // Pattern argument
+    Value replacementVal = state->get(3);  // Replacement argument
 
     if (!strVal.isString() || !patternVal.isString()) {
         throw std::invalid_argument("string.gsub: string and pattern must be strings");
@@ -308,8 +316,8 @@ i32 StringLib::gsub(State* state) {
 
     // Optional limit parameter (default: replace all)
     int limit = -1; // -1 means replace all
-    if (nargs >= 4) {
-        Value limitVal = state->get(3);
+    if (nargs >= 5) { // string module + string + pattern + replacement + limit
+        Value limitVal = state->get(4); // Fifth argument (limit)
         if (limitVal.isNumber()) {
             limit = static_cast<int>(limitVal.asNumber());
         }

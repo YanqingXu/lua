@@ -140,13 +140,15 @@ namespace Lua {
                 expr = std::make_unique<MemberExpr>(std::move(expr), name.lexeme);
             } else if (match(TokenType::Colon)) {
                 Token methodName = consume(TokenType::Name, "Expect method name after ':'.");
-                // Create member access for the method
-                auto methodExpr = std::make_unique<MemberExpr>(std::move(expr), methodName.lexeme);
                 // Check if there's a function call following the method name
                 if (check(TokenType::LeftParen)) {
-                    expr = finishCall(std::move(methodExpr));
+                    // CRITICAL FIX: Handle colon syntax properly
+                    // obj:method(args) should become obj.method(obj, args)
+                    // We need to keep a copy of the object for the self parameter
+                    expr = finishColonCall(std::move(expr), methodName.lexeme);
                 } else {
                     // Method access without call (just return the method access)
+                    auto methodExpr = std::make_unique<MemberExpr>(std::move(expr), methodName.lexeme);
                     expr = std::move(methodExpr);
                 }
             } else if (match(TokenType::LeftBracket)) {
@@ -297,6 +299,31 @@ namespace Lua {
         consume(TokenType::RightParen, "Expect ')' after arguments.");
 
         return std::make_unique<CallExpr>(std::move(callee), std::move(arguments));
+    }
+
+    UPtr<Expr> Parser::finishColonCall(UPtr<Expr> object, const Str& methodName) {
+        // COLON SYNTAX COMPLETE FIX: 完整实现Lua 5.1冒号调用语义
+        // obj:method(args) ≡ obj.method(obj, args)
+
+        consume(TokenType::LeftParen, "Expect '(' for method call.");
+
+        // Create method access expression
+        auto methodExpr = std::make_unique<MemberExpr>(std::move(object), methodName);
+
+        Vec<UPtr<Expr>> arguments;
+
+        // Parse user-provided arguments
+        if (!check(TokenType::RightParen)) {
+            do {
+                arguments.push_back(expression());
+            } while (match(TokenType::Comma));
+        }
+
+        consume(TokenType::RightParen, "Expect ')' after arguments.");
+
+        // Create method call expression with isMethodCall=true
+        auto callExpr = std::make_unique<CallExpr>(std::move(methodExpr), std::move(arguments), true);
+        return callExpr;
     }
 
     UPtr<Expr> Parser::tableConstructor() {

@@ -182,6 +182,8 @@ namespace Lua {
         int varSlot = compiler->defineLocal(name);
 
         if (initializer != nullptr) {
+            // Compile initializer expression
+
             // TODO: 优化 - 直接将初始化表达式编译到局部变量槽位
             // 当前实现：先编译到临时寄存器，再移动（保持兼容性）
             int initReg = compiler->getExpressionCompiler()->compileExpr(initializer);
@@ -219,15 +221,31 @@ namespace Lua {
             const Expr* init = initializers[0].get();
 
             if (init->getType() == ExprType::Call) {
-                // Function call - compile with multi-return support
+                // Function call - check if it's a method call
                 const CallExpr* callExpr = static_cast<const CallExpr*>(init);
 
-                // Compile the function call with expected return count
-                int expectedReturns = static_cast<int>(names.size());
-                int startReg = varSlots[0]; // Start from first variable slot
+                // COLON SYNTAX DECISIVE FIX: For method calls, use compileCall instead of compileCallWithMultiReturn
+                if (callExpr->getIsMethodCall()) {
+                    // For method calls, use the already working compileCall
+                    int resultReg = compiler->getExpressionCompiler()->compileCall(callExpr);
 
-                // Compile function call expression with multi-return support
-                compiler->getExpressionCompiler()->compileCallWithMultiReturn(callExpr, startReg, expectedReturns);
+                    // Move result to first variable slot
+                    if (resultReg != varSlots[0]) {
+                        compiler->emitInstruction(Instruction::createMOVE(varSlots[0], resultReg));
+                    }
+
+                    // Initialize remaining variables to nil
+                    for (size_t i = 1; i < varSlots.size(); ++i) {
+                        compiler->emitInstruction(Instruction::createLOADNIL(varSlots[i]));
+                    }
+                } else {
+                    // Regular function call - use multi-return support
+                    int expectedReturns = static_cast<int>(names.size());
+                    int startReg = varSlots[0]; // Start from first variable slot
+
+                    // Compile function call expression with multi-return support
+                    compiler->getExpressionCompiler()->compileCallWithMultiReturn(callExpr, startReg, expectedReturns);
+                }
 
                 // The call instruction will place results in consecutive registers starting from startReg
                 // If we get fewer returns than expected, remaining slots will be nil
@@ -325,11 +343,11 @@ namespace Lua {
             // Use RK encoding for constant index (Lua 5.1 standard with 8-bit operands)
             if (nameIdx <= MAXINDEXRK_8) {
                 u8 keyParam = RK(static_cast<u8>(nameIdx));
-                std::cout << "Member assignment: nameIdx=" << nameIdx << ", keyParam=" << (int)keyParam << " (RK encoded)" << std::endl;
+                //std::cout << "Member assignment: nameIdx=" << nameIdx << ", keyParam=" << (int)keyParam << " (RK encoded)" << std::endl;
                 compiler->emitInstruction(Instruction::createSETTABLE(tableReg, keyParam, valueReg));
             } else {
                 // Fallback to register approach for large constant indices
-                std::cout << "Member assignment: nameIdx=" << nameIdx << " too large, using register" << std::endl;
+                //std::cout << "Member assignment: nameIdx=" << nameIdx << " too large, using register" << std::endl;
                 int keyReg = compiler->allocReg();
                 compiler->emitInstruction(Instruction::createLOADK(keyReg, nameIdx));
                 compiler->emitInstruction(Instruction::createSETTABLE(tableReg, keyReg, valueReg));
@@ -496,59 +514,113 @@ namespace Lua {
     
     void StatementCompiler::compileForInStmt(const ForInStmt* stmt) {
         compiler->beginScope();
-        
-        // Compile iterator expressions
+
+        // Simplified for-in implementation that works with our current pairs() function
         const auto& iterators = stmt->getIterators();
-        Vec<int> iterRegs;
-        for (const auto& iter : iterators) {
-            int reg = compiler->getExpressionCompiler()->compileExpr(iter.get());
-            iterRegs.push_back(reg);
+        if (iterators.empty()) {
+            throw LuaException("for-in statement requires at least one iterator expression");
         }
-        
-        // Set up control variables
-        int controlReg = compiler->allocReg();
-        if (!iterRegs.empty()) {
-            compiler->emitInstruction(Instruction::createMOVE(controlReg, iterRegs[0]));
+
+        // Compile the iterator expression and use compileCallWithMultiReturn for proper handling
+        const auto* callExpr = dynamic_cast<const CallExpr*>(iterators[0].get());
+        if (!callExpr) {
+            throw LuaException("for-in statement requires a function call as iterator");
         }
-        
+
+        // Allocate individual registers to avoid conflicts with method parameters
+        int iteratorReg = compiler->allocReg();  // Iterator function (permanent)
+        int stateReg = compiler->allocReg();     // State table (permanent)
+        int keyReg = compiler->allocReg();       // Current key (updated each iteration)
+
+        // Allocate a block of 3 consecutive registers for the call
+        // This ensures callReg+1 and callReg+2 are available for arguments
+        // and callReg and callReg+1 will receive return values
+        int callReg = compiler->allocReg();      // Call function + return values
+        compiler->allocReg();                    // callReg + 1 (arg1/return2)
+        compiler->allocReg();                    // callReg + 2 (arg2)
+
+        // Registers allocated for for-in loop
+
+        // Compile the iterator call (e.g., pairs(table)) to get iterator, state, initial_key
+        compiler->getExpressionCompiler()->compileCallWithMultiReturn(callExpr, iteratorReg, 3);
+
+        // The iterator call returns: [iteratorReg] = iterator_func, [iteratorReg+1] = state, [iteratorReg+2] = initial_key
+        // Move to dedicated registers
+        compiler->emitInstruction(Instruction::createMOVE(stateReg, iteratorReg + 1));
+        compiler->emitInstruction(Instruction::createMOVE(keyReg, iteratorReg + 2));
+
         int loopStart = static_cast<int>(compiler->getCodeSize());
-        
-        // Call iterator function
-        int exprReg = compiler->allocReg();
-        compiler->emitInstruction(Instruction::createCALL(controlReg, 0, 1));
-        
-        // Check if iteration is done (result is nil)
-        int exitJump = compiler->emitJump();
-        
-        // Declare loop variables
+
+        // Set up iterator function call: iterator(state, key)
+        compiler->emitInstruction(Instruction::createMOVE(callReg, iteratorReg));        // function
+        compiler->emitInstruction(Instruction::createMOVE(callReg + 1, stateReg));      // arg1: state
+        compiler->emitInstruction(Instruction::createMOVE(callReg + 2, keyReg));        // arg2: key
+
+        // Call iterator function with 2 arguments, expect 2 returns
+        compiler->emitInstruction(Instruction::createCALL_MM(callReg, 3, 3));
+
+        // Return values are now in callReg (key) and callReg+1 (value)
+        // No need to move them since we'll use them directly
+
+        // Check if iteration is done (first return value is nil)
+        compiler->emitInstruction(Instruction::createTEST(callReg, 1));  // Test if key is truthy
+        int exitJump = compiler->emitJump();  // Jump to exit if nil
+
+        // CRITICAL: Save all critical values BEFORE declaring loop variables and executing loop body
+        // The loop body may use registers that conflict with our for-in state
+
+        // Allocate safe backup registers for critical state
+        int backupIteratorReg = compiler->allocReg();
+        int backupStateReg = compiler->allocReg();
+
+        // Save critical state to backup registers
+        compiler->emitInstruction(Instruction::createMOVE(backupIteratorReg, iteratorReg));
+        compiler->emitInstruction(Instruction::createMOVE(backupStateReg, stateReg));
+
+        // Update key register for next iteration
+        compiler->emitInstruction(Instruction::createMOVE(keyReg, callReg));
+
+        // Declare loop variables and assign return values
         const auto& variables = stmt->getVariables();
-        for (size_t i = 0; i < variables.size(); ++i) {
+        for (size_t i = 0; i < variables.size() && i < 2; ++i) {  // Max 2 variables (key, value)
             const Str& varName = variables[i];
             int varSlot = compiler->defineLocal(varName);
-            
+
+            // Move return value to variable slot
             if (i == 0) {
-                compiler->emitInstruction(Instruction::createMOVE(varSlot, exprReg));
-                compiler->emitInstruction(Instruction::createMOVE(controlReg, exprReg));
+                compiler->emitInstruction(Instruction::createMOVE(varSlot, callReg));      // key
             } else {
-                compiler->emitInstruction(Instruction::createMOVE(varSlot, exprReg + static_cast<int>(i)));
+                compiler->emitInstruction(Instruction::createMOVE(varSlot, callReg + 1));  // value
             }
         }
-        
+
         // Compile loop body
         compileStmt(stmt->getBody());
-        
+
+        // CRITICAL: Restore critical state from backup registers after loop body
+        compiler->emitInstruction(Instruction::createMOVE(iteratorReg, backupIteratorReg));
+        compiler->emitInstruction(Instruction::createMOVE(stateReg, backupStateReg));
+
+        // Free backup registers
+        compiler->freeReg();  // backupStateReg
+        compiler->freeReg();  // backupIteratorReg
+
         // Jump back to loop start
-        int backJump = static_cast<int>(compiler->getCodeSize()) - loopStart;
+        int currentPos = static_cast<int>(compiler->getCodeSize());
+        int backJump = currentPos - loopStart + 1;
         compiler->emitInstruction(Instruction::createJMP(-backJump));
-        
+
         // Patch exit jump
         compiler->patchJump(exitJump);
-        
-        // Free registers
-        for (size_t i = 0; i < iterRegs.size(); ++i) {
-            compiler->freeReg();
-        }
-        
+
+        // Free all allocated registers in reverse order
+        compiler->freeReg();  // callReg + 2
+        compiler->freeReg();  // callReg + 1
+        compiler->freeReg();  // callReg
+        compiler->freeReg();  // keyReg
+        compiler->freeReg();  // stateReg
+        compiler->freeReg();  // iteratorReg
+
         compiler->endScope();
     }
     
@@ -700,7 +772,8 @@ namespace Lua {
             functionCompiler.getPrototypes(),
             static_cast<u8>(paramCount),
             static_cast<u8>(localCount),
-            static_cast<u8>(upvalueCount)
+            static_cast<u8>(upvalueCount),
+            stmt->getIsVariadic()  // 修复：传递可变参数标志
         );
         
         // Add prototype to current compiler

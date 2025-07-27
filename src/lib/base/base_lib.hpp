@@ -103,6 +103,11 @@ public:
     static Value ipairs(State* state, i32 nargs);
     static Value next(State* state, i32 nargs);
 
+    // Multi-return iterator functions
+    static i32 pairsMulti(State* state);
+    static i32 ipairsMulti(State* state);
+    static i32 nextMulti(State* state);
+
     // Metatable operation functions (simplified implementations)
     static Value getmetatable(State* state, i32 nargs);
     static Value setmetatable(State* state, i32 nargs);

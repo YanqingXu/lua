@@ -83,7 +83,10 @@ Value MathLib::abs(State* state, i32 nargs) {
     }
     if (nargs < 1) return Value();
 
-    Value val = state->get(-nargs);  // First argument is at -nargs from top
+    // Legacy function: arguments are directly on stack without module parameter
+    int stackIdx = state->getTop() - nargs;
+    Value val = state->get(stackIdx);
+
     if (!val.isNumber()) return Value();
 
     f64 num = val.asNumber();
@@ -96,7 +99,10 @@ Value MathLib::floor(State* state, i32 nargs) {
     }
     if (nargs < 1) return Value();
 
-    Value val = state->get(-nargs);  // First argument is at -nargs from top
+    // Legacy function: arguments are directly on stack without module parameter
+    int stackIdx = state->getTop() - nargs;
+    Value val = state->get(stackIdx);
+
     if (!val.isNumber()) return Value();
 
     f64 num = val.asNumber();
@@ -109,7 +115,10 @@ Value MathLib::ceil(State* state, i32 nargs) {
     }
     if (nargs < 1) return Value();
 
-    Value val = state->get(-nargs);  // First argument is at -nargs from top
+    // Legacy function: arguments are directly on stack without module parameter
+    int stackIdx = state->getTop() - nargs;
+    Value val = state->get(stackIdx);
+
     if (!val.isNumber()) return Value();
 
     f64 num = val.asNumber();
@@ -309,9 +318,12 @@ Value MathLib::min(State* state, i32 nargs) {
     f64 minVal = HUGE_VAL;
     bool hasValidNumber = false;
 
-    // Iterate through all arguments using relative indexing from stack top
+    // Legacy function: arguments are directly on stack without module parameter
+    int stackIdx = state->getTop() - nargs;
+
+    // Iterate through all arguments
     for (i32 i = 0; i < nargs; ++i) {
-        Value val = state->get(-nargs + i);  // First arg at -nargs, second at -nargs+1, etc.
+        Value val = state->get(stackIdx + i);
         if (val.isNumber()) {
             f64 num = val.asNumber();
             if (!hasValidNumber || num < minVal) {
@@ -333,9 +345,12 @@ Value MathLib::max(State* state, i32 nargs) {
     f64 maxVal = -HUGE_VAL;
     bool hasValidNumber = false;
 
-    // Iterate through all arguments using relative indexing from stack top
+    // Legacy function: arguments are directly on stack without module parameter
+    int stackIdx = state->getTop() - nargs;
+
+    // Iterate through all arguments
     for (i32 i = 0; i < nargs; ++i) {
-        Value val = state->get(-nargs + i);  // First arg at -nargs, second at -nargs+1, etc.
+        Value val = state->get(stackIdx + i);
         if (val.isNumber()) {
             f64 num = val.asNumber();
             if (!hasValidNumber || num > maxVal) {

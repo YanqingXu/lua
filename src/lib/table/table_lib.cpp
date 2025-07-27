@@ -47,20 +47,37 @@ Value TableLib::insert(State* state, i32 nargs) {
         return Value(); // nil - insufficient arguments
     }
 
-    GCRef<Table> table = validateTableArg(state, 1);
-    if (!table) {
+    // Get arguments using correct stack indexing
+    int stackBase = state->getTop() - nargs;
+
+    // For table library functions called as table.insert(arr, value):
+    // - First argument is the table module itself (skip it)
+    // - Second argument is the table to operate on
+    // - Third argument is the value or position
+
+    if (nargs < 2) {
+        std::cout << "[DEBUG] table.insert: insufficient arguments" << std::endl;
+        return Value();
+    }
+
+    // Skip the first argument (table module) and get the actual table
+    Value tableVal = state->get(stackBase + 1);
+
+    if (!tableVal.isTable()) {
         return Value(); // nil - invalid table
     }
 
-    if (nargs == 2) {
-        // table.insert(table, value) - insert at end
-        Value value = state->get(2);
+    auto table = tableVal.asTable();
+
+    if (nargs == 3) {
+        // table.insert(table_module, table, value) - insert at end
+        Value value = state->get(stackBase + 2);
         i32 length = getTableLength(table);
         table->set(Value(static_cast<f64>(length + 1)), value);
-    } else if (nargs >= 3) {
-        // table.insert(table, pos, value) - insert at position
-        Value posVal = state->get(2);
-        Value value = state->get(3);
+    } else if (nargs == 4) {
+        // table.insert(table_module, table, pos, value) - insert at position
+        Value posVal = state->get(stackBase + 2);
+        Value value = state->get(stackBase + 3);
 
         if (!posVal.isNumber()) {
             return Value(); // nil - invalid position
@@ -91,14 +108,19 @@ Value TableLib::remove(State* state, i32 nargs) {
         return Value(); // nil - insufficient arguments
     }
 
-    GCRef<Table> table = validateTableArg(state, 1);
-    if (!table) {
+    // Get arguments using correct stack indexing
+    int stackBase = state->getTop() - nargs;
+    Value tableVal = state->get(stackBase);
+
+    if (!tableVal.isTable()) {
         return Value(); // nil - invalid table
     }
 
+    auto table = tableVal.asTable();
+
     i32 pos;
     if (nargs >= 2) {
-        Value posVal = state->get(2);
+        Value posVal = state->get(stackBase + 1);
         if (!posVal.isNumber()) {
             return Value(); // nil - invalid position
         }

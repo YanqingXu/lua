@@ -462,17 +462,6 @@ namespace Lua {
         // function obj:method(...) body end  →  obj.method = function(self, ...) body end
         // function obj.member(...) body end  →  obj.member = function(...) body end
         if (isMethod || isMemberFunction) {
-            // Debug output
-            std::cout << "[DEBUG] Function definition detected:" << std::endl;
-            std::cout << "  Object name: " << name.lexeme << std::endl;
-            std::cout << "  Member name: " << methodName.lexeme << std::endl;
-            std::cout << "  Is method (colon): " << (isMethod ? "true" : "false") << std::endl;
-            std::cout << "  Is member function (dot): " << (isMemberFunction ? "true" : "false") << std::endl;
-            std::cout << "  Parameters count: " << parameters.size() << std::endl;
-            for (size_t i = 0; i < parameters.size(); ++i) {
-                std::cout << "    Param[" << i << "]: " << parameters[i] << std::endl;
-            }
-            
             // Create function expression
             auto funcExpr = std::make_unique<FunctionExpr>(std::move(parameters), std::move(body), isVariadic);
             

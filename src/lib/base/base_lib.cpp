@@ -1,9 +1,11 @@
 ﻿#include "base_lib.hpp"
 #include "../core/multi_return_helper.hpp"
 #include "../../vm/table.hpp"
+#include "../../vm/table_impl.hpp"
 #include "../../vm/userdata.hpp"
 #include "../../vm/metamethod_manager.hpp"
 #include "../../vm/core_metamethods.hpp"
+#include "../../vm/function.hpp"
 #include "../../common/types.hpp"
 #include <iostream>
 #include <sstream>
@@ -30,10 +32,10 @@ void BaseLib::registerFunctions(State* state) {
     LibRegistry::registerGlobalFunctionLegacy(state, "tonumber", tonumber);
     LibRegistry::registerGlobalFunctionLegacy(state, "error", error);
 
-    // Register table operation functions (legacy)
-    LibRegistry::registerGlobalFunctionLegacy(state, "pairs", pairs);
-    LibRegistry::registerGlobalFunctionLegacy(state, "ipairs", ipairs);
-    LibRegistry::registerGlobalFunctionLegacy(state, "next", next);
+    // Register table operation functions (multi-return)
+    LibRegistry::registerGlobalFunction(state, "pairs", pairsMulti);
+    LibRegistry::registerGlobalFunction(state, "ipairs", ipairsMulti);
+    LibRegistry::registerGlobalFunction(state, "next", nextMulti);
 
     // Register metatable operation functions (legacy)
     LibRegistry::registerGlobalFunctionLegacy(state, "getmetatable", getmetatable);
@@ -269,24 +271,352 @@ Value BaseLib::pairs(State* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }
-    (void)nargs; // Not yet implemented
-    return Value();
+
+    if (nargs < 1) {
+        throw std::invalid_argument("pairs: expected 1 argument");
+    }
+
+    // Get the table argument from the stack
+    int stackBase = state->getTop() - nargs;
+    Value tableVal = state->get(stackBase);
+
+    if (!tableVal.isTable()) {
+        throw std::invalid_argument("pairs: argument must be a table");
+    }
+
+    // Create the pairs iterator function using nextMulti (fixed implementation)
+    auto iteratorFunc = Function::createNative([](State* s) -> i32 {
+        return nextMulti(s);
+    });
+
+    // Push the iterator function, table, and nil (initial key)
+    state->push(Value(iteratorFunc));
+    state->push(tableVal);
+    state->push(Value()); // nil as initial key
+
+    return 3; // Return 3 values: iterator, table, initial_key
 }
 
 Value BaseLib::ipairs(State* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }
-    (void)nargs; // Not yet implemented
-    return Value();
+
+    if (nargs < 1) {
+        throw std::invalid_argument("ipairs: expected 1 argument");
+    }
+
+    // Get the table argument from the stack
+    int stackBase = state->getTop() - nargs;
+    Value tableVal = state->get(stackBase);
+
+    if (!tableVal.isTable()) {
+        throw std::invalid_argument("ipairs: argument must be a table");
+    }
+
+    // Create the ipairs iterator function
+    auto iteratorFunc = Function::createNativeLegacy([](State* s, i32 n) -> Value {
+        if (n < 2) {
+            return Value(); // nil
+        }
+
+        int base = s->getTop() - n;
+        Value tableVal = s->get(base);
+        Value indexVal = s->get(base + 1);
+
+        if (!tableVal.isTable() || !indexVal.isNumber()) {
+            return Value(); // nil
+        }
+
+        auto table = tableVal.asTable();
+        int currentIndex = static_cast<int>(indexVal.asNumber());
+        int nextIndex = currentIndex + 1;
+
+        // Check if next index exists in the table
+        Value nextValue = table->get(Value(nextIndex));
+        if (nextValue.isNil()) {
+            return Value(); // End of iteration
+        }
+
+        // Push the next index and value
+        s->push(Value(nextIndex));
+        s->push(nextValue);
+        return 2; // Return 2 values
+    });
+
+    // Push the iterator function, table, and initial index (0)
+    state->push(Value(iteratorFunc));
+    state->push(tableVal);
+    state->push(Value(0));
+
+    return 3; // Return 3 values: iterator, table, initial_index
 }
 
 Value BaseLib::next(State* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }
-    (void)nargs; // Not yet implemented
-    return Value();
+
+    if (nargs < 1) {
+        throw std::invalid_argument("next: expected at least 1 argument");
+    }
+
+    // Get arguments from the stack
+    int stackBase = state->getTop() - nargs;
+    Value tableVal = state->get(stackBase);
+    Value keyVal = (nargs >= 2) ? state->get(stackBase + 1) : Value(); // nil if not provided
+
+    if (!tableVal.isTable()) {
+        throw std::invalid_argument("next: first argument must be a table");
+    }
+
+    auto table = tableVal.asTable();
+
+    // Simplified next implementation
+    // For now, we'll implement a basic version that works with the existing Table interface
+    // This is a simplified implementation that may not cover all edge cases
+
+    if (keyVal.isNil()) {
+        // Start iteration - try to find the first key
+        // First check array part (index 1)
+        Value firstValue = table->get(Value(1));
+        if (!firstValue.isNil()) {
+            state->push(Value(1));
+            state->push(firstValue);
+            return 2;
+        }
+
+        // If no array elements, we'd need to iterate hash part
+        // For now, return nil (end of iteration)
+        return Value(); // nil
+    } else if (keyVal.isNumber()) {
+        // Continue array iteration
+        int currentIndex = static_cast<int>(keyVal.asNumber());
+        int nextIndex = currentIndex + 1;
+
+        Value nextValue = table->get(Value(nextIndex));
+        if (!nextValue.isNil()) {
+            state->push(Value(nextIndex));
+            state->push(nextValue);
+            return 2;
+        }
+
+        // End of array part, would need to check hash part
+        // For now, return nil (end of iteration)
+        return Value(); // nil
+    } else {
+        // Hash key iteration not implemented yet
+        return Value(); // nil
+    }
+}
+
+// ===================================================================
+// Multi-Return Iterator Function Implementations
+// ===================================================================
+
+i32 BaseLib::ipairsMulti(State* state) {
+    if (!state) {
+        throw std::invalid_argument("State cannot be null");
+    }
+
+    if (state->getTop() < 1) {
+        throw std::invalid_argument("ipairs: expected 1 argument");
+    }
+
+    // Get the table argument
+    Value tableVal = state->get(0);
+
+    if (!tableVal.isTable()) {
+        throw std::invalid_argument("ipairs: argument must be a table");
+    }
+
+    // Create the ipairs iterator function
+    auto iteratorFunc = Function::createNative([](State* s) -> i32 {
+        if (s->getTop() < 2) {
+            return 0; // No return values (end of iteration)
+        }
+
+        Value tableVal = s->get(0);
+        Value indexVal = s->get(1);
+
+        if (!tableVal.isTable() || !indexVal.isNumber()) {
+            return 0; // No return values (end of iteration)
+        }
+
+        auto table = tableVal.asTable();
+        int currentIndex = static_cast<int>(indexVal.asNumber());
+        int nextIndex = currentIndex + 1;
+
+        // Check if next index exists in the table
+        Value nextValue = table->get(Value(nextIndex));
+        if (nextValue.isNil()) {
+            return 0; // End of iteration
+        }
+
+        // Clear stack and push return values
+        s->clearStack();
+        s->push(Value(nextIndex));
+        s->push(nextValue);
+        return 2; // Return 2 values
+    });
+
+    // Clear stack and push return values
+    state->clearStack();
+    state->push(Value(iteratorFunc));
+    state->push(tableVal);
+    state->push(Value(0)); // Initial index
+
+    return 3; // Return 3 values: iterator, table, initial_index
+}
+
+i32 BaseLib::pairsMulti(State* state) {
+    if (!state) {
+        throw std::invalid_argument("State cannot be null");
+    }
+
+    if (state->getTop() < 1) {
+        throw std::invalid_argument("pairs: expected 1 argument");
+    }
+
+    // Get the table argument
+    Value tableVal = state->get(0);
+
+    if (!tableVal.isTable()) {
+        throw std::invalid_argument("pairs: argument must be a table");
+    }
+
+    // Create the pairs iterator function (using next)
+    auto iteratorFunc = Function::createNative([](State* s) -> i32 {
+        return nextMulti(s);
+    });
+
+    // Clear stack and push return values
+    state->clearStack();
+    state->push(Value(iteratorFunc));
+    state->push(tableVal);
+    state->push(Value()); // nil as initial key
+
+    return 3; // Return 3 values: iterator, table, initial_key
+}
+
+i32 BaseLib::nextMulti(State* state) {
+    if (!state) {
+        throw std::invalid_argument("State cannot be null");
+    }
+
+    if (state->getTop() < 1) {
+        throw std::invalid_argument("next: expected at least 1 argument");
+    }
+
+    // Get arguments
+    Value tableVal = state->get(0);
+    Value keyVal = (state->getTop() >= 2) ? state->get(1) : Value(); // nil if not provided
+
+    if (!tableVal.isTable()) {
+        throw std::invalid_argument("next: first argument must be a table");
+    }
+
+    auto table = tableVal.asTable();
+
+    if (keyVal.isNil()) {
+        // Start iteration - first check array part
+        for (size_t i = 1; i <= table->getArraySize(); ++i) {
+            Value value = table->get(Value(static_cast<LuaNumber>(i)));
+            if (!value.isNil()) {
+                state->clearStack();
+                state->push(Value(static_cast<LuaNumber>(i)));
+                state->push(value);
+                return 2;
+            }
+        }
+
+        // If no array elements, check hash part
+        Value foundKey, foundValue;
+        bool found = false;
+
+        table->forEachHashEntry([&](const Value& key, const Value& value) {
+            if (!found && !key.isNil() && !value.isNil()) {
+                foundKey = key;
+                foundValue = value;
+                found = true;
+            }
+        });
+
+        if (found) {
+            state->clearStack();
+            state->push(foundKey);
+            state->push(foundValue);
+            return 2;
+        }
+
+        return 0; // No elements
+    } else if (keyVal.isNumber()) {
+        // Continue array iteration
+        LuaNumber currentNum = keyVal.asNumber();
+        if (currentNum == std::floor(currentNum) && currentNum >= 1) {
+            int currentIndex = static_cast<int>(currentNum);
+
+            // Try next array indices
+            for (int nextIndex = currentIndex + 1; nextIndex <= static_cast<int>(table->getArraySize()); ++nextIndex) {
+                Value nextValue = table->get(Value(static_cast<LuaNumber>(nextIndex)));
+                if (!nextValue.isNil()) {
+                    state->clearStack();
+                    state->push(Value(static_cast<LuaNumber>(nextIndex)));
+                    state->push(nextValue);
+                    return 2;
+                }
+            }
+
+            // Array part exhausted, move to hash part
+            Value foundKey, foundValue;
+            bool found = false;
+
+            table->forEachHashEntry([&](const Value& key, const Value& value) {
+                if (!found && !key.isNil() && !value.isNil()) {
+                    foundKey = key;
+                    foundValue = value;
+                    found = true;
+                }
+            });
+
+            if (found) {
+                state->clearStack();
+                state->push(foundKey);
+                state->push(foundValue);
+                return 2;
+            }
+        }
+
+        return 0; // End of iteration
+    } else {
+        // Continue hash iteration - find the next key after current key
+        Value foundKey, foundValue;
+        bool found = false;
+        bool foundCurrent = false;
+
+        table->forEachHashEntry([&](const Value& key, const Value& value) {
+            if (!found && !key.isNil() && !value.isNil()) {
+                if (foundCurrent) {
+                    // This is the next key after current
+                    foundKey = key;
+                    foundValue = value;
+                    found = true;
+                } else if (key == keyVal) {
+                    // Found current key, next iteration will be the answer
+                    foundCurrent = true;
+                }
+            }
+        });
+
+        if (found) {
+            state->clearStack();
+            state->push(foundKey);
+            state->push(foundValue);
+            return 2;
+        }
+
+        return 0; // End of iteration
+    }
 }
 
 // ===================================================================
@@ -334,51 +664,100 @@ Value BaseLib::getmetatable(State* state, i32 nargs) {
 }
 
 Value BaseLib::setmetatable(State* state, i32 nargs) {
+    // 增强：更严格的参数验证
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }
 
     if (nargs < 2) {
-        throw std::invalid_argument("setmetatable requires 2 arguments");
+        throw std::invalid_argument("setmetatable requires exactly 2 arguments");
     }
 
-    // Get arguments from stack
-    int stackIdx = state->getTop() - nargs;
-    Value table = state->get(stackIdx);
-    Value metatable = state->get(stackIdx + 1);
+    // 增强：栈边界检查
+    int stackTop = state->getTop();
+    if (stackTop < nargs) {
+        throw std::invalid_argument("setmetatable: insufficient arguments on stack");
+    }
 
-    // First argument must be a table
+    // Get arguments from stack with bounds checking
+    int stackIdx = stackTop - nargs;
+
+    // 增强：安全的参数获取
+    Value table, metatable;
+    try {
+        table = state->get(stackIdx);
+        metatable = state->get(stackIdx + 1);
+    } catch (const std::exception& e) {
+        throw std::invalid_argument("setmetatable: failed to get arguments from stack: " + std::string(e.what()));
+    }
+
+    // 增强：更详细的类型检查
     if (!table.isTable()) {
-        throw std::invalid_argument("setmetatable: first argument must be a table");
+        throw std::invalid_argument("setmetatable: first argument must be a table, got " +
+                                  std::string(table.getTypeName()));
     }
 
-    // Second argument must be a table or nil
     if (!metatable.isTable() && !metatable.isNil()) {
-        throw std::invalid_argument("setmetatable: second argument must be a table or nil");
+        throw std::invalid_argument("setmetatable: second argument must be a table or nil, got " +
+                                  std::string(metatable.getTypeName()));
     }
 
+    // 增强：安全的元表操作
     try {
         auto tablePtr = table.asTable();
         if (!tablePtr) {
-            throw std::invalid_argument("setmetatable: invalid table");
+            throw std::invalid_argument("setmetatable: failed to get table pointer");
+        }
+
+        // 增强：检查表的有效性
+        if (!tablePtr) {
+            throw std::invalid_argument("setmetatable: table object is null or corrupted");
         }
 
         if (metatable.isNil()) {
-            // Remove metatable
-            tablePtr->setMetatable(GCRef<Table>(nullptr));
+            // Remove metatable - 增强错误处理
+            try {
+                tablePtr->setMetatable(GCRef<Table>(nullptr));
+            } catch (const std::exception& e) {
+                throw std::invalid_argument("setmetatable: failed to remove metatable: " + std::string(e.what()));
+            }
         } else {
-            // Set metatable
+            // Set metatable - 增强验证和错误处理
             auto metatablePtr = metatable.asTable();
             if (!metatablePtr) {
-                throw std::invalid_argument("setmetatable: invalid metatable");
+                throw std::invalid_argument("setmetatable: failed to get metatable pointer");
             }
-            tablePtr->setMetatable(metatablePtr);
+
+            // 增强：检查元表的有效性
+            if (!metatablePtr) {
+                throw std::invalid_argument("setmetatable: metatable object is null or corrupted");
+            }
+
+            // 增强：防止循环引用
+            if (tablePtr == metatablePtr) {
+                throw std::invalid_argument("setmetatable: cannot set table as its own metatable");
+            }
+
+            try {
+                tablePtr->setMetatable(metatablePtr);
+
+                // 增强：验证设置是否成功
+                auto verifyMT = tablePtr->getMetatable();
+                if (verifyMT != metatablePtr) {
+                    throw std::invalid_argument("setmetatable: metatable setting verification failed");
+                }
+            } catch (const std::exception& e) {
+                throw std::invalid_argument("setmetatable: failed to set metatable: " + std::string(e.what()));
+            }
         }
+    } catch (const std::invalid_argument&) {
+        // 重新抛出我们的错误
+        throw;
     } catch (const std::exception& e) {
-        throw std::invalid_argument(std::string("setmetatable: ") + e.what());
+        throw std::invalid_argument("setmetatable: unexpected error: " + std::string(e.what()));
     }
 
-    // Return the table (first argument)
+    // Return the table (first argument) - Lua 5.1 standard behavior
     return table;
 }
 

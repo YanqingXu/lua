@@ -302,7 +302,6 @@ namespace Lua {
             // Create VM instance and execute function with multiple return values
             VM vm(this);
             vm.setActualArgsCount(static_cast<int>(args.size())); // 设置实际参数数量
-            std::cout << "[DEBUG] State::callMultiple: args.size()=" << args.size() << std::endl;
             CallResult result = vm.executeMultiple(function);
 
             // Restore stack top after VM execution
@@ -423,12 +422,7 @@ namespace Lua {
             int oldTop = top;
             Vec<Value> oldStack = stack;
 
-            // Debug: Print original stack state
-            std::cout << "DEBUG callNativeMultiple: nargs=" << nargs << ", stackBase=" << stackBase << ", oldTop=" << oldTop << std::endl;
-            for (int i = 0; i < nargs; ++i) {
-                Value v = oldStack[stackBase + i];
-                std::cout << "DEBUG callNativeMultiple: arg[" << i << "] = " << (v.isNumber() ? std::to_string(v.asNumber()) : "other") << std::endl;
-            }
+            // Set up clean stack with only the arguments
 
             // Set up clean stack with only the arguments
             stack.clear();
@@ -491,27 +485,49 @@ namespace Lua {
 
             
 
-            // Lua 5.1调用约定：
-            // 参数已经在栈顶：[arg1] [arg2] [arg3] ...
-            // 我们需要重新排列为：[function] [arg1] [arg2] [arg3] ...
+            // Lua 5.1调用约定修复：
+            // 当前栈状态：参数已经在栈顶：[arg1] [arg2] [arg3] ...
+            // 目标栈状态：[function] [arg1] [arg2] [arg3] ...
 
-            // 1. 先扩展栈顶，为函数腾出空间
-            push(Value(nullptr));  // 临时占位
+            // 关键修复：正确计算参数在栈上的位置
+            // 参数位置：从 (top - nargs) 到 (top - 1)
 
-            // 2. 将参数向后移动一位
-            for (int i = nargs - 1; i >= 0; i--) {
-                Value arg = get(top - nargs - 1 + i);  // 从原位置读取
-                set(top - nargs + i, arg);             // 写入新位置
+            // 1. 保存参数到临时数组（彻底修复索引计算）
+            Vec<Value> args;
+            args.reserve(nargs);
+            for (int i = 0; i < nargs; ++i) {
+                // 彻底修复：参数在栈上的正确位置
+                // 栈顶是最后一个参数，栈底是第一个参数
+                // 第i个参数的位置：top - nargs + i
+                int argIndex = top - nargs + i;
+
+                // 边界检查
+                if (argIndex >= 0 && argIndex < top) {
+                    args.push_back(get(argIndex));
+                } else {
+                    args.push_back(Value()); // nil for invalid indices
+                }
             }
 
-            // 3. 将函数放在最前面
-            set(top - nargs - 1, func);
+            // 2. 清理栈顶的参数
+            setTop(top - nargs);
+
+            // 3. 按Lua 5.1标准顺序推送：函数 + 参数
+            push(func);
+            for (int i = 0; i < nargs; ++i) {
+                push(args[i]);
+            }
+
+            // 验证：栈布局现在是 [function] [arg1] [arg2] [arg3] ...
 
             // 栈布局现在是：[function] [arg1] [arg2] [arg3] ...
 
             // 4. 创建VM实例并执行函数
             VM vm(this);
             vm.setActualArgsCount(nargs); // 设置实际参数数量
+
+            // Execute Lua function
+
             Value result = vm.execute(function);
 
             // 5. 恢复栈状态

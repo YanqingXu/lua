@@ -41,17 +41,20 @@ namespace Lua {
     class Expr {
     protected:
         SourceLocation location_;  // Source location information
-        
+
     public:
         virtual ~Expr() = default;
         virtual ExprType getType() const = 0;
-        
+
         // Location information related methods
         const SourceLocation& getLocation() const { return location_; }
         void setLocation(const SourceLocation& location) { location_ = location; }
-        
+
+        // 添加克隆功能用于冒号调用
+        virtual UPtr<Expr> clone() const = 0;
+
         // Convenience constructor
-        explicit Expr(const SourceLocation& location = SourceLocation()) 
+        explicit Expr(const SourceLocation& location = SourceLocation())
             : location_(location) {}
     };
 

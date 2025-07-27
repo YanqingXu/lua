@@ -62,6 +62,7 @@ namespace Lua {
         UPtr<Expr> power();
         UPtr<Expr> primary();
         UPtr<Expr> finishCall(UPtr<Expr> callee);
+        UPtr<Expr> finishColonCall(UPtr<Expr> object, const Str& methodName);
         UPtr<Expr> tableConstructor();
         UPtr<Expr> functionExpression();
 

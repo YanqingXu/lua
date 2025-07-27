@@ -398,6 +398,8 @@ namespace Lua {
             throw std::invalid_argument("State cannot be null in callFunctionDirect");
         }
 
+        // Debug output removed for cleaner testing
+
         if (!func.isFunction()) {
             throw LuaException("Attempt to call a non-function value in callFunctionDirect");
         }
