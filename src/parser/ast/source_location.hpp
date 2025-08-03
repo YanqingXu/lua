@@ -97,6 +97,25 @@ namespace Lua {
             }
             return filename_ + ":" + std::to_string(line_) + ":" + std::to_string(column_);
         }
+
+        /**
+         * @brief Format location in Lua 5.1 style
+         * @return Formatted string like "filename:line:" (no column, colon at end)
+         */
+        Str toLua51String() const {
+            Str displayName = filename_;
+
+            // Convert special filenames to Lua 5.1 standard
+            if (displayName.empty() || displayName == "<input>" || displayName == "<unknown>") {
+                displayName = "stdin";
+            }
+
+            if (!isValid()) {
+                return displayName + ":?:";
+            }
+
+            return displayName + ":" + std::to_string(line_) + ":";
+        }
         
         /**
          * @brief Comparison operator

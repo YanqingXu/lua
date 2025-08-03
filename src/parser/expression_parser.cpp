@@ -1,4 +1,4 @@
-#include "parser.hpp"
+﻿#include "parser.hpp"
 
 
 namespace Lua {
@@ -107,7 +107,7 @@ namespace Lua {
                 unaryOpError.addSuggestion(FixType::Insert, 
                     SourceLocation::fromToken(current), 
                     "Add valid expression after unary operator", "nil");
-                errorReporter_.addError(std::move(unaryOpError));
+                getErrorReporter().addError(std::move(unaryOpError));
                 
                 synchronize();
                 expr = std::make_unique<LiteralExpr>(Value()); // Recovery value
@@ -121,7 +121,7 @@ namespace Lua {
                 lengthOpError.addSuggestion(FixType::Replace, 
                     opLocation, 
                     "Use string or table expression", "\"\"" );
-                errorReporter_.addError(std::move(lengthOpError));
+                getErrorReporter().addError(std::move(lengthOpError));
             }
             
             return std::make_unique<UnaryExpr>(op, std::move(expr));
@@ -200,7 +200,7 @@ namespace Lua {
                 invalidNumberError.addSuggestion(FixType::Replace, 
                     SourceLocation::fromToken(previous), 
                     "Use valid number format", "0");
-                errorReporter_.addError(std::move(invalidNumberError));
+                getErrorReporter().addError(std::move(invalidNumberError));
                 return std::make_unique<LiteralExpr>(Value(0.0)); // Recovery value
             }
         }
@@ -232,7 +232,7 @@ namespace Lua {
                 auto mismatchedParenError = ParseError::mismatchedParentheses(
                     SourceLocation::fromToken(current), ")");
                 mismatchedParenError.setDetails("Opening parenthesis at " + startLocation.toString());
-                errorReporter_.addError(std::move(mismatchedParenError));
+                getErrorReporter().addError(std::move(mismatchedParenError));
             }
             return expr;
         }
@@ -279,7 +279,7 @@ namespace Lua {
                 "Replace with valid expression", "nil");
         }
         
-        errorReporter_.addError(std::move(unexpectedError));
+        getErrorReporter().addError(std::move(unexpectedError));
         
         // Return a recovery expression
         return std::make_unique<LiteralExpr>(Value());

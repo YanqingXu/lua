@@ -332,7 +332,21 @@ void run_repl() {
                 // If current input is only one line, might be syntax error
                 if (currentInput.find('\n') == std::string::npos) {
                     // Single line input parsing failed, might be syntax error
-                    std::cerr << "lua: " << e.what() << std::endl;
+                    // Use the same error reporting system as file execution
+                    Lua::Parser parser(currentInput);
+                    try {
+                        parser.parse();
+                    } catch (const std::exception& parseError) {
+                        // Parsing threw an exception, but we still want to get formatted errors
+                    }
+
+                    if (parser.hasError()) {
+                        // Output parsing errors in Lua 5.1 format
+                        std::string formattedErrors = parser.getFormattedErrors();
+                        if (!formattedErrors.empty()) {
+                            std::cerr << formattedErrors << std::endl;
+                        }
+                    }
                     currentInput.clear();
                 } else {
                     // Multi-line input, continue waiting for more input
@@ -429,17 +443,20 @@ void executeCode(Lua::State& state, const std::string& code) {
                 std::cout << formatValue(result) << std::endl;
             }
             return;
+        } catch (const Lua::LuaException& e) {
+            // If it's a parse error, the error was already formatted and displayed
+            // For other errors, we might want to display them
+            if (std::string(e.what()).find("Parse error") == std::string::npos) {
+                std::cerr << "lua: " << e.what() << std::endl;
+                return;
+            }
+            // Failed as expression due to parse error, continue trying as statement
         } catch (...) {
             // Failed as expression, continue trying as statement
         }
     }
 
-    // Execute as statement
-    try {
-        state.doString(code);
-    } catch (const Lua::LuaException& e) {
-        std::cerr << "lua: " << e.what() << std::endl;
-    } catch (const std::exception& e) {
-        std::cerr << "lua: " << e.what() << std::endl;
-    }
+    // Execute as statement using doString which already handles error formatting
+    bool success = state.doString(code);
+    // doString already outputs formatted errors, so we don't need additional error handling here
 }

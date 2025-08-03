@@ -1,4 +1,4 @@
-#include "parser.hpp"
+﻿#include "parser.hpp"
 #include <iostream>
 
 namespace Lua {
@@ -153,7 +153,7 @@ namespace Lua {
             auto missingThenError = ParseError::missingToken(SourceLocation::fromToken(current), "then");
             missingThenError.addSuggestion(FixType::Insert, SourceLocation::fromToken(current), 
                 "Insert 'then' keyword", "then");
-            errorReporter_.addError(std::move(missingThenError));
+            getErrorReporter().addError(std::move(missingThenError));
             
             // Try to find the then block anyway
             if (current.type != TokenType::End && current.type != TokenType::Else && 
@@ -178,11 +178,7 @@ namespace Lua {
 
         if (consume(TokenType::End, "Expect 'end' after if statement.").type != TokenType::End) {
             // Try to recover from missing 'end'
-            auto missingEndError = ParseError::missingToken(SourceLocation::fromToken(current), "end");
-            missingEndError.addSuggestion(FixType::Insert, SourceLocation::fromToken(current), 
-                "Insert 'end' keyword to close if statement", "end");
-            missingEndError.setDetails("If statement started at " + ifLocation.toString());
-            errorReporter_.addError(std::move(missingEndError));
+            error(ErrorType::MissingToken, "end");
         }
 
         return std::make_unique<IfStmt>(std::move(condition), std::move(thenBranch), std::move(elseBranch));
@@ -205,7 +201,7 @@ namespace Lua {
                 auto missingThenError = ParseError::missingToken(SourceLocation::fromToken(current), "then");
                 missingThenError.addSuggestion(FixType::Insert, SourceLocation::fromToken(current),
                     "Insert 'then' keyword", "then");
-                errorReporter_.addError(std::move(missingThenError));
+                getErrorReporter().addError(std::move(missingThenError));
             }
 
             // Parse elseif then branch
@@ -254,7 +250,7 @@ namespace Lua {
             auto missingDoError = ParseError::missingToken(SourceLocation::fromToken(current), "do");
             missingDoError.addSuggestion(FixType::Insert, SourceLocation::fromToken(current), 
                 "Insert 'do' keyword", "do");
-            errorReporter_.addError(std::move(missingDoError));
+            getErrorReporter().addError(std::move(missingDoError));
         }
 
         UPtr<Stmt> body;
@@ -271,7 +267,7 @@ namespace Lua {
             missingEndError.addSuggestion(FixType::Insert, SourceLocation::fromToken(current), 
                 "Insert 'end' keyword to close while statement", "end");
             missingEndError.setDetails("While statement started at " + whileLocation.toString());
-            errorReporter_.addError(std::move(missingEndError));
+            getErrorReporter().addError(std::move(missingEndError));
         }
         
         return std::make_unique<WhileStmt>(std::move(condition), std::move(body));

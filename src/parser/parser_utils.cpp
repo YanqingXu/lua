@@ -1,7 +1,9 @@
 #include "parser.hpp"
 
 namespace Lua {
-    Parser::Parser(const Str& source) : lexer(source), hadError(false), errorReporter_(ErrorReporter::createDefault()) {
+    Parser::Parser(const Str& source) : lexer(source), hadError(false),
+                                       enhancedErrorReporter_(ErrorReporterFactory::createLua51Reporter(source)),
+                                       sourceCode_(source) {
         // Initialize and immediately get the first token
         advance();
     }
@@ -14,10 +16,21 @@ namespace Lua {
         previous = current;
         current = lexer.nextToken();
 
-        // Skip error tokens
-        while (current.type == TokenType::Error) {
+        // Handle error tokens
+        while (current.type == TokenType::Error ||
+               current.type == TokenType::UnterminatedString ||
+               current.type == TokenType::InvalidNumber) {
             SourceLocation location = SourceLocation::fromToken(current);
-            error(ErrorType::UnexpectedCharacter, location, "Lexical error: " + current.lexeme);
+
+            if (current.type == TokenType::UnterminatedString) {
+                enhancedErrorReporter_.reportUnfinishedString(location, current.lexeme);
+            } else if (current.type == TokenType::InvalidNumber) {
+                enhancedErrorReporter_.reportMalformedNumber(location, current.lexeme);
+            } else {
+                enhancedErrorReporter_.reportUnexpectedToken(location, current.lexeme, "");
+            }
+
+            hadError = true;
             current = lexer.nextToken();
         }
     }
@@ -49,41 +62,82 @@ namespace Lua {
             return token;
         }
 
-        // Use a more specific error type and details
+        // Use a more specific error type and pass the expected token
         SourceLocation location = SourceLocation::fromToken(current);
-        Str details = "Expected '" + tokenTypeToString(type) + "' but found '" + current.lexeme + "'";
-        error(ErrorType::MissingToken, location, message, details);
+        Str expectedToken = tokenTypeToString(type);
+        enhancedErrorReporter_.reportMissingToken(location, expectedToken);
+        hadError = true;
         return previous; // Error recovery
     }
 
     void Parser::error(const Str& message) {
         hadError = true;
-
-        // Create a detailed error report using the current token's location
         SourceLocation location = SourceLocation::fromToken(current);
-        errorReporter_.reportError(ErrorType::Unknown, location, message);
+        enhancedErrorReporter_.reportSyntaxError(location, current.lexeme);
     }
-    
+
     void Parser::error(ErrorType type, const Str& message) {
         hadError = true;
         SourceLocation location = SourceLocation::fromToken(current);
-        errorReporter_.reportError(type, location, message);
+
+        // Use appropriate EnhancedErrorReporter method based on error type
+        switch (type) {
+            case ErrorType::UnexpectedToken:
+                enhancedErrorReporter_.reportUnexpectedToken(location, current.lexeme);
+                break;
+            case ErrorType::MissingToken:
+                enhancedErrorReporter_.reportMissingToken(location, message);
+                break;
+            case ErrorType::UnterminatedString:
+                enhancedErrorReporter_.reportUnfinishedString(location, current.lexeme);
+                break;
+            case ErrorType::InvalidNumber:
+                enhancedErrorReporter_.reportMalformedNumber(location, current.lexeme);
+                break;
+            case ErrorType::UnexpectedCharacter:
+                enhancedErrorReporter_.reportUnexpectedToken(location, current.lexeme);
+                break;
+            default:
+                enhancedErrorReporter_.reportSyntaxError(location, current.lexeme);
+                break;
+        }
     }
-    
+
     void Parser::error(ErrorType type, const Str& message, const Str& details) {
         hadError = true;
         SourceLocation location = SourceLocation::fromToken(current);
-        errorReporter_.reportError(type, location, message, details);
+        error(type, message); // Delegate to the simpler version
     }
-    
+
     void Parser::error(ErrorType type, const SourceLocation& location, const Str& message) {
         hadError = true;
-        errorReporter_.reportError(type, location, message);
+
+        // Use appropriate EnhancedErrorReporter method based on error type
+        switch (type) {
+            case ErrorType::UnexpectedToken:
+                enhancedErrorReporter_.reportUnexpectedToken(location, message);
+                break;
+            case ErrorType::MissingToken:
+                enhancedErrorReporter_.reportMissingToken(location, message);
+                break;
+            case ErrorType::UnterminatedString:
+                enhancedErrorReporter_.reportUnfinishedString(location, message);
+                break;
+            case ErrorType::InvalidNumber:
+                enhancedErrorReporter_.reportMalformedNumber(location, message);
+                break;
+            case ErrorType::UnexpectedCharacter:
+                enhancedErrorReporter_.reportUnexpectedToken(location, message);
+                break;
+            default:
+                enhancedErrorReporter_.reportSyntaxError(location, message);
+                break;
+        }
     }
-    
+
     void Parser::error(ErrorType type, const SourceLocation& location, const Str& message, const Str& details) {
         hadError = true;
-        errorReporter_.reportError(type, location, message, details);
+        error(type, location, message); // Delegate to the simpler version
     }
 
     void Parser::synchronize() {
@@ -245,7 +299,7 @@ namespace Lua {
                 tokenTypeToString(closeType));
             error.setDetails("Deeply nested delimiters detected during error recovery (depth: " + 
                            std::to_string(depth) + ")");
-            errorReporter_.addError(std::move(error));
+            getErrorReporter().addError(std::move(error));
         } else if (tokensInDelimiters >= maxTokensInDelimiters) {
             error(ErrorType::MismatchedParentheses, startLocation,
                   "Extremely long delimiter block detected during error recovery",
@@ -297,7 +351,7 @@ namespace Lua {
         }
         
         recoveryError.setDetails("Recovery span: " + start.toString() + " to " + end.toString());
-        errorReporter_.addError(std::move(recoveryError));
+        getErrorReporter().addError(std::move(recoveryError));
     }
     
     bool Parser::isLogicalOperator(TokenType op) const {

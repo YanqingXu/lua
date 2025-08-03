@@ -10,6 +10,7 @@
 #include "ast/expressions.hpp"
 #include "ast/statements.hpp"
 #include "ast/parse_error.hpp"
+#include "enhanced_error_reporter.hpp"
 
 namespace Lua {
     // Parser class
@@ -19,7 +20,8 @@ namespace Lua {
         Token current;
         Token previous;
         bool hadError;
-        ErrorReporter errorReporter_;
+        EnhancedErrorReporter enhancedErrorReporter_;
+        Str sourceCode_;
 
         // Helper methods
         void advance();
@@ -98,12 +100,18 @@ namespace Lua {
         bool hasError() const { return hadError; }
         
         // Error reporting methods
-        const ErrorReporter& getErrorReporter() const { return errorReporter_; }
-        const Vec<ParseError>& getErrors() const { return errorReporter_.getErrors(); }
-        size_t getErrorCount() const { return errorReporter_.getErrorCount(); }
-        bool hasErrorsOrWarnings() const { return errorReporter_.hasErrorsOrWarnings(); }
-        
+        const EnhancedErrorReporter& getEnhancedErrorReporter() const { return enhancedErrorReporter_; }
+        EnhancedErrorReporter& getEnhancedErrorReporter() { return enhancedErrorReporter_; }
+        const ErrorReporter& getErrorReporter() const { return enhancedErrorReporter_.getBaseReporter(); }
+        ErrorReporter& getErrorReporter() { return const_cast<ErrorReporter&>(enhancedErrorReporter_.getBaseReporter()); }
+        const Vec<ParseError>& getErrors() const { return enhancedErrorReporter_.getBaseReporter().getErrors(); }
+        size_t getErrorCount() const { return enhancedErrorReporter_.getErrorCount(); }
+        bool hasErrorsOrWarnings() const { return enhancedErrorReporter_.hasErrors(); }
+
+        // Get formatted errors in Lua 5.1 style
+        Str getFormattedErrors() const { return enhancedErrorReporter_.getFormattedOutput(); }
+
         // Clear errors
-        void clearErrors() { errorReporter_.clear(); hadError = false; }
+        void clearErrors() { enhancedErrorReporter_.clear(); hadError = false; }
     };
 }

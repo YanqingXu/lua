@@ -178,6 +178,9 @@
     <ClInclude Include="src\parser\ast\parse_error.hpp" />
     <ClInclude Include="src\parser\ast\source_location.hpp" />
     <ClInclude Include="src\parser\ast\statements.hpp" />
+    <ClInclude Include="src\parser\enhanced_error_reporter.hpp" />
+    <ClInclude Include="src\parser\enhanced_parser.hpp" />
+    <ClInclude Include="src\parser\error_formatter.hpp" />
     <ClInclude Include="src\parser\parser.hpp" />
     <ClInclude Include="src\parser\visitor.hpp" />
     <ClInclude Include="src\tests\compiler\test_compiler.hpp" />
@@ -260,6 +263,8 @@
     <ClCompile Include="src\lib\table\table_lib.cpp" />
     <ClCompile Include="src\localization\localization_manager.cpp" />
     <ClCompile Include="src\main.cpp" />
+    <ClCompile Include="src\parser\enhanced_error_reporter.cpp" />
+    <ClCompile Include="src\parser\error_formatter.cpp" />
     <ClCompile Include="src\repl.cpp" />
     <ClCompile Include="src\parser\ast\source_location.cpp" />
     <ClCompile Include="src\parser\expression_parser.cpp" />

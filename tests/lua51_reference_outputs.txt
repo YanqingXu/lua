@@ -1,0 +1,59 @@
+# Lua 5.1 Reference Error Outputs
+# This file contains the expected error outputs from official Lua 5.1 interpreter
+# Use these as reference for validating our error reporting system
+
+## Test Case 1: Unexpected Symbol
+Input: local x = 1 @
+Expected: stdin:1: unexpected symbol near '@'
+
+## Test Case 2: Missing 'end' keyword
+Input: if true then
+       print("hello")
+Expected: stdin:2: 'end' expected (to close 'if' at line 1)
+
+## Test Case 3: Unfinished String
+Input: local s = "hello world
+Expected: stdin:1: unfinished string near '"hello world'
+
+## Test Case 4: Malformed Number
+Input: local n = 123.45.67
+Expected: stdin:1: malformed number near '123.45.67'
+
+## Test Case 5: Unexpected EOF in Function
+Input: function test()
+       print("hello")
+Expected: stdin:2: 'end' expected (to close 'function' at line 1)
+
+## Test Case 6: Missing Closing Parenthesis
+Input: local result = math.max(1, 2, 3
+Expected: stdin:1: ')' expected
+
+## Test Case 7: Invalid Escape Sequence
+Input: local s = "\z"
+Expected: stdin:1: invalid escape sequence near '"\z"'
+
+## Test Case 8: Missing Closing Brace
+Input: local t = {1, 2, 3
+Expected: stdin:1: '}' expected
+
+## Test Case 9: Multiple Errors (First One Reported)
+Input: local x = 1 @
+       local y = "unfinished
+Expected: stdin:1: unexpected symbol near '@'
+
+## Test Case 10: Nested Structure Error
+Input: function outer()
+         if true then
+           for i = 1, 10 do
+             print(i)
+           end
+         end
+Expected: stdin:6: 'end' expected (to close 'function' at line 1)
+
+## Additional Notes:
+# - Lua 5.1 uses "stdin:" as the filename when reading from standard input
+# - Line numbers are 1-based
+# - Error messages are concise and follow specific patterns
+# - Only the first error is typically reported
+# - Tokens in error messages are usually quoted with single quotes
+# - Location format is always "filename:line:"

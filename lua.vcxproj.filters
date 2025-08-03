@@ -333,6 +333,15 @@
     <ClCompile Include="src\lib\package\package_lib.cpp">
       <Filter>lib\package</Filter>
     </ClCompile>
+    <ClCompile Include="src\lib\core\multi_return_helper.cpp">
+      <Filter>lib\core</Filter>
+    </ClCompile>
+    <ClCompile Include="src\parser\enhanced_error_reporter.cpp">
+      <Filter>parser</Filter>
+    </ClCompile>
+    <ClCompile Include="src\parser\error_formatter.cpp">
+      <Filter>parser</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\compiler\compiler.hpp">
@@ -601,6 +610,18 @@
     </ClInclude>
     <ClInclude Include="src\vm\call_result.hpp">
       <Filter>vm</Filter>
+    </ClInclude>
+    <ClInclude Include="src\lib\core\multi_return_helper.hpp">
+      <Filter>lib\core</Filter>
+    </ClInclude>
+    <ClInclude Include="src\parser\enhanced_error_reporter.hpp">
+      <Filter>parser</Filter>
+    </ClInclude>
+    <ClInclude Include="src\parser\enhanced_parser.hpp">
+      <Filter>parser</Filter>
+    </ClInclude>
+    <ClInclude Include="src\parser\error_formatter.hpp">
+      <Filter>parser</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

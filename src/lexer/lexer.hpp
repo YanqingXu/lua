@@ -15,7 +15,9 @@ namespace Lua {
         LeftBrace, RightBrace, LeftBracket, RightBracket, Semicolon, Colon,
         Comma, Dot, DotDot, DotDotDot,
         // Others
-        Number, String, Name, Eof, Error
+        Number, String, Name, Eof, Error,
+        // Error types for better error reporting
+        UnterminatedString, InvalidNumber
     };
     
     // Token structure

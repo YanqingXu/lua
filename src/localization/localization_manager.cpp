@@ -45,12 +45,25 @@ namespace Lua {
         catalog.addMessage(MessageCategory::Severity, "Error", "error");
         catalog.addMessage(MessageCategory::Severity, "Fatal", "fatal");
         
-        // Error message templates
+        // Error message templates (Lua 5.1 compatible)
         catalog.addMessage(MessageCategory::ErrorMessage, "ExpectedButFound", "Expected '{0}', but found '{1}'");
         catalog.addMessage(MessageCategory::ErrorMessage, "Missing", "Missing '{0}'");
         catalog.addMessage(MessageCategory::ErrorMessage, "InvalidExpressionReason", "Invalid expression: {0}");
         catalog.addMessage(MessageCategory::ErrorMessage, "UndefinedVar", "Undefined variable '{0}'");
         catalog.addMessage(MessageCategory::ErrorMessage, "MismatchedParen", "Mismatched parentheses");
+
+        // Lua 5.1 standard error messages
+        catalog.addMessage(MessageCategory::ErrorMessage, "UnexpectedSymbolNear", "unexpected symbol near '{0}'");
+        catalog.addMessage(MessageCategory::ErrorMessage, "SyntaxErrorNear", "syntax error near '{0}'");
+        catalog.addMessage(MessageCategory::ErrorMessage, "UnexpectedEOF", "unexpected end of file");
+        catalog.addMessage(MessageCategory::ErrorMessage, "MalformedNumber", "malformed number near '{0}'");
+        catalog.addMessage(MessageCategory::ErrorMessage, "UnfinishedString", "unfinished string near '{0}'");
+        catalog.addMessage(MessageCategory::ErrorMessage, "InvalidEscapeSequence", "invalid escape sequence near '{0}'");
+        catalog.addMessage(MessageCategory::ErrorMessage, "ChunkTooManySyntaxLevels", "chunk has too many syntax levels");
+        catalog.addMessage(MessageCategory::ErrorMessage, "FunctionSpan", "function at line {0} ends on line {1}");
+        catalog.addMessage(MessageCategory::ErrorMessage, "AmbiguousSyntax", "ambiguous syntax (function call x new statement)");
+        catalog.addMessage(MessageCategory::ErrorMessage, "EndExpected", "'{0}' expected");
+        catalog.addMessage(MessageCategory::ErrorMessage, "EndExpectedToClose", "'{0}' expected (to close '{1}' at line {2})");
         
         // Fix suggestion messages
         catalog.addMessage(MessageCategory::FixSuggestion, "ReplaceWith", "Replace with '{0}'");
@@ -93,12 +106,25 @@ namespace Lua {
         catalog.addMessage(MessageCategory::Severity, "Error", "错误");
         catalog.addMessage(MessageCategory::Severity, "Fatal", "致命错误");
         
-        // Error message templates
+        // Error message templates (Lua 5.1 compatible Chinese)
         catalog.addMessage(MessageCategory::ErrorMessage, "ExpectedButFound", "期望 '{0}'，但发现 '{1}'");
         catalog.addMessage(MessageCategory::ErrorMessage, "Missing", "缺少 '{0}'");
         catalog.addMessage(MessageCategory::ErrorMessage, "InvalidExpressionReason", "无效表达式：{0}");
         catalog.addMessage(MessageCategory::ErrorMessage, "UndefinedVar", "未定义变量 '{0}'");
         catalog.addMessage(MessageCategory::ErrorMessage, "MismatchedParen", "括号不匹配");
+
+        // Lua 5.1 standard error messages (Chinese)
+        catalog.addMessage(MessageCategory::ErrorMessage, "UnexpectedSymbolNear", "在 '{0}' 附近出现意外符号");
+        catalog.addMessage(MessageCategory::ErrorMessage, "SyntaxErrorNear", "在 '{0}' 附近出现语法错误");
+        catalog.addMessage(MessageCategory::ErrorMessage, "UnexpectedEOF", "意外的文件结束");
+        catalog.addMessage(MessageCategory::ErrorMessage, "MalformedNumber", "在 '{0}' 附近出现格式错误的数字");
+        catalog.addMessage(MessageCategory::ErrorMessage, "UnfinishedString", "在 '{0}' 附近出现未完成的字符串");
+        catalog.addMessage(MessageCategory::ErrorMessage, "InvalidEscapeSequence", "在 '{0}' 附近出现无效的转义序列");
+        catalog.addMessage(MessageCategory::ErrorMessage, "ChunkTooManySyntaxLevels", "代码块的语法层次过多");
+        catalog.addMessage(MessageCategory::ErrorMessage, "FunctionSpan", "第 {0} 行的函数在第 {1} 行结束");
+        catalog.addMessage(MessageCategory::ErrorMessage, "AmbiguousSyntax", "语法歧义（函数调用与新语句）");
+        catalog.addMessage(MessageCategory::ErrorMessage, "EndExpected", "期望 '{0}'");
+        catalog.addMessage(MessageCategory::ErrorMessage, "EndExpectedToClose", "期望 '{0}'（用于关闭第 {2} 行的 '{1}'）");
         
         // Fix suggestion messages
         catalog.addMessage(MessageCategory::FixSuggestion, "ReplaceWith", "替换为 '{0}'");

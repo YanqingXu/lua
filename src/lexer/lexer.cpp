@@ -94,6 +94,8 @@ namespace Lua {
             case '\'': return string();
                 
             default:
+                // Advance to include the unexpected character in the token
+                advance();
                 return errorToken("Unexpected character.");
         }
     }
@@ -132,7 +134,12 @@ namespace Lua {
     }
     
     Token Lexer::errorToken(const Str& message) {
-        Token token(TokenType::Error, message, line, column);
+        // For Lua 5.1 compatibility, use the actual character(s) as lexeme
+        Str actualLexeme = source.substr(start, current - start);
+        if (actualLexeme.empty() && !isAtEnd()) {
+            actualLexeme = source.substr(current, 1);
+        }
+        Token token(TokenType::Error, actualLexeme, line, column);
         return token;
     }
     
@@ -191,10 +198,22 @@ namespace Lua {
         if (peek() == '.' && isdigit(peekNext())) {
             // Consume '.'
             advance();
-            
+
             // Consume decimal part
             while (isdigit(peek())) {
                 advance();
+            }
+
+            // Check for malformed number (multiple dots)
+            if (peek() == '.' && isdigit(peekNext())) {
+                // This is a malformed number like 123.45.67
+                // Consume the rest to include in error token
+                advance(); // consume second dot
+                while (isdigit(peek())) {
+                    advance();
+                }
+                Token token(TokenType::InvalidNumber, source.substr(start, current - start), line, column - static_cast<int>(current - start));
+                return token;
             }
         }
         
@@ -225,7 +244,11 @@ namespace Lua {
     
     Token Lexer::string() {
         char delimiter = source[start]; // Save string delimiter (' or ")
-        
+
+        // Save the starting position for error reporting
+        int startLine = line;
+        int startColumn = column;
+
         // Consume until matching delimiter
         while (peek() != delimiter && !isAtEnd()) {
             if (peek() == '\n') {
@@ -250,7 +273,16 @@ namespace Lua {
         }
         
         if (isAtEnd()) {
-            return errorToken("Unterminated string.");
+            // Create a token with the unfinished string content for better error reporting
+            // Use the position where the string started
+            // For Lua 5.1 compatibility, limit the token content to avoid truncation
+            Str tokenContent = source.substr(start, current - start);
+            // Remove any trailing newlines to match Lua 5.1 behavior
+            while (!tokenContent.empty() && (tokenContent.back() == '\n' || tokenContent.back() == '\r')) {
+                tokenContent.pop_back();
+            }
+            Token token(TokenType::UnterminatedString, tokenContent, startLine, startColumn);
+            return token;
         }
         
         // Closing delimiter
@@ -317,6 +349,8 @@ namespace Lua {
             case TokenType::Name: return "identifier";
             case TokenType::Eof: return "end of file";
             case TokenType::Error: return "error";
+            case TokenType::UnterminatedString: return "unterminated string";
+            case TokenType::InvalidNumber: return "invalid number";
             default: return "unknown";
         }
     }

@@ -227,6 +227,7 @@ namespace Lua {
 
             return result;
         } catch (const LuaException& e) {
+            std::cerr << "LuaException in call: " << e.what() << std::endl;
             // CRITICAL FIX: Always re-throw LuaException for proper pcall error handling
             // pcall should be the only place that catches and converts exceptions to return values
             throw; // Re-throw all LuaExceptions to allow pcall to handle them properly
@@ -309,6 +310,7 @@ namespace Lua {
 
             return result;
         } catch (const LuaException& e) {
+            std::cerr << "LuaException in callMultiple: " << e.what() << std::endl;
             // CRITICAL FIX: Always re-throw LuaException for proper pcall error handling
             // pcall should be the only place that catches and converts exceptions to return values
             throw; // Re-throw all LuaExceptions to allow pcall to handle them properly
@@ -536,6 +538,7 @@ namespace Lua {
             return result;
 
         } catch (const LuaException& e) {
+            std::cerr << "LuaException in callLua: " << e.what() << std::endl;
             // CRITICAL FIX: Always re-throw LuaException for proper pcall error handling
             // pcall should be the only place that catches and converts exceptions to return values
             throw; // Re-throw all LuaExceptions to allow pcall to handle them properly
@@ -551,6 +554,11 @@ namespace Lua {
 
             // Check if there are errors in parsing phase
             if (parser.hasError()) {
+                // Output parsing errors in Lua 5.1 format
+                Str formattedErrors = parser.getFormattedErrors();
+                if (!formattedErrors.empty()) {
+                    std::cerr << formattedErrors << std::endl;
+                }
                 return false;
             }
 
@@ -586,6 +594,11 @@ namespace Lua {
 
             // Check if there are errors in parsing phase
             if (parser.hasError()) {
+                // Output parsing errors in Lua 5.1 format for REPL
+                Str formattedErrors = parser.getFormattedErrors();
+                if (!formattedErrors.empty()) {
+                    std::cerr << formattedErrors << std::endl;
+                }
                 throw LuaException("Parse error");
             }
 

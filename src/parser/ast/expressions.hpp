@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "ast_base.hpp"
 #include "../../lexer/lexer.hpp"

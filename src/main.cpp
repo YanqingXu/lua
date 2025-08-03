@@ -50,7 +50,10 @@ int main(int argc, char** argv) {
                 // Initialize all standard libraries using simplified framework
                 StandardLibrary::initializeAll(&state);
 
-                state.doString(source);
+                bool success = state.doString(source);
+                if (!success) {
+                    return 1;
+                }
             }
        } else {
            run_repl();

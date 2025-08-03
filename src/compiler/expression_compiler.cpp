@@ -46,6 +46,7 @@ namespace Lua {
             }
         } catch (const std::exception& e) {
             // Re-throw compilation errors
+            std::cerr << "Compilation error: " << e.what() << std::endl;
             throw;
         }
     }
@@ -185,6 +186,7 @@ namespace Lua {
                 // Constant folding failed, fall back to runtime evaluation
                 // DEBUG: Removed debug output for cleaner testing
                 // Continue with normal compilation below
+                std::cerr << "Constant folding failed: " << e.what() << std::endl;
             }
         }
         
