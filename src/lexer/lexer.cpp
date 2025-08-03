@@ -129,16 +129,35 @@ namespace Lua {
     }
     
     Token Lexer::makeToken(TokenType type) {
-        Token token(type, source.substr(start, current - start), line, column - static_cast<int>(current - start));
+        Str lexeme;
+
+        // Safe substr with boundary checking
+        if (start < source.length() && current > start && current <= source.length()) {
+            lexeme = source.substr(start, current - start);
+        }
+
+        Token token(type, lexeme, line, column - static_cast<int>(current - start));
         return token;
     }
     
     Token Lexer::errorToken(const Str& message) {
         // For Lua 5.1 compatibility, use the actual character(s) as lexeme
-        Str actualLexeme = source.substr(start, current - start);
-        if (actualLexeme.empty() && !isAtEnd()) {
+        Str actualLexeme;
+
+        // Safe substr with boundary checking
+        if (start < source.length() && current > start && current <= source.length()) {
+            actualLexeme = source.substr(start, current - start);
+        }
+
+        if (actualLexeme.empty() && !isAtEnd() && current < source.length()) {
             actualLexeme = source.substr(current, 1);
         }
+
+        // Fallback to a safe default if we still have no lexeme
+        if (actualLexeme.empty()) {
+            actualLexeme = "@"; // Use @ as a safe fallback for error tokens
+        }
+
         Token token(TokenType::Error, actualLexeme, line, column);
         return token;
     }

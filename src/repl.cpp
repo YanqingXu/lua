@@ -444,13 +444,23 @@ void executeCode(Lua::State& state, const std::string& code) {
             }
             return;
         } catch (const Lua::LuaException& e) {
-            // If it's a parse error, the error was already formatted and displayed
-            // For other errors, we might want to display them
-            if (std::string(e.what()).find("Parse error") == std::string::npos) {
-                std::cerr << "lua: " << e.what() << std::endl;
-                return;
+            std::string errorMsg = e.what();
+
+            // Check if it's any type of parse error that would likely occur again
+            // These patterns indicate syntax/lexical errors that won't be fixed by trying as statement
+            bool isParseError = (errorMsg.find("Parse error") != std::string::npos ||
+                               errorMsg.find("unexpected symbol") != std::string::npos ||
+                               errorMsg.find("unfinished string") != std::string::npos ||
+                               errorMsg.find("malformed number") != std::string::npos ||
+                               errorMsg.find("stdin:") != std::string::npos);
+
+            if (isParseError) {
+                return; // Parse error already displayed, don't try again
             }
-            // Failed as expression due to parse error, continue trying as statement
+
+            // For other errors, we might want to display them
+            std::cerr << "lua: " << errorMsg << std::endl;
+            return;
         } catch (...) {
             // Failed as expression, continue trying as statement
         }
