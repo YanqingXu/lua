@@ -658,18 +658,30 @@ namespace Lua {
             // Return nil (no values)
             compiler->emitInstruction(Instruction::createRETURN(0, 0));
         } else if (values.size() == 1) {
-            // Single return value (backward compatibility)
-            int reg = compiler->getExpressionCompiler()->compileExpr(values[0].get());
+            // Check if the single return value is a vararg expression
+            const auto* varargExpr = dynamic_cast<const VarargExpr*>(values[0].get());
+            if (varargExpr) {
+                // Special case: return ... should return all varargs
+#if DEBUG_COMPILER
+                DEBUG_PRINT("compileReturnStmt: detected return ... - generating VARARG and RETURN with B=0");
+#endif
+                // Generate VARARG instruction to get all varargs starting from register 0
+                compiler->emitInstruction(Instruction::createVARARG(0, 0));
 
+                // Emit return instruction with B=0 to return all values from register 0 to top
+                compiler->emitInstruction(Instruction::createRETURN(0, 0));
+            } else {
+                // Single return value (backward compatibility)
+                int reg = compiler->getExpressionCompiler()->compileExpr(values[0].get());
 
+                // Emit return instruction (B=2 means return 1 value)
+                // A parameter should be reg because VM will read from register a+1
+                // If reg is compiler register index, VM register is reg+1, so a should be reg
+                compiler->emitInstruction(Instruction::createRETURN(reg, 2));
 
-            // Emit return instruction (B=2 means return 1 value)
-            // A parameter should be reg because VM will read from register a+1
-            // If reg is compiler register index, VM register is reg+1, so a should be reg
-            compiler->emitInstruction(Instruction::createRETURN(reg, 2));
-
-            // Don't free value register - return statement terminates function execution
-            // compiler->freeReg();
+                // Don't free value register - return statement terminates function execution
+                // compiler->freeReg();
+            }
         } else {
             // Multiple return values
             Vec<int> valueRegs;

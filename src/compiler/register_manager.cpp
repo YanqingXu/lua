@@ -1,4 +1,5 @@
 ﻿#include "register_manager.hpp"
+#include "../common/defines.hpp"
 #include <iostream>
 #include <iomanip>
 #include <algorithm>
@@ -36,15 +37,19 @@ int RegisterManager::allocateTemp(const std::string& name) {
     if (stackTop_ >= MAX_REGISTERS) {
         throw LuaException("Register stack overflow (max " + std::to_string(MAX_REGISTERS) + ")");
     }
-    
+
     int reg = stackTop_;
     updateStackTop(stackTop_ + 1);
-    
+
+#if DEBUG_REGISTER_ALLOCATION
+    DEBUG_PRINT("allocateTemp: " << name << " reg=" << reg << " newStackTop=" << stackTop_);
+#endif
+
     // 记录调试信息
     if (reg < static_cast<int>(registerNames_.size())) {
         registerNames_[reg] = "temp:" + (name.empty() ? "expr" : name);
     }
-    
+
     return reg;
 }
 
@@ -63,14 +68,18 @@ void RegisterManager::freeTemp() {
 
 int RegisterManager::allocateCallFrame(int count, const std::string& name) {
     if (stackTop_ + count > MAX_REGISTERS) {
-        throw LuaException("Not enough registers for function call (need " + 
-                          std::to_string(count) + ", available " + 
+        throw LuaException("Not enough registers for function call (need " +
+                          std::to_string(count) + ", available " +
                           std::to_string(MAX_REGISTERS - stackTop_) + ")");
     }
-    
+
     int startReg = stackTop_;
     updateStackTop(stackTop_ + count);
-    
+
+#if DEBUG_REGISTER_ALLOCATION
+    DEBUG_PRINT("allocateCallFrame: " << name << " count=" << count << " startReg=" << startReg << " newStackTop=" << stackTop_);
+#endif
+
     // 记录调试信息
     for (int i = 0; i < count; i++) {
         int reg = startReg + i;
@@ -82,7 +91,7 @@ int RegisterManager::allocateCallFrame(int count, const std::string& name) {
             }
         }
     }
-    
+
     return startReg;
 }
 

@@ -171,7 +171,6 @@ namespace Lua {
         // === Phase 1: Direct Function Call ===
         // Check if value is directly callable (function)
         if (func.isFunction()) {
-
             try {
                 return callFunctionDirectMultiple(state, func, args);
             } catch (const LuaException& e) {

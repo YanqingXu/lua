@@ -278,14 +278,29 @@ namespace Lua {
                 // Hit RETURN: op_return has pushed all return values on the stack
                 const int originalTop = stackSize;
                 const int currentTop = state->getTop();
-                const int numReturnValues = currentTop - originalTop;
+
+                // CRITICAL FIX: For vararg functions, the stack top may have been modified by VARARG instruction
+                // We need to collect return values from the current stack, not based on the difference
+                int numReturnValues;
+                int returnStartPos;
+
+                if (currentTop >= originalTop) {
+                    // Normal case: stack grew, return values are at the end
+                    numReturnValues = currentTop - originalTop;
+                    returnStartPos = originalTop;
+                } else {
+                    // Vararg case: stack top was modified, return values are at the current stack
+                    // In this case, we need to collect all values from the stack bottom to current top
+                    numReturnValues = currentTop;
+                    returnStartPos = 0;
+                }
 
                 if (numReturnValues > 0) {
                     // Collect ALL return values in order
                     returnValues.clear();
                     returnValues.reserve(numReturnValues);
                     for (int i = 0; i < numReturnValues; ++i) {
-                        returnValues.push_back(state->get(originalTop + i));
+                        returnValues.push_back(state->get(returnStartPos + i));
                     }
                     // Clean up the stack back to original level
                     state->setTop(originalTop);
@@ -478,8 +493,9 @@ namespace Lua {
     }
 
     Value VM::getReg(int reg) const {
-        // Convert VM register (0-based) to stack position using current frame base
-        int base = (!frameStack.empty()) ? frameStack.back().base : registerBase;
+        // CRITICAL FIX: Use consistent register base - always use registerBase for current function
+        // The frameStack.back().base is for the calling function, not the current function
+        int base = registerBase;
         int stackPos = base + reg;
 
         Value val = state->get(stackPos);
@@ -489,10 +505,10 @@ namespace Lua {
     }
 
     void VM::setReg(int reg, const Value& value) {
-        // Convert VM register (0-based) to stack position using current frame base
-        int base = (!frameStack.empty()) ? frameStack.back().base : registerBase;
+        // CRITICAL FIX: Use consistent register base - always use registerBase for current function
+        // The frameStack.back().base is for the calling function, not the current function
+        int base = registerBase;
         int stackPos = base + reg;
-        // std::cout << "[DEBUG] setReg(" << reg << ", type=" << (int)value.type() << ") -> stackPos=" << stackPos << " base=" << base << std::endl;
         state->set(stackPos, value);
     }
 
@@ -1004,7 +1020,9 @@ namespace Lua {
                 state->setTop(regEndTop(a, 1));
             } else {
                 int n = static_cast<int>(multiResult.count);
-                for (int i = 0; i < n; ++i) setReg(a + i, multiResult.values[i]);
+                for (int i = 0; i < n; ++i) {
+                    setReg(a + i, multiResult.values[i]);
+                }
                 state->setTop(regEndTop(a, n));
             }
             // 不做额外清理，保留返回段供下一条指令消费
@@ -1020,8 +1038,10 @@ namespace Lua {
                 }
             } else {
                 int n = static_cast<int>(multiResult.count);
-                for (int i = 0; i < expectedReturns; ++i)
-                    setReg(a + i, (i < n) ? multiResult.values[i] : Value());
+                for (int i = 0; i < expectedReturns; ++i) {
+                    Value val = (i < n) ? multiResult.values[i] : Value();
+                    setReg(a + i, val);
+                }
             }
 
             // 清理可能的额外栈空间（谨慎）
@@ -1945,7 +1965,6 @@ namespace Lua {
         u8 b = i.getB();  // Number of arguments + 1
         u8 c = i.getC();  // Expected number of return values + 1
 
-
         // CALL_MM instruction: function call with metamethod support
 
         // === Input Validation ===
@@ -2107,7 +2126,8 @@ namespace Lua {
                 setReg(static_cast<int>(a + i), callResult.values[i]);
             }
             // Critical: when c==0 (all returns), set top to end of return segment for B==0 consumption
-            state->setTop(regEndTop(a, static_cast<int>(callResult.count)));
+            int newTop = regEndTop(a, static_cast<int>(callResult.count));
+            state->setTop(newTop);
         }
     }
 
@@ -2255,15 +2275,12 @@ namespace Lua {
             numToCopy = varargsCount;
         }
 
-        // std::cout << "[DEBUG] numToCopy=" << numToCopy << std::endl;
-
         // Copy varargs to consecutive registers starting from 'a'
         for (int i = 0; i < numToCopy; ++i) {
             if (i < static_cast<int>(varargs.size())) {
                 // Copy vararg to register
                 setReg(a + i, varargs[i]);
             } else {
-                // std::cout << "[DEBUG] Setting nil to register " << (a + i) << std::endl;
                 setReg(a + i, Value()); // nil for missing varargs
             }
         }

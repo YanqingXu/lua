@@ -259,6 +259,11 @@ namespace Lua {
         bool hasLastCallExpansion = false;
         if (!args.empty()) {
             const auto* lastArg = args.back().get();
+#if DEBUG_COMPILER
+            DEBUG_PRINT("compileCall: checking last arg, args.size()=" << args.size());
+            DEBUG_PRINT("compileCall: lastArg type check - VarargExpr=" << (dynamic_cast<const VarargExpr*>(lastArg) != nullptr)
+                       << " CallExpr=" << (dynamic_cast<const CallExpr*>(lastArg) != nullptr));
+#endif
             if (dynamic_cast<const VarargExpr*>(lastArg)) {
                 hasVarargExpansion = true;
             } else if (dynamic_cast<const CallExpr*>(lastArg)) {
@@ -267,12 +272,20 @@ namespace Lua {
         }
         // 尾部展开检查完成
 
+#if DEBUG_COMPILER
+        DEBUG_PRINT("compileCall: hasVarargExpansion=" << hasVarargExpansion << " hasLastCallExpansion=" << hasLastCallExpansion);
+#endif
+
         // 新策略：分配连续寄存器，然后直接编译到目标位置
         // 这样避免寄存器冲突
 
         // 步骤1：分配连续的寄存器块（Lua 5.1官方设计）
         int callFrameSize = 1 + nargs;  // 函数 + 参数
         int base = compiler->getRegisterManager().allocateCallFrame(callFrameSize, "call");
+
+#if DEBUG_COMPILER
+        DEBUG_PRINT("compileCall: callFrameSize=" << callFrameSize << " base=" << base << " nargs=" << nargs);
+#endif
 
 
 
@@ -285,8 +298,14 @@ namespace Lua {
 
         // 步骤2：编译函数到临时寄存器，然后移动
         int funcReg = compileExpr(expr->getCallee());
+#if DEBUG_COMPILER
+        DEBUG_PRINT("compileCall: funcReg=" << funcReg << " base=" << base);
+#endif
         if (funcReg != base) {
             compiler->emitInstruction(Instruction::createMOVE(base, funcReg));
+#if DEBUG_COMPILER
+            DEBUG_PRINT("compileCall: MOVE " << base << " <- " << funcReg);
+#endif
         }
 
         // 步骤3：编译每个参数到临时寄存器，然后移动
@@ -338,6 +357,9 @@ namespace Lua {
         int callB = (hasVarargExpansion || hasLastCallExpansion) ? 0 : (nargs + 1);  // 尾部展开 -> B=0
         int callC = (hasLastCallExpansion ? 0 : 2); // 尾部展开 -> C=0（全部返回）；否则期望1个返回
 
+#if DEBUG_COMPILER
+        DEBUG_PRINT("compileCall: emit CALL_MM a=" << callA << " b=" << callB << " c=" << callC);
+#endif
 
         compiler->emitInstruction(Instruction::createCALL_MM(callA, callB, callC));
 
@@ -437,12 +459,21 @@ namespace Lua {
         bool hasLastCallExpansion = false;
         if (!args.empty()) {
             const auto* lastArg = args.back().get();
+#if DEBUG_COMPILER
+            DEBUG_PRINT("compileCallWithMultiReturn: checking last arg, args.size()=" << args.size());
+            DEBUG_PRINT("compileCallWithMultiReturn: lastArg type check - VarargExpr=" << (dynamic_cast<const VarargExpr*>(lastArg) != nullptr)
+                       << " CallExpr=" << (dynamic_cast<const CallExpr*>(lastArg) != nullptr));
+#endif
             if (dynamic_cast<const VarargExpr*>(lastArg)) {
                 hasVarargExpansion = true;
             } else if (dynamic_cast<const CallExpr*>(lastArg)) {
                 hasLastCallExpansion = true;
             }
         }
+
+#if DEBUG_COMPILER
+        DEBUG_PRINT("compileCallWithMultiReturn: hasVarargExpansion=" << hasVarargExpansion << " hasLastCallExpansion=" << hasLastCallExpansion);
+#endif
 
         // Step 1: Compile function expression to startReg
         int funcReg = compiler->getExpressionCompiler()->compileExpr(expr->getCallee());
@@ -490,7 +521,17 @@ namespace Lua {
             } else if (i == static_cast<int>(args.size()) - 1 && hasLastCallExpansion) {
                 // Last argument is a function call: expand all returns into arg slots starting at target
                 const auto* callArg = static_cast<const CallExpr*>(arg);
+
+                // CRITICAL FIX: For nested calls like pass(m()), ensure the inner call's returns
+                // are placed at the correct position for the outer call to consume
+                // The inner call should place its results starting from the argument position
                 compiler->getExpressionCompiler()->compileCallWithMultiReturn(callArg, argTargets[targetIndex], -1);
+
+                // After the inner call, the stack top should be set correctly for B=0 consumption
+                // This will be handled by the inner call's C=0 setting
+#if DEBUG_COMPILER
+                DEBUG_PRINT("compileCallWithMultiReturn: nested call compiled at argTargets[" << targetIndex << "]=" << argTargets[targetIndex]);
+#endif
             } else {
                 // Regular parameter compilation
                 int argReg = compileExpr(arg);
@@ -506,6 +547,9 @@ namespace Lua {
         int callB = (hasVarargExpansion || hasLastCallExpansion) ? 0 : (nargs + 1);
         int callC = (expectedReturns == -1) ? 0 : (expectedReturns + 1);
 
+#if DEBUG_COMPILER
+        DEBUG_PRINT("compileCallWithMultiReturn: emit CALL_MM a=" << callA << " b=" << callB << " c=" << callC);
+#endif
 
         compiler->emitInstruction(Instruction::createCALL_MM(callA, callB, callC));
 
