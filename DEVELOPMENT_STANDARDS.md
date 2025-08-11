@@ -384,38 +384,7 @@ private:
 
 ---
 
-## 🧪 测试规范
 
-### 1. 测试文件命名
-- 源文件: `example.cpp` → 测试文件: `example_test.cpp`
-- 头文件: `example.hpp` → 测试头文件: `example_test.hpp`
-
-### 2. 测试用例结构
-```cpp
-#include "base_lib_test.hpp"
-#include "base_lib.hpp"
-#include <gtest/gtest.h>
-
-namespace Lua {
-namespace Lib {
-namespace Test {
-
-class BaseLibTest : public ::testing::Test {
-protected:
-    void SetUp() override {
-        // Test setup
-        state_ = createTestState();
-        baseLib_ = make_unique<BaseLib>();
-    }
-    
-    void TearDown() override {
-        // Test cleanup
-        destroyTestState(state_);
-    }
-    
-    State* state_ = nullptr;
-    UPtr<BaseLib> baseLib_;
-};
 
 TEST_F(BaseLibTest, PrintFunction_ValidInput_ReturnsSuccess) {
     // Arrange
@@ -497,8 +466,7 @@ docs/
 ├── vm/                      # 虚拟机文档
 │   ├── bytecode_spec.md
 │   └── instruction_set.md
-├── test_framework/          # 测试框架文档
-│   └── testing_guide.md
+
 ├── api/                     # API参考文档
 │   └── public_api.md
 └── development/             # 开发相关文档
@@ -539,13 +507,12 @@ docs/
 
 ## ✅ 完成的工作
 - [ ] 核心功能实现
-- [ ] 单元测试覆盖
-- [ ] 集成测试验证
+- [ ] 功能验证
 - [ ] API文档编写
 - [ ] 性能优化完成
 
-## 🧪 测试验证
-- 测试覆盖率: XX%
+## 🧪 功能验证
+- 功能完整性验证
 - 性能基准测试结果
 - 内存泄漏检查结果
 
@@ -587,7 +554,6 @@ docs/
 - `gc/` - 垃圾回收器文档
 - `parser/` - 解析器文档
 - `lexer/` - 词法分析器文档
-- `test_framework/` - 测试框架文档
 - `api/` - API参考文档
 - `development/` - 开发过程文档
 - `reports/` - 里程碑和进度报告
@@ -611,9 +577,7 @@ docs/
 - [Base Library 完成报告](lib/base_lib_complete.md)
 - [String Library 实现指南](lib/string_lib_implementation.md)
 
-## 🧪 测试文档
-- [测试框架指南](test_framework/testing_guide.md)
-- [自动化测试报告](reports/automated_test_report.md)
+
 
 ## 📊 进度报告
 - [项目里程碑](reports/milestone_reports.md)

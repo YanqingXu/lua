@@ -17,7 +17,6 @@
   - [Lib模块](modules/lib_module_report.md) - 标准库开发状态 (35%完成)
   - [Parser模块](modules/parser_module_report.md) - 解析器开发状态 (55%完成)
   - [Lexer模块](modules/lexer_module_report.md) - 词法分析器开发状态 (100%完成)
-  - [Test Framework模块](modules/test_framework_module_report.md) - 测试框架开发状态 (80%完成)
 
 ### 📖 Wiki 文档系列 (wiki/)
 - **[主 Wiki 文档](wiki/wiki.md)** - 项目的完整技术文档和开发指南

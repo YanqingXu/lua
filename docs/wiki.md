@@ -11,7 +11,7 @@
 - [开发指南](#开发指南)
 - [API文档](#api文档)
 - [性能优化](#性能优化)
-- [测试指南](#测试指南)
+
 - [故障排除](#故障排除)
 - [贡献指南](#贡献指南)
 
@@ -32,7 +32,6 @@ Modern C++ Lua Interpreter是一个使用现代C++17技术重新实现的Lua解�
 - ✅ **现代C++实现**：C++17标准，智能指针，RAII
 - ✅ **高性能虚拟机**：基于寄存器的字节码执行引擎
 - ✅ **先进垃圾回收**：三色标记清除算法
-- ✅ **全面测试覆盖**：90%+的代码覆盖率
 - ✅ **模块化架构**：清晰的组件分离
 
 ## 快速开始
@@ -827,38 +826,7 @@ public:
 };
 ```
 
-## 测试指南
 
-### 🧪 测试框架
-
-项目使用自定义的轻量级测试框架，支持单元测试和集成测试。
-
-#### 基本测试结构
-```cpp
-#include "tests/test_main.hpp"
-
-TEST_CASE("Lexer Basic Tokenization") {
-    Lua::Lexer lexer("local x = 42");
-    auto tokens = lexer.tokenize();
-    
-    ASSERT_EQ(tokens.size(), 4);
-    ASSERT_EQ(tokens[0].type, Lua::TokenType::LOCAL);
-    ASSERT_EQ(tokens[1].type, Lua::TokenType::IDENTIFIER);
-    ASSERT_EQ(tokens[1].lexeme, "x");
-    ASSERT_EQ(tokens[2].type, Lua::TokenType::ASSIGN);
-    ASSERT_EQ(tokens[3].type, Lua::TokenType::NUMBER);
-}
-
-TEST_CASE("Parser Expression Parsing") {
-    Lua::Lexer lexer("1 + 2 * 3");
-    auto tokens = lexer.tokenize();
-    
-    Lua::Parser parser(tokens);
-    auto expr = parser.parse_expression();
-    
-    ASSERT_NOT_NULL(expr);
-    // 验证AST结构
-}
 ```
 
 #### 测试宏定义
@@ -883,44 +851,7 @@ TEST_CASE("Parser Expression Parsing") {
     } while(0)
 ```
 
-### 📋 测试分类
 
-#### 单元测试
-测试单个组件的功能：
-- **lexer_test.cpp**: 词法分析器测试
-- **parser_test.cpp**: 语法分析器测试
-- **compiler_test.cpp**: 编译器测试
-- **vm_test.cpp**: 虚拟机测试
-- **gc_test.cpp**: 垃圾回收器测试
-
-#### 集成测试
-测试组件间的协作：
-- **end_to_end_test.cpp**: 完整的编译执行流程
-- **compatibility_test.cpp**: Lua兼容性测试
-- **performance_test.cpp**: 性能基准测试
-
-#### 回归测试
-确保修改不会破坏现有功能：
-- **regression_test.cpp**: 已修复bug的测试用例
-
-### 🎯 测试覆盖率
-
-#### 生成覆盖率报告
-```bash
-# 使用gcov生成覆盖率数据
-cmake -DCMAKE_BUILD_TYPE=Debug -DENABLE_COVERAGE=ON ..
-make
-ctest
-
-# 生成HTML报告
-lcov --capture --directory . --output-file coverage.info
-genhtml coverage.info --output-directory coverage_report
-```
-
-#### 覆盖率目标
-- **总体覆盖率**: > 90%
-- **核心模块覆盖率**: > 95%
-- **关键路径覆盖率**: 100%
 
 ## 故障排除
 
