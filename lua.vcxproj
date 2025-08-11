@@ -183,18 +183,7 @@
     <ClInclude Include="src\parser\error_formatter.hpp" />
     <ClInclude Include="src\parser\parser.hpp" />
     <ClInclude Include="src\parser\visitor.hpp" />
-    <ClInclude Include="src\tests\compiler\test_compiler.hpp" />
-    <ClInclude Include="src\tests\gc\test_gc.hpp" />
-    <ClInclude Include="src\tests\lexer\lexer_basic_test.hpp" />
-    <ClInclude Include="src\tests\lexer\test_lexer.hpp" />
 
-
-    <ClInclude Include="src\tests\parser\expr\test_parser_expr.hpp" />
-    <ClInclude Include="src\tests\parser\test_parser.hpp" />
-    <ClInclude Include="src\tests\test_main.hpp" />
-    <ClInclude Include="src\tests\vm\closure\test_closure.hpp" />
-    <ClInclude Include="src\tests\vm\state\test_state.hpp" />
-    <ClInclude Include="src\tests\vm\test_vm.hpp" />
 
     <ClInclude Include="src\vm\call_result.hpp" />
     <ClInclude Include="src\vm\core_metamethods.hpp" />

@@ -34,9 +34,7 @@
     <Filter Include="parser\ast">
       <UniqueIdentifier>{55025240-88f2-415e-a4ca-e520ad69e646}</UniqueIdentifier>
     </Filter>
-    <Filter Include="tests">
-      <UniqueIdentifier>{eccc84fa-0552-4712-9739-3c7fd257f1cc}</UniqueIdentifier>
-    </Filter>
+
     <Filter Include="gc">
       <UniqueIdentifier>{26215f2a-d6d3-4e75-abc4-01efe3b87429}</UniqueIdentifier>
     </Filter>
@@ -58,39 +56,11 @@
     <Filter Include="gc\utils">
       <UniqueIdentifier>{d064a294-a3d4-4927-b472-e8e30e361b55}</UniqueIdentifier>
     </Filter>
-    <Filter Include="tests\compiler">
-      <UniqueIdentifier>{5874c9f0-8bd1-4787-9a83-167052eee2c6}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="tests\gc">
-      <UniqueIdentifier>{fcedba5d-93ba-4ff7-a92c-97b544add0e0}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="tests\lexer">
-      <UniqueIdentifier>{a99e3e85-70b1-466d-86ad-da84d4e5ecbf}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="tests\parser">
-      <UniqueIdentifier>{03355153-702a-4d5c-bb45-681d39d2ca3e}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="tests\vm">
-      <UniqueIdentifier>{8e48cf89-2d4e-41ab-8adf-aae91bd60f59}</UniqueIdentifier>
-    </Filter>
+
     <Filter Include="localization">
       <UniqueIdentifier>{230981af-2ba3-4663-83f8-6e785d9a21d9}</UniqueIdentifier>
     </Filter>
-    <Filter Include="tests\localization">
-      <UniqueIdentifier>{eb38306f-3d90-454e-93d1-da8cbb475289}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="tests\lib">
-      <UniqueIdentifier>{cb84f0b7-0ef8-481e-b6c4-c90905cd87bb}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="tests\vm\closure">
-      <UniqueIdentifier>{1a9c95e0-36d0-4c66-866d-eab2e673120b}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="tests\parser\expr">
-      <UniqueIdentifier>{1cd767d5-a6fb-4db0-ae18-b32bbe10a69e}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="tests\vm\state">
-      <UniqueIdentifier>{68b917f1-ef58-4a78-b114-e5b37902f080}</UniqueIdentifier>
-    </Filter>
+
 
     <Filter Include="lib\base">
       <UniqueIdentifier>{27357e4e-5796-4061-ba77-73b8ced00e34}</UniqueIdentifier>
@@ -323,9 +293,7 @@
     <ClInclude Include="src\parser\ast\statements.hpp">
       <Filter>parser\ast</Filter>
     </ClInclude>
-    <ClInclude Include="src\tests\test_main.hpp">
-      <Filter>tests</Filter>
-    </ClInclude>
+
     <ClInclude Include="src\compiler\compiler_utils.hpp">
       <Filter>compiler</Filter>
     </ClInclude>
@@ -380,12 +348,7 @@
     <ClInclude Include="src\vm\state_factory.hpp">
       <Filter>vm</Filter>
     </ClInclude>
-    <ClInclude Include="src\tests\gc\test_gc.hpp">
-      <Filter>tests\gc</Filter>
-    </ClInclude>
-    <ClInclude Include="src\tests\parser\test_parser.hpp">
-      <Filter>tests\parser</Filter>
-    </ClInclude>
+
     <ClInclude Include="src\parser\ast\source_location.hpp">
       <Filter>parser\ast</Filter>
     </ClInclude>
@@ -402,28 +365,7 @@
     <ClInclude Include="src\vm\upvalue.hpp">
       <Filter>vm</Filter>
     </ClInclude>
-    <ClInclude Include="src\tests\vm\closure\test_closure.hpp">
-      <Filter>tests\vm\closure</Filter>
-    </ClInclude>
-    <ClInclude Include="src\tests\vm\state\test_state.hpp">
-      <Filter>tests\vm\state</Filter>
-    </ClInclude>
-    <ClInclude Include="src\tests\compiler\test_compiler.hpp">
-      <Filter>tests\compiler</Filter>
-    </ClInclude>
-    <ClInclude Include="src\tests\lexer\test_lexer.hpp">
-      <Filter>tests\lexer</Filter>
-    </ClInclude>
 
-    <ClInclude Include="src\tests\vm\test_vm.hpp">
-      <Filter>tests\vm</Filter>
-    </ClInclude>
-    <ClInclude Include="src\tests\lexer\lexer_basic_test.hpp">
-      <Filter>tests\lexer</Filter>
-    </ClInclude>
-    <ClInclude Include="src\tests\parser\expr\test_parser_expr.hpp">
-      <Filter>tests\parser\expr</Filter>
-    </ClInclude>
     <ClInclude Include="src\compiler\register_manager.hpp">
       <Filter>compiler</Filter>
     </ClInclude>

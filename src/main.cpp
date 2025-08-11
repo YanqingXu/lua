@@ -13,7 +13,6 @@
 #include "compiler/symbol_table.hpp"
 #include "common/defines.hpp"
 #include "lib/core/lib_manager.hpp"
-#include "tests/test_main.hpp"
 
 using namespace Lua;
 
@@ -35,33 +34,26 @@ std::string readFile(const std::string& path) {
 int main(int argc, char** argv) {
    try {
        if (argc > 1) {
-            std::string arg = argv[1];
-            if (arg == "-test") {
-                std::cout << "Running MainTestSuite...\n";
-                Lua::Tests::MainTestSuite::runAllTests();
-                
-            } else {
-                // Run file
-                std::string filename = arg;
-                std::string source = readFile(filename);
+            // Run file
+            std::string filename = argv[1];
+            std::string source = readFile(filename);
 
-                State state;
+            State state;
 
-                // Initialize all standard libraries using simplified framework
-                StandardLibrary::initializeAll(&state);
+            // Initialize all standard libraries using simplified framework
+            StandardLibrary::initializeAll(&state);
 
-                bool success = state.doString(source);
-                if (!success) {
-                    return 1;
-                }
+            bool success = state.doString(source);
+            if (!success) {
+                return 1;
             }
        } else {
            run_repl();
-       }  
-   } catch (const std::exception& e) {  
-       std::cerr << "Error: " << e.what() << std::endl;  
-       return 1;  
-   }  
+       }
+   } catch (const std::exception& e) {
+       std::cerr << "Error: " << e.what() << std::endl;
+       return 1;
+   }
 
-   return 0;  
+   return 0;
 }
