@@ -80,23 +80,18 @@ namespace Lua {
         stack[abs_idx] = value;
     }
 
+    // Unified stack pointer access: 0-based absolute index when idx >= 0,
+    // negative idx means relative to current top (top + idx)
     Value* State::getPtr(int idx) {
-        // Handle absolute and relative indices
         int abs_idx;
-        if (idx > 0) {
-            abs_idx = idx - 1;  // Convert 1-based to 0-based
-        } else if (idx < 0) {
-            abs_idx = top + idx;  // Index relative to stack top
+        if (idx >= 0) {
+            abs_idx = idx;  // 0-based absolute indexing
         } else {
-            // Index 0 is invalid
-            return nullptr;
+            abs_idx = top + idx;  // Index relative to stack top
         }
-
-        // Check bounds
         if (abs_idx < 0 || abs_idx >= top) {
             return nullptr;
         }
-
         return &stack[abs_idx];
     }
 
@@ -394,74 +389,56 @@ namespace Lua {
             throw LuaException("callNativeMultiple can only call native functions");
         }
 
-        // Store the stack position before arguments
-        int stackBase = top - nargs;
+        // Store the stack position before arguments (0-based absolute index)
+        const int stackBase = top - nargs;
+        if (stackBase < 0) {
+            throw LuaException("invalid argument count for native call");
+        }
 
         i32 returnCount = 0;
 
-        // Check if it's a legacy function
         if (function->isNativeLegacy()) {
             auto nativeFnLegacy = function->getNativeLegacy();
             if (!nativeFnLegacy) {
                 throw LuaException("attempt to call a nil value");
             }
-
-            // Legacy function call - convert to single return value
+            // Legacy: returns single Value; replace args with result in place
             Value result = nativeFnLegacy(this, nargs);
-
-            // Clear arguments and push single result
-            top = stackBase;
-            push(result);
+            top = stackBase;    // pop args
+            push(result);       // push single result
             returnCount = 1;
         } else {
             auto nativeFn = function->getNative();
             if (!nativeFn) {
                 throw LuaException("attempt to call a nil value");
             }
-
-            // Create a clean stack environment for the new function
-            // Save current stack state
-            int oldTop = top;
-            Vec<Value> oldStack = stack;
-
-            // Set up clean stack with only the arguments
-
-            // Set up clean stack with only the arguments
-            stack.clear();
-            stack.resize(nargs);
-            for (int i = 0; i < nargs; ++i) {
-                stack[i] = oldStack[stackBase + i];
-            }
-            top = nargs;
-
-            // Lua 5.1 standard: C function receives arguments on stack and returns count
-            // The function will push return values and return the count
+            // Lua 5.1 style: arguments are already at [stackBase .. top-1].
+            // Native pushes return values on the same State stack and returns count.
+            const int oldTop = top;
             returnCount = nativeFn(this);
-
-            // Collect return values
-            Vec<Value> returnValues;
-            for (i32 i = 0; i < returnCount; ++i) {
-                if (i < static_cast<i32>(stack.size())) {
-                    returnValues.push_back(stack[i]);
-                } else {
-                    returnValues.push_back(Value()); // nil for missing values
-                }
-            }
-
-            // Restore original stack and place return values
-            stack = oldStack;
-            top = stackBase;
-            for (const auto& val : returnValues) {
-                push(val);
-            }
-
-            // Validate return count
             if (returnCount < 0) {
                 throw LuaException("native function returned invalid return count");
             }
-
-            // Return values have already been placed on the stack
-            // top is already set correctly
+            // Ensure the native respected the protocol; if it pushed fewer values,
+            // pad with nil to keep stack shape predictable.
+            while (top < oldTop + returnCount) {
+                push(Value());
+            }
+            // Move return segment to start at stackBase
+            // 目标：把 [oldTop..oldTop+returnCount-1] 搬到从 stackBase 开始
+            int srcStart = oldTop;
+            int dstStart = stackBase;
+            if (dstStart != srcStart && returnCount > 0) {
+                // Simple in-place move when dst before src; use临时缓存，避免覆盖
+                Vec<Value> tmp;
+                tmp.reserve(returnCount);
+                for (int i = 0; i < returnCount; ++i) tmp.push_back(stack[srcStart + i]);
+                top = dstStart; // truncate to stackBase
+                for (int i = 0; i < returnCount; ++i) push(tmp[i]);
+            } else {
+                // 如果正好在原位，则不需要移动；确保 top 指向返回段末尾
+                top = oldTop + returnCount;
+            }
         }
 
         return returnCount;

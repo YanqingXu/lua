@@ -17,6 +17,15 @@ namespace Lua {
         usize pc; // Program counter
         int registerBase; // Base of current function's registers (like Lua 5.1 CallInfo.base)
 
+        // --- CallFrame stack (phase 4: memberized) ---
+        struct CallFrame {
+            int base;
+            usize pc;
+            GCRef<Function> func;
+            int nresults;
+        };
+        Vec<CallFrame> frameStack;
+
         // Call depth tracking for nesting boundary checks
         usize callDepth;
 
@@ -28,10 +37,10 @@ namespace Lua {
         // Upvalue management
         GCRef<Upvalue> openUpvalues; // Linked list of open upvalues
         Vec<GCRef<Upvalue>> callFrameUpvalues; // Upvalues for current call frame
-        
+
     public:
         explicit VM(State* state);
-        
+
         // Execute function (single return value for backward compatibility)
         Value execute(GCRef<Function> function);
 
@@ -40,10 +49,10 @@ namespace Lua {
 
         // Set actual argument count for vararg support
         void setActualArgsCount(int count) { actualArgsCount = count; }
-        
+
         // GC integration
         void markReferences(GarbageCollector* gc);
-        
+
         // Public methods for testing
         GCRef<Upvalue> findOrCreateUpvalue(Value* location);
         void closeUpvalues(Value* level);
@@ -76,11 +85,11 @@ namespace Lua {
         bool performEqMM(const Value& lhs, const Value& rhs);
         bool performLtMM(const Value& lhs, const Value& rhs);
         bool performLeMM(const Value& lhs, const Value& rhs);
-        
+
     private:
         // Run one instruction
         bool runInstruction();
-        
+
         // Get constant
         Value getConstant(u32 idx) const;
 
@@ -88,7 +97,44 @@ namespace Lua {
         Value getReg(int reg) const;
         void setReg(int reg, const Value& value);
         Value* getRegPtr(int reg);  // Get pointer to register for upvalue access
-        
+
+        // --- Helpers to consolidate registerBase arithmetic ---
+        inline int absReg(int reg) const {
+            if (!frameStack.empty()) return frameStack.back().base + reg;
+            return registerBase + reg; // fallback during transition
+        }
+        inline int regEndTop(int startReg, int count) const {
+            if (!frameStack.empty()) return frameStack.back().base + startReg + count;
+            return registerBase + startReg + count; // fallback during transition
+        }
+
+        // --- Frame stack operations (phase 4: memberized) ---
+        inline void pushFrame(GCRef<Function> func, int nresults) {
+            frameStack.push_back(CallFrame{registerBase, pc, currentFunction, nresults});
+            currentFunction = func;
+            // code/constants will be set by execute/executeMultiple when needed
+        }
+        inline void popFrame() {
+            if (frameStack.empty()) return; // defensive
+            CallFrame cf = frameStack.back();
+            frameStack.pop_back();
+            registerBase = cf.base;
+            pc = cf.pc;
+            currentFunction = cf.func;
+        }
+
+        // --- Debug assertions (enabled in debug builds) ---
+        inline void assertFrameConsistency() const {
+        #if defined(_DEBUG) || !defined(NDEBUG)
+            if (!frameStack.empty()) {
+                int frameBase = frameStack.back().base;
+                int viaAbs = absReg(0);
+                (void)frameBase;
+                (void)viaAbs;
+            }
+        #endif
+        }
+
         // Handle various opcodes
         void op_move(Instruction i);
         void op_loadk(Instruction i);

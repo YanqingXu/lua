@@ -29,7 +29,7 @@ namespace Lua {
         openUpvalues(nullptr) {
 
     }
-    
+
     Value VM::execute(GCRef<Function> function) {
         // Set this VM as current VM in state (for context-aware calls)
         VM* oldCurrentVM = state->getCurrentVM();
@@ -41,6 +41,9 @@ namespace Lua {
             throw LuaException("Cannot execute non-Lua function");
         }
 
+        // --- FrameStack: push current context ---
+        pushFrame(currentFunction, /*nresults*/ 1);
+
         // Set current function
         currentFunction = function;
 
@@ -50,6 +53,10 @@ namespace Lua {
 
         // Initialize program counter
         pc = 0;
+
+        // Local frame methods (lambda) for base-related calculations
+        auto frameAbsReg = [&](int r) { return absReg(r); };
+        auto frameEndTop = [&](int start, int cnt) { return regEndTop(start, cnt); };
 
         // Create new stack frame for this function
         int expectedArgs = function->getParamCount();
@@ -87,8 +94,8 @@ namespace Lua {
 
             // 验证：寄存器映射
             // R0 = function (at registerBase)
-            // R1 = arg1 (at registerBase + 1)
-            // R2 = arg2 (at registerBase + 2)
+            // R1 = arg1 (at absReg(1))
+            // R2 = arg2 (at absReg(2))
             // ...
         }
 
@@ -97,7 +104,7 @@ namespace Lua {
         // 为函数的局部变量扩展栈空间
         int localCount = function->getLocalCount();
         // 更合理的栈扩展策略：只分配必要的空间
-        int minRequiredSize = this->registerBase + expectedArgs + localCount + 5; // 小缓冲
+        int minRequiredSize = frameEndTop(expectedArgs + localCount + 5, 0); // 小缓冲（与原等价）
 
 
 
@@ -136,9 +143,9 @@ namespace Lua {
                 varargsCount = extraArgs;
 
                 // 修复：从正确位置复制额外参数
-                // 额外参数位置：registerBase + 1 + declaredParams 开始
+                // 额外参数位置：absReg(1 + declaredParams) 开始
                 for (int i = 0; i < extraArgs; ++i) {
-                    int argIndex = this->registerBase + 1 + declaredParams + i;
+                    int argIndex = absReg(1 + declaredParams + i);
 
                     // 边界检查和参数复制
                     if (argIndex < state->getTop()) {
@@ -164,9 +171,9 @@ namespace Lua {
 
 
         // Stack initialization complete
-        
+
         Value result = Value(nullptr);  // Default return value is nil
-        
+
         // Execute bytecode
         while (pc < code->size()) {
             if (!runInstruction()) {
@@ -179,8 +186,8 @@ namespace Lua {
             }
         }
 
-        // Restore previous register base
-        this->registerBase = oldRegisterBase;
+        // Restore previous frame (base/pc/currentFunction)
+        popFrame();
 
         // Restore VM context in state
         state->setCurrentVM(oldCurrentVM);
@@ -193,12 +200,10 @@ namespace Lua {
         VM* oldCurrentVM = state->getCurrentVM();
         state->setCurrentVM(this);
 
-        // Save current context
-        auto oldFunction = currentFunction;
+        // --- FrameStack: push current context ---
+        pushFrame(currentFunction, /*nresults*/ -1); // -1 denotes 'all' in multi-return
         auto oldCode = code;
         auto oldConstants = constants;
-        auto oldPC = pc;
-        auto oldRegisterBase = this->registerBase;
 
         // Set new context
         currentFunction = function;
@@ -228,7 +233,7 @@ namespace Lua {
         // Extend stack to accommodate function's local variables (same logic as execute method)
         int localCount = function->getLocalCount();
         int expectedArgs = function->getParamCount();
-        int minRequiredSize = this->registerBase + expectedArgs + localCount + 5; // Small buffer
+        int minRequiredSize = regEndTop(expectedArgs + localCount + 5, 0); // Small buffer
 
         // Extend stack to required size
         while (state->getTop() < minRequiredSize) {
@@ -247,7 +252,7 @@ namespace Lua {
                 varargsCount = extraArgs;
 
                 for (int i = 0; i < extraArgs; ++i) {
-                    int argIndex = this->registerBase + 1 + declaredParams + i;
+                    int argIndex = absReg(1 + declaredParams + i);
                     if (argIndex < state->getTop()) {
                         Value val = state->get(argIndex);
                         varargs.push_back(val);
@@ -270,30 +275,23 @@ namespace Lua {
         // Execute bytecode
         while (pc < code->size()) {
             if (!runInstruction()) {
-                // Hit return instruction, collect all return values from stack
-                // The op_return instruction pushes return values to the stack
-                // We need to collect all values that were pushed
-
-                // Count how many values are on the stack above the original level
-                int originalTop = stackSize;
-                int currentTop = state->getTop();
-                int numReturnValues = currentTop - originalTop;
-
-                // DEBUG: Removed debug output for cleaner testing
+                // Hit RETURN: op_return has pushed all return values on the stack
+                const int originalTop = stackSize;
+                const int currentTop = state->getTop();
+                const int numReturnValues = currentTop - originalTop;
 
                 if (numReturnValues > 0) {
-                    // CRITICAL FIX: Take only the last value pushed by op_return
-                    // op_return pushes the actual return value last
-                    Value actualReturnValue = state->get(state->getTop() - 1);
-                    returnValues.push_back(actualReturnValue);
-
-                    // Return value collected successfully
-
-                    // Clean up the stack
+                    // Collect ALL return values in order
+                    returnValues.clear();
+                    returnValues.reserve(numReturnValues);
+                    for (int i = 0; i < numReturnValues; ++i) {
+                        returnValues.push_back(state->get(originalTop + i));
+                    }
+                    // Clean up the stack back to original level
                     state->setTop(originalTop);
                 } else {
-                    // No return values, return nil
-                    // No return values, return nil
+                    // No return values => nil
+                    returnValues.clear();
                     returnValues.push_back(Value());
                 }
                 break;
@@ -306,19 +304,17 @@ namespace Lua {
         // DEBUG: Removed debug output for cleaner testing
         closeUpvalues(stackFrameStart);
 
-        // Restore previous context
-        this->registerBase = oldRegisterBase;
-        currentFunction = oldFunction;
+        // Restore previous context (frame)
+        popFrame();
         code = oldCode;
         constants = oldConstants;
-        pc = oldPC;
 
         // Restore VM context in state
         state->setCurrentVM(oldCurrentVM);
 
         return CallResult(returnValues);
     }
-    
+
     bool VM::runInstruction() {
         // Get current instruction
         Instruction i = (*code)[pc];
@@ -329,7 +325,7 @@ namespace Lua {
         OpCode op = i.getOpCode();
 
 
-        
+
         switch (op) {
             case OpCode::MOVE:
                 op_move(i);
@@ -473,7 +469,7 @@ namespace Lua {
 
         return true;
     }
-    
+
     Value VM::getConstant(u32 idx) const {
         if (idx >= constants->size()) {
             throw LuaException("Invalid constant index");
@@ -482,36 +478,30 @@ namespace Lua {
     }
 
     Value VM::getReg(int reg) const {
-        // Convert VM register (0-based) to stack position using register base
-        // Lua官方设计：每个函数有独立的寄存器空间，从0开始
-        int stackPos = registerBase + reg;
+        // Convert VM register (0-based) to stack position using current frame base
+        int base = (!frameStack.empty()) ? frameStack.back().base : registerBase;
+        int stackPos = base + reg;
 
         Value val = state->get(stackPos);
-
-        // Debug output for register access
-        // std::cout << "[DEBUG] getReg(" << reg << ") -> stackPos=" << stackPos << " registerBase=" << registerBase << " type=" << (int)val.type() << std::endl;
-
-        // Get register value
+        // Debug output preserved for potential debugging
+        // std::cout << "[DEBUG] getReg(" << reg << ") -> stackPos=" << stackPos << " base=" << base << " type=" << (int)val.type() << std::endl;
         return val;
     }
 
     void VM::setReg(int reg, const Value& value) {
-        // Convert VM register (0-based) to stack position using register base
-        int stackPos = registerBase + reg;
-
-        // Debug output for register setting
-        // std::cout << "[DEBUG] setReg(" << reg << ", type=" << (int)value.type() << ") -> stackPos=" << stackPos << " registerBase=" << registerBase << std::endl;
-
-        // Set register value
+        // Convert VM register (0-based) to stack position using current frame base
+        int base = (!frameStack.empty()) ? frameStack.back().base : registerBase;
+        int stackPos = base + reg;
+        // std::cout << "[DEBUG] setReg(" << reg << ", type=" << (int)value.type() << ") -> stackPos=" << stackPos << " base=" << base << std::endl;
         state->set(stackPos, value);
     }
 
     Value* VM::getRegPtr(int reg) {
-        // Convert VM register (0-based) to stack position using register base
-        // State::getPtr expects 1-based index, so we add 1
-        return state->getPtr(registerBase + reg + 1);
+        // Convert VM register (0-based) to absolute stack position using current frame base
+        int base = (!frameStack.empty()) ? frameStack.back().base : registerBase;
+        return state->getPtr(base + reg);
     }
-    
+
     // Instruction implementations
     void VM::op_move(Instruction i) {
         u8 a = i.getA();
@@ -523,7 +513,7 @@ namespace Lua {
         // Move value between registers
         setReg(a, val);
     }
-    
+
     void VM::op_loadk(Instruction i) {
         u8 a = i.getA();
         u16 bx = i.getBx();
@@ -534,7 +524,7 @@ namespace Lua {
 
         setReg(a, constant);
     }
-    
+
     void VM::op_loadbool(Instruction i) {
         u8 a = i.getA();
         u8 b = i.getB();
@@ -546,7 +536,7 @@ namespace Lua {
             pc++;  // Skip next instruction
         }
     }
-    
+
     void VM::op_loadnil(Instruction i) {
         u8 a = i.getA();
         u8 b = i.getB();
@@ -555,7 +545,7 @@ namespace Lua {
             setReg(j, Value(nullptr));
         }
     }
-    
+
     void VM::op_getglobal(Instruction i) {
         u8 a = i.getA();
         u16 bx = i.getBx();
@@ -571,22 +561,22 @@ namespace Lua {
 
         setReg(a, globalValue);
     }
-    
+
     void VM::op_setglobal(Instruction i) {
         u8 a = i.getA();
         u16 bx = i.getBx();
-        
+
         Value key = getConstant(bx);
         if (!key.isString()) {
             throw LuaException("Global name must be a string");
         }
-        
+
         Value val = getReg(a);
         state->setGlobal(key.asString(), val);
-        
+
 
     }
-    
+
     void VM::op_gettable(Instruction i) {
         u8 a = i.getA();  // Target register
         u8 b = i.getB();  // Table register
@@ -711,7 +701,7 @@ namespace Lua {
         GCRef<Table> table = make_gc_table();
         setReg(a, Value(table));
     }
-    
+
     void VM::op_add(Instruction i) {
         u8 a = i.getA();
         u8 b = i.getB();
@@ -736,7 +726,7 @@ namespace Lua {
             throw LuaException("attempt to perform arithmetic on non-number values");
         }
     }
-    
+
     void VM::op_sub(Instruction i) {
         u8 a = i.getA();
         u8 b = i.getB();
@@ -760,12 +750,12 @@ namespace Lua {
                              std::to_string(static_cast<int>(cval.type())) + ")");
         }
     }
-    
+
     void VM::op_mul(Instruction i) {
         u8 a = i.getA();
         u8 b = i.getB();
         u8 c = i.getC();
-        
+
         Value bval = getReg(b);
         Value cval = getReg(c);
 
@@ -785,12 +775,12 @@ namespace Lua {
                              std::to_string(static_cast<int>(cval.type())) + ")");
         }
     }
-    
+
     void VM::op_div(Instruction i) {
         u32 a = i.getA();
         u32 b = i.getB();
         u32 c = i.getC();
-        
+
         Value bval = getReg(b);
         Value cval = getReg(c);
 
@@ -807,15 +797,15 @@ namespace Lua {
             throw LuaException("attempt to perform arithmetic on non-number values");
         }
     }
-    
+
     void VM::op_not(Instruction i) {
         u32 a = i.getA();
         u32 b = i.getB();
-        
+
         Value bval = getReg(b);
         setReg(a, Value(!bval.asBoolean()));
     }
-    
+
     void VM::op_eq(Instruction i) {
         u8 a = i.getA();
         u8 b = i.getB();
@@ -836,7 +826,7 @@ namespace Lua {
 
         setReg(a, Value(equal));
     }
-    
+
     void VM::op_lt(Instruction i) {
         u8 a = i.getA();
         u8 b = i.getB();
@@ -863,7 +853,7 @@ namespace Lua {
         }
         setReg(a, Value(result));
     }
-    
+
     void VM::op_le(Instruction i) {
         u8 a = i.getA();
         u8 b = i.getB();
@@ -888,12 +878,12 @@ namespace Lua {
         }
         setReg(a, Value(result));
     }
-    
+
     void VM::op_jmp(Instruction i) {
         int sbx = i.getSBx();
         pc += sbx;
     }
-    
+
     void VM::op_test(Instruction i) {
         u8 a = i.getA();  // Register to test
         u8 c = i.getC();  // Skip next instruction if test fails
@@ -906,64 +896,91 @@ namespace Lua {
             pc++;  // Skip next instruction
         }
     }
-    
+
     void VM::op_call(Instruction i) {
-        u8 a = i.getA();  // Function register
-        u8 b = i.getB();  // Number of arguments + 1, if 0 means use all values from a+1 to top
-        u8 c = i.getC();  // Expected number of return values + 1, if 0 means all return values needed
+        u8 a = i.getA();  // Function register (relative to current registerBase)
+        u8 b = i.getB();  // Number of arguments + 1; if 0, use all values from A+1
+        u8 c = i.getC();  // Expected number of return values + 1; if 0, all values
 
-
+        // --- FrameStack: push caller context ---
+        pushFrame(currentFunction, /*nresults*/ 0);
+        const int calleeBaseReg = a;           // callee's R0 register index (relative)
+        // Note: absolute stack index of R0 can be computed via absReg when needed
 
         // Boundary check: Function nesting depth before call
         if (callDepth >= MAX_FUNCTION_NESTING_DEPTH - 1) {
             throw LuaException(ERR_NESTING_TOO_DEEP);
         }
 
-        // Get function object
+        // Get function object from R(A)
         Value func = getReg(a);
-
-        // Get function from register
-
-        // Check if it's a function
         if (!func.isFunction()) {
             throw LuaException("attempt to call a non-function value");
         }
-        
-        // Get number of arguments
-        int nargs = (b == 0) ? (state->getTop() - a) : (b - 1);
 
-        // Lua 5.1官方设计：设置正确的栈状态供Native函数访问
-        // 1. 保存当前栈状态
-        int oldTop = state->getTop();
-        int oldBase = registerBase;
+        // Compute argument count. If b==0, use all regs from A+1 onward (legacy mode).
+        // NOTE: In a full CallFrame design, this would come from frame metadata.
+        // Compute nargs using absolute indices when b==0 to avoid off-by-one errors
+        int nargs = 0;
+        if (b == 0) {
+            int absFuncIdx = absReg(a);         // absolute index of R(A)
+            int available = state->getTop() - (absFuncIdx + 1);
+            nargs = available > 0 ? available : 0;
+        } else {
+            nargs = b - 1;
+        }
 
-        // 2. 将寄存器中的参数复制到栈顶（按Lua 5.1官方约定）
-        // 修复：确保参数按正确顺序传递
-        for (int i = 1; i <= nargs; ++i) {
-            int argReg = a + i;  // 参数在寄存器a+1, a+2, ...
-            Value arg = getReg(argReg);
+        // Save current stack top so we can restore after the call
+        const int oldTop = state->getTop();
+        const int oldBase = registerBase;
 
-            // 验证参数有效性
-            if (argReg >= state->getTop()) {
-                // 如果寄存器超出范围，使用nil
-                arg = Value();
+        // 2. 在当前top建立参数区并直接写入（少一次逐个push开销）
+        if (nargs > 0) {
+            const int stackBase = state->getTop();
+            for (int i = 0; i < nargs; ++i) {
+                int argReg = a + 1 + i;  // 参数在寄存器a+1, a+2, ...
+                Value arg = getReg(argReg);
+                // 当寄存器越界时以nil兜底（防御性处理）
+                if (argReg >= RegisterManager::MAX_REGISTERS) {
+                    arg = Value();
+                }
+                // 写入到 [stackBase + i]；State::set 会在需要时扩展top
+                state->set(stackBase + i, arg);
             }
-
-            // Collect argument from register
-
-            state->push(arg);  // 将参数按顺序push到栈顶
         }
 
         // 3. 调用函数（根据函数类型选择调用方法）
-        Value result;
+        Value singleResult;
+        CallResult multiResult;
+        bool usedMulti = false;
         if (func.isFunction()) {
             auto function = func.asFunction();
             if (function->getType() == Function::Type::Native) {
-                // Native函数调用
-                result = state->callNative(func, nargs);
+                // Native函数：如果预期多返回(c==0或c>2)，优先走多返回接口
+                if (c == 0 || c > 2) {
+                    // 将当前参数从寄存器搬到栈的工作已完成，State::callMultiple需要传入Value(function)和args
+                    Vec<Value> args;
+                    args.reserve(nargs);
+                    for (int i = 0; i < nargs; ++i) args.push_back(getReg(a + 1 + i));
+                    multiResult = state->callMultiple(Value(function), args);
+                    usedMulti = true;
+                } else {
+                    singleResult = state->callNative(Value(function), nargs);
+                }
             } else {
-                // Lua函数调用
-                result = state->callLua(func, nargs);
+                // Lua函数：如果需要多返回，走VM内部多返回；否则走单返回
+                if (c == 0 || c > 2) {
+                    // 在当前top布局 [function][args...] 并执行多返回
+                    int oldTopExec = state->getTop();
+                    state->set(oldTopExec, Value(function));
+                    for (int i = 0; i < nargs; ++i) state->set(oldTopExec + 1 + i, getReg(a + 1 + i));
+                    setActualArgsCount(nargs);
+                    multiResult = executeMultiple(function);
+                    // 清理执行现场留待统一恢复
+                    usedMulti = true;
+                } else {
+                    singleResult = state->callLua(Value(function), nargs);
+                }
             }
         } else {
             throw LuaException("attempt to call a non-function value");
@@ -971,84 +988,85 @@ namespace Lua {
 
 
 
-        // 4. 恢复栈状态
-
-        state->setTop(oldTop);
-
         // Handle return values based on expected count (c parameter)
         int expectedReturns = (c == 0) ? -1 : (c - 1);  // -1 means all returns needed
 
-        if (expectedReturns == 0) {
-            // No return values expected, just clean up
-        }
-        else if (expectedReturns == 1 || expectedReturns == -1) {
-            // Single return value or all returns (simplified to single for now)
-            setReg(a, result);
-        }
-        else {
-            // Multiple return values expected
-            // For now, we only handle single return value from state->call
-            // In a full implementation, state->call would need to return multiple values
-            setReg(a, result);
+        // --- Restore caller frame (base/pc) ---
+        // 注意：top 的恢复要看是否需要为后续CALL(b==0)保留返回段
+        popFrame();
 
-            // Fill remaining expected slots with nil
-            for (int i = 1; i < expectedReturns; ++i) {
-                setReg(a + i, Value(nullptr));
+        if (expectedReturns == -1) {
+            // 语义：将所有返回值写入从寄存器a开始的连续区域，并把top定位到返回段末尾，
+            // 以便下一条CALL(b==0)可以把它们作为参数吸收（Lua 5.1 规范）。
+            if (!usedMulti) {
+                // 单返回值也视为“全部返回”，长度=1
+                setReg(a, singleResult);
+                state->setTop(regEndTop(a, 1));
+            } else {
+                int n = static_cast<int>(multiResult.count);
+                for (int i = 0; i < n; ++i) setReg(a + i, multiResult.values[i]);
+                state->setTop(regEndTop(a, n));
             }
-        }
+            // 不做额外清理，保留返回段供下一条指令消费
+        } else {
+            // 非可变返回：恢复到调用前top，再分发到寄存器，并按需要补nil
+            state->setTop(oldTop);
+            if (!usedMulti) {
+                if (expectedReturns == 0) {
+                    // no return values expected
+                } else {
+                    setReg(a, singleResult);
+                    for (int i = 1; i < expectedReturns; ++i) setReg(a + i, Value());
+                }
+            } else {
+                int n = static_cast<int>(multiResult.count);
+                for (int i = 0; i < expectedReturns; ++i)
+                    setReg(a + i, (i < n) ? multiResult.values[i] : Value());
+            }
 
-        // Clean up extra stack space
-        // 确保不会清理当前函数的寄存器空间
-        int minRequiredTop = registerBase + a + std::max(1, expectedReturns);
-        if (state->getTop() > minRequiredTop) {
-
-            for (int i = state->getTop(); i > minRequiredTop; --i) {
-                state->pop();
+            // 清理可能的额外栈空间（谨慎）
+            int minRequiredTop = regEndTop(a, std::max(1, expectedReturns));
+            if (state->getTop() > minRequiredTop) {
+                for (int i = state->getTop(); i > minRequiredTop; --i) state->pop();
             }
         }
     }
-    
+
     void VM::op_return(Instruction i) {
+        // Minimal local CallFrame (for symmetry with op_call)
+        struct CallFrame { int base; usize pc; GCRef<Function> func; int nresults; };
+        CallFrame frame{ registerBase, pc, currentFunction, 0 };
+
         u8 a = i.getA();
         u8 b = i.getB();
-
-        // DEBUG: Removed debug output for cleaner testing
-
-
 
         // b-1 is the number of values to return, if b=0, return all values from a to top
         if (b == 0) {
             // Return all values from register a to top
-            // Calculate how many values to return
-            int numValues = state->getTop() - a;
+            int numValues = state->getTop() - absReg(a);
             if (numValues <= 0) {
-                // No values to return, push nil
                 state->push(Value(nullptr));
-
             } else {
-                // Return all values from register a onwards
-                // Lua 5.1官方设计：使用0基索引，直接使用寄存器编号
-                for (int i = 0; i < numValues; ++i) {
-                    Value returnValue = getReg(a + i);
+                for (int j = 0; j < numValues; ++j) {
+                    Value returnValue = getReg(a + j);
                     state->push(returnValue);
-
                 }
             }
         } else if (b == 1) {
             // No return values, push nil
             state->push(Value(nullptr));
-
         } else {
             // Return exactly b-1 values
             int numValues = b - 1;
-            for (int i = 0; i < numValues; ++i) {
-                // Lua 5.1官方设计：使用0基索引，直接使用寄存器编号
-                Value returnValue = getReg(a + i);  // Get value from register a+i
-                state->push(returnValue);  // Push return value to stack top
+            for (int j = 0; j < numValues; ++j) {
+                Value returnValue = getReg(a + j);
+                state->push(returnValue);
             }
         }
+
+        // Note: runInstruction's caller will handle stopping execution after RETURN
     }
-    
+
     void VM::op_closure(Instruction i) {
         u8 a = i.getA();  // Target register
         u16 bx = i.getBx(); // Function prototype index
@@ -1057,29 +1075,29 @@ namespace Lua {
         if (!currentFunction || currentFunction->getType() != Function::Type::Lua) {
             throw LuaException("CLOSURE instruction outside Lua function");
         }
-        
+
         // Get the prototype from the current function's prototype list
         const Vec<GCRef<Function>>& prototypes = currentFunction->getPrototypes();
         if (bx >= prototypes.size()) {
             throw LuaException("Invalid prototype index in CLOSURE instruction");
         }
-        
+
         GCRef<Function> prototype = prototypes[bx];
         if (!prototype) {
             throw LuaException("Null prototype in CLOSURE instruction");
         }
-        
+
         // Boundary check 1: Upvalue count limit
         if (prototype->getUpvalueCount() > MAX_UPVALUES_PER_CLOSURE) {
             throw LuaException(ERR_TOO_MANY_UPVALUES);
         }
-        
+
         // Boundary check 2: Memory usage estimation
         usize estimatedSize = prototype->estimateMemoryUsage();
         if (estimatedSize > MAX_CLOSURE_MEMORY_SIZE) {
             throw LuaException(ERR_MEMORY_EXHAUSTED);
         }
-        
+
         // Create a new closure that shares code and constants with the prototype
         // but has its own upvalue bindings
         GCRef<Function> closure;
@@ -1096,20 +1114,20 @@ namespace Lua {
         } catch (const std::bad_alloc&) {
             throw LuaException(ERR_MEMORY_EXHAUSTED);
         }
-        
+
         // Bind upvalues from the current environment
         for (u32 upvalIndex = 0; upvalIndex < prototype->getUpvalueCount(); upvalIndex++) {
             // Read the next instruction to get upvalue binding info
             // Note: pc was already incremented in runInstruction, so we read from current pc
             if (pc >= code->size()) break;
-            
+
             Instruction upvalInstr = (*code)[pc];
             pc++;  // Advance to next instruction for next iteration
             u8 isLocal = upvalInstr.getA();
             u8 index = upvalInstr.getB();
-            
+
             GCRef<Upvalue> upvalue;
-            
+
             if (isLocal) {
                 // Capture a local variable from the current stack frame
                 // Lua 5.1官方设计：使用0基索引，直接使用寄存器编号
@@ -1124,19 +1142,19 @@ namespace Lua {
                     upvalue = currentFunction->getUpvalue(index);
                 }
             }
-            
+
             // Set upvalue in the new closure
             if (upvalue) {
                 closure->setUpvalue(upvalIndex, upvalue);
             }
         }
-        
+
         // Store the closure in the target register
         // Lua 5.1官方设计：使用0基索引，直接使用寄存器编号
         // Store the closure in the target register
         setReg(a, Value(closure));
     }
-    
+
     void VM::op_getupval(Instruction i) {
         u8 a = i.getA();  // Target register
         u8 b = i.getB();  // Upvalue index
@@ -1172,36 +1190,36 @@ namespace Lua {
         // Lua 5.1官方设计：使用0基索引，直接使用寄存器编号
         setReg(a, value);
     }
-    
+
     void VM::op_setupval(Instruction i) {
         u8 a = i.getA();  // Source register
         u8 b = i.getB();  // Upvalue index
 
         // DEBUG: Removed debug output for cleaner testing
-        
+
         if (!currentFunction || currentFunction->getType() != Function::Type::Lua) {
             throw LuaException("SETUPVAL instruction outside Lua function");
         }
-        
+
         // Boundary check 1: Valid upvalue index
         if (!currentFunction->isValidUpvalueIndex(b)) {
             throw LuaException(ERR_INVALID_UPVALUE_INDEX);
         }
-        
+
         GCRef<Upvalue> upvalue = currentFunction->getUpvalue(b);
         if (!upvalue) {
             throw LuaException("Null upvalue in SETUPVAL instruction");
         }
-        
+
         // Boundary check 2: Upvalue lifecycle validation
         if (!upvalue->isValidForAccess()) {
             throw LuaException(ERR_DESTROYED_UPVALUE);
         }
-        
+
         // Get the value from the source register
         // Lua 5.1官方设计：使用0基索引，直接使用寄存器编号
         Value value = getReg(a);
-        
+
         // Set the value in the upvalue safely
         try {
             upvalue->setValue(value);
@@ -1209,26 +1227,26 @@ namespace Lua {
             throw LuaException(e.what());
         }
     }
-    
+
     GCRef<Upvalue> VM::findOrCreateUpvalue(Value* location) {
         // Search for existing open upvalue pointing to this location
         Upvalue* current = openUpvalues.get();
         Upvalue* prev = nullptr;
-        
+
         // Walk the linked list to find the upvalue or insertion point
         while (current && current->getStackLocation() > location) {
             prev = current;
             current = current->getNext();
         }
-        
+
         // If we found an existing upvalue for this location, return it
         if (current && current->pointsTo(location)) {
             return GCRef<Upvalue>(current);
         }
-        
+
         // Create a new upvalue
         GCRef<Upvalue> newUpvalue = Upvalue::create(location);
-        
+
         // Insert into the sorted linked list
         newUpvalue->setNext(current);
         if (prev) {
@@ -1236,10 +1254,10 @@ namespace Lua {
         } else {
             openUpvalues = newUpvalue;
         }
-        
+
         return newUpvalue;
     }
-    
+
     void VM::closeUpvalues(Value* level) {
         // Close all upvalues at or above the given stack level
         // Close all upvalues at or above the given stack level
@@ -1252,23 +1270,23 @@ namespace Lua {
             upvalue->setNext(nullptr);
         }
     }
-    
+
     void VM::closeAllUpvalues() {
         // Close all open upvalues
         while (openUpvalues) {
             Upvalue* upvalue = openUpvalues.get();
             openUpvalues = GCRef<Upvalue>(upvalue->getNext());
-            
+
             upvalue->close();
             upvalue->setNext(nullptr);
         }
     }
-    
+
     void VM::op_mod(Instruction i) {
         u8 a = i.getA();
         u8 b = i.getB();
         u8 c = i.getC();
-        
+
         Value bval = getReg(b);
         Value cval = getReg(c);
 
@@ -1285,12 +1303,12 @@ namespace Lua {
             throw LuaException("attempt to perform arithmetic on non-number values");
         }
     }
-    
+
     void VM::op_pow(Instruction i) {
         u8 a = i.getA();
         u8 b = i.getB();
         u8 c = i.getC();
-        
+
         Value bval = getReg(b);
         Value cval = getReg(c);
 
@@ -1302,7 +1320,7 @@ namespace Lua {
             throw LuaException("attempt to perform arithmetic on non-number values");
         }
     }
-    
+
     void VM::op_unm(Instruction i) {
         u8 a = i.getA();
         u8 b = i.getB();
@@ -1324,7 +1342,7 @@ namespace Lua {
             throw LuaException("attempt to perform arithmetic on non-number value");
         }
     }
-    
+
     void VM::op_len(Instruction i) {
         u8 a = i.getA();
         u8 b = i.getB();
@@ -1346,7 +1364,7 @@ namespace Lua {
                              std::to_string(static_cast<int>(bval.type())) + ")");
         }
     }
-    
+
     void VM::op_concat(Instruction i) {
         u8 a = i.getA();
         u8 b = i.getB();
@@ -1395,7 +1413,7 @@ namespace Lua {
             throw LuaException("attempt to concatenate non-string/number values");
         }
     }
-    
+
     void VM::markReferences(GarbageCollector* gc) {
         // Mark current function
         if (currentFunction) {
@@ -1577,9 +1595,25 @@ namespace Lua {
         }
 
         if (function->getType() == Function::Type::Lua) {
-            // For now, use the original call mechanism for Lua functions
-            // TODO: Implement proper in-context execution later
-            return state->call(Value(function), args);
+            // In-context Lua call: push function+args just above current frame and execute
+            int oldTop = state->getTop();
+            try {
+                // 布局：[function][arg1]...[argN] 从oldTop开始
+                state->set(oldTop, Value(function));
+                for (size_t i = 0; i < args.size(); ++i) {
+                    state->set(oldTop + 1 + static_cast<int>(i), args[i]);
+                }
+                // 设置实际参数数量，寄存器基址将由 execute 结合当前top计算
+                setActualArgsCount(static_cast<int>(args.size()));
+                // 直接在当前VM上下文执行，不创建新的VM
+                Value result = execute(function);
+                // 清理到调用前top
+                state->setTop(oldTop);
+                return result;
+            } catch (...) {
+                state->setTop(oldTop);
+                throw;
+            }
         }
 
         throw LuaException("Unknown function type in executeInContext: " +
@@ -1587,38 +1621,38 @@ namespace Lua {
     }
 
     CallResult VM::executeInContextMultiple(GCRef<Function> function, const Vec<Value>& args) {
-        // Save current state
-        int oldBase = registerBase;
-        int oldTop = state->getTop();
+        // Lightweight in-context multi-return call.
+        // Lua分支就地执行，Native暂时回退到State以保证兼容性。
+        const int oldBase = registerBase;
+        const int oldTop = state->getTop();
 
         try {
-
-
-            // Push function and arguments to stack
-            state->push(Value(function));
-            for (const auto& arg : args) {
-                state->push(arg);
+            if (!function) {
+                throw LuaException("executeInContextMultiple: null function");
             }
 
-            // Set up new call frame AFTER pushing function and arguments
-            // The register base should point to the function position
-            registerBase = oldTop;  // Function is at oldTop, args start at oldTop+1
+            if (function->getType() == Function::Type::Lua) {
+                // Layout: [function][arg1]...[argN] starting at oldTop
+                state->set(oldTop, Value(function));
+                for (size_t i = 0; i < args.size(); ++i) {
+                    state->set(oldTop + 1 + static_cast<int>(i), args[i]);
+                }
+                setActualArgsCount(static_cast<int>(args.size()));
 
+                // Do not pre-set registerBase here; executeMultiple will compute it from top
+                CallResult result = executeMultiple(function);
 
+                state->setTop(oldTop);
+                registerBase = oldBase;
+                return result;
+            } else {
+                // Native path: keep using State fallback for now (gradual migration)
+                state->setTop(oldTop);
+                registerBase = oldBase;
 
-            // Set actual argument count for proper register base calculation
-            setActualArgsCount(static_cast<int>(args.size()));
-
-            // Execute the function with multiple return value support
-            CallResult result = executeMultiple(function);
-
-            // Restore state
-            state->setTop(oldTop);
-            registerBase = oldBase;
-
-            return result;
+                return state->callMultiple(Value(function), args);
+            }
         } catch (...) {
-            // Restore state on error
             state->setTop(oldTop);
             registerBase = oldBase;
             throw;
@@ -1911,6 +1945,7 @@ namespace Lua {
         u8 b = i.getB();  // Number of arguments + 1
         u8 c = i.getC();  // Expected number of return values + 1
 
+
         // CALL_MM instruction: function call with metamethod support
 
         // === Input Validation ===
@@ -1926,7 +1961,7 @@ namespace Lua {
         if (b == 0) {
             // Variable number of arguments - calculate from stack top
             // Convert relative register 'a' to absolute stack position
-            int funcAbsPos = this->registerBase + a;
+            int funcAbsPos = absReg(a);
 
             // Validate stack bounds
             if (funcAbsPos >= state->getTop()) {
@@ -2020,6 +2055,7 @@ namespace Lua {
         }
 
         if (expectedReturns == 0) {
+
             // No return values expected - nothing to do
 
         } else if (expectedReturns == 1) {
@@ -2069,8 +2105,9 @@ namespace Lua {
                     throw LuaException("Return value register out of bounds in CALL_MM: " + std::to_string(a + i));
                 }
                 setReg(static_cast<int>(a + i), callResult.values[i]);
-
             }
+            // Critical: when c==0 (all returns), set top to end of return segment for B==0 consumption
+            state->setTop(regEndTop(a, static_cast<int>(callResult.count)));
         }
     }
 
@@ -2235,14 +2272,14 @@ namespace Lua {
         // This is important for function calls that use vararg expansion
         if (b == 0) {
             // Calculate the absolute stack position of the last vararg
-            // Remember: setReg(a + i, ...) sets stack position (registerBase + a + i)
+            // Remember: setReg(a + i, ...) sets stack position (absReg(a + i))
             int requiredTop;
             if (numToCopy > 0) {
-                int lastVarargPos = this->registerBase + a + numToCopy - 1;
+                int lastVarargPos = absReg(a + numToCopy - 1);
                 requiredTop = lastVarargPos + 1;
             } else {
                 // No varargs, set stack top to the start of vararg area
-                requiredTop = this->registerBase + a;
+                requiredTop = absReg(a);
             }
 
             // Set stack top to exactly after the last vararg (or start if no varargs)

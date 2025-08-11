@@ -11,7 +11,7 @@
 
 namespace Lua {
     ExpressionCompiler::ExpressionCompiler(Compiler* compiler) : compiler(compiler) {}
-    
+
     int ExpressionCompiler::compileExpr(const Expr* expr) {
         if (!expr) {
             throw LuaException("Null expression in compilation");
@@ -50,24 +50,24 @@ namespace Lua {
             throw;
         }
     }
-    
+
     int ExpressionCompiler::compileLiteral(const LiteralExpr* expr) {
         if (!expr) {
             throw LuaException("Null literal expression in compilation");
         }
-        
+
         int reg = compiler->allocReg();
-        
+
         switch (expr->getValue().type()) {
             case ValueType::Nil:
                 compiler->emitInstruction(Instruction::createLOADNIL(reg));
                 break;
-                
+
             case ValueType::Boolean:
-                compiler->emitInstruction(Instruction::createLOADBOOL(reg, 
+                compiler->emitInstruction(Instruction::createLOADBOOL(reg,
                     expr->getValue().asBoolean()));
                 break;
-                
+
             case ValueType::Number:
             case ValueType::String: {
                 Value val = expr->getValue();
@@ -79,7 +79,7 @@ namespace Lua {
                 compiler->emitInstruction(Instruction::createLOADK(reg, static_cast<u16>(constIdx)));
                 break;
             }
-            
+
             case ValueType::Table:
             case ValueType::Function: {
                 // For complex literals like tables and functions, add to constant table
@@ -91,14 +91,14 @@ namespace Lua {
                 compiler->emitInstruction(Instruction::createLOADK(reg, static_cast<u16>(constIdx)));
                 break;
             }
-            
+
             default:
                 throw LuaException("Unsupported literal type in compilation");
         }
-        
+
         return reg;
     }
-    
+
     int ExpressionCompiler::compileVariable(const VariableExpr* expr) {
         if (!expr) {
             throw LuaException("Null variable expression in compilation");
@@ -139,11 +139,11 @@ namespace Lua {
                 throw LuaException("Unknown variable type for: " + name);
         }
     }
-    
+
     int ExpressionCompiler::compileUnary(const UnaryExpr* expr) {
         int operandReg = compileExpr(expr->getRight());
         int resultReg = compiler->allocReg();
-        
+
         switch (expr->getOperator()) {
             case TokenType::Minus:
                 // Use metamethod-aware unary minus for full Lua 5.1 compatibility
@@ -159,20 +159,20 @@ namespace Lua {
             default:
                 throw LuaException("Unknown unary operator");
         }
-        
+
         // 暂时不释放寄存器
         return resultReg;
     }
-    
+
     int ExpressionCompiler::compileBinary(const BinaryExpr* expr) {
 
         TokenType op = expr->getOperator();
-        
+
         // Handle logical operators with short-circuit evaluation
         if (op == TokenType::And || op == TokenType::Or) {
             return compileLogicalOp(expr);
         }
-        
+
         // Try constant folding optimization
         if (tryConstantFolding(expr)) {
             try {
@@ -189,14 +189,14 @@ namespace Lua {
                 std::cerr << "Constant folding failed: " << e.what() << std::endl;
             }
         }
-        
+
         // Compile operands
         int leftReg = compileExpr(expr->getLeft());
         int rightReg = compileExpr(expr->getRight());
         int resultReg = compiler->allocReg();
 
 
-        
+
         // Generate appropriate instruction based on operator
         switch (op) {
             case TokenType::Plus:
@@ -229,10 +229,10 @@ namespace Lua {
         // CRITICAL FIX: Don't automatically free operand registers
         // Let the caller manage register lifecycles to avoid conflicts in nested expressions
         // The compiler's register manager will handle cleanup at appropriate scope boundaries
-        
+
         return resultReg;
     }
-    
+
     int ExpressionCompiler::compileCall(const CallExpr* expr) {
         // CRITICAL FIX: Detect method calls by checking if callee is MemberExpr
         // This is more reliable than relying on the isMethodCall flag
@@ -253,17 +253,19 @@ namespace Lua {
 
 
 
-        // 检查最后一个参数是否是可变参数表达式
-        // CRITICAL FIX: For method calls, nargs includes the self parameter, but args doesn't
-        // So we need to check the original args array, not the adjusted nargs
+        // 检查最后一个参数是否是可变参数表达式或函数调用（需展开全部返回值）
+        // 对方法调用：nargs包含self，但args不包含，因此检查原args数组
         bool hasVarargExpansion = false;
+        bool hasLastCallExpansion = false;
         if (!args.empty()) {
             const auto* lastArg = args.back().get();
             if (dynamic_cast<const VarargExpr*>(lastArg)) {
                 hasVarargExpansion = true;
+            } else if (dynamic_cast<const CallExpr*>(lastArg)) {
+                hasLastCallExpansion = true;
             }
         }
-        // Vararg expansion check completed
+        // 尾部展开检查完成
 
         // 新策略：分配连续寄存器，然后直接编译到目标位置
         // 这样避免寄存器冲突
@@ -271,7 +273,7 @@ namespace Lua {
         // 步骤1：分配连续的寄存器块（Lua 5.1官方设计）
         int callFrameSize = 1 + nargs;  // 函数 + 参数
         int base = compiler->getRegisterManager().allocateCallFrame(callFrameSize, "call");
-        
+
 
 
         // 参数寄存器是连续的
@@ -305,22 +307,25 @@ namespace Lua {
             const auto* arg = args[i].get();
             int targetIndex = argIndex + i;
 
-            // Compile argument to target register
+            // 特殊处理：最后一个参数为函数调用时，需展开其所有返回值
+            if (i == static_cast<int>(args.size()) - 1 && hasLastCallExpansion) {
+                const auto* callArg = static_cast<const CallExpr*>(arg);
+                int startReg = argTargets[targetIndex];
+                // 在startReg处编译调用，期望返回-1（全部），以便外层CALL以B=0吸收
+                compileCallWithMultiReturn(callArg, startReg, -1);
+                continue;
+            }
 
             // 特殊处理可变参数表达式
             if (dynamic_cast<const VarargExpr*>(arg)) {
-                // 如果是最后一个参数且是可变参数，展开所有可变参数
                 if (i == static_cast<int>(args.size()) - 1 && hasVarargExpansion) {
-                    // 生成VARARG指令，B=0表示获取所有可变参数
                     compiler->emitInstruction(Instruction::createVARARG(argTargets[targetIndex], 0));
                 } else {
-                    // 否则只获取第一个可变参数
                     compiler->emitInstruction(Instruction::createVARARG(argTargets[targetIndex], 2));
                 }
             } else {
-                // Regular parameter
+                // 常规参数
                 int argReg = compileExpr(arg);
-
                 if (argReg != argTargets[targetIndex]) {
                     compiler->emitInstruction(Instruction::createMOVE(argTargets[targetIndex], argReg));
                 }
@@ -330,10 +335,9 @@ namespace Lua {
         // 步骤5：发出CALL_MM指令（支持__call元方法）
         // CALL_MM a b c: 函数在a，参数在a+1..a+nargs，结果在a
         int callA = base;
-        int callB = hasVarargExpansion ? 0 : (nargs + 1);  // 如果有可变参数展开，B=0表示使用栈顶
-        int callC = 2;          // 期望1个返回值（默认）
+        int callB = (hasVarargExpansion || hasLastCallExpansion) ? 0 : (nargs + 1);  // 尾部展开 -> B=0
+        int callC = (hasLastCallExpansion ? 0 : 2); // 尾部展开 -> C=0（全部返回）；否则期望1个返回
 
-        // Generate CALL_MM instruction with correct parameter count
 
         compiler->emitInstruction(Instruction::createCALL_MM(callA, callB, callC));
 
@@ -349,10 +353,13 @@ namespace Lua {
 
         // 检查最后一个参数是否是可变参数表达式
         bool hasVarargExpansion = false;
-        if (nargs > 0) {
-            const auto* lastArg = args[nargs - 1].get();
+        bool hasLastCallExpansion = false;
+        if (!args.empty()) {
+            const auto* lastArg = args.back().get();
             if (dynamic_cast<const VarargExpr*>(lastArg)) {
                 hasVarargExpansion = true;
+            } else if (dynamic_cast<const CallExpr*>(lastArg)) {
+                hasLastCallExpansion = true;
             }
         }
 
@@ -368,12 +375,9 @@ namespace Lua {
         }
 
         // 步骤2：编译函数到临时寄存器，然后移动
-        std::cout << "[CALL_DEBUG] Compiling function expression..." << std::endl;
         int funcReg = compileExpr(expr->getCallee());
-        std::cout << "[CALL_DEBUG] Function compiled to register " << funcReg << ", target base " << base << std::endl;
 
         if (funcReg != base) {
-            std::cout << "[CALL_DEBUG] Generating MOVE for function from " << funcReg << " to " << base << std::endl;
             compiler->emitInstruction(Instruction::createMOVE(base, funcReg));
         }
 
@@ -393,13 +397,8 @@ namespace Lua {
                 }
             } else {
                 // 普通参数
-                std::cout << "[CALL_DEBUG] Compiling argument " << i << "..." << std::endl;
                 int argReg = compileExpr(arg);
-                std::cout << "[CALL_DEBUG] Arg[" << i << "] compiled to register " << argReg
-                          << ", target register " << argTargets[i] << std::endl;
                 if (argReg != argTargets[i]) {
-                    std::cout << "[CALL_DEBUG] Generating MOVE for arg[" << i << "] from "
-                              << argReg << " to " << argTargets[i] << std::endl;
                     compiler->emitInstruction(Instruction::createMOVE(argTargets[i], argReg));
                 }
             }
@@ -408,12 +407,10 @@ namespace Lua {
         // 步骤5：发出CALL_MM指令（支持__call元方法）
         // CALL_MM a b c: 函数在a，参数在a+1..a+nargs，结果在a
         int callA = base;
-        int callB = hasVarargExpansion ? 0 : (nargs + 1);  // 如果有可变参数展开，B=0表示使用栈顶
+        int callB = (hasVarargExpansion || hasLastCallExpansion) ? 0 : (nargs + 1);  // 如果有可变参数展开，B=0表示使用栈顶
         int callC = (expectedReturns == -1) ? 0 : (expectedReturns + 1);  // 使用指定的返回值数量
 
-        std::cout << "[CALL_DEBUG] Generating CALL_MM instruction: callA=" << callA
-                  << ", callB=" << callB << ", callC=" << callC << std::endl;
-        std::cout << "[CALL_DEBUG] ========== CALL COMPILATION END ==========" << std::endl;
+
         compiler->emitInstruction(Instruction::createCALL_MM(callA, callB, callC));
 
         // 步骤6：返回结果寄存器（函数调用后结果在base）
@@ -435,12 +432,15 @@ namespace Lua {
             nargs += 1;  // Add space for self parameter
         }
 
-        // Check if last argument is vararg expansion
+        // Check if last argument is vararg or call expansion
         bool hasVarargExpansion = false;
-        if (nargs > 0) {
-            const auto* lastArg = args[nargs - 1].get();
+        bool hasLastCallExpansion = false;
+        if (!args.empty()) {
+            const auto* lastArg = args.back().get();
             if (dynamic_cast<const VarargExpr*>(lastArg)) {
                 hasVarargExpansion = true;
+            } else if (dynamic_cast<const CallExpr*>(lastArg)) {
+                hasLastCallExpansion = true;
             }
         }
 
@@ -487,6 +487,10 @@ namespace Lua {
                     // Otherwise get only first vararg
                     compiler->emitInstruction(Instruction::createVARARG(argTargets[targetIndex], 2));
                 }
+            } else if (i == static_cast<int>(args.size()) - 1 && hasLastCallExpansion) {
+                // Last argument is a function call: expand all returns into arg slots starting at target
+                const auto* callArg = static_cast<const CallExpr*>(arg);
+                compiler->getExpressionCompiler()->compileCallWithMultiReturn(callArg, argTargets[targetIndex], -1);
             } else {
                 // Regular parameter compilation
                 int argReg = compileExpr(arg);
@@ -499,8 +503,9 @@ namespace Lua {
 
         // Emit CALL_MM instruction with multi-return support
         int callA = startReg;
-        int callB = hasVarargExpansion ? 0 : (nargs + 1);
+        int callB = (hasVarargExpansion || hasLastCallExpansion) ? 0 : (nargs + 1);
         int callC = (expectedReturns == -1) ? 0 : (expectedReturns + 1);
+
 
         compiler->emitInstruction(Instruction::createCALL_MM(callA, callB, callC));
 
@@ -517,7 +522,7 @@ namespace Lua {
         // Count array and hash parts for table pre-sizing
         int arraySize = 0;
         int hashSize = 0;
-        
+
         for (const auto& field : fields) {
             if (field.key == nullptr) {
                 arraySize++; // Array-style field: {value}
@@ -533,11 +538,11 @@ namespace Lua {
         compiler->emitInstruction(Instruction::createNEWTABLE(tableReg,
             static_cast<u8>(std::min(arraySize, 255)),
             static_cast<u8>(std::min(hashSize, 255))));
-        
+
         // Initialize table fields
         int arrayIndex = 1; // Lua arrays start at index 1
         int fieldIndex = 0;
-        
+
         for (const auto& field : fields) {
             if (field.key == nullptr) {
                 // Array-style field: table[arrayIndex] = value
@@ -653,7 +658,7 @@ namespace Lua {
 
         return tableReg;
     }
-    
+
     int ExpressionCompiler::compileIndexAccess(const IndexExpr* expr) {
         int tableReg = compileExpr(expr->getObject());
         int indexReg = compileExpr(expr->getIndex());
@@ -666,7 +671,7 @@ namespace Lua {
 
         return resultReg;
     }
-    
+
     int ExpressionCompiler::compileMemberAccess(const MemberExpr* expr) {
         int tableReg = compileExpr(expr->getObject());
         int resultReg = compiler->allocReg();
@@ -691,7 +696,7 @@ namespace Lua {
 
         return resultReg;
     }
-    
+
     void ExpressionCompiler::compileArithmeticOp(TokenType op, int resultReg, int leftReg, int rightReg) {
         // Use metamethod-aware arithmetic instructions for full Lua 5.1 compatibility
         switch (op) {
@@ -717,7 +722,7 @@ namespace Lua {
                 throw LuaException("Unknown arithmetic operator");
         }
     }
-    
+
     void ExpressionCompiler::compileComparisonOp(TokenType op, int resultReg, int leftReg, int rightReg) {
         // Use metamethod-aware comparison instructions for full Lua 5.1 compatibility
         switch (op) {
@@ -744,7 +749,7 @@ namespace Lua {
                 throw LuaException("Unknown comparison operator");
         }
     }
-    
+
     int ExpressionCompiler::compileLogicalOp(const BinaryExpr* expr) {
         int leftReg = compileExpr(expr->getLeft());
         int resultReg = compiler->allocReg();
@@ -792,14 +797,14 @@ namespace Lua {
         compiler->freeReg(); // Free left register
         return resultReg;
     }
-    
 
-    
+
+
     // Optimization methods implementation
     bool ExpressionCompiler::tryConstantFolding(const BinaryExpr* expr) {
         return isConstantExpression(expr->getLeft()) && isConstantExpression(expr->getRight());
     }
-    
+
     Value ExpressionCompiler::evaluateConstantBinary(const BinaryExpr* expr) {
         Value left = getConstantValue(expr->getLeft());
         Value right = getConstantValue(expr->getRight());
@@ -861,7 +866,7 @@ namespace Lua {
 
         double leftVal = left.asNumber();
         double rightVal = right.asNumber();
-        
+
         switch (op) {
             case TokenType::Plus:
                 return Value(leftVal + rightVal);
@@ -897,16 +902,16 @@ namespace Lua {
                 throw LuaException("Unsupported operator for constant folding");
         }
     }
-    
+
     bool ExpressionCompiler::isConstantExpression(const Expr* expr) {
         if (!expr) return false;
-        
+
         switch (expr->getType()) {
             case ExprType::Literal:
                 return true;
             case ExprType::Binary: {
                 const BinaryExpr* binExpr = static_cast<const BinaryExpr*>(expr);
-                return isConstantExpression(binExpr->getLeft()) && 
+                return isConstantExpression(binExpr->getLeft()) &&
                        isConstantExpression(binExpr->getRight());
             }
             case ExprType::Unary: {
@@ -917,12 +922,12 @@ namespace Lua {
                 return false;
         }
     }
-    
+
     Value ExpressionCompiler::getConstantValue(const Expr* expr) {
         if (!expr || !isConstantExpression(expr)) {
             throw LuaException("Expression is not a constant");
         }
-        
+
         switch (expr->getType()) {
             case ExprType::Literal: {
                 const LiteralExpr* litExpr = static_cast<const LiteralExpr*>(expr);
@@ -935,7 +940,7 @@ namespace Lua {
             case ExprType::Unary: {
                 const UnaryExpr* unExpr = static_cast<const UnaryExpr*>(expr);
                 Value operand = getConstantValue(unExpr->getRight());
-                
+
                 switch (unExpr->getOperator()) {
                     case TokenType::Minus:
                         if (operand.type() == ValueType::Number) {
@@ -956,7 +961,7 @@ namespace Lua {
                 throw LuaException("Unsupported expression type for constant value");
         }
     }
-    
+
     int ExpressionCompiler::compileFunctionExpr(const FunctionExpr* expr) {
         if (!expr) {
             throw LuaException("Null function expression in compilation");
@@ -979,32 +984,32 @@ namespace Lua {
         // Analyze upvalues using the parent compiler's context
         // This allows proper handling of nested closures
         Vec<UpvalueDescriptor> upvalues;
-        
+
         // Use the original analyzer but we'll fix the upvalue creation
         UpvalueAnalyzer analyzer(compiler->getScopeManager());
         analyzer.analyzeFunction(expr);
         const auto& originalUpvalues = analyzer.getUpvalues();
-        
+
         // Now create proper upvalue descriptors using compiler's variable resolution
         for (const auto& origUpvalue : originalUpvalues) {
             auto varInfo = compiler->resolveVariable(origUpvalue.name);
-            
+
             UpvalueDescriptor fixedUpvalue(origUpvalue.name, static_cast<int>(upvalues.size()), true, 0);
-            
+
             if (varInfo.type == Compiler::VariableType::Local) {
                 // Variable is local to parent function
                 fixedUpvalue.isLocal = true;
                 fixedUpvalue.stackIndex = varInfo.index;
             } else if (varInfo.type == Compiler::VariableType::Upvalue) {
                 // Variable is an upvalue in parent function
-                fixedUpvalue.isLocal = false; 
+                fixedUpvalue.isLocal = false;
                 fixedUpvalue.stackIndex = varInfo.index;
             } else {
                 // Fallback to original
                 fixedUpvalue.isLocal = origUpvalue.isLocal;
                 fixedUpvalue.stackIndex = origUpvalue.stackIndex;
             }
-            
+
             upvalues.push_back(fixedUpvalue);
         }
 
@@ -1012,7 +1017,7 @@ namespace Lua {
         for (const auto& upvalue : upvalues) {
             functionCompiler.addUpvalue(upvalue.name, upvalue.isLocal, upvalue.stackIndex);
         }
-        
+
         // Enter function scope and define parameters
         functionCompiler.beginScope();
 
@@ -1024,19 +1029,19 @@ namespace Lua {
         for (const auto& param : expr->getParameters()) {
             functionCompiler.defineLocal(param);  // 寄存器1, 2, 3...
         }
-        
+
         // Handle variadic functions - reserve space for vararg table if needed
         if (expr->getIsVariadic()) {
             // In Lua, variadic functions can access extra arguments via ...
             // This is typically handled at runtime by the VM
         }
-        
+
         // Compile function body
         functionCompiler.compileStmt(expr->getBody());
-        
+
         // End function scope
         functionCompiler.endScope();
-        
+
         // Create function object and add to prototypes
         auto function = Function::createLua(
             functionCompiler.getCode(),
@@ -1048,27 +1053,27 @@ namespace Lua {
             expr->getIsVariadic()
         );
         int prototypeIndex = compiler->addPrototype(function);
-        
+
         // Check prototype index bounds for CLOSURE instruction
         if (prototypeIndex > 65535) { // u16 max value
             throw LuaException("Too many function prototypes in compilation unit");
         }
-        
+
         // Allocate register for the function
         int reg = compiler->allocReg();
-        
+
         // Emit CLOSURE instruction to create closure
         // DEBUG: Removed debug output for cleaner testing
         compiler->emitInstruction(Instruction::createCLOSURE(reg, static_cast<u16>(prototypeIndex)));
-        
+
         // Handle upvalues if any
         // VM expects upvalue binding instructions immediately after CLOSURE
         // Check if we have too many upvalues to avoid register overflow
         if (upvalues.size() > MAX_UPVALUES_PER_CLOSURE) {
-            throw LuaException("Too many upvalues in closure: " + std::to_string(upvalues.size()) + 
+            throw LuaException("Too many upvalues in closure: " + std::to_string(upvalues.size()) +
                              " (max: " + std::to_string(MAX_UPVALUES_PER_CLOSURE) + ")");
         }
-        
+
         for (const auto& upvalue : upvalues) {
             // Create upvalue binding instruction for VM
             // A = isLocal flag (1 for local, 0 for upvalue)
@@ -1088,7 +1093,7 @@ namespace Lua {
             upvalBinding.setB(sourceIndex);
             compiler->emitInstruction(upvalBinding);
         }
-        
+
         // Exit function scope
         compiler->exitFunctionScope();
 
