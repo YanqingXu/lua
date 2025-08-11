@@ -3,8 +3,6 @@
 #include <iostream>
 #include <string>
 #include "../../lexer/lexer.hpp"
-#include "../../test_framework/core/test_utils.hpp"
-#include "../../test_framework/core/test_macros.hpp"
 
 namespace Lua {
 namespace Tests {

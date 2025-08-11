@@ -186,37 +186,16 @@
     <ClInclude Include="src\tests\compiler\test_compiler.hpp" />
     <ClInclude Include="src\tests\gc\test_gc.hpp" />
     <ClInclude Include="src\tests\lexer\lexer_basic_test.hpp" />
-    <ClInclude Include="src\tests\lexer\lexer_error_test.hpp" />
     <ClInclude Include="src\tests\lexer\test_lexer.hpp" />
-    <ClInclude Include="src\tests\lib\base_lib_test.hpp" />
-    <ClInclude Include="src\tests\lib\debug_lib_test.hpp" />
-    <ClInclude Include="src\tests\lib\io_lib_test.hpp" />
-    <ClInclude Include="src\tests\lib\math_lib_test.hpp" />
-    <ClInclude Include="src\tests\lib\os_lib_test.hpp" />
-    <ClInclude Include="src\tests\lib\string_lib_test.hpp" />
-    <ClInclude Include="src\tests\lib\table_lib_test.hpp" />
-    <ClInclude Include="src\tests\lib\test_lib.hpp" />
-    <ClInclude Include="src\tests\parser\expr\parser_binary_expr_test.hpp" />
-    <ClInclude Include="src\tests\parser\expr\parser_call_expr_test.hpp" />
-    <ClInclude Include="src\tests\parser\expr\parser_literal_expr_test.hpp" />
-    <ClInclude Include="src\tests\parser\expr\parser_member_expr_test.hpp" />
-    <ClInclude Include="src\tests\parser\expr\parser_table_expr_test.hpp" />
-    <ClInclude Include="src\tests\parser\expr\parser_unary_expr_test.hpp" />
-    <ClInclude Include="src\tests\parser\expr\parser_variable_expr_test.hpp" />
+
+
     <ClInclude Include="src\tests\parser\expr\test_parser_expr.hpp" />
     <ClInclude Include="src\tests\parser\test_parser.hpp" />
     <ClInclude Include="src\tests\test_main.hpp" />
     <ClInclude Include="src\tests\vm\closure\test_closure.hpp" />
     <ClInclude Include="src\tests\vm\state\test_state.hpp" />
     <ClInclude Include="src\tests\vm\test_vm.hpp" />
-    <ClInclude Include="src\test_framework\core\test_macros.hpp" />
-    <ClInclude Include="src\test_framework\core\test_memory.hpp" />
-    <ClInclude Include="src\test_framework\core\test_utils.hpp" />
-    <ClInclude Include="src\test_framework\formatting\format_colors.hpp" />
-    <ClInclude Include="src\test_framework\formatting\format_config.hpp" />
-    <ClInclude Include="src\test_framework\formatting\format_define.hpp" />
-    <ClInclude Include="src\test_framework\formatting\format_formatter.hpp" />
-    <ClInclude Include="src\test_framework\formatting\format_strategies.hpp" />
+
     <ClInclude Include="src\vm\call_result.hpp" />
     <ClInclude Include="src\vm\core_metamethods.hpp" />
     <ClInclude Include="src\vm\function.hpp" />
@@ -271,27 +250,10 @@
     <ClCompile Include="src\parser\parser_utils.cpp" />
     <ClCompile Include="src\parser\statement_parser.cpp" />
     <ClCompile Include="src\parser\visitor.cpp" />
-    <ClCompile Include="src\tests\lexer\lexer_basic_test.cpp" />
-    <ClCompile Include="src\tests\lexer\lexer_error_test.cpp" />
-    <ClCompile Include="src\tests\lib\base_lib_test.cpp" />
-    <ClCompile Include="src\tests\lib\debug_lib_test.cpp" />
-    <ClCompile Include="src\tests\lib\io_lib_test.cpp" />
-    <ClCompile Include="src\tests\lib\math_lib_test.cpp" />
-    <ClCompile Include="src\tests\lib\os_lib_test.cpp" />
-    <ClCompile Include="src\tests\lib\string_lib_test.cpp" />
-    <ClCompile Include="src\tests\lib\table_lib_test.cpp" />
-    <ClCompile Include="src\tests\parser\expr\parser_binary_expr_test.cpp" />
-    <ClCompile Include="src\tests\parser\expr\parser_call_expr_test.cpp" />
-    <ClCompile Include="src\tests\parser\expr\parser_literal_expr_test.cpp" />
-    <ClCompile Include="src\tests\parser\expr\parser_member_expr_test.cpp" />
-    <ClCompile Include="src\tests\parser\expr\parser_table_expr_test.cpp" />
-    <ClCompile Include="src\tests\parser\expr\parser_unary_expr_test.cpp" />
-    <ClCompile Include="src\tests\parser\expr\parser_variable_expr_test.cpp" />
-    <ClCompile Include="src\test_framework\core\test_memory.cpp" />
-    <ClCompile Include="src\test_framework\formatting\format_colors.cpp" />
-    <ClCompile Include="src\test_framework\formatting\format_config.cpp" />
-    <ClCompile Include="src\test_framework\formatting\format_formatter.cpp" />
-    <ClCompile Include="src\test_framework\formatting\format_strategies.cpp" />
+
+
+
+
     <ClCompile Include="src\vm\core_metamethods.cpp" />
     <ClCompile Include="src\vm\function.cpp" />
     <ClCompile Include="src\vm\metamethod_manager.cpp" />

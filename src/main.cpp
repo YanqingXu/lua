@@ -13,7 +13,6 @@
 #include "compiler/symbol_table.hpp"
 #include "common/defines.hpp"
 #include "lib/core/lib_manager.hpp"
-#include "test_framework/core/test_macros.hpp"
 #include "tests/test_main.hpp"
 
 using namespace Lua;
@@ -38,7 +37,8 @@ int main(int argc, char** argv) {
        if (argc > 1) {
             std::string arg = argv[1];
             if (arg == "-test") {
-                RUN_MAIN_TEST("MainTestSuite", Lua::Tests::MainTestSuite::runAllTests);
+                std::cout << "Running MainTestSuite...\n";
+                Lua::Tests::MainTestSuite::runAllTests();
                 
             } else {
                 // Run file

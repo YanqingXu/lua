@@ -1,13 +1,12 @@
 #pragma once
 
-#include "../../test_framework/core/test_macros.hpp"
+#include <iostream>
+#include <cassert>
 #include "../../compiler/compiler.hpp"
 #include "../../parser/parser.hpp"
 #include "../../lexer/lexer.hpp"
 #include "../../vm/vm.hpp"
 #include "../../vm/state_factory.hpp"
-#include <iostream>
-#include <cassert>
 
 namespace Lua::Tests {
 

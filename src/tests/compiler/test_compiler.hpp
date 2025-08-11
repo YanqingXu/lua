@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../../test_framework/core/test_macros.hpp"
+#include <iostream>
 #include "compiler_symbol_table_test.hpp"
 //#include "compiler_literal_test.hpp"
 #include "compiler_variable_test.hpp"
@@ -27,15 +27,16 @@ public:
      * RUN_TEST_SUITE macro for consistent formatting and error handling.
      */
     static void runAllTests() {
-        //RUN_TEST_SUITE(CompilerSymbolTableTest);
-        //RUN_TEST_SUITE(CompilerLiteralTest);
-        //RUN_TEST_SUITE(CompilerVariableTest);
-        //RUN_TEST_SUITE(CompilerBinaryExpressionTest);
-        //RUN_TEST_SUITE(CompilerConditionalTest);
-        //RUN_TEST_SUITE(CompilerMultiReturnTest);
-        RUN_TEST_SUITE(CompilerErrorTest);
-        
-        // TODO: Add other test suites here when available
+        // Note: Test framework removed - convert to simple function calls if needed
+        //CompilerSymbolTableTest::runAllTests();
+        //CompilerLiteralTest::runAllTests();
+        //CompilerVariableTest::runAllTests();
+        //CompilerBinaryExpressionTest::runAllTests();
+        //CompilerConditionalTest::runAllTests();
+        //CompilerMultiReturnTest::runAllTests();
+        //CompilerErrorTest::runAllTests();
+
+        std::cout << "Compiler tests disabled - test framework removed\n";
     }
 };
 

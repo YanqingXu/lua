@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../../test_framework/core/test_macros.hpp"
+#include <iostream>
 #include "../../compiler/symbol_table.hpp"
 
 namespace Lua::Tests {
