@@ -2,18 +2,18 @@
 
 #include "../common/types.hpp"
 
-// Debug configuration - enable register allocation debugging
-#define DEBUG_OUTPUT 1
+// Debug configuration - disabled for production
+#define DEBUG_OUTPUT 0
 #define DEBUG_LIB_REGISTRATION 0
-#define DEBUG_VM_EXECUTION 1
+#define DEBUG_VM_EXECUTION 0
 #define DEBUG_STATE_OPERATIONS 0
-#define DEBUG_COMPILER 1
-#define DEBUG_VM_INSTRUCTIONS 1
-#define DEBUG_REGISTER_ALLOCATION 1
+#define DEBUG_COMPILER 0
+#define DEBUG_VM_INSTRUCTIONS 0
+#define DEBUG_REGISTER_ALLOCATION 0
 
-// Debug macros - enabled for debugging
-#define DEBUG_PRINT(msg) do { std::cout << "[DEBUG] " << msg << std::endl; } while(0)
-#define DEBUG_PRINT_VAR(name, value) do { std::cout << "[DEBUG] " << name << " = " << value << std::endl; } while(0)
+// Debug macros - disabled for production
+#define DEBUG_PRINT(msg) do { } while(0)
+#define DEBUG_PRINT_VAR(name, value) do { } while(0)
 
 namespace Lua {
     // Constant definitions

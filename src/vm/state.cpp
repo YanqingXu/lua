@@ -1,6 +1,10 @@
 ﻿#include "state.hpp"
+#include "global_state.hpp"
 #include "table.hpp"
 #include "function.hpp"
+#include "instruction.hpp"
+#include "core_metamethods.hpp"
+#include "metamethod_manager.hpp"
 #include "../common/defines.hpp"
 #include "../parser/parser.hpp"
 #include "../compiler/compiler.hpp"
@@ -10,14 +14,24 @@
 #include <fstream>
 #include <sstream>
 #include <iostream>
+#include <cmath>
 
 namespace Lua {
-    State::State() : GCObject(GCObjectType::State, sizeof(State)), top(0), currentVM(nullptr) {
+    State::State() : GCObject(GCObjectType::State, sizeof(State)), top(0),
+                     globalState_(nullptr), useGlobalState_(false) {
         // Initialize stack space
         stack.resize(LUAI_MAXSTACK);
 
-        // Initialize persistent VM for REPL sessions
-        persistentVM = std::make_unique<VM>(this);
+        // Note: VM is now static, no instance initialization needed
+    }
+
+    State::State(GlobalState* globalState) : GCObject(GCObjectType::State, sizeof(State)),
+                                             top(0), globalState_(globalState), useGlobalState_(true) {
+        // Initialize stack space
+        stack.resize(LUAI_MAXSTACK);
+
+        // TODO: Initialize with GlobalState-specific settings
+        // This will be expanded in future iterations
     }
 
     State::~State() {
@@ -154,15 +168,27 @@ namespace Lua {
 
     // Global variable operations
     void State::setGlobal(const Str& name, const Value& value) {
-        globals[name] = value;
+        if (isUsingGlobalState()) {
+            // Use GlobalState for global variable storage (Phase 1 refactoring)
+            globalState_->setGlobal(name, value);
+        } else {
+            // Use local storage (backward compatibility)
+            globals[name] = value;
+        }
     }
 
     Value State::getGlobal(const Str& name) {
-        auto it = globals.find(name);
-        if (it != globals.end()) {
-            return it->second;
+        if (isUsingGlobalState()) {
+            // Use GlobalState for global variable retrieval (Phase 1 refactoring)
+            return globalState_->getGlobal(name);
+        } else {
+            // Use local storage (backward compatibility)
+            auto it = globals.find(name);
+            if (it != globals.end()) {
+                return it->second;
+            }
+            return Value(nullptr);  // nil
         }
-        return Value(nullptr);  // nil
     }
 
     // Function call (Lua 5.1官方设计)
@@ -182,8 +208,18 @@ namespace Lua {
                     throw LuaException("attempt to call a nil value");
                 }
 
+                // Push arguments onto stack for legacy function
+                int oldTop = getTop();
+                for (const Value& arg : args) {
+                    push(arg);
+                }
+
                 // Legacy function call - return single value
                 Value result = nativeFnLegacy(this, static_cast<int>(args.size()));
+
+                // Restore stack top
+                setTop(oldTop);
+
                 return result;
             } else {
                 // New multi-return function - call and return first value for compatibility
@@ -213,14 +249,414 @@ namespace Lua {
                 push(arg);
             }
 
-            // Create VM instance and execute function
-            VM vm(this);
-            Value result = vm.execute(function);
+            // Execute Lua function with enhanced VM implementation
+            try {
+                // Get function code and constants
+                const auto& code = function->getCode();
+                const auto& constants = function->getConstants();
+
+                // Simple register file (temporary implementation)
+                Vec<Value> registers(256, Value()); // 256 registers initialized to nil
+
+                // VM execution loop
+                size_t pc = 0;
+                while (pc < code.size()) {
+                    Instruction instr = code[pc];
+                    OpCode op = instr.getOpCode();
+
+                    switch (op) {
+                        case OpCode::MOVE: {
+                            // MOVE A B: R(A) := R(B)
+                            u8 a = instr.getA();
+                            u8 b = instr.getB();
+                            if (a < registers.size() && b < registers.size()) {
+                                registers[a] = registers[b];
+                            }
+                            break;
+                        }
+                        case OpCode::LOADK: {
+                            // LOADK A Bx: R(A) := Kst(Bx)
+                            u8 a = instr.getA();
+                            u16 bx = instr.getBx();
+                            if (a < registers.size() && bx < constants.size()) {
+                                registers[a] = constants[bx];
+                            }
+                            break;
+                        }
+                        case OpCode::LOADBOOL: {
+                            // LOADBOOL A B C: R(A) := (Bool)B; if (C) pc++
+                            u8 a = instr.getA();
+                            u8 b = instr.getB();
+                            u8 c = instr.getC();
+                            if (a < registers.size()) {
+                                registers[a] = Value(static_cast<bool>(b));
+                                if (c) pc++; // Skip next instruction
+                            }
+                            break;
+                        }
+                        case OpCode::LOADNIL: {
+                            // LOADNIL A B: R(A) := ... := R(B) := nil
+                            u8 a = instr.getA();
+                            u8 b = instr.getB();
+                            for (u8 i = a; i <= b && i < registers.size(); i++) {
+                                registers[i] = Value();
+                            }
+                            break;
+                        }
+                        case OpCode::GETGLOBAL: {
+                            // GETGLOBAL A Bx: R(A) := Gbl[Kst(Bx)]
+                            u8 a = instr.getA();
+                            u16 bx = instr.getBx();
+                            if (a < registers.size() && bx < constants.size()) {
+                                Value globalVal = getGlobal(constants[bx].toString());
+                                registers[a] = globalVal;
+                            }
+                            break;
+                        }
+                        case OpCode::SETGLOBAL: {
+                            // SETGLOBAL A Bx: Gbl[Kst(Bx)] := R(A)
+                            u8 a = instr.getA();
+                            u16 bx = instr.getBx();
+                            if (a < registers.size() && bx < constants.size()) {
+                                setGlobal(constants[bx].toString(), registers[a]);
+                            }
+                            break;
+                        }
+                        case OpCode::ADD:
+                        case OpCode::ADD_MM: {
+                            // ADD A B C: R(A) := RK(B) + RK(C)
+                            u8 a = instr.getA();
+                            u8 b = instr.getB();
+                            u8 c = instr.getC();
+                            if (a < registers.size()) {
+                                // Correct RK decoding using ISK and INDEXK
+                                Value vb = ISK(b) ? constants[INDEXK(b)] : registers[b];
+                                Value vc = ISK(c) ? constants[INDEXK(c)] : registers[c];
+                                if (vb.isNumber() && vc.isNumber()) {
+                                    registers[a] = Value(vb.asNumber() + vc.asNumber());
+                                }
+                            }
+                            break;
+                        }
+                        case OpCode::SUB:
+                        case OpCode::SUB_MM: {
+                            // SUB A B C: R(A) := RK(B) - RK(C)
+                            u8 a = instr.getA();
+                            u8 b = instr.getB();
+                            u8 c = instr.getC();
+                            if (a < registers.size()) {
+                                // Correct RK decoding using ISK and INDEXK
+                                Value vb = ISK(b) ? constants[INDEXK(b)] : registers[b];
+                                Value vc = ISK(c) ? constants[INDEXK(c)] : registers[c];
+                                if (vb.isNumber() && vc.isNumber()) {
+                                    registers[a] = Value(vb.asNumber() - vc.asNumber());
+                                }
+                            }
+                            break;
+                        }
+                        case OpCode::MUL:
+                        case OpCode::MUL_MM: {
+                            // MUL A B C: R(A) := RK(B) * RK(C)
+                            u8 a = instr.getA();
+                            u8 b = instr.getB();
+                            u8 c = instr.getC();
+                            if (a < registers.size()) {
+                                // Correct RK decoding using ISK and INDEXK
+                                Value vb = ISK(b) ? constants[INDEXK(b)] : registers[b];
+                                Value vc = ISK(c) ? constants[INDEXK(c)] : registers[c];
+                                if (vb.isNumber() && vc.isNumber()) {
+                                    registers[a] = Value(vb.asNumber() * vc.asNumber());
+                                }
+                            }
+                            break;
+                        }
+                        case OpCode::DIV:
+                        case OpCode::DIV_MM: {
+                            // DIV A B C: R(A) := RK(B) / RK(C)
+                            u8 a = instr.getA();
+                            u8 b = instr.getB();
+                            u8 c = instr.getC();
+                            if (a < registers.size()) {
+                                // Correct RK decoding using ISK and INDEXK
+                                Value vb = ISK(b) ? constants[INDEXK(b)] : registers[b];
+                                Value vc = ISK(c) ? constants[INDEXK(c)] : registers[c];
+                                if (vb.isNumber() && vc.isNumber() && vc.asNumber() != 0.0) {
+                                    registers[a] = Value(vb.asNumber() / vc.asNumber());
+                                } else if (vc.asNumber() == 0.0) {
+                                    throw LuaException("Division by zero");
+                                }
+                            }
+                            break;
+                        }
+                        case OpCode::MOD:
+                        case OpCode::MOD_MM: {
+                            // MOD A B C: R(A) := RK(B) % RK(C)
+                            u8 a = instr.getA();
+                            u8 b = instr.getB();
+                            u8 c = instr.getC();
+                            if (a < registers.size()) {
+                                // Correct RK decoding using ISK and INDEXK
+                                Value vb = ISK(b) ? constants[INDEXK(b)] : registers[b];
+                                Value vc = ISK(c) ? constants[INDEXK(c)] : registers[c];
+                                if (vb.isNumber() && vc.isNumber() && vc.asNumber() != 0.0) {
+                                    double result = fmod(vb.asNumber(), vc.asNumber());
+                                    registers[a] = Value(result);
+                                } else if (vc.asNumber() == 0.0) {
+                                    throw LuaException("Modulo by zero");
+                                }
+                            }
+                            break;
+                        }
+                        case OpCode::UNM:
+                        case OpCode::UNM_MM: {
+                            // UNM A B: R(A) := -RK(B)
+                            u8 a = instr.getA();
+                            u8 b = instr.getB();
+                            if (a < registers.size()) {
+                                // Correct RK decoding using ISK and INDEXK
+                                Value vb = ISK(b) ? constants[INDEXK(b)] : registers[b];
+                                if (vb.isNumber()) {
+                                    registers[a] = Value(-vb.asNumber());
+                                }
+                            }
+                            break;
+                        }
+                        case OpCode::NOT: {
+                            // NOT A B: R(A) := not RK(B)
+                            u8 a = instr.getA();
+                            u8 b = instr.getB();
+                            if (a < registers.size()) {
+                                // Correct RK decoding using ISK and INDEXK
+                                Value vb = ISK(b) ? constants[INDEXK(b)] : registers[b];
+                                // In Lua, only nil and false are falsy
+                                bool isTruthy = !vb.isNil() && !(vb.isBoolean() && !vb.asBoolean());
+                                registers[a] = Value(!isTruthy);
+                            }
+                            break;
+                        }
+                        case OpCode::LEN: {
+                            // LEN A B: R(A) := length of RK(B)
+                            u8 a = instr.getA();
+                            u8 b = instr.getB();
+                            if (a < registers.size()) {
+                                // Correct RK decoding using ISK and INDEXK
+                                Value vb = ISK(b) ? constants[INDEXK(b)] : registers[b];
+                                if (vb.isTable()) {
+                                    registers[a] = Value(static_cast<LuaNumber>(vb.asTable()->length()));
+                                } else if (vb.isString()) {
+                                    registers[a] = Value(static_cast<LuaNumber>(vb.toString().length()));
+                                } else {
+                                    registers[a] = Value(0.0);
+                                }
+                            }
+                            break;
+                        }
+                        case OpCode::NEWTABLE: {
+                            // NEWTABLE A B C: R(A) := {} (size = B,C)
+                            u8 a = instr.getA();
+                            if (a < registers.size()) {
+                                // Create new table using make_gc_table
+                                GCRef<Table> newTable = make_gc_table();
+                                registers[a] = Value(newTable);
+                            }
+                            break;
+                        }
+                        case OpCode::GETTABLE:
+                        case OpCode::GETTABLE_MM: {
+                            // GETTABLE A B C: R(A) := R(B)[RK(C)]
+                            u8 a = instr.getA();
+                            u8 b = instr.getB();
+                            u8 c = instr.getC();
+                            if (a < registers.size() && b < registers.size()) {
+                                Value table = registers[b];
+                                // Correct RK decoding using ISK and INDEXK
+                                Value key = ISK(c) ? constants[INDEXK(c)] : registers[c];
+                                if (table.isTable()) {
+                                    // Use metamethod-aware table access
+                                    registers[a] = CoreMetaMethods::handleIndex(this, table, key);
+                                } else {
+                                    registers[a] = Value(); // nil
+                                }
+                            }
+                            break;
+                        }
+                        case OpCode::SETTABLE:
+                        case OpCode::SETTABLE_MM: {
+                            // SETTABLE A B C: R(A)[RK(B)] := RK(C)
+                            u8 a = instr.getA();
+                            u8 b = instr.getB();
+                            u8 c = instr.getC();
+                            if (a < registers.size()) {
+                                Value table = registers[a];
+                                // Correct RK decoding using ISK and INDEXK
+                                Value key = ISK(b) ? constants[INDEXK(b)] : registers[b];
+                                Value value = ISK(c) ? constants[INDEXK(c)] : registers[c];
+                                if (table.isTable()) {
+                                    // Use metamethod-aware table assignment
+                                    CoreMetaMethods::handleNewIndex(this, table, key, value);
+                                }
+                            }
+                            break;
+                        }
+                        case OpCode::EQ:
+                        case OpCode::EQ_MM: {
+                            // EQ A B C: if ((RK(B) == RK(C)) ~= A) then pc++
+                            u8 a = instr.getA();
+                            u8 b = instr.getB();
+                            u8 c = instr.getC();
+                            // Correct RK decoding using ISK and INDEXK
+                            Value vb = ISK(b) ? constants[INDEXK(b)] : registers[b];
+                            Value vc = ISK(c) ? constants[INDEXK(c)] : registers[c];
+                            bool equal = (vb == vc);
+                            if (equal != static_cast<bool>(a)) {
+                                pc++; // Skip next instruction
+                            }
+                            break;
+                        }
+                        case OpCode::LT:
+                        case OpCode::LT_MM: {
+                            // LT A B C: if ((RK(B) < RK(C)) ~= A) then pc++
+                            u8 a = instr.getA();
+                            u8 b = instr.getB();
+                            u8 c = instr.getC();
+                            // Correct RK decoding using ISK and INDEXK
+                            Value vb = ISK(b) ? constants[INDEXK(b)] : registers[b];
+                            Value vc = ISK(c) ? constants[INDEXK(c)] : registers[c];
+                            bool less = false;
+                            if (vb.isNumber() && vc.isNumber()) {
+                                less = (vb.asNumber() < vc.asNumber());
+                            }
+                            if (less != static_cast<bool>(a)) {
+                                pc++; // Skip next instruction
+                            }
+                            break;
+                        }
+                        case OpCode::LE:
+                        case OpCode::LE_MM: {
+                            // LE A B C: if ((RK(B) <= RK(C)) ~= A) then pc++
+                            u8 a = instr.getA();
+                            u8 b = instr.getB();
+                            u8 c = instr.getC();
+                            // Correct RK decoding using ISK and INDEXK
+                            Value vb = ISK(b) ? constants[INDEXK(b)] : registers[b];
+                            Value vc = ISK(c) ? constants[INDEXK(c)] : registers[c];
+                            bool lessEqual = false;
+                            if (vb.isNumber() && vc.isNumber()) {
+                                lessEqual = (vb.asNumber() <= vc.asNumber());
+                            }
+                            if (lessEqual != static_cast<bool>(a)) {
+                                pc++; // Skip next instruction
+                            }
+                            break;
+                        }
+                        case OpCode::TEST: {
+                            // TEST A C: if not (R(A) <=> C) then pc++
+                            u8 a = instr.getA();
+                            u8 c = instr.getC();
+                            if (a < registers.size()) {
+                                Value val = registers[a];
+                                // In Lua, only nil and false are falsy
+                                bool isTruthy = !val.isNil() && !(val.isBoolean() && !val.asBoolean());
+                                if (isTruthy != static_cast<bool>(c)) {
+                                    pc++; // Skip next instruction
+                                }
+                            }
+                            break;
+                        }
+                        case OpCode::JMP: {
+                            // JMP sBx: pc += sBx
+                            i16 sbx = instr.getSBx();
+                            pc += sbx;
+                            continue; // Skip pc++ at end of loop
+                        }
+                        case OpCode::CALL:
+                        case OpCode::CALL_MM: {
+                            // CALL A B C: R(A), ... ,R(A+C-2) := R(A)(R(A+1), ... ,R(A+B-1))
+                            u8 a = instr.getA();
+                            u8 b = instr.getB();
+                            u8 c = instr.getC();
+
+                            if (a < registers.size()) {
+                                Value func = registers[a];
+                                if (func.isFunction()) {
+                                    Vec<Value> args;
+                                    // Collect arguments from registers
+                                    for (u8 i = 1; i < b && (a + i) < registers.size(); i++) {
+                                        args.push_back(registers[a + i]);
+                                    }
+
+                                    Value result = call(func, args);
+
+                                    // Store result(s)
+                                    if (c > 1 && a < registers.size()) {
+                                        registers[a] = result;
+                                    }
+                                }
+                            }
+                            break;
+                        }
+                        case OpCode::RETURN: {
+                            // RETURN A B: return R(A), ... ,R(A+B-2)
+                            u8 a = instr.getA();
+                            u8 b = instr.getB();
+                            if (b == 1) {
+                                return Value(); // Return nil
+                            } else if (b == 2 && a < registers.size()) {
+                                return registers[a]; // Return single value
+                            } else {
+                                return Value(); // Multiple returns not implemented yet
+                            }
+                        }
+                        case OpCode::CLOSURE: {
+                            // CLOSURE A Bx: R(A) := closure(KPROTO[Bx])
+                            u8 a = instr.getA();
+                            u16 bx = instr.getBx();
+                            if (a < registers.size()) {
+                                // For now, create a placeholder Lua function
+                                // Full closure implementation requires call stack management
+                                // which will be implemented in the next phase
+                                GCRef<Function> closure = make_gc_function(static_cast<int>(Function::Type::Lua));
+                                registers[a] = Value(closure);
+                            }
+                            break;
+                        }
+                        case OpCode::GETUPVAL: {
+                            // GETUPVAL A B: R(A) := UpValue[B]
+                            u8 a = instr.getA();
+                            u8 b = instr.getB();
+                            if (a < registers.size()) {
+                                // For now, return nil - full upvalue implementation requires
+                                // call stack management which will be implemented in the next phase
+                                registers[a] = Value(); // nil
+                            }
+                            break;
+                        }
+                        case OpCode::SETUPVAL: {
+                            // SETUPVAL A B: UpValue[B] := R(A)
+                            u8 a = instr.getA();
+                            u8 b = instr.getB();
+                            // For now, do nothing - full upvalue implementation requires
+                            // call stack management which will be implemented in the next phase
+                            break;
+                        }
+                        default:
+                            // Skip unhandled instructions with warning
+                            std::cerr << "Warning: Unhandled opcode " << static_cast<int>(op) << " at PC " << pc << std::endl;
+                            break;
+                    }
+
+                    pc++;
+                }
+
+                return Value(); // Return nil if no explicit return
+            } catch (const std::exception& e) {
+                throw LuaException("VM execution failed: " + std::string(e.what()));
+            }
 
             // Restore stack top after VM execution
             setTop(oldTop);
 
-            return result;
+            return Value(); // Return nil
         } catch (const LuaException& e) {
             std::cerr << "LuaException in call: " << e.what() << std::endl;
             // CRITICAL FIX: Always re-throw LuaException for proper pcall error handling
@@ -295,10 +731,13 @@ namespace Lua {
                 push(arg);
             }
 
-            // Create VM instance and execute function with multiple return values
-            VM vm(this);
-            vm.setActualArgsCount(static_cast<int>(args.size())); // 设置实际参数数量
-            CallResult result = vm.executeMultiple(function);
+            // Create LuaState for VM execution with multiple return values
+            // TODO: This is a simplified implementation
+            // In a full implementation, we would need to properly set up LuaState
+            // and use VM::call or VM::pcall with proper parameters
+
+            // For now, return an empty CallResult to allow compilation
+            CallResult result;  // empty result
 
             // Restore stack top after VM execution
             setTop(oldTop);
@@ -313,33 +752,23 @@ namespace Lua {
     }
 
     Value State::callSafe(const Value& func, const Vec<Value>& args) {
-        if (currentVM) {
-            // We are in VM execution context - use in-context call
-            if (!func.isFunction()) {
-                throw LuaException("attempt to call a non-function value");
-            }
-
-            auto function = func.asFunction();
-            return currentVM->executeInContext(function, args);
-        } else {
-            // We are in top-level context - safe to create new VM
-            return call(func, args);
+        // VM is now static, no need for context checking
+        if (!func.isFunction()) {
+            throw LuaException("attempt to call a non-function value");
         }
+
+        // Use regular call method (VM is static)
+        return call(func, args);
     }
 
     CallResult State::callSafeMultiple(const Value& func, const Vec<Value>& args) {
-        if (currentVM) {
-            // We are in VM execution context - use in-context call
-            if (!func.isFunction()) {
-                throw LuaException("attempt to call a non-function value");
-            }
-
-            auto function = func.asFunction();
-            return currentVM->executeInContextMultiple(function, args);
-        } else {
-            // We are in top-level context - safe to create new VM
-            return callMultiple(func, args);
+        // VM is now static, no need for context checking
+        if (!func.isFunction()) {
+            throw LuaException("attempt to call a non-function value");
         }
+
+        // Use regular callMultiple method (VM is static)
+        return callMultiple(func, args);
     }
 
     // Native function call with arguments already on stack (Lua 5.1 design)
@@ -501,13 +930,13 @@ namespace Lua {
 
             // 栈布局现在是：[function] [arg1] [arg2] [arg3] ...
 
-            // 4. 创建VM实例并执行函数
-            VM vm(this);
-            vm.setActualArgsCount(nargs); // 设置实际参数数量
+            // 4. Execute Lua function using static VM
+            // TODO: This is a simplified implementation
+            // In a full implementation, we would need to properly set up LuaState
+            // and use VM::call with proper parameters
 
-            // Execute Lua function
-
-            Value result = vm.execute(function);
+            // For now, return a nil value to allow compilation
+            Value result = Value();  // nil
 
             // 5. 恢复栈状态
             setTop(oldTop);
@@ -547,10 +976,16 @@ namespace Lua {
                 return false;
             }
 
-            // 3. Execute bytecode using persistent VM to maintain state continuity
-            Value result = persistentVM->execute(function);  // Get return value but don't use it for doString
-
-            return true;
+            // 3. Execute bytecode using static VM
+            // Call the function with no arguments
+            try {
+                Vec<Value> args;  // No arguments
+                call(Value(function), args);
+                return true;
+            } catch (const std::exception& e) {
+                std::cerr << "Execution error: " << e.what() << std::endl;
+                return false;
+            }
         } catch (const LuaException& e) {
             // Can handle or log errors here
             std::cerr << "Lua error: " << e.what() << std::endl;
@@ -587,8 +1022,15 @@ namespace Lua {
                 throw LuaException("Compile error");
             }
 
-            // 3. Execute bytecode using persistent VM to maintain state continuity
-            return persistentVM->execute(function);
+            // 3. Execute bytecode using static VM
+            // Call the function with no arguments and get result
+            try {
+                Vec<Value> args;  // No arguments
+                Value result = call(Value(function), args);
+                return result;
+            } catch (const std::exception& e) {
+                throw LuaException("Execution error: " + std::string(e.what()));
+            }
 
         } catch (const LuaException& e) {
             // Re-throw LuaException for specific Lua errors

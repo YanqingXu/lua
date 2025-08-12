@@ -11,19 +11,24 @@ namespace Lua {
     // Forward declarations
     class GarbageCollector;
     class VM;
-    
+    class GlobalState;
+
     class State : public GCObject {
     private:
         Vec<Value> stack;
         int top;
         HashMap<Str, Value> globals;
-        VM* currentVM; // Current VM instance (for context-aware calls)
 
-        // Persistent VM instance for REPL sessions
-        std::unique_ptr<VM> persistentVM;
+        // Phase 1 refactoring: Optional GlobalState support
+        GlobalState* globalState_; // Optional global state for gradual migration
+        bool useGlobalState_;      // Flag to enable GlobalState usage
+
+        // Note: VM is now static, no instance references needed
         
     public:
-        State();
+        // Constructors
+        State();                                    // Original constructor (backward compatibility)
+        explicit State(GlobalState* globalState);  // New constructor with GlobalState
         ~State();
         
         // Override GCObject virtual functions
@@ -82,9 +87,7 @@ namespace Lua {
         Value callSafe(const Value& func, const Vec<Value>& args);
         CallResult callSafeMultiple(const Value& func, const Vec<Value>& args);
 
-        // Set current VM instance (for context-aware calls)
-        void setCurrentVM(VM* vm) { currentVM = vm; }
-        VM* getCurrentVM() const { return currentVM; }
+        // Note: VM methods removed - VM is now static
 
         // Native function call with arguments already on stack (Lua 5.1 design)
         Value callNative(const Value& func, int nargs);
@@ -101,5 +104,29 @@ namespace Lua {
 
         // Execute code and return result (for REPL)
         Value doStringWithResult(const Str& code);
+
+        // Phase 1 refactoring: GlobalState integration methods
+        /**
+         * @brief Get associated GlobalState (if any)
+         */
+        GlobalState* getGlobalState() const { return globalState_; }
+
+        /**
+         * @brief Check if using GlobalState
+         */
+        bool isUsingGlobalState() const { return useGlobalState_ && globalState_; }
+
+        /**
+         * @brief Enable/disable GlobalState usage
+         */
+        void setUseGlobalState(bool use) { useGlobalState_ = use; }
+
+        /**
+         * @brief Set GlobalState (for migration)
+         */
+        void setGlobalState(GlobalState* globalState) {
+            globalState_ = globalState;
+            useGlobalState_ = (globalState != nullptr);
+        }
     };
 }

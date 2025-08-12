@@ -4,6 +4,7 @@
 #include <string>
 #include "common/types.hpp"
 #include "vm/state.hpp"
+#include "vm/global_state.hpp"
 #include "vm/value.hpp"
 #include "vm/table.hpp"
 #include "vm/function.hpp"
@@ -38,12 +39,45 @@ int main(int argc, char** argv) {
             std::string filename = argv[1];
             std::string source = readFile(filename);
 
-            State state;
+            // Determine which architecture to use (Phase 1 refactoring)
+            State* state = nullptr;
+            GlobalState* globalState = nullptr;
+
+            if (filename.find("globalstate") != std::string::npos) {
+                // Use GlobalState with State (Phase 1 refactoring)
+                std::cerr << "[Phase1] Using GlobalState architecture" << std::endl;
+                globalState = new GlobalState();
+                state = new State(globalState);
+            } else {
+                // Use traditional State (backward compatibility)
+                std::cerr << "[Phase1] Using traditional State architecture" << std::endl;
+                state = new State();
+            }
+
+            if (!state) {
+                std::cerr << "Error: Failed to create State" << std::endl;
+                return 1;
+            }
 
             // Initialize all standard libraries using simplified framework
-            StandardLibrary::initializeAll(&state);
+            StandardLibrary::initializeAll(state);
 
-            bool success = state.doString(source);
+            // Execute code
+            bool success = state->doString(source);
+
+            // Show architecture information
+            if (state->isUsingGlobalState()) {
+                std::cerr << "[Phase1] Architecture: State with GlobalState integration" << std::endl;
+            } else {
+                std::cerr << "[Phase1] Architecture: Traditional State" << std::endl;
+            }
+
+            // Cleanup
+            delete state;
+            if (globalState) {
+                delete globalState;
+            }
+
             if (!success) {
                 return 1;
             }

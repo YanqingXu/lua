@@ -16,6 +16,24 @@
 6. **现代化设计**: 充分利用现代C++特性和最佳实践
 7. **安全保障**: 确保内存安全、线程安全和异常安全
 
+## ⚠️ 重要澄清
+
+### STL函数使用政策
+**STL函数在适当时鼓励使用**，与类型系统要求是独立的：
+
+- ✅ **类型系统要求**：使用项目定义的类型别名（Str, Vec<T>, HashMap<K,V>等）
+- ✅ **STL函数使用**：鼓励使用STL函数提高代码清晰度和简洁性
+- ✅ **两者结合**：在项目类型上使用STL函数是完全正确的
+
+**示例**：
+```cpp
+// ✅ 完全正确：项目类型 + STL函数
+Vec<Str> names = {"Alice", "Bob", "Charlie"};
+auto it = std::find(names.begin(), names.end(), "Bob");
+Str result = std::min(name1, name2);
+std::sort(numbers.begin(), numbers.end());
+```
+
 ---
 
 ## 📝 代码规范
@@ -76,7 +94,93 @@ const char* description;         // 应使用 StrView
 | `std::mutex` | `Mtx` | 互斥锁 |
 | `std::shared_mutex` | `SharedMtx` | 共享互斥锁 |
 
-### 2. 注释规范 (强制要求)
+### 2. STL函数使用政策 (推荐指南)
+
+**STL函数在适当时鼓励使用**
+
+#### 核心原则
+- **优先考虑代码清晰度和简洁性**：当STL函数使代码更可读、可维护和简洁时，应该使用
+- **平衡原则**：在提高代码质量时选择STL函数，在需要更透明逻辑或调试可见性时使用显式实现
+- **独立性**：STL函数使用与类型系统要求是独立的，使用项目定义的类型别名不禁止STL函数
+
+#### ✅ 推荐使用的STL函数
+
+##### 比较和数值操作
+```cpp
+// ✅ 推荐：使用STL函数提高可读性
+i32 result = std::min(a, b);
+i32 maximum = std::max(x, y);
+f64 absolute = std::abs(value);
+
+// ❌ 避免：冗长的手动实现
+i32 result = (a < b) ? a : b;  // 当逻辑简单时不必要
+```
+
+##### 移动语义和性能优化
+```cpp
+// ✅ 推荐：使用移动语义
+container.emplace_back(std::move(item));
+auto ptr = std::make_unique<Object>(args);
+auto shared = std::make_shared<Resource>();
+
+// ✅ 推荐：完美转发
+template<typename T>
+void wrapper(T&& arg) {
+    target(std::forward<T>(arg));
+}
+```
+
+##### 类型转换
+```cpp
+// ✅ 推荐：标准类型转换
+Str message = "Value: " + std::to_string(number);
+i32 parsed = std::stoi(numberStr);
+
+// ✅ 推荐：类型转换函数
+auto result = static_cast<f64>(intValue);
+```
+
+##### 算法操作
+```cpp
+// ✅ 推荐：标准算法（在适当时）
+auto it = std::find(container.begin(), container.end(), target);
+std::sort(data.begin(), data.end());
+std::transform(input.begin(), input.end(), output.begin(), transform_func);
+
+// ✅ 推荐：范围操作
+for (const auto& item : container) {
+    // 处理item
+}
+```
+
+#### ⚖️ 平衡考虑
+
+##### 何时使用STL函数
+- 逻辑简单且STL函数更清晰
+- 性能关键且STL实现优化良好
+- 标准操作且不需要特殊定制
+
+##### 何时使用显式实现
+- 需要特殊的错误处理逻辑
+- 调试时需要步进可见性
+- 业务逻辑复杂需要透明度
+
+#### 📝 重要澄清
+
+**STL函数使用与类型系统要求是独立的：**
+```cpp
+// ✅ 正确：使用项目类型 + STL函数
+Vec<Str> names = {"Alice", "Bob", "Charlie"};
+auto it = std::find(names.begin(), names.end(), "Bob");
+Str result = std::min(name1, name2);
+
+// ✅ 正确：在项目类型上使用STL算法
+std::sort(numbers.begin(), numbers.end());
+HashMap<Str, i32> map;
+auto found = std::find_if(map.begin(), map.end(), predicate);
+```
+
+### 3. 注释规范 (强制要求)
 
 **所有代码注释必须使用全英文**
 
@@ -327,7 +431,143 @@ Value BaseLib::print(State* state, i32 nargs) {
 }
 ```
 
-### 7. 性能规范
+### 7. 现代C++特性指南
+
+#### 智能指针使用 (强制要求)
+```cpp
+// ✅ 推荐：使用智能指针管理内存
+UPtr<LibModule> module = make_unique<BaseLib>();
+Ptr<Resource> shared = make_shared<Resource>();
+
+// ✅ 推荐：工厂函数
+template<typename T, typename... Args>
+UPtr<T> createUnique(Args&&... args) {
+    return make_unique<T>(std::forward<Args>(args)...);
+}
+
+// ❌ 避免：裸指针内存管理
+LibModule* module = new BaseLib();  // 错误
+delete module;                      // 错误
+```
+
+#### 移动语义和完美转发 (推荐使用)
+```cpp
+class Container {
+public:
+    // ✅ 推荐：移动语义
+    void addItem(Value&& item) {
+        items_.emplace_back(std::move(item));
+    }
+
+    // ✅ 推荐：完美转发
+    template<typename T>
+    void emplaceItem(T&& item) {
+        items_.emplace_back(std::forward<T>(item));
+    }
+
+    // ✅ 推荐：移动构造函数
+    Container(Container&& other) noexcept
+        : items_(std::move(other.items_)) {}
+
+    // ✅ 推荐：移动赋值操作符
+    Container& operator=(Container&& other) noexcept {
+        if (this != &other) {
+            items_ = std::move(other.items_);
+        }
+        return *this;
+    }
+
+private:
+    Vec<Value> items_;
+};
+```
+
+#### Auto类型推导 (推荐使用)
+```cpp
+// ✅ 推荐：复杂类型使用auto
+auto it = container.find(key);
+auto result = std::make_unique<ComplexType>();
+auto lambda = [](const Value& v) { return v.isValid(); };
+
+// ✅ 推荐：范围for循环
+for (const auto& item : container) {
+    processItem(item);
+}
+
+// ⚠️ 注意：简单类型可以显式声明
+i32 count = 0;        // 清晰
+f64 ratio = 0.5;      // 清晰
+bool found = false;   // 清晰
+```
+
+#### Lambda表达式 (推荐使用)
+```cpp
+// ✅ 推荐：算法中使用lambda
+std::sort(items.begin(), items.end(),
+    [](const Item& a, const Item& b) {
+        return a.priority > b.priority;
+    });
+
+// ✅ 推荐：捕获列表
+auto processor = [this, &state](const Value& v) {
+    return this->processValue(state, v);
+};
+
+// ✅ 推荐：泛型lambda (C++14+)
+auto comparator = [](const auto& a, const auto& b) {
+    return a < b;
+};
+```
+
+#### Constexpr使用 (推荐使用)
+```cpp
+// ✅ 推荐：编译时常量
+constexpr i32 MAX_STACK_SIZE = 1000;
+constexpr f64 PI = 3.14159265359;
+
+// ✅ 推荐：constexpr函数
+constexpr i32 factorial(i32 n) {
+    return (n <= 1) ? 1 : n * factorial(n - 1);
+}
+
+// ✅ 推荐：constexpr if (C++17+)
+template<typename T>
+void process(T&& value) {
+    if constexpr (std::is_integral_v<T>) {
+        // 整数处理
+    } else {
+        // 其他类型处理
+    }
+}
+```
+
+#### 异常安全 (强制要求)
+```cpp
+// ✅ 推荐：RAII和异常安全
+class ResourceManager {
+public:
+    ResourceManager() : resource_(acquireResource()) {
+        if (!resource_) {
+            throw ResourceException("Failed to acquire resource");
+        }
+    }
+
+    ~ResourceManager() noexcept {
+        if (resource_) {
+            releaseResource(resource_);
+        }
+    }
+
+    // ✅ 推荐：不抛出异常的移动操作
+    ResourceManager(ResourceManager&& other) noexcept
+        : resource_(std::exchange(other.resource_, nullptr)) {}
+
+private:
+    Resource* resource_;
+};
+```
+
+### 8. 性能规范
 
 #### 避免不必要的拷贝
 ```cpp
@@ -628,11 +868,22 @@ docs/
 - [ ] 变量名是否清晰表达含义
 - [ ] 私有成员是否有下划线后缀
 
-#### ✅ 现代C++
+#### ✅ STL函数使用
+- [ ] 是否在适当时使用STL函数提高代码清晰度
+- [ ] 是否使用std::min/std::max替代冗长的三元操作符
+- [ ] 是否使用std::move优化性能
+- [ ] 是否使用std::make_unique/std::make_shared创建智能指针
+- [ ] 是否在算法操作中合理使用STL函数
+
+#### ✅ 现代C++特性
 - [ ] 是否使用智能指针管理资源
 - [ ] 是否遵循 RAII 原则
 - [ ] 是否使用移动语义优化性能
 - [ ] 是否正确处理异常安全
+- [ ] 是否合理使用auto类型推导
+- [ ] 是否使用范围for循环
+- [ ] 是否在适当时使用lambda表达式
+- [ ] 是否使用constexpr优化编译时计算
 
 #### ✅ 性能考虑
 - [ ] 是否避免了不必要的拷贝
