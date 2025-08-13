@@ -94,10 +94,65 @@ namespace Lua {
     using LuaNumber = f64;
     using LuaBoolean = bool;
 
-    // Error handling
+    // Forward declarations for error handling
+    class State;
+    struct CallInfo;
+
+    // Error handling with enhanced debugging information
     class LuaException : public std::runtime_error {
+    private:
+        std::string message_;
+        std::string filename_;
+        i32 line_;
+        i32 column_;
+        std::string functionName_;
+        std::vector<std::string> callStack_;
+        std::string contextInfo_;
+
     public:
-        explicit LuaException(const std::string& message) : std::runtime_error(message) {}
-        explicit LuaException(const char* message) : std::runtime_error(message) {}
+        // Basic constructors (backward compatibility)
+        explicit LuaException(const std::string& message)
+            : std::runtime_error(message), message_(message), line_(-1), column_(-1) {}
+        explicit LuaException(const char* message)
+            : std::runtime_error(message), message_(message), line_(-1), column_(-1) {}
+
+        // Enhanced constructor with location information
+        LuaException(const std::string& message, const std::string& filename, i32 line, i32 column = -1)
+            : std::runtime_error(message), message_(message), filename_(filename), line_(line), column_(column) {}
+
+        // Enhanced constructor with full context
+        LuaException(const std::string& message, const std::string& filename, i32 line,
+                    const std::string& functionName, const std::vector<std::string>& callStack)
+            : std::runtime_error(message), message_(message), filename_(filename), line_(line),
+              column_(-1), functionName_(functionName), callStack_(callStack) {}
+
+        // Accessors
+        const std::string& getMessage() const { return message_; }
+        const std::string& getFilename() const { return filename_; }
+        i32 getLine() const { return line_; }
+        i32 getColumn() const { return column_; }
+        const std::string& getFunctionName() const { return functionName_; }
+        const std::vector<std::string>& getCallStack() const { return callStack_; }
+        const std::string& getContextInfo() const { return contextInfo_; }
+
+        // Setters for building error information
+        void setFilename(const std::string& filename) { filename_ = filename; }
+        void setLine(i32 line) { line_ = line; }
+        void setColumn(i32 column) { column_ = column; }
+        void setFunctionName(const std::string& functionName) { functionName_ = functionName; }
+        void setCallStack(const std::vector<std::string>& callStack) { callStack_ = callStack; }
+        void setContextInfo(const std::string& contextInfo) { contextInfo_ = contextInfo; }
+
+        // Generate formatted error message
+        std::string getFormattedMessage() const;
+
+        // Generate call stack trace
+        std::string getStackTrace() const;
+
+        // Override what() to provide enhanced information
+        const char* what() const noexcept override;
+
+    private:
+        mutable std::string formattedMessage_; // Cache for formatted message
     };
 }

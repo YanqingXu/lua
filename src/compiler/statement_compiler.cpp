@@ -178,25 +178,44 @@ namespace Lua {
         const Str& name = stmt->getName();
         const Expr* initializer = stmt->getInitializer();
 
-        // Declare local variable using unified scope management
-        int varSlot = compiler->defineLocal(name);
+        // Special handling for local function definitions to enable recursion
+        if (initializer && initializer->getType() == ExprType::Function) {
+            // For local function definitions, we need to handle recursion properly
+            // This is equivalent to: local name; name = function() ... end
 
-        if (initializer != nullptr) {
-            // Compile initializer expression
+            // Step 1: Declare local variable first
+            int varSlot = compiler->defineLocal(name);
 
-            // TODO: 优化 - 直接将初始化表达式编译到局部变量槽位
-            // 当前实现：先编译到临时寄存器，再移动（保持兼容性）
+            // Step 2: Initialize with nil temporarily (for forward reference)
+            compiler->emitInstruction(Instruction::createLOADNIL(varSlot));
+
+            // Step 3: Compile function expression (now the function name is visible)
             int initReg = compiler->getExpressionCompiler()->compileExpr(initializer);
 
+            // Step 4: Assign the compiled function to the variable
             if (initReg != varSlot) {
-                // 只有当初始化寄存器与变量槽位不同时才需要移动
                 compiler->emitInstruction(Instruction::createMOVE(varSlot, initReg));
-                // Free initializer register
                 compiler->freeReg();
             }
         } else {
-            // Initialize with nil
-            compiler->emitInstruction(Instruction::createLOADNIL(varSlot));
+            // Regular local variable declaration
+            // Declare local variable using unified scope management
+            int varSlot = compiler->defineLocal(name);
+
+            if (initializer != nullptr) {
+                // Compile initializer expression
+                int initReg = compiler->getExpressionCompiler()->compileExpr(initializer);
+
+                if (initReg != varSlot) {
+                    // 只有当初始化寄存器与变量槽位不同时才需要移动
+                    compiler->emitInstruction(Instruction::createMOVE(varSlot, initReg));
+                    // Free initializer register
+                    compiler->freeReg();
+                }
+            } else {
+                // Initialize with nil
+                compiler->emitInstruction(Instruction::createLOADNIL(varSlot));
+            }
         }
     }
 
@@ -369,9 +388,9 @@ namespace Lua {
         // Compile condition expression
         int conditionReg = compiler->getExpressionCompiler()->compileExpr(stmt->getCondition());
 
-        // Test condition: if true, skip the jump (continue to then branch)
-        // if false, execute the jump (go to else/end)
-        compiler->emitInstruction(Instruction::createTEST(conditionReg, 1));
+        // Test condition: if false, skip the jump (execute then branch)
+        // if true, execute the jump (go to else/end)
+        compiler->emitInstruction(Instruction::createTEST(conditionReg, 0));
         compiler->freeReg(); // Free condition register
 
         // Create jump placeholder for false condition (jump to else/end)
@@ -406,8 +425,8 @@ namespace Lua {
         // Compile condition (same pattern as for loop)
         int conditionReg = compiler->getExpressionCompiler()->compileExpr(stmt->getCondition());
 
-        // Test condition: if true, skip the jump to end (continue with loop body)
-        compiler->emitInstruction(Instruction::createTEST(conditionReg, 1));
+        // Test condition: if false, skip the jump to end (continue with loop body)
+        compiler->emitInstruction(Instruction::createTEST(conditionReg, 0));
         int exitJump = compiler->emitJump();
         compiler->freeReg(); // Free condition register
 
@@ -434,8 +453,6 @@ namespace Lua {
         // Initialize loop variable
         const Str& varName = stmt->getVariable();
         int varSlot = compiler->defineLocal(varName);
-
-
 
         // Compile initial value
         int initReg = compiler->getExpressionCompiler()->compileExpr(stmt->getStart());
@@ -482,7 +499,7 @@ namespace Lua {
         }
 
         // Jump to end if condition is false
-        compiler->emitInstruction(Instruction::createTEST(condReg, 1));
+        compiler->emitInstruction(Instruction::createTEST(condReg, 0));
         int exitJump = compiler->emitJump();
 
         compiler->freeReg(); // condReg
@@ -506,8 +523,6 @@ namespace Lua {
 
         // Handle break statements - patch them to jump to loop end
         handleBreakStatements(static_cast<int>(compiler->getCodeSize()));
-
-        // limit and step are now local variables, no need to free them manually
 
         compiler->endScope();
     }

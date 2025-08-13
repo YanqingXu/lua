@@ -37,9 +37,9 @@ void BaseLib::registerFunctions(State* state) {
     LibRegistry::registerGlobalFunction(state, "ipairs", ipairsMulti);
     LibRegistry::registerGlobalFunction(state, "next", nextMulti);
 
-    // Register metatable operation functions (legacy)
-    LibRegistry::registerGlobalFunctionLegacy(state, "getmetatable", getmetatable);
-    LibRegistry::registerGlobalFunctionLegacy(state, "setmetatable", setmetatable);
+    // Register metatable operation functions (multi-return)
+    LibRegistry::registerGlobalFunction(state, "getmetatable", getmetatableMulti);
+    LibRegistry::registerGlobalFunction(state, "setmetatable", setmetatableMulti);
     LibRegistry::registerGlobalFunctionLegacy(state, "rawget", rawget);
     LibRegistry::registerGlobalFunctionLegacy(state, "rawset", rawset);
     LibRegistry::registerGlobalFunctionLegacy(state, "rawlen", rawlen);
@@ -759,6 +759,133 @@ Value BaseLib::setmetatable(State* state, i32 nargs) {
 
     // Return the table (first argument) - Lua 5.1 standard behavior
     return table;
+}
+
+// ===================================================================
+// Multi-return versions of metatable functions
+// ===================================================================
+
+i32 BaseLib::getmetatableMulti(State* state) {
+    if (!state) {
+        state->push(Value("getmetatable: state is null"));
+        return 1;
+    }
+
+    if (state->getTop() < 1) {
+        state->push(Value("getmetatable requires at least 1 argument"));
+        return 1;
+    }
+
+    // Get the object from stack - arguments start from stack bottom
+    // In multi-return functions, arguments are already on stack starting from index 0
+    Value obj = state->get(state->getTop() - 1); // Get the last (first argument)
+
+    // Only tables and userdata can have metatables in our implementation
+    try {
+        if (obj.isTable()) {
+            auto table = obj.asTable();
+            if (table) {
+                GCRef<Table> metatable = table->getMetatable();
+                if (metatable) {
+                    // Return the metatable
+                    state->clearStack();
+                    state->push(Value(metatable));
+                    return 1;
+                }
+            }
+        } else if (obj.isUserdata()) {
+            auto userdata = obj.asUserdata();
+            if (userdata) {
+                auto metatable = userdata->getMetatable();
+                if (metatable) {
+                    state->clearStack();
+                    state->push(Value(metatable));
+                    return 1;
+                }
+            }
+        }
+    } catch (const std::exception& e) {
+        state->clearStack();
+        state->push(Value("getmetatable error: " + std::string(e.what())));
+        return 1;
+    }
+
+    // Return nil if no metatable
+    state->clearStack();
+    state->push(Value());
+    return 1;
+}
+
+i32 BaseLib::setmetatableMulti(State* state) {
+    if (!state) {
+        return 0;
+    }
+
+    if (state->getTop() < 2) {
+        state->clearStack();
+        state->push(Value("setmetatable requires exactly 2 arguments"));
+        return 1;
+    }
+
+    // Get arguments from stack - arguments are at the top of stack
+    Value table = state->get(state->getTop() - 2);    // First argument
+    Value metatable = state->get(state->getTop() - 1); // Second argument
+
+    // Type checking
+    if (!table.isTable()) {
+        state->clearStack();
+        state->push(Value("setmetatable: first argument must be a table, got " +
+                         std::string(table.getTypeName())));
+        return 1;
+    }
+
+    if (!metatable.isTable() && !metatable.isNil()) {
+        state->clearStack();
+        state->push(Value("setmetatable: second argument must be a table or nil, got " +
+                         std::string(metatable.getTypeName())));
+        return 1;
+    }
+
+    try {
+        auto tablePtr = table.asTable();
+        if (!tablePtr) {
+            state->clearStack();
+            state->push(Value("setmetatable: failed to get table pointer"));
+            return 1;
+        }
+
+        if (metatable.isNil()) {
+            // Remove metatable
+            tablePtr->setMetatable(GCRef<Table>(nullptr));
+        } else {
+            // Set metatable
+            auto metatablePtr = metatable.asTable();
+            if (!metatablePtr) {
+                state->clearStack();
+                state->push(Value("setmetatable: failed to get metatable pointer"));
+                return 1;
+            }
+
+            // Prevent circular reference
+            if (tablePtr == metatablePtr) {
+                state->clearStack();
+                state->push(Value("setmetatable: cannot set table as its own metatable"));
+                return 1;
+            }
+
+            tablePtr->setMetatable(metatablePtr);
+        }
+
+        // Return the table (first argument) - Lua 5.1 standard behavior
+        state->clearStack();
+        state->push(table);
+        return 1;
+
+    } catch (const std::exception& e) {
+        state->clearStack();
+        state->push(Value("setmetatable error: " + std::string(e.what())));
+        return 1;
+    }
 }
 
 Value BaseLib::rawget(State* state, i32 nargs) {

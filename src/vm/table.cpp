@@ -4,6 +4,8 @@
 #include "../gc/core/gc_ref.hpp"
 #include "../gc/core/garbage_collector.hpp"
 #include "table_impl.hpp"
+#include "metamethod_manager.hpp"
+#include "state.hpp"
 #include <functional>   // For std::function
 
 namespace Lua {
@@ -46,6 +48,40 @@ namespace Lua {
 
         // Return nil if not found
         return Value(nullptr);
+    }
+
+    Value Table::getWithMetamethod(const Value& key, State* state) {
+        // First try direct lookup
+        Value result = get(key);
+        if (!result.isNil()) {
+            return result;
+        }
+
+        // If not found and we have a metatable, try __index metamethod
+        if (metatable && state) {
+            Value indexMethod = MetaMethodManager::getMetaMethod(metatable, MetaMethod::Index);
+            if (!indexMethod.isNil()) {
+                if (indexMethod.isFunction()) {
+                    // Call __index function with (table, key)
+                    Vec<Value> args = {Value(GCRef<Table>(this)), key};
+                    try {
+                        return state->call(indexMethod, args);
+                    } catch (const std::exception& e) {
+                        // If metamethod call fails, return nil
+                        return Value();
+                    }
+                } else if (indexMethod.isTable()) {
+                    // Recursively look up in __index table
+                    auto indexTable = indexMethod.asTable();
+                    if (indexTable) {
+                        return indexTable->getWithMetamethod(key, state);
+                    }
+                }
+            }
+        }
+
+        // Return nil if no metamethod or metamethod didn't provide a value
+        return Value();
     }
 
     Value Table::get(const Value& key) const {

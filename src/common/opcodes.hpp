@@ -42,6 +42,8 @@ namespace Lua {
         // Jump / branching
         JMP,
         TEST,
+        FORLOOP,        // For loop iteration and condition check
+        FORPREP,        // For loop preparation
 
         // Function call / return
         CALL,

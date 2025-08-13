@@ -40,6 +40,9 @@ namespace Lua {
         Value get(const Value& key);
         Value get(const Value& key) const;
 
+        // Metamethod-aware operations
+        Value getWithMetamethod(const Value& key, class State* state = nullptr);
+
         // Set value in table
         void set(const Value& key, const Value& value);
         

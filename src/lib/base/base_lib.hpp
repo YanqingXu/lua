@@ -111,6 +111,10 @@ public:
     // Metatable operation functions (simplified implementations)
     static Value getmetatable(State* state, i32 nargs);
     static Value setmetatable(State* state, i32 nargs);
+
+    // Multi-return versions
+    static i32 getmetatableMulti(State* state);
+    static i32 setmetatableMulti(State* state);
     static Value rawget(State* state, i32 nargs);
     static Value rawset(State* state, i32 nargs);
     static Value rawlen(State* state, i32 nargs);

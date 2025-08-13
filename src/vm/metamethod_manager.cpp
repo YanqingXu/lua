@@ -4,6 +4,7 @@
 #include "userdata.hpp"
 #include "common/types.hpp"
 #include <stdexcept>
+#include <iostream>
 
 namespace Lua {
     
@@ -42,12 +43,12 @@ namespace Lua {
         if (!isValidMetaMethod(method)) {
             return Value(); // Return nil for invalid metamethod
         }
-        
+
         GCRef<Table> metatable = getMetatable(obj);
         if (!metatable) {
             return Value(); // No metatable, return nil
         }
-        
+
         return getMetaMethod(metatable, method);
     }
     
@@ -55,11 +56,11 @@ namespace Lua {
         if (!metatable || !isValidMetaMethod(method)) {
             return Value(); // Return nil for invalid input
         }
-        
+
         // Look up the metamethod in the metatable
         const Str& methodName = getMetaMethodName(method);
         Value methodValue = metatable->get(Value(methodName));
-        
+
         return methodValue;
     }
     

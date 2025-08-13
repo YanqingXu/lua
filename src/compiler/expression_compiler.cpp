@@ -1083,6 +1083,14 @@ namespace Lua {
         // Compile function body
         functionCompiler.compileStmt(expr->getBody());
 
+        // Lua 5.1 compliance: Ensure function ends with RETURN instruction
+        // If the last instruction is not already a RETURN, add implicit "return nil"
+        auto code = functionCompiler.getCode();
+        if (code->empty() || code->back().getOpCode() != OpCode::RETURN) {
+            // Add implicit return nil (RETURN 0 1 means return nil)
+            functionCompiler.emitInstruction(Instruction::createRETURN(0, 1));
+        }
+
         // End function scope
         functionCompiler.endScope();
 

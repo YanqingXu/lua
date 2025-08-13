@@ -44,13 +44,13 @@ int main(int argc, char** argv) {
             GlobalState* globalState = nullptr;
 
             if (filename.find("globalstate") != std::string::npos) {
-                // Use GlobalState with State (Phase 1 refactoring)
-                std::cerr << "[Phase1] Using GlobalState architecture" << std::endl;
+                // Use explicit GlobalState with State (Phase 1 refactoring)
+                std::cerr << "[Phase1] Using explicit GlobalState architecture" << std::endl;
                 globalState = new GlobalState();
                 state = new State(globalState);
             } else {
-                // Use traditional State (backward compatibility)
-                std::cerr << "[Phase1] Using traditional State architecture" << std::endl;
+                // Use State with internal Lua 5.1 architecture (Phase 1 migration)
+                std::cerr << "[Phase1] Using State with internal Lua 5.1 architecture" << std::endl;
                 state = new State();
             }
 
@@ -67,9 +67,13 @@ int main(int argc, char** argv) {
 
             // Show architecture information
             if (state->isUsingGlobalState()) {
-                std::cerr << "[Phase1] Architecture: State with GlobalState integration" << std::endl;
+                if (state->getLuaState()) {
+                    std::cerr << "[Phase1] Architecture: State with Lua 5.1 (LuaState + GlobalState)" << std::endl;
+                } else {
+                    std::cerr << "[Phase1] Architecture: State with GlobalState integration" << std::endl;
+                }
             } else {
-                std::cerr << "[Phase1] Architecture: Traditional State" << std::endl;
+                std::cerr << "[Phase1] Architecture: Traditional State (legacy fallback)" << std::endl;
             }
 
             // Cleanup

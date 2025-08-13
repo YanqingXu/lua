@@ -5,6 +5,7 @@
 #include "call_result.hpp"
 #include "common/types.hpp"
 #include <sstream>
+#include <iostream>
 
 namespace Lua {
     
@@ -14,13 +15,13 @@ namespace Lua {
         if (!state) {
             throw std::invalid_argument("State cannot be null");
         }
-        
+
         // First, try raw table access
         Value rawValue = rawIndex(table, key);
         if (!rawValue.isNil()) {
             return rawValue; // Found value directly in table
         }
-        
+
         // Value not found, try __index metamethod
         Value indexHandler = MetaMethodManager::getMetaMethod(table, MetaMethod::Index);
         if (indexHandler.isNil()) {
@@ -463,31 +464,13 @@ namespace Lua {
 
         // === Lua Function Handling ===
         if (function->getType() == Function::Type::Lua) {
-            // Save current stack state for proper cleanup
-            int oldTop = state->getTop();
-
             try {
-                // Push arguments onto stack in correct order
-                for (size_t i = 0; i < args.size(); ++i) {
-                    state->push(args[i]);
-                }
-
-                // Call Lua function with arguments on stack
-                // This uses the VM to execute the Lua bytecode
-                Value result = state->callLua(func, static_cast<int>(args.size()));
-
-                // Restore stack state (important for nested calls)
-                state->setTop(oldTop);
-
-                return result;
+                // Use state->call which handles arguments properly
+                return state->call(func, args);
 
             } catch (const LuaException& e) {
-                // Restore stack state before re-throwing
-                state->setTop(oldTop);
                 throw LuaException("Error in Lua function call: " + std::string(e.what()));
             } catch (const std::exception& e) {
-                // Restore stack state before re-throwing
-                state->setTop(oldTop);
                 throw LuaException("Unexpected error in Lua function call: " + std::string(e.what()));
             }
         }
