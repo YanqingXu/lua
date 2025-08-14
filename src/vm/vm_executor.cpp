@@ -572,8 +572,33 @@ namespace Lua {
     }
 
     void VMExecutor::handleSetTable(LuaState* L, Instruction instr, Value* base, const Vec<Value>& constants) {
-        // Do nothing for now
-        (void)L; (void)instr; (void)base; (void)constants;
+        u8 a = instr.getA();
+        u8 b = instr.getB();
+        u8 c = instr.getC();
+
+        // Get table from register A
+        Value table = base[a];
+        if (!table.isTable()) {
+            // Error: attempt to index a non-table value
+            throw LuaException("attempt to index a non-table value");
+        }
+
+        // Get key (B can be register or constant)
+        Value* key = getRK(base, constants, b);
+        if (!key) {
+            throw LuaException("invalid key in SETTABLE");
+        }
+
+        // Get value (C can be register or constant)
+        Value* value = getRK(base, constants, c);
+        if (!value) {
+            throw LuaException("invalid value in SETTABLE");
+        }
+
+        // Set the value in the table
+        table.asTable()->set(*key, *value);
+
+        (void)L; // Suppress unused parameter warning
     }
 
     void VMExecutor::handleNewTable(LuaState* L, Instruction instr, Value* base) {
@@ -582,8 +607,9 @@ namespace Lua {
         // 创建新表前检查GC - 表创建是重要的内存分配点
         luaC_checkGC(L);
 
-        // TODO: 实际创建表对象
-        base[a] = Value(); // Return nil for now (should create table)
+        // 创建新的表对象
+        GCRef<Table> newTable = make_gc_table();
+        base[a] = Value(newTable);
     }
 
     void VMExecutor::handleSub(LuaState* L, Instruction instr, Value* base, const Vec<Value>& constants) {

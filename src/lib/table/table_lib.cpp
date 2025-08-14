@@ -47,21 +47,11 @@ Value TableLib::insert(LuaState* state, i32 nargs) {
         return Value(); // nil - insufficient arguments
     }
 
-    // Get arguments using correct stack indexing
+    // Legacy function: arguments are directly on stack without module parameter
     int stackBase = state->getTop() - nargs;
 
-    // For table library functions called as table.insert(arr, value):
-    // - First argument is the table module itself (skip it)
-    // - Second argument is the table to operate on
-    // - Third argument is the value or position
-
-    if (nargs < 2) {
-        std::cout << "[DEBUG] table.insert: insufficient arguments" << std::endl;
-        return Value();
-    }
-
-    // Skip the first argument (table module) and get the actual table
-    Value tableVal = state->get(stackBase + 1);
+    // Get the table (first argument)
+    Value tableVal = state->get(stackBase);
 
     if (!tableVal.isTable()) {
         return Value(); // nil - invalid table
@@ -69,15 +59,15 @@ Value TableLib::insert(LuaState* state, i32 nargs) {
 
     auto table = tableVal.asTable();
 
-    if (nargs == 3) {
-        // table.insert(table_module, table, value) - insert at end
-        Value value = state->get(stackBase + 2);
+    if (nargs == 2) {
+        // table.insert(table, value) - insert at end
+        Value value = state->get(stackBase + 1);
         i32 length = getTableLength(table);
         table->set(Value(static_cast<f64>(length + 1)), value);
-    } else if (nargs == 4) {
-        // table.insert(table_module, table, pos, value) - insert at position
-        Value posVal = state->get(stackBase + 2);
-        Value value = state->get(stackBase + 3);
+    } else if (nargs == 3) {
+        // table.insert(table, pos, value) - insert at position
+        Value posVal = state->get(stackBase + 1);
+        Value value = state->get(stackBase + 2);
 
         if (!posVal.isNumber()) {
             return Value(); // nil - invalid position
@@ -201,10 +191,16 @@ Value TableLib::concat(LuaState* state, i32 nargs) {
         return Value(); // nil - insufficient arguments
     }
 
-    GCRef<Table> table = validateTableArg(state, 1);
-    if (!table) {
+    // Legacy function: arguments are directly on stack without module parameter
+    int stackBase = state->getTop() - nargs;
+
+    // Get the table (first argument)
+    Value tableVal = state->get(stackBase);
+    if (!tableVal.isTable()) {
         return Value(); // nil - invalid table
     }
+
+    auto table = tableVal.asTable();
 
     Str separator = "";
     i32 start = 1;
@@ -212,21 +208,21 @@ Value TableLib::concat(LuaState* state, i32 nargs) {
 
     // Parse optional arguments
     if (nargs >= 2) {
-        Value sepVal = state->get(2);
+        Value sepVal = state->get(stackBase + 1);
         if (sepVal.isString()) {
             separator = sepVal.toString();
         }
     }
 
     if (nargs >= 3) {
-        Value startVal = state->get(3);
+        Value startVal = state->get(stackBase + 2);
         if (startVal.isNumber()) {
             start = static_cast<i32>(startVal.asNumber());
         }
     }
 
     if (nargs >= 4) {
-        Value endVal = state->get(4);
+        Value endVal = state->get(stackBase + 3);
         if (endVal.isNumber()) {
             end = static_cast<i32>(endVal.asNumber());
         }
