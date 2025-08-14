@@ -3,6 +3,7 @@
 #include "../gc/core/garbage_collector.hpp"
 #include "../gc/core/gc_ref.hpp"
 #include "../gc/memory/allocator.hpp"
+#include "../api/lua51_gc_api.hpp"
 
 namespace Lua {
     Function::Function(Type type) : GCObject(GCObjectType::Function, sizeof(Function)), type(type) {

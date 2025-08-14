@@ -1,5 +1,6 @@
 #include "string_pool.hpp"
 #include "garbage_collector.hpp"
+#include "../../api/lua51_gc_api.hpp"
 #include <algorithm>
 #include <iostream>
 

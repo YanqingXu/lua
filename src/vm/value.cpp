@@ -1,8 +1,11 @@
-#include "value.hpp"
+﻿#include "value.hpp"
 #include "../gc/core/garbage_collector.hpp"
+#include "../gc/core/gc_string.hpp"
+#include "../api/lua51_gc_api.hpp"
 #include "table.hpp"
 #include "function.hpp"
 #include "userdata.hpp"
+#include "lua_state.hpp"
 #include <sstream>
 
 namespace Lua {
@@ -74,21 +77,7 @@ namespace Lua {
         return GCRef<Userdata>(nullptr);
     }
     
-    GCObject* Value::asGCObject() const {
-        if (isString()) {
-            return std::get<GCRef<GCString>>(data).get();
-        }
-        if (isTable()) {
-            return asTable().get();
-        }
-        if (isFunction()) {
-            return asFunction().get();
-        }
-        if (isUserdata()) {
-            return asUserdata().get();
-        }
-        return nullptr;
-    }
+
     
     Str Value::toString() const {
         switch (type()) {
@@ -219,4 +208,63 @@ namespace Lua {
         // All other values (numbers, strings, tables, functions, userdata) are truthy
         return true;
     }
+
+    // === Write Barrier Support Implementation ===
+
+    GCObject* Value::asGCObject() const {
+        if (!isGCObject()) {
+            return nullptr;
+        }
+
+        switch (type()) {
+            case ValueType::String:
+                return static_cast<GCObject*>(std::get<GCRef<GCString>>(data).get());
+            case ValueType::Table:
+                return static_cast<GCObject*>(asTable().get());
+            case ValueType::Function:
+                return static_cast<GCObject*>(asFunction().get());
+            case ValueType::Userdata:
+                return static_cast<GCObject*>(asUserdata().get());
+            default:
+                return nullptr;
+        }
+    }
+
+    void Value::assignWithBarrier(const Value& other, LuaState* L) {
+        // 如果当前值和新值都是GC对象，需要检查写屏障
+        if (L && isGCObject() && other.isGCObject()) {
+            GCObject* currentObj = asGCObject();
+            GCObject* newObj = other.asGCObject();
+
+            // 应用写屏障 - 检查当前对象是否为黑色，新对象是否为白色
+            if (currentObj && newObj) {
+                luaC_barrier(L, currentObj, newObj);
+            }
+        }
+
+        // 执行实际赋值
+        *this = other;
+    }
+
+    template<typename T>
+    void Value::setGCObjectWithBarrier(GCRef<T> gcObj, LuaState* L) {
+        // 如果当前值是GC对象且新对象也是GC对象，检查写屏障
+        if (L && isGCObject() && gcObj) {
+            GCObject* currentObj = asGCObject();
+            GCObject* newObj = gcObj.get();
+
+            if (currentObj && newObj) {
+                luaC_barrier(L, currentObj, newObj);
+            }
+        }
+
+        // 执行实际赋值
+        data = gcObj;
+    }
+
+    // 显式实例化模板方法
+    template void Value::setGCObjectWithBarrier<GCString>(GCRef<GCString>, LuaState*);
+    template void Value::setGCObjectWithBarrier<Table>(GCRef<Table>, LuaState*);
+    template void Value::setGCObjectWithBarrier<Function>(GCRef<Function>, LuaState*);
+    template void Value::setGCObjectWithBarrier<Userdata>(GCRef<Userdata>, LuaState*);
 }

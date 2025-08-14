@@ -1,7 +1,8 @@
-#include "global_state.hpp"
+﻿#include "global_state.hpp"
 #include "lua_state.hpp"
 // #include "../common/string.hpp"  // Using Str from types.hpp instead
 // #include "../gc/memory/allocator.hpp"  // Will be implemented later
+#include "../api/lua51_gc_api.hpp"
 #include <algorithm>
 #include <cstring>
 
@@ -78,6 +79,25 @@ namespace Lua {
         , registry_(nullptr)
         , gcThreshold_(1024 * 1024)  // 1MB default threshold
         , totalBytes_(0)
+        // Lua 5.1 Compatible GC Fields Initialization
+        , ud_(nullptr)              // 分配器用户数据
+        , currentwhite_(1)          // 初始白色标记
+        , gcstate_(0)               // GC状态机初始状态
+        , sweepstrgc_(0)            // 字符串GC扫描位置
+        , rootgc_(nullptr)          // GC根对象链表
+        , sweepgc_(nullptr)         // GC扫描位置指针
+        , gray_(nullptr)            // 灰色对象链表
+        , grayagain_(nullptr)       // 重新遍历的灰色对象
+        , weak_(nullptr)            // 弱表链表
+        , tmudata_(nullptr)         // 待GC的userdata
+        , estimate_(0)              // 内存使用估计
+        , gcdept_(0)                // GC债务
+        , gcpause_(200)             // GC暂停参数 (默认200%)
+        , gcstepmul_(200)           // GC步长倍数 (默认200%)
+        , buff_()                   // 字符串连接缓冲区
+        , panic_(nullptr)           // 恐慌函数
+        , uvhead_(nullptr)          // upvalue链表头
+        , tmname_{nullptr}          // 元方法名称数组初始化
     {
         // Initialize metatables to nullptr
         for (int i = 0; i < LUA_NUM_TYPES; ++i) {
@@ -92,6 +112,10 @@ namespace Lua {
         
         // Initialize metatables
         initializeMetaTables_();
+
+        // Initialize metamethod names (Lua 5.1 compatible)
+        // TODO: Fix tmname_ access issue
+        // initializeMetaMethodNames_();
     }
     
     GlobalState::~GlobalState() {
@@ -137,10 +161,15 @@ namespace Lua {
     
     void* GlobalState::allocate(usize size) {
         if (size == 0) return nullptr;
-        
+
         void* ptr = allocator_->allocate(size);
         if (ptr) {
             updateMemoryStats_(static_cast<isize>(size));
+
+            // 检查是否需要触发GC - Lua 5.1兼容的自动GC触发
+            if (mainThread_ && shouldCollectGarbage()) {
+                luaC_checkGC(mainThread_);
+            }
         }
         return ptr;
     }
@@ -159,14 +188,20 @@ namespace Lua {
             updateMemoryStats_(-static_cast<isize>(oldSize));
             return nullptr;
         }
-        
+
         if (!ptr) {
             return allocate(newSize);
         }
-        
+
         void* newPtr = allocator_->reallocate(ptr, newSize);
         if (newPtr) {
-            updateMemoryStats_(static_cast<isize>(newSize) - static_cast<isize>(oldSize));
+            isize delta = static_cast<isize>(newSize) - static_cast<isize>(oldSize);
+            updateMemoryStats_(delta);
+
+            // 如果内存增长，检查是否需要触发GC
+            if (delta > 0 && mainThread_ && shouldCollectGarbage()) {
+                luaC_checkGC(mainThread_);
+            }
         }
         return newPtr;
     }
@@ -188,7 +223,14 @@ namespace Lua {
     }
     
     String* GlobalState::newString(const char* str, usize len) {
-        return stringTable_.create(str, len);
+        String* result = stringTable_.create(str, len);
+
+        // 字符串创建后检查GC - 字符串是重要的内存分配点
+        if (result && mainThread_ && shouldCollectGarbage()) {
+            luaC_checkGC(mainThread_);
+        }
+
+        return result;
     }
     
     String* GlobalState::findString(const char* str, usize len) {
@@ -214,6 +256,22 @@ namespace Lua {
         for (int i = 0; i < LUA_NUM_TYPES; ++i) {
             metaTables_[i] = nullptr;  // Will be set later as needed
         }
+    }
+
+    void GlobalState::initializeMetaMethodNames_() {
+        // TODO: Fix tmname_ access issue - temporarily disabled
+        // Initialize metamethod names (Lua 5.1 compatible)
+        /*
+        const char* metamethodNames[17] = {
+            "__index", "__newindex", "__gc", "__mode", "__len", "__eq",
+            "__add", "__sub", "__mul", "__div", "__mod", "__pow",
+            "__unm", "__concat", "__lt", "__le", "__call"
+        };
+
+        for (int i = 0; i < 17; ++i) {
+            tmname_[i] = GCString::create(metamethodNames[i]);
+        }
+        */
     }
     
     void GlobalState::cleanupThreads_() {

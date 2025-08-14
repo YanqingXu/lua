@@ -1,6 +1,7 @@
-﻿#include "math_lib.hpp"
+#include "math_lib.hpp"
 #include "../core/multi_return_helper.hpp"
 #include "../../vm/table.hpp"
+#include "../../gc/core/gc_string.hpp"
 #include "../../common/defines.hpp"
 #include <cmath>
 #include <algorithm>
@@ -18,7 +19,7 @@ namespace Lua {
 // MathLib Implementation
 // ===================================================================
 
-void MathLib::registerFunctions(State* state) {
+void MathLib::registerFunctions(LuaState* state) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }
@@ -57,17 +58,20 @@ void MathLib::registerFunctions(State* state) {
     LibRegistry::registerTableFunctionLegacy(state, mathTable, "rad", rad);
 }
 
-void MathLib::initialize(State* state) {
+void MathLib::initialize(LuaState* state) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }
 
     // Set mathematical constants
-    Value mathTable = state->getGlobal("math");
+    auto mathStr = GCString::create("math");
+    Value mathTable = state->getGlobal(mathStr);
     if (mathTable.isTable()) {
         auto table = mathTable.asTable();
-        table->set(Value("pi"), Value(M_PI));
-        table->set(Value("huge"), Value(HUGE_VAL));
+        auto piStr = GCString::create("pi");
+        auto hugeStr = GCString::create("huge");
+        table->set(Value(piStr), Value(M_PI));
+        table->set(Value(hugeStr), Value(HUGE_VAL));
     }
 
     // Math library initialized
@@ -77,7 +81,7 @@ void MathLib::initialize(State* state) {
 // Basic Math Function Implementations
 // ===================================================================
 
-Value MathLib::abs(State* state, i32 nargs) {
+Value MathLib::abs(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State pointer cannot be null");
     }
@@ -93,7 +97,7 @@ Value MathLib::abs(State* state, i32 nargs) {
     return Value(std::abs(num));
 }
 
-Value MathLib::floor(State* state, i32 nargs) {
+Value MathLib::floor(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State pointer cannot be null");
     }
@@ -109,7 +113,7 @@ Value MathLib::floor(State* state, i32 nargs) {
     return Value(std::floor(num));
 }
 
-Value MathLib::ceil(State* state, i32 nargs) {
+Value MathLib::ceil(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State pointer cannot be null");
     }
@@ -125,7 +129,7 @@ Value MathLib::ceil(State* state, i32 nargs) {
     return Value(std::ceil(num));
 }
 
-Value MathLib::sqrt(State* state, i32 nargs) {
+Value MathLib::sqrt(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State pointer cannot be null");
     }
@@ -140,7 +144,7 @@ Value MathLib::sqrt(State* state, i32 nargs) {
     return Value(std::sqrt(num));
 }
 
-Value MathLib::pow(State* state, i32 nargs) {
+Value MathLib::pow(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State pointer cannot be null");
     }
@@ -161,7 +165,7 @@ Value MathLib::pow(State* state, i32 nargs) {
 // Trigonometric Function Implementations
 // ===================================================================
 
-Value MathLib::sin(State* state, i32 nargs) {
+Value MathLib::sin(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State pointer cannot be null");
     }
@@ -174,7 +178,7 @@ Value MathLib::sin(State* state, i32 nargs) {
     return Value(std::sin(num));
 }
 
-Value MathLib::cos(State* state, i32 nargs) {
+Value MathLib::cos(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State pointer cannot be null");
     }
@@ -187,7 +191,7 @@ Value MathLib::cos(State* state, i32 nargs) {
     return Value(std::cos(num));
 }
 
-Value MathLib::tan(State* state, i32 nargs) {
+Value MathLib::tan(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State pointer cannot be null");
     }
@@ -200,7 +204,7 @@ Value MathLib::tan(State* state, i32 nargs) {
     return Value(std::tan(num));
 }
 
-Value MathLib::asin(State* state, i32 nargs) {
+Value MathLib::asin(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State pointer cannot be null");
     }
@@ -214,7 +218,7 @@ Value MathLib::asin(State* state, i32 nargs) {
     return Value(std::asin(num));
 }
 
-Value MathLib::acos(State* state, i32 nargs) {
+Value MathLib::acos(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State pointer cannot be null");
     }
@@ -228,7 +232,7 @@ Value MathLib::acos(State* state, i32 nargs) {
     return Value(std::acos(num));
 }
 
-Value MathLib::atan(State* state, i32 nargs) {
+Value MathLib::atan(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State pointer cannot be null");
     }
@@ -241,7 +245,7 @@ Value MathLib::atan(State* state, i32 nargs) {
     return Value(std::atan(num));
 }
 
-Value MathLib::atan2(State* state, i32 nargs) {
+Value MathLib::atan2(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State pointer cannot be null");
     }
@@ -262,7 +266,7 @@ Value MathLib::atan2(State* state, i32 nargs) {
 // Logarithmic and Exponential Function Implementations
 // ===================================================================
 
-Value MathLib::log(State* state, i32 nargs) {
+Value MathLib::log(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State pointer cannot be null");
     }
@@ -277,7 +281,7 @@ Value MathLib::log(State* state, i32 nargs) {
     return Value(std::log(num));
 }
 
-Value MathLib::log10(State* state, i32 nargs) {
+Value MathLib::log10(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State pointer cannot be null");
     }
@@ -292,7 +296,7 @@ Value MathLib::log10(State* state, i32 nargs) {
     return Value(std::log10(num));
 }
 
-Value MathLib::exp(State* state, i32 nargs) {
+Value MathLib::exp(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State pointer cannot be null");
     }
@@ -309,7 +313,7 @@ Value MathLib::exp(State* state, i32 nargs) {
 // Min/Max Function Implementations
 // ===================================================================
 
-Value MathLib::min(State* state, i32 nargs) {
+Value MathLib::min(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State pointer cannot be null");
     }
@@ -336,7 +340,7 @@ Value MathLib::min(State* state, i32 nargs) {
     return hasValidNumber ? Value(minVal) : Value();
 }
 
-Value MathLib::max(State* state, i32 nargs) {
+Value MathLib::max(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State pointer cannot be null");
     }
@@ -367,7 +371,7 @@ Value MathLib::max(State* state, i32 nargs) {
 // Other Utility Function Implementations
 // ===================================================================
 
-Value MathLib::fmod(State* state, i32 nargs) {
+Value MathLib::fmod(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State pointer cannot be null");
     }
@@ -390,7 +394,7 @@ Value MathLib::fmod(State* state, i32 nargs) {
 // Random Function Implementations
 // ===================================================================
 
-Value MathLib::random(State* state, i32 nargs) {
+Value MathLib::random(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State pointer cannot be null");
     }
@@ -431,7 +435,7 @@ Value MathLib::random(State* state, i32 nargs) {
     return Value();
 }
 
-Value MathLib::randomseed(State* state, i32 nargs) {
+Value MathLib::randomseed(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State pointer cannot be null");
     }
@@ -451,7 +455,7 @@ Value MathLib::randomseed(State* state, i32 nargs) {
 // ===================================================================
 
 // New Lua 5.1 standard modf implementation (multi-return)
-i32 MathLib::modf(State* state) {
+i32 MathLib::modf(LuaState* state) {
     if (!state) {
         throw std::invalid_argument("State pointer cannot be null");
     }
@@ -481,7 +485,7 @@ i32 MathLib::modf(State* state) {
 }
 
 // New Lua 5.1 standard frexp implementation (multi-return)
-i32 MathLib::frexp(State* state) {
+i32 MathLib::frexp(LuaState* state) {
     if (!state) {
         throw std::invalid_argument("State pointer cannot be null");
     }
@@ -510,7 +514,7 @@ i32 MathLib::frexp(State* state) {
     return 2;
 }
 
-Value MathLib::ldexp(State* state, i32 nargs) {
+Value MathLib::ldexp(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State pointer cannot be null");
     }
@@ -527,7 +531,7 @@ Value MathLib::ldexp(State* state, i32 nargs) {
     return Value(std::ldexp(mantissa, exp));
 }
 
-Value MathLib::deg(State* state, i32 nargs) {
+Value MathLib::deg(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State pointer cannot be null");
     }
@@ -540,7 +544,7 @@ Value MathLib::deg(State* state, i32 nargs) {
     return Value(radians * 180.0 / M_PI);
 }
 
-Value MathLib::rad(State* state, i32 nargs) {
+Value MathLib::rad(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State pointer cannot be null");
     }
@@ -557,7 +561,7 @@ Value MathLib::rad(State* state, i32 nargs) {
 // Convenient Initialization Functions
 // ===================================================================
 
-void initializeMathLib(State* state) {
+void initializeMathLib(LuaState* state) {
     MathLib mathLib;
     mathLib.registerFunctions(state);
     mathLib.initialize(state);

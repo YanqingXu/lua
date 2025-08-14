@@ -1,5 +1,6 @@
-#include "call_stack.hpp"
+﻿#include "call_stack.hpp"
 #include "global_state.hpp"
+#include "../api/lua51_gc_api.hpp"
 #include "../common/defines.hpp"
 #include <algorithm>
 #include <iostream>
@@ -218,11 +219,14 @@ namespace Lua {
         if (!L_ || !L_->getGlobalState()) {
             throw LuaException("Invalid LuaState for CallStack allocation");
         }
-        
+
+        // CallInfo数组分配前检查GC
+        luaC_checkGC(L_);
+
         CallInfo* array = static_cast<CallInfo*>(
             L_->getGlobalState()->allocate(size * sizeof(CallInfo))
         );
-        
+
         if (!array) {
             throw LuaException("Cannot allocate CallInfo array");
         }

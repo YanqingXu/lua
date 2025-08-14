@@ -2,12 +2,13 @@
 #include "../../vm/function.hpp"
 #include "../../vm/userdata.hpp"
 #include "../../vm/table.hpp"
+#include "../../gc/core/gc_string.hpp"
 #include <iostream>
 
 namespace Lua {
     namespace StandardLibrary {
 
-        void CoroutineLib::initialize(State* state) {
+        void CoroutineLib::initialize(LuaState* state) {
             if (!state) return;
 
             try {
@@ -22,14 +23,15 @@ namespace Lua {
                 LibRegistry::registerTableFunction(state, Value(coroTable), "running", &CoroutineLib::luaRunning);
 
                 // Set global coroutine table
-                state->setGlobal("coroutine", Value(coroTable));
+                auto coroStr = GCString::create("coroutine");
+                state->setGlobal(coroStr, Value(coroTable));
 
             } catch (const std::exception& e) {
                 std::cerr << "Error initializing coroutine library: " << e.what() << std::endl;
             }
         }
 
-        i32 CoroutineLib::luaCreate(State* state) {
+        i32 CoroutineLib::luaCreate(LuaState* state) {
             // Expect 1 argument: function
             if (!state) return 0;
 
@@ -60,7 +62,7 @@ namespace Lua {
             return 1;
         }
 
-        i32 CoroutineLib::luaResume(State* state) {
+        i32 CoroutineLib::luaResume(LuaState* state) {
             if (!state) return 0;
             if (state->getTop() < 1) {
                 state->push(Value(false));
@@ -100,7 +102,7 @@ namespace Lua {
             }
         }
 
-        i32 CoroutineLib::luaYield(State* state) {
+        i32 CoroutineLib::luaYield(LuaState* state) {
             if (!state) return 0;
 
             // Gather all current stack values as yield values
@@ -122,7 +124,7 @@ namespace Lua {
             return 0;
         }
 
-        i32 CoroutineLib::luaStatus(State* state) {
+        i32 CoroutineLib::luaStatus(LuaState* state) {
             if (!state) return 0;
             if (state->getTop() < 1) {
                 state->push(Value("dead"));
@@ -141,7 +143,7 @@ namespace Lua {
             return 1;
         }
 
-        i32 CoroutineLib::luaRunning(State* state) {
+        i32 CoroutineLib::luaRunning(LuaState* state) {
             // Not fully implemented yet; return nil per infra
             (void)state;
             return 0;

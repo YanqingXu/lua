@@ -1,8 +1,9 @@
-#pragma once
+﻿#pragma once
 
 #include "../common/types.hpp"
 #include "../gc/core/gc_object.hpp"
 #include "../gc/core/garbage_collector.hpp"
+#include "../gc/core/gc_string.hpp"
 #include "../gc/memory/allocator.hpp"
 #include "value.hpp"
 #include "table.hpp"
@@ -17,6 +18,17 @@ namespace Lua {
     class Table;
     class GarbageCollector;
     class MemoryAllocator;
+
+    // Forward declarations for Lua 5.1 compatibility (types defined in lua_state.hpp)
+    struct lua_State;
+    typedef int (*lua_CFunction) (lua_State *L);
+
+    // UpVal structure for upvalue management
+    struct UpVal {
+        struct UpVal* next;
+        struct UpVal* prev;
+        // Additional fields would be added in full implementation
+    };
     
     /**
      * @brief Global state shared by all threads in a Lua universe
@@ -58,6 +70,46 @@ namespace Lua {
         // GC configuration
         usize gcThreshold_;
         usize totalBytes_;
+
+        // Lua 5.1 Compatible GC State Management Fields
+        void* ud_;                      // 分配器用户数据 (对应官方void *ud)
+        u8 currentwhite_;               // 当前白色标记 (对应官方lu_byte currentwhite)
+        u8 gcstate_;                    // GC状态机状态 (对应官方lu_byte gcstate)
+        i32 sweepstrgc_;                // 字符串GC扫描位置 (对应官方int sweepstrgc)
+
+        // GC对象链表管理 (对应官方GC链表系统)
+        GCObject* rootgc_;              // 所有可回收对象的根链表 (对应官方GCObject *rootgc)
+        GCObject** sweepgc_;            // GC扫描位置指针 (对应官方GCObject **sweepgc)
+        GCObject* gray_;                // 灰色对象链表 (对应官方GCObject *gray)
+        GCObject* grayagain_;           // 需要重新遍历的灰色对象 (对应官方GCObject *grayagain)
+        GCObject* weak_;                // 弱表链表 (对应官方GCObject *weak)
+        GCObject* tmudata_;             // 待GC的userdata链表 (对应官方GCObject *tmudata)
+
+        // 内存管理增强 (对应官方内存管理字段)
+        usize estimate_;                // 内存使用估计 (对应官方lu_mem estimate)
+        usize gcdept_;                  // GC债务 (对应官方lu_mem gcdept)
+        i32 gcpause_;                   // GC暂停参数 (对应官方int gcpause)
+        i32 gcstepmul_;                 // GC步长倍数 (对应官方int gcstepmul)
+
+        // 字符串连接缓冲区 (对应官方Mbuffer buff)
+        struct Mbuffer {
+            char* buffer;
+            usize size;
+            usize capacity;
+
+            Mbuffer() : buffer(nullptr), size(0), capacity(0) {}
+            ~Mbuffer() { if (buffer) free(buffer); }
+        } buff_;
+
+        // 恐慌函数 (对应官方lua_CFunction panic)
+        lua_CFunction panic_;           // 未保护错误时调用的函数
+
+        // upvalue管理 (对应官方UpVal uvhead)
+        struct UpVal* uvhead_;          // upvalue双向链表头
+
+        // 元方法名称 (对应官方TString *tmname[TM_N])
+        static const i32 TM_N = 17;    // 元方法数量
+        GCString* tmname_[TM_N];        // 元方法名称数组
         
     public:
         /**
@@ -225,6 +277,7 @@ namespace Lua {
     private:
         // Internal helper methods
         void initializeMetaTables_();
+        void initializeMetaMethodNames_();  // 初始化元方法名称数组
         void cleanupThreads_();
         void updateMemoryStats_(isize delta);
         

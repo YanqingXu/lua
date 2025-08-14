@@ -1,7 +1,7 @@
 #pragma once
 
 #include "../../common/types.hpp"
-#include "../../vm/state.hpp"
+#include "../../vm/lua_state.hpp"
 #include "../../vm/value.hpp"
 #include "../../vm/lua_coroutine.hpp"
 #include "../core/lib_registry.hpp"
@@ -25,15 +25,15 @@ namespace Lua {
              * @brief Initialize coroutine library in the given state
              * @param state Lua state to initialize library in
              */
-            static void initialize(State* state);
+            static void initialize(LuaState* state);
 
         private:
             // Lua coroutine API functions (Lua 5.1 multi-return style)
-            static i32 luaCreate(State* state);
-            static i32 luaResume(State* state);
-            static i32 luaYield(State* state);
-            static i32 luaStatus(State* state);
-            static i32 luaRunning(State* state);
+            static i32 luaCreate(LuaState* state);
+            static i32 luaResume(LuaState* state);
+            static i32 luaYield(LuaState* state);
+            static i32 luaStatus(LuaState* state);
+            static i32 luaRunning(LuaState* state);
 
             // Helper functions
             static Str statusToString(CoroutineStatus status);

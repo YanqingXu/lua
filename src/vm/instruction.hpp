@@ -280,54 +280,26 @@ namespace Lua {
         
         static Instruction createCLOSE(u8 a) {
             Instruction i; i.setOpCode(OpCode::CLOSE); i.setA(a); return i; }
-        
-        static Instruction createPOP(u8 a) { Instruction i; i.setOpCode(OpCode::POP); i.setA(a); return i; }
-        
+
         // String concatenation
         static Instruction createCONCAT(u8 a, u8 b, u8 c) {
             Instruction i; i.setOpCode(OpCode::CONCAT); i.setA(a); i.setB(b); i.setC(c); return i; }
 
-        // Metamethod-aware operations
-        static Instruction createGETTABLE_MM(u8 a, u8 b, u8 c) {
-            Instruction i; i.setOpCode(OpCode::GETTABLE_MM); i.setA(a); i.setB(b); i.setC(c); return i; }
+        // === 新增的官方Lua 5.1操作码创建函数 ===
 
-        static Instruction createSETTABLE_MM(u8 a, u8 b, u8 c) {
-            Instruction i; i.setOpCode(OpCode::SETTABLE_MM); i.setA(a); i.setB(b); i.setC(c); return i; }
+        static Instruction createSELF(u8 a, u8 b, u8 c) {
+            Instruction i; i.setOpCode(OpCode::SELF); i.setA(a); i.setB(b); i.setC(c); return i; }
 
-        static Instruction createCALL_MM(u8 a, u8 b, u8 c) {
-            Instruction i; i.setOpCode(OpCode::CALL_MM); i.setA(a); i.setB(b); i.setC(c); return i; }
+        static Instruction createTESTSET(u8 a, u8 b, u8 c) {
+            Instruction i; i.setOpCode(OpCode::TESTSET); i.setA(a); i.setB(b); i.setC(c); return i; }
 
-        static Instruction createADD_MM(u8 a, u8 b, u8 c) {
-            Instruction i; i.setOpCode(OpCode::ADD_MM); i.setA(a); i.setB(b); i.setC(c); return i; }
+        static Instruction createTAILCALL(u8 a, u8 b, u8 c) {
+            Instruction i; i.setOpCode(OpCode::TAILCALL); i.setA(a); i.setB(b); i.setC(c); return i; }
 
-        static Instruction createSUB_MM(u8 a, u8 b, u8 c) {
-            Instruction i; i.setOpCode(OpCode::SUB_MM); i.setA(a); i.setB(b); i.setC(c); return i; }
+        static Instruction createTFORLOOP(u8 a, u8 c) {
+            Instruction i; i.setOpCode(OpCode::TFORLOOP); i.setA(a); i.setC(c); return i; }
 
-        static Instruction createMUL_MM(u8 a, u8 b, u8 c) {
-            Instruction i; i.setOpCode(OpCode::MUL_MM); i.setA(a); i.setB(b); i.setC(c); return i; }
-
-        static Instruction createDIV_MM(u8 a, u8 b, u8 c) {
-            Instruction i; i.setOpCode(OpCode::DIV_MM); i.setA(a); i.setB(b); i.setC(c); return i; }
-
-        static Instruction createMOD_MM(u8 a, u8 b, u8 c) {
-            Instruction i; i.setOpCode(OpCode::MOD_MM); i.setA(a); i.setB(b); i.setC(c); return i; }
-
-        static Instruction createPOW_MM(u8 a, u8 b, u8 c) {
-            Instruction i; i.setOpCode(OpCode::POW_MM); i.setA(a); i.setB(b); i.setC(c); return i; }
-
-        static Instruction createUNM_MM(u8 a, u8 b) {
-            Instruction i; i.setOpCode(OpCode::UNM_MM); i.setA(a); i.setB(b); return i; }
-
-        static Instruction createCONCAT_MM(u8 a, u8 b, u8 c) {
-            Instruction i; i.setOpCode(OpCode::CONCAT_MM); i.setA(a); i.setB(b); i.setC(c); return i; }
-
-        static Instruction createEQ_MM(u8 a, u8 b, u8 c) {
-            Instruction i; i.setOpCode(OpCode::EQ_MM); i.setA(a); i.setB(b); i.setC(c); return i; }
-
-        static Instruction createLT_MM(u8 a, u8 b, u8 c) {
-            Instruction i; i.setOpCode(OpCode::LT_MM); i.setA(a); i.setB(b); i.setC(c); return i; }
-
-        static Instruction createLE_MM(u8 a, u8 b, u8 c) {
-            Instruction i; i.setOpCode(OpCode::LE_MM); i.setA(a); i.setB(b); i.setC(c); return i; }
+        static Instruction createSETLIST(u8 a, u8 b, u8 c) {
+            Instruction i; i.setOpCode(OpCode::SETLIST); i.setA(a); i.setB(b); i.setC(c); return i; }
     };
 }

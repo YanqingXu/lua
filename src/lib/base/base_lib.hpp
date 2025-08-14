@@ -35,14 +35,14 @@ public:
      * @param state Lua state to register functions to
      * @throws std::invalid_argument if state is null
      */
-    void registerFunctions(State* state) override;
+    void registerFunctions(LuaState* state) override;
 
     /**
      * @brief Initialize the base library with global constants
      * @param state Lua state to initialize
      * @throws std::invalid_argument if state is null
      */
-    void initialize(State* state) override;
+    void initialize(LuaState* state) override;
 
     // Basic function declarations
     /**
@@ -52,7 +52,7 @@ public:
      * @return nil value
      * @throws std::invalid_argument if state is null or nargs is negative
      */
-    static Value print(State* state, i32 nargs);
+    static Value print(LuaState* state, i32 nargs);
 
     /**
      * @brief Type checking function
@@ -61,7 +61,7 @@ public:
      * @return String value representing the type
      * @throws std::invalid_argument if state is null
      */
-    static Value type(State* state, i32 nargs);
+    static Value type(LuaState* state, i32 nargs);
 
     /**
      * @brief String conversion function
@@ -70,7 +70,7 @@ public:
      * @return String representation of the value
      * @throws std::invalid_argument if state is null
      */
-    static Value tostring(State* state, i32 nargs);
+    static Value tostring(LuaState* state, i32 nargs);
 
     /**
      * @brief Number conversion function
@@ -79,7 +79,7 @@ public:
      * @return Number value or nil if conversion fails
      * @throws std::invalid_argument if state is null
      */
-    static Value tonumber(State* state, i32 nargs);
+    static Value tonumber(LuaState* state, i32 nargs);
 
     /**
      * @brief Error throwing function
@@ -88,7 +88,7 @@ public:
      * @return nil value (function doesn't return normally)
      * @throws std::invalid_argument if state is null
      */
-    static Value error(State* state, i32 nargs);
+    static Value error(LuaState* state, i32 nargs);
 
     /**
      * @brief Protected call function (pcall) - Lua 5.1 standard
@@ -96,34 +96,34 @@ public:
      * @return Number of return values pushed to stack: (true, result...) or (false, error_message)
      * @throws std::invalid_argument if state is null
      */
-    static i32 pcall(State* state);
+    static i32 pcall(LuaState* state);
 
     // Table operation functions (simplified implementations)
-    static Value pairs(State* state, i32 nargs);
-    static Value ipairs(State* state, i32 nargs);
-    static Value next(State* state, i32 nargs);
+    static Value pairs(LuaState* state, i32 nargs);
+    static Value ipairs(LuaState* state, i32 nargs);
+    static Value next(LuaState* state, i32 nargs);
 
     // Multi-return iterator functions
-    static i32 pairsMulti(State* state);
-    static i32 ipairsMulti(State* state);
-    static i32 nextMulti(State* state);
+    static i32 pairsMulti(LuaState* state);
+    static i32 ipairsMulti(LuaState* state);
+    static i32 nextMulti(LuaState* state);
 
     // Metatable operation functions (simplified implementations)
-    static Value getmetatable(State* state, i32 nargs);
-    static Value setmetatable(State* state, i32 nargs);
+    static Value getmetatable(LuaState* state, i32 nargs);
+    static Value setmetatable(LuaState* state, i32 nargs);
 
     // Multi-return versions
-    static i32 getmetatableMulti(State* state);
-    static i32 setmetatableMulti(State* state);
-    static Value rawget(State* state, i32 nargs);
-    static Value rawset(State* state, i32 nargs);
-    static Value rawlen(State* state, i32 nargs);
-    static Value rawequal(State* state, i32 nargs);
+    static i32 getmetatableMulti(LuaState* state);
+    static i32 setmetatableMulti(LuaState* state);
+    static Value rawget(LuaState* state, i32 nargs);
+    static Value rawset(LuaState* state, i32 nargs);
+    static Value rawlen(LuaState* state, i32 nargs);
+    static Value rawequal(LuaState* state, i32 nargs);
 
     // Other utility functions (simplified implementations)
-    //static Value assert(State* state, i32 nargs);
-    static Value select(State* state, i32 nargs);
-    static Value unpack(State* state, i32 nargs);
+    //static Value assert(LuaState* state, i32 nargs);
+    static Value select(LuaState* state, i32 nargs);
+    static Value unpack(LuaState* state, i32 nargs);
 };
 
 /**
@@ -131,6 +131,6 @@ public:
  * @param state Lua state to initialize base library for
  * @throws std::invalid_argument if state is null
  */
-void initializeBaseLib(State* state);
+void initializeBaseLib(LuaState* state);
 
 } // namespace Lua

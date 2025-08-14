@@ -83,7 +83,7 @@ namespace Lua {
          * @param values The values to push
          * @return Number of values pushed
          */
-        static i32 pushMultipleValues(State* state, const Vec<Value>& values);
+        static i32 pushMultipleValues(LuaState* state, const Vec<Value>& values);
 
         /**
          * @brief Convert CallResult to stack-based return for C functions
@@ -91,7 +91,7 @@ namespace Lua {
          * @param result The CallResult to convert
          * @return Number of return values (for C function return)
          */
-        static i32 returnCallResult(State* state, const CallResult& result);
+        static i32 returnCallResult(LuaState* state, const CallResult& result);
 
         /**
          * @brief Helper for math functions that return two values (like modf, frexp)

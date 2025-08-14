@@ -6,6 +6,7 @@
 #include "../../vm/metamethod_manager.hpp"
 #include "../../vm/core_metamethods.hpp"
 #include "../../vm/function.hpp"
+#include "../../gc/core/gc_string.hpp"
 #include "../../common/types.hpp"
 #include <iostream>
 #include <sstream>
@@ -17,7 +18,7 @@ namespace Lua {
 // BaseLib Implementation
 // ===================================================================
 
-void BaseLib::registerFunctions(State* state) {
+void BaseLib::registerFunctions(LuaState* state) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }
@@ -51,20 +52,22 @@ void BaseLib::registerFunctions(State* state) {
     LibRegistry::registerGlobalFunctionLegacy(state, "unpack", unpack);
 }
 
-void BaseLib::initialize(State* state) {
+void BaseLib::initialize(LuaState* state) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }
 
     // Set global constants
-    state->setGlobal("_VERSION", Value("Lua 5.1.1 (Modern C++ Implementation)"));
+    auto versionStr = GCString::create("_VERSION");
+    auto versionValue = GCString::create("Lua 5.1.1 (Modern C++ Implementation)");
+    state->setGlobal(versionStr, Value(versionValue));
 }
 
 // ===================================================================
 // Basic Function Implementations
 // ===================================================================
 
-Value BaseLib::print(State* state, i32 nargs) {
+Value BaseLib::print(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }
@@ -90,7 +93,7 @@ Value BaseLib::print(State* state, i32 nargs) {
     return Value(); // nil
 }
 
-Value BaseLib::type(State* state, i32 nargs) {
+Value BaseLib::type(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }
@@ -113,7 +116,7 @@ Value BaseLib::type(State* state, i32 nargs) {
     return Value("userdata"); // Default case
 }
 
-Value BaseLib::tostring(State* state, i32 nargs) {
+Value BaseLib::tostring(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }
@@ -141,7 +144,7 @@ Value BaseLib::tostring(State* state, i32 nargs) {
     }
 }
 
-Value BaseLib::tonumber(State* state, i32 nargs) {
+Value BaseLib::tonumber(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }
@@ -172,7 +175,7 @@ Value BaseLib::tonumber(State* state, i32 nargs) {
     return Value(); // nil
 }
 
-Value BaseLib::error(State* state, i32 nargs) {
+Value BaseLib::error(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }
@@ -191,7 +194,7 @@ Value BaseLib::error(State* state, i32 nargs) {
 }
 
 // New Lua 5.1 standard pcall implementation (multi-return)
-i32 BaseLib::pcall(State* state) {
+i32 BaseLib::pcall(LuaState* state) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }
@@ -267,7 +270,7 @@ i32 BaseLib::pcall(State* state) {
 // Table Operation Function Implementations (Simplified Versions)
 // ===================================================================
 
-Value BaseLib::pairs(State* state, i32 nargs) {
+Value BaseLib::pairs(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }
@@ -285,7 +288,7 @@ Value BaseLib::pairs(State* state, i32 nargs) {
     }
 
     // Create the pairs iterator function using nextMulti (fixed implementation)
-    auto iteratorFunc = Function::createNative([](State* s) -> i32 {
+    auto iteratorFunc = Function::createNative([](LuaState* s) -> i32 {
         return nextMulti(s);
     });
 
@@ -297,7 +300,7 @@ Value BaseLib::pairs(State* state, i32 nargs) {
     return 3; // Return 3 values: iterator, table, initial_key
 }
 
-Value BaseLib::ipairs(State* state, i32 nargs) {
+Value BaseLib::ipairs(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }
@@ -315,7 +318,7 @@ Value BaseLib::ipairs(State* state, i32 nargs) {
     }
 
     // Create the ipairs iterator function
-    auto iteratorFunc = Function::createNativeLegacy([](State* s, i32 n) -> Value {
+    auto iteratorFunc = Function::createNativeLegacy([](LuaState* s, i32 n) -> Value {
         if (n < 2) {
             return Value(); // nil
         }
@@ -352,7 +355,7 @@ Value BaseLib::ipairs(State* state, i32 nargs) {
     return 3; // Return 3 values: iterator, table, initial_index
 }
 
-Value BaseLib::next(State* state, i32 nargs) {
+Value BaseLib::next(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }
@@ -414,7 +417,7 @@ Value BaseLib::next(State* state, i32 nargs) {
 // Multi-Return Iterator Function Implementations
 // ===================================================================
 
-i32 BaseLib::ipairsMulti(State* state) {
+i32 BaseLib::ipairsMulti(LuaState* state) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }
@@ -431,7 +434,7 @@ i32 BaseLib::ipairsMulti(State* state) {
     }
 
     // Create the ipairs iterator function
-    auto iteratorFunc = Function::createNative([](State* s) -> i32 {
+    auto iteratorFunc = Function::createNative([](LuaState* s) -> i32 {
         if (s->getTop() < 2) {
             return 0; // No return values (end of iteration)
         }
@@ -469,7 +472,7 @@ i32 BaseLib::ipairsMulti(State* state) {
     return 3; // Return 3 values: iterator, table, initial_index
 }
 
-i32 BaseLib::pairsMulti(State* state) {
+i32 BaseLib::pairsMulti(LuaState* state) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }
@@ -486,7 +489,7 @@ i32 BaseLib::pairsMulti(State* state) {
     }
 
     // Create the pairs iterator function (using next)
-    auto iteratorFunc = Function::createNative([](State* s) -> i32 {
+    auto iteratorFunc = Function::createNative([](LuaState* s) -> i32 {
         return nextMulti(s);
     });
 
@@ -499,7 +502,7 @@ i32 BaseLib::pairsMulti(State* state) {
     return 3; // Return 3 values: iterator, table, initial_key
 }
 
-i32 BaseLib::nextMulti(State* state) {
+i32 BaseLib::nextMulti(LuaState* state) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }
@@ -623,7 +626,7 @@ i32 BaseLib::nextMulti(State* state) {
 // Metatable Operation Function Implementations (Simplified Versions)
 // ===================================================================
 
-Value BaseLib::getmetatable(State* state, i32 nargs) {
+Value BaseLib::getmetatable(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }
@@ -663,8 +666,8 @@ Value BaseLib::getmetatable(State* state, i32 nargs) {
     return Value(); // nil if no metatable
 }
 
-Value BaseLib::setmetatable(State* state, i32 nargs) {
-    // 增强：更严格的参数验证
+Value BaseLib::setmetatable(LuaState* state, i32 nargs) {
+    // ��ǿ�����ϸ�Ĳ�����֤
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }
@@ -673,7 +676,7 @@ Value BaseLib::setmetatable(State* state, i32 nargs) {
         throw std::invalid_argument("setmetatable requires exactly 2 arguments");
     }
 
-    // 增强：栈边界检查
+    // ��ǿ��ջ�߽���
     int stackTop = state->getTop();
     if (stackTop < nargs) {
         throw std::invalid_argument("setmetatable: insufficient arguments on stack");
@@ -682,7 +685,7 @@ Value BaseLib::setmetatable(State* state, i32 nargs) {
     // Get arguments from stack with bounds checking
     int stackIdx = stackTop - nargs;
 
-    // 增强：安全的参数获取
+    // ��ǿ����ȫ�Ĳ�����ȡ
     Value table, metatable;
     try {
         table = state->get(stackIdx);
@@ -691,7 +694,7 @@ Value BaseLib::setmetatable(State* state, i32 nargs) {
         throw std::invalid_argument("setmetatable: failed to get arguments from stack: " + std::string(e.what()));
     }
 
-    // 增强：更详细的类型检查
+    // ��ǿ������ϸ�����ͼ��
     if (!table.isTable()) {
         throw std::invalid_argument("setmetatable: first argument must be a table, got " +
                                   std::string(table.getTypeName()));
@@ -702,38 +705,38 @@ Value BaseLib::setmetatable(State* state, i32 nargs) {
                                   std::string(metatable.getTypeName()));
     }
 
-    // 增强：安全的元表操作
+    // ��ǿ����ȫ��Ԫ������
     try {
         auto tablePtr = table.asTable();
         if (!tablePtr) {
             throw std::invalid_argument("setmetatable: failed to get table pointer");
         }
 
-        // 增强：检查表的有效性
+        // ��ǿ����������Ч��
         if (!tablePtr) {
             throw std::invalid_argument("setmetatable: table object is null or corrupted");
         }
 
         if (metatable.isNil()) {
-            // Remove metatable - 增强错误处理
+            // Remove metatable - ��ǿ������
             try {
                 tablePtr->setMetatable(GCRef<Table>(nullptr));
             } catch (const std::exception& e) {
                 throw std::invalid_argument("setmetatable: failed to remove metatable: " + std::string(e.what()));
             }
         } else {
-            // Set metatable - 增强验证和错误处理
+            // Set metatable - ��ǿ��֤�ʹ�����
             auto metatablePtr = metatable.asTable();
             if (!metatablePtr) {
                 throw std::invalid_argument("setmetatable: failed to get metatable pointer");
             }
 
-            // 增强：检查元表的有效性
+            // ��ǿ�����Ԫ������Ч��
             if (!metatablePtr) {
                 throw std::invalid_argument("setmetatable: metatable object is null or corrupted");
             }
 
-            // 增强：防止循环引用
+            // ��ǿ����ֹѭ������
             if (tablePtr == metatablePtr) {
                 throw std::invalid_argument("setmetatable: cannot set table as its own metatable");
             }
@@ -741,7 +744,7 @@ Value BaseLib::setmetatable(State* state, i32 nargs) {
             try {
                 tablePtr->setMetatable(metatablePtr);
 
-                // 增强：验证设置是否成功
+                // ��ǿ����֤�����Ƿ�ɹ�
                 auto verifyMT = tablePtr->getMetatable();
                 if (verifyMT != metatablePtr) {
                     throw std::invalid_argument("setmetatable: metatable setting verification failed");
@@ -751,7 +754,7 @@ Value BaseLib::setmetatable(State* state, i32 nargs) {
             }
         }
     } catch (const std::invalid_argument&) {
-        // 重新抛出我们的错误
+        // �����׳����ǵĴ���
         throw;
     } catch (const std::exception& e) {
         throw std::invalid_argument("setmetatable: unexpected error: " + std::string(e.what()));
@@ -765,7 +768,7 @@ Value BaseLib::setmetatable(State* state, i32 nargs) {
 // Multi-return versions of metatable functions
 // ===================================================================
 
-i32 BaseLib::getmetatableMulti(State* state) {
+i32 BaseLib::getmetatableMulti(LuaState* state) {
     if (!state) {
         state->push(Value("getmetatable: state is null"));
         return 1;
@@ -816,7 +819,7 @@ i32 BaseLib::getmetatableMulti(State* state) {
     return 1;
 }
 
-i32 BaseLib::setmetatableMulti(State* state) {
+i32 BaseLib::setmetatableMulti(LuaState* state) {
     if (!state) {
         return 0;
     }
@@ -888,7 +891,7 @@ i32 BaseLib::setmetatableMulti(State* state) {
     }
 }
 
-Value BaseLib::rawget(State* state, i32 nargs) {
+Value BaseLib::rawget(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State pointer cannot be null");
     }
@@ -912,7 +915,7 @@ Value BaseLib::rawget(State* state, i32 nargs) {
     return tablePtr->get(key);
 }
 
-Value BaseLib::rawset(State* state, i32 nargs) {
+Value BaseLib::rawset(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State pointer cannot be null");
     }
@@ -940,7 +943,7 @@ Value BaseLib::rawset(State* state, i32 nargs) {
     return table;
 }
 
-Value BaseLib::rawlen(State* state, i32 nargs) {
+Value BaseLib::rawlen(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State pointer cannot be null");
     }
@@ -965,7 +968,7 @@ Value BaseLib::rawlen(State* state, i32 nargs) {
     }
 }
 
-Value BaseLib::rawequal(State* state, i32 nargs) {
+Value BaseLib::rawequal(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State pointer cannot be null");
     }
@@ -1019,7 +1022,7 @@ Value BaseLib::rawequal(State* state, i32 nargs) {
 // Other Utility Function Implementations (Simplified Versions)
 // ===================================================================
 
-//Value BaseLib::assert(State* state, i32 nargs) {
+//Value BaseLib::assert(LuaState* state, i32 nargs) {
 //    if (nargs < 1) {
 //        std::cerr << "Lua error: assertion failed!" << std::endl;
 //        return Value();
@@ -1041,7 +1044,7 @@ Value BaseLib::rawequal(State* state, i32 nargs) {
 //    return val;
 //}
 
-Value BaseLib::select(State* state, i32 nargs) {
+Value BaseLib::select(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State pointer cannot be null");
     }
@@ -1080,7 +1083,7 @@ Value BaseLib::select(State* state, i32 nargs) {
     return result;
 }
 
-Value BaseLib::unpack(State* state, i32 nargs) {
+Value BaseLib::unpack(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State pointer cannot be null");
     }
@@ -1092,7 +1095,7 @@ Value BaseLib::unpack(State* state, i32 nargs) {
 // Convenient Initialization Functions
 // ===================================================================
 
-void initializeBaseLib(State* state) {
+void initializeBaseLib(LuaState* state) {
     if (!state) {
         return;
     }

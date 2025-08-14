@@ -1,4 +1,4 @@
-﻿#include "string_lib.hpp"
+#include "string_lib.hpp"
 #include "../core/multi_return_helper.hpp"
 #include <algorithm>
 #include <cctype>
@@ -13,7 +13,7 @@ namespace Lua {
 // StringLib Implementation
 // ===================================================================
 
-void StringLib::registerFunctions(State* state) {
+void StringLib::registerFunctions(LuaState* state) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }
@@ -35,7 +35,7 @@ void StringLib::registerFunctions(State* state) {
     LibRegistry::registerTableFunctionLegacy(state, stringTable, "format", format);
 }
 
-void StringLib::initialize(State* state) {
+void StringLib::initialize(LuaState* state) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }
@@ -44,10 +44,10 @@ void StringLib::initialize(State* state) {
 }
 
 // ===================================================================
-// 字符串函数实现
+// �ַ�������ʵ��
 // ===================================================================
 
-Value StringLib::len(State* state, i32 nargs) {
+Value StringLib::len(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State pointer cannot be null");
     }
@@ -63,7 +63,7 @@ Value StringLib::len(State* state, i32 nargs) {
     return Value(static_cast<double>(str.length()));
 }
 
-Value StringLib::sub(State* state, i32 nargs) {
+Value StringLib::sub(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State pointer cannot be null");
     }
@@ -77,7 +77,7 @@ Value StringLib::sub(State* state, i32 nargs) {
     if (!strVal.isString() || !startVal.isNumber()) return Value();
 
     std::string str = strVal.toString();
-    int start = static_cast<int>(startVal.asNumber()) - 1; // Lua索引从1开始
+    int start = static_cast<int>(startVal.asNumber()) - 1; // Lua������1��ʼ
     int end = static_cast<int>(str.length());
 
     if (nargs >= 3) {
@@ -87,11 +87,11 @@ Value StringLib::sub(State* state, i32 nargs) {
         }
     }
 
-    // 处理负数索引
+    // ������������
     if (start < 0) start =  static_cast<int>(str.length() + start + 1);
     if (end < 0) end = static_cast<int>(str.length() + end + 1);
 
-    // 边界检查
+    // �߽���
     if (start < 0) start = 0;
     if (end > static_cast<int>(str.length())) end = static_cast<int>(str.length());
     if (start >= end) return Value("");
@@ -99,7 +99,7 @@ Value StringLib::sub(State* state, i32 nargs) {
     return Value(str.substr(start, end - start));
 }
 
-Value StringLib::upper(State* state, i32 nargs) {
+Value StringLib::upper(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State pointer cannot be null");
     }
@@ -116,7 +116,7 @@ Value StringLib::upper(State* state, i32 nargs) {
     return Value(str);
 }
 
-Value StringLib::lower(State* state, i32 nargs) {
+Value StringLib::lower(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State pointer cannot be null");
     }
@@ -133,7 +133,7 @@ Value StringLib::lower(State* state, i32 nargs) {
     return Value(str);
 }
 
-Value StringLib::reverse(State* state, i32 nargs) {
+Value StringLib::reverse(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State pointer cannot be null");
     }
@@ -150,7 +150,7 @@ Value StringLib::reverse(State* state, i32 nargs) {
     return Value(str);
 }
 
-Value StringLib::rep(State* state, i32 nargs) {
+Value StringLib::rep(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State pointer cannot be null");
     }
@@ -183,7 +183,7 @@ Value StringLib::rep(State* state, i32 nargs) {
 // ===================================================================
 
 // New Lua 5.1 standard find implementation (multi-return)
-i32 StringLib::find(State* state) {
+i32 StringLib::find(LuaState* state) {
     if (!state) {
         throw std::invalid_argument("State pointer cannot be null");
     }
@@ -276,7 +276,7 @@ i32 StringLib::find(State* state) {
 
 
 // New Lua 5.1 standard gsub implementation (multi-return)
-i32 StringLib::gsub(State* state) {
+i32 StringLib::gsub(LuaState* state) {
     if (!state) {
         throw std::invalid_argument("State pointer cannot be null");
     }
@@ -347,7 +347,7 @@ i32 StringLib::gsub(State* state) {
 
 
 
-Value StringLib::format(State* state, i32 nargs) {
+Value StringLib::format(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State pointer cannot be null");
     }
@@ -385,7 +385,7 @@ Value StringLib::format(State* state, i32 nargs) {
 // Convenient Initialization Functions
 // ===================================================================
 
-void initializeStringLib(State* state) {
+void initializeStringLib(LuaState* state) {
     StringLib stringLib;
     stringLib.registerFunctions(state);
     stringLib.initialize(state);

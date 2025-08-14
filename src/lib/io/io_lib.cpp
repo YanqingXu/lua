@@ -1,6 +1,7 @@
-﻿#include "io_lib.hpp"
+#include "io_lib.hpp"
 #include "lib/core/lib_registry.hpp"
 #include "vm/table.hpp"
+#include "../../gc/core/gc_string.hpp"
 #include "../../common/defines.hpp"
 #include <iostream>
 #include <sstream>
@@ -12,7 +13,7 @@ namespace Lua {
 IOLib::FileHandle* IOLib::defaultInput = nullptr;
 IOLib::FileHandle* IOLib::defaultOutput = nullptr;
 
-void IOLib::registerFunctions(State* state) {
+void IOLib::registerFunctions(LuaState* state) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }
@@ -32,7 +33,7 @@ void IOLib::registerFunctions(State* state) {
     LibRegistry::registerTableFunctionLegacy(state, ioTable, "type", type);
 }
 
-void IOLib::initialize(State* state) {
+void IOLib::initialize(LuaState* state) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }
@@ -42,7 +43,8 @@ void IOLib::initialize(State* state) {
     defaultOutput = new FileHandle(true);  // stdout
 
     // Set standard file handles in io table
-    Value ioTable = state->getGlobal("io");
+    auto ioStr = GCString::create("io");
+    Value ioTable = state->getGlobal(ioStr);
     if (ioTable.isTable()) {
         auto table = ioTable.asTable();
         // Note: In a real implementation, we would create proper userdata for these
@@ -59,7 +61,7 @@ void IOLib::initialize(State* state) {
 // File Operation Function Implementations
 // ===================================================================
 
-Value IOLib::open(State* state, i32 nargs) {
+Value IOLib::open(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }
@@ -86,7 +88,7 @@ Value IOLib::open(State* state, i32 nargs) {
     return createFileHandle(state, filename, mode);
 }
 
-Value IOLib::close(State* state, i32 nargs) {
+Value IOLib::close(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }
@@ -111,7 +113,7 @@ Value IOLib::close(State* state, i32 nargs) {
     return Value(true); // success
 }
 
-Value IOLib::read(State* state, i32 nargs) {
+Value IOLib::read(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }
@@ -127,7 +129,7 @@ Value IOLib::read(State* state, i32 nargs) {
     return Value(); // nil on EOF
 }
 
-Value IOLib::write(State* state, i32 nargs) {
+Value IOLib::write(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }
@@ -145,7 +147,7 @@ Value IOLib::write(State* state, i32 nargs) {
     return Value(true); // success
 }
 
-Value IOLib::flush(State* state, i32 nargs) {
+Value IOLib::flush(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }
@@ -157,7 +159,7 @@ Value IOLib::flush(State* state, i32 nargs) {
     return Value(true); // success
 }
 
-Value IOLib::lines(State* state, i32 nargs) {
+Value IOLib::lines(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }
@@ -169,7 +171,7 @@ Value IOLib::lines(State* state, i32 nargs) {
     return Value(); // nil
 }
 
-Value IOLib::input(State* state, i32 nargs) {
+Value IOLib::input(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }
@@ -180,7 +182,7 @@ Value IOLib::input(State* state, i32 nargs) {
     return Value(); // nil for now
 }
 
-Value IOLib::output(State* state, i32 nargs) {
+Value IOLib::output(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }
@@ -191,7 +193,7 @@ Value IOLib::output(State* state, i32 nargs) {
     return Value(); // nil for now
 }
 
-Value IOLib::type(State* state, i32 nargs) {
+Value IOLib::type(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }
@@ -246,7 +248,7 @@ void IOLib::FileHandle::close() {
     }
 }
 
-IOLib::FileHandle* IOLib::validateFileHandle(State* state, i32 argIndex) {
+IOLib::FileHandle* IOLib::validateFileHandle(LuaState* state, i32 argIndex) {
     if (!state) {
         return nullptr;
     }
@@ -257,7 +259,7 @@ IOLib::FileHandle* IOLib::validateFileHandle(State* state, i32 argIndex) {
     return nullptr;
 }
 
-Value IOLib::createFileHandle(State* state, const Str& filename, const Str& mode) {
+Value IOLib::createFileHandle(LuaState* state, const Str& filename, const Str& mode) {
     if (!state) {
         return Value(); // nil
     }
@@ -312,7 +314,7 @@ Str IOLib::readChars(std::fstream& file, i32 count) {
     return result;
 }
 
-void initializeIOLib(State* state) {
+void initializeIOLib(LuaState* state) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }

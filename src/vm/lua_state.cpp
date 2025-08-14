@@ -1,11 +1,22 @@
-#include "lua_state.hpp"
+﻿#include "lua_state.hpp"
 #include "global_state.hpp"
+#include "error_handling.hpp"
+#include "debug_hooks.hpp"
 #include "table.hpp"
 #include "function.hpp"
+#include "vm_executor.hpp"
 #include "../gc/core/garbage_collector.hpp"
 #include "../common/defines.hpp"
+#include "../parser/parser.hpp"
+#include "../compiler/compiler.hpp"
 #include <algorithm>
 #include <cstring>
+#include <fstream>
+#include <sstream>
+#include <iostream>
+#include <cstdlib>
+#include <cstdio>
+#include "../gc/core/gc_string.hpp"
 
 namespace Lua {
     
@@ -28,7 +39,7 @@ namespace Lua {
     }
     
     // LuaState implementation
-    LuaState::LuaState(GlobalState* g) 
+    LuaState::LuaState(GlobalState* g)
         : GCObject(GCObjectType::State, sizeof(LuaState))
         , G_(g)
         , stack_(nullptr)
@@ -49,6 +60,11 @@ namespace Lua {
         , basehookcount_(0)
         , hookcount_(0)
         , hookmask_(0)
+        , allowhook_(1)              // Allow hooks by default
+        , l_gt_()                    // Initialize global table
+        , env_()                     // Initialize environment table
+        , gclist_(nullptr)           // Initialize GC list
+        , errorJmp_(nullptr)         // Initialize error jump
     {
         initializeStack_();
         initializeCallInfo_();
@@ -136,16 +152,24 @@ namespace Lua {
         if (++ci_ == end_ci_) {
             reallocCI_(size_ci_ * 2);
         }
-        
-        // Set up call info
+
+        // Set up call info following Lua 5.1 pattern
         ci_->func = func;
         ci_->base = func + 1;  // Arguments start after function
         ci_->top = top_;
         ci_->nresults = nresults;
         ci_->tailcalls = 0;
-        ci_->savedpc = savedpc_;
-        ci_->callstatus = 0;
-        
+        ci_->savedpc = nullptr;  // Will be set during execution
+        ci_->callstatus = CallInfo::CIST_FRESH;  // Mark as fresh call
+
+        // Check if this is a Lua function and set appropriate flags
+        if (func->isFunction()) {
+            auto function = func->asFunction();
+            if (function && function->getType() == Function::Type::Lua) {
+                ci_->callstatus |= CallInfo::CIST_LUA;  // Mark as Lua function call
+            }
+        }
+
         // Set current base
         base_ = ci_->base;
     }
@@ -185,38 +209,46 @@ namespace Lua {
         }
     }
     
-    void LuaState::call(i32 nargs, i32 nresults) {
-        Value* func = top_ - nargs - 1;
-        
-        // Prepare call
-        precall(func, nresults);
-        
-        // For now, this is a simplified implementation
-        // In a full implementation, this would dispatch to VM execution
-        // or call C functions directly
-        
-        // Simulate function execution result
-        top_ = base_ + nresults;
-        for (i32 i = 0; i < nresults; i++) {
-            *(base_ + i) = Value();  // Return nil values for now
+
+    
+    void LuaState::setGlobal(const GCString* name, const Value& val) {
+        // Use the global table stored in l_gt_ field
+        if (l_gt_.isNil()) {
+            // Initialize global table if not exists
+            // Create a new table using GC allocator
+            if (G_) {
+                Table* table = new Table();
+                auto globalTable = GCRef<Table>(table);
+                l_gt_ = Value(globalTable);
+            } else {
+                // Fallback: create without GC (for testing)
+                auto globalTable = GCRef<Table>(new Table());
+                l_gt_ = Value(globalTable);
+            }
+
+            // Set _G to point to the global table itself (Lua 5.1 standard)
+            if (l_gt_.isTable()) {
+                auto table = l_gt_.asTable();
+                auto gStr = GCString::create("_G");
+                table->set(Value(gStr), l_gt_);
+            }
         }
-        
-        // Post-call cleanup
-        postcall(base_);
+
+        if (l_gt_.isTable()) {
+            auto table = l_gt_.asTable();
+
+            Value keyValue(name->getString());
+            table->set(keyValue, val);
+        }
     }
-    
-    void LuaState::setGlobal(const String* name, const Value& val) {
-        // This is a simplified implementation
-        // In a full implementation, this would use the global table
-        // For now, we'll throw an exception to indicate it's not implemented
-        throw LuaException("setGlobal not fully implemented yet");
-    }
-    
-    Value LuaState::getGlobal(const String* name) {
-        // This is a simplified implementation
-        // In a full implementation, this would use the global table
-        // For now, return nil
-        return Value();
+
+    Value LuaState::getGlobal(const GCString* name) {
+        // Get from the global table stored in l_gt_ field
+        if (l_gt_.isTable()) {
+            auto table = l_gt_.asTable();
+            return table->get(Value(name->getString()));
+        }
+        return Value(); // Return nil if no global table
     }
 
     // Type checking operations implementation
@@ -418,5 +450,751 @@ namespace Lua {
         
         size_ci_ = newsize;
     }
-    
+
+    // High-level execution interface (migrated from State class)
+    bool LuaState::doString(const Str& code) {
+        try {
+            // 1. Parse code using our parser
+            Parser parser(code);
+            auto statements = parser.parse();
+
+            // Check if there are errors in parsing phase
+            if (parser.hasError()) {
+                // Output parsing errors in Lua 5.1 format
+                Str formattedErrors = parser.getFormattedErrors();
+                if (!formattedErrors.empty()) {
+                    std::cerr << formattedErrors << std::endl;
+                }
+                return false;
+            }
+
+            // 2. Generate bytecode using compiler
+            Compiler compiler;
+            GCRef<Function> function = compiler.compile(statements);
+
+            if (!function) {
+                return false;
+            }
+
+            // 3. Execute bytecode using VMExecutor
+            try {
+                Vec<Value> args;  // No arguments
+                VMExecutor::execute(this, function, args);
+                return true;
+            } catch (const std::exception& e) {
+                std::cerr << "Execution error: " << e.what() << std::endl;
+                return false;
+            }
+        } catch (const LuaException& e) {
+            std::cerr << "Lua error: " << e.what() << std::endl;
+            return false;
+        } catch (const std::exception& e) {
+            std::cerr << "Error executing Lua code: " << e.what() << std::endl;
+            return false;
+        }
+    }
+
+    Value LuaState::doStringWithResult(const Str& code) {
+        try {
+            // 1. Parse code using our parser
+            Parser parser(code);
+            auto statements = parser.parse();
+
+            // Check if there are errors in parsing phase
+            if (parser.hasError()) {
+                return Value(); // Return nil on parse error
+            }
+
+            // 2. Generate bytecode using compiler
+            Compiler compiler;
+            GCRef<Function> function = compiler.compile(statements);
+
+            if (!function) {
+                return Value(); // Return nil on compile error
+            }
+
+            // 3. Execute bytecode using VMExecutor and return result
+            try {
+                Vec<Value> args;  // No arguments
+                return VMExecutor::execute(this, function, args);
+            } catch (const std::exception& e) {
+                std::cerr << "Execution error: " << e.what() << std::endl;
+                return Value(); // Return nil on execution error
+            }
+        } catch (const std::exception& e) {
+            std::cerr << "Error executing Lua code: " << e.what() << std::endl;
+            return Value(); // Return nil on any error
+        }
+    }
+
+    bool LuaState::doFile(const Str& filename) {
+        try {
+            // 1. Open file
+            std::ifstream file(filename);
+            if (!file.is_open()) {
+                std::cerr << "Error: Cannot open file '" << filename << "'" << std::endl;
+                return false;
+            }
+
+            // 2. Read file content
+            std::ostringstream buffer;
+            buffer << file.rdbuf();
+
+            // 3. Close file
+            file.close();
+
+            // 4. Call doString to execute the string
+            return doString(buffer.str());
+        } catch (const std::exception& e) {
+            std::cerr << "Error reading file '" << filename << "': " << e.what() << std::endl;
+            return false;
+        }
+    }
+
+    Value LuaState::callFunction(const Value& func, const Vec<Value>& args) {
+        try {
+            if (!func.isFunction()) {
+                throw LuaException("attempt to call a non-function value");
+            }
+
+            auto function = func.asFunction();
+            if (!function) {
+                throw LuaException("invalid function object");
+            }
+
+            // Use VMExecutor for function execution
+            return VMExecutor::execute(this, function, args);
+        } catch (const std::exception& e) {
+            std::cerr << "Function call error: " << e.what() << std::endl;
+            return Value(); // Return nil on error
+        }
+    }
+
+    CallResult LuaState::callMultiple(const Value& func, const Vec<Value>& args) {
+        try {
+            if (!func.isFunction()) {
+                return CallResult(Value()); // Return single nil value
+            }
+
+            auto function = func.asFunction();
+            if (!function) {
+                return CallResult(Value()); // Return single nil value
+            }
+
+            // For now, use single return value - this can be enhanced later
+            Value result = VMExecutor::execute(this, function, args);
+            return CallResult(result);
+        } catch (const std::exception& e) {
+            std::cerr << "Function call error: " << e.what() << std::endl;
+            return CallResult(Value()); // Return single nil value on error
+        }
+    }
+
+    void LuaState::clearStack() {
+        setTop(0);
+    }
+
+    // Coroutine methods implementation
+    LuaCoroutine* LuaState::createCoroutine(GCRef<Function> func) {
+        // For now, return nullptr - full implementation would create actual coroutine
+        // This is a placeholder to fix compilation
+        (void)func;
+        return nullptr;
+    }
+
+    CoroutineResult LuaState::resumeCoroutine(LuaCoroutine* coro, const Vec<Value>& args) {
+        // Placeholder implementation
+        (void)coro;
+        (void)args;
+        return CoroutineResult(false, CoroutineStatus::DEAD);
+    }
+
+    CoroutineResult LuaState::yieldFromCoroutine(const Vec<Value>& values) {
+        // Placeholder implementation
+        (void)values;
+        return CoroutineResult(false, CoroutineStatus::DEAD);
+    }
+
+    CoroutineStatus LuaState::getCoroutineStatus(LuaCoroutine* coro) {
+        // Placeholder implementation
+        (void)coro;
+        return CoroutineStatus::DEAD;
+    }
+
+    // Helper method implementation
+    i32 LuaState::luaIndex2StackIndex(i32 idx) {
+        if (idx > 0) {
+            // Positive index: 1-based from bottom
+            return idx - 1;
+        } else if (idx < 0) {
+            // Negative index: from top
+            return getTop() + idx;
+        }
+        return -1; // Invalid index (0)
+    }
+
+    // Lua 5.1 Compatible Stack Manipulation API Implementation
+
+    void LuaState::pushValue(i32 idx) {
+        Value val = get(idx);
+        push(val);
+    }
+
+    void LuaState::remove(i32 idx) {
+        i32 p = luaIndex2StackIndex(idx);
+        if (p < 0) return; // Invalid index
+
+        // Shift elements down to fill the gap
+        for (i32 i = p; i < getTop() - 1; i++) {
+            stack_[i] = stack_[i + 1];
+        }
+        setTop(getTop() - 1);
+    }
+
+    void LuaState::insert(i32 idx) {
+        i32 p = luaIndex2StackIndex(idx);
+        if (p < 0 || getTop() == 0) return; // Invalid index or empty stack
+
+        Value top_val = stack_[getTop() - 1];
+
+        // Shift elements up to make space
+        for (i32 i = getTop() - 1; i > p; i--) {
+            stack_[i] = stack_[i - 1];
+        }
+
+        stack_[p] = top_val;
+    }
+
+    void LuaState::replace(i32 idx) {
+        if (getTop() == 0) return; // Empty stack
+
+        Value top_val = stack_[getTop() - 1];
+        setTop(getTop() - 1);
+        set(idx, top_val);
+    }
+
+    // Lua 5.1 Compatible Push Functions Implementation
+
+    void LuaState::pushNil() {
+        push(Value());
+    }
+
+    void LuaState::pushNumber(f64 n) {
+        push(Value(n));
+    }
+
+    void LuaState::pushInteger(i64 n) {
+        push(Value(static_cast<f64>(n)));
+    }
+
+    void LuaState::pushString(const char* s) {
+        if (s == nullptr) {
+            pushNil();
+            return;
+        }
+        auto str = GCString::create(s);
+        push(Value(str));
+    }
+
+    void LuaState::pushLString(const char* s, usize len) {
+        if (s == nullptr) {
+            pushNil();
+            return;
+        }
+        auto str = GCString::create(std::string(s, len));
+        push(Value(str));
+    }
+
+    void LuaState::pushBoolean(bool b) {
+        push(Value(b));
+    }
+
+    // Lua 5.1 Compatible Type Conversion Functions Implementation
+
+    f64 LuaState::toNumber(i32 idx) {
+        Value val = get(idx);
+        if (val.isNumber()) {
+            return val.asNumber();
+        }
+        if (val.isString()) {
+            // Try to convert string to number (Lua 5.1 behavior)
+            const char* str = val.asString().c_str();
+            char* endptr;
+            f64 result = std::strtod(str, &endptr);
+            if (endptr != str && *endptr == '\0') {
+                return result;
+            }
+        }
+        return 0.0; // Return 0 if not convertible
+    }
+
+    i64 LuaState::toInteger(i32 idx) {
+        f64 n = toNumber(idx);
+        return static_cast<i64>(n);
+    }
+
+    const char* LuaState::toString(i32 idx) {
+        Value val = get(idx);
+        if (val.isString()) {
+            return val.asString().c_str();
+        }
+        if (val.isNumber()) {
+            // Convert number to string (Lua 5.1 behavior)
+            // Note: In a full implementation, this should modify the stack
+            static thread_local char buffer[64];
+            std::snprintf(buffer, sizeof(buffer), "%.14g", val.asNumber());
+            return buffer;
+        }
+        return nullptr; // Return nullptr if not convertible
+    }
+
+    const char* LuaState::toLString(i32 idx, usize* len) {
+        const char* str = toString(idx);
+        if (str && len) {
+            *len = std::strlen(str);
+        }
+        return str;
+    }
+
+    bool LuaState::toBoolean(i32 idx) {
+        Value val = get(idx);
+        // In Lua, only nil and false are false, everything else is true
+        return !val.isNil() && !(val.isBoolean() && !val.asBoolean());
+    }
+
+    // Enhanced Type Checking Implementation
+
+    bool LuaState::isCFunction(i32 idx) {
+        Value val = get(idx);
+        return val.isFunction() && val.asFunction()->getType() == Function::Type::Native;
+    }
+
+    bool LuaState::isUserdata(i32 idx) {
+        Value val = get(idx);
+        return val.isUserdata();
+    }
+
+    i32 LuaState::type(i32 idx) {
+        Value val = get(idx);
+        if (val.isNil()) return LUA_TNIL;
+        if (val.isBoolean()) return LUA_TBOOLEAN;
+        if (val.isNumber()) return LUA_TNUMBER;
+        if (val.isString()) return LUA_TSTRING;
+        if (val.isTable()) return LUA_TTABLE;
+        if (val.isFunction()) return LUA_TFUNCTION;
+        if (val.isUserdata()) return LUA_TUSERDATA;
+        // Note: Thread type not yet implemented in Value class
+        return LUA_TNONE;
+    }
+
+    const char* LuaState::typeName(i32 tp) {
+        switch (tp) {
+            case LUA_TNIL: return "nil";
+            case LUA_TBOOLEAN: return "boolean";
+            case LUA_TLIGHTUSERDATA: return "userdata";
+            case LUA_TNUMBER: return "number";
+            case LUA_TSTRING: return "string";
+            case LUA_TTABLE: return "table";
+            case LUA_TFUNCTION: return "function";
+            case LUA_TUSERDATA: return "userdata";
+            case LUA_TTHREAD: return "thread";
+            default: return "no value";
+        }
+    }
+
+    // Lua 5.1 Compatible Table Operations API Implementation
+
+    void LuaState::getTable(i32 idx) {
+        Value table = get(idx);
+        if (!table.isTable()) {
+            // Push nil if not a table
+            pushNil();
+            return;
+        }
+
+        Value key = get(-1); // Get key from stack top
+        setTop(getTop() - 1); // Remove key from stack
+
+        Value result = table.asTable()->get(key);
+        push(result);
+    }
+
+    void LuaState::setTable(i32 idx) {
+        Value table = get(idx);
+        if (!table.isTable()) {
+            // Pop key and value if not a table
+            setTop(getTop() - 2);
+            return;
+        }
+
+        Value value = get(-1); // Get value from stack top
+        Value key = get(-2);   // Get key from stack top-1
+        setTop(getTop() - 2);  // Remove key and value from stack
+
+        // 使用带写屏障的set方法
+        table.asTable()->setWithBarrier(key, value, this);
+    }
+
+    void LuaState::getField(i32 idx, const char* k) {
+        Value table = get(idx);
+        if (!table.isTable()) {
+            pushNil();
+            return;
+        }
+
+        auto keyStr = GCString::create(k);
+        Value key(keyStr);
+        Value result = table.asTable()->get(key);
+        push(result);
+    }
+
+    void LuaState::setField(i32 idx, const char* k) {
+        Value table = get(idx);
+        if (!table.isTable()) {
+            setTop(getTop() - 1); // Pop value
+            return;
+        }
+
+        Value value = get(-1); // Get value from stack top
+        setTop(getTop() - 1);  // Remove value from stack
+
+        auto keyStr = GCString::create(k);
+        Value key(keyStr);
+        table.asTable()->set(key, value);
+    }
+
+    void LuaState::rawGet(i32 idx) {
+        // Same as getTable but without metamethod calls
+        getTable(idx);
+    }
+
+    void LuaState::rawSet(i32 idx) {
+        // Same as setTable but without metamethod calls
+        setTable(idx);
+    }
+
+    void LuaState::rawGetI(i32 idx, i32 n) {
+        Value table = get(idx);
+        if (!table.isTable()) {
+            pushNil();
+            return;
+        }
+
+        Value key(static_cast<f64>(n));
+        Value result = table.asTable()->get(key);
+        push(result);
+    }
+
+    void LuaState::rawSetI(i32 idx, i32 n) {
+        Value table = get(idx);
+        if (!table.isTable()) {
+            setTop(getTop() - 1); // Pop value
+            return;
+        }
+
+        Value value = get(-1); // Get value from stack top
+        setTop(getTop() - 1);  // Remove value from stack
+
+        Value key(static_cast<f64>(n));
+        table.asTable()->set(key, value);
+    }
+
+    void LuaState::createTable(i32 narr, i32 nrec) {
+        // Create new table with size hints
+        (void)narr; // Size hints not used in current implementation
+        (void)nrec;
+
+        auto newTable = GCRef<Table>(new Table());
+        push(Value(newTable));
+    }
+
+    // Lua 5.1 Compatible Function Call API Implementation
+
+    void LuaState::call(i32 nargs, i32 nresults) {
+        // Get function from stack
+        Value func = get(-(nargs + 1));
+        if (!func.isFunction()) {
+            throw LuaException("attempt to call a non-function value");
+        }
+
+        // Prepare arguments
+        Vec<Value> args;
+        for (i32 i = 0; i < nargs; ++i) {
+            args.push_back(get(-(nargs - i)));
+        }
+
+        // Remove function and arguments from stack
+        setTop(getTop() - (nargs + 1));
+
+        // Call function
+        try {
+            CallResult result = callMultiple(func.asFunction(), args);
+
+            // Push results
+            if (nresults == LUA_MULTRET) {
+                // Push all results
+                for (const Value& val : result.values) {
+                    push(val);
+                }
+            } else {
+                // Push specified number of results
+                for (i32 i = 0; i < nresults; ++i) {
+                    if (i < static_cast<i32>(result.values.size())) {
+                        push(result.values[i]);
+                    } else {
+                        pushNil(); // Pad with nil if not enough results
+                    }
+                }
+            }
+        } catch (const std::exception& e) {
+            throw LuaException(std::string("call error: ") + e.what());
+        }
+    }
+
+    i32 LuaState::pcall(i32 nargs, i32 nresults, i32 errfunc) {
+        try {
+            call(nargs, nresults);
+            return LUA_OK;
+        } catch (const LuaException& e) {
+            // Push error message
+            pushString(e.what());
+            return LUA_ERRRUN;
+        } catch (const std::exception& e) {
+            // Push error message
+            pushString(e.what());
+            return LUA_ERRRUN;
+        }
+    }
+
+    i32 LuaState::cpcall(lua_CFunction func, void* ud) {
+        if (!func) {
+            return LUA_ERRRUN;
+        }
+
+        try {
+            // Create a temporary lua_State structure for C function
+            // Note: This is a simplified implementation
+            struct TempLuaState {
+                LuaState* L;
+            } cState;
+            cState.L = this;
+
+            i32 result = func(reinterpret_cast<lua_State*>(&cState));
+            return (result >= 0) ? LUA_OK : LUA_ERRRUN;
+        } catch (...) {
+            return LUA_ERRRUN;
+        }
+    }
+
+    // Lua 5.1 Compatible Coroutine API Implementation
+
+    i32 LuaState::yield(i32 nresults) {
+        // Mark state as yielded
+        status_ = LUA_YIELD;
+
+        // In a full implementation, this would save the current execution state
+        // and return control to the caller
+        (void)nresults; // Placeholder
+
+        return LUA_YIELD;
+    }
+
+    i32 LuaState::resume(i32 narg) {
+        if (status_ != LUA_YIELD && status_ != LUA_OK) {
+            return status_; // Cannot resume
+        }
+
+        // In a full implementation, this would restore execution state
+        // and continue from where yield was called
+        (void)narg; // Placeholder
+
+        status_ = LUA_OK;
+        return LUA_OK;
+    }
+
+    i32 LuaState::status() {
+        return status_;
+    }
+
+    // Lua 5.1 Compatible Metatable API Implementation
+
+    i32 LuaState::getMetatable(i32 objindex) {
+        Value obj = get(objindex);
+
+        // Get metatable based on object type
+        GCRef<Table> mt = nullptr;
+        if (obj.isTable()) {
+            mt = obj.asTable()->getMetatable();
+        } else if (obj.isUserdata()) {
+            // In a full implementation, userdata would have metatables
+            mt = nullptr; // Placeholder
+        } else {
+            // Get basic type metatable from global state
+            i32 type = this->type(objindex);
+            if (type >= 0 && type < 8 && G_) {
+                Table* basicMt = G_->getMetaTable(type);
+                if (basicMt) {
+                    mt = GCRef<Table>(basicMt);
+                }
+            }
+        }
+
+        if (mt) {
+            push(Value(mt));
+            return 1;
+        } else {
+            return 0; // No metatable
+        }
+    }
+
+    i32 LuaState::setMetatable(i32 objindex) {
+        Value obj = get(objindex);
+        Value mt = get(-1);
+        setTop(getTop() - 1); // Remove metatable from stack
+
+        if (obj.isTable()) {
+            if (mt.isNil()) {
+                obj.asTable()->setMetatable(GCRef<Table>(nullptr));
+            } else if (mt.isTable()) {
+                obj.asTable()->setMetatable(mt.asTable());
+            } else {
+                return 0; // Invalid metatable type
+            }
+            return 1;
+        }
+
+        // For other types, would set in global state
+        return 0; // Not implemented for other types yet
+    }
+
+    void LuaState::getFenv(i32 idx) {
+        Value obj = get(idx);
+
+        if (obj.isFunction()) {
+            // In a full implementation, functions would have environments
+            // For now, push global table
+            if (!l_gt_.isNil()) {
+                push(l_gt_);
+            } else {
+                pushNil();
+            }
+        } else {
+            pushNil(); // No environment for non-functions
+        }
+    }
+
+    i32 LuaState::setFenv(i32 idx) {
+        Value obj = get(idx);
+        Value env = get(-1);
+        setTop(getTop() - 1); // Remove environment from stack
+
+        if (obj.isFunction() && env.isTable()) {
+            // In a full implementation, this would set the function's environment
+            // For now, just return success
+            return 1;
+        }
+
+        return 0; // Failed to set environment
+    }
+
+    // Enhanced Error Handling Implementation (Phase 3)
+
+    void LuaState::setErrorJmp(LuaLongJmp* jmp) {
+        errorJmp_ = jmp;
+    }
+
+    void LuaState::clearErrorJmp() {
+        errorJmp_ = nullptr;
+    }
+
+    [[noreturn]] void LuaState::throwError(i32 status, const char* msg) {
+        // Simple implementation: throw standard exception
+        throw LuaRuntimeException(msg ? msg : "unknown error", status);
+    }
+
+    i32 LuaState::handleException(const std::exception& e) {
+        // Simple implementation: convert to Lua error code
+        if (const auto* luaEx = dynamic_cast<const LuaRuntimeException*>(&e)) {
+            return luaEx->getErrorCode();
+        }
+        if (dynamic_cast<const std::bad_alloc*>(&e)) {
+            return 4; // LUA_ERRMEM
+        }
+        return 2; // LUA_ERRRUN (default)
+    }
+
+    // Debug Hooks System Implementation (Phase 3 - Week 9)
+
+    void LuaState::setHook(lua_Hook func, i32 mask, i32 count) {
+        // Simple implementation: store hook information
+        // Full implementation will be added later
+        (void)func; (void)mask; (void)count; // Suppress unused parameter warnings
+    }
+
+    lua_Hook LuaState::getHook() const {
+        // Simple implementation: return nullptr
+        return nullptr;
+    }
+
+    i32 LuaState::getHookMask() const {
+        // Simple implementation: return 0
+        return 0;
+    }
+
+    i32 LuaState::getHookCount() const {
+        // Simple implementation: return 0
+        return 0;
+    }
+
+    bool LuaState::getInfo(lua_Debug* ar, const char* what) {
+        // Simple implementation: fill basic debug info
+        if (!ar || !what) {
+            return false;
+        }
+
+        // Fill basic information
+        ar->event = 0;
+        ar->name = "unknown";
+        ar->namewhat = "global";
+        ar->what = "Lua";
+        ar->source = "=[C]";
+        ar->currentline = 1;
+        ar->nups = 0;
+        ar->linedefined = -1;
+        ar->lastlinedefined = -1;
+        // Safe string copy
+        const char* src = "=[C]";
+        size_t len = strlen(src);
+        size_t max_len = sizeof(ar->short_src) - 1;
+        if (len > max_len) len = max_len;
+        memcpy(ar->short_src, src, len);
+        ar->short_src[len] = '\0';
+        ar->i_ci = 0;
+
+        return true;
+    }
+
+    bool LuaState::getStack(i32 level, lua_Debug* ar) {
+        // Simple implementation: basic stack info
+        if (!ar || level < 0) {
+            return false;
+        }
+
+        // Fill basic stack information
+        ar->i_ci = level;
+        if (level == 0) {
+            ar->what = "Lua";
+            ar->currentline = 1;
+            ar->linedefined = 1;
+            ar->lastlinedefined = -1;
+            ar->nups = 0;
+        }
+
+        return level < 10; // Reasonable limit
+    }
+
+
+
+
+
 } // namespace Lua

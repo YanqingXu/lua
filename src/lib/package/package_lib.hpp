@@ -1,8 +1,8 @@
-﻿#pragma once
+#pragma once
 
 #include "../core/lib_module.hpp"
 #include "../../common/types.hpp"
-#include "../../vm/state.hpp"
+#include "../../vm/lua_state.hpp"
 #include "../../vm/value.hpp"
 #include "../../vm/call_result.hpp"
 #include <memory>
@@ -42,14 +42,14 @@ public:
      * @param state Lua state to register functions to
      * @throws std::invalid_argument if state is null
      */
-    void registerFunctions(State* state) override;
+    void registerFunctions(LuaState* state) override;
 
     /**
      * @brief Initialize package library with default values
      * @param state Lua state to initialize
      * @throws std::invalid_argument if state is null
      */
-    void initialize(State* state) override;
+    void initialize(LuaState* state) override;
 
 private:
     // ===================================================================
@@ -63,14 +63,14 @@ private:
      * @return Loaded module value
      * @throws LuaException if module not found or circular dependency
      */
-    static Value require(State* state, i32 nargs);
+    static Value require(LuaState* state, i32 nargs);
 
     /**
      * @brief loadfile(filename) - Load Lua file without execution (Lua 5.1 standard)
      * @param state Lua state containing filename on stack
      * @return Number of return values: (function) or (nil, error_message)
      */
-    static i32 loadfile(State* state);
+    static i32 loadfile(LuaState* state);
 
     /**
      * @brief dofile(filename) - Load and execute Lua file
@@ -78,7 +78,7 @@ private:
      * @param nargs Number of arguments (should be 1)
      * @return Result of file execution
      */
-    static Value dofile(State* state, i32 nargs);
+    static Value dofile(LuaState* state, i32 nargs);
 
     // ===================================================================
     // Package Table Functions
@@ -89,7 +89,7 @@ private:
      * @param state Lua state containing arguments on stack
      * @return Number of return values: (filepath) or (nil, error_message)
      */
-    static i32 searchpath(State* state);
+    static i32 searchpath(LuaState* state);
 
     // ===================================================================
     // Internal Helper Functions
@@ -102,7 +102,7 @@ private:
      * @return Loaded module value
      * @throws LuaException if module not found
      */
-    static Value findModule(State* state, const Str& modname);
+    static Value findModule(LuaState* state, const Str& modname);
 
     /**
      * @brief Load Lua module from file
@@ -112,7 +112,7 @@ private:
      * @return Loaded module value
      * @throws LuaException if compilation or execution fails
      */
-    static Value loadLuaModule(State* state, const Str& filename, const Str& modname);
+    static Value loadLuaModule(LuaState* state, const Str& filename, const Str& modname);
 
     /**
      * @brief Check for circular dependency
@@ -120,21 +120,21 @@ private:
      * @param modname Module name
      * @return true if circular dependency detected
      */
-    static bool checkCircularDependency(State* state, const Str& modname);
+    static bool checkCircularDependency(LuaState* state, const Str& modname);
 
     /**
      * @brief Mark module as loading (for circular dependency detection)
      * @param state Lua state
      * @param modname Module name
      */
-    static void markModuleLoading(State* state, const Str& modname);
+    static void markModuleLoading(LuaState* state, const Str& modname);
 
     /**
      * @brief Unmark module as loading
      * @param state Lua state
      * @param modname Module name
      */
-    static void unmarkModuleLoading(State* state, const Str& modname);
+    static void unmarkModuleLoading(LuaState* state, const Str& modname);
 
     // ===================================================================
     // Package Searcher Functions (Lua 5.1 package.loaders)
@@ -146,7 +146,7 @@ private:
      * @param nargs Number of arguments (should be 1)
      * @return Loader function or nil
      */
-    static Value searcherPreload(State* state, i32 nargs);
+    static Value searcherPreload(LuaState* state, i32 nargs);
 
     /**
      * @brief Searcher for Lua modules (package.path)
@@ -154,7 +154,7 @@ private:
      * @param nargs Number of arguments (should be 1)
      * @return Loader function or nil
      */
-    static Value searcherLua(State* state, i32 nargs);
+    static Value searcherLua(LuaState* state, i32 nargs);
 
     // ===================================================================
     // Utility Functions
@@ -166,7 +166,7 @@ private:
      * @return Package table value
      * @throws LuaException if package table not found
      */
-    static Value getPackageTable(State* state);
+    static Value getPackageTable(LuaState* state);
 
     /**
      * @brief Get package.loaded table
@@ -174,7 +174,7 @@ private:
      * @return package.loaded table value
      * @throws LuaException if table not found
      */
-    static Value getLoadedTable(State* state);
+    static Value getLoadedTable(LuaState* state);
 
     /**
      * @brief Get package.preload table
@@ -182,7 +182,7 @@ private:
      * @return package.preload table value
      * @throws LuaException if table not found
      */
-    static Value getPreloadTable(State* state);
+    static Value getPreloadTable(LuaState* state);
 
     /**
      * @brief Get package.loaders array
@@ -190,7 +190,7 @@ private:
      * @return package.loaders array value
      * @throws LuaException if array not found
      */
-    static Value getLoadersArray(State* state);
+    static Value getLoadersArray(LuaState* state);
 
     /**
      * @brief Get package.path string
@@ -198,14 +198,14 @@ private:
      * @return package.path string value
      * @throws LuaException if path not found
      */
-    static Value getPackagePath(State* state);
+    static Value getPackagePath(LuaState* state);
 
     /**
      * @brief Set up package.loaded entries for existing standard libraries
      * @param state Lua state
      * @param loadedTable package.loaded table
      */
-    static void setupStandardLibraryEntries(State* state, GCRef<Table> loadedTable);
+    static void setupStandardLibraryEntries(LuaState* state, GCRef<Table> loadedTable);
 
     // ===================================================================
     // Constants
@@ -223,6 +223,6 @@ private:
  * @param state Lua state to initialize
  * @throws std::invalid_argument if state is null
  */
-void initializePackageLib(State* state);
+void initializePackageLib(LuaState* state);
 
 } // namespace Lua

@@ -1,6 +1,6 @@
 ﻿#include "metamethod_manager.hpp"
 #include "core_metamethods.hpp"
-#include "state.hpp"
+#include "lua_state.hpp"
 #include "userdata.hpp"
 #include "common/types.hpp"
 #include <stdexcept>
@@ -66,7 +66,7 @@ namespace Lua {
     
     // === Metamethod Invocation Implementation ===
     
-    Value MetaMethodManager::callMetaMethod(State* state, MetaMethod method, 
+    Value MetaMethodManager::callMetaMethod(LuaState* state, MetaMethod method,
                                            const Value& obj, const Vec<Value>& args) {
         if (!state) {
             throw std::invalid_argument("State cannot be null");
@@ -89,7 +89,7 @@ namespace Lua {
         return CoreMetaMethods::handleMetaMethodCall(state, handler, callArgs);
     }
     
-    Value MetaMethodManager::callBinaryMetaMethod(State* state, MetaMethod method,
+    Value MetaMethodManager::callBinaryMetaMethod(LuaState* state, MetaMethod method,
                                                  const Value& lhs, const Value& rhs) {
         if (!state) {
             throw std::invalid_argument("State cannot be null");
@@ -115,7 +115,7 @@ namespace Lua {
         throw LuaException("No metamethod found for binary operation: " + getMetaMethodName(method));
     }
     
-    Value MetaMethodManager::callUnaryMetaMethod(State* state, MetaMethod method,
+    Value MetaMethodManager::callUnaryMetaMethod(LuaState* state, MetaMethod method,
                                                 const Value& operand) {
         if (!state) {
             throw std::invalid_argument("State cannot be null");

@@ -1,11 +1,11 @@
-#include "gc_sweeper.hpp"
+﻿#include "gc_sweeper.hpp"
 #include "../core/gc_object.hpp"
 #include "../core/string_pool.hpp"
 #include "../core/gc_string.hpp"
 #include "../../vm/value.hpp"
 #include "../../vm/table.hpp"
 #include "../../vm/function.hpp"
-#include "../../vm/state.hpp"
+#include "../../vm/lua_state.hpp"
 #include <algorithm>
 #include <cassert>
 #include <chrono>
@@ -280,7 +280,7 @@ namespace Lua {
                     
                 case GCObjectType::Thread: {
                     // Threads need to clean up their stack and state
-                    // This would be handled by the State destructor
+                    // This would be handled by the LuaState destructor
                     break;
                 }
                 
@@ -324,24 +324,15 @@ namespace Lua {
         return sweeper;
     }
     
-    /**
-     * @brief Sweep statistics formatter
-     */
-    std::string formatSweepStats(const GCSweeper::SweepStats& stats) {
-        std::string result;
-        result += "Sweep Statistics:\n";
-        result += "  Objects swept: " + std::to_string(stats.objectsSwept) + "\n";
-        result += "  Objects freed: " + std::to_string(stats.objectsFreed) + "\n";
-        result += "  Objects kept: " + std::to_string(stats.objectsKept) + "\n";
-        result += "  Bytes freed: " + std::to_string(stats.bytesFreed) + "\n";
-        result += "  Finalizers run: " + std::to_string(stats.finalizersRun) + "\n";
-        result += "  Sweep time: " + std::to_string(stats.sweepTimeUs) + " μs\n";
-        
-        if (stats.objectsSwept > 0) {
-            double freeRate = (double)stats.objectsFreed / stats.objectsSwept * 100.0;
-            result += "  Free rate: " + std::to_string(freeRate) + "%\n";
+
+
+    GCObject* GCSweeper::sweepStep(GCObject* objectList, GCColor white, usize maxObjects) {
+        // 暂时简化实现，避免编译错误
+        if (!objectList || maxObjects == 0) {
+            return objectList;
         }
-        
-        return result;
+
+        // 简单地返回原始列表，实际实现需要清理白色对象
+        return objectList;
     }
 }

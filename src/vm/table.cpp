@@ -3,10 +3,12 @@
 #include "../gc/memory/allocator.hpp"
 #include "../gc/core/gc_ref.hpp"
 #include "../gc/core/garbage_collector.hpp"
+#include "../api/lua51_gc_api.hpp"
 #include "table_impl.hpp"
 #include "metamethod_manager.hpp"
-#include "state.hpp"
+#include "lua_state.hpp"
 #include <functional>   // For std::function
+#include <iostream>
 
 namespace Lua {
     
@@ -41,16 +43,24 @@ namespace Lua {
 
         // Search in entries
         int index = findEntry(key);
+
+
+
         if (index >= 0) {
             Entry* entry = static_cast<Entry*>(entries[index]);
+
+
+
             return entry->value;
         }
+
+
 
         // Return nil if not found
         return Value(nullptr);
     }
 
-    Value Table::getWithMetamethod(const Value& key, State* state) {
+    Value Table::getWithMetamethod(const Value& key, LuaState* state) {
         // First try direct lookup
         Value result = get(key);
         if (!result.isNil()) {
@@ -65,7 +75,7 @@ namespace Lua {
                     // Call __index function with (table, key)
                     Vec<Value> args = {Value(GCRef<Table>(this)), key};
                     try {
-                        return state->call(indexMethod, args);
+                        return state->callFunction(indexMethod, args);
                     } catch (const std::exception& e) {
                         // If metamethod call fails, return nil
                         return Value();
@@ -113,6 +123,10 @@ namespace Lua {
         if (key.isNil()) {
             return;
         }
+
+
+
+
         
         // Handle integer keys, try to store in array part
         if (key.isNumber()) {
@@ -150,10 +164,14 @@ namespace Lua {
             // Update existing element
             if (index >= 0) {
                 Entry* entry = static_cast<Entry*>(entries[index]);
+
                 entry->value = value;
             } else {
                 // Add new element
                 Entry* newEntry = new Entry(key, value);
+
+
+
                 entries.push_back(newEntry);
             }
         }
@@ -246,5 +264,26 @@ namespace Lua {
         // Fallback to direct allocation
         Table* obj = new Table();
         return GCRef<Table>(obj);
+    }
+
+    // === Write Barrier Support for Table Operations ===
+
+    void Table::setWithBarrier(const Value& key, const Value& value, LuaState* L) {
+        // 在设置值之前应用写屏障
+        if (L && value.isGCObject()) {
+            // 表对象引用新的GC对象时需要写屏障
+            // 使用luaC_objbarriert宏，它专门用于表对象
+            GCObject* valueObj = nullptr;
+
+            // 获取GCObject指针
+            valueObj = value.asGCObject();
+
+            if (valueObj) {
+                luaC_barriert(L, this, valueObj);
+            }
+        }
+
+        // 执行实际的set操作
+        set(key, value);
     }
 }

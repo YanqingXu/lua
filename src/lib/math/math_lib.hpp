@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "../core/lib_module.hpp"
 #include "../core/lib_registry.hpp"
@@ -34,14 +34,14 @@ public:
      * @param state Lua state to register functions to
      * @throws std::invalid_argument if state is null
      */
-    void registerFunctions(State* state) override;
+    void registerFunctions(LuaState* state) override;
 
     /**
      * @brief Initialize the math library with constants
      * @param state Lua state to initialize
      * @throws std::invalid_argument if state is null
      */
-    void initialize(State* state) override;
+    void initialize(LuaState* state) override;
 
     // Basic math function declarations with proper documentation
     /**
@@ -51,7 +51,7 @@ public:
      * @return Absolute value of the argument
      * @throws std::invalid_argument if state is null
      */
-    static Value abs(State* state, i32 nargs);
+    static Value abs(LuaState* state, i32 nargs);
 
     /**
      * @brief Floor function
@@ -60,7 +60,7 @@ public:
      * @return Floor of the argument
      * @throws std::invalid_argument if state is null
      */
-    static Value floor(State* state, i32 nargs);
+    static Value floor(LuaState* state, i32 nargs);
 
     /**
      * @brief Ceiling function
@@ -69,7 +69,7 @@ public:
      * @return Ceiling of the argument
      * @throws std::invalid_argument if state is null
      */
-    static Value ceil(State* state, i32 nargs);
+    static Value ceil(LuaState* state, i32 nargs);
 
     /**
      * @brief Square root function
@@ -78,7 +78,7 @@ public:
      * @return Square root of the argument
      * @throws std::invalid_argument if state is null
      */
-    static Value sqrt(State* state, i32 nargs);
+    static Value sqrt(LuaState* state, i32 nargs);
 
     /**
      * @brief Power function
@@ -87,40 +87,40 @@ public:
      * @return Base raised to the power of exponent
      * @throws std::invalid_argument if state is null
      */
-    static Value pow(State* state, i32 nargs);
+    static Value pow(LuaState* state, i32 nargs);
 
     // Trigonometric function declarations
-    static Value sin(State* state, i32 nargs);
-    static Value cos(State* state, i32 nargs);
-    static Value tan(State* state, i32 nargs);
-    static Value asin(State* state, i32 nargs);
-    static Value acos(State* state, i32 nargs);
-    static Value atan(State* state, i32 nargs);
-    static Value atan2(State* state, i32 nargs);
+    static Value sin(LuaState* state, i32 nargs);
+    static Value cos(LuaState* state, i32 nargs);
+    static Value tan(LuaState* state, i32 nargs);
+    static Value asin(LuaState* state, i32 nargs);
+    static Value acos(LuaState* state, i32 nargs);
+    static Value atan(LuaState* state, i32 nargs);
+    static Value atan2(LuaState* state, i32 nargs);
 
     // Logarithmic and exponential functions
-    static Value log(State* state, i32 nargs);
-    static Value log10(State* state, i32 nargs);
-    static Value exp(State* state, i32 nargs);
+    static Value log(LuaState* state, i32 nargs);
+    static Value log10(LuaState* state, i32 nargs);
+    static Value exp(LuaState* state, i32 nargs);
 
     // Min/max functions
-    static Value min(State* state, i32 nargs);
-    static Value max(State* state, i32 nargs);
+    static Value min(LuaState* state, i32 nargs);
+    static Value max(LuaState* state, i32 nargs);
 
     // Random functions
-    static Value random(State* state, i32 nargs);
-    static Value randomseed(State* state, i32 nargs);
+    static Value random(LuaState* state, i32 nargs);
+    static Value randomseed(LuaState* state, i32 nargs);
 
     // Other utility functions
-    static Value fmod(State* state, i32 nargs);
+    static Value fmod(LuaState* state, i32 nargs);
 
     // Multi-return value functions (Lua 5.1 standard)
-    static i32 modf(State* state);
-    static i32 frexp(State* state);
+    static i32 modf(LuaState* state);
+    static i32 frexp(LuaState* state);
 
-    static Value ldexp(State* state, i32 nargs);
-    static Value deg(State* state, i32 nargs);
-    static Value rad(State* state, i32 nargs);
+    static Value ldexp(LuaState* state, i32 nargs);
+    static Value deg(LuaState* state, i32 nargs);
+    static Value rad(LuaState* state, i32 nargs);
 };
 
 /**
@@ -128,6 +128,6 @@ public:
  * @param state Lua state to initialize math library for
  * @throws std::invalid_argument if state is null
  */
-void initializeMathLib(State* state);
+void initializeMathLib(LuaState* state);
 
 } // namespace Lua

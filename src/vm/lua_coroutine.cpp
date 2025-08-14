@@ -1,5 +1,5 @@
-#include "lua_coroutine.hpp"
-#include "state.hpp"
+﻿#include "lua_coroutine.hpp"
+#include "lua_state.hpp"
 #include "lua_state.hpp"
 #include "function.hpp"
 #include "../common/defines.hpp"

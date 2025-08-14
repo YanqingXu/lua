@@ -1,4 +1,4 @@
-ï»¿#pragma once
+#pragma once
 
 #include "../core/lib_module.hpp"
 #include "../core/lib_registry.hpp"
@@ -33,14 +33,14 @@ public:
      * @param state Lua state to register functions to
      * @throws std::invalid_argument if state is null
      */
-    void registerFunctions(State* state) override;
+    void registerFunctions(LuaState* state) override;
 
     /**
      * @brief Initialize the string library
      * @param state Lua state to initialize
      * @throws std::invalid_argument if state is null
      */
-    void initialize(State* state) override;
+    void initialize(LuaState* state) override;
 
     // String function declarations with proper documentation
     /**
@@ -50,7 +50,7 @@ public:
      * @return Number value representing string length
      * @throws std::invalid_argument if state is null
      */
-    static Value len(State* state, i32 nargs);
+    static Value len(LuaState* state, i32 nargs);
 
     /**
      * @brief Extract substring function
@@ -59,7 +59,7 @@ public:
      * @return String value containing substring
      * @throws std::invalid_argument if state is null
      */
-    static Value sub(State* state, i32 nargs);
+    static Value sub(LuaState* state, i32 nargs);
 
     /**
      * @brief Convert string to uppercase
@@ -68,7 +68,7 @@ public:
      * @return String value in uppercase
      * @throws std::invalid_argument if state is null
      */
-    static Value upper(State* state, i32 nargs);
+    static Value upper(LuaState* state, i32 nargs);
 
     /**
      * @brief Convert string to lowercase
@@ -77,7 +77,7 @@ public:
      * @return String value in lowercase
      * @throws std::invalid_argument if state is null
      */
-    static Value lower(State* state, i32 nargs);
+    static Value lower(LuaState* state, i32 nargs);
 
     /**
      * @brief Reverse string function
@@ -86,7 +86,7 @@ public:
      * @return String value reversed
      * @throws std::invalid_argument if state is null
      */
-    static Value reverse(State* state, i32 nargs);
+    static Value reverse(LuaState* state, i32 nargs);
 
     /**
      * @brief Repeat string function
@@ -95,14 +95,14 @@ public:
      * @return String value repeated specified times
      * @throws std::invalid_argument if state is null
      */
-    static Value rep(State* state, i32 nargs);
+    static Value rep(LuaState* state, i32 nargs);
 
-    // æ¨¡å¼åŒ¹é…å‡½æ•°ï¼ˆLua 5.1 æ ‡å‡†å®ç°ï¼‰
-    static i32 find(State* state);
-    static i32 gsub(State* state);
+    // Ä£Ê½Æ¥Åäº¯Êı£¨Lua 5.1 ±ê×¼ÊµÏÖ£©
+    static i32 find(LuaState* state);
+    static i32 gsub(LuaState* state);
 
-    // æ ¼å¼åŒ–å‡½æ•°
-    static Value format(State* state, i32 nargs);
+    // ¸ñÊ½»¯º¯Êı
+    static Value format(LuaState* state, i32 nargs);
 
 private:
     // Helper functions for pattern matching
@@ -113,9 +113,9 @@ private:
 };
 
 /**
- * @brief ä¾¿æ·çš„StringLibåˆå§‹åŒ–å‡½æ•°
- * @param state LuaçŠ¶æ€æœº
+ * @brief ±ã½İµÄStringLib³õÊ¼»¯º¯Êı
+ * @param state Lua×´Ì¬»ú
  */
-void initializeStringLib(State* state);
+void initializeStringLib(LuaState* state);
 
 } // namespace Lua

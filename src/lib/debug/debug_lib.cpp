@@ -1,6 +1,7 @@
-﻿#include "debug_lib.hpp"
+#include "debug_lib.hpp"
 #include "../core/lib_registry.hpp"
 #include "../../vm/table.hpp"
+#include "../../gc/core/gc_string.hpp"
 #include "../../common/defines.hpp"
 #include <iostream>
 #include <sstream>
@@ -9,7 +10,7 @@
 
 namespace Lua {
 
-void DebugLib::registerFunctions(State* state) {
+void DebugLib::registerFunctions(LuaState* state) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }
@@ -36,7 +37,7 @@ void DebugLib::registerFunctions(State* state) {
     LibRegistry::registerTableFunctionLegacy(state, debugTable, "traceback", traceback);
 }
 
-void DebugLib::initialize(State* state) {
+void DebugLib::initialize(LuaState* state) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }
@@ -49,7 +50,7 @@ void DebugLib::initialize(State* state) {
 // Debug Function Implementations (Simplified Versions)
 // ===================================================================
 
-Value DebugLib::debug(State* state, i32 nargs) {
+Value DebugLib::debug(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }
@@ -112,7 +113,7 @@ Value DebugLib::debug(State* state, i32 nargs) {
     return Value(); // nil
 }
 
-Value DebugLib::getfenv(State* state, i32 nargs) {
+Value DebugLib::getfenv(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }
@@ -123,7 +124,7 @@ Value DebugLib::getfenv(State* state, i32 nargs) {
     return Value(); // nil
 }
 
-Value DebugLib::gethook(State* state, i32 nargs) {
+Value DebugLib::gethook(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }
@@ -134,7 +135,7 @@ Value DebugLib::gethook(State* state, i32 nargs) {
     return Value(); // nil
 }
 
-Value DebugLib::getinfo(State* state, i32 nargs) {
+Value DebugLib::getinfo(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }
@@ -147,7 +148,7 @@ Value DebugLib::getinfo(State* state, i32 nargs) {
     return createDebugInfo(state);
 }
 
-Value DebugLib::getlocal(State* state, i32 nargs) {
+Value DebugLib::getlocal(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }
@@ -165,7 +166,7 @@ Value DebugLib::getlocal(State* state, i32 nargs) {
     return Value(); // nil
 }
 
-Value DebugLib::getmetatable(State* state, i32 nargs) {
+Value DebugLib::getmetatable(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }
@@ -178,7 +179,7 @@ Value DebugLib::getmetatable(State* state, i32 nargs) {
     return Value(); // nil
 }
 
-Value DebugLib::getregistry(State* state, i32 nargs) {
+Value DebugLib::getregistry(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }
@@ -189,7 +190,7 @@ Value DebugLib::getregistry(State* state, i32 nargs) {
     return Value(); // nil
 }
 
-Value DebugLib::getupvalue(State* state, i32 nargs) {
+Value DebugLib::getupvalue(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }
@@ -206,7 +207,7 @@ Value DebugLib::getupvalue(State* state, i32 nargs) {
     return Value(); // nil
 }
 
-Value DebugLib::setfenv(State* state, i32 nargs) {
+Value DebugLib::setfenv(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }
@@ -219,7 +220,7 @@ Value DebugLib::setfenv(State* state, i32 nargs) {
     return Value(); // nil
 }
 
-Value DebugLib::sethook(State* state, i32 nargs) {
+Value DebugLib::sethook(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }
@@ -232,7 +233,7 @@ Value DebugLib::sethook(State* state, i32 nargs) {
     return Value(); // nil
 }
 
-Value DebugLib::setlocal(State* state, i32 nargs) {
+Value DebugLib::setlocal(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }
@@ -250,7 +251,7 @@ Value DebugLib::setlocal(State* state, i32 nargs) {
     return Value(); // nil
 }
 
-Value DebugLib::setmetatable(State* state, i32 nargs) {
+Value DebugLib::setmetatable(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }
@@ -263,7 +264,7 @@ Value DebugLib::setmetatable(State* state, i32 nargs) {
     return state->get(1);
 }
 
-Value DebugLib::setupvalue(State* state, i32 nargs) {
+Value DebugLib::setupvalue(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }
@@ -280,7 +281,7 @@ Value DebugLib::setupvalue(State* state, i32 nargs) {
     return Value(); // nil
 }
 
-Value DebugLib::traceback(State* state, i32 nargs) {
+Value DebugLib::traceback(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }
@@ -323,7 +324,7 @@ Value DebugLib::traceback(State* state, i32 nargs) {
 // Helper Functions
 // ===================================================================
 
-i32 DebugLib::validateLevel(State* state, i32 argIndex) {
+i32 DebugLib::validateLevel(LuaState* state, i32 argIndex) {
     if (!state) {
         return -1;
     }
@@ -341,7 +342,7 @@ i32 DebugLib::validateLevel(State* state, i32 argIndex) {
     return level;
 }
 
-bool DebugLib::validateFunction(State* state, i32 argIndex) {
+bool DebugLib::validateFunction(LuaState* state, i32 argIndex) {
     if (!state) {
         return false;
     }
@@ -350,7 +351,7 @@ bool DebugLib::validateFunction(State* state, i32 argIndex) {
     return val.isFunction();
 }
 
-Value DebugLib::createDebugInfo(State* state) {
+Value DebugLib::createDebugInfo(LuaState* state) {
     if (!state) {
         return Value(); // nil
     }
@@ -360,7 +361,7 @@ Value DebugLib::createDebugInfo(State* state) {
     return Value(); // nil
 }
 
-Str DebugLib::getFunctionName(State* state, i32 level) {
+Str DebugLib::getFunctionName(LuaState* state, i32 level) {
     if (!state) {
         return "?";
     }
@@ -371,7 +372,7 @@ Str DebugLib::getFunctionName(State* state, i32 level) {
     return "function";
 }
 
-Str DebugLib::getSourceInfo(State* state, i32 level) {
+Str DebugLib::getSourceInfo(LuaState* state, i32 level) {
     if (!state) {
         return "unknown";
     }
@@ -407,7 +408,7 @@ void DebugLib::printDebugHelp() {
     std::cout << std::endl;
 }
 
-void DebugLib::printStackInfo(State* state) {
+void DebugLib::printStackInfo(LuaState* state) {
     if (!state) {
         std::cout << "Error: Invalid state" << std::endl;
         return;
@@ -431,7 +432,7 @@ void DebugLib::printStackInfo(State* state) {
     std::cout << std::endl;
 }
 
-void DebugLib::printGlobals(State* state) {
+void DebugLib::printGlobals(LuaState* state) {
     if (!state) {
         std::cout << "Error: Invalid state" << std::endl;
         return;
@@ -440,7 +441,8 @@ void DebugLib::printGlobals(State* state) {
     std::cout << "\n=== Global Variables ===" << std::endl;
 
     // Get global table
-    Value globalTable = state->getGlobal("_G");
+    auto globalStr = GCString::create("_G");
+    Value globalTable = state->getGlobal(globalStr);
     if (globalTable.isTable()) {
         auto table = globalTable.asTable();
         std::cout << "Global table found with " << table->length() << " entries" << std::endl;
@@ -448,7 +450,8 @@ void DebugLib::printGlobals(State* state) {
         // Show some common globals
         const char* commonGlobals[] = {"print", "type", "tostring", "tonumber", "_VERSION", "math", "string", "table"};
         for (const char* name : commonGlobals) {
-            Value val = state->getGlobal(name);
+            auto nameStr = GCString::create(name);
+            Value val = state->getGlobal(nameStr);
             if (!val.isNil()) {
                 std::cout << "  " << name << " = " << val.toString() << " (" << val.getTypeName() << ")" << std::endl;
             }
@@ -459,7 +462,7 @@ void DebugLib::printGlobals(State* state) {
     std::cout << std::endl;
 }
 
-void DebugLib::evaluateExpression(State* state, const Str& expr) {
+void DebugLib::evaluateExpression(LuaState* state, const Str& expr) {
     if (!state || expr.empty()) {
         std::cout << "Error: Invalid expression" << std::endl;
         return;
@@ -476,7 +479,7 @@ void DebugLib::evaluateExpression(State* state, const Str& expr) {
     }
 }
 
-void DebugLib::executeAssignment(State* state, const Str& assignment) {
+void DebugLib::executeAssignment(LuaState* state, const Str& assignment) {
     if (!state || assignment.empty()) {
         std::cout << "Error: Invalid assignment" << std::endl;
         return;
@@ -495,7 +498,7 @@ void DebugLib::executeAssignment(State* state, const Str& assignment) {
     }
 }
 
-void initializeDebugLib(State* state) {
+void initializeDebugLib(LuaState* state) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }

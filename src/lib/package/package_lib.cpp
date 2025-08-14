@@ -1,9 +1,10 @@
-﻿#include "package_lib.hpp"
+#include "package_lib.hpp"
 #include "file_utils.hpp"
 #include "../core/lib_registry.hpp"
 #include "../core/multi_return_helper.hpp"
 #include "../../vm/table.hpp"
 #include "../../vm/function.hpp"
+#include "../../gc/core/gc_string.hpp"
 #include "../../parser/parser.hpp"
 #include "../../compiler/compiler.hpp"
 #include "../../common/defines.hpp"
@@ -17,7 +18,7 @@ namespace Lua {
 // PackageLib Implementation
 // ===================================================================
 
-void PackageLib::registerFunctions(State* state) {
+void PackageLib::registerFunctions(LuaState* state) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }
@@ -36,13 +37,14 @@ void PackageLib::registerFunctions(State* state) {
     LibRegistry::registerTableFunction(state, packageTable, "searchpath", searchpath);
 }
 
-void PackageLib::initialize(State* state) {
+void PackageLib::initialize(LuaState* state) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }
 
     // Get package table
-    Value packageTable = state->getGlobal("package");
+    auto packageStr = GCString::create("package");
+    Value packageTable = state->getGlobal(packageStr);
     if (!packageTable.isTable()) {
         throw LuaException("package table not found during initialization");
     }
@@ -68,12 +70,12 @@ void PackageLib::initialize(State* state) {
     
     // Add default searchers to package.loaders
     // 1. Preload searcher (legacy wrapper)
-    loadersArray->set(Value(1), Value(Function::createNativeLegacy([](State* s, i32 n) -> Value {
+    loadersArray->set(Value(1), Value(Function::createNativeLegacy([](LuaState* s, i32 n) -> Value {
         return searcherPreload(s, n);
     })));
 
     // 2. Lua file searcher (legacy wrapper)
-    loadersArray->set(Value(2), Value(Function::createNativeLegacy([](State* s, i32 n) -> Value {
+    loadersArray->set(Value(2), Value(Function::createNativeLegacy([](LuaState* s, i32 n) -> Value {
         return searcherLua(s, n);
     })));
 
@@ -83,13 +85,14 @@ void PackageLib::initialize(State* state) {
     setupStandardLibraryEntries(state, loadedTable);
 }
 
-void PackageLib::setupStandardLibraryEntries(State* state, GCRef<Table> loadedTable) {
+void PackageLib::setupStandardLibraryEntries(LuaState* state, GCRef<Table> loadedTable) {
     if (!state || !loadedTable) {
         return;
     }
 
     // Mark core libraries as loaded
-    Value globalTable = state->getGlobal("_G");
+    auto globalStr = GCString::create("_G");
+    Value globalTable = state->getGlobal(globalStr);
     if (!globalTable.isNil()) {
         loadedTable->set(Value("_G"), globalTable);
     }
@@ -97,9 +100,11 @@ void PackageLib::setupStandardLibraryEntries(State* state, GCRef<Table> loadedTa
     // Mark standard libraries as loaded
     const char* stdLibs[] = {"string", "table", "math", "io", "os", "debug"};
     for (const char* libName : stdLibs) {
-        Value lib = state->getGlobal(libName);
+        auto libStr = GCString::create(libName);
+        Value lib = state->getGlobal(libStr);
         if (!lib.isNil()) {
-            loadedTable->set(Value(libName), lib);
+            auto nameStr = GCString::create(libName);
+            loadedTable->set(Value(nameStr), lib);
         }
     }
 }
@@ -108,7 +113,7 @@ void PackageLib::setupStandardLibraryEntries(State* state, GCRef<Table> loadedTa
 // Core Package Functions Implementation
 // ===================================================================
 
-Value PackageLib::require(State* state, i32 nargs) {
+Value PackageLib::require(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }
@@ -163,7 +168,7 @@ Value PackageLib::require(State* state, i32 nargs) {
 }
 
 // New Lua 5.1 standard loadfile implementation (multi-return)
-i32 PackageLib::loadfile(State* state) {
+i32 PackageLib::loadfile(LuaState* state) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }
@@ -224,7 +229,7 @@ i32 PackageLib::loadfile(State* state) {
 
 
 
-Value PackageLib::dofile(State* state, i32 nargs) {
+Value PackageLib::dofile(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }
@@ -260,7 +265,7 @@ Value PackageLib::dofile(State* state, i32 nargs) {
 
     // Execute the function
     Vec<Value> args; // No arguments for dofile
-    return state->call(function, args);
+    return state->callFunction(function, args);
 }
 
 // ===================================================================
@@ -268,7 +273,7 @@ Value PackageLib::dofile(State* state, i32 nargs) {
 // ===================================================================
 
 // New Lua 5.1 standard searchpath implementation (multi-return)
-i32 PackageLib::searchpath(State* state) {
+i32 PackageLib::searchpath(LuaState* state) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }
@@ -383,7 +388,7 @@ i32 PackageLib::searchpath(State* state) {
 // Internal Helper Functions Implementation
 // ===================================================================
 
-Value PackageLib::findModule(State* state, const Str& modname) {
+Value PackageLib::findModule(LuaState* state, const Str& modname) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }
@@ -404,15 +409,17 @@ Value PackageLib::findModule(State* state, const Str& modname) {
         }
 
         // Call searcher with module name
-        Vec<Value> args = {Value(modname)};
-        Value result = state->call(searcher, args);
+        auto modnameStr = GCString::create(modname);
+        Vec<Value> args = {Value(modnameStr)};
+        Value result = state->callFunction(searcher, args);
 
         if (!result.isNil()) {
             // Searcher found something
             if (result.isFunction()) {
                 // Call the loader function
-                Vec<Value> loaderArgs = {Value(modname)};
-                return state->call(result, loaderArgs);
+                auto modnameStr2 = GCString::create(modname);
+                Vec<Value> loaderArgs = {Value(modnameStr2)};
+                return state->callFunction(result, loaderArgs);
             } else {
                 // Direct result
                 return result;
@@ -437,7 +444,7 @@ Value PackageLib::findModule(State* state, const Str& modname) {
     throw LuaException(errorMsg);
 }
 
-Value PackageLib::loadLuaModule(State* state, const Str& filename, const Str& modname) {
+Value PackageLib::loadLuaModule(LuaState* state, const Str& filename, const Str& modname) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }
@@ -464,7 +471,7 @@ Value PackageLib::loadLuaModule(State* state, const Str& filename, const Str& mo
 
         // Execute the module
         Vec<Value> args; // No arguments for module execution
-        Value result = state->call(Value(function), args);
+        Value result = state->callFunction(Value(function), args);
 
         // If module doesn't return anything, return true
         if (result.isNil()) {
@@ -477,7 +484,7 @@ Value PackageLib::loadLuaModule(State* state, const Str& filename, const Str& mo
     }
 }
 
-bool PackageLib::checkCircularDependency(State* state, const Str& modname) {
+bool PackageLib::checkCircularDependency(LuaState* state, const Str& modname) {
     if (!state) {
         return false;
     }
@@ -490,7 +497,7 @@ bool PackageLib::checkCircularDependency(State* state, const Str& modname) {
     return !loadingMarker.isNil();
 }
 
-void PackageLib::markModuleLoading(State* state, const Str& modname) {
+void PackageLib::markModuleLoading(LuaState* state, const Str& modname) {
     if (!state) {
         return;
     }
@@ -500,7 +507,7 @@ void PackageLib::markModuleLoading(State* state, const Str& modname) {
     loadedTable.asTable()->set(Value(marker), Value(true));
 }
 
-void PackageLib::unmarkModuleLoading(State* state, const Str& modname) {
+void PackageLib::unmarkModuleLoading(LuaState* state, const Str& modname) {
     if (!state) {
         return;
     }
@@ -514,7 +521,7 @@ void PackageLib::unmarkModuleLoading(State* state, const Str& modname) {
 // Package Searcher Functions Implementation
 // ===================================================================
 
-Value PackageLib::searcherPreload(State* state, i32 nargs) {
+Value PackageLib::searcherPreload(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }
@@ -543,7 +550,7 @@ Value PackageLib::searcherPreload(State* state, i32 nargs) {
     return Value(); // nil - not found in preload
 }
 
-Value PackageLib::searcherLua(State* state, i32 nargs) {
+Value PackageLib::searcherLua(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }
@@ -575,7 +582,7 @@ Value PackageLib::searcherLua(State* state, i32 nargs) {
     }
 
     // Create loader function that loads the file (legacy wrapper)
-    auto loaderFn = [filename, modname](State* s, i32) -> Value {
+    auto loaderFn = [filename, modname](LuaState* s, i32) -> Value {
         return loadLuaModule(s, filename, modname);
     };
 
@@ -586,12 +593,13 @@ Value PackageLib::searcherLua(State* state, i32 nargs) {
 // Utility Functions Implementation
 // ===================================================================
 
-Value PackageLib::getPackageTable(State* state) {
+Value PackageLib::getPackageTable(LuaState* state) {
     if (!state) {
         throw LuaException("State cannot be null");
     }
 
-    Value packageTable = state->getGlobal("package");
+    auto packageStr = GCString::create("package");
+    Value packageTable = state->getGlobal(packageStr);
     if (!packageTable.isTable()) {
         throw LuaException("package table not found");
     }
@@ -599,7 +607,7 @@ Value PackageLib::getPackageTable(State* state) {
     return packageTable;
 }
 
-Value PackageLib::getLoadedTable(State* state) {
+Value PackageLib::getLoadedTable(LuaState* state) {
     Value packageTable = getPackageTable(state);
     Value loadedTable = packageTable.asTable()->get(Value("loaded"));
 
@@ -610,7 +618,7 @@ Value PackageLib::getLoadedTable(State* state) {
     return loadedTable;
 }
 
-Value PackageLib::getPreloadTable(State* state) {
+Value PackageLib::getPreloadTable(LuaState* state) {
     Value packageTable = getPackageTable(state);
     Value preloadTable = packageTable.asTable()->get(Value("preload"));
 
@@ -621,7 +629,7 @@ Value PackageLib::getPreloadTable(State* state) {
     return preloadTable;
 }
 
-Value PackageLib::getLoadersArray(State* state) {
+Value PackageLib::getLoadersArray(LuaState* state) {
     Value packageTable = getPackageTable(state);
     Value loadersArray = packageTable.asTable()->get(Value("loaders"));
 
@@ -632,7 +640,7 @@ Value PackageLib::getLoadersArray(State* state) {
     return loadersArray;
 }
 
-Value PackageLib::getPackagePath(State* state) {
+Value PackageLib::getPackagePath(LuaState* state) {
     Value packageTable = getPackageTable(state);
     Value packagePath = packageTable.asTable()->get(Value("path"));
 
@@ -643,7 +651,7 @@ Value PackageLib::getPackagePath(State* state) {
     return packagePath;
 }
 
-void initializePackageLib(State* state) {
+void initializePackageLib(LuaState* state) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }

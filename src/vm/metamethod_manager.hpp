@@ -87,7 +87,7 @@ namespace Lua {
          * @param args Arguments to pass to the metamethod
          * @return Result of the metamethod call
          */
-        static Value callMetaMethod(State* state, MetaMethod method, 
+        static Value callMetaMethod(LuaState* state, MetaMethod method,
                                    const Value& obj, const Vec<Value>& args);
         
         /**
@@ -98,7 +98,7 @@ namespace Lua {
          * @param rhs Right operand
          * @return Result of the metamethod call
          */
-        static Value callBinaryMetaMethod(State* state, MetaMethod method,
+        static Value callBinaryMetaMethod(LuaState* state, MetaMethod method,
                                          const Value& lhs, const Value& rhs);
         
         /**
@@ -108,7 +108,7 @@ namespace Lua {
          * @param operand The operand
          * @return Result of the metamethod call
          */
-        static Value callUnaryMetaMethod(State* state, MetaMethod method,
+        static Value callUnaryMetaMethod(LuaState* state, MetaMethod method,
                                         const Value& operand);
         
         // === Utility Functions ===

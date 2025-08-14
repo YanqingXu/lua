@@ -146,8 +146,8 @@ namespace Lua {
 
         switch (expr->getOperator()) {
             case TokenType::Minus:
-                // Use metamethod-aware unary minus for full Lua 5.1 compatibility
-                compiler->emitInstruction(Instruction::createUNM_MM(resultReg, operandReg));
+                // Use standard unary minus
+                compiler->emitInstruction(Instruction::createUNM(resultReg, operandReg));
                 break;
             case TokenType::Not:
                 compiler->emitInstruction(Instruction::createNOT(resultReg, operandReg));
@@ -216,8 +216,8 @@ namespace Lua {
                 compileComparisonOp(op, resultReg, leftReg, rightReg);
                 break;
             case TokenType::DotDot:
-                // Use metamethod-aware concatenation for full Lua 5.1 compatibility
-                compiler->emitInstruction(Instruction::createCONCAT_MM(resultReg, leftReg, rightReg));
+                // Use standard concatenation
+                compiler->emitInstruction(Instruction::createCONCAT(resultReg, leftReg, rightReg));
 
                 // Special handling for concatenation: don't free operand registers
                 // to avoid register conflicts in complex concatenation expressions
@@ -361,7 +361,7 @@ namespace Lua {
         DEBUG_PRINT("compileCall: emit CALL_MM a=" << callA << " b=" << callB << " c=" << callC);
 #endif
 
-        compiler->emitInstruction(Instruction::createCALL_MM(callA, callB, callC));
+        compiler->emitInstruction(Instruction::createCALL(callA, callB, callC));
 
         // 步骤6：返回结果寄存器（函数调用后结果在base）
         // 不立即释放调用帧，让调用者管理寄存器生命周期
@@ -433,7 +433,7 @@ namespace Lua {
         int callC = (expectedReturns == -1) ? 0 : (expectedReturns + 1);  // 使用指定的返回值数量
 
 
-        compiler->emitInstruction(Instruction::createCALL_MM(callA, callB, callC));
+        compiler->emitInstruction(Instruction::createCALL(callA, callB, callC));
 
         // 步骤6：返回结果寄存器（函数调用后结果在base）
         // 不立即释放调用帧，让调用者管理寄存器生命周期
@@ -551,7 +551,7 @@ namespace Lua {
         DEBUG_PRINT("compileCallWithMultiReturn: emit CALL_MM a=" << callA << " b=" << callB << " c=" << callC);
 #endif
 
-        compiler->emitInstruction(Instruction::createCALL_MM(callA, callB, callC));
+        compiler->emitInstruction(Instruction::createCALL(callA, callB, callC));
 
         // Results will be placed in consecutive registers starting from startReg
         // No need to return anything since we're placing results directly
@@ -745,19 +745,19 @@ namespace Lua {
         // Use metamethod-aware arithmetic instructions for full Lua 5.1 compatibility
         switch (op) {
             case TokenType::Plus:
-                compiler->emitInstruction(Instruction::createADD_MM(resultReg, leftReg, rightReg));
+                compiler->emitInstruction(Instruction::createADD(resultReg, leftReg, rightReg));
                 break;
             case TokenType::Minus:
-                compiler->emitInstruction(Instruction::createSUB_MM(resultReg, leftReg, rightReg));
+                compiler->emitInstruction(Instruction::createSUB(resultReg, leftReg, rightReg));
                 break;
             case TokenType::Star:
-                compiler->emitInstruction(Instruction::createMUL_MM(resultReg, leftReg, rightReg));
+                compiler->emitInstruction(Instruction::createMUL(resultReg, leftReg, rightReg));
                 break;
             case TokenType::Slash:
-                compiler->emitInstruction(Instruction::createDIV_MM(resultReg, leftReg, rightReg));
+                compiler->emitInstruction(Instruction::createDIV(resultReg, leftReg, rightReg));
                 break;
             case TokenType::Percent:
-                compiler->emitInstruction(Instruction::createMOD_MM(resultReg, leftReg, rightReg));
+                compiler->emitInstruction(Instruction::createMOD(resultReg, leftReg, rightReg));
                 break;
             case TokenType::Caret:
                 compiler->emitInstruction(Instruction::createPOW(resultReg, leftReg, rightReg));
@@ -771,23 +771,23 @@ namespace Lua {
         // Use metamethod-aware comparison instructions for full Lua 5.1 compatibility
         switch (op) {
             case TokenType::Equal:
-                compiler->emitInstruction(Instruction::createEQ_MM(resultReg, leftReg, rightReg));
+                compiler->emitInstruction(Instruction::createEQ(resultReg, leftReg, rightReg));
                 break;
             case TokenType::NotEqual:
-                compiler->emitInstruction(Instruction::createEQ_MM(resultReg, leftReg, rightReg));
+                compiler->emitInstruction(Instruction::createEQ(resultReg, leftReg, rightReg));
                 compiler->emitInstruction(Instruction::createNOT(resultReg, resultReg));
                 break;
             case TokenType::Less:
-                compiler->emitInstruction(Instruction::createLT_MM(resultReg, leftReg, rightReg));
+                compiler->emitInstruction(Instruction::createLT(resultReg, leftReg, rightReg));
                 break;
             case TokenType::LessEqual:
-                compiler->emitInstruction(Instruction::createLE_MM(resultReg, leftReg, rightReg));
+                compiler->emitInstruction(Instruction::createLE(resultReg, leftReg, rightReg));
                 break;
             case TokenType::Greater:
-                compiler->emitInstruction(Instruction::createLT_MM(resultReg, rightReg, leftReg));
+                compiler->emitInstruction(Instruction::createLT(resultReg, rightReg, leftReg));
                 break;
             case TokenType::GreaterEqual:
-                compiler->emitInstruction(Instruction::createLE_MM(resultReg, rightReg, leftReg));
+                compiler->emitInstruction(Instruction::createLE(resultReg, rightReg, leftReg));
                 break;
             default:
                 throw LuaException("Unknown comparison operator");

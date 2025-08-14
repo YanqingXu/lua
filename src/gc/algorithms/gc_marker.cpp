@@ -1,11 +1,11 @@
-#include "gc_marker.hpp"
+﻿#include "gc_marker.hpp"
 #include "../core/gc_object.hpp"
 #include "../core/string_pool.hpp"
 #include "../../vm/value.hpp"
 #include "../../vm/table.hpp"
 #include "../../vm/table_impl.hpp"
 #include "../../vm/function.hpp"
-#include "../../vm/state.hpp"
+#include "../../vm/lua_state.hpp"
 #include <algorithm>
 #include <cassert>
 
@@ -178,8 +178,8 @@ namespace Lua {
             
             case GCObjectType::State: {
                 // Mark Lua state's stack and global variables
-                State* state = static_cast<State*>(object);
-                // Note: State marking should be handled by the GarbageCollector
+                LuaState* state = static_cast<LuaState*>(object);
+                // Note: LuaState marking should be handled by the GarbageCollector
                 // For now, we'll mark the state's references manually
                 // TODO: Refactor to use proper GarbageCollector interface
                 break;
@@ -214,5 +214,74 @@ namespace Lua {
             object->setColor(GCColor::Black);
         }
     }
-    
+
+    // === Incremental Marking Implementation ===
+
+    isize GCMarker::propagateOne(GCColor currentWhite) {
+        if (grayStack.empty()) {
+            return 0;
+        }
+
+        // 弹出一个灰色对象
+        GCObject* object = grayStack.back();
+        grayStack.pop_back();
+        graySet.erase(object);
+
+        // 标记为黑色
+        setBlack(object);
+
+        // 标记其子对象
+        markChildren(object, currentWhite);
+
+        // 返回处理的内存量 - 对应官方propagatemark的返回值
+        return calculateObjectSize(object);
+    }
+
+    isize GCMarker::propagateAll(GCColor currentWhite) {
+        isize totalSize = 0;
+
+        while (!grayStack.empty()) {
+            totalSize += propagateOne(currentWhite);
+        }
+
+        return totalSize;
+    }
+
+    isize GCMarker::calculateObjectSize(GCObject* object) {
+        if (!object) {
+            return 0;
+        }
+
+        // 根据对象类型计算大小 - 对应官方propagatemark中的大小计算
+        switch (object->getType()) {
+            case GCObjectType::String: {
+                // 字符串大小计算
+                return sizeof(GCObject) + 64; // 简化计算
+            }
+
+            case GCObjectType::Table: {
+                // 表大小计算 - 对应官方sizeof(Table) + sizeof(TValue) * h->sizearray + sizeof(Node) * sizenode(h)
+                return sizeof(GCObject) + 256; // 简化计算
+            }
+
+            case GCObjectType::Function: {
+                // 函数大小计算
+                return sizeof(GCObject) + 128; // 简化计算
+            }
+
+            case GCObjectType::Thread: {
+                // 线程大小计算 - 对应官方sizeof(lua_State) + sizeof(TValue) * th->stacksize + sizeof(CallInfo) * th->size_ci
+                return sizeof(GCObject) + 512; // 简化计算
+            }
+
+            case GCObjectType::Proto: {
+                // 原型大小计算
+                return sizeof(GCObject) + 256; // 简化计算
+            }
+
+            default:
+                return sizeof(GCObject);
+        }
+    }
+
 } // namespace Lua

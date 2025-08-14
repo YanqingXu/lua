@@ -1,4 +1,4 @@
-#include "upvalue.hpp"
+﻿#include "upvalue.hpp"
 #include "../gc/core/garbage_collector.hpp"
 #include "../gc/memory/allocator.hpp"
 #include <stdexcept>

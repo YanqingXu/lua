@@ -1,5 +1,5 @@
 ﻿#include "multi_return_helper.hpp"
-#include "../../vm/state.hpp"
+#include "../../vm/lua_state.hpp"
 #include <stdexcept>
 
 namespace Lua {
@@ -60,7 +60,7 @@ namespace Lua {
         return CallResult(loadedFunction);  // Single function value
     }
 
-    i32 MultiReturnHelper::pushMultipleValues(State* state, const Vec<Value>& values) {
+    i32 MultiReturnHelper::pushMultipleValues(LuaState* state, const Vec<Value>& values) {
         if (!state) {
             throw std::invalid_argument("State cannot be null");
         }
@@ -72,7 +72,7 @@ namespace Lua {
         return static_cast<i32>(values.size());
     }
 
-    i32 MultiReturnHelper::returnCallResult(State* state, const CallResult& result) {
+    i32 MultiReturnHelper::returnCallResult(LuaState* state, const CallResult& result) {
         if (!state) {
             throw std::invalid_argument("State cannot be null");
         }

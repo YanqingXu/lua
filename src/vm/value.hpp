@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "../common/types.hpp"
 #include "../gc/core/gc_object.hpp"
@@ -15,6 +15,7 @@ namespace Lua {
     class Function;
     class GCString;
     class Userdata;
+    class LuaState;
     template<typename T> class GCRef;
     
     // Forward declare utility functions
@@ -86,7 +87,6 @@ namespace Lua {
         
         // GC object checking
         bool isGCObject() const { return isString() || isTable() || isFunction() || isUserdata(); }
-        GCObject* asGCObject() const;
         
         // Get values
         LuaBoolean asBoolean() const;
@@ -114,5 +114,36 @@ namespace Lua {
         
         // Truthiness test (Lua semantics: only nil and false are falsy)
         bool isTruthy() const;
+
+        // === Write Barrier Support for GC ===
+
+        /**
+         * @brief 带写屏障的赋值操作 - Lua 5.1兼容
+         * @param other 要赋值的值
+         * @param L Lua状态，用于写屏障检查
+         */
+        void assignWithBarrier(const Value& other, LuaState* L);
+
+        /**
+         * @brief 带写屏障的GC对象赋值
+         * @param gcObj GC对象
+         * @param L Lua状态，用于写屏障检查
+         */
+        template<typename T>
+        void setGCObjectWithBarrier(GCRef<T> gcObj, LuaState* L);
+
+        /**
+         * @brief 检查当前值是否需要写屏障保护
+         * @return true 如果当前值是GC对象且可能需要写屏障
+         */
+        bool needsWriteBarrier() const { return isGCObject(); }
+
+        /**
+         * @brief 获取GC对象指针 - 用于写屏障
+         * @return GCObject指针，如果不是GC对象则返回nullptr
+         */
+        GCObject* asGCObject() const;
+
+    private:
     };
 }

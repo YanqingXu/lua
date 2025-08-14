@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "../core/gc_object.hpp"
 #include "../utils/gc_types.hpp"
@@ -8,7 +8,7 @@
 namespace Lua {
     // Forward declarations
     class GarbageCollector;
-    class State;
+    class LuaState;
 
     /**
      * @brief Tri-color marking algorithm implementation
@@ -87,10 +87,32 @@ namespace Lua {
         
         /**
          * @brief Get the current size of gray stack
-         * 
+         *
          * @return Size of gray stack
          */
         usize getGrayStackSize() const { return grayStack.size(); }
+
+        // === Incremental Marking Support ===
+
+        /**
+         * @brief 检查是否有灰色对象需要处理
+         * @return true 如果有灰色对象
+         */
+        bool hasGrayObjects() const { return !grayStack.empty(); }
+
+        /**
+         * @brief 处理一个灰色对象 - 增量标记支持
+         * @param currentWhite 当前白色标记
+         * @return 处理的内存量
+         */
+        isize propagateOne(GCColor currentWhite);
+
+        /**
+         * @brief 处理所有灰色对象 - 对应官方propagateall
+         * @param currentWhite 当前白色标记
+         * @return 处理的内存量
+         */
+        isize propagateAll(GCColor currentWhite);
         
     private:
         /**
@@ -126,11 +148,18 @@ namespace Lua {
         
         /**
          * @brief Set object color to black
-         * 
+         *
          * @param object Object to mark as black
          */
         void setBlack(GCObject* object);
-        
+
+        /**
+         * @brief 计算对象大小 - 用于增量GC的处理量统计
+         * @param object 要计算大小的对象
+         * @return 对象占用的内存大小
+         */
+        isize calculateObjectSize(GCObject* object);
+
     private:
         // Stack of gray objects waiting to be processed
         Vec<GCObject*> grayStack;

@@ -8,7 +8,7 @@
 
 namespace Lua {
 
-void TableLib::registerFunctions(State* state) {
+void TableLib::registerFunctions(LuaState* state) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }
@@ -25,7 +25,7 @@ void TableLib::registerFunctions(State* state) {
     LibRegistry::registerTableFunctionLegacy(state, tableTable, "maxn", maxn);
 }
 
-void TableLib::initialize(State* state) {
+void TableLib::initialize(LuaState* state) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }
@@ -38,7 +38,7 @@ void TableLib::initialize(State* state) {
 // Table Function Implementations
 // ===================================================================
 
-Value TableLib::insert(State* state, i32 nargs) {
+Value TableLib::insert(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }
@@ -99,7 +99,7 @@ Value TableLib::insert(State* state, i32 nargs) {
     return Value(); // nil
 }
 
-Value TableLib::remove(State* state, i32 nargs) {
+Value TableLib::remove(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }
@@ -150,7 +150,7 @@ Value TableLib::remove(State* state, i32 nargs) {
     return removedVal;
 }
 
-Value TableLib::sort(State* state, i32 nargs) {
+Value TableLib::sort(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }
@@ -192,7 +192,7 @@ Value TableLib::sort(State* state, i32 nargs) {
     return Value(); // nil
 }
 
-Value TableLib::concat(State* state, i32 nargs) {
+Value TableLib::concat(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }
@@ -245,7 +245,7 @@ Value TableLib::concat(State* state, i32 nargs) {
     return Value(result.str());
 }
 
-Value TableLib::getn(State* state, i32 nargs) {
+Value TableLib::getn(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }
@@ -262,7 +262,7 @@ Value TableLib::getn(State* state, i32 nargs) {
     return Value(static_cast<f64>(getTableLength(table)));
 }
 
-Value TableLib::maxn(State* state, i32 nargs) {
+Value TableLib::maxn(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }
@@ -310,7 +310,7 @@ i32 TableLib::getTableLength(GCRef<Table> table) {
     return length;
 }
 
-GCRef<Table> TableLib::validateTableArg(State* state, i32 argIndex) {
+GCRef<Table> TableLib::validateTableArg(LuaState* state, i32 argIndex) {
     if (!state) {
         return GCRef<Table>(nullptr);
     }
@@ -323,7 +323,7 @@ GCRef<Table> TableLib::validateTableArg(State* state, i32 argIndex) {
     return val.asTable();
 }
 
-void initializeTableLib(State* state) {
+void initializeTableLib(LuaState* state) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }

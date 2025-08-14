@@ -9,10 +9,12 @@
 #include <cstdlib>
 
 #include "common/types.hpp"
-#include "vm/state.hpp"
+#include "vm/lua_state.hpp"
+#include "vm/global_state.hpp"
 #include "vm/vm.hpp"
 #include "compiler/compiler.hpp"
 #include "lib/core/lib_manager.hpp"
+#include "gc/core/gc_string.hpp"
 #include "parser/parser.hpp"
 #include "lexer/lexer.hpp"
 
@@ -30,7 +32,7 @@ void signalHandler(int signal) {
 }
 
 // REPL exit function
-Value replExit(State* state, i32 nargs) {
+Value replExit(LuaState* state, i32 nargs) {
     int exitCode = 0;
     if (nargs > 0) {
         Value arg = state->get(-nargs);
@@ -235,20 +237,25 @@ private:
 } // namespace Lua
 
 // Function declarations
-void executeCode(Lua::State& state, const std::string& code);
+void executeCode(Lua::LuaState& state, const std::string& code);
 
 // Initialize REPL state
-void initializeREPL(Lua::State& state) {
+void initializeREPL(Lua::LuaState& state) {
     // Set default prompts
-    state.setGlobal("_PROMPT", Lua::Value(">"));
-    state.setGlobal("_PROMPT2", Lua::Value(">>"));
+    auto promptStr = Lua::GCString::create("_PROMPT");
+    auto prompt2Str = Lua::GCString::create("_PROMPT2");
+    auto versionStr = Lua::GCString::create("_VERSION");
+    auto exitStr = Lua::GCString::create("exit");
+
+    state.setGlobal(promptStr, Lua::Value(Lua::GCString::create(">")));
+    state.setGlobal(prompt2Str, Lua::Value(Lua::GCString::create(">>")));
 
     // Set version info
-    state.setGlobal("_VERSION", Lua::Value("Lua 5.1.5"));
+    state.setGlobal(versionStr, Lua::Value(Lua::GCString::create("Lua 5.1.5")));
 
     // Add REPL specific global functions (legacy)
     auto exitFunc = Lua::Function::createNativeLegacy(Lua::replExit);
-    state.setGlobal("exit", Lua::Value(exitFunc));
+    state.setGlobal(exitStr, Lua::Value(exitFunc));
 
     // Set signal handling
     std::signal(SIGINT, Lua::signalHandler);
@@ -256,7 +263,8 @@ void initializeREPL(Lua::State& state) {
 
 // This function will be called from main.cpp
 void run_repl() {
-    Lua::State state;
+    Lua::GlobalState globalState;
+    Lua::LuaState state(&globalState);
     Lua::StandardLibrary::initializeAll(&state);
     initializeREPL(state);
 
@@ -281,13 +289,15 @@ void run_repl() {
         try {
             if (currentInput.empty()) {
                 // Main prompt
-                Lua::Value promptVal = state.getGlobal("_PROMPT");
+                auto promptStr = Lua::GCString::create("_PROMPT");
+                Lua::Value promptVal = state.getGlobal(promptStr);
                 if (promptVal.isString()) {
                     prompt = promptVal.toString() + " ";
                 }
             } else {
                 // Continuation prompt
-                Lua::Value prompt2Val = state.getGlobal("_PROMPT2");
+                auto prompt2Str = Lua::GCString::create("_PROMPT2");
+                Lua::Value prompt2Val = state.getGlobal(prompt2Str);
                 if (prompt2Val.isString()) {
                     prompt = prompt2Val.toString() + " ";
                 }
@@ -429,7 +439,7 @@ bool isPureExpression(const std::string& code) {
 
 
 
-void executeCode(Lua::State& state, const std::string& code) {
+void executeCode(Lua::LuaState& state, const std::string& code) {
     bool isExpression = isPureExpression(code);
 
     if (isExpression) {

@@ -34,7 +34,7 @@ namespace Lua {
          * @param key The key being accessed
          * @return The value returned by the metamethod or nil
          */
-        static Value handleIndex(State* state, const Value& table, const Value& key);
+        static Value handleIndex(LuaState* state, const Value& table, const Value& key);
         
         /**
          * @brief Handle __newindex metamethod
@@ -49,7 +49,7 @@ namespace Lua {
          * @param key The key being assigned
          * @param value The value being assigned
          */
-        static void handleNewIndex(State* state, const Value& table, 
+        static void handleNewIndex(LuaState* state, const Value& table,
                                   const Value& key, const Value& value);
         
         /**
@@ -64,7 +64,7 @@ namespace Lua {
          * @param args Arguments passed to the call
          * @return The result of the call
          */
-        static Value handleCall(State* state, const Value& func, const Vec<Value>& args);
+        static Value handleCall(LuaState* state, const Value& func, const Vec<Value>& args);
 
         /**
          * @brief Handle __call metamethod with multiple return values
@@ -76,7 +76,7 @@ namespace Lua {
          * @param args Arguments passed to the call
          * @return CallResult containing all return values
          */
-        static CallResult handleCallMultiple(State* state, const Value& func, const Vec<Value>& args);
+        static CallResult handleCallMultiple(LuaState* state, const Value& func, const Vec<Value>& args);
         
         /**
          * @brief Handle __tostring metamethod
@@ -88,7 +88,7 @@ namespace Lua {
          * @param obj The object being converted to string
          * @return String representation of the object
          */
-        static Value handleToString(State* state, const Value& obj);
+        static Value handleToString(LuaState* state, const Value& obj);
         
         // === Utility Functions ===
         
@@ -171,7 +171,7 @@ namespace Lua {
          * @param args Arguments for the metamethod
          * @return Result of the metamethod call or nil
          */
-        static Value handleMetaMethodCall(State* state, const Value& handler, const Vec<Value>& args);
+        static Value handleMetaMethodCall(LuaState* state, const Value& handler, const Vec<Value>& args);
 
         /**
          * @brief Call a function directly without metamethod recursion
@@ -184,7 +184,7 @@ namespace Lua {
          * @param args Arguments for the function
          * @return Result of the function call
          */
-        static Value callFunctionDirect(State* state, const Value& func, const Vec<Value>& args);
+        static Value callFunctionDirect(LuaState* state, const Value& func, const Vec<Value>& args);
 
         /**
          * @brief Direct function call with multiple return values support
@@ -196,7 +196,7 @@ namespace Lua {
          * @param args Arguments for the function
          * @return CallResult containing all return values
          */
-        static CallResult callFunctionDirectMultiple(State* state, const Value& func, const Vec<Value>& args);
+        static CallResult callFunctionDirectMultiple(LuaState* state, const Value& func, const Vec<Value>& args);
 
     private:
         // === Internal Helper Functions ===

@@ -9,7 +9,7 @@
 namespace Lua {
     // Forward declarations
     class GarbageCollector;
-    class State;
+    class LuaState;
     class Value;
     
     // Simplified Table implementation
@@ -41,10 +41,13 @@ namespace Lua {
         Value get(const Value& key) const;
 
         // Metamethod-aware operations
-        Value getWithMetamethod(const Value& key, class State* state = nullptr);
+        Value getWithMetamethod(const Value& key, class LuaState* state = nullptr);
 
         // Set value in table
         void set(const Value& key, const Value& value);
+
+        // Set value in table with write barrier support
+        void setWithBarrier(const Value& key, const Value& value, LuaState* L);
         
         // Get table length
         size_t length() const;
@@ -72,4 +75,7 @@ namespace Lua {
         // Find key in entries
         int findEntry(const Value& key) const;
     };
+
+    // Helper function to create GC-managed tables
+    GCRef<Table> make_gc_table();
 }

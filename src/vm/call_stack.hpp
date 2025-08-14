@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "../common/types.hpp"
 #include "lua_state.hpp"

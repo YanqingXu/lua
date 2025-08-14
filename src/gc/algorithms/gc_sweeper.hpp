@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "../core/gc_object.hpp"
 #include "../utils/gc_types.hpp"
@@ -166,6 +166,15 @@ namespace Lua {
          * @return Maximum objects processed per step
          */
         usize getStepSize() const { return maxStepSize; }
+
+        /**
+         * @brief 增量清理对象列表 - 对应官方sweeplist
+         * @param objectList 对象列表头指针
+         * @param white 当前白色标记
+         * @param maxObjects 最大处理对象数
+         * @return 新的对象列表头
+         */
+        GCObject* sweepStep(GCObject* objectList, GCColor white, usize maxObjects);
         
     private:
         /**

@@ -208,6 +208,24 @@ namespace Lua {
         bool isBlack() const {
             return GCUtils::isBlack(gcMark.load(std::memory_order_acquire));
         }
+
+        // === Lua 5.1 Compatible Mark Access ===
+
+        /**
+         * @brief 获取GC标记字节 - Lua 5.1兼容
+         * @return GC标记字节
+         */
+        u8 getGCMark() const {
+            return gcMark.load(std::memory_order_acquire);
+        }
+
+        /**
+         * @brief 设置GC标记字节 - Lua 5.1兼容
+         * @param mark 新的标记字节
+         */
+        void setGCMark(u8 mark) {
+            gcMark.store(mark, std::memory_order_release);
+        }
         
         // === Object Properties ===
         
@@ -216,6 +234,12 @@ namespace Lua {
          * @return Object type
          */
         GCObjectType getType() const { return objectType; }
+
+        /**
+         * @brief Set the type of this object - Lua 5.1兼容
+         * @param type New object type
+         */
+        void setType(GCObjectType type) { objectType = type; }
         
         /**
          * @brief Check if this object is fixed (never collected)

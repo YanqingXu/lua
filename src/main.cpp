@@ -3,7 +3,8 @@
 #include <sstream>
 #include <string>
 #include "common/types.hpp"
-#include "vm/state.hpp"
+#include "vm/lua_state.hpp"
+#include "vm/global_state.hpp"
 #include "vm/global_state.hpp"
 #include "vm/value.hpp"
 #include "vm/table.hpp"
@@ -39,48 +40,31 @@ int main(int argc, char** argv) {
             std::string filename = argv[1];
             std::string source = readFile(filename);
 
-            // Determine which architecture to use (Phase 1 refactoring)
-            State* state = nullptr;
-            GlobalState* globalState = nullptr;
+            // Create Lua state using official Lua 5.1 architecture
+            std::cerr << "[Lua5.1] Using official Lua 5.1 architecture (LuaState + GlobalState)" << std::endl;
 
-            if (filename.find("globalstate") != std::string::npos) {
-                // Use explicit GlobalState with State (Phase 1 refactoring)
-                std::cerr << "[Phase1] Using explicit GlobalState architecture" << std::endl;
-                globalState = new GlobalState();
-                state = new State(globalState);
-            } else {
-                // Use State with internal Lua 5.1 architecture (Phase 1 migration)
-                std::cerr << "[Phase1] Using State with internal Lua 5.1 architecture" << std::endl;
-                state = new State();
-            }
+            // Create GlobalState and LuaState following official Lua 5.1 pattern
+            GlobalState* globalState = new GlobalState();
+            LuaState* luaState = new LuaState(globalState);
 
-            if (!state) {
-                std::cerr << "Error: Failed to create State" << std::endl;
+            if (!luaState) {
+                std::cerr << "Error: Failed to create LuaState" << std::endl;
+                delete globalState;
                 return 1;
             }
 
-            // Initialize all standard libraries using simplified framework
-            StandardLibrary::initializeAll(state);
+            // Initialize all standard libraries
+            StandardLibrary::initializeAll(luaState);
 
             // Execute code
-            bool success = state->doString(source);
+            bool success = luaState->doString(source);
 
             // Show architecture information
-            if (state->isUsingGlobalState()) {
-                if (state->getLuaState()) {
-                    std::cerr << "[Phase1] Architecture: State with Lua 5.1 (LuaState + GlobalState)" << std::endl;
-                } else {
-                    std::cerr << "[Phase1] Architecture: State with GlobalState integration" << std::endl;
-                }
-            } else {
-                std::cerr << "[Phase1] Architecture: Traditional State (legacy fallback)" << std::endl;
-            }
+            std::cerr << "[Lua5.1] Architecture: Official Lua 5.1 (LuaState + GlobalState + VMExecutor)" << std::endl;
 
             // Cleanup
-            delete state;
-            if (globalState) {
-                delete globalState;
-            }
+            delete luaState;
+            delete globalState;
 
             if (!success) {
                 return 1;

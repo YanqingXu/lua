@@ -1,7 +1,7 @@
-﻿#pragma once
+#pragma once
 
 #include "common/types.hpp"
-#include "vm/state.hpp"
+#include "vm/lua_state.hpp"
 #include "vm/value.hpp"
 #include "lib/core/lib_module.hpp"
 #include <ctime>
@@ -40,14 +40,14 @@ public:
      * @param state Lua state to register functions to
      * @throws std::invalid_argument if state is null
      */
-    void registerFunctions(State* state) override;
+    void registerFunctions(LuaState* state) override;
 
     /**
      * @brief Initialize the OS library
      * @param state Lua state to initialize
      * @throws std::invalid_argument if state is null
      */
-    void initialize(State* state) override;
+    void initialize(LuaState* state) override;
 
     // OS function declarations with proper documentation
     /**
@@ -57,7 +57,7 @@ public:
      * @return Number representing CPU time in seconds
      * @throws std::invalid_argument if state is null
      */
-    static Value clock(State* state, i32 nargs);
+    static Value clock(LuaState* state, i32 nargs);
 
     /**
      * @brief Format date/time
@@ -66,7 +66,7 @@ public:
      * @return Formatted date string
      * @throws std::invalid_argument if state is null
      */
-    static Value date(State* state, i32 nargs);
+    static Value date(LuaState* state, i32 nargs);
 
     /**
      * @brief Calculate time difference
@@ -75,7 +75,7 @@ public:
      * @return Number representing time difference in seconds
      * @throws std::invalid_argument if state is null
      */
-    static Value difftime(State* state, i32 nargs);
+    static Value difftime(LuaState* state, i32 nargs);
 
     /**
      * @brief Execute system command
@@ -84,7 +84,7 @@ public:
      * @return Exit code or nil on error
      * @throws std::invalid_argument if state is null
      */
-    static Value execute(State* state, i32 nargs);
+    static Value execute(LuaState* state, i32 nargs);
 
     /**
      * @brief Exit program
@@ -93,7 +93,7 @@ public:
      * @return Does not return (exits program)
      * @throws std::invalid_argument if state is null
      */
-    static Value exit(State* state, i32 nargs);
+    static Value exit(LuaState* state, i32 nargs);
 
     /**
      * @brief Get environment variable
@@ -102,7 +102,7 @@ public:
      * @return Environment variable value or nil
      * @throws std::invalid_argument if state is null
      */
-    static Value getenv(State* state, i32 nargs);
+    static Value getenv(LuaState* state, i32 nargs);
 
     /**
      * @brief Remove file
@@ -111,7 +111,7 @@ public:
      * @return True on success, nil and error message on failure
      * @throws std::invalid_argument if state is null
      */
-    static Value remove(State* state, i32 nargs);
+    static Value remove(LuaState* state, i32 nargs);
 
     /**
      * @brief Rename file
@@ -120,7 +120,7 @@ public:
      * @return True on success, nil and error message on failure
      * @throws std::invalid_argument if state is null
      */
-    static Value rename(State* state, i32 nargs);
+    static Value rename(LuaState* state, i32 nargs);
 
     /**
      * @brief Set locale
@@ -129,7 +129,7 @@ public:
      * @return Previous locale or nil on error
      * @throws std::invalid_argument if state is null
      */
-    static Value setlocale(State* state, i32 nargs);
+    static Value setlocale(LuaState* state, i32 nargs);
 
     /**
      * @brief Get current time
@@ -138,7 +138,7 @@ public:
      * @return Time value as number or table
      * @throws std::invalid_argument if state is null
      */
-    static Value time(State* state, i32 nargs);
+    static Value time(LuaState* state, i32 nargs);
 
     /**
      * @brief Generate temporary filename
@@ -147,7 +147,7 @@ public:
      * @return Temporary filename string
      * @throws std::invalid_argument if state is null
      */
-    static Value tmpname(State* state, i32 nargs);
+    static Value tmpname(LuaState* state, i32 nargs);
 
 private:
     /**
@@ -156,7 +156,7 @@ private:
      * @param t Time value
      * @return Table containing time components
      */
-    static Value timeToTable(State* state, std::time_t t);
+    static Value timeToTable(LuaState* state, std::time_t t);
 
     /**
      * @brief Convert Lua time table to time_t
@@ -164,7 +164,7 @@ private:
      * @param tableVal Table containing time components
      * @return time_t value or -1 on error
      */
-    static std::time_t tableToTime(State* state, const Value& tableVal);
+    static std::time_t tableToTime(LuaState* state, const Value& tableVal);
 
     /**
      * @brief Format time using strftime
@@ -186,7 +186,7 @@ private:
      * @param argIndex Argument index
      * @return Filename string or empty if invalid
      */
-    static Str validateFilename(State* state, i32 argIndex);
+    static Str validateFilename(LuaState* state, i32 argIndex);
 
     /**
      * @brief Get system error message
@@ -200,6 +200,6 @@ private:
  * @brief Convenient OSLib initialization function
  * @param state Lua state
  */
-void initializeOSLib(State* state);
+void initializeOSLib(LuaState* state);
 
 } // namespace Lua

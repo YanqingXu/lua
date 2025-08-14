@@ -1,7 +1,7 @@
-﻿#pragma once
+#pragma once
 
 #include "common/types.hpp"
-#include "vm/state.hpp"
+#include "vm/lua_state.hpp"
 #include "vm/value.hpp"
 #include "lib/core/lib_module.hpp"
 #include <fstream>
@@ -39,14 +39,14 @@ public:
      * @param state Lua state to register functions to
      * @throws std::invalid_argument if state is null
      */
-    void registerFunctions(State* state) override;
+    void registerFunctions(LuaState* state) override;
 
     /**
      * @brief Initialize the IO library
      * @param state Lua state to initialize
      * @throws std::invalid_argument if state is null
      */
-    void initialize(State* state) override;
+    void initialize(LuaState* state) override;
 
     // File operation function declarations with proper documentation
     /**
@@ -56,7 +56,7 @@ public:
      * @return File handle or nil on error
      * @throws std::invalid_argument if state is null
      */
-    static Value open(State* state, i32 nargs);
+    static Value open(LuaState* state, i32 nargs);
 
     /**
      * @brief Close file function
@@ -65,7 +65,7 @@ public:
      * @return True on success, nil on error
      * @throws std::invalid_argument if state is null
      */
-    static Value close(State* state, i32 nargs);
+    static Value close(LuaState* state, i32 nargs);
 
     /**
      * @brief Read from file or stdin
@@ -74,7 +74,7 @@ public:
      * @return String data or nil on EOF/error
      * @throws std::invalid_argument if state is null
      */
-    static Value read(State* state, i32 nargs);
+    static Value read(LuaState* state, i32 nargs);
 
     /**
      * @brief Write to file or stdout
@@ -83,7 +83,7 @@ public:
      * @return File handle or nil on error
      * @throws std::invalid_argument if state is null
      */
-    static Value write(State* state, i32 nargs);
+    static Value write(LuaState* state, i32 nargs);
 
     /**
      * @brief Flush output buffer
@@ -92,7 +92,7 @@ public:
      * @return True on success, nil on error
      * @throws std::invalid_argument if state is null
      */
-    static Value flush(State* state, i32 nargs);
+    static Value flush(LuaState* state, i32 nargs);
 
     /**
      * @brief Get file lines iterator
@@ -101,7 +101,7 @@ public:
      * @return Iterator function
      * @throws std::invalid_argument if state is null
      */
-    static Value lines(State* state, i32 nargs);
+    static Value lines(LuaState* state, i32 nargs);
 
     /**
      * @brief Set default input file
@@ -110,7 +110,7 @@ public:
      * @return Previous input file or nil
      * @throws std::invalid_argument if state is null
      */
-    static Value input(State* state, i32 nargs);
+    static Value input(LuaState* state, i32 nargs);
 
     /**
      * @brief Set default output file
@@ -119,7 +119,7 @@ public:
      * @return Previous output file or nil
      * @throws std::invalid_argument if state is null
      */
-    static Value output(State* state, i32 nargs);
+    static Value output(LuaState* state, i32 nargs);
 
     /**
      * @brief Get file handle type
@@ -128,7 +128,7 @@ public:
      * @return String describing file type or nil
      * @throws std::invalid_argument if state is null
      */
-    static Value type(State* state, i32 nargs);
+    static Value type(LuaState* state, i32 nargs);
 
 private:
     /**
@@ -154,7 +154,7 @@ private:
      * @param argIndex Argument index (1-based)
      * @return Pointer to FileHandle or nullptr if invalid
      */
-    static FileHandle* validateFileHandle(State* state, i32 argIndex);
+    static FileHandle* validateFileHandle(LuaState* state, i32 argIndex);
 
     /**
      * @brief Create file handle userdata
@@ -163,7 +163,7 @@ private:
      * @param mode File mode
      * @return Value containing file handle userdata
      */
-    static Value createFileHandle(State* state, const Str& filename, const Str& mode);
+    static Value createFileHandle(LuaState* state, const Str& filename, const Str& mode);
 
     /**
      * @brief Parse file mode string
@@ -203,6 +203,6 @@ private:
  * @brief Convenient IOLib initialization function
  * @param state Lua state
  */
-void initializeIOLib(State* state);
+void initializeIOLib(LuaState* state);
 
 } // namespace Lua

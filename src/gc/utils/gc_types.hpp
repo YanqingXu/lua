@@ -1,16 +1,16 @@
-#pragma once
+﻿#pragma once
 
 #include "../../common/types.hpp"
 #include <chrono>
 
 namespace Lua {
-    // GC state enumeration - Based on Lua 5.1 GC state machine
+    // GC state enumeration - Lua 5.1 compatible 5-state machine
     enum class GCState : u8 {
-        Pause,      // GC pause state
-        Propagate,  // Mark propagation phase
-        Sweep,      // Sweep phase
-        Finalize,   // Finalizer execution phase
-        Atomic      // Atomic mark phase
+        Pause = 0,        // GCSpause - 暂停状态，等待下次GC周期
+        Propagate = 1,    // GCSpropagate - 标记传播阶段
+        SweepString = 2,  // GCSsweepstring - 清理字符串表阶段
+        Sweep = 3,        // GCSsweep - 清理普通对象阶段
+        Finalize = 4      // GCSfinalize - 终结化阶段，处理finalizer
     };
 
     // Object color marking - Tri-color marking algorithm
@@ -54,6 +54,11 @@ namespace Lua {
         usize stepSize = 1024;                   // Objects processed per step
         u32 stepTimeMs = 5;                      // Maximum time per step (milliseconds)
         double pauseMultiplier = 200.0;          // Pause multiplier (percentage)
+
+        // Lua 5.1 compatible GC parameters
+        i32 gcpause = 200;                       // GC暂停参数(百分比) - 对应官方gcpause
+        i32 gcstepmul = 200;                     // GC步长倍数 - 对应官方gcstepmul
+        usize gcstepsize = 1024;                 // 每步处理大小 - 对应官方GCSTEPSIZE
         
         // Generational GC configuration (optional)
         bool enableGenerational = false;         // Enable generational collection

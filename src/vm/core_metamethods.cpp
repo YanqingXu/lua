@@ -1,5 +1,5 @@
 ﻿#include "core_metamethods.hpp"
-#include "state.hpp"
+#include "lua_state.hpp"
 #include "table.hpp"
 #include "function.hpp"
 #include "call_result.hpp"
@@ -11,7 +11,7 @@ namespace Lua {
     
     // === Core Metamethod Handlers Implementation ===
     
-    Value CoreMetaMethods::handleIndex(State* state, const Value& table, const Value& key) {
+    Value CoreMetaMethods::handleIndex(LuaState* state, const Value& table, const Value& key) {
         if (!state) {
             throw std::invalid_argument("State cannot be null");
         }
@@ -42,7 +42,7 @@ namespace Lua {
         }
     }
     
-    void CoreMetaMethods::handleNewIndex(State* state, const Value& table, 
+    void CoreMetaMethods::handleNewIndex(LuaState* state, const Value& table,
                                         const Value& key, const Value& value) {
         if (!state) {
             throw std::invalid_argument("State cannot be null");
@@ -80,7 +80,7 @@ namespace Lua {
         // If __newindex is neither function nor table, do nothing
     }
     
-    Value CoreMetaMethods::handleCall(State* state, const Value& func, const Vec<Value>& args) {
+    Value CoreMetaMethods::handleCall(LuaState* state, const Value& func, const Vec<Value>& args) {
         // === Input Validation ===
         if (!state) {
             throw std::invalid_argument("State cannot be null");
@@ -162,7 +162,7 @@ namespace Lua {
         }
     }
 
-    CallResult CoreMetaMethods::handleCallMultiple(State* state, const Value& func, const Vec<Value>& args) {
+    CallResult CoreMetaMethods::handleCallMultiple(LuaState* state, const Value& func, const Vec<Value>& args) {
         if (!state) {
             throw std::invalid_argument("State cannot be null");
         }
@@ -244,7 +244,7 @@ namespace Lua {
         }
     }
 
-    Value CoreMetaMethods::handleToString(State* state, const Value& obj) {
+    Value CoreMetaMethods::handleToString(LuaState* state, const Value& obj) {
         if (!state) {
             throw std::invalid_argument("State cannot be null");
         }
@@ -383,7 +383,7 @@ namespace Lua {
         return table.isTable();
     }
     
-    Value CoreMetaMethods::handleMetaMethodCall(State* state, const Value& handler, const Vec<Value>& args) {
+    Value CoreMetaMethods::handleMetaMethodCall(LuaState* state, const Value& handler, const Vec<Value>& args) {
         if (!handler.isFunction()) {
             throw LuaException("Metamethod handler is not a function");
         }
@@ -392,7 +392,7 @@ namespace Lua {
         return callFunctionDirect(state, handler, args);
     }
 
-    Value CoreMetaMethods::callFunctionDirect(State* state, const Value& func, const Vec<Value>& args) {
+    Value CoreMetaMethods::callFunctionDirect(LuaState* state, const Value& func, const Vec<Value>& args) {
         // === Input Validation ===
         if (!state) {
             throw std::invalid_argument("State cannot be null in callFunctionDirect");
@@ -465,8 +465,8 @@ namespace Lua {
         // === Lua Function Handling ===
         if (function->getType() == Function::Type::Lua) {
             try {
-                // Use state->call which handles arguments properly
-                return state->call(func, args);
+                // Use state->callFunction which handles arguments properly
+                return state->callFunction(func, args);
 
             } catch (const LuaException& e) {
                 throw LuaException("Error in Lua function call: " + std::string(e.what()));
@@ -480,7 +480,7 @@ namespace Lua {
                          std::to_string(static_cast<int>(function->getType())));
     }
 
-    CallResult CoreMetaMethods::callFunctionDirectMultiple(State* state, const Value& func, const Vec<Value>& args) {
+    CallResult CoreMetaMethods::callFunctionDirectMultiple(LuaState* state, const Value& func, const Vec<Value>& args) {
 
 
         // === Input Validation ===
@@ -606,7 +606,7 @@ namespace Lua {
                 // This implements proper Lua 5.1 style in-context function calls
                 // No more VM instance conflicts!
 
-                CallResult result = state->callSafeMultiple(func, args);
+                CallResult result = state->callMultiple(func, args);
 
                 return result;
 

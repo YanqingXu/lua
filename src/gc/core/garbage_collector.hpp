@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "../../common/types.hpp"
 #include "gc_object.hpp"
@@ -9,7 +9,7 @@
 
 namespace Lua {
     // Forward declarations
-    class State;
+    class LuaState;
     
     /**
      * @brief Main garbage collector class
@@ -19,7 +19,7 @@ namespace Lua {
      */
     class GarbageCollector {
     private:
-        State* luaState;
+        LuaState* luaState;
         
         // GC algorithm components
         GCMarker marker;
@@ -35,17 +35,34 @@ namespace Lua {
         GCObject* allObjectsHead;
         usize gcThreshold;
         usize totalAllocated;
+
+        // Lua 5.1 compatible GC state management
+        GCObject* grayAgainList;     // 需要重新遍历的灰色对象列表
+        GCObject* weakList;          // 弱表列表
+        usize estimate;              // 内存使用估计
+        usize gcdept;                // GC债务
+        i32 sweepStringPos;          // 字符串扫描位置
+        GCObject** sweepPos;         // 对象扫描位置指针
         
     public:
-        explicit GarbageCollector(State* state) 
+        explicit GarbageCollector(LuaState* state)
             : luaState(state)
             , marker()
             , sweeper(1024)  // Process up to 1024 objects per incremental step
             , gcState(GCState::Pause)
             , currentWhite(GCColor::White0)
+            , stats()
+            , config()
             , allObjectsHead(nullptr)
             , gcThreshold(1024 * 1024)  // 1MB default threshold
-            , totalAllocated(0) {
+            , totalAllocated(0)
+            , grayAgainList(nullptr)
+            , weakList(nullptr)
+            , estimate(0)
+            , gcdept(0)
+            , sweepStringPos(0) {
+            // 暂时不初始化sweepPos，避免编译错误
+            sweepPos = nullptr;
             stats.reset();
         }
         
@@ -95,6 +112,49 @@ namespace Lua {
          * @param newConfig New configuration to apply
          */
         void setConfig(const GCConfig& newConfig) { config = newConfig; }
+
+        // === Lua 5.1 Compatible Incremental GC API ===
+
+        /**
+         * @brief 执行一步增量GC - 对应官方luaC_step
+         * @param L Lua状态
+         */
+        void step(LuaState* L);
+
+        /**
+         * @brief 执行完整GC - 对应官方luaC_fullgc
+         * @param L Lua状态
+         */
+        void fullGC(LuaState* L);
+
+        /**
+         * @brief 执行单步GC操作 - 对应官方singlestep
+         * @return 处理的内存量
+         */
+        isize singleStep();
+
+        /**
+         * @brief 获取当前GC状态
+         * @return GCState 当前状态
+         */
+        GCState getState() const { return gcState; }
+
+        /**
+         * @brief 添加对象到grayagain列表
+         * @param obj 需要重新遍历的对象
+         */
+        void addToGrayAgain(GCObject* obj);
+
+        /**
+         * @brief 更新GC阈值 - 对应官方setthreshold
+         */
+        void updateThreshold();
+
+        /**
+         * @brief 获取当前白色标记 - Lua 5.1兼容
+         * @return 当前白色标记
+         */
+        GCColor getCurrentWhite() const { return currentWhite; }
         
     private:
         /**
@@ -117,5 +177,70 @@ namespace Lua {
          * @brief Flip white colors for next collection cycle
          */
         void flipWhiteColors();
+
+        // === Incremental GC Private Methods ===
+
+        /**
+         * @brief 标记根对象 - 对应官方markroot
+         * @return 处理的内存量
+         */
+        isize markRoot();
+
+        /**
+         * @brief 执行一步标记传播 - 对应官方propagatemark
+         * @return 处理的内存量
+         */
+        isize propagateMarkStep();
+
+        /**
+         * @brief 原子标记阶段 - 对应官方atomic
+         * @return 处理的内存量
+         */
+        isize atomicStep();
+
+        /**
+         * @brief 清理字符串表步骤 - 对应官方sweepwholelist字符串部分
+         * @return 处理的内存量
+         */
+        isize sweepStringStep();
+
+        /**
+         * @brief 清理对象步骤 - 对应官方sweeplist
+         * @return 处理的内存量
+         */
+        isize sweepObjectStep();
+
+        /**
+         * @brief 终结化步骤 - 对应官方GCTM
+         * @return 处理的内存量
+         */
+        isize finalizeStep();
     };
+
+    // === 全局GC函数声明 ===
+
+    /**
+     * @brief 执行一步增量垃圾回收 - 对应官方luaC_step
+     * @param L Lua状态
+     */
+    void luaC_step(LuaState* L);
+
+    // === WriteBarrier命名空间声明 ===
+
+    namespace WriteBarrier {
+        /**
+         * @brief 前向写屏障 - 确保编译成功
+         */
+        void barrierForward(LuaState* L, GCObject* parent, GCObject* child);
+
+        /**
+         * @brief 后向写屏障 - 确保编译成功
+         */
+        void barrierBackward(LuaState* L, GCObject* obj);
+
+        /**
+         * @brief 检查是否需要写屏障 - 确保编译成功
+         */
+        bool needsBarrier(GCObject* parent, GCObject* child);
+    }
 }

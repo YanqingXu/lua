@@ -1,8 +1,10 @@
-﻿#pragma once
+#pragma once
 
 #include "lib_module.hpp"
 
 namespace Lua {
+    // Forward declarations
+    class LuaState;
 
 /**
  * @brief Standard library manager
@@ -21,71 +23,71 @@ public:
     /**
      * @brief Initialize all standard libraries
      * @param state Lua state to initialize libraries for
-     * 
+     *
      * This method initializes all available standard libraries:
      * - Base library (print, type, tostring, etc.)
      * - String library (string.len, string.sub, etc.)
      * - Math library (math.abs, math.sin, etc.)
-     * 
+     *
      * @throws std::invalid_argument if state is null
      */
-    static void initializeAll(State* state);
-    
+    static void initializeAll(LuaState* state);
+
     /**
      * @brief Initialize base library only
      * @param state Lua state to initialize base library for
      * @throws std::invalid_argument if state is null
      */
-    static void initializeBase(State* state);
-    
+    static void initializeBase(LuaState* state);
+
     /**
      * @brief Initialize string library only
      * @param state Lua state to initialize string library for
      * @throws std::invalid_argument if state is null
      */
-    static void initializeString(State* state);
-    
+    static void initializeString(LuaState* state);
+
     /**
      * @brief Initialize math library only
      * @param state Lua state to initialize math library for
      * @throws std::invalid_argument if state is null
      */
-    static void initializeMath(State* state);
+    static void initializeMath(LuaState* state);
 
     /**
      * @brief Initialize table library only
      * @param state Lua state to initialize table library for
      * @throws std::invalid_argument if state is null
      */
-    static void initializeTable(State* state);
+    static void initializeTable(LuaState* state);
 
     /**
      * @brief Initialize IO library only
      * @param state Lua state to initialize IO library for
      * @throws std::invalid_argument if state is null
      */
-    static void initializeIO(State* state);
+    static void initializeIO(LuaState* state);
 
     /**
      * @brief Initialize OS library only
      * @param state Lua state to initialize OS library for
      * @throws std::invalid_argument if state is null
      */
-    static void initializeOS(State* state);
+    static void initializeOS(LuaState* state);
 
     /**
      * @brief Initialize debug library only
      * @param state Lua state to initialize debug library for
      * @throws std::invalid_argument if state is null
      */
-    static void initializeDebug(State* state);
+    static void initializeDebug(LuaState* state);
 
     /**
      * @brief Initialize package library only
      * @param state Lua state to initialize package library for
      * @throws std::invalid_argument if state is null
      */
-    static void initializePackage(State* state);
+    static void initializePackage(LuaState* state);
 
 private:
     // Private constructor - this is a utility class with only static methods

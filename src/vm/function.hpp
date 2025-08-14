@@ -11,16 +11,16 @@
 
 namespace Lua {
     // Forward declarations
-    class State;
+    class LuaState;
     //class Value;
     class GarbageCollector;
     template<typename T> class GCRef;
     
     // Native function type (Lua 5.1 standard - returns number of values pushed)
-    using NativeFn = std::function<i32(State* state)>;
+    using NativeFn = std::function<i32(LuaState* state)>;
 
     // Legacy native function type (for backward compatibility)
-    using NativeFnLegacy = std::function<Value(State* state, int nargs)>;
+    using NativeFnLegacy = std::function<Value(LuaState* state, int nargs)>;
     
     // Function class
     class Function : public GCObject {

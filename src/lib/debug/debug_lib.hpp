@@ -1,7 +1,7 @@
-﻿#pragma once
+#pragma once
 
 #include "../../common/types.hpp"
-#include "../../vm/state.hpp"
+#include "../../vm/lua_state.hpp"
 #include "../../vm/value.hpp"
 #include "../core/lib_module.hpp"
 
@@ -42,14 +42,14 @@ public:
      * @param state Lua state to register functions to
      * @throws std::invalid_argument if state is null
      */
-    void registerFunctions(State* state) override;
+    void registerFunctions(LuaState* state) override;
 
     /**
      * @brief Initialize the debug library
      * @param state Lua state to initialize
      * @throws std::invalid_argument if state is null
      */
-    void initialize(State* state) override;
+    void initialize(LuaState* state) override;
 
     // Debug function declarations with proper documentation
     /**
@@ -59,7 +59,7 @@ public:
      * @return Nil
      * @throws std::invalid_argument if state is null
      */
-    static Value debug(State* state, i32 nargs);
+    static Value debug(LuaState* state, i32 nargs);
 
     /**
      * @brief Get function environment
@@ -68,7 +68,7 @@ public:
      * @return Environment table or nil
      * @throws std::invalid_argument if state is null
      */
-    static Value getfenv(State* state, i32 nargs);
+    static Value getfenv(LuaState* state, i32 nargs);
 
     /**
      * @brief Get current hook function
@@ -77,7 +77,7 @@ public:
      * @return Hook function, mask, and count
      * @throws std::invalid_argument if state is null
      */
-    static Value gethook(State* state, i32 nargs);
+    static Value gethook(LuaState* state, i32 nargs);
 
     /**
      * @brief Get function information
@@ -86,7 +86,7 @@ public:
      * @return Information table
      * @throws std::invalid_argument if state is null
      */
-    static Value getinfo(State* state, i32 nargs);
+    static Value getinfo(LuaState* state, i32 nargs);
 
     /**
      * @brief Get local variable
@@ -95,7 +95,7 @@ public:
      * @return Variable name and value
      * @throws std::invalid_argument if state is null
      */
-    static Value getlocal(State* state, i32 nargs);
+    static Value getlocal(LuaState* state, i32 nargs);
 
     /**
      * @brief Get metatable (debug version)
@@ -104,7 +104,7 @@ public:
      * @return Metatable or nil
      * @throws std::invalid_argument if state is null
      */
-    static Value getmetatable(State* state, i32 nargs);
+    static Value getmetatable(LuaState* state, i32 nargs);
 
     /**
      * @brief Get registry table
@@ -113,7 +113,7 @@ public:
      * @return Registry table
      * @throws std::invalid_argument if state is null
      */
-    static Value getregistry(State* state, i32 nargs);
+    static Value getregistry(LuaState* state, i32 nargs);
 
     /**
      * @brief Get upvalue
@@ -122,7 +122,7 @@ public:
      * @return Upvalue name and value
      * @throws std::invalid_argument if state is null
      */
-    static Value getupvalue(State* state, i32 nargs);
+    static Value getupvalue(LuaState* state, i32 nargs);
 
     /**
      * @brief Set function environment
@@ -131,7 +131,7 @@ public:
      * @return Previous environment or nil
      * @throws std::invalid_argument if state is null
      */
-    static Value setfenv(State* state, i32 nargs);
+    static Value setfenv(LuaState* state, i32 nargs);
 
     /**
      * @brief Set hook function
@@ -140,7 +140,7 @@ public:
      * @return Nil
      * @throws std::invalid_argument if state is null
      */
-    static Value sethook(State* state, i32 nargs);
+    static Value sethook(LuaState* state, i32 nargs);
 
     /**
      * @brief Set local variable
@@ -149,7 +149,7 @@ public:
      * @return Variable name or nil
      * @throws std::invalid_argument if state is null
      */
-    static Value setlocal(State* state, i32 nargs);
+    static Value setlocal(LuaState* state, i32 nargs);
 
     /**
      * @brief Set metatable (debug version)
@@ -158,7 +158,7 @@ public:
      * @return Object
      * @throws std::invalid_argument if state is null
      */
-    static Value setmetatable(State* state, i32 nargs);
+    static Value setmetatable(LuaState* state, i32 nargs);
 
     /**
      * @brief Set upvalue
@@ -167,7 +167,7 @@ public:
      * @return Upvalue name or nil
      * @throws std::invalid_argument if state is null
      */
-    static Value setupvalue(State* state, i32 nargs);
+    static Value setupvalue(LuaState* state, i32 nargs);
 
     /**
      * @brief Get stack traceback
@@ -176,7 +176,7 @@ public:
      * @return Traceback string
      * @throws std::invalid_argument if state is null
      */
-    static Value traceback(State* state, i32 nargs);
+    static Value traceback(LuaState* state, i32 nargs);
 
 private:
     /**
@@ -185,7 +185,7 @@ private:
      * @param argIndex Argument index
      * @return Stack level or -1 if invalid
      */
-    static i32 validateLevel(State* state, i32 argIndex);
+    static i32 validateLevel(LuaState* state, i32 argIndex);
 
     /**
      * @brief Validate function argument
@@ -193,14 +193,14 @@ private:
      * @param argIndex Argument index
      * @return True if valid function
      */
-    static bool validateFunction(State* state, i32 argIndex);
+    static bool validateFunction(LuaState* state, i32 argIndex);
 
     /**
      * @brief Create debug info table
      * @param state Lua state
      * @return Debug info table
      */
-    static Value createDebugInfo(State* state);
+    static Value createDebugInfo(LuaState* state);
 
     /**
      * @brief Get function name from debug info
@@ -208,7 +208,7 @@ private:
      * @param level Stack level
      * @return Function name or "?"
      */
-    static Str getFunctionName(State* state, i32 level);
+    static Str getFunctionName(LuaState* state, i32 level);
 
     /**
      * @brief Get source information
@@ -216,7 +216,7 @@ private:
      * @param level Stack level
      * @return Source information string
      */
-    static Str getSourceInfo(State* state, i32 level);
+    static Str getSourceInfo(LuaState* state, i32 level);
 
     /**
      * @brief Format traceback line
@@ -229,16 +229,16 @@ private:
 
     // Interactive debug helper functions
     static void printDebugHelp();
-    static void printStackInfo(State* state);
-    static void printGlobals(State* state);
-    static void evaluateExpression(State* state, const Str& expr);
-    static void executeAssignment(State* state, const Str& assignment);
+    static void printStackInfo(LuaState* state);
+    static void printGlobals(LuaState* state);
+    static void evaluateExpression(LuaState* state, const Str& expr);
+    static void executeAssignment(LuaState* state, const Str& assignment);
 };
 
 /**
  * @brief Convenient DebugLib initialization function
  * @param state Lua state
  */
-void initializeDebugLib(State* state);
+void initializeDebugLib(LuaState* state);
 
 } // namespace Lua

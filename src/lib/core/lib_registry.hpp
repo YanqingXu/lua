@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "lib_module.hpp"
 #include "../../vm/value.hpp"
@@ -21,7 +21,7 @@ public:
      * @param func C function pointer
      * @throws std::invalid_argument if any parameter is null
      */
-    static void registerGlobalFunction(State* state, const char* name, LuaCFunction func);
+    static void registerGlobalFunction(LuaState* state, const char* name, LuaCFunction func);
 
     /**
      * @brief Register C function to specified table (Lua 5.1 standard - multi-return)
@@ -31,7 +31,7 @@ public:
      * @param func C function pointer
      * @throws std::invalid_argument if any parameter is null or table is invalid
      */
-    static void registerTableFunction(State* state, Value table, const char* name, LuaCFunction func);
+    static void registerTableFunction(LuaState* state, Value table, const char* name, LuaCFunction func);
 
     /**
      * @brief Register legacy C function to global environment (single return value)
@@ -40,7 +40,7 @@ public:
      * @param func Legacy C function pointer
      * @throws std::invalid_argument if any parameter is null
      */
-    static void registerGlobalFunctionLegacy(State* state, const char* name, LuaCFunctionLegacy func);
+    static void registerGlobalFunctionLegacy(LuaState* state, const char* name, LuaCFunctionLegacy func);
 
     /**
      * @brief Register legacy C function to specified table (single return value)
@@ -50,7 +50,7 @@ public:
      * @param func Legacy C function pointer
      * @throws std::invalid_argument if any parameter is null or table is invalid
      */
-    static void registerTableFunctionLegacy(State* state, Value table, const char* name, LuaCFunctionLegacy func);
+    static void registerTableFunctionLegacy(LuaState* state, Value table, const char* name, LuaCFunctionLegacy func);
     
     /**
      * @brief Create and register library table
@@ -59,7 +59,7 @@ public:
      * @return Created library table as Value
      * @throws std::invalid_argument if state or libName is null
      */
-    static Value createLibTable(State* state, const char* libName);
+    static Value createLibTable(LuaState* state, const char* libName);
 };
 
 // ===================================================================
@@ -88,7 +88,7 @@ public:
  * Usage: LUA_FUNCTION(myFunction) { ... }
  */
 #define LUA_FUNCTION(name) \
-    static Value name(State* state, i32 nargs)
+    static Value name(LuaState* state, i32 nargs)
 
 /**
  * @brief Create library module class convenience macro
@@ -99,8 +99,8 @@ public:
     class className : public LibModule { \
     public: \
         const char* getName() const override { return libName; } \
-        void registerFunctions(State* state) override; \
-        void initialize(State* state) override; \
+        void registerFunctions(LuaState* state) override; \
+        void initialize(LuaState* state) override; \
     }
 
 } // namespace Lua

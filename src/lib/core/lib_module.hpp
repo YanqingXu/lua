@@ -1,7 +1,7 @@
 ﻿#pragma once
 
 #include "../../common/types.hpp"
-#include "../../vm/state.hpp"
+#include "../../vm/lua_state.hpp"
 #include "../../vm/value.hpp"
 
 namespace Lua {
@@ -34,7 +34,7 @@ class State;
  * @param state Lua state containing function arguments on stack
  * @return Number of return values pushed to the stack
  */
-using LuaCFunction = i32(*)(State* state);
+using LuaCFunction = i32(*)(LuaState* state);
 
 /**
  * @brief Legacy single-return C function type (for backward compatibility)
@@ -43,7 +43,7 @@ using LuaCFunction = i32(*)(State* state);
  * @param nargs Number of arguments passed to the function
  * @return Single value returned to Lua
  */
-using LuaCFunctionLegacy = Value(*)(State* state, i32 nargs);
+using LuaCFunctionLegacy = Value(*)(LuaState* state, i32 nargs);
 
 /**
  * @brief Library module base class
@@ -63,11 +63,11 @@ public:
     virtual const char* getName() const = 0;
 
     /**
-     * @brief Register module functions to State
+     * @brief Register module functions to LuaState
      * @param state Lua state to register functions to
      * @throws std::invalid_argument if state is null
      */
-    virtual void registerFunctions(State* state) = 0;
+    virtual void registerFunctions(LuaState* state) = 0;
 
     /**
      * @brief Optional initialization function
@@ -76,7 +76,7 @@ public:
      * Default implementation does nothing. Override if module
      * needs special initialization (e.g., setting constants).
      */
-    virtual void initialize(State* state) {
+    virtual void initialize(LuaState* state) {
         (void)state; // Default empty implementation
     }
 };

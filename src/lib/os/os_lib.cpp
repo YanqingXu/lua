@@ -1,4 +1,4 @@
-﻿#include "os_lib.hpp"
+#include "os_lib.hpp"
 #include "lib/core/lib_registry.hpp"
 #include "vm/table.hpp"
 #include "../../common/defines.hpp"
@@ -17,7 +17,7 @@
 
 namespace Lua {
 
-void OSLib::registerFunctions(State* state) {
+void OSLib::registerFunctions(LuaState* state) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }
@@ -39,7 +39,7 @@ void OSLib::registerFunctions(State* state) {
     LibRegistry::registerTableFunctionLegacy(state, osTable, "tmpname", tmpname);
 }
 
-void OSLib::initialize(State* state) {
+void OSLib::initialize(LuaState* state) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }
@@ -52,7 +52,7 @@ void OSLib::initialize(State* state) {
 // OS Function Implementations
 // ===================================================================
 
-Value OSLib::clock(State* state, i32 nargs) {
+Value OSLib::clock(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }
@@ -68,7 +68,7 @@ Value OSLib::clock(State* state, i32 nargs) {
     return Value(seconds);
 }
 
-Value OSLib::date(State* state, i32 nargs) {
+Value OSLib::date(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }
@@ -98,7 +98,7 @@ Value OSLib::date(State* state, i32 nargs) {
     return Value(formatTime(format, t));
 }
 
-Value OSLib::difftime(State* state, i32 nargs) {
+Value OSLib::difftime(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }
@@ -121,7 +121,7 @@ Value OSLib::difftime(State* state, i32 nargs) {
     return Value(diff);
 }
 
-Value OSLib::execute(State* state, i32 nargs) {
+Value OSLib::execute(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }
@@ -146,7 +146,7 @@ Value OSLib::execute(State* state, i32 nargs) {
     return Value(static_cast<f64>(result));
 }
 
-Value OSLib::exit(State* state, i32 nargs) {
+Value OSLib::exit(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }
@@ -164,7 +164,7 @@ Value OSLib::exit(State* state, i32 nargs) {
     // This function does not return
 }
 
-Value OSLib::getenv(State* state, i32 nargs) {
+Value OSLib::getenv(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }
@@ -208,7 +208,7 @@ Value OSLib::getenv(State* state, i32 nargs) {
 #endif
 }
 
-Value OSLib::remove(State* state, i32 nargs) {
+Value OSLib::remove(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }
@@ -230,7 +230,7 @@ Value OSLib::remove(State* state, i32 nargs) {
     return Value(); // nil on error
 }
 
-Value OSLib::rename(State* state, i32 nargs) {
+Value OSLib::rename(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }
@@ -254,7 +254,7 @@ Value OSLib::rename(State* state, i32 nargs) {
     return Value(); // nil on error
 }
 
-Value OSLib::setlocale(State* state, i32 nargs) {
+Value OSLib::setlocale(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }
@@ -292,7 +292,7 @@ Value OSLib::setlocale(State* state, i32 nargs) {
     return Value(); // nil on error
 }
 
-Value OSLib::time(State* state, i32 nargs) {
+Value OSLib::time(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }
@@ -314,7 +314,7 @@ Value OSLib::time(State* state, i32 nargs) {
     return Value(static_cast<f64>(t));
 }
 
-Value OSLib::tmpname(State* state, i32 nargs) {
+Value OSLib::tmpname(LuaState* state, i32 nargs) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }
@@ -344,7 +344,7 @@ Value OSLib::tmpname(State* state, i32 nargs) {
 // Helper Functions
 // ===================================================================
 
-Value OSLib::timeToTable(State* state, std::time_t t) {
+Value OSLib::timeToTable(LuaState* state, std::time_t t) {
     if (!state) {
         return Value(); // nil
     }
@@ -355,7 +355,7 @@ Value OSLib::timeToTable(State* state, std::time_t t) {
     return Value(); // nil
 }
 
-std::time_t OSLib::tableToTime(State* state, const Value& tableVal) {
+std::time_t OSLib::tableToTime(LuaState* state, const Value& tableVal) {
     if (!state || !tableVal.isTable()) {
         return static_cast<std::time_t>(-1);
     }
@@ -396,7 +396,7 @@ const char* OSLib::getDefaultDateFormat() {
     return "%c"; // Default locale-specific date and time
 }
 
-Str OSLib::validateFilename(State* state, i32 argIndex) {
+Str OSLib::validateFilename(LuaState* state, i32 argIndex) {
     if (!state) {
         return "";
     }
@@ -424,7 +424,7 @@ Str OSLib::getSystemError(i32 errorCode) {
 #endif
 }
 
-void initializeOSLib(State* state) {
+void initializeOSLib(LuaState* state) {
     if (!state) {
         throw std::invalid_argument("State cannot be null");
     }

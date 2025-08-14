@@ -1,7 +1,7 @@
 #pragma once
 
 #include "common/types.hpp"
-#include "vm/state.hpp"
+#include "vm/lua_state.hpp"
 #include "vm/value.hpp"
 #include "vm/table.hpp"
 #include "lib/core/lib_module.hpp"
@@ -35,14 +35,14 @@ public:
      * @param state Lua state to register functions to
      * @throws std::invalid_argument if state is null
      */
-    void registerFunctions(State* state) override;
+    void registerFunctions(LuaState* state) override;
 
     /**
      * @brief Initialize the table library
      * @param state Lua state to initialize
      * @throws std::invalid_argument if state is null
      */
-    void initialize(State* state) override;
+    void initialize(LuaState* state) override;
 
     // Table manipulation function declarations with proper documentation
     /**
@@ -52,7 +52,7 @@ public:
      * @return Nil value
      * @throws std::invalid_argument if state is null
      */
-    static Value insert(State* state, i32 nargs);
+    static Value insert(LuaState* state, i32 nargs);
 
     /**
      * @brief Remove element from table
@@ -61,7 +61,7 @@ public:
      * @return Removed value or nil
      * @throws std::invalid_argument if state is null
      */
-    static Value remove(State* state, i32 nargs);
+    static Value remove(LuaState* state, i32 nargs);
 
     /**
      * @brief Sort table elements
@@ -70,7 +70,7 @@ public:
      * @return Nil value
      * @throws std::invalid_argument if state is null
      */
-    static Value sort(State* state, i32 nargs);
+    static Value sort(LuaState* state, i32 nargs);
 
     /**
      * @brief Concatenate table elements
@@ -79,7 +79,7 @@ public:
      * @return String value with concatenated elements
      * @throws std::invalid_argument if state is null
      */
-    static Value concat(State* state, i32 nargs);
+    static Value concat(LuaState* state, i32 nargs);
 
     /**
      * @brief Get table length (deprecated in Lua 5.1)
@@ -88,7 +88,7 @@ public:
      * @return Number value representing table length
      * @throws std::invalid_argument if state is null
      */
-    static Value getn(State* state, i32 nargs);
+    static Value getn(LuaState* state, i32 nargs);
 
     /**
      * @brief Get maximum numeric index
@@ -97,7 +97,7 @@ public:
      * @return Number value representing maximum index
      * @throws std::invalid_argument if state is null
      */
-    static Value maxn(State* state, i32 nargs);
+    static Value maxn(LuaState* state, i32 nargs);
 
 private:
     /**
@@ -113,13 +113,13 @@ private:
      * @param argIndex Argument index (1-based)
      * @return GCRef to table or null GCRef if invalid
      */
-    static GCRef<Table> validateTableArg(State* state, i32 argIndex);
+    static GCRef<Table> validateTableArg(LuaState* state, i32 argIndex);
 };
 
 /**
  * @brief Convenient TableLib initialization function
  * @param state Lua state
  */
-void initializeTableLib(State* state);
+void initializeTableLib(LuaState* state);
 
 } // namespace Lua

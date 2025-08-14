@@ -572,7 +572,7 @@ namespace Lua {
         compiler->emitInstruction(Instruction::createMOVE(callReg + 2, keyReg));        // arg2: key
 
         // Call iterator function with 2 arguments, expect 2 returns
-        compiler->emitInstruction(Instruction::createCALL_MM(callReg, 3, 3));
+        compiler->emitInstruction(Instruction::createCALL(callReg, 3, 3));
 
         // Return values are now in callReg (key) and callReg+1 (value)
         // No need to move them since we'll use them directly

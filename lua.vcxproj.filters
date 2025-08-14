@@ -169,9 +169,7 @@
     <ClCompile Include="src\gc\core\string_pool.cpp">
       <Filter>gc\core</Filter>
     </ClCompile>
-    <ClCompile Include="src\vm\state_factory.cpp">
-      <Filter>vm</Filter>
-    </ClCompile>
+
     <ClCompile Include="src\parser\ast\source_location.cpp">
       <Filter>parser\ast</Filter>
     </ClCompile>
@@ -345,9 +343,7 @@
     <ClInclude Include="src\vm\table_impl.hpp">
       <Filter>vm</Filter>
     </ClInclude>
-    <ClInclude Include="src\vm\state_factory.hpp">
-      <Filter>vm</Filter>
-    </ClInclude>
+
 
     <ClInclude Include="src\parser\ast\source_location.hpp">
       <Filter>parser\ast</Filter>

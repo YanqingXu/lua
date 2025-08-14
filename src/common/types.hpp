@@ -95,7 +95,7 @@ namespace Lua {
     using LuaBoolean = bool;
 
     // Forward declarations for error handling
-    class State;
+    class LuaState;
     struct CallInfo;
 
     // Error handling with enhanced debugging information

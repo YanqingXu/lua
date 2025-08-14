@@ -190,8 +190,8 @@
     <ClInclude Include="src\vm\function.hpp" />
     <ClInclude Include="src\vm\instruction.hpp" />
     <ClInclude Include="src\vm\metamethod_manager.hpp" />
-    <ClInclude Include="src\vm\state.hpp" />
-    <ClInclude Include="src\vm\state_factory.hpp" />
+
+
     <ClInclude Include="src\vm\table.hpp" />
     <ClInclude Include="src\vm\table_impl.hpp" />
     <ClInclude Include="src\vm\upvalue.hpp" />
@@ -254,8 +254,8 @@
     <ClCompile Include="src\vm\core_metamethods.cpp" />
     <ClCompile Include="src\vm\function.cpp" />
     <ClCompile Include="src\vm\metamethod_manager.cpp" />
-    <ClCompile Include="src\vm\state.cpp" />
-    <ClCompile Include="src\vm\state_factory.cpp" />
+
+
     <ClCompile Include="src\vm\table.cpp" />
     <ClCompile Include="src\vm\upvalue.cpp" />
     <ClCompile Include="src\vm\userdata.cpp" />
@@ -266,6 +266,7 @@
     <ClCompile Include="src\vm\function_call.cpp" />
     <ClCompile Include="src\vm\register_file.cpp" />
     <ClCompile Include="src\vm\vm.cpp" />
+    <ClCompile Include="src\vm\vm_executor.cpp" />
     <ClCompile Include="src\vm\lua_coroutine.cpp" />
     <ClCompile Include="src\lib\coroutine\coroutine_lib.cpp" />
     <ClCompile Include="src\common\lua_exception.cpp" />
