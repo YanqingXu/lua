@@ -21,27 +21,100 @@ namespace Lua {
         Black  = 3   // Black - Marked and children marked
     };
 
-    // GC mark bit masks
+    // GC mark bit masks - Lua 5.1 compatible bit layout
     namespace GCMark {
-        constexpr u8 COLOR_MASK = 0x03;     // Color bit mask (bit 0-1)
-        constexpr u8 FIXED_MASK = 0x04;     // Fixed object bit (bit 2)
-        constexpr u8 FINALIZED_MASK = 0x08; // Finalized bit (bit 3)
-        constexpr u8 WEAK_MASK = 0x10;      // Weak reference bit (bit 4)
-        constexpr u8 SEPARATED_MASK = 0x20; // Separated bit (bit 5)
-        constexpr u8 RESERVED_MASK = 0xC0;  // Reserved bits (bit 6-7)
+        // Lua 5.1 official bit layout for 'marked' field
+        constexpr u8 WHITE0BIT = 0;         // bit 0 - object is white (type 0)
+        constexpr u8 WHITE1BIT = 1;         // bit 1 - object is white (type 1)
+        constexpr u8 BLACKBIT = 2;          // bit 2 - object is black
+        constexpr u8 FINALIZEDBIT = 3;      // bit 3 - for userdata: has been finalized
+        constexpr u8 KEYWEAKBIT = 3;        // bit 3 - for tables: has weak keys
+        constexpr u8 VALUEWEAKBIT = 4;      // bit 4 - for tables: has weak values
+        constexpr u8 FIXEDBIT = 5;          // bit 5 - object is fixed (should not be collected)
+        constexpr u8 SFIXEDBIT = 6;         // bit 6 - object is "super" fixed (only the main thread)
+
+        // Bit masks
+        constexpr u8 WHITE0 = (1 << WHITE0BIT);
+        constexpr u8 WHITE1 = (1 << WHITE1BIT);
+        constexpr u8 WHITEBITS = (WHITE0 | WHITE1);
+        constexpr u8 BLACK = (1 << BLACKBIT);
+        constexpr u8 FINALIZED = (1 << FINALIZEDBIT);
+        constexpr u8 KEYWEAK = (1 << KEYWEAKBIT);
+        constexpr u8 VALUEWEAK = (1 << VALUEWEAKBIT);
+        constexpr u8 FIXED = (1 << FIXEDBIT);
+        constexpr u8 SFIXED = (1 << SFIXEDBIT);
+
+        // Combined masks
+        constexpr u8 MASKMARKS = static_cast<u8>(~(BLACK | WHITEBITS));
+
+        // Lua 5.1 compatible bit manipulation macros (as constexpr functions)
+        constexpr u8 bitmask(u8 b) { return static_cast<u8>(1 << b); }
+        constexpr u8 bit2mask(u8 b1, u8 b2) { return static_cast<u8>(bitmask(b1) | bitmask(b2)); }
+
+        // Modern C++ bit manipulation functions
+        constexpr void resetbits(u8& x, u8 m) { x &= static_cast<u8>(~m); }
+        constexpr void setbits(u8& x, u8 m) { x |= m; }
+        constexpr bool testbits(u8 x, u8 m) { return (x & m) != 0; }
+        constexpr void l_setbit(u8& x, u8 b) { setbits(x, bitmask(b)); }
+        constexpr void resetbit(u8& x, u8 b) { resetbits(x, bitmask(b)); }
+        constexpr bool testbit(u8 x, u8 b) { return testbits(x, bitmask(b)); }
+        constexpr void set2bits(u8& x, u8 b1, u8 b2) { setbits(x, bit2mask(b1, b2)); }
+        constexpr void reset2bits(u8& x, u8 b1, u8 b2) { resetbits(x, bit2mask(b1, b2)); }
+        constexpr bool test2bits(u8 x, u8 b1, u8 b2) { return testbits(x, bit2mask(b1, b2)); }
     }
 
-    // GC object types
+    // GC object types - Lua 5.1 compatible
     enum class GCObjectType : u8 {
-        String,     // String object
-        Table,      // Table object
-        Function,   // Function object
-        Userdata,   // User data
-        Thread,     // Coroutine object
-        Proto,      // Function prototype
-        State,      // Lua state object
-        Upvalue     // Upvalue object
+        String,     // LUA_TSTRING - String object
+        Table,      // LUA_TTABLE - Table object
+        Function,   // LUA_TFUNCTION - Function object (closure)
+        Userdata,   // LUA_TUSERDATA - User data
+        Thread,     // LUA_TTHREAD - Coroutine object
+        Proto,      // Function prototype (internal)
+        State,      // Lua state object (internal)
+        Upvalue     // LUA_TUPVAL - Upvalue object
     };
+
+    // Forward declarations for GC utility functions
+    class GCObject;
+    class GarbageCollector;
+
+    /**
+     * @brief Lua 5.1 compatible GC utility functions
+     *
+     * These functions provide the same interface as official Lua 5.1 GC operations
+     * while using modern C++ features for type safety and performance.
+     */
+    namespace GCUtils {
+        // Color checking functions (Lua 5.1 compatible) - declarations only
+        bool iswhite(const GCObject* o);
+        bool isblack(const GCObject* o);
+        bool isgray(const GCObject* o);
+
+        // Color manipulation functions
+        void white2gray(GCObject* o);
+        void gray2black(GCObject* o);
+        void black2gray(GCObject* o);
+
+        // Object state checking
+        bool isfinalized(const GCObject* o);
+        void markfinalized(GCObject* o);
+        bool isfixed(const GCObject* o);
+        void setfixed(GCObject* o);
+        void unsetfixed(GCObject* o);
+
+        // Weak table checking
+        bool hasweakkeys(const GCObject* o);
+        bool hasweakvalues(const GCObject* o);
+        void setweakkeys(GCObject* o);
+        void setweakvalues(GCObject* o);
+
+        // Functions that need GarbageCollector implementation
+        bool isdead(const GarbageCollector* g, const GCObject* o);
+        void makewhite(GarbageCollector* g, GCObject* o);
+        u8 luaC_white(const GarbageCollector* g);
+        u8 otherwhite(const GarbageCollector* g);
+    }
 
     // GC configuration parameters
     struct GCConfig {
@@ -164,55 +237,54 @@ namespace Lua {
         bool isRunning() const { return running; }
     };
 
-    // Inline utility functions
-    namespace GCUtils {
-        // Get object color
-        inline GCColor getColor(u8 mark) {
-            return static_cast<GCColor>(mark & GCMark::COLOR_MASK);
-        }
-        
-        // Set object color
-        inline u8 setColor(u8 mark, GCColor color) {
-            return (mark & ~GCMark::COLOR_MASK) | static_cast<u8>(color);
-        }
-        
-        // Check if white
+    // Inline utility functions for backward compatibility
+    namespace GCUtilsCompat {
+        // Check if white (using new bit layout)
         inline bool isWhite(u8 mark) {
-            GCColor color = getColor(mark);
-            return color == GCColor::White0 || color == GCColor::White1;
+            return GCMark::testbits(mark, GCMark::WHITEBITS);
         }
-        
-        // Check if gray
+
+        // Check if gray (using new bit layout)
         inline bool isGray(u8 mark) {
-            return getColor(mark) == GCColor::Gray;
+            return !GCMark::testbits(mark, GCMark::WHITEBITS) && !GCMark::testbit(mark, GCMark::BLACKBIT);
         }
-        
-        // Check if black
+
+        // Check if black (using new bit layout)
         inline bool isBlack(u8 mark) {
-            return getColor(mark) == GCColor::Black;
+            return GCMark::testbit(mark, GCMark::BLACKBIT);
         }
-        
-        // Check if fixed object
+
+        // Check if fixed object (using new bit layout)
         inline bool isFixed(u8 mark) {
-            return (mark & GCMark::FIXED_MASK) != 0;
+            return GCMark::testbit(mark, GCMark::FIXEDBIT);
         }
-        
-        // Set fixed mark
+
+        // Set fixed mark (using new bit layout)
         inline u8 setFixed(u8 mark, bool fixed) {
-            return fixed ? (mark | GCMark::FIXED_MASK) : (mark & ~GCMark::FIXED_MASK);
+            if (fixed) {
+                GCMark::l_setbit(mark, GCMark::FIXEDBIT);
+            } else {
+                GCMark::resetbit(mark, GCMark::FIXEDBIT);
+            }
+            return mark;
         }
-        
-        // Check if finalized
+
+        // Check if finalized (using new bit layout)
         inline bool isFinalized(u8 mark) {
-            return (mark & GCMark::FINALIZED_MASK) != 0;
+            return GCMark::testbit(mark, GCMark::FINALIZEDBIT);
         }
-        
-        // Set finalized mark
+
+        // Set finalized mark (using new bit layout)
         inline u8 setFinalized(u8 mark, bool finalized) {
-            return finalized ? (mark | GCMark::FINALIZED_MASK) : (mark & ~GCMark::FINALIZED_MASK);
+            if (finalized) {
+                GCMark::l_setbit(mark, GCMark::FINALIZEDBIT);
+            } else {
+                GCMark::resetbit(mark, GCMark::FINALIZEDBIT);
+            }
+            return mark;
         }
-        
-        // Flip white color
+
+        // Flip white color (using new bit layout)
         inline GCColor flipWhite(GCColor currentWhite) {
             return (currentWhite == GCColor::White0) ? GCColor::White1 : GCColor::White0;
         }

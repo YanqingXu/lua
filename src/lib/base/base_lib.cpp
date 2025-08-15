@@ -76,6 +76,13 @@ Value BaseLib::print(LuaState* state, i32 nargs) {
         throw std::invalid_argument("Argument count cannot be negative");
     }
 
+    // Lua 5.1 compatible print implementation:
+    // Call tostring function for each argument to support __tostring metamethod
+
+    // Get global tostring function
+    auto tostringStr = GCString::create("tostring");
+    Value tostringFunc = state->getGlobal(tostringStr);
+
     // Output all arguments separated by tabs
     for (i32 i = 1; i <= nargs; ++i) {
         if (i > 1) {
@@ -86,7 +93,29 @@ Value BaseLib::print(LuaState* state, i32 nargs) {
         // Arguments are at stack[top-nargs] to stack[top-1]
         int stackIdx = state->getTop() - nargs + (i - 1);
         Value val = state->get(stackIdx);
-        std::cout << val.toString();
+
+        // Call tostring function if available, otherwise fall back to direct conversion
+        if (tostringFunc.isFunction()) {
+            try {
+                // Call tostring function using the correct method
+                Vec<Value> args = {val};
+                Value result = state->callFunction(tostringFunc, args);
+
+                // Output the result
+                if (result.isString()) {
+                    std::cout << result.asString();
+                } else {
+                    // Fallback if tostring doesn't return a string
+                    std::cout << val.toString();
+                }
+            } catch (...) {
+                // If tostring call fails, fall back to direct conversion
+                std::cout << val.toString();
+            }
+        } else {
+            // No tostring function available, use direct conversion
+            std::cout << val.toString();
+        }
     }
     std::cout << std::endl;
 
@@ -158,15 +187,98 @@ Value BaseLib::tonumber(LuaState* state, i32 nargs) {
     int stackIdx = state->getTop() - nargs;
     Value val = state->get(stackIdx);
 
+    // Get optional base parameter (Lua 5.1 compatible)
+    int base = 10; // Default base is 10
+    if (nargs >= 2) {
+        Value baseVal = state->get(stackIdx + 1);
+        if (baseVal.isNumber()) {
+            f64 baseNum = baseVal.asNumber();
+            base = static_cast<int>(baseNum);
+
+            // Validate base range (Lua 5.1 standard: 2-36)
+            if (base < 2 || base > 36) {
+                return Value(); // nil for invalid base
+            }
+        } else {
+            return Value(); // nil if base is not a number
+        }
+    }
+
     if (val.isNumber()) {
-        return val;
+        // If input is already a number and base is 10, return as-is
+        if (base == 10) {
+            return val;
+        } else {
+            // For non-decimal bases, convert number to string first, then parse
+            // This handles cases like tonumber(123, 16) which should return nil
+            // because "123" is not a valid hex representation
+            return Value(); // nil - numbers can only be converted with base 10
+        }
     }
 
     if (val.isString()) {
         try {
             Str str = val.toString();
-            f64 num = std::stod(str);
-            return Value(num);
+
+            // Remove leading/trailing whitespace
+            size_t start = str.find_first_not_of(" \t\n\r\f\v");
+            if (start == Str::npos) {
+                return Value(); // nil for empty or whitespace-only string
+            }
+            size_t end = str.find_last_not_of(" \t\n\r\f\v");
+            str = str.substr(start, end - start + 1);
+
+            if (str.empty()) {
+                return Value(); // nil for empty string
+            }
+
+            // Handle base conversion (Lua 5.1 compatible)
+            if (base == 10) {
+                // Decimal conversion - use standard library
+                f64 num = std::stod(str);
+                return Value(num);
+            } else {
+                // Non-decimal conversion - implement custom parser
+                bool negative = false;
+                size_t pos = 0;
+
+                // Handle sign
+                if (str[0] == '-') {
+                    negative = true;
+                    pos = 1;
+                } else if (str[0] == '+') {
+                    pos = 1;
+                }
+
+                if (pos >= str.length()) {
+                    return Value(); // nil for just a sign
+                }
+
+                // Convert using specified base
+                f64 result = 0.0;
+                for (size_t i = pos; i < str.length(); ++i) {
+                    char c = str[i];
+                    int digit;
+
+                    if (c >= '0' && c <= '9') {
+                        digit = c - '0';
+                    } else if (c >= 'A' && c <= 'Z') {
+                        digit = c - 'A' + 10;
+                    } else if (c >= 'a' && c <= 'z') {
+                        digit = c - 'a' + 10;
+                    } else {
+                        return Value(); // nil for invalid character
+                    }
+
+                    if (digit >= base) {
+                        return Value(); // nil for digit >= base
+                    }
+
+                    result = result * base + digit;
+                }
+
+                return Value(negative ? -result : result);
+            }
         } catch (...) {
             return Value(); // nil if conversion fails
         }

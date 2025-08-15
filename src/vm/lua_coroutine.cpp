@@ -1,19 +1,31 @@
 ﻿#include "lua_coroutine.hpp"
 #include "lua_state.hpp"
-#include "lua_state.hpp"
 #include "function.hpp"
 #include "../common/defines.hpp"
+#include "../gc/core/garbage_collector.hpp"
 #include <iostream>
 
 namespace Lua {
     
     // LuaCoroutine implementation
     LuaCoroutine::LuaCoroutine(State* parent, LuaState* luaState)
-        : parentState_(parent), luaState_(luaState), status_(CoroutineStatus::SUSPENDED) {
+        : GCObject(GCObjectType::Thread, sizeof(LuaCoroutine))
+        , parentState_(parent), luaState_(luaState), status_(CoroutineStatus::SUSPENDED) {
     }
     
     LuaCoroutine::~LuaCoroutine() {
         // Cleanup is handled by unique_ptr
+    }
+
+    void LuaCoroutine::markReferences(GarbageCollector* gc) {
+        // Mark any GC objects referenced by this coroutine
+        // For now, we'll mark the yield values which may contain GC objects
+        for (const auto& value : lastYieldValues_) {
+            value.markReferences(gc);
+        }
+
+        // Note: parentState_ and luaState_ are managed elsewhere and don't need marking here
+        // The coroutine promise is managed by unique_ptr and doesn't contain GC objects directly
     }
     
     CoroutineResult LuaCoroutine::resume(const Vec<Value>& args) {

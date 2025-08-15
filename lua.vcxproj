@@ -217,6 +217,7 @@
     <ClCompile Include="src\compiler\upvalue_analyzer.cpp" />
     <ClCompile Include="src\gc\algorithms\gc_marker.cpp" />
     <ClCompile Include="src\gc\algorithms\gc_sweeper.cpp" />
+    <ClCompile Include="src\gc\barriers\write_barrier.cpp" />
     <ClCompile Include="src\gc\core\garbage_collector.cpp" />
     <ClCompile Include="src\gc\core\gc_ref.cpp" />
     <ClCompile Include="src\gc\core\gc_string.cpp" />
@@ -224,6 +225,7 @@
     <ClCompile Include="src\gc\memory\allocator.cpp" />
     <ClCompile Include="src\gc\memory\memory_pool.cpp" />
     <ClCompile Include="src\gc\memory\optimized_allocator.cpp" />
+    <ClCompile Include="src\gc\utils\gc_utils.cpp" />
     <ClCompile Include="src\lexer\lexer.cpp" />
     <ClCompile Include="src\lib\base\base_lib.cpp" />
     <ClCompile Include="src\lib\core\lib_manager.cpp" />

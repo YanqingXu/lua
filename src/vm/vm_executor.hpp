@@ -90,9 +90,9 @@ namespace Lua {
         static void handleVararg(LuaState* L, Instruction instr, Value* base);
         
         // Helper functions
-        static Value* getRK(Value* base, const Vec<Value>& constants, u8 rk);
-        static bool isConstant(u8 rk) { return rk & 0x80; }  // 0x80 = 128 = BITRK_8
-        static u8 getConstantIndex(u8 rk) { return rk & 0x7F; }  // 0x7F = 127 = MAXINDEXRK_8
+        static Value* getRK(Value* base, const Vec<Value>& constants, u16 rk);
+        static bool isConstant(u16 rk) { return rk & 0x100; }  // 0x100 = 256 = BITRK
+        static u16 getConstantIndex(u16 rk) { return rk & 0xFF; }  // 0xFF = 255 = MAXINDEXRK
         
         // Error handling
         static void vmError(LuaState* L, const char* msg);

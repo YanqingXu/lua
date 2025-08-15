@@ -1,6 +1,7 @@
 ﻿#pragma once
 
 #include "../common/types.hpp"
+#include "../gc/core/gc_object.hpp"
 #include "value.hpp"
 #include <coroutine>
 #include <memory>
@@ -145,11 +146,11 @@ namespace Lua {
     
     /**
      * @brief Lua coroutine wrapper class
-     * 
+     *
      * This class wraps a C++20 coroutine and provides Lua 5.1 compatible
      * coroutine interface and semantics.
      */
-    class LuaCoroutine {
+    class LuaCoroutine : public GCObject {
     private:
         UPtr<LuaCoroutinePromise> coroutine_;
         State* parentState_;
@@ -160,6 +161,9 @@ namespace Lua {
     public:
         explicit LuaCoroutine(State* parent, LuaState* luaState);
         ~LuaCoroutine();
+
+        // GCObject interface implementation
+        void markReferences(GarbageCollector* gc) override;
         
         // Lua 5.1 coroutine API
         CoroutineResult resume(const Vec<Value>& args);

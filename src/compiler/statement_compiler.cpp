@@ -359,9 +359,9 @@ namespace Lua {
             int nameIdx = compiler->addConstant(Value(memberExpr->getName()));
 
             // Use basic table assignment first, metamethods will be handled at runtime if needed
-            // Use RK encoding for constant index (Lua 5.1 standard with 8-bit operands)
-            if (nameIdx <= MAXINDEXRK_8) {
-                u8 keyParam = RK(static_cast<u8>(nameIdx));
+            // Use RK encoding for constant index (Lua 5.1 standard with 9-bit operands)
+            if (nameIdx <= MAXINDEXRK) {
+                u16 keyParam = RK(static_cast<u16>(nameIdx));
                 //std::cout << "Member assignment: nameIdx=" << nameIdx << ", keyParam=" << (int)keyParam << " (RK encoded)" << std::endl;
                 compiler->emitInstruction(Instruction::createSETTABLE(tableReg, keyParam, valueReg));
             } else {

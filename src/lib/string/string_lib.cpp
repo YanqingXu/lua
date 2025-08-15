@@ -1,5 +1,6 @@
 #include "string_lib.hpp"
 #include "../core/multi_return_helper.hpp"
+#include "../../vm/function.hpp"
 #include <algorithm>
 #include <cctype>
 #include <iostream>
@@ -24,6 +25,8 @@ void StringLib::registerFunctions(LuaState* state) {
     // Register multi-return functions using new mechanism
     LibRegistry::registerTableFunction(state, stringTable, "find", find);
     LibRegistry::registerTableFunction(state, stringTable, "gsub", gsub);
+    LibRegistry::registerTableFunction(state, stringTable, "match", match);
+    LibRegistry::registerTableFunction(state, stringTable, "gmatch", gmatch);
 
     // Register legacy single-return functions
     LibRegistry::registerTableFunctionLegacy(state, stringTable, "len", len);
@@ -345,7 +348,104 @@ i32 StringLib::gsub(LuaState* state) {
     return 2;
 }
 
+// New Lua 5.1 standard match implementation (multi-return)
+i32 StringLib::match(LuaState* state) {
+    if (!state) {
+        throw std::invalid_argument("State pointer cannot be null");
+    }
 
+    int nargs = state->getTop();
+    if (nargs < 3) { // Need at least string module + string + pattern
+        throw std::invalid_argument("string.match: expected at least 2 arguments (string, pattern)");
+    }
+
+    // For string library functions called as string.match(str, pattern):
+    // - First argument is the string module itself (skip it)
+    // - Second argument is the string to search in
+    // - Third argument is the pattern to search for
+    Value strVal = state->get(1);      // Skip string module
+    Value patternVal = state->get(2);  // Pattern argument
+
+    if (!strVal.isString() || !patternVal.isString()) {
+        throw std::invalid_argument("string.match: arguments must be strings");
+    }
+
+    Str str = strVal.asString();
+    Str pattern = patternVal.asString();
+
+    // Optional start position (default to 1)
+    size_t startPos = 0;
+    if (nargs >= 4) {
+        Value startVal = state->get(3);
+        if (startVal.isNumber()) {
+            f64 start = startVal.asNumber();
+            if (start >= 1) {
+                startPos = static_cast<size_t>(start - 1); // Convert to 0-based
+            }
+        }
+    }
+
+    // Clear arguments
+    state->clearStack();
+
+    // Perform pattern matching (simplified - fall back to plain search for now)
+    // TODO: Implement full Lua pattern matching with captures
+    if (!pattern.empty() && startPos < str.length()) {
+        size_t pos = str.find(pattern, startPos);
+        if (pos != Str::npos) {
+            // Found - return the matched substring
+            Str match = str.substr(pos, pattern.length());
+            state->push(Value(match));
+            return 1;
+        }
+    }
+
+    // Not found - return nil
+    state->push(Value());
+    return 1;
+}
+
+// New Lua 5.1 standard gmatch implementation (returns iterator function)
+i32 StringLib::gmatch(LuaState* state) {
+    if (!state) {
+        throw std::invalid_argument("State pointer cannot be null");
+    }
+
+    int nargs = state->getTop();
+    if (nargs < 3) { // Need at least string module + string + pattern
+        throw std::invalid_argument("string.gmatch: expected at least 2 arguments (string, pattern)");
+    }
+
+    // For string library functions called as string.gmatch(str, pattern):
+    // - First argument is the string module itself (skip it)
+    // - Second argument is the string to search in
+    // - Third argument is the pattern to search for
+    Value strVal = state->get(1);      // Skip string module
+    Value patternVal = state->get(2);  // Pattern argument
+
+    if (!strVal.isString() || !patternVal.isString()) {
+        throw std::invalid_argument("string.gmatch: arguments must be strings");
+    }
+
+    // TODO: Implement proper iterator function that returns matches one by one
+    // For now, return a simple function that returns nil (indicating no more matches)
+
+    // Clear arguments
+    state->clearStack();
+
+    // Create a simple iterator function that returns nil
+    // In a full implementation, this would be a closure that maintains state
+    auto iteratorFunc = [](LuaState* L, i32 args) -> Value {
+        (void)L; (void)args;
+        return Value(); // Return nil to indicate no more matches
+    };
+
+    // Create a function value from the lambda
+    GCRef<Function> func = Function::createNativeLegacy(iteratorFunc);
+    state->push(Value(func));
+
+    return 1;
+}
 
 Value StringLib::format(LuaState* state, i32 nargs) {
     if (!state) {

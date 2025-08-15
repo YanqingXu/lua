@@ -97,11 +97,13 @@ public:
      */
     static Value rep(LuaState* state, i32 nargs);
 
-    // Ä£Ê½Æ¥Åäº¯Êý£¨Lua 5.1 ±ê×¼ÊµÏÖ£©
+    // Pattern matching functions (Lua 5.1 standard implementation)
     static i32 find(LuaState* state);
     static i32 gsub(LuaState* state);
+    static i32 match(LuaState* state);
+    static i32 gmatch(LuaState* state);
 
-    // ¸ñÊ½»¯º¯Êý
+    // Format function
     static Value format(LuaState* state, i32 nargs);
 
 private:
@@ -113,8 +115,8 @@ private:
 };
 
 /**
- * @brief ±ã½ÝµÄStringLib³õÊ¼»¯º¯Êý
- * @param state Lua×´Ì¬»ú
+ * @brief ï¿½ï¿½Ýµï¿½StringLibï¿½ï¿½Ê¼ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+ * @param state Lua×´Ì¬ï¿½ï¿½
  */
 void initializeStringLib(LuaState* state);
 

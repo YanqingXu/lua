@@ -16,13 +16,14 @@ namespace Lua {
     class GCString;
     class Userdata;
     class LuaState;
+    class LuaCoroutine;
     template<typename T> class GCRef;
     
     // Forward declare utility functions
     GCRef<GCString> make_gc_string(const Str& str);
     GCRef<GCString> make_gc_string(const char* str);
     
-    // Lua value types
+    // Lua value types (Lua 5.1 compatible)
     enum class ValueType {
         Nil,
         Boolean,
@@ -30,13 +31,15 @@ namespace Lua {
         String,
         Table,
         Function,
-        Userdata
+        Userdata,
+        Thread,           // LUA_TTHREAD - Lua coroutines
+        LightUserdata     // LUA_TLIGHTUSERDATA - Light userdata pointers
     };
     
     // Lua value
     class Value {
     private:
-        // Use std::variant to store different types of values
+        // Use std::variant to store different types of values (Lua 5.1 compatible)
         using ValueVariant = std::variant<
             std::monostate,      // Nil
             LuaBoolean,          // Boolean
@@ -44,7 +47,9 @@ namespace Lua {
             GCRef<GCString>,     // String
             GCRef<Table>,        // Table
             GCRef<Function>,     // Function
-            GCRef<Userdata>      // Userdata
+            GCRef<Userdata>,     // Userdata (full userdata)
+            GCRef<LuaCoroutine>, // Thread (LUA_TTHREAD)
+            void*                // LightUserdata (LUA_TLIGHTUSERDATA)
         >;
         
         ValueVariant data;
@@ -62,6 +67,8 @@ namespace Lua {
         Value(GCRef<Table> val) : data(val) {}
         Value(GCRef<Function> val) : data(val) {}
         Value(GCRef<Userdata> val) : data(val) {}
+        Value(GCRef<LuaCoroutine> val) : data(val) {}  // Thread constructor
+        Value(void* val) : data(val) {}                // Light userdata constructor
         
         // Copy constructor
         Value(const Value& other) = default;
@@ -84,9 +91,11 @@ namespace Lua {
         bool isTable() const { return type() == ValueType::Table; }
         bool isFunction() const { return type() == ValueType::Function; }
         bool isUserdata() const { return type() == ValueType::Userdata; }
-        
+        bool isThread() const { return type() == ValueType::Thread; }
+        bool isLightUserdata() const { return type() == ValueType::LightUserdata; }
+
         // GC object checking
-        bool isGCObject() const { return isString() || isTable() || isFunction() || isUserdata(); }
+        bool isGCObject() const { return isString() || isTable() || isFunction() || isUserdata() || isThread(); }
         
         // Get values
         LuaBoolean asBoolean() const;
@@ -95,6 +104,8 @@ namespace Lua {
         GCRef<Table> asTable() const;
         GCRef<Function> asFunction() const;
         GCRef<Userdata> asUserdata() const;
+        GCRef<LuaCoroutine> asThread() const;
+        void* asLightUserdata() const;
         
         // GC integration
         void markReferences(class GarbageCollector* gc) const;

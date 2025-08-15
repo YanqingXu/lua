@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "../../common/types.hpp"
 #include "../utils/gc_types.hpp"
@@ -22,18 +22,23 @@ namespace Lua {
      */
     class GCObject {
     private:
-        // GC marking information packed into a single byte
-        // Bits 0-1: Color (White0, White1, Gray, Black)
-        // Bit 2: Fixed object flag (never collected)
-        // Bit 3: Finalized flag
-        // Bit 4: Weak reference flag
-        // Bit 5: Separated flag (for weak tables)
-        // Bits 6-7: Reserved for future use
+        // Lua 5.1 compatible marked field - single byte with bit layout:
+        // bit 0 - object is white (type 0)
+        // bit 1 - object is white (type 1)
+        // bit 2 - object is black
+        // bit 3 - for userdata: has been finalized / for tables: has weak keys
+        // bit 4 - for tables: has weak values
+        // bit 5 - object is fixed (should not be collected)
+        // bit 6 - object is "super" fixed (only the main thread)
+        // bit 7 - reserved
+        mutable u8 marked = GCMark::WHITE0;  // Lua 5.1 compatible marked field
+
+        // Modern C++ atomic version for thread safety (when needed)
         mutable Atom<u8> gcMark{static_cast<u8>(GCColor::White0)};
-        
+
         // Object type for efficient type checking during GC
         GCObjectType objectType;
-        
+
         // Size of this object in bytes (for memory accounting)
         usize objectSize;
         
@@ -172,16 +177,44 @@ namespace Lua {
          * @return Current GC color
          */
         GCColor getColor() const {
-            return GCUtils::getColor(gcMark.load(std::memory_order_acquire));
+            u8 mark = gcMark.load(std::memory_order_acquire);
+            if (GCMark::testbits(mark, GCMark::WHITEBITS)) {
+                return GCMark::testbit(mark, GCMark::WHITE0BIT) ? GCColor::White0 : GCColor::White1;
+            } else if (GCMark::testbit(mark, GCMark::BLACKBIT)) {
+                return GCColor::Black;
+            } else {
+                return GCColor::Gray;
+            }
         }
-        
+
         /**
          * @brief Set the GC color of this object
          * @param color New GC color
          */
         void setColor(GCColor color) {
             u8 currentMark = gcMark.load(std::memory_order_acquire);
-            u8 newMark = GCUtils::setColor(currentMark, color);
+            u8 newMark = currentMark;
+
+            // Clear color bits
+            GCMark::reset2bits(newMark, GCMark::WHITE0BIT, GCMark::WHITE1BIT);
+            GCMark::resetbit(newMark, GCMark::BLACKBIT);
+
+            // Set new color
+            switch (color) {
+                case GCColor::White0:
+                    GCMark::l_setbit(newMark, GCMark::WHITE0BIT);
+                    break;
+                case GCColor::White1:
+                    GCMark::l_setbit(newMark, GCMark::WHITE1BIT);
+                    break;
+                case GCColor::Black:
+                    GCMark::l_setbit(newMark, GCMark::BLACKBIT);
+                    break;
+                case GCColor::Gray:
+                    // Gray is the default (no bits set)
+                    break;
+            }
+
             gcMark.store(newMark, std::memory_order_release);
         }
         
@@ -190,29 +223,51 @@ namespace Lua {
          * @return true if the object is white
          */
         bool isWhite() const {
-            return GCUtils::isWhite(gcMark.load(std::memory_order_acquire));
+            u8 mark = gcMark.load(std::memory_order_acquire);
+            return GCMark::testbits(mark, GCMark::WHITEBITS);
         }
-        
+
         /**
          * @brief Check if this object is gray (marked but not traced)
          * @return true if the object is gray
          */
         bool isGray() const {
-            return GCUtils::isGray(gcMark.load(std::memory_order_acquire));
+            u8 mark = gcMark.load(std::memory_order_acquire);
+            return !GCMark::testbits(mark, GCMark::WHITEBITS) && !GCMark::testbit(mark, GCMark::BLACKBIT);
         }
-        
+
         /**
          * @brief Check if this object is black (marked and traced)
          * @return true if the object is black
          */
         bool isBlack() const {
-            return GCUtils::isBlack(gcMark.load(std::memory_order_acquire));
+            u8 mark = gcMark.load(std::memory_order_acquire);
+            return GCMark::testbit(mark, GCMark::BLACKBIT);
         }
 
         // === Lua 5.1 Compatible Mark Access ===
 
         /**
-         * @brief 获取GC标记字节 - Lua 5.1兼容
+         * @brief 获取Lua 5.1兼容的marked字段
+         * @return marked字段值
+         */
+        u8 getMarked() const { return marked; }
+
+        /**
+         * @brief 设置Lua 5.1兼容的marked字段
+         * @param mark 新的marked值
+         */
+        void setMarked(u8 mark) { marked = mark; }
+
+        /**
+         * @brief 获取marked字段的引用 - 用于位操作
+         * @return marked字段的引用
+         */
+        u8& getMarkedRef() { return marked; }
+        const u8& getMarkedRef() const { return marked; }
+
+        /**
+         * @brief 获取GC标记字节 - 现代C++版本
          * @return GC标记字节
          */
         u8 getGCMark() const {
@@ -220,7 +275,7 @@ namespace Lua {
         }
 
         /**
-         * @brief 设置GC标记字节 - Lua 5.1兼容
+         * @brief 设置GC标记字节 - 现代C++版本
          * @param mark 新的标记字节
          */
         void setGCMark(u8 mark) {
@@ -246,16 +301,22 @@ namespace Lua {
          * @return true if the object is fixed
          */
         bool isFixed() const {
-            return GCUtils::isFixed(gcMark.load(std::memory_order_acquire));
+            u8 mark = gcMark.load(std::memory_order_acquire);
+            return GCMark::testbit(mark, GCMark::FIXEDBIT);
         }
-        
+
         /**
          * @brief Set the fixed flag for this object
          * @param fixed Whether the object should be fixed
          */
         void setFixed(bool fixed) {
             u8 currentMark = gcMark.load(std::memory_order_acquire);
-            u8 newMark = GCUtils::setFixed(currentMark, fixed);
+            u8 newMark = currentMark;
+            if (fixed) {
+                GCMark::l_setbit(newMark, GCMark::FIXEDBIT);
+            } else {
+                GCMark::resetbit(newMark, GCMark::FIXEDBIT);
+            }
             gcMark.store(newMark, std::memory_order_release);
         }
         
@@ -264,16 +325,22 @@ namespace Lua {
          * @return true if the object has been finalized
          */
         bool isFinalized() const {
-            return GCUtils::isFinalized(gcMark.load(std::memory_order_acquire));
+            u8 mark = gcMark.load(std::memory_order_acquire);
+            return GCMark::testbit(mark, GCMark::FINALIZEDBIT);
         }
-        
+
         /**
          * @brief Set the finalized flag for this object
          * @param finalized Whether the object has been finalized
          */
         void setFinalized(bool finalized) {
             u8 currentMark = gcMark.load(std::memory_order_acquire);
-            u8 newMark = GCUtils::setFinalized(currentMark, finalized);
+            u8 newMark = currentMark;
+            if (finalized) {
+                GCMark::l_setbit(newMark, GCMark::FINALIZEDBIT);
+            } else {
+                GCMark::resetbit(newMark, GCMark::FINALIZEDBIT);
+            }
             gcMark.store(newMark, std::memory_order_release);
         }
         

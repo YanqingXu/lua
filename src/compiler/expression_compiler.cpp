@@ -723,9 +723,9 @@ namespace Lua {
         // Convert member name to string constant
         int nameIdx = compiler->addConstant(Value(expr->getName()));
 
-        // Use RK encoding for constant index (Lua 5.1 standard with 8-bit operands)
-        if (nameIdx <= MAXINDEXRK_8) {
-            u8 keyParam = RK(static_cast<u8>(nameIdx));
+        // Use RK encoding for constant index (Lua 5.1 standard with 9-bit operands)
+        if (nameIdx <= MAXINDEXRK) {
+            u16 keyParam = RK(static_cast<u16>(nameIdx));
             // Use RK encoding for constant index access
             compiler->emitInstruction(Instruction::createGETTABLE(resultReg, tableReg, keyParam));
         } else {

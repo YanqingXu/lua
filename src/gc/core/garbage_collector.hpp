@@ -155,7 +155,42 @@ namespace Lua {
          * @return 当前白色标记
          */
         GCColor getCurrentWhite() const { return currentWhite; }
-        
+
+        /**
+         * @brief 获取当前白色位 - Lua 5.1兼容
+         * @return 当前白色位掩码
+         */
+        u8 getCurrentWhiteBits() const {
+            return (currentWhite == GCColor::White0) ? GCMark::WHITE0 : GCMark::WHITE1;
+        }
+
+        /**
+         * @brief 获取另一个白色位 - Lua 5.1兼容
+         * @return 另一个白色位掩码
+         */
+        u8 getOtherWhiteBits() const {
+            return (currentWhite == GCColor::White0) ? GCMark::WHITE1 : GCMark::WHITE0;
+        }
+
+        /**
+         * @brief 切换白色 - 用于GC周期切换
+         */
+        void flipWhite() {
+            currentWhite = (currentWhite == GCColor::White0) ? GCColor::White1 : GCColor::White0;
+        }
+
+        /**
+         * @brief 将对象添加到灰色列表 - 用于写屏障
+         * @param obj 要添加的对象
+         */
+        void addToGrayList(GCObject* obj) {
+            if (obj && !GCUtils::isblack(obj) && !GCUtils::iswhite(obj)) {
+                // 简化实现：直接标记为灰色
+                // 在完整实现中，这里应该将对象添加到灰色队列
+                GCUtils::white2gray(obj);
+            }
+        }
+
     private:
         /**
          * @brief Collect root objects for marking phase

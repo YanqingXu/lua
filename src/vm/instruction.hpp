@@ -6,134 +6,118 @@
 
 namespace Lua {
     // Lua 5.1 official constant indexing definitions
-    // Based on Lua 5.1.5 lopcodes.h but adapted for 8-bit operands
-    
-    // For 8-bit operands (our current implementation)
-    static const u8 BITRK_8 = (1 << 7);  // 128, this bit 1 means constant for 8-bit
-    static const u8 MAXINDEXRK_8 = (BITRK_8 - 1);  // 127, maximum constant index for 8-bit
-    
+    // Based on Lua 5.1.5 lopcodes.h with 9-bit operands
+
     // For 9-bit operands (Lua 5.1 official)
-    static const u16 BITRK_9 = (1 << 8);  // 256, this bit 1 means constant for 9-bit
-    static const u16 MAXINDEXRK_9 = (BITRK_9 - 1);  // 255, maximum constant index for 9-bit
-    
-    // 8-bit versions (for our current instruction format)
-    inline bool ISK(u8 x) {
-        return (x & BITRK_8) != 0;
+    static const u16 BITRK = (1 << 8);  // 256, this bit 1 means constant for 9-bit
+    static const u16 MAXINDEXRK = (BITRK - 1);  // 255, maximum constant index for 9-bit
+
+    // 9-bit versions (Lua 5.1 compatible)
+    inline bool ISK(u16 x) {
+        return (x & BITRK) != 0;
     }
-    
-    inline u8 RKASK(u8 x) {
-        return x | BITRK_8;
+
+    inline u16 RKASK(u16 x) {
+        return x | BITRK;
     }
-    
-    inline u8 INDEXK(u8 r) {
-        return r & ~BITRK_8;
+
+    inline u16 INDEXK(u16 r) {
+        return r & ~BITRK;
     }
     
     // Legacy compatibility - use RKASK instead
-    inline u8 RK(u8 x) {
+    inline u16 RK(u16 x) {
         return RKASK(x);
     }
     
-    // 16-bit versions (for potential future Lua 5.1 full compatibility)
-    inline bool ISK(u16 x) {
-        return (x & BITRK_9) != 0;
-    }
-    
-    inline u16 RKASK(u16 x) {
-        return x | BITRK_9;
-    }
-    
-    inline u16 INDEXK(u16 r) {
-        return r & ~BITRK_9;
-    }
-    
-    // Instruction format (simplified based on Lua 5.1 instruction format)
+    // Instruction format (Lua 5.1 compatible)
     // 32-bit instruction containing opcode and operands
+    // Bit layout: [31-26: unused] [25-23: C(9bit)] [22-14: B(9bit)] [13-6: A(8bit)] [5-0: OpCode(6bit)]
     struct Instruction {
         u32 code;
-        
+
         // Constructor
         Instruction() : code(0) {}
         explicit Instruction(u32 c) : code(c) {}
-        
-        // Get opcode
+
+        // Get opcode (6 bits, positions 0-5)
         OpCode getOpCode() const {
-            return static_cast<OpCode>((code >> 24) & 0xFF);
+            return static_cast<OpCode>(code & 0x3F);
         }
-        
-        // Set opcode
+
+        // Set opcode (6 bits, positions 0-5)
         void setOpCode(OpCode op) {
-            code = (code & 0x00FFFFFF) | (static_cast<u32>(op) << 24);
+            code = (code & 0xFFFFFFC0) | (static_cast<u32>(op) & 0x3F);
         }
         
-        // Get A operand (8 bits)
+        // Get A operand (8 bits, positions 6-13)
         u8 getA() const {
-            return (code >> 16) & 0xFF;
+            return (code >> 6) & 0xFF;
         }
-        
-        // Set A operand
+
+        // Set A operand (8 bits, positions 6-13)
         void setA(u8 a) {
-            code = (code & 0xFF00FFFF) | (static_cast<u32>(a) << 16);
+            code = (code & 0xFFFFC03F) | ((static_cast<u32>(a) & 0xFF) << 6);
         }
         
-        // Get B operand (8 bits)
-        u8 getB() const {
-            return (code >> 8) & 0xFF;
+        // Get B operand (9 bits, positions 14-22)
+        u16 getB() const {
+            return (code >> 14) & 0x1FF;
+        }
+
+        // Set B operand (9 bits, positions 14-22)
+        void setB(u16 b) {
+            code = (code & 0xFF803FFF) | ((static_cast<u32>(b) & 0x1FF) << 14);
+        }
+
+        // Get C operand (9 bits, positions 23-31)
+        u16 getC() const {
+            return (code >> 23) & 0x1FF;
+        }
+
+        // Set C operand (9 bits, positions 23-31)
+        void setC(u16 c) {
+            code = (code & 0x007FFFFF) | ((static_cast<u32>(c) & 0x1FF) << 23);
         }
         
-        // Set B operand
-        void setB(u8 b) {
-            code = (code & 0xFFFF00FF) | (static_cast<u32>(b) << 8);
+        // Get Bx operand (18-bit unsigned, B and C combined, positions 14-31)
+        u32 getBx() const {
+            return (code >> 14) & 0x3FFFF;
+        }
+
+        // Set Bx operand (18-bit unsigned, B and C combined, positions 14-31)
+        void setBx(u32 bx) {
+            code = (code & 0x00003FFF) | ((bx & 0x3FFFF) << 14);
+        }
+
+        // Get sBx operand (18-bit signed, offset by 131071)
+        i32 getSBx() const {
+            return static_cast<i32>(getBx()) - 131071;
+        }
+
+        // Set sBx operand (18-bit signed, offset by 131071)
+        void setSBx(i32 sbx) {
+            setBx(static_cast<u32>(sbx + 131071));
         }
         
-        // Get C operand (8 bits)
-        u8 getC() const {
-            return code & 0xFF;
-        }
-        
-        // Set C operand
-        void setC(u8 c) {
-            code = (code & 0xFFFFFF00) | c;
-        }
-        
-        // Get Bx operand (16-bit unsigned)
-        u16 getBx() const {
-            return code & 0xFFFF;
-        }
-        
-        // Set Bx operand
-        void setBx(u16 bx) {
-            code = (code & 0xFFFF0000) | bx;
-        }
-        
-        // Get sBx operand (16-bit signed, offset by 32768)
-        i16 getSBx() const {
-            return getBx() - 32768;
-        }
-        
-        // Set sBx operand
-        void setSBx(i16 sbx) {
-            setBx(sbx + 32768);
-        }
-        
-        // Static methods to create various instructions
-        static Instruction createMOVE(u8 a, u8 b) {
+        // Static methods to create various instructions (Lua 5.1 compatible)
+        static Instruction createMOVE(u8 a, u16 b) {
             Instruction i;
             i.setOpCode(OpCode::MOVE);
             i.setA(a);
             i.setB(b);
             return i;
         }
-        
-        static Instruction createLOADK(u8 a, u16 bx) {
+
+        static Instruction createLOADK(u8 a, u32 bx) {
             Instruction i;
             i.setOpCode(OpCode::LOADK);
             i.setA(a);
             i.setBx(bx);
             return i;
         }
-        
-        static Instruction createGETGLOBAL(u8 a, u16 bx) {
+
+        static Instruction createGETGLOBAL(u8 a, u32 bx) {
             Instruction i;
             i.setOpCode(OpCode::GETGLOBAL);
             i.setA(a);
@@ -141,15 +125,15 @@ namespace Lua {
             return i;
         }
         
-        static Instruction createSETGLOBAL(u8 a, u16 bx) {
+        static Instruction createSETGLOBAL(u8 a, u32 bx) {
             Instruction i;
             i.setOpCode(OpCode::SETGLOBAL);
             i.setA(a);
             i.setBx(bx);
             return i;
         }
-        
-        static Instruction createGETTABLE(u8 a, u8 b, u8 c) {
+
+        static Instruction createGETTABLE(u8 a, u16 b, u16 c) {
             Instruction i;
             i.setOpCode(OpCode::GETTABLE);
             i.setA(a);
@@ -157,8 +141,8 @@ namespace Lua {
             i.setC(c);
             return i;
         }
-        
-        static Instruction createSETTABLE(u8 a, u8 b, u8 c) {
+
+        static Instruction createSETTABLE(u8 a, u16 b, u16 c) {
             Instruction i;
             i.setOpCode(OpCode::SETTABLE);
             i.setA(a);
@@ -166,8 +150,8 @@ namespace Lua {
             i.setC(c);
             return i;
         }
-        
-        static Instruction createNEWTABLE(u8 a, u8 b, u8 c) {
+
+        static Instruction createNEWTABLE(u8 a, u16 b, u16 c) {
             Instruction i;
             i.setOpCode(OpCode::NEWTABLE);
             i.setA(a);
@@ -176,7 +160,7 @@ namespace Lua {
             return i;
         }
         
-        static Instruction createCALL(u8 a, u8 b, u8 c) {
+        static Instruction createCALL(u8 a, u16 b, u16 c) {
             Instruction i;
             i.setOpCode(OpCode::CALL);
             i.setA(a);
@@ -184,8 +168,8 @@ namespace Lua {
             i.setC(c);
             return i;
         }
-        
-        static Instruction createRETURN(u8 a, u8 b) {
+
+        static Instruction createRETURN(u8 a, u16 b) {
             Instruction i;
             i.setOpCode(OpCode::RETURN);
             i.setA(a);

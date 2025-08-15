@@ -322,37 +322,5 @@ namespace Lua {
         // 暂时不执行任何GC步骤
     }
 
-    // === WriteBarrier函数实现 - 确保链接成功 ===
-
-    namespace WriteBarrier {
-        /**
-         * @brief 简化的barrierForward实现 - 确保编译成功
-         */
-        void barrierForward(LuaState* L, GCObject* parent, GCObject* child) {
-            // 简化的stub实现 - 确保编译成功
-            if (!L || !parent || !child) {
-                return;
-            }
-            // 暂时不执行任何实际的屏障操作
-        }
-
-        /**
-         * @brief 简化的barrierBackward实现 - 确保编译成功
-         */
-        void barrierBackward(LuaState* L, GCObject* obj) {
-            // 简化的stub实现 - 确保编译成功
-            if (!L || !obj) {
-                return;
-            }
-            // 暂时不执行任何实际的屏障操作
-        }
-
-        /**
-         * @brief 简化的needsBarrier实现 - 确保编译成功
-         */
-        bool needsBarrier(GCObject* parent, GCObject* child) {
-            // 简化的stub实现 - 暂时总是返回false
-            return false;
-        }
-    }
+    // WriteBarrier函数现在在 src/gc/barriers/write_barrier.cpp 中实现
 }

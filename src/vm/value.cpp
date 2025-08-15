@@ -6,6 +6,7 @@
 #include "function.hpp"
 #include "userdata.hpp"
 #include "lua_state.hpp"
+#include "lua_coroutine.hpp"
 #include <sstream>
 
 namespace Lua {
@@ -17,6 +18,8 @@ namespace Lua {
         if (std::holds_alternative<GCRef<Table>>(data)) return ValueType::Table;
         if (std::holds_alternative<GCRef<Function>>(data)) return ValueType::Function;
         if (std::holds_alternative<GCRef<Userdata>>(data)) return ValueType::Userdata;
+        if (std::holds_alternative<GCRef<LuaCoroutine>>(data)) return ValueType::Thread;
+        if (std::holds_alternative<void*>(data)) return ValueType::LightUserdata;
         return ValueType::Nil; // Default case, should not reach here
     }
     
@@ -76,6 +79,20 @@ namespace Lua {
         }
         return GCRef<Userdata>(nullptr);
     }
+
+    GCRef<LuaCoroutine> Value::asThread() const {
+        if (isThread()) {
+            return std::get<GCRef<LuaCoroutine>>(data);
+        }
+        return GCRef<LuaCoroutine>(nullptr);
+    }
+
+    void* Value::asLightUserdata() const {
+        if (isLightUserdata()) {
+            return std::get<void*>(data);
+        }
+        return nullptr;
+    }
     
 
     
@@ -98,6 +115,10 @@ namespace Lua {
                 return "function";
             case ValueType::Userdata:
                 return "userdata";
+            case ValueType::Thread:
+                return "thread";
+            case ValueType::LightUserdata:
+                return "userdata";  // Light userdata also shows as "userdata" in Lua 5.1
             default:
                 return "unknown";
         }
@@ -119,6 +140,10 @@ namespace Lua {
                 return "function";
             case ValueType::Userdata:
                 return "userdata";
+            case ValueType::Thread:
+                return "thread";
+            case ValueType::LightUserdata:
+                return "userdata";  // Light userdata also reports as "userdata" type in Lua 5.1
             default:
                 return "unknown";
         }
@@ -147,6 +172,10 @@ namespace Lua {
                 return std::get<GCRef<Function>>(data) == std::get<GCRef<Function>>(other.data); // Compare addresses
             case ValueType::Userdata:
                 return std::get<GCRef<Userdata>>(data) == std::get<GCRef<Userdata>>(other.data); // Compare addresses
+            case ValueType::Thread:
+                return std::get<GCRef<LuaCoroutine>>(data) == std::get<GCRef<LuaCoroutine>>(other.data); // Compare addresses
+            case ValueType::LightUserdata:
+                return std::get<void*>(data) == std::get<void*>(other.data); // Compare pointer values
             default:
                 return false;
         }
@@ -161,7 +190,10 @@ namespace Lua {
             gc->markObject(asFunction().get());
         } else if (isUserdata()) {
             gc->markObject(asUserdata().get());
+        } else if (isThread()) {
+            gc->markObject(asThread().get());
         }
+        // Note: Light userdata (void*) is not managed by GC, so no marking needed
     }
     
     bool Value::operator<(const Value& other) const {

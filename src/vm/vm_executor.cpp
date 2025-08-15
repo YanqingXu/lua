@@ -296,9 +296,9 @@ namespace Lua {
     }
     
     // Helper function implementations
-    Value* VMExecutor::getRK(Value* base, const Vec<Value>& constants, u8 rk) {
+    Value* VMExecutor::getRK(Value* base, const Vec<Value>& constants, u16 rk) {
         if (isConstant(rk)) {
-            u8 idx = getConstantIndex(rk);
+            u16 idx = getConstantIndex(rk);
             if (idx < constants.size()) {
                 // Return pointer to constant (note: this is not ideal for constants)
                 // In a real implementation, we'd return the value directly
@@ -337,13 +337,13 @@ namespace Lua {
     // Basic instruction implementations
     void VMExecutor::handleMove(LuaState* L, Instruction instr, Value* base) {
         u8 a = instr.getA();
-        u8 b = instr.getB();
+        u16 b = instr.getB();
         base[a] = base[b];
     }
 
     void VMExecutor::handleLoadK(LuaState* L, Instruction instr, Value* base, const Vec<Value>& constants) {
         u8 a = instr.getA();
-        u16 bx = instr.getBx();
+        u32 bx = instr.getBx();
         if (bx < constants.size()) {
             base[a] = constants[bx];
         } else {
@@ -371,7 +371,7 @@ namespace Lua {
 
     void VMExecutor::handleGetGlobal(LuaState* L, Instruction instr, Value* base, const Vec<Value>& constants) {
         u8 a = instr.getA();
-        u16 bx = instr.getBx();
+        u32 bx = instr.getBx();
 
         if (bx < constants.size()) {
             Value key = constants[bx];
@@ -406,8 +406,8 @@ namespace Lua {
 
     void VMExecutor::handleAdd(LuaState* L, Instruction instr, Value* base, const Vec<Value>& constants) {
         u8 a = instr.getA();
-        u8 b = instr.getB();
-        u8 c = instr.getC();
+        u16 b = instr.getB();
+        u16 c = instr.getC();
 
         Value* vb = getRK(base, constants, b);
         Value* vc = getRK(base, constants, c);
@@ -421,8 +421,8 @@ namespace Lua {
 
     bool VMExecutor::handleCall(LuaState* L, Instruction instr, Value* base, u32& pc) {
         u8 a = instr.getA();
-        u8 b = instr.getB();
-        u8 c = instr.getC();
+        u16 b = instr.getB();
+        u16 c = instr.getC();
 
         Value func = base[a];
 
@@ -432,7 +432,7 @@ namespace Lua {
         }
 
         // 处理参数数量
-        u8 actualArgCount;
+        u16 actualArgCount;
         if (b == 0) {
             // B=0: 参数从寄存器a+1开始到栈顶
             actualArgCount = L->getTop() - a - 1;
@@ -443,7 +443,7 @@ namespace Lua {
         // For now, implement basic function call
         // In a full implementation, this would use L->precall() and handle reentry
         Vec<Value> args;
-        for (u8 i = 1; i <= actualArgCount; i++) {
+        for (u16 i = 1; i <= actualArgCount; i++) {
             args.push_back(base[a + i]);
         }
 
@@ -496,7 +496,7 @@ namespace Lua {
                             // C>1: 需要c-1个返回值
                             base[a] = result;
                             // 对于legacy函数，额外的返回值设为nil
-                            for (u8 i = 1; i < c - 1; i++) {
+                            for (u16 i = 1; i < c - 1; i++) {
                                 base[a + i] = Value();
                             }
                         }
@@ -518,7 +518,7 @@ namespace Lua {
 
     bool VMExecutor::handleReturn(LuaState* L, Instruction instr, Value* base) {
         u8 a = instr.getA();
-        u8 b = instr.getB();
+        u16 b = instr.getB();
 
         if (b == 1) {
             // No return values
@@ -549,8 +549,8 @@ namespace Lua {
 
     void VMExecutor::handleGetTable(LuaState* L, Instruction instr, Value* base, const Vec<Value>& constants) {
         u8 a = instr.getA();
-        u8 b = instr.getB();
-        u8 c = instr.getC();
+        u16 b = instr.getB();
+        u16 c = instr.getC();
 
         // Get table from register B
         Value table = base[b];
@@ -614,8 +614,8 @@ namespace Lua {
 
     void VMExecutor::handleSub(LuaState* L, Instruction instr, Value* base, const Vec<Value>& constants) {
         u8 a = instr.getA();
-        u8 b = instr.getB();
-        u8 c = instr.getC();
+        u16 b = instr.getB();
+        u16 c = instr.getC();
         Value* vb = getRK(base, constants, b);
         Value* vc = getRK(base, constants, c);
         if (vb && vc && vb->isNumber() && vc->isNumber()) {
@@ -628,8 +628,8 @@ namespace Lua {
 
     void VMExecutor::handleMul(LuaState* L, Instruction instr, Value* base, const Vec<Value>& constants) {
         u8 a = instr.getA();
-        u8 b = instr.getB();
-        u8 c = instr.getC();
+        u16 b = instr.getB();
+        u16 c = instr.getC();
         Value* vb = getRK(base, constants, b);
         Value* vc = getRK(base, constants, c);
         if (vb && vc && vb->isNumber() && vc->isNumber()) {
@@ -642,8 +642,8 @@ namespace Lua {
 
     void VMExecutor::handleDiv(LuaState* L, Instruction instr, Value* base, const Vec<Value>& constants) {
         u8 a = instr.getA();
-        u8 b = instr.getB();
-        u8 c = instr.getC();
+        u16 b = instr.getB();
+        u16 c = instr.getC();
         Value* vb = getRK(base, constants, b);
         Value* vc = getRK(base, constants, c);
         if (vb && vc && vb->isNumber() && vc->isNumber() && vc->asNumber() != 0.0) {
@@ -656,8 +656,8 @@ namespace Lua {
 
     void VMExecutor::handleMod(LuaState* L, Instruction instr, Value* base, const Vec<Value>& constants) {
         u8 a = instr.getA();
-        u8 b = instr.getB();
-        u8 c = instr.getC();
+        u16 b = instr.getB();
+        u16 c = instr.getC();
         Value* vb = getRK(base, constants, b);
         Value* vc = getRK(base, constants, c);
         if (vb && vc && vb->isNumber() && vc->isNumber() && vc->asNumber() != 0.0) {
@@ -670,8 +670,8 @@ namespace Lua {
 
     void VMExecutor::handlePow(LuaState* L, Instruction instr, Value* base, const Vec<Value>& constants) {
         u8 a = instr.getA();
-        u8 b = instr.getB();
-        u8 c = instr.getC();
+        u16 b = instr.getB();
+        u16 c = instr.getC();
         Value* vb = getRK(base, constants, b);
         Value* vc = getRK(base, constants, c);
         if (vb && vc && vb->isNumber() && vc->isNumber()) {
@@ -684,7 +684,7 @@ namespace Lua {
 
     void VMExecutor::handleUnm(LuaState* L, Instruction instr, Value* base, const Vec<Value>& constants) {
         u8 a = instr.getA();
-        u8 b = instr.getB();
+        u16 b = instr.getB();
         Value* vb = getRK(base, constants, b);
         if (vb && vb->isNumber()) {
             base[a] = Value(-vb->asNumber());
@@ -696,7 +696,7 @@ namespace Lua {
 
     void VMExecutor::handleNot(LuaState* L, Instruction instr, Value* base, const Vec<Value>& constants) {
         u8 a = instr.getA();
-        u8 b = instr.getB();
+        u16 b = instr.getB();
         Value* vb = getRK(base, constants, b);
         if (vb) {
             base[a] = Value(!vb->asBoolean());
@@ -708,7 +708,7 @@ namespace Lua {
 
     void VMExecutor::handleLen(LuaState* L, Instruction instr, Value* base, const Vec<Value>& constants) {
         u8 a = instr.getA();
-        u8 b = instr.getB();
+        u16 b = instr.getB();
         Value* vb = getRK(base, constants, b);
         if (vb && vb->isString()) {
             base[a] = Value(static_cast<LuaNumber>(vb->asString().length()));
@@ -741,8 +741,8 @@ namespace Lua {
     void VMExecutor::handleEq(LuaState* L, Instruction instr, Value* base, const Vec<Value>& constants, u32& pc) {
         // Simplified equality check
         u8 a = instr.getA();
-        u8 b = instr.getB();
-        u8 c = instr.getC();
+        u16 b = instr.getB();
+        u16 c = instr.getC();
         Value* vb = getRK(base, constants, b);
         Value* vc = getRK(base, constants, c);
         bool equal = false;
