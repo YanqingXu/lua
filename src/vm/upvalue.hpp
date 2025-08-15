@@ -40,7 +40,10 @@ namespace Lua {
         
         // Set the current value with boundary checking
         void setValue(const Value& value);
-        
+
+        // Set value with write barrier support - Lua 5.1兼容
+        void setValueWithBarrier(const Value& value, LuaState* L);
+
         // Safe getValue with explicit boundary checking
         Value getSafeValue() const;
         
@@ -49,10 +52,13 @@ namespace Lua {
         
         // Close the upvalue (move from stack to closed state)
         void close();
-        
+
+        // Close with write barrier support - Lua 5.1兼容
+        void closeWithBarrier(LuaState* L);
+
         // Check if upvalue is open
         bool isOpen() const { return state == State::Open; }
-        
+
         // Check if upvalue is closed
         bool isClosed() const { return state == State::Closed; }
         
@@ -62,6 +68,22 @@ namespace Lua {
         // Get/set next upvalue in linked list
         Upvalue* getNext() const { return next; }
         void setNext(Upvalue* nextUpvalue) { next = nextUpvalue; }
+
+        // Set next with write barrier support - Lua 5.1兼容
+        void setNextWithBarrier(Upvalue* nextUpvalue, LuaState* L);
+
+        // Upvalue链表遍历 - 用于GC标记
+        template<typename Func>
+        void traverseUpvalueChain(Func&& func) {
+            Upvalue* current = this;
+            while (current) {
+                func(current);
+                current = current->next;
+            }
+        }
+
+        // 检查upvalue是否在指定栈位置之上（用于关闭操作）
+        bool isAboveStackLevel(Value* level) const;
         
         // Check if this upvalue points to a specific stack location
         bool pointsTo(Value* location) const;

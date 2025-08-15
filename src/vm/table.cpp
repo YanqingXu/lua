@@ -1,4 +1,4 @@
-#include "table.hpp"
+﻿#include "table.hpp"
 #include "value.hpp"
 #include "../gc/memory/allocator.hpp"
 #include "../gc/core/gc_ref.hpp"
@@ -76,7 +76,7 @@ namespace Lua {
                     Vec<Value> args = {Value(GCRef<Table>(this)), key};
                     try {
                         return state->callFunction(indexMethod, args);
-                    } catch (const std::exception& e) {
+                    } catch (const std::exception& /*e*/) {
                         // If metamethod call fails, return nil
                         return Value();
                     }
@@ -204,16 +204,61 @@ namespace Lua {
     }
     
     void Table::clearWeakReferences() {
-        // Clear weak references in array part
-        // For now, we don't implement weak references, so this is a no-op
-        // In a full implementation, this would remove entries where the key or value
-        // is a weak reference to a collected object
-        
-        // Clear weak references in hash part
-        // This would iterate through hashPart and remove entries with collected weak references
-        
-        // Note: This is a placeholder implementation
-        // Full weak reference support would require additional metadata
+        // 实现Lua 5.1兼容的弱引用清理
+        if (!isWeakTable()) {
+            return; // 不是弱表，无需清理
+        }
+
+        bool weakKeys = hasWeakKeys();
+        bool weakValues = hasWeakValues();
+
+        // 清理数组部分的弱引用
+        if (weakValues) {
+            for (auto& value : array) {
+                if (value.isGCObject()) {
+                    // 简化实现：暂时跳过实际的死亡检查
+                    // 在完整实现中，这里会检查对象是否已死亡
+                    // GCObject* obj = value.asGCObject();
+                    // if (obj && GCUtils::isdead(nullptr, obj)) {
+                    //     value = Value(); // 设置为nil
+                    // }
+                }
+            }
+        }
+
+        // 清理哈希部分的弱引用
+        // 注意：这里需要实际的哈希表实现来支持
+        // 当前的简化实现暂时跳过哈希部分的清理
+
+        // TODO: 实现完整的哈希表弱引用清理
+        // 需要遍历所有哈希条目并检查键值的存活状态
+    }
+
+    // Lua 5.1兼容的弱表支持实现
+    bool Table::hasWeakKeys() const {
+        return GCUtils::hasweakkeys(this);
+    }
+
+    bool Table::hasWeakValues() const {
+        return GCUtils::hasweakvalues(this);
+    }
+
+    void Table::setWeakKeys(bool weak) {
+        if (weak) {
+            GCUtils::setweakkeys(const_cast<GCObject*>(static_cast<const GCObject*>(this)));
+        } else {
+            // 需要实现取消弱键的功能
+            // 当前GCUtils中没有unsetweakkeys函数
+        }
+    }
+
+    void Table::setWeakValues(bool weak) {
+        if (weak) {
+            GCUtils::setweakvalues(const_cast<GCObject*>(static_cast<const GCObject*>(this)));
+        } else {
+            // 需要实现取消弱值的功能
+            // 当前GCUtils中没有unsetweakvalues函数
+        }
     }
     
     usize Table::getSize() const {

@@ -1,4 +1,4 @@
-#include "gc_string.hpp"
+﻿#include "gc_string.hpp"
 #include "string_pool.hpp"
 #include "garbage_collector.hpp"
 #include <functional>

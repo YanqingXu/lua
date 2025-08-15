@@ -660,7 +660,7 @@ namespace Lua {
 
                         // 使用常量索引的SETTABLE指令
                         // 注意：需要设置ISK位来表示这是常量索引
-                        u8 indexWithISK = RKASK(static_cast<u8>(indexConstant));
+                        u16 indexWithISK = RKASK(static_cast<u16>(indexConstant));
                         compiler->emitInstruction(Instruction::createSETTABLE(tableReg, indexWithISK, vargReg));
                     }
 

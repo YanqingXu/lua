@@ -90,18 +90,45 @@ public:
      */
     int getScopeDepth() const { return static_cast<int>(scopeStack_.size()); }
     
-    // === 寄存器状态查询 ===
-    
+    // === 寄存器生命周期管理 ===
+
     /**
-     * 检查寄存器是否可用
+     * 标记寄存器为活跃状态（在跳转指令中需要保持有效）
+     * @param reg 寄存器编号
+     * @param reason 活跃原因（用于调试）
+     */
+    void markRegisterLive(int reg, const std::string& reason = "");
+
+    /**
+     * 取消寄存器的活跃状态
+     * @param reg 寄存器编号
+     */
+    void unmarkRegisterLive(int reg);
+
+    /**
+     * 检查寄存器是否处于活跃状态
+     * @param reg 寄存器编号
+     * @return 是否活跃
+     */
+    bool isRegisterLive(int reg) const;
+
+    /**
+     * 获取所有活跃寄存器的列表
+     */
+    std::vector<int> getLiveRegisters() const;
+
+    // === 寄存器状态查询 ===
+
+    /**
+     * 检查寄存器是否可用（考虑活跃性）
      */
     bool isRegisterAvailable(int reg) const;
-    
+
     /**
      * 获取已使用的寄存器数量
      */
     int getUsedRegisterCount() const { return stackTop_; }
-    
+
     /**
      * 重置分配器（用于新函数编译）
      */
@@ -128,7 +155,11 @@ private:
     int localCount_;                    // 局部变量数量
     int stackTop_;                      // 当前栈顶位置（下一个可分配的寄存器）
     std::vector<ScopeInfo> scopeStack_; // 作用域栈
-    
+
+    // 寄存器活跃性跟踪
+    std::vector<bool> liveRegisters_;   // 寄存器活跃状态
+    std::vector<std::string> liveReasons_; // 活跃原因（调试用）
+
     // 调试信息
     std::vector<std::string> registerNames_;  // 寄存器用途描述
     
@@ -151,6 +182,12 @@ private:
             }
         }
     }
+
+    /**
+     * 查找可用的寄存器（避免活跃寄存器）
+     * @return 可用寄存器编号，如果没有则返回-1
+     */
+    int findAvailableRegister() const;
 };
 
 } // namespace Lua

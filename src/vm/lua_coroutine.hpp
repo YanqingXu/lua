@@ -157,6 +157,16 @@ namespace Lua {
         LuaState* luaState_;
         CoroutineStatus status_;
         Vec<Value> lastYieldValues_;
+
+        // Lua 5.1兼容的协程栈管理
+        Vec<Value> stack_;              // 协程栈
+        Vec<Value> callStack_;          // 调用栈
+        usize stackTop_;                // 栈顶位置
+        usize stackSize_;               // 栈大小
+
+        // 协程间引用管理
+        LuaCoroutine* parentCoroutine_; // 父协程
+        Vec<LuaCoroutine*> childCoroutines_; // 子协程列表
         
     public:
         explicit LuaCoroutine(State* parent, LuaState* luaState);
@@ -164,11 +174,36 @@ namespace Lua {
 
         // GCObject interface implementation
         void markReferences(GarbageCollector* gc) override;
+        usize getSize() const override;
+        usize getAdditionalSize() const override;
         
         // Lua 5.1 coroutine API
         CoroutineResult resume(const Vec<Value>& args);
         CoroutineResult yield(const Vec<Value>& values);
         CoroutineStatus getStatus() const { return status_; }
+
+        // 协程栈管理 - Lua 5.1兼容
+        void pushValue(const Value& value);
+        Value popValue();
+        const Value& getStackValue(usize index) const;
+        void setStackValue(usize index, const Value& value);
+        usize getStackSize() const { return stackTop_; }
+
+        // 协程栈写屏障支持
+        void pushValueWithBarrier(const Value& value, LuaState* L);
+        void setStackValueWithBarrier(usize index, const Value& value, LuaState* L);
+
+        // 协程间引用管理
+        void setParentCoroutine(LuaCoroutine* parent);
+        void addChildCoroutine(LuaCoroutine* child);
+        void removeChildCoroutine(LuaCoroutine* child);
+
+        // 协程栈遍历 - 用于GC标记
+        template<typename Func>
+        void traverseStack(Func&& func) const;
+
+        // 协程状态写屏障
+        void setStatusWithBarrier(CoroutineStatus newStatus, LuaState* L);
         
         // State management
         State* getParentState() const { return parentState_; }

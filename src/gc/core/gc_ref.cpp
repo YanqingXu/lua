@@ -1,4 +1,4 @@
-#include "gc_ref.hpp"
+﻿#include "gc_ref.hpp"
 #include "../../vm/function.hpp"
 #include "../memory/allocator.hpp"
 

@@ -3,6 +3,7 @@
 #include "table.hpp"
 #include "../gc/core/garbage_collector.hpp"
 #include "../gc/core/gc_string.hpp"
+#include "../gc/core/string_pool.hpp"  // 添加字符串池支持
 #include "../api/lua51_gc_api.hpp"
 #include "../common/types.hpp"
 #include <iostream>
@@ -243,9 +244,17 @@ namespace Lua {
                     handleClosure(L, instr, base, prototypes, pc);
                     break;
                     
-                case OpCode::FORLOOP:
+                case OpCode::FORLOOP: {
+                    u32 oldPc = pc;
                     handleForLoop(L, instr, base, pc);
-                    continue; // pc may have been modified
+                    if (pc != oldPc) {
+                        // PC was modified (jump occurred), skip normal increment
+                        continue;
+                    } else {
+                        // PC was not modified (loop ended), use normal increment
+                        break;
+                    }
+                }
                     
                 case OpCode::FORPREP:
                     handleForPrep(L, instr, base, pc);
@@ -353,8 +362,8 @@ namespace Lua {
 
     void VMExecutor::handleLoadBool(LuaState* L, Instruction instr, Value* base, u32& pc) {
         u8 a = instr.getA();
-        u8 b = instr.getB();
-        u8 c = instr.getC();
+        u16 b = instr.getB();
+        u16 c = instr.getC();
         base[a] = Value(b != 0);
         if (c != 0) {
             pc++; // Skip next instruction
@@ -363,7 +372,7 @@ namespace Lua {
 
     void VMExecutor::handleLoadNil(LuaState* L, Instruction instr, Value* base) {
         u8 a = instr.getA();
-        u8 b = instr.getB();
+        u16 b = instr.getB();
         for (u8 i = 0; i <= b; i++) {
             base[a + i] = Value(); // nil
         }
@@ -377,8 +386,9 @@ namespace Lua {
             Value key = constants[bx];
 
             if (key.isString()) {
-                // 将Str转换为GCString*
-                GCString* gcKey = GCString::create(key.asString());
+                // 使用Lua 5.1兼容的字符串创建函数进行优化
+                const Str& keyStr = key.asString();
+                GCString* gcKey = luaS_newlstr(L, keyStr.c_str(), keyStr.length());
                 // 尝试从全局环境获取变量
                 Value globalValue = L->getGlobal(gcKey);
 
@@ -427,7 +437,14 @@ namespace Lua {
         Value func = base[a];
 
         if (!func.isFunction()) {
-            vmError(L, "attempt to call a non-function value");
+            // Provide more detailed error information
+            std::string errorMsg = "attempt to call a non-function value (";
+            errorMsg += func.getTypeName();
+            errorMsg += ")";
+            if (func.isTable()) {
+                errorMsg += " - this might be a register allocation issue in the compiler";
+            }
+            vmError(L, errorMsg.c_str());
             return false;
         }
 
@@ -447,72 +464,123 @@ namespace Lua {
             args.push_back(base[a + i]);
         }
 
-        // Simple call implementation (should be replaced with proper Lua 5.1 calling convention)
-        auto luaFunc = func.asFunction();
-        if (luaFunc && luaFunc->getType() == Function::Type::Lua) {
-            // This is where we would implement proper reentry
+        // Get function object
+        auto functionObj = func.asFunction();
+        if (!functionObj) {
+            vmError(L, "invalid function object");
+            return false;
+        }
+
+        // Handle different function types
+        if (functionObj->getType() == Function::Type::Lua) {
+            // Lua function: need to set up new call frame and continue execution
+            // This requires proper precall setup and VM reentry
             // For now, return false to indicate reentry needed
             return false;
-        } else {
-            // Native function call
-            auto nativeFunc = func.asFunction();
-            if (nativeFunc && nativeFunc->getType() == Function::Type::Native) {
+        } else if (functionObj->getType() == Function::Type::Native) {
+            // Native function: call directly
+            if (functionObj->isNativeLegacy()) {
+                // Legacy native function (single return value)
+                auto legacyFn = functionObj->getNativeLegacy();
+                if (legacyFn) {
+                    // 保存寄存器内容，因为栈操作可能会破坏它们
+                    int maxRegister = a + actualArgCount + 5;  // 额外保存一些寄存器
+                    Vec<Value> savedRegisters;
+                    for (int i = 0; i < maxRegister; i++) {
+                        savedRegisters.push_back(base[i]);
+                    }
 
-                // 特殊处理print函数
-                if (nativeFunc->isNativeLegacy()) {
-                    auto legacyFn = nativeFunc->getNativeLegacy();
-                    if (legacyFn) {
+                    // 准备参数：将参数推入栈中
+                    int oldTop = L->getTop();
+                    for (u8 i = 1; i <= actualArgCount; i++) {
+                        L->push(savedRegisters[a + i]);  // 使用保存的值
+                    }
 
+                    // 调用legacy函数
+                    Value result = legacyFn(L, actualArgCount);
 
-                        // 保存寄存器内容，因为栈操作可能会破坏它们
-                        // 计算需要保存的寄存器数量
-                        int maxRegister = a + actualArgCount + 5;  // 额外保存一些寄存器
-                        Vec<Value> savedRegisters;
-                        for (int i = 0; i < maxRegister; i++) {
-                            savedRegisters.push_back(base[i]);
+                    // 恢复寄存器内容
+                    for (int i = 0; i < maxRegister; i++) {
+                        base[i] = savedRegisters[i];
+                    }
+
+                    // 处理返回值
+                    if (c == 0) {
+                        // C=0: 返回值数量由函数确定，对于legacy函数通常是1个
+                        base[a] = result;
+                    } else if (c == 1) {
+                        // C=1: 不需要返回值，丢弃结果
+                    } else {
+                        // C>1: 需要c-1个返回值
+                        base[a] = result;
+                        // 对于legacy函数，额外的返回值设为nil
+                        for (u16 i = 1; i < c - 1; i++) {
+                            base[a + i] = Value();
                         }
+                    }
 
-                        // 准备参数：将参数推入栈中
-                        int oldTop = L->getTop();
-                        for (u8 i = 1; i <= actualArgCount; i++) {
-                            L->push(savedRegisters[a + i]);  // 使用保存的值
+                    // 恢复栈状态
+                    L->setTop(oldTop);
+                    return true;
+                }
+            } else {
+                // Modern native function (multiple return values)
+                auto nativeFn = functionObj->getNative();
+                if (nativeFn) {
+                    // 保存寄存器内容
+                    int maxRegister = a + actualArgCount + 5;
+                    Vec<Value> savedRegisters;
+                    for (int i = 0; i < maxRegister; i++) {
+                        savedRegisters.push_back(base[i]);
+                    }
+
+                    // 准备参数：将参数推入栈中
+                    int oldTop = L->getTop();
+                    for (u8 i = 1; i <= actualArgCount; i++) {
+                        L->push(savedRegisters[a + i]);
+                    }
+
+                    // 调用native函数
+                    i32 nresults = nativeFn(L);
+
+                    // 恢复寄存器内容
+                    for (int i = 0; i < maxRegister; i++) {
+                        base[i] = savedRegisters[i];
+                    }
+
+                    // 处理返回值
+                    if (c == 0) {
+                        // C=0: 返回值数量由函数确定
+                        for (i32 i = 0; i < nresults; i++) {
+                            base[a + i] = L->get(-nresults + i);
                         }
-
-                        // 调用legacy函数
-                        Value result = legacyFn(L, actualArgCount);
-
-                        // 恢复寄存器内容
-                        for (int i = 0; i < maxRegister; i++) {
-                            base[i] = savedRegisters[i];
-                        }
-
-                        // 处理返回值
-                        if (c == 0) {
-                            // C=0: 返回值数量由函数确定，对于legacy函数通常是1个
-                            base[a] = result;
-                        } else if (c == 1) {
-                            // C=1: 不需要返回值，丢弃结果
-                        } else {
-                            // C>1: 需要c-1个返回值
-                            base[a] = result;
-                            // 对于legacy函数，额外的返回值设为nil
-                            for (u16 i = 1; i < c - 1; i++) {
-                                base[a + i] = Value();
+                    } else if (c == 1) {
+                        // C=1: 不需要返回值，丢弃结果
+                    } else {
+                        // C>1: 需要c-1个返回值
+                        i32 wantedResults = c - 1;
+                        for (i32 i = 0; i < wantedResults; i++) {
+                            if (i < nresults) {
+                                base[a + i] = L->get(-nresults + i);
+                            } else {
+                                base[a + i] = Value(); // nil for missing results
                             }
                         }
-
-
-
-                        // 恢复栈状态
-                        L->setTop(oldTop);
-                        return true;
                     }
+
+                    // 恢复栈状态
+                    L->setTop(oldTop);
+                    return true;
                 }
             }
 
-            // 默认返回nil
-            base[a] = Value(); // nil result for now
-            return true;
+            // 如果到这里，说明native函数调用失败
+            vmError(L, "failed to call native function");
+            return false;
+        } else {
+            // 未知函数类型
+            vmError(L, "unknown function type");
+            return false;
         }
     }
 
@@ -573,8 +641,8 @@ namespace Lua {
 
     void VMExecutor::handleSetTable(LuaState* L, Instruction instr, Value* base, const Vec<Value>& constants) {
         u8 a = instr.getA();
-        u8 b = instr.getB();
-        u8 c = instr.getC();
+        u16 b = instr.getB();
+        u16 c = instr.getC();
 
         // Get table from register A
         Value table = base[a];
@@ -707,21 +775,44 @@ namespace Lua {
     }
 
     void VMExecutor::handleLen(LuaState* L, Instruction instr, Value* base, const Vec<Value>& constants) {
+        // OP_LEN: R(A) := length of R(B)
+        // Following official Lua 5.1 implementation
         u8 a = instr.getA();
         u16 b = instr.getB();
         Value* vb = getRK(base, constants, b);
-        if (vb && vb->isString()) {
-            base[a] = Value(static_cast<LuaNumber>(vb->asString().length()));
-        } else {
-            base[a] = Value(0.0); // length 0 for non-strings
+
+        if (!vb) {
+            base[a] = Value(0.0);
+            return;
         }
+
+        if (vb->isString()) {
+            // String length
+            base[a] = Value(static_cast<LuaNumber>(vb->asString().length()));
+        } else if (vb->isTable()) {
+            // Table length (array part)
+            auto table = vb->asTable();
+            if (table) {
+                // Get the length of the array part of the table
+                // In Lua 5.1, this is the number of consecutive integer keys starting from 1
+                usize length = table->length();
+                base[a] = Value(static_cast<LuaNumber>(length));
+            } else {
+                base[a] = Value(0.0);
+            }
+        } else {
+            // For other types, try __len metamethod or return 0
+            // For now, just return 0 (metamethods not fully implemented)
+            base[a] = Value(0.0);
+        }
+
         (void)L;
     }
 
     void VMExecutor::handleConcat(LuaState* L, Instruction instr, Value* base, const Vec<Value>& constants) {
         u8 a = instr.getA();
-        u8 b = instr.getB();
-        u8 c = instr.getC();
+        u16 b = instr.getB();
+        u16 c = instr.getC();
         // Simple concatenation of two values
         if (b < 256 && c < 256) {
             Str result = base[b].toString() + base[c].toString();
@@ -739,7 +830,9 @@ namespace Lua {
     }
 
     void VMExecutor::handleEq(LuaState* L, Instruction instr, Value* base, const Vec<Value>& constants, u32& pc) {
-        // Simplified equality check
+        // EQ instruction for our compiler: R(A) = (RK(B) == RK(C))
+        // This differs from standard Lua 5.1 EQ which is a conditional jump instruction
+        // Our compiler expects the result to be stored in register A for subsequent TEST
         u8 a = instr.getA();
         u16 b = instr.getB();
         u16 c = instr.getC();
@@ -754,45 +847,92 @@ namespace Lua {
                 else if (vb->isNil()) equal = true;
             }
         }
-        if (equal != (a != 0)) pc++; // Skip next instruction if condition not met
-        (void)L;
+
+        // Store the comparison result in register A
+        base[a] = Value(equal);
+
+        (void)L; (void)pc;
     }
 
     void VMExecutor::handleLt(LuaState* L, Instruction instr, Value* base, const Vec<Value>& constants, u32& pc) {
-        // Simplified less than check
+        // LT instruction for our compiler: R(A) = (RK(B) < RK(C))
+        // This differs from standard Lua 5.1 LT which is a conditional jump instruction
+        // Our compiler expects the result to be stored in register A for subsequent TEST
         u8 a = instr.getA();
-        u8 b = instr.getB();
-        u8 c = instr.getC();
+        u16 b = instr.getB();
+        u16 c = instr.getC();
         Value* vb = getRK(base, constants, b);
         Value* vc = getRK(base, constants, c);
         bool less = false;
         if (vb && vc && vb->isNumber() && vc->isNumber()) {
             less = (vb->asNumber() < vc->asNumber());
         }
-        if (less != (a != 0)) pc++; // Skip next instruction if condition not met
-        (void)L;
+
+        // Store the comparison result in register A
+        base[a] = Value(less);
+
+        (void)L; (void)pc;
     }
 
     void VMExecutor::handleLe(LuaState* L, Instruction instr, Value* base, const Vec<Value>& constants, u32& pc) {
-        // Simplified less than or equal check
+        // LE instruction for our compiler: R(A) = (RK(B) <= RK(C))
+        // This differs from standard Lua 5.1 LE which is a conditional jump instruction
+        // Our compiler expects the result to be stored in register A for subsequent TEST
         u8 a = instr.getA();
-        u8 b = instr.getB();
-        u8 c = instr.getC();
+        u16 b = instr.getB();
+        u16 c = instr.getC();
         Value* vb = getRK(base, constants, b);
         Value* vc = getRK(base, constants, c);
         bool lessEqual = false;
         if (vb && vc && vb->isNumber() && vc->isNumber()) {
             lessEqual = (vb->asNumber() <= vc->asNumber());
+            std::cout << "[LE] " << vb->asNumber() << " <= " << vc->asNumber() << " = " << (lessEqual ? "true" : "false") << std::endl;
         }
-        if (lessEqual != (a != 0)) pc++; // Skip next instruction if condition not met
-        (void)L;
+
+        // Store the comparison result in register A
+        base[a] = Value(lessEqual);
+        std::cout << "[LE] Result stored in R(" << (int)a << ") = " << (lessEqual ? "true" : "false") << std::endl;
+
+        (void)L; (void)pc;
     }
 
     void VMExecutor::handleTest(LuaState* L, Instruction instr, Value* base, u32& pc) {
+        // OP_TEST: if not (R(A) <=> C) then pc++
+        // Following official Lua 5.1 implementation
         u8 a = instr.getA();
-        u8 c = instr.getC();
-        bool test = base[a].asBoolean();
-        if (test != (c != 0)) pc++; // Skip next instruction if condition not met
+        u16 c = instr.getC();
+
+        // Get the value to test
+        Value& testValue = base[a];
+
+        // Check if value is false/nil (l_isfalse equivalent)
+        bool isFalse = testValue.isNil() || (testValue.isBoolean() && !testValue.asBoolean());
+
+        std::cout << "[TEST] R(" << (int)a << ") = ";
+        if (testValue.isBoolean()) {
+            std::cout << (testValue.asBoolean() ? "true" : "false");
+        } else if (testValue.isNil()) {
+            std::cout << "nil";
+        } else {
+            std::cout << "other";
+        }
+        std::cout << ", isFalse=" << (isFalse ? "true" : "false") << ", C=" << c << std::endl;
+
+        // For for-loops: we want to exit when condition is false
+        // C=0 means: if condition is false, skip next instruction (skip JMP to exit)
+        // So: if condition is false (isFalse=true), skip JMP (continue loop)
+        //     if condition is true (isFalse=false), execute JMP (exit loop)
+        bool shouldSkip = (isFalse == (c == 0));
+        std::cout << "[TEST] shouldSkip=" << (shouldSkip ? "true" : "false") << std::endl;
+
+        if (shouldSkip) {
+            // Skip next instruction
+            pc++;
+            std::cout << "[TEST] Skipping next instruction, PC now=" << pc << std::endl;
+        } else {
+            std::cout << "[TEST] Executing next instruction" << std::endl;
+        }
+
         (void)L;
     }
 
@@ -808,21 +948,111 @@ namespace Lua {
     }
 
     void VMExecutor::handleForLoop(LuaState* L, Instruction instr, Value* base, u32& pc) {
-        // Simplified for loop handling
+        // OP_FORLOOP: R(A)+=R(A+2); if R(A) <?= R(A+1) then { pc+=sBx; R(A+3)=R(A) }
+        // Following official Lua 5.1 implementation
         u8 a = instr.getA();
         i16 sbx = instr.getSBx();
-        // For now, just jump
-        pc += sbx;
-        (void)L; (void)base;
+
+        // Get loop variables: index, limit, step
+        Value& index = base[a];      // R(A) - current index
+        Value& limit = base[a + 1];  // R(A+1) - limit
+        Value& step = base[a + 2];   // R(A+2) - step
+
+        // Ensure all values are numbers
+        if (!index.isNumber() || !limit.isNumber() || !step.isNumber()) {
+            vmError(L, "for loop variables must be numbers");
+            return;
+        }
+
+        // Increment index: R(A) += R(A+2)
+        f64 newIndex = index.asNumber() + step.asNumber();
+        index = Value(newIndex);
+
+        // Check loop condition based on step direction
+        bool continueLoop = false;
+        f64 stepVal = step.asNumber();
+        f64 limitVal = limit.asNumber();
+
+        if (stepVal > 0) {
+            // Positive step: continue if index <= limit
+            continueLoop = (newIndex <= limitVal);
+        } else {
+            // Negative step: continue if index >= limit
+            continueLoop = (newIndex >= limitVal);
+        }
+
+        if (continueLoop) {
+            // Jump back to loop body: pc += sBx
+            pc = static_cast<u32>(static_cast<i32>(pc) + sbx);
+            // Update external index: R(A+3) = R(A)
+            base[a + 3] = index;
+        }
+        // If loop ends, continue to next instruction (pc will be incremented normally)
     }
 
     void VMExecutor::handleForPrep(LuaState* L, Instruction instr, Value* base, u32& pc) {
-        // Simplified for prep handling
+        // OP_FORPREP: R(A)-=R(A+2); pc+=sBx
+        // Following official Lua 5.1 implementation
         u8 a = instr.getA();
         i16 sbx = instr.getSBx();
-        // For now, just jump
-        pc += sbx;
-        (void)L; (void)base;
+
+        // Get loop variables: initial, limit, step
+        Value& initial = base[a];      // R(A) - initial value
+        Value& limit = base[a + 1];    // R(A+1) - limit
+        Value& step = base[a + 2];     // R(A+2) - step
+
+        // Ensure all values are numbers (type coercion)
+        if (!initial.isNumber()) {
+            if (initial.isString()) {
+                try {
+                    f64 num = std::stod(initial.toString());
+                    initial = Value(num);
+                } catch (...) {
+                    vmError(L, "for initial value must be a number");
+                    return;
+                }
+            } else {
+                vmError(L, "for initial value must be a number");
+                return;
+            }
+        }
+
+        if (!limit.isNumber()) {
+            if (limit.isString()) {
+                try {
+                    f64 num = std::stod(limit.toString());
+                    limit = Value(num);
+                } catch (...) {
+                    vmError(L, "for limit must be a number");
+                    return;
+                }
+            } else {
+                vmError(L, "for limit must be a number");
+                return;
+            }
+        }
+
+        if (!step.isNumber()) {
+            if (step.isString()) {
+                try {
+                    f64 num = std::stod(step.toString());
+                    step = Value(num);
+                } catch (...) {
+                    vmError(L, "for step must be a number");
+                    return;
+                }
+            } else {
+                vmError(L, "for step must be a number");
+                return;
+            }
+        }
+
+        // Prepare for loop: R(A) -= R(A+2)
+        f64 preparedIndex = initial.asNumber() - step.asNumber();
+        initial = Value(preparedIndex);
+
+        // Jump to FORLOOP instruction: pc += sBx
+        pc = static_cast<u32>(static_cast<i32>(pc) + sbx);
     }
 
     // === 新增的官方Lua 5.1操作码实现 ===
@@ -830,8 +1060,8 @@ namespace Lua {
     void VMExecutor::handleSelf(LuaState* L, Instruction instr, Value* base, const Vec<Value>& constants) {
         // OP_SELF: R(A+1) := R(B); R(A) := R(B)[RK(C)]
         u8 a = instr.getA();
-        u8 b = instr.getB();
-        u8 c = instr.getC();
+        u16 b = instr.getB();
+        u16 c = instr.getC();
 
         // R(A+1) := R(B)
         base[a + 1] = base[b];
@@ -845,8 +1075,8 @@ namespace Lua {
     void VMExecutor::handleTestSet(LuaState* L, Instruction instr, Value* base, u32& pc) {
         // OP_TESTSET: if (R(B) <=> C) then R(A) := R(B) else pc++
         u8 a = instr.getA();
-        u8 b = instr.getB();
-        u8 c = instr.getC();
+        u16 b = instr.getB();
+        u16 c = instr.getC();
 
         bool test = base[b].asBoolean();
         if (test == (c != 0)) {
@@ -862,7 +1092,7 @@ namespace Lua {
         // OP_TFORLOOP: R(A+3), ... ,R(A+2+C) := R(A)(R(A+1), R(A+2));
         //              if R(A+3) ~= nil then R(A+2)=R(A+3) else pc++
         u8 a = instr.getA();
-        u8 c = instr.getC();
+        u16 c = instr.getC();
 
         // 简化实现：暂时跳过下一条指令
         pc++;
@@ -873,8 +1103,8 @@ namespace Lua {
     void VMExecutor::handleSetList(LuaState* L, Instruction instr, Value* base) {
         // OP_SETLIST: R(A)[(C-1)*FPF+i] := R(A+i), 1 <= i <= B
         u8 a = instr.getA();
-        u8 b = instr.getB();
-        u8 c = instr.getC();
+        u16 b = instr.getB();
+        u16 c = instr.getC();
 
         // 简化实现：暂时不执行任何操作
         (void)L; (void)base; (void)a; (void)b; (void)c;
@@ -891,7 +1121,7 @@ namespace Lua {
     void VMExecutor::handleVararg(LuaState* L, Instruction instr, Value* base) {
         // OP_VARARG: R(A), R(A+1), ..., R(A+B-1) = vararg
         u8 a = instr.getA();
-        u8 b = instr.getB();
+        u16 b = instr.getB();
 
         // 简化实现：将所有目标寄存器设为nil
         if (b == 0) {
@@ -910,7 +1140,7 @@ namespace Lua {
 
     bool VMExecutor::handleTailCall(LuaState* L, Instruction instr, Value* base) {
         u8 a = instr.getA();
-        u8 b = instr.getB();
+        u16 b = instr.getB();
         (void)L; (void)a; (void)b; (void)base;
         return true;
     }

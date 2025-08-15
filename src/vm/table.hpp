@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "../common/types.hpp"
 #include "../gc/core/gc_object.hpp"
@@ -70,6 +70,15 @@ namespace Lua {
         
         // Clear weak references (for garbage collection)
         void clearWeakReferences();
+
+        // Lua 5.1兼容的弱表支持
+        bool hasWeakKeys() const;
+        bool hasWeakValues() const;
+        void setWeakKeys(bool weak);
+        void setWeakValues(bool weak);
+
+        // 检查表是否为弱表
+        bool isWeakTable() const { return hasWeakKeys() || hasWeakValues(); }
         
     private:
         // Find key in entries

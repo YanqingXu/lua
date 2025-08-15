@@ -207,7 +207,7 @@ namespace Lua {
         RegisterFile rf = createRegisterFile(L);
 
         u8 a = i.getA();
-        u8 b = i.getB();
+        u16 b = i.getB();
 
         // MOVE instruction: R[A] = R[B]
         rf.move(a, b);
@@ -225,7 +225,7 @@ namespace Lua {
         RegisterFile rf = createRegisterFile(L);
 
         u8 a = i.getA();
-        u8 b = i.getB();
+        u16 b = i.getB();
 
         // LOADNIL instruction: R[A] to R[A+B] = nil
         rf.fillNil(a, b + 1);

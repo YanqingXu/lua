@@ -189,8 +189,8 @@ namespace Lua {
     Str CompilerUtils::instructionToString(const Instruction& instr) {
         OpCode op = instr.getOpCode();
         u8 a = instr.getA();
-        u8 b = instr.getB();
-        u8 c = instr.getC();
+        u16 b = instr.getB();
+        u16 c = instr.getC();
         
         Str opName;
         switch (op) {

@@ -100,6 +100,13 @@ namespace Lua {
          * @throws std::runtime_error if called on light userdata
          */
         void setMetatable(GCRef<Table> mt);
+
+        /**
+         * @brief Set metatable with write barrier support
+         * @param mt Metatable to set
+         * @param L Lua state for write barrier
+         */
+        void setMetatableWithBarrier(GCRef<Table> mt, LuaState* L);
         
         /**
          * @brief Check if this userdata has a metatable

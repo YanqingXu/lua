@@ -1,9 +1,11 @@
-#include "function.hpp"
+﻿#include "function.hpp"
 #include "value.hpp"
 #include "../gc/core/garbage_collector.hpp"
 #include "../gc/core/gc_ref.hpp"
 #include "../gc/memory/allocator.hpp"
+#include "../gc/barriers/write_barrier.hpp"  // 为写屏障支持
 #include "../api/lua51_gc_api.hpp"
+#include "lua_state.hpp"  // 为LuaState类型
 
 namespace Lua {
     Function::Function(Type type) : GCObject(GCObjectType::Function, sizeof(Function)), type(type) {
@@ -67,7 +69,42 @@ namespace Lua {
         
         return func;
     }
-    
+
+    GCRef<Function> Function::createLuaWithBarrier(
+        LuaState* L,
+        Ptr<Vec<Instruction>> code,
+        const Vec<Value>& constants,
+        const Vec<GCRef<Function>>& prototypes,
+        u8 nparams,
+        u8 nlocals,
+        u8 nupvalues,
+        bool isVariadic
+    ) {
+        // 创建函数对象
+        GCRef<Function> func = createLua(code, constants, prototypes, nparams, nlocals, nupvalues, isVariadic);
+
+        // 应用写屏障 - 函数引用常量中的GC对象
+        if (L) {
+            for (const auto& constant : constants) {
+                if (constant.isGCObject()) {
+                    GCObject* constObj = constant.asGCObject();
+                    if (constObj) {
+                        luaC_objbarrier(L, func.get(), constObj);
+                    }
+                }
+            }
+
+            // 应用写屏障 - 函数引用原型
+            for (const auto& prototype : prototypes) {
+                if (prototype) {
+                    luaC_objbarrier(L, func.get(), prototype.get());
+                }
+            }
+        }
+
+        return func;
+    }
+
     GCRef<Function> Function::createNative(NativeFn fn) {
         // Create a new Function object using GC allocator
         extern GCAllocator* g_gcAllocator;
@@ -82,6 +119,17 @@ namespace Lua {
         }
         func->native.fn = fn;
         func->native.isLegacy = false;
+        return func;
+    }
+
+    GCRef<Function> Function::createNativeWithBarrier(LuaState* L, NativeFn fn) {
+        // 创建native函数对象
+        GCRef<Function> func = createNative(fn);
+
+        // Native函数通常不需要额外的写屏障，因为它们不引用其他GC对象
+        // 但为了一致性，我们保留这个接口
+        (void)L;  // 避免未使用参数警告
+
         return func;
     }
 
@@ -135,37 +183,11 @@ namespace Lua {
     
     // GCObject virtual function implementations
     void Function::markReferences(GarbageCollector* gc) {
-        if (type == Type::Lua) {
-            // Mark all constants that are GC objects
-            for (const auto& constant : lua.constants) {
-                if (constant.isGCObject()) {
-                    gc->markObject(constant.asGCObject());
-                }
-            }
-            
-            // Mark all prototypes
-            for (const auto& prototype : lua.prototypes) {
-                if (prototype) {
-                    gc->markObject(prototype.get());
-                }
-            }
-            
-            // Mark all upvalues
-             for (const auto& upvalue : lua.upvalues) {
-                 if (upvalue) {
-                     gc->markObject(upvalue.get());
-                 }
-             }
-             
-             // Mark function prototype if present
-             if (lua.prototype != nullptr) {
-                 gc->markObject(lua.prototype);
-             }
-             
-             // Note: lua.code is a Ptr<Vec<Instruction>> which doesn't contain GC objects
-             // Instructions themselves don't reference GC objects directly
-        }
-        // Native functions don't have references to mark
+        // Lua 5.1兼容的函数GC标记实现
+        // 参考官方lgc.c中的traverseclosure和traverseproto函数
+        // 使用类型化的GC标记策略
+
+        markReferencesTyped(gc);
     }
     
     usize Function::getSize() const {
@@ -204,6 +226,163 @@ namespace Lua {
     void Function::setUpvalue(usize index, GCRef<Upvalue> upvalue) {
          if (type == Type::Lua && index < lua.upvalues.size()) {
              lua.upvalues[index] = upvalue;
+         }
+     }
+
+     void Function::setUpvalueWithBarrier(usize index, GCRef<Upvalue> upvalue, LuaState* L) {
+         // 应用写屏障 - 函数引用新的upvalue
+         if (L && upvalue && type == Type::Lua && index < lua.upvalues.size()) {
+             luaC_objbarrier(L, this, upvalue.get());
+         }
+
+         // 设置upvalue
+         setUpvalue(index, upvalue);
+     }
+
+     void Function::setConstantWithBarrier(usize index, const Value& value, LuaState* L) {
+         if (type != Type::Lua || index >= lua.constants.size()) {
+             return;
+         }
+
+         // 应用写屏障 - 函数引用新的常量对象
+         if (L && value.isGCObject()) {
+             GCObject* valueObj = value.asGCObject();
+             if (valueObj) {
+                 luaC_objbarrier(L, this, valueObj);
+             }
+         }
+
+         // 设置常量
+         lua.constants[index] = value;
+     }
+
+     void Function::addPrototypeWithBarrier(GCRef<Function> prototype, LuaState* L) {
+         if (type != Type::Lua) {
+             return;
+         }
+
+         // 应用写屏障 - 函数引用新的原型
+         if (L && prototype) {
+             luaC_objbarrier(L, this, prototype.get());
+         }
+
+         // 添加原型
+         lua.prototypes.push_back(prototype);
+     }
+
+     // === 原型共享机制优化实现 ===
+
+     void Function::setParentPrototype(Function* parent) {
+         if (type == Type::Lua) {
+             lua.prototype = parent;
+         }
+     }
+
+     Function* Function::getParentPrototype() const {
+         return (type == Type::Lua) ? lua.prototype : nullptr;
+     }
+
+     bool Function::isSharedPrototype() const {
+         if (type != Type::Lua) {
+             return false;
+         }
+
+         // 检查是否有多个函数引用这个原型
+         // 简化实现：如果有父原型或子原型，则认为是共享的
+         return lua.prototype != nullptr || !lua.prototypes.empty();
+     }
+
+     usize Function::getPrototypeChainDepth() const {
+         if (type != Type::Lua) {
+             return 0;
+         }
+
+         usize depth = 0;
+         Function* current = lua.prototype;
+         while (current && depth < 100) {  // 防止无限循环
+             depth++;
+             current = current->getParentPrototype();
+         }
+
+         return depth;
+     }
+
+     // === C函数与Lua函数差异化GC处理实现 ===
+
+     bool Function::requiresFullGCProcessing() const {
+         return type == Type::Lua;
+     }
+
+     Function::GCProcessingType Function::getGCProcessingType() const {
+         switch (type) {
+             case Type::Lua:
+                 return GCProcessingType::Full;
+             case Type::Native:
+                 return GCProcessingType::Lightweight;
+             default:
+                 return GCProcessingType::None;
+         }
+     }
+
+     void Function::markReferencesTyped(GarbageCollector* gc) {
+         // 根据函数类型执行不同的GC标记策略
+         switch (getGCProcessingType()) {
+             case GCProcessingType::Full:
+                 markLuaFunctionReferences(gc);
+                 break;
+             case GCProcessingType::Lightweight:
+                 markNativeFunctionReferences(gc);
+                 break;
+             case GCProcessingType::None:
+             default:
+                 // 无需处理
+                 break;
+         }
+     }
+
+     void Function::markNativeFunctionReferences(GarbageCollector* gc) {
+         // C函数的轻量级GC处理
+         // 通常C函数不引用其他GC对象，但为了完整性保留这个方法
+
+         // 在未来的实现中，这里可能需要标记：
+         // - C函数的环境表（如果有）
+         // - C函数的upvalue（如果支持）
+         // - 其他C函数特定的GC对象
+
+         (void)gc;  // 避免未使用参数警告
+     }
+
+     void Function::markLuaFunctionReferences(GarbageCollector* gc) {
+         // Lua函数的完整GC处理
+         // 这是原来markReferences方法中Lua函数部分的逻辑
+
+         // 1. 标记常量表中的所有GC对象
+         for (const auto& constant : lua.constants) {
+             if (constant.isGCObject()) {
+                 GCObject* constObj = constant.asGCObject();
+                 if (constObj) {
+                     gc->markObject(constObj);
+                 }
+             }
+         }
+
+         // 2. 标记所有嵌套函数原型（子原型）
+         for (const auto& prototype : lua.prototypes) {
+             if (prototype) {
+                 gc->markObject(prototype.get());
+             }
+         }
+
+         // 3. 标记所有upvalue引用
+         for (const auto& upvalue : lua.upvalues) {
+             if (upvalue) {
+                 gc->markObject(upvalue.get());
+             }
+         }
+
+         // 4. 标记父函数原型（如果存在）
+         if (lua.prototype != nullptr) {
+             gc->markObject(lua.prototype);
          }
      }
      

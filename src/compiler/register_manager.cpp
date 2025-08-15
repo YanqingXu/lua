@@ -38,8 +38,17 @@ int RegisterManager::allocateTemp(const std::string& name) {
         throw LuaException("Register stack overflow (max " + std::to_string(MAX_REGISTERS) + ")");
     }
 
-    int reg = stackTop_;
-    updateStackTop(stackTop_ + 1);
+    // 智能寄存器分配：避免覆盖活跃寄存器
+    int reg = findAvailableRegister();
+    if (reg == -1) {
+        // 如果没有可用寄存器，使用栈顶
+        reg = stackTop_;
+    }
+
+    // 更新栈顶位置
+    if (reg >= stackTop_) {
+        updateStackTop(reg + 1);
+    }
 
 #if DEBUG_REGISTER_ALLOCATION
     DEBUG_PRINT("allocateTemp: " << name << " reg=" << reg << " newStackTop=" << stackTop_);
@@ -149,10 +158,65 @@ void RegisterManager::exitScope() {
     }
 }
 
+// === 寄存器生命周期管理 ===
+
+void RegisterManager::markRegisterLive(int reg, const std::string& reason) {
+    if (!isValidRegister(reg)) {
+        return;
+    }
+
+    // 扩展活跃性数组
+    while (liveRegisters_.size() <= static_cast<size_t>(reg)) {
+        liveRegisters_.push_back(false);
+        liveReasons_.push_back("");
+    }
+
+    liveRegisters_[reg] = true;
+    liveReasons_[reg] = reason;
+
+#if DEBUG_REGISTER_ALLOCATION
+    DEBUG_PRINT("markRegisterLive: R" << reg << " reason=" << reason);
+#endif
+}
+
+void RegisterManager::unmarkRegisterLive(int reg) {
+    if (!isValidRegister(reg) || reg >= static_cast<int>(liveRegisters_.size())) {
+        return;
+    }
+
+    liveRegisters_[reg] = false;
+    liveReasons_[reg] = "";
+
+#if DEBUG_REGISTER_ALLOCATION
+    DEBUG_PRINT("unmarkRegisterLive: R" << reg);
+#endif
+}
+
+bool RegisterManager::isRegisterLive(int reg) const {
+    if (!isValidRegister(reg) || reg >= static_cast<int>(liveRegisters_.size())) {
+        return false;
+    }
+    return liveRegisters_[reg];
+}
+
+std::vector<int> RegisterManager::getLiveRegisters() const {
+    std::vector<int> result;
+    for (int i = 0; i < static_cast<int>(liveRegisters_.size()); i++) {
+        if (liveRegisters_[i]) {
+            result.push_back(i);
+        }
+    }
+    return result;
+}
+
 // === 寄存器状态查询 ===
 
 bool RegisterManager::isRegisterAvailable(int reg) const {
-    return isValidRegister(reg) && reg >= stackTop_;
+    // 寄存器可用的条件：
+    // 1. 寄存器编号有效
+    // 2. 寄存器在栈顶之上（未分配）
+    // 3. 寄存器不处于活跃状态
+    return isValidRegister(reg) && reg >= stackTop_ && !isRegisterLive(reg);
 }
 
 void RegisterManager::reset() {
@@ -160,6 +224,8 @@ void RegisterManager::reset() {
     stackTop_ = 0;
     scopeStack_.clear();
     registerNames_.clear();
+    liveRegisters_.clear();
+    liveReasons_.clear();
 }
 
 // === 调试支持 ===
@@ -170,13 +236,30 @@ void RegisterManager::printStatus() const {
     std::cout << "Stack top: " << stackTop_ << std::endl;
     std::cout << "Scope depth: " << scopeStack_.size() << std::endl;
     std::cout << "Used registers: " << stackTop_ << "/" << MAX_REGISTERS << std::endl;
-    
+
+    // 显示活跃寄存器
+    auto liveRegs = getLiveRegisters();
+    if (!liveRegs.empty()) {
+        std::cout << "Live registers: ";
+        for (int reg : liveRegs) {
+            std::cout << "R" << reg;
+            if (reg < static_cast<int>(liveReasons_.size()) && !liveReasons_[reg].empty()) {
+                std::cout << "(" << liveReasons_[reg] << ")";
+            }
+            std::cout << " ";
+        }
+        std::cout << std::endl;
+    }
+
     if (!registerNames_.empty()) {
         std::cout << "Register allocation:" << std::endl;
         for (int i = 0; i < std::min(stackTop_, static_cast<int>(registerNames_.size())); i++) {
-            std::cout << "  R" << std::setw(3) << i << ": " 
-                      << (registerNames_[i].empty() ? "(free)" : registerNames_[i]) 
-                      << std::endl;
+            std::cout << "  R" << std::setw(3) << i << ": "
+                      << (registerNames_[i].empty() ? "(free)" : registerNames_[i]);
+            if (isRegisterLive(i)) {
+                std::cout << " [LIVE]";
+            }
+            std::cout << std::endl;
         }
     }
     std::cout << "==============================" << std::endl;
@@ -207,6 +290,27 @@ bool RegisterManager::validate() const {
     }
     
     return true;
+}
+
+int RegisterManager::findAvailableRegister() const {
+    // 从栈顶开始查找第一个不活跃的寄存器
+    for (int reg = stackTop_; reg < MAX_REGISTERS; reg++) {
+        if (!isRegisterLive(reg)) {
+            return reg;
+        }
+    }
+
+    // 如果栈顶之上没有可用寄存器，检查栈顶之下的临时寄存器
+    // （但不能使用局部变量寄存器）
+    for (int reg = localCount_; reg < stackTop_; reg++) {
+        if (!isRegisterLive(reg)) {
+            // 检查这个寄存器是否真的可以重用
+            // 这里可以添加更复杂的活跃性分析
+            return reg;
+        }
+    }
+
+    return -1; // 没有可用寄存器
 }
 
 } // namespace Lua

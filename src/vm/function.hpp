@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "../common/types.hpp"
 #include "../common/defines.hpp"
@@ -67,7 +67,7 @@ namespace Lua {
         
         // Create Lua function
         static GCRef<Function> createLua(
-            Ptr<Vec<Instruction>> code, 
+            Ptr<Vec<Instruction>> code,
             const Vec<Value>& constants,
             const Vec<GCRef<Function>>& prototypes = {},
             u8 nparams = 0,
@@ -75,9 +75,24 @@ namespace Lua {
             u8 nupvalues = 0,
             bool isVariadic = false
         );
-        
+
+        // Create Lua function with write barrier support - Lua 5.1兼容
+        static GCRef<Function> createLuaWithBarrier(
+            LuaState* L,
+            Ptr<Vec<Instruction>> code,
+            const Vec<Value>& constants,
+            const Vec<GCRef<Function>>& prototypes = {},
+            u8 nparams = 0,
+            u8 nlocals = 0,
+            u8 nupvalues = 0,
+            bool isVariadic = false
+        );
+
         // Create native function (Lua 5.1 standard - multiple return values)
         static GCRef<Function> createNative(NativeFn fn);
+
+        // Create native function with write barrier support
+        static GCRef<Function> createNativeWithBarrier(LuaState* L, NativeFn fn);
 
         // Create legacy native function (single return value)
         static GCRef<Function> createNativeLegacy(NativeFnLegacy fn);
@@ -120,6 +135,64 @@ namespace Lua {
         
         // Set upvalue by index
         void setUpvalue(usize index, GCRef<Upvalue> upvalue);
+
+        // Set upvalue with write barrier support - Lua 5.1兼容
+        void setUpvalueWithBarrier(usize index, GCRef<Upvalue> upvalue, LuaState* L);
+
+        // Set constant with write barrier support
+        void setConstantWithBarrier(usize index, const Value& value, LuaState* L);
+
+        // Add prototype with write barrier support
+        void addPrototypeWithBarrier(GCRef<Function> prototype, LuaState* L);
+
+        // 原型共享机制优化 - Lua 5.1兼容
+        void setParentPrototype(Function* parent);
+        Function* getParentPrototype() const;
+
+        // 检查是否为共享原型
+        bool isSharedPrototype() const;
+
+        // 获取原型链深度（用于GC优化）
+        usize getPrototypeChainDepth() const;
+
+        // 遍历原型链 - 用于GC标记优化
+        template<typename Func>
+        void traversePrototypeChain(Func&& func) const {
+            if (type != Type::Lua) {
+                return;
+            }
+
+            Function* current = lua.prototype;
+            usize depth = 0;
+            while (current && depth < 100) {  // 防止无限循环
+                func(current);
+                current = current->getParentPrototype();
+                depth++;
+            }
+        }
+
+        // C函数与Lua函数差异化GC处理 - Lua 5.1兼容
+
+        // 检查是否需要完整的GC处理
+        bool requiresFullGCProcessing() const;
+
+        // 获取GC处理类型
+        enum class GCProcessingType {
+            None,        // 无需GC处理
+            Lightweight, // 轻量级GC处理（C函数）
+            Full        // 完整GC处理（Lua函数）
+        };
+
+        GCProcessingType getGCProcessingType() const;
+
+        // 执行类型特定的GC标记
+        void markReferencesTyped(GarbageCollector* gc);
+
+        // C函数特定的轻量级GC处理
+        void markNativeFunctionReferences(GarbageCollector* gc);
+
+        // Lua函数特定的完整GC处理
+        void markLuaFunctionReferences(GarbageCollector* gc);
         
         // Get constant count
         usize getConstantCount() const;

@@ -385,37 +385,60 @@ namespace Lua {
     }
     
     void StatementCompiler::compileIfStmt(const IfStmt* stmt) {
+        // 保存当前寄存器状态
+        int oldStackTop = compiler->getRegisterManager().getStackTop();
+
         // Compile condition expression
         int conditionReg = compiler->getExpressionCompiler()->compileExpr(stmt->getCondition());
+
+        // 标记条件寄存器为活跃状态，防止在跳转过程中被覆盖
+        compiler->getRegisterManager().markRegisterLive(conditionReg, "if_condition");
 
         // Test condition: if false, skip the jump (execute then branch)
         // if true, execute the jump (go to else/end)
         compiler->emitInstruction(Instruction::createTEST(conditionReg, 0));
-        compiler->freeReg(); // Free condition register
+
+        // 现在可以安全地释放条件寄存器，因为TEST指令已经使用了它
+        compiler->getRegisterManager().unmarkRegisterLive(conditionReg);
+
+        // 但是不要立即释放寄存器，因为可能还有其他表达式需要寄存器
+        // 只有在确保不会影响后续指令时才释放
 
         // Create jump placeholder for false condition (jump to else/end)
         int jumpToElse = compiler->emitJump();
-        
-        // Compile then branch (without scope management to avoid register conflicts)
+
+        // Compile then branch
+        // 进入新作用域以隔离寄存器使用
+        compiler->beginScope();
         compileStmt(stmt->getThenBranch());
-        
+        compiler->endScope();
+
         int jumpToEnd = -1;
         if (stmt->getElseBranch()) {
             // If there's an else branch, we need to jump over it after then branch
             jumpToEnd = compiler->emitJump();
         }
-        
+
         // Patch the jump to else/end - this is where false condition lands
         compiler->patchJump(jumpToElse);
-        
-        // Compile else branch if present (without scope management to avoid register conflicts)
+
+        // Compile else branch if present
         if (stmt->getElseBranch()) {
+            // 进入新作用域以隔离寄存器使用
+            compiler->beginScope();
             compileStmt(stmt->getElseBranch());
-            
+            compiler->endScope();
+
             // Patch the jump to end after then branch
             if (jumpToEnd != -1) {
                 compiler->patchJump(jumpToEnd);
             }
+        }
+
+        // 恢复寄存器状态到if语句之前的状态
+        // 这确保if语句不会影响后续代码的寄存器分配
+        while (compiler->getRegisterManager().getStackTop() > oldStackTop) {
+            compiler->freeReg();
         }
     }
     
@@ -450,76 +473,69 @@ namespace Lua {
     void StatementCompiler::compileForStmt(const ForStmt* stmt) {
         compiler->beginScope();
 
-        // Initialize loop variable
-        const Str& varName = stmt->getVariable();
-        int varSlot = compiler->defineLocal(varName);
+        // Following Lua 5.1 official implementation:
+        // For numeric for loops, we need 4 registers:
+        // R(A)   = index (loop variable)
+        // R(A+1) = limit
+        // R(A+2) = step
+        // R(A+3) = internal index (for FORLOOP)
 
-        // Compile initial value
-        int initReg = compiler->getExpressionCompiler()->compileExpr(stmt->getStart());
-        compiler->emitInstruction(Instruction::createMOVE(varSlot, initReg));
+        const Str& varName = stmt->getVariable();
+        int baseReg = compiler->defineLocal("__for_index");  // Internal index
+        int limitReg = compiler->defineLocal("__for_limit"); // Limit
+        int stepReg = compiler->defineLocal("__for_step");   // Step
+        int varSlot = compiler->defineLocal(varName);        // User visible loop variable
+
+        // Compile and store initial value
+        int initExprReg = compiler->getExpressionCompiler()->compileExpr(stmt->getStart());
+        compiler->emitInstruction(Instruction::createMOVE(baseReg, initExprReg));
         compiler->freeReg();
 
-        // Compile limit and step as local variables to avoid register conflicts
-        int limitReg = compiler->defineLocal("__limit");
+        // Compile and store limit value
         int limitExprReg = compiler->getExpressionCompiler()->compileExpr(stmt->getEnd());
         compiler->emitInstruction(Instruction::createMOVE(limitReg, limitExprReg));
         compiler->freeReg();
 
-        int stepReg = compiler->defineLocal("__step");
+        // Compile and store step value
         if (stmt->getStep()) {
             int stepExprReg = compiler->getExpressionCompiler()->compileExpr(stmt->getStep());
             compiler->emitInstruction(Instruction::createMOVE(stepReg, stepExprReg));
             compiler->freeReg();
         } else {
-            // Default step is 1
             int oneIdx = compiler->addConstant(Value(1.0));
             compiler->emitInstruction(Instruction::createLOADK(stepReg, oneIdx));
         }
 
-        int loopStart = static_cast<int>(compiler->getCodeSize());
+        // FORPREP: Subtract step from index and jump to FORLOOP
+        int forprepPC = static_cast<int>(compiler->getCodeSize());
 
-        // Check loop condition based on step value
-        int condReg = compiler->allocReg();
+        // For now, use a placeholder jump offset, we'll patch it later
+        compiler->emitInstruction(Instruction::createFORPREP(baseReg, 0));
+        int forprepJump = static_cast<int>(compiler->getCodeSize() - 1);
 
-        // Try to determine step sign at compile time
-        bool isStepNegative = false;
-        if (stmt->getStep() && compiler->getExpressionCompiler()->isConstantExpression(stmt->getStep())) {
-            Value stepValue = compiler->getExpressionCompiler()->getConstantValue(stmt->getStep());
-            if (stepValue.isNumber() && stepValue.asNumber() < 0) {
-                isStepNegative = true;
-            }
-        }
+        // Loop body starts here
+        int loopBodyStart = static_cast<int>(compiler->getCodeSize());
 
-        if (isStepNegative) {
-            // For negative step: var >= limit (equivalent to limit <= var)
-            compiler->emitInstruction(Instruction::createLE(condReg, limitReg, varSlot));
-        } else {
-            // For positive step: var <= limit
-            compiler->emitInstruction(Instruction::createLE(condReg, varSlot, limitReg));
-        }
+        // Copy internal index to user visible variable
+        compiler->emitInstruction(Instruction::createMOVE(varSlot, baseReg));
 
-        // Jump to end if condition is false
-        compiler->emitInstruction(Instruction::createTEST(condReg, 0));
-        int exitJump = compiler->emitJump();
-
-        compiler->freeReg(); // condReg
-
-        // Compile loop body with independent scope for each iteration
-        // This ensures that local variables in the loop body don't conflict across iterations
+        // Compile loop body
         compiler->beginScope();
         compileStmt(stmt->getBody());
         compiler->endScope();
 
-        // Increment loop variable
-        compiler->emitInstruction(Instruction::createADD(varSlot, varSlot, stepReg));
+        // FORLOOP: Increment index and jump back if condition is met
+        int forloopPC = static_cast<int>(compiler->getCodeSize());
 
-        // Jump back to loop start
-        int currentPos = static_cast<int>(compiler->getCodeSize());
-        int backJump = currentPos - loopStart + 1;  // +1 because JMP instruction itself advances PC
-        compiler->emitInstruction(Instruction::createJMP(-backJump));
+        // Calculate jump offset back to loop body start
+        // FORLOOP should jump back to the MOVE instruction that copies internal index to user variable
+        // jumpOffset = target_pc - current_pc (because pc += jumpOffset)
+        int jumpOffset = loopBodyStart - forloopPC;
+        compiler->emitInstruction(Instruction::createFORLOOP(baseReg, jumpOffset));
 
-        // Patch exit jump
-        compiler->patchJump(exitJump);
+        // Patch FORPREP to jump to FORLOOP
+        int forprepOffset = forloopPC - forprepJump - 1;
+        (*compiler->getCode())[forprepJump] = Instruction::createFORPREP(baseReg, forprepOffset);
 
         // Handle break statements - patch them to jump to loop end
         handleBreakStatements(static_cast<int>(compiler->getCodeSize()));

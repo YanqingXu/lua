@@ -562,8 +562,64 @@ namespace Lua {
                 throw LuaException("invalid function object");
             }
 
-            // Use VMExecutor for function execution
-            return VMExecutor::execute(this, function, args);
+            // Handle different function types
+            if (function->getType() == Function::Type::Lua) {
+                // Use VMExecutor for Lua function execution
+                return VMExecutor::execute(this, function, args);
+            } else if (function->getType() == Function::Type::Native) {
+                // Handle native function directly
+                if (function->isNativeLegacy()) {
+                    // Legacy native function (single return value)
+                    auto legacyFn = function->getNativeLegacy();
+                    if (legacyFn) {
+                        // 保存当前栈状态
+                        int oldTop = getTop();
+
+                        // 将参数推入栈中
+                        for (const auto& arg : args) {
+                            push(arg);
+                        }
+
+                        // 调用legacy函数
+                        Value result = legacyFn(this, static_cast<i32>(args.size()));
+
+                        // 恢复栈状态
+                        setTop(oldTop);
+
+                        return result;
+                    }
+                } else {
+                    // Modern native function (multiple return values)
+                    auto nativeFn = function->getNative();
+                    if (nativeFn) {
+                        // 保存当前栈状态
+                        int oldTop = getTop();
+
+                        // 将参数推入栈中
+                        for (const auto& arg : args) {
+                            push(arg);
+                        }
+
+                        // 调用native函数
+                        i32 nresults = nativeFn(this);
+
+                        // 获取第一个返回值（如果有的话）
+                        Value result;
+                        if (nresults > 0) {
+                            result = get(-nresults);
+                        }
+
+                        // 恢复栈状态
+                        setTop(oldTop);
+
+                        return result;
+                    }
+                }
+
+                throw LuaException("failed to call native function");
+            } else {
+                throw LuaException("unknown function type");
+            }
         } catch (const std::exception& e) {
             std::cerr << "Function call error: " << e.what() << std::endl;
             return Value(); // Return nil on error

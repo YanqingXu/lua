@@ -1,4 +1,4 @@
-#include "memory_pool.hpp"
+﻿#include "memory_pool.hpp"
 #include "../core/gc_object.hpp"
 #include <cstdlib>
 #include <cstddef>

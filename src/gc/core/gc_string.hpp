@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "gc_object.hpp"
 #include "../../common/types.hpp"

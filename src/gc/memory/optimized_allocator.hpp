@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "../../common/types.hpp"
 #include "../utils/gc_types.hpp"

@@ -1,4 +1,4 @@
-#include "optimized_allocator.hpp"
+﻿#include "optimized_allocator.hpp"
 #include "../core/gc_object.hpp"
 #include <algorithm>
 #include <cstdlib>

@@ -12,7 +12,7 @@ namespace Lua {
     class LuaState;
     class RegisterFile;
     class CallStack;
-    struct Value;
+    class Value;
     
     /**
      * @brief Function call optimization module
