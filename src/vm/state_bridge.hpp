@@ -1,7 +1,6 @@
 #pragma once
 
 #include "../common/types.hpp"
-#include "state.hpp"
 #include "lua_state.hpp"
 #include "global_state.hpp"
 

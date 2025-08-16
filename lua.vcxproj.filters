@@ -34,7 +34,6 @@
     <Filter Include="parser\ast">
       <UniqueIdentifier>{55025240-88f2-415e-a4ca-e520ad69e646}</UniqueIdentifier>
     </Filter>
-
     <Filter Include="gc">
       <UniqueIdentifier>{26215f2a-d6d3-4e75-abc4-01efe3b87429}</UniqueIdentifier>
     </Filter>
@@ -56,12 +55,9 @@
     <Filter Include="gc\utils">
       <UniqueIdentifier>{d064a294-a3d4-4927-b472-e8e30e361b55}</UniqueIdentifier>
     </Filter>
-
     <Filter Include="localization">
       <UniqueIdentifier>{230981af-2ba3-4663-83f8-6e785d9a21d9}</UniqueIdentifier>
     </Filter>
-
-
     <Filter Include="lib\base">
       <UniqueIdentifier>{27357e4e-5796-4061-ba77-73b8ced00e34}</UniqueIdentifier>
     </Filter>
@@ -92,31 +88,22 @@
     <Filter Include="lib\package">
       <UniqueIdentifier>{6ed13b33-eb3d-4b29-8441-3bdd39741c66}</UniqueIdentifier>
     </Filter>
+    <Filter Include="lib\coroutine">
+      <UniqueIdentifier>{b29ba02d-b17d-42f2-857b-66c019a5f18f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="gc\barriers">
+      <UniqueIdentifier>{e9f897a2-ed92-48c1-8c15-b87c397e94e9}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\main.cpp">
       <Filter>源文件</Filter>
-    </ClCompile>
-    <ClCompile Include="src\vm\vm.cpp">
-      <Filter>vm</Filter>
     </ClCompile>
     <ClCompile Include="src\lexer\lexer.cpp">
       <Filter>lexer</Filter>
     </ClCompile>
     <ClCompile Include="src\compiler\compiler.cpp">
       <Filter>compiler</Filter>
-    </ClCompile>
-    <ClCompile Include="src\vm\function.cpp">
-      <Filter>vm</Filter>
-    </ClCompile>
-    <ClCompile Include="src\vm\state.cpp">
-      <Filter>vm</Filter>
-    </ClCompile>
-    <ClCompile Include="src\vm\value.cpp">
-      <Filter>vm</Filter>
-    </ClCompile>
-    <ClCompile Include="src\vm\table.cpp">
-      <Filter>vm</Filter>
     </ClCompile>
     <ClCompile Include="src\parser\visitor.cpp">
       <Filter>parser</Filter>
@@ -169,7 +156,6 @@
     <ClCompile Include="src\gc\core\string_pool.cpp">
       <Filter>gc\core</Filter>
     </ClCompile>
-
     <ClCompile Include="src\parser\ast\source_location.cpp">
       <Filter>parser\ast</Filter>
     </ClCompile>
@@ -179,12 +165,6 @@
     <ClCompile Include="src\compiler\upvalue_analyzer.cpp">
       <Filter>compiler</Filter>
     </ClCompile>
-    <ClCompile Include="src\vm\upvalue.cpp">
-      <Filter>vm</Filter>
-    </ClCompile>
-
-
-
     <ClCompile Include="src\compiler\register_manager.cpp">
       <Filter>compiler</Filter>
     </ClCompile>
@@ -197,7 +177,6 @@
     <ClCompile Include="src\lib\core\lib_registry.cpp">
       <Filter>lib\core</Filter>
     </ClCompile>
-
     <ClCompile Include="src\lib\string\string_lib.cpp">
       <Filter>lib\string</Filter>
     </ClCompile>
@@ -215,16 +194,6 @@
     </ClCompile>
     <ClCompile Include="src\lib\math\math_lib.cpp">
       <Filter>lib\math</Filter>
-    </ClCompile>
-
-    <ClCompile Include="src\vm\userdata.cpp">
-      <Filter>vm</Filter>
-    </ClCompile>
-    <ClCompile Include="src\vm\core_metamethods.cpp">
-      <Filter>vm</Filter>
-    </ClCompile>
-    <ClCompile Include="src\vm\metamethod_manager.cpp">
-      <Filter>vm</Filter>
     </ClCompile>
     <ClCompile Include="src\repl.cpp">
       <Filter>源文件</Filter>
@@ -244,6 +213,72 @@
     <ClCompile Include="src\parser\error_formatter.cpp">
       <Filter>parser</Filter>
     </ClCompile>
+    <ClCompile Include="src\common\lua_exception.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="src\vm\debug_info.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="src\gc\utils\gc_utils.cpp">
+      <Filter>gc\utils</Filter>
+    </ClCompile>
+    <ClCompile Include="src\lib\coroutine\coroutine_lib.cpp">
+      <Filter>lib\coroutine</Filter>
+    </ClCompile>
+    <ClCompile Include="src\gc\barriers\write_barrier.cpp">
+      <Filter>gc\barriers</Filter>
+    </ClCompile>
+    <ClCompile Include="src\vm\call_stack.cpp">
+      <Filter>vm</Filter>
+    </ClCompile>
+    <ClCompile Include="src\vm\core_metamethods.cpp">
+      <Filter>vm</Filter>
+    </ClCompile>
+    <ClCompile Include="src\vm\debug_hooks.cpp">
+      <Filter>vm</Filter>
+    </ClCompile>
+    <ClCompile Include="src\vm\error_handling.cpp">
+      <Filter>vm</Filter>
+    </ClCompile>
+    <ClCompile Include="src\vm\function.cpp">
+      <Filter>vm</Filter>
+    </ClCompile>
+    <ClCompile Include="src\vm\function_call.cpp">
+      <Filter>vm</Filter>
+    </ClCompile>
+    <ClCompile Include="src\vm\global_state.cpp">
+      <Filter>vm</Filter>
+    </ClCompile>
+    <ClCompile Include="src\vm\lua_coroutine.cpp">
+      <Filter>vm</Filter>
+    </ClCompile>
+    <ClCompile Include="src\vm\lua_state.cpp">
+      <Filter>vm</Filter>
+    </ClCompile>
+    <ClCompile Include="src\vm\metamethod_manager.cpp">
+      <Filter>vm</Filter>
+    </ClCompile>
+    <ClCompile Include="src\vm\register_file.cpp">
+      <Filter>vm</Filter>
+    </ClCompile>
+    <ClCompile Include="src\vm\table.cpp">
+      <Filter>vm</Filter>
+    </ClCompile>
+    <ClCompile Include="src\vm\upvalue.cpp">
+      <Filter>vm</Filter>
+    </ClCompile>
+    <ClCompile Include="src\vm\userdata.cpp">
+      <Filter>vm</Filter>
+    </ClCompile>
+    <ClCompile Include="src\vm\value.cpp">
+      <Filter>vm</Filter>
+    </ClCompile>
+    <ClCompile Include="src\vm\vm.cpp">
+      <Filter>vm</Filter>
+    </ClCompile>
+    <ClCompile Include="src\vm\vm_executor.cpp">
+      <Filter>vm</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\compiler\compiler.hpp">
@@ -261,21 +296,6 @@
     <ClInclude Include="src\lexer\lexer.hpp">
       <Filter>lexer</Filter>
     </ClInclude>
-    <ClInclude Include="src\vm\function.hpp">
-      <Filter>vm</Filter>
-    </ClInclude>
-    <ClInclude Include="src\vm\state.hpp">
-      <Filter>vm</Filter>
-    </ClInclude>
-    <ClInclude Include="src\vm\vm.hpp">
-      <Filter>vm</Filter>
-    </ClInclude>
-    <ClInclude Include="src\vm\value.hpp">
-      <Filter>vm</Filter>
-    </ClInclude>
-    <ClInclude Include="src\vm\table.hpp">
-      <Filter>vm</Filter>
-    </ClInclude>
     <ClInclude Include="src\parser\visitor.hpp">
       <Filter>parser</Filter>
     </ClInclude>
@@ -291,7 +311,6 @@
     <ClInclude Include="src\parser\ast\statements.hpp">
       <Filter>parser\ast</Filter>
     </ClInclude>
-
     <ClInclude Include="src\compiler\compiler_utils.hpp">
       <Filter>compiler</Filter>
     </ClInclude>
@@ -337,14 +356,6 @@
     <ClInclude Include="src\gc\core\string_pool.hpp">
       <Filter>gc\core</Filter>
     </ClInclude>
-    <ClInclude Include="src\vm\instruction.hpp">
-      <Filter>vm</Filter>
-    </ClInclude>
-    <ClInclude Include="src\vm\table_impl.hpp">
-      <Filter>vm</Filter>
-    </ClInclude>
-
-
     <ClInclude Include="src\parser\ast\source_location.hpp">
       <Filter>parser\ast</Filter>
     </ClInclude>
@@ -354,14 +365,9 @@
     <ClInclude Include="src\localization\localization_manager.hpp">
       <Filter>localization</Filter>
     </ClInclude>
-
     <ClInclude Include="src\compiler\upvalue_analyzer.hpp">
       <Filter>compiler</Filter>
     </ClInclude>
-    <ClInclude Include="src\vm\upvalue.hpp">
-      <Filter>vm</Filter>
-    </ClInclude>
-
     <ClInclude Include="src\compiler\register_manager.hpp">
       <Filter>compiler</Filter>
     </ClInclude>
@@ -377,7 +383,6 @@
     <ClInclude Include="src\lib\core\lib_registry.hpp">
       <Filter>lib\core</Filter>
     </ClInclude>
-
     <ClInclude Include="src\lib\string\string_lib.hpp">
       <Filter>lib\string</Filter>
     </ClInclude>
@@ -396,24 +401,11 @@
     <ClInclude Include="src\lib\math\math_lib.hpp">
       <Filter>lib\math</Filter>
     </ClInclude>
-
-    <ClInclude Include="src\vm\userdata.hpp">
-      <Filter>vm</Filter>
-    </ClInclude>
-    <ClInclude Include="src\vm\core_metamethods.hpp">
-      <Filter>vm</Filter>
-    </ClInclude>
-    <ClInclude Include="src\vm\metamethod_manager.hpp">
-      <Filter>vm</Filter>
-    </ClInclude>
     <ClInclude Include="src\lib\package\file_utils.hpp">
       <Filter>lib\package</Filter>
     </ClInclude>
     <ClInclude Include="src\lib\package\package_lib.hpp">
       <Filter>lib\package</Filter>
-    </ClInclude>
-    <ClInclude Include="src\vm\call_result.hpp">
-      <Filter>vm</Filter>
     </ClInclude>
     <ClInclude Include="src\lib\core\multi_return_helper.hpp">
       <Filter>lib\core</Filter>
@@ -426,6 +418,75 @@
     </ClInclude>
     <ClInclude Include="src\parser\error_formatter.hpp">
       <Filter>parser</Filter>
+    </ClInclude>
+    <ClInclude Include="src\lib\coroutine\coroutine_lib.hpp">
+      <Filter>lib\coroutine</Filter>
+    </ClInclude>
+    <ClInclude Include="src\vm\call_result.hpp">
+      <Filter>vm</Filter>
+    </ClInclude>
+    <ClInclude Include="src\vm\call_stack.hpp">
+      <Filter>vm</Filter>
+    </ClInclude>
+    <ClInclude Include="src\vm\core_metamethods.hpp">
+      <Filter>vm</Filter>
+    </ClInclude>
+    <ClInclude Include="src\vm\debug_hooks.hpp">
+      <Filter>vm</Filter>
+    </ClInclude>
+    <ClInclude Include="src\vm\debug_info.hpp">
+      <Filter>vm</Filter>
+    </ClInclude>
+    <ClInclude Include="src\vm\dynamic_constant_pool.hpp">
+      <Filter>vm</Filter>
+    </ClInclude>
+    <ClInclude Include="src\vm\error_handling.hpp">
+      <Filter>vm</Filter>
+    </ClInclude>
+    <ClInclude Include="src\vm\function.hpp">
+      <Filter>vm</Filter>
+    </ClInclude>
+    <ClInclude Include="src\vm\function_call.hpp">
+      <Filter>vm</Filter>
+    </ClInclude>
+    <ClInclude Include="src\vm\global_state.hpp">
+      <Filter>vm</Filter>
+    </ClInclude>
+    <ClInclude Include="src\vm\instruction.hpp">
+      <Filter>vm</Filter>
+    </ClInclude>
+    <ClInclude Include="src\vm\lua_coroutine.hpp">
+      <Filter>vm</Filter>
+    </ClInclude>
+    <ClInclude Include="src\vm\lua_state.hpp">
+      <Filter>vm</Filter>
+    </ClInclude>
+    <ClInclude Include="src\vm\metamethod_manager.hpp">
+      <Filter>vm</Filter>
+    </ClInclude>
+    <ClInclude Include="src\vm\register_file.hpp">
+      <Filter>vm</Filter>
+    </ClInclude>
+    <ClInclude Include="src\vm\table.hpp">
+      <Filter>vm</Filter>
+    </ClInclude>
+    <ClInclude Include="src\vm\table_impl.hpp">
+      <Filter>vm</Filter>
+    </ClInclude>
+    <ClInclude Include="src\vm\upvalue.hpp">
+      <Filter>vm</Filter>
+    </ClInclude>
+    <ClInclude Include="src\vm\userdata.hpp">
+      <Filter>vm</Filter>
+    </ClInclude>
+    <ClInclude Include="src\vm\value.hpp">
+      <Filter>vm</Filter>
+    </ClInclude>
+    <ClInclude Include="src\vm\vm.hpp">
+      <Filter>vm</Filter>
+    </ClInclude>
+    <ClInclude Include="src\vm\vm_executor.hpp">
+      <Filter>vm</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>
