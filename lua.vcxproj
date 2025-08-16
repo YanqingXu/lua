@@ -172,7 +172,6 @@
     <ClInclude Include="src\lib\package\package_lib.hpp" />
     <ClInclude Include="src\lib\string\string_lib.hpp" />
     <ClInclude Include="src\lib\table\table_lib.hpp" />
-    <ClInclude Include="src\localization\localization_manager.hpp" />
     <ClInclude Include="src\parser\ast\ast_base.hpp" />
     <ClInclude Include="src\parser\ast\expressions.hpp" />
     <ClInclude Include="src\parser\ast\parse_error.hpp" />
@@ -239,7 +238,6 @@
     <ClCompile Include="src\lib\package\package_lib.cpp" />
     <ClCompile Include="src\lib\string\string_lib.cpp" />
     <ClCompile Include="src\lib\table\table_lib.cpp" />
-    <ClCompile Include="src\localization\localization_manager.cpp" />
     <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\parser\enhanced_error_reporter.cpp" />
     <ClCompile Include="src\parser\error_formatter.cpp" />

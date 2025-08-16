@@ -1,5 +1,4 @@
 #include "error_formatter.hpp"
-#include "../localization/localization_manager.hpp"
 #include <sstream>
 #include <algorithm>
 
@@ -253,7 +252,31 @@ namespace Lua {
     }
 
     Str Lua51ErrorMessages::getMessage(const Str& messageKey, const Vec<Str>& args) {
-        // Use localization manager for consistent message formatting
-        return getLocalizedMessage(MessageCategory::ErrorMessage, messageKey, args);
+        // Simple message formatting with hardcoded English messages
+        if (messageKey == "ExpectedButFound" && args.size() >= 2) {
+            return "Expected '" + args[0] + "', but found '" + args[1] + "'";
+        } else if (messageKey == "Missing" && args.size() >= 1) {
+            return "Missing '" + args[0] + "'";
+        } else if (messageKey == "InvalidExpressionReason" && args.size() >= 1) {
+            return "Invalid expression: " + args[0];
+        } else if (messageKey == "UndefinedVar" && args.size() >= 1) {
+            return "Undefined variable '" + args[0] + "'";
+        } else if (messageKey == "MismatchedParen") {
+            return "Mismatched parentheses";
+        } else if (messageKey == "UnexpectedEOF") {
+            return "Unexpected end of file";
+        } else if (messageKey == "SyntaxError") {
+            return "Syntax error";
+        } else if (messageKey == "FunctionSpan" && args.size() >= 2) {
+            return "Function at line " + args[0] + " ends at line " + args[1];
+        } else if (messageKey == "AmbiguousSyntax") {
+            return "Ambiguous syntax (function call vs new statement)";
+        } else if (messageKey == "EndExpected" && args.size() >= 1) {
+            return "Expected '" + args[0] + "'";
+        } else if (messageKey == "EndExpectedToClose" && args.size() >= 3) {
+            return "Expected '" + args[0] + "' (to close '" + args[1] + "' at line " + args[2] + ")";
+        }
+        // Fallback to the message key itself
+        return messageKey;
     }
 }

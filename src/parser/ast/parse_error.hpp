@@ -2,7 +2,6 @@
 
 #include "source_location.hpp"
 #include "../../common/types.hpp"
-#include "../../localization/localization_manager.hpp"
 #include <vector>
 #include <string>
 #include <memory>
@@ -143,105 +142,103 @@ namespace Lua {
             return location_.toString() + ": " + severityToString() + ": " + message_;
         }
         
-        // Static factory methods - common error types (with localization support)
+        // Static factory methods - common error types
         static ParseError unexpectedToken(const SourceLocation& location, const Str& expected, const Str& actual) {
-            Str message = getLocalizedMessage(MessageCategory::ErrorMessage, "ExpectedButFound", {expected, actual});
+            Str message = "Expected '" + expected + "', but found '" + actual + "'";
             auto error = ParseError(ErrorType::UnexpectedToken, location, message);
-            Str suggestion = getLocalizedMessage(MessageCategory::FixSuggestion, "ReplaceWith", {expected});
+            Str suggestion = "Replace with '" + expected + "'";
             error.addSuggestion(FixType::Replace, location, suggestion, expected);
             return error;
         }
-        
+
         static ParseError missingToken(const SourceLocation& location, const Str& expected) {
-            Str message = getLocalizedMessage(MessageCategory::ErrorMessage, "Missing", {expected});
+            Str message = "Missing '" + expected + "'";
             auto error = ParseError(ErrorType::MissingToken, location, message);
-            Str suggestion = getLocalizedMessage(MessageCategory::FixSuggestion, "Insert", {expected});
+            Str suggestion = "Insert '" + expected + "'";
             error.addSuggestion(FixType::Insert, location, suggestion, expected);
             return error;
         }
-        
+
         static ParseError invalidExpression(const SourceLocation& location, const Str& reason = "") {
             Str message;
             if (!reason.empty()) {
-                message = getLocalizedMessage(MessageCategory::ErrorMessage, "InvalidExpressionReason", {reason});
+                message = "Invalid expression: " + reason;
             } else {
-                message = getLocalizedMessage(MessageCategory::ErrorType, "InvalidExpression");
+                message = "Invalid Expression";
             }
             return ParseError(ErrorType::InvalidExpression, location, message);
         }
-        
+
         static ParseError undefinedVariable(const SourceLocation& location, const Str& varName) {
-            Str message = getLocalizedMessage(MessageCategory::ErrorMessage, "UndefinedVar", {varName});
+            Str message = "Undefined variable '" + varName + "'";
             auto error = ParseError(ErrorType::UndefinedVariable, location, message);
-            Str suggestion = getLocalizedMessage(MessageCategory::FixSuggestion, "DeclareVariable");
+            Str suggestion = "Declare variable before use";
             error.addSuggestion(FixType::Insert, location, suggestion, "local " + varName + " = ");
             return error;
         }
-        
+
         static ParseError mismatchedParentheses(const SourceLocation& location, const Str& expected) {
-            Str message = getLocalizedMessage(MessageCategory::ErrorMessage, "MismatchedParen");
+            Str message = "Mismatched parentheses";
             auto error = ParseError(ErrorType::MismatchedParentheses, location, message);
-            Str suggestion = getLocalizedMessage(MessageCategory::FixSuggestion, "AddMissing", {expected});
+            Str suggestion = "Add missing '" + expected + "'";
             error.addSuggestion(FixType::Insert, location, suggestion, expected);
             return error;
         }
         
-        // Severity to string (public static method, with localization support)
+        // Severity to string (public static method)
         static Str severityToString(ErrorSeverity severity) {
             switch (severity) {
-                case ErrorSeverity::Info: return getLocalizedMessage(MessageCategory::Severity, "Info");
-                case ErrorSeverity::Warning: return getLocalizedMessage(MessageCategory::Severity, "Warning");
-                case ErrorSeverity::Error: return getLocalizedMessage(MessageCategory::Severity, "Error");
-                case ErrorSeverity::Fatal: return getLocalizedMessage(MessageCategory::Severity, "Fatal");
+                case ErrorSeverity::Info: return "info";
+                case ErrorSeverity::Warning: return "warning";
+                case ErrorSeverity::Error: return "error";
+                case ErrorSeverity::Fatal: return "fatal";
                 default: return "unknown";
             }
         }
         
-        // Error type to string (with localization support)
+        // Error type to string
         static Str errorTypeToString(ErrorType type) {
             switch (type) {
-                case ErrorType::UnexpectedCharacter: return getLocalizedMessage(MessageCategory::ErrorType, "UnexpectedCharacter");
-                case ErrorType::UnterminatedString: return getLocalizedMessage(MessageCategory::ErrorType, "UnterminatedString");
-                case ErrorType::InvalidNumber: return getLocalizedMessage(MessageCategory::ErrorType, "InvalidNumber");
-                case ErrorType::UnexpectedToken: return getLocalizedMessage(MessageCategory::ErrorType, "UnexpectedToken");
-                case ErrorType::MissingToken: return getLocalizedMessage(MessageCategory::ErrorType, "MissingToken");
-                case ErrorType::InvalidExpression: return getLocalizedMessage(MessageCategory::ErrorType, "InvalidExpression");
-                case ErrorType::InvalidStatement: return getLocalizedMessage(MessageCategory::ErrorType, "InvalidStatement");
-                case ErrorType::MismatchedParentheses: return getLocalizedMessage(MessageCategory::ErrorType, "MismatchedParentheses");
-                case ErrorType::MismatchedBraces: return getLocalizedMessage(MessageCategory::ErrorType, "MismatchedBraces");
-                case ErrorType::MismatchedBrackets: return getLocalizedMessage(MessageCategory::ErrorType, "MismatchedBrackets");
-                case ErrorType::UndefinedVariable: return getLocalizedMessage(MessageCategory::ErrorType, "UndefinedVariable");
-                case ErrorType::RedefinedVariable: return getLocalizedMessage(MessageCategory::ErrorType, "RedefinedVariable");
-                case ErrorType::InvalidAssignment: return getLocalizedMessage(MessageCategory::ErrorType, "InvalidAssignment");
-                case ErrorType::InvalidFunctionCall: return getLocalizedMessage(MessageCategory::ErrorType, "InvalidFunctionCall");
-                case ErrorType::WrongArgumentCount: return getLocalizedMessage(MessageCategory::ErrorType, "WrongArgumentCount");
-                case ErrorType::InvalidReturn: return getLocalizedMessage(MessageCategory::ErrorType, "InvalidReturn");
-                case ErrorType::InvalidBreak: return getLocalizedMessage(MessageCategory::ErrorType, "InvalidBreak");
-                case ErrorType::InvalidContinue: return getLocalizedMessage(MessageCategory::ErrorType, "InvalidContinue");
-                case ErrorType::InternalError: return getLocalizedMessage(MessageCategory::ErrorType, "InternalError");
-                case ErrorType::Unknown: return getLocalizedMessage(MessageCategory::ErrorType, "Unknown");
+                case ErrorType::UnexpectedCharacter: return "Unexpected Character";
+                case ErrorType::UnterminatedString: return "Unterminated String";
+                case ErrorType::InvalidNumber: return "Invalid Number";
+                case ErrorType::UnexpectedToken: return "Unexpected Token";
+                case ErrorType::MissingToken: return "Missing Token";
+                case ErrorType::InvalidExpression: return "Invalid Expression";
+                case ErrorType::InvalidStatement: return "Invalid Statement";
+                case ErrorType::MismatchedParentheses: return "Mismatched Parentheses";
+                case ErrorType::MismatchedBraces: return "Mismatched Braces";
+                case ErrorType::MismatchedBrackets: return "Mismatched Brackets";
+                case ErrorType::UndefinedVariable: return "Undefined Variable";
+                case ErrorType::RedefinedVariable: return "Redefined Variable";
+                case ErrorType::InvalidAssignment: return "Invalid Assignment";
+                case ErrorType::InvalidFunctionCall: return "Invalid Function Call";
+                case ErrorType::WrongArgumentCount: return "Wrong Argument Count";
+                case ErrorType::InvalidReturn: return "Invalid Return";
+                case ErrorType::InvalidBreak: return "Invalid Break";
+                case ErrorType::InvalidContinue: return "Invalid Continue";
+                case ErrorType::InternalError: return "Internal Error";
+                case ErrorType::Unknown: return "Unknown Error";
                 default: return "Unknown";
             }
         }
         
     private:
-        // Format error information (with localization support)
+        // Format error information
         Str formatError(bool includeDetails) const {
             Str result;
-            
+
             // Basic error information
             result += location_.toString() + ": " + severityToString() + ": " + message_;
-            
+
             // Detailed information
             if (includeDetails && !details_.empty()) {
-                Str detailsLabel = getLocalizedMessage(MessageCategory::General, "Details");
-                result += "\n  " + detailsLabel + ": " + details_;
+                result += "\n  Details: " + details_;
             }
-            
+
             // Fix suggestions
             if (includeDetails && !suggestions_.empty()) {
-                Str suggestionsLabel = getLocalizedMessage(MessageCategory::General, "Suggestions");
-                result += "\n  " + suggestionsLabel + ":";
+                result += "\n  Suggestions:";
                 for (const auto& suggestion : suggestions_) {
                     result += "\n    - " + suggestion.description;
                     if (!suggestion.newText.empty()) {
@@ -249,13 +246,12 @@ namespace Lua {
                     }
                 }
             }
-            
+
             // Related error
             if (includeDetails && relatedError_) {
-                Str relatedLabel = getLocalizedMessage(MessageCategory::General, "Related");
-                result += "\n  " + relatedLabel + ": " + relatedError_->toShortString();
+                result += "\n  Related: " + relatedError_->toShortString();
             }
-            
+
             return result;
         }
         

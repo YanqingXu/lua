@@ -55,9 +55,6 @@
     <Filter Include="gc\utils">
       <UniqueIdentifier>{d064a294-a3d4-4927-b472-e8e30e361b55}</UniqueIdentifier>
     </Filter>
-    <Filter Include="localization">
-      <UniqueIdentifier>{230981af-2ba3-4663-83f8-6e785d9a21d9}</UniqueIdentifier>
-    </Filter>
     <Filter Include="lib\base">
       <UniqueIdentifier>{27357e4e-5796-4061-ba77-73b8ced00e34}</UniqueIdentifier>
     </Filter>
@@ -158,9 +155,6 @@
     </ClCompile>
     <ClCompile Include="src\parser\ast\source_location.cpp">
       <Filter>parser\ast</Filter>
-    </ClCompile>
-    <ClCompile Include="src\localization\localization_manager.cpp">
-      <Filter>localization</Filter>
     </ClCompile>
     <ClCompile Include="src\compiler\upvalue_analyzer.cpp">
       <Filter>compiler</Filter>
@@ -361,9 +355,6 @@
     </ClInclude>
     <ClInclude Include="src\parser\ast\parse_error.hpp">
       <Filter>parser\ast</Filter>
-    </ClInclude>
-    <ClInclude Include="src\localization\localization_manager.hpp">
-      <Filter>localization</Filter>
     </ClInclude>
     <ClInclude Include="src\compiler\upvalue_analyzer.hpp">
       <Filter>compiler</Filter>
