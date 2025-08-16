@@ -203,7 +203,6 @@
     <ClInclude Include="src\vm\upvalue.hpp" />
     <ClInclude Include="src\vm\userdata.hpp" />
     <ClInclude Include="src\vm\value.hpp" />
-    <ClInclude Include="src\vm\vm.hpp" />
     <ClInclude Include="src\vm\vm_executor.hpp" />
   </ItemGroup>
   <ItemGroup>
@@ -265,7 +264,6 @@
     <ClCompile Include="src\vm\upvalue.cpp" />
     <ClCompile Include="src\vm\userdata.cpp" />
     <ClCompile Include="src\vm\value.cpp" />
-    <ClCompile Include="src\vm\vm.cpp" />
     <ClCompile Include="src\vm\vm_executor.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

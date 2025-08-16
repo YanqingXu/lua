@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <Filter Include="源文件">
@@ -267,9 +267,6 @@
     <ClCompile Include="src\vm\value.cpp">
       <Filter>vm</Filter>
     </ClCompile>
-    <ClCompile Include="src\vm\vm.cpp">
-      <Filter>vm</Filter>
-    </ClCompile>
     <ClCompile Include="src\vm\vm_executor.cpp">
       <Filter>vm</Filter>
     </ClCompile>
@@ -471,9 +468,6 @@
       <Filter>vm</Filter>
     </ClInclude>
     <ClInclude Include="src\vm\value.hpp">
-      <Filter>vm</Filter>
-    </ClInclude>
-    <ClInclude Include="src\vm\vm.hpp">
       <Filter>vm</Filter>
     </ClInclude>
     <ClInclude Include="src\vm\vm_executor.hpp">

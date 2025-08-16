@@ -18,7 +18,6 @@
 #include "common/types.hpp"
 #include "vm/lua_state.hpp"
 #include "vm/global_state.hpp"
-#include "vm/vm.hpp"
 #include "compiler/compiler.hpp"
 #include "lib/core/lib_manager.hpp"
 #include "gc/core/gc_string.hpp"
