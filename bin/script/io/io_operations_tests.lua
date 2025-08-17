@@ -1,53 +1,53 @@
--- IO操作测试
--- 测试输入输出库的各种功能
+-- IO operations tests
+-- Test various features of the input/output library
 
-print("=== IO操作测试 ===")
+print("=== IO Operations Tests ===")
 
--- 测试1: 基本输出
-print("测试1: 基本输出")
-print("  这是print函数的输出")
+-- Test 1: Basic output
+print("Test 1: Basic output")
+print("  This is the output of the print function")
 
--- 测试2: io.write函数
-print("\n测试2: io.write函数")
+-- Test 2: io.write function
+print("\nTest 2: io.write function")
 if io and io.write then
-    io.write("  这是io.write的输出\n")
-    io.write("  多个", " ", "参数", " ", "输出\n")
+    io.write("  This is the output of io.write\n")
+    io.write("  Multiple", " ", "arguments", " ", "output\n")
 else
-    print("  io.write函数不可用")
+    print("  io.write function is not available")
 end
 
--- 测试3: 输出不同类型的值
-print("\n测试3: 输出不同类型的值")
+-- Test 3: Output different types of values
+print("\nTest 3: Output different types of values")
 local number = 42
-local string = "测试字符串"
+local string = "test string"
 local boolean = true
 local nilValue = nil
 
-print("  数字:", number)
-print("  字符串:", string)
-print("  布尔值:", boolean)
-print("  nil值:", nilValue)
+print("  number:", number)
+print("  string:", string)
+print("  boolean:", boolean)
+print("  nil value:", nilValue)
 
--- 测试4: 格式化输出
-print("\n测试4: 格式化输出")
-local name = "张三"
+-- Test 4: Formatted output
+print("\nTest 4: Formatted output")
+local name = "John"
 local age = 25
 local score = 95.5
 
 if string and string.format then
-    local formatted = string.format("姓名: %s, 年龄: %d, 分数: %.1f", name, age, score)
+    local formatted = string.format("Name: %s, Age: %d, Score: %.1f", name, age, score)
     print("  " .. formatted)
 else
-    print("  string.format不可用，使用连接:")
-    print("  姓名: " .. name .. ", 年龄: " .. age .. ", 分数: " .. score)
+    print("  string.format is not available, using concatenation:")
+    print("  Name: " .. name .. ", Age: " .. age .. ", Score: " .. score)
 end
 
--- 测试5: 表的输出
-print("\n测试5: 表的输出")
+-- Test 5: Table output
+print("\nTest 5: Table output")
 local table1 = {a = 1, b = 2, c = 3}
-print("  表对象:", table1)  -- 会显示表的地址
+print("  table object:", table1)  -- Will display the address of the table
 
--- 自定义表打印函数
+-- Custom table printing function
 local function printTable(t, indent)
     indent = indent or ""
     for k, v in pairs(t) do
@@ -60,85 +60,85 @@ local function printTable(t, indent)
     end
 end
 
-print("  表内容:")
+print("  table content:")
 printTable(table1, "    ")
 
--- 测试6: 嵌套表的输出
-print("\n测试6: 嵌套表的输出")
+-- Test 6: Output of nested tables
+print("\nTest 6: Output of nested tables")
 local nestedTable = {
     person = {
-        name = "李四",
+        name = "Mike",
         age = 30,
         address = {
-            city = "北京",
-            district = "朝阳区"
+            city = "Beijing",
+            district = "Chaoyang"
         }
     },
     scores = {90, 85, 92}
 }
 
-print("  嵌套表内容:")
+print("  nested table content:")
 printTable(nestedTable, "    ")
 
--- 测试7: 数组的输出
-print("\n测试7: 数组的输出")
+-- Test 7: Array output
+print("\nTest 7: Array output")
 local array = {10, 20, 30, 40, 50}
-print("  数组长度:", #array)
-print("  数组内容:")
+print("  array length:", #array)
+print("  array content:")
 for i = 1, #array do
     print("    [" .. i .. "] = " .. array[i])
 end
 
--- 测试8: 函数的输出
-print("\n测试8: 函数的输出")
+-- Test 8: Function output
+print("\nTest 8: Function output")
 local function testFunc()
-    return "测试函数"
+    return "test function"
 end
 
-print("  函数对象:", testFunc)
-print("  函数调用结果:", testFunc())
+print("  function object:", testFunc)
+print("  function call result:", testFunc())
 
--- 测试9: 错误信息输出
-print("\n测试9: 错误信息输出")
+-- Test 9: Error output
+print("\nTest 9: Error output")
 local success, error = pcall(function()
-    error("这是一个测试错误")
+    error("This is a test error")
 end)
 
 if not success then
-    print("  捕获到错误:", error)
+    print("  Caught error:", error)
 end
 
--- 测试10: 大量数据输出测试
-print("\n测试10: 大量数据输出测试")
-print("  输出1到10的平方:")
+-- Test 10: Large data output test
+print("\nTest 10: Large data output test")
+print("  Output squares of 1 to 10:")
 for i = 1, 10 do
     print("    " .. i .. "^2 = " .. (i * i))
 end
 
--- 测试11: 特殊字符输出
-print("\n测试11: 特殊字符输出")
-print("  制表符:\t这里有制表符")
-print("  换行符:\n这里有换行符")
-print("  引号: \"双引号\" '单引号'")
-print("  反斜杠: \\这是反斜杠\\")
+-- Test 11: Special character output
+print("\nTest 11: Special character output")
+print("  Tab:\tHere is a tab")
+print("  Newline:\nHere is a newline")
+print("  Quotes: \"double quote\" 'single quote'")
+print("  Backslash: \\This is a backslash\\")
 
--- 测试12: Unicode字符输出
-print("\n测试12: Unicode字符输出")
-print("  中文: 你好世界")
-print("  日文: こんにちは")
-print("  韩文: 안녕하세요")
-print("  表情: 😀 🎉 ❤️")
+-- Test 12: Unicode character output
+print("\nTest 12: Unicode character output")
+print("  Chinese: 你好世界")
+print("  Japanese: こんにちは")
+print("  Korean: 안녕하세요")
+print("  Emoji: 😀 🎉 ❤️")
 
--- 测试13: 数值的不同进制输出
-print("\n测试13: 数值的不同进制输出")
+-- Test 13: Output numbers in different bases
+print("\nTest 13: Output numbers in different bases")
 local num = 255
 if string and string.format then
-    print("  十进制:", num)
-    print("  十六进制:", string.format("%x", num))
-    print("  八进制:", string.format("%o", num))
+    print("  Decimal:", num)
+    print("  Hex:", string.format("%x", num))
+    print("  Octal:", string.format("%o", num))
 else
-    print("  十进制:", num)
-    print("  (其他进制需要string.format支持)")
+    print("  Decimal:", num)
+    print("  (Other bases require string.format support)")
 end
 
-print("\n=== IO操作测试完成 ===")
+print("\n=== IO Operations Tests Complete ===")

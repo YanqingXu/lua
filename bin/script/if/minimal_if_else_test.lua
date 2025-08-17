@@ -1,7 +1,7 @@
--- 最小if-else测试
+-- Minimal if-else test
 local x = 2
 if x > 3 then
-    print("大于")
+    print("Greater")
 else
-    print("不大于")
+    print("Not greater")
 end

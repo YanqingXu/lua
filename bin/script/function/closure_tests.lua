@@ -1,10 +1,10 @@
--- 闭包和上值测试
--- 测试闭包、上值捕获等高级函数功能
+-- Closure and upvalue tests
+-- Test closures and upvalue capturing for advanced function features
 
-print("=== 闭包和上值测试 ===")
+print("=== Closure and Upvalue Tests ===")
 
--- 测试1: 简单闭包
-print("测试1: 简单闭包")
+-- Test 1: Simple closure
+print("Test 1: Simple closure")
 function createCounter()
     local count = 0
     return function()
@@ -21,8 +21,8 @@ print("  counter1() =", counter1())  -- 2
 print("  counter2() =", counter2())  -- 1
 print("  counter1() =", counter1())  -- 3
 
--- 测试2: 多个函数共享上值
-print("\n测试2: 多个函数共享上值")
+-- Test 2: Multiple functions sharing upvalues
+print("\nTest 2: Multiple functions sharing upvalues")
 function createAccount(initialBalance)
     local balance = initialBalance
     
@@ -36,7 +36,7 @@ function createAccount(initialBalance)
             balance = balance - amount
             return balance
         else
-            return nil, "余额不足"
+            return nil, "Insufficient balance"
         end
     end
     
@@ -52,13 +52,13 @@ function createAccount(initialBalance)
 end
 
 local account = createAccount(100)
-print("  初始余额:", account.getBalance())
-print("  存入50后:", account.deposit(50))
-print("  取出30后:", account.withdraw(30))
-print("  当前余额:", account.getBalance())
+print("  Initial balance:", account.getBalance())
+print("  After depositing 50:", account.deposit(50))
+print("  After withdrawing 30:", account.withdraw(30))
+print("  Current balance:", account.getBalance())
 
--- 测试3: 嵌套闭包
-print("\n测试3: 嵌套闭包")
+-- Test 3: Nested closures
+print("\nTest 3: Nested closures")
 function createMultiLevelCounter()
     local outerCount = 0
     
@@ -82,8 +82,8 @@ print("  innerCounter1():", innerCounter1())  -- 1, 2
 print("  innerCounter2():", innerCounter2())  -- 2, 1
 print("  innerCounter1():", innerCounter1())  -- 1, 3
 
--- 测试4: 闭包捕获循环变量
-print("\n测试4: 闭包捕获循环变量")
+-- Test 4: Closure capturing loop variables
+print("\nTest 4: Closure capturing loop variables")
 local functions = {}
 for i = 1, 3 do
     functions[i] = function()
@@ -95,8 +95,8 @@ print("  functions[1]() =", functions[1]())
 print("  functions[2]() =", functions[2]())
 print("  functions[3]() =", functions[3]())
 
--- 测试5: 正确的循环变量捕获
-print("\n测试5: 正确的循环变量捕获")
+-- Test 5: Correct loop variable capture
+print("\nTest 5: Correct loop variable capture")
 local correctFunctions = {}
 for i = 1, 3 do
     correctFunctions[i] = (function(x)
@@ -110,8 +110,8 @@ print("  correctFunctions[1]() =", correctFunctions[1]())
 print("  correctFunctions[2]() =", correctFunctions[2]())
 print("  correctFunctions[3]() =", correctFunctions[3]())
 
--- 测试6: 闭包修改外部变量
-print("\n测试6: 闭包修改外部变量")
+-- Test 6: Closure modifying outer variable
+print("\nTest 6: Closure modifying outer variable")
 function createToggle(initialState)
     local state = initialState
     
@@ -126,8 +126,8 @@ print("  toggle() =", toggle())  -- true
 print("  toggle() =", toggle())  -- false
 print("  toggle() =", toggle())  -- true
 
--- 测试7: 多层嵌套的上值
-print("\n测试7: 多层嵌套的上值")
+-- Test 7: Multi-level upvalues
+print("\nTest 7: Multi-level upvalues")
 function level1()
     local var1 = "level1"
     
@@ -151,8 +151,8 @@ end
 local deepClosure = level1()
 print("  deepClosure() =", deepClosure())
 
--- 测试8: 闭包作为对象方法
-print("\n测试8: 闭包作为对象方法")
+-- Test 8: Closures as object methods
+print("\nTest 8: Closures as object methods")
 function createPerson(name, age)
     local privateName = name
     local privateAge = age
@@ -176,16 +176,16 @@ function createPerson(name, age)
         end,
         
         introduce = function()
-            return "我是" .. privateName .. "，今年" .. privateAge .. "岁"
+            return "I am " .. privateName .. ", " .. privateAge .. " years old"
         end
     }
 end
 
-local person = createPerson("张三", 25)
+local person = createPerson("Zhang San", 25)
 print("  person.getName() =", person.getName())
 print("  person.getAge() =", person.getAge())
 print("  person.introduce() =", person.introduce())
 person.setAge(26)
-print("  设置年龄后: person.introduce() =", person.introduce())
+print("  After setting age: person.introduce() =", person.introduce())
 
-print("\n=== 闭包和上值测试完成 ===")
+print("\n=== Closure and Upvalue Tests Completed ===")

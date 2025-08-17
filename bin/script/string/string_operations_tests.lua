@@ -1,27 +1,27 @@
--- 字符串操作测试
--- 测试字符串库的各种功能
+-- String operations tests
+-- Tests for various string library functions
 
-print("=== 字符串操作测试 ===")
+print("=== String operations tests ===")
 
--- 测试1: 字符串长度
-print("测试1: 字符串长度")
+-- Test 1: String length
+print("Test 1: String length")
 local str1 = "Hello"
-local str2 = "你好世界"
+local str2 = "Hello World"
 local str3 = ""
 print("  #'Hello' =", #str1)
-print("  #'你好世界' =", #str2)
+print("  #'Hello World' =", #str2)
 print("  #'' =", #str3)
 
--- 测试2: 字符串连接
-print("\n测试2: 字符串连接")
+-- Test 2: String concatenation
+print("\nTest 2: String concatenation")
 local part1 = "Hello"
 local part2 = " "
 local part3 = "World"
 local combined = part1 .. part2 .. part3
 print("  'Hello' .. ' ' .. 'World' =", combined)
 
--- 测试3: 字符串比较
-print("\n测试3: 字符串比较")
+-- Test 3: String comparison
+print("\nTest 3: String comparison")
 local a = "apple"
 local b = "banana"
 local c = "apple"
@@ -30,99 +30,99 @@ print("  'apple' == 'apple':", a == c)
 print("  'apple' < 'banana':", a < b)
 print("  'banana' > 'apple':", b > a)
 
--- 测试4: string.len函数
-print("\n测试4: string.len函数")
+-- Test 4: string.len function
+print("\nTest 4: string.len function")
 if string and string.len then
     print("  string.len('Hello') =", string.len("Hello"))
     print("  string.len('') =", string.len(""))
 else
-    print("  string.len函数不可用")
+    print("  string.len function not available")
 end
 
--- 测试5: string.upper和string.lower
-print("\n测试5: string.upper和string.lower")
+-- Test 5: string.upper and string.lower
+print("\nTest 5: string.upper and string.lower")
 if string and string.upper and string.lower then
     local text = "Hello World"
-    print("  原文:", text)
+    print("  Original:", text)
     print("  string.upper(text) =", string.upper(text))
     print("  string.lower(text) =", string.lower(text))
 else
-    print("  string.upper/lower函数不可用")
+    print("  string.upper/lower functions not available")
 end
 
--- 测试6: string.sub
-print("\n测试6: string.sub")
+-- Test 6: string.sub
+print("\nTest 6: string.sub")
 if string and string.sub then
     local text = "Hello World"
-    print("  原文:", text)
+    print("  Original:", text)
     print("  string.sub(text, 1, 5) =", string.sub(text, 1, 5))
     print("  string.sub(text, 7) =", string.sub(text, 7))
     print("  string.sub(text, -5) =", string.sub(text, -5))
 else
-    print("  string.sub函数不可用")
+    print("  string.sub function not available")
 end
 
--- 测试7: 字符串和数字的自动转换
-print("\n测试7: 字符串和数字的自动转换")
+-- Test 7: Automatic conversion between strings and numbers
+print("\nTest 7: Automatic conversion between strings and numbers")
 local numStr = "123"
 local strNum = 456
 print("  '123' + 1 =", numStr + 1)
 print("  456 .. ' test' =", strNum .. " test")
 
--- 测试8: 多行字符串
-print("\n测试8: 多行字符串")
-local multiline = [[这是一个
-多行字符串
-测试]]
-print("  多行字符串:")
+-- Test 8: Multiline strings
+print("\nTest 8: Multiline strings")
+local multiline = [[This is a
+multiline string
+test]]
+print("  Multiline string:")
 print(multiline)
 
--- 测试9: 转义字符
-print("\n测试9: 转义字符")
-local escaped = "第一行\n第二行\t制表符\\"反斜杠\\""
-print("  转义字符测试:")
+-- Test 9: Escape characters
+print("\nTest 9: Escape characters")
+local escaped = "First line\nSecond line\tTab character\\\"Backslash\\\""
+print("  Escape character test:")
 print(escaped)
 
--- 测试10: 字符串重复
-print("\n测试10: 字符串重复")
+-- Test 10: String repetition
+print("\nTest 10: String repetition")
 if string and string.rep then
     print("  string.rep('*', 5) =", string.rep("*", 5))
     print("  string.rep('abc', 3) =", string.rep("abc", 3))
 else
-    print("  string.rep函数不可用")
+    print("  string.rep function not available")
 end
 
--- 测试11: 字符串查找
-print("\n测试11: 字符串查找")
+-- Test 11: String search
+print("\nTest 11: String search")
 if string and string.find then
     local text = "Hello World Hello"
-    print("  原文:", text)
+    print("  Original:", text)
     local pos = string.find(text, "World")
     print("  string.find(text, 'World') =", pos)
     local pos2 = string.find(text, "Hello", 2)
     print("  string.find(text, 'Hello', 2) =", pos2)
 else
-    print("  string.find函数不可用")
+    print("  string.find function not available")
 end
 
--- 测试12: 字符串格式化
-print("\n测试12: 字符串格式化")
+-- Test 12: String formatting
+print("\nTest 12: String formatting")
 if string and string.format then
-    local name = "张三"
+    local name = "Zhang San"
     local age = 25
-    local formatted = string.format("姓名: %s, 年龄: %d", name, age)
-    print("  格式化结果:", formatted)
+    local formatted = string.format("Name: %s, Age: %d", name, age)
+    print("  Formatted result:", formatted)
 else
-    print("  string.format函数不可用")
+    print("  string.format function not available")
 end
 
--- 测试13: 字符串反转
-print("\n测试13: 字符串反转")
+-- Test 13: String reversal
+print("\nTest 13: String reversal")
 if string and string.reverse then
     local text = "Hello"
     print("  string.reverse('Hello') =", string.reverse(text))
 else
-    print("  string.reverse函数不可用")
+    print("  string.reverse function not available")
 end
 
-print("\n=== 字符串操作测试完成 ===")
+print("\n=== String operations tests completed ===")

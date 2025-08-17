@@ -1,80 +1,80 @@
--- 基础if语句测试
--- 测试基本的if-then-else结构
+-- Basic if statement tests
+-- Test basic if-then-else structures
 
-print("=== 基础if语句测试 ===")
+print("=== Basic If Statement Tests ===")
 
--- 测试1: 简单的if语句
-print("测试1: 简单if语句")
+-- Test 1: Simple if statement
+print("Test 1: Simple if statement")
 local x = 5
 if x > 3 then
-    print("✓ x大于3")
+    print("✓ x is greater than 3")
 else
-    print("✗ x不大于3")
+    print("✗ x is not greater than 3")
 end
 
--- 测试2: if-else语句
-print("\n测试2: if-else语句")
+-- Test 2: if-else statement
+print("\nTest 2: if-else statement")
 local y = 2
 if y > 5 then
-    print("✗ y大于5")
+    print("✗ y is greater than 5")
 else
-    print("✓ y不大于5")
+    print("✓ y is not greater than 5")
 end
 
--- 测试3: if-elseif-else语句
-print("\n测试3: if-elseif-else语句")
+-- Test 3: if-elseif-else statement
+print("\nTest 3: if-elseif-else statement")
 local score = 85
 if score >= 90 then
-    print("✗ 成绩为A")
+    print("✗ Grade is A")
 elseif score >= 80 then
-    print("✓ 成绩为B")
+    print("✓ Grade is B")
 elseif score >= 70 then
-    print("✗ 成绩为C")
+    print("✗ Grade is C")
 else
-    print("✗ 成绩为D")
+    print("✗ Grade is D")
 end
 
--- 测试4: 布尔值测试
-print("\n测试4: 布尔值测试")
+-- Test 4: Boolean value tests
+print("\nTest 4: Boolean value tests")
 local flag = true
 if flag then
-    print("✓ flag为真")
+    print("✓ flag is true")
 else
-    print("✗ flag为假")
+    print("✗ flag is false")
 end
 
 local flag2 = false
 if flag2 then
-    print("✗ flag2为真")
+    print("✗ flag2 is true")
 else
-    print("✓ flag2为假")
+    print("✓ flag2 is false")
 end
 
--- 测试5: nil值测试
-print("\n测试5: nil值测试")
+-- Test 5: nil value tests
+print("\nTest 5: nil value tests")
 local nilValue = nil
 if nilValue then
-    print("✗ nil被认为是真")
+    print("✗ nil is considered true")
 else
-    print("✓ nil被认为是假")
+    print("✓ nil is considered false")
 end
 
--- 测试6: 数字0测试（在Lua中0是真值）
-print("\n测试6: 数字0测试")
+-- Test 6: Number 0 test (in Lua, 0 is truthy)
+print("\nTest 6: Number 0 test")
 local zero = 0
 if zero then
-    print("✓ 数字0被认为是真")
+    print("✓ Number 0 is considered true")
 else
-    print("✗ 数字0被认为是假")
+    print("✗ Number 0 is considered false")
 end
 
--- 测试7: 空字符串测试（在Lua中空字符串是真值）
-print("\n测试7: 空字符串测试")
+-- Test 7: Empty string test (in Lua, empty string is truthy)
+print("\nTest 7: Empty string test")
 local emptyStr = ""
 if emptyStr then
-    print("✓ 空字符串被认为是真")
+    print("✓ Empty string is considered true")
 else
-    print("✗ 空字符串被认为是假")
+    print("✗ Empty string is considered false")
 end
 
-print("\n=== 基础if语句测试完成 ===")
+print("\n=== Basic If Statement Tests Completed ===")

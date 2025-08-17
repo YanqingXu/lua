@@ -1,6 +1,6 @@
--- 变量测试
-print("开始变量测试")
+-- Variable test
+print("Starting variable test")
 local x = 5
-print("变量x的值是")
+print("The value of variable x is")
 print(x)
-print("测试完成")
+print("Test completed")

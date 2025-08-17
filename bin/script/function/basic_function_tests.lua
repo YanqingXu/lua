@@ -1,10 +1,10 @@
--- 基础函数测试
--- 测试函数定义、调用、参数传递等基本功能
+-- Basic function tests
+-- Test basic features like function definition, calling, and parameter passing
 
-print("=== 基础函数测试 ===")
+print("=== Basic function tests ===")
 
--- 测试1: 简单函数定义和调用
-print("测试1: 简单函数定义和调用")
+-- Test 1: Simple function definition and call
+print("Test 1: Simple function definition and call")
 function greet()
     return "Hello, World!"
 end
@@ -12,8 +12,8 @@ end
 local message = greet()
 print("  greet() =", message)
 
--- 测试2: 带参数的函数
-print("\n测试2: 带参数的函数")
+-- Test 2: Function with parameters
+print("\nTest 2: Function with parameters")
 function add(a, b)
     return a + b
 end
@@ -21,8 +21,8 @@ end
 local sum = add(3, 5)
 print("  add(3, 5) =", sum)
 
--- 测试3: 多个参数的函数
-print("\n测试3: 多个参数的函数")
+-- Test 3: Function with multiple parameters
+print("\nTest 3: Function with multiple parameters")
 function multiply(a, b, c)
     return a * b * c
 end
@@ -30,8 +30,8 @@ end
 local product = multiply(2, 3, 4)
 print("  multiply(2, 3, 4) =", product)
 
--- 测试4: 可变参数函数
-print("\n测试4: 可变参数函数")
+-- Test 4: Variadic function
+print("\nTest 4: Variadic function")
 function sum(...)
     local args = {...}
     local total = 0
@@ -46,8 +46,8 @@ local result2 = sum(1, 2, 3, 4, 5)
 print("  sum(1, 2, 3) =", result1)
 print("  sum(1, 2, 3, 4, 5) =", result2)
 
--- 测试5: 多返回值函数
-print("\n测试5: 多返回值函数")
+-- Test 5: Multiple return values
+print("\nTest 5: Multiple return values")
 function divmod(a, b)
     return a // b, a % b
 end
@@ -55,8 +55,8 @@ end
 local quotient, remainder = divmod(17, 5)
 print("  divmod(17, 5) =", quotient, remainder)
 
--- 测试6: 局部函数
-print("\n测试6: 局部函数")
+-- Test 6: Local function
+print("\nTest 6: Local function")
 local function localFunction(x)
     return x * x
 end
@@ -64,8 +64,8 @@ end
 local square = localFunction(7)
 print("  localFunction(7) =", square)
 
--- 测试7: 匿名函数
-print("\n测试7: 匿名函数")
+-- Test 7: Anonymous function
+print("\nTest 7: Anonymous function")
 local anonymous = function(x, y)
     return x + y
 end
@@ -73,8 +73,8 @@ end
 local result3 = anonymous(10, 20)
 print("  anonymous(10, 20) =", result3)
 
--- 测试8: 函数作为参数
-print("\n测试8: 函数作为参数")
+-- Test 8: Function as parameter
+print("\nTest 8: Function as parameter")
 function applyFunction(func, x, y)
     return func(x, y)
 end
@@ -82,8 +82,8 @@ end
 local result4 = applyFunction(add, 15, 25)
 print("  applyFunction(add, 15, 25) =", result4)
 
--- 测试9: 函数作为返回值
-print("\n测试9: 函数作为返回值")
+-- Test 9: Function as return value
+print("\nTest 9: Function as return value")
 function createMultiplier(factor)
     return function(x)
         return x * factor
@@ -95,8 +95,8 @@ local triple = createMultiplier(3)
 print("  double(5) =", double(5))
 print("  triple(5) =", triple(5))
 
--- 测试10: 递归函数
-print("\n测试10: 递归函数")
+-- Test 10: Recursive function
+print("\nTest 10: Recursive function")
 function factorial(n)
     if n <= 1 then
         return 1
@@ -108,8 +108,8 @@ end
 local fact5 = factorial(5)
 print("  factorial(5) =", fact5)
 
--- 测试11: 尾递归优化测试
-print("\n测试11: 尾递归函数")
+-- Test 11: Tail recursion optimization test
+print("\nTest 11: Tail recursive function")
 function tailFactorial(n, acc)
     acc = acc or 1
     if n <= 1 then
@@ -122,8 +122,8 @@ end
 local tailFact5 = tailFactorial(5)
 print("  tailFactorial(5) =", tailFact5)
 
--- 测试12: 函数的默认参数模拟
-print("\n测试12: 函数的默认参数模拟")
+-- Test 12: Simulating default function parameters
+print("\nTest 12: Simulating default function parameters")
 function greetWithDefault(name, greeting)
     name = name or "World"
     greeting = greeting or "Hello"
@@ -134,4 +134,4 @@ print("  greetWithDefault() =", greetWithDefault())
 print("  greetWithDefault('Alice') =", greetWithDefault("Alice"))
 print("  greetWithDefault('Bob', 'Hi') =", greetWithDefault("Bob", "Hi"))
 
-print("\n=== 基础函数测试完成 ===")
+print("\n=== Basic function tests completed ===")

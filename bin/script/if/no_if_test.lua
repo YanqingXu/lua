@@ -1,3 +1,3 @@
--- 无if测试
+-- No-if test
 local x = 5
-print("条件为真")
+print("Condition is true")

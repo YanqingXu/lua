@@ -1,10 +1,10 @@
--- 高级元方法测试
--- 测试更复杂的元方法功能和组合
+-- Advanced metamethod tests
+-- Test more complex metamethod functionality and combinations
 
-print("=== 高级元方法测试 ===")
+print("=== Advanced Metamethod Tests ===")
 
--- 测试1: __lt和__le元方法（比较运算）
-print("测试1: __lt和__le元方法")
+-- Test 1: __lt and __le metamethods (comparison operations)
+print("Test 1: __lt and __le metamethods")
 local Number = {}
 Number.__index = Number
 
@@ -35,8 +35,8 @@ print("  n1 < n2:", n1 < n2)
 print("  n2 < n1:", n2 < n1)
 print("  n1 <= n3:", n1 <= n3)
 
--- 测试2: __concat元方法（字符串连接）
-print("\n测试2: __concat元方法")
+-- Test 2: __concat metamethod (string concatenation)
+print("\nTest 2: __concat metamethod")
 local StringWrapper = {}
 StringWrapper.__index = StringWrapper
 
@@ -61,8 +61,8 @@ print("  s1 =", tostring(s1))
 print("  s2 =", tostring(s2))
 print("  s1 .. s2 =", tostring(s3))
 
--- 测试3: __unm元方法（一元负号）
-print("\n测试3: __unm元方法")
+-- Test 3: __unm metamethod (unary minus)
+print("\nTest 3: __unm metamethod")
 local SignedNumber = {}
 SignedNumber.__index = SignedNumber
 
@@ -83,8 +83,8 @@ local sn2 = -sn1
 print("  sn1 =", tostring(sn1))
 print("  -sn1 =", tostring(sn2))
 
--- 测试4: __div和__mod元方法
-print("\n测试4: __div和__mod元方法")
+-- Test 4: __div and __mod metamethods
+print("\nTest 4: __div and __mod metamethods")
 SignedNumber.__div = function(a, b)
     return SignedNumber.new(a.value / b.value)
 end
@@ -98,8 +98,8 @@ local sn4 = SignedNumber.new(3)
 print("  sn3 / sn4 =", tostring(sn3 / sn4))
 print("  sn3 % sn4 =", tostring(sn3 % sn4))
 
--- 测试5: __pow元方法（幂运算）
-print("\n测试5: __pow元方法")
+-- Test 5: __pow metamethod (power)
+print("\nTest 5: __pow metamethod")
 SignedNumber.__pow = function(a, b)
     return SignedNumber.new(a.value ^ b.value)
 end
@@ -108,26 +108,26 @@ local sn5 = SignedNumber.new(2)
 local sn6 = SignedNumber.new(3)
 print("  sn5 ^ sn6 =", tostring(sn5 ^ sn6))
 
--- 测试6: 复杂的__index链
-print("\n测试6: 复杂的__index链")
+-- Test 6: Complex __index chain
+print("\nTest 6: Complex __index chain")
 local base = {
-    baseMethod = function() return "来自base" end
+    baseMethod = function() return "from base" end
 }
 
 local middle = {}
 setmetatable(middle, {__index = base})
-middle.middleMethod = function() return "来自middle" end
+middle.middleMethod = function() return "from middle" end
 
 local derived = {}
 setmetatable(derived, {__index = middle})
-derived.derivedMethod = function() return "来自derived" end
+derived.derivedMethod = function() return "from derived" end
 
 print("  derived.derivedMethod():", derived.derivedMethod())
 print("  derived.middleMethod():", derived.middleMethod())
 print("  derived.baseMethod():", derived.baseMethod())
 
--- 测试7: __index和__newindex的组合
-print("\n测试7: __index和__newindex的组合")
+-- Test 7: Combination of __index and __newindex
+print("\nTest 7: Combination of __index and __newindex")
 local ReadOnlyTable = {}
 
 function ReadOnlyTable.new(data)
@@ -137,7 +137,7 @@ function ReadOnlyTable.new(data)
             return data[k]
         end,
         __newindex = function(t, k, v)
-            error("尝试修改只读表的键: " .. tostring(k))
+            error("Attempt to modify a read-only table key: " .. tostring(k))
         end
     })
     return instance
@@ -147,28 +147,28 @@ local readOnly = ReadOnlyTable.new({a = 1, b = 2, c = 3})
 print("  readOnly.a =", readOnly.a)
 print("  readOnly.b =", readOnly.b)
 
--- 尝试修改（应该出错）
-print("  尝试修改只读表...")
+-- Try to modify (should error)
+print("  Trying to modify read-only table...")
 local success, err = pcall(function()
     readOnly.a = 10
 end)
 if not success then
-    print("  ✓ 正确阻止了修改:", err)
+    print("  ✓ Modification correctly blocked:", err)
 else
-    print("  ✗ 没有阻止修改")
+    print("  ✗ Modification not blocked")
 end
 
--- 测试8: 元方法的递归调用
-print("\n测试8: 元方法的递归调用")
+-- Test 8: Recursive metamethod calls
+print("\nTest 8: Recursive metamethod calls")
 local RecursiveTable = {}
 setmetatable(RecursiveTable, {
     __index = function(t, k)
         if k == "recursive" then
             return function(depth)
                 if depth <= 0 then
-                    return "递归结束"
+                    return "Recursion end"
                 else
-                    return "递归深度" .. depth .. " -> " .. t.recursive(depth - 1)
+                    return "Recursion depth " .. depth .. " -> " .. t.recursive(depth - 1)
                 end
             end
         end
@@ -178,4 +178,4 @@ setmetatable(RecursiveTable, {
 
 print("  RecursiveTable.recursive(3):", RecursiveTable.recursive(3))
 
-print("\n=== 高级元方法测试完成 ===")
+print("\n=== Advanced Metamethod Tests Complete ===")

@@ -1,4 +1,4 @@
--- 多个print测试
-print("第一行")
-print("第二行")
-print("第三行")
+-- Multiple print test
+print("First line")
+print("Second line")
+print("Third line")

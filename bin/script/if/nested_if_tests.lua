@@ -1,105 +1,105 @@
--- 嵌套if语句测试
--- 测试复杂的嵌套条件结构
+-- Nested if statement tests
+-- Test complex nested conditional structures
 
-print("=== 嵌套if语句测试 ===")
+print("=== Nested If Statement Tests ===")
 
--- 测试1: 简单嵌套
-print("测试1: 简单嵌套")
+-- Test 1: Simple nesting
+print("Test 1: Simple nesting")
 local a = 10
 local b = 5
 if a > 5 then
-    print("✓ a大于5")
+    print("✓ a is greater than 5")
     if b > 3 then
-        print("✓ b也大于3")
+        print("✓ b is also greater than 3")
     else
-        print("✗ b不大于3")
+        print("✗ b is not greater than 3")
     end
 else
-    print("✗ a不大于5")
+    print("✗ a is not greater than 5")
 end
 
--- 测试2: 深层嵌套
-print("\n测试2: 深层嵌套")
+-- Test 2: Deep nesting
+print("\nTest 2: Deep nesting")
 local level1 = true
 local level2 = true
 local level3 = false
 if level1 then
-    print("✓ 进入第1层")
+    print("✓ Entered level 1")
     if level2 then
-        print("✓ 进入第2层")
+        print("✓ Entered level 2")
         if level3 then
-            print("✗ 进入第3层")
+            print("✗ Entered level 3")
         else
-            print("✓ 第3层条件为假")
+            print("✓ Level 3 condition is false")
         end
     else
-        print("✗ 第2层条件为假")
+        print("✗ Level 2 condition is false")
     end
 else
-    print("✗ 第1层条件为假")
+    print("✗ Level 1 condition is false")
 end
 
--- 测试3: 复杂条件嵌套
-print("\n测试3: 复杂条件嵌套")
+-- Test 3: Complex conditional nesting
+print("\nTest 3: Complex conditional nesting")
 local age = 25
 local hasLicense = true
 local hasInsurance = true
 
 if age >= 18 then
-    print("✓ 年龄符合要求")
+    print("✓ Age requirement met")
     if hasLicense then
-        print("✓ 有驾照")
+        print("✓ Has a license")
         if hasInsurance then
-            print("✓ 有保险，可以开车")
+            print("✓ Has insurance, can drive")
         else
-            print("✗ 没有保险，不能开车")
+            print("✗ No insurance, cannot drive")
         end
     else
-        print("✗ 没有驾照，不能开车")
+        print("✗ No license, cannot drive")
     end
 else
-    print("✗ 年龄不符合要求")
+    print("✗ Age requirement not met")
 end
 
--- 测试4: 嵌套中的elseif
-print("\n测试4: 嵌套中的elseif")
+-- Test 4: elseif in nesting
+print("\nTest 4: elseif in nesting")
 local weather = "sunny"
 local temperature = 25
 
 if weather == "sunny" then
-    print("✓ 天气晴朗")
+    print("✓ The weather is sunny")
     if temperature > 30 then
-        print("✗ 太热了")
+        print("✗ It is too hot")
     elseif temperature > 20 then
-        print("✓ 温度适宜")
+        print("✓ The temperature is pleasant")
     else
-        print("✗ 有点冷")
+        print("✗ It is a bit cold")
     end
 elseif weather == "rainy" then
-    print("✗ 下雨天")
+    print("✗ Rainy day")
 else
-    print("✗ 其他天气")
+    print("✗ Other weather")
 end
 
--- 测试5: 多重嵌套的else分支
-print("\n测试5: 多重嵌套的else分支")
+-- Test 5: Multiple nested else branches
+print("\nTest 5: Multiple nested else branches")
 local x = 3
 local y = 7
 
 if x > 5 then
-    print("✗ x大于5")
+    print("✗ x is greater than 5")
     if y > 10 then
-        print("✗ y大于10")
+        print("✗ y is greater than 10")
     else
-        print("✗ y不大于10")
+        print("✗ y is not greater than 10")
     end
 else
-    print("✓ x不大于5")
+    print("✓ x is not greater than 5")
     if y > 5 then
-        print("✓ y大于5")
+        print("✓ y is greater than 5")
     else
-        print("✗ y不大于5")
+        print("✗ y is not greater than 5")
     end
 end
 
-print("\n=== 嵌套if语句测试完成 ===")
+print("\n=== Nested If Statement Tests Completed ===")

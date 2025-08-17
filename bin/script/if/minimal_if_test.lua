@@ -1,5 +1,5 @@
--- 最小if测试
+-- Minimal if test
 local x = 5
 if x > 3 then
-    print("条件为真")
+    print("Condition is true")
 end

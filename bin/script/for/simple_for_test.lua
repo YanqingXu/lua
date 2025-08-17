@@ -1,6 +1,6 @@
--- 简单for循环测试
-print("开始for循环测试")
+-- Simple for loop test
+print("Starting for loop test")
 for i = 1, 3 do
     print(i)
 end
-print("for循环测试完成")
+print("For loop test completed")

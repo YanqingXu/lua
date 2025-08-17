@@ -1,10 +1,10 @@
--- 调试函数测试
-print("开始调试函数测试")
+-- Debug function test
+print("Starting debug function test")
 
 function test()
-    print("函数被调用了")
+    print("Function was called")
 end
 
-print("函数定义完成")
+print("Function definition completed")
 test()
-print("函数调用完成")
+print("Function call completed")

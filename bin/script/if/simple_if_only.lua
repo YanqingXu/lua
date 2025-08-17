@@ -1,6 +1,6 @@
--- 只有if没有else
+-- if without else
 local x = 2
 if x > 3 then
-    print("大于")
+    print("Greater")
 end
-print("结束")
+print("End")

@@ -1,16 +1,16 @@
--- 中等范围for循环测试
-print("开始中等范围for循环测试")
+-- Medium range for loop test
+print("Starting medium range for loop test")
 local sum = 0
 for i = 1, 10 do
     sum = sum + i
 end
-print("1到10的和 =", sum)
-print("期望值 = 55")
+print("Sum from 1 to 10 =", sum)
+print("Expected = 55")
 
--- 测试更大范围
+-- Test larger range
 sum = 0
 for i = 1, 100 do
     sum = sum + i
 end
-print("1到100的和 =", sum)
-print("期望值 = 5050")
+print("Sum from 1 to 100 =", sum)
+print("Expected = 5050")

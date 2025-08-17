@@ -1,56 +1,56 @@
--- while循环测试
--- 测试while和repeat-until循环
+-- while loop tests
+-- Tests for while and repeat-until loops
 
-print("=== while循环测试 ===")
+print("=== While loop tests ===")
 
--- 测试1: 基本while循环
-print("测试1: 基本while循环 (计数到5)")
+-- Test 1: Basic while loop
+print("Test 1: Basic while loop (count to 5)")
 local i = 1
 while i <= 5 do
     print("  i =", i)
     i = i + 1
 end
 
--- 测试2: while循环条件为false（不执行）
-print("\n测试2: while循环条件为false")
+-- Test 2: while condition is false (does not execute)
+print("\nTest 2: while condition is false")
 local executed = false
 while false do
     executed = true
-    print("  这不应该被打印")
+    print("  This should not be printed")
 end
 if not executed then
-    print("✓ 条件为false的while循环正确地没有执行")
+    print("✓ while with false condition correctly did not execute")
 else
-    print("✗ 条件为false的while循环错误地执行了")
+    print("✗ while with false condition incorrectly executed")
 end
 
--- 测试3: while循环中的break
-print("\n测试3: while循环中的break")
+-- Test 3: break in while loop
+print("\nTest 3: break in while loop")
 local j = 1
 while true do
     if j > 3 then
-        print("  在j=" .. j .. "处break")
+        print("  break at j=" .. j)
         break
     end
     print("  j =", j)
     j = j + 1
 end
 
--- 测试4: 嵌套while循环
-print("\n测试4: 嵌套while循环")
+-- Test 4: nested while loops
+print("\nTest 4: nested while loops")
 local outer = 1
 while outer <= 2 do
-    print("  外层循环: outer =", outer)
+    print("  Outer loop: outer =", outer)
     local inner = 1
     while inner <= 3 do
-        print("    内层循环: inner =", inner)
+        print("    Inner loop: inner =", inner)
         inner = inner + 1
     end
     outer = outer + 1
 end
 
--- 测试5: while循环计算阶乘
-print("\n测试5: while循环计算阶乘")
+-- Test 5: factorial with while loop
+print("\nTest 5: factorial with while loop")
 local n = 5
 local factorial = 1
 local temp = n
@@ -60,48 +60,48 @@ while temp > 0 do
 end
 print("  " .. n .. "! =", factorial)
 if factorial == 120 then
-    print("✓ 阶乘计算正确")
+    print("✓ Factorial computed correctly")
 else
-    print("✗ 阶乘计算错误")
+    print("✗ Factorial computed incorrectly")
 end
 
-print("\n=== repeat-until循环测试 ===")
+print("\n=== repeat-until loop tests ===")
 
--- 测试6: 基本repeat-until循环
-print("测试6: 基本repeat-until循环")
+-- Test 6: basic repeat-until
+print("Test 6: basic repeat-until")
 local k = 1
 repeat
     print("  k =", k)
     k = k + 1
 until k > 3
 
--- 测试7: repeat-until至少执行一次
-print("\n测试7: repeat-until至少执行一次")
+-- Test 7: repeat-until executes at least once
+print("\nTest 7: repeat-until executes at least once")
 local executed2 = false
 repeat
     executed2 = true
-    print("  repeat-until至少执行一次")
+    print("  repeat-until executes at least once")
 until true
 if executed2 then
-    print("✓ repeat-until正确地至少执行了一次")
+    print("✓ repeat-until correctly executed at least once")
 else
-    print("✗ repeat-until没有执行")
+    print("✗ repeat-until did not execute")
 end
 
--- 测试8: repeat-until中的break
-print("\n测试8: repeat-until中的break")
+-- Test 8: break in repeat-until
+print("\nTest 8: break in repeat-until")
 local m = 1
 repeat
     if m == 3 then
-        print("  在m=" .. m .. "处break")
+        print("  break at m=" .. m)
         break
     end
     print("  m =", m)
     m = m + 1
 until false
 
--- 测试9: 复杂条件的repeat-until
-print("\n测试9: 复杂条件的repeat-until")
+-- Test 9: repeat-until with complex condition
+print("\nTest 9: repeat-until with complex condition")
 local sum = 0
 local num = 1
 repeat
@@ -110,33 +110,33 @@ repeat
     num = num + 1
 until sum > 10 or num > 5
 
--- 测试10: 嵌套repeat-until
-print("\n测试10: 嵌套repeat-until")
+-- Test 10: nested repeat-until
+print("\nTest 10: nested repeat-until")
 local x = 1
 repeat
-    print("  外层: x =", x)
+    print("  Outer: x =", x)
     local y = 1
     repeat
-        print("    内层: y =", y)
+        print("    Inner: y =", y)
         y = y + 1
     until y > 2
     x = x + 1
 until x > 2
 
--- 测试11: while和repeat-until的区别
-print("\n测试11: while和repeat-until的区别")
-print("while循环（条件为false）:")
+-- Test 11: differences between while and repeat-until
+print("\nTest 11: differences between while and repeat-until")
+print("while loop (condition is false):")
 local count1 = 0
 while false do
     count1 = count1 + 1
 end
-print("  执行次数:", count1)
+print("  Executions:", count1)
 
-print("repeat-until循环（条件为true）:")
+print("repeat-until loop (condition is true):")
 local count2 = 0
 repeat
     count2 = count2 + 1
 until true
-print("  执行次数:", count2)
+print("  Executions:", count2)
 
-print("\n=== while循环测试完成 ===")
+print("\n=== While loop tests completed ===")

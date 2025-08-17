@@ -1,13 +1,13 @@
--- 简单数学测试
-print("开始数学测试")
+-- Simple math test
+print("Starting math test")
 local a = 10
 local b = 3
-print("加法:")
+print("Addition:")
 print(a + b)
-print("减法:")
+print("Subtraction:")
 print(a - b)
-print("乘法:")
+print("Multiplication:")
 print(a * b)
-print("除法:")
+print("Division:")
 print(a / b)
-print("数学测试完成")
+print("Math test completed")
