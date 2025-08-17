@@ -133,6 +133,12 @@ public:
      * 重置分配器（用于新函数编译）
      */
     void reset();
+
+    /**
+     * 重置栈顶到指定位置
+     * @param newStackTop 新的栈顶位置
+     */
+    void resetToStackTop(int newStackTop);
     
     // === 调试支持 ===
     

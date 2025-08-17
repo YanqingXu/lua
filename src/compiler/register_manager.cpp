@@ -228,6 +228,28 @@ void RegisterManager::reset() {
     liveReasons_.clear();
 }
 
+void RegisterManager::resetToStackTop(int newStackTop) {
+    if (newStackTop < localCount_) {
+        // 不能重置到局部变量区域以下
+        newStackTop = localCount_;
+    }
+
+    if (newStackTop < stackTop_) {
+        // 清除被释放寄存器的调试信息
+        for (int i = newStackTop; i < stackTop_; i++) {
+            if (i < static_cast<int>(registerNames_.size())) {
+                registerNames_[i] = "";
+            }
+            if (i < static_cast<int>(liveRegisters_.size())) {
+                liveRegisters_[i] = false;
+                liveReasons_[i] = "";
+            }
+        }
+
+        stackTop_ = newStackTop;
+    }
+}
+
 // === 调试支持 ===
 
 void RegisterManager::printStatus() const {

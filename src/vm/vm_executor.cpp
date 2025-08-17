@@ -407,9 +407,10 @@ namespace Lua {
         if (bx < constants.size()) {
             Value key = constants[bx];
             if (key.isString()) {
-                // For now, do nothing since LuaState::setGlobal is not fully implemented
-                // TODO: Implement proper global variable setting
-                (void)base[a]; // Suppress unused variable warning
+                // Set global variable - use same method as GETGLOBAL
+                const Str& keyStr = key.asString();
+                GCString* gcKey = luaS_newlstr(L, keyStr.c_str(), keyStr.length());
+                L->setGlobal(gcKey, base[a]);
             }
         }
     }
@@ -473,10 +474,31 @@ namespace Lua {
 
         // Handle different function types
         if (functionObj->getType() == Function::Type::Lua) {
-            // Lua function: need to set up new call frame and continue execution
-            // This requires proper precall setup and VM reentry
-            // For now, return false to indicate reentry needed
-            return false;
+            // Lua function: execute recursively
+            // In a full implementation, this would use proper call stack management
+            // For now, use recursive execution
+            try {
+                Value result = VMExecutor::execute(L, functionObj, args);
+
+                // Handle return values based on C parameter
+                if (c == 0) {
+                    // C=0: return value count determined by function
+                    base[a] = result;
+                } else if (c == 1) {
+                    // C=1: no return values needed
+                } else {
+                    // C>1: need c-1 return values
+                    base[a] = result;
+                    // Additional return values set to nil
+                    for (u16 i = 1; i < c - 1; i++) {
+                        base[a + i] = Value();
+                    }
+                }
+                return true; // Function call completed
+            } catch (const LuaException& e) {
+                vmError(L, e.what());
+                return false;
+            }
         } else if (functionObj->getType() == Function::Type::Native) {
             // Native function: call directly
             if (functionObj->isNativeLegacy()) {
