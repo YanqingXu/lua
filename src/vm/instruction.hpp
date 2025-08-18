@@ -5,14 +5,115 @@
 #include <iostream>
 
 namespace Lua {
-    // Lua 5.1 official constant indexing definitions
-    // Based on Lua 5.1.5 lopcodes.h with 9-bit operands
+    // === 官方Lua 5.1指令格式常量定义 ===
+    // 基于lua-5.1.5/src/lopcodes.h
 
-    // For 9-bit operands (Lua 5.1 official)
-    static const u16 BITRK = (1 << 8);  // 256, this bit 1 means constant for 9-bit
-    static const u16 MAXINDEXRK = (BITRK - 1);  // 255, maximum constant index for 9-bit
+    // 指令字段大小定义
+    static const u8 SIZE_C = 9;
+    static const u8 SIZE_B = 9;
+    static const u8 SIZE_Bx = (SIZE_C + SIZE_B);  // 18
+    static const u8 SIZE_A = 8;
+    static const u8 SIZE_OP = 6;
 
-    // 9-bit versions (Lua 5.1 compatible)
+    // 指令字段位置定义
+    static const u8 POS_OP = 0;
+    static const u8 POS_A = (POS_OP + SIZE_OP);    // 6
+    static const u8 POS_C = (POS_A + SIZE_A);      // 14
+    static const u8 POS_B = (POS_C + SIZE_C);      // 23
+    static const u8 POS_Bx = POS_C;                // 14
+
+    // 参数最大值定义
+    static const u32 MAXARG_Bx = ((1 << SIZE_Bx) - 1);      // 262143
+    static const i32 MAXARG_sBx = (MAXARG_Bx >> 1);         // 131071
+    static const u32 MAXARG_A = ((1 << SIZE_A) - 1);        // 255
+    static const u32 MAXARG_B = ((1 << SIZE_B) - 1);        // 511
+    static const u32 MAXARG_C = ((1 << SIZE_C) - 1);        // 511
+
+    // RK常量索引定义（9位操作数）
+    static const u16 BITRK = (1 << (SIZE_B - 1));  // 256, this bit 1 means constant
+    static const u16 MAXINDEXRK = (BITRK - 1);     // 255, maximum constant index
+
+    // === 官方Lua 5.1指令操作宏 ===
+    // 基于lua-5.1.5/src/lopcodes.h的宏定义
+
+    // 位掩码创建宏
+    inline u32 MASK1(u8 n, u8 p) {
+        return ((~((~static_cast<u32>(0)) << n)) << p);
+    }
+
+    inline u32 MASK0(u8 n, u8 p) {
+        return (~MASK1(n, p));
+    }
+
+    // 指令操作宏（与官方Lua 5.1完全一致）
+    inline OpCode GET_OPCODE(u32 i) {
+        return static_cast<OpCode>((i >> POS_OP) & MASK1(SIZE_OP, 0));
+    }
+
+    inline void SET_OPCODE(u32& i, OpCode o) {
+        i = ((i & MASK0(SIZE_OP, POS_OP)) |
+             ((static_cast<u32>(o) << POS_OP) & MASK1(SIZE_OP, POS_OP)));
+    }
+
+    inline u8 GETARG_A(u32 i) {
+        return static_cast<u8>((i >> POS_A) & MASK1(SIZE_A, 0));
+    }
+
+    inline void SETARG_A(u32& i, u8 u) {
+        i = ((i & MASK0(SIZE_A, POS_A)) |
+             ((static_cast<u32>(u) << POS_A) & MASK1(SIZE_A, POS_A)));
+    }
+
+    inline u16 GETARG_B(u32 i) {
+        return static_cast<u16>((i >> POS_B) & MASK1(SIZE_B, 0));
+    }
+
+    inline void SETARG_B(u32& i, u16 b) {
+        i = ((i & MASK0(SIZE_B, POS_B)) |
+             ((static_cast<u32>(b) << POS_B) & MASK1(SIZE_B, POS_B)));
+    }
+
+    inline u16 GETARG_C(u32 i) {
+        return static_cast<u16>((i >> POS_C) & MASK1(SIZE_C, 0));
+    }
+
+    inline void SETARG_C(u32& i, u16 c) {
+        i = ((i & MASK0(SIZE_C, POS_C)) |
+             ((static_cast<u32>(c) << POS_C) & MASK1(SIZE_C, POS_C)));
+    }
+
+    inline u32 GETARG_Bx(u32 i) {
+        return (i >> POS_Bx) & MASK1(SIZE_Bx, 0);
+    }
+
+    inline void SETARG_Bx(u32& i, u32 bx) {
+        i = ((i & MASK0(SIZE_Bx, POS_Bx)) |
+             ((bx << POS_Bx) & MASK1(SIZE_Bx, POS_Bx)));
+    }
+
+    inline i32 GETARG_sBx(u32 i) {
+        return static_cast<i32>(GETARG_Bx(i)) - MAXARG_sBx;
+    }
+
+    inline void SETARG_sBx(u32& i, i32 sbx) {
+        SETARG_Bx(i, static_cast<u32>(sbx + MAXARG_sBx));
+    }
+
+    // 指令创建宏（注意：官方Lua 5.1中B在高位，C在低位）
+    inline u32 CREATE_ABC(OpCode o, u8 a, u16 b, u16 c) {
+        return ((static_cast<u32>(o) << POS_OP) |
+                (static_cast<u32>(a) << POS_A) |
+                (static_cast<u32>(b) << POS_B) |
+                (static_cast<u32>(c) << POS_C));
+    }
+
+    inline u32 CREATE_ABx(OpCode o, u8 a, u32 bc) {
+        return ((static_cast<u32>(o) << POS_OP) |
+                (static_cast<u32>(a) << POS_A) |
+                (bc << POS_Bx));
+    }
+
+    // RK操作函数（9位操作数兼容）
     inline bool ISK(u16 x) {
         return (x & BITRK) != 0;
     }
@@ -24,266 +125,255 @@ namespace Lua {
     inline u16 INDEXK(u16 r) {
         return r & ~BITRK;
     }
-    
+
     // Legacy compatibility - use RKASK instead
     inline u16 RK(u16 x) {
         return RKASK(x);
     }
+
+    // 无效寄存器定义
+    static const u8 NO_REG = MAXARG_A;
     
-    // Instruction format (Lua 5.1 compatible)
-    // 32-bit instruction containing opcode and operands
-    // Bit layout: [31-26: unused] [25-23: C(9bit)] [22-14: B(9bit)] [13-6: A(8bit)] [5-0: OpCode(6bit)]
+    // === 官方Lua 5.1指令结构体 ===
+    // 32位指令，包含操作码和操作数
+    // 位布局：[31-23: C(9bit)] [22-14: B(9bit)] [13-6: A(8bit)] [5-0: OpCode(6bit)]
     struct Instruction {
         u32 code;
 
-        // Constructor
+        // 构造函数
         Instruction() : code(0) {}
         explicit Instruction(u32 c) : code(c) {}
 
-        // Get opcode (6 bits, positions 0-5)
+        // === 使用官方Lua 5.1宏的访问器方法 ===
+
+        // 获取操作码（6位，位置0-5）
         OpCode getOpCode() const {
-            return static_cast<OpCode>(code & 0x3F);
+            return GET_OPCODE(code);
         }
 
-        // Set opcode (6 bits, positions 0-5)
+        // 设置操作码（6位，位置0-5）
         void setOpCode(OpCode op) {
-            code = (code & 0xFFFFFFC0) | (static_cast<u32>(op) & 0x3F);
+            SET_OPCODE(code, op);
         }
-        
-        // Get A operand (8 bits, positions 6-13)
+
+        // 获取A操作数（8位，位置6-13）
         u8 getA() const {
-            return (code >> 6) & 0xFF;
+            return GETARG_A(code);
         }
 
-        // Set A operand (8 bits, positions 6-13)
+        // 设置A操作数（8位，位置6-13）
         void setA(u8 a) {
-            code = (code & 0xFFFFC03F) | ((static_cast<u32>(a) & 0xFF) << 6);
+            SETARG_A(code, a);
         }
-        
-        // Get B operand (9 bits, positions 14-22)
+
+        // 获取B操作数（9位，位置14-22）
         u16 getB() const {
-            return (code >> 14) & 0x1FF;
+            return GETARG_B(code);
         }
 
-        // Set B operand (9 bits, positions 14-22)
+        // 设置B操作数（9位，位置14-22）
         void setB(u16 b) {
-            code = (code & 0xFF803FFF) | ((static_cast<u32>(b) & 0x1FF) << 14);
+            SETARG_B(code, b);
         }
 
-        // Get C operand (9 bits, positions 23-31)
+        // 获取C操作数（9位，位置23-31）
         u16 getC() const {
-            return (code >> 23) & 0x1FF;
+            return GETARG_C(code);
         }
 
-        // Set C operand (9 bits, positions 23-31)
+        // 设置C操作数（9位，位置23-31）
         void setC(u16 c) {
-            code = (code & 0x007FFFFF) | ((static_cast<u32>(c) & 0x1FF) << 23);
+            SETARG_C(code, c);
         }
-        
-        // Get Bx operand (18-bit unsigned, B and C combined, positions 14-31)
+
+        // 获取Bx操作数（18位无符号，B和C组合，位置14-31）
         u32 getBx() const {
-            return (code >> 14) & 0x3FFFF;
+            return GETARG_Bx(code);
         }
 
-        // Set Bx operand (18-bit unsigned, B and C combined, positions 14-31)
+        // 设置Bx操作数（18位无符号，B和C组合，位置14-31）
         void setBx(u32 bx) {
-            code = (code & 0x00003FFF) | ((bx & 0x3FFFF) << 14);
+            SETARG_Bx(code, bx);
         }
 
-        // Get sBx operand (18-bit signed, offset by 131071)
+        // 获取sBx操作数（18位有符号，偏移131071）
         i32 getSBx() const {
-            return static_cast<i32>(getBx()) - 131071;
+            return GETARG_sBx(code);
         }
 
-        // Set sBx operand (18-bit signed, offset by 131071)
+        // 设置sBx操作数（18位有符号，偏移131071）
         void setSBx(i32 sbx) {
-            setBx(static_cast<u32>(sbx + 131071));
+            SETARG_sBx(code, sbx);
         }
         
-        // Static methods to create various instructions (Lua 5.1 compatible)
+        // === 使用官方Lua 5.1宏的指令创建方法 ===
+
+        // 基本指令创建（使用CREATE_ABC和CREATE_ABx宏）
         static Instruction createMOVE(u8 a, u16 b) {
-            Instruction i;
-            i.setOpCode(OpCode::MOVE);
-            i.setA(a);
-            i.setB(b);
-            return i;
+            return Instruction(CREATE_ABC(OpCode::MOVE, a, b, 0));
         }
 
         static Instruction createLOADK(u8 a, u32 bx) {
-            Instruction i;
-            i.setOpCode(OpCode::LOADK);
-            i.setA(a);
-            i.setBx(bx);
-            return i;
+            return Instruction(CREATE_ABx(OpCode::LOADK, a, bx));
         }
 
         static Instruction createGETGLOBAL(u8 a, u32 bx) {
-            Instruction i;
-            i.setOpCode(OpCode::GETGLOBAL);
-            i.setA(a);
-            i.setBx(bx);
-            return i;
+            return Instruction(CREATE_ABx(OpCode::GETGLOBAL, a, bx));
         }
-        
+
         static Instruction createSETGLOBAL(u8 a, u32 bx) {
-            Instruction i;
-            i.setOpCode(OpCode::SETGLOBAL);
-            i.setA(a);
-            i.setBx(bx);
-            return i;
+            return Instruction(CREATE_ABx(OpCode::SETGLOBAL, a, bx));
         }
 
         static Instruction createGETTABLE(u8 a, u16 b, u16 c) {
-            Instruction i;
-            i.setOpCode(OpCode::GETTABLE);
-            i.setA(a);
-            i.setB(b);
-            i.setC(c);
-            return i;
+            return Instruction(CREATE_ABC(OpCode::GETTABLE, a, b, c));
         }
 
         static Instruction createSETTABLE(u8 a, u16 b, u16 c) {
-            Instruction i;
-            i.setOpCode(OpCode::SETTABLE);
-            i.setA(a);
-            i.setB(b);
-            i.setC(c);
-            return i;
+            return Instruction(CREATE_ABC(OpCode::SETTABLE, a, b, c));
         }
 
         static Instruction createNEWTABLE(u8 a, u16 b, u16 c) {
-            Instruction i;
-            i.setOpCode(OpCode::NEWTABLE);
-            i.setA(a);
-            i.setB(b);
-            i.setC(c);
-            return i;
+            return Instruction(CREATE_ABC(OpCode::NEWTABLE, a, b, c));
         }
         
         static Instruction createCALL(u8 a, u16 b, u16 c) {
-            Instruction i;
-            i.setOpCode(OpCode::CALL);
-            i.setA(a);
-            i.setB(b);
-            i.setC(c);
-            return i;
+            return Instruction(CREATE_ABC(OpCode::CALL, a, b, c));
         }
 
         static Instruction createRETURN(u8 a, u16 b) {
-            Instruction i;
-            i.setOpCode(OpCode::RETURN);
-            i.setA(a);
-            i.setB(b);
-            return i;
+            return Instruction(CREATE_ABC(OpCode::RETURN, a, b, 0));
         }
 
         static Instruction createVARARG(u8 a, u8 b) {
-            Instruction i;
-            i.setOpCode(OpCode::VARARG);
-            i.setA(a);
-            i.setB(b);
-            return i;
+            return Instruction(CREATE_ABC(OpCode::VARARG, a, b, 0));
         }
-        
-        // Load nil
+
+        // 加载nil
         static Instruction createLOADNIL(u8 a) {
-            Instruction i;
-            i.setOpCode(OpCode::LOADNIL);
-            i.setA(a);
-            return i;
+            return Instruction(CREATE_ABC(OpCode::LOADNIL, a, 0, 0));
         }
-        
-        // Load boolean value (Lua LOADBOOL uses B as value (0/1) and C as skip flag)
+
+        // 加载布尔值（Lua LOADBOOL使用B作为值(0/1)，C作为跳过标志）
         static Instruction createLOADBOOL(u8 a, bool value) {
-            Instruction i;
-            i.setOpCode(OpCode::LOADBOOL);
-            i.setA(a);
-            i.setB(static_cast<u8>(value));
-            i.setC(0);
-            return i;
+            return Instruction(CREATE_ABC(OpCode::LOADBOOL, a, static_cast<u8>(value), 0));
         }
         
-        // Arithmetic
+        // 算术运算
         static Instruction createADD(u8 a, u8 b, u8 c) {
-            Instruction i;
-            i.setOpCode(OpCode::ADD);
-            i.setA(a);
-            i.setB(b);
-            i.setC(c);
-            return i;
+            return Instruction(CREATE_ABC(OpCode::ADD, a, b, c));
         }
         static Instruction createSUB(u8 a, u8 b, u8 c) {
-            Instruction i; i.setOpCode(OpCode::SUB); i.setA(a); i.setB(b); i.setC(c); return i; }
+            return Instruction(CREATE_ABC(OpCode::SUB, a, b, c));
+        }
         static Instruction createMUL(u8 a, u8 b, u8 c) {
-            Instruction i; i.setOpCode(OpCode::MUL); i.setA(a); i.setB(b); i.setC(c); return i; }
+            return Instruction(CREATE_ABC(OpCode::MUL, a, b, c));
+        }
         static Instruction createDIV(u8 a, u8 b, u8 c) {
-            Instruction i; i.setOpCode(OpCode::DIV); i.setA(a); i.setB(b); i.setC(c); return i; }
+            return Instruction(CREATE_ABC(OpCode::DIV, a, b, c));
+        }
         static Instruction createMOD(u8 a, u8 b, u8 c) {
-            Instruction i; i.setOpCode(OpCode::MOD); i.setA(a); i.setB(b); i.setC(c); return i; }
+            return Instruction(CREATE_ABC(OpCode::MOD, a, b, c));
+        }
         static Instruction createPOW(u8 a, u8 b, u8 c) {
-            Instruction i; i.setOpCode(OpCode::POW); i.setA(a); i.setB(b); i.setC(c); return i; }
-        
-        // Unary operations
+            return Instruction(CREATE_ABC(OpCode::POW, a, b, c));
+        }
+
+        // 一元运算
         static Instruction createUNM(u8 a, u8 b) { // dst=a, operand=b
-            Instruction i; i.setOpCode(OpCode::UNM); i.setA(a); i.setB(b); return i; }
+            return Instruction(CREATE_ABC(OpCode::UNM, a, b, 0));
+        }
         static Instruction createNOT(u8 a, u8 b) {
-            Instruction i; i.setOpCode(OpCode::NOT); i.setA(a); i.setB(b); return i; }
+            return Instruction(CREATE_ABC(OpCode::NOT, a, b, 0));
+        }
         static Instruction createLEN(u8 a, u8 b) {
-            Instruction i; i.setOpCode(OpCode::LEN); i.setA(a); i.setB(b); return i; }
+            return Instruction(CREATE_ABC(OpCode::LEN, a, b, 0));
+        }
+
+        // 比较运算
+        static Instruction createEQ(u8 a, u8 b, u8 c) {
+            return Instruction(CREATE_ABC(OpCode::EQ, a, b, c));
+        }
+        static Instruction createLT(u8 a, u8 b, u8 c) {
+            return Instruction(CREATE_ABC(OpCode::LT, a, b, c));
+        }
+        static Instruction createLE(u8 a, u8 b, u8 c) {
+            return Instruction(CREATE_ABC(OpCode::LE, a, b, c));
+        }
         
-        // Comparison
-        static Instruction createEQ(u8 a, u8 b, u8 c) { Instruction i; i.setOpCode(OpCode::EQ); i.setA(a); i.setB(b); i.setC(c); return i; }
-        static Instruction createLT(u8 a, u8 b, u8 c) { Instruction i; i.setOpCode(OpCode::LT); i.setA(a); i.setB(b); i.setC(c); return i; }
-        static Instruction createLE(u8 a, u8 b, u8 c) { Instruction i; i.setOpCode(OpCode::LE); i.setA(a); i.setB(b); i.setC(c); return i; }
-        
-        // Jump (sBx)
-        static Instruction createJMP(i16 sbx) {
-            Instruction i; i.setOpCode(OpCode::JMP); i.setSBx(sbx); return i; }
+        // 跳转指令（sBx）
+        static Instruction createJMP(i32 sbx) {
+            Instruction i;
+            i.setOpCode(OpCode::JMP);
+            i.setSBx(sbx);
+            return i;
+        }
 
-        // For loop instructions
-        static Instruction createFORPREP(u8 a, i16 sbx) {
-            Instruction i; i.setOpCode(OpCode::FORPREP); i.setA(a); i.setSBx(sbx); return i; }
+        // 循环指令
+        static Instruction createFORPREP(u8 a, i32 sbx) {
+            Instruction i;
+            i.setOpCode(OpCode::FORPREP);
+            i.setA(a);
+            i.setSBx(sbx);
+            return i;
+        }
 
-        static Instruction createFORLOOP(u8 a, i16 sbx) {
-            Instruction i; i.setOpCode(OpCode::FORLOOP); i.setA(a); i.setSBx(sbx); return i; }
+        static Instruction createFORLOOP(u8 a, i32 sbx) {
+            Instruction i;
+            i.setOpCode(OpCode::FORLOOP);
+            i.setA(a);
+            i.setSBx(sbx);
+            return i;
+        }
 
-        // Test instruction (A = register to test, C = skip next instruction if test fails)
+        // 测试指令（A = 要测试的寄存器，C = 测试失败时跳过下一条指令）
         static Instruction createTEST(u8 a, u8 c) {
-            Instruction i; i.setOpCode(OpCode::TEST); i.setA(a); i.setC(c); return i; }
-        
-        // Closure creation (A = target register, Bx = function prototype index)
-        static Instruction createCLOSURE(u8 a, u16 bx) {
-            Instruction i; i.setOpCode(OpCode::CLOSURE); i.setA(a); i.setBx(bx); return i; }
-        
-        // Upvalue operations
+            return Instruction(CREATE_ABC(OpCode::TEST, a, 0, c));
+        }
+
+        // 闭包创建（A = 目标寄存器，Bx = 函数原型索引）
+        static Instruction createCLOSURE(u8 a, u32 bx) {
+            return Instruction(CREATE_ABx(OpCode::CLOSURE, a, bx));
+        }
+
+        // Upvalue操作
         static Instruction createGETUPVAL(u8 a, u8 b) {
-            Instruction i; i.setOpCode(OpCode::GETUPVAL); i.setA(a); i.setB(b); return i; }
-        
+            return Instruction(CREATE_ABC(OpCode::GETUPVAL, a, b, 0));
+        }
+
         static Instruction createSETUPVAL(u8 a, u8 b) {
-            Instruction i; i.setOpCode(OpCode::SETUPVAL); i.setA(a); i.setB(b); return i; }
-        
+            return Instruction(CREATE_ABC(OpCode::SETUPVAL, a, b, 0));
+        }
+
         static Instruction createCLOSE(u8 a) {
-            Instruction i; i.setOpCode(OpCode::CLOSE); i.setA(a); return i; }
+            return Instruction(CREATE_ABC(OpCode::CLOSE, a, 0, 0));
+        }
 
-        // String concatenation
+        // 字符串连接
         static Instruction createCONCAT(u8 a, u8 b, u8 c) {
-            Instruction i; i.setOpCode(OpCode::CONCAT); i.setA(a); i.setB(b); i.setC(c); return i; }
+            return Instruction(CREATE_ABC(OpCode::CONCAT, a, b, c));
+        }
 
-        // === 新增的官方Lua 5.1操作码创建函数 ===
+        // === 官方Lua 5.1操作码创建函数 ===
 
         static Instruction createSELF(u8 a, u8 b, u8 c) {
-            Instruction i; i.setOpCode(OpCode::SELF); i.setA(a); i.setB(b); i.setC(c); return i; }
+            return Instruction(CREATE_ABC(OpCode::SELF, a, b, c));
+        }
 
         static Instruction createTESTSET(u8 a, u8 b, u8 c) {
-            Instruction i; i.setOpCode(OpCode::TESTSET); i.setA(a); i.setB(b); i.setC(c); return i; }
+            return Instruction(CREATE_ABC(OpCode::TESTSET, a, b, c));
+        }
 
         static Instruction createTAILCALL(u8 a, u8 b, u8 c) {
-            Instruction i; i.setOpCode(OpCode::TAILCALL); i.setA(a); i.setB(b); i.setC(c); return i; }
+            return Instruction(CREATE_ABC(OpCode::TAILCALL, a, b, c));
+        }
 
         static Instruction createTFORLOOP(u8 a, u8 c) {
-            Instruction i; i.setOpCode(OpCode::TFORLOOP); i.setA(a); i.setC(c); return i; }
+            return Instruction(CREATE_ABC(OpCode::TFORLOOP, a, 0, c));
+        }
 
         static Instruction createSETLIST(u8 a, u8 b, u8 c) {
-            Instruction i; i.setOpCode(OpCode::SETLIST); i.setA(a); i.setB(b); i.setC(c); return i; }
+            return Instruction(CREATE_ABC(OpCode::SETLIST, a, b, c));
+        }
     };
 }

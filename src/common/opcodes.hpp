@@ -3,6 +3,21 @@
 #include "../common/types.hpp"
 
 namespace Lua {
+    // === 官方Lua 5.1指令格式枚举 ===
+    enum class OpMode : u8 {
+        iABC = 0,   // 指令格式: A(8) B(9) C(9)
+        iABx = 1,   // 指令格式: A(8) Bx(18)
+        iAsBx = 2   // 指令格式: A(8) sBx(18)
+    };
+
+    // === 官方Lua 5.1参数模式枚举 ===
+    enum class OpArgMask : u8 {
+        OpArgN = 0,  // 参数未使用
+        OpArgU = 1,  // 参数被使用但不是寄存器/常量
+        OpArgR = 2,  // 参数是寄存器或跳转偏移
+        OpArgK = 3   // 参数是常量或寄存器/常量(RK)
+    };
+
     // Operation codes used by the VM / compiler - OFFICIAL Lua 5.1 opcodes ONLY
     // Based on lua-5.1.5/src/lopcodes.h - 38 opcodes total
     // NOTE: Helper functions that manipulate Instruction objects are
@@ -65,4 +80,52 @@ namespace Lua {
 
         // 总计38个操作码 - 与官方Lua 5.1完全一致
     };
+
+    // === 官方Lua 5.1指令模式信息 ===
+    // 基于lua-5.1.5/src/lopcodes.c的luaP_opmodes数组
+    // 位域定义：
+    // bits 0-1: 指令格式 (OpMode)
+    // bits 2-3: C参数模式 (OpArgMask)
+    // bits 4-5: B参数模式 (OpArgMask)
+    // bit 6:    是否设置寄存器A
+    // bit 7:    是否为测试指令
+
+    constexpr u8 NUM_OPCODES = 38;
+
+    // 指令模式编码宏（与官方Lua 5.1一致）
+    constexpr u8 opmode(bool t, bool a, OpArgMask b, OpArgMask c, OpMode m) {
+        return (static_cast<u8>(t) << 7) |
+               (static_cast<u8>(a) << 6) |
+               (static_cast<u8>(b) << 4) |
+               (static_cast<u8>(c) << 2) |
+               static_cast<u8>(m);
+    }
+
+    // 官方Lua 5.1指令模式数组（与lopcodes.c完全一致）
+    extern const u8 luaP_opmodes[NUM_OPCODES];
+
+    // 指令模式查询函数（与官方Lua 5.1一致）
+    inline OpMode getOpMode(OpCode op) {
+        return static_cast<OpMode>(luaP_opmodes[static_cast<u8>(op)] & 3);
+    }
+
+    inline OpArgMask getBMode(OpCode op) {
+        return static_cast<OpArgMask>((luaP_opmodes[static_cast<u8>(op)] >> 4) & 3);
+    }
+
+    inline OpArgMask getCMode(OpCode op) {
+        return static_cast<OpArgMask>((luaP_opmodes[static_cast<u8>(op)] >> 2) & 3);
+    }
+
+    inline bool testAMode(OpCode op) {
+        return (luaP_opmodes[static_cast<u8>(op)] & (1 << 6)) != 0;
+    }
+
+    inline bool testTMode(OpCode op) {
+        return (luaP_opmodes[static_cast<u8>(op)] & (1 << 7)) != 0;
+    }
+
+    // 操作码名称数组（用于调试）
+    extern const char* const luaP_opnames[NUM_OPCODES + 1];
+
 } // namespace Lua
