@@ -110,10 +110,10 @@ namespace Lua {
         if (jumpAddr < 0 || jumpAddr >= static_cast<int>(code.size())) {
             throw LuaException("Invalid jump address for patching");
         }
-        
-        int offset = targetAddr - jumpAddr - 1;
+
+        int offset = targetAddr - jumpAddr;
         Instruction& jumpInstr = code[jumpAddr];
-        
+
         // Update the jump instruction with the correct offset
         jumpInstr = Instruction::createJMP(offset);
     }

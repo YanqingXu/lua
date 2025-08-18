@@ -45,16 +45,31 @@ namespace Lua {
         // Identifier
         if (isalpha(c) || c == '_') return identifier();
         
-        // Number
-        if (isdigit(c)) return number();
-        
+        // Number (including hex)
+        if (isdigit(c)) {
+            if (c == '0' && (peek() == 'x' || peek() == 'X')) {
+                return hexNumber();
+            }
+            return number();
+        }
+
         switch (c) {
             // Single character tokens
             case '(': return makeToken(TokenType::LeftParen);
             case ')': return makeToken(TokenType::RightParen);
             case '{': return makeToken(TokenType::LeftBrace);
             case '}': return makeToken(TokenType::RightBrace);
-            case '[': return makeToken(TokenType::LeftBracket);
+            case '[': {
+                // Check for long string
+                usize savePos = current;
+                int level = skipSeparator();
+                if (level >= 0) {
+                    return longString(level);
+                } else {
+                    current = savePos;
+                    return makeToken(TokenType::LeftBracket);
+                }
+            }
             case ']': return makeToken(TokenType::RightBracket);
             case ';': return makeToken(TokenType::Semicolon);
             case ':': return makeToken(TokenType::Colon);
@@ -180,9 +195,30 @@ namespace Lua {
                 case '-':
                     // Check if it's a comment (--...)
                     if (peekNext() == '-') {
-                        // Comment until end of line
-                        while (peek() != '\n' && !isAtEnd()) {
-                            advance();
+                        advance(); // Skip first '-'
+                        advance(); // Skip second '-'
+
+                        // Check for long comment --[[ or --[=[
+                        if (peek() == '[') {
+                            usize savePos = current;
+                            advance(); // Skip '['
+                            int level = skipSeparator();
+                            if (level >= 0) {
+                                // Long comment
+                                skipLongComment(level);
+                            } else {
+                                // Not a long comment, reset and treat as short comment
+                                current = savePos;
+                                // Short comment until end of line
+                                while (peek() != '\n' && !isAtEnd()) {
+                                    advance();
+                                }
+                            }
+                        } else {
+                            // Short comment until end of line
+                            while (peek() != '\n' && !isAtEnd()) {
+                                advance();
+                            }
                         }
                     } else {
                         return;
@@ -313,7 +349,101 @@ namespace Lua {
         token.value.string = GCString::create(value);
         return token;
     }
-    
+
+    int Lexer::skipSeparator() {
+        int count = 0;
+        usize s = current;
+        while (current < source.length() && source[current] == '=') {
+            current++;
+            count++;
+        }
+        if (current < source.length() && source[current] == '[') {
+            current++;
+            return count;
+        } else {
+            current = s; // Reset if not a valid separator
+            return -1;
+        }
+    }
+
+    Token Lexer::longString(int level) {
+        // Skip the opening bracket sequence
+        while (!isAtEnd()) {
+            if (peek() == ']') {
+                usize savePos = current;
+                advance(); // Skip ']'
+                int closeLevel = skipSeparator();
+                if (closeLevel == level) {
+                    // Found matching close bracket
+                    Str value = source.substr(start + level + 2, savePos - start - level - 2);
+                    Token token = makeToken(TokenType::String);
+                    token.value.string = GCString::create(value);
+                    return token;
+                } else {
+                    // Not a matching close, continue
+                    current = savePos + 1;
+                }
+            } else {
+                if (peek() == '\n') {
+                    line++;
+                    column = 0;
+                } else {
+                    column++;
+                }
+                advance();
+            }
+        }
+        return errorToken("Unterminated long string.");
+    }
+
+    void Lexer::skipLongComment(int level) {
+        while (!isAtEnd()) {
+            if (peek() == ']') {
+                usize savePos = current;
+                advance(); // Skip ']'
+                int closeLevel = skipSeparator();
+                if (closeLevel == level) {
+                    // Found matching close bracket, comment ends
+                    return;
+                } else {
+                    // Not a matching close, continue
+                    current = savePos + 1;
+                }
+            } else {
+                if (peek() == '\n') {
+                    line++;
+                    column = 0;
+                } else {
+                    column++;
+                }
+                advance();
+            }
+        }
+        // If we reach here, the long comment is unterminated
+        // In Lua 5.1, this is typically handled as an error
+    }
+
+    Token Lexer::hexNumber() {
+        // Skip '0x' or '0X'
+        advance(); // Skip 'x' or 'X'
+
+        if (!std::isxdigit(peek())) {
+            return errorToken("Invalid hexadecimal number.");
+        }
+
+        while (std::isxdigit(peek())) {
+            advance();
+        }
+
+        // Convert hex string to number
+        Str hexStr = source.substr(start + 2, current - start - 2); // Skip "0x"
+        LuaNumber value = static_cast<LuaNumber>(std::stoll(hexStr, nullptr, 16));
+
+        Token token = makeToken(TokenType::Number);
+        token.value.number = value;
+        return token;
+    }
+
     Str tokenTypeToString(TokenType type) {
         switch (type) {
             case TokenType::And: return "and";

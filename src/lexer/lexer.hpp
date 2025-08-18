@@ -75,14 +75,20 @@ namespace Lua {
         
         // Skip whitespace and comments
         void skipWhitespace();
-        
+        void skipLongComment(int level);
+
         // Identifiers and keywords
         Token identifier();
-        
+
         // Numbers
         Token number();
-        
+        Token hexNumber();
+
         // Strings
         Token string();
+        Token longString(int level);
+
+        // Long string/comment helper
+        int skipSeparator();
     };
 }

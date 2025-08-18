@@ -172,7 +172,6 @@
     <ClInclude Include="src\lib\package\package_lib.hpp" />
     <ClInclude Include="src\lib\string\string_lib.hpp" />
     <ClInclude Include="src\lib\table\table_lib.hpp" />
-    <ClInclude Include="src\localization\localization_manager.hpp" />
     <ClInclude Include="src\parser\ast\ast_base.hpp" />
     <ClInclude Include="src\parser\ast\expressions.hpp" />
     <ClInclude Include="src\parser\ast\parse_error.hpp" />
@@ -183,29 +182,28 @@
     <ClInclude Include="src\parser\error_formatter.hpp" />
     <ClInclude Include="src\parser\parser.hpp" />
     <ClInclude Include="src\parser\visitor.hpp" />
-
-
+    <ClInclude Include="src\lib\coroutine\coroutine_lib.hpp" />
     <ClInclude Include="src\vm\call_result.hpp" />
+    <ClInclude Include="src\vm\call_stack.hpp" />
     <ClInclude Include="src\vm\core_metamethods.hpp" />
+    <ClInclude Include="src\vm\debug_hooks.hpp" />
+    <ClInclude Include="src\vm\debug_info.hpp" />
+    <ClInclude Include="src\vm\dynamic_constant_pool.hpp" />
+    <ClInclude Include="src\vm\error_handling.hpp" />
     <ClInclude Include="src\vm\function.hpp" />
+    <ClInclude Include="src\vm\function_call.hpp" />
+    <ClInclude Include="src\vm\global_state.hpp" />
     <ClInclude Include="src\vm\instruction.hpp" />
+    <ClInclude Include="src\vm\lua_coroutine.hpp" />
+    <ClInclude Include="src\vm\lua_state.hpp" />
     <ClInclude Include="src\vm\metamethod_manager.hpp" />
-
-
+    <ClInclude Include="src\vm\register_file.hpp" />
     <ClInclude Include="src\vm\table.hpp" />
     <ClInclude Include="src\vm\table_impl.hpp" />
     <ClInclude Include="src\vm\upvalue.hpp" />
     <ClInclude Include="src\vm\userdata.hpp" />
     <ClInclude Include="src\vm\value.hpp" />
-    <ClInclude Include="src\vm\global_state.hpp" />
-    <ClInclude Include="src\vm\lua_state.hpp" />
-    <ClInclude Include="src\vm\call_stack.hpp" />
-    <ClInclude Include="src\vm\function_call.hpp" />
-    <ClInclude Include="src\vm\register_file.hpp" />
-    <ClInclude Include="src\vm\vm.hpp" />
-    <ClInclude Include="src\vm\lua_coroutine.hpp" />
-    <ClInclude Include="src\lib\coroutine\coroutine_lib.hpp" />
-    <ClInclude Include="src\vm\debug_info.hpp" />
+    <ClInclude Include="src\vm\vm_executor.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\compiler\compiler.cpp" />
@@ -239,7 +237,6 @@
     <ClCompile Include="src\lib\package\package_lib.cpp" />
     <ClCompile Include="src\lib\string\string_lib.cpp" />
     <ClCompile Include="src\lib\table\table_lib.cpp" />
-    <ClCompile Include="src\localization\localization_manager.cpp" />
     <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\parser\enhanced_error_reporter.cpp" />
     <ClCompile Include="src\parser\error_formatter.cpp" />
@@ -249,30 +246,25 @@
     <ClCompile Include="src\parser\parser_utils.cpp" />
     <ClCompile Include="src\parser\statement_parser.cpp" />
     <ClCompile Include="src\parser\visitor.cpp" />
-
-
-
-
+    <ClCompile Include="src\lib\coroutine\coroutine_lib.cpp" />
+    <ClCompile Include="src\common\lua_exception.cpp" />
+    <ClCompile Include="src\vm\call_stack.cpp" />
     <ClCompile Include="src\vm\core_metamethods.cpp" />
+    <ClCompile Include="src\vm\debug_hooks.cpp" />
+    <ClCompile Include="src\vm\debug_info.cpp" />
+    <ClCompile Include="src\vm\error_handling.cpp" />
     <ClCompile Include="src\vm\function.cpp" />
+    <ClCompile Include="src\vm\function_call.cpp" />
+    <ClCompile Include="src\vm\global_state.cpp" />
+    <ClCompile Include="src\vm\lua_coroutine.cpp" />
+    <ClCompile Include="src\vm\lua_state.cpp" />
     <ClCompile Include="src\vm\metamethod_manager.cpp" />
-
-
+    <ClCompile Include="src\vm\register_file.cpp" />
     <ClCompile Include="src\vm\table.cpp" />
     <ClCompile Include="src\vm\upvalue.cpp" />
     <ClCompile Include="src\vm\userdata.cpp" />
     <ClCompile Include="src\vm\value.cpp" />
-    <ClCompile Include="src\vm\global_state.cpp" />
-    <ClCompile Include="src\vm\lua_state.cpp" />
-    <ClCompile Include="src\vm\call_stack.cpp" />
-    <ClCompile Include="src\vm\function_call.cpp" />
-    <ClCompile Include="src\vm\register_file.cpp" />
-    <ClCompile Include="src\vm\vm.cpp" />
     <ClCompile Include="src\vm\vm_executor.cpp" />
-    <ClCompile Include="src\vm\lua_coroutine.cpp" />
-    <ClCompile Include="src\lib\coroutine\coroutine_lib.cpp" />
-    <ClCompile Include="src\common\lua_exception.cpp" />
-    <ClCompile Include="src\vm\debug_info.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

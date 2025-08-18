@@ -1,6 +1,7 @@
 ﻿#pragma once
 
 #include "../common/types.hpp"
+#include "lua_state.hpp"
 #include <exception>
 #include <string>
 #include <memory>

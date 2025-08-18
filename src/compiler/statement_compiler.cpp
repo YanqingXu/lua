@@ -394,9 +394,9 @@ namespace Lua {
         // 标记条件寄存器为活跃状态，防止在跳转过程中被覆盖
         compiler->getRegisterManager().markRegisterLive(conditionReg, "if_condition");
 
-        // Test condition: if false, skip the jump (execute then branch)
-        // if true, execute the jump (go to else/end)
-        compiler->emitInstruction(Instruction::createTEST(conditionReg, 0));
+        // Test condition: if true, skip the jump (execute then branch)
+        // if false, execute the jump (go to else/end)
+        compiler->emitInstruction(Instruction::createTEST(conditionReg, 1));
 
         // 现在可以安全地释放条件寄存器，因为TEST指令已经使用了它
         compiler->getRegisterManager().unmarkRegisterLive(conditionReg);
@@ -437,9 +437,10 @@ namespace Lua {
 
         // 恢复寄存器状态到if语句之前的状态
         // 这确保if语句不会影响后续代码的寄存器分配
-        while (compiler->getRegisterManager().getStackTop() > oldStackTop) {
-            compiler->freeReg();
-        }
+        // 注意：必须在所有跳转修补完成后才能释放寄存器
+
+        // 确保寄存器状态完全重置到if语句之前
+        compiler->getRegisterManager().resetToStackTop(oldStackTop);
     }
     
     void StatementCompiler::compileWhileStmt(const WhileStmt* stmt) {
@@ -448,8 +449,8 @@ namespace Lua {
         // Compile condition (same pattern as for loop)
         int conditionReg = compiler->getExpressionCompiler()->compileExpr(stmt->getCondition());
 
-        // Test condition: if false, skip the jump to end (continue with loop body)
-        compiler->emitInstruction(Instruction::createTEST(conditionReg, 0));
+        // Test condition: if true, skip the jump to end (continue with loop body)
+        compiler->emitInstruction(Instruction::createTEST(conditionReg, 1));
         int exitJump = compiler->emitJump();
         compiler->freeReg(); // Free condition register
 
@@ -460,8 +461,8 @@ namespace Lua {
 
         // Jump back to loop start
         int currentPos = static_cast<int>(compiler->getCodeSize());
-        int backJump = currentPos - loopStart + 1;  // +1 because JMP instruction itself advances PC
-        compiler->emitInstruction(Instruction::createJMP(-backJump));
+        int jumpOffset = loopStart - currentPos;
+        compiler->emitInstruction(Instruction::createJMP(jumpOffset));
 
         // Patch exit jump
         compiler->patchJump(exitJump);
@@ -516,8 +517,8 @@ namespace Lua {
         // Loop body starts here
         int loopBodyStart = static_cast<int>(compiler->getCodeSize());
 
-        // Copy internal index to user visible variable
-        compiler->emitInstruction(Instruction::createMOVE(varSlot, baseReg));
+        // Note: FORLOOP instruction will automatically update the user visible variable (R(A+3))
+        // No need to manually copy the internal index
 
         // Compile loop body
         compiler->beginScope();
@@ -534,7 +535,7 @@ namespace Lua {
         compiler->emitInstruction(Instruction::createFORLOOP(baseReg, jumpOffset));
 
         // Patch FORPREP to jump to FORLOOP
-        int forprepOffset = forloopPC - forprepJump - 1;
+        int forprepOffset = forloopPC - forprepJump;
         (*compiler->getCode())[forprepJump] = Instruction::createFORPREP(baseReg, forprepOffset);
 
         // Handle break statements - patch them to jump to loop end
@@ -638,8 +639,8 @@ namespace Lua {
 
         // Jump back to loop start
         int currentPos = static_cast<int>(compiler->getCodeSize());
-        int backJump = currentPos - loopStart + 1;
-        compiler->emitInstruction(Instruction::createJMP(-backJump));
+        int jumpOffset = loopStart - currentPos;
+        compiler->emitInstruction(Instruction::createJMP(jumpOffset));
 
         // Patch exit jump
         compiler->patchJump(exitJump);
@@ -673,8 +674,8 @@ namespace Lua {
 
         // Jump back to loop start (when condition is false)
         int currentPos = static_cast<int>(compiler->getCodeSize());
-        int backJump = currentPos - loopStart + 1;  // +1 because JMP instruction itself advances PC
-        compiler->emitInstruction(Instruction::createJMP(-backJump));
+        int jumpOffset = loopStart - currentPos;
+        compiler->emitInstruction(Instruction::createJMP(jumpOffset));
 
         // Patch the exit jump
         compiler->patchJump(exitJump);

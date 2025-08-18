@@ -273,11 +273,11 @@ namespace Lua {
         
         size_t len = strlen(source);
         if (len < sizeof(ar->short_src)) {
-            strcpy(ar->short_src, source);
+            strcpy_s(ar->short_src, sizeof(ar->short_src), source);
         } else {
             // Truncate and add ellipsis
-            strncpy(ar->short_src, source, sizeof(ar->short_src) - 4);
-            strcpy(ar->short_src + sizeof(ar->short_src) - 4, "...");
+            strncpy_s(ar->short_src, sizeof(ar->short_src) - 4, source, _TRUNCATE);
+            strcpy_s(ar->short_src + sizeof(ar->short_src) - 4, 4, "...");
         }
     }
     
