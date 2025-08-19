@@ -273,9 +273,6 @@ void run_repl() {
     StandardLibrary::initializeAll(state.get());
     initializeREPL(*state);
 
-    // Print version banner (Lua 5.1 compatible)
-    std::cout << "Lua 5.1.5  Copyright (C) 1994-2012 Lua.org, PUC-Rio" << std::endl;
-
     // Enter the main REPL loop
     dotty(state.get());
 }
