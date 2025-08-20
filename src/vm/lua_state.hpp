@@ -802,6 +802,12 @@ namespace Lua {
          * @param status New status
          */
         void setStatus(u8 status) { status_ = status; }
+
+        /**
+         * @brief Set saved program counter
+         * @param pc Program counter to save
+         */
+        void setSavedPC(const u32* pc) { savedpc_ = pc; }
         
         // Stack size management
         /**

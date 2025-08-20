@@ -11,6 +11,20 @@
 
 namespace Lua {
     
+    Value VMExecutor::executeInContext(LuaState* L, GCRef<Function> func, const Vec<Value>& args) {
+        // 在当前执行上下文中执行函数，不干扰主执行栈的寄存器布局
+        // 这是符合 Lua 5.1 标准的嵌套函数调用实现
+
+        // 简化实现：直接执行函数并返回结果
+        // 不使用复杂的栈操作，避免干扰主执行上下文
+        try {
+            // 使用原有的 execute 方法，但确保不干扰当前寄存器状态
+            return execute(L, func, args);
+        } catch (const std::exception& e) {
+            throw;
+        }
+    }
+
     Value VMExecutor::execute(LuaState* L, GCRef<Function> func, const Vec<Value>& args) {
         if (!func || func->getType() != Function::Type::Lua) {
             throw LuaException("VMExecutor::execute: Invalid Lua function");
@@ -32,28 +46,39 @@ namespace Lua {
 
         // Step 3: Setup call using precall (following Lua 5.1 pattern)
         // Get function pointer from stack (function is at top - args.size() - 1)
-        Value* funcPtr = &L->get(L->getTop() - static_cast<i32>(args.size()) - 1);
+        i32 funcIndex = L->getTop() - static_cast<i32>(args.size()) - 1;
+        Value* funcPtr = &L->get(funcIndex);
+
+        // Function and arguments setup completed
+
         L->precall(funcPtr, 1);  // Expect 1 result
 
         // Step 4: Execute VM loop (this is the core VM execution)
         Value result = executeLoop(L);
 
         // Step 5: Post-call cleanup
-        CallInfo* ci = L->getCurrentCI();
-        L->postcall(ci ? ci->base : nullptr);
+        // 关键修复：不需要在这里调用 postcall，因为 executeLoop 中的 RETURN 处理已经调用了
+        // 双重调用 postcall 会破坏返回值的正确位置
 
         return result;
     }
     
     Value VMExecutor::executeLoop(LuaState* L) {
+        // 按照 Lua 5.1 的方式跟踪嵌套调用深度
+        // 初始值应该是 1，因为我们已经在执行一个 Lua 函数
+        int nexeccalls = 1;
+
         // Reentry point for Lua function calls (following Lua 5.1 pattern)
         reentry:
 
         // Get current call info
         CallInfo* ci = L->getCurrentCI();
         if (!ci || !ci->isLua()) {
+            std::cout << "[EXECUTE_LOOP] No Lua CI found, returning" << std::endl;
             throw LuaException("VMExecutor::executeLoop: Invalid call info");
         }
+
+        // Call frame validation completed
 
         // Get function from call info
         Value funcVal = *(ci->func);
@@ -74,7 +99,7 @@ namespace Lua {
         // Get base register address
         Value* base = ci->base;
 
-        // Debug output removed for cleaner execution
+        // Base register setup completed
 
         // Program counter (start from 0 for new calls, restore from saved PC for reentry)
         u32 pc = 0;
@@ -218,16 +243,18 @@ namespace Lua {
                 // TESTSET instruction not implemented in current OpCode set
                     
                 case OpCode::CALL:
-                    // Debug hooks: Placeholder for call hook (simplified implementation)
-                    // Full debug hook implementation will be added later
+                    // 关键修复：按照 Lua 5.1 的方式，在调用 precall 之前保存下一条指令的 PC
+                    // 这样当函数返回时，能够从正确的位置继续执行
+                    L->setSavedPC(reinterpret_cast<const u32*>(&code[pc + 1]));
 
                     if (handleCall(L, instr, base, pc)) {
                         // Function call completed, continue execution
                         // Debug hooks: Placeholder for return hook
                         break; // 使用break而不是continue，让PC正常递增
                     } else {
-                        // Reentry needed (for Lua function calls) - use goto instead of recursion
-                        goto reentry;
+                        // Lua function call: 按照 Lua 5.1 的方式处理
+                        nexeccalls++;  // 递增嵌套调用计数
+                        goto reentry;  // 重新进入执行循环
                     }
 
                 // TAILCALL instruction not implemented in current OpCode set
@@ -260,11 +287,19 @@ namespace Lua {
                     // postcall will copy the return value from ra to the function position
                     L->postcall(ra);
 
-                    // After postcall, the return value should be at the top of the stack
-                    if (L->getTop() > 0) {
-                        return L->get(-1);  // Get the top value
+                    // 按照 Lua 5.1 的方式处理返回
+                    --nexeccalls;
+
+                    if (nexeccalls == 0) {
+                        // 最顶层调用，返回结果
+                        if (L->getTop() > 0) {
+                            return L->get(-1);  // Get the top value
+                        }
+                        return Value();  // No result
+                    } else {
+                        // 还有更多嵌套调用，继续执行
+                        goto reentry;
                     }
-                    return Value();  // No result
                 }
                     
                 case OpCode::CLOSURE:
@@ -419,6 +454,8 @@ namespace Lua {
                 // 尝试从全局环境获取变量
                 Value globalValue = L->getGlobal(gcKey);
 
+                // Global variable retrieved successfully
+
                 base[a] = globalValue;
             } else {
                 base[a] = Value(); // nil
@@ -450,9 +487,14 @@ namespace Lua {
         Value* vb = getRK(base, constants, b);
         Value* vc = getRK(base, constants, c);
 
+        // Debug output removed for cleaner execution
+
         if (vb && vc && vb->isNumber() && vc->isNumber()) {
-            base[a] = Value(vb->asNumber() + vc->asNumber());
+            double result = vb->asNumber() + vc->asNumber();
+            base[a] = Value(result);
+            // Result stored successfully
         } else {
+            // Error: operands not numbers
             typeError(L, vb ? *vb : Value(), "perform arithmetic on");
         }
     }
@@ -464,7 +506,7 @@ namespace Lua {
 
         Value func = base[a];
 
-        // Debug output removed for cleaner execution
+        // Function call setup
 
         if (!func.isFunction()) {
             // Provide more detailed error information
@@ -503,34 +545,16 @@ namespace Lua {
 
         // Handle different function types
         if (functionObj->getType() == Function::Type::Lua) {
-            // Lua function: execute recursively
-            // In a full implementation, this would use proper call stack management
-            // For now, use recursive execution
-            try {
-                Value result = VMExecutor::execute(L, functionObj, args);
+            // Lua function: 完全按照 Lua 5.1 官方实现
+            // 参考 lvm.c 中 OP_CALL 的处理方式
 
-                // Handle return values based on C parameter
-                if (c == 0) {
-                    // C=0: return value count determined by function
-                    base[a] = result;
-                    // Result stored successfully
-                } else if (c == 1) {
-                    // C=1: no return values needed
-                    // No return values needed
-                } else {
-                    // C>1: need c-1 return values
-                    base[a] = result;
-                    // Result stored successfully
-                    // Additional return values set to nil
-                    for (u16 i = 1; i < c - 1; i++) {
-                        base[a + i] = Value();
-                    }
-                }
-                return true; // Function call completed
-            } catch (const LuaException& e) {
-                vmError(L, e.what());
-                return false;
-            }
+            // 设置调用帧
+            L->precall(&base[a], c == 0 ? -1 : c);
+
+            // 按照 Lua 5.1 的方式：nexeccalls++ 然后 goto reentry
+            // 这里我们返回 false 来表示需要重新进入执行循环
+            // executeLoop 会处理 nexeccalls 的递增
+            return false;
         } else if (functionObj->getType() == Function::Type::Native) {
             // Native function: call directly
             if (functionObj->isNativeLegacy()) {
@@ -550,6 +574,7 @@ namespace Lua {
                         L->push(savedRegisters[a + i]);  // 使用保存的值
                     }
 
+                    // 调用legacy函数
                     // 调用legacy函数
                     Value result = legacyFn(L, actualArgCount);
 

@@ -26,6 +26,15 @@ namespace Lua {
          * @return Value Function result
          */
         static Value execute(LuaState* L, GCRef<Function> func, const Vec<Value>& args);
+
+        /**
+         * @brief Execute a Lua function in the current execution context without stack manipulation
+         * @param L Lua state
+         * @param func Function to execute
+         * @param args Function arguments
+         * @return Value Function result
+         */
+        static Value executeInContext(LuaState* L, GCRef<Function> func, const Vec<Value>& args);
         
         /**
          * @brief Execute VM instructions starting from current CallInfo

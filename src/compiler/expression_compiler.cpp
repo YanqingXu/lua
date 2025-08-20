@@ -109,12 +109,9 @@ namespace Lua {
         // Use unified variable resolution
         auto varInfo = compiler->resolveVariable(name);
 
-
-
         switch (varInfo.type) {
             case Compiler::VariableType::Local: {
                 // Local variable - return register directly
-
                 return varInfo.index;
             }
 
@@ -130,7 +127,6 @@ namespace Lua {
             case Compiler::VariableType::Global: {
                 // Global variable - generate GETGLOBAL instruction
                 int reg = compiler->allocReg();
-
                 compiler->emitInstruction(Instruction::createGETGLOBAL(reg, varInfo.index));
                 return reg;
             }
@@ -192,7 +188,15 @@ namespace Lua {
 
         // Compile operands
         int leftReg = compileExpr(expr->getLeft());
+
+        // 关键修复：标记左操作数寄存器为活跃，防止在编译右操作数时被覆盖
+        compiler->getRegisterManager().markRegisterLive(leftReg, "binary_left_operand");
+
         int rightReg = compileExpr(expr->getRight());
+
+        // 编译完右操作数后，可以释放左操作数的活跃标记
+        compiler->getRegisterManager().unmarkRegisterLive(leftReg);
+
         int resultReg = compiler->allocReg();
 
 

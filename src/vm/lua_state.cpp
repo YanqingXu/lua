@@ -201,12 +201,15 @@ namespace Lua {
         ci_->tailcalls = 0;
         ci_->savedpc = nullptr;  // Will be set during execution
 
-        // Debug output removed for cleaner execution
+        // Function call setup completed
     }
     
     void LuaState::postcall(Value* firstResult) {
         // Following Lua 5.1 luaD_poscall implementation exactly
         CallInfo* ci = ci_;     // Get current CI
+
+        // 关键修复：确保 res 指向正确的位置
+        // 在嵌套调用中，我们不应该覆盖调用者的寄存器
         Value* res = ci->func;  // Results go where function was (res == final position of 1st result)
         i32 wanted = ci->nresults;
 
@@ -222,14 +225,21 @@ namespace Lua {
         // 关键修复：按照官方实现恢复 base 和 savedpc
         // L->base = (ci - 1)->base;  /* restore base */
         // L->savedpc = (ci - 1)->savedpc;  /* restore savedpc */
-        base_ = ci_->base;      // 恢复到前一个 CallInfo 的 base
-        savedpc_ = ci_->savedpc; // 恢复到前一个 CallInfo 的 savedpc
+
+        // 确保我们有前一个 CallInfo
+        if (ci_ >= base_ci_) {
+            base_ = ci_->base;      // 恢复到前一个 CallInfo 的 base
+            savedpc_ = ci_->savedpc; // 恢复到前一个 CallInfo 的 savedpc
+        }
+
+        // Function return processing
 
         // Move results to correct place (following Lua 5.1 logic)
         // for (i = wanted; i != 0 && firstResult < L->top; i--)
         //   setobjs2s(L, res++, firstResult++);
         i32 i;
         for (i = wanted; i != 0 && firstResult < top_; i--) {
+            // Result copied successfully
             *res++ = *firstResult++;
         }
 

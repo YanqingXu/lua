@@ -91,23 +91,10 @@ namespace Lua {
         Variable* localVar = scopeManager_.findVariable(name);
 
         if (localVar) {
-            // We found the variable, now check if it's in current function or parent function
-            if (parentContext_) {
-                // We're in a nested function
-                // Check if this variable was defined in the current function
-                // by checking if it's NOT in the parent scope
-                Variable* parentVar = parentContext_->parentScope->findVariable(name);
-                bool isInParent = (parentVar != nullptr);
-
-                if (!isInParent) {
-                    // Variable is not in parent scope, so it's local to current function
-                    return VariableInfo(VariableType::Local, localVar->stackIndex);
-                }
-                // If it's in parent scope, it will be handled as upvalue below
-            } else {
-                // We're in the main function - all found variables are local
-                return VariableInfo(VariableType::Local, localVar->stackIndex);
-            }
+            // CRITICAL FIX: If variable is found in current function's local scope,
+            // it should ALWAYS be treated as local, regardless of parent scope.
+            // This is the correct Lua 5.1 behavior for function parameters and local variables.
+            return VariableInfo(VariableType::Local, localVar->stackIndex);
         }
 
         // 2. Check if it's an upvalue (variable from parent function)

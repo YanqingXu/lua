@@ -1,4 +1,5 @@
 ﻿#include "symbol_table.hpp"
+#include <iostream>
 
 namespace Lua {
 
@@ -246,12 +247,12 @@ namespace Lua {
         if (!currentScope) {
             return false;
         }
-        
+
         // Validate scope memory integrity
         if (!currentScope->isValid()) {
             throw std::runtime_error("Current scope memory corruption detected in isInCurrentScope");
         }
-        
+
         try {
             return currentScope->locals.find(name) != currentScope->locals.end();
         } catch (const std::exception& e) {
