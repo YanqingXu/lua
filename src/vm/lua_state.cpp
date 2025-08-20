@@ -128,6 +128,17 @@ namespace Lua {
     i32 LuaState::getTop() const {
         return static_cast<i32>(top_ - stack_);
     }
+
+    Value* LuaState::getStackBase() const {
+        return stack_;
+    }
+
+    void LuaState::setTopDirect(Value* newTop) {
+        if (newTop < stack_ || newTop > stack_last_) {
+            throw LuaException("invalid stack top pointer");
+        }
+        top_ = newTop;
+    }
     
     Value& LuaState::get(i32 idx) {
         Value* addr = index2addr(idx);
@@ -148,65 +159,89 @@ namespace Lua {
     }
     
     void LuaState::precall(Value* func, i32 nresults) {
-        // Increment call info
+        // 保存当前 savedpc 到当前 CallInfo (L->ci->savedpc = L->savedpc;)
+        if (ci_ >= base_ci_) {
+            ci_->savedpc = savedpc_;
+        }
+
+        // Increment call info (ci = inc_ci(L);)
         if (++ci_ == end_ci_) {
             reallocCI_(size_ci_ * 2);
         }
 
-        // Set up call info following Lua 5.1 pattern
+        // 按照官方实现设置 CallInfo
+        // ci->func = func;
         ci_->func = func;
-        ci_->base = func + 1;  // Arguments start after function
-        ci_->top = top_;
-        ci_->nresults = nresults;
-        ci_->tailcalls = 0;
-        ci_->savedpc = nullptr;  // Will be set during execution
-        ci_->callstatus = CallInfo::CIST_FRESH;  // Mark as fresh call
 
-        // Check if this is a Lua function and set appropriate flags
+        // 设置 base (base = func + 1; 对于非可变参数函数)
+        Value* base = func + 1;
+
+        // 检查函数类型并设置参数
         if (func->isFunction()) {
             auto function = func->asFunction();
             if (function && function->getType() == Function::Type::Lua) {
-                ci_->callstatus |= CallInfo::CIST_LUA;  // Mark as Lua function call
+                ci_->callstatus = CallInfo::CIST_LUA;  // Mark as Lua function call
+
+                // 按照官方实现处理参数数量
+                // if (L->top > base + p->numparams) L->top = base + p->numparams;
+                u8 numparams = function->getParamCount();
+                if (top_ > base + numparams) {
+                    top_ = base + numparams;
+                }
+            } else {
+                ci_->callstatus = CallInfo::CIST_FRESH;
             }
         }
 
-        // Set current base
-        base_ = ci_->base;
+        // 设置 CallInfo 的其他字段
+        // L->base = ci->base = base;
+        base_ = ci_->base = base;
+        ci_->top = top_;  // 暂时设置，可能会被调整
+        ci_->nresults = nresults;
+        ci_->tailcalls = 0;
+        ci_->savedpc = nullptr;  // Will be set during execution
+
+        // Debug output removed for cleaner execution
     }
     
     void LuaState::postcall(Value* firstResult) {
-        CallInfo* ci = ci_;
-        Value* res = ci->func;  // Results go where function was
-        i32 nresults = ci->nresults;
-        
-        // Move results to proper position
-        if (nresults != 0) {
-            i32 nres = static_cast<i32>(top_ - firstResult);
-            if (nresults > 0) {
-                nres = std::min(nres, nresults);
-            }
-            
-            // Copy results
-            for (i32 i = 0; i < nres; i++) {
-                res[i] = firstResult[i];
-            }
-            
-            // Fill remaining with nil if needed
-            while (nres < nresults) {
-                res[nres++] = Value();
-            }
-            
-            top_ = res + nres;
-        } else {
-            top_ = res;
+        // Following Lua 5.1 luaD_poscall implementation exactly
+        CallInfo* ci = ci_;     // Get current CI
+        Value* res = ci->func;  // Results go where function was (res == final position of 1st result)
+        i32 wanted = ci->nresults;
+
+        // 安全检查：确保不会访问无效的 CallInfo
+        if (ci_ <= base_ci_) {
+            // This is normal at the end of main program execution
+            return;
         }
-        
-        // Restore previous call info
+
+        // 先减少 ci_ 指针
         ci_--;
-        if (ci_ >= base_ci_) {
-            base_ = ci_->base;
-            savedpc_ = ci_->savedpc;
+
+        // 关键修复：按照官方实现恢复 base 和 savedpc
+        // L->base = (ci - 1)->base;  /* restore base */
+        // L->savedpc = (ci - 1)->savedpc;  /* restore savedpc */
+        base_ = ci_->base;      // 恢复到前一个 CallInfo 的 base
+        savedpc_ = ci_->savedpc; // 恢复到前一个 CallInfo 的 savedpc
+
+        // Move results to correct place (following Lua 5.1 logic)
+        // for (i = wanted; i != 0 && firstResult < L->top; i--)
+        //   setobjs2s(L, res++, firstResult++);
+        i32 i;
+        for (i = wanted; i != 0 && firstResult < top_; i--) {
+            *res++ = *firstResult++;
         }
+
+        // Fill remaining with nil if needed
+        // while (i-- > 0) setnilvalue(res++);
+        while (i-- > 0) {
+            *res++ = Value();  // nil value
+        }
+
+        // Set new top
+        // L->top = res;
+        top_ = res;
     }
     
 

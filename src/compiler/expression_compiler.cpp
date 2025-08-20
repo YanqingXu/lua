@@ -1065,13 +1065,10 @@ namespace Lua {
         // Enter function scope and define parameters
         functionCompiler.beginScope();
 
-        // Lua 5.1官方调用约定：寄存器0是函数，参数从寄存器1开始
-        // 先分配寄存器0给函数本身（虽然不会直接使用）
-        functionCompiler.defineLocal("function");  // 寄存器0保留给函数
-
-        // 然后分配参数寄存器（从寄存器1开始）
+        // Lua 5.1官方调用约定：参数从寄存器0开始
+        // 修复：不保留寄存器0给函数，参数直接从寄存器0开始
         for (const auto& param : expr->getParameters()) {
-            functionCompiler.defineLocal(param);  // 寄存器1, 2, 3...
+            functionCompiler.defineLocal(param);  // 寄存器0, 1, 2...
         }
 
         // Handle variadic functions - reserve space for vararg table if needed

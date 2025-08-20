@@ -267,12 +267,24 @@ namespace Lua {
          * @param idx New top index
          */
         void setTop(i32 idx);
+
+        /**
+         * @brief Set stack top directly using pointer
+         * @param newTop New top pointer
+         */
+        void setTopDirect(Value* newTop);
         
         /**
          * @brief Get current stack top index
          * @return i32 Current top index
          */
         i32 getTop() const;
+
+        /**
+         * @brief Get stack base pointer
+         * @return Value* Pointer to stack base
+         */
+        Value* getStackBase() const;
         
         /**
          * @brief Get stack element by index

@@ -74,6 +74,8 @@ namespace Lua {
         // Get base register address
         Value* base = ci->base;
 
+        // Debug output removed for cleaner execution
+
         // Program counter (start from 0 for new calls, restore from saved PC for reentry)
         u32 pc = 0;
         if (ci->savedpc != nullptr) {
@@ -230,15 +232,40 @@ namespace Lua {
 
                 // TAILCALL instruction not implemented in current OpCode set
                     
-                case OpCode::RETURN:
+                case OpCode::RETURN: {
                     // Debug hooks: Placeholder for return hook (simplified implementation)
                     // Full debug hook implementation will be added later
 
-                    if (handleReturn(L, instr, base)) {
-                        // Function returned, get result from stack
-                        return L->get(-1);
+                    u8 a = instr.getA();
+                    u16 b = instr.getB();
+
+                    // Following Lua 5.1 OP_RETURN implementation
+                    Value* ra = base + a;
+
+                    // Debug output removed for cleaner execution
+
+                    // Set top based on B parameter (following Lua 5.1 logic)
+                    if (b != 0) {
+                        // Set top to ra + b - 1 (following Lua 5.1: if (b != 0) L->top = ra+b-1;)
+                        // This sets the top to point after the last return value
+                        Value* newTop = ra + b - 1;
+                        // Set top to point after the last return value
+
+                        // Directly set the top pointer instead of using setTop
+                        // This is more direct and matches Lua 5.1 exactly
+                        L->setTopDirect(newTop);
                     }
-                    break;
+
+                    // Call postcall to handle return values properly
+                    // postcall will copy the return value from ra to the function position
+                    L->postcall(ra);
+
+                    // After postcall, the return value should be at the top of the stack
+                    if (L->getTop() > 0) {
+                        return L->get(-1);  // Get the top value
+                    }
+                    return Value();  // No result
+                }
                     
                 case OpCode::CLOSURE:
                     handleClosure(L, instr, base, prototypes, pc);
@@ -437,6 +464,8 @@ namespace Lua {
 
         Value func = base[a];
 
+        // Debug output removed for cleaner execution
+
         if (!func.isFunction()) {
             // Provide more detailed error information
             std::string errorMsg = "attempt to call a non-function value (";
@@ -484,11 +513,14 @@ namespace Lua {
                 if (c == 0) {
                     // C=0: return value count determined by function
                     base[a] = result;
+                    // Result stored successfully
                 } else if (c == 1) {
                     // C=1: no return values needed
+                    // No return values needed
                 } else {
                     // C>1: need c-1 return values
                     base[a] = result;
+                    // Result stored successfully
                     // Additional return values set to nil
                     for (u16 i = 1; i < c - 1; i++) {
                         base[a + i] = Value();
@@ -607,21 +639,10 @@ namespace Lua {
     }
 
     bool VMExecutor::handleReturn(LuaState* L, Instruction instr, Value* base) {
-        u8 a = instr.getA();
-        u16 b = instr.getB();
-
-        if (b == 1) {
-            // No return values
-            L->push(Value()); // nil
-        } else if (b == 2) {
-            // Single return value
-            L->push(base[a]);
-        } else {
-            // Multiple return values - for now, return first value
-            L->push(base[a]);
-        }
-
-        return true; // Function completed
+        // This function is no longer used since RETURN is handled directly in executeLoop
+        // Keeping it for compatibility but it should not be called
+        (void)L; (void)instr; (void)base;
+        return true;
     }
 
 
@@ -722,10 +743,16 @@ namespace Lua {
         u16 c = instr.getC();
         Value* vb = getRK(base, constants, b);
         Value* vc = getRK(base, constants, c);
+
+        // Debug output removed for cleaner execution
+
         if (vb && vc && vb->isNumber() && vc->isNumber()) {
-            base[a] = Value(vb->asNumber() * vc->asNumber());
+            double result = vb->asNumber() * vc->asNumber();
+            base[a] = Value(result);
+            // Result stored successfully
         } else {
             base[a] = Value(); // nil
+            // Error: operands not numbers
         }
         (void)L;
     }

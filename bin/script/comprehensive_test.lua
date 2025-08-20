@@ -1,8 +1,8 @@
--- 综合测试：验证所有功能
-print("=== Lua解释器综合测试 ===")
+-- Comprehensive test: verify all functions
+print("=== Lua Interpreter Comprehensive Test ===")
 
--- 1. 基本算术运算
-print("\n1. 基本算术运算:")
+-- 1. Basic arithmetic operations
+print("\n1. Basic arithmetic operations:")
 local a = 10
 local b = 5
 print("a =", a)
@@ -12,25 +12,25 @@ print("a - b =", a - b)
 print("a * b =", a * b)
 print("a / b =", a / b)
 
--- 2. 条件语句
-print("\n2. 条件语句:")
+-- 2. Conditional statements
+print("\n2. Conditional statements:")
 if a > b then
-    print("a大于b")
+    print("a is greater than b")
 else
-    print("a不大于b")
+    print("a is not greater than b")
 end
 
--- 3. for循环
-print("\n3. for循环:")
+-- 3. for loop
+print("\n3. for loop:")
 local sum = 0
 for i = 1, 5 do
     sum = sum + i
     print("i =", i, "sum =", sum)
 end
-print("最终sum =", sum)
+print("final sum =", sum)
 
--- 4. 函数定义和调用
-print("\n4. 函数定义和调用:")
+-- 4. Function definition and call
+print("\n4. Function definition and call:")
 function multiply(x, y)
     return x * y
 end
@@ -38,8 +38,8 @@ end
 local result = multiply(6, 7)
 print("multiply(6, 7) =", result)
 
--- 5. 嵌套函数调用
-print("\n5. 嵌套函数调用:")
+-- 5. Nested function calls
+print("\n5. Nested function calls:")
 function square(n)
     return n * n
 end
@@ -51,4 +51,4 @@ end
 local nested_result = sumOfSquares(3, 4)
 print("sumOfSquares(3, 4) =", nested_result)
 
-print("\n=== 所有测试完成 ===")
+print("\n=== All tests completed ===")
