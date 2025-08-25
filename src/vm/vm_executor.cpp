@@ -227,11 +227,11 @@ namespace Lua {
                 case OpCode::EQ:
                     handleEq(L, instr, base, constants, pc);
                     break;
-                    
+
                 case OpCode::LT:
                     handleLt(L, instr, base, constants, pc);
                     break;
-                    
+
                 case OpCode::LE:
                     handleLe(L, instr, base, constants, pc);
                     break;
@@ -884,17 +884,26 @@ namespace Lua {
     }
 
     void VMExecutor::handleConcat(LuaState* L, Instruction instr, Value* base, const Vec<Value>& constants) {
+        // OP_CONCAT: R(A) := R(B).. ... ..R(C)
+        // Following official Lua 5.1 implementation - concatenate from R(B) to R(C)
         u8 a = instr.getA();
         u16 b = instr.getB();
         u16 c = instr.getC();
-        // Simple concatenation of two values
-        if (b < 256 && c < 256) {
-            Str result = base[b].toString() + base[c].toString();
-            base[a] = Value(result);
-        } else {
-            base[a] = Value(""); // empty string
+
+        // Concatenate all values from R(B) to R(C) inclusive
+        std::string result;
+        for (u16 i = b; i <= c; i++) {
+            result += base[i].toString();
         }
-        (void)L; (void)constants;
+
+        // Check GC before creating new string (string creation may trigger GC)
+        luaC_checkGC(L);
+
+        // Create GC-managed string
+        GCString* gcStr = luaS_newlstr(L, result.c_str(), result.length());
+        base[a] = Value(gcStr);
+
+        (void)constants;
     }
 
     void VMExecutor::handleJmp(LuaState* L, Instruction instr, u32& pc) {
@@ -904,14 +913,15 @@ namespace Lua {
     }
 
     void VMExecutor::handleEq(LuaState* L, Instruction instr, Value* base, const Vec<Value>& constants, u32& pc) {
-        // EQ instruction for our compiler: R(A) = (RK(B) == RK(C))
-        // This differs from standard Lua 5.1 EQ which is a conditional jump instruction
-        // Our compiler expects the result to be stored in register A for subsequent TEST
+        // OP_EQ: if ((RK(B) == RK(C)) ~= A) then pc++
+        // Following official Lua 5.1 implementation - this is a conditional jump instruction
         u8 a = instr.getA();
         u16 b = instr.getB();
         u16 c = instr.getC();
+
         Value* vb = getRK(base, constants, b);
         Value* vc = getRK(base, constants, c);
+
         bool equal = false;
         if (vb && vc) {
             if (vb->type() == vc->type()) {
@@ -919,55 +929,76 @@ namespace Lua {
                 else if (vb->isString()) equal = (vb->asString() == vc->asString());
                 else if (vb->isBoolean()) equal = (vb->asBoolean() == vc->asBoolean());
                 else if (vb->isNil()) equal = true;
+                else if (vb->isTable()) equal = (vb->asTable() == vc->asTable());
+                else if (vb->isFunction()) equal = (vb->asFunction() == vc->asFunction());
             }
         }
 
-        // Store the comparison result in register A
-        base[a] = Value(equal);
+        // Official Lua 5.1 conditional jump logic:
+        // if ((equal) ~= A) then pc++ (skip next instruction which should be a JMP)
+        if (equal != (a != 0)) {
+            pc++; // Skip next instruction
+        }
 
-        (void)L; (void)pc;
+        (void)L;
     }
 
     void VMExecutor::handleLt(LuaState* L, Instruction instr, Value* base, const Vec<Value>& constants, u32& pc) {
-        // LT instruction for our compiler: R(A) = (RK(B) < RK(C))
-        // This differs from standard Lua 5.1 LT which is a conditional jump instruction
-        // Our compiler expects the result to be stored in register A for subsequent TEST
+        // OP_LT: if ((RK(B) < RK(C)) ~= A) then pc++
+        // Following official Lua 5.1 implementation - this is a conditional jump instruction
         u8 a = instr.getA();
         u16 b = instr.getB();
         u16 c = instr.getC();
+
         Value* vb = getRK(base, constants, b);
         Value* vc = getRK(base, constants, c);
+
         bool less = false;
-        if (vb && vc && vb->isNumber() && vc->isNumber()) {
-            less = (vb->asNumber() < vc->asNumber());
+        if (vb && vc) {
+            if (vb->isNumber() && vc->isNumber()) {
+                less = (vb->asNumber() < vc->asNumber());
+            } else if (vb->isString() && vc->isString()) {
+                less = (vb->asString() < vc->asString());
+            }
+            // TODO: Add metamethod support for other types
         }
 
-        // Store the comparison result in register A
-        base[a] = Value(less);
+        // Official Lua 5.1 conditional jump logic:
+        // if ((less) ~= A) then pc++ (skip next instruction which should be a JMP)
+        if (less != (a != 0)) {
+            pc++; // Skip next instruction
+        }
 
-        (void)L; (void)pc;
+        (void)L;
     }
 
     void VMExecutor::handleLe(LuaState* L, Instruction instr, Value* base, const Vec<Value>& constants, u32& pc) {
-        // LE instruction for our compiler: R(A) = (RK(B) <= RK(C))
-        // This differs from standard Lua 5.1 LE which is a conditional jump instruction
-        // Our compiler expects the result to be stored in register A for subsequent TEST
+        // OP_LE: if ((RK(B) <= RK(C)) ~= A) then pc++
+        // Following official Lua 5.1 implementation - this is a conditional jump instruction
         u8 a = instr.getA();
         u16 b = instr.getB();
         u16 c = instr.getC();
+
         Value* vb = getRK(base, constants, b);
         Value* vc = getRK(base, constants, c);
+
         bool lessEqual = false;
-        if (vb && vc && vb->isNumber() && vc->isNumber()) {
-            lessEqual = (vb->asNumber() <= vc->asNumber());
-            std::cout << "[LE] " << vb->asNumber() << " <= " << vc->asNumber() << " = " << (lessEqual ? "true" : "false") << std::endl;
+        if (vb && vc) {
+            if (vb->isNumber() && vc->isNumber()) {
+                lessEqual = (vb->asNumber() <= vc->asNumber());
+            } else if (vb->isString() && vc->isString()) {
+                lessEqual = (vb->asString() <= vc->asString());
+            }
+            // TODO: Add metamethod support for other types
         }
 
-        // Store the comparison result in register A
-        base[a] = Value(lessEqual);
-        std::cout << "[LE] Result stored in R(" << (int)a << ") = " << (lessEqual ? "true" : "false") << std::endl;
+        // Official Lua 5.1 conditional jump logic:
+        // if ((lessEqual) ~= A) then pc++ (skip next instruction which should be a JMP)
+        if (lessEqual != (a != 0)) {
+            pc++; // Skip next instruction
+        }
 
-        (void)L; (void)pc;
+        (void)L;
     }
 
     void VMExecutor::handleTest(LuaState* L, Instruction instr, Value* base, u32& pc) {
@@ -982,29 +1013,10 @@ namespace Lua {
         // Check if value is false/nil (l_isfalse equivalent)
         bool isFalse = testValue.isNil() || (testValue.isBoolean() && !testValue.asBoolean());
 
-        std::cout << "[TEST] R(" << (int)a << ") = ";
-        if (testValue.isBoolean()) {
-            std::cout << (testValue.asBoolean() ? "true" : "false");
-        } else if (testValue.isNil()) {
-            std::cout << "nil";
-        } else {
-            std::cout << "other";
-        }
-        std::cout << ", isFalse=" << (isFalse ? "true" : "false") << ", C=" << c << std::endl;
-
-        // For for-loops: we want to exit when condition is false
-        // C=0 means: if condition is false, skip next instruction (skip JMP to exit)
-        // So: if condition is false (isFalse=true), skip JMP (continue loop)
-        //     if condition is true (isFalse=false), execute JMP (exit loop)
-        bool shouldSkip = (isFalse == (c == 0));
-        std::cout << "[TEST] shouldSkip=" << (shouldSkip ? "true" : "false") << std::endl;
-
-        if (shouldSkip) {
-            // Skip next instruction
-            pc++;
-            std::cout << "[TEST] Skipping next instruction, PC now=" << pc << std::endl;
-        } else {
-            std::cout << "[TEST] Executing next instruction" << std::endl;
+        // Official Lua 5.1 logic: if not (R(A) <=> C) then pc++
+        // This means: if (isFalse != (C != 0)) then pc++
+        if (isFalse != (c != 0)) {
+            pc++; // Skip next instruction
         }
 
         (void)L;
