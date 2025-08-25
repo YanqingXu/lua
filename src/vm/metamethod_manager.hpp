@@ -30,6 +30,7 @@ namespace Lua {
         Mod,        // __mod - modulo
         Pow,        // __pow - exponentiation
         Unm,        // __unm - unary minus
+        Len,        // __len - length operator
         Concat,     // __concat - string concatenation
         
         // Comparison metamethods - relational operations

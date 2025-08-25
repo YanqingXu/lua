@@ -64,6 +64,7 @@ namespace Lua {
         Value(i64 val) : data(static_cast<LuaNumber>(val)) {}  // Accept 64-bit integer
         Value(const Str& val) : data(make_gc_string(val)) {}
         Value(const char* val) : data(make_gc_string(val)) {}
+        Value(GCRef<GCString> val) : data(val) {}      // Direct GCString constructor
         Value(GCRef<Table> val) : data(val) {}
         Value(GCRef<Function> val) : data(val) {}
         Value(GCRef<Userdata> val) : data(val) {}

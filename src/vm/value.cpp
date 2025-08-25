@@ -120,6 +120,11 @@ namespace Lua {
             case ValueType::LightUserdata:
                 return "userdata";  // Light userdata also shows as "userdata" in Lua 5.1
             default:
+                // Add debug information for unknown types
+                #ifdef DEBUG
+                std::cerr << "Warning: Value::toString() encountered unknown type: "
+                         << static_cast<int>(type()) << std::endl;
+                #endif
                 return "unknown";
         }
     }
