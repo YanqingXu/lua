@@ -1,6 +1,7 @@
 ﻿#include "vm_executor.hpp"
 #include "debug_hooks.hpp"
 #include "table.hpp"
+#include "metamethod_manager.hpp"  // 添加元方法支持
 #include "../gc/core/garbage_collector.hpp"
 #include "../gc/core/gc_string.hpp"
 #include "../gc/core/string_pool.hpp"  // 添加字符串池支持
@@ -487,15 +488,26 @@ namespace Lua {
         Value* vb = getRK(base, constants, b);
         Value* vc = getRK(base, constants, c);
 
-        // Debug output removed for cleaner execution
+        if (!vb || !vc) {
+            vmError(L, "invalid operands in ADD");
+            return;
+        }
 
-        if (vb && vc && vb->isNumber() && vc->isNumber()) {
+        // Following official Lua 5.1 arith_op pattern:
+        // First try direct numeric operation
+        if (vb->isNumber() && vc->isNumber()) {
             double result = vb->asNumber() + vc->asNumber();
             base[a] = Value(result);
-            // Result stored successfully
-        } else {
-            // Error: operands not numbers
-            typeError(L, vb ? *vb : Value(), "perform arithmetic on");
+            return;
+        }
+
+        // If not both numbers, try metamethod
+        try {
+            Value result = MetaMethodManager::callBinaryMetaMethod(L, MetaMethod::Add, *vb, *vc);
+            base[a] = result;
+        } catch (const LuaException& e) {
+            // No metamethod found or metamethod failed
+            typeError(L, *vb, "perform arithmetic on");
         }
     }
 
@@ -752,88 +764,194 @@ namespace Lua {
         u8 a = instr.getA();
         u16 b = instr.getB();
         u16 c = instr.getC();
+
         Value* vb = getRK(base, constants, b);
         Value* vc = getRK(base, constants, c);
-        if (vb && vc && vb->isNumber() && vc->isNumber()) {
-            base[a] = Value(vb->asNumber() - vc->asNumber());
-        } else {
-            base[a] = Value(); // nil
+
+        if (!vb || !vc) {
+            vmError(L, "invalid operands in SUB");
+            return;
         }
-        (void)L;
+
+        // Following official Lua 5.1 arith_op pattern:
+        // First try direct numeric operation
+        if (vb->isNumber() && vc->isNumber()) {
+            double result = vb->asNumber() - vc->asNumber();
+            base[a] = Value(result);
+            return;
+        }
+
+        // If not both numbers, try metamethod
+        try {
+            Value result = MetaMethodManager::callBinaryMetaMethod(L, MetaMethod::Sub, *vb, *vc);
+            base[a] = result;
+        } catch (const LuaException& e) {
+            // No metamethod found or metamethod failed
+            typeError(L, *vb, "perform arithmetic on");
+        }
     }
 
     void VMExecutor::handleMul(LuaState* L, Instruction instr, Value* base, const Vec<Value>& constants) {
         u8 a = instr.getA();
         u16 b = instr.getB();
         u16 c = instr.getC();
+
         Value* vb = getRK(base, constants, b);
         Value* vc = getRK(base, constants, c);
 
-        // Debug output removed for cleaner execution
+        if (!vb || !vc) {
+            vmError(L, "invalid operands in MUL");
+            return;
+        }
 
-        if (vb && vc && vb->isNumber() && vc->isNumber()) {
+        // Following official Lua 5.1 arith_op pattern:
+        // First try direct numeric operation
+        if (vb->isNumber() && vc->isNumber()) {
             double result = vb->asNumber() * vc->asNumber();
             base[a] = Value(result);
-            // Result stored successfully
-        } else {
-            base[a] = Value(); // nil
-            // Error: operands not numbers
+            return;
         }
-        (void)L;
+
+        // If not both numbers, try metamethod
+        try {
+            Value result = MetaMethodManager::callBinaryMetaMethod(L, MetaMethod::Mul, *vb, *vc);
+            base[a] = result;
+        } catch (const LuaException& e) {
+            // No metamethod found or metamethod failed
+            typeError(L, *vb, "perform arithmetic on");
+        }
     }
 
     void VMExecutor::handleDiv(LuaState* L, Instruction instr, Value* base, const Vec<Value>& constants) {
         u8 a = instr.getA();
         u16 b = instr.getB();
         u16 c = instr.getC();
+
         Value* vb = getRK(base, constants, b);
         Value* vc = getRK(base, constants, c);
-        if (vb && vc && vb->isNumber() && vc->isNumber() && vc->asNumber() != 0.0) {
-            base[a] = Value(vb->asNumber() / vc->asNumber());
-        } else {
-            base[a] = Value(); // nil
+
+        if (!vb || !vc) {
+            vmError(L, "invalid operands in DIV");
+            return;
         }
-        (void)L;
+
+        // Following official Lua 5.1 arith_op pattern:
+        // First try direct numeric operation
+        if (vb->isNumber() && vc->isNumber()) {
+            double divisor = vc->asNumber();
+            if (divisor == 0.0) {
+                vmError(L, "attempt to divide by zero");
+                return;
+            }
+            double result = vb->asNumber() / divisor;
+            base[a] = Value(result);
+            return;
+        }
+
+        // If not both numbers, try metamethod
+        try {
+            Value result = MetaMethodManager::callBinaryMetaMethod(L, MetaMethod::Div, *vb, *vc);
+            base[a] = result;
+        } catch (const LuaException& e) {
+            // No metamethod found or metamethod failed
+            typeError(L, *vb, "perform arithmetic on");
+        }
     }
 
     void VMExecutor::handleMod(LuaState* L, Instruction instr, Value* base, const Vec<Value>& constants) {
         u8 a = instr.getA();
         u16 b = instr.getB();
         u16 c = instr.getC();
+
         Value* vb = getRK(base, constants, b);
         Value* vc = getRK(base, constants, c);
-        if (vb && vc && vb->isNumber() && vc->isNumber() && vc->asNumber() != 0.0) {
-            base[a] = Value(std::fmod(vb->asNumber(), vc->asNumber()));
-        } else {
-            base[a] = Value(); // nil
+
+        if (!vb || !vc) {
+            vmError(L, "invalid operands in MOD");
+            return;
         }
-        (void)L;
+
+        // Following official Lua 5.1 arith_op pattern:
+        // First try direct numeric operation
+        if (vb->isNumber() && vc->isNumber()) {
+            double divisor = vc->asNumber();
+            if (divisor == 0.0) {
+                vmError(L, "attempt to perform modulo by zero");
+                return;
+            }
+            double result = std::fmod(vb->asNumber(), divisor);
+            base[a] = Value(result);
+            return;
+        }
+
+        // If not both numbers, try metamethod
+        try {
+            Value result = MetaMethodManager::callBinaryMetaMethod(L, MetaMethod::Mod, *vb, *vc);
+            base[a] = result;
+        } catch (const LuaException& e) {
+            // No metamethod found or metamethod failed
+            typeError(L, *vb, "perform arithmetic on");
+        }
     }
 
     void VMExecutor::handlePow(LuaState* L, Instruction instr, Value* base, const Vec<Value>& constants) {
         u8 a = instr.getA();
         u16 b = instr.getB();
         u16 c = instr.getC();
+
         Value* vb = getRK(base, constants, b);
         Value* vc = getRK(base, constants, c);
-        if (vb && vc && vb->isNumber() && vc->isNumber()) {
-            base[a] = Value(std::pow(vb->asNumber(), vc->asNumber()));
-        } else {
-            base[a] = Value(); // nil
+
+        if (!vb || !vc) {
+            vmError(L, "invalid operands in POW");
+            return;
         }
-        (void)L;
+
+        // Following official Lua 5.1 arith_op pattern:
+        // First try direct numeric operation
+        if (vb->isNumber() && vc->isNumber()) {
+            double result = std::pow(vb->asNumber(), vc->asNumber());
+            base[a] = Value(result);
+            return;
+        }
+
+        // If not both numbers, try metamethod
+        try {
+            Value result = MetaMethodManager::callBinaryMetaMethod(L, MetaMethod::Pow, *vb, *vc);
+            base[a] = result;
+        } catch (const LuaException& e) {
+            // No metamethod found or metamethod failed
+            typeError(L, *vb, "perform arithmetic on");
+        }
     }
 
     void VMExecutor::handleUnm(LuaState* L, Instruction instr, Value* base, const Vec<Value>& constants) {
         u8 a = instr.getA();
         u16 b = instr.getB();
+
         Value* vb = getRK(base, constants, b);
-        if (vb && vb->isNumber()) {
-            base[a] = Value(-vb->asNumber());
-        } else {
-            base[a] = Value(); // nil
+
+        if (!vb) {
+            vmError(L, "invalid operand in UNM");
+            return;
         }
-        (void)L;
+
+        // Following official Lua 5.1 pattern:
+        // First try direct numeric operation
+        if (vb->isNumber()) {
+            double result = -vb->asNumber();
+            base[a] = Value(result);
+            return;
+        }
+
+        // If not a number, try metamethod
+        try {
+            Value result = MetaMethodManager::callUnaryMetaMethod(L, MetaMethod::Unm, *vb);
+            base[a] = result;
+        } catch (const LuaException& e) {
+            // No metamethod found or metamethod failed
+            typeError(L, *vb, "perform arithmetic on");
+        }
     }
 
     void VMExecutor::handleNot(LuaState* L, Instruction instr, Value* base, const Vec<Value>& constants) {
@@ -1145,17 +1263,34 @@ namespace Lua {
 
     void VMExecutor::handleSelf(LuaState* L, Instruction instr, Value* base, const Vec<Value>& constants) {
         // OP_SELF: R(A+1) := R(B); R(A) := R(B)[RK(C)]
+        // Following official Lua 5.1 implementation
         u8 a = instr.getA();
         u16 b = instr.getB();
         u16 c = instr.getC();
 
-        // R(A+1) := R(B)
+        // R(A+1) := R(B) - copy the table/object to A+1
         base[a + 1] = base[b];
 
-        // R(A) := R(B)[RK(C)] - 简化实现，暂时返回nil
-        base[a] = Value(); // nil
+        // R(A) := R(B)[RK(C)] - get the method from the table
+        Value table = base[b];
+        if (!table.isTable()) {
+            vmError(L, "attempt to index a non-table value in SELF");
+            return;
+        }
 
-        (void)L; (void)constants; (void)c;
+        Value* key = getRK(base, constants, c);
+        if (!key) {
+            vmError(L, "invalid key in SELF");
+            return;
+        }
+
+        // Get the method from the table
+        // This is equivalent to luaV_gettable in official Lua 5.1
+        Value method = table.asTable()->get(*key);
+        base[a] = method;
+
+        // Note: In a full implementation, this should also handle __index metamethod
+        // For now, we implement basic table access
     }
 
     void VMExecutor::handleTestSet(LuaState* L, Instruction instr, Value* base, u32& pc) {
