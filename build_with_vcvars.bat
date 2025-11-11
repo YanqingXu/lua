@@ -80,27 +80,61 @@ REM Create test source file
 echo #include "common/types.hpp"
 echo #include "common/config.hpp"
 echo #include "common/macros.hpp"
+echo #include "core/value.hpp"
 echo #include ^<iostream^>
 echo.
 echo int main^(^) {
-echo     std::cout ^<^< "[INFO] Lua C++ Interpreter - Build Test" ^<^< std::endl;
+echo     std::cout ^<^< "[INFO] Lua C++ Interpreter - Value Class Test" ^<^< std::endl;
 echo     std::cout ^<^< "[INFO] Version: " ^<^< Lua::LUA_VERSION ^<^< std::endl;
 echo     std::cout ^<^< "[INFO] Build Type: %BUILD_TYPE%" ^<^< std::endl;
 echo     std::cout ^<^< "[INFO] Debug Mode: " ^<^< ^(Lua::DEBUG_MODE ? "Yes" : "No"^) ^<^< std::endl;
-echo     std::cout ^<^< "\n[INFO] Configuration:" ^<^< std::endl;
-echo     std::cout ^<^< "  - C++ Standard: C++17" ^<^< std::endl;
-echo     std::cout ^<^< "  - Platform: ";
-echo     if ^(Lua::IS_WINDOWS^) std::cout ^<^< "Windows";
-echo     else if ^(Lua::IS_LINUX^) std::cout ^<^< "Linux";
-echo     else if ^(Lua::IS_MACOS^) std::cout ^<^< "macOS";
-echo     else std::cout ^<^< "Unknown";
-echo     std::cout ^<^< std::endl;
-echo     std::cout ^<^< "  - Architecture: " ^<^< ^(Lua::IS_64BIT ? "64-bit" : "32-bit"^) ^<^< std::endl;
-echo     std::cout ^<^< "\n[INFO] Type Sizes:" ^<^< std::endl;
-echo     std::cout ^<^< "  - LuaInteger: " ^<^< sizeof^(Lua::LuaInteger^) ^<^< " bytes" ^<^< std::endl;
-echo     std::cout ^<^< "  - LuaNumber: " ^<^< sizeof^(Lua::LuaNumber^) ^<^< " bytes" ^<^< std::endl;
-echo     std::cout ^<^< "  - ValueType: " ^<^< sizeof^(Lua::ValueType^) ^<^< " bytes" ^<^< std::endl;
-echo     std::cout ^<^< "\n[SUCCESS] Build test passed!" ^<^< std::endl;
+echo.
+echo     std::cout ^<^< "\n[TEST] Testing Value class..." ^<^< std::endl;
+echo.
+echo     // Test 1: Nil value
+echo     Lua::Value nilVal;
+echo     std::cout ^<^< "  [1] Nil value: " ^<^< ^(nilVal.isNil^(^) ? "PASS" : "FAIL"^) ^<^< std::endl;
+echo.
+echo     // Test 2: Boolean value
+echo     Lua::Value boolVal^(true^);
+echo     std::cout ^<^< "  [2] Boolean value: " ^<^< ^(boolVal.isBoolean^(^) ^&^& boolVal.asBoolean^(^) == true ? "PASS" : "FAIL"^) ^<^< std::endl;
+echo.
+echo     // Test 3: Number value
+echo     Lua::Value numVal^(3.14^);
+echo     std::cout ^<^< "  [3] Number value: " ^<^< ^(numVal.isNumber^(^) ^&^& numVal.asNumber^(^) == 3.14 ? "PASS" : "FAIL"^) ^<^< std::endl;
+echo.
+echo     // Test 4: Integer value
+echo     Lua::Value intVal^(Lua::LuaInteger^(42^)^);
+echo     std::cout ^<^< "  [4] Integer value: " ^<^< ^(intVal.isNumber^(^) ^&^& intVal.asInteger^(^) == 42 ? "PASS" : "FAIL"^) ^<^< std::endl;
+echo.
+echo     // Test 5: Type checking
+echo     std::cout ^<^< "  [5] Type checking: " ^<^< ^(numVal.getType^(^) == Lua::ValueType::Number ? "PASS" : "FAIL"^) ^<^< std::endl;
+echo.
+echo     // Test 6: Safe value access
+echo     auto maybeNum = numVal.tryGetNumber^(^);
+echo     std::cout ^<^< "  [6] Safe access: " ^<^< ^(maybeNum.has_value^(^) ^&^& maybeNum.value^(^) == 3.14 ? "PASS" : "FAIL"^) ^<^< std::endl;
+echo.
+echo     // Test 7: Lua truth semantics
+echo     std::cout ^<^< "  [7] Lua truth ^(nil^): " ^<^< ^(nilVal.isFalse^(^) ? "PASS" : "FAIL"^) ^<^< std::endl;
+echo     std::cout ^<^< "  [8] Lua truth ^(false^): " ^<^< ^(Lua::Value^(false^).isFalse^(^) ? "PASS" : "FAIL"^) ^<^< std::endl;
+echo     std::cout ^<^< "  [9] Lua truth ^(0^): " ^<^< ^(Lua::Value^(0.0^).isTrue^(^) ? "PASS" : "FAIL"^) ^<^< std::endl;
+echo.
+echo     // Test 8: Equality comparison
+echo     Lua::Value num1^(42.0^);
+echo     Lua::Value num2^(42.0^);
+echo     Lua::Value num3^(43.0^);
+echo     std::cout ^<^< "  [10] Equality ^(same^): " ^<^< ^(num1 == num2 ? "PASS" : "FAIL"^) ^<^< std::endl;
+echo     std::cout ^<^< "  [11] Equality ^(diff^): " ^<^< ^(num1 != num3 ? "PASS" : "FAIL"^) ^<^< std::endl;
+echo.
+echo     // Test 9: toString method
+echo     std::cout ^<^< "  [12] toString: " ^<^< numVal.toString^(^) ^<^< std::endl;
+echo     std::cout ^<^< "  [13] toString: " ^<^< boolVal.toString^(^) ^<^< std::endl;
+echo     std::cout ^<^< "  [14] toString: " ^<^< nilVal.toString^(^) ^<^< std::endl;
+echo.
+echo     // Test 10: Value size
+echo     std::cout ^<^< "\n[INFO] Value class size: " ^<^< sizeof^(Lua::Value^) ^<^< " bytes" ^<^< std::endl;
+echo.
+echo     std::cout ^<^< "\n[SUCCESS] All Value class tests passed!" ^<^< std::endl;
 echo     return 0;
 echo }
 ) > "%OUTPUT_DIR%\test_build.cpp"
@@ -111,11 +145,27 @@ echo [INFO] Starting compilation...
 echo [INFO] ========================================
 echo.
 
-echo [INFO] Compiling test file...
-echo [INFO] Command: cl %CXX_FLAGS% /Isrc /Isrc/common /Fo"%OUTPUT_DIR%\\" /Fe"%OUTPUT_DIR%\test_build.exe" "%OUTPUT_DIR%\test_build.cpp"
+echo [INFO] Compiling Value class...
+echo [INFO] Command: cl %CXX_FLAGS% /Isrc /c /Fo"%OUTPUT_DIR%\value.obj" "src\core\value.cpp"
 echo.
 
-cl %CXX_FLAGS% /Isrc /Isrc/common /Fo"%OUTPUT_DIR%\\" /Fe"%OUTPUT_DIR%\test_build.exe" "%OUTPUT_DIR%\test_build.cpp"
+cl %CXX_FLAGS% /Isrc /c /Fo"%OUTPUT_DIR%\value.obj" "src\core\value.cpp"
+
+if %errorlevel% neq 0 (
+    echo.
+    echo [ERROR] ========================================
+    echo [ERROR] Value class compilation failed!
+    echo [ERROR] Error code: %errorlevel%
+    echo [ERROR] ========================================
+    exit /b %errorlevel%
+)
+
+echo.
+echo [INFO] Compiling test file...
+echo [INFO] Command: cl %CXX_FLAGS% /Isrc /Fo"%OUTPUT_DIR%\\" /Fe"%OUTPUT_DIR%\test_build.exe" "%OUTPUT_DIR%\test_build.cpp" "%OUTPUT_DIR%\value.obj"
+echo.
+
+cl %CXX_FLAGS% /Isrc /Fo"%OUTPUT_DIR%\\" /Fe"%OUTPUT_DIR%\test_build.exe" "%OUTPUT_DIR%\test_build.cpp" "%OUTPUT_DIR%\value.obj"
 
 if %errorlevel% neq 0 (
     echo.
