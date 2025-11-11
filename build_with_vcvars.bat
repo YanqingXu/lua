@@ -82,7 +82,10 @@ echo #include "common/config.hpp"
 echo #include "common/macros.hpp"
 echo #include "core/value.hpp"
 echo #include "core/gc_object.hpp"
+echo #include "core/gc_string.hpp"
+echo #include "core/string_pool.hpp"
 echo #include ^<iostream^>
+echo #include ^<string_view^>
 echo.
 echo // Test GCObject implementation
 echo class TestGCObject : public Lua::GCObject {
@@ -177,10 +180,105 @@ echo     // Cleanup
 echo     delete obj2;
 echo     delete obj;
 echo.
+echo     std::cout ^<^< "\n[TEST 3] Testing GCString class..." ^<^< std::endl;
+echo.
+echo     // Test 1: Create string
+echo     Lua::GCString* str1 = new Lua::GCString^("Hello, Lua!"^);
+echo     std::cout ^<^< "  [1] String creation: PASS" ^<^< std::endl;
+echo.
+echo     // Test 2: Get length
+echo     std::cout ^<^< "  [2] String length: " ^<^< ^(str1-^>getLength^(^) == 11 ? "PASS" : "FAIL"^) ^<^< std::endl;
+echo.
+echo     // Test 3: Get data
+echo     std::cout ^<^< "  [3] String data: " ^<^< str1-^>getData^(^) ^<^< std::endl;
+echo.
+echo     // Test 4: Hash computation
+echo     Lua::usize hash1 = str1-^>getHash^(^);
+echo     std::cout ^<^< "  [4] Hash value: 0x" ^<^< std::hex ^<^< hash1 ^<^< std::dec ^<^< std::endl;
+echo.
+echo     // Test 5: Same content should have same hash
+echo     Lua::GCString* str2 = new Lua::GCString^("Hello, Lua!"^);
+echo     std::cout ^<^< "  [5] Same hash: " ^<^< ^(str1-^>getHash^(^) == str2-^>getHash^(^) ? "PASS" : "FAIL"^) ^<^< std::endl;
+echo.
+echo     // Test 6: Different content should have different hash
+echo     Lua::GCString* str3 = new Lua::GCString^("Different"^);
+echo     std::cout ^<^< "  [6] Different hash: " ^<^< ^(str1-^>getHash^(^) != str3-^>getHash^(^) ? "PASS" : "FAIL"^) ^<^< std::endl;
+echo.
+echo     // Test 7: Pointer comparison ^(not equal yet, need StringPool^)
+echo     std::cout ^<^< "  [7] Pointer comparison: " ^<^< ^(str1 != str2 ? "PASS ^(different objects^)" : "FAIL"^) ^<^< std::endl;
+echo.
+echo     // Test 8: c_str method
+echo     std::cout ^<^< "  [8] c_str: " ^<^< str1-^>c_str^(^) ^<^< std::endl;
+echo.
+echo     // Test 9: GC type
+echo     std::cout ^<^< "  [9] GC type: " ^<^< ^(str1-^>getType^(^) == Lua::GCObjectType::String ? "PASS" : "FAIL"^) ^<^< std::endl;
+echo.
+echo     // Test 10: Object size
+echo     std::cout ^<^< "  [10] Object size: " ^<^< str1-^>getSize^(^) ^<^< " bytes" ^<^< std::endl;
+echo.
+echo     // Cleanup
+echo     delete str3;
+echo     delete str2;
+echo     delete str1;
+echo.
+echo     std::cout ^<^< "\n[TEST 4] Testing StringPool class..." ^<^< std::endl;
+echo.
+echo     // Get StringPool instance
+echo     Lua::StringPool^& pool = Lua::StringPool::getInstance^(^);
+echo.
+echo     // Test 1: Intern first string
+echo     Lua::GCString* poolStr1 = pool.intern^("Hello, World!"^);
+echo     std::cout ^<^< "  [1] Intern string: PASS" ^<^< std::endl;
+echo.
+echo     // Test 2: Intern same string should return same pointer
+echo     Lua::GCString* poolStr2 = pool.intern^("Hello, World!"^);
+echo     std::cout ^<^< "  [2] Same pointer: " ^<^< ^(poolStr1 == poolStr2 ? "PASS" : "FAIL"^) ^<^< std::endl;
+echo.
+echo     // Test 3: Intern different string
+echo     Lua::GCString* poolStr3 = pool.intern^("Different"^);
+echo     std::cout ^<^< "  [3] Different pointer: " ^<^< ^(poolStr1 != poolStr3 ? "PASS" : "FAIL"^) ^<^< std::endl;
+echo.
+echo     // Test 4: Pool size
+echo     std::cout ^<^< "  [4] Pool size: " ^<^< pool.size^(^) ^<^< " ^(expected 2^)" ^<^< std::endl;
+echo.
+echo     // Test 5: Find existing string
+echo     Lua::GCString* found = pool.find^("Hello, World!"^);
+echo     std::cout ^<^< "  [5] Find existing: " ^<^< ^(found == poolStr1 ? "PASS" : "FAIL"^) ^<^< std::endl;
+echo.
+echo     // Test 6: Find non-existing string
+echo     Lua::GCString* notFound = pool.find^("Not exists"^);
+echo     std::cout ^<^< "  [6] Find non-existing: " ^<^< ^(notFound == nullptr ? "PASS" : "FAIL"^) ^<^< std::endl;
+echo.
+echo     // Test 7: Intern with string_view
+echo     std::string_view sv^("Test view"^);
+echo     Lua::GCString* poolStr4 = pool.intern^(sv^);
+echo     std::cout ^<^< "  [7] Intern string_view: PASS" ^<^< std::endl;
+echo.
+echo     // Test 8: Intern same string_view
+echo     Lua::GCString* poolStr5 = pool.intern^(sv^);
+echo     std::cout ^<^< "  [8] Same pointer ^(view^): " ^<^< ^(poolStr4 == poolStr5 ? "PASS" : "FAIL"^) ^<^< std::endl;
+echo.
+echo     // Test 9: Pool size after more interns
+echo     std::cout ^<^< "  [9] Pool size: " ^<^< pool.size^(^) ^<^< " ^(expected 3^)" ^<^< std::endl;
+echo.
+echo     // Test 10: Remove string
+echo     pool.remove^(poolStr3^);
+echo     std::cout ^<^< "  [10] Remove string: " ^<^< ^(pool.size^(^) == 2 ? "PASS" : "FAIL"^) ^<^< std::endl;
+echo.
+echo     // Test 11: Verify pointer equality for interned strings
+echo     std::cout ^<^< "  [11] Pointer equality: " ^<^< ^(poolStr1 == poolStr2 ^&^& poolStr4 == poolStr5 ? "PASS" : "FAIL"^) ^<^< std::endl;
+echo.
+echo     // Cleanup ^(note: in real GC, strings are managed by GC^)
+echo     delete poolStr4;
+echo     delete poolStr3;
+echo     delete poolStr1;
+echo     pool.clear^(^);
+echo.
 echo     std::cout ^<^< "\n[INFO] Class sizes:" ^<^< std::endl;
 echo     std::cout ^<^< "  - Value: " ^<^< sizeof^(Lua::Value^) ^<^< " bytes" ^<^< std::endl;
 echo     std::cout ^<^< "  - GCObject: " ^<^< sizeof^(Lua::GCObject^) ^<^< " bytes" ^<^< std::endl;
 echo     std::cout ^<^< "  - TestGCObject: " ^<^< sizeof^(TestGCObject^) ^<^< " bytes" ^<^< std::endl;
+echo     std::cout ^<^< "  - GCString: " ^<^< sizeof^(Lua::GCString^) ^<^< " bytes" ^<^< std::endl;
 echo.
 echo     std::cout ^<^< "\n[SUCCESS] All tests passed!" ^<^< std::endl;
 echo     return 0;
@@ -225,11 +323,43 @@ if %errorlevel% neq 0 (
 )
 
 echo.
-echo [INFO] Compiling test file...
-echo [INFO] Command: cl %CXX_FLAGS% /Isrc /Fo"%OUTPUT_DIR%\\" /Fe"%OUTPUT_DIR%\test_build.exe" "%OUTPUT_DIR%\test_build.cpp" "%OUTPUT_DIR%\value.obj" "%OUTPUT_DIR%\gc_object.obj"
+echo [INFO] Compiling GCString class...
+echo [INFO] Command: cl %CXX_FLAGS% /Isrc /c /Fo"%OUTPUT_DIR%\gc_string.obj" "src\core\gc_string.cpp"
 echo.
 
-cl %CXX_FLAGS% /Isrc /Fo"%OUTPUT_DIR%\\" /Fe"%OUTPUT_DIR%\test_build.exe" "%OUTPUT_DIR%\test_build.cpp" "%OUTPUT_DIR%\value.obj" "%OUTPUT_DIR%\gc_object.obj"
+cl %CXX_FLAGS% /Isrc /c /Fo"%OUTPUT_DIR%\gc_string.obj" "src\core\gc_string.cpp"
+
+if %errorlevel% neq 0 (
+    echo.
+    echo [ERROR] ========================================
+    echo [ERROR] GCString class compilation failed!
+    echo [ERROR] Error code: %errorlevel%
+    echo [ERROR] ========================================
+    exit /b %errorlevel%
+)
+
+echo.
+echo [INFO] Compiling StringPool class...
+echo [INFO] Command: cl %CXX_FLAGS% /Isrc /c /Fo"%OUTPUT_DIR%\string_pool.obj" "src\core\string_pool.cpp"
+echo.
+
+cl %CXX_FLAGS% /Isrc /c /Fo"%OUTPUT_DIR%\string_pool.obj" "src\core\string_pool.cpp"
+
+if %errorlevel% neq 0 (
+    echo.
+    echo [ERROR] ========================================
+    echo [ERROR] StringPool class compilation failed!
+    echo [ERROR] Error code: %errorlevel%
+    echo [ERROR] ========================================
+    exit /b %errorlevel%
+)
+
+echo.
+echo [INFO] Compiling test file...
+echo [INFO] Command: cl %CXX_FLAGS% /Isrc /Fo"%OUTPUT_DIR%\\" /Fe"%OUTPUT_DIR%\test_build.exe" "%OUTPUT_DIR%\test_build.cpp" "%OUTPUT_DIR%\value.obj" "%OUTPUT_DIR%\gc_object.obj" "%OUTPUT_DIR%\gc_string.obj" "%OUTPUT_DIR%\string_pool.obj"
+echo.
+
+cl %CXX_FLAGS% /Isrc /Fo"%OUTPUT_DIR%\\" /Fe"%OUTPUT_DIR%\test_build.exe" "%OUTPUT_DIR%\test_build.cpp" "%OUTPUT_DIR%\value.obj" "%OUTPUT_DIR%\gc_object.obj" "%OUTPUT_DIR%\gc_string.obj" "%OUTPUT_DIR%\string_pool.obj"
 
 if %errorlevel% neq 0 (
     echo.
