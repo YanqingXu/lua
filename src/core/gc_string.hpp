@@ -36,9 +36,9 @@ namespace Lua {
  * 
  * 内存布局：
  * - GCObject基类：24字节（next, type, marked, vtable）
- * - hash_: 8字节（size_t）
- * - length_: 8字节（size_t）
- * - data_: 32字节（std::string，包含SSO优化）
+ * - hash_: 8字节（usize）
+ * - length_: 8字节（usize）
+ * - data_: 32字节（Str，包含SSO优化）
  * 总计：约72字节（基类部分）+ 字符串数据
  * 
  * 字符串驻留：
@@ -61,10 +61,10 @@ public:
     /**
      * @brief 构造函数 - 从字符串视图创建GCString
      * @param str 字符串内容
-     * 
+     *
      * 注意：此构造函数应该只被StringPool调用，不应直接使用。
      */
-    explicit GCString(std::string_view str);
+    explicit GCString(StrView str);
     
     /**
      * @brief 析构函数
@@ -98,13 +98,13 @@ public:
     }
     
     /**
-     * @brief 获取字符串数据（std::string引用）
+     * @brief 获取字符串数据（Str引用）
      * @return 字符串数据的常量引用
      */
-    const std::string& getData() const noexcept {
+    const Str& getData() const noexcept {
         return data_;
     }
-    
+
     /**
      * @brief 获取C风格字符串
      * @return 指向以null结尾的字符串的指针
@@ -112,13 +112,13 @@ public:
     const char* c_str() const noexcept {
         return data_.c_str();
     }
-    
+
     /**
      * @brief 获取字符串视图
      * @return 字符串视图
      */
-    std::string_view view() const noexcept {
-        return std::string_view(data_);
+    StrView view() const noexcept {
+        return StrView(data_);
     }
 
     // =====================================================================
@@ -170,19 +170,19 @@ public:
     
     /**
      * @brief 计算字符串的哈希值
-     * 
+     *
      * 使用与Lua 5.1.5相同的哈希算法。
      * 对于长字符串，采用采样策略以提高性能。
-     * 
+     *
      * @param str 字符串视图
      * @return 哈希值
      */
-    static usize computeHash(std::string_view str) noexcept;
+    static usize computeHash(StrView str) noexcept;
 
 private:
     usize hash_;            ///< 预计算的哈希值
     usize length_;          ///< 字符串长度（字节数）
-    std::string data_;      ///< 字符串数据（使用SSO优化）
+    Str data_;              ///< 字符串数据（使用SSO优化）
 };
 
 } // namespace Lua

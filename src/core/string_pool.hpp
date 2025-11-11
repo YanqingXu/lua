@@ -81,15 +81,15 @@ public:
     
     /**
      * @brief 驻留字符串 - 获取或创建字符串对象
-     * 
+     *
      * 如果字符串已存在，返回已有的GCString指针；
      * 如果不存在，创建新的GCString并加入池中。
-     * 
+     *
      * @param str 字符串内容
      * @return GCString指针
      */
-    GCString* intern(std::string_view str);
-    
+    GCString* intern(StrView str);
+
     /**
      * @brief 驻留字符串 - 从C字符串创建
      * @param str C风格字符串
@@ -97,7 +97,7 @@ public:
      * @return GCString指针
      */
     GCString* intern(const char* str, usize len) {
-        return intern(std::string_view(str, len));
+        return intern(StrView(str, len));
     }
 
     // =====================================================================
@@ -106,14 +106,14 @@ public:
     
     /**
      * @brief 查找字符串 - 不创建新对象
-     * 
+     *
      * 在池中查找指定内容的字符串，如果不存在返回nullptr。
-     * 
+     *
      * @param str 字符串内容
      * @return GCString指针，如果不存在返回nullptr
      */
-    GCString* find(std::string_view str) const;
-    
+    GCString* find(StrView str) const;
+
     /**
      * @brief 查找字符串 - 从C字符串查找
      * @param str C风格字符串
@@ -121,7 +121,7 @@ public:
      * @return GCString指针，如果不存在返回nullptr
      */
     GCString* find(const char* str, usize len) const {
-        return find(std::string_view(str, len));
+        return find(StrView(str, len));
     }
 
     // =====================================================================
@@ -178,15 +178,15 @@ private:
     
     /**
      * @brief 字符串哈希表
-     * 
-     * 使用std::unordered_map存储字符串。
-     * Key: 字符串内容（std::string）
+     *
+     * 使用HashMap存储字符串。
+     * Key: 字符串内容（Str）
      * Value: GCString指针
-     * 
-     * 注意：我们使用std::string作为key而不是string_view，
-     * 因为string_view不拥有数据，可能导致悬空引用。
+     *
+     * 注意：我们使用Str作为key而不是StrView，
+     * 因为StrView不拥有数据，可能导致悬空引用。
      */
-    std::unordered_map<std::string, GCString*> pool_;
+    HashMap<Str, GCString*> pool_;
 };
 
 } // namespace Lua

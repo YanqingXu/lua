@@ -10,6 +10,7 @@
 
 - [开发环境设置](#开发环境设置)
 - [编码规范](#编码规范)
+- [类型系统使用规范](#类型系统使用规范)
 - [开发流程](#开发流程)
 - [测试指南](#测试指南)
 - [调试技巧](#调试技巧)
@@ -232,6 +233,148 @@ namespace Lua {
     };
 }
 ```
+
+---
+
+## 🎯 类型系统使用规范
+
+### 强制使用类型别名
+
+**重要规则**: 项目中的所有代码**必须**使用 `src/common/types.hpp` 中定义的类型别名，**禁止**直接使用原始类型。
+
+#### 为什么要使用类型别名？
+
+1. **代码一致性**: 统一的类型命名风格，提高代码可读性
+2. **类型安全**: 明确的类型语义，避免混淆
+3. **易于维护**: 如需修改底层类型实现，只需修改 `types.hpp` 一处
+4. **简洁性**: 更短的类型名称，减少代码冗余
+5. **可移植性**: 便于跨平台适配
+
+### 常用类型映射表
+
+#### 基础类型
+
+| ❌ 禁止使用 | ✅ 必须使用 | 说明 |
+|------------|-----------|------|
+| `int8_t` | `i8` | 8位有符号整数 |
+| `int16_t` | `i16` | 16位有符号整数 |
+| `int32_t` | `i32` | 32位有符号整数 |
+| `int64_t` | `i64` | 64位有符号整数 |
+| `uint8_t` | `u8` | 8位无符号整数 |
+| `uint16_t` | `u16` | 16位无符号整数 |
+| `uint32_t` | `u32` | 32位无符号整数 |
+| `uint64_t` | `u64` | 64位无符号整数 |
+| `float` | `f32` | 32位浮点数 |
+| `double` | `f64` | 64位浮点数 |
+| `size_t` | `usize` | 无符号大小类型 |
+| `ptrdiff_t` | `isize` | 有符号差值类型 |
+
+#### 字符串类型
+
+| ❌ 禁止使用 | ✅ 必须使用 | 说明 |
+|------------|-----------|------|
+| `std::string` | `Str` | 标准字符串 |
+| `std::string_view` | `StrView` | 字符串视图（C++17） |
+
+#### 容器类型
+
+| ❌ 禁止使用 | ✅ 必须使用 | 说明 |
+|------------|-----------|------|
+| `std::vector<T>` | `Vec<T>` | 动态数组 |
+| `std::unordered_map<K, V>` | `HashMap<K, V>` | 哈希映射 |
+| `std::unordered_set<T>` | `HashSet<T>` | 哈希集合 |
+
+#### 现代C++类型
+
+| ❌ 禁止使用 | ✅ 必须使用 | 说明 |
+|------------|-----------|------|
+| `std::variant<Types...>` | `Var<Types...>` | 变体类型 |
+| `std::optional<T>` | `Opt<T>` | 可选类型 |
+| `std::function<Sig>` | `Func<Sig>` | 函数对象 |
+
+#### 智能指针类型
+
+| ❌ 禁止使用 | ✅ 必须使用 | 说明 |
+|------------|-----------|------|
+| `std::shared_ptr<T>` | `Ptr<T>` | 共享指针 |
+| `std::unique_ptr<T>` | `UniquePtr<T>` | 独占指针 |
+| `std::weak_ptr<T>` | `WeakPtr<T>` | 弱引用指针 |
+
+### 代码示例对比
+
+#### ❌ 错误示例（禁止）
+
+```cpp
+#include <string>
+#include <vector>
+#include <unordered_map>
+
+class StringPool {
+private:
+    std::unordered_map<std::string, GCString*> pool_;
+    std::vector<std::string> cache_;
+
+public:
+    GCString* intern(std::string_view str);
+    std::string_view find(const std::string& key);
+    size_t size() const;
+};
+```
+
+#### ✅ 正确示例（必须）
+
+```cpp
+#include "common/types.hpp"
+
+class StringPool {
+private:
+    HashMap<Str, GCString*> pool_;
+    Vec<Str> cache_;
+
+public:
+    GCString* intern(StrView str);
+    StrView find(const Str& key);
+    usize size() const;
+};
+```
+
+### 违规处理
+
+违反类型系统使用规范的代码将：
+
+1. **代码审查不通过**: Pull Request 将被要求修改
+2. **需要重构**: 已有代码发现违规需立即修正
+3. **编译警告**: 未来可能添加编译时检查
+4. **影响评估**: 严重违规可能影响代码贡献者评级
+
+### 特殊情况
+
+以下情况可以例外使用原始类型：
+
+1. **与C API交互**: 必须使用C标准类型时
+2. **第三方库接口**: 第三方库要求特定类型时
+3. **平台特定代码**: 需要使用平台特定类型时
+
+**注意**: 即使在特殊情况下，也应在接口边界处尽快转换为项目类型别名。
+
+### 检查清单
+
+在提交代码前，请确认：
+
+- [ ] 所有整数类型使用 `i8/i16/i32/i64` 或 `u8/u16/u32/u64`
+- [ ] 所有大小类型使用 `usize`，差值类型使用 `isize`
+- [ ] 所有字符串使用 `Str`，字符串视图使用 `StrView`
+- [ ] 所有容器使用 `Vec/HashMap/HashSet` 等别名
+- [ ] 所有现代C++类型使用 `Var/Opt/Func` 等别名
+- [ ] 所有智能指针使用 `Ptr/UniquePtr/WeakPtr` 等别名
+- [ ] 注释中的类型名称也使用别名
+- [ ] 文档中的类型说明使用别名
+
+### 参考资源
+
+- **类型定义文件**: `src/common/types.hpp`
+- **示例代码**: `src/core/gc_string.hpp`, `src/core/string_pool.hpp`
+- **类型映射完整列表**: 查看 `types.hpp` 文件中的详细注释
 
 ---
 

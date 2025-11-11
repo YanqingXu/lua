@@ -10,37 +10,37 @@ namespace Lua {
 /**
  * @brief 驻留字符串 - 获取或创建字符串对象
  */
-GCString* StringPool::intern(std::string_view str) {
-    // 将string_view转换为string用于查找
-    std::string key(str);
-    
+GCString* StringPool::intern(StrView str) {
+    // 将StrView转换为Str用于查找
+    Str key(str);
+
     // 在池中查找是否已存在
     auto it = pool_.find(key);
     if (it != pool_.end()) {
         // 已存在，返回已有的字符串对象
         return it->second;
     }
-    
+
     // 不存在，创建新的字符串对象
     GCString* newString = new GCString(str);
-    
+
     // 加入池中
     pool_[key] = newString;
-    
+
     return newString;
 }
 
 /**
  * @brief 查找字符串 - 不创建新对象
  */
-GCString* StringPool::find(std::string_view str) const {
-    std::string key(str);
-    
+GCString* StringPool::find(StrView str) const {
+    Str key(str);
+
     auto it = pool_.find(key);
     if (it != pool_.end()) {
         return it->second;
     }
-    
+
     return nullptr;
 }
 
