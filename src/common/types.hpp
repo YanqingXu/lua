@@ -326,7 +326,7 @@ enum class ValueType : u8 {
 /**
  * @enum GCObjectType
  * @brief 垃圾回收对象的类型标签
- * 
+ *
  * 定义了所有需要垃圾回收的对象类型，包括用户可见类型和内部类型。
  */
 enum class GCObjectType : u8 {
@@ -337,6 +337,21 @@ enum class GCObjectType : u8 {
     Thread = 8,         ///< 线程对象
     Proto = 9,          ///< 函数原型（内部类型）
     Upval = 10,         ///< 上值（内部类型）
+};
+
+/**
+ * @enum GCColor
+ * @brief 垃圾回收对象的颜色标记
+ *
+ * 三色标记算法中的颜色定义：
+ * - White（白色）：未访问的对象，可能被回收
+ * - Gray（灰色）：已访问但未扫描其引用的对象
+ * - Black（黑色）：已访问且已扫描所有引用的对象
+ */
+enum class GCColor : u8 {
+    White = 0,          ///< 白色 - 未访问
+    Gray = 1,           ///< 灰色 - 已访问未扫描
+    Black = 2           ///< 黑色 - 已完全扫描
 };
 
 // =====================================================================

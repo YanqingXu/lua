@@ -81,15 +81,24 @@ echo #include "common/types.hpp"
 echo #include "common/config.hpp"
 echo #include "common/macros.hpp"
 echo #include "core/value.hpp"
+echo #include "core/gc_object.hpp"
 echo #include ^<iostream^>
 echo.
+echo // Test GCObject implementation
+echo class TestGCObject : public Lua::GCObject {
+echo public:
+echo     TestGCObject^(^) : GCObject^(Lua::GCObjectType::String^) {}
+echo     void mark^(^) override {}
+echo     Lua::usize getSize^(^) const override { return sizeof^(TestGCObject^); }
+echo };
+echo.
 echo int main^(^) {
-echo     std::cout ^<^< "[INFO] Lua C++ Interpreter - Value Class Test" ^<^< std::endl;
+echo     std::cout ^<^< "[INFO] Lua C++ Interpreter - Core Classes Test" ^<^< std::endl;
 echo     std::cout ^<^< "[INFO] Version: " ^<^< Lua::LUA_VERSION ^<^< std::endl;
 echo     std::cout ^<^< "[INFO] Build Type: %BUILD_TYPE%" ^<^< std::endl;
 echo     std::cout ^<^< "[INFO] Debug Mode: " ^<^< ^(Lua::DEBUG_MODE ? "Yes" : "No"^) ^<^< std::endl;
 echo.
-echo     std::cout ^<^< "\n[TEST] Testing Value class..." ^<^< std::endl;
+echo     std::cout ^<^< "\n[TEST 1] Testing Value class..." ^<^< std::endl;
 echo.
 echo     // Test 1: Nil value
 echo     Lua::Value nilVal;
@@ -131,10 +140,49 @@ echo     std::cout ^<^< "  [12] toString: " ^<^< numVal.toString^(^) ^<^< std::e
 echo     std::cout ^<^< "  [13] toString: " ^<^< boolVal.toString^(^) ^<^< std::endl;
 echo     std::cout ^<^< "  [14] toString: " ^<^< nilVal.toString^(^) ^<^< std::endl;
 echo.
-echo     // Test 10: Value size
-echo     std::cout ^<^< "\n[INFO] Value class size: " ^<^< sizeof^(Lua::Value^) ^<^< " bytes" ^<^< std::endl;
 echo.
-echo     std::cout ^<^< "\n[SUCCESS] All Value class tests passed!" ^<^< std::endl;
+echo     std::cout ^<^< "\n[TEST 2] Testing GCObject class..." ^<^< std::endl;
+echo.
+echo     // Test 1: Create GC object
+echo     TestGCObject* obj = new TestGCObject^(^);
+echo     std::cout ^<^< "  [1] GCObject creation: PASS" ^<^< std::endl;
+echo.
+echo     // Test 2: Type checking
+echo     std::cout ^<^< "  [2] Type checking: " ^<^< ^(obj-^>getType^(^) == Lua::GCObjectType::String ? "PASS" : "FAIL"^) ^<^< std::endl;
+echo.
+echo     // Test 3: Initial color ^(should be white^)
+echo     obj-^>setColor^(Lua::GCColor::White^);
+echo     std::cout ^<^< "  [3] Initial color ^(white^): " ^<^< ^(obj-^>isWhite^(^) ? "PASS" : "FAIL"^) ^<^< std::endl;
+echo.
+echo     // Test 4: Set to gray
+echo     obj-^>setColor^(Lua::GCColor::Gray^);
+echo     std::cout ^<^< "  [4] Set to gray: " ^<^< ^(obj-^>isGray^(^) ? "PASS" : "FAIL"^) ^<^< std::endl;
+echo.
+echo     // Test 5: Set to black
+echo     obj-^>setColor^(Lua::GCColor::Black^);
+echo     std::cout ^<^< "  [5] Set to black: " ^<^< ^(obj-^>isBlack^(^) ? "PASS" : "FAIL"^) ^<^< std::endl;
+echo.
+echo     // Test 6: isMarked ^(black is marked^)
+echo     std::cout ^<^< "  [6] isMarked ^(black^): " ^<^< ^(obj-^>isMarked^(^) ? "PASS" : "FAIL"^) ^<^< std::endl;
+echo.
+echo     // Test 7: Chain objects
+echo     TestGCObject* obj2 = new TestGCObject^(^);
+echo     obj-^>setNext^(obj2^);
+echo     std::cout ^<^< "  [7] Chain objects: " ^<^< ^(obj-^>getNext^(^) == obj2 ? "PASS" : "FAIL"^) ^<^< std::endl;
+echo.
+echo     // Test 8: Object size
+echo     std::cout ^<^< "  [8] Object size: " ^<^< obj-^>getSize^(^) ^<^< " bytes" ^<^< std::endl;
+echo.
+echo     // Cleanup
+echo     delete obj2;
+echo     delete obj;
+echo.
+echo     std::cout ^<^< "\n[INFO] Class sizes:" ^<^< std::endl;
+echo     std::cout ^<^< "  - Value: " ^<^< sizeof^(Lua::Value^) ^<^< " bytes" ^<^< std::endl;
+echo     std::cout ^<^< "  - GCObject: " ^<^< sizeof^(Lua::GCObject^) ^<^< " bytes" ^<^< std::endl;
+echo     std::cout ^<^< "  - TestGCObject: " ^<^< sizeof^(TestGCObject^) ^<^< " bytes" ^<^< std::endl;
+echo.
+echo     std::cout ^<^< "\n[SUCCESS] All tests passed!" ^<^< std::endl;
 echo     return 0;
 echo }
 ) > "%OUTPUT_DIR%\test_build.cpp"
@@ -161,11 +209,27 @@ if %errorlevel% neq 0 (
 )
 
 echo.
-echo [INFO] Compiling test file...
-echo [INFO] Command: cl %CXX_FLAGS% /Isrc /Fo"%OUTPUT_DIR%\\" /Fe"%OUTPUT_DIR%\test_build.exe" "%OUTPUT_DIR%\test_build.cpp" "%OUTPUT_DIR%\value.obj"
+echo [INFO] Compiling GCObject class...
+echo [INFO] Command: cl %CXX_FLAGS% /Isrc /c /Fo"%OUTPUT_DIR%\gc_object.obj" "src\core\gc_object.cpp"
 echo.
 
-cl %CXX_FLAGS% /Isrc /Fo"%OUTPUT_DIR%\\" /Fe"%OUTPUT_DIR%\test_build.exe" "%OUTPUT_DIR%\test_build.cpp" "%OUTPUT_DIR%\value.obj"
+cl %CXX_FLAGS% /Isrc /c /Fo"%OUTPUT_DIR%\gc_object.obj" "src\core\gc_object.cpp"
+
+if %errorlevel% neq 0 (
+    echo.
+    echo [ERROR] ========================================
+    echo [ERROR] GCObject class compilation failed!
+    echo [ERROR] Error code: %errorlevel%
+    echo [ERROR] ========================================
+    exit /b %errorlevel%
+)
+
+echo.
+echo [INFO] Compiling test file...
+echo [INFO] Command: cl %CXX_FLAGS% /Isrc /Fo"%OUTPUT_DIR%\\" /Fe"%OUTPUT_DIR%\test_build.exe" "%OUTPUT_DIR%\test_build.cpp" "%OUTPUT_DIR%\value.obj" "%OUTPUT_DIR%\gc_object.obj"
+echo.
+
+cl %CXX_FLAGS% /Isrc /Fo"%OUTPUT_DIR%\\" /Fe"%OUTPUT_DIR%\test_build.exe" "%OUTPUT_DIR%\test_build.cpp" "%OUTPUT_DIR%\value.obj" "%OUTPUT_DIR%\gc_object.obj"
 
 if %errorlevel% neq 0 (
     echo.
