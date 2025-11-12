@@ -6,6 +6,7 @@
 #include "core/function.hpp"
 #include "core/gc_string.hpp"
 #include "core/table.hpp"
+#include "core/upvalue.hpp"
 #include <stdexcept>
 
 namespace Lua {
@@ -91,8 +92,34 @@ Function::Function(Proto* proto)
 }
 
 Function::~Function() {
-    // Proto由GC系统管理，这里不需要手动删除
+    // Proto和Upvalue由GC系统管理，这里不需要手动删除
 }
+
+// =====================================================================
+// Upvalue管理
+// =====================================================================
+
+Upvalue* Function::getUpvalue(usize index) const {
+    if (index >= upvalues_.size()) {
+        return nullptr;
+    }
+    return upvalues_[index];
+}
+
+void Function::setUpvalue(usize index, Upvalue* upvalue) {
+    if (index >= upvalues_.size()) {
+        throw std::out_of_range("Upvalue index out of range");
+    }
+    upvalues_[index] = upvalue;
+}
+
+void Function::addUpvalue(Upvalue* upvalue) {
+    upvalues_.push_back(upvalue);
+}
+
+// =====================================================================
+// GC支持
+// =====================================================================
 
 void Function::mark() {
     // 如果是Lua函数，标记函数原型
@@ -100,13 +127,17 @@ void Function::mark() {
         proto_->setColor(GCColor::Gray);
     }
 
-    // TODO: 标记上值
+    // 标记所有upvalue
+    for (Upvalue* uv : upvalues_) {
+        if (uv != nullptr && !uv->isMarked()) {
+            uv->mark();
+        }
+    }
 }
 
 usize Function::getSize() const {
-    // 基础大小
-    // TODO: 添加上值数组的大小
-    return sizeof(Function);
+    // 基础大小 + upvalue数组大小
+    return sizeof(Function) + upvalues_.capacity() * sizeof(Upvalue*);
 }
 
 } // namespace Lua

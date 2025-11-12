@@ -86,6 +86,7 @@ echo #include "core/gc_string.hpp"
 echo #include "core/string_pool.hpp"
 echo #include "core/table.hpp"
 echo #include "core/function.hpp"
+echo #include "core/upvalue.hpp"
 echo #include "gc/garbage_collector.hpp"
 echo #include "vm/global_state.hpp"
 echo #include "vm/stack.hpp"
@@ -514,6 +515,47 @@ echo.
 echo     delete L;
 echo     std::cout ^<^< "  [5] LuaState cleanup: PASS" ^<^< std::endl;
 echo.
+echo     // ===== Test 12: Upvalue =====
+echo     std::cout ^<^< "\n[TEST 12] Testing Upvalue class..." ^<^< std::endl;
+echo.
+echo     Lua::LuaState* L2 = Lua::LuaState::newState^(^);
+echo     L2-^>pushNumber^(42.0^);
+echo     L2-^>pushNumber^(100.0^);
+echo     std::cout ^<^< "  [1] Stack setup: PASS" ^<^< std::endl;
+echo.
+echo     Lua::Upvalue* uv1 = L2-^>findOrCreateUpvalue^(1^);
+echo     std::cout ^<^< "  [2] Create open upvalue: " ^<^< ^(uv1 != nullptr ^&^& uv1-^>isOpen^(^) ? "PASS" : "FAIL"^) ^<^< std::endl;
+echo.
+echo     std::cout ^<^< "  [3] Upvalue value: " ^<^< ^(uv1-^>getValue^(^).asNumber^(^) == 42.0 ? "PASS" : "FAIL"^) ^<^< std::endl;
+echo.
+echo     Lua::Upvalue* uv2 = L2-^>findOrCreateUpvalue^(1^);
+echo     std::cout ^<^< "  [4] Upvalue sharing: " ^<^< ^(uv1 == uv2 ? "PASS" : "FAIL"^) ^<^< std::endl;
+echo.
+echo     Lua::Upvalue* uv3 = L2-^>findOrCreateUpvalue^(2^);
+echo     std::cout ^<^< "  [5] Multiple upvalues: " ^<^< ^(uv3 != nullptr ^&^& uv3 != uv1 ? "PASS" : "FAIL"^) ^<^< std::endl;
+echo.
+echo     uv1-^>close^(^);
+echo     std::cout ^<^< "  [6] Close upvalue: " ^<^< ^(uv1-^>isClosed^(^) ? "PASS" : "FAIL"^) ^<^< std::endl;
+echo.
+echo     std::cout ^<^< "  [7] Closed value preserved: " ^<^< ^(uv1-^>getValue^(^).asNumber^(^) == 42.0 ? "PASS" : "FAIL"^) ^<^< std::endl;
+echo.
+echo     L2-^>closeUpvalues^(1^);
+echo     std::cout ^<^< "  [8] Close all upvalues: " ^<^< ^(uv3-^>isClosed^(^) ? "PASS" : "FAIL"^) ^<^< std::endl;
+echo.
+echo     // Test Function with upvalues
+echo     Lua::Proto* proto2 = new Lua::Proto^(^);
+echo     Lua::Function* func2 = new Lua::Function^(proto2^);
+echo     func2-^>addUpvalue^(uv1^);
+echo     func2-^>addUpvalue^(uv3^);
+echo     std::cout ^<^< "  [9] Function upvalue count: " ^<^< ^(func2-^>getUpvalueCount^(^) == 2 ? "PASS" : "FAIL"^) ^<^< std::endl;
+echo.
+echo     std::cout ^<^< "  [10] Function get upvalue: " ^<^< ^(func2-^>getUpvalue^(0^) == uv1 ? "PASS" : "FAIL"^) ^<^< std::endl;
+echo.
+echo     delete L2;
+echo     delete func2;
+echo     delete proto2;
+echo     std::cout ^<^< "  [11] Cleanup: PASS" ^<^< std::endl;
+echo.
 echo     std::cout ^<^< "\n[INFO] Class sizes:" ^<^< std::endl;
 echo     std::cout ^<^< "  - Value: " ^<^< sizeof^(Lua::Value^) ^<^< " bytes" ^<^< std::endl;
 echo     std::cout ^<^< "  - GCObject: " ^<^< sizeof^(Lua::GCObject^) ^<^< " bytes" ^<^< std::endl;
@@ -523,6 +565,7 @@ echo     std::cout ^<^< "  - Table: " ^<^< sizeof^(Lua::Table^) ^<^< " bytes" ^<
 echo     std::cout ^<^< "  - Proto: " ^<^< sizeof^(Lua::Proto^) ^<^< " bytes" ^<^< std::endl;
 echo     std::cout ^<^< "  - Function: " ^<^< sizeof^(Lua::Function^) ^<^< " bytes" ^<^< std::endl;
 echo     std::cout ^<^< "  - GarbageCollector: " ^<^< sizeof^(Lua::GarbageCollector^) ^<^< " bytes" ^<^< std::endl;
+echo     std::cout ^<^< "  - Upvalue: " ^<^< sizeof^(Lua::Upvalue^) ^<^< " bytes" ^<^< std::endl;
 echo     std::cout ^<^< "  - GlobalState: " ^<^< sizeof^(Lua::GlobalState^) ^<^< " bytes" ^<^< std::endl;
 echo     std::cout ^<^< "  - Stack: " ^<^< sizeof^(Lua::Stack^) ^<^< " bytes" ^<^< std::endl;
 echo     std::cout ^<^< "  - CallInfo: " ^<^< sizeof^(Lua::CallInfo^) ^<^< " bytes" ^<^< std::endl;
@@ -683,6 +726,22 @@ if %errorlevel% neq 0 (
 )
 
 echo.
+echo [INFO] Compiling Upvalue class...
+echo [INFO] Command: cl %CXX_FLAGS% /Isrc /c /Fo"%OUTPUT_DIR%\upvalue.obj" "src\core\upvalue.cpp"
+echo.
+
+cl %CXX_FLAGS% /Isrc /c /Fo"%OUTPUT_DIR%\upvalue.obj" "src\core\upvalue.cpp"
+
+if %errorlevel% neq 0 (
+    echo.
+    echo [ERROR] ========================================
+    echo [ERROR] Upvalue class compilation failed!
+    echo [ERROR] Error code: %errorlevel%
+    echo [ERROR] ========================================
+    exit /b %errorlevel%
+)
+
+echo.
 echo [INFO] Compiling LuaState class...
 echo [INFO] Command: cl %CXX_FLAGS% /Isrc /c /Fo"%OUTPUT_DIR%\lua_state.obj" "src\vm\lua_state.cpp"
 echo.
@@ -700,10 +759,10 @@ if %errorlevel% neq 0 (
 
 echo.
 echo [INFO] Compiling test file...
-echo [INFO] Command: cl %CXX_FLAGS% /Isrc /Fo"%OUTPUT_DIR%\\" /Fe"%OUTPUT_DIR%\test_build.exe" "%OUTPUT_DIR%\test_build.cpp" "%OUTPUT_DIR%\value.obj" "%OUTPUT_DIR%\gc_object.obj" "%OUTPUT_DIR%\gc_string.obj" "%OUTPUT_DIR%\string_pool.obj" "%OUTPUT_DIR%\table.obj" "%OUTPUT_DIR%\function.obj" "%OUTPUT_DIR%\garbage_collector.obj" "%OUTPUT_DIR%\global_state.obj" "%OUTPUT_DIR%\stack.obj" "%OUTPUT_DIR%\lua_state.obj"
+echo [INFO] Command: cl %CXX_FLAGS% /Isrc /Fo"%OUTPUT_DIR%\\" /Fe"%OUTPUT_DIR%\test_build.exe" "%OUTPUT_DIR%\test_build.cpp" "%OUTPUT_DIR%\value.obj" "%OUTPUT_DIR%\gc_object.obj" "%OUTPUT_DIR%\gc_string.obj" "%OUTPUT_DIR%\string_pool.obj" "%OUTPUT_DIR%\table.obj" "%OUTPUT_DIR%\function.obj" "%OUTPUT_DIR%\garbage_collector.obj" "%OUTPUT_DIR%\upvalue.obj" "%OUTPUT_DIR%\global_state.obj" "%OUTPUT_DIR%\stack.obj" "%OUTPUT_DIR%\lua_state.obj"
 echo.
 
-cl %CXX_FLAGS% /Isrc /Fo"%OUTPUT_DIR%\\" /Fe"%OUTPUT_DIR%\test_build.exe" "%OUTPUT_DIR%\test_build.cpp" "%OUTPUT_DIR%\value.obj" "%OUTPUT_DIR%\gc_object.obj" "%OUTPUT_DIR%\gc_string.obj" "%OUTPUT_DIR%\string_pool.obj" "%OUTPUT_DIR%\table.obj" "%OUTPUT_DIR%\function.obj" "%OUTPUT_DIR%\garbage_collector.obj" "%OUTPUT_DIR%\global_state.obj" "%OUTPUT_DIR%\stack.obj" "%OUTPUT_DIR%\lua_state.obj"
+cl %CXX_FLAGS% /Isrc /Fo"%OUTPUT_DIR%\\" /Fe"%OUTPUT_DIR%\test_build.exe" "%OUTPUT_DIR%\test_build.cpp" "%OUTPUT_DIR%\value.obj" "%OUTPUT_DIR%\gc_object.obj" "%OUTPUT_DIR%\gc_string.obj" "%OUTPUT_DIR%\string_pool.obj" "%OUTPUT_DIR%\table.obj" "%OUTPUT_DIR%\function.obj" "%OUTPUT_DIR%\garbage_collector.obj" "%OUTPUT_DIR%\upvalue.obj" "%OUTPUT_DIR%\global_state.obj" "%OUTPUT_DIR%\stack.obj" "%OUTPUT_DIR%\lua_state.obj"
 
 if %errorlevel% neq 0 (
     echo.

@@ -37,6 +37,7 @@ namespace Lua {
 // 前向声明
 class LuaState;
 class GCString;
+class Upvalue;
 
 /**
  * @brief C函数类型定义
@@ -194,10 +195,10 @@ private:
  * - 可以有上值（upvalues）
  * - 由虚拟机解释执行
  *
- * 当前简化版本：
+ * 当前版本：
  * - 支持C函数
  * - 支持Lua函数（但暂无字节码执行）
- * - 暂不支持上值（后续添加）
+ * - 支持上值（Upvalue）管理
  */
 class Function : public GCObject {
 public:
@@ -257,26 +258,63 @@ public:
     Proto* getProto() const noexcept {
         return isC_ ? nullptr : proto_;
     }
-    
+
+    // =====================================================================
+    // Upvalue管理（仅Lua函数）
+    // =====================================================================
+
+    /**
+     * @brief 获取Upvalue数量
+     * @return Upvalue数量
+     *
+     * 注意：C函数也可以有upvalue，但当前实现仅支持Lua函数
+     */
+    usize getUpvalueCount() const noexcept {
+        return upvalues_.size();
+    }
+
+    /**
+     * @brief 获取指定索引的Upvalue
+     * @param index Upvalue索引（从0开始）
+     * @return Upvalue指针，如果索引越界返回nullptr
+     */
+    Upvalue* getUpvalue(usize index) const;
+
+    /**
+     * @brief 设置指定索引的Upvalue
+     * @param index Upvalue索引（从0开始）
+     * @param upvalue Upvalue指针
+     *
+     * 注意：如果索引越界会抛出异常
+     */
+    void setUpvalue(usize index, Upvalue* upvalue);
+
+    /**
+     * @brief 添加Upvalue到数组末尾
+     * @param upvalue Upvalue指针
+     */
+    void addUpvalue(Upvalue* upvalue);
+
     // =====================================================================
     // GCObject接口实现
     // =====================================================================
-    
+
     void mark() override;
     usize getSize() const override;
 
 private:
     /// 是否为C函数
     bool isC_;
-    
+
     /// C函数指针（仅当isC_为true时有效）
     CFunction cFunction_;
-    
+
     /// 函数原型（仅当isC_为false时有效）
     Proto* proto_;
-    
-    // TODO: 添加上值支持
-    // Vec<UpVal*> upvalues_;
+
+    /// Upvalue数组（闭包捕获的外部变量）
+    /// 注意：Upvalue由GC管理，这里只持有指针
+    Vec<Upvalue*> upvalues_;
 };
 
 } // namespace Lua

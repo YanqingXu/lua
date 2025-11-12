@@ -200,7 +200,7 @@ public:
 private:
     /// 值栈（使用Vec自动管理内存）
     Vec<Value> stack_;
-    
+
     /// 栈顶位置（指向下一个可用位置）
     usize top_;
 };

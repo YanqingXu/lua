@@ -3,7 +3,7 @@
 > **从零开始用C++17/20/23实现Lua 5.1.5解释器**
 
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen)]()
-[![Tests](https://img.shields.io/badge/tests-89%2F89-brightgreen)]()
+[![Tests](https://img.shields.io/badge/tests-100%2F100-brightgreen)]()
 [![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen)]()
 [![C++](https://img.shields.io/badge/C%2B%2B-17-blue)]()
 [![Platform](https://img.shields.io/badge/platform-Windows-blue)]()
@@ -32,7 +32,7 @@
 
 ## 📊 当前进度
 
-### 已完成模块（11个核心模块）
+### 已完成模块（12个核心模块）
 
 | 模块 | 文件 | 功能描述 | 测试数 | 状态 |
 |------|------|---------|--------|------|
@@ -44,7 +44,8 @@
 | **GCString类** | `src/core/gc_string.hpp/cpp` | GC管理的字符串对象 | 10 | ✅ 完成 |
 | **StringPool类** | `src/core/string_pool.hpp/cpp` | 字符串驻留池（单例模式） | 11 | ✅ 完成 |
 | **Table类** | `src/core/table.hpp/cpp` | Lua表（数组+哈希混合存储） | 11 | ✅ 完成 |
-| **Function类** | `src/core/function.hpp/cpp` | 函数对象（Proto + Closure） | 12 | ✅ 完成 |
+| **Function类** | `src/core/function.hpp/cpp` | 函数对象（Proto + Closure + Upvalue） | 12 | ✅ 完成 |
+| **Upvalue类** | `src/core/upvalue.hpp/cpp` | 闭包上值管理（Open/Closed状态） | 11 | ✅ 完成 |
 | **GarbageCollector** | `src/gc/garbage_collector.hpp/cpp` | 垃圾回收器（标记-清除算法） | 8 | ✅ 完成 |
 | **GlobalState类** | `src/vm/global_state.hpp/cpp` | 全局状态管理（单例模式） | 4 | ✅ 完成 |
 | **Stack类** | `src/vm/stack.hpp/cpp` | 值栈管理（动态扩展） | 5 | ✅ 完成 |
@@ -54,8 +55,8 @@
 ### 测试统计
 
 ```
-总测试数：89个
-通过率：  100% (89/89)
+总测试数：100个
+通过率：  100% (100/100)
 编译状态：Debug和Release版本均无警告
 平台：    Windows + MSVC (Visual Studio 2026)
 ```
@@ -65,13 +66,14 @@
 ✅ **Value类**：使用`std::variant`实现类型安全的动态类型系统
 ✅ **GCObject**：三色标记（White/Gray/Black）支持增量GC
 ✅ **Table类**：混合存储（数组部分 + 哈希部分），自动优化
-✅ **Function类**：支持C函数和Lua函数两种闭包类型
+✅ **Function类**：支持C函数和Lua函数两种闭包类型，集成Upvalue管理
+✅ **Upvalue类**：闭包上值管理，支持Open/Closed状态转换，共享机制
 ✅ **StringPool**：字符串驻留（interning），节省内存
 ✅ **GarbageCollector**：标记-清除算法，根对象管理
 ✅ **GlobalState**：单例模式管理全局资源（字符串池、GC、注册表）
 ✅ **Stack**：动态值栈，自动扩展，O(1)压栈/弹栈操作
 ✅ **CallInfo**：轻量级调用上下文，支持函数调用链管理
-✅ **LuaState**：完整的线程执行环境，整合栈和调用信息
+✅ **LuaState**：完整的线程执行环境，整合栈、调用信息和Upvalue链表
 
 ### 虚拟机核心模块详解
 
@@ -159,6 +161,50 @@ ci.tailcalls = 0;    // 尾调用计数
 
 **内存布局**：40字节（6个字段）
 
+#### Upvalue（闭包上值）
+
+**设计模式**：状态模式（Open/Closed状态）
+
+**核心职责**：
+- 管理闭包捕获的外部变量
+- 支持Open状态（指向栈上变量）和Closed状态（独立存储）
+- 实现多个闭包共享同一Upvalue的机制
+- 参与GC标记和清除
+
+**状态转换**：
+```cpp
+// Open状态：v_指向栈上的Value
+Upvalue* uv = Upvalue::createOpen(&stackValue, stackIndex);
+uv->isOpen();  // true
+uv->getValue(); // 返回栈上的值
+
+// 关闭操作：将栈上的值复制到closedValue_
+uv->close();
+uv->isClosed(); // true
+uv->getValue(); // 返回closedValue_
+```
+
+**共享机制**：
+```cpp
+// LuaState管理open upvalue链表（按栈索引降序）
+Upvalue* uv1 = L->findOrCreateUpvalue(5);  // 创建新upvalue
+Upvalue* uv2 = L->findOrCreateUpvalue(5);  // 返回同一个upvalue
+assert(uv1 == uv2);  // 共享同一个upvalue
+```
+
+**关闭时机**：
+```cpp
+// 函数返回时关闭所有栈层级 >= level 的upvalue
+L->closeUpvalues(level);
+```
+
+**内存布局**：64字节（v_指针、stackIndex、closedValue、next指针）
+
+**关键算法**：
+- **findOrCreateUpvalue**：在降序链表中查找或创建upvalue
+- **closeUpvalues**：批量关闭指定层级以上的upvalue
+- **close()**：将Open状态转换为Closed状态
+
 #### LuaState（Lua状态）
 
 **设计模式**：RAII资源管理
@@ -166,7 +212,8 @@ ci.tailcalls = 0;    // 尾调用计数
 **核心职责**：
 - 管理单个Lua线程的完整执行状态
 - 整合值栈（Stack）和调用栈（CallInfo数组）
-- 提供栈操作的便捷接口
+- 管理Open Upvalue链表（按栈索引降序）
+- 提供栈操作和Upvalue管理的便捷接口
 - 管理全局表和线程状态
 
 **关键特性**：
@@ -178,6 +225,10 @@ L->pushString(str);                  // 压入字符串
 Value v = L->pop();                  // 弹出值
 Table* gt = L->getGlobalTable();     // 获取全局表
 CallInfo& ci = L->getCurrentCallInfo(); // 当前调用信息
+
+// Upvalue管理
+Upvalue* uv = L->findOrCreateUpvalue(5);  // 查找或创建upvalue
+L->closeUpvalues(10);                     // 关闭栈层级 >= 10 的upvalue
 ```
 
 **状态枚举**：
@@ -222,7 +273,8 @@ enum class ThreadStatus {
 │   │   │   ├── gc_string.hpp/cpp # GCString类
 │   │   │   ├── string_pool.hpp/cpp # StringPool类
 │   │   │   ├── table.hpp/cpp    # Table类
-│   │   │   └── function.hpp/cpp # Function类（Proto + Closure）
+│   │   │   ├── function.hpp/cpp # Function类（Proto + Closure）
+│   │   │   └── upvalue.hpp/cpp  # Upvalue类（闭包上值）⭐ 新完成
 │   │   ├── gc/                  # 垃圾回收系统
 │   │   │   └── garbage_collector.hpp/cpp # GC实现
 │   │   ├── vm/                  # 虚拟机核心 ⭐ 新完成
@@ -347,7 +399,7 @@ lua/build/
 
 ## 📅 开发路线图
 
-### 当前状态：✅ 阶段4完成，准备进入阶段5
+### 当前状态：✅ 阶段4.5完成（Upvalue支持），准备进入阶段5
 
 | 阶段 | 内容 | 状态 | 完成度 |
 |------|------|------|--------|
@@ -355,6 +407,7 @@ lua/build/
 | **阶段2** | 字符串和表系统 | ✅ 完成 | 100% |
 | **阶段3** | 垃圾回收系统 | ✅ 完成 | 100% |
 | **阶段4** | 虚拟机核心 | ✅ 完成 | 100% |
+| **阶段4.5** | Upvalue支持 | ✅ 完成 | 100% |
 | **阶段5** | 编译器 | ⏳ 待开始 | 0% |
 | **阶段6** | 标准库 | ⏳ 待开始 | 0% |
 | **阶段7** | 测试和优化 | ⏳ 待开始 | 0% |
@@ -366,6 +419,7 @@ lua/build/
 - [x] **M2**: 字符串和表系统实现（GCString、StringPool、Table）
 - [x] **M3**: 垃圾回收系统实现（GarbageCollector、Function）
 - [x] **M4**: 虚拟机核心实现（LuaState、GlobalState、Stack、CallInfo）
+- [x] **M4.5**: Upvalue支持实现（Upvalue、Function集成、LuaState集成）
 - [ ] **M5**: 编译器实现（Lexer、Parser、CodeGen）
 - [ ] **M6**: 标准库实现（base、table、string、math等）
 - [ ] **M7**: 1.0版本发布

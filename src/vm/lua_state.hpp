@@ -35,6 +35,9 @@
 
 namespace Lua {
 
+// 前向声明
+class Upvalue;
+
 /**
  * @brief Lua线程状态枚举
  */
@@ -233,6 +236,54 @@ public:
         status_ = status;
     }
 
+    // =====================================================================
+    // Upvalue管理
+    // =====================================================================
+
+    /**
+     * @brief 查找或创建指向栈位置的Upvalue
+     * @param stackIndex 栈索引位置
+     * @return Upvalue指针
+     *
+     * 详细说明：
+     * 这是Upvalue管理的核心函数，实现了Upvalue的共享机制。
+     * 多个闭包可以共享指向同一栈位置的Upvalue，确保变量语义的正确性。
+     *
+     * 查找策略：
+     * 1. 遍历openUpvalues_链表（按栈索引降序排列）
+     * 2. 如果找到匹配的栈位置，返回现有Upvalue
+     * 3. 如果没找到，创建新的Upvalue并插入链表
+     *
+     * 链表维护：
+     * - 链表按stackIndex降序排列
+     * - 新Upvalue插入到正确位置以保持有序
+     *
+     * GC集成：
+     * - 新创建的Upvalue会注册到GC系统
+     */
+    Upvalue* findOrCreateUpvalue(usize stackIndex);
+
+    /**
+     * @brief 关闭指定栈层级及以上的所有Open Upvalue
+     * @param level 栈层级阈值
+     *
+     * 详细说明：
+     * 当函数返回或栈收缩时，需要关闭相应的Upvalue。
+     * 关闭操作将Open状态的Upvalue转换为Closed状态。
+     *
+     * 处理策略：
+     * 1. 遍历openUpvalues_链表
+     * 2. 找到所有栈索引 >= level的Upvalue
+     * 3. 调用Upvalue::close()关闭它们
+     * 4. 从链表中移除
+     *
+     * 调用时机：
+     * - 函数返回时
+     * - 块结束时
+     * - 栈收缩时
+     */
+    void closeUpvalues(usize level);
+
 private:
     /**
      * @brief 私有构造函数
@@ -262,9 +313,13 @@ private:
     
     /// 全局表
     Table* globalTable_;
-    
+
     /// 线程状态
     ThreadStatus status_;
+
+    /// Open Upvalue链表头（按栈索引降序排列）
+    /// 注意：Upvalue由GC管理，这里只持有指针
+    Upvalue* openUpvalues_;
 };
 
 } // namespace Lua
