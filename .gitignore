@@ -16,6 +16,7 @@ out/
 *.so
 *.dylib
 *.a
+*.tlog
 
 # Visual Studio
 .vs/

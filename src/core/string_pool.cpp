@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @file string_pool.cpp
  * @brief StringPool类的实现
  */

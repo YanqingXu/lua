@@ -3,5 +3,5 @@
     <Platform Name="x64" />
     <Platform Name="x86" />
   </Configurations>
-  <Project Path="lua.vcxproj" />
+  <Project Path="lua.vcxproj" Id="91ed3531-8530-4138-83e7-69c2e674fdf9" />
 </Solution>

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @file config.hpp
  * @brief Lua解释器配置选项
  * 

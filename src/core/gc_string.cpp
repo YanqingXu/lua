@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @file gc_string.cpp
  * @brief GCString类的实现
  */

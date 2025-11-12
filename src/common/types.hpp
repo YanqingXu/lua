@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @file types.hpp
  * @brief Lua解释器基础类型定义
  * 
@@ -133,6 +133,7 @@ using isize = ptrdiff_t;    ///< 有符号差值类型，用于指针运算
  * @brief 字符串和字符串视图类型别名
  * @{
  */
+using CharPtr = const char*;
 using Str = std::string;            ///< 标准字符串类型
 using StrView = std::string_view;   ///< 字符串视图类型 (C++17)，高效的只读字符串引用
 /** @} */

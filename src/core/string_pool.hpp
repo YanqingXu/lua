@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 /**
  * @file string_pool.hpp

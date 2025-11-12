@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @file gc_object.cpp
  * @brief GCObject类的实现文件
  * 
