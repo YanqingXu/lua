@@ -84,6 +84,7 @@ echo #include "core/value.hpp"
 echo #include "core/gc_object.hpp"
 echo #include "core/gc_string.hpp"
 echo #include "core/string_pool.hpp"
+echo #include "core/table.hpp"
 echo #include ^<iostream^>
 echo #include ^<string_view^>
 echo.
@@ -274,11 +275,67 @@ echo     delete poolStr3;
 echo     delete poolStr1;
 echo     pool.clear^(^);
 echo.
+echo     std::cout ^<^< "\n[TEST 5] Testing Table class..." ^<^< std::endl;
+echo.
+echo     // Test 1: Create table
+echo     Lua::Table* table = new Lua::Table^(^);
+echo     std::cout ^<^< "  [1] Table creation: PASS" ^<^< std::endl;
+echo.
+echo     // Test 2: Set and get array elements
+echo     table-^>setArray^(1, Lua::Value^(42.0^)^);
+echo     table-^>setArray^(2, Lua::Value^(true^)^);
+echo     Lua::Value arr1 = table-^>getArray^(1^);
+echo     Lua::Value arr2 = table-^>getArray^(2^);
+echo     std::cout ^<^< "  [2] Array set/get: " ^<^< ^(arr1.asNumber^(^) == 42.0 ^&^& arr2.asBoolean^(^) == true ? "PASS" : "FAIL"^) ^<^< std::endl;
+echo.
+echo     // Test 3: Set and get hash elements
+echo     Lua::GCString* keyStr = new Lua::GCString^("name"^);
+echo     table-^>set^(Lua::Value^(keyStr^), Lua::Value^(poolStr2^)^);
+echo     Lua::Value hashVal = table-^>get^(Lua::Value^(keyStr^)^);
+echo     std::cout ^<^< "  [3] Hash set/get: " ^<^< ^(hashVal.isString^(^) ? "PASS" : "FAIL"^) ^<^< std::endl;
+echo.
+echo     // Test 4: Check array size
+echo     std::cout ^<^< "  [4] Array size: " ^<^< table-^>getArraySize^(^) ^<^< " ^(expected 2^)" ^<^< std::endl;
+echo.
+echo     // Test 5: Check hash size
+echo     std::cout ^<^< "  [5] Hash size: " ^<^< table-^>getHashSize^(^) ^<^< " ^(expected 1^)" ^<^< std::endl;
+echo.
+echo     // Test 6: Table length
+echo     Lua::usize len = table-^>length^(^);
+echo     std::cout ^<^< "  [6] Table length: " ^<^< len ^<^< " ^(expected 2^)" ^<^< std::endl;
+echo.
+echo     // Test 7: Has key
+echo     bool hasKey = table-^>has^(Lua::Value^(keyStr^)^);
+echo     std::cout ^<^< "  [7] Has key: " ^<^< ^(hasKey ? "PASS" : "FAIL"^) ^<^< std::endl;
+echo.
+echo     // Test 8: Remove key
+echo     table-^>remove^(Lua::Value^(keyStr^)^);
+echo     bool hasKeyAfter = table-^>has^(Lua::Value^(keyStr^)^);
+echo     std::cout ^<^< "  [8] Remove key: " ^<^< ^(!hasKeyAfter ? "PASS" : "FAIL"^) ^<^< std::endl;
+echo.
+echo     // Test 9: Metatable
+echo     Lua::Table* mt = new Lua::Table^(^);
+echo     table-^>setMetatable^(mt^);
+echo     std::cout ^<^< "  [9] Metatable: " ^<^< ^(table-^>getMetatable^(^) == mt ? "PASS" : "FAIL"^) ^<^< std::endl;
+echo.
+echo     // Test 10: GC type
+echo     std::cout ^<^< "  [10] GC type: " ^<^< ^(table-^>getType^(^) == Lua::GCObjectType::Table ? "PASS" : "FAIL"^) ^<^< std::endl;
+echo.
+echo     // Test 11: Object size
+echo     Lua::usize tableSize = table-^>getSize^(^);
+echo     std::cout ^<^< "  [11] Object size: " ^<^< tableSize ^<^< " bytes" ^<^< std::endl;
+echo.
+echo     // Cleanup
+echo     delete mt;
+echo     delete table;
+echo     delete keyStr;
+echo.
 echo     std::cout ^<^< "\n[INFO] Class sizes:" ^<^< std::endl;
 echo     std::cout ^<^< "  - Value: " ^<^< sizeof^(Lua::Value^) ^<^< " bytes" ^<^< std::endl;
 echo     std::cout ^<^< "  - GCObject: " ^<^< sizeof^(Lua::GCObject^) ^<^< " bytes" ^<^< std::endl;
 echo     std::cout ^<^< "  - TestGCObject: " ^<^< sizeof^(TestGCObject^) ^<^< " bytes" ^<^< std::endl;
 echo     std::cout ^<^< "  - GCString: " ^<^< sizeof^(Lua::GCString^) ^<^< " bytes" ^<^< std::endl;
+echo     std::cout ^<^< "  - Table: " ^<^< sizeof^(Lua::Table^) ^<^< " bytes" ^<^< std::endl;
 echo.
 echo     std::cout ^<^< "\n[SUCCESS] All tests passed!" ^<^< std::endl;
 echo     return 0;
@@ -355,11 +412,27 @@ if %errorlevel% neq 0 (
 )
 
 echo.
-echo [INFO] Compiling test file...
-echo [INFO] Command: cl %CXX_FLAGS% /Isrc /Fo"%OUTPUT_DIR%\\" /Fe"%OUTPUT_DIR%\test_build.exe" "%OUTPUT_DIR%\test_build.cpp" "%OUTPUT_DIR%\value.obj" "%OUTPUT_DIR%\gc_object.obj" "%OUTPUT_DIR%\gc_string.obj" "%OUTPUT_DIR%\string_pool.obj"
+echo [INFO] Compiling Table class...
+echo [INFO] Command: cl %CXX_FLAGS% /Isrc /c /Fo"%OUTPUT_DIR%\table.obj" "src\core\table.cpp"
 echo.
 
-cl %CXX_FLAGS% /Isrc /Fo"%OUTPUT_DIR%\\" /Fe"%OUTPUT_DIR%\test_build.exe" "%OUTPUT_DIR%\test_build.cpp" "%OUTPUT_DIR%\value.obj" "%OUTPUT_DIR%\gc_object.obj" "%OUTPUT_DIR%\gc_string.obj" "%OUTPUT_DIR%\string_pool.obj"
+cl %CXX_FLAGS% /Isrc /c /Fo"%OUTPUT_DIR%\table.obj" "src\core\table.cpp"
+
+if %errorlevel% neq 0 (
+    echo.
+    echo [ERROR] ========================================
+    echo [ERROR] Table class compilation failed!
+    echo [ERROR] Error code: %errorlevel%
+    echo [ERROR] ========================================
+    exit /b %errorlevel%
+)
+
+echo.
+echo [INFO] Compiling test file...
+echo [INFO] Command: cl %CXX_FLAGS% /Isrc /Fo"%OUTPUT_DIR%\\" /Fe"%OUTPUT_DIR%\test_build.exe" "%OUTPUT_DIR%\test_build.cpp" "%OUTPUT_DIR%\value.obj" "%OUTPUT_DIR%\gc_object.obj" "%OUTPUT_DIR%\gc_string.obj" "%OUTPUT_DIR%\string_pool.obj" "%OUTPUT_DIR%\table.obj"
+echo.
+
+cl %CXX_FLAGS% /Isrc /Fo"%OUTPUT_DIR%\\" /Fe"%OUTPUT_DIR%\test_build.exe" "%OUTPUT_DIR%\test_build.cpp" "%OUTPUT_DIR%\value.obj" "%OUTPUT_DIR%\gc_object.obj" "%OUTPUT_DIR%\gc_string.obj" "%OUTPUT_DIR%\string_pool.obj" "%OUTPUT_DIR%\table.obj"
 
 if %errorlevel% neq 0 (
     echo.
