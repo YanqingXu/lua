@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @file table.hpp
  * @brief Lua表系统：混合数组/哈希表实现
  * 
