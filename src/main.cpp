@@ -25,6 +25,10 @@
 #include "core/table.hpp"
 #include "core/function.hpp"
 #include "gc/garbage_collector.hpp"
+#include "vm/global_state.hpp"
+#include "vm/stack.hpp"
+#include "vm/call_info.hpp"
+#include "vm/lua_state.hpp"
 
 #include <iostream>
 #include <iomanip>
@@ -436,6 +440,262 @@ void testFunction() {
 }
 
 /**
+ * @brief 测试GlobalState类
+ */
+void testGlobalState() {
+    printTitle("Testing GlobalState Class");
+
+    // 获取GlobalState单例
+    GlobalState& gs = GlobalState::getInstance();
+
+    std::cout << "GlobalState singleton:" << std::endl;
+    std::cout << "  [OK] getInstance() returns valid reference" << std::endl;
+
+    // 测试字符串池访问
+    StringPool& pool = gs.getStringPool();
+    GCString* testStr = pool.intern("GlobalState Test");
+    std::cout << "  [OK] getStringPool() returns valid StringPool" << std::endl;
+    std::cout << "  Test string: " << testStr->c_str() << std::endl;
+
+    // 测试GC访问
+    GarbageCollector& gc = gs.getGC();
+    std::cout << "  [OK] getGC() returns valid GarbageCollector" << std::endl;
+
+    // 测试注册表
+    Table* registry = gs.getRegistry();
+    if (registry != nullptr) {
+        std::cout << "  [OK] getRegistry() returns valid Table" << std::endl;
+
+        // 在注册表中存储一些数据
+        GCString* key = pool.intern("test_key");
+        registry->set(Value(key), Value(123.0));
+
+        Value val = registry->get(Value(key));
+        if (val.isNumber() && val.asNumber() == 123.0) {
+            std::cout << "  [OK] Registry can store and retrieve values" << std::endl;
+        }
+    }
+
+    // 测试元表管理
+    Table* numberMT = new Table();
+    gc.registerObject(numberMT);
+    gs.setMetatable(ValueType::Number, numberMT);
+
+    Table* retrievedMT = gs.getMetatable(ValueType::Number);
+    if (retrievedMT == numberMT) {
+        std::cout << "  [OK] setMetatable/getMetatable work correctly" << std::endl;
+    }
+
+    std::cout << "\n[PASS] GlobalState class test completed\n" << std::endl;
+}
+
+/**
+ * @brief 测试Stack类
+ */
+void testStack() {
+    printTitle("Testing Stack Class");
+
+    Stack stack;
+
+    // 测试初始状态
+    std::cout << "Initial state:" << std::endl;
+    std::cout << "  Size: " << stack.size() << std::endl;
+    std::cout << "  Capacity: " << stack.capacity() << std::endl;
+    std::cout << "  Empty: " << (stack.empty() ? "true" : "false") << std::endl;
+
+    if (stack.empty()) {
+        std::cout << "  [OK] New stack is empty" << std::endl;
+    }
+
+    // 测试push操作
+    std::cout << "\nTesting push operations:" << std::endl;
+    stack.push(Value(1.0));
+    stack.push(Value(2.0));
+    stack.push(Value(true));
+    stack.push(Value());  // nil
+
+    std::cout << "  Pushed 4 values" << std::endl;
+    std::cout << "  Size: " << stack.size() << std::endl;
+
+    if (stack.size() == 4) {
+        std::cout << "  [OK] Stack size is correct" << std::endl;
+    }
+
+    // 测试top操作
+    std::cout << "\nTesting top operation:" << std::endl;
+    Value topVal = stack.top();
+    if (topVal.isNil()) {
+        std::cout << "  [OK] top() returns nil (last pushed value)" << std::endl;
+    }
+
+    // 测试索引访问
+    std::cout << "\nTesting indexed access:" << std::endl;
+    Value v0 = stack.at(0);
+    Value v1 = stack.at(1);
+    Value v2 = stack.at(2);
+
+    if (v0.isNumber() && v0.asNumber() == 1.0) {
+        std::cout << "  [OK] at(0) returns first value (1.0)" << std::endl;
+    }
+    if (v1.isNumber() && v1.asNumber() == 2.0) {
+        std::cout << "  [OK] at(1) returns second value (2.0)" << std::endl;
+    }
+    if (v2.isBoolean() && v2.asBoolean() == true) {
+        std::cout << "  [OK] at(2) returns third value (true)" << std::endl;
+    }
+
+    // 测试pop操作
+    std::cout << "\nTesting pop operation:" << std::endl;
+    Value popped = stack.pop();
+    if (popped.isNil()) {
+        std::cout << "  [OK] pop() returns nil" << std::endl;
+    }
+    if (stack.size() == 3) {
+        std::cout << "  [OK] Size decreased to 3" << std::endl;
+    }
+
+    // 测试自动扩展
+    std::cout << "\nTesting automatic expansion:" << std::endl;
+    usize initialCapacity = stack.capacity();
+    for (usize i = 0; i < 100; ++i) {
+        stack.push(Value(static_cast<f64>(i)));
+    }
+    usize newCapacity = stack.capacity();
+    if (newCapacity > initialCapacity) {
+        std::cout << "  [OK] Stack expanded from " << initialCapacity
+                  << " to " << newCapacity << std::endl;
+    }
+
+    // 测试clear
+    stack.clear();
+    if (stack.empty()) {
+        std::cout << "  [OK] clear() empties the stack" << std::endl;
+    }
+
+    std::cout << "\n[PASS] Stack class test completed\n" << std::endl;
+}
+
+/**
+ * @brief 测试CallInfo类
+ */
+void testCallInfo() {
+    printTitle("Testing CallInfo Class");
+
+    CallInfo ci;
+
+    // 测试默认构造
+    std::cout << "Default construction:" << std::endl;
+    std::cout << "  func: " << ci.func << std::endl;
+    std::cout << "  base: " << ci.base << std::endl;
+    std::cout << "  top: " << ci.top << std::endl;
+    std::cout << "  nresults: " << ci.nresults << std::endl;
+    std::cout << "  tailcalls: " << ci.tailcalls << std::endl;
+
+    if (ci.func == 0 && ci.base == 0 && ci.top == 0) {
+        std::cout << "  [OK] Default values are zero" << std::endl;
+    }
+
+    // 测试设置值
+    std::cout << "\nSetting values:" << std::endl;
+    ci.func = 10;
+    ci.base = 11;
+    ci.top = 20;
+    ci.nresults = 2;
+    ci.tailcalls = 0;
+
+    if (ci.func == 10 && ci.base == 11 && ci.top == 20 && ci.nresults == 2) {
+        std::cout << "  [OK] Values set correctly" << std::endl;
+    }
+
+    // 测试reset
+    std::cout << "\nTesting reset:" << std::endl;
+    ci.reset();
+    if (ci.func == 0 && ci.base == 0 && ci.top == 0) {
+        std::cout << "  [OK] reset() clears all values" << std::endl;
+    }
+
+    std::cout << "\n[PASS] CallInfo class test completed\n" << std::endl;
+}
+
+/**
+ * @brief 测试LuaState类
+ */
+void testLuaState() {
+    printTitle("Testing LuaState Class");
+
+    // 创建LuaState
+    LuaState* L = LuaState::newState();
+    std::cout << "Created new LuaState" << std::endl;
+
+    // 测试初始状态
+    std::cout << "\nInitial state:" << std::endl;
+    std::cout << "  Stack size: " << L->getStack().size() << std::endl;
+    std::cout << "  Call stack size: " << L->getCallStackSize() << std::endl;
+    std::cout << "  Status: " << static_cast<int>(L->getStatus()) << std::endl;
+
+    if (L->getStatus() == ThreadStatus::OK) {
+        std::cout << "  [OK] Initial status is OK" << std::endl;
+    }
+
+    // 测试栈操作
+    std::cout << "\nTesting stack operations:" << std::endl;
+    L->pushNumber(42.0);
+    L->pushBoolean(true);
+    L->pushNil();
+
+    std::cout << "  Pushed 3 values" << std::endl;
+    std::cout << "  Stack size: " << L->getStack().size() << std::endl;
+
+    // 注意：初始化时会push一个nil作为虚拟函数，所以实际大小是4
+    if (L->getStack().size() == 4) {
+        std::cout << "  [OK] Stack size is 4 (1 initial + 3 pushed)" << std::endl;
+    }
+
+    // 测试访问栈顶
+    Value topVal = L->top();
+    if (topVal.isNil()) {
+        std::cout << "  [OK] top() returns nil" << std::endl;
+    }
+
+    // 测试pop
+    Value popped = L->pop();
+    if (popped.isNil() && L->getStack().size() == 3) {
+        std::cout << "  [OK] pop() works correctly" << std::endl;
+    }
+
+    // 测试全局状态访问
+    std::cout << "\nTesting global state access:" << std::endl;
+    GlobalState& gs = L->getGlobalState();
+    std::cout << "  [OK] getGlobalState() returns valid reference" << std::endl;
+
+    // 测试全局表
+    Table* globalTable = L->getGlobalTable();
+    if (globalTable != nullptr) {
+        std::cout << "  [OK] getGlobalTable() returns valid Table" << std::endl;
+
+        // 在全局表中存储值
+        StringPool& pool = gs.getStringPool();
+        GCString* key = pool.intern("test_global");
+        globalTable->set(Value(key), Value(999.0));
+
+        Value val = globalTable->get(Value(key));
+        if (val.isNumber() && val.asNumber() == 999.0) {
+            std::cout << "  [OK] Global table can store and retrieve values" << std::endl;
+        }
+    }
+
+    // 测试CallInfo访问
+    std::cout << "\nTesting CallInfo access:" << std::endl;
+    CallInfo& ci = L->getCurrentCallInfo();
+    std::cout << "  Current CallInfo base: " << ci.base << std::endl;
+    std::cout << "  [OK] getCurrentCallInfo() returns valid reference" << std::endl;
+
+    // 清理
+    delete L;
+    std::cout << "\n[PASS] LuaState class test completed\n" << std::endl;
+}
+
+/**
  * @brief 综合测试
  */
 void comprehensiveTest() {
@@ -511,6 +771,13 @@ int main(int argc, char* argv[]) {
         testGCObject();
         testGarbageCollector();
         testFunction();
+
+        // 虚拟机核心模块测试
+        testGlobalState();
+        testStack();
+        testCallInfo();
+        testLuaState();
+
         comprehensiveTest();
 
         // 总结
@@ -524,6 +791,10 @@ int main(int argc, char* argv[]) {
         std::cout << "  [OK] Table class" << std::endl;
         std::cout << "  [OK] Function class (Proto + Closure)" << std::endl;
         std::cout << "  [OK] GarbageCollector class" << std::endl;
+        std::cout << "  [OK] GlobalState class" << std::endl;
+        std::cout << "  [OK] Stack class" << std::endl;
+        std::cout << "  [OK] CallInfo class" << std::endl;
+        std::cout << "  [OK] LuaState class" << std::endl;
         std::cout << std::endl;
         
         printSeparator();

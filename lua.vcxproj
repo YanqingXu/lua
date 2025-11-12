@@ -139,6 +139,10 @@
     <ClInclude Include="src\core\table.hpp" />
     <ClInclude Include="src\core\value.hpp" />
     <ClInclude Include="src\gc\garbage_collector.hpp" />
+    <ClInclude Include="src\vm\call_info.hpp" />
+    <ClInclude Include="src\vm\global_state.hpp" />
+    <ClInclude Include="src\vm\lua_state.hpp" />
+    <ClInclude Include="src\vm\stack.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\core\function.cpp" />
@@ -149,6 +153,9 @@
     <ClCompile Include="src\core\value.cpp" />
     <ClCompile Include="src\gc\garbage_collector.cpp" />
     <ClCompile Include="src\main.cpp" />
+    <ClCompile Include="src\vm\global_state.cpp" />
+    <ClCompile Include="src\vm\lua_state.cpp" />
+    <ClCompile Include="src\vm\stack.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

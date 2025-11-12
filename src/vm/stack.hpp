@@ -1,0 +1,209 @@
+﻿/**
+ * @file stack.hpp
+ * @brief Lua栈管理：动态扩展的值栈实现
+ * 
+ * 详细说明：
+ * Stack类管理Lua虚拟机的值栈，用于存储函数参数、局部变量和临时值。
+ * 栈采用连续内存布局，支持高效的随机访问和动态扩展。
+ * 
+ * 核心特性：
+ * - 动态扩展：栈空间不足时自动扩展
+ * - 边界检查：防止栈溢出和下溢
+ * - 高效访问：O(1)的push/pop操作
+ * - 内存安全：使用Vec管理内存，自动释放
+ * 
+ * 栈布局：
+ * ```
+ * 高地址 ┌─────────────┐ ← capacity (栈容量)
+ *       │             │
+ *       │   可用空间   │
+ *       │             │
+ *       ├─────────────┤ ← top (栈顶)
+ *       │   值 n      │
+ *       │   ...       │
+ *       │   值 1      │
+ * 低地址 └─────────────┘ ← base (栈底，索引0)
+ * ```
+ * 
+ * 参考实现：
+ * - lua_c_analysis/src/lstate.h 中的栈管理
+ * - lua_c_analysis/src/ldo.h 中的栈操作
+ * 
+ * @author Lua C++ Project
+ * @date 2025-11-12
+ */
+
+#pragma once
+
+#include "common/types.hpp"
+#include "core/value.hpp"
+
+namespace Lua {
+
+/**
+ * @brief 栈类
+ * 
+ * 管理Lua值的动态栈，支持push/pop操作和自动扩展。
+ * 
+ * 使用示例：
+ * @code
+ * Stack stack;
+ * 
+ * // 压入值
+ * stack.push(Value(42.0));
+ * stack.push(Value(true));
+ * 
+ * // 访问栈顶
+ * Value top = stack.top();
+ * 
+ * // 弹出值
+ * Value val = stack.pop();
+ * 
+ * // 通过索引访问
+ * Value v = stack.at(0);  // 访问栈底
+ * @endcode
+ */
+class Stack {
+public:
+    // =====================================================================
+    // 常量定义
+    // =====================================================================
+    
+    /// 最小栈大小（Lua 5.1.5中的LUA_MINSTACK）
+    static constexpr usize MIN_STACK_SIZE = 20;
+    
+    /// 初始栈大小
+    static constexpr usize INITIAL_STACK_SIZE = 40;
+    
+    /// 额外栈空间（用于元方法调用等）
+    static constexpr usize EXTRA_STACK = 5;
+    
+    // =====================================================================
+    // 构造函数和析构函数
+    // =====================================================================
+    
+    /**
+     * @brief 构造函数
+     * @param initialSize 初始栈大小（默认为INITIAL_STACK_SIZE）
+     */
+    explicit Stack(usize initialSize = INITIAL_STACK_SIZE);
+    
+    /**
+     * @brief 析构函数
+     */
+    ~Stack() = default;
+    
+    // 禁止拷贝，允许移动
+    Stack(const Stack&) = delete;
+    Stack& operator=(const Stack&) = delete;
+    Stack(Stack&&) noexcept = default;
+    Stack& operator=(Stack&&) noexcept = default;
+    
+    // =====================================================================
+    // 栈操作
+    // =====================================================================
+    
+    /**
+     * @brief 压入值到栈顶
+     * @param value 要压入的值
+     */
+    void push(const Value& value);
+    
+    /**
+     * @brief 弹出栈顶值
+     * @return 栈顶的值
+     * @throws std::runtime_error 如果栈为空
+     */
+    Value pop();
+    
+    /**
+     * @brief 获取栈顶值（不弹出）
+     * @return 栈顶值的引用
+     * @throws std::runtime_error 如果栈为空
+     */
+    Value& top();
+    const Value& top() const;
+    
+    /**
+     * @brief 通过索引访问栈元素
+     * @param index 索引（0为栈底，size()-1为栈顶）
+     * @return 指定位置的值的引用
+     * @throws std::out_of_range 如果索引越界
+     */
+    Value& at(usize index);
+    const Value& at(usize index) const;
+    
+    /**
+     * @brief 通过索引访问栈元素（不检查边界）
+     * @param index 索引
+     * @return 指定位置的值的引用
+     */
+    Value& operator[](usize index) noexcept {
+        return stack_[index];
+    }
+    
+    const Value& operator[](usize index) const noexcept {
+        return stack_[index];
+    }
+    
+    // =====================================================================
+    // 栈状态查询
+    // =====================================================================
+    
+    /**
+     * @brief 获取栈中元素数量
+     * @return 栈大小
+     */
+    usize size() const noexcept {
+        return top_;
+    }
+    
+    /**
+     * @brief 获取栈容量
+     * @return 栈容量
+     */
+    usize capacity() const noexcept {
+        return stack_.size();
+    }
+    
+    /**
+     * @brief 检查栈是否为空
+     * @return 如果栈为空返回true
+     */
+    bool empty() const noexcept {
+        return top_ == 0;
+    }
+    
+    /**
+     * @brief 清空栈
+     */
+    void clear() noexcept {
+        top_ = 0;
+    }
+    
+    // =====================================================================
+    // 栈空间管理
+    // =====================================================================
+    
+    /**
+     * @brief 确保栈有足够的空间
+     * @param needed 需要的额外空间
+     */
+    void ensureSpace(usize needed);
+    
+    /**
+     * @brief 设置栈顶位置
+     * @param newTop 新的栈顶位置
+     */
+    void setTop(usize newTop);
+
+private:
+    /// 值栈（使用Vec自动管理内存）
+    Vec<Value> stack_;
+    
+    /// 栈顶位置（指向下一个可用位置）
+    usize top_;
+};
+
+} // namespace Lua
+

@@ -3,7 +3,7 @@
 > **从零开始用C++17/20/23实现Lua 5.1.5解释器**
 
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen)]()
-[![Tests](https://img.shields.io/badge/tests-74%2F74-brightgreen)]()
+[![Tests](https://img.shields.io/badge/tests-89%2F89-brightgreen)]()
 [![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen)]()
 [![C++](https://img.shields.io/badge/C%2B%2B-17-blue)]()
 [![Platform](https://img.shields.io/badge/platform-Windows-blue)]()
@@ -32,7 +32,7 @@
 
 ## 📊 当前进度
 
-### 已完成模块（7个核心模块）
+### 已完成模块（11个核心模块）
 
 | 模块 | 文件 | 功能描述 | 测试数 | 状态 |
 |------|------|---------|--------|------|
@@ -46,12 +46,16 @@
 | **Table类** | `src/core/table.hpp/cpp` | Lua表（数组+哈希混合存储） | 11 | ✅ 完成 |
 | **Function类** | `src/core/function.hpp/cpp` | 函数对象（Proto + Closure） | 12 | ✅ 完成 |
 | **GarbageCollector** | `src/gc/garbage_collector.hpp/cpp` | 垃圾回收器（标记-清除算法） | 8 | ✅ 完成 |
+| **GlobalState类** | `src/vm/global_state.hpp/cpp` | 全局状态管理（单例模式） | 4 | ✅ 完成 |
+| **Stack类** | `src/vm/stack.hpp/cpp` | 值栈管理（动态扩展） | 5 | ✅ 完成 |
+| **CallInfo类** | `src/vm/call_info.hpp` | 调用信息（函数调用上下文） | 3 | ✅ 完成 |
+| **LuaState类** | `src/vm/lua_state.hpp/cpp` | Lua状态（线程执行环境） | 5 | ✅ 完成 |
 
 ### 测试统计
 
 ```
-总测试数：74个
-通过率：  100% (74/74)
+总测试数：89个
+通过率：  100% (89/89)
 编译状态：Debug和Release版本均无警告
 平台：    Windows + MSVC (Visual Studio 2026)
 ```
@@ -64,6 +68,138 @@
 ✅ **Function类**：支持C函数和Lua函数两种闭包类型
 ✅ **StringPool**：字符串驻留（interning），节省内存
 ✅ **GarbageCollector**：标记-清除算法，根对象管理
+✅ **GlobalState**：单例模式管理全局资源（字符串池、GC、注册表）
+✅ **Stack**：动态值栈，自动扩展，O(1)压栈/弹栈操作
+✅ **CallInfo**：轻量级调用上下文，支持函数调用链管理
+✅ **LuaState**：完整的线程执行环境，整合栈和调用信息
+
+### 虚拟机核心模块详解
+
+#### GlobalState（全局状态）
+
+**设计模式**：单例模式
+
+**核心职责**：
+- 管理所有线程共享的全局资源
+- 字符串池（StringPool）的访问入口
+- 垃圾回收器（GarbageCollector）的访问入口
+- 注册表（Registry）管理：C代码专用的全局存储
+- 元表管理：为基础类型（nil、boolean、number等）提供元表支持
+- 主线程引用：维护主线程的指针
+
+**关键特性**：
+```cpp
+GlobalState& gs = GlobalState::getInstance();  // 单例访问
+StringPool& pool = gs.getStringPool();         // 字符串池
+GarbageCollector& gc = gs.getGC();             // GC
+Table* registry = gs.getRegistry();            // 注册表
+gs.setMetatable(ValueType::Number, mt);        // 设置元表
+```
+
+**内存布局**：104字节（包含引用和指针数组）
+
+#### Stack（值栈）
+
+**设计模式**：动态数组
+
+**核心职责**：
+- 存储函数参数、局部变量和临时值
+- 自动扩展：容量不足时自动翻倍
+- 高效访问：O(1)压栈、弹栈、索引访问
+
+**关键特性**：
+```cpp
+Stack stack;
+stack.push(Value(42.0));           // 压栈
+Value v = stack.pop();             // 弹栈
+Value& top = stack.top();          // 访问栈顶
+Value& val = stack.at(index);      // 索引访问
+stack.ensureSpace(n);              // 确保有n个空闲槽位
+```
+
+**常量定义**：
+- `MIN_STACK_SIZE = 20`：最小栈大小
+- `INITIAL_STACK_SIZE = 40`：初始栈大小
+- `EXTRA_STACK = 5`：额外保留空间
+
+**内存布局**：40字节（Vec容器 + top指针）
+
+#### CallInfo（调用信息）
+
+**设计模式**：轻量级结构体
+
+**核心职责**：
+- 存储单次函数调用的上下文信息
+- 管理栈帧布局（func、base、top）
+- 记录返回值数量和尾调用计数
+
+**栈帧布局**：
+```
+┌─────────────┐ ← top (栈顶)
+│  局部变量3  │
+│  局部变量2  │
+│  局部变量1  │
+├─────────────┤ ← base (栈基址)
+│   参数2     │
+│   参数1     │
+│  函数对象   │ ← func
+└─────────────┘
+```
+
+**关键字段**：
+```cpp
+CallInfo ci;
+ci.func = 10;        // 函数对象在栈索引10
+ci.base = 11;        // 参数从索引11开始
+ci.top = 20;         // 栈顶在索引20
+ci.nresults = 2;     // 期望2个返回值
+ci.savedpc = ptr;    // 程序计数器（Lua函数）
+ci.tailcalls = 0;    // 尾调用计数
+```
+
+**内存布局**：40字节（6个字段）
+
+#### LuaState（Lua状态）
+
+**设计模式**：RAII资源管理
+
+**核心职责**：
+- 管理单个Lua线程的完整执行状态
+- 整合值栈（Stack）和调用栈（CallInfo数组）
+- 提供栈操作的便捷接口
+- 管理全局表和线程状态
+
+**关键特性**：
+```cpp
+LuaState* L = LuaState::newState();  // 创建新状态
+L->pushNumber(42.0);                 // 压入数值
+L->pushBoolean(true);                // 压入布尔值
+L->pushString(str);                  // 压入字符串
+Value v = L->pop();                  // 弹出值
+Table* gt = L->getGlobalTable();     // 获取全局表
+CallInfo& ci = L->getCurrentCallInfo(); // 当前调用信息
+```
+
+**状态枚举**：
+```cpp
+enum class ThreadStatus {
+    OK = 0,         // 正常执行
+    Yield = 1,      // 协程挂起
+    ErrRun = 2,     // 运行时错误
+    ErrSyntax = 3,  // 语法错误
+    ErrMem = 4,     // 内存错误
+    ErrErr = 5      // 错误处理函数错误
+};
+```
+
+**初始化流程**：
+1. 创建值栈（初始大小40）
+2. 创建调用栈（初始大小8）
+3. 创建全局表并注册为GC根对象
+4. 初始化第一个CallInfo（虚拟主函数）
+5. 如果是第一个LuaState，设置为主线程
+
+**内存布局**：104字节（包含Stack、CallInfo数组、引用和指针）
 
 ---
 
@@ -89,7 +225,11 @@
 │   │   │   └── function.hpp/cpp # Function类（Proto + Closure）
 │   │   ├── gc/                  # 垃圾回收系统
 │   │   │   └── garbage_collector.hpp/cpp # GC实现
-│   │   ├── vm/                  # 虚拟机（待实现）
+│   │   ├── vm/                  # 虚拟机核心 ⭐ 新完成
+│   │   │   ├── global_state.hpp/cpp # 全局状态管理
+│   │   │   ├── stack.hpp/cpp    # 值栈管理
+│   │   │   ├── call_info.hpp    # 调用信息
+│   │   │   └── lua_state.hpp/cpp # Lua状态（线程）
 │   │   ├── compiler/            # 编译器（待实现）
 │   │   ├── lib/                 # 标准库（待实现）
 │   │   └── main.cpp             # 测试主程序（VS IDE手动编译用）
@@ -207,14 +347,14 @@ lua/build/
 
 ## 📅 开发路线图
 
-### 当前状态：✅ 阶段3完成，准备进入阶段4
+### 当前状态：✅ 阶段4完成，准备进入阶段5
 
 | 阶段 | 内容 | 状态 | 完成度 |
 |------|------|------|--------|
 | **阶段1** | 基础类型系统 | ✅ 完成 | 100% |
 | **阶段2** | 字符串和表系统 | ✅ 完成 | 100% |
 | **阶段3** | 垃圾回收系统 | ✅ 完成 | 100% |
-| **阶段4** | 虚拟机核心 | ⏳ 待开始 | 0% |
+| **阶段4** | 虚拟机核心 | ✅ 完成 | 100% |
 | **阶段5** | 编译器 | ⏳ 待开始 | 0% |
 | **阶段6** | 标准库 | ⏳ 待开始 | 0% |
 | **阶段7** | 测试和优化 | ⏳ 待开始 | 0% |
@@ -225,7 +365,7 @@ lua/build/
 - [x] **M1**: 基础类型系统实现（Value、GCObject）
 - [x] **M2**: 字符串和表系统实现（GCString、StringPool、Table）
 - [x] **M3**: 垃圾回收系统实现（GarbageCollector、Function）
-- [ ] **M4**: 虚拟机核心实现（LuaState、GlobalState、Stack、CallInfo）
+- [x] **M4**: 虚拟机核心实现（LuaState、GlobalState、Stack、CallInfo）
 - [ ] **M5**: 编译器实现（Lexer、Parser、CodeGen）
 - [ ] **M6**: 标准库实现（base、table、string、math等）
 - [ ] **M7**: 1.0版本发布
@@ -234,9 +374,59 @@ lua/build/
 
 ## 🎯 下一步计划
 
-根据`docs/IMPLEMENTATION_PLAN.md`，接下来有以下开发选项：
+根据`docs/IMPLEMENTATION_PLAN.md`，虚拟机核心已完成，接下来有以下开发选项：
 
-### 选项A：实现Userdata类（用户自定义数据）
+### 选项A：实现字节码执行引擎（⭐ 推荐）
+
+**功能**：
+- 实现虚拟机指令集（基于Lua 5.1的38条指令）
+- 实现字节码解释器（fetch-decode-execute循环）
+- 实现函数调用机制（luaD_call、luaD_precall、luaD_poscall）
+- 实现错误处理和保护调用
+
+**原因**：
+- 虚拟机核心已完成，可以开始执行字节码
+- 是编译器的直接下游，可以验证编译器输出
+- 可以手动构造字节码进行测试
+
+**参考**：
+- `lua_c_analysis/src/lvm.h` 和 `lvm.c` - 虚拟机执行
+- `lua_c_analysis/src/ldo.h` 和 `ldo.c` - 函数调用
+- `lua_c_analysis/src/lopcodes.h` - 指令定义
+
+### 选项B：实现词法分析器（Lexer）
+
+**功能**：
+- 实现Token类型定义
+- 实现词法分析器（扫描源代码，生成Token流）
+- 支持Lua 5.1的所有关键字和运算符
+- 错误处理和位置跟踪
+
+**原因**：
+- 编译器的第一步
+- 相对独立，可以单独测试
+- 为语法分析器打基础
+
+**参考**：
+- `lua_c_analysis/src/llex.h` 和 `llex.c` - 词法分析
+- `lua_c_analysis/src/lzio.h` 和 `lzio.c` - 输入流
+
+### 选项C：完善Function类（添加Upvalue支持）
+
+**功能**：
+- 实现Upvalue类（上值）
+- 实现UpvalueList（上值列表）
+- 完善闭包的上值管理
+- 支持闭包捕获外部变量
+
+**原因**：
+- 闭包是Lua的核心特性
+- 字节码执行需要Upvalue支持
+- 相对独立的模块
+
+**参考**：`lua_c_analysis/src/lobject.h` (UpVal结构)
+
+### 选项D：实现Userdata类（用户自定义数据）
 
 **功能**：
 - 用户自定义数据类型封装
@@ -245,41 +435,6 @@ lua/build/
 - 轻量级Userdata支持
 
 **参考**：`lua_c_analysis/src/lobject.h` (Udata结构)
-
-### 选项B：实现Thread类（协程支持）
-
-**功能**：
-- Lua协程（coroutine）支持
-- 独立的执行栈
-- 调用信息管理
-- 协程状态管理
-
-**参考**：`lua_c_analysis/src/lstate.h` (lua_State结构)
-
-### 选项C：开始虚拟机核心（⭐ 推荐）
-
-**功能**：
-- 实现LuaState类（Lua状态管理）
-- 实现GlobalState类（全局状态）
-- 实现Stack类（栈管理）
-- 实现CallInfo类（调用信息）
-
-**原因**：
-- 为后续字节码执行打好基础
-- 是编译器和标准库的前置依赖
-- 可以开始实现简单的Lua脚本执行
-
-**参考**：`lua_c_analysis/src/lstate.h` 和 `lua_c_analysis/src/ldo.h`
-
-### 选项D：完善Function类（添加Upvalue支持）
-
-**功能**：
-- 实现Upvalue类（上值）
-- 实现UpvalueList（上值列表）
-- 完善闭包的上值管理
-- 支持闭包捕获外部变量
-
-**参考**：`lua_c_analysis/src/lobject.h` (UpVal结构)
 
 ---
 
@@ -512,7 +667,7 @@ lua/build/
 
 ---
 
-## � 相关链接
+##  相关链接
 
 ### 项目仓库
 

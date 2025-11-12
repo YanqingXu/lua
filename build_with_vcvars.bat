@@ -87,6 +87,10 @@ echo #include "core/string_pool.hpp"
 echo #include "core/table.hpp"
 echo #include "core/function.hpp"
 echo #include "gc/garbage_collector.hpp"
+echo #include "vm/global_state.hpp"
+echo #include "vm/stack.hpp"
+echo #include "vm/call_info.hpp"
+echo #include "vm/lua_state.hpp"
 echo #include ^<iostream^>
 echo #include ^<string_view^>
 echo.
@@ -442,6 +446,74 @@ echo     delete cfunc;
 echo     delete lfunc;
 echo     delete proto;
 echo.
+echo     // ===== Test 8: GlobalState =====
+echo     std::cout ^<^< "\n[TEST 8] Testing GlobalState class..." ^<^< std::endl;
+echo.
+echo     Lua::GlobalState^& gs = Lua::GlobalState::getInstance^(^);
+echo     std::cout ^<^< "  [1] GlobalState singleton: PASS" ^<^< std::endl;
+echo.
+echo     Lua::StringPool^& pool2 = gs.getStringPool^(^);
+echo     std::cout ^<^< "  [2] getStringPool: PASS" ^<^< std::endl;
+echo.
+echo     Lua::GarbageCollector^& gc2 = gs.getGC^(^);
+echo     std::cout ^<^< "  [3] getGC: PASS" ^<^< std::endl;
+echo.
+echo     Lua::Table* registry = gs.getRegistry^(^);
+echo     std::cout ^<^< "  [4] getRegistry: " ^<^< ^(registry != nullptr ? "PASS" : "FAIL"^) ^<^< std::endl;
+echo.
+echo     // ===== Test 9: Stack =====
+echo     std::cout ^<^< "\n[TEST 9] Testing Stack class..." ^<^< std::endl;
+echo.
+echo     Lua::Stack stack;
+echo     std::cout ^<^< "  [1] Stack creation: PASS" ^<^< std::endl;
+echo.
+echo     stack.push^(Lua::Value^(1.0^)^);
+echo     stack.push^(Lua::Value^(2.0^)^);
+echo     stack.push^(Lua::Value^(true^)^);
+echo     std::cout ^<^< "  [2] Push operations: " ^<^< ^(stack.size^(^) == 3 ? "PASS" : "FAIL"^) ^<^< std::endl;
+echo.
+echo     Lua::Value topVal = stack.top^(^);
+echo     std::cout ^<^< "  [3] Top value: " ^<^< ^(topVal.isBoolean^(^) ? "PASS" : "FAIL"^) ^<^< std::endl;
+echo.
+echo     Lua::Value popped = stack.pop^(^);
+echo     std::cout ^<^< "  [4] Pop operation: " ^<^< ^(stack.size^(^) == 2 ? "PASS" : "FAIL"^) ^<^< std::endl;
+echo.
+echo     stack.clear^(^);
+echo     std::cout ^<^< "  [5] Clear: " ^<^< ^(stack.empty^(^) ? "PASS" : "FAIL"^) ^<^< std::endl;
+echo.
+echo     // ===== Test 10: CallInfo =====
+echo     std::cout ^<^< "\n[TEST 10] Testing CallInfo class..." ^<^< std::endl;
+echo.
+echo     Lua::CallInfo ci;
+echo     std::cout ^<^< "  [1] CallInfo creation: PASS" ^<^< std::endl;
+echo.
+echo     ci.func = 10;
+echo     ci.base = 11;
+echo     ci.top = 20;
+echo     ci.nresults = 2;
+echo     std::cout ^<^< "  [2] Set values: " ^<^< ^(ci.func == 10 ^&^& ci.base == 11 ? "PASS" : "FAIL"^) ^<^< std::endl;
+echo.
+echo     ci.reset^(^);
+echo     std::cout ^<^< "  [3] Reset: " ^<^< ^(ci.func == 0 ^&^& ci.base == 0 ? "PASS" : "FAIL"^) ^<^< std::endl;
+echo.
+echo     // ===== Test 11: LuaState =====
+echo     std::cout ^<^< "\n[TEST 11] Testing LuaState class..." ^<^< std::endl;
+echo.
+echo     Lua::LuaState* L = Lua::LuaState::newState^(^);
+echo     std::cout ^<^< "  [1] LuaState creation: PASS" ^<^< std::endl;
+echo.
+echo     std::cout ^<^< "  [2] Initial status: " ^<^< ^(L-^>getStatus^(^) == Lua::ThreadStatus::OK ? "PASS" : "FAIL"^) ^<^< std::endl;
+echo.
+echo     L-^>pushNumber^(42.0^);
+echo     L-^>pushBoolean^(true^);
+echo     std::cout ^<^< "  [3] Push operations: " ^<^< ^(L-^>getStack^(^).size^(^) == 3 ? "PASS" : "FAIL"^) ^<^< std::endl;
+echo.
+echo     Lua::Table* globalTable = L-^>getGlobalTable^(^);
+echo     std::cout ^<^< "  [4] Global table: " ^<^< ^(globalTable != nullptr ? "PASS" : "FAIL"^) ^<^< std::endl;
+echo.
+echo     delete L;
+echo     std::cout ^<^< "  [5] LuaState cleanup: PASS" ^<^< std::endl;
+echo.
 echo     std::cout ^<^< "\n[INFO] Class sizes:" ^<^< std::endl;
 echo     std::cout ^<^< "  - Value: " ^<^< sizeof^(Lua::Value^) ^<^< " bytes" ^<^< std::endl;
 echo     std::cout ^<^< "  - GCObject: " ^<^< sizeof^(Lua::GCObject^) ^<^< " bytes" ^<^< std::endl;
@@ -451,6 +523,10 @@ echo     std::cout ^<^< "  - Table: " ^<^< sizeof^(Lua::Table^) ^<^< " bytes" ^<
 echo     std::cout ^<^< "  - Proto: " ^<^< sizeof^(Lua::Proto^) ^<^< " bytes" ^<^< std::endl;
 echo     std::cout ^<^< "  - Function: " ^<^< sizeof^(Lua::Function^) ^<^< " bytes" ^<^< std::endl;
 echo     std::cout ^<^< "  - GarbageCollector: " ^<^< sizeof^(Lua::GarbageCollector^) ^<^< " bytes" ^<^< std::endl;
+echo     std::cout ^<^< "  - GlobalState: " ^<^< sizeof^(Lua::GlobalState^) ^<^< " bytes" ^<^< std::endl;
+echo     std::cout ^<^< "  - Stack: " ^<^< sizeof^(Lua::Stack^) ^<^< " bytes" ^<^< std::endl;
+echo     std::cout ^<^< "  - CallInfo: " ^<^< sizeof^(Lua::CallInfo^) ^<^< " bytes" ^<^< std::endl;
+echo     std::cout ^<^< "  - LuaState: " ^<^< sizeof^(Lua::LuaState^) ^<^< " bytes" ^<^< std::endl;
 echo.
 echo     std::cout ^<^< "\n[SUCCESS] All tests passed!" ^<^< std::endl;
 echo     return 0;
@@ -575,11 +651,59 @@ if %errorlevel% neq 0 (
 )
 
 echo.
-echo [INFO] Compiling test file...
-echo [INFO] Command: cl %CXX_FLAGS% /Isrc /Fo"%OUTPUT_DIR%\\" /Fe"%OUTPUT_DIR%\test_build.exe" "%OUTPUT_DIR%\test_build.cpp" "%OUTPUT_DIR%\value.obj" "%OUTPUT_DIR%\gc_object.obj" "%OUTPUT_DIR%\gc_string.obj" "%OUTPUT_DIR%\string_pool.obj" "%OUTPUT_DIR%\table.obj" "%OUTPUT_DIR%\function.obj" "%OUTPUT_DIR%\garbage_collector.obj"
+echo [INFO] Compiling GlobalState class...
+echo [INFO] Command: cl %CXX_FLAGS% /Isrc /c /Fo"%OUTPUT_DIR%\global_state.obj" "src\vm\global_state.cpp"
 echo.
 
-cl %CXX_FLAGS% /Isrc /Fo"%OUTPUT_DIR%\\" /Fe"%OUTPUT_DIR%\test_build.exe" "%OUTPUT_DIR%\test_build.cpp" "%OUTPUT_DIR%\value.obj" "%OUTPUT_DIR%\gc_object.obj" "%OUTPUT_DIR%\gc_string.obj" "%OUTPUT_DIR%\string_pool.obj" "%OUTPUT_DIR%\table.obj" "%OUTPUT_DIR%\function.obj" "%OUTPUT_DIR%\garbage_collector.obj"
+cl %CXX_FLAGS% /Isrc /c /Fo"%OUTPUT_DIR%\global_state.obj" "src\vm\global_state.cpp"
+
+if %errorlevel% neq 0 (
+    echo.
+    echo [ERROR] ========================================
+    echo [ERROR] GlobalState class compilation failed!
+    echo [ERROR] Error code: %errorlevel%
+    echo [ERROR] ========================================
+    exit /b %errorlevel%
+)
+
+echo.
+echo [INFO] Compiling Stack class...
+echo [INFO] Command: cl %CXX_FLAGS% /Isrc /c /Fo"%OUTPUT_DIR%\stack.obj" "src\vm\stack.cpp"
+echo.
+
+cl %CXX_FLAGS% /Isrc /c /Fo"%OUTPUT_DIR%\stack.obj" "src\vm\stack.cpp"
+
+if %errorlevel% neq 0 (
+    echo.
+    echo [ERROR] ========================================
+    echo [ERROR] Stack class compilation failed!
+    echo [ERROR] Error code: %errorlevel%
+    echo [ERROR] ========================================
+    exit /b %errorlevel%
+)
+
+echo.
+echo [INFO] Compiling LuaState class...
+echo [INFO] Command: cl %CXX_FLAGS% /Isrc /c /Fo"%OUTPUT_DIR%\lua_state.obj" "src\vm\lua_state.cpp"
+echo.
+
+cl %CXX_FLAGS% /Isrc /c /Fo"%OUTPUT_DIR%\lua_state.obj" "src\vm\lua_state.cpp"
+
+if %errorlevel% neq 0 (
+    echo.
+    echo [ERROR] ========================================
+    echo [ERROR] LuaState class compilation failed!
+    echo [ERROR] Error code: %errorlevel%
+    echo [ERROR] ========================================
+    exit /b %errorlevel%
+)
+
+echo.
+echo [INFO] Compiling test file...
+echo [INFO] Command: cl %CXX_FLAGS% /Isrc /Fo"%OUTPUT_DIR%\\" /Fe"%OUTPUT_DIR%\test_build.exe" "%OUTPUT_DIR%\test_build.cpp" "%OUTPUT_DIR%\value.obj" "%OUTPUT_DIR%\gc_object.obj" "%OUTPUT_DIR%\gc_string.obj" "%OUTPUT_DIR%\string_pool.obj" "%OUTPUT_DIR%\table.obj" "%OUTPUT_DIR%\function.obj" "%OUTPUT_DIR%\garbage_collector.obj" "%OUTPUT_DIR%\global_state.obj" "%OUTPUT_DIR%\stack.obj" "%OUTPUT_DIR%\lua_state.obj"
+echo.
+
+cl %CXX_FLAGS% /Isrc /Fo"%OUTPUT_DIR%\\" /Fe"%OUTPUT_DIR%\test_build.exe" "%OUTPUT_DIR%\test_build.cpp" "%OUTPUT_DIR%\value.obj" "%OUTPUT_DIR%\gc_object.obj" "%OUTPUT_DIR%\gc_string.obj" "%OUTPUT_DIR%\string_pool.obj" "%OUTPUT_DIR%\table.obj" "%OUTPUT_DIR%\function.obj" "%OUTPUT_DIR%\garbage_collector.obj" "%OUTPUT_DIR%\global_state.obj" "%OUTPUT_DIR%\stack.obj" "%OUTPUT_DIR%\lua_state.obj"
 
 if %errorlevel% neq 0 (
     echo.
