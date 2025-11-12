@@ -29,7 +29,7 @@ echo [INFO] Build type: %BUILD_TYPE%
 echo.
 
 REM Set up MSVC environment using vcvarsall.bat
-set VCVARSALL=D:\VS2026\Insiders\VC\Auxiliary\Build\vcvarsall.bat
+set VCVARSALL=D:\VS2026\2026\VC\Auxiliary\Build\vcvarsall.bat
 
 if not exist "%VCVARSALL%" (
     echo [ERROR] Cannot find vcvarsall.bat: %VCVARSALL%
