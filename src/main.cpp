@@ -23,6 +23,7 @@
 #include "core/gc_string.hpp"
 #include "core/string_pool.hpp"
 #include "core/table.hpp"
+#include "core/function.hpp"
 #include "gc/garbage_collector.hpp"
 
 #include <iostream>
@@ -275,6 +276,166 @@ void testGarbageCollector() {
 }
 
 /**
+ * @brief 测试Function类（函数对象）
+ */
+void testFunction() {
+    printTitle("Testing Function Class");
+
+    // ===== 测试1: C函数闭包 =====
+    std::cout << "Testing C Function Closure:" << std::endl;
+
+    // 创建一个简单的C函数（使用lambda）
+    auto testCFunc = [](LuaState* L) -> i32 {
+        // 这是一个简单的测试函数，返回0表示没有返回值
+        return 0;
+    };
+
+    Function* cfunc = new Function(testCFunc);
+    std::cout << "  [OK] C function creation" << std::endl;
+
+    // 验证是C函数
+    if (cfunc->isCFunction()) {
+        std::cout << "  [OK] isCFunction() returns true" << std::endl;
+    } else {
+        std::cout << "  [FAIL] isCFunction() should return true" << std::endl;
+    }
+
+    // 获取C函数指针
+    CFunction funcPtr = cfunc->getCFunction();
+    if (funcPtr != nullptr) {
+        std::cout << "  [OK] getCFunction() returns valid pointer" << std::endl;
+    } else {
+        std::cout << "  [FAIL] getCFunction() should return valid pointer" << std::endl;
+    }
+
+    // 验证GC类型
+    if (cfunc->getType() == GCObjectType::Function) {
+        std::cout << "  [OK] GC type is Function" << std::endl;
+    } else {
+        std::cout << "  [FAIL] GC type should be Function" << std::endl;
+    }
+
+    // ===== 测试2: Proto（函数原型） =====
+    std::cout << "\nTesting Proto (Function Prototype):" << std::endl;
+
+    Proto* proto = new Proto();
+    std::cout << "  [OK] Proto creation" << std::endl;
+
+    // 设置函数参数
+    proto->setNumParams(3);
+    if (proto->getNumParams() == 3) {
+        std::cout << "  [OK] setNumParams/getNumParams (3 params)" << std::endl;
+    } else {
+        std::cout << "  [FAIL] NumParams should be 3" << std::endl;
+    }
+
+    // 设置可变参数标志
+    proto->setVararg(true);
+    if (proto->isVararg()) {
+        std::cout << "  [OK] setVararg/isVararg (true)" << std::endl;
+    } else {
+        std::cout << "  [FAIL] Vararg should be true" << std::endl;
+    }
+
+    // 设置最大栈大小
+    proto->setMaxStackSize(20);
+    if (proto->getMaxStackSize() == 20) {
+        std::cout << "  [OK] setMaxStackSize/getMaxStackSize (20)" << std::endl;
+    } else {
+        std::cout << "  [FAIL] MaxStackSize should be 20" << std::endl;
+    }
+
+    // 添加常量
+    usize idx1 = proto->addConstant(Value(42.0));
+    usize idx2 = proto->addConstant(Value(true));
+    usize idx3 = proto->addConstant(Value());  // nil
+
+    if (proto->getConstantCount() == 3) {
+        std::cout << "  [OK] addConstant (3 constants added)" << std::endl;
+    } else {
+        std::cout << "  [FAIL] Constant count should be 3" << std::endl;
+    }
+
+    // 获取常量
+    Value c1 = proto->getConstant(idx1);
+    if (c1.isNumber() && c1.asNumber() == 42.0) {
+        std::cout << "  [OK] getConstant (number: 42.0)" << std::endl;
+    } else {
+        std::cout << "  [FAIL] Constant should be 42.0" << std::endl;
+    }
+
+    Value c2 = proto->getConstant(idx2);
+    if (c2.isBoolean() && c2.asBoolean() == true) {
+        std::cout << "  [OK] getConstant (boolean: true)" << std::endl;
+    } else {
+        std::cout << "  [FAIL] Constant should be true" << std::endl;
+    }
+
+    Value c3 = proto->getConstant(idx3);
+    if (c3.isNil()) {
+        std::cout << "  [OK] getConstant (nil)" << std::endl;
+    } else {
+        std::cout << "  [FAIL] Constant should be nil" << std::endl;
+    }
+
+    // 验证Proto的GC类型
+    if (proto->getType() == GCObjectType::Proto) {
+        std::cout << "  [OK] Proto GC type is Proto" << std::endl;
+    } else {
+        std::cout << "  [FAIL] Proto GC type should be Proto" << std::endl;
+    }
+
+    // ===== 测试3: Lua函数闭包 =====
+    std::cout << "\nTesting Lua Function Closure:" << std::endl;
+
+    Function* lfunc = new Function(proto);
+    std::cout << "  [OK] Lua function creation" << std::endl;
+
+    // 验证是Lua函数
+    if (lfunc->isLuaFunction()) {
+        std::cout << "  [OK] isLuaFunction() returns true" << std::endl;
+    } else {
+        std::cout << "  [FAIL] isLuaFunction() should return true" << std::endl;
+    }
+
+    // 获取Proto指针
+    Proto* retrievedProto = lfunc->getProto();
+    if (retrievedProto == proto) {
+        std::cout << "  [OK] getProto() returns correct Proto" << std::endl;
+    } else {
+        std::cout << "  [FAIL] getProto() should return the same Proto" << std::endl;
+    }
+
+    // ===== 测试4: GC标记 =====
+    std::cout << "\nTesting GC Mark:" << std::endl;
+
+    // 设置Proto为白色
+    proto->setColor(GCColor::White);
+
+    // 调用Lua函数的mark方法，应该将Proto标记为灰色
+    lfunc->mark();
+
+    if (proto->getColor() == GCColor::Gray) {
+        std::cout << "  [OK] mark() marks Proto as Gray" << std::endl;
+    } else {
+        std::cout << "  [FAIL] Proto should be marked as Gray" << std::endl;
+    }
+
+    // ===== 测试5: 对象大小 =====
+    std::cout << "\nObject Sizes:" << std::endl;
+    std::cout << "  C Function size: " << cfunc->getSize() << " bytes" << std::endl;
+    std::cout << "  Lua Function size: " << lfunc->getSize() << " bytes" << std::endl;
+    std::cout << "  Proto size: " << proto->getSize() << " bytes" << std::endl;
+
+    // 清理内存
+    delete cfunc;
+    delete lfunc;
+    delete proto;
+
+    std::cout << "\n[PASS] Function class test completed\n" << std::endl;
+}
+
+/**
  * @brief 综合测试
  */
 void comprehensiveTest() {
@@ -349,6 +510,7 @@ int main(int argc, char* argv[]) {
         testTable();
         testGCObject();
         testGarbageCollector();
+        testFunction();
         comprehensiveTest();
 
         // 总结
@@ -360,6 +522,7 @@ int main(int argc, char* argv[]) {
         std::cout << "  [OK] GCString class" << std::endl;
         std::cout << "  [OK] StringPool singleton" << std::endl;
         std::cout << "  [OK] Table class" << std::endl;
+        std::cout << "  [OK] Function class (Proto + Closure)" << std::endl;
         std::cout << "  [OK] GarbageCollector class" << std::endl;
         std::cout << std::endl;
         
