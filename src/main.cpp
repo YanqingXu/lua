@@ -23,6 +23,7 @@
 #include "core/gc_string.hpp"
 #include "core/string_pool.hpp"
 #include "core/table.hpp"
+#include "gc/garbage_collector.hpp"
 
 #include <iostream>
 #include <iomanip>
@@ -201,6 +202,79 @@ void testGCObject() {
 }
 
 /**
+ * @brief 测试垃圾回收器
+ */
+void testGarbageCollector() {
+    printTitle("Testing Garbage Collector");
+
+    GarbageCollector& gc = GarbageCollector::getInstance();
+
+    // 清空GC（确保干净的测试环境）
+    gc.clearAll();
+
+    std::cout << "Creating GC objects:" << std::endl;
+
+    // 创建一些GC对象
+    GCString* str1 = new GCString("GC Test String 1");
+    GCString* str2 = new GCString("GC Test String 2");
+    GCString* str3 = new GCString("GC Test String 3");
+    Table* table1 = new Table();
+    Table* table2 = new Table();
+
+    // 注册到GC
+    gc.registerObject(str1);
+    gc.registerObject(str2);
+    gc.registerObject(str3);
+    gc.registerObject(table1);
+    gc.registerObject(table2);
+
+    std::cout << "  Registered objects: " << gc.getObjectCount() << std::endl;
+
+    // 添加根对象（保护str1和table1不被回收）
+    std::cout << "\nAdding root objects:" << std::endl;
+    gc.addRoot(str1);
+    gc.addRoot(table1);
+    std::cout << "  Root objects: " << gc.getRootCount() << std::endl;
+
+    // 检查根对象
+    std::cout << "\nChecking root status:" << std::endl;
+    std::cout << "  str1 is root: " << (gc.isRoot(str1) ? "true" : "false") << std::endl;
+    std::cout << "  str2 is root: " << (gc.isRoot(str2) ? "true" : "false") << std::endl;
+
+    // 执行垃圾回收
+    std::cout << "\nPerforming garbage collection:" << std::endl;
+    usize collected = gc.collect();
+    std::cout << "  Collected objects: " << collected << std::endl;
+    std::cout << "  Remaining objects: " << gc.getObjectCount() << std::endl;
+
+    // 移除一个根对象
+    std::cout << "\nRemoving root object (table1):" << std::endl;
+    gc.removeRoot(table1);
+    std::cout << "  Root objects: " << gc.getRootCount() << std::endl;
+
+    // 再次执行GC
+    std::cout << "\nSecond garbage collection:" << std::endl;
+    usize collected2 = gc.collect();
+    std::cout << "  Collected objects: " << collected2 << std::endl;
+    std::cout << "  Remaining objects: " << gc.getObjectCount() << std::endl;
+
+    // 打印统计信息
+    std::cout << "\nGC Statistics:" << std::endl;
+    usize objCount, rootCount, totalMem;
+    gc.getStatistics(objCount, rootCount, totalMem);
+    std::cout << "  Total objects: " << objCount << std::endl;
+    std::cout << "  Root objects: " << rootCount << std::endl;
+    std::cout << "  Total memory: " << totalMem << " bytes" << std::endl;
+
+    // 清理所有对象
+    gc.clearAll();
+    std::cout << "\nAfter clearAll():" << std::endl;
+    std::cout << "  Remaining objects: " << gc.getObjectCount() << std::endl;
+
+    std::cout << "\n[PASS] Garbage collector test completed\n" << std::endl;
+}
+
+/**
  * @brief 综合测试
  */
 void comprehensiveTest() {
@@ -274,8 +348,9 @@ int main(int argc, char* argv[]) {
         testString();
         testTable();
         testGCObject();
+        testGarbageCollector();
         comprehensiveTest();
-        
+
         // 总结
         printTitle("Test Summary");
         std::cout << "[SUCCESS] All manual tests passed!" << std::endl;
@@ -285,6 +360,7 @@ int main(int argc, char* argv[]) {
         std::cout << "  ✓ GCString class" << std::endl;
         std::cout << "  ✓ StringPool singleton" << std::endl;
         std::cout << "  ✓ Table class" << std::endl;
+        std::cout << "  ✓ GarbageCollector class" << std::endl;
         std::cout << std::endl;
         
         printSeparator();

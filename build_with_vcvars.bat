@@ -85,6 +85,7 @@ echo #include "core/gc_object.hpp"
 echo #include "core/gc_string.hpp"
 echo #include "core/string_pool.hpp"
 echo #include "core/table.hpp"
+echo #include "gc/garbage_collector.hpp"
 echo #include ^<iostream^>
 echo #include ^<string_view^>
 echo.
@@ -330,12 +331,65 @@ echo     delete mt;
 echo     delete table;
 echo     delete keyStr;
 echo.
+echo     // ===== Test 6: GarbageCollector =====
+echo     std::cout ^<^< "\n[TEST 6] Testing GarbageCollector class..." ^<^< std::endl;
+echo.
+echo     Lua::GarbageCollector^& gc = Lua::GarbageCollector::getInstance^(^);
+echo.
+echo     // Test 1: Register objects
+echo     Lua::GCString* gcStr1 = new Lua::GCString^("GC Test 1"^);
+echo     Lua::GCString* gcStr2 = new Lua::GCString^("GC Test 2"^);
+echo     Lua::Table* gcTable = new Lua::Table^(^);
+echo.
+echo     gc.registerObject^(gcStr1^);
+echo     gc.registerObject^(gcStr2^);
+echo     gc.registerObject^(gcTable^);
+echo.
+echo     Lua::usize objCount = gc.getObjectCount^(^);
+echo     std::cout ^<^< "  [1] Register objects: " ^<^< objCount ^<^< " objects" ^<^< std::endl;
+echo.
+echo     // Test 2: Add root objects
+echo     gc.addRoot^(gcStr1^);
+echo     gc.addRoot^(gcTable^);
+echo.
+echo     Lua::usize rootCount = gc.getRootCount^(^);
+echo     std::cout ^<^< "  [2] Root objects: " ^<^< rootCount ^<^< " ^(expected 2^)" ^<^< std::endl;
+echo.
+echo     // Test 3: Check if root
+echo     bool isRoot1 = gc.isRoot^(gcStr1^);
+echo     bool isRoot2 = gc.isRoot^(gcStr2^);
+echo     std::cout ^<^< "  [3] isRoot check: " ^<^< ^(isRoot1 ^&^& !isRoot2 ? "PASS" : "FAIL"^) ^<^< std::endl;
+echo.
+echo     // Test 4: Collect garbage ^(should collect gcStr2^)
+echo     Lua::usize collected = gc.collect^(^);
+echo     std::cout ^<^< "  [4] Garbage collected: " ^<^< collected ^<^< " object^(s^)" ^<^< std::endl;
+echo.
+echo     // Test 5: Object count after GC
+echo     Lua::usize objCountAfter = gc.getObjectCount^(^);
+echo     std::cout ^<^< "  [5] Objects after GC: " ^<^< objCountAfter ^<^< " ^(expected 2^)" ^<^< std::endl;
+echo.
+echo     // Test 6: Remove root and collect again
+echo     gc.removeRoot^(gcTable^);
+echo     Lua::usize collected2 = gc.collect^(^);
+echo     std::cout ^<^< "  [6] Second GC: " ^<^< collected2 ^<^< " object^(s^) collected" ^<^< std::endl;
+echo.
+echo     // Test 7: Statistics
+echo     Lua::usize statObj, statRoot, statMem;
+echo     gc.getStatistics^(statObj, statRoot, statMem^);
+echo     std::cout ^<^< "  [7] Statistics: " ^<^< statObj ^<^< " objects, " ^<^< statRoot ^<^< " roots, " ^<^< statMem ^<^< " bytes" ^<^< std::endl;
+echo.
+echo     // Test 8: Clear all
+echo     gc.clearAll^(^);
+echo     Lua::usize finalCount = gc.getObjectCount^(^);
+echo     std::cout ^<^< "  [8] Clear all: " ^<^< ^(finalCount == 0 ? "PASS" : "FAIL"^) ^<^< std::endl;
+echo.
 echo     std::cout ^<^< "\n[INFO] Class sizes:" ^<^< std::endl;
 echo     std::cout ^<^< "  - Value: " ^<^< sizeof^(Lua::Value^) ^<^< " bytes" ^<^< std::endl;
 echo     std::cout ^<^< "  - GCObject: " ^<^< sizeof^(Lua::GCObject^) ^<^< " bytes" ^<^< std::endl;
 echo     std::cout ^<^< "  - TestGCObject: " ^<^< sizeof^(TestGCObject^) ^<^< " bytes" ^<^< std::endl;
 echo     std::cout ^<^< "  - GCString: " ^<^< sizeof^(Lua::GCString^) ^<^< " bytes" ^<^< std::endl;
 echo     std::cout ^<^< "  - Table: " ^<^< sizeof^(Lua::Table^) ^<^< " bytes" ^<^< std::endl;
+echo     std::cout ^<^< "  - GarbageCollector: " ^<^< sizeof^(Lua::GarbageCollector^) ^<^< " bytes" ^<^< std::endl;
 echo.
 echo     std::cout ^<^< "\n[SUCCESS] All tests passed!" ^<^< std::endl;
 echo     return 0;
@@ -428,11 +482,27 @@ if %errorlevel% neq 0 (
 )
 
 echo.
-echo [INFO] Compiling test file...
-echo [INFO] Command: cl %CXX_FLAGS% /Isrc /Fo"%OUTPUT_DIR%\\" /Fe"%OUTPUT_DIR%\test_build.exe" "%OUTPUT_DIR%\test_build.cpp" "%OUTPUT_DIR%\value.obj" "%OUTPUT_DIR%\gc_object.obj" "%OUTPUT_DIR%\gc_string.obj" "%OUTPUT_DIR%\string_pool.obj" "%OUTPUT_DIR%\table.obj"
+echo [INFO] Compiling GarbageCollector class...
+echo [INFO] Command: cl %CXX_FLAGS% /Isrc /c /Fo"%OUTPUT_DIR%\garbage_collector.obj" "src\gc\garbage_collector.cpp"
 echo.
 
-cl %CXX_FLAGS% /Isrc /Fo"%OUTPUT_DIR%\\" /Fe"%OUTPUT_DIR%\test_build.exe" "%OUTPUT_DIR%\test_build.cpp" "%OUTPUT_DIR%\value.obj" "%OUTPUT_DIR%\gc_object.obj" "%OUTPUT_DIR%\gc_string.obj" "%OUTPUT_DIR%\string_pool.obj" "%OUTPUT_DIR%\table.obj"
+cl %CXX_FLAGS% /Isrc /c /Fo"%OUTPUT_DIR%\garbage_collector.obj" "src\gc\garbage_collector.cpp"
+
+if %errorlevel% neq 0 (
+    echo.
+    echo [ERROR] ========================================
+    echo [ERROR] GarbageCollector class compilation failed!
+    echo [ERROR] Error code: %errorlevel%
+    echo [ERROR] ========================================
+    exit /b %errorlevel%
+)
+
+echo.
+echo [INFO] Compiling test file...
+echo [INFO] Command: cl %CXX_FLAGS% /Isrc /Fo"%OUTPUT_DIR%\\" /Fe"%OUTPUT_DIR%\test_build.exe" "%OUTPUT_DIR%\test_build.cpp" "%OUTPUT_DIR%\value.obj" "%OUTPUT_DIR%\gc_object.obj" "%OUTPUT_DIR%\gc_string.obj" "%OUTPUT_DIR%\string_pool.obj" "%OUTPUT_DIR%\table.obj" "%OUTPUT_DIR%\garbage_collector.obj"
+echo.
+
+cl %CXX_FLAGS% /Isrc /Fo"%OUTPUT_DIR%\\" /Fe"%OUTPUT_DIR%\test_build.exe" "%OUTPUT_DIR%\test_build.cpp" "%OUTPUT_DIR%\value.obj" "%OUTPUT_DIR%\gc_object.obj" "%OUTPUT_DIR%\gc_string.obj" "%OUTPUT_DIR%\string_pool.obj" "%OUTPUT_DIR%\table.obj" "%OUTPUT_DIR%\garbage_collector.obj"
 
 if %errorlevel% neq 0 (
     echo.
