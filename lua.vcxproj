@@ -132,6 +132,7 @@
     <ClInclude Include="src\common\config.hpp" />
     <ClInclude Include="src\common\macros.hpp" />
     <ClInclude Include="src\common\types.hpp" />
+    <ClInclude Include="src\core\function.hpp" />
     <ClInclude Include="src\core\gc_object.hpp" />
     <ClInclude Include="src\core\gc_string.hpp" />
     <ClInclude Include="src\core\string_pool.hpp" />
@@ -140,6 +141,7 @@
     <ClInclude Include="src\gc\garbage_collector.hpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="src\core\function.cpp" />
     <ClCompile Include="src\core\gc_object.cpp" />
     <ClCompile Include="src\core\gc_string.cpp" />
     <ClCompile Include="src\core\string_pool.cpp" />

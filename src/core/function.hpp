@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @file function.hpp
  * @brief Lua函数对象：函数原型和闭包实现
  * 

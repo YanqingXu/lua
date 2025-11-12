@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @file function.cpp
  * @brief 函数对象实现
  */
