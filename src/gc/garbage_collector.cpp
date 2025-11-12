@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @file garbage_collector.cpp
  * @brief 垃圾回收器实现
  */

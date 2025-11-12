@@ -30,8 +30,6 @@
 #include "common/types.hpp"
 #include "core/gc_object.hpp"
 #include "core/value.hpp"
-#include <functional>
-#include <unordered_map>
 
 namespace Lua {
 

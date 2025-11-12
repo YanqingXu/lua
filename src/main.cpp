@@ -355,12 +355,12 @@ int main(int argc, char* argv[]) {
         printTitle("Test Summary");
         std::cout << "[SUCCESS] All manual tests passed!" << std::endl;
         std::cout << "\nCore components verified:" << std::endl;
-        std::cout << "  ✓ Value class" << std::endl;
-        std::cout << "  ✓ GCObject base class" << std::endl;
-        std::cout << "  ✓ GCString class" << std::endl;
-        std::cout << "  ✓ StringPool singleton" << std::endl;
-        std::cout << "  ✓ Table class" << std::endl;
-        std::cout << "  ✓ GarbageCollector class" << std::endl;
+        std::cout << "  [OK] Value class" << std::endl;
+        std::cout << "  [OK] GCObject base class" << std::endl;
+        std::cout << "  [OK] GCString class" << std::endl;
+        std::cout << "  [OK] StringPool singleton" << std::endl;
+        std::cout << "  [OK] Table class" << std::endl;
+        std::cout << "  [OK] GarbageCollector class" << std::endl;
         std::cout << std::endl;
         
         printSeparator();

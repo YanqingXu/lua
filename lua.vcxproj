@@ -137,6 +137,7 @@
     <ClInclude Include="src\core\string_pool.hpp" />
     <ClInclude Include="src\core\table.hpp" />
     <ClInclude Include="src\core\value.hpp" />
+    <ClInclude Include="src\gc\garbage_collector.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\core\gc_object.cpp" />
@@ -144,6 +145,7 @@
     <ClCompile Include="src\core\string_pool.cpp" />
     <ClCompile Include="src\core\table.cpp" />
     <ClCompile Include="src\core\value.cpp" />
+    <ClCompile Include="src\gc\garbage_collector.cpp" />
     <ClCompile Include="src\main.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

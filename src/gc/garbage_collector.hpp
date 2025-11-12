@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @file garbage_collector.hpp
  * @brief Lua垃圾回收器：三色标记-清除算法实现
  * 
@@ -24,8 +24,7 @@
  * @date 2025-11-12
  */
 
-#ifndef LUA_GC_GARBAGE_COLLECTOR_HPP
-#define LUA_GC_GARBAGE_COLLECTOR_HPP
+#pragma once
 
 #include "common/types.hpp"
 #include "core/gc_object.hpp"
@@ -263,6 +262,4 @@ private:
 };
 
 } // namespace Lua
-
-#endif // LUA_GC_GARBAGE_COLLECTOR_HPP
 
