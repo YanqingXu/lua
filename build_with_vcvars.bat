@@ -85,6 +85,7 @@ echo #include "core/gc_object.hpp"
 echo #include "core/gc_string.hpp"
 echo #include "core/string_pool.hpp"
 echo #include "core/table.hpp"
+echo #include "core/function.hpp"
 echo #include "gc/garbage_collector.hpp"
 echo #include ^<iostream^>
 echo #include ^<string_view^>
@@ -383,12 +384,72 @@ echo     gc.clearAll^(^);
 echo     Lua::usize finalCount = gc.getObjectCount^(^);
 echo     std::cout ^<^< "  [8] Clear all: " ^<^< ^(finalCount == 0 ? "PASS" : "FAIL"^) ^<^< std::endl;
 echo.
+echo     // ===== Test 7: Function =====
+echo     std::cout ^<^< "\n[TEST 7] Testing Function class..." ^<^< std::endl;
+echo.
+echo     // Test 1: Create C function
+echo     auto testCFunc = []^(Lua::LuaState* L^) -^> Lua::i32 { return 0; };
+echo     Lua::Function* cfunc = new Lua::Function^(testCFunc^);
+echo     std::cout ^<^< "  [1] C function creation: PASS" ^<^< std::endl;
+echo.
+echo     // Test 2: Check if C function
+echo     std::cout ^<^< "  [2] Is C function: " ^<^< ^(cfunc-^>isCFunction^(^) ? "PASS" : "FAIL"^) ^<^< std::endl;
+echo.
+echo     // Test 3: Get C function pointer
+echo     Lua::CFunction ptr = cfunc-^>getCFunction^(^);
+echo     std::cout ^<^< "  [3] Get C function: " ^<^< ^(ptr != nullptr ? "PASS" : "FAIL"^) ^<^< std::endl;
+echo.
+echo     // Test 4: Create Proto
+echo     Lua::Proto* proto = new Lua::Proto^(^);
+echo     proto-^>setNumParams^(2^);
+echo     proto-^>setVararg^(false^);
+echo     proto-^>setMaxStackSize^(10^);
+echo     std::cout ^<^< "  [4] Proto creation: PASS" ^<^< std::endl;
+echo.
+echo     // Test 5: Proto properties
+echo     std::cout ^<^< "  [5] Proto params: " ^<^< ^(proto-^>getNumParams^(^) == 2 ? "PASS" : "FAIL"^) ^<^< std::endl;
+echo.
+echo     // Test 6: Add constants
+echo     Lua::usize idx1 = proto-^>addConstant^(Lua::Value^(42.0^)^);
+echo     Lua::usize idx2 = proto-^>addConstant^(Lua::Value^(true^)^);
+echo     std::cout ^<^< "  [6] Add constants: " ^<^< ^(proto-^>getConstantCount^(^) == 2 ? "PASS" : "FAIL"^) ^<^< std::endl;
+echo.
+echo     // Test 7: Get constants
+echo     Lua::Value c1 = proto-^>getConstant^(idx1^);
+echo     std::cout ^<^< "  [7] Get constant: " ^<^< ^(c1.asNumber^(^) == 42.0 ? "PASS" : "FAIL"^) ^<^< std::endl;
+echo.
+echo     // Test 8: Create Lua function
+echo     Lua::Function* lfunc = new Lua::Function^(proto^);
+echo     std::cout ^<^< "  [8] Lua function creation: PASS" ^<^< std::endl;
+echo.
+echo     // Test 9: Check if Lua function
+echo     std::cout ^<^< "  [9] Is Lua function: " ^<^< ^(lfunc-^>isLuaFunction^(^) ? "PASS" : "FAIL"^) ^<^< std::endl;
+echo.
+echo     // Test 10: Get Proto
+echo     Lua::Proto* p = lfunc-^>getProto^(^);
+echo     std::cout ^<^< "  [10] Get Proto: " ^<^< ^(p == proto ? "PASS" : "FAIL"^) ^<^< std::endl;
+echo.
+echo     // Test 11: GC types
+echo     std::cout ^<^< "  [11] GC types: " ^<^< ^(cfunc-^>getType^(^) == Lua::GCObjectType::Function ^&^& proto-^>getType^(^) == Lua::GCObjectType::Proto ? "PASS" : "FAIL"^) ^<^< std::endl;
+echo.
+echo     // Test 12: Object sizes
+echo     Lua::usize cfuncSize = cfunc-^>getSize^(^);
+echo     Lua::usize protoSize = proto-^>getSize^(^);
+echo     std::cout ^<^< "  [12] Object sizes: " ^<^< cfuncSize ^<^< " bytes ^(Function^), " ^<^< protoSize ^<^< " bytes ^(Proto^)" ^<^< std::endl;
+echo.
+echo     // Cleanup
+echo     delete cfunc;
+echo     delete lfunc;
+echo     delete proto;
+echo.
 echo     std::cout ^<^< "\n[INFO] Class sizes:" ^<^< std::endl;
 echo     std::cout ^<^< "  - Value: " ^<^< sizeof^(Lua::Value^) ^<^< " bytes" ^<^< std::endl;
 echo     std::cout ^<^< "  - GCObject: " ^<^< sizeof^(Lua::GCObject^) ^<^< " bytes" ^<^< std::endl;
 echo     std::cout ^<^< "  - TestGCObject: " ^<^< sizeof^(TestGCObject^) ^<^< " bytes" ^<^< std::endl;
 echo     std::cout ^<^< "  - GCString: " ^<^< sizeof^(Lua::GCString^) ^<^< " bytes" ^<^< std::endl;
 echo     std::cout ^<^< "  - Table: " ^<^< sizeof^(Lua::Table^) ^<^< " bytes" ^<^< std::endl;
+echo     std::cout ^<^< "  - Proto: " ^<^< sizeof^(Lua::Proto^) ^<^< " bytes" ^<^< std::endl;
+echo     std::cout ^<^< "  - Function: " ^<^< sizeof^(Lua::Function^) ^<^< " bytes" ^<^< std::endl;
 echo     std::cout ^<^< "  - GarbageCollector: " ^<^< sizeof^(Lua::GarbageCollector^) ^<^< " bytes" ^<^< std::endl;
 echo.
 echo     std::cout ^<^< "\n[SUCCESS] All tests passed!" ^<^< std::endl;
@@ -482,6 +543,22 @@ if %errorlevel% neq 0 (
 )
 
 echo.
+echo [INFO] Compiling Function class...
+echo [INFO] Command: cl %CXX_FLAGS% /Isrc /c /Fo"%OUTPUT_DIR%\function.obj" "src\core\function.cpp"
+echo.
+
+cl %CXX_FLAGS% /Isrc /c /Fo"%OUTPUT_DIR%\function.obj" "src\core\function.cpp"
+
+if %errorlevel% neq 0 (
+    echo.
+    echo [ERROR] ========================================
+    echo [ERROR] Function class compilation failed!
+    echo [ERROR] Error code: %errorlevel%
+    echo [ERROR] ========================================
+    exit /b %errorlevel%
+)
+
+echo.
 echo [INFO] Compiling GarbageCollector class...
 echo [INFO] Command: cl %CXX_FLAGS% /Isrc /c /Fo"%OUTPUT_DIR%\garbage_collector.obj" "src\gc\garbage_collector.cpp"
 echo.
@@ -499,10 +576,10 @@ if %errorlevel% neq 0 (
 
 echo.
 echo [INFO] Compiling test file...
-echo [INFO] Command: cl %CXX_FLAGS% /Isrc /Fo"%OUTPUT_DIR%\\" /Fe"%OUTPUT_DIR%\test_build.exe" "%OUTPUT_DIR%\test_build.cpp" "%OUTPUT_DIR%\value.obj" "%OUTPUT_DIR%\gc_object.obj" "%OUTPUT_DIR%\gc_string.obj" "%OUTPUT_DIR%\string_pool.obj" "%OUTPUT_DIR%\table.obj" "%OUTPUT_DIR%\garbage_collector.obj"
+echo [INFO] Command: cl %CXX_FLAGS% /Isrc /Fo"%OUTPUT_DIR%\\" /Fe"%OUTPUT_DIR%\test_build.exe" "%OUTPUT_DIR%\test_build.cpp" "%OUTPUT_DIR%\value.obj" "%OUTPUT_DIR%\gc_object.obj" "%OUTPUT_DIR%\gc_string.obj" "%OUTPUT_DIR%\string_pool.obj" "%OUTPUT_DIR%\table.obj" "%OUTPUT_DIR%\function.obj" "%OUTPUT_DIR%\garbage_collector.obj"
 echo.
 
-cl %CXX_FLAGS% /Isrc /Fo"%OUTPUT_DIR%\\" /Fe"%OUTPUT_DIR%\test_build.exe" "%OUTPUT_DIR%\test_build.cpp" "%OUTPUT_DIR%\value.obj" "%OUTPUT_DIR%\gc_object.obj" "%OUTPUT_DIR%\gc_string.obj" "%OUTPUT_DIR%\string_pool.obj" "%OUTPUT_DIR%\table.obj" "%OUTPUT_DIR%\garbage_collector.obj"
+cl %CXX_FLAGS% /Isrc /Fo"%OUTPUT_DIR%\\" /Fe"%OUTPUT_DIR%\test_build.exe" "%OUTPUT_DIR%\test_build.cpp" "%OUTPUT_DIR%\value.obj" "%OUTPUT_DIR%\gc_object.obj" "%OUTPUT_DIR%\gc_string.obj" "%OUTPUT_DIR%\string_pool.obj" "%OUTPUT_DIR%\table.obj" "%OUTPUT_DIR%\function.obj" "%OUTPUT_DIR%\garbage_collector.obj"
 
 if %errorlevel% neq 0 (
     echo.

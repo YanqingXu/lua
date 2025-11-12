@@ -5,6 +5,7 @@
 
 #include "core/table.hpp"
 #include "core/gc_string.hpp"
+#include "core/function.hpp"
 #include <cmath>
 
 namespace Lua {
@@ -209,8 +210,10 @@ void Table::mark() {
             val.asString()->setColor(GCColor::Gray);
         } else if (val.isTable()) {
             val.asTable()->setColor(GCColor::Gray);
+        } else if (val.isFunction()) {
+            val.asFunction()->setColor(GCColor::Gray);
         }
-        // TODO: 添加Function/Userdata/Thread的标记（当这些类型实现后）
+        // TODO: 添加Userdata/Thread的标记（当这些类型实现后）
     }
 
     // 标记哈希部分中的GC对象
@@ -220,16 +223,20 @@ void Table::mark() {
             key.asString()->setColor(GCColor::Gray);
         } else if (key.isTable()) {
             key.asTable()->setColor(GCColor::Gray);
+        } else if (key.isFunction()) {
+            key.asFunction()->setColor(GCColor::Gray);
         }
-        // TODO: 添加Function/Userdata/Thread的标记（当这些类型实现后）
+        // TODO: 添加Userdata/Thread的标记（当这些类型实现后）
 
         // 标记值
         if (val.isString()) {
             val.asString()->setColor(GCColor::Gray);
         } else if (val.isTable()) {
             val.asTable()->setColor(GCColor::Gray);
+        } else if (val.isFunction()) {
+            val.asFunction()->setColor(GCColor::Gray);
         }
-        // TODO: 添加Function/Userdata/Thread的标记（当这些类型实现后）
+        // TODO: 添加Userdata/Thread的标记（当这些类型实现后）
     }
 
     // 标记元表
