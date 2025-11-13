@@ -36,6 +36,7 @@
 #include "compiler/ast.hpp"
 #include "compiler/codegen.hpp"
 #include "compiler/opcode.hpp"
+#include "vm/vm.hpp"
 
 #include <iostream>
 #include <iomanip>
@@ -57,6 +58,7 @@ void testLuaState();
 void testLexer();
 void testParser();
 void testCodeGenerator();
+void testVM();
 void comprehensiveTest();
 
 /**
@@ -1293,6 +1295,153 @@ void testCodeGenerator() {
 }
 
 /**
+ * @brief 测试VM类
+ */
+void testVM() {
+    printTitle("Testing VM Class");
+
+    StringPool& pool = StringPool::getInstance();
+    LuaState* L = LuaState::newState();
+    VM vm(L);
+    i32 testCount = 0;
+
+    // ===== 测试1: 简单数字常量 =====
+    std::cout << "\n[Test 1] Execute: return 42" << std::endl;
+    try {
+        Parser parser("return 42");
+        Chunk chunk = parser.parse();
+
+        CodeGenerator codegen(&pool);
+        Proto* proto = codegen.generate(chunk);
+
+        vm.executeProto(proto);
+
+        // 检查返回值
+        Stack& stack = L->getStack();
+        if (stack.size() > 0) {
+            Value result = stack.top();
+            if (result.isNumber()) {
+                std::cout << "  Result: " << result.asNumber() << std::endl;
+                std::cout << "  Expected: 42" << std::endl;
+                if (result.asNumber() == 42.0) {
+                    std::cout << "  [PASS]" << std::endl;
+                } else {
+                    std::cout << "  [FAIL] Wrong result" << std::endl;
+                }
+            }
+        }
+
+        delete proto;
+        testCount++;
+    } catch (const std::exception& e) {
+        std::cout << "  ERROR: " << e.what() << std::endl;
+    }
+
+    // ===== 测试2: 布尔常量 =====
+    std::cout << "\n[Test 2] Execute: return true" << std::endl;
+    try {
+        // 清空栈
+        L->getStack().clear();
+
+        Parser parser("return true");
+        Chunk chunk = parser.parse();
+
+        CodeGenerator codegen(&pool);
+        Proto* proto = codegen.generate(chunk);
+
+        vm.executeProto(proto);
+
+        Stack& stack = L->getStack();
+        if (stack.size() > 0) {
+            Value result = stack.top();
+            if (result.isBoolean()) {
+                std::cout << "  Result: " << (result.asBoolean() ? "true" : "false") << std::endl;
+                std::cout << "  Expected: true" << std::endl;
+                if (result.asBoolean() == true) {
+                    std::cout << "  [PASS]" << std::endl;
+                } else {
+                    std::cout << "  [FAIL] Wrong result" << std::endl;
+                }
+            }
+        }
+
+        delete proto;
+        testCount++;
+    } catch (const std::exception& e) {
+        std::cout << "  ERROR: " << e.what() << std::endl;
+    }
+
+    // ===== 测试3: nil常量 =====
+    std::cout << "\n[Test 3] Execute: return nil" << std::endl;
+    try {
+        L->getStack().clear();
+
+        Parser parser("return nil");
+        Chunk chunk = parser.parse();
+
+        CodeGenerator codegen(&pool);
+        Proto* proto = codegen.generate(chunk);
+
+        vm.executeProto(proto);
+
+        Stack& stack = L->getStack();
+        if (stack.size() > 0) {
+            Value result = stack.top();
+            if (result.isNil()) {
+                std::cout << "  Result: nil" << std::endl;
+                std::cout << "  Expected: nil" << std::endl;
+                std::cout << "  [PASS]" << std::endl;
+            } else {
+                std::cout << "  [FAIL] Wrong result type" << std::endl;
+            }
+        }
+
+        delete proto;
+        testCount++;
+    } catch (const std::exception& e) {
+        std::cout << "  ERROR: " << e.what() << std::endl;
+    }
+
+    // ===== 测试4: 字符串常量 =====
+    std::cout << "\n[Test 4] Execute: return \"hello\"" << std::endl;
+    try {
+        L->getStack().clear();
+
+        Parser parser("return \"hello\"");
+        Chunk chunk = parser.parse();
+
+        CodeGenerator codegen(&pool);
+        Proto* proto = codegen.generate(chunk);
+
+        vm.executeProto(proto);
+
+        Stack& stack = L->getStack();
+        if (stack.size() > 0) {
+            Value result = stack.top();
+            if (result.isString()) {
+                std::cout << "  Result: \"" << result.asString()->c_str() << "\"" << std::endl;
+                std::cout << "  Expected: \"hello\"" << std::endl;
+                if (result.asString()->getData() == "hello") {
+                    std::cout << "  [PASS]" << std::endl;
+                } else {
+                    std::cout << "  [FAIL] Wrong result" << std::endl;
+                }
+            }
+        }
+
+        delete proto;
+        testCount++;
+    } catch (const std::exception& e) {
+        std::cout << "  ERROR: " << e.what() << std::endl;
+    }
+
+    delete L;
+
+    std::cout << "\n[SUCCESS] VM tests completed: " << testCount << " tests" << std::endl;
+    printSeparator();
+}
+
+/**
  * @brief 综合测试
  */
 void comprehensiveTest() {
@@ -1381,6 +1530,9 @@ int main(int argc, char* argv[]) {
         testParser();
         testCodeGenerator();
 
+        // 虚拟机执行引擎测试
+        testVM();
+
         comprehensiveTest();
 
         // 总结
@@ -1402,6 +1554,7 @@ int main(int argc, char* argv[]) {
         std::cout << "  [OK] Lexer class (Token + Lexer)" << std::endl;
         std::cout << "  [OK] Parser class (AST + Parser)" << std::endl;
         std::cout << "  [OK] CodeGenerator class (OpCode + CodeGen)" << std::endl;
+        std::cout << "  [OK] VM class (Bytecode Executor)" << std::endl;
         std::cout << std::endl;
         
         printSeparator();

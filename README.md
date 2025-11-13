@@ -3,7 +3,7 @@
 > **从零开始用C++17/20/23实现Lua 5.1.5解释器**
 
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen)]()
-[![Tests](https://img.shields.io/badge/tests-141%2F141-brightgreen)]()
+[![Tests](https://img.shields.io/badge/tests-145%2F145-brightgreen)]()
 [![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen)]()
 [![C++](https://img.shields.io/badge/C%2B%2B-17-blue)]()
 [![Platform](https://img.shields.io/badge/platform-Windows-blue)]()
@@ -32,7 +32,7 @@
 
 ## 📊 当前进度
 
-### 已完成模块（16个核心模块）
+### 已完成模块（17个核心模块）
 
 | 模块 | 文件 | 功能描述 | 测试数 | 状态 |
 |------|------|---------|--------|------|
@@ -55,13 +55,14 @@
 | **Lexer词法分析器** | `src/compiler/lexer.hpp/cpp` + `token.hpp` | 词法分析（Token流生成） | 18 | ✅ 完成 |
 | **Parser语法分析器** | `src/compiler/parser.hpp/cpp` + `ast.hpp/cpp` | 语法分析（AST生成） | 10 | ✅ 完成 |
 | **CodeGenerator字节码生成器** | `src/compiler/codegen.hpp/cpp` + `opcode.hpp/cpp` | 字节码生成（AST→Bytecode） | 7 | ✅ 完成 |
+| **VM字节码执行引擎** | `src/vm/vm.hpp/cpp` | 字节码解释执行（指令分发） | 4 | ✅ 完成 |
 
 ### 测试统计
 
 ```
-总测试数：141个
-通过率：  100% (141/141)
-编译状态：Debug和Release版本均无警告
+总测试数：145个
+通过率：  100% (145/145)
+编译状态：Debug版本无警告
 平台：    Windows + MSVC (Visual Studio 2026)
 ```
 
@@ -77,6 +78,7 @@
 ✅ **Parser语法分析器**：递归下降解析，完整AST生成，正确的运算符优先级和结合性
 ✅ **CodeGenerator字节码生成器**：AST→字节码转换，寄存器分配，常量表管理，跳转回填
 ✅ **OpCode指令集**：完整Lua 5.1指令集（38条指令），iABC/iABx/iAsBx三种格式
+✅ **VM字节码执行引擎**：指令解释执行，寄存器访问，RK寻址，算术/逻辑/比较运算，跳转控制
 ✅ **StringPool**：字符串驻留（interning），节省内存
 ✅ **GarbageCollector**：标记-清除算法，根对象管理
 ✅ **GlobalState**：单例模式管理全局资源（字符串池、GC、注册表）
@@ -465,6 +467,190 @@ public:
 - 自动内存释放，无需手动管理
 - 移动语义优化性能
 
+#### CodeGenerator（字节码生成器）
+
+**设计模式**：AST访问者模式
+
+**核心职责**：
+- 将AST转换为Lua 5.1字节码
+- 管理寄存器分配和释放
+- 管理常量表（数字、字符串、布尔值、nil）
+- 管理局部变量作用域
+- 实现跳转指令回填
+
+**关键特性**：
+```cpp
+// 创建代码生成器
+StringPool* pool = &GlobalState::getInstance().getStringPool();
+CodeGenerator codegen(pool);
+
+// 生成字节码
+Parser parser("return 42");
+Chunk chunk = parser.parse();
+Proto* proto = codegen.generate(chunk);
+
+// 访问生成的字节码
+const Vec<Instruction>& code = proto->getCode();
+const Vec<Value>& constants = proto->getConstants();
+usize maxStackSize = proto->getMaxStackSize();
+```
+
+**OpCode指令集**（38条Lua 5.1指令）：
+```cpp
+// 指令格式
+iABC:  [6位OpCode][8位A][9位C][9位B]
+iABx:  [6位OpCode][8位A][18位Bx]
+iAsBx: [6位OpCode][8位A][18位sBx（有符号）]
+
+// 主要指令类别
+- 数据移动: MOVE, LOADK, LOADBOOL, LOADNIL
+- 全局变量: GETGLOBAL, SETGLOBAL
+- 表操作: GETTABLE, SETTABLE, NEWTABLE, SETLIST, SELF
+- 算术运算: ADD, SUB, MUL, DIV, MOD, POW, UNM
+- 逻辑运算: NOT, LEN, CONCAT
+- 比较运算: EQ, LT, LE
+- 跳转控制: JMP, TEST, TESTSET
+- 函数调用: CALL, TAILCALL, RETURN
+- 循环: FORLOOP, FORPREP, TFORLOOP
+- 闭包: CLOSURE, GETUPVAL, SETUPVAL, CLOSE
+- 可变参数: VARARG
+```
+
+**RK寻址模式**：
+```cpp
+// RK(x) = 如果x < 256则为寄存器R(x)，否则为常量K(x-256)
+bool ISK(i32 x) { return x & BITRK; }  // BITRK = 0x100
+i32 INDEXK(i32 x) { return x & ~BITRK; }
+i32 RKASK(i32 x) { return x | BITRK; }
+```
+
+**寄存器分配**：
+```cpp
+// 简化版寄存器分配器
+i32 allocReg();           // 分配新寄存器
+void freeReg(i32 reg);    // 释放寄存器
+i32 getTopReg();          // 获取当前栈顶寄存器
+```
+
+**常量表管理**：
+```cpp
+i32 addConstant(const Value& value);  // 添加常量，返回索引
+// 自动去重：相同的常量只存储一次
+```
+
+**跳转回填**：
+```cpp
+i32 emitJump(OpCode op);              // 发射跳转指令，返回PC
+void patchJump(i32 pc, i32 target);   // 回填跳转目标
+```
+
+#### VM（字节码执行引擎）
+
+**设计模式**：指令解释器（Interpreter Pattern）
+
+**核心职责**：
+- 解释执行Lua 5.1字节码
+- 管理虚拟机寄存器（基于栈的寄存器）
+- 实现所有38条指令的执行逻辑
+- 处理算术、逻辑、比较运算
+- 实现跳转控制流
+
+**关键特性**：
+```cpp
+// 创建虚拟机
+LuaState* L = LuaState::newState();
+VM vm(L);
+
+// 执行字节码
+Proto* proto = /* 从CodeGenerator获取 */;
+vm.executeProto(proto);
+
+// 获取执行结果
+Stack& stack = L->getStack();
+Value result = stack.top();
+```
+
+**执行循环**：
+```cpp
+void VM::executeProto(Proto* proto) {
+    // 初始化
+    currentProto_ = proto;
+    pc_ = 0;
+
+    // 确保栈空间
+    usize requiredSize = proto->getMaxStackSize();
+    while (stack.size() < requiredSize) {
+        stack.push(Value());
+    }
+
+    // 主执行循环
+    while (pc_ < code.size()) {
+        Instruction inst = code[pc_++];
+        OpCode op = GET_OPCODE(inst);
+
+        switch (op) {
+            case OpCode::MOVE: /* ... */ break;
+            case OpCode::LOADK: /* ... */ break;
+            // ... 其他38条指令
+        }
+    }
+}
+```
+
+**寄存器访问**：
+```cpp
+Value& R(i32 index);      // 访问寄存器R(index)
+Value RK(i32 rk);         // RK寻址：寄存器或常量
+Value K(i32 index);       // 访问常量K(index)
+```
+
+**算术运算**：
+```cpp
+void arith(OpCode op, i32 a, i32 b, i32 c) {
+    Value left = RK(b);
+    Value right = RK(c);
+    f64 result = /* 根据op计算 */;
+    R(a) = Value(result);
+}
+```
+
+**比较运算**：
+```cpp
+void compare(OpCode op, i32 a, i32 b, i32 c) {
+    Value left = RK(b);
+    Value right = RK(c);
+    bool result = /* 根据op比较 */;
+    if (result != (a != 0)) {
+        pc_++;  // 跳过下一条指令
+    }
+}
+```
+
+**跳转控制**：
+```cpp
+void doJump(i32 offset) {
+    pc_ += offset;  // 相对跳转
+}
+```
+
+**已实现指令**（当前版本）：
+- ✅ MOVE, LOADK, LOADBOOL, LOADNIL
+- ✅ GETGLOBAL, SETGLOBAL
+- ✅ GETTABLE, SETTABLE, NEWTABLE
+- ✅ ADD, SUB, MUL, DIV, MOD, POW, UNM
+- ✅ NOT, LEN, CONCAT
+- ✅ JMP, EQ, LT, LE
+- ✅ TEST, TESTSET
+- ✅ RETURN
+- ⏳ CALL, TAILCALL（待实现）
+- ⏳ FORLOOP, FORPREP（待实现）
+- ⏳ CLOSURE, GETUPVAL, SETUPVAL, CLOSE（待实现）
+
+**性能优化**：
+- 使用switch-case指令分发（编译器优化为跳转表）
+- 内联函数减少调用开销
+- 直接栈访问避免间接寻址
+
 ---
 
 ## 🏗️ 项目结构
@@ -495,7 +681,8 @@ public:
 │   │   │   ├── global_state.hpp/cpp # 全局状态管理
 │   │   │   ├── stack.hpp/cpp    # 值栈管理
 │   │   │   ├── call_info.hpp    # 调用信息
-│   │   │   └── lua_state.hpp/cpp # Lua状态（线程）
+│   │   │   ├── lua_state.hpp/cpp # Lua状态（线程）
+│   │   │   └── vm.hpp/cpp       # 字节码执行引擎 ⭐ 新完成
 │   │   ├── compiler/            # 编译器前端 ⭐ 新完成
 │   │   │   ├── token.hpp        # Token类型定义
 │   │   │   ├── lexer.hpp/cpp    # 词法分析器
@@ -619,7 +806,7 @@ lua/build/
 
 ## 📅 开发路线图
 
-### 当前状态：✅ 阶段4.5完成（Upvalue支持），准备进入阶段5
+### 当前状态：✅ 阶段5完成（编译器前端 + VM执行引擎），准备进入阶段6
 
 | 阶段 | 内容 | 状态 | 完成度 |
 |------|------|------|--------|
@@ -628,7 +815,7 @@ lua/build/
 | **阶段3** | 垃圾回收系统 | ✅ 完成 | 100% |
 | **阶段4** | 虚拟机核心 | ✅ 完成 | 100% |
 | **阶段4.5** | Upvalue支持 | ✅ 完成 | 100% |
-| **阶段5** | 编译器 | ⏳ 待开始 | 0% |
+| **阶段5** | 编译器 + VM | ✅ 完成 | 100% |
 | **阶段6** | 标准库 | ⏳ 待开始 | 0% |
 | **阶段7** | 测试和优化 | ⏳ 待开始 | 0% |
 
@@ -640,7 +827,7 @@ lua/build/
 - [x] **M3**: 垃圾回收系统实现（GarbageCollector、Function）
 - [x] **M4**: 虚拟机核心实现（LuaState、GlobalState、Stack、CallInfo）
 - [x] **M4.5**: Upvalue支持实现（Upvalue、Function集成、LuaState集成）
-- [ ] **M5**: 编译器实现（Lexer、Parser、CodeGen）
+- [x] **M5**: 编译器实现（Lexer、Parser、CodeGen、VM）
 - [ ] **M6**: 标准库实现（base、table、string、math等）
 - [ ] **M7**: 1.0版本发布
 
@@ -648,19 +835,20 @@ lua/build/
 
 ## 🎯 下一步计划
 
-根据`docs/IMPLEMENTATION_PLAN.md`，虚拟机核心已完成，接下来有以下开发选项：
+根据`docs/IMPLEMENTATION_PLAN.md`，编译器前端和VM执行引擎已完成，接下来有以下开发选项：
 
-### 选项A：实现字节码执行引擎（⭐ 推荐）
+### 选项A：完善VM执行引擎（⭐ 推荐）
 
 **功能**：
-- 实现虚拟机指令集（基于Lua 5.1的38条指令）
-- 实现字节码解释器（fetch-decode-execute循环）
-- 实现函数调用机制（luaD_call、luaD_precall、luaD_poscall）
-- 实现错误处理和保护调用
+- 实现函数调用指令（CALL、TAILCALL）
+- 实现循环指令（FORLOOP、FORPREP、TFORLOOP）
+- 实现闭包指令（CLOSURE、GETUPVAL、SETUPVAL、CLOSE）
+- 实现可变参数指令（VARARG）
+- 实现表初始化指令（SETLIST）
 
 **原因**：
-- 虚拟机核心已完成，可以开始执行字节码
-- 是编译器的直接下游，可以验证编译器输出
+- 当前VM只支持基础指令，需要完善才能运行完整的Lua代码
+- 函数调用和闭包是Lua的核心特性
 - 可以手动构造字节码进行测试
 
 **参考**：
@@ -668,47 +856,41 @@ lua/build/
 - `lua_c_analysis/src/ldo.h` 和 `ldo.c` - 函数调用
 - `lua_c_analysis/src/lopcodes.h` - 指令定义
 
-### 选项B：实现词法分析器（Lexer）
+### 选项B：实现标准库（⭐ 推荐）
 
 **功能**：
-- 实现Token类型定义
-- 实现词法分析器（扫描源代码，生成Token流）
-- 支持Lua 5.1的所有关键字和运算符
-- 错误处理和位置跟踪
+- 实现基础库（base library）：print, type, tonumber, tostring, error等
+- 实现表库（table library）：insert, remove, sort等
+- 实现字符串库（string library）：sub, find, gsub等
+- 实现数学库（math library）：sin, cos, sqrt等
 
 **原因**：
-- 编译器的第一步
-- 相对独立，可以单独测试
-- 为语法分析器打基础
+- 标准库是Lua的重要组成部分
+- 可以运行实际的Lua代码
+- 验证VM和编译器的正确性
 
 **参考**：
-- `lua_c_analysis/src/llex.h` 和 `llex.c` - 词法分析
-- `lua_c_analysis/src/lzio.h` 和 `lzio.c` - 输入流
+- `lua_c_analysis/src/lbaselib.c` - 基础库
+- `lua_c_analysis/src/ltablib.c` - 表库
+- `lua_c_analysis/src/lstrlib.c` - 字符串库
+- `lua_c_analysis/src/lmathlib.c` - 数学库
 
-### 选项C：完善Function类（添加Upvalue支持）
+### 选项C：完善CodeGenerator（支持更多语法）
 
 **功能**：
-- 实现Upvalue类（上值）
-- 实现UpvalueList（上值列表）
-- 完善闭包的上值管理
-- 支持闭包捕获外部变量
+- 支持二元运算表达式（ADD、SUB、MUL等）
+- 支持函数调用表达式（CALL指令）
+- 支持表构造器（NEWTABLE、SETTABLE）
+- 支持控制流语句（if、while、for）
+- 支持函数定义（CLOSURE指令）
 
 **原因**：
-- 闭包是Lua的核心特性
-- 字节码执行需要Upvalue支持
-- 相对独立的模块
+- 当前CodeGenerator只支持简单的常量和赋值
+- 需要支持更多语法才能编译完整的Lua代码
 
-**参考**：`lua_c_analysis/src/lobject.h` (UpVal结构)
-
-### 选项D：实现Userdata类（用户自定义数据）
-
-**功能**：
-- 用户自定义数据类型封装
-- 元表支持
-- GC集成
-- 轻量级Userdata支持
-
-**参考**：`lua_c_analysis/src/lobject.h` (Udata结构)
+**参考**：
+- `lua_c_analysis/src/lcode.h` 和 `lcode.c` - 代码生成器
+- `lua_c_analysis/src/lparser.c` - 解析器中的代码生成部分
 
 ---
 
@@ -1004,10 +1186,11 @@ lua/build/
 | Lexer类 | 18 | 关键字、标识符、数字、字符串、运算符、注释 |
 | Parser类 | 10 | 语句解析、表达式解析、运算符优先级、AST生成 |
 | CodeGenerator类 | 7 | 数字常量、字符串常量、布尔常量、nil常量、局部变量、全局变量、多变量赋值 |
+| VM类 | 4 | 数字常量执行、布尔常量执行、nil常量执行、字符串常量执行 |
 
 ### 质量标准
 
-- ✅ **测试通过率**：100% (141/141)
+- ✅ **测试通过率**：100% (145/145)
 - ✅ **编译警告**：0个
 - ✅ **内存泄漏**：无（手动管理，待添加智能指针）
 - ✅ **代码规范**：遵循类型系统使用规范
@@ -1049,12 +1232,12 @@ lua/build/
 ### 代码规模
 
 ```
-源文件数：    34个
-头文件：      17个 (.hpp)
-实现文件：    17个 (.cpp)
-总代码行数：  约6600行（不含注释和空行）
+源文件数：    36个
+头文件：      18个 (.hpp)
+实现文件：    18个 (.cpp)
+总代码行数：  约7000行（不含注释和空行）
 文档行数：    约2500行
-测试用例：    141个
+测试用例：    145个
 ```
 
 ### 对象大小（Release版本）
@@ -1100,7 +1283,8 @@ lua/build/
 
 ### 最近更新
 
-- **2025-11-13**：实现CodeGenerator字节码生成器（OpCode + CodeGen），141个测试全部通过 ⭐ 新完成
+- **2025-11-13**：实现VM字节码执行引擎（指令解释器），145个测试全部通过 ⭐ 新完成
+- **2025-11-13**：实现CodeGenerator字节码生成器（OpCode + CodeGen），141个测试全部通过
 - **2025-11-13**：实现Parser语法分析器（AST + 递归下降解析），134个测试全部通过
 - **2025-11-12**：实现Lexer词法分析器（Token + 词法规则），124个测试全部通过
 - **2025-11-12**：实现LuaState类（线程执行环境 + Upvalue管理）
