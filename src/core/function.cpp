@@ -24,6 +24,7 @@ Proto::Proto()
     , constants_()
     , code_()
     , lineInfo_()
+    , subProtos_()
 {
 }
 
@@ -73,12 +74,24 @@ i32 Proto::getLine(usize pc) const {
     return lineInfo_[pc];
 }
 
+usize Proto::addProto(Proto* proto) {
+    subProtos_.push_back(proto);
+    return subProtos_.size() - 1;
+}
+
+Proto* Proto::getSubProto(usize index) const {
+    if (index >= subProtos_.size()) {
+        throw std::out_of_range("Sub-proto index out of range");
+    }
+    return subProtos_[index];
+}
+
 void Proto::mark() {
     // 标记源文件名
     if (source_ != nullptr) {
         source_->setColor(GCColor::Gray);
     }
-    
+
     // 标记常量表中的GC对象
     for (const Value& val : constants_) {
         if (val.isString()) {
@@ -90,14 +103,22 @@ void Proto::mark() {
         }
         // TODO: 添加Userdata和Thread的标记
     }
+
+    // 标记子函数原型
+    for (Proto* subProto : subProtos_) {
+        if (subProto != nullptr) {
+            subProto->setColor(GCColor::Gray);
+        }
+    }
 }
 
 usize Proto::getSize() const {
-    // 基础大小 + 常量表大小 + 代码数组大小 + 行号信息大小
+    // 基础大小 + 常量表大小 + 代码数组大小 + 行号信息大小 + 子函数数组大小
     return sizeof(Proto)
          + constants_.capacity() * sizeof(Value)
          + code_.capacity() * sizeof(Instruction)
-         + lineInfo_.capacity() * sizeof(i32);
+         + lineInfo_.capacity() * sizeof(i32)
+         + subProtos_.capacity() * sizeof(Proto*);
 }
 
 // =====================================================================

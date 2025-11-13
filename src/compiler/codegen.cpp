@@ -240,6 +240,12 @@ void CodeGenerator::expr(const Expr& e, ExprDesc& desc) {
         else if constexpr (std::is_same_v<T, UnaryExpr>) {
             unaryExpr(arg, desc);
         }
+        else if constexpr (std::is_same_v<T, FunctionExpr>) {
+            functionExpr(arg, desc);
+        }
+        else if constexpr (std::is_same_v<T, CallExpr>) {
+            callExpr(arg, desc);
+        }
         else {
             // 其他表达式类型暂不支持
             desc.kind = ExprKind::Void;
@@ -449,6 +455,9 @@ void CodeGenerator::statement(const Stmt& s) {
         else if constexpr (std::is_same_v<T, DoStmt>) {
             // do块
             block(arg.body);
+        }
+        else if constexpr (std::is_same_v<T, FunctionStmt>) {
+            functionStmt(arg);
         }
         // 其他语句类型暂不支持
     }, s.variant);
@@ -776,6 +785,132 @@ void CodeGenerator::fixjump(i32 pc, i32 dest) {
     }
     SETARG_sBx(jmp, offset);
     proto_->setInstruction(pc, jmp);
+}
+
+// =====================================================================
+// 函数定义和调用
+// =====================================================================
+
+Proto* CodeGenerator::compileFunction(const Vec<Str>& params, bool isVararg, const Vec<StmtPtr>& body) {
+    // 保存当前编译状态
+    Proto* savedProto = proto_;
+    i32 savedFreereg = freereg_;
+    i32 savedNactvar = nactvar_;
+    Vec<LocalVar> savedLocalVars = std::move(localVars_);
+    i32 savedPc = pc_;
+
+    // 创建新的Proto
+    Proto* newProto = new Proto();
+    newProto->setNumParams(static_cast<u8>(params.size()));
+    newProto->setVararg(isVararg);
+
+    // 切换到新的编译上下文
+    proto_ = newProto;
+    freereg_ = 0;
+    nactvar_ = 0;
+    localVars_.clear();
+    pc_ = 0;
+
+    // 添加参数作为局部变量
+    for (const Str& param : params) {
+        addLocalVar(param);
+    }
+    adjustLocalVars(static_cast<i32>(params.size()));
+
+    // 编译函数体
+    block(body);
+
+    // 添加隐式return（如果函数体没有显式return）
+    if (proto_->getInstructionCount() == 0 ||
+        GET_OPCODE(proto_->getInstruction(proto_->getInstructionCount() - 1)) != OpCode::RETURN) {
+        codeABC(OpCode::RETURN, 0, 1, 0);
+    }
+
+    // 设置最大栈大小
+    newProto->setMaxStackSize(static_cast<u8>(freereg_));
+
+    // 恢复编译状态
+    proto_ = savedProto;
+    freereg_ = savedFreereg;
+    nactvar_ = savedNactvar;
+    localVars_ = std::move(savedLocalVars);
+    pc_ = savedPc;
+
+    return newProto;
+}
+
+void CodeGenerator::functionExpr(const FunctionExpr& e, ExprDesc& desc) {
+    // 编译函数体，生成新的Proto
+    Proto* funcProto = compileFunction(e.params, e.isVararg, e.body);
+
+    // 将Proto添加到当前Proto的子函数列表
+    i32 protoIdx = static_cast<i32>(proto_->addProto(funcProto));
+
+    // 生成CLOSURE指令
+    i32 reg = allocReg();
+    codeABx(OpCode::CLOSURE, reg, protoIdx);
+
+    desc.kind = ExprKind::NonRelocatable;
+    desc.u.s.info = reg;
+}
+
+void CodeGenerator::callExpr(const CallExpr& e, ExprDesc& desc) {
+    // 计算函数表达式
+    ExprDesc func;
+    expr(*e.func, func);
+    i32 funcReg = exp2AnyReg(func);
+
+    // 计算参数
+    i32 nargs = static_cast<i32>(e.args.size());
+    for (const auto& arg : e.args) {
+        ExprDesc argDesc;
+        expr(*arg, argDesc);
+        exp2NextReg(argDesc);
+    }
+
+    // 生成CALL指令
+    // CALL A B C: 调用R(A)，B-1个参数，C-1个返回值
+    // B=0表示参数到栈顶，C=0表示返回值到栈顶
+    codeABC(OpCode::CALL, funcReg, nargs + 1, 2);  // 默认1个返回值
+
+    // 释放参数寄存器
+    freeRegs(nargs);
+
+    // 函数调用结果在funcReg
+    desc.kind = ExprKind::Call;
+    desc.u.s.info = funcReg;
+}
+
+void CodeGenerator::functionStmt(const FunctionStmt& s) {
+    // 编译函数体
+    Proto* funcProto = compileFunction(s.params, s.isVararg, s.body);
+
+    // 将Proto添加到当前Proto的子函数列表
+    i32 protoIdx = static_cast<i32>(proto_->addProto(funcProto));
+
+    if (s.isLocal) {
+        // 局部函数：local function name() end
+        // 先添加局部变量
+        addLocalVar(s.name);
+
+        // 生成CLOSURE指令
+        i32 reg = nactvar_;
+        codeABx(OpCode::CLOSURE, reg, protoIdx);
+
+        // 激活局部变量
+        adjustLocalVars(1);
+    } else {
+        // 全局函数：function name() end
+        // 生成CLOSURE指令到临时寄存器
+        i32 reg = allocReg();
+        codeABx(OpCode::CLOSURE, reg, protoIdx);
+
+        // 设置全局变量
+        i32 k = stringConstant(s.name);
+        codeABx(OpCode::SETGLOBAL, reg, k);
+
+        freeReg(reg);
+    }
 }
 
 void CodeGenerator::block(const Vec<StmtPtr>& stmts) {

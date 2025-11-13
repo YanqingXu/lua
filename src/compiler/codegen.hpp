@@ -184,6 +184,10 @@ private:
     void binaryExpr(const BinaryExpr& e, ExprDesc& desc);
     void unaryExpr(const UnaryExpr& e, ExprDesc& desc);
 
+    // 函数表达式和调用
+    void functionExpr(const FunctionExpr& e, ExprDesc& desc);
+    void callExpr(const CallExpr& e, ExprDesc& desc);
+
     // 算术和比较指令生成
     void codearith(OpCode op, ExprDesc& e1, ExprDesc& e2);
     void codecomp(OpCode op, i32 cond, ExprDesc& e1, ExprDesc& e2);
@@ -208,6 +212,16 @@ private:
 
     void statement(const Stmt& s);
     void block(const Vec<StmtPtr>& stmts);
+
+    // 函数定义语句
+    void functionStmt(const FunctionStmt& s);
+
+    // =====================================================================
+    // 函数编译辅助
+    // =====================================================================
+
+    // 编译函数体，返回新的Proto
+    Proto* compileFunction(const Vec<Str>& params, bool isVararg, const Vec<StmtPtr>& body);
 
 private:
     StringPool* pool_;          // 字符串池

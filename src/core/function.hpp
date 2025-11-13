@@ -219,6 +219,30 @@ public:
     i32 getLine(usize pc) const;
 
     // =====================================================================
+    // 子函数原型管理
+    // =====================================================================
+
+    /**
+     * @brief 添加子函数原型
+     * @param proto 子函数原型指针
+     * @return 子函数在数组中的索引
+     */
+    usize addProto(Proto* proto);
+
+    /**
+     * @brief 获取子函数原型
+     * @param index 子函数索引
+     * @return 子函数原型指针
+     */
+    Proto* getSubProto(usize index) const;
+
+    /**
+     * @brief 获取子函数数量
+     * @return 子函数数量
+     */
+    usize getSubProtoCount() const noexcept { return subProtos_.size(); }
+
+    // =====================================================================
     // GCObject接口实现
     // =====================================================================
 
@@ -246,6 +270,9 @@ private:
 
     /// 行号信息（每条指令对应一个行号）
     Vec<i32> lineInfo_;
+
+    /// 子函数原型数组（函数内定义的函数）
+    Vec<Proto*> subProtos_;
 };
 
 /**
