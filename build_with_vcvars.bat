@@ -678,6 +678,22 @@ if %errorlevel% neq 0 (
 )
 
 echo.
+echo [INFO] Compiling Userdata class...
+echo [INFO] Command: cl %CXX_FLAGS% /Isrc /c /Fo"%OUTPUT_DIR%\userdata.obj" "src\core\userdata.cpp"
+echo.
+
+cl %CXX_FLAGS% /Isrc /c /Fo"%OUTPUT_DIR%\userdata.obj" "src\core\userdata.cpp"
+
+if %errorlevel% neq 0 (
+    echo.
+    echo [ERROR] ========================================
+    echo [ERROR] Userdata class compilation failed!
+    echo [ERROR] Error code: %errorlevel%
+    echo [ERROR] ========================================
+    exit /b %errorlevel%
+)
+
+echo.
 echo [INFO] Compiling GarbageCollector class...
 echo [INFO] Command: cl %CXX_FLAGS% /Isrc /c /Fo"%OUTPUT_DIR%\garbage_collector.obj" "src\gc\garbage_collector.cpp"
 echo.
@@ -759,10 +775,10 @@ if %errorlevel% neq 0 (
 
 echo.
 echo [INFO] Compiling test file...
-echo [INFO] Command: cl %CXX_FLAGS% /Isrc /Fo"%OUTPUT_DIR%\\" /Fe"%OUTPUT_DIR%\test_build.exe" "%OUTPUT_DIR%\test_build.cpp" "%OUTPUT_DIR%\value.obj" "%OUTPUT_DIR%\gc_object.obj" "%OUTPUT_DIR%\gc_string.obj" "%OUTPUT_DIR%\string_pool.obj" "%OUTPUT_DIR%\table.obj" "%OUTPUT_DIR%\function.obj" "%OUTPUT_DIR%\garbage_collector.obj" "%OUTPUT_DIR%\upvalue.obj" "%OUTPUT_DIR%\global_state.obj" "%OUTPUT_DIR%\stack.obj" "%OUTPUT_DIR%\lua_state.obj"
+echo [INFO] Command: cl %CXX_FLAGS% /Isrc /Fo"%OUTPUT_DIR%\\" /Fe"%OUTPUT_DIR%\test_build.exe" "%OUTPUT_DIR%\test_build.cpp" "%OUTPUT_DIR%\value.obj" "%OUTPUT_DIR%\gc_object.obj" "%OUTPUT_DIR%\gc_string.obj" "%OUTPUT_DIR%\string_pool.obj" "%OUTPUT_DIR%\table.obj" "%OUTPUT_DIR%\function.obj" "%OUTPUT_DIR%\userdata.obj" "%OUTPUT_DIR%\garbage_collector.obj" "%OUTPUT_DIR%\upvalue.obj" "%OUTPUT_DIR%\global_state.obj" "%OUTPUT_DIR%\stack.obj" "%OUTPUT_DIR%\lua_state.obj"
 echo.
 
-cl %CXX_FLAGS% /Isrc /Fo"%OUTPUT_DIR%\\" /Fe"%OUTPUT_DIR%\test_build.exe" "%OUTPUT_DIR%\test_build.cpp" "%OUTPUT_DIR%\value.obj" "%OUTPUT_DIR%\gc_object.obj" "%OUTPUT_DIR%\gc_string.obj" "%OUTPUT_DIR%\string_pool.obj" "%OUTPUT_DIR%\table.obj" "%OUTPUT_DIR%\function.obj" "%OUTPUT_DIR%\garbage_collector.obj" "%OUTPUT_DIR%\upvalue.obj" "%OUTPUT_DIR%\global_state.obj" "%OUTPUT_DIR%\stack.obj" "%OUTPUT_DIR%\lua_state.obj"
+cl %CXX_FLAGS% /Isrc /Fo"%OUTPUT_DIR%\\" /Fe"%OUTPUT_DIR%\test_build.exe" "%OUTPUT_DIR%\test_build.cpp" "%OUTPUT_DIR%\value.obj" "%OUTPUT_DIR%\gc_object.obj" "%OUTPUT_DIR%\gc_string.obj" "%OUTPUT_DIR%\string_pool.obj" "%OUTPUT_DIR%\table.obj" "%OUTPUT_DIR%\function.obj" "%OUTPUT_DIR%\userdata.obj" "%OUTPUT_DIR%\garbage_collector.obj" "%OUTPUT_DIR%\upvalue.obj" "%OUTPUT_DIR%\global_state.obj" "%OUTPUT_DIR%\stack.obj" "%OUTPUT_DIR%\lua_state.obj"
 
 if %errorlevel% neq 0 (
     echo.

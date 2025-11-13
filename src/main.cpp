@@ -24,6 +24,7 @@
 #include "core/string_pool.hpp"
 #include "core/table.hpp"
 #include "core/function.hpp"
+#include "core/userdata.hpp"
 #include "gc/garbage_collector.hpp"
 #include "vm/global_state.hpp"
 #include "vm/stack.hpp"
@@ -696,6 +697,116 @@ void testLuaState() {
 }
 
 /**
+ * @brief 测试Userdata类
+ */
+void testUserdata() {
+    printTitle("Testing Userdata Class");
+
+    // ===== 测试1: 创建简单的完整用户数据 =====
+    std::cout << "Testing full userdata creation:" << std::endl;
+
+    Userdata* ud1 = Userdata::createFull(64);
+    std::cout << "  [OK] Created userdata with 64 bytes" << std::endl;
+    std::cout << "  Data size: " << ud1->getDataSize() << " bytes" << std::endl;
+    std::cout << "  Object size: " << ud1->getSize() << " bytes" << std::endl;
+
+    // ===== 测试2: 数据访问和修改 =====
+    std::cout << "\nTesting data access:" << std::endl;
+
+    // 写入数据
+    void* data = ud1->getData();
+    i32* intData = static_cast<i32*>(data);
+    intData[0] = 42;
+    intData[1] = 100;
+
+    std::cout << "  Written values: " << intData[0] << ", " << intData[1] << std::endl;
+
+    // 读取数据
+    i32* readData = ud1->getTypedData<i32>();
+    std::cout << "  Read values: " << readData[0] << ", " << readData[1] << std::endl;
+
+    // ===== 测试3: 类型化创建 =====
+    std::cout << "\nTesting typed userdata creation:" << std::endl;
+
+    struct TestStruct {
+        i32 id;
+        f64 value;
+        char name[16];
+    };
+
+    TestStruct testData;
+    testData.id = 123;
+    testData.value = 3.14159;
+    strcpy_s(testData.name, sizeof(testData.name), "TestData");
+
+    Userdata* ud2 = Userdata::create(testData);
+    std::cout << "  [OK] Created typed userdata" << std::endl;
+
+    TestStruct* retrievedData = ud2->getTypedData<TestStruct>();
+    std::cout << "  Retrieved data:" << std::endl;
+    std::cout << "    id: " << retrievedData->id << std::endl;
+    std::cout << "    value: " << retrievedData->value << std::endl;
+    std::cout << "    name: " << retrievedData->name << std::endl;
+
+    // ===== 测试4: 元表操作 =====
+    std::cout << "\nTesting metatable operations:" << std::endl;
+
+    std::cout << "  Has metatable: " << (ud1->hasMetatable() ? "true" : "false") << std::endl;
+
+    Table* mt = new Table();
+    ud1->setMetatable(mt);
+    std::cout << "  [OK] Metatable set" << std::endl;
+    std::cout << "  Has metatable: " << (ud1->hasMetatable() ? "true" : "false") << std::endl;
+    std::cout << "  Metatable pointer match: " << (ud1->getMetatable() == mt ? "true" : "false") << std::endl;
+
+    // ===== 测试5: GC集成 =====
+    std::cout << "\nTesting GC integration:" << std::endl;
+
+    GarbageCollector& gc = GarbageCollector::getInstance();
+    gc.clearAll();
+
+    Userdata* ud3 = Userdata::createFull(128);
+    Userdata* ud4 = Userdata::createFull(256);
+    Table* mt2 = new Table();
+    ud3->setMetatable(mt2);
+
+    gc.registerObject(ud3);
+    gc.registerObject(ud4);
+    gc.registerObject(mt2);
+
+    std::cout << "  Registered objects: " << gc.getObjectCount() << std::endl;
+
+    // 添加ud3为根对象(保护它和它的元表)
+    gc.addRoot(ud3);
+    std::cout << "  Added ud3 as root" << std::endl;
+
+    // 执行GC
+    usize collected = gc.collect();
+    std::cout << "  Collected objects: " << collected << std::endl;
+    std::cout << "  Remaining objects: " << gc.getObjectCount() << std::endl;
+    std::cout << "  (ud3 and its metatable should survive, ud4 should be collected)" << std::endl;
+
+    // ===== 测试6: Value集成 =====
+    std::cout << "\nTesting Value integration:" << std::endl;
+
+    Userdata* ud5 = Userdata::createFull(32);
+    Value val(ud5);
+
+    std::cout << "  Value type: " << static_cast<i32>(val.getType()) << std::endl;
+    std::cout << "  Is userdata: " << (val.isUserdata() ? "true" : "false") << std::endl;
+    std::cout << "  Retrieved userdata: " << (val.asUserdata() == ud5 ? "true" : "false") << std::endl;
+
+    // 清理
+    gc.clearAll();
+    delete mt;
+    delete ud1;
+    delete ud2;
+    delete ud5;
+
+    std::cout << "\n[PASS] Userdata test completed\n" << std::endl;
+}
+
+/**
  * @brief 综合测试
  */
 void comprehensiveTest() {
@@ -771,6 +882,7 @@ int main(int argc, char* argv[]) {
         testGCObject();
         testGarbageCollector();
         testFunction();
+        testUserdata();
 
         // 虚拟机核心模块测试
         testGlobalState();
@@ -790,6 +902,7 @@ int main(int argc, char* argv[]) {
         std::cout << "  [OK] StringPool singleton" << std::endl;
         std::cout << "  [OK] Table class" << std::endl;
         std::cout << "  [OK] Function class (Proto + Closure)" << std::endl;
+        std::cout << "  [OK] Userdata class" << std::endl;
         std::cout << "  [OK] GarbageCollector class" << std::endl;
         std::cout << "  [OK] GlobalState class" << std::endl;
         std::cout << "  [OK] Stack class" << std::endl;

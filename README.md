@@ -32,7 +32,7 @@
 
 ## 📊 当前进度
 
-### 已完成模块（12个核心模块）
+### 已完成模块（13个核心模块）
 
 | 模块 | 文件 | 功能描述 | 测试数 | 状态 |
 |------|------|---------|--------|------|
@@ -46,6 +46,7 @@
 | **Table类** | `src/core/table.hpp/cpp` | Lua表（数组+哈希混合存储） | 11 | ✅ 完成 |
 | **Function类** | `src/core/function.hpp/cpp` | 函数对象（Proto + Closure + Upvalue） | 12 | ✅ 完成 |
 | **Upvalue类** | `src/core/upvalue.hpp/cpp` | 闭包上值管理（Open/Closed状态） | 11 | ✅ 完成 |
+| **Userdata类** | `src/core/userdata.hpp/cpp` | 用户数据（C++数据包装） | 6 | ✅ 完成 |
 | **GarbageCollector** | `src/gc/garbage_collector.hpp/cpp` | 垃圾回收器（标记-清除算法） | 8 | ✅ 完成 |
 | **GlobalState类** | `src/vm/global_state.hpp/cpp` | 全局状态管理（单例模式） | 4 | ✅ 完成 |
 | **Stack类** | `src/vm/stack.hpp/cpp` | 值栈管理（动态扩展） | 5 | ✅ 完成 |
@@ -55,8 +56,8 @@
 ### 测试统计
 
 ```
-总测试数：100个
-通过率：  100% (100/100)
+总测试数：106个
+通过率：  100% (106/106)
 编译状态：Debug和Release版本均无警告
 平台：    Windows + MSVC (Visual Studio 2026)
 ```
@@ -68,6 +69,7 @@
 ✅ **Table类**：混合存储（数组部分 + 哈希部分），自动优化
 ✅ **Function类**：支持C函数和Lua函数两种闭包类型，集成Upvalue管理
 ✅ **Upvalue类**：闭包上值管理，支持Open/Closed状态转换，共享机制
+✅ **Userdata类**：完整用户数据支持，8字节对齐，元表支持，GC集成
 ✅ **StringPool**：字符串驻留（interning），节省内存
 ✅ **GarbageCollector**：标记-清除算法，根对象管理
 ✅ **GlobalState**：单例模式管理全局资源（字符串池、GC、注册表）
@@ -252,6 +254,50 @@ enum class ThreadStatus {
 
 **内存布局**：104字节（包含Stack、CallInfo数组、引用和指针）
 
+#### Userdata（用户数据）
+
+**设计模式**：GC管理的内存块
+
+**核心职责**：
+- 将C++数据结构包装成Lua对象
+- 提供GC管理的内存块
+- 支持元表实现自定义行为
+- 保证内存对齐（8字节）
+
+**关键特性**：
+```cpp
+// 创建完整用户数据
+Userdata* ud = Userdata::createFull(64);  // 分配64字节
+
+// 类型化创建
+struct MyData { int id; double value; };
+MyData data = {123, 3.14};
+Userdata* ud2 = Userdata::create(data);
+
+// 数据访问
+void* rawData = ud->getData();
+MyData* typedData = ud->getTypedData<MyData>();
+
+// 元表支持
+Table* mt = new Table();
+ud->setMetatable(mt);
+bool hasMt = ud->hasMetatable();
+```
+
+**内存布局**：
+```
+[Userdata对象头部][用户数据块（8字节对齐）]
+```
+
+**GC集成**：
+- 自动标记元表
+- 计算总内存大小（对象 + 数据）
+- 析构时自动释放对齐内存
+
+**平台兼容性**：
+- Windows (MSVC): 使用`_aligned_malloc`/`_aligned_free`
+- Linux/macOS: 使用`std::aligned_alloc`/`std::free`
+
 ---
 
 ## 🏗️ 项目结构
@@ -274,7 +320,8 @@ enum class ThreadStatus {
 │   │   │   ├── string_pool.hpp/cpp # StringPool类
 │   │   │   ├── table.hpp/cpp    # Table类
 │   │   │   ├── function.hpp/cpp # Function类（Proto + Closure）
-│   │   │   └── upvalue.hpp/cpp  # Upvalue类（闭包上值）⭐ 新完成
+│   │   │   ├── upvalue.hpp/cpp  # Upvalue类（闭包上值）
+│   │   │   └── userdata.hpp/cpp # Userdata类（用户数据）⭐ 新完成
 │   │   ├── gc/                  # 垃圾回收系统
 │   │   │   └── garbage_collector.hpp/cpp # GC实现
 │   │   ├── vm/                  # 虚拟机核心 ⭐ 新完成
