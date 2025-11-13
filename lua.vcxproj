@@ -133,7 +133,9 @@
     <ClInclude Include="src\common\macros.hpp" />
     <ClInclude Include="src\common\types.hpp" />
     <ClInclude Include="src\compiler\ast.hpp" />
+    <ClInclude Include="src\compiler\codegen.hpp" />
     <ClInclude Include="src\compiler\lexer.hpp" />
+    <ClInclude Include="src\compiler\opcode.hpp" />
     <ClInclude Include="src\compiler\parser.hpp" />
     <ClInclude Include="src\compiler\token.hpp" />
     <ClInclude Include="src\core\function.hpp" />
@@ -152,7 +154,9 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\compiler\ast.cpp" />
+    <ClCompile Include="src\compiler\codegen.cpp" />
     <ClCompile Include="src\compiler\lexer.cpp" />
+    <ClCompile Include="src\compiler\opcode.cpp" />
     <ClCompile Include="src\compiler\parser.cpp" />
     <ClCompile Include="src\core\function.cpp" />
     <ClCompile Include="src\core\gc_object.cpp" />

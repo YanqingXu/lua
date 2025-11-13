@@ -3,7 +3,7 @@
 > **从零开始用C++17/20/23实现Lua 5.1.5解释器**
 
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen)]()
-[![Tests](https://img.shields.io/badge/tests-134%2F134-brightgreen)]()
+[![Tests](https://img.shields.io/badge/tests-141%2F141-brightgreen)]()
 [![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen)]()
 [![C++](https://img.shields.io/badge/C%2B%2B-17-blue)]()
 [![Platform](https://img.shields.io/badge/platform-Windows-blue)]()
@@ -32,7 +32,7 @@
 
 ## 📊 当前进度
 
-### 已完成模块（15个核心模块）
+### 已完成模块（16个核心模块）
 
 | 模块 | 文件 | 功能描述 | 测试数 | 状态 |
 |------|------|---------|--------|------|
@@ -54,12 +54,13 @@
 | **LuaState类** | `src/vm/lua_state.hpp/cpp` | Lua状态（线程执行环境） | 5 | ✅ 完成 |
 | **Lexer词法分析器** | `src/compiler/lexer.hpp/cpp` + `token.hpp` | 词法分析（Token流生成） | 18 | ✅ 完成 |
 | **Parser语法分析器** | `src/compiler/parser.hpp/cpp` + `ast.hpp/cpp` | 语法分析（AST生成） | 10 | ✅ 完成 |
+| **CodeGenerator字节码生成器** | `src/compiler/codegen.hpp/cpp` + `opcode.hpp/cpp` | 字节码生成（AST→Bytecode） | 7 | ✅ 完成 |
 
 ### 测试统计
 
 ```
-总测试数：134个
-通过率：  100% (134/134)
+总测试数：141个
+通过率：  100% (141/141)
 编译状态：Debug和Release版本均无警告
 平台：    Windows + MSVC (Visual Studio 2026)
 ```
@@ -74,6 +75,8 @@
 ✅ **Userdata类**：完整用户数据支持，8字节对齐，元表支持，GC集成
 ✅ **Lexer词法分析器**：完整Lua 5.1词法规则，支持所有关键字、运算符、字面量、注释
 ✅ **Parser语法分析器**：递归下降解析，完整AST生成，正确的运算符优先级和结合性
+✅ **CodeGenerator字节码生成器**：AST→字节码转换，寄存器分配，常量表管理，跳转回填
+✅ **OpCode指令集**：完整Lua 5.1指令集（38条指令），iABC/iABx/iAsBx三种格式
 ✅ **StringPool**：字符串驻留（interning），节省内存
 ✅ **GarbageCollector**：标记-清除算法，根对象管理
 ✅ **GlobalState**：单例模式管理全局资源（字符串池、GC、注册表）
@@ -497,7 +500,9 @@ public:
 │   │   │   ├── token.hpp        # Token类型定义
 │   │   │   ├── lexer.hpp/cpp    # 词法分析器
 │   │   │   ├── ast.hpp/cpp      # AST节点定义
-│   │   │   └── parser.hpp/cpp   # 语法分析器
+│   │   │   ├── parser.hpp/cpp   # 语法分析器
+│   │   │   ├── opcode.hpp/cpp   # 指令集定义（38条Lua 5.1指令）⭐ 新完成
+│   │   │   └── codegen.hpp/cpp  # 字节码生成器 ⭐ 新完成
 │   │   ├── lib/                 # 标准库（待实现）
 │   │   └── main.cpp             # 测试主程序（VS IDE手动编译用）
 │   ├── docs/                    # 项目文档
@@ -773,6 +778,60 @@ lua/build/
 - `lua_c_analysis/src/lparser.h` 和 `lparser.c` - Lua 5.1.5 C版本语法分析器
 - Lua 5.1 Reference Manual - 语法规范
 
+#### CodeGenerator（字节码生成器）⭐ 新完成
+
+**文件**：`src/compiler/codegen.hpp/cpp` + `opcode.hpp/cpp`
+
+**核心功能**：
+- 将AST转换为Lua 5.1字节码
+- 寄存器分配和管理
+- 常量表管理（数字、字符串、布尔值）
+- 局部变量作用域管理
+- 跳转指令生成和回填
+
+**OpCode指令集**（38条Lua 5.1指令）：
+- **数据移动**：MOVE, LOADK, LOADBOOL, LOADNIL
+- **表操作**：NEWTABLE, GETTABLE, SETTABLE, SETLIST, SELF
+- **全局变量**：GETGLOBAL, SETGLOBAL
+- **Upvalue**：GETUPVAL, SETUPVAL
+- **算术运算**：ADD, SUB, MUL, DIV, MOD, POW, UNM
+- **逻辑运算**：NOT, LEN
+- **关系运算**：EQ, LT, LE
+- **字符串**：CONCAT
+- **控制流**：JMP, TEST, TESTSET
+- **函数调用**：CALL, TAILCALL, RETURN
+- **循环**：FORLOOP, FORPREP, TFORLOOP, TFORCALL
+- **闭包**：CLOSURE
+- **可变参数**：VARARG
+- **其他**：CLOSE
+
+**指令格式**（32位）：
+```cpp
+// iABC:  [OpCode:6][A:8][C:9][B:9]
+// iABx:  [OpCode:6][A:8][Bx:18]
+// iAsBx: [OpCode:6][A:8][sBx:18] (signed)
+```
+
+**技术亮点**：
+- 基于寄存器的虚拟机架构（非栈式）
+- 单遍代码生成
+- RK寻址模式（Register-Constant混合寻址）
+- 跳转链表回填技术
+- 局部变量生命周期管理
+
+**测试覆盖**：
+- ✅ 数字常量（LOADK指令）
+- ✅ 字符串常量（LOADK指令）
+- ✅ 布尔常量（LOADBOOL指令）
+- ✅ nil常量（LOADNIL指令）
+- ✅ 局部变量赋值（寄存器分配）
+- ✅ 全局变量赋值（SETGLOBAL指令）
+- ✅ 多变量赋值（寄存器管理）
+
+**参考实现**：
+- `lua_c_analysis/src/lcode.h` 和 `lcode.c` - Lua 5.1.5 C版本代码生成器
+- `lua_c_analysis/src/lopcodes.h` 和 `lopcodes.c` - Lua 5.1.5 指令集定义
+
 ---
 
 ## 📚 重要文档索引
@@ -784,7 +843,6 @@ lua/build/
 | **ARCHITECTURE.md** | 架构设计文档 | 理解系统整体架构和模块设计 |
 | **IMPLEMENTATION_PLAN.md** | 开发计划 | 7阶段18周详细开发计划和任务分解 |
 | **DEVELOPMENT_GUIDE.md** | 开发规范 | 编码规范、类型系统使用指南、质量标准 |
-| **PROJECT_OVERVIEW.md** | 项目总览 | 项目背景、目标、技术选型 |
 | **PROJECT_SUMMARY_CN.md** | 中文项目总结 | 项目进展总结（中文） |
 
 ### 参考资源
@@ -945,10 +1003,11 @@ lua/build/
 | LuaState类 | 5 | 状态管理、栈操作、Upvalue管理 |
 | Lexer类 | 18 | 关键字、标识符、数字、字符串、运算符、注释 |
 | Parser类 | 10 | 语句解析、表达式解析、运算符优先级、AST生成 |
+| CodeGenerator类 | 7 | 数字常量、字符串常量、布尔常量、nil常量、局部变量、全局变量、多变量赋值 |
 
 ### 质量标准
 
-- ✅ **测试通过率**：100% (134/134)
+- ✅ **测试通过率**：100% (141/141)
 - ✅ **编译警告**：0个
 - ✅ **内存泄漏**：无（手动管理，待添加智能指针）
 - ✅ **代码规范**：遵循类型系统使用规范
@@ -990,12 +1049,12 @@ lua/build/
 ### 代码规模
 
 ```
-源文件数：    30个
-头文件：      15个 (.hpp)
-实现文件：    15个 (.cpp)
-总代码行数：  约5700行（不含注释和空行）
+源文件数：    34个
+头文件：      17个 (.hpp)
+实现文件：    17个 (.cpp)
+总代码行数：  约6600行（不含注释和空行）
 文档行数：    约2500行
-测试用例：    134个
+测试用例：    141个
 ```
 
 ### 对象大小（Release版本）
@@ -1041,6 +1100,7 @@ lua/build/
 
 ### 最近更新
 
+- **2025-11-13**：实现CodeGenerator字节码生成器（OpCode + CodeGen），141个测试全部通过 ⭐ 新完成
 - **2025-11-13**：实现Parser语法分析器（AST + 递归下降解析），134个测试全部通过
 - **2025-11-12**：实现Lexer词法分析器（Token + 词法规则），124个测试全部通过
 - **2025-11-12**：实现LuaState类（线程执行环境 + Upvalue管理）

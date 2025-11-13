@@ -22,6 +22,8 @@ Proto::Proto()
     , maxStackSize_(0)
     , source_(nullptr)
     , constants_()
+    , code_()
+    , lineInfo_()
 {
 }
 
@@ -39,6 +41,36 @@ Value Proto::getConstant(usize index) const {
         throw std::out_of_range("Constant index out of range");
     }
     return constants_[index];
+}
+
+usize Proto::addInstruction(Instruction inst) {
+    code_.push_back(inst);
+    return code_.size() - 1;
+}
+
+Instruction Proto::getInstruction(usize index) const {
+    if (index >= code_.size()) {
+        throw std::out_of_range("Instruction index out of range");
+    }
+    return code_[index];
+}
+
+void Proto::setInstruction(usize index, Instruction inst) {
+    if (index >= code_.size()) {
+        throw std::out_of_range("Instruction index out of range");
+    }
+    code_[index] = inst;
+}
+
+void Proto::addLineInfo(i32 line) {
+    lineInfo_.push_back(line);
+}
+
+i32 Proto::getLine(usize pc) const {
+    if (pc >= lineInfo_.size()) {
+        return 0;  // 未知行号
+    }
+    return lineInfo_[pc];
 }
 
 void Proto::mark() {
@@ -61,8 +93,11 @@ void Proto::mark() {
 }
 
 usize Proto::getSize() const {
-    // 基础大小 + 常量表大小
-    return sizeof(Proto) + constants_.capacity() * sizeof(Value);
+    // 基础大小 + 常量表大小 + 代码数组大小 + 行号信息大小
+    return sizeof(Proto)
+         + constants_.capacity() * sizeof(Value)
+         + code_.capacity() * sizeof(Instruction)
+         + lineInfo_.capacity() * sizeof(i32);
 }
 
 // =====================================================================

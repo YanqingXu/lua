@@ -822,11 +822,43 @@ if %errorlevel% neq 0 (
 )
 
 echo.
-echo [INFO] Compiling test file...
-echo [INFO] Command: cl %CXX_FLAGS% /Isrc /Fo"%OUTPUT_DIR%\\" /Fe"%OUTPUT_DIR%\test_build.exe" "%OUTPUT_DIR%\test_build.cpp" "%OUTPUT_DIR%\value.obj" "%OUTPUT_DIR%\gc_object.obj" "%OUTPUT_DIR%\gc_string.obj" "%OUTPUT_DIR%\string_pool.obj" "%OUTPUT_DIR%\table.obj" "%OUTPUT_DIR%\function.obj" "%OUTPUT_DIR%\userdata.obj" "%OUTPUT_DIR%\garbage_collector.obj" "%OUTPUT_DIR%\upvalue.obj" "%OUTPUT_DIR%\global_state.obj" "%OUTPUT_DIR%\stack.obj" "%OUTPUT_DIR%\lua_state.obj" "%OUTPUT_DIR%\lexer.obj" "%OUTPUT_DIR%\ast.obj" "%OUTPUT_DIR%\parser.obj"
+echo [INFO] Compiling OpCode class...
+echo [INFO] Command: cl %CXX_FLAGS% /Isrc /c /Fo"%OUTPUT_DIR%\opcode.obj" "src\compiler\opcode.cpp"
 echo.
 
-cl %CXX_FLAGS% /Isrc /Fo"%OUTPUT_DIR%\\" /Fe"%OUTPUT_DIR%\test_build.exe" "%OUTPUT_DIR%\test_build.cpp" "%OUTPUT_DIR%\value.obj" "%OUTPUT_DIR%\gc_object.obj" "%OUTPUT_DIR%\gc_string.obj" "%OUTPUT_DIR%\string_pool.obj" "%OUTPUT_DIR%\table.obj" "%OUTPUT_DIR%\function.obj" "%OUTPUT_DIR%\userdata.obj" "%OUTPUT_DIR%\garbage_collector.obj" "%OUTPUT_DIR%\upvalue.obj" "%OUTPUT_DIR%\global_state.obj" "%OUTPUT_DIR%\stack.obj" "%OUTPUT_DIR%\lua_state.obj" "%OUTPUT_DIR%\lexer.obj" "%OUTPUT_DIR%\ast.obj" "%OUTPUT_DIR%\parser.obj"
+cl %CXX_FLAGS% /Isrc /c /Fo"%OUTPUT_DIR%\opcode.obj" "src\compiler\opcode.cpp"
+
+if %errorlevel% neq 0 (
+    echo.
+    echo [ERROR] ========================================
+    echo [ERROR] OpCode class compilation failed!
+    echo [ERROR] Error code: %errorlevel%
+    echo [ERROR] ========================================
+    exit /b %errorlevel%
+)
+
+echo.
+echo [INFO] Compiling CodeGenerator class...
+echo [INFO] Command: cl %CXX_FLAGS% /Isrc /c /Fo"%OUTPUT_DIR%\codegen.obj" "src\compiler\codegen.cpp"
+echo.
+
+cl %CXX_FLAGS% /Isrc /c /Fo"%OUTPUT_DIR%\codegen.obj" "src\compiler\codegen.cpp"
+
+if %errorlevel% neq 0 (
+    echo.
+    echo [ERROR] ========================================
+    echo [ERROR] CodeGenerator class compilation failed!
+    echo [ERROR] Error code: %errorlevel%
+    echo [ERROR] ========================================
+    exit /b %errorlevel%
+)
+
+echo.
+echo [INFO] Compiling test file...
+echo [INFO] Command: cl %CXX_FLAGS% /Isrc /Fo"%OUTPUT_DIR%\\" /Fe"%OUTPUT_DIR%\test_build.exe" "%OUTPUT_DIR%\test_build.cpp" "%OUTPUT_DIR%\value.obj" "%OUTPUT_DIR%\gc_object.obj" "%OUTPUT_DIR%\gc_string.obj" "%OUTPUT_DIR%\string_pool.obj" "%OUTPUT_DIR%\table.obj" "%OUTPUT_DIR%\function.obj" "%OUTPUT_DIR%\userdata.obj" "%OUTPUT_DIR%\garbage_collector.obj" "%OUTPUT_DIR%\upvalue.obj" "%OUTPUT_DIR%\global_state.obj" "%OUTPUT_DIR%\stack.obj" "%OUTPUT_DIR%\lua_state.obj" "%OUTPUT_DIR%\lexer.obj" "%OUTPUT_DIR%\ast.obj" "%OUTPUT_DIR%\parser.obj" "%OUTPUT_DIR%\opcode.obj" "%OUTPUT_DIR%\codegen.obj"
+echo.
+
+cl %CXX_FLAGS% /Isrc /Fo"%OUTPUT_DIR%\\" /Fe"%OUTPUT_DIR%\test_build.exe" "%OUTPUT_DIR%\test_build.cpp" "%OUTPUT_DIR%\value.obj" "%OUTPUT_DIR%\gc_object.obj" "%OUTPUT_DIR%\gc_string.obj" "%OUTPUT_DIR%\string_pool.obj" "%OUTPUT_DIR%\table.obj" "%OUTPUT_DIR%\function.obj" "%OUTPUT_DIR%\userdata.obj" "%OUTPUT_DIR%\garbage_collector.obj" "%OUTPUT_DIR%\upvalue.obj" "%OUTPUT_DIR%\global_state.obj" "%OUTPUT_DIR%\stack.obj" "%OUTPUT_DIR%\lua_state.obj" "%OUTPUT_DIR%\lexer.obj" "%OUTPUT_DIR%\ast.obj" "%OUTPUT_DIR%\parser.obj" "%OUTPUT_DIR%\opcode.obj" "%OUTPUT_DIR%\codegen.obj"
 
 if %errorlevel% neq 0 (
     echo.

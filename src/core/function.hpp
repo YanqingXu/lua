@@ -39,6 +39,9 @@ class LuaState;
 class GCString;
 class Upvalue;
 
+// 指令类型（32位无符号整数）
+using Instruction = u32;
+
 /**
  * @brief C函数类型定义
  * 
@@ -154,29 +157,95 @@ public:
      * @return 常量表大小
      */
     usize getConstantCount() const noexcept { return constants_.size(); }
-    
+
+    // =====================================================================
+    // 字节码操作
+    // =====================================================================
+
+    /**
+     * @brief 添加指令
+     * @param inst 指令
+     * @return 指令在代码数组中的索引
+     */
+    usize addInstruction(Instruction inst);
+
+    /**
+     * @brief 获取指令
+     * @param index 指令索引
+     * @return 指令
+     */
+    Instruction getInstruction(usize index) const;
+
+    /**
+     * @brief 设置指令
+     * @param index 指令索引
+     * @param inst 新指令
+     */
+    void setInstruction(usize index, Instruction inst);
+
+    /**
+     * @brief 获取指令数量
+     * @return 代码数组大小
+     */
+    usize getInstructionCount() const noexcept { return code_.size(); }
+
+    /**
+     * @brief 获取代码数组（只读）
+     * @return 代码数组引用
+     */
+    const Vec<Instruction>& getCode() const noexcept { return code_; }
+
+    /**
+     * @brief 获取代码数组（可写）
+     * @return 代码数组引用
+     */
+    Vec<Instruction>& getCode() noexcept { return code_; }
+
+    // =====================================================================
+    // 行号信息
+    // =====================================================================
+
+    /**
+     * @brief 添加行号信息
+     * @param line 行号
+     */
+    void addLineInfo(i32 line);
+
+    /**
+     * @brief 获取指令对应的行号
+     * @param pc 指令索引
+     * @return 行号
+     */
+    i32 getLine(usize pc) const;
+
     // =====================================================================
     // GCObject接口实现
     // =====================================================================
-    
+
     void mark() override;
     usize getSize() const override;
 
 private:
     /// 参数数量
     u8 numParams_;
-    
+
     /// 可变参数标志
     bool isVararg_;
-    
+
     /// 最大栈大小
     u8 maxStackSize_;
-    
+
     /// 源文件名
     GCString* source_;
-    
-    /// 常量表（简化版）
+
+    /// 常量表
     Vec<Value> constants_;
+
+    /// 字节码数组
+    Vec<Instruction> code_;
+
+    /// 行号信息（每条指令对应一个行号）
+    Vec<i32> lineInfo_;
 };
 
 /**

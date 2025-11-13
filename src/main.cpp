@@ -34,11 +34,30 @@
 #include "compiler/token.hpp"
 #include "compiler/parser.hpp"
 #include "compiler/ast.hpp"
+#include "compiler/codegen.hpp"
+#include "compiler/opcode.hpp"
 
 #include <iostream>
 #include <iomanip>
 
 using namespace Lua;
+
+// 前向声明
+void testValue();
+void testString();
+void testTable();
+void testGCObject();
+void testGarbageCollector();
+void testFunction();
+void testUserdata();
+void testGlobalState();
+void testStack();
+void testCallInfo();
+void testLuaState();
+void testLexer();
+void testParser();
+void testCodeGenerator();
+void comprehensiveTest();
 
 /**
  * @brief 打印分隔线
@@ -1117,6 +1136,163 @@ void testParser() {
 }
 
 /**
+ * @brief 测试CodeGenerator类
+ */
+void testCodeGenerator() {
+    printTitle("Testing CodeGenerator Class");
+
+    StringPool& pool = StringPool::getInstance();
+    i32 testCount = 0;
+
+    // ===== 测试1: 简单数字常量 =====
+    std::cout << "\n[Test 1] Number constant:" << std::endl;
+    try {
+        Parser parser("return 42");
+        Chunk chunk = parser.parse();
+
+        CodeGenerator codegen(&pool);
+        Proto* proto = codegen.generate(chunk);
+
+        std::cout << "  Generated " << proto->getInstructionCount() << " instruction(s)" << std::endl;
+        std::cout << "  Constant count: " << proto->getConstantCount() << std::endl;
+        std::cout << "  Max stack size: " << static_cast<i32>(proto->getMaxStackSize()) << std::endl;
+
+        // 打印指令
+        for (usize i = 0; i < proto->getInstructionCount(); i++) {
+            Instruction inst = proto->getInstruction(i);
+            OpCode op = GET_OPCODE(inst);
+            std::cout << "    [" << i << "] " << getOpName(op);
+
+            if (getOpMode(op) == OpMode::iABC) {
+                std::cout << " A=" << GETARG_A(inst)
+                         << " B=" << GETARG_B(inst)
+                         << " C=" << GETARG_C(inst);
+            } else if (getOpMode(op) == OpMode::iABx) {
+                std::cout << " A=" << GETARG_A(inst)
+                         << " Bx=" << GETARG_Bx(inst);
+            } else {
+                std::cout << " A=" << GETARG_A(inst)
+                         << " sBx=" << GETARG_sBx(inst);
+            }
+            std::cout << std::endl;
+        }
+
+        delete proto;
+        testCount++;
+    } catch (const std::exception& e) {
+        std::cout << "  ERROR: " << e.what() << std::endl;
+    }
+
+    // ===== 测试2: 局部变量赋值 =====
+    std::cout << "\n[Test 2] Local variable assignment:" << std::endl;
+    try {
+        Parser parser("local x = 10");
+        Chunk chunk = parser.parse();
+
+        CodeGenerator codegen(&pool);
+        Proto* proto = codegen.generate(chunk);
+
+        std::cout << "  Generated " << proto->getInstructionCount() << " instruction(s)" << std::endl;
+        std::cout << "  Constant count: " << proto->getConstantCount() << std::endl;
+
+        delete proto;
+        testCount++;
+    } catch (const std::exception& e) {
+        std::cout << "  ERROR: " << e.what() << std::endl;
+    }
+
+    // ===== 测试3: 全局变量赋值 =====
+    std::cout << "\n[Test 3] Global variable assignment:" << std::endl;
+    try {
+        Parser parser("x = 42");
+        Chunk chunk = parser.parse();
+
+        CodeGenerator codegen(&pool);
+        Proto* proto = codegen.generate(chunk);
+
+        std::cout << "  Generated " << proto->getInstructionCount() << " instruction(s)" << std::endl;
+
+        delete proto;
+        testCount++;
+    } catch (const std::exception& e) {
+        std::cout << "  ERROR: " << e.what() << std::endl;
+    }
+
+    // ===== 测试4: 字符串常量 =====
+    std::cout << "\n[Test 4] String constant:" << std::endl;
+    try {
+        Parser parser(R"(return "hello")");
+        Chunk chunk = parser.parse();
+
+        CodeGenerator codegen(&pool);
+        Proto* proto = codegen.generate(chunk);
+
+        std::cout << "  Generated " << proto->getInstructionCount() << " instruction(s)" << std::endl;
+        std::cout << "  Constant count: " << proto->getConstantCount() << std::endl;
+
+        delete proto;
+        testCount++;
+    } catch (const std::exception& e) {
+        std::cout << "  ERROR: " << e.what() << std::endl;
+    }
+
+    // ===== 测试5: 布尔常量 =====
+    std::cout << "\n[Test 5] Boolean constant:" << std::endl;
+    try {
+        Parser parser("return true");
+        Chunk chunk = parser.parse();
+
+        CodeGenerator codegen(&pool);
+        Proto* proto = codegen.generate(chunk);
+
+        std::cout << "  Generated " << proto->getInstructionCount() << " instruction(s)" << std::endl;
+
+        delete proto;
+        testCount++;
+    } catch (const std::exception& e) {
+        std::cout << "  ERROR: " << e.what() << std::endl;
+    }
+
+    // ===== 测试6: nil常量 =====
+    std::cout << "\n[Test 6] Nil constant:" << std::endl;
+    try {
+        Parser parser("return nil");
+        Chunk chunk = parser.parse();
+
+        CodeGenerator codegen(&pool);
+        Proto* proto = codegen.generate(chunk);
+
+        std::cout << "  Generated " << proto->getInstructionCount() << " instruction(s)" << std::endl;
+
+        delete proto;
+        testCount++;
+    } catch (const std::exception& e) {
+        std::cout << "  ERROR: " << e.what() << std::endl;
+    }
+
+    // ===== 测试7: 多个局部变量 =====
+    std::cout << "\n[Test 7] Multiple local variables:" << std::endl;
+    try {
+        Parser parser("local x, y, z = 1, 2, 3");
+        Chunk chunk = parser.parse();
+
+        CodeGenerator codegen(&pool);
+        Proto* proto = codegen.generate(chunk);
+
+        std::cout << "  Generated " << proto->getInstructionCount() << " instruction(s)" << std::endl;
+        std::cout << "  Max stack size: " << static_cast<i32>(proto->getMaxStackSize()) << std::endl;
+
+        delete proto;
+        testCount++;
+    } catch (const std::exception& e) {
+        std::cout << "  ERROR: " << e.what() << std::endl;
+    }
+
+    std::cout << "\n[SUCCESS] CodeGenerator tests completed: " << testCount << " tests" << std::endl;
+    printSeparator();
+}
+
+/**
  * @brief 综合测试
  */
 void comprehensiveTest() {
@@ -1203,6 +1379,7 @@ int main(int argc, char* argv[]) {
         // 编译器模块测试
         testLexer();
         testParser();
+        testCodeGenerator();
 
         comprehensiveTest();
 
@@ -1224,6 +1401,7 @@ int main(int argc, char* argv[]) {
         std::cout << "  [OK] LuaState class" << std::endl;
         std::cout << "  [OK] Lexer class (Token + Lexer)" << std::endl;
         std::cout << "  [OK] Parser class (AST + Parser)" << std::endl;
+        std::cout << "  [OK] CodeGenerator class (OpCode + CodeGen)" << std::endl;
         std::cout << std::endl;
         
         printSeparator();
