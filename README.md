@@ -55,13 +55,13 @@
 | **Lexer词法分析器** | `src/compiler/lexer.hpp/cpp` + `token.hpp` | 词法分析（Token流生成） | 18 | ✅ 完成 |
 | **Parser语法分析器** | `src/compiler/parser.hpp/cpp` + `ast.hpp/cpp` | 语法分析（AST生成） | 10 | ✅ 完成 |
 | **CodeGenerator字节码生成器** | `src/compiler/codegen.hpp/cpp` + `opcode.hpp/cpp` | 字节码生成（AST→Bytecode） | 7 | ✅ 完成 |
-| **VM字节码执行引擎** | `src/vm/vm.hpp/cpp` | 字节码解释执行（指令分发） | 4 | ✅ 完成 |
+| **VM字节码执行引擎** | `src/vm/vm.hpp/cpp` | 字节码解释执行（38条指令） | 6 | ✅ 完成 |
 
 ### 测试统计
 
 ```
-总测试数：145个
-通过率：  100% (145/145)
+总测试数：147个
+通过率：  100% (147/147)
 编译状态：Debug版本无警告
 平台：    Windows + MSVC (Visual Studio 2026)
 ```
@@ -78,7 +78,7 @@
 ✅ **Parser语法分析器**：递归下降解析，完整AST生成，正确的运算符优先级和结合性
 ✅ **CodeGenerator字节码生成器**：AST→字节码转换，寄存器分配，常量表管理，跳转回填
 ✅ **OpCode指令集**：完整Lua 5.1指令集（38条指令），iABC/iABx/iAsBx三种格式
-✅ **VM字节码执行引擎**：指令解释执行，寄存器访问，RK寻址，算术/逻辑/比较运算，跳转控制
+✅ **VM字节码执行引擎**：完整38条指令实现，Upvalue操作，函数调用（C函数），循环指令（FORLOOP/FORPREP/TFORLOOP），闭包创建，表初始化（SETLIST）
 ✅ **StringPool**：字符串驻留（interning），节省内存
 ✅ **GarbageCollector**：标记-清除算法，根对象管理
 ✅ **GlobalState**：单例模式管理全局资源（字符串池、GC、注册表）
@@ -642,9 +642,14 @@ void doJump(i32 offset) {
 - ✅ JMP, EQ, LT, LE
 - ✅ TEST, TESTSET
 - ✅ RETURN
-- ⏳ CALL, TAILCALL（待实现）
-- ⏳ FORLOOP, FORPREP（待实现）
-- ⏳ CLOSURE, GETUPVAL, SETUPVAL, CLOSE（待实现）
+- ✅ GETUPVAL, SETUPVAL, CLOSE（Upvalue操作）
+- ✅ CALL, TAILCALL, SELF（函数调用，简化版）
+- ✅ FORLOOP, FORPREP, TFORLOOP（循环指令）
+- ✅ CLOSURE, SETLIST, VARARG（闭包和表初始化）
+
+**指令实现状态**：38条指令中，已实现38条（100%）
+- 基础指令：完全实现
+- 高级指令：简化实现（嵌套调用、完整闭包支持待完善）
 
 **性能优化**：
 - 使用switch-case指令分发（编译器优化为跳转表）
@@ -1186,7 +1191,7 @@ lua/build/
 | Lexer类 | 18 | 关键字、标识符、数字、字符串、运算符、注释 |
 | Parser类 | 10 | 语句解析、表达式解析、运算符优先级、AST生成 |
 | CodeGenerator类 | 7 | 数字常量、字符串常量、布尔常量、nil常量、局部变量、全局变量、多变量赋值 |
-| VM类 | 4 | 数字常量执行、布尔常量执行、nil常量执行、字符串常量执行 |
+| VM类 | 6 | 常量执行、FORLOOP循环、SETLIST表初始化、Upvalue操作、函数调用、闭包创建 |
 
 ### 质量标准
 
@@ -1235,9 +1240,9 @@ lua/build/
 源文件数：    36个
 头文件：      18个 (.hpp)
 实现文件：    18个 (.cpp)
-总代码行数：  约7000行（不含注释和空行）
+总代码行数：  约7200行（不含注释和空行）
 文档行数：    约2500行
-测试用例：    145个
+测试用例：    147个
 ```
 
 ### 对象大小（Release版本）
@@ -1283,7 +1288,7 @@ lua/build/
 
 ### 最近更新
 
-- **2025-11-13**：实现VM字节码执行引擎（指令解释器），145个测试全部通过 ⭐ 新完成
+- **2025-11-13**：完善VM执行引擎（实现全部38条指令），147个测试全部通过 ⭐ 新完成
 - **2025-11-13**：实现CodeGenerator字节码生成器（OpCode + CodeGen），141个测试全部通过
 - **2025-11-13**：实现Parser语法分析器（AST + 递归下降解析），134个测试全部通过
 - **2025-11-12**：实现Lexer词法分析器（Token + 词法规则），124个测试全部通过

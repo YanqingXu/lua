@@ -1435,6 +1435,113 @@ void testVM() {
         std::cout << "  ERROR: " << e.what() << std::endl;
     }
 
+    // ===== 测试5: FORLOOP指令（手动构造字节码）=====
+    std::cout << "\n[Test 5] Test FORLOOP instruction" << std::endl;
+    try {
+        L->getStack().clear();
+
+        // 手动构造for循环字节码
+        Proto* proto = new Proto();
+        proto->setMaxStackSize(10);
+
+        // 初始化循环变量：R(0)=1, R(1)=5, R(2)=1 (init, limit, step)
+        proto->addConstant(Value(1.0));   // K(0) = 1
+        proto->addConstant(Value(5.0));   // K(1) = 5
+
+        proto->addInstruction(CREATE_ABx(OpCode::LOADK, 0, 0));  // R(0) = 1 (init)
+        proto->addInstruction(CREATE_ABx(OpCode::LOADK, 1, 1));  // R(1) = 5 (limit)
+        proto->addInstruction(CREATE_ABx(OpCode::LOADK, 2, 0));  // R(2) = 1 (step)
+
+        // FORPREP: R(0) -= R(2); pc += 1
+        proto->addInstruction(CREATE_AsBx(OpCode::FORPREP, 0, 1));
+
+        // 循环体（空）
+        // FORLOOP: R(0) += R(2); if R(0) <= R(1) then pc -= 1; R(3) = R(0)
+        proto->addInstruction(CREATE_AsBx(OpCode::FORLOOP, 0, -1));
+
+        // RETURN R(3) (最后的循环变量值应该是5)
+        proto->addInstruction(CREATE_ABC(OpCode::RETURN, 3, 2, 0));
+
+        vm.executeProto(proto);
+
+        Stack& stack = L->getStack();
+        if (stack.size() > 0) {
+            Value result = stack.top();
+            if (result.isNumber()) {
+                std::cout << "  Result: " << result.asNumber() << std::endl;
+                std::cout << "  Expected: 5" << std::endl;
+                if (result.asNumber() == 5.0) {
+                    std::cout << "  [PASS]" << std::endl;
+                } else {
+                    std::cout << "  [FAIL] Wrong result" << std::endl;
+                }
+            }
+        }
+
+        delete proto;
+        testCount++;
+    } catch (const std::exception& e) {
+        std::cout << "  ERROR: " << e.what() << std::endl;
+    }
+
+    // ===== 测试6: NEWTABLE和SETLIST指令 =====
+    std::cout << "\n[Test 6] Test NEWTABLE and SETLIST instructions" << std::endl;
+    try {
+        L->getStack().clear();
+
+        Proto* proto = new Proto();
+        proto->setMaxStackSize(10);
+
+        // 创建表
+        proto->addInstruction(CREATE_ABC(OpCode::NEWTABLE, 0, 0, 0));  // R(0) = {}
+
+        // 添加常量
+        proto->addConstant(Value(10.0));  // K(0) = 10
+        proto->addConstant(Value(20.0));  // K(1) = 20
+        proto->addConstant(Value(30.0));  // K(2) = 30
+
+        // 加载值到寄存器
+        proto->addInstruction(CREATE_ABx(OpCode::LOADK, 1, 0));  // R(1) = 10
+        proto->addInstruction(CREATE_ABx(OpCode::LOADK, 2, 1));  // R(2) = 20
+        proto->addInstruction(CREATE_ABx(OpCode::LOADK, 3, 2));  // R(3) = 30
+
+        // SETLIST: R(0)[1..3] = R(1), R(2), R(3)
+        proto->addInstruction(CREATE_ABC(OpCode::SETLIST, 0, 3, 1));
+
+        // 返回表
+        proto->addInstruction(CREATE_ABC(OpCode::RETURN, 0, 2, 0));
+
+        vm.executeProto(proto);
+
+        Stack& stack = L->getStack();
+        if (stack.size() > 0) {
+            Value result = stack.top();
+            if (result.isTable()) {
+                Table* table = result.asTable();
+                Value v1 = table->getArray(1);
+                Value v2 = table->getArray(2);
+                Value v3 = table->getArray(3);
+
+                std::cout << "  Table[1]: " << v1.toString() << std::endl;
+                std::cout << "  Table[2]: " << v2.toString() << std::endl;
+                std::cout << "  Table[3]: " << v3.toString() << std::endl;
+
+                if (v1.isNumber() && v1.asNumber() == 10.0 &&
+                    v2.isNumber() && v2.asNumber() == 20.0 &&
+                    v3.isNumber() && v3.asNumber() == 30.0) {
+                    std::cout << "  [PASS]" << std::endl;
+                } else {
+                    std::cout << "  [FAIL] Wrong table values" << std::endl;
+                }
+            }
+        }
+
+        delete proto;
+        testCount++;
+    } catch (const std::exception& e) {
+        std::cout << "  ERROR: " << e.what() << std::endl;
+    }
+
     delete L;
 
     std::cout << "\n[SUCCESS] VM tests completed: " << testCount << " tests" << std::endl;

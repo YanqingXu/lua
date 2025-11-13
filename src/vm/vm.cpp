@@ -6,6 +6,7 @@
 #include "vm/vm.hpp"
 #include "core/table.hpp"
 #include "core/gc_string.hpp"
+#include "core/upvalue.hpp"
 #include "vm/global_state.hpp"
 #include <stdexcept>
 #include <cmath>
@@ -22,6 +23,7 @@ VM::VM(LuaState* L)
     , currentProto_(nullptr)
     , pc_(0)
     , base_(nullptr)
+    , currentFunc_(nullptr)
 {
 }
 
@@ -33,11 +35,14 @@ void VM::execute(Function* func) {
     if (!func) {
         throw std::runtime_error("VM::execute: null function");
     }
-    
+
     if (func->isCFunction()) {
         throw std::runtime_error("VM::execute: C functions not supported yet");
     }
-    
+
+    // 设置当前函数（用于访问upvalues）
+    currentFunc_ = func;
+
     // 获取Lua函数的Proto
     Proto* proto = func->getProto();
     executeProto(proto);
@@ -245,6 +250,231 @@ void VM::executeProto(Proto* proto) {
                 break;
             }
 
+            // =====================================================================
+            // Upvalue操作指令
+            // =====================================================================
+
+            case OpCode::GETUPVAL: {
+                // R(A) := UpValue[B]
+                if (!currentFunc_) {
+                    throw std::runtime_error("VM: GETUPVAL without current function");
+                }
+
+                Upvalue* uv = currentFunc_->getUpvalue(b);
+                if (!uv) {
+                    throw std::runtime_error("VM: GETUPVAL invalid upvalue index");
+                }
+
+                R(a) = uv->getValue();
+                break;
+            }
+
+            case OpCode::SETUPVAL: {
+                // UpValue[B] := R(A)
+                if (!currentFunc_) {
+                    throw std::runtime_error("VM: SETUPVAL without current function");
+                }
+
+                Upvalue* uv = currentFunc_->getUpvalue(b);
+                if (!uv) {
+                    throw std::runtime_error("VM: SETUPVAL invalid upvalue index");
+                }
+
+                uv->getValue() = R(a);
+                break;
+            }
+
+            case OpCode::CLOSE: {
+                // close all variables in the stack up to (>=) R(A)
+                L_->closeUpvalues(a);
+                break;
+            }
+
+            // =====================================================================
+            // 函数调用指令
+            // =====================================================================
+
+            case OpCode::CALL: {
+                // R(A), ... ,R(A+C-2) := R(A)(R(A+1), ... ,R(A+B-1))
+                i32 nArgs = b - 1;      // B=0表示到栈顶
+                i32 nResults = c - 1;   // C=0表示多返回值
+
+                // 准备调用
+                bool isLua = precall(a, nArgs, nResults);
+
+                if (isLua) {
+                    // Lua函数：需要递归执行（简化版：暂不支持）
+                    throw std::runtime_error("VM: CALL nested Lua functions not supported yet");
+                }
+                // C函数已在precall中执行完成
+                break;
+            }
+
+            case OpCode::TAILCALL: {
+                // return R(A)(R(A+1), ... ,R(A+B-1))
+                i32 nArgs = b - 1;
+
+                // 尾调用：关闭当前函数的upvalues
+                L_->closeUpvalues(0);
+
+                // 准备调用（返回值数量为-1表示多返回值）
+                bool isLua = precall(a, nArgs, -1);
+
+                if (isLua) {
+                    // Lua函数：需要特殊处理（简化版：暂不支持）
+                    throw std::runtime_error("VM: TAILCALL Lua functions not supported yet");
+                }
+
+                // C函数已执行，直接返回
+                return;
+            }
+
+            case OpCode::SELF: {
+                // R(A+1) := R(B); R(A) := R(B)[RK(C)]
+                Value obj = R(b);
+                R(a + 1) = obj;  // 保存对象作为第一个参数
+
+                // 获取方法
+                if (!obj.isTable()) {
+                    throw std::runtime_error("VM: SELF requires table object");
+                }
+
+                Table* table = obj.asTable();
+                Value key = RK(c);
+                Value method = table->get(key);
+                R(a) = method;
+                break;
+            }
+
+            // =====================================================================
+            // 循环指令
+            // =====================================================================
+
+            case OpCode::FORLOOP: {
+                // R(A)+=R(A+2); if R(A) <?= R(A+1) then { pc+=sBx; R(A+3)=R(A) }
+                if (!R(a).isNumber() || !R(a + 1).isNumber() || !R(a + 2).isNumber()) {
+                    throw std::runtime_error("VM: FORLOOP requires numeric values");
+                }
+
+                f64 step = R(a + 2).asNumber();
+                f64 idx = R(a).asNumber() + step;
+                f64 limit = R(a + 1).asNumber();
+
+                // 检查循环条件
+                bool cont = (step > 0) ? (idx <= limit) : (idx >= limit);
+
+                if (cont) {
+                    R(a) = Value(idx);        // 更新索引
+                    R(a + 3) = Value(idx);    // 设置循环变量
+                    doJump(sbx);              // 跳转到循环体
+                }
+                break;
+            }
+
+            case OpCode::FORPREP: {
+                // R(A)-=R(A+2); pc+=sBx
+                if (!R(a).isNumber() || !R(a + 1).isNumber() || !R(a + 2).isNumber()) {
+                    throw std::runtime_error("VM: FORPREP requires numeric values");
+                }
+
+                f64 init = R(a).asNumber();
+                f64 step = R(a + 2).asNumber();
+                R(a) = Value(init - step);  // 预减步长
+                doJump(sbx);                // 跳转到FORLOOP
+                break;
+            }
+
+            case OpCode::TFORLOOP: {
+                // R(A+3), ... ,R(A+2+C) := R(A)(R(A+1), R(A+2))
+                // if R(A+3) ~= nil then R(A+2)=R(A+3) else pc++
+                // 泛型for循环：调用迭代器函数
+                i32 nResults = c;
+
+                // 准备调用：R(A)是迭代器函数，R(A+1)和R(A+2)是参数
+                bool isLua = precall(a, 2, nResults);
+
+                if (isLua) {
+                    throw std::runtime_error("VM: TFORLOOP Lua iterators not supported yet");
+                }
+
+                // 检查第一个返回值
+                if (!R(a + 3).isNil()) {
+                    R(a + 2) = R(a + 3);  // 更新控制变量
+                } else {
+                    pc_++;  // 跳过下一条指令（跳出循环）
+                }
+                break;
+            }
+
+            // =====================================================================
+            // 闭包和表初始化指令
+            // =====================================================================
+
+            case OpCode::CLOSURE: {
+                // R(A) := closure(KPROTO[Bx], R(A), ... ,R(A+n))
+                // 创建闭包：从常量表中的Proto创建新的Function对象
+
+                // 简化实现：从常量表获取Proto（假设Bx是常量索引）
+                // 注意：标准Lua中CLOSURE使用单独的Proto数组，这里简化处理
+                Value protoVal = K(bx);
+
+                if (!protoVal.isFunction()) {
+                    throw std::runtime_error("VM: CLOSURE requires function proto in constants");
+                }
+
+                // 创建新的闭包（复制函数）
+                Function* proto = protoVal.asFunction();
+                Function* closure = new Function(proto->getProto());
+
+                // TODO: 处理upvalues（需要读取后续的MOVE/GETUPVAL指令）
+                // 简化版：暂不处理upvalues
+
+                R(a) = Value(closure);
+                break;
+            }
+
+            case OpCode::SETLIST: {
+                // R(A)[(C-1)*FPF+i] := R(A+i), 1 <= i <= B
+                // FPF = LFIELDS_PER_FLUSH = 50
+                constexpr i32 FPF = 50;
+
+                if (!R(a).isTable()) {
+                    throw std::runtime_error("VM: SETLIST requires table");
+                }
+
+                Table* table = R(a).asTable();
+                i32 n = b;
+                i32 base_index = (c - 1) * FPF;
+
+                // 如果B=0，表示到栈顶
+                if (n == 0) {
+                    Stack& stack = L_->getStack();
+                    n = static_cast<i32>(stack.size()) - a - 1;
+                }
+
+                // 设置数组元素
+                for (i32 i = 1; i <= n; i++) {
+                    table->setArray(base_index + i, R(a + i));
+                }
+                break;
+            }
+
+            case OpCode::VARARG: {
+                // R(A), R(A+1), ..., R(A+B-1) = vararg
+                // 简化实现：暂不支持可变参数
+                if (b == 0) {
+                    // 复制所有可变参数（暂不支持）
+                    throw std::runtime_error("VM: VARARG with B=0 not supported yet");
+                } else {
+                    // 复制B-1个可变参数
+                    // 简化：设置为nil
+                    for (i32 i = 0; i < b - 1; i++) {
+                        R(a + i) = Value();
+                    }
+                }
+                break;
+            }
+
             case OpCode::RETURN: {
                 // return R(A), ... ,R(A+B-2)
                 // 简化实现：只处理单个返回值或无返回值
@@ -411,6 +641,63 @@ void VM::compare(OpCode op, i32 a, i32 b, i32 c) {
 
 void VM::doJump(i32 offset) {
     pc_ += offset;
+}
+
+// =====================================================================
+// 函数调用机制
+// =====================================================================
+
+bool VM::precall(i32 funcIndex, i32 nArgs, i32 nResults) {
+    Value& funcVal = R(funcIndex);
+
+    if (!funcVal.isFunction()) {
+        throw std::runtime_error("VM::precall: attempt to call non-function value");
+    }
+
+    Function* func = funcVal.asFunction();
+
+    if (func->isCFunction()) {
+        // C函数调用
+        CFunction cfunc = func->getCFunction();
+
+        // 简化实现：直接调用C函数
+        // 注意：标准Lua会设置CallInfo，这里简化处理
+        i32 result = cfunc(L_);
+
+        // 处理返回值（简化：假设返回值已在栈上）
+        postcall(funcIndex, nResults);
+
+        return false;  // C函数
+    } else {
+        // Lua函数调用
+        // 简化实现：暂不支持嵌套Lua函数调用
+        // 标准实现需要：
+        // 1. 创建新的CallInfo
+        // 2. 调整栈帧
+        // 3. 设置参数
+        // 4. 递归调用executeProto
+
+        throw std::runtime_error("VM::precall: nested Lua function calls not supported yet");
+        return true;  // Lua函数
+    }
+}
+
+void VM::postcall(i32 firstResult, i32 nResults) {
+    // 简化实现：处理返回值
+    // 标准实现需要：
+    // 1. 从栈上复制返回值到正确位置
+    // 2. 调整栈顶
+    // 3. 恢复CallInfo
+
+    Stack& stack = L_->getStack();
+
+    if (nResults >= 0) {
+        // 固定数量的返回值
+        // 简化：假设返回值已在正确位置
+    } else {
+        // 多返回值（LUA_MULTRET）
+        // 简化：保留栈上所有值
+    }
 }
 
 } // namespace Lua
