@@ -23,6 +23,7 @@ CodeGenerator::CodeGenerator(StringPool* pool)
     , nactvar_(0)
     , localVars_()
     , pc_(0)
+    , jpc_(NO_JUMP)
 {
     if (pool == nullptr) {
         throw std::invalid_argument("StringPool cannot be null");
@@ -232,6 +233,12 @@ void CodeGenerator::expr(const Expr& e, ExprDesc& desc) {
                 desc.kind = ExprKind::Indexed;
                 desc.u.s.info = k;
             }
+        }
+        else if constexpr (std::is_same_v<T, BinaryExpr>) {
+            binaryExpr(arg, desc);
+        }
+        else if constexpr (std::is_same_v<T, UnaryExpr>) {
+            unaryExpr(arg, desc);
         }
         else {
             // 其他表达式类型暂不支持
@@ -445,6 +452,330 @@ void CodeGenerator::statement(const Stmt& s) {
         }
         // 其他语句类型暂不支持
     }, s.variant);
+}
+
+// =====================================================================
+// 二元和一元表达式代码生成
+// =====================================================================
+
+void CodeGenerator::binaryExpr(const BinaryExpr& e, ExprDesc& desc) {
+    // 处理左操作数
+    ExprDesc e1;
+    expr(*e.left, e1);
+
+    // 根据运算符类型处理
+    BinaryExpr::Op op = e.op;
+
+    // 短路运算符需要特殊处理
+    if (op == BinaryExpr::Op::And) {
+        // and: 如果左操作数为假，跳过右操作数
+        // 实现: if not e1 then result = e1 else result = e2
+        luaK_goiftrue(e1);
+        ExprDesc e2;
+        expr(*e.right, e2);
+        luaK_dischargevars(e2);
+        luaK_concat(e2.f, e1.f);
+        desc = e2;
+        return;
+    }
+    else if (op == BinaryExpr::Op::Or) {
+        // or: 如果左操作数为真，跳过右操作数
+        // 实现: if e1 then result = e1 else result = e2
+        luaK_goiffalse(e1);
+        ExprDesc e2;
+        expr(*e.right, e2);
+        luaK_dischargevars(e2);
+        luaK_concat(e2.t, e1.t);
+        desc = e2;
+        return;
+    }
+
+    // 对于其他运算符，先处理左操作数
+    if (op == BinaryExpr::Op::Concat) {
+        // 字符串连接需要操作数在栈上
+        exp2NextReg(e1);
+    } else {
+        // 算术和比较运算符：转换为RK格式
+        exp2RK(e1);
+    }
+
+    // 处理右操作数
+    ExprDesc e2;
+    expr(*e.right, e2);
+
+    // 生成对应的指令
+    switch (op) {
+        case BinaryExpr::Op::Add:
+            codearith(OpCode::ADD, e1, e2);
+            break;
+        case BinaryExpr::Op::Sub:
+            codearith(OpCode::SUB, e1, e2);
+            break;
+        case BinaryExpr::Op::Mul:
+            codearith(OpCode::MUL, e1, e2);
+            break;
+        case BinaryExpr::Op::Div:
+            codearith(OpCode::DIV, e1, e2);
+            break;
+        case BinaryExpr::Op::Mod:
+            codearith(OpCode::MOD, e1, e2);
+            break;
+        case BinaryExpr::Op::Pow:
+            codearith(OpCode::POW, e1, e2);
+            break;
+        case BinaryExpr::Op::Concat:
+            exp2NextReg(e2);
+            codearith(OpCode::CONCAT, e1, e2);
+            break;
+        case BinaryExpr::Op::Eq:
+            codecomp(OpCode::EQ, 1, e1, e2);
+            break;
+        case BinaryExpr::Op::Ne:
+            codecomp(OpCode::EQ, 0, e1, e2);
+            break;
+        case BinaryExpr::Op::Lt:
+            codecomp(OpCode::LT, 1, e1, e2);
+            break;
+        case BinaryExpr::Op::Le:
+            codecomp(OpCode::LE, 1, e1, e2);
+            break;
+        case BinaryExpr::Op::Gt:
+            codecomp(OpCode::LT, 1, e2, e1);  // a > b 等价于 b < a
+            break;
+        case BinaryExpr::Op::Ge:
+            codecomp(OpCode::LE, 1, e2, e1);  // a >= b 等价于 b <= a
+            break;
+        default:
+            break;
+    }
+
+    desc = e1;
+}
+
+void CodeGenerator::unaryExpr(const UnaryExpr& e, ExprDesc& desc) {
+    // 处理操作数
+    ExprDesc e1;
+    expr(*e.operand, e1);
+
+    // 创建虚拟的第二操作数（值为0）
+    ExprDesc e2;
+    e2.kind = ExprKind::Number;
+    e2.u.nval = 0;
+    e2.t = NO_JUMP;
+    e2.f = NO_JUMP;
+
+    switch (e.op) {
+        case UnaryExpr::Op::Neg:
+            // 取负：如果是数值常量，可以直接取负
+            if (e1.kind != ExprKind::Number) {
+                exp2AnyReg(e1);
+            }
+            codearith(OpCode::UNM, e1, e2);
+            break;
+        case UnaryExpr::Op::Not:
+            // 逻辑非
+            codenot(e1);
+            break;
+        case UnaryExpr::Op::Len:
+            // 长度运算符：不能对常量操作
+            exp2AnyReg(e1);
+            codearith(OpCode::LEN, e1, e2);
+            break;
+    }
+
+    desc = e1;
+}
+
+// =====================================================================
+// 辅助函数：算术和比较指令生成
+// =====================================================================
+
+void CodeGenerator::codearith(OpCode op, ExprDesc& e1, ExprDesc& e2) {
+    i32 o2 = (op != OpCode::UNM && op != OpCode::LEN) ? exp2RK(e2) : 0;
+    i32 o1 = exp2RK(e1);
+
+    if (o1 > o2) {
+        freeReg(o1);
+        freeReg(o2);
+    } else {
+        freeReg(o2);
+        freeReg(o1);
+    }
+
+    e1.u.s.info = codeABC(op, 0, o1, o2);
+    e1.kind = ExprKind::Relocatable;
+}
+
+void CodeGenerator::codecomp(OpCode op, i32 cond, ExprDesc& e1, ExprDesc& e2) {
+    i32 o1 = exp2RK(e1);
+    i32 o2 = exp2RK(e2);
+
+    freeReg(o1);
+    freeReg(o2);
+
+    e1.u.s.info = codeABC(op, cond, o1, o2);
+    e1.kind = ExprKind::Jump;
+    e1.t = e1.u.s.info;
+    e1.f = NO_JUMP;
+}
+
+void CodeGenerator::codenot(ExprDesc& e) {
+    luaK_dischargevars(e);
+
+    switch (e.kind) {
+        case ExprKind::Nil:
+        case ExprKind::False:
+            e.kind = ExprKind::True;
+            break;
+        case ExprKind::True:
+        case ExprKind::Number:
+        case ExprKind::Const:
+            e.kind = ExprKind::False;
+            break;
+        case ExprKind::Jump:
+            invertJump(e);
+            break;
+        default: {
+            discharge(e, allocReg());
+            i32 pc = codeABC(OpCode::NOT, 0, e.u.s.info, 0);
+            e.u.s.info = pc;
+            e.kind = ExprKind::Relocatable;
+            break;
+        }
+    }
+}
+
+// =====================================================================
+// 辅助函数：跳转处理
+// =====================================================================
+
+void CodeGenerator::luaK_goiftrue(ExprDesc& e) {
+    luaK_dischargevars(e);
+
+    switch (e.kind) {
+        case ExprKind::Jump:
+            invertJump(e);
+            break;
+        case ExprKind::True:
+        case ExprKind::Number:
+        case ExprKind::Const:
+            // 常量真值：无需跳转
+            break;
+        default: {
+            i32 pc = jumponcond(e, 0);  // 如果为假则跳转
+            luaK_concat(e.f, pc);
+            patchtohere(e.t);
+            e.t = NO_JUMP;
+            break;
+        }
+    }
+}
+
+void CodeGenerator::luaK_goiffalse(ExprDesc& e) {
+    luaK_dischargevars(e);
+
+    switch (e.kind) {
+        case ExprKind::Jump:
+            // 已经是跳转：无需处理
+            break;
+        case ExprKind::Nil:
+        case ExprKind::False:
+            // 常量假值：无需跳转
+            break;
+        default: {
+            i32 pc = jumponcond(e, 1);  // 如果为真则跳转
+            luaK_concat(e.t, pc);
+            patchtohere(e.f);
+            e.f = NO_JUMP;
+            break;
+        }
+    }
+}
+
+void CodeGenerator::luaK_dischargevars(ExprDesc& e) {
+    switch (e.kind) {
+        case ExprKind::Local:
+            e.kind = ExprKind::NonRelocatable;
+            break;
+        case ExprKind::Indexed:
+            e.u.s.info = codeABx(OpCode::GETGLOBAL, 0, e.u.s.info);
+            e.kind = ExprKind::Relocatable;
+            break;
+        default:
+            break;
+    }
+}
+
+void CodeGenerator::luaK_concat(i32& l1, i32 l2) {
+    if (l2 == NO_JUMP) return;
+    if (l1 == NO_JUMP) {
+        l1 = l2;
+    } else {
+        i32 list = l1;
+        i32 next;
+        while ((next = getjump(list)) != NO_JUMP) {
+            list = next;
+        }
+        fixjump(list, l2);
+    }
+}
+
+void CodeGenerator::invertJump(ExprDesc& e) {
+    std::swap(e.t, e.f);
+}
+
+i32 CodeGenerator::jumponcond(ExprDesc& e, i32 cond) {
+    if (e.kind == ExprKind::Relocatable) {
+        Instruction inst = proto_->getInstruction(e.u.s.info);
+        OpCode op = GET_OPCODE(inst);
+        if (op == OpCode::NOT) {
+            // 优化：移除NOT指令，直接使用TEST
+            // 注意：这里简化处理，实际应该修改指令
+            return condjump(OpCode::TEST, GETARG_B(inst), 0, !cond);
+        }
+    }
+
+    discharge(e, allocReg());
+    freeReg(e.u.s.info);
+    return condjump(OpCode::TESTSET, NO_REG, e.u.s.info, cond);
+}
+
+i32 CodeGenerator::condjump(OpCode op, i32 a, i32 b, i32 c) {
+    codeABC(op, a, b, c);
+    i32 jpc = jpc_;
+    jpc_ = NO_JUMP;
+    i32 j = codeAsBx(OpCode::JMP, 0, NO_JUMP);
+    luaK_concat(j, jpc);
+    return j;
+}
+
+void CodeGenerator::patchtohere(i32 list) {
+    pc_ = static_cast<i32>(proto_->getInstructionCount());
+    luaK_concat(jpc_, list);
+}
+
+void CodeGenerator::luaK_getlabel() {
+    pc_ = static_cast<i32>(proto_->getInstructionCount());
+}
+
+i32 CodeGenerator::getjump(i32 pc) {
+    Instruction inst = proto_->getInstruction(pc);
+    i32 offset = GETARG_sBx(inst);
+    if (offset == NO_JUMP) {
+        return NO_JUMP;
+    } else {
+        return (pc + 1) + offset;
+    }
+}
+
+void CodeGenerator::fixjump(i32 pc, i32 dest) {
+    Instruction jmp = proto_->getInstruction(pc);
+    i32 offset = dest - (pc + 1);
+    if (offset > MAXARG_sBx || offset < -MAXARG_sBx) {
+        throw std::runtime_error("control structure too long");
+    }
+    SETARG_sBx(jmp, offset);
+    proto_->setInstruction(pc, jmp);
 }
 
 void CodeGenerator::block(const Vec<StmtPtr>& stmts) {

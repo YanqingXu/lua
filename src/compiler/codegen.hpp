@@ -172,21 +172,43 @@ private:
     // =====================================================================
     // 表达式代码生成
     // =====================================================================
-    
+
     void expr(const Expr& e, ExprDesc& desc);
     void discharge(ExprDesc& desc, i32 reg);
     i32 exp2RK(ExprDesc& desc);
     i32 exp2AnyReg(ExprDesc& desc);
     void exp2NextReg(ExprDesc& desc);
     void exp2Val(ExprDesc& desc);
-    
+
+    // 二元和一元表达式
+    void binaryExpr(const BinaryExpr& e, ExprDesc& desc);
+    void unaryExpr(const UnaryExpr& e, ExprDesc& desc);
+
+    // 算术和比较指令生成
+    void codearith(OpCode op, ExprDesc& e1, ExprDesc& e2);
+    void codecomp(OpCode op, i32 cond, ExprDesc& e1, ExprDesc& e2);
+    void codenot(ExprDesc& e);
+
+    // 跳转处理
+    void luaK_goiftrue(ExprDesc& e);
+    void luaK_goiffalse(ExprDesc& e);
+    void luaK_dischargevars(ExprDesc& e);
+    void luaK_concat(i32& l1, i32 l2);
+    void invertJump(ExprDesc& e);
+    i32 jumponcond(ExprDesc& e, i32 cond);
+    i32 condjump(OpCode op, i32 a, i32 b, i32 c);
+    void patchtohere(i32 list);
+    void luaK_getlabel();
+    i32 getjump(i32 pc);
+    void fixjump(i32 pc, i32 dest);
+
     // =====================================================================
     // 语句代码生成
     // =====================================================================
-    
+
     void statement(const Stmt& s);
     void block(const Vec<StmtPtr>& stmts);
-    
+
 private:
     StringPool* pool_;          // 字符串池
     Proto* proto_;              // 当前函数原型
@@ -194,6 +216,7 @@ private:
     i32 nactvar_;               // 活跃局部变量数量
     Vec<LocalVar> localVars_;   // 局部变量列表
     i32 pc_;                    // 当前指令索引
+    i32 jpc_;                   // 待处理的跳转链表
 };
 
 }  // namespace Lua
