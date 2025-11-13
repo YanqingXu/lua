@@ -170,14 +170,42 @@ public:
     Value pop() {
         return stack_.pop();
     }
-    
+
     /**
      * @brief 获取栈顶值
      */
     Value& top() {
         return stack_.top();
     }
-    
+
+    /**
+     * @brief 获取栈大小（栈顶索引）
+     */
+    i32 getTop() const {
+        return static_cast<i32>(stack_.size());
+    }
+
+    /**
+     * @brief 设置栈大小
+     * @param idx 新的栈顶索引（从1开始）
+     */
+    void setTop(i32 idx);
+
+    /**
+     * @brief 压入栈中指定索引的值的副本
+     * @param idx 栈索引（从1开始，负数表示从栈顶倒数）
+     */
+    void pushValue(i32 idx);
+
+    /**
+     * @brief 获取栈中指定索引的值
+     * @param idx 栈索引（从1开始，负数表示从栈顶倒数）
+     * @return 值的引用
+     */
+    Value& at(i32 idx);
+
+    const Value& at(i32 idx) const;
+
     // =====================================================================
     // 全局状态访问
     // =====================================================================
@@ -195,7 +223,119 @@ public:
     Table* getGlobalTable() noexcept {
         return globalTable_;
     }
-    
+
+    /**
+     * @brief 设置全局变量
+     * @param name 变量名
+     * @param value 值
+     */
+    void setGlobal(const Str& name, const Value& value);
+
+    /**
+     * @brief 获取全局变量
+     * @param name 变量名
+     * @return 值
+     */
+    Value getGlobal(const Str& name);
+
+    // =====================================================================
+    // 类型检查和转换
+    // =====================================================================
+
+    /**
+     * @brief 检查栈索引处的值是否为数字
+     */
+    bool isNumber(i32 idx) const;
+
+    /**
+     * @brief 检查栈索引处的值是否为字符串
+     */
+    bool isString(i32 idx) const;
+
+    /**
+     * @brief 检查栈索引处的值是否为表
+     */
+    bool isTable(i32 idx) const;
+
+    /**
+     * @brief 检查栈索引处的值是否为函数
+     */
+    bool isFunction(i32 idx) const;
+
+    /**
+     * @brief 检查栈索引处的值是否为nil
+     */
+    bool isNil(i32 idx) const;
+
+    /**
+     * @brief 检查栈索引处的值是否为布尔值
+     */
+    bool isBoolean(i32 idx) const;
+
+    /**
+     * @brief 获取值的类型
+     * @param idx 栈索引
+     * @return 类型枚举值
+     */
+    i32 type(i32 idx) const;
+
+    /**
+     * @brief 获取类型名称
+     * @param tp 类型枚举值
+     * @return 类型名称字符串
+     */
+    const char* typeName(i32 tp) const;
+
+    /**
+     * @brief 将栈索引处的值转换为数字
+     */
+    LuaNumber toNumber(i32 idx) const;
+
+    /**
+     * @brief 将栈索引处的值转换为字符串
+     */
+    const char* toString(i32 idx);
+
+    /**
+     * @brief 将栈索引处的值转换为布尔值
+     */
+    bool toBoolean(i32 idx) const;
+
+    // =====================================================================
+    // 元表操作
+    // =====================================================================
+
+    /**
+     * @brief 获取对象的元表
+     * @param idx 栈索引
+     * @return 如果有元表返回true，否则返回false
+     */
+    bool getMetatable(i32 idx);
+
+    /**
+     * @brief 设置表的元表
+     * @param idx 栈索引（必须是表）
+     * @return 成功返回true
+     */
+    bool setMetatable(i32 idx);
+
+    // =====================================================================
+    // 错误处理
+    // =====================================================================
+
+    /**
+     * @brief 抛出错误
+     * @param msg 错误消息
+     * @return 不返回
+     */
+    [[noreturn]] void error(const char* msg);
+
+    /**
+     * @brief 抛出错误（使用栈顶的值作为错误消息）
+     * @return 不返回
+     */
+    i32 error();
+
     // =====================================================================
     // 调用信息管理
     // =====================================================================

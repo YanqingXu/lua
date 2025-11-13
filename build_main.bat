@@ -99,8 +99,44 @@ echo [INFO] Compiling Stack class...
 cl %CXX_FLAGS% /Isrc /c /Fo"%OUTPUT_DIR%\stack.obj" "src\vm\stack.cpp"
 if %errorlevel% neq 0 exit /b %errorlevel%
 
+echo [INFO] Compiling Upvalue class...
+cl %CXX_FLAGS% /Isrc /c /Fo"%OUTPUT_DIR%\upvalue.obj" "src\core\upvalue.cpp"
+if %errorlevel% neq 0 exit /b %errorlevel%
+
+echo [INFO] Compiling Userdata class...
+cl %CXX_FLAGS% /Isrc /c /Fo"%OUTPUT_DIR%\userdata.obj" "src\core\userdata.cpp"
+if %errorlevel% neq 0 exit /b %errorlevel%
+
 echo [INFO] Compiling LuaState class...
 cl %CXX_FLAGS% /Isrc /c /Fo"%OUTPUT_DIR%\lua_state.obj" "src\vm\lua_state.cpp"
+if %errorlevel% neq 0 exit /b %errorlevel%
+
+echo [INFO] Compiling Lexer class...
+cl %CXX_FLAGS% /Isrc /c /Fo"%OUTPUT_DIR%\lexer.obj" "src\compiler\lexer.cpp"
+if %errorlevel% neq 0 exit /b %errorlevel%
+
+echo [INFO] Compiling AST class...
+cl %CXX_FLAGS% /Isrc /c /Fo"%OUTPUT_DIR%\ast.obj" "src\compiler\ast.cpp"
+if %errorlevel% neq 0 exit /b %errorlevel%
+
+echo [INFO] Compiling Parser class...
+cl %CXX_FLAGS% /Isrc /c /Fo"%OUTPUT_DIR%\parser.obj" "src\compiler\parser.cpp"
+if %errorlevel% neq 0 exit /b %errorlevel%
+
+echo [INFO] Compiling OpCode class...
+cl %CXX_FLAGS% /Isrc /c /Fo"%OUTPUT_DIR%\opcode.obj" "src\compiler\opcode.cpp"
+if %errorlevel% neq 0 exit /b %errorlevel%
+
+echo [INFO] Compiling CodeGenerator class...
+cl %CXX_FLAGS% /Isrc /c /Fo"%OUTPUT_DIR%\codegen.obj" "src\compiler\codegen.cpp"
+if %errorlevel% neq 0 exit /b %errorlevel%
+
+echo [INFO] Compiling VM class...
+cl %CXX_FLAGS% /Isrc /c /Fo"%OUTPUT_DIR%\vm.obj" "src\vm\vm.cpp"
+if %errorlevel% neq 0 exit /b %errorlevel%
+
+echo [INFO] Compiling BaseLib...
+cl %CXX_FLAGS% /Isrc /c /Fo"%OUTPUT_DIR%\baselib.obj" "src\lib\baselib.cpp"
 if %errorlevel% neq 0 exit /b %errorlevel%
 
 echo [INFO] Compiling main.cpp...
@@ -117,10 +153,19 @@ cl %CXX_FLAGS% /Fe"%OUTPUT_DIR%\lua_test.exe" ^
     "%OUTPUT_DIR%\string_pool.obj" ^
     "%OUTPUT_DIR%\table.obj" ^
     "%OUTPUT_DIR%\function.obj" ^
+    "%OUTPUT_DIR%\userdata.obj" ^
+    "%OUTPUT_DIR%\upvalue.obj" ^
     "%OUTPUT_DIR%\garbage_collector.obj" ^
     "%OUTPUT_DIR%\global_state.obj" ^
     "%OUTPUT_DIR%\stack.obj" ^
-    "%OUTPUT_DIR%\lua_state.obj"
+    "%OUTPUT_DIR%\lua_state.obj" ^
+    "%OUTPUT_DIR%\lexer.obj" ^
+    "%OUTPUT_DIR%\ast.obj" ^
+    "%OUTPUT_DIR%\parser.obj" ^
+    "%OUTPUT_DIR%\opcode.obj" ^
+    "%OUTPUT_DIR%\codegen.obj" ^
+    "%OUTPUT_DIR%\vm.obj" ^
+    "%OUTPUT_DIR%\baselib.obj"
 
 if %errorlevel% neq 0 (
     echo [ERROR] Linking failed!

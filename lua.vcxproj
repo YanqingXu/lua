@@ -147,6 +147,7 @@
     <ClInclude Include="src\core\userdata.hpp" />
     <ClInclude Include="src\core\value.hpp" />
     <ClInclude Include="src\gc\garbage_collector.hpp" />
+    <ClInclude Include="src\lib\baselib.hpp" />
     <ClInclude Include="src\vm\call_info.hpp" />
     <ClInclude Include="src\vm\global_state.hpp" />
     <ClInclude Include="src\vm\lua_state.hpp" />
@@ -168,6 +169,7 @@
     <ClCompile Include="src\core\userdata.cpp" />
     <ClCompile Include="src\core\value.cpp" />
     <ClCompile Include="src\gc\garbage_collector.cpp" />
+    <ClCompile Include="src\lib\baselib.cpp" />
     <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\vm\global_state.cpp" />
     <ClCompile Include="src\vm\lua_state.cpp" />

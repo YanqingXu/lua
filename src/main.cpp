@@ -37,6 +37,7 @@
 #include "compiler/codegen.hpp"
 #include "compiler/opcode.hpp"
 #include "vm/vm.hpp"
+#include "lib/baselib.hpp"
 
 #include <iostream>
 #include <iomanip>
@@ -59,6 +60,7 @@ void testLexer();
 void testParser();
 void testCodeGenerator();
 void testVM();
+void testBaseLib();
 void comprehensiveTest();
 
 /**
@@ -1549,6 +1551,260 @@ void testVM() {
 }
 
 /**
+ * @brief 测试基础库（BaseLib）
+ */
+void testBaseLib() {
+    printTitle("Testing Base Library Functions");
+
+    // 创建LuaState
+    LuaState* L = LuaState::newState();
+    std::cout << "Created new LuaState" << std::endl;
+
+    // 注册基础库函数
+    std::cout << "Registering base library functions..." << std::endl;
+    openBaseLib(L);
+    std::cout << "Base library registered successfully" << std::endl;
+    std::cout << std::endl;
+
+    i32 testCount = 0;
+
+    // ===== 测试1: print函数 =====
+    std::cout << "\n[Test 1] Testing print() function:" << std::endl;
+    try {
+        // 获取print函数
+        Value printFunc = L->getGlobal("print");
+        if (printFunc.isFunction()) {
+            std::cout << "  [OK] print function found in global table" << std::endl;
+
+            // 准备参数
+            L->getStack().clear();
+            L->pushString(L->getGlobalState().getStringPool().intern("Hello, Lua!"));
+            L->pushNumber(42);
+            L->pushBoolean(true);
+
+            // 手动调用C函数
+            Function* func = printFunc.asFunction();
+            if (func->isCFunction()) {
+                CFunction cfunc = func->getCFunction();
+                std::cout << "  Output: ";
+                cfunc(L);  // 应该打印: Hello, Lua!	42	true
+                std::cout << "  [OK] print() executed successfully" << std::endl;
+            }
+        } else {
+            std::cout << "  [FAIL] print function not found" << std::endl;
+        }
+        testCount++;
+    } catch (const std::exception& e) {
+        std::cout << "  ERROR: " << e.what() << std::endl;
+    }
+
+    // ===== 测试2: type函数 =====
+    std::cout << "\n[Test 2] Testing type() function:" << std::endl;
+    try {
+        Value typeFunc = L->getGlobal("type");
+        if (typeFunc.isFunction()) {
+            std::cout << "  [OK] type function found" << std::endl;
+
+            // 测试type(42)
+            L->getStack().clear();
+            L->pushNumber(42);
+
+            Function* func = typeFunc.asFunction();
+            CFunction cfunc = func->getCFunction();
+            i32 nresults = cfunc(L);
+
+            if (nresults == 1) {
+                Value result = L->top();
+                if (result.isString()) {
+                    std::cout << "  type(42) = \"" << result.asString()->c_str() << "\"" << std::endl;
+                    if (result.asString()->getData() == "number") {
+                        std::cout << "  [OK] type() returns correct type" << std::endl;
+                    }
+                }
+            }
+        }
+        testCount++;
+    } catch (const std::exception& e) {
+        std::cout << "  ERROR: " << e.what() << std::endl;
+    }
+
+    // ===== 测试3: tostring函数 =====
+    std::cout << "\n[Test 3] Testing tostring() function:" << std::endl;
+    try {
+        Value tostringFunc = L->getGlobal("tostring");
+        if (tostringFunc.isFunction()) {
+            std::cout << "  [OK] tostring function found" << std::endl;
+
+            // 测试tostring(123)
+            L->getStack().clear();
+            L->pushNumber(123);
+
+            Function* func = tostringFunc.asFunction();
+            CFunction cfunc = func->getCFunction();
+            i32 nresults = cfunc(L);
+
+            if (nresults == 1) {
+                Value result = L->top();
+                if (result.isString()) {
+                    std::cout << "  tostring(123) = \"" << result.asString()->c_str() << "\"" << std::endl;
+                    std::cout << "  [OK] tostring() executed successfully" << std::endl;
+                }
+            }
+        }
+        testCount++;
+    } catch (const std::exception& e) {
+        std::cout << "  ERROR: " << e.what() << std::endl;
+    }
+
+    // ===== 测试4: tonumber函数 =====
+    std::cout << "\n[Test 4] Testing tonumber() function:" << std::endl;
+    try {
+        Value tonumberFunc = L->getGlobal("tonumber");
+        if (tonumberFunc.isFunction()) {
+            std::cout << "  [OK] tonumber function found" << std::endl;
+
+            // 测试tonumber(42)
+            L->getStack().clear();
+            L->pushNumber(42);
+
+            Function* func = tonumberFunc.asFunction();
+            CFunction cfunc = func->getCFunction();
+            i32 nresults = cfunc(L);
+
+            if (nresults == 1) {
+                Value result = L->top();
+                if (result.isNumber()) {
+                    std::cout << "  tonumber(42) = " << result.asNumber() << std::endl;
+                    std::cout << "  [OK] tonumber() executed successfully" << std::endl;
+                }
+            }
+        }
+        testCount++;
+    } catch (const std::exception& e) {
+        std::cout << "  ERROR: " << e.what() << std::endl;
+    }
+
+    // ===== 测试5: assert函数 =====
+    std::cout << "\n[Test 5] Testing assert() function:" << std::endl;
+    try {
+        Value assertFunc = L->getGlobal("assert");
+        if (assertFunc.isFunction()) {
+            std::cout << "  [OK] assert function found" << std::endl;
+
+            // 测试assert(true)
+            L->getStack().clear();
+            L->pushBoolean(true);
+
+            Function* func = assertFunc.asFunction();
+            CFunction cfunc = func->getCFunction();
+            i32 nresults = cfunc(L);
+
+            std::cout << "  assert(true) passed (returned " << nresults << " value(s))" << std::endl;
+            std::cout << "  [OK] assert() executed successfully" << std::endl;
+        }
+        testCount++;
+    } catch (const std::exception& e) {
+        std::cout << "  ERROR: " << e.what() << std::endl;
+    }
+
+    // ===== 测试6: setmetatable/getmetatable函数 =====
+    std::cout << "\n[Test 6] Testing setmetatable() and getmetatable():" << std::endl;
+    try {
+        Value setmetatableFunc = L->getGlobal("setmetatable");
+        Value getmetatableFunc = L->getGlobal("getmetatable");
+
+        if (setmetatableFunc.isFunction() && getmetatableFunc.isFunction()) {
+            std::cout << "  [OK] setmetatable and getmetatable functions found" << std::endl;
+
+            // 创建表和元表
+            Table* table = new Table();
+            Table* metatable = new Table();
+            L->getGlobalState().getGC().registerObject(table);
+            L->getGlobalState().getGC().registerObject(metatable);
+
+            // 测试setmetatable(table, metatable)
+            L->getStack().clear();
+            L->pushTable(table);
+            L->pushTable(metatable);
+
+            Function* setFunc = setmetatableFunc.asFunction();
+            CFunction setcfunc = setFunc->getCFunction();
+            i32 nresults = setcfunc(L);
+
+            std::cout << "  setmetatable() executed (returned " << nresults << " value(s))" << std::endl;
+
+            // 测试getmetatable(table)
+            L->getStack().clear();
+            L->pushTable(table);
+
+            Function* getFunc = getmetatableFunc.asFunction();
+            CFunction getcfunc = getFunc->getCFunction();
+            nresults = getcfunc(L);
+
+            if (nresults == 1) {
+                Value result = L->top();
+                if (result.isTable() && result.asTable() == metatable) {
+                    std::cout << "  getmetatable() returned correct metatable" << std::endl;
+                    std::cout << "  [OK] setmetatable/getmetatable work correctly" << std::endl;
+                }
+            }
+        }
+        testCount++;
+    } catch (const std::exception& e) {
+        std::cout << "  ERROR: " << e.what() << std::endl;
+    }
+
+    // ===== 测试7: error函数（测试错误处理）=====
+    std::cout << "\n[Test 7] Testing error() function:" << std::endl;
+    try {
+        Value errorFunc = L->getGlobal("error");
+        if (errorFunc.isFunction()) {
+            std::cout << "  [OK] error function found" << std::endl;
+            std::cout << "  [INFO] Skipping error() execution test (would terminate)" << std::endl;
+            std::cout << "  [OK] error() function registered correctly" << std::endl;
+        }
+        testCount++;
+    } catch (const std::exception& e) {
+        std::cout << "  ERROR: " << e.what() << std::endl;
+    }
+
+    // ===== 测试8: 验证所有函数都已注册 =====
+    std::cout << "\n[Test 8] Verifying all base library functions are registered:" << std::endl;
+    try {
+        const char* funcNames[] = {
+            "print", "type", "tostring", "tonumber",
+            "error", "assert", "setmetatable", "getmetatable"
+        };
+
+        i32 foundCount = 0;
+        for (const char* name : funcNames) {
+            Value func = L->getGlobal(name);
+            if (func.isFunction()) {
+                std::cout << "  [OK] " << name << " is registered" << std::endl;
+                foundCount++;
+            } else {
+                std::cout << "  [FAIL] " << name << " is NOT registered" << std::endl;
+            }
+        }
+
+        if (foundCount == 8) {
+            std::cout << "  [OK] All 8 base library functions are registered" << std::endl;
+        } else {
+            std::cout << "  [FAIL] Only " << foundCount << "/8 functions registered" << std::endl;
+        }
+        testCount++;
+    } catch (const std::exception& e) {
+        std::cout << "  ERROR: " << e.what() << std::endl;
+    }
+
+    // 清理
+    delete L;
+
+    std::cout << "\n[SUCCESS] Base library tests completed: " << testCount << " tests" << std::endl;
+    printSeparator();
+}
+
+/**
  * @brief 综合测试
  */
 void comprehensiveTest() {
@@ -1640,6 +1896,9 @@ int main(int argc, char* argv[]) {
         // 虚拟机执行引擎测试
         testVM();
 
+        // 基础库测试
+        testBaseLib();
+
         comprehensiveTest();
 
         // 总结
@@ -1662,6 +1921,7 @@ int main(int argc, char* argv[]) {
         std::cout << "  [OK] Parser class (AST + Parser)" << std::endl;
         std::cout << "  [OK] CodeGenerator class (OpCode + CodeGen)" << std::endl;
         std::cout << "  [OK] VM class (Bytecode Executor)" << std::endl;
+        std::cout << "  [OK] Base Library (8 core functions)" << std::endl;
         std::cout << std::endl;
         
         printSeparator();
