@@ -132,6 +132,8 @@
     <ClInclude Include="src\common\config.hpp" />
     <ClInclude Include="src\common\macros.hpp" />
     <ClInclude Include="src\common\types.hpp" />
+    <ClInclude Include="src\compiler\lexer.hpp" />
+    <ClInclude Include="src\compiler\token.hpp" />
     <ClInclude Include="src\core\function.hpp" />
     <ClInclude Include="src\core\gc_object.hpp" />
     <ClInclude Include="src\core\gc_string.hpp" />
@@ -147,6 +149,7 @@
     <ClInclude Include="src\vm\stack.hpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="src\compiler\lexer.cpp" />
     <ClCompile Include="src\core\function.cpp" />
     <ClCompile Include="src\core\gc_object.cpp" />
     <ClCompile Include="src\core\gc_string.cpp" />

@@ -774,11 +774,27 @@ if %errorlevel% neq 0 (
 )
 
 echo.
-echo [INFO] Compiling test file...
-echo [INFO] Command: cl %CXX_FLAGS% /Isrc /Fo"%OUTPUT_DIR%\\" /Fe"%OUTPUT_DIR%\test_build.exe" "%OUTPUT_DIR%\test_build.cpp" "%OUTPUT_DIR%\value.obj" "%OUTPUT_DIR%\gc_object.obj" "%OUTPUT_DIR%\gc_string.obj" "%OUTPUT_DIR%\string_pool.obj" "%OUTPUT_DIR%\table.obj" "%OUTPUT_DIR%\function.obj" "%OUTPUT_DIR%\userdata.obj" "%OUTPUT_DIR%\garbage_collector.obj" "%OUTPUT_DIR%\upvalue.obj" "%OUTPUT_DIR%\global_state.obj" "%OUTPUT_DIR%\stack.obj" "%OUTPUT_DIR%\lua_state.obj"
+echo [INFO] Compiling Lexer class...
+echo [INFO] Command: cl %CXX_FLAGS% /Isrc /c /Fo"%OUTPUT_DIR%\lexer.obj" "src\compiler\lexer.cpp"
 echo.
 
-cl %CXX_FLAGS% /Isrc /Fo"%OUTPUT_DIR%\\" /Fe"%OUTPUT_DIR%\test_build.exe" "%OUTPUT_DIR%\test_build.cpp" "%OUTPUT_DIR%\value.obj" "%OUTPUT_DIR%\gc_object.obj" "%OUTPUT_DIR%\gc_string.obj" "%OUTPUT_DIR%\string_pool.obj" "%OUTPUT_DIR%\table.obj" "%OUTPUT_DIR%\function.obj" "%OUTPUT_DIR%\userdata.obj" "%OUTPUT_DIR%\garbage_collector.obj" "%OUTPUT_DIR%\upvalue.obj" "%OUTPUT_DIR%\global_state.obj" "%OUTPUT_DIR%\stack.obj" "%OUTPUT_DIR%\lua_state.obj"
+cl %CXX_FLAGS% /Isrc /c /Fo"%OUTPUT_DIR%\lexer.obj" "src\compiler\lexer.cpp"
+
+if %errorlevel% neq 0 (
+    echo.
+    echo [ERROR] ========================================
+    echo [ERROR] Lexer class compilation failed!
+    echo [ERROR] Error code: %errorlevel%
+    echo [ERROR] ========================================
+    exit /b %errorlevel%
+)
+
+echo.
+echo [INFO] Compiling test file...
+echo [INFO] Command: cl %CXX_FLAGS% /Isrc /Fo"%OUTPUT_DIR%\\" /Fe"%OUTPUT_DIR%\test_build.exe" "%OUTPUT_DIR%\test_build.cpp" "%OUTPUT_DIR%\value.obj" "%OUTPUT_DIR%\gc_object.obj" "%OUTPUT_DIR%\gc_string.obj" "%OUTPUT_DIR%\string_pool.obj" "%OUTPUT_DIR%\table.obj" "%OUTPUT_DIR%\function.obj" "%OUTPUT_DIR%\userdata.obj" "%OUTPUT_DIR%\garbage_collector.obj" "%OUTPUT_DIR%\upvalue.obj" "%OUTPUT_DIR%\global_state.obj" "%OUTPUT_DIR%\stack.obj" "%OUTPUT_DIR%\lua_state.obj" "%OUTPUT_DIR%\lexer.obj"
+echo.
+
+cl %CXX_FLAGS% /Isrc /Fo"%OUTPUT_DIR%\\" /Fe"%OUTPUT_DIR%\test_build.exe" "%OUTPUT_DIR%\test_build.cpp" "%OUTPUT_DIR%\value.obj" "%OUTPUT_DIR%\gc_object.obj" "%OUTPUT_DIR%\gc_string.obj" "%OUTPUT_DIR%\string_pool.obj" "%OUTPUT_DIR%\table.obj" "%OUTPUT_DIR%\function.obj" "%OUTPUT_DIR%\userdata.obj" "%OUTPUT_DIR%\garbage_collector.obj" "%OUTPUT_DIR%\upvalue.obj" "%OUTPUT_DIR%\global_state.obj" "%OUTPUT_DIR%\stack.obj" "%OUTPUT_DIR%\lua_state.obj" "%OUTPUT_DIR%\lexer.obj"
 
 if %errorlevel% neq 0 (
     echo.

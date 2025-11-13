@@ -30,6 +30,8 @@
 #include "vm/stack.hpp"
 #include "vm/call_info.hpp"
 #include "vm/lua_state.hpp"
+#include "compiler/lexer.hpp"
+#include "compiler/token.hpp"
 
 #include <iostream>
 #include <iomanip>
@@ -807,6 +809,179 @@ void testUserdata() {
 }
 
 /**
+ * @brief 测试Lexer类
+ */
+void testLexer() {
+    printTitle("Testing Lexer Class");
+
+    i32 testCount = 0;
+
+    // ===== 测试1: 关键字识别 =====
+    std::cout << "\n[Test 1] Keyword recognition:" << std::endl;
+    {
+        Lexer lexer("local function if then else end");
+
+        Token t1 = lexer.nextToken();
+        std::cout << "  Token 1: " << tokenTypeToString(t1.type) << " (expected: local)" << std::endl;
+        testCount++;
+
+        Token t2 = lexer.nextToken();
+        std::cout << "  Token 2: " << tokenTypeToString(t2.type) << " (expected: function)" << std::endl;
+        testCount++;
+
+        Token t3 = lexer.nextToken();
+        std::cout << "  Token 3: " << tokenTypeToString(t3.type) << " (expected: if)" << std::endl;
+        testCount++;
+    }
+
+    // ===== 测试2: 标识符识别 =====
+    std::cout << "\n[Test 2] Identifier recognition:" << std::endl;
+    {
+        Lexer lexer("myVar _private var123");
+
+        Token t1 = lexer.nextToken();
+        std::cout << "  Identifier: " << t1.lexeme << " (type: " << tokenTypeToString(t1.type) << ")" << std::endl;
+        testCount++;
+
+        Token t2 = lexer.nextToken();
+        std::cout << "  Identifier: " << t2.lexeme << " (type: " << tokenTypeToString(t2.type) << ")" << std::endl;
+        testCount++;
+    }
+
+    // ===== 测试3: 数字字面量 =====
+    std::cout << "\n[Test 3] Number literals:" << std::endl;
+    {
+        Lexer lexer("42 3.14 2.5e10 0xFF");
+
+        Token t1 = lexer.nextToken();
+        if (t1.isNumber()) {
+            f64 val = std::get<f64>(t1.value);
+            std::cout << "  Integer: " << val << std::endl;
+        }
+        testCount++;
+
+        Token t2 = lexer.nextToken();
+        if (t2.isNumber()) {
+            f64 val = std::get<f64>(t2.value);
+            std::cout << "  Float: " << val << std::endl;
+        }
+        testCount++;
+
+        Token t3 = lexer.nextToken();
+        if (t3.isNumber()) {
+            f64 val = std::get<f64>(t3.value);
+            std::cout << "  Scientific: " << val << std::endl;
+        }
+        testCount++;
+
+        Token t4 = lexer.nextToken();
+        if (t4.isNumber()) {
+            f64 val = std::get<f64>(t4.value);
+            std::cout << "  Hexadecimal: " << val << std::endl;
+        }
+        testCount++;
+    }
+
+    // ===== 测试4: 字符串字面量 =====
+    std::cout << "\n[Test 4] String literals:" << std::endl;
+    {
+        Lexer lexer("\"hello\" 'world' [[long string]]");
+
+        Token t1 = lexer.nextToken();
+        if (t1.isString()) {
+            Str val = std::get<Str>(t1.value);
+            std::cout << "  Double quote: \"" << val << "\"" << std::endl;
+        }
+        testCount++;
+
+        Token t2 = lexer.nextToken();
+        if (t2.isString()) {
+            Str val = std::get<Str>(t2.value);
+            std::cout << "  Single quote: '" << val << "'" << std::endl;
+        }
+        testCount++;
+
+        Token t3 = lexer.nextToken();
+        if (t3.isString()) {
+            Str val = std::get<Str>(t3.value);
+            std::cout << "  Long string: [[" << val << "]]" << std::endl;
+        }
+        testCount++;
+    }
+
+    // ===== 测试5: 运算符 =====
+    std::cout << "\n[Test 5] Operators:" << std::endl;
+    {
+        Lexer lexer("+ - * / == ~= <= >= .. ...");
+
+        Token t1 = lexer.nextToken();
+        std::cout << "  Operator: " << t1.lexeme << std::endl;
+
+        Token t2 = lexer.nextToken();
+        std::cout << "  Operator: " << t2.lexeme << std::endl;
+
+        // 跳过几个
+        lexer.nextToken(); // *
+        lexer.nextToken(); // /
+
+        Token t3 = lexer.nextToken();
+        std::cout << "  Operator: " << tokenTypeToString(t3.type) << " (==)" << std::endl;
+        testCount++;
+
+        Token t4 = lexer.nextToken();
+        std::cout << "  Operator: " << tokenTypeToString(t4.type) << " (~=)" << std::endl;
+        testCount++;
+    }
+
+    // ===== 测试6: 注释处理 =====
+    std::cout << "\n[Test 6] Comment handling:" << std::endl;
+    {
+        Lexer lexer("x -- this is a comment\ny");
+
+        Token t1 = lexer.nextToken();
+        std::cout << "  Before comment: " << t1.lexeme << std::endl;
+        testCount++;
+
+        Token t2 = lexer.nextToken();
+        std::cout << "  After comment: " << t2.lexeme << std::endl;
+        testCount++;
+    }
+
+    // ===== 测试7: 长注释 =====
+    std::cout << "\n[Test 7] Long comment:" << std::endl;
+    {
+        Lexer lexer("a --[[ multi\nline\ncomment ]] b");
+
+        Token t1 = lexer.nextToken();
+        std::cout << "  Before long comment: " << t1.lexeme << std::endl;
+        testCount++;
+
+        Token t2 = lexer.nextToken();
+        std::cout << "  After long comment: " << t2.lexeme << std::endl;
+        testCount++;
+    }
+
+    // ===== 测试8: 完整Lua代码片段 =====
+    std::cout << "\n[Test 8] Complete Lua code:" << std::endl;
+    {
+        Lexer lexer("local x = 42\nif x > 10 then\n  print(x)\nend");
+
+        i32 tokenCount = 0;
+        while (true) {
+            Token t = lexer.nextToken();
+            if (t.type == TokenType::Eos) break;
+            tokenCount++;
+        }
+
+        std::cout << "  Total tokens: " << tokenCount << std::endl;
+        testCount++;
+    }
+
+    std::cout << "\n[SUCCESS] Lexer tests completed: " << testCount << " tests" << std::endl;
+    printSeparator();
+}
+
+/**
  * @brief 综合测试
  */
 void comprehensiveTest() {
@@ -890,6 +1065,9 @@ int main(int argc, char* argv[]) {
         testCallInfo();
         testLuaState();
 
+        // 编译器模块测试
+        testLexer();
+
         comprehensiveTest();
 
         // 总结
@@ -908,6 +1086,7 @@ int main(int argc, char* argv[]) {
         std::cout << "  [OK] Stack class" << std::endl;
         std::cout << "  [OK] CallInfo class" << std::endl;
         std::cout << "  [OK] LuaState class" << std::endl;
+        std::cout << "  [OK] Lexer class (Token + Lexer)" << std::endl;
         std::cout << std::endl;
         
         printSeparator();

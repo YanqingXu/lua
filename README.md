@@ -32,7 +32,7 @@
 
 ## 📊 当前进度
 
-### 已完成模块（13个核心模块）
+### 已完成模块（14个核心模块）
 
 | 模块 | 文件 | 功能描述 | 测试数 | 状态 |
 |------|------|---------|--------|------|
@@ -52,12 +52,13 @@
 | **Stack类** | `src/vm/stack.hpp/cpp` | 值栈管理（动态扩展） | 5 | ✅ 完成 |
 | **CallInfo类** | `src/vm/call_info.hpp` | 调用信息（函数调用上下文） | 3 | ✅ 完成 |
 | **LuaState类** | `src/vm/lua_state.hpp/cpp` | Lua状态（线程执行环境） | 5 | ✅ 完成 |
+| **Lexer词法分析器** | `src/compiler/lexer.hpp/cpp` + `token.hpp` | 词法分析（Token流生成） | 18 | ✅ 完成 |
 
 ### 测试统计
 
 ```
-总测试数：106个
-通过率：  100% (106/106)
+总测试数：124个
+通过率：  100% (124/124)
 编译状态：Debug和Release版本均无警告
 平台：    Windows + MSVC (Visual Studio 2026)
 ```
@@ -70,6 +71,7 @@
 ✅ **Function类**：支持C函数和Lua函数两种闭包类型，集成Upvalue管理
 ✅ **Upvalue类**：闭包上值管理，支持Open/Closed状态转换，共享机制
 ✅ **Userdata类**：完整用户数据支持，8字节对齐，元表支持，GC集成
+✅ **Lexer词法分析器**：完整Lua 5.1词法规则，支持所有关键字、运算符、字面量、注释
 ✅ **StringPool**：字符串驻留（interning），节省内存
 ✅ **GarbageCollector**：标记-清除算法，根对象管理
 ✅ **GlobalState**：单例模式管理全局资源（字符串池、GC、注册表）
@@ -298,6 +300,62 @@ bool hasMt = ud->hasMetatable();
 - Windows (MSVC): 使用`_aligned_malloc`/`_aligned_free`
 - Linux/macOS: 使用`std::aligned_alloc`/`std::free`
 
+#### Lexer（词法分析器）
+
+**设计模式**：单遍扫描的LL(1)词法分析
+
+**核心职责**：
+- 将Lua源代码文本转换为Token流
+- 识别所有Lua 5.1关键字、运算符和字面量
+- 处理注释（单行和多行）
+- 精确跟踪行号和列号
+
+**关键特性**：
+```cpp
+// 创建词法分析器
+Lexer lexer("local x = 42");
+
+// 获取Token流
+Token t1 = lexer.nextToken();  // local (关键字)
+Token t2 = lexer.nextToken();  // x (标识符)
+Token t3 = lexer.nextToken();  // = (运算符)
+Token t4 = lexer.nextToken();  // 42 (数字)
+
+// Token信息
+std::cout << t4.lexeme;        // "42"
+std::cout << t4.line;          // 行号
+std::cout << t4.column;        // 列号
+f64 value = std::get<f64>(t4.value);  // 42.0
+```
+
+**支持的Token类型**：
+- **21个关键字**：and, break, do, else, elseif, end, false, for, function, if, in, local, nil, not, or, repeat, return, then, true, until, while
+- **单字符运算符**：+ - * / % ^ # = < > ( ) { } [ ] ; : , .
+- **多字符运算符**：.. ... == ~= <= >=
+- **字面量**：数字（整数、浮点、科学计数法、十六进制）、字符串（单引号、双引号、长字符串）
+- **标识符**：[a-zA-Z_][a-zA-Z0-9_]*
+
+**注释处理**：
+```lua
+-- 单行注释
+--[[ 多行注释 ]]
+--[=[ 嵌套级别的长注释 ]=]
+```
+
+**字符串支持**：
+```lua
+"double quote"
+'single quote'
+[[long string]]
+[=[long string with level]=]
+"escape sequences: \n \t \\ \""
+```
+
+**错误处理**：
+- 未闭合字符串检测
+- 非法字符检测
+- 详细的错误位置信息
+
 ---
 
 ## 🏗️ 项目结构
@@ -324,12 +382,14 @@ bool hasMt = ud->hasMetatable();
 │   │   │   └── userdata.hpp/cpp # Userdata类（用户数据）⭐ 新完成
 │   │   ├── gc/                  # 垃圾回收系统
 │   │   │   └── garbage_collector.hpp/cpp # GC实现
-│   │   ├── vm/                  # 虚拟机核心 ⭐ 新完成
+│   │   ├── vm/                  # 虚拟机核心
 │   │   │   ├── global_state.hpp/cpp # 全局状态管理
 │   │   │   ├── stack.hpp/cpp    # 值栈管理
 │   │   │   ├── call_info.hpp    # 调用信息
 │   │   │   └── lua_state.hpp/cpp # Lua状态（线程）
-│   │   ├── compiler/            # 编译器（待实现）
+│   │   ├── compiler/            # 编译器前端 ⭐ 新完成
+│   │   │   ├── token.hpp        # Token类型定义
+│   │   │   └── lexer.hpp/cpp    # 词法分析器
 │   │   ├── lib/                 # 标准库（待实现）
 │   │   └── main.cpp             # 测试主程序（VS IDE手动编译用）
 │   ├── docs/                    # 项目文档
