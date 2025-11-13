@@ -3,7 +3,7 @@
 > **从零开始用C++17/20/23实现Lua 5.1.5解释器**
 
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen)]()
-[![Tests](https://img.shields.io/badge/tests-100%2F100-brightgreen)]()
+[![Tests](https://img.shields.io/badge/tests-134%2F134-brightgreen)]()
 [![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen)]()
 [![C++](https://img.shields.io/badge/C%2B%2B-17-blue)]()
 [![Platform](https://img.shields.io/badge/platform-Windows-blue)]()
@@ -32,7 +32,7 @@
 
 ## 📊 当前进度
 
-### 已完成模块（14个核心模块）
+### 已完成模块（15个核心模块）
 
 | 模块 | 文件 | 功能描述 | 测试数 | 状态 |
 |------|------|---------|--------|------|
@@ -53,12 +53,13 @@
 | **CallInfo类** | `src/vm/call_info.hpp` | 调用信息（函数调用上下文） | 3 | ✅ 完成 |
 | **LuaState类** | `src/vm/lua_state.hpp/cpp` | Lua状态（线程执行环境） | 5 | ✅ 完成 |
 | **Lexer词法分析器** | `src/compiler/lexer.hpp/cpp` + `token.hpp` | 词法分析（Token流生成） | 18 | ✅ 完成 |
+| **Parser语法分析器** | `src/compiler/parser.hpp/cpp` + `ast.hpp/cpp` | 语法分析（AST生成） | 10 | ✅ 完成 |
 
 ### 测试统计
 
 ```
-总测试数：124个
-通过率：  100% (124/124)
+总测试数：134个
+通过率：  100% (134/134)
 编译状态：Debug和Release版本均无警告
 平台：    Windows + MSVC (Visual Studio 2026)
 ```
@@ -72,6 +73,7 @@
 ✅ **Upvalue类**：闭包上值管理，支持Open/Closed状态转换，共享机制
 ✅ **Userdata类**：完整用户数据支持，8字节对齐，元表支持，GC集成
 ✅ **Lexer词法分析器**：完整Lua 5.1词法规则，支持所有关键字、运算符、字面量、注释
+✅ **Parser语法分析器**：递归下降解析，完整AST生成，正确的运算符优先级和结合性
 ✅ **StringPool**：字符串驻留（interning），节省内存
 ✅ **GarbageCollector**：标记-清除算法，根对象管理
 ✅ **GlobalState**：单例模式管理全局资源（字符串池、GC、注册表）
@@ -356,6 +358,110 @@ f64 value = std::get<f64>(t4.value);  // 42.0
 - 非法字符检测
 - 详细的错误位置信息
 
+#### Parser（语法分析器）
+
+**设计模式**：递归下降解析（Recursive Descent Parsing）
+
+**核心职责**：
+- 将Token流转换为抽象语法树（AST）
+- 实现Lua 5.1的完整语法规则
+- 处理运算符优先级和结合性
+- 提供详细的语法错误信息
+
+**关键特性**：
+```cpp
+// 创建语法分析器
+Parser parser("local x = 42");
+
+// 解析生成AST
+Chunk chunk = parser.parse();
+
+// 访问AST节点
+for (const auto& stmt : chunk.statements) {
+    // 处理语句节点
+}
+```
+
+**AST节点设计**：
+```cpp
+// 使用std::variant实现类型安全的多态
+using ExprVariant = std::variant<
+    NilExpr, BoolExpr, NumberExpr, StringExpr,
+    NameExpr, BinaryExpr, UnaryExpr, TableExpr,
+    CallExpr, IndexExpr, MemberExpr, FunctionExpr
+>;
+
+using StmtVariant = std::variant<
+    EmptyStmt, AssignStmt, LocalStmt, CallStmt,
+    IfStmt, WhileStmt, RepeatStmt, ForNumStmt,
+    ForInStmt, FunctionStmt, ReturnStmt, BreakStmt, DoStmt
+>;
+
+struct Expr {
+    ExprVariant variant;
+    i32 getLine() const;
+    i32 getColumn() const;
+};
+
+struct Stmt {
+    StmtVariant variant;
+    i32 getLine() const;
+    i32 getColumn() const;
+};
+```
+
+**运算符优先级表**：
+```
+优先级  运算符              结合性
+------  -----------------  --------
+1       or                 左结合
+2       and                左结合
+3       <, >, <=, >=, ==, ~=  左结合
+4       ..                 右结合
+5       +, -               左结合
+6       *, /, %            左结合
+7       not, -, #          右结合
+8       ^                  右结合
+```
+
+**解析函数层次**：
+```cpp
+// 语句解析
+StmtPtr parseStatement();
+StmtPtr parseIfStmt();
+StmtPtr parseWhileStmt();
+StmtPtr parseForStmt();
+// ... 其他语句
+
+// 表达式解析（按优先级）
+ExprPtr parseExpression();      // 入口
+ExprPtr parseOrExpr();          // or
+ExprPtr parseAndExpr();         // and
+ExprPtr parseRelationalExpr();  // <, >, <=, >=, ==, ~=
+ExprPtr parseConcatExpr();      // ..
+ExprPtr parseAdditiveExpr();    // +, -
+ExprPtr parseMultiplicativeExpr(); // *, /, %
+ExprPtr parseUnaryExpr();       // not, -, #
+ExprPtr parsePowerExpr();       // ^
+ExprPtr parsePrimaryExpr();     // 字面量、标识符、括号表达式
+```
+
+**错误处理**：
+```cpp
+class ParseError : public std::runtime_error {
+    i32 line_, column_;
+public:
+    ParseError(const Str& message, i32 line, i32 column);
+    i32 getLine() const;
+    i32 getColumn() const;
+};
+```
+
+**内存管理**：
+- 使用`std::unique_ptr`管理AST节点
+- 自动内存释放，无需手动管理
+- 移动语义优化性能
+
 ---
 
 ## 🏗️ 项目结构
@@ -389,7 +495,9 @@ f64 value = std::get<f64>(t4.value);  // 42.0
 │   │   │   └── lua_state.hpp/cpp # Lua状态（线程）
 │   │   ├── compiler/            # 编译器前端 ⭐ 新完成
 │   │   │   ├── token.hpp        # Token类型定义
-│   │   │   └── lexer.hpp/cpp    # 词法分析器
+│   │   │   ├── lexer.hpp/cpp    # 词法分析器
+│   │   │   ├── ast.hpp/cpp      # AST节点定义
+│   │   │   └── parser.hpp/cpp   # 语法分析器
 │   │   ├── lib/                 # 标准库（待实现）
 │   │   └── main.cpp             # 测试主程序（VS IDE手动编译用）
 │   ├── docs/                    # 项目文档
@@ -599,6 +707,74 @@ lua/build/
 
 ---
 
+## 🎨 模块详解
+
+### Parser（语法分析器）模块
+
+**文件**：
+- `src/compiler/ast.hpp` - AST节点定义（396行）
+- `src/compiler/ast.cpp` - AST辅助函数（109行）
+- `src/compiler/parser.hpp` - Parser类接口（169行）
+- `src/compiler/parser.cpp` - Parser实现（1012行）
+
+**核心功能**：
+
+1. **AST节点类型**：
+   - **表达式节点**：NilExpr, BoolExpr, NumberExpr, StringExpr, VarargExpr, NameExpr, BinaryExpr, UnaryExpr, TableExpr, CallExpr, IndexExpr, MemberExpr, FunctionExpr
+   - **语句节点**：EmptyStmt, AssignStmt, LocalStmt, CallStmt, IfStmt, WhileStmt, RepeatStmt, ForNumStmt, ForInStmt, FunctionStmt, ReturnStmt, BreakStmt, DoStmt
+
+2. **递归下降解析**：
+   - 每个语法规则对应一个解析函数
+   - 自顶向下的解析策略
+   - 清晰的错误报告（行号、列号）
+
+3. **运算符优先级**（从低到高）：
+   ```
+   1. or                    (逻辑或)
+   2. and                   (逻辑与)
+   3. <, >, <=, >=, ==, ~=  (关系运算符)
+   4. ..                    (字符串连接，右结合)
+   5. +, -                  (加减)
+   6. *, /, %               (乘除模)
+   7. not, -, #             (一元运算符)
+   8. ^                     (幂运算，右结合)
+   ```
+
+4. **支持的语法结构**：
+   - ✅ 赋值语句：`x = 42`, `x, y = 1, 2`
+   - ✅ 局部变量：`local x, y = 1, 2`
+   - ✅ 条件语句：`if-then-elseif-else-end`
+   - ✅ 循环语句：`while-do-end`, `repeat-until`, `for-do-end`
+   - ✅ 函数定义：`function name(params) ... end`
+   - ✅ 函数调用：`func(args)`, `obj:method(args)`
+   - ✅ 表构造器：`{1, 2, 3, x=10, ["key"]=20}`
+   - ✅ 表达式：算术、逻辑、关系、字符串连接
+   - ✅ 索引访问：`t[key]`, `t.member`
+
+5. **设计特点**：
+   - 使用`std::variant`实现类型安全的AST节点
+   - 使用`std::unique_ptr`管理AST节点内存
+   - 支持完整的Lua 5.1语法
+   - 详细的错误信息（ParseError异常）
+
+**测试覆盖**：
+- ✅ 简单赋值语句
+- ✅ 局部变量声明
+- ✅ if语句
+- ✅ while循环
+- ✅ 数值for循环
+- ✅ 函数定义
+- ✅ 表构造器
+- ✅ 二元运算表达式
+- ✅ 函数调用
+- ✅ 复杂代码（递归函数）
+
+**参考实现**：
+- `lua_c_analysis/src/lparser.h` 和 `lparser.c` - Lua 5.1.5 C版本语法分析器
+- Lua 5.1 Reference Manual - 语法规范
+
+---
+
 ## 📚 重要文档索引
 
 ### 项目文档（lua/docs/）
@@ -760,11 +936,19 @@ lua/build/
 | StringPool类 | 11 | 字符串驻留、指针相等性、池大小、查找、删除 |
 | Table类 | 11 | 数组操作、哈希操作、长度计算、键存在性、元表 |
 | Function类 | 12 | C函数、Lua函数、Proto、常量表、GC标记 |
+| Upvalue类 | 11 | Open/Closed状态、共享机制、批量关闭 |
+| Userdata类 | 6 | 完整用户数据、类型化数据、元表、GC集成 |
 | GarbageCollector | 8 | 对象注册、根对象、垃圾回收、统计信息 |
+| GlobalState类 | 4 | 单例访问、字符串池、GC、注册表、元表 |
+| Stack类 | 5 | 压栈、弹栈、索引访问、自动扩展 |
+| CallInfo类 | 3 | 调用上下文、栈帧布局 |
+| LuaState类 | 5 | 状态管理、栈操作、Upvalue管理 |
+| Lexer类 | 18 | 关键字、标识符、数字、字符串、运算符、注释 |
+| Parser类 | 10 | 语句解析、表达式解析、运算符优先级、AST生成 |
 
 ### 质量标准
 
-- ✅ **测试通过率**：100% (74/74)
+- ✅ **测试通过率**：100% (134/134)
 - ✅ **编译警告**：0个
 - ✅ **内存泄漏**：无（手动管理，待添加智能指针）
 - ✅ **代码规范**：遵循类型系统使用规范
@@ -806,12 +990,12 @@ lua/build/
 ### 代码规模
 
 ```
-源文件数：    20个
-头文件：      10个 (.hpp)
-实现文件：    10个 (.cpp)
-总代码行数：  约3000行（不含注释和空行）
-文档行数：    约2000行
-测试用例：    74个
+源文件数：    30个
+头文件：      15个 (.hpp)
+实现文件：    15个 (.cpp)
+总代码行数：  约5700行（不含注释和空行）
+文档行数：    约2500行
+测试用例：    134个
 ```
 
 ### 对象大小（Release版本）
@@ -857,6 +1041,12 @@ lua/build/
 
 ### 最近更新
 
+- **2025-11-13**：实现Parser语法分析器（AST + 递归下降解析），134个测试全部通过
+- **2025-11-12**：实现Lexer词法分析器（Token + 词法规则），124个测试全部通过
+- **2025-11-12**：实现LuaState类（线程执行环境 + Upvalue管理）
+- **2025-11-12**：实现虚拟机核心模块（GlobalState、Stack、CallInfo）
+- **2025-11-12**：实现Upvalue类（闭包上值管理）
+- **2025-11-12**：实现Userdata类（用户数据包装）
 - **2025-11-12**：实现Function类（Proto + Closure），74个测试全部通过
 - **2025-11-12**：实现GarbageCollector类（标记-清除算法）
 - **2025-11-12**：实现Table类（混合存储）

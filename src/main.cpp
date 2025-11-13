@@ -32,6 +32,8 @@
 #include "vm/lua_state.hpp"
 #include "compiler/lexer.hpp"
 #include "compiler/token.hpp"
+#include "compiler/parser.hpp"
+#include "compiler/ast.hpp"
 
 #include <iostream>
 #include <iomanip>
@@ -982,6 +984,139 @@ void testLexer() {
 }
 
 /**
+ * @brief 测试Parser类
+ */
+void testParser() {
+    printTitle("Testing Parser Class");
+
+    i32 testCount = 0;
+
+    // ===== 测试1: 简单赋值语句 =====
+    std::cout << "\n[Test 1] Simple assignment:" << std::endl;
+    try {
+        Parser parser("x = 42");
+        Chunk chunk = parser.parse();
+        std::cout << "  Parsed successfully: " << chunk.statements.size() << " statement(s)" << std::endl;
+        testCount++;
+    } catch (const ParseError& e) {
+        std::cout << "  ERROR: " << e.what() << std::endl;
+    }
+
+    // ===== 测试2: 局部变量声明 =====
+    std::cout << "\n[Test 2] Local variable declaration:" << std::endl;
+    try {
+        Parser parser("local x, y = 1, 2");
+        Chunk chunk = parser.parse();
+        std::cout << "  Parsed successfully: " << chunk.statements.size() << " statement(s)" << std::endl;
+        testCount++;
+    } catch (const ParseError& e) {
+        std::cout << "  ERROR: " << e.what() << std::endl;
+    }
+
+    // ===== 测试3: if语句 =====
+    std::cout << "\n[Test 3] If statement:" << std::endl;
+    try {
+        Parser parser("if x > 0 then print(x) end");
+        Chunk chunk = parser.parse();
+        std::cout << "  Parsed successfully: " << chunk.statements.size() << " statement(s)" << std::endl;
+        testCount++;
+    } catch (const ParseError& e) {
+        std::cout << "  ERROR: " << e.what() << std::endl;
+    }
+
+    // ===== 测试4: while循环 =====
+    std::cout << "\n[Test 4] While loop:" << std::endl;
+    try {
+        Parser parser("while x < 10 do x = x + 1 end");
+        Chunk chunk = parser.parse();
+        std::cout << "  Parsed successfully: " << chunk.statements.size() << " statement(s)" << std::endl;
+        testCount++;
+    } catch (const ParseError& e) {
+        std::cout << "  ERROR: " << e.what() << std::endl;
+    }
+
+    // ===== 测试5: 数值for循环 =====
+    std::cout << "\n[Test 5] Numeric for loop:" << std::endl;
+    try {
+        Parser parser("for i = 1, 10, 2 do print(i) end");
+        Chunk chunk = parser.parse();
+        std::cout << "  Parsed successfully: " << chunk.statements.size() << " statement(s)" << std::endl;
+        testCount++;
+    } catch (const ParseError& e) {
+        std::cout << "  ERROR: " << e.what() << std::endl;
+    }
+
+    // ===== 测试6: 函数定义 =====
+    std::cout << "\n[Test 6] Function definition:" << std::endl;
+    try {
+        Parser parser("function add(a, b) return a + b end");
+        Chunk chunk = parser.parse();
+        std::cout << "  Parsed successfully: " << chunk.statements.size() << " statement(s)" << std::endl;
+        testCount++;
+    } catch (const ParseError& e) {
+        std::cout << "  ERROR: " << e.what() << std::endl;
+    }
+
+    // ===== 测试7: 表构造器 =====
+    std::cout << "\n[Test 7] Table constructor:" << std::endl;
+    try {
+        Parser parser("t = {1, 2, 3, x = 10, y = 20}");
+        Chunk chunk = parser.parse();
+        std::cout << "  Parsed successfully: " << chunk.statements.size() << " statement(s)" << std::endl;
+        testCount++;
+    } catch (const ParseError& e) {
+        std::cout << "  ERROR: " << e.what() << std::endl;
+    }
+
+    // ===== 测试8: 二元运算表达式 =====
+    std::cout << "\n[Test 8] Binary expressions:" << std::endl;
+    try {
+        Parser parser("result = a + b * c - d / e");
+        Chunk chunk = parser.parse();
+        std::cout << "  Parsed successfully: " << chunk.statements.size() << " statement(s)" << std::endl;
+        testCount++;
+    } catch (const ParseError& e) {
+        std::cout << "  ERROR: " << e.what() << std::endl;
+    }
+
+    // ===== 测试9: 函数调用 =====
+    std::cout << "\n[Test 9] Function call:" << std::endl;
+    try {
+        Parser parser("print(\"Hello, Lua!\")");
+        Chunk chunk = parser.parse();
+        std::cout << "  Parsed successfully: " << chunk.statements.size() << " statement(s)" << std::endl;
+        testCount++;
+    } catch (const ParseError& e) {
+        std::cout << "  ERROR: " << e.what() << std::endl;
+    }
+
+    // ===== 测试10: 复杂代码 =====
+    std::cout << "\n[Test 10] Complex code:" << std::endl;
+    try {
+        Str code = R"(
+            local function factorial(n)
+                if n <= 1 then
+                    return 1
+                else
+                    return n * factorial(n - 1)
+                end
+            end
+
+            local result = factorial(5)
+        )";
+        Parser parser(code);
+        Chunk chunk = parser.parse();
+        std::cout << "  Parsed successfully: " << chunk.statements.size() << " statement(s)" << std::endl;
+        testCount++;
+    } catch (const ParseError& e) {
+        std::cout << "  ERROR: " << e.what() << std::endl;
+    }
+
+    std::cout << "\n[SUCCESS] Parser tests completed: " << testCount << " tests" << std::endl;
+    printSeparator();
+}
+
+/**
  * @brief 综合测试
  */
 void comprehensiveTest() {
@@ -1067,6 +1202,7 @@ int main(int argc, char* argv[]) {
 
         // 编译器模块测试
         testLexer();
+        testParser();
 
         comprehensiveTest();
 
@@ -1087,6 +1223,7 @@ int main(int argc, char* argv[]) {
         std::cout << "  [OK] CallInfo class" << std::endl;
         std::cout << "  [OK] LuaState class" << std::endl;
         std::cout << "  [OK] Lexer class (Token + Lexer)" << std::endl;
+        std::cout << "  [OK] Parser class (AST + Parser)" << std::endl;
         std::cout << std::endl;
         
         printSeparator();
