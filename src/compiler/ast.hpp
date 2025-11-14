@@ -20,9 +20,6 @@
  */
 
 #include "common/types.hpp"
-#include <memory>
-#include <variant>
-#include <vector>
 
 namespace Lua {
 
@@ -31,8 +28,35 @@ struct Expr;
 struct Stmt;
 
 // 智能指针类型别名
-using ExprPtr = std::unique_ptr<Expr>;
-using StmtPtr = std::unique_ptr<Stmt>;
+using ExprPtr = UPtr<Expr>;
+using StmtPtr = UPtr<Stmt>;
+
+// =====================================================================
+// 源代码位置信息基类
+// =====================================================================
+
+/**
+ * @brief 源代码位置信息
+ *
+ * 所有AST节点的基类，包含源代码的行号和列号信息。
+ * 用于错误报告、调试和代码生成时的位置追踪。
+ */
+struct SourceLocation {
+    i32 line;    ///< 行号（从1开始）
+    i32 column;  ///< 列号（从1开始）
+
+    /**
+     * @brief 默认构造函数
+     */
+    SourceLocation() : line(0), column(0) {}
+
+    /**
+     * @brief 带参数的构造函数
+     * @param l 行号
+     * @param c 列号
+     */
+    SourceLocation(i32 l, i32 c) : line(l), column(c) {}
+};
 
 // =====================================================================
 // 表达式节点（Expressions）
@@ -41,59 +65,47 @@ using StmtPtr = std::unique_ptr<Stmt>;
 /**
  * @brief nil字面量
  */
-struct NilExpr {
-    i32 line;
-    i32 column;
+struct NilExpr : SourceLocation {
 };
 
 /**
  * @brief 布尔字面量
  */
-struct BoolExpr {
+struct BoolExpr : SourceLocation {
     bool value;
-    i32 line;
-    i32 column;
 };
 
 /**
  * @brief 数字字面量
  */
-struct NumberExpr {
+struct NumberExpr : SourceLocation {
     f64 value;
-    i32 line;
-    i32 column;
 };
 
 /**
  * @brief 字符串字面量
  */
-struct StringExpr {
+struct StringExpr : SourceLocation {
     Str value;
-    i32 line;
-    i32 column;
 };
 
 /**
  * @brief 变长参数 ...
  */
-struct VarargExpr {
-    i32 line;
-    i32 column;
+struct VarargExpr : SourceLocation {
 };
 
 /**
  * @brief 标识符（变量名）
  */
-struct NameExpr {
+struct NameExpr : SourceLocation {
     Str name;
-    i32 line;
-    i32 column;
 };
 
 /**
  * @brief 二元运算表达式
  */
-struct BinaryExpr {
+struct BinaryExpr : SourceLocation {
     enum class Op {
         // 算术运算
         Add, Sub, Mul, Div, Mod, Pow,
@@ -104,28 +116,24 @@ struct BinaryExpr {
         // 字符串连接
         Concat
     };
-    
+
     Op op;
     ExprPtr left;
     ExprPtr right;
-    i32 line;
-    i32 column;
 };
 
 /**
  * @brief 一元运算表达式
  */
-struct UnaryExpr {
+struct UnaryExpr : SourceLocation {
     enum class Op {
         Not,    // not
         Neg,    // -
         Len     // #
     };
-    
+
     Op op;
     ExprPtr operand;
-    i32 line;
-    i32 column;
 };
 
 /**
@@ -136,51 +144,41 @@ struct TableField {
     ExprPtr value;
 };
 
-struct TableExpr {
+struct TableExpr : SourceLocation {
     Vec<TableField> fields;
-    i32 line;
-    i32 column;
 };
 
 /**
  * @brief 函数调用
  */
-struct CallExpr {
+struct CallExpr : SourceLocation {
     ExprPtr func;
     Vec<ExprPtr> args;
-    i32 line;
-    i32 column;
 };
 
 /**
  * @brief 表索引访问 table[key]
  */
-struct IndexExpr {
+struct IndexExpr : SourceLocation {
     ExprPtr table;
     ExprPtr index;
-    i32 line;
-    i32 column;
 };
 
 /**
  * @brief 成员访问 table.member
  */
-struct MemberExpr {
+struct MemberExpr : SourceLocation {
     ExprPtr table;
     Str member;
-    i32 line;
-    i32 column;
 };
 
 /**
  * @brief 函数定义表达式
  */
-struct FunctionExpr {
+struct FunctionExpr : SourceLocation {
     Vec<Str> params;
     bool isVararg;
     Vec<StmtPtr> body;
-    i32 line;
-    i32 column;
 };
 
 /**
@@ -222,44 +220,36 @@ struct Expr {
 /**
  * @brief 空语句
  */
-struct EmptyStmt {
-    i32 line;
-    i32 column;
+struct EmptyStmt : SourceLocation {
 };
 
 /**
  * @brief 赋值语句
  */
-struct AssignStmt {
+struct AssignStmt : SourceLocation {
     Vec<ExprPtr> targets;  // 左值列表
     Vec<ExprPtr> values;   // 右值列表
-    i32 line;
-    i32 column;
 };
 
 /**
  * @brief 局部变量声明
  */
-struct LocalStmt {
+struct LocalStmt : SourceLocation {
     Vec<Str> names;
     Vec<ExprPtr> values;
-    i32 line;
-    i32 column;
 };
 
 /**
  * @brief 函数调用语句
  */
-struct CallStmt {
+struct CallStmt : SourceLocation {
     ExprPtr call;
-    i32 line;
-    i32 column;
 };
 
 /**
  * @brief if语句
  */
-struct IfStmt {
+struct IfStmt : SourceLocation {
     struct Branch {
         ExprPtr condition;
         Vec<StmtPtr> body;
@@ -267,91 +257,73 @@ struct IfStmt {
 
     Vec<Branch> branches;  // if和elseif分支
     Vec<StmtPtr> elseBranch;  // else分支
-    i32 line;
-    i32 column;
 };
 
 /**
  * @brief while循环
  */
-struct WhileStmt {
+struct WhileStmt : SourceLocation {
     ExprPtr condition;
     Vec<StmtPtr> body;
-    i32 line;
-    i32 column;
 };
 
 /**
  * @brief repeat-until循环
  */
-struct RepeatStmt {
+struct RepeatStmt : SourceLocation {
     Vec<StmtPtr> body;
     ExprPtr condition;
-    i32 line;
-    i32 column;
 };
 
 /**
  * @brief 数值for循环
  */
-struct ForNumStmt {
+struct ForNumStmt : SourceLocation {
     Str var;
     ExprPtr init;
     ExprPtr limit;
     ExprPtr step;  // 可选，默认为1
     Vec<StmtPtr> body;
-    i32 line;
-    i32 column;
 };
 
 /**
  * @brief 泛型for循环
  */
-struct ForInStmt {
+struct ForInStmt : SourceLocation {
     Vec<Str> vars;
     Vec<ExprPtr> iterators;
     Vec<StmtPtr> body;
-    i32 line;
-    i32 column;
 };
 
 /**
  * @brief 函数定义语句
  */
-struct FunctionStmt {
+struct FunctionStmt : SourceLocation {
     Str name;
     Vec<Str> params;
     bool isVararg;
     Vec<StmtPtr> body;
     bool isLocal;
-    i32 line;
-    i32 column;
 };
 
 /**
  * @brief return语句
  */
-struct ReturnStmt {
+struct ReturnStmt : SourceLocation {
     Vec<ExprPtr> values;
-    i32 line;
-    i32 column;
 };
 
 /**
  * @brief break语句
  */
-struct BreakStmt {
-    i32 line;
-    i32 column;
+struct BreakStmt : SourceLocation {
 };
 
 /**
  * @brief do-end块
  */
-struct DoStmt {
+struct DoStmt : SourceLocation {
     Vec<StmtPtr> body;
-    i32 line;
-    i32 column;
 };
 
 /**
