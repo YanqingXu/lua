@@ -456,6 +456,10 @@ void CodeGenerator::statement(const Stmt& s) {
             // do块
             block(arg.body);
         }
+        else if constexpr (std::is_same_v<T, ForNumStmt>) {
+            // 数值for循环
+            forNumStmt(arg);
+        }
         else if constexpr (std::is_same_v<T, FunctionStmt>) {
             functionStmt(arg);
         }
@@ -911,6 +915,60 @@ void CodeGenerator::functionStmt(const FunctionStmt& s) {
 
         freeReg(reg);
     }
+}
+
+void CodeGenerator::forNumStmt(const ForNumStmt& s) {
+    // 数值for循环的字节码模式：
+    // R(base) = init
+    // R(base+1) = limit
+    // R(base+2) = step
+    // FORPREP base sBx    ; R(base) -= step, pc += sBx
+    // <loop body>
+    // FORLOOP base sBx    ; R(base) += step, if R(base) <= limit then pc += sBx
+
+    i32 base = freereg_;  // 循环变量的基址
+
+    // 计算init, limit, step并存储到R(base), R(base+1), R(base+2)
+    ExprDesc initDesc;
+    expr(*s.init, initDesc);
+    exp2NextReg(initDesc);  // R(base)
+
+    ExprDesc limitDesc;
+    expr(*s.limit, limitDesc);
+    exp2NextReg(limitDesc);  // R(base+1)
+
+    if (s.step) {
+        ExprDesc stepDesc;
+        expr(*s.step, stepDesc);
+        exp2NextReg(stepDesc);  // R(base+2)
+    } else {
+        // 默认步长为1
+        i32 stepReg = allocReg();
+        codeABx(OpCode::LOADK, stepReg, numberConstant(1.0));
+    }
+
+    // 添加循环变量作为局部变量（R(base+3)）
+    addLocalVar(s.var);
+    adjustLocalVars(1);
+
+    // 生成FORPREP指令（跳转到FORLOOP）
+    i32 prep = codeAsBx(OpCode::FORPREP, base, 0);  // sBx稍后回填
+
+    // 生成循环体
+    i32 bodyStart = getLabel();
+    block(s.body);
+
+    // 生成FORLOOP指令（跳转回循环开始）
+    i32 loop = codeAsBx(OpCode::FORLOOP, base, bodyStart - getLabel() - 1);
+
+    // 回填FORPREP的跳转目标（跳到FORLOOP）
+    fixjump(prep, loop);
+
+    // 移除循环变量
+    removeLocalVars(nactvar_ - 1);
+
+    // 释放寄存器
+    freeRegs(4);  // init, limit, step, var
 }
 
 void CodeGenerator::block(const Vec<StmtPtr>& stmts) {

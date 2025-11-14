@@ -1292,6 +1292,40 @@ void testCodeGenerator() {
         std::cout << "  ERROR: " << e.what() << std::endl;
     }
 
+    // ===== 测试8: 数值for循环 =====
+    std::cout << "\n[Test 8] Numeric for loop:" << std::endl;
+    try {
+        Parser parser("for i = 1, 10 do end");
+        Chunk chunk = parser.parse();
+
+        CodeGenerator codegen(&pool);
+        Proto* proto = codegen.generate(chunk);
+
+        std::cout << "  Generated " << proto->getInstructionCount() << " instruction(s)" << std::endl;
+        std::cout << "  Max stack size: " << static_cast<i32>(proto->getMaxStackSize()) << std::endl;
+
+        // 验证生成了FORPREP和FORLOOP指令
+        bool hasForprep = false;
+        bool hasForloop = false;
+        for (usize i = 0; i < proto->getInstructionCount(); i++) {
+            Instruction inst = proto->getInstruction(i);
+            OpCode op = GET_OPCODE(inst);
+            if (op == OpCode::FORPREP) hasForprep = true;
+            if (op == OpCode::FORLOOP) hasForloop = true;
+        }
+
+        if (hasForprep && hasForloop) {
+            std::cout << "  [OK] Generated FORPREP and FORLOOP instructions" << std::endl;
+        } else {
+            std::cout << "  [FAIL] Missing FORPREP or FORLOOP instructions" << std::endl;
+        }
+
+        delete proto;
+        testCount++;
+    } catch (const std::exception& e) {
+        std::cout << "  ERROR: " << e.what() << std::endl;
+    }
+
     std::cout << "\n[SUCCESS] CodeGenerator tests completed: " << testCount << " tests" << std::endl;
     printSeparator();
 }
@@ -1841,6 +1875,145 @@ void testVM() {
             std::cout << "  PASS: Global table does not have y (environment isolation works)" << std::endl;
         } else {
             std::cout << "  FAIL: Global table should not have y" << std::endl;
+        }
+
+        testCount++;
+    } catch (const std::exception& e) {
+        std::cout << "  ERROR: " << e.what() << std::endl;
+    }
+
+    // =====================================================================
+    // 测试11：简单的正向for循环
+    // =====================================================================
+    std::cout << "\n[Test 11] Simple forward for loop (sum 1 to 10)" << std::endl;
+    try {
+        GlobalState& gs = L->getGlobalState();
+        StringPool& pool = gs.getStringPool();
+
+        // 创建Lua代码的AST：
+        // local sum = 0
+        // for i = 1, 10 do
+        //     sum = sum + i
+        // end
+        // return sum
+
+        // 创建Proto
+        Proto* proto = new Proto();
+        gs.getGC().registerObject(proto);
+
+        // 手动生成字节码：
+        // R(0) = 0           ; sum = 0
+        // R(1) = 1           ; init
+        // R(2) = 10          ; limit
+        // R(3) = 1           ; step
+        // FORPREP 1 -> loop
+        // loop:
+        // R(0) = R(0) + R(4) ; sum = sum + i (R(4)是循环变量)
+        // FORLOOP 1 -> loop
+        // RETURN R(0)
+
+        // 添加常量
+        proto->addConstant(Value(0.0));   // K(0) = 0
+        proto->addConstant(Value(1.0));   // K(1) = 1
+        proto->addConstant(Value(10.0));  // K(2) = 10
+
+        // 生成指令
+        proto->addInstruction(CREATE_ABx(OpCode::LOADK, 0, 0));  // R(0) = 0
+        proto->addInstruction(CREATE_ABx(OpCode::LOADK, 1, 1));  // R(1) = 1
+        proto->addInstruction(CREATE_ABx(OpCode::LOADK, 2, 2));  // R(2) = 10
+        proto->addInstruction(CREATE_ABx(OpCode::LOADK, 3, 1));  // R(3) = 1
+        proto->addInstruction(CREATE_AsBx(OpCode::FORPREP, 1, 1)); // FORPREP, 跳到FORLOOP
+        // loop (pc=5):
+        proto->addInstruction(CREATE_ABC(OpCode::ADD, 0, 0, 4));  // R(0) = R(0) + R(4)
+        proto->addInstruction(CREATE_AsBx(OpCode::FORLOOP, 1, -2)); // FORLOOP, 跳回loop
+        proto->addInstruction(CREATE_ABC(OpCode::RETURN, 0, 2, 0)); // return R(0)
+
+        proto->setMaxStackSize(5);  // 需要5个寄存器
+
+        // 创建函数并执行
+        Function* func = new Function(proto);
+        gs.getGC().registerObject(func);
+
+        VM vm(L);
+        vm.execute(func);
+
+        // 检查结果
+        Value result = L->getStack().at(0);
+        if (result.isNumber() && result.asNumber() == 55.0) {
+            std::cout << "  PASS: sum(1..10) = " << result.asNumber() << " (expected 55)" << std::endl;
+        } else {
+            std::cout << "  FAIL: Expected 55, got " << result.toString() << std::endl;
+        }
+
+        testCount++;
+    } catch (const std::exception& e) {
+        std::cout << "  ERROR: " << e.what() << std::endl;
+    }
+
+    // =====================================================================
+    // 测试12：带步长的反向for循环
+    // =====================================================================
+    std::cout << "\n[Test 12] Reverse for loop with step (10 to 1, step -2)" << std::endl;
+    try {
+        GlobalState& gs = L->getGlobalState();
+        StringPool& pool = gs.getStringPool();
+
+        // 创建Lua代码的AST：
+        // local count = 0
+        // for i = 10, 1, -2 do
+        //     count = count + 1
+        // end
+        // return count
+
+        // 创建Proto
+        Proto* proto = new Proto();
+        gs.getGC().registerObject(proto);
+
+        // 手动生成字节码：
+        // R(0) = 0           ; count = 0
+        // R(1) = 10          ; init
+        // R(2) = 1           ; limit
+        // R(3) = -2          ; step
+        // FORPREP 1 -> loop
+        // loop:
+        // R(0) = R(0) + K(2) ; count = count + 1
+        // FORLOOP 1 -> loop
+        // RETURN R(0)
+
+        // 添加常量
+        proto->addConstant(Value(0.0));   // K(0) = 0
+        proto->addConstant(Value(10.0));  // K(1) = 10
+        proto->addConstant(Value(1.0));   // K(2) = 1
+        proto->addConstant(Value(-2.0));  // K(3) = -2
+
+        // 生成指令
+        proto->addInstruction(CREATE_ABx(OpCode::LOADK, 0, 0));  // R(0) = 0
+        proto->addInstruction(CREATE_ABx(OpCode::LOADK, 1, 1));  // R(1) = 10
+        proto->addInstruction(CREATE_ABx(OpCode::LOADK, 2, 2));  // R(2) = 1
+        proto->addInstruction(CREATE_ABx(OpCode::LOADK, 3, 3));  // R(3) = -2
+        proto->addInstruction(CREATE_AsBx(OpCode::FORPREP, 1, 1)); // FORPREP
+        // loop (pc=5):
+        // ADD使用RK寻址：如果B/C >= 256，则使用K(B-256)，否则使用R(B)
+        // 这里使用R(0) + K(2)，所以B=0, C=256+2=258
+        proto->addInstruction(CREATE_ABC(OpCode::ADD, 0, 0, 256+2));  // R(0) = R(0) + K(2)
+        proto->addInstruction(CREATE_AsBx(OpCode::FORLOOP, 1, -2)); // FORLOOP
+        proto->addInstruction(CREATE_ABC(OpCode::RETURN, 0, 2, 0)); // return R(0)
+
+        proto->setMaxStackSize(5);  // 需要5个寄存器
+
+        // 创建函数并执行
+        Function* func = new Function(proto);
+        gs.getGC().registerObject(func);
+
+        VM vm(L);
+        vm.execute(func);
+
+        // 检查结果：10, 8, 6, 4, 2 = 5次迭代
+        Value result = L->getStack().at(0);
+        if (result.isNumber() && result.asNumber() == 5.0) {
+            std::cout << "  PASS: count = " << result.asNumber() << " (expected 5 iterations)" << std::endl;
+        } else {
+            std::cout << "  FAIL: Expected 5, got " << result.toString() << std::endl;
         }
 
         testCount++;
