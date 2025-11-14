@@ -72,8 +72,9 @@ void VM::executeProto(Proto* proto, i32 nexeccalls) {
         stack.push(Value());  // 用nil填充
     }
 
-    // base_不再需要，因为R()方法直接使用CallInfo
-    base_ = nullptr;
+    // 缓存base指针以提高性能（避免每次R()调用都查找CallInfo）
+    // 注意：必须在栈扩展之后获取，因为vector可能重新分配内存
+    base_ = &stack.at(ci.base);
 
     // 主执行循环
     const Vec<Instruction>& code = proto->getCode();
@@ -373,9 +374,17 @@ void VM::executeProto(Proto* proto, i32 nexeccalls) {
                     while (stack.size() < savedTop) {
                         stack.push(Value());
                     }
+
+                    // 重要：恢复base_指针（因为栈可能被重新分配）
+                    CallInfo& restoredCI = L_->getCurrentCallInfo();
+                    base_ = &stack.at(restoredCI.base);
                 } else {
                     // C函数已在precall中执行完成
                     // postcall已在precall中调用
+                    // 同样需要恢复base_指针
+                    Stack& stack = L_->getStack();
+                    CallInfo& restoredCI = L_->getCurrentCallInfo();
+                    base_ = &stack.at(restoredCI.base);
                 }
                 break;
             }
@@ -626,17 +635,21 @@ void VM::executeProto(Proto* proto, i32 nexeccalls) {
 // =====================================================================
 
 Value& VM::R(i32 index) {
-    // 使用CallInfo获取当前栈帧的base
+    // 使用缓存的base指针进行直接数组访问（性能优化）
+    // base_在executeProto()开始时已经设置为&stack.at(ci.base)
+
+    // 边界检查（Debug模式）
+    #ifdef DEBUG
     CallInfo& ci = L_->getCurrentCallInfo();
     Stack& stack = L_->getStack();
     usize absIndex = ci.base + index;
-
-    // 边界检查
     if (absIndex >= stack.size()) {
         throw std::runtime_error("VM::R: register index out of range");
     }
+    #endif
 
-    return stack.at(absIndex);
+    // 直接数组访问，避免每次都查找CallInfo
+    return base_[index];
 }
 
 Value VM::RK(i32 rk) {
