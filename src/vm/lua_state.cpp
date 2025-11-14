@@ -126,6 +126,34 @@ void LuaState::closeUpvalues(usize level) {
 }
 
 // =====================================================================
+// CallInfo管理
+// =====================================================================
+
+CallInfo& LuaState::pushCallInfo() {
+    // 检查是否需要扩展调用栈
+    if (currentCI_ + 1 >= callStack_.size()) {
+        // 双倍扩展
+        usize newSize = callStack_.size() * 2;
+        callStack_.resize(newSize);
+    }
+
+    // 移动到下一个CallInfo
+    currentCI_++;
+
+    // 重置新的CallInfo
+    callStack_[currentCI_].reset();
+
+    return callStack_[currentCI_];
+}
+
+void LuaState::popCallInfo() {
+    if (currentCI_ == 0) {
+        throw std::runtime_error("LuaState::popCallInfo: cannot pop base CallInfo");
+    }
+    currentCI_--;
+}
+
+// =====================================================================
 // 栈操作
 // =====================================================================
 

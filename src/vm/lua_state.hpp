@@ -339,23 +339,48 @@ public:
     // =====================================================================
     // 调用信息管理
     // =====================================================================
-    
+
     /**
      * @brief 获取当前调用信息
      */
     CallInfo& getCurrentCallInfo() noexcept {
         return callStack_[currentCI_];
     }
-    
+
     const CallInfo& getCurrentCallInfo() const noexcept {
         return callStack_[currentCI_];
     }
-    
+
     /**
      * @brief 获取调用栈大小
      */
     usize getCallStackSize() const noexcept {
         return currentCI_ + 1;
+    }
+
+    /**
+     * @brief 分配新的CallInfo（用于函数调用）
+     * @return 新的CallInfo引用
+     *
+     * 详细说明：
+     * 当进行函数调用时，需要分配新的CallInfo来存储调用上下文。
+     * 如果调用栈已满，会自动扩展（双倍增长）。
+     */
+    CallInfo& pushCallInfo();
+
+    /**
+     * @brief 弹出当前CallInfo（用于函数返回）
+     *
+     * 详细说明：
+     * 当函数返回时，需要弹出当前CallInfo，恢复到调用者的上下文。
+     */
+    void popCallInfo();
+
+    /**
+     * @brief 获取当前CallInfo索引
+     */
+    usize getCurrentCI() const noexcept {
+        return currentCI_;
     }
     
     // =====================================================================

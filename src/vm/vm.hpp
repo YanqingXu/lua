@@ -76,12 +76,13 @@ public:
      * @param func 要执行的函数对象
      */
     void execute(Function* func);
-    
+
     /**
      * @brief 执行字节码块（Proto）
      * @param proto 函数原型
+     * @param nexeccalls 嵌套调用计数（用于检测栈溢出）
      */
-    void executeProto(Proto* proto);
+    void executeProto(Proto* proto, i32 nexeccalls = 1);
     
 private:
     // =====================================================================

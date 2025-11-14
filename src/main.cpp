@@ -1544,6 +1544,180 @@ void testVM() {
         std::cout << "  ERROR: " << e.what() << std::endl;
     }
 
+    // ===== 测试7: 手动构造简单函数调用 =====
+    std::cout << "\n[Test 7] Manual test: add(10, 20) function call" << std::endl;
+    try {
+        // 重新创建LuaState以获得干净的状态
+        delete L;
+        L = LuaState::newState();
+        VM vm2(L);
+
+        // 创建add函数的Proto
+        // function add(a, b) return a + b end
+        Proto* addProto = new Proto();
+        addProto->setNumParams(2);  // 2个参数
+        addProto->setMaxStackSize(10);
+
+        // 字节码：
+        // ADD R(2) R(0) R(1)  ; R(2) = R(0) + R(1) (a + b)
+        // RETURN R(2) 2 0     ; return R(2)
+        addProto->addInstruction(CREATE_ABC(OpCode::ADD, 2, 0, 1));
+        addProto->addInstruction(CREATE_ABC(OpCode::RETURN, 2, 2, 0));
+
+        // 创建add函数对象
+        Function* addFunc = new Function(addProto);
+
+        // 创建主函数的Proto
+        // 调用add(10, 20)并返回结果
+        Proto* mainProto = new Proto();
+        mainProto->setMaxStackSize(10);
+
+        // 添加常量
+        mainProto->addConstant(Value(addFunc));  // K(0) = add函数
+        mainProto->addConstant(Value(10.0));     // K(1) = 10
+        mainProto->addConstant(Value(20.0));     // K(2) = 20
+
+        // 字节码：
+        // LOADK R(0) K(0)     ; R(0) = add函数
+        // LOADK R(1) K(1)     ; R(1) = 10
+        // LOADK R(2) K(2)     ; R(2) = 20
+        // CALL R(0) 3 2       ; R(0) = add(R(1), R(2))
+        // RETURN R(0) 2 0     ; return R(0)
+
+        mainProto->addInstruction(CREATE_ABx(OpCode::LOADK, 0, 0));  // R(0) = add函数
+        mainProto->addInstruction(CREATE_ABx(OpCode::LOADK, 1, 1));  // R(1) = 10
+        mainProto->addInstruction(CREATE_ABx(OpCode::LOADK, 2, 2));  // R(2) = 20
+        mainProto->addInstruction(CREATE_ABC(OpCode::CALL, 0, 3, 2)); // R(0) = add(R(1), R(2))
+        mainProto->addInstruction(CREATE_ABC(OpCode::RETURN, 0, 2, 0)); // return R(0)
+
+        vm2.executeProto(mainProto);
+
+        Stack& stack = L->getStack();
+        if (stack.size() > 0) {
+            Value result = stack.top();
+            if (result.isNumber()) {
+                std::cout << "  Result: " << result.asNumber() << std::endl;
+                std::cout << "  Expected: 30" << std::endl;
+                if (result.asNumber() == 30.0) {
+                    std::cout << "  [PASS]" << std::endl;
+                } else {
+                    std::cout << "  [FAIL] Wrong result" << std::endl;
+                }
+            } else {
+                std::cout << "  [FAIL] Result is not a number: " << result.toString() << std::endl;
+            }
+        } else {
+            std::cout << "  [FAIL] No result on stack" << std::endl;
+        }
+
+        delete mainProto;
+        delete addProto;
+        delete addFunc;
+        testCount++;
+    } catch (const std::exception& e) {
+        std::cout << "  ERROR: " << e.what() << std::endl;
+    }
+
+    // ===== 测试8: 手动构造递归函数调用（阶乘） =====
+    std::cout << "\n[Test 8] Manual test: factorial(5) recursive function call" << std::endl;
+    try {
+        // 重新创建LuaState以获得干净的状态
+        delete L;
+        L = LuaState::newState();
+        VM vm3(L);
+
+        // 创建factorial函数的Proto
+        // function factorial(n)
+        //     if n <= 1 then return 1 end
+        //     return n * factorial(n - 1)
+        // end
+        Proto* factProto = new Proto();
+        factProto->setNumParams(1);  // 1个参数
+        factProto->setMaxStackSize(10);
+
+        // 创建factorial函数对象（需要先创建才能在常量表中引用）
+        Function* factFunc = new Function(factProto);
+
+        // 添加常量
+        factProto->addConstant(Value(1.0));       // K(0) = 1
+        factProto->addConstant(Value(factFunc));  // K(1) = factorial函数自身（用于递归）
+
+        // 字节码（简化版，不使用条件跳转，直接递归到n=0）:
+        // 为了简化，我们假设factorial(0) = 1, factorial(n) = n * factorial(n-1)
+        // 但由于没有if语句，我们手动构造一个简单的版本
+        //
+        // 实际上，让我们测试一个更简单的情况：factorial(2) = 2 * factorial(1) = 2 * 1 = 2
+        // 我们手动处理base case
+
+        // 字节码：
+        // LE R(0) K(0)        ; if R(0) <= 1
+        // JMP 0 5             ; then jump to return 1 (跳过递归部分)
+        // LOADK R(1) K(1)     ; R(1) = factorial函数
+        // SUB R(2) R(0) K(0)  ; R(2) = R(0) - 1
+        // CALL R(1) 2 2       ; R(1) = factorial(R(2))
+        // MUL R(2) R(0) R(1)  ; R(2) = R(0) * R(1)
+        // RETURN R(2) 2 0     ; return R(2)
+        // LOADK R(2) K(0)     ; R(2) = 1 (base case)
+        // RETURN R(2) 2 0     ; return 1
+
+        factProto->addInstruction(CREATE_ABC(OpCode::LE, 1, 0, RKASK(0)));  // if R(0) <= K(0)
+        factProto->addInstruction(CREATE_AsBx(OpCode::JMP, 0, 5));          // jump +5 to return 1
+        factProto->addInstruction(CREATE_ABx(OpCode::LOADK, 1, 1));         // R(1) = factorial
+        factProto->addInstruction(CREATE_ABC(OpCode::SUB, 2, 0, RKASK(0))); // R(2) = R(0) - 1
+        factProto->addInstruction(CREATE_ABC(OpCode::CALL, 1, 2, 2));       // R(1) = factorial(R(2))
+        factProto->addInstruction(CREATE_ABC(OpCode::MUL, 2, 0, 1));        // R(2) = R(0) * R(1)
+        factProto->addInstruction(CREATE_ABC(OpCode::RETURN, 2, 2, 0));     // return R(2)
+        factProto->addInstruction(CREATE_ABx(OpCode::LOADK, 2, 0));         // R(2) = 1
+        factProto->addInstruction(CREATE_ABC(OpCode::RETURN, 2, 2, 0));     // return 1
+
+        // 创建主函数的Proto
+        // 调用factorial(5)并返回结果
+        Proto* mainProto = new Proto();
+        mainProto->setMaxStackSize(10);
+
+        // 添加常量
+        mainProto->addConstant(Value(factFunc));  // K(0) = factorial函数
+        mainProto->addConstant(Value(5.0));       // K(1) = 5
+
+        // 字节码：
+        // LOADK R(0) K(0)     ; R(0) = factorial函数
+        // LOADK R(1) K(1)     ; R(1) = 5
+        // CALL R(0) 2 2       ; R(0) = factorial(R(1))
+        // RETURN R(0) 2 0     ; return R(0)
+
+        mainProto->addInstruction(CREATE_ABx(OpCode::LOADK, 0, 0));  // R(0) = factorial
+        mainProto->addInstruction(CREATE_ABx(OpCode::LOADK, 1, 1));  // R(1) = 5
+        mainProto->addInstruction(CREATE_ABC(OpCode::CALL, 0, 2, 2)); // R(0) = factorial(R(1))
+        mainProto->addInstruction(CREATE_ABC(OpCode::RETURN, 0, 2, 0)); // return R(0)
+
+        vm3.executeProto(mainProto);
+
+        Stack& stack = L->getStack();
+        if (stack.size() > 0) {
+            Value result = stack.top();
+            if (result.isNumber()) {
+                std::cout << "  Result: " << result.asNumber() << std::endl;
+                std::cout << "  Expected: 120" << std::endl;
+                if (result.asNumber() == 120.0) {
+                    std::cout << "  [PASS]" << std::endl;
+                } else {
+                    std::cout << "  [FAIL] Wrong result" << std::endl;
+                }
+            } else {
+                std::cout << "  [FAIL] Result is not a number: " << result.toString() << std::endl;
+            }
+        } else {
+            std::cout << "  [FAIL] No result on stack" << std::endl;
+        }
+
+        delete mainProto;
+        delete factProto;
+        delete factFunc;
+        testCount++;
+    } catch (const std::exception& e) {
+        std::cout << "  ERROR: " << e.what() << std::endl;
+    }
+
     delete L;
 
     std::cout << "\n[SUCCESS] VM tests completed: " << testCount << " tests" << std::endl;

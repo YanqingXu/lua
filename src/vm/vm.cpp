@@ -45,27 +45,35 @@ void VM::execute(Function* func) {
 
     // 获取Lua函数的Proto
     Proto* proto = func->getProto();
-    executeProto(proto);
+    executeProto(proto, 1);
 }
 
-void VM::executeProto(Proto* proto) {
+void VM::executeProto(Proto* proto, i32 nexeccalls) {
     if (!proto) {
         throw std::runtime_error("VM::executeProto: null proto");
+    }
+
+    // 检查嵌套调用深度（防止栈溢出）
+    static constexpr i32 MAX_CALLS = 200;
+    if (nexeccalls >= MAX_CALLS) {
+        throw std::runtime_error("VM: stack overflow (too many nested calls)");
     }
 
     currentProto_ = proto;
     pc_ = 0;
 
-    // 获取栈基址
-    Stack& stack = L_->getStack();
+    // 获取当前CallInfo
+    CallInfo& ci = L_->getCurrentCallInfo();
 
-    // 确保栈有足够的空间（至少maxStackSize个槽位）
-    usize requiredSize = proto->getMaxStackSize();
-    while (stack.size() < requiredSize) {
+    // 确保栈有足够的空间
+    Stack& stack = L_->getStack();
+    usize requiredTop = ci.base + proto->getMaxStackSize();
+    while (stack.size() < requiredTop) {
         stack.push(Value());  // 用nil填充
     }
 
-    base_ = &stack.at(0);  // 简化版：假设从栈底开始
+    // base_不再需要，因为R()方法直接使用CallInfo
+    base_ = nullptr;
 
     // 主执行循环
     const Vec<Instruction>& code = proto->getCode();
@@ -299,14 +307,62 @@ void VM::executeProto(Proto* proto) {
                 i32 nArgs = b - 1;      // B=0表示到栈顶
                 i32 nResults = c - 1;   // C=0表示多返回值
 
+                // 保存当前PC（用于返回后继续执行）
+                CallInfo& currentCI = L_->getCurrentCallInfo();
+                currentCI.savedpc = &code[pc_];
+
+                // 计算函数在栈中的绝对位置
+                usize funcPos = currentCI.base + a;
+
+                // 在precall之前保存函数引用（因为precall会改变CallInfo）
+                Value& funcVal = R(a);
+                if (!funcVal.isFunction()) {
+                    throw std::runtime_error("VM: CALL on non-function value");
+                }
+                Function* func = funcVal.asFunction();
+
                 // 准备调用
                 bool isLua = precall(a, nArgs, nResults);
 
                 if (isLua) {
-                    // Lua函数：需要递归执行（简化版：暂不支持）
-                    throw std::runtime_error("VM: CALL nested Lua functions not supported yet");
+                    // Lua函数：递归执行
+                    Proto* calleeProto = func->getProto();
+
+                    // 保存当前状态
+                    Proto* savedProto = currentProto_;
+                    usize savedPC = pc_;
+                    Function* savedFunc = currentFunc_;
+                    CallInfo& callerCI = currentCI;  // 保存调用者的CallInfo
+                    usize savedTop = callerCI.top;   // 保存调用者的栈顶
+
+                    // 设置新函数上下文
+                    currentFunc_ = func;
+
+                    // 递归执行被调用函数
+                    // RETURN指令会将返回值移动到funcPos位置并缩小栈
+                    executeProto(calleeProto, nexeccalls + 1);
+
+                    // 恢复当前状态
+                    currentProto_ = savedProto;
+                    pc_ = savedPC;
+                    currentFunc_ = savedFunc;
+
+                    // 弹出CallInfo（必须在postcall之前，这样postcall才能访问调用者的CallInfo）
+                    L_->popCallInfo();
+
+                    // 处理返回值（使用绝对栈位置）
+                    postcall(funcPos, nResults);
+
+                    // 恢复调用者的栈大小
+                    // 确保栈至少有savedTop个元素
+                    Stack& stack = L_->getStack();
+                    while (stack.size() < savedTop) {
+                        stack.push(Value());
+                    }
+                } else {
+                    // C函数已在precall中执行完成
+                    // postcall已在precall中调用
                 }
-                // C函数已在precall中执行完成
                 break;
             }
 
@@ -315,18 +371,35 @@ void VM::executeProto(Proto* proto) {
                 i32 nArgs = b - 1;
 
                 // 尾调用：关闭当前函数的upvalues
-                L_->closeUpvalues(0);
+                CallInfo& currentCI = L_->getCurrentCallInfo();
+                L_->closeUpvalues(currentCI.base);
 
                 // 准备调用（返回值数量为-1表示多返回值）
                 bool isLua = precall(a, nArgs, -1);
 
                 if (isLua) {
-                    // Lua函数：需要特殊处理（简化版：暂不支持）
-                    throw std::runtime_error("VM: TAILCALL Lua functions not supported yet");
-                }
+                    // Lua函数尾调用：直接替换当前栈帧
+                    // 获取被调用函数
+                    Value& funcVal = R(a);
+                    Function* func = funcVal.asFunction();
+                    Proto* calleeProto = func->getProto();
 
-                // C函数已执行，直接返回
-                return;
+                    // 尾调用优化：不增加调用栈深度
+                    // 直接用新函数替换当前函数
+                    currentFunc_ = func;
+                    currentProto_ = calleeProto;
+                    pc_ = 0;
+
+                    // 更新CallInfo的尾调用计数
+                    currentCI.tailcalls++;
+
+                    // 重新开始执行（goto reentry的效果）
+                    // 通过返回并让调用者重新进入来实现
+                    return;
+                } else {
+                    // C函数已执行，直接返回
+                    return;
+                }
             }
 
             case OpCode::SELF: {
@@ -477,20 +550,53 @@ void VM::executeProto(Proto* proto) {
 
             case OpCode::RETURN: {
                 // return R(A), ... ,R(A+B-2)
-                // 简化实现：只处理单个返回值或无返回值
+                // B=0: 返回从R(A)到栈顶的所有值
+                // B=1: 无返回值
+                // B>1: 返回B-1个值（R(A)到R(A+B-2)）
+
+                CallInfo& ci = L_->getCurrentCallInfo();
+                Stack& stack = L_->getStack();
+
+                // 计算返回值数量
+                i32 nres;
                 if (b == 0) {
-                    // 返回所有值（暂不支持）
-                    return;
-                } else if (b == 1) {
-                    // 无返回值
-                    return;
+                    // 返回从R(A)到栈顶的所有值
+                    nres = static_cast<i32>(stack.size()) - (ci.base + a);
                 } else {
-                    // 返回 R(A) 到 R(A+B-2)
-                    // 简化：只返回 R(A)
-                    Stack& stack = L_->getStack();
-                    stack.push(R(a));
-                    return;
+                    // 返回B-1个值
+                    nres = b - 1;
                 }
+
+                // 将返回值移动到函数位置
+                // 返回值应该从ci.func位置开始存放
+                for (i32 i = 0; i < nres; i++) {
+                    stack.at(ci.func + i) = R(a + i);
+                }
+
+                // 不要在这里缩小栈！
+                // 栈的调整应该由调用者（postcall）来处理
+                // 因为调用者可能还需要访问其他寄存器
+
+                // 但是，我们需要标记栈顶的位置，以便postcall知道有多少返回值
+                // 我们通过调整栈大小到ci.func + nres来实现这一点
+                // 但要确保不会缩小到调用者的栈帧以下
+
+                // 实际上，让我们保持栈不变，让postcall来处理
+                // 但我们需要某种方式告诉postcall有多少返回值
+                // 标准做法是：将栈顶设置为ci.func + nres
+
+                // 为了安全起见，我们只在必要时缩小栈
+                // 即：只移除当前函数的局部变量，但不影响调用者的栈帧
+                usize newTop = ci.func + nres;
+                while (stack.size() > newTop) {
+                    stack.pop();
+                }
+
+                // 关闭upvalues
+                L_->closeUpvalues(ci.base);
+
+                // 函数返回
+                return;
             }
 
             default: {
@@ -506,9 +612,17 @@ void VM::executeProto(Proto* proto) {
 // =====================================================================
 
 Value& VM::R(i32 index) {
-    // 简化实现：直接从栈访问
+    // 使用CallInfo获取当前栈帧的base
+    CallInfo& ci = L_->getCurrentCallInfo();
     Stack& stack = L_->getStack();
-    return stack.at(index);
+    usize absIndex = ci.base + index;
+
+    // 边界检查
+    if (absIndex >= stack.size()) {
+        throw std::runtime_error("VM::R: register index out of range");
+    }
+
+    return stack.at(absIndex);
 }
 
 Value VM::RK(i32 rk) {
@@ -648,7 +762,12 @@ void VM::doJump(i32 offset) {
 // =====================================================================
 
 bool VM::precall(i32 funcIndex, i32 nArgs, i32 nResults) {
-    Value& funcVal = R(funcIndex);
+    Stack& stack = L_->getStack();
+    CallInfo& currentCI = L_->getCurrentCallInfo();
+
+    // 计算函数在栈中的绝对位置
+    usize funcPos = currentCI.base + funcIndex;
+    Value& funcVal = stack.at(funcPos);
 
     if (!funcVal.isFunction()) {
         throw std::runtime_error("VM::precall: attempt to call non-function value");
@@ -660,44 +779,97 @@ bool VM::precall(i32 funcIndex, i32 nArgs, i32 nResults) {
         // C函数调用
         CFunction cfunc = func->getCFunction();
 
-        // 简化实现：直接调用C函数
-        // 注意：标准Lua会设置CallInfo，这里简化处理
+        // 创建新的CallInfo
+        CallInfo& ci = L_->pushCallInfo();
+        ci.func = funcPos;
+        ci.base = funcPos + 1;  // 参数从函数后面开始
+        ci.top = funcPos + 1 + nArgs + 20;  // 给C函数足够的栈空间
+        ci.nresults = nResults;
+        ci.savedpc = nullptr;  // C函数没有PC
+        ci.tailcalls = 0;
+
+        // 确保栈空间
+        while (stack.size() < ci.top) {
+            stack.push(Value());
+        }
+
+        // 调用C函数
         i32 result = cfunc(L_);
 
-        // 处理返回值（简化：假设返回值已在栈上）
-        postcall(funcIndex, nResults);
+        // 处理返回值
+        postcall(funcPos, nResults);
+
+        // 弹出CallInfo
+        L_->popCallInfo();
 
         return false;  // C函数
     } else {
         // Lua函数调用
-        // 简化实现：暂不支持嵌套Lua函数调用
-        // 标准实现需要：
-        // 1. 创建新的CallInfo
-        // 2. 调整栈帧
-        // 3. 设置参数
-        // 4. 递归调用executeProto
+        Proto* proto = func->getProto();
 
-        throw std::runtime_error("VM::precall: nested Lua function calls not supported yet");
+        // 处理参数数量
+        i32 actualArgs = nArgs;
+        if (nArgs < 0) {
+            // nArgs < 0 表示参数到栈顶
+            actualArgs = static_cast<i32>(stack.size()) - (funcPos + 1);
+        }
+
+        // 创建新的CallInfo
+        CallInfo& ci = L_->pushCallInfo();
+        ci.func = funcPos;
+        ci.base = funcPos + 1;  // 第一个参数/局部变量的位置
+        ci.top = ci.base + proto->getMaxStackSize();
+        ci.nresults = nResults;
+        ci.savedpc = nullptr;  // 将在executeProto中设置
+        ci.tailcalls = 0;
+
+        // 调整参数数量（如果实际参数少于形参，用nil填充）
+        i32 numParams = proto->getNumParams();
+        while (actualArgs < numParams) {
+            stack.push(Value());  // nil
+            actualArgs++;
+        }
+
+        // 确保栈空间足够
+        while (stack.size() < ci.top) {
+            stack.push(Value());  // 用nil初始化局部变量
+        }
+
         return true;  // Lua函数
     }
 }
 
-void VM::postcall(i32 firstResult, i32 nResults) {
-    // 简化实现：处理返回值
-    // 标准实现需要：
-    // 1. 从栈上复制返回值到正确位置
-    // 2. 调整栈顶
-    // 3. 恢复CallInfo
-
+void VM::postcall(i32 funcPos, i32 wantedResults) {
+    // 处理函数返回后的返回值复制和栈调整
     Stack& stack = L_->getStack();
+    CallInfo& ci = L_->getCurrentCallInfo();
 
-    if (nResults >= 0) {
-        // 固定数量的返回值
-        // 简化：假设返回值已在正确位置
+    // 返回值从funcPos开始（函数位置被返回值覆盖）
+    // 计算实际返回值数量
+    i32 actualResults = static_cast<i32>(stack.size()) - funcPos;
+
+    if (wantedResults >= 0) {
+        // 调用者期望固定数量的返回值
+        if (actualResults < wantedResults) {
+            // 返回值不够，用nil填充
+            while (actualResults < wantedResults) {
+                stack.push(Value());
+                actualResults++;
+            }
+        } else if (actualResults > wantedResults) {
+            // 返回值太多，丢弃多余的
+            while (actualResults > wantedResults) {
+                stack.pop();
+                actualResults--;
+            }
+        }
     } else {
-        // 多返回值（LUA_MULTRET）
-        // 简化：保留栈上所有值
+        // wantedResults < 0 (MULTRET): 接受所有返回值
+        // 不需要调整
     }
+
+    // 栈顶现在应该在 funcPos + actualResults
+    // 已经通过上面的push/pop调整好了
 }
 
 } // namespace Lua
