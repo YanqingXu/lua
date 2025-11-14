@@ -460,6 +460,10 @@ void CodeGenerator::statement(const Stmt& s) {
             // 数值for循环
             forNumStmt(arg);
         }
+        else if constexpr (std::is_same_v<T, ForInStmt>) {
+            // 泛型for循环
+            forInStmt(arg);
+        }
         else if constexpr (std::is_same_v<T, FunctionStmt>) {
             functionStmt(arg);
         }
@@ -969,6 +973,76 @@ void CodeGenerator::forNumStmt(const ForNumStmt& s) {
 
     // 释放寄存器
     freeRegs(4);  // init, limit, step, var
+}
+
+void CodeGenerator::forInStmt(const ForInStmt& s) {
+    // 泛型for循环的字节码模式：
+    // R(base) = iterator_func
+    // R(base+1) = state
+    // R(base+2) = control_var
+    // JMP -> TFORLOOP
+    // loop:
+    // R(base+3), ..., R(base+3+nvars-1) = loop variables
+    // <loop body>
+    // TFORLOOP base nvars
+    // JMP -> loop
+
+    // 参考lua_c_analysis/src/lcode.c中的forbody()和forlist()
+
+    i32 base = freereg_;  // 迭代器变量的基址
+    i32 nvars = static_cast<i32>(s.vars.size());  // 循环变量数量
+
+    // 计算迭代器表达式（应该返回3个值：func, state, var）
+    // 例如：for k, v in pairs(t) do ... end
+    // pairs(t) 返回 (next, t, nil)
+
+    if (s.iterators.size() != 1) {
+        throw std::runtime_error("CodeGenerator: for-in loop requires exactly 1 iterator expression");
+    }
+
+    // 计算迭代器表达式
+    ExprDesc iterDesc;
+    expr(*s.iterators[0], iterDesc);
+
+    // 迭代器表达式应该返回3个值，我们需要确保它们在连续的寄存器中
+    // 对于函数调用，exp2NextReg会处理多返回值
+    if (iterDesc.kind == ExprKind::Call) {
+        // 函数调用，需要3个返回值
+        // 确保返回值存储在R(base), R(base+1), R(base+2)
+        discharge(iterDesc, base);
+        freereg_ = base + 3;  // 预留3个寄存器
+    } else {
+        // 不是函数调用，这是错误的
+        throw std::runtime_error("CodeGenerator: for-in loop iterator must be a function call");
+    }
+
+    // 添加循环变量作为局部变量（R(base+3), R(base+4), ...）
+    for (const Str& var : s.vars) {
+        addLocalVar(var);
+    }
+    adjustLocalVars(nvars);
+
+    // 跳转到TFORLOOP（跳过循环体）
+    i32 jmpToTfor = codeAsBx(OpCode::JMP, 0, 0);  // sBx稍后回填
+
+    // 循环体开始
+    i32 loopStart = getLabel();
+    block(s.body);
+
+    // 回填JMP到TFORLOOP的跳转目标
+    patchToHere(jmpToTfor);
+
+    // 生成TFORLOOP指令
+    codeABC(OpCode::TFORLOOP, base, 0, nvars);
+
+    // 生成JMP回循环开始
+    codeAsBx(OpCode::JMP, 0, loopStart - getLabel() - 1);
+
+    // 移除循环变量
+    removeLocalVars(nactvar_ - nvars);
+
+    // 释放寄存器
+    freeRegs(3 + nvars);  // func, state, var, loop_vars
 }
 
 void CodeGenerator::block(const Vec<StmtPtr>& stmts) {

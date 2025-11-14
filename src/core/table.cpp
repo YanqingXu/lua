@@ -260,6 +260,80 @@ usize Table::getSize() const {
 }
 
 // =====================================================================
+// 迭代器支持
+// =====================================================================
+
+bool Table::next(const Value& key, Value& nextKey, Value& nextValue) const {
+    // 如果key是nil，从头开始遍历
+    if (key.isNil()) {
+        // 先检查数组部分
+        if (!array_.empty()) {
+            // 返回第一个非nil的数组元素
+            for (usize i = 0; i < array_.size(); i++) {
+                if (!array_[i].isNil()) {
+                    nextKey = Value(static_cast<f64>(i + 1));  // Lua索引从1开始
+                    nextValue = array_[i];
+                    return true;
+                }
+            }
+        }
+
+        // 数组部分为空或全是nil，检查哈希部分
+        if (!hash_.empty()) {
+            auto it = hash_.begin();
+            nextKey = it->first;
+            nextValue = it->second;
+            return true;
+        }
+
+        // 表为空
+        return false;
+    }
+
+    // 查找当前键的位置
+    i32 arrayIndex;
+    if (isArrayIndex(key, arrayIndex)) {
+        // 当前键在数组部分
+        // 继续遍历数组部分
+        for (usize i = arrayIndex; i < array_.size(); i++) {
+            if (!array_[i].isNil()) {
+                nextKey = Value(static_cast<f64>(i + 1));
+                nextValue = array_[i];
+                return true;
+            }
+        }
+
+        // 数组部分遍历完毕，转到哈希部分
+        if (!hash_.empty()) {
+            auto it = hash_.begin();
+            nextKey = it->first;
+            nextValue = it->second;
+            return true;
+        }
+
+        return false;
+    }
+
+    // 当前键在哈希部分
+    auto it = hash_.find(key);
+    if (it == hash_.end()) {
+        // 键不存在，这是一个错误
+        return false;
+    }
+
+    // 移动到下一个元素
+    ++it;
+    if (it != hash_.end()) {
+        nextKey = it->first;
+        nextValue = it->second;
+        return true;
+    }
+
+    // 哈希部分遍历完毕
+    return false;
+}
+
+// =====================================================================
 // 内部辅助方法
 // =====================================================================
 

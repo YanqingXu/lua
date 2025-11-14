@@ -1338,6 +1338,10 @@ void testVM() {
 
     StringPool& pool = StringPool::getInstance();
     LuaState* L = LuaState::newState();
+
+    // 注册基础库（为测试13提供next/pairs函数）
+    openBaseLib(L);
+
     VM vm(L);
     i32 testCount = 0;
 
@@ -1488,30 +1492,51 @@ void testVM() {
         proto->addInstruction(CREATE_ABx(OpCode::LOADK, 1, 1));  // R(1) = 5 (limit)
         proto->addInstruction(CREATE_ABx(OpCode::LOADK, 2, 0));  // R(2) = 1 (step)
 
-        // FORPREP: R(0) -= R(2); pc += 1
-        proto->addInstruction(CREATE_AsBx(OpCode::FORPREP, 0, 1));
+        // FORPREP: R(0) -= R(2); pc += sBx
+        // sBx=0 表示跳转到下一条指令（FORLOOP）
+        proto->addInstruction(CREATE_AsBx(OpCode::FORPREP, 0, 0));
 
         // 循环体（空）
         // FORLOOP: R(0) += R(2); if R(0) <= R(1) then pc -= 1; R(3) = R(0)
+        // sBx=-1 表示跳转回上一条指令（FORLOOP 自己）
         proto->addInstruction(CREATE_AsBx(OpCode::FORLOOP, 0, -1));
 
         // RETURN R(3) (最后的循环变量值应该是5)
         proto->addInstruction(CREATE_ABC(OpCode::RETURN, 3, 2, 0));
 
+        std::cout << "  Bytecode:" << std::endl;
+        for (usize i = 0; i < proto->getInstructionCount(); i++) {
+            Instruction inst = proto->getInstruction(i);
+            OpCode op = GET_OPCODE(inst);
+            std::cout << "    [" << i << "] " << getOpName(op);
+            if (op == OpCode::LOADK) {
+                std::cout << " A=" << GETARG_A(inst) << " Bx=" << GETARG_Bx(inst);
+            } else if (op == OpCode::FORPREP || op == OpCode::FORLOOP) {
+                std::cout << " A=" << GETARG_A(inst) << " sBx=" << GETARG_sBx(inst);
+            } else if (op == OpCode::RETURN) {
+                std::cout << " A=" << GETARG_A(inst) << " B=" << GETARG_B(inst);
+            }
+            std::cout << std::endl;
+        }
+
         vm.executeProto(proto);
 
         Stack& stack = L->getStack();
+        std::cout << "  Stack size after execution: " << stack.size() << std::endl;
+
         if (stack.size() > 0) {
-            Value result = stack.top();
-            if (result.isNumber()) {
-                std::cout << "  Result: " << result.asNumber() << std::endl;
-                std::cout << "  Expected: 5" << std::endl;
-                if (result.asNumber() == 5.0) {
-                    std::cout << "  [PASS]" << std::endl;
-                } else {
-                    std::cout << "  [FAIL] Wrong result" << std::endl;
-                }
+            // 返回值应该在栈底（索引0）
+            Value result = stack.at(0);
+            std::cout << "  Result: " << result.toString() << std::endl;
+            std::cout << "  Expected: 5" << std::endl;
+
+            if (result.isNumber() && result.asNumber() == 5.0) {
+                std::cout << "  [PASS]" << std::endl;
+            } else {
+                std::cout << "  [FAIL] Wrong result" << std::endl;
             }
+        } else {
+            std::cout << "  [FAIL] Stack is empty" << std::endl;
         }
 
         delete proto;
@@ -2015,6 +2040,136 @@ void testVM() {
         } else {
             std::cout << "  FAIL: Expected 5, got " << result.toString() << std::endl;
         }
+
+        testCount++;
+    } catch (const std::exception& e) {
+        std::cout << "  ERROR: " << e.what() << std::endl;
+    }
+
+    // =====================================================================
+    // 测试13：泛型for循环（TFORLOOP指令）
+    // =====================================================================
+    std::cout << "\n[Test 13] Generic for loop (TFORLOOP)" << std::endl;
+    try {
+        GlobalState& gs = L->getGlobalState();
+        StringPool& pool = gs.getStringPool();
+
+        // 创建测试表：{1, 2, 3}（使用数组部分）
+        Table* testTable = new Table();
+        gs.getGC().registerObject(testTable);
+
+        testTable->setArray(1, Value(1.0));
+        testTable->setArray(2, Value(2.0));
+        testTable->setArray(3, Value(3.0));
+
+        // 手动创建next函数
+        CFunction nextCFunc = [](LuaState* L) -> i32 {
+            Stack& stack = L->getStack();
+
+            if (stack.size() < 1) {
+                return 0;
+            }
+
+            Value tableVal = stack.at(0);
+            if (!tableVal.isTable()) {
+                return 0;
+            }
+
+            Table* table = tableVal.asTable();
+            Value key = stack.size() > 1 ? stack.at(1) : Value();
+
+            Value nextKey, nextValue;
+            if (table->next(key, nextKey, nextValue)) {
+                stack.push(nextKey);
+                stack.push(nextValue);
+                return 2;
+            } else {
+                return 0;
+            }
+        };
+
+        Function* nextFunc = new Function(nextCFunc);
+        gs.getGC().registerObject(nextFunc);
+
+        // 创建Proto
+        Proto* proto = new Proto();
+        gs.getGC().registerObject(proto);
+
+        // 添加常量
+        proto->addConstant(Value(nextFunc));   // K(0) = next函数
+        proto->addConstant(Value(testTable));  // K(1) = table
+        proto->addConstant(Value(0.0));        // K(2) = 0 (sum初始值)
+
+        // 字节码：
+        // local sum = 0
+        // R(1) = next, R(2) = table, R(3) = nil
+        // for k, v in next, table, nil do
+        //     sum = sum + v
+        // end
+        // return sum
+
+        // R(0) = sum = 0
+        proto->addInstruction(CREATE_ABx(OpCode::LOADK, 0, 2));  // R(0) = K(2) = 0
+
+        // 手动设置迭代器：R(1)=next, R(2)=table, R(3)=nil
+        proto->addInstruction(CREATE_ABx(OpCode::LOADK, 1, 0));  // R(1) = K(0) = next
+        proto->addInstruction(CREATE_ABx(OpCode::LOADK, 2, 1));  // R(2) = K(1) = table
+        proto->addInstruction(CREATE_ABC(OpCode::LOADNIL, 3, 0, 0));  // R(3) = nil
+
+        // for循环：R(4), R(5) = k, v
+        // 字节码结构：
+        // JMP -> TFORLOOP  (跳过循环体，第一次直接执行TFORLOOP)
+        // loopStart:
+        //   ADD            (循环体)
+        // TFORLOOP         (迭代器调用)
+        // JMP -> loopStart (跳回循环体)
+
+        // JMP到TFORLOOP（占位，稍后回填）
+        i32 jmpToTfor = static_cast<i32>(proto->getCode().size());
+        proto->addInstruction(CREATE_AsBx(OpCode::JMP, 0, 0));  // 占位
+
+        // 循环体开始（R(4)=k, R(5)=v）
+        i32 loopStart = static_cast<i32>(proto->getCode().size());
+        // sum = sum + v  =>  R(0) = R(0) + R(5)
+        proto->addInstruction(CREATE_ABC(OpCode::ADD, 0, 0, 5));  // R(0) = R(0) + R(5)
+
+        // TFORLOOP
+        i32 tforloop = static_cast<i32>(proto->getCode().size());
+        proto->addInstruction(CREATE_ABC(OpCode::TFORLOOP, 1, 0, 2));  // R(4), R(5) = R(1)(R(2), R(3))
+
+        // JMP回循环开始
+        // 当前pc = tforloop + 1，目标pc = loopStart
+        // offset = loopStart - (tforloop + 1)
+        i32 loopJmp = loopStart - tforloop - 1;
+        proto->addInstruction(CREATE_AsBx(OpCode::JMP, 0, loopJmp));
+
+        // 回填第一个JMP到TFORLOOP
+        // 当前pc = jmpToTfor，目标pc = tforloop
+        // offset = tforloop - jmpToTfor
+        i32 jmpOffset = tforloop - jmpToTfor;
+        proto->setInstruction(jmpToTfor, CREATE_AsBx(OpCode::JMP, 0, jmpOffset));
+
+        // return sum
+        proto->addInstruction(CREATE_ABC(OpCode::RETURN, 0, 2, 0));  // return R(0)
+
+        proto->setMaxStackSize(10);
+
+        // 创建函数并执行
+        Function* func = new Function(proto);
+        gs.getGC().registerObject(func);
+
+        VM vm(L);
+        vm.execute(func);
+
+        // 检查结果：1 + 2 + 3 = 6
+        Value result = L->getStack().at(0);
+        if (result.isNumber() && result.asNumber() == 6.0) {
+            std::cout << "  PASS: sum = " << result.asNumber() << " (expected 6)" << std::endl;
+        } else {
+            std::cout << "  FAIL: Expected 6, got " << result.toString() << std::endl;
+        }
+
+
 
         testCount++;
     } catch (const std::exception& e) {

@@ -78,11 +78,10 @@ void VM::executeProto(Proto* proto, i32 nexeccalls) {
 
     // 主执行循环
     const Vec<Instruction>& code = proto->getCode();
-    
+
     while (pc_ < code.size()) {
         Instruction inst = code[pc_];
-        pc_++;  // 先递增PC
-        
+
         // 解码指令
         OpCode op = GET_OPCODE(inst);
         i32 a = GETARG_A(inst);
@@ -90,6 +89,22 @@ void VM::executeProto(Proto* proto, i32 nexeccalls) {
         i32 c = GETARG_C(inst);
         i32 bx = GETARG_Bx(inst);
         i32 sbx = GETARG_sBx(inst);
+
+        #ifdef DEBUG
+        // 只为Test 13打印执行流程（检测TFORLOOP指令）
+        static bool inTest13 = false;
+        if (op == OpCode::TFORLOOP) inTest13 = true;
+        if (inTest13 && (op == OpCode::ADD || op == OpCode::TFORLOOP || op == OpCode::JMP)) {
+            std::cout << "  [EXEC] pc=" << pc_ << " op=" << static_cast<i32>(op)
+                      << " (" << (op == OpCode::ADD ? "ADD" : op == OpCode::JMP ? "JMP" : "TFORLOOP") << ")"
+                      << " A=" << a << " B=" << b << " C=" << c << " sBx=" << sbx << std::endl;
+            if (op == OpCode::ADD) {
+                std::cout << "    Before: R(0)=" << R(0).toString() << " R(5)=" << R(5).toString() << std::endl;
+            }
+        }
+        #endif
+
+        pc_++;  // 先递增PC
         
         // 指令分发
         switch (op) {
@@ -448,22 +463,28 @@ void VM::executeProto(Proto* proto, i32 nexeccalls) {
 
             case OpCode::FORLOOP: {
                 // R(A)+=R(A+2); if R(A) <?= R(A+1) then { pc+=sBx; R(A+3)=R(A) }
+                // 参考：lua_c_analysis/src/lvm.c 第1899-1911行
                 if (!R(a).isNumber() || !R(a + 1).isNumber() || !R(a + 2).isNumber()) {
                     throw std::runtime_error("VM: FORLOOP requires numeric values");
                 }
 
+                // 读取循环变量
                 f64 step = R(a + 2).asNumber();
-                f64 idx = R(a).asNumber() + step;
+                f64 idx = R(a).asNumber() + step;  // idx = R(A) + step
                 f64 limit = R(a + 1).asNumber();
 
-                // 检查循环条件
+                // 检查循环条件（根据步长方向选择比较方式）
+                // 正步长：idx <= limit
+                // 负步长：idx >= limit
                 bool cont = (step > 0) ? (idx <= limit) : (idx >= limit);
 
                 if (cont) {
-                    R(a) = Value(idx);        // 更新索引
-                    R(a + 3) = Value(idx);    // 设置循环变量
-                    doJump(sbx);              // 跳转到循环体
+                    // 继续循环：先跳转，再更新寄存器
+                    doJump(sbx);              // pc += sBx
+                    R(a) = Value(idx);        // 更新内部索引 R(A)
+                    R(a + 3) = Value(idx);    // 更新用户可见的循环变量 R(A+3)
                 }
+                // 如果不继续循环，则正常执行下一条指令
                 break;
             }
 
@@ -483,22 +504,129 @@ void VM::executeProto(Proto* proto, i32 nexeccalls) {
             case OpCode::TFORLOOP: {
                 // R(A+3), ... ,R(A+2+C) := R(A)(R(A+1), R(A+2))
                 // if R(A+3) ~= nil then R(A+2)=R(A+3) else pc++
-                // 泛型for循环：调用迭代器函数
-                i32 nResults = c;
+                // 参考：lua_c_analysis/src/lvm.c 第1935-1952行
 
-                // 准备调用：R(A)是迭代器函数，R(A+1)和R(A+2)是参数
-                bool isLua = precall(a, 2, nResults);
+                // 泛型for循环（迭代器循环）执行步骤：
+                // 1. 将迭代器函数和参数复制到调用位置 R(A+3)
+                // 2. 调用迭代器：R(A+3), ..., R(A+2+C) := R(A)(R(A+1), R(A+2))
+                // 3. 检查第一个返回值 R(A+3)：
+                //    - 如果不是 nil：更新控制变量 R(A+2)=R(A+3)，读取下一条JMP指令并跳转
+                //    - 如果是 nil：退出循环，pc++ 跳过下一条JMP指令
 
-                if (isLua) {
+                i32 cb = a + 3;  // 调用基址（call base）
+
+                // 确保栈有足够空间存储调用参数和返回值
+                Stack& stack = L_->getStack();
+                CallInfo& ci = L_->getCurrentCallInfo();
+                usize requiredSize = ci.base + cb + 3 + c;  // 需要 cb+3+c 个寄存器
+                while (stack.size() < requiredSize) {
+                    stack.push(Value());
+                }
+                // 更新 base_（栈可能已扩展）
+                base_ = &stack.at(ci.base);
+
+                // 步骤1：将迭代器函数和参数复制到调用位置
+                // setobjs2s(L, cb+2, ra+2);  // R(A+5) = R(A+2) (控制变量)
+                // setobjs2s(L, cb+1, ra+1);  // R(A+4) = R(A+1) (状态)
+                // setobjs2s(L, cb, ra);      // R(A+3) = R(A)   (迭代器函数)
+                R(cb + 2) = R(a + 2);  // 控制变量
+                R(cb + 1) = R(a + 1);  // 状态
+                R(cb) = R(a);          // 迭代器函数
+
+                // 步骤2：调用迭代器函数
+                // L->top = cb + 3;  设置栈顶为函数+2个参数
+                // Protect(luaD_call(L, cb, GETARG_C(i)));
+
+                // 检查迭代器函数类型
+                if (!R(cb).isFunction()) {
+                    throw std::runtime_error("VM: TFORLOOP requires function at R(" +
+                                           std::to_string(cb) + ")");
+                }
+
+                Function* func = R(cb).asFunction();
+
+                if (func->isCFunction()) {
+                    // C函数迭代器
+                    CFunction cfunc = func->getCFunction();
+
+                    // 保存所有寄存器的值（因为调用会清空栈）
+                    Vec<Value> savedRegs;
+                    for (usize i = 0; i < stack.size(); i++) {
+                        savedRegs.push_back(stack.at(i));
+                    }
+
+                    // 清空栈，压入参数
+                    stack.clear();
+                    stack.push(savedRegs[ci.base + cb + 1]);  // 参数1：状态
+                    stack.push(savedRegs[ci.base + cb + 2]);  // 参数2：控制变量
+
+                    // 调用C函数
+                    i32 nret = cfunc(L_);
+
+                    // 保存返回值（从栈中读取）
+                    Vec<Value> returnValues;
+                    for (i32 i = 0; i < nret && i < c; i++) {
+                        if (2 + i < static_cast<i32>(stack.size())) {
+                            returnValues.push_back(stack.at(2 + i));
+                        } else {
+                            returnValues.push_back(Value());
+                        }
+                    }
+
+                    // 恢复栈到原来的状态
+                    stack.clear();
+                    for (const Value& v : savedRegs) {
+                        stack.push(v);
+                    }
+
+                    // 恢复base_
+                    base_ = &stack.at(ci.base);
+
+                    // 将返回值存储到 R(cb), R(cb+1), ..., R(cb+c-1)
+                    for (usize i = 0; i < returnValues.size(); i++) {
+                        R(cb + i) = returnValues[i];
+                    }
+                    // 填充剩余返回值为 nil
+                    for (i32 i = static_cast<i32>(returnValues.size()); i < c; i++) {
+                        R(cb + i) = Value();
+                    }
+                } else {
+                    // Lua函数迭代器（暂不支持）
                     throw std::runtime_error("VM: TFORLOOP Lua iterators not supported yet");
                 }
 
-                // 检查第一个返回值
-                if (!R(a + 3).isNil()) {
-                    R(a + 2) = R(a + 3);  // 更新控制变量
+                // 步骤3：检查第一个返回值并决定是否继续循环
+                // cb = RA(i) + 3;  (调用可能改变栈，重新计算)
+                cb = a + 3;
+
+                if (!R(cb).isNil()) {
+                    // 继续循环：更新控制变量并跳转
+                    // setobjs2s(L, cb-1, cb);  即 R(A+2) = R(A+3)
+                    R(a + 2) = R(cb);
+
+                    // 读取下一条指令（JMP）的sBx并跳转
+                    // 参考：lua_c_analysis/src/lvm.c 第1948行
+                    // dojump(L, pc, GETARG_sBx(*pc)); pc++;
+                    //
+                    // 在 Lua C 中：
+                    // - pc 在指令开始时已经递增，所以 *pc 是下一条指令（JMP）
+                    // - dojump(L, pc, offset): pc += offset
+                    // - pc++: 跳过 JMP 指令
+                    //
+                    // 在我们的实现中：
+                    // - 主循环在指令分发前执行 pc++，所以 pc_ 现在指向下一条指令（JMP）
+                    // - doJump(offset): pc_ += offset
+                    // - 不执行 pc++，因为主循环会在下一次迭代时执行
+                    if (pc_ < code.size()) {
+                        Instruction jmpInst = code[pc_];
+                        i32 jmpSbx = GETARG_sBx(jmpInst);
+                        doJump(jmpSbx);
+                    }
                 } else {
-                    pc_++;  // 跳过下一条指令（跳出循环）
+                    // 退出循环：跳过下一条JMP指令
+                    pc_++;
                 }
+
                 break;
             }
 

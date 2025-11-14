@@ -246,6 +246,143 @@ i32 luaB_getmetatable(LuaState* L) {
 }
 
 // =====================================================================
+// 迭代器函数
+// =====================================================================
+
+/**
+ * @brief next(table [, index])
+ *
+ * 返回表中的下一个键值对。如果index为nil，返回第一个键值对。
+ * 如果index是表中的最后一个键，返回nil。
+ *
+ * 参考：lua_c_analysis/src/lbaselib.c 中的luaB_next
+ */
+static i32 luaB_next(LuaState* L) {
+    Stack& stack = L->getStack();
+
+    if (stack.size() < 1) {
+        throw std::runtime_error("next: table expected");
+    }
+
+    Value tableVal = stack.at(0);
+    if (!tableVal.isTable()) {
+        throw std::runtime_error("next: table expected");
+    }
+
+    Table* table = tableVal.asTable();
+    Value key = stack.size() > 1 ? stack.at(1) : Value();  // nil if not provided
+
+    // 获取下一个键值对
+    Value nextKey, nextValue;
+    if (table->next(key, nextKey, nextValue)) {
+        // 找到下一个键值对
+        stack.push(nextKey);
+        stack.push(nextValue);
+        return 2;
+    } else {
+        // 没有更多元素
+        return 0;
+    }
+}
+
+/**
+ * @brief pairs(t)
+ *
+ * 返回三个值：迭代器函数、表、nil（初始键）
+ * 用于泛型for循环遍历表的所有键值对。
+ *
+ * 参考：lua_c_analysis/src/lbaselib.c 中的luaB_pairs
+ */
+static i32 luaB_pairs(LuaState* L) {
+    Stack& stack = L->getStack();
+
+    if (stack.size() < 1) {
+        throw std::runtime_error("pairs: table expected");
+    }
+
+    Value tableVal = stack.at(0);
+    if (!tableVal.isTable()) {
+        throw std::runtime_error("pairs: table expected");
+    }
+
+    // 返回：next函数, 表, nil
+    GlobalState& gs = L->getGlobalState();
+
+    // 创建next函数对象
+    Function* nextFunc = new Function(luaB_next);
+    gs.getGC().registerObject(nextFunc);
+
+    stack.push(Value(nextFunc));
+    stack.push(tableVal);
+    stack.push(Value());  // nil
+
+    return 3;
+}
+
+/**
+ * @brief ipairs(t)
+ *
+ * 返回三个值：迭代器函数、表、0（初始索引）
+ * 用于泛型for循环遍历表的数组部分。
+ *
+ * 参考：lua_c_analysis/src/lbaselib.c 中的luaB_ipairs
+ */
+static i32 luaB_ipairs(LuaState* L) {
+    Stack& stack = L->getStack();
+
+    if (stack.size() < 1) {
+        throw std::runtime_error("ipairs: table expected");
+    }
+
+    Value tableVal = stack.at(0);
+    if (!tableVal.isTable()) {
+        throw std::runtime_error("ipairs: table expected");
+    }
+
+    // 创建ipairs迭代器函数
+    GlobalState& gs = L->getGlobalState();
+
+    // ipairs迭代器：接收(table, index)，返回(index+1, value)
+    static CFunction ipairsIter = [](LuaState* L) -> i32 {
+        Stack& stack = L->getStack();
+
+        if (stack.size() < 2) {
+            return 0;
+        }
+
+        Value tableVal = stack.at(0);
+        Value indexVal = stack.at(1);
+
+        if (!tableVal.isTable() || !indexVal.isNumber()) {
+            return 0;
+        }
+
+        Table* table = tableVal.asTable();
+        i32 index = static_cast<i32>(indexVal.asNumber());
+        i32 nextIndex = index + 1;
+
+        // 获取下一个元素
+        Value nextValue = table->getArray(nextIndex);
+        if (nextValue.isNil()) {
+            return 0;  // 结束迭代
+        }
+
+        stack.push(Value(static_cast<f64>(nextIndex)));
+        stack.push(nextValue);
+        return 2;
+    };
+
+    Function* iterFunc = new Function(ipairsIter);
+    gs.getGC().registerObject(iterFunc);
+
+    stack.push(Value(iterFunc));
+    stack.push(tableVal);
+    stack.push(Value(0.0));  // 初始索引0
+
+    return 3;
+}
+
+// =====================================================================
 // 注册基础库
 // =====================================================================
 
@@ -265,6 +402,9 @@ void openBaseLib(LuaState* L) {
         {"assert", luaB_assert},
         {"setmetatable", luaB_setmetatable},
         {"getmetatable", luaB_getmetatable},
+        {"next", luaB_next},
+        {"pairs", luaB_pairs},
+        {"ipairs", luaB_ipairs},
         {nullptr, nullptr}
     };
 
