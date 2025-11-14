@@ -381,7 +381,7 @@ void VM::executeProto(Proto* proto, i32 nexeccalls) {
                     L_->popCallInfo();
 
                     // 处理返回值（使用绝对栈位置）
-                    postcall(funcPos, nResults);
+                    postcall(static_cast<i32>(funcPos), nResults);
 
                     // 恢复调用者的栈大小
                     // 确保栈至少有savedTop个元素
@@ -584,7 +584,7 @@ void VM::executeProto(Proto* proto, i32 nexeccalls) {
 
                     // 将返回值存储到 R(cb), R(cb+1), ..., R(cb+c-1)
                     for (usize i = 0; i < returnValues.size(); i++) {
-                        R(cb + i) = returnValues[i];
+                        R(static_cast<i32>(cb + i)) = returnValues[i];
                     }
                     // 填充剩余返回值为 nil
                     for (i32 i = static_cast<i32>(returnValues.size()); i < c; i++) {
@@ -712,7 +712,7 @@ void VM::executeProto(Proto* proto, i32 nexeccalls) {
                 i32 nres;
                 if (b == 0) {
                     // 返回从R(A)到栈顶的所有值
-                    nres = static_cast<i32>(stack.size()) - (ci.base + a);
+                    nres = static_cast<i32>(stack.size()) - (static_cast<i32>(ci.base) + a);
                 } else {
                     // 返回B-1个值
                     nres = b - 1;
@@ -952,7 +952,7 @@ bool VM::precall(i32 funcIndex, i32 nArgs, i32 nResults) {
         i32 result = cfunc(L_);
 
         // 处理返回值
-        postcall(funcPos, nResults);
+        postcall(static_cast<i32>(funcPos), nResults);
 
         // 弹出CallInfo
         L_->popCallInfo();
@@ -966,7 +966,7 @@ bool VM::precall(i32 funcIndex, i32 nArgs, i32 nResults) {
         i32 actualArgs = nArgs;
         if (nArgs < 0) {
             // nArgs < 0 表示参数到栈顶
-            actualArgs = static_cast<i32>(stack.size()) - (funcPos + 1);
+            actualArgs = static_cast<i32>(stack.size()) - static_cast<i32>((funcPos + 1));
         }
 
         // 创建新的CallInfo
