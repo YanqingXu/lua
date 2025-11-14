@@ -1,8 +1,9 @@
-/**
+﻿/**
  * @file test_function_codegen.cpp
  * @brief 测试函数定义和调用的代码生成
  */
 
+#include "test_framework.hpp"
 #include "compiler/lexer.hpp"
 #include "compiler/parser.hpp"
 #include "compiler/codegen.hpp"
@@ -13,159 +14,131 @@
 #include <cassert>
 
 using namespace Lua;
+using namespace LuaTest;
 
-void testSimpleFunctionDef() {
-    std::cout << "[TEST 1] Simple Function Definition..." << std::endl;
-    
-    StringPool pool;
-    
+void testSimpleFunctionDef(TestSuite& suite) {
+    // 使用单例获取StringPool
+    StringPool& pool = StringPool::getInstance();
+
     // 测试: function add(a, b) return a + b end
     const char* code = "function add(a, b) return a + b end";
-    Lexer lexer(code);
-    Parser parser(&lexer, &pool);
-    auto chunk = parser.parse();
-    
+    Parser parser(code);
+    Chunk chunk = parser.parse();
+
     CodeGenerator codegen(&pool);
-    auto proto = codegen.generate(chunk.get());
-    
+    Proto* proto = codegen.generate(chunk);
+
     // 验证生成的字节码
-    assert(proto != nullptr);
-    assert(proto->getInstructionCount() > 0);
-    
+    ASSERT_TRUE(suite, proto != nullptr, "Proto generated");
+    ASSERT_TRUE(suite, proto->getInstructionCount() > 0, "Has instructions");
+
     // 应该有一个子函数
-    assert(proto->getSubProtoCount() == 1);
-    
+    ASSERT_EQ(suite, proto->getSubProtoCount(), 1, "Has one sub-function");
+
     // 检查子函数
     Proto* subProto = proto->getSubProto(0);
-    assert(subProto != nullptr);
-    assert(subProto->getNumParams() == 2);  // 两个参数
-    
-    std::cout << "  Main proto: " << proto->getInstructionCount() << " instructions" << std::endl;
-    std::cout << "  Sub proto: " << subProto->getInstructionCount() << " instructions" << std::endl;
-    std::cout << "  Sub proto params: " << (int)subProto->getNumParams() << std::endl;
-    std::cout << "  PASS" << std::endl;
+    ASSERT_TRUE(suite, subProto != nullptr, "Sub-proto exists");
+    ASSERT_EQ(suite, (int)subProto->getNumParams(), 2, "Sub-proto has 2 params");
+
+    delete proto;
 }
 
-void testLocalFunctionDef() {
-    std::cout << "[TEST 2] Local Function Definition..." << std::endl;
-    
-    StringPool pool;
-    
+void testLocalFunctionDef(TestSuite& suite) {
+    // 使用单例获取StringPool
+    StringPool& pool = StringPool::getInstance();
+
     // 测试: local function foo() end
     const char* code = "local function foo() end";
-    Lexer lexer(code);
-    Parser parser(&lexer, &pool);
-    auto chunk = parser.parse();
-    
+    Parser parser(code);
+    Chunk chunk = parser.parse();
+
     CodeGenerator codegen(&pool);
-    auto proto = codegen.generate(chunk.get());
-    
-    assert(proto != nullptr);
-    assert(proto->getSubProtoCount() == 1);
-    
-    std::cout << "  Generated " << proto->getInstructionCount() << " instructions" << std::endl;
-    std::cout << "  PASS" << std::endl;
+    Proto* proto = codegen.generate(chunk);
+
+    ASSERT_TRUE(suite, proto != nullptr, "Proto generated");
+    ASSERT_EQ(suite, proto->getSubProtoCount(), 1, "Has one sub-function");
+
+    delete proto;
 }
 
-void testFunctionExpr() {
-    std::cout << "[TEST 3] Function Expression..." << std::endl;
-    
-    StringPool pool;
-    
+void testFunctionExpr(TestSuite& suite) {
+    // 使用单例获取StringPool
+    StringPool& pool = StringPool::getInstance();
+
     // 测试: local f = function(x) return x * 2 end
     const char* code = "local f = function(x) return x * 2 end";
-    Lexer lexer(code);
-    Parser parser(&lexer, &pool);
-    auto chunk = parser.parse();
-    
+    Parser parser(code);
+    Chunk chunk = parser.parse();
+
     CodeGenerator codegen(&pool);
-    auto proto = codegen.generate(chunk.get());
-    
-    assert(proto != nullptr);
-    assert(proto->getSubProtoCount() == 1);
-    
+    Proto* proto = codegen.generate(chunk);
+
+    ASSERT_TRUE(suite, proto != nullptr, "Proto generated");
+    ASSERT_EQ(suite, proto->getSubProtoCount(), 1, "Has one sub-function");
+
     Proto* subProto = proto->getSubProto(0);
-    assert(subProto->getNumParams() == 1);  // 一个参数
-    
-    std::cout << "  Generated " << proto->getInstructionCount() << " instructions" << std::endl;
-    std::cout << "  PASS" << std::endl;
+    ASSERT_EQ(suite, (int)subProto->getNumParams(), 1, "Sub-proto has 1 param");
+
+    delete proto;
 }
 
-void testFunctionCall() {
-    std::cout << "[TEST 4] Function Call..." << std::endl;
-    
-    StringPool pool;
-    
+void testFunctionCall(TestSuite& suite) {
+    // 使用单例获取StringPool
+    StringPool& pool = StringPool::getInstance();
+
     // 测试: local result = add(1, 2)
     const char* code = "local result = add(1, 2)";
-    Lexer lexer(code);
-    Parser parser(&lexer, &pool);
-    auto chunk = parser.parse();
-    
+    Parser parser(code);
+    Chunk chunk = parser.parse();
+
     CodeGenerator codegen(&pool);
-    auto proto = codegen.generate(chunk.get());
-    
-    assert(proto != nullptr);
-    assert(proto->getInstructionCount() > 0);
-    
+    Proto* proto = codegen.generate(chunk);
+
+    ASSERT_TRUE(suite, proto != nullptr, "Proto generated");
+    ASSERT_TRUE(suite, proto->getInstructionCount() > 0, "Has instructions");
+
     // 检查是否有CALL指令
     bool hasCall = false;
     for (usize i = 0; i < proto->getInstructionCount(); i++) {
         Instruction inst = proto->getInstruction(i);
         if (GET_OPCODE(inst) == OpCode::CALL) {
             hasCall = true;
-            std::cout << "  Found CALL instruction at pc=" << i << std::endl;
             break;
         }
     }
-    assert(hasCall);
-    
-    std::cout << "  Generated " << proto->getInstructionCount() << " instructions" << std::endl;
-    std::cout << "  PASS" << std::endl;
+    ASSERT_TRUE(suite, hasCall, "Has CALL instruction");
+
+    delete proto;
 }
 
-void testVarargFunction() {
-    std::cout << "[TEST 5] Vararg Function..." << std::endl;
-    
-    StringPool pool;
-    
+void testVarargFunction(TestSuite& suite) {
+    // 使用单例获取StringPool
+    StringPool& pool = StringPool::getInstance();
+
     // 测试: function foo(...) end
     const char* code = "function foo(...) end";
-    Lexer lexer(code);
-    Parser parser(&lexer, &pool);
-    auto chunk = parser.parse();
-    
+    Parser parser(code);
+    Chunk chunk = parser.parse();
+
     CodeGenerator codegen(&pool);
-    auto proto = codegen.generate(chunk.get());
-    
-    assert(proto != nullptr);
-    assert(proto->getSubProtoCount() == 1);
-    
+    Proto* proto = codegen.generate(chunk);
+
+    ASSERT_TRUE(suite, proto != nullptr, "Proto generated");
+    ASSERT_EQ(suite, proto->getSubProtoCount(), 1, "Has one sub-function");
+
     Proto* subProto = proto->getSubProto(0);
-    assert(subProto->isVararg());  // 应该是可变参数函数
-    
-    std::cout << "  Vararg: " << (subProto->isVararg() ? "yes" : "no") << std::endl;
-    std::cout << "  PASS" << std::endl;
+    ASSERT_TRUE(suite, subProto->isVararg(), "Sub-proto is vararg");
+
+    delete proto;
 }
 
-int main() {
-    std::cout << "========================================" << std::endl;
-    std::cout << "Function Definition and Call Tests" << std::endl;
-    std::cout << "========================================" << std::endl;
-    
-    try {
-        testSimpleFunctionDef();
-        testLocalFunctionDef();
-        testFunctionExpr();
-        testFunctionCall();
-        testVarargFunction();
-        
-        std::cout << "\n[SUCCESS] All tests passed!" << std::endl;
-        return 0;
-    }
-    catch (const std::exception& e) {
-        std::cerr << "\n[ERROR] Test failed: " << e.what() << std::endl;
-        return 1;
-    }
+void registerFunctionCodegenTests() {
+    auto& registry = TestRegistry::getInstance();
+
+    registry.registerTest("Function Codegen", "Simple Function Definition", testSimpleFunctionDef);
+    registry.registerTest("Function Codegen", "Local Function Definition", testLocalFunctionDef);
+    registry.registerTest("Function Codegen", "Function Expression", testFunctionExpr);
+    registry.registerTest("Function Codegen", "Function Call", testFunctionCall);
+    registry.registerTest("Function Codegen", "Vararg Function", testVarargFunction);
 }
 

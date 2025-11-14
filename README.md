@@ -3,7 +3,7 @@
 > **从零开始用C++17/20/23实现Lua 5.1.5解释器**
 
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen)]()
-[![Tests](https://img.shields.io/badge/tests-155%2F155-brightgreen)]()
+[![Tests](https://img.shields.io/badge/tests-111%2F111-brightgreen)]()
 [![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen)]()
 [![C++](https://img.shields.io/badge/C%2B%2B-17-blue)]()
 [![Platform](https://img.shields.io/badge/platform-Windows-blue)]()
@@ -61,8 +61,10 @@
 ### 测试统计
 
 ```
-总测试数：155个
-通过率：  100% (155/155)
+测试框架：自定义轻量级测试框架
+测试套件：7个（Value、GCString、StringPool、Table、VM Core、Function、GC）
+总测试数：111个单元测试
+通过率：  100% (111/111)
 编译状态：Debug版本无警告
 平台：    Windows + MSVC (Visual Studio 2026)
 ```
@@ -821,8 +823,13 @@ openBaseLib(L);  // 注册所有8个函数到全局环境
 
 | 文件 | 用途 | 重要性 |
 |------|------|--------|
-| `build_with_vcvars.bat` | MSVC构建脚本，编译并运行测试 | ⭐⭐⭐ |
-| `src/main.cpp` | 测试主程序，用于VS IDE手动编译 | ⭐⭐⭐ |
+| `build_tests.bat` | 单元测试构建脚本（推荐） | ⭐⭐⭐ |
+| `build_main.bat` | main.cpp构建脚本（复用测试框架） | ⭐⭐⭐ |
+| `build_with_vcvars.bat` | 旧版内联测试构建脚本 | ⭐ |
+| `tests/unit/` | 单元测试文件目录 | ⭐⭐⭐ |
+| `tests/unit/test_framework.hpp` | 测试框架核心 | ⭐⭐⭐ |
+| `tests/unit/test_registry.hpp` | 测试注册函数声明 | ⭐⭐⭐ |
+| `src/main.cpp` | 主程序（复用测试框架），用于VS IDE手动编译 | ⭐⭐⭐ |
 | `docs/ARCHITECTURE.md` | 架构设计，理解系统结构 | ⭐⭐⭐ |
 | `docs/IMPLEMENTATION_PLAN.md` | 开发计划，了解下一步任务 | ⭐⭐⭐ |
 | `docs/DEVELOPMENT_GUIDE.md` | 编码规范，类型系统使用指南 | ⭐⭐⭐ |
@@ -843,53 +850,113 @@ openBaseLib(L);  // 注册所有8个函数到全局环境
 
 ### 编译和测试
 
-#### 方式1：使用构建脚本（推荐）
+#### 方式1：使用单元测试框架（推荐）
 
 ```powershell
 # 进入项目目录
 cd lua
 
-# 编译Debug版本并运行测试
-.\build_with_vcvars.bat debug
+# 编译并运行单元测试（Debug版本）
+.\build_tests.bat debug
 
-# 编译Release版本并运行测试
-.\build_with_vcvars.bat release
+# 编译并运行单元测试（Release版本）
+.\build_tests.bat release
 ```
 
 **输出示例**：
 ```
-[INFO] Lua C++ Interpreter Build Script
-[INFO] Build type: Debug
-[INFO] Compiling Value class...
-[INFO] Compiling GCObject class...
-...
-[TEST 1] Testing Value class...
-  [1] Nil value: PASS
-  [2] Boolean value: PASS
+========================================
+Lua C++ Interpreter - Unit Test Suite
+========================================
+Test Framework: Custom Lightweight Framework
+Date: 2025-11-14
+========================================
+
+[INFO] Registering tests...
+[INFO] All tests registered.
+[INFO] Starting test execution...
+
+========================================
+Test Suite: Value
+========================================
+  [PASS] Nil value creation
+  [PASS] Boolean value creation
   ...
-[SUCCESS] All tests passed!
+----------------------------------------
+Total: 16 | Pass: 16 | Fail: 0
+========================================
+
+...
+
+========================================
+Test Summary
+========================================
+Total Tests: 111
+Passed: 111
+Failed: 0
+========================================
+
+✓ ALL TESTS PASSED!
 ```
 
-#### 方式2：Visual Studio IDE手动编译
+#### 方式2：使用旧版构建脚本
+
+```powershell
+# 编译Debug版本并运行内联测试
+.\build_with_vcvars.bat debug
+
+# 编译Release版本并运行内联测试
+.\build_with_vcvars.bat release
+```
+
+#### 方式3：使用main.cpp构建脚本
+
+```powershell
+# 编译并运行main.cpp（Debug版本）
+.\build_main.bat debug
+
+# 编译并运行main.cpp（Release版本）
+.\build_main.bat release
+```
+
+**说明**：这个脚本编译 `src/main.cpp`，它复用了 `tests/unit/` 目录下的测试框架和测试用例。
+
+#### 方式4：Visual Studio IDE手动编译
 
 1. 打开Visual Studio 2026
-2. 打开文件：`lua/src/main.cpp`
-3. 配置项目包含目录：`lua/src`
-4. 添加所有`.cpp`文件到项目
+2. 创建新的C++控制台项目
+3. 配置项目包含目录：
+   - `lua/src`
+   - `lua/tests/unit`
+4. 添加所有必要的`.cpp`文件到项目：
+   - `src/core/*.cpp`
+   - `src/gc/*.cpp`
+   - `src/vm/*.cpp`
+   - `src/compiler/*.cpp`
+   - `src/lib/*.cpp`
+   - `tests/unit/test_*.cpp`（所有测试文件）
+   - `src/main.cpp`
 5. 编译并运行
 
-**注意**：`main.cpp`是临时测试文件，仅用于VS IDE手动编译测试。
+**注意**：`main.cpp` 现在复用测试框架，与 `build_tests.bat` 和 `build_main.bat` 使用相同的测试代码，避免代码重复。
 
 ### 构建输出
 
 ```
 lua/build/
-├── debug/
-│   ├── test_build.exe      # Debug版本可执行文件
+├── test_debug/             # 单元测试Debug版本
+│   ├── test_runner.exe     # 单元测试可执行文件
 │   ├── *.obj               # 目标文件
 │   └── *.pdb               # 调试符号
-└── release/
-    ├── test_build.exe      # Release版本可执行文件
+├── test_release/           # 单元测试Release版本
+│   ├── test_runner.exe     # 单元测试可执行文件
+│   └── *.obj               # 目标文件
+├── debug/                  # 旧版内联测试Debug版本
+│   ├── test_build.exe      # 内联测试可执行文件
+│   ├── *.obj               # 目标文件
+│   └── *.pdb               # 调试符号
+└── release/                # 旧版内联测试Release版本
+    ├── test_build.exe      # 内联测试可执行文件
     └── *.obj               # 目标文件
 ```
 
@@ -1345,32 +1412,46 @@ print("1 + 2 =", result)
 
 ## 🧪 测试和质量保证
 
+### 测试框架
+
+本项目使用**自定义轻量级测试框架**，无外部依赖，易于维护和扩展。
+
+**测试框架特性**：
+- ✅ 简单的断言宏（`ASSERT_TRUE`、`ASSERT_FALSE`、`ASSERT_EQ`）
+- ✅ 测试套件组织（`TestSuite`类）
+- ✅ 自动测试注册（`TestRegistry`单例）
+- ✅ 清晰的测试报告（通过/失败统计）
+- ✅ 零外部依赖（无需Google Test等第三方库）
+
+**测试文件结构**：
+```
+lua/tests/unit/
+├── test_framework.hpp      # 测试框架核心
+├── test_value.cpp          # Value类测试（16个测试）
+├── test_gc_string.cpp      # GCString和StringPool测试（20个测试）
+├── test_table.cpp          # Table类测试（13个测试）
+├── test_vm_core.cpp        # VM核心测试（24个测试）
+├── test_function.cpp       # Function和Proto测试（20个测试）
+├── test_gc.cpp             # GC系统测试（18个测试）
+└── test_runner.cpp         # 测试运行器（main函数）
+```
+
 ### 测试覆盖
 
-| 模块 | 测试数 | 覆盖内容 |
-|------|--------|---------|
-| Value类 | 14 | 类型创建、类型检查、安全访问、Lua真值、相等性、toString |
-| GCObject类 | 8 | 对象创建、类型检查、颜色标记、对象链、大小计算 |
-| GCString类 | 10 | 字符串创建、长度、数据访问、哈希值、指针比较 |
-| StringPool类 | 11 | 字符串驻留、指针相等性、池大小、查找、删除 |
-| Table类 | 11 | 数组操作、哈希操作、长度计算、键存在性、元表 |
-| Function类 | 12 | C函数、Lua函数、Proto、常量表、GC标记 |
-| Upvalue类 | 11 | Open/Closed状态、共享机制、批量关闭 |
-| Userdata类 | 6 | 完整用户数据、类型化数据、元表、GC集成 |
-| GarbageCollector | 8 | 对象注册、根对象、垃圾回收、统计信息 |
-| GlobalState类 | 4 | 单例访问、字符串池、GC、注册表、元表 |
-| Stack类 | 5 | 压栈、弹栈、索引访问、自动扩展 |
-| CallInfo类 | 3 | 调用上下文、栈帧布局 |
-| LuaState类 | 5 | 状态管理、栈操作、Upvalue管理 |
-| Lexer类 | 18 | 关键字、标识符、数字、字符串、运算符、注释 |
-| Parser类 | 10 | 语句解析、表达式解析、运算符优先级、AST生成 |
-| CodeGenerator类 | 7 | 数字常量、字符串常量、布尔常量、nil常量、局部变量、全局变量、多变量赋值 |
-| VM类 | 6 | 常量执行、FORLOOP循环、SETLIST表初始化、Upvalue操作、函数调用、闭包创建 |
-| BaseLib类 | 8 | print、type、tostring、tonumber、error、assert、setmetatable、getmetatable |
+| 测试套件 | 测试数 | 覆盖内容 |
+|---------|--------|---------|
+| **Value** | 16 | 类型创建、类型检查、安全访问、Lua真值、相等性、toString |
+| **GCString** | 9 | 字符串创建、长度、数据访问、哈希值、GC类型 |
+| **StringPool** | 11 | 字符串驻留、指针相等性、池大小、查找、删除 |
+| **Table** | 13 | 表创建、数组操作、哈希操作、元表、混合存储 |
+| **VM Core** | 24 | GlobalState、Stack、CallInfo、LuaState（栈操作、类型检查、全局变量） |
+| **Function** | 20 | C函数、Lua函数、Proto、常量表、指令、Upvalue、环境表 |
+| **GC** | 18 | GCObject、GarbageCollector、Upvalue（标记、清除、Open/Closed状态） |
+| **总计** | **111** | **全面覆盖所有核心模块** |
 
 ### 质量标准
 
-- ✅ **测试通过率**：100% (155/155)
+- ✅ **测试通过率**：100% (111/111)
 - ✅ **编译警告**：0个
 - ✅ **内存泄漏**：无（手动管理，待添加智能指针）
 - ✅ **代码规范**：遵循类型系统使用规范
@@ -1463,7 +1544,9 @@ print("1 + 2 =", result)
 
 ### 最近更新
 
-- **2025-11-14**：实现基础库8个核心函数（print、type、tostring、tonumber、error、assert、setmetatable、getmetatable），扩展LuaState API（30+方法），155个测试全部通过 ⭐ 新完成
+- **2025-11-14**：重构main.cpp，复用tests/unit/测试框架，避免代码重复（从2572行减少到113行），实现代码共享 ⭐ 新完成
+- **2025-11-14**：改进测试框架，将内联测试迁移到独立的单元测试文件，创建自定义轻量级测试框架（无外部依赖），111个单元测试全部通过
+- **2025-11-14**：实现基础库8个核心函数（print、type、tostring、tonumber、error、assert、setmetatable、getmetatable），扩展LuaState API（30+方法）
 - **2025-11-13**：完善VM执行引擎（实现全部38条指令），147个测试全部通过
 - **2025-11-13**：实现CodeGenerator字节码生成器（OpCode + CodeGen），141个测试全部通过
 - **2025-11-13**：实现Parser语法分析器（AST + 递归下降解析），134个测试全部通过
@@ -1514,7 +1597,7 @@ git log --oneline -10
 5. **编译并运行测试**（1分钟）- 验证环境
    ```powershell
    cd lua
-   .\build_with_vcvars.bat debug
+   .\build_tests.bat debug
    ```
 6. **开始开发下一个模块** - 参考"下一步计划"部分
 

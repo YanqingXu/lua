@@ -139,14 +139,51 @@ echo [INFO] Compiling BaseLib...
 cl %CXX_FLAGS% /Isrc /c /Fo"%OUTPUT_DIR%\baselib.obj" "src\lib\baselib.cpp"
 if %errorlevel% neq 0 exit /b %errorlevel%
 
+echo.
+echo [INFO] ========================================
+echo [INFO] Compiling Test Files...
+echo [INFO] ========================================
+echo.
+
+echo [INFO] Compiling test_value...
+cl %CXX_FLAGS% /Isrc /Itests\unit /c /Fo"%OUTPUT_DIR%\test_value.obj" "tests\unit\test_value.cpp"
+if %errorlevel% neq 0 exit /b %errorlevel%
+
+echo [INFO] Compiling test_gc_string...
+cl %CXX_FLAGS% /Isrc /Itests\unit /c /Fo"%OUTPUT_DIR%\test_gc_string.obj" "tests\unit\test_gc_string.cpp"
+if %errorlevel% neq 0 exit /b %errorlevel%
+
+echo [INFO] Compiling test_table...
+cl %CXX_FLAGS% /Isrc /Itests\unit /c /Fo"%OUTPUT_DIR%\test_table.obj" "tests\unit\test_table.cpp"
+if %errorlevel% neq 0 exit /b %errorlevel%
+
+echo [INFO] Compiling test_vm_core...
+cl %CXX_FLAGS% /Isrc /Itests\unit /c /Fo"%OUTPUT_DIR%\test_vm_core.obj" "tests\unit\test_vm_core.cpp"
+if %errorlevel% neq 0 exit /b %errorlevel%
+
+echo [INFO] Compiling test_function...
+cl %CXX_FLAGS% /Isrc /Itests\unit /c /Fo"%OUTPUT_DIR%\test_function.obj" "tests\unit\test_function.cpp"
+if %errorlevel% neq 0 exit /b %errorlevel%
+
+echo [INFO] Compiling test_gc...
+cl %CXX_FLAGS% /Isrc /Itests\unit /c /Fo"%OUTPUT_DIR%\test_gc.obj" "tests\unit\test_gc.cpp"
+if %errorlevel% neq 0 exit /b %errorlevel%
+
+echo.
 echo [INFO] Compiling main.cpp...
-cl %CXX_FLAGS% /Isrc /c /Fo"%OUTPUT_DIR%\main.obj" "src\main.cpp"
+cl %CXX_FLAGS% /Isrc /Itests\unit /c /Fo"%OUTPUT_DIR%\main.obj" "src\main.cpp"
 if %errorlevel% neq 0 exit /b %errorlevel%
 
 echo.
 echo [INFO] Linking executable...
-cl %CXX_FLAGS% /Fe"%OUTPUT_DIR%\lua_test.exe" ^
+cl %CXX_FLAGS% /Fe"%OUTPUT_DIR%\main.exe" ^
     "%OUTPUT_DIR%\main.obj" ^
+    "%OUTPUT_DIR%\test_value.obj" ^
+    "%OUTPUT_DIR%\test_gc_string.obj" ^
+    "%OUTPUT_DIR%\test_table.obj" ^
+    "%OUTPUT_DIR%\test_vm_core.obj" ^
+    "%OUTPUT_DIR%\test_function.obj" ^
+    "%OUTPUT_DIR%\test_gc.obj" ^
     "%OUTPUT_DIR%\value.obj" ^
     "%OUTPUT_DIR%\gc_object.obj" ^
     "%OUTPUT_DIR%\gc_string.obj" ^
@@ -177,7 +214,7 @@ echo [INFO] ========================================
 echo [INFO] Compilation successful!
 echo [INFO] ========================================
 echo.
-echo [INFO] Executable: %OUTPUT_DIR%\lua_test.exe
+echo [INFO] Executable: %OUTPUT_DIR%\main.exe
 echo.
 
 echo [INFO] ========================================
@@ -185,7 +222,7 @@ echo [INFO] Running test program...
 echo [INFO] ========================================
 echo.
 
-"%OUTPUT_DIR%\lua_test.exe"
+"%OUTPUT_DIR%\main.exe"
 
 if %errorlevel% neq 0 (
     echo.
