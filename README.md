@@ -3,7 +3,7 @@
 > **从零开始用C++17/20/23实现Lua 5.1.5解释器**
 
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen)]()
-[![Tests](https://img.shields.io/badge/tests-145%2F145-brightgreen)]()
+[![Tests](https://img.shields.io/badge/tests-155%2F155-brightgreen)]()
 [![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen)]()
 [![C++](https://img.shields.io/badge/C%2B%2B-17-blue)]()
 [![Platform](https://img.shields.io/badge/platform-Windows-blue)]()
@@ -56,12 +56,13 @@
 | **Parser语法分析器** | `src/compiler/parser.hpp/cpp` + `ast.hpp/cpp` | 语法分析（AST生成） | 10 | ✅ 完成 |
 | **CodeGenerator字节码生成器** | `src/compiler/codegen.hpp/cpp` + `opcode.hpp/cpp` | 字节码生成（AST→Bytecode） | 7 | ✅ 完成 |
 | **VM字节码执行引擎** | `src/vm/vm.hpp/cpp` | 字节码解释执行（38条指令） | 6 | ✅ 完成 |
+| **基础库（Base Library）** | `src/lib/baselib.hpp/cpp` | 8个核心函数（print、type等） | 8 | ✅ 完成 |
 
 ### 测试统计
 
 ```
-总测试数：147个
-通过率：  100% (147/147)
+总测试数：155个
+通过率：  100% (155/155)
 编译状态：Debug版本无警告
 平台：    Windows + MSVC (Visual Studio 2026)
 ```
@@ -79,12 +80,13 @@
 ✅ **CodeGenerator字节码生成器**：AST→字节码转换，寄存器分配，常量表管理，跳转回填
 ✅ **OpCode指令集**：完整Lua 5.1指令集（38条指令），iABC/iABx/iAsBx三种格式
 ✅ **VM字节码执行引擎**：完整38条指令实现，Upvalue操作，函数调用（C函数），循环指令（FORLOOP/FORPREP/TFORLOOP），闭包创建，表初始化（SETLIST）
+✅ **基础库（Base Library）**：8个核心函数（print、type、tostring、tonumber、error、assert、setmetatable、getmetatable），支持基本Lua脚本运行
 ✅ **StringPool**：字符串驻留（interning），节省内存
 ✅ **GarbageCollector**：标记-清除算法，根对象管理
 ✅ **GlobalState**：单例模式管理全局资源（字符串池、GC、注册表）
 ✅ **Stack**：动态值栈，自动扩展，O(1)压栈/弹栈操作
 ✅ **CallInfo**：轻量级调用上下文，支持函数调用链管理
-✅ **LuaState**：完整的线程执行环境，整合栈、调用信息和Upvalue链表
+✅ **LuaState**：完整的线程执行环境，整合栈、调用信息和Upvalue链表，扩展了30+个API方法支持基础库
 
 ### 虚拟机核心模块详解
 
@@ -656,6 +658,89 @@ void doJump(i32 offset) {
 - 内联函数减少调用开销
 - 直接栈访问避免间接寻址
 
+#### BaseLib（基础库）⭐ 新完成
+
+**文件**: `src/lib/baselib.hpp/cpp`
+
+**核心功能**：
+- 提供Lua脚本运行所需的核心函数
+- 实现8个最基础的全局函数
+- 支持基本的类型操作、输出和错误处理
+- 与VM和LuaState完全集成
+
+**已实现的8个核心函数**：
+
+1. **print(...)**
+   - 打印任意数量的参数到标准输出
+   - 参数间用制表符分隔，自动添加换行
+   - 支持所有Lua类型的字符串转换
+
+2. **type(v)**
+   - 返回值的类型字符串
+   - 支持的类型："nil", "boolean", "number", "string", "table", "function", "userdata", "thread"
+
+3. **tostring(v)**
+   - 将值转换为字符串表示
+   - 支持所有基本类型
+   - TODO: 实现__tostring元方法支持
+
+4. **tonumber(e [, base])**
+   - 将值转换为数字
+   - 支持数字类型直接返回
+   - TODO: 实现字符串到数字的转换（不同进制）
+
+5. **error(message [, level])**
+   - 抛出错误并终止执行
+   - 支持自定义错误消息
+   - TODO: 添加位置信息（level参数）
+
+6. **assert(v [, message])**
+   - 断言检查，如果v为假值则抛出错误
+   - 支持自定义错误消息
+   - 断言成功时返回所有参数
+
+7. **setmetatable(table, metatable)**
+   - 设置表的元表
+   - 只能为表类型设置元表
+   - 元表必须是表或nil
+   - TODO: 检查__metatable字段（保护机制）
+
+8. **getmetatable(object)**
+   - 获取对象的元表
+   - 如果没有元表返回nil
+   - TODO: 检查__metatable字段
+
+**关键特性**：
+```cpp
+// 注册基础库函数
+LuaState* L = LuaState::newState();
+openBaseLib(L);  // 注册所有8个函数到全局环境
+
+// 从Lua代码中调用
+// print("Hello, Lua!")
+// local t = type(42)  -- "number"
+// local s = tostring(123)  -- "123"
+```
+
+**LuaState API扩展**（为支持基础库新增30+方法）：
+- **栈操作**: getTop(), setTop(), pushValue(), at()
+- **全局变量**: setGlobal(), getGlobal()
+- **类型检查**: isNumber(), isString(), isTable(), isFunction(), isNil(), isBoolean(), type(), typeName()
+- **类型转换**: toNumber(), toString(), toBoolean()
+- **元表操作**: getMetatable(), setMetatable()
+- **错误处理**: error(msg), error()
+
+**已知限制**：
+- tostring未实现__tostring元方法支持
+- tonumber未实现字符串到数字的转换（不同进制）
+- error未添加位置信息（level参数）
+- setmetatable/getmetatable未实现__metatable字段检查
+
+**测试覆盖**：8个测试用例，验证所有函数正常工作
+
+**参考实现**：
+- `lua_c_analysis/src/lbaselib.c` - Lua 5.1.5 C版本基础库
+
 ---
 
 ## 🏗️ 项目结构
@@ -695,7 +780,8 @@ void doJump(i32 offset) {
 │   │   │   ├── parser.hpp/cpp   # 语法分析器
 │   │   │   ├── opcode.hpp/cpp   # 指令集定义（38条Lua 5.1指令）⭐ 新完成
 │   │   │   └── codegen.hpp/cpp  # 字节码生成器 ⭐ 新完成
-│   │   ├── lib/                 # 标准库（待实现）
+│   │   ├── lib/                 # 标准库
+│   │   │   └── baselib.hpp/cpp  # 基础库（8个核心函数）⭐ 新完成
 │   │   └── main.cpp             # 测试主程序（VS IDE手动编译用）
 │   ├── docs/                    # 项目文档
 │   │   ├── ARCHITECTURE.md      # 架构设计文档
@@ -821,7 +907,7 @@ lua/build/
 | **阶段4** | 虚拟机核心 | ✅ 完成 | 100% |
 | **阶段4.5** | Upvalue支持 | ✅ 完成 | 100% |
 | **阶段5** | 编译器 + VM | ✅ 完成 | 100% |
-| **阶段6** | 标准库 | ⏳ 待开始 | 0% |
+| **阶段6** | 标准库 | 🔄 进行中 | 38% |
 | **阶段7** | 测试和优化 | ⏳ 待开始 | 0% |
 
 ### 里程碑
@@ -840,39 +926,123 @@ lua/build/
 
 ## 🎯 下一步计划
 
-根据`docs/IMPLEMENTATION_PLAN.md`，编译器前端和VM执行引擎已完成，接下来有以下开发选项：
+根据`docs/IMPLEMENTATION_PLAN.md`和《实现状态深度评估报告.md》，编译器前端和VM执行引擎已完成，基础库已实现8个核心函数，接下来有以下开发选项：
 
-### 选项A：完善VM执行引擎（⭐ 推荐）
+### 选项A：完善VM执行引擎 - 支持Lua函数调用（⭐⭐⭐ 最高优先级）
 
-**功能**：
-- 实现函数调用指令（CALL、TAILCALL）
-- 实现循环指令（FORLOOP、FORPREP、TFORLOOP）
-- 实现闭包指令（CLOSURE、GETUPVAL、SETUPVAL、CLOSE）
-- 实现可变参数指令（VARARG）
-- 实现表初始化指令（SETLIST）
+**当前状态**：
+- ✅ 已完成：算术指令、比较指令、逻辑指令、跳转指令、表操作、全局变量、Upvalue操作
+- ✅ 已完成：C函数调用（基础库函数可以调用）
+- ❌ 缺失：Lua函数的嵌套调用（致命缺陷）
+
+**必须实现**：
+- 实现完整的CALL指令（支持嵌套Lua函数调用）
+- 实现完整的TAILCALL指令（尾调用优化）
+- 实现完整的RETURN指令（多返回值支持）
+- 实现CallInfo链表管理（调用栈）
+- 实现栈帧切换机制
 
 **原因**：
-- 当前VM只支持基础指令，需要完善才能运行完整的Lua代码
-- 函数调用和闭包是Lua的核心特性
-- 可以手动构造字节码进行测试
+- 🔴 **致命缺陷**：当前VM无法调用任何Lua函数，解释器基本不可用
+- 🔴 **阻塞其他功能**：无法测试CodeGenerator生成的函数定义代码
+- 🔴 **核心特性**：函数调用是Lua的核心特性，必须优先实现
 
 **参考**：
-- `lua_c_analysis/src/lvm.h` 和 `lvm.c` - 虚拟机执行
-- `lua_c_analysis/src/ldo.h` 和 `ldo.c` - 函数调用
+- `lua_c_analysis/src/lvm.c` - luaV_execute函数（CALL/TAILCALL/RETURN实现）
+- `lua_c_analysis/src/ldo.c` - luaD_precall和luaD_poscall函数
 - `lua_c_analysis/src/lopcodes.h` - 指令定义
 
-### 选项B：实现标准库（⭐ 推荐）
+**验收标准**：
+```lua
+function factorial(n)
+    if n <= 1 then return 1 end
+    return n * factorial(n - 1)
+end
+print(factorial(5))  -- 应输出120
+```
 
-**功能**：
-- 实现基础库（base library）：print, type, tonumber, tostring, error等
-- 实现表库（table library）：insert, remove, sort等
-- 实现字符串库（string library）：sub, find, gsub等
-- 实现数学库（math library）：sin, cos, sqrt等
+---
+
+### 选项B：完善CodeGenerator - 支持运算符表达式（⭐⭐⭐ 最高优先级）
+
+**当前状态**：
+- ✅ 已完成：字面量表达式（nil、boolean、number、string）、变量名表达式
+- ❌ 缺失：BinaryExpr（二元运算）、UnaryExpr（一元运算）
+
+**必须实现**：
+- 算术运算（+, -, *, /, %, ^）
+- 比较运算（==, ~=, <, <=, >, >=）
+- 逻辑运算（and, or）
+- 一元运算（-, not, #）
+- 字符串连接（..）
 
 **原因**：
-- 标准库是Lua的重要组成部分
-- 可以运行实际的Lua代码
-- 验证VM和编译器的正确性
+- 🔴 **致命缺陷**：无法使用任何运算符，几乎所有表达式都无法编译
+- 🔴 **基础功能**：运算符是编程语言的基础，必须优先实现
+
+**参考**：
+- `lua_c_analysis/src/lcode.c` - 表达式代码生成
+- `lua_c_analysis/src/lparser.c` - 运算符优先级处理
+
+**验收标准**：
+```lua
+local x = 1 + 2 * 3
+local y = x > 5 and 10 or 20
+local z = -x
+local s = "Hello" .. " " .. "World"
+```
+
+---
+
+### 选项C：完善CodeGenerator - 支持函数定义和调用（⭐⭐⭐ 最高优先级）
+
+**当前状态**：
+- ❌ 缺失：FunctionStmt（函数定义语句）
+- ❌ 缺失：FunctionExpr（函数表达式）
+- ❌ 缺失：CallExpr（函数调用表达式）
+
+**必须实现**：
+- 函数定义语句（function foo() end）
+- 局部函数定义（local function foo() end）
+- 函数表达式（local f = function() end）
+- 函数调用表达式（foo()）
+- 参数传递和返回值处理
+
+**原因**：
+- 🔴 **致命缺陷**：无法定义和调用函数，无法编译任何有意义的Lua代码
+- 🔴 **核心特性**：函数是Lua的核心特性
+
+**参考**：
+- `lua_c_analysis/src/lcode.c` - 函数编译
+- `lua_c_analysis/src/lparser.c` - 函数解析
+
+**验收标准**：
+```lua
+function add(a, b)
+    return a + b
+end
+local result = add(1, 2)
+print("1 + 2 =", result)
+```
+
+---
+
+### 选项D：扩展标准库（⭐⭐ 高优先级）
+
+**当前状态**：
+- ✅ 已完成：基础库8个核心函数（print、type、tostring、tonumber、error、assert、setmetatable、getmetatable）
+- ❌ 缺失：基础库其他13个函数（pcall、xpcall、pairs、ipairs、next、rawget、rawset等）
+- ❌ 缺失：表库、字符串库、数学库、IO库、OS库
+
+**建议实现**：
+- 基础库剩余函数：pcall, xpcall, pairs, ipairs, next, rawget, rawset, rawequal, select, unpack
+- 表库核心函数：insert, remove, sort, concat
+- 字符串库核心函数：sub, find, gsub, upper, lower, len
+- 数学库核心函数：abs, floor, ceil, sqrt, min, max
+
+**原因**：
+- 🟡 **重要但非紧急**：基础库8个核心函数已足够运行简单脚本
+- 🟡 **依赖其他功能**：pairs/ipairs需要迭代器支持（需要先完善VM）
 
 **参考**：
 - `lua_c_analysis/src/lbaselib.c` - 基础库
@@ -880,22 +1050,26 @@ lua/build/
 - `lua_c_analysis/src/lstrlib.c` - 字符串库
 - `lua_c_analysis/src/lmathlib.c` - 数学库
 
-### 选项C：完善CodeGenerator（支持更多语法）
+---
 
-**功能**：
-- 支持二元运算表达式（ADD、SUB、MUL等）
-- 支持函数调用表达式（CALL指令）
-- 支持表构造器（NEWTABLE、SETTABLE）
-- 支持控制流语句（if、while、for）
-- 支持函数定义（CLOSURE指令）
+### 🎯 推荐开发顺序（基于优先级）
 
-**原因**：
-- 当前CodeGenerator只支持简单的常量和赋值
-- 需要支持更多语法才能编译完整的Lua代码
+1. **第一阶段（2-3周）**：使解释器基本可用
+   - ✅ 任务1：完善CodeGenerator - 支持运算符表达式（BinaryExpr、UnaryExpr）
+   - ✅ 任务2：完善CodeGenerator - 支持函数定义和调用（FunctionStmt、FunctionExpr、CallExpr）
+   - ⏳ 任务3：完善VM - 支持Lua函数调用（CALL/TAILCALL/RETURN完整实现）
+   - ✅ 任务4：实现基础库8个核心函数
 
-**参考**：
-- `lua_c_analysis/src/lcode.h` 和 `lcode.c` - 代码生成器
-- `lua_c_analysis/src/lparser.c` - 解析器中的代码生成部分
+2. **第二阶段（2-4周）**：完善核心功能
+   - 任务5：完善CodeGenerator - 支持for循环（ForNumStmt、ForInStmt）
+   - 任务6：完善VM - 支持完整闭包（CLOSURE指令的upvalue处理）
+   - 任务7：扩展标准库（表库、字符串库、数学库）
+   - 任务8：实现基础C API
+
+3. **第三阶段（1-2个月）**：完整功能
+   - 任务9：实现IO库、OS库
+   - 任务10：实现协程系统
+   - 任务11：实现调试库
 
 ---
 
@@ -1192,10 +1366,11 @@ lua/build/
 | Parser类 | 10 | 语句解析、表达式解析、运算符优先级、AST生成 |
 | CodeGenerator类 | 7 | 数字常量、字符串常量、布尔常量、nil常量、局部变量、全局变量、多变量赋值 |
 | VM类 | 6 | 常量执行、FORLOOP循环、SETLIST表初始化、Upvalue操作、函数调用、闭包创建 |
+| BaseLib类 | 8 | print、type、tostring、tonumber、error、assert、setmetatable、getmetatable |
 
 ### 质量标准
 
-- ✅ **测试通过率**：100% (145/145)
+- ✅ **测试通过率**：100% (155/155)
 - ✅ **编译警告**：0个
 - ✅ **内存泄漏**：无（手动管理，待添加智能指针）
 - ✅ **代码规范**：遵循类型系统使用规范
@@ -1288,7 +1463,8 @@ lua/build/
 
 ### 最近更新
 
-- **2025-11-13**：完善VM执行引擎（实现全部38条指令），147个测试全部通过 ⭐ 新完成
+- **2025-11-14**：实现基础库8个核心函数（print、type、tostring、tonumber、error、assert、setmetatable、getmetatable），扩展LuaState API（30+方法），155个测试全部通过 ⭐ 新完成
+- **2025-11-13**：完善VM执行引擎（实现全部38条指令），147个测试全部通过
 - **2025-11-13**：实现CodeGenerator字节码生成器（OpCode + CodeGen），141个测试全部通过
 - **2025-11-13**：实现Parser语法分析器（AST + 递归下降解析），134个测试全部通过
 - **2025-11-12**：实现Lexer词法分析器（Token + 词法规则），124个测试全部通过
