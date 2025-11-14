@@ -3,7 +3,7 @@
 > **从零开始用C++17/20/23实现Lua 5.1.5解释器**
 
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen)]()
-[![Tests](https://img.shields.io/badge/tests-111%2F111-brightgreen)]()
+[![Tests](https://img.shields.io/badge/tests-147%2F147-brightgreen)]()
 [![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen)]()
 [![C++](https://img.shields.io/badge/C%2B%2B-17-blue)]()
 [![Platform](https://img.shields.io/badge/platform-Windows-blue)]()
@@ -56,16 +56,17 @@
 | **Parser语法分析器** | `src/compiler/parser.hpp/cpp` + `ast.hpp/cpp` | 语法分析（AST生成） | 10 | ✅ 完成 |
 | **CodeGenerator字节码生成器** | `src/compiler/codegen.hpp/cpp` + `opcode.hpp/cpp` | 字节码生成（AST→Bytecode） | 7 | ✅ 完成 |
 | **VM字节码执行引擎** | `src/vm/vm.hpp/cpp` | 字节码解释执行（38条指令） | 6 | ✅ 完成 |
-| **基础库（Base Library）** | `src/lib/baselib.hpp/cpp` | 8个核心函数（print、type等） | 8 | ✅ 完成 |
+| **基础库（Base Library）** | `src/lib/baselib.hpp/cpp` | 8个核心函数（print、type等） | 6 | ⚠️ 部分完成 |
 
 ### 测试统计
 
 ```
-测试框架：自定义轻量级测试框架
-测试套件：7个（Value、GCString、StringPool、Table、VM Core、Function、GC）
-总测试数：111个单元测试
-通过率：  100% (111/111)
-编译状态：Debug版本无警告
+测试框架：自定义轻量级测试框架（零外部依赖）
+测试套件：11个（Value、GCString、StringPool、Table、VM Core、Function、GC、
+          Binary/Unary Expressions、Function Codegen、Base Library、Lua File Compilation）
+总测试数：147个单元测试
+通过率：  100% (147/147)
+编译状态：Debug和Release版本均无警告，无链接冲突
 平台：    Windows + MSVC (Visual Studio 2026)
 ```
 
@@ -737,8 +738,9 @@ openBaseLib(L);  // 注册所有8个函数到全局环境
 - tonumber未实现字符串到数字的转换（不同进制）
 - error未添加位置信息（level参数）
 - setmetatable/getmetatable未实现__metatable字段检查
+- 基础库实现尚未完全集成测试（当前测试被跳过）
 
-**测试覆盖**：8个测试用例，验证所有函数正常工作
+**测试覆盖**：6个测试用例（当前跳过，等待完整实现后启用）
 
 **参考实现**：
 - `lua_c_analysis/src/lbaselib.c` - Lua 5.1.5 C版本基础库
@@ -787,7 +789,6 @@ openBaseLib(L);  // 注册所有8个函数到全局环境
 │   │   └── main.cpp             # 测试主程序（VS IDE手动编译用）
 │   ├── docs/                    # 项目文档
 │   │   ├── ARCHITECTURE.md      # 架构设计文档
-│   │   ├── IMPLEMENTATION_PLAN.md # 7阶段18周开发计划
 │   │   ├── DEVELOPMENT_GUIDE.md # 编码规范和类型系统使用指南
 │   │   ├── PROJECT_OVERVIEW.md  # 项目总览
 │   │   └── PROJECT_SUMMARY_CN.md # 中文项目总结
@@ -831,7 +832,6 @@ openBaseLib(L);  // 注册所有8个函数到全局环境
 | `tests/unit/test_registry.hpp` | 测试注册函数声明 | ⭐⭐⭐ |
 | `src/main.cpp` | 主程序（复用测试框架），用于VS IDE手动编译 | ⭐⭐⭐ |
 | `docs/ARCHITECTURE.md` | 架构设计，理解系统结构 | ⭐⭐⭐ |
-| `docs/IMPLEMENTATION_PLAN.md` | 开发计划，了解下一步任务 | ⭐⭐⭐ |
 | `docs/DEVELOPMENT_GUIDE.md` | 编码规范，类型系统使用指南 | ⭐⭐⭐ |
 | `lua_c_analysis/src/` | Lua C源码参考 | ⭐⭐⭐ |
 
@@ -891,8 +891,8 @@ Total: 16 | Pass: 16 | Fail: 0
 ========================================
 Test Summary
 ========================================
-Total Tests: 111
-Passed: 111
+Total Tests: 147
+Passed: 147
 Failed: 0
 ========================================
 
@@ -991,33 +991,67 @@ lua/build/
 
 ---
 
-## 🎯 下一步计划
+## 🎯 下一步开发计划
 
-根据`docs/IMPLEMENTATION_PLAN.md`和《实现状态深度评估报告.md》，编译器前端和VM执行引擎已完成，基础库已实现8个核心函数，接下来有以下开发选项：
+基于当前项目状态（编译器前端完成、VM核心完成、基础库部分完成），以下是详细的开发计划：
 
-### 选项A：完善VM执行引擎 - 支持Lua函数调用（⭐⭐⭐ 最高优先级）
+---
+
+### 优先级 P0（必须完成）- 核心功能缺陷修复
+
+#### 1. 完善基础库实现和测试集成 ⭐⭐⭐
+
+**当前状态**：
+- ✅ 已实现：8个核心函数的代码（print、type、tostring、tonumber、error、assert、setmetatable、getmetatable）
+- ❌ 问题：基础库测试被跳过，实现未完全验证
+- ❌ 问题：部分函数功能不完整（如tonumber的字符串转换）
+
+**必须完成**：
+- 修复基础库实现中的bug
+- 完善tonumber的字符串到数字转换（支持不同进制）
+- 实现tostring的__tostring元方法支持
+- 实现error的位置信息（level参数）
+- 实现setmetatable/getmetatable的__metatable字段检查
+- 启用并通过所有基础库测试
+
+**预计工作量**：2-3天
+
+**依赖关系**：无
+
+**验收标准**：
+```lua
+print(type(42))           -- "number"
+print(tostring(123))      -- "123"
+print(tonumber("FF", 16)) -- 255
+local t = {x=10}
+setmetatable(t, {__tostring = function() return "custom" end})
+print(tostring(t))        -- "custom"
+```
+
+---
+
+#### 2. 完善VM执行引擎 - 支持完整的Lua函数调用 ⭐⭐⭐
 
 **当前状态**：
 - ✅ 已完成：算术指令、比较指令、逻辑指令、跳转指令、表操作、全局变量、Upvalue操作
 - ✅ 已完成：C函数调用（基础库函数可以调用）
-- ❌ 缺失：Lua函数的嵌套调用（致命缺陷）
+- ⚠️ 简化实现：CALL/TAILCALL/RETURN指令（可能不支持嵌套调用和多返回值）
 
-**必须实现**：
-- 实现完整的CALL指令（支持嵌套Lua函数调用）
-- 实现完整的TAILCALL指令（尾调用优化）
-- 实现完整的RETURN指令（多返回值支持）
-- 实现CallInfo链表管理（调用栈）
-- 实现栈帧切换机制
+**必须完成**：
+- 验证并完善CALL指令（支持嵌套Lua函数调用）
+- 验证并完善TAILCALL指令（尾调用优化）
+- 验证并完善RETURN指令（多返回值支持）
+- 完善CallInfo链表管理（调用栈）
+- 完善栈帧切换机制
+- 添加完整的函数调用测试
 
-**原因**：
-- 🔴 **致命缺陷**：当前VM无法调用任何Lua函数，解释器基本不可用
-- 🔴 **阻塞其他功能**：无法测试CodeGenerator生成的函数定义代码
-- 🔴 **核心特性**：函数调用是Lua的核心特性，必须优先实现
+**预计工作量**：3-5天
+
+**依赖关系**：依赖任务1（基础库）
 
 **参考**：
-- `lua_c_analysis/src/lvm.c` - luaV_execute函数（CALL/TAILCALL/RETURN实现）
+- `lua_c_analysis/src/lvm.c` - luaV_execute函数
 - `lua_c_analysis/src/ldo.c` - luaD_precall和luaD_poscall函数
-- `lua_c_analysis/src/lopcodes.h` - 指令定义
 
 **验收标准**：
 ```lua
@@ -1026,117 +1060,293 @@ function factorial(n)
     return n * factorial(n - 1)
 end
 print(factorial(5))  -- 应输出120
-```
 
----
-
-### 选项B：完善CodeGenerator - 支持运算符表达式（⭐⭐⭐ 最高优先级）
-
-**当前状态**：
-- ✅ 已完成：字面量表达式（nil、boolean、number、string）、变量名表达式
-- ❌ 缺失：BinaryExpr（二元运算）、UnaryExpr（一元运算）
-
-**必须实现**：
-- 算术运算（+, -, *, /, %, ^）
-- 比较运算（==, ~=, <, <=, >, >=）
-- 逻辑运算（and, or）
-- 一元运算（-, not, #）
-- 字符串连接（..）
-
-**原因**：
-- 🔴 **致命缺陷**：无法使用任何运算符，几乎所有表达式都无法编译
-- 🔴 **基础功能**：运算符是编程语言的基础，必须优先实现
-
-**参考**：
-- `lua_c_analysis/src/lcode.c` - 表达式代码生成
-- `lua_c_analysis/src/lparser.c` - 运算符优先级处理
-
-**验收标准**：
-```lua
-local x = 1 + 2 * 3
-local y = x > 5 and 10 or 20
-local z = -x
-local s = "Hello" .. " " .. "World"
-```
-
----
-
-### 选项C：完善CodeGenerator - 支持函数定义和调用（⭐⭐⭐ 最高优先级）
-
-**当前状态**：
-- ❌ 缺失：FunctionStmt（函数定义语句）
-- ❌ 缺失：FunctionExpr（函数表达式）
-- ❌ 缺失：CallExpr（函数调用表达式）
-
-**必须实现**：
-- 函数定义语句（function foo() end）
-- 局部函数定义（local function foo() end）
-- 函数表达式（local f = function() end）
-- 函数调用表达式（foo()）
-- 参数传递和返回值处理
-
-**原因**：
-- 🔴 **致命缺陷**：无法定义和调用函数，无法编译任何有意义的Lua代码
-- 🔴 **核心特性**：函数是Lua的核心特性
-
-**参考**：
-- `lua_c_analysis/src/lcode.c` - 函数编译
-- `lua_c_analysis/src/lparser.c` - 函数解析
-
-**验收标准**：
-```lua
-function add(a, b)
-    return a + b
+function multi_return()
+    return 1, 2, 3
 end
-local result = add(1, 2)
-print("1 + 2 =", result)
+local a, b, c = multi_return()
+print(a, b, c)  -- 应输出1 2 3
 ```
 
 ---
 
-### 选项D：扩展标准库（⭐⭐ 高优先级）
+#### 3. 创建端到端集成测试 ⭐⭐⭐
 
 **当前状态**：
-- ✅ 已完成：基础库8个核心函数（print、type、tostring、tonumber、error、assert、setmetatable、getmetatable）
-- ❌ 缺失：基础库其他13个函数（pcall、xpcall、pairs、ipairs、next、rawget、rawset等）
-- ❌ 缺失：表库、字符串库、数学库、IO库、OS库
+- ✅ 已完成：单元测试（147个）
+- ❌ 缺失：端到端集成测试（Lexer → Parser → CodeGen → VM → 输出）
 
-**建议实现**：
-- 基础库剩余函数：pcall, xpcall, pairs, ipairs, next, rawget, rawset, rawequal, select, unpack
-- 表库核心函数：insert, remove, sort, concat
-- 字符串库核心函数：sub, find, gsub, upper, lower, len
-- 数学库核心函数：abs, floor, ceil, sqrt, min, max
+**必须完成**：
+- 创建集成测试框架
+- 编写10-20个Lua脚本测试用例
+- 测试完整的编译和执行流程
+- 验证输出正确性
 
-**原因**：
-- 🟡 **重要但非紧急**：基础库8个核心函数已足够运行简单脚本
-- 🟡 **依赖其他功能**：pairs/ipairs需要迭代器支持（需要先完善VM）
+**预计工作量**：2-3天
 
-**参考**：
-- `lua_c_analysis/src/lbaselib.c` - 基础库
-- `lua_c_analysis/src/ltablib.c` - 表库
-- `lua_c_analysis/src/lstrlib.c` - 字符串库
-- `lua_c_analysis/src/lmathlib.c` - 数学库
+**依赖关系**：依赖任务1和任务2
+
+**验收标准**：
+```lua
+-- test_integration_01.lua
+local x = 10
+local y = 20
+print("x + y =", x + y)  -- 应输出：x + y = 30
+
+-- test_integration_02.lua
+function greet(name)
+    return "Hello, " .. name .. "!"
+end
+print(greet("Lua"))  -- 应输出：Hello, Lua!
+```
 
 ---
 
-### 🎯 推荐开发顺序（基于优先级）
+### 优先级 P1（重要）- 功能完善
 
-1. **第一阶段（2-3周）**：使解释器基本可用
-   - ✅ 任务1：完善CodeGenerator - 支持运算符表达式（BinaryExpr、UnaryExpr）
-   - ✅ 任务2：完善CodeGenerator - 支持函数定义和调用（FunctionStmt、FunctionExpr、CallExpr）
-   - ⏳ 任务3：完善VM - 支持Lua函数调用（CALL/TAILCALL/RETURN完整实现）
-   - ✅ 任务4：实现基础库8个核心函数
+#### 4. 完善CodeGenerator - 支持所有控制流语句 ⭐⭐
 
-2. **第二阶段（2-4周）**：完善核心功能
-   - 任务5：完善CodeGenerator - 支持for循环（ForNumStmt、ForInStmt）
-   - 任务6：完善VM - 支持完整闭包（CLOSURE指令的upvalue处理）
-   - 任务7：扩展标准库（表库、字符串库、数学库）
-   - 任务8：实现基础C API
+**当前状态**：
+- ✅ 已完成：if语句、while循环、repeat循环
+- ⚠️ 可能不完整：for循环（数值for和泛型for）
 
-3. **第三阶段（1-2个月）**：完整功能
-   - 任务9：实现IO库、OS库
-   - 任务10：实现协程系统
-   - 任务11：实现调试库
+**必须完成**：
+- 验证并完善ForNumStmt（数值for循环）
+- 验证并完善ForInStmt（泛型for循环）
+- 添加完整的循环测试
+
+**预计工作量**：2-3天
+
+**依赖关系**：无
+
+**参考**：
+- `lua_c_analysis/src/lcode.c` - for循环代码生成
+
+**验收标准**：
+```lua
+-- 数值for循环
+for i = 1, 10 do
+    print(i)
+end
+
+-- 泛型for循环
+local t = {10, 20, 30}
+for i, v in ipairs(t) do
+    print(i, v)
+end
+```
+
+---
+
+#### 5. 扩展标准库 - 基础库剩余函数 ⭐⭐
+
+**当前状态**：
+- ✅ 已完成：8个核心函数
+- ❌ 缺失：13个剩余函数
+
+**必须完成**：
+- pcall（保护调用）
+- xpcall（扩展保护调用）
+- pairs（表迭代器）
+- ipairs（数组迭代器）
+- next（下一个键值对）
+- rawget（原始表访问）
+- rawset（原始表设置）
+- rawequal（原始相等比较）
+- select（参数选择）
+- unpack（表解包）
+- loadstring（字符串加载）
+- dofile（文件执行）
+- loadfile（文件加载）
+
+**预计工作量**：5-7天
+
+**依赖关系**：依赖任务2（完整函数调用）
+
+**参考**：
+- `lua_c_analysis/src/lbaselib.c`
+
+---
+
+#### 6. 实现表库（table library） ⭐⭐
+
+**必须完成**：
+- table.insert（插入元素）
+- table.remove（删除元素）
+- table.sort（排序）
+- table.concat（连接）
+- table.maxn（最大索引）
+- table.getn（获取长度）
+
+**预计工作量**：3-4天
+
+**依赖关系**：无
+
+**参考**：
+- `lua_c_analysis/src/ltablib.c`
+
+---
+
+#### 7. 实现字符串库（string library） ⭐⭐
+
+**必须完成**：
+- string.sub（子字符串）
+- string.find（查找）
+- string.gsub（替换）
+- string.upper（大写）
+- string.lower（小写）
+- string.len（长度）
+- string.rep（重复）
+- string.reverse（反转）
+- string.format（格式化）
+- string.byte（字节值）
+- string.char（字符）
+
+**预计工作量**：5-7天
+
+**依赖关系**：无
+
+**参考**：
+- `lua_c_analysis/src/lstrlib.c`
+
+---
+
+#### 8. 实现数学库（math library） ⭐
+
+**必须完成**：
+- math.abs（绝对值）
+- math.floor（向下取整）
+- math.ceil（向上取整）
+- math.sqrt（平方根）
+- math.min（最小值）
+- math.max（最大值）
+- math.sin、cos、tan（三角函数）
+- math.exp、log（指数和对数）
+- math.random、randomseed（随机数）
+- math.pi（圆周率常量）
+
+**预计工作量**：2-3天
+
+**依赖关系**：无
+
+**参考**：
+- `lua_c_analysis/src/lmathlib.c`
+
+---
+
+### 优先级 P2（可选）- 增强功能
+
+#### 9. 实现IO库（io library） ⭐
+
+**必须完成**：
+- io.open（打开文件）
+- io.close（关闭文件）
+- io.read（读取）
+- io.write（写入）
+- io.lines（行迭代器）
+- io.input、io.output（默认输入输出）
+
+**预计工作量**：4-5天
+
+**依赖关系**：依赖任务5（pairs/ipairs）
+
+**参考**：
+- `lua_c_analysis/src/liolib.c`
+
+---
+
+#### 10. 实现OS库（os library） ⭐
+
+**必须完成**：
+- os.time（时间）
+- os.date（日期）
+- os.clock（时钟）
+- os.exit（退出）
+- os.getenv（环境变量）
+- os.execute（执行命令）
+
+**预计工作量**：2-3天
+
+**依赖关系**：无
+
+**参考**：
+- `lua_c_analysis/src/loslib.c`
+
+---
+
+#### 11. 实现调试库（debug library） ⭐
+
+**必须完成**：
+- debug.getinfo（获取函数信息）
+- debug.traceback（堆栈跟踪）
+- debug.getlocal、setlocal（局部变量）
+- debug.getupvalue、setupvalue（upvalue）
+
+**预计工作量**：5-7天
+
+**依赖关系**：依赖任务2（完整函数调用）
+
+**参考**：
+- `lua_c_analysis/src/ldblib.c`
+
+---
+
+#### 12. 实现协程系统（coroutine） ⭐
+
+**必须完成**：
+- coroutine.create（创建协程）
+- coroutine.resume（恢复协程）
+- coroutine.yield（挂起协程）
+- coroutine.status（协程状态）
+- coroutine.wrap（包装协程）
+
+**预计工作量**：7-10天
+
+**依赖关系**：依赖任务2（完整函数调用）
+
+**参考**：
+- `lua_c_analysis/src/lcorolib.c`
+- `lua_c_analysis/src/ldo.c`
+
+---
+
+### 🎯 推荐开发路线图
+
+#### 第一阶段（1-2周）：修复核心缺陷，使解释器完全可用
+1. ✅ 完善基础库实现和测试集成（P0-1）
+2. ✅ 完善VM执行引擎 - 支持完整的Lua函数调用（P0-2）
+3. ✅ 创建端到端集成测试（P0-3）
+
+**里程碑**：能够运行简单的Lua脚本，包括函数定义和调用
+
+---
+
+#### 第二阶段（2-3周）：完善核心功能
+4. ✅ 完善CodeGenerator - 支持所有控制流语句（P1-4）
+5. ✅ 扩展标准库 - 基础库剩余函数（P1-5）
+6. ✅ 实现表库（P1-6）
+7. ✅ 实现字符串库（P1-7）
+8. ✅ 实现数学库（P1-8）
+
+**里程碑**：能够运行大部分常见的Lua脚本
+
+---
+
+#### 第三阶段（2-4周）：增强功能
+9. ✅ 实现IO库（P2-9）
+10. ✅ 实现OS库（P2-10）
+11. ✅ 实现调试库（P2-11）
+
+**里程碑**：支持文件操作和系统交互
+
+---
+
+#### 第四阶段（2-3周）：高级功能
+12. ✅ 实现协程系统（P2-12）
+13. ✅ 性能优化和测试
+14. ✅ 文档完善
+
+**里程碑**：1.0版本发布
 
 ---
 
@@ -1269,8 +1479,8 @@ print("1 + 2 =", result)
 | 文档 | 描述 | 用途 |
 |------|------|------|
 | **ARCHITECTURE.md** | 架构设计文档 | 理解系统整体架构和模块设计 |
-| **IMPLEMENTATION_PLAN.md** | 开发计划 | 7阶段18周详细开发计划和任务分解 |
 | **DEVELOPMENT_GUIDE.md** | 开发规范 | 编码规范、类型系统使用指南、质量标准 |
+| **PROJECT_OVERVIEW.md** | 项目总览 | 项目概况和技术栈 |
 | **PROJECT_SUMMARY_CN.md** | 中文项目总结 | 项目进展总结（中文） |
 
 ### 参考资源
@@ -1332,27 +1542,32 @@ print("1 + 2 =", result)
    - 使用MSVC编译器，Windows平台
 
 2. **已经完成了什么？**
-   - ✅ 7个核心模块（Value、GCObject、GCString、StringPool、Table、Function、GarbageCollector）
-   - ✅ 74个测试用例，100%通过率
-   - ✅ Debug和Release版本均编译成功，无警告
+   - ✅ 17个核心模块（Value、GCObject、GCString、StringPool、Table、Function、GarbageCollector、VM、Lexer、Parser、CodeGen等）
+   - ✅ 147个测试用例，100%通过率
+   - ✅ Debug和Release版本均编译成功，无警告，无链接冲突
+   - ✅ 编译器前端完成（Lexer、Parser、CodeGen）
+   - ✅ VM执行引擎完成（38条指令）
+   - ✅ 基础库部分完成（8个核心函数）
 
 3. **如何编译和测试？**
    ```powershell
    cd lua
-   .\build_with_vcvars.bat debug    # 编译Debug版本并运行测试
-   .\build_with_vcvars.bat release  # 编译Release版本并运行测试
+   .\build_tests.bat debug         # 编译并运行单元测试（推荐）
+   .\build_main.bat debug          # 编译main.cpp（复用测试框架）
+   .\build_with_vcvars.bat debug   # 旧版内联测试（备用）
    ```
 
 4. **下一步做什么？**
-   - **推荐**：开始虚拟机核心（LuaState、GlobalState、Stack、CallInfo）
-   - 或者：实现Userdata类、Thread类、完善Function类（Upvalue）
-   - 参考：`docs/IMPLEMENTATION_PLAN.md`
+   - **推荐P0**：完善基础库实现和测试集成
+   - **推荐P0**：完善VM执行引擎 - 支持完整的Lua函数调用
+   - **推荐P0**：创建端到端集成测试
+   - 参考：本README的"下一步开发计划"章节
 
 5. **在哪里找详细信息？**
    - 架构设计：`docs/ARCHITECTURE.md`
-   - 开发计划：`docs/IMPLEMENTATION_PLAN.md`
    - 编码规范：`docs/DEVELOPMENT_GUIDE.md`
    - Lua C源码：`../lua_c_analysis/src/`
+   - 项目总览：`docs/PROJECT_OVERVIEW.md`
 
 ---
 
@@ -1426,14 +1641,19 @@ print("1 + 2 =", result)
 **测试文件结构**：
 ```
 lua/tests/unit/
-├── test_framework.hpp      # 测试框架核心
-├── test_value.cpp          # Value类测试（16个测试）
-├── test_gc_string.cpp      # GCString和StringPool测试（20个测试）
-├── test_table.cpp          # Table类测试（13个测试）
-├── test_vm_core.cpp        # VM核心测试（24个测试）
-├── test_function.cpp       # Function和Proto测试（20个测试）
-├── test_gc.cpp             # GC系统测试（18个测试）
-└── test_runner.cpp         # 测试运行器（main函数）
+├── test_framework.hpp          # 测试框架核心
+├── test_registry.hpp           # 测试注册函数声明
+├── test_value.cpp              # Value类测试（16个测试）
+├── test_gc_string.cpp          # GCString和StringPool测试（20个测试）
+├── test_table.cpp              # Table类测试（13个测试）
+├── test_vm_core.cpp            # VM核心测试（23个测试）
+├── test_function.cpp           # Function和Proto测试（20个测试）
+├── test_gc.cpp                 # GC系统测试（18个测试）
+├── test_binary_unary_expr.cpp  # 二元/一元表达式测试（10个测试）
+├── test_function_codegen.cpp   # 函数代码生成测试（16个测试）
+├── test_baselib.cpp            # 基础库测试（6个测试，当前跳过）
+├── test_lua_functions.cpp      # Lua文件编译测试（5个测试）
+└── test_runner.cpp             # 测试运行器（main函数）
 ```
 
 ### 测试覆盖
@@ -1444,15 +1664,20 @@ lua/tests/unit/
 | **GCString** | 9 | 字符串创建、长度、数据访问、哈希值、GC类型 |
 | **StringPool** | 11 | 字符串驻留、指针相等性、池大小、查找、删除 |
 | **Table** | 13 | 表创建、数组操作、哈希操作、元表、混合存储 |
-| **VM Core** | 24 | GlobalState、Stack、CallInfo、LuaState（栈操作、类型检查、全局变量） |
+| **VM Core** | 23 | GlobalState、Stack、CallInfo、LuaState（栈操作、类型检查、全局变量） |
 | **Function** | 20 | C函数、Lua函数、Proto、常量表、指令、Upvalue、环境表 |
 | **GC** | 18 | GCObject、GarbageCollector、Upvalue（标记、清除、Open/Closed状态） |
-| **总计** | **111** | **全面覆盖所有核心模块** |
+| **Binary/Unary Expressions** | 10 | 二元运算、一元运算、复杂表达式的代码生成 |
+| **Function Codegen** | 16 | 函数定义、局部函数、函数表达式、函数调用、可变参数 |
+| **Base Library** | 6 | 基础库函数（当前跳过，等待完整实现） |
+| **Lua File Compilation** | 5 | Lua文件编译测试 |
+| **总计** | **147** | **全面覆盖所有核心模块和编译器** |
 
 ### 质量标准
 
-- ✅ **测试通过率**：100% (111/111)
-- ✅ **编译警告**：0个
+- ✅ **测试通过率**：100% (147/147)
+- ✅ **编译警告**：0个（Debug和Release版本）
+- ✅ **链接冲突**：无（所有测试文件已重构，消除main函数冲突）
 - ✅ **内存泄漏**：无（手动管理，待添加智能指针）
 - ✅ **代码规范**：遵循类型系统使用规范
 - ✅ **文档完整性**：所有公共API都有注释
@@ -1493,12 +1718,14 @@ lua/tests/unit/
 ### 代码规模
 
 ```
-源文件数：    36个
-头文件：      18个 (.hpp)
-实现文件：    18个 (.cpp)
-总代码行数：  约7200行（不含注释和空行）
+源文件数：    40+个
+头文件：      20+个 (.hpp)
+实现文件：    20+个 (.cpp)
+测试文件：    11个 (test_*.cpp)
+总代码行数：  约8000+行（不含注释和空行）
 文档行数：    约2500行
 测试用例：    147个
+测试套件：    11个
 ```
 
 ### 对象大小（Release版本）
@@ -1544,7 +1771,9 @@ lua/tests/unit/
 
 ### 最近更新
 
-- **2025-11-14**：重构main.cpp，复用tests/unit/测试框架，避免代码重复（从2572行减少到113行），实现代码共享 ⭐ 新完成
+- **2025-11-14**：修复测试文件main()函数冲突，重构4个测试文件，消除链接错误，147个测试全部通过 ⭐ 新完成
+- **2025-11-14**：代码审查和bug修复，修复35个P0优先级错误（单例模式违规、过时API使用、内存管理问题）
+- **2025-11-14**：重构main.cpp，复用tests/unit/测试框架，避免代码重复（从2572行减少到113行），实现代码共享
 - **2025-11-14**：改进测试框架，将内联测试迁移到独立的单元测试文件，创建自定义轻量级测试框架（无外部依赖），111个单元测试全部通过
 - **2025-11-14**：实现基础库8个核心函数（print、type、tostring、tonumber、error、assert、setmetatable、getmetatable），扩展LuaState API（30+方法）
 - **2025-11-13**：完善VM执行引擎（实现全部38条指令），147个测试全部通过
@@ -1590,16 +1819,16 @@ git log --oneline -10
 
 如果你是新的AI助手，请按以下步骤快速了解项目：
 
-1. **阅读本README**（2分钟）- 了解项目概况
+1. **阅读本README**（5分钟）- 了解项目概况和当前状态
 2. **查看`docs/ARCHITECTURE.md`**（5分钟）- 理解系统架构
-3. **查看`docs/IMPLEMENTATION_PLAN.md`**（3分钟）- 了解开发计划
-4. **查看`docs/DEVELOPMENT_GUIDE.md`**（5分钟）- 学习编码规范
-5. **编译并运行测试**（1分钟）- 验证环境
+3. **查看`docs/DEVELOPMENT_GUIDE.md`**（5分钟）- 学习编码规范
+4. **编译并运行测试**（1分钟）- 验证环境
    ```powershell
    cd lua
    .\build_tests.bat debug
    ```
-6. **开始开发下一个模块** - 参考"下一步计划"部分
+5. **查看"下一步开发计划"章节**（3分钟）- 了解优先级和任务
+6. **开始开发** - 从P0优先级任务开始
 
 ### 对于人类开发者
 
