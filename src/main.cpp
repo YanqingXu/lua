@@ -1718,6 +1718,136 @@ void testVM() {
         std::cout << "  ERROR: " << e.what() << std::endl;
     }
 
+    // =====================================================================
+    // 测试9：环境表基础功能
+    // =====================================================================
+    std::cout << "\n[Test 9] Environment table basic functionality" << std::endl;
+    try {
+        GlobalState& gs = L->getGlobalState();
+
+        // 创建两个不同的环境表
+        Table* env1 = new Table();
+        Table* env2 = new Table();
+        gs.getGC().registerObject(env1);
+        gs.getGC().registerObject(env2);
+
+        // 在环境表中设置不同的值
+        GCString* xName = pool.intern("x");
+        env1->set(Value(xName), Value(10.0));
+        env2->set(Value(xName), Value(20.0));
+
+        // 创建两个简单的函数（只有GETGLOBAL和RETURN指令）
+        Proto* proto1 = new Proto();
+        proto1->setNumParams(0);
+        proto1->setMaxStackSize(2);
+        proto1->addConstant(Value(xName));  // K(0) = "x"
+        proto1->addInstruction(CREATE_ABx(OpCode::GETGLOBAL, 0, 0));  // R(0) = env["x"]
+        proto1->addInstruction(CREATE_ABC(OpCode::RETURN, 0, 2, 0));  // return R(0)
+        gs.getGC().registerObject(proto1);
+
+        Proto* proto2 = new Proto();
+        proto2->setNumParams(0);
+        proto2->setMaxStackSize(2);
+        proto2->addConstant(Value(xName));  // K(0) = "x"
+        proto2->addInstruction(CREATE_ABx(OpCode::GETGLOBAL, 0, 0));  // R(0) = env["x"]
+        proto2->addInstruction(CREATE_ABC(OpCode::RETURN, 0, 2, 0));  // return R(0)
+        gs.getGC().registerObject(proto2);
+
+        // 创建函数并设置不同的环境表
+        Function* func1 = new Function(proto1);
+        Function* func2 = new Function(proto2);
+        func1->setEnv(env1);
+        func2->setEnv(env2);
+        gs.getGC().registerObject(func1);
+        gs.getGC().registerObject(func2);
+
+        // 执行func1，应该返回10
+        L->getStack().push(Value(func1));
+        VM vm1(L);
+        vm1.execute(func1);
+
+        Value result1 = L->getStack().at(0);
+        if (result1.isNumber() && result1.asNumber() == 10.0) {
+            std::cout << "  PASS: func1 returned 10 (using env1)" << std::endl;
+        } else {
+            std::cout << "  FAIL: func1 returned " << result1.asNumber() << ", expected 10" << std::endl;
+        }
+
+        // 清空栈
+        while (L->getStack().size() > 0) {
+            L->getStack().pop();
+        }
+
+        // 执行func2，应该返回20
+        L->getStack().push(Value(func2));
+        VM vm2(L);
+        vm2.execute(func2);
+
+        Value result2 = L->getStack().at(0);
+        if (result2.isNumber() && result2.asNumber() == 20.0) {
+            std::cout << "  PASS: func2 returned 20 (using env2)" << std::endl;
+        } else {
+            std::cout << "  FAIL: func2 returned " << result2.asNumber() << ", expected 20" << std::endl;
+        }
+
+        testCount++;
+    } catch (const std::exception& e) {
+        std::cout << "  ERROR: " << e.what() << std::endl;
+    }
+
+    // =====================================================================
+    // 测试10：环境表与SETGLOBAL
+    // =====================================================================
+    std::cout << "\n[Test 10] Environment table with SETGLOBAL" << std::endl;
+    try {
+        GlobalState& gs = L->getGlobalState();
+
+        // 创建环境表
+        Table* env = new Table();
+        gs.getGC().registerObject(env);
+
+        // 创建函数：设置全局变量y = 42
+        Proto* proto = new Proto();
+        proto->setNumParams(0);
+        proto->setMaxStackSize(2);
+        GCString* yName = pool.intern("y");
+        proto->addConstant(Value(yName));  // K(0) = "y"
+        proto->addInstruction(CREATE_ABx(OpCode::LOADK, 0, 1));  // R(0) = K(1) = 42
+        proto->addConstant(Value(42.0));  // K(1) = 42
+        proto->addInstruction(CREATE_ABx(OpCode::SETGLOBAL, 0, 0));  // env["y"] = R(0)
+        proto->addInstruction(CREATE_ABC(OpCode::RETURN, 0, 1, 0));  // return
+        gs.getGC().registerObject(proto);
+
+        Function* func = new Function(proto);
+        func->setEnv(env);
+        gs.getGC().registerObject(func);
+
+        // 执行函数
+        L->getStack().push(Value(func));
+        VM vm(L);
+        vm.execute(func);
+
+        // 检查环境表中是否有y=42
+        Value yValue = env->get(Value(yName));
+        if (yValue.isNumber() && yValue.asNumber() == 42.0) {
+            std::cout << "  PASS: SETGLOBAL wrote to function's environment table (y=42)" << std::endl;
+        } else {
+            std::cout << "  FAIL: Expected y=42 in env, got " << yValue.asNumber() << std::endl;
+        }
+
+        // 检查全局表中不应该有y（因为使用了独立的环境表）
+        Value globalY = L->getGlobalTable()->get(Value(yName));
+        if (globalY.isNil()) {
+            std::cout << "  PASS: Global table does not have y (environment isolation works)" << std::endl;
+        } else {
+            std::cout << "  FAIL: Global table should not have y" << std::endl;
+        }
+
+        testCount++;
+    } catch (const std::exception& e) {
+        std::cout << "  ERROR: " << e.what() << std::endl;
+    }
+
     delete L;
 
     std::cout << "\n[SUCCESS] VM tests completed: " << testCount << " tests" << std::endl;

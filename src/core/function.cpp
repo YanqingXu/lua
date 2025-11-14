@@ -130,6 +130,7 @@ Function::Function(CFunction func)
     , isC_(true)
     , cFunction_(func)
     , proto_(nullptr)
+    , env_(nullptr)  // 初始化环境表为nullptr
 {
     if (func == nullptr) {
         throw std::invalid_argument("C function pointer cannot be null");
@@ -141,6 +142,7 @@ Function::Function(Proto* proto)
     , isC_(false)
     , cFunction_(nullptr)
     , proto_(proto)
+    , env_(nullptr)  // 初始化环境表为nullptr
 {
     if (proto == nullptr) {
         throw std::invalid_argument("Proto pointer cannot be null");
@@ -188,6 +190,11 @@ void Function::mark() {
         if (uv != nullptr && !uv->isMarked()) {
             uv->mark();
         }
+    }
+
+    // 标记环境表（Lua 5.1兼容）
+    if (env_ != nullptr) {
+        env_->mark();
     }
 }
 

@@ -123,17 +123,31 @@ void VM::executeProto(Proto* proto, i32 nexeccalls) {
             
             case OpCode::GETGLOBAL: {
                 // R(A) := Gbl[K(Bx)]
+                // 使用当前函数的环境表（Lua 5.1兼容）
                 const Value& key = K(bx);
-                Table* globalTable = L_->getGlobalTable();
-                R(a) = globalTable->get(key);
+
+                // 获取当前函数的环境表，如果未设置则使用全局表
+                Table* env = currentFunc_->getEnv();
+                if (!env) {
+                    env = L_->getGlobalTable();
+                }
+
+                R(a) = env->get(key);
                 break;
             }
-            
+
             case OpCode::SETGLOBAL: {
                 // Gbl[K(Bx)] := R(A)
+                // 使用当前函数的环境表（Lua 5.1兼容）
                 const Value& key = K(bx);
-                Table* globalTable = L_->getGlobalTable();
-                globalTable->set(key, R(a));
+
+                // 获取当前函数的环境表，如果未设置则使用全局表
+                Table* env = currentFunc_->getEnv();
+                if (!env) {
+                    env = L_->getGlobalTable();
+                }
+
+                env->set(key, R(a));
                 break;
             }
             
