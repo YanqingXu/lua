@@ -1,0 +1,207 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="Current" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="src\compiler\ast.cpp">
+      <Filter>src\compiler</Filter>
+    </ClCompile>
+    <ClCompile Include="src\lib\baselib.cpp">
+      <Filter>src\lib</Filter>
+    </ClCompile>
+    <ClCompile Include="src\compiler\codegen.cpp">
+      <Filter>src\compiler</Filter>
+    </ClCompile>
+    <ClCompile Include="src\core\function.cpp">
+      <Filter>src\core</Filter>
+    </ClCompile>
+    <ClCompile Include="src\gc\garbage_collector.cpp">
+      <Filter>src\gc</Filter>
+    </ClCompile>
+    <ClCompile Include="src\core\gc_object.cpp">
+      <Filter>src\core</Filter>
+    </ClCompile>
+    <ClCompile Include="src\core\gc_string.cpp">
+      <Filter>src\core</Filter>
+    </ClCompile>
+    <ClCompile Include="src\compiler\lexer.cpp">
+      <Filter>src\compiler</Filter>
+    </ClCompile>
+    <ClCompile Include="src\compiler\opcode.cpp">
+      <Filter>src\compiler</Filter>
+    </ClCompile>
+    <ClCompile Include="src\compiler\parser.cpp">
+      <Filter>src\compiler</Filter>
+    </ClCompile>
+    <ClCompile Include="src\vm\stack.cpp">
+      <Filter>src\vm</Filter>
+    </ClCompile>
+    <ClCompile Include="src\core\string_pool.cpp">
+      <Filter>src\core</Filter>
+    </ClCompile>
+    <ClCompile Include="src\core\table.cpp">
+      <Filter>src\core</Filter>
+    </ClCompile>
+    <ClCompile Include="tests\unit\test_baselib.cpp">
+      <Filter>tests\unit</Filter>
+    </ClCompile>
+    <ClCompile Include="tests\unit\test_binary_unary_expr.cpp">
+      <Filter>tests\unit</Filter>
+    </ClCompile>
+    <ClCompile Include="tests\unit\test_function.cpp">
+      <Filter>tests\unit</Filter>
+    </ClCompile>
+    <ClCompile Include="tests\unit\test_function_codegen.cpp">
+      <Filter>tests\unit</Filter>
+    </ClCompile>
+    <ClCompile Include="tests\unit\test_gc.cpp">
+      <Filter>tests\unit</Filter>
+    </ClCompile>
+    <ClCompile Include="tests\unit\test_gc_string.cpp">
+      <Filter>tests\unit</Filter>
+    </ClCompile>
+    <ClCompile Include="tests\unit\test_lua_functions.cpp">
+      <Filter>tests\unit</Filter>
+    </ClCompile>
+    <ClCompile Include="tests\unit\test_table.cpp">
+      <Filter>tests\unit</Filter>
+    </ClCompile>
+    <ClCompile Include="tests\unit\test_value.cpp">
+      <Filter>tests\unit</Filter>
+    </ClCompile>
+    <ClCompile Include="tests\unit\test_vm_core.cpp">
+      <Filter>tests\unit</Filter>
+    </ClCompile>
+    <ClCompile Include="src\core\upvalue.cpp">
+      <Filter>src\core</Filter>
+    </ClCompile>
+    <ClCompile Include="src\vm\vm.cpp">
+      <Filter>src\vm</Filter>
+    </ClCompile>
+    <ClCompile Include="src\vm\lua_state.cpp">
+      <Filter>src\vm</Filter>
+    </ClCompile>
+    <ClCompile Include="src\vm\global_state.cpp">
+      <Filter>src\vm</Filter>
+    </ClCompile>
+    <ClCompile Include="src\core\value.cpp">
+      <Filter>src\core</Filter>
+    </ClCompile>
+    <ClCompile Include="src\core\userdata.cpp">
+      <Filter>src\core</Filter>
+    </ClCompile>
+    <ClCompile Include="src\main.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="src\compiler\ast.hpp">
+      <Filter>src\compiler</Filter>
+    </ClInclude>
+    <ClInclude Include="src\lib\baselib.hpp">
+      <Filter>src\lib</Filter>
+    </ClInclude>
+    <ClInclude Include="src\vm\call_info.hpp">
+      <Filter>src\vm</Filter>
+    </ClInclude>
+    <ClInclude Include="src\compiler\codegen.hpp">
+      <Filter>src\compiler</Filter>
+    </ClInclude>
+    <ClInclude Include="src\common\config.hpp">
+      <Filter>src\common</Filter>
+    </ClInclude>
+    <ClInclude Include="src\core\function.hpp">
+      <Filter>src\core</Filter>
+    </ClInclude>
+    <ClInclude Include="src\gc\garbage_collector.hpp">
+      <Filter>src\gc</Filter>
+    </ClInclude>
+    <ClInclude Include="src\core\gc_object.hpp">
+      <Filter>src\core</Filter>
+    </ClInclude>
+    <ClInclude Include="src\core\gc_string.hpp">
+      <Filter>src\core</Filter>
+    </ClInclude>
+    <ClInclude Include="src\compiler\lexer.hpp">
+      <Filter>src\compiler</Filter>
+    </ClInclude>
+    <ClInclude Include="src\common\macros.hpp">
+      <Filter>src\common</Filter>
+    </ClInclude>
+    <ClInclude Include="src\compiler\opcode.hpp">
+      <Filter>src\compiler</Filter>
+    </ClInclude>
+    <ClInclude Include="src\compiler\parser.hpp">
+      <Filter>src\compiler</Filter>
+    </ClInclude>
+    <ClInclude Include="src\vm\stack.hpp">
+      <Filter>src\vm</Filter>
+    </ClInclude>
+    <ClInclude Include="src\core\string_pool.hpp">
+      <Filter>src\core</Filter>
+    </ClInclude>
+    <ClInclude Include="src\core\table.hpp">
+      <Filter>src\core</Filter>
+    </ClInclude>
+    <ClInclude Include="tests\unit\test_framework.hpp">
+      <Filter>tests\unit</Filter>
+    </ClInclude>
+    <ClInclude Include="tests\unit\test_registry.hpp">
+      <Filter>tests\unit</Filter>
+    </ClInclude>
+    <ClInclude Include="src\common\types.hpp">
+      <Filter>src\common</Filter>
+    </ClInclude>
+    <ClInclude Include="src\core\upvalue.hpp">
+      <Filter>src\core</Filter>
+    </ClInclude>
+    <ClInclude Include="src\vm\vm.hpp">
+      <Filter>src\vm</Filter>
+    </ClInclude>
+    <ClInclude Include="src\vm\lua_state.hpp">
+      <Filter>src\vm</Filter>
+    </ClInclude>
+    <ClInclude Include="src\vm\global_state.hpp">
+      <Filter>src\vm</Filter>
+    </ClInclude>
+    <ClInclude Include="src\core\value.hpp">
+      <Filter>src\core</Filter>
+    </ClInclude>
+    <ClInclude Include="src\core\userdata.hpp">
+      <Filter>src\core</Filter>
+    </ClInclude>
+    <ClInclude Include="src\compiler\token.hpp">
+      <Filter>src\compiler</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="src">
+      <UniqueIdentifier>{49bdff98-3f5f-43d0-afb0-a0009a725511}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="tests">
+      <UniqueIdentifier>{abfb434e-6df8-4b28-924e-3de7a2418dc4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="tests\unit">
+      <UniqueIdentifier>{b77d3740-1533-4b18-9e90-c81a86ccc19a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="tests\lua">
+      <UniqueIdentifier>{0e975f5e-1569-4179-baf5-4b0e780118d1}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\common">
+      <UniqueIdentifier>{4a0802ec-581c-4631-b63c-8cb645696f09}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\compiler">
+      <UniqueIdentifier>{b8d653a8-754a-4e11-b05e-869534ed1b67}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\vm">
+      <UniqueIdentifier>{83aed53b-cd08-49f3-9206-89fc9e5ed6e8}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\lib">
+      <UniqueIdentifier>{ade4e4bb-accb-4b49-8621-4ac5a3af2632}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\gc">
+      <UniqueIdentifier>{adc1377a-d016-4039-bca8-f4cd116b7538}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\core">
+      <UniqueIdentifier>{54f7779d-4990-4bb1-8328-8b5849bfc381}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

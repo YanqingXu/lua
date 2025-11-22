@@ -24,8 +24,6 @@ lua/x64/Debug/
 *.user
 *.suo
 *.sln.docstates
-*.vcxproj.user
-*.vcxproj.filters
 *.VC.db
 *.VC.opendb
 
