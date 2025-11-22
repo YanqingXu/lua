@@ -9,6 +9,7 @@
 #include "core/value.hpp"
 #include <stdexcept>
 #include <cassert>
+#include <iostream>
 
 namespace Lua {
 
@@ -177,6 +178,10 @@ void CodeGenerator::removeLocalVars(i32 tolevel) {
 
 i32 CodeGenerator::jump() {
     i32 jpc = codeAsBx(OpCode::JMP, 0, NO_JUMP);
+    #ifdef DEBUG
+    std::cerr << "[CodeGenerator::jump] Generated JMP at pc=" << jpc
+              << " with sBx=" << NO_JUMP << std::endl;
+    #endif
     return jpc;
 }
 
@@ -184,7 +189,13 @@ void CodeGenerator::patchList(i32 list, i32 target) {
     while (list != NO_JUMP) {
         i32 next = GETARG_sBx(proto_->getInstruction(list));
         Instruction& inst = proto_->getCode()[list];
-        SETARG_sBx(inst, target - list - 1);
+        i32 offset = target - list - 1;
+        #ifdef DEBUG
+        std::cerr << "[CodeGenerator::patchList] Patching pc=" << list
+                  << " to target=" << target
+                  << " offset=" << offset << std::endl;
+        #endif
+        SETARG_sBx(inst, offset);
         list = next;
     }
 }
@@ -630,7 +641,10 @@ void CodeGenerator::codecomp(OpCode op, i32 cond, ExprDesc& e1, ExprDesc& e2) {
     freeReg(o1);
     freeReg(o2);
 
-    e1.u.s.info = codeABC(op, cond, o1, o2);
+    // ⭐ 关键修复：比较指令后面必须跟JMP指令
+    // 参考 lua_c_analysis/src/lcode.c:277-280 condjump函数
+    codeABC(op, cond, o1, o2);  // 生成比较指令（LE/LT/EQ）
+    e1.u.s.info = jump();        // 生成JMP指令
     e1.kind = ExprKind::Jump;
     e1.t = e1.u.s.info;
     e1.f = NO_JUMP;

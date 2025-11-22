@@ -59,25 +59,59 @@ void VM::executeProto(Proto* proto, i32 nexeccalls) {
         throw std::runtime_error("VM: stack overflow (too many nested calls)");
     }
 
-    currentProto_ = proto;
-    pc_ = 0;
+reentry:  // ⭐ P0修复：添加reentry标签，参考lua_c_analysis/src/lvm.c:1558
+    // 重新初始化执行状态（每次reentry都需要）
+    {
+        CallInfo& ci = L_->getCurrentCallInfo();
+        Stack& stack = L_->getStack();
 
-    // 获取当前CallInfo
-    CallInfo& ci = L_->getCurrentCallInfo();
+        // ⭐ P0修复：从CallInfo恢复currentFunc_
+        if (ci.func < stack.size()) {
+            Value& funcVal = stack.at(ci.func);
+            if (funcVal.isFunction()) {
+                currentFunc_ = funcVal.asFunction();
+            } else {
+                throw std::runtime_error("VM::executeProto: CallInfo.func is not a function");
+            }
+        } else {
+            throw std::runtime_error("VM::executeProto: CallInfo.func out of range");
+        }
 
-    // ✅ 改进：使用统一的栈空间确保方法
-    Stack& stack = L_->getStack();
-    usize requiredTop = ci.base + proto->getMaxStackSize();
-    if (stack.size() < requiredTop) {
-        ensureStackSpace(requiredTop - stack.size());
-        // base_已在ensureStackSpace中更新
-    } else {
-        // 栈空间足够，但仍需更新base_指针
+        // 从CallInfo恢复执行状态
+        if (ci.savedpc != nullptr) {
+            // 从保存的PC恢复（用于CALL返回后继续执行）
+            currentProto_ = currentFunc_->getProto();
+            pc_ = static_cast<usize>(ci.savedpc - currentProto_->getCode().data());
+        } else {
+            // 新函数调用，从头开始
+            currentProto_ = currentFunc_->getProto();
+            pc_ = 0;
+        }
+
+        // ✅ 改进：使用统一的栈空间确保方法
+        usize requiredTop = ci.base + currentProto_->getMaxStackSize();
+
+        // ⭐ 临时修复：添加额外的栈空间以应对CodeGenerator的maxStackSize计算错误
+        // TODO: 修复CodeGenerator后移除这个hack
+        usize extraSpace = 10;  // 额外的栈空间
+        usize actualRequiredTop = requiredTop + extraSpace;
+
+        // ⭐ P0修复：确保栈有足够的容量，并设置top
+        if (stack.capacity() < actualRequiredTop) {
+            ensureStackSpace(actualRequiredTop - stack.size());
+        }
+
+        // ⭐ P0修复：设置栈顶到所需位置，并初始化为nil
+        while (stack.size() < actualRequiredTop) {
+            stack.push(Value());  // nil
+        }
+
+        // 更新base_指针
         updateBasePointer();
     }
 
     // 主执行循环
-    const Vec<Instruction>& code = proto->getCode();
+    const Vec<Instruction>& code = currentProto_->getCode();
 
     while (pc_ < code.size()) {
         Instruction inst = code[pc_];
@@ -90,19 +124,7 @@ void VM::executeProto(Proto* proto, i32 nexeccalls) {
         i32 bx = GETARG_Bx(inst);
         i32 sbx = GETARG_sBx(inst);
 
-        #ifdef DEBUG
-        // 只为Test 13打印执行流程（检测TFORLOOP指令）
-        static bool inTest13 = false;
-        if (op == OpCode::TFORLOOP) inTest13 = true;
-        if (inTest13 && (op == OpCode::ADD || op == OpCode::TFORLOOP || op == OpCode::JMP)) {
-            std::cout << "  [EXEC] pc=" << pc_ << " op=" << static_cast<i32>(op)
-                      << " (" << (op == OpCode::ADD ? "ADD" : op == OpCode::JMP ? "JMP" : "TFORLOOP") << ")"
-                      << " A=" << a << " B=" << b << " C=" << c << " sBx=" << sbx << std::endl;
-            if (op == OpCode::ADD) {
-                std::cout << "    Before: R(0)=" << R(0).toString() << " R(5)=" << R(5).toString() << std::endl;
-            }
-        }
-        #endif
+        // 指令执行（调试输出已移除以减少噪音）
 
         pc_++;  // 先递增PC
         
@@ -269,22 +291,48 @@ void VM::executeProto(Proto* proto, i32 nexeccalls) {
             }
 
             case OpCode::TEST: {
-                // if not (R(A) <=> C) then pc++
+                // ⭐ P0修复：参考lua_c_analysis/src/lvm.c:1782-1788
+                // if (l_isfalse(ra) != GETARG_C(i)) {
+                //     dojump(L, pc, GETARG_sBx(*pc));
+                // }
+                // pc++;
+
                 bool val = R(a).isTrue();
-                if (val != (c != 0)) {
-                    pc_++;
+                // 如果 (val为false) != C，则跳转
+                if ((!val) != (c != 0)) {
+                    // 读取下一条JMP指令的sBx并跳转
+                    if (pc_ < code.size()) {
+                        Instruction nextInst = code[pc_];
+                        i32 sbx = GETARG_sBx(nextInst);
+                        doJump(sbx);
+                    }
                 }
+                // 无论如何都要跳过下一条JMP指令
+                pc_++;
                 break;
             }
 
             case OpCode::TESTSET: {
-                // if (R(B) <=> C) then R(A) := R(B) else pc++
+                // ⭐ P0修复：参考lua_c_analysis/src/lvm.c:1790-1798
+                // if (l_isfalse(rb) != GETARG_C(i)) {
+                //     setobjs2s(L, ra, rb);
+                //     dojump(L, pc, GETARG_sBx(*pc));
+                // }
+                // pc++;
+
                 bool val = R(b).isTrue();
-                if (val == (c != 0)) {
+                // 如果 (val为false) != C，则设置并跳转
+                if ((!val) != (c != 0)) {
                     R(a) = R(b);
-                } else {
-                    pc_++;
+                    // 读取下一条JMP指令的sBx并跳转
+                    if (pc_ < code.size()) {
+                        Instruction nextInst = code[pc_];
+                        i32 sbx = GETARG_sBx(nextInst);
+                        doJump(sbx);
+                    }
                 }
+                // 无论如何都要跳过下一条JMP指令
+                pc_++;
                 break;
             }
 
@@ -336,6 +384,7 @@ void VM::executeProto(Proto* proto, i32 nexeccalls) {
 
             case OpCode::CALL: {
                 // R(A), ... ,R(A+C-2) := R(A)(R(A+1), ... ,R(A+B-1))
+                // ⭐ P0修复：参考lua_c_analysis/src/lvm.c:1800
                 i32 nArgs = b - 1;      // B=0表示到栈顶
                 i32 nResults = c - 1;   // C=0表示多返回值
 
@@ -357,43 +406,11 @@ void VM::executeProto(Proto* proto, i32 nexeccalls) {
                 bool isLua = precall(a, nArgs, nResults);
 
                 if (isLua) {
-                    // Lua函数：递归执行
-                    Proto* calleeProto = func->getProto();
-
-                    // 保存当前状态
-                    Proto* savedProto = currentProto_;
-                    usize savedPC = pc_;
-                    Function* savedFunc = currentFunc_;
-                    CallInfo& callerCI = currentCI;  // 保存调用者的CallInfo
-                    usize savedTop = callerCI.top;   // 保存调用者的栈顶
-
+                    // ⭐ P0修复：Lua函数使用goto reentry而非递归
                     // 设置新函数上下文
                     currentFunc_ = func;
-
-                    // 递归执行被调用函数
-                    // RETURN指令会将返回值移动到funcPos位置并缩小栈
-                    executeProto(calleeProto, nexeccalls + 1);
-
-                    // 恢复当前状态
-                    currentProto_ = savedProto;
-                    pc_ = savedPC;
-                    currentFunc_ = savedFunc;
-
-                    // 弹出CallInfo（必须在postcall之前，这样postcall才能访问调用者的CallInfo）
-                    L_->popCallInfo();
-
-                    // 处理返回值（使用绝对栈位置）
-                    postcall(static_cast<i32>(funcPos), nResults);
-
-                    // 恢复调用者的栈大小
-                    // 确保栈至少有savedTop个元素
-                    Stack& stack = L_->getStack();
-                    while (stack.size() < savedTop) {
-                        stack.push(Value());
-                    }
-
-                    // ✅ 改进：使用统一的更新方法
-                    updateBasePointer();
+                    nexeccalls++;
+                    goto reentry;  // ⭐ 跳转到reentry标签重新开始执行
                 } else {
                     // C函数已在precall中执行完成
                     // postcall已在precall中调用
@@ -635,19 +652,17 @@ void VM::executeProto(Proto* proto, i32 nexeccalls) {
 
             case OpCode::CLOSURE: {
                 // R(A) := closure(KPROTO[Bx], R(A), ... ,R(A+n))
-                // 创建闭包：从常量表中的Proto创建新的Function对象
+                // 创建闭包：从Proto的子函数列表中获取Proto
 
-                // 简化实现：从常量表获取Proto（假设Bx是常量索引）
-                // 注意：标准Lua中CLOSURE使用单独的Proto数组，这里简化处理
-                Value protoVal = K(bx);
-
-                if (!protoVal.isFunction()) {
-                    throw std::runtime_error("VM: CLOSURE requires function proto in constants");
+                // ⭐ P0修复：从Proto的子函数列表获取，而不是常量表
+                if (bx < 0 || static_cast<usize>(bx) >= currentProto_->getSubProtoCount()) {
+                    throw std::runtime_error("VM: CLOSURE proto index out of range");
                 }
 
-                // 创建新的闭包（复制函数）
-                Function* proto = protoVal.asFunction();
-                Function* closure = new Function(proto->getProto());
+                Proto* childProto = currentProto_->getSubProto(bx);
+
+                // 创建新的闭包
+                Function* closure = new Function(childProto);
 
                 // TODO: 处理upvalues（需要读取后续的MOVE/GETUPVAL指令）
                 // 简化版：暂不处理upvalues
@@ -700,6 +715,7 @@ void VM::executeProto(Proto* proto, i32 nexeccalls) {
 
             case OpCode::RETURN: {
                 // return R(A), ... ,R(A+B-2)
+                // ⭐ P0修复：参考lua_c_analysis/src/lvm.c:1873
                 // B=0: 返回从R(A)到栈顶的所有值
                 // B=1: 无返回值
                 // B>1: 返回B-1个值（R(A)到R(A+B-2)）
@@ -723,20 +739,7 @@ void VM::executeProto(Proto* proto, i32 nexeccalls) {
                     stack.at(ci.func + i) = R(a + i);
                 }
 
-                // 不要在这里缩小栈！
-                // 栈的调整应该由调用者（postcall）来处理
-                // 因为调用者可能还需要访问其他寄存器
-
-                // 但是，我们需要标记栈顶的位置，以便postcall知道有多少返回值
-                // 我们通过调整栈大小到ci.func + nres来实现这一点
-                // 但要确保不会缩小到调用者的栈帧以下
-
-                // 实际上，让我们保持栈不变，让postcall来处理
-                // 但我们需要某种方式告诉postcall有多少返回值
-                // 标准做法是：将栈顶设置为ci.func + nres
-
-                // 为了安全起见，我们只在必要时缩小栈
-                // 即：只移除当前函数的局部变量，但不影响调用者的栈帧
+                // 设置栈顶为返回值结束位置
                 usize newTop = ci.func + nres;
                 while (stack.size() > newTop) {
                     stack.pop();
@@ -745,8 +748,30 @@ void VM::executeProto(Proto* proto, i32 nexeccalls) {
                 // 关闭upvalues
                 L_->closeUpvalues(ci.base);
 
-                // 函数返回
-                return;
+                // ⭐ P0修复：检查是否返回到调用者
+                if (--nexeccalls == 0) {
+                    // 最外层函数返回，退出执行循环
+                    // 不需要弹出CallInfo或调用postcall
+                    return;
+                } else {
+                    // 还有调用者，需要弹出CallInfo并恢复调用者状态
+
+                    // ⭐ P0修复：调用postcall处理返回值
+                    i32 funcPos = static_cast<i32>(ci.func);
+                    i32 wantedResults = ci.nresults;
+
+                    // 弹出CallInfo
+                    L_->popCallInfo();
+
+                    // 处理返回值
+                    postcall(funcPos, wantedResults);
+
+                    // 更新base指针
+                    updateBasePointer();
+
+                    // ⭐ 跳转到reentry继续执行调用者的代码
+                    goto reentry;
+                }
             }
 
             default: {
@@ -798,9 +823,17 @@ Value& VM::R(i32 index) {
 Value VM::RK(i32 rk) {
     if (ISK(rk)) {
         // 常量 - 返回副本
-        return currentProto_->getConstant(INDEXK(rk));
+        i32 index = INDEXK(rk);
+        #ifdef DEBUG
+        std::cerr << "[VM::RK] rk=" << rk << " ISK=true index=" << index
+                  << " currentProto=" << (void*)currentProto_ << std::endl;
+        #endif
+        return currentProto_->getConstant(index);
     } else {
         // 寄存器 - 返回副本
+        #ifdef DEBUG
+        std::cerr << "[VM::RK] rk=" << rk << " ISK=false R(" << rk << ")" << std::endl;
+        #endif
         return R(rk);
     }
 }
@@ -858,6 +891,12 @@ void VM::arith(OpCode op, i32 a, i32 b, i32 c) {
 }
 
 void VM::compare(OpCode op, i32 a, i32 b, i32 c) {
+    // ⭐ P0修复：参考lua_c_analysis/src/lvm.c:1753-1780
+    // 比较指令的语义：
+    // - 执行比较操作 RK(B) op RK(C)
+    // - 如果结果 == A，则读取下一条指令（JMP）的sBx并跳转
+    // - 无论如何都要 pc++ 跳过下一条JMP指令
+
     Value left = RK(b);
     Value right = RK(c);
 
@@ -913,10 +952,38 @@ void VM::compare(OpCode op, i32 a, i32 b, i32 c) {
         result = (op == OpCode::EQ);
     }
 
-    // 如果结果与A不同，则跳过下一条指令
-    if (result != (a != 0)) {
-        pc_++;
+    // ⭐ P0修复：Lua 5.1.5的比较指令逻辑
+    // if (condition == GETARG_A(i))
+    //     dojump(L, pc, GETARG_sBx(*pc));
+    // pc++;
+
+    const Vec<Instruction>& code = currentProto_->getCode();
+
+    #ifdef DEBUG
+    std::cerr << "[COMPARE] op=" << static_cast<int>(op)
+              << " left=" << left.toString()
+              << " right=" << right.toString()
+              << " result=" << result
+              << " A=" << a
+              << " shouldJump=" << (result == (a != 0)) << std::endl;
+    #endif
+
+    // 如果比较结果 == A，则执行跳转
+    if (result == (a != 0)) {
+        // 读取下一条指令（应该是JMP）的sBx
+        if (pc_ < code.size()) {
+            Instruction nextInst = code[pc_];
+            i32 sbx = GETARG_sBx(nextInst);
+            #ifdef DEBUG
+            std::cerr << "[COMPARE] Jumping by " << sbx << " (pc " << pc_ << " -> " << (pc_ + sbx + 1) << ")" << std::endl;
+            #endif
+            // 执行跳转
+            doJump(sbx);
+        }
     }
+
+    // 无论如何都要跳过下一条JMP指令
+    pc_++;
 }
 
 // =====================================================================
@@ -1010,6 +1077,7 @@ bool VM::precall(i32 funcIndex, i32 nArgs, i32 nResults) {
 }
 
 void VM::postcall(i32 funcPos, i32 wantedResults) {
+    // ⭐ P0修复：参考lua_c_analysis/src/ldo.c:1198
     // 处理函数返回后的返回值复制和栈调整
     Stack& stack = L_->getStack();
     CallInfo& ci = L_->getCurrentCallInfo();
@@ -1037,6 +1105,19 @@ void VM::postcall(i32 funcPos, i32 wantedResults) {
         // wantedResults < 0 (MULTRET): 接受所有返回值
         // 不需要调整
     }
+
+    // ⭐ P0修复：恢复调用者的执行状态
+    // 注意：此时ci已经指向调用者的CallInfo（因为在RETURN中已经popCallInfo）
+    // 恢复currentFunc_和currentProto_
+    if (ci.func < stack.size()) {
+        Value& funcVal = stack.at(ci.func);
+        if (funcVal.isFunction()) {
+            currentFunc_ = funcVal.asFunction();
+            currentProto_ = currentFunc_->getProto();
+        }
+    }
+
+    // savedpc会在reentry时从ci.savedpc恢复，这里不需要额外处理
 
     // 栈顶现在应该在 funcPos + actualResults
     // 已经通过上面的push/pop调整好了

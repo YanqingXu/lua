@@ -65,12 +65,12 @@ void LuaState::initialize() {
     // 初始化第一个调用信息（虚拟的主函数）
     CallInfo& ci = callStack_[0];
     ci.func = 0;
-    ci.base = 0;
+    ci.base = 1;  // ⭐ P0修复：base应该是1（func在位置0，局部变量从1开始）
     ci.top = Stack::MIN_STACK_SIZE;
     ci.savedpc = nullptr;
     ci.nresults = MULTRET;
     ci.tailcalls = 0;
-    
+
     // 在栈上放置一个nil值作为虚拟函数
     stack_.push(Value());  // nil
     
