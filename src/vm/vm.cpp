@@ -220,45 +220,125 @@ Value VM::K(i32 index) {
 // 算术和逻辑运算
 // =====================================================================
 
+/**
+ * @brief 尝试将Value转换为数字
+ *
+ * 类似于C实现的luaV_tonumber函数。
+ * 支持：
+ * - 数字类型：直接返回
+ * - 字符串类型：尝试解析为数字
+ * - 其他类型：返回false
+ *
+ * @param val 要转换的值
+ * @param result 输出参数，存储转换后的数字
+ * @return true 如果转换成功，false 如果失败
+ *
+ * @see lua_c_analysis/src/lvm.c 第185-195行 luaV_tonumber()
+ */
+static bool tryToNumber(const Value& val, f64& result) {
+    // 如果已经是数字，直接返回
+    if (val.isNumber()) {
+        result = val.asNumber();
+        return true;
+    }
+
+    // 如果是字符串，尝试解析为数字
+    if (val.isString()) {
+        GCString* str = val.asString();
+        const char* s = str->c_str();
+        char* endptr;
+
+        // 尝试解析为浮点数
+        f64 num = std::strtod(s, &endptr);
+
+        // 检查是否成功解析（整个字符串都被解析）
+        if (endptr != s && *endptr == '\0') {
+            result = num;
+            return true;
+        }
+    }
+
+    // 其他类型无法转换
+    return false;
+}
+
+/**
+ * @brief 执行算术运算（支持元方法）
+ *
+ * 实现流程：
+ * 1. 尝试将操作数转换为数字
+ * 2. 如果转换成功，执行数字运算
+ * 3. 如果转换失败，尝试调用元方法
+ * 4. 如果元方法也失败，抛出错误
+ *
+ * @see lua_c_analysis/src/lvm.c 第1315-1336行 Arith()
+ */
 void VM::arith(OpCode op, i32 a, i32 b, i32 c) {
     Value left = RK(b);
     Value right = RK(c);
 
-    if (!left.isNumber() || !right.isNumber()) {
-        throw std::runtime_error("VM: attempt to perform arithmetic on non-number values");
+    // 尝试将操作数转换为数字
+    f64 lval, rval;
+    bool leftIsNum = tryToNumber(left, lval);
+    bool rightIsNum = tryToNumber(right, rval);
+
+    // 如果两个操作数都能转换为数字，执行数字运算
+    if (leftIsNum && rightIsNum) {
+        f64 result = 0.0;
+
+        switch (op) {
+            case OpCode::ADD:
+                result = lval + rval;
+                break;
+            case OpCode::SUB:
+                result = lval - rval;
+                break;
+            case OpCode::MUL:
+                result = lval * rval;
+                break;
+            case OpCode::DIV:
+                if (rval == 0.0) {
+                    throw std::runtime_error("VM: division by zero");
+                }
+                result = lval / rval;
+                break;
+            case OpCode::MOD:
+                result = std::fmod(lval, rval);
+                break;
+            case OpCode::POW:
+                result = std::pow(lval, rval);
+                break;
+            default:
+                throw std::runtime_error("VM::arith: invalid opcode");
+        }
+
+        R(a) = Value(result);
+        return;
     }
 
-    f64 lval = left.asNumber();
-    f64 rval = right.asNumber();
-    f64 result = 0.0;
-
+    // 数字运算失败，尝试调用元方法
+    // 将OpCode映射到TMS
+    TMS tmEvent;
     switch (op) {
-        case OpCode::ADD:
-            result = lval + rval;
-            break;
-        case OpCode::SUB:
-            result = lval - rval;
-            break;
-        case OpCode::MUL:
-            result = lval * rval;
-            break;
-        case OpCode::DIV:
-            if (rval == 0.0) {
-                throw std::runtime_error("VM: division by zero");
-            }
-            result = lval / rval;
-            break;
-        case OpCode::MOD:
-            result = std::fmod(lval, rval);
-            break;
-        case OpCode::POW:
-            result = std::pow(lval, rval);
-            break;
+        case OpCode::ADD: tmEvent = TMS::TM_ADD; break;
+        case OpCode::SUB: tmEvent = TMS::TM_SUB; break;
+        case OpCode::MUL: tmEvent = TMS::TM_MUL; break;
+        case OpCode::DIV: tmEvent = TMS::TM_DIV; break;
+        case OpCode::MOD: tmEvent = TMS::TM_MOD; break;
+        case OpCode::POW: tmEvent = TMS::TM_POW; break;
         default:
-            throw std::runtime_error("VM::arith: invalid opcode");
+            throw std::runtime_error("VM::arith: invalid opcode for metamethod");
     }
 
-    R(a) = Value(result);
+    // 尝试调用元方法
+    Value result;
+    if (tryArithMetamethod(tmEvent, left, right, result)) {
+        R(a) = result;
+        return;
+    }
+
+    // 元方法也失败，抛出错误
+    throw std::runtime_error("VM: attempt to perform arithmetic on non-number values");
 }
 
 void VM::compare(OpCode op, i32 a, i32 b, i32 c) {
@@ -699,11 +779,26 @@ void VM::executeSetList(i32 a, i32 b, i32 c) {
 
 void VM::executeUnm(i32 a, i32 b) {
     // R(A) := -R(B)
-    Value& val = R(b);
-    if (!val.isNumber()) {
-        throw std::runtime_error("VM: attempt to perform arithmetic on a non-number value");
+    Value val = R(b);
+
+    // 尝试将操作数转换为数字
+    f64 num;
+    if (tryToNumber(val, num)) {
+        // 数字运算：直接取负
+        R(a) = Value(-num);
+        return;
     }
-    R(a) = Value(-val.asNumber());
+
+    // 数字运算失败，尝试调用__unm元方法
+    // 注意：一元运算只有一个操作数，第二个参数传nil
+    Value result;
+    if (tryArithMetamethod(TMS::TM_UNM, val, Value(), result)) {
+        R(a) = result;
+        return;
+    }
+
+    // 元方法也失败，抛出错误
+    throw std::runtime_error("VM: attempt to perform arithmetic on a non-number value");
 }
 
 void VM::executeNot(i32 a, i32 b) {
@@ -1135,6 +1230,45 @@ bool VM::executeReturn(i32 a, i32 b, i32& nexeccalls) {
         // ⭐ 跳转到reentry继续执行调用者的代码
         return true;  // 需要reentry
     }
+}
+
+// =====================================================================
+// 元方法调用辅助函数实现
+// =====================================================================
+
+/**
+ * @brief 尝试调用算术运算元方法
+ *
+ * 当算术运算的操作数不是数字时，尝试调用相应的元方法。
+ *
+ * @param op 算术运算类型（TM_ADD, TM_SUB等）
+ * @param left 左操作数
+ * @param right 右操作数
+ * @param result 存储结果的位置
+ * @return true 如果成功调用元方法，false 如果没有元方法
+ *
+ * @see lua_c_analysis/src/lvm.c 第689-698行 call_binTM()
+ */
+bool VM::tryArithMetamethod(TMS op, const Value& left, const Value& right, Value& result) {
+    // 调用二元运算元方法
+    // 先尝试左操作数的元方法，如果不存在则尝试右操作数的元方法
+    return callBinaryTM(L_, left, right, result, op);
+}
+
+/**
+ * @brief 通用元方法调用接口
+ *
+ * 提供统一的元方法调用机制，处理栈操作和函数调用。
+ *
+ * @param metamethod 元方法函数
+ * @param arg1 第一个参数
+ * @param arg2 第二个参数
+ * @param result 存储返回值的位置
+ */
+void VM::callMetamethod(const Value& metamethod, const Value& arg1,
+                       const Value& arg2, Value& result) {
+    // 调用元方法并获取返回值
+    callTMWithResult(L_, result, metamethod, arg1, arg2);
 }
 
 } // namespace Lua

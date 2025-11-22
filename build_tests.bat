@@ -77,7 +77,7 @@ echo.
 
 REM Compile core classes (reuse from main build if possible)
 set CORE_OBJS=
-for %%F in (value gc_object gc_string string_pool table function userdata upvalue) do (
+for %%F in (value gc_object gc_string string_pool table function userdata upvalue metatable) do (
     echo [INFO] Compiling %%F...
     cl %CXX_FLAGS% /Isrc /c /Fo"%OUTPUT_DIR%\%%F.obj" "src\core\%%F.cpp" >nul 2>&1
     if %errorlevel% neq 0 (
@@ -113,7 +113,7 @@ echo [INFO] ========================================
 echo.
 
 REM Compile test files
-for %%F in (test_value test_gc_string test_table test_vm_core test_function test_gc test_binary_unary_expr test_function_codegen test_baselib test_lua_functions) do (
+for %%F in (test_value test_gc_string test_table test_vm_core test_function test_gc test_binary_unary_expr test_function_codegen test_baselib test_lua_functions test_metamethod_arith) do (
     echo [INFO] Compiling %%F...
     cl %CXX_FLAGS% /Isrc /Itests\unit /c /Fo"%OUTPUT_DIR%\%%F.obj" "tests\unit\%%F.cpp" >nul 2>&1
     if %errorlevel% neq 0 (
@@ -144,6 +144,7 @@ cl %CXX_FLAGS% /Fe"%OUTPUT_DIR%\test_runner.exe" ^
     "%OUTPUT_DIR%\test_function_codegen.obj" ^
     "%OUTPUT_DIR%\test_baselib.obj" ^
     "%OUTPUT_DIR%\test_lua_functions.obj" ^
+    "%OUTPUT_DIR%\test_metamethod_arith.obj" ^
     "%OUTPUT_DIR%\value.obj" ^
     "%OUTPUT_DIR%\gc_object.obj" ^
     "%OUTPUT_DIR%\gc_string.obj" ^
@@ -152,6 +153,7 @@ cl %CXX_FLAGS% /Fe"%OUTPUT_DIR%\test_runner.exe" ^
     "%OUTPUT_DIR%\function.obj" ^
     "%OUTPUT_DIR%\userdata.obj" ^
     "%OUTPUT_DIR%\upvalue.obj" ^
+    "%OUTPUT_DIR%\metatable.obj" ^
     "%OUTPUT_DIR%\garbage_collector.obj" ^
     "%OUTPUT_DIR%\global_state.obj" ^
     "%OUTPUT_DIR%\stack.obj" ^

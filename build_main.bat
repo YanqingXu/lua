@@ -107,6 +107,10 @@ echo [INFO] Compiling Userdata class...
 cl %CXX_FLAGS% /Isrc /c /Fo"%OUTPUT_DIR%\userdata.obj" "src\core\userdata.cpp"
 if %errorlevel% neq 0 exit /b %errorlevel%
 
+echo [INFO] Compiling Metatable class...
+cl %CXX_FLAGS% /Isrc /c /Fo"%OUTPUT_DIR%\metatable.obj" "src\core\metatable.cpp"
+if %errorlevel% neq 0 exit /b %errorlevel%
+
 echo [INFO] Compiling LuaState class...
 cl %CXX_FLAGS% /Isrc /c /Fo"%OUTPUT_DIR%\lua_state.obj" "src\vm\lua_state.cpp"
 if %errorlevel% neq 0 exit /b %errorlevel%
@@ -169,6 +173,22 @@ echo [INFO] Compiling test_gc...
 cl %CXX_FLAGS% /Isrc /Itests\unit /c /Fo"%OUTPUT_DIR%\test_gc.obj" "tests\unit\test_gc.cpp"
 if %errorlevel% neq 0 exit /b %errorlevel%
 
+echo [INFO] Compiling test_binary_unary_expr...
+cl %CXX_FLAGS% /Isrc /Itests\unit /c /Fo"%OUTPUT_DIR%\test_binary_unary_expr.obj" "tests\unit\test_binary_unary_expr.cpp"
+if %errorlevel% neq 0 exit /b %errorlevel%
+
+echo [INFO] Compiling test_function_codegen...
+cl %CXX_FLAGS% /Isrc /Itests\unit /c /Fo"%OUTPUT_DIR%\test_function_codegen.obj" "tests\unit\test_function_codegen.cpp"
+if %errorlevel% neq 0 exit /b %errorlevel%
+
+echo [INFO] Compiling test_baselib...
+cl %CXX_FLAGS% /Isrc /Itests\unit /c /Fo"%OUTPUT_DIR%\test_baselib.obj" "tests\unit\test_baselib.cpp"
+if %errorlevel% neq 0 exit /b %errorlevel%
+
+echo [INFO] Compiling test_lua_functions...
+cl %CXX_FLAGS% /Isrc /Itests\unit /c /Fo"%OUTPUT_DIR%\test_lua_functions.obj" "tests\unit\test_lua_functions.cpp"
+if %errorlevel% neq 0 exit /b %errorlevel%
+
 echo.
 echo [INFO] Compiling main.cpp...
 cl %CXX_FLAGS% /Isrc /Itests\unit /c /Fo"%OUTPUT_DIR%\main.obj" "src\main.cpp"
@@ -184,6 +204,10 @@ cl %CXX_FLAGS% /Fe"%OUTPUT_DIR%\main.exe" ^
     "%OUTPUT_DIR%\test_vm_core.obj" ^
     "%OUTPUT_DIR%\test_function.obj" ^
     "%OUTPUT_DIR%\test_gc.obj" ^
+    "%OUTPUT_DIR%\test_binary_unary_expr.obj" ^
+    "%OUTPUT_DIR%\test_function_codegen.obj" ^
+    "%OUTPUT_DIR%\test_baselib.obj" ^
+    "%OUTPUT_DIR%\test_lua_functions.obj" ^
     "%OUTPUT_DIR%\value.obj" ^
     "%OUTPUT_DIR%\gc_object.obj" ^
     "%OUTPUT_DIR%\gc_string.obj" ^
@@ -192,6 +216,7 @@ cl %CXX_FLAGS% /Fe"%OUTPUT_DIR%\main.exe" ^
     "%OUTPUT_DIR%\function.obj" ^
     "%OUTPUT_DIR%\userdata.obj" ^
     "%OUTPUT_DIR%\upvalue.obj" ^
+    "%OUTPUT_DIR%\metatable.obj" ^
     "%OUTPUT_DIR%\garbage_collector.obj" ^
     "%OUTPUT_DIR%\global_state.obj" ^
     "%OUTPUT_DIR%\stack.obj" ^

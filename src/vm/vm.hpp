@@ -27,6 +27,7 @@
 #include "common/types.hpp"
 #include "core/value.hpp"
 #include "core/function.hpp"
+#include "core/metatable.hpp"
 #include "vm/lua_state.hpp"
 #include "compiler/opcode.hpp"
 
@@ -266,6 +267,98 @@ private:
     // 其他指令
     void executeClosure(i32 a, i32 bx);
     void executeVararg(i32 a, i32 b);
+
+    // =====================================================================
+    // 元方法调用辅助函数
+    // =====================================================================
+
+    /**
+     * @brief 尝试调用算术运算元方法
+     *
+     * 当算术运算的操作数不是数字时，尝试调用相应的元方法。
+     *
+     * @param op 算术运算类型（TM_ADD, TM_SUB等）
+     * @param left 左操作数
+     * @param right 右操作数
+     * @param result 存储结果的位置
+     * @return true 如果成功调用元方法，false 如果没有元方法
+     */
+    bool tryArithMetamethod(TMS op, const Value& left, const Value& right, Value& result);
+
+    /**
+     * @brief 尝试调用__index元方法
+     *
+     * 当表中不存在指定键时，尝试调用__index元方法。
+     * 支持元方法链（最多MAXTAGLOOP次）。
+     *
+     * @param table 表对象
+     * @param key 索引键
+     * @param result 存储结果的位置
+     * @return true 如果成功获取值，false 如果失败
+     */
+    bool tryIndexMetamethod(const Value& table, const Value& key, Value& result);
+
+    /**
+     * @brief 尝试调用__newindex元方法
+     *
+     * 当给表中不存在的键赋值时，尝试调用__newindex元方法。
+     * 支持元方法链（最多MAXTAGLOOP次）。
+     *
+     * @param table 表对象
+     * @param key 索引键
+     * @param value 要设置的值
+     * @return true 如果成功设置值，false 如果失败
+     */
+    bool tryNewIndexMetamethod(const Value& table, const Value& key, const Value& value);
+
+    /**
+     * @brief 尝试调用__concat元方法
+     *
+     * 当字符串连接的操作数不是字符串或数字时，尝试调用__concat元方法。
+     *
+     * @param left 左操作数
+     * @param right 右操作数
+     * @param result 存储结果的位置
+     * @return true 如果成功调用元方法，false 如果没有元方法
+     */
+    bool tryConcatMetamethod(const Value& left, const Value& right, Value& result);
+
+    /**
+     * @brief 尝试调用__len元方法
+     *
+     * 当对非表、非字符串对象使用#运算符时，尝试调用__len元方法。
+     *
+     * @param obj 对象
+     * @param result 存储结果的位置
+     * @return true 如果成功调用元方法，false 如果没有元方法
+     */
+    bool tryLenMetamethod(const Value& obj, Value& result);
+
+    /**
+     * @brief 尝试调用比较元方法
+     *
+     * 当比较运算的操作数类型不同或不支持直接比较时，尝试调用元方法。
+     *
+     * @param op 比较运算类型（TM_EQ, TM_LT, TM_LE）
+     * @param left 左操作数
+     * @param right 右操作数
+     * @param result 存储比较结果（布尔值）
+     * @return true 如果成功调用元方法，false 如果没有元方法
+     */
+    bool tryCompareMetamethod(TMS op, const Value& left, const Value& right, bool& result);
+
+    /**
+     * @brief 通用元方法调用接口
+     *
+     * 提供统一的元方法调用机制，处理栈操作和函数调用。
+     *
+     * @param metamethod 元方法函数
+     * @param arg1 第一个参数
+     * @param arg2 第二个参数
+     * @param result 存储返回值的位置
+     */
+    void callMetamethod(const Value& metamethod, const Value& arg1,
+                       const Value& arg2, Value& result);
 };
 
 } // namespace Lua

@@ -65,5 +65,10 @@ void registerBaselibTests();
  */
 void registerLuaFunctionTests();
 
+/**
+ * @brief 注册算术元方法测试
+ */
+void registerMetamethodArithTests();
+
 #endif // LUA_TEST_REGISTRY_HPP
 

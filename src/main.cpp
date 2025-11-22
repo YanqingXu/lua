@@ -91,6 +91,7 @@ int main() {
         registerFunctionCodegenTests();
         registerBaselibTests();
         registerLuaFunctionTests();
+        registerMetamethodArithTests();
 
         std::cout << "[INFO] All tests registered." << std::endl;
         std::cout << "[INFO] Starting test execution...\n" << std::endl;

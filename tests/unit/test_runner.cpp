@@ -23,6 +23,7 @@ extern void registerBinaryUnaryExprTests();
 extern void registerFunctionCodegenTests();
 extern void registerBaselibTests();
 extern void registerLuaFunctionTests();
+extern void registerMetamethodArithTests();
 
 /**
  * @brief 打印测试框架标题
@@ -77,6 +78,7 @@ int main() {
     registerFunctionCodegenTests();
     registerBaselibTests();
     registerLuaFunctionTests();
+    registerMetamethodArithTests();
 
     std::cout << "[INFO] All tests registered." << std::endl;
     std::cout << "[INFO] Starting test execution...\n" << std::endl;

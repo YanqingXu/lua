@@ -70,6 +70,7 @@ usize ValueHash::operator()(const Value& val) const noexcept {
 Table::Table()
     : GCObject(GCObjectType::Table)
     , metatable_(nullptr)
+    , flags_(0)  // 初始化标志位为0（所有元方法都可能存在）
 {
 }
 

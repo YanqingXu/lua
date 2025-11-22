@@ -141,6 +141,7 @@
     <ClInclude Include="src\core\function.hpp" />
     <ClInclude Include="src\core\gc_object.hpp" />
     <ClInclude Include="src\core\gc_string.hpp" />
+    <ClInclude Include="src\core\metatable.hpp" />
     <ClInclude Include="src\core\string_pool.hpp" />
     <ClInclude Include="src\core\table.hpp" />
     <ClInclude Include="src\core\upvalue.hpp" />
@@ -165,6 +166,7 @@
     <ClCompile Include="src\core\function.cpp" />
     <ClCompile Include="src\core\gc_object.cpp" />
     <ClCompile Include="src\core\gc_string.cpp" />
+    <ClCompile Include="src\core\metatable.cpp" />
     <ClCompile Include="src\core\string_pool.cpp" />
     <ClCompile Include="src\core\table.cpp" />
     <ClCompile Include="src\core\upvalue.cpp" />
@@ -184,6 +186,7 @@
     <ClCompile Include="tests\unit\test_gc.cpp" />
     <ClCompile Include="tests\unit\test_gc_string.cpp" />
     <ClCompile Include="tests\unit\test_lua_functions.cpp" />
+    <ClCompile Include="tests\unit\test_metamethod_arith.cpp" />
     <ClCompile Include="tests\unit\test_table.cpp" />
     <ClCompile Include="tests\unit\test_value.cpp" />
     <ClCompile Include="tests\unit\test_vm_core.cpp" />
