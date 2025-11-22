@@ -194,6 +194,78 @@ private:
     // =====================================================================
 
     Function* currentFunc_;  ///< 当前执行的函数（用于访问upvalues）
+
+    // =====================================================================
+    // 重构后的辅助函数 - 执行上下文管理
+    // =====================================================================
+
+    /**
+     * @brief 验证Proto并检查调用深度
+     * @param proto 函数原型
+     * @param nexeccalls 嵌套调用计数
+     */
+    void validateAndCheckDepth(Proto* proto, i32 nexeccalls);
+
+    /**
+     * @brief 初始化执行上下文（用于函数入口和reentry）
+     */
+    void initializeExecutionContext();
+
+    // =====================================================================
+    // 重构后的辅助函数 - 指令执行
+    // =====================================================================
+
+    /**
+     * @brief 分发并执行当前指令
+     * @return true 继续执行，false 需要跳转到reentry
+     */
+    bool dispatchInstruction();
+
+    // 基础操作指令
+    inline void executeMove(i32 a, i32 b);
+    inline void executeLoadK(i32 a, i32 bx);
+    inline void executeLoadBool(i32 a, i32 b, i32 c);
+    inline void executeLoadNil(i32 a, i32 b);
+
+    // 全局变量操作
+    void executeGetGlobal(i32 a, i32 bx);
+    void executeSetGlobal(i32 a, i32 bx);
+
+    // 表操作指令
+    void executeGetTable(i32 a, i32 b, i32 c);
+    void executeSetTable(i32 a, i32 b, i32 c);
+    void executeNewTable(i32 a);
+    void executeSelf(i32 a, i32 b, i32 c);
+    void executeSetList(i32 a, i32 b, i32 c);
+
+    // 一元运算指令
+    void executeUnm(i32 a, i32 b);
+    void executeNot(i32 a, i32 b);
+    void executeLen(i32 a, i32 b);
+    void executeConcat(i32 a, i32 b, i32 c);
+
+    // 测试指令
+    void executeTest(i32 a, i32 c);
+    void executeTestSet(i32 a, i32 b, i32 c);
+
+    // Upvalue操作指令
+    void executeGetUpval(i32 a, i32 b);
+    void executeSetUpval(i32 a, i32 b);
+    void executeClose(i32 a);
+
+    // 函数调用指令
+    bool executeCall(i32 a, i32 b, i32 c, i32& nexeccalls);
+    bool executeTailCall(i32 a, i32 b);
+    bool executeReturn(i32 a, i32 b, i32& nexeccalls);
+
+    // 循环指令
+    void executeForLoop(i32 a, i32 sbx);
+    void executeForPrep(i32 a, i32 sbx);
+    void executeTForLoop(i32 a, i32 c);
+
+    // 其他指令
+    void executeClosure(i32 a, i32 bx);
+    void executeVararg(i32 a, i32 b);
 };
 
 } // namespace Lua

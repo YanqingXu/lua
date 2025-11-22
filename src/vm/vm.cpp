@@ -49,68 +49,12 @@ void VM::execute(Function* func) {
 }
 
 void VM::executeProto(Proto* proto, i32 nexeccalls) {
-    if (!proto) {
-        throw std::runtime_error("VM::executeProto: null proto");
-    }
-
-    // 检查嵌套调用深度（防止栈溢出）
-    static constexpr i32 MAX_CALLS = 200;
-    if (nexeccalls >= MAX_CALLS) {
-        throw std::runtime_error("VM: stack overflow (too many nested calls)");
-    }
+    validateAndCheckDepth(proto, nexeccalls);
 
 reentry:  // ⭐ P0修复：添加reentry标签，参考lua_c_analysis/src/lvm.c:1558
-    // 重新初始化执行状态（每次reentry都需要）
-    {
-        CallInfo& ci = L_->getCurrentCallInfo();
-        Stack& stack = L_->getStack();
+    initializeExecutionContext();
 
-        // ⭐ P0修复：从CallInfo恢复currentFunc_
-        if (ci.func < stack.size()) {
-            Value& funcVal = stack.at(ci.func);
-            if (funcVal.isFunction()) {
-                currentFunc_ = funcVal.asFunction();
-            } else {
-                throw std::runtime_error("VM::executeProto: CallInfo.func is not a function");
-            }
-        } else {
-            throw std::runtime_error("VM::executeProto: CallInfo.func out of range");
-        }
-
-        // 从CallInfo恢复执行状态
-        if (ci.savedpc != nullptr) {
-            // 从保存的PC恢复（用于CALL返回后继续执行）
-            currentProto_ = currentFunc_->getProto();
-            pc_ = static_cast<usize>(ci.savedpc - currentProto_->getCode().data());
-        } else {
-            // 新函数调用，从头开始
-            currentProto_ = currentFunc_->getProto();
-            pc_ = 0;
-        }
-
-        // ✅ 改进：使用统一的栈空间确保方法
-        usize requiredTop = ci.base + currentProto_->getMaxStackSize();
-
-        // ⭐ 临时修复：添加额外的栈空间以应对CodeGenerator的maxStackSize计算错误
-        // TODO: 修复CodeGenerator后移除这个hack
-        usize extraSpace = 10;  // 额外的栈空间
-        usize actualRequiredTop = requiredTop + extraSpace;
-
-        // ⭐ P0修复：确保栈有足够的容量，并设置top
-        if (stack.capacity() < actualRequiredTop) {
-            ensureStackSpace(actualRequiredTop - stack.size());
-        }
-
-        // ⭐ P0修复：设置栈顶到所需位置，并初始化为nil
-        while (stack.size() < actualRequiredTop) {
-            stack.push(Value());  // nil
-        }
-
-        // 更新base_指针
-        updateBasePointer();
-    }
-
-    // 主执行循环
+    // 主执行循环 - 简洁的指令分发
     const Vec<Instruction>& code = currentProto_->getCode();
 
     while (pc_ < code.size()) {
@@ -124,660 +68,87 @@ reentry:  // ⭐ P0修复：添加reentry标签，参考lua_c_analysis/src/lvm.c
         i32 bx = GETARG_Bx(inst);
         i32 sbx = GETARG_sBx(inst);
 
-        // 指令执行（调试输出已移除以减少噪音）
-
         pc_++;  // 先递增PC
         
-        // 指令分发
+        // 指令分发 - 使用辅助函数简化主循环
         switch (op) {
-            case OpCode::MOVE: {
-                // R(A) := R(B)
-                R(a) = R(b);
-                break;
-            }
+            // 基础操作
+            case OpCode::MOVE:      executeMove(a, b); break;
+            case OpCode::LOADK:     executeLoadK(a, bx); break;
+            case OpCode::LOADBOOL:  executeLoadBool(a, b, c); break;
+            case OpCode::LOADNIL:   executeLoadNil(a, b); break;
             
-            case OpCode::LOADK: {
-                // R(A) := K(Bx)
-                R(a) = K(bx);
-                break;
-            }
+            // 全局变量操作
+            case OpCode::GETGLOBAL: executeGetGlobal(a, bx); break;
+            case OpCode::SETGLOBAL: executeSetGlobal(a, bx); break;
             
-            case OpCode::LOADBOOL: {
-                // R(A) := (bool)B; if (C) pc++
-                R(a) = Value(b != 0);
-                if (c != 0) {
-                    pc_++;
-                }
-                break;
-            }
-
-            case OpCode::LOADNIL: {
-                // R(A) := ... := R(B) := nil
-                for (i32 i = a; i <= b; i++) {
-                    R(i) = Value();  // 默认构造为nil
-                }
-                break;
-            }
+            // 表操作
+            case OpCode::GETTABLE:  executeGetTable(a, b, c); break;
+            case OpCode::SETTABLE:  executeSetTable(a, b, c); break;
+            case OpCode::NEWTABLE:  executeNewTable(a); break;
+            case OpCode::SELF:      executeSelf(a, b, c); break;
+            case OpCode::SETLIST:   executeSetList(a, b, c); break;
             
-            case OpCode::GETGLOBAL: {
-                // R(A) := Gbl[K(Bx)]
-                // 使用当前函数的环境表（Lua 5.1兼容）
-                const Value& key = K(bx);
-
-                // 获取当前函数的环境表，如果未设置则使用全局表
-                Table* env = currentFunc_->getEnv();
-                if (!env) {
-                    env = L_->getGlobalTable();
-                }
-
-                R(a) = env->get(key);
-                break;
-            }
-
-            case OpCode::SETGLOBAL: {
-                // Gbl[K(Bx)] := R(A)
-                // 使用当前函数的环境表（Lua 5.1兼容）
-                const Value& key = K(bx);
-
-                // 获取当前函数的环境表，如果未设置则使用全局表
-                Table* env = currentFunc_->getEnv();
-                if (!env) {
-                    env = L_->getGlobalTable();
-                }
-
-                env->set(key, R(a));
-                break;
-            }
-            
-            case OpCode::GETTABLE: {
-                // R(A) := R(B)[RK(C)]
-                Value& table = R(b);
-                Value key = RK(c);
-                if (!table.isTable()) {
-                    throw std::runtime_error("VM: attempt to index a non-table value");
-                }
-                R(a) = table.asTable()->get(key);
-                break;
-            }
-            
-            case OpCode::SETTABLE: {
-                // R(A)[RK(B)] := RK(C)
-                Value& table = R(a);
-                Value key = RK(b);
-                Value value = RK(c);
-                if (!table.isTable()) {
-                    throw std::runtime_error("VM: attempt to index a non-table value");
-                }
-                table.asTable()->set(key, value);
-                break;
-            }
-            
-            case OpCode::NEWTABLE: {
-                // R(A) := {} (size = B,C)
-                Table* table = new Table();
-                R(a) = Value(table);
-                break;
-            }
-
+            // 算术运算
             case OpCode::ADD:
             case OpCode::SUB:
             case OpCode::MUL:
             case OpCode::DIV:
             case OpCode::MOD:
-            case OpCode::POW: {
-                // R(A) := RK(B) op RK(C)
-                arith(op, a, b, c);
-                break;
-            }
-
-            case OpCode::UNM: {
-                // R(A) := -R(B)
-                Value& val = R(b);
-                if (!val.isNumber()) {
-                    throw std::runtime_error("VM: attempt to perform arithmetic on a non-number value");
-                }
-                R(a) = Value(-val.asNumber());
-                break;
-            }
-
-            case OpCode::NOT: {
-                // R(A) := not R(B)
-                R(a) = Value(!R(b).isTrue());
-                break;
-            }
-
-            case OpCode::LEN: {
-                // R(A) := length of R(B)
-                Value& val = R(b);
-                if (val.isString()) {
-                    R(a) = Value(static_cast<f64>(val.asString()->getLength()));
-                } else if (val.isTable()) {
-                    R(a) = Value(static_cast<f64>(val.asTable()->length()));
-                } else {
-                    throw std::runtime_error("VM: attempt to get length of a non-string/table value");
-                }
-                break;
-            }
-
-            case OpCode::CONCAT: {
-                // R(A) := R(B).. ... ..R(C)
-                // 简化实现：只支持两个字符串连接
-                Value& left = R(b);
-                Value& right = R(c);
-
-                if (!left.isString() || !right.isString()) {
-                    throw std::runtime_error("VM: attempt to concatenate non-string values");
-                }
-
-                Str result = left.asString()->getData() + right.asString()->getData();
-                StringPool& pool = GlobalState::getInstance().getStringPool();
-                GCString* str = pool.intern(result);
-                R(a) = Value(str);
-                break;
-            }
-
-            case OpCode::JMP: {
-                // pc += sBx
-                doJump(sbx);
-                break;
-            }
-
+            case OpCode::POW:       arith(op, a, b, c); break;
+            
+            // 一元运算
+            case OpCode::UNM:       executeUnm(a, b); break;
+            case OpCode::NOT:       executeNot(a, b); break;
+            case OpCode::LEN:       executeLen(a, b); break;
+            case OpCode::CONCAT:    executeConcat(a, b, c); break;
+            
+            // 跳转和比较
+            case OpCode::JMP:       doJump(sbx); break;
             case OpCode::EQ:
             case OpCode::LT:
-            case OpCode::LE: {
-                // if ((RK(B) op RK(C)) ~= A) then pc++
-                compare(op, a, b, c);
-                break;
-            }
-
-            case OpCode::TEST: {
-                // ⭐ P0修复：参考lua_c_analysis/src/lvm.c:1782-1788
-                // if (l_isfalse(ra) != GETARG_C(i)) {
-                //     dojump(L, pc, GETARG_sBx(*pc));
-                // }
-                // pc++;
-
-                bool val = R(a).isTrue();
-                // 如果 (val为false) != C，则跳转
-                if ((!val) != (c != 0)) {
-                    // 读取下一条JMP指令的sBx并跳转
-                    if (pc_ < code.size()) {
-                        Instruction nextInst = code[pc_];
-                        i32 sbx = GETARG_sBx(nextInst);
-                        doJump(sbx);
-                    }
-                }
-                // 无论如何都要跳过下一条JMP指令
-                pc_++;
-                break;
-            }
-
-            case OpCode::TESTSET: {
-                // ⭐ P0修复：参考lua_c_analysis/src/lvm.c:1790-1798
-                // if (l_isfalse(rb) != GETARG_C(i)) {
-                //     setobjs2s(L, ra, rb);
-                //     dojump(L, pc, GETARG_sBx(*pc));
-                // }
-                // pc++;
-
-                bool val = R(b).isTrue();
-                // 如果 (val为false) != C，则设置并跳转
-                if ((!val) != (c != 0)) {
-                    R(a) = R(b);
-                    // 读取下一条JMP指令的sBx并跳转
-                    if (pc_ < code.size()) {
-                        Instruction nextInst = code[pc_];
-                        i32 sbx = GETARG_sBx(nextInst);
-                        doJump(sbx);
-                    }
-                }
-                // 无论如何都要跳过下一条JMP指令
-                pc_++;
-                break;
-            }
-
-            // =====================================================================
-            // Upvalue操作指令
-            // =====================================================================
-
-            case OpCode::GETUPVAL: {
-                // R(A) := UpValue[B]
-                if (!currentFunc_) {
-                    throw std::runtime_error("VM: GETUPVAL without current function");
-                }
-
-                Upvalue* uv = currentFunc_->getUpvalue(b);
-                if (!uv) {
-                    throw std::runtime_error("VM: GETUPVAL invalid upvalue index");
-                }
-
-                // ✅ 改进：传入stack引用
-                R(a) = uv->getValue(L_->getStack());
-                break;
-            }
-
-            case OpCode::SETUPVAL: {
-                // UpValue[B] := R(A)
-                if (!currentFunc_) {
-                    throw std::runtime_error("VM: SETUPVAL without current function");
-                }
-
-                Upvalue* uv = currentFunc_->getUpvalue(b);
-                if (!uv) {
-                    throw std::runtime_error("VM: SETUPVAL invalid upvalue index");
-                }
-
-                // ✅ 改进：使用setValue方法
-                uv->setValue(L_->getStack(), R(a));
-                break;
-            }
-
-            case OpCode::CLOSE: {
-                // close all variables in the stack up to (>=) R(A)
-                L_->closeUpvalues(a);
-                break;
-            }
-
-            // =====================================================================
-            // 函数调用指令
-            // =====================================================================
-
-            case OpCode::CALL: {
-                // R(A), ... ,R(A+C-2) := R(A)(R(A+1), ... ,R(A+B-1))
-                // ⭐ P0修复：参考lua_c_analysis/src/lvm.c:1800
-                i32 nArgs = b - 1;      // B=0表示到栈顶
-                i32 nResults = c - 1;   // C=0表示多返回值
-
-                // 保存当前PC（用于返回后继续执行）
-                CallInfo& currentCI = L_->getCurrentCallInfo();
-                currentCI.savedpc = &code[pc_];
-
-                // 计算函数在栈中的绝对位置
-                usize funcPos = currentCI.base + a;
-
-                // 在precall之前保存函数引用（因为precall会改变CallInfo）
-                Value& funcVal = R(a);
-                if (!funcVal.isFunction()) {
-                    throw std::runtime_error("VM: CALL on non-function value");
-                }
-                Function* func = funcVal.asFunction();
-
-                // 准备调用
-                bool isLua = precall(a, nArgs, nResults);
-
-                if (isLua) {
-                    // ⭐ P0修复：Lua函数使用goto reentry而非递归
-                    // 设置新函数上下文
-                    currentFunc_ = func;
-                    nexeccalls++;
-                    goto reentry;  // ⭐ 跳转到reentry标签重新开始执行
-                } else {
-                    // C函数已在precall中执行完成
-                    // postcall已在precall中调用
-                    // ✅ 改进：使用统一的更新方法
-                    updateBasePointer();
-                }
-                break;
-            }
-
-            case OpCode::TAILCALL: {
-                // return R(A)(R(A+1), ... ,R(A+B-1))
-                i32 nArgs = b - 1;
-
-                // 尾调用：关闭当前函数的upvalues
-                CallInfo& currentCI = L_->getCurrentCallInfo();
-                L_->closeUpvalues(currentCI.base);
-
-                // 准备调用（返回值数量为-1表示多返回值）
-                bool isLua = precall(a, nArgs, -1);
-
-                if (isLua) {
-                    // Lua函数尾调用：直接替换当前栈帧
-                    // 获取被调用函数
-                    Value& funcVal = R(a);
-                    Function* func = funcVal.asFunction();
-                    Proto* calleeProto = func->getProto();
-
-                    // 尾调用优化：不增加调用栈深度
-                    // 直接用新函数替换当前函数
-                    currentFunc_ = func;
-                    currentProto_ = calleeProto;
-                    pc_ = 0;
-
-                    // 更新CallInfo的尾调用计数
-                    currentCI.tailcalls++;
-
-                    // 重新开始执行（goto reentry的效果）
-                    // 通过返回并让调用者重新进入来实现
-                    return;
-                } else {
-                    // C函数已执行，直接返回
-                    return;
-                }
-            }
-
-            case OpCode::SELF: {
-                // R(A+1) := R(B); R(A) := R(B)[RK(C)]
-                Value obj = R(b);
-                R(a + 1) = obj;  // 保存对象作为第一个参数
-
-                // 获取方法
-                if (!obj.isTable()) {
-                    throw std::runtime_error("VM: SELF requires table object");
-                }
-
-                Table* table = obj.asTable();
-                Value key = RK(c);
-                Value method = table->get(key);
-                R(a) = method;
-                break;
-            }
-
-            // =====================================================================
-            // 循环指令
-            // =====================================================================
-
-            case OpCode::FORLOOP: {
-                // R(A)+=R(A+2); if R(A) <?= R(A+1) then { pc+=sBx; R(A+3)=R(A) }
-                // 参考：lua_c_analysis/src/lvm.c 第1899-1911行
-                if (!R(a).isNumber() || !R(a + 1).isNumber() || !R(a + 2).isNumber()) {
-                    throw std::runtime_error("VM: FORLOOP requires numeric values");
-                }
-
-                // 读取循环变量
-                f64 step = R(a + 2).asNumber();
-                f64 idx = R(a).asNumber() + step;  // idx = R(A) + step
-                f64 limit = R(a + 1).asNumber();
-
-                // 检查循环条件（根据步长方向选择比较方式）
-                // 正步长：idx <= limit
-                // 负步长：idx >= limit
-                bool cont = (step > 0) ? (idx <= limit) : (idx >= limit);
-
-                if (cont) {
-                    // 继续循环：先跳转，再更新寄存器
-                    doJump(sbx);              // pc += sBx
-                    R(a) = Value(idx);        // 更新内部索引 R(A)
-                    R(a + 3) = Value(idx);    // 更新用户可见的循环变量 R(A+3)
-                }
-                // 如果不继续循环，则正常执行下一条指令
-                break;
-            }
-
-            case OpCode::FORPREP: {
-                // R(A)-=R(A+2); pc+=sBx
-                if (!R(a).isNumber() || !R(a + 1).isNumber() || !R(a + 2).isNumber()) {
-                    throw std::runtime_error("VM: FORPREP requires numeric values");
-                }
-
-                f64 init = R(a).asNumber();
-                f64 step = R(a + 2).asNumber();
-                R(a) = Value(init - step);  // 预减步长
-                doJump(sbx);                // 跳转到FORLOOP
-                break;
-            }
-
-            case OpCode::TFORLOOP: {
-                // R(A+3), ... ,R(A+2+C) := R(A)(R(A+1), R(A+2))
-                // if R(A+3) ~= nil then R(A+2)=R(A+3) else pc++
-                // 参考：lua_c_analysis/src/lvm.c 第1935-1952行
-
-                // 泛型for循环（迭代器循环）执行步骤：
-                // 1. 将迭代器函数和参数复制到调用位置 R(A+3)
-                // 2. 调用迭代器：R(A+3), ..., R(A+2+C) := R(A)(R(A+1), R(A+2))
-                // 3. 检查第一个返回值 R(A+3)：
-                //    - 如果不是 nil：更新控制变量 R(A+2)=R(A+3)，读取下一条JMP指令并跳转
-                //    - 如果是 nil：退出循环，pc++ 跳过下一条JMP指令
-
-                i32 cb = a + 3;  // 调用基址（call base）
-
-                // 确保栈有足够空间存储调用参数和返回值
-                Stack& stack = L_->getStack();
-                CallInfo& ci = L_->getCurrentCallInfo();
-                usize requiredSize = ci.base + cb + 3 + c;  // 需要 cb+3+c 个寄存器
-                while (stack.size() < requiredSize) {
-                    stack.push(Value());
-                }
-                // 更新 base_（栈可能已扩展）
-                base_ = &stack.at(ci.base);
-
-                // 步骤1：将迭代器函数和参数复制到调用位置
-                // setobjs2s(L, cb+2, ra+2);  // R(A+5) = R(A+2) (控制变量)
-                // setobjs2s(L, cb+1, ra+1);  // R(A+4) = R(A+1) (状态)
-                // setobjs2s(L, cb, ra);      // R(A+3) = R(A)   (迭代器函数)
-                R(cb + 2) = R(a + 2);  // 控制变量
-                R(cb + 1) = R(a + 1);  // 状态
-                R(cb) = R(a);          // 迭代器函数
-
-                // 步骤2：调用迭代器函数
-                // L->top = cb + 3;  设置栈顶为函数+2个参数
-                // Protect(luaD_call(L, cb, GETARG_C(i)));
-
-                // 检查迭代器函数类型
-                if (!R(cb).isFunction()) {
-                    throw std::runtime_error("VM: TFORLOOP requires function at R(" +
-                                           std::to_string(cb) + ")");
-                }
-
-                Function* func = R(cb).asFunction();
-
-                if (func->isCFunction()) {
-                    // C函数迭代器
-                    CFunction cfunc = func->getCFunction();
-
-                    // 保存所有寄存器的值（因为调用会清空栈）
-                    Vec<Value> savedRegs;
-                    for (usize i = 0; i < stack.size(); i++) {
-                        savedRegs.push_back(stack.at(i));
-                    }
-
-                    // 清空栈，压入参数
-                    stack.clear();
-                    stack.push(savedRegs[ci.base + cb + 1]);  // 参数1：状态
-                    stack.push(savedRegs[ci.base + cb + 2]);  // 参数2：控制变量
-
-                    // 调用C函数
-                    i32 nret = cfunc(L_);
-
-                    // 保存返回值（从栈中读取）
-                    Vec<Value> returnValues;
-                    for (i32 i = 0; i < nret && i < c; i++) {
-                        if (2 + i < static_cast<i32>(stack.size())) {
-                            returnValues.push_back(stack.at(2 + i));
-                        } else {
-                            returnValues.push_back(Value());
-                        }
-                    }
-
-                    // 恢复栈到原来的状态
-                    stack.clear();
-                    for (const Value& v : savedRegs) {
-                        stack.push(v);
-                    }
-
-                    // ✅ 改进：使用统一的更新方法
-                    updateBasePointer();
-
-                    // 将返回值存储到 R(cb), R(cb+1), ..., R(cb+c-1)
-                    for (usize i = 0; i < returnValues.size(); i++) {
-                        R(static_cast<i32>(cb + i)) = returnValues[i];
-                    }
-                    // 填充剩余返回值为 nil
-                    for (i32 i = static_cast<i32>(returnValues.size()); i < c; i++) {
-                        R(cb + i) = Value();
-                    }
-                } else {
-                    // Lua函数迭代器（暂不支持）
-                    throw std::runtime_error("VM: TFORLOOP Lua iterators not supported yet");
-                }
-
-                // 步骤3：检查第一个返回值并决定是否继续循环
-                // cb = RA(i) + 3;  (调用可能改变栈，重新计算)
-                cb = a + 3;
-
-                if (!R(cb).isNil()) {
-                    // 继续循环：更新控制变量并跳转
-                    // setobjs2s(L, cb-1, cb);  即 R(A+2) = R(A+3)
-                    R(a + 2) = R(cb);
-
-                    // 读取下一条指令（JMP）的sBx并跳转
-                    // 参考：lua_c_analysis/src/lvm.c 第1948行
-                    // dojump(L, pc, GETARG_sBx(*pc)); pc++;
-                    //
-                    // 在 Lua C 中：
-                    // - pc 在指令开始时已经递增，所以 *pc 是下一条指令（JMP）
-                    // - dojump(L, pc, offset): pc += offset
-                    // - pc++: 跳过 JMP 指令
-                    //
-                    // 在我们的实现中：
-                    // - 主循环在指令分发前执行 pc++，所以 pc_ 现在指向下一条指令（JMP）
-                    // - doJump(offset): pc_ += offset
-                    // - 不执行 pc++，因为主循环会在下一次迭代时执行
-                    if (pc_ < code.size()) {
-                        Instruction jmpInst = code[pc_];
-                        i32 jmpSbx = GETARG_sBx(jmpInst);
-                        doJump(jmpSbx);
-                    }
-                } else {
-                    // 退出循环：跳过下一条JMP指令
-                    pc_++;
-                }
-
-                break;
-            }
-
-            // =====================================================================
-            // 闭包和表初始化指令
-            // =====================================================================
-
-            case OpCode::CLOSURE: {
-                // R(A) := closure(KPROTO[Bx], R(A), ... ,R(A+n))
-                // 创建闭包：从Proto的子函数列表中获取Proto
-
-                // ⭐ P0修复：从Proto的子函数列表获取，而不是常量表
-                if (bx < 0 || static_cast<usize>(bx) >= currentProto_->getSubProtoCount()) {
-                    throw std::runtime_error("VM: CLOSURE proto index out of range");
-                }
-
-                Proto* childProto = currentProto_->getSubProto(bx);
-
-                // 创建新的闭包
-                Function* closure = new Function(childProto);
-
-                // TODO: 处理upvalues（需要读取后续的MOVE/GETUPVAL指令）
-                // 简化版：暂不处理upvalues
-
-                R(a) = Value(closure);
-                break;
-            }
-
-            case OpCode::SETLIST: {
-                // R(A)[(C-1)*FPF+i] := R(A+i), 1 <= i <= B
-                // FPF = LFIELDS_PER_FLUSH = 50
-                constexpr i32 FPF = 50;
-
-                if (!R(a).isTable()) {
-                    throw std::runtime_error("VM: SETLIST requires table");
-                }
-
-                Table* table = R(a).asTable();
-                i32 n = b;
-                i32 base_index = (c - 1) * FPF;
-
-                // 如果B=0，表示到栈顶
-                if (n == 0) {
-                    Stack& stack = L_->getStack();
-                    n = static_cast<i32>(stack.size()) - a - 1;
-                }
-
-                // 设置数组元素
-                for (i32 i = 1; i <= n; i++) {
-                    table->setArray(base_index + i, R(a + i));
-                }
-                break;
-            }
-
-            case OpCode::VARARG: {
-                // R(A), R(A+1), ..., R(A+B-1) = vararg
-                // 简化实现：暂不支持可变参数
-                if (b == 0) {
-                    // 复制所有可变参数（暂不支持）
-                    throw std::runtime_error("VM: VARARG with B=0 not supported yet");
-                } else {
-                    // 复制B-1个可变参数
-                    // 简化：设置为nil
-                    for (i32 i = 0; i < b - 1; i++) {
-                        R(a + i) = Value();
-                    }
-                }
-                break;
-            }
-
-            case OpCode::RETURN: {
-                // return R(A), ... ,R(A+B-2)
-                // ⭐ P0修复：参考lua_c_analysis/src/lvm.c:1873
-                // B=0: 返回从R(A)到栈顶的所有值
-                // B=1: 无返回值
-                // B>1: 返回B-1个值（R(A)到R(A+B-2)）
-
-                CallInfo& ci = L_->getCurrentCallInfo();
-                Stack& stack = L_->getStack();
-
-                // 计算返回值数量
-                i32 nres;
-                if (b == 0) {
-                    // 返回从R(A)到栈顶的所有值
-                    nres = static_cast<i32>(stack.size()) - (static_cast<i32>(ci.base) + a);
-                } else {
-                    // 返回B-1个值
-                    nres = b - 1;
-                }
-
-                // 将返回值移动到函数位置
-                // 返回值应该从ci.func位置开始存放
-                for (i32 i = 0; i < nres; i++) {
-                    stack.at(ci.func + i) = R(a + i);
-                }
-
-                // 设置栈顶为返回值结束位置
-                usize newTop = ci.func + nres;
-                while (stack.size() > newTop) {
-                    stack.pop();
-                }
-
-                // 关闭upvalues
-                L_->closeUpvalues(ci.base);
-
-                // ⭐ P0修复：检查是否返回到调用者
-                if (--nexeccalls == 0) {
-                    // 最外层函数返回，退出执行循环
-                    // 不需要弹出CallInfo或调用postcall
-                    return;
-                } else {
-                    // 还有调用者，需要弹出CallInfo并恢复调用者状态
-
-                    // ⭐ P0修复：调用postcall处理返回值
-                    i32 funcPos = static_cast<i32>(ci.func);
-                    i32 wantedResults = ci.nresults;
-
-                    // 弹出CallInfo
-                    L_->popCallInfo();
-
-                    // 处理返回值
-                    postcall(funcPos, wantedResults);
-
-                    // 更新base指针
-                    updateBasePointer();
-
-                    // ⭐ 跳转到reentry继续执行调用者的代码
+            case OpCode::LE:        compare(op, a, b, c); break;
+            case OpCode::TEST:      executeTest(a, c); break;
+            case OpCode::TESTSET:   executeTestSet(a, b, c); break;
+            
+            // Upvalue操作
+            case OpCode::GETUPVAL:  executeGetUpval(a, b); break;
+            case OpCode::SETUPVAL:  executeSetUpval(a, b); break;
+            case OpCode::CLOSE:     executeClose(a); break;
+            
+            // 函数调用（需要特殊处理reentry）
+            case OpCode::CALL:
+                if (executeCall(a, b, c, nexeccalls)) {
                     goto reentry;
                 }
-            }
-
-            default: {
-                throw std::runtime_error("VM: unsupported opcode: " +
-                    Str(getOpName(op)));
-            }
+                break;
+                
+            case OpCode::TAILCALL:
+                if (executeTailCall(a, b)) {
+                    return;
+                }
+                break;
+                
+            case OpCode::RETURN:
+                if (executeReturn(a, b, nexeccalls)) {
+                    if (nexeccalls == 0) {
+                        return;  // 最外层函数返回
+                    }
+                    goto reentry;  // 内层函数返回，继续执行调用者
+                }
+                break;
+            
+            // 循环指令
+            case OpCode::FORLOOP:   executeForLoop(a, sbx); break;
+            case OpCode::FORPREP:   executeForPrep(a, sbx); break;
+            case OpCode::TFORLOOP:  executeTForLoop(a, c); break;
+            
+            // 其他指令
+            case OpCode::CLOSURE:   executeClosure(a, bx); break;
+            case OpCode::VARARG:    executeVararg(a, b); break;
+            
+            default:
+                throw std::runtime_error("VM: unsupported opcode: " + Str(getOpName(op)));
         }
     }
 }
@@ -1121,6 +492,649 @@ void VM::postcall(i32 funcPos, i32 wantedResults) {
 
     // 栈顶现在应该在 funcPos + actualResults
     // 已经通过上面的push/pop调整好了
+}
+
+// =====================================================================
+// 重构后的辅助函数实现
+// =====================================================================
+
+void VM::validateAndCheckDepth(Proto* proto, i32 nexeccalls) {
+    if (!proto) {
+        throw std::runtime_error("VM::executeProto: null proto");
+    }
+
+    // 检查嵌套调用深度（防止栈溢出）
+    static constexpr i32 MAX_CALLS = 200;
+    if (nexeccalls >= MAX_CALLS) {
+        throw std::runtime_error("VM: stack overflow (too many nested calls)");
+    }
+}
+
+void VM::initializeExecutionContext() {
+    // 重新初始化执行状态（每次reentry都需要）
+    CallInfo& ci = L_->getCurrentCallInfo();
+    Stack& stack = L_->getStack();
+
+    // ⭐ P0修复：从CallInfo恢复currentFunc_
+    if (ci.func < stack.size()) {
+        Value& funcVal = stack.at(ci.func);
+        if (funcVal.isFunction()) {
+            currentFunc_ = funcVal.asFunction();
+        } else {
+            throw std::runtime_error("VM::executeProto: CallInfo.func is not a function");
+        }
+    } else {
+        throw std::runtime_error("VM::executeProto: CallInfo.func out of range");
+    }
+
+    // 从CallInfo恢复执行状态
+    if (ci.savedpc != nullptr) {
+        // 从保存的PC恢复（用于CALL返回后继续执行）
+        currentProto_ = currentFunc_->getProto();
+        pc_ = static_cast<usize>(ci.savedpc - currentProto_->getCode().data());
+    } else {
+        // 新函数调用，从头开始
+        currentProto_ = currentFunc_->getProto();
+        pc_ = 0;
+    }
+
+    // ✅ 改进：使用统一的栈空间确保方法
+    usize requiredTop = ci.base + currentProto_->getMaxStackSize();
+
+    // ⭐ 临时修复：添加额外的栈空间以应对CodeGenerator的maxStackSize计算错误
+    // TODO: 修复CodeGenerator后移除这个hack
+    usize extraSpace = 10;  // 额外的栈空间
+    usize actualRequiredTop = requiredTop + extraSpace;
+
+    // ⭐ P0修复：确保栈有足够的容量，并设置top
+    if (stack.capacity() < actualRequiredTop) {
+        ensureStackSpace(actualRequiredTop - stack.size());
+    }
+
+    // ⭐ P0修复：设置栈顶到所需位置，并初始化为nil
+    while (stack.size() < actualRequiredTop) {
+        stack.push(Value());  // nil
+    }
+
+    // 更新base_指针
+    updateBasePointer();
+}
+
+// =====================================================================
+// 基础操作指令实现
+// =====================================================================
+
+inline void VM::executeMove(i32 a, i32 b) {
+    // R(A) := R(B)
+    R(a) = R(b);
+}
+
+inline void VM::executeLoadK(i32 a, i32 bx) {
+    // R(A) := K(Bx)
+    R(a) = K(bx);
+}
+
+inline void VM::executeLoadBool(i32 a, i32 b, i32 c) {
+    // R(A) := (bool)B; if (C) pc++
+    R(a) = Value(b != 0);
+    if (c != 0) {
+        pc_++;
+    }
+}
+
+inline void VM::executeLoadNil(i32 a, i32 b) {
+    // R(A) := ... := R(B) := nil
+    for (i32 i = a; i <= b; i++) {
+        R(i) = Value();  // 默认构造为nil
+    }
+}
+
+// =====================================================================
+// 全局变量操作实现
+// =====================================================================
+
+void VM::executeGetGlobal(i32 a, i32 bx) {
+    // R(A) := Gbl[K(Bx)]
+    // 使用当前函数的环境表（Lua 5.1兼容）
+    const Value& key = K(bx);
+
+    // 获取当前函数的环境表，如果未设置则使用全局表
+    Table* env = currentFunc_->getEnv();
+    if (!env) {
+        env = L_->getGlobalTable();
+    }
+
+    R(a) = env->get(key);
+}
+
+void VM::executeSetGlobal(i32 a, i32 bx) {
+    // Gbl[K(Bx)] := R(A)
+    // 使用当前函数的环境表（Lua 5.1兼容）
+    const Value& key = K(bx);
+
+    // 获取当前函数的环境表，如果未设置则使用全局表
+    Table* env = currentFunc_->getEnv();
+    if (!env) {
+        env = L_->getGlobalTable();
+    }
+
+    env->set(key, R(a));
+}
+
+// =====================================================================
+// 表操作指令实现
+// =====================================================================
+
+void VM::executeGetTable(i32 a, i32 b, i32 c) {
+    // R(A) := R(B)[RK(C)]
+    Value& table = R(b);
+    Value key = RK(c);
+    if (!table.isTable()) {
+        throw std::runtime_error("VM: attempt to index a non-table value");
+    }
+    R(a) = table.asTable()->get(key);
+}
+
+void VM::executeSetTable(i32 a, i32 b, i32 c) {
+    // R(A)[RK(B)] := RK(C)
+    Value& table = R(a);
+    Value key = RK(b);
+    Value value = RK(c);
+    if (!table.isTable()) {
+        throw std::runtime_error("VM: attempt to index a non-table value");
+    }
+    table.asTable()->set(key, value);
+}
+
+void VM::executeNewTable(i32 a) {
+    // R(A) := {} (size = B,C)
+    Table* table = new Table();
+    R(a) = Value(table);
+}
+
+void VM::executeSelf(i32 a, i32 b, i32 c) {
+    // R(A+1) := R(B); R(A) := R(B)[RK(C)]
+    Value obj = R(b);
+    R(a + 1) = obj;  // 保存对象作为第一个参数
+
+    // 获取方法
+    if (!obj.isTable()) {
+        throw std::runtime_error("VM: SELF requires table object");
+    }
+
+    Table* table = obj.asTable();
+    Value key = RK(c);
+    Value method = table->get(key);
+    R(a) = method;
+}
+
+void VM::executeSetList(i32 a, i32 b, i32 c) {
+    // R(A)[(C-1)*FPF+i] := R(A+i), 1 <= i <= B
+    // FPF = LFIELDS_PER_FLUSH = 50
+    constexpr i32 FPF = 50;
+
+    if (!R(a).isTable()) {
+        throw std::runtime_error("VM: SETLIST requires table");
+    }
+
+    Table* table = R(a).asTable();
+    i32 n = b;
+    i32 base_index = (c - 1) * FPF;
+
+    // 如果B=0，表示到栈顶
+    if (n == 0) {
+        Stack& stack = L_->getStack();
+        n = static_cast<i32>(stack.size()) - a - 1;
+    }
+
+    // 设置数组元素
+    for (i32 i = 1; i <= n; i++) {
+        table->setArray(base_index + i, R(a + i));
+    }
+}
+
+// =====================================================================
+// 一元运算指令实现
+// =====================================================================
+
+void VM::executeUnm(i32 a, i32 b) {
+    // R(A) := -R(B)
+    Value& val = R(b);
+    if (!val.isNumber()) {
+        throw std::runtime_error("VM: attempt to perform arithmetic on a non-number value");
+    }
+    R(a) = Value(-val.asNumber());
+}
+
+void VM::executeNot(i32 a, i32 b) {
+    // R(A) := not R(B)
+    R(a) = Value(!R(b).isTrue());
+}
+
+void VM::executeLen(i32 a, i32 b) {
+    // R(A) := length of R(B)
+    Value& val = R(b);
+    if (val.isString()) {
+        R(a) = Value(static_cast<f64>(val.asString()->getLength()));
+    } else if (val.isTable()) {
+        R(a) = Value(static_cast<f64>(val.asTable()->length()));
+    } else {
+        throw std::runtime_error("VM: attempt to get length of a non-string/table value");
+    }
+}
+
+void VM::executeConcat(i32 a, i32 b, i32 c) {
+    // R(A) := R(B).. ... ..R(C)
+    // 简化实现：只支持两个字符串连接
+    Value& left = R(b);
+    Value& right = R(c);
+
+    if (!left.isString() || !right.isString()) {
+        throw std::runtime_error("VM: attempt to concatenate non-string values");
+    }
+
+    Str result = left.asString()->getData() + right.asString()->getData();
+    StringPool& pool = GlobalState::getInstance().getStringPool();
+    GCString* str = pool.intern(result);
+    R(a) = Value(str);
+}
+
+// =====================================================================
+// 测试指令实现
+// =====================================================================
+
+void VM::executeTest(i32 a, i32 c) {
+    // ⭐ P0修复：参考lua_c_analysis/src/lvm.c:1782-1788
+    const Vec<Instruction>& code = currentProto_->getCode();
+    
+    bool val = R(a).isTrue();
+    // 如果 (val为false) != C，则跳转
+    if ((!val) != (c != 0)) {
+        // 读取下一条JMP指令的sBx并跳转
+        if (pc_ < code.size()) {
+            Instruction nextInst = code[pc_];
+            i32 sbx = GETARG_sBx(nextInst);
+            doJump(sbx);
+        }
+    }
+    // 无论如何都要跳过下一条JMP指令
+    pc_++;
+}
+
+void VM::executeTestSet(i32 a, i32 b, i32 c) {
+    // ⭐ P0修复：参考lua_c_analysis/src/lvm.c:1790-1798
+    const Vec<Instruction>& code = currentProto_->getCode();
+    
+    bool val = R(b).isTrue();
+    // 如果 (val为false) != C，则设置并跳转
+    if ((!val) != (c != 0)) {
+        R(a) = R(b);
+        // 读取下一条JMP指令的sBx并跳转
+        if (pc_ < code.size()) {
+            Instruction nextInst = code[pc_];
+            i32 sbx = GETARG_sBx(nextInst);
+            doJump(sbx);
+        }
+    }
+    // 无论如何都要跳过下一条JMP指令
+    pc_++;
+}
+
+// =====================================================================
+// Upvalue操作指令实现
+// =====================================================================
+
+void VM::executeGetUpval(i32 a, i32 b) {
+    // R(A) := UpValue[B]
+    if (!currentFunc_) {
+        throw std::runtime_error("VM: GETUPVAL without current function");
+    }
+
+    Upvalue* uv = currentFunc_->getUpvalue(b);
+    if (!uv) {
+        throw std::runtime_error("VM: GETUPVAL invalid upvalue index");
+    }
+
+    // ✅ 改进：传入stack引用
+    R(a) = uv->getValue(L_->getStack());
+}
+
+void VM::executeSetUpval(i32 a, i32 b) {
+    // UpValue[B] := R(A)
+    if (!currentFunc_) {
+        throw std::runtime_error("VM: SETUPVAL without current function");
+    }
+
+    Upvalue* uv = currentFunc_->getUpvalue(b);
+    if (!uv) {
+        throw std::runtime_error("VM: SETUPVAL invalid upvalue index");
+    }
+
+    // ✅ 改进：使用setValue方法
+    uv->setValue(L_->getStack(), R(a));
+}
+
+void VM::executeClose(i32 a) {
+    // close all variables in the stack up to (>=) R(A)
+    L_->closeUpvalues(a);
+}
+
+// =====================================================================
+// 循环指令实现
+// =====================================================================
+
+void VM::executeForLoop(i32 a, i32 sbx) {
+    // R(A)+=R(A+2); if R(A) <?= R(A+1) then { pc+=sBx; R(A+3)=R(A) }
+    // 参考：lua_c_analysis/src/lvm.c 第1899-1911行
+    if (!R(a).isNumber() || !R(a + 1).isNumber() || !R(a + 2).isNumber()) {
+        throw std::runtime_error("VM: FORLOOP requires numeric values");
+    }
+
+    // 读取循环变量
+    f64 step = R(a + 2).asNumber();
+    f64 idx = R(a).asNumber() + step;  // idx = R(A) + step
+    f64 limit = R(a + 1).asNumber();
+
+    // 检查循环条件（根据步长方向选择比较方式）
+    bool cont = (step > 0) ? (idx <= limit) : (idx >= limit);
+
+    if (cont) {
+        // 继续循环：先跳转，再更新寄存器
+        doJump(sbx);              // pc += sBx
+        R(a) = Value(idx);        // 更新内部索引 R(A)
+        R(a + 3) = Value(idx);    // 更新用户可见的循环变量 R(A+3)
+    }
+}
+
+void VM::executeForPrep(i32 a, i32 sbx) {
+    // R(A)-=R(A+2); pc+=sBx
+    if (!R(a).isNumber() || !R(a + 1).isNumber() || !R(a + 2).isNumber()) {
+        throw std::runtime_error("VM: FORPREP requires numeric values");
+    }
+
+    f64 init = R(a).asNumber();
+    f64 step = R(a + 2).asNumber();
+    R(a) = Value(init - step);  // 预减步长
+    doJump(sbx);                // 跳转到FORLOOP
+}
+
+void VM::executeTForLoop(i32 a, i32 c) {
+    // R(A+3), ... ,R(A+2+C) := R(A)(R(A+1), R(A+2))
+    // if R(A+3) ~= nil then R(A+2)=R(A+3) else pc++
+    // 参考：lua_c_analysis/src/lvm.c 第1935-1952行
+    
+    const Vec<Instruction>& code = currentProto_->getCode();
+    i32 cb = a + 3;  // 调用基址（call base）
+
+    // 确保栈有足够空间存储调用参数和返回值
+    Stack& stack = L_->getStack();
+    CallInfo& ci = L_->getCurrentCallInfo();
+    usize requiredSize = ci.base + cb + 3 + c;
+    while (stack.size() < requiredSize) {
+        stack.push(Value());
+    }
+    // 更新 base_（栈可能已扩展）
+    base_ = &stack.at(ci.base);
+
+    // 步骤1：将迭代器函数和参数复制到调用位置
+    R(cb + 2) = R(a + 2);  // 控制变量
+    R(cb + 1) = R(a + 1);  // 状态
+    R(cb) = R(a);          // 迭代器函数
+
+    // 步骤2：调用迭代器函数
+    if (!R(cb).isFunction()) {
+        throw std::runtime_error("VM: TFORLOOP requires function at R(" +
+                               std::to_string(cb) + ")");
+    }
+
+    Function* func = R(cb).asFunction();
+
+    if (func->isCFunction()) {
+        // C函数迭代器
+        CFunction cfunc = func->getCFunction();
+
+        // 保存所有寄存器的值（因为调用会清空栈）
+        Vec<Value> savedRegs;
+        for (usize i = 0; i < stack.size(); i++) {
+            savedRegs.push_back(stack.at(i));
+        }
+
+        // 清空栈，压入参数
+        stack.clear();
+        stack.push(savedRegs[ci.base + cb + 1]);  // 参数1：状态
+        stack.push(savedRegs[ci.base + cb + 2]);  // 参数2：控制变量
+
+        // 调用C函数
+        i32 nret = cfunc(L_);
+
+        // 保存返回值（从栈中读取）
+        Vec<Value> returnValues;
+        for (i32 i = 0; i < nret && i < c; i++) {
+            if (2 + i < static_cast<i32>(stack.size())) {
+                returnValues.push_back(stack.at(2 + i));
+            } else {
+                returnValues.push_back(Value());
+            }
+        }
+
+        // 恢复栈到原来的状态
+        stack.clear();
+        for (const Value& v : savedRegs) {
+            stack.push(v);
+        }
+
+        // ✅ 改进：使用统一的更新方法
+        updateBasePointer();
+
+        // 将返回值存储到 R(cb), R(cb+1), ..., R(cb+c-1)
+        for (usize i = 0; i < returnValues.size(); i++) {
+            R(static_cast<i32>(cb + i)) = returnValues[i];
+        }
+        // 填充剩余返回值为 nil
+        for (i32 i = static_cast<i32>(returnValues.size()); i < c; i++) {
+            R(cb + i) = Value();
+        }
+    } else {
+        // Lua函数迭代器（暂不支持）
+        throw std::runtime_error("VM: TFORLOOP Lua iterators not supported yet");
+    }
+
+    // 步骤3：检查第一个返回值并决定是否继续循环
+    cb = a + 3;
+
+    if (!R(cb).isNil()) {
+        // 继续循环：更新控制变量并跳转
+        R(a + 2) = R(cb);
+
+        // 读取下一条指令（JMP）的sBx并跳转
+        if (pc_ < code.size()) {
+            Instruction jmpInst = code[pc_];
+            i32 jmpSbx = GETARG_sBx(jmpInst);
+            doJump(jmpSbx);
+        }
+    } else {
+        // 退出循环：跳过下一条JMP指令
+        pc_++;
+    }
+}
+
+// =====================================================================
+// 其他指令实现
+// =====================================================================
+
+void VM::executeClosure(i32 a, i32 bx) {
+    // R(A) := closure(KPROTO[Bx], R(A), ... ,R(A+n))
+    // 创建闭包：从Proto的子函数列表中获取Proto
+
+    // ⭐ P0修复：从Proto的子函数列表获取，而不是常量表
+    if (bx < 0 || static_cast<usize>(bx) >= currentProto_->getSubProtoCount()) {
+        throw std::runtime_error("VM: CLOSURE proto index out of range");
+    }
+
+    Proto* childProto = currentProto_->getSubProto(bx);
+
+    // 创建新的闭包
+    Function* closure = new Function(childProto);
+
+    // TODO: 处理upvalues（需要读取后续的MOVE/GETUPVAL指令）
+    // 简化版：暂不处理upvalues
+
+    R(a) = Value(closure);
+}
+
+void VM::executeVararg(i32 a, i32 b) {
+    // R(A), R(A+1), ..., R(A+B-1) = vararg
+    // 简化实现：暂不支持可变参数
+    if (b == 0) {
+        // 复制所有可变参数（暂不支持）
+        throw std::runtime_error("VM: VARARG with B=0 not supported yet");
+    } else {
+        // 复制B-1个可变参数
+        // 简化：设置为nil
+        for (i32 i = 0; i < b - 1; i++) {
+            R(a + i) = Value();
+        }
+    }
+}
+
+// =====================================================================
+// 函数调用指令实现
+// =====================================================================
+
+bool VM::executeCall(i32 a, i32 b, i32 c, i32& nexeccalls) {
+    // R(A), ... ,R(A+C-2) := R(A)(R(A+1), ... ,R(A+B-1))
+    // ⭐ P0修复：参考lua_c_analysis/src/lvm.c:1800
+    const Vec<Instruction>& code = currentProto_->getCode();
+    i32 nArgs = b - 1;      // B=0表示到栈顶
+    i32 nResults = c - 1;   // C=0表示多返回值
+
+    // 保存当前PC（用于返回后继续执行）
+    CallInfo& currentCI = L_->getCurrentCallInfo();
+    currentCI.savedpc = &code[pc_];
+
+    // 计算函数在栈中的绝对位置
+    usize funcPos = currentCI.base + a;
+
+    // 在precall之前保存函数引用（因为precall会改变CallInfo）
+    Value& funcVal = R(a);
+    if (!funcVal.isFunction()) {
+        throw std::runtime_error("VM: CALL on non-function value");
+    }
+    Function* func = funcVal.asFunction();
+
+    // 准备调用
+    bool isLua = precall(a, nArgs, nResults);
+
+    if (isLua) {
+        // ⭐ P0修复：Lua函数使用goto reentry而非递归
+        // 设置新函数上下文
+        currentFunc_ = func;
+        nexeccalls++;
+        return true;  // 需要reentry
+    } else {
+        // C函数已在precall中执行完成
+        // postcall已在precall中调用
+        // ✅ 改进：使用统一的更新方法
+        updateBasePointer();
+        return false;  // 继续执行
+    }
+}
+
+bool VM::executeTailCall(i32 a, i32 b) {
+    // return R(A)(R(A+1), ... ,R(A+B-1))
+    i32 nArgs = b - 1;
+
+    // 尾调用：关闭当前函数的upvalues
+    CallInfo& currentCI = L_->getCurrentCallInfo();
+    L_->closeUpvalues(currentCI.base);
+
+    // 准备调用（返回值数量为-1表示多返回值）
+    bool isLua = precall(a, nArgs, -1);
+
+    if (isLua) {
+        // Lua函数尾调用：直接替换当前栈帧
+        // 获取被调用函数
+        Value& funcVal = R(a);
+        Function* func = funcVal.asFunction();
+        Proto* calleeProto = func->getProto();
+
+        // 尾调用优化：不增加调用栈深度
+        // 直接用新函数替换当前函数
+        currentFunc_ = func;
+        currentProto_ = calleeProto;
+        pc_ = 0;
+
+        // 更新CallInfo的尾调用计数
+        currentCI.tailcalls++;
+
+        // 重新开始执行（goto reentry的效果）
+        // 通过返回并让调用者重新进入来实现
+        return true;  // 需要return并reentry
+    } else {
+        // C函数已执行，直接返回
+        return true;  // 需要return
+    }
+}
+
+bool VM::executeReturn(i32 a, i32 b, i32& nexeccalls) {
+    // return R(A), ... ,R(A+B-2)
+    // ⭐ P0修复：参考lua_c_analysis/src/lvm.c:1873
+    // B=0: 返回从R(A)到栈顶的所有值
+    // B=1: 无返回值
+    // B>1: 返回B-1个值（R(A)到R(A+B-2)）
+
+    CallInfo& ci = L_->getCurrentCallInfo();
+    Stack& stack = L_->getStack();
+
+    // 计算返回值数量
+    i32 nres;
+    if (b == 0) {
+        // 返回从R(A)到栈顶的所有值
+        nres = static_cast<i32>(stack.size()) - (static_cast<i32>(ci.base) + a);
+    } else {
+        // 返回B-1个值
+        nres = b - 1;
+    }
+
+    // 将返回值移动到函数位置
+    // 返回值应该从ci.func位置开始存放
+    for (i32 i = 0; i < nres; i++) {
+        stack.at(ci.func + i) = R(a + i);
+    }
+
+    // 设置栈顶为返回值结束位置
+    usize newTop = ci.func + nres;
+    while (stack.size() > newTop) {
+        stack.pop();
+    }
+
+    // 关闭upvalues
+    L_->closeUpvalues(ci.base);
+
+    // ⭐ P0修复：检查是否返回到调用者
+    if (--nexeccalls == 0) {
+        // 最外层函数返回，退出执行循环
+        // 不需要弹出CallInfo或调用postcall
+        return true;  // 需要return
+    } else {
+        // 还有调用者，需要弹出CallInfo并恢复调用者状态
+
+        // ⭐ P0修复：调用postcall处理返回值
+        i32 funcPos = static_cast<i32>(ci.func);
+        i32 wantedResults = ci.nresults;
+
+        // 弹出CallInfo
+        L_->popCallInfo();
+
+        // 处理返回值
+        postcall(funcPos, wantedResults);
+
+        // 更新base指针
+        updateBasePointer();
+
+        // ⭐ 跳转到reentry继续执行调用者的代码
+        return true;  // 需要reentry
+    }
 }
 
 } // namespace Lua
