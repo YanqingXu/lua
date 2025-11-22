@@ -18,14 +18,20 @@ namespace Lua {
 
 Proto::Proto()
     : GCObject(GCObjectType::Proto)
-    , numParams_(0)
-    , isVararg_(false)
-    , maxStackSize_(0)
-    , source_(nullptr)
     , constants_()
     , code_()
-    , lineInfo_()
     , subProtos_()
+    , lineInfo_()
+    , locvars_()
+    , upvalueNames_()
+    , source_(nullptr)
+    , linedefined_(0)
+    , lastlinedefined_(0)
+    , gclist_(nullptr)
+    , nups_(0)
+    , numParams_(0)
+    , isVararg_(0)
+    , maxStackSize_(0)
 {
 }
 
@@ -100,6 +106,52 @@ Proto* Proto::getSubProto(usize index) const {
     return subProtos_[index];
 }
 
+// =====================================================================
+// 局部变量信息管理
+// =====================================================================
+
+usize Proto::addLocVar(GCString* varname, i32 startpc, i32 endpc) {
+    locvars_.emplace_back(varname, startpc, endpc);
+    return locvars_.size() - 1;
+}
+
+const LocVar& Proto::getLocVar(usize index) const {
+    if (index >= locvars_.size()) {
+        throw std::out_of_range("LocVar index out of range");
+    }
+    return locvars_[index];
+}
+
+const char* Proto::getLocalName(i32 localNumber, i32 pc) const {
+    // 遍历局部变量信息数组
+    for (usize i = 0; i < locvars_.size() && locvars_[i].startpc <= pc; i++) {
+        // 检查变量是否在指定pc位置活跃
+        if (pc < locvars_[i].endpc) {
+            localNumber--;
+            if (localNumber == 0) {
+                return locvars_[i].varname ? locvars_[i].varname->c_str() : nullptr;
+            }
+        }
+    }
+    return nullptr;  // 未找到对应的局部变量
+}
+
+// =====================================================================
+// 上值名称管理
+// =====================================================================
+
+usize Proto::addUpvalueName(GCString* name) {
+    upvalueNames_.push_back(name);
+    return upvalueNames_.size() - 1;
+}
+
+GCString* Proto::getUpvalueName(usize index) const {
+    if (index >= upvalueNames_.size()) {
+        return nullptr;
+    }
+    return upvalueNames_[index];
+}
+
 void Proto::mark() {
     // 标记源文件名
     if (source_ != nullptr) {
@@ -124,15 +176,31 @@ void Proto::mark() {
             subProto->setColor(GCColor::Gray);
         }
     }
+
+    // 标记局部变量名称
+    for (const LocVar& locvar : locvars_) {
+        if (locvar.varname != nullptr) {
+            locvar.varname->setColor(GCColor::Gray);
+        }
+    }
+
+    // 标记上值名称
+    for (GCString* name : upvalueNames_) {
+        if (name != nullptr) {
+            name->setColor(GCColor::Gray);
+        }
+    }
 }
 
 usize Proto::getSize() const {
-    // 基础大小 + 常量表大小 + 代码数组大小 + 行号信息大小 + 子函数数组大小
+    // 基础大小 + 所有动态数组的容量
     return sizeof(Proto)
          + constants_.capacity() * sizeof(Value)
          + code_.capacity() * sizeof(Instruction)
          + lineInfo_.capacity() * sizeof(i32)
-         + subProtos_.capacity() * sizeof(Proto*);
+         + subProtos_.capacity() * sizeof(Proto*)
+         + locvars_.capacity() * sizeof(LocVar)
+         + upvalueNames_.capacity() * sizeof(GCString*);
 }
 
 // =====================================================================

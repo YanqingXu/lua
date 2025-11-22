@@ -44,31 +44,106 @@ using Instruction = u32;
 
 /**
  * @brief C函数类型定义
- * 
+ *
  * C函数接受LuaState指针作为参数，返回结果数量。
- * 
+ *
  * @param L Lua状态指针
  * @return 返回值数量
  */
 using CFunction = i32 (*)(LuaState* L);
 
+// =====================================================================
+// 可变参数标志常量（Lua 5.1兼容）
+// =====================================================================
+
 /**
- * @brief 函数原型类（简化版）
- * 
- * Proto包含了Lua函数编译后的信息。当前版本是简化实现，
- * 主要用于建立基础架构，后续会扩展完整的字节码支持。
- * 
- * 完整版本应包含：
- * - 字节码指令数组
- * - 常量表
- * - 调试信息（行号、局部变量名等）
- * - 子函数原型
- * - 上值信息
- * 
- * 当前简化版本包含：
- * - 基本元数据（参数数量、源文件等）
- * - 常量表（简化）
- * - GC支持
+ * @brief 可变参数掩码：用于标识函数的可变参数特性
+ *
+ * Lua 5.1引入了新的可变参数语法（...），这些标志位用于标识
+ * 函数如何处理可变参数。
+ */
+
+/// 有参数标志：函数有实际的可变参数
+constexpr u8 VARARG_HASARG = 1;
+
+/// 是可变参数函数：函数声明时使用了...语法
+constexpr u8 VARARG_ISVARARG = 2;
+
+/// 需要参数：函数需要可变参数（旧式兼容）
+constexpr u8 VARARG_NEEDSARG = 4;
+
+/**
+ * @brief 局部变量信息结构
+ *
+ * 存储函数中局部变量的调试信息，包括变量名称和生命周期。
+ * 对应Lua C实现中的LocVar结构。
+ *
+ * 用途：
+ * - 调试器显示变量名称
+ * - 错误报告中包含变量信息
+ * - 反射和元编程支持
+ *
+ * 生命周期：
+ * - startpc: 变量开始有效的字节码位置
+ * - endpc: 变量失效的字节码位置（不包含）
+ */
+struct LocVar {
+    GCString* varname;      ///< 变量名称
+    i32 startpc;            ///< 起始PC：变量开始有效的字节码位置
+    i32 endpc;              ///< 结束PC：变量失效的字节码位置（不包含）
+
+    /**
+     * @brief 默认构造函数
+     */
+    LocVar() : varname(nullptr), startpc(0), endpc(0) {}
+
+    /**
+     * @brief 构造函数
+     * @param name 变量名称
+     * @param start 起始PC
+     * @param end 结束PC
+     */
+    LocVar(GCString* name, i32 start, i32 end)
+        : varname(name), startpc(start), endpc(end) {}
+};
+
+/**
+ * @brief 函数原型类（完整版）
+ *
+ * Proto包含了Lua函数编译后的所有信息，是Lua虚拟机执行的基础数据结构。
+ * 本实现完全对应Lua 5.1.5 C版本中的Proto结构。
+ *
+ * 核心组成部分：
+ * 1. **字节码序列**：
+ *    - code_: 函数的可执行指令数组
+ *    - 优化后的虚拟机代码
+ *    - 支持调试的行号映射
+ *
+ * 2. **常量池**：
+ *    - constants_: 字符串、数值、布尔值等常量
+ *    - 嵌套函数的原型
+ *    - 预计算的复杂常量
+ *
+ * 3. **变量信息**：
+ *    - locvars_: 局部变量名称和作用域
+ *    - upvalues_: 上值名称和索引
+ *    - numParams_: 参数数量
+ *    - isVararg_: 可变参数标志
+ *
+ * 4. **调试信息**：
+ *    - source_: 源文件名
+ *    - lineInfo_: 字节码到源码行号的映射
+ *    - linedefined_: 函数定义开始行号
+ *    - lastlinedefined_: 函数定义结束行号
+ *
+ * 5. **元数据**：
+ *    - maxStackSize_: 栈大小需求
+ *    - nups_: 上值数量
+ *    - gclist_: 垃圾回收链表指针
+ *
+ * 参考实现：
+ * - lua_c_analysis/src/lobject.h - Proto结构定义
+ * - lua_c_analysis/src/lfunc.c - Proto管理函数
  */
 class Proto : public GCObject {
 public:
@@ -101,14 +176,32 @@ public:
     /**
      * @brief 是否为可变参数函数
      * @return 如果接受可变参数返回true
+     *
+     * 注意：Lua 5.1使用位标志表示可变参数特性：
+     * - VARARG_HASARG (1): 函数有实际的可变参数
+     * - VARARG_ISVARARG (2): 函数声明时使用了...语法
      */
-    bool isVararg() const noexcept { return isVararg_; }
-    
+    bool isVararg() const noexcept { return isVararg_ != 0; }
+
+    /**
+     * @brief 获取可变参数标志（原始值）
+     * @return 可变参数标志位
+     */
+    u8 getVarargFlags() const noexcept { return isVararg_; }
+
     /**
      * @brief 设置可变参数标志
      * @param vararg 是否为可变参数
      */
-    void setVararg(bool vararg) noexcept { isVararg_ = vararg; }
+    void setVararg(bool vararg) noexcept {
+        isVararg_ = vararg ? 2 : 0;  // VARARG_ISVARARG = 2
+    }
+
+    /**
+     * @brief 设置可变参数标志（原始值）
+     * @param flags 可变参数标志位
+     */
+    void setVarargFlags(u8 flags) noexcept { isVararg_ = flags; }
     
     /**
      * @brief 获取最大栈大小
@@ -218,6 +311,18 @@ public:
      */
     i32 getLine(usize pc) const;
 
+    /**
+     * @brief 获取行号信息数组（只读）
+     * @return 行号信息数组引用
+     */
+    const Vec<i32>& getLineInfo() const noexcept { return lineInfo_; }
+
+    /**
+     * @brief 获取行号信息数组（可写）
+     * @return 行号信息数组引用
+     */
+    Vec<i32>& getLineInfo() noexcept { return lineInfo_; }
+
     // =====================================================================
     // 子函数原型管理
     // =====================================================================
@@ -243,6 +348,126 @@ public:
     usize getSubProtoCount() const noexcept { return subProtos_.size(); }
 
     // =====================================================================
+    // 局部变量信息管理（调试支持）
+    // =====================================================================
+
+    /**
+     * @brief 添加局部变量信息
+     * @param varname 变量名称
+     * @param startpc 起始PC
+     * @param endpc 结束PC
+     * @return 变量在数组中的索引
+     */
+    usize addLocVar(GCString* varname, i32 startpc, i32 endpc);
+
+    /**
+     * @brief 获取局部变量信息
+     * @param index 变量索引
+     * @return 局部变量信息
+     */
+    const LocVar& getLocVar(usize index) const;
+
+    /**
+     * @brief 获取局部变量数量
+     * @return 局部变量数量
+     */
+    usize getLocVarCount() const noexcept { return locvars_.size(); }
+
+    /**
+     * @brief 获取指定PC位置的局部变量名称
+     * @param localNumber 局部变量编号（从1开始）
+     * @param pc 程序计数器位置
+     * @return 变量名称，如果未找到返回nullptr
+     *
+     * 对应Lua C实现中的luaF_getlocalname函数
+     */
+    const char* getLocalName(i32 localNumber, i32 pc) const;
+
+    // =====================================================================
+    // 上值名称管理（调试支持）
+    // =====================================================================
+
+    /**
+     * @brief 添加上值名称
+     * @param name 上值名称
+     * @return 上值在数组中的索引
+     */
+    usize addUpvalueName(GCString* name);
+
+    /**
+     * @brief 获取上值名称
+     * @param index 上值索引
+     * @return 上值名称
+     */
+    GCString* getUpvalueName(usize index) const;
+
+    /**
+     * @brief 获取上值名称数量
+     * @return 上值名称数量
+     */
+    usize getUpvalueNameCount() const noexcept { return upvalueNames_.size(); }
+
+    // =====================================================================
+    // 函数定义位置信息
+    // =====================================================================
+
+    /**
+     * @brief 获取函数定义开始行号
+     * @return 开始行号
+     */
+    i32 getLineDefined() const noexcept { return linedefined_; }
+
+    /**
+     * @brief 设置函数定义开始行号
+     * @param line 行号
+     */
+    void setLineDefined(i32 line) noexcept { linedefined_ = line; }
+
+    /**
+     * @brief 获取函数定义结束行号
+     * @return 结束行号
+     */
+    i32 getLastLineDefined() const noexcept { return lastlinedefined_; }
+
+    /**
+     * @brief 设置函数定义结束行号
+     * @param line 行号
+     */
+    void setLastLineDefined(i32 line) noexcept { lastlinedefined_ = line; }
+
+    // =====================================================================
+    // 上值数量管理
+    // =====================================================================
+
+    /**
+     * @brief 获取上值数量
+     * @return 上值数量
+     */
+    u8 getNumUpvalues() const noexcept { return nups_; }
+
+    /**
+     * @brief 设置上值数量
+     * @param n 上值数量
+     */
+    void setNumUpvalues(u8 n) noexcept { nups_ = n; }
+
+    // =====================================================================
+    // GC链表管理
+    // =====================================================================
+
+    /**
+     * @brief 获取GC链表指针
+     * @return GC链表指针
+     */
+    GCObject* getGCList() const noexcept { return gclist_; }
+
+    /**
+     * @brief 设置GC链表指针
+     * @param list GC链表指针
+     */
+    void setGCList(GCObject* list) noexcept { gclist_ = list; }
+
+    // =====================================================================
     // GCObject接口实现
     // =====================================================================
 
@@ -250,29 +475,60 @@ public:
     usize getSize() const override;
 
 private:
-    /// 参数数量
-    u8 numParams_;
+    // =====================================================================
+    // 核心数据结构
+    // =====================================================================
 
-    /// 可变参数标志
-    bool isVararg_;
-
-    /// 最大栈大小
-    u8 maxStackSize_;
-
-    /// 源文件名
-    GCString* source_;
-
-    /// 常量表
+    /// 常量表：函数使用的常量值数组
     Vec<Value> constants_;
 
-    /// 字节码数组
+    /// 字节码数组：函数的指令序列
     Vec<Instruction> code_;
 
-    /// 行号信息（每条指令对应一个行号）
+    /// 子函数原型数组：函数内定义的嵌套函数
+    Vec<Proto*> subProtos_;
+
+    /// 行号信息：字节码到源码行号的映射（每条指令对应一个行号）
     Vec<i32> lineInfo_;
 
-    /// 子函数原型数组（函数内定义的函数）
-    Vec<Proto*> subProtos_;
+    /// 局部变量信息：调试用的局部变量描述
+    Vec<LocVar> locvars_;
+
+    /// 上值名称数组：闭包变量的名称（用于调试）
+    Vec<GCString*> upvalueNames_;
+
+    // =====================================================================
+    // 元数据字段
+    // =====================================================================
+
+    /// 源文件名：函数所在的源文件
+    GCString* source_;
+
+    /// 函数定义开始行号
+    i32 linedefined_;
+
+    /// 函数定义结束行号
+    i32 lastlinedefined_;
+
+    /// GC链表指针：用于垃圾回收遍历
+    GCObject* gclist_;
+
+    // =====================================================================
+    // 函数签名信息（字节类型）
+    // =====================================================================
+
+    /// 上值数量：函数引用的外部变量个数
+    u8 nups_;
+
+    /// 参数数量：函数的固定参数个数
+    u8 numParams_;
+
+    /// 可变参数标志：函数是否接受可变数量的参数
+    /// 对应Lua 5.1的VARARG_HASARG和VARARG_ISVARARG标志
+    u8 isVararg_;
+
+    /// 最大栈大小：函数执行时需要的最大栈空间
+    u8 maxStackSize_;
 };
 
 /**
