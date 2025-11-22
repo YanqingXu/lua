@@ -41,27 +41,35 @@
 
 namespace Lua {
 
+// 前向声明
+class Stack;
+
 /**
  * @brief Upvalue类：闭包捕获的外部变量
- * 
- * 实现细节：
- * - Open状态：v_指向栈上的Value，stackIndex_有效
- * - Closed状态：v_指向closedValue_，stackIndex_无效
+ *
+ * 实现细节（✅ 改进版 - 使用索引避免悬空指针）：
+ * - Open状态：只存储stackIndex_，通过Stack动态获取值
+ * - Closed状态：存储在closedValue_中
  * - 链表指针next_用于LuaState中的open upvalue链表
+ *
+ * ✅ 改进说明：
+ * 原实现使用指针v_指向栈上的Value，当std::vector::resize()时会导致悬空指针。
+ * 改进后只存储索引，每次访问时动态计算地址，完全避免悬空指针问题。
  */
 class Upvalue : public GCObject {
 public:
     /**
      * @brief 创建Open状态的Upvalue（指向栈上的值）
-     * @param stackValue 指向栈上Value的指针
      * @param stackIndex 栈索引位置
      * @return 新创建的Upvalue指针
-     * 
+     *
+     * ✅ 改进：只传递索引，不传递指针
+     *
      * 使用场景：
      * - 闭包创建时捕获外部变量
      * - LuaState::findOrCreateUpvalue()中
      */
-    static Upvalue* createOpen(Value* stackValue, usize stackIndex);
+    static Upvalue* createOpen(usize stackIndex);
     
     /**
      * @brief 创建Closed状态的Upvalue（独立存储值）
@@ -95,39 +103,55 @@ public:
      */
     bool isClosed() const noexcept;
     
-    // ========== 值访问 ==========
-    
+    // ========== 值访问（✅ 改进版 - 需要传入Stack引用） ==========
+
     /**
      * @brief 获取Upvalue的值（可修改）
+     * @param stack 栈引用
      * @return 值的引用
-     * 
+     *
+     * ✅ 改进：需要传入Stack引用，动态计算地址
+     *
      * 注意：
-     * - Open状态：返回栈上的值
+     * - Open状态：返回栈上的值（通过索引动态获取）
      * - Closed状态：返回closedValue_
      */
-    Value& getValue() noexcept;
-    
+    Value& getValue(Stack& stack) noexcept;
+
     /**
      * @brief 获取Upvalue的值（只读）
+     * @param stack 栈引用
      * @return 值的常量引用
      */
-    const Value& getValue() const noexcept;
-    
+    const Value& getValue(const Stack& stack) const noexcept;
+
+    /**
+     * @brief 设置Upvalue的值
+     * @param stack 栈引用
+     * @param value 新值
+     *
+     * ✅ 新增：提供设置值的接口
+     */
+    void setValue(Stack& stack, const Value& value);
+
     // ========== 状态转换 ==========
-    
+
     /**
      * @brief 关闭Upvalue（从Open转换为Closed）
-     * 
+     * @param stack 栈引用
+     *
+     * ✅ 改进：需要传入Stack引用以复制值
+     *
      * 操作：
      * 1. 将栈上的值复制到closedValue_
-     * 2. 更新v_指针指向closedValue_
-     * 3. stackIndex_变为无效
-     * 
+     * 2. 标记为Closed状态
+     * 3. stackIndex_保持不变（用于调试）
+     *
      * 调用时机：
      * - 函数返回时（LuaState::closeUpvalues）
      * - 栈收缩时
      */
-    void close();
+    void close(Stack& stack);
     
     // ========== 栈索引管理 ==========
     
@@ -173,10 +197,11 @@ public:
 private:
     /**
      * @brief 私有构造函数（Open状态）
-     * @param stackValue 指向栈上Value的指针
      * @param stackIndex 栈索引位置
+     *
+     * ✅ 改进：只接受索引参数
      */
-    Upvalue(Value* stackValue, usize stackIndex);
+    explicit Upvalue(usize stackIndex);
 
     /**
      * @brief 私有构造函数（Closed状态）
@@ -184,23 +209,27 @@ private:
      */
     explicit Upvalue(const Value& value);
 
-    // ========== 成员变量 ==========
+    // ========== 成员变量（✅ 改进版） ==========
 
     /**
-     * @brief 值指针：指向当前值的位置
+     * @brief 是否为Open状态
      *
-     * 状态区分：
-     * - Open状态：v_ == stackValue（指向栈上的Value）
-     * - Closed状态：v_ == &closedValue_（指向内部存储）
+     * ✅ 新增：显式标记状态，避免通过指针判断
+     *
+     * - true: Open状态，使用stackIndex_
+     * - false: Closed状态，使用closedValue_
      */
-    Value* v_;
+    bool isOpen_;
 
     /**
-     * @brief 栈索引：记录栈上的位置（仅Open状态有效）
+     * @brief 栈索引：记录栈上的位置
+     *
+     * ✅ 改进：始终有效，用于动态获取栈上的值
      *
      * 用途：
+     * - Open状态：通过此索引访问栈上的值
+     * - Closed状态：保持不变（用于调试）
      * - LuaState中的upvalue链表按stackIndex_降序排列
-     * - 用于查找和批量关闭upvalue
      */
     usize stackIndex_;
 

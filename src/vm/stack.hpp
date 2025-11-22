@@ -66,17 +66,20 @@ namespace Lua {
 class Stack {
 public:
     // =====================================================================
-    // 常量定义
+    // 常量定义（✅ 改进版 - 添加最大栈限制）
     // =====================================================================
-    
+
     /// 最小栈大小（Lua 5.1.5中的LUA_MINSTACK）
     static constexpr usize MIN_STACK_SIZE = 20;
-    
+
     /// 初始栈大小
     static constexpr usize INITIAL_STACK_SIZE = 40;
-    
+
     /// 额外栈空间（用于元方法调用等）
     static constexpr usize EXTRA_STACK = 5;
+
+    /// ✅ 最大栈大小（防止无限递归，与Lua C的LUAI_MAXSTACK一致）
+    static constexpr usize MAX_STACK_SIZE = 1000000;
     
     // =====================================================================
     // 构造函数和析构函数
@@ -100,15 +103,49 @@ public:
     Stack& operator=(Stack&&) noexcept = default;
     
     // =====================================================================
-    // 栈操作
+    // 栈操作（✅ 改进版 - 添加预检查和快速push）
     // =====================================================================
-    
+
     /**
-     * @brief 压入值到栈顶
+     * @brief 检查栈空间是否足够（✅ 新增 - 预检查机制）
+     * @param needed 需要的空间数量
+     * @throws std::runtime_error 如果超过最大栈限制
+     *
+     * 用途：
+     * - 批量操作前预先检查空间
+     * - 避免每次push都检查（性能优化）
+     *
+     * 使用示例：
+     * ```cpp
+     * stack.checkSpace(100);  // 预先确保有100个空间
+     * for (int i = 0; i < 100; i++) {
+     *     stack.pushUnchecked(value);  // 快速push，无需检查
+     * }
+     * ```
+     */
+    void checkSpace(usize needed);
+
+    /**
+     * @brief 压入值到栈顶（✅ 新增 - 无检查版本，性能优化）
      * @param value 要压入的值
+     *
+     * 注意：
+     * - 调用前必须确保有足够空间（使用checkSpace）
+     * - 不进行边界检查，性能更高
+     * - 仅用于性能关键路径
+     */
+    void pushUnchecked(const Value& value) noexcept;
+
+    /**
+     * @brief 压入值到栈顶（兼容版本）
+     * @param value 要压入的值
+     *
+     * 注意：
+     * - 自动检查空间并扩展
+     * - 适用于单次push操作
      */
     void push(const Value& value);
-    
+
     /**
      * @brief 弹出栈顶值
      * @return 栈顶的值

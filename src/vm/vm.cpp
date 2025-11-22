@@ -303,7 +303,8 @@ void VM::executeProto(Proto* proto, i32 nexeccalls) {
                     throw std::runtime_error("VM: GETUPVAL invalid upvalue index");
                 }
 
-                R(a) = uv->getValue();
+                // ✅ 改进：传入stack引用
+                R(a) = uv->getValue(L_->getStack());
                 break;
             }
 
@@ -318,7 +319,8 @@ void VM::executeProto(Proto* proto, i32 nexeccalls) {
                     throw std::runtime_error("VM: SETUPVAL invalid upvalue index");
                 }
 
-                uv->getValue() = R(a);
+                // ✅ 改进：使用setValue方法
+                uv->setValue(L_->getStack(), R(a));
                 break;
             }
 

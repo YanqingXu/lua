@@ -95,8 +95,8 @@ Upvalue* LuaState::findOrCreateUpvalue(usize stackIndex) {
     }
 
     // 3. 没找到，创建新的upvalue
-    Value* stackValue = &stack_.at(stackIndex);
-    Upvalue* newUpval = Upvalue::createOpen(stackValue, stackIndex);
+    // ✅ 改进：只传递索引，不传递指针
+    Upvalue* newUpval = Upvalue::createOpen(stackIndex);
 
     // 4. 插入链表（保持降序）
     newUpval->setNext(curr);
@@ -120,7 +120,7 @@ void LuaState::closeUpvalues(usize level) {
            openUpvalues_->getStackIndex() >= level) {
         Upvalue* uv = openUpvalues_;
         openUpvalues_ = uv->getNext();  // 从链表移除
-        uv->close();                     // 关闭（复制值）
+        uv->close(stack_);               // ✅ 改进：传入stack_引用
         uv->setNext(nullptr);            // 清除链表指针
     }
 }

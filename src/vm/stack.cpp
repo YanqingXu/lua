@@ -27,15 +27,27 @@ Stack::Stack(usize initialSize)
 }
 
 // =====================================================================
-// 栈操作
+// 栈操作（✅ 改进版 - 添加预检查和快速push）
 // =====================================================================
 
-void Stack::push(const Value& value) {
-    // 确保有足够空间
-    ensureSpace(1);
-    
-    // 压入值
+void Stack::checkSpace(usize needed) {
+    usize available = stack_.size() - top_;
+
+    if (available < needed) {
+        ensureSpace(needed);
+    }
+}
+
+void Stack::pushUnchecked(const Value& value) noexcept {
+    // 快速push，不检查边界
+    // 调用前必须确保有足够空间（使用checkSpace）
     stack_[top_++] = value;
+}
+
+void Stack::push(const Value& value) {
+    // 兼容版本：自动检查并扩展
+    checkSpace(1);
+    pushUnchecked(value);
 }
 
 Value Stack::pop() {
@@ -79,12 +91,12 @@ const Value& Stack::at(usize index) const {
 }
 
 // =====================================================================
-// 栈空间管理
+// 栈空间管理（✅ 改进版 - 添加最大栈限制检查）
 // =====================================================================
 
 void Stack::ensureSpace(usize needed) {
     usize available = stack_.size() - top_;
-    
+
     if (available < needed) {
         // 需要扩展栈
         // 新容量 = max(当前容量 * 2, 当前大小 + 需要的空间 + EXTRA_STACK)
@@ -92,24 +104,43 @@ void Stack::ensureSpace(usize needed) {
             stack_.size() * 2,
             top_ + needed + EXTRA_STACK
         );
-        
+
+        // ✅ 检查是否超过最大栈限制
+        if (newCapacity > MAX_STACK_SIZE) {
+            // 如果确实需要超过限制，抛出异常
+            if (top_ + needed > MAX_STACK_SIZE) {
+                throw std::runtime_error("stack overflow: maximum stack size exceeded");
+            }
+            // 否则，限制在最大值
+            newCapacity = MAX_STACK_SIZE;
+        }
+
         stack_.resize(newCapacity);
     }
 }
 
 void Stack::setTop(usize newTop) {
     if (newTop > stack_.size()) {
+        // ✅ 检查是否超过最大栈限制
+        usize newCapacity = newTop + EXTRA_STACK;
+        if (newCapacity > MAX_STACK_SIZE) {
+            if (newTop > MAX_STACK_SIZE) {
+                throw std::runtime_error("stack overflow: maximum stack size exceeded");
+            }
+            newCapacity = MAX_STACK_SIZE;
+        }
+
         // 需要扩展栈
-        stack_.resize(newTop + EXTRA_STACK);
+        stack_.resize(newCapacity);
     }
-    
+
     // 如果新栈顶大于当前栈顶，用nil填充
     if (newTop > top_) {
         for (usize i = top_; i < newTop; ++i) {
             stack_[i] = Value();  // nil值
         }
     }
-    
+
     top_ = newTop;
 }
 

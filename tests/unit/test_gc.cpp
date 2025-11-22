@@ -140,30 +140,30 @@ void testUpvalueOpen(TestSuite& suite) {
     // Test 1: Create open upvalue
     Upvalue* uv1 = L->findOrCreateUpvalue(1);
     ASSERT_TRUE(suite, uv1 != nullptr && uv1->isOpen(), "Create open upvalue");
-    
-    // Test 2: Upvalue value
-    ASSERT_TRUE(suite, uv1->getValue().asNumber() == 42.0, "Upvalue value");
-    
+
+    // Test 2: Upvalue value (✅ 改进：传入stack引用)
+    ASSERT_TRUE(suite, uv1->getValue(L->getStack()).asNumber() == 42.0, "Upvalue value");
+
     // Test 3: Upvalue sharing
     Upvalue* uv2 = L->findOrCreateUpvalue(1);
     ASSERT_TRUE(suite, uv1 == uv2, "Upvalue sharing");
-    
+
     delete L;
 }
 
 void testUpvalueClosed(TestSuite& suite) {
     LuaState* L = LuaState::newState();
     L->pushNumber(42.0);
-    
+
     Upvalue* uv1 = L->findOrCreateUpvalue(1);
-    
-    // Test 1: Close upvalue
-    uv1->close();
+
+    // Test 1: Close upvalue (✅ 改进：传入stack引用)
+    uv1->close(L->getStack());
     ASSERT_TRUE(suite, uv1->isClosed(), "Close upvalue");
-    
-    // Test 2: Closed value preserved
-    ASSERT_TRUE(suite, uv1->getValue().asNumber() == 42.0, "Closed value preserved");
-    
+
+    // Test 2: Closed value preserved (✅ 改进：传入stack引用)
+    ASSERT_TRUE(suite, uv1->getValue(L->getStack()).asNumber() == 42.0, "Closed value preserved");
+
     delete L;
 }
 

@@ -1,9 +1,10 @@
 ﻿/**
  * @file upvalue.cpp
- * @brief Upvalue类的实现
+ * @brief Upvalue类的实现（✅ 改进版 - 使用索引避免悬空指针）
  */
 
 #include "core/upvalue.hpp"
+#include "vm/stack.hpp"
 #include "core/gc_string.hpp"
 #include "core/table.hpp"
 #include "core/function.hpp"
@@ -13,11 +14,8 @@ namespace Lua {
 
 // ========== 静态工厂方法 ==========
 
-Upvalue* Upvalue::createOpen(Value* stackValue, usize stackIndex) {
-    if (stackValue == nullptr) {
-        throw std::invalid_argument("Upvalue::createOpen: stackValue cannot be null");
-    }
-    return new Upvalue(stackValue, stackIndex);
+Upvalue* Upvalue::createOpen(usize stackIndex) {
+    return new Upvalue(stackIndex);
 }
 
 Upvalue* Upvalue::createClosed(const Value& value) {
@@ -26,64 +24,83 @@ Upvalue* Upvalue::createClosed(const Value& value) {
 
 // ========== 构造函数 ==========
 
-Upvalue::Upvalue(Value* stackValue, usize stackIndex)
+Upvalue::Upvalue(usize stackIndex)
     : GCObject(GCObjectType::Upval)
-    , v_(stackValue)
+    , isOpen_(true)
     , stackIndex_(stackIndex)
     , closedValue_()  // 默认构造为nil
     , next_(nullptr)
 {
-    // Open状态：v_指向栈上的Value
+    // Open状态：只存储索引
 }
 
 Upvalue::Upvalue(const Value& value)
     : GCObject(GCObjectType::Upval)
-    , v_(&closedValue_)
+    , isOpen_(false)
     , stackIndex_(0)  // Closed状态下无意义
     , closedValue_(value)
     , next_(nullptr)
 {
-    // Closed状态：v_指向closedValue_
+    // Closed状态：存储值
 }
 
 // ========== 状态查询 ==========
 
 bool Upvalue::isOpen() const noexcept {
-    // Open状态：v_不指向closedValue_
-    return v_ != &closedValue_;
+    return isOpen_;
 }
 
 bool Upvalue::isClosed() const noexcept {
-    // Closed状态：v_指向closedValue_
-    return v_ == &closedValue_;
+    return !isOpen_;
 }
 
-// ========== 值访问 ==========
+// ========== 值访问（✅ 改进版 - 动态计算地址） ==========
 
-Value& Upvalue::getValue() noexcept {
-    return *v_;
+Value& Upvalue::getValue(Stack& stack) noexcept {
+    if (isOpen_) {
+        // Open状态：通过索引动态获取栈上的值
+        return stack[stackIndex_];
+    } else {
+        // Closed状态：返回内部存储的值
+        return closedValue_;
+    }
 }
 
-const Value& Upvalue::getValue() const noexcept {
-    return *v_;
+const Value& Upvalue::getValue(const Stack& stack) const noexcept {
+    if (isOpen_) {
+        // Open状态：通过索引动态获取栈上的值
+        return stack[stackIndex_];
+    } else {
+        // Closed状态：返回内部存储的值
+        return closedValue_;
+    }
+}
+
+void Upvalue::setValue(Stack& stack, const Value& value) {
+    if (isOpen_) {
+        // Open状态：设置栈上的值
+        stack[stackIndex_] = value;
+    } else {
+        // Closed状态：设置内部存储的值
+        closedValue_ = value;
+    }
 }
 
 // ========== 状态转换 ==========
 
-void Upvalue::close() {
+void Upvalue::close(Stack& stack) {
     if (isClosed()) {
         // 已经是Closed状态，无需操作
         return;
     }
-    
+
     // 1. 将栈上的值复制到closedValue_
-    closedValue_ = *v_;
-    
-    // 2. 更新v_指针指向closedValue_
-    v_ = &closedValue_;
-    
-    // 3. stackIndex_变为无效（保持原值，但不再使用）
-    // 注意：不清零stackIndex_，因为可能在调试时有用
+    closedValue_ = stack[stackIndex_];
+
+    // 2. 标记为Closed状态
+    isOpen_ = false;
+
+    // 3. stackIndex_保持不变（用于调试）
 }
 
 // ========== 栈索引管理 ==========
