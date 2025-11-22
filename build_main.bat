@@ -189,6 +189,10 @@ echo [INFO] Compiling test_lua_functions...
 cl %CXX_FLAGS% /Isrc /Itests\unit /c /Fo"%OUTPUT_DIR%\test_lua_functions.obj" "tests\unit\test_lua_functions.cpp"
 if %errorlevel% neq 0 exit /b %errorlevel%
 
+echo [INFO] Compiling test_metamethod_arith...
+cl %CXX_FLAGS% /Isrc /Itests\unit /c /Fo"%OUTPUT_DIR%\test_metamethod_arith.obj" "tests\unit\test_metamethod_arith.cpp"
+if %errorlevel% neq 0 exit /b %errorlevel%
+
 echo.
 echo [INFO] Compiling main.cpp...
 cl %CXX_FLAGS% /Isrc /Itests\unit /c /Fo"%OUTPUT_DIR%\main.obj" "src\main.cpp"
@@ -208,6 +212,7 @@ cl %CXX_FLAGS% /Fe"%OUTPUT_DIR%\main.exe" ^
     "%OUTPUT_DIR%\test_function_codegen.obj" ^
     "%OUTPUT_DIR%\test_baselib.obj" ^
     "%OUTPUT_DIR%\test_lua_functions.obj" ^
+    "%OUTPUT_DIR%\test_metamethod_arith.obj" ^
     "%OUTPUT_DIR%\value.obj" ^
     "%OUTPUT_DIR%\gc_object.obj" ^
     "%OUTPUT_DIR%\gc_string.obj" ^

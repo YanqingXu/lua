@@ -7,6 +7,7 @@
 #include "core/table.hpp"
 #include "core/gc_string.hpp"
 #include "core/upvalue.hpp"
+#include "core/userdata.hpp"
 #include "vm/global_state.hpp"
 #include <stdexcept>
 #include <cmath>
@@ -342,68 +343,149 @@ void VM::arith(OpCode op, i32 a, i32 b, i32 c) {
 }
 
 void VM::compare(OpCode op, i32 a, i32 b, i32 c) {
-    // ⭐ P0修复：参考lua_c_analysis/src/lvm.c:1753-1780
-    // 比较指令的语义：
-    // - 执行比较操作 RK(B) op RK(C)
-    // - 如果结果 == A，则读取下一条指令（JMP）的sBx并跳转
-    // - 无论如何都要 pc++ 跳过下一条JMP指令
+    // 实现完整的比较操作，支持元方法
+    // @see lua_c_analysis/src/lvm.c 第878-920行 luaV_equalval()
+    // @see lua_c_analysis/src/lvm.c 第923-937行 luaV_lessthan()
+    // @see lua_c_analysis/src/lvm.c 第988-1002行 lessequal()
 
     Value left = RK(b);
     Value right = RK(c);
 
     bool result = false;
 
-    // 类型必须相同才能比较
-    if (left.getType() != right.getType()) {
-        result = false;
-    } else if (left.isNumber() && right.isNumber()) {
-        f64 lval = left.asNumber();
-        f64 rval = right.asNumber();
-
-        switch (op) {
-            case OpCode::EQ:
-                result = (lval == rval);
-                break;
-            case OpCode::LT:
-                result = (lval < rval);
-                break;
-            case OpCode::LE:
-                result = (lval <= rval);
-                break;
-            default:
-                throw std::runtime_error("VM::compare: invalid opcode");
+    switch (op) {
+        case OpCode::EQ: {
+            // 相等比较：支持__eq元方法
+            // 1. 首先检查类型是否相同
+            if (left.getType() != right.getType()) {
+                result = false;
+            } 
+            // 2. nil类型
+            else if (left.isNil()) {
+                result = true;
+            }
+            // 3. 数字类型
+            else if (left.isNumber()) {
+                result = (left.asNumber() == right.asNumber());
+            }
+            // 4. 布尔类型
+            else if (left.isBoolean()) {
+                result = (left.asBoolean() == right.asBoolean());
+            }
+            // 5. 字符串类型
+            else if (left.isString()) {
+                result = (left.asString()->getData() == right.asString()->getData());
+            }
+            // 6. 表类型：先比较指针，再尝试__eq元方法
+            else if (left.isTable()) {
+                if (left.asTable() == right.asTable()) {
+                    result = true;
+                } else {
+                    // 检查__eq元方法（必须两个表有相同的__eq元方法）
+                    Table* mt1 = left.asTable()->getMetatable();
+                    Table* mt2 = right.asTable()->getMetatable();
+                    Value tm = getComparisonTM(L_, mt1, mt2, TMS::TM_EQ);
+                    
+                    if (!tm.isNil()) {
+                        // 调用__eq元方法
+                        Value tmResult;
+                        callTMWithResult(L_, tmResult, tm, left, right);
+                        // false和nil被视为false，其他值被视为true
+                        result = !(tmResult.isNil() || (tmResult.isBoolean() && !tmResult.asBoolean()));
+                    } else {
+                        result = false;
+                    }
+                }
+            }
+            // 7. 用户数据类型：类似表类型
+            else if (left.isUserdata()) {
+                if (left.asUserdata() == right.asUserdata()) {
+                    result = true;
+                } else {
+                    Table* mt1 = left.asUserdata()->getMetatable();
+                    Table* mt2 = right.asUserdata()->getMetatable();
+                    Value tm = getComparisonTM(L_, mt1, mt2, TMS::TM_EQ);
+                    
+                    if (!tm.isNil()) {
+                        Value tmResult;
+                        callTMWithResult(L_, tmResult, tm, left, right);
+                        result = !(tmResult.isNil() || (tmResult.isBoolean() && !tmResult.asBoolean()));
+                    } else {
+                        result = false;
+                    }
+                }
+            }
+            // 8. 其他类型：比较指针
+            else {
+                result = (left == right);  // 使用Value的operator==
+            }
+            break;
         }
-    } else if (left.isString() && right.isString()) {
-        const Str& lstr = left.asString()->getData();
-        const Str& rstr = right.asString()->getData();
 
-        switch (op) {
-            case OpCode::EQ:
-                result = (lstr == rstr);
-                break;
-            case OpCode::LT:
-                result = (lstr < rstr);
-                break;
-            case OpCode::LE:
-                result = (lstr <= rstr);
-                break;
-            default:
-                throw std::runtime_error("VM::compare: invalid opcode");
+        case OpCode::LT: {
+            // 小于比较：支持__lt元方法
+            // 类型必须相同才能比较
+            if (left.getType() != right.getType()) {
+                throw std::runtime_error("VM: attempt to compare two different types");
+            }
+            
+            // 数字类型
+            if (left.isNumber()) {
+                result = (left.asNumber() < right.asNumber());
+            }
+            // 字符串类型
+            else if (left.isString()) {
+                result = (left.asString()->getData() < right.asString()->getData());
+            }
+            // 其他类型：尝试__lt元方法
+            else {
+                i32 tmResult = callOrderTM(L_, left, right, TMS::TM_LT);
+                if (tmResult == -1) {
+                    throw std::runtime_error("VM: attempt to compare without __lt metamethod");
+                }
+                result = (tmResult != 0);
+            }
+            break;
         }
-    } else if (left.isBoolean() && right.isBoolean()) {
-        bool lval = left.asBoolean();
-        bool rval = right.asBoolean();
 
-        if (op == OpCode::EQ) {
-            result = (lval == rval);
-        } else {
-            throw std::runtime_error("VM::compare: cannot compare booleans with < or <=");
+        case OpCode::LE: {
+            // 小于等于比较：优先使用__le，回退到__lt
+            // 类型必须相同才能比较
+            if (left.getType() != right.getType()) {
+                throw std::runtime_error("VM: attempt to compare two different types");
+            }
+            
+            // 数字类型
+            if (left.isNumber()) {
+                result = (left.asNumber() <= right.asNumber());
+            }
+            // 字符串类型
+            else if (left.isString()) {
+                result = (left.asString()->getData() <= right.asString()->getData());
+            }
+            // 其他类型：先尝试__le，再尝试__lt
+            else {
+                // 先尝试__le元方法
+                i32 tmResult = callOrderTM(L_, left, right, TMS::TM_LE);
+                if (tmResult != -1) {
+                    result = (tmResult != 0);
+                } else {
+                    // 回退到__lt: a <= b 等价于 !(b < a)
+                    tmResult = callOrderTM(L_, right, left, TMS::TM_LT);
+                    if (tmResult == -1) {
+                        throw std::runtime_error("VM: attempt to compare without __le or __lt metamethod");
+                    }
+                    result = (tmResult == 0);  // 注意这里是取反
+                }
+            }
+            break;
         }
-    } else if (left.isNil() && right.isNil()) {
-        result = (op == OpCode::EQ);
+
+        default:
+            throw std::runtime_error("VM::compare: invalid opcode");
     }
 
-    // ⭐ P0修复：Lua 5.1.5的比较指令逻辑
+    // Lua 5.1.5的比较指令逻辑
     // if (condition == GETARG_A(i))
     //     dojump(L, pc, GETARG_sBx(*pc));
     // pc++;
@@ -457,8 +539,42 @@ bool VM::precall(i32 funcIndex, i32 nArgs, i32 nResults) {
     usize funcPos = currentCI.base + funcIndex;
     Value& funcVal = stack.at(funcPos);
 
+    // 支持__call元方法
+    // @see lua_c_analysis/src/ldo.c 第295-307行 tryfuncTM()
     if (!funcVal.isFunction()) {
-        throw std::runtime_error("VM::precall: attempt to call non-function value");
+        // 尝试查找__call元方法
+        Value tm = getMetamethodByObject(L_, funcVal, TMS::TM_CALL);
+        if (tm.isNil() || !tm.isFunction()) {
+            throw std::runtime_error("VM::precall: attempt to call non-function value without __call metamethod");
+        }
+        
+        // 有__call元方法，重新组织栈：
+        // 原来：[func][arg1][arg2]...
+        // 现在：[__call][func][arg1][arg2]...
+        
+        // 在func位置插入原对象，将__call放到func位置
+        // 1. 先保存所有内容
+        Value originalFunc = funcVal;
+        Vec<Value> args;
+        for (i32 i = 1; i <= nArgs; i++) {
+            args.push_back(stack.at(funcPos + i));
+        }
+        
+        // 2. 设置新的布局
+        stack.at(funcPos) = tm;              // __call元方法
+        stack.at(funcPos + 1) = originalFunc; // 原对象作为第一个参数
+        for (usize i = 0; i < args.size(); i++) {
+            stack.at(funcPos + 2 + i) = args[i]; // 其他参数
+        }
+        
+        // 3. 参数数量增加1（因为原对象也变成参数了）
+        nArgs++;
+        
+        // 4. 重新获取函数值
+        funcVal = stack.at(funcPos);
+        if (!funcVal.isFunction()) {
+            throw std::runtime_error("VM::precall: __call metamethod is not a function");
+        }
     }
 
     Function* func = funcVal.asFunction();
@@ -707,23 +823,133 @@ void VM::executeSetGlobal(i32 a, i32 bx) {
 
 void VM::executeGetTable(i32 a, i32 b, i32 c) {
     // R(A) := R(B)[RK(C)]
-    Value& table = R(b);
+    // 支持__index元方法
+    // @see lua_c_analysis/src/lvm.c 第530-553行 luaV_gettable()
+    
+    Value t = R(b);
     Value key = RK(c);
-    if (!table.isTable()) {
-        throw std::runtime_error("VM: attempt to index a non-table value");
+    
+    // 防止无限循环的计数器
+    constexpr i32 MAXTAGLOOP = 100;
+    
+    for (i32 loop = 0; loop < MAXTAGLOOP; loop++) {
+        // 如果是表类型
+        if (t.isTable()) {
+            Table* h = t.asTable();
+            Value res = h->get(key);
+            
+            // 如果找到值或没有__index元方法，返回结果
+            if (!res.isNil()) {
+                R(a) = res;
+                return;
+            }
+            
+            // 检查是否有__index元方法
+            Value tm = getMetamethodByObject(L_, t, TMS::TM_INDEX);
+            if (tm.isNil()) {
+                // 没有元方法，返回nil
+                R(a) = Value();
+                return;
+            }
+            
+            // 如果__index是函数，调用它
+            if (tm.isFunction()) {
+                Value result;
+                callTMWithResult(L_, result, tm, t, key);
+                R(a) = result;
+                return;
+            }
+            
+            // 如果__index是表，继续在该表中查找
+            t = tm;
+            // 继续循环
+        } else {
+            // 非表类型，必须有__index元方法
+            Value tm = getMetamethodByObject(L_, t, TMS::TM_INDEX);
+            if (tm.isNil()) {
+                throw std::runtime_error("VM: attempt to index a non-table value");
+            }
+            
+            // 如果__index是函数，调用它
+            if (tm.isFunction()) {
+                Value result;
+                callTMWithResult(L_, result, tm, t, key);
+                R(a) = result;
+                return;
+            }
+            
+            // 如果__index是表，继续在该表中查找
+            t = tm;
+            // 继续循环
+        }
     }
-    R(a) = table.asTable()->get(key);
+    
+    // 超过最大循环次数
+    throw std::runtime_error("VM: loop in gettable");
 }
 
 void VM::executeSetTable(i32 a, i32 b, i32 c) {
     // R(A)[RK(B)] := RK(C)
-    Value& table = R(a);
+    // 支持__newindex元方法
+    // @see lua_c_analysis/src/lvm.c 第619-650行 luaV_settable()
+    
+    Value t = R(a);
     Value key = RK(b);
-    Value value = RK(c);
-    if (!table.isTable()) {
-        throw std::runtime_error("VM: attempt to index a non-table value");
+    Value val = RK(c);
+    
+    // 防止无限循环的计数器
+    constexpr i32 MAXTAGLOOP = 100;
+    
+    for (i32 loop = 0; loop < MAXTAGLOOP; loop++) {
+        // 如果是表类型
+        if (t.isTable()) {
+            Table* h = t.asTable();
+            Value oldval = h->get(key);
+            
+            // 如果键已存在或没有__newindex元方法，直接设置
+            if (!oldval.isNil()) {
+                h->set(key, val);
+                return;
+            }
+            
+            // 检查是否有__newindex元方法
+            Value tm = getMetamethodByObject(L_, t, TMS::TM_NEWINDEX);
+            if (tm.isNil()) {
+                // 没有元方法，直接设置新键
+                h->set(key, val);
+                return;
+            }
+            
+            // 如果__newindex是函数，调用它
+            if (tm.isFunction()) {
+                callTM(L_, tm, t, key, val);
+                return;
+            }
+            
+            // 如果__newindex是表，继续在该表中设置
+            t = tm;
+            // 继续循环
+        } else {
+            // 非表类型，必须有__newindex元方法
+            Value tm = getMetamethodByObject(L_, t, TMS::TM_NEWINDEX);
+            if (tm.isNil()) {
+                throw std::runtime_error("VM: attempt to index a non-table value");
+            }
+            
+            // 如果__newindex是函数，调用它
+            if (tm.isFunction()) {
+                callTM(L_, tm, t, key, val);
+                return;
+            }
+            
+            // 如果__newindex是表，继续在该表中设置
+            t = tm;
+            // 继续循环
+        }
     }
-    table.asTable()->set(key, value);
+    
+    // 超过最大循环次数
+    throw std::runtime_error("VM: loop in settable");
 }
 
 void VM::executeNewTable(i32 a) {
@@ -808,30 +1034,124 @@ void VM::executeNot(i32 a, i32 b) {
 
 void VM::executeLen(i32 a, i32 b) {
     // R(A) := length of R(B)
+    // 支持__len元方法
     Value& val = R(b);
+    
+    // 字符串的长度（不使用元方法）
     if (val.isString()) {
         R(a) = Value(static_cast<f64>(val.asString()->getLength()));
-    } else if (val.isTable()) {
-        R(a) = Value(static_cast<f64>(val.asTable()->length()));
-    } else {
-        throw std::runtime_error("VM: attempt to get length of a non-string/table value");
+        return;
     }
+    
+    // 表的长度，先尝试__len元方法（Lua 5.2+行为）
+    // 注意：Lua 5.1中表不会调用__len，但我们为了兼容性支持它
+    if (val.isTable()) {
+        // 尝试查找__len元方法
+        Value tm = getMetamethodByObject(L_, val, TMS::TM_LEN);
+        if (!tm.isNil() && tm.isFunction()) {
+            // 调用__len元方法
+            Value result;
+            callTMWithResult(L_, result, tm, val, Value());
+            
+            // 确保返回值是数字
+            if (result.isNumber()) {
+                R(a) = result;
+                return;
+            } else {
+                throw std::runtime_error("VM: __len metamethod must return a number");
+            }
+        }
+        
+        // 没有元方法或元方法不是函数，使用表的原始长度
+        R(a) = Value(static_cast<f64>(val.asTable()->length()));
+        return;
+    }
+    
+    // 其他类型，尝试__len元方法
+    Value tm = getMetamethodByObject(L_, val, TMS::TM_LEN);
+    if (!tm.isNil() && tm.isFunction()) {
+        Value result;
+        callTMWithResult(L_, result, tm, val, Value());
+        if (result.isNumber()) {
+            R(a) = result;
+            return;
+        } else {
+            throw std::runtime_error("VM: __len metamethod must return a number");
+        }
+    }
+    
+    // 没有元方法，抛出错误
+    throw std::runtime_error("VM: attempt to get length of a value without __len metamethod");
 }
 
 void VM::executeConcat(i32 a, i32 b, i32 c) {
     // R(A) := R(B).. ... ..R(C)
-    // 简化实现：只支持两个字符串连接
-    Value& left = R(b);
-    Value& right = R(c);
-
-    if (!left.isString() || !right.isString()) {
-        throw std::runtime_error("VM: attempt to concatenate non-string values");
-    }
-
-    Str result = left.asString()->getData() + right.asString()->getData();
+    // 支持__concat元方法和数字到字符串的转换
+    // @see lua_c_analysis/src/lvm.c 第1143-1173行 luaV_concat()
+    
+    i32 total = c - b + 1;  // 需要连接的值的数量
+    i32 last = c;
+    
     StringPool& pool = GlobalState::getInstance().getStringPool();
-    GCString* str = pool.intern(result);
-    R(a) = Value(str);
+    
+    // 从右到左处理连接操作
+    while (total > 1) {
+        Value& top1 = R(last);
+        Value& top2 = R(last - 1);
+        
+        // 尝试将值转换为字符串
+        Str str1;
+        Str str2;
+        bool canConcat = false;
+        
+        // 转换第一个操作数
+        if (top2.isString()) {
+            str2 = top2.asString()->getData();
+            canConcat = true;
+        } else if (top2.isNumber()) {
+            str2 = std::to_string(top2.asNumber());
+            canConcat = true;
+        }
+        
+        // 转换第二个操作数
+        if (canConcat) {
+            if (top1.isString()) {
+                str1 = top1.asString()->getData();
+            } else if (top1.isNumber()) {
+                str1 = std::to_string(top1.asNumber());
+            } else {
+                canConcat = false;
+            }
+        }
+        
+        // 如果不能直接连接，尝试__concat元方法
+        if (!canConcat) {
+            Value result;
+            if (!callBinaryTM(L_, top2, top1, result, TMS::TM_CONCAT)) {
+                throw std::runtime_error("VM: attempt to concatenate non-string/number values");
+            }
+            R(last - 1) = result;
+            total--;
+            last--;
+            continue;
+        }
+        
+        // 如果第二个字符串为空，直接使用第一个
+        if (str1.empty()) {
+            // top2 已经是正确的值
+        } else {
+            // 执行连接
+            Str result = str2 + str1;
+            GCString* str = pool.intern(result);
+            R(last - 1) = Value(str);
+        }
+        
+        total--;
+        last--;
+    }
+    
+    // 将最终结果移到目标位置
+    R(a) = R(b);
 }
 
 // =====================================================================
