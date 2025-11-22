@@ -15,6 +15,7 @@
 #include "core/function.hpp"
 #include "core/gc_string.hpp"
 #include "vm/lua_state.hpp"
+#include "vm/global_state.hpp"
 #include <stdexcept>
 
 namespace Lua {
@@ -79,10 +80,10 @@ Value getMetamethod(Table* metatable, TMS event) {
     // 3. 在元表中查找元方法名称对应的值
     const char* name = kMetamethodNames[static_cast<usize>(event)];
 
-    // 创建临时字符串键进行查找
-    // TODO: 优化 - 应该使用内部化字符串（interned string）避免重复创建
-    GCString* nameStr = new GCString(name);
-    Value key = Value(nameStr);  // 使用构造函数
+    // 使用StringPool获取内部化字符串，确保相同内容的字符串有相同的指针
+    StringPool& pool = GlobalState::getInstance().getStringPool();
+    GCString* nameStr = pool.intern(name);
+    Value key = Value(nameStr);
     Value result = metatable->get(key);
     
     // 4. 如果未找到且是快速元方法，更新flags标志位
@@ -90,9 +91,6 @@ Value getMetamethod(Table* metatable, TMS event) {
         u8 eventBit = 1u << static_cast<u8>(event);
         metatable->setFlags(metatable->getFlags() | eventBit);
     }
-    
-    // 清理临时字符串（实际应该由GC管理）
-    // delete nameStr;  // 暂时注释，应该由GC处理
     
     return result;
 }
@@ -183,10 +181,10 @@ void callTMWithResult(LuaState* L, Value& result, const Value& metamethod,
         auto& stack = L->getStack();
         usize savedTop = stack.size();
 
-        // 1. 将元方法函数推入栈
+        // 1. 将元方法函数推入栈（索引 savedTop）
         stack.push(metamethod);
 
-        // 2. 将两个参数推入栈
+        // 2. 将两个参数推入栈（索引 savedTop+1 和 savedTop+2）
         stack.push(arg1);
         stack.push(arg2);
 
@@ -196,7 +194,8 @@ void callTMWithResult(LuaState* L, Value& result, const Value& metamethod,
 
         // 4. 获取返回值（如果有）
         if (nret > 0 && stack.size() > savedTop + 3) {
-            result = stack.at(savedTop + 3);  // 第一个返回值
+            // 返回值被C函数推到栈顶
+            result = stack.at(stack.size() - 1);
         } else {
             result = Value();  // 返回nil
         }

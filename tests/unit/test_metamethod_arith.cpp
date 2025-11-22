@@ -17,6 +17,7 @@
 #include "core/table.hpp"
 #include "core/function.hpp"
 #include "vm/lua_state.hpp"
+#include "vm/global_state.hpp"
 
 using namespace Lua;
 using namespace LuaTest;
@@ -29,17 +30,23 @@ using namespace LuaTest;
  * @brief __add元方法的C函数实现
  *
  * 实现向量加法：{x1, y1} + {x2, y2} = {x1+x2, y1+y2}
+ * 
+ * 注意：在当前实现中，callTMWithResult会推入[func][arg1][arg2]到栈
+ * 所以参数实际在savedTop+1和savedTop+2位置
+ * 但由于我们不知道savedTop，需要从栈顶往回找参数
  */
 static i32 vector_add(LuaState* L) {
     auto& stack = L->getStack();
 
-    // 获取两个参数（都应该是表）
+    // 参数在栈顶往下数：top-2是arg1，top-1是arg2
+    // 栈布局: [...][func][arg1][arg2] <- top
     if (stack.size() < 3) {
         return 0;
     }
 
-    Value v1 = stack.at(1);  // 第一个参数
-    Value v2 = stack.at(2);  // 第二个参数
+    usize top = stack.size();
+    Value v1 = stack.at(top - 2);  // arg1 (栈顶-2)
+    Value v2 = stack.at(top - 1);  // arg2 (栈顶-1)
 
     if (!v1.isTable() || !v2.isTable()) {
         return 0;
@@ -73,12 +80,14 @@ static i32 vector_add(LuaState* L) {
 static i32 vector_unm(LuaState* L) {
     auto& stack = L->getStack();
 
-    // 获取参数（应该是表）
+    // 对于一元运算符，参数在栈顶-1位置
+    // 栈布局: [...][func][arg] <- top
     if (stack.size() < 2) {
         return 0;
     }
 
-    Value v = stack.at(1);
+    usize top = stack.size();
+    Value v = stack.at(top - 1);  // arg (栈顶-1)
 
     if (!v.isTable()) {
         return 0;
@@ -116,7 +125,9 @@ void testMetamethodLookup(TestSuite& suite) {
     Table* metatable = new Table();
 
     // 设置__add元方法
-    GCString* addName = new GCString("__add");
+    // 使用StringPool获取内部化字符串，确保与 getMetamethod 中的查找使用相同的指针
+    StringPool& pool = GlobalState::getInstance().getStringPool();
+    GCString* addName = pool.intern("__add");
     Function* addFunc = new Function(vector_add);
     metatable->set(Value(addName), Value(addFunc));
 
@@ -144,7 +155,9 @@ void testAddMetamethod(TestSuite& suite) {
     Table* metatable = new Table();
 
     // 设置__add元方法
-    GCString* addName = new GCString("__add");
+    // 使用StringPool获取内部化字符串
+    StringPool& pool = GlobalState::getInstance().getStringPool();
+    GCString* addName = pool.intern("__add");
     Function* addFunc = new Function(vector_add);
     metatable->set(Value(addName), Value(addFunc));
 
@@ -183,7 +196,9 @@ void testMetamethodFallback(TestSuite& suite) {
 
     // 创建元表（只有左操作数有元方法）
     Table* leftMT = new Table();
-    GCString* addName = new GCString("__add");
+    // 使用StringPool获取内部化字符串
+    StringPool& pool = GlobalState::getInstance().getStringPool();
+    GCString* addName = pool.intern("__add");
     Function* addFunc = new Function(vector_add);
     leftMT->set(Value(addName), Value(addFunc));
 
