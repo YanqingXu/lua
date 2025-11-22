@@ -76,9 +76,12 @@ public:
     // =====================================================================
     // 常量定义
     // =====================================================================
-    
+
     /// 初始调用信息数组大小
     static constexpr usize INITIAL_CI_SIZE = 8;
+
+    /// 最大调用深度（与Lua C的LUAI_MAXCALLS一致）
+    static constexpr usize MAX_CALL_DEPTH = 20000;
     
     /// 多返回值标记
     static constexpr i32 MULTRET = -1;
@@ -485,6 +488,23 @@ private:
     /// Open Upvalue链表头（按栈索引降序排列）
     /// 注意：Upvalue由GC管理，这里只持有指针
     Upvalue* openUpvalues_;
+
+public:
+    // =====================================================================
+    // ✅ 改进：调试支持
+    // =====================================================================
+
+    #ifdef DEBUG
+    /**
+     * @brief 打印调用栈（用于调试）
+     */
+    void dumpCallStack() const;
+
+    /**
+     * @brief 验证调用栈状态
+     */
+    void validateCallStack() const;
+    #endif
 };
 
 } // namespace Lua

@@ -83,7 +83,25 @@ public:
      * @param nexeccalls 嵌套调用计数（用于检测栈溢出）
      */
     void executeProto(Proto* proto, i32 nexeccalls = 1);
-    
+
+    /**
+     * @brief 更新base_指针（栈扩展后必须调用）
+     *
+     * 注意：
+     * - 栈扩展后std::vector可能重新分配内存
+     * - base_指针会失效，必须重新获取
+     * - 这是一个关键的安全机制
+     */
+    void updateBasePointer();
+
+    /**
+     * @brief 确保栈空间并自动更新base_指针
+     * @param needed 需要的栈空间数量
+     *
+     * 这是推荐的方式，自动处理栈扩展和指针更新。
+     */
+    void ensureStackSpace(usize needed);
+
 private:
     // =====================================================================
     // 内部状态

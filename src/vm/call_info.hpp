@@ -41,7 +41,16 @@
 
 #include "common/types.hpp"
 
+#ifdef DEBUG
+#include <sstream>
+#include <string>
+#include <cassert>
+#endif
+
 namespace Lua {
+
+// 前向声明
+using Instruction = u32;  // 与 core/function.hpp 中的定义一致
 
 /**
  * @brief 调用信息类
@@ -106,14 +115,12 @@ public:
     usize top;
     
     /**
-     * @brief 保存的程序计数器
-     * 
+     * @brief 保存的程序计数器（✅ 改进：使用精确类型）
+     *
      * 对于Lua函数，指向当前正在执行的字节码指令。
      * 对于C函数，这个字段为nullptr。
-     * 
-     * 注意：当前简化版本暂不支持字节码，预留此字段。
      */
-    const void* savedpc;
+    const Instruction* savedpc;
     
     /**
      * @brief 期望返回值数量
@@ -136,7 +143,7 @@ public:
     // =====================================================================
     // 辅助方法
     // =====================================================================
-    
+
     /**
      * @brief 重置调用信息
      */
@@ -148,6 +155,42 @@ public:
         nresults = 0;
         tailcalls = 0;
     }
+
+    // =====================================================================
+    // ✅ 改进：调试支持
+    // =====================================================================
+
+    #ifdef DEBUG
+    /**
+     * @brief 验证CallInfo状态的有效性
+     * @param stackSize 当前栈大小
+     */
+    void validate(usize stackSize) const {
+        assert(func < stackSize && "func index out of range");
+        assert(base < stackSize && "base index out of range");
+        assert(top <= stackSize && "top index out of range");
+        assert(base >= func && "base must be >= func");
+        assert(top >= base && "top must be >= base");
+        assert(nresults >= -1 && "nresults must be >= -1");
+        assert(tailcalls >= 0 && "tailcalls must be >= 0");
+    }
+
+    /**
+     * @brief 转换为字符串（用于调试）
+     * @return CallInfo的字符串表示
+     */
+    std::string toString() const {
+        std::ostringstream oss;
+        oss << "CallInfo{func=" << func
+            << ", base=" << base
+            << ", top=" << top
+            << ", nresults=" << nresults
+            << ", tailcalls=" << tailcalls
+            << ", savedpc=" << (savedpc ? "set" : "null")
+            << "}";
+        return oss.str();
+    }
+    #endif
 };
 
 } // namespace Lua

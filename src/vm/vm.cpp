@@ -65,16 +65,16 @@ void VM::executeProto(Proto* proto, i32 nexeccalls) {
     // 获取当前CallInfo
     CallInfo& ci = L_->getCurrentCallInfo();
 
-    // 确保栈有足够的空间
+    // ✅ 改进：使用统一的栈空间确保方法
     Stack& stack = L_->getStack();
     usize requiredTop = ci.base + proto->getMaxStackSize();
-    while (stack.size() < requiredTop) {
-        stack.push(Value());  // 用nil填充
+    if (stack.size() < requiredTop) {
+        ensureStackSpace(requiredTop - stack.size());
+        // base_已在ensureStackSpace中更新
+    } else {
+        // 栈空间足够，但仍需更新base_指针
+        updateBasePointer();
     }
-
-    // 缓存base指针以提高性能（避免每次R()调用都查找CallInfo）
-    // 注意：必须在栈扩展之后获取，因为vector可能重新分配内存
-    base_ = &stack.at(ci.base);
 
     // 主执行循环
     const Vec<Instruction>& code = proto->getCode();
@@ -392,16 +392,13 @@ void VM::executeProto(Proto* proto, i32 nexeccalls) {
                         stack.push(Value());
                     }
 
-                    // 重要：恢复base_指针（因为栈可能被重新分配）
-                    CallInfo& restoredCI = L_->getCurrentCallInfo();
-                    base_ = &stack.at(restoredCI.base);
+                    // ✅ 改进：使用统一的更新方法
+                    updateBasePointer();
                 } else {
                     // C函数已在precall中执行完成
                     // postcall已在precall中调用
-                    // 同样需要恢复base_指针
-                    Stack& stack = L_->getStack();
-                    CallInfo& restoredCI = L_->getCurrentCallInfo();
-                    base_ = &stack.at(restoredCI.base);
+                    // ✅ 改进：使用统一的更新方法
+                    updateBasePointer();
                 }
                 break;
             }
@@ -581,8 +578,8 @@ void VM::executeProto(Proto* proto, i32 nexeccalls) {
                         stack.push(v);
                     }
 
-                    // 恢复base_
-                    base_ = &stack.at(ci.base);
+                    // ✅ 改进：使用统一的更新方法
+                    updateBasePointer();
 
                     // 将返回值存储到 R(cb), R(cb+1), ..., R(cb+c-1)
                     for (usize i = 0; i < returnValues.size(); i++) {
@@ -758,6 +755,22 @@ void VM::executeProto(Proto* proto, i32 nexeccalls) {
             }
         }
     }
+}
+
+// =====================================================================
+// ✅ 改进：base_ 指针管理
+// =====================================================================
+
+void VM::updateBasePointer() {
+    CallInfo& ci = L_->getCurrentCallInfo();
+    Stack& stack = L_->getStack();
+    base_ = &stack.at(ci.base);
+}
+
+void VM::ensureStackSpace(usize needed) {
+    Stack& stack = L_->getStack();
+    stack.checkSpace(needed);
+    updateBasePointer();  // ✅ 自动更新base_指针
 }
 
 // =====================================================================

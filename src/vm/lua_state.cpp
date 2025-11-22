@@ -9,6 +9,11 @@
 #include "vm/lua_state.hpp"
 #include "core/upvalue.hpp"
 
+#ifdef DEBUG
+#include <iostream>
+#include <cassert>
+#endif
+
 namespace Lua {
 
 // =====================================================================
@@ -130,10 +135,18 @@ void LuaState::closeUpvalues(usize level) {
 // =====================================================================
 
 CallInfo& LuaState::pushCallInfo() {
+    // ✅ 改进：检查最大调用深度
+    if (currentCI_ + 1 >= MAX_CALL_DEPTH) {
+        throw std::runtime_error(
+            "stack overflow: maximum call depth exceeded (limit: " +
+            std::to_string(MAX_CALL_DEPTH) + ")"
+        );
+    }
+
     // 检查是否需要扩展调用栈
     if (currentCI_ + 1 >= callStack_.size()) {
-        // 双倍扩展
-        usize newSize = callStack_.size() * 2;
+        // ✅ 改进：双倍扩展，但不超过最大限制
+        usize newSize = std::min(callStack_.size() * 2, MAX_CALL_DEPTH);
         callStack_.resize(newSize);
     }
 
@@ -150,8 +163,44 @@ void LuaState::popCallInfo() {
     if (currentCI_ == 0) {
         throw std::runtime_error("LuaState::popCallInfo: cannot pop base CallInfo");
     }
+
+    // ✅ 改进：清理当前CallInfo（调试模式）
+    #ifdef DEBUG
+    callStack_[currentCI_].reset();
+    #endif
+
     currentCI_--;
 }
+
+// =====================================================================
+// ✅ 改进：调试支持
+// =====================================================================
+
+#ifdef DEBUG
+void LuaState::dumpCallStack() const {
+    std::cout << "========================================\n";
+    std::cout << "Call Stack Dump\n";
+    std::cout << "========================================\n";
+    std::cout << "Depth: " << (currentCI_ + 1) << " / " << MAX_CALL_DEPTH << "\n";
+    std::cout << "----------------------------------------\n";
+
+    for (usize i = 0; i <= currentCI_; i++) {
+        std::cout << "  [" << i << "] " << callStack_[i].toString() << "\n";
+    }
+
+    std::cout << "========================================\n";
+}
+
+void LuaState::validateCallStack() const {
+    assert(currentCI_ < callStack_.size());
+    assert(currentCI_ < MAX_CALL_DEPTH);
+
+    // 验证每个CallInfo
+    for (usize i = 0; i <= currentCI_; i++) {
+        callStack_[i].validate(stack_.size());
+    }
+}
+#endif
 
 // =====================================================================
 // 栈操作
