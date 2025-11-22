@@ -97,6 +97,9 @@
     <ClCompile Include="tests\unit\test_metamethod_arith.cpp">
       <Filter>tests\unit</Filter>
     </ClCompile>
+    <ClCompile Include="tests\unit\test_metamethod_complete.cpp">
+      <Filter>tests\unit</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\compiler\ast.hpp">

@@ -187,6 +187,7 @@
     <ClCompile Include="tests\unit\test_gc_string.cpp" />
     <ClCompile Include="tests\unit\test_lua_functions.cpp" />
     <ClCompile Include="tests\unit\test_metamethod_arith.cpp" />
+    <ClCompile Include="tests\unit\test_metamethod_complete.cpp" />
     <ClCompile Include="tests\unit\test_table.cpp" />
     <ClCompile Include="tests\unit\test_value.cpp" />
     <ClCompile Include="tests\unit\test_vm_core.cpp" />

@@ -93,7 +93,22 @@ i32 luaB_tostring(LuaState* L) {
     const char* s = nullptr;
     char buffer[128];
     
-    // TODO: 检查__tostring元方法
+    // 检查 __tostring 元方法
+    if (L->getMetatable(1)) {
+        // 元表在栈顶
+        Value mt = L->pop();
+        if (mt.isTable()) {
+            GCString* tostringKey = L->getGlobalState().getStringPool().intern("__tostring");
+            Value tostringMethod = mt.asTable()->get(Value(tostringKey));
+            if (tostringMethod.isFunction()) {
+                // 调用 __tostring 元方法
+                L->pushFunction(tostringMethod.asFunction());
+                L->pushValue(1);  // 对象本身作为参数
+                // TODO: 这里需要调用函数执行机制
+                // 暂时跳过元方法调用，使用默认转换
+            }
+        }
+    }
     
     if (L->isString(1)) {
         s = L->toString(1);
@@ -140,15 +155,87 @@ i32 luaB_tonumber(LuaState* L) {
         }
     }
     
-    if (base == 10) {
-        // 标准转换
-        if (L->isNumber(1)) {
-            L->pushNumber(L->toNumber(1));
+    // 如果已经是数字，直接返回
+    if (L->isNumber(1)) {
+        L->pushNumber(L->toNumber(1));
+        return 1;
+    }
+    
+    // 尝试从字符串转换
+    if (L->isString(1)) {
+        const char* s = L->toString(1);
+        if (!s || *s == '\0') {
+            L->pushNil();
+            return 1;
+        }
+        
+        // 跳过前导空白
+        while (std::isspace(*s)) s++;
+        
+        // 处理符号
+        bool negative = false;
+        if (*s == '-') {
+            negative = true;
+            s++;
+        } else if (*s == '+') {
+            s++;
+        }
+        
+        // 转换数字
+        f64 result = 0.0;
+        bool hasDigit = false;
+        
+        if (base == 10) {
+            // 十进制：支持小数点和科学计数法
+            char* endptr = nullptr;
+            result = std::strtod(s, &endptr);
+            if (endptr == s) {
+                L->pushNil();
+                return 1;
+            }
+            // 检查是否有非数字字符（跳过尾部空白）
+            while (std::isspace(*endptr)) endptr++;
+            if (*endptr != '\0') {
+                L->pushNil();
+                return 1;
+            }
+            hasDigit = true;
+        } else {
+            // 其他进制：只支持整数
+            while (*s != '\0' && !std::isspace(*s)) {
+                i32 digit = -1;
+                if (*s >= '0' && *s <= '9') {
+                    digit = *s - '0';
+                } else if (*s >= 'a' && *s <= 'z') {
+                    digit = *s - 'a' + 10;
+                } else if (*s >= 'A' && *s <= 'Z') {
+                    digit = *s - 'A' + 10;
+                } else {
+                    break;
+                }
+                
+                if (digit >= base) {
+                    break;
+                }
+                
+                result = result * base + digit;
+                hasDigit = true;
+                s++;
+            }
+            
+            // 检查是否有非数字字符
+            while (std::isspace(*s)) s++;
+            if (*s != '\0') {
+                hasDigit = false;
+            }
+        }
+        
+        if (hasDigit) {
+            if (negative) result = -result;
+            L->pushNumber(result);
             return 1;
         }
     }
-    
-    // TODO: 实现字符串到数字的转换（支持不同进制）
 
     L->pushNil();
     return 1;
@@ -217,7 +304,19 @@ i32 luaB_setmetatable(LuaState* L) {
         L->error("setmetatable: second argument must be nil or table");
     }
 
-    // TODO: 检查__metatable字段（保护机制）
+    // 检查 __metatable 字段（保护机制）
+    if (L->getMetatable(1)) {
+        // 如果表已经有元表，检查是否受保护
+        Value oldMt = L->pop();
+        if (oldMt.isTable()) {
+            GCString* metatableKey = L->getGlobalState().getStringPool().intern("__metatable");
+            Value protectedField = oldMt.asTable()->get(Value(metatableKey));
+            if (!protectedField.isNil()) {
+                // 元表受保护，不能修改
+                L->error("cannot change a protected metatable");
+            }
+        }
+    }
 
     if (!L->setMetatable(1)) {
         L->error("setmetatable: cannot set metatable");
@@ -238,9 +337,20 @@ i32 luaB_getmetatable(LuaState* L) {
 
     if (!L->getMetatable(1)) {
         L->pushNil();
+        return 1;
     }
 
-    // TODO: 检查__metatable字段
+    // 检查 __metatable 字段
+    Value mt = L->top();
+    if (mt.isTable()) {
+        GCString* metatableKey = L->getGlobalState().getStringPool().intern("__metatable");
+        Value protectedField = mt.asTable()->get(Value(metatableKey));
+        if (!protectedField.isNil()) {
+            // 如果设置了 __metatable 字段，返回该字段的值而不是元表本身
+            L->pop();
+            L->getStack().push(protectedField);
+        }
+    }
 
     return 1;
 }
@@ -320,6 +430,40 @@ static i32 luaB_pairs(LuaState* L) {
 }
 
 /**
+ * @brief ipairs迭代器辅助函数
+ * 
+ * 接收(table, index)，返回(index+1, value)
+ */
+static i32 ipairsIter(LuaState* L) {
+    Stack& stack = L->getStack();
+
+    if (stack.size() < 2) {
+        return 0;
+    }
+
+    Value tableVal = stack.at(0);
+    Value indexVal = stack.at(1);
+
+    if (!tableVal.isTable() || !indexVal.isNumber()) {
+        return 0;
+    }
+
+    Table* table = tableVal.asTable();
+    i32 index = static_cast<i32>(indexVal.asNumber());
+    i32 nextIndex = index + 1;
+
+    // 获取下一个元素
+    Value nextValue = table->getArray(nextIndex);
+    if (nextValue.isNil()) {
+        return 0;  // 结束迭代
+    }
+
+    stack.push(Value(static_cast<f64>(nextIndex)));
+    stack.push(nextValue);
+    return 2;
+}
+
+/**
  * @brief ipairs(t)
  *
  * 返回三个值：迭代器函数、表、0（初始索引）
@@ -341,36 +485,6 @@ static i32 luaB_ipairs(LuaState* L) {
 
     // 创建ipairs迭代器函数
     GlobalState& gs = L->getGlobalState();
-
-    // ipairs迭代器：接收(table, index)，返回(index+1, value)
-    static CFunction ipairsIter = [](LuaState* L) -> i32 {
-        Stack& stack = L->getStack();
-
-        if (stack.size() < 2) {
-            return 0;
-        }
-
-        Value tableVal = stack.at(0);
-        Value indexVal = stack.at(1);
-
-        if (!tableVal.isTable() || !indexVal.isNumber()) {
-            return 0;
-        }
-
-        Table* table = tableVal.asTable();
-        i32 index = static_cast<i32>(indexVal.asNumber());
-        i32 nextIndex = index + 1;
-
-        // 获取下一个元素
-        Value nextValue = table->getArray(nextIndex);
-        if (nextValue.isNil()) {
-            return 0;  // 结束迭代
-        }
-
-        stack.push(Value(static_cast<f64>(nextIndex)));
-        stack.push(nextValue);
-        return 2;
-    };
 
     Function* iterFunc = new Function(ipairsIter);
     gs.getGC().registerObject(iterFunc);
