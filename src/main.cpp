@@ -92,6 +92,7 @@ int main() {
         registerBaselibTests();
         registerLuaFunctionTests();
         registerMetamethodArithTests();
+        registerMetamethodCompleteTests();  // 新增：完整元方法测试
 
         std::cout << "[INFO] All tests registered." << std::endl;
         std::cout << "[INFO] Starting test execution...\n" << std::endl;
@@ -101,7 +102,7 @@ int main() {
         int failedTests = registry.runAllTests();
 
         // 打印总结
-        int totalTests = 111; // 已知的测试总数
+        int totalTests = 125; // 更新测试总数 (111 + 14新增测试)
         printSummary(totalTests, failedTests);
 
         // 返回失败测试数量作为退出码

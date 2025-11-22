@@ -70,5 +70,10 @@ void registerLuaFunctionTests();
  */
 void registerMetamethodArithTests();
 
+/**
+ * @brief 注册完整元方法测试（包含更多元方法类型）
+ */
+void registerMetamethodCompleteTests();
+
 #endif // LUA_TEST_REGISTRY_HPP
 
