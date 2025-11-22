@@ -210,9 +210,11 @@ usize Proto::getSize() const {
 Function::Function(CFunction func)
     : GCObject(GCObjectType::Function)
     , isC_(true)
+    , nupvalues_(0)      // 初始化上值数量为0
+    , gclist_(nullptr)   // 初始化GC链表指针为nullptr
+    , env_(nullptr)      // 初始化环境表为nullptr
     , cFunction_(func)
     , proto_(nullptr)
-    , env_(nullptr)  // 初始化环境表为nullptr
 {
     if (func == nullptr) {
         throw std::invalid_argument("C function pointer cannot be null");
@@ -222,9 +224,11 @@ Function::Function(CFunction func)
 Function::Function(Proto* proto)
     : GCObject(GCObjectType::Function)
     , isC_(false)
+    , nupvalues_(0)      // 初始化上值数量为0
+    , gclist_(nullptr)   // 初始化GC链表指针为nullptr
+    , env_(nullptr)      // 初始化环境表为nullptr
     , cFunction_(nullptr)
     , proto_(proto)
-    , env_(nullptr)  // 初始化环境表为nullptr
 {
     if (proto == nullptr) {
         throw std::invalid_argument("Proto pointer cannot be null");
@@ -255,6 +259,8 @@ void Function::setUpvalue(usize index, Upvalue* upvalue) {
 
 void Function::addUpvalue(Upvalue* upvalue) {
     upvalues_.push_back(upvalue);
+    // 同步nupvalues_字段（ClosureHeader字段）
+    nupvalues_ = static_cast<u8>(upvalues_.size());
 }
 
 // =====================================================================

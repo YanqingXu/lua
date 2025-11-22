@@ -674,6 +674,44 @@ public:
     }
 
     // =====================================================================
+    // ClosureHeader 字段访问（Lua C兼容）
+    // =====================================================================
+
+    /**
+     * @brief 获取上值数量（ClosureHeader字段）
+     * @return 上值数量
+     *
+     * 对应Lua C实现中的nupvalues字段。
+     * 注意：这与upvalues_.size()可能不同，需要保持同步。
+     */
+    u8 getNumUpvalues() const noexcept { return nupvalues_; }
+
+    /**
+     * @brief 设置上值数量（ClosureHeader字段）
+     * @param n 上值数量
+     *
+     * 对应Lua C实现中的nupvalues字段。
+     * 注意：调用此方法时应确保与upvalues_数组大小保持一致。
+     */
+    void setNumUpvalues(u8 n) noexcept { nupvalues_ = n; }
+
+    /**
+     * @brief 获取GC链表指针（ClosureHeader字段）
+     * @return GC链表指针
+     *
+     * 对应Lua C实现中的gclist字段，用于增量GC和分代GC。
+     */
+    GCObject* getGCList() const noexcept { return gclist_; }
+
+    /**
+     * @brief 设置GC链表指针（ClosureHeader字段）
+     * @param list GC链表指针
+     *
+     * 对应Lua C实现中的gclist字段，用于增量GC和分代GC。
+     */
+    void setGCList(GCObject* list) noexcept { gclist_ = list; }
+
+    // =====================================================================
     // GCObject接口实现
     // =====================================================================
 
@@ -681,24 +719,81 @@ public:
     usize getSize() const override;
 
 private:
-    /// 是否为C函数
+    // =====================================================================
+    // ClosureHeader 字段（对应Lua C实现）
+    // =====================================================================
+
+    /// 是否为C函数（对应C实现的lu_byte isC）
+    /// 注意：为了与C实现完全兼容，应该使用u8类型，但为了保持现有代码兼容性暂时保留bool
     bool isC_;
 
-    /// C函数指针（仅当isC_为true时有效）
-    CFunction cFunction_;
+    /// 上值数量（对应C实现的lu_byte nupvalues）
+    /// 注意：这是新增字段，用于完全兼容Lua C实现
+    u8 nupvalues_;
 
-    /// 函数原型（仅当isC_为false时有效）
-    Proto* proto_;
+    /// GC链表指针（对应C实现的GCObject *gclist）
+    /// 用于增量GC和分代GC的灰色对象链表遍历
+    /// 注意：这是新增字段，用于完全兼容Lua C实现
+    GCObject* gclist_;
 
-    /// Upvalue数组（闭包捕获的外部变量）
-    /// 注意：Upvalue由GC管理，这里只持有指针
-    Vec<Upvalue*> upvalues_;
-
-    /// 环境表（Lua 5.1兼容）
+    /// 环境表（对应C实现的struct Table *env）
     /// 用于控制函数的全局变量访问范围
     /// 如果为nullptr，则使用LuaState的全局表
     Table* env_;
+
+    // =====================================================================
+    // 函数特有字段
+    // =====================================================================
+
+    /// C函数指针（仅当isC_为true时有效）
+    /// 对应CClosure的lua_CFunction f字段
+    CFunction cFunction_;
+
+    /// 函数原型（仅当isC_为false时有效）
+    /// 对应LClosure的struct Proto *p字段
+    Proto* proto_;
+
+    /// Upvalue数组（闭包捕获的外部变量）
+    /// 注意：
+    /// - 对于C函数（CClosure），应该直接存储Value（对应TValue upvalue[1]）
+    /// - 对于Lua函数（LClosure），存储Upvalue*指针（对应UpVal *upvals[1]）
+    /// - 当前实现统一使用Upvalue*，这与C实现略有不同
+    /// - Upvalue由GC管理，这里只持有指针
+    Vec<Upvalue*> upvalues_;
 };
+
+// =====================================================================
+// 类型别名（Lua C兼容）
+// =====================================================================
+
+/**
+ * @brief CClosure类型别名：C函数闭包
+ *
+ * 为了与Lua C实现保持命名一致性，提供CClosure别名。
+ * 实际上仍然使用Function类，通过isC_标志区分。
+ *
+ * 注意：这只是类型别名，不是独立的类。
+ * 真正的CClosure/LClosure分离需要更大规模的重构。
+ */
+using CClosure = Function;
+
+/**
+ * @brief LClosure类型别名：Lua函数闭包
+ *
+ * 为了与Lua C实现保持命名一致性，提供LClosure别名。
+ * 实际上仍然使用Function类，通过isC_标志区分。
+ *
+ * 注意：这只是类型别名，不是独立的类。
+ * 真正的CClosure/LClosure分离需要更大规模的重构。
+ */
+using LClosure = Function;
+
+/**
+ * @brief Closure类型别名：通用闭包
+ *
+ * 为了与Lua C实现保持命名一致性，提供Closure别名。
+ */
+using Closure = Function;
 
 } // namespace Lua
 
