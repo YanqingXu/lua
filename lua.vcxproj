@@ -106,7 +106,7 @@
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp23</LanguageStandard>
       <LanguageStandard_C>stdc11</LanguageStandard_C>
-      <AdditionalIncludeDirectories>E:\Programming2\lua_in_cpp\lua\tests;E:\Programming2\lua_in_cpp\lua\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>E:\Programming2\lua_in_cpp\lua\tests\unit\framework;E:\Programming2\lua_in_cpp\lua\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -157,8 +157,8 @@
     <ClInclude Include="src\vm\lua_state.hpp" />
     <ClInclude Include="src\vm\stack.hpp" />
     <ClInclude Include="src\vm\vm.hpp" />
-    <ClInclude Include="tests\unit\test_framework.hpp" />
-    <ClInclude Include="tests\unit\test_registry.hpp" />
+    <ClInclude Include="tests\unit\framework\test_framework.hpp" />
+    <ClInclude Include="tests\unit\framework\test_registry.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\compiler\ast.cpp" />
@@ -184,19 +184,19 @@
     <ClCompile Include="src\vm\lua_state.cpp" />
     <ClCompile Include="src\vm\stack.cpp" />
     <ClCompile Include="src\vm\vm.cpp" />
-    <ClCompile Include="tests\unit\test_baselib.cpp" />
-    <ClCompile Include="tests\unit\test_binary_unary_expr.cpp" />
-    <ClCompile Include="tests\unit\test_function.cpp" />
-    <ClCompile Include="tests\unit\test_function_codegen.cpp" />
-    <ClCompile Include="tests\unit\test_gc.cpp" />
-    <ClCompile Include="tests\unit\test_gc_string.cpp" />
-    <ClCompile Include="tests\unit\test_lua_functions.cpp" />
-    <ClCompile Include="tests\unit\test_framework.cpp" />
-    <ClCompile Include="tests\unit\test_metamethod_arith.cpp" />
-    <ClCompile Include="tests\unit\test_metamethod_complete.cpp" />
-    <ClCompile Include="tests\unit\test_table.cpp" />
-    <ClCompile Include="tests\unit\test_value.cpp" />
-    <ClCompile Include="tests\unit\test_vm_core.cpp" />
+    <ClCompile Include="tests\unit\stdlib\test_baselib.cpp" />
+    <ClCompile Include="tests\unit\compiler\test_binary_unary_expr.cpp" />
+    <ClCompile Include="tests\unit\core\test_function.cpp" />
+    <ClCompile Include="tests\unit\compiler\test_function_codegen.cpp" />
+    <ClCompile Include="tests\unit\gc\test_gc.cpp" />
+    <ClCompile Include="tests\unit\core\test_gc_string.cpp" />
+    <ClCompile Include="tests\unit\compiler\test_lua_functions.cpp" />
+    <ClCompile Include="tests\unit\framework\test_framework.cpp" />
+    <ClCompile Include="tests\unit\metamethod\test_metamethod_arith.cpp" />
+    <ClCompile Include="tests\unit\metamethod\test_metamethod_complete.cpp" />
+    <ClCompile Include="tests\unit\core\test_table.cpp" />
+    <ClCompile Include="tests\unit\core\test_value.cpp" />
+    <ClCompile Include="tests\unit\vm\test_vm_core.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

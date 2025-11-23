@@ -139,6 +139,14 @@ echo [INFO] Compiling VM class...
 cl %CXX_FLAGS% /Isrc /c /Fo"%OUTPUT_DIR%\vm.obj" "src\vm\vm.cpp"
 if %errorlevel% neq 0 exit /b %errorlevel%
 
+echo [INFO] Compiling LibRegistry...
+cl %CXX_FLAGS% /Isrc /c /Fo"%OUTPUT_DIR%\lib_registry.obj" "src\lib\lib_registry.cpp"
+if %errorlevel% neq 0 exit /b %errorlevel%
+
+echo [INFO] Compiling LibManager...
+cl %CXX_FLAGS% /Isrc /c /Fo"%OUTPUT_DIR%\lib_manager.obj" "src\lib\lib_manager.cpp"
+if %errorlevel% neq 0 exit /b %errorlevel%
+
 echo [INFO] Compiling BaseLib...
 cl %CXX_FLAGS% /Isrc /c /Fo"%OUTPUT_DIR%\baselib.obj" "src\lib\baselib.cpp"
 if %errorlevel% neq 0 exit /b %errorlevel%
@@ -149,63 +157,68 @@ echo [INFO] Compiling Test Files...
 echo [INFO] ========================================
 echo.
 
+echo [INFO] Compiling test_framework...
+cl %CXX_FLAGS% /Isrc /Itests\unit\framework /c /Fo"%OUTPUT_DIR%\test_framework.obj" "tests\unit\framework\test_framework.cpp"
+if %errorlevel% neq 0 exit /b %errorlevel%
+
 echo [INFO] Compiling test_value...
-cl %CXX_FLAGS% /Isrc /Itests\unit /c /Fo"%OUTPUT_DIR%\test_value.obj" "tests\unit\test_value.cpp"
+cl %CXX_FLAGS% /Isrc /Itests\unit\framework /c /Fo"%OUTPUT_DIR%\test_value.obj" "tests\unit\core\test_value.cpp"
 if %errorlevel% neq 0 exit /b %errorlevel%
 
 echo [INFO] Compiling test_gc_string...
-cl %CXX_FLAGS% /Isrc /Itests\unit /c /Fo"%OUTPUT_DIR%\test_gc_string.obj" "tests\unit\test_gc_string.cpp"
+cl %CXX_FLAGS% /Isrc /Itests\unit\framework /c /Fo"%OUTPUT_DIR%\test_gc_string.obj" "tests\unit\core\test_gc_string.cpp"
 if %errorlevel% neq 0 exit /b %errorlevel%
 
 echo [INFO] Compiling test_table...
-cl %CXX_FLAGS% /Isrc /Itests\unit /c /Fo"%OUTPUT_DIR%\test_table.obj" "tests\unit\test_table.cpp"
+cl %CXX_FLAGS% /Isrc /Itests\unit\framework /c /Fo"%OUTPUT_DIR%\test_table.obj" "tests\unit\core\test_table.cpp"
 if %errorlevel% neq 0 exit /b %errorlevel%
 
 echo [INFO] Compiling test_vm_core...
-cl %CXX_FLAGS% /Isrc /Itests\unit /c /Fo"%OUTPUT_DIR%\test_vm_core.obj" "tests\unit\test_vm_core.cpp"
+cl %CXX_FLAGS% /Isrc /Itests\unit\framework /c /Fo"%OUTPUT_DIR%\test_vm_core.obj" "tests\unit\vm\test_vm_core.cpp"
 if %errorlevel% neq 0 exit /b %errorlevel%
 
 echo [INFO] Compiling test_function...
-cl %CXX_FLAGS% /Isrc /Itests\unit /c /Fo"%OUTPUT_DIR%\test_function.obj" "tests\unit\test_function.cpp"
+cl %CXX_FLAGS% /Isrc /Itests\unit\framework /c /Fo"%OUTPUT_DIR%\test_function.obj" "tests\unit\core\test_function.cpp"
 if %errorlevel% neq 0 exit /b %errorlevel%
 
 echo [INFO] Compiling test_gc...
-cl %CXX_FLAGS% /Isrc /Itests\unit /c /Fo"%OUTPUT_DIR%\test_gc.obj" "tests\unit\test_gc.cpp"
+cl %CXX_FLAGS% /Isrc /Itests\unit\framework /c /Fo"%OUTPUT_DIR%\test_gc.obj" "tests\unit\gc\test_gc.cpp"
 if %errorlevel% neq 0 exit /b %errorlevel%
 
 echo [INFO] Compiling test_binary_unary_expr...
-cl %CXX_FLAGS% /Isrc /Itests\unit /c /Fo"%OUTPUT_DIR%\test_binary_unary_expr.obj" "tests\unit\test_binary_unary_expr.cpp"
+cl %CXX_FLAGS% /Isrc /Itests\unit\framework /c /Fo"%OUTPUT_DIR%\test_binary_unary_expr.obj" "tests\unit\compiler\test_binary_unary_expr.cpp"
 if %errorlevel% neq 0 exit /b %errorlevel%
 
 echo [INFO] Compiling test_function_codegen...
-cl %CXX_FLAGS% /Isrc /Itests\unit /c /Fo"%OUTPUT_DIR%\test_function_codegen.obj" "tests\unit\test_function_codegen.cpp"
+cl %CXX_FLAGS% /Isrc /Itests\unit\framework /c /Fo"%OUTPUT_DIR%\test_function_codegen.obj" "tests\unit\compiler\test_function_codegen.cpp"
 if %errorlevel% neq 0 exit /b %errorlevel%
 
 echo [INFO] Compiling test_baselib...
-cl %CXX_FLAGS% /Isrc /Itests\unit /c /Fo"%OUTPUT_DIR%\test_baselib.obj" "tests\unit\test_baselib.cpp"
+cl %CXX_FLAGS% /Isrc /Itests\unit\framework /c /Fo"%OUTPUT_DIR%\test_baselib.obj" "tests\unit\stdlib\test_baselib.cpp"
 if %errorlevel% neq 0 exit /b %errorlevel%
 
 echo [INFO] Compiling test_lua_functions...
-cl %CXX_FLAGS% /Isrc /Itests\unit /c /Fo"%OUTPUT_DIR%\test_lua_functions.obj" "tests\unit\test_lua_functions.cpp"
+cl %CXX_FLAGS% /Isrc /Itests\unit\framework /c /Fo"%OUTPUT_DIR%\test_lua_functions.obj" "tests\unit\compiler\test_lua_functions.cpp"
 if %errorlevel% neq 0 exit /b %errorlevel%
 
 echo [INFO] Compiling test_metamethod_arith...
-cl %CXX_FLAGS% /Isrc /Itests\unit /c /Fo"%OUTPUT_DIR%\test_metamethod_arith.obj" "tests\unit\test_metamethod_arith.cpp"
+cl %CXX_FLAGS% /Isrc /Itests\unit\framework /c /Fo"%OUTPUT_DIR%\test_metamethod_arith.obj" "tests\unit\metamethod\test_metamethod_arith.cpp"
 if %errorlevel% neq 0 exit /b %errorlevel%
 
 echo [INFO] Compiling test_metamethod_complete...
-cl %CXX_FLAGS% /Isrc /Itests\unit /c /Fo"%OUTPUT_DIR%\test_metamethod_complete.obj" "tests\unit\test_metamethod_complete.cpp"
+cl %CXX_FLAGS% /Isrc /Itests\unit\framework /c /Fo"%OUTPUT_DIR%\test_metamethod_complete.obj" "tests\unit\metamethod\test_metamethod_complete.cpp"
 if %errorlevel% neq 0 exit /b %errorlevel%
 
 echo.
 echo [INFO] Compiling main.cpp...
-cl %CXX_FLAGS% /Isrc /Itests\unit /c /Fo"%OUTPUT_DIR%\main.obj" "src\main.cpp"
+cl %CXX_FLAGS% /Isrc /Itests\unit\framework /c /Fo"%OUTPUT_DIR%\main.obj" "src\main.cpp"
 if %errorlevel% neq 0 exit /b %errorlevel%
 
 echo.
 echo [INFO] Linking executable...
 cl %CXX_FLAGS% /Fe"%OUTPUT_DIR%\main.exe" ^
     "%OUTPUT_DIR%\main.obj" ^
+    "%OUTPUT_DIR%\test_framework.obj" ^
     "%OUTPUT_DIR%\test_value.obj" ^
     "%OUTPUT_DIR%\test_gc_string.obj" ^
     "%OUTPUT_DIR%\test_table.obj" ^
@@ -237,6 +250,8 @@ cl %CXX_FLAGS% /Fe"%OUTPUT_DIR%\main.exe" ^
     "%OUTPUT_DIR%\opcode.obj" ^
     "%OUTPUT_DIR%\codegen.obj" ^
     "%OUTPUT_DIR%\vm.obj" ^
+    "%OUTPUT_DIR%\lib_registry.obj" ^
+    "%OUTPUT_DIR%\lib_manager.obj" ^
     "%OUTPUT_DIR%\baselib.obj"
 
 if %errorlevel% neq 0 (

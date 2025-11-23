@@ -3,7 +3,7 @@
  * @brief 测试函数定义和调用的代码生成
  */
 
-#include "test_framework.hpp"
+#include "../framework/test_framework.hpp"
 #include "compiler/lexer.hpp"
 #include "compiler/parser.hpp"
 #include "compiler/codegen.hpp"

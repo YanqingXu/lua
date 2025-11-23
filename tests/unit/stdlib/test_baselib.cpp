@@ -3,7 +3,7 @@
  * @brief 基础库函数测试 - 依赖统一测试框架
  */
 
-#include "test_framework.hpp"
+#include "../framework/test_framework.hpp"
 #include "lib/baselib.hpp"
 #include "vm/lua_state.hpp"
 #include "core/string_pool.hpp"

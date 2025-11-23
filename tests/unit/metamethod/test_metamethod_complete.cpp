@@ -14,7 +14,7 @@
  * @date 2025-11-22
  */
 
-#include "test_framework.hpp"
+#include "../framework/test_framework.hpp"
 #include "core/metatable.hpp"
 #include "core/table.hpp"
 #include "core/function.hpp"

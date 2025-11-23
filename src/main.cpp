@@ -28,9 +28,9 @@
  * @date 2025-11-14
  */
 
-// 包含测试框架（相对路径：从src/到tests/unit/）
-#include "../tests/unit/test_framework.hpp"
-#include "../tests/unit/test_registry.hpp"
+// 包含测试框架（相对路径：从src/到tests/unit/framework/）
+#include "../tests/unit/framework/test_framework.hpp"
+#include "../tests/unit/framework/test_registry.hpp"
 
 #include <iostream>
 

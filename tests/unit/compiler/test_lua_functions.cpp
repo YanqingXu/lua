@@ -3,7 +3,7 @@
  * @brief 测试Lua函数文件的编译
  */
 
-#include "test_framework.hpp"
+#include "../framework/test_framework.hpp"
 #include "compiler/lexer.hpp"
 #include "compiler/parser.hpp"
 #include "compiler/codegen.hpp"

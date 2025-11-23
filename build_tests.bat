@@ -104,7 +104,9 @@ echo [INFO] Compiling VM...
 cl %CXX_FLAGS% /Isrc /c /Fo"%OUTPUT_DIR%\vm.obj" "src\vm\vm.cpp" >nul 2>&1
 
 echo [INFO] Compiling Libraries...
-cl %CXX_FLAGS% /Isrc /c /Fo"%OUTPUT_DIR%\baselib.obj" "src\lib\baselib.cpp" >nul 2>&1
+for %%F in (lib_registry lib_manager baselib) do (
+    cl %CXX_FLAGS% /Isrc /c /Fo"%OUTPUT_DIR%\%%F.obj" "src\lib\%%F.cpp" >nul 2>&1
+)
 
 echo.
 echo [INFO] ========================================
@@ -112,18 +114,75 @@ echo [INFO] Compiling Test Files...
 echo [INFO] ========================================
 echo.
 
-REM Compile test files
-for %%F in (test_value test_gc_string test_table test_vm_core test_function test_gc test_binary_unary_expr test_function_codegen test_baselib test_lua_functions test_metamethod_arith) do (
+REM Compile test framework
+echo [INFO] Compiling test_framework...
+cl %CXX_FLAGS% /Isrc /Itests/unit/framework /c /Fo"%OUTPUT_DIR%\test_framework.obj" "tests\unit\framework\test_framework.cpp" >nul 2>&1
+if %errorlevel% neq 0 (
+    echo [ERROR] Failed to compile test_framework
+    exit /b %errorlevel%
+)
+
+REM Compile core tests
+for %%F in (test_value test_gc_string test_table test_function) do (
     echo [INFO] Compiling %%F...
-    cl %CXX_FLAGS% /Isrc /Itests\unit /c /Fo"%OUTPUT_DIR%\%%F.obj" "tests\unit\%%F.cpp" >nul 2>&1
+    cl %CXX_FLAGS% /Isrc /Itests/unit/framework /c /Fo"%OUTPUT_DIR%\%%F.obj" "tests\unit\core\%%F.cpp" >nul 2>&1
     if %errorlevel% neq 0 (
         echo [ERROR] Failed to compile %%F
         exit /b %errorlevel%
     )
 )
 
+REM Compile gc tests
+echo [INFO] Compiling test_gc...
+cl %CXX_FLAGS% /Isrc /Itests/unit/framework /c /Fo"%OUTPUT_DIR%\test_gc.obj" "tests\unit\gc\test_gc.cpp" >nul 2>&1
+if %errorlevel% neq 0 (
+    echo [ERROR] Failed to compile test_gc
+    exit /b %errorlevel%
+)
+
+REM Compile vm tests
+echo [INFO] Compiling test_vm_core...
+cl %CXX_FLAGS% /Isrc /Itests/unit/framework /c /Fo"%OUTPUT_DIR%\test_vm_core.obj" "tests\unit\vm\test_vm_core.cpp" >nul 2>&1
+if %errorlevel% neq 0 (
+    echo [ERROR] Failed to compile test_vm_core
+    exit /b %errorlevel%
+)
+
+REM Compile compiler tests
+for %%F in (test_binary_unary_expr test_function_codegen test_lua_functions) do (
+    echo [INFO] Compiling %%F...
+    cl %CXX_FLAGS% /Isrc /Itests/unit/framework /c /Fo"%OUTPUT_DIR%\%%F.obj" "tests\unit\compiler\%%F.cpp" >nul 2>&1
+    if %errorlevel% neq 0 (
+        echo [ERROR] Failed to compile %%F
+        exit /b %errorlevel%
+    )
+)
+
+REM Compile stdlib tests
+echo [INFO] Compiling test_baselib...
+cl %CXX_FLAGS% /Isrc /Itests/unit/framework /c /Fo"%OUTPUT_DIR%\test_baselib.obj" "tests\unit\stdlib\test_baselib.cpp" >nul 2>&1
+if %errorlevel% neq 0 (
+    echo [ERROR] Failed to compile test_baselib
+    exit /b %errorlevel%
+)
+
+REM Compile metamethod tests
+echo [INFO] Compiling test_metamethod_arith...
+cl %CXX_FLAGS% /Isrc /Itests/unit/framework /c /Fo"%OUTPUT_DIR%\test_metamethod_arith.obj" "tests\unit\metamethod\test_metamethod_arith.cpp" >nul 2>&1
+if %errorlevel% neq 0 (
+    echo [ERROR] Failed to compile test_metamethod_arith
+    exit /b %errorlevel%
+)
+
+echo [INFO] Compiling test_metamethod_complete...
+cl %CXX_FLAGS% /Isrc /Itests/unit/framework /c /Fo"%OUTPUT_DIR%\test_metamethod_complete.obj" "tests\unit\metamethod\test_metamethod_complete.cpp" >nul 2>&1
+if %errorlevel% neq 0 (
+    echo [ERROR] Failed to compile test_metamethod_complete
+    exit /b %errorlevel%
+)
+
 echo [INFO] Compiling test_runner...
-cl %CXX_FLAGS% /Isrc /Itests\unit /c /Fo"%OUTPUT_DIR%\test_runner.obj" "tests\unit\test_runner.cpp" >nul 2>&1
+cl %CXX_FLAGS% /Isrc /Itests/unit/framework /c /Fo"%OUTPUT_DIR%\test_runner.obj" "tests\unit\framework\test_runner.cpp" >nul 2>&1
 
 echo.
 echo [INFO] ========================================
@@ -134,6 +193,7 @@ echo.
 REM Link all object files
 cl %CXX_FLAGS% /Fe"%OUTPUT_DIR%\test_runner.exe" ^
     "%OUTPUT_DIR%\test_runner.obj" ^
+    "%OUTPUT_DIR%\test_framework.obj" ^
     "%OUTPUT_DIR%\test_value.obj" ^
     "%OUTPUT_DIR%\test_gc_string.obj" ^
     "%OUTPUT_DIR%\test_table.obj" ^
@@ -145,6 +205,7 @@ cl %CXX_FLAGS% /Fe"%OUTPUT_DIR%\test_runner.exe" ^
     "%OUTPUT_DIR%\test_baselib.obj" ^
     "%OUTPUT_DIR%\test_lua_functions.obj" ^
     "%OUTPUT_DIR%\test_metamethod_arith.obj" ^
+    "%OUTPUT_DIR%\test_metamethod_complete.obj" ^
     "%OUTPUT_DIR%\value.obj" ^
     "%OUTPUT_DIR%\gc_object.obj" ^
     "%OUTPUT_DIR%\gc_string.obj" ^
@@ -164,6 +225,8 @@ cl %CXX_FLAGS% /Fe"%OUTPUT_DIR%\test_runner.exe" ^
     "%OUTPUT_DIR%\opcode.obj" ^
     "%OUTPUT_DIR%\codegen.obj" ^
     "%OUTPUT_DIR%\vm.obj" ^
+    "%OUTPUT_DIR%\lib_registry.obj" ^
+    "%OUTPUT_DIR%\lib_manager.obj" ^
     "%OUTPUT_DIR%\baselib.obj" >nul 2>&1
 
 if %errorlevel% neq 0 (

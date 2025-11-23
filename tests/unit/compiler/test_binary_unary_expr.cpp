@@ -3,7 +3,7 @@
  * @brief 测试二元和一元表达式的代码生成
  */
 
-#include "test_framework.hpp"
+#include "../framework/test_framework.hpp"
 #include "compiler/lexer.hpp"
 #include "compiler/parser.hpp"
 #include "compiler/codegen.hpp"

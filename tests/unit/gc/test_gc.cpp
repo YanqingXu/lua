@@ -6,7 +6,7 @@
  * @date 2025-11-14
  */
 
-#include "test_framework.hpp"
+#include "../framework/test_framework.hpp"
 #include "core/gc_object.hpp"
 #include "core/gc_string.hpp"
 #include "core/table.hpp"

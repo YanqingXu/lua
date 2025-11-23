@@ -6,7 +6,7 @@
  * @date 2025-11-14
  */
 
-#include "test_framework.hpp"
+#include "../framework/test_framework.hpp"
 #include "core/function.hpp"
 #include "core/upvalue.hpp"
 #include "vm/lua_state.hpp"

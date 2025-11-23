@@ -6,7 +6,7 @@
  * @date 2025-11-14
  */
 
-#include "test_framework.hpp"
+#include "../framework/test_framework.hpp"
 #include "vm/global_state.hpp"
 #include "vm/stack.hpp"
 #include "vm/call_info.hpp"
