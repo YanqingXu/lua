@@ -26,46 +26,53 @@
 
 1. **主要参考**：`lua_c_analysis/` - Lua 5.1.5 C源码 + 53篇中文技术文档
 2. **次要参考**：`lua_with_cpp/` - 另一个C++ Lua实现（部分完成）
-3. **方法论**：`spec-kit/` - Spec-Driven Development开发方法论
 
 ---
 
 ## 📊 当前进度
 
-### 已完成模块（17个核心模块）
+### 已完成模块（20个核心模块）
 
-| 模块 | 文件 | 功能描述 | 测试数 | 状态 |
-|------|------|---------|--------|------|
-| **基础类型系统** | `src/common/types.hpp` | 类型别名定义（Vec、HashMap、usize等） | - | ✅ 完成 |
-| **配置系统** | `src/common/config.hpp` | 编译配置和常量定义 | - | ✅ 完成 |
-| **宏定义** | `src/common/macros.hpp` | 实用宏定义 | - | ✅ 完成 |
-| **Value类** | `src/core/value.hpp/cpp` | Lua值的C++表示（使用std::variant） | 14 | ✅ 完成 |
-| **GCObject基类** | `src/core/gc_object.hpp/cpp` | GC对象基类（三色标记） | 8 | ✅ 完成 |
-| **GCString类** | `src/core/gc_string.hpp/cpp` | GC管理的字符串对象 | 10 | ✅ 完成 |
-| **StringPool类** | `src/core/string_pool.hpp/cpp` | 字符串驻留池（单例模式） | 11 | ✅ 完成 |
-| **Table类** | `src/core/table.hpp/cpp` | Lua表（数组+哈希混合存储） | 11 | ✅ 完成 |
-| **Function类** | `src/core/function.hpp/cpp` | 函数对象（Proto + Closure + Upvalue） | 12 | ✅ 完成 |
-| **Upvalue类** | `src/core/upvalue.hpp/cpp` | 闭包上值管理（Open/Closed状态） | 11 | ✅ 完成 |
-| **Userdata类** | `src/core/userdata.hpp/cpp` | 用户数据（C++数据包装） | 6 | ✅ 完成 |
-| **GarbageCollector** | `src/gc/garbage_collector.hpp/cpp` | 垃圾回收器（标记-清除算法） | 8 | ✅ 完成 |
-| **GlobalState类** | `src/vm/global_state.hpp/cpp` | 全局状态管理（单例模式） | 4 | ✅ 完成 |
-| **Stack类** | `src/vm/stack.hpp/cpp` | 值栈管理（动态扩展） | 5 | ✅ 完成 |
-| **CallInfo类** | `src/vm/call_info.hpp` | 调用信息（函数调用上下文） | 3 | ✅ 完成 |
-| **LuaState类** | `src/vm/lua_state.hpp/cpp` | Lua状态（线程执行环境） | 5 | ✅ 完成 |
-| **Lexer词法分析器** | `src/compiler/lexer.hpp/cpp` + `token.hpp` | 词法分析（Token流生成） | 18 | ✅ 完成 |
-| **Parser语法分析器** | `src/compiler/parser.hpp/cpp` + `ast.hpp/cpp` | 语法分析（AST生成） | 10 | ✅ 完成 |
-| **CodeGenerator字节码生成器** | `src/compiler/codegen.hpp/cpp` + `opcode.hpp/cpp` | 字节码生成（AST→Bytecode） | 7 | ✅ 完成 |
-| **VM字节码执行引擎** | `src/vm/vm.hpp/cpp` | 字节码解释执行（38条指令） | 6 | ✅ 完成 |
-| **基础库（Base Library）** | `src/lib/baselib.hpp/cpp` | 8个核心函数（print、type等） | 6 | ⚠️ 部分完成 |
+| 模块 | 文件 | 功能描述 | 状态 |
+|------|------|---------|------|
+| **基础类型系统** | `src/common/types.hpp` | 类型别名定义（Vec、HashMap、usize等） | ✅ 完成 |
+| **配置系统** | `src/common/config.hpp` | 编译配置和常量定义 | ✅ 完成 |
+| **宏定义** | `src/common/macros.hpp` | 实用宏定义 | ✅ 完成 |
+| **Value类** | `src/core/value.hpp/cpp` | Lua值的C++表示（使用std::variant） | ✅ 完成 |
+| **GCObject基类** | `src/core/gc_object.hpp/cpp` | GC对象基类（三色标记） | ✅ 完成 |
+| **GCString类** | `src/core/gc_string.hpp/cpp` | GC管理的字符串对象 | ✅ 完成 |
+| **StringPool类** | `src/core/string_pool.hpp/cpp` | 字符串驻留池（单例模式） | ✅ 完成 |
+| **Table类** | `src/core/table.hpp/cpp` | Lua表（数组+哈希混合存储） | ✅ 完成 |
+| **Function类** | `src/core/function.hpp/cpp` | 函数对象（Proto + Closure + Upvalue） | ✅ 完成 |
+| **Upvalue类** | `src/core/upvalue.hpp/cpp` | 闭包上值管理（Open/Closed状态） | ✅ 完成 |
+| **Userdata类** | `src/core/userdata.hpp/cpp` | 用户数据（C++数据包装） | ✅ 完成 |
+| **Metatable元方法系统** | `src/core/metatable.hpp/cpp` | 17种元方法支持（算术、比较、索引等） | ✅ 完成 |
+| **GarbageCollector** | `src/gc/garbage_collector.hpp/cpp` | 垃圾回收器（标记-清除算法） | ✅ 完成 |
+| **GlobalState类** | `src/vm/global_state.hpp/cpp` | 全局状态管理（单例模式） | ✅ 完成 |
+| **Stack类** | `src/vm/stack.hpp/cpp` | 值栈管理（动态扩展） | ✅ 完成 |
+| **CallInfo类** | `src/vm/call_info.hpp` | 调用信息（函数调用上下文） | ✅ 完成 |
+| **LuaState类** | `src/vm/lua_state.hpp/cpp` | Lua状态（线程执行环境） | ✅ 完成 |
+| **Lexer词法分析器** | `src/compiler/lexer.hpp/cpp` + `token.hpp` | 词法分析（Token流生成） | ✅ 完成 |
+| **Parser语法分析器** | `src/compiler/parser.hpp/cpp` + `ast.hpp/cpp` | 语法分析（AST生成） | ✅ 完成 |
+| **CodeGenerator字节码生成器** | `src/compiler/codegen.hpp/cpp` + `opcode.hpp/cpp` | 字节码生成（AST→Bytecode） | ✅ 完成 |
+| **VM字节码执行引擎** | `src/vm/vm.hpp/cpp` | 字节码解释执行（38条指令） | ✅ 完成 |
+| **基础库（Base Library）** | `src/lib/baselib.hpp/cpp` | 8个核心函数（print、type等） | ✅ 完成 |
+| **库管理系统** | `src/lib/lib_manager.hpp/cpp` + `lib_registry.hpp/cpp` | 标准库注册和管理 | ✅ 完成 |
 
 ### 测试统计
 
 ```
 测试框架：自定义轻量级测试框架（零外部依赖）
-测试套件：11个（Value、GCString、StringPool、Table、VM Core、Function、GC、
-          Binary/Unary Expressions、Function Codegen、Base Library、Lua File Compilation）
-总测试数：147个单元测试
-通过率：  100% (147/147)
+测试套件：12个
+  - Core模块：Value（6测试）、GCString（5测试）、Table（5测试）、Function（7测试）
+  - VM模块：VM Core（6测试）
+  - GC模块：GC系统（8测试）
+  - 编译器：Lexer/Parser、Binary/Unary Expressions（5测试）、Function Codegen（5测试）、
+           Lua File Compilation（1测试）
+  - 标准库：Base Library（6测试）
+  - 元方法：Metamethod（3测试）、Complete Metamethods（5测试）
+总测试数：62个单元测试
+通过率：  100% (62/62)
 编译状态：Debug和Release版本均无警告，无链接冲突
 平台：    Windows + MSVC (Visual Studio 2026)
 ```
@@ -78,12 +85,14 @@
 ✅ **Function类**：支持C函数和Lua函数两种闭包类型，集成Upvalue管理
 ✅ **Upvalue类**：闭包上值管理，支持Open/Closed状态转换，共享机制
 ✅ **Userdata类**：完整用户数据支持，8字节对齐，元表支持，GC集成
+✅ **Metatable元方法系统**：完整支持17种元方法（__add、__sub、__mul、__div、__mod、__pow、__unm、__eq、__lt、__le、__index、__newindex、__call、__concat、__len、__gc、__mode），包括快速元方法缓存优化
 ✅ **Lexer词法分析器**：完整Lua 5.1词法规则，支持所有关键字、运算符、字面量、注释
 ✅ **Parser语法分析器**：递归下降解析，完整AST生成，正确的运算符优先级和结合性
 ✅ **CodeGenerator字节码生成器**：AST→字节码转换，寄存器分配，常量表管理，跳转回填
 ✅ **OpCode指令集**：完整Lua 5.1指令集（38条指令），iABC/iABx/iAsBx三种格式
 ✅ **VM字节码执行引擎**：完整38条指令实现，Upvalue操作，函数调用（C函数），循环指令（FORLOOP/FORPREP/TFORLOOP），闭包创建，表初始化（SETLIST）
 ✅ **基础库（Base Library）**：8个核心函数（print、type、tostring、tonumber、error、assert、setmetatable、getmetatable），支持基本Lua脚本运行
+✅ **库管理系统**：模块化的标准库注册机制，支持全局函数注册和表函数注册
 ✅ **StringPool**：字符串驻留（interning），节省内存
 ✅ **GarbageCollector**：标记-清除算法，根对象管理
 ✅ **GlobalState**：单例模式管理全局资源（字符串池、GC、注册表）
@@ -813,11 +822,8 @@ openBaseLib(L);  // 注册所有8个函数到全局环境
 │       ├── vm/                 # 虚拟机文档
 │       └── ...
 │
-├── lua_with_cpp/                # 另一个C++ Lua实现（次要参考）
-│   └── src/                    # C++实现代码
-│
-└── spec-kit/                    # 开发方法论工具包
-    └── ...
+└── lua_with_cpp/                # 另一个C++ Lua实现（次要参考）
+    └── src/                    # C++实现代码
 ```
 
 ### 关键文件说明
@@ -1521,15 +1527,6 @@ end
 - 学习现代C++特性应用
 - 避免已知的设计缺陷
 
-#### 3. spec-kit（方法论指导）⭐
-
-**位置**：`../spec-kit/`
-
-**内容**：
-- Spec-Driven Development方法论
-- 开发流程模板
-- 质量保证标准
-
 ---
 
 ## 💡 快速上手指南（给新AI会话）
@@ -1763,7 +1760,6 @@ lua/tests/unit/
 - **Lua团队**：创造了优秀的Lua语言
 - **lua_c_analysis**：提供了详细的Lua 5.1.5源码分析和中文文档
 - **lua_with_cpp**：提供了C++实现参考
-- **spec-kit**：提供了Spec-Driven Development方法论指导
 
 ---
 
