@@ -67,6 +67,9 @@
     <ClCompile Include="tests\unit\test_lua_functions.cpp">
       <Filter>tests\unit</Filter>
     </ClCompile>
+    <ClCompile Include="tests\unit\test_framework.cpp">
+      <Filter>tests\unit</Filter>
+    </ClCompile>
     <ClCompile Include="tests\unit\test_table.cpp">
       <Filter>tests\unit</Filter>
     </ClCompile>

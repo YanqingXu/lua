@@ -106,7 +106,7 @@
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp23</LanguageStandard>
       <LanguageStandard_C>stdc11</LanguageStandard_C>
-      <AdditionalIncludeDirectories>E:\Programming2\lua_in_cpp\lua\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>E:\Programming2\lua_in_cpp\lua\tests;E:\Programming2\lua_in_cpp\lua\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -191,6 +191,7 @@
     <ClCompile Include="tests\unit\test_gc.cpp" />
     <ClCompile Include="tests\unit\test_gc_string.cpp" />
     <ClCompile Include="tests\unit\test_lua_functions.cpp" />
+    <ClCompile Include="tests\unit\test_framework.cpp" />
     <ClCompile Include="tests\unit\test_metamethod_arith.cpp" />
     <ClCompile Include="tests\unit\test_metamethod_complete.cpp" />
     <ClCompile Include="tests\unit\test_table.cpp" />

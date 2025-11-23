@@ -18,6 +18,12 @@
 #include <functional>
 #include <iomanip>
 
+#include "core/value.hpp"
+
+namespace Lua {
+class LuaState;
+}
+
 namespace LuaTest {
 
 /**
@@ -148,6 +154,32 @@ private:
     };
     
     std::vector<TestEntry> tests_;
+};
+
+using StdLibOpenFunction = void (*)(Lua::LuaState*);
+
+class LuaStdLibTestContext {
+public:
+    explicit LuaStdLibTestContext(StdLibOpenFunction openFunc = nullptr);
+    ~LuaStdLibTestContext();
+
+    LuaStdLibTestContext(const LuaStdLibTestContext&) = delete;
+    LuaStdLibTestContext& operator=(const LuaStdLibTestContext&) = delete;
+    LuaStdLibTestContext(LuaStdLibTestContext&&) = delete;
+    LuaStdLibTestContext& operator=(LuaStdLibTestContext&&) = delete;
+
+    Lua::LuaState* getState() const { return state_; }
+
+    void clearStack() const;
+
+    Lua::Value getGlobal(const char* name) const;
+
+    bool ensureGlobalFunction(const char* name, TestSuite& suite, const std::string& message) const;
+
+    int invoke(const char* name, const std::function<void(Lua::LuaState*)>& pushArgs) const;
+
+private:
+    Lua::LuaState* state_;
 };
 
 // 测试断言宏
