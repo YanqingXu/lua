@@ -22,18 +22,19 @@
 #pragma once
 
 #include "common/types.hpp"
+#include "lib/lib_module.hpp"
 #include "vm/lua_state.hpp"
 
 namespace Lua {
 
-/**
- * @brief C函数类型定义
- * 
- * Lua C函数的标准签名：
- * - 参数：LuaState* 指针
- * - 返回值：i32 表示压入栈的返回值数量
- */
-using CFunction = i32 (*)(LuaState*);
+class BaseLibModule : public LibModule {
+public:
+	const char* getName() const override { return "base"; }
+
+	void registerFunctions(LuaState* L) override;
+
+	void initialize(LuaState* L) override;
+};
 
 /**
  * @brief 注册基础库到全局环境

@@ -7,6 +7,12 @@
     <ClCompile Include="src\lib\baselib.cpp">
       <Filter>src\lib</Filter>
     </ClCompile>
+    <ClCompile Include="src\lib\lib_manager.cpp">
+      <Filter>src\lib</Filter>
+    </ClCompile>
+    <ClCompile Include="src\lib\lib_registry.cpp">
+      <Filter>src\lib</Filter>
+    </ClCompile>
     <ClCompile Include="src\compiler\codegen.cpp">
       <Filter>src\compiler</Filter>
     </ClCompile>
@@ -106,6 +112,15 @@
       <Filter>src\compiler</Filter>
     </ClInclude>
     <ClInclude Include="src\lib\baselib.hpp">
+      <Filter>src\lib</Filter>
+    </ClInclude>
+    <ClInclude Include="src\lib\lib_manager.hpp">
+      <Filter>src\lib</Filter>
+    </ClInclude>
+    <ClInclude Include="src\lib\lib_module.hpp">
+      <Filter>src\lib</Filter>
+    </ClInclude>
+    <ClInclude Include="src\lib\lib_registry.hpp">
       <Filter>src\lib</Filter>
     </ClInclude>
     <ClInclude Include="src\vm\call_info.hpp">

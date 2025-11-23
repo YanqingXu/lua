@@ -7,6 +7,8 @@
  */
 
 #include "lib/baselib.hpp"
+#include "lib/lib_registry.hpp"
+#include "lib/lib_manager.hpp"
 #include "core/gc_string.hpp"
 #include "core/table.hpp"
 #include "core/function.hpp"
@@ -497,17 +499,15 @@ static i32 luaB_ipairs(LuaState* L) {
 }
 
 // =====================================================================
-// 注册基础库
+// 基础库注册入口
 // =====================================================================
 
-void openBaseLib(LuaState* L) {
-    // 创建函数对象并注册到全局表
-    struct FuncReg {
-        const char* name;
-        CFunction func;
-    };
+void BaseLibModule::registerFunctions(LuaState* L) {
+    if (!L) {
+        return;
+    }
 
-    static const FuncReg funcs[] = {
+    static const LibFunctionEntry kGlobalFuncs[] = {
         {"print", luaB_print},
         {"type", luaB_type},
         {"tostring", luaB_tostring},
@@ -522,11 +522,26 @@ void openBaseLib(LuaState* L) {
         {nullptr, nullptr}
     };
 
-    for (const FuncReg* reg = funcs; reg->name != nullptr; ++reg) {
-        Function* func = new Function(reg->func);
-        L->getGlobalState().getGC().registerObject(func);
-        L->setGlobal(reg->name, Value(func));
+    LibRegistry::registerGlobalFunctions(L, kGlobalFuncs);
+}
+
+void BaseLibModule::initialize(LuaState* L) {
+    if (!L) {
+        return;
     }
+
+    auto& gs = L->getGlobalState();
+    GCString* versionValue = gs.getStringPool().intern("Lua 5.1 (C core prototype)");
+    L->setGlobal("_VERSION", Value(versionValue));
+}
+
+void openBaseLib(LuaState* L) {
+    if (!L) {
+        return;
+    }
+
+    BaseLibModule module;
+    StandardLibrary::openModule(L, module);
 }
 
 } // namespace Lua
