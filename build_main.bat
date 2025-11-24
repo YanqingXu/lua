@@ -193,6 +193,10 @@ echo [INFO] Compiling test_function_codegen...
 cl %CXX_FLAGS% /Isrc /Itests\unit\framework /c /Fo"%OUTPUT_DIR%\test_function_codegen.obj" "tests\unit\compiler\test_function_codegen.cpp"
 if %errorlevel% neq 0 exit /b %errorlevel%
 
+echo [INFO] Compiling test_syntax_sugar...
+cl %CXX_FLAGS% /Isrc /Itests\unit\framework /c /Fo"%OUTPUT_DIR%\test_syntax_sugar.obj" "tests\unit\compiler\test_syntax_sugar.cpp"
+if %errorlevel% neq 0 exit /b %errorlevel%
+
 echo [INFO] Compiling test_baselib...
 cl %CXX_FLAGS% /Isrc /Itests\unit\framework /c /Fo"%OUTPUT_DIR%\test_baselib.obj" "tests\unit\stdlib\test_baselib.cpp"
 if %errorlevel% neq 0 exit /b %errorlevel%
@@ -227,6 +231,7 @@ cl %CXX_FLAGS% /Fe"%OUTPUT_DIR%\main.exe" ^
     "%OUTPUT_DIR%\test_gc.obj" ^
     "%OUTPUT_DIR%\test_binary_unary_expr.obj" ^
     "%OUTPUT_DIR%\test_function_codegen.obj" ^
+    "%OUTPUT_DIR%\test_syntax_sugar.obj" ^
     "%OUTPUT_DIR%\test_baselib.obj" ^
     "%OUTPUT_DIR%\test_lua_functions.obj" ^
     "%OUTPUT_DIR%\test_metamethod_arith.obj" ^

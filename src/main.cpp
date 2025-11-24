@@ -93,6 +93,7 @@ int main() {
         registerLuaFunctionTests();
         registerMetamethodArithTests();
         registerMetamethodCompleteTests();  // 新增：完整元方法测试
+		registerSyntaxSugarTests();         // 新增：语法糖测试
 
         std::cout << "[INFO] All tests registered." << std::endl;
         std::cout << "[INFO] Starting test execution...\n" << std::endl;

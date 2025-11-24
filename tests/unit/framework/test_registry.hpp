@@ -75,5 +75,10 @@ void registerMetamethodArithTests();
  */
 void registerMetamethodCompleteTests();
 
+/*
+* @brief 注册语法糖测试
+*/
+void registerSyntaxSugarTests();
+
 #endif // LUA_TEST_REGISTRY_HPP
 

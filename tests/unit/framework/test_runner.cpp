@@ -25,6 +25,7 @@ extern void registerBaselibTests();
 extern void registerLuaFunctionTests();
 extern void registerMetamethodArithTests();
 extern void registerMetamethodCompleteTests();
+extern void registerSyntaxSugarTests();
 
 /**
  * @brief 打印测试框架标题
@@ -77,6 +78,7 @@ int main() {
     registerGCTests();
     registerBinaryUnaryExprTests();
     registerFunctionCodegenTests();
+    registerSyntaxSugarTests();
     registerBaselibTests();
     registerLuaFunctionTests();
     registerMetamethodArithTests();

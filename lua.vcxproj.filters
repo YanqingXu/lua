@@ -109,6 +109,9 @@
     <ClCompile Include="tests\unit\metamethod\test_metamethod_complete.cpp">
       <Filter>tests\unit\metamethod</Filter>
     </ClCompile>
+    <ClCompile Include="tests\unit\compiler\test_syntax_sugar.cpp">
+      <Filter>tests\unit\compiler</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\compiler\ast.hpp">

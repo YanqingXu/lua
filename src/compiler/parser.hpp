@@ -88,7 +88,12 @@ private:
      * @brief 前进到下一个Token
      */
     void advance();
-    
+
+    /**
+     * @brief 前瞻下一个Token（不消费）
+     */
+    Token peek();
+
     /**
      * @brief 检查当前Token类型
      */

@@ -297,9 +297,16 @@ struct ForInStmt : SourceLocation {
 
 /**
  * @brief 函数定义语句
+ *
+ * 支持以下形式：
+ * - function foo() end                  -- 简单函数
+ * - function t.a.b.c.foo() end         -- 表成员函数
+ * - function t:method() end             -- 方法定义（自动添加self参数）
  */
 struct FunctionStmt : SourceLocation {
-    Str name;
+    Str name;                    // 基础函数名
+    Vec<Str> tablePath;          // 表路径，例如 t.a.b.c 中的 ["t", "a", "b", "c"]
+    bool isMethod;               // 是否为方法定义（使用冒号语法）
     Vec<Str> params;
     bool isVararg;
     Vec<StmtPtr> body;

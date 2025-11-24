@@ -149,7 +149,7 @@ if %errorlevel% neq 0 (
 )
 
 REM Compile compiler tests
-for %%F in (test_binary_unary_expr test_function_codegen test_lua_functions) do (
+for %%F in (test_binary_unary_expr test_function_codegen test_syntax_sugar test_lua_functions) do (
     echo [INFO] Compiling %%F...
     cl %CXX_FLAGS% /Isrc /Itests\unit\framework /c /Fo"%OUTPUT_DIR%\%%F.obj" "tests\unit\compiler\%%F.cpp" >nul 2>&1
     if %errorlevel% neq 0 (
@@ -191,6 +191,7 @@ echo [INFO] ========================================
 echo.
 
 REM Link all object files
+echo [INFO] Linking test_runner.exe...
 cl %CXX_FLAGS% /Fe"%OUTPUT_DIR%\test_runner.exe" ^
     "%OUTPUT_DIR%\test_runner.obj" ^
     "%OUTPUT_DIR%\test_framework.obj" ^
@@ -202,6 +203,7 @@ cl %CXX_FLAGS% /Fe"%OUTPUT_DIR%\test_runner.exe" ^
     "%OUTPUT_DIR%\test_gc.obj" ^
     "%OUTPUT_DIR%\test_binary_unary_expr.obj" ^
     "%OUTPUT_DIR%\test_function_codegen.obj" ^
+    "%OUTPUT_DIR%\test_syntax_sugar.obj" ^
     "%OUTPUT_DIR%\test_baselib.obj" ^
     "%OUTPUT_DIR%\test_lua_functions.obj" ^
     "%OUTPUT_DIR%\test_metamethod_arith.obj" ^
@@ -227,7 +229,7 @@ cl %CXX_FLAGS% /Fe"%OUTPUT_DIR%\test_runner.exe" ^
     "%OUTPUT_DIR%\vm.obj" ^
     "%OUTPUT_DIR%\lib_registry.obj" ^
     "%OUTPUT_DIR%\lib_manager.obj" ^
-    "%OUTPUT_DIR%\baselib.obj" >nul 2>&1
+    "%OUTPUT_DIR%\baselib.obj"
 
 if %errorlevel% neq 0 (
     echo [ERROR] Linking failed!

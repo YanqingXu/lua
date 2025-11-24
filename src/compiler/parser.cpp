@@ -25,6 +25,15 @@ void Parser::advance() {
     current_ = lexer_.nextToken();
 }
 
+Token Parser::peek() {
+    // 保存当前词法分析器状态
+    Lexer savedLexer = lexer_;
+    Token nextToken = lexer_.nextToken();
+    // 恢复词法分析器状态
+    lexer_ = savedLexer;
+    return nextToken;
+}
+
 bool Parser::check(TokenType type) const {
     return current_.type == type;
 }
@@ -308,18 +317,52 @@ StmtPtr Parser::parseFunctionStmt() {
     funcStmt.line = line;
     funcStmt.column = column;
     funcStmt.isLocal = false;
+    funcStmt.isMethod = false;
 
-    // 解析函数名
+    // 解析函数名：支持 name, t.a.b.c.name, t:method
     if (!current_.isName()) {
         error("Expected function name");
     }
+
+    // 第一个名字
     funcStmt.name = getTokenString(current_);
     advance();
+
+    // 解析表路径和方法语法
+    // function t.a.b.c.foo() 或 function t:method()
+    while (check(static_cast<TokenType>('.')) || check(static_cast<TokenType>(':'))) {
+        if (match(static_cast<TokenType>('.'))) {
+            // 表成员访问
+            funcStmt.tablePath.push_back(funcStmt.name);
+
+            if (!current_.isName()) {
+                error("Expected field name after '.'");
+            }
+            funcStmt.name = getTokenString(current_);
+            advance();
+        } else if (match(static_cast<TokenType>(':'))) {
+            // 方法定义语法糖
+            funcStmt.tablePath.push_back(funcStmt.name);
+            funcStmt.isMethod = true;
+
+            if (!current_.isName()) {
+                error("Expected method name after ':'");
+            }
+            funcStmt.name = getTokenString(current_);
+            advance();
+            break;  // 冒号后不能再有点或冒号
+        }
+    }
 
     // 解析参数列表
     expect(static_cast<TokenType>('('), "Expected '(' after function name");
     funcStmt.params = parseParamList();
     expect(static_cast<TokenType>(')'), "Expected ')' after parameters");
+
+    // 如果是方法定义，自动在参数列表开头添加 self
+    if (funcStmt.isMethod) {
+        funcStmt.params.insert(funcStmt.params.begin(), "self");
+    }
 
     // 解析函数体
     funcStmt.body = parseBlock();
@@ -342,6 +385,7 @@ StmtPtr Parser::parseLocalStmt() {
         funcStmt.line = line;
         funcStmt.column = column;
         funcStmt.isLocal = true;
+        funcStmt.isMethod = false;  // 局部函数不支持方法语法
 
         if (!current_.isName()) {
             error("Expected function name after 'local function'");
@@ -849,6 +893,34 @@ ExprPtr Parser::parsePostfixExpr(ExprPtr base) {
             expect(static_cast<TokenType>(')'), "Expected ')' after arguments");
             base = std::make_unique<Expr>(std::move(callExpr));
         }
+        // 函数调用语法糖: f"string" 等价于 f("string")
+        else if (current_.isString()) {
+            CallExpr callExpr;
+            callExpr.func = std::move(base);
+            callExpr.line = line;
+            callExpr.column = column;
+
+            // 创建字符串参数
+            StringExpr strExpr;
+            strExpr.value = getTokenString(current_);
+            strExpr.line = current_.line;
+            strExpr.column = current_.column;
+            advance();
+
+            callExpr.args.push_back(std::make_unique<Expr>(std::move(strExpr)));
+            base = std::make_unique<Expr>(std::move(callExpr));
+        }
+        // 函数调用语法糖: f{table} 等价于 f({table})
+        else if (check(static_cast<TokenType>('{'))) {
+            CallExpr callExpr;
+            callExpr.func = std::move(base);
+            callExpr.line = line;
+            callExpr.column = column;
+
+            // 解析表构造器作为参数
+            callExpr.args.push_back(parseTableConstructor());
+            base = std::make_unique<Expr>(std::move(callExpr));
+        }
         else {
             break;
         }
@@ -879,15 +951,16 @@ ExprPtr Parser::parseTableConstructor() {
         }
         // name = value 或数组元素
         else if (current_.isName()) {
-            // 保存当前位置
-            Str name = getTokenString(current_);
-            i32 nameLine = current_.line;
-            i32 nameColumn = current_.column;
-            advance();
+            // 使用前瞻判断是 name = value 还是数组元素
+            Token nextToken = peek();
 
-            // 检查是否为 name = value 形式
-            if (check(static_cast<TokenType>('='))) {
-                // name = value
+            if (nextToken.type == static_cast<TokenType>('=')) {
+                // name = value 形式
+                Str name = getTokenString(current_);
+                i32 nameLine = current_.line;
+                i32 nameColumn = current_.column;
+                advance();  // 消费 name
+
                 StringExpr keyExpr;
                 keyExpr.value = name;
                 keyExpr.line = nameLine;
@@ -897,23 +970,9 @@ ExprPtr Parser::parseTableConstructor() {
                 advance();  // 消费 '='
                 field.value = parseExpression();
             } else {
-                // 数组元素，需要回退并重新解析完整表达式
-                // 这里有个问题：我们已经advance()了，无法回退
-                // 解决方案：手动构造NameExpr并继续解析
-                NameExpr nameExpr;
-                nameExpr.name = name;
-                nameExpr.line = nameLine;
-                nameExpr.column = nameColumn;
-
-                // 先处理后缀表达式（函数调用、索引等）
-                ExprPtr base = std::make_unique<Expr>(std::move(nameExpr));
-                base = parsePostfixExpr(std::move(base));
-
-                // 然后处理可能的二元运算符
-                // 但这会很复杂，因为我们需要重新进入表达式解析
-                // 简化方案：假设表字段中的表达式不会太复杂
+                // 数组元素，解析完整表达式
                 field.key = nullptr;
-                field.value = std::move(base);
+                field.value = parseExpression();
             }
         }
         // 数组元素
