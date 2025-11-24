@@ -1,4 +1,4 @@
-#include "test_framework.hpp"
+﻿#include "test_framework.hpp"
 
 #include "vm/lua_state.hpp"
 #include "vm/stack.hpp"
@@ -49,13 +49,15 @@ int LuaStdLibTestContext::invoke(const char* name, const std::function<void(Lua:
         return -1;
     }
 
+    // 清空栈并只压入参数（不压入函数对象）
+    // 这符合 Lua 5.1 C 函数调用约定：参数从索引 1 开始
     state_->getStack().clear();
-    state_->pushFunction(func.asFunction());
 
     if (pushArgs) {
         pushArgs(state_);
     }
 
+    // 调用 C 函数
     return func.asFunction()->getCFunction()(state_);
 }
 

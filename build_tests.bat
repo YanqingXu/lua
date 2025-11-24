@@ -116,7 +116,7 @@ echo.
 
 REM Compile test framework
 echo [INFO] Compiling test_framework...
-cl %CXX_FLAGS% /Isrc /Itests/unit/framework /c /Fo"%OUTPUT_DIR%\test_framework.obj" "tests\unit\framework\test_framework.cpp" >nul 2>&1
+cl %CXX_FLAGS% /Isrc /Itests\unit\framework /c /Fo"%OUTPUT_DIR%\test_framework.obj" "tests\unit\framework\test_framework.cpp" >nul 2>&1
 if %errorlevel% neq 0 (
     echo [ERROR] Failed to compile test_framework
     exit /b %errorlevel%
@@ -125,7 +125,7 @@ if %errorlevel% neq 0 (
 REM Compile core tests
 for %%F in (test_value test_gc_string test_table test_function) do (
     echo [INFO] Compiling %%F...
-    cl %CXX_FLAGS% /Isrc /Itests/unit/framework /c /Fo"%OUTPUT_DIR%\%%F.obj" "tests\unit\core\%%F.cpp" >nul 2>&1
+    cl %CXX_FLAGS% /Isrc /Itests\unit\framework /c /Fo"%OUTPUT_DIR%\%%F.obj" "tests\unit\core\%%F.cpp" >nul 2>&1
     if %errorlevel% neq 0 (
         echo [ERROR] Failed to compile %%F
         exit /b %errorlevel%
@@ -134,7 +134,7 @@ for %%F in (test_value test_gc_string test_table test_function) do (
 
 REM Compile gc tests
 echo [INFO] Compiling test_gc...
-cl %CXX_FLAGS% /Isrc /Itests/unit/framework /c /Fo"%OUTPUT_DIR%\test_gc.obj" "tests\unit\gc\test_gc.cpp" >nul 2>&1
+cl %CXX_FLAGS% /Isrc /Itests\unit\framework /c /Fo"%OUTPUT_DIR%\test_gc.obj" "tests\unit\gc\test_gc.cpp" >nul 2>&1
 if %errorlevel% neq 0 (
     echo [ERROR] Failed to compile test_gc
     exit /b %errorlevel%
@@ -142,7 +142,7 @@ if %errorlevel% neq 0 (
 
 REM Compile vm tests
 echo [INFO] Compiling test_vm_core...
-cl %CXX_FLAGS% /Isrc /Itests/unit/framework /c /Fo"%OUTPUT_DIR%\test_vm_core.obj" "tests\unit\vm\test_vm_core.cpp" >nul 2>&1
+cl %CXX_FLAGS% /Isrc /Itests\unit\framework /c /Fo"%OUTPUT_DIR%\test_vm_core.obj" "tests\unit\vm\test_vm_core.cpp" >nul 2>&1
 if %errorlevel% neq 0 (
     echo [ERROR] Failed to compile test_vm_core
     exit /b %errorlevel%
@@ -151,7 +151,7 @@ if %errorlevel% neq 0 (
 REM Compile compiler tests
 for %%F in (test_binary_unary_expr test_function_codegen test_lua_functions) do (
     echo [INFO] Compiling %%F...
-    cl %CXX_FLAGS% /Isrc /Itests/unit/framework /c /Fo"%OUTPUT_DIR%\%%F.obj" "tests\unit\compiler\%%F.cpp" >nul 2>&1
+    cl %CXX_FLAGS% /Isrc /Itests\unit\framework /c /Fo"%OUTPUT_DIR%\%%F.obj" "tests\unit\compiler\%%F.cpp" >nul 2>&1
     if %errorlevel% neq 0 (
         echo [ERROR] Failed to compile %%F
         exit /b %errorlevel%
@@ -160,7 +160,7 @@ for %%F in (test_binary_unary_expr test_function_codegen test_lua_functions) do 
 
 REM Compile stdlib tests
 echo [INFO] Compiling test_baselib...
-cl %CXX_FLAGS% /Isrc /Itests/unit/framework /c /Fo"%OUTPUT_DIR%\test_baselib.obj" "tests\unit\stdlib\test_baselib.cpp" >nul 2>&1
+cl %CXX_FLAGS% /Isrc /Itests\unit\framework /c /Fo"%OUTPUT_DIR%\test_baselib.obj" "tests\unit\stdlib\test_baselib.cpp" >nul 2>&1
 if %errorlevel% neq 0 (
     echo [ERROR] Failed to compile test_baselib
     exit /b %errorlevel%
@@ -168,21 +168,21 @@ if %errorlevel% neq 0 (
 
 REM Compile metamethod tests
 echo [INFO] Compiling test_metamethod_arith...
-cl %CXX_FLAGS% /Isrc /Itests/unit/framework /c /Fo"%OUTPUT_DIR%\test_metamethod_arith.obj" "tests\unit\metamethod\test_metamethod_arith.cpp" >nul 2>&1
+cl %CXX_FLAGS% /Isrc /Itests\unit\framework /c /Fo"%OUTPUT_DIR%\test_metamethod_arith.obj" "tests\unit\metamethod\test_metamethod_arith.cpp" >nul 2>&1
 if %errorlevel% neq 0 (
     echo [ERROR] Failed to compile test_metamethod_arith
     exit /b %errorlevel%
 )
 
 echo [INFO] Compiling test_metamethod_complete...
-cl %CXX_FLAGS% /Isrc /Itests/unit/framework /c /Fo"%OUTPUT_DIR%\test_metamethod_complete.obj" "tests\unit\metamethod\test_metamethod_complete.cpp" >nul 2>&1
+cl %CXX_FLAGS% /Isrc /Itests\unit\framework /c /Fo"%OUTPUT_DIR%\test_metamethod_complete.obj" "tests\unit\metamethod\test_metamethod_complete.cpp" >nul 2>&1
 if %errorlevel% neq 0 (
     echo [ERROR] Failed to compile test_metamethod_complete
     exit /b %errorlevel%
 )
 
 echo [INFO] Compiling test_runner...
-cl %CXX_FLAGS% /Isrc /Itests/unit/framework /c /Fo"%OUTPUT_DIR%\test_runner.obj" "tests\unit\framework\test_runner.cpp" >nul 2>&1
+cl %CXX_FLAGS% /Isrc /Itests\unit\framework /c /Fo"%OUTPUT_DIR%\test_runner.obj" "tests\unit\framework\test_runner.cpp" >nul 2>&1
 
 echo.
 echo [INFO] ========================================
