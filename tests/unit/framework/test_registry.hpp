@@ -80,5 +80,15 @@ void registerMetamethodCompleteTests();
 */
 void registerSyntaxSugarTests();
 
+/**
+ * @brief 注册所有表索引访问测试
+ */
+void registerIndexedAccessTests();
+
+/**
+ * @brief 注册所有方法调用测试
+ */
+void registerMethodCallTests();
+
 #endif // LUA_TEST_REGISTRY_HPP
 

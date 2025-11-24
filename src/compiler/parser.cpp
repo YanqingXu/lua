@@ -883,6 +883,7 @@ ExprPtr Parser::parsePostfixExpr(ExprPtr base) {
 
             CallExpr callExpr;
             callExpr.func = std::move(method);
+            callExpr.isMethodCall = true;  // 标记为方法调用
             callExpr.line = line;
             callExpr.column = column;
 

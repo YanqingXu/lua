@@ -150,10 +150,15 @@ struct TableExpr : SourceLocation {
 
 /**
  * @brief 函数调用
+ *
+ * 支持两种调用方式：
+ * - 普通调用：func(args)
+ * - 方法调用：obj:method(args) - 等价于 obj.method(obj, args)
  */
 struct CallExpr : SourceLocation {
     ExprPtr func;
     Vec<ExprPtr> args;
+    bool isMethodCall = false;  // 是否为方法调用（使用冒号语法）
 };
 
 /**

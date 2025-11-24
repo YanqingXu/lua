@@ -236,12 +236,13 @@ void CodeGenerator::expr(const Expr& e, ExprDesc& desc) {
             // 查找局部变量
             i32 reg = findLocalVar(arg.name);
             if (reg >= 0) {
+                // 局部变量
                 desc.kind = ExprKind::Local;
                 desc.u.s.info = reg;
             } else {
-                // 全局变量
+                // 全局变量：使用GETGLOBAL/SETGLOBAL指令
                 i32 k = stringConstant(arg.name);
-                desc.kind = ExprKind::Indexed;
+                desc.kind = ExprKind::Global;
                 desc.u.s.info = k;
             }
         }
@@ -256,6 +257,38 @@ void CodeGenerator::expr(const Expr& e, ExprDesc& desc) {
         }
         else if constexpr (std::is_same_v<T, CallExpr>) {
             callExpr(arg, desc);
+        }
+        else if constexpr (std::is_same_v<T, IndexExpr>) {
+            // 表索引访问 table[key]
+            // 1. 计算表表达式
+            ExprDesc t;
+            expr(*arg.table, t);
+            // 2. 将表表达式转换到寄存器
+            luaK_dischargevars(t);
+            // 3. 计算索引表达式
+            ExprDesc k;
+            expr(*arg.index, k);
+            // 4. 设置为索引表达式
+            luaK_indexed(t, k);
+            desc = t;
+        }
+        else if constexpr (std::is_same_v<T, MemberExpr>) {
+            // 成员访问 table.member
+            // 等价于 table["member"]
+            // 1. 计算表表达式
+            ExprDesc t;
+            expr(*arg.table, t);
+            // 2. 将表表达式转换到寄存器
+            luaK_dischargevars(t);
+            // 3. 创建字符串常量作为索引
+            ExprDesc k;
+            k.kind = ExprKind::Const;
+            k.u.s.info = stringConstant(arg.member);
+            k.t = NO_JUMP;
+            k.f = NO_JUMP;
+            // 4. 设置为索引表达式
+            luaK_indexed(t, k);
+            desc = t;
         }
         else {
             // 其他表达式类型暂不支持
@@ -286,9 +319,18 @@ void CodeGenerator::discharge(ExprDesc& desc, i32 reg) {
                 codeABC(OpCode::MOVE, reg, desc.u.s.info, 0);
             }
             break;
-        case ExprKind::Indexed: {
-            // 全局变量读取
+        case ExprKind::Global:
+            // 全局变量读取：GETGLOBAL A Bx
+            // A = 目标寄存器
+            // Bx = 全局变量名在常量表中的索引
             codeABx(OpCode::GETGLOBAL, reg, desc.u.s.info);
+            break;
+        case ExprKind::Indexed: {
+            // 表索引访问：GETTABLE A B C
+            // A = 目标寄存器
+            // B = 表的寄存器索引（存储在info中）
+            // C = 键的RK操作数（存储在aux中）
+            codeABC(OpCode::GETTABLE, reg, desc.u.s.info, desc.u.s.aux);
             break;
         }
         default:
@@ -726,10 +768,29 @@ void CodeGenerator::luaK_goiffalse(ExprDesc& e) {
 void CodeGenerator::luaK_dischargevars(ExprDesc& e) {
     switch (e.kind) {
         case ExprKind::Local:
+            // 局部变量：转换为非可重定位表达式（已经在寄存器中）
             e.kind = ExprKind::NonRelocatable;
             break;
-        case ExprKind::Indexed:
+        case ExprKind::Global:
+            // 全局变量访问：生成GETGLOBAL指令
+            // GETGLOBAL A Bx：R(A) := Gbl[Kst(Bx)]
+            // A = 分配的寄存器（freereg_）
+            // Bx = 全局变量名在常量表中的索引
             e.u.s.info = codeABx(OpCode::GETGLOBAL, 0, e.u.s.info);
+            e.kind = ExprKind::Relocatable;
+            break;
+        case ExprKind::Indexed:
+            // 表索引访问：生成GETTABLE指令
+            // GETTABLE A B C：R(A) := R(B)[RK(C)]
+            // A = 分配的寄存器（freereg_）
+            // B = 表的寄存器（e.u.s.info）
+            // C = 键的RK操作数（e.u.s.aux）
+            e.u.s.info = codeABC(OpCode::GETTABLE, 0, e.u.s.info, e.u.s.aux);
+            e.kind = ExprKind::Relocatable;
+            break;
+        case ExprKind::Upval:
+            // Upvalue访问：生成GETUPVAL指令
+            e.u.s.info = codeABC(OpCode::GETUPVAL, 0, e.u.s.info, 0);
             e.kind = ExprKind::Relocatable;
             break;
         default:
@@ -877,13 +938,44 @@ void CodeGenerator::functionExpr(const FunctionExpr& e, ExprDesc& desc) {
 }
 
 void CodeGenerator::callExpr(const CallExpr& e, ExprDesc& desc) {
-    // 计算函数表达式
-    ExprDesc func;
-    expr(*e.func, func);
-    i32 funcReg = exp2AnyReg(func);
+    i32 funcReg;
+    i32 nargs = static_cast<i32>(e.args.size());
+
+    // 检查是否为方法调用（obj:method(args)）
+    if (e.isMethodCall) {
+        // 方法调用：使用SELF指令
+        // func应该是MemberExpr（obj.method）
+        const MemberExpr* memberExpr = std::get_if<MemberExpr>(&e.func->variant);
+        if (!memberExpr) {
+            throw std::runtime_error("Method call must have MemberExpr as func");
+        }
+
+        // 计算对象表达式
+        ExprDesc obj;
+        expr(*memberExpr->table, obj);
+
+        // 创建方法名的常量表达式
+        ExprDesc key;
+        key.kind = ExprKind::Const;
+        key.u.s.info = stringConstant(memberExpr->member);
+        key.t = NO_JUMP;
+        key.f = NO_JUMP;
+
+        // 生成SELF指令
+        // SELF会将对象放入func+1，方法放入func
+        luaK_self(obj, key);
+        funcReg = obj.u.s.info;
+
+        // 参数数量+1（包含隐式的self参数）
+        nargs++;
+    } else {
+        // 普通函数调用
+        ExprDesc func;
+        expr(*e.func, func);
+        funcReg = exp2AnyReg(func);
+    }
 
     // 计算参数
-    i32 nargs = static_cast<i32>(e.args.size());
     for (const auto& arg : e.args) {
         ExprDesc argDesc;
         expr(*arg, argDesc);
@@ -1067,6 +1159,110 @@ void CodeGenerator::block(const Vec<StmtPtr>& stmts) {
     }
 
     removeLocalVars(oldnactvar);
+}
+
+// =====================================================================
+// 表索引和方法调用
+// =====================================================================
+
+/**
+ * @brief 处理表索引操作（table[key]）
+ *
+ * 参考：lua_c_analysis/src/lcode.c:2283 luaK_indexed
+ *
+ * 将表达式标记为表索引访问，准备后续的GETTABLE或SETTABLE操作。
+ * 这是实现Lua表访问语法的基础函数。
+ *
+ * 设置过程：
+ * 1. 将键表达式转换为RK操作数（可以是寄存器或常量）
+ * 2. 存储键的RK值到aux字段
+ * 3. 设置表达式类型为VINDEXED
+ *
+ * RK操作数优化：
+ * - 键可以是寄存器或常量
+ * - 常量键直接编码在指令中（使用ISK位标记）
+ * - 减少LOADK指令的生成
+ *
+ * 表达式状态：
+ * - t.kind = Indexed：标记为表索引
+ * - t.u.s.info：表的寄存器索引
+ * - t.u.s.aux：键的RK操作数
+ *
+ * 后续操作：
+ * - GETTABLE：读取表元素（在discharge或exp2anyreg中生成）
+ * - SETTABLE：设置表元素（在luaK_storevar中生成）
+ *
+ * @param t 表表达式描述符（输入输出参数）
+ * @param k 键表达式描述符
+ */
+void CodeGenerator::luaK_indexed(ExprDesc& t, ExprDesc& k) {
+    // 将键转换为RK操作数格式
+    t.u.s.aux = exp2RK(k);
+    // 设置表达式类型为索引表达式
+    t.kind = ExprKind::Indexed;
+}
+
+/**
+ * @brief 处理方法调用的SELF指令生成（obj:method(args)）
+ *
+ * 参考：lua_c_analysis/src/lcode.c:1906 luaK_self
+ *
+ * Lua方法调用语法糖：
+ * - obj:method(args) 等价于 obj.method(obj, args)
+ * - SELF指令同时完成两个操作，避免重复表访问
+ *
+ * SELF指令格式：
+ * - SELF A B C: R(A+1) := R(B); R(A) := R(B)[RK(C)]
+ * - A: 目标寄存器（存放方法）
+ * - B: 对象所在寄存器
+ * - C: 方法名的RK操作数
+ *
+ * 执行效果：
+ * 1. R(A+1) = R(B)：复制对象到A+1（作为self参数）
+ * 2. R(A) = R(B)[RK(C)]：获取方法到A（作为函数）
+ *
+ * 优化说明：
+ * - 避免两次表访问（相比 obj.method(obj, args)）
+ * - 自动处理self参数的传递
+ * - 为后续CALL指令准备好函数和第一个参数
+ *
+ * 调用序列：
+ * 1. SELF A B C：准备方法和self
+ * 2. [加载其他参数到A+2, A+3, ...]
+ * 3. CALL A nargs+1 nresults：调用方法
+ *
+ * @param e 对象表达式描述符（输入输出参数）
+ * @param key 方法名表达式描述符
+ */
+void CodeGenerator::luaK_self(ExprDesc& e, ExprDesc& key) {
+    // 将对象表达式放入任意寄存器
+    exp2AnyReg(e);
+
+    // 释放对象表达式占用的资源（如果是VNONRELOC）
+    if (e.kind == ExprKind::NonRelocatable) {
+        freeReg(e.u.s.info);
+    }
+
+    // 分配函数寄存器（连续分配2个：func和self）
+    i32 func = freereg_;
+    freereg_ += 2;  // 保留2个寄存器
+    if (freereg_ > proto_->getMaxStackSize()) {
+        proto_->setMaxStackSize(static_cast<u8>(freereg_));
+    }
+
+    // 生成SELF指令
+    // SELF func obj method_key
+    // R(func+1) = R(obj); R(func) = R(obj)[RK(method_key)]
+    codeABC(OpCode::SELF, func, e.u.s.info, exp2RK(key));
+
+    // 释放键表达式（如果是VNONRELOC）
+    if (key.kind == ExprKind::NonRelocatable) {
+        freeReg(key.u.s.info);
+    }
+
+    // 更新表达式描述符
+    e.u.s.info = func;  // 函数在func寄存器
+    e.kind = ExprKind::NonRelocatable;  // 固定在func寄存器
 }
 
 }  // namespace Lua

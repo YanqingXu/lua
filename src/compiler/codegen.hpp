@@ -55,6 +55,7 @@ enum class ExprKind {
     NonRelocatable,  // 固定寄存器中的表达式
     Local,      // 局部变量
     Upval,      // Upvalue
+    Global,     // 全局变量（Lua 5.1 GETGLOBAL/SETGLOBAL）
     Indexed,    // 表索引表达式
     Jump,       // 跳转表达式
     Relocatable,     // 可重定位的表达式（结果可以放到任意寄存器）
@@ -187,6 +188,10 @@ private:
     // 函数表达式和调用
     void functionExpr(const FunctionExpr& e, ExprDesc& desc);
     void callExpr(const CallExpr& e, ExprDesc& desc);
+
+    // 表索引和成员访问
+    void luaK_indexed(ExprDesc& t, ExprDesc& k);
+    void luaK_self(ExprDesc& e, ExprDesc& key);
 
     // 算术和比较指令生成
     void codearith(OpCode op, ExprDesc& e1, ExprDesc& e2);

@@ -26,6 +26,8 @@ extern void registerLuaFunctionTests();
 extern void registerMetamethodArithTests();
 extern void registerMetamethodCompleteTests();
 extern void registerSyntaxSugarTests();
+extern void registerIndexedAccessTests();
+extern void registerMethodCallTests();
 
 /**
  * @brief 打印测试框架标题
@@ -83,6 +85,8 @@ int main() {
     registerLuaFunctionTests();
     registerMetamethodArithTests();
     registerMetamethodCompleteTests();
+    registerIndexedAccessTests();
+    registerMethodCallTests();
 
     std::cout << "[INFO] All tests registered." << std::endl;
     std::cout << "[INFO] Starting test execution...\n" << std::endl;

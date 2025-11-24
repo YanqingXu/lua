@@ -184,6 +184,8 @@
     <ClCompile Include="src\vm\lua_state.cpp" />
     <ClCompile Include="src\vm\stack.cpp" />
     <ClCompile Include="src\vm\vm.cpp" />
+    <ClCompile Include="tests\unit\compiler\test_indexed_access.cpp" />
+    <ClCompile Include="tests\unit\compiler\test_method_call.cpp" />
     <ClCompile Include="tests\unit\compiler\test_syntax_sugar.cpp" />
     <ClCompile Include="tests\unit\stdlib\test_baselib.cpp" />
     <ClCompile Include="tests\unit\compiler\test_binary_unary_expr.cpp" />
