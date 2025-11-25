@@ -192,6 +192,7 @@ private:
     // 表索引和成员访问
     void luaK_indexed(ExprDesc& t, ExprDesc& k);
     void luaK_self(ExprDesc& e, ExprDesc& key);
+    void luaK_storevar(ExprDesc& var, ExprDesc& ex);
 
     // 算术和比较指令生成
     void codearith(OpCode op, ExprDesc& e1, ExprDesc& e2);

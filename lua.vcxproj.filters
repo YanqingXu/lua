@@ -118,6 +118,9 @@
     <ClCompile Include="tests\unit\compiler\test_method_call.cpp">
       <Filter>tests\unit\compiler</Filter>
     </ClCompile>
+    <ClCompile Include="tests\unit\compiler\test_storevar.cpp">
+      <Filter>tests\unit\compiler</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\compiler\ast.hpp">

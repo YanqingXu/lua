@@ -90,5 +90,10 @@ void registerIndexedAccessTests();
  */
 void registerMethodCallTests();
 
+/**
+ * @brief 注册所有变量存储测试
+ */
+void registerStorevarTests();
+
 #endif // LUA_TEST_REGISTRY_HPP
 

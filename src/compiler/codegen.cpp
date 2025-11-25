@@ -391,25 +391,35 @@ void CodeGenerator::statement(const Stmt& s) {
         using T = std::decay_t<decltype(arg)>;
 
         if constexpr (std::is_same_v<T, AssignStmt>) {
-            // 赋值语句：简化实现，只支持单个变量赋值
-            if (!arg.targets.empty() && !arg.values.empty()) {
-                ExprDesc val;
-                expr(*arg.values[0], val);
+            // 赋值语句：使用 luaK_storevar 统一接口
+            // 支持多重赋值：a, b, c = 1, 2, 3
+            i32 nvars = static_cast<i32>(arg.targets.size());
+            i32 nexps = static_cast<i32>(arg.values.size());
 
-                // 检查目标是否是局部变量
-                if (auto* nameExpr = std::get_if<NameExpr>(&arg.targets[0]->variant)) {
-                    i32 reg = findLocalVar(nameExpr->name);
-                    if (reg >= 0) {
-                        // 局部变量赋值
-                        discharge(val, reg);
-                    } else {
-                        // 全局变量赋值
-                        i32 k = stringConstant(nameExpr->name);
-                        i32 valReg = exp2AnyReg(val);
-                        codeABx(OpCode::SETGLOBAL, valReg, k);
-                        freeReg(valReg);
-                    }
-                }
+            // 计算所有右值表达式
+            for (i32 i = 0; i < nexps && i < nvars; i++) {
+                ExprDesc val;
+                expr(*arg.values[i], val);
+
+                // 计算左值（目标变量）
+                ExprDesc var;
+                expr(*arg.targets[i], var);
+
+                // 使用统一接口存储值到变量
+                luaK_storevar(var, val);
+            }
+
+            // 如果变量多于值，剩余变量赋值为 nil
+            for (i32 i = nexps; i < nvars; i++) {
+                ExprDesc var;
+                expr(*arg.targets[i], var);
+
+                ExprDesc nil;
+                nil.kind = ExprKind::Nil;
+                nil.t = NO_JUMP;
+                nil.f = NO_JUMP;
+
+                luaK_storevar(var, nil);
             }
         }
         else if constexpr (std::is_same_v<T, LocalStmt>) {
@@ -1263,6 +1273,98 @@ void CodeGenerator::luaK_self(ExprDesc& e, ExprDesc& key) {
     // 更新表达式描述符
     e.u.s.info = func;  // 函数在func寄存器
     e.kind = ExprKind::NonRelocatable;  // 固定在func寄存器
+}
+
+/**
+ * @brief 存储值到变量
+ *
+ * 参考：lua_c_analysis/src/lcode.c:1827
+ *
+ * 根据变量类型生成相应的存储指令。这是赋值操作的核心实现，
+ * 提供统一的接口处理所有类型变量的赋值代码生成。
+ *
+ * 变量类型处理：
+ * - Local（局部变量）：直接存储到指定寄存器，无需生成指令（最高效）
+ * - Global（全局变量）：生成 SETGLOBAL 指令
+ * - Upval（Upvalue）：生成 SETUPVAL 指令
+ * - Indexed（表索引）：生成 SETTABLE 指令
+ *
+ * 指令格式：
+ * - 局部变量：无指令，直接寄存器赋值（通过 discharge）
+ * - 全局变量：SETGLOBAL A Bx - Gbl[Kst(Bx)] := R(A)
+ * - Upvalue：SETUPVAL A B - UpValue[B] := R(A)
+ * - 表索引：SETTABLE A B C - R(A)[RK(B)] := RK(C)
+ *
+ * 优化策略：
+ * - 局部变量赋值最高效（无指令开销）
+ * - 表索引使用 RK 操作数优化（键和值都可以是常量）
+ * - 自动选择最优的操作数格式
+ *
+ * 资源管理：
+ * - 释放表达式占用的临时寄存器
+ * - 确保寄存器使用的正确性
+ * - 避免寄存器泄漏
+ *
+ * 使用场景：
+ * - 赋值语句：a = 10, g = 20, t[k] = 30
+ * - 变量初始化：local x = 10
+ * - 表元素设置：t.field = value
+ * - 函数返回值赋值：x = func()
+ *
+ * @param var 目标变量的表达式描述符
+ * @param ex 要存储的值的表达式描述符
+ */
+void CodeGenerator::luaK_storevar(ExprDesc& var, ExprDesc& ex) {
+    switch (var.kind) {
+        case ExprKind::Local: {
+            // 局部变量：直接存储到指定寄存器
+            // 释放表达式占用的临时寄存器（如果是 VNONRELOC）
+            if (ex.kind == ExprKind::NonRelocatable) {
+                freeReg(ex.u.s.info);
+            }
+            // 将值存储到局部变量的寄存器
+            discharge(ex, var.u.s.info);
+            return;  // 注意：局部变量处理后直接返回，不执行后面的 freeReg
+        }
+
+        case ExprKind::Upval: {
+            // Upvalue：生成 SETUPVAL 指令
+            // SETUPVAL A B：UpValue[B] := R(A)
+            i32 e = exp2AnyReg(ex);
+            codeABC(OpCode::SETUPVAL, e, var.u.s.info, 0);
+            break;
+        }
+
+        case ExprKind::Global: {
+            // 全局变量：生成 SETGLOBAL 指令
+            // SETGLOBAL A Bx：Gbl[Kst(Bx)] := R(A)
+            // A = 值所在的寄存器
+            // Bx = 全局变量名在常量表中的索引
+            i32 e = exp2AnyReg(ex);
+            codeABx(OpCode::SETGLOBAL, e, var.u.s.info);
+            break;
+        }
+
+        case ExprKind::Indexed: {
+            // 表索引：生成 SETTABLE 指令
+            // SETTABLE A B C：R(A)[RK(B)] := RK(C)
+            // A = 表的寄存器（存储在 var.u.s.info）
+            // B = 键的 RK 操作数（存储在 var.u.s.aux）
+            // C = 值的 RK 操作数
+            i32 e = exp2RK(ex);
+            codeABC(OpCode::SETTABLE, var.u.s.info, var.u.s.aux, e);
+            break;
+        }
+
+        default:
+            // 不应该到达这里
+            throw std::runtime_error("Invalid variable type for assignment");
+    }
+
+    // 释放表达式占用的临时寄存器（除了局部变量，已经在上面返回）
+    if (ex.kind == ExprKind::NonRelocatable) {
+        freeReg(ex.u.s.info);
+    }
 }
 
 }  // namespace Lua

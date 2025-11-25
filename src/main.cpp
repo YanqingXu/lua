@@ -96,6 +96,7 @@ int main() {
         registerSyntaxSugarTests();         // 新增：语法糖测试
         registerIndexedAccessTests();    // 新增：索引访问测试
         registerMethodCallTests();		// 新增：方法调用测试
+        registerStorevarTests();
 
         std::cout << "[INFO] All tests registered." << std::endl;
         std::cout << "[INFO] Starting test execution...\n" << std::endl;
