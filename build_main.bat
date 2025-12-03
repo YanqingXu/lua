@@ -213,6 +213,10 @@ echo [INFO] Compiling test_metamethod_complete...
 cl %CXX_FLAGS% /Isrc /Itests\unit\framework /c /Fo"%OUTPUT_DIR%\test_metamethod_complete.obj" "tests\unit\metamethod\test_metamethod_complete.cpp"
 if %errorlevel% neq 0 exit /b %errorlevel%
 
+echo [INFO] Compiling test_function_call...
+cl %CXX_FLAGS% /Isrc /Itests\unit\framework /c /Fo"%OUTPUT_DIR%\test_function_call.obj" "tests\unit\vm\test_function_call.cpp"
+if %errorlevel% neq 0 exit /b %errorlevel%
+
 echo.
 echo [INFO] Compiling main.cpp...
 cl %CXX_FLAGS% /Isrc /Itests\unit\framework /c /Fo"%OUTPUT_DIR%\main.obj" "src\main.cpp"
@@ -236,6 +240,7 @@ cl %CXX_FLAGS% /Fe"%OUTPUT_DIR%\main.exe" ^
     "%OUTPUT_DIR%\test_lua_functions.obj" ^
     "%OUTPUT_DIR%\test_metamethod_arith.obj" ^
     "%OUTPUT_DIR%\test_metamethod_complete.obj" ^
+    "%OUTPUT_DIR%\test_function_call.obj" ^
     "%OUTPUT_DIR%\value.obj" ^
     "%OUTPUT_DIR%\gc_object.obj" ^
     "%OUTPUT_DIR%\gc_string.obj" ^

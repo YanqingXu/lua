@@ -41,12 +41,45 @@ void VM::execute(Function* func) {
         throw std::runtime_error("VM::execute: C functions not supported yet");
     }
 
-    // 设置当前函数（用于访问upvalues）
-    currentFunc_ = func;
+    // ⭐ P0修复：参考lua_c_analysis/src/ldo.c中的luaD_call
+    // execute是最外层入口，需要设置初始的CallInfo
+    Stack& stack = L_->getStack();
 
-    // 获取Lua函数的Proto
-    Proto* proto = func->getProto();
-    executeProto(proto, 1);
+    // 将函数压入栈（模拟调用者）
+    stack.push(Value(func));
+    usize funcIndex = stack.size() - 1;
+
+    // 创建初始CallInfo（这是第0层调用）
+    CallInfo& ci = L_->pushCallInfo();
+    ci.func = funcIndex;
+    ci.base = funcIndex + 1;  // base指向第一个参数/局部变量位置
+    ci.top = ci.base;  // 初始时没有参数
+    ci.savedpc = nullptr;  // 最外层调用没有savedpc
+    ci.nresults = -1;  // 接受所有返回值
+    ci.tailcalls = 0;
+
+    // 设置当前函数和Proto
+    currentFunc_ = func;
+    currentProto_ = func->getProto();
+    pc_ = 0;
+
+    // ⭐ 先确保栈空间足够，再更新base指针
+    usize requiredTop = ci.base + currentProto_->getMaxStackSize();
+    if (stack.capacity() < requiredTop) {
+        ensureStackSpace(requiredTop - stack.size());
+    }
+    while (stack.size() < requiredTop) {
+        stack.push(Value());  // nil
+    }
+
+    // 更新base指针（必须在栈扩展之后）
+    updateBasePointer();
+
+    // 执行函数（nexeccalls=1表示这是第一层调用）
+    executeProto(currentProto_, 1);
+
+    // ⭐ P0修复：执行完成后清理CallInfo
+    L_->popCallInfo();
 }
 
 void VM::executeProto(Proto* proto, i32 nexeccalls) {

@@ -143,6 +143,7 @@ i32 CodeGenerator::nilConstant() {
 i32 CodeGenerator::addLocalVar(const Str& name) {
     i32 reg = freereg_;
     localVars_.emplace_back(name, reg, static_cast<i32>(proto_->getInstructionCount()));
+    freereg_++;  // ⭐ P0修复：添加局部变量后需要递增freereg_
     return reg;
 }
 
@@ -333,6 +334,18 @@ void CodeGenerator::discharge(ExprDesc& desc, i32 reg) {
             codeABC(OpCode::GETTABLE, reg, desc.u.s.info, desc.u.s.aux);
             break;
         }
+        case ExprKind::Relocatable: {
+            // ⭐ P0修复：参考lua_c_analysis/src/lcode.c:1447-1450
+            // Relocatable表达式的结果位置可以重定位
+            // 需要修改之前生成的指令，将目标寄存器从0改为reg
+            i32 pc = desc.u.s.info;  // 指令的位置
+            Instruction inst = proto_->getInstruction(pc);
+            // 修改指令的A参数（目标寄存器）
+            SETARG_A(inst, reg);
+            // 写回修改后的指令
+            proto_->setInstruction(pc, inst);
+            break;
+        }
         default:
             break;
     }
@@ -364,12 +377,24 @@ i32 CodeGenerator::exp2RK(ExprDesc& desc) {
 }
 
 i32 CodeGenerator::exp2AnyReg(ExprDesc& desc) {
-    if (desc.kind != ExprKind::NonRelocatable) {
-        i32 reg = allocReg();
-        discharge(desc, reg);
-        return reg;
+    // ⭐ P0修复：参考lua_c_analysis/src/lcode.c:1659-1670
+    // 如果表达式已经在寄存器中（NonRelocatable或Local），直接返回寄存器编号
+    // 避免生成不必要的MOVE指令
+
+    // 先处理变量访问（Local -> NonRelocatable）
+    if (desc.kind == ExprKind::Local) {
+        // Local变量已经在寄存器中，直接返回
+        return desc.u.s.info;
     }
-    return desc.u.s.info;
+
+    if (desc.kind == ExprKind::NonRelocatable) {
+        return desc.u.s.info;
+    }
+
+    // 其他情况：分配新寄存器并discharge
+    i32 reg = allocReg();
+    discharge(desc, reg);
+    return reg;
 }
 
 void CodeGenerator::exp2NextReg(ExprDesc& desc) {
@@ -379,7 +404,14 @@ void CodeGenerator::exp2NextReg(ExprDesc& desc) {
 }
 
 void CodeGenerator::exp2Val(ExprDesc& desc) {
-    // 简化实现：大多数情况下不需要特殊处理
+    // ⭐ P0修复：参考lua_c_analysis/src/lcode.c:1702-1707
+    // exp2Val调用dischargevars，将Local转换为NonRelocatable
+    // 这样exp2RK就能正确处理局部变量
+
+    // 简化版dischargevars：只处理Local
+    if (desc.kind == ExprKind::Local) {
+        desc.kind = ExprKind::NonRelocatable;
+    }
 }
 
 // =====================================================================

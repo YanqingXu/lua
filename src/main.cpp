@@ -36,6 +36,22 @@
 
 using namespace LuaTest;
 
+// 测试注册函数声明
+extern void registerValueTests();
+extern void registerGCStringTests();
+extern void registerTableTests();
+extern void registerVMCoreTests();
+extern void registerFunctionTests();
+extern void registerGCTests();
+extern void registerBinaryUnaryExprTests();
+extern void registerFunctionCodegenTests();
+extern void registerBaselibTests();
+extern void registerLuaFunctionTests();
+extern void registerMetamethodArithTests();
+extern void registerMetamethodCompleteTests();
+extern void registerSyntaxSugarTests();
+extern void registerFunctionCallTests();
+
 /**
  * @brief 打印测试框架标题
  */
@@ -94,9 +110,10 @@ int main() {
         registerMetamethodArithTests();
         registerMetamethodCompleteTests();  // 新增：完整元方法测试
         registerSyntaxSugarTests();         // 新增：语法糖测试
-        registerIndexedAccessTests();    // 新增：索引访问测试
-        registerMethodCallTests();		// 新增：方法调用测试
-        registerStorevarTests();
+        registerFunctionCallTests();        // 新增：函数调用测试
+        // registerIndexedAccessTests();    // TODO: 实现这些测试
+        // registerMethodCallTests();		// TODO: 实现这些测试
+        // registerStorevarTests();         // TODO: 实现这些测试
 
         std::cout << "[INFO] All tests registered." << std::endl;
         std::cout << "[INFO] Starting test execution...\n" << std::endl;
