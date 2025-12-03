@@ -11,6 +11,7 @@
 #include "vm/lua_state.hpp"
 #include "core/string_pool.hpp"
 #include "lib/baselib.hpp"
+#include <iomanip>
 
 using namespace Lua;
 using namespace LuaTest;
@@ -81,17 +82,17 @@ void testFactorialRecursion(TestSuite& suite) {
 
         return factorial(5)
     )";
-    
+
     try {
         StringPool& pool = StringPool::getInstance();
         Parser parser(code);
         Chunk chunk = parser.parse();
-        
+
         CodeGenerator codegen(&pool);
         Proto* proto = codegen.generate(chunk);
-        
+
         ASSERT_TRUE(suite, proto != nullptr, "Proto generated");
-        
+
         // 创建Lua状态并执行
         LuaState* L = LuaState::newState();
         openBaseLib(L);
@@ -106,7 +107,6 @@ void testFactorialRecursion(TestSuite& suite) {
         ASSERT_TRUE(suite, L->getTop() > 0, "Has return value");
         Value& retval = L->getStack().top();
         ASSERT_TRUE(suite, retval.isNumber(), "Result is number");
-        std::cout << "  [DEBUG] factorial(5) returned: " << retval.asNumber() << std::endl;
         ASSERT_EQ(suite, static_cast<i32>(retval.asNumber()), 120, "factorial(5) == 120");
         
         delete L;
@@ -205,7 +205,6 @@ void testNestedFunctionCalls(TestSuite& suite) {
         ASSERT_TRUE(suite, L->getTop() > 0, "Has return value");
         Value& retval = L->getStack().top();
         ASSERT_TRUE(suite, retval.isNumber(), "Result is number");
-        std::cout << "  [DEBUG] compute() returned: " << retval.asNumber() << std::endl;
         ASSERT_EQ(suite, static_cast<i32>(retval.asNumber()), 21, "compute() == 21");
         
         delete L;
@@ -220,8 +219,8 @@ void registerFunctionCallTests() {
     auto& registry = TestRegistry::getInstance();
 
     registry.registerTest(kSuiteName, "Simple Function Call", testSimpleFunctionCall);
+    registry.registerTest(kSuiteName, "Factorial Recursion", testFactorialRecursion);
     // TODO: Fix conditional jump issue before enabling these tests
-    // registry.registerTest(kSuiteName, "Factorial Recursion", testFactorialRecursion);
     // registry.registerTest(kSuiteName, "Multiple Return Values", testMultipleReturnValues);
     // registry.registerTest(kSuiteName, "Nested Function Calls", testNestedFunctionCalls);
 }

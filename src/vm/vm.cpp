@@ -525,24 +525,12 @@ void VM::compare(OpCode op, i32 a, i32 b, i32 c) {
 
     const Vec<Instruction>& code = currentProto_->getCode();
 
-    #ifdef DEBUG
-    std::cerr << "[COMPARE] op=" << static_cast<int>(op)
-              << " left=" << left.toString()
-              << " right=" << right.toString()
-              << " result=" << result
-              << " A=" << a
-              << " shouldJump=" << (result == (a != 0)) << std::endl;
-    #endif
-
     // 如果比较结果 == A，则执行跳转
     if (result == (a != 0)) {
         // 读取下一条指令（应该是JMP）的sBx
         if (pc_ < code.size()) {
             Instruction nextInst = code[pc_];
             i32 sbx = GETARG_sBx(nextInst);
-            #ifdef DEBUG
-            std::cerr << "[COMPARE] Jumping by " << sbx << " (pc " << pc_ << " -> " << (pc_ + sbx + 1) << ")" << std::endl;
-            #endif
             // 执行跳转
             doJump(sbx);
         }

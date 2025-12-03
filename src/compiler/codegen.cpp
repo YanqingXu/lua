@@ -178,31 +178,25 @@ void CodeGenerator::removeLocalVars(i32 tolevel) {
 // =====================================================================
 
 i32 CodeGenerator::jump() {
-    i32 jpc = codeAsBx(OpCode::JMP, 0, NO_JUMP);
-    #ifdef DEBUG
-    std::cerr << "[CodeGenerator::jump] Generated JMP at pc=" << jpc
-              << " with sBx=" << NO_JUMP << std::endl;
-    #endif
-    return jpc;
+    // ⭐ P0修复：参考lua_c_analysis/src/lcode.c:212-219 luaK_jump实现
+    i32 jpc = jpc_;  // 保存跳转到这里的列表
+    jpc_ = NO_JUMP;  // 清空jpc_
+    i32 j = codeAsBx(OpCode::JMP, 0, NO_JUMP);  // 生成JMP指令
+    luaK_concat(j, jpc);  // 将jpc链表连接到j后面
+    return j;
 }
 
 void CodeGenerator::patchList(i32 list, i32 target) {
     while (list != NO_JUMP) {
-        i32 next = GETARG_sBx(proto_->getInstruction(list));
-        Instruction& inst = proto_->getCode()[list];
-        i32 offset = target - list - 1;
-        #ifdef DEBUG
-        std::cerr << "[CodeGenerator::patchList] Patching pc=" << list
-                  << " to target=" << target
-                  << " offset=" << offset << std::endl;
-        #endif
-        SETARG_sBx(inst, offset);
+        i32 next = getjump(list);  // ⭐ P0修复：使用getjump获取下一个跳转的绝对位置
+        fixjump(list, target);     // ⭐ P0修复：使用fixjump修补跳转
         list = next;
     }
 }
 
 void CodeGenerator::patchToHere(i32 list) {
-    patchList(list, static_cast<i32>(proto_->getInstructionCount()));
+    i32 target = static_cast<i32>(proto_->getInstructionCount());
+    patchList(list, target);
 }
 
 i32 CodeGenerator::getLabel() {
@@ -387,6 +381,13 @@ i32 CodeGenerator::exp2AnyReg(ExprDesc& desc) {
         return desc.u.s.info;
     }
 
+    // ⭐ 关键修复：函数调用表达式的结果已经在寄存器中
+    // callExpr 会设置 desc.kind = ExprKind::Call，u.s.info = funcReg
+    // 返回值就位于 funcReg，不需要重新分配寄存器
+    if (desc.kind == ExprKind::Call) {
+        return desc.u.s.info;
+    }
+
     if (desc.kind == ExprKind::NonRelocatable) {
         return desc.u.s.info;
     }
@@ -495,40 +496,70 @@ void CodeGenerator::statement(const Stmt& s) {
             }
         }
         else if constexpr (std::is_same_v<T, IfStmt>) {
-            // if语句（简化实现）
-            if (!arg.branches.empty()) {
-                Vec<i32> escapelist;
+            // ⭐ P0修复：参考lua_c_analysis/src/lparser.c:5522-5542 ifstat实现
+            // if语句的正确处理逻辑
+            if (arg.branches.empty()) {
+                return;
+            }
 
-                for (const auto& branch : arg.branches) {
-                    ExprDesc cond;
-                    expr(*branch.condition, cond);
-                    i32 condreg = exp2AnyReg(cond);
+            i32 escapelist = NO_JUMP;  // 所有分支结束后的跳转列表
+            i32 flist = NO_JUMP;       // 当前分支条件为假时的跳转列表
 
-                    // TEST指令：如果条件为假则跳过then块
-                    codeABC(OpCode::TEST, condreg, 0, 0);
-                    i32 jf = jump();
-                    freeReg(condreg);
+            // 处理第一个if分支
+            {
+                const auto& branch = arg.branches[0];
+                ExprDesc cond;
+                expr(*branch.condition, cond);
 
-                    // then块
-                    block(branch.body);
+                // 生成条件为假时跳转的代码
+                luaK_goiffalse(cond);
 
-                    // 跳过else块
-                    escapelist.push_back(jump());
+                // then块
+                block(branch.body);
 
-                    // 回填假值跳转
-                    patchToHere(jf);
-                }
+                // 保存条件为假时的跳转列表
+                flist = cond.f;
+            }
+
+            // 处理elseif分支
+            for (size_t i = 1; i < arg.branches.size(); i++) {
+                // 在处理下一个分支之前，生成跳过后续分支的JMP
+                luaK_concat(escapelist, jump());
+
+                // 修补前一个分支的假值跳转到这里
+                patchToHere(flist);
+
+                const auto& branch = arg.branches[i];
+                ExprDesc cond;
+                expr(*branch.condition, cond);
+
+                // 生成条件为假时跳转的代码
+                luaK_goiffalse(cond);
+
+                // then块
+                block(branch.body);
+
+                // 保存条件为假时的跳转列表
+                flist = cond.f;
+            }
+
+            // 处理else块
+            if (!arg.elseBranch.empty()) {
+                // 在处理else块之前，生成跳过else块的JMP
+                luaK_concat(escapelist, jump());
+
+                // 修补前一个分支的假值跳转到这里
+                patchToHere(flist);
 
                 // else块
-                if (!arg.elseBranch.empty()) {
-                    block(arg.elseBranch);
-                }
-
-                // 回填所有escape跳转
-                for (i32 jmp : escapelist) {
-                    patchToHere(jmp);
-                }
+                block(arg.elseBranch);
+            } else {
+                // 没有else块：将最后一个分支的假值跳转添加到escapelist
+                luaK_concat(escapelist, flist);
             }
+
+            // 修补所有escape跳转到if语句结束
+            patchToHere(escapelist);
         }
         else if constexpr (std::is_same_v<T, WhileStmt>) {
             // while循环
@@ -719,19 +750,26 @@ void CodeGenerator::codearith(OpCode op, ExprDesc& e1, ExprDesc& e2) {
 }
 
 void CodeGenerator::codecomp(OpCode op, i32 cond, ExprDesc& e1, ExprDesc& e2) {
+    // ⭐ P0修复：参考lua_c_analysis/src/lcode.c:2509-2522 codecomp实现
     i32 o1 = exp2RK(e1);
     i32 o2 = exp2RK(e2);
 
     freeReg(o1);
     freeReg(o2);
 
-    // ⭐ 关键修复：比较指令后面必须跟JMP指令
-    // 参考 lua_c_analysis/src/lcode.c:277-280 condjump函数
-    codeABC(op, cond, o1, o2);  // 生成比较指令（LE/LT/EQ）
-    e1.u.s.info = jump();        // 生成JMP指令
+    // ⭐ 关键修复：当cond=0且op!=EQ时，交换参数并将cond改为1
+    // 这样可以统一使用cond=1，简化后续处理
+    if (cond == 0 && op != OpCode::EQ) {
+        std::swap(o1, o2);  // 交换操作数
+        cond = 1;
+    }
+
+    // 生成比较指令（LE/LT/EQ）后跟JMP指令
+    codeABC(op, cond, o1, o2);
+    e1.u.s.info = jump();  // 生成JMP指令，存储位置到e1.u.s.info
     e1.kind = ExprKind::Jump;
-    e1.t = e1.u.s.info;
-    e1.f = NO_JUMP;
+    // ⭐ 关键修复：不设置e1.t和e1.f，让它们保持之前的值
+    // luaK_goiffalse会正确处理这些跳转列表
 }
 
 void CodeGenerator::codenot(ExprDesc& e) {
@@ -787,24 +825,38 @@ void CodeGenerator::luaK_goiftrue(ExprDesc& e) {
 }
 
 void CodeGenerator::luaK_goiffalse(ExprDesc& e) {
+    // ⭐ P0修复：参考lua_c_analysis/src/lcode.c:2136-2156 luaK_goiffalse实现
+    // luaK_goiffalse的语义：生成"如果为假则跳转"的代码
+    // - 将新的跳转添加到 f 列表（false跳转列表）
+    // - 修补 t 列表（true跳转列表）到当前位置
     luaK_dischargevars(e);
 
+    i32 pc;  // 最后跳转的pc
     switch (e.kind) {
-        case ExprKind::Jump:
-            // 已经是跳转：无需处理
-            break;
         case ExprKind::Nil:
         case ExprKind::False:
-            // 常量假值：无需跳转
+            // 永远为假：无需操作
+            pc = NO_JUMP;
             break;
-        default: {
-            i32 pc = jumponcond(e, 1);  // 如果为真则跳转
-            luaK_concat(e.t, pc);
-            patchtohere(e.f);
-            e.f = NO_JUMP;
+        case ExprKind::Jump:
+            // ⭐ 关键修复：VJMP类型需要反转跳转条件
+            // codecomp生成的是"如果为真则跳过JMP"，我们需要"如果为假则执行JMP"
+            // 所以需要反转比较指令的A参数
+            invertJump(e);
+            pc = e.u.s.info;
             break;
-        }
+        default:
+            // 其他类型：生成条件跳转指令
+            pc = jumponcond(e, 1);  // 如果为真则跳转
+            break;
     }
+
+    // ⭐ 关键修复：将最后跳转插入到 f 列表（false跳转列表）
+    // 注意：这里与luaK_goiftrue相反！
+    luaK_concat(e.f, pc);
+    // 修补 t 列表（true跳转列表）到当前位置
+    patchToHere(e.t);
+    e.t = NO_JUMP;
 }
 
 void CodeGenerator::luaK_dischargevars(ExprDesc& e) {
@@ -855,6 +907,27 @@ void CodeGenerator::luaK_concat(i32& l1, i32 l2) {
 }
 
 void CodeGenerator::invertJump(ExprDesc& e) {
+    // ⭐ P0修复：参考lua_c_analysis/src/lcode.c:1972-1977 invertjump实现
+    // 反转跳转条件：修改比较指令的A参数
+
+    // 获取跳转控制指令（比较指令，位于JMP之前）
+    i32 pc = e.u.s.info;  // JMP指令的位置
+    if (pc > 0) {
+        i32 controlPc = pc - 1;  // 比较指令的位置
+        Instruction inst = proto_->getInstruction(controlPc);
+        OpCode op = GET_OPCODE(inst);
+
+        // 只有比较指令才能反转
+        if (op == OpCode::EQ || op == OpCode::LT || op == OpCode::LE) {
+            i32 a = GETARG_A(inst);
+            // 反转A参数：0 -> 1, 1 -> 0
+            SETARG_A(inst, !a);
+            // 写回修改后的指令
+            proto_->setInstruction(controlPc, inst);
+        }
+    }
+
+    // 交换真假跳转列表
     std::swap(e.t, e.f);
 }
 
@@ -879,7 +952,7 @@ i32 CodeGenerator::condjump(OpCode op, i32 a, i32 b, i32 c) {
     i32 jpc = jpc_;
     jpc_ = NO_JUMP;
     i32 j = codeAsBx(OpCode::JMP, 0, NO_JUMP);
-    luaK_concat(j, jpc);
+    luaK_concat(j, jpc);  // ⭐ 将jpc链表连接到j后面
     return j;
 }
 
