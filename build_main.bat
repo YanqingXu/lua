@@ -2,19 +2,53 @@
 REM =====================================================================
 REM Lua C++ Interpreter Build Script for main.cpp
 REM =====================================================================
+REM
+REM This script builds main.cpp in two modes:
+REM   1. Test Mode (default): Compiles with ENABLE_TESTS, includes test files
+REM   2. Interpreter Mode: Compiles without tests, standalone interpreter
+REM
+REM Usage:
+REM   build_main.bat [mode] [build_type]
+REM
+REM Modes:
+REM   test       - Build with tests (default)
+REM   interpreter - Build standalone interpreter
+REM
+REM Build Types:
+REM   debug      - Debug build (default)
+REM   release    - Release build
+REM
+REM Examples:
+REM   build_main.bat                    - Test mode, Debug
+REM   build_main.bat test debug         - Test mode, Debug
+REM   build_main.bat interpreter        - Interpreter mode, Debug
+REM   build_main.bat interpreter release - Interpreter mode, Release
+REM   build_main.bat test release       - Test mode, Release
+REM
+REM =====================================================================
 
-setlocal
+setlocal enabledelayedexpansion
 
-REM Parse build type
+REM Parse mode (test or interpreter)
+set BUILD_MODE=test
+if "%1"=="interpreter" set BUILD_MODE=interpreter
+if "%1"=="Interpreter" set BUILD_MODE=interpreter
+if "%1"=="INTERPRETER" set BUILD_MODE=interpreter
+
+REM Parse build type (debug or release)
 set BUILD_TYPE=Debug
 if "%1"=="release" set BUILD_TYPE=Release
 if "%1"=="Release" set BUILD_TYPE=Release
 if "%1"=="RELEASE" set BUILD_TYPE=Release
+if "%2"=="release" set BUILD_TYPE=Release
+if "%2"=="Release" set BUILD_TYPE=Release
+if "%2"=="RELEASE" set BUILD_TYPE=Release
 
 echo.
 echo [INFO] ========================================
-echo [INFO] Lua C++ Interpreter Build Script (main.cpp)
+echo [INFO] Lua C++ Interpreter Build Script
 echo [INFO] ========================================
+echo [INFO] Build mode: %BUILD_MODE%
 echo [INFO] Build type: %BUILD_TYPE%
 echo.
 
@@ -38,17 +72,32 @@ if %errorlevel% neq 0 (
 echo [INFO] MSVC environment set up successfully
 echo.
 
-REM Set output directory and compile flags
-if "%BUILD_TYPE%"=="Debug" (
-    set OUTPUT_DIR=build\debug_main
-    set CXX_FLAGS=/std:c++17 /EHsc /nologo /Od /Zi /MDd /DDEBUG /D_DEBUG /W3 /D_CRT_SECURE_NO_WARNINGS /utf-8
+REM Set output directory and compile flags based on mode and build type
+if "%BUILD_MODE%"=="test" (
+    if "%BUILD_TYPE%"=="Debug" (
+        set OUTPUT_DIR=build\test_main_debug
+        set CXX_FLAGS=/std:c++17 /EHsc /nologo /Od /Zi /MDd /DDEBUG /D_DEBUG /DENABLE_TESTS /W3 /D_CRT_SECURE_NO_WARNINGS /utf-8
+        set EXE_NAME=main_test.exe
+    ) else (
+        set OUTPUT_DIR=build\test_main_release
+        set CXX_FLAGS=/std:c++17 /EHsc /nologo /O2 /MD /DNDEBUG /DENABLE_TESTS /W3 /D_CRT_SECURE_NO_WARNINGS /utf-8
+        set EXE_NAME=main_test.exe
+    )
 ) else (
-    set OUTPUT_DIR=build\release_main
-    set CXX_FLAGS=/std:c++17 /EHsc /nologo /O2 /MD /DNDEBUG /W3 /D_CRT_SECURE_NO_WARNINGS /utf-8
+    if "%BUILD_TYPE%"=="Debug" (
+        set OUTPUT_DIR=build\interpreter_debug
+        set CXX_FLAGS=/std:c++17 /EHsc /nologo /Od /Zi /MDd /DDEBUG /D_DEBUG /W3 /D_CRT_SECURE_NO_WARNINGS /utf-8
+        set EXE_NAME=lua.exe
+    ) else (
+        set OUTPUT_DIR=build\interpreter_release
+        set CXX_FLAGS=/std:c++17 /EHsc /nologo /O2 /MD /DNDEBUG /W3 /D_CRT_SECURE_NO_WARNINGS /utf-8
+        set EXE_NAME=lua.exe
+    )
 )
 
 echo [INFO] Compile flags: %CXX_FLAGS%
 echo [INFO] Output directory: %OUTPUT_DIR%
+echo [INFO] Executable name: %EXE_NAME%
 echo.
 
 REM Create output directory
@@ -151,118 +200,168 @@ echo [INFO] Compiling BaseLib...
 cl %CXX_FLAGS% /Isrc /c /Fo"%OUTPUT_DIR%\baselib.obj" "src\lib\baselib.cpp"
 if %errorlevel% neq 0 exit /b %errorlevel%
 
+REM Compile test files only in test mode
+if "%BUILD_MODE%"=="test" (
+    echo.
+    echo [INFO] ========================================
+    echo [INFO] Compiling Test Files...
+    echo [INFO] ========================================
+    echo.
+
+    echo [INFO] Compiling test_framework...
+    cl %CXX_FLAGS% /Isrc /Itests\unit\framework /c /Fo"%OUTPUT_DIR%\test_framework.obj" "tests\unit\framework\test_framework.cpp" >nul 2>&1
+    if %errorlevel% neq 0 (
+        echo [ERROR] Failed to compile test_framework
+        exit /b %errorlevel%
+    )
+
+    echo [INFO] Compiling test_value...
+    cl %CXX_FLAGS% /Isrc /Itests\unit\framework /c /Fo"%OUTPUT_DIR%\test_value.obj" "tests\unit\core\test_value.cpp" >nul 2>&1
+    if %errorlevel% neq 0 exit /b %errorlevel%
+
+    echo [INFO] Compiling test_gc_string...
+    cl %CXX_FLAGS% /Isrc /Itests\unit\framework /c /Fo"%OUTPUT_DIR%\test_gc_string.obj" "tests\unit\core\test_gc_string.cpp" >nul 2>&1
+    if %errorlevel% neq 0 exit /b %errorlevel%
+
+    echo [INFO] Compiling test_table...
+    cl %CXX_FLAGS% /Isrc /Itests\unit\framework /c /Fo"%OUTPUT_DIR%\test_table.obj" "tests\unit\core\test_table.cpp" >nul 2>&1
+    if %errorlevel% neq 0 exit /b %errorlevel%
+
+    echo [INFO] Compiling test_vm_core...
+    cl %CXX_FLAGS% /Isrc /Itests\unit\framework /c /Fo"%OUTPUT_DIR%\test_vm_core.obj" "tests\unit\vm\test_vm_core.cpp" >nul 2>&1
+    if %errorlevel% neq 0 exit /b %errorlevel%
+
+    echo [INFO] Compiling test_function...
+    cl %CXX_FLAGS% /Isrc /Itests\unit\framework /c /Fo"%OUTPUT_DIR%\test_function.obj" "tests\unit\core\test_function.cpp" >nul 2>&1
+    if %errorlevel% neq 0 exit /b %errorlevel%
+
+    echo [INFO] Compiling test_gc...
+    cl %CXX_FLAGS% /Isrc /Itests\unit\framework /c /Fo"%OUTPUT_DIR%\test_gc.obj" "tests\unit\gc\test_gc.cpp" >nul 2>&1
+    if %errorlevel% neq 0 exit /b %errorlevel%
+
+    echo [INFO] Compiling test_binary_unary_expr...
+    cl %CXX_FLAGS% /Isrc /Itests\unit\framework /c /Fo"%OUTPUT_DIR%\test_binary_unary_expr.obj" "tests\unit\compiler\test_binary_unary_expr.cpp" >nul 2>&1
+    if %errorlevel% neq 0 exit /b %errorlevel%
+
+    echo [INFO] Compiling test_function_codegen...
+    cl %CXX_FLAGS% /Isrc /Itests\unit\framework /c /Fo"%OUTPUT_DIR%\test_function_codegen.obj" "tests\unit\compiler\test_function_codegen.cpp" >nul 2>&1
+    if %errorlevel% neq 0 exit /b %errorlevel%
+
+    echo [INFO] Compiling test_syntax_sugar...
+    cl %CXX_FLAGS% /Isrc /Itests\unit\framework /c /Fo"%OUTPUT_DIR%\test_syntax_sugar.obj" "tests\unit\compiler\test_syntax_sugar.cpp" >nul 2>&1
+    if %errorlevel% neq 0 exit /b %errorlevel%
+
+    echo [INFO] Compiling test_baselib...
+    cl %CXX_FLAGS% /Isrc /Itests\unit\framework /c /Fo"%OUTPUT_DIR%\test_baselib.obj" "tests\unit\stdlib\test_baselib.cpp" >nul 2>&1
+    if %errorlevel% neq 0 exit /b %errorlevel%
+
+    echo [INFO] Compiling test_lua_functions...
+    cl %CXX_FLAGS% /Isrc /Itests\unit\framework /c /Fo"%OUTPUT_DIR%\test_lua_functions.obj" "tests\unit\compiler\test_lua_functions.cpp" >nul 2>&1
+    if %errorlevel% neq 0 exit /b %errorlevel%
+
+    echo [INFO] Compiling test_metamethod_arith...
+    cl %CXX_FLAGS% /Isrc /Itests\unit\framework /c /Fo"%OUTPUT_DIR%\test_metamethod_arith.obj" "tests\unit\metamethod\test_metamethod_arith.cpp" >nul 2>&1
+    if %errorlevel% neq 0 exit /b %errorlevel%
+
+    echo [INFO] Compiling test_metamethod_complete...
+    cl %CXX_FLAGS% /Isrc /Itests\unit\framework /c /Fo"%OUTPUT_DIR%\test_metamethod_complete.obj" "tests\unit\metamethod\test_metamethod_complete.cpp" >nul 2>&1
+    if %errorlevel% neq 0 exit /b %errorlevel%
+
+    echo [INFO] Compiling test_function_call...
+    cl %CXX_FLAGS% /Isrc /Itests\unit\framework /c /Fo"%OUTPUT_DIR%\test_function_call.obj" "tests\unit\vm\test_function_call.cpp" >nul 2>&1
+    if %errorlevel% neq 0 exit /b %errorlevel%
+)
+
 echo.
 echo [INFO] ========================================
-echo [INFO] Compiling Test Files...
-echo [INFO] ========================================
-echo.
-
-echo [INFO] Compiling test_framework...
-cl %CXX_FLAGS% /Isrc /Itests\unit\framework /c /Fo"%OUTPUT_DIR%\test_framework.obj" "tests\unit\framework\test_framework.cpp"
-if %errorlevel% neq 0 exit /b %errorlevel%
-
-echo [INFO] Compiling test_value...
-cl %CXX_FLAGS% /Isrc /Itests\unit\framework /c /Fo"%OUTPUT_DIR%\test_value.obj" "tests\unit\core\test_value.cpp"
-if %errorlevel% neq 0 exit /b %errorlevel%
-
-echo [INFO] Compiling test_gc_string...
-cl %CXX_FLAGS% /Isrc /Itests\unit\framework /c /Fo"%OUTPUT_DIR%\test_gc_string.obj" "tests\unit\core\test_gc_string.cpp"
-if %errorlevel% neq 0 exit /b %errorlevel%
-
-echo [INFO] Compiling test_table...
-cl %CXX_FLAGS% /Isrc /Itests\unit\framework /c /Fo"%OUTPUT_DIR%\test_table.obj" "tests\unit\core\test_table.cpp"
-if %errorlevel% neq 0 exit /b %errorlevel%
-
-echo [INFO] Compiling test_vm_core...
-cl %CXX_FLAGS% /Isrc /Itests\unit\framework /c /Fo"%OUTPUT_DIR%\test_vm_core.obj" "tests\unit\vm\test_vm_core.cpp"
-if %errorlevel% neq 0 exit /b %errorlevel%
-
-echo [INFO] Compiling test_function...
-cl %CXX_FLAGS% /Isrc /Itests\unit\framework /c /Fo"%OUTPUT_DIR%\test_function.obj" "tests\unit\core\test_function.cpp"
-if %errorlevel% neq 0 exit /b %errorlevel%
-
-echo [INFO] Compiling test_gc...
-cl %CXX_FLAGS% /Isrc /Itests\unit\framework /c /Fo"%OUTPUT_DIR%\test_gc.obj" "tests\unit\gc\test_gc.cpp"
-if %errorlevel% neq 0 exit /b %errorlevel%
-
-echo [INFO] Compiling test_binary_unary_expr...
-cl %CXX_FLAGS% /Isrc /Itests\unit\framework /c /Fo"%OUTPUT_DIR%\test_binary_unary_expr.obj" "tests\unit\compiler\test_binary_unary_expr.cpp"
-if %errorlevel% neq 0 exit /b %errorlevel%
-
-echo [INFO] Compiling test_function_codegen...
-cl %CXX_FLAGS% /Isrc /Itests\unit\framework /c /Fo"%OUTPUT_DIR%\test_function_codegen.obj" "tests\unit\compiler\test_function_codegen.cpp"
-if %errorlevel% neq 0 exit /b %errorlevel%
-
-echo [INFO] Compiling test_syntax_sugar...
-cl %CXX_FLAGS% /Isrc /Itests\unit\framework /c /Fo"%OUTPUT_DIR%\test_syntax_sugar.obj" "tests\unit\compiler\test_syntax_sugar.cpp"
-if %errorlevel% neq 0 exit /b %errorlevel%
-
-echo [INFO] Compiling test_baselib...
-cl %CXX_FLAGS% /Isrc /Itests\unit\framework /c /Fo"%OUTPUT_DIR%\test_baselib.obj" "tests\unit\stdlib\test_baselib.cpp"
-if %errorlevel% neq 0 exit /b %errorlevel%
-
-echo [INFO] Compiling test_lua_functions...
-cl %CXX_FLAGS% /Isrc /Itests\unit\framework /c /Fo"%OUTPUT_DIR%\test_lua_functions.obj" "tests\unit\compiler\test_lua_functions.cpp"
-if %errorlevel% neq 0 exit /b %errorlevel%
-
-echo [INFO] Compiling test_metamethod_arith...
-cl %CXX_FLAGS% /Isrc /Itests\unit\framework /c /Fo"%OUTPUT_DIR%\test_metamethod_arith.obj" "tests\unit\metamethod\test_metamethod_arith.cpp"
-if %errorlevel% neq 0 exit /b %errorlevel%
-
-echo [INFO] Compiling test_metamethod_complete...
-cl %CXX_FLAGS% /Isrc /Itests\unit\framework /c /Fo"%OUTPUT_DIR%\test_metamethod_complete.obj" "tests\unit\metamethod\test_metamethod_complete.cpp"
-if %errorlevel% neq 0 exit /b %errorlevel%
-
-echo [INFO] Compiling test_function_call...
-cl %CXX_FLAGS% /Isrc /Itests\unit\framework /c /Fo"%OUTPUT_DIR%\test_function_call.obj" "tests\unit\vm\test_function_call.cpp"
-if %errorlevel% neq 0 exit /b %errorlevel%
-
-echo.
 echo [INFO] Compiling main.cpp...
-cl %CXX_FLAGS% /Isrc /Itests\unit\framework /c /Fo"%OUTPUT_DIR%\main.obj" "src\main.cpp"
+echo [INFO] ========================================
+echo.
+
+if "%BUILD_MODE%"=="test" (
+    echo [INFO] Compiling main.cpp with test support...
+    cl %CXX_FLAGS% /Isrc /Itests\unit\framework /c /Fo"%OUTPUT_DIR%\main.obj" "src\main.cpp"
+) else (
+    echo [INFO] Compiling main.cpp as standalone interpreter...
+    cl %CXX_FLAGS% /Isrc /c /Fo"%OUTPUT_DIR%\main.obj" "src\main.cpp"
+)
 if %errorlevel% neq 0 exit /b %errorlevel%
 
 echo.
+echo [INFO] ========================================
 echo [INFO] Linking executable...
-cl %CXX_FLAGS% /Fe"%OUTPUT_DIR%\main.exe" ^
-    "%OUTPUT_DIR%\main.obj" ^
-    "%OUTPUT_DIR%\test_framework.obj" ^
-    "%OUTPUT_DIR%\test_value.obj" ^
-    "%OUTPUT_DIR%\test_gc_string.obj" ^
-    "%OUTPUT_DIR%\test_table.obj" ^
-    "%OUTPUT_DIR%\test_vm_core.obj" ^
-    "%OUTPUT_DIR%\test_function.obj" ^
-    "%OUTPUT_DIR%\test_gc.obj" ^
-    "%OUTPUT_DIR%\test_binary_unary_expr.obj" ^
-    "%OUTPUT_DIR%\test_function_codegen.obj" ^
-    "%OUTPUT_DIR%\test_syntax_sugar.obj" ^
-    "%OUTPUT_DIR%\test_baselib.obj" ^
-    "%OUTPUT_DIR%\test_lua_functions.obj" ^
-    "%OUTPUT_DIR%\test_metamethod_arith.obj" ^
-    "%OUTPUT_DIR%\test_metamethod_complete.obj" ^
-    "%OUTPUT_DIR%\test_function_call.obj" ^
-    "%OUTPUT_DIR%\value.obj" ^
-    "%OUTPUT_DIR%\gc_object.obj" ^
-    "%OUTPUT_DIR%\gc_string.obj" ^
-    "%OUTPUT_DIR%\string_pool.obj" ^
-    "%OUTPUT_DIR%\table.obj" ^
-    "%OUTPUT_DIR%\function.obj" ^
-    "%OUTPUT_DIR%\userdata.obj" ^
-    "%OUTPUT_DIR%\upvalue.obj" ^
-    "%OUTPUT_DIR%\metatable.obj" ^
-    "%OUTPUT_DIR%\garbage_collector.obj" ^
-    "%OUTPUT_DIR%\global_state.obj" ^
-    "%OUTPUT_DIR%\stack.obj" ^
-    "%OUTPUT_DIR%\lua_state.obj" ^
-    "%OUTPUT_DIR%\lexer.obj" ^
-    "%OUTPUT_DIR%\ast.obj" ^
-    "%OUTPUT_DIR%\parser.obj" ^
-    "%OUTPUT_DIR%\opcode.obj" ^
-    "%OUTPUT_DIR%\codegen.obj" ^
-    "%OUTPUT_DIR%\vm.obj" ^
-    "%OUTPUT_DIR%\lib_registry.obj" ^
-    "%OUTPUT_DIR%\lib_manager.obj" ^
-    "%OUTPUT_DIR%\baselib.obj"
+echo [INFO] ========================================
+echo.
+
+REM Build link command based on mode
+if "%BUILD_MODE%"=="test" (
+    echo [INFO] Linking %EXE_NAME% with test support...
+    cl %CXX_FLAGS% /Fe"%OUTPUT_DIR%\%EXE_NAME%" ^
+        "%OUTPUT_DIR%\main.obj" ^
+        "%OUTPUT_DIR%\test_framework.obj" ^
+        "%OUTPUT_DIR%\test_value.obj" ^
+        "%OUTPUT_DIR%\test_gc_string.obj" ^
+        "%OUTPUT_DIR%\test_table.obj" ^
+        "%OUTPUT_DIR%\test_vm_core.obj" ^
+        "%OUTPUT_DIR%\test_function.obj" ^
+        "%OUTPUT_DIR%\test_gc.obj" ^
+        "%OUTPUT_DIR%\test_binary_unary_expr.obj" ^
+        "%OUTPUT_DIR%\test_function_codegen.obj" ^
+        "%OUTPUT_DIR%\test_syntax_sugar.obj" ^
+        "%OUTPUT_DIR%\test_baselib.obj" ^
+        "%OUTPUT_DIR%\test_lua_functions.obj" ^
+        "%OUTPUT_DIR%\test_metamethod_arith.obj" ^
+        "%OUTPUT_DIR%\test_metamethod_complete.obj" ^
+        "%OUTPUT_DIR%\test_function_call.obj" ^
+        "%OUTPUT_DIR%\value.obj" ^
+        "%OUTPUT_DIR%\gc_object.obj" ^
+        "%OUTPUT_DIR%\gc_string.obj" ^
+        "%OUTPUT_DIR%\string_pool.obj" ^
+        "%OUTPUT_DIR%\table.obj" ^
+        "%OUTPUT_DIR%\function.obj" ^
+        "%OUTPUT_DIR%\userdata.obj" ^
+        "%OUTPUT_DIR%\upvalue.obj" ^
+        "%OUTPUT_DIR%\metatable.obj" ^
+        "%OUTPUT_DIR%\garbage_collector.obj" ^
+        "%OUTPUT_DIR%\global_state.obj" ^
+        "%OUTPUT_DIR%\stack.obj" ^
+        "%OUTPUT_DIR%\lua_state.obj" ^
+        "%OUTPUT_DIR%\lexer.obj" ^
+        "%OUTPUT_DIR%\ast.obj" ^
+        "%OUTPUT_DIR%\parser.obj" ^
+        "%OUTPUT_DIR%\opcode.obj" ^
+        "%OUTPUT_DIR%\codegen.obj" ^
+        "%OUTPUT_DIR%\vm.obj" ^
+        "%OUTPUT_DIR%\lib_registry.obj" ^
+        "%OUTPUT_DIR%\lib_manager.obj" ^
+        "%OUTPUT_DIR%\baselib.obj"
+) else (
+    echo [INFO] Linking %EXE_NAME% as standalone interpreter...
+    cl %CXX_FLAGS% /Fe"%OUTPUT_DIR%\%EXE_NAME%" ^
+        "%OUTPUT_DIR%\main.obj" ^
+        "%OUTPUT_DIR%\value.obj" ^
+        "%OUTPUT_DIR%\gc_object.obj" ^
+        "%OUTPUT_DIR%\gc_string.obj" ^
+        "%OUTPUT_DIR%\string_pool.obj" ^
+        "%OUTPUT_DIR%\table.obj" ^
+        "%OUTPUT_DIR%\function.obj" ^
+        "%OUTPUT_DIR%\userdata.obj" ^
+        "%OUTPUT_DIR%\upvalue.obj" ^
+        "%OUTPUT_DIR%\metatable.obj" ^
+        "%OUTPUT_DIR%\garbage_collector.obj" ^
+        "%OUTPUT_DIR%\global_state.obj" ^
+        "%OUTPUT_DIR%\stack.obj" ^
+        "%OUTPUT_DIR%\lua_state.obj" ^
+        "%OUTPUT_DIR%\lexer.obj" ^
+        "%OUTPUT_DIR%\ast.obj" ^
+        "%OUTPUT_DIR%\parser.obj" ^
+        "%OUTPUT_DIR%\opcode.obj" ^
+        "%OUTPUT_DIR%\codegen.obj" ^
+        "%OUTPUT_DIR%\vm.obj" ^
+        "%OUTPUT_DIR%\lib_registry.obj" ^
+        "%OUTPUT_DIR%\lib_manager.obj" ^
+        "%OUTPUT_DIR%\baselib.obj"
+)
 
 if %errorlevel% neq 0 (
     echo [ERROR] Linking failed!
@@ -271,28 +370,46 @@ if %errorlevel% neq 0 (
 
 echo.
 echo [INFO] ========================================
-echo [INFO] Compilation successful!
+echo [INFO] Build Successful!
 echo [INFO] ========================================
 echo.
-echo [INFO] Executable: %OUTPUT_DIR%\main.exe
+echo [INFO] Executable: %OUTPUT_DIR%\%EXE_NAME%
 echo.
 
-echo [INFO] ========================================
-echo [INFO] Running test program...
-echo [INFO] ========================================
-echo.
-
-"%OUTPUT_DIR%\main.exe"
-
-if %errorlevel% neq 0 (
+REM Run the executable based on mode
+if "%BUILD_MODE%"=="test" (
+    echo [INFO] ========================================
+    echo [INFO] Running Tests...
+    echo [INFO] ========================================
     echo.
-    echo [ERROR] Test program failed!
-    exit /b %errorlevel%
+
+    "%OUTPUT_DIR%\%EXE_NAME%"
+
+    if %errorlevel% neq 0 (
+        echo.
+        echo [ERROR] Tests failed!
+        exit /b %errorlevel%
+    )
+
+    echo.
+    echo [INFO] ========================================
+    echo [INFO] All Tests Passed!
+    echo [INFO] ========================================
+    echo.
+) else (
+    echo [INFO] ========================================
+    echo [INFO] Interpreter Build Complete
+    echo [INFO] ========================================
+    echo.
+    echo [INFO] You can now run the interpreter:
+    echo [INFO]   %OUTPUT_DIR%\%EXE_NAME% -v        (show version)
+    echo [INFO]   %OUTPUT_DIR%\%EXE_NAME% -h        (show help)
+    echo [INFO]   %OUTPUT_DIR%\%EXE_NAME% script.lua (run script)
+    echo.
 )
 
-echo.
 echo [INFO] ========================================
-echo [INFO] Build complete!
+echo [INFO] Build Complete!
 echo [INFO] ========================================
 echo.
 
