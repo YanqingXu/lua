@@ -233,7 +233,8 @@ private:
     // =====================================================================
 
     // 编译函数体，返回新的Proto
-    Proto* compileFunction(const Vec<Str>& params, bool isVararg, const Vec<StmtPtr>& body);
+    Proto* compileFunction(const Vec<Str>& params, bool isVararg, const Vec<StmtPtr>& body,
+                          i32 linedefined = 0, i32 lastlinedefined = 0);
 
 private:
     StringPool* pool_;          // 字符串池

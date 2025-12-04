@@ -43,7 +43,8 @@ Proto* CodeGenerator::generate(const Chunk& chunk) {
     // 创建新的Proto对象
     proto_ = new Proto();
     proto_->setMaxStackSize(2);  // 最小栈大小
-    
+    proto_->setVararg(true);     // 主函数（chunk）默认是可变参数的
+
     // 重置状态
     freereg_ = 0;
     nactvar_ = 0;
@@ -989,7 +990,16 @@ void CodeGenerator::fixjump(i32 pc, i32 dest) {
 // 函数定义和调用
 // =====================================================================
 
-Proto* CodeGenerator::compileFunction(const Vec<Str>& params, bool isVararg, const Vec<StmtPtr>& body) {
+// 辅助函数：获取语句块的最后一行号
+static i32 getLastLineOfBlock(const Vec<StmtPtr>& body) {
+    if (body.empty()) {
+        return 0;
+    }
+    return body.back()->getLine();
+}
+
+Proto* CodeGenerator::compileFunction(const Vec<Str>& params, bool isVararg, const Vec<StmtPtr>& body,
+                                     i32 linedefined, i32 lastlinedefined) {
     // 保存当前编译状态
     Proto* savedProto = proto_;
     i32 savedFreereg = freereg_;
@@ -1001,6 +1011,13 @@ Proto* CodeGenerator::compileFunction(const Vec<Str>& params, bool isVararg, con
     Proto* newProto = new Proto();
     newProto->setNumParams(static_cast<u8>(params.size()));
     newProto->setVararg(isVararg);
+    newProto->setLineDefined(linedefined);
+    newProto->setLastLineDefined(lastlinedefined);
+
+    // 继承父Proto的源文件名
+    if (savedProto != nullptr) {
+        newProto->setSource(savedProto->getSource());
+    }
 
     // 切换到新的编译上下文
     proto_ = newProto;
@@ -1038,8 +1055,15 @@ Proto* CodeGenerator::compileFunction(const Vec<Str>& params, bool isVararg, con
 }
 
 void CodeGenerator::functionExpr(const FunctionExpr& e, ExprDesc& desc) {
+    // 计算函数定义的行号范围
+    i32 linedefined = e.line;
+    i32 lastlinedefined = getLastLineOfBlock(e.body);
+    if (lastlinedefined < linedefined) {
+        lastlinedefined = linedefined;  // 空函数体的情况
+    }
+
     // 编译函数体，生成新的Proto
-    Proto* funcProto = compileFunction(e.params, e.isVararg, e.body);
+    Proto* funcProto = compileFunction(e.params, e.isVararg, e.body, linedefined, lastlinedefined);
 
     // 将Proto添加到当前Proto的子函数列表
     i32 protoIdx = static_cast<i32>(proto_->addProto(funcProto));
@@ -1111,8 +1135,15 @@ void CodeGenerator::callExpr(const CallExpr& e, ExprDesc& desc) {
 }
 
 void CodeGenerator::functionStmt(const FunctionStmt& s) {
+    // 计算函数定义的行号范围
+    i32 linedefined = s.line;
+    i32 lastlinedefined = getLastLineOfBlock(s.body);
+    if (lastlinedefined < linedefined) {
+        lastlinedefined = linedefined;  // 空函数体的情况
+    }
+
     // 编译函数体
-    Proto* funcProto = compileFunction(s.params, s.isVararg, s.body);
+    Proto* funcProto = compileFunction(s.params, s.isVararg, s.body, linedefined, lastlinedefined);
 
     // 将Proto添加到当前Proto的子函数列表
     i32 protoIdx = static_cast<i32>(proto_->addProto(funcProto));

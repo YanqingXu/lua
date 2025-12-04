@@ -359,6 +359,13 @@ StmtPtr Parser::parseFunctionStmt() {
     funcStmt.params = parseParamList();
     expect(static_cast<TokenType>(')'), "Expected ')' after parameters");
 
+    // 检查是否有可变参数（最后一个参数是 "..."）
+    funcStmt.isVararg = false;
+    if (!funcStmt.params.empty() && funcStmt.params.back() == "...") {
+        funcStmt.isVararg = true;
+        funcStmt.params.pop_back();  // 移除 "..." 参数名
+    }
+
     // 如果是方法定义，自动在参数列表开头添加 self
     if (funcStmt.isMethod) {
         funcStmt.params.insert(funcStmt.params.begin(), "self");
@@ -396,6 +403,13 @@ StmtPtr Parser::parseLocalStmt() {
         expect(static_cast<TokenType>('('), "Expected '(' after function name");
         funcStmt.params = parseParamList();
         expect(static_cast<TokenType>(')'), "Expected ')' after parameters");
+
+        // 检查是否有可变参数
+        funcStmt.isVararg = false;
+        if (!funcStmt.params.empty() && funcStmt.params.back() == "...") {
+            funcStmt.isVararg = true;
+            funcStmt.params.pop_back();  // 移除 "..." 参数名
+        }
 
         funcStmt.body = parseBlock();
         expect(TokenType::End, "Expected 'end' to close function");
@@ -1014,6 +1028,13 @@ ExprPtr Parser::parseFunctionExpr() {
     expect(static_cast<TokenType>('('), "Expected '(' after 'function'");
     funcExpr.params = parseParamList();
     expect(static_cast<TokenType>(')'), "Expected ')' after parameters");
+
+    // 检查是否有可变参数
+    funcExpr.isVararg = false;
+    if (!funcExpr.params.empty() && funcExpr.params.back() == "...") {
+        funcExpr.isVararg = true;
+        funcExpr.params.pop_back();  // 移除 "..." 参数名
+    }
 
     // 解析函数体
     funcExpr.body = parseBlock();
