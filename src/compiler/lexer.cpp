@@ -360,6 +360,14 @@ Token Lexer::hexNumber() {
         return errorToken("Invalid hexadecimal number: expected hex digits after 0x");
     }
 
+    // 如果后续紧跟字母/下划线，按照 Lua 5.1 语义视为格式错误
+    if (std::isalpha(peek()) || peek() == '_') {
+        while (std::isalnum(peek()) || peek() == '_') {
+            advance();
+        }
+        return errorToken("Malformed hexadecimal number");
+    }
+
     // 十六进制数字
     while (std::isxdigit(peek())) {
         advance();
@@ -371,6 +379,9 @@ Token Lexer::hexNumber() {
 
     char* end;
     f64 value = static_cast<f64>(std::strtoll(lexeme.c_str(), &end, 16));
+    if (end == nullptr || static_cast<usize>(end - lexeme.c_str()) != lexeme.size()) {
+        return errorToken("Malformed hexadecimal number");
+    }
     token.value = value;
 
     return token;
@@ -459,6 +470,17 @@ Token Lexer::string(char quote) {
 
 Token Lexer::longString(i32 level) {
     Str result;
+
+    // 如果长字符串起始分隔符后立刻是换行，则丢弃该换行（Lua 5.1 行为）
+    if (peek() == '\n' || peek() == '\r') {
+        advance();
+        line_++;
+        column_ = 0;
+        // 处理潜在的 CRLF / LFCR 组合
+        if ((peek() == '\n' || peek() == '\r') && peek() != source_[current_ - 1]) {
+            advance();
+        }
+    }
 
     // 跳过长字符串内容，直到找到匹配的结束符
     while (!isAtEnd()) {
