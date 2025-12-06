@@ -8,8 +8,37 @@
 #include <cstdlib>
 #include <cstring>
 #include <locale>
+#include <unordered_map>
 
 namespace Lua {
+
+// =====================================================================
+// 关键字哈希表（静态初始化，O(1)查找）
+// =====================================================================
+
+static const HashMap<Str, TokenType> keywords = {
+    {"and", TokenType::And},
+    {"break", TokenType::Break},
+    {"do", TokenType::Do},
+    {"else", TokenType::Else},
+    {"elseif", TokenType::Elseif},
+    {"end", TokenType::End},
+    {"false", TokenType::False},
+    {"for", TokenType::For},
+    {"function", TokenType::Function},
+    {"if", TokenType::If},
+    {"in", TokenType::In},
+    {"local", TokenType::Local},
+    {"nil", TokenType::Nil},
+    {"not", TokenType::Not},
+    {"or", TokenType::Or},
+    {"repeat", TokenType::Repeat},
+    {"return", TokenType::Return},
+    {"then", TokenType::Then},
+    {"true", TokenType::True},
+    {"until", TokenType::Until},
+    {"while", TokenType::While}
+};
 
 // =====================================================================
 // TokenType转字符串（用于调试）
@@ -277,30 +306,9 @@ Token Lexer::identifier() {
     // 获取词素
     Str lexeme = source_.substr(start_, current_ - start_);
 
-    // 检查是否为关键字
-    TokenType type = TokenType::Name;
-
-    if (lexeme == "and") type = TokenType::And;
-    else if (lexeme == "break") type = TokenType::Break;
-    else if (lexeme == "do") type = TokenType::Do;
-    else if (lexeme == "else") type = TokenType::Else;
-    else if (lexeme == "elseif") type = TokenType::Elseif;
-    else if (lexeme == "end") type = TokenType::End;
-    else if (lexeme == "false") type = TokenType::False;
-    else if (lexeme == "for") type = TokenType::For;
-    else if (lexeme == "function") type = TokenType::Function;
-    else if (lexeme == "if") type = TokenType::If;
-    else if (lexeme == "in") type = TokenType::In;
-    else if (lexeme == "local") type = TokenType::Local;
-    else if (lexeme == "nil") type = TokenType::Nil;
-    else if (lexeme == "not") type = TokenType::Not;
-    else if (lexeme == "or") type = TokenType::Or;
-    else if (lexeme == "repeat") type = TokenType::Repeat;
-    else if (lexeme == "return") type = TokenType::Return;
-    else if (lexeme == "then") type = TokenType::Then;
-    else if (lexeme == "true") type = TokenType::True;
-    else if (lexeme == "until") type = TokenType::Until;
-    else if (lexeme == "while") type = TokenType::While;
+    // 使用哈希表查找关键字（O(1)时间复杂度）
+    auto it = keywords.find(lexeme);
+    TokenType type = (it != keywords.end()) ? it->second : TokenType::Name;
 
     return makeToken(type);
 }
