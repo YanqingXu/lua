@@ -24,6 +24,7 @@ static void testMalformedNumberTrailingId(TestSuite& suite) {
     Lexer lexer("123abc");
     Token t = lexer.nextToken();
     ASSERT_EQ(suite, static_cast<int>(TokenType::Error), static_cast<int>(t.type), "Malformed number returns error token");
+    ASSERT_EQ(suite, std::string("123abc"), t.lexeme, "Error token carries offending lexeme");
 }
 
 // 非法十六进制 0x1G 应返回错误
@@ -45,10 +46,20 @@ static void testLongStringSkipFirstNewline(TestSuite& suite) {
     }
 }
 
+// 长注释起始换行应被忽略，后续第一个token行号应为2
+static void testLongCommentSkipFirstNewline(TestSuite& suite) {
+    Lexer lexer("--[[\ncomment]]123");
+    Token t = lexer.nextToken();
+    std::string msg = std::string("Number after long comment, got ") + tokenTypeToString(t.type);
+    ASSERT_EQ(suite, static_cast<int>(TokenType::Number), static_cast<int>(t.type), msg);
+    ASSERT_EQ(suite, 2, t.line, "Line number accounts for stripped first newline");
+}
+
 void registerLexerTests() {
     auto& registry = TestRegistry::getInstance();
     registry.registerTest("Lexer", "Valid number", testValidNumber);
     registry.registerTest("Lexer", "Malformed number trailing id", testMalformedNumberTrailingId);
     registry.registerTest("Lexer", "Malformed hex trailing letter", testMalformedHexTrailingLetter);
     registry.registerTest("Lexer", "Long string skip first newline", testLongStringSkipFirstNewline);
+    registry.registerTest("Lexer", "Long comment skip first newline", testLongCommentSkipFirstNewline);
 }

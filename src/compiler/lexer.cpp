@@ -7,6 +7,7 @@
 #include <cctype>
 #include <cstdlib>
 #include <cstring>
+#include <locale>
 
 namespace Lua {
 
@@ -123,8 +124,14 @@ Token Lexer::makeToken(TokenType type) {
 }
 
 Token Lexer::errorToken(const Str& message) {
-    Token token(TokenType::Error, message, line_, column_);
-    return token;
+    Str lexeme;
+    if (start_ < source_.length() && current_ > start_ && current_ <= source_.length()) {
+        lexeme = source_.substr(start_, current_ - start_);
+    }
+    if (lexeme.empty()) {
+        lexeme = message; // 回退到消息，至少提供可读信息
+    }
+    return Token(TokenType::Error, lexeme, line_, column_);
 }
 
 // =====================================================================
@@ -158,7 +165,6 @@ void Lexer::skipWhitespace() {
                     if (peek() == '[') {
                         usize savePos = current_;
                         i32 saveCol = column_;
-                        advance(); // 跳过'['
 
                         i32 level = skipSeparator();
                         if (level >= 0) {
@@ -193,13 +199,21 @@ void Lexer::skipLineComment() {
 }
 
 void Lexer::skipLongComment(i32 level) {
+    // 如果起始分隔符后立刻是换行，则跳过（与长字符串行为一致）
+    if (peek() == '\n' || peek() == '\r') {
+        advance();
+        line_++;
+        column_ = 0;
+        if ((peek() == '\n' || peek() == '\r') && peek() != source_[current_ - 1]) {
+            advance();
+        }
+    }
+
     // 跳过长注释内容，直到找到匹配的结束符 ]=*]
     while (!isAtEnd()) {
         if (peek() == ']') {
             usize savePos = current_;
             i32 saveCol = column_;
-            advance(); // 跳过']'
-
             i32 endLevel = skipSeparator();
             if (endLevel == level) {
                 // 找到匹配的结束符
@@ -343,7 +357,23 @@ Token Lexer::number() {
     const char* cstr = lexeme.c_str();
     f64 value = std::strtod(cstr, &end);
 
-    if (end == nullptr || static_cast<usize>(end - cstr) != lexeme.size()) {
+    bool ok = end != nullptr && static_cast<usize>(end - cstr) == lexeme.size();
+    if (!ok) {
+        // 尝试使用 locale 小数点再解析一次（Lua 5.1 行为）
+        std::lconv* lc = std::localeconv();
+        char locPoint = (lc && lc->decimal_point && lc->decimal_point[0] != '\0') ? lc->decimal_point[0] : '.';
+        if (locPoint != '.') {
+            Str localized = lexeme;
+            for (char& ch : localized) {
+                if (ch == '.') ch = locPoint;
+            }
+            end = nullptr;
+            value = std::strtod(localized.c_str(), &end);
+            ok = end != nullptr && static_cast<usize>(end - localized.c_str()) == localized.size();
+        }
+    }
+
+    if (!ok) {
         return errorToken("Malformed number");
     }
 
