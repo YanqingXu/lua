@@ -12,6 +12,8 @@
  * - 支持长字符串（[[ ]]和[=[ ]=]）
  * - 精确的行号和列号跟踪
  * - 详细的错误报告
+ * - Token预读机制，支持LL(1)语法分析
+ * - 哈希表优化的关键字识别
  * 
  * 参考实现：
  * - lua_c_analysis/src/llex.c - Lua 5.1.5 C版本词法分析器
@@ -31,9 +33,11 @@ namespace Lua {
  * 
  * 特性：
  * - 流式处理，支持大文件
- * - 前瞻一个字符的LL(1)词法分析
+ * - Token预读机制（peekToken），支持LL(1)语法分析
+ * - 前瞻一个字符的词法分析
  * - 自动跳过空白和注释
  * - 支持所有Lua 5.1词法规则
+ * - 使用哈希表优化关键字识别（O(1)时间复杂度）
  */
 class Lexer {
 public:
@@ -46,8 +50,20 @@ public:
     /**
      * @brief 获取下一个Token
      * @return Token对象
+     * 
+     * 如果存在预读Token，则返回并清除预读状态；
+     * 否则从输入流中解析新Token。
      */
     Token nextToken();
+    
+    /**
+     * @brief 预读下一个Token而不消费当前Token
+     * @return 预读的Token对象
+     * 
+     * 支持LL(1)语法分析的前瞻功能。预读的Token会被缓存，
+     * 下次调用nextToken()时会返回该Token。
+     */
+    Token peekToken();
     
     /**
      * @brief 检查是否到达源代码末尾
@@ -160,11 +176,23 @@ private:
     i32 skipSeparator();
 
 private:
+    /**
+     * @brief 内部Token解析函数
+     * @return 解析的Token对象
+     * 
+     * 实际执行词法分析的核心函数，被nextToken()和peekToken()调用。
+     */
+    Token scanToken();
+
+private:
     Str source_;        ///< 源代码字符串
     usize current_;     ///< 当前字符位置
     usize start_;       ///< 当前Token起始位置
     i32 line_;          ///< 当前行号
     i32 column_;        ///< 当前列号
+    
+    // Token预读机制（支持LL(1)语法分析）
+    std::optional<Token> lookahead_;  ///< 预读Token缓存
 };
 
 } // namespace Lua

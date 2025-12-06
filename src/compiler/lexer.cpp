@@ -100,6 +100,7 @@ Lexer::Lexer(const Str& source)
     , start_(0)
     , line_(1)
     , column_(1)
+    , lookahead_(std::nullopt)  // 初始化预读Token为空
 {
 }
 
@@ -561,10 +562,37 @@ Token Lexer::longString(i32 level) {
 }
 
 // =====================================================================
-// 主要的Token获取函数
+// Token预读机制（支持LL(1)语法分析）
 // =====================================================================
 
 Token Lexer::nextToken() {
+    // 如果有预读Token，先返回预读Token
+    if (lookahead_.has_value()) {
+        Token token = lookahead_.value();
+        lookahead_ = std::nullopt;  // 清除预读状态
+        return token;
+    }
+    
+    // 否则解析新Token
+    return scanToken();
+}
+
+Token Lexer::peekToken() {
+    // 如果已经有预读Token，直接返回
+    if (lookahead_.has_value()) {
+        return lookahead_.value();
+    }
+    
+    // 否则解析并缓存预读Token
+    lookahead_ = scanToken();
+    return lookahead_.value();
+}
+
+// =====================================================================
+// 主要的Token解析函数（内部使用）
+// =====================================================================
+
+Token Lexer::scanToken() {
     skipWhitespace();
 
     start_ = current_;

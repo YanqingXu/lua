@@ -26,12 +26,9 @@ void Parser::advance() {
 }
 
 Token Parser::peek() {
-    // 保存当前词法分析器状态
-    Lexer savedLexer = lexer_;
-    Token nextToken = lexer_.nextToken();
-    // 恢复词法分析器状态
-    lexer_ = savedLexer;
-    return nextToken;
+    // 使用Lexer的peekToken()方法实现高效的Token预读
+    // 支持LL(1)语法分析，避免复制整个Lexer状态
+    return lexer_.peekToken();
 }
 
 bool Parser::check(TokenType type) const {

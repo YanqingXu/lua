@@ -61,6 +61,7 @@ extern void registerMetamethodCompleteTests();
 extern void registerSyntaxSugarTests();
 extern void registerFunctionCallTests();
 extern void registerLexerTests();
+extern void registerLexerLookaheadTests();
 #endif
 
 using namespace Lua;
@@ -205,6 +206,7 @@ int runTests() {
     registerSyntaxSugarTests();
     registerFunctionCallTests();
 	registerLexerTests();
+	registerLexerLookaheadTests();
 
     std::cout << "[INFO] All tests registered." << std::endl;
     std::cout << "[INFO] Starting test execution...\n" << std::endl;
@@ -214,7 +216,7 @@ int runTests() {
     int failedTests = registry.runAllTests();
 
     // 打印总结
-    int totalTests = 125;
+    int totalTests = 130;  // 更新：添加了5个Token预读测试
     printTestSummary(totalTests, failedTests);
 
     return failedTests;
