@@ -124,6 +124,9 @@
     <ClCompile Include="tests\unit\vm\test_function_call.cpp">
       <Filter>tests\unit\vm</Filter>
     </ClCompile>
+    <ClCompile Include="tests\unit\compiler\test_lexer_number.cpp">
+      <Filter>tests\unit\compiler</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\compiler\ast.hpp">

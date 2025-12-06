@@ -328,14 +328,26 @@ Token Lexer::number() {
         }
     }
 
-    // 转换为数字
+    // 读取尾随的字母/下划线以捕获 Lua 5.1 定义的非法数字形式（如 123abc）
+    if (std::isalpha(peek()) || peek() == '_') {
+        while (std::isalnum(peek()) || peek() == '_') {
+            advance();
+        }
+    }
+
+    // 转换为数字并校验是否完全消费，若未完全消费则视为 malformed number
     Str lexeme = source_.substr(start_, current_ - start_);
     Token token = makeToken(TokenType::Number);
 
-    char* end;
-    f64 value = std::strtod(lexeme.c_str(), &end);
-    token.value = value;
+    char* end = nullptr;
+    const char* cstr = lexeme.c_str();
+    f64 value = std::strtod(cstr, &end);
 
+    if (end == nullptr || static_cast<usize>(end - cstr) != lexeme.size()) {
+        return errorToken("Malformed number");
+    }
+
+    token.value = value;
     return token;
 }
 

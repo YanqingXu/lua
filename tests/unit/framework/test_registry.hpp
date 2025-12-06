@@ -95,5 +95,10 @@ void registerMethodCallTests();
  */
 void registerStorevarTests();
 
+/**
+ * @brief 注册词法分析器测试
+ */
+void registerLexerTests();
+
 #endif // LUA_TEST_REGISTRY_HPP
 
