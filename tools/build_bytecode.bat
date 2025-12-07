@@ -5,8 +5,9 @@ REM =====================================================================
 
 setlocal
 
-REM 切换到脚本所在目录（lua/）
+REM Change to script directory (lua/tools/) then go to lua/
 cd /d "%~dp0"
+cd ..
 
 set BUILD_TYPE=Debug
 if /I "%1"=="release" set BUILD_TYPE=Release
@@ -37,9 +38,14 @@ if "%BUILD_TYPE%"=="Debug" (
 
 if not exist "%OUTPUT_DIR%" mkdir "%OUTPUT_DIR%"
 
+REM Create temp directory for .obj files
+set OBJ_DIR=tmp
+if not exist "%OBJ_DIR%" mkdir "%OBJ_DIR%"
+
 echo [INFO] Compiling and linking bytecode_main.exe ...
 
 cl %CXX_FLAGS% /Isrc ^
+  /Fo"%OBJ_DIR%\\" ^
   src\core\value.cpp ^
   src\core\gc_object.cpp ^
   src\core\gc_string.cpp ^

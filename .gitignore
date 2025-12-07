@@ -4,6 +4,7 @@ bin/
 obj/
 out/
 lua/x64/Debug/
+lua/tmp/
 
 # Compiled files
 *.exe

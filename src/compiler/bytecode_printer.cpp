@@ -146,8 +146,16 @@ void printCode(const Proto* f, std::ostream& out) {
             break;
         case OpCode::GETGLOBAL:
         case OpCode::SETGLOBAL:
-            out << "\t; ";
-            printConstant(f, bx, out);
+            // C 实现使用 svalue() 直接打印字符串值（不带引号）
+            {
+                Value v = f->getConstant(static_cast<usize>(bx));
+                if (v.isString()) {
+                    out << "\t; " << v.asString()->c_str();
+                } else {
+                    out << "\t; ";
+                    printConstant(f, bx, out);
+                }
+            }
             break;
         case OpCode::GETTABLE:
         case OpCode::SELF:
@@ -188,6 +196,17 @@ void printCode(const Proto* f, std::ostream& out) {
             break;
         case OpCode::CLOSURE:
             out << "\t; " << static_cast<const void*>(f->getSubProto(static_cast<usize>(bx)));
+            break;
+        case OpCode::SETLIST:
+            // C 实现: if (c==0) printf("\t; %d",(int)code[++pc]); else printf("\t; %d",c);
+            if (c == 0) {
+                // 下一条指令存储实际的列表大小
+                if (static_cast<usize>(pc + 1) < f->getInstructionCount()) {
+                    out << "\t; " << static_cast<int>(code[pc + 1]);
+                }
+            } else {
+                out << "\t; " << c;
+            }
             break;
         default:
             break;

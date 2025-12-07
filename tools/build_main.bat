@@ -29,6 +29,10 @@ REM =====================================================================
 
 setlocal enabledelayedexpansion
 
+REM Change to script directory (lua/tools/) then go to lua/
+cd /d "%~dp0"
+cd ..
+
 REM Parse mode (test or interpreter)
 set BUILD_MODE=test
 if "%1"=="interpreter" set BUILD_MODE=interpreter
@@ -386,6 +390,7 @@ echo.
 echo [INFO] Executable: %OUTPUT_DIR%\%EXE_NAME%
 echo.
 
+
 REM Run the executable based on mode
 if "%BUILD_MODE%"=="test" (
     echo [INFO] ========================================
@@ -425,4 +430,3 @@ echo.
 
 endlocal
 exit /b 0
-

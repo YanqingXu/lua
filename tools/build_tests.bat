@@ -18,6 +18,10 @@ REM =====================================================================
 
 setlocal
 
+REM Change to script directory (lua/tools/) then go to lua/
+cd /d "%~dp0"
+cd ..
+
 REM Parse build type
 set BUILD_TYPE=Debug
 if "%1"=="release" set BUILD_TYPE=Release
@@ -139,6 +143,8 @@ if %errorlevel% neq 0 (
     echo [ERROR] Failed to compile test_gc
     exit /b %errorlevel%
 )
+
+
 
 REM Compile vm tests
 echo [INFO] Compiling test_vm_core...
@@ -268,4 +274,3 @@ echo.
 
 endlocal
 exit /b 0
-
