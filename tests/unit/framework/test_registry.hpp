@@ -110,5 +110,10 @@ void registerLexerLookaheadTests();
  */
 void registerParserRecursionTests();
 
+/*
+* @brief 注册解析器错误恢复测试
+*/
+void registerParserErrorRecoveryTests();
+
 #endif // LUA_TEST_REGISTRY_HPP
 

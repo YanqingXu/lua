@@ -63,6 +63,7 @@ extern void registerFunctionCallTests();
 extern void registerLexerNumberTests();
 extern void registerLexerLookaheadTests();
 extern void registerParserRecursionTests();
+extern void registerParserErrorRecoveryTests();
 #endif
 
 using namespace Lua;
@@ -209,6 +210,7 @@ int runTests() {
     registerLexerNumberTests();
 	registerLexerLookaheadTests();
     registerParserRecursionTests();
+    registerParserErrorRecoveryTests();
 
     std::cout << "[INFO] All tests registered." << std::endl;
     std::cout << "[INFO] Starting test execution...\n" << std::endl;

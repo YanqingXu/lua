@@ -50,10 +50,57 @@ void Parser::expect(TokenType type, const Str& message) {
 }
 
 void Parser::error(const Str& message) {
+    // 构造错误消息
     std::ostringstream oss;
     oss << "Syntax error at line " << current_.line
         << ", column " << current_.column << ": " << message;
+
+    // 直接抛出异常（简化版错误处理）
     throw ParseError(oss.str(), current_.line, current_.column);
+}
+
+void Parser::reportError(const Str& message) {
+    // 构造错误消息
+    std::ostringstream oss;
+    oss << "Syntax error at line " << current_.line
+        << ", column " << current_.column << ": " << message;
+
+    // 添加到错误列表（为将来的错误恢复机制预留）
+    errors_.emplace_back(oss.str(), current_.line, current_.column);
+
+    // 设置 panic 模式（为将来的错误恢复机制预留）
+    panicMode_ = true;
+}
+
+void Parser::synchronize() {
+    // 重置 panic 模式
+    panicMode_ = false;
+
+    // 跳过 token 直到找到语句边界
+    while (!check(TokenType::Eos)) {
+        // 检查是否到达块结束符
+        if (check(TokenType::End) ||
+            check(TokenType::Else) ||
+            check(TokenType::Elseif) ||
+            check(TokenType::Until)) {
+            return;  // 不消费这些 token，让调用者处理
+        }
+
+        // 检查是否到达语句开始符
+        if (check(TokenType::Local) ||
+            check(TokenType::Function) ||
+            check(TokenType::If) ||
+            check(TokenType::While) ||
+            check(TokenType::For) ||
+            check(TokenType::Repeat) ||
+            check(TokenType::Return) ||
+            check(TokenType::Break)) {
+            return;  // 不消费这些 token，让调用者处理
+        }
+
+        // 继续跳过当前 token
+        advance();
+    }
 }
 
 // 辅助函数：安全地获取Token的字符串值
@@ -70,13 +117,15 @@ static Str getTokenString(const Token& token) {
 
 Chunk Parser::parse() {
     Chunk chunk;
+
+    // 解析语句块
     chunk.statements = parseBlock();
-    
+
     // 确保到达文件末尾
     if (!check(TokenType::Eos)) {
         error("Expected end of file");
     }
-    
+
     return chunk;
 }
 
