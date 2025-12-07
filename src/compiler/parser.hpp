@@ -217,6 +217,65 @@ private:
     bool panicMode_ = false;
 
     // =====================================================================
+    // AST 节点内存池（P0-3 优化）
+    // =====================================================================
+
+    /**
+     * @brief AST 节点内存池
+     *
+     * 用于批量分配 AST 节点，减少内存分配开销。
+     * 所有节点在 Parser 对象销毁时一起释放。
+     *
+     * 设计原则：
+     * - 使用 std::vector 存储所有分配的节点
+     * - 保持 std::unique_ptr 的所有权语义
+     * - 节点生命周期与 Parser 对象绑定
+     */
+    template<typename T>
+    class NodePool {
+    public:
+        /**
+         * @brief 分配一个新节点
+         * @tparam U 节点的具体类型（必须是 T 的子类型）
+         * @tparam Args 构造函数参数类型
+         * @param args 构造函数参数
+         * @return 指向新分配节点的 unique_ptr
+         */
+        template<typename U, typename... Args>
+        UPtr<T> allocate(Args&&... args) {
+            // 创建节点
+            auto node = std::make_unique<T>(U(std::forward<Args>(args)...));
+
+            // 保存原始指针用于生命周期管理
+            T* rawPtr = node.get();
+            nodes_.push_back(rawPtr);
+
+            // 返回 unique_ptr（所有权转移给调用者）
+            return node;
+        }
+
+        /**
+         * @brief 获取已分配节点的数量
+         * @return 节点数量
+         */
+        size_t size() const {
+            return nodes_.size();
+        }
+
+        /**
+         * @brief 清空内存池
+         */
+        void clear() {
+            nodes_.clear();
+        }
+
+    private:
+        // 存储所有分配的节点指针（用于统计和调试）
+        // 注意：实际的内存管理由 unique_ptr 负责
+        Vec<T*> nodes_;
+    };
+
+    // =====================================================================
     // 递归深度保护
     // =====================================================================
 
@@ -253,9 +312,41 @@ private:
 
     friend class RecursionGuard;
 
+    // =====================================================================
+    // AST 节点工厂方法（P0-3 优化）
+    // =====================================================================
+
+    /**
+     * @brief 创建表达式节点
+     * @tparam T 表达式的具体类型（如 NumberExpr, BinaryExpr 等）
+     * @tparam Args 构造函数参数类型
+     * @param args 构造函数参数
+     * @return 指向新表达式节点的 unique_ptr
+     */
+    template<typename T, typename... Args>
+    ExprPtr makeExpr(Args&&... args) {
+        return exprPool_.allocate<T>(std::forward<Args>(args)...);
+    }
+
+    /**
+     * @brief 创建语句节点
+     * @tparam T 语句的具体类型（如 LocalStmt, IfStmt 等）
+     * @tparam Args 构造函数参数类型
+     * @param args 构造函数参数
+     * @return 指向新语句节点的 unique_ptr
+     */
+    template<typename T, typename... Args>
+    StmtPtr makeStmt(Args&&... args) {
+        return stmtPool_.allocate<T>(std::forward<Args>(args)...);
+    }
+
 private:
     Lexer lexer_;
     Token current_;
+
+    // AST 节点内存池
+    NodePool<Expr> exprPool_;
+    NodePool<Stmt> stmtPool_;
 };
 
 } // namespace Lua

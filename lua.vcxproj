@@ -189,6 +189,7 @@
     <ClCompile Include="tests\unit\compiler\test_lexer_number.cpp" />
     <ClCompile Include="tests\unit\compiler\test_method_call.cpp" />
     <ClCompile Include="tests\unit\compiler\test_parser_error_recovery.cpp" />
+    <ClCompile Include="tests\unit\compiler\test_parser_memory_pool.cpp" />
     <ClCompile Include="tests\unit\compiler\test_parser_recursion.cpp" />
     <ClCompile Include="tests\unit\compiler\test_storevar.cpp" />
     <ClCompile Include="tests\unit\compiler\test_syntax_sugar.cpp" />

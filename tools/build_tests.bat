@@ -155,7 +155,7 @@ if %errorlevel% neq 0 (
 )
 
 REM Compile compiler tests
-for %%F in (test_binary_unary_expr test_function_codegen test_syntax_sugar test_lua_functions test_indexed_access test_method_call test_storevar test_parser_recursion test_parser_error_recovery test_lexer_number test_lexer_lookahead) do (
+for %%F in (test_binary_unary_expr test_function_codegen test_syntax_sugar test_lua_functions test_indexed_access test_method_call test_storevar test_parser_recursion test_parser_error_recovery test_parser_memory_pool test_lexer_number test_lexer_lookahead) do (
     echo [INFO] Compiling %%F...
     cl %CXX_FLAGS% /Isrc /Itests\unit\framework /c /Fo"%OUTPUT_DIR%\%%F.obj" "tests\unit\compiler\%%F.cpp"
     if %errorlevel% neq 0 (
@@ -215,6 +215,7 @@ cl %CXX_FLAGS% /Fe"%OUTPUT_DIR%\test_runner.exe" ^
     "%OUTPUT_DIR%\test_storevar.obj" ^
     "%OUTPUT_DIR%\test_parser_recursion.obj" ^
     "%OUTPUT_DIR%\test_parser_error_recovery.obj" ^
+    "%OUTPUT_DIR%\test_parser_memory_pool.obj" ^
     "%OUTPUT_DIR%\test_lexer_number.obj" ^
     "%OUTPUT_DIR%\test_lexer_lookahead.obj" ^
     "%OUTPUT_DIR%\test_baselib.obj" ^

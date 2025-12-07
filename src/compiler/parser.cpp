@@ -215,7 +215,7 @@ StmtPtr Parser::parseIfStmt() {
     
     expect(TokenType::End, "Expected 'end' to close if statement");
 
-    return std::make_unique<Stmt>(std::move(ifStmt));
+    return makeStmt<IfStmt>(std::move(ifStmt));
 }
 
 StmtPtr Parser::parseWhileStmt() {
@@ -233,7 +233,7 @@ StmtPtr Parser::parseWhileStmt() {
     whileStmt.body = parseBlock();
     expect(TokenType::End, "Expected 'end' to close while loop");
 
-    return std::make_unique<Stmt>(std::move(whileStmt));
+    return makeStmt<WhileStmt>(std::move(whileStmt));
 }
 
 StmtPtr Parser::parseDoStmt() {
@@ -249,7 +249,7 @@ StmtPtr Parser::parseDoStmt() {
 
     expect(TokenType::End, "Expected 'end' to close do block");
 
-    return std::make_unique<Stmt>(std::move(doStmt));
+    return makeStmt<DoStmt>(std::move(doStmt));
 }
 
 StmtPtr Parser::parseRepeatStmt() {
@@ -266,7 +266,7 @@ StmtPtr Parser::parseRepeatStmt() {
     expect(TokenType::Until, "Expected 'until' to close repeat loop");
     repeatStmt.condition = parseExpression();
 
-    return std::make_unique<Stmt>(std::move(repeatStmt));
+    return makeStmt<RepeatStmt>(std::move(repeatStmt));
 }
 
 StmtPtr Parser::parseForStmt() {
@@ -303,14 +303,14 @@ StmtPtr Parser::parseForStmt() {
             one.value = 1.0;
             one.line = current_.line;
             one.column = current_.column;
-            forStmt.step = std::make_unique<Expr>(std::move(one));
+            forStmt.step = makeExpr<NumberExpr>(std::move(one));
         }
 
         expect(TokenType::Do, "Expected 'do' after for header");
         forStmt.body = parseBlock();
         expect(TokenType::End, "Expected 'end' to close for loop");
 
-        return std::make_unique<Stmt>(std::move(forStmt));
+        return makeStmt<ForNumStmt>(std::move(forStmt));
     } else if (match(static_cast<TokenType>(','))) {
         // 泛型for: for var1, var2, ... in exp1, exp2, ... do ... end
         ForInStmt forStmt;
@@ -334,7 +334,7 @@ StmtPtr Parser::parseForStmt() {
         forStmt.body = parseBlock();
         expect(TokenType::End, "Expected 'end' to close for-in loop");
 
-        return std::make_unique<Stmt>(std::move(forStmt));
+        return makeStmt<ForInStmt>(std::move(forStmt));
     } else if (check(TokenType::In)) {
         // 单变量泛型for
         ForInStmt forStmt;
@@ -349,9 +349,10 @@ StmtPtr Parser::parseForStmt() {
         forStmt.body = parseBlock();
         expect(TokenType::End, "Expected 'end' to close for-in loop");
 
-        return std::make_unique<Stmt>(std::move(forStmt));
+        return makeStmt<ForInStmt>(std::move(forStmt));
     } else {
         error("Expected '=' or 'in' after for variable");
+		return nullptr;  // 永远不会到达
     }
 }
 
@@ -423,7 +424,7 @@ StmtPtr Parser::parseFunctionStmt() {
     funcStmt.body = parseBlock();
     expect(TokenType::End, "Expected 'end' to close function");
 
-    return std::make_unique<Stmt>(std::move(funcStmt));
+    return makeStmt<FunctionStmt>(std::move(funcStmt));
 }
 
 StmtPtr Parser::parseLocalStmt() {
@@ -462,7 +463,7 @@ StmtPtr Parser::parseLocalStmt() {
         funcStmt.body = parseBlock();
         expect(TokenType::End, "Expected 'end' to close function");
 
-        return std::make_unique<Stmt>(std::move(funcStmt));
+        return makeStmt<FunctionStmt>(std::move(funcStmt));
     }
 
     // local var1, var2, ... = exp1, exp2, ...
@@ -484,7 +485,7 @@ StmtPtr Parser::parseLocalStmt() {
         localStmt.values = parseExprList();
     }
 
-    return std::make_unique<Stmt>(std::move(localStmt));
+    return makeStmt<LocalStmt>(std::move(localStmt));
 }
 
 StmtPtr Parser::parseReturnStmt() {
@@ -506,7 +507,7 @@ StmtPtr Parser::parseReturnStmt() {
         returnStmt.values = parseExprList();
     }
 
-    return std::make_unique<Stmt>(std::move(returnStmt));
+    return makeStmt<ReturnStmt>(std::move(returnStmt));
 }
 
 StmtPtr Parser::parseBreakStmt() {
@@ -519,7 +520,7 @@ StmtPtr Parser::parseBreakStmt() {
     breakStmt.line = line;
     breakStmt.column = column;
 
-    return std::make_unique<Stmt>(std::move(breakStmt));
+    return makeStmt<BreakStmt>(std::move(breakStmt));
 }
 
 StmtPtr Parser::parseExprStmt() {
@@ -542,7 +543,7 @@ StmtPtr Parser::parseExprStmt() {
         expect(static_cast<TokenType>('='), "Expected '=' in assignment");
         assignStmt.values = parseExprList();
 
-        return std::make_unique<Stmt>(std::move(assignStmt));
+        return makeStmt<AssignStmt>(std::move(assignStmt));
     } else if (match(static_cast<TokenType>('='))) {
         // 单个赋值: var = exp
         AssignStmt assignStmt;
@@ -551,7 +552,7 @@ StmtPtr Parser::parseExprStmt() {
         assignStmt.targets.push_back(std::move(expr));
         assignStmt.values = parseExprList();
 
-        return std::make_unique<Stmt>(std::move(assignStmt));
+        return makeStmt<AssignStmt>(std::move(assignStmt));
     } else {
         // 函数调用语句
         CallStmt callStmt;
@@ -559,7 +560,7 @@ StmtPtr Parser::parseExprStmt() {
         callStmt.column = expr->getColumn();
         callStmt.call = std::move(expr);
 
-        return std::make_unique<Stmt>(std::move(callStmt));
+        return makeStmt<CallStmt>(std::move(callStmt));
     }
 }
 
@@ -586,7 +587,7 @@ ExprPtr Parser::parseOrExpr() {
         binExpr.line = line;
         binExpr.column = column;
 
-        left = std::make_unique<Expr>(std::move(binExpr));
+        left = makeExpr<BinaryExpr>(std::move(binExpr));
     }
 
     return left;
@@ -606,7 +607,7 @@ ExprPtr Parser::parseAndExpr() {
         binExpr.line = line;
         binExpr.column = column;
 
-        left = std::make_unique<Expr>(std::move(binExpr));
+        left = makeExpr<BinaryExpr>(std::move(binExpr));
     }
 
     return left;
@@ -646,7 +647,7 @@ ExprPtr Parser::parseRelationalExpr() {
         binExpr.left = std::move(left);
         binExpr.right = parseConcatExpr();
 
-        left = std::make_unique<Expr>(std::move(binExpr));
+        left = makeExpr<BinaryExpr>(std::move(binExpr));
     }
 
     return left;
@@ -667,7 +668,7 @@ ExprPtr Parser::parseConcatExpr() {
         binExpr.line = line;
         binExpr.column = column;
 
-        left = std::make_unique<Expr>(std::move(binExpr));
+        left = makeExpr<BinaryExpr>(std::move(binExpr));
     }
 
     return left;
@@ -689,7 +690,7 @@ ExprPtr Parser::parseAdditiveExpr() {
         binExpr.line = line;
         binExpr.column = column;
 
-        left = std::make_unique<Expr>(std::move(binExpr));
+        left = makeExpr<BinaryExpr>(std::move(binExpr));
     }
 
     return left;
@@ -722,7 +723,7 @@ ExprPtr Parser::parseMultiplicativeExpr() {
         binExpr.left = std::move(left);
         binExpr.right = parseUnaryExpr();
 
-        left = std::make_unique<Expr>(std::move(binExpr));
+        left = makeExpr<BinaryExpr>(std::move(binExpr));
     }
 
     return left;
@@ -740,7 +741,7 @@ ExprPtr Parser::parseUnaryExpr() {
         unExpr.line = line;
         unExpr.column = column;
 
-        return std::make_unique<Expr>(std::move(unExpr));
+        return makeExpr<UnaryExpr>(std::move(unExpr));
     } else if (match(static_cast<TokenType>('-'))) {
         i32 line = current_.line;
         i32 column = current_.column;
@@ -751,7 +752,7 @@ ExprPtr Parser::parseUnaryExpr() {
         unExpr.line = line;
         unExpr.column = column;
 
-        return std::make_unique<Expr>(std::move(unExpr));
+        return makeExpr<UnaryExpr>(std::move(unExpr));
     } else if (match(static_cast<TokenType>('#'))) {
         i32 line = current_.line;
         i32 column = current_.column;
@@ -762,7 +763,7 @@ ExprPtr Parser::parseUnaryExpr() {
         unExpr.line = line;
         unExpr.column = column;
 
-        return std::make_unique<Expr>(std::move(unExpr));
+        return makeExpr<UnaryExpr>(std::move(unExpr));
     }
 
     return parsePowerExpr();
@@ -783,7 +784,7 @@ ExprPtr Parser::parsePowerExpr() {
         binExpr.line = line;
         binExpr.column = column;
 
-        left = std::make_unique<Expr>(std::move(binExpr));
+        left = makeExpr<BinaryExpr>(std::move(binExpr));
     }
 
     return left;
@@ -798,7 +799,7 @@ ExprPtr Parser::parsePrimaryExpr() {
         NilExpr nilExpr;
         nilExpr.line = line;
         nilExpr.column = column;
-        return parsePostfixExpr(std::make_unique<Expr>(std::move(nilExpr)));
+        return parsePostfixExpr(makeExpr<NilExpr>(std::move(nilExpr)));
     }
 
     // true
@@ -807,7 +808,7 @@ ExprPtr Parser::parsePrimaryExpr() {
         boolExpr.value = true;
         boolExpr.line = line;
         boolExpr.column = column;
-        return parsePostfixExpr(std::make_unique<Expr>(std::move(boolExpr)));
+        return parsePostfixExpr(makeExpr<BoolExpr>(std::move(boolExpr)));
     }
 
     // false
@@ -816,7 +817,7 @@ ExprPtr Parser::parsePrimaryExpr() {
         boolExpr.value = false;
         boolExpr.line = line;
         boolExpr.column = column;
-        return parsePostfixExpr(std::make_unique<Expr>(std::move(boolExpr)));
+        return parsePostfixExpr(makeExpr<BoolExpr>(std::move(boolExpr)));
     }
 
     // 数字
@@ -826,7 +827,7 @@ ExprPtr Parser::parsePrimaryExpr() {
         numExpr.line = line;
         numExpr.column = column;
         advance();
-        return parsePostfixExpr(std::make_unique<Expr>(std::move(numExpr)));
+        return parsePostfixExpr(makeExpr<NumberExpr>(std::move(numExpr)));
     }
 
     // 字符串
@@ -836,7 +837,7 @@ ExprPtr Parser::parsePrimaryExpr() {
         strExpr.line = line;
         strExpr.column = column;
         advance();
-        return parsePostfixExpr(std::make_unique<Expr>(std::move(strExpr)));
+        return parsePostfixExpr(makeExpr<StringExpr>(std::move(strExpr)));
     }
 
     // ...（变长参数）
@@ -844,7 +845,7 @@ ExprPtr Parser::parsePrimaryExpr() {
         VarargExpr varargExpr;
         varargExpr.line = line;
         varargExpr.column = column;
-        return parsePostfixExpr(std::make_unique<Expr>(std::move(varargExpr)));
+        return parsePostfixExpr(makeExpr<VarargExpr>(std::move(varargExpr)));
     }
 
     // 表构造器
@@ -871,10 +872,11 @@ ExprPtr Parser::parsePrimaryExpr() {
         nameExpr.line = line;
         nameExpr.column = column;
         advance();
-        return parsePostfixExpr(std::make_unique<Expr>(std::move(nameExpr)));
+        return parsePostfixExpr(makeExpr<NameExpr>(std::move(nameExpr)));
     }
 
     error("Unexpected token in expression");
+	return nullptr;  // 永远不会到达
 }
 
 ExprPtr Parser::parsePostfixExpr(ExprPtr base) {
@@ -895,7 +897,7 @@ ExprPtr Parser::parsePostfixExpr(ExprPtr base) {
             }
 
             expect(static_cast<TokenType>(')'), "Expected ')' after arguments");
-            base = std::make_unique<Expr>(std::move(callExpr));
+            base = makeExpr<CallExpr>(std::move(callExpr));
         }
         // 索引访问: table[key]
         else if (match(static_cast<TokenType>('['))) {
@@ -906,7 +908,7 @@ ExprPtr Parser::parsePostfixExpr(ExprPtr base) {
             indexExpr.column = column;
 
             expect(static_cast<TokenType>(']'), "Expected ']' after index");
-            base = std::make_unique<Expr>(std::move(indexExpr));
+            base = makeExpr<IndexExpr>(std::move(indexExpr));
         }
         // 成员访问: table.member
         else if (match(static_cast<TokenType>('.'))) {
@@ -921,7 +923,7 @@ ExprPtr Parser::parsePostfixExpr(ExprPtr base) {
             memberExpr.column = column;
             advance();
 
-            base = std::make_unique<Expr>(std::move(memberExpr));
+            base = makeExpr<MemberExpr>(std::move(memberExpr));
         }
         // 方法调用: obj:method(args)
         else if (match(static_cast<TokenType>(':'))) {
@@ -939,7 +941,7 @@ ExprPtr Parser::parsePostfixExpr(ExprPtr base) {
             memberExpr.line = line;
             memberExpr.column = column;
 
-            ExprPtr method = std::make_unique<Expr>(std::move(memberExpr));
+            ExprPtr method = makeExpr<MemberExpr>(std::move(memberExpr));
 
             // 创建函数调用
             expect(static_cast<TokenType>('('), "Expected '(' after method name");
@@ -955,7 +957,7 @@ ExprPtr Parser::parsePostfixExpr(ExprPtr base) {
             }
 
             expect(static_cast<TokenType>(')'), "Expected ')' after arguments");
-            base = std::make_unique<Expr>(std::move(callExpr));
+            base = makeExpr<CallExpr>(std::move(callExpr));
         }
         // 函数调用语法糖: f"string" 等价于 f("string")
         else if (current_.isString()) {
@@ -971,8 +973,8 @@ ExprPtr Parser::parsePostfixExpr(ExprPtr base) {
             strExpr.column = current_.column;
             advance();
 
-            callExpr.args.push_back(std::make_unique<Expr>(std::move(strExpr)));
-            base = std::make_unique<Expr>(std::move(callExpr));
+            callExpr.args.push_back(makeExpr<StringExpr>(std::move(strExpr)));
+            base = makeExpr<CallExpr>(std::move(callExpr));
         }
         // 函数调用语法糖: f{table} 等价于 f({table})
         else if (check(static_cast<TokenType>('{'))) {
@@ -983,7 +985,7 @@ ExprPtr Parser::parsePostfixExpr(ExprPtr base) {
 
             // 解析表构造器作为参数
             callExpr.args.push_back(parseTableConstructor());
-            base = std::make_unique<Expr>(std::move(callExpr));
+            base = makeExpr<CallExpr>(std::move(callExpr));
         }
         else {
             break;
@@ -1031,7 +1033,7 @@ ExprPtr Parser::parseTableConstructor() {
                 keyExpr.value = name;
                 keyExpr.line = nameLine;
                 keyExpr.column = nameColumn;
-                field.key = std::make_unique<Expr>(std::move(keyExpr));
+                field.key = makeExpr<StringExpr>(std::move(keyExpr));
 
                 advance();  // 消费 '='
                 field.value = parseExpression();
@@ -1062,7 +1064,7 @@ ExprPtr Parser::parseTableConstructor() {
 
     expect(static_cast<TokenType>('}'), "Expected '}' to close table constructor");
 
-    return std::make_unique<Expr>(std::move(tableExpr));
+    return makeExpr<TableExpr>(std::move(tableExpr));
 }
 
 ExprPtr Parser::parseFunctionExpr() {
@@ -1093,7 +1095,7 @@ ExprPtr Parser::parseFunctionExpr() {
     funcExpr.body = parseBlock();
     expect(TokenType::End, "Expected 'end' to close function");
 
-    return std::make_unique<Expr>(std::move(funcExpr));
+    return makeExpr<FunctionExpr>(std::move(funcExpr));
 }
 
 // =====================================================================

@@ -136,6 +136,9 @@
     <ClCompile Include="tests\unit\compiler\test_parser_error_recovery.cpp">
       <Filter>tests\unit\compiler</Filter>
     </ClCompile>
+    <ClCompile Include="tests\unit\compiler\test_parser_memory_pool.cpp">
+      <Filter>tests\unit\compiler</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\compiler\ast.hpp">

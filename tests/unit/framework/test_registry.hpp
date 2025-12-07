@@ -115,5 +115,10 @@ void registerParserRecursionTests();
 */
 void registerParserErrorRecoveryTests();
 
+/**
+ * @brief 注册解析器内存池测试
+ */
+void registerParserMemoryPoolTests();
+
 #endif // LUA_TEST_REGISTRY_HPP
 
