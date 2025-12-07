@@ -55,11 +55,11 @@ static void testLongCommentSkipFirstNewline(TestSuite& suite) {
     ASSERT_EQ(suite, 2, t.line, "Line number accounts for stripped first newline");
 }
 
-void registerLexerTests() {
+void registerLexerNumberTests() {
     auto& registry = TestRegistry::getInstance();
-    registry.registerTest("Lexer", "Valid number", testValidNumber);
-    registry.registerTest("Lexer", "Malformed number trailing id", testMalformedNumberTrailingId);
-    registry.registerTest("Lexer", "Malformed hex trailing letter", testMalformedHexTrailingLetter);
-    registry.registerTest("Lexer", "Long string skip first newline", testLongStringSkipFirstNewline);
-    registry.registerTest("Lexer", "Long comment skip first newline", testLongCommentSkipFirstNewline);
+    registry.registerTest("Lexer Number", "Valid number", testValidNumber);
+    registry.registerTest("Lexer Number", "Malformed number trailing id", testMalformedNumberTrailingId);
+    registry.registerTest("Lexer Number", "Malformed hex trailing letter", testMalformedHexTrailingLetter);
+    registry.registerTest("Lexer Number", "Long string skip first newline", testLongStringSkipFirstNewline);
+    registry.registerTest("Lexer Number", "Long comment skip first newline", testLongCommentSkipFirstNewline);
 }

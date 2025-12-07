@@ -29,7 +29,9 @@ extern void registerSyntaxSugarTests();
 extern void registerIndexedAccessTests();
 extern void registerMethodCallTests();
 extern void registerStorevarTests();
-extern void registerLexerTests();
+extern void registerLexerNumberTests();
+extern void registerLexerLookaheadTests();
+extern void registerParserRecursionTests();
 
 /**
  * @brief 打印测试框架标题
@@ -90,7 +92,9 @@ int main() {
     registerIndexedAccessTests();
     registerMethodCallTests();
     registerStorevarTests();
-    registerLexerTests();
+    registerLexerNumberTests();
+    registerLexerLookaheadTests();
+    registerParserRecursionTests();
 
     std::cout << "[INFO] All tests registered." << std::endl;
     std::cout << "[INFO] Starting test execution...\n" << std::endl;

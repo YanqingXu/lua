@@ -172,6 +172,44 @@ private:
     Vec<ExprPtr> parseExprList();
 
 private:
+    // =====================================================================
+    // 递归深度保护
+    // =====================================================================
+
+    // 注意：设置为100以避免栈溢出。实际的C++调用栈深度会更深，
+    // 因为每次parseExpression()会调用多层解析函数（parseOrExpr → parseAndExpr → ...）
+    static constexpr i32 MAX_RECURSION_DEPTH = 100;
+    i32 recursionDepth_ = 0;
+
+    /**
+     * @brief RAII递归深度守卫
+     *
+     * 自动管理递归深度计数，防止深度嵌套导致栈溢出。
+     * 在递归函数入口创建，离开时自动递减。
+     */
+    class RecursionGuard {
+    public:
+        explicit RecursionGuard(Parser& parser) : parser_(parser) {
+            if (++parser_.recursionDepth_ > MAX_RECURSION_DEPTH) {
+                parser_.error("chunk has too many syntax levels");
+            }
+        }
+
+        ~RecursionGuard() {
+            --parser_.recursionDepth_;
+        }
+
+        // 禁止拷贝和赋值
+        RecursionGuard(const RecursionGuard&) = delete;
+        RecursionGuard& operator=(const RecursionGuard&) = delete;
+
+    private:
+        Parser& parser_;
+    };
+
+    friend class RecursionGuard;
+
+private:
     Lexer lexer_;
     Token current_;
 };

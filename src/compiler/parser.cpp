@@ -81,24 +81,26 @@ Chunk Parser::parse() {
 }
 
 Vec<StmtPtr> Parser::parseBlock() {
+    RecursionGuard guard(*this);  // 递归深度保护
+
     Vec<StmtPtr> statements;
-    
+
     // 解析语句直到遇到块结束符
     while (!check(TokenType::Eos) &&
            !check(TokenType::End) &&
            !check(TokenType::Else) &&
            !check(TokenType::Elseif) &&
            !check(TokenType::Until)) {
-        
+
         // return语句必须是块的最后一条语句
         if (check(TokenType::Return)) {
             statements.push_back(parseReturnStmt());
             break;
         }
-        
+
         statements.push_back(parseStatement());
     }
-    
+
     return statements;
 }
 
@@ -517,6 +519,7 @@ StmtPtr Parser::parseExprStmt() {
 // =====================================================================
 
 ExprPtr Parser::parseExpression() {
+    RecursionGuard guard(*this);  // 递归深度保护
     return parseOrExpr();
 }
 
@@ -942,6 +945,8 @@ ExprPtr Parser::parsePostfixExpr(ExprPtr base) {
 }
 
 ExprPtr Parser::parseTableConstructor() {
+    RecursionGuard guard(*this);  // 递归深度保护
+
     i32 line = current_.line;
     i32 column = current_.column;
 
@@ -1012,6 +1017,8 @@ ExprPtr Parser::parseTableConstructor() {
 }
 
 ExprPtr Parser::parseFunctionExpr() {
+    RecursionGuard guard(*this);  // 递归深度保护
+
     i32 line = current_.line;
     i32 column = current_.column;
 

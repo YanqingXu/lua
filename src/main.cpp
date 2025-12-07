@@ -60,8 +60,9 @@ extern void registerMetamethodArithTests();
 extern void registerMetamethodCompleteTests();
 extern void registerSyntaxSugarTests();
 extern void registerFunctionCallTests();
-extern void registerLexerTests();
+extern void registerLexerNumberTests();
 extern void registerLexerLookaheadTests();
+extern void registerParserRecursionTests();
 #endif
 
 using namespace Lua;
@@ -205,8 +206,9 @@ int runTests() {
     registerMetamethodCompleteTests();
     registerSyntaxSugarTests();
     registerFunctionCallTests();
-	registerLexerTests();
+    registerLexerNumberTests();
 	registerLexerLookaheadTests();
+    registerParserRecursionTests();
 
     std::cout << "[INFO] All tests registered." << std::endl;
     std::cout << "[INFO] Starting test execution...\n" << std::endl;

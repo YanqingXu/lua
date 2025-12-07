@@ -98,7 +98,17 @@ void registerStorevarTests();
 /**
  * @brief 注册词法分析器测试
  */
-void registerLexerTests();
+void registerLexerNumberTests();
+
+/**
+ * @brief 注册词法分析器Token预读测试
+ */
+void registerLexerLookaheadTests();
+
+/**
+ * @brief 注册解析器测试
+ */
+void registerParserRecursionTests();
 
 #endif // LUA_TEST_REGISTRY_HPP
 

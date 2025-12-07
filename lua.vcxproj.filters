@@ -130,6 +130,9 @@
     <ClCompile Include="tests\unit\compiler\test_lexer_lookahead.cpp">
       <Filter>tests\unit\compiler</Filter>
     </ClCompile>
+    <ClCompile Include="tests\unit\compiler\test_parser_recursion.cpp">
+      <Filter>tests\unit\compiler</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\compiler\ast.hpp">
