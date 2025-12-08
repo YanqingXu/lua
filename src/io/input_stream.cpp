@@ -1,0 +1,170 @@
+﻿/**
+ * @file input_stream.cpp
+ * @brief 输入流抽象实现
+ */
+
+#include "input_stream.hpp"
+#include <algorithm>
+#include <cstring>
+
+namespace Lua {
+namespace IO {
+
+// =====================================================================
+// 构造函数
+// =====================================================================
+
+InputStream::InputStream(std::string_view source)
+    : stream_(nullptr)
+    , stringView_(source)
+    , bufferPos_(0)
+    , bufferSize_(0)
+    , eof_(source.empty())
+    , position_(0)
+    , useStringView_(true)
+    , sourceName_("string") {
+}
+
+InputStream::InputStream(std::istream& stream, usize bufferSize)
+    : stream_(&stream)
+    , buffer_(bufferSize)
+    , bufferPos_(0)
+    , bufferSize_(0)
+    , eof_(false)
+    , position_(0)
+    , useStringView_(false)
+    , sourceName_("stream") {
+    fillBuffer();  // 预填充缓冲区
+}
+
+// =====================================================================
+// 字符读取
+// =====================================================================
+
+i32 InputStream::getChar() {
+    if (useStringView_) {
+        // 字符串视图模式（零拷贝）
+        if (position_ >= stringView_.size()) {
+            eof_ = true;
+            return -1;
+        }
+        return static_cast<u8>(stringView_[position_++]);
+    }
+    
+    // 流模式
+    if (bufferPos_ >= bufferSize_) {
+        fillBuffer();
+        if (eof_) {
+            return -1;
+        }
+    }
+    
+    position_++;
+    return static_cast<u8>(buffer_[bufferPos_++]);
+}
+
+i32 InputStream::peekChar() {
+    if (useStringView_) {
+        // 字符串视图模式
+        if (position_ >= stringView_.size()) {
+            return -1;
+        }
+        return static_cast<u8>(stringView_[position_]);
+    }
+    
+    // 流模式
+    if (bufferPos_ >= bufferSize_) {
+        fillBuffer();
+        if (eof_) {
+            return -1;
+        }
+    }
+    
+    return static_cast<u8>(buffer_[bufferPos_]);
+}
+
+// =====================================================================
+// 批量读取
+// =====================================================================
+
+usize InputStream::read(void* buffer, usize size) {
+    if (useStringView_) {
+        // 字符串视图模式
+        usize available = stringView_.size() - position_;
+        usize toRead = std::min(size, available);
+        std::memcpy(buffer, stringView_.data() + position_, toRead);
+        position_ += toRead;
+        if (position_ >= stringView_.size()) {
+            eof_ = true;
+        }
+        return toRead;
+    }
+    
+    // 流模式的批量读取
+    usize totalRead = 0;
+    char* dest = static_cast<char*>(buffer);
+    
+    while (totalRead < size && !eof_) {
+        if (bufferPos_ >= bufferSize_) {
+            fillBuffer();
+            if (eof_) {
+                break;
+            }
+        }
+        
+        usize available = bufferSize_ - bufferPos_;
+        usize toRead = std::min(size - totalRead, available);
+        
+        std::memcpy(dest + totalRead, buffer_.data() + bufferPos_, toRead);
+        bufferPos_ += toRead;
+        totalRead += toRead;
+        position_ += toRead;
+    }
+    
+    return totalRead;
+}
+
+// =====================================================================
+// 状态查询
+// =====================================================================
+
+bool InputStream::isEof() const noexcept {
+    return eof_;
+}
+
+usize InputStream::getPosition() const noexcept {
+    return position_;
+}
+
+const Str& InputStream::getSourceName() const noexcept {
+    return sourceName_;
+}
+
+void InputStream::setSourceName(const Str& name) {
+    sourceName_ = name;
+}
+
+// =====================================================================
+// 内部辅助函数
+// =====================================================================
+
+void InputStream::fillBuffer() {
+    if (!stream_ || stream_->eof()) {
+        eof_ = true;
+        bufferSize_ = 0;
+        return;
+    }
+
+    stream_->read(buffer_.data(), buffer_.size());
+    bufferSize_ = static_cast<usize>(stream_->gcount());
+    bufferPos_ = 0;
+
+    if (bufferSize_ == 0) {
+        eof_ = true;
+    }
+}
+
+} // namespace IO
+} // namespace Lua
+
+

@@ -22,7 +22,6 @@ lua/tmp/
 
 # Visual Studio
 .vs/
-*.user
 *.suo
 *.sln.docstates
 *.VC.db

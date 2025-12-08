@@ -148,6 +148,8 @@
     <ClInclude Include="src\core\userdata.hpp" />
     <ClInclude Include="src\core\value.hpp" />
     <ClInclude Include="src\gc\garbage_collector.hpp" />
+    <ClInclude Include="src\io\dynamic_buffer.hpp" />
+    <ClInclude Include="src\io\input_stream.hpp" />
     <ClInclude Include="src\lib\baselib.hpp" />
     <ClInclude Include="src\lib\lib_manager.hpp" />
     <ClInclude Include="src\lib\lib_module.hpp" />
@@ -176,6 +178,8 @@
     <ClCompile Include="src\core\userdata.cpp" />
     <ClCompile Include="src\core\value.cpp" />
     <ClCompile Include="src\gc\garbage_collector.cpp" />
+    <ClCompile Include="src\io\dynamic_buffer.cpp" />
+    <ClCompile Include="src\io\input_stream.cpp" />
     <ClCompile Include="src\lib\baselib.cpp" />
     <ClCompile Include="src\lib\lib_manager.cpp" />
     <ClCompile Include="src\lib\lib_registry.cpp" />
@@ -193,6 +197,7 @@
     <ClCompile Include="tests\unit\compiler\test_parser_recursion.cpp" />
     <ClCompile Include="tests\unit\compiler\test_storevar.cpp" />
     <ClCompile Include="tests\unit\compiler\test_syntax_sugar.cpp" />
+    <ClCompile Include="tests\unit\io\test_dynamic_buffer.cpp" />
     <ClCompile Include="tests\unit\stdlib\test_baselib.cpp" />
     <ClCompile Include="tests\unit\compiler\test_binary_unary_expr.cpp" />
     <ClCompile Include="tests\unit\core\test_function.cpp" />

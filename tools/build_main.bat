@@ -204,6 +204,14 @@ echo [INFO] Compiling BaseLib...
 cl %CXX_FLAGS% /Isrc /c /Fo"%OUTPUT_DIR%\baselib.obj" "src\lib\baselib.cpp"
 if %errorlevel% neq 0 exit /b %errorlevel%
 
+echo [INFO] Compiling DynamicBuffer class...
+cl %CXX_FLAGS% /Isrc /c /Fo"%OUTPUT_DIR%\dynamic_buffer.obj" "src\io\dynamic_buffer.cpp"
+if %errorlevel% neq 0 exit /b %errorlevel%
+
+echo [INFO] Compiling InputStream class...
+cl %CXX_FLAGS% /Isrc /c /Fo"%OUTPUT_DIR%\input_stream.obj" "src\io\input_stream.cpp"
+if %errorlevel% neq 0 exit /b %errorlevel%
+
 REM Compile test files only in test mode
 if "%BUILD_MODE%"=="test" (
     echo.
@@ -282,6 +290,22 @@ if "%BUILD_MODE%"=="test" (
     echo [INFO] Compiling test_lexer_lookahead...
     cl %CXX_FLAGS% /Isrc /Itests\unit\framework /c /Fo"%OUTPUT_DIR%\test_lexer_lookahead.obj" "tests\unit\compiler\test_lexer_lookahead.cpp" >nul 2>&1
     if %errorlevel% neq 0 exit /b %errorlevel%
+
+    echo [INFO] Compiling test_parser_recursion...
+    cl %CXX_FLAGS% /Isrc /Itests\unit\framework /c /Fo"%OUTPUT_DIR%\test_parser_recursion.obj" "tests\unit\compiler\test_parser_recursion.cpp" >nul 2>&1
+    if %errorlevel% neq 0 exit /b %errorlevel%
+
+    echo [INFO] Compiling test_parser_error_recovery...
+    cl %CXX_FLAGS% /Isrc /Itests\unit\framework /c /Fo"%OUTPUT_DIR%\test_parser_error_recovery.obj" "tests\unit\compiler\test_parser_error_recovery.cpp" >nul 2>&1
+    if %errorlevel% neq 0 exit /b %errorlevel%
+
+    echo [INFO] Compiling test_parser_memory_pool...
+    cl %CXX_FLAGS% /Isrc /Itests\unit\framework /c /Fo"%OUTPUT_DIR%\test_parser_memory_pool.obj" "tests\unit\compiler\test_parser_memory_pool.cpp" >nul 2>&1
+    if %errorlevel% neq 0 exit /b %errorlevel%
+
+    echo [INFO] Compiling test_dynamic_buffer...
+    cl %CXX_FLAGS% /Isrc /Itests\unit\framework /c /Fo"%OUTPUT_DIR%\test_dynamic_buffer.obj" "tests\unit\io\test_dynamic_buffer.cpp" >nul 2>&1
+    if %errorlevel% neq 0 exit /b %errorlevel%
 )
 
 echo.
@@ -327,6 +351,10 @@ if "%BUILD_MODE%"=="test" (
         "%OUTPUT_DIR%\test_function_call.obj" ^
         "%OUTPUT_DIR%\test_lexer_number.obj" ^
         "%OUTPUT_DIR%\test_lexer_lookahead.obj" ^
+        "%OUTPUT_DIR%\test_parser_recursion.obj" ^
+        "%OUTPUT_DIR%\test_parser_error_recovery.obj" ^
+        "%OUTPUT_DIR%\test_parser_memory_pool.obj" ^
+        "%OUTPUT_DIR%\test_dynamic_buffer.obj" ^
         "%OUTPUT_DIR%\value.obj" ^
         "%OUTPUT_DIR%\gc_object.obj" ^
         "%OUTPUT_DIR%\gc_string.obj" ^
@@ -348,7 +376,9 @@ if "%BUILD_MODE%"=="test" (
         "%OUTPUT_DIR%\vm.obj" ^
         "%OUTPUT_DIR%\lib_registry.obj" ^
         "%OUTPUT_DIR%\lib_manager.obj" ^
-        "%OUTPUT_DIR%\baselib.obj"
+        "%OUTPUT_DIR%\baselib.obj" ^
+        "%OUTPUT_DIR%\dynamic_buffer.obj" ^
+        "%OUTPUT_DIR%\input_stream.obj"
 ) else (
     echo [INFO] Linking %EXE_NAME% as standalone interpreter...
     cl %CXX_FLAGS% /Fe"%OUTPUT_DIR%\%EXE_NAME%" ^
@@ -374,7 +404,9 @@ if "%BUILD_MODE%"=="test" (
         "%OUTPUT_DIR%\vm.obj" ^
         "%OUTPUT_DIR%\lib_registry.obj" ^
         "%OUTPUT_DIR%\lib_manager.obj" ^
-        "%OUTPUT_DIR%\baselib.obj"
+        "%OUTPUT_DIR%\baselib.obj" ^
+        "%OUTPUT_DIR%\dynamic_buffer.obj" ^
+        "%OUTPUT_DIR%\input_stream.obj"
 )
 
 if %errorlevel% neq 0 (

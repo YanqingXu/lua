@@ -120,5 +120,10 @@ void registerParserErrorRecoveryTests();
  */
 void registerParserMemoryPoolTests();
 
+/**
+ * @brief 注册DynamicBuffer类测试
+ */
+void registerDynamicBufferTests();
+
 #endif // LUA_TEST_REGISTRY_HPP
 
