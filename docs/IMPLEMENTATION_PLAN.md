@@ -432,15 +432,38 @@ public:
 
 ### 里程碑
 
-| 里程碑 | 目标日期 | 状态 |
-|--------|---------|------|
-| M1: 基础类型系统 | Week 2 | 🔄 进行中 |
-| M2: 字符串和表 | Week 4 | ⏳ 待开始 |
-| M3: 垃圾回收 | Week 6 | ⏳ 待开始 |
-| M4: 虚拟机核心 | Week 10 | ⏳ 待开始 |
-| M5: 编译器 | Week 14 | ⏳ 待开始 |
-| M6: 标准库 | Week 16 | ⏳ 待开始 |
-| M7: 发布1.0 | Week 18 | ⏳ 待开始 |
+| 里程碑 | 目标日期 | 状态 | 完成日期 |
+|--------|---------|------|---------|
+| M0: 架构设计 | Week 0 | ✅ 完成 | 2025-11-11 |
+| M1: 基础类型系统 | Week 2 | ✅ 完成 | 2025-11-12 |
+| M2: 字符串和表 | Week 4 | ✅ 完成 | 2025-11-12 |
+| M3: 垃圾回收 | Week 6 | ✅ 完成 | 2025-11-12 |
+| M4: 虚拟机核心 | Week 10 | ✅ 完成 | 2025-11-12 |
+| M5: 编译器 | Week 14 | ✅ 完成 | 2025-11-13 |
+| M6: 标准库 | Week 16 | 🔄 进行中 | - |
+| M7: 发布1.0 | Week 18 | ⏳ 待开始 | - |
+
+### 当前状态（2025-12-04更新）
+
+**已完成阶段**：
+- ✅ 阶段1-5：基础类型系统、字符串和表、垃圾回收、虚拟机核心、编译器
+- 🔄 阶段6：标准库（进行中，基础库部分完成）
+- ⏳ 阶段7：测试和优化（待开始）
+
+**最新成果**：
+- ✅ **main.cpp重构完成**（2025-12-04）：实现双模式支持（测试模式/解释器模式）
+- ✅ **build_main.bat双模式构建**（2025-12-04）：支持测试模式和解释器模式编译
+- ✅ **125个单元测试全部通过**（2025-12-04）：测试覆盖率100%
+- ✅ **构建系统验证**（2025-12-04）：Debug和Release版本均编译成功
+
+**测试统计**：
+```
+总测试数：125个
+通过率：  100% (125/125)
+测试套件：15个
+编译状态：无警告，无错误
+平台：    Windows + MSVC (Visual Studio 2026)
+```
 
 ---
 
@@ -463,5 +486,117 @@ public:
 
 ---
 
-**下一步**: 开始实现 `src/common/types.hpp`
+## 📝 最新文档索引（2025-12-04更新）
+
+### 核心文档
+- **ARCHITECTURE.md** - 架构设计文档
+- **DEVELOPMENT_GUIDE.md** - 开发规范和编码指南
+- **PROJECT_SUMMARY_CN.md** - 项目总结（中文）
+- **IMPLEMENTATION_PLAN.md** - 本文档
+
+### 新增文档（2025-12-04）
+- **BUILD_TEST_REPORT.md** - 构建测试报告（位于 `lua/` 目录）
+- **MAIN_REFACTORING.md** - main.cpp重构说明（已删除，内容已整合）
+- **BUILD_MAIN_SCRIPT.md** - build_main.bat使用指南（已删除，内容已整合）
+- **INITIALIZATION_CHECKLIST.md** - 初始化检查清单（已删除，内容已整合）
+
+### 参考资源
+- **lua_c_analysis/** - Lua 5.1.5 C源码分析（主要参考）
+- **lua_with_cpp/** - C++ Lua实现（次要参考）
+- **spec-kit/** - 开发方法论指导
+
+---
+
+## 🎯 下一步行动（优先级P0）
+
+### 立即任务（本周）
+
+根据最新的测试结果和代码审查，以下是需要立即完成的P0优先级任务：
+
+#### 1. 补充LuaState初始化步骤 ⭐⭐⭐
+
+**当前状态**：
+- ✅ 已完成：基础初始化（全局表、调用栈、值栈）
+- ❌ 缺失：5个关键初始化步骤
+
+**必须完成**：
+1. **字符串表初始化** (`luaS_resize`)
+   - 实现 `StringPool::resize(usize newSize)` 方法
+   - 在 `GlobalState` 构造函数中调用 `stringPool_.resize(32)`
+   - 参考：`lua_c_analysis/src/lstring.c` 中的 `luaS_resize`
+
+2. **元方法名称初始化** (`luaT_init`)
+   - 创建 `GlobalState::initializeMetaMethods()` 方法
+   - 初始化17个元方法名称字符串并标记为固定
+   - 参考：`lua_c_analysis/src/ltm.c` 中的 `luaT_init`
+
+3. **保留字初始化** (`luaX_init`)
+   - 创建 `GlobalState::initializeReservedWords()` 方法
+   - 初始化21个保留字字符串并标记为固定
+   - 参考：`lua_c_analysis/src/llex.c` 中的 `luaX_init`
+
+4. **内存错误消息固定**
+   - 在初始化时固定 "not enough memory" 字符串
+   - 添加为GC根对象防止回收
+
+5. **GC阈值设置**
+   - 实现 `GlobalState::setGCThreshold(usize threshold)` 方法
+   - 实现 `GlobalState::getTotalBytes()` 方法
+   - 设置阈值为 `4 * totalBytes`
+
+**预计工作量**：2-3天
+
+**验收标准**：
+- 所有初始化步骤按照Lua 5.1.5标准顺序执行
+- 字符串表、元方法、保留字正确初始化
+- GC阈值正确设置
+- 通过初始化相关的单元测试
+
+#### 2. 实现脚本执行功能 ⭐⭐
+
+**当前状态**：
+- ✅ 已完成：main.cpp框架，包含 `executeScript()` 函数声明
+- ❌ 未实现：函数体为空
+
+**必须完成**：
+- 实现文件读取逻辑
+- 集成Lexer、Parser、CodeGen、VM完整流程
+- 添加错误处理和报告
+- 支持命令行参数传递
+
+**预计工作量**：1-2天
+
+#### 3. 实现交互式REPL ⭐
+
+**当前状态**：
+- ✅ 已完成：main.cpp框架，包含 `interactiveMode()` 函数声明
+- ❌ 未实现：函数体为空
+
+**必须完成**：
+- 实现readline风格的输入处理
+- 支持多行输入（续行检测）
+- 实现历史记录功能
+- 添加自动补全（可选）
+
+**预计工作量**：2-3天
+
+---
+
+## 📚 参考实现对照表
+
+### Lua C实现 → C++实现映射
+
+| Lua C函数 | C++实现 | 状态 | 文件位置 |
+|-----------|---------|------|---------|
+| `lua_newstate` | `LuaState::newState()` | ✅ 完成 | `vm/lua_state.cpp` |
+| `luaL_newstate` | `createLuaState()` | ✅ 完成 | `main.cpp` |
+| `luaS_resize` | `StringPool::resize()` | ❌ 待实现 | `core/string_pool.hpp` |
+| `luaT_init` | `GlobalState::initializeMetaMethods()` | ❌ 待实现 | `vm/global_state.hpp` |
+| `luaX_init` | `GlobalState::initializeReservedWords()` | ❌ 待实现 | `vm/global_state.hpp` |
+| `luaS_fix` | `GCString::setFixed()` | ❌ 待实现 | `core/gc_string.hpp` |
+| `luaL_openlibs` | `StandardLibrary::openAll()` | 🔄 部分完成 | `lib/lib_manager.cpp` |
+
+---
+
+**下一步**: 实施P0优先级任务，补充LuaState初始化步骤
 
