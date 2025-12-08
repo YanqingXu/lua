@@ -7,7 +7,7 @@
  * 
  * 设计原则：
  * - RAII 自动资源管理
- * - 零拷贝视图（std::string_view）
+ * - 零拷贝视图（StrView）
  * - 移动语义优化
  * - 预留容量避免频繁重分配
  * 
@@ -37,7 +37,7 @@ namespace IO {
  * 
  * 特性：
  * - RAII 自动资源管理
- * - 零拷贝视图（std::string_view）
+ * - 零拷贝视图（StrView）
  * - 移动语义优化
  * - 预留容量避免频繁重分配
  * 
@@ -46,7 +46,7 @@ namespace IO {
  * DynamicBuffer buf;
  * buf.append('h');
  * buf.append("ello");
- * std::string_view view = buf.view();  // "hello"
+ * StrView view = buf.view();  // "hello"
  * Str str = std::move(buf).toString(); // 移动语义
  * @endcode
  */
@@ -92,13 +92,13 @@ public:
      * @brief 追加字符串
      * @param str 要追加的字符串视图
      */
-    void append(std::string_view str);
+    void append(StrView str);
     
     /**
      * @brief 获取内容视图（零拷贝）
      * @return 缓冲区内容的字符串视图
      */
-    std::string_view view() const noexcept;
+    StrView view() const noexcept;
     
     /**
      * @brief 转换为字符串（移动语义）
