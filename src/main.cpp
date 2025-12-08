@@ -68,6 +68,7 @@ extern void registerParserMemoryPoolTests();
 extern void registerDynamicBufferTests();
 extern void registerInputStreamStringTests();
 extern void registerInputStreamStreamTests();
+extern void registerInputStreamFileTests();
 #endif
 
 using namespace Lua;
@@ -219,6 +220,7 @@ int runTests() {
     registerDynamicBufferTests();
     registerInputStreamStringTests();
     registerInputStreamStreamTests();
+    registerInputStreamFileTests();
 
     std::cout << "[INFO] All tests registered." << std::endl;
     std::cout << "[INFO] Starting test execution...\n" << std::endl;

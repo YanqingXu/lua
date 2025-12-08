@@ -135,5 +135,10 @@ void registerInputStreamStringTests();
  */
 void registerInputStreamStreamTests();
 
+/**
+ * @brief 注册InputStream文件模式测试
+ */
+void registerInputStreamFileTests();
+
 #endif // LUA_TEST_REGISTRY_HPP
 

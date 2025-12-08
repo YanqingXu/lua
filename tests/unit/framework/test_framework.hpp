@@ -185,20 +185,20 @@ private:
 // 测试断言宏
 #define ASSERT_TRUE(suite, condition, testName) \
     do { \
-        bool result = (condition); \
-        suite.addResult(LuaTest::TestResult(testName, result, result ? "" : "Expected true")); \
+        bool bool_result = (condition); \
+        suite.addResult(LuaTest::TestResult(testName, bool_result, bool_result ? "" : "Expected true")); \
     } while(0)
 
 #define ASSERT_FALSE(suite, condition, testName) \
     do { \
-        bool result = !(condition); \
-        suite.addResult(LuaTest::TestResult(testName, result, result ? "" : "Expected false")); \
+        bool bool_result = !(condition); \
+        suite.addResult(LuaTest::TestResult(testName, bool_result, bool_result ? "" : "Expected false")); \
     } while(0)
 
 #define ASSERT_EQ(suite, expected, actual, testName) \
     do { \
-        bool result = ((expected) == (actual)); \
-        suite.addResult(LuaTest::TestResult(testName, result, result ? "" : "Values not equal")); \
+        bool bool_result = ((expected) == (actual)); \
+        suite.addResult(LuaTest::TestResult(testName, bool_result, bool_result ? "" : "Values not equal")); \
     } while(0)
 
 } // namespace LuaTest

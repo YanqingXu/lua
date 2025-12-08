@@ -317,6 +317,13 @@ if "%BUILD_MODE%"=="test" (
         echo [ERROR] Compilation of test_input_stream_stream.cpp failed
         exit /b %errorlevel%
     )
+
+    echo [INFO] Compiling test_input_stream_file...
+    cl %CXX_FLAGS% /Isrc /Itests\unit\framework /c /Fo"%OUTPUT_DIR%\test_input_stream_file.obj" "tests\unit\io\test_input_stream_file.cpp"
+    if %errorlevel% neq 0 (
+        echo [ERROR] Compilation of test_input_stream_file.cpp failed
+        exit /b %errorlevel%
+    )
 )
 
 echo.
@@ -368,6 +375,7 @@ if "%BUILD_MODE%"=="test" (
         "%OUTPUT_DIR%\test_dynamic_buffer.obj" ^
         "%OUTPUT_DIR%\test_input_stream_string.obj" ^
         "%OUTPUT_DIR%\test_input_stream_stream.obj" ^
+        "%OUTPUT_DIR%\test_input_stream_file.obj" ^
         "%OUTPUT_DIR%\value.obj" ^
         "%OUTPUT_DIR%\gc_object.obj" ^
         "%OUTPUT_DIR%\gc_string.obj" ^
