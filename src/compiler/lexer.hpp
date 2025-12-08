@@ -22,6 +22,7 @@
 
 #include "token.hpp"
 #include "common/types.hpp"
+#include "io/input_stream.hpp"
 #include <optional>
 
 namespace Lua {
@@ -42,10 +43,20 @@ namespace Lua {
 class Lexer {
 public:
     /**
-     * @brief 构造函数
+     * @brief 从字符串构造 Lexer（向后兼容）
      * @param source 源代码字符串
+     *
+     * 内部会创建 StringInputStream，保持向后兼容性。
      */
     explicit Lexer(const Str& source);
+
+    /**
+     * @brief 从 InputStream 构造 Lexer
+     * @param input 输入流引用
+     *
+     * 注意：input 必须在 Lexer 生命周期内保持有效。
+     */
+    explicit Lexer(IO::InputStream& input);
     
     /**
      * @brief 获取下一个Token
@@ -185,14 +196,45 @@ private:
     Token scanToken();
 
 private:
-    Str source_;        ///< 源代码字符串
-    usize current_;     ///< 当前字符位置
-    usize start_;       ///< 当前Token起始位置
-    i32 line_;          ///< 当前行号
-    i32 column_;        ///< 当前列号
-    
-    // Token预读机制（支持LL(1)语法分析）
-    std::optional<Token> lookahead_;  ///< 预读Token缓存
+    // =====================================================================
+    // 输入流管理
+    // =====================================================================
+
+    // 当从字符串构造 Lexer 时，保存一份源代码副本，
+    // 以保证 InputStream 持有的 std::string_view 在整个 Lexer 生命周期内始终有效。
+    // 注意：此成员不会再用于基于下标的字符访问，仅用于管理生命周期。
+    Str sourceStorage_;
+
+    IO::InputStream* input_;           ///< 输入流指针（非拥有，用于引用构造）
+    UPtr<IO::InputStream> ownedInput_; ///< 拥有的输入流（用于字符串构造）
+
+    // =====================================================================
+    // 字符缓存（用于实现 peek 和 peekNext）
+    // =====================================================================
+
+    i32 currentChar_;    ///< 当前字符缓存（-1 表示 EOF）
+    i32 nextChar_;       ///< 下一个字符缓存（用于 peekNext）
+    bool hasNextChar_;   ///< nextChar_ 是否已加载
+
+    // =====================================================================
+    // Lexeme 累积缓冲区
+    // =====================================================================
+
+    Str lexemeBuffer_;   ///< 累积当前 token 的字符
+
+    // =====================================================================
+    // 位置跟踪
+    // =====================================================================
+
+    usize start_;        ///< 当前 Token 起始位置（用于错误报告）
+    i32 line_;           ///< 当前行号（Lexer 自行维护）
+    i32 column_;         ///< 当前列号（Lexer 自行维护）
+
+    // =====================================================================
+    // Token 预读机制（支持 LL(1) 语法分析）
+    // =====================================================================
+
+    std::optional<Token> lookahead_;  ///< 预读 Token 缓存
 };
 
 } // namespace Lua

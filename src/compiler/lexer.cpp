@@ -95,13 +95,47 @@ const char* tokenTypeToString(TokenType type) {
 // =====================================================================
 
 Lexer::Lexer(const Str& source)
-    : source_(source)
-    , current_(0)
+    : sourceStorage_(source)
+    , input_(nullptr)
+    , ownedInput_(makeUnique<IO::InputStream>(sourceStorage_))
+    , currentChar_(-1)
+    , nextChar_(-1)
+    , hasNextChar_(false)
+    , lexemeBuffer_()
     , start_(0)
     , line_(1)
     , column_(1)
-    , lookahead_(std::nullopt)  // 初始化预读Token为空
+    , lookahead_(std::nullopt)
 {
+    // 使用拥有的 InputStream（基于内部保存的 sourceStorage_）
+    input_ = ownedInput_.get();
+
+    // 预填充字符缓存
+    currentChar_ = input_->getChar();
+    if (currentChar_ != -1) {
+        nextChar_ = input_->getChar();
+        hasNextChar_ = true;
+    }
+}
+
+Lexer::Lexer(IO::InputStream& input)
+    : input_(&input)
+    , ownedInput_(nullptr)
+    , currentChar_(-1)
+    , nextChar_(-1)
+    , hasNextChar_(false)
+    , lexemeBuffer_()
+    , start_(0)
+    , line_(1)
+    , column_(1)
+    , lookahead_(std::nullopt)
+{
+    // 预填充字符缓存
+    currentChar_ = input_->getChar();
+    if (currentChar_ != -1) {
+        nextChar_ = input_->getChar();
+        hasNextChar_ = true;
+    }
 }
 
 // =====================================================================
@@ -109,31 +143,59 @@ Lexer::Lexer(const Str& source)
 // =====================================================================
 
 bool Lexer::isAtEnd() const noexcept {
-    return current_ >= source_.length();
+    return currentChar_ == -1;
 }
 
 char Lexer::advance() {
-    if (isAtEnd()) return '\0';
-    column_++;
-    return source_[current_++];
+    i32 ch = currentChar_;
+    if (ch == -1) return '\0';
+
+    // 累积到 lexeme 缓冲区
+    lexemeBuffer_ += static_cast<char>(ch);
+
+    // 更新行列号（在前移字符缓存之前）
+    if (ch == '\n') {
+        line_++;
+        column_ = 0;
+    } else {
+        column_++;
+    }
+
+    // 前移字符缓存
+    currentChar_ = nextChar_;
+
+    // 读取新的 nextChar_
+    if (currentChar_ != -1) {
+        nextChar_ = input_->getChar();
+        hasNextChar_ = true;
+    } else {
+        nextChar_ = -1;
+        hasNextChar_ = false;
+    }
+
+    return static_cast<char>(ch);
 }
 
 char Lexer::peek() const noexcept {
-    if (isAtEnd()) return '\0';
-    return source_[current_];
+    return (currentChar_ == -1) ? '\0' : static_cast<char>(currentChar_);
 }
 
 char Lexer::peekNext() const noexcept {
-    if (current_ + 1 >= source_.length()) return '\0';
-    return source_[current_ + 1];
+    // 如果 nextChar_ 已经加载，直接返回
+    if (hasNextChar_) {
+        return (nextChar_ == -1) ? '\0' : static_cast<char>(nextChar_);
+    }
+
+    // 否则返回 '\0'（表示没有下一个字符或未加载）
+    // 注意：在构造函数中我们已经预加载了 nextChar_，所以这种情况很少发生
+    return '\0';
 }
 
 bool Lexer::match(char expected) {
     if (isAtEnd()) return false;
-    if (source_[current_] != expected) return false;
-    
-    current_++;
-    column_++;
+    if (peek() != expected) return false;
+
+    advance();
     return true;
 }
 
@@ -142,25 +204,15 @@ bool Lexer::match(char expected) {
 // =====================================================================
 
 Token Lexer::makeToken(TokenType type) {
-    Str lexeme;
-    
-    // 安全的子串提取
-    if (start_ < source_.length() && current_ > start_ && current_ <= source_.length()) {
-        lexeme = source_.substr(start_, current_ - start_);
-    }
-    
-    Token token(type, lexeme, line_, column_ - static_cast<i32>(current_ - start_));
+    // 使用累积的 lexeme 缓冲区
+    i32 tokenColumn = column_ - static_cast<i32>(lexemeBuffer_.length());
+    Token token(type, lexemeBuffer_, line_, tokenColumn);
     return token;
 }
 
 Token Lexer::errorToken(const Str& message) {
-    Str lexeme;
-    if (start_ < source_.length() && current_ > start_ && current_ <= source_.length()) {
-        lexeme = source_.substr(start_, current_ - start_);
-    }
-    if (lexeme.empty()) {
-        lexeme = message; // 回退到消息，至少提供可读信息
-    }
+    // 使用累积的 lexeme 缓冲区，如果为空则使用错误消息
+    Str lexeme = lexemeBuffer_.empty() ? message : lexemeBuffer_;
     return Token(TokenType::Error, lexeme, line_, column_);
 }
 
@@ -171,17 +223,12 @@ Token Lexer::errorToken(const Str& message) {
 void Lexer::skipWhitespace() {
     while (!isAtEnd()) {
         char c = peek();
-        
+
         switch (c) {
             case ' ':
             case '\r':
             case '\t':
-                advance();
-                break;
-                
             case '\n':
-                line_++;
-                column_ = 0;
                 advance();
                 break;
 
@@ -193,17 +240,12 @@ void Lexer::skipWhitespace() {
 
                     // 检查长注释 --[[ 或 --[=[
                     if (peek() == '[') {
-                        usize savePos = current_;
-                        i32 saveCol = column_;
-
                         i32 level = skipSeparator();
                         if (level >= 0) {
-                            // 长注释
+                            // 长注释（skipSeparator 已经消费了分隔符）
                             skipLongComment(level);
                         } else {
-                            // 不是长注释，回退并作为短注释处理
-                            current_ = savePos;
-                            column_ = saveCol;
+                            // 不是长注释（skipSeparator 已经回退），作为短注释处理
                             skipLineComment();
                         }
                     } else {
@@ -231,10 +273,10 @@ void Lexer::skipLineComment() {
 void Lexer::skipLongComment(i32 level) {
     // 如果起始分隔符后立刻是换行，则跳过（与长字符串行为一致）
     if (peek() == '\n' || peek() == '\r') {
+        char firstNewline = peek();
         advance();
-        line_++;
-        column_ = 0;
-        if ((peek() == '\n' || peek() == '\r') && peek() != source_[current_ - 1]) {
+        // 处理 \r\n 或 \n\r
+        if ((peek() == '\n' || peek() == '\r') && peek() != firstNewline) {
             advance();
         }
     }
@@ -242,23 +284,14 @@ void Lexer::skipLongComment(i32 level) {
     // 跳过长注释内容，直到找到匹配的结束符 ]=*]
     while (!isAtEnd()) {
         if (peek() == ']') {
-            usize savePos = current_;
-            i32 saveCol = column_;
             i32 endLevel = skipSeparator();
             if (endLevel == level) {
-                // 找到匹配的结束符
+                // 找到匹配的结束符（skipSeparator 已经消费了分隔符）
                 return;
             }
-
-            // 不匹配，回退
-            current_ = savePos;
-            column_ = saveCol;
+            // 不匹配（skipSeparator 已经回退），继续查找
         }
 
-        if (peek() == '\n') {
-            line_++;
-            column_ = 0;
-        }
         advance();
     }
 }
@@ -266,7 +299,15 @@ void Lexer::skipLongComment(i32 level) {
 i32 Lexer::skipSeparator() {
     // 跳过 [=*[ 或 ]=*] 形式的分隔符
     // 返回等号的数量，如果不是有效分隔符返回-1
-    // 注意：调用此函数时，current_应该指向第一个'['或']'
+    // 注意：调用此函数时，peek()应该指向第一个'['或']'
+
+    // 保存状态以便回退
+    Str savedLexeme = lexemeBuffer_;
+    i32 savedLine = line_;
+    i32 savedColumn = column_;
+    i32 savedCurrentChar = currentChar_;
+    i32 savedNextChar = nextChar_;
+    bool savedHasNextChar = hasNextChar_;
 
     i32 count = 0;
     char s = peek();
@@ -290,7 +331,14 @@ i32 Lexer::skipSeparator() {
         return count;
     }
 
-    // 不是有效分隔符
+    // 不是有效分隔符，回退状态
+    lexemeBuffer_ = savedLexeme;
+    line_ = savedLine;
+    column_ = savedColumn;
+    currentChar_ = savedCurrentChar;
+    nextChar_ = savedNextChar;
+    hasNextChar_ = savedHasNextChar;
+
     return -1;
 }
 
@@ -304,11 +352,8 @@ Token Lexer::identifier() {
         advance();
     }
 
-    // 获取词素
-    Str lexeme = source_.substr(start_, current_ - start_);
-
-    // 使用哈希表查找关键字（O(1)时间复杂度）
-    auto it = keywords.find(lexeme);
+    // 使用累积的 lexeme 缓冲区查找关键字（O(1)时间复杂度）
+    auto it = keywords.find(lexemeBuffer_);
     TokenType type = (it != keywords.end()) ? it->second : TokenType::Name;
 
     return makeToken(type);
@@ -359,20 +404,19 @@ Token Lexer::number() {
     }
 
     // 转换为数字并校验是否完全消费，若未完全消费则视为 malformed number
-    Str lexeme = source_.substr(start_, current_ - start_);
     Token token = makeToken(TokenType::Number);
 
     char* end = nullptr;
-    const char* cstr = lexeme.c_str();
+    const char* cstr = lexemeBuffer_.c_str();
     f64 value = std::strtod(cstr, &end);
 
-    bool ok = end != nullptr && static_cast<usize>(end - cstr) == lexeme.size();
+    bool ok = end != nullptr && static_cast<usize>(end - cstr) == lexemeBuffer_.size();
     if (!ok) {
         // 尝试使用 locale 小数点再解析一次（Lua 5.1 行为）
         std::lconv* lc = std::localeconv();
         char locPoint = (lc && lc->decimal_point && lc->decimal_point[0] != '\0') ? lc->decimal_point[0] : '.';
         if (locPoint != '.') {
-            Str localized = lexeme;
+            Str localized = lexemeBuffer_;
             for (char& ch : localized) {
                 if (ch == '.') ch = locPoint;
             }
@@ -413,12 +457,11 @@ Token Lexer::hexNumber() {
     }
 
     // 转换为数字
-    Str lexeme = source_.substr(start_, current_ - start_);
     Token token = makeToken(TokenType::Number);
 
     char* end;
-    f64 value = static_cast<f64>(std::strtoll(lexeme.c_str(), &end, 16));
-    if (end == nullptr || static_cast<usize>(end - lexeme.c_str()) != lexeme.size()) {
+    f64 value = static_cast<f64>(std::strtoll(lexemeBuffer_.c_str(), &end, 16));
+    if (end == nullptr || static_cast<usize>(end - lexemeBuffer_.c_str()) != lexemeBuffer_.size()) {
         return errorToken("Malformed hexadecimal number");
     }
     token.value = value;
@@ -512,11 +555,10 @@ Token Lexer::longString(i32 level) {
 
     // 如果长字符串起始分隔符后立刻是换行，则丢弃该换行（Lua 5.1 行为）
     if (peek() == '\n' || peek() == '\r') {
+        char firstNewline = peek();
         advance();
-        line_++;
-        column_ = 0;
         // 处理潜在的 CRLF / LFCR 组合
-        if ((peek() == '\n' || peek() == '\r') && peek() != source_[current_ - 1]) {
+        if ((peek() == '\n' || peek() == '\r') && peek() != firstNewline) {
             advance();
         }
     }
@@ -525,8 +567,14 @@ Token Lexer::longString(i32 level) {
     while (!isAtEnd()) {
         if (peek() == ']') {
             // 检查是否为结束符 ]=*]
-            usize savePos = current_;
-            i32 saveCol = column_;
+            // 保存状态以便回退
+            Str savedLexeme = lexemeBuffer_;
+            i32 savedLine = line_;
+            i32 savedColumn = column_;
+            i32 savedCurrentChar = currentChar_;
+            i32 savedNextChar = nextChar_;
+            bool savedHasNextChar = hasNextChar_;
+
             advance(); // 跳过']'
 
             // 计算等号数量
@@ -546,14 +594,14 @@ Token Lexer::longString(i32 level) {
             }
 
             // 不匹配，回退并添加到结果
-            current_ = savePos;
-            column_ = saveCol;
+            lexemeBuffer_ = savedLexeme;
+            line_ = savedLine;
+            column_ = savedColumn;
+            currentChar_ = savedCurrentChar;
+            nextChar_ = savedNextChar;
+            hasNextChar_ = savedHasNextChar;
             result += advance();
         } else {
-            if (peek() == '\n') {
-                line_++;
-                column_ = 0;
-            }
             result += advance();
         }
     }
@@ -595,7 +643,8 @@ Token Lexer::peekToken() {
 Token Lexer::scanToken() {
     skipWhitespace();
 
-    start_ = current_;
+    // 清空 lexeme 缓冲区，准备扫描新 token
+    lexemeBuffer_.clear();
 
     if (isAtEnd()) {
         return makeToken(TokenType::Eos);
@@ -626,6 +675,14 @@ Token Lexer::scanToken() {
     if (c == '[') {
         // 检查是否为长字符串
         // 计算等号数量
+        // 保存状态以便回退
+        Str savedLexeme = lexemeBuffer_;
+        i32 savedLine = line_;
+        i32 savedColumn = column_;
+        i32 savedCurrentChar = currentChar_;
+        i32 savedNextChar = nextChar_;
+        bool savedHasNextChar = hasNextChar_;
+
         i32 level = 0;
         while (peek() == '=') {
             level++;
@@ -639,10 +696,12 @@ Token Lexer::scanToken() {
         }
 
         // 不是长字符串，回退等号
-        for (i32 i = 0; i < level; ++i) {
-            current_--;
-            column_--;
-        }
+        lexemeBuffer_ = savedLexeme;
+        line_ = savedLine;
+        column_ = savedColumn;
+        currentChar_ = savedCurrentChar;
+        nextChar_ = savedNextChar;
+        hasNextChar_ = savedHasNextChar;
 
         // 返回单字符'['
         return makeToken(static_cast<TokenType>('['));
