@@ -185,10 +185,11 @@ private:
 
     /**
      * @brief 处理函数返回
-     * @param firstResult 第一个返回值的索引
-     * @param nResults 期望的返回值数量
+     * @param funcPos 函数在栈中的位置（返回值的目标位置）
+     * @param wantedResults 期望的返回值数量
+     * @param firstResult 第一个返回值的位置（可选，默认使用旧逻辑）
      */
-    void postcall(i32 firstResult, i32 nResults);
+    void postcall(i32 funcPos, i32 wantedResults, usize firstResult = 0);
 
     // =====================================================================
     // 当前函数上下文

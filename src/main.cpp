@@ -423,6 +423,7 @@ int main(int argc, char** argv) {
             status = executeScript(L.get(), scriptFile);
         } else {
             // 交互模式
+            REPL::initialize(L.get());  // 初始化 REPL 环境（_VERSION, exit 等）
             status = REPL::run(L.get());
         }
 

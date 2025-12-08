@@ -13,9 +13,12 @@
  * - 解析并执行代码
  * - 打印表达式结果
  * - 处理错误并继续运行
+ * - 支持 Ctrl+C 中断信号
+ * - 支持可配置的提示符 (_PROMPT, _PROMPT2)
  *
  * 参考实现：
  * - lua_c_analysis/src/lua.c - dotty(), loadline(), pushline(), incomplete()
+ * - lua_with_cpp/src/repl.cpp - 信号处理、可配置提示符
  *
  * @author Lua C++ Project
  * @date 2025-12-04
@@ -39,11 +42,11 @@ namespace REPL {
 // REPL 常量定义
 // ============================================================================
 
-/// 主提示符（对应 LUA_PROMPT）
-constexpr const char* PROMPT1 = "> ";
+/// 默认主提示符（对应 LUA_PROMPT）
+constexpr const char* DEFAULT_PROMPT1 = "> ";
 
-/// 续行提示符（对应 LUA_PROMPT2）
-constexpr const char* PROMPT2 = ">> ";
+/// 默认续行提示符（对应 LUA_PROMPT2）
+constexpr const char* DEFAULT_PROMPT2 = ">> ";
 
 /// 版本信息
 constexpr const char* VERSION = "Lua 5.1 (C++ Implementation)";
@@ -51,9 +54,25 @@ constexpr const char* VERSION = "Lua 5.1 (C++ Implementation)";
 /// 版权信息
 constexpr const char* COPYRIGHT = "Copyright (c) 2025 Lua C++ Project";
 
+/// Lua 版本字符串（用于 _VERSION 全局变量）
+constexpr const char* LUA_VERSION = "Lua 5.1";
+
 // ============================================================================
 // REPL 公共接口
 // ============================================================================
+
+/**
+ * @brief 初始化 REPL 环境
+ *
+ * 设置 REPL 所需的全局变量和函数：
+ * - _VERSION: Lua 版本信息
+ * - _PROMPT: 主提示符（可由用户修改）
+ * - _PROMPT2: 续行提示符（可由用户修改）
+ * - exit(): 退出 REPL 的函数
+ *
+ * @param L Lua 状态机指针
+ */
+void initialize(LuaState* L);
 
 /**
  * @brief 运行交互式 REPL 模式
@@ -65,6 +84,11 @@ constexpr const char* COPYRIGHT = "Copyright (c) 2025 Lua C++ Project";
  * 4. 解析并执行代码
  * 5. 打印表达式结果
  * 6. 处理错误并继续运行
+ *
+ * 支持的特性：
+ * - Ctrl+C 中断当前输入
+ * - 可配置的提示符（通过 _PROMPT 和 _PROMPT2 全局变量）
+ * - exit() 函数退出
  *
  * 参考官方 Lua 的 dotty() 函数实现。
  *

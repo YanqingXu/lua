@@ -129,48 +129,66 @@ public:
      * @brief 压入nil值
      */
     void pushNil() {
-        stack_.push(Value());
-        top_ = stack_.size();  // 同步 top_
+        pushValue(Value());
     }
 
     /**
      * @brief 压入布尔值
      */
     void pushBoolean(bool b) {
-        stack_.push(Value(b));
-        top_ = stack_.size();  // 同步 top_
+        pushValue(Value(b));
     }
-    
+
     /**
      * @brief 压入数值
      */
     void pushNumber(LuaNumber n) {
-        stack_.push(Value(n));
-        top_ = stack_.size();  // 同步 top_
+        pushValue(Value(n));
     }
 
     /**
      * @brief 压入字符串
      */
     void pushString(GCString* str) {
-        stack_.push(Value(str));
-        top_ = stack_.size();  // 同步 top_
+        pushValue(Value(str));
     }
 
     /**
      * @brief 压入表
      */
     void pushTable(Table* table) {
-        stack_.push(Value(table));
-        top_ = stack_.size();  // 同步 top_
+        pushValue(Value(table));
     }
 
     /**
      * @brief 压入函数
      */
     void pushFunction(Function* func) {
-        stack_.push(Value(func));
-        top_ = stack_.size();  // 同步 top_
+        pushValue(Value(func));
+    }
+
+    /**
+     * @brief 通用压入方法（在 top_ 位置压入值）
+     *
+     * 注意：这个函数在 LuaState::top_ 位置设置值，
+     * 这可能与 Stack::top_ 不同（当使用 setAbsoluteTop 调整栈顶后）。
+     */
+    void pushValue(const Value& v) {
+        // 确保栈有足够容量（不是 size，而是 capacity）
+        // Stack::capacity() 返回底层 Vec 的大小
+        if (top_ >= stack_.capacity()) {
+            stack_.ensureSpace(top_ - stack_.capacity() + 16);
+        }
+
+        // 确保 Stack::size() (即 Stack::top_) 至少等于 LuaState::top_ + 1
+        // 这样我们可以安全地使用 stack_.at(top_)
+        while (stack_.size() <= top_) {
+            stack_.push(Value());  // 用 nil 扩展
+        }
+
+        // 在 LuaState::top_ 位置设置值
+        stack_.at(top_) = v;
+        top_++;
     }
 
     /**

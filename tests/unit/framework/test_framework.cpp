@@ -23,6 +23,7 @@ LuaStdLibTestContext::~LuaStdLibTestContext() {
 void LuaStdLibTestContext::clearStack() const {
     if (state_) {
         state_->getStack().clear();
+        state_->setAbsoluteTop(0);  // 同步 LuaState::top_
     }
 }
 
@@ -52,6 +53,7 @@ int LuaStdLibTestContext::invoke(const char* name, const std::function<void(Lua:
     // 清空栈并只压入参数（不压入函数对象）
     // 这符合 Lua 5.1 C 函数调用约定：参数从索引 1 开始
     state_->getStack().clear();
+    state_->setAbsoluteTop(0);  // 同步 LuaState::top_
 
     if (pushArgs) {
         pushArgs(state_);

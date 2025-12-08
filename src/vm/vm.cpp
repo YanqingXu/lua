@@ -627,10 +627,14 @@ bool VM::precall(i32 funcIndex, i32 nArgs, i32 nResults) {
         L_->setAbsoluteTop(funcPos + 1 + nArgs);
 
         // 调用C函数
-        i32 result = cfunc(L_);
+        i32 nReturnValues = cfunc(L_);
 
         // 处理返回值
-        postcall(static_cast<i32>(funcPos), nResults);
+        // 参考：lua_c_analysis/src/ldo.c:1105
+        // firstResult = L->top - n，即返回值从 top - n 开始
+        usize currentTop = L_->getAbsoluteTop();
+        usize firstResult = currentTop - static_cast<usize>(nReturnValues);
+        postcall(static_cast<i32>(funcPos), nResults, firstResult);
 
         // 弹出CallInfo
         L_->popCallInfo();
@@ -684,60 +688,70 @@ bool VM::precall(i32 funcIndex, i32 nArgs, i32 nResults) {
     }
 }
 
-void VM::postcall(i32 funcPos, i32 wantedResults) {
-    // ⭐ P0修复：参考lua_c_analysis/src/ldo.c:1198
+void VM::postcall(i32 funcPos, i32 wantedResults, usize firstResult) {
+    // ⭐ P0修复：参考lua_c_analysis/src/ldo.c:1198 luaD_poscall
     // 处理函数返回后的返回值复制和栈调整
     Stack& stack = L_->getStack();
     CallInfo& ci = L_->getCurrentCallInfo();
 
-    // 返回值从funcPos开始（函数位置被返回值覆盖）
-    // 计算实际返回值数量（使用 top_ 而不是 stack.size()）
+    // 返回值的目标位置（函数位置）
+    usize res = static_cast<usize>(funcPos);
+
+    // 如果 firstResult 为 0，使用旧逻辑（从 funcPos 开始）
+    // 否则使用新逻辑（从 firstResult 复制到 funcPos）
     usize currentTop = L_->getAbsoluteTop();
-    i32 actualResults = static_cast<i32>(currentTop) - funcPos;
 
-    if (wantedResults >= 0) {
-        // 调用者期望固定数量的返回值
-        if (actualResults < wantedResults) {
-            // 返回值不够，用nil填充
-            while (actualResults < wantedResults) {
-                if (currentTop >= stack.size()) {
-                    stack.push(Value());
-                } else {
-                    stack.at(currentTop) = Value();
+    if (firstResult == 0) {
+        // 旧逻辑：返回值已经在 funcPos 位置
+        i32 actualResults = static_cast<i32>(currentTop) - funcPos;
+
+        if (wantedResults >= 0) {
+            if (actualResults < wantedResults) {
+                while (actualResults < wantedResults) {
+                    if (currentTop >= stack.size()) {
+                        stack.push(Value());
+                    } else {
+                        stack.at(currentTop) = Value();
+                    }
+                    currentTop++;
+                    actualResults++;
                 }
-                currentTop++;
-                actualResults++;
+            } else if (actualResults > wantedResults) {
+                currentTop -= (actualResults - wantedResults);
+                actualResults = wantedResults;
             }
-        } else if (actualResults > wantedResults) {
-            // 返回值太多，丢弃多余的
-            currentTop -= (actualResults - wantedResults);
-            actualResults = wantedResults;
         }
-    }
-    // wantedResults < 0 (MULTRET): 接受所有返回值，不需要调整
+        L_->setAbsoluteTop(funcPos + actualResults);
+    } else {
+        // 新逻辑：将返回值从 firstResult 复制到 funcPos
+        // 参考：lua_c_analysis/src/ldo.c:1217-1220
+        i32 i = wantedResults;
+        usize src = firstResult;
 
-    // 更新栈顶
-    L_->setAbsoluteTop(funcPos + actualResults);
+        // 复制返回值到正确位置
+        while (i != 0 && src < currentTop) {
+            stack[res++] = stack[src++];
+            i--;
+        }
+
+        // 补齐缺失的返回值（设为nil）
+        while (i-- > 0) {
+            stack[res++] = Value();
+        }
+
+        // 调整栈顶
+        L_->setAbsoluteTop(res);
+    }
 
     // ⭐ P0修复：恢复调用者的执行状态
-    // 注意：此时ci已经指向调用者的CallInfo（因为在RETURN中已经popCallInfo）
-    // 恢复currentFunc_和currentProto_
-    // 使用调用者的 CallInfo 中的 func 位置来获取调用者函数
-    // 注意：使用 operator[] 而不是 at()，因为 at() 会检查 Stack::top_
-    // 而 Stack::top_ 可能已经被 executeReturn 修改
     Value& funcVal = stack[ci.func];
     if (funcVal.isFunction()) {
         currentFunc_ = funcVal.asFunction();
         currentProto_ = currentFunc_->getProto();
-    } else {
-        // 如果不是函数，可能是虚拟的主函数（nil）
-        // 在这种情况下，不需要恢复 currentProto_
-        // 因为我们即将退出执行循环
     }
 
     // 恢复 PC（从调用者的 savedpc 恢复）
     if (ci.savedpc != nullptr && currentProto_ != nullptr) {
-        // savedpc 指向 CALL 指令的下一条指令
         const Instruction* codeStart = currentProto_->getCode().data();
         pc_ = static_cast<usize>(ci.savedpc - codeStart);
     }
