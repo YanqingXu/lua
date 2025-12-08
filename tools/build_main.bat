@@ -336,6 +336,11 @@ echo [INFO] Compiling main.cpp...
 echo [INFO] ========================================
 echo.
 
+REM Compile repl.cpp for both modes
+echo [INFO] Compiling repl.cpp...
+cl %CXX_FLAGS% /Isrc /c /Fo"%OUTPUT_DIR%\repl.obj" "src\repl.cpp"
+if %errorlevel% neq 0 exit /b %errorlevel%
+
 if "%BUILD_MODE%"=="test" (
     echo [INFO] Compiling main.cpp with test support...
     cl %CXX_FLAGS% /Isrc /Itests\unit\framework /c /Fo"%OUTPUT_DIR%\main.obj" "src\main.cpp"
@@ -356,6 +361,7 @@ if "%BUILD_MODE%"=="test" (
     echo [INFO] Linking %EXE_NAME% with test support...
     cl %CXX_FLAGS% /Fe"%OUTPUT_DIR%\%EXE_NAME%" ^
         "%OUTPUT_DIR%\main.obj" ^
+        "%OUTPUT_DIR%\repl.obj" ^
         "%OUTPUT_DIR%\test_framework.obj" ^
         "%OUTPUT_DIR%\test_value.obj" ^
         "%OUTPUT_DIR%\test_gc_string.obj" ^
@@ -408,6 +414,7 @@ if "%BUILD_MODE%"=="test" (
     echo [INFO] Linking %EXE_NAME% as standalone interpreter...
     cl %CXX_FLAGS% /Fe"%OUTPUT_DIR%\%EXE_NAME%" ^
         "%OUTPUT_DIR%\main.obj" ^
+        "%OUTPUT_DIR%\repl.obj" ^
         "%OUTPUT_DIR%\value.obj" ^
         "%OUTPUT_DIR%\gc_object.obj" ^
         "%OUTPUT_DIR%\gc_string.obj" ^
