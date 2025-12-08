@@ -35,6 +35,10 @@ InputStream::InputStream(std::istream& stream, usize bufferSize)
     , useStringView_(false)
     , sourceName_("stream") {
     fillBuffer();  // 预填充缓冲区
+    // 如果流是空的（构造时就没有数据），设置 EOF
+    if (bufferSize_ == 0) {
+        eof_ = true;
+    }
 }
 
 // =====================================================================
@@ -48,17 +52,24 @@ i32 InputStream::getChar() {
             eof_ = true;
             return -1;
         }
-        return static_cast<u8>(stringView_[position_++]);
+        i32 ch = static_cast<u8>(stringView_[position_++]);
+        // 检查是否读取完所有数据
+        if (position_ >= stringView_.size()) {
+            eof_ = true;
+        }
+        return ch;
     }
     
     // 流模式
     if (bufferPos_ >= bufferSize_) {
         fillBuffer();
-        if (eof_) {
+        // 如果 fillBuffer() 后仍然没有数据，说明到达 EOF
+        if (bufferSize_ == 0) {
+            eof_ = true;
             return -1;
         }
     }
-    
+
     position_++;
     return static_cast<u8>(buffer_[bufferPos_++]);
 }
@@ -67,6 +78,7 @@ i32 InputStream::peekChar() {
     if (useStringView_) {
         // 字符串视图模式
         if (position_ >= stringView_.size()) {
+            eof_ = true;
             return -1;
         }
         return static_cast<u8>(stringView_[position_]);
@@ -75,11 +87,13 @@ i32 InputStream::peekChar() {
     // 流模式
     if (bufferPos_ >= bufferSize_) {
         fillBuffer();
-        if (eof_) {
+        // 如果 fillBuffer() 后仍然没有数据，说明到达 EOF
+        if (bufferSize_ == 0) {
+            eof_ = true;
             return -1;
         }
     }
-    
+
     return static_cast<u8>(buffer_[bufferPos_]);
 }
 
@@ -103,24 +117,27 @@ usize InputStream::read(void* buffer, usize size) {
     // 流模式的批量读取
     usize totalRead = 0;
     char* dest = static_cast<char*>(buffer);
-    
-    while (totalRead < size && !eof_) {
+
+    while (totalRead < size) {
         if (bufferPos_ >= bufferSize_) {
             fillBuffer();
-            if (eof_) {
+            // 如果 fillBuffer() 后没有数据，说明流已经结束
+            if (bufferSize_ == 0) {
+                // 流已经结束，设置 EOF 标志
+                eof_ = true;
                 break;
             }
         }
-        
+
         usize available = bufferSize_ - bufferPos_;
         usize toRead = std::min(size - totalRead, available);
-        
+
         std::memcpy(dest + totalRead, buffer_.data() + bufferPos_, toRead);
         bufferPos_ += toRead;
         totalRead += toRead;
         position_ += toRead;
     }
-    
+
     return totalRead;
 }
 
@@ -149,8 +166,7 @@ void InputStream::setSourceName(const Str& name) {
 // =====================================================================
 
 void InputStream::fillBuffer() {
-    if (!stream_ || stream_->eof()) {
-        eof_ = true;
+    if (!stream_) {
         bufferSize_ = 0;
         return;
     }
@@ -159,9 +175,8 @@ void InputStream::fillBuffer() {
     bufferSize_ = static_cast<usize>(stream_->gcount());
     bufferPos_ = 0;
 
-    if (bufferSize_ == 0) {
-        eof_ = true;
-    }
+    // 注意：不在这里设置 eof_，而是在调用者中根据 bufferSize_ 来判断
+    // 这样可以让调用者决定何时设置 EOF 标志
 }
 
 } // namespace IO

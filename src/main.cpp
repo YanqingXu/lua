@@ -66,6 +66,8 @@ extern void registerParserRecursionTests();
 extern void registerParserErrorRecoveryTests();
 extern void registerParserMemoryPoolTests();
 extern void registerDynamicBufferTests();
+extern void registerInputStreamStringTests();
+extern void registerInputStreamStreamTests();
 #endif
 
 using namespace Lua;
@@ -215,6 +217,8 @@ int runTests() {
     registerParserErrorRecoveryTests();
     registerParserMemoryPoolTests();
     registerDynamicBufferTests();
+    registerInputStreamStringTests();
+    registerInputStreamStreamTests();
 
     std::cout << "[INFO] All tests registered." << std::endl;
     std::cout << "[INFO] Starting test execution...\n" << std::endl;

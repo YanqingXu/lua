@@ -125,5 +125,15 @@ void registerParserMemoryPoolTests();
  */
 void registerDynamicBufferTests();
 
+/**
+ * @brief 注册InputStream类测试
+ */
+void registerInputStreamStringTests();
+
+/**
+ * @brief 注册InputStream流模式测试
+ */
+void registerInputStreamStreamTests();
+
 #endif // LUA_TEST_REGISTRY_HPP
 

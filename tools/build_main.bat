@@ -306,6 +306,17 @@ if "%BUILD_MODE%"=="test" (
     echo [INFO] Compiling test_dynamic_buffer...
     cl %CXX_FLAGS% /Isrc /Itests\unit\framework /c /Fo"%OUTPUT_DIR%\test_dynamic_buffer.obj" "tests\unit\io\test_dynamic_buffer.cpp" >nul 2>&1
     if %errorlevel% neq 0 exit /b %errorlevel%
+
+    echo [INFO] Compiling test_input_stream_string...
+    cl %CXX_FLAGS% /Isrc /Itests\unit\framework /c /Fo"%OUTPUT_DIR%\test_input_stream_string.obj" "tests\unit\io\test_input_stream_string.cpp" >nul 2>&1
+    if %errorlevel% neq 0 exit /b %errorlevel%
+
+    echo [INFO] Compiling test_input_stream_stream...
+    cl %CXX_FLAGS% /Isrc /Itests\unit\framework /c /Fo"%OUTPUT_DIR%\test_input_stream_stream.obj" "tests\unit\io\test_input_stream_stream.cpp"
+    if %errorlevel% neq 0 (
+        echo [ERROR] Compilation of test_input_stream_stream.cpp failed
+        exit /b %errorlevel%
+    )
 )
 
 echo.
@@ -355,6 +366,8 @@ if "%BUILD_MODE%"=="test" (
         "%OUTPUT_DIR%\test_parser_error_recovery.obj" ^
         "%OUTPUT_DIR%\test_parser_memory_pool.obj" ^
         "%OUTPUT_DIR%\test_dynamic_buffer.obj" ^
+        "%OUTPUT_DIR%\test_input_stream_string.obj" ^
+        "%OUTPUT_DIR%\test_input_stream_stream.obj" ^
         "%OUTPUT_DIR%\value.obj" ^
         "%OUTPUT_DIR%\gc_object.obj" ^
         "%OUTPUT_DIR%\gc_string.obj" ^
