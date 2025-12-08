@@ -97,7 +97,7 @@ const char* tokenTypeToString(TokenType type) {
 Lexer::Lexer(const Str& source)
     : sourceStorage_(source)
     , input_(nullptr)
-    , ownedInput_(makeUnique<IO::InputStream>(sourceStorage_))
+    , ownedInput_(makeUnique<IO::InputStream>(StrView(sourceStorage_)))
     , currentChar_(-1)
     , nextChar_(-1)
     , hasNextChar_(false)

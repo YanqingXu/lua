@@ -6,6 +6,7 @@
 #include "input_stream.hpp"
 #include <algorithm>
 #include <cstring>
+#include <stdexcept>
 
 namespace Lua {
 namespace IO {
@@ -36,6 +37,33 @@ InputStream::InputStream(std::istream& stream, usize bufferSize)
     , sourceName_("stream") {
     fillBuffer();  // 预填充缓冲区
     // 如果流是空的（构造时就没有数据），设置 EOF
+    if (bufferSize_ == 0) {
+        eof_ = true;
+    }
+}
+
+InputStream::InputStream(FromFile /* tag */, const Str& filePath, usize bufferSize)
+    : stream_(nullptr)
+    , ownedFileStream_(std::ifstream(filePath, std::ios::binary))
+    , buffer_(bufferSize)
+    , bufferPos_(0)
+    , bufferSize_(0)
+    , eof_(false)
+    , position_(0)
+    , useStringView_(false)
+    , sourceName_(filePath) {
+    // 检查文件是否成功打开
+    if (!ownedFileStream_->is_open()) {
+        throw std::runtime_error("Failed to open file: " + filePath);
+    }
+    
+    // 设置 stream_ 指向拥有的文件流
+    stream_ = &(*ownedFileStream_);
+    
+    // 预填充缓冲区
+    fillBuffer();
+    
+    // 如果文件是空的，设置 EOF
     if (bufferSize_ == 0) {
         eof_ = true;
     }
@@ -174,6 +202,11 @@ void InputStream::fillBuffer() {
     stream_->read(buffer_.data(), buffer_.size());
     bufferSize_ = static_cast<usize>(stream_->gcount());
     bufferPos_ = 0;
+
+    // 检查流错误（不包括 EOF）
+    if (stream_->bad()) {
+        throw std::runtime_error("I/O error while reading from stream: " + sourceName_);
+    }
 
     // 注意：不在这里设置 eof_，而是在调用者中根据 bufferSize_ 来判断
     // 这样可以让调用者决定何时设置 EOF 标志
