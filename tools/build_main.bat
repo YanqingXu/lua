@@ -188,6 +188,10 @@ echo [INFO] Compiling CodeGenerator class...
 cl %CXX_FLAGS% /Isrc /c /Fo"%OUTPUT_DIR%\codegen.obj" "src\compiler\codegen.cpp"
 if %errorlevel% neq 0 exit /b %errorlevel%
 
+echo [INFO] Compiling BytecodePrinter class...
+cl %CXX_FLAGS% /Isrc /c /Fo"%OUTPUT_DIR%\bytecode_printer.obj" "src\compiler\bytecode_printer.cpp"
+if %errorlevel% neq 0 exit /b %errorlevel%
+
 echo [INFO] Compiling VM class...
 cl %CXX_FLAGS% /Isrc /c /Fo"%OUTPUT_DIR%\vm.obj" "src\vm\vm.cpp"
 if %errorlevel% neq 0 exit /b %errorlevel%
@@ -422,6 +426,7 @@ if "%BUILD_MODE%"=="test" (
         "%OUTPUT_DIR%\parser.obj" ^
         "%OUTPUT_DIR%\opcode.obj" ^
         "%OUTPUT_DIR%\codegen.obj" ^
+        "%OUTPUT_DIR%\bytecode_printer.obj" ^
         "%OUTPUT_DIR%\vm.obj" ^
         "%OUTPUT_DIR%\lib_registry.obj" ^
         "%OUTPUT_DIR%\lib_manager.obj" ^

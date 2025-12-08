@@ -72,6 +72,10 @@ void VM::execute(Function* func) {
         stack.push(Value());  // nil
     }
 
+    // ⭐ P0修复：设置栈顶
+    ci.top = requiredTop;
+    L_->setAbsoluteTop(requiredTop);
+
     // 更新base指针（必须在栈扩展之后）
     updateBasePointer();
 
@@ -618,6 +622,10 @@ bool VM::precall(i32 funcIndex, i32 nArgs, i32 nResults) {
             stack.push(Value());
         }
 
+        // ⭐ P0修复：设置正确的栈顶位置（参数的末尾）
+        // 参考：lua_c_analysis/src/ldo.c:1020 luaD_precall
+        L_->setAbsoluteTop(funcPos + 1 + nArgs);
+
         // 调用C函数
         i32 result = cfunc(L_);
 
@@ -626,6 +634,15 @@ bool VM::precall(i32 funcIndex, i32 nArgs, i32 nResults) {
 
         // 弹出CallInfo
         L_->popCallInfo();
+
+        // ⭐ P0修复：恢复调用者的 currentFunc_ 和 currentProto_
+        // 在 popCallInfo 之后，getCurrentCallInfo 返回调用者的 CallInfo
+        CallInfo& callerCI = L_->getCurrentCallInfo();
+        Value& callerFuncVal = stack[callerCI.func];
+        if (callerFuncVal.isFunction()) {
+            currentFunc_ = callerFuncVal.asFunction();
+            currentProto_ = currentFunc_->getProto();
+        }
 
         return false;  // C函数
     } else {
@@ -636,7 +653,7 @@ bool VM::precall(i32 funcIndex, i32 nArgs, i32 nResults) {
         i32 actualArgs = nArgs;
         if (nArgs < 0) {
             // nArgs < 0 表示参数到栈顶
-            actualArgs = static_cast<i32>(stack.size()) - static_cast<i32>((funcPos + 1));
+            actualArgs = static_cast<i32>(L_->getAbsoluteTop()) - static_cast<i32>((funcPos + 1));
         }
 
         // 创建新的CallInfo
@@ -660,6 +677,9 @@ bool VM::precall(i32 funcIndex, i32 nArgs, i32 nResults) {
             stack.push(Value());  // 用nil初始化局部变量
         }
 
+        // ⭐ P0修复：设置栈顶为 ci.top
+        L_->setAbsoluteTop(ci.top);
+
         return true;  // Lua函数
     }
 }
@@ -671,44 +691,56 @@ void VM::postcall(i32 funcPos, i32 wantedResults) {
     CallInfo& ci = L_->getCurrentCallInfo();
 
     // 返回值从funcPos开始（函数位置被返回值覆盖）
-    // 计算实际返回值数量
-    i32 actualResults = static_cast<i32>(stack.size()) - funcPos;
+    // 计算实际返回值数量（使用 top_ 而不是 stack.size()）
+    usize currentTop = L_->getAbsoluteTop();
+    i32 actualResults = static_cast<i32>(currentTop) - funcPos;
 
     if (wantedResults >= 0) {
         // 调用者期望固定数量的返回值
         if (actualResults < wantedResults) {
             // 返回值不够，用nil填充
             while (actualResults < wantedResults) {
-                stack.push(Value());
+                if (currentTop >= stack.size()) {
+                    stack.push(Value());
+                } else {
+                    stack.at(currentTop) = Value();
+                }
+                currentTop++;
                 actualResults++;
             }
         } else if (actualResults > wantedResults) {
             // 返回值太多，丢弃多余的
-            while (actualResults > wantedResults) {
-                stack.pop();
-                actualResults--;
-            }
+            currentTop -= (actualResults - wantedResults);
+            actualResults = wantedResults;
         }
-    } else {
-        // wantedResults < 0 (MULTRET): 接受所有返回值
-        // 不需要调整
     }
+    // wantedResults < 0 (MULTRET): 接受所有返回值，不需要调整
+
+    // 更新栈顶
+    L_->setAbsoluteTop(funcPos + actualResults);
 
     // ⭐ P0修复：恢复调用者的执行状态
     // 注意：此时ci已经指向调用者的CallInfo（因为在RETURN中已经popCallInfo）
     // 恢复currentFunc_和currentProto_
-    if (ci.func < stack.size()) {
-        Value& funcVal = stack.at(ci.func);
-        if (funcVal.isFunction()) {
-            currentFunc_ = funcVal.asFunction();
-            currentProto_ = currentFunc_->getProto();
-        }
+    // 使用调用者的 CallInfo 中的 func 位置来获取调用者函数
+    // 注意：使用 operator[] 而不是 at()，因为 at() 会检查 Stack::top_
+    // 而 Stack::top_ 可能已经被 executeReturn 修改
+    Value& funcVal = stack[ci.func];
+    if (funcVal.isFunction()) {
+        currentFunc_ = funcVal.asFunction();
+        currentProto_ = currentFunc_->getProto();
+    } else {
+        // 如果不是函数，可能是虚拟的主函数（nil）
+        // 在这种情况下，不需要恢复 currentProto_
+        // 因为我们即将退出执行循环
     }
 
-    // savedpc会在reentry时从ci.savedpc恢复，这里不需要额外处理
-
-    // 栈顶现在应该在 funcPos + actualResults
-    // 已经通过上面的push/pop调整好了
+    // 恢复 PC（从调用者的 savedpc 恢复）
+    if (ci.savedpc != nullptr && currentProto_ != nullptr) {
+        // savedpc 指向 CALL 指令的下一条指令
+        const Instruction* codeStart = currentProto_->getCode().data();
+        pc_ = static_cast<usize>(ci.savedpc - codeStart);
+    }
 }
 
 // =====================================================================
@@ -733,8 +765,10 @@ void VM::initializeExecutionContext() {
     Stack& stack = L_->getStack();
 
     // ⭐ P0修复：从CallInfo恢复currentFunc_
-    if (ci.func < stack.size()) {
-        Value& funcVal = stack.at(ci.func);
+    // 注意：使用 operator[] 而不是 at()，因为 at() 会检查 Stack::top_
+    // 而 Stack::top_ 可能与实际的栈容量不同
+    if (ci.func < stack.capacity()) {
+        Value& funcVal = stack[ci.func];
         if (funcVal.isFunction()) {
             currentFunc_ = funcVal.asFunction();
         } else {

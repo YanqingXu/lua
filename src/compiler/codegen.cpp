@@ -594,6 +594,39 @@ void CodeGenerator::statement(const Stmt& s) {
         else if constexpr (std::is_same_v<T, FunctionStmt>) {
             functionStmt(arg);
         }
+        else if constexpr (std::is_same_v<T, CallStmt>) {
+            // ⭐ P0修复：函数调用语句（如 print("Hello")）
+            // 参考 lua_c_analysis/src/lparser.c 中的 exprstat 函数
+            ExprDesc desc;
+            expr(*arg.call, desc);
+
+            // 对于作为语句的函数调用，需要丢弃返回值
+            // 修改CALL指令的C参数为1，表示0个返回值
+            if (desc.kind == ExprKind::Call) {
+                // 找到最后生成的CALL指令并修改其C参数
+                usize lastInst = proto_->getInstructionCount() - 1;
+                Instruction inst = proto_->getInstruction(lastInst);
+                if (GET_OPCODE(inst) == OpCode::CALL) {
+                    // 重新设置C参数为1（表示0个返回值）
+                    i32 a = GETARG_A(inst);
+                    i32 b = GETARG_B(inst);
+                    proto_->setInstruction(lastInst, CREATE_ABC(OpCode::CALL, a, b, 1));
+                }
+                // 释放函数寄存器
+                freeReg(desc.u.s.info);
+            }
+        }
+        else if constexpr (std::is_same_v<T, EmptyStmt>) {
+            // 空语句，不生成代码
+        }
+        else if constexpr (std::is_same_v<T, BreakStmt>) {
+            // break 语句，暂时抛出错误
+            throw std::runtime_error("break statement not yet implemented");
+        }
+        else if constexpr (std::is_same_v<T, RepeatStmt>) {
+            // repeat-until 语句，暂时抛出错误
+            throw std::runtime_error("repeat-until statement not yet implemented");
+        }
         // 其他语句类型暂不支持
     }, s.variant);
 }

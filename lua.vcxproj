@@ -133,6 +133,7 @@
     <ClInclude Include="src\common\macros.hpp" />
     <ClInclude Include="src\common\types.hpp" />
     <ClInclude Include="src\compiler\ast.hpp" />
+    <ClInclude Include="src\compiler\bytecode_printer.hpp" />
     <ClInclude Include="src\compiler\codegen.hpp" />
     <ClInclude Include="src\compiler\lexer.hpp" />
     <ClInclude Include="src\compiler\opcode.hpp" />
@@ -164,6 +165,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\compiler\ast.cpp" />
+    <ClCompile Include="src\compiler\bytecode_printer.cpp" />
     <ClCompile Include="src\compiler\codegen.cpp" />
     <ClCompile Include="src\compiler\lexer.cpp" />
     <ClCompile Include="src\compiler\opcode.cpp" />

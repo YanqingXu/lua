@@ -130,13 +130,15 @@ public:
      */
     void pushNil() {
         stack_.push(Value());
+        top_ = stack_.size();  // 同步 top_
     }
-    
+
     /**
      * @brief 压入布尔值
      */
     void pushBoolean(bool b) {
         stack_.push(Value(b));
+        top_ = stack_.size();  // 同步 top_
     }
     
     /**
@@ -144,34 +146,40 @@ public:
      */
     void pushNumber(LuaNumber n) {
         stack_.push(Value(n));
+        top_ = stack_.size();  // 同步 top_
     }
-    
+
     /**
      * @brief 压入字符串
      */
     void pushString(GCString* str) {
         stack_.push(Value(str));
+        top_ = stack_.size();  // 同步 top_
     }
-    
+
     /**
      * @brief 压入表
      */
     void pushTable(Table* table) {
         stack_.push(Value(table));
+        top_ = stack_.size();  // 同步 top_
     }
-    
+
     /**
      * @brief 压入函数
      */
     void pushFunction(Function* func) {
         stack_.push(Value(func));
+        top_ = stack_.size();  // 同步 top_
     }
-    
+
     /**
      * @brief 弹出栈顶值
      */
     Value pop() {
-        return stack_.pop();
+        Value v = stack_.pop();
+        top_ = stack_.size();  // 同步 top_
+        return v;
     }
 
     /**
@@ -183,16 +191,46 @@ public:
 
     /**
      * @brief 获取栈大小（栈顶索引）
+     *
+     * 返回当前调用帧中的栈元素数量（相对于当前base的栈顶位置）
+     * 参考：lua_c_analysis/src/lapi.c:608 lua_gettop
+     * 返回值 = L->top - L->base
      */
-    i32 getTop() const {
-        return static_cast<i32>(stack_.size());
-    }
+    i32 getTop() const;
 
     /**
      * @brief 设置栈大小
      * @param idx 新的栈顶索引（从1开始）
      */
     void setTop(i32 idx);
+
+    /**
+     * @brief 获取绝对栈顶索引
+     *
+     * 返回栈顶的绝对索引（用于 VM 内部）
+     */
+    usize getAbsoluteTop() const noexcept {
+        return top_;
+    }
+
+    /**
+     * @brief 设置绝对栈顶索引
+     *
+     * 设置栈顶的绝对索引（用于 VM 内部）
+     */
+    void setAbsoluteTop(usize top) noexcept {
+        top_ = top;
+    }
+
+    /**
+     * @brief 增加栈顶
+     */
+    void incrTop() {
+        if (top_ >= stack_.size()) {
+            stack_.push(Value());
+        }
+        top_++;
+    }
 
     /**
      * @brief 压入栈中指定索引的值的副本
@@ -466,19 +504,23 @@ private:
     // =====================================================================
     // 成员变量
     // =====================================================================
-    
+
     /// 全局状态引用
     GlobalState& globalState_;
-    
+
     /// 值栈
     Stack stack_;
-    
+
+    /// 栈顶索引（指向下一个可用位置）
+    /// 参考：lua_c_analysis/src/lstate.h 中的 L->top
+    usize top_;
+
     /// 调用信息栈
     Vec<CallInfo> callStack_;
-    
+
     /// 当前调用信息索引
     usize currentCI_;
-    
+
     /// 全局表
     Table* globalTable_;
 

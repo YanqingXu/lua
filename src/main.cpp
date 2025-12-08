@@ -32,12 +32,19 @@
 #include "vm/global_state.hpp"
 #include "vm/vm.hpp"
 #include "lib/lib_manager.hpp"
+#include "lib/baselib.hpp"
 #include "compiler/parser.hpp"
 #include "compiler/codegen.hpp"
+#include "compiler/bytecode_printer.hpp"
+#include "core/string_pool.hpp"
+#include "core/function.hpp"
+#include "io/input_stream.hpp"
 
 #include <iostream>
 #include <cstring>
 #include <memory>
+#include <sstream>
+#include <fstream>
 
 // 测试框架（可选）
 #ifdef ENABLE_TESTS
@@ -242,15 +249,93 @@ int runTests() {
 // ============================================================================
 
 /**
+ * @brief 读取文件全部内容到字符串
+ * @param filename 文件名
+ * @return 文件内容字符串
+ * @throws std::runtime_error 如果文件打开失败
+ */
+Str readFileContents(const char* filename) {
+    std::ifstream file(filename, std::ios::binary | std::ios::ate);
+    if (!file.is_open()) {
+        throw std::runtime_error(Str("cannot open ") + filename + ": No such file or directory");
+    }
+
+    std::streamsize size = file.tellg();
+    file.seekg(0, std::ios::beg);
+
+    Str content(static_cast<usize>(size), '\0');
+    if (!file.read(&content[0], size)) {
+        throw std::runtime_error(Str("error reading ") + filename);
+    }
+
+    return content;
+}
+
+/**
  * @brief 执行Lua脚本文件
+ *
+ * 执行流程：
+ * 1. 读取文件内容
+ * 2. 解析源码生成AST (Parser)
+ * 3. 生成字节码 (CodeGenerator)
+ * 4. 创建函数对象并注册到GC
+ * 5. 执行字节码 (VM)
+ *
  * @param L Lua状态
  * @param filename 脚本文件名
- * @return 执行状态码
+ * @return 执行状态码（0=成功，非0=失败）
  */
 int executeScript(LuaState* L, const char* filename) {
-    std::cout << "[INFO] Script execution not yet implemented: " << filename << std::endl;
-    std::cout << "[INFO] This feature will be available in future versions." << std::endl;
-    return 0;
+    try {
+        // 步骤1：读取文件内容
+        Str source = readFileContents(filename);
+
+        // 步骤2：解析源码生成AST
+        Parser parser(source);
+        Chunk chunk = parser.parse();
+
+        // 步骤3：生成字节码
+        StringPool& pool = StringPool::getInstance();
+        CodeGenerator codegen(&pool);
+        Proto* proto = codegen.generate(chunk);
+
+        if (!proto) {
+            std::cerr << filename << ": code generation failed" << std::endl;
+            return 1;
+        }
+
+        // 步骤4：创建函数对象并注册到GC
+        Function* func = new Function(proto);
+        L->getGlobalState().getGC().registerObject(func);
+
+        // 设置函数环境为全局表（确保能访问全局函数）
+        func->setEnv(L->getGlobalTable());
+
+        // 步骤5：执行字节码
+        VM vm(L);
+        vm.execute(func);
+
+        // 清理Proto（Function已经复制了必要的数据）
+        delete proto;
+
+        return 0;
+
+    } catch (const ParseError& e) {
+        // 语法错误：显示文件名、行号、列号和错误消息
+        std::cerr << filename << ":" << e.getLine() << ":" << e.getColumn()
+                  << ": " << e.what() << std::endl;
+        return 1;
+
+    } catch (const std::runtime_error& e) {
+        // 运行时错误或文件错误
+        std::cerr << filename << ": " << e.what() << std::endl;
+        return 1;
+
+    } catch (const std::exception& e) {
+        // 其他异常
+        std::cerr << filename << ": unexpected error: " << e.what() << std::endl;
+        return 1;
+    }
 }
 
 /**
@@ -327,15 +412,12 @@ int main(int argc, char** argv) {
 
         // 步骤2-3：创建并初始化Lua状态机
         // 对应C版本的：lua_State *L = lua_open();
-        std::cout << "[INFO] Initializing Lua virtual machine..." << std::endl;
         auto L = createLuaState();
 
         if (!L) {
-            std::cerr << "[ERROR] Cannot create Lua state: not enough memory" << std::endl;
+            std::cerr << "cannot create Lua state: not enough memory" << std::endl;
             return 1;
         }
-
-        std::cout << "[INFO] Lua VM initialized successfully." << std::endl;
 
         // 步骤4-5：执行主程序
         int status = 0;
@@ -355,7 +437,6 @@ int main(int argc, char** argv) {
         }
 
         // 步骤6：清理资源（RAII自动管理）
-        std::cout << "[INFO] Shutting down Lua VM..." << std::endl;
         L.reset();  // 显式释放，对应lua_close(L)
 
         // 步骤7：返回退出码

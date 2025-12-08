@@ -33,6 +33,7 @@ LuaState* LuaState::newState() {
 LuaState::LuaState()
     : globalState_(GlobalState::getInstance())
     , stack_(Stack::INITIAL_STACK_SIZE)
+    , top_(0)
     , callStack_(INITIAL_CI_SIZE)
     , currentCI_(0)
     , globalTable_(nullptr)
@@ -61,7 +62,7 @@ void LuaState::initialize() {
     globalTable_ = new Table();
     globalState_.getGC().registerObject(globalTable_);
     globalState_.getGC().addRoot(globalTable_);
-    
+
     // 初始化第一个调用信息（虚拟的主函数）
     CallInfo& ci = callStack_[0];
     ci.func = 0;
@@ -73,7 +74,8 @@ void LuaState::initialize() {
 
     // 在栈上放置一个nil值作为虚拟函数
     stack_.push(Value());  // nil
-    
+    top_ = 1;  // 栈顶指向下一个可用位置
+
     // 如果这是第一个LuaState，设置为主线程
     if (globalState_.getMainThread() == nullptr) {
         globalState_.setMainThread(this);
@@ -229,22 +231,46 @@ void LuaState::setTop(i32 idx) {
 
 void LuaState::pushValue(i32 idx) {
     stack_.push(at(idx));
+    top_ = stack_.size();  // 同步 top_
+}
+
+i32 LuaState::getTop() const {
+    // 参考：lua_c_analysis/src/lapi.c:608 lua_gettop
+    // 返回值 = L->top - L->base
+    if (currentCI_ > 0) {
+        const CallInfo& ci = callStack_[currentCI_];
+        return static_cast<i32>(top_ - ci.base);
+    }
+    // 没有调用帧时，返回 top_
+    return static_cast<i32>(top_);
 }
 
 Value& LuaState::at(i32 idx) {
+    // 参考：lua_c_analysis/src/lapi.c:164-186 index2adr
+    // 正索引从当前调用帧的 base 开始（1-based）
+    // 负索引从栈顶倒数
+
+    usize base = 0;
+
+    // 如果有活动的调用帧，使用其 base
+    if (currentCI_ > 0) {
+        base = callStack_[currentCI_].base;
+    }
+
     if (idx > 0) {
-        // 正索引：从栈底开始（1-based）
-        if (idx > static_cast<i32>(stack_.size())) {
-            throw std::out_of_range("stack index out of range");
+        // 正索引：从当前 base 开始（1-based）
+        usize absIdx = base + static_cast<usize>(idx - 1);
+        if (absIdx >= top_) {
+            throw std::out_of_range("Stack index out of range");
         }
-        return stack_.at(static_cast<usize>(idx - 1));
+        return stack_.at(absIdx);
     } else if (idx < 0) {
         // 负索引：从栈顶倒数
-        i32 absIdx = static_cast<i32>(stack_.size()) + idx;
-        if (absIdx < 0) {
-            throw std::out_of_range("stack index out of range");
+        i32 offset = static_cast<i32>(top_) + idx;
+        if (offset < static_cast<i32>(base)) {
+            throw std::out_of_range("Stack index out of range");
         }
-        return stack_.at(static_cast<usize>(absIdx));
+        return stack_.at(static_cast<usize>(offset));
     } else {
         throw std::invalid_argument("stack index cannot be 0");
     }
