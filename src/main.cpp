@@ -301,7 +301,7 @@ int executeScript(LuaState* L, const char* filename) {
         Proto* proto = codegen.generate(chunk);
 
         if (!proto) {
-            std::cerr << filename << ": code generation failed" << std::endl;
+            REPL::reportError((Str(filename) + ": code generation failed").c_str());
             return 1;
         }
 
@@ -322,19 +322,18 @@ int executeScript(LuaState* L, const char* filename) {
         return 0;
 
     } catch (const ParseError& e) {
-        // 语法错误：显示文件名、行号、列号和错误消息
-        std::cerr << filename << ":" << e.getLine() << ":" << e.getColumn()
-                  << ": " << e.what() << std::endl;
+        // 语法错误 - 使用官方 Lua 风格：progname: source:line: message
+        REPL::reportError(filename, e.getLine(), e.what());
         return 1;
 
     } catch (const std::runtime_error& e) {
         // 运行时错误或文件错误
-        std::cerr << filename << ": " << e.what() << std::endl;
+        REPL::reportError(e.what());
         return 1;
 
     } catch (const std::exception& e) {
         // 其他异常
-        std::cerr << filename << ": unexpected error: " << e.what() << std::endl;
+        REPL::reportError(e.what());
         return 1;
     }
 }
@@ -366,6 +365,9 @@ int executeScript(LuaState* L, const char* filename) {
  */
 int main(int argc, char** argv) {
     try {
+        // 设置程序名（用于错误消息），参考官方 Lua 的 progname
+        REPL::setProgName(argv[0]);
+
         // 步骤1：解析命令行参数
         bool enableTestMode = true;  // 默认运行测试
         bool showVersion = false;
@@ -405,7 +407,7 @@ int main(int argc, char** argv) {
         auto L = createLuaState();
 
         if (!L) {
-            std::cerr << "cannot create Lua state: not enough memory" << std::endl;
+            REPL::reportError("cannot create state: not enough memory");
             return 1;
         }
 

@@ -57,9 +57,49 @@ constexpr const char* COPYRIGHT = "Copyright (c) 2025 Lua C++ Project";
 /// Lua 版本字符串（用于 _VERSION 全局变量）
 constexpr const char* LUA_VERSION = "Lua 5.1";
 
+/// 默认程序名（用于错误消息前缀）
+constexpr const char* DEFAULT_PROGNAME = "lua";
+
 // ============================================================================
 // REPL 公共接口
 // ============================================================================
+
+/**
+ * @brief 设置程序名（用于错误消息前缀）
+ *
+ * 参考官方 Lua 的 progname 全局变量。
+ * 错误消息格式：progname: source:line: message
+ *
+ * @param name 程序名（通常为 argv[0]）
+ */
+void setProgName(const char* name);
+
+/**
+ * @brief 获取程序名
+ * @return 程序名字符串
+ */
+const char* getProgName();
+
+/**
+ * @brief 输出错误消息到 stderr
+ *
+ * 参考官方 Lua 的 l_message() 函数。
+ * 格式：progname: message
+ *
+ * @param msg 错误消息
+ */
+void reportError(const char* msg);
+
+/**
+ * @brief 输出带源位置的错误消息
+ *
+ * 格式：progname: source:line: message
+ *
+ * @param source 源文件名或 "stdin"
+ * @param line 行号
+ * @param msg 错误消息
+ */
+void reportError(const char* source, int line, const char* msg);
 
 /**
  * @brief 初始化 REPL 环境

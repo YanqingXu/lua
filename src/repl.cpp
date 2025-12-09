@@ -34,7 +34,7 @@ namespace Lua {
 namespace REPL {
 
 // ============================================================================
-// 全局状态（用于信号处理）
+// 全局状态（用于信号处理和错误报告）
 // ============================================================================
 
 /// 全局 LuaState 指针，用于信号处理器访问
@@ -42,6 +42,47 @@ static LuaState* g_currentState = nullptr;
 
 /// 中断标志，由 SIGINT 信号处理器设置
 static volatile sig_atomic_t g_interrupted = 0;
+
+/// 程序名（用于错误消息前缀），参考官方 Lua 的 progname
+static const char* g_progname = DEFAULT_PROGNAME;
+
+// ============================================================================
+// 错误报告函数（参考 lua_c_analysis/src/lua.c 的 l_message 和 report）
+// ============================================================================
+
+void setProgName(const char* name) {
+    if (name != nullptr && name[0] != '\0') {
+        // 提取基本文件名（去除路径）
+        const char* p = name;
+        const char* lastSep = nullptr;
+        while (*p) {
+            if (*p == '/' || *p == '\\') {
+                lastSep = p;
+            }
+            p++;
+        }
+        g_progname = lastSep ? lastSep + 1 : name;
+    } else {
+        g_progname = DEFAULT_PROGNAME;
+    }
+}
+
+const char* getProgName() {
+    return g_progname;
+}
+
+void reportError(const char* msg) {
+    // 参考官方 Lua 的 l_message() 函数
+    if (g_progname) {
+        std::cerr << g_progname << ": ";
+    }
+    std::cerr << msg << std::endl;
+}
+
+void reportError(const char* source, int line, const char* msg) {
+    // 格式：progname: source:line: message
+    std::cerr << g_progname << ": " << source << ":" << line << ": " << msg << std::endl;
+}
 
 // ============================================================================
 // 内部辅助函数（匿名命名空间）
@@ -224,129 +265,6 @@ Str tryAsExpression(const Str& source, bool& wasExplicitReturn) {
 }
 
 /**
- * @brief 检查输入是否是语句而不是表达式
- *
- * 在 Lua 中，以下是有效的语句：
- * - 赋值语句（x = 10）
- * - 函数调用语句（print("Hello")）
- * - 控制结构（if, while, for, etc.）
- *
- * @param source 源代码
- * @return true 如果是语句（不应打印结果）
- */
-bool isStatementNotExpression(const Str& source) {
-    // 检查是否是赋值语句（包含 =）
-    // 注意：需要排除 ==, ~=, <=, >= 这些比较运算符
-    usize pos = 0;
-    while ((pos = source.find('=', pos)) != Str::npos) {
-        if (pos > 0) {
-            char before = source[pos - 1];
-            if (before == '=' || before == '~' || before == '<' || before == '>') {
-                pos++;
-                continue;
-            }
-        }
-        if (pos + 1 < source.size() && source[pos + 1] == '=') {
-            pos++;
-            continue;
-        }
-        return true;  // 找到了赋值 =
-    }
-
-    // 检查是否以控制结构关键字开头
-    const char* stmtKeywords[] = {
-        "if ", "while ", "for ", "repeat ", "function ", "local ", "do ", "return "
-    };
-    for (const char* kw : stmtKeywords) {
-        if (source.find(kw) == 0) {
-            return true;
-        }
-    }
-
-    // 检查是否是函数调用语句
-    if (!source.empty()) {
-        usize i = 0;
-        while (i < source.size() && (source[i] == ' ' || source[i] == '\t')) {
-            i++;
-        }
-
-        if (i < source.size() && (std::isalpha(source[i]) || source[i] == '_')) {
-            while (i < source.size() && (std::isalnum(source[i]) || source[i] == '_')) {
-                i++;
-            }
-            while (i < source.size() && (source[i] == ' ' || source[i] == '\t')) {
-                i++;
-            }
-
-            if (i < source.size()) {
-                char next = source[i];
-                if (next == '(' || next == '"' || next == '\'' || next == '{' || next == ':') {
-                    return true;
-                }
-                if (next == '.') {
-                    usize j = i + 1;
-                    while (j < source.size() && (std::isalnum(source[j]) || source[j] == '_' || source[j] == '.')) {
-                        j++;
-                    }
-                    while (j < source.size() && (source[j] == ' ' || source[j] == '\t')) {
-                        j++;
-                    }
-                    if (j < source.size() && (source[j] == '(' || source[j] == '"' || source[j] == '\'' || source[j] == '{' || source[j] == ':')) {
-                        return true;
-                    }
-                }
-            }
-        }
-    }
-
-    return false;
-}
-
-/**
- * @brief 尝试将代码作为表达式编译执行
- *
- * 策略（参考官方 Lua REPL）：
- * 1. 如果输入明显是语句（赋值、控制结构等），按语句处理
- * 2. 否则，首先尝试添加 "return" 前缀（作为表达式）
- * 3. 如果失败，尝试按原样编译（可能是函数调用语句）
- *
- * @param source 源代码
- * @param isExpression [out] 是否应该打印结果
- * @return 转换后的源码
- */
-Str wrapAsExpressionIfNeeded(const Str& source, bool& isExpression) {
-    // 如果明显是语句，不尝试作为表达式
-    if (isStatementNotExpression(source)) {
-        isExpression = false;
-        return source;
-    }
-
-    // 首先尝试作为表达式（添加 return 前缀）
-    Str exprSource = "return " + source;
-
-    try {
-        Parser parser(exprSource);
-        parser.parse();  // 如果成功，则是表达式
-        isExpression = true;
-        return exprSource;
-    } catch (const ParseError&) {
-        // 表达式解析失败，尝试作为语句
-    }
-
-    // 尝试作为语句解析
-    try {
-        Parser parser(source);
-        parser.parse();
-        isExpression = false;
-        return source;
-    } catch (const ParseError&) {
-        // 都失败了，按原样处理（会在执行时报错）
-        isExpression = false;
-        return source;
-    }
-}
-
-/**
  * @brief 执行 REPL 输入并打印结果
  *
  * @param L Lua 状态
@@ -428,15 +346,16 @@ int executeREPLInput(LuaState* L, const Str& source, bool isExpression) {
         return 0;
 
     } catch (const ParseError& e) {
-        std::cerr << "stdin:" << e.getLine() << ": " << e.what() << std::endl;
+        // 使用官方 Lua 风格的错误格式：progname: source:line: message
+        reportError("stdin", e.getLine(), e.what());
         return 1;
 
     } catch (const std::runtime_error& e) {
-        std::cerr << e.what() << std::endl;
+        reportError(e.what());
         return 1;
 
     } catch (const std::exception& e) {
-        std::cerr << "error: " << e.what() << std::endl;
+        reportError(e.what());
         return 1;
     }
 }
@@ -559,32 +478,14 @@ int run(LuaState* L) {
         Str sourceToExecute;
 
         try {
-            if (wasExplicitReturn) {
-                // 使用了 "=" 前缀，直接作为表达式处理
-                Parser parser(inputBuffer);
-                parser.parse();
-                sourceToExecute = inputBuffer;
-                isExpression = true;
-                parseSuccess = true;
-            } else {
-                // 首先尝试作为表达式（添加 return）
-                bool tryExpr = false;
-                Str exprSource = wrapAsExpressionIfNeeded(inputBuffer, tryExpr);
-
-                if (tryExpr) {
-                    // 成功作为表达式解析
-                    sourceToExecute = exprSource;
-                    isExpression = true;
-                    parseSuccess = true;
-                } else {
-                    // 尝试作为语句解析
-                    Parser parser(inputBuffer);
-                    parser.parse();
-                    sourceToExecute = inputBuffer;
-                    isExpression = false;
-                    parseSuccess = true;
-                }
-            }
+            // 官方 Lua 5.1.5 行为：
+            // - 只有 "=expr" 语法才会打印表达式结果
+            // - 普通输入直接作为语句处理，不自动包装为表达式
+            Parser parser(inputBuffer);
+            parser.parse();
+            sourceToExecute = inputBuffer;
+            isExpression = wasExplicitReturn;  // 只有使用了 "=" 前缀才打印结果
+            parseSuccess = true;
         } catch (const ParseError& e) {
             // 检查是否是不完整输入
             if (isIncompleteInput(e.what())) {
@@ -593,8 +494,8 @@ int run(LuaState* L) {
                 continue;
             }
 
-            // 真正的语法错误
-            std::cerr << "stdin:" << e.getLine() << ": " << e.what() << std::endl;
+            // 真正的语法错误 - 使用官方 Lua 风格
+            reportError("stdin", e.getLine(), e.what());
             inputBuffer.clear();
             isFirstLine = true;
             continue;

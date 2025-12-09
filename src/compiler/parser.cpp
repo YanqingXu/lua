@@ -50,23 +50,14 @@ void Parser::expect(TokenType type, const Str& message) {
 }
 
 void Parser::error(const Str& message) {
-    // 构造错误消息
-    std::ostringstream oss;
-    oss << "Syntax error at line " << current_.line
-        << ", column " << current_.column << ": " << message;
-
-    // 直接抛出异常（简化版错误处理）
-    throw ParseError(oss.str(), current_.line, current_.column);
+    // 使用简洁的错误消息格式（与官方 Lua 5.1.5 保持一致）
+    // 位置信息由调用者在输出时添加
+    throw ParseError(message, current_.line, current_.column);
 }
 
 void Parser::reportError(const Str& message) {
-    // 构造错误消息
-    std::ostringstream oss;
-    oss << "Syntax error at line " << current_.line
-        << ", column " << current_.column << ": " << message;
-
-    // 添加到错误列表（为将来的错误恢复机制预留）
-    errors_.emplace_back(oss.str(), current_.line, current_.column);
+    // 使用简洁的错误消息（与官方 Lua 5.1.5 保持一致）
+    errors_.emplace_back(message, current_.line, current_.column);
 
     // 设置 panic 模式（为将来的错误恢复机制预留）
     panicMode_ = true;
@@ -554,7 +545,14 @@ StmtPtr Parser::parseExprStmt() {
 
         return makeStmt<AssignStmt>(std::move(assignStmt));
     } else {
-        // 函数调用语句
+        // 只有函数调用才能作为表达式语句
+        // 参考官方 Lua 5.1.5: lparser.c exprstat() 函数
+        // 其他表达式（如 1+2）不是有效的语句
+        if (!std::holds_alternative<CallExpr>(expr->variant)) {
+            // 使用简洁的错误消息（与官方 Lua 5.1.5 保持一致）
+            throw ParseError("syntax error", expr->getLine(), expr->getColumn());
+        }
+
         CallStmt callStmt;
         callStmt.line = expr->getLine();
         callStmt.column = expr->getColumn();
