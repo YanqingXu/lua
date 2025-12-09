@@ -71,17 +71,21 @@ const char* getProgName() {
     return g_progname;
 }
 
-void reportError(const char* msg) {
+void reportError(const char* msg, bool showProgName) {
     // 参考官方 Lua 的 l_message() 函数
-    if (g_progname) {
+    if (showProgName && g_progname) {
         std::cerr << g_progname << ": ";
     }
     std::cerr << msg << std::endl;
 }
 
-void reportError(const char* source, int line, const char* msg) {
-    // 格式：progname: source:line: message
-    std::cerr << g_progname << ": " << source << ":" << line << ": " << msg << std::endl;
+void reportError(const char* source, int line, const char* msg, bool showProgName) {
+    // 格式（脚本模式）：progname: source:line: message
+    // 格式（REPL 模式）：source:line: message
+    if (showProgName && g_progname) {
+        std::cerr << g_progname << ": ";
+    }
+    std::cerr << source << ":" << line << ": " << msg << std::endl;
 }
 
 // ============================================================================
@@ -346,16 +350,19 @@ int executeREPLInput(LuaState* L, const Str& source, bool isExpression) {
         return 0;
 
     } catch (const ParseError& e) {
-        // 使用官方 Lua 风格的错误格式：progname: source:line: message
-        reportError("stdin", e.getLine(), e.what());
+        // REPL 模式：不显示程序名前缀
+        // 格式：stdin:line: message
+        reportError("stdin", e.getLine(), e.what(), false);
         return 1;
 
     } catch (const std::runtime_error& e) {
-        reportError(e.what());
+        // REPL 模式：不显示程序名前缀
+        reportError(e.what(), false);
         return 1;
 
     } catch (const std::exception& e) {
-        reportError(e.what());
+        // REPL 模式：不显示程序名前缀
+        reportError(e.what(), false);
         return 1;
     }
 }
@@ -494,8 +501,9 @@ int run(LuaState* L) {
                 continue;
             }
 
-            // 真正的语法错误 - 使用官方 Lua 风格
-            reportError("stdin", e.getLine(), e.what());
+            // 真正的语法错误 - REPL 模式不显示程序名前缀
+            // 格式：stdin:line: message
+            reportError("stdin", e.getLine(), e.what(), false);
             inputBuffer.clear();
             isFirstLine = true;
             continue;

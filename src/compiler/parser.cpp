@@ -9,6 +9,40 @@
 namespace Lua {
 
 // =====================================================================
+// 辅助函数：生成官方 Lua 风格的错误消息
+// =====================================================================
+
+/**
+ * @brief 获取 Token 的可读字符串表示（用于错误消息）
+ *
+ * 参考官方 Lua 5.1.5 的 txtToken() 函数：
+ * - 对于标识符、字符串、数字：返回实际的词素内容
+ * - 对于 EOF：返回 "<eof>"
+ * - 对于其他 token：返回词素内容
+ */
+static Str getTokenText(const Token& token) {
+    if (token.type == TokenType::Eos) {
+        return "<eof>";
+    }
+    // 对于大多数 token，直接返回其词素
+    if (!token.lexeme.empty()) {
+        return token.lexeme;
+    }
+    // 如果没有词素，返回 token 类型的字符串表示
+    return tokenTypeToString(token.type);
+}
+
+/**
+ * @brief 生成带有 "near 'X'" 后缀的错误消息
+ *
+ * 参考官方 Lua 5.1.5 的 luaX_lexerror() 函数：
+ * 错误消息格式：message near 'token'
+ */
+static Str makeErrorWithNear(const Str& message, const Token& token) {
+    return message + " near '" + getTokenText(token) + "'";
+}
+
+// =====================================================================
 // 构造函数和基本Token管理
 // =====================================================================
 
@@ -50,14 +84,16 @@ void Parser::expect(TokenType type, const Str& message) {
 }
 
 void Parser::error(const Str& message) {
-    // 使用简洁的错误消息格式（与官方 Lua 5.1.5 保持一致）
-    // 位置信息由调用者在输出时添加
-    throw ParseError(message, current_.line, current_.column);
+    // 生成官方 Lua 风格的错误消息：message near 'token'
+    // 参考官方 Lua 5.1.5 的 luaX_syntaxerror() 函数
+    Str fullMessage = makeErrorWithNear(message, current_);
+    throw ParseError(fullMessage, current_.line, current_.column);
 }
 
 void Parser::reportError(const Str& message) {
-    // 使用简洁的错误消息（与官方 Lua 5.1.5 保持一致）
-    errors_.emplace_back(message, current_.line, current_.column);
+    // 生成官方 Lua 风格的错误消息
+    Str fullMessage = makeErrorWithNear(message, current_);
+    errors_.emplace_back(fullMessage, current_.line, current_.column);
 
     // 设置 panic 模式（为将来的错误恢复机制预留）
     panicMode_ = true;
@@ -515,6 +551,10 @@ StmtPtr Parser::parseBreakStmt() {
 }
 
 StmtPtr Parser::parseExprStmt() {
+    // 保存第一个 token，用于错误报告
+    // 参考官方 Lua 5.1.5 的 "unexpected symbol near 'X'" 格式
+    Token firstToken = current_;
+
     // 解析表达式
     ExprPtr expr = parseExpression();
 
@@ -549,8 +589,9 @@ StmtPtr Parser::parseExprStmt() {
         // 参考官方 Lua 5.1.5: lparser.c exprstat() 函数
         // 其他表达式（如 1+2）不是有效的语句
         if (!std::holds_alternative<CallExpr>(expr->variant)) {
-            // 使用简洁的错误消息（与官方 Lua 5.1.5 保持一致）
-            throw ParseError("syntax error", expr->getLine(), expr->getColumn());
+            // 使用官方 Lua 风格的错误消息：unexpected symbol near 'X'
+            Str errorMsg = makeErrorWithNear("unexpected symbol", firstToken);
+            throw ParseError(errorMsg, firstToken.line, firstToken.column);
         }
 
         CallStmt callStmt;
@@ -873,7 +914,8 @@ ExprPtr Parser::parsePrimaryExpr() {
         return parsePostfixExpr(makeExpr<NameExpr>(std::move(nameExpr)));
     }
 
-    error("Unexpected token in expression");
+    // 使用官方 Lua 风格的错误消息
+    error("unexpected symbol");
 	return nullptr;  // 永远不会到达
 }
 

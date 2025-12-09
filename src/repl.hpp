@@ -49,10 +49,10 @@ constexpr const char* DEFAULT_PROMPT1 = "> ";
 constexpr const char* DEFAULT_PROMPT2 = ">> ";
 
 /// 版本信息
-constexpr const char* VERSION = "Lua 5.1 (C++ Implementation)";
+constexpr const char* VERSION = "Lua 5.1.5";
 
 /// 版权信息
-constexpr const char* COPYRIGHT = "Copyright (c) 2025 Lua C++ Project";
+constexpr const char* COPYRIGHT = "Copyright (C) 1994-2012 Lua.org, PUC-Rio";
 
 /// Lua 版本字符串（用于 _VERSION 全局变量）
 constexpr const char* LUA_VERSION = "Lua 5.1";
@@ -87,19 +87,22 @@ const char* getProgName();
  * 格式：progname: message
  *
  * @param msg 错误消息
+ * @param showProgName 是否显示程序名前缀（默认 true）
  */
-void reportError(const char* msg);
+void reportError(const char* msg, bool showProgName = true);
 
 /**
  * @brief 输出带源位置的错误消息
  *
- * 格式：progname: source:line: message
+ * 格式（脚本模式）：progname: source:line: message
+ * 格式（REPL 模式）：source:line: message
  *
  * @param source 源文件名或 "stdin"
  * @param line 行号
  * @param msg 错误消息
+ * @param showProgName 是否显示程序名前缀（默认 true，脚本模式）
  */
-void reportError(const char* source, int line, const char* msg);
+void reportError(const char* source, int line, const char* msg, bool showProgName = true);
 
 /**
  * @brief 初始化 REPL 环境
