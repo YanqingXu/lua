@@ -419,7 +419,12 @@ static void testNullCharacterInStream(TestSuite& suite) {
  * @brief 测试 UTF-8 字节序列
  */
 static void testUtf8BytesInStream(TestSuite& suite) {
-    std::istringstream iss("中");  // UTF-8: 3 字节
+    //std::istringstream iss("中");  // UTF-8: 3 字节
+    //InputStream input(iss);
+
+    const char utf8Bytes[] = { static_cast<char>(0xE4), static_cast<char>(0xB8), static_cast<char>(0xAD) }; 
+    Str s(utf8Bytes, 3); 
+    std::istringstream iss(s); 
     InputStream input(iss);
 
     char buffer[3];
@@ -761,5 +766,6 @@ void registerInputStreamStreamTests() {
     registry.registerTest("InputStream (Stream Mode)", "Complete source read", testCompleteSourceRead);
     registry.registerTest("InputStream (Stream Mode)", "Peek at buffer boundary", testPeekAtBufferBoundary);
 }
+
 
 

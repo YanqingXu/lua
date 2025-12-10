@@ -318,7 +318,9 @@ static void testNullCharacter(TestSuite& suite) {
  * @brief 测试 UTF-8 多字节字符（按字节读取）
  */
 static void testUtf8Bytes(TestSuite& suite) {
-    Str source = "中"; // UTF-8: E4 B8 AD (3 bytes)
+    //Str source = "中"; // UTF-8: E4 B8 AD (3 bytes)
+    const char utf8Bytes[] = { static_cast<char>(0xE4), static_cast<char>(0xB8), static_cast<char>(0xAD) };
+	Str source(utf8Bytes, 3);
     InputStream input(source);
 
     i32 b1 = input.getChar();
