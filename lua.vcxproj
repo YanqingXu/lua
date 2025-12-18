@@ -151,6 +151,7 @@
     <ClInclude Include="src\io\dynamic_buffer.hpp" />
     <ClInclude Include="src\io\input_stream.hpp" />
     <ClInclude Include="src\lib\baselib.hpp" />
+    <ClInclude Include="src\lib\lib_macros.hpp" />
     <ClInclude Include="src\lib\lib_manager.hpp" />
     <ClInclude Include="src\lib\lib_module.hpp" />
     <ClInclude Include="src\lib\lib_registry.hpp" />

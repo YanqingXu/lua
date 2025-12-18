@@ -2,12 +2,16 @@
  * @file baselib.cpp
  * @brief Lua基础库实现
  * 
+ * 使用现代C++流式API进行函数注册（方案二）
+ * 
  * @author Lua C++ Project
  * @date 2025-11-13
+ * @updated 2025-12-18 - 采用流式API改进注册方式
  */
 
 #include "lib/baselib.hpp"
 #include "lib/lib_registry.hpp"
+#include "lib/lib_macros.hpp"
 #include "lib/lib_manager.hpp"
 #include "core/gc_string.hpp"
 #include "core/table.hpp"
@@ -501,7 +505,7 @@ static i32 luaB_ipairs(LuaState* L) {
 }
 
 // =====================================================================
-// 基础库注册入口
+// 基础库注册入口（使用现代C++流式API）
 // =====================================================================
 
 void BaseLibModule::registerFunctions(LuaState* L) {
@@ -509,22 +513,20 @@ void BaseLibModule::registerFunctions(LuaState* L) {
         return;
     }
 
-    static const LibFunctionEntry kGlobalFuncs[] = {
-        {"print", luaB_print},
-        {"type", luaB_type},
-        {"tostring", luaB_tostring},
-        {"tonumber", luaB_tonumber},
-        {"error", luaB_error},
-        {"assert", luaB_assert},
-        {"setmetatable", luaB_setmetatable},
-        {"getmetatable", luaB_getmetatable},
-        {"next", luaB_next},
-        {"pairs", luaB_pairs},
-        {"ipairs", luaB_ipairs},
-        {nullptr, nullptr}
-    };
-
-    LibRegistry::registerGlobalFunctions(L, kGlobalFuncs);
+    // 使用流式API注册所有全局函数
+    FunctionRegistrar(L)
+        .addGlobal("print", luaB_print)
+        .addGlobal("type", luaB_type)
+        .addGlobal("tostring", luaB_tostring)
+        .addGlobal("tonumber", luaB_tonumber)
+        .addGlobal("error", luaB_error)
+        .addGlobal("assert", luaB_assert)
+        .addGlobal("setmetatable", luaB_setmetatable)
+        .addGlobal("getmetatable", luaB_getmetatable)
+        .addGlobal("next", luaB_next)
+        .addGlobal("pairs", luaB_pairs)
+        .addGlobal("ipairs", luaB_ipairs)
+        .commit();
 }
 
 void BaseLibModule::initialize(LuaState* L) {
