@@ -37,6 +37,7 @@ namespace Lua {
 
 // 前向声明
 class Upvalue;
+class Userdata;
 
 /**
  * @brief Lua线程状态枚举
@@ -165,6 +166,13 @@ public:
      */
     void pushFunction(Function* func) {
         pushValue(Value(func));
+    }
+
+    /**
+     * @brief 压入用户数据
+     */
+    void pushUserdata(Userdata* ud) {
+        pushValue(Value(ud));
     }
 
     /**
@@ -330,6 +338,11 @@ public:
      * @brief 检查栈索引处的值是否为布尔值
      */
     bool isBoolean(i32 idx) const;
+
+    /**
+     * @brief 检查栈索引处的值是否为用户数据
+     */
+    bool isUserdata(i32 idx) const;
 
     /**
      * @brief 获取值的类型

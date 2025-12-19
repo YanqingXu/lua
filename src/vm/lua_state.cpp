@@ -356,6 +356,14 @@ bool LuaState::isBoolean(i32 idx) const {
     }
 }
 
+bool LuaState::isUserdata(i32 idx) const {
+    try {
+        return at(idx).isUserdata();
+    } catch (...) {
+        return false;
+    }
+}
+
 i32 LuaState::type(i32 idx) const {
     try {
         const Value& v = at(idx);

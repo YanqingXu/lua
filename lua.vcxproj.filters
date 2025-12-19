@@ -163,6 +163,9 @@
     <ClCompile Include="src\lib\mathlib.cpp">
       <Filter>src\lib</Filter>
     </ClCompile>
+    <ClCompile Include="src\lib\iolib.cpp">
+      <Filter>src\lib</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\compiler\ast.hpp">
@@ -265,6 +268,9 @@
       <Filter>src\io</Filter>
     </ClInclude>
     <ClInclude Include="src\lib\mathlib.hpp">
+      <Filter>src\lib</Filter>
+    </ClInclude>
+    <ClInclude Include="src\lib\iolib.hpp">
       <Filter>src\lib</Filter>
     </ClInclude>
   </ItemGroup>
