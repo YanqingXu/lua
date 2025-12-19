@@ -1,4 +1,14 @@
-﻿#include "lib/lib_registry.hpp"
+﻿/**
+ * @file lib_registry.cpp
+ * @brief Lua函数注册工具实现
+ * 
+ * 提供统一的函数注册实现，支持静态方法和流式接口两种使用方式。
+ * 
+ * @author Lua C++ Project
+ * @date 2025-12-19
+ */
+
+#include "lib/lib_registry.hpp"
 
 #include "core/function.hpp"
 #include "core/gc_string.hpp"
@@ -9,8 +19,11 @@
 
 namespace Lua {
 
-namespace {
-Function* createClosure(LuaState* L, LibCFunction func) {
+// =====================================================================
+// 私有辅助函数
+// =====================================================================
+
+Function* FunctionRegistrar::createClosure(LuaState* L, LibCFunction func) {
     if (!L || !func) {
         return nullptr;
     }
@@ -18,9 +31,12 @@ Function* createClosure(LuaState* L, LibCFunction func) {
     L->getGlobalState().getGC().registerObject(closure);
     return closure;
 }
-}
 
-void LibRegistry::registerGlobalFunction(LuaState* L, const char* name, LibCFunction func) {
+// =====================================================================
+// 静态方法实现：单个函数注册
+// =====================================================================
+
+void FunctionRegistrar::registerGlobal(LuaState* L, const char* name, LibCFunction func) {
     if (!L || !name || !func) {
         return;
     }
@@ -33,18 +49,7 @@ void LibRegistry::registerGlobalFunction(LuaState* L, const char* name, LibCFunc
     L->setGlobal(name, Value(closure));
 }
 
-void LibRegistry::registerGlobalFunctions(LuaState* L, std::span<const LibFunctionEntry> entries) {
-    if (!L) {
-        return;
-    }
-
-    // 现代 C++ 风格：使用基于范围的循环，无需哨兵元素
-    for (const auto& entry : entries) {
-        registerGlobalFunction(L, entry.name, entry.func);
-    }
-}
-
-void LibRegistry::registerTableFunction(LuaState* L, Table* table, const char* name, LibCFunction func) {
+void FunctionRegistrar::registerToTable(LuaState* L, Table* table, const char* name, LibCFunction func) {
     if (!L || !table || !name || !func) {
         return;
     }
@@ -58,18 +63,11 @@ void LibRegistry::registerTableFunction(LuaState* L, Table* table, const char* n
     table->set(Value(key), Value(closure));
 }
 
-void LibRegistry::registerTableFunctions(LuaState* L, Table* table, std::span<const LibFunctionEntry> entries) {
-    if (!L || !table) {
-        return;
-    }
+// =====================================================================
+// 静态方法实现：库表创建
+// =====================================================================
 
-    // 现代 C++ 风格：使用基于范围的循环，无需哨兵元素
-    for (const auto& entry : entries) {
-        registerTableFunction(L, table, entry.name, entry.func);
-    }
-}
-
-Table* LibRegistry::createLibTable(LuaState* L, const char* libName) {
+Table* FunctionRegistrar::createLibTable(LuaState* L, const char* libName) {
     if (!L || !libName) {
         return nullptr;
     }

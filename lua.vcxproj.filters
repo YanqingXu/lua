@@ -261,9 +261,6 @@
     <ClInclude Include="src\io\input_stream.hpp">
       <Filter>src\io</Filter>
     </ClInclude>
-    <ClInclude Include="src\lib\lib_macros.hpp">
-      <Filter>src\lib</Filter>
-    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="src">

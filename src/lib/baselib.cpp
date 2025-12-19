@@ -11,7 +11,6 @@
 
 #include "lib/baselib.hpp"
 #include "lib/lib_registry.hpp"
-#include "lib/lib_macros.hpp"
 #include "lib/lib_manager.hpp"
 #include "core/gc_string.hpp"
 #include "core/table.hpp"
