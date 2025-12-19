@@ -8,9 +8,9 @@
  * - 减少样板代码和重复
  * - 提高类型安全性
  * - 增强可读性和可维护性
- * - 自动管理数组终止符
  * - 支持链式调用
  * - RAII风格资源管理
+ * - 使用 std::span 实现零开销抽象
  * 
  * 使用示例：
  * FunctionRegistrar(L)
@@ -30,16 +30,16 @@
 namespace Lua {
 
     /**
-     * @brief 流式函数注册类（RAII风格）
+     * @brief 流式函数注册类（现代C++风格）
      *
      * 提供现代C++风格的链式API，用于注册Lua C函数。
      *
      * 核心特性：
      * - 链式调用：每个addGlobal返回*this，支持.method().method()模式
-     * - 自动终止符：内部自动管理{nullptr, nullptr}终止符
+     * - 零开销抽象：使用 std::span，无需哨兵元素
      * - RAII风格：commit时统一注册，异常安全
      * - 类型安全：编译器检查函数签名
-     * - 零拷贝：直接使用vector::data()，无额外分配
+     * - const 正确：commit() 为 const 成员函数
      *
      * 使用示例：
      *
@@ -86,30 +86,24 @@ namespace Lua {
         /**
          * @brief 提交所有函数到全局环境
          *
-         * 自动添加终止符并调用LibRegistry注册所有函数。
+         * 使用 std::span 直接传递数组视图，无需修改内部状态。
          * 如果entries_为空，则不执行任何操作。
          */
-        void commit() {
+        void commit() const {
             if (entries_.empty()) return;
-
-            entries_.push_back({ nullptr, nullptr });
-            LibRegistry::registerGlobalFunctions(state_, entries_.data());
-            entries_.pop_back();
+            LibRegistry::registerGlobalFunctions(state_, entries_);
         }
 
         /**
          * @brief 提交所有函数到指定表
          * @param table 目标表对象
          *
-         * 自动添加终止符并调用LibRegistry注册所有函数到表中。
+         * 使用 std::span 直接传递数组视图，无需修改内部状态。
          * 如果entries_为空，则不执行任何操作。
          */
-        void commitToTable(Table* table) {
+        void commitToTable(Table* table) const {
             if (entries_.empty()) return;
-
-            entries_.push_back({ nullptr, nullptr });
-            LibRegistry::registerTableFunctions(state_, table, entries_.data());
-            entries_.pop_back();
+            LibRegistry::registerTableFunctions(state_, table, entries_);
         }
 
     private:

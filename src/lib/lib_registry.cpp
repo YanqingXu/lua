@@ -33,13 +33,14 @@ void LibRegistry::registerGlobalFunction(LuaState* L, const char* name, LibCFunc
     L->setGlobal(name, Value(closure));
 }
 
-void LibRegistry::registerGlobalFunctions(LuaState* L, const LibFunctionEntry* entries) {
-    if (!L || !entries) {
+void LibRegistry::registerGlobalFunctions(LuaState* L, std::span<const LibFunctionEntry> entries) {
+    if (!L) {
         return;
     }
 
-    for (const LibFunctionEntry* entry = entries; entry && entry->name; ++entry) {
-        registerGlobalFunction(L, entry->name, entry->func);
+    // 现代 C++ 风格：使用基于范围的循环，无需哨兵元素
+    for (const auto& entry : entries) {
+        registerGlobalFunction(L, entry.name, entry.func);
     }
 }
 
@@ -57,13 +58,14 @@ void LibRegistry::registerTableFunction(LuaState* L, Table* table, const char* n
     table->set(Value(key), Value(closure));
 }
 
-void LibRegistry::registerTableFunctions(LuaState* L, Table* table, const LibFunctionEntry* entries) {
-    if (!L || !table || !entries) {
+void LibRegistry::registerTableFunctions(LuaState* L, Table* table, std::span<const LibFunctionEntry> entries) {
+    if (!L || !table) {
         return;
     }
 
-    for (const LibFunctionEntry* entry = entries; entry && entry->name; ++entry) {
-        registerTableFunction(L, table, entry->name, entry->func);
+    // 现代 C++ 风格：使用基于范围的循环，无需哨兵元素
+    for (const auto& entry : entries) {
+        registerTableFunction(L, table, entry.name, entry.func);
     }
 }
 
