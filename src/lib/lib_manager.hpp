@@ -10,6 +10,8 @@ public:
 
     static void openBase(LuaState* L);
 
+    static void openMath(LuaState* L);
+
     static void openModule(LuaState* L, LibModule& module);
 };
 

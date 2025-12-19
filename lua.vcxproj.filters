@@ -160,6 +160,9 @@
     <ClCompile Include="tests\unit\io\test_input_stream_string.cpp">
       <Filter>tests\unit\io</Filter>
     </ClCompile>
+    <ClCompile Include="src\lib\mathlib.cpp">
+      <Filter>src\lib</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\compiler\ast.hpp">
@@ -260,6 +263,9 @@
     </ClInclude>
     <ClInclude Include="src\io\input_stream.hpp">
       <Filter>src\io</Filter>
+    </ClInclude>
+    <ClInclude Include="src\lib\mathlib.hpp">
+      <Filter>src\lib</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
