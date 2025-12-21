@@ -140,6 +140,14 @@ private:
     void skipWhitespace();
     
     /**
+     * @brief 跳过注释（包括短注释和长注释）
+     * 
+     * 当检测到 '--' 时调用此函数，自动识别是短注释还是长注释
+     * 并调用相应的处理函数。
+     */
+    void skipComment();
+    
+    /**
      * @brief 跳过单行注释
      */
     void skipLineComment();
@@ -194,6 +202,51 @@ private:
      * 实际执行词法分析的核心函数，被nextToken()和peekToken()调用。
      */
     Token scanToken();
+    
+    /**
+     * @brief 尝试扫描长字符串 [[ 或 [=[
+     * @return 如果是长字符串，返回对应的Token；否则返回std::nullopt
+     * 
+     * 当检测到'['字符时调用，用于判断是长字符串还是单字符标记。
+     */
+    Opt<Token> tryLongString();
+    
+    /**
+     * @brief 处理运算符和分隔符
+     * @param c 当前字符
+     * @return Token对象
+     * 
+     * 处理所有单字符和多字符运算符、分隔符。
+     */
+    Token handleOperator(char c);
+    
+    // =====================================================================
+    // 词法分析器状态保存/恢复（用于回溯）
+    // =====================================================================
+    
+    /**
+     * @brief 词法分析器状态快照
+     * 
+     * 用于在解析失败时回退到之前的状态（如长字符串检测失败）。
+     */
+    struct LexerState {
+        Str lexemeBuffer;
+        i32 line;
+        i32 column;
+        i32 currentChar;
+        i32 nextChar;
+        bool hasNextChar;
+    };
+    
+    /**
+     * @brief 保存当前词法分析器状态
+     */
+    LexerState saveState() const;
+    
+    /**
+     * @brief 恢复之前保存的词法分析器状态
+     */
+    void restoreState(const LexerState& state);
 
 private:
     // =====================================================================

@@ -220,6 +220,27 @@ Token Lexer::errorToken(const Str& message) {
 // 跳过空白和注释
 // =====================================================================
 
+void Lexer::skipComment() {
+    // 此函数假设已经检测到 '--'，需要跳过这两个字符
+    advance(); // 跳过第一个'-'
+    advance(); // 跳过第二个'-'
+
+    // 检查长注释 --[[ 或 --[=[
+    if (peek() == '[') {
+        i32 level = skipSeparator();
+        if (level >= 0) {
+            // 长注释（skipSeparator 已经消费了分隔符）
+            skipLongComment(level);
+        } else {
+            // 不是长注释（skipSeparator 已经回退），作为短注释处理
+            skipLineComment();
+        }
+    } else {
+        // 短注释
+        skipLineComment();
+    }
+}
+
 void Lexer::skipWhitespace() {
     while (!isAtEnd()) {
         char c = peek();
@@ -235,23 +256,7 @@ void Lexer::skipWhitespace() {
             case '-':
                 // 检查是否为注释
                 if (peekNext() == '-') {
-                    advance(); // 跳过第一个'-'
-                    advance(); // 跳过第二个'-'
-
-                    // 检查长注释 --[[ 或 --[=[
-                    if (peek() == '[') {
-                        i32 level = skipSeparator();
-                        if (level >= 0) {
-                            // 长注释（skipSeparator 已经消费了分隔符）
-                            skipLongComment(level);
-                        } else {
-                            // 不是长注释（skipSeparator 已经回退），作为短注释处理
-                            skipLineComment();
-                        }
-                    } else {
-                        // 短注释
-                        skipLineComment();
-                    }
+                    skipComment();
                 } else {
                     return;
                 }
@@ -302,12 +307,7 @@ i32 Lexer::skipSeparator() {
     // 注意：调用此函数时，peek()应该指向第一个'['或']'
 
     // 保存状态以便回退
-    Str savedLexeme = lexemeBuffer_;
-    i32 savedLine = line_;
-    i32 savedColumn = column_;
-    i32 savedCurrentChar = currentChar_;
-    i32 savedNextChar = nextChar_;
-    bool savedHasNextChar = hasNextChar_;
+    LexerState savedState = saveState();
 
     i32 count = 0;
     char s = peek();
@@ -332,12 +332,7 @@ i32 Lexer::skipSeparator() {
     }
 
     // 不是有效分隔符，回退状态
-    lexemeBuffer_ = savedLexeme;
-    line_ = savedLine;
-    column_ = savedColumn;
-    currentChar_ = savedCurrentChar;
-    nextChar_ = savedNextChar;
-    hasNextChar_ = savedHasNextChar;
+    restoreState(savedState);
 
     return -1;
 }
@@ -568,12 +563,7 @@ Token Lexer::longString(i32 level) {
         if (peek() == ']') {
             // 检查是否为结束符 ]=*]
             // 保存状态以便回退
-            Str savedLexeme = lexemeBuffer_;
-            i32 savedLine = line_;
-            i32 savedColumn = column_;
-            i32 savedCurrentChar = currentChar_;
-            i32 savedNextChar = nextChar_;
-            bool savedHasNextChar = hasNextChar_;
+            LexerState savedState = saveState();
 
             advance(); // 跳过']'
 
@@ -594,12 +584,7 @@ Token Lexer::longString(i32 level) {
             }
 
             // 不匹配，回退并添加到结果
-            lexemeBuffer_ = savedLexeme;
-            line_ = savedLine;
-            column_ = savedColumn;
-            currentChar_ = savedCurrentChar;
-            nextChar_ = savedNextChar;
-            hasNextChar_ = savedHasNextChar;
+            restoreState(savedState);
             result += advance();
         } else {
             result += advance();
@@ -607,6 +592,30 @@ Token Lexer::longString(i32 level) {
     }
 
     return errorToken("Unterminated long string");
+}
+
+// =====================================================================
+// 词法分析器状态管理
+// =====================================================================
+
+Lexer::LexerState Lexer::saveState() const {
+    return LexerState{
+        lexemeBuffer_,
+        line_,
+        column_,
+        currentChar_,
+        nextChar_,
+        hasNextChar_
+    };
+}
+
+void Lexer::restoreState(const LexerState& state) {
+    lexemeBuffer_ = state.lexemeBuffer;
+    line_ = state.line;
+    column_ = state.column;
+    currentChar_ = state.currentChar;
+    nextChar_ = state.nextChar;
+    hasNextChar_ = state.hasNextChar;
 }
 
 // =====================================================================
@@ -637,78 +646,42 @@ Token Lexer::peekToken() {
 }
 
 // =====================================================================
-// 主要的Token解析函数（内部使用）
+// 长字符串检测辅助方法
 // =====================================================================
 
-Token Lexer::scanToken() {
-    skipWhitespace();
-
-    // 清空 lexeme 缓冲区，准备扫描新 token
-    lexemeBuffer_.clear();
-
-    if (isAtEnd()) {
-        return makeToken(TokenType::Eos);
+Opt<Token> Lexer::tryLongString() {
+    // 此函数假设当前字符是'['，尝试检测长字符串
+    // 如果检测到长字符串开始符 [=*[，返回长字符串Token
+    // 否则返回 std::nullopt
+    
+    LexerState savedState = saveState();
+    
+    // 计算等号数量
+    i32 level = 0;
+    while (peek() == '=') {
+        level++;
+        advance();
     }
-
-    char c = advance();
-
-    // 标识符或关键字
-    if (std::isalpha(c) || c == '_') {
-        return identifier();
+    
+    // 检查是否为长字符串开始符 [=*[
+    if (peek() == '[') {
+        advance(); // 跳过第二个'['
+        return longString(level);
     }
+    
+    // 不是长字符串，恢复状态
+    restoreState(savedState);
+    return std::nullopt;
+}
 
-    // 数字
-    if (std::isdigit(c)) {
-        // 检查十六进制
-        if (c == '0' && (peek() == 'x' || peek() == 'X')) {
-            return hexNumber();
-        }
-        return number();
-    }
+// =====================================================================
+// 运算符和分隔符处理
+// =====================================================================
 
-    // 字符串
-    if (c == '"' || c == '\'') {
-        return string(c);
-    }
-
-    // 长字符串 [[ 或 [=[
-    if (c == '[') {
-        // 检查是否为长字符串
-        // 计算等号数量
-        // 保存状态以便回退
-        Str savedLexeme = lexemeBuffer_;
-        i32 savedLine = line_;
-        i32 savedColumn = column_;
-        i32 savedCurrentChar = currentChar_;
-        i32 savedNextChar = nextChar_;
-        bool savedHasNextChar = hasNextChar_;
-
-        i32 level = 0;
-        while (peek() == '=') {
-            level++;
-            advance();
-        }
-
-        // 检查是否为长字符串开始符 [=*[
-        if (peek() == '[') {
-            advance(); // 跳过第二个'['
-            return longString(level);
-        }
-
-        // 不是长字符串，回退等号
-        lexemeBuffer_ = savedLexeme;
-        line_ = savedLine;
-        column_ = savedColumn;
-        currentChar_ = savedCurrentChar;
-        nextChar_ = savedNextChar;
-        hasNextChar_ = savedHasNextChar;
-
-        // 返回单字符'['
-        return makeToken(static_cast<TokenType>('['));
-    }
-
-    // 运算符和分隔符
+Token Lexer::handleOperator(char c) {
+    // 处理所有单字符和多字符运算符、分隔符
     switch (c) {
+        // 单字符运算符和分隔符
         case '+': return makeToken(static_cast<TokenType>('+'));
         case '-': return makeToken(static_cast<TokenType>('-'));
         case '*': return makeToken(static_cast<TokenType>('*'));
@@ -723,25 +696,25 @@ Token Lexer::scanToken() {
         case ']': return makeToken(static_cast<TokenType>(']'));
         case ';': return makeToken(static_cast<TokenType>(';'));
         case ',': return makeToken(static_cast<TokenType>(','));
-
+        case ':': return makeToken(static_cast<TokenType>(':'));
+        
+        // 多字符运算符（可能）
         case '=':
             return match('=') ? makeToken(TokenType::Eq) : makeToken(static_cast<TokenType>('='));
-
+        
         case '<':
             return match('=') ? makeToken(TokenType::Le) : makeToken(static_cast<TokenType>('<'));
-
+        
         case '>':
             return match('=') ? makeToken(TokenType::Ge) : makeToken(static_cast<TokenType>('>'));
-
+        
         case '~':
             if (match('=')) {
                 return makeToken(TokenType::Ne);
             }
             return errorToken("Unexpected character '~'");
-
-        case ':':
-            return makeToken(static_cast<TokenType>(':'));
-
+        
+        // 点号：可能是 . 或 .. 或 ... 或数字（.123）
         case '.':
             if (match('.')) {
                 if (match('.')) {
@@ -754,12 +727,60 @@ Token Lexer::scanToken() {
                 return number();
             }
             return makeToken(static_cast<TokenType>('.'));
-
+        
         default:
-            break;
+            // 未识别的字符
+            return errorToken("Unexpected character");
+    }
+}
+
+// =====================================================================
+// 主要的Token解析函数（内部使用）
+// =====================================================================
+
+Token Lexer::scanToken() {
+    skipWhitespace();
+
+    // 清空 lexeme 缓冲区，准备扫描新 token
+    lexemeBuffer_.clear();
+
+    // 检查是否到达文件末尾
+    if (isAtEnd()) {
+        return makeToken(TokenType::Eos);
     }
 
-    return errorToken("Unexpected character");
+    char c = advance();
+
+    // 1. 标识符或关键字：[a-zA-Z_][a-zA-Z0-9_]*
+    if (std::isalpha(c) || c == '_') {
+        return identifier();
+    }
+
+    // 2. 数字：十进制或十六进制（0x 或 0X）
+    if (std::isdigit(c)) {
+        if (c == '0' && (peek() == 'x' || peek() == 'X')) {
+            return hexNumber();
+        }
+        return number();
+    }
+
+    // 3. 字符串：单引号或双引号
+    if (c == '"' || c == '\'') {
+        return string(c);
+    }
+
+    // 4. 长字符串：[[ 或 [=[... 或单字符 '['
+    if (c == '[') {
+        Opt<Token> longStr = tryLongString();
+        if (longStr.has_value()) {
+            return longStr.value();
+        }
+        // 不是长字符串，返回单字符'['
+        return makeToken(static_cast<TokenType>('['));
+    }
+
+    // 5. 运算符和分隔符
+    return handleOperator(c);
 }
 
 } // namespace Lua
