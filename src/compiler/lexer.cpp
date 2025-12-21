@@ -181,13 +181,10 @@ char Lexer::peek() const noexcept {
 }
 
 char Lexer::peekNext() const noexcept {
-    // 如果 nextChar_ 已经加载，直接返回
     if (hasNextChar_) {
         return (nextChar_ == -1) ? '\0' : static_cast<char>(nextChar_);
     }
 
-    // 否则返回 '\0'（表示没有下一个字符或未加载）
-    // 注意：在构造函数中我们已经预加载了 nextChar_，所以这种情况很少发生
     return '\0';
 }
 
@@ -225,18 +222,17 @@ void Lexer::skipComment() {
     advance(); // 跳过第一个'-'
     advance(); // 跳过第二个'-'
 
-    // 检查长注释 --[[ 或 --[=[
-    if (peek() == '[') {
-        i32 level = skipSeparator();
-        if (level >= 0) {
-            // 长注释（skipSeparator 已经消费了分隔符）
-            skipLongComment(level);
-        } else {
-            // 不是长注释（skipSeparator 已经回退），作为短注释处理
-            skipLineComment();
-        }
-    } else {
+    if (peek() != '[') {
         // 短注释
+        skipLineComment();
+        return;
+    }
+
+    // 可能是长注释
+    i32 level = skipSeparator();
+    if (level >= 0) {
+        skipLongComment(level);
+    } else {
         skipLineComment();
     }
 }
@@ -269,7 +265,6 @@ void Lexer::skipWhitespace() {
 }
 
 void Lexer::skipLineComment() {
-    // 跳过直到行尾
     while (peek() != '\n' && !isAtEnd()) {
         advance();
     }
@@ -291,10 +286,8 @@ void Lexer::skipLongComment(i32 level) {
         if (peek() == ']') {
             i32 endLevel = skipSeparator();
             if (endLevel == level) {
-                // 找到匹配的结束符（skipSeparator 已经消费了分隔符）
                 return;
             }
-            // 不匹配（skipSeparator 已经回退），继续查找
         }
 
         advance();
@@ -366,7 +359,7 @@ Token Lexer::number() {
 
     // 小数部分
     if (peek() == '.' && std::isdigit(peekNext())) {
-        advance(); // 跳过'.'
+        advance();
         while (std::isdigit(peek())) {
             advance();
         }
@@ -374,7 +367,7 @@ Token Lexer::number() {
 
     // 指数部分 (e或E)
     if (peek() == 'e' || peek() == 'E') {
-        advance(); // 跳过'e'或'E'
+        advance();
 
         // 可选的符号
         if (peek() == '+' || peek() == '-') {
@@ -454,13 +447,21 @@ Token Lexer::hexNumber() {
     // 转换为数字
     Token token = makeToken(TokenType::Number);
 
-    char* end;
+    char* end = nullptr;
     f64 value = static_cast<f64>(std::strtoll(lexemeBuffer_.c_str(), &end, 16));
-    if (end == nullptr || static_cast<usize>(end - lexemeBuffer_.c_str()) != lexemeBuffer_.size()) {
+
+    if (nullptr == end) {
         return errorToken("Malformed hexadecimal number");
     }
-    token.value = value;
 
+    auto bufferSize = lexemeBuffer_.size();
+    auto lexemeLength = static_cast<usize>(end - lexemeBuffer_.c_str());
+
+    if (lexemeLength != bufferSize) {
+        return errorToken("Malformed hexadecimal number");
+    }
+
+    token.value = value;
     return token;
 }
 
@@ -626,7 +627,7 @@ Token Lexer::nextToken() {
     // 如果有预读Token，先返回预读Token
     if (lookahead_.has_value()) {
         Token token = lookahead_.value();
-        lookahead_ = std::nullopt;  // 清除预读状态
+        lookahead_ = std::nullopt;
         return token;
     }
     
@@ -650,10 +651,6 @@ Token Lexer::peekToken() {
 // =====================================================================
 
 Opt<Token> Lexer::tryLongString() {
-    // 此函数假设当前字符是'['，尝试检测长字符串
-    // 如果检测到长字符串开始符 [=*[，返回长字符串Token
-    // 否则返回 std::nullopt
-    
     LexerState savedState = saveState();
     
     // 计算等号数量
@@ -665,7 +662,7 @@ Opt<Token> Lexer::tryLongString() {
     
     // 检查是否为长字符串开始符 [=*[
     if (peek() == '[') {
-        advance(); // 跳过第二个'['
+        advance();
         return longString(level);
     }
     
