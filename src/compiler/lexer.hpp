@@ -234,7 +234,7 @@ private:
     // Token 预读机制（支持 LL(1) 语法分析）
     // =====================================================================
 
-    std::optional<Token> lookahead_;  ///< 预读 Token 缓存
+    Opt<Token> lookahead_;  ///< 预读 Token 缓存
 };
 
 } // namespace Lua

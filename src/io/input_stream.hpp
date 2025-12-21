@@ -41,7 +41,7 @@ namespace IO {
  * 提供统一的字符流接口，支持多种输入源。
  * 
  * 特性：
- * - 字符串模式：零拷贝，使用 std::string_view
+ * - 字符串模式：零拷贝，使用 StrView
  * - 流模式：批量缓冲，减少系统调用
  * - RAII 资源管理
  * - 类型安全
@@ -73,7 +73,7 @@ public:
      * 注意：使用 std::string_view，不拷贝数据。
      * 调用者必须确保源字符串在 InputStream 使用期间保持有效。
      */
-    explicit InputStream(std::string_view source);
+    explicit InputStream(StrView source);
     
     /**
      * @brief 从 std::istream 创建输入流
@@ -200,8 +200,8 @@ private:
     // =====================================================================
 
     std::istream* stream_;           ///< 流式输入（可选，流模式使用）
-    std::optional<std::ifstream> ownedFileStream_;  ///< 拥有的文件流（用于文件路径构造）
-    std::string_view stringView_;    ///< 字符串输入（零拷贝，字符串模式使用）
+    Opt<std::ifstream> ownedFileStream_;  ///< 拥有的文件流（用于文件路径构造）
+    StrView stringView_;    ///< 字符串输入（零拷贝，字符串模式使用）
 
     // =====================================================================
     // 缓冲区（仅流模式使用）

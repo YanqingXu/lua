@@ -79,7 +79,7 @@ enum class TokenType : i32 {
  * - Str: 字符串字面量或标识符的值
  * - std::monostate: 无值（关键字、运算符等）
  */
-using TokenValue = std::variant<std::monostate, f64, Str>;
+using TokenValue = Var<std::monostate, f64, Str>;
 
 /**
  * @brief Token结构体

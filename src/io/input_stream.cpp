@@ -15,7 +15,7 @@ namespace IO {
 // 构造函数
 // =====================================================================
 
-InputStream::InputStream(std::string_view source)
+InputStream::InputStream(StrView source)
     : stream_(nullptr)
     , stringView_(source)
     , bufferPos_(0)
