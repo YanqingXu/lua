@@ -30,6 +30,7 @@
 #include "core/value.hpp"
 #include "core/table.hpp"
 #include "core/string_pool.hpp"
+#include "core/metatable.hpp"
 #include "gc/garbage_collector.hpp"
 
 namespace Lua {
@@ -161,30 +162,70 @@ public:
      */
     void setMetatable(ValueType type, Table* metatable) noexcept;
 
+    // =====================================================================
+    // 元方法名称管理
+    // =====================================================================
+
+    /**
+     * @brief 获取元方法名称字符串
+     * @param event 元方法类型
+     * @return 元方法名称的GCString指针
+     *
+     * @note 对应C实现的 G(L)->tmname[event]
+     * @see lua_c_analysis/src/ltm.c 第212行
+     */
+    GCString* getMetamethodName(TMS event) const noexcept;
+
 private:
     /**
      * @brief 私有构造函数（单例模式）
      */
     GlobalState();
-    
+
+    /**
+     * @brief 初始化元方法名称
+     *
+     * 创建并固定所有元方法名称字符串，防止GC回收。
+     *
+     * @note 对应C实现的 luaT_init()
+     * @see lua_c_analysis/src/ltm.c 第202-215行
+     */
+    void initMetamethodNames();
+
+    /**
+     * @brief 初始化保留字（关键字）
+     *
+     * 创建并固定所有Lua关键字字符串，防止GC回收。
+     *
+     * @note 对应C实现的 luaX_init()
+     * @see lua_c_analysis/src/llex.c 第309-328行
+     */
+    void initReservedWords();
+
     // =====================================================================
     // 成员变量
     // =====================================================================
-    
+
     /// 字符串池（单例引用）
     StringPool& stringPool_;
-    
+
     /// 垃圾回收器（单例引用）
     GarbageCollector& gc_;
-    
+
     /// 注册表（C代码专用的全局表）
     Table* registry_;
-    
+
     /// 主线程指针
     LuaState* mainThread_;
-    
+
     /// 基础类型的元表数组（索引对应ValueType枚举值）
     Table* metatables_[9];  // 9种基础类型
+
+    /// 元方法名称数组（17个元方法）
+    GCString* tmname_[static_cast<usize>(TMS::TM_N)];
+
+    /// 内存错误消息（固定字符串，防止在内存不足时被GC回收）
+    GCString* memerrmsg_;
 };
 
 } // namespace Lua

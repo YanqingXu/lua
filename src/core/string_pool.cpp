@@ -63,5 +63,24 @@ void StringPool::clear() {
     pool_.clear();
 }
 
+/**
+ * @brief 调整字符串池大小（预分配）
+ *
+ * 预分配哈希表空间，减少后续插入时的重哈希开销。
+ *
+ * 实现说明：
+ * C++的unordered_map::reserve()会预分配足够的桶（buckets）来容纳
+ * 至少newSize个元素而不触发重哈希。这与Lua 5.1.5的luaS_resize()
+ * 功能等价，但实现更简单。
+ *
+ * @param newSize 新的哈希表大小
+ *
+ * @note 对应C实现的 luaS_resize()
+ * @see lua_c_analysis/src/lstring.c 第93-130行
+ */
+void StringPool::resize(usize newSize) {
+    pool_.reserve(newSize);
+}
+
 } // namespace Lua
 

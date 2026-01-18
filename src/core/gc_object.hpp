@@ -217,12 +217,14 @@ namespace GCBits {
     constexpr u8 WHITE1BIT      = 1;    ///< 白色类型1位索引
     constexpr u8 BLACKBIT       = 2;    ///< 黑色位索引
     constexpr u8 FINALIZEDBIT   = 3;    ///< 终结位索引（用户数据）
-    
+    constexpr u8 FIXEDBIT       = 5;    ///< 固定位索引（防止GC回收）
+
     constexpr u8 WHITE0         = (1 << WHITE0BIT);     ///< 白色类型0掩码
     constexpr u8 WHITE1         = (1 << WHITE1BIT);     ///< 白色类型1掩码
     constexpr u8 BLACK          = (1 << BLACKBIT);      ///< 黑色掩码
     constexpr u8 WHITEBITS      = (WHITE0 | WHITE1);    ///< 白色掩码（两种白色）
     constexpr u8 FINALIZED      = (1 << FINALIZEDBIT);  ///< 终结掩码
+    constexpr u8 FIXED          = (1 << FIXEDBIT);      ///< 固定掩码
 }
 
 // =====================================================================

@@ -107,8 +107,13 @@ for %%F in (lexer ast parser opcode codegen) do (
 echo [INFO] Compiling VM...
 cl %CXX_FLAGS% /Isrc /c /Fo"%OUTPUT_DIR%\vm.obj" "src\vm\vm.cpp" >nul 2>&1
 
+echo [INFO] Compiling I/O classes...
+for %%F in (dynamic_buffer input_stream) do (
+    cl %CXX_FLAGS% /Isrc /c /Fo"%OUTPUT_DIR%\%%F.obj" "src\io\%%F.cpp" >nul 2>&1
+)
+
 echo [INFO] Compiling Libraries...
-for %%F in (lib_registry lib_manager baselib) do (
+for %%F in (lib_registry lib_manager baselib mathlib iolib) do (
     cl %CXX_FLAGS% /Isrc /c /Fo"%OUTPUT_DIR%\%%F.obj" "src\lib\%%F.cpp" >nul 2>&1
 )
 
@@ -151,6 +156,13 @@ echo [INFO] Compiling test_vm_core...
 cl %CXX_FLAGS% /Isrc /Itests\unit\framework /c /Fo"%OUTPUT_DIR%\test_vm_core.obj" "tests\unit\vm\test_vm_core.cpp" >nul 2>&1
 if %errorlevel% neq 0 (
     echo [ERROR] Failed to compile test_vm_core
+    exit /b %errorlevel%
+)
+
+echo [INFO] Compiling test_lua_state_init...
+cl %CXX_FLAGS% /Isrc /Itests\unit\framework /c /Fo"%OUTPUT_DIR%\test_lua_state_init.obj" "tests\unit\vm\test_lua_state_init.cpp" >nul 2>&1
+if %errorlevel% neq 0 (
+    echo [ERROR] Failed to compile test_lua_state_init
     exit /b %errorlevel%
 )
 
@@ -205,6 +217,7 @@ cl %CXX_FLAGS% /Fe"%OUTPUT_DIR%\test_runner.exe" ^
     "%OUTPUT_DIR%\test_gc_string.obj" ^
     "%OUTPUT_DIR%\test_table.obj" ^
     "%OUTPUT_DIR%\test_vm_core.obj" ^
+    "%OUTPUT_DIR%\test_lua_state_init.obj" ^
     "%OUTPUT_DIR%\test_function.obj" ^
     "%OUTPUT_DIR%\test_gc.obj" ^
     "%OUTPUT_DIR%\test_binary_unary_expr.obj" ^
@@ -241,9 +254,13 @@ cl %CXX_FLAGS% /Fe"%OUTPUT_DIR%\test_runner.exe" ^
     "%OUTPUT_DIR%\opcode.obj" ^
     "%OUTPUT_DIR%\codegen.obj" ^
     "%OUTPUT_DIR%\vm.obj" ^
+    "%OUTPUT_DIR%\dynamic_buffer.obj" ^
+    "%OUTPUT_DIR%\input_stream.obj" ^
     "%OUTPUT_DIR%\lib_registry.obj" ^
     "%OUTPUT_DIR%\lib_manager.obj" ^
-    "%OUTPUT_DIR%\baselib.obj"
+    "%OUTPUT_DIR%\baselib.obj" ^
+    "%OUTPUT_DIR%\mathlib.obj" ^
+    "%OUTPUT_DIR%\iolib.obj"
 
 if %errorlevel% neq 0 (
     echo [ERROR] Linking failed!

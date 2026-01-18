@@ -99,23 +99,34 @@ usize GarbageCollector::collect() {
 }
 
 void GarbageCollector::mark() {
-    // 1. 重置所有对象为白色
+    // 1. 重置所有对象为白色（但保留FIXED等特殊标志）
     GCObject* obj = allObjects_;
     while (obj != nullptr) {
+        // 保存FIXED标志
+        u8 marked = obj->getMarked();
+        bool isFixed = (marked & GCBits::FIXED) != 0;
+
+        // 设置为白色
         obj->setColor(GCColor::White);
+
+        // 恢复FIXED标志
+        if (isFixed) {
+            obj->setMarked(obj->getMarked() | GCBits::FIXED);
+        }
+
         obj = obj->getNext();
     }
-    
+
     // 2. 清空灰色列表
     grayList_.clear();
-    
+
     // 3. 标记所有根对象为灰色
     for (GCObject* root : roots_) {
         if (root != nullptr) {
             markObject(root);
         }
     }
-    
+
     // 4. 传播标记
     propagateMarks();
 }
@@ -180,19 +191,22 @@ usize GarbageCollector::sweep() {
     usize collected = 0;
     GCObject* prev = nullptr;
     GCObject* obj = allObjects_;
-    
+
     while (obj != nullptr) {
         GCObject* next = obj->getNext();
-        
-        // 如果是白色对象（未标记），则回收
-        if (obj->getColor() == GCColor::White) {
+
+        // 检查是否为固定对象（FIXED标记）
+        bool isFixed = (obj->getMarked() & GCBits::FIXED) != 0;
+
+        // 如果是白色对象（未标记）且不是固定对象，则回收
+        if (obj->getColor() == GCColor::White && !isFixed) {
             // 从链表中移除
             if (prev == nullptr) {
                 allObjects_ = next;
             } else {
                 prev->setNext(next);
             }
-            
+
             // 更新统计信息
             totalMemory_ -= obj->getSize();
             --objectCount_;
@@ -243,19 +257,38 @@ void GarbageCollector::getStatistics(usize& outObjectCount, usize& outRootCount,
 void GarbageCollector::clearAll() {
     // 清空根对象列表
     roots_.clear();
-    
-    // 删除所有对象
+
+    // 删除所有非固定对象
+    GCObject* prev = nullptr;
     GCObject* obj = allObjects_;
     while (obj != nullptr) {
         GCObject* next = obj->getNext();
-        delete obj;
+
+        // 检查是否为固定对象
+        bool isFixed = (obj->getMarked() & GCBits::FIXED) != 0;
+
+        if (!isFixed) {
+            // 非固定对象，删除它
+            if (prev == nullptr) {
+                allObjects_ = next;
+            } else {
+                prev->setNext(next);
+            }
+
+            // 更新统计信息
+            totalMemory_ -= obj->getSize();
+            --objectCount_;
+
+            delete obj;
+        } else {
+            // 固定对象，保留它
+            prev = obj;
+        }
+
         obj = next;
     }
-    
-    // 重置状态
-    allObjects_ = nullptr;
-    objectCount_ = 0;
-    totalMemory_ = 0;
+
+    // 清空灰色列表
     grayList_.clear();
 }
 

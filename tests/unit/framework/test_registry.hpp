@@ -140,5 +140,10 @@ void registerInputStreamStreamTests();
  */
 void registerInputStreamFileTests();
 
+/**
+ * @brief 注册LuaState初始化测试
+ */
+void registerLuaStateInitTests();
+
 #endif // LUA_TEST_REGISTRY_HPP
 

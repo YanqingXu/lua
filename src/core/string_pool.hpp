@@ -161,6 +161,19 @@ public:
         return pool_.empty();
     }
 
+    /**
+     * @brief 调整字符串池大小（预分配）
+     *
+     * 预分配哈希表空间，减少后续插入时的重哈希开销。
+     * 这是Lua 5.1.5初始化过程的一部分。
+     *
+     * @param newSize 新的哈希表大小
+     *
+     * @note 对应C实现的 luaS_resize()
+     * @see lua_c_analysis/src/lstring.c 第93-130行
+     */
+    void resize(usize newSize);
+
 private:
     /**
      * @brief 私有构造函数（单例模式）

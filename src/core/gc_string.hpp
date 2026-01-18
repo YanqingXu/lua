@@ -127,18 +127,45 @@ public:
     
     /**
      * @brief 标记对象引用的其他对象
-     * 
+     *
      * 字符串对象不引用其他GC对象，所以这个方法为空实现。
      */
     void mark() override {
         // 字符串对象不引用其他GC对象
     }
-    
+
     /**
      * @brief 获取对象占用的内存大小
      * @return 对象占用的字节数
      */
     usize getSize() const override;
+
+    // =====================================================================
+    // 固定字符串（防止GC回收）
+    // =====================================================================
+
+    /**
+     * @brief 标记字符串为固定（防止GC回收）
+     *
+     * 固定的字符串永远不会被垃圾回收器回收，主要用于：
+     * - Lua关键字（if, then, else等）
+     * - 元方法名称（__index, __add等）
+     * - 系统常量字符串
+     *
+     * @note 对应C实现的 luaS_fix() 宏
+     * @see lua_c_analysis/src/lstring.h 第296行
+     */
+    void markFixed() noexcept {
+        setMarked(getMarked() | GCBits::FIXED);
+    }
+
+    /**
+     * @brief 检查字符串是否为固定字符串
+     * @return true 如果字符串被标记为固定
+     */
+    bool isFixed() const noexcept {
+        return (getMarked() & GCBits::FIXED) != 0;
+    }
 
     // =====================================================================
     // 比较运算符

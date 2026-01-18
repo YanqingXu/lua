@@ -19,6 +19,7 @@ extern void registerTableTests();
 extern void registerVMCoreTests();
 extern void registerFunctionTests();
 extern void registerGCTests();
+extern void registerLuaStateInitTests();
 extern void registerBinaryUnaryExprTests();
 extern void registerFunctionCodegenTests();
 extern void registerBaselibTests();
@@ -84,6 +85,7 @@ int main() {
     registerVMCoreTests();
     registerFunctionTests();
     registerGCTests();
+    registerLuaStateInitTests();
     registerBinaryUnaryExprTests();
     registerFunctionCodegenTests();
     registerSyntaxSugarTests();
