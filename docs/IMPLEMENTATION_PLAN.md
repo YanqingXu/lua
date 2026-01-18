@@ -590,13 +590,51 @@ public:
 |-----------|---------|------|---------|
 | `lua_newstate` | `LuaState::newState()` | ✅ 完成 | `vm/lua_state.cpp` |
 | `luaL_newstate` | `createLuaState()` | ✅ 完成 | `main.cpp` |
-| `luaS_resize` | `StringPool::resize()` | ❌ 待实现 | `core/string_pool.hpp` |
-| `luaT_init` | `GlobalState::initializeMetaMethods()` | ❌ 待实现 | `vm/global_state.hpp` |
-| `luaX_init` | `GlobalState::initializeReservedWords()` | ❌ 待实现 | `vm/global_state.hpp` |
-| `luaS_fix` | `GCString::setFixed()` | ❌ 待实现 | `core/gc_string.hpp` |
+| `luaS_resize` | `StringPool::resize()` | ✅ 完成 | `core/string_pool.cpp` |
+| `luaT_init` | `GlobalState::initMetamethodNames()` | ✅ 完成 | `vm/global_state.cpp` |
+| `luaX_init` | `GlobalState::initReservedWords()` | ✅ 完成 | `vm/global_state.cpp` |
+| `luaS_fix` | `GCString::markFixed()` | ✅ 完成 | `core/gc_string.hpp` |
 | `luaL_openlibs` | `StandardLibrary::openAll()` | 🔄 部分完成 | `lib/lib_manager.cpp` |
 
 ---
 
-**下一步**: 实施P0优先级任务，补充LuaState初始化步骤
+## 🎉 最新成果（2026-01-18更新）
+
+### ✅ P0任务1：LuaState初始化系统 - 已完成
+
+**完成日期**：2026-01-18
+
+**实现内容**：
+1. ✅ **字符串表初始化**：实现`StringPool::resize(32)`方法
+2. ✅ **元方法名称初始化**：创建并固定17个元方法名称字符串
+3. ✅ **保留字初始化**：创建并固定21个Lua关键字字符串
+4. ✅ **内存错误消息固定**：创建并固定错误消息字符串
+5. ⏸️ **GC阈值设置**：延后实现（当前GC无自动触发机制）
+
+**技术成就**：
+- 实现了Lua 5.1.5兼容的FIXED标志机制
+- 修复了GC系统的两个关键bug：
+  - `GarbageCollector::mark()`：保留FIXED标志不被清除
+  - `GarbageCollector::clearAll()`：跳过固定对象不删除
+- 建立了完整的固定对象保护机制
+- 实现了17个元方法名称和21个保留字的自动管理
+
+**测试覆盖**：
+- 新增20个单元测试，全部通过
+- 测试文件：`tests/unit/vm/test_lua_state_init.cpp`
+- 总测试数：399个（原379个 + 新增20个）
+
+**修改文件**：
+- `src/vm/global_state.hpp/cpp`：添加初始化方法
+- `src/core/string_pool.hpp/cpp`：添加resize()方法
+- `src/core/gc_object.hpp`：添加FIXEDBIT常量
+- `src/core/gc_string.hpp`：添加markFixed()和isFixed()方法
+- `src/gc/garbage_collector.cpp`：修复mark()和clearAll()方法
+- `tests/unit/vm/test_lua_state_init.cpp`：新增测试文件
+
+**整体完成度更新**：**78% → 80%**
+
+---
+
+**下一步**: 实施P0任务2（脚本执行功能）和P0任务3（修复高优先级TODO）
 
