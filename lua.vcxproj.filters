@@ -166,6 +166,9 @@
     <ClCompile Include="src\lib\iolib.cpp">
       <Filter>src\lib</Filter>
     </ClCompile>
+    <ClCompile Include="tests\unit\vm\test_lua_state_init.cpp">
+      <Filter>tests\unit\vm</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\compiler\ast.hpp">

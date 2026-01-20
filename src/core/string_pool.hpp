@@ -91,7 +91,18 @@ public:
     GCString* intern(StrView str);
 
     /**
-     * @brief 驻留字符串 - 从C字符串创建
+     * @brief 驻留字符串 - 从C字符串创建（自动计算长度）
+     * @param str C风格字符串（以null结尾）
+     * @return GCString指针
+     *
+     * @note 这是一个便利方法，会自动计算字符串长度
+     */
+    GCString* intern(const char* str) {
+        return intern(StrView(str));
+    }
+
+    /**
+     * @brief 驻留字符串 - 从C字符串创建（指定长度）
      * @param str C风格字符串
      * @param len 字符串长度
      * @return GCString指针
@@ -113,6 +124,15 @@ public:
      * @return GCString指针，如果不存在返回nullptr
      */
     GCString* find(StrView str) const;
+
+    /**
+     * @brief 查找字符串 - 从C字符串查找（自动计算长度）
+     * @param str C风格字符串（以null结尾）
+     * @return GCString指针，如果不存在返回nullptr
+     */
+    GCString* find(const char* str) const {
+        return find(StrView(str));
+    }
 
     /**
      * @brief 查找字符串 - 从C字符串查找

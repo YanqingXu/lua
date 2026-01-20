@@ -77,6 +77,7 @@ extern void registerDynamicBufferTests();
 extern void registerInputStreamStringTests();
 extern void registerInputStreamStreamTests();
 extern void registerInputStreamFileTests();
+extern void registerLuaStateInitTests();
 #endif
 
 using namespace Lua;
@@ -229,6 +230,7 @@ int runTests() {
     registerInputStreamStringTests();
     registerInputStreamStreamTests();
     registerInputStreamFileTests();
+    registerLuaStateInitTests();
 
     std::cout << "[INFO] All tests registered." << std::endl;
     std::cout << "[INFO] Starting test execution...\n" << std::endl;

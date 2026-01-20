@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @file test_lua_state_init.cpp
  * @brief LuaState初始化测试
  *
@@ -65,16 +65,16 @@ void testMetamethodNamesInit(TestSuite& suite) {
 
 void testReservedWordsInit(TestSuite& suite) {
     StringPool& pool = StringPool::getInstance();
-    
+
     // 测试几个关键字是否被固定
     GCString* andStr = pool.find("and");
     ASSERT_TRUE(suite, andStr != nullptr, "'and' should be interned");
     ASSERT_TRUE(suite, andStr->isFixed(), "'and' should be fixed");
-    
+
     GCString* functionStr = pool.find("function");
     ASSERT_TRUE(suite, functionStr != nullptr, "'function' should be interned");
     ASSERT_TRUE(suite, functionStr->isFixed(), "'function' should be fixed");
-    
+
     GCString* localStr = pool.find("local");
     ASSERT_TRUE(suite, localStr != nullptr, "'local' should be interned");
     ASSERT_TRUE(suite, localStr->isFixed(), "'local' should be fixed");
@@ -86,7 +86,7 @@ void testReservedWordsInit(TestSuite& suite) {
 
 void testMemoryErrorMessageFixed(TestSuite& suite) {
     StringPool& pool = StringPool::getInstance();
-    
+
     // 内存错误消息应该被固定
     GCString* memerr = pool.find("not enough memory");
     ASSERT_TRUE(suite, memerr != nullptr, "Memory error message should be interned");

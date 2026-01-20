@@ -25,7 +25,8 @@ GCString* StringPool::intern(StrView str) {
     GCString* newString = new GCString(str);
 
     // 加入池中
-    pool_[key] = newString;
+    // 使用GCString内部的data_作为key，确保与find()和remove()一致
+    pool_[newString->getData()] = newString;
 
     return newString;
 }

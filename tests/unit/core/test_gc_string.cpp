@@ -59,76 +59,87 @@ void testGCStringHash(TestSuite& suite) {
 
 void testStringPoolIntern(TestSuite& suite) {
     StringPool& pool = StringPool::getInstance();
-    pool.clear(); // Start fresh
-    
+
+    // ⚠️ 重要：不要调用pool.clear()！
+    // StringPool是单例，GlobalState初始化时已经加入了保留字和元方法名称
+    // 清空池会破坏其他测试的前提条件
+
+    // 记录当前池大小
+    usize initialSize = pool.size();
+
     // Test 1: Intern first string
     GCString* poolStr1 = pool.intern("Hello, World!");
     ASSERT_TRUE(suite, poolStr1 != nullptr, "Intern string");
-    
+
     // Test 2: Intern same string should return same pointer
     GCString* poolStr2 = pool.intern("Hello, World!");
     ASSERT_TRUE(suite, poolStr1 == poolStr2, "Same pointer for same string");
-    
+
     // Test 3: Intern different string
     GCString* poolStr3 = pool.intern("Different");
     ASSERT_TRUE(suite, poolStr1 != poolStr3, "Different pointer for different string");
-    
-    // Test 4: Pool size
-    ASSERT_EQ(suite, (usize)2, pool.size(), "Pool size");
-    
+
+    // Test 4: Pool size (应该增加了2个字符串)
+    ASSERT_EQ(suite, initialSize + 2, pool.size(), "Pool size");
+
     // Test 5: Find existing string
     GCString* found = pool.find("Hello, World!");
     ASSERT_TRUE(suite, found == poolStr1, "Find existing string");
-    
+
     // Test 6: Find non-existing string
     GCString* notFound = pool.find("Not exists");
     ASSERT_TRUE(suite, notFound == nullptr, "Find non-existing string");
-    
-    // Cleanup
+
+    // Cleanup: 只删除我们创建的字符串，不清空整个池
+    pool.remove(poolStr3);
+    pool.remove(poolStr1);
     delete poolStr3;
     delete poolStr1;
-    pool.clear();
 }
 
 void testStringPoolStringView(TestSuite& suite) {
     StringPool& pool = StringPool::getInstance();
-    pool.clear();
-    
+
+    // 记录初始大小
+    usize initialSize = pool.size();
+
     // Test 1: Intern with string_view
     std::string_view sv("Test view");
     GCString* poolStr4 = pool.intern(sv);
     ASSERT_TRUE(suite, poolStr4 != nullptr, "Intern string_view");
-    
+
     // Test 2: Intern same string_view
     GCString* poolStr5 = pool.intern(sv);
     ASSERT_TRUE(suite, poolStr4 == poolStr5, "Same pointer for same string_view");
-    
-    // Test 3: Pool size
-    ASSERT_EQ(suite, (usize)1, pool.size(), "Pool size after string_view");
-    
-    // Cleanup
+
+    // Test 3: Pool size (应该增加1个字符串)
+    ASSERT_EQ(suite, initialSize + 1, pool.size(), "Pool size after string_view");
+
+    // Cleanup: 只删除我们创建的字符串
+    pool.remove(poolStr4);
     delete poolStr4;
-    pool.clear();
 }
 
 void testStringPoolRemove(TestSuite& suite) {
     StringPool& pool = StringPool::getInstance();
-    pool.clear();
-    
+
+    // 记录初始大小
+    usize initialSize = pool.size();
+
     GCString* str1 = pool.intern("String 1");
     GCString* str2 = pool.intern("String 2");
-    
-    // Test 1: Initial size
-    ASSERT_EQ(suite, (usize)2, pool.size(), "Initial pool size");
-    
+
+    // Test 1: Initial size (应该增加2个字符串)
+    ASSERT_EQ(suite, initialSize + 2, pool.size(), "Initial pool size");
+
     // Test 2: Remove string
     pool.remove(str2);
-    ASSERT_EQ(suite, (usize)1, pool.size(), "Pool size after remove");
-    
-    // Cleanup
+    ASSERT_EQ(suite, initialSize + 1, pool.size(), "Pool size after remove");
+
+    // Cleanup: 删除我们创建的字符串
     delete str2;
+    pool.remove(str1);
     delete str1;
-    pool.clear();
 }
 
 void registerGCStringTests() {

@@ -220,6 +220,7 @@
     <ClCompile Include="tests\unit\core\test_table.cpp" />
     <ClCompile Include="tests\unit\core\test_value.cpp" />
     <ClCompile Include="tests\unit\vm\test_function_call.cpp" />
+    <ClCompile Include="tests\unit\vm\test_lua_state_init.cpp" />
     <ClCompile Include="tests\unit\vm\test_vm_core.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
