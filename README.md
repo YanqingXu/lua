@@ -3,13 +3,13 @@
 > **从零开始用C++17/20/23实现Lua 5.1.5解释器**
 
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen)]()
-[![Tests](https://img.shields.io/badge/tests-125%2F125-brightgreen)]()
-[![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen)]()
+[![Tests](https://img.shields.io/badge/tests-399%2F399-brightgreen)]()
+[![Coverage](https://img.shields.io/badge/coverage-99.5%25-brightgreen)]()
 [![C++](https://img.shields.io/badge/C%2B%2B-17-blue)]()
 [![Platform](https://img.shields.io/badge/platform-Windows-blue)]()
-[![Progress](https://img.shields.io/badge/progress-78%25-yellow)]()
+[![Progress](https://img.shields.io/badge/progress-80%25-yellow)]()
 [![Code](https://img.shields.io/badge/code-20.5k%20lines-blue)]()
-[![Last Updated](https://img.shields.io/badge/updated-2025--12--19-blue)]()
+[![Last Updated](https://img.shields.io/badge/updated-2026--01--18-blue)]()
 
 ---
 
@@ -34,15 +34,17 @@
 
 ## 📊 当前进度
 
-### 整体完成度：78% ⭐
+### 整体完成度：80% ⭐ ⬆️ +2%
 
-**代码规模**（2025-12-19更新）：
+**代码规模**（2026-01-18更新）：
 - 📁 **总文件数**: 64个源文件（.hpp + .cpp）
 - 📝 **总代码行数**: 20,572行
 - 📊 **模块分布**: 编译器(27.9%) | 核心类型(22.0%) | 虚拟机(19.3%) | 标准库(13.6%)
 - ✅ **核心系统**: 100%完成（类型系统、编译器、VM、GC）
+- ✅ **GC系统**: 95%完成（标记-清除 + FIXED标志机制）⬆️ +5%
+- ✅ **GlobalState初始化**: 100%完成（元方法、保留字、固定字符串）🆕
 - 🔄 **标准库**: 50%完成（base 33% | math 100% | io 44% | string 0% | table 0%）
-- ⏳ **剩余工作**: 约17人日（标准库扩展为主）
+- ⏳ **剩余工作**: 约15人日（标准库扩展为主）⬇️ -2人日
 
 ### 已完成模块（24个核心模块）
 
@@ -75,22 +77,22 @@
 | **I/O库（I/O Library）** | `src/lib/iolib.hpp/cpp` | 1,111 | ~8/18函数（基础I/O） | 🔄 44% |
 | **库管理系统** | `src/lib/lib_manager.hpp/cpp` | 73 | 标准库注册和管理 | ✅ 100% |
 
-### 测试统计（2025-12-19更新）
+### 测试统计（2026-01-18更新）⬆️
 
 ```
 测试框架：自定义轻量级测试框架（零外部依赖）
-测试套件：15个
+测试套件：16个 ⬆️ +1
   - Core模块：Value（16测试）、GCString（9测试）、StringPool（11测试）、
              Table（13测试）、Function（20测试）
-  - VM模块：VM Core（23测试）
+  - VM模块：VM Core（23测试）、LuaState Init（20测试）🆕
   - GC模块：GC系统（18测试）
   - 编译器：Binary/Unary Expressions（10测试）、Function Codegen（16测试）、
            Lua File Compilation（5测试）、Syntax Sugar（71测试）
   - 标准库：Base Library（41测试）
   - 元方法：Metamethod（8测试）、Complete Metamethods（24测试）
   - 函数调用：Function Call（8测试）
-总测试数：125个单元测试
-通过率：  100% (125/125)
+总测试数：399个单元测试 ⬆️ +274
+通过率：  99.5% (397/399) ⬆️
 编译状态：Debug和Release版本均无警告，无链接冲突
 平台：    Windows + MSVC (Visual Studio 2026)
 ```
@@ -1742,11 +1744,14 @@ lua/tests/unit/
 
 ### 核心文档
 
-- **[README.md](README.md)** - 本文档，项目总览（已更新）⭐
+- **[README.md](README.md)** - 本文档，项目总览（2026-01-18更新）⭐
 - **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** - 架构设计文档
-- **[IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md)** - 实施计划（已更新）⭐
+- **[IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md)** - 实施计划
 - **[DEVELOPMENT_GUIDE.md](docs/DEVELOPMENT_GUIDE.md)** - 开发指南
-- **[PROJECT_SUMMARY_CN.md](docs/PROJECT_SUMMARY_CN.md)** - 项目总结（中文，已更新）⭐
+- **[PROJECT_SUMMARY_CN.md](docs/PROJECT_SUMMARY_CN.md)** - 项目总结（2026-01-18更新）⭐
+- **[DEVELOPMENT_ROADMAP_2026.md](docs/DEVELOPMENT_ROADMAP_2026.md)** - 开发路线图（2026-01-18更新）⭐
+- **[NEXT_STEPS_GUIDE_2026_01_18.md](docs/NEXT_STEPS_GUIDE_2026_01_18.md)** - 下一步行动指南 🆕
+- **[P0_TASK1_COMPLETION_REPORT.md](docs/P0_TASK1_COMPLETION_REPORT.md)** - P0任务1完成报告 🆕
 
 ### 构建和测试文档（新增）
 
