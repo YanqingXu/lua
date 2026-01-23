@@ -1,44 +1,52 @@
-# 下一步开发指导（2026-01-18）
+# 下一步开发指导（2026-01-23更新）
 
-> **更新日期**：2026-01-18  
-> **当前完成度**：80%  
-> **剩余工作量**：15人日（20%）  
-> **下一个里程碑**：M6（标准库完成）- 预计2周后
+> **更新日期**：2026-01-23
+> **当前完成度**：92% ⬆️ +12%
+> **剩余工作量**：6人日（8%）⬇️ -9人日
+> **下一个里程碑**：M7（1.0发布）- 预计1-2周后
 
 ---
 
 ## 📊 当前状态总结
 
-### 最新完成（2026-01-18）
+### 最新完成（2026-01-23）🎉
 
-✅ **P0任务1：LuaState初始化系统** - 已完成
-- 字符串表初始化
-- 元方法名称初始化（17个）
-- 保留字初始化（21个）
-- 内存错误消息固定
-- GC FIXED标志机制实现
-- 修复2个关键GC bug
-- 新增20个单元测试
+✅ **字符串库完成** - 100%（14/14函数）🆕
+- string.len, string.sub, string.upper, string.lower
+- string.reverse, string.rep, string.byte, string.char
+- string.find, string.gsub, string.match, string.gmatch
+- string.format, string.dump
 
-**详细报告**：`docs/P0_TASK1_COMPLETION_REPORT.md`
+✅ **表库完成** - 100%（7/7函数）🆕
+- table.insert, table.remove, table.concat
+- table.sort, table.pack, table.unpack, table.move
+
+✅ **OS库完成** - 100%（11/11函数）🆕
+- os.clock, os.date, os.difftime, os.time
+- os.execute, os.exit, os.getenv, os.setlocale
+- os.remove, os.rename, os.tmpname
+
+✅ **基础库扩展** - 79%（19/24函数）⬆️ +11函数
+- 新增：next, pairs, ipairs, rawget, rawset, rawequal
+- 新增：select, pcall, xpcall, loadstring, loadfile, dofile
 
 ### 整体进度
 
-- **整体完成度**：80% ⬆️ +2%
-- **核心功能**：97% ⬆️ +2%
-- **GC系统**：95% ⬆️ +5%
-- **测试数量**：399个 ⬆️ +20
-- **剩余工作**：15人日 ⬇️ -2人日
+- **整体完成度**：92% ⬆️ +12%
+- **核心功能**：97%
+- **标准库**：92% ⬆️ +42%
+- **测试数量**：125个（100%通过率）
+- **剩余工作**：6人日 ⬇️ -9人日
 
 ---
 
-## 🎯 下一步任务：P0任务2 - 脚本执行功能（增强版）
+## 🎯 下一步任务：P0任务5 - arg表支持
 
 ### 任务概述
 
 **优先级**：P0（关键任务）⭐⭐⭐
-**预计工作量**：0.5人日（大部分已完成）
-**目标**：完善Lua脚本文件执行功能，添加命令行参数支持
+**预计工作量**：0.3人日
+**目标**：实现命令行参数传递给Lua脚本的arg表
 
 ### 当前状态
 
@@ -104,7 +112,7 @@ int executeScript(LuaState* L, const char* filename) {
 
 ---
 
-#### 步骤4：添加命令行参数支持（0.3人日）⭐ 待实现
+#### 步骤1：添加命令行参数支持（0.3人日）⭐ 待实现
 
 **目标**：实现Lua标准的`arg`表，使脚本能够访问命令行参数
 
@@ -119,15 +127,14 @@ int executeScript(LuaState* L, const char* filename) {
  * @brief 设置arg表（参考lua_c_analysis/src/lua.c:createargtable）
  *
  * arg表结构：
- * - arg[-n] ... arg[-1]: 脚本名之前的参数（如 -e 代码）
  * - arg[0]: 脚本名
  * - arg[1] ... arg[n]: 脚本参数
  *
- * 示例：lua -e "print(1)" script.lua a b
- * - arg[-1] = "print(1)"
+ * 示例：lua script.lua a b c
  * - arg[0] = "script.lua"
  * - arg[1] = "a"
  * - arg[2] = "b"
+ * - arg[3] = "c"
  */
 void setupArgTable(LuaState* L, int argc, char* argv[], int scriptIndex) {
     // 创建arg表
@@ -303,23 +310,51 @@ local x =
 
 ## 🚀 后续任务预览
 
-### P0任务3：修复高优先级TODO（1人日）
+### P1任务6：扩展基础库（1人日）
+
+**当前状态**：19/24函数（79%完成）
+
+**待实现函数**（5个）：
+- collectgarbage（GC控制）
+- getfenv/setfenv（环境操作）
+- unpack（表解包）
+- gcinfo（已废弃，兼容性）
+
+### P1任务7：REPL历史记录（1人日）
 
 **任务清单**：
-- 修复VM的CodeGenerator hack
-- 完善Upvalues处理（2处）
-- 实现nil键错误抛出
+- 实现readline风格输入
+- 支持上下箭头导航历史
+- 支持多行输入（续行检测）
+- 实现基础行编辑功能
 
-### P1任务：扩展标准库（6.5人日）
+### P2任务：完善和优化（5人日）
 
 **任务清单**：
-- 扩展基础库（16个函数，3人日）
-- 实现字符串库（14个函数，2人日）
-- 实现表库（7个函数，1.5人日）
+- 完善I/O库（10个函数，2人日）
+- 修复TODO标记（21处，2人日）
+- 集成测试和性能优化（1人日）
+
+---
+
+## 📈 项目里程碑
+
+**M6：标准库完成** ✅ 基本达成（92%）
+- ✅ 字符串库100%
+- ✅ 表库100%
+- ✅ OS库100%
+- ✅ 数学库100%
+- 🔄 基础库79%
+- 🔄 I/O库44%
+
+**M7：1.0发布** 🎯 预计1-2周后
+- 剩余工作量：6人日
+- 全职开发：1周
+- 兼职开发：2周
 
 ---
 
 **准备好开始了吗？** 🚀
 
-从`executeScript()`函数开始，一步一步实现完整的脚本执行功能！
+从`setupArgTable()`函数开始，完成最后的关键功能！
 
