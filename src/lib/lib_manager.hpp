@@ -14,6 +14,8 @@ public:
 
     static void openIO(LuaState* L);
 
+    static void openString(LuaState* L);
+
     static void openModule(LuaState* L, LibModule& module);
 };
 

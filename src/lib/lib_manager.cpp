@@ -3,6 +3,7 @@
 #include "lib/baselib.hpp"
 #include "lib/mathlib.hpp"
 #include "lib/iolib.hpp"
+#include "lib/stringlib.hpp"
 #include "vm/lua_state.hpp"
 
 namespace Lua {
@@ -40,6 +41,14 @@ void StandardLibrary::openIO(LuaState* L) {
     openIOLib(L);
 }
 
+void StandardLibrary::openString(LuaState* L) {
+    if (!L) {
+        return;
+    }
+
+    openStringLib(L);
+}
+
 void StandardLibrary::openAll(LuaState* L) {
     if (!L) {
         return;
@@ -48,6 +57,7 @@ void StandardLibrary::openAll(LuaState* L) {
     openBase(L);
     openMath(L);
     openIO(L);
+    openString(L);
 }
 
 } // namespace Lua

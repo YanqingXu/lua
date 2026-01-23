@@ -23,6 +23,7 @@ extern void registerLuaStateInitTests();
 extern void registerBinaryUnaryExprTests();
 extern void registerFunctionCodegenTests();
 extern void registerBaselibTests();
+extern void registerStringLibTests();
 extern void registerLuaFunctionTests();
 extern void registerMetamethodArithTests();
 extern void registerMetamethodCompleteTests();
@@ -90,6 +91,7 @@ int main() {
     registerFunctionCodegenTests();
     registerSyntaxSugarTests();
     registerBaselibTests();
+    registerStringLibTests();
     registerLuaFunctionTests();
     registerMetamethodArithTests();
     registerMetamethodCompleteTests();

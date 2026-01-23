@@ -145,5 +145,10 @@ void registerInputStreamFileTests();
  */
 void registerLuaStateInitTests();
 
+/**
+ * @brief 注册字符串库测试
+ */
+void registerStringLibTests();
+
 #endif // LUA_TEST_REGISTRY_HPP
 
