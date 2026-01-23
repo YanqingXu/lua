@@ -104,5 +104,33 @@ i32 luaB_setmetatable(LuaState* L);
  */
 i32 luaB_getmetatable(LuaState* L);
 
+/**
+ * @brief rawget(table, index) - 绕过元方法直接获取表元素
+ * @param L Lua状态机指针
+ * @return 返回值数量（1个：table[index]的值）
+ */
+i32 luaB_rawget(LuaState* L);
+
+/**
+ * @brief rawset(table, index, value) - 绕过元方法直接设置表元素
+ * @param L Lua状态机指针
+ * @return 返回值数量（1个：表本身）
+ */
+i32 luaB_rawset(LuaState* L);
+
+/**
+ * @brief rawequal(v1, v2) - 绕过元方法直接比较两个值
+ * @param L Lua状态机指针
+ * @return 返回值数量（1个：布尔值）
+ */
+i32 luaB_rawequal(LuaState* L);
+
+/**
+ * @brief select(index, ...) - 从可变参数中选择特定范围的参数
+ * @param L Lua状态机指针
+ * @return 返回值数量（可变，取决于选择的参数数量）
+ */
+i32 luaB_select(LuaState* L);
+
 } // namespace Lua
 

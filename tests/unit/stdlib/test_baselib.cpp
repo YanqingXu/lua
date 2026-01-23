@@ -166,6 +166,164 @@ void testMetatableWrapper(TestSuite& suite) {
     }
 }
 
+void testRawgetWrapper(TestSuite& suite) {
+    LuaStdLibTestContext ctx(openBaseLib);
+    if (!ctx.ensureGlobalFunction("rawget", suite, "rawget exists")) {
+        return;
+    }
+
+    LuaState* L = ctx.getState();
+    auto& pool = L->getGlobalState().getStringPool();
+
+    // 创建表并设置值
+    Table* t = new Table();
+    L->getGlobalState().getGC().registerObject(t);
+    t->set(Value(pool.intern("key")), Value(42.0));
+    t->set(Value(1.0), Value(100.0));
+
+    // 测试字符串键
+    i32 ret = ctx.invoke("rawget", [t, &pool](LuaState* s) {
+        s->pushTable(t);
+        s->pushString(pool.intern("key"));
+    });
+    ASSERT_EQ(suite, ret, 1, "rawget returns 1 value");
+    ASSERT_EQ(suite, 42.0, L->top().asNumber(), "rawget(t, 'key') == 42");
+
+    // 测试数字键
+    ret = ctx.invoke("rawget", [t](LuaState* s) {
+        s->pushTable(t);
+        s->pushNumber(1.0);
+    });
+    ASSERT_EQ(suite, ret, 1, "rawget returns 1 value");
+    ASSERT_EQ(suite, 100.0, L->top().asNumber(), "rawget(t, 1) == 100");
+
+    // 测试不存在的键
+    ret = ctx.invoke("rawget", [t, &pool](LuaState* s) {
+        s->pushTable(t);
+        s->pushString(pool.intern("nonexistent"));
+    });
+    ASSERT_EQ(suite, ret, 1, "rawget returns 1 value");
+    ASSERT_TRUE(suite, L->top().isNil(), "rawget(t, 'nonexistent') == nil");
+}
+
+void testRawsetWrapper(TestSuite& suite) {
+    LuaStdLibTestContext ctx(openBaseLib);
+    if (!ctx.ensureGlobalFunction("rawset", suite, "rawset exists")) {
+        return;
+    }
+
+    LuaState* L = ctx.getState();
+    auto& pool = L->getGlobalState().getStringPool();
+
+    // 创建空表
+    Table* t = new Table();
+    L->getGlobalState().getGC().registerObject(t);
+
+    // 测试设置字符串键
+    i32 ret = ctx.invoke("rawset", [t, &pool](LuaState* s) {
+        s->pushTable(t);
+        s->pushString(pool.intern("name"));
+        s->pushString(pool.intern("Lua"));
+    });
+    ASSERT_EQ(suite, ret, 1, "rawset returns 1 value");
+    ASSERT_TRUE(suite, L->top().isTable(), "rawset returns table");
+    Value v1 = t->get(Value(pool.intern("name")));
+    ASSERT_TRUE(suite, v1.isString(), "value is string");
+    ASSERT_TRUE(suite, std::string(v1.asString()->c_str()) == "Lua", "t['name'] == 'Lua'");
+
+    // 测试设置数字键
+    ret = ctx.invoke("rawset", [t](LuaState* s) {
+        s->pushTable(t);
+        s->pushNumber(1.0);
+        s->pushNumber(999.0);
+    });
+    Value v2 = t->get(Value(1.0));
+    ASSERT_EQ(suite, 999.0, v2.asNumber(), "t[1] == 999");
+}
+
+void testRawequalWrapper(TestSuite& suite) {
+    LuaStdLibTestContext ctx(openBaseLib);
+    if (!ctx.ensureGlobalFunction("rawequal", suite, "rawequal exists")) {
+        return;
+    }
+
+    LuaState* L = ctx.getState();
+    auto& pool = L->getGlobalState().getStringPool();
+
+    // 测试相同的数字
+    i32 ret = ctx.invoke("rawequal", [](LuaState* s) {
+        s->pushNumber(42.0);
+        s->pushNumber(42.0);
+    });
+    ASSERT_EQ(suite, ret, 1, "rawequal returns 1 value");
+    ASSERT_TRUE(suite, L->top().asBoolean(), "rawequal(42, 42) == true");
+
+    // 测试不同的数字
+    ret = ctx.invoke("rawequal", [](LuaState* s) {
+        s->pushNumber(42.0);
+        s->pushNumber(43.0);
+    });
+    ASSERT_FALSE(suite, L->top().asBoolean(), "rawequal(42, 43) == false");
+
+    // 测试相同的字符串
+    GCString* str = pool.intern("test");
+    ret = ctx.invoke("rawequal", [str](LuaState* s) {
+        s->pushString(str);
+        s->pushString(str);
+    });
+    ASSERT_TRUE(suite, L->top().asBoolean(), "rawequal('test', 'test') == true");
+
+    // 测试不同类型
+    ret = ctx.invoke("rawequal", [&pool](LuaState* s) {
+        s->pushNumber(42.0);
+        s->pushString(pool.intern("42"));
+    });
+    ASSERT_FALSE(suite, L->top().asBoolean(), "rawequal(42, '42') == false");
+}
+
+void testSelectWrapper(TestSuite& suite) {
+    LuaStdLibTestContext ctx(openBaseLib);
+    if (!ctx.ensureGlobalFunction("select", suite, "select exists")) {
+        return;
+    }
+
+    LuaState* L = ctx.getState();
+    auto& pool = L->getGlobalState().getStringPool();
+
+    // 测试 select("#", ...)
+    i32 ret = ctx.invoke("select", [&pool](LuaState* s) {
+        s->pushString(pool.intern("#"));
+        s->pushNumber(1.0);
+        s->pushNumber(2.0);
+        s->pushNumber(3.0);
+    });
+    ASSERT_EQ(suite, ret, 1, "select('#', ...) returns 1 value");
+    ASSERT_EQ(suite, 3.0, L->top().asNumber(), "select('#', 1, 2, 3) == 3");
+
+    // 测试 select(2, ...)
+    ret = ctx.invoke("select", [](LuaState* s) {
+        s->pushNumber(2.0);
+        s->pushNumber(10.0);
+        s->pushNumber(20.0);
+        s->pushNumber(30.0);
+        s->pushNumber(40.0);
+    });
+    ASSERT_EQ(suite, ret, 3, "select(2, ...) returns 3 values");
+    ASSERT_EQ(suite, 40.0, L->at(-1).asNumber(), "last value is 40");
+    ASSERT_EQ(suite, 30.0, L->at(-2).asNumber(), "second value is 30");
+    ASSERT_EQ(suite, 20.0, L->at(-3).asNumber(), "first value is 20");
+
+    // 测试 select(-1, ...)
+    ret = ctx.invoke("select", [](LuaState* s) {
+        s->pushNumber(-1.0);
+        s->pushNumber(100.0);
+        s->pushNumber(200.0);
+        s->pushNumber(300.0);
+    });
+    ASSERT_EQ(suite, ret, 1, "select(-1, ...) returns 1 value");
+    ASSERT_EQ(suite, 300.0, L->top().asNumber(), "select(-1, 100, 200, 300) == 300");
+}
+
 void registerBaselibTests() {
     auto& registry = TestRegistry::getInstance();
 
@@ -175,5 +333,9 @@ void registerBaselibTests() {
     registry.registerTest(kSuiteName, "tonumber", testTonumberWrapper);
     registry.registerTest(kSuiteName, "assert", testAssertWrapper);
     registry.registerTest(kSuiteName, "metatable", testMetatableWrapper);
+    registry.registerTest(kSuiteName, "rawget", testRawgetWrapper);
+    registry.registerTest(kSuiteName, "rawset", testRawsetWrapper);
+    registry.registerTest(kSuiteName, "rawequal", testRawequalWrapper);
+    registry.registerTest(kSuiteName, "select", testSelectWrapper);
 }
 

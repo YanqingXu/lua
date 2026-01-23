@@ -504,6 +504,159 @@ static i32 luaB_ipairs(LuaState* L) {
 }
 
 // =====================================================================
+// rawget(table, index) - 绕过元方法直接获取表元素
+// =====================================================================
+
+/**
+ * @brief rawget(table, index)
+ *
+ * 在不触发任何元方法的情况下获取 table[index] 的值。
+ * table 必须是一个表；index 可以是任何值。
+ *
+ * 参考：lua_c_analysis/src/lbaselib.c 中的luaB_rawget
+ */
+static i32 luaB_rawget(LuaState* L) {
+    if (L->getTop() < 2) {
+        L->error("rawget: missing arguments");
+    }
+
+    if (!L->isTable(1)) {
+        L->error("rawget: table expected");
+    }
+
+    Table* table = L->at(1).asTable();
+    Value index = L->at(2);
+    Value result = table->get(index);
+
+    L->pushValue(result);
+    return 1;
+}
+
+// =====================================================================
+// rawset(table, index, value) - 绕过元方法直接设置表元素
+// =====================================================================
+
+/**
+ * @brief rawset(table, index, value)
+ *
+ * 在不触发任何元方法的情况下设置 table[index] = value。
+ * table 必须是一个表，index 不能是 nil 或 NaN，value 可以是任何值。
+ * 返回 table。
+ *
+ * 参考：lua_c_analysis/src/lbaselib.c 中的luaB_rawset
+ */
+static i32 luaB_rawset(LuaState* L) {
+    if (L->getTop() < 3) {
+        L->error("rawset: missing arguments");
+    }
+
+    if (!L->isTable(1)) {
+        L->error("rawset: table expected");
+    }
+
+    Value index = L->at(2);
+    if (index.isNil()) {
+        L->error("rawset: table index is nil");
+    }
+
+    // 检查 NaN（如果是数字）
+    if (index.isNumber()) {
+        f64 num = index.asNumber();
+        if (num != num) {  // NaN check
+            L->error("rawset: table index is NaN");
+        }
+    }
+
+    Table* table = L->at(1).asTable();
+    Value value = L->at(3);
+    table->set(index, value);
+
+    L->pushValue(L->at(1));  // 返回表本身
+    return 1;
+}
+
+// =====================================================================
+// rawequal(v1, v2) - 绕过元方法直接比较两个值
+// =====================================================================
+
+/**
+ * @brief rawequal(v1, v2)
+ *
+ * 在不触发任何元方法的情况下检查 v1 是否等于 v2。
+ * 返回布尔值。
+ *
+ * 参考：lua_c_analysis/src/lbaselib.c 中的luaB_rawequal
+ */
+static i32 luaB_rawequal(LuaState* L) {
+    if (L->getTop() < 2) {
+        L->error("rawequal: missing arguments");
+    }
+
+    Value v1 = L->at(1);
+    Value v2 = L->at(2);
+    bool result = (v1 == v2);
+
+    L->pushBoolean(result);
+    return 1;
+}
+
+// =====================================================================
+// select(index, ...) - 从可变参数中选择特定范围的参数
+// =====================================================================
+
+/**
+ * @brief select(index, ...)
+ *
+ * 如果 index 是数字，返回参数 index 之后的所有参数。
+ * 如果 index 是字符串 "#"，返回额外参数的总数。
+ * 负数索引从末尾开始计数（-1 是最后一个参数）。
+ *
+ * 参考：lua_c_analysis/src/lbaselib.c 中的luaB_select
+ */
+static i32 luaB_select(LuaState* L) {
+    i32 n = L->getTop();
+
+    if (n < 1) {
+        L->error("select: missing index argument");
+    }
+
+    // 检查是否是 "#"
+    if (L->isString(1)) {
+        const char* s = L->toString(1);
+        if (s && std::strcmp(s, "#") == 0) {
+            L->pushNumber(static_cast<f64>(n - 1));
+            return 1;
+        }
+    }
+
+    // 必须是数字索引
+    if (!L->isNumber(1)) {
+        L->error("select: index must be a number or '#'");
+    }
+
+    i32 index = static_cast<i32>(L->toNumber(1));
+
+    // 处理负数索引
+    if (index < 0) {
+        index = n + index;
+    } else if (index > n) {
+        index = n;
+    }
+
+    if (index < 1) {
+        L->error("select: index out of range");
+    }
+
+    // 返回从 index+1 到 n 的所有参数
+    i32 count = n - index;
+    for (i32 i = index + 1; i <= n; i++) {
+        L->pushValue(L->at(i));
+    }
+
+    return count;
+}
+
+// =====================================================================
 // 基础库注册入口（使用现代C++流式API）
 // =====================================================================
 
@@ -525,6 +678,10 @@ void BaseLibModule::registerFunctions(LuaState* L) {
         .addGlobal("next", luaB_next)
         .addGlobal("pairs", luaB_pairs)
         .addGlobal("ipairs", luaB_ipairs)
+        .addGlobal("rawget", luaB_rawget)
+        .addGlobal("rawset", luaB_rawset)
+        .addGlobal("rawequal", luaB_rawequal)
+        .addGlobal("select", luaB_select)
         .commit();
 }
 
