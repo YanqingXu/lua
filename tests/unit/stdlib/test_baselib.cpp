@@ -9,6 +9,7 @@
 #include "core/string_pool.hpp"
 #include "core/function.hpp"
 #include "core/table.hpp"
+#include "compiler/opcode.hpp"
 
 #include <string>
 
@@ -324,6 +325,176 @@ void testSelectWrapper(TestSuite& suite) {
     ASSERT_EQ(suite, 300.0, L->top().asNumber(), "select(-1, 100, 200, 300) == 300");
 }
 
+void testPcallWrapper(TestSuite& suite) {
+    LuaStdLibTestContext ctx(openBaseLib);
+    if (!ctx.ensureGlobalFunction("pcall", suite, "pcall function exists")) {
+        return;
+    }
+
+    LuaState* L = ctx.getState();
+
+    // 测试成功调用
+    // 创建一个简单的函数：function() return 42 end
+    auto& pool = L->getGlobalState().getStringPool();
+    Proto* proto = new Proto();
+    proto->setMaxStackSize(2);
+
+    // LOADK R(0) 42
+    proto->addInstruction(CREATE_ABx(OpCode::LOADK, 0, proto->addConstant(Value(42.0))));
+    // RETURN R(0) 2 (返回1个值)
+    proto->addInstruction(CREATE_ABC(OpCode::RETURN, 0, 2, 0));
+
+    Function* testFunc = new Function(proto);
+    L->getGlobalState().getGC().registerObject(testFunc);
+    testFunc->setEnv(L->getGlobalTable());
+
+    i32 ret = ctx.invoke("pcall", [&](LuaState* s) {
+        s->pushValue(Value(testFunc));
+    });
+
+    ASSERT_EQ(suite, ret, 2, "pcall returns 2 values on success");
+    ASSERT_TRUE(suite, L->at(-2).isBoolean(), "first return is boolean");
+    ASSERT_TRUE(suite, L->at(-2).asBoolean(), "first return is true");
+    ASSERT_TRUE(suite, L->at(-1).isNumber(), "second return is number");
+    ASSERT_EQ(suite, 42.0, L->at(-1).asNumber(), "second return is 42");
+
+    // 测试调用非函数值
+    ret = ctx.invoke("pcall", [](LuaState* s) {
+        s->pushNumber(123.0);
+    });
+
+    ASSERT_EQ(suite, ret, 2, "pcall returns 2 values on error");
+    ASSERT_TRUE(suite, L->at(-2).isBoolean(), "first return is boolean");
+    ASSERT_FALSE(suite, L->at(-2).asBoolean(), "first return is false");
+    ASSERT_TRUE(suite, L->at(-1).isString(), "second return is error message");
+}
+
+void testXpcallWrapper(TestSuite& suite) {
+    LuaStdLibTestContext ctx(openBaseLib);
+    if (!ctx.ensureGlobalFunction("xpcall", suite, "xpcall function exists")) {
+        return;
+    }
+
+    LuaState* L = ctx.getState();
+
+    // 创建测试函数
+    Proto* proto = new Proto();
+    proto->setMaxStackSize(2);
+    proto->addInstruction(CREATE_ABx(OpCode::LOADK, 0, proto->addConstant(Value(100.0))));
+    proto->addInstruction(CREATE_ABC(OpCode::RETURN, 0, 2, 0));
+
+    Function* testFunc = new Function(proto);
+    L->getGlobalState().getGC().registerObject(testFunc);
+    testFunc->setEnv(L->getGlobalTable());
+
+    // 创建错误处理器（返回固定字符串）
+    Proto* errProto = new Proto();
+    errProto->setMaxStackSize(2);
+    auto& pool = L->getGlobalState().getStringPool();
+    errProto->addInstruction(CREATE_ABx(OpCode::LOADK, 0, errProto->addConstant(Value(pool.intern("error handled")))));
+    errProto->addInstruction(CREATE_ABC(OpCode::RETURN, 0, 2, 0));
+
+    Function* errFunc = new Function(errProto);
+    L->getGlobalState().getGC().registerObject(errFunc);
+    errFunc->setEnv(L->getGlobalTable());
+
+    // 测试成功调用
+    i32 ret = ctx.invoke("xpcall", [&](LuaState* s) {
+        s->pushValue(Value(testFunc));
+        s->pushValue(Value(errFunc));
+    });
+
+    ASSERT_EQ(suite, ret, 2, "xpcall returns 2 values on success");
+    ASSERT_TRUE(suite, L->at(-2).isBoolean(), "first return is boolean");
+    ASSERT_TRUE(suite, L->at(-2).asBoolean(), "first return is true");
+    ASSERT_EQ(suite, 100.0, L->at(-1).asNumber(), "second return is 100");
+
+    // 测试调用非函数值（触发错误处理器）
+    ret = ctx.invoke("xpcall", [&](LuaState* s) {
+        s->pushNumber(999.0);
+        s->pushValue(Value(errFunc));
+    });
+
+    ASSERT_EQ(suite, ret, 2, "xpcall returns 2 values on error");
+    ASSERT_TRUE(suite, L->at(-2).isBoolean(), "first return is boolean");
+    ASSERT_FALSE(suite, L->at(-2).asBoolean(), "first return is false");
+}
+
+void testLoadstringWrapper(TestSuite& suite) {
+    LuaStdLibTestContext ctx(openBaseLib);
+    if (!ctx.ensureGlobalFunction("loadstring", suite, "loadstring function exists")) {
+        return;
+    }
+
+    LuaState* L = ctx.getState();
+    auto& pool = L->getGlobalState().getStringPool();
+
+    // 测试成功编译
+    i32 ret = ctx.invoke("loadstring", [&](LuaState* s) {
+        s->pushString(pool.intern("return 42"));
+    });
+
+    ASSERT_EQ(suite, ret, 1, "loadstring returns 1 value on success");
+    ASSERT_TRUE(suite, L->top().isFunction(), "loadstring returns function");
+
+    // 测试语法错误
+    ret = ctx.invoke("loadstring", [&](LuaState* s) {
+        s->pushString(pool.intern("return return"));
+    });
+
+    ASSERT_EQ(suite, ret, 2, "loadstring returns 2 values on error");
+    ASSERT_TRUE(suite, L->at(-2).isNil(), "first return is nil on error");
+    ASSERT_TRUE(suite, L->at(-1).isString(), "second return is error message");
+
+    // 测试非字符串参数
+    ret = ctx.invoke("loadstring", [](LuaState* s) {
+        s->pushNumber(123.0);
+    });
+
+    ASSERT_EQ(suite, ret, 2, "loadstring returns 2 values on type error");
+    ASSERT_TRUE(suite, L->at(-2).isNil(), "first return is nil");
+    ASSERT_TRUE(suite, L->at(-1).isString(), "second return is error message");
+}
+
+void testLoadfileWrapper(TestSuite& suite) {
+    LuaStdLibTestContext ctx(openBaseLib);
+    if (!ctx.ensureGlobalFunction("loadfile", suite, "loadfile function exists")) {
+        return;
+    }
+
+    LuaState* L = ctx.getState();
+    auto& pool = L->getGlobalState().getStringPool();
+
+    // 测试文件不存在
+    i32 ret = ctx.invoke("loadfile", [&](LuaState* s) {
+        s->pushString(pool.intern("nonexistent_file.lua"));
+    });
+
+    ASSERT_EQ(suite, ret, 2, "loadfile returns 2 values on file not found");
+    ASSERT_TRUE(suite, L->at(-2).isNil(), "first return is nil");
+    ASSERT_TRUE(suite, L->at(-1).isString(), "second return is error message");
+
+    // 测试非字符串参数
+    ret = ctx.invoke("loadfile", [](LuaState* s) {
+        s->pushNumber(456.0);
+    });
+
+    ASSERT_EQ(suite, ret, 2, "loadfile returns 2 values on type error");
+    ASSERT_TRUE(suite, L->at(-2).isNil(), "first return is nil");
+    ASSERT_TRUE(suite, L->at(-1).isString(), "second return is error message");
+}
+
+void testDofileWrapper(TestSuite& suite) {
+    LuaStdLibTestContext ctx(openBaseLib);
+    if (!ctx.ensureGlobalFunction("dofile", suite, "dofile function exists")) {
+        return;
+    }
+
+    // 注意：dofile 是 legacy 函数，测试其存在性即可
+    // 实际文件执行测试需要创建临时文件，这里简化处理
+    ASSERT_TRUE(suite, true, "dofile function registered");
+}
+
 void registerBaselibTests() {
     auto& registry = TestRegistry::getInstance();
 
@@ -337,5 +508,10 @@ void registerBaselibTests() {
     registry.registerTest(kSuiteName, "rawset", testRawsetWrapper);
     registry.registerTest(kSuiteName, "rawequal", testRawequalWrapper);
     registry.registerTest(kSuiteName, "select", testSelectWrapper);
+    registry.registerTest(kSuiteName, "pcall", testPcallWrapper);
+    registry.registerTest(kSuiteName, "xpcall", testXpcallWrapper);
+    registry.registerTest(kSuiteName, "loadstring", testLoadstringWrapper);
+    registry.registerTest(kSuiteName, "loadfile", testLoadfileWrapper);
+    registry.registerTest(kSuiteName, "dofile", testDofileWrapper);
 }
 

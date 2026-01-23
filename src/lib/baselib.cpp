@@ -16,7 +16,13 @@
 #include "core/table.hpp"
 #include "core/function.hpp"
 #include "vm/global_state.hpp"
+#include "vm/call_result.hpp"
+#include "vm/vm.hpp"
+#include "compiler/parser.hpp"
+#include "compiler/codegen.hpp"
 #include <iostream>
+#include <fstream>
+#include <sstream>
 #include <cstdio>
 #include <cstring>
 #include <cctype>
@@ -515,7 +521,7 @@ static i32 luaB_ipairs(LuaState* L) {
  *
  * 参考：lua_c_analysis/src/lbaselib.c 中的luaB_rawget
  */
-static i32 luaB_rawget(LuaState* L) {
+i32 luaB_rawget(LuaState* L) {
     if (L->getTop() < 2) {
         L->error("rawget: missing arguments");
     }
@@ -545,7 +551,7 @@ static i32 luaB_rawget(LuaState* L) {
  *
  * 参考：lua_c_analysis/src/lbaselib.c 中的luaB_rawset
  */
-static i32 luaB_rawset(LuaState* L) {
+i32 luaB_rawset(LuaState* L) {
     if (L->getTop() < 3) {
         L->error("rawset: missing arguments");
     }
@@ -587,7 +593,7 @@ static i32 luaB_rawset(LuaState* L) {
  *
  * 参考：lua_c_analysis/src/lbaselib.c 中的luaB_rawequal
  */
-static i32 luaB_rawequal(LuaState* L) {
+i32 luaB_rawequal(LuaState* L) {
     if (L->getTop() < 2) {
         L->error("rawequal: missing arguments");
     }
@@ -613,7 +619,7 @@ static i32 luaB_rawequal(LuaState* L) {
  *
  * 参考：lua_c_analysis/src/lbaselib.c 中的luaB_select
  */
-static i32 luaB_select(LuaState* L) {
+i32 luaB_select(LuaState* L) {
     i32 n = L->getTop();
 
     if (n < 1) {
@@ -657,6 +663,417 @@ static i32 luaB_select(LuaState* L) {
 }
 
 // =====================================================================
+// pcall(f, arg1, ...) - 保护模式调用函数
+// =====================================================================
+
+i32 luaB_pcall(LuaState* L) {
+    i32 nargs = L->getTop();
+    if (nargs < 1) {
+        L->error("pcall: function expected");
+        return 0;
+    }
+
+    // 获取函数（第一个参数）
+    Value func = L->at(1);
+
+    // 收集参数（从第2个参数开始）
+    Vec<Value> args;
+    for (i32 i = 2; i <= nargs; i++) {
+        args.push_back(L->at(i));
+    }
+
+    try {
+        // 尝试调用函数
+        if (!func.isFunction()) {
+            // 清空栈并返回错误
+            L->setTop(0);
+            L->pushBoolean(false);
+            auto& pool = L->getGlobalState().getStringPool();
+            L->pushString(pool.intern("attempt to call a non-function value"));
+            return 2;
+        }
+
+        Function* function = func.asFunction();
+        if (!function) {
+            L->setTop(0);
+            L->pushBoolean(false);
+            auto& pool = L->getGlobalState().getStringPool();
+            L->pushString(pool.intern("invalid function"));
+            return 2;
+        }
+
+        // 执行函数
+        VM vm(L);
+
+        // 保存当前栈大小
+        usize stackBefore = L->getStack().size();
+
+        // 将函数压入栈并执行
+        L->getStack().push(Value(function));
+        for (const auto& arg : args) {
+            L->getStack().push(arg);
+        }
+
+        vm.execute(function);
+
+        // 获取返回值（栈顶的值）
+        usize stackAfter = L->getStack().size();
+        i32 nresults = static_cast<i32>(stackAfter - stackBefore);
+
+        // 收集返回值
+        Vec<Value> results;
+        for (i32 i = 0; i < nresults; i++) {
+            if (stackAfter > 0) {
+                results.push_back(L->getStack().top());
+                L->getStack().pop();
+                stackAfter--;
+            }
+        }
+
+        // 反转结果（因为是从栈顶弹出的）
+        std::reverse(results.begin(), results.end());
+
+        // 清空栈并压入成功结果
+        L->getStack().clear();
+        L->setAbsoluteTop(0);
+        L->pushBoolean(true);  // 成功标志
+        for (const auto& result : results) {
+            L->pushValue(result);
+        }
+
+        return 1 + static_cast<i32>(results.size());
+
+    } catch (const std::exception& e) {
+        // 捕获异常并返回错误
+        L->getStack().clear();
+        L->setAbsoluteTop(0);
+        L->pushBoolean(false);
+        auto& pool = L->getGlobalState().getStringPool();
+        L->pushString(pool.intern(e.what()));
+        return 2;
+    }
+}
+
+// =====================================================================
+// xpcall(f, msgh, arg1, ...) - 带错误处理器的保护调用
+// =====================================================================
+
+i32 luaB_xpcall(LuaState* L) {
+    i32 nargs = L->getTop();
+    if (nargs < 2) {
+        L->error("xpcall: function and error handler expected");
+        return 0;
+    }
+
+    // 获取函数和错误处理器
+    Value func = L->at(1);
+    Value msgh = L->at(2);
+
+    // 收集参数（从第3个参数开始）
+    Vec<Value> args;
+    for (i32 i = 3; i <= nargs; i++) {
+        args.push_back(L->at(i));
+    }
+
+    auto& pool = L->getGlobalState().getStringPool();
+
+    try {
+        // 检查函数
+        if (!func.isFunction()) {
+            L->getStack().clear();
+            L->setAbsoluteTop(0);
+            L->pushBoolean(false);
+            L->pushString(pool.intern("attempt to call a non-function value"));
+            return 2;
+        }
+
+        Function* function = func.asFunction();
+        if (!function) {
+            L->getStack().clear();
+            L->setAbsoluteTop(0);
+            L->pushBoolean(false);
+            L->pushString(pool.intern("invalid function"));
+            return 2;
+        }
+
+        // 执行函数（与 pcall 相同的逻辑）
+        VM vm(L);
+        usize stackBefore = L->getStack().size();
+
+        L->getStack().push(Value(function));
+        for (const auto& arg : args) {
+            L->getStack().push(arg);
+        }
+
+        vm.execute(function);
+
+        usize stackAfter = L->getStack().size();
+        i32 nresults = static_cast<i32>(stackAfter - stackBefore);
+
+        Vec<Value> results;
+        for (i32 i = 0; i < nresults; i++) {
+            if (stackAfter > 0) {
+                results.push_back(L->getStack().top());
+                L->getStack().pop();
+                stackAfter--;
+            }
+        }
+
+        std::reverse(results.begin(), results.end());
+
+        L->setTop(0);
+        L->pushBoolean(true);
+        for (const auto& result : results) {
+            L->pushValue(result);
+        }
+
+        return 1 + static_cast<i32>(results.size());
+
+    } catch (const std::exception& e) {
+        // 调用错误处理器
+        if (msgh.isFunction()) {
+            try {
+                Function* errorHandler = msgh.asFunction();
+                if (errorHandler) {
+                    VM vm(L);
+                    L->getStack().push(Value(errorHandler));
+                    L->pushString(pool.intern(e.what()));
+                    vm.execute(errorHandler);
+
+                    // 获取错误处理器的返回值
+                    Value errorResult = L->getStack().size() > 0 ? L->getStack().top() : Value();
+
+                    L->setTop(0);
+                    L->pushBoolean(false);
+                    L->pushValue(errorResult);
+                    return 2;
+                }
+            } catch (...) {
+                // 错误处理器也失败了
+            }
+        }
+
+        // 如果错误处理器不可用或失败，返回原始错误
+        L->setTop(0);
+        L->pushBoolean(false);
+        L->pushString(pool.intern(e.what()));
+        return 2;
+    }
+}
+
+// =====================================================================
+// loadstring(string [, chunkname]) - 编译字符串为函数
+// =====================================================================
+
+i32 luaB_loadstring(LuaState* L) {
+    auto& pool = L->getGlobalState().getStringPool();
+    i32 nargs = L->getTop();
+    if (nargs < 1) {
+        L->setTop(0);
+        L->pushNil();
+        L->pushString(pool.intern("loadstring: string expected"));
+        return 2;
+    }
+
+    Value codeVal = L->at(1);
+    if (!codeVal.isString()) {
+        L->setTop(0);
+        L->pushNil();
+        L->pushString(pool.intern("loadstring: string expected"));
+        return 2;
+    }
+
+    Str code = codeVal.asString()->c_str();
+    Str chunkname = (nargs >= 2 && L->at(2).isString())
+        ? L->at(2).asString()->c_str()
+        : "=(loadstring)";
+
+    try {
+        // 解析代码
+        Parser parser(code);
+        Chunk chunk = parser.parse();
+
+        // 生成字节码
+        CodeGenerator codegen(&pool);
+        Proto* proto = codegen.generate(chunk);
+
+        if (!proto) {
+            L->setTop(0);
+            L->pushNil();
+            L->pushString(pool.intern("loadstring: compilation failed"));
+            return 2;
+        }
+
+        // 创建函数对象
+        Function* func = new Function(proto);
+        L->getGlobalState().getGC().registerObject(func);
+        func->setEnv(L->getGlobalTable());
+
+        // 返回成功
+        L->setTop(0);
+        L->pushValue(Value(func));
+        return 1;
+
+    } catch (const ParseError& e) {
+        L->setTop(0);
+        L->pushNil();
+        Str errorMsg = Str("loadstring: ") + e.what();
+        L->pushString(pool.intern(errorMsg.c_str()));
+        return 2;
+    } catch (const std::exception& e) {
+        L->setTop(0);
+        L->pushNil();
+        Str errorMsg = Str("loadstring: ") + e.what();
+        L->pushString(pool.intern(errorMsg.c_str()));
+        return 2;
+    }
+}
+
+// =====================================================================
+// loadfile([filename]) - 编译文件为函数
+// =====================================================================
+
+i32 luaB_loadfile(LuaState* L) {
+    auto& pool = L->getGlobalState().getStringPool();
+    i32 nargs = L->getTop();
+
+    // 如果没有参数，从标准输入读取（简化实现：返回错误）
+    if (nargs < 1) {
+        L->setTop(0);
+        L->pushNil();
+        L->pushString(pool.intern("loadfile: reading from stdin not supported"));
+        return 2;
+    }
+
+    Value filenameVal = L->at(1);
+    if (!filenameVal.isString()) {
+        L->setTop(0);
+        L->pushNil();
+        L->pushString(pool.intern("loadfile: filename must be a string"));
+        return 2;
+    }
+
+    Str filename = filenameVal.asString()->c_str();
+
+    try {
+        // 读取文件
+        std::ifstream file(filename, std::ios::binary | std::ios::ate);
+        if (!file.is_open()) {
+            L->setTop(0);
+            L->pushNil();
+            Str errorMsg = Str("loadfile: cannot open ") + filename + ": No such file or directory";
+            L->pushString(pool.intern(errorMsg.c_str()));
+            return 2;
+        }
+
+        std::streamsize size = file.tellg();
+        file.seekg(0, std::ios::beg);
+
+        Str source;
+        source.resize(static_cast<usize>(size));
+        if (!file.read(&source[0], size)) {
+            L->setTop(0);
+            L->pushNil();
+            Str errorMsg = Str("loadfile: cannot read ") + filename;
+            L->pushString(pool.intern(errorMsg.c_str()));
+            return 2;
+        }
+
+        // 解析代码
+        Parser parser(source);
+        Chunk chunk = parser.parse();
+
+        // 生成字节码
+        CodeGenerator codegen(&pool);
+        Proto* proto = codegen.generate(chunk);
+
+        if (!proto) {
+            L->setTop(0);
+            L->pushNil();
+            Str errorMsg = Str("loadfile: compilation failed for ") + filename;
+            L->pushString(pool.intern(errorMsg.c_str()));
+            return 2;
+        }
+
+        // 创建函数对象
+        Function* func = new Function(proto);
+        L->getGlobalState().getGC().registerObject(func);
+        func->setEnv(L->getGlobalTable());
+
+        // 返回成功
+        L->setTop(0);
+        L->pushValue(Value(func));
+        return 1;
+
+    } catch (const ParseError& e) {
+        L->setTop(0);
+        L->pushNil();
+        Str errorMsg = Str("loadfile: ") + filename + ": " + e.what();
+        L->pushString(pool.intern(errorMsg.c_str()));
+        return 2;
+    } catch (const std::exception& e) {
+        L->setTop(0);
+        L->pushNil();
+        Str errorMsg = Str("loadfile: ") + filename + ": " + e.what();
+        L->pushString(pool.intern(errorMsg.c_str()));
+        return 2;
+    }
+}
+
+// =====================================================================
+// dofile([filename]) - 加载并执行文件
+// =====================================================================
+
+i32 luaB_dofile(LuaState* L) {
+    // 使用 loadfile 加载文件
+    i32 loadResult = luaB_loadfile(L);
+
+    if (loadResult != 1) {
+        // loadfile 返回了错误 (nil, error_message)
+        // 直接返回这两个值
+        return loadResult;
+    }
+
+    // 获取加载的函数
+    Value func = L->at(1);
+    if (!func.isFunction()) {
+        L->error("dofile: loadfile did not return a function");
+        return 0;
+    }
+
+    Function* function = func.asFunction();
+    if (!function) {
+        L->error("dofile: invalid function");
+        return 0;
+    }
+
+    // 执行函数
+    try {
+        VM vm(L);
+
+        // 保存当前栈大小
+        usize stackBefore = L->getStack().size();
+
+        // 清空栈并压入函数
+        L->setTop(0);
+        L->getStack().push(Value(function));
+        vm.execute(function);
+
+        // 获取返回值数量
+        usize stackAfter = L->getStack().size();
+        i32 nresults = static_cast<i32>(stackAfter - stackBefore);
+
+        // 返回结果数量（结果已经在栈上）
+        return nresults > 0 ? nresults : 0;
+
+    } catch (const std::exception& e) {
+        Str errorMsg = Str("dofile: ") + e.what();
+        L->error(errorMsg.c_str());
+        return 0;  // 不会执行到这里
+    }
+}
+
+// =====================================================================
 // 基础库注册入口（使用现代C++流式API）
 // =====================================================================
 
@@ -682,6 +1099,11 @@ void BaseLibModule::registerFunctions(LuaState* L) {
         .addGlobal("rawset", luaB_rawset)
         .addGlobal("rawequal", luaB_rawequal)
         .addGlobal("select", luaB_select)
+        .addGlobal("pcall", luaB_pcall)
+        .addGlobal("xpcall", luaB_xpcall)
+        .addGlobal("loadstring", luaB_loadstring)
+        .addGlobal("loadfile", luaB_loadfile)
+        .addGlobal("dofile", luaB_dofile)
         .commit();
 }
 

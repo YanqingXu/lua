@@ -132,5 +132,40 @@ i32 luaB_rawequal(LuaState* L);
  */
 i32 luaB_select(LuaState* L);
 
+/**
+ * @brief pcall(f, arg1, ...) - 保护模式调用函数
+ * @param L Lua状态机指针
+ * @return 返回值数量（成功时返回 true + 结果，失败时返回 false + 错误消息）
+ */
+i32 luaB_pcall(LuaState* L);
+
+/**
+ * @brief xpcall(f, msgh, arg1, ...) - 带错误处理器的保护调用
+ * @param L Lua状态机指针
+ * @return 返回值数量（成功时返回 true + 结果，失败时返回 false + msgh结果）
+ */
+i32 luaB_xpcall(LuaState* L);
+
+/**
+ * @brief loadstring(string [, chunkname]) - 编译字符串为函数
+ * @param L Lua状态机指针
+ * @return 返回值数量（成功时返回函数，失败时返回 nil + 错误消息）
+ */
+i32 luaB_loadstring(LuaState* L);
+
+/**
+ * @brief loadfile([filename]) - 编译文件为函数
+ * @param L Lua状态机指针
+ * @return 返回值数量（成功时返回函数，失败时返回 nil + 错误消息）
+ */
+i32 luaB_loadfile(LuaState* L);
+
+/**
+ * @brief dofile([filename]) - 加载并执行文件
+ * @param L Lua状态机指针
+ * @return 返回值数量（文件执行的结果）
+ */
+i32 luaB_dofile(LuaState* L);
+
 } // namespace Lua
 

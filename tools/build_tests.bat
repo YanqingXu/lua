@@ -113,8 +113,15 @@ for %%F in (dynamic_buffer input_stream) do (
 )
 
 echo [INFO] Compiling Libraries...
-for %%F in (lib_registry lib_manager baselib mathlib iolib stringlib) do (
+for %%F in (lib_registry lib_manager mathlib iolib stringlib) do (
     cl %CXX_FLAGS% /Isrc /c /Fo"%OUTPUT_DIR%\%%F.obj" "src\lib\%%F.cpp" >nul 2>&1
+)
+
+echo [INFO] Compiling baselib...
+cl %CXX_FLAGS% /Isrc /c /Fo"%OUTPUT_DIR%\baselib.obj" "src\lib\baselib.cpp"
+if %errorlevel% neq 0 (
+    echo [ERROR] Failed to compile baselib
+    exit /b %errorlevel%
 )
 
 echo [INFO] Compiling tablelib...
