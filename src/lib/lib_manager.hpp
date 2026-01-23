@@ -16,6 +16,8 @@ public:
 
     static void openString(LuaState* L);
 
+    static void openTable(LuaState* L);
+
     static void openModule(LuaState* L, LibModule& module);
 };
 

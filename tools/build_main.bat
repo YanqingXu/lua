@@ -220,6 +220,10 @@ echo [INFO] Compiling StringLib...
 cl %CXX_FLAGS% /Isrc /c /Fo"%OUTPUT_DIR%\stringlib.obj" "src\lib\stringlib.cpp"
 if %errorlevel% neq 0 exit /b %errorlevel%
 
+echo [INFO] Compiling TableLib...
+cl %CXX_FLAGS% /Isrc /c /Fo"%OUTPUT_DIR%\tablelib.obj" "src\lib\tablelib.cpp"
+if %errorlevel% neq 0 exit /b %errorlevel%
+
 echo [INFO] Compiling DynamicBuffer class...
 cl %CXX_FLAGS% /Isrc /c /Fo"%OUTPUT_DIR%\dynamic_buffer.obj" "src\io\dynamic_buffer.cpp"
 if %errorlevel% neq 0 exit /b %errorlevel%
@@ -285,6 +289,10 @@ if "%BUILD_MODE%"=="test" (
 
     echo [INFO] Compiling test_stringlib...
     cl %CXX_FLAGS% /Isrc /Itests\unit\framework /c /Fo"%OUTPUT_DIR%\test_stringlib.obj" "tests\unit\stdlib\test_stringlib.cpp" >nul 2>&1
+    if %errorlevel% neq 0 exit /b %errorlevel%
+
+    echo [INFO] Compiling test_tablelib...
+    cl %CXX_FLAGS% /Isrc /Itests\unit\framework /c /Fo"%OUTPUT_DIR%\test_tablelib.obj" "tests\unit\stdlib\test_tablelib.cpp" >nul 2>&1
     if %errorlevel% neq 0 exit /b %errorlevel%
 
     echo [INFO] Compiling test_lua_functions...
@@ -390,6 +398,7 @@ if "%BUILD_MODE%"=="test" (
         "%OUTPUT_DIR%\test_syntax_sugar.obj" ^
         "%OUTPUT_DIR%\test_baselib.obj" ^
         "%OUTPUT_DIR%\test_stringlib.obj" ^
+        "%OUTPUT_DIR%\test_tablelib.obj" ^
         "%OUTPUT_DIR%\test_lua_functions.obj" ^
         "%OUTPUT_DIR%\test_metamethod_arith.obj" ^
         "%OUTPUT_DIR%\test_metamethod_complete.obj" ^
@@ -428,6 +437,7 @@ if "%BUILD_MODE%"=="test" (
         "%OUTPUT_DIR%\mathlib.obj" ^
         "%OUTPUT_DIR%\iolib.obj" ^
         "%OUTPUT_DIR%\stringlib.obj" ^
+        "%OUTPUT_DIR%\tablelib.obj" ^
         "%OUTPUT_DIR%\dynamic_buffer.obj" ^
         "%OUTPUT_DIR%\input_stream.obj"
 ) else (
@@ -461,6 +471,7 @@ if "%BUILD_MODE%"=="test" (
         "%OUTPUT_DIR%\mathlib.obj" ^
         "%OUTPUT_DIR%\iolib.obj" ^
         "%OUTPUT_DIR%\stringlib.obj" ^
+        "%OUTPUT_DIR%\tablelib.obj" ^
         "%OUTPUT_DIR%\dynamic_buffer.obj" ^
         "%OUTPUT_DIR%\input_stream.obj"
 )

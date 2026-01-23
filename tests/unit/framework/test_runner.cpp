@@ -24,6 +24,7 @@ extern void registerBinaryUnaryExprTests();
 extern void registerFunctionCodegenTests();
 extern void registerBaselibTests();
 extern void registerStringLibTests();
+extern void registerTableLibTests();
 extern void registerLuaFunctionTests();
 extern void registerMetamethodArithTests();
 extern void registerMetamethodCompleteTests();
@@ -92,6 +93,7 @@ int main() {
     registerSyntaxSugarTests();
     registerBaselibTests();
     registerStringLibTests();
+    registerTableLibTests();
     registerLuaFunctionTests();
     registerMetamethodArithTests();
     registerMetamethodCompleteTests();

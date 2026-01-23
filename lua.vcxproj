@@ -157,6 +157,7 @@
     <ClInclude Include="src\lib\lib_registry.hpp" />
     <ClInclude Include="src\lib\mathlib.hpp" />
     <ClInclude Include="src\lib\stringlib.hpp" />
+    <ClInclude Include="src\lib\tablelib.hpp" />
     <ClInclude Include="src\repl.hpp" />
     <ClInclude Include="src\vm\call_info.hpp" />
     <ClInclude Include="src\vm\global_state.hpp" />
@@ -190,6 +191,7 @@
     <ClCompile Include="src\lib\lib_registry.cpp" />
     <ClCompile Include="src\lib\mathlib.cpp" />
     <ClCompile Include="src\lib\stringlib.cpp" />
+    <ClCompile Include="src\lib\tablelib.cpp" />
     <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\repl.cpp" />
     <ClCompile Include="src\vm\global_state.cpp" />
@@ -222,6 +224,7 @@
     <ClCompile Include="tests\unit\core\test_table.cpp" />
     <ClCompile Include="tests\unit\core\test_value.cpp" />
     <ClCompile Include="tests\unit\stdlib\test_stringlib.cpp" />
+    <ClCompile Include="tests\unit\stdlib\test_tablelib.cpp" />
     <ClCompile Include="tests\unit\vm\test_function_call.cpp" />
     <ClCompile Include="tests\unit\vm\test_lua_state_init.cpp" />
     <ClCompile Include="tests\unit\vm\test_vm_core.cpp" />

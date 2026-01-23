@@ -175,6 +175,12 @@
     <ClCompile Include="src\lib\stringlib.cpp">
       <Filter>src\lib</Filter>
     </ClCompile>
+    <ClCompile Include="tests\unit\stdlib\test_tablelib.cpp">
+      <Filter>tests\unit\stdlib</Filter>
+    </ClCompile>
+    <ClCompile Include="src\lib\tablelib.cpp">
+      <Filter>src\lib</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\compiler\ast.hpp">
@@ -283,6 +289,9 @@
       <Filter>src\lib</Filter>
     </ClInclude>
     <ClInclude Include="src\lib\stringlib.hpp">
+      <Filter>src\lib</Filter>
+    </ClInclude>
+    <ClInclude Include="src\lib\tablelib.hpp">
       <Filter>src\lib</Filter>
     </ClInclude>
   </ItemGroup>
