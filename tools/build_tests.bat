@@ -124,6 +124,13 @@ if %errorlevel% neq 0 (
     exit /b %errorlevel%
 )
 
+echo [INFO] Compiling oslib...
+cl %CXX_FLAGS% /Isrc /c /Fo"%OUTPUT_DIR%\oslib.obj" "src\lib\oslib.cpp"
+if %errorlevel% neq 0 (
+    echo [ERROR] Failed to compile oslib
+    exit /b %errorlevel%
+)
+
 echo.
 echo [INFO] ========================================
 echo [INFO] Compiling Test Files...
@@ -205,6 +212,13 @@ if %errorlevel% neq 0 (
     exit /b %errorlevel%
 )
 
+echo [INFO] Compiling test_oslib...
+cl %CXX_FLAGS% /Isrc /Itests\unit\framework /c /Fo"%OUTPUT_DIR%\test_oslib.obj" "tests\unit\stdlib\test_oslib.cpp" >nul 2>&1
+if %errorlevel% neq 0 (
+    echo [ERROR] Failed to compile test_oslib
+    exit /b %errorlevel%
+)
+
 REM Compile metamethod tests
 echo [INFO] Compiling test_metamethod_arith...
 cl %CXX_FLAGS% /Isrc /Itests\unit\framework /c /Fo"%OUTPUT_DIR%\test_metamethod_arith.obj" "tests\unit\metamethod\test_metamethod_arith.cpp" >nul 2>&1
@@ -255,6 +269,7 @@ cl %CXX_FLAGS% /Fe"%OUTPUT_DIR%\test_runner.exe" ^
     "%OUTPUT_DIR%\test_baselib.obj" ^
     "%OUTPUT_DIR%\test_stringlib.obj" ^
     "%OUTPUT_DIR%\test_tablelib.obj" ^
+    "%OUTPUT_DIR%\test_oslib.obj" ^
     "%OUTPUT_DIR%\test_lua_functions.obj" ^
     "%OUTPUT_DIR%\test_metamethod_arith.obj" ^
     "%OUTPUT_DIR%\test_metamethod_complete.obj" ^
@@ -285,7 +300,8 @@ cl %CXX_FLAGS% /Fe"%OUTPUT_DIR%\test_runner.exe" ^
     "%OUTPUT_DIR%\mathlib.obj" ^
     "%OUTPUT_DIR%\iolib.obj" ^
     "%OUTPUT_DIR%\stringlib.obj" ^
-    "%OUTPUT_DIR%\tablelib.obj"
+    "%OUTPUT_DIR%\tablelib.obj" ^
+    "%OUTPUT_DIR%\oslib.obj"
 
 if %errorlevel% neq 0 (
     echo [ERROR] Linking failed!

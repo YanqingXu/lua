@@ -18,6 +18,8 @@ public:
 
     static void openTable(LuaState* L);
 
+    static void openOS(LuaState* L);
+
     static void openModule(LuaState* L, LibModule& module);
 };
 

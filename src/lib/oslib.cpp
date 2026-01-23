@@ -1,0 +1,391 @@
+﻿#include "lib/oslib.hpp"
+#include "lib/lib_registry.hpp"
+#include "core/table.hpp"
+#include "core/gc_string.hpp"
+#include "vm/global_state.hpp"
+#include <cstdlib>
+#include <ctime>
+#include <cstring>
+#include <cerrno>
+#include <cstdio>
+#include <clocale>
+
+#ifdef _WIN32
+#include <windows.h>
+#include <io.h>
+#else
+#include <unistd.h>
+#endif
+
+namespace Lua {
+
+// ===================================================================
+// Helper Functions
+// ===================================================================
+
+/**
+ * @brief 设置日期表的整数字段
+ */
+static void setfield(LuaState* L, Table* t, const char* key, i32 value) {
+    GCString* keyStr = L->getGlobalState().getStringPool().intern(key);
+    t->set(Value(keyStr), Value(static_cast<f64>(value)));
+}
+
+/**
+ * @brief 设置日期表的布尔字段
+ */
+static void setboolfield(LuaState* L, Table* t, const char* key, i32 value) {
+    if (value < 0) return; // 未定义，不设置
+    GCString* keyStr = L->getGlobalState().getStringPool().intern(key);
+    t->set(Value(keyStr), Value(value != 0));
+}
+
+/**
+ * @brief 获取日期表的整数字段
+ */
+static i32 getfield(LuaState* L, Table* t, const char* key, i32 defaultValue) {
+    GCString* keyStr = L->getGlobalState().getStringPool().intern(key);
+    Value v = t->get(Value(keyStr));
+    if (v.isNumber()) {
+        return static_cast<i32>(v.asNumber());
+    }
+    if (defaultValue < 0) {
+        char errMsg[128];
+        snprintf(errMsg, sizeof(errMsg), "field '%s' missing in date table", key);
+        L->error(errMsg);
+    }
+    return defaultValue;
+}
+
+/**
+ * @brief 获取日期表的布尔字段
+ */
+static i32 getboolfield(LuaState* L, Table* t, const char* key) {
+    GCString* keyStr = L->getGlobalState().getStringPool().intern(key);
+    Value v = t->get(Value(keyStr));
+    if (v.isNil()) return -1;
+    return v.asBoolean() ? 1 : 0;
+}
+
+// ===================================================================
+// OS Function Implementations
+// ===================================================================
+
+i32 luaOS_clock(LuaState* L) {
+    std::clock_t c = std::clock();
+    if (c == static_cast<std::clock_t>(-1)) {
+        L->pushNil();
+        return 1;
+    }
+    f64 seconds = static_cast<f64>(c) / CLOCKS_PER_SEC;
+    L->pushNumber(seconds);
+    return 1;
+}
+
+i32 luaOS_difftime(LuaState* L) {
+    if (L->getTop() < 2) {
+        L->error("difftime: missing arguments");
+    }
+    if (!L->isNumber(1) || !L->isNumber(2)) {
+        L->error("difftime: arguments must be numbers");
+    }
+    
+    std::time_t t2 = static_cast<std::time_t>(L->toNumber(1));
+    std::time_t t1 = static_cast<std::time_t>(L->toNumber(2));
+    
+    f64 diff = std::difftime(t2, t1);
+    L->pushNumber(diff);
+    return 1;
+}
+
+i32 luaOS_execute(LuaState* L) {
+    if (L->getTop() < 1) {
+        // 无命令，返回0
+        L->pushNumber(0.0);
+        return 1;
+    }
+    
+    if (!L->isString(1)) {
+        L->error("execute: command must be a string");
+    }
+    
+    const char* command = L->toString(1);
+    i32 result = std::system(command);
+    
+    if (result == -1) {
+        L->pushNil();
+    } else {
+        L->pushNumber(static_cast<f64>(result));
+    }
+    return 1;
+}
+
+i32 luaOS_exit(LuaState* L) {
+    i32 exitCode = 0;
+    if (L->getTop() >= 1 && L->isNumber(1)) {
+        exitCode = static_cast<i32>(L->toNumber(1));
+    }
+    std::exit(exitCode);
+    return 0; // 不会执行到这里
+}
+
+i32 luaOS_getenv(LuaState* L) {
+    if (L->getTop() < 1) {
+        L->error("getenv: missing argument");
+    }
+    if (!L->isString(1)) {
+        L->error("getenv: argument must be a string");
+    }
+
+    const char* varName = L->toString(1);
+
+#ifdef _WIN32
+    char* value = nullptr;
+    size_t len = 0;
+    errno_t err = _dupenv_s(&value, &len, varName);
+    if (err == 0 && value != nullptr) {
+        GCString* str = L->getGlobalState().getStringPool().intern(value);
+        L->pushString(str);
+        std::free(value);
+    } else {
+        L->pushNil();
+    }
+#else
+    const char* value = std::getenv(varName);
+    if (value) {
+        GCString* str = L->getGlobalState().getStringPool().intern(value);
+        L->pushString(str);
+    } else {
+        L->pushNil();
+    }
+#endif
+    return 1;
+}
+
+i32 luaOS_remove(LuaState* L) {
+    if (L->getTop() < 1) {
+        L->error("remove: missing argument");
+    }
+    if (!L->isString(1)) {
+        L->error("remove: argument must be a string");
+    }
+
+    const char* filename = L->toString(1);
+    if (std::remove(filename) == 0) {
+        L->pushBoolean(true);
+    } else {
+        L->pushNil();
+    }
+    return 1;
+}
+
+i32 luaOS_rename(LuaState* L) {
+    if (L->getTop() < 2) {
+        L->error("rename: missing arguments");
+    }
+    if (!L->isString(1) || !L->isString(2)) {
+        L->error("rename: arguments must be strings");
+    }
+
+    const char* oldName = L->toString(1);
+    const char* newName = L->toString(2);
+
+    if (std::rename(oldName, newName) == 0) {
+        L->pushBoolean(true);
+    } else {
+        L->pushNil();
+    }
+    return 1;
+}
+
+i32 luaOS_setlocale(LuaState* L) {
+    if (L->getTop() < 1) {
+        L->error("setlocale: missing argument");
+    }
+    if (!L->isString(1)) {
+        L->error("setlocale: argument must be a string");
+    }
+
+    const char* locale = L->toString(1);
+    i32 category = LC_ALL; // 默认类别
+
+    if (L->getTop() >= 2 && L->isString(2)) {
+        const char* catStr = L->toString(2);
+        if (std::strcmp(catStr, "collate") == 0) category = LC_COLLATE;
+        else if (std::strcmp(catStr, "ctype") == 0) category = LC_CTYPE;
+        else if (std::strcmp(catStr, "monetary") == 0) category = LC_MONETARY;
+        else if (std::strcmp(catStr, "numeric") == 0) category = LC_NUMERIC;
+        else if (std::strcmp(catStr, "time") == 0) category = LC_TIME;
+    }
+
+    const char* result = std::setlocale(category, locale);
+    if (result) {
+        GCString* str = L->getGlobalState().getStringPool().intern(result);
+        L->pushString(str);
+    } else {
+        L->pushNil();
+    }
+    return 1;
+}
+
+i32 luaOS_tmpname(LuaState* L) {
+#ifdef _WIN32
+    char tmpBuffer[L_tmpnam];
+    errno_t err = tmpnam_s(tmpBuffer, L_tmpnam);
+    if (err == 0) {
+        GCString* str = L->getGlobalState().getStringPool().intern(tmpBuffer);
+        L->pushString(str);
+    } else {
+        L->error("tmpname: unable to generate a unique filename");
+    }
+#else
+    char tmpBuffer[L_tmpnam];
+    if (std::tmpnam(tmpBuffer)) {
+        GCString* str = L->getGlobalState().getStringPool().intern(tmpBuffer);
+        L->pushString(str);
+    } else {
+        L->error("tmpname: unable to generate a unique filename");
+    }
+#endif
+    return 1;
+}
+
+i32 luaOS_time(LuaState* L) {
+    std::time_t t;
+
+    if (L->getTop() == 0 || L->isNil(1)) {
+        // 无参数，返回当前时间
+        t = std::time(nullptr);
+    } else {
+        // 参数必须是表
+        if (!L->isTable(1)) {
+            L->error("time: argument must be a table");
+        }
+
+        Table* table = L->at(1).asTable();
+
+        // 从表中提取时间字段
+        std::tm ts;
+        ts.tm_sec = getfield(L, table, "sec", 0);
+        ts.tm_min = getfield(L, table, "min", 0);
+        ts.tm_hour = getfield(L, table, "hour", 12);
+        ts.tm_mday = getfield(L, table, "day", -1);  // 必需字段
+        ts.tm_mon = getfield(L, table, "month", -1) - 1;  // 必需字段，Lua使用1-12，C使用0-11
+        ts.tm_year = getfield(L, table, "year", -1) - 1900;  // 必需字段，Lua使用实际年份，C使用1900年起
+        ts.tm_isdst = getboolfield(L, table, "isdst");
+
+        t = std::mktime(&ts);
+    }
+
+    if (t == static_cast<std::time_t>(-1)) {
+        L->pushNil();
+    } else {
+        L->pushNumber(static_cast<f64>(t));
+    }
+    return 1;
+}
+
+i32 luaOS_date(LuaState* L) {
+    // 获取格式字符串（默认为"%c"）
+    const char* format = "%c";
+    if (L->getTop() >= 1 && L->isString(1)) {
+        format = L->toString(1);
+    }
+
+    // 获取时间戳（默认为当前时间）
+    std::time_t t = std::time(nullptr);
+    if (L->getTop() >= 2 && L->isNumber(2)) {
+        t = static_cast<std::time_t>(L->toNumber(2));
+    }
+
+    // 检查是否使用UTC时间
+    bool useUTC = false;
+    if (*format == '!') {
+        useUTC = true;
+        format++; // 跳过'!'
+    }
+
+    // 获取时间结构
+    std::tm* stm;
+#ifdef _WIN32
+    std::tm tm_buf;
+    if (useUTC) {
+        errno_t err = gmtime_s(&tm_buf, &t);
+        stm = (err == 0) ? &tm_buf : nullptr;
+    } else {
+        errno_t err = localtime_s(&tm_buf, &t);
+        stm = (err == 0) ? &tm_buf : nullptr;
+    }
+#else
+    if (useUTC) {
+        stm = std::gmtime(&t);
+    } else {
+        stm = std::localtime(&t);
+    }
+#endif
+
+    if (stm == nullptr) {
+        L->pushNil();
+        return 1;
+    }
+
+    // 检查是否返回日期表
+    if (std::strcmp(format, "*t") == 0) {
+        Table* table = new Table();
+        L->getGlobalState().getGC().registerObject(table);
+
+        setfield(L, table, "sec", stm->tm_sec);
+        setfield(L, table, "min", stm->tm_min);
+        setfield(L, table, "hour", stm->tm_hour);
+        setfield(L, table, "day", stm->tm_mday);
+        setfield(L, table, "month", stm->tm_mon + 1);  // C使用0-11，Lua使用1-12
+        setfield(L, table, "year", stm->tm_year + 1900);  // C使用1900年起，Lua使用实际年份
+        setfield(L, table, "wday", stm->tm_wday + 1);  // C使用0-6，Lua使用1-7
+        setfield(L, table, "yday", stm->tm_yday + 1);  // C使用0-365，Lua使用1-366
+        setboolfield(L, table, "isdst", stm->tm_isdst);
+
+        L->pushTable(table);
+    } else {
+        // 使用strftime格式化
+        char buffer[256];
+        std::size_t result = std::strftime(buffer, sizeof(buffer), format, stm);
+
+        if (result == 0) {
+            GCString* str = L->getGlobalState().getStringPool().intern("");
+            L->pushString(str);
+        } else {
+            GCString* str = L->getGlobalState().getStringPool().intern(buffer);
+            L->pushString(str);
+        }
+    }
+
+    return 1;
+}
+
+// ===================================================================
+// Library Registration
+// ===================================================================
+
+void openOSLib(LuaState* L) {
+    if (!L) return;
+
+    // 创建os表
+    Table* osTable = FunctionRegistrar::createLibTable(L, "os");
+
+    // 注册所有OS函数到os表
+    FunctionRegistrar(L)
+        .addGlobal("clock", luaOS_clock)
+        .addGlobal("date", luaOS_date)
+        .addGlobal("difftime", luaOS_difftime)
+        .addGlobal("execute", luaOS_execute)
+        .addGlobal("exit", luaOS_exit)
+        .addGlobal("getenv", luaOS_getenv)
+        .addGlobal("remove", luaOS_remove)
+        .addGlobal("rename", luaOS_rename)
+        .addGlobal("setlocale", luaOS_setlocale)
+        .addGlobal("time", luaOS_time)
+        .addGlobal("tmpname", luaOS_tmpname)
+        .commitToTable(osTable);
+}
+
+} // namespace Lua

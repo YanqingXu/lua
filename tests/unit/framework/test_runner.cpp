@@ -25,6 +25,7 @@ extern void registerFunctionCodegenTests();
 extern void registerBaselibTests();
 extern void registerStringLibTests();
 extern void registerTableLibTests();
+extern void registerOSlibTests();
 extern void registerLuaFunctionTests();
 extern void registerMetamethodArithTests();
 extern void registerMetamethodCompleteTests();
@@ -94,6 +95,7 @@ int main() {
     registerBaselibTests();
     registerStringLibTests();
     registerTableLibTests();
+    registerOSlibTests();
     registerLuaFunctionTests();
     registerMetamethodArithTests();
     registerMetamethodCompleteTests();

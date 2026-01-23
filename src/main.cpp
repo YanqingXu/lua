@@ -80,6 +80,7 @@ extern void registerInputStreamFileTests();
 extern void registerLuaStateInitTests();
 extern void registerStringLibTests();
 extern void registerTableLibTests();
+extern void registerOSlibTests();
 #endif
 
 using namespace Lua;
@@ -235,6 +236,7 @@ int runTests() {
     registerLuaStateInitTests();
     registerStringLibTests();
     registerTableLibTests();
+    registerOSlibTests();
 
     std::cout << "[INFO] All tests registered." << std::endl;
     std::cout << "[INFO] Starting test execution...\n" << std::endl;
