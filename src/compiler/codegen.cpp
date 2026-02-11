@@ -537,8 +537,9 @@ void CodeGenerator::statement(const Stmt& s) {
                 ExprDesc cond;
                 expr(*branch.condition, cond);
 
-                // 生成条件为假时跳转的代码
-                luaK_goiffalse(cond);
+                // ⭐ P0修复：参考lua_c_analysis/src/lparser.c:4628 cond函数
+                // 生成条件为假时跳转的代码（使用luaK_goiftrue）
+                luaK_goiftrue(cond);
 
                 // then块
                 block(branch.body);
@@ -559,8 +560,8 @@ void CodeGenerator::statement(const Stmt& s) {
                 ExprDesc cond;
                 expr(*branch.condition, cond);
 
-                // 生成条件为假时跳转的代码
-                luaK_goiffalse(cond);
+                // ⭐ P0修复：生成条件为假时跳转的代码（使用luaK_goiftrue）
+                luaK_goiftrue(cond);
 
                 // then块
                 block(branch.body);
@@ -1028,6 +1029,17 @@ i32 CodeGenerator::jumponcond(ExprDesc& e, i32 cond) {
 }
 
 i32 CodeGenerator::condjump(OpCode op, i32 a, i32 b, i32 c) {
+    // ⭐ P0修复：参考lua_c_analysis/src/lcode.c:477-486 patchtestreg实现
+    // 当TESTSET的A参数为NO_REG时，应该使用TEST指令
+    // 这是因为NO_REG(255)是无效的寄存器索引，会导致VM运行时错误
+    if (op == OpCode::TESTSET && a == NO_REG) {
+        // 转换为TEST指令：TEST A B C
+        // TESTSET的B参数变为TEST的A参数（要测试的寄存器）
+        op = OpCode::TEST;
+        a = b;
+        b = 0;
+    }
+
     codeABC(op, a, b, c);
     i32 jpc = jpc_;
     jpc_ = NO_JUMP;
