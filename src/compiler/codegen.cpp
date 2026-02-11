@@ -25,6 +25,7 @@ CodeGenerator::CodeGenerator(StringPool* pool)
     , localVars_()
     , pc_(0)
     , jpc_(NO_JUMP)
+    , currentBlock_(nullptr)
 {
     if (pool == nullptr) {
         throw std::invalid_argument("StringPool cannot be null");
@@ -68,6 +69,10 @@ Proto* CodeGenerator::generate(const Chunk& chunk) {
 // =====================================================================
 
 i32 CodeGenerator::codeABC(OpCode op, i32 a, i32 b, i32 c) {
+    // ⭐ P0修复：参考lua_c_analysis/src/lcode.c:2886-2898 luaK_code实现
+    // 在生成指令前，必须先修补所有待处理的跳转（jpc_）
+    dischargejpc();
+
     Instruction inst = CREATE_ABC(op, a, b, c);
     i32 pc = static_cast<i32>(proto_->addInstruction(inst));
     proto_->addLineInfo(0);  // TODO: 添加实际行号
@@ -75,6 +80,9 @@ i32 CodeGenerator::codeABC(OpCode op, i32 a, i32 b, i32 c) {
 }
 
 i32 CodeGenerator::codeABx(OpCode op, i32 a, i32 bx) {
+    // ⭐ P0修复：在生成指令前修补待处理的跳转
+    dischargejpc();
+
     Instruction inst = CREATE_ABx(op, a, bx);
     i32 pc = static_cast<i32>(proto_->addInstruction(inst));
     proto_->addLineInfo(0);  // TODO: 添加实际行号
@@ -82,6 +90,9 @@ i32 CodeGenerator::codeABx(OpCode op, i32 a, i32 bx) {
 }
 
 i32 CodeGenerator::codeAsBx(OpCode op, i32 a, i32 sbx) {
+    // ⭐ P0修复：在生成指令前修补待处理的跳转
+    dischargejpc();
+
     Instruction inst = CREATE_AsBx(op, a, sbx);
     i32 pc = static_cast<i32>(proto_->addInstruction(inst));
     proto_->addLineInfo(0);  // TODO: 添加实际行号
@@ -198,6 +209,14 @@ void CodeGenerator::patchList(i32 list, i32 target) {
 void CodeGenerator::patchToHere(i32 list) {
     i32 target = static_cast<i32>(proto_->getInstructionCount());
     patchList(list, target);
+}
+
+void CodeGenerator::dischargejpc() {
+    // ⭐ P0修复：参考lua_c_analysis/src/lcode.c:608-611 dischargejpc实现
+    // 将所有待处理的跳转（jpc_）修补到当前位置
+    i32 target = static_cast<i32>(proto_->getInstructionCount());
+    patchList(jpc_, target);
+    jpc_ = NO_JUMP;
 }
 
 i32 CodeGenerator::getLabel() {
@@ -553,8 +572,9 @@ void CodeGenerator::statement(const Stmt& s) {
                 // 在处理下一个分支之前，生成跳过后续分支的JMP
                 luaK_concat(escapelist, jump());
 
-                // 修补前一个分支的假值跳转到这里
-                patchToHere(flist);
+                // ⭐ 关键修复：使用patchtohere（小写h）而不是patchToHere（大写H）
+                // patchtohere将跳转添加到jpc_，在下一次生成指令时自动修补
+                patchtohere(flist);
 
                 const auto& branch = arg.branches[i];
                 ExprDesc cond;
@@ -575,8 +595,8 @@ void CodeGenerator::statement(const Stmt& s) {
                 // 在处理else块之前，生成跳过else块的JMP
                 luaK_concat(escapelist, jump());
 
-                // 修补前一个分支的假值跳转到这里
-                patchToHere(flist);
+                // ⭐ 关键修复：使用patchtohere（小写h）
+                patchtohere(flist);
 
                 // else块
                 block(arg.elseBranch);
@@ -585,25 +605,38 @@ void CodeGenerator::statement(const Stmt& s) {
                 luaK_concat(escapelist, flist);
             }
 
-            // 修补所有escape跳转到if语句结束
-            patchToHere(escapelist);
+            // ⭐ 关键修复：使用patchtohere（小写h）
+            patchtohere(escapelist);
         }
         else if constexpr (std::is_same_v<T, WhileStmt>) {
+            // ⭐ P0修复：参考lua_c_analysis/src/lparser.c:4808-4823 whilestat实现
             // while循环
             i32 whileinit = getLabel();
 
+            // ⭐ 关键修复：使用cond函数的逻辑（参考lua_c_analysis/src/lparser.c:4625-4630）
+            // 生成条件表达式并调用luaK_goiftrue，返回假值跳转列表
             ExprDesc cond;
             expr(*arg.condition, cond);
-            i32 condreg = exp2AnyReg(cond);
+            if (cond.kind == ExprKind::Nil) {
+                cond.kind = ExprKind::False;
+            }
+            luaK_goiftrue(cond);
+            i32 condexit = cond.f;  // 保存假值跳转列表
 
-            codeABC(OpCode::TEST, condreg, 0, 0);
-            i32 condexit = jump();
-            freeReg(condreg);
+            // 进入可break的代码块
+            enterBlock(true);  // isbreakable = true
 
             block(arg.body);
 
-            codeAsBx(OpCode::JMP, 0, whileinit - getLabel() - 1);
-            patchToHere(condexit);
+            // 生成回跳到循环开始
+            patchList(jump(), whileinit);
+
+            // 离开代码块，修补所有break跳转
+            leaveBlock();
+
+            // ⭐ 关键修复：使用patchtohere（延迟修补），修补条件为假时的跳转
+            // 参考官方Lua的whilestat实现（lua_c_analysis/src/lparser.c:4822）
+            patchtohere(condexit);
         }
         else if constexpr (std::is_same_v<T, DoStmt>) {
             // do块
@@ -646,8 +679,21 @@ void CodeGenerator::statement(const Stmt& s) {
             // 空语句，不生成代码
         }
         else if constexpr (std::is_same_v<T, BreakStmt>) {
-            // break 语句，暂时抛出错误
-            throw std::runtime_error("break statement not yet implemented");
+            // ⭐ P0修复：参考lua_c_analysis/src/lparser.c:4712-4725 breakstat实现
+            // 查找最近的可break代码块
+            BlockInfo* bl = currentBlock_;
+            while (bl && !bl->isbreakable) {
+                bl = bl->previous;
+            }
+
+            // 如果没有找到可break的代码块，报错
+            if (!bl) {
+                throw std::runtime_error("no loop to break");
+            }
+
+            // 生成跳转指令并添加到break列表
+            // 注意：官方Lua还会处理upvalue关闭（OP_CLOSE），但我们暂时不支持upvalue
+            luaK_concat(bl->breaklist, jump());
         }
         else if constexpr (std::is_same_v<T, RepeatStmt>) {
             // repeat-until 语句，暂时抛出错误
@@ -884,25 +930,31 @@ void CodeGenerator::codenot(ExprDesc& e) {
 // =====================================================================
 
 void CodeGenerator::luaK_goiftrue(ExprDesc& e) {
+    // ⭐ P0修复：参考lua_c_analysis/src/lcode.c:2073-2094 luaK_goiftrue实现
     luaK_dischargevars(e);
 
+    i32 pc;  // 最后跳转的pc
     switch (e.kind) {
-        case ExprKind::Jump:
-            invertJump(e);
-            break;
         case ExprKind::True:
         case ExprKind::Number:
         case ExprKind::Const:
             // 常量真值：无需跳转
+            pc = NO_JUMP;
             break;
-        default: {
-            i32 pc = jumponcond(e, 0);  // 如果为假则跳转
-            luaK_concat(e.f, pc);
-            patchtohere(e.t);
-            e.t = NO_JUMP;
+        case ExprKind::Jump:
+            // ⭐ 关键修复：对于Jump类型，反转跳转并获取pc
+            invertJump(e);
+            pc = e.u.s.info;
             break;
-        }
+        default:
+            // 其他类型：生成条件跳转
+            pc = jumponcond(e, 0);  // 如果为假则跳转
+            break;
     }
+    // ⭐ 关键修复：将最后跳转插入`f'列表（参考lcode.c:2091）
+    luaK_concat(e.f, pc);
+    patchtohere(e.t);
+    e.t = NO_JUMP;
 }
 
 void CodeGenerator::luaK_goiffalse(ExprDesc& e) {
@@ -1434,6 +1486,9 @@ void CodeGenerator::forNumStmt(const ForNumStmt& s) {
         codeABx(OpCode::LOADK, stepReg, numberConstant(1.0));
     }
 
+    // 进入可break的代码块（在添加循环变量之前）
+    enterBlock(true);  // isbreakable = true
+
     // 添加循环变量作为局部变量（R(base+3)）
     addLocalVar(s.var);
     adjustLocalVars(1);
@@ -1451,8 +1506,8 @@ void CodeGenerator::forNumStmt(const ForNumStmt& s) {
     // 回填FORPREP的跳转目标（跳到FORLOOP）
     fixjump(prep, loop);
 
-    // 移除循环变量
-    removeLocalVars(nactvar_ - 1);
+    // 离开代码块，修补所有break跳转，并移除循环变量
+    leaveBlock();
 
     // 释放寄存器
     freeRegs(4);  // init, limit, step, var
@@ -1499,6 +1554,9 @@ void CodeGenerator::forInStmt(const ForInStmt& s) {
         throw std::runtime_error("CodeGenerator: for-in loop iterator must be a function call");
     }
 
+    // 进入可break的代码块（在添加循环变量之前）
+    enterBlock(true);  // isbreakable = true
+
     // 添加循环变量作为局部变量（R(base+3), R(base+4), ...）
     for (const Str& var : s.vars) {
         addLocalVar(var);
@@ -1521,8 +1579,8 @@ void CodeGenerator::forInStmt(const ForInStmt& s) {
     // 生成JMP回循环开始
     codeAsBx(OpCode::JMP, 0, loopStart - getLabel() - 1);
 
-    // 移除循环变量
-    removeLocalVars(nactvar_ - nvars);
+    // 离开代码块，修补所有break跳转，并移除循环变量
+    leaveBlock();
 
     // 释放寄存器
     freeRegs(3 + nvars);  // func, state, var, loop_vars
@@ -1732,6 +1790,41 @@ void CodeGenerator::luaK_storevar(ExprDesc& var, ExprDesc& ex) {
     if (ex.kind == ExprKind::NonRelocatable) {
         freeReg(ex.u.s.info);
     }
+}
+
+// =====================================================================
+// 代码块管理
+// =====================================================================
+
+void CodeGenerator::enterBlock(bool isbreakable) {
+    // ⭐ P0修复：参考lua_c_analysis/src/lparser.c:1770-1778 enterblock实现
+    // 创建新的代码块并链接到当前块
+    BlockInfo* newBlock = new BlockInfo(currentBlock_, nactvar_, isbreakable);
+    currentBlock_ = newBlock;
+}
+
+void CodeGenerator::leaveBlock() {
+    // ⭐ P0修复：参考lua_c_analysis/src/lparser.c:1852-1862 leaveblock实现
+    if (currentBlock_ == nullptr) {
+        throw std::runtime_error("No block to leave");
+    }
+
+    BlockInfo* bl = currentBlock_;
+
+    // 恢复父级代码块
+    currentBlock_ = bl->previous;
+
+    // 移除当前代码块中声明的局部变量
+    removeLocalVars(bl->nactvar);
+
+    // 恢复寄存器分配状态
+    freereg_ = nactvar_;
+
+    // 修补所有break跳转到当前位置
+    patchToHere(bl->breaklist);
+
+    // 释放代码块
+    delete bl;
 }
 
 }  // namespace Lua

@@ -96,9 +96,25 @@ struct LocalVar {
     i32 reg;        // 寄存器索引
     i32 startpc;    // 作用域开始位置
     i32 endpc;      // 作用域结束位置
-    
+
     LocalVar(const Str& n, i32 r, i32 start)
         : name(n), reg(r), startpc(start), endpc(-1) {}
+};
+
+/**
+ * @brief 代码块信息
+ *
+ * 用于管理嵌套作用域和break语句的跳转目标。
+ * 参考官方Lua的BlockCnt结构。
+ */
+struct BlockInfo {
+    BlockInfo* previous;    // 父级代码块
+    i32 breaklist;          // break语句的跳转链表
+    i32 nactvar;            // 进入块时的活跃变量数
+    bool isbreakable;       // 是否可以使用break（循环块）
+
+    BlockInfo(BlockInfo* prev, i32 nact, bool breakable)
+        : previous(prev), breaklist(NO_JUMP), nactvar(nact), isbreakable(breakable) {}
 };
 
 /**
@@ -211,6 +227,7 @@ private:
     i32 jumponcond(ExprDesc& e, i32 cond);
     i32 condjump(OpCode op, i32 a, i32 b, i32 c);
     void patchtohere(i32 list);
+    void dischargejpc();  // 修补所有待处理的跳转到当前位置
     void luaK_getlabel();
     i32 getjump(i32 pc);
     void fixjump(i32 pc, i32 dest);
@@ -232,6 +249,13 @@ private:
     void forInStmt(const ForInStmt& s);
 
     // =====================================================================
+    // 代码块管理
+    // =====================================================================
+
+    void enterBlock(bool isbreakable);
+    void leaveBlock();
+
+    // =====================================================================
     // 函数编译辅助
     // =====================================================================
 
@@ -247,6 +271,7 @@ private:
     Vec<LocalVar> localVars_;   // 局部变量列表
     i32 pc_;                    // 当前指令索引
     i32 jpc_;                   // 待处理的跳转链表
+    BlockInfo* currentBlock_;   // 当前代码块
 };
 
 }  // namespace Lua
