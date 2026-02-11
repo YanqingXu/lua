@@ -63,6 +63,13 @@ cl %CXX_FLAGS% /Isrc ^
   src\lib\lib_registry.cpp ^
   src\lib\lib_manager.cpp ^
   src\lib\baselib.cpp ^
+  src\lib\mathlib.cpp ^
+  src\lib\iolib.cpp ^
+  src\lib\stringlib.cpp ^
+  src\lib\tablelib.cpp ^
+  src\lib\oslib.cpp ^
+  src\io\dynamic_buffer.cpp ^
+  src\io\input_stream.cpp ^
   src\compiler\lexer.cpp ^
   src\compiler\ast.cpp ^
   src\compiler\parser.cpp ^

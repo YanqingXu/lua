@@ -189,6 +189,9 @@ private:
     void functionExpr(const FunctionExpr& e, ExprDesc& desc);
     void callExpr(const CallExpr& e, ExprDesc& desc);
 
+    // 表构造器
+    void tableExpr(const TableExpr& table, ExprDesc& desc);
+
     // 表索引和成员访问
     void luaK_indexed(ExprDesc& t, ExprDesc& k);
     void luaK_self(ExprDesc& e, ExprDesc& key);

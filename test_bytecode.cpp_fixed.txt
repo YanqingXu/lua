@@ -1,0 +1,31 @@
+[Proto::addConstant] Proto=000001AF3ECC7F50 index=0 value=10.000000
+[Proto::addConstant] Proto=000001AF3ECC7F50 index=1 value=20.000000
+[Proto::addConstant] Proto=000001AF3ECC7F50 index=2 value=string: 0x000001AF3ECC90D0
+[Proto::addConstant] Proto=000001AF3ECC7F50 index=3 value=string: 0x000001AF3ECC90D0
+
+main <test_bytecode.lua:0,0> (9 instructions, 36 bytes at 000001AF3ECC7F50)
+0+ params, 6 slots, 0 upvalues, 0 locals, 4 constants, 0 functions
+	1	[-]	LOADK    	0 -1	; [Proto::getConstant] Proto=000001AF3ECC7F50 index=0 value=10.000000 (total=4)
+10
+	2	[-]	LOADK    	1 -2	; [Proto::getConstant] Proto=000001AF3ECC7F50 index=1 value=20.000000 (total=4)
+20
+	3	[-]	ADD      	2 0 1
+	4	[-]	MUL      	3 0 1
+	5	[-]	GETGLOBAL	4 -3[Proto::getConstant] Proto=000001AF3ECC7F50 index=2 value=string: 0x000001AF3ECC90D0 (total=4)
+	; print
+	6	[-]	CALL     	4 2 1
+	7	[-]	GETGLOBAL	4 -4[Proto::getConstant] Proto=000001AF3ECC7F50 index=3 value=string: 0x000001AF3ECC90D0 (total=4)
+	; print
+	8	[-]	CALL     	4 2 1
+	9	[-]	RETURN   	4 2
+constants (4) for 000001AF3ECC7F50:
+	1	[Proto::getConstant] Proto=000001AF3ECC7F50 index=0 value=10.000000 (total=4)
+10
+	2	[Proto::getConstant] Proto=000001AF3ECC7F50 index=1 value=20.000000 (total=4)
+20
+	3	[Proto::getConstant] Proto=000001AF3ECC7F50 index=2 value=string: 0x000001AF3ECC90D0 (total=4)
+"print"
+	4	[Proto::getConstant] Proto=000001AF3ECC7F50 index=3 value=string: 0x000001AF3ECC90D0 (total=4)
+"print"
+locals (0) for 000001AF3ECC7F50:
+upvalues (0) for 000001AF3ECC7F50:

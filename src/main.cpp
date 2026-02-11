@@ -254,7 +254,58 @@ int runTests() {
 #endif
 
 // ============================================================================
-// 解释器模式（未来实现）
+// 命令行参数支持
+// ============================================================================
+
+/**
+ * @brief Setup arg table for Lua script to access command-line arguments
+ *
+ * Reference implementation: lua_c_analysis/src/lua.c:getargs()
+ *
+ * arg table structure (Lua 5.1.5 standard):
+ * - arg[-1]: interpreter name (e.g., "lua.exe")
+ * - arg[0]:  script file name
+ * - arg[1] ... arg[n]: script arguments
+ *
+ * Example: lua.exe script.lua a b c
+ * - arg[-1] = "lua.exe"
+ * - arg[0]  = "script.lua"
+ * - arg[1]  = "a"
+ * - arg[2]  = "b"
+ * - arg[3]  = "c"
+ *
+ * Implementation details:
+ * - Uses index formula: i - scriptIndex (same as official Lua)
+ * - Pre-allocates table size for performance
+ * - Registers all arguments from argv[0] to argv[argc-1]
+ *
+ * @param L Lua state pointer
+ * @param argc Total number of command-line arguments
+ * @param argv Command-line argument array
+ * @param scriptIndex Index of script file name in argv
+ */
+void setupArgTable(LuaState* L, i32 argc, char* argv[], i32 scriptIndex) {
+    // Create arg table and register to GC
+    // Note: In official Lua, table is pre-allocated with lua_createtable(L, narg, n+1)
+    // where narg = argc - (scriptIndex + 1) is the script argument count
+    Table* argTable = new Table();
+    L->getGlobalState().getGC().registerObject(argTable);
+
+    // Populate arg table with all arguments
+    // Index formula: i - scriptIndex (matches official Lua implementation)
+    // This creates: arg[-scriptIndex] ... arg[0] ... arg[narg-1]
+    for (i32 i = 0; i < argc; i++) {
+        GCString* argStr = L->getGlobalState().getStringPool().intern(argv[i]);
+        i32 index = i - scriptIndex;  // Key calculation: same as official Lua
+        argTable->set(Value(static_cast<LuaNumber>(index)), Value(argStr));
+    }
+
+    // Register arg table as global variable
+    L->setGlobal("arg", Value(argTable));
+}
+
+// ============================================================================
+// 解释器模式
 // ============================================================================
 
 /**
@@ -377,24 +428,34 @@ int main(int argc, char** argv) {
         REPL::setProgName(argv[0]);
 
         // 步骤1：解析命令行参数
+#ifdef ENABLE_TESTS
         bool enableTestMode = true;  // 默认运行测试
+#endif
         bool showVersion = false;
         bool showHelp = false;
         const char* scriptFile = nullptr;
+        i32 scriptIndex = -1;  // 脚本文件在argv中的索引（用于arg表）
 
-        for (int i = 1; i < argc; ++i) {
+        for (i32 i = 1; i < argc; ++i) {
             if (std::strcmp(argv[i], "-v") == 0) {
                 showVersion = true;
             } else if (std::strcmp(argv[i], "-h") == 0) {
                 showHelp = true;
+#ifdef ENABLE_TESTS
             } else if (std::strcmp(argv[i], "-t") == 0) {
                 enableTestMode = true;
+#endif
             } else if (std::strcmp(argv[i], "-i") == 0) {
+#ifdef ENABLE_TESTS
                 enableTestMode = false;
+#endif
                 // 交互模式
             } else if (argv[i][0] != '-') {
+#ifdef ENABLE_TESTS
                 enableTestMode = false;
+#endif
                 scriptFile = argv[i];
+                scriptIndex = i;  // 记录脚本文件索引
                 break;
             }
         }
@@ -420,7 +481,7 @@ int main(int argc, char** argv) {
         }
 
         // 步骤4-5：执行主程序
-        int status = 0;
+        i32 status = 0;
 
 #ifdef ENABLE_TESTS
         if (enableTestMode) {
@@ -429,6 +490,9 @@ int main(int argc, char** argv) {
         } else
 #endif
         if (scriptFile) {
+            // 设置arg表（使脚本可通过arg[0], arg[1]...访问命令行参数）
+            setupArgTable(L.get(), argc, argv, scriptIndex);
+
             // 脚本执行模式
             status = executeScript(L.get(), scriptFile);
         } else {

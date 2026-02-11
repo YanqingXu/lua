@@ -238,6 +238,22 @@ inline void SETARG_A(Instruction& i, i32 a) {
 }
 
 /**
+ * @brief 设置指令的B参数
+ */
+inline void SETARG_B(Instruction& i, i32 b) {
+    i = (i & ~MASK1(SIZE_B, POS_B))
+      | ((static_cast<Instruction>(b) << POS_B) & MASK1(SIZE_B, POS_B));
+}
+
+/**
+ * @brief 设置指令的C参数
+ */
+inline void SETARG_C(Instruction& i, i32 c) {
+    i = (i & ~MASK1(SIZE_C, POS_C))
+      | ((static_cast<Instruction>(c) << POS_C) & MASK1(SIZE_C, POS_C));
+}
+
+/**
  * @brief 设置指令的sBx参数
  */
 inline void SETARG_sBx(Instruction& i, i32 sbx) {

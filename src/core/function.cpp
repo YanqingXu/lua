@@ -42,11 +42,12 @@ Proto::~Proto() {
 usize Proto::addConstant(const Value& value) {
     usize index = constants_.size();
     constants_.push_back(value);
-    #ifdef DEBUG
-    std::cerr << "[Proto::addConstant] Proto=" << (void*)this
-              << " index=" << index
-              << " value=" << value.toString() << std::endl;
-    #endif
+    // Debug output disabled for clean bytecode printing
+    // #ifdef DEBUG
+    // std::cerr << "[Proto::addConstant] Proto=" << (void*)this
+    //           << " index=" << index
+    //           << " value=" << value.toString() << std::endl;
+    // #endif
     return index;
 }
 
@@ -55,12 +56,13 @@ Value Proto::getConstant(usize index) const {
         throw std::out_of_range("Constant index out of range");
     }
     Value result = constants_[index];
-    #ifdef DEBUG
-    std::cerr << "[Proto::getConstant] Proto=" << (void*)this
-              << " index=" << index
-              << " value=" << result.toString()
-              << " (total=" << constants_.size() << ")" << std::endl;
-    #endif
+    // Debug output disabled for clean bytecode printing
+    // #ifdef DEBUG
+    // std::cerr << "[Proto::getConstant] Proto=" << (void*)this
+    //           << " index=" << index
+    //           << " value=" << result.toString()
+    //           << " (total=" << constants_.size() << ")" << std::endl;
+    // #endif
     return result;
 }
 

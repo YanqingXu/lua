@@ -1,0 +1,22 @@
+
+main <test_bytecode.lua:0,0> (12 instructions, 48 bytes at 00000209B0F183D0)
+0+ params, 6 slots, 0 upvalues, 0 locals, 4 constants, 0 functions
+	1	[-]	LOADK    	0 -1	; 10
+	2	[-]	LOADK    	1 -2	; 20
+	3	[-]	ADD      	2 0 1
+	4	[-]	MUL      	3 0 1
+	5	[-]	GETGLOBAL	4 -3	; print
+	6	[-]	MOVE     	5 2
+	7	[-]	CALL     	4 2 1
+	8	[-]	GETGLOBAL	4 -4	; print
+	9	[-]	MOVE     	5 3
+	10	[-]	CALL     	4 2 1
+	11	[-]	MOVE     	4 2
+	12	[-]	RETURN   	4 2
+constants (4) for 00000209B0F183D0:
+	1	10
+	2	20
+	3	"print"
+	4	"print"
+locals (0) for 00000209B0F183D0:
+upvalues (0) for 00000209B0F183D0:

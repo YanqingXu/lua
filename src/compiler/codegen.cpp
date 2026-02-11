@@ -256,11 +256,15 @@ void CodeGenerator::expr(const Expr& e, ExprDesc& desc) {
         }
         else if constexpr (std::is_same_v<T, IndexExpr>) {
             // 表索引访问 table[key]
+            // 参考：lua_c_analysis/src/lparser.c suffixedexp → luaK_exp2anyreg + yindex + luaK_indexed
             // 1. 计算表表达式
             ExprDesc t;
             expr(*arg.table, t);
-            // 2. 将表表达式转换到寄存器
+            // 2. 将表表达式放入寄存器（必须是寄存器，不能是Relocatable）
+            // ⭐ 关键修复：luaK_dischargevars只将Global转为Relocatable（info=pc），
+            // 但luaK_indexed需要info是寄存器编号。必须调用exp2AnyReg确保在寄存器中。
             luaK_dischargevars(t);
+            exp2AnyReg(t);
             // 3. 计算索引表达式
             ExprDesc k;
             expr(*arg.index, k);
@@ -271,11 +275,14 @@ void CodeGenerator::expr(const Expr& e, ExprDesc& desc) {
         else if constexpr (std::is_same_v<T, MemberExpr>) {
             // 成员访问 table.member
             // 等价于 table["member"]
+            // 参考：lua_c_analysis/src/lparser.c suffixedexp → luaK_exp2anyreg + checkname + luaK_indexed
             // 1. 计算表表达式
             ExprDesc t;
             expr(*arg.table, t);
-            // 2. 将表表达式转换到寄存器
+            // 2. 将表表达式放入寄存器（必须是寄存器，不能是Relocatable）
+            // ⭐ 关键修复：同IndexExpr，必须确保表在寄存器中
             luaK_dischargevars(t);
+            exp2AnyReg(t);
             // 3. 创建字符串常量作为索引
             ExprDesc k;
             k.kind = ExprKind::Const;
@@ -285,6 +292,9 @@ void CodeGenerator::expr(const Expr& e, ExprDesc& desc) {
             // 4. 设置为索引表达式
             luaK_indexed(t, k);
             desc = t;
+        }
+        else if constexpr (std::is_same_v<T, TableExpr>) {
+            tableExpr(arg, desc);
         }
         else {
             // 其他表达式类型暂不支持
@@ -341,6 +351,21 @@ void CodeGenerator::discharge(ExprDesc& desc, i32 reg) {
             proto_->setInstruction(pc, inst);
             break;
         }
+        case ExprKind::NonRelocatable:
+            // ⭐ 字节码修复：NonRelocatable表达式需要MOVE指令
+            // 参考：lua_c_analysis/src/lcode.c:1447-1450 discharge2reg函数
+            //
+            // NonRelocatable表示表达式结果已经在某个寄存器中（desc.u.s.info）
+            // 如果目标寄存器不同，需要生成MOVE指令将值移动到目标寄存器
+            //
+            // 这是函数调用参数处理的关键：
+            // - sum在R2（NonRelocatable，info=2）
+            // - 需要移动到R5（函数参数位置）
+            // - 生成：MOVE 5 2
+            if (desc.u.s.info != reg) {
+                codeABC(OpCode::MOVE, reg, desc.u.s.info, 0);
+            }
+            break;
         default:
             break;
     }
@@ -1110,7 +1135,27 @@ void CodeGenerator::functionExpr(const FunctionExpr& e, ExprDesc& desc) {
 }
 
 void CodeGenerator::callExpr(const CallExpr& e, ExprDesc& desc) {
-    i32 funcReg;
+    // ⭐ 字节码修复：函数调用参数寄存器分配
+    // 参考：lua_c_analysis/src/lparser.c:3356-3401 funcargs函数
+    //
+    // Lua调用约定：
+    // - 函数必须在寄存器base
+    // - 参数必须连续分配在base+1, base+2, ..., base+nargs
+    // - CALL指令格式：CALL base (nargs+1) (nresults+1)
+    //
+    // 修复前的问题：
+    // - 函数在某个寄存器（如R4）
+    // - 参数使用exp2NextReg分配，可能不连续（如R2, R3）
+    // - CALL 4 2 1 会从R5读取参数，但参数实际在R2
+    //
+    // 修复策略：
+    // 1. 确保函数在base寄存器
+    // 2. 保存当前freereg，然后设置freereg=base+1
+    // 3. 对每个参数调用exp2NextReg，自动连续分配到base+1, base+2, ...
+    // 4. 生成CALL指令
+    // 5. 重置freereg=base+1（保留返回值寄存器）
+
+    i32 base;  // 函数所在的寄存器（也是调用帧的基址）
     i32 nargs = static_cast<i32>(e.args.size());
 
     // 检查是否为方法调用（obj:method(args)）
@@ -1134,37 +1179,157 @@ void CodeGenerator::callExpr(const CallExpr& e, ExprDesc& desc) {
         key.f = NO_JUMP;
 
         // 生成SELF指令
-        // SELF会将对象放入func+1，方法放入func
+        // SELF A B C: R(A+1) := R(B); R(A) := R(B)[RK(C)]
+        // SELF会将对象放入base+1，方法放入base
         luaK_self(obj, key);
-        funcReg = obj.u.s.info;
+        base = obj.u.s.info;
 
-        // 参数数量+1（包含隐式的self参数）
+        // 参数数量+1（包含隐式的self参数，已经在base+1）
         nargs++;
     } else {
         // 普通函数调用
         ExprDesc func;
         expr(*e.func, func);
-        funcReg = exp2AnyReg(func);
+
+        // 确保函数表达式在寄存器中（NonRelocatable）
+        base = exp2AnyReg(func);
     }
 
-    // 计算参数
+    // ⭐ 关键修复：确保参数连续分配在base+1之后
+    // 参考官方实现：lua_c_analysis/src/lparser.c:3394-3396
+    //
+    // 官方代码：
+    //   if (args.k != VVOID)
+    //       luaK_exp2nextreg(fs, &args);
+    //   nparams = fs->freereg - (base+1);
+    //
+    // 这里的关键是：
+    // 1. 函数已经在base寄存器，占用了一个寄存器位置
+    // 2. 调用exp2NextReg时，会自动分配到freereg位置
+    // 3. 如果freereg > base+1，说明中间有其他寄存器被占用
+    // 4. 需要确保freereg == base+1，这样参数才能紧跟函数
+
+    // 保存当前的freereg（可能有其他表达式占用的寄存器）
+    i32 savedFreeReg = freereg_;
+
+    // 强制freereg = base + 1，确保参数从base+1开始分配
+    // 这样第一个参数会分配到base+1，第二个到base+2，依此类推
+    freereg_ = base + 1;
+
+    // 计算每个参数，exp2NextReg会将它们连续分配到base+1, base+2, ...
     for (const auto& arg : e.args) {
         ExprDesc argDesc;
         expr(*arg, argDesc);
-        exp2NextReg(argDesc);
+        exp2NextReg(argDesc);  // 现在会连续分配到base+1, base+2, base+3, ...
+    }
+
+    // 此时freereg应该等于base+1+nargs
+    // 验证参数数量（调试用）
+    i32 actualNargs = freereg_ - (base + 1);
+    if (actualNargs != nargs) {
+        // 理论上不应该发生，除非有多返回值表达式
+        // 暂时使用实际计算的参数数量
+        nargs = actualNargs;
     }
 
     // 生成CALL指令
-    // CALL A B C: 调用R(A)，B-1个参数，C-1个返回值
-    // B=0表示参数到栈顶，C=0表示返回值到栈顶
-    codeABC(OpCode::CALL, funcReg, nargs + 1, 2);  // 默认1个返回值
+    // CALL A B C: 调用R(A)，B-1个参数（在R(A+1)...R(A+B-1)），C-1个返回值
+    // - A = base（函数寄存器）
+    // - B = nargs + 1（参数数量+1）
+    // - C = 2（期望1个返回值，C-1=1）
+    codeABC(OpCode::CALL, base, nargs + 1, 2);
 
-    // 释放参数寄存器
-    freeRegs(nargs);
+    // ⭐ 关键修复：调用后重置freereg
+    // 参考官方实现：lua_c_analysis/src/lparser.c:3400
+    //   fs->freereg = base+1;
+    //
+    // 原因：
+    // 1. CALL指令执行后，返回值会存储在base寄存器
+    // 2. 参数寄存器（base+1...base+nargs）不再需要，可以释放
+    // 3. 设置freereg=base+1，保留base寄存器（存放返回值）
+    // 4. 下一个表达式可以从base+1开始分配新寄存器
+    freereg_ = base + 1;
 
-    // 函数调用结果在funcReg
+    // 函数调用结果在base寄存器
     desc.kind = ExprKind::Call;
-    desc.u.s.info = funcReg;
+    desc.u.s.info = base;
+}
+
+/**
+ * @brief 表构造器代码生成
+ *
+ * 参考 lua_c_analysis/src/lparser.c constructor() 函数实现。
+ * 生成 NEWTABLE 指令创建表，然后：
+ * - 对于数组字段（key == nullptr）：累积值到连续寄存器，用 SETLIST 批量存储
+ * - 对于哈希字段（key != nullptr）：用 SETTABLE 逐个设置
+ * 最后回补 NEWTABLE 指令的数组/哈希大小参数。
+ */
+void CodeGenerator::tableExpr(const TableExpr& table, ExprDesc& desc) {
+    // 1. 生成 NEWTABLE 指令，B=0, C=0（后续回补实际大小）
+    i32 pc = codeABC(OpCode::NEWTABLE, 0, 0, 0);
+
+    // 2. 标记为 Relocatable，exp2NextReg 会将其固定到寄存器
+    desc.kind = ExprKind::Relocatable;
+    desc.u.s.info = pc;
+    desc.t = NO_JUMP;
+    desc.f = NO_JUMP;
+
+    // 3. 将表固定到一个寄存器中
+    exp2NextReg(desc);
+    i32 tableReg = desc.u.s.info;
+
+    // 4. 遍历字段，分别处理数组和哈希部分
+    i32 na = 0;       // 数组元素总数
+    i32 nh = 0;       // 哈希元素总数
+    i32 tostore = 0;  // 待批量存储的数组元素数
+
+    for (const auto& field : table.fields) {
+        if (field.key) {
+            // === 哈希字段：[key] = value 或 name = value ===
+            i32 savedFreereg = freereg_;
+
+            ExprDesc key;
+            expr(*field.key, key);
+            i32 rkKey = exp2RK(key);
+
+            ExprDesc val;
+            expr(*field.value, val);
+            i32 rkVal = exp2RK(val);
+
+            codeABC(OpCode::SETTABLE, tableReg, rkKey, rkVal);
+            freereg_ = savedFreereg;  // 恢复寄存器状态
+            nh++;
+        } else {
+            // === 数组字段：值按顺序累积到 R(tableReg+1), R(tableReg+2), ... ===
+            na++;
+            tostore++;
+
+            ExprDesc val;
+            expr(*field.value, val);
+            exp2NextReg(val);
+
+            // 达到批量阈值时发射 SETLIST
+            if (tostore == LFIELDS_PER_FLUSH) {
+                i32 c = (na - 1) / LFIELDS_PER_FLUSH + 1;
+                codeABC(OpCode::SETLIST, tableReg, LFIELDS_PER_FLUSH, c);
+                freereg_ = tableReg + 1;  // 释放批量寄存器
+                tostore = 0;
+            }
+        }
+    }
+
+    // 5. 发射剩余数组元素的 SETLIST
+    if (tostore > 0) {
+        i32 c = (na - 1) / LFIELDS_PER_FLUSH + 1;
+        codeABC(OpCode::SETLIST, tableReg, tostore, c);
+        freereg_ = tableReg + 1;
+    }
+
+    // 6. 回补 NEWTABLE 指令的大小参数 B（数组）和 C（哈希）
+    Instruction inst = proto_->getInstruction(pc);
+    SETARG_B(inst, na);
+    SETARG_C(inst, nh);
+    proto_->setInstruction(pc, inst);
 }
 
 void CodeGenerator::functionStmt(const FunctionStmt& s) {
