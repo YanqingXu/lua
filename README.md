@@ -3,13 +3,13 @@
 > **从零开始用C++17/20/23实现Lua 5.1.5解释器**
 
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen)]()
-[![Tests](https://img.shields.io/badge/tests-399%2F399-brightgreen)]()
-[![Coverage](https://img.shields.io/badge/coverage-99.5%25-brightgreen)]()
+[![Tests](https://img.shields.io/badge/tests-489%2F507-yellow)]()
+[![Coverage](https://img.shields.io/badge/coverage-96.4%25-yellow)]()
 [![C++](https://img.shields.io/badge/C%2B%2B-17-blue)]()
 [![Platform](https://img.shields.io/badge/platform-Windows-blue)]()
-[![Progress](https://img.shields.io/badge/progress-80%25-yellow)]()
-[![Code](https://img.shields.io/badge/code-20.5k%20lines-blue)]()
-[![Last Updated](https://img.shields.io/badge/updated-2026--01--18-blue)]()
+[![Progress](https://img.shields.io/badge/progress-78%25-yellow)]()
+[![Code](https://img.shields.io/badge/code-12k%20lines-blue)]()
+[![Last Updated](https://img.shields.io/badge/updated-2026--02--11-blue)]()
 
 ---
 
@@ -34,17 +34,17 @@
 
 ## 📊 当前进度
 
-### 整体完成度：80% ⭐ ⬆️ +2%
+### 整体完成度：78% ⚠️ ⬇️ -2%（修正夸大数据）
 
-**代码规模**（2026-01-18更新）：
+**代码规模**（2026-02-11更新）：
 - 📁 **总文件数**: 64个源文件（.hpp + .cpp）
-- 📝 **总代码行数**: 20,572行
+- 📝 **总代码行数**: ~12,000-13,000行有效代码 ⬇️ 修正
 - 📊 **模块分布**: 编译器(27.9%) | 核心类型(22.0%) | 虚拟机(19.3%) | 标准库(13.6%)
-- ✅ **核心系统**: 100%完成（类型系统、编译器、VM、GC）
-- ✅ **GC系统**: 95%完成（标记-清除 + FIXED标志机制）⬆️ +5%
-- ✅ **GlobalState初始化**: 100%完成（元方法、保留字、固定字符串）🆕
-- 🔄 **标准库**: 50%完成（base 33% | math 100% | io 44% | string 0% | table 0%）
-- ⏳ **剩余工作**: 约15人日（标准库扩展为主）⬇️ -2人日
+- ✅ **核心系统**: 100%完成（类型系统、编译器、VM）
+- ⚠️ **GC系统**: 90%完成（标记-清除 + FIXED标志机制，**2个测试失败**）⬇️ -5%
+- ✅ **GlobalState初始化**: 100%完成（元方法、保留字、固定字符串）
+- 🔄 **标准库**: 73%完成（base 79% | math 100% | io 44% | string 100% | table 100% | os 100%）⬆️ +23%
+- ⏳ **剩余工作**: 约12人日（修复关键bug + 标准库扩展）⬆️ +3人日（修正低估）
 
 ### 已完成模块（24个核心模块）
 
@@ -77,22 +77,24 @@
 | **I/O库（I/O Library）** | `src/lib/iolib.hpp/cpp` | 1,111 | ~8/18函数（基础I/O） | 🔄 44% |
 | **库管理系统** | `src/lib/lib_manager.hpp/cpp` | 73 | 标准库注册和管理 | ✅ 100% |
 
-### 测试统计（2026-01-18更新）⬆️
+### 测试统计（2026-02-11更新）⬆️
 
 ```
 测试框架：自定义轻量级测试框架（零外部依赖）
-测试套件：16个 ⬆️ +1
+测试套件：24个 ⬆️ +8
   - Core模块：Value（16测试）、GCString（9测试）、StringPool（11测试）、
              Table（13测试）、Function（20测试）
-  - VM模块：VM Core（23测试）、LuaState Init（20测试）🆕
-  - GC模块：GC系统（18测试）
+  - VM模块：VM Core（23测试）、LuaState Init（20测试）
+  - GC模块：GC系统（18测试，⚠️ 2个失败）
   - 编译器：Binary/Unary Expressions（10测试）、Function Codegen（16测试）、
            Lua File Compilation（5测试）、Syntax Sugar（71测试）
-  - 标准库：Base Library（41测试）
+  - 标准库：Base Library（95测试，⚠️ 6个失败）、String Library（25测试）、
+           Table Library（41测试）、OS Library（23测试）、Math Library（未计数）
   - 元方法：Metamethod（8测试）、Complete Metamethods（24测试）
   - 函数调用：Function Call（8测试）
-总测试数：399个单元测试 ⬆️ +274
-通过率：  99.5% (397/399) ⬆️
+总测试数：507个单元测试 ⬆️ +108
+通过率：  96.4% (489/507) ⚠️ -3.1%（发现关键bug）
+失败测试：18个（6个pcall/xpcall + 2个GC + 10个其他）
 编译状态：Debug和Release版本均无警告，无链接冲突
 平台：    Windows + MSVC (Visual Studio 2026)
 ```
