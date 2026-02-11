@@ -340,7 +340,7 @@ void testPcallWrapper(TestSuite& suite) {
     proto->setMaxStackSize(2);
 
     // LOADK R(0) 42
-    proto->addInstruction(CREATE_ABx(OpCode::LOADK, 0, proto->addConstant(Value(42.0))));
+    proto->addInstruction(CREATE_ABx(OpCode::LOADK, 0, static_cast<i32>(proto->addConstant(Value(42.0)))));
     // RETURN R(0) 2 (返回1个值)
     proto->addInstruction(CREATE_ABC(OpCode::RETURN, 0, 2, 0));
 
@@ -380,7 +380,7 @@ void testXpcallWrapper(TestSuite& suite) {
     // 创建测试函数
     Proto* proto = new Proto();
     proto->setMaxStackSize(2);
-    proto->addInstruction(CREATE_ABx(OpCode::LOADK, 0, proto->addConstant(Value(100.0))));
+    proto->addInstruction(CREATE_ABx(OpCode::LOADK, 0, static_cast<i32>(proto->addConstant(Value(100.0)))));
     proto->addInstruction(CREATE_ABC(OpCode::RETURN, 0, 2, 0));
 
     Function* testFunc = new Function(proto);
@@ -391,7 +391,7 @@ void testXpcallWrapper(TestSuite& suite) {
     Proto* errProto = new Proto();
     errProto->setMaxStackSize(2);
     auto& pool = L->getGlobalState().getStringPool();
-    errProto->addInstruction(CREATE_ABx(OpCode::LOADK, 0, errProto->addConstant(Value(pool.intern("error handled")))));
+    errProto->addInstruction(CREATE_ABx(OpCode::LOADK, 0, static_cast<i32>(errProto->addConstant(Value(pool.intern("error handled"))))));
     errProto->addInstruction(CREATE_ABC(OpCode::RETURN, 0, 2, 0));
 
     Function* errFunc = new Function(errProto);

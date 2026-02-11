@@ -96,7 +96,12 @@ cl %CXX_FLAGS% /Isrc /c /Fo"%OUTPUT_DIR%\garbage_collector.obj" "src\gc\garbage_
 
 echo [INFO] Compiling VM classes...
 for %%F in (global_state stack lua_state) do (
-    cl %CXX_FLAGS% /Isrc /c /Fo"%OUTPUT_DIR%\%%F.obj" "src\vm\%%F.cpp" >nul 2>&1
+    echo [INFO] Compiling %%F...
+    cl %CXX_FLAGS% /Isrc /c /Fo"%OUTPUT_DIR%\%%F.obj" "src\vm\%%F.cpp"
+    if %errorlevel% neq 0 (
+        echo [ERROR] Failed to compile %%F
+        exit /b %errorlevel%
+    )
 )
 
 echo [INFO] Compiling Compiler classes...

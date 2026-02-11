@@ -7,6 +7,7 @@
  */
 
 #include "vm/lua_state.hpp"
+#include "vm/vm.hpp"
 #include "core/upvalue.hpp"
 
 #ifdef DEBUG
@@ -209,14 +210,23 @@ void LuaState::validateCallStack() const {
 // =====================================================================
 
 void LuaState::setTop(i32 idx) {
-    i32 newTop;
-    if (idx >= 0) {
-        newTop = idx;
-    } else {
-        newTop = static_cast<i32>(stack_.size()) + idx + 1;
+    // 参考：lua_c_analysis/src/lapi.c:618 lua_settop
+    // 计算新的栈顶位置
+    usize base = 0;
+    if (currentCI_ > 0) {
+        base = callStack_[currentCI_].base;
     }
 
-    if (newTop < 0) {
+    i32 newTop;
+    if (idx >= 0) {
+        // 正索引：相对于当前 base
+        newTop = static_cast<i32>(base) + idx;
+    } else {
+        // 负索引：相对于当前 top_
+        newTop = static_cast<i32>(top_) + idx + 1;
+    }
+
+    if (newTop < static_cast<i32>(base)) {
         throw std::runtime_error("invalid stack index");
     }
 
@@ -227,11 +237,246 @@ void LuaState::setTop(i32 idx) {
     while (static_cast<i32>(stack_.size()) > newTop) {
         stack_.pop();
     }
+
+    // 关键：同步 top_ 变量
+    top_ = static_cast<usize>(newTop);
 }
 
 void LuaState::pushValue(i32 idx) {
     stack_.push(at(idx));
     top_ = stack_.size();  // 同步 top_
+}
+
+void LuaState::insert(i32 idx) {
+    // 参考：lua_c_analysis/src/lapi.c:753 lua_insert
+    // 官方实现：
+    //   p = index2adr(L, idx);
+    //   for (q = L->top; q>p; q--) setobjs2s(L, q, q-1);
+    //   setobjs2s(L, p, L->top);
+    //
+    // 将栈顶元素插入到指定位置，其他元素向上移动
+    // 注意：栈大小不变，栈顶元素被移动到目标位置
+
+    if (stack_.size() == 0) {
+        throw std::runtime_error("insert: stack is empty");
+    }
+
+    // 计算绝对索引（0-based）
+    i32 absIdx = idx;
+    if (idx < 0) {
+        // 负索引：相对于 top_
+        absIdx = static_cast<i32>(top_) + idx;
+    } else {
+        // 正索引：相对于 base
+        usize base = 0;
+        if (currentCI_ > 0) {
+            base = callStack_[currentCI_].base;
+        }
+        absIdx = static_cast<i32>(base) + idx - 1;  // 转换为0-based
+    }
+
+    if (absIdx < 0 || absIdx >= static_cast<i32>(stack_.size())) {
+        throw std::runtime_error("insert: invalid index");
+    }
+
+    // 保存栈顶元素
+    Value topValue = stack_.at(stack_.size() - 1);
+
+    // 将元素从 absIdx 到 top-1 向上移动一位
+    // 从栈顶向下移动（避免覆盖）
+    for (i32 i = static_cast<i32>(stack_.size()) - 1; i > absIdx; i--) {
+        stack_.at(i) = stack_.at(i - 1);
+    }
+
+    // 将原栈顶元素放到目标位置
+    stack_.at(absIdx) = topValue;
+
+    // 栈大小不变，top_ 也不变
+}
+
+void LuaState::replace(i32 idx) {
+    // 参考：lua_c_analysis/src/lapi.c lua_replace
+    // 用栈顶元素替换指定位置的元素，然后弹出栈顶
+
+    if (stack_.size() == 0) {
+        throw std::runtime_error("replace: stack is empty");
+    }
+
+    // 获取栈顶元素
+    Value top = stack_.top();
+
+    // 计算绝对索引
+    i32 absIdx = idx;
+    if (idx < 0) {
+        absIdx = static_cast<i32>(top_) + idx;  // 注意：replace 不加 1
+    } else {
+        usize base = 0;
+        if (currentCI_ > 0) {
+            base = callStack_[currentCI_].base;
+        }
+        absIdx = static_cast<i32>(base) + idx - 1;  // 转换为0-based
+    }
+
+    if (absIdx < 0 || absIdx >= static_cast<i32>(stack_.size()) - 1) {
+        throw std::runtime_error("replace: invalid index");
+    }
+
+    // 替换目标位置的元素
+    stack_.at(absIdx) = top;
+
+    // 弹出栈顶
+    stack_.pop();
+    top_ = stack_.size();  // 同步 top_
+}
+
+i32 LuaState::pcall(i32 nargs, i32 nresults, i32 errfunc) {
+    // 参考：lua_c_analysis/src/lapi.c:3027 lua_pcall
+
+    // 获取当前调用帧的 base
+    usize base = 0;
+    if (currentCI_ > 0) {
+        base = callStack_[currentCI_].base;
+    }
+
+    // 计算函数在栈中的绝对位置（0-based）
+    // 栈布局：[... func arg1 arg2 ...]
+    // 函数在参数之前，所以 funcIdx = top_ - nargs - 1
+    i32 funcIdx = static_cast<i32>(top_) - nargs - 1;
+
+    if (funcIdx < 0 || funcIdx >= static_cast<i32>(stack_.size())) {
+        // 栈索引无效
+        // 移除 func 和 args，压入错误消息
+        while (static_cast<i32>(top_) > funcIdx) {
+            pop();
+        }
+        auto& pool = getGlobalState().getStringPool();
+        pushString(pool.intern("pcall: invalid function index"));
+        return LUA_ERRRUN;
+    }
+
+    Value& funcVal = stack_.at(funcIdx);
+    if (!funcVal.isFunction()) {
+        // 不是函数
+        // 移除 func 和 args，压入错误消息
+        while (static_cast<i32>(top_) > funcIdx) {
+            pop();
+        }
+        auto& pool = getGlobalState().getStringPool();
+        pushString(pool.intern("attempt to call a non-function value"));
+        return LUA_ERRRUN;
+    }
+
+    Function* func = funcVal.asFunction();
+    if (!func) {
+        // 移除 func 和 args，压入错误消息
+        while (static_cast<i32>(top_) > funcIdx) {
+            pop();
+        }
+        auto& pool = getGlobalState().getStringPool();
+        pushString(pool.intern("invalid function"));
+        return LUA_ERRRUN;
+    }
+
+    // 保存 funcIdx 之前的栈内容（包括可能的 errfunc）
+    Vec<Value> savedStack;
+    for (i32 i = 0; i < funcIdx; i++) {
+        savedStack.push_back(stack_.at(i));
+    }
+
+    // 保存参数
+    Vec<Value> args;
+    for (i32 i = 0; i < nargs; i++) {
+        i32 argIdx = funcIdx + 1 + i;
+        if (argIdx >= 0 && argIdx < static_cast<i32>(stack_.size())) {
+            args.push_back(stack_.at(argIdx));
+        }
+    }
+
+    try {
+        // 执行函数
+        VM vm(this);
+
+        // 清空栈，准备执行函数
+        setTop(0);
+        setAbsoluteTop(0);
+
+        // 压入函数和参数
+        pushValue(Value(func));
+        for (const auto& arg : args) {
+            pushValue(arg);
+        }
+
+        // 执行函数
+        vm.execute(func);
+
+        // 同步 top_
+        setAbsoluteTop(stack_.size());
+
+        // 移除栈底的函数对象（如果还在）
+        Vec<Value> results;
+        if (stack_.size() > 0) {
+            const Value& bottom = stack_.at(0);
+            if (bottom.isFunction() && bottom.asFunction() == func) {
+                // 移除函数，保留结果
+                for (usize i = 1; i < stack_.size(); i++) {
+                    results.push_back(stack_.at(i));
+                }
+            } else {
+                // 函数已被移除，所有内容都是结果
+                for (usize i = 0; i < stack_.size(); i++) {
+                    results.push_back(stack_.at(i));
+                }
+            }
+        }
+
+        // 恢复栈：[saved...] [results...]
+        setTop(0);
+        setAbsoluteTop(0);
+        for (const auto& v : savedStack) {
+            pushValue(v);
+        }
+        for (const auto& v : results) {
+            pushValue(v);
+        }
+
+        // 调整返回值数量
+        if (nresults != MULTRET) {
+            i32 actualResults = static_cast<i32>(results.size());
+            i32 savedSize = static_cast<i32>(savedStack.size());
+            if (actualResults < nresults) {
+                // 补充 nil
+                for (i32 i = actualResults; i < nresults; i++) {
+                    pushValue(Value());
+                }
+            } else if (actualResults > nresults) {
+                // 截断：保留 saved + nresults 个结果
+                setTop(savedSize + nresults);
+                setAbsoluteTop(savedSize + nresults);
+            }
+        }
+
+        return LUA_OK;
+
+    } catch (const std::exception& e) {
+        // 捕获异常并返回错误
+        // 恢复栈：[saved...] [error_msg]
+        setTop(0);
+        setAbsoluteTop(0);
+        for (const auto& v : savedStack) {
+            pushValue(v);
+        }
+
+        auto& pool = getGlobalState().getStringPool();
+
+        // 如果有错误处理函数，调用它
+        if (errfunc != 0) {
+            // TODO: 实现错误处理函数调用
+            // 当前简化版本直接返回错误消息
+        }
+
+        pushString(pool.intern(e.what()));
+        return LUA_ERRRUN;
+    }
 }
 
 i32 LuaState::getTop() const {

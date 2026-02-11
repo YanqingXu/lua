@@ -86,7 +86,13 @@ public:
     
     /// 多返回值标记
     static constexpr i32 MULTRET = -1;
-    
+
+    /// 执行状态码（与 Lua 5.1 兼容）
+    static constexpr i32 LUA_OK = 0;        ///< 成功
+    static constexpr i32 LUA_ERRRUN = 2;    ///< 运行时错误
+    static constexpr i32 LUA_ERRMEM = 4;    ///< 内存错误
+    static constexpr i32 LUA_ERRERR = 5;    ///< 错误处理函数错误
+
     // =====================================================================
     // 构造函数和析构函数
     // =====================================================================
@@ -229,6 +235,43 @@ public:
      * @param idx 新的栈顶索引（从1开始）
      */
     void setTop(i32 idx);
+
+    /**
+     * @brief 将栈顶元素插入到指定位置
+     * @param idx 目标位置索引（1-based）
+     *
+     * 参考：lua_c_analysis/src/lapi.c lua_insert
+     * 将栈顶元素移动到指定位置，其他元素向上移动
+     */
+    void insert(i32 idx);
+
+    /**
+     * @brief 用栈顶元素替换指定位置的元素
+     * @param idx 目标位置索引（1-based）
+     *
+     * 参考：lua_c_analysis/src/lapi.c lua_replace
+     * 用栈顶元素替换指定位置的元素，然后弹出栈顶
+     */
+    void replace(i32 idx);
+
+    /**
+     * @brief 保护调用函数（Protected Call）
+     *
+     * 在保护模式下调用栈上的函数，捕获所有错误。
+     *
+     * @param nargs 参数数量
+     * @param nresults 期望的返回值数量（MULTRET 表示接受所有返回值）
+     * @param errfunc 错误处理函数的栈索引（0 表示无错误处理函数）
+     * @return i32 状态码（LUA_OK=成功，LUA_ERRRUN=运行时错误）
+     *
+     * 栈布局：
+     * - 调用前：[... func arg1 arg2 ...]
+     * - 成功后：[... result1 result2 ...]
+     * - 失败后：[... error_msg]
+     *
+     * @note 参考 lua_c_analysis/src/lapi.c:3027 lua_pcall
+     */
+    i32 pcall(i32 nargs, i32 nresults, i32 errfunc);
 
     /**
      * @brief 获取绝对栈顶索引

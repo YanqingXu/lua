@@ -667,91 +667,31 @@ i32 luaB_select(LuaState* L) {
 // =====================================================================
 
 i32 luaB_pcall(LuaState* L) {
+    // 参考：lua_c_analysis/src/lbaselib.c:1512 luaB_pcall
+    // 标准实现（仅6行代码）：
+    //   luaL_checkany(L, 1);
+    //   status = lua_pcall(L, lua_gettop(L) - 1, LUA_MULTRET, 0);
+    //   lua_pushboolean(L, (status == 0));
+    //   lua_insert(L, 1);
+    //   return lua_gettop(L);
+
     i32 nargs = L->getTop();
     if (nargs < 1) {
         L->error("pcall: function expected");
         return 0;
     }
 
-    // 获取函数（第一个参数）
-    Value func = L->at(1);
+    // 调用 pcall(nargs-1, MULTRET, 0)
+    i32 status = L->pcall(nargs - 1, LuaState::MULTRET, 0);
 
-    // 收集参数（从第2个参数开始）
-    Vec<Value> args;
-    for (i32 i = 2; i <= nargs; i++) {
-        args.push_back(L->at(i));
-    }
+    // 压入状态（true 表示成功，false 表示失败）
+    L->pushBoolean(status == LuaState::LUA_OK);
 
-    try {
-        // 尝试调用函数
-        if (!func.isFunction()) {
-            // 清空栈并返回错误
-            L->setTop(0);
-            L->pushBoolean(false);
-            auto& pool = L->getGlobalState().getStringPool();
-            L->pushString(pool.intern("attempt to call a non-function value"));
-            return 2;
-        }
+    // 将 boolean 插入到栈底（索引 1）
+    L->insert(1);
 
-        Function* function = func.asFunction();
-        if (!function) {
-            L->setTop(0);
-            L->pushBoolean(false);
-            auto& pool = L->getGlobalState().getStringPool();
-            L->pushString(pool.intern("invalid function"));
-            return 2;
-        }
-
-        // 执行函数
-        VM vm(L);
-
-        // 保存当前栈大小
-        usize stackBefore = L->getStack().size();
-
-        // 将函数压入栈并执行
-        L->getStack().push(Value(function));
-        for (const auto& arg : args) {
-            L->getStack().push(arg);
-        }
-
-        vm.execute(function);
-
-        // 获取返回值（栈顶的值）
-        usize stackAfter = L->getStack().size();
-        i32 nresults = static_cast<i32>(stackAfter - stackBefore);
-
-        // 收集返回值
-        Vec<Value> results;
-        for (i32 i = 0; i < nresults; i++) {
-            if (stackAfter > 0) {
-                results.push_back(L->getStack().top());
-                L->getStack().pop();
-                stackAfter--;
-            }
-        }
-
-        // 反转结果（因为是从栈顶弹出的）
-        std::reverse(results.begin(), results.end());
-
-        // 清空栈并压入成功结果
-        L->getStack().clear();
-        L->setAbsoluteTop(0);
-        L->pushBoolean(true);  // 成功标志
-        for (const auto& result : results) {
-            L->pushValue(result);
-        }
-
-        return 1 + static_cast<i32>(results.size());
-
-    } catch (const std::exception& e) {
-        // 捕获异常并返回错误
-        L->getStack().clear();
-        L->setAbsoluteTop(0);
-        L->pushBoolean(false);
-        auto& pool = L->getGlobalState().getStringPool();
-        L->pushString(pool.intern(e.what()));
-        return 2;
-    }
+    // 返回所有值（boolean + 所有结果或错误消息）
+    return L->getTop();
 }
 
 // =====================================================================
@@ -759,106 +699,43 @@ i32 luaB_pcall(LuaState* L) {
 // =====================================================================
 
 i32 luaB_xpcall(LuaState* L) {
+    // 参考：lua_c_analysis/src/lbaselib.c:1568 luaB_xpcall
+    // 标准实现（仅7行代码）：
+    //   luaL_checkany(L, 2);
+    //   lua_settop(L, 2);
+    //   lua_insert(L, 1);  // 将错误函数放在要调用的函数下面
+    //   status = lua_pcall(L, 0, LUA_MULTRET, 1);
+    //   lua_pushboolean(L, (status == 0));
+    //   lua_replace(L, 1);
+    //   return lua_gettop(L);
+
     i32 nargs = L->getTop();
     if (nargs < 2) {
         L->error("xpcall: function and error handler expected");
         return 0;
     }
 
-    // 获取函数和错误处理器
-    Value func = L->at(1);
-    Value msgh = L->at(2);
-
-    // 收集参数（从第3个参数开始）
-    Vec<Value> args;
-    for (i32 i = 3; i <= nargs; i++) {
-        args.push_back(L->at(i));
+    // 手动调整栈：只保留前 2 个参数（func 和 msgh）
+    while (L->getTop() > 2) {
+        L->pop();
     }
 
-    auto& pool = L->getGlobalState().getStringPool();
+    // 将错误处理器插入到函数下面：[func] [msgh] -> [msgh] [func]
+    L->insert(1);
 
-    try {
-        // 检查函数
-        if (!func.isFunction()) {
-            L->getStack().clear();
-            L->setAbsoluteTop(0);
-            L->pushBoolean(false);
-            L->pushString(pool.intern("attempt to call a non-function value"));
-            return 2;
-        }
+    // 调用 pcall(0, MULTRET, 1)
+    // 0 个参数（xpcall 在 Lua 5.1 中不接受额外参数）
+    // 1 表示错误处理器在索引 1
+    i32 status = L->pcall(0, LuaState::MULTRET, 1);
 
-        Function* function = func.asFunction();
-        if (!function) {
-            L->getStack().clear();
-            L->setAbsoluteTop(0);
-            L->pushBoolean(false);
-            L->pushString(pool.intern("invalid function"));
-            return 2;
-        }
+    // 压入状态（true 表示成功，false 表示失败）
+    L->pushBoolean(status == LuaState::LUA_OK);
 
-        // 执行函数（与 pcall 相同的逻辑）
-        VM vm(L);
-        usize stackBefore = L->getStack().size();
+    // 用 boolean 替换索引 1 的值（错误处理器）
+    L->replace(1);
 
-        L->getStack().push(Value(function));
-        for (const auto& arg : args) {
-            L->getStack().push(arg);
-        }
-
-        vm.execute(function);
-
-        usize stackAfter = L->getStack().size();
-        i32 nresults = static_cast<i32>(stackAfter - stackBefore);
-
-        Vec<Value> results;
-        for (i32 i = 0; i < nresults; i++) {
-            if (stackAfter > 0) {
-                results.push_back(L->getStack().top());
-                L->getStack().pop();
-                stackAfter--;
-            }
-        }
-
-        std::reverse(results.begin(), results.end());
-
-        L->setTop(0);
-        L->pushBoolean(true);
-        for (const auto& result : results) {
-            L->pushValue(result);
-        }
-
-        return 1 + static_cast<i32>(results.size());
-
-    } catch (const std::exception& e) {
-        // 调用错误处理器
-        if (msgh.isFunction()) {
-            try {
-                Function* errorHandler = msgh.asFunction();
-                if (errorHandler) {
-                    VM vm(L);
-                    L->getStack().push(Value(errorHandler));
-                    L->pushString(pool.intern(e.what()));
-                    vm.execute(errorHandler);
-
-                    // 获取错误处理器的返回值
-                    Value errorResult = L->getStack().size() > 0 ? L->getStack().top() : Value();
-
-                    L->setTop(0);
-                    L->pushBoolean(false);
-                    L->pushValue(errorResult);
-                    return 2;
-                }
-            } catch (...) {
-                // 错误处理器也失败了
-            }
-        }
-
-        // 如果错误处理器不可用或失败，返回原始错误
-        L->setTop(0);
-        L->pushBoolean(false);
-        L->pushString(pool.intern(e.what()));
-        return 2;
-    }
+    // 返回所有值（boolean + 所有结果或错误消息）
+    return L->getTop();
 }
 
 // =====================================================================
