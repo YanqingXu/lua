@@ -759,6 +759,26 @@ void CodeGenerator::unaryExpr(const UnaryExpr& e, ExprDesc& desc) {
     ExprDesc e1;
     expr(*e.operand, e1);
 
+    // ⭐ 负索引修复：特殊处理 -(数字常量) 的情况
+    // 参考官方 Lua 5.1.5 行为：负数字面量应该直接作为常量，而非运行时计算
+    //
+    // 问题场景：arg[-1] 被解析为 arg[-(1)]
+    // - 官方 Lua：词法分析器将 -1 识别为单个 NUMBER token
+    // - 我们的实现：解析为 UnaryExpr(MINUS, 1)
+    //
+    // 修复策略：在代码生成阶段优化这种模式
+    // - 检测到 UnaryExpr(Neg, Number) 时
+    // - 直接将负数作为常量处理
+    // - 避免生成 UNM 指令
+    if (e.op == UnaryExpr::Op::Neg && e1.kind == ExprKind::Number) {
+        // 直接取负数值，作为常量
+        desc.kind = ExprKind::Number;
+        desc.u.nval = -e1.u.nval;
+        desc.t = NO_JUMP;
+        desc.f = NO_JUMP;
+        return;
+    }
+
     // 创建虚拟的第二操作数（值为0）
     ExprDesc e2;
     e2.kind = ExprKind::Number;
@@ -768,7 +788,8 @@ void CodeGenerator::unaryExpr(const UnaryExpr& e, ExprDesc& desc) {
 
     switch (e.op) {
         case UnaryExpr::Op::Neg:
-            // 取负：如果是数值常量，可以直接取负
+            // 取负：如果是数值常量，可以直接取负（已在上面处理）
+            // 这里处理非常量的情况
             if (e1.kind != ExprKind::Number) {
                 exp2AnyReg(e1);
             }
