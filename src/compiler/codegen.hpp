@@ -183,7 +183,6 @@ private:
     
     i32 jump();
     void patchList(i32 list, i32 target);
-    void patchToHere(i32 list);
     i32 getLabel();
     
     // =====================================================================

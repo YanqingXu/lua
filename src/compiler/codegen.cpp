@@ -206,11 +206,6 @@ void CodeGenerator::patchList(i32 list, i32 target) {
     }
 }
 
-void CodeGenerator::patchToHere(i32 list) {
-    i32 target = static_cast<i32>(proto_->getInstructionCount());
-    patchList(list, target);
-}
-
 void CodeGenerator::dischargejpc() {
     // ⭐ P0修复：参考lua_c_analysis/src/lcode.c:608-611 dischargejpc实现
     // 将所有待处理的跳转（jpc_）修补到当前位置
@@ -988,7 +983,7 @@ void CodeGenerator::luaK_goiffalse(ExprDesc& e) {
     // 注意：这里与luaK_goiftrue相反！
     luaK_concat(e.f, pc);
     // 修补 t 列表（true跳转列表）到当前位置
-    patchToHere(e.t);
+    patchtohere(e.t);
     e.t = NO_JUMP;
 }
 
@@ -1571,7 +1566,7 @@ void CodeGenerator::forInStmt(const ForInStmt& s) {
     block(s.body);
 
     // 回填JMP到TFORLOOP的跳转目标
-    patchToHere(jmpToTfor);
+    patchtohere(jmpToTfor);
 
     // 生成TFORLOOP指令
     codeABC(OpCode::TFORLOOP, base, 0, nvars);
@@ -1821,7 +1816,7 @@ void CodeGenerator::leaveBlock() {
     freereg_ = nactvar_;
 
     // 修补所有break跳转到当前位置
-    patchToHere(bl->breaklist);
+    patchtohere(bl->breaklist);
 
     // 释放代码块
     delete bl;
