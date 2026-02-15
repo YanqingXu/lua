@@ -123,6 +123,28 @@ void CodeGenerator::freeRegs(i32 n) {
     }
 }
 
+void CodeGenerator::checkStack(i32 n) {
+    // ⭐ P0修复：检查并更新maxStackSize
+    // 参考：lua_c_analysis/src/lcode.c:790-797 luaK_checkstack()
+    //
+    // 作用：确保栈有足够空间容纳 freereg_ + n 个寄存器
+    // 这是修复 vm.cpp:858 hack 的关键函数
+    //
+    // Lua 5.1 实现：
+    //   int newstack = fs->freereg + n;
+    //   if (newstack > fs->f->maxstacksize) {
+    //       if (newstack >= MAXSTACK)
+    //           luaX_syntaxerror(fs->ls, "function or expression too complex");
+    //       fs->f->maxstacksize = cast_byte(newstack);
+    //   }
+
+    i32 newstack = freereg_ + n;
+    if (newstack > static_cast<i32>(proto_->getMaxStackSize())) {
+        // TODO: 添加MAXSTACK检查（当前简化版本）
+        proto_->setMaxStackSize(static_cast<u8>(newstack));
+    }
+}
+
 // =====================================================================
 // 常量表管理
 // =====================================================================
@@ -156,6 +178,7 @@ i32 CodeGenerator::addLocalVar(const Str& name) {
     i32 reg = freereg_;
     localVars_.emplace_back(name, reg, static_cast<i32>(proto_->getInstructionCount()));
     freereg_++;  // ⭐ P0修复：添加局部变量后需要递增freereg_
+    checkStack(0);  // ⭐ P0修复：确保maxStackSize >= freereg_
     return reg;
 }
 
@@ -172,6 +195,7 @@ i32 CodeGenerator::findLocalVar(const Str& name) {
 void CodeGenerator::adjustLocalVars(i32 nvars) {
     nactvar_ += nvars;
     freereg_ = nactvar_;
+    checkStack(0);  // ⭐ P0修复：确保maxStackSize >= freereg_
 }
 
 void CodeGenerator::removeLocalVars(i32 tolevel) {
@@ -183,6 +207,7 @@ void CodeGenerator::removeLocalVars(i32 tolevel) {
         }
     }
     freereg_ = nactvar_;
+    checkStack(0);  // ⭐ P0修复：确保maxStackSize >= freereg_
 }
 
 // =====================================================================
@@ -1389,6 +1414,7 @@ void CodeGenerator::callExpr(const CallExpr& e, ExprDesc& desc) {
     // 强制freereg = base + 1，确保参数从base+1开始分配
     // 这样第一个参数会分配到base+1，第二个到base+2，依此类推
     freereg_ = base + 1;
+    checkStack(0);  // ⭐ P0修复：确保maxStackSize >= freereg_
 
     // 计算每个参数，exp2NextReg会将它们连续分配到base+1, base+2, ...
     for (const auto& arg : e.args) {
@@ -1423,6 +1449,7 @@ void CodeGenerator::callExpr(const CallExpr& e, ExprDesc& desc) {
     // 3. 设置freereg=base+1，保留base寄存器（存放返回值）
     // 4. 下一个表达式可以从base+1开始分配新寄存器
     freereg_ = base + 1;
+    checkStack(0);  // ⭐ P0修复：确保maxStackSize >= freereg_
 
     // 函数调用结果在base寄存器
     desc.kind = ExprKind::Call;
@@ -1477,6 +1504,7 @@ void CodeGenerator::tableExpr(const TableExpr& table, ExprDesc& desc) {
 
             codeABC(OpCode::SETTABLE, tableReg, rkKey, rkVal);
             freereg_ = savedFreereg;  // 恢复寄存器状态
+            checkStack(0);  // ⭐ P0修复：确保maxStackSize >= freereg_
             nh++;
         } else {
             // === 数组字段：值按顺序累积到 R(tableReg+1), R(tableReg+2), ... ===
@@ -1502,6 +1530,7 @@ void CodeGenerator::tableExpr(const TableExpr& table, ExprDesc& desc) {
                 i32 c = (na - 1) / LFIELDS_PER_FLUSH + 1;
                 codeABC(OpCode::SETLIST, tableReg, LFIELDS_PER_FLUSH, c);
                 freereg_ = tableReg + 1;  // 释放批量寄存器
+                checkStack(0);  // ⭐ P0修复：确保maxStackSize >= freereg_
                 tostore = 0;
             }
         }
@@ -1532,6 +1561,7 @@ void CodeGenerator::tableExpr(const TableExpr& table, ExprDesc& desc) {
             i32 c = (na - 1) / LFIELDS_PER_FLUSH + 1;
             codeABC(OpCode::SETLIST, tableReg, 0, c);
             freereg_ = tableReg + 1;
+            checkStack(0);  // ⭐ P0修复：确保maxStackSize >= freereg_
 
             // 调整 na 计数（因为实际元素数量未知）
             // na--;  // 注意：Lua 5.1 会减1，但我们保持不变以简化
@@ -1540,6 +1570,7 @@ void CodeGenerator::tableExpr(const TableExpr& table, ExprDesc& desc) {
             i32 c = (na - 1) / LFIELDS_PER_FLUSH + 1;
             codeABC(OpCode::SETLIST, tableReg, tostore, c);
             freereg_ = tableReg + 1;
+            checkStack(0);  // ⭐ P0修复：确保maxStackSize >= freereg_
         }
     }
 
@@ -1682,6 +1713,7 @@ void CodeGenerator::forInStmt(const ForInStmt& s) {
         // 确保返回值存储在R(base), R(base+1), R(base+2)
         discharge(iterDesc, base);
         freereg_ = base + 3;  // 预留3个寄存器
+        checkStack(0);  // ⭐ P0修复：确保maxStackSize >= freereg_
     } else {
         // 不是函数调用，这是错误的
         throw std::runtime_error("CodeGenerator: for-in loop iterator must be a function call");
@@ -1952,6 +1984,7 @@ void CodeGenerator::leaveBlock() {
 
     // 恢复寄存器分配状态
     freereg_ = nactvar_;
+    checkStack(0);  // ⭐ P0修复：确保maxStackSize >= freereg_
 
     // 修补所有break跳转到当前位置
     patchtohere(bl->breaklist);
