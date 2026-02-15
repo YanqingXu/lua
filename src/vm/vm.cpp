@@ -238,16 +238,9 @@ Value VM::RK(i32 rk) {
     if (ISK(rk)) {
         // 常量 - 返回副本
         i32 index = INDEXK(rk);
-        #ifdef DEBUG
-        std::cerr << "[VM::RK] rk=" << rk << " ISK=true index=" << index
-                  << " currentProto=" << (void*)currentProto_ << std::endl;
-        #endif
         return currentProto_->getConstant(index);
     } else {
         // 寄存器 - 返回副本
-        #ifdef DEBUG
-        std::cerr << "[VM::RK] rk=" << rk << " ISK=false R(" << rk << ")" << std::endl;
-        #endif
         return R(rk);
     }
 }
@@ -1099,7 +1092,8 @@ void VM::executeSelf(i32 a, i32 b, i32 c) {
 }
 
 void VM::executeSetList(i32 a, i32 b, i32 c) {
-    // R(A)[(C-1)*FPF+i] := R(A+i), 1 <= i <= B
+    // ⭐ OP_SETLIST A B C：R(A)[(C-1)*FPF+i] := R(A+i), 1 <= i <= B
+    // 参考：lua_c_analysis/src/lvm.c OP_SETLIST case
     // FPF = LFIELDS_PER_FLUSH = 50
     constexpr i32 FPF = 50;
 
@@ -1109,13 +1103,20 @@ void VM::executeSetList(i32 a, i32 b, i32 c) {
 
     Table* table = R(a).asTable();
     i32 n = b;
-    i32 base_index = (c - 1) * FPF;
 
-    // 如果B=0，表示到栈顶
+    // ⭐ 关键修复：B=0 表示从栈顶计算元素数量（多返回值情况）
+    // 参考：lua_c_analysis/src/lvm.c:1960-1963
     if (n == 0) {
+        CallInfo& ci = L_->getCurrentCallInfo();
         Stack& stack = L_->getStack();
-        n = static_cast<i32>(stack.size()) - a - 1;
+        // n = (top - ra) - 1，其中 ra = base + a
+        usize ra = ci.base + static_cast<usize>(a);
+        n = static_cast<i32>(stack.size() - ra) - 1;
+        // 恢复栈顶到 ci.top
+        L_->setAbsoluteTop(ci.top);
     }
+
+    i32 base_index = (c - 1) * FPF;
 
     // 设置数组元素
     for (i32 i = 1; i <= n; i++) {

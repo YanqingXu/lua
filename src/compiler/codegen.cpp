@@ -1456,8 +1456,13 @@ void CodeGenerator::tableExpr(const TableExpr& table, ExprDesc& desc) {
     i32 na = 0;       // 数组元素总数
     i32 nh = 0;       // 哈希元素总数
     i32 tostore = 0;  // 待批量存储的数组元素数
+    ExprDesc lastArrayExpr;  // 保存最后一个数组元素的表达式
+    bool hasLastArrayExpr = false;
 
-    for (const auto& field : table.fields) {
+    for (usize i = 0; i < table.fields.size(); i++) {
+        const auto& field = table.fields[i];
+        bool isLastField = (i == table.fields.size() - 1);
+
         if (field.key) {
             // === 哈希字段：[key] = value 或 name = value ===
             i32 savedFreereg = freereg_;
@@ -1480,7 +1485,17 @@ void CodeGenerator::tableExpr(const TableExpr& table, ExprDesc& desc) {
 
             ExprDesc val;
             expr(*field.value, val);
-            exp2NextReg(val);
+
+            // ⭐ 关键修复：检查是否为最后一个数组元素且为多返回值表达式
+            // 参考：lua_c_analysis/src/lparser.c lastlistfield()
+            if (isLastField && (val.kind == ExprKind::Vararg || val.kind == ExprKind::Call)) {
+                // 最后一个元素是多返回值表达式，保存它稍后特殊处理
+                lastArrayExpr = val;
+                hasLastArrayExpr = true;
+                // 不调用 exp2NextReg，保持为 Vararg/Call 状态
+            } else {
+                exp2NextReg(val);
+            }
 
             // 达到批量阈值时发射 SETLIST
             if (tostore == LFIELDS_PER_FLUSH) {
@@ -1494,9 +1509,38 @@ void CodeGenerator::tableExpr(const TableExpr& table, ExprDesc& desc) {
 
     // 5. 发射剩余数组元素的 SETLIST
     if (tostore > 0) {
-        i32 c = (na - 1) / LFIELDS_PER_FLUSH + 1;
-        codeABC(OpCode::SETLIST, tableReg, tostore, c);
-        freereg_ = tableReg + 1;
+        if (hasLastArrayExpr) {
+            // ⭐ 最后一个元素是多返回值表达式（Vararg/Call）
+            // 参考：lua_c_analysis/src/lparser.c lastlistfield()
+            // 设置多返回值模式：VARARG/CALL B=0（返回所有值）
+            i32 pc = lastArrayExpr.u.s.info;
+            Instruction inst = proto_->getInstruction(pc);
+
+            // ⭐ 关键修复：设置 A 参数为 tableReg + 1（数组元素起始位置）
+            SETARG_A(inst, tableReg + 1);
+
+            if (lastArrayExpr.kind == ExprKind::Vararg) {
+                // VARARG A B：B=0 表示复制所有可变参数
+                SETARG_B(inst, 0);
+            } else {
+                // CALL A B C：C=0 表示返回所有值
+                SETARG_C(inst, 0);
+            }
+            proto_->setInstruction(pc, inst);
+
+            // SETLIST B=0 表示到栈顶（LUA_MULTRET）
+            i32 c = (na - 1) / LFIELDS_PER_FLUSH + 1;
+            codeABC(OpCode::SETLIST, tableReg, 0, c);
+            freereg_ = tableReg + 1;
+
+            // 调整 na 计数（因为实际元素数量未知）
+            // na--;  // 注意：Lua 5.1 会减1，但我们保持不变以简化
+        } else {
+            // 普通情况：固定数量的元素
+            i32 c = (na - 1) / LFIELDS_PER_FLUSH + 1;
+            codeABC(OpCode::SETLIST, tableReg, tostore, c);
+            freereg_ = tableReg + 1;
+        }
     }
 
     // 6. 回补 NEWTABLE 指令的大小参数 B（数组）和 C（哈希）
