@@ -30,12 +30,12 @@
 - 🔴 **修复关键bug**（P0）：
   - ~~Vararg功能~~ ✅ 已完成
   - ~~VM CodeGenerator hack~~ ✅ 已完成 🆕
+  - ~~arg表支持~~ ✅ 已完成 🆕
   - GC对象注册/回收（2个测试失败）
 - 🔄 **基础库**：4个函数待补充
 - 🔄 **I/O库**：10个高级函数待补充
 - ⏳ **TODO修复**：22处待修复 ⬇️ -1
 - ⏳ **集成测试**：待完善
-- ⏳ **arg表支持**：待实现
 
 ### 核心目标
 
@@ -44,6 +44,7 @@
 
 ### 最新进展（2026-02-15）
 
+- ✅ **arg表支持完成**：验证setupArgTable()实现，创建测试脚本，所有测试通过 🆕
 - ✅ **VM CodeGenerator hack修复**：消除2处P0技术债务 🆕
 - ✅ **maxStackSize峰值跟踪**：添加checkStack()方法，9处修复 🆕
 - ✅ **移除extraSpace hack**：栈空间使用更精确 🆕
@@ -283,16 +284,47 @@
 
 ---
 
-#### 任务7：添加arg表支持 [0.5人日] 🔴
+#### ✅ 任务7：添加arg表支持 [0.5人日] 🔴 **已完成** [2026-02-15] 🆕
 
-**任务清单**：
-- [ ] 实现 `setupArgTable()` 函数
-- [ ] 在main()中调用，传递命令行参数
-- [ ] 测试脚本参数访问（`arg[0]`, `arg[1]`, ...）
+**完成状态**：✅ 100%完成（实际工作量：0.5人日）
 
-**验收标准**：
-- 脚本可以通过`arg`表访问命令行参数
-- 通过测试脚本验证
+**完成内容**：
+- ✅ **验证setupArgTable()函数**：函数已在`main.cpp:287-305`正确实现
+- ✅ **验证函数调用**：在main()中正确调用（`main.cpp:496`）
+- ✅ **创建测试脚本**：`test_arg_table.lua`全面测试arg表功能
+- ✅ **验证字符串存储**：所有arg表值正确存储为字符串类型
+
+**技术发现**：
+- 原有实现已经正确，无需修复
+- `setupArgTable()`正确使用`Value(GCString*)`创建字符串值
+- Table的`set()`和`get()`方法正确存储和检索字符串值
+- VM的`executeGetGlobal()`正确从全局表查找arg表
+
+**测试结果**：
+```bash
+# 测试命令
+build\interpreter_debug\lua.exe test_arg_table.lua hello world test
+
+# 测试输出
+=== Test arg table ===
+SUCCESS: arg table exists
+arg type: table
+arg[0] = test_arg_table.lua (string) ✅
+arg[1] = hello (string) ✅
+arg[2] = world (string) ✅
+arg[3] = test (string) ✅
+=== All tests passed! ===
+```
+
+**文件修改**：
+- `lua/test_arg_table.lua` - 新建测试脚本（34行）
+
+**验收标准**：✅ 全部通过
+- ✅ 脚本可以通过`arg`表访问命令行参数
+- ✅ 通过测试脚本验证（test_arg_table.lua）
+- ✅ arg[0]包含脚本文件名
+- ✅ arg[1-3]包含命令行参数
+- ✅ 所有值类型为string（非table对象）
 
 **文件修改**：
 - `src/main.cpp`
