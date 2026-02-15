@@ -67,19 +67,22 @@ void testGCObjectChaining(TestSuite& suite) {
 void testGarbageCollectorRegister(TestSuite& suite) {
     GarbageCollector& gc = GarbageCollector::getInstance();
     gc.clearAll(); // Start fresh
-    
+
+    // Get initial count (may have fixed objects)
+    usize initialCount = gc.getObjectCount();
+
     GCString* gcStr1 = new GCString("GC Test 1");
     GCString* gcStr2 = new GCString("GC Test 2");
     Table* gcTable = new Table();
-    
+
     // Test 1: Register objects
     gc.registerObject(gcStr1);
     gc.registerObject(gcStr2);
     gc.registerObject(gcTable);
-    
+
     usize objCount = gc.getObjectCount();
-    ASSERT_EQ(suite, (usize)3, objCount, "Register objects");
-    
+    ASSERT_EQ(suite, initialCount + 3, objCount, "Register objects");
+
     // Cleanup
     gc.clearAll();
 }
@@ -112,22 +115,27 @@ void testGarbageCollectorRoots(TestSuite& suite) {
 void testGarbageCollectorCollect(TestSuite& suite) {
     GarbageCollector& gc = GarbageCollector::getInstance();
     gc.clearAll();
-    
+
+    // Get initial count (may have fixed objects)
+    usize initialCount = gc.getObjectCount();
+
     GCString* gcStr1 = new GCString("Root");
     GCString* gcStr2 = new GCString("Garbage");
-    
+
     gc.registerObject(gcStr1);
     gc.registerObject(gcStr2);
     gc.addRoot(gcStr1);
-    
+
+    usize countBeforeGC = gc.getObjectCount();
+
     // Test 1: Collect garbage (should collect gcStr2)
     usize collected = gc.collect();
     ASSERT_EQ(suite, (usize)1, collected, "Garbage collected");
-    
-    // Test 2: Object count after GC
+
+    // Test 2: Object count after GC (should be 1 less than before)
     usize objCountAfter = gc.getObjectCount();
-    ASSERT_EQ(suite, (usize)1, objCountAfter, "Objects after GC");
-    
+    ASSERT_EQ(suite, countBeforeGC - 1, objCountAfter, "Objects after GC");
+
     // Cleanup
     gc.clearAll();
 }

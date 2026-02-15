@@ -1,0 +1,3 @@
+-- Simple function call test
+print("Hello")
+

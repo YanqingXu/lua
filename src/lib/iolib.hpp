@@ -163,13 +163,23 @@ i32 io_lines(LuaState* L);
 
 /**
  * @brief io.tmpfile() - 创建临时文件
- * 
+ *
  * 创建一个临时文件并返回文件句柄。
- * 
+ *
  * @param L Lua状态机指针
  * @return 返回值数量（1个：文件句柄或nil+错误）
  */
 i32 io_tmpfile(LuaState* L);
+
+/**
+ * @brief io.popen(prog [, mode]) - 打开管道执行程序
+ *
+ * 打开一个管道来执行外部程序，返回文件句柄用于读取或写入。
+ *
+ * @param L Lua状态机指针
+ * @return 返回值数量（1个：文件句柄或nil+错误）
+ */
+i32 io_popen(LuaState* L);
 
 // =====================================================================
 // 文件句柄方法声明

@@ -288,20 +288,20 @@ i32 io_open(LuaState* L) {
     if (L->getTop() < 1) {
         L->error("io.open: filename expected");
     }
-    
+
     if (!L->isString(1)) {
         L->error("io.open: filename must be a string");
     }
-    
+
     const char* filename = L->toString(1);
     const char* mode = L->getTop() >= 2 && L->isString(2) ? L->toString(2) : "r";
-    
+
     // 打开文件
     FILE* fp = safeFopen(filename, mode);
     if (!fp) {
         return pushResult(L, false, filename);
     }
-    
+
     // 创建文件句柄
     Userdata* ud = createFileHandle(L, fp);
     L->pushUserdata(ud);
@@ -430,10 +430,46 @@ i32 io_type(LuaState* L) {
     return 1;
 }
 
+/**
+ * @brief 行迭代器函数
+ *
+ * 这是一个C函数，用作迭代器。每次调用时读取文件的下一行。
+ * 使用upvalue存储文件句柄。
+ */
+static i32 lines_iterator(LuaState* L) {
+    // 从upvalue获取文件句柄
+    // 简化实现：由于当前没有完整的upvalue支持，我们使用全局状态
+    // TODO: 使用upvalue存储文件句柄
+
+    // 暂时返回错误
+    L->error("io.lines iterator: upvalue support needed");
+    return 0;
+}
+
 i32 io_lines(LuaState* L) {
-    // 简化实现：返回一个迭代器函数
-    // TODO: 完整实现需要创建迭代器闭包
-    L->error("io.lines: not yet implemented");
+    FILE* fp = nullptr;
+    bool shouldClose = false;
+
+    if (L->getTop() == 0) {
+        // 无参数：使用默认输入
+        fp = getDefaultInput(L);
+        shouldClose = false;
+    } else if (L->isString(1)) {
+        // 字符串参数：打开文件
+        const char* filename = L->toString(1);
+        fp = safeFopen(filename, "r");
+        if (!fp) {
+            fileError(L, 1, filename);
+        }
+        shouldClose = true;
+    } else {
+        L->error("io.lines: string expected");
+    }
+
+    // 简化实现：由于缺少完整的闭包/upvalue支持，
+    // 我们返回一个错误提示
+    // TODO: 创建带有upvalue的迭代器闭包
+    L->error("io.lines: iterator closures not yet fully supported");
     return 0;
 }
 
@@ -442,7 +478,42 @@ i32 io_tmpfile(LuaState* L) {
     if (!fp) {
         return pushResult(L, false);
     }
-    
+
+    Userdata* ud = createFileHandle(L, fp);
+    L->pushUserdata(ud);
+    return 1;
+}
+
+i32 io_popen(LuaState* L) {
+    // 检查参数
+    if (L->getTop() < 1) {
+        L->error("io.popen: command expected");
+    }
+
+    if (!L->isString(1)) {
+        L->error("io.popen: command must be a string");
+    }
+
+    const char* command = L->toString(1);
+    const char* mode = L->getTop() >= 2 && L->isString(2) ? L->toString(2) : "r";
+
+    // 验证模式
+    if (std::strcmp(mode, "r") != 0 && std::strcmp(mode, "w") != 0) {
+        L->error("io.popen: invalid mode (must be 'r' or 'w')");
+    }
+
+    // 打开管道
+#ifdef _WIN32
+    FILE* fp = _popen(command, mode);
+#else
+    FILE* fp = popen(command, mode);
+#endif
+
+    if (!fp) {
+        return pushResult(L, false, command);
+    }
+
+    // 创建文件句柄
     Userdata* ud = createFileHandle(L, fp);
     L->pushUserdata(ud);
     return 1;
@@ -669,8 +740,15 @@ i32 f_setvbuf(LuaState* L) {
 }
 
 i32 f_lines(LuaState* L) {
-    // 简化实现
-    L->error("file:lines: not yet implemented");
+    FILE** fp = checkFilePtr(L, 1);
+    if (!*fp) {
+        L->error("attempt to use a closed file");
+    }
+
+    // 简化实现：由于缺少完整的闭包/upvalue支持，
+    // 我们返回一个错误提示
+    // TODO: 创建带有upvalue的迭代器闭包
+    L->error("file:lines: iterator closures not yet fully supported");
     return 0;
 }
 
@@ -736,6 +814,7 @@ void IOLibModule::registerFunctions(LuaState* L) {
         .addGlobal("type", io_type)
         .addGlobal("lines", io_lines)
         .addGlobal("tmpfile", io_tmpfile)
+        .addGlobal("popen", io_popen)
         .commitToTable(ioTable);
     
     // 创建文件句柄元表
