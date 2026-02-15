@@ -310,6 +310,20 @@ void CodeGenerator::expr(const Expr& e, ExprDesc& desc) {
         else if constexpr (std::is_same_v<T, TableExpr>) {
             tableExpr(arg, desc);
         }
+        else if constexpr (std::is_same_v<T, VarargExpr>) {
+            // ⭐ 可变参数表达式：生成 VARARG 指令
+            // 参考：lua_c_analysis/src/lparser.c simpleexp() case TK_DOTS
+            // VARARG A B：R(A), R(A+1), ..., R(A+B-2) = vararg
+            // A = 0（稍后由 discharge 重定位）
+            // B = 1（默认复制 0 个结果，即 B-1=0；由上层按需调整为实际数量）
+            // 检查当前函数是否为可变参数函数
+            if (!proto_->isVararg()) {
+                throw std::runtime_error("CodeGenerator: cannot use '...' outside a vararg function");
+            }
+            i32 pc = codeABC(OpCode::VARARG, 0, 1, 0);
+            desc.kind = ExprKind::Vararg;
+            desc.u.s.info = pc;
+        }
         else {
             // 其他表达式类型暂不支持
             desc.kind = ExprKind::Void;
@@ -380,6 +394,16 @@ void CodeGenerator::discharge(ExprDesc& desc, i32 reg) {
                 codeABC(OpCode::MOVE, reg, desc.u.s.info, 0);
             }
             break;
+        case ExprKind::Vararg:
+        case ExprKind::Call: {
+            // ⭐ Vararg/Call 表达式：与 Relocatable 类似，修改之前生成指令的 A 字段
+            // 参考：lua_c_analysis/src/lcode.c discharge2reg() VCALL/VVARARG 分支
+            i32 pc = desc.u.s.info;
+            Instruction inst = proto_->getInstruction(pc);
+            SETARG_A(inst, reg);
+            proto_->setInstruction(pc, inst);
+            break;
+        }
         default:
             break;
     }
@@ -446,11 +470,11 @@ void CodeGenerator::exp2NextReg(ExprDesc& desc) {
 
 void CodeGenerator::exp2Val(ExprDesc& desc) {
     // ⭐ P0修复：参考lua_c_analysis/src/lcode.c:1702-1707
-    // exp2Val调用dischargevars，将Local转换为NonRelocatable
-    // 这样exp2RK就能正确处理局部变量
-
-    // 简化版dischargevars：只处理Local
-    if (desc.kind == ExprKind::Local) {
+    // exp2Val 调用 luaK_dischargevars，处理 Local/Vararg/Call 等需要"求值"的表达式类型
+    // 确保多返回值表达式被固定为单一返回值
+    if (desc.kind == ExprKind::Vararg || desc.kind == ExprKind::Call) {
+        luaK_dischargevars(desc);
+    } else if (desc.kind == ExprKind::Local) {
         desc.kind = ExprKind::NonRelocatable;
     }
 }
@@ -496,25 +520,73 @@ void CodeGenerator::statement(const Stmt& s) {
             }
         }
         else if constexpr (std::is_same_v<T, LocalStmt>) {
-            // 局部变量声明
+            // ⭐ 局部变量声明
+            // 参考：lua_c_analysis/src/lparser.c localstat() 函数
             i32 nvars = static_cast<i32>(arg.names.size());
             i32 nexps = static_cast<i32>(arg.values.size());
 
-            // 为每个变量分配寄存器
+            // ⭐ 关键修复：保存 nactvar_ 的初始值（第一个变量的寄存器索引）
+            i32 base = nactvar_;
+
+            // 为每个变量分配寄存器（addLocalVar 会递增 freereg_ 但不递增 nactvar_）
             for (i32 i = 0; i < nvars; i++) {
                 addLocalVar(arg.names[i]);
             }
 
             // 生成初始化代码
-            for (i32 i = 0; i < nexps && i < nvars; i++) {
-                ExprDesc val;
-                expr(*arg.values[i], val);
-                discharge(val, nactvar_ + i);
+            bool allVarsInitialized = false;  // 标记是否所有变量都已初始化
+            if (nexps > 0) {
+                // 处理前 nexps-1 个表达式（每个表达式对应一个变量）
+                for (i32 i = 0; i < nexps - 1 && i < nvars; i++) {
+                    ExprDesc val;
+                    expr(*arg.values[i], val);
+                    discharge(val, base + i);  // ⭐ 使用 base + i 而不是 nactvar_ + i
+                }
+
+                // 处理最后一个表达式（可能是多返回值表达式）
+                if (nexps <= nvars) {
+                    ExprDesc val;
+                    expr(*arg.values[nexps - 1], val);
+
+                    // 如果是多返回值表达式（Vararg 或 Call），调整返回值数量
+                    if (val.kind == ExprKind::Vararg || val.kind == ExprKind::Call) {
+                        // 需要 nvars - (nexps - 1) 个返回值
+                        i32 wanted = nvars - (nexps - 1);
+                        i32 targetReg = base + (nexps - 1);  // ⭐ 使用 base 而不是 nactvar_
+
+                        // 修改 VARARG/CALL 指令的 A 和 B/C 参数
+                        i32 pc = val.u.s.info;
+                        Instruction inst = proto_->getInstruction(pc);
+
+                        // 设置目标寄存器 A
+                        SETARG_A(inst, targetReg);
+
+                        if (val.kind == ExprKind::Vararg) {
+                            // VARARG A B：B = wanted + 1
+                            SETARG_B(inst, wanted + 1);
+                        } else {
+                            // CALL A B C：C = wanted + 1
+                            SETARG_C(inst, wanted + 1);
+                        }
+
+                        // 一次性写回指令
+                        proto_->setInstruction(pc, inst);
+
+                        // ⭐ 关键修复：多返回值表达式会初始化所有剩余变量
+                        // 标记所有变量都已初始化，避免后续生成 LOADNIL 指令
+                        allVarsInitialized = true;
+                    } else {
+                        // 普通表达式
+                        discharge(val, base + (nexps - 1));  // ⭐ 使用 base 而不是 nactvar_
+                    }
+                }
             }
 
             // 未初始化的变量设为nil
-            if (nexps < nvars) {
-                codeABC(OpCode::LOADNIL, nactvar_ + nexps, nactvar_ + nvars - 1, 0);
+            // ⭐ 关键修复：如果最后一个表达式是多返回值表达式（Vararg/Call），
+            // 它已经初始化了所有剩余变量，不需要再生成 LOADNIL
+            if (nexps < nvars && !allVarsInitialized) {
+                codeABC(OpCode::LOADNIL, base + nexps, base + nvars - 1, 0);  // ⭐ 使用 base 而不是 nactvar_
             }
 
             adjustLocalVars(nvars);
@@ -1015,6 +1087,28 @@ void CodeGenerator::luaK_dischargevars(ExprDesc& e) {
             e.u.s.info = codeABC(OpCode::GETUPVAL, 0, e.u.s.info, 0);
             e.kind = ExprKind::Relocatable;
             break;
+        case ExprKind::Vararg: {
+            // ⭐ 可变参数：设置 B=2（默认返回 1 个结果），转换为 Relocatable
+            // 参考：lua_c_analysis/src/lcode.c luaK_dischargevars() VVARARG 分支
+            // VARARG A B：B-1 = 结果数量，B=2 表示 1 个结果
+            i32 pc = e.u.s.info;
+            Instruction inst = proto_->getInstruction(pc);
+            SETARG_B(inst, 2);  // B=2 → 复制 1 个值
+            proto_->setInstruction(pc, inst);
+            e.kind = ExprKind::Relocatable;
+            break;
+        }
+        case ExprKind::Call: {
+            // ⭐ 函数调用：设置 C=2（默认返回 1 个结果），转换为 NonRelocatable
+            // 参考：lua_c_analysis/src/lcode.c luaK_dischargevars() VCALL 分支
+            i32 pc = e.u.s.info;
+            Instruction inst = proto_->getInstruction(pc);
+            SETARG_C(inst, 2);  // C=2 → 返回 1 个值
+            proto_->setInstruction(pc, inst);
+            e.kind = ExprKind::NonRelocatable;
+            e.u.s.info = GETARG_A(inst);
+            break;
+        }
         default:
             break;
     }
