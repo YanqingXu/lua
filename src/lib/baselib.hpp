@@ -167,5 +167,33 @@ i32 luaB_loadfile(LuaState* L);
  */
 i32 luaB_dofile(LuaState* L);
 
+/**
+ * @brief gcinfo() - 获取GC内存使用量（已废弃）
+ * @param L Lua状态机指针
+ * @return 返回值数量（1个：内存使用量KB）
+ */
+i32 luaB_gcinfo(LuaState* L);
+
+/**
+ * @brief getfenv(f) - 获取函数环境表
+ * @param L Lua状态机指针
+ * @return 返回值数量（1个：环境表）
+ */
+i32 luaB_getfenv(LuaState* L);
+
+/**
+ * @brief setfenv(f, table) - 设置函数环境表
+ * @param L Lua状态机指针
+ * @return 返回值数量（1个：被修改的函数对象）
+ */
+i32 luaB_setfenv(LuaState* L);
+
+/**
+ * @brief collectgarbage(opt [, arg]) - 垃圾回收控制
+ * @param L Lua状态机指针
+ * @return 返回值数量（1个：操作结果）
+ */
+i32 luaB_collectgarbage(LuaState* L);
+
 } // namespace Lua
 
