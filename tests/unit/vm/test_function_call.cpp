@@ -51,8 +51,7 @@ void testSimpleFunctionCall(TestSuite& suite) {
         Function* func = new Function(proto);
         L->getGlobalState().getGC().registerObject(func);
 
-        VM vm(L);
-        vm.execute(func);
+        VM::execute(L, func);
 
         // 检查结果
         ASSERT_TRUE(suite, L->getTop() > 0, "Has return value");
@@ -100,8 +99,7 @@ void testFactorialRecursion(TestSuite& suite) {
         Function* func = new Function(proto);
         L->getGlobalState().getGC().registerObject(func);
         
-        VM vm(L);
-        vm.execute(func);
+        VM::execute(L, func);
 
         // 检查结果
         ASSERT_TRUE(suite, L->getTop() > 0, "Has return value");
@@ -147,8 +145,7 @@ void testMultipleReturnValues(TestSuite& suite) {
         Function* func = new Function(proto);
         L->getGlobalState().getGC().registerObject(func);
         
-        VM vm(L);
-        vm.execute(func);
+        VM::execute(L, func);
         
         // 检查结果（应该有3个返回值）
         ASSERT_TRUE(suite, L->getTop() >= 3, "Has at least 3 return values");
@@ -198,8 +195,7 @@ void testNestedFunctionCalls(TestSuite& suite) {
         Function* func = new Function(proto);
         L->getGlobalState().getGC().registerObject(func);
         
-        VM vm(L);
-        vm.execute(func);
+        VM::execute(L, func);
 
         // 检查结果：(1+2) * (3+4) = 3 * 7 = 21
         ASSERT_TRUE(suite, L->getTop() > 0, "Has return value");

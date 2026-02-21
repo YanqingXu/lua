@@ -10,3 +10,5 @@ lua/tmp/
 .vs/
 x64/
 *.pdb
+*.tlog
+build_refactor/

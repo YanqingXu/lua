@@ -303,9 +303,6 @@
     <ClInclude Include="src\lib\oslib.hpp">
       <Filter>src\lib</Filter>
     </ClInclude>
-    <ClInclude Include="src\vm\call_result.hpp">
-      <Filter>src\vm</Filter>
-    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="src">

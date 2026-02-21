@@ -372,8 +372,7 @@ int executeScript(LuaState* L, const char* filename) {
         func->setEnv(L->getGlobalTable());
 
         // 步骤5：执行字节码
-        VM vm(L);
-        vm.execute(func);
+        VM::execute(L, func);
 
         // 清理Proto（Function已经复制了必要的数据）
         delete proto;

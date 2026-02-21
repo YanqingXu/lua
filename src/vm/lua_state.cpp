@@ -393,9 +393,6 @@ i32 LuaState::pcall(i32 nargs, i32 nresults, i32 errfunc) {
     }
 
     try {
-        // 执行函数
-        VM vm(this);
-
         // 清空栈，准备执行函数
         setTop(0);
         setAbsoluteTop(0);
@@ -407,7 +404,7 @@ i32 LuaState::pcall(i32 nargs, i32 nresults, i32 errfunc) {
         }
 
         // 执行函数
-        vm.execute(func);
+        VM::execute(this, func);
 
         // 同步 top_
         setAbsoluteTop(stack_.size());

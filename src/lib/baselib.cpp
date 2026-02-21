@@ -16,7 +16,6 @@
 #include "core/table.hpp"
 #include "core/function.hpp"
 #include "vm/global_state.hpp"
-//#include "vm/call_result.hpp"
 #include "vm/vm.hpp"
 #include "compiler/parser.hpp"
 #include "compiler/codegen.hpp"
@@ -926,15 +925,13 @@ i32 luaB_dofile(LuaState* L) {
 
     // 执行函数
     try {
-        VM vm(L);
-
         // 保存当前栈大小
         usize stackBefore = L->getStack().size();
 
         // 清空栈并压入函数
         L->setTop(0);
         L->getStack().push(Value(function));
-        vm.execute(function);
+        VM::execute(L, function);
 
         // 获取返回值数量
         usize stackAfter = L->getStack().size();

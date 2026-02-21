@@ -319,6 +319,10 @@ if "%BUILD_MODE%"=="test" (
     cl %CXX_FLAGS% /Isrc /Itests\unit\framework /c /Fo"%OUTPUT_DIR%\test_function_call.obj" "tests\unit\vm\test_function_call.cpp" >nul 2>&1
     if %errorlevel% neq 0 exit /b %errorlevel%
 
+    echo [INFO] Compiling test_lua_state_init...
+    cl %CXX_FLAGS% /Isrc /Itests\unit\framework /c /Fo"%OUTPUT_DIR%\test_lua_state_init.obj" "tests\unit\vm\test_lua_state_init.cpp" >nul 2>&1
+    if %errorlevel% neq 0 exit /b %errorlevel%
+
     echo [INFO] Compiling test_lexer_number...
     cl %CXX_FLAGS% /Isrc /Itests\unit\framework /c /Fo"%OUTPUT_DIR%\test_lexer_number.obj" "tests\unit\compiler\test_lexer_number.cpp" >nul 2>&1
     if %errorlevel% neq 0 exit /b %errorlevel%
@@ -412,6 +416,7 @@ if "%BUILD_MODE%"=="test" (
         "%OUTPUT_DIR%\test_metamethod_arith.obj" ^
         "%OUTPUT_DIR%\test_metamethod_complete.obj" ^
         "%OUTPUT_DIR%\test_function_call.obj" ^
+        "%OUTPUT_DIR%\test_lua_state_init.obj" ^
         "%OUTPUT_DIR%\test_lexer_number.obj" ^
         "%OUTPUT_DIR%\test_lexer_lookahead.obj" ^
         "%OUTPUT_DIR%\test_parser_recursion.obj" ^

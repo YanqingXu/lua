@@ -303,8 +303,7 @@ int executeREPLInput(LuaState* L, const Str& source, bool isExpression) {
         usize stackSizeBefore = L->getStack().size();
 
         // 执行字节码
-        VM vm(L);
-        vm.execute(func);
+        VM::execute(L, func);
 
         // 如果是表达式，打印返回值
         if (isExpression) {

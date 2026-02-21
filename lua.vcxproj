@@ -161,7 +161,6 @@
     <ClInclude Include="src\lib\tablelib.hpp" />
     <ClInclude Include="src\repl.hpp" />
     <ClInclude Include="src\vm\call_info.hpp" />
-    <ClInclude Include="src\vm\call_result.hpp" />
     <ClInclude Include="src\vm\global_state.hpp" />
     <ClInclude Include="src\vm\lua_state.hpp" />
     <ClInclude Include="src\vm\stack.hpp" />
