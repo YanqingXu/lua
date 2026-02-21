@@ -33,7 +33,7 @@ LuaState* LuaState::newState() {
 
 LuaState::LuaState()
     : globalState_(GlobalState::getInstance())
-    , stack_(Stack::INITIAL_STACK_SIZE)
+    , stack_(INITIAL_STACK_SIZE)
     , top_(0)
     , callStack_(INITIAL_CI_SIZE)
     , currentCI_(0)
@@ -68,7 +68,7 @@ void LuaState::initialize() {
     CallInfo& ci = callStack_[0];
     ci.func = 0;
     ci.base = 1;  // ⭐ P0修复：base应该是1（func在位置0，局部变量从1开始）
-    ci.top = Stack::MIN_STACK_SIZE;
+    ci.top = MIN_STACK_SIZE;
     ci.savedpc = nullptr;
     ci.nresults = MULTRET;
     ci.tailcalls = 0;

@@ -32,6 +32,7 @@
 #include "vm/global_state.hpp"
 #include "vm/stack.hpp"
 #include "vm/call_info.hpp"
+#include "vm/vm_constants.hpp"
 
 namespace Lua {
 
@@ -74,24 +75,6 @@ enum class ThreadStatus : u8 {
  */
 class LuaState {
 public:
-    // =====================================================================
-    // 常量定义
-    // =====================================================================
-
-    /// 初始调用信息数组大小
-    static constexpr usize INITIAL_CI_SIZE = 8;
-
-    /// 最大调用深度（与Lua C的LUAI_MAXCALLS一致）
-    static constexpr usize MAX_CALL_DEPTH = 20000;
-    
-    /// 多返回值标记
-    static constexpr i32 MULTRET = -1;
-
-    /// 执行状态码（与 Lua 5.1 兼容）
-    static constexpr i32 LUA_OK = 0;        ///< 成功
-    static constexpr i32 LUA_ERRRUN = 2;    ///< 运行时错误
-    static constexpr i32 LUA_ERRMEM = 4;    ///< 内存错误
-    static constexpr i32 LUA_ERRERR = 5;    ///< 错误处理函数错误
 
     // =====================================================================
     // 构造函数和析构函数
@@ -188,21 +171,15 @@ public:
      * 这可能与 Stack::top_ 不同（当使用 setAbsoluteTop 调整栈顶后）。
      */
     void pushValue(const Value& v) {
-        // 确保栈有足够容量（不是 size，而是 capacity）
-        // Stack::capacity() 返回底层 Vec 的大小
         if (top_ >= stack_.capacity()) {
-            stack_.ensureSpace(top_ - stack_.capacity() + 16);
+            stack_.ensureSpace(top_ - stack_.capacity() + STACK_GROW_MARGIN);
         }
 
-        // 确保 Stack::size() (即 Stack::top_) 至少等于 LuaState::top_ + 1
-        // 这样我们可以安全地使用 stack_.at(top_)
         while (stack_.size() <= top_) {
-            stack_.push(Value());  // 用 nil 扩展
+            stack_.push(Value());
         }
 
-        // 在 LuaState::top_ 位置设置值
-        stack_.at(top_) = v;
-        top_++;
+        stack_[top_++] = v;
     }
 
     /**
@@ -210,7 +187,7 @@ public:
      */
     Value pop() {
         Value v = stack_.pop();
-        top_ = stack_.size();  // 同步 top_
+        top_ = stack_.size();
         return v;
     }
 

@@ -27,7 +27,7 @@ Stack::Stack(usize initialSize)
 }
 
 // =====================================================================
-// 栈操作（✅ 改进版 - 添加预检查和快速push）
+// 栈操作（添加预检查和快速push）
 // =====================================================================
 
 void Stack::checkSpace(usize needed) {
@@ -38,14 +38,15 @@ void Stack::checkSpace(usize needed) {
     }
 }
 
+// =====================================================================
+// 快速push，不检查边界。调用前必须确保有足够空间（使用checkSpace）
+// =====================================================================
+
 void Stack::pushUnchecked(const Value& value) noexcept {
-    // 快速push，不检查边界
-    // 调用前必须确保有足够空间（使用checkSpace）
     stack_[top_++] = value;
 }
 
 void Stack::push(const Value& value) {
-    // 兼容版本：自动检查并扩展
     checkSpace(1);
     pushUnchecked(value);
 }
@@ -91,21 +92,19 @@ const Value& Stack::at(usize index) const {
 }
 
 // =====================================================================
-// 栈空间管理（✅ 改进版 - 添加最大栈限制检查）
+// 栈空间管理（添加最大栈限制检查）
 // =====================================================================
 
 void Stack::ensureSpace(usize needed) {
     usize available = stack_.size() - top_;
 
     if (available < needed) {
-        // 需要扩展栈
-        // 新容量 = max(当前容量 * 2, 当前大小 + 需要的空间 + EXTRA_STACK)
         usize newCapacity = std::max(
             stack_.size() * 2,
             top_ + needed + EXTRA_STACK
         );
 
-        // ✅ 检查是否超过最大栈限制
+        // 检查是否超过最大栈限制
         if (newCapacity > MAX_STACK_SIZE) {
             // 如果确实需要超过限制，抛出异常
             if (top_ + needed > MAX_STACK_SIZE) {
@@ -121,7 +120,6 @@ void Stack::ensureSpace(usize needed) {
 
 void Stack::setTop(usize newTop) {
     if (newTop > stack_.size()) {
-        // ✅ 检查是否超过最大栈限制
         usize newCapacity = newTop + EXTRA_STACK;
         if (newCapacity > MAX_STACK_SIZE) {
             if (newTop > MAX_STACK_SIZE) {

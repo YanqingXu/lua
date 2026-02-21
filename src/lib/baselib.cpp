@@ -681,10 +681,10 @@ i32 luaB_pcall(LuaState* L) {
     }
 
     // 调用 pcall(nargs-1, MULTRET, 0)
-    i32 status = L->pcall(nargs - 1, LuaState::MULTRET, 0);
+    i32 status = L->pcall(nargs - 1, MULTRET, 0);
 
     // 压入状态（true 表示成功，false 表示失败）
-    L->pushBoolean(status == LuaState::LUA_OK);
+    L->pushBoolean(status == LUA_OK);
 
     // 将 boolean 插入到栈底（索引 1）
     L->insert(1);
@@ -725,10 +725,10 @@ i32 luaB_xpcall(LuaState* L) {
     // 调用 pcall(0, MULTRET, 1)
     // 0 个参数（xpcall 在 Lua 5.1 中不接受额外参数）
     // 1 表示错误处理器在索引 1
-    i32 status = L->pcall(0, LuaState::MULTRET, 1);
+    i32 status = L->pcall(0, MULTRET, 1);
 
     // 压入状态（true 表示成功，false 表示失败）
-    L->pushBoolean(status == LuaState::LUA_OK);
+    L->pushBoolean(status == LUA_OK);
 
     // 用 boolean 替换索引 1 的值（错误处理器）
     L->replace(1);

@@ -33,6 +33,7 @@
 
 #include "common/types.hpp"
 #include "core/value.hpp"
+#include "vm/vm_constants.hpp"
 
 namespace Lua {
 
@@ -120,16 +121,6 @@ enum class TMS : u8 {
  * @see lua_c_analysis/src/ltm.c 第203-208行
  */
 extern const char* const kMetamethodNames[static_cast<usize>(TMS::TM_N)];
-
-/**
- * @brief 元方法链的最大长度限制
- * 
- * 防止__index和__newindex元方法无限递归。
- * 当元方法链超过此长度时，抛出"loop in gettable/settable"错误。
- * 
- * @see lua_c_analysis/src/lvm.c 第114行
- */
-constexpr i32 MAXTAGLOOP = 100;
 
 // =====================================================================
 // 元方法查找函数

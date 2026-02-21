@@ -37,6 +37,7 @@
 
 #include "common/types.hpp"
 #include "core/value.hpp"
+#include "vm/vm_constants.hpp"
 
 namespace Lua {
 
@@ -65,21 +66,6 @@ namespace Lua {
  */
 class Stack {
 public:
-    // =====================================================================
-    // 常量定义（✅ 改进版 - 添加最大栈限制）
-    // =====================================================================
-
-    /// 最小栈大小（Lua 5.1.5中的LUA_MINSTACK）
-    static constexpr usize MIN_STACK_SIZE = 20;
-
-    /// 初始栈大小
-    static constexpr usize INITIAL_STACK_SIZE = 40;
-
-    /// 额外栈空间（用于元方法调用等）
-    static constexpr usize EXTRA_STACK = 5;
-
-    /// ✅ 最大栈大小（防止无限递归，与Lua C的LUAI_MAXSTACK一致）
-    static constexpr usize MAX_STACK_SIZE = 1000000;
     
     // =====================================================================
     // 构造函数和析构函数

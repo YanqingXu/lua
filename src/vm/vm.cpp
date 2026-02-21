@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @file vm.cpp
  * @brief Lua虚拟机执行引擎实现 — 纯自由函数风格
  *
@@ -14,6 +14,7 @@
  */
 
 #include "vm/vm.hpp"
+#include "vm/vm_constants.hpp"
 #include "vm/lua_state.hpp"
 #include "core/value.hpp"
 #include "core/function.hpp"
@@ -92,7 +93,6 @@ static bool tryToNumber(const Value& val, f64& result) {
  * @note 调用方需在返回后 refreshBase
  */
 static void vmGettable(LuaState* L, Value t, const Value& key, Value& result) {
-    constexpr i32 MAXTAGLOOP = 100;
     for (i32 loop = 0; loop < MAXTAGLOOP; loop++) {
         if (t.isTable()) {
             Table* h = t.asTable();
@@ -125,7 +125,6 @@ static void vmGettable(LuaState* L, Value t, const Value& key, Value& result) {
  * 对应 Lua C: luaV_settable()
  */
 static void vmSettable(LuaState* L, Value t, const Value& key, const Value& val) {
-    constexpr i32 MAXTAGLOOP = 100;
     for (i32 loop = 0; loop < MAXTAGLOOP; loop++) {
         if (t.isTable()) {
             Table* h = t.asTable();
@@ -517,8 +516,7 @@ static void vmSetList(LuaState* L, Value* base, i32 a, i32 b, i32 c) {
         L->setAbsoluteTop(ci.top);
     }
 
-    constexpr i32 FPF = 50;
-    i32 base_index = (c - 1) * FPF;
+    i32 base_index = (c - 1) * FIELDS_PER_FLUSH;
     for (i32 i = 1; i <= n; i++) {
         table->setArray(base_index + i, base[a + i]);
     }
@@ -710,7 +708,6 @@ void executeProto(LuaState* L, Proto* proto, i32 nexeccalls) {
     // 深度检查
     if (!proto)
         throw std::runtime_error("VM::executeProto: null proto");
-    static constexpr i32 MAX_CALLS = 200;
     if (nexeccalls >= MAX_CALLS)
         throw std::runtime_error("VM: stack overflow (too many nested calls)");
 
