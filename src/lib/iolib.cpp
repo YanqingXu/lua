@@ -305,6 +305,7 @@ i32 io_open(LuaState* L) {
     // 创建文件句柄
     Userdata* ud = createFileHandle(L, fp);
     L->pushUserdata(ud);
+
     return 1;
 }
 

@@ -9,3 +9,4 @@ lua/tmp/
 /tmp/
 .vs/
 x64/
+*.pdb

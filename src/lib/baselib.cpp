@@ -16,7 +16,7 @@
 #include "core/table.hpp"
 #include "core/function.hpp"
 #include "vm/global_state.hpp"
-#include "vm/call_result.hpp"
+//#include "vm/call_result.hpp"
 #include "vm/vm.hpp"
 #include "compiler/parser.hpp"
 #include "compiler/codegen.hpp"

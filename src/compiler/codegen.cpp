@@ -471,10 +471,10 @@ i32 CodeGenerator::exp2AnyReg(ExprDesc& desc) {
     }
 
     // ⭐ 关键修复：函数调用表达式的结果已经在寄存器中
-    // callExpr 会设置 desc.kind = ExprKind::Call，u.s.info = funcReg
-    // 返回值就位于 funcReg，不需要重新分配寄存器
+    // callExpr 会设置 desc.kind = ExprKind::Call，u.s.info = base（函数所在的寄存器）
+    // 返回值就位于 base，不需要重新分配寄存器
     if (desc.kind == ExprKind::Call) {
-        return desc.u.s.info;
+        return desc.u.s.info;  // 返回函数所在的寄存器（返回值也在这里）
     }
 
     if (desc.kind == ExprKind::NonRelocatable) {
@@ -553,10 +553,28 @@ void CodeGenerator::statement(const Stmt& s) {
             // ⭐ 关键修复：保存 nactvar_ 的初始值（第一个变量的寄存器索引）
             i32 base = nactvar_;
 
-            // 为每个变量分配寄存器（addLocalVar 会递增 freereg_ 但不递增 nactvar_）
+            std::fprintf(stderr, "DEBUG LocalStmt: nvars=%d, nexps=%d, base=%d, freereg=%d\n",
+                         nvars, nexps, base, freereg_);
+
+            // ⭐ P0修复：在编译表达式之前，临时调整freereg_
+            // 保存当前的freereg_（可能包含其他临时寄存器）
+            i32 savedFreereg = freereg_;
+
+            // 设置freereg_为base，这样表达式会从base开始分配寄存器
+            freereg_ = base;
+
+            // 为每个变量分配寄存器（addLocalVar 会递增 freereg_）
             for (i32 i = 0; i < nvars; i++) {
                 addLocalVar(arg.names[i]);
             }
+
+            std::fprintf(stderr, "DEBUG LocalStmt: after addLocalVar, freereg=%d\n", freereg_);
+
+            // ⭐ P0修复：重新设置freereg_为base
+            // 这样在编译表达式时，寄存器会从base开始分配
+            freereg_ = base;
+
+            std::fprintf(stderr, "DEBUG LocalStmt: reset freereg to %d\n", freereg_);
 
             // 生成初始化代码
             bool allVarsInitialized = false;  // 标记是否所有变量都已初始化
@@ -579,23 +597,34 @@ void CodeGenerator::statement(const Stmt& s) {
                         i32 wanted = nvars - (nexps - 1);
                         i32 targetReg = base + (nexps - 1);  // ⭐ 使用 base 而不是 nactvar_
 
-                        // 修改 VARARG/CALL 指令的 A 和 B/C 参数
-                        i32 pc = val.u.s.info;
+                        // ⭐ P0修复：不要修改CALL指令的A参数！
+                        // 相反，修改C参数（返回值数量），然后生成MOVE指令将返回值移动到目标寄存器
+                        // ⭐ P0修复：对于Call表达式，PC存储在aux字段中，函数寄存器存储在info字段中
+                        i32 pc = (val.kind == ExprKind::Call) ? val.u.s.aux : val.u.s.info;
+                        i32 funcReg = (val.kind == ExprKind::Call) ? val.u.s.info : -1;
                         Instruction inst = proto_->getInstruction(pc);
+                        i32 oldA = GETARG_A(inst);
 
-                        // 设置目标寄存器 A
-                        SETARG_A(inst, targetReg);
+                        std::fprintf(stderr, "DEBUG LocalStmt: CALL at pc=%d, oldA=%d, funcReg=%d, targetReg=%d, wanted=%d\n",
+                                     pc, oldA, funcReg, targetReg, wanted);
 
                         if (val.kind == ExprKind::Vararg) {
-                            // VARARG A B：B = wanted + 1
+                            // VARARG A B：修改A和B参数
+                            SETARG_A(inst, targetReg);
                             SETARG_B(inst, wanted + 1);
+                            proto_->setInstruction(pc, inst);
                         } else {
-                            // CALL A B C：C = wanted + 1
+                            // CALL A B C：修改A和C参数
+                            // ⭐ P0修复：由于我们在编译表达式之前设置了freereg_=base，
+                            // 函数和参数应该已经在正确的位置（base, base+1, base+2, ...）
+                            // 所以只需要修改A和C参数即可
+                            SETARG_A(inst, targetReg);
                             SETARG_C(inst, wanted + 1);
-                        }
+                            proto_->setInstruction(pc, inst);
 
-                        // 一次性写回指令
-                        proto_->setInstruction(pc, inst);
+                            std::fprintf(stderr, "DEBUG LocalStmt: modified CALL to A=%d, C=%d\n",
+                                         targetReg, wanted + 1);
+                        }
 
                         // ⭐ 关键修复：多返回值表达式会初始化所有剩余变量
                         // 标记所有变量都已初始化，避免后续生成 LOADNIL 指令
@@ -613,6 +642,9 @@ void CodeGenerator::statement(const Stmt& s) {
             if (nexps < nvars && !allVarsInitialized) {
                 codeABC(OpCode::LOADNIL, base + nexps, base + nvars - 1, 0);  // ⭐ 使用 base 而不是 nactvar_
             }
+
+            // ⭐ P0修复：恢复freereg_
+            freereg_ = savedFreereg;
 
             adjustLocalVars(nvars);
         }
@@ -1437,7 +1469,7 @@ void CodeGenerator::callExpr(const CallExpr& e, ExprDesc& desc) {
     // - A = base（函数寄存器）
     // - B = nargs + 1（参数数量+1）
     // - C = 2（期望1个返回值，C-1=1）
-    codeABC(OpCode::CALL, base, nargs + 1, 2);
+    i32 callPC = codeABC(OpCode::CALL, base, nargs + 1, 2);
 
     // ⭐ 关键修复：调用后重置freereg
     // 参考官方实现：lua_c_analysis/src/lparser.c:3400
@@ -1451,9 +1483,13 @@ void CodeGenerator::callExpr(const CallExpr& e, ExprDesc& desc) {
     freereg_ = base + 1;
     checkStack(0);  // ⭐ P0修复：确保maxStackSize >= freereg_
 
-    // 函数调用结果在base寄存器
+    // ⭐ P0修复：ExprKind::Call需要同时存储CALL指令的PC和函数所在的寄存器
+    // 参考：lua_c_analysis/src/lcode.c luaK_exp2nextreg() VCALL分支
+    // info: 函数所在的寄存器（返回值也在这里，用于exp2AnyReg）
+    // aux: CALL指令的PC（用于LocalStmt修改指令）
     desc.kind = ExprKind::Call;
-    desc.u.s.info = base;
+    desc.u.s.info = base;     // 存储函数所在的寄存器（返回值也在这里）
+    desc.u.s.aux = callPC;    // 存储CALL指令的PC
 }
 
 /**

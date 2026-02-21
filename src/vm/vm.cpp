@@ -942,7 +942,7 @@ void VM::executeGetTable(i32 a, i32 b, i32 c) {
     // R(A) := R(B)[RK(C)]
     // 支持__index元方法
     // @see lua_c_analysis/src/lvm.c 第530-553行 luaV_gettable()
-    
+
     Value t = R(b);
     Value key = RK(c);
     
@@ -960,7 +960,7 @@ void VM::executeGetTable(i32 a, i32 b, i32 c) {
                 R(a) = res;
                 return;
             }
-            
+
             // 检查是否有__index元方法
             Value tm = getMetamethodByObject(L_, t, TMS::TM_INDEX);
             if (tm.isNil()) {
