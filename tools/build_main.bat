@@ -8,7 +8,7 @@ REM   1. Test Mode (default): Compiles with ENABLE_TESTS, includes test files
 REM   2. Interpreter Mode: Compiles without tests, standalone interpreter
 REM
 REM Usage:
-REM   build_main.bat [mode] [build_type]
+REM   build_main.bat [mode] [build_type] [options]
 REM
 REM Modes:
 REM   test       - Build with tests (default)
@@ -18,12 +18,17 @@ REM Build Types:
 REM   debug      - Debug build (default)
 REM   release    - Release build
 REM
+REM Options:
+REM   inputmode  - Enable interactive mode selection menu (ENABLE_INPUT_MODE)
+REM
 REM Examples:
 REM   build_main.bat                    - Test mode, Debug
 REM   build_main.bat test debug         - Test mode, Debug
 REM   build_main.bat interpreter        - Interpreter mode, Debug
 REM   build_main.bat interpreter release - Interpreter mode, Release
 REM   build_main.bat test release       - Test mode, Release
+REM   build_main.bat test debug inputmode       - Test + Input Mode, Debug
+REM   build_main.bat interpreter release inputmode - Interpreter + Input Mode, Release
 REM
 REM =====================================================================
 
@@ -48,12 +53,23 @@ if "%2"=="release" set BUILD_TYPE=Release
 if "%2"=="Release" set BUILD_TYPE=Release
 if "%2"=="RELEASE" set BUILD_TYPE=Release
 
+REM Parse input mode option (enable ENABLE_INPUT_MODE macro)
+REM 解析 inputmode 参数：启用交互式模式选择菜单
+set ENABLE_INPUT_MODE_FLAG=0
+if "%1"=="inputmode" set ENABLE_INPUT_MODE_FLAG=1
+if "%1"=="INPUTMODE" set ENABLE_INPUT_MODE_FLAG=1
+if "%2"=="inputmode" set ENABLE_INPUT_MODE_FLAG=1
+if "%2"=="INPUTMODE" set ENABLE_INPUT_MODE_FLAG=1
+if "%3"=="inputmode" set ENABLE_INPUT_MODE_FLAG=1
+if "%3"=="INPUTMODE" set ENABLE_INPUT_MODE_FLAG=1
+
 echo.
 echo [INFO] ========================================
 echo [INFO] Lua C++ Interpreter Build Script
 echo [INFO] ========================================
 echo [INFO] Build mode: %BUILD_MODE%
 echo [INFO] Build type: %BUILD_TYPE%
+if "%ENABLE_INPUT_MODE_FLAG%"=="1" echo [INFO] Input mode: ENABLED
 echo.
 
 REM Set up MSVC environment using vcvarsall.bat
@@ -97,6 +113,11 @@ if "%BUILD_MODE%"=="test" (
         set CXX_FLAGS=/std:c++17 /EHsc /nologo /O2 /MD /DNDEBUG /W3 /D_CRT_SECURE_NO_WARNINGS /utf-8
         set EXE_NAME=lua.exe
     )
+)
+
+REM 如果启用了 inputmode，添加 ENABLE_INPUT_MODE 宏定义
+if "%ENABLE_INPUT_MODE_FLAG%"=="1" (
+    set CXX_FLAGS=%CXX_FLAGS% /DENABLE_INPUT_MODE
 )
 
 echo [INFO] Compile flags: %CXX_FLAGS%

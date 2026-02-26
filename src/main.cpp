@@ -47,6 +47,8 @@
 #include <sstream>
 #include <fstream>
 
+#define ENABLE_INPUT_MODE 1
+
 // 测试框架（可选）
 #ifdef ENABLE_TESTS
 #include "../tests/unit/framework/test_framework.hpp"
@@ -106,8 +108,7 @@ void printUsage(const char* progname) {
     std::cout << "Available options are:" << std::endl;
     std::cout << "  -v       show version information" << std::endl;
     std::cout << "  -h       show this help message" << std::endl;
-    std::cout << "  -t       run unit tests (default mode)" << std::endl;
-    std::cout << "  -i       enter interactive mode (not implemented)" << std::endl;
+    std::cout << "  -i       enter interactive mode" << std::endl;
     std::cout << "  -        execute stdin (not implemented)" << std::endl;
 }
 
@@ -397,6 +398,129 @@ int executeScript(LuaState* L, const char* filename) {
 }
 
 // ============================================================================
+// 交互式模式选择菜单（ENABLE_INPUT_MODE）
+// ============================================================================
+
+#ifdef ENABLE_INPUT_MODE
+
+/**
+ * @brief 显示模式选择菜单
+ *
+ * 当 ENABLE_INPUT_MODE 被定义时，程序启动后显示该菜单，
+ * 允许用户交互式地选择运行模式。
+ */
+void printModeMenu() {
+    std::cout << "\n";
+    std::cout << "========================================" << std::endl;
+    std::cout << "  Lua C++ Interpreter - 模式选择菜单" << std::endl;
+    std::cout << "========================================" << std::endl;
+    std::cout << "  1. 进入 REPL 交互模式" << std::endl;
+    std::cout << "  2. 执行 Lua 脚本文件" << std::endl;
+#ifdef ENABLE_TESTS
+    std::cout << "  3. 运行单元测试" << std::endl;
+#endif
+    std::cout << "  0. 退出程序 (或输入 q)" << std::endl;
+    std::cout << "========================================" << std::endl;
+    std::cout << "请选择模式: ";
+}
+
+/**
+ * @brief 处理交互式模式选择菜单
+ *
+ * 实现循环菜单，执行完一个模式后可以返回菜单继续选择，
+ * 直到用户选择退出。参考 Lua 5.1.5 的错误处理风格。
+ *
+ * @param L Lua状态机指针
+ * @return 最终退出码（0=成功）
+ */
+int handleInputMode(LuaState* L) {
+    Str input;
+    i32 status = 0;
+
+    while (true) {
+        printModeMenu();
+
+        if (!std::getline(std::cin, input)) {
+            // EOF（Ctrl+Z / Ctrl+D），退出程序
+            std::cout << std::endl;
+            break;
+        }
+
+        // 去除首尾空白
+        usize start = input.find_first_not_of(" \t\r\n");
+        if (start == Str::npos) {
+            REPL::reportError("无效输入，请重新选择");
+            continue;
+        }
+        Str trimmed = input.substr(start);
+        usize end = trimmed.find_last_not_of(" \t\r\n");
+        if (end != Str::npos) {
+            trimmed = trimmed.substr(0, end + 1);
+        }
+
+        // 处理退出选项
+        if (trimmed == "0" || trimmed == "q" || trimmed == "Q") {
+            std::cout << "[INFO] 退出程序。" << std::endl;
+            break;
+        }
+
+        // 处理模式选择
+        if (trimmed == "1") {
+            // 模式1：REPL 交互模式
+            std::cout << "\n[INFO] 进入 REPL 交互模式..." << std::endl;
+            REPL::initialize(L);
+            status = REPL::run(L);
+            std::cout << "\n[INFO] REPL 模式已退出。" << std::endl;
+
+        } else if (trimmed == "2") {
+            // 模式2：执行 Lua 脚本文件
+            std::cout << "请输入 Lua 脚本文件路径: ";
+            Str filepath;
+            if (!std::getline(std::cin, filepath) || filepath.empty()) {
+                REPL::reportError("未提供文件路径");
+                continue;
+            }
+
+            // 去除文件路径首尾空白
+            usize fstart = filepath.find_first_not_of(" \t\r\n");
+            if (fstart == Str::npos) {
+                REPL::reportError("文件路径为空");
+                continue;
+            }
+            filepath = filepath.substr(fstart);
+            usize fend = filepath.find_last_not_of(" \t\r\n");
+            if (fend != Str::npos) {
+                filepath = filepath.substr(0, fend + 1);
+            }
+
+            std::cout << "\n[INFO] 执行脚本: " << filepath << std::endl;
+            status = executeScript(L, filepath.c_str());
+            if (status == 0) {
+                std::cout << "\n[INFO] 脚本执行完毕。" << std::endl;
+            } else {
+                std::cout << "\n[INFO] 脚本执行失败。" << std::endl;
+            }
+
+#ifdef ENABLE_TESTS
+        } else if (trimmed == "3") {
+            // 模式3：运行单元测试（需要 ENABLE_TESTS）
+            std::cout << "\n[INFO] 运行单元测试..." << std::endl;
+            status = runTests();
+            std::cout << "\n[INFO] 测试运行完毕。" << std::endl;
+#endif
+
+        } else {
+            // 无效输入
+            REPL::reportError("无效选项，请输入菜单中的数字或 'q' 退出");
+        }
+    }
+
+    return status > 0 ? 1 : 0;
+}
+
+#endif  // ENABLE_INPUT_MODE
+
+// ============================================================================
 // 主函数（参考lua_c_analysis/src/lua.c的main函数）
 // ============================================================================
 
@@ -427,9 +551,6 @@ int main(int argc, char** argv) {
         REPL::setProgName(argv[0]);
 
         // 步骤1：解析命令行参数
-#ifdef ENABLE_TESTS
-        bool enableTestMode = true;  // 默认运行测试
-#endif
         bool showVersion = false;
         bool showHelp = false;
         const char* scriptFile = nullptr;
@@ -440,19 +561,9 @@ int main(int argc, char** argv) {
                 showVersion = true;
             } else if (std::strcmp(argv[i], "-h") == 0) {
                 showHelp = true;
-#ifdef ENABLE_TESTS
-            } else if (std::strcmp(argv[i], "-t") == 0) {
-                enableTestMode = true;
-#endif
             } else if (std::strcmp(argv[i], "-i") == 0) {
-#ifdef ENABLE_TESTS
-                enableTestMode = false;
-#endif
-                // 交互模式
+                // 交互模式（保留参数识别，由 ENABLE_INPUT_MODE 菜单处理）
             } else if (argv[i][0] != '-') {
-#ifdef ENABLE_TESTS
-                enableTestMode = false;
-#endif
                 scriptFile = argv[i];
                 scriptIndex = i;  // 记录脚本文件索引
                 break;
@@ -482,22 +593,26 @@ int main(int argc, char** argv) {
         // 步骤4-5：执行主程序
         i32 status = 0;
 
-#ifdef ENABLE_TESTS
-        if (enableTestMode) {
-            // 测试模式
-            status = runTests();
+#ifdef ENABLE_INPUT_MODE
+        // 交互式模式选择：当没有指定命令行脚本时，显示菜单
+        // 如果用户通过命令行参数指定了脚本文件，则绕过菜单直接执行
+        if (!scriptFile) {
+            // 进入交互式模式选择菜单
+            status = handleInputMode(L.get());
         } else
-#endif
-        if (scriptFile) {
-            // 设置arg表（使脚本可通过arg[0], arg[1]...访问命令行参数）
-            setupArgTable(L.get(), argc, argv, scriptIndex);
+#endif  // ENABLE_INPUT_MODE
+        {
+            if (scriptFile) {
+                // 设置arg表（使脚本可通过arg[0], arg[1]...访问命令行参数）
+                setupArgTable(L.get(), argc, argv, scriptIndex);
 
-            // 脚本执行模式
-            status = executeScript(L.get(), scriptFile);
-        } else {
-            // 交互模式
-            REPL::initialize(L.get());  // 初始化 REPL 环境（_VERSION, exit 等）
-            status = REPL::run(L.get());
+                // 脚本执行模式
+                status = executeScript(L.get(), scriptFile);
+            } else {
+                // 无脚本且无 ENABLE_INPUT_MODE 时，进入 REPL 交互模式
+                REPL::initialize(L.get());  // 初始化 REPL 环境（_VERSION, exit 等）
+                status = REPL::run(L.get());
+            }
         }
 
         // 步骤6：清理资源（RAII自动管理）
