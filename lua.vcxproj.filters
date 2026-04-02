@@ -4,6 +4,9 @@
     <ClCompile Include="src\compiler\ast.cpp">
       <Filter>src\compiler</Filter>
     </ClCompile>
+    <ClCompile Include="src\compiler\bytecode_printer.cpp">
+      <Filter>src\compiler</Filter>
+    </ClCompile>
     <ClCompile Include="src\lib\baselib.cpp">
       <Filter>src\lib</Filter>
     </ClCompile>
@@ -96,6 +99,9 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\compiler\ast.hpp">
+      <Filter>src\compiler</Filter>
+    </ClInclude>
+    <ClInclude Include="src\compiler\bytecode_printer.hpp">
       <Filter>src\compiler</Filter>
     </ClInclude>
     <ClInclude Include="src\lib\baselib.hpp">

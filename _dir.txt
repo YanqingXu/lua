@@ -1,0 +1,5 @@
+_build.log
+lua_app.exe
+lua_bytecode.exe
+lua_test.exe
+lua.lib

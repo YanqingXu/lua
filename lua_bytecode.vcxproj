@@ -21,8 +21,8 @@
   <PropertyGroup Label="Globals">
     <VCProjectVersion>18.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>
-    <ProjectGuid>{C3D4E5F6-A7B8-9012-CDEF-123456789012}</ProjectGuid>
-    <RootNamespace>lua_test</RootNamespace>
+    <ProjectGuid>{D4E5F6A7-B8C9-0123-DEFA-234567890123}</ProjectGuid>
+    <RootNamespace>lua_bytecode</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
@@ -53,10 +53,8 @@
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
-  <ImportGroup Label="ExtensionSettings">
-  </ImportGroup>
-  <ImportGroup Label="Shared">
-  </ImportGroup>
+  <ImportGroup Label="ExtensionSettings" />
+  <ImportGroup Label="Shared" />
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
@@ -77,8 +75,7 @@
       <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
-      <AdditionalIncludeDirectories>$(ProjectDir)include;..\tests\unit\framework;..\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <AdditionalOptions>/FS %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalIncludeDirectories>src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -94,8 +91,7 @@
       <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
-      <AdditionalIncludeDirectories>$(ProjectDir)include;..\tests\unit\framework;..\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <AdditionalOptions>/FS %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalIncludeDirectories>src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -110,8 +106,7 @@
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp23</LanguageStandard>
       <LanguageStandard_C>stdc11</LanguageStandard_C>
-      <AdditionalIncludeDirectories>$(ProjectDir)include;..\tests\unit\framework;..\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <AdditionalOptions>/FS %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalIncludeDirectories>src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -127,8 +122,7 @@
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
-      <AdditionalIncludeDirectories>$(ProjectDir)include;..\tests\unit\framework;..\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <AdditionalOptions>/FS %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalIncludeDirectories>src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -136,50 +130,16 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClInclude Include="include\test_framework\test_framework.hpp" />
-    <ClInclude Include="..\tests\unit\framework\test_framework.hpp" />
-    <ClInclude Include="..\tests\unit\framework\test_registry.hpp" />
+    <ClInclude Include="src\compiler\bytecode_printer.hpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\tests\unit\framework\test_framework.cpp" />
-    <ClCompile Include="..\tests\unit\framework\test_runner.cpp" />
-    <ClCompile Include="..\tests\unit\compiler\test_indexed_access.cpp" />
-    <ClCompile Include="..\tests\unit\compiler\test_lexer_lookahead.cpp" />
-    <ClCompile Include="..\tests\unit\compiler\test_lexer_number.cpp" />
-    <ClCompile Include="..\tests\unit\compiler\test_method_call.cpp" />
-    <ClCompile Include="..\tests\unit\compiler\test_parser_error_recovery.cpp" />
-    <ClCompile Include="..\tests\unit\compiler\test_parser_memory_pool.cpp" />
-    <ClCompile Include="..\tests\unit\compiler\test_parser_recursion.cpp" />
-    <ClCompile Include="..\tests\unit\compiler\test_storevar.cpp" />
-    <ClCompile Include="..\tests\unit\compiler\test_syntax_sugar.cpp" />
-    <ClCompile Include="..\tests\unit\compiler\test_binary_unary_expr.cpp" />
-    <ClCompile Include="..\tests\unit\compiler\test_function_codegen.cpp" />
-    <ClCompile Include="..\tests\unit\compiler\test_lua_functions.cpp" />
-    <ClCompile Include="..\tests\unit\core\test_function.cpp" />
-    <ClCompile Include="..\tests\unit\core\test_gc_string.cpp" />
-    <ClCompile Include="..\tests\unit\core\test_table.cpp" />
-    <ClCompile Include="..\tests\unit\core\test_value.cpp" />
-    <ClCompile Include="..\tests\unit\gc\test_gc.cpp" />
-    <ClCompile Include="..\tests\unit\io\test_dynamic_buffer.cpp" />
-    <ClCompile Include="..\tests\unit\io\test_input_stream_file.cpp" />
-    <ClCompile Include="..\tests\unit\io\test_input_stream_stream.cpp" />
-    <ClCompile Include="..\tests\unit\io\test_input_stream_string.cpp" />
-    <ClCompile Include="..\tests\unit\metamethod\test_metamethod_arith.cpp" />
-    <ClCompile Include="..\tests\unit\metamethod\test_metamethod_complete.cpp" />
-    <ClCompile Include="..\tests\unit\stdlib\test_baselib.cpp" />
-    <ClCompile Include="..\tests\unit\stdlib\test_oslib.cpp" />
-    <ClCompile Include="..\tests\unit\stdlib\test_stringlib.cpp" />
-    <ClCompile Include="..\tests\unit\stdlib\test_tablelib.cpp" />
-    <ClCompile Include="..\tests\unit\vm\test_function_call.cpp" />
-    <ClCompile Include="..\tests\unit\vm\test_lua_state_init.cpp" />
-    <ClCompile Include="..\tests\unit\vm\test_vm_core.cpp" />
+    <ClCompile Include="src\bytecode_main.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\lua.vcxproj">
+    <ProjectReference Include="lua.vcxproj">
       <Project>{91ed3531-8530-4138-83e7-69c2e674fdf9}</Project>
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
-  <ImportGroup Label="ExtensionTargets">
-  </ImportGroup>
+  <ImportGroup Label="ExtensionTargets" />
 </Project>
