@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="Current" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="framework">
+      <UniqueIdentifier>{D1000001-0001-0001-0001-000000000001}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="framework\generic">
+      <UniqueIdentifier>{D1000001-0002-0002-0002-000000000002}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="tests">
+      <UniqueIdentifier>{D1000001-0003-0003-0003-000000000003}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="tests\compiler">
+      <UniqueIdentifier>{D1000001-0004-0004-0004-000000000004}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="tests\core">
+      <UniqueIdentifier>{D1000001-0005-0005-0005-000000000005}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="tests\gc">
+      <UniqueIdentifier>{D1000001-0006-0006-0006-000000000006}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="tests\io">
+      <UniqueIdentifier>{D1000001-0007-0007-0007-000000000007}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="tests\metamethod">
+      <UniqueIdentifier>{D1000001-0008-0008-0008-000000000008}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="tests\stdlib">
+      <UniqueIdentifier>{D1000001-0009-0009-0009-000000000009}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="tests\vm">
+      <UniqueIdentifier>{D1000001-000A-000A-000A-00000000000A}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="include\test_framework\test_framework.hpp">
+      <Filter>framework\generic</Filter>
+    </ClInclude>
+    <ClInclude Include="..\tests\unit\framework\test_framework.hpp">
+      <Filter>framework</Filter>
+    </ClInclude>
+    <ClInclude Include="..\tests\unit\framework\test_registry.hpp">
+      <Filter>framework</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\tests\unit\framework\test_framework.cpp">
+      <Filter>framework</Filter>
+    </ClCompile>
+    <ClCompile Include="..\tests\unit\framework\test_runner.cpp">
+      <Filter>framework</Filter>
+    </ClCompile>
+    <ClCompile Include="..\tests\unit\compiler\test_indexed_access.cpp">
+      <Filter>tests\compiler</Filter>
+    </ClCompile>
+    <ClCompile Include="..\tests\unit\compiler\test_lexer_lookahead.cpp">
+      <Filter>tests\compiler</Filter>
+    </ClCompile>
+    <ClCompile Include="..\tests\unit\compiler\test_lexer_number.cpp">
+      <Filter>tests\compiler</Filter>
+    </ClCompile>
+    <ClCompile Include="..\tests\unit\compiler\test_method_call.cpp">
+      <Filter>tests\compiler</Filter>
+    </ClCompile>
+    <ClCompile Include="..\tests\unit\compiler\test_parser_error_recovery.cpp">
+      <Filter>tests\compiler</Filter>
+    </ClCompile>
+    <ClCompile Include="..\tests\unit\compiler\test_parser_memory_pool.cpp">
+      <Filter>tests\compiler</Filter>
+    </ClCompile>
+    <ClCompile Include="..\tests\unit\compiler\test_parser_recursion.cpp">
+      <Filter>tests\compiler</Filter>
+    </ClCompile>
+    <ClCompile Include="..\tests\unit\compiler\test_storevar.cpp">
+      <Filter>tests\compiler</Filter>
+    </ClCompile>
+    <ClCompile Include="..\tests\unit\compiler\test_syntax_sugar.cpp">
+      <Filter>tests\compiler</Filter>
+    </ClCompile>
+    <ClCompile Include="..\tests\unit\compiler\test_binary_unary_expr.cpp">
+      <Filter>tests\compiler</Filter>
+    </ClCompile>
+    <ClCompile Include="..\tests\unit\compiler\test_function_codegen.cpp">
+      <Filter>tests\compiler</Filter>
+    </ClCompile>
+    <ClCompile Include="..\tests\unit\compiler\test_lua_functions.cpp">
+      <Filter>tests\compiler</Filter>
+    </ClCompile>
+    <ClCompile Include="..\tests\unit\core\test_function.cpp">
+      <Filter>tests\core</Filter>
+    </ClCompile>
+    <ClCompile Include="..\tests\unit\core\test_gc_string.cpp">
+      <Filter>tests\core</Filter>
+    </ClCompile>
+    <ClCompile Include="..\tests\unit\core\test_table.cpp">
+      <Filter>tests\core</Filter>
+    </ClCompile>
+    <ClCompile Include="..\tests\unit\core\test_value.cpp">
+      <Filter>tests\core</Filter>
+    </ClCompile>
+    <ClCompile Include="..\tests\unit\gc\test_gc.cpp">
+      <Filter>tests\gc</Filter>
+    </ClCompile>
+    <ClCompile Include="..\tests\unit\io\test_dynamic_buffer.cpp">
+      <Filter>tests\io</Filter>
+    </ClCompile>
+    <ClCompile Include="..\tests\unit\io\test_input_stream_file.cpp">
+      <Filter>tests\io</Filter>
+    </ClCompile>
+    <ClCompile Include="..\tests\unit\io\test_input_stream_stream.cpp">
+      <Filter>tests\io</Filter>
+    </ClCompile>
+    <ClCompile Include="..\tests\unit\io\test_input_stream_string.cpp">
+      <Filter>tests\io</Filter>
+    </ClCompile>
+    <ClCompile Include="..\tests\unit\metamethod\test_metamethod_arith.cpp">
+      <Filter>tests\metamethod</Filter>
+    </ClCompile>
+    <ClCompile Include="..\tests\unit\metamethod\test_metamethod_complete.cpp">
+      <Filter>tests\metamethod</Filter>
+    </ClCompile>
+    <ClCompile Include="..\tests\unit\stdlib\test_baselib.cpp">
+      <Filter>tests\stdlib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\tests\unit\stdlib\test_oslib.cpp">
+      <Filter>tests\stdlib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\tests\unit\stdlib\test_stringlib.cpp">
+      <Filter>tests\stdlib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\tests\unit\stdlib\test_tablelib.cpp">
+      <Filter>tests\stdlib</Filter>
+    </ClCompile>
+    <ClCompile Include="..\tests\unit\vm\test_function_call.cpp">
+      <Filter>tests\vm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\tests\unit\vm\test_lua_state_init.cpp">
+      <Filter>tests\vm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\tests\unit\vm\test_vm_core.cpp">
+      <Filter>tests\vm</Filter>
+    </ClCompile>
+  </ItemGroup>
+</Project>

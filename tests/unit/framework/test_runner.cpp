@@ -66,9 +66,9 @@ void printSummary(int totalTests, int totalFailed) {
     std::cout << "========================================" << std::endl;
     
     if (totalFailed == 0) {
-        std::cout << "\n✓ ALL TESTS PASSED!" << std::endl;
+        std::cout << "\n[OK] ALL TESTS PASSED!" << std::endl;
     } else {
-        std::cout << "\n✗ SOME TESTS FAILED!" << std::endl;
+        std::cout << "\n[FAILED] SOME TESTS FAILED!" << std::endl;
     }
     std::cout << "\n";
 }

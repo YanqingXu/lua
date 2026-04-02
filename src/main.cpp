@@ -49,41 +49,7 @@
 
 //#define ENABLE_INPUT_MODE 0
 
-// 测试框架（可选）
-#ifdef ENABLE_TESTS
-#include "../tests/unit/framework/test_framework.hpp"
-#include "../tests/unit/framework/test_registry.hpp"
-using namespace LuaTest;
 
-// 测试注册函数声明
-extern void registerValueTests();
-extern void registerGCStringTests();
-extern void registerTableTests();
-extern void registerVMCoreTests();
-extern void registerFunctionTests();
-extern void registerGCTests();
-extern void registerBinaryUnaryExprTests();
-extern void registerFunctionCodegenTests();
-extern void registerBaselibTests();
-extern void registerLuaFunctionTests();
-extern void registerMetamethodArithTests();
-extern void registerMetamethodCompleteTests();
-extern void registerSyntaxSugarTests();
-extern void registerFunctionCallTests();
-extern void registerLexerNumberTests();
-extern void registerLexerLookaheadTests();
-extern void registerParserRecursionTests();
-extern void registerParserErrorRecoveryTests();
-extern void registerParserMemoryPoolTests();
-extern void registerDynamicBufferTests();
-extern void registerInputStreamStringTests();
-extern void registerInputStreamStreamTests();
-extern void registerInputStreamFileTests();
-extern void registerLuaStateInitTests();
-extern void registerStringLibTests();
-extern void registerTableLibTests();
-extern void registerOSlibTests();
-#endif
 
 using namespace Lua;
 
@@ -161,98 +127,7 @@ UPtr<LuaState> createLuaState() {
     }
 }
 
-// ============================================================================
-// 测试模式
-// ============================================================================
 
-#ifdef ENABLE_TESTS
-/**
- * @brief 打印测试框架标题
- */
-void printTestHeader() {
-    std::cout << "\n";
-    std::cout << "========================================" << std::endl;
-    std::cout << "Lua C++ Interpreter - Unit Test Suite" << std::endl;
-    std::cout << "========================================" << std::endl;
-    std::cout << "Test Framework: Custom Lightweight Framework" << std::endl;
-    std::cout << "Build: Visual Studio 2026 Manual Compilation" << std::endl;
-    std::cout << "Date: 2025-12-04" << std::endl;
-    std::cout << "========================================\n" << std::endl;
-}
-
-/**
- * @brief 打印测试总结
- */
-void printTestSummary(int totalTests, int totalFailed) {
-    std::cout << "\n";
-    std::cout << "========================================" << std::endl;
-    std::cout << "Test Summary" << std::endl;
-    std::cout << "========================================" << std::endl;
-    std::cout << "Total Tests: " << totalTests << std::endl;
-    std::cout << "Passed: " << (totalTests - totalFailed) << std::endl;
-    std::cout << "Failed: " << totalFailed << std::endl;
-    std::cout << "========================================" << std::endl;
-
-    if (totalFailed == 0) {
-        std::cout << "\n[OK] ALL TESTS PASSED!" << std::endl;
-    } else {
-        std::cout << "\n[FAILED] SOME TESTS FAILED!" << std::endl;
-    }
-    std::cout << "\n";
-}
-
-/**
- * @brief 运行单元测试
- * @return 失败的测试数量
- */
-int runTests() {
-    printTestHeader();
-
-    // 注册所有测试
-    std::cout << "[INFO] Registering tests..." << std::endl;
-
-    registerValueTests();
-    registerGCStringTests();
-    registerTableTests();
-    registerVMCoreTests();
-    registerFunctionTests();
-    registerGCTests();
-    registerBinaryUnaryExprTests();
-    registerFunctionCodegenTests();
-    registerBaselibTests();
-    registerLuaFunctionTests();
-    registerMetamethodArithTests();
-    registerMetamethodCompleteTests();
-    registerSyntaxSugarTests();
-    registerFunctionCallTests();
-    registerLexerNumberTests();
-	registerLexerLookaheadTests();
-    registerParserRecursionTests();
-    registerParserErrorRecoveryTests();
-    registerParserMemoryPoolTests();
-    registerDynamicBufferTests();
-    registerInputStreamStringTests();
-    registerInputStreamStreamTests();
-    registerInputStreamFileTests();
-    registerLuaStateInitTests();
-    registerStringLibTests();
-    registerTableLibTests();
-    registerOSlibTests();
-
-    std::cout << "[INFO] All tests registered." << std::endl;
-    std::cout << "[INFO] Starting test execution...\n" << std::endl;
-
-    // 运行所有测试
-    TestRegistry& registry = TestRegistry::getInstance();
-    int failedTests = registry.runAllTests();
-
-    // 打印总结
-    int totalTests = 130;  // 更新：添加了5个Token预读测试
-    printTestSummary(totalTests, failedTests);
-
-    return failedTests;
-}
-#endif
 
 // ============================================================================
 // 命令行参数支持
@@ -416,9 +291,7 @@ void printModeMenu() {
     std::cout << "========================================" << std::endl;
     std::cout << "  1. 进入 REPL 交互模式" << std::endl;
     std::cout << "  2. 执行 Lua 脚本文件" << std::endl;
-#ifdef ENABLE_TESTS
-    std::cout << "  3. 运行单元测试" << std::endl;
-#endif
+
     std::cout << "  0. 退出程序 (或输入 q)" << std::endl;
     std::cout << "========================================" << std::endl;
     std::cout << "请选择模式: ";
@@ -501,13 +374,7 @@ int handleInputMode(LuaState* L) {
                 std::cout << "\n[INFO] 脚本执行失败。" << std::endl;
             }
 
-#ifdef ENABLE_TESTS
-        } else if (trimmed == "3") {
-            // 模式3：运行单元测试（需要 ENABLE_TESTS）
-            std::cout << "\n[INFO] 运行单元测试..." << std::endl;
-            status = runTests();
-            std::cout << "\n[INFO] 测试运行完毕。" << std::endl;
-#endif
+
 
         } else {
             // 无效输入

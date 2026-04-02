@@ -46,39 +46,7 @@
     <ClCompile Include="src\core\table.cpp">
       <Filter>src\core</Filter>
     </ClCompile>
-    <ClCompile Include="tests\unit\stdlib\test_baselib.cpp">
-      <Filter>tests\unit\stdlib</Filter>
-    </ClCompile>
-    <ClCompile Include="tests\unit\compiler\test_binary_unary_expr.cpp">
-      <Filter>tests\unit\compiler</Filter>
-    </ClCompile>
-    <ClCompile Include="tests\unit\core\test_function.cpp">
-      <Filter>tests\unit\core</Filter>
-    </ClCompile>
-    <ClCompile Include="tests\unit\compiler\test_function_codegen.cpp">
-      <Filter>tests\unit\compiler</Filter>
-    </ClCompile>
-    <ClCompile Include="tests\unit\gc\test_gc.cpp">
-      <Filter>tests\unit\gc</Filter>
-    </ClCompile>
-    <ClCompile Include="tests\unit\core\test_gc_string.cpp">
-      <Filter>tests\unit\core</Filter>
-    </ClCompile>
-    <ClCompile Include="tests\unit\compiler\test_lua_functions.cpp">
-      <Filter>tests\unit\compiler</Filter>
-    </ClCompile>
-    <ClCompile Include="tests\unit\framework\test_framework.cpp">
-      <Filter>tests\unit\framework</Filter>
-    </ClCompile>
-    <ClCompile Include="tests\unit\core\test_table.cpp">
-      <Filter>tests\unit\core</Filter>
-    </ClCompile>
-    <ClCompile Include="tests\unit\core\test_value.cpp">
-      <Filter>tests\unit\core</Filter>
-    </ClCompile>
-    <ClCompile Include="tests\unit\vm\test_vm_core.cpp">
-      <Filter>tests\unit\vm</Filter>
-    </ClCompile>
+
     <ClCompile Include="src\core\upvalue.cpp">
       <Filter>src\core</Filter>
     </ClCompile>
@@ -97,50 +65,8 @@
     <ClCompile Include="src\core\userdata.cpp">
       <Filter>src\core</Filter>
     </ClCompile>
-    <ClCompile Include="src\main.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
     <ClCompile Include="src\core\metatable.cpp">
       <Filter>src\core</Filter>
-    </ClCompile>
-    <ClCompile Include="tests\unit\metamethod\test_metamethod_arith.cpp">
-      <Filter>tests\unit\metamethod</Filter>
-    </ClCompile>
-    <ClCompile Include="tests\unit\metamethod\test_metamethod_complete.cpp">
-      <Filter>tests\unit\metamethod</Filter>
-    </ClCompile>
-    <ClCompile Include="tests\unit\compiler\test_syntax_sugar.cpp">
-      <Filter>tests\unit\compiler</Filter>
-    </ClCompile>
-    <ClCompile Include="tests\unit\compiler\test_indexed_access.cpp">
-      <Filter>tests\unit\compiler</Filter>
-    </ClCompile>
-    <ClCompile Include="tests\unit\compiler\test_method_call.cpp">
-      <Filter>tests\unit\compiler</Filter>
-    </ClCompile>
-    <ClCompile Include="tests\unit\compiler\test_storevar.cpp">
-      <Filter>tests\unit\compiler</Filter>
-    </ClCompile>
-    <ClCompile Include="tests\unit\vm\test_function_call.cpp">
-      <Filter>tests\unit\vm</Filter>
-    </ClCompile>
-    <ClCompile Include="tests\unit\compiler\test_lexer_number.cpp">
-      <Filter>tests\unit\compiler</Filter>
-    </ClCompile>
-    <ClCompile Include="tests\unit\compiler\test_lexer_lookahead.cpp">
-      <Filter>tests\unit\compiler</Filter>
-    </ClCompile>
-    <ClCompile Include="tests\unit\compiler\test_parser_recursion.cpp">
-      <Filter>tests\unit\compiler</Filter>
-    </ClCompile>
-    <ClCompile Include="tests\unit\compiler\test_parser_error_recovery.cpp">
-      <Filter>tests\unit\compiler</Filter>
-    </ClCompile>
-    <ClCompile Include="tests\unit\compiler\test_parser_memory_pool.cpp">
-      <Filter>tests\unit\compiler</Filter>
-    </ClCompile>
-    <ClCompile Include="src\repl.cpp">
-      <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\io\dynamic_buffer.cpp">
       <Filter>src\io</Filter>
@@ -148,42 +74,22 @@
     <ClCompile Include="src\io\input_stream.cpp">
       <Filter>src\io</Filter>
     </ClCompile>
-    <ClCompile Include="tests\unit\io\test_dynamic_buffer.cpp">
-      <Filter>tests\unit\io</Filter>
-    </ClCompile>
-    <ClCompile Include="tests\unit\io\test_input_stream_file.cpp">
-      <Filter>tests\unit\io</Filter>
-    </ClCompile>
-    <ClCompile Include="tests\unit\io\test_input_stream_stream.cpp">
-      <Filter>tests\unit\io</Filter>
-    </ClCompile>
-    <ClCompile Include="tests\unit\io\test_input_stream_string.cpp">
-      <Filter>tests\unit\io</Filter>
-    </ClCompile>
+
     <ClCompile Include="src\lib\mathlib.cpp">
       <Filter>src\lib</Filter>
     </ClCompile>
     <ClCompile Include="src\lib\iolib.cpp">
       <Filter>src\lib</Filter>
     </ClCompile>
-    <ClCompile Include="tests\unit\vm\test_lua_state_init.cpp">
-      <Filter>tests\unit\vm</Filter>
-    </ClCompile>
-    <ClCompile Include="tests\unit\stdlib\test_stringlib.cpp">
-      <Filter>tests\unit\stdlib</Filter>
-    </ClCompile>
+
     <ClCompile Include="src\lib\stringlib.cpp">
       <Filter>src\lib</Filter>
     </ClCompile>
-    <ClCompile Include="tests\unit\stdlib\test_tablelib.cpp">
-      <Filter>tests\unit\stdlib</Filter>
-    </ClCompile>
+
     <ClCompile Include="src\lib\tablelib.cpp">
       <Filter>src\lib</Filter>
     </ClCompile>
-    <ClCompile Include="tests\unit\stdlib\test_oslib.cpp">
-      <Filter>tests\unit\stdlib</Filter>
-    </ClCompile>
+
     <ClCompile Include="src\lib\oslib.cpp">
       <Filter>src\lib</Filter>
     </ClCompile>
@@ -246,12 +152,7 @@
     <ClInclude Include="src\core\table.hpp">
       <Filter>src\core</Filter>
     </ClInclude>
-    <ClInclude Include="tests\unit\framework\test_framework.hpp">
-      <Filter>tests\unit\framework</Filter>
-    </ClInclude>
-    <ClInclude Include="tests\unit\framework\test_registry.hpp">
-      <Filter>tests\unit\framework</Filter>
-    </ClInclude>
+
     <ClInclude Include="src\common\types.hpp">
       <Filter>src\common</Filter>
     </ClInclude>
@@ -279,9 +180,7 @@
     <ClInclude Include="src\core\metatable.hpp">
       <Filter>src\core</Filter>
     </ClInclude>
-    <ClInclude Include="src\repl.hpp">
-      <Filter>src</Filter>
-    </ClInclude>
+
     <ClInclude Include="src\io\dynamic_buffer.hpp">
       <Filter>src\io</Filter>
     </ClInclude>
@@ -311,15 +210,7 @@
     <Filter Include="src">
       <UniqueIdentifier>{49bdff98-3f5f-43d0-afb0-a0009a725511}</UniqueIdentifier>
     </Filter>
-    <Filter Include="tests">
-      <UniqueIdentifier>{abfb434e-6df8-4b28-924e-3de7a2418dc4}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="tests\unit">
-      <UniqueIdentifier>{b77d3740-1533-4b18-9e90-c81a86ccc19a}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="tests\lua">
-      <UniqueIdentifier>{0e975f5e-1569-4179-baf5-4b0e780118d1}</UniqueIdentifier>
-    </Filter>
+
     <Filter Include="src\common">
       <UniqueIdentifier>{4a0802ec-581c-4631-b63c-8cb645696f09}</UniqueIdentifier>
     </Filter>
@@ -338,32 +229,10 @@
     <Filter Include="src\core">
       <UniqueIdentifier>{54f7779d-4990-4bb1-8328-8b5849bfc381}</UniqueIdentifier>
     </Filter>
-    <Filter Include="tests\unit\core">
-      <UniqueIdentifier>{c1234567-0001-0001-0001-000000000001}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="tests\unit\gc">
-      <UniqueIdentifier>{c1234567-0002-0002-0002-000000000002}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="tests\unit\vm">
-      <UniqueIdentifier>{c1234567-0003-0003-0003-000000000003}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="tests\unit\compiler">
-      <UniqueIdentifier>{c1234567-0004-0004-0004-000000000004}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="tests\unit\stdlib">
-      <UniqueIdentifier>{c1234567-0005-0005-0005-000000000005}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="tests\unit\metamethod">
-      <UniqueIdentifier>{c1234567-0006-0006-0006-000000000006}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="tests\unit\framework">
-      <UniqueIdentifier>{c1234567-0007-0007-0007-000000000007}</UniqueIdentifier>
-    </Filter>
+
     <Filter Include="src\io">
       <UniqueIdentifier>{eee28f8f-648a-4a6f-8271-7a76decc82cd}</UniqueIdentifier>
     </Filter>
-    <Filter Include="tests\unit\io">
-      <UniqueIdentifier>{44253169-b407-4d81-a075-a6403b6d682a}</UniqueIdentifier>
-    </Filter>
+
   </ItemGroup>
 </Project>
