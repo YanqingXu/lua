@@ -47,7 +47,7 @@
 #include <sstream>
 #include <fstream>
 
-#define ENABLE_INPUT_MODE 1
+//#define ENABLE_INPUT_MODE 0
 
 // 测试框架（可选）
 #ifdef ENABLE_TESTS
@@ -546,6 +546,13 @@ int handleInputMode(LuaState* L) {
  * @return 退出码
  */
 int main(int argc, char** argv) {
+
+	// 终端支持中文输出，设置控制台输出编码为UTF-8（Windows特有）
+#ifdef _WIN32
+	system("chcp 65001 > nul");
+#endif
+	
+
     try {
         // 设置程序名（用于错误消息），参考官方 Lua 的 progname
         REPL::setProgName(argv[0]);
@@ -609,9 +616,11 @@ int main(int argc, char** argv) {
                 // 脚本执行模式
                 status = executeScript(L.get(), scriptFile);
             } else {
-                // 无脚本且无 ENABLE_INPUT_MODE 时，进入 REPL 交互模式
-                REPL::initialize(L.get());  // 初始化 REPL 环境（_VERSION, exit 等）
-                status = REPL::run(L.get());
+                // 无命令行脚本时，默认执行 test_if.lua 测试脚本
+                // 路径相对于 lua/ 项目根目录
+                const char* defaultScript = "E:/Programming2/lua_in_cpp/lua/tests/lua/test_simple_if.lua";
+                std::cout << "[INFO] 未指定脚本，默认执行: " << defaultScript << std::endl;
+                status = executeScript(L.get(), defaultScript);
             }
         }
 

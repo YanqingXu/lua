@@ -19,6 +19,7 @@ namespace Lua {
 Proto::Proto()
     : GCObject(GCObjectType::Proto)
     , constants_()
+    , constantMap_()
     , code_()
     , subProtos_()
     , lineInfo_()
@@ -40,14 +41,37 @@ Proto::~Proto() {
 }
 
 usize Proto::addConstant(const Value& value) {
+    // =====================================================================
+    // 常量去重逻辑（参考Lua 5.1的addk()函数）
+    // =====================================================================
+    //
+    // 对于常量类型（nil/bool/number/string），先在哈希表中查找：
+    // - 如果找到相同的常量，直接返回已有索引，避免重复存储
+    // - 如果未找到，添加新常量并记录到哈希表中
+    //
+    // 注意：nil常量的去重需要特殊处理。Lua 5.1原版使用哈希表本身作为
+    // nil的键（因为nil不能作为Lua表的键），这里使用std::monostate作为
+    // nil的键，配合独立的标志位确保nil只存储一次。
+    // =====================================================================
+
+    // 仅对常量类型（nil/bool/number/string）执行去重
+    if (value.isNil() || value.isBoolean() || value.isNumber() || value.isString()) {
+        ConstantKey key = ConstantKey::fromValue(value);
+        auto it = constantMap_.find(key);
+        if (it != constantMap_.end()) {
+            // 常量已存在，返回已有索引
+            return it->second;
+        }
+        // 常量不存在，添加新条目
+        usize index = constants_.size();
+        constants_.push_back(value);
+        constantMap_.emplace(key, index);
+        return index;
+    }
+
+    // 非常量类型（table/function等）不参与去重，直接添加
     usize index = constants_.size();
     constants_.push_back(value);
-    // Debug output disabled for clean bytecode printing
-    // #ifdef DEBUG
-    // std::cerr << "[Proto::addConstant] Proto=" << (void*)this
-    //           << " index=" << index
-    //           << " value=" << value.toString() << std::endl;
-    // #endif
     return index;
 }
 

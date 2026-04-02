@@ -31,8 +31,79 @@
 #include "core/gc_object.hpp"
 #include "core/value.hpp"
 #include <vector>
+#include <unordered_map>
+#include <variant>
+#include <functional>
 
 namespace Lua {
+
+// =====================================================================
+// 常量去重辅助类型
+// =====================================================================
+
+/**
+ * @brief 常量键类型 - 用于常量表去重的哈希键
+ *
+ * 参考Lua 5.1的addk()实现，使用哈希表对常量进行去重。
+ * 该结构可以表示nil、bool、number、string四种常量类型，
+ * 支持作为std::unordered_map的键。
+ *
+ * 设计说明：
+ * - nil使用特殊的sentinel标记（因为nil不能作为哈希表的键）
+ * - string使用GCString*指针（依赖StringPool的内部化保证唯一性）
+ * - number使用double值直接哈希
+ * - bool值直接哈希
+ */
+struct ConstantKey {
+    /// 键的内部表示：monostate=nil, bool, f64(number), GCString*(string)
+    using KeyVariant = std::variant<std::monostate, bool, f64, GCString*>;
+    KeyVariant key;
+
+    /// 从Value构造ConstantKey（仅支持常量类型：nil/bool/number/string）
+    static ConstantKey fromValue(const Value& v) {
+        ConstantKey ck;
+        if (v.isNil()) {
+            ck.key = std::monostate{};
+        } else if (v.isBoolean()) {
+            ck.key = v.asBoolean();
+        } else if (v.isNumber()) {
+            ck.key = v.asNumber();
+        } else if (v.isString()) {
+            ck.key = v.asString();
+        } else {
+            // 非常量类型不参与去重，使用monostate作为fallback
+            // 这意味着非常量类型的值不会被去重
+            ck.key = std::monostate{};
+        }
+        return ck;
+    }
+
+    bool operator==(const ConstantKey& other) const {
+        return key == other.key;
+    }
+};
+
+/// ConstantKey的哈希函数
+struct ConstantKeyHash {
+    std::size_t operator()(const ConstantKey& ck) const noexcept {
+        return std::visit([](const auto& val) -> std::size_t {
+            using T = std::decay_t<decltype(val)>;
+            if constexpr (std::is_same_v<T, std::monostate>) {
+                // nil的哈希值使用固定值
+                return std::hash<int>{}(0);
+            } else if constexpr (std::is_same_v<T, bool>) {
+                return std::hash<bool>{}(val);
+            } else if constexpr (std::is_same_v<T, f64>) {
+                return std::hash<f64>{}(val);
+            } else if constexpr (std::is_same_v<T, GCString*>) {
+                // 字符串使用GCString的预计算哈希值
+                return val ? val->getHash() : 0;
+            } else {
+                return 0;
+            }
+        }, ck.key);
+    }
+};
 
 // 前向声明
 class LuaState;
@@ -481,6 +552,10 @@ private:
 
     /// 常量表：函数使用的常量值数组
     Vec<Value> constants_;
+
+    /// 常量去重缓存：从常量键到常量表索引的映射
+    /// 参考Lua 5.1中addk()使用的哈希表（fs->h）
+    std::unordered_map<ConstantKey, usize, ConstantKeyHash> constantMap_;
 
     /// 字节码数组：函数的指令序列
     Vec<Instruction> code_;

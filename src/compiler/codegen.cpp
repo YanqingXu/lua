@@ -553,8 +553,8 @@ void CodeGenerator::statement(const Stmt& s) {
             // ⭐ 关键修复：保存 nactvar_ 的初始值（第一个变量的寄存器索引）
             i32 base = nactvar_;
 
-            std::fprintf(stderr, "DEBUG LocalStmt: nvars=%d, nexps=%d, base=%d, freereg=%d\n",
-                         nvars, nexps, base, freereg_);
+            //std::fprintf(stderr, "DEBUG LocalStmt: nvars=%d, nexps=%d, base=%d, freereg=%d\n",
+            //             nvars, nexps, base, freereg_);
 
             // ⭐ P0修复：在编译表达式之前，临时调整freereg_
             // 保存当前的freereg_（可能包含其他临时寄存器）
@@ -568,13 +568,13 @@ void CodeGenerator::statement(const Stmt& s) {
                 addLocalVar(arg.names[i]);
             }
 
-            std::fprintf(stderr, "DEBUG LocalStmt: after addLocalVar, freereg=%d\n", freereg_);
+            //std::fprintf(stderr, "DEBUG LocalStmt: after addLocalVar, freereg=%d\n", freereg_);
 
             // ⭐ P0修复：重新设置freereg_为base
             // 这样在编译表达式时，寄存器会从base开始分配
             freereg_ = base;
 
-            std::fprintf(stderr, "DEBUG LocalStmt: reset freereg to %d\n", freereg_);
+            //std::fprintf(stderr, "DEBUG LocalStmt: reset freereg to %d\n", freereg_);
 
             // 生成初始化代码
             bool allVarsInitialized = false;  // 标记是否所有变量都已初始化
@@ -605,8 +605,8 @@ void CodeGenerator::statement(const Stmt& s) {
                         Instruction inst = proto_->getInstruction(pc);
                         i32 oldA = GETARG_A(inst);
 
-                        std::fprintf(stderr, "DEBUG LocalStmt: CALL at pc=%d, oldA=%d, funcReg=%d, targetReg=%d, wanted=%d\n",
-                                     pc, oldA, funcReg, targetReg, wanted);
+                        //std::fprintf(stderr, "DEBUG LocalStmt: CALL at pc=%d, oldA=%d, funcReg=%d, targetReg=%d, wanted=%d\n",
+                        //             pc, oldA, funcReg, targetReg, wanted);
 
                         if (val.kind == ExprKind::Vararg) {
                             // VARARG A B：修改A和B参数
@@ -622,8 +622,8 @@ void CodeGenerator::statement(const Stmt& s) {
                             SETARG_C(inst, wanted + 1);
                             proto_->setInstruction(pc, inst);
 
-                            std::fprintf(stderr, "DEBUG LocalStmt: modified CALL to A=%d, C=%d\n",
-                                         targetReg, wanted + 1);
+                            // std::fprintf(stderr, "DEBUG LocalStmt: modified CALL to A=%d, C=%d\n",
+                            //             targetReg, wanted + 1);
                         }
 
                         // ⭐ 关键修复：多返回值表达式会初始化所有剩余变量
