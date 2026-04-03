@@ -102,6 +102,18 @@ struct LocalVar {
 };
 
 /**
+ * @brief Upvalue捕获信息（用于CLOSURE后伪指令生成）
+ */
+struct UpvalueCapture {
+    Str name;       // Upvalue名称（用于调试/打印）
+    bool inStack;   // true: 来自父函数局部变量（MOVE）；false: 来自父函数upvalue（GETUPVAL）
+    i32 index;      // 源索引（局部寄存器索引或父upvalue索引）
+
+    UpvalueCapture(const Str& n, bool inStackVar, i32 idx)
+        : name(n), inStack(inStackVar), index(idx) {}
+};
+
+/**
  * @brief 代码块信息
  *
  * 用于管理嵌套作用域和break语句的跳转目标。
@@ -175,6 +187,9 @@ private:
     
     i32 addLocalVar(const Str& name);
     i32 findLocalVar(const Str& name);
+    i32 findUpvalue(const Str& name);
+    i32 addUpvalue(const Str& name, bool inStack, i32 index);
+    i32 resolveUpvalue(const Str& name);
     void adjustLocalVars(i32 nvars);
     void removeLocalVars(i32 tolevel);
     
@@ -261,14 +276,19 @@ private:
 
     // 编译函数体，返回新的Proto
     Proto* compileFunction(const Vec<Str>& params, bool isVararg, const Vec<StmtPtr>& body,
-                          i32 linedefined = 0, i32 lastlinedefined = 0);
+                          i32 linedefined = 0, i32 lastlinedefined = 0,
+                          Vec<UpvalueCapture>* outUpvalues = nullptr);
+
+    void emitClosureUpvalues(const Vec<UpvalueCapture>& upvalues);
 
 private:
     StringPool* pool_;          // 字符串池
+    CodeGenerator* parent_;     // 父函数代码生成器（用于upvalue解析）
     Proto* proto_;              // 当前函数原型
     i32 freereg_;               // 第一个空闲寄存器
     i32 nactvar_;               // 活跃局部变量数量
     Vec<LocalVar> localVars_;   // 局部变量列表
+    Vec<UpvalueCapture> upvalues_; // 当前函数捕获的upvalue列表
     i32 pc_;                    // 当前指令索引
     i32 jpc_;                   // 待处理的跳转链表
     BlockInfo* currentBlock_;   // 当前代码块

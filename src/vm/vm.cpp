@@ -597,7 +597,7 @@ static void vmTForLoop(LuaState* L, Value*& base, Proto* proto,
 // -----------------------------------------------------------------
 
 static void vmClosure(LuaState* L, Value* base, Proto* currentProto,
-                      Function* currentFunc, usize& /*pc*/, i32 a, i32 bx) {
+                      Function* currentFunc, usize& pc, i32 a, i32 bx) {
     if (bx < 0 || static_cast<usize>(bx) >= currentProto->getSubProtoCount())
         throw std::runtime_error("VM: CLOSURE proto index out of range");
 
@@ -606,9 +606,31 @@ static void vmClosure(LuaState* L, Value* base, Proto* currentProto,
 
     i32 nups = childProto->getNumUpvalues();
     if (nups > 0) {
+        const Vec<Instruction>& code = currentProto->getCode();
+        const CallInfo& ci = L->getCurrentCallInfo();
+
         for (i32 j = 0; j < nups; j++) {
-            // TODO: 处理 MOVE/GETUPVAL 伪指令创建 upvalue
-            closure->addUpvalue(nullptr);
+            if (pc >= code.size()) {
+                throw std::runtime_error("VM: CLOSURE missing upvalue pseudo instruction");
+            }
+
+            Instruction inst = code[pc++];
+            OpCode pop = GET_OPCODE(inst);
+            i32 b = GETARG_B(inst);
+
+            if (pop == OpCode::MOVE) {
+                // 从父函数栈槽捕获upvalue（open upvalue，可共享）
+                closure->addUpvalue(L->findOrCreateUpvalue(ci.base + static_cast<usize>(b)));
+            } else if (pop == OpCode::GETUPVAL) {
+                // 复用父闭包的upvalue
+                Upvalue* uv = currentFunc->getUpvalue(static_cast<usize>(b));
+                if (!uv) {
+                    throw std::runtime_error("VM: CLOSURE invalid parent upvalue index");
+                }
+                closure->addUpvalue(uv);
+            } else {
+                throw std::runtime_error("VM: CLOSURE expects MOVE/GETUPVAL pseudo instruction");
+            }
         }
     }
 

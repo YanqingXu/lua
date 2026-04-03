@@ -19,10 +19,12 @@ namespace Lua {
 
 CodeGenerator::CodeGenerator(StringPool* pool)
     : pool_(pool)
+    , parent_(nullptr)
     , proto_(nullptr)
     , freereg_(0)
     , nactvar_(0)
     , localVars_()
+    , upvalues_()
     , pc_(0)
     , jpc_(NO_JUMP)
     , currentBlock_(nullptr)
@@ -50,6 +52,7 @@ Proto* CodeGenerator::generate(const Chunk& chunk) {
     freereg_ = 0;
     nactvar_ = 0;
     localVars_.clear();
+    upvalues_.clear();
     pc_ = 0;
     
     // 生成语句块
@@ -275,10 +278,17 @@ void CodeGenerator::expr(const Expr& e, ExprDesc& desc) {
                 desc.kind = ExprKind::Local;
                 desc.u.s.info = reg;
             } else {
-                // 全局变量：使用GETGLOBAL/SETGLOBAL指令
-                i32 k = stringConstant(arg.name);
-                desc.kind = ExprKind::Global;
-                desc.u.s.info = k;
+                // 查找上值（闭包捕获变量）
+                i32 up = resolveUpvalue(arg.name);
+                if (up >= 0) {
+                    desc.kind = ExprKind::Upval;
+                    desc.u.s.info = up;
+                } else {
+                    // 全局变量：使用GETGLOBAL/SETGLOBAL指令
+                    i32 k = stringConstant(arg.name);
+                    desc.kind = ExprKind::Global;
+                    desc.u.s.info = k;
+                }
             }
         }
         else if constexpr (std::is_same_v<T, BinaryExpr>) {
@@ -385,6 +395,12 @@ void CodeGenerator::discharge(ExprDesc& desc, i32 reg) {
             // A = 目标寄存器
             // Bx = 全局变量名在常量表中的索引
             codeABx(OpCode::GETGLOBAL, reg, desc.u.s.info);
+            break;
+        case ExprKind::Upval:
+            // 上值读取：GETUPVAL A B
+            // A = 目标寄存器
+            // B = upvalue索引
+            codeABC(OpCode::GETUPVAL, reg, desc.u.s.info, 0);
             break;
         case ExprKind::Indexed: {
             // 表索引访问：GETTABLE A B C
@@ -511,6 +527,44 @@ void CodeGenerator::exp2NextReg(ExprDesc& desc) {
 
     i32 reg = allocReg();
     discharge(desc, reg);
+}
+
+i32 CodeGenerator::findUpvalue(const Str& name) {
+    for (i32 i = 0; i < static_cast<i32>(upvalues_.size()); i++) {
+        if (upvalues_[i].name == name) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+i32 CodeGenerator::addUpvalue(const Str& name, bool inStack, i32 index) {
+    i32 existing = findUpvalue(name);
+    if (existing >= 0) {
+        return existing;
+    }
+    upvalues_.emplace_back(name, inStack, index);
+    return static_cast<i32>(upvalues_.size()) - 1;
+}
+
+i32 CodeGenerator::resolveUpvalue(const Str& name) {
+    if (parent_ == nullptr) {
+        return -1;
+    }
+
+    // 优先在直接父函数的局部变量中查找
+    i32 local = parent_->findLocalVar(name);
+    if (local >= 0) {
+        return addUpvalue(name, true, local);
+    }
+
+    // 否则递归在更外层查找，并在父函数中建立中转upvalue
+    i32 parentUp = parent_->resolveUpvalue(name);
+    if (parentUp >= 0) {
+        return addUpvalue(name, false, parentUp);
+    }
+
+    return -1;
 }
 
 void CodeGenerator::exp2Val(ExprDesc& desc) {
@@ -1505,15 +1559,12 @@ static i32 getLastLineOfBlock(const Vec<StmtPtr>& body) {
 }
 
 Proto* CodeGenerator::compileFunction(const Vec<Str>& params, bool isVararg, const Vec<StmtPtr>& body,
-                                     i32 linedefined, i32 lastlinedefined) {
-    // 保存当前编译状态
-    Proto* savedProto = proto_;
-    i32 savedFreereg = freereg_;
-    i32 savedNactvar = nactvar_;
-    Vec<LocalVar> savedLocalVars = std::move(localVars_);
-    i32 savedPc = pc_;
+                                     i32 linedefined, i32 lastlinedefined,
+                                     Vec<UpvalueCapture>* outUpvalues) {
+    // 使用独立子生成器编译子函数，保留父函数上下文以解析upvalue
+    CodeGenerator child(pool_);
+    child.parent_ = this;
 
-    // 创建新的Proto
     Proto* newProto = new Proto();
     newProto->setNumParams(static_cast<u8>(params.size()));
     newProto->setVararg(isVararg);
@@ -1521,44 +1572,48 @@ Proto* CodeGenerator::compileFunction(const Vec<Str>& params, bool isVararg, con
     newProto->setLastLineDefined(lastlinedefined);
 
     // 继承父Proto的源文件名
-    if (savedProto != nullptr) {
-        newProto->setSource(savedProto->getSource());
+    if (proto_ != nullptr) {
+        newProto->setSource(proto_->getSource());
     }
 
-    // 切换到新的编译上下文
-    proto_ = newProto;
-    freereg_ = 0;
-    nactvar_ = 0;
-    localVars_.clear();
-    pc_ = 0;
+    child.proto_ = newProto;
+    child.freereg_ = 0;
+    child.nactvar_ = 0;
+    child.localVars_.clear();
+    child.upvalues_.clear();
+    child.pc_ = 0;
+    child.jpc_ = NO_JUMP;
+    child.currentBlock_ = nullptr;
 
     // 添加参数作为局部变量
     for (const Str& param : params) {
-        addLocalVar(param);
+        child.addLocalVar(param);
     }
-    adjustLocalVars(static_cast<i32>(params.size()));
+    child.adjustLocalVars(static_cast<i32>(params.size()));
 
     // 编译函数体
-    block(body);
+    child.block(body);
 
     // 添加隐式return（如果函数体没有显式return）
-    if (proto_->getInstructionCount() == 0 ||
-        GET_OPCODE(proto_->getInstruction(proto_->getInstructionCount() - 1)) != OpCode::RETURN) {
-        codeABC(OpCode::RETURN, 0, 1, 0);
+    if (newProto->getInstructionCount() == 0 ||
+        GET_OPCODE(newProto->getInstruction(newProto->getInstructionCount() - 1)) != OpCode::RETURN) {
+        child.codeABC(OpCode::RETURN, 0, 1, 0);
     }
 
-    // 设置最大栈大小（只增不减）。
-    // 编译过程中 allocReg/checkStack 已记录过峰值，不能在函数结束时被当前 freereg_ 覆盖。
-    if (static_cast<i32>(newProto->getMaxStackSize()) < freereg_) {
-        newProto->setMaxStackSize(static_cast<u8>(freereg_));
+    // 写入upvalue元信息（数量 + 名称）
+    newProto->setNumUpvalues(static_cast<u8>(child.upvalues_.size()));
+    for (const UpvalueCapture& uv : child.upvalues_) {
+        newProto->addUpvalueName(pool_->intern(uv.name));
     }
 
-    // 恢复编译状态
-    proto_ = savedProto;
-    freereg_ = savedFreereg;
-    nactvar_ = savedNactvar;
-    localVars_ = std::move(savedLocalVars);
-    pc_ = savedPc;
+    // 设置最大栈大小（只增不减）
+    if (static_cast<i32>(newProto->getMaxStackSize()) < child.freereg_) {
+        newProto->setMaxStackSize(static_cast<u8>(child.freereg_));
+    }
+
+    if (outUpvalues != nullptr) {
+        *outUpvalues = child.upvalues_;
+    }
 
     return newProto;
 }
@@ -1571,8 +1626,9 @@ void CodeGenerator::functionExpr(const FunctionExpr& e, ExprDesc& desc) {
         lastlinedefined = linedefined;  // 空函数体的情况
     }
 
-    // 编译函数体，生成新的Proto
-    Proto* funcProto = compileFunction(e.params, e.isVararg, e.body, linedefined, lastlinedefined);
+    // 编译函数体，生成新的Proto和upvalue捕获信息
+    Vec<UpvalueCapture> childUpvalues;
+    Proto* funcProto = compileFunction(e.params, e.isVararg, e.body, linedefined, lastlinedefined, &childUpvalues);
 
     // 将Proto添加到当前Proto的子函数列表
     i32 protoIdx = static_cast<i32>(proto_->addProto(funcProto));
@@ -1580,9 +1636,21 @@ void CodeGenerator::functionExpr(const FunctionExpr& e, ExprDesc& desc) {
     // 生成CLOSURE指令
     i32 reg = allocReg();
     codeABx(OpCode::CLOSURE, reg, protoIdx);
+    emitClosureUpvalues(childUpvalues);
 
     desc.kind = ExprKind::NonRelocatable;
     desc.u.s.info = reg;
+}
+
+void CodeGenerator::emitClosureUpvalues(const Vec<UpvalueCapture>& upvalues) {
+    // Lua 5.1约定：CLOSURE后紧跟nups条伪指令（MOVE或GETUPVAL）
+    for (const UpvalueCapture& uv : upvalues) {
+        if (uv.inStack) {
+            codeABC(OpCode::MOVE, 0, uv.index, 0);
+        } else {
+            codeABC(OpCode::GETUPVAL, 0, uv.index, 0);
+        }
+    }
 }
 
 void CodeGenerator::callExpr(const CallExpr& e, ExprDesc& desc) {
@@ -1607,7 +1675,8 @@ void CodeGenerator::callExpr(const CallExpr& e, ExprDesc& desc) {
     // 5. 重置freereg=base+1（保留返回值寄存器）
 
     i32 base;  // 函数所在的寄存器（也是调用帧的基址）
-    i32 nargs = static_cast<i32>(e.args.size());
+    i32 explicitArgCount = static_cast<i32>(e.args.size());
+    bool hasImplicitSelf = false;
 
     // 检查是否为方法调用（obj:method(args)）
     if (e.isMethodCall) {
@@ -1635,8 +1704,8 @@ void CodeGenerator::callExpr(const CallExpr& e, ExprDesc& desc) {
         luaK_self(obj, key);
         base = obj.u.s.info;
 
-        // 参数数量+1（包含隐式的self参数，已经在base+1）
-        nargs++;
+        // 方法调用包含隐式self参数（已在base+1）
+        hasImplicitSelf = true;
     } else {
         // 普通函数调用
         ExprDesc func;
@@ -1660,29 +1729,43 @@ void CodeGenerator::callExpr(const CallExpr& e, ExprDesc& desc) {
     // 3. 如果freereg > base+1，说明中间有其他寄存器被占用
     // 4. 需要确保freereg == base+1，这样参数才能紧跟函数
 
-    // 保存当前的freereg（可能有其他表达式占用的寄存器）
+    // 保存当前的freereg（可能有外层表达式占用的寄存器）
     i32 savedFreeReg = freereg_;
 
-    // 强制freereg = base + 1，确保参数从base+1开始分配
-    // 这样第一个参数会分配到base+1，第二个到base+2，依此类推
-    freereg_ = base + 1;
+    // 嵌套调用保护：
+    // 如果被调函数位于更低寄存器，直接以它为base会覆盖外层调用已占用寄存器。
+    // 将函数（以及方法调用的self）搬移到安全的高位寄存器区再发射CALL。
+    if (base < savedFreeReg) {
+        i32 newBase = savedFreeReg;
+        if (hasImplicitSelf) {
+            codeABC(OpCode::MOVE, newBase, base, 0);         // function
+            codeABC(OpCode::MOVE, newBase + 1, base + 1, 0); // self
+        } else {
+            codeABC(OpCode::MOVE, newBase, base, 0);         // function
+        }
+        base = newBase;
+    }
+
+    // 参数起始寄存器：
+    // - 普通调用：base+1
+    // - 方法调用：base+2（base+1保留给隐式self）
+    i32 firstArgReg = hasImplicitSelf ? (base + 2) : (base + 1);
+    freereg_ = firstArgReg;
     checkStack(0);  // ⭐ P0修复：确保maxStackSize >= freereg_
 
-    // 计算每个参数，exp2NextReg会将它们连续分配到base+1, base+2, ...
+    // 计算每个显式参数，exp2NextReg会将它们连续分配
     for (const auto& arg : e.args) {
         ExprDesc argDesc;
         expr(*arg, argDesc);
-        exp2NextReg(argDesc);  // 现在会连续分配到base+1, base+2, base+3, ...
+        exp2NextReg(argDesc);
     }
 
-    // 此时freereg应该等于base+1+nargs
-    // 验证参数数量（调试用）
-    i32 actualNargs = freereg_ - (base + 1);
-    if (actualNargs != nargs) {
-        // 理论上不应该发生，除非有多返回值表达式
-        // 暂时使用实际计算的参数数量
-        nargs = actualNargs;
+    // 计算实参数量（兼容最后一个参数是多返回值表达式）
+    i32 actualExplicitArgs = freereg_ - firstArgReg;
+    if (actualExplicitArgs != explicitArgCount) {
+        explicitArgCount = actualExplicitArgs;
     }
+    i32 nargs = explicitArgCount + (hasImplicitSelf ? 1 : 0);
 
     // 生成CALL指令
     // CALL A B C: 调用R(A)，B-1个参数（在R(A+1)...R(A+B-1)），C-1个返回值
@@ -1691,16 +1774,10 @@ void CodeGenerator::callExpr(const CallExpr& e, ExprDesc& desc) {
     // - C = 2（期望1个返回值，C-1=1）
     i32 callPC = codeABC(OpCode::CALL, base, nargs + 1, 2);
 
-    // ⭐ 关键修复：调用后重置freereg
-    // 参考官方实现：lua_c_analysis/src/lparser.c:3400
-    //   fs->freereg = base+1;
-    //
-    // 原因：
-    // 1. CALL指令执行后，返回值会存储在base寄存器
-    // 2. 参数寄存器（base+1...base+nargs）不再需要，可以释放
-    // 3. 设置freereg=base+1，保留base寄存器（存放返回值）
-    // 4. 下一个表达式可以从base+1开始分配新寄存器
-    freereg_ = base + 1;
+    // 调用后恢复寄存器分配点：
+    // - 至少保留到 base+1（返回值寄存器之后）
+    // - 不能回退到外层调用已占用寄存器之前（嵌套调用场景）
+    freereg_ = (savedFreeReg > (base + 1)) ? savedFreeReg : (base + 1);
     checkStack(0);  // ⭐ P0修复：确保maxStackSize >= freereg_
 
     // ⭐ P0修复：ExprKind::Call需要同时存储CALL指令的PC和函数所在的寄存器
@@ -1846,7 +1923,8 @@ void CodeGenerator::functionStmt(const FunctionStmt& s) {
     }
 
     // 编译函数体
-    Proto* funcProto = compileFunction(s.params, s.isVararg, s.body, linedefined, lastlinedefined);
+    Vec<UpvalueCapture> childUpvalues;
+    Proto* funcProto = compileFunction(s.params, s.isVararg, s.body, linedefined, lastlinedefined, &childUpvalues);
 
     // 将Proto添加到当前Proto的子函数列表
     i32 protoIdx = static_cast<i32>(proto_->addProto(funcProto));
@@ -1859,6 +1937,7 @@ void CodeGenerator::functionStmt(const FunctionStmt& s) {
         // 生成CLOSURE指令
         i32 reg = nactvar_;
         codeABx(OpCode::CLOSURE, reg, protoIdx);
+        emitClosureUpvalues(childUpvalues);
 
         // 激活局部变量
         adjustLocalVars(1);
@@ -1867,6 +1946,7 @@ void CodeGenerator::functionStmt(const FunctionStmt& s) {
         // 生成CLOSURE指令到临时寄存器
         i32 reg = allocReg();
         codeABx(OpCode::CLOSURE, reg, protoIdx);
+        emitClosureUpvalues(childUpvalues);
 
         // 设置全局变量
         i32 k = stringConstant(s.name);
