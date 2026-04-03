@@ -28,6 +28,7 @@ CodeGenerator::CodeGenerator(StringPool* pool)
     , pc_(0)
     , jpc_(NO_JUMP)
     , currentBlock_(nullptr)
+    , forcedCallBase_(-1)
 {
     if (pool == nullptr) {
         throw std::invalid_argument("StringPool cannot be null");
@@ -54,6 +55,7 @@ Proto* CodeGenerator::generate(const Chunk& chunk) {
     localVars_.clear();
     upvalues_.clear();
     pc_ = 0;
+    forcedCallBase_ = -1;
     
     // 生成语句块
     block(chunk.statements);
@@ -299,6 +301,9 @@ void CodeGenerator::expr(const Expr& e, ExprDesc& desc) {
         }
         else if constexpr (std::is_same_v<T, FunctionExpr>) {
             functionExpr(arg, desc);
+        }
+        else if constexpr (std::is_same_v<T, ParenExpr>) {
+            parenExpr(arg, desc);
         }
         else if constexpr (std::is_same_v<T, CallExpr>) {
             callExpr(arg, desc);
@@ -1645,6 +1650,16 @@ void CodeGenerator::functionExpr(const FunctionExpr& e, ExprDesc& desc) {
     desc.u.s.info = reg;
 }
 
+void CodeGenerator::parenExpr(const ParenExpr& e, ExprDesc& desc) {
+    // Lua 5.1 语义：括号表达式会将 multret（CALL/VARARG）收敛为单值。
+    ExprDesc inner;
+    expr(*e.expression, inner);
+    exp2Val(inner);  // 先将 CALL/VARARG 固定为单返回值
+    i32 reg = exp2AnyReg(inner);
+    desc.kind = ExprKind::NonRelocatable;
+    desc.u.s.info = reg;
+}
+
 void CodeGenerator::emitClosureUpvalues(const Vec<UpvalueCapture>& upvalues) {
     // Lua 5.1约定：CLOSURE后紧跟nups条伪指令（MOVE或GETUPVAL）
     for (const UpvalueCapture& uv : upvalues) {
@@ -1676,6 +1691,10 @@ void CodeGenerator::callExpr(const CallExpr& e, ExprDesc& desc) {
     // 3. 对每个参数调用exp2NextReg，自动连续分配到base+1, base+2, ...
     // 4. 生成CALL指令
     // 5. 重置freereg=base+1（保留返回值寄存器）
+
+    // 仅当前最外层调用消费 forcedCallBase_，避免影响其子表达式中的嵌套调用。
+    i32 forcedBase = forcedCallBase_;
+    forcedCallBase_ = -1;
 
     i32 base;  // 函数所在的寄存器（也是调用帧的基址）
     i32 explicitArgCount = static_cast<i32>(e.args.size());
@@ -1735,17 +1754,31 @@ void CodeGenerator::callExpr(const CallExpr& e, ExprDesc& desc) {
     // 保存当前的freereg（可能有外层表达式占用的寄存器）
     i32 savedFreeReg = freereg_;
 
-    // 嵌套调用保护：
-    // 如果被调函数位于更低寄存器，直接以它为base会覆盖外层调用已占用寄存器。
-    // 将函数（以及方法调用的self）搬移到安全的高位寄存器区再发射CALL。
-    if (base < savedFreeReg) {
-        i32 newBase = savedFreeReg;
-        if (hasImplicitSelf) {
-            codeABC(OpCode::MOVE, newBase, base, 0);         // function
-            codeABC(OpCode::MOVE, newBase + 1, base + 1, 0); // self
-        } else {
-            codeABC(OpCode::MOVE, newBase, base, 0);         // function
+    auto moveRegRange = [this](i32 dst, i32 src, i32 count) {
+        if (count <= 0 || dst == src) {
+            return;
         }
+        if (dst < src) {
+            for (i32 i = 0; i < count; i++) {
+                codeABC(OpCode::MOVE, dst + i, src + i, 0);
+            }
+        } else {
+            for (i32 i = count - 1; i >= 0; i--) {
+                codeABC(OpCode::MOVE, dst + i, src + i, 0);
+            }
+        }
+    };
+
+    if (forcedBase >= 0) {
+        // 表构造器最后一个 listfield 的 multret 语义需要 CALL 基址对齐到指定槽位。
+        moveRegRange(forcedBase, base, hasImplicitSelf ? 2 : 1);
+        base = forcedBase;
+    } else if (base < savedFreeReg) {
+        // 嵌套调用保护：
+        // 如果被调函数位于更低寄存器，直接以它为base会覆盖外层调用已占用寄存器。
+        // 将函数（以及方法调用的self）搬移到安全的高位寄存器区再发射CALL。
+        i32 newBase = savedFreeReg;
+        moveRegRange(newBase, base, hasImplicitSelf ? 2 : 1);
         base = newBase;
     }
 
@@ -1823,8 +1856,12 @@ void CodeGenerator::tableExpr(const TableExpr& table, ExprDesc& desc) {
     i32 na = 0;       // 数组元素总数
     i32 nh = 0;       // 哈希元素总数
     i32 tostore = 0;  // 待批量存储的数组元素数
+    ExprDesc lastArrayExpr;  // 最后一个数组字段表达式（用于 multret）
+    bool hasLastArrayExpr = false;
+
     for (usize i = 0; i < table.fields.size(); i++) {
         const auto& field = table.fields[i];
+        bool isLastField = (i == table.fields.size() - 1);
 
         if (field.key) {
             // === 哈希字段：[key] = value 或 name = value ===
@@ -1848,14 +1885,33 @@ void CodeGenerator::tableExpr(const TableExpr& table, ExprDesc& desc) {
             tostore++;
 
             ExprDesc val;
-            expr(*field.value, val);
-            // 先按单值路径处理数组元素。
-            // 说明：表构造器最后一个字段的多返回值展开（CALL/VARARG）后续再做完整实现，
-            // 当前版本先保证寄存器布局稳定，避免错误改写调用基址。
-            exp2NextReg(val);
+            i32 savedForcedBase = forcedCallBase_;
+
+            // Lua 5.1：constructor 最后一个 listfield 若为 CALL/VARARG，允许多返回值展开。
+            // 对 CALL，我们提前强制其调用基址对齐到该字段应写入的起始寄存器：
+            //   target = R(tableReg + tostore)
+            // 这样后续 setmultret(CALL) + SETLIST B=0 时，展开结果会落在正确区间。
+            if (isLastField && std::holds_alternative<CallExpr>(field.value->variant)) {
+                forcedCallBase_ = tableReg + tostore;
+            }
+
+            try {
+                expr(*field.value, val);
+            } catch (...) {
+                forcedCallBase_ = savedForcedBase;
+                throw;
+            }
+            forcedCallBase_ = savedForcedBase;
+
+            if (isLastField && (val.kind == ExprKind::Vararg || val.kind == ExprKind::Call)) {
+                lastArrayExpr = val;
+                hasLastArrayExpr = true;
+            } else {
+                exp2NextReg(val);
+            }
 
             // 达到批量阈值时发射 SETLIST
-            if (tostore == LFIELDS_PER_FLUSH) {
+            if (!hasLastArrayExpr && tostore == LFIELDS_PER_FLUSH) {
                 i32 c = (na - 1) / LFIELDS_PER_FLUSH + 1;
                 codeABC(OpCode::SETLIST, tableReg, LFIELDS_PER_FLUSH, c);
                 freereg_ = tableReg + 1;  // 释放批量寄存器
@@ -1867,11 +1923,52 @@ void CodeGenerator::tableExpr(const TableExpr& table, ExprDesc& desc) {
 
     // 5. 发射剩余数组元素的 SETLIST
     if (tostore > 0) {
-        // 固定数量元素批量写入
-        i32 c = (na - 1) / LFIELDS_PER_FLUSH + 1;
-        codeABC(OpCode::SETLIST, tableReg, tostore, c);
-        freereg_ = tableReg + 1;
-        checkStack(0);  // ⭐ P0修复：确保maxStackSize >= freereg_
+        if (hasLastArrayExpr) {
+            // Lua 5.1 对齐：最后一个 listfield 为 multret 时
+            // 1) setmultret(CALL/VARARG)
+            // 2) SETLIST B=0（LUA_MULTRET）
+            i32 lastPc = (lastArrayExpr.kind == ExprKind::Call)
+                ? lastArrayExpr.u.s.aux
+                : lastArrayExpr.u.s.info;
+
+            Instruction inst = proto_->getInstruction(lastPc);
+            OpCode op = GET_OPCODE(inst);
+            i32 targetBase = tableReg + tostore;
+
+            if (lastArrayExpr.kind == ExprKind::Call) {
+                if (op != OpCode::CALL) {
+                    throw std::runtime_error("CodeGenerator: expected CALL in table multret field");
+                }
+
+                // 强制基址应已在表达式生成阶段完成，这里只做一致性检查并开启 multret。
+                i32 callBase = GETARG_A(inst);
+                if (callBase != targetBase) {
+                    throw std::runtime_error("CodeGenerator: CALL base mismatch in table multret field");
+                }
+                SETARG_C(inst, 0);  // C=0 -> 返回所有值
+            } else {
+                if (op != OpCode::VARARG) {
+                    throw std::runtime_error("CodeGenerator: expected VARARG in table multret field");
+                }
+                SETARG_A(inst, targetBase);  // 结果起始寄存器
+                SETARG_B(inst, 0);           // B=0 -> 复制所有 vararg
+            }
+            proto_->setInstruction(lastPc, inst);
+
+            i32 c = (na - 1) / LFIELDS_PER_FLUSH + 1;
+            codeABC(OpCode::SETLIST, tableReg, 0, c);  // B=0 -> 到栈顶（LUA_MULTRET）
+            freereg_ = tableReg + 1;
+            checkStack(0);
+
+            // 参考 Lua 5.1 lastlistfield: multret 情况下 na--（最后元素数量不确定）
+            na--;
+        } else {
+            // 固定数量元素批量写入
+            i32 c = (na - 1) / LFIELDS_PER_FLUSH + 1;
+            codeABC(OpCode::SETLIST, tableReg, tostore, c);
+            freereg_ = tableReg + 1;
+            checkStack(0);  // ⭐ P0修复：确保maxStackSize >= freereg_
+        }
     }
 
     // 6. 回补 NEWTABLE 指令的大小参数 B（数组）和 C（哈希）

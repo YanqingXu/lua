@@ -28,6 +28,7 @@ struct GetExprLine {
     i32 operator()(const IndexExpr& e) const { return e.line; }
     i32 operator()(const MemberExpr& e) const { return e.line; }
     i32 operator()(const FunctionExpr& e) const { return e.line; }
+    i32 operator()(const ParenExpr& e) const { return e.line; }
 };
 
 // 获取表达式的列号
@@ -45,6 +46,7 @@ struct GetExprColumn {
     i32 operator()(const IndexExpr& e) const { return e.column; }
     i32 operator()(const MemberExpr& e) const { return e.column; }
     i32 operator()(const FunctionExpr& e) const { return e.column; }
+    i32 operator()(const ParenExpr& e) const { return e.column; }
 };
 
 // 获取语句的行号

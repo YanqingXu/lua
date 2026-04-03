@@ -187,6 +187,16 @@ struct FunctionExpr : SourceLocation {
 };
 
 /**
+ * @brief 括号表达式
+ *
+ * 需要保留括号语义以对齐 Lua 5.1：
+ * (exp) 会将函数调用/vararg 的多返回值收敛为单值。
+ */
+struct ParenExpr : SourceLocation {
+    ExprPtr expression;
+};
+
+/**
  * @brief 表达式的variant类型
  */
 using ExprVariant = std::variant<
@@ -202,7 +212,8 @@ using ExprVariant = std::variant<
     CallExpr,
     IndexExpr,
     MemberExpr,
-    FunctionExpr
+    FunctionExpr,
+    ParenExpr
 >;
 
 /**

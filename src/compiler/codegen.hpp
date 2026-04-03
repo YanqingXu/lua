@@ -219,6 +219,7 @@ private:
     // 函数表达式和调用
     void functionExpr(const FunctionExpr& e, ExprDesc& desc);
     void callExpr(const CallExpr& e, ExprDesc& desc);
+    void parenExpr(const ParenExpr& e, ExprDesc& desc);
 
     // 表构造器
     void tableExpr(const TableExpr& table, ExprDesc& desc);
@@ -292,6 +293,7 @@ private:
     i32 pc_;                    // 当前指令索引
     i32 jpc_;                   // 待处理的跳转链表
     BlockInfo* currentBlock_;   // 当前代码块
+    i32 forcedCallBase_;        // 临时强制 CALL 基址（仅供当前最外层 CallExpr 使用）
 };
 
 }  // namespace Lua

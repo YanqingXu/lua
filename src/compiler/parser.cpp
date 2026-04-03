@@ -901,7 +901,12 @@ ExprPtr Parser::parsePrimaryExpr() {
     if (match(static_cast<TokenType>('('))) {
         ExprPtr expr = parseExpression();
         expect(static_cast<TokenType>(')'), "Expected ')' after expression");
-        return parsePostfixExpr(std::move(expr));
+
+        ParenExpr parenExpr;
+        parenExpr.expression = std::move(expr);
+        parenExpr.line = line;
+        parenExpr.column = column;
+        return parsePostfixExpr(makeExpr<ParenExpr>(std::move(parenExpr)));
     }
 
     // 标识符
