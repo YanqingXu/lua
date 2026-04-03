@@ -1823,12 +1823,8 @@ void CodeGenerator::tableExpr(const TableExpr& table, ExprDesc& desc) {
     i32 na = 0;       // 数组元素总数
     i32 nh = 0;       // 哈希元素总数
     i32 tostore = 0;  // 待批量存储的数组元素数
-    ExprDesc lastArrayExpr;  // 保存最后一个数组元素的表达式
-    bool hasLastArrayExpr = false;
-
     for (usize i = 0; i < table.fields.size(); i++) {
         const auto& field = table.fields[i];
-        bool isLastField = (i == table.fields.size() - 1);
 
         if (field.key) {
             // === 哈希字段：[key] = value 或 name = value ===
@@ -1853,17 +1849,10 @@ void CodeGenerator::tableExpr(const TableExpr& table, ExprDesc& desc) {
 
             ExprDesc val;
             expr(*field.value, val);
-
-            // ⭐ 关键修复：检查是否为最后一个数组元素且为多返回值表达式
-            // 参考：lua_c_analysis/src/lparser.c lastlistfield()
-            if (isLastField && (val.kind == ExprKind::Vararg || val.kind == ExprKind::Call)) {
-                // 最后一个元素是多返回值表达式，保存它稍后特殊处理
-                lastArrayExpr = val;
-                hasLastArrayExpr = true;
-                // 不调用 exp2NextReg，保持为 Vararg/Call 状态
-            } else {
-                exp2NextReg(val);
-            }
+            // 先按单值路径处理数组元素。
+            // 说明：表构造器最后一个字段的多返回值展开（CALL/VARARG）后续再做完整实现，
+            // 当前版本先保证寄存器布局稳定，避免错误改写调用基址。
+            exp2NextReg(val);
 
             // 达到批量阈值时发射 SETLIST
             if (tostore == LFIELDS_PER_FLUSH) {
@@ -1878,40 +1867,11 @@ void CodeGenerator::tableExpr(const TableExpr& table, ExprDesc& desc) {
 
     // 5. 发射剩余数组元素的 SETLIST
     if (tostore > 0) {
-        if (hasLastArrayExpr) {
-            // ⭐ 最后一个元素是多返回值表达式（Vararg/Call）
-            // 参考：lua_c_analysis/src/lparser.c lastlistfield()
-            // 设置多返回值模式：VARARG/CALL B=0（返回所有值）
-            i32 pc = lastArrayExpr.u.s.info;
-            Instruction inst = proto_->getInstruction(pc);
-
-            // ⭐ 关键修复：设置 A 参数为 tableReg + 1（数组元素起始位置）
-            SETARG_A(inst, tableReg + 1);
-
-            if (lastArrayExpr.kind == ExprKind::Vararg) {
-                // VARARG A B：B=0 表示复制所有可变参数
-                SETARG_B(inst, 0);
-            } else {
-                // CALL A B C：C=0 表示返回所有值
-                SETARG_C(inst, 0);
-            }
-            proto_->setInstruction(pc, inst);
-
-            // SETLIST B=0 表示到栈顶（LUA_MULTRET）
-            i32 c = (na - 1) / LFIELDS_PER_FLUSH + 1;
-            codeABC(OpCode::SETLIST, tableReg, 0, c);
-            freereg_ = tableReg + 1;
-            checkStack(0);  // ⭐ P0修复：确保maxStackSize >= freereg_
-
-            // 调整 na 计数（因为实际元素数量未知）
-            // na--;  // 注意：Lua 5.1 会减1，但我们保持不变以简化
-        } else {
-            // 普通情况：固定数量的元素
-            i32 c = (na - 1) / LFIELDS_PER_FLUSH + 1;
-            codeABC(OpCode::SETLIST, tableReg, tostore, c);
-            freereg_ = tableReg + 1;
-            checkStack(0);  // ⭐ P0修复：确保maxStackSize >= freereg_
-        }
+        // 固定数量元素批量写入
+        i32 c = (na - 1) / LFIELDS_PER_FLUSH + 1;
+        codeABC(OpCode::SETLIST, tableReg, tostore, c);
+        freereg_ = tableReg + 1;
+        checkStack(0);  // ⭐ P0修复：确保maxStackSize >= freereg_
     }
 
     // 6. 回补 NEWTABLE 指令的大小参数 B（数组）和 C（哈希）
@@ -1952,12 +1912,12 @@ void CodeGenerator::functionStmt(const FunctionStmt& s) {
         // 全局/表成员函数：function name() end / function t.a.b:name() end
         i32 savedFreereg = freereg_;
 
-        // 生成CLOSURE指令到临时寄存器
-        i32 reg = allocReg();
-        codeABx(OpCode::CLOSURE, reg, protoIdx);
-        emitClosureUpvalues(childUpvalues);
-
         if (s.tablePath.empty()) {
+            // 生成CLOSURE指令到临时寄存器
+            i32 reg = allocReg();
+            codeABx(OpCode::CLOSURE, reg, protoIdx);
+            emitClosureUpvalues(childUpvalues);
+
             // 简单全局函数：_G[name] = closure
             i32 k = stringConstant(s.name);
             codeABx(OpCode::SETGLOBAL, reg, k);
@@ -1967,22 +1927,20 @@ void CodeGenerator::functionStmt(const FunctionStmt& s) {
             // - function t.foo() end      -> t["foo"] = closure
             // - function t.a.b:c() end    -> t["a"]["b"]["c"] = closure（参数已含self）
             auto loadNameToReg = [&](const Str& name) -> i32 {
-                ExprDesc d;
                 i32 local = findLocalVar(name);
                 if (local >= 0) {
-                    d.kind = ExprKind::Local;
-                    d.u.s.info = local;
-                } else {
-                    i32 up = resolveUpvalue(name);
-                    if (up >= 0) {
-                        d.kind = ExprKind::Upval;
-                        d.u.s.info = up;
-                    } else {
-                        d.kind = ExprKind::Global;
-                        d.u.s.info = stringConstant(name);
-                    }
+                    return local;
                 }
-                return exp2AnyReg(d);
+
+                i32 reg = allocReg();
+                i32 up = resolveUpvalue(name);
+                if (up >= 0) {
+                    codeABC(OpCode::GETUPVAL, reg, up, 0);
+                } else {
+                    i32 k = stringConstant(name);
+                    codeABx(OpCode::GETGLOBAL, reg, k);
+                }
+                return reg;
             };
 
             // 先取到最外层表（tablePath[0]）
@@ -1990,30 +1948,19 @@ void CodeGenerator::functionStmt(const FunctionStmt& s) {
 
             // 逐层读取中间字段，定位到最终赋值目标表
             for (usize i = 1; i < s.tablePath.size(); i++) {
-                ExprDesc t;
-                t.kind = ExprKind::NonRelocatable;
-                t.u.s.info = tableReg;
-                t.t = NO_JUMP;
-                t.f = NO_JUMP;
-
-                ExprDesc k;
-                k.kind = ExprKind::Const;
-                k.u.s.info = stringConstant(s.tablePath[i]);
-                k.t = NO_JUMP;
-                k.f = NO_JUMP;
-
-                luaK_indexed(t, k);      // t[s.tablePath[i]]
-                luaK_dischargevars(t);   // GETTABLE
-                tableReg = exp2AnyReg(t);
+                i32 nextReg = allocReg();
+                i32 k = stringConstant(s.tablePath[i]);
+                codeABC(OpCode::GETTABLE, nextReg, tableReg, RKASK(k));
+                tableReg = nextReg;
             }
 
+            // 生成CLOSURE（必须先于upvalue伪指令）
+            i32 reg = allocReg();
+            codeABx(OpCode::CLOSURE, reg, protoIdx);
+            emitClosureUpvalues(childUpvalues);
+
             // 设置最终字段：tableReg[s.name] = closure
-            ExprDesc key;
-            key.kind = ExprKind::Const;
-            key.u.s.info = stringConstant(s.name);
-            key.t = NO_JUMP;
-            key.f = NO_JUMP;
-            i32 rkKey = exp2RK(key);
+            i32 rkKey = RKASK(stringConstant(s.name));
             codeABC(OpCode::SETTABLE, tableReg, rkKey, reg);
         }
 
