@@ -14,6 +14,10 @@
 
 ## 🎯 项目概览
 
+本项目是一个**使用现代 C++ 重新实现 Lua 5.1.5 解释器**的实验性工程，当前主要面向学习、验证和逐步补全实现。
+
+如果是第一次接手，优先关注下面这几条约定。
+
 ## ⚠️ 必读约定（下次接手先看这里）
 
 ### 目录边界
@@ -39,29 +43,31 @@
 
 ### 项目目标
 
-本项目旨在**从零开始**使用现代C++（C++17/20/23）重新实现一个完整的**Lua 5.1.5解释器**。
+本项目旨在从零开始，用现代 C++ 重建 Lua 5.1.5 的核心执行链路，包括词法分析、语法分析、字节码生成、虚拟机执行、垃圾回收和标准库。
 
 **核心特点**：
-- 📚 **参考实现**：基于`lua_c_analysis`中的Lua 5.1.5 C源码（带详细中文注释）
-- 🔧 **技术栈**：C++17标准、MSVC编译器（Visual Studio 2026）、Windows平台
-- ✨ **现代C++**：充分利用现代C++特性（`std::variant`、智能指针、类型别名、STL容器）
-- 🎓 **教育价值**：清晰的架构、完善的测试、详细的文档，适合学习Lua实现原理
+- 📚 **主参考清晰**：以 `lua_c_analysis` 中的 Lua 5.1.5 C 源码和中文文档为第一参考
+- 🔧 **技术路线明确**：Windows + Visual Studio 2026 + MSVC + C++17
+- ✨ **实现风格现代**：使用 `std::variant`、类型别名、STL 容器等现代 C++ 手段组织 Lua 运行时
+- 🎓 **偏学习型工程**：强调结构可读、模块可追踪、便于对照官方 Lua 实现理解设计
 
 ---
 
 ## 📊 当前进度
 
-### 整体完成度：78% ⚠️ ⬇️ -2%（修正夸大数据）
+### 总体状态
 
-**代码规模**（2026-02-11更新）：
-- 📁 **总文件数**: 64个源文件（.hpp + .cpp）
-- 📝 **总代码行数**: ~12,000-13,000行有效代码 ⬇️ 修正
-- 📊 **模块分布**: 编译器(27.9%) | 核心类型(22.0%) | 虚拟机(19.3%) | 标准库(13.6%)
-- ✅ **核心系统**: 100%完成（类型系统、编译器、VM）
-- ⚠️ **GC系统**: 90%完成（标记-清除 + FIXED标志机制，**2个测试失败**）⬇️ -5%
-- ✅ **GlobalState初始化**: 100%完成（元方法、保留字、固定字符串）
-- 🔄 **标准库**: 73%完成（base 79% | math 100% | io 44% | string 100% | table 100% | os 100%）⬆️ +23%
-- ⏳ **剩余工作**: 约12人日（修复关键bug + 标准库扩展）⬆️ +3人日（修正低估）
+- **整体完成度**：约 78%
+- **代码规模**：约 64 个源文件，约 12k-13k 行有效代码
+- **核心链路**：类型系统、编译器前端、字节码执行引擎已基本成型
+- **主要短板**：部分标准库、少量 GC/错误处理问题、应用层入口能力仍需补完
+
+### 当前判断
+
+- ✅ **已较稳定的部分**：Value / Table / Function / Lexer / Parser / CodeGen / VM 主体
+- ✅ **已补齐的初始化部分**：GlobalState 元方法、保留字、固定字符串初始化
+- ⚠️ **仍需持续验证的部分**：GC 边界行为、`pcall/xpcall` 等错误处理、I/O 与外围库行为
+- 🔄 **标准库状态**：数学库较完整，基础库与 I/O 库仍在继续完善
 
 ### 已完成模块（24个核心模块）
 
@@ -116,27 +122,12 @@
 平台：    Windows + MSVC (Visual Studio 2026)
 ```
 
-### 剩余工作（2025-12-19更新）
+### 接下来优先做什么
 
-**待实现模块**（约5人日）：
-- ❌ **字符串库** - 0/14函数（sub, find, match, gsub, format等）→ 2人日
-- ❌ **表库** - 0/7函数（insert, remove, sort, concat等）→ 1.5人日  
-- ❌ **OS库** - 0/11函数（time, date, execute, getenv等）→ 1.5人日
-
-**待完善功能**（约7人日）：
-- 🔄 **基础库扩展** - +16函数（pcall, pairs, ipairs, loadstring等）→ 3人日
-- 🔄 **I/O库补充** - +10函数（lines迭代器、tmpfile等）→ 2人日
-- 🔄 **LuaState初始化** - 5个关键步骤（元方法名、保留字、GC阈值）→ 2人日
-
-**应用层实现**（约2人日）：
-- 🔄 **脚本执行** - executeScript()完整实现 → 1人日
-- 🔄 **REPL增强** - 命令历史和行编辑 → 1人日
-
-**代码优化**（约3人日）：
-- 🟡 **TODO修复** - 21处标记（8处高优先级）→ 2人日
-- 🟡 **性能优化** - 热点分析和优化 → 1人日
-
-**总计**：17人日 → 全职2-3周，兼职4-6周可达90%+完成度
+- **修复现有失败测试**：优先处理 GC、`pcall/xpcall` 及其他回归项
+- **继续补标准库**：重点是 base、I/O，以及和脚本运行体验直接相关的部分
+- **完善应用入口**：继续打磨 REPL、脚本执行和调试辅助工具
+- **清理实现细节**：逐步处理 TODO、边界行为和文档同步问题
 
 ### 核心实现亮点
 
@@ -733,7 +724,7 @@ void doJump(i32 offset) {
 - 内联函数减少调用开销
 - 直接栈访问避免间接寻址
 
-#### BaseLib（基础库）⭐ 新完成
+#### BaseLib（基础库）
 
 **文件**: `src/lib/baselib.hpp/cpp`
 
@@ -826,49 +817,46 @@ openBaseLib(L);  // 注册所有8个函数到全局环境
 ```
 工作区根目录 (e:\Programming2\lua_in_cpp\)
 │
-├── lua/                          # 主项目目录 ⭐ 当前开发重点
-│   ├── src/                      # 源代码
-│   │   ├── common/              # 公共组件
-│   │   │   ├── types.hpp        # 类型别名定义（Vec、HashMap、usize等）
-│   │   │   ├── config.hpp       # 编译配置和常量
-│   │   │   └── macros.hpp       # 实用宏定义
-│   │   ├── core/                # 核心类型系统
-│   │   │   ├── value.hpp/cpp    # Value类（Lua值表示）
-│   │   │   ├── gc_object.hpp/cpp # GCObject基类
-│   │   │   ├── gc_string.hpp/cpp # GCString类
-│   │   │   ├── string_pool.hpp/cpp # StringPool类
-│   │   │   ├── table.hpp/cpp    # Table类
-│   │   │   ├── function.hpp/cpp # Function类（Proto + Closure）
-│   │   │   ├── upvalue.hpp/cpp  # Upvalue类（闭包上值）
-│   │   │   └── userdata.hpp/cpp # Userdata类（用户数据）⭐ 新完成
-│   │   ├── gc/                  # 垃圾回收系统
-│   │   │   └── garbage_collector.hpp/cpp # GC实现
-│   │   ├── vm/                  # 虚拟机核心
-│   │   │   ├── global_state.hpp/cpp # 全局状态管理
-│   │   │   ├── stack.hpp/cpp    # 值栈管理
-│   │   │   ├── call_info.hpp    # 调用信息
-│   │   │   ├── lua_state.hpp/cpp # Lua状态（线程）
-│   │   │   └── vm.hpp/cpp       # 字节码执行引擎 ⭐ 新完成
-│   │   ├── compiler/            # 编译器前端 ⭐ 新完成
-│   │   │   ├── token.hpp        # Token类型定义
-│   │   │   ├── lexer.hpp/cpp    # 词法分析器
-│   │   │   ├── ast.hpp/cpp      # AST节点定义
-│   │   │   ├── parser.hpp/cpp   # 语法分析器
-│   │   │   ├── opcode.hpp/cpp   # 指令集定义（38条Lua 5.1指令）⭐ 新完成
-│   │   │   └── codegen.hpp/cpp  # 字节码生成器 ⭐ 新完成
-│   │   ├── lib/                 # 标准库
-│   │   │   └── baselib.hpp/cpp  # 基础库（8个核心函数）⭐ 新完成
-│   │   └── main.cpp             # 测试主程序（VS IDE手动编译用）
-│   ├── docs/                    # 项目文档
-│   │   ├── ARCHITECTURE.md      # 架构设计文档
-│   │   ├── DEVELOPMENT_GUIDE.md # 编码规范和类型系统使用指南
-│   │   ├── PROJECT_OVERVIEW.md  # 项目总览
-│   │   └── PROJECT_SUMMARY_CN.md # 中文项目总结
-│   ├── CMakeLists.txt          # CMake配置（备用）
-│   ├── .gitignore              # Git忽略配置
-│   └── README.md               # 本文件
+├── lua/                           # 主项目目录，也是唯一正式开发目录
+│   ├── src/                       # 核心源码
+│   │   ├── common/                # 基础类型、配置、宏
+│   │   ├── compiler/              # Lexer / Parser / AST / CodeGen / Bytecode Printer
+│   │   ├── core/                  # Value / Table / Function / String / Metatable 等核心对象
+│   │   ├── gc/                    # 垃圾回收器
+│   │   ├── io/                    # 输入流、动态缓冲区
+│   │   ├── lib/                   # base / math / io / os / string / table 等标准库
+│   │   ├── vm/                    # GlobalState / LuaState / Stack / VM
+│   │   ├── main.cpp               # `lua_app` 入口
+│   │   ├── repl.cpp/.hpp          # REPL 支持
+│   │   └── bytecode_main.cpp      # `lua_bytecode` 入口
+│   ├── tests/
+│   │   ├── lua/                   # Lua 脚本级测试样例
+│   │   └── unit/                  # C++ 单元测试
+│   │       ├── compiler/          # 编译器相关测试
+│   │       ├── core/              # 核心对象测试
+│   │       ├── framework/         # 测试框架自身
+│   │       ├── gc/                # GC 测试
+│   │       ├── io/                # I/O 测试
+│   │       ├── metamethod/        # 元方法测试
+│   │       ├── stdlib/            # 标准库测试
+│   │       └── vm/                # VM / LuaState 测试
+│   ├── docs/                      # 项目文档
+│   ├── tools/                     # 辅助构建脚本
+│   ├── tmp/                       # 临时编译中间产物
+│   ├── x64/                       # 统一输出目录（如 `x64/Debug/`）
+│   ├── lua/                       # `lua.vcxproj` 的项目中间目录
+│   ├── lua_app/                   # `lua_app.vcxproj` 的项目中间目录
+│   ├── lua_bytecode/              # `lua_bytecode.vcxproj` 的项目中间目录
+│   ├── lua_test/                  # `lua_test.vcxproj` 的项目中间目录与测试工程辅助文件
+│   ├── lua.slnx                   # Visual Studio 解决方案
+│   ├── lua.vcxproj                # 核心静态库项目
+│   ├── lua_app.vcxproj            # REPL / 临时执行入口项目
+│   ├── lua_test.vcxproj           # 单元测试项目
+│   ├── lua_bytecode.vcxproj       # 字节码打印与对比工具项目
+│   ├── .gitignore
+│   └── README.md
 │
-├── lua_c_analysis/              # Lua 5.1.5 C源码（带中文注释）⭐ 主要参考
+├── lua_c_analysis/              # Lua 5.1.5 C源码（带中文注释）主参考
 │   ├── src/                    # Lua C源码
 │   │   ├── lobject.h/c         # 对象系统（TValue、Table、Closure等）
 │   │   ├── lgc.h/c             # 垃圾回收
@@ -881,7 +869,7 @@ openBaseLib(L);  // 注册所有8个函数到全局环境
 │       ├── vm/                 # 虚拟机文档
 │       └── ...
 │
-└── lua_with_cpp/                # 另一个C++ Lua实现（次要参考）
+└── lua_with_cpp/                # 另一个 C++ Lua 实现（次要参考）
     └── src/                    # C++实现代码
 ```
 
@@ -889,13 +877,23 @@ openBaseLib(L);  // 注册所有8个函数到全局环境
 
 | 文件 | 用途 | 重要性 |
 |------|------|--------|
-| `tests/unit/` | 单元测试文件目录 | ⭐⭐⭐ |
-| `tests/unit/test_framework.hpp` | 测试框架核心 | ⭐⭐⭐ |
-| `tests/unit/test_registry.hpp` | 测试注册函数声明 | ⭐⭐⭐ |
-| `src/main.cpp` | 主程序（复用测试框架），用于VS IDE手动编译 | ⭐⭐⭐ |
-| `docs/ARCHITECTURE.md` | 架构设计，理解系统结构 | ⭐⭐⭐ |
-| `docs/DEVELOPMENT_GUIDE.md` | 编码规范，类型系统使用指南 | ⭐⭐⭐ |
-| `lua_c_analysis/src/` | Lua C源码参考 | ⭐⭐⭐ |
+| `src/` | 解释器核心实现目录，日常代码修改的主战场 | ⭐⭐⭐ |
+| `src/main.cpp` | `lua_app.exe` 的入口文件 | ⭐⭐⭐ |
+| `src/bytecode_main.cpp` | `lua_bytecode.exe` 的入口文件 | ⭐⭐⭐ |
+| `src/compiler/bytecode_printer.cpp` | 字节码打印工具的核心实现 | ⭐⭐⭐ |
+| `tests/unit/` | 单元测试目录，是验证 C++ 模块行为的第一入口 | ⭐⭐⭐ |
+| `tests/lua/` | Lua 脚本级样例与回归测试输入 | ⭐⭐ |
+| `tools/` | 兼容性构建脚本和辅助脚本 | ⭐ |
+| `docs/ARCHITECTURE.md` | 架构设计说明，适合先建立整体认识 | ⭐⭐⭐ |
+| `docs/DEVELOPMENT_GUIDE.md` | 开发规范与类型系统约定 | ⭐⭐⭐ |
+| `lua.slnx` | 当前 Visual Studio 解决方案入口 | ⭐⭐⭐ |
+| `lua_c_analysis/src/` | 官方 Lua 5.1.5 C 实现的本地参考入口 | ⭐⭐⭐ |
+
+### 目录说明补充
+
+- `src/`、`tests/`、`docs/` 是最值得长期关注的三个目录
+- `tools/` 保留了一些脚本化辅助能力，但当前主构建组织方式已经转到 `.slnx + .vcxproj`
+- `tmp/`、`x64/`、`lua/`、`lua_app/`、`lua_bytecode/`、`lua_test/` 主要是构建中间产物或项目生成目录，通常不作为核心实现阅读入口
 
 ---
 
@@ -908,6 +906,13 @@ openBaseLib(L);  // 注册所有8个函数到全局环境
 - **操作系统**：Windows 10/11
 - **编译器**：Visual Studio 2026（MSVC）
 - **C++标准**：C++17
+
+### 建议阅读顺序
+
+1. 先看本文档开头的“必读约定”
+2. 再看 `docs/ARCHITECTURE.md`
+3. 然后结合 `lua_c_analysis/src/` 对照关键模块
+4. 最后进入 `src/` 和 `tests/unit/` 开始实际开发或排错
 
 ---
 
@@ -967,28 +972,23 @@ openBaseLib(L);  // 注册所有8个函数到全局环境
 ### 2分钟快速理解项目
 
 1. **这是什么项目？**
-   - 从零开始用C++17实现Lua 5.1.5解释器
-   - 参考`lua_c_analysis`中的Lua C源码（带中文注释）
-   - 使用MSVC编译器，Windows平台
-   - **所有正式代码都在 `lua/` 目录内，修改范围默认不出该目录**
+   - 一个用现代 C++ 重写 Lua 5.1.5 的项目
+   - 主代码都在 `lua/` 目录内
+   - `lua_c_analysis/` 是主参考，`lua_with_cpp/` 是次参考
 
 2. **已经完成了什么？**
-   - ✅ 17个核心模块（Value、GCObject、GCString、StringPool、Table、Function、GarbageCollector、VM、Lexer、Parser、CodeGen等）
-   - ✅ 147个测试用例，100%通过率
-   - ✅ Debug和Release版本均编译成功，无警告，无链接冲突
-   - ✅ 编译器前端完成（Lexer、Parser、CodeGen）
-   - ✅ VM执行引擎完成（38条指令）
-   - ✅ 基础库部分完成（8个核心函数）
+   - 编译器前端、VM 主体、GC 框架、核心对象系统已经成型
+   - 当前仍有少量失败测试和标准库补完工作
+   - 重点不再是“从零搭骨架”，而是“持续补功能、修边界、稳行为”
 
 3. **参考目录怎么用？**
    - `../lua_c_analysis/`：主参考，优先查 Lua 5.1.5 原始设计和中文说明
    - `../lua_with_cpp/`：次参考，用于补充查看 C++ 写法
 
 4. **下一步做什么？**
-   - **推荐P0**：完善基础库实现和测试集成
-   - **推荐P0**：完善VM执行引擎 - 支持完整的Lua函数调用
-   - **推荐P0**：创建端到端集成测试
-   - 参考：本README的"下一步开发计划"章节
+   - 先看当前失败测试和最近在改的模块
+   - 优先补标准库、错误处理和工具链边缘能力
+   - 修改时始终以 `lua/` 为边界，不要把参考目录当作实现目录
 
 5. **在哪里找详细信息？**
    - 架构设计：`docs/ARCHITECTURE.md`
@@ -1002,7 +1002,7 @@ openBaseLib(L);  // 注册所有8个函数到全局环境
 
 ### 类型系统使用规范
 
-本项目使用类型别名（定义在`src/common/types.hpp`）以提高代码可读性和一致性：
+本项目统一使用 `src/common/types.hpp` 中定义的类型别名，以保持代码风格和语义一致：
 
 | C++标准类型 | 项目类型别名 | 用途 |
 |------------|------------|------|
@@ -1017,9 +1017,9 @@ openBaseLib(L);  // 注册所有8个函数到全局环境
 | `uint64_t` | `u64` | 64位无符号整数 |
 | `double` | `f64` | 64位浮点数 |
 
-**重要**：所有新代码必须使用类型别名，不得直接使用C++标准类型。详见`docs/DEVELOPMENT_GUIDE.md`。
+**重要**：新增代码优先使用这些类型别名，而不是直接散落使用标准库原始类型。详细规范见 `docs/DEVELOPMENT_GUIDE.md`。
 
-### 核心设计模式
+### 核心实现约定
 
 1. **Value类**：使用`std::variant`实现类型安全的动态类型
    ```cpp
@@ -1036,16 +1036,16 @@ openBaseLib(L);  // 注册所有8个函数到全局环境
    >;
    ```
 
-2. **GC系统**：三色标记（White/Gray/Black）+ 标记-清除算法
+2. **GC系统**：采用三色标记（White/Gray/Black）+ 标记-清除算法
    - White：未标记（可回收）
    - Gray：已标记但未扫描子对象
    - Black：已标记且已扫描子对象
 
-3. **Table类**：混合存储优化
+3. **Table类**：采用数组部分 + 哈希部分的混合存储
    - 数组部分：`Vec<Value>`（连续存储，快速索引）
    - 哈希部分：`std::unordered_map<Value, Value>`（键值对存储）
 
-4. **StringPool**：字符串驻留（Interning）
+4. **StringPool**：使用字符串驻留（Interning）
    - 单例模式
    - 相同内容的字符串只存储一份
    - 使用指针比较代替字符串比较
@@ -1056,7 +1056,7 @@ openBaseLib(L);  // 注册所有8个函数到全局环境
 
 ### 测试框架
 
-本项目使用**自定义轻量级测试框架**，无外部依赖，易于维护和扩展。
+本项目使用**自定义轻量级测试框架**。它的目标不是功能最全，而是足够轻、足够直接，便于在解释器这种底层项目里快速定位问题。
 
 **测试框架特性**：
 - ✅ 简单的断言宏（`ASSERT_TRUE`、`ASSERT_FALSE`、`ASSERT_EQ`）
@@ -1089,10 +1089,10 @@ lua/tests/unit/
 
 | 技术 | 版本 | 用途 |
 |------|------|------|
-| **C++** | C++17 | 编程语言 |
-| **MSVC** | Visual Studio 2026 | 编译器 |
-| **Windows** | 10/11 | 目标平台 |
-| **Git** | Latest | 版本控制 |
+| **C++** | C++17 | 主实现语言 |
+| **MSVC** | Visual Studio 2026 | 编译器与 IDE 工具链 |
+| **Windows** | 10/11 | 当前主要开发平台 |
+| **Git** | Latest | 版本管理 |
 
 ### C++17特性使用
 
