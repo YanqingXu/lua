@@ -25,11 +25,33 @@
 #include "core/metatable.hpp"
 #include "vm/global_state.hpp"
 #include "compiler/opcode.hpp"
+#include "debug/trace_sink.hpp"
+#include "debug/trace_types.hpp"
 #include <stdexcept>
 #include <cmath>
 #include <iostream>
 
 namespace Lua {
+
+// =====================================================================
+// Trace 全局状态
+// =====================================================================
+
+static ITraceSink* g_traceSink = nullptr;
+static u64         g_traceSeq  = 0;
+
+namespace VM {
+
+void setTraceSink(ITraceSink* sink) {
+    g_traceSink = sink;
+    g_traceSeq  = 0;
+}
+
+ITraceSink* getTraceSink() {
+    return g_traceSink;
+}
+
+} // namespace VM
 
 // =====================================================================
 // 匿名命名空间：内部辅助自由函数
@@ -782,6 +804,24 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
             i32    sbx = GETARG_sBx(inst);
             pc++;
 
+            // ---- Trace: 指令事件 ----
+            if (g_traceSink) {
+                TraceEvent tevt;
+                tevt.seq       = g_traceSeq++;
+                tevt.kind      = TraceEventKind::Instruction;
+                tevt.pc        = static_cast<i32>(pc - 1);
+                tevt.op        = op;
+                tevt.a = a; tevt.b = b; tevt.c = c;
+                tevt.bx = bx; tevt.sbx = sbx;
+                tevt.line      = proto->getLine(pc - 1);
+                tevt.source    = proto->getSource() ? proto->getSource()->c_str() : "?";
+                tevt.callDepth = nexeccalls;
+                tevt.base      = base;
+                tevt.maxStack  = proto->getMaxStackSize();
+                tevt.proto     = proto;
+                g_traceSink->onInstruction(tevt);
+            }
+
             switch (op) {
 
             // ============== 基础操作 ==============
@@ -991,6 +1031,24 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
                 i32 nArgs    = b - 1;
                 i32 nResults = c - 1;
 
+                // ---- Trace: call 事件 ----
+                if (g_traceSink) {
+                    TraceEvent cevt;
+                    cevt.seq       = g_traceSeq++;
+                    cevt.kind      = TraceEventKind::Call;
+                    cevt.line      = proto->getLine(pc - 1);
+                    cevt.source    = proto->getSource() ? proto->getSource()->c_str() : "?";
+                    cevt.callDepth = nexeccalls + 1;
+                    // 尝试获取被调用函数名
+                    Value& callee = base[a];
+                    if (callee.isFunction()) {
+                        Function* cf = callee.asFunction();
+                        if (cf->getProto() && cf->getProto()->getSource())
+                            cevt.funcName = cf->getProto()->getSource()->c_str();
+                    }
+                    g_traceSink->onCall(cevt);
+                }
+
                 // 保存 PC（返回后需要）
                 L->getCurrentCallInfo().savedpc = &code[pc];
 
@@ -1026,6 +1084,15 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
             }
 
             case OpCode::RETURN: {
+                // ---- Trace: return 事件 ----
+                if (g_traceSink) {
+                    TraceEvent revt;
+                    revt.seq       = g_traceSeq++;
+                    revt.kind      = TraceEventKind::Return;
+                    revt.callDepth = nexeccalls;
+                    g_traceSink->onReturn(revt);
+                }
+
                 CallInfo& ci = L->getCurrentCallInfo();
                 Stack& stack = L->getStack();
 

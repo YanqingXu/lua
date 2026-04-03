@@ -34,6 +34,7 @@ namespace Lua {
 class LuaState;
 class Function;
 class Proto;
+class ITraceSink;
 
 /**
  * @brief 虚拟机执行引擎命名空间
@@ -62,6 +63,16 @@ namespace VM {
      * @param nexeccalls 嵌套调用计数（用于检测栈溢出）
      */
     void executeProto(LuaState* L, Proto* proto, i32 nexeccalls = 1);
+
+    /**
+     * @brief 设置全局 Trace Sink（nullptr 表示关闭 trace）
+     */
+    void setTraceSink(ITraceSink* sink);
+
+    /**
+     * @brief 获取当前 Trace Sink
+     */
+    ITraceSink* getTraceSink();
 
 } // namespace VM
 

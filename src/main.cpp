@@ -39,6 +39,7 @@
 #include "core/string_pool.hpp"
 #include "core/function.hpp"
 #include "io/input_stream.hpp"
+#include "debug/json_trace_sink.hpp"
 #include "repl.hpp"
 
 #include <iostream>
@@ -54,6 +55,14 @@
 // - 非空串：未指定命令行脚本时优先执行该 Lua 脚本
 #ifndef LUA_TEST_SCRIPT_PATH
 #define LUA_TEST_SCRIPT_PATH "E:/Programming2/lua_in_cpp/lua/tests/lua/functions/factorial.lua"
+#endif
+
+// 测试脚本 Trace 输出路径（配合 LUA_TEST_SCRIPT_PATH 使用）。
+// - 为空串：不启用默认脚本 Trace
+// - 非空串：执行 LUA_TEST_SCRIPT_PATH 时自动启用 Trace，输出到此路径
+//   可在此处直接改为目标路径，或通过编译器定义 /DLUA_TRACE_TEST_SCRIPT_OUTPUT=\"out.jsonl\"
+#ifndef LUA_TRACE_TEST_SCRIPT_OUTPUT
+#define LUA_TRACE_TEST_SCRIPT_OUTPUT "out.jsonl"
 #endif
 
 
@@ -82,6 +91,7 @@ void printUsage(const char* progname) {
     std::cout << "  -v       show version information" << std::endl;
     std::cout << "  -h       show this help message" << std::endl;
     std::cout << "  -i       enter interactive mode" << std::endl;
+    std::cout << "  --trace <file>  write execution trace to JSONL file" << std::endl;
     std::cout << "  -        execute stdin (not implemented)" << std::endl;
 }
 
@@ -322,6 +332,7 @@ int main(int argc, char** argv) {
         bool showHelp = false;
         bool interactiveMode = false;
         const char* scriptFile = nullptr;
+        const char* traceFile = nullptr;
         i32 scriptIndex = -1;  // 脚本文件在argv中的索引（用于arg表）
 
         for (i32 i = 1; i < argc; ++i) {
@@ -331,6 +342,8 @@ int main(int argc, char** argv) {
                 showHelp = true;
             } else if (std::strcmp(argv[i], "-i") == 0) {
                 interactiveMode = true;
+            } else if (std::strcmp(argv[i], "--trace") == 0 && i + 1 < argc) {
+                traceFile = argv[++i];
             } else if (argv[i][0] != '-') {
                 scriptFile = argv[i];
                 scriptIndex = i;  // 记录脚本文件索引
@@ -361,6 +374,19 @@ int main(int argc, char** argv) {
         // 步骤4-5：执行主程序
         i32 status = 0;
 
+        // 设置 Trace Sink（如果指定了 --trace）
+        UPtr<JsonTraceSink> traceSink;
+        if (traceFile) {
+            traceSink = makeUnique<JsonTraceSink>(traceFile);
+            if (traceSink->isOpen()) {
+                VM::setTraceSink(traceSink.get());
+                std::cout << "[TRACE] Trace enabled → " << traceFile << std::endl;
+            } else {
+                std::cerr << "[TRACE] Warning: cannot open trace file, trace disabled." << std::endl;
+                traceSink.reset();
+            }
+        }
+
         if (scriptFile) {
             // 设置arg表（使脚本可通过arg[0], arg[1]...访问命令行参数）
             setupArgTable(L.get(), argc, argv, scriptIndex);
@@ -379,8 +405,25 @@ int main(int argc, char** argv) {
                 REPL::initialize(L.get());
                 status = REPL::run(L.get());
             } else if (std::filesystem::exists(kTestScriptPath)) {
+                // 宏开关：若未通过 --trace 指定，则自动为测试脚本启用 Trace
+                constexpr const char* kTestTraceOutput = LUA_TRACE_TEST_SCRIPT_OUTPUT;
+                UPtr<JsonTraceSink> testTraceSink;
+                if (kTestTraceOutput[0] != '\0' && !traceSink) {
+                    testTraceSink = makeUnique<JsonTraceSink>(kTestTraceOutput);
+                    if (testTraceSink->isOpen()) {
+                        VM::setTraceSink(testTraceSink.get());
+                        std::cout << "[TRACE] Test trace enabled \u2192 " << kTestTraceOutput << std::endl;
+                    } else {
+                        testTraceSink.reset();
+                    }
+                }
                 std::cout << "[INFO] 执行测试脚本: " << kTestScriptPath << std::endl;
                 status = executeScript(L.get(), kTestScriptPath);
+                if (testTraceSink) {
+                    testTraceSink->flush();
+                    VM::setTraceSink(nullptr);
+                    std::cout << "[TRACE] Test trace complete: " << testTraceSink->getEventCount() << " events written." << std::endl;
+                }
             } else {
                 std::ostringstream oss;
                 oss << "test script not found: " << kTestScriptPath;
@@ -389,10 +432,18 @@ int main(int argc, char** argv) {
             }
         }
 
-        // 步骤6：清理资源（RAII自动管理）
+        // 步骤6：关闭 Trace
+        if (traceSink) {
+            traceSink->flush();
+            VM::setTraceSink(nullptr);
+            std::cout << "[TRACE] Trace complete: " << traceSink->getEventCount() << " events written." << std::endl;
+            traceSink.reset();
+        }
+
+        // 步骤7：清理资源（RAII自动管理）
         L.reset();  // 显式释放，对应lua_close(L)
 
-        // 步骤7：返回退出码
+        // 步骤8：返回退出码
         return status > 0 ? 1 : 0;
 
     } catch (const std::exception& e) {

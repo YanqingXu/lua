@@ -257,6 +257,14 @@ echo [INFO] Compiling InputStream class...
 cl %CXX_FLAGS% /Isrc /c /Fo"%OUTPUT_DIR%\input_stream.obj" "src\io\input_stream.cpp"
 if %errorlevel% neq 0 exit /b %errorlevel%
 
+echo [INFO] Compiling ValueSerializer (trace)...
+cl %CXX_FLAGS% /Isrc /c /Fo"%OUTPUT_DIR%\value_serializer.obj" "src\debug\value_serializer.cpp"
+if %errorlevel% neq 0 exit /b %errorlevel%
+
+echo [INFO] Compiling JsonTraceSink (trace)...
+cl %CXX_FLAGS% /Isrc /c /Fo"%OUTPUT_DIR%\json_trace_sink.obj" "src\debug\json_trace_sink.cpp"
+if %errorlevel% neq 0 exit /b %errorlevel%
+
 REM Compile test files only in test mode
 if "%BUILD_MODE%"=="test" (
     echo.
@@ -475,7 +483,9 @@ if "%BUILD_MODE%"=="test" (
         "%OUTPUT_DIR%\tablelib.obj" ^
         "%OUTPUT_DIR%\oslib.obj" ^
         "%OUTPUT_DIR%\dynamic_buffer.obj" ^
-        "%OUTPUT_DIR%\input_stream.obj"
+        "%OUTPUT_DIR%\input_stream.obj" ^
+        "%OUTPUT_DIR%\value_serializer.obj" ^
+        "%OUTPUT_DIR%\json_trace_sink.obj"
 ) else (
     echo [INFO] Linking %EXE_NAME% as standalone interpreter...
     cl %CXX_FLAGS% /Fe"%OUTPUT_DIR%\%EXE_NAME%" ^
@@ -510,7 +520,9 @@ if "%BUILD_MODE%"=="test" (
         "%OUTPUT_DIR%\tablelib.obj" ^
         "%OUTPUT_DIR%\oslib.obj" ^
         "%OUTPUT_DIR%\dynamic_buffer.obj" ^
-        "%OUTPUT_DIR%\input_stream.obj"
+        "%OUTPUT_DIR%\input_stream.obj" ^
+        "%OUTPUT_DIR%\value_serializer.obj" ^
+        "%OUTPUT_DIR%\json_trace_sink.obj"
 )
 
 if %errorlevel% neq 0 (

@@ -96,6 +96,12 @@
     <ClCompile Include="src\lib\oslib.cpp">
       <Filter>src\lib</Filter>
     </ClCompile>
+    <ClCompile Include="src\debug\value_serializer.cpp">
+      <Filter>src\debug</Filter>
+    </ClCompile>
+    <ClCompile Include="src\debug\json_trace_sink.cpp">
+      <Filter>src\debug</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\compiler\ast.hpp">
@@ -211,6 +217,18 @@
     <ClInclude Include="src\vm\vm_constants.hpp">
       <Filter>src\vm</Filter>
     </ClInclude>
+    <ClInclude Include="src\debug\trace_types.hpp">
+      <Filter>src\debug</Filter>
+    </ClInclude>
+    <ClInclude Include="src\debug\trace_sink.hpp">
+      <Filter>src\debug</Filter>
+    </ClInclude>
+    <ClInclude Include="src\debug\value_serializer.hpp">
+      <Filter>src\debug</Filter>
+    </ClInclude>
+    <ClInclude Include="src\debug\json_trace_sink.hpp">
+      <Filter>src\debug</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="src">
@@ -239,6 +257,8 @@
     <Filter Include="src\io">
       <UniqueIdentifier>{eee28f8f-648a-4a6f-8271-7a76decc82cd}</UniqueIdentifier>
     </Filter>
-
+    <Filter Include="src\debug">
+      <UniqueIdentifier>{d1a2b3c4-e5f6-7890-abcd-ef1234567890}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
 </Project>

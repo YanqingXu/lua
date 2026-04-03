@@ -173,6 +173,10 @@
     <ClInclude Include="src\vm\stack.hpp" />
     <ClInclude Include="src\vm\vm.hpp" />
     <ClInclude Include="src\vm\vm_constants.hpp" />
+    <ClInclude Include="src\debug\trace_types.hpp" />
+    <ClInclude Include="src\debug\trace_sink.hpp" />
+    <ClInclude Include="src\debug\value_serializer.hpp" />
+    <ClInclude Include="src\debug\json_trace_sink.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\compiler\ast.cpp" />
@@ -205,6 +209,8 @@
     <ClCompile Include="src\vm\lua_state.cpp" />
     <ClCompile Include="src\vm\stack.cpp" />
     <ClCompile Include="src\vm\vm.cpp" />
+    <ClCompile Include="src\debug\value_serializer.cpp" />
+    <ClCompile Include="src\debug\json_trace_sink.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
