@@ -359,7 +359,9 @@ void CodeGenerator::expr(const Expr& e, ExprDesc& desc) {
 void CodeGenerator::discharge(ExprDesc& desc, i32 reg) {
     switch (desc.kind) {
         case ExprKind::Nil:
-            codeABC(OpCode::LOADNIL, reg, 0, 0);
+            // LOADNIL A B 会将 R(A)..R(B) 置为 nil。
+            // 单寄存器赋 nil 时，B 必须等于 A；写成 0 会在 A>0 时失效。
+            codeABC(OpCode::LOADNIL, reg, reg, 0);
             break;
         case ExprKind::True:
         case ExprKind::False:
@@ -1090,38 +1092,29 @@ void CodeGenerator::luaK_goiftrue(ExprDesc& e) {
 }
 
 void CodeGenerator::luaK_goiffalse(ExprDesc& e) {
-    // ⭐ P0修复：参考lua_c_analysis/src/lcode.c:2136-2156 luaK_goiffalse实现
-    // luaK_goiffalse的语义：生成"如果为假则跳转"的代码
-    // - 将新的跳转添加到 f 列表（false跳转列表）
-    // - 修补 t 列表（true跳转列表）到当前位置
+    // 参考 lua_c_analysis/src/lcode.c:2136-2156 luaK_goiffalse 实现。
+    // goiffalse 用于处理 `or` 的左操作数：
+    // - 假值路径应继续执行后续表达式，因此要立刻修补到当前位置
+    // - 真值路径应保留为待处理跳转，供上层短路逻辑复用
     luaK_dischargevars(e);
 
-    i32 pc;  // 最后跳转的pc
+    i32 pc;
     switch (e.kind) {
         case ExprKind::Nil:
         case ExprKind::False:
-            // 永远为假：无需操作
             pc = NO_JUMP;
             break;
         case ExprKind::Jump:
-            // ⭐ 关键修复：VJMP类型需要反转跳转条件
-            // codecomp生成的是"如果为真则跳过JMP"，我们需要"如果为假则执行JMP"
-            // 所以需要反转比较指令的A参数
-            invertJump(e);
             pc = e.u.s.info;
             break;
         default:
-            // 其他类型：生成条件跳转指令
-            pc = jumponcond(e, 1);  // 如果为真则跳转
+            pc = jumponcond(e, 1);  // 如果为真则跳转（短路 `or`）
             break;
     }
 
-    // ⭐ 关键修复：将最后跳转插入到 f 列表（false跳转列表）
-    // 注意：这里与luaK_goiftrue相反！
-    luaK_concat(e.f, pc);
-    // 修补 t 列表（true跳转列表）到当前位置
-    patchtohere(e.t);
-    e.t = NO_JUMP;
+    luaK_concat(e.t, pc);
+    patchtohere(e.f);
+    e.f = NO_JUMP;
 }
 
 void CodeGenerator::luaK_dischargevars(ExprDesc& e) {
