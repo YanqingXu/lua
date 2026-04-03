@@ -687,18 +687,83 @@ void CodeGenerator::statement(const Stmt& s) {
             // 处理第一个if分支
             {
                 const auto& branch = arg.branches[0];
-                ExprDesc cond;
-                expr(*branch.condition, cond);
+                i32 branchFalseList = NO_JUMP;
+                bool usedDirectCompare = false;
 
-                // ⭐ P0修复：参考lua_c_analysis/src/lparser.c:4628 cond函数
-                // 生成条件为假时跳转的代码（使用luaK_goiftrue）
-                luaK_goiftrue(cond);
+                if (const auto* cmp = std::get_if<BinaryExpr>(&branch.condition->variant)) {
+                    OpCode op = OpCode::EQ;
+                    i32 cond = 0;  // 让“条件为假”时执行后续 JMP
+                    bool isComparison = true;
+                    bool swapOperands = false;
+
+                    switch (cmp->op) {
+                        case BinaryExpr::Op::Eq:
+                            op = OpCode::EQ;
+                            cond = 0;
+                            break;
+                        case BinaryExpr::Op::Ne:
+                            op = OpCode::EQ;
+                            cond = 1;
+                            break;
+                        case BinaryExpr::Op::Lt:
+                            op = OpCode::LT;
+                            cond = 0;
+                            break;
+                        case BinaryExpr::Op::Le:
+                            op = OpCode::LE;
+                            cond = 0;
+                            break;
+                        case BinaryExpr::Op::Gt:
+                            op = OpCode::LT;
+                            cond = 0;
+                            swapOperands = true;
+                            break;
+                        case BinaryExpr::Op::Ge:
+                            op = OpCode::LE;
+                            cond = 0;
+                            swapOperands = true;
+                            break;
+                        default:
+                            isComparison = false;
+                            break;
+                    }
+
+                    if (isComparison) {
+                        ExprDesc left;
+                        ExprDesc right;
+                        expr(*cmp->left, left);
+                        expr(*cmp->right, right);
+
+                        if (swapOperands) {
+                            std::swap(left, right);
+                        }
+
+                        i32 o1 = exp2RK(left);
+                        i32 o2 = exp2RK(right);
+                        freeReg(o1);
+                        freeReg(o2);
+
+                        codeABC(op, cond, o1, o2);
+                        branchFalseList = jump();
+                        usedDirectCompare = true;
+                    }
+                }
+
+                if (!usedDirectCompare) {
+                    ExprDesc cond;
+                    expr(*branch.condition, cond);
+
+                    // ⭐ P0修复：参考lua_c_analysis/src/lparser.c:4628 cond函数
+                    // 生成条件为假时跳转的代码（使用luaK_goiftrue）
+                    luaK_goiftrue(cond);
+                    branchFalseList = cond.f;
+                }
 
                 // then块
                 block(branch.body);
 
                 // 保存条件为假时的跳转列表
-                flist = cond.f;
+                flist = branchFalseList;
             }
 
             // 处理elseif分支
@@ -711,17 +776,82 @@ void CodeGenerator::statement(const Stmt& s) {
                 patchtohere(flist);
 
                 const auto& branch = arg.branches[i];
-                ExprDesc cond;
-                expr(*branch.condition, cond);
+                i32 branchFalseList = NO_JUMP;
+                bool usedDirectCompare = false;
 
-                // ⭐ P0修复：生成条件为假时跳转的代码（使用luaK_goiftrue）
-                luaK_goiftrue(cond);
+                if (const auto* cmp = std::get_if<BinaryExpr>(&branch.condition->variant)) {
+                    OpCode op = OpCode::EQ;
+                    i32 cond = 0;
+                    bool isComparison = true;
+                    bool swapOperands = false;
+
+                    switch (cmp->op) {
+                        case BinaryExpr::Op::Eq:
+                            op = OpCode::EQ;
+                            cond = 0;
+                            break;
+                        case BinaryExpr::Op::Ne:
+                            op = OpCode::EQ;
+                            cond = 1;
+                            break;
+                        case BinaryExpr::Op::Lt:
+                            op = OpCode::LT;
+                            cond = 0;
+                            break;
+                        case BinaryExpr::Op::Le:
+                            op = OpCode::LE;
+                            cond = 0;
+                            break;
+                        case BinaryExpr::Op::Gt:
+                            op = OpCode::LT;
+                            cond = 0;
+                            swapOperands = true;
+                            break;
+                        case BinaryExpr::Op::Ge:
+                            op = OpCode::LE;
+                            cond = 0;
+                            swapOperands = true;
+                            break;
+                        default:
+                            isComparison = false;
+                            break;
+                    }
+
+                    if (isComparison) {
+                        ExprDesc left;
+                        ExprDesc right;
+                        expr(*cmp->left, left);
+                        expr(*cmp->right, right);
+
+                        if (swapOperands) {
+                            std::swap(left, right);
+                        }
+
+                        i32 o1 = exp2RK(left);
+                        i32 o2 = exp2RK(right);
+                        freeReg(o1);
+                        freeReg(o2);
+
+                        codeABC(op, cond, o1, o2);
+                        branchFalseList = jump();
+                        usedDirectCompare = true;
+                    }
+                }
+
+                if (!usedDirectCompare) {
+                    ExprDesc cond;
+                    expr(*branch.condition, cond);
+
+                    // ⭐ P0修复：生成条件为假时跳转的代码（使用luaK_goiftrue）
+                    luaK_goiftrue(cond);
+                    branchFalseList = cond.f;
+                }
 
                 // then块
                 block(branch.body);
 
                 // 保存条件为假时的跳转列表
-                flist = cond.f;
+                flist = branchFalseList;
             }
 
             // 处理else块
@@ -749,13 +879,77 @@ void CodeGenerator::statement(const Stmt& s) {
 
             // ⭐ 关键修复：使用cond函数的逻辑（参考lua_c_analysis/src/lparser.c:4625-4630）
             // 生成条件表达式并调用luaK_goiftrue，返回假值跳转列表
-            ExprDesc cond;
-            expr(*arg.condition, cond);
-            if (cond.kind == ExprKind::Nil) {
-                cond.kind = ExprKind::False;
+            i32 condexit = NO_JUMP;
+            bool usedDirectCompare = false;
+
+            if (const auto* cmp = std::get_if<BinaryExpr>(&arg.condition->variant)) {
+                OpCode op = OpCode::EQ;
+                i32 cond = 0;
+                bool isComparison = true;
+                bool swapOperands = false;
+
+                switch (cmp->op) {
+                    case BinaryExpr::Op::Eq:
+                        op = OpCode::EQ;
+                        cond = 0;
+                        break;
+                    case BinaryExpr::Op::Ne:
+                        op = OpCode::EQ;
+                        cond = 1;
+                        break;
+                    case BinaryExpr::Op::Lt:
+                        op = OpCode::LT;
+                        cond = 0;
+                        break;
+                    case BinaryExpr::Op::Le:
+                        op = OpCode::LE;
+                        cond = 0;
+                        break;
+                    case BinaryExpr::Op::Gt:
+                        op = OpCode::LT;
+                        cond = 0;
+                        swapOperands = true;
+                        break;
+                    case BinaryExpr::Op::Ge:
+                        op = OpCode::LE;
+                        cond = 0;
+                        swapOperands = true;
+                        break;
+                    default:
+                        isComparison = false;
+                        break;
+                }
+
+                if (isComparison) {
+                    ExprDesc left;
+                    ExprDesc right;
+                    expr(*cmp->left, left);
+                    expr(*cmp->right, right);
+
+                    if (swapOperands) {
+                        std::swap(left, right);
+                    }
+
+                    i32 o1 = exp2RK(left);
+                    i32 o2 = exp2RK(right);
+                    freeReg(o1);
+                    freeReg(o2);
+
+                    codeABC(op, cond, o1, o2);
+                    condexit = jump();
+                    usedDirectCompare = true;
+                }
             }
-            luaK_goiftrue(cond);
-            i32 condexit = cond.f;  // 保存假值跳转列表
+
+            if (!usedDirectCompare) {
+                ExprDesc cond;
+                expr(*arg.condition, cond);
+                if (cond.kind == ExprKind::Nil) {
+                    cond.kind = ExprKind::False;
+                }
+                luaK_goiftrue(cond);
+                condexit = cond.f;  // 保存假值跳转列表
+            }
 
             // 进入可break的代码块
             enterBlock(true);  // isbreakable = true
