@@ -54,7 +54,7 @@
 // - 为空串：未指定命令行脚本时进入 REPL
 // - 非空串：未指定命令行脚本时优先执行该 Lua 脚本
 #ifndef LUA_TEST_SCRIPT_PATH
-#define LUA_TEST_SCRIPT_PATH "E:/Programming2/lua_in_cpp/lua/tests/lua/functions/factorial.lua"
+#define LUA_TEST_SCRIPT_PATH "E:/Programming2/lua_in_cpp/lua/tests/lua/functions/test_simple_call.lua"
 #endif
 
 // 测试脚本 Trace 输出路径（配合 LUA_TEST_SCRIPT_PATH 使用）。
@@ -62,7 +62,7 @@
 // - 非空串：执行 LUA_TEST_SCRIPT_PATH 时自动启用 Trace，输出到此路径
 //   可在此处直接改为目标路径，或通过编译器定义 /DLUA_TRACE_TEST_SCRIPT_OUTPUT=\"out.jsonl\"
 #ifndef LUA_TRACE_TEST_SCRIPT_OUTPUT
-#define LUA_TRACE_TEST_SCRIPT_OUTPUT "out.jsonl"
+#define LUA_TRACE_TEST_SCRIPT_OUTPUT "bin/out.jsonl"
 #endif
 
 

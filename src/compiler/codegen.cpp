@@ -1949,17 +1949,77 @@ void CodeGenerator::functionStmt(const FunctionStmt& s) {
         // 激活局部变量
         adjustLocalVars(1);
     } else {
-        // 全局函数：function name() end
+        // 全局/表成员函数：function name() end / function t.a.b:name() end
+        i32 savedFreereg = freereg_;
+
         // 生成CLOSURE指令到临时寄存器
         i32 reg = allocReg();
         codeABx(OpCode::CLOSURE, reg, protoIdx);
         emitClosureUpvalues(childUpvalues);
 
-        // 设置全局变量
-        i32 k = stringConstant(s.name);
-        codeABx(OpCode::SETGLOBAL, reg, k);
+        if (s.tablePath.empty()) {
+            // 简单全局函数：_G[name] = closure
+            i32 k = stringConstant(s.name);
+            codeABx(OpCode::SETGLOBAL, reg, k);
+        } else {
+            // 表成员函数：tablePath.name = closure
+            // 例如：
+            // - function t.foo() end      -> t["foo"] = closure
+            // - function t.a.b:c() end    -> t["a"]["b"]["c"] = closure（参数已含self）
+            auto loadNameToReg = [&](const Str& name) -> i32 {
+                ExprDesc d;
+                i32 local = findLocalVar(name);
+                if (local >= 0) {
+                    d.kind = ExprKind::Local;
+                    d.u.s.info = local;
+                } else {
+                    i32 up = resolveUpvalue(name);
+                    if (up >= 0) {
+                        d.kind = ExprKind::Upval;
+                        d.u.s.info = up;
+                    } else {
+                        d.kind = ExprKind::Global;
+                        d.u.s.info = stringConstant(name);
+                    }
+                }
+                return exp2AnyReg(d);
+            };
 
-        freeReg(reg);
+            // 先取到最外层表（tablePath[0]）
+            i32 tableReg = loadNameToReg(s.tablePath[0]);
+
+            // 逐层读取中间字段，定位到最终赋值目标表
+            for (usize i = 1; i < s.tablePath.size(); i++) {
+                ExprDesc t;
+                t.kind = ExprKind::NonRelocatable;
+                t.u.s.info = tableReg;
+                t.t = NO_JUMP;
+                t.f = NO_JUMP;
+
+                ExprDesc k;
+                k.kind = ExprKind::Const;
+                k.u.s.info = stringConstant(s.tablePath[i]);
+                k.t = NO_JUMP;
+                k.f = NO_JUMP;
+
+                luaK_indexed(t, k);      // t[s.tablePath[i]]
+                luaK_dischargevars(t);   // GETTABLE
+                tableReg = exp2AnyReg(t);
+            }
+
+            // 设置最终字段：tableReg[s.name] = closure
+            ExprDesc key;
+            key.kind = ExprKind::Const;
+            key.u.s.info = stringConstant(s.name);
+            key.t = NO_JUMP;
+            key.f = NO_JUMP;
+            i32 rkKey = exp2RK(key);
+            codeABC(OpCode::SETTABLE, tableReg, rkKey, reg);
+        }
+
+        // 释放本语句使用的临时寄存器（包含closure和路径求值临时寄存器）
+        freereg_ = savedFreereg;
+        checkStack(0);
     }
 }
 
