@@ -740,14 +740,17 @@ void CodeGenerator::statement(const Stmt& s) {
             if (nret == 0) {
                 codeABC(OpCode::RETURN, 0, 1, 0);
             } else {
-                i32 base = freereg_;
+                i32 base = nactvar_;
+                i32 savedFreereg = freereg_;
+                freereg_ = base;
+                checkStack(0);
                 for (i32 i = 0; i < nret; i++) {
                     ExprDesc val;
                     expr(*arg.values[i], val);
-                    exp2NextReg(val);
+                    discharge(val, base + i);
                 }
                 codeABC(OpCode::RETURN, base, nret + 1, 0);
-                freeRegs(nret);
+                freereg_ = savedFreereg;
             }
         }
         else if constexpr (std::is_same_v<T, IfStmt>) {
@@ -1752,19 +1755,23 @@ void CodeGenerator::callExpr(const CallExpr& e, ExprDesc& desc) {
     i32 firstArgReg = hasImplicitSelf ? (base + 2) : (base + 1);
     freereg_ = firstArgReg;
     checkStack(0);  // ⭐ P0修复：确保maxStackSize >= freereg_
+    checkStack(explicitArgCount);  // 为参数区预留栈空间
 
-    // 计算每个显式参数，exp2NextReg会将它们连续分配
+    // 将每个显式参数强制放到连续参数寄存器，避免嵌套调用临时寄存器污染参数计数
+    i32 argIndex = 0;
     for (const auto& arg : e.args) {
+        i32 targetReg = firstArgReg + argIndex;
         ExprDesc argDesc;
         expr(*arg, argDesc);
-        exp2NextReg(argDesc);
+        exp2Val(argDesc);  // 固定多返回值表达式为单值参数
+        discharge(argDesc, targetReg);
+        // 锁定已写入的参数寄存器，避免后续嵌套调用覆盖前面的参数
+        if (freereg_ < targetReg + 1) {
+            freereg_ = targetReg + 1;
+        }
+        argIndex++;
     }
 
-    // 计算实参数量（兼容最后一个参数是多返回值表达式）
-    i32 actualExplicitArgs = freereg_ - firstArgReg;
-    if (actualExplicitArgs != explicitArgCount) {
-        explicitArgCount = actualExplicitArgs;
-    }
     i32 nargs = explicitArgCount + (hasImplicitSelf ? 1 : 0);
 
     // 生成CALL指令

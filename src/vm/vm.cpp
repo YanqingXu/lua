@@ -933,11 +933,10 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
                 Value right = getRK(proto, base, c);
                 bool result = vmEqual(L, left, right);
                 base = refreshBase(L);
-                if (result == (a != 0)) {
-                    if (pc < code.size())
-                        pc += GETARG_sBx(code[pc]);
+                // Lua 5.1 语义：若比较结果与A不同，则跳过下一条指令（通常是JMP）
+                if (result != (a != 0)) {
+                    pc++;
                 }
-                pc++; // 跳过 JMP 指令
                 break;
             }
 
@@ -946,11 +945,9 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
                 Value right = getRK(proto, base, c);
                 bool result = vmLessThan(L, left, right);
                 base = refreshBase(L);
-                if (result == (a != 0)) {
-                    if (pc < code.size())
-                        pc += GETARG_sBx(code[pc]);
+                if (result != (a != 0)) {
+                    pc++;
                 }
-                pc++;
                 break;
             }
 
@@ -959,11 +956,9 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
                 Value right = getRK(proto, base, c);
                 bool result = vmLessEqual(L, left, right);
                 base = refreshBase(L);
-                if (result == (a != 0)) {
-                    if (pc < code.size())
-                        pc += GETARG_sBx(code[pc]);
+                if (result != (a != 0)) {
+                    pc++;
                 }
-                pc++;
                 break;
             }
 
@@ -1050,6 +1045,8 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
                 // 收缩栈
                 usize newTop = ci.func + nres;
                 while (stack.size() > newTop) stack.pop();
+                // 同步LuaState逻辑栈顶，避免postcall按过期top_计算返回值数量
+                L->setAbsoluteTop(newTop);
 
                 // 关闭 upvalues
                 L->closeUpvalues(ci.base);
