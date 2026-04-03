@@ -15,6 +15,36 @@
 
 ## 🎯 项目概览
 
+## ⚠️ 必读约定（下次接手先看这里）
+
+### 目录边界
+
+- **本项目的所有代码输出目录只有 `lua/`**
+- **所有代码修改都必须限制在 `lua/` 目录内**
+- `lua/` 之外的目录默认只作为参考资料，不作为本项目的直接实现目录
+
+### 参考项目定位
+
+- **主要参考**：`../lua_c_analysis/`
+  - 一个带有**中文注释**和**中文技术文档**的 Lua 5.1.5 C 源码分析项目
+  - 适合用于理解 Lua 原始实现、核心数据结构、执行流程和设计细节
+- **次要参考**：`../lua_with_cpp/`
+  - 另一个 **C++ Lua 实现（部分完成）**
+  - 适合参考 C++ 组织方式与部分实现思路，但优先级低于 `lua_c_analysis`
+
+### 构建环境约定
+
+- **编译器/IDE**：Visual Studio 2026
+- **构建工具路径**：`D:\VS2026\2026\MSBuild\Current\Bin\MSBuild.exe`
+- **目标平台**：Windows
+- **项目定位**：使用现代 C++ 重新实现 Lua 解释器
+
+### 一句话理解本仓库
+
+> `lua/` 是唯一正式开发目录；`lua_c_analysis/` 是带中文注释的主参考；`lua_with_cpp/` 是次要参考；构建环境固定为 VS2026 + MSBuild。
+
+---
+
 ### 项目目标
 
 本项目旨在**从零开始**使用现代C++（C++17/20/23）重新实现一个完整的**Lua 5.1.5解释器**。
@@ -29,6 +59,8 @@
 
 1. **主要参考**：`lua_c_analysis/` - Lua 5.1.5 C源码 + 53篇中文技术文档
 2. **次要参考**：`lua_with_cpp/` - 另一个C++ Lua实现（部分完成）
+3. **实现边界**：实际代码开发、重构、测试相关修改统一放在 `lua/` 目录内
+4. **构建环境**：默认使用 Visual Studio 2026，MSBuild 路径为 `D:\VS2026\2026\MSBuild\Current\Bin\MSBuild.exe`
 
 ---
 
@@ -1598,6 +1630,7 @@ print(greet("Lua"))  -- 应输出：Hello, Lua!
    - 从零开始用C++17实现Lua 5.1.5解释器
    - 参考`lua_c_analysis`中的Lua C源码（带中文注释）
    - 使用MSVC编译器，Windows平台
+   - **所有正式代码都在 `lua/` 目录内，修改范围默认不出该目录**
 
 2. **已经完成了什么？**
    - ✅ 17个核心模块（Value、GCObject、GCString、StringPool、Table、Function、GarbageCollector、VM、Lexer、Parser、CodeGen等）
@@ -1614,14 +1647,20 @@ print(greet("Lua"))  -- 应输出：Hello, Lua!
    .\build_main.bat debug          # 编译main.cpp（复用测试框架）
    .\build_with_vcvars.bat debug   # 旧版内联测试（备用）
    ```
+   - Visual Studio 2026 构建工具路径：`D:\VS2026\2026\MSBuild\Current\Bin\MSBuild.exe`
+   - 若脚本依赖 MSBuild，请优先确认上述路径可用
 
-4. **下一步做什么？**
+4. **参考目录怎么用？**
+   - `../lua_c_analysis/`：主参考，优先查 Lua 5.1.5 原始设计和中文说明
+   - `../lua_with_cpp/`：次参考，用于补充查看 C++ 写法
+
+5. **下一步做什么？**
    - **推荐P0**：完善基础库实现和测试集成
    - **推荐P0**：完善VM执行引擎 - 支持完整的Lua函数调用
    - **推荐P0**：创建端到端集成测试
    - 参考：本README的"下一步开发计划"章节
 
-5. **在哪里找详细信息？**
+6. **在哪里找详细信息？**
    - 架构设计：`docs/ARCHITECTURE.md`
    - 编码规范：`docs/DEVELOPMENT_GUIDE.md`
    - Lua C源码：`../lua_c_analysis/src/`
