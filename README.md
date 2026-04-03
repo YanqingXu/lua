@@ -2,7 +2,6 @@
 
 > **从零开始用C++17/20/23实现Lua 5.1.5解释器**
 
-[![Build Status](https://img.shields.io/badge/build-passing-brightgreen)]()
 [![Tests](https://img.shields.io/badge/tests-489%2F507-yellow)]()
 [![Coverage](https://img.shields.io/badge/coverage-96.4%25-yellow)]()
 [![C++](https://img.shields.io/badge/C%2B%2B-17-blue)]()
@@ -32,16 +31,9 @@
   - 另一个 **C++ Lua 实现（部分完成）**
   - 适合参考 C++ 组织方式与部分实现思路，但优先级低于 `lua_c_analysis`
 
-### 构建环境约定
-
-- **编译器/IDE**：Visual Studio 2026
-- **构建工具路径**：`D:\VS2026\2026\MSBuild\Current\Bin\MSBuild.exe`
-- **目标平台**：Windows
-- **项目定位**：使用现代 C++ 重新实现 Lua 解释器
-
 ### 一句话理解本仓库
 
-> `lua/` 是唯一正式开发目录；`lua_c_analysis/` 是带中文注释的主参考；`lua_with_cpp/` 是次要参考；构建环境固定为 VS2026 + MSBuild。
+> `lua/` 是唯一正式开发目录；`lua_c_analysis/` 是带中文注释的主参考；`lua_with_cpp/` 是次要参考。
 
 ---
 
@@ -54,13 +46,6 @@
 - 🔧 **技术栈**：C++17标准、MSVC编译器（Visual Studio 2026）、Windows平台
 - ✨ **现代C++**：充分利用现代C++特性（`std::variant`、智能指针、类型别名、STL容器）
 - 🎓 **教育价值**：清晰的架构、完善的测试、详细的文档，适合学习Lua实现原理
-
-### 开发方法
-
-1. **主要参考**：`lua_c_analysis/` - Lua 5.1.5 C源码 + 53篇中文技术文档
-2. **次要参考**：`lua_with_cpp/` - 另一个C++ Lua实现（部分完成）
-3. **实现边界**：实际代码开发、重构、测试相关修改统一放在 `lua/` 目录内
-4. **构建环境**：默认使用 Visual Studio 2026，MSBuild 路径为 `D:\VS2026\2026\MSBuild\Current\Bin\MSBuild.exe`
 
 ---
 
@@ -129,25 +114,6 @@
 失败测试：18个（6个pcall/xpcall + 2个GC + 10个其他）
 编译状态：Debug和Release版本均无警告，无链接冲突
 平台：    Windows + MSVC (Visual Studio 2026)
-```
-
-### 构建系统（2025-12-04新增）⭐
-
-**双模式构建支持**：
-- ✅ **测试模式**：编译所有源文件+测试文件，生成`main_test.exe`，自动运行125个测试
-- ✅ **解释器模式**：仅编译核心源文件，生成`lua.exe`，支持脚本执行和REPL
-- ✅ **Debug/Release**：支持两种构建类型，Release版本优化后仅57.5 KB（减少95%）
-
-**构建脚本**：
-- `build_main.bat` - 主构建脚本（推荐）
-- `build_tests.bat` - 单元测试构建脚本
-- `build_with_vcvars.bat` - 旧版构建脚本（备用）
-
-**构建验证结果**：
-```
-测试模式 Debug:     main_test.exe (1.52 MB) - 125/125测试通过 ✅
-解释器模式 Debug:   lua.exe (1.17 MB) - 命令行参数正常 ✅
-解释器模式 Release: lua.exe (57.5 KB) - 优化成功 ✅
 ```
 
 ### 剩余工作（2025-12-19更新）
@@ -898,10 +864,6 @@ openBaseLib(L);  // 注册所有8个函数到全局环境
 │   │   ├── DEVELOPMENT_GUIDE.md # 编码规范和类型系统使用指南
 │   │   ├── PROJECT_OVERVIEW.md  # 项目总览
 │   │   └── PROJECT_SUMMARY_CN.md # 中文项目总结
-│   ├── build/                   # 构建输出目录（自动生成）
-│   │   ├── debug/              # Debug版本输出
-│   │   └── release/            # Release版本输出
-│   ├── build_with_vcvars.bat   # MSVC构建脚本（主要构建方式）
 │   ├── CMakeLists.txt          # CMake配置（备用）
 │   ├── .gitignore              # Git忽略配置
 │   └── README.md               # 本文件
@@ -927,9 +889,6 @@ openBaseLib(L);  // 注册所有8个函数到全局环境
 
 | 文件 | 用途 | 重要性 |
 |------|------|--------|
-| `build_tests.bat` | 单元测试构建脚本（推荐） | ⭐⭐⭐ |
-| `build_main.bat` | main.cpp构建脚本（复用测试框架） | ⭐⭐⭐ |
-| `build_with_vcvars.bat` | 旧版内联测试构建脚本 | ⭐ |
 | `tests/unit/` | 单元测试文件目录 | ⭐⭐⭐ |
 | `tests/unit/test_framework.hpp` | 测试框架核心 | ⭐⭐⭐ |
 | `tests/unit/test_registry.hpp` | 测试注册函数声明 | ⭐⭐⭐ |
@@ -949,625 +908,6 @@ openBaseLib(L);  // 注册所有8个函数到全局环境
 - **操作系统**：Windows 10/11
 - **编译器**：Visual Studio 2026（MSVC）
 - **C++标准**：C++17
-- **构建工具**：MSVC命令行工具（vcvarsall.bat）
-
-### 编译和测试（2025-12-04更新）
-
-#### 方式1：使用build_main.bat（推荐）⭐
-
-**测试模式**（编译并运行所有测试）：
-```powershell
-cd lua
-.\build_main.bat test debug          # Debug版本
-.\build_main.bat test release        # Release版本
-```
-
-**解释器模式**（生成独立的lua.exe）：
-```powershell
-cd lua
-.\build_main.bat interpreter debug   # Debug版本
-.\build_main.bat interpreter release # Release版本
-
-# 运行生成的解释器
-.\build\interpreter_debug\lua.exe -v        # 显示版本
-.\build\interpreter_debug\lua.exe -h        # 显示帮助
-.\build\interpreter_debug\lua.exe script.lua # 执行脚本（待实现）
-```
-
-**输出示例**（测试模式）：
-```
-========================================
-Lua C++ Interpreter - Unit Test Suite
-========================================
-Test Framework: Custom Lightweight Framework
-Build: Visual Studio 2026 Manual Compilation
-Date: 2025-12-04
-========================================
-
-[INFO] Registering tests...
-[INFO] All tests registered.
-[INFO] Starting test execution...
-
-========================================
-Test Suite: Value
-========================================
-  [PASS] Nil value creation
-  [PASS] Boolean value creation
-  ...
-----------------------------------------
-Total: 16 | Pass: 16 | Fail: 0
-========================================
-
-...
-
-========================================
-Test Summary
-========================================
-Total Tests: 125
-Passed: 125
-Failed: 0
-========================================
-
-[OK] ALL TESTS PASSED!
-```
-
-#### 方式2：使用build_tests.bat
-
-```powershell
-cd lua
-.\build_tests.bat debug              # Debug版本
-.\build_tests.bat release            # Release版本
-```
-
-#### 方式3：使用旧版构建脚本（备用）
-
-```powershell
-.\build_with_vcvars.bat debug        # Debug版本
-.\build_with_vcvars.bat release      # Release版本
-```
-
-### 构建输出
-
-```
-lua/build/
-├── test_main_debug/        # 测试模式Debug版本（build_main.bat）
-│   ├── main_test.exe       # 测试可执行文件（1.52 MB）
-│   ├── *.obj               # 目标文件（38个）
-│   └── *.pdb               # 调试符号
-├── test_main_release/      # 测试模式Release版本
-│   ├── main_test.exe       # 测试可执行文件（优化版）
-│   └── *.obj               # 目标文件
-├── interpreter_debug/      # 解释器模式Debug版本
-│   ├── lua.exe             # Lua解释器（1.17 MB）
-│   ├── *.obj               # 目标文件（23个）
-│   └── *.pdb               # 调试符号
-├── interpreter_release/    # 解释器模式Release版本
-│   ├── lua.exe             # Lua解释器（57.5 KB，优化后）
-│   └── *.obj               # 目标文件
-├── test_debug/             # 单元测试Debug版本（build_tests.bat）
-│   ├── test_runner.exe     # 单元测试可执行文件
-│   └── *.obj               # 目标文件
-└── test_release/           # 单元测试Release版本
-    ├── test_runner.exe     # 单元测试可执行文件
-    └── *.obj               # 目标文件
-```
-
----
-
-## 📅 开发路线图
-
-### 当前状态：✅ 阶段5完成 + 构建系统完善，准备进入阶段6（2025-12-04更新）
-
-| 阶段 | 内容 | 状态 | 完成度 | 完成日期 |
-|------|------|------|--------|---------|
-| **阶段1** | 基础类型系统 | ✅ 完成 | 100% | 2025-11-12 |
-| **阶段2** | 字符串和表系统 | ✅ 完成 | 100% | 2025-11-12 |
-| **阶段3** | 垃圾回收系统 | ✅ 完成 | 100% | 2025-11-12 |
-| **阶段4** | 虚拟机核心 | ✅ 完成 | 100% | 2025-11-12 |
-| **阶段4.5** | Upvalue支持 | ✅ 完成 | 100% | 2025-11-12 |
-| **阶段5** | 编译器 + VM | ✅ 完成 | 100% | 2025-11-13 |
-| **阶段5.5** | 构建系统完善 | ✅ 完成 | 100% | 2025-12-04 |
-| **阶段6** | 标准库 | 🔄 进行中 | 38% | - |
-| **阶段7** | 测试和优化 | ⏳ 待开始 | 0% | - |
-
-### 里程碑
-
-- [x] **M0**: 项目架构设计完成（2025-11-11）
-- [x] **M1**: 基础类型系统实现（Value、GCObject）（2025-11-12）
-- [x] **M2**: 字符串和表系统实现（GCString、StringPool、Table）（2025-11-12）
-- [x] **M3**: 垃圾回收系统实现（GarbageCollector、Function）（2025-11-12）
-- [x] **M4**: 虚拟机核心实现（LuaState、GlobalState、Stack、CallInfo）（2025-11-12）
-- [x] **M4.5**: Upvalue支持实现（Upvalue、Function集成、LuaState集成）（2025-11-12）
-- [x] **M5**: 编译器实现（Lexer、Parser、CodeGen、VM）（2025-11-13）
-- [x] **M5.5**: 构建系统完善（main.cpp重构、build_main.bat双模式、125测试通过）（2025-12-04）⭐
-- [ ] **M6**: 标准库实现（base、table、string、math等）
-- [ ] **M7**: 1.0版本发布
-
----
-
-## 🎯 下一步开发计划（2025-12-04更新）
-
-基于当前项目状态（编译器完成、VM完成、构建系统完善、125测试通过），以下是详细的开发计划：
-
----
-
-### 优先级 P0（本周必须完成）- 核心初始化缺陷修复 ⭐⭐⭐
-
-#### 1. 补充LuaState初始化步骤 ⭐⭐⭐
-
-**当前状态**：
-- ✅ 已完成：基础初始化（全局表、调用栈、值栈）
-- ❌ 缺失：5个关键初始化步骤（参考Lua 5.1.5标准）
-
-**必须完成**：
-
-1. **字符串表初始化** (`luaS_resize`)
-   - 实现 `StringPool::resize(usize newSize)` 方法
-   - 在 `GlobalState` 构造函数中调用 `stringPool_.resize(32)` (MINSTRTABSIZE)
-   - 参考：`lua_c_analysis/src/lstring.c` 中的 `luaS_resize`
-
-2. **元方法名称初始化** (`luaT_init`)
-   - 创建 `GlobalState::initializeMetaMethods()` 方法
-   - 初始化17个元方法名称：`__index`, `__newindex`, `__gc`, `__mode`, `__eq`, `__add`, `__sub`, `__mul`, `__div`, `__mod`, `__pow`, `__unm`, `__len`, `__lt`, `__le`, `__concat`, `__call`
-   - 标记为固定字符串防止GC回收
-   - 参考：`lua_c_analysis/src/ltm.c` 中的 `luaT_init`
-
-3. **保留字初始化** (`luaX_init`)
-   - 创建 `GlobalState::initializeReservedWords()` 方法
-   - 初始化21个保留字：`and`, `break`, `do`, `else`, `elseif`, `end`, `false`, `for`, `function`, `if`, `in`, `local`, `nil`, `not`, `or`, `repeat`, `return`, `then`, `true`, `until`, `while`
-   - 标记为固定字符串防止GC回收
-   - 参考：`lua_c_analysis/src/llex.c` 中的 `luaX_init`
-
-4. **内存错误消息固定**
-   - 在初始化时固定 "not enough memory" 字符串
-   - 添加为GC根对象防止回收
-   - 参考：`lua_c_analysis/src/lstate.c` 中的 `luaS_fix`
-
-5. **GC阈值设置**
-   - 实现 `GlobalState::setGCThreshold(usize threshold)` 方法
-   - 实现 `GlobalState::getTotalBytes()` 方法
-   - 设置阈值为 `4 * totalBytes`
-   - 参考：`lua_c_analysis/src/lstate.c` 中的初始化代码
-
-**预计工作量**：2-3天
-
-**依赖关系**：无
-
-**验收标准**：
-- 所有初始化步骤按照Lua 5.1.5标准顺序执行
-- 字符串表、元方法、保留字正确初始化
-- GC阈值正确设置
-- 通过初始化相关的单元测试
-
-**参考文档**：
-- `lua/docs/INITIALIZATION_CHECKLIST.md`（已删除，内容已整合到本文档）
-- `lua/docs/MAIN_REFACTORING.md`（已删除，内容已整合到本文档）
-- `lua/BUILD_TEST_REPORT.md` - 构建测试报告
-
----
-
-#### 2. 实现脚本执行功能 ⭐⭐
-
-**当前状态**：
-- ✅ 已完成：main.cpp框架，包含 `executeScript()` 函数声明
-- ❌ 未实现：函数体为空
-
-**必须完成**：
-- 实现文件读取逻辑
-- 集成Lexer、Parser、CodeGen、VM完整流程
-- 添加错误处理和报告
-- 支持命令行参数传递
-
-**预计工作量**：1-2天
-
-**依赖关系**：依赖任务1（初始化步骤）
-
-**验收标准**：
-```bash
-# 创建测试脚本
-echo "print('Hello, Lua!')" > test.lua
-
-# 执行脚本
-.\build\interpreter_debug\lua.exe test.lua
-# 应输出：Hello, Lua!
-```
-
----
-
-#### 3. 实现交互式REPL ⭐
-
-**当前状态**：
-- ✅ 已完成：main.cpp框架，包含 `interactiveMode()` 函数声明
-- ❌ 未实现：函数体为空
-
-**必须完成**：
-- 实现readline风格的输入处理
-- 支持多行输入（续行检测）
-- 实现历史记录功能
-- 添加自动补全（可选）
-
-**预计工作量**：2-3天
-
-**依赖关系**：依赖任务1和任务2
-
-**验收标准**：
-```bash
-.\build\interpreter_debug\lua.exe -i
-> print("Hello, Lua!")
-Hello, Lua!
-> x = 42
-> print(x)
-42
-> ^C  # Ctrl+C退出
-```
-
----
-
-### 优先级 P1（下周目标）- 功能完善 ⭐⭐
-
-#### 4. 创建端到端集成测试 ⭐⭐
-
-**当前状态**：
-- ✅ 已完成：单元测试（125个）
-- ❌ 缺失：端到端集成测试（Lexer → Parser → CodeGen → VM → 输出）
-
-**必须完成**：
-- 创建集成测试框架
-- 编写10-20个Lua脚本测试用例
-- 测试完整的编译和执行流程
-- 验证输出正确性
-
-**预计工作量**：2-3天
-
-**依赖关系**：依赖任务1、2、3
-
-**验收标准**：
-```lua
--- test_integration_01.lua
-local x = 10
-local y = 20
-print("x + y =", x + y)  -- 应输出：x + y = 30
-
--- test_integration_02.lua
-function greet(name)
-    return "Hello, " .. name .. "!"
-end
-print(greet("Lua"))  -- 应输出：Hello, Lua!
-```
-
----
-
-#### 5. 扩展标准库 - 基础库剩余函数 ⭐⭐
-
-**当前状态**：
-- ✅ 已完成：8个核心函数（print、type、tostring、tonumber、error、assert、setmetatable、getmetatable）
-- ❌ 缺失：13个剩余函数
-
-**必须完成**：
-- pcall（保护调用）
-- xpcall（扩展保护调用）
-- pairs（表迭代器）
-- ipairs（数组迭代器）
-- next（下一个键值对）
-- rawget（原始表访问）
-- rawset（原始表设置）
-- rawequal（原始相等比较）
-- select（参数选择）
-- unpack（表解包）
-- loadstring（字符串加载）
-- dofile（文件执行）
-- loadfile（文件加载）
-
-**预计工作量**：5-7天
-
-**依赖关系**：依赖任务2（脚本执行）
-
-**参考**：
-- `lua_c_analysis/src/lbaselib.c`
-
----
-
-#### 6. 实现表库（table library） ⭐⭐
-
-**必须完成**：
-- table.insert（插入元素）
-- table.remove（删除元素）
-- table.sort（排序）
-- table.concat（连接）
-- table.maxn（最大索引）
-- table.getn（获取长度）
-
-**预计工作量**：3-4天
-
-**依赖关系**：无
-
-**参考**：
-- `lua_c_analysis/src/ltablib.c`
-
----
-
-#### 7. 实现字符串库（string library） ⭐⭐
-
-**必须完成**：
-- string.sub（子字符串）
-- string.find（查找）
-- string.gsub（替换）
-- string.upper（大写）
-- string.lower（小写）
-- string.len（长度）
-- string.rep（重复）
-- string.reverse（反转）
-- string.format（格式化）
-- string.byte（字节值）
-- string.char（字符）
-
-**预计工作量**：5-7天
-
-**依赖关系**：无
-
-**参考**：
-- `lua_c_analysis/src/lstrlib.c`
-
----
-
-#### 8. 实现数学库（math library） ⭐
-
-**必须完成**：
-- math.abs（绝对值）
-- math.floor（向下取整）
-- math.ceil（向上取整）
-- math.sqrt（平方根）
-- math.min（最小值）
-- math.max（最大值）
-- math.sin、cos、tan（三角函数）
-- math.exp、log（指数和对数）
-- math.random、randomseed（随机数）
-- math.pi（圆周率常量）
-
-**预计工作量**：2-3天
-
-**依赖关系**：无
-
-**参考**：
-- `lua_c_analysis/src/lmathlib.c`
-
----
-
-### 优先级 P2（可选）- 增强功能
-
-#### 9. 实现IO库（io library） ⭐
-
-**必须完成**：
-- io.open（打开文件）
-- io.close（关闭文件）
-- io.read（读取）
-- io.write（写入）
-- io.lines（行迭代器）
-- io.input、io.output（默认输入输出）
-
-**预计工作量**：4-5天
-
-**依赖关系**：依赖任务5（pairs/ipairs）
-
-**参考**：
-- `lua_c_analysis/src/liolib.c`
-
----
-
-#### 10. 实现OS库（os library） ⭐
-
-**必须完成**：
-- os.time（时间）
-- os.date（日期）
-- os.clock（时钟）
-- os.exit（退出）
-- os.getenv（环境变量）
-- os.execute（执行命令）
-
-**预计工作量**：2-3天
-
-**依赖关系**：无
-
-**参考**：
-- `lua_c_analysis/src/loslib.c`
-
----
-
-#### 11. 实现调试库（debug library） ⭐
-
-**必须完成**：
-- debug.getinfo（获取函数信息）
-- debug.traceback（堆栈跟踪）
-- debug.getlocal、setlocal（局部变量）
-- debug.getupvalue、setupvalue（upvalue）
-
-**预计工作量**：5-7天
-
-**依赖关系**：依赖任务2（完整函数调用）
-
-**参考**：
-- `lua_c_analysis/src/ldblib.c`
-
----
-
-#### 12. 实现协程系统（coroutine） ⭐
-
-**必须完成**：
-- coroutine.create（创建协程）
-- coroutine.resume（恢复协程）
-- coroutine.yield（挂起协程）
-- coroutine.status（协程状态）
-- coroutine.wrap（包装协程）
-
-**预计工作量**：7-10天
-
-**依赖关系**：依赖任务2（完整函数调用）
-
-**参考**：
-- `lua_c_analysis/src/lcorolib.c`
-- `lua_c_analysis/src/ldo.c`
-
----
-
-### 🎯 推荐开发路线图
-
-#### 第一阶段（1-2周）：修复核心缺陷，使解释器完全可用
-1. ✅ 完善基础库实现和测试集成（P0-1）
-2. ✅ 完善VM执行引擎 - 支持完整的Lua函数调用（P0-2）
-3. ✅ 创建端到端集成测试（P0-3）
-
-**里程碑**：能够运行简单的Lua脚本，包括函数定义和调用
-
----
-
-#### 第二阶段（2-3周）：完善核心功能
-4. ✅ 完善CodeGenerator - 支持所有控制流语句（P1-4）
-5. ✅ 扩展标准库 - 基础库剩余函数（P1-5）
-6. ✅ 实现表库（P1-6）
-7. ✅ 实现字符串库（P1-7）
-8. ✅ 实现数学库（P1-8）
-
-**里程碑**：能够运行大部分常见的Lua脚本
-
----
-
-#### 第三阶段（2-4周）：增强功能
-9. ✅ 实现IO库（P2-9）
-10. ✅ 实现OS库（P2-10）
-11. ✅ 实现调试库（P2-11）
-
-**里程碑**：支持文件操作和系统交互
-
----
-
-#### 第四阶段（2-3周）：高级功能
-12. ✅ 实现协程系统（P2-12）
-13. ✅ 性能优化和测试
-14. ✅ 文档完善
-
-**里程碑**：1.0版本发布
-
----
-
-## 🎨 模块详解
-
-### Parser（语法分析器）模块
-
-**文件**：
-- `src/compiler/ast.hpp` - AST节点定义（396行）
-- `src/compiler/ast.cpp` - AST辅助函数（109行）
-- `src/compiler/parser.hpp` - Parser类接口（169行）
-- `src/compiler/parser.cpp` - Parser实现（1012行）
-
-**核心功能**：
-
-1. **AST节点类型**：
-   - **表达式节点**：NilExpr, BoolExpr, NumberExpr, StringExpr, VarargExpr, NameExpr, BinaryExpr, UnaryExpr, TableExpr, CallExpr, IndexExpr, MemberExpr, FunctionExpr
-   - **语句节点**：EmptyStmt, AssignStmt, LocalStmt, CallStmt, IfStmt, WhileStmt, RepeatStmt, ForNumStmt, ForInStmt, FunctionStmt, ReturnStmt, BreakStmt, DoStmt
-
-2. **递归下降解析**：
-   - 每个语法规则对应一个解析函数
-   - 自顶向下的解析策略
-   - 清晰的错误报告（行号、列号）
-
-3. **运算符优先级**（从低到高）：
-   ```
-   1. or                    (逻辑或)
-   2. and                   (逻辑与)
-   3. <, >, <=, >=, ==, ~=  (关系运算符)
-   4. ..                    (字符串连接，右结合)
-   5. +, -                  (加减)
-   6. *, /, %               (乘除模)
-   7. not, -, #             (一元运算符)
-   8. ^                     (幂运算，右结合)
-   ```
-
-4. **支持的语法结构**：
-   - ✅ 赋值语句：`x = 42`, `x, y = 1, 2`
-   - ✅ 局部变量：`local x, y = 1, 2`
-   - ✅ 条件语句：`if-then-elseif-else-end`
-   - ✅ 循环语句：`while-do-end`, `repeat-until`, `for-do-end`
-   - ✅ 函数定义：`function name(params) ... end`
-   - ✅ 函数调用：`func(args)`, `obj:method(args)`
-   - ✅ 表构造器：`{1, 2, 3, x=10, ["key"]=20}`
-   - ✅ 表达式：算术、逻辑、关系、字符串连接
-   - ✅ 索引访问：`t[key]`, `t.member`
-
-5. **设计特点**：
-   - 使用`std::variant`实现类型安全的AST节点
-   - 使用`std::unique_ptr`管理AST节点内存
-   - 支持完整的Lua 5.1语法
-   - 详细的错误信息（ParseError异常）
-
-**测试覆盖**：
-- ✅ 简单赋值语句
-- ✅ 局部变量声明
-- ✅ if语句
-- ✅ while循环
-- ✅ 数值for循环
-- ✅ 函数定义
-- ✅ 表构造器
-- ✅ 二元运算表达式
-- ✅ 函数调用
-- ✅ 复杂代码（递归函数）
-
-**参考实现**：
-- `lua_c_analysis/src/lparser.h` 和 `lparser.c` - Lua 5.1.5 C版本语法分析器
-- Lua 5.1 Reference Manual - 语法规范
-
-#### CodeGenerator（字节码生成器）⭐ 新完成
-
-**文件**：`src/compiler/codegen.hpp/cpp` + `opcode.hpp/cpp`
-
-**核心功能**：
-- 将AST转换为Lua 5.1字节码
-- 寄存器分配和管理
-- 常量表管理（数字、字符串、布尔值）
-- 局部变量作用域管理
-- 跳转指令生成和回填
-
-**OpCode指令集**（38条Lua 5.1指令）：
-- **数据移动**：MOVE, LOADK, LOADBOOL, LOADNIL
-- **表操作**：NEWTABLE, GETTABLE, SETTABLE, SETLIST, SELF
-- **全局变量**：GETGLOBAL, SETGLOBAL
-- **Upvalue**：GETUPVAL, SETUPVAL
-- **算术运算**：ADD, SUB, MUL, DIV, MOD, POW, UNM
-- **逻辑运算**：NOT, LEN
-- **关系运算**：EQ, LT, LE
-- **字符串**：CONCAT
-- **控制流**：JMP, TEST, TESTSET
-- **函数调用**：CALL, TAILCALL, RETURN
-- **循环**：FORLOOP, FORPREP, TFORLOOP, TFORCALL
-- **闭包**：CLOSURE
-- **可变参数**：VARARG
-- **其他**：CLOSE
-
-**指令格式**（32位）：
-```cpp
-// iABC:  [OpCode:6][A:8][C:9][B:9]
-// iABx:  [OpCode:6][A:8][Bx:18]
-// iAsBx: [OpCode:6][A:8][sBx:18] (signed)
-```
-
-**技术亮点**：
-- 基于寄存器的虚拟机架构（非栈式）
-- 单遍代码生成
-- RK寻址模式（Register-Constant混合寻址）
-- 跳转链表回填技术
-- 局部变量生命周期管理
-
-**测试覆盖**：
-- ✅ 数字常量（LOADK指令）
-- ✅ 字符串常量（LOADK指令）
-- ✅ 布尔常量（LOADBOOL指令）
-- ✅ nil常量（LOADNIL指令）
-- ✅ 局部变量赋值（寄存器分配）
-- ✅ 全局变量赋值（SETGLOBAL指令）
-- ✅ 多变量赋值（寄存器管理）
-
-**参考实现**：
-- `lua_c_analysis/src/lcode.h` 和 `lcode.c` - Lua 5.1.5 C版本代码生成器
-- `lua_c_analysis/src/lopcodes.h` 和 `lopcodes.c` - Lua 5.1.5 指令集定义
 
 ---
 
@@ -1640,27 +980,17 @@ print(greet("Lua"))  -- 应输出：Hello, Lua!
    - ✅ VM执行引擎完成（38条指令）
    - ✅ 基础库部分完成（8个核心函数）
 
-3. **如何编译和测试？**
-   ```powershell
-   cd lua
-   .\build_tests.bat debug         # 编译并运行单元测试（推荐）
-   .\build_main.bat debug          # 编译main.cpp（复用测试框架）
-   .\build_with_vcvars.bat debug   # 旧版内联测试（备用）
-   ```
-   - Visual Studio 2026 构建工具路径：`D:\VS2026\2026\MSBuild\Current\Bin\MSBuild.exe`
-   - 若脚本依赖 MSBuild，请优先确认上述路径可用
-
-4. **参考目录怎么用？**
+3. **参考目录怎么用？**
    - `../lua_c_analysis/`：主参考，优先查 Lua 5.1.5 原始设计和中文说明
    - `../lua_with_cpp/`：次参考，用于补充查看 C++ 写法
 
-5. **下一步做什么？**
+4. **下一步做什么？**
    - **推荐P0**：完善基础库实现和测试集成
    - **推荐P0**：完善VM执行引擎 - 支持完整的Lua函数调用
    - **推荐P0**：创建端到端集成测试
    - 参考：本README的"下一步开发计划"章节
 
-6. **在哪里找详细信息？**
+5. **在哪里找详细信息？**
    - 架构设计：`docs/ARCHITECTURE.md`
    - 编码规范：`docs/DEVELOPMENT_GUIDE.md`
    - Lua C源码：`../lua_c_analysis/src/`
@@ -1753,69 +1083,6 @@ lua/tests/unit/
 └── test_runner.cpp             # 测试运行器（main函数）
 ```
 
-### 测试覆盖
-
-| 测试套件 | 测试数 | 覆盖内容 |
-|---------|--------|---------|
-| **Value** | 16 | 类型创建、类型检查、安全访问、Lua真值、相等性、toString |
-| **GCString** | 9 | 字符串创建、长度、数据访问、哈希值、GC类型 |
-| **StringPool** | 11 | 字符串驻留、指针相等性、池大小、查找、删除 |
-| **Table** | 13 | 表创建、数组操作、哈希操作、元表、混合存储 |
-| **VM Core** | 23 | GlobalState、Stack、CallInfo、LuaState（栈操作、类型检查、全局变量） |
-| **Function** | 20 | C函数、Lua函数、Proto、常量表、指令、Upvalue、环境表 |
-| **GC** | 18 | GCObject、GarbageCollector、Upvalue（标记、清除、Open/Closed状态） |
-| **Binary/Unary Expressions** | 10 | 二元运算、一元运算、复杂表达式的代码生成 |
-| **Function Codegen** | 16 | 函数定义、局部函数、函数表达式、函数调用、可变参数 |
-| **Base Library** | 6 | 基础库函数（当前跳过，等待完整实现） |
-| **Lua File Compilation** | 5 | Lua文件编译测试 |
-| **总计** | **147** | **全面覆盖所有核心模块和编译器** |
-
-### 质量标准
-
-- ✅ **测试通过率**：100% (147/147)
-- ✅ **编译警告**：0个（Debug和Release版本）
-- ✅ **链接冲突**：无（所有测试文件已重构，消除main函数冲突）
-- ✅ **内存泄漏**：无（手动管理，待添加智能指针）
-- ✅ **代码规范**：遵循类型系统使用规范
-- ✅ **文档完整性**：所有公共API都有注释
-
----
-
-## 📚 文档索引（2025-12-04更新）
-
-### 核心文档
-
-- **[README.md](README.md)** - 本文档，项目总览（2026-01-18更新）⭐
-- **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** - 架构设计文档
-- **[IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md)** - 实施计划
-- **[DEVELOPMENT_GUIDE.md](docs/DEVELOPMENT_GUIDE.md)** - 开发指南
-- **[PROJECT_SUMMARY_CN.md](docs/PROJECT_SUMMARY_CN.md)** - 项目总结（2026-01-18更新）⭐
-- **[DEVELOPMENT_ROADMAP_2026.md](docs/DEVELOPMENT_ROADMAP_2026.md)** - 开发路线图（2026-01-18更新）⭐
-- **[NEXT_STEPS_GUIDE_2026_01_18.md](docs/NEXT_STEPS_GUIDE_2026_01_18.md)** - 下一步行动指南 🆕
-- **[P0_TASK1_COMPLETION_REPORT.md](docs/P0_TASK1_COMPLETION_REPORT.md)** - P0任务1完成报告 🆕
-
-### 构建和测试文档（新增）
-
-- **[BUILD_TEST_REPORT.md](BUILD_TEST_REPORT.md)** - 构建测试报告（2025-12-04）⭐
-  - 125个测试全部通过
-  - 双模式构建验证结果
-  - 文件大小和优化效果
-  - 问题修复记录
-
-### 模块文档
-
-- **[VALUE_SYSTEM.md](docs/VALUE_SYSTEM.md)** - 值系统设计
-- **[GC_DESIGN.md](docs/GC_DESIGN.md)** - 垃圾回收设计
-- **[VM_DESIGN.md](docs/VM_DESIGN.md)** - 虚拟机设计
-- **[COMPILER_DESIGN.md](docs/COMPILER_DESIGN.md)** - 编译器设计
-
-### 测试文档
-
-- **[TESTING_GUIDE.md](docs/TESTING_GUIDE.md)** - 测试指南
-- **[TEST_COVERAGE.md](docs/TEST_COVERAGE.md)** - 测试覆盖率报告
-
----
-
 ## 📊 技术栈和工具
 
 ### 核心技术
@@ -1836,53 +1103,6 @@ lua/tests/unit/
 | 结构化绑定 | 简化代码 | `auto [key, val] : hash_` |
 | `if constexpr` | 编译期条件 | 模板元编程 |
 | 内联变量 | 单例模式 | `inline static StringPool instance` |
-
-### 构建工具
-
-- **主要构建方式**：`build_with_vcvars.bat`（MSVC命令行）
-- **备用构建方式**：CMake（`CMakeLists.txt`）
-- **IDE支持**：Visual Studio 2026
-
----
-
-## 📈 项目统计（2025-12-04更新）
-
-### 代码规模
-
-```
-源文件数：    40+个
-头文件：      20+个 (.hpp)
-实现文件：    20+个 (.cpp)
-测试文件：    15个 (test_*.cpp)
-总代码行数：  约10000+行（不含注释和空行）
-文档行数：    约3500行
-测试用例：    125个
-测试套件：    15个
-通过率：      100% (125/125)
-```
-
-### 构建产物大小（2025-12-04）
-
-| 构建模式 | 构建类型 | 可执行文件 | 大小 | 说明 |
-|---------|---------|-----------|------|------|
-| 测试模式 | Debug | main_test.exe | 1.52 MB | 包含所有测试代码 |
-| 测试模式 | Release | main_test.exe | ~800 KB | 优化版测试 |
-| 解释器模式 | Debug | lua.exe | 1.17 MB | 包含调试符号 |
-| 解释器模式 | Release | lua.exe | **57.5 KB** | 优化后（减少95%）⭐ |
-
-### 对象大小（Release版本）
-
-| 类型 | 大小（字节） | 说明 |
-|------|------------|------|
-| Value | 16 | Lua值（std::variant） |
-| GCObject | 24 | GC对象基类 |
-| GCString | 87 | GC字符串（含数据） |
-| Table | 152 | Lua表 |
-| Proto | 96 | 函数原型 |
-| Function | 48 | 函数闭包 |
-| GarbageCollector | 72 | 垃圾回收器 |
-
----
 
 ## 🔗相关链接
 
@@ -1908,92 +1128,42 @@ lua/tests/unit/
 
 ---
 
-## 📝 开发日志
-
-### 最近更新（2025-12-04更新）
-
-- **2025-12-04**：✅ **构建系统完善和验证**（M5.5里程碑）⭐⭐⭐
-  - 重构main.cpp，实现双模式支持（测试模式/解释器模式）
-  - 重构build_main.bat，支持两种编译模式和两种构建类型
-  - 修复命名冲突bug（runTests变量 vs runTests函数）
-  - 验证测试模式：125/125测试通过（100%）
-  - 验证解释器模式Debug：生成lua.exe（1.17 MB）
-  - 验证解释器模式Release：生成优化版lua.exe（57.5 KB，减少95%）
-  - 验证命令行参数：-v、-h正常工作
-  - 创建BUILD_TEST_REPORT.md详细记录测试结果
-  - 更新三个核心文档（README.md、IMPLEMENTATION_PLAN.md、PROJECT_SUMMARY_CN.md）
-
-- **2025-11-14**：修复测试文件main()函数冲突，重构4个测试文件，消除链接错误，147个测试全部通过
-- **2025-11-14**：代码审查和bug修复，修复35个P0优先级错误（单例模式违规、过时API使用、内存管理问题）
-- **2025-11-14**：重构main.cpp，复用tests/unit/测试框架，避免代码重复（从2572行减少到113行），实现代码共享
-- **2025-11-14**：改进测试框架，将内联测试迁移到独立的单元测试文件，创建自定义轻量级测试框架（无外部依赖），111个单元测试全部通过
-- **2025-11-14**：实现基础库8个核心函数（print、type、tostring、tonumber、error、assert、setmetatable、getmetatable），扩展LuaState API（30+方法）
-- **2025-11-13**：完善VM执行引擎（实现全部38条指令），147个测试全部通过
-- **2025-11-13**：实现CodeGenerator字节码生成器（OpCode + CodeGen），141个测试全部通过
-- **2025-11-13**：实现Parser语法分析器（AST + 递归下降解析），134个测试全部通过
-- **2025-11-12**：实现Lexer词法分析器（Token + 词法规则），124个测试全部通过
-- **2025-11-12**：实现LuaState类（线程执行环境 + Upvalue管理）
-- **2025-11-12**：实现虚拟机核心模块（GlobalState、Stack、CallInfo）
-- **2025-11-12**：实现Upvalue类（闭包上值管理）
-- **2025-11-12**：实现Userdata类（用户数据包装）
-- **2025-11-12**：实现Function类（Proto + Closure），74个测试全部通过
-- **2025-11-12**：实现GarbageCollector类（标记-清除算法）
-- **2025-11-12**：实现Table类（混合存储）
-- **2025-11-12**：实现StringPool和GCString类
-- **2025-11-12**：实现Value和GCObject基础类型系统
-- **2025-11-12**：项目初始化，完成架构设计文档
-
-### Git提交历史
-
-```bash
-# 查看最近的提交
-git log --oneline -10
-
-# 最近的提交示例：
-# 9cbccbb Implement Function class: Proto and Closure support
-# 6086b67 add function
-# 165168b Add garbage collector implementation and update project files
-# 90ef578 Implement GarbageCollector: tri-color mark-and-sweep algorithm
-# ...
-```
-
----
-
 ## 📄 许可证
 
 本项目采用 **MIT 许可证**。
 
 ---
 
-## 🚀 开始开发
+## 🏗️ 子项目说明（Visual Studio 解决方案）
 
-### 对于新的AI会话（2025-12-04更新）
+本仓库在 `lua/` 目录下包含一个 Visual Studio 解决方案，用于组织核心库、运行入口、测试程序和字节码分析工具。
 
-如果你是新的AI助手，请按以下步骤快速了解项目：
+### 解决方案与构建信息
 
-1. **阅读本README**（5分钟）- 了解项目概况和当前状态
-2. **查看BUILD_TEST_REPORT.md**（3分钟）- 了解最新测试结果和构建状态
-3. **查看IMPLEMENTATION_PLAN.md**（5分钟）- 了解实施计划和优先级
-4. **编译并运行测试**（1分钟）- 验证环境
-   ```powershell
-   cd lua
-   .\build_main.bat test debug
-   ```
-   预期输出：125/125测试通过
-5. **查看"下一步开发计划"章节**（3分钟）- 了解P0优先级任务
-6. **开始开发** - 从P0优先级任务开始（LuaState初始化步骤补充）
+- **解决方案文件**：`lua/lua.slnx`
+- **构建工具**：MSBuild
+- **MSBuild路径**：`D:\VS2026\2026\MSBuild\Current\Bin\MSBuild.exe`
+- **默认构建配置**：Debug
+- **默认目标平台**：x64
+- **默认输出目录**：`lua/x64/Debug/`
 
-### 对于人类开发者
+### 四个子项目
 
-欢迎参与本项目的开发！请遵循以下步骤：
+| 项目文件 | 输出类型 | 说明 |
+|---------|---------|------|
+| `lua.vcxproj` | 静态库（`lua.lib`） | 核心库，包含 Lexer、Parser、CodeGen、VM、GC 等所有产品源码，供其他子项目链接使用 |
+| `lua_app.vcxproj` | 可执行文件（`lua_app.exe`） | 临时交互式执行入口（REPL），`main()` 函数为临时实现，后续可能重构 |
+| `lua_test.vcxproj` | 可执行文件（`lua_test.exe`） | 单元测试运行器，覆盖 compiler、core、gc、vm 等各模块的测试用例 |
+| `lua_bytecode.vcxproj` | 可执行文件（`lua_bytecode.exe`） | 字节码分析工具，将源码编译后以人类可读格式打印字节码，用于与原生 Lua（官方实现）的字节码进行对比测试 |
 
-1. Fork本项目
-2. 创建特性分支（`git checkout -b feature/AmazingFeature`）
-3. 提交更改（`git commit -m 'Add some AmazingFeature'`）
-4. 推送到分支（`git push origin feature/AmazingFeature`）
-5. 开启Pull Request
+### 使用建议
 
----
+- 开发核心功能时，优先修改并维护 `lua.vcxproj` 对应的库源码
+- 需要手动运行解释器流程时，使用 `lua_app.vcxproj`
+- 需要验证回归和模块正确性时，使用 `lua_test.vcxproj`
+- 需要分析编译结果或对比官方 Lua 字节码时，使用 `lua_bytecode.vcxproj`
 
-**Happy Coding!** 🎉
+### 一句话理解
+
+> `lua.vcxproj` 是核心静态库；`lua_app.vcxproj` 是临时 REPL 入口；`lua_test.vcxproj` 是测试运行器；`lua_bytecode.vcxproj` 是字节码对比分析工具。
 
