@@ -882,7 +882,7 @@ openBaseLib(L);  // 注册所有8个函数到全局环境
 | `src/bytecode_main.cpp` | `lua_bytecode.exe` 的入口文件 | ⭐⭐⭐ |
 | `src/compiler/bytecode_printer.cpp` | 字节码打印工具的核心实现 | ⭐⭐⭐ |
 | `tests/unit/` | 单元测试目录，是验证 C++ 模块行为的第一入口 | ⭐⭐⭐ |
-| `tests/lua/` | Lua 脚本级样例与回归测试输入 | ⭐⭐ |
+| `tests/lua/` | Lua 脚本级样例与回归测试输入，现已按语法/功能分类整理 | ⭐⭐ |
 | `tools/` | 兼容性构建脚本和辅助脚本 | ⭐ |
 | `docs/ARCHITECTURE.md` | 架构设计说明，适合先建立整体认识 | ⭐⭐⭐ |
 | `docs/DEVELOPMENT_GUIDE.md` | 开发规范与类型系统约定 | ⭐⭐⭐ |

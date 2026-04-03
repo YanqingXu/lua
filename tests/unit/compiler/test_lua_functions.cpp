@@ -32,7 +32,7 @@ void testLuaFunctionFile(TestSuite& suite) {
     // 跳过此测试，因为它依赖于外部 Lua 文件
     // TODO: 创建测试 Lua 文件或使用内联代码
     try {
-        std::string code = readFile("tests/lua/test_functions.lua");
+        std::string code = readFile("tests/lua/functions/test_functions.lua");
         ASSERT_TRUE(suite, code.size() > 0, "File loaded");
 
         // 编译
