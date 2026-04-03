@@ -1525,8 +1525,11 @@ Proto* CodeGenerator::compileFunction(const Vec<Str>& params, bool isVararg, con
         codeABC(OpCode::RETURN, 0, 1, 0);
     }
 
-    // 设置最大栈大小
-    newProto->setMaxStackSize(static_cast<u8>(freereg_));
+    // 设置最大栈大小（只增不减）。
+    // 编译过程中 allocReg/checkStack 已记录过峰值，不能在函数结束时被当前 freereg_ 覆盖。
+    if (static_cast<i32>(newProto->getMaxStackSize()) < freereg_) {
+        newProto->setMaxStackSize(static_cast<u8>(freereg_));
+    }
 
     // 恢复编译状态
     proto_ = savedProto;
