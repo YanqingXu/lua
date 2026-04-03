@@ -421,14 +421,24 @@ void CodeGenerator::discharge(ExprDesc& desc, i32 reg) {
                 codeABC(OpCode::MOVE, reg, desc.u.s.info, 0);
             }
             break;
-        case ExprKind::Vararg:
-        case ExprKind::Call: {
-            // ⭐ Vararg/Call 表达式：与 Relocatable 类似，修改之前生成指令的 A 字段
-            // 参考：lua_c_analysis/src/lcode.c discharge2reg() VCALL/VVARARG 分支
-            i32 pc = (desc.kind == ExprKind::Call) ? desc.u.s.aux : desc.u.s.info;
+        case ExprKind::Vararg: {
+            // Vararg 结果起始寄存器可直接重定位。
+            i32 pc = desc.u.s.info;
             Instruction inst = proto_->getInstruction(pc);
             SETARG_A(inst, reg);
             proto_->setInstruction(pc, inst);
+            break;
+        }
+        case ExprKind::Call: {
+            // Call 不能直接重写 A：
+            // A 同时是“函数寄存器”和“返回值寄存器”基址。
+            // 对诸如 io.open(...)（函数在表索引结果寄存器）直接改 A 会破坏调用布局。
+            i32 pc = desc.u.s.aux;
+            Instruction inst = proto_->getInstruction(pc);
+            i32 callBase = GETARG_A(inst);
+            if (callBase != reg) {
+                codeABC(OpCode::MOVE, reg, callBase, 0);
+            }
             break;
         }
         default:
@@ -624,16 +634,28 @@ void CodeGenerator::statement(const Stmt& s) {
                             SETARG_B(inst, wanted + 1);
                             proto_->setInstruction(pc, inst);
                         } else {
-                            // CALL A B C：修改A和C参数
-                            // ⭐ P0修复：由于我们在编译表达式之前设置了freereg_=base，
-                            // 函数和参数应该已经在正确的位置（base, base+1, base+2, ...）
-                            // 所以只需要修改A和C参数即可
-                            SETARG_A(inst, targetReg);
+                            // CALL A B C：只修改返回值数量（C）。
+                            // 不能直接改 A：
+                            // - A 是函数寄存器，参数位于 A+1...A+n
+                            // - 直接改 A 会让 VM 从错误寄存器读取函数和参数
+                            // 对于 targetReg != funcReg 的情况，调用后补 MOVE。
                             SETARG_C(inst, wanted + 1);
                             proto_->setInstruction(pc, inst);
 
-                            // std::fprintf(stderr, "DEBUG LocalStmt: modified CALL to A=%d, C=%d\n",
-                            //             targetReg, wanted + 1);
+                            i32 callBase = GETARG_A(inst);
+                            if (targetReg != callBase) {
+                                // 将返回值从 callBase... 搬到 targetReg...
+                                // 注意重叠区：target 在右侧时需逆序拷贝，避免覆盖源值。
+                                if (targetReg > callBase) {
+                                    for (i32 j = wanted - 1; j >= 0; --j) {
+                                        codeABC(OpCode::MOVE, targetReg + j, callBase + j, 0);
+                                    }
+                                } else {
+                                    for (i32 j = 0; j < wanted; ++j) {
+                                        codeABC(OpCode::MOVE, targetReg + j, callBase + j, 0);
+                                    }
+                                }
+                            }
                         }
 
                         // ⭐ 关键修复：多返回值表达式会初始化所有剩余变量

@@ -53,7 +53,7 @@
 // - 为空串：未指定命令行脚本时进入 REPL
 // - 非空串：未指定命令行脚本时优先执行该 Lua 脚本
 #ifndef LUA_TEST_SCRIPT_PATH
-#define LUA_TEST_SCRIPT_PATH "E:/Programming2/lua_in_cpp/lua/tests/lua/functions/factorial.lua"
+#define LUA_TEST_SCRIPT_PATH "E:/Programming2/lua_in_cpp/lua/tests/lua/functions/test_call_success.lua"
 #endif
 
 
