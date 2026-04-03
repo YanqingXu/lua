@@ -53,7 +53,7 @@
 // - 为空串：未指定命令行脚本时进入 REPL
 // - 非空串：未指定命令行脚本时优先执行该 Lua 脚本
 #ifndef LUA_TEST_SCRIPT_PATH
-#define LUA_TEST_SCRIPT_PATH "E:/Programming2/lua_in_cpp/lua/tests/lua/control_flow/test_if_nested.lua"
+#define LUA_TEST_SCRIPT_PATH "E:/Programming2/lua_in_cpp/lua/tests/lua/control_flow/test_break_for.lua"
 #endif
 
 

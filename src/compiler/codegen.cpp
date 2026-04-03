@@ -1694,6 +1694,15 @@ void CodeGenerator::forNumStmt(const ForNumStmt& s) {
     addLocalVar(s.var);
     adjustLocalVars(1);
 
+    // 数值 for 需要保留 R(base)..R(base+3)：
+    // - R(base)   = internal index
+    // - R(base+1) = limit
+    // - R(base+2) = step
+    // - R(base+3) = visible loop variable
+    // 循环体中的临时寄存器必须从这之后开始分配，避免覆盖控制寄存器。
+    freereg_ = base + 4;
+    checkStack(0);
+
     // 生成FORPREP指令（跳转到FORLOOP）
     i32 prep = codeAsBx(OpCode::FORPREP, base, 0);  // sBx稍后回填
 
@@ -1764,6 +1773,15 @@ void CodeGenerator::forInStmt(const ForInStmt& s) {
         addLocalVar(var);
     }
     adjustLocalVars(nvars);
+
+    // 泛型 for 需要保留：
+    // - R(base)   = iterator function
+    // - R(base+1) = state
+    // - R(base+2) = control variable
+    // - R(base+3)... = visible loop variables
+    // 循环体临时寄存器从保留区之后开始分配。
+    freereg_ = base + 3 + nvars;
+    checkStack(0);
 
     // 跳转到TFORLOOP（跳过循环体）
     i32 jmpToTfor = codeAsBx(OpCode::JMP, 0, 0);  // sBx稍后回填
