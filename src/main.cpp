@@ -53,7 +53,7 @@
 // - 为空串：未指定命令行脚本时进入 REPL
 // - 非空串：未指定命令行脚本时优先执行该 Lua 脚本
 #ifndef LUA_TEST_SCRIPT_PATH
-#define LUA_TEST_SCRIPT_PATH ""
+#define LUA_TEST_SCRIPT_PATH "E:/Programming2/lua_in_cpp/lua/tests/lua/basic/test_basic.lua"
 #endif
 
 
@@ -379,7 +379,7 @@ int main(int argc, char** argv) {
                 REPL::initialize(L.get());
                 status = REPL::run(L.get());
             } else if (std::filesystem::exists(kTestScriptPath)) {
-                std::cout << "[INFO] 未指定脚本，执行测试脚本: " << kTestScriptPath << std::endl;
+                std::cout << "[INFO] 执行测试脚本: " << kTestScriptPath << std::endl;
                 status = executeScript(L.get(), kTestScriptPath);
             } else {
                 std::ostringstream oss;

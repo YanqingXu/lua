@@ -423,7 +423,7 @@ void CodeGenerator::discharge(ExprDesc& desc, i32 reg) {
         case ExprKind::Call: {
             // ⭐ Vararg/Call 表达式：与 Relocatable 类似，修改之前生成指令的 A 字段
             // 参考：lua_c_analysis/src/lcode.c discharge2reg() VCALL/VVARARG 分支
-            i32 pc = desc.u.s.info;
+            i32 pc = (desc.kind == ExprKind::Call) ? desc.u.s.aux : desc.u.s.info;
             Instruction inst = proto_->getInstruction(pc);
             SETARG_A(inst, reg);
             proto_->setInstruction(pc, inst);
@@ -489,6 +489,14 @@ i32 CodeGenerator::exp2AnyReg(ExprDesc& desc) {
 
 void CodeGenerator::exp2NextReg(ExprDesc& desc) {
     exp2Val(desc);
+
+    // 如果表达式已经位于当前“下一个寄存器”前一个位置，
+    // 说明它已经是连续参数区中的最后一个值，不需要再额外 MOVE。
+    // 这对嵌套调用参数尤其重要，例如 print(type(print))。
+    if (desc.kind == ExprKind::NonRelocatable && desc.u.s.info == freereg_ - 1) {
+        return;
+    }
+
     i32 reg = allocReg();
     discharge(desc, reg);
 }
@@ -1158,7 +1166,7 @@ void CodeGenerator::luaK_dischargevars(ExprDesc& e) {
         case ExprKind::Call: {
             // ⭐ 函数调用：设置 C=2（默认返回 1 个结果），转换为 NonRelocatable
             // 参考：lua_c_analysis/src/lcode.c luaK_dischargevars() VCALL 分支
-            i32 pc = e.u.s.info;
+            i32 pc = e.u.s.aux;
             Instruction inst = proto_->getInstruction(pc);
             SETARG_C(inst, 2);  // C=2 → 返回 1 个值
             proto_->setInstruction(pc, inst);

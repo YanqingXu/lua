@@ -50,12 +50,12 @@ i32 luaB_print(LuaState* L) {
         } else if (L->isTable(i)) {
             // 表类型显示地址
             char buffer[64];
-            std::snprintf(buffer, sizeof(buffer), "table: %p", (void*)&L->at(i));
+            std::snprintf(buffer, sizeof(buffer), "table: %p", static_cast<void*>(L->at(i).asTable()));
             s = buffer;
         } else if (L->isFunction(i)) {
             // 函数类型显示地址
             char buffer[64];
-            std::snprintf(buffer, sizeof(buffer), "function: %p", (void*)&L->at(i));
+            std::snprintf(buffer, sizeof(buffer), "function: %p", static_cast<void*>(L->at(i).asFunction()));
             s = buffer;
         } else {
             s = "unknown";
@@ -131,13 +131,13 @@ i32 luaB_tostring(LuaState* L) {
     } else if (L->isNil(1)) {
         s = "nil";
     } else if (L->isTable(1)) {
-        std::snprintf(buffer, sizeof(buffer), "table: %p", (void*)&L->at(1));
+        std::snprintf(buffer, sizeof(buffer), "table: %p", static_cast<void*>(L->at(1).asTable()));
         s = buffer;
     } else if (L->isFunction(1)) {
-        std::snprintf(buffer, sizeof(buffer), "function: %p", (void*)&L->at(1));
+        std::snprintf(buffer, sizeof(buffer), "function: %p", static_cast<void*>(L->at(1).asFunction()));
         s = buffer;
     } else {
-        std::snprintf(buffer, sizeof(buffer), "%s: %p", L->typeName(L->type(1)), (void*)&L->at(1));
+        std::snprintf(buffer, sizeof(buffer), "%s: %p", L->typeName(L->type(1)), static_cast<void*>(&L->at(1)));
         s = buffer;
     }
 
