@@ -253,18 +253,19 @@ private:
     // =====================================================================
 
     void statement(const Stmt& s);
-    void emitAssignStmt(const AssignStmt& s);
-    void emitLocalStmt(const LocalStmt& s);
-    void emitReturnStmt(const ReturnStmt& s);
-    void emitIfStmt(const IfStmt& s);
-    void emitWhileStmt(const WhileStmt& s);
-    void emitDoStmt(const DoStmt& s);
-    void emitForNumStmt(const ForNumStmt& s);
-    void emitForInStmt(const ForInStmt& s);
-    void emitFunctionStmt(const FunctionStmt& s);
-    void emitCallStmt(const CallStmt& s);
-    void emitBreakStmt(const BreakStmt& s);
-    void emitRepeatStmt(const RepeatStmt& s);
+    void emitStmt(const EmptyStmt& s);
+    void emitStmt(const AssignStmt& s);
+    void emitStmt(const LocalStmt& s);
+    void emitStmt(const ReturnStmt& s);
+    void emitStmt(const IfStmt& s);
+    void emitStmt(const WhileStmt& s);
+    void emitStmt(const DoStmt& s);
+    void emitStmt(const ForNumStmt& s);
+    void emitStmt(const ForInStmt& s);
+    void emitStmt(const FunctionStmt& s);
+    void emitStmt(const CallStmt& s);
+    void emitStmt(const BreakStmt& s);
+    void emitStmt(const RepeatStmt& s);
     void block(const Vec<StmtPtr>& stmts);
 
     // =====================================================================

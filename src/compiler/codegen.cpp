@@ -589,52 +589,15 @@ void CodeGenerator::exp2Val(ExprDesc& desc) {
 
 void CodeGenerator::statement(const Stmt& s) {
     std::visit([this](auto&& arg) {
-        using T = std::decay_t<decltype(arg)>;
-
-        if constexpr (std::is_same_v<T, AssignStmt>) {
-            emitAssignStmt(arg);
-        }
-        else if constexpr (std::is_same_v<T, LocalStmt>) {
-            emitLocalStmt(arg);
-        }
-        else if constexpr (std::is_same_v<T, ReturnStmt>) {
-            emitReturnStmt(arg);
-        }
-        else if constexpr (std::is_same_v<T, IfStmt>) {
-            emitIfStmt(arg);
-        }
-        else if constexpr (std::is_same_v<T, WhileStmt>) {
-            emitWhileStmt(arg);
-        }
-        else if constexpr (std::is_same_v<T, DoStmt>) {
-            emitDoStmt(arg);
-        }
-        else if constexpr (std::is_same_v<T, ForNumStmt>) {
-            emitForNumStmt(arg);
-        }
-        else if constexpr (std::is_same_v<T, ForInStmt>) {
-            emitForInStmt(arg);
-        }
-        else if constexpr (std::is_same_v<T, FunctionStmt>) {
-            emitFunctionStmt(arg);
-        }
-        else if constexpr (std::is_same_v<T, CallStmt>) {
-            emitCallStmt(arg);
-        }
-        else if constexpr (std::is_same_v<T, EmptyStmt>) {
-            // 空语句，不生成代码
-        }
-        else if constexpr (std::is_same_v<T, BreakStmt>) {
-            emitBreakStmt(arg);
-        }
-        else if constexpr (std::is_same_v<T, RepeatStmt>) {
-            emitRepeatStmt(arg);
-        }
-        // 其他语句类型暂不支持
+        emitStmt(arg);
     }, s.variant);
 }
 
-void CodeGenerator::emitAssignStmt(const AssignStmt& s) {
+void CodeGenerator::emitStmt(const EmptyStmt&) {
+    // 空语句，不生成代码
+}
+
+void CodeGenerator::emitStmt(const AssignStmt& s) {
     // 赋值语句：使用 luaK_storevar 统一接口
     // 支持多重赋值：a, b, c = 1, 2, 3
     i32 nvars = static_cast<i32>(s.targets.size());
@@ -667,7 +630,7 @@ void CodeGenerator::emitAssignStmt(const AssignStmt& s) {
     }
 }
 
-void CodeGenerator::emitLocalStmt(const LocalStmt& s) {
+void CodeGenerator::emitStmt(const LocalStmt& s) {
     // ⭐ 局部变量声明
     // 参考：lua_c_analysis/src/lparser.c localstat() 函数
     i32 nvars = static_cast<i32>(s.names.size());
@@ -784,7 +747,7 @@ void CodeGenerator::emitLocalStmt(const LocalStmt& s) {
     adjustLocalVars(nvars);
 }
 
-void CodeGenerator::emitReturnStmt(const ReturnStmt& s) {
+void CodeGenerator::emitStmt(const ReturnStmt& s) {
     // 返回语句
     i32 nret = static_cast<i32>(s.values.size());
     if (nret == 0) {
@@ -804,7 +767,7 @@ void CodeGenerator::emitReturnStmt(const ReturnStmt& s) {
     }
 }
 
-void CodeGenerator::emitIfStmt(const IfStmt& s) {
+void CodeGenerator::emitStmt(const IfStmt& s) {
     // ⭐ P0修复：参考lua_c_analysis/src/lparser.c:5522-5542 ifstat实现
     // if语句的正确处理逻辑
     if (s.branches.empty()) {
@@ -1003,7 +966,7 @@ void CodeGenerator::emitIfStmt(const IfStmt& s) {
     patchtohere(escapelist);
 }
 
-void CodeGenerator::emitWhileStmt(const WhileStmt& s) {
+void CodeGenerator::emitStmt(const WhileStmt& s) {
     // ⭐ P0修复：参考lua_c_analysis/src/lparser.c:4808-4823 whilestat实现
     // while循环
     i32 whileinit = getLabel();
@@ -1098,12 +1061,12 @@ void CodeGenerator::emitWhileStmt(const WhileStmt& s) {
     patchtohere(condexit);
 }
 
-void CodeGenerator::emitDoStmt(const DoStmt& s) {
+void CodeGenerator::emitStmt(const DoStmt& s) {
     // do块
     block(s.body);
 }
 
-void CodeGenerator::emitCallStmt(const CallStmt& s) {
+void CodeGenerator::emitStmt(const CallStmt& s) {
     // ⭐ P0修复：函数调用语句（如 print("Hello")）
     // 参考 lua_c_analysis/src/lparser.c 中的 exprstat 函数
     ExprDesc desc;
@@ -1126,7 +1089,7 @@ void CodeGenerator::emitCallStmt(const CallStmt& s) {
     }
 }
 
-void CodeGenerator::emitBreakStmt(const BreakStmt&) {
+void CodeGenerator::emitStmt(const BreakStmt&) {
     // ⭐ P0修复：参考lua_c_analysis/src/lparser.c:4712-4725 breakstat实现
     // 查找最近的可break代码块
     BlockInfo* bl = currentBlock_;
@@ -1144,7 +1107,7 @@ void CodeGenerator::emitBreakStmt(const BreakStmt&) {
     luaK_concat(bl->breaklist, jump());
 }
 
-void CodeGenerator::emitRepeatStmt(const RepeatStmt&) {
+void CodeGenerator::emitStmt(const RepeatStmt&) {
     // repeat-until 语句，暂时抛出错误
     throw std::runtime_error("repeat-until statement not yet implemented");
 }
@@ -2012,7 +1975,7 @@ void CodeGenerator::tableExpr(const TableExpr& table, ExprDesc& desc) {
     proto_->setInstruction(pc, inst);
 }
 
-void CodeGenerator::emitFunctionStmt(const FunctionStmt& s) {
+void CodeGenerator::emitStmt(const FunctionStmt& s) {
     // 计算函数定义的行号范围
     i32 linedefined = s.line;
     i32 lastlinedefined = getLastLineOfBlock(s.body);
@@ -2101,7 +2064,7 @@ void CodeGenerator::emitFunctionStmt(const FunctionStmt& s) {
     }
 }
 
-void CodeGenerator::emitForNumStmt(const ForNumStmt& s) {
+void CodeGenerator::emitStmt(const ForNumStmt& s) {
     // 数值for循环的字节码模式：
     // R(base) = init
     // R(base+1) = limit
@@ -2167,7 +2130,7 @@ void CodeGenerator::emitForNumStmt(const ForNumStmt& s) {
     freeRegs(4);  // init, limit, step, var
 }
 
-void CodeGenerator::emitForInStmt(const ForInStmt& s) {
+void CodeGenerator::emitStmt(const ForInStmt& s) {
     // 泛型for循环的字节码模式：
     // R(base) = iterator_func
     // R(base+1) = state
