@@ -7,6 +7,8 @@
  */
 
 #include "vm/lua_state.hpp"
+#include "core/userdata.hpp"
+#include "core/function.hpp"
 #include "vm/vm.hpp"
 #include "core/upvalue.hpp"
 
@@ -332,12 +334,6 @@ void LuaState::replace(i32 idx) {
 i32 LuaState::pcall(i32 nargs, i32 nresults, i32 errfunc) {
     // 参考：lua_c_analysis/src/lapi.c:3027 lua_pcall
 
-    // 获取当前调用帧的 base
-    usize base = 0;
-    if (currentCI_ > 0) {
-        base = callStack_[currentCI_].base;
-    }
-
     // 计算函数在栈中的绝对位置（0-based）
     // 栈布局：[... func arg1 arg2 ...]
     // 函数在参数之前，所以 funcIdx = top_ - nargs - 1
@@ -368,11 +364,8 @@ i32 LuaState::pcall(i32 nargs, i32 nresults, i32 errfunc) {
 
     Function* func = funcVal.asFunction();
     if (!func) {
-        // 移除 func 和 args，压入错误消息
-        while (static_cast<i32>(top_) > funcIdx) {
-            pop();
-        }
         auto& pool = getGlobalState().getStringPool();
+        setTop(funcIdx);
         pushString(pool.intern("invalid function"));
         return LUA_ERRRUN;
     }
@@ -392,49 +385,96 @@ i32 LuaState::pcall(i32 nargs, i32 nresults, i32 errfunc) {
         }
     }
 
-    try {
-        // 清空栈，准备执行函数
-        setTop(0);
-        setAbsoluteTop(0);
+    Vec<CallInfo> savedCallStack = callStack_;
+    usize savedCurrentCI = currentCI_;
 
-        // 压入函数和参数
+    auto restoreStackPrefix = [&](const Vec<Value>& prefix) {
+        stack_.clear();
+        top_ = 0;
+        for (const auto& v : prefix) {
+            pushValue(v);
+        }
+    };
+
+    auto restoreCallFrames = [&]() {
+        callStack_ = savedCallStack;
+        currentCI_ = savedCurrentCI;
+    };
+
+    try {
+        // 使用干净的绝对栈执行 protected call，避免当前 C 栈帧残留值干扰结果布局。
+        stack_.clear();
+        top_ = 0;
         pushValue(Value(func));
         for (const auto& arg : args) {
             pushValue(arg);
         }
 
-        // 执行函数
-        VM::execute(this, func);
+        if (func->isCFunction()) {
+            CallInfo& ci = pushCallInfo();
+            ci.func = 0;
+            ci.base = 1;
+            ci.top = 1 + static_cast<usize>(nargs) + 20;
+            ci.nresults = MULTRET;
+            ci.savedpc = nullptr;
+            ci.tailcalls = 0;
 
-        // 同步 top_
-        setAbsoluteTop(stack_.size());
-
-        // 移除栈底的函数对象（如果还在）
-        Vec<Value> results;
-        if (stack_.size() > 0) {
-            const Value& bottom = stack_.at(0);
-            if (bottom.isFunction() && bottom.asFunction() == func) {
-                // 移除函数，保留结果
-                for (usize i = 1; i < stack_.size(); i++) {
-                    results.push_back(stack_.at(i));
-                }
-            } else {
-                // 函数已被移除，所有内容都是结果
-                for (usize i = 0; i < stack_.size(); i++) {
-                    results.push_back(stack_.at(i));
-                }
+            while (stack_.size() < ci.top) {
+                stack_.push(Value());
             }
+            setAbsoluteTop(1 + static_cast<usize>(nargs));
+
+            i32 nReturnValues = func->getCFunction()(this);
+            usize currentTop = getAbsoluteTop();
+            usize firstResult = currentTop - static_cast<usize>(nReturnValues);
+            for (i32 i = 0; i < nReturnValues; i++) {
+                stack_.at(static_cast<usize>(i)) =
+                    stack_.at(firstResult + static_cast<usize>(i));
+            }
+            stack_.setTop(static_cast<usize>(nReturnValues));
+            setAbsoluteTop(static_cast<usize>(nReturnValues));
+            popCallInfo();
+        } else {
+            Proto* proto = func->getProto();
+            if (!proto) {
+                throw std::runtime_error("invalid function");
+            }
+
+            CallInfo& ci = pushCallInfo();
+            ci.func = 0;
+            ci.base = 1;
+            ci.top = ci.base;
+            ci.savedpc = nullptr;
+            ci.nresults = MULTRET;
+            ci.tailcalls = 0;
+
+            usize requiredTop = ci.base + proto->getMaxStackSize();
+            if (stack_.capacity() < requiredTop) {
+                stack_.checkSpace(requiredTop - stack_.size());
+            }
+            while (stack_.size() < requiredTop) {
+                stack_.push(Value());
+            }
+
+            ci.top = requiredTop;
+            setAbsoluteTop(requiredTop);
+
+            VM::executeProto(this, proto, 1);
+            popCallInfo();
         }
 
-        // 恢复栈：[saved...] [results...]
-        setTop(0);
-        setAbsoluteTop(0);
-        for (const auto& v : savedStack) {
-            pushValue(v);
+        Vec<Value> results;
+        for (usize i = 0; i < getAbsoluteTop(); i++) {
+            results.push_back(stack_.at(i));
         }
+
+        restoreCallFrames();
+        restoreStackPrefix(savedStack);
         for (const auto& v : results) {
             pushValue(v);
         }
+
+        setStatus(ThreadStatus::OK);
 
         // 调整返回值数量
         if (nresults != MULTRET) {
@@ -457,11 +497,8 @@ i32 LuaState::pcall(i32 nargs, i32 nresults, i32 errfunc) {
     } catch (const std::exception& e) {
         // 捕获异常并返回错误
         // 恢复栈：[saved...] [error_msg]
-        setTop(0);
-        setAbsoluteTop(0);
-        for (const auto& v : savedStack) {
-            pushValue(v);
-        }
+        restoreCallFrames();
+        restoreStackPrefix(savedStack);
 
         auto& pool = getGlobalState().getStringPool();
 
@@ -472,6 +509,7 @@ i32 LuaState::pcall(i32 nargs, i32 nresults, i32 errfunc) {
         }
 
         pushString(pool.intern(e.what()));
+        setStatus(ThreadStatus::OK);
         return LUA_ERRRUN;
     }
 }
@@ -695,8 +733,13 @@ bool LuaState::getMetatable(i32 idx) {
                 pushTable(mt);
                 return true;
             }
+        } else if (v.isUserdata()) {
+            Table* mt = v.asUserdata()->getMetatable();
+            if (mt) {
+                pushTable(mt);
+                return true;
+            }
         }
-        // TODO: 支持其他类型的元表
         return false;
     } catch (...) {
         return false;
@@ -706,15 +749,23 @@ bool LuaState::getMetatable(i32 idx) {
 bool LuaState::setMetatable(i32 idx) {
     try {
         Value& v = at(idx);
-        if (!v.isTable()) {
+        if (!v.isTable() && !v.isUserdata()) {
             return false;  // 只能为表设置元表
         }
 
         Value& mt = top();
         if (mt.isNil()) {
-            v.asTable()->setMetatable(nullptr);
+            if (v.isTable()) {
+                v.asTable()->setMetatable(nullptr);
+            } else {
+                v.asUserdata()->setMetatable(nullptr);
+            }
         } else if (mt.isTable()) {
-            v.asTable()->setMetatable(mt.asTable());
+            if (v.isTable()) {
+                v.asTable()->setMetatable(mt.asTable());
+            } else {
+                v.asUserdata()->setMetatable(mt.asTable());
+            }
         } else {
             return false;  // 元表必须是表或nil
         }
@@ -737,16 +788,11 @@ void LuaState::error(const char* msg) {
 
 i32 LuaState::error() {
     setStatus(ThreadStatus::ErrRun);
-    try {
-        const char* msg = toString(-1);
-        if (msg) {
-            throw std::runtime_error(msg);
-        } else {
-            throw std::runtime_error("error object is not a string");
-        }
-    } catch (...) {
-        throw std::runtime_error("unknown error");
+    const char* msg = toString(-1);
+    if (msg) {
+        throw std::runtime_error(msg);
     }
+    throw std::runtime_error("error object is not a string");
 }
 
 } // namespace Lua

@@ -54,7 +54,7 @@
 // - 为空串：未指定命令行脚本时进入 REPL
 // - 非空串：未指定命令行脚本时优先执行该 Lua 脚本
 #ifndef LUA_TEST_SCRIPT_PATH
-#define LUA_TEST_SCRIPT_PATH "E:/Programming2/lua_in_cpp/lua/tests/lua/functions/test_table_constructor_multret.lua"
+#define LUA_TEST_SCRIPT_PATH "E:/Programming2/lua_in_cpp/lua/tests/lua/functions/test_vararg_table.lua"
 #endif
 
 // 测试脚本 Trace 输出路径（配合 LUA_TEST_SCRIPT_PATH 使用）。
@@ -250,7 +250,7 @@ int executeScript(LuaState* L, const char* filename) {
         // 步骤3：生成字节码
         StringPool& pool = StringPool::getInstance();
         CodeGenerator codegen(&pool);
-        Proto* proto = codegen.generate(chunk);
+        Proto* proto = codegen.generate(chunk, filename);
 
         if (!proto) {
             REPL::reportError((Str(filename) + ": code generation failed").c_str());

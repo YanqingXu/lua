@@ -152,7 +152,7 @@ public:
      * @param chunk AST根节点
      * @return 生成的函数原型
      */
-    Proto* generate(const Chunk& chunk);
+    Proto* generate(const Chunk& chunk, StrView sourceName = {});
     
 private:
     // =====================================================================
@@ -287,6 +287,7 @@ private:
                           Vec<UpvalueCapture>* outUpvalues = nullptr);
 
     void emitClosureUpvalues(const Vec<UpvalueCapture>& upvalues);
+    void attachDebugMetadata();
 
 private:
     StringPool* pool_;          // 字符串池
@@ -300,6 +301,7 @@ private:
     i32 jpc_;                   // 待处理的跳转链表
     BlockInfo* currentBlock_;   // 当前代码块
     i32 forcedCallBase_;        // 临时强制 CALL 基址（仅供当前最外层 CallExpr 使用）
+    i32 currentLine_;           // 当前发射指令所属的源码行号
 };
 
 }  // namespace Lua

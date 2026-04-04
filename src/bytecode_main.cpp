@@ -40,23 +40,11 @@ int main(int argc, char** argv) {
         Chunk chunk = parser.parse();
 
         CodeGenerator codegen(&pool);
-        Proto* proto = codegen.generate(chunk);
+        Proto* proto = codegen.generate(chunk, scriptPath);
         if (!proto) {
             std::cerr << "[ERROR] Failed to generate Proto" << std::endl;
             return 2;
         }
-
-        // 为了让输出看起来更接近 luaU_print，这里把源文件名写入 Proto::source
-        GCString* sourceName = pool.intern(scriptPath, static_cast<usize>(std::strlen(scriptPath)));
-
-        // 递归设置所有 Proto 的源文件名
-        std::function<void(Proto*)> setSourceRecursive = [&](Proto* p) {
-            p->setSource(sourceName);
-            for (usize i = 0; i < p->getSubProtoCount(); ++i) {
-                setSourceRecursive(p->getSubProto(i));
-            }
-        };
-        setSourceRecursive(proto);
 
         printProtoBytecode(proto, std::cout, full);
 

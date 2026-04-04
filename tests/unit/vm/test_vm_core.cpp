@@ -11,7 +11,14 @@
 #include "vm/stack.hpp"
 #include "vm/call_info.hpp"
 #include "vm/lua_state.hpp"
+#include "vm/vm.hpp"
 #include "core/value.hpp"
+#include "core/userdata.hpp"
+#include "core/function.hpp"
+#include "core/gc_string.hpp"
+#include "compiler/parser.hpp"
+#include "compiler/codegen.hpp"
+#include "lib/iolib.hpp"
 
 using namespace Lua;
 using namespace LuaTest;
@@ -146,6 +153,131 @@ void testLuaStateGlobalVariables(TestSuite& suite) {
     delete L;
 }
 
+static i32 userdata_ping(LuaState* L) {
+    if (!L->isUserdata(1)) {
+        L->pushNil();
+        return 1;
+    }
+
+    L->pushNumber(99.0);
+    return 1;
+}
+
+void testLuaStateUserdataMetatable(TestSuite& suite) {
+    LuaState* L = LuaState::newState();
+    L->setTop(0);
+
+    Userdata* ud = Userdata::createFull(sizeof(i32));
+    Table* mt = new Table();
+    L->getGlobalState().getGC().registerObject(ud);
+    L->getGlobalState().getGC().registerObject(mt);
+
+    L->pushUserdata(ud);
+    L->pushTable(mt);
+
+    ASSERT_TRUE(suite, L->setMetatable(1), "setMetatable supports userdata");
+    ASSERT_TRUE(suite, ud->getMetatable() == mt, "userdata metatable assigned");
+    ASSERT_TRUE(suite, L->getMetatable(1), "getMetatable supports userdata");
+    ASSERT_TRUE(suite, L->top().isTable(), "userdata metatable pushed");
+    if (L->top().isTable()) {
+        ASSERT_TRUE(suite, L->top().asTable() == mt, "userdata metatable matches");
+    }
+
+    delete L;
+}
+
+void testSelfDispatchOnUserdata(TestSuite& suite) {
+    const char* code = "return obj:ping()";
+
+    try {
+        StringPool& pool = StringPool::getInstance();
+        Parser parser(code);
+        Chunk chunk = parser.parse();
+
+        CodeGenerator codegen(&pool);
+        Proto* proto = codegen.generate(chunk, "=(userdata_self)");
+
+        ASSERT_TRUE(suite, proto != nullptr, "Proto generated for userdata SELF");
+
+        LuaState* L = LuaState::newState();
+
+        Userdata* ud = Userdata::createFull(sizeof(i32));
+        Table* mt = new Table();
+        Function* method = new Function(userdata_ping);
+        GCString* pingKey = pool.intern("ping");
+        GCString* indexKey = pool.intern("__index");
+
+        L->getGlobalState().getGC().registerObject(ud);
+        L->getGlobalState().getGC().registerObject(mt);
+        L->getGlobalState().getGC().registerObject(method);
+
+        mt->set(Value(pingKey), Value(method));
+        mt->set(Value(indexKey), Value(mt));
+        ud->setMetatable(mt);
+        L->setGlobal("obj", Value(ud));
+
+        Function* chunkFunc = new Function(proto);
+        chunkFunc->setEnv(L->getGlobalTable());
+        L->getGlobalState().getGC().registerObject(chunkFunc);
+
+        VM::execute(L, chunkFunc);
+
+        ASSERT_TRUE(suite, L->getTop() > 0, "userdata SELF has return value");
+        ASSERT_TRUE(suite, L->top().isNumber(), "userdata SELF returns number");
+        if (L->top().isNumber()) {
+            ASSERT_EQ(suite, 99.0, L->top().asNumber(), "obj:ping() == 99");
+        }
+
+        delete L;
+        delete proto;
+    } catch (const std::exception& e) {
+        std::cout << "  [ERROR] Exception: " << e.what() << std::endl;
+        ASSERT_TRUE(suite, false, "userdata SELF dispatch should not throw");
+    }
+}
+
+void testIOLibFileMetatableHooks(TestSuite& suite) {
+    LuaState* L = LuaState::newState();
+    openIOLib(L);
+
+    auto& pool = L->getGlobalState().getStringPool();
+    Value ioVal = L->getGlobal("io");
+    ASSERT_TRUE(suite, ioVal.isTable(), "io library table exists");
+    if (!ioVal.isTable()) {
+        delete L;
+        return;
+    }
+
+    Table* ioTable = ioVal.asTable();
+    Value stdinVal = ioTable->get(Value(pool.intern("stdin")));
+    ASSERT_TRUE(suite, stdinVal.isUserdata(), "io.stdin is userdata");
+    if (!stdinVal.isUserdata()) {
+        delete L;
+        return;
+    }
+
+    L->setTop(0);
+    L->pushValue(stdinVal);
+    ASSERT_TRUE(suite, L->getMetatable(1), "file handle has metatable");
+    ASSERT_TRUE(suite, L->top().isTable(), "file metatable pushed");
+    if (L->top().isTable()) {
+        Table* mt = L->top().asTable();
+        Value gcMethod = mt->get(Value(pool.intern("__gc")));
+        Value tostringMethod = mt->get(Value(pool.intern("__tostring")));
+        ASSERT_TRUE(suite, gcMethod.isFunction(), "__gc hook is registered");
+        ASSERT_TRUE(suite, tostringMethod.isFunction(), "__tostring hook is registered");
+
+        L->setTop(0);
+        L->pushValue(tostringMethod);
+        L->pushValue(stdinVal);
+        i32 status = L->pcall(1, 1, 0);
+        ASSERT_TRUE(suite, status == LUA_OK || (L->getTop() >= 1 && L->top().isString()), "__tostring hook callable");
+        ASSERT_TRUE(suite, L->getTop() >= 1 && L->top().isString(), "__tostring returns string");
+    }
+
+    delete L;
+}
+
 void registerVMCoreTests() {
     auto& registry = TestRegistry::getInstance();
     
@@ -155,5 +287,8 @@ void registerVMCoreTests() {
     registry.registerTest("VM Core", "LuaState Creation", testLuaStateCreation);
     registry.registerTest("VM Core", "LuaState Stack", testLuaStateStackOperations);
     registry.registerTest("VM Core", "LuaState Globals", testLuaStateGlobalVariables);
+    registry.registerTest("VM Core", "LuaState Userdata Metatable", testLuaStateUserdataMetatable);
+    registry.registerTest("VM Core", "SELF Dispatch On Userdata", testSelfDispatchOnUserdata);
+    registry.registerTest("VM Core", "IOLib File Metatable Hooks", testIOLibFileMetatableHooks);
 }
 

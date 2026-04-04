@@ -132,6 +132,66 @@ void testVarargFunction(TestSuite& suite) {
     delete proto;
 }
 
+void testDebugMetadata(TestSuite& suite) {
+    StringPool& pool = StringPool::getInstance();
+
+    const char* code = "local x = 42\nprint(x)\n";
+    Parser parser(code);
+    Chunk chunk = parser.parse();
+
+    CodeGenerator codegen(&pool);
+    Proto* proto = codegen.generate(chunk, "test_debug_metadata.lua");
+
+    ASSERT_TRUE(suite, proto != nullptr, "Proto generated with debug metadata");
+    ASSERT_TRUE(suite, proto->getSource() != nullptr, "Proto source populated");
+    if (proto->getSource() != nullptr) {
+        ASSERT_TRUE(suite, std::string(proto->getSource()->c_str()) == "test_debug_metadata.lua", "Proto source matches");
+    }
+
+    ASSERT_TRUE(suite, proto->getInstructionCount() > 0, "Has instructions for debug metadata");
+    ASSERT_TRUE(suite, proto->getLine(0) > 0, "Instruction line info populated");
+    ASSERT_TRUE(suite, proto->getLocVarCount() >= 1, "Local variable metadata populated");
+    if (proto->getLocVarCount() >= 1) {
+        ASSERT_TRUE(suite, std::string(proto->getLocVar(0).varname->c_str()) == "x", "Local variable name recorded");
+    }
+
+    delete proto;
+}
+
+void testAssignMultiReturnCall(TestSuite& suite) {
+    StringPool& pool = StringPool::getInstance();
+
+    const char* code =
+        "local ok, err\n"
+        "ok, err = pcall(function() error('boom') end)\n";
+    Parser parser(code);
+    Chunk chunk = parser.parse();
+
+    CodeGenerator codegen(&pool);
+    Proto* proto = codegen.generate(chunk, "test_assign_multret.lua");
+
+    ASSERT_TRUE(suite, proto != nullptr, "Proto generated for multi-return assignment");
+
+    bool sawPcallCall = false;
+    bool sawErrLoadNil = false;
+    for (usize i = 0; i < proto->getInstructionCount(); i++) {
+        Instruction inst = proto->getInstruction(i);
+        if (GET_OPCODE(inst) == OpCode::CALL && GETARG_A(inst) == 3) {
+            sawPcallCall = true;
+            ASSERT_EQ(suite, GETARG_C(inst), 3, "Assignment CALL requests two return values");
+        }
+
+        if (GET_OPCODE(inst) == OpCode::LOADNIL && GETARG_A(inst) == 1 && GETARG_B(inst) == 1) {
+            sawErrLoadNil = true;
+        }
+    }
+
+    ASSERT_TRUE(suite, sawPcallCall, "Found CALL used by assignment");
+    ASSERT_FALSE(suite, sawErrLoadNil, "Multi-return assignment no longer nils second target");
+
+    delete proto;
+}
+
 void registerFunctionCodegenTests() {
     auto& registry = TestRegistry::getInstance();
 
@@ -140,5 +200,7 @@ void registerFunctionCodegenTests() {
     registry.registerTest("Function Codegen", "Function Expression", testFunctionExpr);
     registry.registerTest("Function Codegen", "Function Call", testFunctionCall);
     registry.registerTest("Function Codegen", "Vararg Function", testVarargFunction);
+    registry.registerTest("Function Codegen", "Debug Metadata", testDebugMetadata);
+    registry.registerTest("Function Codegen", "Assign Multi Return Call", testAssignMultiReturnCall);
 }
 

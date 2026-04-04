@@ -905,10 +905,9 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
             case OpCode::SELF: {
                 Value obj = base[b];
                 base[a + 1] = obj;
-                if (!obj.isTable())
-                    throw std::runtime_error("VM: SELF requires table object");
                 Value key = getRK(proto, base, c);
-                base[a] = obj.asTable()->get(key);
+                vmGettable(L, obj, key, base[a]);
+                base = refreshBase(L);
                 break;
             }
 
@@ -1058,7 +1057,14 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
                     nexeccalls++;
                     goto reentry;
                 }
-                // C 函数已在 precall 中执行完毕，刷新 base 继续
+                // C 函数已在 precall 中执行完毕。恢复 Lua 调用帧的寄存器窗口，
+                // 避免随后对更高寄存器的写入被 Stack::top_ 当作“空槽”覆盖。
+                {
+                    CallInfo& callerCI = L->getCurrentCallInfo();
+                    Stack& stack = L->getStack();
+                    stack.setTop(callerCI.top);
+                    L->setAbsoluteTop(callerCI.top);
+                }
                 base = refreshBase(L);
                 break;
             }
@@ -1078,7 +1084,13 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
                     // TODO: 参考 Lua C 实现进行完整的尾调用优化
                     goto reentry;
                 }
-                // C 函数 tailcall
+                // C 函数 tailcall，同步当前 Lua 帧的寄存器窗口。
+                {
+                    CallInfo& callerCI = L->getCurrentCallInfo();
+                    Stack& stack = L->getStack();
+                    stack.setTop(callerCI.top);
+                    L->setAbsoluteTop(callerCI.top);
+                }
                 base = refreshBase(L);
                 break;
             }

@@ -102,21 +102,28 @@ i32 luaB_tostring(LuaState* L) {
 
     const char* s = nullptr;
     char buffer[128];
+    Value original = L->at(1);
 
-    // ⭐ P0修复：完整实现 __tostring 元方法支持
-    // 参考：lua_c_analysis/src/lbaselib.c 中的 luaB_tostring
     if (L->getMetatable(1)) {
-        // 元表在栈顶
         Value mt = L->pop();
         if (mt.isTable()) {
             GCString* tostringKey = L->getGlobalState().getStringPool().intern("__tostring");
             Value tostringMethod = mt.asTable()->get(Value(tostringKey));
             if (tostringMethod.isFunction()) {
-                // 调用 __tostring 元方法
-                // 注意：这里需要使用VM来执行元方法
-                // 暂时标记为TODO，因为需要VM支持
-                // TODO: 实现元方法调用机制
-                // 目前先使用默认转换
+                usize savedTop = L->getAbsoluteTop();
+                L->setTop(0);
+                L->pushValue(tostringMethod);
+                L->pushValue(original);
+
+                if (L->pcall(1, 1, 0) == LUA_OK && L->getTop() >= 1) {
+                    const char* metaResult = L->toString(-1);
+                    if (metaResult != nullptr) {
+                        return 1;
+                    }
+                }
+
+                L->setAbsoluteTop(savedTop);
+                L->getStack().setTop(savedTop);
             }
         }
     }
@@ -682,7 +689,6 @@ i32 luaB_pcall(LuaState* L) {
 
     // 调用 pcall(nargs-1, MULTRET, 0)
     i32 status = L->pcall(nargs - 1, MULTRET, 0);
-
     // 压入状态（true 表示成功，false 表示失败）
     L->pushBoolean(status == LUA_OK);
 
@@ -771,7 +777,7 @@ i32 luaB_loadstring(LuaState* L) {
 
         // 生成字节码
         CodeGenerator codegen(&pool);
-        Proto* proto = codegen.generate(chunk);
+        Proto* proto = codegen.generate(chunk, chunkname);
 
         if (!proto) {
             L->setTop(0);
@@ -861,7 +867,7 @@ i32 luaB_loadfile(LuaState* L) {
 
         // 生成字节码
         CodeGenerator codegen(&pool);
-        Proto* proto = codegen.generate(chunk);
+        Proto* proto = codegen.generate(chunk, filename);
 
         if (!proto) {
             L->setTop(0);

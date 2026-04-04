@@ -127,6 +127,19 @@ FILE** toFilePtr(LuaState* L, i32 idx) {
     return static_cast<FILE**>(ud->getData());
 }
 
+static FILE** toFilePtr(const Value& val) {
+    if (!val.isUserdata()) {
+        return nullptr;
+    }
+
+    Userdata* ud = val.asUserdata();
+    if (ud == nullptr || ud->getDataSize() != sizeof(FILE*)) {
+        return nullptr;
+    }
+
+    return static_cast<FILE**>(ud->getData());
+}
+
 FILE** checkFilePtr(LuaState* L, i32 idx) {
     FILE** fp = toFilePtr(L, idx);
     if (!fp) {
@@ -157,32 +170,24 @@ Userdata* createFileHandle(LuaState* L, FILE* fp) {
 FILE* getDefaultInput(LuaState* L) {
     GCString* key = L->getGlobalState().getStringPool().intern(IO_INPUT);
     Value val = L->getGlobal(key->getData());
-    
-    if (val.isUserdata()) {
-        FILE** fp = toFilePtr(L, L->getTop());
-        L->pop();
 
-        if (fp && *fp) {
-            return *fp;
-        }
+    FILE** fp = toFilePtr(val);
+    if (fp && *fp) {
+        return *fp;
     }
-    
+
     return stdin;
 }
 
 FILE* getDefaultOutput(LuaState* L) {
     GCString* key = L->getGlobalState().getStringPool().intern(IO_OUTPUT);
     Value val = L->getGlobal(key->getData());
-    
-    if (val.isUserdata()) {
-        FILE** fp = toFilePtr(L, L->getTop());
-        L->pop();
 
-        if (fp && *fp) {
-            return *fp;
-        }
+    FILE** fp = toFilePtr(val);
+    if (fp && *fp) {
+        return *fp;
     }
-    
+
     return stdout;
 }
 
@@ -528,7 +533,8 @@ i32 io_popen(LuaState* L) {
  * @brief 实际的读取实现
  */
 static i32 f_read_impl(LuaState* L, FILE* fp, i32 firstArg) {
-    i32 nargs = L->getTop() - firstArg + 1;
+    i32 lastArg = L->getTop();
+    i32 nargs = lastArg - firstArg + 1;
     i32 n = 0;
     bool success = true;
     
@@ -538,7 +544,7 @@ static i32 f_read_impl(LuaState* L, FILE* fp, i32 firstArg) {
         n = success ? 1 : 0;
     } else {
         // 处理每个参数
-        for (i32 i = firstArg; i <= L->getTop(); i++) {
+        for (i32 i = firstArg; i <= lastArg; i++) {
             if (L->isNumber(i)) {
                 // 读取指定字符数
                 f64 num = L->toNumber(i);
@@ -837,11 +843,10 @@ void IOLibModule::registerFunctions(LuaState* L) {
     GCString* gcKey = L->getGlobalState().getStringPool().intern("__gc");
     GCString* tostringKey = L->getGlobalState().getStringPool().intern("__tostring");
     GCString* indexKey = L->getGlobalState().getStringPool().intern("__index");
-    
-    // 创建 __gc 和 __tostring 函数
-    // 注意：这里需要创建 Function 对象
-    // TODO: 完整实现
-    
+
+    FunctionRegistrar::registerToTable(L, fileMT, gcKey->c_str(), io_gc);
+    FunctionRegistrar::registerToTable(L, fileMT, tostringKey->c_str(), io_tostring);
+
     // __index 指向自身
     fileMT->set(Value(indexKey), Value(fileMT));
     

@@ -29,6 +29,7 @@ CodeGenerator::CodeGenerator(StringPool* pool)
     , jpc_(NO_JUMP)
     , currentBlock_(nullptr)
     , forcedCallBase_(-1)
+    , currentLine_(0)
 {
     if (pool == nullptr) {
         throw std::invalid_argument("StringPool cannot be null");
@@ -43,11 +44,14 @@ CodeGenerator::~CodeGenerator() {
 // 主生成函数
 // =====================================================================
 
-Proto* CodeGenerator::generate(const Chunk& chunk) {
+Proto* CodeGenerator::generate(const Chunk& chunk, StrView sourceName) {
     // 创建新的Proto对象
     proto_ = new Proto();
     proto_->setMaxStackSize(2);  // 最小栈大小
     proto_->setVararg(true);     // 主函数（chunk）默认是可变参数的
+    if (!sourceName.empty()) {
+        proto_->setSource(pool_->intern(sourceName));
+    }
 
     // 重置状态
     freereg_ = 0;
@@ -56,6 +60,7 @@ Proto* CodeGenerator::generate(const Chunk& chunk) {
     upvalues_.clear();
     pc_ = 0;
     forcedCallBase_ = -1;
+    currentLine_ = 0;
     
     // 生成语句块
     block(chunk.statements);
@@ -65,6 +70,8 @@ Proto* CodeGenerator::generate(const Chunk& chunk) {
         GET_OPCODE(proto_->getInstruction(proto_->getInstructionCount() - 1)) != OpCode::RETURN) {
         codeABC(OpCode::RETURN, 0, 1, 0);  // return (no values)
     }
+
+    attachDebugMetadata();
     
     return proto_;
 }
@@ -80,7 +87,7 @@ i32 CodeGenerator::codeABC(OpCode op, i32 a, i32 b, i32 c) {
 
     Instruction inst = CREATE_ABC(op, a, b, c);
     i32 pc = static_cast<i32>(proto_->addInstruction(inst));
-    proto_->addLineInfo(0);  // TODO: 添加实际行号
+    proto_->addLineInfo(currentLine_);
     return pc;
 }
 
@@ -90,7 +97,7 @@ i32 CodeGenerator::codeABx(OpCode op, i32 a, i32 bx) {
 
     Instruction inst = CREATE_ABx(op, a, bx);
     i32 pc = static_cast<i32>(proto_->addInstruction(inst));
-    proto_->addLineInfo(0);  // TODO: 添加实际行号
+    proto_->addLineInfo(currentLine_);
     return pc;
 }
 
@@ -100,7 +107,7 @@ i32 CodeGenerator::codeAsBx(OpCode op, i32 a, i32 sbx) {
 
     Instruction inst = CREATE_AsBx(op, a, sbx);
     i32 pc = static_cast<i32>(proto_->addInstruction(inst));
-    proto_->addLineInfo(0);  // TODO: 添加实际行号
+    proto_->addLineInfo(currentLine_);
     return pc;
 }
 
@@ -253,9 +260,15 @@ i32 CodeGenerator::getLabel() {
 // =====================================================================
 
 void CodeGenerator::expr(const Expr& e, ExprDesc& desc) {
+    i32 previousLine = currentLine_;
+    i32 exprLine = e.getLine();
+    if (exprLine > 0) {
+        currentLine_ = exprLine;
+    }
     std::visit([this, &desc](auto&& arg) {
         emitExpr(arg, desc);
     }, e.variant);
+    currentLine_ = previousLine;
 }
 
 void CodeGenerator::emitExpr(const NilExpr&, ExprDesc& desc) {
@@ -775,9 +788,15 @@ void CodeGenerator::exp2Val(ExprDesc& desc) {
 // =====================================================================
 
 void CodeGenerator::statement(const Stmt& s) {
+    i32 previousLine = currentLine_;
+    i32 stmtLine = s.getLine();
+    if (stmtLine > 0) {
+        currentLine_ = stmtLine;
+    }
     std::visit([this](auto&& arg) {
         emitStmt(arg);
     }, s.variant);
+    currentLine_ = previousLine;
 }
 
 void CodeGenerator::emitStmt(const EmptyStmt&) {
@@ -790,8 +809,8 @@ void CodeGenerator::emitStmt(const AssignStmt& s) {
     i32 nvars = static_cast<i32>(s.targets.size());
     i32 nexps = static_cast<i32>(s.values.size());
 
-    // 计算所有右值表达式
-    for (i32 i = 0; i < nexps && i < nvars; i++) {
+    // 先处理除最后一个之外的右值表达式（每个表达式固定对应一个左值）
+    for (i32 i = 0; i < nexps - 1 && i < nvars; i++) {
         ExprDesc val;
         expr(*s.values[i], val);
 
@@ -800,6 +819,46 @@ void CodeGenerator::emitStmt(const AssignStmt& s) {
         expr(*s.targets[i], var);
 
         // 使用统一接口存储值到变量
+        luaK_storevar(var, val);
+    }
+
+    // 处理最后一个右值表达式（可能是多返回值表达式）
+    if (nexps > 0 && nexps <= nvars) {
+        i32 targetIndex = nexps - 1;
+        ExprDesc val;
+        expr(*s.values[targetIndex], val);
+
+        if (val.kind == ExprKind::Vararg || val.kind == ExprKind::Call) {
+            i32 wanted = nvars - targetIndex;
+            i32 pc = (val.kind == ExprKind::Call) ? val.u.s.aux : val.u.s.info;
+            Instruction inst = proto_->getInstruction(pc);
+            i32 valueBase = (val.kind == ExprKind::Call) ? val.u.s.info : GETARG_A(inst);
+
+            if (val.kind == ExprKind::Vararg) {
+                SETARG_B(inst, wanted + 1);
+                proto_->setInstruction(pc, inst);
+                valueBase = GETARG_A(inst);
+            } else {
+                SETARG_C(inst, wanted + 1);
+                proto_->setInstruction(pc, inst);
+            }
+
+            for (i32 j = 0; j < wanted; j++) {
+                ExprDesc var;
+                expr(*s.targets[targetIndex + j], var);
+
+                ExprDesc tmp;
+                tmp.kind = ExprKind::NonRelocatable;
+                tmp.u.s.info = valueBase + j;
+                tmp.t = NO_JUMP;
+                tmp.f = NO_JUMP;
+                luaK_storevar(var, tmp);
+            }
+            return;
+        }
+
+        ExprDesc var;
+        expr(*s.targets[targetIndex], var);
         luaK_storevar(var, val);
     }
 
@@ -1767,6 +1826,7 @@ Proto* CodeGenerator::compileFunction(const Vec<Str>& params, bool isVararg, con
     child.pc_ = 0;
     child.jpc_ = NO_JUMP;
     child.currentBlock_ = nullptr;
+    child.currentLine_ = linedefined;
 
     // 添加参数作为局部变量
     for (const Str& param : params) {
@@ -1788,6 +1848,8 @@ Proto* CodeGenerator::compileFunction(const Vec<Str>& params, bool isVararg, con
     for (const UpvalueCapture& uv : child.upvalues_) {
         newProto->addUpvalueName(pool_->intern(uv.name));
     }
+
+    child.attachDebugMetadata();
 
     // 设置最大栈大小（只增不减）
     if (static_cast<i32>(newProto->getMaxStackSize()) < child.freereg_) {
@@ -2177,7 +2239,7 @@ void CodeGenerator::emitStmt(const ForInStmt& s) {
     checkStack(0);
 
     // 跳转到TFORLOOP（跳过循环体）
-    i32 jmpToTfor = codeAsBx(OpCode::JMP, 0, 0);  // sBx稍后回填
+    i32 jmpToTfor = jump();  // 跳到 TFORLOOP，稍后回填
 
     // 循环体开始
     i32 loopStart = getLabel();
@@ -2207,6 +2269,19 @@ void CodeGenerator::block(const Vec<StmtPtr>& stmts) {
     }
 
     removeLocalVars(oldnactvar);
+}
+
+void CodeGenerator::attachDebugMetadata() {
+    if (proto_ == nullptr) {
+        return;
+    }
+
+    for (const LocalVar& local : localVars_) {
+        i32 endpc = local.endpc >= 0
+            ? local.endpc
+            : static_cast<i32>(proto_->getInstructionCount());
+        proto_->addLocVar(pool_->intern(local.name), local.startpc, endpc);
+    }
 }
 
 // =====================================================================

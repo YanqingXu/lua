@@ -285,7 +285,7 @@ int executeREPLInput(LuaState* L, const Str& source, bool isExpression) {
         // 生成字节码
         StringPool& pool = StringPool::getInstance();
         CodeGenerator codegen(&pool);
-        Proto* proto = codegen.generate(chunk);
+        Proto* proto = codegen.generate(chunk, "=(repl)");
 
         if (!proto) {
             std::cerr << "code generation failed" << std::endl;
