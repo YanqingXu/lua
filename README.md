@@ -841,7 +841,6 @@ openBaseLib(L);  // 注册所有8个函数到全局环境
 │   │       ├── stdlib/            # 标准库测试
 │   │       └── vm/                # VM / LuaState 测试
 │   ├── docs/                      # 项目文档
-│   ├── tools/                     # 辅助构建脚本
 │   ├── tmp/                       # 临时编译中间产物
 │   ├── x64/                       # 统一输出目录（如 `x64/Debug/`）
 │   ├── lua/                       # `lua.vcxproj` 的项目中间目录
@@ -883,7 +882,6 @@ openBaseLib(L);  // 注册所有8个函数到全局环境
 | `src/compiler/bytecode_printer.cpp` | 字节码打印工具的核心实现 | ⭐⭐⭐ |
 | `tests/unit/` | 单元测试目录，是验证 C++ 模块行为的第一入口 | ⭐⭐⭐ |
 | `tests/lua/` | Lua 脚本级样例与回归测试输入，现已按语法/功能分类整理 | ⭐⭐ |
-| `tools/` | 兼容性构建脚本和辅助脚本 | ⭐ |
 | `docs/ARCHITECTURE.md` | 架构设计说明，适合先建立整体认识 | ⭐⭐⭐ |
 | `docs/DEVELOPMENT_GUIDE.md` | 开发规范与类型系统约定 | ⭐⭐⭐ |
 | `lua.slnx` | 当前 Visual Studio 解决方案入口 | ⭐⭐⭐ |
@@ -892,7 +890,6 @@ openBaseLib(L);  // 注册所有8个函数到全局环境
 ### 目录说明补充
 
 - `src/`、`tests/`、`docs/` 是最值得长期关注的三个目录
-- `tools/` 保留了一些脚本化辅助能力，但当前主构建组织方式已经转到 `.slnx + .vcxproj`
 - `tmp/`、`x64/`、`lua/`、`lua_app/`、`lua_bytecode/`、`lua_test/` 主要是构建中间产物或项目生成目录，通常不作为核心实现阅读入口
 
 ---
@@ -1147,25 +1144,25 @@ lua/tests/unit/
 - **默认目标平台**：x64
 - **默认输出目录**：`lua/x64/Debug/`
 
-### 编译批处理脚本（`lua/tools/`）
+### 编译批处理脚本（`lua/bin/`）
 
 所有脚本默认执行 `Rebuild`，并固定使用 `Debug|x64`：
 
 | 脚本 | 对应项目 | 产物 |
 |------|----------|------|
-| `tools/build_lua.bat` | `lua.vcxproj` | `lua.lib`（核心静态库） |
-| `tools/build_app.bat` | `lua_app.vcxproj` | `lua_app.exe` |
-| `tools/build_test.bat` | `lua_test.vcxproj` | `lua_test.exe` |
-| `tools/build_bytecode.bat` | `lua_bytecode.vcxproj` | `lua_bytecode.exe` |
+| `bin/build_lua.bat` | `lua.vcxproj` | `lua.lib`（核心静态库） |
+| `bin/build_app.bat` | `lua_app.vcxproj` | `lua_app.exe` |
+| `bin/build_test.bat` | `lua_test.vcxproj` | `lua_test.exe` |
+| `bin/build_bytecode.bat` | `lua_bytecode.vcxproj` | `lua_bytecode.exe` |
 
 示例：
 
 ```bat
 cd lua
-tools\build_lua.bat
-tools\build_app.bat
-tools\build_test.bat
-tools\build_bytecode.bat
+bin\build_lua.bat
+bin\build_app.bat
+bin\build_test.bat
+bin\build_bytecode.bat
 ```
 
 ### 四个子项目
