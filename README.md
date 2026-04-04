@@ -1147,6 +1147,27 @@ lua/tests/unit/
 - **默认目标平台**：x64
 - **默认输出目录**：`lua/x64/Debug/`
 
+### 编译批处理脚本（`lua/tools/`）
+
+所有脚本默认执行 `Rebuild`，并固定使用 `Debug|x64`：
+
+| 脚本 | 对应项目 | 产物 |
+|------|----------|------|
+| `tools/build_lua.bat` | `lua.vcxproj` | `lua.lib`（核心静态库） |
+| `tools/build_app.bat` | `lua_app.vcxproj` | `lua_app.exe` |
+| `tools/build_test.bat` | `lua_test.vcxproj` | `lua_test.exe` |
+| `tools/build_bytecode.bat` | `lua_bytecode.vcxproj` | `lua_bytecode.exe` |
+
+示例：
+
+```bat
+cd lua
+tools\build_lua.bat
+tools\build_app.bat
+tools\build_test.bat
+tools\build_bytecode.bat
+```
+
 ### 四个子项目
 
 | 项目文件 | 输出类型 | 说明 |

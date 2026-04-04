@@ -253,16 +253,19 @@ private:
     // =====================================================================
 
     void statement(const Stmt& s);
+    void emitAssignStmt(const AssignStmt& s);
+    void emitLocalStmt(const LocalStmt& s);
+    void emitReturnStmt(const ReturnStmt& s);
+    void emitIfStmt(const IfStmt& s);
+    void emitWhileStmt(const WhileStmt& s);
+    void emitDoStmt(const DoStmt& s);
+    void emitForNumStmt(const ForNumStmt& s);
+    void emitForInStmt(const ForInStmt& s);
+    void emitFunctionStmt(const FunctionStmt& s);
+    void emitCallStmt(const CallStmt& s);
+    void emitBreakStmt(const BreakStmt& s);
+    void emitRepeatStmt(const RepeatStmt& s);
     void block(const Vec<StmtPtr>& stmts);
-
-    // 函数定义语句
-    void functionStmt(const FunctionStmt& s);
-
-    // 数值for循环语句
-    void forNumStmt(const ForNumStmt& s);
-
-    // 泛型for循环语句
-    void forInStmt(const ForInStmt& s);
 
     // =====================================================================
     // 代码块管理

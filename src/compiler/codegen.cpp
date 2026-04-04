@@ -592,527 +592,561 @@ void CodeGenerator::statement(const Stmt& s) {
         using T = std::decay_t<decltype(arg)>;
 
         if constexpr (std::is_same_v<T, AssignStmt>) {
-            // 赋值语句：使用 luaK_storevar 统一接口
-            // 支持多重赋值：a, b, c = 1, 2, 3
-            i32 nvars = static_cast<i32>(arg.targets.size());
-            i32 nexps = static_cast<i32>(arg.values.size());
-
-            // 计算所有右值表达式
-            for (i32 i = 0; i < nexps && i < nvars; i++) {
-                ExprDesc val;
-                expr(*arg.values[i], val);
-
-                // 计算左值（目标变量）
-                ExprDesc var;
-                expr(*arg.targets[i], var);
-
-                // 使用统一接口存储值到变量
-                luaK_storevar(var, val);
-            }
-
-            // 如果变量多于值，剩余变量赋值为 nil
-            for (i32 i = nexps; i < nvars; i++) {
-                ExprDesc var;
-                expr(*arg.targets[i], var);
-
-                ExprDesc nil;
-                nil.kind = ExprKind::Nil;
-                nil.t = NO_JUMP;
-                nil.f = NO_JUMP;
-
-                luaK_storevar(var, nil);
-            }
+            emitAssignStmt(arg);
         }
         else if constexpr (std::is_same_v<T, LocalStmt>) {
-            // ⭐ 局部变量声明
-            // 参考：lua_c_analysis/src/lparser.c localstat() 函数
-            i32 nvars = static_cast<i32>(arg.names.size());
-            i32 nexps = static_cast<i32>(arg.values.size());
-
-            // ⭐ 关键修复：保存 nactvar_ 的初始值（第一个变量的寄存器索引）
-            i32 base = nactvar_;
-
-            //std::fprintf(stderr, "DEBUG LocalStmt: nvars=%d, nexps=%d, base=%d, freereg=%d\n",
-            //             nvars, nexps, base, freereg_);
-
-            // ⭐ P0修复：在编译表达式之前，临时调整freereg_
-            // 保存当前的freereg_（可能包含其他临时寄存器）
-            i32 savedFreereg = freereg_;
-
-            // 设置freereg_为base，这样表达式会从base开始分配寄存器
-            freereg_ = base;
-
-            // 为每个变量分配寄存器（addLocalVar 会递增 freereg_）
-            for (i32 i = 0; i < nvars; i++) {
-                addLocalVar(arg.names[i]);
-            }
-
-            //std::fprintf(stderr, "DEBUG LocalStmt: after addLocalVar, freereg=%d\n", freereg_);
-
-            // ⭐ P0修复：重新设置freereg_为base
-            // 这样在编译表达式时，寄存器会从base开始分配
-            freereg_ = base;
-
-            //std::fprintf(stderr, "DEBUG LocalStmt: reset freereg to %d\n", freereg_);
-
-            // 生成初始化代码
-            bool allVarsInitialized = false;  // 标记是否所有变量都已初始化
-            if (nexps > 0) {
-                // 处理前 nexps-1 个表达式（每个表达式对应一个变量）
-                for (i32 i = 0; i < nexps - 1 && i < nvars; i++) {
-                    ExprDesc val;
-                    expr(*arg.values[i], val);
-                    discharge(val, base + i);  // ⭐ 使用 base + i 而不是 nactvar_ + i
-                }
-
-                // 处理最后一个表达式（可能是多返回值表达式）
-                if (nexps <= nvars) {
-                    ExprDesc val;
-                    expr(*arg.values[nexps - 1], val);
-
-                    // 如果是多返回值表达式（Vararg 或 Call），调整返回值数量
-                    if (val.kind == ExprKind::Vararg || val.kind == ExprKind::Call) {
-                        // 需要 nvars - (nexps - 1) 个返回值
-                        i32 wanted = nvars - (nexps - 1);
-                        i32 targetReg = base + (nexps - 1);  // ⭐ 使用 base 而不是 nactvar_
-
-                        // ⭐ P0修复：不要修改CALL指令的A参数！
-                        // 相反，修改C参数（返回值数量），然后生成MOVE指令将返回值移动到目标寄存器
-                        // ⭐ P0修复：对于Call表达式，PC存储在aux字段中，函数寄存器存储在info字段中
-                        i32 pc = (val.kind == ExprKind::Call) ? val.u.s.aux : val.u.s.info;
-                        i32 funcReg = (val.kind == ExprKind::Call) ? val.u.s.info : -1;
-                        Instruction inst = proto_->getInstruction(pc);
-                        i32 oldA = GETARG_A(inst);
-
-                        //std::fprintf(stderr, "DEBUG LocalStmt: CALL at pc=%d, oldA=%d, funcReg=%d, targetReg=%d, wanted=%d\n",
-                        //             pc, oldA, funcReg, targetReg, wanted);
-
-                        if (val.kind == ExprKind::Vararg) {
-                            // VARARG A B：修改A和B参数
-                            SETARG_A(inst, targetReg);
-                            SETARG_B(inst, wanted + 1);
-                            proto_->setInstruction(pc, inst);
-                        } else {
-                            // CALL A B C：只修改返回值数量（C）。
-                            // 不能直接改 A：
-                            // - A 是函数寄存器，参数位于 A+1...A+n
-                            // - 直接改 A 会让 VM 从错误寄存器读取函数和参数
-                            // 对于 targetReg != funcReg 的情况，调用后补 MOVE。
-                            SETARG_C(inst, wanted + 1);
-                            proto_->setInstruction(pc, inst);
-
-                            i32 callBase = GETARG_A(inst);
-                            if (targetReg != callBase) {
-                                // 将返回值从 callBase... 搬到 targetReg...
-                                // 注意重叠区：target 在右侧时需逆序拷贝，避免覆盖源值。
-                                if (targetReg > callBase) {
-                                    for (i32 j = wanted - 1; j >= 0; --j) {
-                                        codeABC(OpCode::MOVE, targetReg + j, callBase + j, 0);
-                                    }
-                                } else {
-                                    for (i32 j = 0; j < wanted; ++j) {
-                                        codeABC(OpCode::MOVE, targetReg + j, callBase + j, 0);
-                                    }
-                                }
-                            }
-                        }
-
-                        // ⭐ 关键修复：多返回值表达式会初始化所有剩余变量
-                        // 标记所有变量都已初始化，避免后续生成 LOADNIL 指令
-                        allVarsInitialized = true;
-                    } else {
-                        // 普通表达式
-                        discharge(val, base + (nexps - 1));  // ⭐ 使用 base 而不是 nactvar_
-                    }
-                }
-            }
-
-            // 未初始化的变量设为nil
-            // ⭐ 关键修复：如果最后一个表达式是多返回值表达式（Vararg/Call），
-            // 它已经初始化了所有剩余变量，不需要再生成 LOADNIL
-            if (nexps < nvars && !allVarsInitialized) {
-                codeABC(OpCode::LOADNIL, base + nexps, base + nvars - 1, 0);  // ⭐ 使用 base 而不是 nactvar_
-            }
-
-            // ⭐ P0修复：恢复freereg_
-            freereg_ = savedFreereg;
-
-            adjustLocalVars(nvars);
+            emitLocalStmt(arg);
         }
         else if constexpr (std::is_same_v<T, ReturnStmt>) {
-            // 返回语句
-            i32 nret = static_cast<i32>(arg.values.size());
-            if (nret == 0) {
-                codeABC(OpCode::RETURN, 0, 1, 0);
-            } else {
-                i32 base = nactvar_;
-                i32 savedFreereg = freereg_;
-                freereg_ = base;
-                checkStack(0);
-                for (i32 i = 0; i < nret; i++) {
-                    ExprDesc val;
-                    expr(*arg.values[i], val);
-                    discharge(val, base + i);
-                }
-                codeABC(OpCode::RETURN, base, nret + 1, 0);
-                freereg_ = savedFreereg;
-            }
+            emitReturnStmt(arg);
         }
         else if constexpr (std::is_same_v<T, IfStmt>) {
-            // ⭐ P0修复：参考lua_c_analysis/src/lparser.c:5522-5542 ifstat实现
-            // if语句的正确处理逻辑
-            if (arg.branches.empty()) {
-                return;
-            }
-
-            i32 escapelist = NO_JUMP;  // 所有分支结束后的跳转列表
-            i32 flist = NO_JUMP;       // 当前分支条件为假时的跳转列表
-
-            // 处理第一个if分支
-            {
-                const auto& branch = arg.branches[0];
-                i32 branchFalseList = NO_JUMP;
-                bool usedDirectCompare = false;
-
-                if (const auto* cmp = std::get_if<BinaryExpr>(&branch.condition->variant)) {
-                    OpCode op = OpCode::EQ;
-                    i32 cond = 0;  // 让“条件为假”时执行后续 JMP
-                    bool isComparison = true;
-                    bool swapOperands = false;
-
-                    switch (cmp->op) {
-                        case BinaryExpr::Op::Eq:
-                            op = OpCode::EQ;
-                            cond = 0;
-                            break;
-                        case BinaryExpr::Op::Ne:
-                            op = OpCode::EQ;
-                            cond = 1;
-                            break;
-                        case BinaryExpr::Op::Lt:
-                            op = OpCode::LT;
-                            cond = 0;
-                            break;
-                        case BinaryExpr::Op::Le:
-                            op = OpCode::LE;
-                            cond = 0;
-                            break;
-                        case BinaryExpr::Op::Gt:
-                            op = OpCode::LT;
-                            cond = 0;
-                            swapOperands = true;
-                            break;
-                        case BinaryExpr::Op::Ge:
-                            op = OpCode::LE;
-                            cond = 0;
-                            swapOperands = true;
-                            break;
-                        default:
-                            isComparison = false;
-                            break;
-                    }
-
-                    if (isComparison) {
-                        ExprDesc left;
-                        ExprDesc right;
-                        expr(*cmp->left, left);
-                        expr(*cmp->right, right);
-
-                        if (swapOperands) {
-                            std::swap(left, right);
-                        }
-
-                        i32 o1 = exp2RK(left);
-                        i32 o2 = exp2RK(right);
-                        freeReg(o1);
-                        freeReg(o2);
-
-                        codeABC(op, cond, o1, o2);
-                        branchFalseList = jump();
-                        usedDirectCompare = true;
-                    }
-                }
-
-                if (!usedDirectCompare) {
-                    ExprDesc cond;
-                    expr(*branch.condition, cond);
-
-                    // ⭐ P0修复：参考lua_c_analysis/src/lparser.c:4628 cond函数
-                    // 生成条件为假时跳转的代码（使用luaK_goiftrue）
-                    luaK_goiftrue(cond);
-                    branchFalseList = cond.f;
-                }
-
-                // then块
-                block(branch.body);
-
-                // 保存条件为假时的跳转列表
-                flist = branchFalseList;
-            }
-
-            // 处理elseif分支
-            for (size_t i = 1; i < arg.branches.size(); i++) {
-                // 在处理下一个分支之前，生成跳过后续分支的JMP
-                luaK_concat(escapelist, jump());
-
-                // ⭐ 关键修复：使用patchtohere（小写h）而不是patchToHere（大写H）
-                // patchtohere将跳转添加到jpc_，在下一次生成指令时自动修补
-                patchtohere(flist);
-
-                const auto& branch = arg.branches[i];
-                i32 branchFalseList = NO_JUMP;
-                bool usedDirectCompare = false;
-
-                if (const auto* cmp = std::get_if<BinaryExpr>(&branch.condition->variant)) {
-                    OpCode op = OpCode::EQ;
-                    i32 cond = 0;
-                    bool isComparison = true;
-                    bool swapOperands = false;
-
-                    switch (cmp->op) {
-                        case BinaryExpr::Op::Eq:
-                            op = OpCode::EQ;
-                            cond = 0;
-                            break;
-                        case BinaryExpr::Op::Ne:
-                            op = OpCode::EQ;
-                            cond = 1;
-                            break;
-                        case BinaryExpr::Op::Lt:
-                            op = OpCode::LT;
-                            cond = 0;
-                            break;
-                        case BinaryExpr::Op::Le:
-                            op = OpCode::LE;
-                            cond = 0;
-                            break;
-                        case BinaryExpr::Op::Gt:
-                            op = OpCode::LT;
-                            cond = 0;
-                            swapOperands = true;
-                            break;
-                        case BinaryExpr::Op::Ge:
-                            op = OpCode::LE;
-                            cond = 0;
-                            swapOperands = true;
-                            break;
-                        default:
-                            isComparison = false;
-                            break;
-                    }
-
-                    if (isComparison) {
-                        ExprDesc left;
-                        ExprDesc right;
-                        expr(*cmp->left, left);
-                        expr(*cmp->right, right);
-
-                        if (swapOperands) {
-                            std::swap(left, right);
-                        }
-
-                        i32 o1 = exp2RK(left);
-                        i32 o2 = exp2RK(right);
-                        freeReg(o1);
-                        freeReg(o2);
-
-                        codeABC(op, cond, o1, o2);
-                        branchFalseList = jump();
-                        usedDirectCompare = true;
-                    }
-                }
-
-                if (!usedDirectCompare) {
-                    ExprDesc cond;
-                    expr(*branch.condition, cond);
-
-                    // ⭐ P0修复：生成条件为假时跳转的代码（使用luaK_goiftrue）
-                    luaK_goiftrue(cond);
-                    branchFalseList = cond.f;
-                }
-
-                // then块
-                block(branch.body);
-
-                // 保存条件为假时的跳转列表
-                flist = branchFalseList;
-            }
-
-            // 处理else块
-            if (!arg.elseBranch.empty()) {
-                // 在处理else块之前，生成跳过else块的JMP
-                luaK_concat(escapelist, jump());
-
-                // ⭐ 关键修复：使用patchtohere（小写h）
-                patchtohere(flist);
-
-                // else块
-                block(arg.elseBranch);
-            } else {
-                // 没有else块：将最后一个分支的假值跳转添加到escapelist
-                luaK_concat(escapelist, flist);
-            }
-
-            // ⭐ 关键修复：使用patchtohere（小写h）
-            patchtohere(escapelist);
+            emitIfStmt(arg);
         }
         else if constexpr (std::is_same_v<T, WhileStmt>) {
-            // ⭐ P0修复：参考lua_c_analysis/src/lparser.c:4808-4823 whilestat实现
-            // while循环
-            i32 whileinit = getLabel();
-
-            // ⭐ 关键修复：使用cond函数的逻辑（参考lua_c_analysis/src/lparser.c:4625-4630）
-            // 生成条件表达式并调用luaK_goiftrue，返回假值跳转列表
-            i32 condexit = NO_JUMP;
-            bool usedDirectCompare = false;
-
-            if (const auto* cmp = std::get_if<BinaryExpr>(&arg.condition->variant)) {
-                OpCode op = OpCode::EQ;
-                i32 cond = 0;
-                bool isComparison = true;
-                bool swapOperands = false;
-
-                switch (cmp->op) {
-                    case BinaryExpr::Op::Eq:
-                        op = OpCode::EQ;
-                        cond = 0;
-                        break;
-                    case BinaryExpr::Op::Ne:
-                        op = OpCode::EQ;
-                        cond = 1;
-                        break;
-                    case BinaryExpr::Op::Lt:
-                        op = OpCode::LT;
-                        cond = 0;
-                        break;
-                    case BinaryExpr::Op::Le:
-                        op = OpCode::LE;
-                        cond = 0;
-                        break;
-                    case BinaryExpr::Op::Gt:
-                        op = OpCode::LT;
-                        cond = 0;
-                        swapOperands = true;
-                        break;
-                    case BinaryExpr::Op::Ge:
-                        op = OpCode::LE;
-                        cond = 0;
-                        swapOperands = true;
-                        break;
-                    default:
-                        isComparison = false;
-                        break;
-                }
-
-                if (isComparison) {
-                    ExprDesc left;
-                    ExprDesc right;
-                    expr(*cmp->left, left);
-                    expr(*cmp->right, right);
-
-                    if (swapOperands) {
-                        std::swap(left, right);
-                    }
-
-                    i32 o1 = exp2RK(left);
-                    i32 o2 = exp2RK(right);
-                    freeReg(o1);
-                    freeReg(o2);
-
-                    codeABC(op, cond, o1, o2);
-                    condexit = jump();
-                    usedDirectCompare = true;
-                }
-            }
-
-            if (!usedDirectCompare) {
-                ExprDesc cond;
-                expr(*arg.condition, cond);
-                if (cond.kind == ExprKind::Nil) {
-                    cond.kind = ExprKind::False;
-                }
-                luaK_goiftrue(cond);
-                condexit = cond.f;  // 保存假值跳转列表
-            }
-
-            // 进入可break的代码块
-            enterBlock(true);  // isbreakable = true
-
-            block(arg.body);
-
-            // 生成回跳到循环开始
-            patchList(jump(), whileinit);
-
-            // 离开代码块，修补所有break跳转
-            leaveBlock();
-
-            // ⭐ 关键修复：使用patchtohere（延迟修补），修补条件为假时的跳转
-            // 参考官方Lua的whilestat实现（lua_c_analysis/src/lparser.c:4822）
-            patchtohere(condexit);
+            emitWhileStmt(arg);
         }
         else if constexpr (std::is_same_v<T, DoStmt>) {
-            // do块
-            block(arg.body);
+            emitDoStmt(arg);
         }
         else if constexpr (std::is_same_v<T, ForNumStmt>) {
-            // 数值for循环
-            forNumStmt(arg);
+            emitForNumStmt(arg);
         }
         else if constexpr (std::is_same_v<T, ForInStmt>) {
-            // 泛型for循环
-            forInStmt(arg);
+            emitForInStmt(arg);
         }
         else if constexpr (std::is_same_v<T, FunctionStmt>) {
-            functionStmt(arg);
+            emitFunctionStmt(arg);
         }
         else if constexpr (std::is_same_v<T, CallStmt>) {
-            // ⭐ P0修复：函数调用语句（如 print("Hello")）
-            // 参考 lua_c_analysis/src/lparser.c 中的 exprstat 函数
-            ExprDesc desc;
-            expr(*arg.call, desc);
-
-            // 对于作为语句的函数调用，需要丢弃返回值
-            // 修改CALL指令的C参数为1，表示0个返回值
-            if (desc.kind == ExprKind::Call) {
-                // 找到最后生成的CALL指令并修改其C参数
-                usize lastInst = proto_->getInstructionCount() - 1;
-                Instruction inst = proto_->getInstruction(lastInst);
-                if (GET_OPCODE(inst) == OpCode::CALL) {
-                    // 重新设置C参数为1（表示0个返回值）
-                    i32 a = GETARG_A(inst);
-                    i32 b = GETARG_B(inst);
-                    proto_->setInstruction(lastInst, CREATE_ABC(OpCode::CALL, a, b, 1));
-                }
-                // 释放函数寄存器
-                freeReg(desc.u.s.info);
-            }
+            emitCallStmt(arg);
         }
         else if constexpr (std::is_same_v<T, EmptyStmt>) {
             // 空语句，不生成代码
         }
         else if constexpr (std::is_same_v<T, BreakStmt>) {
-            // ⭐ P0修复：参考lua_c_analysis/src/lparser.c:4712-4725 breakstat实现
-            // 查找最近的可break代码块
-            BlockInfo* bl = currentBlock_;
-            while (bl && !bl->isbreakable) {
-                bl = bl->previous;
-            }
-
-            // 如果没有找到可break的代码块，报错
-            if (!bl) {
-                throw std::runtime_error("no loop to break");
-            }
-
-            // 生成跳转指令并添加到break列表
-            // 注意：官方Lua还会处理upvalue关闭（OP_CLOSE），但我们暂时不支持upvalue
-            luaK_concat(bl->breaklist, jump());
+            emitBreakStmt(arg);
         }
         else if constexpr (std::is_same_v<T, RepeatStmt>) {
-            // repeat-until 语句，暂时抛出错误
-            throw std::runtime_error("repeat-until statement not yet implemented");
+            emitRepeatStmt(arg);
         }
         // 其他语句类型暂不支持
     }, s.variant);
+}
+
+void CodeGenerator::emitAssignStmt(const AssignStmt& s) {
+    // 赋值语句：使用 luaK_storevar 统一接口
+    // 支持多重赋值：a, b, c = 1, 2, 3
+    i32 nvars = static_cast<i32>(s.targets.size());
+    i32 nexps = static_cast<i32>(s.values.size());
+
+    // 计算所有右值表达式
+    for (i32 i = 0; i < nexps && i < nvars; i++) {
+        ExprDesc val;
+        expr(*s.values[i], val);
+
+        // 计算左值（目标变量）
+        ExprDesc var;
+        expr(*s.targets[i], var);
+
+        // 使用统一接口存储值到变量
+        luaK_storevar(var, val);
+    }
+
+    // 如果变量多于值，剩余变量赋值为 nil
+    for (i32 i = nexps; i < nvars; i++) {
+        ExprDesc var;
+        expr(*s.targets[i], var);
+
+        ExprDesc nil;
+        nil.kind = ExprKind::Nil;
+        nil.t = NO_JUMP;
+        nil.f = NO_JUMP;
+
+        luaK_storevar(var, nil);
+    }
+}
+
+void CodeGenerator::emitLocalStmt(const LocalStmt& s) {
+    // ⭐ 局部变量声明
+    // 参考：lua_c_analysis/src/lparser.c localstat() 函数
+    i32 nvars = static_cast<i32>(s.names.size());
+    i32 nexps = static_cast<i32>(s.values.size());
+
+    // ⭐ 关键修复：保存 nactvar_ 的初始值（第一个变量的寄存器索引）
+    i32 base = nactvar_;
+
+    //std::fprintf(stderr, "DEBUG LocalStmt: nvars=%d, nexps=%d, base=%d, freereg=%d\n",
+    //             nvars, nexps, base, freereg_);
+
+    // ⭐ P0修复：在编译表达式之前，临时调整freereg_
+    // 保存当前的freereg_（可能包含其他临时寄存器）
+    i32 savedFreereg = freereg_;
+
+    // 设置freereg_为base，这样表达式会从base开始分配寄存器
+    freereg_ = base;
+
+    // 为每个变量分配寄存器（addLocalVar 会递增 freereg_）
+    for (i32 i = 0; i < nvars; i++) {
+        addLocalVar(s.names[i]);
+    }
+
+    //std::fprintf(stderr, "DEBUG LocalStmt: after addLocalVar, freereg=%d\n", freereg_);
+
+    // ⭐ P0修复：重新设置freereg_为base
+    // 这样在编译表达式时，寄存器会从base开始分配
+    freereg_ = base;
+
+    //std::fprintf(stderr, "DEBUG LocalStmt: reset freereg to %d\n", freereg_);
+
+    // 生成初始化代码
+    bool allVarsInitialized = false;  // 标记是否所有变量都已初始化
+    if (nexps > 0) {
+        // 处理前 nexps-1 个表达式（每个表达式对应一个变量）
+        for (i32 i = 0; i < nexps - 1 && i < nvars; i++) {
+            ExprDesc val;
+            expr(*s.values[i], val);
+            discharge(val, base + i);  // ⭐ 使用 base + i 而不是 nactvar_ + i
+        }
+
+        // 处理最后一个表达式（可能是多返回值表达式）
+        if (nexps <= nvars) {
+            ExprDesc val;
+            expr(*s.values[nexps - 1], val);
+
+            // 如果是多返回值表达式（Vararg 或 Call），调整返回值数量
+            if (val.kind == ExprKind::Vararg || val.kind == ExprKind::Call) {
+                // 需要 nvars - (nexps - 1) 个返回值
+                i32 wanted = nvars - (nexps - 1);
+                i32 targetReg = base + (nexps - 1);  // ⭐ 使用 base 而不是 nactvar_
+
+                // ⭐ P0修复：不要修改CALL指令的A参数！
+                // 相反，修改C参数（返回值数量），然后生成MOVE指令将返回值移动到目标寄存器
+                // ⭐ P0修复：对于Call表达式，PC存储在aux字段中，函数寄存器存储在info字段中
+                i32 pc = (val.kind == ExprKind::Call) ? val.u.s.aux : val.u.s.info;
+                i32 funcReg = (val.kind == ExprKind::Call) ? val.u.s.info : -1;
+                Instruction inst = proto_->getInstruction(pc);
+                i32 oldA = GETARG_A(inst);
+
+                //std::fprintf(stderr, "DEBUG LocalStmt: CALL at pc=%d, oldA=%d, funcReg=%d, targetReg=%d, wanted=%d\n",
+                //             pc, oldA, funcReg, targetReg, wanted);
+
+                if (val.kind == ExprKind::Vararg) {
+                    // VARARG A B：修改A和B参数
+                    SETARG_A(inst, targetReg);
+                    SETARG_B(inst, wanted + 1);
+                    proto_->setInstruction(pc, inst);
+                } else {
+                    // CALL A B C：只修改返回值数量（C）。
+                    // 不能直接改 A：
+                    // - A 是函数寄存器，参数位于 A+1...A+n
+                    // - 直接改 A 会让 VM 从错误寄存器读取函数和参数
+                    // 对于 targetReg != funcReg 的情况，调用后补 MOVE。
+                    SETARG_C(inst, wanted + 1);
+                    proto_->setInstruction(pc, inst);
+
+                    i32 callBase = GETARG_A(inst);
+                    if (targetReg != callBase) {
+                        // 将返回值从 callBase... 搬到 targetReg...
+                        // 注意重叠区：target 在右侧时需逆序拷贝，避免覆盖源值。
+                        if (targetReg > callBase) {
+                            for (i32 j = wanted - 1; j >= 0; --j) {
+                                codeABC(OpCode::MOVE, targetReg + j, callBase + j, 0);
+                            }
+                        } else {
+                            for (i32 j = 0; j < wanted; ++j) {
+                                codeABC(OpCode::MOVE, targetReg + j, callBase + j, 0);
+                            }
+                        }
+                    }
+                }
+
+                // ⭐ 关键修复：多返回值表达式会初始化所有剩余变量
+                // 标记所有变量都已初始化，避免后续生成 LOADNIL 指令
+                allVarsInitialized = true;
+            } else {
+                // 普通表达式
+                discharge(val, base + (nexps - 1));  // ⭐ 使用 base 而不是 nactvar_
+            }
+        }
+    }
+
+    // 未初始化的变量设为nil
+    // ⭐ 关键修复：如果最后一个表达式是多返回值表达式（Vararg/Call），
+    // 它已经初始化了所有剩余变量，不需要再生成 LOADNIL
+    if (nexps < nvars && !allVarsInitialized) {
+        codeABC(OpCode::LOADNIL, base + nexps, base + nvars - 1, 0);  // ⭐ 使用 base 而不是 nactvar_
+    }
+
+    // ⭐ P0修复：恢复freereg_
+    freereg_ = savedFreereg;
+
+    adjustLocalVars(nvars);
+}
+
+void CodeGenerator::emitReturnStmt(const ReturnStmt& s) {
+    // 返回语句
+    i32 nret = static_cast<i32>(s.values.size());
+    if (nret == 0) {
+        codeABC(OpCode::RETURN, 0, 1, 0);
+    } else {
+        i32 base = nactvar_;
+        i32 savedFreereg = freereg_;
+        freereg_ = base;
+        checkStack(0);
+        for (i32 i = 0; i < nret; i++) {
+            ExprDesc val;
+            expr(*s.values[i], val);
+            discharge(val, base + i);
+        }
+        codeABC(OpCode::RETURN, base, nret + 1, 0);
+        freereg_ = savedFreereg;
+    }
+}
+
+void CodeGenerator::emitIfStmt(const IfStmt& s) {
+    // ⭐ P0修复：参考lua_c_analysis/src/lparser.c:5522-5542 ifstat实现
+    // if语句的正确处理逻辑
+    if (s.branches.empty()) {
+        return;
+    }
+
+    i32 escapelist = NO_JUMP;  // 所有分支结束后的跳转列表
+    i32 flist = NO_JUMP;       // 当前分支条件为假时的跳转列表
+
+    // 处理第一个if分支
+    {
+        const auto& branch = s.branches[0];
+        i32 branchFalseList = NO_JUMP;
+        bool usedDirectCompare = false;
+
+        if (const auto* cmp = std::get_if<BinaryExpr>(&branch.condition->variant)) {
+            OpCode op = OpCode::EQ;
+            i32 cond = 0;  // 让“条件为假”时执行后续 JMP
+            bool isComparison = true;
+            bool swapOperands = false;
+
+            switch (cmp->op) {
+                case BinaryExpr::Op::Eq:
+                    op = OpCode::EQ;
+                    cond = 0;
+                    break;
+                case BinaryExpr::Op::Ne:
+                    op = OpCode::EQ;
+                    cond = 1;
+                    break;
+                case BinaryExpr::Op::Lt:
+                    op = OpCode::LT;
+                    cond = 0;
+                    break;
+                case BinaryExpr::Op::Le:
+                    op = OpCode::LE;
+                    cond = 0;
+                    break;
+                case BinaryExpr::Op::Gt:
+                    op = OpCode::LT;
+                    cond = 0;
+                    swapOperands = true;
+                    break;
+                case BinaryExpr::Op::Ge:
+                    op = OpCode::LE;
+                    cond = 0;
+                    swapOperands = true;
+                    break;
+                default:
+                    isComparison = false;
+                    break;
+            }
+
+            if (isComparison) {
+                ExprDesc left;
+                ExprDesc right;
+                expr(*cmp->left, left);
+                expr(*cmp->right, right);
+
+                if (swapOperands) {
+                    std::swap(left, right);
+                }
+
+                i32 o1 = exp2RK(left);
+                i32 o2 = exp2RK(right);
+                freeReg(o1);
+                freeReg(o2);
+
+                codeABC(op, cond, o1, o2);
+                branchFalseList = jump();
+                usedDirectCompare = true;
+            }
+        }
+
+        if (!usedDirectCompare) {
+            ExprDesc cond;
+            expr(*branch.condition, cond);
+
+            // ⭐ P0修复：参考lua_c_analysis/src/lparser.c:4628 cond函数
+            // 生成条件为假时跳转的代码（使用luaK_goiftrue）
+            luaK_goiftrue(cond);
+            branchFalseList = cond.f;
+        }
+
+        // then块
+        block(branch.body);
+
+        // 保存条件为假时的跳转列表
+        flist = branchFalseList;
+    }
+
+    // 处理elseif分支
+    for (size_t i = 1; i < s.branches.size(); i++) {
+        // 在处理下一个分支之前，生成跳过后续分支的JMP
+        luaK_concat(escapelist, jump());
+
+        // ⭐ 关键修复：使用patchtohere（小写h）而不是patchToHere（大写H）
+        // patchtohere将跳转添加到jpc_，在下一次生成指令时自动修补
+        patchtohere(flist);
+
+        const auto& branch = s.branches[i];
+        i32 branchFalseList = NO_JUMP;
+        bool usedDirectCompare = false;
+
+        if (const auto* cmp = std::get_if<BinaryExpr>(&branch.condition->variant)) {
+            OpCode op = OpCode::EQ;
+            i32 cond = 0;
+            bool isComparison = true;
+            bool swapOperands = false;
+
+            switch (cmp->op) {
+                case BinaryExpr::Op::Eq:
+                    op = OpCode::EQ;
+                    cond = 0;
+                    break;
+                case BinaryExpr::Op::Ne:
+                    op = OpCode::EQ;
+                    cond = 1;
+                    break;
+                case BinaryExpr::Op::Lt:
+                    op = OpCode::LT;
+                    cond = 0;
+                    break;
+                case BinaryExpr::Op::Le:
+                    op = OpCode::LE;
+                    cond = 0;
+                    break;
+                case BinaryExpr::Op::Gt:
+                    op = OpCode::LT;
+                    cond = 0;
+                    swapOperands = true;
+                    break;
+                case BinaryExpr::Op::Ge:
+                    op = OpCode::LE;
+                    cond = 0;
+                    swapOperands = true;
+                    break;
+                default:
+                    isComparison = false;
+                    break;
+            }
+
+            if (isComparison) {
+                ExprDesc left;
+                ExprDesc right;
+                expr(*cmp->left, left);
+                expr(*cmp->right, right);
+
+                if (swapOperands) {
+                    std::swap(left, right);
+                }
+
+                i32 o1 = exp2RK(left);
+                i32 o2 = exp2RK(right);
+                freeReg(o1);
+                freeReg(o2);
+
+                codeABC(op, cond, o1, o2);
+                branchFalseList = jump();
+                usedDirectCompare = true;
+            }
+        }
+
+        if (!usedDirectCompare) {
+            ExprDesc cond;
+            expr(*branch.condition, cond);
+
+            // ⭐ P0修复：生成条件为假时跳转的代码（使用luaK_goiftrue）
+            luaK_goiftrue(cond);
+            branchFalseList = cond.f;
+        }
+
+        // then块
+        block(branch.body);
+
+        // 保存条件为假时的跳转列表
+        flist = branchFalseList;
+    }
+
+    // 处理else块
+    if (!s.elseBranch.empty()) {
+        // 在处理else块之前，生成跳过else块的JMP
+        luaK_concat(escapelist, jump());
+
+        // ⭐ 关键修复：使用patchtohere（小写h）
+        patchtohere(flist);
+
+        // else块
+        block(s.elseBranch);
+    } else {
+        // 没有else块：将最后一个分支的假值跳转添加到escapelist
+        luaK_concat(escapelist, flist);
+    }
+
+    // ⭐ 关键修复：使用patchtohere（小写h）
+    patchtohere(escapelist);
+}
+
+void CodeGenerator::emitWhileStmt(const WhileStmt& s) {
+    // ⭐ P0修复：参考lua_c_analysis/src/lparser.c:4808-4823 whilestat实现
+    // while循环
+    i32 whileinit = getLabel();
+
+    // ⭐ 关键修复：使用cond函数的逻辑（参考lua_c_analysis/src/lparser.c:4625-4630）
+    // 生成条件表达式并调用luaK_goiftrue，返回假值跳转列表
+    i32 condexit = NO_JUMP;
+    bool usedDirectCompare = false;
+
+    if (const auto* cmp = std::get_if<BinaryExpr>(&s.condition->variant)) {
+        OpCode op = OpCode::EQ;
+        i32 cond = 0;
+        bool isComparison = true;
+        bool swapOperands = false;
+
+        switch (cmp->op) {
+            case BinaryExpr::Op::Eq:
+                op = OpCode::EQ;
+                cond = 0;
+                break;
+            case BinaryExpr::Op::Ne:
+                op = OpCode::EQ;
+                cond = 1;
+                break;
+            case BinaryExpr::Op::Lt:
+                op = OpCode::LT;
+                cond = 0;
+                break;
+            case BinaryExpr::Op::Le:
+                op = OpCode::LE;
+                cond = 0;
+                break;
+            case BinaryExpr::Op::Gt:
+                op = OpCode::LT;
+                cond = 0;
+                swapOperands = true;
+                break;
+            case BinaryExpr::Op::Ge:
+                op = OpCode::LE;
+                cond = 0;
+                swapOperands = true;
+                break;
+            default:
+                isComparison = false;
+                break;
+        }
+
+        if (isComparison) {
+            ExprDesc left;
+            ExprDesc right;
+            expr(*cmp->left, left);
+            expr(*cmp->right, right);
+
+            if (swapOperands) {
+                std::swap(left, right);
+            }
+
+            i32 o1 = exp2RK(left);
+            i32 o2 = exp2RK(right);
+            freeReg(o1);
+            freeReg(o2);
+
+            codeABC(op, cond, o1, o2);
+            condexit = jump();
+            usedDirectCompare = true;
+        }
+    }
+
+    if (!usedDirectCompare) {
+        ExprDesc cond;
+        expr(*s.condition, cond);
+        if (cond.kind == ExprKind::Nil) {
+            cond.kind = ExprKind::False;
+        }
+        luaK_goiftrue(cond);
+        condexit = cond.f;  // 保存假值跳转列表
+    }
+
+    // 进入可break的代码块
+    enterBlock(true);  // isbreakable = true
+
+    block(s.body);
+
+    // 生成回跳到循环开始
+    patchList(jump(), whileinit);
+
+    // 离开代码块，修补所有break跳转
+    leaveBlock();
+
+    // ⭐ 关键修复：使用patchtohere（延迟修补），修补条件为假时的跳转
+    // 参考官方Lua的whilestat实现（lua_c_analysis/src/lparser.c:4822）
+    patchtohere(condexit);
+}
+
+void CodeGenerator::emitDoStmt(const DoStmt& s) {
+    // do块
+    block(s.body);
+}
+
+void CodeGenerator::emitCallStmt(const CallStmt& s) {
+    // ⭐ P0修复：函数调用语句（如 print("Hello")）
+    // 参考 lua_c_analysis/src/lparser.c 中的 exprstat 函数
+    ExprDesc desc;
+    expr(*s.call, desc);
+
+    // 对于作为语句的函数调用，需要丢弃返回值
+    // 修改CALL指令的C参数为1，表示0个返回值
+    if (desc.kind == ExprKind::Call) {
+        // 找到最后生成的CALL指令并修改其C参数
+        usize lastInst = proto_->getInstructionCount() - 1;
+        Instruction inst = proto_->getInstruction(lastInst);
+        if (GET_OPCODE(inst) == OpCode::CALL) {
+            // 重新设置C参数为1（表示0个返回值）
+            i32 a = GETARG_A(inst);
+            i32 b = GETARG_B(inst);
+            proto_->setInstruction(lastInst, CREATE_ABC(OpCode::CALL, a, b, 1));
+        }
+        // 释放函数寄存器
+        freeReg(desc.u.s.info);
+    }
+}
+
+void CodeGenerator::emitBreakStmt(const BreakStmt&) {
+    // ⭐ P0修复：参考lua_c_analysis/src/lparser.c:4712-4725 breakstat实现
+    // 查找最近的可break代码块
+    BlockInfo* bl = currentBlock_;
+    while (bl && !bl->isbreakable) {
+        bl = bl->previous;
+    }
+
+    // 如果没有找到可break的代码块，报错
+    if (!bl) {
+        throw std::runtime_error("no loop to break");
+    }
+
+    // 生成跳转指令并添加到break列表
+    // 注意：官方Lua还会处理upvalue关闭（OP_CLOSE），但我们暂时不支持upvalue
+    luaK_concat(bl->breaklist, jump());
+}
+
+void CodeGenerator::emitRepeatStmt(const RepeatStmt&) {
+    // repeat-until 语句，暂时抛出错误
+    throw std::runtime_error("repeat-until statement not yet implemented");
 }
 
 // =====================================================================
@@ -1978,7 +2012,7 @@ void CodeGenerator::tableExpr(const TableExpr& table, ExprDesc& desc) {
     proto_->setInstruction(pc, inst);
 }
 
-void CodeGenerator::functionStmt(const FunctionStmt& s) {
+void CodeGenerator::emitFunctionStmt(const FunctionStmt& s) {
     // 计算函数定义的行号范围
     i32 linedefined = s.line;
     i32 lastlinedefined = getLastLineOfBlock(s.body);
@@ -2067,7 +2101,7 @@ void CodeGenerator::functionStmt(const FunctionStmt& s) {
     }
 }
 
-void CodeGenerator::forNumStmt(const ForNumStmt& s) {
+void CodeGenerator::emitForNumStmt(const ForNumStmt& s) {
     // 数值for循环的字节码模式：
     // R(base) = init
     // R(base+1) = limit
@@ -2133,7 +2167,7 @@ void CodeGenerator::forNumStmt(const ForNumStmt& s) {
     freeRegs(4);  // init, limit, step, var
 }
 
-void CodeGenerator::forInStmt(const ForInStmt& s) {
+void CodeGenerator::emitForInStmt(const ForInStmt& s) {
     // 泛型for循环的字节码模式：
     // R(base) = iterator_func
     // R(base+1) = state
