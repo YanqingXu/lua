@@ -19,6 +19,7 @@
 #include "compiler/parser.hpp"
 #include "compiler/codegen.hpp"
 #include "lib/iolib.hpp"
+#include <cstdio>
 
 using namespace Lua;
 using namespace LuaTest;
@@ -40,6 +41,15 @@ LuaState* executeChunk(const char* code, const char* chunkName, Proto*& outProto
 
     VM::execute(L, chunkFunc);
     return L;
+}
+
+Function* getTableFunction(Table* table, StringPool& pool, const char* name) {
+    if (!table || !name) {
+        return nullptr;
+    }
+
+    Value func = table->get(Value(pool.intern(name)));
+    return func.isFunction() ? func.asFunction() : nullptr;
 }
 
 } // namespace
@@ -299,6 +309,87 @@ void testIOLibFileMetatableHooks(TestSuite& suite) {
     delete L;
 }
 
+void testIOLibDefaultInputOutput(TestSuite& suite) {
+    LuaState* L = LuaState::newState();
+    openIOLib(L);
+
+    auto& pool = L->getGlobalState().getStringPool();
+    Value ioVal = L->getGlobal("io");
+    ASSERT_TRUE(suite, ioVal.isTable(), "io table exists for default I/O test");
+    if (!ioVal.isTable()) {
+        delete L;
+        return;
+    }
+
+    Table* ioTable = ioVal.asTable();
+    Function* ioOutput = getTableFunction(ioTable, pool, "output");
+    Function* ioWrite = getTableFunction(ioTable, pool, "write");
+    Function* ioClose = getTableFunction(ioTable, pool, "close");
+    Function* ioInput = getTableFunction(ioTable, pool, "input");
+    Function* ioRead = getTableFunction(ioTable, pool, "read");
+
+    ASSERT_TRUE(suite, ioOutput && ioWrite && ioClose && ioInput && ioRead,
+        "default I/O functions are registered");
+    if (!(ioOutput && ioWrite && ioClose && ioInput && ioRead)) {
+        delete L;
+        return;
+    }
+
+    const char* path = "test_vm_core_iolib_default.txt";
+
+    L->getStack().clear();
+    L->setAbsoluteTop(0);
+    L->pushString(pool.intern(path));
+    i32 ret = ioOutput->getCFunction()(L);
+    ASSERT_EQ(suite, ret, 1, "io.output returns one value");
+    ASSERT_TRUE(suite, L->top().isUserdata(), "io.output returns file handle");
+
+    L->getStack().clear();
+    L->setAbsoluteTop(0);
+    L->pushString(pool.intern("abc"));
+    L->pushNumber(123.0);
+    ret = ioWrite->getCFunction()(L);
+    ASSERT_EQ(suite, ret, 1, "io.write returns one value");
+    ASSERT_TRUE(suite, L->top().isUserdata(), "io.write returns current file handle");
+
+    L->getStack().clear();
+    L->setAbsoluteTop(0);
+    ret = ioClose->getCFunction()(L);
+    ASSERT_EQ(suite, ret, 1, "io.close returns one value");
+    ASSERT_TRUE(suite, L->top().isBoolean() && L->top().asBoolean(), "io.close succeeds");
+
+    L->getStack().clear();
+    L->setAbsoluteTop(0);
+    L->pushString(pool.intern(path));
+    ret = ioInput->getCFunction()(L);
+    ASSERT_EQ(suite, ret, 1, "io.input returns one value");
+    ASSERT_TRUE(suite, L->top().isUserdata(), "io.input returns file handle");
+
+    L->getStack().clear();
+    L->setAbsoluteTop(0);
+    L->pushNumber(3.0);
+    ret = ioRead->getCFunction()(L);
+    ASSERT_EQ(suite, ret, 1, "io.read(count) returns one value");
+    ASSERT_TRUE(suite, L->top().isString(), "io.read(count) returns string");
+    if (L->top().isString()) {
+        ASSERT_TRUE(suite, std::string(L->top().asString()->c_str()) == "abc",
+            "io.read(3) reads written prefix");
+    }
+
+    L->getStack().clear();
+    L->setAbsoluteTop(0);
+    L->pushString(pool.intern("*n"));
+    ret = ioRead->getCFunction()(L);
+    ASSERT_EQ(suite, ret, 1, "io.read('*n') returns one value");
+    ASSERT_TRUE(suite, L->top().isNumber(), "io.read('*n') returns number");
+    if (L->top().isNumber()) {
+        ASSERT_EQ(suite, 123.0, L->top().asNumber(), "io.read('*n') reads numeric suffix");
+    }
+
+    std::remove(path);
+    delete L;
+}
+
 void testComparisonExpressionProducesBoolean(TestSuite& suite) {
     const char* code = "local ok = 1 == 1\nreturn ok";
 
@@ -433,6 +524,7 @@ void registerVMCoreTests() {
     registry.registerTest("VM Core", "LuaState Userdata Metatable", testLuaStateUserdataMetatable);
     registry.registerTest("VM Core", "SELF Dispatch On Userdata", testSelfDispatchOnUserdata);
     registry.registerTest("VM Core", "IOLib File Metatable Hooks", testIOLibFileMetatableHooks);
+    registry.registerTest("VM Core", "IOLib Default Input Output", testIOLibDefaultInputOutput);
     registry.registerTest("VM Core", "Comparison Expression Produces Boolean", testComparisonExpressionProducesBoolean);
     registry.registerTest("VM Core", "Logical Expressions Produce Runtime Values", testLogicalExpressionsProduceRuntimeValues);
     registry.registerTest("VM Core", "Logical Short Circuit Runtime", testLogicalShortCircuitEvaluatesRightHandSideOnlyWhenNeeded);

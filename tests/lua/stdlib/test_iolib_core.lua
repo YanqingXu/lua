@@ -52,4 +52,22 @@ assert(methodCollected[1] == "alpha", "file:lines first line should match")
 assert(methodCollected[2] == "beta", "file:lines second line should match")
 fh:close()
 
+local defaultPath = string.format(
+    "test_iolib_default_%d_%d.txt",
+    os.time(),
+    math.floor(os.clock() * 1000)
+)
+
+local out = io.output(defaultPath)
+assert(io.type(out) == "file", "io.output(filename) should return file handle")
+local writeRet = io.write("gamma", 321)
+assert(io.type(writeRet) == "file", "io.write should return current output handle")
+assert(io.close(), "io.close() should close current default output")
+
+local inp = io.input(defaultPath)
+assert(io.type(inp) == "file", "io.input(filename) should return file handle")
+assert(io.read(5) == "gamma", "io.read(count) should read from default input")
+assert(io.read("*n") == 321, "io.read('*n') should read numeric suffix")
+inp:close()
+
 print("I/O core regression passed")

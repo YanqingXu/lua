@@ -43,6 +43,7 @@ namespace Lua {
 // 前向声明
 class Userdata;
 class Table;
+struct FileHandleData;
 
 /**
  * @brief I/O库模块
@@ -244,23 +245,15 @@ i32 f_lines(LuaState* L);
  * @param fp 文件指针
  * @return 创建的userdata
  */
-Userdata* createFileHandle(LuaState* L, FILE* fp);
-
-/**
- * @brief 从栈中获取文件指针
- * @param L Lua状态机指针
- * @param idx 栈索引
- * @return 文件指针，如果无效返回nullptr
- */
-FILE** toFilePtr(LuaState* L, i32 idx);
+Userdata* createFileHandle(LuaState* L, FILE* fp, bool isPipe = false);
 
 /**
  * @brief 检查并获取文件指针
  * @param L Lua状态机指针
  * @param idx 栈索引
- * @return 文件指针，如果无效抛出错误
+ * @return 文件句柄元数据，如果无效抛出错误
  */
-FILE** checkFilePtr(LuaState* L, i32 idx);
+FileHandleData* checkFilePtr(LuaState* L, i32 idx);
 
 /**
  * @brief 获取默认输入文件
