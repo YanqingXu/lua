@@ -206,23 +206,25 @@ private:
     // =====================================================================
 
     void expr(const Expr& e, ExprDesc& desc);
+    void emitExpr(const NilExpr& e, ExprDesc& desc);
+    void emitExpr(const BoolExpr& e, ExprDesc& desc);
+    void emitExpr(const NumberExpr& e, ExprDesc& desc);
+    void emitExpr(const StringExpr& e, ExprDesc& desc);
+    void emitExpr(const VarargExpr& e, ExprDesc& desc);
+    void emitExpr(const NameExpr& e, ExprDesc& desc);
+    void emitExpr(const BinaryExpr& e, ExprDesc& desc);
+    void emitExpr(const UnaryExpr& e, ExprDesc& desc);
+    void emitExpr(const TableExpr& e, ExprDesc& desc);
+    void emitExpr(const CallExpr& e, ExprDesc& desc);
+    void emitExpr(const IndexExpr& e, ExprDesc& desc);
+    void emitExpr(const MemberExpr& e, ExprDesc& desc);
+    void emitExpr(const FunctionExpr& e, ExprDesc& desc);
+    void emitExpr(const ParenExpr& e, ExprDesc& desc);
     void discharge(ExprDesc& desc, i32 reg);
     i32 exp2RK(ExprDesc& desc);
     i32 exp2AnyReg(ExprDesc& desc);
     void exp2NextReg(ExprDesc& desc);
     void exp2Val(ExprDesc& desc);
-
-    // 二元和一元表达式
-    void binaryExpr(const BinaryExpr& e, ExprDesc& desc);
-    void unaryExpr(const UnaryExpr& e, ExprDesc& desc);
-
-    // 函数表达式和调用
-    void functionExpr(const FunctionExpr& e, ExprDesc& desc);
-    void callExpr(const CallExpr& e, ExprDesc& desc);
-    void parenExpr(const ParenExpr& e, ExprDesc& desc);
-
-    // 表构造器
-    void tableExpr(const TableExpr& table, ExprDesc& desc);
 
     // 表索引和成员访问
     void luaK_indexed(ExprDesc& t, ExprDesc& k);

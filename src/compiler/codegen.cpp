@@ -253,122 +253,309 @@ i32 CodeGenerator::getLabel() {
 // =====================================================================
 
 void CodeGenerator::expr(const Expr& e, ExprDesc& desc) {
-    // 访问variant获取具体的表达式类型
     std::visit([this, &desc](auto&& arg) {
-        using T = std::decay_t<decltype(arg)>;
+        emitExpr(arg, desc);
+    }, e.variant);
+}
 
-        if constexpr (std::is_same_v<T, NilExpr>) {
-            desc.kind = ExprKind::Nil;
-        }
-        else if constexpr (std::is_same_v<T, BoolExpr>) {
-            desc.kind = arg.value ? ExprKind::True : ExprKind::False;
-        }
-        else if constexpr (std::is_same_v<T, NumberExpr>) {
-            desc.kind = ExprKind::Number;
-            desc.u.nval = arg.value;
-        }
-        else if constexpr (std::is_same_v<T, StringExpr>) {
-            i32 k = stringConstant(arg.value);
-            desc.kind = ExprKind::Const;
+void CodeGenerator::emitExpr(const NilExpr&, ExprDesc& desc) {
+    desc.kind = ExprKind::Nil;
+}
+
+void CodeGenerator::emitExpr(const BoolExpr& e, ExprDesc& desc) {
+    desc.kind = e.value ? ExprKind::True : ExprKind::False;
+}
+
+void CodeGenerator::emitExpr(const NumberExpr& e, ExprDesc& desc) {
+    desc.kind = ExprKind::Number;
+    desc.u.nval = e.value;
+}
+
+void CodeGenerator::emitExpr(const StringExpr& e, ExprDesc& desc) {
+    i32 k = stringConstant(e.value);
+    desc.kind = ExprKind::Const;
+    desc.u.s.info = k;
+}
+
+void CodeGenerator::emitExpr(const VarargExpr&, ExprDesc& desc) {
+    // ⭐ 可变参数表达式：生成 VARARG 指令
+    // 参考：lua_c_analysis/src/lparser.c simpleexp() case TK_DOTS
+    // VARARG A B：R(A), R(A+1), ..., R(A+B-2) = vararg
+    // A = 0（稍后由 discharge 重定位）
+    // B = 1（默认复制 0 个结果，即 B-1=0；由上层按需调整为实际数量）
+    // 检查当前函数是否为可变参数函数
+    if (!proto_->isVararg()) {
+        throw std::runtime_error("CodeGenerator: cannot use '...' outside a vararg function");
+    }
+    i32 pc = codeABC(OpCode::VARARG, 0, 1, 0);
+    desc.kind = ExprKind::Vararg;
+    desc.u.s.info = pc;
+}
+
+void CodeGenerator::emitExpr(const NameExpr& e, ExprDesc& desc) {
+    // 查找局部变量
+    i32 reg = findLocalVar(e.name);
+    if (reg >= 0) {
+        // 局部变量
+        desc.kind = ExprKind::Local;
+        desc.u.s.info = reg;
+    } else {
+        // 查找上值（闭包捕获变量）
+        i32 up = resolveUpvalue(e.name);
+        if (up >= 0) {
+            desc.kind = ExprKind::Upval;
+            desc.u.s.info = up;
+        } else {
+            // 全局变量：使用GETGLOBAL/SETGLOBAL指令
+            i32 k = stringConstant(e.name);
+            desc.kind = ExprKind::Global;
             desc.u.s.info = k;
         }
-        else if constexpr (std::is_same_v<T, NameExpr>) {
-            // 查找局部变量
-            i32 reg = findLocalVar(arg.name);
-            if (reg >= 0) {
-                // 局部变量
-                desc.kind = ExprKind::Local;
-                desc.u.s.info = reg;
-            } else {
-                // 查找上值（闭包捕获变量）
-                i32 up = resolveUpvalue(arg.name);
-                if (up >= 0) {
-                    desc.kind = ExprKind::Upval;
-                    desc.u.s.info = up;
-                } else {
-                    // 全局变量：使用GETGLOBAL/SETGLOBAL指令
-                    i32 k = stringConstant(arg.name);
-                    desc.kind = ExprKind::Global;
-                    desc.u.s.info = k;
-                }
+    }
+}
+
+void CodeGenerator::emitExpr(const CallExpr& e, ExprDesc& desc) {
+    // ⭐ 字节码修复：函数调用参数寄存器分配
+   // 参考：lua_c_analysis/src/lparser.c:3356-3401 funcargs函数
+   //
+   // Lua调用约定：
+   // - 函数必须在寄存器base
+   // - 参数必须连续分配在base+1, base+2, ..., base+nargs
+   // - CALL指令格式：CALL base (nargs+1) (nresults+1)
+   //
+   // 修复前的问题：
+   // - 函数在某个寄存器（如R4）
+   // - 参数使用exp2NextReg分配，可能不连续（如R2, R3）
+   // - CALL 4 2 1 会从R5读取参数，但参数实际在R2
+   //
+   // 修复策略：
+   // 1. 确保函数在base寄存器
+   // 2. 保存当前freereg，然后设置freereg=base+1
+   // 3. 对每个参数调用exp2NextReg，自动连续分配到base+1, base+2, ...
+   // 4. 生成CALL指令
+   // 5. 重置freereg=base+1（保留返回值寄存器）
+
+   // 仅当前最外层调用消费 forcedCallBase_，避免影响其子表达式中的嵌套调用。
+    i32 forcedBase = forcedCallBase_;
+    forcedCallBase_ = -1;
+
+    i32 base;  // 函数所在的寄存器（也是调用帧的基址）
+    i32 explicitArgCount = static_cast<i32>(e.args.size());
+    bool hasImplicitSelf = false;
+
+    // 检查是否为方法调用（obj:method(args)）
+    if (e.isMethodCall) {
+        // 方法调用：使用SELF指令
+        // func应该是MemberExpr（obj.method）
+        const MemberExpr* memberExpr = std::get_if<MemberExpr>(&e.func->variant);
+        if (!memberExpr) {
+            throw std::runtime_error("Method call must have MemberExpr as func");
+        }
+
+        // 计算对象表达式
+        ExprDesc obj;
+        expr(*memberExpr->table, obj);
+
+        // 创建方法名的常量表达式
+        ExprDesc key;
+        key.kind = ExprKind::Const;
+        key.u.s.info = stringConstant(memberExpr->member);
+        key.t = NO_JUMP;
+        key.f = NO_JUMP;
+
+        // 生成SELF指令
+        // SELF A B C: R(A+1) := R(B); R(A) := R(B)[RK(C)]
+        // SELF会将对象放入base+1，方法放入base
+        luaK_self(obj, key);
+        base = obj.u.s.info;
+
+        // 方法调用包含隐式self参数（已在base+1）
+        hasImplicitSelf = true;
+    }
+    else {
+        // 普通函数调用
+        ExprDesc func;
+        expr(*e.func, func);
+
+        // 确保函数表达式在寄存器中（NonRelocatable）
+        base = exp2AnyReg(func);
+    }
+
+    // ⭐ 关键修复：确保参数连续分配在base+1之后
+    // 参考官方实现：lua_c_analysis/src/lparser.c:3394-3396
+    //
+    // 官方代码：
+    //   if (args.k != VVOID)
+    //       luaK_exp2nextreg(fs, &args);
+    //   nparams = fs->freereg - (base+1);
+    //
+    // 这里的关键是：
+    // 1. 函数已经在base寄存器，占用了一个寄存器位置
+    // 2. 调用exp2NextReg时，会自动分配到freereg位置
+    // 3. 如果freereg > base+1，说明中间有其他寄存器被占用
+    // 4. 需要确保freereg == base+1，这样参数才能紧跟函数
+
+    // 保存当前的freereg（可能有外层表达式占用的寄存器）
+    i32 savedFreeReg = freereg_;
+
+    auto moveRegRange = [this](i32 dst, i32 src, i32 count) {
+        if (count <= 0 || dst == src) {
+            return;
+        }
+        if (dst < src) {
+            for (i32 i = 0; i < count; i++) {
+                codeABC(OpCode::MOVE, dst + i, src + i, 0);
             }
-        }
-        else if constexpr (std::is_same_v<T, BinaryExpr>) {
-            binaryExpr(arg, desc);
-        }
-        else if constexpr (std::is_same_v<T, UnaryExpr>) {
-            unaryExpr(arg, desc);
-        }
-        else if constexpr (std::is_same_v<T, FunctionExpr>) {
-            functionExpr(arg, desc);
-        }
-        else if constexpr (std::is_same_v<T, ParenExpr>) {
-            parenExpr(arg, desc);
-        }
-        else if constexpr (std::is_same_v<T, CallExpr>) {
-            callExpr(arg, desc);
-        }
-        else if constexpr (std::is_same_v<T, IndexExpr>) {
-            // 表索引访问 table[key]
-            // 参考：lua_c_analysis/src/lparser.c suffixedexp → luaK_exp2anyreg + yindex + luaK_indexed
-            // 1. 计算表表达式
-            ExprDesc t;
-            expr(*arg.table, t);
-            // 2. 将表表达式放入寄存器（必须是寄存器，不能是Relocatable）
-            // ⭐ 关键修复：luaK_dischargevars只将Global转为Relocatable（info=pc），
-            // 但luaK_indexed需要info是寄存器编号。必须调用exp2AnyReg确保在寄存器中。
-            luaK_dischargevars(t);
-            exp2AnyReg(t);
-            // 3. 计算索引表达式
-            ExprDesc k;
-            expr(*arg.index, k);
-            // 4. 设置为索引表达式
-            luaK_indexed(t, k);
-            desc = t;
-        }
-        else if constexpr (std::is_same_v<T, MemberExpr>) {
-            // 成员访问 table.member
-            // 等价于 table["member"]
-            // 参考：lua_c_analysis/src/lparser.c suffixedexp → luaK_exp2anyreg + checkname + luaK_indexed
-            // 1. 计算表表达式
-            ExprDesc t;
-            expr(*arg.table, t);
-            // 2. 将表表达式放入寄存器（必须是寄存器，不能是Relocatable）
-            // ⭐ 关键修复：同IndexExpr，必须确保表在寄存器中
-            luaK_dischargevars(t);
-            exp2AnyReg(t);
-            // 3. 创建字符串常量作为索引
-            ExprDesc k;
-            k.kind = ExprKind::Const;
-            k.u.s.info = stringConstant(arg.member);
-            k.t = NO_JUMP;
-            k.f = NO_JUMP;
-            // 4. 设置为索引表达式
-            luaK_indexed(t, k);
-            desc = t;
-        }
-        else if constexpr (std::is_same_v<T, TableExpr>) {
-            tableExpr(arg, desc);
-        }
-        else if constexpr (std::is_same_v<T, VarargExpr>) {
-            // ⭐ 可变参数表达式：生成 VARARG 指令
-            // 参考：lua_c_analysis/src/lparser.c simpleexp() case TK_DOTS
-            // VARARG A B：R(A), R(A+1), ..., R(A+B-2) = vararg
-            // A = 0（稍后由 discharge 重定位）
-            // B = 1（默认复制 0 个结果，即 B-1=0；由上层按需调整为实际数量）
-            // 检查当前函数是否为可变参数函数
-            if (!proto_->isVararg()) {
-                throw std::runtime_error("CodeGenerator: cannot use '...' outside a vararg function");
-            }
-            i32 pc = codeABC(OpCode::VARARG, 0, 1, 0);
-            desc.kind = ExprKind::Vararg;
-            desc.u.s.info = pc;
         }
         else {
-            // 其他表达式类型暂不支持
-            desc.kind = ExprKind::Void;
+            for (i32 i = count - 1; i >= 0; i--) {
+                codeABC(OpCode::MOVE, dst + i, src + i, 0);
+            }
         }
-    }, e.variant);
+        };
+
+    if (forcedBase >= 0) {
+        // 表构造器最后一个 listfield 的 multret 语义需要 CALL 基址对齐到指定槽位。
+        moveRegRange(forcedBase, base, hasImplicitSelf ? 2 : 1);
+        base = forcedBase;
+    }
+    else if (base < savedFreeReg) {
+        // 嵌套调用保护：
+        // 如果被调函数位于更低寄存器，直接以它为base会覆盖外层调用已占用寄存器。
+        // 将函数（以及方法调用的self）搬移到安全的高位寄存器区再发射CALL。
+        i32 newBase = savedFreeReg;
+        moveRegRange(newBase, base, hasImplicitSelf ? 2 : 1);
+        base = newBase;
+    }
+
+    // 参数起始寄存器：
+    // - 普通调用：base+1
+    // - 方法调用：base+2（base+1保留给隐式self）
+    i32 firstArgReg = hasImplicitSelf ? (base + 2) : (base + 1);
+    freereg_ = firstArgReg;
+    checkStack(0);  // ⭐ P0修复：确保maxStackSize >= freereg_
+    checkStack(explicitArgCount);  // 为参数区预留栈空间
+
+    // 将每个显式参数强制放到连续参数寄存器，避免嵌套调用临时寄存器污染参数计数
+    i32 argIndex = 0;
+    for (const auto& arg : e.args) {
+        i32 targetReg = firstArgReg + argIndex;
+        ExprDesc argDesc;
+        expr(*arg, argDesc);
+        exp2Val(argDesc);  // 固定多返回值表达式为单值参数
+        discharge(argDesc, targetReg);
+        // 锁定已写入的参数寄存器，避免后续嵌套调用覆盖前面的参数
+        if (freereg_ < targetReg + 1) {
+            freereg_ = targetReg + 1;
+        }
+        argIndex++;
+    }
+
+    i32 nargs = explicitArgCount + (hasImplicitSelf ? 1 : 0);
+
+    // 生成CALL指令
+    // CALL A B C: 调用R(A)，B-1个参数（在R(A+1)...R(A+B-1)），C-1个返回值
+    // - A = base（函数寄存器）
+    // - B = nargs + 1（参数数量+1）
+    // - C = 2（期望1个返回值，C-1=1）
+    i32 callPC = codeABC(OpCode::CALL, base, nargs + 1, 2);
+
+    // 调用后恢复寄存器分配点：
+    // - 至少保留到 base+1（返回值寄存器之后）
+    // - 不能回退到外层调用已占用寄存器之前（嵌套调用场景）
+    freereg_ = (savedFreeReg > (base + 1)) ? savedFreeReg : (base + 1);
+    checkStack(0);  // ⭐ P0修复：确保maxStackSize >= freereg_
+
+    // ⭐ P0修复：ExprKind::Call需要同时存储CALL指令的PC和函数所在的寄存器
+    // 参考：lua_c_analysis/src/lcode.c luaK_exp2nextreg() VCALL分支
+    // info: 函数所在的寄存器（返回值也在这里，用于exp2AnyReg）
+    // aux: CALL指令的PC（用于LocalStmt修改指令）
+    desc.kind = ExprKind::Call;
+    desc.u.s.info = base;     // 存储函数所在的寄存器（返回值也在这里）
+    desc.u.s.aux = callPC;    // 存储CALL指令的PC
+}
+
+void CodeGenerator::emitExpr(const IndexExpr& e, ExprDesc& desc) {
+    // 表索引访问 table[key]
+    // 参考：lua_c_analysis/src/lparser.c suffixedexp → luaK_exp2anyreg + yindex + luaK_indexed
+    // 1. 计算表表达式
+    ExprDesc t;
+    expr(*e.table, t);
+    // 2. 将表表达式放入寄存器（必须是寄存器，不能是Relocatable）
+    // ⭐ 关键修复：luaK_dischargevars只将Global转为Relocatable（info=pc），
+    // 但luaK_indexed需要info是寄存器编号。必须调用exp2AnyReg确保在寄存器中。
+    luaK_dischargevars(t);
+    exp2AnyReg(t);
+    // 3. 计算索引表达式
+    ExprDesc k;
+    expr(*e.index, k);
+    // 4. 设置为索引表达式
+    luaK_indexed(t, k);
+    desc = t;
+}
+
+void CodeGenerator::emitExpr(const MemberExpr& e, ExprDesc& desc) {
+    // 成员访问 table.member
+    // 等价于 table["member"]
+    // 参考：lua_c_analysis/src/lparser.c suffixedexp → luaK_exp2anyreg + checkname + luaK_indexed
+    // 1. 计算表表达式
+    ExprDesc t;
+    expr(*e.table, t);
+    // 2. 将表表达式放入寄存器（必须是寄存器，不能是Relocatable）
+    // ⭐ 关键修复：同IndexExpr，必须确保表在寄存器中
+    luaK_dischargevars(t);
+    exp2AnyReg(t);
+    // 3. 创建字符串常量作为索引
+    ExprDesc k;
+    k.kind = ExprKind::Const;
+    k.u.s.info = stringConstant(e.member);
+    k.t = NO_JUMP;
+    k.f = NO_JUMP;
+    // 4. 设置为索引表达式
+    luaK_indexed(t, k);
+    desc = t;
+}
+
+// 辅助函数：获取语句块的最后一行号
+static i32 getLastLineOfBlock(const Vec<StmtPtr>& body) {
+    if (body.empty()) {
+        return 0;
+    }
+    return body.back()->getLine();
+}
+
+void CodeGenerator::emitExpr(const FunctionExpr& e, ExprDesc& desc) {
+    // 计算函数定义的行号范围
+    i32 linedefined = e.line;
+    i32 lastlinedefined = getLastLineOfBlock(e.body);
+    if (lastlinedefined < linedefined) {
+        lastlinedefined = linedefined;  // 空函数体的情况
+    }
+
+    // 编译函数体，生成新的Proto和upvalue捕获信息
+    Vec<UpvalueCapture> childUpvalues;
+    Proto* funcProto = compileFunction(e.params, e.isVararg, e.body, linedefined, lastlinedefined, &childUpvalues);
+
+    // 将Proto添加到当前Proto的子函数列表
+    i32 protoIdx = static_cast<i32>(proto_->addProto(funcProto));
+
+    // 生成CLOSURE指令
+    i32 reg = allocReg();
+    codeABx(OpCode::CLOSURE, reg, protoIdx);
+    emitClosureUpvalues(childUpvalues);
+
+    desc.kind = ExprKind::NonRelocatable;
+    desc.u.s.info = reg;
+}
+
+void CodeGenerator::emitExpr(const ParenExpr& e, ExprDesc& desc) {
+    // Lua 5.1 语义：括号表达式会将 multret（CALL/VARARG）收敛为单值。
+    ExprDesc inner;
+    expr(*e.expression, inner);
+    exp2Val(inner);  // 先将 CALL/VARARG 固定为单返回值
+    i32 reg = exp2AnyReg(inner);
+    desc.kind = ExprKind::NonRelocatable;
+    desc.u.s.info = reg;
 }
 
 void CodeGenerator::discharge(ExprDesc& desc, i32 reg) {
@@ -1116,7 +1303,7 @@ void CodeGenerator::emitStmt(const RepeatStmt&) {
 // 二元和一元表达式代码生成
 // =====================================================================
 
-void CodeGenerator::binaryExpr(const BinaryExpr& e, ExprDesc& desc) {
+void CodeGenerator::emitExpr(const BinaryExpr& e, ExprDesc& desc) {
     // 处理左操作数
     ExprDesc e1;
     expr(*e.left, e1);
@@ -1210,7 +1397,7 @@ void CodeGenerator::binaryExpr(const BinaryExpr& e, ExprDesc& desc) {
     desc = e1;
 }
 
-void CodeGenerator::unaryExpr(const UnaryExpr& e, ExprDesc& desc) {
+void CodeGenerator::emitExpr(const UnaryExpr& e, ExprDesc& desc) {
     // 处理操作数
     ExprDesc e1;
     expr(*e.operand, e1);
@@ -1554,15 +1741,6 @@ void CodeGenerator::fixjump(i32 pc, i32 dest) {
 // =====================================================================
 // 函数定义和调用
 // =====================================================================
-
-// 辅助函数：获取语句块的最后一行号
-static i32 getLastLineOfBlock(const Vec<StmtPtr>& body) {
-    if (body.empty()) {
-        return 0;
-    }
-    return body.back()->getLine();
-}
-
 Proto* CodeGenerator::compileFunction(const Vec<Str>& params, bool isVararg, const Vec<StmtPtr>& body,
                                      i32 linedefined, i32 lastlinedefined,
                                      Vec<UpvalueCapture>* outUpvalues) {
@@ -1623,40 +1801,6 @@ Proto* CodeGenerator::compileFunction(const Vec<Str>& params, bool isVararg, con
     return newProto;
 }
 
-void CodeGenerator::functionExpr(const FunctionExpr& e, ExprDesc& desc) {
-    // 计算函数定义的行号范围
-    i32 linedefined = e.line;
-    i32 lastlinedefined = getLastLineOfBlock(e.body);
-    if (lastlinedefined < linedefined) {
-        lastlinedefined = linedefined;  // 空函数体的情况
-    }
-
-    // 编译函数体，生成新的Proto和upvalue捕获信息
-    Vec<UpvalueCapture> childUpvalues;
-    Proto* funcProto = compileFunction(e.params, e.isVararg, e.body, linedefined, lastlinedefined, &childUpvalues);
-
-    // 将Proto添加到当前Proto的子函数列表
-    i32 protoIdx = static_cast<i32>(proto_->addProto(funcProto));
-
-    // 生成CLOSURE指令
-    i32 reg = allocReg();
-    codeABx(OpCode::CLOSURE, reg, protoIdx);
-    emitClosureUpvalues(childUpvalues);
-
-    desc.kind = ExprKind::NonRelocatable;
-    desc.u.s.info = reg;
-}
-
-void CodeGenerator::parenExpr(const ParenExpr& e, ExprDesc& desc) {
-    // Lua 5.1 语义：括号表达式会将 multret（CALL/VARARG）收敛为单值。
-    ExprDesc inner;
-    expr(*e.expression, inner);
-    exp2Val(inner);  // 先将 CALL/VARARG 固定为单返回值
-    i32 reg = exp2AnyReg(inner);
-    desc.kind = ExprKind::NonRelocatable;
-    desc.u.s.info = reg;
-}
-
 void CodeGenerator::emitClosureUpvalues(const Vec<UpvalueCapture>& upvalues) {
     // Lua 5.1约定：CLOSURE后紧跟nups条伪指令（MOVE或GETUPVAL）
     for (const UpvalueCapture& uv : upvalues) {
@@ -1668,164 +1812,6 @@ void CodeGenerator::emitClosureUpvalues(const Vec<UpvalueCapture>& upvalues) {
     }
 }
 
-void CodeGenerator::callExpr(const CallExpr& e, ExprDesc& desc) {
-    // ⭐ 字节码修复：函数调用参数寄存器分配
-    // 参考：lua_c_analysis/src/lparser.c:3356-3401 funcargs函数
-    //
-    // Lua调用约定：
-    // - 函数必须在寄存器base
-    // - 参数必须连续分配在base+1, base+2, ..., base+nargs
-    // - CALL指令格式：CALL base (nargs+1) (nresults+1)
-    //
-    // 修复前的问题：
-    // - 函数在某个寄存器（如R4）
-    // - 参数使用exp2NextReg分配，可能不连续（如R2, R3）
-    // - CALL 4 2 1 会从R5读取参数，但参数实际在R2
-    //
-    // 修复策略：
-    // 1. 确保函数在base寄存器
-    // 2. 保存当前freereg，然后设置freereg=base+1
-    // 3. 对每个参数调用exp2NextReg，自动连续分配到base+1, base+2, ...
-    // 4. 生成CALL指令
-    // 5. 重置freereg=base+1（保留返回值寄存器）
-
-    // 仅当前最外层调用消费 forcedCallBase_，避免影响其子表达式中的嵌套调用。
-    i32 forcedBase = forcedCallBase_;
-    forcedCallBase_ = -1;
-
-    i32 base;  // 函数所在的寄存器（也是调用帧的基址）
-    i32 explicitArgCount = static_cast<i32>(e.args.size());
-    bool hasImplicitSelf = false;
-
-    // 检查是否为方法调用（obj:method(args)）
-    if (e.isMethodCall) {
-        // 方法调用：使用SELF指令
-        // func应该是MemberExpr（obj.method）
-        const MemberExpr* memberExpr = std::get_if<MemberExpr>(&e.func->variant);
-        if (!memberExpr) {
-            throw std::runtime_error("Method call must have MemberExpr as func");
-        }
-
-        // 计算对象表达式
-        ExprDesc obj;
-        expr(*memberExpr->table, obj);
-
-        // 创建方法名的常量表达式
-        ExprDesc key;
-        key.kind = ExprKind::Const;
-        key.u.s.info = stringConstant(memberExpr->member);
-        key.t = NO_JUMP;
-        key.f = NO_JUMP;
-
-        // 生成SELF指令
-        // SELF A B C: R(A+1) := R(B); R(A) := R(B)[RK(C)]
-        // SELF会将对象放入base+1，方法放入base
-        luaK_self(obj, key);
-        base = obj.u.s.info;
-
-        // 方法调用包含隐式self参数（已在base+1）
-        hasImplicitSelf = true;
-    } else {
-        // 普通函数调用
-        ExprDesc func;
-        expr(*e.func, func);
-
-        // 确保函数表达式在寄存器中（NonRelocatable）
-        base = exp2AnyReg(func);
-    }
-
-    // ⭐ 关键修复：确保参数连续分配在base+1之后
-    // 参考官方实现：lua_c_analysis/src/lparser.c:3394-3396
-    //
-    // 官方代码：
-    //   if (args.k != VVOID)
-    //       luaK_exp2nextreg(fs, &args);
-    //   nparams = fs->freereg - (base+1);
-    //
-    // 这里的关键是：
-    // 1. 函数已经在base寄存器，占用了一个寄存器位置
-    // 2. 调用exp2NextReg时，会自动分配到freereg位置
-    // 3. 如果freereg > base+1，说明中间有其他寄存器被占用
-    // 4. 需要确保freereg == base+1，这样参数才能紧跟函数
-
-    // 保存当前的freereg（可能有外层表达式占用的寄存器）
-    i32 savedFreeReg = freereg_;
-
-    auto moveRegRange = [this](i32 dst, i32 src, i32 count) {
-        if (count <= 0 || dst == src) {
-            return;
-        }
-        if (dst < src) {
-            for (i32 i = 0; i < count; i++) {
-                codeABC(OpCode::MOVE, dst + i, src + i, 0);
-            }
-        } else {
-            for (i32 i = count - 1; i >= 0; i--) {
-                codeABC(OpCode::MOVE, dst + i, src + i, 0);
-            }
-        }
-    };
-
-    if (forcedBase >= 0) {
-        // 表构造器最后一个 listfield 的 multret 语义需要 CALL 基址对齐到指定槽位。
-        moveRegRange(forcedBase, base, hasImplicitSelf ? 2 : 1);
-        base = forcedBase;
-    } else if (base < savedFreeReg) {
-        // 嵌套调用保护：
-        // 如果被调函数位于更低寄存器，直接以它为base会覆盖外层调用已占用寄存器。
-        // 将函数（以及方法调用的self）搬移到安全的高位寄存器区再发射CALL。
-        i32 newBase = savedFreeReg;
-        moveRegRange(newBase, base, hasImplicitSelf ? 2 : 1);
-        base = newBase;
-    }
-
-    // 参数起始寄存器：
-    // - 普通调用：base+1
-    // - 方法调用：base+2（base+1保留给隐式self）
-    i32 firstArgReg = hasImplicitSelf ? (base + 2) : (base + 1);
-    freereg_ = firstArgReg;
-    checkStack(0);  // ⭐ P0修复：确保maxStackSize >= freereg_
-    checkStack(explicitArgCount);  // 为参数区预留栈空间
-
-    // 将每个显式参数强制放到连续参数寄存器，避免嵌套调用临时寄存器污染参数计数
-    i32 argIndex = 0;
-    for (const auto& arg : e.args) {
-        i32 targetReg = firstArgReg + argIndex;
-        ExprDesc argDesc;
-        expr(*arg, argDesc);
-        exp2Val(argDesc);  // 固定多返回值表达式为单值参数
-        discharge(argDesc, targetReg);
-        // 锁定已写入的参数寄存器，避免后续嵌套调用覆盖前面的参数
-        if (freereg_ < targetReg + 1) {
-            freereg_ = targetReg + 1;
-        }
-        argIndex++;
-    }
-
-    i32 nargs = explicitArgCount + (hasImplicitSelf ? 1 : 0);
-
-    // 生成CALL指令
-    // CALL A B C: 调用R(A)，B-1个参数（在R(A+1)...R(A+B-1)），C-1个返回值
-    // - A = base（函数寄存器）
-    // - B = nargs + 1（参数数量+1）
-    // - C = 2（期望1个返回值，C-1=1）
-    i32 callPC = codeABC(OpCode::CALL, base, nargs + 1, 2);
-
-    // 调用后恢复寄存器分配点：
-    // - 至少保留到 base+1（返回值寄存器之后）
-    // - 不能回退到外层调用已占用寄存器之前（嵌套调用场景）
-    freereg_ = (savedFreeReg > (base + 1)) ? savedFreeReg : (base + 1);
-    checkStack(0);  // ⭐ P0修复：确保maxStackSize >= freereg_
-
-    // ⭐ P0修复：ExprKind::Call需要同时存储CALL指令的PC和函数所在的寄存器
-    // 参考：lua_c_analysis/src/lcode.c luaK_exp2nextreg() VCALL分支
-    // info: 函数所在的寄存器（返回值也在这里，用于exp2AnyReg）
-    // aux: CALL指令的PC（用于LocalStmt修改指令）
-    desc.kind = ExprKind::Call;
-    desc.u.s.info = base;     // 存储函数所在的寄存器（返回值也在这里）
-    desc.u.s.aux = callPC;    // 存储CALL指令的PC
-}
-
 /**
  * @brief 表构造器代码生成
  *
@@ -1835,7 +1821,7 @@ void CodeGenerator::callExpr(const CallExpr& e, ExprDesc& desc) {
  * - 对于哈希字段（key != nullptr）：用 SETTABLE 逐个设置
  * 最后回补 NEWTABLE 指令的数组/哈希大小参数。
  */
-void CodeGenerator::tableExpr(const TableExpr& table, ExprDesc& desc) {
+void CodeGenerator::emitExpr(const TableExpr& table, ExprDesc& desc) {
     // 1. 生成 NEWTABLE 指令，B=0, C=0（后续回补实际大小）
     i32 pc = codeABC(OpCode::NEWTABLE, 0, 0, 0);
 
