@@ -682,6 +682,15 @@ void CodeGenerator::discharge(ExprDesc& desc, i32 reg) {
         default:
             break;
     }
+
+    if (desc.t != NO_JUMP || desc.f != NO_JUMP) {
+        i32 exitLabel = getLabel();
+        patchList(desc.t, exitLabel);
+        patchList(desc.f, exitLabel);
+        desc.t = NO_JUMP;
+        desc.f = NO_JUMP;
+    }
+
     desc.kind = ExprKind::NonRelocatable;
     desc.u.s.info = reg;
 }
@@ -1350,6 +1359,10 @@ void CodeGenerator::emitStmt(const CallStmt& s) {
         // 释放函数寄存器
         freeReg(desc.u.s.info);
     }
+
+    // 语句级函数调用不会跨语句保留临时寄存器。
+    // 将 freereg_ 收回到活动局部变量之后，避免旧调用寄存器污染后续语句。
+    freereg_ = nactvar_;
 }
 
 void CodeGenerator::emitStmt(const BreakStmt&) {
@@ -1388,26 +1401,34 @@ void CodeGenerator::emitExpr(const BinaryExpr& e, ExprDesc& desc) {
     BinaryExpr::Op op = e.op;
 
     // 短路运算符需要特殊处理
-    if (op == BinaryExpr::Op::And) {
-        // and: 如果左操作数为假，跳过右操作数
-        // 实现: if not e1 then result = e1 else result = e2
-        luaK_goiftrue(e1);
+    if (op == BinaryExpr::Op::And || op == BinaryExpr::Op::Or) {
+        // 逻辑表达式作为“值”使用时，统一收口到一个专用结果寄存器：
+        // 1. 先把左值写入结果寄存器
+        // 2. 用 TEST/JMP 决定是否跳过右值
+        // 3. 若需要执行右值，则覆写同一个结果寄存器
+        //
+        // 这能同时保证：
+        // - 短路路径不会读取未初始化的旧寄存器
+        // - 不会覆盖仍然活跃的局部变量/参数寄存器
+        exp2Val(e1);
+        i32 resultReg = allocReg();
+        discharge(e1, resultReg);
+
+        i32 testCond = (op == BinaryExpr::Op::And) ? 0 : 1;
+        codeABC(OpCode::TEST, resultReg, 0, testCond);
+        i32 skipRight = codeAsBx(OpCode::JMP, 0, NO_JUMP);
+
         ExprDesc e2;
         expr(*e.right, e2);
-        luaK_dischargevars(e2);
-        luaK_concat(e2.f, e1.f);
-        desc = e2;
-        return;
-    }
-    else if (op == BinaryExpr::Op::Or) {
-        // or: 如果左操作数为真，跳过右操作数
-        // 实现: if e1 then result = e1 else result = e2
-        luaK_goiffalse(e1);
-        ExprDesc e2;
-        expr(*e.right, e2);
-        luaK_dischargevars(e2);
-        luaK_concat(e2.t, e1.t);
-        desc = e2;
+        exp2Val(e2);
+        discharge(e2, resultReg);
+
+        fixjump(skipRight, getLabel());
+
+        desc.kind = ExprKind::NonRelocatable;
+        desc.u.s.info = resultReg;
+        desc.t = NO_JUMP;
+        desc.f = NO_JUMP;
         return;
     }
 
@@ -1423,6 +1444,7 @@ void CodeGenerator::emitExpr(const BinaryExpr& e, ExprDesc& desc) {
     // 处理右操作数
     ExprDesc e2;
     expr(*e.right, e2);
+    ExprDesc* resultDesc = &e1;
 
     // 生成对应的指令
     switch (op) {
@@ -1462,15 +1484,17 @@ void CodeGenerator::emitExpr(const BinaryExpr& e, ExprDesc& desc) {
             break;
         case BinaryExpr::Op::Gt:
             codecomp(OpCode::LT, 1, e2, e1);  // a > b 等价于 b < a
+            resultDesc = &e2;
             break;
         case BinaryExpr::Op::Ge:
             codecomp(OpCode::LE, 1, e2, e1);  // a >= b 等价于 b <= a
+            resultDesc = &e2;
             break;
         default:
             break;
     }
 
-    desc = e1;
+    desc = *resultDesc;
 }
 
 void CodeGenerator::emitExpr(const UnaryExpr& e, ExprDesc& desc) {
@@ -1760,9 +1784,12 @@ i32 CodeGenerator::jumponcond(ExprDesc& e, i32 cond) {
         }
     }
 
-    discharge(e, allocReg());
-    freeReg(e.u.s.info);
-    return condjump(OpCode::TESTSET, NO_REG, e.u.s.info, cond);
+    // 逻辑表达式作为值参与更大表达式时，必须继续测试它“当前真实所在”的寄存器。
+    // 这里若先搬到新的临时寄存器，会让短路路径在未写入该临时寄存器时读到脏值，
+    // 例如：false and mark() or "fallback"。
+    i32 reg = exp2AnyReg(e);
+    freeReg(reg);
+    return condjump(OpCode::TESTSET, NO_REG, reg, cond);
 }
 
 i32 CodeGenerator::condjump(OpCode op, i32 a, i32 b, i32 c) {
@@ -2057,11 +2084,10 @@ void CodeGenerator::emitStmt(const FunctionStmt& s) {
 
     if (s.isLocal) {
         // 局部函数：local function name() end
-        // 先添加局部变量
-        addLocalVar(s.name);
+        // 先添加局部变量，并使用该变量的真实寄存器承载闭包。
+        i32 reg = addLocalVar(s.name);
 
         // 生成CLOSURE指令
-        i32 reg = nactvar_;
         codeABx(OpCode::CLOSURE, reg, protoIdx);
         emitClosureUpvalues(childUpvalues);
 

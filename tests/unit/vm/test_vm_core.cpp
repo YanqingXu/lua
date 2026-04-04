@@ -23,6 +23,27 @@
 using namespace Lua;
 using namespace LuaTest;
 
+namespace {
+
+LuaState* executeChunk(const char* code, const char* chunkName, Proto*& outProto) {
+    StringPool& pool = StringPool::getInstance();
+    Parser parser(code);
+    Chunk chunk = parser.parse();
+
+    CodeGenerator codegen(&pool);
+    outProto = codegen.generate(chunk, chunkName);
+
+    LuaState* L = LuaState::newState();
+    Function* chunkFunc = new Function(outProto);
+    chunkFunc->setEnv(L->getGlobalTable());
+    L->getGlobalState().getGC().registerObject(chunkFunc);
+
+    VM::execute(L, chunkFunc);
+    return L;
+}
+
+} // namespace
+
 void testGlobalState(TestSuite& suite) {
     GlobalState& gs = GlobalState::getInstance();
     
@@ -282,21 +303,10 @@ void testComparisonExpressionProducesBoolean(TestSuite& suite) {
     const char* code = "local ok = 1 == 1\nreturn ok";
 
     try {
-        StringPool& pool = StringPool::getInstance();
-        Parser parser(code);
-        Chunk chunk = parser.parse();
-
-        CodeGenerator codegen(&pool);
-        Proto* proto = codegen.generate(chunk, "=(comparison_bool)");
+        Proto* proto = nullptr;
+        LuaState* L = executeChunk(code, "=(comparison_bool)", proto);
 
         ASSERT_TRUE(suite, proto != nullptr, "comparison proto generated");
-
-        LuaState* L = LuaState::newState();
-        Function* chunkFunc = new Function(proto);
-        chunkFunc->setEnv(L->getGlobalTable());
-        L->getGlobalState().getGC().registerObject(chunkFunc);
-
-        VM::execute(L, chunkFunc);
 
         ASSERT_TRUE(suite, L->getTop() > 0, "comparison result returned");
         ASSERT_TRUE(suite, L->top().isBoolean(), "comparison result is boolean");
@@ -309,6 +319,105 @@ void testComparisonExpressionProducesBoolean(TestSuite& suite) {
     } catch (const std::exception& e) {
         std::cout << "  [ERROR] Exception: " << e.what() << std::endl;
         ASSERT_TRUE(suite, false, "comparison expression should execute without hanging");
+    }
+}
+
+void testLogicalExpressionsProduceRuntimeValues(TestSuite& suite) {
+    const char* code = R"(
+        local counter = {0}
+        local function mark()
+            counter[1] = counter[1] + 1
+            return "called"
+        end
+
+        local andValue = 0 and 7
+        local orValue = false or "fallback"
+        local notFalse = not false
+        local notZero = not 0
+        local shortAnd = false and mark()
+        local shortOr = true or mark()
+
+        return andValue, orValue, notFalse, notZero, shortAnd, shortOr, counter[1]
+    )";
+
+    try {
+        Proto* proto = nullptr;
+        LuaState* L = executeChunk(code, "=(logical_values_runtime)", proto);
+
+        ASSERT_TRUE(suite, proto != nullptr, "logical values proto generated");
+        ASSERT_TRUE(suite, L->getTop() >= 7, "logical values returned");
+
+        if (L->getTop() >= 7) {
+            ASSERT_TRUE(suite, L->at(-7).isNumber(), "0 and 7 returns number");
+            ASSERT_EQ(suite, 7.0, L->at(-7).asNumber(), "0 and 7 == 7");
+
+            ASSERT_TRUE(suite, L->at(-6).isString(), "false or 'fallback' returns string");
+            if (L->at(-6).isString()) {
+                ASSERT_TRUE(suite, std::string(L->at(-6).asString()->c_str()) == "fallback",
+                    "false or 'fallback' == 'fallback'");
+            }
+
+            ASSERT_TRUE(suite, L->at(-5).isBoolean(), "not false returns boolean");
+            ASSERT_TRUE(suite, L->at(-5).asBoolean(), "not false == true");
+
+            ASSERT_TRUE(suite, L->at(-4).isBoolean(), "not 0 returns boolean");
+            ASSERT_FALSE(suite, L->at(-4).asBoolean(), "not 0 == false");
+
+            ASSERT_TRUE(suite, L->at(-3).isBoolean(), "false and mark() returns boolean false");
+            ASSERT_FALSE(suite, L->at(-3).asBoolean(), "false and mark() == false");
+
+            ASSERT_TRUE(suite, L->at(-2).isBoolean(), "true or mark() returns boolean true");
+            ASSERT_TRUE(suite, L->at(-2).asBoolean(), "true or mark() == true");
+
+            ASSERT_TRUE(suite, L->at(-1).isNumber(), "short-circuit counter returns number");
+            ASSERT_EQ(suite, 0.0, L->at(-1).asNumber(), "short-circuit skipped mark()");
+        }
+
+        delete L;
+        delete proto;
+    } catch (const std::exception& e) {
+        std::cout << "  [ERROR] Exception: " << e.what() << std::endl;
+        ASSERT_TRUE(suite, false, "logical expressions should execute without throwing");
+    }
+}
+
+void testLogicalShortCircuitEvaluatesRightHandSideOnlyWhenNeeded(TestSuite& suite) {
+    const char* code = R"(
+        local counter = {0}
+        local function mark()
+            counter[1] = counter[1] + 1
+            return counter[1]
+        end
+
+        local andValue = true and mark()
+        local orValue = nil or mark()
+
+        return andValue, orValue, counter[1]
+    )";
+
+    try {
+        Proto* proto = nullptr;
+        LuaState* L = executeChunk(code, "=(logical_short_circuit_runtime)", proto);
+
+        ASSERT_TRUE(suite, proto != nullptr, "logical short-circuit proto generated");
+        ASSERT_TRUE(suite, L->getTop() >= 3, "logical short-circuit returned");
+
+        if (L->getTop() >= 3) {
+            ASSERT_TRUE(suite, L->at(-3).isNumber(), "true and mark() returns number");
+            ASSERT_EQ(suite, 1.0, L->at(-3).asNumber(), "true and mark() evaluates RHS once");
+
+            ASSERT_TRUE(suite, L->at(-2).isNumber(), "nil or mark() returns number");
+            ASSERT_EQ(suite, 2.0, L->at(-2).asNumber(), "nil or mark() evaluates RHS once");
+
+            ASSERT_TRUE(suite, L->at(-1).isNumber(), "counter returns number");
+            ASSERT_EQ(suite, 2.0, L->at(-1).asNumber(), "RHS ran exactly when needed");
+        }
+
+        delete L;
+        delete proto;
+    } catch (const std::exception& e) {
+        std::cout << "  [ERROR] Exception: " << e.what() << std::endl;
+        ASSERT_TRUE(suite, false, "logical short-circuit runtime should not throw");
     }
 }
 
@@ -325,5 +434,7 @@ void registerVMCoreTests() {
     registry.registerTest("VM Core", "SELF Dispatch On Userdata", testSelfDispatchOnUserdata);
     registry.registerTest("VM Core", "IOLib File Metatable Hooks", testIOLibFileMetatableHooks);
     registry.registerTest("VM Core", "Comparison Expression Produces Boolean", testComparisonExpressionProducesBoolean);
+    registry.registerTest("VM Core", "Logical Expressions Produce Runtime Values", testLogicalExpressionsProduceRuntimeValues);
+    registry.registerTest("VM Core", "Logical Short Circuit Runtime", testLogicalShortCircuitEvaluatesRightHandSideOnlyWhenNeeded);
 }
 
