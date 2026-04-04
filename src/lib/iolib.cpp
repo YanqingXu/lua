@@ -13,7 +13,9 @@
 #include "lib/lib_registry.hpp"
 #include "lib/lib_manager.hpp"
 #include "core/gc_string.hpp"
+#include "core/function.hpp"
 #include "core/table.hpp"
+#include "core/upvalue.hpp"
 #include "core/userdata.hpp"
 #include "vm/global_state.hpp"
 #include <cstdio>
@@ -30,6 +32,9 @@ namespace Lua {
 static const char* IO_INPUT = "io.input";
 static const char* IO_OUTPUT = "io.output";
 static const char* FILE_HANDLE_METATABLE = "FILE*";
+
+static i32 lines_iterator(LuaState* L);
+static FILE** toFilePtr(const Value& val);
 
 // =====================================================================
 // 辅助函数实现
@@ -125,6 +130,63 @@ FILE** toFilePtr(LuaState* L, i32 idx) {
     }
     
     return static_cast<FILE**>(ud->getData());
+}
+
+static Function* createCClosureWithClosedUpvalues(
+    LuaState* L,
+    CFunction func,
+    const Vec<Value>& upvalues
+) {
+    Function* closure = new Function(func);
+    L->getGlobalState().getGC().registerObject(closure);
+
+    for (const Value& value : upvalues) {
+        Upvalue* uv = Upvalue::createClosed(value);
+        L->getGlobalState().getGC().registerObject(uv);
+        closure->addUpvalue(uv);
+    }
+
+    return closure;
+}
+
+static Function* getCurrentClosure(LuaState* L) {
+    const CallInfo& ci = L->getCurrentCallInfo();
+    Value funcVal = L->getStack()[ci.func];
+    if (!funcVal.isFunction()) {
+        L->error("io iterator: current function is invalid");
+    }
+    return funcVal.asFunction();
+}
+
+static Value getClosureUpvalueValue(LuaState* L, usize index) {
+    Function* closure = getCurrentClosure(L);
+    Upvalue* uv = closure->getUpvalue(index);
+    if (uv == nullptr) {
+        L->error("io iterator: missing closure upvalue");
+    }
+    return uv->getValue(L->getStack());
+}
+
+static Value getDefaultInputHandleValue(LuaState* L) {
+    GCString* key = L->getGlobalState().getStringPool().intern(IO_INPUT);
+    Value val = L->getGlobal(key->getData());
+    FILE** fp = toFilePtr(val);
+    if (fp && *fp) {
+        return val;
+    }
+
+    Userdata* ud = createFileHandle(L, stdin);
+    return Value(ud);
+}
+
+static i32 pushLinesIterator(LuaState* L, const Value& fileHandle, bool autoClose) {
+    Vec<Value> upvalues;
+    upvalues.push_back(fileHandle);
+    upvalues.push_back(Value(autoClose));
+
+    Function* iter = createCClosureWithClosedUpvalues(L, lines_iterator, upvalues);
+    L->pushFunction(iter);
+    return 1;
 }
 
 static FILE** toFilePtr(const Value& val) {
@@ -443,39 +505,50 @@ i32 io_type(LuaState* L) {
  * 使用upvalue存储文件句柄。
  */
 static i32 lines_iterator(LuaState* L) {
-    // 从upvalue获取文件句柄
-    // 简化实现：由于当前没有完整的upvalue支持，我们使用全局状态
-    // TODO: 使用upvalue存储文件句柄
+    Value fileHandle = getClosureUpvalueValue(L, 0);
+    Value autoCloseVal = getClosureUpvalueValue(L, 1);
 
-    // 暂时返回错误
-    L->error("io.lines iterator: upvalue support needed");
+    FILE** fp = toFilePtr(fileHandle);
+    if (!fp) {
+        L->error("io.lines iterator: invalid file handle");
+    }
+
+    if (*fp == nullptr) {
+        return 0;
+    }
+
+    if (readLine(L, *fp)) {
+        return 1;
+    }
+
+    if (autoCloseVal.isBoolean() && autoCloseVal.asBoolean()) {
+        std::fclose(*fp);
+        *fp = nullptr;
+    }
+
     return 0;
 }
 
 i32 io_lines(LuaState* L) {
-    FILE* fp = nullptr;
-    bool shouldClose = false;
-
     if (L->getTop() == 0) {
-        // 无参数：使用默认输入
-        fp = getDefaultInput(L);
-        shouldClose = false;
-    } else if (L->isString(1)) {
-        // 字符串参数：打开文件
+        return pushLinesIterator(L, getDefaultInputHandleValue(L), false);
+    }
+
+    if (L->getTop() > 1) {
+        L->error("io.lines: format arguments are not yet supported");
+    }
+
+    if (L->isString(1)) {
         const char* filename = L->toString(1);
-        fp = safeFopen(filename, "r");
+        FILE* fp = safeFopen(filename, "r");
         if (!fp) {
             fileError(L, 1, filename);
         }
-        shouldClose = true;
-    } else {
-        L->error("io.lines: string expected");
+        Userdata* ud = createFileHandle(L, fp);
+        return pushLinesIterator(L, Value(ud), true);
     }
 
-    // 简化实现：由于缺少完整的闭包/upvalue支持，
-    // 我们返回一个错误提示
-    // TODO: 创建带有upvalue的迭代器闭包
-    L->error("io.lines: iterator closures not yet fully supported");
+    L->error("io.lines: string expected");
     return 0;
 }
 
@@ -752,11 +825,11 @@ i32 f_lines(LuaState* L) {
         L->error("attempt to use a closed file");
     }
 
-    // 简化实现：由于缺少完整的闭包/upvalue支持，
-    // 我们返回一个错误提示
-    // TODO: 创建带有upvalue的迭代器闭包
-    L->error("file:lines: iterator closures not yet fully supported");
-    return 0;
+    if (L->getTop() > 1) {
+        L->error("file:lines: format arguments are not yet supported");
+    }
+
+    return pushLinesIterator(L, L->at(1), false);
 }
 
 // =====================================================================

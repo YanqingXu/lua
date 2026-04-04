@@ -8,6 +8,7 @@
 #include "core/gc_string.hpp"
 #include "core/table.hpp"
 #include "core/function.hpp"
+#include "core/userdata.hpp"
 #include <stdexcept>
 
 namespace Lua {
@@ -147,8 +148,13 @@ void Upvalue::mark() {
             if (func != nullptr && !func->isMarked()) {
                 func->mark();
             }
+        } else if (closedValue_.isUserdata()) {
+            Userdata* ud = closedValue_.asUserdata();
+            if (ud != nullptr && !ud->isMarked()) {
+                ud->mark();
+            }
         }
-        // 其他GC对象类型（Userdata、Thread）暂未实现
+        // 其他GC对象类型（Thread）暂未实现
     }
     
     // 标记完成

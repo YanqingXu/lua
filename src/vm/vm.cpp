@@ -550,11 +550,9 @@ static void vmSetList(LuaState* L, Value* base, i32 a, i32 b, i32 c) {
 
 static void vmTForLoop(LuaState* L, Value*& base, Proto* proto,
                        usize& pc, i32 a, i32 c) {
-    const Vec<Instruction>& code = proto->getCode();
     i32 cb = a + 3;
-
-    Stack& stack = L->getStack();
     CallInfo& ci = L->getCurrentCallInfo();
+    Stack& stack = L->getStack();
     usize requiredSize = ci.base + cb + 3 + c;
     while (stack.size() < requiredSize) stack.push(Value());
     base = &stack[ci.base]; // refresh
@@ -571,34 +569,17 @@ static void vmTForLoop(LuaState* L, Value*& base, Proto* proto,
     Function* func = base[cb].asFunction();
 
     if (func->isCFunction()) {
-        CFunction cfunc = func->getCFunction();
+        ci.savedpc = &proto->getCode()[pc];
 
-        // 保存完整寄存器
-        Vec<Value> savedRegs;
-        for (usize i = 0; i < stack.size(); i++) savedRegs.push_back(stack.at(i));
-
-        stack.clear();
-        stack.push(savedRegs[ci.base + cb + 1]);
-        stack.push(savedRegs[ci.base + cb + 2]);
-
-        i32 nret = cfunc(L);
-
-        Vec<Value> returnValues;
-        for (i32 i = 0; i < nret && i < c; i++) {
-            if (2 + i < static_cast<i32>(stack.size()))
-                returnValues.push_back(stack.at(2 + i));
-            else
-                returnValues.push_back(Value());
+        bool isLua = vmPrecall(L, cb, 2, c);
+        if (isLua) {
+            throw std::runtime_error("VM: TFORLOOP Lua iterators not supported yet");
         }
 
-        stack.clear();
-        for (const Value& v : savedRegs) stack.push(v);
-        base = &stack[ci.base]; // refresh
-
-        for (usize i = 0; i < returnValues.size(); i++)
-            base[static_cast<i32>(cb + i)] = returnValues[i];
-        for (i32 i = static_cast<i32>(returnValues.size()); i < c; i++)
-            base[cb + i] = Value();
+        // 与普通 CALL 一样，恢复调用者寄存器窗口，避免后续写寄存器时覆盖高位槽位。
+        stack.setTop(ci.top);
+        L->setAbsoluteTop(ci.top);
+        base = refreshBase(L);
     } else {
         throw std::runtime_error("VM: TFORLOOP Lua iterators not supported yet");
     }
@@ -606,8 +587,10 @@ static void vmTForLoop(LuaState* L, Value*& base, Proto* proto,
     cb = a + 3;
     if (!base[cb].isNil()) {
         base[a + 2] = base[cb];
-        if (pc < code.size()) {
-            pc += GETARG_sBx(code[pc]); // 跳回循环体
+        if (pc < proto->getCode().size()) {
+            // 模拟执行“下一条 JMP”指令本身：主循环在进入 case 前已经先做过 pc++，
+            // 因此这里除了加上 JMP 的 sBx，还需要额外前进一步，才能落到循环体开头。
+            pc += GETARG_sBx(proto->getCode()[pc]) + 1; // 跳回循环体
         }
     } else {
         pc++; // 跳过 JMP，退出循环

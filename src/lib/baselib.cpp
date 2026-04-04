@@ -387,26 +387,24 @@ i32 luaB_getmetatable(LuaState* L) {
  * 参考：lua_c_analysis/src/lbaselib.c 中的luaB_next
  */
 static i32 luaB_next(LuaState* L) {
-    Stack& stack = L->getStack();
-
-    if (stack.size() < 1) {
+    if (L->getTop() < 1) {
         throw std::runtime_error("next: table expected");
     }
 
-    Value tableVal = stack.at(0);
+    Value tableVal = L->at(1);
     if (!tableVal.isTable()) {
         throw std::runtime_error("next: table expected");
     }
 
     Table* table = tableVal.asTable();
-    Value key = stack.size() > 1 ? stack.at(1) : Value();  // nil if not provided
+    Value key = L->getTop() > 1 ? L->at(2) : Value();  // nil if not provided
 
     // 获取下一个键值对
     Value nextKey, nextValue;
     if (table->next(key, nextKey, nextValue)) {
         // 找到下一个键值对
-        stack.push(nextKey);
-        stack.push(nextValue);
+        L->pushValue(nextKey);
+        L->pushValue(nextValue);
         return 2;
     } else {
         // 没有更多元素
@@ -423,13 +421,11 @@ static i32 luaB_next(LuaState* L) {
  * 参考：lua_c_analysis/src/lbaselib.c 中的luaB_pairs
  */
 static i32 luaB_pairs(LuaState* L) {
-    Stack& stack = L->getStack();
-
-    if (stack.size() < 1) {
+    if (L->getTop() < 1) {
         throw std::runtime_error("pairs: table expected");
     }
 
-    Value tableVal = stack.at(0);
+    Value tableVal = L->at(1);
     if (!tableVal.isTable()) {
         throw std::runtime_error("pairs: table expected");
     }
@@ -441,9 +437,9 @@ static i32 luaB_pairs(LuaState* L) {
     Function* nextFunc = new Function(luaB_next);
     gs.getGC().registerObject(nextFunc);
 
-    stack.push(Value(nextFunc));
-    stack.push(tableVal);
-    stack.push(Value());  // nil
+    L->pushFunction(nextFunc);
+    L->pushValue(tableVal);
+    L->pushNil();
 
     return 3;
 }
@@ -454,14 +450,12 @@ static i32 luaB_pairs(LuaState* L) {
  * 接收(table, index)，返回(index+1, value)
  */
 static i32 ipairsIter(LuaState* L) {
-    Stack& stack = L->getStack();
-
-    if (stack.size() < 2) {
+    if (L->getTop() < 2) {
         return 0;
     }
 
-    Value tableVal = stack.at(0);
-    Value indexVal = stack.at(1);
+    Value tableVal = L->at(1);
+    Value indexVal = L->at(2);
 
     if (!tableVal.isTable() || !indexVal.isNumber()) {
         return 0;
@@ -477,8 +471,8 @@ static i32 ipairsIter(LuaState* L) {
         return 0;  // 结束迭代
     }
 
-    stack.push(Value(static_cast<f64>(nextIndex)));
-    stack.push(nextValue);
+    L->pushNumber(static_cast<f64>(nextIndex));
+    L->pushValue(nextValue);
     return 2;
 }
 
@@ -491,13 +485,11 @@ static i32 ipairsIter(LuaState* L) {
  * 参考：lua_c_analysis/src/lbaselib.c 中的luaB_ipairs
  */
 static i32 luaB_ipairs(LuaState* L) {
-    Stack& stack = L->getStack();
-
-    if (stack.size() < 1) {
+    if (L->getTop() < 1) {
         throw std::runtime_error("ipairs: table expected");
     }
 
-    Value tableVal = stack.at(0);
+    Value tableVal = L->at(1);
     if (!tableVal.isTable()) {
         throw std::runtime_error("ipairs: table expected");
     }
@@ -508,9 +500,9 @@ static i32 luaB_ipairs(LuaState* L) {
     Function* iterFunc = new Function(ipairsIter);
     gs.getGC().registerObject(iterFunc);
 
-    stack.push(Value(iterFunc));
-    stack.push(tableVal);
-    stack.push(Value(0.0));  // 初始索引0
+    L->pushFunction(iterFunc);
+    L->pushValue(tableVal);
+    L->pushNumber(0.0);  // 初始索引0
 
     return 3;
 }

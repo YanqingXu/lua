@@ -125,8 +125,22 @@ print()
 -- Test 9: io.lines (if supported)
 print("Test 9: io.lines")
 ok, result = pcall(function()
+    local count = 0
     for line in io.lines("test_output.txt") do
         print("Line:", line)
+        count = count + 1
+    end
+    print("io.lines count:", count)
+
+    local fh = io.open("test_output.txt", "r")
+    if fh then
+        local viaMethod = 0
+        for line in fh:lines() do
+            print("Method line:", line)
+            viaMethod = viaMethod + 1
+        end
+        print("file:lines count:", viaMethod)
+        fh:close()
     end
 end)
 if not ok then
@@ -135,4 +149,3 @@ end
 print()
 
 print("=== All I/O tests completed ===")
-

@@ -1,6 +1,10 @@
 print("=== I/O Core Regression ===")
 
-local path = "test_iolib_core.txt"
+local path = string.format(
+    "test_iolib_core_%d_%d.txt",
+    os.time(),
+    math.floor(os.clock() * 1000)
+)
 local f = io.open(path, "w")
 assert(f, "io.open should return file handle")
 assert(io.type(f) == "file", "open handle type should be file")
@@ -29,12 +33,23 @@ tf:seek("set", 0)
 assert(tf:read("*a") == "temp-data", "tmpfile readback should match")
 tf:close()
 
-local ok, err = pcall(function()
-    for line in io.lines(path) do
-        print(line)
-    end
-end)
-assert(not ok, "io.lines should currently fail clearly")
-assert(type(err) == "string", "io.lines failure should be string error")
+local collected = {}
+for line in io.lines(path) do
+    collected[#collected + 1] = line
+end
+assert(#collected == 2, "io.lines should iterate two lines")
+assert(collected[1] == "alpha", "io.lines first line should match")
+assert(collected[2] == "beta", "io.lines second line should match")
+
+local fh = io.open(path, "r")
+assert(fh, "open for file:lines should succeed")
+local methodCollected = {}
+for line in fh:lines() do
+    methodCollected[#methodCollected + 1] = line
+end
+assert(#methodCollected == 2, "file:lines should iterate two lines")
+assert(methodCollected[1] == "alpha", "file:lines first line should match")
+assert(methodCollected[2] == "beta", "file:lines second line should match")
+fh:close()
 
 print("I/O core regression passed")

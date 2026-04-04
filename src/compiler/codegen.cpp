@@ -662,6 +662,23 @@ void CodeGenerator::discharge(ExprDesc& desc, i32 reg) {
             }
             break;
         }
+        case ExprKind::Jump: {
+            // 比较表达式（==, <, <= 等）在“需要值”的位置上必须真正物化成布尔值。
+            // codecomp 生成的是：
+            //   <COMPARE>
+            //   JMP <true-branch>
+            // 其中这个 JMP 只在表达式为真时执行。
+            // 因此这里生成：
+            //   LOADBOOL reg false 1
+            //   LOADBOOL reg true  0
+            // 并把前面的 JMP 修补到第二条 LOADBOOL。
+            i32 trueJump = desc.u.s.info;
+            codeABC(OpCode::LOADBOOL, reg, 0, 1);
+            i32 trueLabel = getLabel();
+            fixjump(trueJump, trueLabel);
+            codeABC(OpCode::LOADBOOL, reg, 1, 0);
+            break;
+        }
         default:
             break;
     }

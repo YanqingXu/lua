@@ -278,6 +278,40 @@ void testIOLibFileMetatableHooks(TestSuite& suite) {
     delete L;
 }
 
+void testComparisonExpressionProducesBoolean(TestSuite& suite) {
+    const char* code = "local ok = 1 == 1\nreturn ok";
+
+    try {
+        StringPool& pool = StringPool::getInstance();
+        Parser parser(code);
+        Chunk chunk = parser.parse();
+
+        CodeGenerator codegen(&pool);
+        Proto* proto = codegen.generate(chunk, "=(comparison_bool)");
+
+        ASSERT_TRUE(suite, proto != nullptr, "comparison proto generated");
+
+        LuaState* L = LuaState::newState();
+        Function* chunkFunc = new Function(proto);
+        chunkFunc->setEnv(L->getGlobalTable());
+        L->getGlobalState().getGC().registerObject(chunkFunc);
+
+        VM::execute(L, chunkFunc);
+
+        ASSERT_TRUE(suite, L->getTop() > 0, "comparison result returned");
+        ASSERT_TRUE(suite, L->top().isBoolean(), "comparison result is boolean");
+        if (L->top().isBoolean()) {
+            ASSERT_TRUE(suite, L->top().asBoolean(), "1 == 1 evaluates to true");
+        }
+
+        delete L;
+        delete proto;
+    } catch (const std::exception& e) {
+        std::cout << "  [ERROR] Exception: " << e.what() << std::endl;
+        ASSERT_TRUE(suite, false, "comparison expression should execute without hanging");
+    }
+}
+
 void registerVMCoreTests() {
     auto& registry = TestRegistry::getInstance();
     
@@ -290,5 +324,6 @@ void registerVMCoreTests() {
     registry.registerTest("VM Core", "LuaState Userdata Metatable", testLuaStateUserdataMetatable);
     registry.registerTest("VM Core", "SELF Dispatch On Userdata", testSelfDispatchOnUserdata);
     registry.registerTest("VM Core", "IOLib File Metatable Hooks", testIOLibFileMetatableHooks);
+    registry.registerTest("VM Core", "Comparison Expression Produces Boolean", testComparisonExpressionProducesBoolean);
 }
 
