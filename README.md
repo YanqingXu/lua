@@ -16,40 +16,14 @@
 
 本项目是一个**使用现代 C++ 重新实现 Lua 5.1.5 解释器**的实验性工程，当前主要面向学习、验证和逐步补全实现。
 
-如果是第一次接手，优先关注下面这几条约定。
-
-## ⚠️ 必读约定（下次接手先看这里）
-
-### 目录边界
-
-- **本项目的所有代码输出目录只有 `lua/`**
-- **所有代码修改都必须限制在 `lua/` 目录内**
-- `lua/` 之外的目录默认只作为参考资料，不作为本项目的直接实现目录
-
-### 参考项目定位
-
-- **主要参考**：`../lua_c_analysis/`
-  - 一个带有**中文注释**和**中文技术文档**的 Lua 5.1.5 C 源码分析项目
-  - 适合用于理解 Lua 原始实现、核心数据结构、执行流程和设计细节
-- **次要参考**：`../lua_with_cpp/`
-  - 另一个 **C++ Lua 实现（部分完成）**
-  - 适合参考 C++ 组织方式与部分实现思路，但优先级低于 `lua_c_analysis`
-
-### 一句话理解本仓库
-
-> `lua/` 是唯一正式开发目录；`lua_c_analysis/` 是带中文注释的主参考；`lua_with_cpp/` 是次要参考。
-
----
-
 ### 项目目标
 
 本项目旨在从零开始，用现代 C++ 重建 Lua 5.1.5 的核心执行链路，包括词法分析、语法分析、字节码生成、虚拟机执行、垃圾回收和标准库。
 
 **核心特点**：
-- 📚 **主参考清晰**：以 `lua_c_analysis` 中的 Lua 5.1.5 C 源码和中文文档为第一参考
-- 🔧 **技术路线明确**：Windows + Visual Studio 2026 + MSVC + C++17
+-  **技术路线明确**：Windows + Visual Studio 2026 + MSVC + C++17
 - ✨ **实现风格现代**：使用 `std::variant`、类型别名、STL 容器等现代 C++ 手段组织 Lua 运行时
-- 🎓 **偏学习型工程**：强调结构可读、模块可追踪、便于对照官方 Lua 实现理解设计
+- 🎓 **偏学习型工程**：强调结构可读、模块可追踪、便于理解 Lua 语言设计
 
 ---
 
@@ -805,9 +779,6 @@ openBaseLib(L);  // 注册所有8个函数到全局环境
 
 **测试覆盖**：6个测试用例（当前跳过，等待完整实现后启用）
 
-**参考实现**：
-- `lua_c_analysis/src/lbaselib.c` - Lua 5.1.5 C版本基础库
-
 ---
 
 ## 🏗️ 项目结构
@@ -815,61 +786,37 @@ openBaseLib(L);  // 注册所有8个函数到全局环境
 ### 目录结构
 
 ```
-工作区根目录 (e:\Programming2\lua_in_cpp\)
-│
-├── lua/                           # 主项目目录，也是唯一正式开发目录
-│   ├── src/                       # 核心源码
-│   │   ├── common/                # 基础类型、配置、宏
-│   │   ├── compiler/              # Lexer / Parser / AST / CodeGen / Bytecode Printer
-│   │   ├── core/                  # Value / Table / Function / String / Metatable 等核心对象
-│   │   ├── gc/                    # 垃圾回收器
-│   │   ├── io/                    # 输入流、动态缓冲区
-│   │   ├── lib/                   # base / math / io / os / string / table 等标准库
-│   │   ├── vm/                    # GlobalState / LuaState / Stack / VM
-│   │   ├── main.cpp               # `lua_app` 入口
-│   │   ├── repl.cpp/.hpp          # REPL 支持
-│   │   └── bytecode_main.cpp      # `lua_bytecode` 入口
-│   ├── tests/
-│   │   ├── lua/                   # Lua 脚本级测试样例
-│   │   └── unit/                  # C++ 单元测试
-│   │       ├── compiler/          # 编译器相关测试
-│   │       ├── core/              # 核心对象测试
-│   │       ├── framework/         # 测试框架自身
-│   │       ├── gc/                # GC 测试
-│   │       ├── io/                # I/O 测试
-│   │       ├── metamethod/        # 元方法测试
-│   │       ├── stdlib/            # 标准库测试
-│   │       └── vm/                # VM / LuaState 测试
-│   ├── docs/                      # 项目文档
-│   ├── tmp/                       # 临时编译中间产物
-│   ├── x64/                       # 统一输出目录（如 `x64/Debug/`）
-│   ├── lua/                       # `lua.vcxproj` 的项目中间目录
-│   ├── lua_app/                   # `lua_app.vcxproj` 的项目中间目录
-│   ├── lua_bytecode/              # `lua_bytecode.vcxproj` 的项目中间目录
-│   ├── lua_test/                  # `lua_test.vcxproj` 的项目中间目录与测试工程辅助文件
-│   ├── lua.slnx                   # Visual Studio 解决方案
-│   ├── lua.vcxproj                # 核心静态库项目
-│   ├── lua_app.vcxproj            # REPL / 临时执行入口项目
-│   ├── lua_test.vcxproj           # 单元测试项目
-│   ├── lua_bytecode.vcxproj       # 字节码打印与对比工具项目
-│   ├── .gitignore
-│   └── README.md
-│
-├── lua_c_analysis/              # Lua 5.1.5 C源码（带中文注释）主参考
-│   ├── src/                    # Lua C源码
-│   │   ├── lobject.h/c         # 对象系统（TValue、Table、Closure等）
-│   │   ├── lgc.h/c             # 垃圾回收
-│   │   ├── lvm.h/c             # 虚拟机
-│   │   ├── lparser.h/c         # 解析器
-│   │   └── ...                 # 其他模块
-│   └── docs/                   # 53篇技术文档
-│       ├── object/             # 对象系统文档
-│       ├── gc/                 # GC系统文档
-│       ├── vm/                 # 虚拟机文档
-│       └── ...
-│
-└── lua_with_cpp/                # 另一个 C++ Lua 实现（次要参考）
-    └── src/                    # C++实现代码
+├── src/                           # 核心源码
+│   ├── common/                    # 基础类型、配置、宏
+│   ├── compiler/                  # Lexer / Parser / AST / CodeGen / Bytecode Printer
+│   ├── core/                      # Value / Table / Function / String / Metatable 等核心对象
+│   ├── gc/                        # 垃圾回收器
+│   ├── io/                        # 输入流、动态缓冲区
+│   ├── lib/                       # base / math / io / os / string / table 等标准库
+│   ├── vm/                        # GlobalState / LuaState / Stack / VM
+│   ├── main.cpp                   # `lua_app` 入口
+│   ├── repl.cpp/.hpp              # REPL 支持
+│   └── bytecode_main.cpp          # `lua_bytecode` 入口
+├── tests/
+│   ├── lua/                       # Lua 脚本级测试样例
+│   └── unit/                      # C++ 单元测试
+│       ├── compiler/              # 编译器相关测试
+│       ├── core/                  # 核心对象测试
+│       ├── framework/             # 测试框架自身
+│       ├── gc/                    # GC 测试
+│       ├── io/                    # I/O 测试
+│       ├── metamethod/            # 元方法测试
+│       ├── stdlib/                # 标准库测试
+│       └── vm/                    # VM / LuaState 测试
+├── docs/                          # 项目文档
+├── bin/                           # 编译批处理脚本
+├── lua.slnx                       # Visual Studio 解决方案
+├── lua.vcxproj                    # 核心静态库项目
+├── lua_app.vcxproj                # REPL / 临时执行入口项目
+├── lua_test.vcxproj               # 单元测试项目
+├── lua_bytecode.vcxproj           # 字节码打印与对比工具项目
+├── .gitignore
+└── README.md
 ```
 
 ### 关键文件说明
@@ -885,12 +832,10 @@ openBaseLib(L);  // 注册所有8个函数到全局环境
 | `docs/ARCHITECTURE.md` | 架构设计说明，适合先建立整体认识 | ⭐⭐⭐ |
 | `docs/DEVELOPMENT_GUIDE.md` | 开发规范与类型系统约定 | ⭐⭐⭐ |
 | `lua.slnx` | 当前 Visual Studio 解决方案入口 | ⭐⭐⭐ |
-| `lua_c_analysis/src/` | 官方 Lua 5.1.5 C 实现的本地参考入口 | ⭐⭐⭐ |
 
 ### 目录说明补充
 
 - `src/`、`tests/`、`docs/` 是最值得长期关注的三个目录
-- `tmp/`、`x64/`、`lua/`、`lua_app/`、`lua_bytecode/`、`lua_test/` 主要是构建中间产物或项目生成目录，通常不作为核心实现阅读入口
 
 ---
 
@@ -908,8 +853,7 @@ openBaseLib(L);  // 注册所有8个函数到全局环境
 
 1. 先看本文档开头的“必读约定”
 2. 再看 `docs/ARCHITECTURE.md`
-3. 然后结合 `lua_c_analysis/src/` 对照关键模块
-4. 最后进入 `src/` 和 `tests/unit/` 开始实际开发或排错
+3. 最后进入 `src/` 和 `tests/unit/` 开始实际开发或排错
 
 ---
 
@@ -924,73 +868,25 @@ openBaseLib(L);  // 注册所有8个函数到全局环境
 | **PROJECT_OVERVIEW.md** | 项目总览 | 项目概况和技术栈 |
 | **PROJECT_SUMMARY_CN.md** | 中文项目总结 | 项目进展总结（中文） |
 
-### 参考资源
-
-#### 1. lua_c_analysis（主要参考）⭐⭐⭐
-
-**位置**：`../lua_c_analysis/`
-
-**内容**：
-- Lua 5.1.5 C源码（带详细中文注释）
-- 53篇技术文档
-- 核心算法详解
-
-**关键文件**：
-- `src/lobject.h/c` - 对象系统（TValue、Table、Closure等）
-- `src/lgc.h/c` - 垃圾回收系统
-- `src/lstate.h/c` - 状态管理（lua_State、global_State）
-- `src/lvm.h/c` - 虚拟机执行
-- `src/lparser.h/c` - 解析器
-- `src/ldo.h/c` - 函数调用和栈管理
-
-**使用方式**：
-- 理解原始Lua的设计思路和算法
-- 参考数据结构定义
-- 学习性能优化技巧
-
-#### 2. lua_with_cpp（次要参考）⭐⭐
-
-**位置**：`../lua_with_cpp/`
-
-**内容**：
-- 另一个C++ Lua实现（部分完成）
-- 现代C++实现模式
-- GC系统和VM实现
-
-**使用方式**：
-- 参考C++实现方案
-- 学习现代C++特性应用
-- 避免已知的设计缺陷
-
----
-
 ## 💡 快速上手指南（给新AI会话）
 
 ### 2分钟快速理解项目
 
 1. **这是什么项目？**
    - 一个用现代 C++ 重写 Lua 5.1.5 的项目
-   - 主代码都在 `lua/` 目录内
-   - `lua_c_analysis/` 是主参考，`lua_with_cpp/` 是次参考
 
 2. **已经完成了什么？**
    - 编译器前端、VM 主体、GC 框架、核心对象系统已经成型
    - 当前仍有少量失败测试和标准库补完工作
    - 重点不再是“从零搭骨架”，而是“持续补功能、修边界、稳行为”
 
-3. **参考目录怎么用？**
-   - `../lua_c_analysis/`：主参考，优先查 Lua 5.1.5 原始设计和中文说明
-   - `../lua_with_cpp/`：次参考，用于补充查看 C++ 写法
-
-4. **下一步做什么？**
+3. **下一步做什么？**
    - 先看当前失败测试和最近在改的模块
    - 优先补标准库、错误处理和工具链边缘能力
-   - 修改时始终以 `lua/` 为边界，不要把参考目录当作实现目录
 
-5. **在哪里找详细信息？**
+4. **在哪里找详细信息？**
    - 架构设计：`docs/ARCHITECTURE.md`
    - 编码规范：`docs/DEVELOPMENT_GUIDE.md`
-   - Lua C源码：`../lua_c_analysis/src/`
    - 项目总览：`docs/PROJECT_OVERVIEW.md`
 
 ---
@@ -1112,16 +1008,12 @@ lua/tests/unit/
 
 - **Lua官方网站**: [https://www.lua.org/](https://www.lua.org/)
 - **Lua 5.1参考手册**: [https://www.lua.org/manual/5.1/](https://www.lua.org/manual/5.1/)
-- **lua_c_analysis**: `../lua_c_analysis/`
-- **lua_with_cpp**: `../lua_with_cpp/`
 
 ---
 
 ## 🙏 致谢
 
 - **Lua团队**：创造了优秀的Lua语言
-- **lua_c_analysis**：提供了详细的Lua 5.1.5源码分析和中文文档
-- **lua_with_cpp**：提供了C++实现参考
 
 ---
 
@@ -1133,18 +1025,18 @@ lua/tests/unit/
 
 ## 🏗️ 子项目说明（Visual Studio 解决方案）
 
-本仓库在 `lua/` 目录下包含一个 Visual Studio 解决方案，用于组织核心库、运行入口、测试程序和字节码分析工具。
+本仓库包含一个 Visual Studio 解决方案，用于组织核心库、运行入口、测试程序和字节码分析工具。
 
 ### 解决方案与构建信息
 
-- **解决方案文件**：`lua/lua.slnx`
+- **解决方案文件**：`lua.slnx`
 - **构建工具**：MSBuild
 - **MSBuild路径**：`D:\VS2026\2026\MSBuild\Current\Bin\MSBuild.exe`
 - **默认构建配置**：Debug
 - **默认目标平台**：x64
-- **默认输出目录**：`lua/x64/Debug/`
+- **默认输出目录**：`x64/Debug/`
 
-### 编译批处理脚本（`lua/bin/`）
+### 编译批处理脚本（`bin/`）
 
 所有脚本默认执行 `Rebuild`，并固定使用 `Debug|x64`：
 
@@ -1184,4 +1076,3 @@ bin\build_bytecode.bat
 ### 一句话理解
 
 > `lua.vcxproj` 是核心静态库；`lua_app.vcxproj` 是临时 REPL 入口；`lua_test.vcxproj` 是测试运行器；`lua_bytecode.vcxproj` 是字节码对比分析工具。
-
