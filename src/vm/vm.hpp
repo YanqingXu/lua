@@ -72,6 +72,18 @@ namespace VM {
     ExecResult executeProto(LuaState* L, Proto* proto, i32 nexeccalls = 1);
 
     /**
+     * @brief 从CFunction内部调用栈上的函数（不清除栈）
+     *
+     * 调用方先将 func + args 压入栈，然后调用此函数。
+     * 执行完毕后结果替换到原 func 位置。
+     *
+     * @param L Lua状态指针
+     * @param nargs 参数个数（不含函数本身）
+     * @param nresults 期望的返回值数量（-1 = MULTRET）
+     */
+    void call(LuaState* L, i32 nargs, i32 nresults);
+
+    /**
      * @brief 设置全局 Trace Sink（nullptr 表示关闭 trace）
      */
     void setTraceSink(ITraceSink* sink);

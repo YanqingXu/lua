@@ -133,15 +133,16 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClInclude Include="src\compiler\bytecode_printer.hpp" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClCompile Include="src\bytecode_main.cpp" />
-  </ItemGroup>
-  <ItemGroup>
     <ProjectReference Include="lua.vcxproj">
       <Project>{91ed3531-8530-4138-83e7-69c2e674fdf9}</Project>
     </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\bytecode\bytecode_main.cpp" />
+    <ClCompile Include="src\bytecode\bytecode_printer.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="src\bytecode\bytecode_printer.hpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets" />

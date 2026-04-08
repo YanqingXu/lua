@@ -5,11 +5,16 @@
 
 #include "../framework/test_framework.hpp"
 #include "lib/baselib.hpp"
+#include "lib/lib_manager.hpp"
 #include "vm/lua_state.hpp"
+#include "vm/vm.hpp"
 #include "core/string_pool.hpp"
 #include "core/function.hpp"
 #include "core/table.hpp"
+#include "core/gc_string.hpp"
 #include "compiler/opcode.hpp"
+#include "compiler/parser.hpp"
+#include "compiler/codegen.hpp"
 
 #include <string>
 
@@ -19,6 +24,46 @@ using namespace LuaTest;
 namespace {
 
 constexpr const char* kSuiteName = "Base Library";
+
+/// Helper: compile and execute Lua code with all standard libs
+bool runLua(LuaState* L, const char* code) {
+    try {
+        Parser parser(code);
+        Chunk chunk = parser.parse();
+        StringPool& pool = StringPool::getInstance();
+        CodeGenerator codegen(&pool);
+        Proto* proto = codegen.generate(chunk, "test");
+        if (!proto) return false;
+
+        Function* func = new Function(proto);
+        L->getGlobalState().getGC().registerObject(func);
+        func->setEnv(L->getGlobalTable());
+        VM::execute(L, func);
+        delete proto;
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+/// Helper: get global number
+double getGlobalNumber(LuaState* L, const char* name) {
+    Value v = L->getGlobal(name);
+    return v.isNumber() ? v.asNumber() : -9999.0;
+}
+
+/// Helper: get global string
+std::string getGlobalStr(LuaState* L, const char* name) {
+    Value v = L->getGlobal(name);
+    return v.isString() ? std::string(v.asString()->c_str()) : "";
+}
+
+/// Helper: create state with all standard libraries
+LuaState* createFullState() {
+    LuaState* L = LuaState::newState();
+    StandardLibrary::openAll(L);
+    return L;
+}
 
 } // namespace
 
@@ -495,6 +540,210 @@ void testDofileWrapper(TestSuite& suite) {
     ASSERT_TRUE(suite, true, "dofile function registered");
 }
 
+// =====================================================================
+// unpack Tests
+// =====================================================================
+
+void testUnpackWrapper(TestSuite& suite) {
+    LuaStdLibTestContext ctx(openBaseLib);
+    LuaState* L = ctx.getState();
+
+    // Test 1: unpack basic — unpack({10, 20, 30}) returns 10, 20, 30
+    {
+        Table* t = new Table();
+        L->getGlobalState().getGC().registerObject(t);
+        t->setArray(1, Value(10.0));
+        t->setArray(2, Value(20.0));
+        t->setArray(3, Value(30.0));
+
+        i32 ret = ctx.invoke("unpack", [&](LuaState* s) {
+            s->pushTable(t);
+        });
+        ASSERT_EQ(suite, ret, 3, "unpack({10,20,30}) returns 3 values");
+        // Values are on the stack: at(-3)=10, at(-2)=20, at(-1)=30
+        ASSERT_EQ(suite, 10.0, L->at(-3).asNumber(), "unpack first = 10");
+        ASSERT_EQ(suite, 20.0, L->at(-2).asNumber(), "unpack second = 20");
+        ASSERT_EQ(suite, 30.0, L->at(-1).asNumber(), "unpack third = 30");
+    }
+
+    // Test 2: unpack with range — unpack({10, 20, 30, 40}, 2, 3) returns 20, 30
+    {
+        Table* t = new Table();
+        L->getGlobalState().getGC().registerObject(t);
+        t->setArray(1, Value(10.0));
+        t->setArray(2, Value(20.0));
+        t->setArray(3, Value(30.0));
+        t->setArray(4, Value(40.0));
+
+        i32 ret = ctx.invoke("unpack", [&](LuaState* s) {
+            s->pushTable(t);
+            s->pushNumber(2.0);
+            s->pushNumber(3.0);
+        });
+        ASSERT_EQ(suite, ret, 2, "unpack(t,2,3) returns 2 values");
+        ASSERT_EQ(suite, 20.0, L->at(-2).asNumber(), "unpack(t,2,3) first = 20");
+        ASSERT_EQ(suite, 30.0, L->at(-1).asNumber(), "unpack(t,2,3) second = 30");
+    }
+
+    // Test 3: unpack empty table
+    {
+        Table* t = new Table();
+        L->getGlobalState().getGC().registerObject(t);
+
+        i32 ret = ctx.invoke("unpack", [&](LuaState* s) {
+            s->pushTable(t);
+        });
+        ASSERT_EQ(suite, ret, 0, "unpack({}) returns 0 values");
+    }
+
+    // Test 4: unpack single element
+    {
+        Table* t = new Table();
+        L->getGlobalState().getGC().registerObject(t);
+        t->setArray(1, Value(42.0));
+
+        i32 ret = ctx.invoke("unpack", [&](LuaState* s) {
+            s->pushTable(t);
+        });
+        ASSERT_EQ(suite, ret, 1, "unpack({42}) returns 1 value");
+        ASSERT_EQ(suite, 42.0, L->top().asNumber(), "unpack({42}) = 42");
+    }
+
+    // Test 5: unpack with explicit i > j (empty range)
+    {
+        Table* t = new Table();
+        L->getGlobalState().getGC().registerObject(t);
+        t->setArray(1, Value(10.0));
+
+        i32 ret = ctx.invoke("unpack", [&](LuaState* s) {
+            s->pushTable(t);
+            s->pushNumber(3.0);
+            s->pushNumber(1.0);
+        });
+        ASSERT_EQ(suite, ret, 0, "unpack(t,3,1) returns 0 (empty range)");
+    }
+}
+
+// =====================================================================
+// unpack via Lua execution (integration test)
+// =====================================================================
+
+void testUnpackLua(TestSuite& suite) {
+    LuaState* L = createFullState();
+
+    // Test: unpack in multiple assignment
+    bool ok = runLua(L, R"(
+        local a, b, c = unpack({10, 20, 30})
+        gA = a
+        gB = b
+        gC = c
+    )");
+    ASSERT_TRUE(suite, ok, "unpack in multi-assignment runs");
+    ASSERT_EQ(suite, 10.0, getGlobalNumber(L, "gA"), "unpack a=10");
+    ASSERT_EQ(suite, 20.0, getGlobalNumber(L, "gB"), "unpack b=20");
+    ASSERT_EQ(suite, 30.0, getGlobalNumber(L, "gC"), "unpack c=30");
+
+    // Test: unpack with range in Lua
+    ok = runLua(L, R"(
+        local b, c = unpack({10, 20, 30, 40}, 2, 3)
+        gB2 = b
+        gC2 = c
+    )");
+    ASSERT_TRUE(suite, ok, "unpack with range in Lua runs");
+    ASSERT_EQ(suite, 20.0, getGlobalNumber(L, "gB2"), "unpack(t,2,3) b=20");
+    ASSERT_EQ(suite, 30.0, getGlobalNumber(L, "gC2"), "unpack(t,2,3) c=30");
+
+    // Test: unpack with mixed types
+    ok = runLua(L, R"lua(
+        local a, b, c = unpack({"hello", 42, true})
+        gStr = a
+        gNum = b
+        if c then gBool = 1 else gBool = 0 end
+    )lua");
+    ASSERT_TRUE(suite, ok, "unpack with mixed types runs");
+    ASSERT_EQ(suite, std::string("hello"), getGlobalStr(L, "gStr"), "unpack str='hello'");
+    ASSERT_EQ(suite, 42.0, getGlobalNumber(L, "gNum"), "unpack num=42");
+    ASSERT_EQ(suite, 1.0, getGlobalNumber(L, "gBool"), "unpack bool=true");
+
+    delete L;
+}
+
+// =====================================================================
+// load Tests (via Lua execution)
+// =====================================================================
+
+void testLoadWrapper(TestSuite& suite) {
+    // Test 1: load with a simple loader function
+    {
+        LuaState* L = createFullState();
+        bool ok = runLua(L, R"lua(
+            local done = false
+            local f = load(function()
+                if done then return nil end
+                done = true
+                return "gResult = 42"
+            end)
+            f()
+        )lua");
+        ASSERT_TRUE(suite, ok, "load basic runs");
+        ASSERT_EQ(suite, 42.0, getGlobalNumber(L, "gResult"), "load basic result=42");
+        delete L;
+    }
+
+    // Test 2: load with multi-piece source
+    {
+        LuaState* L = createFullState();
+        bool ok = runLua(L, R"lua(
+            local pieces = {"gX = ", "100 + ", "200"}
+            local i = 0
+            local f = load(function()
+                i = i + 1
+                return pieces[i]
+            end)
+            f()
+        )lua");
+        ASSERT_TRUE(suite, ok, "load multi-piece runs");
+        ASSERT_EQ(suite, 300.0, getGlobalNumber(L, "gX"), "load multi-piece gX=300");
+        delete L;
+    }
+
+    // Test 3: load with syntax error returns nil + message
+    {
+        LuaState* L = createFullState();
+        bool ok = runLua(L, R"lua(
+            local done = false
+            local f, err = load(function()
+                if done then return nil end
+                done = true
+                return "if if if"
+            end)
+            if f == nil then gLoadErr = 1 else gLoadErr = 0 end
+            if err then gHasMsg = 1 else gHasMsg = 0 end
+        )lua");
+        ASSERT_TRUE(suite, ok, "load syntax error runs");
+        ASSERT_EQ(suite, 1.0, getGlobalNumber(L, "gLoadErr"), "load returns nil on error");
+        ASSERT_EQ(suite, 1.0, getGlobalNumber(L, "gHasMsg"), "load returns error message");
+        delete L;
+    }
+
+    // Test 4: load with empty source (loader returns nil immediately)
+    {
+        LuaState* L = createFullState();
+        bool ok = runLua(L, R"lua(
+            local f, err = load(function() return nil end)
+            if f then
+                f()
+                gEmpty = 1
+            else
+                gEmpty = 0
+            end
+        )lua");
+        ASSERT_TRUE(suite, ok, "load empty source runs");
+        ASSERT_EQ(suite, 1.0, getGlobalNumber(L, "gEmpty"), "load empty source produces valid function");
+        delete L;
+    }
+}
+
 void registerBaselibTests() {
     auto& registry = TestRegistry::getInstance();
 
@@ -513,5 +762,8 @@ void registerBaselibTests() {
     registry.registerTest(kSuiteName, "loadstring", testLoadstringWrapper);
     registry.registerTest(kSuiteName, "loadfile", testLoadfileWrapper);
     registry.registerTest(kSuiteName, "dofile", testDofileWrapper);
+    registry.registerTest(kSuiteName, "unpack", testUnpackWrapper);
+    registry.registerTest(kSuiteName, "unpack lua", testUnpackLua);
+    registry.registerTest(kSuiteName, "load", testLoadWrapper);
 }
 

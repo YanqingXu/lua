@@ -2,13 +2,13 @@
 
 > **从零开始用C++17/20/23实现Lua 5.1.5解释器**
 
-[![Tests](https://img.shields.io/badge/tests-811%2F811-brightgreen)]()
+[![Tests](https://img.shields.io/badge/tests-842%2F842-brightgreen)]()
 [![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen)]()
 [![C++](https://img.shields.io/badge/C%2B%2B-17-blue)]()
 [![Platform](https://img.shields.io/badge/platform-Windows-blue)]()
-[![Progress](https://img.shields.io/badge/progress-85%25-yellow)]()
+[![Progress](https://img.shields.io/badge/progress-87%25-yellow)]()
 [![Code](https://img.shields.io/badge/code-15k%20lines-blue)]()
-[![Last Updated](https://img.shields.io/badge/updated-2026--04--08-blue)]()
+[![Last Updated](https://img.shields.io/badge/updated-2026--04--09-blue)]()
 
 ---
 
@@ -69,14 +69,14 @@
 | **CodeGenerator字节码生成器** | `src/compiler/codegen.hpp/cpp` + `opcode.hpp/cpp` | 2,249 | 字节码生成（AST→Bytecode） | ✅ 95% |
 | **VM字节码执行引擎** | `src/vm/vm.hpp/cpp` | 2,030 | 字节码解释执行（38条指令） | ✅ 95% |
 | **I/O系统** | `src/io/*.hpp/cpp` | 670 | InputStream + DynamicBuffer | ✅ 100% |
-| **基础库（Base Library）** | `src/lib/baselib.hpp/cpp` | 659 | 24/30函数（print、type、pcall、xpcall等） | 🔄 80% |
+| **基础库（Base Library）** | `src/lib/baselib.hpp/cpp` | 730 | 26/30函数（print、type、pcall、xpcall、unpack、load等） | 🔄 87% |
 | **数学库（Math Library）** | `src/lib/mathlib.hpp/cpp` | 681 | 22/22函数（完整实现） | ✅ 100% |
 | **I/O库（I/O Library）** | `src/lib/iolib.hpp/cpp` | 1,111 | 11/11函数 + 7/7文件方法（完整实现） | ✅ 100% |
 | **协程库（Coroutine Library）** | `src/lib/coroutinelib.hpp/cpp` | ~300 | 6/6函数（create、resume、yield、status、running、wrap） | ✅ 100% |
 | **Thread类** | `src/core/thread.hpp/cpp` | ~250 | 协程执行引擎，独立 LuaState + 栈转移 | ✅ 95% |
 | **库管理系统** | `src/lib/lib_manager.hpp/cpp` | 73 | 标准库注册和管理 | ✅ 100% |
 
-### 测试统计（2026-04-08更新）✅
+### 测试统计（2026-04-09更新）✅
 
 ```
 测试框架：自定义轻量级测试框架（零外部依赖）
@@ -89,11 +89,11 @@
            Table Indexed Access（18）、Method Call（23）、Variable Storage（11）、
            Lexer Number（10）、Lexer Lookahead（27）、
            Parser Recursion（4）、Parser Error（8）、Parser Memory Pool（31）
-  - 标准库：Base Library（105）、String Library（68）、
+  - 标准库：Base Library（136）、String Library（68）、
            Table Library（41）、OS Library（23）、Coroutine Library（62）
   - 元方法：Metamethod（8）、Complete Metamethods（24）
-总测试数：811个单元测试 ✅
-通过率：  100% (811/811)
+总测试数：842个单元测试 ✅
+通过率：  100% (842/842)
 失败测试：0个
 编译状态：Debug版本无警告，无链接冲突
 平台：    Windows + MSVC (Visual Studio 2026)
@@ -101,7 +101,7 @@
 
 ### 接下来优先做什么
 
-- **补充 base 库缺失函数**：`require`、`load`、`unpack` 等尚未实现
+- **补充 base 库缺失函数**：`require` 等尚未实现（`load`、`unpack` 已完成）
 - **实现 debug 库基础功能**：`debug.getinfo`、`debug.traceback` 等（Lua 核心调试能力）
 - **完善应用入口**：继续打磨 REPL、脚本执行和调试辅助工具
 
@@ -119,7 +119,7 @@
 ✅ **CodeGenerator字节码生成器**：AST→字节码转换，寄存器分配，常量表管理，跳转回填
 ✅ **OpCode指令集**：完整Lua 5.1指令集（38条指令），iABC/iABx/iAsBx三种格式
 ✅ **VM字节码执行引擎**：完整38条指令实现，Upvalue操作，函数调用（C函数），循环指令（FORLOOP/FORPREP/TFORLOOP），闭包创建，表初始化（SETLIST）
-✅ **基础库（Base Library）**：24/30函数（print、type、tostring、tonumber、error、assert、pcall、xpcall、pairs、ipairs、next、select、rawget、rawset、rawequal、loadstring、loadfile、dofile、collectgarbage 等），80%完成
+✅ **基础库（Base Library）**：26/30函数（print、type、tostring、tonumber、error、assert、pcall、xpcall、pairs、ipairs、next、select、rawget、rawset、rawequal、loadstring、loadfile、dofile、collectgarbage、unpack、load 等），87%完成
 ✅ **数学库（Math Library）**：22/22函数完整实现（abs, floor, ceil, sqrt, sin, cos, tan, log, exp, random 等），包括数学常量 math.pi 和 math.huge
 ✅ **I/O库（I/O Library）**：11/11函数 + 7/7文件方法完整实现（io.open, io.close, io.read, io.write, file:read, file:write 等），100%完成
 ✅ **协程库（Coroutine Library）**：6/6函数实现（coroutine.create、resume、yield、status、running、wrap），支持独立栈协程执行

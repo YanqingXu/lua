@@ -1,6 +1,6 @@
 ﻿#include "compiler/parser.hpp"
 #include "compiler/codegen.hpp"
-#include "compiler/bytecode_printer.hpp"
+#include "bytecode_printer.hpp"
 #include "core/string_pool.hpp"
 
 #include <cstring>

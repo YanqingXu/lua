@@ -691,6 +691,50 @@ static void vmVararg(LuaState* L, Value*& base, Proto* proto, i32 a, i32 b) {
 namespace VM {
 
 // -----------------------------------------------------------------
+// VM::call — 从 CFunction 内部安全调用一个函数
+//
+// 调用方（CFunction 上下文）已将 func + args 压入栈。
+// 本函数在 *不清除* 栈的前提下执行被调用函数，
+// 执行完毕后结果留在原 func 位置。
+//
+// nargs: 参数个数（不含函数本身）
+// nresults: 期望的返回值数量（MULTRET = -1 表示全部）
+//
+// 栈布局（before）：  [...existing... func arg1 arg2]
+//   absoluteTop 指向 arg2 之后
+// 栈布局（after）：   [...existing... result1 result2]
+//   absoluteTop 指向最后一个 result 之后
+// -----------------------------------------------------------------
+void call(LuaState* L, i32 nargs, i32 nresults) {
+    // funcPos（绝对栈索引）= top - nargs - 1
+    usize absTop = L->getAbsoluteTop();
+    usize funcPos = absTop - static_cast<usize>(nargs) - 1;
+
+    CallInfo& ci = L->getCurrentCallInfo();
+    i32 funcIndex = static_cast<i32>(funcPos - ci.base);
+
+    bool isLua = vmPrecall(L, funcIndex, nargs, nresults);
+    if (isLua) {
+        // Lua 函数：vmPrecall 已创建新的 CallInfo。
+        // 使用 nexeccalls=1，这样 OP_RETURN 的 --nexeccalls==0 路径会
+        // 直接返回（不 goto reentry）。该路径已经将返回值移至 ci.func
+        // 并关闭了 upvalues，但不调用 vmPostcall/popCallInfo。
+        CallInfo& newCI = L->getCurrentCallInfo();
+        Proto* proto = L->getStack()[newCI.func].asFunction()->getProto();
+        executeProto(L, proto, 1);
+
+        // OP_RETURN (nexeccalls==0) 已经把返回值放到 newCI.func 位置，
+        // 并调用了 closeUpvalues、shrunk stack。现在只需 popCallInfo 和
+        // 调整 absoluteTop 以反映 nresults。
+        i32 fpos = static_cast<i32>(newCI.func);
+        i32 wantedResults = newCI.nresults;
+        L->popCallInfo();
+        vmPostcall(L, fpos, wantedResults);
+    }
+    // C 函数：vmPrecall 已经执行完毕并做了 postcall + popCallInfo
+}
+
+// -----------------------------------------------------------------
 // VM::execute — 最外层入口
 // -----------------------------------------------------------------
 

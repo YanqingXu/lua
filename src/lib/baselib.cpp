@@ -1219,6 +1219,114 @@ i32 luaB_collectgarbage(LuaState* L) {
 }
 
 // =====================================================================
+// unpack(list [, i [, j]]) - 返回表中指定范围的元素
+// =====================================================================
+
+static i32 luaB_unpack(LuaState* L) {
+    if (L->getTop() < 1 || !L->isTable(1)) {
+        L->error("bad argument #1 to 'unpack' (table expected)");
+    }
+
+    Table* table = L->at(1).asTable();
+    i32 i = (L->getTop() >= 2) ? static_cast<i32>(L->toNumber(2)) : 1;
+    i32 j = (L->getTop() >= 3) ? static_cast<i32>(L->toNumber(3))
+                                : static_cast<i32>(table->length());
+
+    if (i > j) return 0;  // empty range
+
+    i32 n = j - i + 1;
+    for (i32 k = i; k <= j; k++) {
+        Value v = table->getArray(k);
+        L->pushValue(v);
+    }
+    return n;
+}
+
+// =====================================================================
+// load(func [, chunkname]) - 从函数加载器编译代码块
+// =====================================================================
+
+static i32 luaB_load(LuaState* L) {
+    auto& pool = L->getGlobalState().getStringPool();
+
+    if (L->getTop() < 1 || !L->isFunction(1)) {
+        L->setTop(0);
+        L->pushNil();
+        L->pushString(pool.intern("bad argument #1 to 'load' (function expected)"));
+        return 2;
+    }
+
+    Value loaderFunc = L->at(1);
+    Str chunkname = (L->getTop() >= 2 && L->at(2).isString())
+        ? L->at(2).asString()->c_str()
+        : "=(load)";
+
+    // Collect source pieces by calling the loader function repeatedly
+    // Use VM::call instead of L->pcall to preserve the stack (keeps upvalues valid)
+    Str source;
+    for (;;) {
+        // Push the loader and call it
+        L->pushValue(loaderFunc);
+        VM::call(L, 0, 1);
+
+        // Result is now at absolute top - 1; read it via getTop()
+        Value result = L->at(L->getTop());
+
+        if (result.isNil()) {
+            L->pop();
+            break;
+        }
+
+        if (!result.isString()) {
+            L->setTop(0);
+            L->pushNil();
+            L->pushString(pool.intern("load: loader must return a string or nil"));
+            return 2;
+        }
+
+        source.append(result.asString()->c_str());
+        L->pop();
+    }
+
+    // Compile the collected source
+    try {
+        Parser parser(source);
+        Chunk chunk = parser.parse();
+
+        CodeGenerator codegen(&pool);
+        Proto* proto = codegen.generate(chunk, chunkname);
+
+        if (!proto) {
+            L->setTop(0);
+            L->pushNil();
+            L->pushString(pool.intern("load: compilation failed"));
+            return 2;
+        }
+
+        Function* func = new Function(proto);
+        L->getGlobalState().getGC().registerObject(func);
+        func->setEnv(L->getGlobalTable());
+
+        L->setTop(0);
+        L->pushValue(Value(func));
+        return 1;
+
+    } catch (const ParseError& e) {
+        L->setTop(0);
+        L->pushNil();
+        Str errorMsg = Str("load: ") + e.what();
+        L->pushString(pool.intern(errorMsg.c_str()));
+        return 2;
+    } catch (const std::exception& e) {
+        L->setTop(0);
+        L->pushNil();
+        Str errorMsg = Str("load: ") + e.what();
+        L->pushString(pool.intern(errorMsg.c_str()));
+        return 2;
+    }
+}
+
+// =====================================================================
 // 基础库注册入口（使用现代C++流式API）
 // =====================================================================
 
@@ -1253,6 +1361,8 @@ void BaseLibModule::registerFunctions(LuaState* L) {
         .addGlobal("getfenv", luaB_getfenv)
         .addGlobal("setfenv", luaB_setfenv)
         .addGlobal("collectgarbage", luaB_collectgarbage)
+        .addGlobal("unpack", luaB_unpack)
+        .addGlobal("load", luaB_load)
         .commit();
 }
 
