@@ -11,10 +11,15 @@
 
 #include "../framework/test_framework.hpp"
 #include "lib/stringlib.hpp"
+#include "lib/lib_manager.hpp"
 #include "vm/lua_state.hpp"
+#include "vm/vm.hpp"
 #include "core/string_pool.hpp"
 #include "core/table.hpp"
 #include "core/function.hpp"
+#include "core/gc_string.hpp"
+#include "compiler/parser.hpp"
+#include "compiler/codegen.hpp"
 
 #include <string>
 #include <functional>
@@ -25,6 +30,46 @@ using namespace LuaTest;
 namespace {
 
 constexpr const char* kSuiteName = "String Library";
+
+/// Helper: compile and execute Lua code with all standard libs
+bool runLua(LuaState* L, const char* code) {
+    try {
+        Parser parser(code);
+        Chunk chunk = parser.parse();
+        StringPool& pool = StringPool::getInstance();
+        CodeGenerator codegen(&pool);
+        Proto* proto = codegen.generate(chunk, "test");
+        if (!proto) return false;
+
+        Function* func = new Function(proto);
+        L->getGlobalState().getGC().registerObject(func);
+        func->setEnv(L->getGlobalTable());
+        VM::execute(L, func);
+        delete proto;
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+/// Helper: get global number
+double getGlobalNumber(LuaState* L, const char* name) {
+    Value v = L->getGlobal(name);
+    return v.isNumber() ? v.asNumber() : -9999.0;
+}
+
+/// Helper: get global string
+std::string getGlobalStr(LuaState* L, const char* name) {
+    Value v = L->getGlobal(name);
+    return v.isString() ? std::string(v.asString()->c_str()) : "";
+}
+
+/// Helper: create state with all standard libraries
+LuaState* createFullState() {
+    LuaState* L = LuaState::newState();
+    StandardLibrary::openAll(L);
+    return L;
+}
 
 // Helper function to call a string library function
 i32 callStringFunc(LuaState* L, const char* funcName, const std::function<void(LuaState*)>& pushArgs) {
@@ -331,6 +376,265 @@ void testStringFormat(TestSuite& suite) {
 }
 
 // =====================================================================
+// string.gmatch Tests (via Lua execution — requires for-in loop)
+// =====================================================================
+
+void testStringGmatchBasic(TestSuite& suite) {
+    LuaState* L = createFullState();
+
+    // Test 1: Collect all words with %a+
+    bool ok = runLua(L, R"(
+        local result = ""
+        local count = 0
+        for w in string.gmatch("hello world foo", "%a+") do
+            result = result .. w .. ","
+            count = count + 1
+        end
+        gResult = result
+        gCount = count
+    )");
+    ASSERT_TRUE(suite, ok, "gmatch basic word iteration runs");
+    ASSERT_EQ(suite, std::string("hello,world,foo,"), getGlobalStr(L, "gResult"),
+              "gmatch(%a+) collects all words");
+    ASSERT_EQ(suite, 3.0, getGlobalNumber(L, "gCount"),
+              "gmatch(%a+) finds 3 words");
+
+    delete L;
+}
+
+void testStringGmatchDigits(TestSuite& suite) {
+    LuaState* L = createFullState();
+
+    // Test: Collect all numbers with %d+
+    bool ok = runLua(L, R"(
+        local result = ""
+        local count = 0
+        for n in string.gmatch("abc 123 def 456 ghi 789", "%d+") do
+            result = result .. n .. ","
+            count = count + 1
+        end
+        gResult = result
+        gCount = count
+    )");
+    ASSERT_TRUE(suite, ok, "gmatch digit iteration runs");
+    ASSERT_EQ(suite, std::string("123,456,789,"), getGlobalStr(L, "gResult"),
+              "gmatch(%d+) collects all numbers");
+    ASSERT_EQ(suite, 3.0, getGlobalNumber(L, "gCount"),
+              "gmatch(%d+) finds 3 numbers");
+
+    delete L;
+}
+
+void testStringGmatchCaptures(TestSuite& suite) {
+    LuaState* L = createFullState();
+
+    // Test: Capture key=value pairs
+    bool ok = runLua(L, R"lua(
+        local keys = ""
+        local vals = ""
+        local count = 0
+        for k, v in string.gmatch("name=John age=30 city=NYC", "(%w+)=(%w+)") do
+            keys = keys .. k .. ","
+            vals = vals .. v .. ","
+            count = count + 1
+        end
+        gKeys = keys
+        gVals = vals
+        gCount = count
+    )lua");
+    ASSERT_TRUE(suite, ok, "gmatch capture pairs runs");
+    ASSERT_EQ(suite, std::string("name,age,city,"), getGlobalStr(L, "gKeys"),
+              "gmatch captures keys correctly");
+    ASSERT_EQ(suite, std::string("John,30,NYC,"), getGlobalStr(L, "gVals"),
+              "gmatch captures values correctly");
+    ASSERT_EQ(suite, 3.0, getGlobalNumber(L, "gCount"),
+              "gmatch finds 3 pairs");
+
+    delete L;
+}
+
+void testStringGmatchSingleChar(TestSuite& suite) {
+    LuaState* L = createFullState();
+
+    // Test: Match each character with "."
+    bool ok = runLua(L, R"(
+        local result = ""
+        local count = 0
+        for c in string.gmatch("abc", ".") do
+            result = result .. c
+            count = count + 1
+        end
+        gResult = result
+        gCount = count
+    )");
+    ASSERT_TRUE(suite, ok, "gmatch single char runs");
+    ASSERT_EQ(suite, std::string("abc"), getGlobalStr(L, "gResult"),
+              "gmatch(.) matches each character");
+    ASSERT_EQ(suite, 3.0, getGlobalNumber(L, "gCount"),
+              "gmatch(.) finds 3 characters");
+
+    delete L;
+}
+
+void testStringGmatchEmptyString(TestSuite& suite) {
+    LuaState* L = createFullState();
+
+    // Test: No matches on empty string
+    bool ok = runLua(L, R"(
+        local count = 0
+        for w in string.gmatch("", "%a+") do
+            count = count + 1
+        end
+        gCount = count
+    )");
+    ASSERT_TRUE(suite, ok, "gmatch on empty string runs");
+    ASSERT_EQ(suite, 0.0, getGlobalNumber(L, "gCount"),
+              "gmatch on empty string yields nothing");
+
+    delete L;
+}
+
+void testStringGmatchNoMatch(TestSuite& suite) {
+    LuaState* L = createFullState();
+
+    // Test: Pattern doesn't match anything
+    bool ok = runLua(L, R"(
+        local count = 0
+        for w in string.gmatch("hello world", "%d+") do
+            count = count + 1
+        end
+        gCount = count
+    )");
+    ASSERT_TRUE(suite, ok, "gmatch no match runs");
+    ASSERT_EQ(suite, 0.0, getGlobalNumber(L, "gCount"),
+              "gmatch returns nothing when no matches");
+
+    delete L;
+}
+
+// =====================================================================
+// Pattern matching tests for string.find (pattern mode)
+// =====================================================================
+
+void testStringFindPattern(TestSuite& suite) {
+    LuaState* L = createFullState();
+
+    // Test 1: find with character class pattern
+    bool ok = runLua(L, R"(
+        local s, e = string.find("hello123world", "%d+")
+        gStart = s
+        gEnd = e
+    )");
+    ASSERT_TRUE(suite, ok, "find pattern %d+ runs");
+    ASSERT_EQ(suite, 6.0, getGlobalNumber(L, "gStart"), "find(%d+) start=6");
+    ASSERT_EQ(suite, 8.0, getGlobalNumber(L, "gEnd"), "find(%d+) end=8");
+
+    // Test 2: find with anchor
+    ok = runLua(L, R"(
+        local s, e = string.find("hello", "^hel")
+        gStart2 = s
+        gEnd2 = e
+    )");
+    ASSERT_TRUE(suite, ok, "find anchor pattern runs");
+    ASSERT_EQ(suite, 1.0, getGlobalNumber(L, "gStart2"), "find(^hel) start=1");
+    ASSERT_EQ(suite, 3.0, getGlobalNumber(L, "gEnd2"), "find(^hel) end=3");
+
+    // Test 3: find with capture returns captures too
+    ok = runLua(L, R"lua(
+        local s, e, cap = string.find("key=val", "(%a+)=")
+        gStart3 = s
+        gEnd3 = e
+        gCap3 = cap
+    )lua");
+    ASSERT_TRUE(suite, ok, "find with capture runs");
+    ASSERT_EQ(suite, 1.0, getGlobalNumber(L, "gStart3"), "find capture start=1");
+    ASSERT_EQ(suite, 4.0, getGlobalNumber(L, "gEnd3"), "find capture end=4");
+    ASSERT_EQ(suite, std::string("key"), getGlobalStr(L, "gCap3"), "find capture='key'");
+
+    delete L;
+}
+
+// =====================================================================
+// Pattern matching tests for string.match
+// =====================================================================
+
+void testStringMatchPattern(TestSuite& suite) {
+    LuaState* L = createFullState();
+
+    // Test 1: match returns first capture
+    bool ok = runLua(L, R"(
+        gResult = string.match("hello123", "%d+")
+    )");
+    ASSERT_TRUE(suite, ok, "match %d+ runs");
+    ASSERT_EQ(suite, std::string("123"), getGlobalStr(L, "gResult"),
+              "match(%d+) returns '123'");
+
+    // Test 2: match with captures
+    ok = runLua(L, R"lua(
+        local k, v = string.match("name=John", "(%a+)=(%a+)")
+        gKey = k
+        gVal = v
+    )lua");
+    ASSERT_TRUE(suite, ok, "match captures runs");
+    ASSERT_EQ(suite, std::string("name"), getGlobalStr(L, "gKey"), "match key='name'");
+    ASSERT_EQ(suite, std::string("John"), getGlobalStr(L, "gVal"), "match val='John'");
+
+    // Test 3: match returns nil on no match
+    ok = runLua(L, R"(
+        local r = string.match("hello", "%d+")
+        if r == nil then gIsNil = 1 else gIsNil = 0 end
+    )");
+    ASSERT_TRUE(suite, ok, "match nil runs");
+    ASSERT_EQ(suite, 1.0, getGlobalNumber(L, "gIsNil"),
+              "match returns nil on no match");
+
+    delete L;
+}
+
+// =====================================================================
+// Pattern matching tests for string.gsub (pattern mode)
+// =====================================================================
+
+void testStringGsubPattern(TestSuite& suite) {
+    LuaState* L = createFullState();
+
+    // Test 1: gsub with character class pattern
+    bool ok = runLua(L, R"(
+        local r, n = string.gsub("abc 123 def 456", "%d+", "NUM")
+        gResult = r
+        gCount = n
+    )");
+    ASSERT_TRUE(suite, ok, "gsub pattern %d+ runs");
+    ASSERT_EQ(suite, std::string("abc NUM def NUM"), getGlobalStr(L, "gResult"),
+              "gsub(%d+, NUM) replaces numbers");
+    ASSERT_EQ(suite, 2.0, getGlobalNumber(L, "gCount"), "gsub replaced 2 times");
+
+    // Test 2: gsub with capture substitution
+    ok = runLua(L, R"lua(
+        local r, n = string.gsub("hello world", "(%a+)", "[%1]")
+        gResult2 = r
+        gCount2 = n
+    )lua");
+    ASSERT_TRUE(suite, ok, "gsub capture substitution runs");
+    ASSERT_EQ(suite, std::string("[hello] [world]"), getGlobalStr(L, "gResult2"),
+              "gsub with capture substitution");
+    ASSERT_EQ(suite, 2.0, getGlobalNumber(L, "gCount2"), "gsub replaced 2 words");
+
+    // Test 3: gsub with max replacements
+    ok = runLua(L, R"(
+        local r, n = string.gsub("aaa", "a", "b", 2)
+        gResult3 = r
+        gCount3 = n
+    )");
+    ASSERT_TRUE(suite, ok, "gsub max replacements runs");
+    ASSERT_EQ(suite, std::string("bba"), getGlobalStr(L, "gResult3"),
+              "gsub with n=2 replaces first 2 only");
+    ASSERT_EQ(suite, 2.0, getGlobalNumber(L, "gCount3"), "gsub count=2");
+
+    delete L;
+}
+
+// =====================================================================
 // Test Registration
 // =====================================================================
 
@@ -344,5 +648,14 @@ void registerStringLibTests() {
     registry.registerTest(kSuiteName, "string.find", testStringFind);
     registry.registerTest(kSuiteName, "string.gsub", testStringGsub);
     registry.registerTest(kSuiteName, "string.format", testStringFormat);
+    registry.registerTest(kSuiteName, "string.gmatch basic", testStringGmatchBasic);
+    registry.registerTest(kSuiteName, "string.gmatch digits", testStringGmatchDigits);
+    registry.registerTest(kSuiteName, "string.gmatch captures", testStringGmatchCaptures);
+    registry.registerTest(kSuiteName, "string.gmatch single char", testStringGmatchSingleChar);
+    registry.registerTest(kSuiteName, "string.gmatch empty string", testStringGmatchEmptyString);
+    registry.registerTest(kSuiteName, "string.gmatch no match", testStringGmatchNoMatch);
+    registry.registerTest(kSuiteName, "string.find pattern", testStringFindPattern);
+    registry.registerTest(kSuiteName, "string.match pattern", testStringMatchPattern);
+    registry.registerTest(kSuiteName, "string.gsub pattern", testStringGsubPattern);
 }
 

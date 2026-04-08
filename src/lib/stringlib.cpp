@@ -14,7 +14,10 @@
 #include "lib/lib_manager.hpp"
 #include "core/gc_string.hpp"
 #include "core/table.hpp"
+#include "core/upvalue.hpp"
+#include "core/function.hpp"
 #include "vm/global_state.hpp"
+#include "gc/garbage_collector.hpp"
 #include <algorithm>
 #include <cctype>
 #include <cstring>
@@ -267,29 +270,320 @@ i32 str_char(LuaState* L) {
 }
 
 // =====================================================================
-// Pattern Matching Functions (Simplified Implementation)
+// Lua 5.1 Pattern Matching Engine
 // =====================================================================
 
-/**
- * @brief Simple pattern matching helper (plain text search)
- * @param s Source string
- * @param slen Source length
- * @param pattern Pattern string
- * @param plen Pattern length
- * @param init Starting position (0-based)
- * @return Position of match (0-based) or -1 if not found
- */
+/// Plain text search (used by string.find with plain=true)
 static i32 plainFind(const char* s, usize slen, const char* pattern, usize plen, usize init) {
     if (plen == 0) return static_cast<i32>(init);
     if (init + plen > slen) return -1;
-
     for (usize i = init; i <= slen - plen; i++) {
-        if (std::memcmp(s + i, pattern, plen) == 0) {
+        if (std::memcmp(s + i, pattern, plen) == 0)
             return static_cast<i32>(i);
-        }
     }
     return -1;
 }
+
+static constexpr i32 LUA_MAXCAPTURES = 32;
+static constexpr char L_ESC = '%';
+static constexpr ptrdiff_t CAP_UNFINISHED = -1;
+static constexpr ptrdiff_t CAP_POSITION = -2;
+
+struct MatchCapture {
+    const char* init;
+    ptrdiff_t len;
+};
+
+struct MatchState {
+    const char* src_init;
+    const char* src_end;
+    const char* p_end;
+    LuaState* L;
+    i32 level;
+    MatchCapture capture[LUA_MAXCAPTURES];
+};
+
+// Forward declarations
+static const char* lmatch(MatchState* ms, const char* s, const char* p);
+
+static i32 matchclass(i32 c, i32 cl) {
+    i32 res;
+    i32 lcl = std::tolower(cl);
+    switch (lcl) {
+        case 'a': res = std::isalpha(c); break;
+        case 'c': res = std::iscntrl(c); break;
+        case 'd': res = std::isdigit(c); break;
+        case 'l': res = std::islower(c); break;
+        case 'p': res = std::ispunct(c); break;
+        case 's': res = std::isspace(c); break;
+        case 'u': res = std::isupper(c); break;
+        case 'w': res = std::isalnum(c); break;
+        case 'x': res = std::isxdigit(c); break;
+        case 'z': res = (c == '\0'); break;
+        default: return (cl == c) ? 1 : 0;
+    }
+    if (std::isupper(cl)) res = !res;
+    return res ? 1 : 0;
+}
+
+static const char* classend(const char* p) {
+    switch (*p++) {
+        case '\0':
+            return p - 1;
+        case L_ESC:
+            if (*p == '\0')
+                return p;
+            return p + 1;
+        case '[':
+            if (*p == '^') p++;
+            do {
+                if (*p == '\0') return p;
+                if (*p == L_ESC && *(p + 1) != '\0') p++;
+                p++;
+            } while (*p != ']');
+            return p + 1;
+        default:
+            return p;
+    }
+}
+
+static i32 singlematch(i32 c, const char* p, const char* ep) {
+    switch (*p) {
+        case '.': return 1;
+        case L_ESC:
+            return matchclass(c, static_cast<unsigned char>(*(p + 1)));
+        case '[': {
+            const char* endclass = ep - 1;
+            i32 sig = 1;
+            if (p[1] == '^') {
+                sig = 0;
+                p++;
+            }
+            while (++p < endclass) {
+                if (*p == L_ESC) {
+                    p++;
+                    if (matchclass(c, static_cast<unsigned char>(*p)))
+                        return sig;
+                } else if ((p + 2 < endclass) && p[1] == '-') {
+                    p += 2;
+                    if (static_cast<unsigned char>(*(p - 2)) <= c &&
+                        c <= static_cast<unsigned char>(*p))
+                        return sig;
+                } else if (static_cast<unsigned char>(*p) == c) {
+                    return sig;
+                }
+            }
+            return !sig;
+        }
+        default:
+            return (static_cast<unsigned char>(*p) == c) ? 1 : 0;
+    }
+}
+
+static const char* matchbalance(MatchState* ms, const char* s, const char* p) {
+    if (p >= ms->p_end - 1) return nullptr;
+    if (*s != *p) return nullptr;
+    i32 b = *p;
+    i32 e = *(p + 1);
+    i32 cont = 1;
+    while (++s < ms->src_end) {
+        if (*s == e) {
+            if (--cont == 0) return s + 1;
+        } else if (*s == b) {
+            cont++;
+        }
+    }
+    return nullptr;
+}
+
+static i32 check_capture(MatchState* ms, i32 l) {
+    l -= '1';
+    if (l < 0 || l >= ms->level || ms->capture[l].len == CAP_UNFINISHED)
+        return -1;
+    return l;
+}
+
+static const char* match_capture(MatchState* ms, const char* s, i32 l) {
+    l = check_capture(ms, l);
+    if (l < 0) return nullptr;
+    usize len = static_cast<usize>(ms->capture[l].len);
+    if (static_cast<usize>(ms->src_end - s) >= len &&
+        std::memcmp(ms->capture[l].init, s, len) == 0)
+        return s + len;
+    return nullptr;
+}
+
+static const char* max_expand(MatchState* ms, const char* s, const char* p, const char* ep) {
+    i32 i = 0;
+    while (s + i < ms->src_end &&
+           singlematch(static_cast<unsigned char>(*(s + i)), p, ep))
+        i++;
+    while (i >= 0) {
+        const char* res = lmatch(ms, s + i, ep + 1);
+        if (res) return res;
+        i--;
+    }
+    return nullptr;
+}
+
+static const char* min_expand(MatchState* ms, const char* s, const char* p, const char* ep) {
+    for (;;) {
+        const char* res = lmatch(ms, s, ep + 1);
+        if (res) return res;
+        if (s < ms->src_end && singlematch(static_cast<unsigned char>(*s), p, ep))
+            s++;
+        else
+            return nullptr;
+    }
+}
+
+static const char* start_capture(MatchState* ms, const char* s, const char* p, ptrdiff_t what) {
+    i32 level = ms->level;
+    if (level >= LUA_MAXCAPTURES) return nullptr;
+    ms->capture[level].init = s;
+    ms->capture[level].len = what;
+    ms->level = level + 1;
+    const char* res = lmatch(ms, s, p);
+    if (!res)
+        ms->level--;
+    return res;
+}
+
+static const char* end_capture(MatchState* ms, const char* s, const char* p) {
+    for (i32 l = ms->level - 1; l >= 0; l--) {
+        if (ms->capture[l].len == CAP_UNFINISHED) {
+            ms->capture[l].len = s - ms->capture[l].init;
+            const char* res = lmatch(ms, s, p);
+            if (!res)
+                ms->capture[l].len = CAP_UNFINISHED;
+            return res;
+        }
+    }
+    return nullptr;
+}
+
+static const char* lmatch(MatchState* ms, const char* s, const char* p) {
+init:
+    if (p >= ms->p_end) return s;
+    switch (*p) {
+        case '(':
+            if (*(p + 1) == ')')
+                return start_capture(ms, s, p + 2, CAP_POSITION);
+            else
+                return start_capture(ms, s, p + 1, CAP_UNFINISHED);
+        case ')':
+            return end_capture(ms, s, p + 1);
+        case '$':
+            if (p + 1 >= ms->p_end)
+                return (s == ms->src_end) ? s : nullptr;
+            goto dflt;
+        case L_ESC: {
+            switch (*(p + 1)) {
+                case 'b': {
+                    s = matchbalance(ms, s, p + 2);
+                    if (!s) return nullptr;
+                    p += 4;
+                    goto init;
+                }
+                case 'f': {
+                    const char* ep2;
+                    char previous;
+                    p += 2;
+                    if (*p != '[') return nullptr;
+                    ep2 = classend(p);
+                    previous = (s == ms->src_init) ? '\0' : *(s - 1);
+                    if (singlematch(static_cast<unsigned char>(previous), p, ep2) ||
+                        !singlematch(static_cast<unsigned char>(*s), p, ep2))
+                        return nullptr;
+                    p = ep2;
+                    goto init;
+                }
+                default:
+                    if (std::isdigit(static_cast<unsigned char>(*(p + 1)))) {
+                        s = match_capture(ms, s, *(p + 1));
+                        if (!s) return nullptr;
+                        p += 2;
+                        goto init;
+                    }
+                    goto dflt;
+            }
+        }
+        default: dflt: {
+            const char* ep = classend(p);
+            i32 m = (s < ms->src_end) &&
+                    singlematch(static_cast<unsigned char>(*s), p, ep);
+            if (ep < ms->p_end) {
+                switch (*ep) {
+                    case '?': {
+                        if (m) {
+                            const char* res = lmatch(ms, s + 1, ep + 1);
+                            if (res) return res;
+                        }
+                        p = ep + 1;
+                        goto init;
+                    }
+                    case '*':
+                        return max_expand(ms, s, p, ep);
+                    case '+':
+                        return m ? max_expand(ms, s + 1, p, ep) : nullptr;
+                    case '-':
+                        return min_expand(ms, s, p, ep);
+                }
+            }
+            if (!m) return nullptr;
+            s++;
+            p = ep;
+            goto init;
+        }
+    }
+}
+
+/// Push one capture result (or the whole match if no captures)
+static void push_onecapture(MatchState* ms, i32 i,
+                             const char* s, const char* e) {
+    LuaState* L = ms->L;
+    if (i >= ms->level) {
+        if (i == 0) {
+            Str match(s, static_cast<usize>(e - s));
+            L->pushString(L->getGlobalState().getStringPool().intern(match));
+        } else {
+            L->error("invalid capture index");
+        }
+    } else {
+        ptrdiff_t cl = ms->capture[i].len;
+        if (cl == CAP_UNFINISHED) {
+            L->error("unfinished capture");
+        } else if (cl == CAP_POSITION) {
+            L->pushNumber(static_cast<f64>(ms->capture[i].init - ms->src_init + 1));
+        } else {
+            Str cap(ms->capture[i].init, static_cast<usize>(cl));
+            L->pushString(L->getGlobalState().getStringPool().intern(cap));
+        }
+    }
+}
+
+/// Return how many captures to push (at least 1)
+static i32 push_captures(MatchState* ms, const char* s, const char* e) {
+    i32 nlevels = (ms->level == 0) ? 1 : ms->level;
+    for (i32 i = 0; i < nlevels; i++)
+        push_onecapture(ms, i, s, e);
+    return nlevels;
+}
+
+/// Prepare MatchState for pattern p on string s
+static void prepareMatchState(MatchState* ms, LuaState* L,
+                               const char* s, usize slen,
+                               const char* p, usize plen) {
+    ms->L = L;
+    ms->src_init = s;
+    ms->src_end = s + slen;
+    ms->p_end = p + plen;
+    ms->level = 0;
+}
+
+// =====================================================================
+// string.find(s, pattern [, init [, plain]])
+// =====================================================================
 
 i32 str_find(LuaState* L) {
     if (L->getTop() < 2) {
@@ -303,24 +597,118 @@ i32 str_find(LuaState* L) {
     i32 init = (L->getTop() >= 3) ? static_cast<i32>(getNumberArg(L, 3, "find")) : 1;
     bool plain = (L->getTop() >= 4) ? L->toBoolean(4) : false;
 
-    // Adjust init position
     usize initPos = adjustPosition(init, slen);
-    if (initPos >= slen) {
+    if (initPos > slen) initPos = slen;
+
+    if (plain) {
+        i32 pos = plainFind(s, slen, pattern, plen, initPos);
+        if (pos >= 0) {
+            L->pushNumber(static_cast<f64>(pos + 1));
+            L->pushNumber(static_cast<f64>(pos + static_cast<i32>(plen)));
+            return 2;
+        }
         L->pushNil();
         return 1;
     }
 
-    // For now, only implement plain text search
-    // Full pattern matching would require a pattern matching engine
-    i32 pos = plainFind(s, slen, pattern, plen, initPos);
+    const char* p = pattern;
+    bool anchor = false;
+    if (*p == '^') {
+        anchor = true;
+        p++;
+        plen--;
+    }
 
-    if (pos >= 0) {
-        L->pushNumber(static_cast<f64>(pos + 1));  // Convert to 1-based
-        L->pushNumber(static_cast<f64>(pos + plen));  // End position (1-based)
-        return 2;
-    } else {
-        L->pushNil();
-        return 1;
+    MatchState ms;
+    prepareMatchState(&ms, L, s, slen, p, plen);
+
+    for (usize i = initPos; i <= slen; i++) {
+        ms.level = 0;
+        const char* res = lmatch(&ms, s + i, p);
+        if (res) {
+            L->pushNumber(static_cast<f64>(i + 1));
+            L->pushNumber(static_cast<f64>(res - s));
+            // Push captures after start/end
+            for (i32 c = 0; c < ms.level; c++)
+                push_onecapture(&ms, c, s + i, res);
+            return 2 + ms.level;
+        }
+        if (anchor) break;
+    }
+
+    L->pushNil();
+    return 1;
+}
+
+// =====================================================================
+// string.match(s, pattern [, init])
+// =====================================================================
+
+i32 str_match(LuaState* L) {
+    if (L->getTop() < 2) {
+        L->error("string.match: missing arguments");
+    }
+
+    usize slen, plen;
+    const char* s = getStringArg(L, 1, "match", &slen);
+    const char* pattern = getStringArg(L, 2, "match", &plen);
+
+    i32 init = (L->getTop() >= 3) ? static_cast<i32>(getNumberArg(L, 3, "match")) : 1;
+    usize initPos = adjustPosition(init, slen);
+    if (initPos > slen) initPos = slen;
+
+    const char* p = pattern;
+    bool anchor = false;
+    if (*p == '^') {
+        anchor = true;
+        p++;
+        plen--;
+    }
+
+    MatchState ms;
+    prepareMatchState(&ms, L, s, slen, p, plen);
+
+    for (usize i = initPos; i <= slen; i++) {
+        ms.level = 0;
+        const char* res = lmatch(&ms, s + i, p);
+        if (res) {
+            return push_captures(&ms, s + i, res);
+        }
+        if (anchor) break;
+    }
+
+    L->pushNil();
+    return 1;
+}
+
+// =====================================================================
+// string.gsub(s, pattern, repl [, n])
+// =====================================================================
+
+/// Add the replacement value for a match to the result buffer
+static void add_value(MatchState* ms, Str& result,
+                      const char* s, const char* e, i32 replType,
+                      const char* repl, usize rlen, LuaState* L) {
+    (void)replType;
+    // Only string replacement is supported for now
+    for (usize i = 0; i < rlen; i++) {
+        if (repl[i] != L_ESC) {
+            result.push_back(repl[i]);
+        } else {
+            i++;
+            if (i >= rlen) break;
+            if (!std::isdigit(static_cast<unsigned char>(repl[i]))) {
+                result.push_back(repl[i]);
+            } else if (repl[i] == '0') {
+                result.append(s, static_cast<usize>(e - s));
+            } else {
+                i32 ci = repl[i] - '1';
+                if (ci < ms->level && ms->capture[ci].len >= 0) {
+                    result.append(ms->capture[ci].init,
+                                  static_cast<usize>(ms->capture[ci].len));
+                }
+            }
+        }
     }
 }
 
@@ -333,36 +721,57 @@ i32 str_gsub(LuaState* L) {
     const char* s = getStringArg(L, 1, "gsub", &slen);
     const char* pattern = getStringArg(L, 2, "gsub", &plen);
     const char* repl = getStringArg(L, 3, "gsub", nullptr);
+    usize rlen = std::strlen(repl);
 
-    i32 maxRepl = (L->getTop() >= 4) ? static_cast<i32>(getNumberArg(L, 4, "gsub")) : -1;
+    i32 maxn = (L->getTop() >= 4) ? static_cast<i32>(getNumberArg(L, 4, "gsub")) : static_cast<i32>(slen + 1);
 
-    // Simple implementation: plain text replacement
+    const char* p = pattern;
+    bool anchor = false;
+    if (*p == '^') {
+        anchor = true;
+        p++;
+        plen--;
+    }
+
+    MatchState ms;
+    prepareMatchState(&ms, L, s, slen, p, plen);
+
     Str result;
     result.reserve(slen);
-
     i32 count = 0;
-    usize pos = 0;
+    usize srcPos = 0;
 
-    while (pos < slen) {
-        if (maxRepl >= 0 && count >= maxRepl) {
-            // Reached max replacements, copy rest
-            result.append(s + pos, slen - pos);
-            break;
+    while (count < maxn) {
+        ms.level = 0;
+        const char* e = lmatch(&ms, s + srcPos, p);
+        if (e) {
+            count++;
+            add_value(&ms, result, s + srcPos, e, 0, repl, rlen, L);
+            // If empty match, advance by one
+            if (e == s + srcPos) {
+                if (srcPos < slen) {
+                    result.push_back(s[srcPos]);
+                    srcPos++;
+                } else {
+                    break;
+                }
+            } else {
+                srcPos = static_cast<usize>(e - s);
+            }
+        } else {
+            if (srcPos < slen) {
+                result.push_back(s[srcPos]);
+                srcPos++;
+            } else {
+                break;
+            }
+            if (anchor) break;
         }
+    }
 
-        i32 found = plainFind(s, slen, pattern, plen, pos);
-        if (found < 0) {
-            // No more matches, copy rest
-            result.append(s + pos, slen - pos);
-            break;
-        }
-
-        // Copy text before match
-        result.append(s + pos, found - pos);
-        // Append replacement
-        result.append(repl);
-        count++;
-        pos = found + plen;
+    // Append remaining
+    if (srcPos < slen) {
+        result.append(s + srcPos, slen - srcPos);
     }
 
     GCString* str = L->getGlobalState().getStringPool().intern(result);
@@ -371,36 +780,101 @@ i32 str_gsub(LuaState* L) {
     return 2;
 }
 
-i32 str_match(LuaState* L) {
-    if (L->getTop() < 2) {
-        L->error("string.match: missing arguments");
+// =====================================================================
+// string.gmatch(s, pattern) → iterator function
+// =====================================================================
+
+/// Helper: get current C closure from call stack
+static Function* getCurrentCClosure(LuaState* L) {
+    const CallInfo& ci = L->getCurrentCallInfo();
+    Value funcVal = L->getStack()[ci.func];
+    return funcVal.isFunction() ? funcVal.asFunction() : nullptr;
+}
+
+/// Helper: get closed upvalue value from current closure
+static Value getUpval(LuaState* L, usize index) {
+    Function* closure = getCurrentCClosure(L);
+    if (!closure) L->error("gmatch: internal error");
+    Upvalue* uv = closure->getUpvalue(index);
+    if (!uv) L->error("gmatch: internal error");
+    return uv->getValue(L->getStack());
+}
+
+/// Helper: set closed upvalue value on current closure
+static void setUpval(LuaState* L, usize index, const Value& val) {
+    Function* closure = getCurrentCClosure(L);
+    if (!closure) return;
+    Upvalue* uv = closure->getUpvalue(index);
+    if (!uv) return;
+    uv->setValue(L->getStack(), val);
+}
+
+/// gmatch iterator function — upvalues: [0]=string, [1]=pattern, [2]=position
+static i32 gmatch_aux(LuaState* L) {
+    Value sVal   = getUpval(L, 0);
+    Value pVal   = getUpval(L, 1);
+    Value posVal = getUpval(L, 2);
+
+    if (!sVal.isString() || !pVal.isString()) return 0;
+
+    const char* s = sVal.asString()->c_str();
+    usize slen = std::strlen(s);
+    const char* pattern = pVal.asString()->c_str();
+    usize plen = std::strlen(pattern);
+    usize pos = static_cast<usize>(posVal.asNumber());
+
+    MatchState ms;
+    prepareMatchState(&ms, L, s, slen, pattern, plen);
+
+    for (usize i = pos; i <= slen; i++) {
+        ms.level = 0;
+        const char* e = lmatch(&ms, s + i, pattern);
+        if (e) {
+            // Advance position: if empty match, move forward by 1
+            usize newpos = (e == s + i) ? i + 1 : static_cast<usize>(e - s);
+            setUpval(L, 2, Value(static_cast<f64>(newpos)));
+            return push_captures(&ms, s + i, e);
+        }
     }
+    return 0;
+}
 
-    // Simplified implementation: return the pattern if found
-    usize slen, plen;
-    const char* s = getStringArg(L, 1, "match", &slen);
-    const char* pattern = getStringArg(L, 2, "match", &plen);
-
-    i32 init = (L->getTop() >= 3) ? static_cast<i32>(getNumberArg(L, 3, "match")) : 1;
-    usize initPos = adjustPosition(init, slen);
-
-    i32 pos = plainFind(s, slen, pattern, plen, initPos);
-    if (pos >= 0) {
-        Str result(pattern, plen);
-        GCString* str = L->getGlobalState().getStringPool().intern(result);
-        L->pushString(str);
-        return 1;
-    } else {
-        L->pushNil();
-        return 1;
+/// Helper: create C closure with closed upvalues (same pattern as iolib)
+static Function* createClosureWithUpvalues(
+    LuaState* L, CFunction func, const Vec<Value>& upvalues) {
+    Function* closure = new Function(func);
+    L->getGlobalState().getGC().registerObject(closure);
+    for (const Value& v : upvalues) {
+        Upvalue* uv = Upvalue::createClosed(v);
+        L->getGlobalState().getGC().registerObject(uv);
+        closure->addUpvalue(uv);
     }
+    return closure;
 }
 
 i32 str_gmatch(LuaState* L) {
-    // TODO: Implement iterator for pattern matches
-    // This requires creating a closure that maintains state
-    L->error("string.gmatch: not yet implemented");
-    return 0;
+    if (L->getTop() < 2) {
+        L->error("string.gmatch: missing arguments");
+    }
+
+    usize slen, plen;
+    const char* s = getStringArg(L, 1, "gmatch", &slen);
+    const char* p = getStringArg(L, 2, "gmatch", &plen);
+
+    // Strip anchor — gmatch ignores '^'
+    const char* pat = p;
+    if (*pat == '^') pat++;
+
+    auto& pool = L->getGlobalState().getStringPool();
+
+    Vec<Value> upvalues;
+    upvalues.push_back(Value(pool.intern(s)));
+    upvalues.push_back(Value(pool.intern(pat)));
+    upvalues.push_back(Value(0.0));
+
+    Function* iter = createClosureWithUpvalues(L, gmatch_aux, upvalues);
+    L->pushFunction(iter);
+    return 1;
 }
 
 i32 str_format(LuaState* L) {

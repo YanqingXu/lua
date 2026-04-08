@@ -2,11 +2,11 @@
 
 > **从零开始用C++17/20/23实现Lua 5.1.5解释器**
 
-[![Tests](https://img.shields.io/badge/tests-768%2F768-brightgreen)]()
+[![Tests](https://img.shields.io/badge/tests-811%2F811-brightgreen)]()
 [![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen)]()
 [![C++](https://img.shields.io/badge/C%2B%2B-17-blue)]()
 [![Platform](https://img.shields.io/badge/platform-Windows-blue)]()
-[![Progress](https://img.shields.io/badge/progress-83%25-yellow)]()
+[![Progress](https://img.shields.io/badge/progress-85%25-yellow)]()
 [![Code](https://img.shields.io/badge/code-15k%20lines-blue)]()
 [![Last Updated](https://img.shields.io/badge/updated-2026--04--08-blue)]()
 
@@ -31,10 +31,10 @@
 
 ### 总体状态
 
-- **整体完成度**：约 83%
+- **整体完成度**：约 85%
 - **代码规模**：约 83 个源文件，约 15k-16k 行有效代码
 - **核心链路**：类型系统、编译器前端、字节码执行引擎已基本成型
-- **主要短板**：调试库尚未实现，部分标准库函数仍为桩实现（`string.gmatch`），应用层入口能力仍需补完
+- **主要短板**：调试库尚未实现，应用层入口能力仍需补完
 
 ### 当前判断
 
@@ -89,11 +89,11 @@
            Table Indexed Access（18）、Method Call（23）、Variable Storage（11）、
            Lexer Number（10）、Lexer Lookahead（27）、
            Parser Recursion（4）、Parser Error（8）、Parser Memory Pool（31）
-  - 标准库：Base Library（105）、String Library（25）、
+  - 标准库：Base Library（105）、String Library（68）、
            Table Library（41）、OS Library（23）、Coroutine Library（62）
   - 元方法：Metamethod（8）、Complete Metamethods（24）
-总测试数：768个单元测试 ✅
-通过率：  100% (768/768)
+总测试数：811个单元测试 ✅
+通过率：  100% (811/811)
 失败测试：0个
 编译状态：Debug版本无警告，无链接冲突
 平台：    Windows + MSVC (Visual Studio 2026)
@@ -101,7 +101,6 @@
 
 ### 接下来优先做什么
 
-- **实现 string.gmatch**：当前为桩实现，补全模式匹配引擎
 - **补充 base 库缺失函数**：`require`、`load`、`unpack` 等尚未实现
 - **实现 debug 库基础功能**：`debug.getinfo`、`debug.traceback` 等（Lua 核心调试能力）
 - **完善应用入口**：继续打磨 REPL、脚本执行和调试辅助工具
@@ -776,7 +775,6 @@ openBaseLib(L);  // 注册所有函数到全局环境
 
 **已知限制**：
 - `require` / `load` / `unpack` 尚未实现
-- `string.gmatch` 尚未实现
 - debug 库整体缺失
 
 **测试覆盖**：105个测试用例全部通过
