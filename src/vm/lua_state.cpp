@@ -131,7 +131,7 @@ Upvalue* LuaState::findOrCreateUpvalue(usize stackIndex) {
 
     // 3. 没找到，创建新的upvalue
     // ✅ 改进：只传递索引，不传递指针
-    Upvalue* newUpval = Upvalue::createOpen(stackIndex);
+    Upvalue* newUpval = Upvalue::createOpen(stackIndex, stack_);
 
     // 4. 插入链表（保持降序）
     newUpval->setNext(curr);
@@ -687,6 +687,7 @@ i32 LuaState::type(i32 idx) const {
         if (v.isTable()) return 5;      // LUA_TTABLE
         if (v.isFunction()) return 6;   // LUA_TFUNCTION
         if (v.isUserdata()) return 7;   // LUA_TUSERDATA
+        if (v.isThread()) return 8;     // LUA_TTHREAD
         return -1;  // LUA_TNONE
     } catch (...) {
         return -1;  // LUA_TNONE

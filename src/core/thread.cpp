@@ -149,7 +149,9 @@ bool Thread::resume(LuaState* callerL, i32 nargs) {
         }
 
         // 获取当前 Lua 帧的 proto（reentry 会用到）
+        // 恢复调用帧的栈窗口（模拟 CALL handler 的 post-processing）
         CallInfo& ci = state_->getCurrentCallInfo();
+        state_->setAbsoluteTop(ci.top);
         Function* func = state_->getStack().at(ci.func).asFunction();
         proto = func->getProto();
     }

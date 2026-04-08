@@ -2188,16 +2188,21 @@ void CodeGenerator::emitStmt(const ForNumStmt& s) {
     // 进入可break的代码块（在添加循环变量之前）
     enterBlock(true);  // isbreakable = true
 
-    // 添加循环变量作为局部变量（R(base+3)）
-    addLocalVar(s.var);
-    adjustLocalVars(1);
+    // 注册 3 个内部控制变量和可见循环变量为局部变量（与 Lua 5.1 C 一致）。
+    // 这确保 nactvar_ 包含它们，防止后续语句中
+    // freereg_ = nactvar_ 重置到控制寄存器区域。
+    // 注意：exp2NextReg 已将 init/limit/step 放到 R(base)..R(base+2)
+    // 并将 freereg_ 推进到 base+3。addLocalVar 会从当前 freereg_ 分配，
+    // 但这里我们需要它们映射到 base+0..base+2，所以先回退 freereg_，
+    // 让 addLocalVar 自然分配到正确的寄存器。
+    freereg_ = base;
+    addLocalVar("(for index)");   // R(base)
+    addLocalVar("(for limit)");   // R(base+1)
+    addLocalVar("(for step)");    // R(base+2)
+    addLocalVar(s.var);           // R(base+3) — 可见循环变量
+    adjustLocalVars(4);
 
-    // 数值 for 需要保留 R(base)..R(base+3)：
-    // - R(base)   = internal index
-    // - R(base+1) = limit
-    // - R(base+2) = step
-    // - R(base+3) = visible loop variable
-    // 循环体中的临时寄存器必须从这之后开始分配，避免覆盖控制寄存器。
+    // 确保 freereg_ 在所有保留寄存器之后
     freereg_ = base + 4;
     checkStack(0);
 
@@ -2266,11 +2271,18 @@ void CodeGenerator::emitStmt(const ForInStmt& s) {
     // 进入可break的代码块（在添加循环变量之前）
     enterBlock(true);  // isbreakable = true
 
+    // 注册 3 个内部控制变量为局部变量（与 Lua 5.1 C 一致）。
+    // 类似数值 for，先回退 freereg_ 以映射到 R(base)..R(base+2)。
+    freereg_ = base;
+    addLocalVar("(for generator)");  // R(base)
+    addLocalVar("(for state)");      // R(base+1)
+    addLocalVar("(for control)");    // R(base+2)
+
     // 添加循环变量作为局部变量（R(base+3), R(base+4), ...）
     for (const Str& var : s.vars) {
         addLocalVar(var);
     }
-    adjustLocalVars(nvars);
+    adjustLocalVars(3 + nvars);
 
     // 泛型 for 需要保留：
     // - R(base)   = iterator function

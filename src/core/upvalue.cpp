@@ -15,8 +15,8 @@ namespace Lua {
 
 // ========== 静态工厂方法 ==========
 
-Upvalue* Upvalue::createOpen(usize stackIndex) {
-    return new Upvalue(stackIndex);
+Upvalue* Upvalue::createOpen(usize stackIndex, Stack& ownerStack) {
+    return new Upvalue(stackIndex, ownerStack);
 }
 
 Upvalue* Upvalue::createClosed(const Value& value) {
@@ -25,14 +25,15 @@ Upvalue* Upvalue::createClosed(const Value& value) {
 
 // ========== 构造函数 ==========
 
-Upvalue::Upvalue(usize stackIndex)
+Upvalue::Upvalue(usize stackIndex, Stack& ownerStack)
     : GCObject(GCObjectType::Upval)
     , isOpen_(true)
     , stackIndex_(stackIndex)
     , closedValue_()  // 默认构造为nil
     , next_(nullptr)
+    , ownerStack_(&ownerStack)
 {
-    // Open状态：只存储索引
+    // Open状态：存储索引和所属栈指针
 }
 
 Upvalue::Upvalue(const Value& value)
@@ -41,6 +42,7 @@ Upvalue::Upvalue(const Value& value)
     , stackIndex_(0)  // Closed状态下无意义
     , closedValue_(value)
     , next_(nullptr)
+    , ownerStack_(nullptr)
 {
     // Closed状态：存储值
 }
@@ -59,8 +61,8 @@ bool Upvalue::isClosed() const noexcept {
 
 Value& Upvalue::getValue(Stack& stack) noexcept {
     if (isOpen_) {
-        // Open状态：通过索引动态获取栈上的值
-        return stack[stackIndex_];
+        // Open状态：使用ownerStack_访问正确的栈（跨协程安全）
+        return (*ownerStack_)[stackIndex_];
     } else {
         // Closed状态：返回内部存储的值
         return closedValue_;
@@ -69,8 +71,8 @@ Value& Upvalue::getValue(Stack& stack) noexcept {
 
 const Value& Upvalue::getValue(const Stack& stack) const noexcept {
     if (isOpen_) {
-        // Open状态：通过索引动态获取栈上的值
-        return stack[stackIndex_];
+        // Open状态：使用ownerStack_访问正确的栈（跨协程安全）
+        return (*ownerStack_)[stackIndex_];
     } else {
         // Closed状态：返回内部存储的值
         return closedValue_;
@@ -79,8 +81,8 @@ const Value& Upvalue::getValue(const Stack& stack) const noexcept {
 
 void Upvalue::setValue(Stack& stack, const Value& value) {
     if (isOpen_) {
-        // Open状态：设置栈上的值
-        stack[stackIndex_] = value;
+        // Open状态：使用ownerStack_设置正确的栈上的值
+        (*ownerStack_)[stackIndex_] = value;
     } else {
         // Closed状态：设置内部存储的值
         closedValue_ = value;
@@ -95,8 +97,8 @@ void Upvalue::close(Stack& stack) {
         return;
     }
 
-    // 1. 将栈上的值复制到closedValue_
-    closedValue_ = stack[stackIndex_];
+    // 1. 将栈上的值复制到closedValue_（使用ownerStack_确保正确性）
+    closedValue_ = (*ownerStack_)[stackIndex_];
 
     // 2. 标记为Closed状态
     isOpen_ = false;

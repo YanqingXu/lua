@@ -69,7 +69,7 @@ public:
      * - 闭包创建时捕获外部变量
      * - LuaState::findOrCreateUpvalue()中
      */
-    static Upvalue* createOpen(usize stackIndex);
+    static Upvalue* createOpen(usize stackIndex, Stack& ownerStack);
     
     /**
      * @brief 创建Closed状态的Upvalue（独立存储值）
@@ -201,7 +201,7 @@ private:
      *
      * ✅ 改进：只接受索引参数
      */
-    explicit Upvalue(usize stackIndex);
+    Upvalue(usize stackIndex, Stack& ownerStack);
 
     /**
      * @brief 私有构造函数（Closed状态）
@@ -250,6 +250,15 @@ private:
      * - 按stackIndex_降序排列
      */
     Upvalue* next_;
+
+    /**
+     * @brief 所属栈指针（Open状态）
+     *
+     * 用于跨协程（Thread）时正确访问upvalue所在的栈。
+     * Open状态：指向创建时的栈
+     * Closed状态：不使用
+     */
+    Stack* ownerStack_;
 };
 
 } // namespace Lua
