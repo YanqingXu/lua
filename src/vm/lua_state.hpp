@@ -39,6 +39,7 @@ namespace Lua {
 // 前向声明
 class Upvalue;
 class Userdata;
+class Thread;
 
 /**
  * @brief Lua线程状态枚举
@@ -541,6 +542,39 @@ public:
      */
     void closeUpvalues(usize level);
 
+    // =====================================================================
+    // Coroutine support
+    // =====================================================================
+
+    /**
+     * @brief 创建子线程（协程用）
+     * 共享 GlobalState + globalTable，独立 Stack + CallStack
+     */
+    static LuaState* newThread(LuaState* parentL);
+
+    /// yield 许可计数器
+    void incAllowYield() noexcept { allowYield_++; }
+    void decAllowYield() noexcept { if (allowYield_ > 0) allowYield_--; }
+    bool canYield() const noexcept { return allowYield_ > 0; }
+
+    /// yield 值数量
+    void setYieldResults(i32 n) noexcept { yieldResults_ = n; }
+    i32  getYieldResults() const noexcept { return yieldResults_; }
+
+    /// nexeccalls 保存/恢复
+    void setSavedNexeccalls(i32 n) noexcept { savedNexeccalls_ = n; }
+    i32  getSavedNexeccalls() const noexcept { return savedNexeccalls_; }
+
+    /// 当前 LuaState 对应的 Thread 对象（主线程为 nullptr）
+    Thread* getThread() const noexcept { return thread_; }
+    void setThread(Thread* t) noexcept { thread_ = t; }
+
+    /// 调用栈访问（供 Thread GC marking 使用）
+    Vec<CallInfo>& getCallStack() noexcept { return callStack_; }
+
+    /// Open Upvalue 链表头访问
+    Upvalue* getOpenUpvalues() const noexcept { return openUpvalues_; }
+
 private:
     /**
      * @brief 私有构造函数
@@ -581,6 +615,25 @@ private:
     /// Open Upvalue链表头（按栈索引降序排列）
     /// 注意：Upvalue由GC管理，这里只持有指针
     Upvalue* openUpvalues_;
+
+    // =====================================================================
+    // Coroutine 相关字段
+    // =====================================================================
+
+    /// 允许 yield 的嵌套层数（> 0 可 yield，== 0 不可 yield）
+    u16 allowYield_ = 0;
+
+    /// yield 返回值数量
+    i32 yieldResults_ = 0;
+
+    /// 保存的执行深度（yield 时写入，resume 时恢复）
+    i32 savedNexeccalls_ = 1;
+
+    /// 所属 Thread 对象（主线程为 nullptr）
+    Thread* thread_ = nullptr;
+
+    /// 是否由 newThread 创建（析构时不 removeRoot globalTable_）
+    bool isChildThread_ = false;
 
 public:
     // =====================================================================

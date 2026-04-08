@@ -38,6 +38,7 @@ extern void registerLexerLookaheadTests();
 extern void registerParserRecursionTests();
 extern void registerParserErrorRecoveryTests();
 extern void registerParserMemoryPoolTests();
+extern void registerCoroutineLibTests();
 
 /**
  * @brief 打印测试框架标题
@@ -107,6 +108,7 @@ int main() {
     registerParserRecursionTests();
     registerParserErrorRecoveryTests();
     registerParserMemoryPoolTests();
+    registerCoroutineLibTests();
 
     std::cout << "[INFO] All tests registered." << std::endl;
     std::cout << "[INFO] Starting test execution...\n" << std::endl;

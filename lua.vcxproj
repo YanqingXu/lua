@@ -137,6 +137,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="src\common\config.hpp" />
+    <ClInclude Include="src\common\lua_error.hpp" />
     <ClInclude Include="src\common\macros.hpp" />
     <ClInclude Include="src\common\types.hpp" />
     <ClInclude Include="src\compiler\ast.hpp" />
@@ -155,11 +156,13 @@
     <ClInclude Include="src\core\upvalue.hpp" />
     <ClInclude Include="src\core\userdata.hpp" />
     <ClInclude Include="src\core\value.hpp" />
+    <ClInclude Include="src\core\thread.hpp" />
     <ClInclude Include="src\gc\garbage_collector.hpp" />
     <ClInclude Include="src\io\dynamic_buffer.hpp" />
     <ClInclude Include="src\io\input_stream.hpp" />
     <ClInclude Include="src\lib\baselib.hpp" />
     <ClInclude Include="src\lib\iolib.hpp" />
+    <ClInclude Include="src\lib\coroutinelib.hpp" />
     <ClInclude Include="src\lib\lib_manager.hpp" />
     <ClInclude Include="src\lib\lib_module.hpp" />
     <ClInclude Include="src\lib\lib_registry.hpp" />
@@ -194,10 +197,12 @@
     <ClCompile Include="src\core\upvalue.cpp" />
     <ClCompile Include="src\core\userdata.cpp" />
     <ClCompile Include="src\core\value.cpp" />
+    <ClCompile Include="src\core\thread.cpp" />
     <ClCompile Include="src\gc\garbage_collector.cpp" />
     <ClCompile Include="src\io\dynamic_buffer.cpp" />
     <ClCompile Include="src\io\input_stream.cpp" />
     <ClCompile Include="src\lib\baselib.cpp" />
+    <ClCompile Include="src\lib\coroutinelib.cpp" />
     <ClCompile Include="src\lib\iolib.cpp" />
     <ClCompile Include="src\lib\lib_manager.cpp" />
     <ClCompile Include="src\lib\lib_registry.cpp" />

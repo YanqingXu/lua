@@ -20,6 +20,8 @@ public:
 
     static void openOS(LuaState* L);
 
+    static void openCoroutine(LuaState* L);
+
     static void openModule(LuaState* L, LibModule& module);
 };
 

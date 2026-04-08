@@ -7,6 +7,7 @@
  */
 
 #include "vm/lua_state.hpp"
+#include "common/lua_error.hpp"
 #include "core/userdata.hpp"
 #include "core/function.hpp"
 #include "vm/vm.hpp"
@@ -26,6 +27,31 @@ namespace Lua {
 LuaState* LuaState::newState() {
     LuaState* L = new LuaState();
     L->initialize();
+    return L;
+}
+
+LuaState* LuaState::newThread(LuaState* parentL) {
+    LuaState* L = new LuaState();
+
+    // 共享全局表（不创建新的，不注册为 GC root）
+    L->globalTable_ = parentL->globalTable_;
+    L->isChildThread_ = true;
+
+    // 初始化调用栈（虚拟主函数帧）
+    CallInfo& ci = L->callStack_[0];
+    ci.func = 0;
+    ci.base = 1;
+    ci.top = MIN_STACK_SIZE;
+    ci.savedpc = nullptr;
+    ci.nresults = MULTRET;
+    ci.tailcalls = 0;
+
+    // 虚拟主函数位
+    L->stack_.push(Value());  // nil
+    L->top_ = 1;
+
+    L->status_ = ThreadStatus::OK;
+
     return L;
 }
 
@@ -49,9 +75,8 @@ LuaState::~LuaState() {
     // 关闭所有open upvalue
     closeUpvalues(0);
 
-    // 清理全局表（如果不是主线程的全局表）
-    // 注意：全局表由GC管理，这里只需要移除根引用
-    if (globalTable_) {
+    // 子线程不拥有全局表的 root 引用
+    if (globalTable_ && !isChildThread_) {
         globalState_.getGC().removeRoot(globalTable_);
     }
 }
@@ -493,6 +518,14 @@ i32 LuaState::pcall(i32 nargs, i32 nresults, i32 errfunc) {
         }
 
         return LUA_OK;
+
+    } catch (const LuaError& e) {
+        // LuaError: 直接使用 Lua Value 作为错误对象
+        restoreCallFrames();
+        restoreStackPrefix(savedStack);
+        pushValue(e.getErrorObject());
+        setStatus(ThreadStatus::OK);
+        return LUA_ERRRUN;
 
     } catch (const std::exception& e) {
         // 捕获异常并返回错误

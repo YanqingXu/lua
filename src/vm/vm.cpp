@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file vm.cpp
  * @brief Lua虚拟机执行引擎实现 — 纯自由函数风格
  *
@@ -471,6 +471,11 @@ static bool vmPrecall(LuaState* L, i32 funcIndex, i32 nArgs, i32 nResults) {
 
         i32 nReturnValues = cfunc(L);
 
+        // If C function triggered yield, preserve its CallInfo for resume
+        if (L->getStatus() == ThreadStatus::Yield) {
+            return false;
+        }
+
         usize currentTop = L->getAbsoluteTop();
         usize firstResult = currentTop - static_cast<usize>(nReturnValues);
         vmPostcall(L, static_cast<i32>(funcPos), nResults, firstResult);
@@ -731,7 +736,7 @@ void execute(LuaState* L, Function* func) {
 // 局部变量：func, proto, pc, base（与 Lua C luaV_execute 一致）
 // -----------------------------------------------------------------
 
-void executeProto(LuaState* L, Proto* proto, i32 nexeccalls) {
+ExecResult executeProto(LuaState* L, Proto* proto, i32 nexeccalls) {
     // 深度检查
     if (!proto)
         throw std::runtime_error("VM::executeProto: null proto");
@@ -1040,8 +1045,12 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
                     nexeccalls++;
                     goto reentry;
                 }
-                // C 函数已在 precall 中执行完毕。恢复 Lua 调用帧的寄存器窗口，
-                // 避免随后对更高寄存器的写入被 Stack::top_ 当作“空槽”覆盖。
+                // yield detection: C function (e.g. coroutine.yield) may set Yield
+                if (L->getStatus() == ThreadStatus::Yield) {
+                    L->setSavedNexeccalls(nexeccalls);
+                    return ExecResult::Yielded;
+                }
+
                 {
                     CallInfo& callerCI = L->getCurrentCallInfo();
                     Stack& stack = L->getStack();
@@ -1114,7 +1123,7 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
                 L->closeUpvalues(ci.base);
 
                 if (--nexeccalls == 0) {
-                    return; // 最外层函数返回
+                    return ExecResult::Returned; // 最外层函数返回
                 }
 
                 // 弹出 CallInfo，处理返回值
@@ -1185,6 +1194,8 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
             } // switch
         } // while
     } // scope for code reference
+
+    return ExecResult::Returned;
 }
 
 } // namespace VM

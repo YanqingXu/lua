@@ -36,6 +36,12 @@ class Function;
 class Proto;
 class ITraceSink;
 
+/// VM 执行结果（替代 void 返回，让 yield 成为正常控制流）
+enum class ExecResult : u8 {
+    Returned,      // 函数正常返回
+    Yielded        // 协程 yield
+};
+
 /**
  * @brief 虚拟机执行引擎命名空间
  * 
@@ -61,8 +67,9 @@ namespace VM {
      * @param L Lua状态指针
      * @param proto 函数原型
      * @param nexeccalls 嵌套调用计数（用于检测栈溢出）
+     * @return ExecResult::Returned 或 ExecResult::Yielded
      */
-    void executeProto(LuaState* L, Proto* proto, i32 nexeccalls = 1);
+    ExecResult executeProto(LuaState* L, Proto* proto, i32 nexeccalls = 1);
 
     /**
      * @brief 设置全局 Trace Sink（nullptr 表示关闭 trace）

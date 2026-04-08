@@ -37,6 +37,7 @@ namespace Lua {
 
 // 前向声明
 class LuaState;
+class Thread;
 
 /**
  * @brief 全局状态类
@@ -176,6 +177,13 @@ public:
      */
     GCString* getMetamethodName(TMS event) const noexcept;
 
+    // =====================================================================
+    // 当前运行协程追踪
+    // =====================================================================
+
+    Thread* getRunningThread() const noexcept { return runningThread_; }
+    void setRunningThread(Thread* t) noexcept { runningThread_ = t; }
+
 private:
     /**
      * @brief 私有构造函数（单例模式）
@@ -217,6 +225,9 @@ private:
 
     /// 主线程指针
     LuaState* mainThread_;
+
+    /// 当前正在执行的协程（主线程时为 nullptr）
+    Thread* runningThread_ = nullptr;
 
     /// 基础类型的元表数组（索引对应ValueType枚举值）
     Table* metatables_[9];  // 9种基础类型

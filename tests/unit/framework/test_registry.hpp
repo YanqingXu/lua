@@ -150,5 +150,7 @@ void registerLuaStateInitTests();
  */
 void registerStringLibTests();
 
+void registerCoroutineLibTests();
+
 #endif // LUA_TEST_REGISTRY_HPP
 

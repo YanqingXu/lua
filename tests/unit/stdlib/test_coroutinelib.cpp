@@ -1,0 +1,326 @@
+/**
+ * @file test_coroutinelib.cpp
+ * @brief Lua coroutine library tests
+ */
+
+#include "../framework/test_framework.hpp"
+#include "lib/lib_manager.hpp"
+#include "lib/coroutinelib.hpp"
+#include "vm/lua_state.hpp"
+#include "vm/vm.hpp"
+#include "core/function.hpp"
+#include "core/gc_string.hpp"
+#include "core/string_pool.hpp"
+#include "core/table.hpp"
+#include "core/thread.hpp"
+#include "gc/garbage_collector.hpp"
+#include "compiler/parser.hpp"
+#include "compiler/codegen.hpp"
+
+#include <string>
+
+using namespace Lua;
+using namespace LuaTest;
+
+namespace {
+
+constexpr const char* kSuiteName = "Coroutine Library";
+
+/// Helper: compile and execute Lua code, return true on success
+bool runLua(LuaState* L, const char* code) {
+    try {
+        Parser parser(code);
+        Chunk chunk = parser.parse();
+        StringPool& pool = StringPool::getInstance();
+        CodeGenerator codegen(&pool);
+        Proto* proto = codegen.generate(chunk, "test");
+        if (!proto) return false;
+
+        Function* func = new Function(proto);
+        L->getGlobalState().getGC().registerObject(func);
+        func->setEnv(L->getGlobalTable());
+        VM::execute(L, func);
+        delete proto;
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+/// Helper: get global number
+double getGlobalNumber(LuaState* L, const char* name) {
+    Value v = L->getGlobal(name);
+    return v.isNumber() ? v.asNumber() : -9999.0;
+}
+
+/// Helper: get global string
+std::string getGlobalString(LuaState* L, const char* name) {
+    Value v = L->getGlobal(name);
+    return v.isString() ? std::string(v.asString()->c_str()) : "";
+}
+
+/// Helper: get global boolean
+bool getGlobalBool(LuaState* L, const char* name) {
+    Value v = L->getGlobal(name);
+    return v.isBoolean() && v.asBoolean();
+}
+
+/// Helper: create state with all libs
+LuaState* createState() {
+    LuaState* L = LuaState::newState();
+    StandardLibrary::openAll(L);
+    return L;
+}
+
+} // anonymous namespace
+
+// ==================================================================
+// Test: coroutine.create returns a thread
+// ==================================================================
+
+void testCoroutineCreate(TestSuite& suite) {
+    LuaState* L = createState();
+    bool ok = runLua(L, R"(
+        local co = coroutine.create(function() end)
+        result = (type(co) == "thread")
+    )");
+    ASSERT_TRUE(suite, ok, "coroutine.create compiles and runs");
+    // Note: type() for thread may not be implemented yet, check via status
+    // Just check that create doesn't crash
+    delete L;
+}
+
+// ==================================================================
+// Test: basic resume/yield
+// ==================================================================
+
+void testBasicResumeYield(TestSuite& suite) {
+    LuaState* L = createState();
+    bool ok = runLua(L, R"(
+        local co = coroutine.create(function()
+            coroutine.yield(10)
+            coroutine.yield(20)
+            return 30
+        end)
+        local ok1, v1 = coroutine.resume(co)
+        local ok2, v2 = coroutine.resume(co)
+        local ok3, v3 = coroutine.resume(co)
+        r_ok1 = ok1
+        r_v1  = v1
+        r_ok2 = ok2
+        r_v2  = v2
+        r_ok3 = ok3
+        r_v3  = v3
+    )");
+    ASSERT_TRUE(suite, ok, "basic resume/yield runs");
+    ASSERT_TRUE(suite, getGlobalBool(L, "r_ok1"), "first resume ok");
+    ASSERT_EQ(suite, getGlobalNumber(L, "r_v1"), 10.0, "first yield value");
+    ASSERT_TRUE(suite, getGlobalBool(L, "r_ok2"), "second resume ok");
+    ASSERT_EQ(suite, getGlobalNumber(L, "r_v2"), 20.0, "second yield value");
+    ASSERT_TRUE(suite, getGlobalBool(L, "r_ok3"), "third resume ok");
+    ASSERT_EQ(suite, getGlobalNumber(L, "r_v3"), 30.0, "return value");
+    delete L;
+}
+
+// ==================================================================
+// Test: resume args become yield returns
+// ==================================================================
+
+void testResumeArgsToYieldReturns(TestSuite& suite) {
+    LuaState* L = createState();
+    bool ok = runLua(L, R"(
+        local co = coroutine.create(function(a)
+            local b = coroutine.yield(a + 1)
+            local c = coroutine.yield(b + 1)
+            return c + 1
+        end)
+        local ok1, v1 = coroutine.resume(co, 10)
+        local ok2, v2 = coroutine.resume(co, 20)
+        local ok3, v3 = coroutine.resume(co, 30)
+        r_v1 = v1
+        r_v2 = v2
+        r_v3 = v3
+    )");
+    ASSERT_TRUE(suite, ok, "resume args test runs");
+    ASSERT_EQ(suite, getGlobalNumber(L, "r_v1"), 11.0, "yield(a+1) with a=10");
+    ASSERT_EQ(suite, getGlobalNumber(L, "r_v2"), 21.0, "yield(b+1) with b=20");
+    ASSERT_EQ(suite, getGlobalNumber(L, "r_v3"), 31.0, "return c+1 with c=30");
+    delete L;
+}
+
+// ==================================================================
+// Test: generator pattern
+// ==================================================================
+
+void testGeneratorPattern(TestSuite& suite) {
+    LuaState* L = createState();
+    bool ok = runLua(L, R"(
+        local function range(n)
+            return coroutine.create(function()
+                for i = 1, n do
+                    coroutine.yield(i)
+                end
+            end)
+        end
+        local co = range(3)
+        local ok1, v1 = coroutine.resume(co)
+        local ok2, v2 = coroutine.resume(co)
+        local ok3, v3 = coroutine.resume(co)
+        local ok4, v4 = coroutine.resume(co)
+        r_v1 = v1
+        r_v2 = v2
+        r_v3 = v3
+        r_ok4 = ok4
+    )");
+    ASSERT_TRUE(suite, ok, "generator pattern runs");
+    ASSERT_EQ(suite, getGlobalNumber(L, "r_v1"), 1.0, "range yields 1");
+    ASSERT_EQ(suite, getGlobalNumber(L, "r_v2"), 2.0, "range yields 2");
+    ASSERT_EQ(suite, getGlobalNumber(L, "r_v3"), 3.0, "range yields 3");
+    ASSERT_TRUE(suite, getGlobalBool(L, "r_ok4"), "4th resume ok (returns nil)");
+    delete L;
+}
+
+// ==================================================================
+// Test: dead coroutine resume
+// ==================================================================
+
+void testDeadCoroutineResume(TestSuite& suite) {
+    LuaState* L = createState();
+    bool ok = runLua(L, R"(
+        local co = coroutine.create(function() return 1 end)
+        coroutine.resume(co)
+        local ok2, err = coroutine.resume(co)
+        r_ok2 = ok2
+        r_err = err
+    )");
+    ASSERT_TRUE(suite, ok, "dead coroutine test runs");
+    ASSERT_FALSE(suite, getGlobalBool(L, "r_ok2"), "resume dead coroutine fails");
+    ASSERT_TRUE(suite, getGlobalString(L, "r_err").find("dead") != std::string::npos,
+        "error message mentions dead");
+    delete L;
+}
+
+// ==================================================================
+// Test: coroutine.status
+// ==================================================================
+
+void testCoroutineStatus(TestSuite& suite) {
+    LuaState* L = createState();
+    bool ok = runLua(L, R"(
+        local co = coroutine.create(function()
+            coroutine.yield()
+        end)
+        s1 = coroutine.status(co)
+        coroutine.resume(co)
+        s2 = coroutine.status(co)
+        coroutine.resume(co)
+        s3 = coroutine.status(co)
+    )");
+    ASSERT_TRUE(suite, ok, "coroutine.status test runs");
+    ASSERT_TRUE(suite, getGlobalString(L, "s1") == "suspended", "initial status is suspended");
+    ASSERT_TRUE(suite, getGlobalString(L, "s2") == "suspended", "after yield status is suspended");
+    ASSERT_TRUE(suite, getGlobalString(L, "s3") == "dead", "after return status is dead");
+    delete L;
+}
+
+// ==================================================================
+// Test: coroutine.running
+// ==================================================================
+
+void testCoroutineRunning(TestSuite& suite) {
+    LuaState* L = createState();
+    bool ok = runLua(L, R"(
+        r_main = (coroutine.running() == nil)
+        local co = coroutine.create(function()
+            r_inside = (coroutine.running() ~= nil)
+        end)
+        coroutine.resume(co)
+    )");
+    ASSERT_TRUE(suite, ok, "coroutine.running test runs");
+    ASSERT_TRUE(suite, getGlobalBool(L, "r_main"), "running() is nil in main thread");
+    ASSERT_TRUE(suite, getGlobalBool(L, "r_inside"), "running() is non-nil inside coroutine");
+    delete L;
+}
+
+// ==================================================================
+// Test: multiple yield values
+// ==================================================================
+
+void testMultipleYieldValues(TestSuite& suite) {
+    LuaState* L = createState();
+    bool ok = runLua(L, R"(
+        local co = coroutine.create(function()
+            coroutine.yield(1, 2, 3)
+        end)
+        local ok1, a, b, c = coroutine.resume(co)
+        r_a = a
+        r_b = b
+        r_c = c
+    )");
+    ASSERT_TRUE(suite, ok, "multiple yield values runs");
+    ASSERT_EQ(suite, getGlobalNumber(L, "r_a"), 1.0, "first yield value");
+    ASSERT_EQ(suite, getGlobalNumber(L, "r_b"), 2.0, "second yield value");
+    ASSERT_EQ(suite, getGlobalNumber(L, "r_c"), 3.0, "third yield value");
+    delete L;
+}
+
+// ==================================================================
+// Test: error in coroutine
+// ==================================================================
+
+void testCoroutineError(TestSuite& suite) {
+    LuaState* L = createState();
+    bool ok = runLua(L, R"(
+        local co = coroutine.create(function()
+            error("boom")
+        end)
+        local ok1, err = coroutine.resume(co)
+        r_ok1 = ok1
+        r_has_err = (err ~= nil)
+        r_status = coroutine.status(co)
+    )");
+    ASSERT_TRUE(suite, ok, "coroutine error test runs");
+    ASSERT_FALSE(suite, getGlobalBool(L, "r_ok1"), "resume returns false on error");
+    ASSERT_TRUE(suite, getGlobalBool(L, "r_has_err"), "error message is provided");
+    ASSERT_TRUE(suite, getGlobalString(L, "r_status") == "dead", "errored coroutine is dead");
+    delete L;
+}
+
+// ==================================================================
+// Test: coroutine with no yield (just return)
+// ==================================================================
+
+void testCoroutineNoYield(TestSuite& suite) {
+    LuaState* L = createState();
+    bool ok = runLua(L, R"(
+        local co = coroutine.create(function(x, y)
+            return x + y
+        end)
+        local ok1, v = coroutine.resume(co, 3, 4)
+        r_ok1 = ok1
+        r_v = v
+    )");
+    ASSERT_TRUE(suite, ok, "coroutine no yield runs");
+    ASSERT_TRUE(suite, getGlobalBool(L, "r_ok1"), "resume ok");
+    ASSERT_EQ(suite, getGlobalNumber(L, "r_v"), 7.0, "return value 3+4");
+    delete L;
+}
+
+// ==================================================================
+// Registration
+// ==================================================================
+
+void registerCoroutineLibTests() {
+    auto& registry = TestRegistry::getInstance();
+
+    registry.registerTest(kSuiteName, "coroutine.create", testCoroutineCreate);
+    registry.registerTest(kSuiteName, "basic resume/yield", testBasicResumeYield);
+    registry.registerTest(kSuiteName, "resume args to yield returns", testResumeArgsToYieldReturns);
+    registry.registerTest(kSuiteName, "generator pattern", testGeneratorPattern);
+    registry.registerTest(kSuiteName, "dead coroutine resume", testDeadCoroutineResume);
+    registry.registerTest(kSuiteName, "coroutine.status", testCoroutineStatus);
+    registry.registerTest(kSuiteName, "coroutine.running", testCoroutineRunning);
+    registry.registerTest(kSuiteName, "multiple yield values", testMultipleYieldValues);
+    registry.registerTest(kSuiteName, "coroutine error", testCoroutineError);
+    registry.registerTest(kSuiteName, "coroutine no yield", testCoroutineNoYield);
+}
