@@ -1,7 +1,0 @@
-#include "bytecode_printer.hpp"
-#include <iostream>
-namespace Lua {
-void printProtoBytecode(const Proto* f, std::ostream& out, bool full) {
-    out << "(stub)" << std::endl;
-}
-} // namespace Lua

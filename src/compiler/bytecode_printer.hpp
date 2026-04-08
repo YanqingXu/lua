@@ -1,6 +1,0 @@
-#pragma once
-#include <iosfwd>
-namespace Lua {
-class Proto;
-void printProtoBytecode(const Proto* f, std::ostream& out, bool full);
-} // namespace Lua
