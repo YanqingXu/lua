@@ -2,13 +2,13 @@
 
 > **从零开始用C++17/20/23实现Lua 5.1.5解释器**
 
-[![Tests](https://img.shields.io/badge/tests-489%2F507-yellow)]()
-[![Coverage](https://img.shields.io/badge/coverage-96.4%25-yellow)]()
+[![Tests](https://img.shields.io/badge/tests-675%2F675-brightgreen)]()
+[![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen)]()
 [![C++](https://img.shields.io/badge/C%2B%2B-17-blue)]()
 [![Platform](https://img.shields.io/badge/platform-Windows-blue)]()
-[![Progress](https://img.shields.io/badge/progress-78%25-yellow)]()
+[![Progress](https://img.shields.io/badge/progress-80%25-yellow)]()
 [![Code](https://img.shields.io/badge/code-12k%20lines-blue)]()
-[![Last Updated](https://img.shields.io/badge/updated-2026--02--11-blue)]()
+[![Last Updated](https://img.shields.io/badge/updated-2026--04--08-blue)]()
 
 ---
 
@@ -31,17 +31,17 @@
 
 ### 总体状态
 
-- **整体完成度**：约 78%
+- **整体完成度**：约 80%
 - **代码规模**：约 64 个源文件，约 12k-13k 行有效代码
 - **核心链路**：类型系统、编译器前端、字节码执行引擎已基本成型
-- **主要短板**：部分标准库、少量 GC/错误处理问题、应用层入口能力仍需补完
+- **主要短板**：协程库和调试库尚未实现，部分标准库函数仍为桩实现，应用层入口能力仍需补完
 
 ### 当前判断
 
 - ✅ **已较稳定的部分**：Value / Table / Function / Lexer / Parser / CodeGen / VM 主体
 - ✅ **已补齐的初始化部分**：GlobalState 元方法、保留字、固定字符串初始化
-- ⚠️ **仍需持续验证的部分**：GC 边界行为、`pcall/xpcall` 等错误处理、I/O 与外围库行为
-- 🔄 **标准库状态**：数学库较完整，基础库与 I/O 库仍在继续完善
+- ✅ **GC / pcall / xpcall**：已全部通过测试，基础行为稳定
+- 🔄 **标准库状态**：math / os / io / string / table 库已基本完成，缺少 coroutine 和 debug 库
 
 ### 已完成模块（24个核心模块）
 
@@ -69,39 +69,40 @@
 | **CodeGenerator字节码生成器** | `src/compiler/codegen.hpp/cpp` + `opcode.hpp/cpp` | 2,249 | 字节码生成（AST→Bytecode） | ✅ 95% |
 | **VM字节码执行引擎** | `src/vm/vm.hpp/cpp` | 2,030 | 字节码解释执行（38条指令） | ✅ 95% |
 | **I/O系统** | `src/io/*.hpp/cpp` | 670 | InputStream + DynamicBuffer | ✅ 100% |
-| **基础库（Base Library）** | `src/lib/baselib.hpp/cpp` | 659 | 8/24函数（print、type等） | 🔄 33% |
+| **基础库（Base Library）** | `src/lib/baselib.hpp/cpp` | 659 | 24/30函数（print、type、pcall、xpcall等） | 🔄 80% |
 | **数学库（Math Library）** | `src/lib/mathlib.hpp/cpp` | 681 | 22/22函数（完整实现） | ✅ 100% |
-| **I/O库（I/O Library）** | `src/lib/iolib.hpp/cpp` | 1,111 | ~8/18函数（基础I/O） | 🔄 44% |
+| **I/O库（I/O Library）** | `src/lib/iolib.hpp/cpp` | 1,111 | 11/11函数 + 7/7文件方法（完整实现） | ✅ 100% |
 | **库管理系统** | `src/lib/lib_manager.hpp/cpp` | 73 | 标准库注册和管理 | ✅ 100% |
 
-### 测试统计（2026-02-11更新）⬆️
+### 测试统计（2026-04-08更新）✅
 
 ```
 测试框架：自定义轻量级测试框架（零外部依赖）
-测试套件：24个 ⬆️ +8
-  - Core模块：Value（16测试）、GCString（9测试）、StringPool（11测试）、
-             Table（13测试）、Function（20测试）
-  - VM模块：VM Core（23测试）、LuaState Init（20测试）
-  - GC模块：GC系统（18测试，⚠️ 2个失败）
-  - 编译器：Binary/Unary Expressions（10测试）、Function Codegen（16测试）、
-           Lua File Compilation（5测试）、Syntax Sugar（71测试）
-  - 标准库：Base Library（95测试，⚠️ 6个失败）、String Library（25测试）、
-           Table Library（41测试）、OS Library（23测试）、Math Library（未计数）
-  - 元方法：Metamethod（8测试）、Complete Metamethods（24测试）
-  - 函数调用：Function Call（8测试）
-总测试数：507个单元测试 ⬆️ +108
-通过率：  96.4% (489/507) ⚠️ -3.1%（发现关键bug）
-失败测试：18个（6个pcall/xpcall + 2个GC + 10个其他）
-编译状态：Debug和Release版本均无警告，无链接冲突
+测试套件：25个
+  - Core模块：Value（16）、GCString（9）、StringPool（11）、Table（13）、Function（20）
+  - VM模块：VM Core（84）、LuaState Init（20）
+  - GC模块：GC系统（18）
+  - 编译器：Binary/Unary Expressions（54）、Function Codegen（27）、
+           Lua File Compilation（5）、Syntax Sugar（71）、
+           Table Indexed Access（18）、Method Call（23）、Variable Storage（11）、
+           Lexer Number（10）、Lexer Lookahead（27）、
+           Parser Recursion（4）、Parser Error（8）、Parser Memory Pool（31）
+  - 标准库：Base Library（105）、String Library（25）、
+           Table Library（41）、OS Library（23）
+  - 元方法：Metamethod（8）、Complete Metamethods（24）
+总测试数：675个单元测试 ✅
+通过率：  100% (675/675)
+失败测试：0个
+编译状态：Debug版本无警告，无链接冲突
 平台：    Windows + MSVC (Visual Studio 2026)
 ```
 
 ### 接下来优先做什么
 
-- **修复现有失败测试**：优先处理 GC、`pcall/xpcall` 及其他回归项
-- **继续补标准库**：重点是 base、I/O，以及和脚本运行体验直接相关的部分
+- **补全缺失标准库**：实现 coroutine 库（协程是 Lua 核心特性），补充 base 库缺失函数（`require`、`load`、`unpack`）
+- **实现 string.gmatch**：当前为桩实现，补全模式匹配引擎
 - **完善应用入口**：继续打磨 REPL、脚本执行和调试辅助工具
-- **清理实现细节**：逐步处理 TODO、边界行为和文档同步问题
+- **清理实现细节**：逐步处理 TODO、边界行为，考虑增加 debug 库基础功能
 
 ### 核心实现亮点
 
