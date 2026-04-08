@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @file lua_error.hpp
  * @brief 统一的 Lua 运行时错误类型
  *

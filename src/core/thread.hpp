@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @file thread.hpp
  * @brief Lua Thread (协程) 对象
  *

@@ -4,9 +4,6 @@
     <Filter Include="framework">
       <UniqueIdentifier>{D1000001-0001-0001-0001-000000000001}</UniqueIdentifier>
     </Filter>
-    <Filter Include="framework\generic">
-      <UniqueIdentifier>{D1000001-0002-0002-0002-000000000002}</UniqueIdentifier>
-    </Filter>
     <Filter Include="tests">
       <UniqueIdentifier>{D1000001-0003-0003-0003-000000000003}</UniqueIdentifier>
     </Filter>
@@ -33,9 +30,6 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="lua_test\include\test_framework\test_framework.hpp">
-      <Filter>framework\generic</Filter>
-    </ClInclude>
     <ClInclude Include="tests\unit\framework\test_framework.hpp">
       <Filter>framework</Filter>
     </ClInclude>
@@ -139,6 +133,9 @@
     </ClCompile>
     <ClCompile Include="tests\unit\vm\test_vm_core.cpp">
       <Filter>tests\vm</Filter>
+    </ClCompile>
+    <ClCompile Include="tests\unit\stdlib\test_coroutinelib.cpp">
+      <Filter>tests\stdlib</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

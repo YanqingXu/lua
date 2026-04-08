@@ -137,7 +137,6 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClInclude Include="lua_test\include\test_framework\test_framework.hpp" />
     <ClInclude Include="tests\unit\framework\test_framework.hpp" />
     <ClInclude Include="tests\unit\framework\test_registry.hpp" />
   </ItemGroup>

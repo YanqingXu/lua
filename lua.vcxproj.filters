@@ -49,7 +49,6 @@
     <ClCompile Include="src\core\table.cpp">
       <Filter>src\core</Filter>
     </ClCompile>
-
     <ClCompile Include="src\core\upvalue.cpp">
       <Filter>src\core</Filter>
     </ClCompile>
@@ -77,22 +76,18 @@
     <ClCompile Include="src\io\input_stream.cpp">
       <Filter>src\io</Filter>
     </ClCompile>
-
     <ClCompile Include="src\lib\mathlib.cpp">
       <Filter>src\lib</Filter>
     </ClCompile>
     <ClCompile Include="src\lib\iolib.cpp">
       <Filter>src\lib</Filter>
     </ClCompile>
-
     <ClCompile Include="src\lib\stringlib.cpp">
       <Filter>src\lib</Filter>
     </ClCompile>
-
     <ClCompile Include="src\lib\tablelib.cpp">
       <Filter>src\lib</Filter>
     </ClCompile>
-
     <ClCompile Include="src\lib\oslib.cpp">
       <Filter>src\lib</Filter>
     </ClCompile>
@@ -101,6 +96,12 @@
     </ClCompile>
     <ClCompile Include="src\debug\json_trace_sink.cpp">
       <Filter>src\debug</Filter>
+    </ClCompile>
+    <ClCompile Include="src\lib\coroutinelib.cpp">
+      <Filter>src\lib</Filter>
+    </ClCompile>
+    <ClCompile Include="src\core\thread.cpp">
+      <Filter>src\core</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -164,7 +165,6 @@
     <ClInclude Include="src\core\table.hpp">
       <Filter>src\core</Filter>
     </ClInclude>
-
     <ClInclude Include="src\common\types.hpp">
       <Filter>src\common</Filter>
     </ClInclude>
@@ -192,7 +192,6 @@
     <ClInclude Include="src\core\metatable.hpp">
       <Filter>src\core</Filter>
     </ClInclude>
-
     <ClInclude Include="src\io\dynamic_buffer.hpp">
       <Filter>src\io</Filter>
     </ClInclude>
@@ -229,12 +228,20 @@
     <ClInclude Include="src\debug\json_trace_sink.hpp">
       <Filter>src\debug</Filter>
     </ClInclude>
+    <ClInclude Include="src\lib\coroutinelib.hpp">
+      <Filter>src\lib</Filter>
+    </ClInclude>
+    <ClInclude Include="src\core\thread.hpp">
+      <Filter>src\core</Filter>
+    </ClInclude>
+    <ClInclude Include="src\common\lua_error.hpp">
+      <Filter>src\common</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="src">
       <UniqueIdentifier>{49bdff98-3f5f-43d0-afb0-a0009a725511}</UniqueIdentifier>
     </Filter>
-
     <Filter Include="src\common">
       <UniqueIdentifier>{4a0802ec-581c-4631-b63c-8cb645696f09}</UniqueIdentifier>
     </Filter>
@@ -253,7 +260,6 @@
     <Filter Include="src\core">
       <UniqueIdentifier>{54f7779d-4990-4bb1-8328-8b5849bfc381}</UniqueIdentifier>
     </Filter>
-
     <Filter Include="src\io">
       <UniqueIdentifier>{eee28f8f-648a-4a6f-8271-7a76decc82cd}</UniqueIdentifier>
     </Filter>
