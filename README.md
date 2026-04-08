@@ -2,12 +2,12 @@
 
 > **从零开始用C++17/20/23实现Lua 5.1.5解释器**
 
-[![Tests](https://img.shields.io/badge/tests-675%2F675-brightgreen)]()
+[![Tests](https://img.shields.io/badge/tests-768%2F768-brightgreen)]()
 [![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen)]()
 [![C++](https://img.shields.io/badge/C%2B%2B-17-blue)]()
 [![Platform](https://img.shields.io/badge/platform-Windows-blue)]()
-[![Progress](https://img.shields.io/badge/progress-80%25-yellow)]()
-[![Code](https://img.shields.io/badge/code-12k%20lines-blue)]()
+[![Progress](https://img.shields.io/badge/progress-83%25-yellow)]()
+[![Code](https://img.shields.io/badge/code-15k%20lines-blue)]()
 [![Last Updated](https://img.shields.io/badge/updated-2026--04--08-blue)]()
 
 ---
@@ -31,19 +31,19 @@
 
 ### 总体状态
 
-- **整体完成度**：约 80%
-- **代码规模**：约 64 个源文件，约 12k-13k 行有效代码
+- **整体完成度**：约 83%
+- **代码规模**：约 83 个源文件，约 15k-16k 行有效代码
 - **核心链路**：类型系统、编译器前端、字节码执行引擎已基本成型
-- **主要短板**：协程库和调试库尚未实现，部分标准库函数仍为桩实现，应用层入口能力仍需补完
+- **主要短板**：调试库尚未实现，部分标准库函数仍为桩实现（`string.gmatch`），应用层入口能力仍需补完
 
 ### 当前判断
 
 - ✅ **已较稳定的部分**：Value / Table / Function / Lexer / Parser / CodeGen / VM 主体
 - ✅ **已补齐的初始化部分**：GlobalState 元方法、保留字、固定字符串初始化
 - ✅ **GC / pcall / xpcall**：已全部通过测试，基础行为稳定
-- 🔄 **标准库状态**：math / os / io / string / table 库已基本完成，缺少 coroutine 和 debug 库
+- ✅ **标准库状态**：math / os / io / string / table / coroutine 库已基本完成，缺少 debug 库
 
-### 已完成模块（24个核心模块）
+### 已完成模块（26个核心模块）
 
 | 模块 | 文件 | 代码行数 | 功能描述 | 完成度 |
 |------|------|----------|---------|--------|
@@ -72,13 +72,15 @@
 | **基础库（Base Library）** | `src/lib/baselib.hpp/cpp` | 659 | 24/30函数（print、type、pcall、xpcall等） | 🔄 80% |
 | **数学库（Math Library）** | `src/lib/mathlib.hpp/cpp` | 681 | 22/22函数（完整实现） | ✅ 100% |
 | **I/O库（I/O Library）** | `src/lib/iolib.hpp/cpp` | 1,111 | 11/11函数 + 7/7文件方法（完整实现） | ✅ 100% |
+| **协程库（Coroutine Library）** | `src/lib/coroutinelib.hpp/cpp` | ~300 | 6/6函数（create、resume、yield、status、running、wrap） | ✅ 100% |
+| **Thread类** | `src/core/thread.hpp/cpp` | ~250 | 协程执行引擎，独立 LuaState + 栈转移 | ✅ 95% |
 | **库管理系统** | `src/lib/lib_manager.hpp/cpp` | 73 | 标准库注册和管理 | ✅ 100% |
 
 ### 测试统计（2026-04-08更新）✅
 
 ```
 测试框架：自定义轻量级测试框架（零外部依赖）
-测试套件：25个
+测试套件：27个
   - Core模块：Value（16）、GCString（9）、StringPool（11）、Table（13）、Function（20）
   - VM模块：VM Core（84）、LuaState Init（20）
   - GC模块：GC系统（18）
@@ -88,10 +90,10 @@
            Lexer Number（10）、Lexer Lookahead（27）、
            Parser Recursion（4）、Parser Error（8）、Parser Memory Pool（31）
   - 标准库：Base Library（105）、String Library（25）、
-           Table Library（41）、OS Library（23）
+           Table Library（41）、OS Library（23）、Coroutine Library（62）
   - 元方法：Metamethod（8）、Complete Metamethods（24）
-总测试数：675个单元测试 ✅
-通过率：  100% (675/675)
+总测试数：768个单元测试 ✅
+通过率：  100% (768/768)
 失败测试：0个
 编译状态：Debug版本无警告，无链接冲突
 平台：    Windows + MSVC (Visual Studio 2026)
@@ -99,10 +101,10 @@
 
 ### 接下来优先做什么
 
-- **补全缺失标准库**：实现 coroutine 库（协程是 Lua 核心特性），补充 base 库缺失函数（`require`、`load`、`unpack`）
 - **实现 string.gmatch**：当前为桩实现，补全模式匹配引擎
+- **补充 base 库缺失函数**：`require`、`load`、`unpack` 等尚未实现
+- **实现 debug 库基础功能**：`debug.getinfo`、`debug.traceback` 等（Lua 核心调试能力）
 - **完善应用入口**：继续打磨 REPL、脚本执行和调试辅助工具
-- **清理实现细节**：逐步处理 TODO、边界行为，考虑增加 debug 库基础功能
 
 ### 核心实现亮点
 
@@ -118,9 +120,10 @@
 ✅ **CodeGenerator字节码生成器**：AST→字节码转换，寄存器分配，常量表管理，跳转回填
 ✅ **OpCode指令集**：完整Lua 5.1指令集（38条指令），iABC/iABx/iAsBx三种格式
 ✅ **VM字节码执行引擎**：完整38条指令实现，Upvalue操作，函数调用（C函数），循环指令（FORLOOP/FORPREP/TFORLOOP），闭包创建，表初始化（SETLIST）
-✅ **基础库（Base Library）**：8/24函数（print、type、tostring、tonumber、error、assert、setmetatable、getmetatable），33%完成
+✅ **基础库（Base Library）**：24/30函数（print、type、tostring、tonumber、error、assert、pcall、xpcall、pairs、ipairs、next、select、rawget、rawset、rawequal、loadstring、loadfile、dofile、collectgarbage 等），80%完成
 ✅ **数学库（Math Library）**：22/22函数完整实现（abs, floor, ceil, sqrt, sin, cos, tan, log, exp, random 等），包括数学常量 math.pi 和 math.huge
-✅ **I/O库（I/O Library）**：~8/18函数基础实现（io.open, io.close, io.read, io.write, file:read, file:write 等），44%完成
+✅ **I/O库（I/O Library）**：11/11函数 + 7/7文件方法完整实现（io.open, io.close, io.read, io.write, file:read, file:write 等），100%完成
+✅ **协程库（Coroutine Library）**：6/6函数实现（coroutine.create、resume、yield、status、running、wrap），支持独立栈协程执行
 ✅ **库管理系统**：模块化的标准库注册机制，支持全局函数注册和表函数注册
 ✅ **StringPool**：字符串驻留（interning），节省内存
 ✅ **GarbageCollector**：标记-清除算法，根对象管理
@@ -755,7 +758,7 @@ void doJump(i32 offset) {
 ```cpp
 // 注册基础库函数
 LuaState* L = LuaState::newState();
-openBaseLib(L);  // 注册所有8个函数到全局环境
+openBaseLib(L);  // 注册所有函数到全局环境
 
 // 从Lua代码中调用
 // print("Hello, Lua!")
@@ -772,13 +775,11 @@ openBaseLib(L);  // 注册所有8个函数到全局环境
 - **错误处理**: error(msg), error()
 
 **已知限制**：
-- tostring未实现__tostring元方法支持
-- tonumber未实现字符串到数字的转换（不同进制）
-- error未添加位置信息（level参数）
-- setmetatable/getmetatable未实现__metatable字段检查
-- 基础库实现尚未完全集成测试（当前测试被跳过）
+- `require` / `load` / `unpack` 尚未实现
+- `string.gmatch` 尚未实现
+- debug 库整体缺失
 
-**测试覆盖**：6个测试用例（当前跳过，等待完整实现后启用）
+**测试覆盖**：105个测试用例全部通过
 
 ---
 
@@ -793,7 +794,7 @@ openBaseLib(L);  // 注册所有8个函数到全局环境
 │   ├── core/                      # Value / Table / Function / String / Metatable 等核心对象
 │   ├── gc/                        # 垃圾回收器
 │   ├── io/                        # 输入流、动态缓冲区
-│   ├── lib/                       # base / math / io / os / string / table 等标准库
+│   ├── lib/                       # base / math / io / os / string / table / coroutine 等标准库
 │   ├── vm/                        # GlobalState / LuaState / Stack / VM
 │   ├── main.cpp                   # `lua_app` 入口
 │   ├── repl.cpp/.hpp              # REPL 支持

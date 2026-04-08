@@ -12,6 +12,7 @@
 #include "core/function.hpp"
 #include "core/gc_string.hpp"
 #include "core/table.hpp"
+#include "core/upvalue.hpp"
 #include "vm/global_state.hpp"
 #include "common/lua_error.hpp"
 
@@ -109,13 +110,96 @@ static i32 coroutine_running(LuaState* L) {
 }
 
 // =====================================================================
-// coroutine.wrap(f) → function  (Phase 1 stub)
+// coroutine.wrap(f) → function
+//
+// 创建协程并返回一个迭代器函数；每次调用该函数相当于 resume，
+// 但直接返回 yield 值（不含前导 true），出错时直接抛出错误。
 // =====================================================================
 
+/// wrap 返回的迭代器函数；upvalue[0] 存储 Thread*
+static i32 wrap_iterator(LuaState* L) {
+    // 取出 upvalue 中的 Thread
+    const CallInfo& ci = L->getCurrentCallInfo();
+    Function* self = L->getStack()[ci.func].asFunction();
+    Upvalue* uv = self->getUpvalue(0);
+    if (!uv) {
+        L->error("cannot resume dead coroutine");
+    }
+    Value threadVal = uv->getValue(L->getStack());
+    if (!threadVal.isThread()) {
+        L->error("cannot resume dead coroutine");
+    }
+    Thread* thread = threadVal.asThread();
+
+    // 收集调用参数
+    i32 nargs = L->getTop();
+
+    // resume 会向 L 推入 true/false + 结果
+    // 先记住调用前栈顶位置（参数区之后）
+    usize beforeTop = L->getAbsoluteTop();
+
+    // 将参数复制到 beforeTop 之后（resume 需要从栈顶取）
+    // 参数已经在 base+1 .. base+nargs，直接 resume 即可
+    thread->resume(L, nargs);
+
+    // resume 替换了参数区，现在 L 栈顶布局：
+    //   [... | bool_ok | result1 | result2 | ...]
+    // getTop() 包含了原始 thread arg（这里没有），直接算
+    usize afterTop = L->getAbsoluteTop();
+    usize pushed = afterTop - beforeTop + static_cast<usize>(nargs);
+
+    // 第一个推入的值是 bool（ok/fail）
+    // 在 beforeTop - nargs 位置… 不对——resume 在推入时已清理了参数
+    // 最简单：从 afterTop 回退 pushed 个位置取 bool
+    usize resultBase = afterTop - pushed;
+    Value okVal = L->getStack().at(resultBase);
+    bool ok = okVal.isBoolean() && okVal.asBoolean();
+
+    if (!ok) {
+        // 错误：第二个值是错误消息，直接 error
+        Value errMsg;
+        if (pushed >= 2) {
+            errMsg = L->getStack().at(resultBase + 1);
+        }
+        // 抛出 Lua 错误
+        if (errMsg.isString()) {
+            L->error(errMsg.asString()->c_str());
+        } else {
+            L->error("cannot resume dead coroutine");
+        }
+        return 0;  // unreachable
+    }
+
+    // 成功：把 bool 之后的结果值搬到栈帧起点
+    i32 nresults = static_cast<i32>(pushed) - 1;  // 减去 bool
+    usize dst = resultBase;
+    for (i32 i = 0; i < nresults; i++) {
+        L->getStack().at(dst + static_cast<usize>(i)) =
+            L->getStack().at(resultBase + 1 + static_cast<usize>(i));
+    }
+    L->setAbsoluteTop(dst + static_cast<usize>(nresults));
+
+    return nresults;
+}
+
 static i32 coroutine_wrap(LuaState* L) {
-    // Phase 1: 暂不实现完整的 wrap
-    L->error("coroutine.wrap is not yet implemented");
-    return 0;
+    if (L->getTop() < 1 || !L->at(1).isFunction()) {
+        L->error("bad argument #1 to 'wrap' (function expected)");
+    }
+
+    Function* func = L->at(1).asFunction();
+    Thread* thread = Thread::create(L, func);
+
+    // 创建 C 闭包，将 thread 作为 closed upvalue
+    Function* closure = new Function(wrap_iterator);
+    L->getGlobalState().getGC().registerObject(closure);
+
+    Upvalue* uv = Upvalue::createClosed(Value(thread));
+    L->getGlobalState().getGC().registerObject(uv);
+    closure->addUpvalue(uv);
+
+    L->pushFunction(closure);
+    return 1;
 }
 
 // =====================================================================

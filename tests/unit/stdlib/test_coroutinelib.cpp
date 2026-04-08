@@ -307,6 +307,160 @@ void testCoroutineNoYield(TestSuite& suite) {
 }
 
 // ==================================================================
+// Test: coroutine.wrap basic usage
+// ==================================================================
+
+void testWrapBasic(TestSuite& suite) {
+    LuaState* L = createState();
+    bool ok = runLua(L, R"(
+        local gen = coroutine.wrap(function()
+            coroutine.yield(10)
+            coroutine.yield(20)
+            return 30
+        end)
+        r_v1 = gen()
+        r_v2 = gen()
+        r_v3 = gen()
+    )");
+    ASSERT_TRUE(suite, ok, "wrap basic runs");
+    ASSERT_EQ(suite, getGlobalNumber(L, "r_v1"), 10.0, "wrap first yield");
+    ASSERT_EQ(suite, getGlobalNumber(L, "r_v2"), 20.0, "wrap second yield");
+    ASSERT_EQ(suite, getGlobalNumber(L, "r_v3"), 30.0, "wrap return value");
+    delete L;
+}
+
+// ==================================================================
+// Test: coroutine.wrap as generator pattern
+// ==================================================================
+
+void testWrapGenerator(TestSuite& suite) {
+    LuaState* L = createState();
+    bool ok = runLua(L, R"(
+        local function range(n)
+            return coroutine.wrap(function()
+                for i = 1, n do
+                    coroutine.yield(i)
+                end
+            end)
+        end
+        local sum = 0
+        for v in range(5) do
+            sum = sum + v
+        end
+        r_sum = sum
+    )");
+    ASSERT_TRUE(suite, ok, "wrap generator runs");
+    ASSERT_EQ(suite, getGlobalNumber(L, "r_sum"), 15.0, "wrap sum 1..5 = 15");
+    delete L;
+}
+
+// ==================================================================
+// Test: coroutine.wrap passes arguments to first call
+// ==================================================================
+
+void testWrapArgs(TestSuite& suite) {
+    LuaState* L = createState();
+    bool ok = runLua(L, R"(
+        local gen = coroutine.wrap(function(a, b)
+            coroutine.yield(a + b)
+            return a * b
+        end)
+        r_v1 = gen(3, 4)
+        r_v2 = gen()
+    )");
+    ASSERT_TRUE(suite, ok, "wrap args runs");
+    ASSERT_EQ(suite, getGlobalNumber(L, "r_v1"), 7.0, "wrap yield a+b");
+    ASSERT_EQ(suite, getGlobalNumber(L, "r_v2"), 12.0, "wrap return a*b");
+    delete L;
+}
+
+// ==================================================================
+// Test: coroutine.wrap resume args become yield returns
+// ==================================================================
+
+void testWrapResumeArgs(TestSuite& suite) {
+    LuaState* L = createState();
+    bool ok = runLua(L, R"(
+        local gen = coroutine.wrap(function()
+            local x = coroutine.yield(1)
+            local y = coroutine.yield(2)
+            return x + y
+        end)
+        r_v1 = gen()
+        r_v2 = gen(10)
+        r_v3 = gen(20)
+    )");
+    ASSERT_TRUE(suite, ok, "wrap resume args runs");
+    ASSERT_EQ(suite, getGlobalNumber(L, "r_v1"), 1.0, "wrap yield 1");
+    ASSERT_EQ(suite, getGlobalNumber(L, "r_v2"), 2.0, "wrap yield 2");
+    ASSERT_EQ(suite, getGlobalNumber(L, "r_v3"), 30.0, "wrap return 10+20");
+    delete L;
+}
+
+// ==================================================================
+// Test: coroutine.wrap error propagation
+// ==================================================================
+
+void testWrapError(TestSuite& suite) {
+    LuaState* L = createState();
+    // wrap raises error when coroutine is dead (after return)
+    bool ok = runLua(L, R"(
+        local gen = coroutine.wrap(function()
+            return 42
+        end)
+        r_v1 = gen()
+        -- calling again should raise an error
+        local ok2, err = pcall(gen)
+        r_ok2 = ok2
+        r_has_err = (err ~= nil)
+    )");
+    ASSERT_TRUE(suite, ok, "wrap error runs");
+    ASSERT_EQ(suite, getGlobalNumber(L, "r_v1"), 42.0, "wrap return 42");
+    ASSERT_TRUE(suite, !getGlobalBool(L, "r_ok2"), "wrap dead raises error");
+    ASSERT_TRUE(suite, getGlobalBool(L, "r_has_err"), "wrap error has message");
+    delete L;
+}
+
+// ==================================================================
+// Test: coroutine.wrap with multiple return values
+// ==================================================================
+
+void testWrapMultipleValues(TestSuite& suite) {
+    LuaState* L = createState();
+    bool ok = runLua(L, R"(
+        local gen = coroutine.wrap(function()
+            coroutine.yield(10, 20)
+            return 30, 40
+        end)
+        r_a, r_b = gen()
+        r_c, r_d = gen()
+    )");
+    ASSERT_TRUE(suite, ok, "wrap multiple values runs");
+    ASSERT_EQ(suite, getGlobalNumber(L, "r_a"), 10.0, "wrap yield val1");
+    ASSERT_EQ(suite, getGlobalNumber(L, "r_b"), 20.0, "wrap yield val2");
+    ASSERT_EQ(suite, getGlobalNumber(L, "r_c"), 30.0, "wrap return val1");
+    ASSERT_EQ(suite, getGlobalNumber(L, "r_d"), 40.0, "wrap return val2");
+    delete L;
+}
+
+// ==================================================================
+// Test: coroutine.wrap no yield (direct return)
+// ==================================================================
+
+void testWrapNoYield(TestSuite& suite) {
+    LuaState* L = createState();
+    bool ok = runLua(L, R"(
+        local gen = coroutine.wrap(function(x)
+            return x * 2
+        end)
+        r_v = gen(5)
+    )");
+    ASSERT_TRUE(suite, ok, "wrap no yield runs");
+    ASSERT_EQ(suite, getGlobalNumber(L, "r_v"), 10.0, "wrap direct return");
+    delete L;
+}
+
+// ==================================================================
 // Registration
 // ==================================================================
 
@@ -323,4 +477,11 @@ void registerCoroutineLibTests() {
     registry.registerTest(kSuiteName, "multiple yield values", testMultipleYieldValues);
     registry.registerTest(kSuiteName, "coroutine error", testCoroutineError);
     registry.registerTest(kSuiteName, "coroutine no yield", testCoroutineNoYield);
+    registry.registerTest(kSuiteName, "wrap basic", testWrapBasic);
+    registry.registerTest(kSuiteName, "wrap generator", testWrapGenerator);
+    registry.registerTest(kSuiteName, "wrap args", testWrapArgs);
+    registry.registerTest(kSuiteName, "wrap resume args", testWrapResumeArgs);
+    registry.registerTest(kSuiteName, "wrap error", testWrapError);
+    registry.registerTest(kSuiteName, "wrap multiple values", testWrapMultipleValues);
+    registry.registerTest(kSuiteName, "wrap no yield", testWrapNoYield);
 }
