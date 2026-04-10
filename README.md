@@ -2,13 +2,13 @@
 
 > **从零开始用C++17/20/23实现Lua 5.1.5解释器**
 
-[![Tests](https://img.shields.io/badge/tests-842%2F842-brightgreen)]()
+[![Tests](https://img.shields.io/badge/tests-986%2F986-brightgreen)]()
 [![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen)]()
 [![C++](https://img.shields.io/badge/C%2B%2B-17-blue)]()
 [![Platform](https://img.shields.io/badge/platform-Windows-blue)]()
-[![Progress](https://img.shields.io/badge/progress-87%25-yellow)]()
-[![Code](https://img.shields.io/badge/code-15k%20lines-blue)]()
-[![Last Updated](https://img.shields.io/badge/updated-2026--04--09-blue)]()
+[![Progress](https://img.shields.io/badge/progress-90%25-yellow)]()
+[![Code](https://img.shields.io/badge/code-18k%20lines-blue)]()
+[![Last Updated](https://img.shields.io/badge/updated-2026--04--10-blue)]()
 
 ---
 
@@ -31,17 +31,17 @@
 
 ### 总体状态
 
-- **整体完成度**：约 85%
-- **代码规模**：约 83 个源文件，约 15k-16k 行有效代码
+- **整体完成度**：约 90%
+- **代码规模**：约 85 个源文件，约 18k 行有效代码
 - **核心链路**：类型系统、编译器前端、字节码执行引擎已基本成型
-- **主要短板**：调试库尚未实现，应用层入口能力仍需补完
+- **主要短板**：应用层入口能力仍需补完
 
 ### 当前判断
 
 - ✅ **已较稳定的部分**：Value / Table / Function / Lexer / Parser / CodeGen / VM 主体
 - ✅ **已补齐的初始化部分**：GlobalState 元方法、保留字、固定字符串初始化
 - ✅ **GC / pcall / xpcall**：已全部通过测试，基础行为稳定
-- ✅ **标准库状态**：math / os / io / string / table / coroutine 库已基本完成，缺少 debug 库
+- ✅ **标准库状态**：math / os / io / string / table / coroutine / debug 库已全部完成
 
 ### 已完成模块（26个核心模块）
 
@@ -72,15 +72,16 @@
 | **基础库（Base Library）** | `src/lib/baselib.hpp/cpp` | 730 | 26/30函数（print、type、pcall、xpcall、unpack、load等） | 🔄 87% |
 | **数学库（Math Library）** | `src/lib/mathlib.hpp/cpp` | 681 | 22/22函数（完整实现） | ✅ 100% |
 | **I/O库（I/O Library）** | `src/lib/iolib.hpp/cpp` | 1,111 | 11/11函数 + 7/7文件方法（完整实现） | ✅ 100% |
-| **协程库（Coroutine Library）** | `src/lib/coroutinelib.hpp/cpp` | ~300 | 6/6函数（create、resume、yield、status、running、wrap） | ✅ 100% |
-| **Thread类** | `src/core/thread.hpp/cpp` | ~250 | 协程执行引擎，独立 LuaState + 栈转移 | ✅ 95% |
+| **协程库（Coroutine Library）** | `src/lib/coroutinelib.hpp/cpp` | ~210 | 6/6函数（create、resume、yield、status、running、wrap） | ✅ 100% |
+| **Thread类** | `src/core/thread.hpp/cpp` | ~300 | 协程执行引擎，独立 LuaState + 栈转移 | ✅ 95% |
+| **调试库（Debug Library）** | `src/lib/debuglib.hpp/cpp` | ~1,000 | 10/10函数（getinfo、getlocal、setlocal、getupvalue、setupvalue、traceback、sethook、gethook、getregistry、debug） | ✅ 100% |
 | **库管理系统** | `src/lib/lib_manager.hpp/cpp` | 73 | 标准库注册和管理 | ✅ 100% |
 
-### 测试统计（2026-04-09更新）✅
+### 测试统计（2026-04-10更新）✅
 
 ```
 测试框架：自定义轻量级测试框架（零外部依赖）
-测试套件：27个
+测试套件：28个
   - Core模块：Value（16）、GCString（9）、StringPool（11）、Table（13）、Function（20）
   - VM模块：VM Core（84）、LuaState Init（20）
   - GC模块：GC系统（18）
@@ -90,10 +91,11 @@
            Lexer Number（10）、Lexer Lookahead（27）、
            Parser Recursion（4）、Parser Error（8）、Parser Memory Pool（31）
   - 标准库：Base Library（136）、String Library（68）、
-           Table Library（41）、OS Library（23）、Coroutine Library（62）
+           Table Library（41）、OS Library（23）、Coroutine Library（62）、
+           Debug Library（144）
   - 元方法：Metamethod（8）、Complete Metamethods（24）
-总测试数：842个单元测试 ✅
-通过率：  100% (842/842)
+总测试数：986个单元测试 ✅
+通过率：  100% (986/986)
 失败测试：0个
 编译状态：Debug版本无警告，无链接冲突
 平台：    Windows + MSVC (Visual Studio 2026)
@@ -102,7 +104,6 @@
 ### 接下来优先做什么
 
 - **补充 base 库缺失函数**：`require` 等尚未实现（`load`、`unpack` 已完成）
-- **实现 debug 库基础功能**：`debug.getinfo`、`debug.traceback` 等（Lua 核心调试能力）
 - **完善应用入口**：继续打磨 REPL、脚本执行和调试辅助工具
 
 ### 核心实现亮点
@@ -123,6 +124,7 @@
 ✅ **数学库（Math Library）**：22/22函数完整实现（abs, floor, ceil, sqrt, sin, cos, tan, log, exp, random 等），包括数学常量 math.pi 和 math.huge
 ✅ **I/O库（I/O Library）**：11/11函数 + 7/7文件方法完整实现（io.open, io.close, io.read, io.write, file:read, file:write 等），100%完成
 ✅ **协程库（Coroutine Library）**：6/6函数实现（coroutine.create、resume、yield、status、running、wrap），支持独立栈协程执行
+✅ **调试库（Debug Library）**：10/10函数实现（debug.getinfo、getlocal、setlocal、getupvalue、setupvalue、traceback、sethook、gethook、getregistry、debug），支持完整的运行时调试能力
 ✅ **库管理系统**：模块化的标准库注册机制，支持全局函数注册和表函数注册
 ✅ **StringPool**：字符串驻留（interning），节省内存
 ✅ **GarbageCollector**：标记-清除算法，根对象管理
@@ -774,8 +776,7 @@ openBaseLib(L);  // 注册所有函数到全局环境
 - **错误处理**: error(msg), error()
 
 **已知限制**：
-- `require` / `load` / `unpack` 尚未实现
-- debug 库整体缺失
+- `require` 尚未实现（`load`、`unpack` 已完成）
 
 **测试覆盖**：105个测试用例全部通过
 
