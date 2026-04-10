@@ -169,6 +169,7 @@
     <ClCompile Include="tests\unit\stdlib\test_baselib.cpp" />
     <ClCompile Include="tests\unit\stdlib\test_coroutinelib.cpp" />
     <ClCompile Include="tests\unit\stdlib\test_debuglib.cpp" />
+    <ClCompile Include="tests\unit\stdlib\test_mathlib.cpp" />
     <ClCompile Include="tests\unit\stdlib\test_packagelib.cpp" />
     <ClCompile Include="tests\unit\stdlib\test_oslib.cpp" />
     <ClCompile Include="tests\unit\stdlib\test_stringlib.cpp" />

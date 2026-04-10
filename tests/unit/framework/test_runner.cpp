@@ -22,6 +22,7 @@ extern void registerGCTests();
 extern void registerLuaStateInitTests();
 extern void registerBinaryUnaryExprTests();
 extern void registerFunctionCodegenTests();
+extern void registerMathLibTests();
 extern void registerBaselibTests();
 extern void registerStringLibTests();
 extern void registerTableLibTests();
@@ -95,6 +96,7 @@ int main() {
     registerBinaryUnaryExprTests();
     registerFunctionCodegenTests();
     registerSyntaxSugarTests();
+    registerMathLibTests();
     registerBaselibTests();
     registerStringLibTests();
     registerTableLibTests();

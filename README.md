@@ -70,10 +70,10 @@
 | **VM字节码执行引擎** | `src/vm/vm.hpp/cpp` | 2,030 | 字节码解释执行（38条指令） | ✅ 95% |
 | **I/O系统** | `src/io/*.hpp/cpp` | 670 | InputStream + DynamicBuffer | ✅ 100% |
 | **基础库（Base Library）** | `src/lib/baselib.hpp/cpp` | 730 | 27/30函数（print、type、pcall、xpcall、unpack、load等） | 🔄 90% |
-| **数学库（Math Library）** | `src/lib/mathlib.hpp/cpp` | 681 | 25/28函数（缺 sinh、cosh、tanh） | 🔄 90% |
+| **数学库（Math Library）** | `src/lib/mathlib.hpp/cpp` | 681 | 28/28函数（含 sinh、cosh、tanh） | ✅ 100% |
 | **I/O库（I/O Library）** | `src/lib/iolib.hpp/cpp` | 1,111 | 11/11函数 + 7/7文件方法（完整实现） | ✅ 100% |
 | **字符串库（String Library）** | `src/lib/stringlib.hpp/cpp` | ~1,200 | 14/14函数（format 已补全，dump 为 stub） | 🔄 88% |
-| **表库（Table Library）** | `src/lib/tablelib.hpp/cpp` | ~400 | 4/5核心函数（缺 maxn，sort 无自定义比较器） | 🔄 75% |
+| **表库（Table Library）** | `src/lib/tablelib.hpp/cpp` | ~400 | 4/5核心函数（缺 maxn，sort 已支持自定义比较器） | 🔄 85% |
 | **OS库（OS Library）** | `src/lib/oslib.hpp/cpp` | ~500 | 11/11函数（完整实现） | ✅ 100% |
 | **协程库（Coroutine Library）** | `src/lib/coroutinelib.hpp/cpp` | ~210 | 6/6函数（create、resume、yield、status、running、wrap） | ✅ 100% |
 | **Thread类** | `src/core/thread.hpp/cpp` | ~300 | 协程执行引擎，独立 LuaState + 栈转移 | ✅ 95% |
@@ -114,7 +114,6 @@
 | **尾调用优化（TCO）** | VM | `TAILCALL` 指令未复用栈帧，深递归尾调用会栈溢出 |
 | **弱表（weak table）** | GC / Table | `__mode` 元字段完全未实现，GC 不感知弱引用 |
 | **终结器（`__gc`）** | GC | GC 回收对象时不调用 `__gc` 元方法 |
-| **`table.sort` 自定义比较器** | table 库 | 当前仅按数字/字符串硬编码比较，不接受比较函数参数 |
 | **`collectgarbage("collect")`** | base 库 | `collect` 模式已注释禁用 |
 
 #### 🟡 标准库函数缺失/不完整
@@ -123,7 +122,6 @@
 |--------|----------|------|
 | **`string.gsub` 函数/表替换** | string 库 | 仅支持字符串替换模式，不支持函数和表替换 |
 | **`string.dump`** | string 库 | 当前为 stub，抛出 "not yet implemented" |
-| **`math.sinh/cosh/tanh`** | math 库 | 三个双曲函数缺失（实现简单） |
 | **`table.maxn`** | table 库 | Lua 5.1 函数，返回最大正整数键 |
 | **`debug.getfenv/setfenv`** | debug 库 | 缺失，应委托给 base 库同名函数 |
 | **`debug.getmetatable/setmetatable`** | debug 库 | 缺失，需提供绕过 `__metatable` 保护的原始版本 |
@@ -140,11 +138,11 @@
 
 ### 接下来优先做什么
 
-1. **实现 `table.sort` 自定义比较器**：很多 Lua 代码依赖此功能
-2. **补齐 `math.sinh/cosh/tanh`**：改动极小，一次性补完
-3. **实现尾调用优化**：`TAILCALL` 指令复用栈帧
-4. **弱表与终结器**：`__mode` 和 `__gc` 支持
-5. **补全 `string.gsub` 的函数/表替换**：提升字符串库兼容性
+1. **实现尾调用优化**：`TAILCALL` 指令复用栈帧
+2. **弱表与终结器**：`__mode` 和 `__gc` 支持
+3. **补全 `string.gsub` 的函数/表替换**：提升字符串库兼容性
+4. **实现 `collectgarbage("collect")`**：补齐 GC 控制路径
+5. **补齐 `table.maxn`**：完成 table 库剩余兼容函数
 
 ### 核心实现亮点
 

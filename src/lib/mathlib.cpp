@@ -147,6 +147,27 @@ i32 math_tan(LuaState* L) {
     return 1;
 }
 
+i32 math_sinh(LuaState* L) {
+    checkArgCount(L, 1, "sinh");
+    f64 x = getNumberArg(L, 1, "sinh");
+    L->pushNumber(std::sinh(x));
+    return 1;
+}
+
+i32 math_cosh(LuaState* L) {
+    checkArgCount(L, 1, "cosh");
+    f64 x = getNumberArg(L, 1, "cosh");
+    L->pushNumber(std::cosh(x));
+    return 1;
+}
+
+i32 math_tanh(LuaState* L) {
+    checkArgCount(L, 1, "tanh");
+    f64 x = getNumberArg(L, 1, "tanh");
+    L->pushNumber(std::tanh(x));
+    return 1;
+}
+
 i32 math_asin(LuaState* L) {
     checkArgCount(L, 1, "asin");
     f64 x = getNumberArg(L, 1, "asin");
@@ -359,6 +380,9 @@ void MathLibModule::registerFunctions(LuaState* L) {
         .addGlobal("sin", math_sin)
         .addGlobal("cos", math_cos)
         .addGlobal("tan", math_tan)
+        .addGlobal("sinh", math_sinh)
+        .addGlobal("cosh", math_cosh)
+        .addGlobal("tanh", math_tanh)
         .addGlobal("asin", math_asin)
         .addGlobal("acos", math_acos)
         .addGlobal("atan", math_atan)

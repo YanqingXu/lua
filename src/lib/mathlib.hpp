@@ -135,6 +135,12 @@ i32 math_cos(LuaState* L);
  */
 i32 math_tan(LuaState* L);
 
+i32 math_sinh(LuaState* L);
+
+i32 math_cosh(LuaState* L);
+
+i32 math_tanh(LuaState* L);
+
 /**
  * @brief math.asin(x) - 返回x的反正弦值（结果为弧度）
  * @param L Lua状态机指针

@@ -146,6 +146,11 @@ void registerInputStreamFileTests();
 void registerLuaStateInitTests();
 
 /**
+ * @brief 注册数学库测试
+ */
+void registerMathLibTests();
+
+/**
  * @brief 注册字符串库测试
  */
 void registerStringLibTests();
