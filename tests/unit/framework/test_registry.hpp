@@ -154,5 +154,7 @@ void registerCoroutineLibTests();
 
 void registerDebugLibTests();
 
+void registerPackageLibTests();
+
 #endif // LUA_TEST_REGISTRY_HPP
 

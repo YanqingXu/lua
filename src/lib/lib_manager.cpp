@@ -8,6 +8,7 @@
 #include "lib/oslib.hpp"
 #include "lib/coroutinelib.hpp"
 #include "lib/debuglib.hpp"
+#include "lib/packagelib.hpp"
 #include "vm/lua_state.hpp"
 
 namespace Lua {
@@ -98,6 +99,15 @@ void StandardLibrary::openAll(LuaState* L) {
     openOS(L);
     openCoroutine(L);
     openDebug(L);
+    openPackage(L);
+}
+
+void StandardLibrary::openPackage(LuaState* L) {
+    if (!L) {
+        return;
+    }
+
+    openPackageLib(L);
 }
 
 } // namespace Lua

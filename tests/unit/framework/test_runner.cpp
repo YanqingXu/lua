@@ -40,6 +40,7 @@ extern void registerParserErrorRecoveryTests();
 extern void registerParserMemoryPoolTests();
 extern void registerCoroutineLibTests();
 extern void registerDebugLibTests();
+extern void registerPackageLibTests();
 
 /**
  * @brief 打印测试框架标题
@@ -111,6 +112,7 @@ int main() {
     registerParserMemoryPoolTests();
     registerCoroutineLibTests();
     registerDebugLibTests();
+    registerPackageLibTests();
 
     std::cout << "[INFO] All tests registered." << std::endl;
     std::cout << "[INFO] Starting test execution...\n" << std::endl;

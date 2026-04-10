@@ -163,6 +163,7 @@
     <ClInclude Include="src\lib\iolib.hpp" />
     <ClInclude Include="src\lib\coroutinelib.hpp" />
     <ClInclude Include="src\lib\debuglib.hpp" />
+    <ClInclude Include="src\lib\packagelib.hpp" />
     <ClInclude Include="src\lib\lib_manager.hpp" />
     <ClInclude Include="src\lib\lib_module.hpp" />
     <ClInclude Include="src\lib\lib_registry.hpp" />
@@ -203,6 +204,7 @@
     <ClCompile Include="src\lib\baselib.cpp" />
     <ClCompile Include="src\lib\coroutinelib.cpp" />
     <ClCompile Include="src\lib\debuglib.cpp" />
+    <ClCompile Include="src\lib\packagelib.cpp" />
     <ClCompile Include="src\lib\iolib.cpp" />
     <ClCompile Include="src\lib\lib_manager.cpp" />
     <ClCompile Include="src\lib\lib_registry.cpp" />

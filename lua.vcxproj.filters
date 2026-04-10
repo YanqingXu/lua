@@ -103,6 +103,9 @@
     <ClCompile Include="src\core\thread.cpp">
       <Filter>src\core</Filter>
     </ClCompile>
+    <ClCompile Include="src\lib\packagelib.cpp">
+      <Filter>src\lib</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\compiler\ast.hpp">
@@ -236,6 +239,9 @@
     </ClInclude>
     <ClInclude Include="src\common\lua_error.hpp">
       <Filter>src\common</Filter>
+    </ClInclude>
+    <ClInclude Include="src\lib\packagelib.hpp">
+      <Filter>src\lib</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

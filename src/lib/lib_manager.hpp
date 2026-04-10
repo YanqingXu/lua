@@ -24,6 +24,8 @@ public:
 
     static void openDebug(LuaState* L);
 
+    static void openPackage(LuaState* L);
+
     static void openModule(LuaState* L, LibModule& module);
 };
 

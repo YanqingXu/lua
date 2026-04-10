@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @file test_coroutinelib.cpp
  * @brief Lua coroutine library tests
  */
