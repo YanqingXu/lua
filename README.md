@@ -2,12 +2,12 @@
 
 > **从零开始用C++17/20/23实现Lua 5.1.5解释器**
 
-[![Tests](https://img.shields.io/badge/tests-986%2F986-brightgreen)]()
+[![Tests](https://img.shields.io/badge/tests-1047%2F1047-brightgreen)]()
 [![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen)]()
 [![C++](https://img.shields.io/badge/C%2B%2B-17-blue)]()
 [![Platform](https://img.shields.io/badge/platform-Windows-blue)]()
-[![Progress](https://img.shields.io/badge/progress-90%25-yellow)]()
-[![Code](https://img.shields.io/badge/code-18k%20lines-blue)]()
+[![Progress](https://img.shields.io/badge/progress-92%25-yellow)]()
+[![Code](https://img.shields.io/badge/code-19k%20lines-blue)]()
 [![Last Updated](https://img.shields.io/badge/updated-2026--04--10-blue)]()
 
 ---
@@ -31,19 +31,19 @@
 
 ### 总体状态
 
-- **整体完成度**：约 90%
-- **代码规模**：约 85 个源文件，约 18k 行有效代码
+- **整体完成度**：约 92%
+- **代码规模**：约 87 个源文件，约 19k 行有效代码
 - **核心链路**：类型系统、编译器前端、字节码执行引擎已基本成型
-- **主要短板**：应用层入口能力仍需补完
+- **主要短板**：部分标准库函数尚有缺失或不完整实现
 
 ### 当前判断
 
 - ✅ **已较稳定的部分**：Value / Table / Function / Lexer / Parser / CodeGen / VM 主体
 - ✅ **已补齐的初始化部分**：GlobalState 元方法、保留字、固定字符串初始化
 - ✅ **GC / pcall / xpcall**：已全部通过测试，基础行为稳定
-- ✅ **标准库状态**：math / os / io / string / table / coroutine / debug 库已全部完成
+- ✅ **标准库状态**：math / os / io / string / table / coroutine / debug / package 库已全部实现（部分函数仍有缺失或简化）
 
-### 已完成模块（26个核心模块）
+### 已完成模块（28个核心模块）
 
 | 模块 | 文件 | 代码行数 | 功能描述 | 完成度 |
 |------|------|----------|---------|--------|
@@ -69,19 +69,23 @@
 | **CodeGenerator字节码生成器** | `src/compiler/codegen.hpp/cpp` + `opcode.hpp/cpp` | 2,249 | 字节码生成（AST→Bytecode） | ✅ 95% |
 | **VM字节码执行引擎** | `src/vm/vm.hpp/cpp` | 2,030 | 字节码解释执行（38条指令） | ✅ 95% |
 | **I/O系统** | `src/io/*.hpp/cpp` | 670 | InputStream + DynamicBuffer | ✅ 100% |
-| **基础库（Base Library）** | `src/lib/baselib.hpp/cpp` | 730 | 26/30函数（print、type、pcall、xpcall、unpack、load等） | 🔄 87% |
-| **数学库（Math Library）** | `src/lib/mathlib.hpp/cpp` | 681 | 22/22函数（完整实现） | ✅ 100% |
+| **基础库（Base Library）** | `src/lib/baselib.hpp/cpp` | 730 | 27/30函数（print、type、pcall、xpcall、unpack、load等） | 🔄 90% |
+| **数学库（Math Library）** | `src/lib/mathlib.hpp/cpp` | 681 | 25/28函数（缺 sinh、cosh、tanh） | 🔄 90% |
 | **I/O库（I/O Library）** | `src/lib/iolib.hpp/cpp` | 1,111 | 11/11函数 + 7/7文件方法（完整实现） | ✅ 100% |
+| **字符串库（String Library）** | `src/lib/stringlib.hpp/cpp` | ~1,200 | 14/14函数（format 部分实现，dump 为 stub） | 🔄 80% |
+| **表库（Table Library）** | `src/lib/tablelib.hpp/cpp` | ~400 | 4/5核心函数（缺 maxn，sort 无自定义比较器） | 🔄 75% |
+| **OS库（OS Library）** | `src/lib/oslib.hpp/cpp` | ~500 | 11/11函数（完整实现） | ✅ 100% |
 | **协程库（Coroutine Library）** | `src/lib/coroutinelib.hpp/cpp` | ~210 | 6/6函数（create、resume、yield、status、running、wrap） | ✅ 100% |
 | **Thread类** | `src/core/thread.hpp/cpp` | ~300 | 协程执行引擎，独立 LuaState + 栈转移 | ✅ 95% |
-| **调试库（Debug Library）** | `src/lib/debuglib.hpp/cpp` | ~1,000 | 10/10函数（getinfo、getlocal、setlocal、getupvalue、setupvalue、traceback、sethook、gethook、getregistry、debug） | ✅ 100% |
+| **调试库（Debug Library）** | `src/lib/debuglib.hpp/cpp` | ~1,000 | 10/14函数（缺 getfenv、setfenv、getmetatable、setmetatable） | 🔄 71% |
+| **包/模块库（Package Library）** | `src/lib/packagelib.hpp/cpp` | ~490 | require、module、package.loaded/preload/loaders/path/seeall/loadlib | ✅ 95% |
 | **库管理系统** | `src/lib/lib_manager.hpp/cpp` | 73 | 标准库注册和管理 | ✅ 100% |
 
 ### 测试统计（2026-04-10更新）✅
 
 ```
 测试框架：自定义轻量级测试框架（零外部依赖）
-测试套件：28个
+测试套件：29个
   - Core模块：Value（16）、GCString（9）、StringPool（11）、Table（13）、Function（20）
   - VM模块：VM Core（84）、LuaState Init（20）
   - GC模块：GC系统（18）
@@ -92,19 +96,56 @@
            Parser Recursion（4）、Parser Error（8）、Parser Memory Pool（31）
   - 标准库：Base Library（136）、String Library（68）、
            Table Library（41）、OS Library（23）、Coroutine Library（62）、
-           Debug Library（144）
+           Debug Library（144）、Package Library（61）
   - 元方法：Metamethod（8）、Complete Metamethods（24）
-总测试数：986个单元测试 ✅
-通过率：  100% (986/986)
+总测试数：1047个单元测试 ✅
+通过率：  100% (1047/1047)
 失败测试：0个
 编译状态：Debug版本无警告，无链接冲突
 平台：    Windows + MSVC (Visual Studio 2026)
 ```
 
+### 距离完整 Lua 5.1.5 仍缺失的功能
+
+#### 🔴 关键缺失（影响语义正确性）
+
+| 缺失项 | 所属模块 | 说明 |
+|--------|----------|------|
+| **尾调用优化（TCO）** | VM | `TAILCALL` 指令未复用栈帧，深递归尾调用会栈溢出 |
+| **弱表（weak table）** | GC / Table | `__mode` 元字段完全未实现，GC 不感知弱引用 |
+| **终结器（`__gc`）** | GC | GC 回收对象时不调用 `__gc` 元方法 |
+| **`table.sort` 自定义比较器** | table 库 | 当前仅按数字/字符串硬编码比较，不接受比较函数参数 |
+| **`collectgarbage("collect")`** | base 库 | `collect` 模式已注释禁用 |
+
+#### 🟡 标准库函数缺失/不完整
+
+| 缺失项 | 所属模块 | 说明 |
+|--------|----------|------|
+| **`string.format`** | string 库 | 仅支持 `%s`、`%d`/`%i`、`%f`、`%%`；缺少 `%g`、`%e`、`%E`、`%o`、`%x`、`%X`、`%c`、`%q`、宽度/精度/标志 |
+| **`string.gsub` 函数/表替换** | string 库 | 仅支持字符串替换模式，不支持函数和表替换 |
+| **`string.dump`** | string 库 | 当前为 stub，抛出 "not yet implemented" |
+| **`math.sinh/cosh/tanh`** | math 库 | 三个双曲函数缺失（实现简单） |
+| **`table.maxn`** | table 库 | Lua 5.1 函数，返回最大正整数键 |
+| **`debug.getfenv/setfenv`** | debug 库 | 缺失，应委托给 base 库同名函数 |
+| **`debug.getmetatable/setmetatable`** | debug 库 | 缺失，需提供绕过 `__metatable` 保护的原始版本 |
+| **`error()` level 参数** | base 库 | level 参数已解析但不会在错误消息前添加源位置信息 |
+| **`_G` 全局自引用** | base 库 | 全局表未注册 `_G` 变量 |
+| **`newproxy()`** | base 库 | 未实现（Lua 5.1 未文档化但存在的函数） |
+
+#### ⚪ 低优先级/已废弃
+
+| 缺失项 | 说明 |
+|--------|------|
+| `table.getn` / `table.setn` | Lua 5.1 已废弃，兼容性函数 |
+| `table.foreachi` / `table.foreach` | Lua 5.1 已废弃，兼容性函数 |
+
 ### 接下来优先做什么
 
-- **补充 base 库缺失函数**：`require` 等尚未实现（`load`、`unpack` 已完成）
-- **完善应用入口**：继续打磨 REPL、脚本执行和调试辅助工具
+1. **补全 `string.format`**：这是使用频率最高的缺失函数
+2. **实现 `table.sort` 自定义比较器**：很多 Lua 代码依赖此功能
+3. **补齐 `math.sinh/cosh/tanh`**：改动极小，一次性补完
+4. **实现尾调用优化**：`TAILCALL` 指令复用栈帧
+5. **弱表与终结器**：`__mode` 和 `__gc` 支持
 
 ### 核心实现亮点
 
@@ -124,7 +165,8 @@
 ✅ **数学库（Math Library）**：22/22函数完整实现（abs, floor, ceil, sqrt, sin, cos, tan, log, exp, random 等），包括数学常量 math.pi 和 math.huge
 ✅ **I/O库（I/O Library）**：11/11函数 + 7/7文件方法完整实现（io.open, io.close, io.read, io.write, file:read, file:write 等），100%完成
 ✅ **协程库（Coroutine Library）**：6/6函数实现（coroutine.create、resume、yield、status、running、wrap），支持独立栈协程执行
-✅ **调试库（Debug Library）**：10/10函数实现（debug.getinfo、getlocal、setlocal、getupvalue、setupvalue、traceback、sethook、gethook、getregistry、debug），支持完整的运行时调试能力
+✅ **调试库（Debug Library）**：10/14函数实现（debug.getinfo、getlocal、setlocal、getupvalue、setupvalue、traceback、sethook、gethook、getregistry、debug），支持运行时调试能力
+✅ **包/模块库（Package Library）**：require、module 全局函数 + package.loaded/preload/loaders/path/cpath/config/seeall/loadlib，支持 preload 和文件模块加载
 ✅ **库管理系统**：模块化的标准库注册机制，支持全局函数注册和表函数注册
 ✅ **StringPool**：字符串驻留（interning），节省内存
 ✅ **GarbageCollector**：标记-清除算法，根对象管理
@@ -776,9 +818,10 @@ openBaseLib(L);  // 注册所有函数到全局环境
 - **错误处理**: error(msg), error()
 
 **已知限制**：
-- `require` 尚未实现（`load`、`unpack` 已完成）
+- `newproxy` 尚未实现
+- `_G` 全局自引用未注册
 
-**测试覆盖**：105个测试用例全部通过
+**测试覆盖**：136个测试用例全部通过
 
 ---
 
@@ -793,7 +836,7 @@ openBaseLib(L);  // 注册所有函数到全局环境
 │   ├── core/                      # Value / Table / Function / String / Metatable 等核心对象
 │   ├── gc/                        # 垃圾回收器
 │   ├── io/                        # 输入流、动态缓冲区
-│   ├── lib/                       # base / math / io / os / string / table / coroutine 等标准库
+│   ├── lib/                       # base / math / io / os / string / table / coroutine / debug / package 等标准库
 │   ├── vm/                        # GlobalState / LuaState / Stack / VM
 │   ├── main.cpp                   # `lua_app` 入口
 │   ├── repl.cpp/.hpp              # REPL 支持
