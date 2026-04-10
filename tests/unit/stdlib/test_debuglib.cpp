@@ -294,6 +294,135 @@ void testGetInfoFromLuaStack(TestSuite& suite) {
     delete L;
 }
 
+void testGetInfoNameInference(TestSuite& suite) {
+    LuaState* L = LuaState::newState();
+    StandardLibrary::openAll(L);
+
+    bool ok = runLuaChunk(
+        L,
+        "function named_global_target()\n"
+        "    local info = debug.getinfo(1, 'n')\n"
+        "    g_last_name = info.name\n"
+        "    g_last_namewhat = info.namewhat\n"
+        "end\n"
+        "holder = {}\n"
+        "function holder.field_target()\n"
+        "    local info = debug.getinfo(1, 'n')\n"
+        "    g_field_name = info.name\n"
+        "    g_field_namewhat = info.namewhat\n"
+        "end\n"
+        "function holder:method_target()\n"
+        "    local info = debug.getinfo(1, 'n')\n"
+        "    g_method_name = info.name\n"
+        "    g_method_namewhat = info.namewhat\n"
+        "end\n"
+        "function make_upvalue_wrapper(target)\n"
+        "    local upv = target\n"
+        "    return function()\n"
+        "        upv()\n"
+        "    end\n"
+        "end\n"
+        "local local_alias = named_global_target\n"
+        "local_alias()\n"
+        "g_local_name = g_last_name\n"
+        "g_local_namewhat = g_last_namewhat\n"
+        "named_global_target()\n"
+        "g_global_name = g_last_name\n"
+        "g_global_namewhat = g_last_namewhat\n"
+        "holder.field_target()\n"
+        "local wrapper = make_upvalue_wrapper(named_global_target)\n"
+        "wrapper()\n"
+        "g_upvalue_name = g_last_name\n"
+        "g_upvalue_namewhat = g_last_namewhat\n"
+        "holder:method_target()\n"
+        "g_invalid_ok, g_invalid_err = pcall(function()\n"
+        "    return debug.getinfo(1, 'z')\n"
+        "end)\n",
+        "test_debuglib_name.lua"
+    );
+    ASSERT_TRUE(suite, ok, "name inference chunk runs");
+    if (!ok) {
+        delete L;
+        return;
+    }
+
+    auto assertNamedResult = [&](const char* nameKey,
+                                 const char* whatKey,
+                                 const char* expectedName,
+                                 const char* expectedWhat,
+                                 const char* label) {
+        Value nameValue = L->getGlobal(nameKey);
+        Value whatValue = L->getGlobal(whatKey);
+
+        ASSERT_TRUE(suite, nameValue.isString(), std::string(label).append(" name exported").c_str());
+        ASSERT_TRUE(suite, whatValue.isString(), std::string(label).append(" namewhat exported").c_str());
+
+        if (nameValue.isString()) {
+            ASSERT_TRUE(
+                suite,
+                std::string(nameValue.asString()->c_str()) == expectedName,
+                std::string(label).append(" name matches").c_str()
+            );
+        }
+        if (whatValue.isString()) {
+            ASSERT_TRUE(
+                suite,
+                std::string(whatValue.asString()->c_str()) == expectedWhat,
+                std::string(label).append(" namewhat matches").c_str()
+            );
+        }
+    };
+
+    assertNamedResult("g_local_name", "g_local_namewhat", "local_alias", "local", "local call");
+    assertNamedResult("g_global_name", "g_global_namewhat", "named_global_target", "global", "global call");
+    assertNamedResult("g_field_name", "g_field_namewhat", "field_target", "field", "field call");
+    assertNamedResult("g_method_name", "g_method_namewhat", "method_target", "method", "method call");
+    assertNamedResult("g_upvalue_name", "g_upvalue_namewhat", "upv", "upvalue", "upvalue call");
+
+    Value invalidOk = L->getGlobal("g_invalid_ok");
+    Value invalidErr = L->getGlobal("g_invalid_err");
+    ASSERT_TRUE(suite, invalidOk.isBoolean(), "invalid option status exported");
+    ASSERT_TRUE(suite, invalidErr.isString(), "invalid option message exported");
+    if (invalidOk.isBoolean()) {
+        ASSERT_TRUE(suite, !invalidOk.asBoolean(), "invalid option call fails");
+    }
+    if (invalidErr.isString()) {
+        ASSERT_TRUE(
+            suite,
+            std::string(invalidErr.asString()->c_str()).find("invalid option") != std::string::npos,
+            "invalid option message mentions invalid option"
+        );
+    }
+
+    Value funcValue = L->getGlobal("named_global_target");
+    ASSERT_TRUE(suite, funcValue.isFunction(), "named_global_target is exported");
+    if (funcValue.isFunction()) {
+        auto& pool = L->getGlobalState().getStringPool();
+        i32 ret = invokeDebug(L, "getinfo", [&](LuaState* s) {
+            s->pushFunction(funcValue.asFunction());
+            s->pushString(pool.intern("n"));
+        });
+        ASSERT_EQ(suite, 1, ret, "debug.getinfo(function, 'n') returns table");
+        ASSERT_TRUE(suite, L->top().isTable(), "function getinfo('n') returns table");
+        if (L->top().isTable()) {
+            Table* info = L->top().asTable();
+            Value name = getField(L, info, "name");
+            Value namewhat = getField(L, info, "namewhat");
+            ASSERT_TRUE(suite, name.isNil(), "function getinfo('n') leaves name unset");
+            ASSERT_TRUE(suite, namewhat.isString(), "function getinfo('n') exports namewhat");
+            if (namewhat.isString()) {
+                ASSERT_TRUE(
+                    suite,
+                    std::string(namewhat.asString()->c_str()).empty(),
+                    "function getinfo('n') uses empty namewhat"
+                );
+            }
+        }
+    }
+
+    delete L;
+}
+
 void testTracebackFromLua(TestSuite& suite) {
     LuaState* L = LuaState::newState();
     StandardLibrary::openAll(L);
@@ -615,6 +744,7 @@ void registerDebugLibTests() {
     registry.registerTest(kSuiteName, "upvalue access", testGetAndSetUpvalue);
     registry.registerTest(kSuiteName, "getinfo function", testGetInfoWithFunctionArg);
     registry.registerTest(kSuiteName, "getinfo stack", testGetInfoFromLuaStack);
+    registry.registerTest(kSuiteName, "getinfo names", testGetInfoNameInference);
     registry.registerTest(kSuiteName, "traceback", testTracebackFromLua);
     registry.registerTest(kSuiteName, "local access", testGetLocalAndSetLocal);
     registry.registerTest(kSuiteName, "hook lifecycle", testHookLifecycle);

@@ -11,6 +11,7 @@
 #include "lib/debuglib.hpp"
 
 #include "compiler/codegen.hpp"
+#include "compiler/opcode.hpp"
 #include "compiler/parser.hpp"
 #include "core/function.hpp"
 #include "core/gc_string.hpp"
@@ -23,6 +24,7 @@
 #include "vm/vm.hpp"
 
 #include <algorithm>
+#include <cstring>
 #include <iostream>
 #include <sstream>
 
@@ -99,6 +101,7 @@ Function* functionFromCallInfo(LuaState* ownerL, const CallInfo& ci) {
 struct DebugFrameRef {
     Function* func = nullptr;
     const CallInfo* ci = nullptr;
+    usize stackIndex = 0;
 };
 
 bool resolveStackLevel(LuaState* ownerL, i32 level, DebugFrameRef& outFrame) {
@@ -120,6 +123,7 @@ bool resolveStackLevel(LuaState* ownerL, i32 level, DebugFrameRef& outFrame) {
 
     outFrame.func = func;
     outFrame.ci = &ci;
+    outFrame.stackIndex = targetIndex;
     return true;
 }
 
@@ -236,6 +240,244 @@ void populateInfoU(Table* info, LuaState* L, Function* func) {
     }
 
     setNumberField(info, L, "nups", static_cast<i32>(func->getNumUpvalues()));
+}
+
+bool isValidGetInfoOption(char option) {
+    switch (option) {
+        case 'S':
+        case 'l':
+        case 'u':
+        case 'n':
+        case 'L':
+        case 'f':
+            return true;
+        default:
+            return false;
+    }
+}
+
+GCString* stringConstantOrQuestion(LuaState* L, Proto* proto, i32 index) {
+    if (proto != nullptr && index >= 0 && static_cast<usize>(index) < proto->getConstantCount()) {
+        Value constant = proto->getConstant(static_cast<usize>(index));
+        if (constant.isString()) {
+            return constant.asString();
+        }
+    }
+
+    return internString(L, "?");
+}
+
+GCString* rkNameOrQuestion(LuaState* L, Proto* proto, i32 operand) {
+    if (ISK(operand)) {
+        return stringConstantOrQuestion(L, proto, INDEXK(operand));
+    }
+
+    return internString(L, "?");
+}
+
+GCString* activeLocalNameForRegister(Proto* proto, i32 reg, i32 pc) {
+    if (proto == nullptr || reg < 0) {
+        return nullptr;
+    }
+
+    GCString* bestMatch = nullptr;
+    i32 bestStartPc = -1;
+    for (usize i = 0; i < proto->getLocVarCount(); i++) {
+        const LocVar& local = proto->getLocVar(i);
+        if (local.varname == nullptr || local.reg != reg) {
+            continue;
+        }
+        if (local.startpc <= pc && pc < local.endpc && local.startpc >= bestStartPc) {
+            bestMatch = local.varname;
+            bestStartPc = local.startpc;
+        }
+    }
+
+    return bestMatch;
+}
+
+bool instructionWritesRegister(Instruction instruction, i32 reg) {
+    OpCode op = GET_OPCODE(instruction);
+    i32 a = GETARG_A(instruction);
+
+    switch (op) {
+        case OpCode::MOVE:
+        case OpCode::LOADK:
+        case OpCode::LOADBOOL:
+        case OpCode::GETUPVAL:
+        case OpCode::GETGLOBAL:
+        case OpCode::GETTABLE:
+        case OpCode::NEWTABLE:
+        case OpCode::ADD:
+        case OpCode::SUB:
+        case OpCode::MUL:
+        case OpCode::DIV:
+        case OpCode::MOD:
+        case OpCode::POW:
+        case OpCode::UNM:
+        case OpCode::NOT:
+        case OpCode::LEN:
+        case OpCode::CONCAT:
+        case OpCode::TESTSET:
+        case OpCode::CLOSURE:
+            return reg == a;
+
+        case OpCode::LOADNIL:
+            return a <= reg && reg <= GETARG_B(instruction);
+
+        case OpCode::SELF:
+            return reg == a || reg == (a + 1);
+
+        case OpCode::CALL:
+        case OpCode::TAILCALL: {
+            i32 results = GETARG_C(instruction) - 1;
+            if (results == MULTRET) {
+                return reg >= a;
+            }
+            return results > 0 && a <= reg && reg < (a + results);
+        }
+
+        case OpCode::VARARG: {
+            i32 results = GETARG_B(instruction) - 1;
+            if (results == MULTRET) {
+                return reg >= a;
+            }
+            return results >= 0 && a <= reg && reg < (a + results);
+        }
+
+        case OpCode::TFORLOOP:
+            return reg >= (a + 3) && reg <= (a + 2 + GETARG_C(instruction));
+
+        case OpCode::FORLOOP:
+            return reg == a || reg == (a + 3);
+
+        default:
+            return false;
+    }
+}
+
+bool findRegisterSetter(Proto* proto, i32 pc, i32 reg, i32& setterPc, Instruction& setter) {
+    if (proto == nullptr || reg < 0) {
+        return false;
+    }
+
+    const Vec<Instruction>& code = proto->getCode();
+    i32 upperBound = std::min(pc - 1, static_cast<i32>(code.size()) - 1);
+    for (i32 i = upperBound; i >= 0; i--) {
+        Instruction instruction = code[static_cast<usize>(i)];
+        if (instructionWritesRegister(instruction, reg)) {
+            setterPc = i;
+            setter = instruction;
+            return true;
+        }
+    }
+
+    return false;
+}
+
+const char* inferObjectName(
+    LuaState* L,
+    Proto* proto,
+    i32 pc,
+    i32 reg,
+    GCString*& outName,
+    i32 depth = 0
+) {
+    if (proto == nullptr || reg < 0 || pc < 0 || depth > 16) {
+        return nullptr;
+    }
+
+    if (GCString* localName = activeLocalNameForRegister(proto, reg, pc)) {
+        outName = localName;
+        return "local";
+    }
+
+    Instruction setter = 0;
+    i32 setterPc = -1;
+    if (!findRegisterSetter(proto, pc, reg, setterPc, setter)) {
+        return nullptr;
+    }
+
+    switch (GET_OPCODE(setter)) {
+        case OpCode::GETGLOBAL:
+            outName = stringConstantOrQuestion(L, proto, GETARG_Bx(setter));
+            return "global";
+
+        case OpCode::MOVE: {
+            i32 a = GETARG_A(setter);
+            i32 b = GETARG_B(setter);
+            if (b < a) {
+                return inferObjectName(L, proto, setterPc, b, outName, depth + 1);
+            }
+            break;
+        }
+
+        case OpCode::GETTABLE:
+            outName = rkNameOrQuestion(L, proto, GETARG_C(setter));
+            return "field";
+
+        case OpCode::GETUPVAL: {
+            GCString* upvalueName = proto->getUpvalueName(static_cast<usize>(GETARG_B(setter)));
+            outName = upvalueName ? upvalueName : internString(L, "?");
+            return "upvalue";
+        }
+
+        case OpCode::SELF:
+            outName = rkNameOrQuestion(L, proto, GETARG_C(setter));
+            return "method";
+
+        default:
+            break;
+    }
+
+    return nullptr;
+}
+
+void populateInfoN(Table* info, LuaState* L, LuaState* ownerL, const DebugFrameRef& frame) {
+    setStringField(info, L, "namewhat", "");
+
+    if (frame.ci == nullptr || frame.stackIndex == 0) {
+        return;
+    }
+
+    if (frame.func != nullptr && frame.func->isLuaFunction() && frame.ci->tailcalls > 0) {
+        return;
+    }
+
+    const CallInfo& callerCi = ownerL->getCallStack()[frame.stackIndex - 1];
+    Function* callerFunc = functionFromCallInfo(ownerL, callerCi);
+    if (callerFunc == nullptr || callerFunc->isCFunction()) {
+        return;
+    }
+
+    Proto* callerProto = callerFunc->getProto();
+    i32 callerPc = currentPcForFrame(callerFunc, &callerCi);
+    if (callerProto == nullptr || callerPc < 0 ||
+        static_cast<usize>(callerPc) >= callerProto->getInstructionCount()) {
+        return;
+    }
+
+    Instruction instruction = callerProto->getInstruction(static_cast<usize>(callerPc));
+    OpCode op = GET_OPCODE(instruction);
+
+    i32 targetReg = -1;
+    if (op == OpCode::CALL || op == OpCode::TAILCALL || op == OpCode::TFORLOOP) {
+        targetReg = GETARG_A(instruction);
+    }
+    if (targetReg < 0) {
+        return;
+    }
+
+    GCString* name = nullptr;
+    const char* nameWhat = inferObjectName(L, callerProto, callerPc, targetReg, name);
+    if (nameWhat == nullptr) {
+        return;
+    }
+
+    setStringField(info, L, "namewhat", nameWhat);
+    if (name != nullptr) {
+        setField(info, L, "name", Value(name));
+    }
 }
 
 void populateInfoL(Table* info, LuaState* L, Function* func) {
@@ -490,6 +732,12 @@ i32 luaDebug_getinfo(LuaState* L) {
         options = L->toString(argBase + 1);
     }
 
+    for (char option : options) {
+        if (!isValidGetInfoOption(option)) {
+            L->error("bad argument to 'getinfo' (invalid option)");
+        }
+    }
+
     DebugFrameRef frame;
     Function* func = nullptr;
 
@@ -529,7 +777,7 @@ i32 luaDebug_getinfo(LuaState* L) {
                 populateInfoL(info, L, func);
                 break;
             case 'n':
-                setStringField(info, L, "namewhat", "");
+                populateInfoN(info, L, ownerL, frame);
                 break;
             default:
                 break;
