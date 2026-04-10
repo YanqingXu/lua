@@ -7,6 +7,7 @@
 #include "lib/tablelib.hpp"
 #include "lib/oslib.hpp"
 #include "lib/coroutinelib.hpp"
+#include "lib/debuglib.hpp"
 #include "vm/lua_state.hpp"
 
 namespace Lua {
@@ -76,6 +77,14 @@ void StandardLibrary::openCoroutine(LuaState* L) {
     openCoroutineLib(L);
 }
 
+void StandardLibrary::openDebug(LuaState* L) {
+    if (!L) {
+        return;
+    }
+
+    openDebugLib(L);
+}
+
 void StandardLibrary::openAll(LuaState* L) {
     if (!L) {
         return;
@@ -88,6 +97,7 @@ void StandardLibrary::openAll(LuaState* L) {
     openTable(L);
     openOS(L);
     openCoroutine(L);
+    openDebug(L);
 }
 
 } // namespace Lua

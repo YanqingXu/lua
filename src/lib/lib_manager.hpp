@@ -22,6 +22,8 @@ public:
 
     static void openCoroutine(LuaState* L);
 
+    static void openDebug(LuaState* L);
+
     static void openModule(LuaState* L, LibModule& module);
 };
 

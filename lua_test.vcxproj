@@ -168,6 +168,7 @@
     <ClCompile Include="tests\unit\metamethod\test_metamethod_complete.cpp" />
     <ClCompile Include="tests\unit\stdlib\test_baselib.cpp" />
     <ClCompile Include="tests\unit\stdlib\test_coroutinelib.cpp" />
+    <ClCompile Include="tests\unit\stdlib\test_debuglib.cpp" />
     <ClCompile Include="tests\unit\stdlib\test_oslib.cpp" />
     <ClCompile Include="tests\unit\stdlib\test_stringlib.cpp" />
     <ClCompile Include="tests\unit\stdlib\test_tablelib.cpp" />

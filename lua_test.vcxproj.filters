@@ -137,5 +137,8 @@
     <ClCompile Include="tests\unit\stdlib\test_coroutinelib.cpp">
       <Filter>tests\stdlib</Filter>
     </ClCompile>
+    <ClCompile Include="tests\unit\stdlib\test_debuglib.cpp">
+      <Filter>tests\stdlib</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>
