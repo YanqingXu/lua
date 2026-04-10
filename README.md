@@ -72,7 +72,7 @@
 | **基础库（Base Library）** | `src/lib/baselib.hpp/cpp` | 730 | 27/30函数（print、type、pcall、xpcall、unpack、load等） | 🔄 90% |
 | **数学库（Math Library）** | `src/lib/mathlib.hpp/cpp` | 681 | 25/28函数（缺 sinh、cosh、tanh） | 🔄 90% |
 | **I/O库（I/O Library）** | `src/lib/iolib.hpp/cpp` | 1,111 | 11/11函数 + 7/7文件方法（完整实现） | ✅ 100% |
-| **字符串库（String Library）** | `src/lib/stringlib.hpp/cpp` | ~1,200 | 14/14函数（format 部分实现，dump 为 stub） | 🔄 80% |
+| **字符串库（String Library）** | `src/lib/stringlib.hpp/cpp` | ~1,200 | 14/14函数（format 已补全，dump 为 stub） | 🔄 88% |
 | **表库（Table Library）** | `src/lib/tablelib.hpp/cpp` | ~400 | 4/5核心函数（缺 maxn，sort 无自定义比较器） | 🔄 75% |
 | **OS库（OS Library）** | `src/lib/oslib.hpp/cpp` | ~500 | 11/11函数（完整实现） | ✅ 100% |
 | **协程库（Coroutine Library）** | `src/lib/coroutinelib.hpp/cpp` | ~210 | 6/6函数（create、resume、yield、status、running、wrap） | ✅ 100% |
@@ -121,7 +121,6 @@
 
 | 缺失项 | 所属模块 | 说明 |
 |--------|----------|------|
-| **`string.format`** | string 库 | 仅支持 `%s`、`%d`/`%i`、`%f`、`%%`；缺少 `%g`、`%e`、`%E`、`%o`、`%x`、`%X`、`%c`、`%q`、宽度/精度/标志 |
 | **`string.gsub` 函数/表替换** | string 库 | 仅支持字符串替换模式，不支持函数和表替换 |
 | **`string.dump`** | string 库 | 当前为 stub，抛出 "not yet implemented" |
 | **`math.sinh/cosh/tanh`** | math 库 | 三个双曲函数缺失（实现简单） |
@@ -141,11 +140,11 @@
 
 ### 接下来优先做什么
 
-1. **补全 `string.format`**：这是使用频率最高的缺失函数
-2. **实现 `table.sort` 自定义比较器**：很多 Lua 代码依赖此功能
-3. **补齐 `math.sinh/cosh/tanh`**：改动极小，一次性补完
-4. **实现尾调用优化**：`TAILCALL` 指令复用栈帧
-5. **弱表与终结器**：`__mode` 和 `__gc` 支持
+1. **实现 `table.sort` 自定义比较器**：很多 Lua 代码依赖此功能
+2. **补齐 `math.sinh/cosh/tanh`**：改动极小，一次性补完
+3. **实现尾调用优化**：`TAILCALL` 指令复用栈帧
+4. **弱表与终结器**：`__mode` 和 `__gc` 支持
+5. **补全 `string.gsub` 的函数/表替换**：提升字符串库兼容性
 
 ### 核心实现亮点
 

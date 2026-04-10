@@ -11,10 +11,14 @@
 
 #include "../framework/test_framework.hpp"
 #include "lib/tablelib.hpp"
+#include "lib/lib_manager.hpp"
 #include "vm/lua_state.hpp"
+#include "vm/vm.hpp"
 #include "core/string_pool.hpp"
 #include "core/table.hpp"
 #include "core/function.hpp"
+#include "compiler/parser.hpp"
+#include "compiler/codegen.hpp"
 
 #include <string>
 #include <functional>
@@ -25,6 +29,39 @@ using namespace LuaTest;
 namespace {
 
 constexpr const char* kSuiteName = "Table Library";
+
+bool runLua(LuaState* L, const char* code) {
+    try {
+        Parser parser(code);
+        Chunk chunk = parser.parse();
+        StringPool& pool = StringPool::getInstance();
+        CodeGenerator codegen(&pool);
+        Proto* proto = codegen.generate(chunk, "test");
+        if (!proto) {
+            return false;
+        }
+
+        Function* func = new Function(proto);
+        L->getGlobalState().getGC().registerObject(func);
+        func->setEnv(L->getGlobalTable());
+        VM::execute(L, func);
+        delete proto;
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+double getGlobalNumber(LuaState* L, const char* name) {
+    Value v = L->getGlobal(name);
+    return v.isNumber() ? v.asNumber() : -9999.0;
+}
+
+LuaState* createFullState() {
+    LuaState* L = LuaState::newState();
+    StandardLibrary::openAll(L);
+    return L;
+}
 
 // 辅助函数：调用 table 库函数
 i32 callTableFunc(LuaState* L, const char* funcName, const std::function<void(LuaState*)>& pushArgs) {
@@ -230,6 +267,78 @@ void testTableSort(TestSuite& suite) {
         ASSERT_TRUE(suite, std::string(v2.asString()->c_str()) == "b", "sorted[2] = 'b'");
         ASSERT_TRUE(suite, std::string(v3.asString()->c_str()) == "c", "sorted[3] = 'c'");
     }
+
+    // 测试 3: 非函数比较器报错
+    bool invalidComparator = false;
+    try {
+        callTableFunc(L, "sort", [&](LuaState* s) {
+            s->pushValue(Value(t1));
+            s->pushNumber(1.0);
+        });
+    } catch (const std::runtime_error& e) {
+        invalidComparator = std::string(e.what()) == "bad argument #2 to 'table.sort' (function expected)";
+    }
+    ASSERT_TRUE(suite, invalidComparator, "sort rejects non-function comparator");
+}
+
+void testTableSortWithLuaComparator(TestSuite& suite) {
+    LuaState* L = createFullState();
+
+    bool ok = runLua(L, R"(
+        local values = {3, 1, 4, 2}
+        table.sort(values, function(a, b)
+            return a > b
+        end)
+        g1 = values[1]
+        g2 = values[2]
+        g3 = values[3]
+        g4 = values[4]
+    )");
+    ASSERT_TRUE(suite, ok, "table.sort descending comparator runs");
+    ASSERT_EQ(suite, 4.0, getGlobalNumber(L, "g1"), "descending sort result[1] = 4");
+    ASSERT_EQ(suite, 3.0, getGlobalNumber(L, "g2"), "descending sort result[2] = 3");
+    ASSERT_EQ(suite, 2.0, getGlobalNumber(L, "g3"), "descending sort result[3] = 2");
+    ASSERT_EQ(suite, 1.0, getGlobalNumber(L, "g4"), "descending sort result[4] = 1");
+
+    delete L;
+}
+
+void testTableSortWithComparatorUsingDerivedKey(TestSuite& suite) {
+    LuaState* L = createFullState();
+
+    bool ok = runLua(L, R"(
+        local values = {"pear", "fig", "banana", "kiwi"}
+        table.sort(values, function(a, b)
+            if #a == #b then
+                return a < b
+            end
+            return #a < #b
+        end)
+        len1 = #values[1]
+        len2 = #values[2]
+        len3 = #values[3]
+        len4 = #values[4]
+        first = values[1]
+        second = values[2]
+        third = values[3]
+        fourth = values[4]
+    )");
+    ASSERT_TRUE(suite, ok, "table.sort derived-key comparator runs");
+
+    Value first = L->getGlobal("first");
+    Value second = L->getGlobal("second");
+    Value third = L->getGlobal("third");
+    Value fourth = L->getGlobal("fourth");
+    ASSERT_TRUE(suite, first.isString() && std::string(first.asString()->c_str()) == "fig",
+                "derived-key sort first element is fig");
+    ASSERT_TRUE(suite, second.isString() && std::string(second.asString()->c_str()) == "kiwi",
+                "derived-key sort second element is kiwi");
+    ASSERT_TRUE(suite, third.isString() && std::string(third.asString()->c_str()) == "pear",
+                "derived-key sort third element is pear");
+    ASSERT_TRUE(suite, fourth.isString() && std::string(fourth.asString()->c_str()) == "banana",
+                "derived-key sort fourth element is banana");
+
+    delete L;
 }
 
 // =====================================================================
@@ -365,6 +474,8 @@ void registerTableLibTests() {
     registry.registerTest(kSuiteName, "table.remove", testTableRemove);
     registry.registerTest(kSuiteName, "table.concat", testTableConcat);
     registry.registerTest(kSuiteName, "table.sort", testTableSort);
+    registry.registerTest(kSuiteName, "table.sort comparator descending", testTableSortWithLuaComparator);
+    registry.registerTest(kSuiteName, "table.sort comparator derived key", testTableSortWithComparatorUsingDerivedKey);
     registry.registerTest(kSuiteName, "table.pack", testTablePack);
     registry.registerTest(kSuiteName, "table.unpack", testTableUnpack);
     registry.registerTest(kSuiteName, "table.move", testTableMove);

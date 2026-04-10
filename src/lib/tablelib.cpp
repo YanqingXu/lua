@@ -13,6 +13,7 @@
 #include "core/string_pool.hpp"
 #include "core/function.hpp"
 #include "lib/lib_registry.hpp"
+#include "vm/vm_constants.hpp"
 
 #include <string>
 #include <sstream>
@@ -54,6 +55,40 @@ static f64 getNumberArg(LuaState* L, i32 idx, const char* funcName) {
  */
 static i32 getTableLength(Table* table) {
     return static_cast<i32>(table->length());
+}
+
+static bool defaultSortLess(LuaState* L, const Value& left, const Value& right) {
+    if (left.isNumber() && right.isNumber()) {
+        return left.asNumber() < right.asNumber();
+    }
+
+    if (left.isString() && right.isString()) {
+        return std::strcmp(left.asString()->c_str(), right.asString()->c_str()) < 0;
+    }
+
+    L->error("table.sort: invalid order function for sorting");
+    return false;
+}
+
+static bool callSortComparator(LuaState* L, Function* comparator, const Value& left, const Value& right) {
+    i32 originalTop = L->getTop();
+
+    L->pushFunction(comparator);
+    L->pushValue(left);
+    L->pushValue(right);
+
+    i32 status = L->pcall(2, 1, 0);
+    if (status != LUA_OK) {
+        const char* msg = L->toString(-1);
+        if (msg != nullptr) {
+            L->error(msg);
+        }
+        L->error("table.sort: comparator failed");
+    }
+
+    bool result = L->toBoolean(-1);
+    L->setTop(originalTop);
+    return result;
 }
 
 // =====================================================================
@@ -190,6 +225,14 @@ i32 table_sort(LuaState* L) {
 
     Table* table = getTableArg(L, 1, "sort");
     i32 len = getTableLength(table);
+    Function* comparator = nullptr;
+
+    if (nargs >= 2) {
+        if (!L->at(2).isFunction()) {
+            L->error("bad argument #2 to 'table.sort' (function expected)");
+        }
+        comparator = L->at(2).asFunction();
+    }
 
     // 提取数组部分到 vector
     std::vector<Value> arr;
@@ -198,20 +241,15 @@ i32 table_sort(LuaState* L) {
         arr.push_back(table->get(Value(static_cast<f64>(i))));
     }
 
-    // 排序（使用简单的冒泡排序，因为我们没有实现比较函数调用）
-    // TODO: 支持自定义比较函数
+    // 使用稳定的冒泡排序，便于通过用户比较器维持可预测行为。
     for (i32 i = 0; i < len - 1; i++) {
         for (i32 j = 0; j < len - i - 1; j++) {
             Value& a = arr[j];
             Value& b = arr[j + 1];
 
-            // 简单的数字比较
-            bool shouldSwap = false;
-            if (a.isNumber() && b.isNumber()) {
-                shouldSwap = a.asNumber() > b.asNumber();
-            } else if (a.isString() && b.isString()) {
-                shouldSwap = std::string(a.asString()->c_str()) > std::string(b.asString()->c_str());
-            }
+            bool shouldSwap = comparator != nullptr
+                ? callSortComparator(L, comparator, b, a)
+                : defaultSortLess(L, b, a);
 
             if (shouldSwap) {
                 std::swap(arr[j], arr[j + 1]);
