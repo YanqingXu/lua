@@ -12,7 +12,9 @@
 #include "vm/lua_state.hpp"
 #include "vm/vm.hpp"
 
+#include <algorithm>
 #include <string>
+#include <vector>
 
 using namespace Lua;
 using namespace LuaTest;
@@ -102,7 +104,12 @@ void testDebugTableRegistration(TestSuite& suite) {
     checkFunction("getupvalue", "debug.getupvalue exists");
     checkFunction("setupvalue", "debug.setupvalue exists");
     checkFunction("getinfo", "debug.getinfo exists");
+    checkFunction("getlocal", "debug.getlocal exists");
+    checkFunction("setlocal", "debug.setlocal exists");
     checkFunction("traceback", "debug.traceback exists");
+    checkFunction("sethook", "debug.sethook exists");
+    checkFunction("gethook", "debug.gethook exists");
+    checkFunction("debug", "debug.debug exists");
 }
 
 void testGetRegistry(TestSuite& suite) {
@@ -124,6 +131,27 @@ void testGetRegistry(TestSuite& suite) {
 static i32 dummyClosure(LuaState* L) {
     (void)L;
     return 0;
+}
+
+std::vector<std::string> g_hookEvents;
+
+static i32 captureHook(LuaState* L) {
+    std::string event = L->isString(1) ? L->toString(1) : "";
+    if (!L->isNil(2) && L->isNumber(2)) {
+        event += ":" + std::to_string(static_cast<i32>(L->toNumber(2)));
+    }
+    g_hookEvents.push_back(event);
+    return 0;
+}
+
+bool hasHookEventPrefix(const std::string& prefix) {
+    return std::any_of(
+        g_hookEvents.begin(),
+        g_hookEvents.end(),
+        [&](const std::string& event) {
+            return event.rfind(prefix, 0) == 0;
+        }
+    );
 }
 
 void testGetAndSetUpvalue(TestSuite& suite) {
@@ -300,6 +328,283 @@ void testTracebackFromLua(TestSuite& suite) {
     delete L;
 }
 
+void testGetLocalAndSetLocal(TestSuite& suite) {
+    LuaState* L = LuaState::newState();
+    StandardLibrary::openAll(L);
+
+    bool ok = runLuaChunk(
+        L,
+        "function local_target(a, b)\n"
+        "    local sum = a + b\n"
+        "    g_local_name1, g_local_value1 = debug.getlocal(1, 1)\n"
+        "    g_local_name2, g_local_value2 = debug.getlocal(1, 2)\n"
+        "    g_local_name3, g_local_value3 = debug.getlocal(1, 3)\n"
+        "    g_setlocal_name = debug.setlocal(1, 3, 99)\n"
+        "    return sum\n"
+        "end\n"
+        "g_local_result = local_target(7, 8)\n",
+        "test_debuglib_local.lua"
+    );
+    ASSERT_TRUE(suite, ok, "local get/set chunk runs");
+    if (!ok) {
+        delete L;
+        return;
+    }
+
+    Value localName1 = L->getGlobal("g_local_name1");
+    Value localValue1 = L->getGlobal("g_local_value1");
+    Value localName2 = L->getGlobal("g_local_name2");
+    Value localValue2 = L->getGlobal("g_local_value2");
+    Value localName3 = L->getGlobal("g_local_name3");
+    Value localValue3 = L->getGlobal("g_local_value3");
+    Value setlocalName = L->getGlobal("g_setlocal_name");
+    Value result = L->getGlobal("g_local_result");
+
+    ASSERT_TRUE(suite, localName1.isString(), "getlocal name #1 exported");
+    ASSERT_TRUE(suite, localValue1.isNumber(), "getlocal value #1 exported");
+    ASSERT_TRUE(suite, localName2.isString(), "getlocal name #2 exported");
+    ASSERT_TRUE(suite, localValue2.isNumber(), "getlocal value #2 exported");
+    ASSERT_TRUE(suite, localName3.isString(), "getlocal name #3 exported");
+    ASSERT_TRUE(suite, localValue3.isNumber(), "getlocal value #3 exported");
+    ASSERT_TRUE(suite, setlocalName.isString(), "setlocal returns name");
+    ASSERT_TRUE(suite, result.isNumber(), "setlocal affected return value");
+
+    if (localName1.isString()) {
+        ASSERT_TRUE(suite, std::string(localName1.asString()->c_str()) == "a", "local #1 is parameter a");
+    }
+    if (localValue1.isNumber()) {
+        ASSERT_EQ(suite, 7.0, localValue1.asNumber(), "local #1 value matches");
+    }
+    if (localName2.isString()) {
+        ASSERT_TRUE(suite, std::string(localName2.asString()->c_str()) == "b", "local #2 is parameter b");
+    }
+    if (localValue2.isNumber()) {
+        ASSERT_EQ(suite, 8.0, localValue2.asNumber(), "local #2 value matches");
+    }
+    if (localName3.isString()) {
+        ASSERT_TRUE(suite, std::string(localName3.asString()->c_str()) == "sum", "local #3 is local sum");
+    }
+    if (localValue3.isNumber()) {
+        ASSERT_EQ(suite, 15.0, localValue3.asNumber(), "local #3 value matches before mutation");
+    }
+    if (setlocalName.isString()) {
+        ASSERT_TRUE(suite, std::string(setlocalName.asString()->c_str()) == "sum", "setlocal returns mutated local name");
+    }
+    if (result.isNumber()) {
+        ASSERT_EQ(suite, 99.0, result.asNumber(), "setlocal updates the live local slot");
+    }
+
+    Value funcValue = L->getGlobal("local_target");
+    ASSERT_TRUE(suite, funcValue.isFunction(), "local_target is exported");
+    if (funcValue.isFunction()) {
+        auto& pool = L->getGlobalState().getStringPool();
+        i32 ret = invokeDebug(L, "getlocal", [&](LuaState* s) {
+            s->pushFunction(funcValue.asFunction());
+            s->pushNumber(1.0);
+        });
+        ASSERT_EQ(suite, 1, ret, "debug.getlocal(function) returns one value");
+        ASSERT_TRUE(suite, L->top().isString(), "debug.getlocal(function) returns a name");
+        if (L->top().isString()) {
+            ASSERT_TRUE(suite, std::string(L->top().asString()->c_str()) == "a", "function local metadata returns first parameter");
+        }
+
+        ret = invokeDebug(L, "getlocal", [&](LuaState* s) {
+            s->pushFunction(funcValue.asFunction());
+            s->pushNumber(4.0);
+        });
+        ASSERT_EQ(suite, 1, ret, "debug.getlocal(function, missing) returns one value");
+        ASSERT_TRUE(suite, L->top().isNil(), "missing function local returns nil");
+
+        ret = invokeDebug(L, "getinfo", [&](LuaState* s) {
+            s->pushFunction(funcValue.asFunction());
+            s->pushString(pool.intern("L"));
+        });
+        ASSERT_EQ(suite, 1, ret, "debug.getinfo(function, 'L') returns table");
+        ASSERT_TRUE(suite, L->top().isTable(), "getinfo('L') returns table");
+        if (L->top().isTable()) {
+            Value activeLines = getField(L, L->top().asTable(), "activelines");
+            ASSERT_TRUE(suite, activeLines.isTable(), "activelines table is populated");
+        }
+    }
+
+    delete L;
+}
+
+void testHookLifecycle(TestSuite& suite) {
+    LuaState* L = LuaState::newState();
+    StandardLibrary::openAll(L);
+
+    g_hookEvents.clear();
+    Function* hookFunc = new Function(captureHook);
+    L->getGlobalState().getGC().registerObject(hookFunc);
+
+    auto& pool = L->getGlobalState().getStringPool();
+    i32 ret = invokeDebug(L, "sethook", [&](LuaState* s) {
+        s->pushFunction(hookFunc);
+        s->pushString(pool.intern("crl"));
+        s->pushNumber(2.0);
+    });
+    ASSERT_EQ(suite, 0, ret, "debug.sethook returns no values");
+
+    bool ok = runLuaChunk(
+        L,
+        "function hook_target()\n"
+        "    local x = 1\n"
+        "    x = x + 1\n"
+        "    return x\n"
+        "end\n"
+        "g_hook_result = hook_target()\n",
+        "test_debuglib_hook.lua"
+    );
+    ASSERT_TRUE(suite, ok, "hook target chunk runs");
+    if (ok) {
+        Value hookResult = L->getGlobal("g_hook_result");
+        ASSERT_TRUE(suite, hookResult.isNumber(), "hook target returns number");
+        if (hookResult.isNumber()) {
+            ASSERT_EQ(suite, 2.0, hookResult.asNumber(), "hook target returns expected value");
+        }
+    }
+
+    ASSERT_TRUE(suite, !g_hookEvents.empty(), "hook captured events");
+    ASSERT_TRUE(suite, hasHookEventPrefix("call"), "hook captured a call event");
+    ASSERT_TRUE(suite, hasHookEventPrefix("return"), "hook captured a return event");
+    ASSERT_TRUE(suite, hasHookEventPrefix("line"), "hook captured a line event");
+    ASSERT_TRUE(suite, hasHookEventPrefix("count"), "hook captured a count event");
+
+    ret = invokeDebug(L, "gethook", nullptr);
+    ASSERT_EQ(suite, 3, ret, "debug.gethook returns hook triple");
+    ASSERT_TRUE(suite, L->at(-3).isFunction(), "gethook returns hook function");
+    ASSERT_TRUE(suite, L->at(-2).isString(), "gethook returns hook mask");
+    ASSERT_TRUE(suite, L->at(-1).isNumber(), "gethook returns hook count");
+    if (L->at(-3).isFunction()) {
+        ASSERT_TRUE(suite, L->at(-3).asFunction() == hookFunc, "gethook returns installed function");
+    }
+    if (L->at(-2).isString()) {
+        ASSERT_TRUE(suite, std::string(L->at(-2).asString()->c_str()) == "crl", "gethook returns installed mask");
+    }
+    if (L->at(-1).isNumber()) {
+        ASSERT_EQ(suite, 2.0, L->at(-1).asNumber(), "gethook returns installed count");
+    }
+
+    ret = invokeDebug(L, "sethook", [&](LuaState* s) {
+        s->pushNil();
+    });
+    ASSERT_EQ(suite, 0, ret, "debug.sethook(nil) clears hook");
+
+    ret = invokeDebug(L, "gethook", nullptr);
+    ASSERT_EQ(suite, 3, ret, "debug.gethook still returns triple after clear");
+    ASSERT_TRUE(suite, L->at(-3).isNil(), "cleared hook function is nil");
+    ASSERT_TRUE(suite, L->at(-2).isString(), "cleared hook mask returns string");
+    ASSERT_TRUE(suite, L->at(-1).isNumber(), "cleared hook count returns number");
+    if (L->at(-2).isString()) {
+        ASSERT_TRUE(suite, std::string(L->at(-2).asString()->c_str()).empty(), "cleared hook mask is empty");
+    }
+    if (L->at(-1).isNumber()) {
+        ASSERT_EQ(suite, 0.0, L->at(-1).asNumber(), "cleared hook count is zero");
+    }
+
+    delete L;
+}
+
+void testThreadHookAndTraceback(TestSuite& suite) {
+    LuaState* L = LuaState::newState();
+    StandardLibrary::openAll(L);
+
+    bool ok = runLuaChunk(
+        L,
+        "function coroutine_target()\n"
+        "    local a = 10\n"
+        "    a = a + 1\n"
+        "    coroutine.yield(a)\n"
+        "    a = a + 1\n"
+        "    return a\n"
+        "end\n"
+        "co = coroutine.create(coroutine_target)\n",
+        "test_debuglib_thread.lua"
+    );
+    ASSERT_TRUE(suite, ok, "coroutine setup chunk runs");
+    if (!ok) {
+        delete L;
+        return;
+    }
+
+    Value threadValue = L->getGlobal("co");
+    ASSERT_TRUE(suite, threadValue.isThread(), "co global is a coroutine");
+    if (!threadValue.isThread()) {
+        delete L;
+        return;
+    }
+
+    g_hookEvents.clear();
+    Function* hookFunc = new Function(captureHook);
+    L->getGlobalState().getGC().registerObject(hookFunc);
+
+    auto& pool = L->getGlobalState().getStringPool();
+    i32 ret = invokeDebug(L, "sethook", [&](LuaState* s) {
+        s->pushValue(threadValue);
+        s->pushFunction(hookFunc);
+        s->pushString(pool.intern("cr"));
+        s->pushNumber(1.0);
+    });
+    ASSERT_EQ(suite, 0, ret, "debug.sethook(thread, ...) returns no values");
+
+    ret = invokeDebug(L, "gethook", [&](LuaState* s) {
+        s->pushValue(threadValue);
+    });
+    ASSERT_EQ(suite, 3, ret, "debug.gethook(thread) returns hook triple");
+    ASSERT_TRUE(suite, L->at(-3).isFunction(), "thread gethook returns function");
+    ASSERT_TRUE(suite, L->at(-2).isString(), "thread gethook returns mask");
+    ASSERT_TRUE(suite, L->at(-1).isNumber(), "thread gethook returns count");
+    if (L->at(-2).isString()) {
+        ASSERT_TRUE(suite, std::string(L->at(-2).asString()->c_str()) == "cr", "thread gethook mask matches");
+    }
+    if (L->at(-1).isNumber()) {
+        ASSERT_EQ(suite, 1.0, L->at(-1).asNumber(), "thread gethook count matches");
+    }
+
+    ok = runLuaChunk(
+        L,
+        "g_resume_ok1, g_resume_value1 = coroutine.resume(co)\n"
+        "g_thread_trace = debug.traceback(co)\n"
+        "g_resume_ok2, g_resume_value2 = coroutine.resume(co)\n",
+        "test_debuglib_thread_resume.lua"
+    );
+    ASSERT_TRUE(suite, ok, "coroutine resume chunk runs");
+    if (ok) {
+        Value resumeOk1 = L->getGlobal("g_resume_ok1");
+        Value resumeValue1 = L->getGlobal("g_resume_value1");
+        Value resumeOk2 = L->getGlobal("g_resume_ok2");
+        Value resumeValue2 = L->getGlobal("g_resume_value2");
+        Value threadTrace = L->getGlobal("g_thread_trace");
+
+        ASSERT_TRUE(suite, resumeOk1.isBoolean() && resumeOk1.asBoolean(), "first coroutine resume succeeds");
+        ASSERT_TRUE(suite, resumeValue1.isNumber(), "first coroutine resume returns value");
+        ASSERT_TRUE(suite, resumeOk2.isBoolean() && resumeOk2.asBoolean(), "second coroutine resume succeeds");
+        ASSERT_TRUE(suite, resumeValue2.isNumber(), "second coroutine resume returns value");
+        ASSERT_TRUE(suite, threadTrace.isString(), "thread traceback returns string");
+
+        if (resumeValue1.isNumber()) {
+            ASSERT_EQ(suite, 11.0, resumeValue1.asNumber(), "first coroutine resume yielded expected value");
+        }
+        if (resumeValue2.isNumber()) {
+            ASSERT_EQ(suite, 12.0, resumeValue2.asNumber(), "second coroutine resume returned expected value");
+        }
+        if (threadTrace.isString()) {
+            std::string text = threadTrace.asString()->c_str();
+            ASSERT_TRUE(
+                suite,
+                text.find("test_debuglib_thread.lua") != std::string::npos,
+                "thread traceback includes coroutine chunk name"
+            );
+        }
+    }
+
+    ASSERT_TRUE(suite, hasHookEventPrefix("call"), "thread hook captured call event");
+    ASSERT_TRUE(suite, hasHookEventPrefix("return"), "thread hook captured return event");
+
+    delete L;
+}
+
 } // namespace
 
 void registerDebugLibTests() {
@@ -311,4 +616,7 @@ void registerDebugLibTests() {
     registry.registerTest(kSuiteName, "getinfo function", testGetInfoWithFunctionArg);
     registry.registerTest(kSuiteName, "getinfo stack", testGetInfoFromLuaStack);
     registry.registerTest(kSuiteName, "traceback", testTracebackFromLua);
+    registry.registerTest(kSuiteName, "local access", testGetLocalAndSetLocal);
+    registry.registerTest(kSuiteName, "hook lifecycle", testHookLifecycle);
+    registry.registerTest(kSuiteName, "thread hook", testThreadHookAndTraceback);
 }

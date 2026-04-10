@@ -2,7 +2,7 @@
  * @file debuglib.cpp
  * @brief Lua debug library implementation
  *
- * Uses the modern C++ fluent registration API (option 2).
+ * Uses the modern C++ fluent registration API.
  *
  * @author Lua C++ Project
  * @date 2026-04-10
@@ -10,15 +10,20 @@
 
 #include "lib/debuglib.hpp"
 
+#include "compiler/codegen.hpp"
+#include "compiler/parser.hpp"
 #include "core/function.hpp"
 #include "core/gc_string.hpp"
 #include "core/table.hpp"
+#include "core/thread.hpp"
 #include "core/upvalue.hpp"
 #include "lib/lib_manager.hpp"
 #include "lib/lib_registry.hpp"
 #include "vm/call_info.hpp"
+#include "vm/vm.hpp"
 
 #include <algorithm>
+#include <iostream>
 #include <sstream>
 
 namespace Lua {
@@ -68,8 +73,17 @@ Str makeShortSource(StrView source) {
     return "..." + Str(source.substr(source.size() - (SHORT_SRC_LIMIT - prefix)));
 }
 
-Function* functionFromCallInfo(LuaState* L, const CallInfo& ci) {
-    Stack& stack = L->getStack();
+LuaState* getThreadArgument(LuaState* L, i32& argBase) {
+    argBase = 1;
+    if (L->getTop() >= 1 && L->at(1).isThread()) {
+        argBase = 2;
+        return L->at(1).asThread()->getLuaState();
+    }
+    return L;
+}
+
+Function* functionFromCallInfo(LuaState* ownerL, const CallInfo& ci) {
+    Stack& stack = ownerL->getStack();
     if (ci.func >= stack.size()) {
         return nullptr;
     }
@@ -87,20 +101,20 @@ struct DebugFrameRef {
     const CallInfo* ci = nullptr;
 };
 
-bool resolveStackLevel(LuaState* L, i32 level, DebugFrameRef& outFrame) {
+bool resolveStackLevel(LuaState* ownerL, i32 level, DebugFrameRef& outFrame) {
     if (level < 0) {
         return false;
     }
 
-    usize currentIndex = L->getCurrentCI();
+    usize currentIndex = ownerL->getCurrentCI();
     if (static_cast<usize>(level) > currentIndex) {
         return false;
     }
 
     usize targetIndex = currentIndex - static_cast<usize>(level);
-    const CallInfo& ci = L->getCallStack()[targetIndex];
-    Function* func = functionFromCallInfo(L, ci);
-    if (!func) {
+    const CallInfo& ci = ownerL->getCallStack()[targetIndex];
+    Function* func = functionFromCallInfo(ownerL, ci);
+    if (func == nullptr) {
         return false;
     }
 
@@ -109,19 +123,19 @@ bool resolveStackLevel(LuaState* L, i32 level, DebugFrameRef& outFrame) {
     return true;
 }
 
-i32 currentLineForFrame(Function* func, const CallInfo* ci) {
-    if (!func || !ci || func->isCFunction()) {
-        return -1;
+i32 currentPcForFrame(Function* func, const CallInfo* ci) {
+    if (func == nullptr || ci == nullptr || func->isCFunction()) {
+        return 0;
     }
 
     Proto* proto = func->getProto();
-    if (!proto || !ci->savedpc) {
-        return -1;
+    if (proto == nullptr) {
+        return 0;
     }
 
     const Vec<Instruction>& code = proto->getCode();
-    if (code.empty()) {
-        return -1;
+    if (code.empty() || ci->savedpc == nullptr) {
+        return 0;
     }
 
     i32 pc = static_cast<i32>(ci->savedpc - code.data()) - 1;
@@ -132,11 +146,38 @@ i32 currentLineForFrame(Function* func, const CallInfo* ci) {
         pc = static_cast<i32>(code.size()) - 1;
     }
 
-    return proto->getLine(static_cast<usize>(pc));
+    return pc;
+}
+
+i32 currentLineForFrame(Function* func, const CallInfo* ci) {
+    if (func == nullptr || ci == nullptr || func->isCFunction()) {
+        return -1;
+    }
+
+    Proto* proto = func->getProto();
+    if (proto == nullptr) {
+        return -1;
+    }
+
+    return proto->getLine(static_cast<usize>(currentPcForFrame(func, ci)));
+}
+
+const LocVar* resolveLocalInfo(Function* func, const CallInfo* ci, i32 localNumber, bool activeFrame) {
+    if (func == nullptr || func->isCFunction() || localNumber <= 0) {
+        return nullptr;
+    }
+
+    Proto* proto = func->getProto();
+    if (proto == nullptr) {
+        return nullptr;
+    }
+
+    i32 pc = activeFrame ? currentPcForFrame(func, ci) : 0;
+    return proto->getLocalVarInfo(localNumber, pc);
 }
 
 GCString* upvalueNameOrEmpty(LuaState* L, Function* func, usize index) {
-    if (!func) {
+    if (func == nullptr) {
         return nullptr;
     }
 
@@ -152,14 +193,14 @@ GCString* upvalueNameOrEmpty(LuaState* L, Function* func, usize index) {
     return internEmptyString(L);
 }
 
-Table* createInfoTable(LuaState* L) {
+Table* createGCManagedTable(LuaState* L) {
     Table* table = new Table();
     L->getGlobalState().getGC().registerObject(table);
     return table;
 }
 
 void populateInfoS(Table* info, LuaState* L, Function* func, const CallInfo* ci) {
-    if (!func) {
+    if (func == nullptr) {
         return;
     }
 
@@ -190,15 +231,35 @@ void populateInfoS(Table* info, LuaState* L, Function* func, const CallInfo* ci)
 }
 
 void populateInfoU(Table* info, LuaState* L, Function* func) {
-    if (!func) {
+    if (func == nullptr) {
         return;
     }
 
     setNumberField(info, L, "nups", static_cast<i32>(func->getNumUpvalues()));
 }
 
+void populateInfoL(Table* info, LuaState* L, Function* func) {
+    if (func == nullptr || func->isCFunction()) {
+        return;
+    }
+
+    Proto* proto = func->getProto();
+    if (proto == nullptr) {
+        return;
+    }
+
+    Table* lines = createGCManagedTable(L);
+    for (i32 line : proto->getLineInfo()) {
+        if (line > 0) {
+            lines->set(Value(static_cast<LuaNumber>(line)), Value(true));
+        }
+    }
+
+    setField(info, L, "activelines", Value(lines));
+}
+
 Str describeFunction(Function* func) {
-    if (!func) {
+    if (func == nullptr) {
         return "?";
     }
 
@@ -207,7 +268,7 @@ Str describeFunction(Function* func) {
     }
 
     Proto* proto = func->getProto();
-    if (!proto) {
+    if (proto == nullptr) {
         return "Lua function";
     }
 
@@ -221,8 +282,9 @@ Str describeFunction(Function* func) {
     return oss.str();
 }
 
-Str formatFrameLine(Function* func, const CallInfo* ci) {
-    if (!func) {
+Str formatFrameLine(LuaState* ownerL, const CallInfo& ci) {
+    Function* func = functionFromCallInfo(ownerL, ci);
+    if (func == nullptr) {
         return "\t?";
     }
 
@@ -232,7 +294,7 @@ Str formatFrameLine(Function* func, const CallInfo* ci) {
 
     Proto* proto = func->getProto();
     Str source = proto && proto->getSource() ? proto->getSource()->c_str() : "?";
-    i32 line = currentLineForFrame(func, ci);
+    i32 line = currentLineForFrame(func, &ci);
     if (line < 0 && proto != nullptr) {
         line = proto->getLineDefined();
     }
@@ -265,6 +327,83 @@ i32 checkPositiveIndex(LuaState* L, i32 idx, const char* message) {
     return value;
 }
 
+i32 checkNonNegativeLevel(LuaState* L, i32 idx, const char* message) {
+    if (!L->isNumber(idx)) {
+        L->error(message);
+    }
+
+    i32 value = static_cast<i32>(L->toNumber(idx));
+    if (value < 0) {
+        L->error(message);
+    }
+    return value;
+}
+
+bool parseHookMask(StrView mask, u8& outMask) {
+    outMask = 0;
+
+    for (char ch : mask) {
+        switch (ch) {
+            case 'c':
+                outMask |= HookMaskCall;
+                break;
+            case 'r':
+                outMask |= HookMaskReturn;
+                break;
+            case 'l':
+                outMask |= HookMaskLine;
+                break;
+            default:
+                return false;
+        }
+    }
+
+    return true;
+}
+
+Str hookMaskToString(u8 mask) {
+    Str result;
+    if ((mask & HookMaskCall) != 0) {
+        result.push_back('c');
+    }
+    if ((mask & HookMaskReturn) != 0) {
+        result.push_back('r');
+    }
+    if ((mask & HookMaskLine) != 0) {
+        result.push_back('l');
+    }
+    return result;
+}
+
+void runDebugCommand(LuaState* L, const Str& source) {
+    auto& pool = L->getGlobalState().getStringPool();
+
+    Parser parser(source);
+    Chunk chunk = parser.parse();
+
+    CodeGenerator codegen(&pool);
+    Proto* proto = codegen.generate(chunk, "=(debug command)");
+    if (proto == nullptr) {
+        throw std::runtime_error("debug.debug: compilation failed");
+    }
+
+    Function* func = new Function(proto);
+    L->getGlobalState().getGC().registerObject(func);
+    func->setEnv(L->getGlobalTable());
+
+    usize savedTop = L->getAbsoluteTop();
+    try {
+        L->pushFunction(func);
+        VM::call(L, 0, 0);
+        L->getStack().setTop(savedTop);
+        L->setAbsoluteTop(savedTop);
+    } catch (...) {
+        L->getStack().setTop(savedTop);
+        L->setAbsoluteTop(savedTop);
+        throw;
+    }
+}
+
 } // namespace
 
 // =====================================================================
@@ -293,7 +432,7 @@ i32 luaDebug_getupvalue(LuaState* L) {
     );
 
     Upvalue* upvalue = func->getUpvalue(static_cast<usize>(upIndex - 1));
-    if (!upvalue) {
+    if (upvalue == nullptr) {
         L->pushNil();
         return 1;
     }
@@ -321,7 +460,7 @@ i32 luaDebug_setupvalue(LuaState* L) {
     );
 
     Upvalue* upvalue = func->getUpvalue(static_cast<usize>(upIndex - 1));
-    if (!upvalue) {
+    if (upvalue == nullptr) {
         L->pushNil();
         return 1;
     }
@@ -336,55 +475,64 @@ i32 luaDebug_setupvalue(LuaState* L) {
 // =====================================================================
 
 i32 luaDebug_getinfo(LuaState* L) {
-    i32 nargs = L->getTop();
-    if (nargs < 1) {
-        L->error("bad argument #1 to 'getinfo' (function or level expected)");
+    i32 argBase = 1;
+    LuaState* ownerL = getThreadArgument(L, argBase);
+
+    if (L->getTop() < argBase) {
+        L->error("bad argument to 'getinfo' (function or level expected)");
     }
 
     StrView options = "flnSu";
-    if (nargs >= 2) {
-        if (!L->isString(2)) {
-            L->error("bad argument #2 to 'getinfo' (string expected)");
+    if (L->getTop() >= argBase + 1) {
+        if (!L->isString(argBase + 1)) {
+            L->error("bad argument to 'getinfo' (string expected)");
         }
-        options = L->toString(2);
+        options = L->toString(argBase + 1);
     }
 
     DebugFrameRef frame;
     Function* func = nullptr;
 
-    if (L->isFunction(1)) {
-        func = L->at(1).asFunction();
-    } else if (L->isNumber(1)) {
-        i32 level = static_cast<i32>(L->toNumber(1));
-        if (!resolveStackLevel(L, level, frame)) {
+    if (L->isFunction(argBase)) {
+        func = L->at(argBase).asFunction();
+    } else if (L->isNumber(argBase)) {
+        i32 level = checkNonNegativeLevel(
+            L,
+            argBase,
+            "bad argument to 'getinfo' (stack level expected)"
+        );
+        if (!resolveStackLevel(ownerL, level, frame)) {
             L->pushNil();
             return 1;
         }
         func = frame.func;
     } else {
-        L->error("bad argument #1 to 'getinfo' (function or level expected)");
+        L->error("bad argument to 'getinfo' (function or level expected)");
     }
 
-    Table* info = createInfoTable(L);
+    Table* info = createGCManagedTable(L);
     for (char option : options) {
         switch (option) {
-        case 'S':
-            populateInfoS(info, L, func, frame.ci);
-            break;
-        case 'u':
-            populateInfoU(info, L, func);
-            break;
-        case 'f':
-            setField(info, L, "func", Value(func));
-            break;
-        case 'l':
-            setNumberField(info, L, "currentline", currentLineForFrame(func, frame.ci));
-            break;
-        case 'n':
-            setStringField(info, L, "namewhat", "");
-            break;
-        default:
-            break;
+            case 'S':
+                populateInfoS(info, L, func, frame.ci);
+                break;
+            case 'u':
+                populateInfoU(info, L, func);
+                break;
+            case 'f':
+                setField(info, L, "func", Value(func));
+                break;
+            case 'l':
+                setNumberField(info, L, "currentline", currentLineForFrame(func, frame.ci));
+                break;
+            case 'L':
+                populateInfoL(info, L, func);
+                break;
+            case 'n':
+                setStringField(info, L, "namewhat", "");
+                break;
+            default:
+                break;
         }
     }
 
@@ -393,46 +541,250 @@ i32 luaDebug_getinfo(LuaState* L) {
 }
 
 // =====================================================================
-// debug.traceback([message [, level]]) - Build a traceback string
+// debug.getlocal(thread|func|level, local) - Get a local variable
+// =====================================================================
+
+i32 luaDebug_getlocal(LuaState* L) {
+    i32 argBase = 1;
+    LuaState* ownerL = getThreadArgument(L, argBase);
+
+    if (L->getTop() < argBase + 1) {
+        L->error("bad argument to 'getlocal' (value and local index expected)");
+    }
+
+    i32 localIndex = checkPositiveIndex(
+        L,
+        argBase + 1,
+        "bad argument to 'getlocal' (positive local index expected)"
+    );
+
+    if (L->isFunction(argBase)) {
+        Function* func = L->at(argBase).asFunction();
+        const LocVar* localInfo = resolveLocalInfo(func, nullptr, localIndex, false);
+        if (localInfo == nullptr || localInfo->varname == nullptr) {
+            L->pushNil();
+            return 1;
+        }
+
+        L->pushString(localInfo->varname);
+        return 1;
+    }
+
+    i32 level = checkNonNegativeLevel(
+        L,
+        argBase,
+        "bad argument to 'getlocal' (stack level expected)"
+    );
+
+    DebugFrameRef frame;
+    if (!resolveStackLevel(ownerL, level, frame)) {
+        L->pushNil();
+        return 1;
+    }
+
+    const LocVar* localInfo = resolveLocalInfo(frame.func, frame.ci, localIndex, true);
+    if (localInfo == nullptr || localInfo->varname == nullptr) {
+        L->pushNil();
+        return 1;
+    }
+
+    usize absSlot = frame.ci->base + static_cast<usize>(localInfo->reg);
+    if (absSlot >= ownerL->getStack().size()) {
+        L->pushNil();
+        return 1;
+    }
+
+    L->pushString(localInfo->varname);
+    L->pushValue(ownerL->getStack().at(absSlot));
+    return 2;
+}
+
+// =====================================================================
+// debug.setlocal([thread,] level, local, value) - Set an active local variable
+// =====================================================================
+
+i32 luaDebug_setlocal(LuaState* L) {
+    i32 argBase = 1;
+    LuaState* ownerL = getThreadArgument(L, argBase);
+
+    if (L->getTop() < argBase + 2) {
+        L->error("bad argument to 'setlocal' (stack level, local index and value expected)");
+    }
+
+    i32 level = checkNonNegativeLevel(
+        L,
+        argBase,
+        "bad argument to 'setlocal' (stack level expected)"
+    );
+    i32 localIndex = checkPositiveIndex(
+        L,
+        argBase + 1,
+        "bad argument to 'setlocal' (positive local index expected)"
+    );
+
+    DebugFrameRef frame;
+    if (!resolveStackLevel(ownerL, level, frame)) {
+        L->pushNil();
+        return 1;
+    }
+
+    const LocVar* localInfo = resolveLocalInfo(frame.func, frame.ci, localIndex, true);
+    if (localInfo == nullptr || localInfo->varname == nullptr) {
+        L->pushNil();
+        return 1;
+    }
+
+    usize absSlot = frame.ci->base + static_cast<usize>(localInfo->reg);
+    if (absSlot >= ownerL->getStack().size()) {
+        L->pushNil();
+        return 1;
+    }
+
+    ownerL->getStack().at(absSlot) = L->at(argBase + 2);
+    L->pushString(localInfo->varname);
+    return 1;
+}
+
+// =====================================================================
+// debug.traceback([thread,] [message [, level]]) - Build a traceback string
 // =====================================================================
 
 i32 luaDebug_traceback(LuaState* L) {
-    const char* message = nullptr;
-    i32 level = 1;
+    i32 argBase = 1;
+    LuaState* ownerL = getThreadArgument(L, argBase);
 
-    if (L->getTop() >= 1 && !L->isNil(1)) {
-        if (!L->isString(1)) {
-            L->error("bad argument #1 to 'traceback' (string expected)");
+    const char* message = nullptr;
+    if (L->getTop() >= argBase && !L->isNil(argBase)) {
+        if (!L->isString(argBase)) {
+            L->pushValue(L->at(argBase));
+            return 1;
         }
-        message = L->toString(1);
+        message = L->toString(argBase);
     }
 
-    if (L->getTop() >= 2) {
-        if (!L->isNumber(2)) {
-            L->error("bad argument #2 to 'traceback' (number expected)");
+    i32 level = (ownerL == L) ? 1 : 0;
+    if (L->getTop() >= argBase + 1) {
+        if (!L->isNumber(argBase + 1)) {
+            L->error("bad argument to 'traceback' (number expected)");
         }
-        level = std::max(0, static_cast<i32>(L->toNumber(2)));
+        level = std::max(0, static_cast<i32>(L->toNumber(argBase + 1)));
     }
 
     std::ostringstream oss;
-    if (message && *message != '\0') {
+    if (message != nullptr && *message != '\0') {
         oss << message << "\n";
     }
     oss << "stack traceback:";
 
-    i32 startIndex = static_cast<i32>(L->getCurrentCI()) - level;
+    i32 startIndex = static_cast<i32>(ownerL->getCurrentCI()) - level;
     for (i32 index = startIndex; index >= 0; --index) {
-        const CallInfo& ci = L->getCallStack()[static_cast<usize>(index)];
-        Function* func = functionFromCallInfo(L, ci);
-        if (!func) {
+        const CallInfo& ci = ownerL->getCallStack()[static_cast<usize>(index)];
+        Function* func = functionFromCallInfo(ownerL, ci);
+        if (func == nullptr) {
             continue;
         }
 
-        oss << "\n" << formatFrameLine(func, &ci);
+        oss << "\n" << formatFrameLine(ownerL, ci);
     }
 
     L->pushString(internString(L, oss.str()));
     return 1;
+}
+
+// =====================================================================
+// debug.sethook([thread,] hook, mask [, count]) - Install a debug hook
+// =====================================================================
+
+i32 luaDebug_sethook(LuaState* L) {
+    i32 argBase = 1;
+    LuaState* ownerL = getThreadArgument(L, argBase);
+
+    if (L->getTop() < argBase) {
+        L->error("bad argument to 'sethook' (function or nil expected)");
+    }
+
+    Function* hook = nullptr;
+    if (!L->isNil(argBase)) {
+        hook = checkFunctionArg(
+            L,
+            argBase,
+            "bad argument to 'sethook' (function or nil expected)"
+        );
+    }
+
+    u8 mask = 0;
+    i32 count = 0;
+    if (hook != nullptr) {
+        if (L->getTop() < argBase + 1 || !L->isString(argBase + 1)) {
+            L->error("bad argument to 'sethook' (mask string expected)");
+        }
+
+        if (!parseHookMask(L->toString(argBase + 1), mask)) {
+            L->error("bad argument to 'sethook' (invalid hook mask)");
+        }
+
+        if (L->getTop() >= argBase + 2) {
+            if (!L->isNumber(argBase + 2)) {
+                L->error("bad argument to 'sethook' (count expected)");
+            }
+            count = std::max(0, static_cast<i32>(L->toNumber(argBase + 2)));
+        }
+    }
+
+    ownerL->setDebugHook(hook, mask, count);
+    return 0;
+}
+
+// =====================================================================
+// debug.gethook([thread]) - Query the current debug hook
+// =====================================================================
+
+i32 luaDebug_gethook(LuaState* L) {
+    i32 argBase = 1;
+    LuaState* ownerL = getThreadArgument(L, argBase);
+    (void)argBase;
+
+    Function* hook = ownerL->getDebugHook();
+    if (hook != nullptr) {
+        L->pushFunction(hook);
+    } else {
+        L->pushNil();
+    }
+
+    L->pushString(internString(L, hookMaskToString(ownerL->getDebugHookMask())));
+    L->pushNumber(static_cast<LuaNumber>(ownerL->getDebugHookCount()));
+    return 3;
+}
+
+// =====================================================================
+// debug.debug() - Enter the interactive debug console
+// =====================================================================
+
+i32 luaDebug_debug(LuaState* L) {
+    Str line;
+
+    for (;;) {
+        std::cout << "lua_debug> " << std::flush;
+        if (!std::getline(std::cin, line)) {
+            break;
+        }
+
+        if (line == "cont") {
+            break;
+        }
+
+        if (line.empty()) {
+            continue;
+        }
+
+        try {
+            runDebugCommand(L, line);
+        } catch (const std::exception& e) {
+            std::cerr << e.what() << std::endl;
+        }
+    }
+
+    return 0;
 }
 
 // =====================================================================
@@ -455,7 +807,12 @@ void DebugLibModule::registerFunctions(LuaState* L) {
         .addGlobal("getupvalue", luaDebug_getupvalue)
         .addGlobal("setupvalue", luaDebug_setupvalue)
         .addGlobal("getinfo", luaDebug_getinfo)
+        .addGlobal("getlocal", luaDebug_getlocal)
+        .addGlobal("setlocal", luaDebug_setlocal)
         .addGlobal("traceback", luaDebug_traceback)
+        .addGlobal("sethook", luaDebug_sethook)
+        .addGlobal("gethook", luaDebug_gethook)
+        .addGlobal("debug", luaDebug_debug)
         .commitToTable(debugTable);
 }
 

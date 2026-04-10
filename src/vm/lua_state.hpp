@@ -54,6 +54,25 @@ enum class ThreadStatus : u8 {
 };
 
 /**
+ * @brief Debug hook mask bits
+ */
+enum DebugHookMask : u8 {
+    HookMaskCall = 1 << 0,
+    HookMaskReturn = 1 << 1,
+    HookMaskLine = 1 << 2
+};
+
+/**
+ * @brief Debug hook event kinds
+ */
+enum class DebugHookEvent : u8 {
+    Call,
+    Return,
+    Line,
+    Count
+};
+
+/**
  * @brief Lua状态类
  * 
  * 管理单个Lua线程的完整执行状态。
@@ -575,6 +594,58 @@ public:
     /// Open Upvalue 链表头访问
     Upvalue* getOpenUpvalues() const noexcept { return openUpvalues_; }
 
+    // =====================================================================
+    // Debug hook support
+    // =====================================================================
+
+    /**
+     * @brief Install or clear the per-thread debug hook
+     * @param hook Hook function, nullptr clears the hook
+     * @param mask Bitmask made of DebugHookMask values
+     * @param count Instruction count interval for count hooks
+     */
+    void setDebugHook(Function* hook, u8 mask, i32 count);
+
+    /**
+     * @brief Get the installed debug hook function
+     */
+    Function* getDebugHook() const noexcept { return hookFunc_; }
+
+    /**
+     * @brief Get the debug hook mask bits
+     */
+    u8 getDebugHookMask() const noexcept { return hookMask_; }
+
+    /**
+     * @brief Get the count-hook interval
+     */
+    i32 getDebugHookCount() const noexcept { return hookCount_; }
+
+    /**
+     * @brief Check whether the debug hook is currently running
+     */
+    bool isDebugHookActive() const noexcept { return hookActive_; }
+
+    /**
+     * @brief Check whether the given hook mask bit is enabled
+     */
+    bool hasDebugHookMask(u8 mask) const noexcept {
+        return hookFunc_ != nullptr && (hookMask_ & mask) != 0;
+    }
+
+    /**
+     * @brief Consume one instruction for count hooks
+     * @return true when a count hook should fire
+     */
+    bool consumeDebugHookCount();
+
+    /**
+     * @brief Call the installed debug hook for a VM event
+     * @param event Hook event kind
+     * @param line Current line number, or -1 for non-line events
+     */
+    void callDebugHook(DebugHookEvent event, i32 line = -1);
+
 private:
     /**
      * @brief 私有构造函数
@@ -634,6 +705,21 @@ private:
 
     /// 是否由 newThread 创建（析构时不 removeRoot globalTable_）
     bool isChildThread_ = false;
+
+    /// Installed debug hook function.
+    Function* hookFunc_ = nullptr;
+
+    /// Hook mask bits (call/return/line).
+    u8 hookMask_ = 0;
+
+    /// Instruction interval for count hooks.
+    i32 hookCount_ = 0;
+
+    /// Remaining instructions until the next count hook.
+    i32 hookCountdown_ = 0;
+
+    /// Prevent recursive hook invocation while the hook is running.
+    bool hookActive_ = false;
 
 public:
     // =====================================================================

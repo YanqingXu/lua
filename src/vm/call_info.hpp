@@ -84,6 +84,7 @@ public:
         , savedpc(nullptr)
         , nresults(0)
         , tailcalls(0)
+        , hookLine(-1)
     {}
     
     // =====================================================================
@@ -139,6 +140,13 @@ public:
      * 这个信息用于调试和错误跟踪。
      */
     i32 tailcalls;
+
+    /**
+     * @brief The last source line reported to the debug line hook
+     *
+     * -1 means no line hook has fired for this frame yet.
+     */
+    i32 hookLine;
     
     // =====================================================================
     // 辅助方法
@@ -154,6 +162,7 @@ public:
         savedpc = nullptr;
         nresults = 0;
         tailcalls = 0;
+        hookLine = -1;
     }
 
     // =====================================================================
@@ -186,6 +195,7 @@ public:
             << ", top=" << top
             << ", nresults=" << nresults
             << ", tailcalls=" << tailcalls
+            << ", hookLine=" << hookLine
             << ", savedpc=" << (savedpc ? "set" : "null")
             << "}";
         return oss.str();

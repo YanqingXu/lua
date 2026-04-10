@@ -8,17 +8,36 @@
 
 #include "vm/lua_state.hpp"
 #include "common/lua_error.hpp"
+#include "core/gc_string.hpp"
 #include "core/userdata.hpp"
 #include "core/function.hpp"
 #include "vm/vm.hpp"
 #include "core/upvalue.hpp"
-
+#include <algorithm>
 #ifdef DEBUG
-#include <iostream>
 #include <cassert>
 #endif
 
 namespace Lua {
+
+namespace {
+
+const char* hookEventName(DebugHookEvent event) {
+    switch (event) {
+        case DebugHookEvent::Call:
+            return "call";
+        case DebugHookEvent::Return:
+            return "return";
+        case DebugHookEvent::Line:
+            return "line";
+        case DebugHookEvent::Count:
+            return "count";
+    }
+
+    return "unknown";
+}
+
+} // namespace
 
 // =====================================================================
 // 静态工厂方法
@@ -74,6 +93,11 @@ LuaState::LuaState()
 LuaState::~LuaState() {
     // 关闭所有open upvalue
     closeUpvalues(0);
+
+    if (hookFunc_ != nullptr) {
+        globalState_.getGC().removeRoot(hookFunc_);
+        hookFunc_ = nullptr;
+    }
 
     // 子线程不拥有全局表的 root 引用
     if (globalTable_ && !isChildThread_) {
@@ -157,6 +181,91 @@ void LuaState::closeUpvalues(usize level) {
         openUpvalues_ = uv->getNext();  // 从链表移除
         uv->close(stack_);               // ✅ 改进：传入stack_引用
         uv->setNext(nullptr);            // 清除链表指针
+    }
+}
+
+// =====================================================================
+// Debug hook support
+// =====================================================================
+
+void LuaState::setDebugHook(Function* hook, u8 mask, i32 count) {
+    GarbageCollector& gc = globalState_.getGC();
+
+    if (hookFunc_ != nullptr && hookFunc_ != hook) {
+        gc.removeRoot(hookFunc_);
+    }
+
+    if (hook == nullptr) {
+        if (hookFunc_ != nullptr) {
+            gc.removeRoot(hookFunc_);
+        }
+        hookFunc_ = nullptr;
+        hookMask_ = 0;
+        hookCount_ = 0;
+        hookCountdown_ = 0;
+        hookActive_ = false;
+        return;
+    }
+
+    gc.addRoot(hook);
+    hookFunc_ = hook;
+    hookMask_ = mask;
+    hookCount_ = std::max(0, count);
+    hookCountdown_ = hookCount_;
+}
+
+bool LuaState::consumeDebugHookCount() {
+    if (hookFunc_ == nullptr || hookActive_ || hookCount_ <= 0) {
+        return false;
+    }
+
+    if (hookCountdown_ <= 1) {
+        hookCountdown_ = hookCount_;
+        return true;
+    }
+
+    --hookCountdown_;
+    return false;
+}
+
+void LuaState::callDebugHook(DebugHookEvent event, i32 line) {
+    if (hookFunc_ == nullptr || hookActive_) {
+        return;
+    }
+
+    usize savedTop = getAbsoluteTop();
+    usize savedSize = getStack().size();
+    usize restoreStackTop = savedSize;
+    if (currentCI_ < callStack_.size()) {
+        restoreStackTop = std::max(restoreStackTop, callStack_[currentCI_].top);
+    }
+    hookActive_ = true;
+
+    try {
+        usize hookTop = std::max(savedTop, savedSize);
+        if (currentCI_ < callStack_.size()) {
+            hookTop = std::max(hookTop, callStack_[currentCI_].top + EXTRA_STACK);
+        }
+
+        GCString* eventName = globalState_.getStringPool().intern(hookEventName(event));
+        setAbsoluteTop(hookTop);
+        pushFunction(hookFunc_);
+        pushString(eventName);
+        if (line >= 0) {
+            pushNumber(static_cast<LuaNumber>(line));
+        } else {
+            pushNil();
+        }
+
+        VM::call(this, 2, 0);
+        getStack().setTop(restoreStackTop);
+        setAbsoluteTop(savedTop);
+        hookActive_ = false;
+    } catch (...) {
+        getStack().setTop(restoreStackTop);
+        setAbsoluteTop(savedTop);
+        hookActive_ = false;
+        throw;
     }
 }
 
@@ -449,7 +558,14 @@ i32 LuaState::pcall(i32 nargs, i32 nresults, i32 errfunc) {
             }
             setAbsoluteTop(1 + static_cast<usize>(nargs));
 
+            if (hasDebugHookMask(HookMaskCall)) {
+                callDebugHook(DebugHookEvent::Call);
+            }
+
             i32 nReturnValues = func->getCFunction()(this);
+            if (hasDebugHookMask(HookMaskReturn)) {
+                callDebugHook(DebugHookEvent::Return);
+            }
             usize currentTop = getAbsoluteTop();
             usize firstResult = currentTop - static_cast<usize>(nReturnValues);
             for (i32 i = 0; i < nReturnValues; i++) {
@@ -483,6 +599,10 @@ i32 LuaState::pcall(i32 nargs, i32 nresults, i32 errfunc) {
 
             ci.top = requiredTop;
             setAbsoluteTop(requiredTop);
+
+            if (hasDebugHookMask(HookMaskCall)) {
+                callDebugHook(DebugHookEvent::Call);
+            }
 
             VM::executeProto(this, proto, 1);
             popCallInfo();

@@ -118,6 +118,10 @@ bool Thread::resume(LuaState* callerL, i32 nargs) {
         while (stack.size() < ci.top) stack.push(Value());
         state_->setAbsoluteTop(ci.top);
 
+        if (state_->hasDebugHookMask(HookMaskCall)) {
+            state_->callDebugHook(DebugHookEvent::Call);
+        }
+
         firstResume_ = false;
         savedNexeccalls_ = 1;
     } else {

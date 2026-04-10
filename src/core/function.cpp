@@ -136,8 +136,8 @@ Proto* Proto::getSubProto(usize index) const {
 // 局部变量信息管理
 // =====================================================================
 
-usize Proto::addLocVar(GCString* varname, i32 startpc, i32 endpc) {
-    locvars_.emplace_back(varname, startpc, endpc);
+usize Proto::addLocVar(GCString* varname, i32 startpc, i32 endpc, i32 reg) {
+    locvars_.emplace_back(varname, startpc, endpc, reg);
     return locvars_.size() - 1;
 }
 
@@ -148,18 +148,27 @@ const LocVar& Proto::getLocVar(usize index) const {
     return locvars_[index];
 }
 
-const char* Proto::getLocalName(i32 localNumber, i32 pc) const {
+const LocVar* Proto::getLocalVarInfo(i32 localNumber, i32 pc) const {
     // 遍历局部变量信息数组
     for (usize i = 0; i < locvars_.size() && locvars_[i].startpc <= pc; i++) {
         // 检查变量是否在指定pc位置活跃
         if (pc < locvars_[i].endpc) {
             localNumber--;
             if (localNumber == 0) {
-                return locvars_[i].varname ? locvars_[i].varname->c_str() : nullptr;
+                return &locvars_[i];
             }
         }
     }
     return nullptr;  // 未找到对应的局部变量
+}
+
+const char* Proto::getLocalName(i32 localNumber, i32 pc) const {
+    const LocVar* locvar = getLocalVarInfo(localNumber, pc);
+    if (locvar == nullptr) {
+        return nullptr;
+    }
+
+    return locvar->varname ? locvar->varname->c_str() : nullptr;
 }
 
 // =====================================================================

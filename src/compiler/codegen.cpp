@@ -1028,7 +1028,8 @@ void CodeGenerator::emitStmt(const ReturnStmt& s) {
         i32 base = nactvar_;
         i32 savedFreereg = freereg_;
         freereg_ = base;
-        checkStack(0);
+        // Reserve the return value registers so maxStackSize covers them.
+        checkStack(nret);
         for (i32 i = 0; i < nret; i++) {
             ExprDesc val;
             expr(*s.values[i], val);
@@ -2335,7 +2336,7 @@ void CodeGenerator::attachDebugMetadata() {
         i32 endpc = local.endpc >= 0
             ? local.endpc
             : static_cast<i32>(proto_->getInstructionCount());
-        proto_->addLocVar(pool_->intern(local.name), local.startpc, endpc);
+        proto_->addLocVar(pool_->intern(local.name), local.startpc, endpc, local.reg);
     }
 }
 

@@ -162,20 +162,22 @@ struct LocVar {
     GCString* varname;      ///< 变量名称
     i32 startpc;            ///< 起始PC：变量开始有效的字节码位置
     i32 endpc;              ///< 结束PC：变量失效的字节码位置（不包含）
+    i32 reg;                ///< 对应的寄存器槽位（相对于当前栈帧base）
 
     /**
      * @brief 默认构造函数
      */
-    LocVar() : varname(nullptr), startpc(0), endpc(0) {}
+    LocVar() : varname(nullptr), startpc(0), endpc(0), reg(-1) {}
 
     /**
      * @brief 构造函数
      * @param name 变量名称
      * @param start 起始PC
      * @param end 结束PC
+     * @param slot 寄存器槽位
      */
-    LocVar(GCString* name, i32 start, i32 end)
-        : varname(name), startpc(start), endpc(end) {}
+    LocVar(GCString* name, i32 start, i32 end, i32 slot)
+        : varname(name), startpc(start), endpc(end), reg(slot) {}
 };
 
 /**
@@ -429,7 +431,7 @@ public:
      * @param endpc 结束PC
      * @return 变量在数组中的索引
      */
-    usize addLocVar(GCString* varname, i32 startpc, i32 endpc);
+    usize addLocVar(GCString* varname, i32 startpc, i32 endpc, i32 reg);
 
     /**
      * @brief 获取局部变量信息
@@ -453,6 +455,14 @@ public:
      * 对应Lua C实现中的luaF_getlocalname函数
      */
     const char* getLocalName(i32 localNumber, i32 pc) const;
+
+    /**
+     * @brief 获取指定PC位置的局部变量调试信息
+     * @param localNumber 局部变量编号（从1开始）
+     * @param pc 程序计数器位置
+     * @return 局部变量信息指针，未找到返回nullptr
+     */
+    const LocVar* getLocalVarInfo(i32 localNumber, i32 pc) const;
 
     // =====================================================================
     // 上值名称管理（调试支持）

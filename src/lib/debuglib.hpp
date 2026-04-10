@@ -14,7 +14,8 @@
  * Design Goals:
  * - Expose only debug data that the current VM already maintains reliably
  * - Keep the public API shape close to Lua 5.1 where practical
- * - Leave room for future expansion such as getlocal/setlocal and hooks
+ * - Local variable inspection and mutation: getlocal, setlocal
+ * - Hook management: sethook, gethook, debug
  *
  * Reference Implementation:
  * - lua_c_analysis/src/ldblib.c for the C implementation
@@ -81,10 +82,45 @@ i32 luaDebug_setupvalue(LuaState* L);
 i32 luaDebug_getinfo(LuaState* L);
 
 /**
+ * @brief debug.getlocal(thread|func|level, local) - Get a local variable
+ * @param L Lua state pointer
+ * @return Number of return values (1 on failure/function query, 2 for active locals)
+ */
+i32 luaDebug_getlocal(LuaState* L);
+
+/**
+ * @brief debug.setlocal([thread,] level, local, value) - Set an active local variable
+ * @param L Lua state pointer
+ * @return Number of return values (1: local name or nil)
+ */
+i32 luaDebug_setlocal(LuaState* L);
+
+/**
  * @brief debug.traceback([message [, level]]) - Build a traceback string
  * @param L Lua state pointer
  * @return Number of return values (1: traceback string)
  */
 i32 luaDebug_traceback(LuaState* L);
+
+/**
+ * @brief debug.sethook([thread,] hook, mask [, count]) - Install a debug hook
+ * @param L Lua state pointer
+ * @return Number of return values (0)
+ */
+i32 luaDebug_sethook(LuaState* L);
+
+/**
+ * @brief debug.gethook([thread]) - Query the current debug hook
+ * @param L Lua state pointer
+ * @return Number of return values (3: hook, mask, count)
+ */
+i32 luaDebug_gethook(LuaState* L);
+
+/**
+ * @brief debug.debug() - Enter the interactive debug console
+ * @param L Lua state pointer
+ * @return Number of return values (0)
+ */
+i32 luaDebug_debug(LuaState* L);
 
 } // namespace Lua

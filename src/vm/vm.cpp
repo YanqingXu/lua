@@ -29,7 +29,6 @@
 #include "debug/trace_types.hpp"
 #include <stdexcept>
 #include <cmath>
-#include <iostream>
 
 namespace Lua {
 
@@ -69,6 +68,43 @@ namespace {
  */
 static inline Value* refreshBase(LuaState* L) {
     return &L->getStack()[L->getCurrentCallInfo().base];
+}
+
+static inline void dispatchCallHook(LuaState* L) {
+    if (L->hasDebugHookMask(HookMaskCall)) {
+        L->callDebugHook(DebugHookEvent::Call);
+    }
+}
+
+static inline void dispatchReturnHook(LuaState* L) {
+    if (L->hasDebugHookMask(HookMaskReturn)) {
+        L->callDebugHook(DebugHookEvent::Return);
+    }
+}
+
+static inline void dispatchCountHook(LuaState* L) {
+    if (L->consumeDebugHookCount()) {
+        L->callDebugHook(DebugHookEvent::Count);
+    }
+}
+
+static inline void dispatchLineHook(LuaState* L, Proto* proto, usize pc) {
+    if (!L->hasDebugHookMask(HookMaskLine) || L->isDebugHookActive() || proto == nullptr) {
+        return;
+    }
+
+    i32 line = proto->getLine(pc);
+    if (line <= 0) {
+        return;
+    }
+
+    CallInfo& ci = L->getCurrentCallInfo();
+    if (ci.hookLine == line) {
+        return;
+    }
+
+    ci.hookLine = line;
+    L->callDebugHook(DebugHookEvent::Line, line);
 }
 
 /**
@@ -469,12 +505,16 @@ static bool vmPrecall(LuaState* L, i32 funcIndex, i32 nArgs, i32 nResults) {
         while (stack.size() < ci.top) stack.push(Value());
         L->setAbsoluteTop(funcPos + 1 + nArgs);
 
+        dispatchCallHook(L);
+
         i32 nReturnValues = cfunc(L);
 
         // If C function triggered yield, preserve its CallInfo for resume
         if (L->getStatus() == ThreadStatus::Yield) {
             return false;
         }
+
+        dispatchReturnHook(L);
 
         usize currentTop = L->getAbsoluteTop();
         usize firstResult = currentTop - static_cast<usize>(nReturnValues);
@@ -519,6 +559,8 @@ static bool vmPrecall(LuaState* L, i32 funcIndex, i32 nArgs, i32 nResults) {
 
         while (stack.size() < ci.top) stack.push(Value());
         L->setAbsoluteTop(ci.top);
+
+        dispatchCallHook(L);
 
         return true; // Lua 函数，调用方需 goto reentry
     }
@@ -769,6 +811,8 @@ void execute(LuaState* L, Function* func) {
     ci.top = requiredTop;
     L->setAbsoluteTop(requiredTop);
 
+    dispatchCallHook(L);
+
     // 执行（nexeccalls = 1）
     executeProto(L, proto, 1);
 
@@ -827,6 +871,7 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
         const Vec<Instruction>& code = proto->getCode();
 
         while (pc < code.size()) {
+            usize instructionPc = pc;
             Instruction inst = code[pc];
             OpCode op  = GET_OPCODE(inst);
             i32    a   = GETARG_A(inst);
@@ -836,16 +881,24 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
             i32    sbx = GETARG_sBx(inst);
             pc++;
 
+            CallInfo& currentCI = L->getCurrentCallInfo();
+            currentCI.savedpc = code.data() + pc;
+
+            dispatchCountHook(L);
+            base = refreshBase(L);
+            dispatchLineHook(L, proto, instructionPc);
+            base = refreshBase(L);
+
             // ---- Trace: 指令事件 ----
             if (g_traceSink) {
                 TraceEvent tevt;
                 tevt.seq       = g_traceSeq++;
                 tevt.kind      = TraceEventKind::Instruction;
-                tevt.pc        = static_cast<i32>(pc - 1);
+                tevt.pc        = static_cast<i32>(instructionPc);
                 tevt.op        = op;
                 tevt.a = a; tevt.b = b; tevt.c = c;
                 tevt.bx = bx; tevt.sbx = sbx;
-                tevt.line      = proto->getLine(pc - 1);
+                tevt.line      = proto->getLine(instructionPc);
                 tevt.source    = proto->getSource() ? proto->getSource()->c_str() : "?";
                 tevt.callDepth = nexeccalls;
                 tevt.base      = base;
@@ -1067,7 +1120,7 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
                     TraceEvent cevt;
                     cevt.seq       = g_traceSeq++;
                     cevt.kind      = TraceEventKind::Call;
-                    cevt.line      = proto->getLine(pc - 1);
+                    cevt.line      = proto->getLine(instructionPc);
                     cevt.source    = proto->getSource() ? proto->getSource()->c_str() : "?";
                     cevt.callDepth = nexeccalls + 1;
                     // 尝试获取被调用函数名
@@ -1140,6 +1193,9 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
                     revt.callDepth = nexeccalls;
                     g_traceSink->onReturn(revt);
                 }
+
+                dispatchReturnHook(L);
+                base = refreshBase(L);
 
                 CallInfo& ci = L->getCurrentCallInfo();
                 Stack& stack = L->getStack();
