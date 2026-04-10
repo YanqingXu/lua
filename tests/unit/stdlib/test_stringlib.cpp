@@ -373,6 +373,129 @@ void testStringFormat(TestSuite& suite) {
         std::string str = result.asString()->c_str();
         ASSERT_TRUE(suite, str == "Number: 42", "format('Number: %d', 42) == 'Number: 42'");
     }
+
+    // Test 3: Width and precision
+    ret = callStringFunc(L, "format", [&](LuaState* s) {
+        s->pushString(s->getGlobalState().getStringPool().intern("[%8.2f]"));
+        s->pushNumber(3.14159);
+    });
+    result = L->top();
+    if (result.isString()) {
+        std::string str = result.asString()->c_str();
+        ASSERT_TRUE(suite, str == "[    3.14]", "format width+precision for %f");
+    }
+
+    // Test 4: Zero padding and sign flag
+    ret = callStringFunc(L, "format", [&](LuaState* s) {
+        s->pushString(s->getGlobalState().getStringPool().intern("%+05d"));
+        s->pushNumber(42.0);
+    });
+    result = L->top();
+    if (result.isString()) {
+        std::string str = result.asString()->c_str();
+        ASSERT_TRUE(suite, str == "+0042", "format sign+zero padding for %d");
+    }
+
+    // Test 5: Scientific notation
+    ret = callStringFunc(L, "format", [&](LuaState* s) {
+        s->pushString(s->getGlobalState().getStringPool().intern("%.2e"));
+        s->pushNumber(1234.0);
+    });
+    result = L->top();
+    if (result.isString()) {
+        std::string str = result.asString()->c_str();
+        ASSERT_TRUE(suite, str == "1.23e+03", "format('%.2e', 1234) == '1.23e+03'");
+    }
+
+    // Test 6: General floating-point format
+    ret = callStringFunc(L, "format", [&](LuaState* s) {
+        s->pushString(s->getGlobalState().getStringPool().intern("%.4g"));
+        s->pushNumber(1234.5678);
+    });
+    result = L->top();
+    if (result.isString()) {
+        std::string str = result.asString()->c_str();
+        ASSERT_TRUE(suite, str == "1235", "format('%.4g', 1234.5678) == '1235'");
+    }
+
+    // Test 7: Hex and octal formatting
+    ret = callStringFunc(L, "format", [&](LuaState* s) {
+        s->pushString(s->getGlobalState().getStringPool().intern("%#x %#o"));
+        s->pushNumber(255.0);
+        s->pushNumber(9.0);
+    });
+    result = L->top();
+    if (result.isString()) {
+        std::string str = result.asString()->c_str();
+        ASSERT_TRUE(suite, str == "0xff 011", "format supports %#x and %#o");
+    }
+
+    // Test 8: Character formatting
+    ret = callStringFunc(L, "format", [&](LuaState* s) {
+        s->pushString(s->getGlobalState().getStringPool().intern("%c"));
+        s->pushNumber(65.0);
+    });
+    result = L->top();
+    if (result.isString()) {
+        std::string str = result.asString()->c_str();
+        ASSERT_TRUE(suite, str == "A", "format('%c', 65) == 'A'");
+    }
+
+    // Test 9: Quoted strings
+    ret = callStringFunc(L, "format", [&](LuaState* s) {
+        s->pushString(s->getGlobalState().getStringPool().intern("%q"));
+        s->pushString(s->getGlobalState().getStringPool().intern("line\n\"quoted\""));
+    });
+    result = L->top();
+    if (result.isString()) {
+        std::string str = result.asString()->c_str();
+        ASSERT_TRUE(suite, str == "\"line\\n\\\"quoted\\\"\"", "format('%q', s) quotes and escapes");
+    }
+
+    // Test 10: Escaped percent
+    ret = callStringFunc(L, "format", [&](LuaState* s) {
+        s->pushString(s->getGlobalState().getStringPool().intern("100%% done"));
+    });
+    result = L->top();
+    if (result.isString()) {
+        std::string str = result.asString()->c_str();
+        ASSERT_TRUE(suite, str == "100% done", "format handles %% escape");
+    }
+
+    // Test 11: %s accepts numbers via tostring semantics
+    ret = callStringFunc(L, "format", [&](LuaState* s) {
+        s->pushString(s->getGlobalState().getStringPool().intern("value=%s"));
+        s->pushNumber(12.5);
+    });
+    result = L->top();
+    if (result.isString()) {
+        std::string str = result.asString()->c_str();
+        ASSERT_TRUE(suite, str == "value=12.5", "%s accepts number arguments");
+    }
+
+    // Test 12: Not enough arguments throws
+    bool notEnoughArgs = false;
+    try {
+        callStringFunc(L, "format", [&](LuaState* s) {
+            s->pushString(s->getGlobalState().getStringPool().intern("%d %d"));
+            s->pushNumber(1.0);
+        });
+    } catch (const std::runtime_error& e) {
+        notEnoughArgs = std::string(e.what()) == "string.format: not enough arguments";
+    }
+    ASSERT_TRUE(suite, notEnoughArgs, "format throws when arguments are missing");
+
+    // Test 13: Invalid format option throws
+    bool invalidOption = false;
+    try {
+        callStringFunc(L, "format", [&](LuaState* s) {
+            s->pushString(s->getGlobalState().getStringPool().intern("%p"));
+            s->pushNumber(1.0);
+        });
+    } catch (const std::runtime_error& e) {
+        invalidOption = std::string(e.what()) == "invalid option '%p' to 'format'";
+    }
+    ASSERT_TRUE(suite, invalidOption, "format throws on unsupported specifier");
 }
 
 // =====================================================================

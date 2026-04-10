@@ -22,6 +22,7 @@
 #include <cctype>
 #include <cstring>
 #include <cstdio>
+#include <limits>
 
 namespace Lua {
 
@@ -63,6 +64,121 @@ static inline f64 getNumberArg(LuaState* L, i32 idx, const char* funcName) {
         L->error(buffer);
     }
     return L->toNumber(idx);
+}
+
+static inline const char* getStringLikeArg(LuaState* L, i32 idx, const char* funcName) {
+    const char* str = L->toString(idx);
+    if (str == nullptr) {
+        char buffer[128];
+        std::snprintf(buffer, sizeof(buffer), "bad argument #%d to 'string.%s' (string expected)", idx, funcName);
+        L->error(buffer);
+    }
+    return str;
+}
+
+static inline bool isFormatFlag(char ch) {
+    return ch == '-' || ch == '+' || ch == ' ' || ch == '#' || ch == '0';
+}
+
+static inline bool isSupportedFormatSpecifier(char ch) {
+    switch (ch) {
+        case 'c':
+        case 'd':
+        case 'i':
+        case 'e':
+        case 'E':
+        case 'f':
+        case 'g':
+        case 'G':
+        case 'o':
+        case 'q':
+        case 's':
+        case 'u':
+        case 'x':
+        case 'X':
+            return true;
+        default:
+            return false;
+    }
+}
+
+[[noreturn]] static void formatError(LuaState* L, const char* message) {
+    char buffer[160];
+    std::snprintf(buffer, sizeof(buffer), "invalid option '%%%s' to 'format'", message);
+    L->error(buffer);
+}
+
+[[noreturn]] static void formatError(LuaState* L, char specifier) {
+    char buffer[8];
+    if (specifier == '\0') {
+        std::snprintf(buffer, sizeof(buffer), "%%");
+    } else {
+        std::snprintf(buffer, sizeof(buffer), "%c", specifier);
+    }
+    formatError(L, buffer);
+}
+
+template <typename T>
+static void appendPrintfFormatted(Str& out, const Str& format, T value) {
+    i32 required = std::snprintf(nullptr, 0, format.c_str(), value);
+    if (required < 0) {
+        throw std::runtime_error("string.format: snprintf failed");
+    }
+
+    Str buffer(static_cast<usize>(required) + 1, '\0');
+    std::snprintf(buffer.data(), buffer.size(), format.c_str(), value);
+    out.append(buffer.data(), static_cast<usize>(required));
+}
+
+static Str quoteLuaString(const char* str, usize len) {
+    Str quoted;
+    quoted.reserve(len + 2);
+    quoted.push_back('"');
+
+    for (usize i = 0; i < len; ++i) {
+        unsigned char ch = static_cast<unsigned char>(str[i]);
+        switch (ch) {
+            case '"':
+                quoted.append("\\\"");
+                break;
+            case '\\':
+                quoted.append("\\\\");
+                break;
+            case '\a':
+                quoted.append("\\a");
+                break;
+            case '\b':
+                quoted.append("\\b");
+                break;
+            case '\f':
+                quoted.append("\\f");
+                break;
+            case '\n':
+                quoted.append("\\n");
+                break;
+            case '\r':
+                quoted.append("\\r");
+                break;
+            case '\t':
+                quoted.append("\\t");
+                break;
+            case '\v':
+                quoted.append("\\v");
+                break;
+            default:
+                if (std::isprint(ch) != 0) {
+                    quoted.push_back(static_cast<char>(ch));
+                } else {
+                    char buffer[8];
+                    std::snprintf(buffer, sizeof(buffer), "\\%03u", static_cast<unsigned>(ch));
+                    quoted.append(buffer);
+                }
+                break;
+        }
+    }
+
+    quoted.push_back('"');
+    return quoted;
 }
 
 /**
@@ -882,11 +998,11 @@ i32 str_format(LuaState* L) {
         L->error("string.format: missing format string");
     }
 
-    const char* fmt = getStringArg(L, 1, "format", nullptr);
+    usize fmtLen = 0;
+    const char* fmt = getStringArg(L, 1, "format", &fmtLen);
 
-    // Simple implementation: basic printf-style formatting
     Str result;
-    result.reserve(256);
+    result.reserve(fmtLen + 32);
 
     i32 argIdx = 2;
     const char* p = fmt;
@@ -897,40 +1013,103 @@ i32 str_format(LuaState* L) {
             if (*p == '%') {
                 result.push_back('%');
                 p++;
-            } else if (*p == 's') {
-                // String argument
-                if (argIdx > L->getTop()) {
-                    L->error("string.format: not enough arguments");
+                continue;
+            }
+
+            if (*p == '\0') {
+                formatError(L, '\0');
+            }
+
+            Str flags;
+            while (*p != '\0' && isFormatFlag(*p)) {
+                if (flags.find(*p) == Str::npos) {
+                    flags.push_back(*p);
                 }
-                const char* arg = getStringArg(L, argIdx++, "format", nullptr);
-                result.append(arg);
-                p++;
-            } else if (*p == 'd' || *p == 'i') {
-                // Integer argument
-                if (argIdx > L->getTop()) {
-                    L->error("string.format: not enough arguments");
-                }
-                f64 val = getNumberArg(L, argIdx++, "format");
-                char buffer[64];
-                std::snprintf(buffer, sizeof(buffer), "%d", static_cast<i32>(val));
-                result.append(buffer);
-                p++;
-            } else if (*p == 'f') {
-                // Float argument
-                if (argIdx > L->getTop()) {
-                    L->error("string.format: not enough arguments");
-                }
-                f64 val = getNumberArg(L, argIdx++, "format");
-                char buffer[64];
-                std::snprintf(buffer, sizeof(buffer), "%f", val);
-                result.append(buffer);
-                p++;
-            } else {
-                // Unsupported format specifier, just copy it
-                result.push_back('%');
-                result.push_back(*p);
                 p++;
             }
+
+            Str width;
+            while (*p != '\0' && std::isdigit(static_cast<unsigned char>(*p)) != 0) {
+                width.push_back(*p);
+                p++;
+            }
+
+            Str precision;
+            if (*p == '.') {
+                precision.push_back(*p++);
+                while (*p != '\0' && std::isdigit(static_cast<unsigned char>(*p)) != 0) {
+                    precision.push_back(*p);
+                    p++;
+                }
+            }
+
+            char spec = *p;
+            if (!isSupportedFormatSpecifier(spec)) {
+                formatError(L, spec);
+            }
+
+            if (argIdx > L->getTop()) {
+                L->error("string.format: not enough arguments");
+            }
+
+            if (spec == 'q') {
+                usize len = 0;
+                const char* arg = getStringLikeArg(L, argIdx++, "format");
+                len = std::strlen(arg);
+                result.append(quoteLuaString(arg, len));
+                p++;
+                continue;
+            }
+
+            Str printfFormat;
+            printfFormat.reserve(flags.size() + width.size() + precision.size() + 2);
+            printfFormat.push_back('%');
+            printfFormat.append(flags);
+            printfFormat.append(width);
+            printfFormat.append(precision);
+            printfFormat.push_back(spec);
+
+            switch (spec) {
+                case 's': {
+                    const char* arg = getStringLikeArg(L, argIdx++, "format");
+                    appendPrintfFormatted(result, printfFormat, arg);
+                    break;
+                }
+                case 'c': {
+                    f64 val = getNumberArg(L, argIdx++, "format");
+                    i32 ch = static_cast<i32>(val);
+                    appendPrintfFormatted(result, printfFormat, ch);
+                    break;
+                }
+                case 'd':
+                case 'i': {
+                    f64 val = getNumberArg(L, argIdx++, "format");
+                    appendPrintfFormatted(result, printfFormat, static_cast<long long>(val));
+                    break;
+                }
+                case 'u':
+                case 'o':
+                case 'x':
+                case 'X': {
+                    f64 val = getNumberArg(L, argIdx++, "format");
+                    auto unsignedVal = static_cast<unsigned long long>(static_cast<long long>(val));
+                    appendPrintfFormatted(result, printfFormat, unsignedVal);
+                    break;
+                }
+                case 'e':
+                case 'E':
+                case 'f':
+                case 'g':
+                case 'G': {
+                    f64 val = getNumberArg(L, argIdx++, "format");
+                    appendPrintfFormatted(result, printfFormat, val);
+                    break;
+                }
+                default:
+                    formatError(L, spec);
+            }
+
+            p++;
         } else {
             result.push_back(*p);
             p++;
