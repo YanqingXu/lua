@@ -847,39 +847,6 @@ private:
     Vec<Upvalue*> upvalues_;
 };
 
-// =====================================================================
-// 类型别名（Lua C兼容）
-// =====================================================================
-
-/**
- * @brief CClosure类型别名：C函数闭包
- *
- * 为了与Lua C实现保持命名一致性，提供CClosure别名。
- * 实际上仍然使用Function类，通过isC_标志区分。
- *
- * 注意：这只是类型别名，不是独立的类。
- * 真正的CClosure/LClosure分离需要更大规模的重构。
- */
-using CClosure = Function;
-
-/**
- * @brief LClosure类型别名：Lua函数闭包
- *
- * 为了与Lua C实现保持命名一致性，提供LClosure别名。
- * 实际上仍然使用Function类，通过isC_标志区分。
- *
- * 注意：这只是类型别名，不是独立的类。
- * 真正的CClosure/LClosure分离需要更大规模的重构。
- */
-using LClosure = Function;
-
-/**
- * @brief Closure类型别名：通用闭包
- *
- * 为了与Lua C实现保持命名一致性，提供Closure别名。
- */
-using Closure = Function;
-
 } // namespace Lua
 
 #endif // LUA_CORE_FUNCTION_HPP
