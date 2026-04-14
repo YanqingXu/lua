@@ -49,22 +49,47 @@
 
 ## 阶段总览
 
-| 阶段 | PR 名称 | 目标 |
-| --- | --- | --- |
-| PR-0 | Baseline & Guardrails | 补齐回归测试，建立迁移护栏 |
-| PR-1 | Introduce Result Types | 引入新结构但不改主行为 |
-| PR-2 | CondResult Pipeline | 先拆条件表达式通道 |
-| PR-3 | LValue Pipeline | 把左值从 `ExprDesc` 中拆出 |
-| PR-4 | ValueResult Core | 重写普通值物化与 RK/寄存器通道 |
-| PR-5 | Call / Vararg / MultiRet | 拆掉调用、多返回值、括号收敛胶水 |
-| PR-6 | Composite Expressions Cleanup | 重写算术、比较、逻辑、表构造器等复合表达式 |
-| PR-7 | Context Extraction | 提取寄存器、作用域、循环上下文 |
-| PR-8 | Symbol Binding | 将名字绑定从表达式状态机迁出 |
-| PR-9 | Remove ExprDesc | 删除兼容层，完成文档与测试收尾 |
+| 阶段 | PR 名称 | 目标 | 状态 |
+| --- | --- | --- | --- |
+| PR-0 | Baseline & Guardrails | 补齐回归测试，建立迁移护栏 | `done` |
+| PR-1 | Introduce Result Types | 引入新结构但不改主行为 | `planned` |
+| PR-2 | CondResult Pipeline | 先拆条件表达式通道 | `planned` |
+| PR-3 | LValue Pipeline | 把左值从 `ExprDesc` 中拆出 | `planned` |
+| PR-4 | ValueResult Core | 重写普通值物化与 RK/寄存器通道 | `planned` |
+| PR-5 | Call / Vararg / MultiRet | 拆掉调用、多返回值、括号收敛胶水 | `planned` |
+| PR-6 | Composite Expressions Cleanup | 重写算术、比较、逻辑、表构造器等复合表达式 | `planned` |
+| PR-7 | Context Extraction | 提取寄存器、作用域、循环上下文 | `planned` |
+| PR-8 | Symbol Binding | 将名字绑定从表达式状态机迁出 | `planned` |
+| PR-9 | Remove ExprDesc | 删除兼容层，完成文档与测试收尾 | `planned` |
 
 ---
 
 ## PR-0 Baseline & Guardrails
+
+状态：`done`
+
+本阶段实际产出：
+
+- 新增单元测试：
+  - `tests/unit/compiler/test_codegen_conditions.cpp`
+  - `tests/unit/compiler/test_codegen_multret.cpp`
+- 扩充单元测试：
+  - `tests/unit/compiler/test_storevar.cpp`
+- 新增 Lua 回归脚本：
+  - `tests/lua/regressions/test_short_circuit_materialization.lua`
+  - `tests/lua/regressions/test_multret_edges.lua`
+  - `tests/lua/regressions/test_lvalue_matrix.lua`
+- 接入测试入口与工程文件：
+  - `tests/unit/framework/test_registry.hpp`
+  - `tests/unit/framework/test_runner.cpp`
+  - `lua_test.vcxproj`
+  - `lua_test.vcxproj.filters`
+
+本阶段验证结果：
+
+- `lua_test.vcxproj` 已成功编译
+- `bin/lua_test.exe` 已通过
+- `bin/lua_app.exe tests/lua/regressions/test_multret_edges.lua` 已通过
 
 目标：
 
@@ -84,28 +109,38 @@
 
 任务清单：
 
-- [ ] 盘点当前 `ExprDesc` 相关风险点，并在本文件中维持映射
-- [ ] 为短路逻辑补单测：`a and b`、`a or b`、`not a`
-- [ ] 为“值语境中的逻辑表达式”补单测：`local x = a and b`、`return a or b`
-- [ ] 为 `if/while/repeat-until` 条件分支补回归测试
+- [x] 盘点当前 `ExprDesc` 相关风险点，并在本文件中维持映射
+- [x] 为短路逻辑补单测：`a and b`、`a or b`、`not a`
+- [x] 为“值语境中的逻辑表达式”补单测：`local x = a and b`、`return a or b`
+- [x] 为 `if/while/repeat-until` 条件分支补回归测试
 - [ ] 为左值类型补测试：`local`、`global`、`upvalue`、`t[k]`、`obj.x`
-- [ ] 为方法调用和 `SELF` 指令补测试
+  说明：`local / global / t[k] / obj.x` 已覆盖；`upvalue` 写回保留到后续阶段补强
+- [x] 为方法调用和 `SELF` 指令补测试
+  说明：沿用并保留现有 `tests/unit/compiler/test_method_call.cpp`
 - [ ] 为 `return f()`、`local a,b = f()`、`g(f())`、`(f())` 补多返回值测试
-- [ ] 为表构造器最后一个字段的 multret 行为补测试
+  说明：`local a,b = f()`、`(f())` 已覆盖；`return f()`、`g(f())` 保留到 PR-5 补齐
+- [x] 为表构造器最后一个字段的 multret 行为补测试
 - [ ] 为闭包捕获和 upvalue 读写补测试
+  说明：本轮先补了嵌套表写回矩阵；闭包/upvalue 写回留待后续实现与测试一起推进
 
 建议新增测试文件：
 
-- `tests/unit/compiler/test_codegen_conditions.cpp`
-- `tests/unit/compiler/test_codegen_multret.cpp`
-- `tests/lua/regressions/test_short_circuit_materialization.lua`
-- `tests/lua/regressions/test_multret_edges.lua`
-- `tests/lua/regressions/test_lvalue_matrix.lua`
+- [x] `tests/unit/compiler/test_codegen_conditions.cpp`
+- [x] `tests/unit/compiler/test_codegen_multret.cpp`
+- [x] `tests/lua/regressions/test_short_circuit_materialization.lua`
+- [x] `tests/lua/regressions/test_multret_edges.lua`
+- [x] `tests/lua/regressions/test_lvalue_matrix.lua`
 
 完成标准：
 
 - 新增测试能稳定复现当前关键语义
 - 后续 PR 出现回归时，能明确定位到“条件 / 左值 / 值 / multret”中的哪一类
+
+遗留到后续阶段的基线缺口：
+
+- `return f()` 的开放多返回传播
+- `g(f())` 作为最后一个实参时的开放多返回传播
+- 闭包场景中的 upvalue 写回与遮蔽矩阵
 
 ---
 
