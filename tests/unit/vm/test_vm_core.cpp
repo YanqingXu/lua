@@ -512,6 +512,162 @@ void testLogicalShortCircuitEvaluatesRightHandSideOnlyWhenNeeded(TestSuite& suit
     }
 }
 
+// =====================================================================
+// repeat-until 测试
+// =====================================================================
+
+void testRepeatUntilBasic(TestSuite& suite) {
+    // 基本 repeat-until 循环
+    try {
+        const char* code = R"(
+            local x = 0
+            repeat
+                x = x + 1
+            until x >= 5
+            return x
+        )";
+        Proto* proto = nullptr;
+        LuaState* L = executeChunk(code, "=(repeat_basic)", proto);
+        ASSERT_EQ(suite, 5.0, L->top().asNumber(), "repeat-until basic: x == 5");
+        delete L; delete proto;
+    } catch (const std::exception& e) {
+        std::cout << "  [ERROR] Exception: " << e.what() << std::endl;
+        ASSERT_TRUE(suite, false, "repeat-until basic should not throw");
+    }
+}
+
+void testRepeatUntilSingleIteration(TestSuite& suite) {
+    // 条件立即为真，只执行一次
+    try {
+        const char* code = R"(
+            local x = 0
+            repeat
+                x = x + 10
+            until true
+            return x
+        )";
+        Proto* proto = nullptr;
+        LuaState* L = executeChunk(code, "=(repeat_single)", proto);
+        ASSERT_EQ(suite, 10.0, L->top().asNumber(), "repeat-until single iteration: x == 10");
+        delete L; delete proto;
+    } catch (const std::exception& e) {
+        std::cout << "  [ERROR] Exception: " << e.what() << std::endl;
+        ASSERT_TRUE(suite, false, "repeat-until single should not throw");
+    }
+}
+
+void testRepeatUntilWithBreak(TestSuite& suite) {
+    // 含 break 的 repeat-until
+    try {
+        const char* code = R"(
+            local x = 0
+            repeat
+                x = x + 1
+                if x == 3 then break end
+            until x >= 10
+            return x
+        )";
+        Proto* proto = nullptr;
+        LuaState* L = executeChunk(code, "=(repeat_break)", proto);
+        ASSERT_EQ(suite, 3.0, L->top().asNumber(), "repeat-until with break: x == 3");
+        delete L; delete proto;
+    } catch (const std::exception& e) {
+        std::cout << "  [ERROR] Exception: " << e.what() << std::endl;
+        ASSERT_TRUE(suite, false, "repeat-until with break should not throw");
+    }
+}
+
+void testRepeatUntilComparisonCondition(TestSuite& suite) {
+    // 使用各种比较运算符
+    try {
+        const char* code = R"(
+            local a = 1
+            repeat
+                a = a * 2
+            until a > 100
+            return a
+        )";
+        Proto* proto = nullptr;
+        LuaState* L = executeChunk(code, "=(repeat_cmp)", proto);
+        ASSERT_EQ(suite, 128.0, L->top().asNumber(), "repeat-until > condition: a == 128");
+        delete L; delete proto;
+    } catch (const std::exception& e) {
+        std::cout << "  [ERROR] Exception: " << e.what() << std::endl;
+        ASSERT_TRUE(suite, false, "repeat-until comparison should not throw");
+    }
+}
+
+void testRepeatUntilLogicalCondition(TestSuite& suite) {
+    // 使用 and/or 逻辑条件
+    try {
+        const char* code = R"(
+            local x = 0
+            local y = 10
+            repeat
+                x = x + 1
+                y = y - 1
+            until x >= 3 or y <= 0
+            return x, y
+        )";
+        Proto* proto = nullptr;
+        LuaState* L = executeChunk(code, "=(repeat_logical)", proto);
+        ASSERT_EQ(suite, 3.0, L->at(-2).asNumber(), "repeat-until or: x == 3");
+        ASSERT_EQ(suite, 7.0, L->at(-1).asNumber(), "repeat-until or: y == 7");
+        delete L; delete proto;
+    } catch (const std::exception& e) {
+        std::cout << "  [ERROR] Exception: " << e.what() << std::endl;
+        ASSERT_TRUE(suite, false, "repeat-until logical should not throw");
+    }
+}
+
+void testRepeatUntilNested(TestSuite& suite) {
+    // 嵌套 repeat-until
+    try {
+        const char* code = R"(
+            local sum = 0
+            local i = 0
+            repeat
+                i = i + 1
+                local j = 0
+                repeat
+                    j = j + 1
+                    sum = sum + 1
+                until j >= 3
+            until i >= 4
+            return sum, i
+        )";
+        Proto* proto = nullptr;
+        LuaState* L = executeChunk(code, "=(repeat_nested)", proto);
+        ASSERT_EQ(suite, 12.0, L->at(-2).asNumber(), "nested repeat-until: sum == 12");
+        ASSERT_EQ(suite, 4.0, L->at(-1).asNumber(), "nested repeat-until: i == 4");
+        delete L; delete proto;
+    } catch (const std::exception& e) {
+        std::cout << "  [ERROR] Exception: " << e.what() << std::endl;
+        ASSERT_TRUE(suite, false, "repeat-until nested should not throw");
+    }
+}
+
+void testRepeatUntilLocalVisibleInCondition(TestSuite& suite) {
+    // body 中声明的局部变量在 until 条件中可见
+    try {
+        const char* code = R"(
+            local count = 0
+            repeat
+                count = count + 1
+                local done = (count >= 5)
+            until done
+            return count
+        )";
+        Proto* proto = nullptr;
+        LuaState* L = executeChunk(code, "=(repeat_local_in_cond)", proto);
+        ASSERT_EQ(suite, 5.0, L->top().asNumber(), "repeat-until local in condition: count == 5");
+        delete L; delete proto;
+    } catch (const std::exception& e) {
+        std::cout << "  [ERROR] Exception: " << e.what() << std::endl;
+        ASSERT_TRUE(suite, false, "repeat-until local in condition should not throw");
+    }
+}
+
 void registerVMCoreTests() {
     auto& registry = TestRegistry::getInstance();
     
@@ -528,5 +684,12 @@ void registerVMCoreTests() {
     registry.registerTest("VM Core", "Comparison Expression Produces Boolean", testComparisonExpressionProducesBoolean);
     registry.registerTest("VM Core", "Logical Expressions Produce Runtime Values", testLogicalExpressionsProduceRuntimeValues);
     registry.registerTest("VM Core", "Logical Short Circuit Runtime", testLogicalShortCircuitEvaluatesRightHandSideOnlyWhenNeeded);
+    registry.registerTest("VM Core", "Repeat-Until Basic", testRepeatUntilBasic);
+    registry.registerTest("VM Core", "Repeat-Until Single Iteration", testRepeatUntilSingleIteration);
+    registry.registerTest("VM Core", "Repeat-Until With Break", testRepeatUntilWithBreak);
+    registry.registerTest("VM Core", "Repeat-Until Comparison Condition", testRepeatUntilComparisonCondition);
+    registry.registerTest("VM Core", "Repeat-Until Logical Condition", testRepeatUntilLogicalCondition);
+    registry.registerTest("VM Core", "Repeat-Until Nested", testRepeatUntilNested);
+    registry.registerTest("VM Core", "Repeat-Until Local Visible In Condition", testRepeatUntilLocalVisibleInCondition);
 }
 
