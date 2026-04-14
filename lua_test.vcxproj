@@ -151,6 +151,7 @@
     <ClCompile Include="tests\unit\compiler\test_parser_memory_pool.cpp" />
     <ClCompile Include="tests\unit\compiler\test_parser_recursion.cpp" />
     <ClCompile Include="tests\unit\compiler\test_storevar.cpp" />
+    <ClCompile Include="tests\unit\compiler\test_lvalue_pipeline.cpp" />
     <ClCompile Include="tests\unit\compiler\test_syntax_sugar.cpp" />
     <ClCompile Include="tests\unit\compiler\test_binary_unary_expr.cpp" />
     <ClCompile Include="tests\unit\compiler\test_codegen_conditions.cpp" />

@@ -37,6 +37,7 @@ extern void registerSyntaxSugarTests();
 extern void registerIndexedAccessTests();
 extern void registerMethodCallTests();
 extern void registerStorevarTests();
+extern void registerLValuePipelineTests();
 extern void registerLexerNumberTests();
 extern void registerLexerLookaheadTests();
 extern void registerParserRecursionTests();
@@ -113,6 +114,7 @@ int main() {
     registerIndexedAccessTests();
     registerMethodCallTests();
     registerStorevarTests();
+    registerLValuePipelineTests();
     registerLexerNumberTests();
     registerLexerLookaheadTests();
     registerParserRecursionTests();

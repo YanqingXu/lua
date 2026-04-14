@@ -68,6 +68,9 @@
     <ClCompile Include="tests\unit\compiler\test_storevar.cpp">
       <Filter>tests\compiler</Filter>
     </ClCompile>
+    <ClCompile Include="tests\unit\compiler\test_lvalue_pipeline.cpp">
+      <Filter>tests\compiler</Filter>
+    </ClCompile>
     <ClCompile Include="tests\unit\compiler\test_syntax_sugar.cpp">
       <Filter>tests\compiler</Filter>
     </ClCompile>

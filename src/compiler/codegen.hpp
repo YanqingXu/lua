@@ -200,6 +200,32 @@ private:
     void luaK_self(ExprDesc& e, ExprDesc& key);
     void luaK_storevar(ExprDesc& var, ExprDesc& ex);
 
+    // =====================================================================
+    // LValue 通道（PR-3）
+    // =====================================================================
+
+    /**
+     * @brief 将表达式解析为左值引用
+     *
+     * 直接从 AST 节点解析出可写位置（LValueRef），不经过 ExprDesc。
+     * 支持：NameExpr → Local/Upvalue/Global，IndexExpr/MemberExpr → Indexed
+     *
+     * @param e 目标表达式（必须是可赋值的左值）
+     * @return 左值引用
+     */
+    LValueRef emitLValue(const Expr& e);
+
+    /**
+     * @brief 将值存储到左值目标
+     *
+     * 根据 LValueRef 类型生成对应的存储指令（MOVE/SETGLOBAL/SETUPVAL/SETTABLE）。
+     * 值仍通过旧 ExprDesc 表示（PR-4 将切换到 ValueResult）。
+     *
+     * @param target 左值引用
+     * @param ex 要存储的值表达式描述符
+     */
+    void emitStore(const LValueRef& target, ExprDesc& ex);
+
     // 算术和比较指令生成
     void codearith(OpCode op, ExprDesc& e1, ExprDesc& e2);
     void codecomp(OpCode op, i32 cond, ExprDesc& e1, ExprDesc& e2);

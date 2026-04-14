@@ -980,7 +980,7 @@ void CodeGenerator::emitStmt(const EmptyStmt&) {
 }
 
 void CodeGenerator::emitStmt(const AssignStmt& s) {
-    // 赋值语句：使用 luaK_storevar 统一接口
+    // 赋值语句：使用 emitLValue + emitStore 通道（PR-3）
     // 支持多重赋值：a, b, c = 1, 2, 3
     i32 nvars = static_cast<i32>(s.targets.size());
     i32 nexps = static_cast<i32>(s.values.size());
@@ -990,12 +990,9 @@ void CodeGenerator::emitStmt(const AssignStmt& s) {
         ExprDesc val;
         expr(*s.values[i], val);
 
-        // 计算左值（目标变量）
-        ExprDesc var;
-        expr(*s.targets[i], var);
-
-        // 使用统一接口存储值到变量
-        luaK_storevar(var, val);
+        // 使用新的 LValue 通道解析左值并存储
+        LValueRef target = emitLValue(*s.targets[i]);
+        emitStore(target, val);
     }
 
     // 处理最后一个右值表达式（可能是多返回值表达式）
@@ -1021,35 +1018,32 @@ void CodeGenerator::emitStmt(const AssignStmt& s) {
             }
 
             for (i32 j = 0; j < wanted; j++) {
-                ExprDesc var;
-                expr(*s.targets[targetIndex + j], var);
+                LValueRef target = emitLValue(*s.targets[targetIndex + j]);
 
                 ExprDesc tmp;
                 tmp.kind = ExprKind::NonRelocatable;
                 tmp.u.s.info = valueBase + j;
                 tmp.t = NO_JUMP;
                 tmp.f = NO_JUMP;
-                luaK_storevar(var, tmp);
+                emitStore(target, tmp);
             }
             return;
         }
 
-        ExprDesc var;
-        expr(*s.targets[targetIndex], var);
-        luaK_storevar(var, val);
+        LValueRef target = emitLValue(*s.targets[targetIndex]);
+        emitStore(target, val);
     }
 
     // 如果变量多于值，剩余变量赋值为 nil
     for (i32 i = nexps; i < nvars; i++) {
-        ExprDesc var;
-        expr(*s.targets[i], var);
+        LValueRef target = emitLValue(*s.targets[i]);
 
         ExprDesc nil;
         nil.kind = ExprKind::Nil;
         nil.t = NO_JUMP;
         nil.f = NO_JUMP;
 
-        luaK_storevar(var, nil);
+        emitStore(target, nil);
     }
 }
 
@@ -2545,6 +2539,117 @@ void CodeGenerator::luaK_self(ExprDesc& e, ExprDesc& key) {
     e.kind = ExprKind::NonRelocatable;  // 固定在func寄存器
 }
 
+// =====================================================================
+// LValue 通道（PR-3）
+// =====================================================================
+
+LValueRef CodeGenerator::emitLValue(const Expr& e) {
+    LValueRef result;
+
+    if (auto* name = std::get_if<NameExpr>(&e.variant)) {
+        // 查找局部变量
+        i32 reg = findLocalVar(name->name);
+        if (reg >= 0) {
+            result.kind = LValueRef::Kind::Local;
+            result.slot = reg;
+            return result;
+        }
+        // 查找上值
+        i32 up = resolveUpvalue(name->name);
+        if (up >= 0) {
+            result.kind = LValueRef::Kind::Upvalue;
+            result.slot = up;
+            return result;
+        }
+        // 全局变量
+        result.kind = LValueRef::Kind::Global;
+        result.slot = stringConstant(name->name);
+        return result;
+    }
+
+    if (auto* idx = std::get_if<IndexExpr>(&e.variant)) {
+        // table[key] — 需要求值表和键
+        ExprDesc t;
+        expr(*idx->table, t);
+        luaK_dischargevars(t);
+        exp2AnyReg(t);
+
+        ExprDesc k;
+        expr(*idx->index, k);
+
+        result.kind = LValueRef::Kind::Indexed;
+        result.tableReg = t.u.s.info;
+        result.key = exp2RK(k);
+        return result;
+    }
+
+    if (auto* mem = std::get_if<MemberExpr>(&e.variant)) {
+        // table.member — 需要求值表
+        ExprDesc t;
+        expr(*mem->table, t);
+        luaK_dischargevars(t);
+        exp2AnyReg(t);
+
+        ExprDesc k;
+        k.kind = ExprKind::Const;
+        k.u.s.info = stringConstant(mem->member);
+        k.t = NO_JUMP;
+        k.f = NO_JUMP;
+
+        result.kind = LValueRef::Kind::Indexed;
+        result.tableReg = t.u.s.info;
+        result.key = exp2RK(k);
+        return result;
+    }
+
+    throw std::runtime_error("Expression is not a valid lvalue");
+}
+
+void CodeGenerator::emitStore(const LValueRef& target, ExprDesc& ex) {
+    switch (target.kind) {
+        case LValueRef::Kind::Local: {
+            // 局部变量：直接存储到指定寄存器
+            ValueResult value = adaptLegacyExprDescValue(ex);
+            if (value.kind == ValueResult::Kind::Register && value.ownsRegister) {
+                freeReg(value.reg);
+            }
+            discharge(ex, target.slot);
+            return;
+        }
+
+        case LValueRef::Kind::Upvalue: {
+            // Upvalue：生成 SETUPVAL 指令
+            i32 e = exp2AnyReg(ex);
+            codeABC(OpCode::SETUPVAL, e, target.slot, 0);
+            break;
+        }
+
+        case LValueRef::Kind::Global: {
+            // 全局变量：生成 SETGLOBAL 指令
+            i32 e = exp2AnyReg(ex);
+            codeABx(OpCode::SETGLOBAL, e, target.slot);
+            break;
+        }
+
+        case LValueRef::Kind::Indexed: {
+            // 表索引：生成 SETTABLE 指令
+            i32 e = exp2RK(ex);
+            codeABC(OpCode::SETTABLE, target.tableReg, target.key, e);
+            break;
+        }
+
+        case LValueRef::Kind::None:
+        default:
+            throw std::runtime_error("Invalid variable type for assignment");
+    }
+
+    // 释放表达式占用的临时寄存器（除了局部变量，已经在上面返回）
+    ValueResult value = adaptLegacyExprDescValue(ex);
+    if (value.kind == ValueResult::Kind::Register && value.ownsRegister) {
+        freeReg(value.reg);
+    }
+}
+
 /**
  * @brief 存储值到变量
  *
@@ -2586,59 +2691,7 @@ void CodeGenerator::luaK_self(ExprDesc& e, ExprDesc& key) {
  */
 void CodeGenerator::luaK_storevar(ExprDesc& var, ExprDesc& ex) {
     LValueRef target = adaptLegacyExprDescLValue(var);
-    ValueResult value = adaptLegacyExprDescValue(ex);
-
-    switch (target.kind) {
-        case LValueRef::Kind::Local: {
-            // 局部变量：直接存储到指定寄存器
-            // 释放表达式占用的临时寄存器（如果是 VNONRELOC）
-            if (value.kind == ValueResult::Kind::Register && value.ownsRegister) {
-                freeReg(value.reg);
-            }
-            // 将值存储到局部变量的寄存器
-            discharge(ex, target.slot);
-            return;  // 注意：局部变量处理后直接返回，不执行后面的 freeReg
-        }
-
-        case LValueRef::Kind::Upvalue: {
-            // Upvalue：生成 SETUPVAL 指令
-            // SETUPVAL A B：UpValue[B] := R(A)
-            i32 e = exp2AnyReg(ex);
-            codeABC(OpCode::SETUPVAL, e, target.slot, 0);
-            break;
-        }
-
-        case LValueRef::Kind::Global: {
-            // 全局变量：生成 SETGLOBAL 指令
-            // SETGLOBAL A Bx：Gbl[Kst(Bx)] := R(A)
-            // A = 值所在的寄存器
-            // Bx = 全局变量名在常量表中的索引
-            i32 e = exp2AnyReg(ex);
-            codeABx(OpCode::SETGLOBAL, e, target.slot);
-            break;
-        }
-
-        case LValueRef::Kind::Indexed: {
-            // 表索引：生成 SETTABLE 指令
-            // SETTABLE A B C：R(A)[RK(B)] := RK(C)
-            // A = 表的寄存器（存储在 target.tableReg）
-            // B = 键的 RK 操作数（存储在 target.key）
-            // C = 值的 RK 操作数
-            i32 e = exp2RK(ex);
-            codeABC(OpCode::SETTABLE, target.tableReg, target.key, e);
-            break;
-        }
-
-        case LValueRef::Kind::None:
-        default:
-            // 不应该到达这里
-            throw std::runtime_error("Invalid variable type for assignment");
-    }
-
-    // 释放表达式占用的临时寄存器（除了局部变量，已经在上面返回）
-    if (value.kind == ValueResult::Kind::Register && value.ownsRegister) {
-        freeReg(value.reg);
-    }
+    emitStore(target, ex);
 }
 
 // =====================================================================

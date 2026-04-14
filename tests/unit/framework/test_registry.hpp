@@ -111,6 +111,11 @@ void registerMethodCallTests();
 void registerStorevarTests();
 
 /**
+ * @brief 注册 LValue Pipeline 测试（PR-3）
+ */
+void registerLValuePipelineTests();
+
+/**
  * @brief 注册词法分析器测试
  */
 void registerLexerNumberTests();

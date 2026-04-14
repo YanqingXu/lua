@@ -54,7 +54,7 @@
 | PR-0 | Baseline & Guardrails | 补齐回归测试，建立迁移护栏 | `done` |
 | PR-1 | Introduce Result Types | 引入新结构但不改主行为 | `done` |
 | PR-2 | CondResult Pipeline | 先拆条件表达式通道 | `done` |
-| PR-3 | LValue Pipeline | 把左值从 `ExprDesc` 中拆出 | `planned` |
+| PR-3 | LValue Pipeline | 把左值从 `ExprDesc` 中拆出 | `done` |
 | PR-4 | ValueResult Core | 重写普通值物化与 RK/寄存器通道 | `planned` |
 | PR-5 | Call / Vararg / MultiRet | 拆掉调用、多返回值、括号收敛胶水 | `planned` |
 | PR-6 | Composite Expressions Cleanup | 重写算术、比较、逻辑、表构造器等复合表达式 | `planned` |
@@ -301,6 +301,8 @@
 
 ## PR-3 LValue Pipeline
 
+状态：`done`
+
 目标：
 
 - 把“可写位置”从表达式值状态中拆出
@@ -323,24 +325,57 @@
 
 任务清单：
 
-- [ ] 定义 `LValueRef` 的几种类型：`Local / Upvalue / Global / Indexed`
-- [ ] 将赋值左边解析改为 `emitLValue()`
-- [ ] 将写回逻辑集中到 `emitStore()`
-- [ ] 把 `luaK_storevar()` 收缩为底层 helper，或逐步替换掉
-- [ ] 将 `NameExpr` 的“读路径”和“写路径”分开
-- [ ] 将 `IndexExpr / MemberExpr` 的“读表”和“写表”路径分开
+- [x] 定义 `LValueRef` 的几种类型：`Local / Upvalue / Global / Indexed`
+  说明：`LValueRef` 已在 PR-1 中定义于 `codegen_types.hpp`
+- [x] 将赋值左边解析改为 `emitLValue()`
+- [x] 将写回逻辑集中到 `emitStore()`
+- [x] 把 `luaK_storevar()` 收缩为底层 helper，或逐步替换掉
+  说明：`luaK_storevar` 已收缩为 `adaptLegacyExprDescLValue` + `emitStore` 的薄包装
+- [x] 将 `NameExpr` 的"读路径"和"写路径"分开
+  说明：`emitLValue` 中直接解析 `NameExpr` 为 `LValueRef`（写路径），不经过 `ExprDesc`
+- [x] 将 `IndexExpr / MemberExpr` 的"读表"和"写表"路径分开
+  说明：`emitLValue` 中直接解析 `IndexExpr/MemberExpr` 为 `LValueRef::Indexed`（写路径）
 
 补测要求：
 
-- [ ] 扩充 `tests/unit/compiler/test_storevar.cpp`
-- [ ] 扩充 `tests/unit/compiler/test_indexed_access.cpp`
-- [ ] 新增针对多重赋值、局部声明初始化、成员赋值的矩阵测试
-- [ ] 新增 Lua 回归：`a,b=f()`、`t[k],x=f()`、`obj.x=obj.x+1`
+- [x] 扩充 `tests/unit/compiler/test_storevar.cpp`
+  说明：保留原有测试，新增独立的 `test_lvalue_pipeline.cpp` 覆盖全矩阵
+- [x] 扩充 `tests/unit/compiler/test_indexed_access.cpp`
+  说明：通过新测试文件覆盖
+- [x] 新增针对多重赋值、局部声明初始化、成员赋值的矩阵测试
+- [x] 新增 Lua 回归：`a,b=f()`、`t[k],x=f()`、`obj.x=obj.x+1`
 
 完成标准：
 
-- 赋值语句主流程已不再要求“左边先变成某种 `ExprDesc`”
+- 赋值语句主流程已不再要求"左边先变成某种 `ExprDesc`"
 - `ExprKind::Local / Upval / Global / Indexed` 不再承担左值主语义
+
+本阶段实际产出：
+
+- 新增 `emitLValue(const Expr&)` 方法：直接从 AST 节点解析出 `LValueRef`，不经过 `ExprDesc`
+  - 支持 `NameExpr` → `Local / Upvalue / Global`
+  - 支持 `IndexExpr` → `Indexed`（表+键求值）
+  - 支持 `MemberExpr` → `Indexed`（表+字符串常量键）
+- 新增 `emitStore(const LValueRef&, ExprDesc&)` 方法：根据 `LValueRef` 类型生成存储指令
+- 收缩 `luaK_storevar` 为 `adaptLegacyExprDescLValue` + `emitStore` 的薄包装
+- 将 `emitStmt(const AssignStmt&)` 全面改写为 `emitLValue` + `emitStore` 通道
+- 新增测试：
+  - `tests/unit/compiler/test_lvalue_pipeline.cpp`（17 个测试，覆盖字节码和运行时语义）
+  - `tests/lua/regressions/test_lvalue_pipeline.lua`（13 个断言场景）
+- 接入测试入口与工程文件：
+  - `tests/unit/framework/test_registry.hpp`
+  - `tests/unit/framework/test_runner.cpp`
+  - `lua_test.vcxproj`
+  - `lua_test.vcxproj.filters`
+
+本阶段验证结果：
+
+- `lua_test.vcxproj` 已成功编译
+- `bin/lua_test.exe` 已通过（50 个测试套件，0 失败）
+- `bin/lua_app.exe tests/lua/regressions/test_lvalue_pipeline.lua` 已通过
+- `bin/lua_app.exe tests/lua/regressions/test_lvalue_matrix.lua` 已通过
+- `bin/lua_app.exe tests/lua/regressions/test_short_circuit_materialization.lua` 已通过
+- `bin/lua_app.exe tests/lua/regressions/test_multret_edges.lua` 已通过
 
 ---
 
