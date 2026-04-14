@@ -66,6 +66,11 @@ void registerCodegenConditionTests();
 void registerCodegenMultiRetTests();
 
 /**
+ * @brief 注册 PR-1 结果类型兼容测试
+ */
+void registerCodegenResultTypeTests();
+
+/**
  * @brief 注册基础库函数测试
  */
 void registerBaselibTests();

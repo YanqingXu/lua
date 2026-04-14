@@ -24,6 +24,7 @@ extern void registerBinaryUnaryExprTests();
 extern void registerFunctionCodegenTests();
 extern void registerCodegenConditionTests();
 extern void registerCodegenMultiRetTests();
+extern void registerCodegenResultTypeTests();
 extern void registerMathLibTests();
 extern void registerBaselibTests();
 extern void registerStringLibTests();
@@ -99,6 +100,7 @@ int main() {
     registerFunctionCodegenTests();
     registerCodegenConditionTests();
     registerCodegenMultiRetTests();
+    registerCodegenResultTypeTests();
     registerSyntaxSugarTests();
     registerMathLibTests();
     registerBaselibTests();

@@ -52,7 +52,7 @@
 | 阶段 | PR 名称 | 目标 | 状态 |
 | --- | --- | --- | --- |
 | PR-0 | Baseline & Guardrails | 补齐回归测试，建立迁移护栏 | `done` |
-| PR-1 | Introduce Result Types | 引入新结构但不改主行为 | `planned` |
+| PR-1 | Introduce Result Types | 引入新结构但不改主行为 | `done` |
 | PR-2 | CondResult Pipeline | 先拆条件表达式通道 | `planned` |
 | PR-3 | LValue Pipeline | 把左值从 `ExprDesc` 中拆出 | `planned` |
 | PR-4 | ValueResult Core | 重写普通值物化与 RK/寄存器通道 | `planned` |
@@ -146,6 +146,8 @@
 
 ## PR-1 Introduce Result Types
 
+状态：`done`
+
 目标：
 
 - 引入替代结构，但暂时不替换主流程
@@ -178,16 +180,34 @@
 
 任务清单：
 
-- [ ] 定义新结构及最小辅助 API
-- [ ] 为 `PatchList` 提供合并、追加、是否为空等操作
-- [ ] 提供从旧 `ExprDesc` 到新结构的临时适配函数
-- [ ] 保持 `CodeGenerator` 对外接口不变
-- [ ] 不在本 PR 删除 `ExprDesc`
+- [x] 定义新结构及最小辅助 API
+- [x] 为 `PatchList` 提供合并、追加、是否为空等操作
+- [x] 提供从旧 `ExprDesc` 到新结构的临时适配函数
+- [x] 保持 `CodeGenerator` 对外接口不变
+- [x] 不在本 PR 删除 `ExprDesc`
 
 补测要求：
 
-- [ ] 为新类型补最小单元测试，至少覆盖默认状态和 merge 行为
-- [ ] 保证 PR-0 中新增回归测试全部通过
+- [x] 为新类型补最小单元测试，至少覆盖默认状态和 merge 行为
+- [x] 保证 PR-0 中新增回归测试全部通过
+
+本阶段实际产出：
+
+- 新增 `src/compiler/codegen_types.hpp`，引入 `PatchList`、`CondResult`、`ValueResult`、`LValueRef`、`CallResultInfo`
+- 在 `src/compiler/codegen.hpp/.cpp` 中接入兼容层：
+  - 新增 `emitCondResult(const Expr&)`
+  - 新增 `PatchList` 版 `patchList(...)` / `patchtohere(...)`
+  - 新增旧 `ExprDesc` 到新结果类型的临时适配使用点
+- 新增单元测试：
+  - `tests/unit/compiler/test_codegen_result_types.cpp`
+
+本阶段验证结果：
+
+- `lua_test.vcxproj` 已成功编译
+- `bin/lua_test.exe` 已通过
+- `bin/lua_app.exe tests/lua/regressions/test_short_circuit_materialization.lua` 已通过
+- `bin/lua_app.exe tests/lua/regressions/test_multret_edges.lua` 已通过
+- `bin/lua_app.exe tests/lua/regressions/test_lvalue_matrix.lua` 已通过
 
 完成标准：
 

@@ -142,6 +142,7 @@
     <ClInclude Include="src\common\types.hpp" />
     <ClInclude Include="src\compiler\ast.hpp" />
     <ClInclude Include="src\compiler\codegen.hpp" />
+    <ClInclude Include="src\compiler\codegen_types.hpp" />
     <ClInclude Include="src\compiler\lexer.hpp" />
     <ClInclude Include="src\compiler\opcode.hpp" />
     <ClInclude Include="src\compiler\parser.hpp" />

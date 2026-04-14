@@ -129,6 +129,9 @@
     <ClInclude Include="src\compiler\codegen.hpp">
       <Filter>src\compiler</Filter>
     </ClInclude>
+    <ClInclude Include="src\compiler\codegen_types.hpp">
+      <Filter>src\compiler</Filter>
+    </ClInclude>
     <ClInclude Include="src\common\config.hpp">
       <Filter>src\common</Filter>
     </ClInclude>

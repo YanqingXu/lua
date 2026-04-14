@@ -80,6 +80,9 @@
     <ClCompile Include="tests\unit\compiler\test_codegen_multret.cpp">
       <Filter>tests\compiler</Filter>
     </ClCompile>
+    <ClCompile Include="tests\unit\compiler\test_codegen_result_types.cpp">
+      <Filter>tests\compiler</Filter>
+    </ClCompile>
     <ClCompile Include="tests\unit\compiler\test_function_codegen.cpp">
       <Filter>tests\compiler</Filter>
     </ClCompile>

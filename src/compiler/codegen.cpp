@@ -243,6 +243,12 @@ void CodeGenerator::patchList(i32 list, i32 target) {
     }
 }
 
+void CodeGenerator::patchList(const PatchList& list, i32 target) {
+    for (i32 pc : list.pcs) {
+        fixjump(pc, target);
+    }
+}
+
 void CodeGenerator::dischargejpc() {
     // ⭐ P0修复：参考lua_c_analysis/src/lcode.c:608-611 dischargejpc实现
     // 将所有待处理的跳转（jpc_）修补到当前位置
@@ -260,11 +266,15 @@ i32 CodeGenerator::getLabel() {
 // =====================================================================
 
 i32 CodeGenerator::emitCond(const Expr& e) {
+    return emitCondResult(e).falseList.front();
+}
+
+CondResult CodeGenerator::emitCondResult(const Expr& e) {
     // 参考 lua_c_analysis/src/lparser.c:4625-4630 cond 函数
     // 以及当前 if/while 中重复出现的"直接比较优化 + 通用路径"逻辑。
     //
-    // 返回值：条件为假时的跳转链表（false list），
-    //         调用方用 patchtohere/patchList 修补到对应位置。
+    // 返回值：CondResult，PR-1 保持旧 ExprDesc 主路径不变，但在边界处
+    // 先显式产出真假补丁链，为后续条件通道重构准备稳定接口。
 
     // 优化路径：如果条件是简单比较表达式，直接生成 CMP + JMP
     if (const auto* cmp = std::get_if<BinaryExpr>(&e.variant)) {
@@ -306,7 +316,9 @@ i32 CodeGenerator::emitCond(const Expr& e) {
             freeReg(o2);
 
             codeABC(op, cond, o1, o2);
-            return jump();
+            CondResult result;
+            result.falseList.append(jump());
+            return result;
         }
     }
 
@@ -317,7 +329,7 @@ i32 CodeGenerator::emitCond(const Expr& e) {
         desc.kind = ExprKind::False;
     }
     luaK_goiftrue(desc);
-    return desc.f;
+    return adaptLegacyCondResult(desc);
 }
 
 // =====================================================================
@@ -919,13 +931,14 @@ void CodeGenerator::emitStmt(const AssignStmt& s) {
         ExprDesc val;
         expr(*s.values[targetIndex], val);
 
-        if (val.kind == ExprKind::Vararg || val.kind == ExprKind::Call) {
+        CallResultInfo callResult = adaptLegacyExprDescCall(val);
+        if (callResult.valid()) {
             i32 wanted = nvars - targetIndex;
-            i32 pc = (val.kind == ExprKind::Call) ? val.u.s.aux : val.u.s.info;
+            i32 pc = callResult.instructionPc;
             Instruction inst = proto_->getInstruction(pc);
-            i32 valueBase = (val.kind == ExprKind::Call) ? val.u.s.info : GETARG_A(inst);
+            i32 valueBase = callResult.baseReg;
 
-            if (val.kind == ExprKind::Vararg) {
+            if (callResult.kind == CallResultInfo::Kind::Vararg) {
                 SETARG_B(inst, wanted + 1);
                 proto_->setInstruction(pc, inst);
                 valueBase = GETARG_A(inst);
@@ -1015,7 +1028,8 @@ void CodeGenerator::emitStmt(const LocalStmt& s) {
             expr(*s.values[nexps - 1], val);
 
             // 如果是多返回值表达式（Vararg 或 Call），调整返回值数量
-            if (val.kind == ExprKind::Vararg || val.kind == ExprKind::Call) {
+            CallResultInfo callResult = adaptLegacyExprDescCall(val);
+            if (callResult.valid()) {
                 // 需要 nvars - (nexps - 1) 个返回值
                 i32 wanted = nvars - (nexps - 1);
                 i32 targetReg = base + (nexps - 1);  // ⭐ 使用 base 而不是 nactvar_
@@ -1023,15 +1037,15 @@ void CodeGenerator::emitStmt(const LocalStmt& s) {
                 // ⭐ P0修复：不要修改CALL指令的A参数！
                 // 相反，修改C参数（返回值数量），然后生成MOVE指令将返回值移动到目标寄存器
                 // ⭐ P0修复：对于Call表达式，PC存储在aux字段中，函数寄存器存储在info字段中
-                i32 pc = (val.kind == ExprKind::Call) ? val.u.s.aux : val.u.s.info;
-                i32 funcReg = (val.kind == ExprKind::Call) ? val.u.s.info : -1;
+                i32 pc = callResult.instructionPc;
+                i32 funcReg = callResult.baseReg;
                 Instruction inst = proto_->getInstruction(pc);
                 i32 oldA = GETARG_A(inst);
 
                 //std::fprintf(stderr, "DEBUG LocalStmt: CALL at pc=%d, oldA=%d, funcReg=%d, targetReg=%d, wanted=%d\n",
                 //             pc, oldA, funcReg, targetReg, wanted);
 
-                if (val.kind == ExprKind::Vararg) {
+                if (callResult.kind == CallResultInfo::Kind::Vararg) {
                     // VARARG A B：修改A和B参数
                     SETARG_A(inst, targetReg);
                     SETARG_B(inst, wanted + 1);
@@ -1178,7 +1192,8 @@ void CodeGenerator::emitStmt(const CallStmt& s) {
 
     // 对于作为语句的函数调用，需要丢弃返回值
     // 修改CALL指令的C参数为1，表示0个返回值
-    if (desc.kind == ExprKind::Call) {
+    CallResultInfo callResult = adaptLegacyExprDescCall(desc);
+    if (callResult.kind == CallResultInfo::Kind::Call) {
         // 找到最后生成的CALL指令并修改其C参数
         usize lastInst = proto_->getInstructionCount() - 1;
         Instruction inst = proto_->getInstruction(lastInst);
@@ -1189,7 +1204,7 @@ void CodeGenerator::emitStmt(const CallStmt& s) {
             proto_->setInstruction(lastInst, CREATE_ABC(OpCode::CALL, a, b, 1));
         }
         // 释放函数寄存器
-        freeReg(desc.u.s.info);
+        freeReg(callResult.baseReg);
     }
 
     // 语句级函数调用不会跨语句保留临时寄存器。
@@ -1680,6 +1695,11 @@ void CodeGenerator::patchtohere(i32 list) {
     luaK_concat(jpc_, list);
 }
 
+void CodeGenerator::patchtohere(const PatchList& list) {
+    pc_ = static_cast<i32>(proto_->getInstructionCount());
+    patchList(list, pc_);
+}
+
 void CodeGenerator::luaK_getlabel() {
     pc_ = static_cast<i32>(proto_->getInstructionCount());
 }
@@ -1702,6 +1722,53 @@ void CodeGenerator::fixjump(i32 pc, i32 dest) {
     }
     SETARG_sBx(jmp, offset);
     proto_->setInstruction(pc, jmp);
+}
+
+PatchList CodeGenerator::collectPatchList(i32 list) {
+    PatchList result;
+
+    while (list != NO_JUMP) {
+        result.append(list);
+        list = getjump(list);
+    }
+
+    return result;
+}
+
+CondResult CodeGenerator::adaptLegacyCondResult(const ExprDesc& desc) {
+    CondResult result;
+    result.trueList = collectPatchList(desc.t);
+    result.falseList = collectPatchList(desc.f);
+
+    switch (desc.kind) {
+        case ExprKind::Nil:
+        case ExprKind::False:
+            result.knownConstant = true;
+            result.constantValue = false;
+            break;
+
+        case ExprKind::True:
+        case ExprKind::Number:
+        case ExprKind::Const:
+            result.knownConstant = true;
+            result.constantValue = true;
+            break;
+
+        case ExprKind::Void:
+        case ExprKind::NonRelocatable:
+        case ExprKind::Local:
+        case ExprKind::Upval:
+        case ExprKind::Global:
+        case ExprKind::Indexed:
+        case ExprKind::Jump:
+        case ExprKind::Relocatable:
+        case ExprKind::Call:
+        case ExprKind::Vararg:
+        default:
+            break;
+    }
+
+    return result;
 }
 
 // =====================================================================
@@ -2346,55 +2413,59 @@ void CodeGenerator::luaK_self(ExprDesc& e, ExprDesc& key) {
  * @param ex 要存储的值的表达式描述符
  */
 void CodeGenerator::luaK_storevar(ExprDesc& var, ExprDesc& ex) {
-    switch (var.kind) {
-        case ExprKind::Local: {
+    LValueRef target = adaptLegacyExprDescLValue(var);
+    ValueResult value = adaptLegacyExprDescValue(ex);
+
+    switch (target.kind) {
+        case LValueRef::Kind::Local: {
             // 局部变量：直接存储到指定寄存器
             // 释放表达式占用的临时寄存器（如果是 VNONRELOC）
-            if (ex.kind == ExprKind::NonRelocatable) {
-                freeReg(ex.u.s.info);
+            if (value.kind == ValueResult::Kind::Register && value.ownsRegister) {
+                freeReg(value.reg);
             }
             // 将值存储到局部变量的寄存器
-            discharge(ex, var.u.s.info);
+            discharge(ex, target.slot);
             return;  // 注意：局部变量处理后直接返回，不执行后面的 freeReg
         }
 
-        case ExprKind::Upval: {
+        case LValueRef::Kind::Upvalue: {
             // Upvalue：生成 SETUPVAL 指令
             // SETUPVAL A B：UpValue[B] := R(A)
             i32 e = exp2AnyReg(ex);
-            codeABC(OpCode::SETUPVAL, e, var.u.s.info, 0);
+            codeABC(OpCode::SETUPVAL, e, target.slot, 0);
             break;
         }
 
-        case ExprKind::Global: {
+        case LValueRef::Kind::Global: {
             // 全局变量：生成 SETGLOBAL 指令
             // SETGLOBAL A Bx：Gbl[Kst(Bx)] := R(A)
             // A = 值所在的寄存器
             // Bx = 全局变量名在常量表中的索引
             i32 e = exp2AnyReg(ex);
-            codeABx(OpCode::SETGLOBAL, e, var.u.s.info);
+            codeABx(OpCode::SETGLOBAL, e, target.slot);
             break;
         }
 
-        case ExprKind::Indexed: {
+        case LValueRef::Kind::Indexed: {
             // 表索引：生成 SETTABLE 指令
             // SETTABLE A B C：R(A)[RK(B)] := RK(C)
-            // A = 表的寄存器（存储在 var.u.s.info）
-            // B = 键的 RK 操作数（存储在 var.u.s.aux）
+            // A = 表的寄存器（存储在 target.tableReg）
+            // B = 键的 RK 操作数（存储在 target.key）
             // C = 值的 RK 操作数
             i32 e = exp2RK(ex);
-            codeABC(OpCode::SETTABLE, var.u.s.info, var.u.s.aux, e);
+            codeABC(OpCode::SETTABLE, target.tableReg, target.key, e);
             break;
         }
 
+        case LValueRef::Kind::None:
         default:
             // 不应该到达这里
             throw std::runtime_error("Invalid variable type for assignment");
     }
 
     // 释放表达式占用的临时寄存器（除了局部变量，已经在上面返回）
-    if (ex.kind == ExprKind::NonRelocatable) {
-        freeReg(ex.u.s.info);
+    if (value.kind == ValueResult::Kind::Register && value.ownsRegister) {
+        freeReg(value.reg);
     }
 }
 

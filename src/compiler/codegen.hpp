@@ -24,9 +24,9 @@
  * - lua_c_analysis/src/lparser.c - 解析器中的代码生成部分
  */
 
-#include "common/types.hpp"
 #include "compiler/ast.hpp"
 #include "compiler/opcode.hpp"
+#include "compiler/codegen_types.hpp"
 #include "core/function.hpp"
 #include <memory>
 #include <unordered_map>
@@ -36,57 +36,6 @@ namespace Lua {
 // 前向声明
 class GCString;
 class StringPool;
-
-/**
- * @brief 跳转补丁列表结束标记
- */
-constexpr i32 NO_JUMP = -1;
-
-/**
- * @brief 表达式描述符类型
- */
-enum class ExprKind {
-    Void,       // 无值
-    Nil,        // nil常量
-    True,       // true常量
-    False,      // false常量
-    Const,      // 常量表中的常量
-    Number,     // 数字常量（可能未加入常量表）
-    NonRelocatable,  // 固定寄存器中的表达式
-    Local,      // 局部变量
-    Upval,      // Upvalue
-    Global,     // 全局变量（Lua 5.1 GETGLOBAL/SETGLOBAL）
-    Indexed,    // 表索引表达式
-    Jump,       // 跳转表达式
-    Relocatable,     // 可重定位的表达式（结果可以放到任意寄存器）
-    Call,       // 函数调用
-    Vararg      // 可变参数
-};
-
-/**
- * @brief 表达式描述符
- * 
- * 描述表达式的类型、值和位置信息。
- */
-struct ExprDesc {
-    ExprKind kind;
-    
-    union {
-        struct {
-            i32 info;      // 寄存器索引或常量索引
-            i32 aux;       // 辅助信息
-        } s;
-        f64 nval;          // 数字值
-    } u;
-    
-    i32 t;  // 真值跳转链表
-    i32 f;  // 假值跳转链表
-    
-    ExprDesc() : kind(ExprKind::Void), t(NO_JUMP), f(NO_JUMP) {
-        u.s.info = 0;
-        u.s.aux = 0;
-    }
-};
 
 /**
  * @brief 局部变量信息
@@ -209,6 +158,7 @@ private:
      * @return 条件为假时的跳转链表（patch list）
      */
     i32 emitCond(const Expr& e);
+    CondResult emitCondResult(const Expr& e);
 
     // =====================================================================
     // 跳转管理
@@ -216,6 +166,7 @@ private:
     
     i32 jump();
     void patchList(i32 list, i32 target);
+    void patchList(const PatchList& list, i32 target);
     i32 getLabel();
     
     // =====================================================================
@@ -262,10 +213,13 @@ private:
     i32 jumponcond(ExprDesc& e, i32 cond);
     i32 condjump(OpCode op, i32 a, i32 b, i32 c);
     void patchtohere(i32 list);
+    void patchtohere(const PatchList& list);
     void dischargejpc();  // 修补所有待处理的跳转到当前位置
     void luaK_getlabel();
     i32 getjump(i32 pc);
     void fixjump(i32 pc, i32 dest);
+    PatchList collectPatchList(i32 list);
+    CondResult adaptLegacyCondResult(const ExprDesc& desc);
 
     // =====================================================================
     // 语句代码生成
