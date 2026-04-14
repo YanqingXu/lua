@@ -27,3 +27,9 @@ if (p or q) and (not q) then
     r4 = true
 end
 print("(p or q) and not q:", r4)
+
+local r5 = false
+if not (p and q) then
+    r5 = true
+end
+print("not (p and q):", r5)

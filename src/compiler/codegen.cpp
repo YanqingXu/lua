@@ -270,66 +270,139 @@ i32 CodeGenerator::emitCond(const Expr& e) {
 }
 
 CondResult CodeGenerator::emitCondResult(const Expr& e) {
-    // 参考 lua_c_analysis/src/lparser.c:4625-4630 cond 函数
-    // 以及当前 if/while 中重复出现的"直接比较优化 + 通用路径"逻辑。
-    //
-    // 返回值：CondResult，PR-1 保持旧 ExprDesc 主路径不变，但在边界处
-    // 先显式产出真假补丁链，为后续条件通道重构准备稳定接口。
+    CondResult result;
 
-    // 优化路径：如果条件是简单比较表达式，直接生成 CMP + JMP
-    if (const auto* cmp = std::get_if<BinaryExpr>(&e.variant)) {
-        OpCode op = OpCode::EQ;
-        i32 cond = 0;
-        bool isComparison = true;
-        bool swapOperands = false;
-
-        switch (cmp->op) {
-            case BinaryExpr::Op::Eq:
-                op = OpCode::EQ; cond = 0; break;
-            case BinaryExpr::Op::Ne:
-                op = OpCode::EQ; cond = 1; break;
-            case BinaryExpr::Op::Lt:
-                op = OpCode::LT; cond = 0; break;
-            case BinaryExpr::Op::Le:
-                op = OpCode::LE; cond = 0; break;
-            case BinaryExpr::Op::Gt:
-                op = OpCode::LT; cond = 0; swapOperands = true; break;
-            case BinaryExpr::Op::Ge:
-                op = OpCode::LE; cond = 0; swapOperands = true; break;
-            default:
-                isComparison = false; break;
-        }
-
-        if (isComparison) {
-            ExprDesc left;
-            ExprDesc right;
-            expr(*cmp->left, left);
-            expr(*cmp->right, right);
-
-            if (swapOperands) {
-                std::swap(left, right);
+    if (const auto* binary = std::get_if<BinaryExpr>(&e.variant)) {
+        switch (binary->op) {
+            case BinaryExpr::Op::And: {
+                CondResult left = emitCondResult(*binary->left);
+                CondResult right = emitCondResult(*binary->right);
+                result.falseList = PatchList::merge(left.falseList, right.falseList);
+                return result;
             }
 
-            i32 o1 = exp2RK(left);
-            i32 o2 = exp2RK(right);
-            freeReg(o1);
-            freeReg(o2);
+            case BinaryExpr::Op::Or: {
+                CondResult left = emitCondResultTrue(*binary->left);
+                CondResult right = emitCondResult(*binary->right);
+                patchtohere(left.trueList);
+                result.falseList = right.falseList;
+                return result;
+            }
 
-            codeABC(op, cond, o1, o2);
-            CondResult result;
-            result.falseList.append(jump());
+            case BinaryExpr::Op::Eq:
+            case BinaryExpr::Op::Ne:
+            case BinaryExpr::Op::Lt:
+            case BinaryExpr::Op::Le:
+            case BinaryExpr::Op::Gt:
+            case BinaryExpr::Op::Ge:
+                result.falseList = emitComparisonJump(*binary, false);
+                return result;
+
+            default:
+                break;
+        }
+    }
+
+    if (const auto* unary = std::get_if<UnaryExpr>(&e.variant)) {
+        if (unary->op == UnaryExpr::Op::Not) {
+            CondResult inner = emitCondResultTrue(*unary->operand);
+            result.falseList = inner.trueList;
             return result;
         }
     }
 
-    // 通用路径：编译表达式 → luaK_goiftrue → 返回 false list
     ExprDesc desc;
     expr(e, desc);
     if (desc.kind == ExprKind::Nil) {
         desc.kind = ExprKind::False;
     }
-    luaK_goiftrue(desc);
-    return adaptLegacyCondResult(desc);
+
+    switch (desc.kind) {
+        case ExprKind::Nil:
+        case ExprKind::False:
+            result.falseList.append(jump());
+            break;
+
+        case ExprKind::True:
+        case ExprKind::Number:
+        case ExprKind::Const:
+            break;
+
+        default:
+            luaK_goiftrue(desc);
+            result.falseList = collectPatchList(desc.f);
+            break;
+    }
+
+    return result;
+}
+
+CondResult CodeGenerator::emitCondResultTrue(const Expr& e) {
+    CondResult result;
+
+    if (const auto* binary = std::get_if<BinaryExpr>(&e.variant)) {
+        switch (binary->op) {
+            case BinaryExpr::Op::And: {
+                CondResult left = emitCondResult(*binary->left);
+                CondResult right = emitCondResultTrue(*binary->right);
+                patchtohere(left.falseList);
+                result.trueList = right.trueList;
+                return result;
+            }
+
+            case BinaryExpr::Op::Or: {
+                CondResult left = emitCondResultTrue(*binary->left);
+                CondResult right = emitCondResultTrue(*binary->right);
+                result.trueList = PatchList::merge(left.trueList, right.trueList);
+                return result;
+            }
+
+            case BinaryExpr::Op::Eq:
+            case BinaryExpr::Op::Ne:
+            case BinaryExpr::Op::Lt:
+            case BinaryExpr::Op::Le:
+            case BinaryExpr::Op::Gt:
+            case BinaryExpr::Op::Ge:
+                result.trueList = emitComparisonJump(*binary, true);
+                return result;
+
+            default:
+                break;
+        }
+    }
+
+    if (const auto* unary = std::get_if<UnaryExpr>(&e.variant)) {
+        if (unary->op == UnaryExpr::Op::Not) {
+            CondResult inner = emitCondResult(*unary->operand);
+            result.trueList = inner.falseList;
+            return result;
+        }
+    }
+
+    ExprDesc desc;
+    expr(e, desc);
+    if (desc.kind == ExprKind::Nil) {
+        desc.kind = ExprKind::False;
+    }
+
+    switch (desc.kind) {
+        case ExprKind::True:
+        case ExprKind::Number:
+        case ExprKind::Const:
+            result.trueList.append(jump());
+            break;
+
+        case ExprKind::Nil:
+        case ExprKind::False:
+            break;
+
+        default:
+            luaK_goiffalse(desc);
+            result.trueList = collectPatchList(desc.t);
+            break;
+    }
+
+    return result;
 }
 
 // =====================================================================
@@ -1125,33 +1198,35 @@ void CodeGenerator::emitStmt(const IfStmt& s) {
         return;
     }
 
-    i32 escapelist = NO_JUMP;
-    i32 flist = NO_JUMP;
+    PatchList escapelist;
+    PatchList flist;
 
     // first if branch
     {
         const auto& branch = s.branches[0];
-        flist = emitCond(*branch.condition);
+        CondResult cond = emitCondResult(*branch.condition);
+        flist = cond.falseList;
         block(branch.body);
     }
 
     // elseif branches
     for (size_t i = 1; i < s.branches.size(); i++) {
-        luaK_concat(escapelist, jump());
+        escapelist.append(jump());
         patchtohere(flist);
 
         const auto& branch = s.branches[i];
-        flist = emitCond(*branch.condition);
+        CondResult cond = emitCondResult(*branch.condition);
+        flist = cond.falseList;
         block(branch.body);
     }
 
     // else block
     if (!s.elseBranch.empty()) {
-        luaK_concat(escapelist, jump());
+        escapelist.append(jump());
         patchtohere(flist);
         block(s.elseBranch);
     } else {
-        luaK_concat(escapelist, flist);
+        escapelist.append(flist);
     }
 
     patchtohere(escapelist);
@@ -1162,7 +1237,7 @@ void CodeGenerator::emitStmt(const WhileStmt& s) {
     i32 whileinit = getLabel();
 
     // 生成条件表达式，返回假值跳转列表
-    i32 condexit = emitCond(*s.condition);
+    CondResult cond = emitCondResult(*s.condition);
 
     // 进入可break的代码块
     enterBlock(true);
@@ -1176,7 +1251,7 @@ void CodeGenerator::emitStmt(const WhileStmt& s) {
     leaveBlock();
 
     // 修补条件为假时的跳转到循环出口
-    patchtohere(condexit);
+    patchtohere(cond.falseList);
 }
 
 void CodeGenerator::emitStmt(const DoStmt& s) {
@@ -1254,13 +1329,13 @@ void CodeGenerator::emitStmt(const RepeatStmt& s) {
     }
 
     // 生成条件表达式（此时 body 局部变量仍然可见）
-    i32 condexit = emitCond(*s.condition);
+    CondResult cond = emitCondResult(*s.condition);
 
     // 条件求值完毕，移除 body 中声明的局部变量
     removeLocalVars(body_nactvar);
 
     // 条件为假 → 跳回循环开始
-    patchList(condexit, repeat_init);
+    patchList(cond.falseList, repeat_init);
 
     // 离开循环块，修补所有 break 跳转到当前位置
     leaveBlock();
@@ -1271,12 +1346,26 @@ void CodeGenerator::emitStmt(const RepeatStmt& s) {
 // =====================================================================
 
 void CodeGenerator::emitExpr(const BinaryExpr& e, ExprDesc& desc) {
+    BinaryExpr::Op op = e.op;
+
+    if (op == BinaryExpr::Op::Eq || op == BinaryExpr::Op::Ne ||
+        op == BinaryExpr::Op::Lt || op == BinaryExpr::Op::Le ||
+        op == BinaryExpr::Op::Gt || op == BinaryExpr::Op::Ge) {
+        CondResult cond;
+        cond.trueList = emitComparisonJump(e, true);
+        i32 resultReg = allocReg();
+        materializeCondResult(cond, resultReg, false);
+
+        desc.kind = ExprKind::NonRelocatable;
+        desc.u.s.info = resultReg;
+        desc.t = NO_JUMP;
+        desc.f = NO_JUMP;
+        return;
+    }
+
     // 处理左操作数
     ExprDesc e1;
     expr(*e.left, e1);
-
-    // 根据运算符类型处理
-    BinaryExpr::Op op = e.op;
 
     // 短路运算符需要特殊处理
     if (op == BinaryExpr::Op::And || op == BinaryExpr::Op::Or) {
@@ -1376,6 +1465,19 @@ void CodeGenerator::emitExpr(const BinaryExpr& e, ExprDesc& desc) {
 }
 
 void CodeGenerator::emitExpr(const UnaryExpr& e, ExprDesc& desc) {
+    if (e.op == UnaryExpr::Op::Not) {
+        CondResult cond;
+        cond.trueList = emitCondResult(*e.operand).falseList;
+        i32 resultReg = allocReg();
+        materializeCondResult(cond, resultReg, false);
+
+        desc.kind = ExprKind::NonRelocatable;
+        desc.u.s.info = resultReg;
+        desc.t = NO_JUMP;
+        desc.f = NO_JUMP;
+        return;
+    }
+
     // 处理操作数
     ExprDesc e1;
     expr(*e.operand, e1);
@@ -1416,14 +1518,12 @@ void CodeGenerator::emitExpr(const UnaryExpr& e, ExprDesc& desc) {
             }
             codearith(OpCode::UNM, e1, e2);
             break;
-        case UnaryExpr::Op::Not:
-            // 逻辑非
-            codenot(e1);
-            break;
         case UnaryExpr::Op::Len:
             // 长度运算符：不能对常量操作
             exp2AnyReg(e1);
             codearith(OpCode::LEN, e1, e2);
+            break;
+        case UnaryExpr::Op::Not:
             break;
     }
 
@@ -1769,6 +1869,78 @@ CondResult CodeGenerator::adaptLegacyCondResult(const ExprDesc& desc) {
     }
 
     return result;
+}
+
+PatchList CodeGenerator::emitComparisonJump(const BinaryExpr& e, bool jumpOnTrue) {
+    OpCode op = OpCode::EQ;
+    i32 cond = jumpOnTrue ? 1 : 0;
+    bool swapOperands = false;
+
+    switch (e.op) {
+        case BinaryExpr::Op::Eq:
+            op = OpCode::EQ;
+            cond = jumpOnTrue ? 1 : 0;
+            break;
+        case BinaryExpr::Op::Ne:
+            op = OpCode::EQ;
+            cond = jumpOnTrue ? 0 : 1;
+            break;
+        case BinaryExpr::Op::Lt:
+            op = OpCode::LT;
+            cond = jumpOnTrue ? 1 : 0;
+            break;
+        case BinaryExpr::Op::Le:
+            op = OpCode::LE;
+            cond = jumpOnTrue ? 1 : 0;
+            break;
+        case BinaryExpr::Op::Gt:
+            op = OpCode::LT;
+            cond = jumpOnTrue ? 1 : 0;
+            swapOperands = true;
+            break;
+        case BinaryExpr::Op::Ge:
+            op = OpCode::LE;
+            cond = jumpOnTrue ? 1 : 0;
+            swapOperands = true;
+            break;
+        default:
+            throw std::runtime_error("emitComparisonJump requires comparison operator");
+    }
+
+    ExprDesc left;
+    ExprDesc right;
+    expr(*e.left, left);
+    expr(*e.right, right);
+
+    if (swapOperands) {
+        std::swap(left, right);
+    }
+
+    i32 o1 = exp2RK(left);
+    i32 o2 = exp2RK(right);
+    freeReg(o1);
+    freeReg(o2);
+
+    codeABC(op, cond, o1, o2);
+
+    PatchList result;
+    result.append(jump());
+    return result;
+}
+
+void CodeGenerator::materializeCondResult(const CondResult& cond, i32 reg, bool fallthroughOnTrue) {
+    if (fallthroughOnTrue) {
+        codeABC(OpCode::LOADBOOL, reg, 1, 1);
+        i32 falseLabel = getLabel();
+        patchList(cond.falseList, falseLabel);
+        codeABC(OpCode::LOADBOOL, reg, 0, 0);
+        return;
+    }
+
+    codeABC(OpCode::LOADBOOL, reg, 0, 1);
+    i32 trueLabel = getLabel();
+    patchList(cond.trueList, trueLabel);
+    codeABC(OpCode::LOADBOOL, reg, 1, 0);
 }
 
 // =====================================================================

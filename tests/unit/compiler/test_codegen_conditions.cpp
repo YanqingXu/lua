@@ -203,10 +203,29 @@ void testConditionBytecodeHasResolvedJumps(TestSuite& suite) {
     delete proto;
 }
 
+void testNestedNotConditionUsesCondPipeline(TestSuite& suite) {
+    const char* code =
+        "local a = ...\n"
+        "local b = ...\n"
+        "if not (a and b) then return 1 end\n"
+        "return 0\n";
+
+    Proto* proto = generateProto(code);
+
+    ASSERT_TRUE(suite, proto != nullptr, "Nested not condition proto generated");
+    ASSERT_TRUE(suite, proto->getInstructionCount() > 0, "Nested not condition has instructions");
+    ASSERT_TRUE(suite, hasOpcode(proto, OpCode::TEST), "Nested not condition uses TEST");
+    ASSERT_FALSE(suite, hasOpcode(proto, OpCode::NOT), "Nested not condition avoids OP_NOT");
+    ASSERT_FALSE(suite, hasPendingJump(proto), "Nested not condition has no pending JMP");
+
+    delete proto;
+}
+
 void registerCodegenConditionTests() {
     auto& registry = TestRegistry::getInstance();
 
     registry.registerTest(kSuiteName, "Short Circuit Runtime", testShortCircuitRuntime);
     registry.registerTest(kSuiteName, "Condition Contexts Runtime", testConditionContextsRuntime);
     registry.registerTest(kSuiteName, "Condition Bytecode Has Resolved Jumps", testConditionBytecodeHasResolvedJumps);
+    registry.registerTest(kSuiteName, "Nested Not Condition Uses Cond Pipeline", testNestedNotConditionUsesCondPipeline);
 }

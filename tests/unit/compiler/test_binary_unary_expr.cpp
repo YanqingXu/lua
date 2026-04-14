@@ -205,51 +205,45 @@ void testBinaryLogical(TestSuite& suite) {
     ASSERT_TRUE(suite, proto->getInstructionCount() > 0, "Has instructions");
     ASSERT_TRUE(suite, hasOpcode(proto, OpCode::TEST), "Logical expression uses TEST");
     ASSERT_TRUE(suite, hasResolvedTestJumpPattern(proto), "Logical short-circuit jump is resolved");
-    ASSERT_TRUE(suite, hasOpcode(proto, OpCode::NOT), "Logical not uses NOT");
+    ASSERT_FALSE(suite, hasOpcode(proto, OpCode::NOT), "Logical not now avoids OP_NOT");
     ASSERT_FALSE(suite, hasSelfLoopJump(proto), "Logical expressions have no self-loop JMP");
 
     delete proto;
 }
 
 void testLogicalValueExpressions(TestSuite& suite) {
-    struct Case {
-        const char* code;
-        OpCode requiredOp;
-        const char* opcodeMessage;
-        const char* jumpMessage;
-    };
-
-    const std::array<Case, 3> cases{{
-        {
-            "local a = ...\nlocal b = ...\nlocal x = a and b\n",
-            OpCode::TEST,
-            "and expression uses TEST",
-            "and expression has no self-loop JMP"
-        },
-        {
-            "local a = ...\nlocal b = ...\nlocal x = a or b\n",
-            OpCode::TEST,
-            "or expression uses TEST",
-            "or expression has no self-loop JMP"
-        },
-        {
-            "local a = ...\nlocal x = not a\n",
-            OpCode::NOT,
-            "not expression uses NOT",
-            "not expression has no self-loop JMP"
-        },
-    }};
-
-    for (const auto& testCase : cases) {
-        Proto* proto = generateProto(testCase.code);
+    {
+        Proto* proto = generateProto("local a = ...\nlocal b = ...\nlocal x = a and b\n");
 
         ASSERT_TRUE(suite, proto != nullptr, "Logical proto generated");
         ASSERT_TRUE(suite, proto->getInstructionCount() > 0, "Logical proto has instructions");
-        ASSERT_TRUE(suite, hasOpcode(proto, testCase.requiredOp), testCase.opcodeMessage);
-        if (testCase.requiredOp == OpCode::TEST) {
-            ASSERT_TRUE(suite, hasResolvedTestJumpPattern(proto), "Logical TEST/JMP pattern is resolved");
-        }
-        ASSERT_FALSE(suite, hasSelfLoopJump(proto), testCase.jumpMessage);
+        ASSERT_TRUE(suite, hasOpcode(proto, OpCode::TEST), "and expression uses TEST");
+        ASSERT_TRUE(suite, hasResolvedTestJumpPattern(proto), "and expression TEST/JMP pattern is resolved");
+        ASSERT_FALSE(suite, hasSelfLoopJump(proto), "and expression has no self-loop JMP");
+
+        delete proto;
+    }
+
+    {
+        Proto* proto = generateProto("local a = ...\nlocal b = ...\nlocal x = a or b\n");
+
+        ASSERT_TRUE(suite, proto != nullptr, "Logical proto generated");
+        ASSERT_TRUE(suite, proto->getInstructionCount() > 0, "Logical proto has instructions");
+        ASSERT_TRUE(suite, hasOpcode(proto, OpCode::TEST), "or expression uses TEST");
+        ASSERT_TRUE(suite, hasResolvedTestJumpPattern(proto), "or expression TEST/JMP pattern is resolved");
+        ASSERT_FALSE(suite, hasSelfLoopJump(proto), "or expression has no self-loop JMP");
+
+        delete proto;
+    }
+
+    {
+        Proto* proto = generateProto("local a = ...\nlocal x = not a\n");
+
+        ASSERT_TRUE(suite, proto != nullptr, "Logical proto generated");
+        ASSERT_TRUE(suite, proto->getInstructionCount() > 0, "Logical proto has instructions");
+        ASSERT_TRUE(suite, hasOpcode(proto, OpCode::TEST), "not expression uses condition TEST");
+        ASSERT_FALSE(suite, hasOpcode(proto, OpCode::NOT), "not expression avoids OP_NOT");
+        ASSERT_FALSE(suite, hasSelfLoopJump(proto), "not expression has no self-loop JMP");
 
         delete proto;
     }

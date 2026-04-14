@@ -53,7 +53,7 @@
 | --- | --- | --- | --- |
 | PR-0 | Baseline & Guardrails | 补齐回归测试，建立迁移护栏 | `done` |
 | PR-1 | Introduce Result Types | 引入新结构但不改主行为 | `done` |
-| PR-2 | CondResult Pipeline | 先拆条件表达式通道 | `planned` |
+| PR-2 | CondResult Pipeline | 先拆条件表达式通道 | `done` |
 | PR-3 | LValue Pipeline | 把左值从 `ExprDesc` 中拆出 | `planned` |
 | PR-4 | ValueResult Core | 重写普通值物化与 RK/寄存器通道 | `planned` |
 | PR-5 | Call / Vararg / MultiRet | 拆掉调用、多返回值、括号收敛胶水 | `planned` |
@@ -218,6 +218,8 @@
 
 ## PR-2 CondResult Pipeline
 
+状态：`done`
+
 目标：
 
 - 把条件表达式通道从 `ExprDesc.t / f / Jump` 中拆出来
@@ -248,25 +250,52 @@
 
 任务清单：
 
-- [ ] 将 `emitCond(const Expr&)` 的内部结果改为 `CondResult`
-- [ ] 让 `if/elseif/while/repeat-until` 直接消费 `CondResult`
-- [ ] 让 `and/or/not` 的短路表达式优先走条件通道
-- [ ] 增加“条件结果物化为普通值”的 helper
-- [ ] 将真假链回填从 `ExprDesc.t/f` 转移到 `PatchList`
-- [ ] 保留旧接口作为适配层，仅用于未迁移代码路径
+- [x] 将 `emitCond(const Expr&)` 的内部结果改为 `CondResult`
+- [x] 让 `if/elseif/while/repeat-until` 直接消费 `CondResult`
+- [x] 让 `and/or/not` 的短路表达式优先走条件通道
+- [x] 增加“条件结果物化为普通值”的 helper
+- [x] 将真假链回填从 `ExprDesc.t/f` 转移到 `PatchList`
+- [x] 保留旧接口作为适配层，仅用于未迁移代码路径
 
 补测要求：
 
-- [ ] 扩充 `tests/unit/compiler/test_binary_unary_expr.cpp`
-- [ ] 新增 `tests/unit/compiler/test_codegen_conditions.cpp`
-- [ ] 扩充 `tests/lua/control_flow/test_if_logic.lua`
-- [ ] 新增 `tests/lua/regressions/test_short_circuit_materialization.lua`
+- [x] 扩充 `tests/unit/compiler/test_binary_unary_expr.cpp`
+- [x] 新增 `tests/unit/compiler/test_codegen_conditions.cpp`
+- [x] 扩充 `tests/lua/control_flow/test_if_logic.lua`
+- [x] 新增 `tests/lua/regressions/test_short_circuit_materialization.lua`
+
+本阶段实际产出：
+
+- 在 `src/compiler/codegen.hpp/.cpp` 中把条件主通道改为 `CondResult + PatchList`
+- 新增条件辅助接口：
+  - `emitCondResultTrue(const Expr&)`
+  - `emitComparisonJump(const BinaryExpr&, bool jumpOnTrue)`
+  - `materializeCondResult(const CondResult&, i32 reg, bool fallthroughOnTrue)`
+- 将以下语句路径切换为直接消费 `CondResult`：
+  - `emitStmt(const IfStmt&)`
+  - `emitStmt(const WhileStmt&)`
+  - `emitStmt(const RepeatStmt&)`
+- 将比较表达式与逻辑 `not` 的值物化改为先走条件通道，再统一落到寄存器
+- 保留旧 `emitCond(const Expr&)` 兼容入口，供未迁移路径临时适配
+- 扩充/新增测试：
+  - `tests/unit/compiler/test_binary_unary_expr.cpp`
+  - `tests/unit/compiler/test_codegen_conditions.cpp`
+  - `tests/lua/control_flow/test_if_logic.lua`
 
 完成标准：
 
 - `if/while/repeat-until` 已不依赖 `ExprDesc.t/f`
 - 逻辑短路行为和现有测试一致
 - `ExprKind::Jump` 不再是条件通道的唯一核心表示
+
+本阶段验证结果：
+
+- `lua_test.vcxproj` 已成功编译
+- `bin/lua_test.exe` 已通过
+- `bin/lua_app.exe tests/lua/control_flow/test_if_logic.lua` 已通过
+- `bin/lua_app.exe tests/lua/regressions/test_short_circuit_materialization.lua` 已通过
+- `bin/lua_app.exe tests/lua/regressions/test_multret_edges.lua` 已通过
+- `bin/lua_app.exe tests/lua/regressions/test_lvalue_matrix.lua` 已通过
 
 ---
 

@@ -159,6 +159,7 @@ private:
      */
     i32 emitCond(const Expr& e);
     CondResult emitCondResult(const Expr& e);
+    CondResult emitCondResultTrue(const Expr& e);
 
     // =====================================================================
     // 跳转管理
@@ -220,6 +221,8 @@ private:
     void fixjump(i32 pc, i32 dest);
     PatchList collectPatchList(i32 list);
     CondResult adaptLegacyCondResult(const ExprDesc& desc);
+    PatchList emitComparisonJump(const BinaryExpr& e, bool jumpOnTrue);
+    void materializeCondResult(const CondResult& cond, i32 reg, bool fallthroughOnTrue);
 
     // =====================================================================
     // 语句代码生成
