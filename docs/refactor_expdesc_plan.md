@@ -1,727 +1,977 @@
-可以，而且这是你**既然已经有完整 AST，就应该主动做的架构切换**。
+下面直接给你一份工程级版本。
 
-核心结论先说：
-
-**如果你的编译流程已经变成：Parser → 完整 AST → CodeGen，那么 `expdesc` 不应该继续作为核心数据结构存在。**
-因为 `expdesc` 本质上是 Lua 5.1 为了支持**单遍解析 + 即时生成字节码**而设计的“临时表达式状态机”，它记录的不只是“表达式是什么”，还记录“这个表达式当前以什么形式存在于寄存器/常量/跳转链表里”。Lua 5.1 的 `expdesc` 里有 `k`、位置信息、以及 `t/f` 两条布尔跳转回填链，这些都明显偏向“边 parse 边 emit”的工作流。([Lua][1])
-
-你现在要做的，不是“抛弃 expdesc 后怎么补一个新 expdesc”，而是把它拆解成 **AST 语义 + CodeGen 期望结果** 两部分。
+执行清单见：[refactor_expdesc_pr_checklist.md](./refactor_expdesc_pr_checklist.md)
 
 ---
 
-## 一、先从本质上理解：expdesc 到底在替你干什么
+# 《移除 expdesc 后，C++20 Lua 编译器会新增哪些核心后端结构》
 
-Lua 5.1 的 `expdesc` 不是 AST 节点。
-它更像：
+先说结论：
 
-**“当前这个表达式，在代码生成阶段，处于哪一种可消费状态？”**
+**移除 `expdesc` 以后，你不是“少了一个结构体”，而是要把它原来混在一起承担的职责，拆成一组更清晰的后端结构。**
 
-例如它会区分：
+Lua 5.1 里 `expdesc` 一口气承担了这些职责：
 
-* 常量
-* 数字字面量
-* 局部变量
-* 上值
-* 全局变量
-* 表索引
-* 已经发出指令但结果还没落位的值
-* 条件跳转形式的布尔表达式
+* 表达式语义类别
+* 左值 / 右值区分
+* 当前值的落点信息
+* 布尔控制流的真假跳转链
+* 部分多返回值传播语义
+* 部分 parser → codegen 的胶水状态
 
-并且还带着：
+而在 **C++20 + AST** 架构下，这些应该拆成独立模块。
 
-* `t`：为真时跳去哪的 patch list
-* `f`：为假时跳去哪的 patch list
-
-这意味着它同时承担了三类职责：
-
-1. **表达式语义类别**
-2. **表达式存储位置/取值方式**
-3. **控制流回填状态**
-
-这正是单遍编译需要的；因为 parser 还没看完整棵树，就必须立刻决定“现在怎么发 bytecode”。([Lua][1])
-
-而你有 AST 以后，这三件事应该被拆开。
+我先给你总图，再逐个展开。
 
 ---
 
-## 二、AST 架构下，应该怎么替代 expdesc
+# 一、总览：新增的核心后端结构
 
-你应该把 expdesc 拆成下面 3 层。
+移除 `expdesc` 之后，建议至少新增下面这些核心结构：
 
-### 1. AST：只表达语义，不表达“当前落在哪个寄存器”
+### 1. 表达式结果结构
 
-例如：
+* `ValueResult`
+
+### 2. 条件控制流结果结构
+
+* `CondResult`
+
+### 3. 可赋值位置结构
+
+* `LValueRef`
+
+### 4. 跳转回填结构
+
+* `PatchList`
+
+### 5. 作用域 / 符号解析结构
+
+* `SymbolRef`
+* `ScopeFrame`
+* `ResolvedExprInfo` 或符号绑定表
+
+### 6. 代码生成上下文
+
+* `CodeGenContext`
+
+### 7. 寄存器管理器
+
+* `RegisterAllocator`
+
+### 8. 标签 / 基本块 / 跳转辅助
+
+* `Label`
+* `JumpRef`
+
+### 9. 多返回值传播描述
+
+* `CallResultInfo` 或 `MultiRetPolicy`
+
+### 10. 语句级控制流上下文
+
+* `LoopContext`
+* `FunctionContext`
+
+### 11. 常量池与闭包元数据管理
+
+* `ConstantPoolBuilder`
+* `UpvalueLayout`
+* `ProtoBuilder`
+
+---
+
+# 二、推荐的整体分层图
+
+你可以把后端设计成这样：
 
 ```cpp
-struct Expr;
-struct LiteralExpr;
-struct NameExpr;
-struct BinaryExpr;
-struct UnaryExpr;
-struct CallExpr;
-struct IndexExpr;
-struct MemberExpr;
-struct FunctionExpr;
-struct VarargExpr;
+Parser
+  -> AST
+  -> Resolver / Binder
+  -> CodeGenerator
+       |- CodeGenContext
+       |- RegisterAllocator
+       |- ConstantPoolBuilder
+       |- ProtoBuilder
+       |- emitExpr()   -> ValueResult
+       |- emitCond()   -> CondResult
+       |- emitLValue() -> LValueRef
+       |- emitStmt()
 ```
 
-AST 节点只负责回答：
+也就是：
 
-* 这是个什么表达式
-* 它的子节点是谁
-* 源码位置信息是什么
-
-**不要在 AST 里保存寄存器号、patch list、是否 VNONRELOC 之类的状态。**
-
-因为那些不是“语法结构”，而是“后端生成瞬时状态”。
+* AST 负责“表达式是什么”
+* Resolver 负责“名字绑定到谁”
+* CodeGen 负责“怎么变成 bytecode / IR”
 
 ---
 
-### 2. LValue / RValue 分类：替代 expdesc 里“变量类表达式”的那一部分
+# 三、核心结构 1：ValueResult
 
-Lua 5.1 的 `VLOCAL / VUPVAL / VGLOBAL / VINDEXED` 这些种类，本质上是在告诉 codegen：
+这是替代 `expdesc` 里“普通右值表达式状态”的第一核心结构。
 
-> “这个表达式不是普通值，它还是一个可赋值位置，取值和赋值的生成逻辑不同。”
+## 作用
 
-所以你要单独建一套后端概念：
+表示：
+
+> “一个表达式作为右值被求值后，它现在以什么形式可被后续指令消费？”
+
+## 推荐定义
 
 ```cpp
-enum class ValueCategory {
-    RValue,
-    LValue
-};
-
-struct LValueRef {
+struct ValueResult {
     enum class Kind {
-        Local,
-        Upvalue,
-        Global,
-        TableIndex,
-        TableField
-    } kind;
+        Register,   // 值已经在寄存器里
+        Constant,   // 值是常量池项
+        Immediate,  // 可直接编码的小立即数/布尔/nil（可选）
+        MultiRet    // 来自函数调用/vararg 的多返回值
+    } kind = Kind::Register;
 
-    // 示例字段
-    int localSlot = -1;
-    int upvalueIndex = -1;
+    int reg = -1;          // kind == Register 时有效
+    int constIndex = -1;   // kind == Constant 时有效
 
-    int tableReg = -1;
-    int keyReg = -1;
-
-    std::string globalName;
-    std::string fieldName;
+    bool isTemp = false;   // 这个寄存器是不是临时寄存器
+    bool multiRet = false; // 是否允许延续多返回语义
 };
 ```
 
-然后约定：
+## 它解决什么问题
 
-* `emitExpr()` 返回普通值
-* `emitLValue()` 返回可写位置引用
+原来 `expdesc` 里这些状态：
 
-比如：
+* `VK`
+* `VKNUM`
+* `VNONRELOC`
+* `VRELOCABLE`
+* `VCALL`
+* `VVARARG`
 
-* `a` 作为右值：`emitExpr(NameExpr("a"))`
-* `a` 作为左值：`emitLValue(NameExpr("a"))`
-* `t[k] = v`：先 `emitLValue(IndexExpr(...))`
-* `x = t.k + 1`：先把 `t.k` 当右值生成
+在 AST 后端里，不应该再用一个 enum 全包住，而应该转成更明确的结果类型。
 
-这一步，等价于把 expdesc 里“变量/索引/可赋值位置”的那部分职责独立出去。
+## 为什么必须有它
+
+因为 `emitExpr()` 不能只返回 `int reg`。
+否则你会丢失：
+
+* 这个值是不是常量
+* 是不是多返回值
+* 是不是还没落寄存器
+* 后续能不能直接作为 RK 操作数
 
 ---
 
-### 3. Control Flow Result：替代 expdesc 里的 t/f patch list
+# 四、核心结构 2：CondResult
 
-这是最关键的一步。
+这是替代 `expdesc.t / expdesc.f` 的核心结构。
 
-Lua 5.1 的 `t/f` 跳转链表，是为了让布尔表达式在**控制流上下文**下不必先算成 0/1，再去判断；而是直接生成跳转。
-例如 `a and b`、`a or b`、`not x`、`if a < b then` 都 heavily 依赖这个机制。([Lua][2])
+## 作用
 
-你在 AST 后端里，应该明确区分两种生成模式：
+表示：
 
-### 模式 A：值语境
+> “一个表达式在条件语境下，会产生哪些待回填的真分支和假分支跳转？”
 
-表达式需要最终产出一个值寄存器。
+## 推荐定义
 
-例如：
+```cpp
+struct PatchList {
+    std::vector<int> jumps;
+};
 
-```lua
-local x = a and b
-local y = not z
-return p < q
+struct CondResult {
+    PatchList trueList;
+    PatchList falseList;
+};
 ```
 
-### 模式 B：条件语境
+也可以稍微增强：
 
-表达式只是作为跳转条件使用。
+```cpp
+struct CondResult {
+    PatchList trueList;
+    PatchList falseList;
+    bool knownConstant = false;
+    bool constantValue = false;
+};
+```
+
+## 为什么它非常关键
+
+Lua 里的布尔表达式不是简单“算一个 bool 值”。
 
 例如：
 
 ```lua
 if a and b then ... end
-while x < 10 do ... end
+if x or y then ... end
+if not p then ... end
 ```
 
-所以建议你设计两个接口：
+这些表达式更高效的生成方式不是：
 
-```cpp
-struct ValueResult {
-    int reg;          // 结果在哪个寄存器
-    bool multiRet;    // 是否多返回值
-};
+1. 先算出 true/false 到寄存器
+2. 再根据寄存器跳转
 
-struct CondResult {
-    std::vector<int> trueJumps;
-    std::vector<int> falseJumps;
-};
-```
+而是直接生成控制流。
 
-然后分成：
+所以 `emitCond()` 必须返回 `CondResult`。
 
-```cpp
-ValueResult emitExpr(const Expr& e);
-CondResult  emitCond(const Expr& e);
-```
+## 它替代了 expdesc 的哪部分
 
-这就是 AST 架构下，对 `expdesc.t/f` 的正统替代。
+* `t`
+* `f`
+* `VJMP`
+* 布尔表达式短路回填机制
 
 ---
 
-## 三、最推荐的整体改造方式
+# 五、核心结构 3：LValueRef
 
-我建议你采用下面这个后端模型：
+这是替代 `VLOCAL / VUPVAL / VGLOBAL / VINDEXED` 最关键的结构。
 
-### 方案：AST + 双通道代码生成
+## 作用
 
-#### 通道 1：值生成
+表示：
 
-```cpp
-ValueResult emitExpr(const Expr& e);
-```
+> “一个表达式如果被放在赋值号左边，它引用的是哪一种可写位置？”
 
-负责：
-
-* 常量
-* 算术
-* 拼接
-* 函数调用
-* 表访问取值
-* 构造 table
-* 需要产出寄存器值的布尔表达式
-
-#### 通道 2：条件生成
-
-```cpp
-CondResult emitCond(const Expr& e);
-```
-
-负责：
-
-* `if`
-* `while`
-* `repeat until`
-* 短路 `and/or/not`
-* 比较运算 `< <= > >= == ~=`
-
-这和很多 AST 编译器/IR 编译器的做法一致：
-**布尔表达式既可以“求值”，也可以“导出控制流”。**
-
-这比把所有布尔表达式都强行生成成 0/1，再额外判断一次，更接近 Lua 5.1 原始后端的效率和结构。
-
----
-
-## 四、具体怎么写：从 expdesc 风格迁移到 AST 风格
-
----
-
-### 1. 先定义 AST 节点，不带后端状态
-
-例如：
-
-```cpp
-struct Expr {
-    SourceRange range;
-    virtual ~Expr() = default;
-};
-
-struct LiteralExpr : Expr {
-    std::variant<std::nullptr_t, bool, double, std::string> value;
-};
-
-struct NameExpr : Expr {
-    std::string name;
-};
-
-struct BinaryExpr : Expr {
-    enum class Op {
-        Add, Sub, Mul, Div, Mod, Pow,
-        Concat,
-        Lt, Le, Gt, Ge, Eq, Ne,
-        And, Or
-    } op;
-
-    std::unique_ptr<Expr> lhs;
-    std::unique_ptr<Expr> rhs;
-};
-
-struct UnaryExpr : Expr {
-    enum class Op { Neg, Not, Len } op;
-    std::unique_ptr<Expr> expr;
-};
-
-struct IndexExpr : Expr {
-    std::unique_ptr<Expr> table;
-    std::unique_ptr<Expr> index;
-};
-
-struct MemberExpr : Expr {
-    std::unique_ptr<Expr> table;
-    std::string field;
-};
-```
-
----
-
-### 2. CodeGen 不返回 expdesc，改返回“生成结果”
-
-比如：
-
-```cpp
-struct ValueResult {
-    int reg = -1;
-    bool isConst = false;
-    int constIndex = -1;
-    bool multiRet = false;
-};
-
-struct CondResult {
-    std::vector<int> trues;
-    std::vector<int> falses;
-};
-```
-
-这里 `ValueResult` 可以一开始简单一点，只保留 `reg`。
-等你后面做常量折叠、RK 优化、延迟装载时，再扩展。
-
----
-
-### 3. 对“可赋值表达式”单独走 emitLValue
+## 推荐定义
 
 ```cpp
 struct LValueRef {
-    enum class Kind { Local, Upvalue, Global, Indexed } kind;
+    enum class Kind {
+        Local,
+        Upvalue,
+        Global,
+        Indexed,
+        Field
+    } kind;
 
-    int baseReg = -1;      // local or table reg
-    int auxReg = -1;       // key reg for indexed
-    int extra = -1;        // upvalue slot etc.
-    std::string name;      // global name etc.
+    int localSlot = -1;      // Local
+    int upvalueIndex = -1;   // Upvalue
+
+    int tableReg = -1;       // Indexed / Field
+    int keyReg = -1;         // Indexed
+    int valueBaseReg = -1;   // 可选：table base
+
+    std::string globalName;  // Global
+    std::string fieldName;   // Field
 };
 ```
 
-接口：
+## 为什么要单独拆出来
 
-```cpp
-LValueRef emitLValue(const Expr& e);
-ValueResult emitExpr(const Expr& e);
-void emitStore(const LValueRef& lv, const ValueResult& rhs);
-```
-
-这一步会让赋值语句、局部声明、table 写入都清晰很多。
-
----
-
-## 五、布尔短路是抛弃 expdesc 时最大的难点
-
-这是整个迁移里最重要的部分。
-
-Lua 5.1 的 `expdesc` 最大价值，其实不是普通算术，而是：
-
-* `a and b`
-* `a or b`
-* `not x`
-* `a < b`
-* `if expr then`
-* `while expr do`
-
-这些表达式都可以直接转成跳转链，而不必先 materialize 成寄存器值。([Lua][2])
-
-所以你必须有这样一套规则：
-
----
-
-### 规则 1：`emitCond(e)` 直接生成控制流
-
-例如：
-
-#### `a and b`
-
-```cpp
-CondResult emitCond(andExpr):
-    auto left = emitCond(a);
-    patchTrueList(left.trues, currentPc()); // 左边为真才继续右边
-    auto right = emitCond(b);
-    return {
-        .trues  = right.trues,
-        .falses = merge(left.falses, right.falses)
-    };
-```
-
-#### `a or b`
-
-```cpp
-CondResult emitCond(orExpr):
-    auto left = emitCond(a);
-    patchFalseList(left.falses, currentPc()); // 左边为假才继续右边
-    auto right = emitCond(b);
-    return {
-        .trues  = merge(left.trues, right.trues),
-        .falses = right.falses
-    };
-```
-
-#### `not x`
-
-```cpp
-CondResult emitCond(notExpr):
-    auto c = emitCond(x);
-    std::swap(c.trues, c.falses);
-    return c;
-```
-
-#### `a < b`
-
-直接发比较跳转，返回 true/false 两条 patch list。
-
----
-
-### 规则 2：`emitExpr(e)` 在需要值时，把 CondResult 物化成布尔值
+因为“表达式求值”和“表达式作为赋值目标”是两套完全不同的后端逻辑。
 
 例如：
 
 ```lua
-local x = a and b
+a = 1
+t[k] = v
+obj.x = y
 ```
 
-这里不是条件语境，而是值语境。
-所以：
+左边不是普通表达式值，而是一个“写入目标”。
+
+如果不引入 `LValueRef`，你最后还是会退回到 `expdesc` 那种“大一统状态机”。
+
+## 推荐接口
 
 ```cpp
-ValueResult emitExpr(const Expr& e) {
-    if (isBooleanLike(e)) {
-        auto c = emitCond(e);
+ValueResult emitExpr(const ast::Expr& expr);
+LValueRef emitLValue(const ast::Expr& expr);
+void emitStore(const LValueRef& lhs, const ValueResult& rhs);
+```
 
-        int dst = allocReg();
-        int lFalse = currentPc();
-        emitLoadBool(dst, false);
-        int jEnd = emitJump();
+---
 
-        int lTrue = currentPc();
-        emitLoadBool(dst, true);
+# 六、核心结构 4：PatchList
 
-        int lEnd = currentPc();
+虽然上面在 `CondResult` 里已经用了，但它值得独立讲。
 
-        patchList(c.falses, lFalse);
-        patchList(c.trues,  lTrue);
-        patchJump(jEnd, lEnd);
+## 作用
 
-        return { .reg = dst };
+表示：
+
+> “这些跳转指令的目标地址还没定，稍后统一回填。”
+
+## 推荐定义
+
+```cpp
+struct PatchList {
+    std::vector<int> pcs;
+
+    void add(int pc) {
+        pcs.push_back(pc);
     }
 
-    ...
-}
+    bool empty() const {
+        return pcs.empty();
+    }
+};
 ```
 
-这就是 AST 架构中最接近 `expdesc` 的“语义保真做法”。
-
----
-
-## 六、哪些地方可以彻底不要 expdesc 思维
-
-下面这些地方，AST 后端可以比 Lua 5.1 更干净。
-
-### 1. 算术表达式
-
-`a + b * c`
-
-AST 后端直接递归：
+## 配套 API
 
 ```cpp
-auto rb = emitExpr(*node.rhs);
-auto ra = emitExpr(*node.lhs);
-int dst = allocReg();
-emitABC(OP_ADD, dst, ra.reg, rb.reg);
+void patchToHere(PatchList& list);
+void patchToTarget(PatchList& list, int targetPc);
+PatchList mergePatchList(PatchList a, PatchList b);
 ```
 
-不再需要 `VRELOCABLE / VNONRELOC / VKNUM` 这一整套中间状态机。
+## 它的重要性
+
+移除 `expdesc` 后，**PatchList 反而要更显式**。
+
+因为原来 `t/f` 隐藏在 `expdesc` 里；现在你要明确承认：
+
+* 条件表达式
+* break
+* goto（如果你以后支持）
+* 尾部跳转
+* repeat/until
+
+这些全都依赖回填链。
 
 ---
 
-### 2. 常量折叠
+# 七、核心结构 5：SymbolRef
 
-Lua 5.1 的常量折叠是在 codegen 过程中做的。
-你有 AST 后，可以更自然地做：
+这是“作用域解析结果”的基础结构。
 
-* parser 后的小型 AST fold pass
-* 或 codegen 前的 constant folding pass
+## 作用
 
-这样更清晰，也更容易测试。
-Lua 5.1 的 `lcode.c` 里确实包含常量折叠逻辑。([Lua][2])
+表示：
+
+> “一个名字解析后，绑定到哪个实体？”
+
+## 推荐定义
+
+```cpp
+struct SymbolRef {
+    enum class Kind {
+        Local,
+        Upvalue,
+        Global
+    } kind;
+
+    int index = -1;              // local slot 或 upvalue index
+    std::string name;
+};
+```
+
+## 为什么需要它
+
+AST 节点 `NameExpr("a")` 只知道名字叫 `a`。
+但 codegen 需要知道：
+
+* 它是不是当前函数局部变量
+* 是不是上值
+* 还是全局环境访问
+
+所以必须有一个 resolver/binder 阶段，把 AST 上的名字解析成 `SymbolRef`。
+
+## 推荐做法
+
+不要在 `NameExpr` 里直接塞 codegen 字段。
+而是建立绑定表：
+
+```cpp
+std::unordered_map<const ast::Expr*, SymbolRef> resolvedSymbols;
+```
+
+或给 AST 节点挂一层语义 info。
 
 ---
 
-### 3. 语义检查
+# 八、核心结构 6：ScopeFrame
 
-例如：
+这是 resolver 阶段和 function codegen 阶段都需要的结构。
 
-* `...` 只能在 vararg 函数里使用
-* `break` 必须在循环内
-* `return` 的多返回值传播
+## 作用
 
-这些都可以在 AST 之后统一做语义分析，没必要再像 Lua 5.1 一样高度缠绕在 parse/codegen 过程中。
+表示：
+
+> “当前作用域里有哪些局部变量、它们的生命周期和槽位是什么？”
+
+## 推荐定义
+
+```cpp
+struct LocalInfo {
+    std::string name;
+    int slot = -1;
+    int beginPc = -1;
+    int endPc = -1;
+    bool captured = false;
+};
+
+struct ScopeFrame {
+    std::vector<LocalInfo> locals;
+    int baseRegister = 0;
+    bool breakable = false;
+};
+```
+
+## 为什么需要它
+
+Lua 有很强的块级作用域和上值捕获语义：
+
+```lua
+do
+    local x = 1
+end
+```
+
+以及：
+
+```lua
+local x = 1
+return function() return x end
+```
+
+这些都必须靠 `ScopeFrame` 或类似结构维护。
 
 ---
 
-## 七、你真正需要保留的，不是 expdesc，而是它背后的“后端约束”
+# 九、核心结构 7：CodeGenContext
 
-虽然你可以抛弃 expdesc 这个结构体，但下面这些能力必须保留，否则会退化：
+这是整个后端的“总状态对象”。
 
-### 必须保留 1：短路布尔的控制流生成
+## 作用
 
-否则 `and/or/not` 会很难看，而且可能语义不对。
+集中保存：
 
-### 必须保留 2：lvalue / rvalue 区分
+* 当前函数的 bytecode
+* 当前寄存器状态
+* 常量池
+* 局部变量布局
+* break/loop 上下文
+* 当前 patching 状态
+* 调试信息
 
-否则赋值目标、table field、upvalue 写入会混乱。
+## 推荐定义
 
-### 必须保留 3：多返回值传播
+```cpp
+struct CodeGenContext {
+    std::vector<Instruction> code;
+    ConstantPoolBuilder* constants = nullptr;
+    RegisterAllocator* regs = nullptr;
+
+    std::vector<ScopeFrame> scopes;
+    std::vector<LoopContext> loops;
+
+    std::unordered_map<const ast::Expr*, SymbolRef> resolvedSymbols;
+
+    int pc() const { return static_cast<int>(code.size()); }
+};
+```
+
+## 为什么它重要
+
+Lua 5.1 里很多状态散在：
+
+* `FuncState`
+* `LexState`
+* `BlockCnt`
+* `expdesc`
+
+你现在重写时，应该把“后端生成态”集中在 `CodeGenContext`，而不是分散到 AST 节点里。
+
+---
+
+# 十、核心结构 8：RegisterAllocator
+
+移除 `expdesc` 后，寄存器管理不能再隐式附着在表达式状态里，必须独立出来。
+
+## 作用
+
+负责：
+
+* 分配临时寄存器
+* 回收临时寄存器
+* 管理当前函数最大寄存器数
+* 配合局部变量固定槽位
+
+## 推荐定义
+
+```cpp
+class RegisterAllocator {
+public:
+    int alloc();
+    void free(int reg);
+
+    int mark();
+    void restore(int mark);
+
+    int maxUsed() const;
+
+private:
+    int nextReg_ = 0;
+    int maxReg_ = 0;
+};
+```
+
+## 为什么重要
+
+原来 `expdesc` 会隐式参与：
+
+* 值是否可重定位
+* 值是否已经进入寄存器
+* 是否要搬运
+
+现在这些都应该由 `RegisterAllocator + emitExpr` 配合完成。
+
+---
+
+# 十一、核心结构 9：Label / JumpRef
+
+如果你想把后端写得更现代，而不想全程直接操作 `pc int`，可以加这两个辅助结构。
+
+## 推荐定义
+
+```cpp
+struct Label {
+    int pc = -1;
+};
+
+struct JumpRef {
+    int fromPc = -1;
+};
+```
+
+## 用处
+
+这样你在写 `if / while / repeat / break` 时，逻辑会清晰很多：
+
+```cpp
+Label loopBegin = newLabelHere();
+JumpRef exitJump = emitJumpPlaceholder();
+bindLabel(loopEnd);
+patchJump(exitJump, loopEnd);
+```
+
+如果你不想抽象太多，也可以直接用 `int pc`。
+但在 C++20 项目里，这种薄封装通常是值得的。
+
+---
+
+# 十二、核心结构 10：CallResultInfo / MultiRetPolicy
+
+Lua 的函数调用和 vararg 很特殊，最后一个表达式可能传播多返回值。
 
 例如：
 
 ```lua
 return f()
-local a,b = f()
+local a, b = f()
 g(f())
+local x = (f())
 ```
 
-Lua 对 call 的“最后一个表达式是否允许多返回”很敏感。
-这一点原来部分也通过 `expdesc` 的种类和 codegen 状态协同处理；你现在需要在 AST 后端显式处理。
+这些语义不能只靠一个 `reg` 表示。
 
-### 必须保留 4：跳转回填能力
+## 推荐定义
 
-不一定是 `t/f int list` 这种老形式，但 patch list 机制必须还在。
+```cpp
+struct CallResultInfo {
+    int baseReg = -1;
+    bool openMultiRet = false; // 是否作为开放返回值传播
+};
+```
+
+或者更明确：
+
+```cpp
+enum class MultiRetPolicy {
+    Single,
+    Open
+};
+```
+
+## 为什么必须有它
+
+这是 Lua codegen 最容易错的地方之一。
+原来 `VCALL / VVARARG` 隐式帮助处理了这部分。
+
+你去掉 `expdesc` 后，必须显式表示：
+
+* 当前调用是只取一个值
+* 还是开放多返回
+* 还是在 return 语境下全量返回
 
 ---
 
-## 八、我建议你的最终落地设计
+# 十三、核心结构 11：LoopContext
 
-我给你一个更适合 C++20 重写 Lua 的后端骨架。
+这个结构是处理 `break`、循环跳转和局部变量作用域恢复的关键。
 
-### 1. AST 层
+## 推荐定义
 
 ```cpp
-namespace ast {
-    struct Expr;
-    struct Stmt;
-    struct BinaryExpr;
-    struct UnaryExpr;
-    struct NameExpr;
-    struct IndexExpr;
-    struct CallExpr;
-    ...
-}
+struct LoopContext {
+    int loopStartPc = -1;
+    PatchList breakList;
+    int scopeDepth = 0;
+};
 ```
 
-### 2. 语义层
+## 为什么需要它
 
-```cpp
-enum class SymbolKind { Local, Upvalue, Global };
-struct SymbolRef { SymbolKind kind; int index; std::string name; };
+例如：
+
+```lua
+while cond do
+    if x then break end
+end
 ```
 
-### 3. CodeGen 结果层
+`break` 的目标在看到循环结束前还不知道，所以必须挂到 `LoopContext.breakList`。
+
+同时，break 还往往伴随：
+
+* 离开哪些局部变量作用域
+* 是否需要关闭 upvalue
+* 恢复哪些寄存器
+
+所以循环上下文必须独立保存。
+
+---
+
+# 十四、核心结构 12：FunctionContext
+
+每个函数体都应该有自己的独立上下文，而不是所有信息塞在一个全局 codegen 里。
+
+## 推荐定义
 
 ```cpp
-struct ValueResult {
-    int reg = -1;
-    bool multiRet = false;
+struct FunctionContext {
+    CodeGenContext gen;
+    std::vector<UpvalueDesc> upvalues;
+    int numParams = 0;
+    bool isVararg = false;
 };
+```
 
-struct CondResult {
-    std::vector<int> trueList;
-    std::vector<int> falseList;
+## 作用
+
+处理：
+
+* 当前函数自己的常量池 / 指令流
+* 参数槽位
+* 闭包捕获
+* 子函数嵌套
+
+Lua 的 `Proto` 非常函数化，所以这个结构很自然。
+
+---
+
+# 十五、核心结构 13：ConstantPoolBuilder
+
+原来 `expdesc` 里有常量类别状态，现在建议统一交给常量池管理器。
+
+## 推荐定义
+
+```cpp
+class ConstantPoolBuilder {
+public:
+    int internNil();
+    int internBoolean(bool v);
+    int internNumber(double v);
+    int internString(const std::string& s);
+
+private:
+    std::vector<Constant> constants_;
+    std::unordered_map<std::string, int> stringMap_;
 };
+```
 
-struct LValueRef {
-    enum class Kind { Local, Upvalue, Global, Indexed } kind;
-    int a = -1;
-    int b = -1;
+## 好处
+
+* 常量去重
+* 统一索引分配
+* 与 RK 编码配合
+* 与常量折叠配合
+
+---
+
+# 十六、核心结构 14：UpvalueLayout
+
+这是你以后做闭包时一定需要的结构。
+
+## 推荐定义
+
+```cpp
+struct UpvalueDesc {
     std::string name;
+    bool inStack = false;  // 来自父函数栈槽还是父函数upvalue
+    int index = -1;
+};
+
+struct UpvalueLayout {
+    std::vector<UpvalueDesc> items;
 };
 ```
 
-### 4. CodeGen 接口
+## 为什么必须有
+
+Lua 的闭包不是简单捕获值，而是捕获变量位置语义。
+如果没有独立 `UpvalueLayout`，闭包生成很快就会乱。
+
+---
+
+# 十七、核心结构 15：ProtoBuilder
+
+如果你的目标仍然是 Lua 风格 VM，那么最终必须把当前函数编成 `Proto`。
+
+## 推荐定义
 
 ```cpp
+class ProtoBuilder {
+public:
+    void emit(Instruction ins);
+    int addConstant(Constant c);
+    void addLocal(LocalInfo localInfo);
+    void addUpvalue(UpvalueDesc uv);
+
+    Proto finish();
+};
+```
+
+## 作用
+
+它相当于把：
+
+* 指令流
+* 常量池
+* 局部变量表
+* upvalue 表
+* 子 Proto
+* 调试信息
+
+统一收口。
+
+---
+
+# 十八、这些结构之间怎么协作
+
+下面给你一条完整链路。
+
+---
+
+## 场景 1：普通表达式
+
+```lua
+local c = a + b
+```
+
+### 流程
+
+1. AST：
+
+   * `LocalDeclStmt`
+   * `BinaryExpr(Add, NameExpr("a"), NameExpr("b"))`
+
+2. resolver：
+
+   * `a -> SymbolRef(Local, slotA)`
+   * `b -> SymbolRef(Local, slotB)`
+
+3. codegen：
+
+   * `emitExpr(NameExpr("a")) -> ValueResult{Register, reg=slotA}`
+   * `emitExpr(NameExpr("b")) -> ValueResult{Register, reg=slotB}`
+   * 申请 `dst`
+   * 发 `ADD dst, slotA, slotB`
+   * 返回 `ValueResult{Register, reg=dst}`
+
+---
+
+## 场景 2：赋值目标
+
+```lua
+t[k] = x
+```
+
+### 流程
+
+1. `emitLValue(IndexExpr(t, k)) -> LValueRef{Indexed, tableReg=?, keyReg=?}`
+2. `emitExpr(NameExpr("x")) -> ValueResult`
+3. `emitStore(lhs, rhs)`
+
+这里左边和右边完全分流，这就是去掉 `expdesc` 后最大的清晰化。
+
+---
+
+## 场景 3：条件短路
+
+```lua
+if a and b then
+end
+```
+
+### 流程
+
+1. `emitCond(a and b)`
+2. 左边 `a` 生成条件跳转
+3. `trueList` patch 到右边 `b`
+4. 右边 `b` 再产生真假链
+5. then 块开始后 patch `trueList`
+6. if 末尾 patch `falseList`
+
+这部分就是 `CondResult + PatchList` 的核心价值。
+
+---
+
+## 场景 4：值语境中的布尔表达式
+
+```lua
+local x = a and b
+```
+
+### 流程
+
+1. `emitCond(a and b)` 先得到真假链
+2. 分配 `dst`
+3. false 路径给 `dst = false`
+4. true 路径给 `dst = true`
+5. 收口
+
+这相当于把条件结果物化为普通值。
+
+---
+
+# 十九、最终建议的最小可落地结构集
+
+如果你现在要马上开工，不想一次设计太多，我建议你先实现这 8 个，作为第一批最小闭环：
+
+### 第一批必须有
+
+* `ValueResult`
+* `CondResult`
+* `PatchList`
+* `LValueRef`
+* `SymbolRef`
+* `CodeGenContext`
+* `RegisterAllocator`
+* `LoopContext`
+
+### 第二批很快会补上
+
+* `FunctionContext`
+* `ConstantPoolBuilder`
+* `UpvalueLayout`
+* `ProtoBuilder`
+* `CallResultInfo`
+
+---
+
+# 二十、给你一份推荐代码骨架
+
+下面这套命名，你几乎可以直接拿去建目录。
+
+```cpp
+// backend/value_result.h
+struct ValueResult;
+
+// backend/cond_result.h
+struct PatchList;
+struct CondResult;
+
+// backend/lvalue_ref.h
+struct LValueRef;
+
+// sema/symbol_ref.h
+struct SymbolRef;
+
+// sema/scope_frame.h
+struct ScopeFrame;
+
+// backend/register_allocator.h
+class RegisterAllocator;
+
+// backend/constant_pool_builder.h
+class ConstantPoolBuilder;
+
+// backend/loop_context.h
+struct LoopContext;
+
+// backend/function_context.h
+struct FunctionContext;
+
+// backend/codegen_context.h
+struct CodeGenContext;
+
+// backend/proto_builder.h
+class ProtoBuilder;
+
+// backend/code_generator.h
 class CodeGenerator {
 public:
     ValueResult emitExpr(const ast::Expr&);
-    CondResult  emitCond(const ast::Expr&);
-    LValueRef   emitLValue(const ast::Expr&);
-
+    CondResult emitCond(const ast::Expr&);
+    LValueRef emitLValue(const ast::Expr&);
     void emitStmt(const ast::Stmt&);
-    void emitAssign(const ast::AssignStmt&);
-    void emitIf(const ast::IfStmt&);
-    void emitWhile(const ast::WhileStmt&);
 };
 ```
 
 ---
 
-## 九、迁移步骤怎么走最稳
+# 二十一、你可以把 expdesc 的职责映射成这张替换表
 
-不要一次性全推翻。按下面顺序最稳。
-
-### 第一步：先保留 bytecode/VM，不动后端指令集
-
-先只改“前端到后端接口”。
-
-也就是：
-
-* Parser 生成 AST
-* CodeGen 从 AST 生成**你现有的 Lua 风格 bytecode**
-
-先别急着改 VM、寄存器模型、指令格式。
+| Lua 5.1 expdesc 职责 | C++20 AST 后端替代结构                     |
+| ------------------ | ------------------------------------ |
+| 表达式种类              | AST 节点本身                             |
+| 变量/索引/可赋值位置        | `LValueRef`                          |
+| 普通右值结果             | `ValueResult`                        |
+| 真/假跳转链             | `CondResult` + `PatchList`           |
+| VCALL / VVARARG    | `CallResultInfo` / `MultiRetPolicy`  |
+| 名字解析               | `SymbolRef` + Resolver               |
+| 寄存器落点              | `RegisterAllocator` + `ValueResult`  |
+| 函数生成态              | `FunctionContext` / `CodeGenContext` |
 
 ---
 
-### 第二步：先实现“纯值表达式”
+# 二十二、最后给你一个工程级判断标准
 
-优先做：
+如果你把 `expdesc` 删掉以后，后端还能自然回答这几个问题，说明结构设计是对的：
 
-* 常量
-* 一元运算
-* 算术二元运算
-* 变量取值
-* table 取值
+### 1
 
-这时先不碰 `and/or/not` 的值物化。
+这个表达式作为右值时，结果在哪里？
+看 `ValueResult`
 
----
+### 2
 
-### 第三步：实现赋值目标系统
+这个表达式作为条件时，真假分支怎么跳？
+看 `CondResult`
 
-把：
+### 3
 
-* local
-* upvalue
-* global
-* table[index]
-* table.field
+这个表达式作为赋值左边时，怎么写回？
+看 `LValueRef`
 
-统一进 `emitLValue()`。
+### 4
 
----
+这个名字到底是 local / upvalue / global？
+看 `SymbolRef`
 
-### 第四步：实现条件生成通道
+### 5
 
-加入：
+这个函数调用是一值还是多返回传播？
+看 `CallResultInfo`
 
-* `emitCond`
-* patch list
-* `if/while/repeat`
+### 6
 
----
+当前函数的寄存器、常量池、循环上下文在哪？
+看 `CodeGenContext`
 
-### 第五步：最后接短路布尔和值语境物化
-
-这一步完成后，你基本就真的完成了对 expdesc 的替代。
+只要这六个问题都能由独立结构回答，你就真正完成了从 `expdesc` 思维到 AST 后端思维的迁移。
 
 ---
 
-## 十、你可以直接遵循的判断标准
+如果你愿意，我下一步可以继续直接给你补一份：
 
-你这个重构是否成功，看下面 4 个问题：
+**《C++20 Lua 编译器后端头文件设计草案（ValueResult / CondResult / LValueRef / CodeGenContext）》**
 
-### 问题 1
-
-`if a and b then ... end`
-能否**不先生成临时 bool 值**，而直接用跳转完成？
-
-### 问题 2
-
-`local x = a and b`
-能否在值语境下正确生成最终布尔/短路结果？
-
-### 问题 3
-
-`t[k] = f()`
-能否正确处理左值和多返回值？
-
-### 问题 4
-
-`return a < b`
-能否把条件表达式物化成返回值，而不是只能用于 if/while？
-
-这 4 个都通过，就说明你已经真正摆脱 `expdesc` 了。
-
----
-
-## 十一、最终建议：别“抛弃 expdesc 的思想”，要“升维重构”
-
-最准确的说法不是：
-
-> 我有 AST 了，所以我要删除 expdesc。
-
-而是：
-
-> 我有 AST 了，所以我要把 expdesc 这个“把语义、位置、控制流揉在一起的单遍编译产物”，拆成更清晰的后端抽象：
->
-> * AST
-> * LValueRef
-> * ValueResult
-> * CondResult
-> * PatchList
-
-这才是正确方向。
-
----
-
-## 十二、给你的工程级结论
-
-对于你这个 **C++20 重写 Lua** 项目，我建议你这样定：
-
-### 可以彻底去掉的
-
-* `expdesc` 结构体本身
-* `VLOCAL/VGLOBAL/VINDEXED/VRELOCABLE/VNONRELOC` 这种 parser/codegen 混合状态机
-
-### 必须保留但要重构形态的
-
-* patch list
-* 条件表达式控制流生成
-* lvalue/rvalue 区分
-* 多返回值传播语义
-
-### 最佳替代结构
-
-* `ast::Expr`
-* `ValueResult`
-* `CondResult`
-* `LValueRef`
-* `CodeGenerator::emitExpr / emitCond / emitLValue`
-
----
-
-如果你愿意，我下一步可以直接给你画一份：
-
-**《C++20 AST 架构下，替代 Lua 5.1 expdesc 的后端设计图》**
-
-把：
-
-* AST 节点层
-* Symbol/Scope 层
-* ValueResult / CondResult / LValueRef
-* Assign / If / While / Call / Return 的生成链路
-
-直接画成一张你项目里能落代码的结构图。
-
-[1]: https://www.lua.org/source/5.1/lparser.c.html?utm_source=chatgpt.com "Lua 5.1.5 source code - lparser.c"
-[2]: https://www.lua.org/source/5.1/lcode.c.html?utm_source=chatgpt.com "Lua 5.1.5 source code - lcode.c"
+我可以直接按接近可编译的 C++20 头文件形式写出来。

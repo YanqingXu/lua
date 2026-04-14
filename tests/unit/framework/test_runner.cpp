@@ -22,6 +22,8 @@ extern void registerGCTests();
 extern void registerLuaStateInitTests();
 extern void registerBinaryUnaryExprTests();
 extern void registerFunctionCodegenTests();
+extern void registerCodegenConditionTests();
+extern void registerCodegenMultiRetTests();
 extern void registerMathLibTests();
 extern void registerBaselibTests();
 extern void registerStringLibTests();
@@ -95,6 +97,8 @@ int main() {
     registerLuaStateInitTests();
     registerBinaryUnaryExprTests();
     registerFunctionCodegenTests();
+    registerCodegenConditionTests();
+    registerCodegenMultiRetTests();
     registerSyntaxSugarTests();
     registerMathLibTests();
     registerBaselibTests();

@@ -153,6 +153,8 @@
     <ClCompile Include="tests\unit\compiler\test_storevar.cpp" />
     <ClCompile Include="tests\unit\compiler\test_syntax_sugar.cpp" />
     <ClCompile Include="tests\unit\compiler\test_binary_unary_expr.cpp" />
+    <ClCompile Include="tests\unit\compiler\test_codegen_conditions.cpp" />
+    <ClCompile Include="tests\unit\compiler\test_codegen_multret.cpp" />
     <ClCompile Include="tests\unit\compiler\test_function_codegen.cpp" />
     <ClCompile Include="tests\unit\compiler\test_lua_functions.cpp" />
     <ClCompile Include="tests\unit\core\test_function.cpp" />

@@ -74,6 +74,12 @@
     <ClCompile Include="tests\unit\compiler\test_binary_unary_expr.cpp">
       <Filter>tests\compiler</Filter>
     </ClCompile>
+    <ClCompile Include="tests\unit\compiler\test_codegen_conditions.cpp">
+      <Filter>tests\compiler</Filter>
+    </ClCompile>
+    <ClCompile Include="tests\unit\compiler\test_codegen_multret.cpp">
+      <Filter>tests\compiler</Filter>
+    </ClCompile>
     <ClCompile Include="tests\unit\compiler\test_function_codegen.cpp">
       <Filter>tests\compiler</Filter>
     </ClCompile>

@@ -56,6 +56,16 @@ void registerBinaryUnaryExprTests();
 void registerFunctionCodegenTests();
 
 /**
+ * @brief 注册条件/短路护栏测试
+ */
+void registerCodegenConditionTests();
+
+/**
+ * @brief 注册多返回值护栏测试
+ */
+void registerCodegenMultiRetTests();
+
+/**
  * @brief 注册基础库函数测试
  */
 void registerBaselibTests();
