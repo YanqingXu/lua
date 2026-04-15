@@ -186,5 +186,10 @@ void registerDebugLibTests();
 
 void registerPackageLibTests();
 
+/**
+ * @brief 注册 Call Pipeline 测试（PR-5）
+ */
+void registerCallPipelineTests();
+
 #endif // LUA_TEST_REGISTRY_HPP
 

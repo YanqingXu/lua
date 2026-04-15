@@ -653,8 +653,15 @@ i32 luaB_select(LuaState* L) {
 
     // 返回从 index+1 到 n 的所有参数
     i32 count = n - index;
+    std::fprintf(stderr, "[SELECT] n=%d index=%d count=%d\n", n, index, count);
     for (i32 i = index + 1; i <= n; i++) {
-        L->pushValue(L->at(i));
+        Value val = L->at(i);
+        std::fprintf(stderr, "[SELECT] pushing at(%d)=", i);
+        if (val.isNumber()) std::fprintf(stderr, "%g", val.asNumber());
+        else if (val.isNil()) std::fprintf(stderr, "nil");
+        else std::fprintf(stderr, "other");
+        std::fprintf(stderr, " absTop=%zu\n", L->getAbsoluteTop());
+        L->pushValue(val);
     }
 
     return count;

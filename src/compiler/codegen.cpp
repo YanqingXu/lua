@@ -31,7 +31,6 @@ CodeGenerator::CodeGenerator(StringPool* pool)
     , pc_(0)
     , jpc_(NO_JUMP)
     , currentBlock_(nullptr)
-    , forcedCallBase_(-1)
     , currentLine_(0)
 {
     if (pool == nullptr) {
@@ -62,7 +61,6 @@ Proto* CodeGenerator::generate(const Chunk& chunk, StrView sourceName) {
     localVars_.clear();
     upvalues_.clear();
     pc_ = 0;
-    forcedCallBase_ = -1;
     currentLine_ = 0;
     
     // 生成语句块
@@ -501,16 +499,23 @@ ValueResult CodeGenerator::emitValue(const Expr& e) {
         result = adaptLegacyExprDescValue(desc);
     }
     else if (auto* callExpr = std::get_if<CallExpr>(&e.variant)) {
-        // 函数调用 — 通过旧通道，转为 ValueResult
-        ExprDesc desc;
-        emitExpr(*callExpr, desc);
-        result = adaptLegacyExprDescValue(desc);
+        // 函数调用 — PR-5: 直接使用 emitCallExpr 通道
+        CallResultInfo info = emitCallExpr(*callExpr);
+        result.kind = ValueResult::Kind::MultiRet;
+        result.access = ValueResult::AccessKind::Call;
+        result.reg = info.baseReg;
+        result.instructionPc = info.instructionPc;
+        result.isMultiResult = true;
+        result.isSingleValue = false;
     }
     else if (auto* varargExpr = std::get_if<VarargExpr>(&e.variant)) {
-        // vararg — 通过旧通道，转为 ValueResult
-        ExprDesc desc;
-        emitExpr(*varargExpr, desc);
-        result = adaptLegacyExprDescValue(desc);
+        // vararg — PR-5: 直接使用 emitVarargExpr 通道
+        CallResultInfo info = emitVarargExpr();
+        result.kind = ValueResult::Kind::MultiRet;
+        result.access = ValueResult::AccessKind::Vararg;
+        result.instructionPc = info.instructionPc;
+        result.isMultiResult = true;
+        result.isSingleValue = false;
     }
     else if (auto* binaryExpr = std::get_if<BinaryExpr>(&e.variant)) {
         // 二元表达式 — 通过旧通道，转为 ValueResult
@@ -693,6 +698,175 @@ ValueResult CodeGenerator::forceSingleValue(const ValueResult& val) {
 }
 
 // =====================================================================
+// 调用/多返回值通道（PR-5 Call/Vararg/MultiRet pipeline）
+// =====================================================================
+
+CallResultInfo CodeGenerator::emitCallExpr(const CallExpr& e, i32 targetBase) {
+    i32 previousLine = currentLine_;
+    if (e.line > 0) {
+        currentLine_ = e.line;
+    }
+
+    i32 base;  // 函数所在的寄存器（调用帧的基址）
+    i32 explicitArgCount = static_cast<i32>(e.args.size());
+    bool hasImplicitSelf = false;
+
+    // 检查是否为方法调用（obj:method(args)）
+    if (e.isMethodCall) {
+        const MemberExpr* memberExpr = std::get_if<MemberExpr>(&e.func->variant);
+        if (!memberExpr) {
+            throw std::runtime_error("Method call must have MemberExpr as func");
+        }
+
+        ExprDesc obj;
+        expr(*memberExpr->table, obj);
+
+        ExprDesc key;
+        key.kind = ExprKind::Const;
+        key.u.s.info = stringConstant(memberExpr->member);
+        key.t = NO_JUMP;
+        key.f = NO_JUMP;
+
+        luaK_self(obj, key);
+        base = obj.u.s.info;
+        hasImplicitSelf = true;
+    }
+    else {
+        ExprDesc func;
+        expr(*e.func, func);
+        base = exp2AnyReg(func);
+    }
+
+    i32 savedFreeReg = freereg_;
+
+    auto moveRegRange = [this](i32 dst, i32 src, i32 count) {
+        if (count <= 0 || dst == src) return;
+        if (dst < src) {
+            for (i32 i = 0; i < count; i++)
+                codeABC(OpCode::MOVE, dst + i, src + i, 0);
+        } else {
+            for (i32 i = count - 1; i >= 0; i--)
+                codeABC(OpCode::MOVE, dst + i, src + i, 0);
+        }
+    };
+
+    if (targetBase >= 0) {
+        // 表构造器等场景明确指定基址
+        moveRegRange(targetBase, base, hasImplicitSelf ? 2 : 1);
+        base = targetBase;
+    }
+    else if (base < savedFreeReg) {
+        i32 newBase = savedFreeReg;
+        moveRegRange(newBase, base, hasImplicitSelf ? 2 : 1);
+        base = newBase;
+    }
+
+    i32 firstArgReg = hasImplicitSelf ? (base + 2) : (base + 1);
+    freereg_ = firstArgReg;
+    checkStack(0);
+    checkStack(explicitArgCount);
+
+    // 编译所有实参。最后一个实参如果是 Call/Vararg 则保持 multret 打开。
+    bool lastArgIsMultiRet = false;
+    i32 argIndex = 0;
+    for (const auto& arg : e.args) {
+        i32 targetReg = firstArgReg + argIndex;
+        bool isLastArg = (argIndex == explicitArgCount - 1);
+
+        if (isLastArg) {
+            // 最后一个实参：检查是否为 Call 或 Vararg
+            if (auto* innerCall = std::get_if<CallExpr>(&arg->variant)) {
+                // g(f()) — 最后一个实参是函数调用，保持 multret
+                CallResultInfo innerInfo = emitCallExpr(*innerCall, targetReg);
+                setOpenMultiRet(innerInfo);
+                lastArgIsMultiRet = true;
+            }
+            else if (std::holds_alternative<VarargExpr>(arg->variant)) {
+                // g(...) — 最后一个实参是 vararg，保持 multret
+                CallResultInfo innerInfo = emitVarargExpr();
+                // 设置 VARARG A 到 targetReg
+                Instruction inst = proto_->getInstruction(innerInfo.instructionPc);
+                SETARG_A(inst, targetReg);
+                SETARG_B(inst, 0);  // B=0 → 全部 vararg
+                proto_->setInstruction(innerInfo.instructionPc, inst);
+                lastArgIsMultiRet = true;
+            }
+            else {
+                // 普通最后实参
+                ExprDesc argDesc;
+                expr(*arg, argDesc);
+                exp2Val(argDesc);
+                discharge(argDesc, targetReg);
+            }
+        }
+        else {
+            // 非最后实参：固定为单值
+            ExprDesc argDesc;
+            expr(*arg, argDesc);
+            exp2Val(argDesc);
+            discharge(argDesc, targetReg);
+        }
+
+        if (freereg_ < targetReg + 1) {
+            freereg_ = targetReg + 1;
+        }
+        argIndex++;
+    }
+
+    i32 nargs = explicitArgCount + (hasImplicitSelf ? 1 : 0);
+
+    // B: 参数数量+1；如果最后实参是 multret，B=0
+    i32 bArg = lastArgIsMultiRet ? 0 : (nargs + 1);
+    // C=2: 默认期望 1 个返回值（上层按需修改）
+    i32 callPC = codeABC(OpCode::CALL, base, bArg, 2);
+
+    freereg_ = (savedFreeReg > (base + 1)) ? savedFreeReg : (base + 1);
+    checkStack(0);
+
+    currentLine_ = previousLine;
+
+    CallResultInfo result;
+    result.kind = CallResultInfo::Kind::Call;
+    result.baseReg = base;
+    result.instructionPc = callPC;
+    return result;
+}
+
+CallResultInfo CodeGenerator::emitVarargExpr() {
+    if (!proto_->isVararg()) {
+        throw std::runtime_error("CodeGenerator: cannot use '...' outside a vararg function");
+    }
+    i32 pc = codeABC(OpCode::VARARG, 0, 1, 0);
+
+    CallResultInfo result;
+    result.kind = CallResultInfo::Kind::Vararg;
+    result.baseReg = -1;
+    result.instructionPc = pc;
+    return result;
+}
+
+void CodeGenerator::setOpenMultiRet(CallResultInfo& info) {
+    Instruction inst = proto_->getInstruction(info.instructionPc);
+    if (info.kind == CallResultInfo::Kind::Call) {
+        SETARG_C(inst, 0);  // C=0 → 返回所有值
+    } else if (info.kind == CallResultInfo::Kind::Vararg) {
+        SETARG_B(inst, 0);  // B=0 → 复制所有 vararg
+    }
+    proto_->setInstruction(info.instructionPc, inst);
+    info.openMultiRet = true;
+}
+
+void CodeGenerator::setWantedResults(CallResultInfo& info, i32 wanted) {
+    Instruction inst = proto_->getInstruction(info.instructionPc);
+    if (info.kind == CallResultInfo::Kind::Call) {
+        SETARG_C(inst, wanted + 1);  // C = wanted+1
+    } else if (info.kind == CallResultInfo::Kind::Vararg) {
+        SETARG_B(inst, wanted + 1);  // B = wanted+1
+    }
+    proto_->setInstruction(info.instructionPc, inst);
+}
+
+// =====================================================================
 // 表达式代码生成（旧 ExprDesc 通道）
 // =====================================================================
 
@@ -728,18 +902,14 @@ void CodeGenerator::emitExpr(const StringExpr& e, ExprDesc& desc) {
 }
 
 void CodeGenerator::emitExpr(const VarargExpr&, ExprDesc& desc) {
-    // ⭐ 可变参数表达式：生成 VARARG 指令
-    // 参考：lua_c_analysis/src/lparser.c simpleexp() case TK_DOTS
-    // VARARG A B：R(A), R(A+1), ..., R(A+B-2) = vararg
-    // A = 0（稍后由 discharge 重定位）
-    // B = 1（默认复制 0 个结果，即 B-1=0；由上层按需调整为实际数量）
-    // 检查当前函数是否为可变参数函数
-    if (!proto_->isVararg()) {
-        throw std::runtime_error("CodeGenerator: cannot use '...' outside a vararg function");
-    }
-    i32 pc = codeABC(OpCode::VARARG, 0, 1, 0);
-    desc.kind = ExprKind::Vararg;
-    desc.u.s.info = pc;
+    // PR-5 兼容层：旧 ExprDesc 通道中的 vararg 默认收敛为单值。
+    // 开放多返回值传播应改走 emitVarargExpr() + setOpenMultiRet/setWantedResults。
+    CallResultInfo info = emitVarargExpr();
+    setWantedResults(info, 1);
+    desc.kind = ExprKind::Relocatable;
+    desc.u.s.info = info.instructionPc;
+    desc.t = NO_JUMP;
+    desc.f = NO_JUMP;
 }
 
 void CodeGenerator::emitExpr(const NameExpr& e, ExprDesc& desc) {
@@ -765,164 +935,14 @@ void CodeGenerator::emitExpr(const NameExpr& e, ExprDesc& desc) {
 }
 
 void CodeGenerator::emitExpr(const CallExpr& e, ExprDesc& desc) {
-    // ⭐ 字节码修复：函数调用参数寄存器分配
-   // 参考：lua_c_analysis/src/lparser.c:3356-3401 funcargs函数
-   //
-   // Lua调用约定：
-   // - 函数必须在寄存器base
-   // - 参数必须连续分配在base+1, base+2, ..., base+nargs
-   // - CALL指令格式：CALL base (nargs+1) (nresults+1)
-   //
-   // 修复前的问题：
-   // - 函数在某个寄存器（如R4）
-   // - 参数使用exp2NextReg分配，可能不连续（如R2, R3）
-   // - CALL 4 2 1 会从R5读取参数，但参数实际在R2
-   //
-   // 修复策略：
-   // 1. 确保函数在base寄存器
-   // 2. 保存当前freereg，然后设置freereg=base+1
-   // 3. 对每个参数调用exp2NextReg，自动连续分配到base+1, base+2, ...
-   // 4. 生成CALL指令
-   // 5. 重置freereg=base+1（保留返回值寄存器）
-
-   // 仅当前最外层调用消费 forcedCallBase_，避免影响其子表达式中的嵌套调用。
-    i32 forcedBase = forcedCallBase_;
-    forcedCallBase_ = -1;
-
-    i32 base;  // 函数所在的寄存器（也是调用帧的基址）
-    i32 explicitArgCount = static_cast<i32>(e.args.size());
-    bool hasImplicitSelf = false;
-
-    // 检查是否为方法调用（obj:method(args)）
-    if (e.isMethodCall) {
-        // 方法调用：使用SELF指令
-        // func应该是MemberExpr（obj.method）
-        const MemberExpr* memberExpr = std::get_if<MemberExpr>(&e.func->variant);
-        if (!memberExpr) {
-            throw std::runtime_error("Method call must have MemberExpr as func");
-        }
-
-        // 计算对象表达式
-        ExprDesc obj;
-        expr(*memberExpr->table, obj);
-
-        // 创建方法名的常量表达式
-        ExprDesc key;
-        key.kind = ExprKind::Const;
-        key.u.s.info = stringConstant(memberExpr->member);
-        key.t = NO_JUMP;
-        key.f = NO_JUMP;
-
-        // 生成SELF指令
-        // SELF A B C: R(A+1) := R(B); R(A) := R(B)[RK(C)]
-        // SELF会将对象放入base+1，方法放入base
-        luaK_self(obj, key);
-        base = obj.u.s.info;
-
-        // 方法调用包含隐式self参数（已在base+1）
-        hasImplicitSelf = true;
-    }
-    else {
-        // 普通函数调用
-        ExprDesc func;
-        expr(*e.func, func);
-
-        // 确保函数表达式在寄存器中（NonRelocatable）
-        base = exp2AnyReg(func);
-    }
-
-    // ⭐ 关键修复：确保参数连续分配在base+1之后
-    // 参考官方实现：lua_c_analysis/src/lparser.c:3394-3396
-    //
-    // 官方代码：
-    //   if (args.k != VVOID)
-    //       luaK_exp2nextreg(fs, &args);
-    //   nparams = fs->freereg - (base+1);
-    //
-    // 这里的关键是：
-    // 1. 函数已经在base寄存器，占用了一个寄存器位置
-    // 2. 调用exp2NextReg时，会自动分配到freereg位置
-    // 3. 如果freereg > base+1，说明中间有其他寄存器被占用
-    // 4. 需要确保freereg == base+1，这样参数才能紧跟函数
-
-    // 保存当前的freereg（可能有外层表达式占用的寄存器）
-    i32 savedFreeReg = freereg_;
-
-    auto moveRegRange = [this](i32 dst, i32 src, i32 count) {
-        if (count <= 0 || dst == src) {
-            return;
-        }
-        if (dst < src) {
-            for (i32 i = 0; i < count; i++) {
-                codeABC(OpCode::MOVE, dst + i, src + i, 0);
-            }
-        }
-        else {
-            for (i32 i = count - 1; i >= 0; i--) {
-                codeABC(OpCode::MOVE, dst + i, src + i, 0);
-            }
-        }
-        };
-
-    if (forcedBase >= 0) {
-        // 表构造器最后一个 listfield 的 multret 语义需要 CALL 基址对齐到指定槽位。
-        moveRegRange(forcedBase, base, hasImplicitSelf ? 2 : 1);
-        base = forcedBase;
-    }
-    else if (base < savedFreeReg) {
-        // 嵌套调用保护：
-        // 如果被调函数位于更低寄存器，直接以它为base会覆盖外层调用已占用寄存器。
-        // 将函数（以及方法调用的self）搬移到安全的高位寄存器区再发射CALL。
-        i32 newBase = savedFreeReg;
-        moveRegRange(newBase, base, hasImplicitSelf ? 2 : 1);
-        base = newBase;
-    }
-
-    // 参数起始寄存器：
-    // - 普通调用：base+1
-    // - 方法调用：base+2（base+1保留给隐式self）
-    i32 firstArgReg = hasImplicitSelf ? (base + 2) : (base + 1);
-    freereg_ = firstArgReg;
-    checkStack(0);  // ⭐ P0修复：确保maxStackSize >= freereg_
-    checkStack(explicitArgCount);  // 为参数区预留栈空间
-
-    // 将每个显式参数强制放到连续参数寄存器，避免嵌套调用临时寄存器污染参数计数
-    i32 argIndex = 0;
-    for (const auto& arg : e.args) {
-        i32 targetReg = firstArgReg + argIndex;
-        ExprDesc argDesc;
-        expr(*arg, argDesc);
-        exp2Val(argDesc);  // 固定多返回值表达式为单值参数
-        discharge(argDesc, targetReg);
-        // 锁定已写入的参数寄存器，避免后续嵌套调用覆盖前面的参数
-        if (freereg_ < targetReg + 1) {
-            freereg_ = targetReg + 1;
-        }
-        argIndex++;
-    }
-
-    i32 nargs = explicitArgCount + (hasImplicitSelf ? 1 : 0);
-
-    // 生成CALL指令
-    // CALL A B C: 调用R(A)，B-1个参数（在R(A+1)...R(A+B-1)），C-1个返回值
-    // - A = base（函数寄存器）
-    // - B = nargs + 1（参数数量+1）
-    // - C = 2（期望1个返回值，C-1=1）
-    i32 callPC = codeABC(OpCode::CALL, base, nargs + 1, 2);
-
-    // 调用后恢复寄存器分配点：
-    // - 至少保留到 base+1（返回值寄存器之后）
-    // - 不能回退到外层调用已占用寄存器之前（嵌套调用场景）
-    freereg_ = (savedFreeReg > (base + 1)) ? savedFreeReg : (base + 1);
-    checkStack(0);  // ⭐ P0修复：确保maxStackSize >= freereg_
-
-    // ⭐ P0修复：ExprKind::Call需要同时存储CALL指令的PC和函数所在的寄存器
-    // 参考：lua_c_analysis/src/lcode.c luaK_exp2nextreg() VCALL分支
-    // info: 函数所在的寄存器（返回值也在这里，用于exp2AnyReg）
-    // aux: CALL指令的PC（用于LocalStmt修改指令）
-    desc.kind = ExprKind::Call;
-    desc.u.s.info = base;     // 存储函数所在的寄存器（返回值也在这里）
-    desc.u.s.aux = callPC;    // 存储CALL指令的PC
+    // PR-5 兼容层：旧 ExprDesc 通道中的调用表达式默认收敛为单值。
+    // 开放多返回值传播应改走 emitCallExpr() + setOpenMultiRet/setWantedResults。
+    CallResultInfo info = emitCallExpr(e);
+    setWantedResults(info, 1);
+    desc.kind = ExprKind::NonRelocatable;
+    desc.u.s.info = info.baseReg;
+    desc.t = NO_JUMP;
+    desc.f = NO_JUMP;
 }
 
 void CodeGenerator::emitExpr(const IndexExpr& e, ExprDesc& desc) {
@@ -1000,12 +1020,12 @@ void CodeGenerator::emitExpr(const FunctionExpr& e, ExprDesc& desc) {
 
 void CodeGenerator::emitExpr(const ParenExpr& e, ExprDesc& desc) {
     // Lua 5.1 语义：括号表达式会将 multret（CALL/VARARG）收敛为单值。
-    ExprDesc inner;
-    expr(*e.expression, inner);
-    exp2Val(inner);  // 先将 CALL/VARARG 固定为单返回值
-    i32 reg = exp2AnyReg(inner);
+    ValueResult inner = forceSingleValue(emitValue(*e.expression));
+    i32 reg = valueToAnyReg(inner);
     desc.kind = ExprKind::NonRelocatable;
     desc.u.s.info = reg;
+    desc.t = NO_JUMP;
+    desc.f = NO_JUMP;
 }
 
 void CodeGenerator::discharge(ExprDesc& desc, i32 reg) {
@@ -1166,13 +1186,6 @@ i32 CodeGenerator::exp2AnyReg(ExprDesc& desc) {
         return desc.u.s.info;
     }
 
-    // ⭐ 关键修复：函数调用表达式的结果已经在寄存器中
-    // callExpr 会设置 desc.kind = ExprKind::Call，u.s.info = base（函数所在的寄存器）
-    // 返回值就位于 base，不需要重新分配寄存器
-    if (desc.kind == ExprKind::Call) {
-        return desc.u.s.info;  // 返回函数所在的寄存器（返回值也在这里）
-    }
-
     if (desc.kind == ExprKind::NonRelocatable) {
         return desc.u.s.info;
     }
@@ -1237,11 +1250,9 @@ i32 CodeGenerator::resolveUpvalue(const Str& name) {
 
 void CodeGenerator::exp2Val(ExprDesc& desc) {
     // ⭐ P0修复：参考lua_c_analysis/src/lcode.c:1702-1707
-    // exp2Val 调用 luaK_dischargevars，处理 Local/Vararg/Call 等需要"求值"的表达式类型
-    // 确保多返回值表达式被固定为单一返回值
-    if (desc.kind == ExprKind::Vararg || desc.kind == ExprKind::Call) {
-        luaK_dischargevars(desc);
-    } else if (desc.kind == ExprKind::Local) {
+    // 旧 ExprDesc 通道中的 Call/Vararg 已在 emitExpr(...) 兼容层中收敛为单值，
+    // 这里仅需将 Local 视为已在寄存器中的普通值。
+    if (desc.kind == ExprKind::Local) {
         desc.kind = ExprKind::NonRelocatable;
     }
 }
@@ -1285,24 +1296,14 @@ void CodeGenerator::emitStmt(const AssignStmt& s) {
     // 处理最后一个右值表达式（可能是多返回值表达式）
     if (nexps > 0 && nexps <= nvars) {
         i32 targetIndex = nexps - 1;
-        ExprDesc val;
-        expr(*s.values[targetIndex], val);
+        const Expr& lastExpr = *s.values[targetIndex];
+        i32 wanted = nvars - targetIndex;
 
-        CallResultInfo callResult = adaptLegacyExprDescCall(val);
-        if (callResult.valid()) {
-            i32 wanted = nvars - targetIndex;
-            i32 pc = callResult.instructionPc;
-            Instruction inst = proto_->getInstruction(pc);
+        // PR-5: 从 AST 直接检测 Call/Vararg，跳过 ExprDesc 中转
+        if (auto* callExpr = std::get_if<CallExpr>(&lastExpr.variant)) {
+            CallResultInfo callResult = emitCallExpr(*callExpr);
+            setWantedResults(callResult, wanted);
             i32 valueBase = callResult.baseReg;
-
-            if (callResult.kind == CallResultInfo::Kind::Vararg) {
-                SETARG_B(inst, wanted + 1);
-                proto_->setInstruction(pc, inst);
-                valueBase = GETARG_A(inst);
-            } else {
-                SETARG_C(inst, wanted + 1);
-                proto_->setInstruction(pc, inst);
-            }
 
             for (i32 j = 0; j < wanted; j++) {
                 LValueRef target = emitLValue(*s.targets[targetIndex + j]);
@@ -1316,9 +1317,33 @@ void CodeGenerator::emitStmt(const AssignStmt& s) {
             }
             return;
         }
+        else if (std::holds_alternative<VarargExpr>(lastExpr.variant)) {
+            CallResultInfo callResult = emitVarargExpr();
+            Instruction inst = proto_->getInstruction(callResult.instructionPc);
+            SETARG_B(inst, wanted + 1);
+            proto_->setInstruction(callResult.instructionPc, inst);
+            i32 valueBase = GETARG_A(inst);
 
-        LValueRef target = emitLValue(*s.targets[targetIndex]);
-        emitStore(target, val);
+            for (i32 j = 0; j < wanted; j++) {
+                LValueRef target = emitLValue(*s.targets[targetIndex + j]);
+
+                ExprDesc tmp;
+                tmp.kind = ExprKind::NonRelocatable;
+                tmp.u.s.info = valueBase + j;
+                tmp.t = NO_JUMP;
+                tmp.f = NO_JUMP;
+                emitStore(target, tmp);
+            }
+            return;
+        }
+        else {
+            // 普通表达式
+            ExprDesc val;
+            expr(lastExpr, val);
+
+            LValueRef target = emitLValue(*s.targets[targetIndex]);
+            emitStore(target, val);
+        }
     }
 
     // 如果变量多于值，剩余变量赋值为 nil
@@ -1378,63 +1403,44 @@ void CodeGenerator::emitStmt(const LocalStmt& s) {
 
         // 处理最后一个表达式（可能是多返回值表达式）
         if (nexps <= nvars) {
-            ExprDesc val;
-            expr(*s.values[nexps - 1], val);
+            const Expr& lastExpr = *s.values[nexps - 1];
+            i32 wanted = nvars - (nexps - 1);
+            i32 targetReg = base + (nexps - 1);
 
-            // 如果是多返回值表达式（Vararg 或 Call），调整返回值数量
-            CallResultInfo callResult = adaptLegacyExprDescCall(val);
-            if (callResult.valid()) {
-                // 需要 nvars - (nexps - 1) 个返回值
-                i32 wanted = nvars - (nexps - 1);
-                i32 targetReg = base + (nexps - 1);  // ⭐ 使用 base 而不是 nactvar_
+            // PR-5: 从 AST 直接检测 Call/Vararg，跳过 ExprDesc 中转
+            if (auto* callExpr = std::get_if<CallExpr>(&lastExpr.variant)) {
+                CallResultInfo callResult = emitCallExpr(*callExpr);
+                setWantedResults(callResult, wanted);
 
-                // ⭐ P0修复：不要修改CALL指令的A参数！
-                // 相反，修改C参数（返回值数量），然后生成MOVE指令将返回值移动到目标寄存器
-                // ⭐ P0修复：对于Call表达式，PC存储在aux字段中，函数寄存器存储在info字段中
-                i32 pc = callResult.instructionPc;
-                i32 funcReg = callResult.baseReg;
-                Instruction inst = proto_->getInstruction(pc);
-                i32 oldA = GETARG_A(inst);
-
-                //std::fprintf(stderr, "DEBUG LocalStmt: CALL at pc=%d, oldA=%d, funcReg=%d, targetReg=%d, wanted=%d\n",
-                //             pc, oldA, funcReg, targetReg, wanted);
-
-                if (callResult.kind == CallResultInfo::Kind::Vararg) {
-                    // VARARG A B：修改A和B参数
-                    SETARG_A(inst, targetReg);
-                    SETARG_B(inst, wanted + 1);
-                    proto_->setInstruction(pc, inst);
-                } else {
-                    // CALL A B C：只修改返回值数量（C）。
-                    // 不能直接改 A：
-                    // - A 是函数寄存器，参数位于 A+1...A+n
-                    // - 直接改 A 会让 VM 从错误寄存器读取函数和参数
-                    // 对于 targetReg != funcReg 的情况，调用后补 MOVE。
-                    SETARG_C(inst, wanted + 1);
-                    proto_->setInstruction(pc, inst);
-
-                    i32 callBase = GETARG_A(inst);
-                    if (targetReg != callBase) {
-                        // 将返回值从 callBase... 搬到 targetReg...
-                        // 注意重叠区：target 在右侧时需逆序拷贝，避免覆盖源值。
-                        if (targetReg > callBase) {
-                            for (i32 j = wanted - 1; j >= 0; --j) {
-                                codeABC(OpCode::MOVE, targetReg + j, callBase + j, 0);
-                            }
-                        } else {
-                            for (i32 j = 0; j < wanted; ++j) {
-                                codeABC(OpCode::MOVE, targetReg + j, callBase + j, 0);
-                            }
+                i32 callBase = callResult.baseReg;
+                if (targetReg != callBase) {
+                    // 将返回值从 callBase... 搬到 targetReg...
+                    // 注意重叠区：target 在右侧时需逆序拷贝，避免覆盖源值。
+                    if (targetReg > callBase) {
+                        for (i32 j = wanted - 1; j >= 0; --j) {
+                            codeABC(OpCode::MOVE, targetReg + j, callBase + j, 0);
+                        }
+                    } else {
+                        for (i32 j = 0; j < wanted; ++j) {
+                            codeABC(OpCode::MOVE, targetReg + j, callBase + j, 0);
                         }
                     }
                 }
-
-                // ⭐ 关键修复：多返回值表达式会初始化所有剩余变量
-                // 标记所有变量都已初始化，避免后续生成 LOADNIL 指令
                 allVarsInitialized = true;
-            } else {
+            }
+            else if (std::holds_alternative<VarargExpr>(lastExpr.variant)) {
+                CallResultInfo callResult = emitVarargExpr();
+                Instruction inst = proto_->getInstruction(callResult.instructionPc);
+                SETARG_A(inst, targetReg);
+                SETARG_B(inst, wanted + 1);
+                proto_->setInstruction(callResult.instructionPc, inst);
+                allVarsInitialized = true;
+            }
+            else {
                 // 普通表达式
-                discharge(val, base + (nexps - 1));  // ⭐ 使用 base 而不是 nactvar_
+                ExprDesc val;
+                expr(lastExpr, val);
+                discharge(val, base + (nexps - 1));
             }
         }
     }
@@ -1453,7 +1459,7 @@ void CodeGenerator::emitStmt(const LocalStmt& s) {
 }
 
 void CodeGenerator::emitStmt(const ReturnStmt& s) {
-    // 返回语句
+    // 返回语句 — PR-5: 支持 return f() / return ... 的开放 multret 传播
     i32 nret = static_cast<i32>(s.values.size());
     if (nret == 0) {
         codeABC(OpCode::RETURN, 0, 1, 0);
@@ -1461,13 +1467,58 @@ void CodeGenerator::emitStmt(const ReturnStmt& s) {
         i32 base = nactvar_;
         i32 savedFreereg = freereg_;
         freereg_ = base;
-        // Reserve the return value registers so maxStackSize covers them.
         checkStack(nret);
-        for (i32 i = 0; i < nret; i++) {
+
+        // 处理前 nret-1 个值（每个固定为单值）
+        for (i32 i = 0; i < nret - 1; i++) {
             ExprDesc val;
             expr(*s.values[i], val);
             discharge(val, base + i);
         }
+
+        // 确保 freereg_ 指向最后一个值应落的位置
+        freereg_ = base + (nret - 1);
+
+        // 处理最后一个值 — 可能是 Call/Vararg 开放多返回
+        const Expr& lastExpr = *s.values[nret - 1];
+        if (auto* callExpr = std::get_if<CallExpr>(&lastExpr.variant)) {
+            // return ..., f() — 保持 multret 传播
+            CallResultInfo info = emitCallExpr(*callExpr, base + (nret - 1));
+            setOpenMultiRet(info);
+            // emitCallExpr 保证 callBase >= freereg_（= base + nret - 1）
+            // 如果 callBase 恰好等于 base + (nret - 1)，完美对齐
+            if (info.baseReg == base + (nret - 1)) {
+                codeABC(OpCode::RETURN, base, 0, 0);  // B=0 → 从 base 到栈顶
+            } else {
+                // callBase 在更高位置（嵌套调用保护发生了搬移），
+                // 无法 MOVE multret，退化为单值
+                Instruction inst = proto_->getInstruction(info.instructionPc);
+                SETARG_C(inst, 2);  // 恢复为单值 C=2
+                proto_->setInstruction(info.instructionPc, inst);
+                codeABC(OpCode::MOVE, base + (nret - 1), info.baseReg, 0);
+                codeABC(OpCode::RETURN, base, nret + 1, 0);
+            }
+            freereg_ = savedFreereg;
+            return;
+        }
+        else if (std::holds_alternative<VarargExpr>(lastExpr.variant)) {
+            // return ..., ... — 保持 multret 传播
+            CallResultInfo info = emitVarargExpr();
+            Instruction inst = proto_->getInstruction(info.instructionPc);
+            SETARG_A(inst, base + (nret - 1));
+            SETARG_B(inst, 0);  // B=0 → 复制全部 vararg
+            proto_->setInstruction(info.instructionPc, inst);
+            codeABC(OpCode::RETURN, base, 0, 0);  // B=0 → 返回到栈顶
+            freereg_ = savedFreereg;
+            return;
+        }
+        else {
+            // 普通最后一个值
+            ExprDesc val;
+            expr(lastExpr, val);
+            discharge(val, base + (nret - 1));
+        }
+
         codeABC(OpCode::RETURN, base, nret + 1, 0);
         freereg_ = savedFreereg;
     }
@@ -1541,26 +1592,16 @@ void CodeGenerator::emitStmt(const DoStmt& s) {
 }
 
 void CodeGenerator::emitStmt(const CallStmt& s) {
-    // ⭐ P0修复：函数调用语句（如 print("Hello")）
-    // 参考 lua_c_analysis/src/lparser.c 中的 exprstat 函数
-    ExprDesc desc;
-    expr(*s.call, desc);
-
-    // 对于作为语句的函数调用，需要丢弃返回值
-    // 修改CALL指令的C参数为1，表示0个返回值
-    CallResultInfo callResult = adaptLegacyExprDescCall(desc);
-    if (callResult.kind == CallResultInfo::Kind::Call) {
-        // 找到最后生成的CALL指令并修改其C参数
-        usize lastInst = proto_->getInstructionCount() - 1;
-        Instruction inst = proto_->getInstruction(lastInst);
-        if (GET_OPCODE(inst) == OpCode::CALL) {
-            // 重新设置C参数为1（表示0个返回值）
-            i32 a = GETARG_A(inst);
-            i32 b = GETARG_B(inst);
-            proto_->setInstruction(lastInst, CREATE_ABC(OpCode::CALL, a, b, 1));
-        }
-        // 释放函数寄存器
-        freeReg(callResult.baseReg);
+    // PR-5: 直接使用 emitCallExpr，设置 C=1 丢弃所有返回值
+    const Expr& callExpr = *s.call;
+    if (auto* ce = std::get_if<CallExpr>(&callExpr.variant)) {
+        CallResultInfo info = emitCallExpr(*ce);
+        setWantedResults(info, 0);  // C=1 → 0 个返回值
+        freeReg(info.baseReg);
+    } else {
+        // 回退：非 CallExpr（理论上 parser 不会生成此情况）
+        ExprDesc desc;
+        expr(callExpr, desc);
     }
 
     // 语句级函数调用不会跨语句保留临时寄存器。
@@ -2328,8 +2369,8 @@ void CodeGenerator::emitExpr(const TableExpr& table, ExprDesc& desc) {
     i32 na = 0;       // 数组元素总数
     i32 nh = 0;       // 哈希元素总数
     i32 tostore = 0;  // 待批量存储的数组元素数
-    ExprDesc lastArrayExpr;  // 最后一个数组字段表达式（用于 multret）
-    bool hasLastArrayExpr = false;
+    CallResultInfo lastCallResult;  // 最后一个数组字段的调用结果（用于 multret）
+    bool hasLastCallResult = false;
 
     for (usize i = 0; i < table.fields.size(); i++) {
         const auto& field = table.fields[i];
@@ -2356,34 +2397,31 @@ void CodeGenerator::emitExpr(const TableExpr& table, ExprDesc& desc) {
             na++;
             tostore++;
 
+            // PR-5: 最后一个 listfield 若为 CALL/VARARG，通过新通道处理 multret
+            if (isLastField) {
+                if (auto* callExpr = std::get_if<CallExpr>(&field.value->variant)) {
+                    // 表构造器最后一个数组字段是函数调用 — 直接用 emitCallExpr 指定基址
+                    i32 targetBase = tableReg + tostore;
+                    CallResultInfo info = emitCallExpr(*callExpr, targetBase);
+                    lastCallResult = info;
+                    hasLastCallResult = true;
+                    continue;
+                }
+                else if (std::holds_alternative<VarargExpr>(field.value->variant)) {
+                    // 表构造器最后一个数组字段是 vararg
+                    CallResultInfo info = emitVarargExpr();
+                    lastCallResult = info;
+                    hasLastCallResult = true;
+                    continue;
+                }
+            }
+
             ExprDesc val;
-            i32 savedForcedBase = forcedCallBase_;
-
-            // Lua 5.1：constructor 最后一个 listfield 若为 CALL/VARARG，允许多返回值展开。
-            // 对 CALL，我们提前强制其调用基址对齐到该字段应写入的起始寄存器：
-            //   target = R(tableReg + tostore)
-            // 这样后续 setmultret(CALL) + SETLIST B=0 时，展开结果会落在正确区间。
-            if (isLastField && std::holds_alternative<CallExpr>(field.value->variant)) {
-                forcedCallBase_ = tableReg + tostore;
-            }
-
-            try {
-                expr(*field.value, val);
-            } catch (...) {
-                forcedCallBase_ = savedForcedBase;
-                throw;
-            }
-            forcedCallBase_ = savedForcedBase;
-
-            if (isLastField && (val.kind == ExprKind::Vararg || val.kind == ExprKind::Call)) {
-                lastArrayExpr = val;
-                hasLastArrayExpr = true;
-            } else {
-                exp2NextReg(val);
-            }
+            expr(*field.value, val);
+            exp2NextReg(val);
 
             // 达到批量阈值时发射 SETLIST
-            if (!hasLastArrayExpr && tostore == LFIELDS_PER_FLUSH) {
+            if (!hasLastCallResult && tostore == LFIELDS_PER_FLUSH) {
                 i32 c = (na - 1) / LFIELDS_PER_FLUSH + 1;
                 codeABC(OpCode::SETLIST, tableReg, LFIELDS_PER_FLUSH, c);
                 freereg_ = tableReg + 1;  // 释放批量寄存器
@@ -2395,44 +2433,32 @@ void CodeGenerator::emitExpr(const TableExpr& table, ExprDesc& desc) {
 
     // 5. 发射剩余数组元素的 SETLIST
     if (tostore > 0) {
-        if (hasLastArrayExpr) {
-            // Lua 5.1 对齐：最后一个 listfield 为 multret 时
-            // 1) setmultret(CALL/VARARG)
-            // 2) SETLIST B=0（LUA_MULTRET）
-            i32 lastPc = (lastArrayExpr.kind == ExprKind::Call)
-                ? lastArrayExpr.u.s.aux
-                : lastArrayExpr.u.s.info;
-
-            Instruction inst = proto_->getInstruction(lastPc);
-            OpCode op = GET_OPCODE(inst);
+        if (hasLastCallResult) {
+            // PR-5: 最后一个 listfield 为 Call/Vararg multret
+            // 通过 CallResultInfo 设置开放多返回，然后发 SETLIST B=0
             i32 targetBase = tableReg + tostore;
 
-            if (lastArrayExpr.kind == ExprKind::Call) {
-                if (op != OpCode::CALL) {
-                    throw std::runtime_error("CodeGenerator: expected CALL in table multret field");
-                }
-
-                // 强制基址应已在表达式生成阶段完成，这里只做一致性检查并开启 multret。
+            if (lastCallResult.kind == CallResultInfo::Kind::Call) {
+                // 验证 CALL 基址对齐（emitCallExpr 已通过 targetBase 参数保证）
+                Instruction inst = proto_->getInstruction(lastCallResult.instructionPc);
                 i32 callBase = GETARG_A(inst);
                 if (callBase != targetBase) {
                     throw std::runtime_error("CodeGenerator: CALL base mismatch in table multret field");
                 }
-                SETARG_C(inst, 0);  // C=0 -> 返回所有值
+                setOpenMultiRet(lastCallResult);
             } else {
-                if (op != OpCode::VARARG) {
-                    throw std::runtime_error("CodeGenerator: expected VARARG in table multret field");
-                }
-                SETARG_A(inst, targetBase);  // 结果起始寄存器
-                SETARG_B(inst, 0);           // B=0 -> 复制所有 vararg
+                // Vararg: 设置结果起始到 targetBase，并开放传播
+                Instruction inst = proto_->getInstruction(lastCallResult.instructionPc);
+                SETARG_A(inst, targetBase);
+                proto_->setInstruction(lastCallResult.instructionPc, inst);
+                setOpenMultiRet(lastCallResult);
             }
-            proto_->setInstruction(lastPc, inst);
 
             i32 c = (na - 1) / LFIELDS_PER_FLUSH + 1;
             codeABC(OpCode::SETLIST, tableReg, 0, c);  // B=0 -> 到栈顶（LUA_MULTRET）
             freereg_ = tableReg + 1;
             checkStack(0);
 
-            // 参考 Lua 5.1 lastlistfield: multret 情况下 na--（最后元素数量不确定）
             na--;
         } else {
             // 固定数量元素批量写入
@@ -2634,21 +2660,24 @@ void CodeGenerator::emitStmt(const ForInStmt& s) {
         throw std::runtime_error("CodeGenerator: for-in loop requires exactly 1 iterator expression");
     }
 
-    // 计算迭代器表达式
-    ExprDesc iterDesc;
-    expr(*s.iterators[0], iterDesc);
-
-    // 迭代器表达式应该返回3个值，我们需要确保它们在连续的寄存器中
-    // 对于函数调用，exp2NextReg会处理多返回值
-    if (iterDesc.kind == ExprKind::Call) {
-        // 函数调用，需要3个返回值
-        // 确保返回值存储在R(base), R(base+1), R(base+2)
-        discharge(iterDesc, base);
-        freereg_ = base + 3;  // 预留3个寄存器
-        checkStack(0);  // ⭐ P0修复：确保maxStackSize >= freereg_
+    // 计算迭代器表达式。当前实现要求唯一的迭代表达式直接提供
+    // generator/state/control 三元组，因此这里显式消费 Call/Vararg 多返回值通道。
+    const Expr& iteratorExpr = *s.iterators[0];
+    if (auto* callExpr = std::get_if<CallExpr>(&iteratorExpr.variant)) {
+        CallResultInfo info = emitCallExpr(*callExpr, base);
+        setWantedResults(info, 3);
+        freereg_ = base + 3;
+        checkStack(0);
+    } else if (std::holds_alternative<VarargExpr>(iteratorExpr.variant)) {
+        CallResultInfo info = emitVarargExpr();
+        Instruction inst = proto_->getInstruction(info.instructionPc);
+        SETARG_A(inst, base);
+        SETARG_B(inst, 4);  // B=4 -> 3 个结果
+        proto_->setInstruction(info.instructionPc, inst);
+        freereg_ = base + 3;
+        checkStack(0);
     } else {
-        // 不是函数调用，这是错误的
-        throw std::runtime_error("CodeGenerator: for-in loop iterator must be a function call");
+        throw std::runtime_error("CodeGenerator: for-in loop iterator must be a function call or vararg");
     }
 
     // 进入可break的代码块（在添加循环变量之前）

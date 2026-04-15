@@ -442,11 +442,19 @@ static void vmPostcall(LuaState* L, i32 funcPos, i32 wantedResults,
         // 将返回值从 firstResult 复制到 funcPos
         i32 i = wantedResults;
         usize src = firstResult;
+        std::fprintf(stderr, "[POSTCALL] funcPos=%d wanted=%d firstResult=%zu currentTop=%zu\n",
+                     funcPos, wantedResults, firstResult, currentTop);
         while (i != 0 && src < currentTop) {
+            std::fprintf(stderr, "[POSTCALL] copy stack[%zu] -> stack[%zu] val=", src, res);
+            if (stack[src].isNumber()) std::fprintf(stderr, "%g", stack[src].asNumber());
+            else if (stack[src].isNil()) std::fprintf(stderr, "nil");
+            else std::fprintf(stderr, "other");
+            std::fprintf(stderr, "\n");
             stack[res++] = stack[src++];
             i--;
         }
         while (i-- > 0) stack[res++] = Value();
+        std::fprintf(stderr, "[POSTCALL] final absoluteTop=%zu\n", res);
         L->setAbsoluteTop(res);
     }
 }
@@ -494,16 +502,23 @@ static bool vmPrecall(LuaState* L, i32 funcIndex, i32 nArgs, i32 nResults) {
         // ---- C 函数：创建 CallInfo → 调用 → postcall → 弹出 ----
         CFunction cfunc = func->getCFunction();
 
+        // B=0 (nArgs<0): 实际参数数量由栈顶推断
+        i32 actualNArgs = nArgs;
+        if (nArgs < 0) {
+            actualNArgs = static_cast<i32>(L->getAbsoluteTop())
+                        - static_cast<i32>(funcPos + 1);
+        }
+
         CallInfo& ci = L->pushCallInfo();
         ci.func = funcPos;
         ci.base = funcPos + 1;
-        ci.top = funcPos + 1 + nArgs + 20;
+        ci.top = funcPos + 1 + actualNArgs + 20;
         ci.nresults = nResults;
         ci.savedpc = nullptr;
         ci.tailcalls = 0;
 
         while (stack.size() < ci.top) stack.push(Value());
-        L->setAbsoluteTop(funcPos + 1 + nArgs);
+        L->setAbsoluteTop(funcPos + 1 + actualNArgs);
 
         dispatchCallHook(L);
 
@@ -536,8 +551,17 @@ static bool vmPrecall(LuaState* L, i32 funcIndex, i32 nArgs, i32 nResults) {
 
         if (proto->isVararg()) {
             // adjust_varargs 逻辑
-            while (actualArgs < numParams) { stack.push(Value()); actualArgs++; }
             usize oldBase = funcPos + 1;
+            usize minArgsTop = oldBase + static_cast<usize>(numParams);
+            while (stack.size() < minArgsTop) {
+                stack.push(Value());
+            }
+            for (i32 i = actualArgs; i < numParams; i++) {
+                stack[oldBase + static_cast<usize>(i)] = Value();
+            }
+            if (actualArgs < numParams) {
+                actualArgs = numParams;
+            }
             base = oldBase + static_cast<usize>(actualArgs);
             stack.checkSpace(static_cast<usize>(numParams) + 1);
             for (i32 i = 0; i < numParams; i++) {
@@ -546,7 +570,16 @@ static bool vmPrecall(LuaState* L, i32 funcIndex, i32 nArgs, i32 nResults) {
             }
         } else {
             base = funcPos + 1;
-            while (actualArgs < numParams) { stack.push(Value()); actualArgs++; }
+            usize minArgsTop = base + static_cast<usize>(numParams);
+            while (stack.size() < minArgsTop) {
+                stack.push(Value());
+            }
+            for (i32 i = actualArgs; i < numParams; i++) {
+                stack[base + static_cast<usize>(i)] = Value();
+            }
+            if (actualArgs < numParams) {
+                actualArgs = numParams;
+            }
         }
 
         CallInfo& ci = L->pushCallInfo();
@@ -701,15 +734,23 @@ static void vmVararg(LuaState* L, Value*& base, Proto* proto, i32 a, i32 b) {
     i32 n = static_cast<i32>(ci.base - ci.func - 1) - numParams;
     if (n < 0) n = 0;
 
+    std::fprintf(stderr, "[VARARG] a=%d b=%d n=%d ci.base=%zu ci.func=%zu numParams=%d\n",
+        a, b, n, ci.base, ci.func, numParams);
+
     i32 wanted;
     if (b == 0) {
         wanted = n;
         usize neededTop = ci.base + static_cast<usize>(a) + static_cast<usize>(n);
+        // Use setTop to both ensure capacity AND sync Stack::top_.
+        // setTop nil-fills positions Stack::top_..neededTop-1, but that's fine
+        // because the for loop below will overwrite them with actual vararg values.
         if (stack.size() < neededTop) {
-            stack.checkSpace(neededTop - stack.size());
+            stack.setTop(neededTop);
             base = refreshBase(L);
         }
-        L->setAbsoluteTop(ci.base + static_cast<usize>(a) + static_cast<usize>(n));
+        L->setAbsoluteTop(neededTop);
+        std::fprintf(stderr, "[VARARG] open multret: wanted=%d neededTop=%zu absTop=%zu stackTop=%zu\n",
+            wanted, neededTop, neededTop, stack.size());
     } else {
         wanted = b - 1;
     }
@@ -717,6 +758,9 @@ static void vmVararg(LuaState* L, Value*& base, Proto* proto, i32 a, i32 b) {
     for (i32 j = 0; j < wanted; j++) {
         if (j < n) {
             usize srcIndex = ci.base - static_cast<usize>(n) + static_cast<usize>(j);
+            std::fprintf(stderr, "[VARARG] copy j=%d srcIdx=%zu val=%s\n",
+                j, srcIndex, stack[srcIndex].isNumber() ? 
+                    std::to_string(stack[srcIndex].asNumber()).c_str() : "non-number");
             base[a + j] = stack[srcIndex];
         } else {
             base[a + j] = Value();
@@ -855,6 +899,21 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
            ? static_cast<usize>(ci.savedpc - proto->getCode().data())
            : 0;
 
+        // dump bytecode at entry
+        {
+            const Vec<Instruction>& dcode = proto->getCode();
+            std::fprintf(stderr, "[BCDUMP] proto(%p) %zu instructions, pc=%zu\n",
+                (void*)proto, dcode.size(), pc);
+            for (usize di = 0; di < dcode.size(); di++) {
+                Instruction dinst = dcode[di];
+                std::fprintf(stderr, "  [%zu] op=%d A=%d B=%d C=%d Bx=%d sBx=%d\n",
+                    di, static_cast<int>(GET_OPCODE(dinst)),
+                    GETARG_A(dinst), GETARG_B(dinst), GETARG_C(dinst),
+                    GETARG_Bx(dinst), GETARG_sBx(dinst));
+            }
+        }
+
+
         // 确保栈空间
         usize requiredTop = ci.base + proto->getMaxStackSize();
         if (stack.capacity() < requiredTop)
@@ -912,6 +971,13 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
             // ============== 基础操作 ==============
 
             case OpCode::MOVE:
+                std::fprintf(stderr, "[MOVE] pc=%zu a=%d b=%d base[b]=", instructionPc, a, b);
+                if (base[b].isNumber()) std::fprintf(stderr, "%g", base[b].asNumber());
+                else if (base[b].isNil()) std::fprintf(stderr, "nil");
+                else if (base[b].isFunction()) std::fprintf(stderr, "function");
+                else if (base[b].isString()) std::fprintf(stderr, "'%s'", base[b].asString()->c_str());
+                else std::fprintf(stderr, "other");
+                std::fprintf(stderr, "\n");
                 base[a] = base[b];
                 break;
 
@@ -1115,6 +1181,26 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
                 i32 nArgs    = b - 1;
                 i32 nResults = c - 1;
 
+                {
+                    CallInfo& dbgCI = L->getCurrentCallInfo();
+                    std::fprintf(stderr, "[CALL] pc=%zu a=%d B=%d C=%d nArgs=%d nRes=%d base=%zu absTop=%zu\n",
+                        instructionPc, a, b, c, nArgs, nResults, dbgCI.base, L->getAbsoluteTop());
+                    if (nArgs < 0) {
+                        // show stack from base+a to absTop
+                        usize funcP = dbgCI.base + a;
+                        std::fprintf(stderr, "[CALL] B=0 stack from %zu to %zu:\n", funcP, L->getAbsoluteTop());
+                        Stack& dbgStk = L->getStack();
+                        for (usize si = funcP; si < L->getAbsoluteTop(); si++) {
+                            Value& v = dbgStk[si];
+                            if (v.isNumber()) std::fprintf(stderr, "  [%zu] number=%g\n", si, v.asNumber());
+                            else if (v.isFunction()) std::fprintf(stderr, "  [%zu] function\n", si);
+                            else if (v.isString()) std::fprintf(stderr, "  [%zu] string='%s'\n", si, v.asString()->c_str());
+                            else if (v.isNil()) std::fprintf(stderr, "  [%zu] nil\n", si);
+                            else std::fprintf(stderr, "  [%zu] other\n", si);
+                        }
+                    }
+                }
+
                 // ---- Trace: call 事件 ----
                 if (g_traceSink) {
                     TraceEvent cevt;
@@ -1151,8 +1237,31 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
                 {
                     CallInfo& callerCI = L->getCurrentCallInfo();
                     Stack& stack = L->getStack();
-                    stack.setTop(callerCI.top);
-                    L->setAbsoluteTop(callerCI.top);
+                    // nResults = -1 (C=0) → 多返回值模式，vmPostcall 已正确设置 absoluteTop，不可覆盖
+                    if (nResults >= 0) {
+                        std::fprintf(stderr, "[CALL-POST] before setTop: callerCI.top=%zu stack.top=%zu absTop=%zu\n",
+                                     callerCI.top, stack.size(), L->getAbsoluteTop());
+                        std::fprintf(stderr, "[CALL-POST] base+a=%zu stack[base+a]=", callerCI.base + static_cast<usize>(a));
+                        {
+                            usize pos = callerCI.base + static_cast<usize>(a);
+                            if (stack[pos].isNumber()) std::fprintf(stderr, "%g", stack[pos].asNumber());
+                            else if (stack[pos].isNil()) std::fprintf(stderr, "nil");
+                            else if (stack[pos].isFunction()) std::fprintf(stderr, "function");
+                            else std::fprintf(stderr, "other");
+                        }
+                        std::fprintf(stderr, "\n");
+                        stack.setTop(callerCI.top);
+                        L->setAbsoluteTop(callerCI.top);
+                        std::fprintf(stderr, "[CALL-POST] after setTop: stack[base+a]=");
+                        {
+                            usize pos = callerCI.base + static_cast<usize>(a);
+                            if (stack[pos].isNumber()) std::fprintf(stderr, "%g", stack[pos].asNumber());
+                            else if (stack[pos].isNil()) std::fprintf(stderr, "nil");
+                            else if (stack[pos].isFunction()) std::fprintf(stderr, "function");
+                            else std::fprintf(stderr, "other");
+                        }
+                        std::fprintf(stderr, "\n");
+                    }
                 }
                 base = refreshBase(L);
                 break;
@@ -1200,6 +1309,10 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
                 CallInfo& ci = L->getCurrentCallInfo();
                 Stack& stack = L->getStack();
 
+                // 关闭 upvalues（必须在移动返回值和收缩栈之前）
+                // 参考 lua_c_analysis/src/lvm.c OP_RETURN: luaF_close(L, base) 在 luaD_poscall 之前
+                L->closeUpvalues(ci.base);
+
                 // 计算返回值数量
                 i32 nres;
                 if (b == 0) {
@@ -1218,9 +1331,6 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
                 while (stack.size() > newTop) stack.pop();
                 // 同步LuaState逻辑栈顶，避免postcall按过期top_计算返回值数量
                 L->setAbsoluteTop(newTop);
-
-                // 关闭 upvalues
-                L->closeUpvalues(ci.base);
 
                 if (--nexeccalls == 0) {
                     return ExecResult::Returned; // 最外层函数返回

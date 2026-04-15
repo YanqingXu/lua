@@ -208,6 +208,39 @@ private:
     ValueResult forceSingleValue(const ValueResult& val);
 
     // =====================================================================
+    // 调用/多返回值通道（PR-5 Call/Vararg/MultiRet pipeline）
+    // =====================================================================
+
+    /**
+     * @brief 编译函数调用表达式，直接返回 CallResultInfo
+     *
+     * 不经过 ExprDesc，让 Call 结果有独立结构承载。
+     * @param e       调用表达式 AST
+     * @param targetBase 可选的强制基址（用于表构造器最后字段对齐）。
+     *                   -1 表示不强制。
+     * @return 调用结果描述（含 baseReg、instructionPc）
+     */
+    CallResultInfo emitCallExpr(const CallExpr& e, i32 targetBase = -1);
+
+    /**
+     * @brief 编译 vararg 表达式，直接返回 CallResultInfo
+     *
+     * 不经过 ExprDesc，让 Vararg 结果有独立结构承载。
+     * @return vararg 结果描述（含 instructionPc）
+     */
+    CallResultInfo emitVarargExpr();
+
+    /**
+     * @brief 将 CallResultInfo 设为开放多返回值（C=0 / B=0）
+     */
+    void setOpenMultiRet(CallResultInfo& info);
+
+    /**
+     * @brief 将 CallResultInfo 设为指定数量的返回值
+     */
+    void setWantedResults(CallResultInfo& info, i32 wanted);
+
+    // =====================================================================
     // 表达式代码生成（旧 ExprDesc 通道，逐步收缩）
     // =====================================================================
 
@@ -337,7 +370,6 @@ private:
     i32 pc_;                    // 当前指令索引
     i32 jpc_;                   // 待处理的跳转链表
     BlockInfo* currentBlock_;   // 当前代码块
-    i32 forcedCallBase_;        // 临时强制 CALL 基址（仅供当前最外层 CallExpr 使用）
     i32 currentLine_;           // 当前发射指令所属的源码行号
 };
 

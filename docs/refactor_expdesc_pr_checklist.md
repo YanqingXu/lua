@@ -56,7 +56,7 @@
 | PR-2 | CondResult Pipeline | 先拆条件表达式通道 | `done` |
 | PR-3 | LValue Pipeline | 把左值从 `ExprDesc` 中拆出 | `done` |
 | PR-4 | ValueResult Core | 重写普通值物化与 RK/寄存器通道 | `done` |
-| PR-5 | Call / Vararg / MultiRet | 拆掉调用、多返回值、括号收敛胶水 | `planned` |
+| PR-5 | Call / Vararg / MultiRet | 拆掉调用、多返回值、括号收敛胶水 | `done` |
 | PR-6 | Composite Expressions Cleanup | 重写算术、比较、逻辑、表构造器等复合表达式 | `planned` |
 | PR-7 | Context Extraction | 提取寄存器、作用域、循环上下文 | `planned` |
 | PR-8 | Symbol Binding | 将名字绑定从表达式状态机迁出 | `planned` |
@@ -466,6 +466,8 @@
 
 ## PR-5 Call / Vararg / MultiRet
 
+状态：`done`
+
 目标：
 
 - 拆掉调用、vararg、多返回值传播这组最容易出错的胶水
@@ -490,21 +492,63 @@
 
 任务清单：
 
-- [ ] 用 `CallResultInfo` 或等价结构表示调用结果
-- [ ] 区分“单值使用”和“开放多返回值传播”
-- [ ] 把 `return f()`、`local a,b = f()`、`g(f())`、`(f())` 的差异显式化
-- [ ] 拆掉 `ExprDesc` 中对 CALL 指令 `base + pc` 的打包语义
-- [ ] 让表构造器最后一项 multret 显式依赖调用结果结构
-- [ ] 为 vararg 的单值/多值模式提供统一辅助函数
+- [x] 用 `CallResultInfo` 或等价结构表示调用结果
+- [x] 区分“单值使用”和“开放多返回值传播”
+- [x] 把 `return f()`、`local a,b = f()`、`g(f())`、`(f())` 的差异显式化
+- [x] 拆掉 `ExprDesc` 中对 CALL 指令 `base + pc` 的打包语义
+- [x] 让表构造器最后一项 multret 显式依赖调用结果结构
+- [x] 为 vararg 的单值/多值模式提供统一辅助函数
 
 补测要求：
 
-- [ ] 扩充 `tests/unit/compiler/test_function_codegen.cpp`
-- [ ] 新增 `tests/unit/compiler/test_codegen_multret.cpp`
-- [ ] 扩充 `tests/lua/functions/test_multiret.lua`
-- [ ] 扩充 `tests/lua/functions/test_table_constructor_multret.lua`
-- [ ] 扩充 `tests/lua/functions/test_vararg.lua`
-- [ ] 新增回归：`return (f())`、`local x = {f()}`、`print((f()))`
+- [x] 扩充 `tests/unit/compiler/test_function_codegen.cpp`
+  说明：保留 PR-4/已有赋值多返回值断言，并由新的 `test_call_pipeline.cpp` 覆盖 `return/g()/method` 等调用传播矩阵
+- [x] 新增 `tests/unit/compiler/test_codegen_multret.cpp`
+- [x] 扩充 `tests/lua/functions/test_multiret.lua`
+- [x] 扩充 `tests/lua/functions/test_table_constructor_multret.lua`
+- [x] 扩充 `tests/lua/functions/test_vararg.lua`
+- [x] 新增回归：`return (f())`、`local x = {f()}`、`print((f()))`
+
+本阶段实际产出：
+
+- 在 `src/compiler/codegen.hpp/.cpp` 中落地独立调用结果通道：
+  - `emitCallExpr(const CallExpr&, i32 targetBase = -1)`
+  - `emitVarargExpr()`
+  - `setOpenMultiRet(CallResultInfo&)`
+  - `setWantedResults(CallResultInfo&, i32 wanted)`
+- 将以下主流程切换到 `CallResultInfo` / AST 直连分派，不再以 `ExprDesc::Call/Vararg` 作为真相来源：
+  - `emitValue(const Expr&)`
+  - `emitStmt(const AssignStmt&)`
+  - `emitStmt(const LocalStmt&)`
+  - `emitStmt(const ReturnStmt&)`
+  - `emitStmt(const CallStmt&)`
+  - `emitStmt(const ForInStmt&)`
+  - `emitExpr(const TableExpr&, ExprDesc&)` 的最后一个数组字段 multret 路径
+- 将旧 `emitExpr(const CallExpr&, ExprDesc&)` / `emitExpr(const VarargExpr&, ExprDesc&)` 收缩为“单值兼容壳”，默认收敛为单返回值
+- 将 `emitExpr(const ParenExpr&, ExprDesc&)` 改为基于 `emitValue + forceSingleValue` 的括号收敛路径
+- 在 `src/vm/vm.cpp` 中修复 Lua 函数 precall 对“缺失实参”的 nil 填充，避免读取上一次调用遗留寄存器值
+- 新增测试：
+  - `tests/unit/compiler/test_call_pipeline.cpp`
+  - `tests/lua/regressions/test_call_pipeline.lua`
+
+本阶段验证结果：
+
+- `lua_test.vcxproj` 已成功编译
+- `lua_app.vcxproj` 已成功编译
+- `bin/lua_test.exe` 中 PR-5 相关套件已通过：
+  - `Function Codegen`
+  - `Codegen MultiRet`
+  - `Call Pipeline (PR-5)`
+- `bin/lua_app.exe` 已通过：
+  - `tests/lua/regressions/test_call_pipeline.lua`
+  - `tests/lua/regressions/test_multret_edges.lua`
+  - `tests/lua/functions/test_table_constructor_multret.lua`
+  - `tests/lua/functions/test_vararg.lua`
+  - `tests/lua/functions/test_multiret.lua`
+
+说明：
+
+- 当前整套 `bin/lua_test.exe` 仍存在一个与 PR-5 无关的既有失败：`VM Core` 套件中的 `userdata SELF returns number`
 
 完成标准：
 

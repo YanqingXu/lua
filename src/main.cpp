@@ -54,7 +54,7 @@
 // - 为空串：未指定命令行脚本时进入 REPL
 // - 非空串：未指定命令行脚本时优先执行该 Lua 脚本
 #ifndef LUA_TEST_SCRIPT_PATH
-#define LUA_TEST_SCRIPT_PATH "E:/Programming2/lua_in_cpp/lua/tests/lua/integration/helper_workflow_chunk.lua"
+#define LUA_TEST_SCRIPT_PATH ""
 #endif
 
 // 测试脚本 Trace 输出路径（配合 LUA_TEST_SCRIPT_PATH 使用）。
