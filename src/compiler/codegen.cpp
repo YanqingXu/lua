@@ -13,6 +13,9 @@
 
 namespace Lua {
 
+// Forward declaration of static helper
+static i32 getLastLineOfBlock(const Vec<StmtPtr>& body);
+
 // =====================================================================
 // 构造和析构
 // =====================================================================
@@ -406,7 +409,291 @@ CondResult CodeGenerator::emitCondResultTrue(const Expr& e) {
 }
 
 // =====================================================================
-// 表达式代码生成（简化版）
+// 值通道（PR-4 emitValue pipeline）
+// =====================================================================
+
+ValueResult CodeGenerator::emitValue(const Expr& e) {
+    i32 previousLine = currentLine_;
+    i32 exprLine = e.getLine();
+    if (exprLine > 0) {
+        currentLine_ = exprLine;
+    }
+
+    ValueResult result;
+
+    if (auto* nil = std::get_if<NilExpr>(&e.variant)) {
+        result.kind = ValueResult::Kind::Immediate;
+        result.immediate = ValueResult::ImmediateKind::Nil;
+    }
+    else if (auto* boolExpr = std::get_if<BoolExpr>(&e.variant)) {
+        result.kind = ValueResult::Kind::Immediate;
+        result.immediate = ValueResult::ImmediateKind::Boolean;
+        result.boolValue = boolExpr->value;
+    }
+    else if (auto* numExpr = std::get_if<NumberExpr>(&e.variant)) {
+        result.kind = ValueResult::Kind::Immediate;
+        result.immediate = ValueResult::ImmediateKind::Number;
+        result.numberValue = numExpr->value;
+    }
+    else if (auto* strExpr = std::get_if<StringExpr>(&e.variant)) {
+        i32 k = stringConstant(strExpr->value);
+        result.kind = ValueResult::Kind::Constant;
+        result.constIndex = k;
+    }
+    else if (auto* nameExpr = std::get_if<NameExpr>(&e.variant)) {
+        i32 reg = findLocalVar(nameExpr->name);
+        if (reg >= 0) {
+            result.kind = ValueResult::Kind::Register;
+            result.access = ValueResult::AccessKind::Local;
+            result.reg = reg;
+            result.ownsRegister = false;
+        } else {
+            i32 up = resolveUpvalue(nameExpr->name);
+            if (up >= 0) {
+                result.kind = ValueResult::Kind::PendingLoad;
+                result.access = ValueResult::AccessKind::Upvalue;
+                result.aux = up;
+            } else {
+                i32 k = stringConstant(nameExpr->name);
+                result.kind = ValueResult::Kind::PendingLoad;
+                result.access = ValueResult::AccessKind::Global;
+                result.constIndex = k;
+            }
+        }
+    }
+    else if (auto* parenExpr = std::get_if<ParenExpr>(&e.variant)) {
+        // Lua 5.1 语义：括号表达式将 multret 收敛为单值
+        ValueResult inner = emitValue(*parenExpr->expression);
+        inner = forceSingleValue(inner);
+        i32 reg = valueToAnyReg(inner);
+        result.kind = ValueResult::Kind::Register;
+        result.reg = reg;
+        result.ownsRegister = true;
+    }
+    else if (auto* funcExpr = std::get_if<FunctionExpr>(&e.variant)) {
+        i32 linedefined = funcExpr->line;
+        i32 lastlinedefined = getLastLineOfBlock(funcExpr->body);
+        if (lastlinedefined < linedefined) {
+            lastlinedefined = linedefined;
+        }
+        Vec<UpvalueCapture> childUpvalues;
+        Proto* funcProto = compileFunction(funcExpr->params, funcExpr->isVararg,
+                                           funcExpr->body, linedefined, lastlinedefined,
+                                           &childUpvalues);
+        i32 protoIdx = static_cast<i32>(proto_->addProto(funcProto));
+        i32 reg = allocReg();
+        codeABx(OpCode::CLOSURE, reg, protoIdx);
+        emitClosureUpvalues(childUpvalues);
+        result.kind = ValueResult::Kind::Register;
+        result.reg = reg;
+        result.ownsRegister = true;
+    }
+    else if (auto* indexExpr = std::get_if<IndexExpr>(&e.variant)) {
+        // table[key] 读路径 — 通过旧通道，转为 ValueResult
+        ExprDesc desc;
+        emitExpr(*indexExpr, desc);
+        result = adaptLegacyExprDescValue(desc);
+    }
+    else if (auto* memberExpr = std::get_if<MemberExpr>(&e.variant)) {
+        // table.member 读路径 — 通过旧通道，转为 ValueResult
+        ExprDesc desc;
+        emitExpr(*memberExpr, desc);
+        result = adaptLegacyExprDescValue(desc);
+    }
+    else if (auto* callExpr = std::get_if<CallExpr>(&e.variant)) {
+        // 函数调用 — 通过旧通道，转为 ValueResult
+        ExprDesc desc;
+        emitExpr(*callExpr, desc);
+        result = adaptLegacyExprDescValue(desc);
+    }
+    else if (auto* varargExpr = std::get_if<VarargExpr>(&e.variant)) {
+        // vararg — 通过旧通道，转为 ValueResult
+        ExprDesc desc;
+        emitExpr(*varargExpr, desc);
+        result = adaptLegacyExprDescValue(desc);
+    }
+    else if (auto* binaryExpr = std::get_if<BinaryExpr>(&e.variant)) {
+        // 二元表达式 — 通过旧通道，转为 ValueResult
+        ExprDesc desc;
+        emitExpr(*binaryExpr, desc);
+        result = adaptLegacyExprDescValue(desc);
+    }
+    else if (auto* unaryExpr = std::get_if<UnaryExpr>(&e.variant)) {
+        // 一元表达式 — 通过旧通道，转为 ValueResult
+        ExprDesc desc;
+        emitExpr(*unaryExpr, desc);
+        result = adaptLegacyExprDescValue(desc);
+    }
+    else if (auto* tableExpr = std::get_if<TableExpr>(&e.variant)) {
+        // 表构造器 — 通过旧通道，转为 ValueResult
+        ExprDesc desc;
+        emitExpr(*tableExpr, desc);
+        result = adaptLegacyExprDescValue(desc);
+    }
+    else {
+        throw std::runtime_error("emitValue: unsupported expression type");
+    }
+
+    currentLine_ = previousLine;
+    return result;
+}
+
+void CodeGenerator::dischargeValue(const ValueResult& val, i32 reg) {
+    switch (val.kind) {
+        case ValueResult::Kind::Immediate: {
+            switch (val.immediate) {
+                case ValueResult::ImmediateKind::Nil:
+                    codeABC(OpCode::LOADNIL, reg, reg, 0);
+                    break;
+                case ValueResult::ImmediateKind::Boolean:
+                    codeABC(OpCode::LOADBOOL, reg, val.boolValue ? 1 : 0, 0);
+                    break;
+                case ValueResult::ImmediateKind::Number: {
+                    i32 k = numberConstant(val.numberValue);
+                    codeABx(OpCode::LOADK, reg, k);
+                    break;
+                }
+                default:
+                    break;
+            }
+            break;
+        }
+        case ValueResult::Kind::Constant:
+            codeABx(OpCode::LOADK, reg, val.constIndex);
+            break;
+        case ValueResult::Kind::Register:
+            if (val.reg != reg) {
+                codeABC(OpCode::MOVE, reg, val.reg, 0);
+            }
+            break;
+        case ValueResult::Kind::PendingLoad: {
+            switch (val.access) {
+                case ValueResult::AccessKind::Global:
+                    codeABx(OpCode::GETGLOBAL, reg, val.constIndex);
+                    break;
+                case ValueResult::AccessKind::Upvalue:
+                    codeABC(OpCode::GETUPVAL, reg, val.aux, 0);
+                    break;
+                case ValueResult::AccessKind::Indexed:
+                    codeABC(OpCode::GETTABLE, reg, val.reg, val.aux);
+                    break;
+                default:
+                    break;
+            }
+            break;
+        }
+        case ValueResult::Kind::Relocatable: {
+            Instruction inst = proto_->getInstruction(val.instructionPc);
+            SETARG_A(inst, reg);
+            proto_->setInstruction(val.instructionPc, inst);
+            break;
+        }
+        case ValueResult::Kind::MultiRet: {
+            if (val.access == ValueResult::AccessKind::Call) {
+                // Call: 返回值在 baseReg，不能直接重写 A
+                Instruction inst = proto_->getInstruction(val.instructionPc);
+                i32 callBase = GETARG_A(inst);
+                SETARG_C(inst, 2);  // 固定为 1 个返回值
+                proto_->setInstruction(val.instructionPc, inst);
+                if (callBase != reg) {
+                    codeABC(OpCode::MOVE, reg, callBase, 0);
+                }
+            } else if (val.access == ValueResult::AccessKind::Vararg) {
+                Instruction inst = proto_->getInstruction(val.instructionPc);
+                SETARG_A(inst, reg);
+                SETARG_B(inst, 2);  // 固定为 1 个值
+                proto_->setInstruction(val.instructionPc, inst);
+            }
+            break;
+        }
+        case ValueResult::Kind::PendingJump: {
+            // 比较表达式物化为布尔值
+            i32 trueJump = val.instructionPc;
+            codeABC(OpCode::LOADBOOL, reg, 0, 1);
+            i32 trueLabel = getLabel();
+            fixjump(trueJump, trueLabel);
+            codeABC(OpCode::LOADBOOL, reg, 1, 0);
+            break;
+        }
+        default:
+            break;
+    }
+}
+
+i32 CodeGenerator::valueToRK(const ValueResult& val) {
+    // 常量可直接编码为 RK 操作数
+    if (val.kind == ValueResult::Kind::Immediate && val.immediate == ValueResult::ImmediateKind::Number) {
+        i32 k = numberConstant(val.numberValue);
+        if (k <= MAXINDEXRK) {
+            return RKASK(k);
+        }
+    }
+    if (val.kind == ValueResult::Kind::Constant) {
+        if (val.constIndex <= MAXINDEXRK) {
+            return RKASK(val.constIndex);
+        }
+    }
+    // 否则落到寄存器
+    return valueToAnyReg(val);
+}
+
+i32 CodeGenerator::valueToAnyReg(const ValueResult& val) {
+    // 已经在寄存器中则直接返回
+    if (val.kind == ValueResult::Kind::Register) {
+        return val.reg;
+    }
+    // MultiRet(Call): 返回值已在 baseReg
+    if (val.kind == ValueResult::Kind::MultiRet && val.access == ValueResult::AccessKind::Call) {
+        // 先固定为单值
+        Instruction inst = proto_->getInstruction(val.instructionPc);
+        SETARG_C(inst, 2);
+        proto_->setInstruction(val.instructionPc, inst);
+        return GETARG_A(inst);
+    }
+    // 否则分配寄存器并物化
+    i32 reg = allocReg();
+    dischargeValue(val, reg);
+    return reg;
+}
+
+void CodeGenerator::valueToNextReg(const ValueResult& val) {
+    ValueResult v = forceSingleValue(val);
+    if (v.kind == ValueResult::Kind::Register && v.reg == freereg_ - 1) {
+        return;  // 已在下一个位置
+    }
+    i32 reg = allocReg();
+    dischargeValue(v, reg);
+}
+
+ValueResult CodeGenerator::forceSingleValue(const ValueResult& val) {
+    if (val.kind != ValueResult::Kind::MultiRet) {
+        return val;
+    }
+    // 将 CALL/VARARG 固定为单返回值并转为 Relocatable/Register
+    if (val.access == ValueResult::AccessKind::Vararg) {
+        Instruction inst = proto_->getInstruction(val.instructionPc);
+        SETARG_B(inst, 2);  // B=2 → 1 个值
+        proto_->setInstruction(val.instructionPc, inst);
+        ValueResult result;
+        result.kind = ValueResult::Kind::Relocatable;
+        result.instructionPc = val.instructionPc;
+        return result;
+    }
+    if (val.access == ValueResult::AccessKind::Call) {
+        Instruction inst = proto_->getInstruction(val.instructionPc);
+        SETARG_C(inst, 2);  // C=2 → 1 个返回值
+        proto_->setInstruction(val.instructionPc, inst);
+        ValueResult result;
+        result.kind = ValueResult::Kind::Register;
+        result.reg = GETARG_A(inst);
+        result.ownsRegister = false;
+        return result;
+    }
+    return val;
+}
+
+// =====================================================================
+// 表达式代码生成（旧 ExprDesc 通道）
 // =====================================================================
 
 void CodeGenerator::expr(const Expr& e, ExprDesc& desc) {

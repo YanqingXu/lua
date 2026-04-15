@@ -38,6 +38,7 @@ extern void registerIndexedAccessTests();
 extern void registerMethodCallTests();
 extern void registerStorevarTests();
 extern void registerLValuePipelineTests();
+extern void registerValuePipelineTests();
 extern void registerLexerNumberTests();
 extern void registerLexerLookaheadTests();
 extern void registerParserRecursionTests();
@@ -115,6 +116,7 @@ int main() {
     registerMethodCallTests();
     registerStorevarTests();
     registerLValuePipelineTests();
+    registerValuePipelineTests();
     registerLexerNumberTests();
     registerLexerLookaheadTests();
     registerParserRecursionTests();

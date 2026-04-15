@@ -171,7 +171,44 @@ private:
     i32 getLabel();
     
     // =====================================================================
-    // 表达式代码生成
+    // 值通道（PR-4 emitValue pipeline）
+    // =====================================================================
+
+    /**
+     * @brief 将表达式编译为右值，返回 ValueResult
+     *
+     * 直接从 AST 节点生成值描述，不经过 ExprDesc。
+     * 支持字面量、名字读取、括号、函数表达式、索引/成员/调用等。
+     */
+    ValueResult emitValue(const Expr& e);
+
+    /**
+     * @brief 将 ValueResult 物化到指定寄存器
+     */
+    void dischargeValue(const ValueResult& val, i32 reg);
+
+    /**
+     * @brief 将 ValueResult 转为 RK 操作数（常量直接编码或分配寄存器）
+     */
+    i32 valueToRK(const ValueResult& val);
+
+    /**
+     * @brief 确保 ValueResult 在某个寄存器中并返回寄存器编号
+     */
+    i32 valueToAnyReg(const ValueResult& val);
+
+    /**
+     * @brief 将 ValueResult 物化到下一个空闲寄存器
+     */
+    void valueToNextReg(const ValueResult& val);
+
+    /**
+     * @brief 多返回值收敛为单值（括号语义 / exp2Val 语义）
+     */
+    ValueResult forceSingleValue(const ValueResult& val);
+
+    // =====================================================================
+    // 表达式代码生成（旧 ExprDesc 通道，逐步收缩）
     // =====================================================================
 
     void expr(const Expr& e, ExprDesc& desc);

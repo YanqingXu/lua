@@ -55,7 +55,7 @@
 | PR-1 | Introduce Result Types | 引入新结构但不改主行为 | `done` |
 | PR-2 | CondResult Pipeline | 先拆条件表达式通道 | `done` |
 | PR-3 | LValue Pipeline | 把左值从 `ExprDesc` 中拆出 | `done` |
-| PR-4 | ValueResult Core | 重写普通值物化与 RK/寄存器通道 | `planned` |
+| PR-4 | ValueResult Core | 重写普通值物化与 RK/寄存器通道 | `done` |
 | PR-5 | Call / Vararg / MultiRet | 拆掉调用、多返回值、括号收敛胶水 | `planned` |
 | PR-6 | Composite Expressions Cleanup | 重写算术、比较、逻辑、表构造器等复合表达式 | `planned` |
 | PR-7 | Context Extraction | 提取寄存器、作用域、循环上下文 | `planned` |
@@ -381,6 +381,8 @@
 
 ## PR-4 ValueResult Core
 
+状态：`done`
+
 目标：
 
 - 重写“普通右值表达式”的核心物化通道
@@ -412,19 +414,48 @@
 
 任务清单：
 
-- [ ] 为字面量生成 `ValueResult`
-- [ ] 为名字读取生成 `ValueResult`
-- [ ] 将 RK 选择逻辑改写为 `ValueResult` 驱动
-- [ ] 将寄存器物化改写为 `ValueResult` 驱动
-- [ ] 将括号表达式单值收敛迁到 `forceSingle()`
-- [ ] 保留旧 `exp2RK / exp2AnyReg / exp2NextReg / exp2Val` 作为临时包装
+- [x] 为字面量生成 `ValueResult`
+- [x] 为名字读取生成 `ValueResult`
+- [x] 将 RK 选择逻辑改写为 `ValueResult` 驱动
+- [x] 将寄存器物化改写为 `ValueResult` 驱动
+- [x] 将括号表达式单值收敛迁到 `forceSingle()`
+- [x] 保留旧 `exp2RK / exp2AnyReg / exp2NextReg / exp2Val` 作为临时包装
 
 补测要求：
 
-- [ ] 扩充 `tests/unit/compiler/test_binary_unary_expr.cpp`
-- [ ] 扩充 `tests/unit/compiler/test_function_codegen.cpp`
-- [ ] 增加 `ParenExpr` 与字面量/RK 选择测试
-- [ ] 补充 Lua 回归：`local x=(f())`、`local x=((a))`
+- [x] 扩充 `tests/unit/compiler/test_binary_unary_expr.cpp`
+  说明：通过新测试文件 test_value_pipeline.cpp 覆盖算术/RK 编码场景
+- [x] 扩充 `tests/unit/compiler/test_function_codegen.cpp`
+  说明：通过新测试文件 test_value_pipeline.cpp 覆盖 CLOSURE 与函数表达式
+- [x] 增加 `ParenExpr` 与字面量/RK 选择测试
+- [x] 补充 Lua 回归：`local x=(f())`、`local x=((a))`
+
+本阶段实际产出：
+
+- 在 `src/compiler/codegen.hpp/.cpp` 中新增值通道核心接口：
+  - `emitValue(const Expr&) -> ValueResult`：直接从 AST 生成值描述
+  - `dischargeValue(const ValueResult&, i32 reg)`：将 ValueResult 物化到指定寄存器
+  - `valueToRK(const ValueResult&) -> i32`：RK 操作数选择
+  - `valueToAnyReg(const ValueResult&) -> i32`：确保值在寄存器中
+  - `valueToNextReg(const ValueResult&)`：物化到下一个空闲寄存器
+  - `forceSingleValue(const ValueResult&) -> ValueResult`：多返回值收敛为单值
+- 字面量（nil/bool/number/string）、NameExpr、ParenExpr、FunctionExpr 直接生成 `ValueResult`
+- IndexExpr、MemberExpr、CallExpr、VarargExpr、BinaryExpr、UnaryExpr、TableExpr 通过旧 ExprDesc 通道 + `adaptLegacyExprDescValue` 桥接
+- 新增测试：
+  - `tests/unit/compiler/test_value_pipeline.cpp`（26 个测试，覆盖字节码和运行时语义）
+  - `tests/lua/regressions/test_value_pipeline.lua`（11 个场景，含 paren call 收敛）
+- 接入测试入口与工程文件：
+  - `tests/unit/framework/test_registry.hpp`
+  - `tests/unit/framework/test_runner.cpp`
+  - `lua_test.vcxproj`
+  - `lua_test.vcxproj.filters`
+
+本阶段验证结果：
+
+- `lua_test.vcxproj` 已成功编译
+- `bin/lua_test.exe` 已通过（所有 35 个测试套件，0 失败）
+- `bin/lua_app.exe tests/lua/regressions/test_value_pipeline.lua` 已通过
+- 所有之前阶段的回归测试全部通过
 
 完成标准：
 

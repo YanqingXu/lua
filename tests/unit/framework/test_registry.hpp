@@ -116,6 +116,11 @@ void registerStorevarTests();
 void registerLValuePipelineTests();
 
 /**
+ * @brief 注册 ValueResult Pipeline 测试（PR-4）
+ */
+void registerValuePipelineTests();
+
+/**
  * @brief 注册词法分析器测试
  */
 void registerLexerNumberTests();
