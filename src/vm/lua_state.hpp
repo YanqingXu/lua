@@ -215,7 +215,7 @@ public:
      * @brief 获取栈顶值
      */
     Value& top() {
-        return stack_.top();
+        return at(-1);
     }
 
     /**

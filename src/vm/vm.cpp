@@ -38,6 +38,8 @@ namespace Lua {
 
 static ITraceSink* g_traceSink = nullptr;
 static u64         g_traceSeq  = 0;
+static bool        g_dumpBytecode = false;
+
 
 namespace VM {
 
@@ -442,19 +444,22 @@ static void vmPostcall(LuaState* L, i32 funcPos, i32 wantedResults,
         // 将返回值从 firstResult 复制到 funcPos
         i32 i = wantedResults;
         usize src = firstResult;
-        std::fprintf(stderr, "[POSTCALL] funcPos=%d wanted=%d firstResult=%zu currentTop=%zu\n",
-                     funcPos, wantedResults, firstResult, currentTop);
+        /*std::fprintf(stderr, "[POSTCALL] funcPos=%d wanted=%d firstResult=%zu currentTop=%zu\n",
+                     funcPos, wantedResults, firstResult, currentTop);*/
         while (i != 0 && src < currentTop) {
-            std::fprintf(stderr, "[POSTCALL] copy stack[%zu] -> stack[%zu] val=", src, res);
-            if (stack[src].isNumber()) std::fprintf(stderr, "%g", stack[src].asNumber());
-            else if (stack[src].isNil()) std::fprintf(stderr, "nil");
-            else std::fprintf(stderr, "other");
-            std::fprintf(stderr, "\n");
+            if (g_dumpBytecode) {
+                std::fprintf(stderr, "[POSTCALL] copy stack[%zu] -> stack[%zu] val=", src, res);
+                if (stack[src].isNumber()) std::fprintf(stderr, "%g", stack[src].asNumber());
+                else if (stack[src].isNil()) std::fprintf(stderr, "nil");
+                else std::fprintf(stderr, "other");
+                std::fprintf(stderr, "\n");
+            }
+            
             stack[res++] = stack[src++];
             i--;
         }
         while (i-- > 0) stack[res++] = Value();
-        std::fprintf(stderr, "[POSTCALL] final absoluteTop=%zu\n", res);
+        //std::fprintf(stderr, "[POSTCALL] final absoluteTop=%zu\n", res);
         L->setAbsoluteTop(res);
     }
 }
@@ -612,9 +617,8 @@ static void vmSetList(LuaState* L, Value* base, i32 a, i32 b, i32 c) {
 
     if (n == 0) {
         CallInfo& ci = L->getCurrentCallInfo();
-        Stack& stack = L->getStack();
         usize ra = ci.base + static_cast<usize>(a);
-        n = static_cast<i32>(stack.size() - ra) - 1;
+        n = static_cast<i32>(L->getAbsoluteTop() - ra) - 1;
         L->setAbsoluteTop(ci.top);
     }
 
@@ -734,8 +738,8 @@ static void vmVararg(LuaState* L, Value*& base, Proto* proto, i32 a, i32 b) {
     i32 n = static_cast<i32>(ci.base - ci.func - 1) - numParams;
     if (n < 0) n = 0;
 
-    std::fprintf(stderr, "[VARARG] a=%d b=%d n=%d ci.base=%zu ci.func=%zu numParams=%d\n",
-        a, b, n, ci.base, ci.func, numParams);
+    // std::fprintf(stderr, "[VARARG] a=%d b=%d n=%d ci.base=%zu ci.func=%zu numParams=%d\n",
+    //     a, b, n, ci.base, ci.func, numParams);
 
     i32 wanted;
     if (b == 0) {
@@ -749,8 +753,10 @@ static void vmVararg(LuaState* L, Value*& base, Proto* proto, i32 a, i32 b) {
             base = refreshBase(L);
         }
         L->setAbsoluteTop(neededTop);
-        std::fprintf(stderr, "[VARARG] open multret: wanted=%d neededTop=%zu absTop=%zu stackTop=%zu\n",
-            wanted, neededTop, neededTop, stack.size());
+        if (g_dumpBytecode) {
+            std::fprintf(stderr, "[VARARG] open multret: wanted=%d neededTop=%zu absTop=%zu stackTop=%zu\n",
+                wanted, neededTop, neededTop, stack.size());
+        }
     } else {
         wanted = b - 1;
     }
@@ -758,9 +764,11 @@ static void vmVararg(LuaState* L, Value*& base, Proto* proto, i32 a, i32 b) {
     for (i32 j = 0; j < wanted; j++) {
         if (j < n) {
             usize srcIndex = ci.base - static_cast<usize>(n) + static_cast<usize>(j);
-            std::fprintf(stderr, "[VARARG] copy j=%d srcIdx=%zu val=%s\n",
-                j, srcIndex, stack[srcIndex].isNumber() ? 
-                    std::to_string(stack[srcIndex].asNumber()).c_str() : "non-number");
+            if (g_dumpBytecode) {
+                std::fprintf(stderr, "[VARARG] copy j=%d srcIdx=%zu val=%s\n",
+                    j, srcIndex, stack[srcIndex].isNumber() ? 
+                        std::to_string(stack[srcIndex].asNumber()).c_str() : "non-number");
+            }
             base[a + j] = stack[srcIndex];
         } else {
             base[a + j] = Value();
@@ -900,6 +908,7 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
            : 0;
 
         // dump bytecode at entry
+        if (g_dumpBytecode)
         {
             const Vec<Instruction>& dcode = proto->getCode();
             std::fprintf(stderr, "[BCDUMP] proto(%p) %zu instructions, pc=%zu\n",
@@ -971,13 +980,16 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
             // ============== 基础操作 ==============
 
             case OpCode::MOVE:
-                std::fprintf(stderr, "[MOVE] pc=%zu a=%d b=%d base[b]=", instructionPc, a, b);
-                if (base[b].isNumber()) std::fprintf(stderr, "%g", base[b].asNumber());
-                else if (base[b].isNil()) std::fprintf(stderr, "nil");
-                else if (base[b].isFunction()) std::fprintf(stderr, "function");
-                else if (base[b].isString()) std::fprintf(stderr, "'%s'", base[b].asString()->c_str());
-                else std::fprintf(stderr, "other");
-                std::fprintf(stderr, "\n");
+                if (g_dumpBytecode) {
+                    std::fprintf(stderr, "[MOVE] pc=%zu a=%d b=%d base[b]=", instructionPc, a, b);
+                    if (base[b].isNumber()) std::fprintf(stderr, "%g", base[b].asNumber());
+                    else if (base[b].isNil()) std::fprintf(stderr, "nil");
+                    else if (base[b].isFunction()) std::fprintf(stderr, "function");
+                    else if (base[b].isString()) std::fprintf(stderr, "'%s'", base[b].asString()->c_str());
+                    else std::fprintf(stderr, "other");
+                    std::fprintf(stderr, "\n");
+                }
+                
                 base[a] = base[b];
                 break;
 
@@ -1181,6 +1193,7 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
                 i32 nArgs    = b - 1;
                 i32 nResults = c - 1;
 
+                if (g_dumpBytecode)
                 {
                     CallInfo& dbgCI = L->getCurrentCallInfo();
                     std::fprintf(stderr, "[CALL] pc=%zu a=%d B=%d C=%d nArgs=%d nRes=%d base=%zu absTop=%zu\n",
@@ -1188,7 +1201,7 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
                     if (nArgs < 0) {
                         // show stack from base+a to absTop
                         usize funcP = dbgCI.base + a;
-                        std::fprintf(stderr, "[CALL] B=0 stack from %zu to %zu:\n", funcP, L->getAbsoluteTop());
+                        //std::fprintf(stderr, "[CALL] B=0 stack from %zu to %zu:\n", funcP, L->getAbsoluteTop());
                         Stack& dbgStk = L->getStack();
                         for (usize si = funcP; si < L->getAbsoluteTop(); si++) {
                             Value& v = dbgStk[si];
@@ -1239,28 +1252,28 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
                     Stack& stack = L->getStack();
                     // nResults = -1 (C=0) → 多返回值模式，vmPostcall 已正确设置 absoluteTop，不可覆盖
                     if (nResults >= 0) {
-                        std::fprintf(stderr, "[CALL-POST] before setTop: callerCI.top=%zu stack.top=%zu absTop=%zu\n",
-                                     callerCI.top, stack.size(), L->getAbsoluteTop());
-                        std::fprintf(stderr, "[CALL-POST] base+a=%zu stack[base+a]=", callerCI.base + static_cast<usize>(a));
-                        {
-                            usize pos = callerCI.base + static_cast<usize>(a);
-                            if (stack[pos].isNumber()) std::fprintf(stderr, "%g", stack[pos].asNumber());
-                            else if (stack[pos].isNil()) std::fprintf(stderr, "nil");
-                            else if (stack[pos].isFunction()) std::fprintf(stderr, "function");
-                            else std::fprintf(stderr, "other");
-                        }
-                        std::fprintf(stderr, "\n");
+                        // std::fprintf(stderr, "[CALL-POST] before setTop: callerCI.top=%zu stack.top=%zu absTop=%zu\n",
+                        //              callerCI.top, stack.size(), L->getAbsoluteTop());
+                        // std::fprintf(stderr, "[CALL-POST] base+a=%zu stack[base+a]=", callerCI.base + static_cast<usize>(a));
+                        // {
+                        //     usize pos = callerCI.base + static_cast<usize>(a);
+                        //     if (stack[pos].isNumber()) std::fprintf(stderr, "%g", stack[pos].asNumber());
+                        //     else if (stack[pos].isNil()) std::fprintf(stderr, "nil");
+                        //     else if (stack[pos].isFunction()) std::fprintf(stderr, "function");
+                        //     else std::fprintf(stderr, "other");
+                        // }
+                        // std::fprintf(stderr, "\n");
                         stack.setTop(callerCI.top);
                         L->setAbsoluteTop(callerCI.top);
-                        std::fprintf(stderr, "[CALL-POST] after setTop: stack[base+a]=");
-                        {
-                            usize pos = callerCI.base + static_cast<usize>(a);
-                            if (stack[pos].isNumber()) std::fprintf(stderr, "%g", stack[pos].asNumber());
-                            else if (stack[pos].isNil()) std::fprintf(stderr, "nil");
-                            else if (stack[pos].isFunction()) std::fprintf(stderr, "function");
-                            else std::fprintf(stderr, "other");
-                        }
-                        std::fprintf(stderr, "\n");
+                        // std::fprintf(stderr, "[CALL-POST] after setTop: stack[base+a]=");
+                        // {
+                        //     usize pos = callerCI.base + static_cast<usize>(a);
+                        //     if (stack[pos].isNumber()) std::fprintf(stderr, "%g", stack[pos].asNumber());
+                        //     else if (stack[pos].isNil()) std::fprintf(stderr, "nil");
+                        //     else if (stack[pos].isFunction()) std::fprintf(stderr, "function");
+                        //     else std::fprintf(stderr, "other");
+                        // }
+                        // std::fprintf(stderr, "\n");
                     }
                 }
                 base = refreshBase(L);
@@ -1316,7 +1329,7 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
                 // 计算返回值数量
                 i32 nres;
                 if (b == 0) {
-                    nres = static_cast<i32>(stack.size())
+                    nres = static_cast<i32>(L->getAbsoluteTop())
                          - (static_cast<i32>(ci.base) + a);
                 } else {
                     nres = b - 1;

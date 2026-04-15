@@ -194,6 +194,11 @@ static i32 userdata_ping(LuaState* L) {
     return 1;
 }
 
+static i32 return_42(LuaState* L) {
+    L->pushNumber(42.0);
+    return 1;
+}
+
 void testLuaStateUserdataMetatable(TestSuite& suite) {
     LuaState* L = LuaState::newState();
     L->setTop(0);
@@ -264,6 +269,46 @@ void testSelfDispatchOnUserdata(TestSuite& suite) {
     } catch (const std::exception& e) {
         std::cout << "  [ERROR] Exception: " << e.what() << std::endl;
         ASSERT_TRUE(suite, false, "userdata SELF dispatch should not throw");
+    }
+}
+
+void testTailReturnFromCFunctionKeepsLogicalTop(TestSuite& suite) {
+    const char* code = "return ping()";
+
+    try {
+        StringPool& pool = StringPool::getInstance();
+        Parser parser(code);
+        Chunk chunk = parser.parse();
+
+        CodeGenerator codegen(&pool);
+        Proto* proto = codegen.generate(chunk, "=(tail_c_return)");
+
+        ASSERT_TRUE(suite, proto != nullptr, "Proto generated for C return");
+
+        LuaState* L = LuaState::newState();
+        Function* ping = new Function(return_42);
+        L->getGlobalState().getGC().registerObject(ping);
+        L->setGlobal("ping", Value(ping));
+
+        Function* chunkFunc = new Function(proto);
+        chunkFunc->setEnv(L->getGlobalTable());
+        L->getGlobalState().getGC().registerObject(chunkFunc);
+
+        VM::execute(L, chunkFunc);
+
+        ASSERT_EQ(suite, static_cast<usize>(2), L->getAbsoluteTop(),
+                  "tail C return keeps virtual slot plus one logical result");
+        ASSERT_TRUE(suite, L->at(-1).isNumber(), "tail C return stores number at -1");
+        ASSERT_TRUE(suite, L->top().isNumber(), "LuaState::top sees logical top after C return");
+        if (L->top().isNumber()) {
+            ASSERT_EQ(suite, 42.0, L->top().asNumber(), "return ping() == 42");
+        }
+
+        delete L;
+        delete proto;
+    } catch (const std::exception& e) {
+        std::cout << "  [ERROR] Exception: " << e.what() << std::endl;
+        ASSERT_TRUE(suite, false, "tail C return should not throw");
     }
 }
 
@@ -679,6 +724,7 @@ void registerVMCoreTests() {
     registry.registerTest("VM Core", "LuaState Globals", testLuaStateGlobalVariables);
     registry.registerTest("VM Core", "LuaState Userdata Metatable", testLuaStateUserdataMetatable);
     registry.registerTest("VM Core", "SELF Dispatch On Userdata", testSelfDispatchOnUserdata);
+    registry.registerTest("VM Core", "Tail Return From C Function Keeps Logical Top", testTailReturnFromCFunctionKeepsLogicalTop);
     registry.registerTest("VM Core", "IOLib File Metatable Hooks", testIOLibFileMetatableHooks);
     registry.registerTest("VM Core", "IOLib Default Input Output", testIOLibDefaultInputOutput);
     registry.registerTest("VM Core", "Comparison Expression Produces Boolean", testComparisonExpressionProducesBoolean);
