@@ -208,6 +208,16 @@ private:
     ValueResult forceSingleValue(const ValueResult& val);
 
     // =====================================================================
+    // 复合表达式原生通道（PR-6 Composite Expressions Cleanup）
+    // =====================================================================
+
+    ValueResult emitValueBinary(const BinaryExpr& e);
+    ValueResult emitValueUnary(const UnaryExpr& e);
+    ValueResult emitValueTable(const TableExpr& e);
+    ValueResult emitValueIndex(const IndexExpr& e);
+    ValueResult emitValueMember(const MemberExpr& e);
+
+    // =====================================================================
     // 调用/多返回值通道（PR-5 Call/Vararg/MultiRet pipeline）
     // =====================================================================
 
@@ -267,7 +277,6 @@ private:
 
     // 表索引和成员访问
     void luaK_indexed(ExprDesc& t, ExprDesc& k);
-    void luaK_self(ExprDesc& e, ExprDesc& key);
     void luaK_storevar(ExprDesc& var, ExprDesc& ex);
 
     // =====================================================================
@@ -296,18 +305,9 @@ private:
      */
     void emitStore(const LValueRef& target, ExprDesc& ex);
 
-    // 算术和比较指令生成
-    void codearith(OpCode op, ExprDesc& e1, ExprDesc& e2);
-    void codecomp(OpCode op, i32 cond, ExprDesc& e1, ExprDesc& e2);
-    void codenot(ExprDesc& e);
-
     // 跳转处理
-    void luaK_goiftrue(ExprDesc& e);
-    void luaK_goiffalse(ExprDesc& e);
     void luaK_dischargevars(ExprDesc& e);
     void luaK_concat(i32& l1, i32 l2);
-    void invertJump(ExprDesc& e);
-    i32 jumponcond(ExprDesc& e, i32 cond);
     i32 condjump(OpCode op, i32 a, i32 b, i32 c);
     void patchtohere(i32 list);
     void patchtohere(const PatchList& list);

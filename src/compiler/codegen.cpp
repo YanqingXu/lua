@@ -312,27 +312,27 @@ CondResult CodeGenerator::emitCondResult(const Expr& e) {
         }
     }
 
-    ExprDesc desc;
-    expr(e, desc);
-    if (desc.kind == ExprKind::Nil) {
-        desc.kind = ExprKind::False;
-    }
+    // PR-6: native ValueResult fallback
+    ValueResult val = emitValue(e);
+    val = forceSingleValue(val);
 
-    switch (desc.kind) {
-        case ExprKind::Nil:
-        case ExprKind::False:
+    if (val.kind == ValueResult::Kind::Immediate) {
+        if (val.immediate == ValueResult::ImmediateKind::Nil ||
+            (val.immediate == ValueResult::ImmediateKind::Boolean && !val.boolValue)) {
+            // 常假值 — 无条件跳转到 falseList
             result.falseList.append(jump());
-            break;
-
-        case ExprKind::True:
-        case ExprKind::Number:
-        case ExprKind::Const:
-            break;
-
-        default:
-            luaK_goiftrue(desc);
-            result.falseList = collectPatchList(desc.f);
-            break;
+        }
+        // 常真值（true / number）— 无条件通过，falseList 为空
+    }
+    else if (val.kind == ValueResult::Kind::Constant) {
+        // 字符串常量始终为真
+    }
+    else {
+        i32 reg = valueToAnyReg(val);
+        // TEST reg 0 0: truthy → skip JMP (fall through = true), falsy → exec JMP (→ falseList)
+        codeABC(OpCode::TEST, reg, 0, 0);
+        result.falseList.append(jump());
+        freeReg(reg);
     }
 
     return result;
@@ -380,27 +380,31 @@ CondResult CodeGenerator::emitCondResultTrue(const Expr& e) {
         }
     }
 
-    ExprDesc desc;
-    expr(e, desc);
-    if (desc.kind == ExprKind::Nil) {
-        desc.kind = ExprKind::False;
-    }
+    // PR-6: native ValueResult fallback
+    ValueResult val = emitValue(e);
+    val = forceSingleValue(val);
 
-    switch (desc.kind) {
-        case ExprKind::True:
-        case ExprKind::Number:
-        case ExprKind::Const:
+    if (val.kind == ValueResult::Kind::Immediate) {
+        if (val.immediate == ValueResult::ImmediateKind::Boolean && val.boolValue) {
+            // true — 无条件跳转到 trueList
             result.trueList.append(jump());
-            break;
-
-        case ExprKind::Nil:
-        case ExprKind::False:
-            break;
-
-        default:
-            luaK_goiffalse(desc);
-            result.trueList = collectPatchList(desc.t);
-            break;
+        }
+        if (val.immediate == ValueResult::ImmediateKind::Number) {
+            // number 始终为真
+            result.trueList.append(jump());
+        }
+        // nil / false — 无条件通过，trueList 为空
+    }
+    else if (val.kind == ValueResult::Kind::Constant) {
+        // 字符串常量始终为真
+        result.trueList.append(jump());
+    }
+    else {
+        i32 reg = valueToAnyReg(val);
+        // TEST reg 0 1: falsy → skip JMP (fall through = false), truthy → exec JMP (→ trueList)
+        codeABC(OpCode::TEST, reg, 0, 1);
+        result.trueList.append(jump());
+        freeReg(reg);
     }
 
     return result;
@@ -487,16 +491,12 @@ ValueResult CodeGenerator::emitValue(const Expr& e) {
         result.ownsRegister = true;
     }
     else if (auto* indexExpr = std::get_if<IndexExpr>(&e.variant)) {
-        // table[key] 读路径 — 通过旧通道，转为 ValueResult
-        ExprDesc desc;
-        emitExpr(*indexExpr, desc);
-        result = adaptLegacyExprDescValue(desc);
+        // PR-6: table[key] 读路径 — 原生 ValueResult 通道
+        result = emitValueIndex(*indexExpr);
     }
     else if (auto* memberExpr = std::get_if<MemberExpr>(&e.variant)) {
-        // table.member 读路径 — 通过旧通道，转为 ValueResult
-        ExprDesc desc;
-        emitExpr(*memberExpr, desc);
-        result = adaptLegacyExprDescValue(desc);
+        // PR-6: table.member 读路径 — 原生 ValueResult 通道
+        result = emitValueMember(*memberExpr);
     }
     else if (auto* callExpr = std::get_if<CallExpr>(&e.variant)) {
         // 函数调用 — PR-5: 直接使用 emitCallExpr 通道
@@ -518,22 +518,16 @@ ValueResult CodeGenerator::emitValue(const Expr& e) {
         result.isSingleValue = false;
     }
     else if (auto* binaryExpr = std::get_if<BinaryExpr>(&e.variant)) {
-        // 二元表达式 — 通过旧通道，转为 ValueResult
-        ExprDesc desc;
-        emitExpr(*binaryExpr, desc);
-        result = adaptLegacyExprDescValue(desc);
+        // PR-6: 二元表达式 — 原生 ValueResult 通道
+        result = emitValueBinary(*binaryExpr);
     }
     else if (auto* unaryExpr = std::get_if<UnaryExpr>(&e.variant)) {
-        // 一元表达式 — 通过旧通道，转为 ValueResult
-        ExprDesc desc;
-        emitExpr(*unaryExpr, desc);
-        result = adaptLegacyExprDescValue(desc);
+        // PR-6: 一元表达式 — 原生 ValueResult 通道
+        result = emitValueUnary(*unaryExpr);
     }
     else if (auto* tableExpr = std::get_if<TableExpr>(&e.variant)) {
-        // 表构造器 — 通过旧通道，转为 ValueResult
-        ExprDesc desc;
-        emitExpr(*tableExpr, desc);
-        result = adaptLegacyExprDescValue(desc);
+        // PR-6: 表构造器 — 原生 ValueResult 通道
+        result = emitValueTable(*tableExpr);
     }
     else {
         throw std::runtime_error("emitValue: unsupported expression type");
@@ -698,6 +692,295 @@ ValueResult CodeGenerator::forceSingleValue(const ValueResult& val) {
 }
 
 // =====================================================================
+// 复合表达式原生通道（PR-6 Composite Expressions Cleanup）
+// =====================================================================
+
+ValueResult CodeGenerator::emitValueBinary(const BinaryExpr& e) {
+    ValueResult result;
+    BinaryExpr::Op op = e.op;
+
+    // === 比较表达式 → 条件通道 + 物化 ===
+    if (op == BinaryExpr::Op::Eq || op == BinaryExpr::Op::Ne ||
+        op == BinaryExpr::Op::Lt || op == BinaryExpr::Op::Le ||
+        op == BinaryExpr::Op::Gt || op == BinaryExpr::Op::Ge) {
+        CondResult cond;
+        cond.trueList = emitComparisonJump(e, true);
+        i32 resultReg = allocReg();
+        materializeCondResult(cond, resultReg, false);
+        result.kind = ValueResult::Kind::Register;
+        result.reg = resultReg;
+        result.ownsRegister = true;
+        return result;
+    }
+
+    // === And/Or: 短路求值 ===
+    if (op == BinaryExpr::Op::And || op == BinaryExpr::Op::Or) {
+        ValueResult left = emitValue(*e.left);
+        left = forceSingleValue(left);
+        i32 resultReg = allocReg();
+        dischargeValue(left, resultReg);
+
+        i32 testCond = (op == BinaryExpr::Op::And) ? 0 : 1;
+        codeABC(OpCode::TEST, resultReg, 0, testCond);
+        i32 skipRight = codeAsBx(OpCode::JMP, 0, NO_JUMP);
+
+        ValueResult right = emitValue(*e.right);
+        right = forceSingleValue(right);
+        dischargeValue(right, resultReg);
+
+        fixjump(skipRight, getLabel());
+
+        result.kind = ValueResult::Kind::Register;
+        result.reg = resultReg;
+        result.ownsRegister = true;
+        return result;
+    }
+
+    // === Concat ===
+    if (op == BinaryExpr::Op::Concat) {
+        ValueResult left = emitValue(*e.left);
+        left = forceSingleValue(left);
+        i32 regLeft = allocReg();
+        dischargeValue(left, regLeft);
+
+        ValueResult right = emitValue(*e.right);
+        right = forceSingleValue(right);
+        i32 regRight = allocReg();
+        dischargeValue(right, regRight);
+
+        freeReg(regRight);
+        freeReg(regLeft);
+
+        i32 pc = codeABC(OpCode::CONCAT, 0, regLeft, regRight);
+        result.kind = ValueResult::Kind::Relocatable;
+        result.instructionPc = pc;
+        return result;
+    }
+
+    // === 算术表达式: Add/Sub/Mul/Div/Mod/Pow ===
+    OpCode arithOp;
+    switch (op) {
+        case BinaryExpr::Op::Add: arithOp = OpCode::ADD; break;
+        case BinaryExpr::Op::Sub: arithOp = OpCode::SUB; break;
+        case BinaryExpr::Op::Mul: arithOp = OpCode::MUL; break;
+        case BinaryExpr::Op::Div: arithOp = OpCode::DIV; break;
+        case BinaryExpr::Op::Mod: arithOp = OpCode::MOD; break;
+        case BinaryExpr::Op::Pow: arithOp = OpCode::POW; break;
+        default:
+            throw std::runtime_error("emitValueBinary: unsupported binary operator");
+    }
+
+    ValueResult left = emitValue(*e.left);
+    i32 rkLeft = valueToRK(left);
+    ValueResult right = emitValue(*e.right);
+    i32 rkRight = valueToRK(right);
+
+    if (rkLeft > rkRight) { freeReg(rkLeft); freeReg(rkRight); }
+    else                  { freeReg(rkRight); freeReg(rkLeft); }
+
+    i32 pc = codeABC(arithOp, 0, rkLeft, rkRight);
+    result.kind = ValueResult::Kind::Relocatable;
+    result.instructionPc = pc;
+    return result;
+}
+
+ValueResult CodeGenerator::emitValueUnary(const UnaryExpr& e) {
+    ValueResult result;
+
+    // === Not: 条件通道 + 物化 ===
+    if (e.op == UnaryExpr::Op::Not) {
+        CondResult cond;
+        cond.trueList = emitCondResult(*e.operand).falseList;
+        i32 resultReg = allocReg();
+        materializeCondResult(cond, resultReg, false);
+        result.kind = ValueResult::Kind::Register;
+        result.reg = resultReg;
+        result.ownsRegister = true;
+        return result;
+    }
+
+    // === Neg: 常量折叠 ===
+    if (e.op == UnaryExpr::Op::Neg) {
+        ValueResult operand = emitValue(*e.operand);
+        if (operand.kind == ValueResult::Kind::Immediate &&
+            operand.immediate == ValueResult::ImmediateKind::Number) {
+            result.kind = ValueResult::Kind::Immediate;
+            result.immediate = ValueResult::ImmediateKind::Number;
+            result.numberValue = -operand.numberValue;
+            return result;
+        }
+        // 非常量: 物化到寄存器后生成 UNM
+        i32 opReg = valueToAnyReg(operand);
+        freeReg(opReg);
+        i32 pc = codeABC(OpCode::UNM, 0, opReg, 0);
+        result.kind = ValueResult::Kind::Relocatable;
+        result.instructionPc = pc;
+        return result;
+    }
+
+    // === Len ===
+    if (e.op == UnaryExpr::Op::Len) {
+        ValueResult operand = emitValue(*e.operand);
+        i32 opReg = valueToAnyReg(operand);
+        freeReg(opReg);
+        i32 pc = codeABC(OpCode::LEN, 0, opReg, 0);
+        result.kind = ValueResult::Kind::Relocatable;
+        result.instructionPc = pc;
+        return result;
+    }
+
+    throw std::runtime_error("emitValueUnary: unsupported unary operator");
+}
+
+ValueResult CodeGenerator::emitValueIndex(const IndexExpr& e) {
+    ValueResult table = emitValue(*e.table);
+    i32 tableReg = valueToAnyReg(table);
+
+    ValueResult key = emitValue(*e.index);
+    i32 rkKey = valueToRK(key);
+
+    ValueResult result;
+    result.kind = ValueResult::Kind::PendingLoad;
+    result.access = ValueResult::AccessKind::Indexed;
+    result.reg = tableReg;
+    result.aux = rkKey;
+    return result;
+}
+
+ValueResult CodeGenerator::emitValueMember(const MemberExpr& e) {
+    ValueResult table = emitValue(*e.table);
+    i32 tableReg = valueToAnyReg(table);
+
+    i32 k = stringConstant(e.member);
+    i32 rkKey;
+    if (k <= MAXINDEXRK) {
+        rkKey = RKASK(k);
+    } else {
+        ValueResult keyVal;
+        keyVal.kind = ValueResult::Kind::Constant;
+        keyVal.constIndex = k;
+        rkKey = valueToAnyReg(keyVal);
+    }
+
+    ValueResult result;
+    result.kind = ValueResult::Kind::PendingLoad;
+    result.access = ValueResult::AccessKind::Indexed;
+    result.reg = tableReg;
+    result.aux = rkKey;
+    return result;
+}
+
+ValueResult CodeGenerator::emitValueTable(const TableExpr& table) {
+    i32 pc = codeABC(OpCode::NEWTABLE, 0, 0, 0);
+    i32 tableReg = allocReg();
+    // 设置 NEWTABLE 的 A 字段为 tableReg
+    {
+        Instruction inst = proto_->getInstruction(pc);
+        SETARG_A(inst, tableReg);
+        proto_->setInstruction(pc, inst);
+    }
+
+    i32 na = 0, nh = 0, tostore = 0;
+    CallResultInfo lastCallResult;
+    bool hasLastCallResult = false;
+
+    for (usize i = 0; i < table.fields.size(); i++) {
+        const auto& field = table.fields[i];
+        bool isLastField = (i == table.fields.size() - 1);
+
+        if (field.key) {
+            // 哈希字段: SETTABLE
+            i32 savedFreereg = freereg_;
+            ValueResult keyVal = emitValue(*field.key);
+            i32 rkKey = valueToRK(keyVal);
+            ValueResult valVal = emitValue(*field.value);
+            i32 rkVal = valueToRK(valVal);
+            codeABC(OpCode::SETTABLE, tableReg, rkKey, rkVal);
+            freereg_ = savedFreereg;
+            checkStack(0);
+            nh++;
+        } else {
+            // 数组字段
+            na++;
+            tostore++;
+
+            if (isLastField) {
+                // 最后一个数组字段: 检查是否为 Call/Vararg multret
+                if (auto* callExpr = std::get_if<CallExpr>(&field.value->variant)) {
+                    i32 targetBase = tableReg + tostore;
+                    CallResultInfo info = emitCallExpr(*callExpr, targetBase);
+                    lastCallResult = info;
+                    hasLastCallResult = true;
+                    continue;
+                }
+                else if (std::holds_alternative<VarargExpr>(field.value->variant)) {
+                    CallResultInfo info = emitVarargExpr();
+                    lastCallResult = info;
+                    hasLastCallResult = true;
+                    continue;
+                }
+            }
+
+            ValueResult val = emitValue(*field.value);
+            val = forceSingleValue(val);
+            valueToNextReg(val);
+
+            if (!hasLastCallResult && tostore == LFIELDS_PER_FLUSH) {
+                i32 c = (na - 1) / LFIELDS_PER_FLUSH + 1;
+                codeABC(OpCode::SETLIST, tableReg, LFIELDS_PER_FLUSH, c);
+                freereg_ = tableReg + 1;
+                checkStack(0);
+                tostore = 0;
+            }
+        }
+    }
+
+    // 刷新剩余数组元素
+    if (tostore > 0) {
+        if (hasLastCallResult) {
+            i32 targetBase = tableReg + tostore;
+            if (lastCallResult.kind == CallResultInfo::Kind::Call) {
+                Instruction inst = proto_->getInstruction(lastCallResult.instructionPc);
+                i32 callBase = GETARG_A(inst);
+                if (callBase != targetBase) {
+                    throw std::runtime_error("CALL base mismatch in table multret field");
+                }
+                setOpenMultiRet(lastCallResult);
+            } else {
+                Instruction inst = proto_->getInstruction(lastCallResult.instructionPc);
+                SETARG_A(inst, targetBase);
+                proto_->setInstruction(lastCallResult.instructionPc, inst);
+                setOpenMultiRet(lastCallResult);
+            }
+            i32 c = (na - 1) / LFIELDS_PER_FLUSH + 1;
+            codeABC(OpCode::SETLIST, tableReg, 0, c);
+            freereg_ = tableReg + 1;
+            checkStack(0);
+            na--;
+        } else {
+            i32 c = (na - 1) / LFIELDS_PER_FLUSH + 1;
+            codeABC(OpCode::SETLIST, tableReg, tostore, c);
+            freereg_ = tableReg + 1;
+            checkStack(0);
+        }
+    }
+
+    // 回填 NEWTABLE 的 B/C (na, nh)
+    {
+        Instruction inst = proto_->getInstruction(pc);
+        SETARG_B(inst, na);
+        SETARG_C(inst, nh);
+        proto_->setInstruction(pc, inst);
+    }
+
+    ValueResult result;
+    result.kind = ValueResult::Kind::Register;
+    result.reg = tableReg;
+    result.ownsRegister = true;
+    return result;
+}
+
+// =====================================================================
 // 调用/多返回值通道（PR-5 Call/Vararg/MultiRet pipeline）
 // =====================================================================
 
@@ -718,17 +1001,24 @@ CallResultInfo CodeGenerator::emitCallExpr(const CallExpr& e, i32 targetBase) {
             throw std::runtime_error("Method call must have MemberExpr as func");
         }
 
-        ExprDesc obj;
-        expr(*memberExpr->table, obj);
+        // PR-6: native ValueResult pipeline for SELF
+        ValueResult obj = emitValue(*memberExpr->table);
+        i32 objReg = valueToAnyReg(obj);
 
-        ExprDesc key;
-        key.kind = ExprKind::Const;
-        key.u.s.info = stringConstant(memberExpr->member);
-        key.t = NO_JUMP;
-        key.f = NO_JUMP;
+        i32 methodKey = stringConstant(memberExpr->member);
+        i32 rkKey = RKASK(methodKey);
 
-        luaK_self(obj, key);
-        base = obj.u.s.info;
+        // 释放 obj 寄存器（SELF 会将其复制到 base+1）
+        freeReg(objReg);
+
+        // 分配 2 个连续寄存器：func 和 self
+        base = freereg_;
+        freereg_ += 2;
+        checkStack(0);
+
+        // SELF base objReg RK(method)
+        // R(base+1) = R(objReg); R(base) = R(objReg)[RK(method)]
+        codeABC(OpCode::SELF, base, objReg, rkKey);
         hasImplicitSelf = true;
     }
     else {
@@ -946,44 +1236,15 @@ void CodeGenerator::emitExpr(const CallExpr& e, ExprDesc& desc) {
 }
 
 void CodeGenerator::emitExpr(const IndexExpr& e, ExprDesc& desc) {
-    // 表索引访问 table[key]
-    // 参考：lua_c_analysis/src/lparser.c suffixedexp → luaK_exp2anyreg + yindex + luaK_indexed
-    // 1. 计算表表达式
-    ExprDesc t;
-    expr(*e.table, t);
-    // 2. 将表表达式放入寄存器（必须是寄存器，不能是Relocatable）
-    // ⭐ 关键修复：luaK_dischargevars只将Global转为Relocatable（info=pc），
-    // 但luaK_indexed需要info是寄存器编号。必须调用exp2AnyReg确保在寄存器中。
-    luaK_dischargevars(t);
-    exp2AnyReg(t);
-    // 3. 计算索引表达式
-    ExprDesc k;
-    expr(*e.index, k);
-    // 4. 设置为索引表达式
-    luaK_indexed(t, k);
-    desc = t;
+    // PR-6: 兼容壳 — 委托给 emitValueIndex 并转回 ExprDesc
+    ValueResult val = emitValueIndex(e);
+    valueResultToExprDesc(val, desc);
 }
 
 void CodeGenerator::emitExpr(const MemberExpr& e, ExprDesc& desc) {
-    // 成员访问 table.member
-    // 等价于 table["member"]
-    // 参考：lua_c_analysis/src/lparser.c suffixedexp → luaK_exp2anyreg + checkname + luaK_indexed
-    // 1. 计算表表达式
-    ExprDesc t;
-    expr(*e.table, t);
-    // 2. 将表表达式放入寄存器（必须是寄存器，不能是Relocatable）
-    // ⭐ 关键修复：同IndexExpr，必须确保表在寄存器中
-    luaK_dischargevars(t);
-    exp2AnyReg(t);
-    // 3. 创建字符串常量作为索引
-    ExprDesc k;
-    k.kind = ExprKind::Const;
-    k.u.s.info = stringConstant(e.member);
-    k.t = NO_JUMP;
-    k.f = NO_JUMP;
-    // 4. 设置为索引表达式
-    luaK_indexed(t, k);
-    desc = t;
+    // PR-6: 兼容壳 — 委托给 emitValueMember 并转回 ExprDesc
+    ValueResult val = emitValueMember(e);
+    valueResultToExprDesc(val, desc);
 }
 
 // 辅助函数：获取语句块的最后一行号
@@ -1668,316 +1929,21 @@ void CodeGenerator::emitStmt(const RepeatStmt& s) {
 // =====================================================================
 
 void CodeGenerator::emitExpr(const BinaryExpr& e, ExprDesc& desc) {
-    BinaryExpr::Op op = e.op;
-
-    if (op == BinaryExpr::Op::Eq || op == BinaryExpr::Op::Ne ||
-        op == BinaryExpr::Op::Lt || op == BinaryExpr::Op::Le ||
-        op == BinaryExpr::Op::Gt || op == BinaryExpr::Op::Ge) {
-        CondResult cond;
-        cond.trueList = emitComparisonJump(e, true);
-        i32 resultReg = allocReg();
-        materializeCondResult(cond, resultReg, false);
-
-        desc.kind = ExprKind::NonRelocatable;
-        desc.u.s.info = resultReg;
-        desc.t = NO_JUMP;
-        desc.f = NO_JUMP;
-        return;
-    }
-
-    // 处理左操作数
-    ExprDesc e1;
-    expr(*e.left, e1);
-
-    // 短路运算符需要特殊处理
-    if (op == BinaryExpr::Op::And || op == BinaryExpr::Op::Or) {
-        // 逻辑表达式作为“值”使用时，统一收口到一个专用结果寄存器：
-        // 1. 先把左值写入结果寄存器
-        // 2. 用 TEST/JMP 决定是否跳过右值
-        // 3. 若需要执行右值，则覆写同一个结果寄存器
-        //
-        // 这能同时保证：
-        // - 短路路径不会读取未初始化的旧寄存器
-        // - 不会覆盖仍然活跃的局部变量/参数寄存器
-        exp2Val(e1);
-        i32 resultReg = allocReg();
-        discharge(e1, resultReg);
-
-        i32 testCond = (op == BinaryExpr::Op::And) ? 0 : 1;
-        codeABC(OpCode::TEST, resultReg, 0, testCond);
-        i32 skipRight = codeAsBx(OpCode::JMP, 0, NO_JUMP);
-
-        ExprDesc e2;
-        expr(*e.right, e2);
-        exp2Val(e2);
-        discharge(e2, resultReg);
-
-        fixjump(skipRight, getLabel());
-
-        desc.kind = ExprKind::NonRelocatable;
-        desc.u.s.info = resultReg;
-        desc.t = NO_JUMP;
-        desc.f = NO_JUMP;
-        return;
-    }
-
-    // 对于其他运算符，先处理左操作数
-    if (op == BinaryExpr::Op::Concat) {
-        // 字符串连接需要操作数在栈上
-        exp2NextReg(e1);
-    } else {
-        // 算术和比较运算符：转换为RK格式
-        exp2RK(e1);
-    }
-
-    // 处理右操作数
-    ExprDesc e2;
-    expr(*e.right, e2);
-    ExprDesc* resultDesc = &e1;
-
-    // 生成对应的指令
-    switch (op) {
-        case BinaryExpr::Op::Add:
-            codearith(OpCode::ADD, e1, e2);
-            break;
-        case BinaryExpr::Op::Sub:
-            codearith(OpCode::SUB, e1, e2);
-            break;
-        case BinaryExpr::Op::Mul:
-            codearith(OpCode::MUL, e1, e2);
-            break;
-        case BinaryExpr::Op::Div:
-            codearith(OpCode::DIV, e1, e2);
-            break;
-        case BinaryExpr::Op::Mod:
-            codearith(OpCode::MOD, e1, e2);
-            break;
-        case BinaryExpr::Op::Pow:
-            codearith(OpCode::POW, e1, e2);
-            break;
-        case BinaryExpr::Op::Concat:
-            exp2NextReg(e2);
-            codearith(OpCode::CONCAT, e1, e2);
-            break;
-        case BinaryExpr::Op::Eq:
-            codecomp(OpCode::EQ, 1, e1, e2);
-            break;
-        case BinaryExpr::Op::Ne:
-            codecomp(OpCode::EQ, 0, e1, e2);
-            break;
-        case BinaryExpr::Op::Lt:
-            codecomp(OpCode::LT, 1, e1, e2);
-            break;
-        case BinaryExpr::Op::Le:
-            codecomp(OpCode::LE, 1, e1, e2);
-            break;
-        case BinaryExpr::Op::Gt:
-            codecomp(OpCode::LT, 1, e2, e1);  // a > b 等价于 b < a
-            resultDesc = &e2;
-            break;
-        case BinaryExpr::Op::Ge:
-            codecomp(OpCode::LE, 1, e2, e1);  // a >= b 等价于 b <= a
-            resultDesc = &e2;
-            break;
-        default:
-            break;
-    }
-
-    desc = *resultDesc;
+    // PR-6: delegate to native ValueResult pipeline
+    ValueResult val = emitValueBinary(e);
+    valueResultToExprDesc(val, desc);
 }
 
 void CodeGenerator::emitExpr(const UnaryExpr& e, ExprDesc& desc) {
-    if (e.op == UnaryExpr::Op::Not) {
-        CondResult cond;
-        cond.trueList = emitCondResult(*e.operand).falseList;
-        i32 resultReg = allocReg();
-        materializeCondResult(cond, resultReg, false);
-
-        desc.kind = ExprKind::NonRelocatable;
-        desc.u.s.info = resultReg;
-        desc.t = NO_JUMP;
-        desc.f = NO_JUMP;
-        return;
-    }
-
-    // 处理操作数
-    ExprDesc e1;
-    expr(*e.operand, e1);
-
-    // ⭐ 负索引修复：特殊处理 -(数字常量) 的情况
-    // 参考官方 Lua 5.1.5 行为：负数字面量应该直接作为常量，而非运行时计算
-    //
-    // 问题场景：arg[-1] 被解析为 arg[-(1)]
-    // - 官方 Lua：词法分析器将 -1 识别为单个 NUMBER token
-    // - 我们的实现：解析为 UnaryExpr(MINUS, 1)
-    //
-    // 修复策略：在代码生成阶段优化这种模式
-    // - 检测到 UnaryExpr(Neg, Number) 时
-    // - 直接将负数作为常量处理
-    // - 避免生成 UNM 指令
-    if (e.op == UnaryExpr::Op::Neg && e1.kind == ExprKind::Number) {
-        // 直接取负数值，作为常量
-        desc.kind = ExprKind::Number;
-        desc.u.nval = -e1.u.nval;
-        desc.t = NO_JUMP;
-        desc.f = NO_JUMP;
-        return;
-    }
-
-    // 创建虚拟的第二操作数（值为0）
-    ExprDesc e2;
-    e2.kind = ExprKind::Number;
-    e2.u.nval = 0;
-    e2.t = NO_JUMP;
-    e2.f = NO_JUMP;
-
-    switch (e.op) {
-        case UnaryExpr::Op::Neg:
-            // 取负：如果是数值常量，可以直接取负（已在上面处理）
-            // 这里处理非常量的情况
-            if (e1.kind != ExprKind::Number) {
-                exp2AnyReg(e1);
-            }
-            codearith(OpCode::UNM, e1, e2);
-            break;
-        case UnaryExpr::Op::Len:
-            // 长度运算符：不能对常量操作
-            exp2AnyReg(e1);
-            codearith(OpCode::LEN, e1, e2);
-            break;
-        case UnaryExpr::Op::Not:
-            break;
-    }
-
-    desc = e1;
+    // PR-6: delegate to native ValueResult pipeline
+    ValueResult val = emitValueUnary(e);
+    valueResultToExprDesc(val, desc);
 }
-
 // =====================================================================
-// 辅助函数：算术和比较指令生成
+// PR-6: codearith/codecomp/codenot/luaK_goiftrue/luaK_goiffalse removed
+// (replaced by native ValueResult pipeline in emitValueBinary/emitValueUnary/
+//  emitComparisonJump/emitCondResult/emitCondResultTrue)
 // =====================================================================
-
-void CodeGenerator::codearith(OpCode op, ExprDesc& e1, ExprDesc& e2) {
-    i32 o2 = (op != OpCode::UNM && op != OpCode::LEN) ? exp2RK(e2) : 0;
-    i32 o1 = exp2RK(e1);
-
-    if (o1 > o2) {
-        freeReg(o1);
-        freeReg(o2);
-    } else {
-        freeReg(o2);
-        freeReg(o1);
-    }
-
-    e1.u.s.info = codeABC(op, 0, o1, o2);
-    e1.kind = ExprKind::Relocatable;
-}
-
-void CodeGenerator::codecomp(OpCode op, i32 cond, ExprDesc& e1, ExprDesc& e2) {
-    // ⭐ P0修复：参考lua_c_analysis/src/lcode.c:2509-2522 codecomp实现
-    i32 o1 = exp2RK(e1);
-    i32 o2 = exp2RK(e2);
-
-    freeReg(o1);
-    freeReg(o2);
-
-    // ⭐ 关键修复：当cond=0且op!=EQ时，交换参数并将cond改为1
-    // 这样可以统一使用cond=1，简化后续处理
-    if (cond == 0 && op != OpCode::EQ) {
-        std::swap(o1, o2);  // 交换操作数
-        cond = 1;
-    }
-
-    // 生成比较指令（LE/LT/EQ）后跟JMP指令
-    codeABC(op, cond, o1, o2);
-    e1.u.s.info = jump();  // 生成JMP指令，存储位置到e1.u.s.info
-    e1.kind = ExprKind::Jump;
-    // ⭐ 关键修复：不设置e1.t和e1.f，让它们保持之前的值
-    // luaK_goiffalse会正确处理这些跳转列表
-}
-
-void CodeGenerator::codenot(ExprDesc& e) {
-    luaK_dischargevars(e);
-
-    switch (e.kind) {
-        case ExprKind::Nil:
-        case ExprKind::False:
-            e.kind = ExprKind::True;
-            break;
-        case ExprKind::True:
-        case ExprKind::Number:
-        case ExprKind::Const:
-            e.kind = ExprKind::False;
-            break;
-        case ExprKind::Jump:
-            invertJump(e);
-            break;
-        default: {
-            discharge(e, allocReg());
-            i32 pc = codeABC(OpCode::NOT, 0, e.u.s.info, 0);
-            e.u.s.info = pc;
-            e.kind = ExprKind::Relocatable;
-            break;
-        }
-    }
-}
-
-// =====================================================================
-// 辅助函数：跳转处理
-// =====================================================================
-
-void CodeGenerator::luaK_goiftrue(ExprDesc& e) {
-    // ⭐ P0修复：参考lua_c_analysis/src/lcode.c:2073-2094 luaK_goiftrue实现
-    luaK_dischargevars(e);
-
-    i32 pc;  // 最后跳转的pc
-    switch (e.kind) {
-        case ExprKind::True:
-        case ExprKind::Number:
-        case ExprKind::Const:
-            // 常量真值：无需跳转
-            pc = NO_JUMP;
-            break;
-        case ExprKind::Jump:
-            // ⭐ 关键修复：对于Jump类型，反转跳转并获取pc
-            invertJump(e);
-            pc = e.u.s.info;
-            break;
-        default:
-            // 其他类型：生成条件跳转
-            pc = jumponcond(e, 0);  // 如果为假则跳转
-            break;
-    }
-    // ⭐ 关键修复：将最后跳转插入`f'列表（参考lcode.c:2091）
-    luaK_concat(e.f, pc);
-    patchtohere(e.t);
-    e.t = NO_JUMP;
-}
-
-void CodeGenerator::luaK_goiffalse(ExprDesc& e) {
-    // 参考 lua_c_analysis/src/lcode.c:2136-2156 luaK_goiffalse 实现。
-    // goiffalse 用于处理 `or` 的左操作数：
-    // - 假值路径应继续执行后续表达式，因此要立刻修补到当前位置
-    // - 真值路径应保留为待处理跳转，供上层短路逻辑复用
-    luaK_dischargevars(e);
-
-    i32 pc;
-    switch (e.kind) {
-        case ExprKind::Nil:
-        case ExprKind::False:
-            pc = NO_JUMP;
-            break;
-        case ExprKind::Jump:
-            pc = e.u.s.info;
-            break;
-        default:
-            pc = jumponcond(e, 1);  // 如果为真则跳转（短路 `or`）
-            break;
-    }
-
-    luaK_concat(e.t, pc);
-    patchtohere(e.f);
-    e.f = NO_JUMP;
-}
 
 void CodeGenerator::luaK_dischargevars(ExprDesc& e) {
     switch (e.kind) {
@@ -2048,49 +2014,7 @@ void CodeGenerator::luaK_concat(i32& l1, i32 l2) {
     }
 }
 
-void CodeGenerator::invertJump(ExprDesc& e) {
-    // ⭐ P0修复：参考lua_c_analysis/src/lcode.c:1972-1977 invertjump实现
-    // 反转跳转条件：修改比较指令的A参数
-
-    // 获取跳转控制指令（比较指令，位于JMP之前）
-    i32 pc = e.u.s.info;  // JMP指令的位置
-    if (pc > 0) {
-        i32 controlPc = pc - 1;  // 比较指令的位置
-        Instruction inst = proto_->getInstruction(controlPc);
-        OpCode op = GET_OPCODE(inst);
-
-        // 只有比较指令才能反转
-        if (op == OpCode::EQ || op == OpCode::LT || op == OpCode::LE) {
-            i32 a = GETARG_A(inst);
-            // 反转A参数：0 -> 1, 1 -> 0
-            SETARG_A(inst, !a);
-            // 写回修改后的指令
-            proto_->setInstruction(controlPc, inst);
-        }
-    }
-
-    // 交换真假跳转列表
-    std::swap(e.t, e.f);
-}
-
-i32 CodeGenerator::jumponcond(ExprDesc& e, i32 cond) {
-    if (e.kind == ExprKind::Relocatable) {
-        Instruction inst = proto_->getInstruction(e.u.s.info);
-        OpCode op = GET_OPCODE(inst);
-        if (op == OpCode::NOT) {
-            // 优化：移除NOT指令，直接使用TEST
-            // 注意：这里简化处理，实际应该修改指令
-            return condjump(OpCode::TEST, GETARG_B(inst), 0, !cond);
-        }
-    }
-
-    // 逻辑表达式作为值参与更大表达式时，必须继续测试它“当前真实所在”的寄存器。
-    // 这里若先搬到新的临时寄存器，会让短路路径在未写入该临时寄存器时读到脏值，
-    // 例如：false and mark() or "fallback"。
-    i32 reg = exp2AnyReg(e);
-    freeReg(reg);
-    return condjump(OpCode::TESTSET, NO_REG, reg, cond);
-}
+// PR-6: invertJump/jumponcond removed (only called by dead luaK_goiftrue/luaK_goiffalse/codenot)
 
 i32 CodeGenerator::condjump(OpCode op, i32 a, i32 b, i32 c) {
     // ⭐ P0修复：参考lua_c_analysis/src/lcode.c:477-486 patchtestreg实现
@@ -2098,7 +2022,7 @@ i32 CodeGenerator::condjump(OpCode op, i32 a, i32 b, i32 c) {
     // 这是因为NO_REG(255)是无效的寄存器索引，会导致VM运行时错误
     if (op == OpCode::TESTSET && a == NO_REG) {
         // 转换为TEST指令：TEST A B C
-        // TESTSET的B参数变为TEST的A参数（要测试的寄存器）
+        // TESTSET的B参数变为TEST的A参数（被测试的寄存器）
         op = OpCode::TEST;
         a = b;
         b = 0;
@@ -2229,17 +2153,16 @@ PatchList CodeGenerator::emitComparisonJump(const BinaryExpr& e, bool jumpOnTrue
             throw std::runtime_error("emitComparisonJump requires comparison operator");
     }
 
-    ExprDesc left;
-    ExprDesc right;
-    expr(*e.left, left);
-    expr(*e.right, right);
+    // PR-6: native ValueResult pipeline
+    ValueResult left = emitValue(*e.left);
+    ValueResult right = emitValue(*e.right);
 
     if (swapOperands) {
         std::swap(left, right);
     }
 
-    i32 o1 = exp2RK(left);
-    i32 o2 = exp2RK(right);
+    i32 o1 = valueToRK(left);
+    i32 o2 = valueToRK(right);
     freeReg(o1);
     freeReg(o2);
 
@@ -2352,128 +2275,9 @@ void CodeGenerator::emitClosureUpvalues(const Vec<UpvalueCapture>& upvalues) {
  * 最后回补 NEWTABLE 指令的数组/哈希大小参数。
  */
 void CodeGenerator::emitExpr(const TableExpr& table, ExprDesc& desc) {
-    // 1. 生成 NEWTABLE 指令，B=0, C=0（后续回补实际大小）
-    i32 pc = codeABC(OpCode::NEWTABLE, 0, 0, 0);
-
-    // 2. 标记为 Relocatable，exp2NextReg 会将其固定到寄存器
-    desc.kind = ExprKind::Relocatable;
-    desc.u.s.info = pc;
-    desc.t = NO_JUMP;
-    desc.f = NO_JUMP;
-
-    // 3. 将表固定到一个寄存器中
-    exp2NextReg(desc);
-    i32 tableReg = desc.u.s.info;
-
-    // 4. 遍历字段，分别处理数组和哈希部分
-    i32 na = 0;       // 数组元素总数
-    i32 nh = 0;       // 哈希元素总数
-    i32 tostore = 0;  // 待批量存储的数组元素数
-    CallResultInfo lastCallResult;  // 最后一个数组字段的调用结果（用于 multret）
-    bool hasLastCallResult = false;
-
-    for (usize i = 0; i < table.fields.size(); i++) {
-        const auto& field = table.fields[i];
-        bool isLastField = (i == table.fields.size() - 1);
-
-        if (field.key) {
-            // === 哈希字段：[key] = value 或 name = value ===
-            i32 savedFreereg = freereg_;
-
-            ExprDesc key;
-            expr(*field.key, key);
-            i32 rkKey = exp2RK(key);
-
-            ExprDesc val;
-            expr(*field.value, val);
-            i32 rkVal = exp2RK(val);
-
-            codeABC(OpCode::SETTABLE, tableReg, rkKey, rkVal);
-            freereg_ = savedFreereg;  // 恢复寄存器状态
-            checkStack(0);  // ⭐ P0修复：确保maxStackSize >= freereg_
-            nh++;
-        } else {
-            // === 数组字段：值按顺序累积到 R(tableReg+1), R(tableReg+2), ... ===
-            na++;
-            tostore++;
-
-            // PR-5: 最后一个 listfield 若为 CALL/VARARG，通过新通道处理 multret
-            if (isLastField) {
-                if (auto* callExpr = std::get_if<CallExpr>(&field.value->variant)) {
-                    // 表构造器最后一个数组字段是函数调用 — 直接用 emitCallExpr 指定基址
-                    i32 targetBase = tableReg + tostore;
-                    CallResultInfo info = emitCallExpr(*callExpr, targetBase);
-                    lastCallResult = info;
-                    hasLastCallResult = true;
-                    continue;
-                }
-                else if (std::holds_alternative<VarargExpr>(field.value->variant)) {
-                    // 表构造器最后一个数组字段是 vararg
-                    CallResultInfo info = emitVarargExpr();
-                    lastCallResult = info;
-                    hasLastCallResult = true;
-                    continue;
-                }
-            }
-
-            ExprDesc val;
-            expr(*field.value, val);
-            exp2NextReg(val);
-
-            // 达到批量阈值时发射 SETLIST
-            if (!hasLastCallResult && tostore == LFIELDS_PER_FLUSH) {
-                i32 c = (na - 1) / LFIELDS_PER_FLUSH + 1;
-                codeABC(OpCode::SETLIST, tableReg, LFIELDS_PER_FLUSH, c);
-                freereg_ = tableReg + 1;  // 释放批量寄存器
-                checkStack(0);  // ⭐ P0修复：确保maxStackSize >= freereg_
-                tostore = 0;
-            }
-        }
-    }
-
-    // 5. 发射剩余数组元素的 SETLIST
-    if (tostore > 0) {
-        if (hasLastCallResult) {
-            // PR-5: 最后一个 listfield 为 Call/Vararg multret
-            // 通过 CallResultInfo 设置开放多返回，然后发 SETLIST B=0
-            i32 targetBase = tableReg + tostore;
-
-            if (lastCallResult.kind == CallResultInfo::Kind::Call) {
-                // 验证 CALL 基址对齐（emitCallExpr 已通过 targetBase 参数保证）
-                Instruction inst = proto_->getInstruction(lastCallResult.instructionPc);
-                i32 callBase = GETARG_A(inst);
-                if (callBase != targetBase) {
-                    throw std::runtime_error("CodeGenerator: CALL base mismatch in table multret field");
-                }
-                setOpenMultiRet(lastCallResult);
-            } else {
-                // Vararg: 设置结果起始到 targetBase，并开放传播
-                Instruction inst = proto_->getInstruction(lastCallResult.instructionPc);
-                SETARG_A(inst, targetBase);
-                proto_->setInstruction(lastCallResult.instructionPc, inst);
-                setOpenMultiRet(lastCallResult);
-            }
-
-            i32 c = (na - 1) / LFIELDS_PER_FLUSH + 1;
-            codeABC(OpCode::SETLIST, tableReg, 0, c);  // B=0 -> 到栈顶（LUA_MULTRET）
-            freereg_ = tableReg + 1;
-            checkStack(0);
-
-            na--;
-        } else {
-            // 固定数量元素批量写入
-            i32 c = (na - 1) / LFIELDS_PER_FLUSH + 1;
-            codeABC(OpCode::SETLIST, tableReg, tostore, c);
-            freereg_ = tableReg + 1;
-            checkStack(0);  // ⭐ P0修复：确保maxStackSize >= freereg_
-        }
-    }
-
-    // 6. 回补 NEWTABLE 指令的大小参数 B（数组）和 C（哈希）
-    Instruction inst = proto_->getInstruction(pc);
-    SETARG_B(inst, na);
-    SETARG_C(inst, nh);
-    proto_->setInstruction(pc, inst);
+    // PR-6: delegate to native ValueResult pipeline
+    ValueResult val = emitValueTable(table);
+    valueResultToExprDesc(val, desc);
 }
 
 void CodeGenerator::emitStmt(const FunctionStmt& s) {
@@ -2792,68 +2596,7 @@ void CodeGenerator::luaK_indexed(ExprDesc& t, ExprDesc& k) {
     t.kind = ExprKind::Indexed;
 }
 
-/**
- * @brief 处理方法调用的SELF指令生成（obj:method(args)）
- *
- * 参考：lua_c_analysis/src/lcode.c:1906 luaK_self
- *
- * Lua方法调用语法糖：
- * - obj:method(args) 等价于 obj.method(obj, args)
- * - SELF指令同时完成两个操作，避免重复表访问
- *
- * SELF指令格式：
- * - SELF A B C: R(A+1) := R(B); R(A) := R(B)[RK(C)]
- * - A: 目标寄存器（存放方法）
- * - B: 对象所在寄存器
- * - C: 方法名的RK操作数
- *
- * 执行效果：
- * 1. R(A+1) = R(B)：复制对象到A+1（作为self参数）
- * 2. R(A) = R(B)[RK(C)]：获取方法到A（作为函数）
- *
- * 优化说明：
- * - 避免两次表访问（相比 obj.method(obj, args)）
- * - 自动处理self参数的传递
- * - 为后续CALL指令准备好函数和第一个参数
- *
- * 调用序列：
- * 1. SELF A B C：准备方法和self
- * 2. [加载其他参数到A+2, A+3, ...]
- * 3. CALL A nargs+1 nresults：调用方法
- *
- * @param e 对象表达式描述符（输入输出参数）
- * @param key 方法名表达式描述符
- */
-void CodeGenerator::luaK_self(ExprDesc& e, ExprDesc& key) {
-    // 将对象表达式放入任意寄存器
-    exp2AnyReg(e);
-
-    // 释放对象表达式占用的资源（如果是VNONRELOC）
-    if (e.kind == ExprKind::NonRelocatable) {
-        freeReg(e.u.s.info);
-    }
-
-    // 分配函数寄存器（连续分配2个：func和self）
-    i32 func = freereg_;
-    freereg_ += 2;  // 保留2个寄存器
-    if (freereg_ > proto_->getMaxStackSize()) {
-        proto_->setMaxStackSize(static_cast<u8>(freereg_));
-    }
-
-    // 生成SELF指令
-    // SELF func obj method_key
-    // R(func+1) = R(obj); R(func) = R(obj)[RK(method_key)]
-    codeABC(OpCode::SELF, func, e.u.s.info, exp2RK(key));
-
-    // 释放键表达式（如果是VNONRELOC）
-    if (key.kind == ExprKind::NonRelocatable) {
-        freeReg(key.u.s.info);
-    }
-
-    // 更新表达式描述符
-    e.u.s.info = func;  // 函数在func寄存器
-    e.kind = ExprKind::NonRelocatable;  // 固定在func寄存器
-}
+// PR-6: luaK_self removed (replaced by native SELF path in emitCallExpr)
 
 // =====================================================================
 // LValue 通道（PR-3）

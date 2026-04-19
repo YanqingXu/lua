@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "common/types.hpp"
 
@@ -337,6 +337,62 @@ inline CallResultInfo adaptLegacyExprDescCall(const ExprDesc& desc) {
     }
 
     return result;
+}
+
+// PR-6: ValueResult → ExprDesc 逆向适配（供 emitExpr 兼容壳使用）
+inline void valueResultToExprDesc(const ValueResult& val, ExprDesc& desc) {
+    desc.t = NO_JUMP;
+    desc.f = NO_JUMP;
+    switch (val.kind) {
+        case ValueResult::Kind::Immediate:
+            switch (val.immediate) {
+                case ValueResult::ImmediateKind::Nil:
+                    desc.kind = ExprKind::Nil; break;
+                case ValueResult::ImmediateKind::Boolean:
+                    desc.kind = val.boolValue ? ExprKind::True : ExprKind::False; break;
+                case ValueResult::ImmediateKind::Number:
+                    desc.kind = ExprKind::Number; desc.u.nval = val.numberValue; break;
+                default:
+                    desc.kind = ExprKind::Void; break;
+            }
+            break;
+        case ValueResult::Kind::Constant:
+            desc.kind = ExprKind::Const; desc.u.s.info = val.constIndex; break;
+        case ValueResult::Kind::Register:
+            if (val.access == ValueResult::AccessKind::Local) {
+                desc.kind = ExprKind::Local; desc.u.s.info = val.reg;
+            } else {
+                desc.kind = ExprKind::NonRelocatable; desc.u.s.info = val.reg;
+            }
+            break;
+        case ValueResult::Kind::PendingLoad:
+            switch (val.access) {
+                case ValueResult::AccessKind::Global:
+                    desc.kind = ExprKind::Global; desc.u.s.info = val.constIndex; break;
+                case ValueResult::AccessKind::Upvalue:
+                    desc.kind = ExprKind::Upval; desc.u.s.info = val.aux; break;
+                case ValueResult::AccessKind::Indexed:
+                    desc.kind = ExprKind::Indexed; desc.u.s.info = val.reg; desc.u.s.aux = val.aux; break;
+                default:
+                    desc.kind = ExprKind::Void; break;
+            }
+            break;
+        case ValueResult::Kind::Relocatable:
+            desc.kind = ExprKind::Relocatable; desc.u.s.info = val.instructionPc; break;
+        case ValueResult::Kind::MultiRet:
+            if (val.access == ValueResult::AccessKind::Call) {
+                desc.kind = ExprKind::Call; desc.u.s.info = val.reg; desc.u.s.aux = val.instructionPc;
+            } else if (val.access == ValueResult::AccessKind::Vararg) {
+                desc.kind = ExprKind::Vararg; desc.u.s.info = val.instructionPc;
+            } else {
+                desc.kind = ExprKind::Void;
+            }
+            break;
+        case ValueResult::Kind::PendingJump:
+            desc.kind = ExprKind::Jump; desc.u.s.info = val.instructionPc; break;
+        default:
+            desc.kind = ExprKind::Void; break;
+    }
 }
 
 }  // namespace Lua

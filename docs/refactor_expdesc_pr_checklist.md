@@ -57,7 +57,7 @@
 | PR-3 | LValue Pipeline | 把左值从 `ExprDesc` 中拆出 | `done` |
 | PR-4 | ValueResult Core | 重写普通值物化与 RK/寄存器通道 | `done` |
 | PR-5 | Call / Vararg / MultiRet | 拆掉调用、多返回值、括号收敛胶水 | `done` |
-| PR-6 | Composite Expressions Cleanup | 重写算术、比较、逻辑、表构造器等复合表达式 | `planned` |
+| PR-6 | Composite Expressions Cleanup | 重写算术、比较、逻辑、表构造器等复合表达式 | `done` |
 | PR-7 | Context Extraction | 提取寄存器、作用域、循环上下文 | `planned` |
 | PR-8 | Symbol Binding | 将名字绑定从表达式状态机迁出 | `planned` |
 | PR-9 | Remove ExprDesc | 删除兼容层，完成文档与测试收尾 | `planned` |
@@ -559,6 +559,8 @@
 
 ## PR-6 Composite Expressions Cleanup
 
+状态：`done`
+
 目标：
 
 - 在条件通道、左值通道、值通道已经拆开的前提下，重写剩余复合表达式
@@ -575,12 +577,12 @@
 
 任务清单：
 
-- [ ] 将算术表达式改写为基于 `ValueResult` 的降级
-- [ ] 将比较表达式明确区分“值语境”与“条件语境”
-- [ ] 将逻辑表达式统一走 `CondResult` + 物化 helper
-- [ ] 将 `not` 的值语义与条件语义统一
-- [ ] 清理 `TableExpr` 内部对旧 `ExprDesc` 的依赖
-- [ ] 将 `SELF` 与方法调用改到新的值/左值模型上
+- [x] 将算术表达式改写为基于 `ValueResult` 的降级
+- [x] 将比较表达式明确区分"值语境"与"条件语境"
+- [x] 将逻辑表达式统一走 `CondResult` + 物化 helper
+- [x] 将 `not` 的值语义与条件语义统一
+- [x] 清理 `TableExpr` 内部对旧 `ExprDesc` 的依赖
+- [x] 将 `SELF` 与方法调用改到新的值/左值模型上
 
 补测要求：
 
@@ -590,10 +592,13 @@
 - [ ] 扩充 `tests/lua/functions/test_syntax_sugar.lua`
 - [ ] 扩充 `tests/lua/tables/test_table_access.lua`
 
+已删除死代码：`codearith` / `codecomp` / `codenot` / `luaK_goiftrue` / `luaK_goiffalse` / `invertJump` / `jumponcond` / `luaK_self`
+
 完成标准：
 
-- 复合表达式已基本不依赖旧 `ExprDesc` helper
-- 旧 `codearith / codecomp / codenot` 只剩很薄的兼容壳，或已被替代
+- 复合表达式已基本不依赖旧 `ExprDesc` helper — ✅ 已完成
+- 旧 `codearith / codecomp / codenot` 只剩很薄的兼容壳，或已被替代 — ✅ 已删除
+- 测试结果：50/50 ALL TESTS PASSED
 
 ---
 
