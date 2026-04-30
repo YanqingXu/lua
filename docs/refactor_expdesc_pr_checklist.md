@@ -59,8 +59,8 @@
 | PR-5 | Call / Vararg / MultiRet | 拆掉调用、多返回值、括号收敛胶水 | `done` |
 | PR-6 | Composite Expressions Cleanup | 重写算术、比较、逻辑、表构造器等复合表达式 | `done` |
 | PR-7 | Context Extraction | 提取寄存器、作用域、循环上下文 | `done` |
-| PR-8 | Symbol Binding | 将名字绑定从表达式状态机迁出 | `planned` |
-| PR-9 | Remove ExprDesc | 删除兼容层，完成文档与测试收尾 | `planned` |
+| PR-8 | Symbol Binding | 将名字绑定从表达式状态机迁出 | `done` |
+| PR-9 | Remove ExprDesc | 删除兼容层，完成文档与测试收尾 | `done` |
 
 ---
 
@@ -657,98 +657,73 @@
 
 ## PR-8 Symbol Binding
 
-目标：
+状态：`done`
 
-- 将名字解析从 `ExprDesc` / 即时查找迁出
-- 为 `NameExpr`、函数定义、upvalue 捕获提供稳定语义层
+本阶段实际产出：
 
-建议新增结构：
+- 新增 `SymbolRef` 结构（`codegen_types.hpp`）：包含 Local/Upvalue/Global 三种绑定结果
+- 新增 `CodeGenerator::resolve(const Str&)` 公共方法：统一的 Local → Upvalue → Global 三阶段查找
+- 新增 `CodeGenerator::symbolToValue(const SymbolRef&)`：SymbolRef → ValueResult 转换（读路径）
+- 新增 `CodeGenerator::symbolToLValue(const SymbolRef&)`：SymbolRef → LValueRef 转换（写路径）
+- 重构 4 处重复的名字解析逻辑：
+  - `emitValue(NameExpr)`：15 行 if/else 链 → `resolve() + symbolToValue()`
+  - `emitExpr(NameExpr, ExprDesc&)`：18 行 if/else 链 → `resolve()` + switch
+  - `emitLValue(NameExpr)`：18 行 if/else 链 → `resolve() + symbolToLValue()`
+  - `FunctionStmt::loadNameToReg` lambda：14 行 if/else + 指令生成 → `resolve() + symbolToValue()`
+- 新增单元测试：`tests/unit/compiler/test_symbol_binding.cpp`（20 个测试）
+  - SymbolRef 基本结构与转换（7 测试）
+  - 字节码级指令选择验证（4 测试）
+  - 运行时语义验证（6 测试：局部/全局/遮蔽/upvalue 捕获/写回/链式）
+  - FunctionStmt 表路径回归（3 测试）
 
-- `SymbolRef`
-- `ResolvedSymbolMap`
-- 可选最小 `Resolver / Binder`
+本阶段验证结果：
 
-优先改动函数：
+- `lua_test.vcxproj` 成功编译（0 错误）
+- `bin/lua_test.exe` 全部通过：51 个测试套件（含新增 Symbol Binding），0 失败
+- 所有 Lua 回归测试通过
 
-- `CodeGenerator::findLocalVar`
-- `CodeGenerator::findUpvalue`
-- `CodeGenerator::addUpvalue`
-- `CodeGenerator::resolveUpvalue`
-- `CodeGenerator::emitExpr(const NameExpr&, ExprDesc&)`
-- `CodeGenerator::emitStmt(const FunctionStmt&)`
-- `CodeGenerator::compileFunction`
+说明：
 
-任务清单：
-
-- [ ] 为 `NameExpr` 增加解析结果来源，而不是在 codegen 时即时猜测
-- [ ] 明确 local / upvalue / global 的绑定结果结构
-- [ ] 将函数嵌套捕获逻辑迁到绑定层或语义层
-- [ ] 让 `emitValue(NameExpr)` 和 `emitLValue(NameExpr)` 都基于 `SymbolRef`
-- [ ] 收缩 `findLocalVar / resolveUpvalue` 的职责
-
-补测要求：
-
-- [ ] 扩充闭包与 upvalue 测试
-- [ ] 新增局部遮蔽、嵌套函数、递归函数定义测试
-- [ ] 扩充 `tests/lua/integration/test_closure_pipeline.lua`
-
-完成标准：
-
-- `NameExpr` 的 local / upvalue / global 归属不再依赖 `ExprDesc.kind`
-- 名字绑定已有稳定中间表示
+- `ResolvedSymbolMap` 和独立 `Resolver/Binder` 类的引入留给后续重构阶段
+- 当前 `resolve()` 作为 CodeGenerator 公共方法，已实现名字绑定的单一真相来源
 
 ---
 
 ## PR-9 Remove ExprDesc
 
-目标：
+状态：`done`
 
-- 删除旧兼容层
-- 让新结构成为唯一表达方式
+本阶段实际产出：
 
-删除范围：
+- 将所有 16 处旧 ExprDesc 消费者迁移到原生通道：
+  - `emitCallExpr`：func 表达式和实参从 `expr + exp2AnyReg` 迁移到 `emitValue + valueToAnyReg`
+  - `emitStmt(AssignStmt/LocalStmt/ReturnStmt)`：值表达式从 `expr + discharge` 迁移到 `emitValue + dischargeValue`
+  - `emitStmt(ForNumStmt)`：init/limit/step 从 `expr + exp2NextReg` 迁移到 `emitValue + valueToNextReg`
+  - `emitStmt(CallStmt)`：fallback 路径从 `expr` 迁移到 `emitValue`
+  - `emitLValue`：IndexExpr/MemberExpr 表/键求值从 `expr + luaK_dischargevars + exp2AnyReg` 迁移到 `emitValue + valueToAnyReg/valueToRK`
+  - `emitStore`：签名从 `(LValueRef&, ExprDesc&)` 改为 `(LValueRef&, const ValueResult&)`
+- 删除定义：
+  - `ExprKind` 枚举（15 种）和 `ExprDesc` 结构体（`codegen_types.hpp`）
+  - 13 个 `emitExpr(const XxxExpr&, ExprDesc&)` 重载
+  - `expr()` / `discharge(ExprDesc&)` / `exp2RK` / `exp2AnyReg` / `exp2NextReg` / `exp2Val`
+  - `luaK_dischargevars` / `luaK_indexed` / `luaK_storevar`
+  - `adaptLegacyCondResult` + 6 个双向适配函数（`adaptLegacy*` / `valueResultToExprDesc`）
+- 代码减少：
+  - `codegen.hpp`：-32 行声明
+  - `codegen_types.hpp`：-230 行（定义 + 适配器）
+  - `codegen.cpp`：-416 行（旧实现）
+  - 删除 `codegen.cpp.bak`
+- 测试更新：
+  - 删除 `test_codegen_result_types.cpp` 中的 "Legacy ExprDesc Adapters" 测试
+  - 所有剩余测试保持通过
 
-- `ExprKind`
-- `ExprDesc`
-- 仍以 `ExprDesc&` 为核心参数的旧 helper
-- 仅为兼容层保留的旧注释和过渡函数
+本阶段验证结果：
 
-重点清理函数：
-
-- `CodeGenerator::expr`
-- `CodeGenerator::discharge`
-- `CodeGenerator::exp2RK`
-- `CodeGenerator::exp2AnyReg`
-- `CodeGenerator::exp2NextReg`
-- `CodeGenerator::exp2Val`
-- `CodeGenerator::luaK_goiftrue`
-- `CodeGenerator::luaK_goiffalse`
-- `CodeGenerator::luaK_dischargevars`
-- `CodeGenerator::luaK_indexed`
-- `CodeGenerator::luaK_storevar`
-
-任务清单：
-
-- [ ] 删除 `ExprKind` 与 `ExprDesc` 定义
-- [ ] 将所有 `emitExpr(..., ExprDesc&)` 重命名为新的通道接口
-- [ ] 删除仅服务于 `ExprDesc` 的桥接函数
-- [ ] 清理死分支与旧注释
-- [ ] 更新文档：
-  - `docs/BYTECODE_GENERATION.md`
-  - `docs/REGISTER_ALLOCATION.md`
-  - `docs/refactor_expdesc_plan.md`
-
-补测要求：
-
-- [ ] 全量运行 unit tests
-- [ ] 全量运行 `tests/lua`
-- [ ] 至少执行一次字节码输出/REPL/基础库编译链路验证
-
-完成标准：
-
-- 代码库中已不存在 `ExprDesc` 类型定义和生产路径引用
-- 文档、测试、实现三者一致
-- 新人阅读 `codegen.cpp` 时，不再需要理解 Lua 5.1 风格 `expdesc` 状态机
+- `lua.vcxproj` / `lua_test.vcxproj` 全部成功编译
+- `bin/lua_test.exe`：**51 个测试套件，0 失败**
+- 所有 Lua 回归测试通过
+- 代码库中 `ExprDesc`/`ExprKind` 引用：**0 处**
+- 新人阅读 `codegen.cpp` 不再需要理解 Lua 5.1 风格 `expdesc` 状态机
 
 ---
 

@@ -161,7 +161,7 @@ private:
     /**
      * @brief 将表达式编译为右值，返回 ValueResult
      *
-     * 直接从 AST 节点生成值描述，不经过 ExprDesc。
+     * 直接从 AST 节点生成值描述，直接通过原生通道。
      * 支持字面量、名字读取、括号、函数表达式、索引/成员/调用等。
      */
     ValueResult emitValue(const Expr& e);
@@ -208,7 +208,7 @@ private:
     /**
      * @brief 编译函数调用表达式，直接返回 CallResultInfo
      *
-     * 不经过 ExprDesc，让 Call 结果有独立结构承载。
+     * 直接通过原生通道，让 Call 结果有独立结构承载。
      * @param e       调用表达式 AST
      * @param targetBase 可选的强制基址（用于表构造器最后字段对齐）。
      *                   -1 表示不强制。
@@ -219,7 +219,7 @@ private:
     /**
      * @brief 编译 vararg 表达式，直接返回 CallResultInfo
      *
-     * 不经过 ExprDesc，让 Vararg 结果有独立结构承载。
+     * 直接通过原生通道，让 Vararg 结果有独立结构承载。
      * @return vararg 结果描述（含 instructionPc）
      */
     CallResultInfo emitVarargExpr();
@@ -235,46 +235,14 @@ private:
     void setWantedResults(CallResultInfo& info, i32 wanted);
 
     // =====================================================================
-    // 表达式代码生成（旧 ExprDesc 通道，逐步收缩）
-    // =====================================================================
-
-    void expr(const Expr& e, ExprDesc& desc);
-    void emitExpr(const NilExpr& e, ExprDesc& desc);
-    void emitExpr(const BoolExpr& e, ExprDesc& desc);
-    void emitExpr(const NumberExpr& e, ExprDesc& desc);
-    void emitExpr(const StringExpr& e, ExprDesc& desc);
-    void emitExpr(const VarargExpr& e, ExprDesc& desc);
-    void emitExpr(const NameExpr& e, ExprDesc& desc);
-    void emitExpr(const BinaryExpr& e, ExprDesc& desc);
-    void emitExpr(const UnaryExpr& e, ExprDesc& desc);
-    void emitExpr(const TableExpr& e, ExprDesc& desc);
-    void emitExpr(const CallExpr& e, ExprDesc& desc);
-    void emitExpr(const IndexExpr& e, ExprDesc& desc);
-    void emitExpr(const MemberExpr& e, ExprDesc& desc);
-    void emitExpr(const FunctionExpr& e, ExprDesc& desc);
-    void emitExpr(const ParenExpr& e, ExprDesc& desc);
-    void discharge(ExprDesc& desc, i32 reg);
-    i32 exp2RK(ExprDesc& desc);
-    i32 exp2AnyReg(ExprDesc& desc);
-    void exp2NextReg(ExprDesc& desc);
-    void exp2Val(ExprDesc& desc);
-
-    // 表索引和成员访问
-    void luaK_indexed(ExprDesc& t, ExprDesc& k);
-    void luaK_storevar(ExprDesc& var, ExprDesc& ex);
-
-    // =====================================================================
     // LValue 通道（PR-3）
     // =====================================================================
 
     /**
      * @brief 将表达式解析为左值引用
      *
-     * 直接从 AST 节点解析出可写位置（LValueRef），不经过 ExprDesc。
+     * 直接从 AST 节点解析出可写位置（LValueRef）。
      * 支持：NameExpr → Local/Upvalue/Global，IndexExpr/MemberExpr → Indexed
-     *
-     * @param e 目标表达式（必须是可赋值的左值）
-     * @return 左值引用
      */
     LValueRef emitLValue(const Expr& e);
 
@@ -282,25 +250,19 @@ private:
      * @brief 将值存储到左值目标
      *
      * 根据 LValueRef 类型生成对应的存储指令（MOVE/SETGLOBAL/SETUPVAL/SETTABLE）。
-     * 值仍通过旧 ExprDesc 表示（PR-4 将切换到 ValueResult）。
-     *
-     * @param target 左值引用
-     * @param ex 要存储的值表达式描述符
      */
-    void emitStore(const LValueRef& target, ExprDesc& ex);
+    void emitStore(const LValueRef& target, const ValueResult& val);
 
     // 跳转处理
-    void luaK_dischargevars(ExprDesc& e);
     void luaK_concat(i32& l1, i32 l2);
     i32 condjump(OpCode op, i32 a, i32 b, i32 c);
     void patchtohere(i32 list);
     void patchtohere(const PatchList& list);
-    void dischargejpc();  // 修补所有待处理的跳转到当前位置
+    void dischargejpc();
     void luaK_getlabel();
     i32 getjump(i32 pc);
     void fixjump(i32 pc, i32 dest);
     PatchList collectPatchList(i32 list);
-    CondResult adaptLegacyCondResult(const ExprDesc& desc);
     PatchList emitComparisonJump(const BinaryExpr& e, bool jumpOnTrue);
     void materializeCondResult(const CondResult& cond, i32 reg, bool fallthroughOnTrue);
 
