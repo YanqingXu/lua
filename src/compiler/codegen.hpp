@@ -27,6 +27,7 @@
 #include "compiler/ast.hpp"
 #include "compiler/opcode.hpp"
 #include "compiler/codegen_types.hpp"
+#include "compiler/codegen_context.hpp"
 #include "core/function.hpp"
 #include <memory>
 #include <unordered_map>
@@ -37,46 +38,8 @@ namespace Lua {
 class GCString;
 class StringPool;
 
-/**
- * @brief 局部变量信息
- */
-struct LocalVar {
-    Str name;       // 变量名
-    i32 reg;        // 寄存器索引
-    i32 startpc;    // 作用域开始位置
-    i32 endpc;      // 作用域结束位置
-
-    LocalVar(const Str& n, i32 r, i32 start)
-        : name(n), reg(r), startpc(start), endpc(-1) {}
-};
-
-/**
- * @brief Upvalue捕获信息（用于CLOSURE后伪指令生成）
- */
-struct UpvalueCapture {
-    Str name;       // Upvalue名称（用于调试/打印）
-    bool inStack;   // true: 来自父函数局部变量（MOVE）；false: 来自父函数upvalue（GETUPVAL）
-    i32 index;      // 源索引（局部寄存器索引或父upvalue索引）
-
-    UpvalueCapture(const Str& n, bool inStackVar, i32 idx)
-        : name(n), inStack(inStackVar), index(idx) {}
-};
-
-/**
- * @brief 代码块信息
- *
- * 用于管理嵌套作用域和break语句的跳转目标。
- * 参考官方Lua的BlockCnt结构。
- */
-struct BlockInfo {
-    BlockInfo* previous;    // 父级代码块
-    i32 breaklist;          // break语句的跳转链表
-    i32 nactvar;            // 进入块时的活跃变量数
-    bool isbreakable;       // 是否可以使用break（循环块）
-
-    BlockInfo(BlockInfo* prev, i32 nact, bool breakable)
-        : previous(prev), breaklist(NO_JUMP), nactvar(nact), isbreakable(breakable) {}
-};
+// LocalVar / UpvalueCapture / BlockInfo 已迁移至 compiler/codegen_context.hpp
+// 同一命名空间 Lua 中无需额外 using 声明
 
 /**
  * @brief 代码生成器
@@ -363,14 +326,14 @@ private:
     StringPool* pool_;          // 字符串池
     CodeGenerator* parent_;     // 父函数代码生成器（用于upvalue解析）
     Proto* proto_;              // 当前函数原型
-    i32 freereg_;               // 第一个空闲寄存器
-    i32 nactvar_;               // 活跃局部变量数量
-    Vec<LocalVar> localVars_;   // 局部变量列表
-    Vec<UpvalueCapture> upvalues_; // 当前函数捕获的upvalue列表
     i32 pc_;                    // 当前指令索引
-    i32 jpc_;                   // 待处理的跳转链表
-    BlockInfo* currentBlock_;   // 当前代码块
     i32 currentLine_;           // 当前发射指令所属的源码行号
+
+    // === PR-7: 提取的子系统结构 ===
+    RegisterAllocator regs_;        // 寄存器分配/回收/栈检查
+    LocalVarScope     locals_;      // 局部变量作用域管理
+    BlockManager      blocks_;      // 代码块嵌套/break/跳转链
+    UpvalueContext    upvalueCtx_;  // upvalue 捕获/查找
 };
 
 }  // namespace Lua

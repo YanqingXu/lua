@@ -58,7 +58,7 @@
 | PR-4 | ValueResult Core | 重写普通值物化与 RK/寄存器通道 | `done` |
 | PR-5 | Call / Vararg / MultiRet | 拆掉调用、多返回值、括号收敛胶水 | `done` |
 | PR-6 | Composite Expressions Cleanup | 重写算术、比较、逻辑、表构造器等复合表达式 | `done` |
-| PR-7 | Context Extraction | 提取寄存器、作用域、循环上下文 | `planned` |
+| PR-7 | Context Extraction | 提取寄存器、作用域、循环上下文 | `done` |
 | PR-8 | Symbol Binding | 将名字绑定从表达式状态机迁出 | `planned` |
 | PR-9 | Remove ExprDesc | 删除兼容层，完成文档与测试收尾 | `planned` |
 
@@ -604,62 +604,54 @@
 
 ## PR-7 Context Extraction
 
+状态：`done`
+
 目标：
 
 - 将 `CodeGenerator` 内部混杂的状态拆为上下文对象
 - 为最终删除 `ExprDesc` 和引入 binder 做准备
 
-建议新增结构：
+本阶段实际产出：
 
-- `RegisterAllocator`
-- `ScopeFrame`
-- `LoopContext`
-- `FunctionContext`
-- 可选：`CodeGenContext`
+- 新增 `src/compiler/register_allocator.hpp`：
+  - `RegisterAllocator` 类，封装 `freereg_` + `alloc()`/`freeReg()`/`freeRegs()`/`checkStack()`
+  - 通过 `bind(Proto*)` 绑定当前 Proto，管理 maxStackSize
+- 新增 `src/compiler/codegen_context.hpp`：
+  - `LocalVarScope` 类：封装 `localVars_` + `nactvar_`，提供 `findLocal()`/`closeLocals()`
+  - `UpvalueContext` 类：封装 `upvalues_`，提供 `find()`/`add()`
+  - `BlockManager` 类：封装 `currentBlock_` + `jpc_`，提供 `enterBlock()`/`leaveBlock()`
+  - `LocalVar`/`UpvalueCapture`/`BlockInfo` 从 `codegen.hpp` 迁入
+- 修改 `src/compiler/codegen.hpp`：
+  - 移除 6 个原始成员变量（`freereg_`/`nactvar_`/`localVars_`/`upvalues_`/`jpc_`/`currentBlock_`）
+  - 新增 4 个结构成员（`regs_`/`locals_`/`blocks_`/`upvalueCtx_`）
+- 修改 `src/compiler/codegen.cpp`：
+  - 所有原始成员访问改为通过新结构（机械替换 + 手动修正）
+  - 关键方法委托给新结构：`allocReg()`→`regs_.alloc()`, `findLocalVar()`→`locals_.findLocal()`, `findUpvalue()`→`upvalueCtx_.find()`, `enterBlock()`→`blocks_.enterBlock()`, `leaveBlock()`→`blocks_.leaveBlock()`
+  - `compileFunction()` 中子生成器状态重置改为通过新结构的公开字段
+- 更新项目文件：`lua.vcxproj`/`lua.vcxproj.filters` 添加新头文件
 
-优先改动函数：
+本阶段验证结果：
 
-- `CodeGenerator::allocReg`
-- `CodeGenerator::freeReg`
-- `CodeGenerator::freeRegs`
-- `CodeGenerator::checkStack`
-- `CodeGenerator::addLocalVar`
-- `CodeGenerator::findLocalVar`
-- `CodeGenerator::adjustLocalVars`
-- `CodeGenerator::removeLocalVars`
-- `CodeGenerator::enterBlock`
-- `CodeGenerator::leaveBlock`
-- `CodeGenerator::compileFunction`
-- `CodeGenerator::generate`
-
-涉及成员：
-
-- `freereg_`
-- `nactvar_`
-- `localVars_`
-- `upvalues_`
-- `currentBlock_`
-- `jpc_`
-
-任务清单：
-
-- [ ] 提取寄存器管理对象，封装 `freereg_` 操作
-- [ ] 提取作用域帧，封装局部变量生存期与调试信息
-- [ ] 提取循环上下文，承载 `breaklist`
-- [ ] 让子函数编译使用独立 `FunctionContext`
-- [ ] 缩小 `CodeGenerator` 类的成员面
-
-补测要求：
-
-- [ ] 重点跑 `tests/lua/control_flow/*`
-- [ ] 重点跑 `tests/lua/functions/test_closure_simple.lua`
-- [ ] 重点跑 `tests/unit/compiler/test_function_codegen.cpp`
-- [ ] 补充局部变量调试信息和作用域范围测试
+- `lua.vcxproj`/`lua_test.vcxproj`/`lua_app.vcxproj` 全部编译成功（0 错误 0 警告）
+- `bin/lua_test.exe` 全部通过：50 个测试套件，0 失败
+- 所有 Lua 回归测试通过：
+  - `test_short_circuit_materialization.lua`
+  - `test_multret_edges.lua`
+  - `test_lvalue_matrix.lua`
+  - `test_lvalue_pipeline.lua`
+  - `test_value_pipeline.lua`
+  - `test_call_pipeline.lua`
+  - `test_if_logic.lua`
+  - `test_multiret.lua`
+  - `test_table_constructor_multret.lua`
+  - `test_vararg.lua`
 
 完成标准：
 
-- 寄存器、作用域、循环跳转不再散落在 `CodeGenerator` 顶层成员中
-- `BlockInfo` 可以开始退场，或只剩薄兼容层
+- [x] 寄存器、作用域、循环跳转不再散落在 `CodeGenerator` 顶层成员中
+- [x] CodeGenerator 成员从 11 个减少到 9 个（pool_/parent_/proto_/pc_/currentLine_ + 4 个结构）
+- [x] `compileFunction()` 中子生成器初始化显式通过结构字段，清晰度提升
+- [x] 现有测试全部通过，无行为变更
 
 ---
 

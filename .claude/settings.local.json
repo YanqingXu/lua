@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(./bin/lua_test.exe)",
+      "Bash(\"D:\\\\\\\\VS2026\\\\\\\\2026\\\\\\\\MSBuild\\\\\\\\Current\\\\\\\\Bin\\\\\\\\MSBuild.exe\" lua.vcxproj //t:Build //p:Configuration=Debug //p:Platform=x64)",
+      "Bash(\"D:\\\\\\\\VS2026\\\\\\\\2026\\\\\\\\MSBuild\\\\\\\\Current\\\\\\\\Bin\\\\\\\\MSBuild.exe\" lua_test.vcxproj //t:Build //p:Configuration=Debug //p:Platform=x64)",
+      "Bash(\"D:\\\\\\\\VS2026\\\\\\\\2026\\\\\\\\MSBuild\\\\\\\\Current\\\\\\\\Bin\\\\\\\\MSBuild.exe\" lua_app.vcxproj //t:Build //p:Configuration=Debug //p:Platform=x64)",
+      "Bash(\"D:\\\\\\\\VS2026\\\\\\\\2026\\\\\\\\MSBuild\\\\\\\\Current\\\\\\\\Bin\\\\\\\\MSBuild.exe\" lua_test.vcxproj //t:Rebuild //p:Configuration=Debug //p:Platform=x64)"
+    ]
+  }
+}
