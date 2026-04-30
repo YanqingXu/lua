@@ -5,7 +5,11 @@
       "Bash(\"D:\\\\\\\\VS2026\\\\\\\\2026\\\\\\\\MSBuild\\\\\\\\Current\\\\\\\\Bin\\\\\\\\MSBuild.exe\" lua.vcxproj //t:Build //p:Configuration=Debug //p:Platform=x64)",
       "Bash(\"D:\\\\\\\\VS2026\\\\\\\\2026\\\\\\\\MSBuild\\\\\\\\Current\\\\\\\\Bin\\\\\\\\MSBuild.exe\" lua_test.vcxproj //t:Build //p:Configuration=Debug //p:Platform=x64)",
       "Bash(\"D:\\\\\\\\VS2026\\\\\\\\2026\\\\\\\\MSBuild\\\\\\\\Current\\\\\\\\Bin\\\\\\\\MSBuild.exe\" lua_app.vcxproj //t:Build //p:Configuration=Debug //p:Platform=x64)",
-      "Bash(\"D:\\\\\\\\VS2026\\\\\\\\2026\\\\\\\\MSBuild\\\\\\\\Current\\\\\\\\Bin\\\\\\\\MSBuild.exe\" lua_test.vcxproj //t:Rebuild //p:Configuration=Debug //p:Platform=x64)"
+      "Bash(\"D:\\\\\\\\VS2026\\\\\\\\2026\\\\\\\\MSBuild\\\\\\\\Current\\\\\\\\Bin\\\\\\\\MSBuild.exe\" lua_test.vcxproj //t:Rebuild //p:Configuration=Debug //p:Platform=x64)",
+      "Bash(\"D:\\\\VS2026\\\\2026\\\\MSBuild\\\\Current\\\\Bin\\\\MSBuild.exe\" lua.vcxproj /t:Build /p:Configuration=Debug /p:Platform=x64 /m /v:q)",
+      "Bash(cmd.exe /c \"D:\\\\VS2026\\\\2026\\\\MSBuild\\\\Current\\\\Bin\\\\MSBuild.exe\" lua.vcxproj /t:Build /p:Configuration=Debug /p:Platform=x64 /m /v:q)",
+      "Bash(./bin/build_lua.bat)",
+      "Bash(./bin/build_test.bat)"
     ]
   }
 }

@@ -405,25 +405,8 @@ ValueResult CodeGenerator::emitValue(const Expr& e) {
         result.constIndex = k;
     }
     else if (auto* nameExpr = std::get_if<NameExpr>(&e.variant)) {
-        i32 reg = findLocalVar(nameExpr->name);
-        if (reg >= 0) {
-            result.kind = ValueResult::Kind::Register;
-            result.access = ValueResult::AccessKind::Local;
-            result.reg = reg;
-            result.ownsRegister = false;
-        } else {
-            i32 up = resolveUpvalue(nameExpr->name);
-            if (up >= 0) {
-                result.kind = ValueResult::Kind::PendingLoad;
-                result.access = ValueResult::AccessKind::Upvalue;
-                result.aux = up;
-            } else {
-                i32 k = stringConstant(nameExpr->name);
-                result.kind = ValueResult::Kind::PendingLoad;
-                result.access = ValueResult::AccessKind::Global;
-                result.constIndex = k;
-            }
-        }
+        SymbolRef sym = resolve(nameExpr->name);
+        result = symbolToValue(sym);
     }
     else if (auto* parenExpr = std::get_if<ParenExpr>(&e.variant)) {
         // Lua 5.1 语义：括号表达式将 multret 收敛为单值
@@ -1165,24 +1148,24 @@ void CodeGenerator::emitExpr(const VarargExpr&, ExprDesc& desc) {
 }
 
 void CodeGenerator::emitExpr(const NameExpr& e, ExprDesc& desc) {
-    // 查找局部变量
-    i32 reg = findLocalVar(e.name);
-    if (reg >= 0) {
-        // 局部变量
-        desc.kind = ExprKind::Local;
-        desc.u.s.info = reg;
-    } else {
-        // 查找上值（闭包捕获变量）
-        i32 up = resolveUpvalue(e.name);
-        if (up >= 0) {
+    SymbolRef sym = resolve(e.name);
+    desc.t = NO_JUMP;
+    desc.f = NO_JUMP;
+    switch (sym.kind) {
+        case SymbolRef::Kind::Local:
+            desc.kind = ExprKind::Local;
+            desc.u.s.info = sym.index;
+            break;
+        case SymbolRef::Kind::Upvalue:
             desc.kind = ExprKind::Upval;
-            desc.u.s.info = up;
-        } else {
-            // 全局变量：使用GETGLOBAL/SETGLOBAL指令
-            i32 k = stringConstant(e.name);
+            desc.u.s.info = sym.index;
+            break;
+        case SymbolRef::Kind::Global:
             desc.kind = ExprKind::Global;
-            desc.u.s.info = k;
-        }
+            desc.u.s.info = sym.index;
+            break;
+        default:
+            break;
     }
 }
 
@@ -1459,6 +1442,89 @@ i32 CodeGenerator::resolveUpvalue(const Str& name) {
     }
 
     return -1;
+}
+
+// =====================================================================
+// 符号绑定（PR-8 Symbol Binding）
+// =====================================================================
+
+SymbolRef CodeGenerator::resolve(const Str& name) {
+    SymbolRef result;
+    result.name = name;
+
+    i32 reg = findLocalVar(name);
+    if (reg >= 0) {
+        result.kind = SymbolRef::Kind::Local;
+        result.index = reg;
+        return result;
+    }
+
+    i32 up = resolveUpvalue(name);
+    if (up >= 0) {
+        result.kind = SymbolRef::Kind::Upvalue;
+        result.index = up;
+        return result;
+    }
+
+    result.kind = SymbolRef::Kind::Global;
+    result.index = stringConstant(name);
+    return result;
+}
+
+ValueResult CodeGenerator::symbolToValue(const SymbolRef& sym) {
+    ValueResult result;
+
+    switch (sym.kind) {
+        case SymbolRef::Kind::Local:
+            result.kind = ValueResult::Kind::Register;
+            result.access = ValueResult::AccessKind::Local;
+            result.reg = sym.index;
+            result.ownsRegister = false;
+            break;
+
+        case SymbolRef::Kind::Upvalue:
+            result.kind = ValueResult::Kind::PendingLoad;
+            result.access = ValueResult::AccessKind::Upvalue;
+            result.aux = sym.index;
+            break;
+
+        case SymbolRef::Kind::Global:
+            result.kind = ValueResult::Kind::PendingLoad;
+            result.access = ValueResult::AccessKind::Global;
+            result.constIndex = sym.index;
+            break;
+
+        default:
+            break;
+    }
+
+    return result;
+}
+
+LValueRef CodeGenerator::symbolToLValue(const SymbolRef& sym) {
+    LValueRef result;
+
+    switch (sym.kind) {
+        case SymbolRef::Kind::Local:
+            result.kind = LValueRef::Kind::Local;
+            result.slot = sym.index;
+            break;
+
+        case SymbolRef::Kind::Upvalue:
+            result.kind = LValueRef::Kind::Upvalue;
+            result.slot = sym.index;
+            break;
+
+        case SymbolRef::Kind::Global:
+            result.kind = LValueRef::Kind::Global;
+            result.slot = sym.index;
+            break;
+
+        default:
+            break;
+    }
+
+    return result;
 }
 
 void CodeGenerator::exp2Val(ExprDesc& desc) {
@@ -2277,20 +2343,14 @@ void CodeGenerator::emitStmt(const FunctionStmt& s) {
             // 例如：
             // - function t.foo() end      -> t["foo"] = closure
             // - function t.a.b:c() end    -> t["a"]["b"]["c"] = closure（参数已含self）
-            auto loadNameToReg = [&](const Str& name) -> i32 {
-                i32 local = findLocalVar(name);
-                if (local >= 0) {
-                    return local;
+            auto loadNameToReg = [this](const Str& name) -> i32 {
+                SymbolRef sym = resolve(name);
+                if (sym.kind == SymbolRef::Kind::Local) {
+                    return sym.index;
                 }
-
                 i32 reg = allocReg();
-                i32 up = resolveUpvalue(name);
-                if (up >= 0) {
-                    codeABC(OpCode::GETUPVAL, reg, up, 0);
-                } else {
-                    i32 k = stringConstant(name);
-                    codeABx(OpCode::GETGLOBAL, reg, k);
-                }
+                ValueResult val = symbolToValue(sym);
+                dischargeValue(val, reg);
                 return reg;
             };
 
@@ -2559,23 +2619,8 @@ LValueRef CodeGenerator::emitLValue(const Expr& e) {
     LValueRef result;
 
     if (auto* name = std::get_if<NameExpr>(&e.variant)) {
-        // 查找局部变量
-        i32 reg = findLocalVar(name->name);
-        if (reg >= 0) {
-            result.kind = LValueRef::Kind::Local;
-            result.slot = reg;
-            return result;
-        }
-        // 查找上值
-        i32 up = resolveUpvalue(name->name);
-        if (up >= 0) {
-            result.kind = LValueRef::Kind::Upvalue;
-            result.slot = up;
-            return result;
-        }
-        // 全局变量
-        result.kind = LValueRef::Kind::Global;
-        result.slot = stringConstant(name->name);
+        SymbolRef sym = resolve(name->name);
+        result = symbolToLValue(sym);
         return result;
     }
 

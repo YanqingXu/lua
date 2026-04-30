@@ -65,7 +65,28 @@ public:
      * @return 生成的函数原型
      */
     Proto* generate(const Chunk& chunk, StrView sourceName = {});
-    
+
+    // =====================================================================
+    // 符号绑定（PR-8 Symbol Binding）
+    // =====================================================================
+
+    /**
+     * @brief 解析名字到 SymbolRef（Local → Upvalue → Global 三阶段查找）
+     *
+     * 统一所有 NameExpr 的查找逻辑：先查局部变量，再查 upvalue，最后 fallback 为全局。
+     */
+    SymbolRef resolve(const Str& name);
+
+    /**
+     * @brief 将 SymbolRef 转为 ValueResult（读路径）
+     */
+    ValueResult symbolToValue(const SymbolRef& sym);
+
+    /**
+     * @brief 将 SymbolRef 转为 LValueRef（写路径）
+     */
+    LValueRef symbolToLValue(const SymbolRef& sym);
+
 private:
     // =====================================================================
     // 指令生成
@@ -83,20 +104,20 @@ private:
     void freeReg(i32 reg);
     void freeRegs(i32 n);
     void checkStack(i32 n);  // 检查并更新maxStackSize
-    
+
     // =====================================================================
     // 常量表管理
     // =====================================================================
-    
+
     i32 numberConstant(f64 value);
     i32 stringConstant(const Str& value);
     i32 boolConstant(bool value);
     i32 nilConstant();
-    
+
     // =====================================================================
     // 局部变量管理
     // =====================================================================
-    
+
     i32 addLocalVar(const Str& name);
     i32 findLocalVar(const Str& name);
     i32 findUpvalue(const Str& name);

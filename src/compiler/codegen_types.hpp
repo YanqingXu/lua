@@ -167,6 +167,34 @@ struct CallResultInfo {
     }
 };
 
+// =============================================================================
+// SymbolRef — 名字绑定结果（PR-8 Symbol Binding）
+// =============================================================================
+
+/**
+ * @brief 名字解析结果
+ *
+ * 将 NameExpr 中的名字解析为 Local / Upvalue / Global 三种绑定结果。
+ * 从 CodeGenerator 的 findLocalVar / resolveUpvalue / global fallback 提取，
+ * 消除 emitValue / emitLValue / emitExpr(NameExpr) / FunctionStmt 中重复的查找逻辑。
+ */
+struct SymbolRef {
+    enum class Kind {
+        None,
+        Local,
+        Upvalue,
+        Global
+    };
+
+    Kind kind = Kind::None;
+    i32 index = -1;       // Local: 寄存器槽位; Upvalue: upvalue 索引; Global: 字符串常量索引
+    Str name;             // 原始名字（用于 Global 场景或调试）
+
+    bool valid() const noexcept {
+        return kind != Kind::None;
+    }
+};
+
 inline ValueResult adaptLegacyExprDescValue(const ExprDesc& desc) {
     ValueResult result;
 

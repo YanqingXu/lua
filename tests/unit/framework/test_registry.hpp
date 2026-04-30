@@ -191,5 +191,10 @@ void registerPackageLibTests();
  */
 void registerCallPipelineTests();
 
+/**
+ * @brief 注册 Symbol Binding 测试（PR-8）
+ */
+void registerSymbolBindingTests();
+
 #endif // LUA_TEST_REGISTRY_HPP
 

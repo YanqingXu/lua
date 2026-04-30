@@ -48,6 +48,7 @@ extern void registerCoroutineLibTests();
 extern void registerDebugLibTests();
 extern void registerPackageLibTests();
 extern void registerCallPipelineTests();
+extern void registerSymbolBindingTests();
 
 /**
  * @brief 打印测试框架标题
@@ -127,6 +128,7 @@ int main() {
     registerDebugLibTests();
     registerPackageLibTests();
     registerCallPipelineTests();
+    registerSymbolBindingTests();
 
     std::cout << "[INFO] All tests registered." << std::endl;
     std::cout << "[INFO] Starting test execution...\n" << std::endl;
