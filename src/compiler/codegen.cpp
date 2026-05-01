@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @file codegen.cpp
  * @brief Lua字节码生成器实现
  */
@@ -83,7 +83,7 @@ Proto* CodeGenerator::generate(const Chunk& chunk, StrView sourceName) {
 i32 CodeGenerator::codeABC(OpCode op, i32 a, i32 b, i32 c) {
     // ⭐ P0修复：参考lua_c_analysis/src/lcode.c:2886-2898 luaK_code实现
     // 在生成指令前，必须先修补所有待处理的跳转（blocks_.jpc_）
-    dischargejpc();
+    flushPendingJumps();
 
     Instruction inst = CREATE_ABC(op, a, b, c);
     i32 pc = static_cast<i32>(proto_->addInstruction(inst));
@@ -93,7 +93,7 @@ i32 CodeGenerator::codeABC(OpCode op, i32 a, i32 b, i32 c) {
 
 i32 CodeGenerator::codeABx(OpCode op, i32 a, i32 bx) {
     // ⭐ P0修复：在生成指令前修补待处理的跳转
-    dischargejpc();
+    flushPendingJumps();
 
     Instruction inst = CREATE_ABx(op, a, bx);
     i32 pc = static_cast<i32>(proto_->addInstruction(inst));
@@ -103,7 +103,7 @@ i32 CodeGenerator::codeABx(OpCode op, i32 a, i32 bx) {
 
 i32 CodeGenerator::codeAsBx(OpCode op, i32 a, i32 sbx) {
     // ⭐ P0修复：在生成指令前修补待处理的跳转
-    dischargejpc();
+    flushPendingJumps();
 
     Instruction inst = CREATE_AsBx(op, a, sbx);
     i32 pc = static_cast<i32>(proto_->addInstruction(inst));
@@ -194,7 +194,7 @@ i32 CodeGenerator::jump() {
     i32 jpc = blocks_.jpc_;  // 保存跳转到这里的列表
     blocks_.jpc_ = NO_JUMP;  // 清空blocks_.jpc_
     i32 j = codeAsBx(OpCode::JMP, 0, NO_JUMP);  // 生成JMP指令
-    luaK_concat(j, jpc);  // 将jpc链表连接到j后面
+    concatJumpList(j, jpc);  // 将jpc链表连接到j后面
     return j;
 }
 
@@ -212,8 +212,8 @@ void CodeGenerator::patchList(const PatchList& list, i32 target) {
     }
 }
 
-void CodeGenerator::dischargejpc() {
-    // ⭐ P0修复：参考lua_c_analysis/src/lcode.c:608-611 dischargejpc实现
+void CodeGenerator::flushPendingJumps() {
+    // ⭐ P0修复：参考lua_c_analysis/src/lcode.c:608-611 flushPendingJumps实现
     // 将所有待处理的跳转（blocks_.jpc_）修补到当前位置
     i32 target = static_cast<i32>(proto_->getInstructionCount());
     patchList(blocks_.jpc_, target);
@@ -482,7 +482,7 @@ ValueResult CodeGenerator::emitValue(const Expr& e) {
     return result;
 }
 
-void CodeGenerator::dischargeValue(const ValueResult& val, i32 reg) {
+void CodeGenerator::materializeValue(const ValueResult& val, i32 reg) {
     switch (val.kind) {
         case ValueResult::Kind::Immediate: {
             switch (val.immediate) {
@@ -596,7 +596,7 @@ i32 CodeGenerator::valueToAnyReg(const ValueResult& val) {
     }
     // 否则分配寄存器并物化
     i32 reg = allocReg();
-    dischargeValue(val, reg);
+    materializeValue(val, reg);
     return reg;
 }
 
@@ -606,7 +606,7 @@ void CodeGenerator::valueToNextReg(const ValueResult& val) {
         return;  // 已在下一个位置
     }
     i32 reg = allocReg();
-    dischargeValue(v, reg);
+    materializeValue(v, reg);
 }
 
 ValueResult CodeGenerator::forceSingleValue(const ValueResult& val) {
@@ -663,7 +663,7 @@ ValueResult CodeGenerator::emitValueBinary(const BinaryExpr& e) {
         ValueResult left = emitValue(*e.left);
         left = forceSingleValue(left);
         i32 resultReg = allocReg();
-        dischargeValue(left, resultReg);
+        materializeValue(left, resultReg);
 
         i32 testCond = (op == BinaryExpr::Op::And) ? 0 : 1;
         codeABC(OpCode::TEST, resultReg, 0, testCond);
@@ -671,7 +671,7 @@ ValueResult CodeGenerator::emitValueBinary(const BinaryExpr& e) {
 
         ValueResult right = emitValue(*e.right);
         right = forceSingleValue(right);
-        dischargeValue(right, resultReg);
+        materializeValue(right, resultReg);
 
         fixjump(skipRight, getLabel());
 
@@ -686,12 +686,12 @@ ValueResult CodeGenerator::emitValueBinary(const BinaryExpr& e) {
         ValueResult left = emitValue(*e.left);
         left = forceSingleValue(left);
         i32 regLeft = allocReg();
-        dischargeValue(left, regLeft);
+        materializeValue(left, regLeft);
 
         ValueResult right = emitValue(*e.right);
         right = forceSingleValue(right);
         i32 regRight = allocReg();
-        dischargeValue(right, regRight);
+        materializeValue(right, regRight);
 
         freeReg(regRight);
         freeReg(regLeft);
@@ -1029,14 +1029,14 @@ CallResultInfo CodeGenerator::emitCallExpr(const CallExpr& e, i32 targetBase) {
                 // 普通最后实参
                 ValueResult argVal = emitValue(*arg);
                 argVal = forceSingleValue(argVal);
-                dischargeValue(argVal, targetReg);
+                materializeValue(argVal, targetReg);
             }
         }
         else {
             // 非最后实参：固定为单值
             ValueResult argVal = emitValue(*arg);
             argVal = forceSingleValue(argVal);
-            dischargeValue(argVal, targetReg);
+            materializeValue(argVal, targetReg);
         }
 
         if (regs_.freereg_ < targetReg + 1) {
@@ -1359,7 +1359,7 @@ void CodeGenerator::emitStmt(const LocalStmt& s) {
         for (i32 i = 0; i < nexps - 1 && i < nvars; i++) {
             ValueResult val = emitValue(*s.values[i]);
             val = forceSingleValue(val);
-            dischargeValue(val, base + i);
+            materializeValue(val, base + i);
         }
 
         // 处理最后一个表达式（可能是多返回值表达式）
@@ -1401,7 +1401,7 @@ void CodeGenerator::emitStmt(const LocalStmt& s) {
                 // 普通表达式
                 ValueResult val = emitValue(lastExpr);
                 val = forceSingleValue(val);
-                dischargeValue(val, base + (nexps - 1));
+                materializeValue(val, base + (nexps - 1));
             }
         }
     }
@@ -1434,7 +1434,7 @@ void CodeGenerator::emitStmt(const ReturnStmt& s) {
         for (i32 i = 0; i < nret - 1; i++) {
             ValueResult val = emitValue(*s.values[i]);
             val = forceSingleValue(val);
-            dischargeValue(val, base + i);
+            materializeValue(val, base + i);
         }
 
         // 确保 regs_.freereg_ 指向最后一个值应落的位置
@@ -1477,7 +1477,7 @@ void CodeGenerator::emitStmt(const ReturnStmt& s) {
             // 普通最后一个值
             ValueResult val = emitValue(lastExpr);
             val = forceSingleValue(val);
-            dischargeValue(val, base + (nret - 1));
+            materializeValue(val, base + (nret - 1));
         }
 
         codeABC(OpCode::RETURN, base, nret + 1, 0);
@@ -1584,7 +1584,7 @@ void CodeGenerator::emitStmt(const BreakStmt&) {
 
     // 生成跳转指令并添加到break列表
     // 注意：官方Lua还会处理upvalue关闭（OP_CLOSE），但我们暂时不支持upvalue
-    luaK_concat(bl->breaklist, jump());
+    concatJumpList(bl->breaklist, jump());
 }
 
 void CodeGenerator::emitStmt(const RepeatStmt& s) {
@@ -1631,7 +1631,7 @@ void CodeGenerator::emitStmt(const RepeatStmt& s) {
 // =====================================================================
 
 
-void CodeGenerator::luaK_concat(i32& l1, i32 l2) {
+void CodeGenerator::concatJumpList(i32& l1, i32 l2) {
     if (l2 == NO_JUMP) return;
     if (l1 == NO_JUMP) {
         l1 = l2;
@@ -1663,13 +1663,13 @@ i32 CodeGenerator::condjump(OpCode op, i32 a, i32 b, i32 c) {
     i32 jpc = blocks_.jpc_;
     blocks_.jpc_ = NO_JUMP;
     i32 j = codeAsBx(OpCode::JMP, 0, NO_JUMP);
-    luaK_concat(j, jpc);  // ⭐ 将jpc链表连接到j后面
+    concatJumpList(j, jpc);  // ⭐ 将jpc链表连接到j后面
     return j;
 }
 
 void CodeGenerator::patchtohere(i32 list) {
     pc_ = static_cast<i32>(proto_->getInstructionCount());
-    luaK_concat(blocks_.jpc_, list);
+    concatJumpList(blocks_.jpc_, list);
 }
 
 void CodeGenerator::patchtohere(const PatchList& list) {
@@ -1677,7 +1677,7 @@ void CodeGenerator::patchtohere(const PatchList& list) {
     patchList(list, pc_);
 }
 
-void CodeGenerator::luaK_getlabel() {
+void CodeGenerator::syncPC() {
     pc_ = static_cast<i32>(proto_->getInstructionCount());
 }
 
@@ -1914,7 +1914,7 @@ void CodeGenerator::emitStmt(const FunctionStmt& s) {
                 }
                 i32 reg = allocReg();
                 ValueResult val = symbolToValue(sym);
-                dischargeValue(val, reg);
+                materializeValue(val, reg);
                 return reg;
             };
 
@@ -2186,7 +2186,7 @@ void CodeGenerator::emitStore(const LValueRef& target, const ValueResult& val) {
             if (val.kind == ValueResult::Kind::Register && val.ownsRegister) {
                 freeReg(val.reg);
             }
-            dischargeValue(val, target.slot);
+            materializeValue(val, target.slot);
             return;
         }
 

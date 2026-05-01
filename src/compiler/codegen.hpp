@@ -169,7 +169,7 @@ private:
     /**
      * @brief 将 ValueResult 物化到指定寄存器
      */
-    void dischargeValue(const ValueResult& val, i32 reg);
+    void materializeValue(const ValueResult& val, i32 reg);
 
     /**
      * @brief 将 ValueResult 转为 RK 操作数（常量直接编码或分配寄存器）
@@ -254,12 +254,12 @@ private:
     void emitStore(const LValueRef& target, const ValueResult& val);
 
     // 跳转处理
-    void luaK_concat(i32& l1, i32 l2);
+    void concatJumpList(i32& l1, i32 l2);
     i32 condjump(OpCode op, i32 a, i32 b, i32 c);
     void patchtohere(i32 list);
     void patchtohere(const PatchList& list);
-    void dischargejpc();
-    void luaK_getlabel();
+    void flushPendingJumps();
+    void syncPC();
     i32 getjump(i32 pc);
     void fixjump(i32 pc, i32 dest);
     PatchList collectPatchList(i32 list);

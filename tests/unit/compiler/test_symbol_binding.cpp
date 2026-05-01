@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @file test_symbol_binding.cpp
  * @brief PR-8 Symbol Binding 单元测试
  *
