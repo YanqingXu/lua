@@ -81,8 +81,7 @@ Proto* CodeGenerator::generate(const Chunk& chunk, StrView sourceName) {
 // =====================================================================
 
 i32 CodeGenerator::codeABC(OpCode op, i32 a, i32 b, i32 c) {
-    // ⭐ P0修复：参考lua_c_analysis/src/lcode.c:2886-2898 luaK_code实现
-    // 在生成指令前，必须先修补所有待处理的跳转（blocks_.jpc_）
+    // 在生成指令前刷新所有待处理跳转
     flushPendingJumps();
 
     Instruction inst = CREATE_ABC(op, a, b, c);
@@ -92,7 +91,7 @@ i32 CodeGenerator::codeABC(OpCode op, i32 a, i32 b, i32 c) {
 }
 
 i32 CodeGenerator::codeABx(OpCode op, i32 a, i32 bx) {
-    // ⭐ P0修复：在生成指令前修补待处理的跳转
+    // 在生成指令前刷新待处理跳转
     flushPendingJumps();
 
     Instruction inst = CREATE_ABx(op, a, bx);
@@ -102,7 +101,7 @@ i32 CodeGenerator::codeABx(OpCode op, i32 a, i32 bx) {
 }
 
 i32 CodeGenerator::codeAsBx(OpCode op, i32 a, i32 sbx) {
-    // ⭐ P0修复：在生成指令前修补待处理的跳转
+    // 在生成指令前刷新待处理跳转
     flushPendingJumps();
 
     Instruction inst = CREATE_AsBx(op, a, sbx);
@@ -163,8 +162,8 @@ i32 CodeGenerator::nilConstant() {
 i32 CodeGenerator::addLocalVar(const Str& name) {
     i32 reg = regs_.freereg_;
     locals_.localVars_.emplace_back(name, reg, static_cast<i32>(proto_->getInstructionCount()));
-    regs_.freereg_++;  // ⭐ P0修复：添加局部变量后需要递增regs_.freereg_
-    checkStack(0);  // ⭐ P0修复：确保maxStackSize >= regs_.freereg_
+    regs_.freereg_++;
+    checkStack(0);
     return reg;
 }
 
@@ -190,8 +189,7 @@ void CodeGenerator::removeLocalVars(i32 tolevel) {
 // =====================================================================
 
 i32 CodeGenerator::jump() {
-    // ⭐ P0修复：参考lua_c_analysis/src/lcode.c:212-219 luaK_jump实现
-    i32 jpc = blocks_.jpc_;  // 保存跳转到这里的列表
+    i32 jpc = blocks_.jpc_;  // 保存当前待处理跳转列表
     blocks_.jpc_ = NO_JUMP;  // 清空blocks_.jpc_
     i32 j = codeAsBx(OpCode::JMP, 0, NO_JUMP);  // 生成JMP指令
     concatJumpList(j, jpc);  // 将jpc链表连接到j后面
@@ -200,8 +198,8 @@ i32 CodeGenerator::jump() {
 
 void CodeGenerator::patchList(i32 list, i32 target) {
     while (list != NO_JUMP) {
-        i32 next = getjump(list);  // ⭐ P0修复：使用getjump获取下一个跳转的绝对位置
-        fixjump(list, target);     // ⭐ P0修复：使用fixjump修补跳转
+        i32 next = getjump(list);
+        fixjump(list, target);
         list = next;
     }
 }
@@ -213,8 +211,7 @@ void CodeGenerator::patchList(const PatchList& list, i32 target) {
 }
 
 void CodeGenerator::flushPendingJumps() {
-    // ⭐ P0修复：参考lua_c_analysis/src/lcode.c:608-611 flushPendingJumps实现
-    // 将所有待处理的跳转（blocks_.jpc_）修补到当前位置
+    // 将所有待处理跳转修补到当前指令位置
     i32 target = static_cast<i32>(proto_->getInstructionCount());
     patchList(blocks_.jpc_, target);
     blocks_.jpc_ = NO_JUMP;
@@ -1321,8 +1318,6 @@ void CodeGenerator::emitStmt(const AssignStmt& s) {
 }
 
 void CodeGenerator::emitStmt(const LocalStmt& s) {
-    // ⭐ 局部变量声明
-    // 参考：lua_c_analysis/src/lparser.c localstat() 函数
     i32 nvars = static_cast<i32>(s.names.size());
     i32 nexps = static_cast<i32>(s.values.size());
 
@@ -1332,8 +1327,7 @@ void CodeGenerator::emitStmt(const LocalStmt& s) {
     //std::fprintf(stderr, "DEBUG LocalStmt: nvars=%d, nexps=%d, base=%d, freereg=%d\n",
     //             nvars, nexps, base, regs_.freereg_);
 
-    // ⭐ P0修复：在编译表达式之前，临时调整regs_.freereg_
-    // 保存当前的regs_.freereg_（可能包含其他临时寄存器）
+    // 保存当前寄存器状态，表达式求值将从 base 开始分配寄存器
     i32 savedFreereg = regs_.freereg_;
 
     // 设置regs_.freereg_为base，这样表达式会从base开始分配寄存器
@@ -1346,8 +1340,7 @@ void CodeGenerator::emitStmt(const LocalStmt& s) {
 
     //std::fprintf(stderr, "DEBUG LocalStmt: after addLocalVar, freereg=%d\n", regs_.freereg_);
 
-    // ⭐ P0修复：重新设置regs_.freereg_为base
-    // 这样在编译表达式时，寄存器会从base开始分配
+    // 重置寄存器基址为 base，确保后续分配从 base 开始
     regs_.freereg_ = base;
 
     //std::fprintf(stderr, "DEBUG LocalStmt: reset freereg to %d\n", regs_.freereg_);
@@ -1413,7 +1406,7 @@ void CodeGenerator::emitStmt(const LocalStmt& s) {
         codeABC(OpCode::LOADNIL, base + nexps, base + nvars - 1, 0);  // ⭐ 使用 base 而不是 locals_.nactvar_
     }
 
-    // ⭐ P0修复：恢复regs_.freereg_
+    // 恢复寄存器状态
     regs_.freereg_ = savedFreereg;
 
     adjustLocalVars(nvars);
@@ -1486,7 +1479,6 @@ void CodeGenerator::emitStmt(const ReturnStmt& s) {
 }
 
 void CodeGenerator::emitStmt(const IfStmt& s) {
-    // ifstat: lua_c_analysis/src/lparser.c:5522-5542
     if (s.branches.empty()) {
         return;
     }
@@ -1526,7 +1518,6 @@ void CodeGenerator::emitStmt(const IfStmt& s) {
 }
 
 void CodeGenerator::emitStmt(const WhileStmt& s) {
-    // 参考lua_c_analysis/src/lparser.c:4808-4823 whilestat实现
     i32 whileinit = getLabel();
 
     // 生成条件表达式，返回假值跳转列表
@@ -1570,8 +1561,7 @@ void CodeGenerator::emitStmt(const CallStmt& s) {
 }
 
 void CodeGenerator::emitStmt(const BreakStmt&) {
-    // ⭐ P0修复：参考lua_c_analysis/src/lparser.c:4712-4725 breakstat实现
-    // 查找最近的可break代码块
+    // 查找最近的可 break 代码块
     BlockInfo* bl = blocks_.currentBlock_;
     while (bl && !bl->isbreakable) {
         bl = bl->previous;
@@ -1588,7 +1578,6 @@ void CodeGenerator::emitStmt(const BreakStmt&) {
 }
 
 void CodeGenerator::emitStmt(const RepeatStmt& s) {
-    // 参考lua_c_analysis/src/lparser.c:4853-4875 repeatstat实现
     // repeat body until condition
     //
     // 关键语义：body 中声明的局部变量在 until 条件中仍然可见，
@@ -1645,12 +1634,11 @@ void CodeGenerator::concatJumpList(i32& l1, i32 l2) {
     }
 }
 
-// PR-6: invertJump/jumponcond removed (only called by dead luaK_goiftrue/luaK_goiffalse/codenot)
+// invertJump / jumponcond are no longer used
 
 i32 CodeGenerator::condjump(OpCode op, i32 a, i32 b, i32 c) {
-    // ⭐ P0修复：参考lua_c_analysis/src/lcode.c:477-486 patchtestreg实现
-    // 当TESTSET的A参数为NO_REG时，应该使用TEST指令
-    // 这是因为NO_REG(255)是无效的寄存器索引，会导致VM运行时错误
+    // 当 TESTSET 的 A 参数为 NO_REG 时转换为 TEST：
+    // NO_REG(255) 是无效寄存器索引，直接使用会导致 VM 运行时错误
     if (op == OpCode::TESTSET && a == NO_REG) {
         // 转换为TEST指令：TEST A B C
         // TESTSET的B参数变为TEST的A参数（被测试的寄存器）
@@ -2027,8 +2015,6 @@ void CodeGenerator::emitStmt(const ForInStmt& s) {
     // <loop body>
     // TFORLOOP base nvars
     // JMP -> loop
-
-    // 参考lua_c_analysis/src/lcode.c中的forbody()和forlist()
 
     i32 base = regs_.freereg_;  // 迭代器变量的基址
     i32 nvars = static_cast<i32>(s.vars.size());  // 循环变量数量
