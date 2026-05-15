@@ -106,6 +106,10 @@ void testDebugTableRegistration(TestSuite& suite) {
     checkFunction("getinfo", "debug.getinfo exists");
     checkFunction("getlocal", "debug.getlocal exists");
     checkFunction("setlocal", "debug.setlocal exists");
+    checkFunction("getmetatable", "debug.getmetatable exists");
+    checkFunction("setmetatable", "debug.setmetatable exists");
+    checkFunction("getfenv", "debug.getfenv exists");
+    checkFunction("setfenv", "debug.setfenv exists");
     checkFunction("traceback", "debug.traceback exists");
     checkFunction("sethook", "debug.sethook exists");
     checkFunction("gethook", "debug.gethook exists");
@@ -559,6 +563,81 @@ void testGetLocalAndSetLocal(TestSuite& suite) {
     delete L;
 }
 
+void testDebugMetatableWrappers(TestSuite& suite) {
+    LuaState* L = LuaState::newState();
+    StandardLibrary::openAll(L);
+
+    bool ok = runLuaChunk(L, R"(
+        local t = {}
+        local mt = {__metatable = "locked", marker = 11}
+        setmetatable(t, mt)
+
+        local raw = debug.getmetatable(t)
+        g_raw_mt = raw == mt and raw.marker == 11
+
+        local newmt = {marker = 22}
+        local returned = debug.setmetatable(t, newmt)
+        g_set_return = returned == t
+        g_new_raw_mt = debug.getmetatable(t) == newmt and getmetatable(t).marker == 22
+
+        debug.setmetatable(t, nil)
+        g_cleared_mt = debug.getmetatable(t) == nil
+
+        local unsupported_ok = pcall(function() debug.setmetatable(1, {}) end)
+        g_rejects_unsupported = not unsupported_ok
+    )", "test_debuglib_metatable.lua");
+    ASSERT_TRUE(suite, ok, "debug metatable chunk runs");
+
+    auto assertGlobalTrue = [&](const char* name, const char* message) {
+        Value value = L->getGlobal(name);
+        ASSERT_TRUE(suite, value.isBoolean() && value.asBoolean(), message);
+    };
+
+    assertGlobalTrue("g_raw_mt", "debug.getmetatable bypasses __metatable protection");
+    assertGlobalTrue("g_set_return", "debug.setmetatable returns original object");
+    assertGlobalTrue("g_new_raw_mt", "debug.setmetatable replaces protected metatable");
+    assertGlobalTrue("g_cleared_mt", "debug.setmetatable accepts nil");
+    assertGlobalTrue("g_rejects_unsupported", "debug.setmetatable rejects unsupported primitive metatables");
+
+    delete L;
+}
+
+void testDebugFenvWrappers(TestSuite& suite) {
+    LuaState* L = LuaState::newState();
+    StandardLibrary::openAll(L);
+
+    bool ok = runLuaChunk(L, R"(
+        local env = {answer = 123}
+        local function f()
+            return answer
+        end
+
+        local returned = debug.setfenv(f, env)
+        g_setfenv_return = returned == f
+        g_getfenv_matches = debug.getfenv(f) == env
+        g_env_value = f()
+
+        local cfunc_ok = pcall(function() debug.setfenv(print, {}) end)
+        g_rejects_cfunc = not cfunc_ok
+    )", "test_debuglib_fenv.lua");
+    ASSERT_TRUE(suite, ok, "debug fenv chunk runs");
+
+    Value setReturn = L->getGlobal("g_setfenv_return");
+    Value getEnvMatches = L->getGlobal("g_getfenv_matches");
+    Value envValue = L->getGlobal("g_env_value");
+    Value rejectsCFunc = L->getGlobal("g_rejects_cfunc");
+
+    ASSERT_TRUE(suite, setReturn.isBoolean() && setReturn.asBoolean(), "debug.setfenv returns function");
+    ASSERT_TRUE(suite, getEnvMatches.isBoolean() && getEnvMatches.asBoolean(), "debug.getfenv returns assigned env");
+    ASSERT_TRUE(suite, envValue.isNumber(), "function reads from assigned env");
+    if (envValue.isNumber()) {
+        ASSERT_EQ(suite, 123.0, envValue.asNumber(), "function env lookup returns expected value");
+    }
+    ASSERT_TRUE(suite, rejectsCFunc.isBoolean() && rejectsCFunc.asBoolean(), "debug.setfenv rejects C functions");
+
+    delete L;
+}
+
 void testHookLifecycle(TestSuite& suite) {
     LuaState* L = LuaState::newState();
     StandardLibrary::openAll(L);
@@ -747,6 +826,8 @@ void registerDebugLibTests() {
     registry.registerTest(kSuiteName, "getinfo names", testGetInfoNameInference);
     registry.registerTest(kSuiteName, "traceback", testTracebackFromLua);
     registry.registerTest(kSuiteName, "local access", testGetLocalAndSetLocal);
+    registry.registerTest(kSuiteName, "metatable wrappers", testDebugMetatableWrappers);
+    registry.registerTest(kSuiteName, "fenv wrappers", testDebugFenvWrappers);
     registry.registerTest(kSuiteName, "hook lifecycle", testHookLifecycle);
     registry.registerTest(kSuiteName, "thread hook", testThreadHookAndTraceback);
 }

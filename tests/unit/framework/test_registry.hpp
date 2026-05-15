@@ -41,6 +41,11 @@ void registerVMCoreTests();
 void registerFunctionTests();
 
 /**
+ * @brief 注册VM函数调用测试
+ */
+void registerFunctionCallTests();
+
+/**
  * @brief 注册GC系统测试（GCObject、GarbageCollector、Upvalue）
  */
 void registerGCTests();
@@ -179,6 +184,16 @@ void registerMathLibTests();
  * @brief 注册字符串库测试
  */
 void registerStringLibTests();
+
+/**
+ * @brief 注册表库测试
+ */
+void registerTableLibTests();
+
+/**
+ * @brief 注册OS库测试
+ */
+void registerOSlibTests();
 
 void registerCoroutineLibTests();
 

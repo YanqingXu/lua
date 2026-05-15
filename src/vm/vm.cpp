@@ -1362,7 +1362,10 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
             // ============== Upvalue 关闭 ==============
 
             case OpCode::CLOSE:
-                L->closeUpvalues(a);
+                {
+                    const CallInfo& ci = L->getCurrentCallInfo();
+                    L->closeUpvalues(ci.base + static_cast<usize>(a));
+                }
                 break;
 
             // ============== 循环指令 ==============

@@ -99,6 +99,7 @@ public:
     
     int runAllTests() {
         int totalFail = 0;
+        int totalPass = 0;
         std::string currentSuite;
         TestSuite* suite = nullptr;
         
@@ -107,6 +108,7 @@ public:
                 if (suite) {
                     suite->printReport();
                     totalFail += suite->getFailCount();
+                    totalPass += suite->getPassCount();
                     delete suite;
                 }
                 currentSuite = test.suiteName;
@@ -123,11 +125,23 @@ public:
         if (suite) {
             suite->printReport();
             totalFail += suite->getFailCount();
+            totalPass += suite->getPassCount();
             delete suite;
         }
         
+        lastPassCount_ = totalPass;
+        lastFailCount_ = totalFail;
+        lastTotalCount_ = totalPass + totalFail;
         return totalFail;
     }
+
+    int getRegisteredTestCount() const {
+        return static_cast<int>(tests_.size());
+    }
+
+    int getLastPassCount() const { return lastPassCount_; }
+    int getLastFailCount() const { return lastFailCount_; }
+    int getLastTotalCount() const { return lastTotalCount_; }
     
 private:
     TestRegistry() = default;
@@ -139,6 +153,9 @@ private:
     };
     
     std::vector<TestEntry> tests_;
+    int lastPassCount_ = 0;
+    int lastFailCount_ = 0;
+    int lastTotalCount_ = 0;
 };
 
 // ============================================================================

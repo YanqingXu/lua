@@ -15,13 +15,9 @@
  * 
  * 设计原则：
  * - 基于寄存器的虚拟机架构
- * - 单遍代码生成
- * - 简单的寄存器分配策略
- * - 支持基本的代码优化
- * 
- * 参考实现：
- * - lua_c_analysis/src/lcode.h/c - Lua 5.1.5代码生成器
- * - lua_c_analysis/src/lparser.c - 解析器中的代码生成部分
+ * - 基于 AST 的字节码生成
+ * - 通过 ValueResult / CondResult / LValueRef 分离右值、条件和左值通道
+ * - 通过 RegisterAllocator 管理临时寄存器与 maxStackSize
  */
 
 #include "compiler/ast.hpp"
@@ -134,9 +130,9 @@ private:
      * @brief 条件代码生成入口
      *
      * 将表达式编译为条件跳转，返回"条件为假时的跳转链表"。
-     * 作为 luaK_goiftrue/luaK_goiffalse 的上层包装，统一处理：
+     * 作为 emitCondResult/emitCondResultTrue 的上层包装，统一处理：
      * - 直接比较优化（BinaryExpr 比较运算直接生成 CMP+JMP）
-     * - 通用路径（expr → luaK_goiftrue → 返回 false list）
+     * - 通用路径（expr → 条件通道 → 返回 false list）
      *
      * @param e 条件表达式
      * @return 条件为假时的跳转链表（patch list）
@@ -187,7 +183,7 @@ private:
     void valueToNextReg(const ValueResult& val);
 
     /**
-     * @brief 多返回值收敛为单值（括号语义 / exp2Val 语义）
+     * @brief 多返回值收敛为单值（括号单值收敛语义）
      */
     ValueResult forceSingleValue(const ValueResult& val);
 
@@ -292,6 +288,7 @@ private:
 
     void enterBlock(bool isbreakable);
     void leaveBlock();
+    void closeScopeUpvalues(i32 level);
 
     // =====================================================================
     // 函数编译辅助

@@ -367,7 +367,7 @@ i32 luaB_getmetatable(LuaState* L) {
         if (!protectedField.isNil()) {
             // 如果设置了 __metatable 字段，返回该字段的值而不是元表本身
             L->pop();
-            L->getStack().push(protectedField);
+            L->pushValue(protectedField);
         }
     }
 
@@ -1377,6 +1377,8 @@ void BaseLibModule::initialize(LuaState* L) {
     if (!L) {
         return;
     }
+
+    L->setGlobal("_G", Value(L->getGlobalTable()));
 
     auto& gs = L->getGlobalState();
     GCString* versionValue = gs.getStringPool().intern("Lua 5.1 (C core prototype)");

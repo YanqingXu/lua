@@ -17,6 +17,7 @@ extern void registerValueTests();
 extern void registerGCStringTests();
 extern void registerTableTests();
 extern void registerVMCoreTests();
+extern void registerFunctionCallTests();
 extern void registerFunctionTests();
 extern void registerGCTests();
 extern void registerLuaStateInitTests();
@@ -49,6 +50,10 @@ extern void registerDebugLibTests();
 extern void registerPackageLibTests();
 extern void registerCallPipelineTests();
 extern void registerSymbolBindingTests();
+extern void registerDynamicBufferTests();
+extern void registerInputStreamStringTests();
+extern void registerInputStreamStreamTests();
+extern void registerInputStreamFileTests();
 
 /**
  * @brief 打印测试框架标题
@@ -66,13 +71,14 @@ void printHeader() {
 /**
  * @brief 打印测试总结
  */
-void printSummary(int totalTests, int totalFailed) {
+void printSummary(int registeredTests, int totalResults, int totalFailed) {
     std::cout << "\n";
     std::cout << "========================================" << std::endl;
     std::cout << "Test Summary" << std::endl;
     std::cout << "========================================" << std::endl;
-    std::cout << "Total Tests: " << totalTests << std::endl;
-    std::cout << "Passed: " << (totalTests - totalFailed) << std::endl;
+    std::cout << "Registered Tests: " << registeredTests << std::endl;
+    std::cout << "Total Results: " << totalResults << std::endl;
+    std::cout << "Passed: " << (totalResults - totalFailed) << std::endl;
     std::cout << "Failed: " << totalFailed << std::endl;
     std::cout << "========================================" << std::endl;
     
@@ -97,6 +103,7 @@ int main() {
     registerGCStringTests();
     registerTableTests();
     registerVMCoreTests();
+    registerFunctionCallTests();
     registerFunctionTests();
     registerGCTests();
     registerLuaStateInitTests();
@@ -129,6 +136,10 @@ int main() {
     registerPackageLibTests();
     registerCallPipelineTests();
     registerSymbolBindingTests();
+    registerDynamicBufferTests();
+    registerInputStreamStringTests();
+    registerInputStreamStreamTests();
+    registerInputStreamFileTests();
 
     std::cout << "[INFO] All tests registered." << std::endl;
     std::cout << "[INFO] Starting test execution...\n" << std::endl;
@@ -138,9 +149,7 @@ int main() {
     int failedTests = registry.runAllTests();
     
     // 打印总结
-    // Note: We don't have total test count easily accessible, so we estimate
-    int totalTests = failedTests > 0 ? failedTests * 2 : 50; // Rough estimate
-    printSummary(totalTests, failedTests);
+    printSummary(registry.getRegisteredTestCount(), registry.getLastTotalCount(), failedTests);
     
     // 返回失败测试数量作为退出码
     return failedTests > 0 ? 1 : 0;

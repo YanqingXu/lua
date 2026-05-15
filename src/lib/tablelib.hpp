@@ -9,6 +9,7 @@
  * - table.remove: 从表中移除元素
  * - table.concat: 连接表中的字符串
  * - table.sort: 对表进行排序
+ * - table.maxn: 获取最大正数索引
  * - table.pack: 打包可变参数为表
  * - table.unpack: 解包表为多个返回值
  * - table.move: 移动表元素
@@ -74,6 +75,14 @@ i32 table_concat(LuaState* L);
  * @return 返回值数量（0）
  */
 i32 table_sort(LuaState* L);
+
+/**
+ * @brief table.maxn(table) - 返回表中最大的正数键
+ *
+ * @param L Lua 状态机
+ * @return 返回值数量（1，最大正数键或0）
+ */
+i32 table_maxn(LuaState* L);
 
 /**
  * @brief table.pack(...) - 打包可变参数为表

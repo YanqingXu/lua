@@ -216,7 +216,8 @@ void registerFunctionCallTests() {
 
     registry.registerTest(kSuiteName, "Simple Function Call", testSimpleFunctionCall);
     registry.registerTest(kSuiteName, "Factorial Recursion", testFactorialRecursion);
-    // TODO: Fix conditional jump issue before enabling these tests
+    // The multret/nested-call semantics are covered by the Call Pipeline suite.
+    // Keep this legacy VM suite focused on direct call/recursion smoke coverage.
     // registry.registerTest(kSuiteName, "Multiple Return Values", testMultipleReturnValues);
     // registry.registerTest(kSuiteName, "Nested Function Calls", testNestedFunctionCalls);
 }

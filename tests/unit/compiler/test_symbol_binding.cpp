@@ -253,6 +253,72 @@ void testNestedUpvalueChain(TestSuite& suite) {
     delete L;
 }
 
+void testBlockExitEmitsClose(TestSuite& suite) {
+    int c = countOpcode(
+        "local f\n"
+        "do\n"
+        "  local x = 41\n"
+        "  f = function() return x end\n"
+        "end\n"
+        "local y = 99\n"
+        "_result = f()",
+        OpCode::CLOSE);
+    ASSERT_TRUE(suite, c >= 1, "block exit with locals should emit CLOSE");
+}
+
+void testUpvalueClosedOnBlockExitRuntime(TestSuite& suite) {
+    LuaState* L = createFullState();
+    bool ok = runLua(L,
+        "local f\n"
+        "do\n"
+        "  local x = 41\n"
+        "  f = function() return x end\n"
+        "end\n"
+        "local x = 99\n"
+        "_result = f()");
+    ASSERT_TRUE(suite, ok, "block-exit upvalue close should run");
+    ASSERT_EQ(suite, 41.0, getGlobalNumber(L, "_result"), "closed upvalue should keep pre-reuse value");
+    delete L;
+}
+
+void testUpvalueClosedOnBreakRuntime(TestSuite& suite) {
+    LuaState* L = createFullState();
+    bool ok = runLua(L,
+        "local f\n"
+        "while true do\n"
+        "  local x = 7\n"
+        "  f = function() return x end\n"
+        "  break\n"
+        "end\n"
+        "local x = 99\n"
+        "_result = f()");
+    ASSERT_TRUE(suite, ok, "break upvalue close should run");
+    ASSERT_EQ(suite, 7.0, getGlobalNumber(L, "_result"), "break should close loop-local upvalue");
+    delete L;
+}
+
+void testCloseUsesCurrentFrameBase(TestSuite& suite) {
+    LuaState* L = createFullState();
+    bool ok = runLua(L,
+        "local outer = 1\n"
+        "local readOuter = function() return outer end\n"
+        "local f\n"
+        "local function maker()\n"
+        "  do\n"
+        "    local x = 2\n"
+        "    f = function() return x end\n"
+        "  end\n"
+        "end\n"
+        "maker()\n"
+        "outer = 3\n"
+        "_result1 = readOuter()\n"
+        "_result2 = f()");
+    ASSERT_TRUE(suite, ok, "frame-relative CLOSE should run");
+    ASSERT_EQ(suite, 3.0, getGlobalNumber(L, "_result1"), "inner CLOSE should not close outer frame upvalue");
+    ASSERT_EQ(suite, 2.0, getGlobalNumber(L, "_result2"), "inner block upvalue should still close correctly");
+    delete L;
+}
+
 // =============================================================================
 // FunctionStmt 表路径加载 — 通过 resolve() 收敛
 // =============================================================================
@@ -310,6 +376,10 @@ void registerSymbolBindingTests() {
     registry.registerTest("Symbol Binding (PR-8)", "upvalue capture runtime", testUpvalueCaptureRuntime);
     registry.registerTest("Symbol Binding (PR-8)", "upvalue writeback runtime", testUpvalueWritebackRuntime);
     registry.registerTest("Symbol Binding (PR-8)", "nested upvalue chain", testNestedUpvalueChain);
+    registry.registerTest("Symbol Binding (PR-8)", "block exit emits CLOSE", testBlockExitEmitsClose);
+    registry.registerTest("Symbol Binding (PR-8)", "block exit closes upvalue", testUpvalueClosedOnBlockExitRuntime);
+    registry.registerTest("Symbol Binding (PR-8)", "break closes upvalue", testUpvalueClosedOnBreakRuntime);
+    registry.registerTest("Symbol Binding (PR-8)", "CLOSE uses current frame base", testCloseUsesCurrentFrameBase);
 
     registry.registerTest("Symbol Binding (PR-8)", "function table path resolve", testFunctionTablePathResolve);
     registry.registerTest("Symbol Binding (PR-8)", "global function definition", testGlobalFunctionDefinition);

@@ -266,6 +266,35 @@ i32 table_sort(LuaState* L) {
 }
 
 // =====================================================================
+// table.maxn 实现
+// =====================================================================
+
+i32 table_maxn(LuaState* L) {
+    if (L->getTop() < 1) {
+        L->error("table.maxn: missing table argument");
+    }
+
+    Table* table = getTableArg(L, 1, "maxn");
+    LuaNumber maxIndex = 0.0;
+
+    Value key;
+    Value nextKey;
+    Value nextValue;
+    while (table->next(key, nextKey, nextValue)) {
+        if (nextKey.isNumber()) {
+            LuaNumber n = nextKey.asNumber();
+            if (n > maxIndex) {
+                maxIndex = n;
+            }
+        }
+        key = nextKey;
+    }
+
+    L->pushNumber(maxIndex);
+    return 1;
+}
+
+// =====================================================================
 // table.pack 实现
 // =====================================================================
 
@@ -374,6 +403,7 @@ void TableLibModule::registerFunctions(LuaState* L) {
         .addGlobal("remove", table_remove)
         .addGlobal("concat", table_concat)
         .addGlobal("sort", table_sort)
+        .addGlobal("maxn", table_maxn)
         .addGlobal("pack", table_pack)
         .addGlobal("unpack", table_unpack)
         .addGlobal("move", table_move)

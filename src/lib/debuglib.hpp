@@ -16,6 +16,8 @@
  * - Keep the public API shape close to Lua 5.1 where practical
  * - Local variable inspection and mutation: getlocal, setlocal
  * - Hook management: sethook, gethook, debug
+ * - Raw metatable access: getmetatable, setmetatable
+ * - Function environment wrappers: getfenv, setfenv
  *
  * Reference Implementation:
  * - lua_c_analysis/src/ldblib.c for the C implementation
@@ -94,6 +96,49 @@ i32 luaDebug_getlocal(LuaState* L);
  * @return Number of return values (1: local name or nil)
  */
 i32 luaDebug_setlocal(LuaState* L);
+
+/**
+ * @brief debug.getmetatable(object) - Get the raw metatable
+ * @param L Lua state pointer
+ * @return Number of return values (1: metatable or nil)
+ */
+i32 luaDebug_getmetatable(LuaState* L);
+
+/**
+ * @brief debug.setmetatable(object, table|nil) - Set the raw metatable
+ *
+ * Current compatibility boundary: this VM supports raw metatable mutation for
+ * tables and full userdata. Per-type metatables for numbers/strings/etc. are
+ * not implemented yet.
+ *
+ * @param L Lua state pointer
+ * @return Number of return values (1: original object)
+ */
+i32 luaDebug_setmetatable(LuaState* L);
+
+/**
+ * @brief debug.getfenv(f) - Get a function environment
+ *
+ * Compatibility boundary: delegates to the base getfenv implementation, which
+ * currently supports function objects and the global fallback. Stack-level and
+ * thread environment queries are not implemented yet.
+ *
+ * @param L Lua state pointer
+ * @return Number of return values (1: environment table)
+ */
+i32 luaDebug_getfenv(LuaState* L);
+
+/**
+ * @brief debug.setfenv(f, table) - Set a function environment
+ *
+ * Compatibility boundary: delegates to the base setfenv implementation, which
+ * currently supports Lua function objects. Stack-level/thread environment
+ * mutation and C-function environments are not implemented yet.
+ *
+ * @param L Lua state pointer
+ * @return Number of return values (1: function)
+ */
+i32 luaDebug_setfenv(LuaState* L);
 
 /**
  * @brief debug.traceback([message [, level]]) - Build a traceback string

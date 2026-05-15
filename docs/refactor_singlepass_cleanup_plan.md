@@ -397,6 +397,17 @@ void restore(i32 saved) noexcept { freereg_ = saved; }
 - `grep -r "regs_\.freereg_\s*=" src/compiler/codegen.cpp` 返回 0 结果
 - 全量测试通过
 
+**状态**：`done` (2026-05-15)
+
+**实际产出**：
+- `RegisterAllocator` 新增 `current()` / `setFreeReg()` / `resetToLocals()` / `restore()` / `reserve()` / `ensureAtLeast()`。
+- `freereg_` 改为 private，`CodeGenerator` 不再直接读写 `regs_.freereg_`。
+- `BlockManager::leaveBlock()` 中的寄存器复位也改为调用 `resetToLocals()`。
+
+**验证结果**：
+- `rg "regs_\.freereg_" src/compiler/codegen.cpp src/compiler/codegen_context.hpp` → 0 结果
+- `bin/build_test.bat` 成功，0 警告 0 错误
+
 ---
 
 ### PR-C4：头文件文档更新
@@ -419,6 +430,16 @@ void restore(i32 saved) noexcept { freereg_ = saved; }
 - 头文件不再包含任何 `luaK_`、`exp2`、`单遍`、`discharge` 等遗留术语
 - 全量编译通过
 
+**状态**：`done` (2026-05-15)
+
+**实际产出**：
+- `codegen.hpp` 文件头改为描述 AST 字节码生成、三通道表达式模型和 `RegisterAllocator`。
+- `emitCond()` 注释改为引用 `emitCondResult/emitCondResultTrue`。
+- `forceSingleValue()` 注释改为“括号单值收敛语义”。
+
+**验证结果**：
+- `rg "luaK_|discharge|P0修复|lua_c_analysis|单遍|exp2Val|exp2RK|exp2AnyReg|exp2NextReg|regs_\.freereg_" src/compiler/codegen.cpp src/compiler/codegen.hpp src/compiler/codegen_types.hpp src/compiler/register_allocator.hpp` → 0 结果
+
 ---
 
 ### PR-C5：最终审查与收尾
@@ -427,17 +448,15 @@ void restore(i32 saved) noexcept { freereg_ = saved; }
 
 **检查清单**：
 
-- [ ] `grep -r "luaK_" src/` → 0 结果
-- [ ] `grep -r "discharge" src/` → 0 结果（除 SyncPC/FlushPendingJumps 自身的声明/定义/调用外；如果已重命名则应返回 0）
-- [ ] `grep -r "P0修复" src/` → 0 结果
-- [ ] `grep -r "lua_c_analysis" src/` → 0 结果
-- [ ] `grep -r "单遍" src/compiler/codegen.*` → 0 结果
-- [ ] `grep -r "exp2Val\|exp2RK\|exp2AnyReg\|exp2NextReg" src/` → 0 结果
-- [ ] `grep -r "regs_\.freereg_\s*=" src/compiler/codegen.cpp` → 0 结果
-- [ ] `grep -r "luaK_concat\|luaK_getlabel\|dischargejpc\|dischargeValue" src/` → 0 结果
-- [ ] 全量单元测试：`bin/lua_test.exe` 全部通过（51 个套件，0 失败）
-- [ ] 全量 Lua 回归测试：所有 `tests/lua/regressions/*.lua` 通过
-- [ ] 更新 `docs/refactor_expdesc_pr_checklist.md`：追加本文档的完成记录
+- [x] `rg "luaK_|discharge|P0修复|lua_c_analysis|单遍|exp2Val|exp2RK|exp2AnyReg|exp2NextReg|regs_\.freereg_" src/compiler/codegen.cpp src/compiler/codegen.hpp src/compiler/codegen_types.hpp src/compiler/register_allocator.hpp` → 0 结果
+- [x] `rg "ExprDesc|ExprKind|expdesc" src/compiler` → 0 结果
+- [x] 全量单元测试：`bin/lua_test.exe` 全部通过（402 个注册测试，1574 个结果，0 失败）
+- [x] 全量 Lua 回归测试：所有 `tests/lua/regressions/*.lua` 通过
+- [x] 更新 `docs/refactor_expdesc_pr_checklist.md`：追加本文档的完成记录
+
+**状态**：`done` (2026-05-15)
+
+**注意**：`lexer.hpp` / `parser.hpp` / `opcode.hpp` 等文件仍保留对 Lua 5.1.5 C 实现的参考说明；它们不是 `codegen` 单遍清理残留，不在本轮 PR-C 范围内。
 
 ---
 

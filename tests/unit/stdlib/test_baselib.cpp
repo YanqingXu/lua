@@ -67,6 +67,20 @@ LuaState* createFullState() {
 
 } // namespace
 
+void testGlobalSelfReference(TestSuite& suite) {
+    LuaStdLibTestContext ctx(openBaseLib);
+    LuaState* L = ctx.getState();
+
+    Value globalSelf = L->getGlobal("_G");
+    ASSERT_TRUE(suite, globalSelf.isTable(), "_G exists");
+    if (globalSelf.isTable()) {
+        ASSERT_TRUE(suite, globalSelf.asTable() == L->getGlobalTable(), "_G references the global table");
+    }
+
+    Value version = L->getGlobal("_VERSION");
+    ASSERT_TRUE(suite, version.isString(), "_VERSION remains registered");
+}
+
 void testPrintWrapper(TestSuite& suite) {
     LuaStdLibTestContext ctx(openBaseLib);
     if (!ctx.ensureGlobalFunction("print", suite, "print function exists")) {
@@ -209,6 +223,33 @@ void testMetatableWrapper(TestSuite& suite) {
     ASSERT_TRUE(suite, mtResult.isTable(), "getmetatable returns table");
     if (mtResult.isTable()) {
         ASSERT_TRUE(suite, mtResult.asTable() == mt, "metatable matches");
+    }
+
+    Table* protectedTable = new Table();
+    Table* protectedMt = new Table();
+    L->getGlobalState().getGC().registerObject(protectedTable);
+    L->getGlobalState().getGC().registerObject(protectedMt);
+    auto& pool = L->getGlobalState().getStringPool();
+    protectedMt->set(Value(pool.intern("__metatable")), Value(pool.intern("locked")));
+
+    ret = ctx.invoke("setmetatable", [protectedTable, protectedMt](LuaState* s) {
+        s->pushTable(protectedTable);
+        s->pushTable(protectedMt);
+    });
+    ASSERT_EQ(suite, ret, 1, "setmetatable protected returns 1 value");
+
+    ret = ctx.invoke("getmetatable", [protectedTable](LuaState* s) {
+        s->pushTable(protectedTable);
+    });
+    ASSERT_EQ(suite, ret, 1, "protected getmetatable returns 1 value");
+    Value protectedResult = L->top();
+    ASSERT_TRUE(suite, protectedResult.isString(), "protected getmetatable returns __metatable value");
+    if (protectedResult.isString()) {
+        ASSERT_TRUE(
+            suite,
+            std::string(protectedResult.asString()->c_str()) == "locked",
+            "protected getmetatable returns locked marker"
+        );
     }
 }
 
@@ -747,6 +788,7 @@ void testLoadWrapper(TestSuite& suite) {
 void registerBaselibTests() {
     auto& registry = TestRegistry::getInstance();
 
+    registry.registerTest(kSuiteName, "_G", testGlobalSelfReference);
     registry.registerTest(kSuiteName, "print", testPrintWrapper);
     registry.registerTest(kSuiteName, "type", testTypeWrapper);
     registry.registerTest(kSuiteName, "tostring", testTostringWrapper);

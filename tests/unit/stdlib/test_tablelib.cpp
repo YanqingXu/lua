@@ -342,6 +342,48 @@ void testTableSortWithComparatorUsingDerivedKey(TestSuite& suite) {
 }
 
 // =====================================================================
+// table.maxn 测试
+// =====================================================================
+
+void testTableMaxn(TestSuite& suite) {
+    LuaStdLibTestContext ctx(openTableLib);
+    LuaState* L = ctx.getState();
+
+    Value tableValue = ctx.getGlobal("table");
+    ASSERT_TRUE(suite, tableValue.isTable(), "table table exists");
+    if (tableValue.isTable()) {
+        GCString* key = L->getGlobalState().getStringPool().intern("maxn");
+        ASSERT_TRUE(suite, tableValue.asTable()->get(Value(key)).isFunction(), "table.maxn exists");
+    }
+
+    Table* t = new Table();
+    t->set(Value(1.0), Value(10.0));
+    t->set(Value(5.0), Value(50.0));
+    t->set(Value(12.0), Value(120.0));
+    t->set(Value(-3.0), Value(300.0));
+    t->set(Value(10.5), Value(105.0));
+
+    i32 ret = callTableFunc(L, "maxn", [&](LuaState* s) {
+        s->pushValue(Value(t));
+    });
+    ASSERT_EQ(suite, 1, ret, "maxn returns one value");
+    ASSERT_TRUE(suite, L->top().isNumber(), "maxn returns number");
+    if (L->top().isNumber()) {
+        ASSERT_EQ(suite, 12.0, L->top().asNumber(), "maxn returns largest positive numeric index");
+    }
+
+    Table* empty = new Table();
+    ret = callTableFunc(L, "maxn", [&](LuaState* s) {
+        s->pushValue(Value(empty));
+    });
+    ASSERT_EQ(suite, 1, ret, "maxn empty returns one value");
+    ASSERT_TRUE(suite, L->top().isNumber(), "maxn empty returns number");
+    if (L->top().isNumber()) {
+        ASSERT_EQ(suite, 0.0, L->top().asNumber(), "maxn empty table returns 0");
+    }
+}
+
+// =====================================================================
 // table.pack 测试
 // =====================================================================
 
@@ -476,6 +518,7 @@ void registerTableLibTests() {
     registry.registerTest(kSuiteName, "table.sort", testTableSort);
     registry.registerTest(kSuiteName, "table.sort comparator descending", testTableSortWithLuaComparator);
     registry.registerTest(kSuiteName, "table.sort comparator derived key", testTableSortWithComparatorUsingDerivedKey);
+    registry.registerTest(kSuiteName, "table.maxn", testTableMaxn);
     registry.registerTest(kSuiteName, "table.pack", testTablePack);
     registry.registerTest(kSuiteName, "table.unpack", testTableUnpack);
     registry.registerTest(kSuiteName, "table.move", testTableMove);

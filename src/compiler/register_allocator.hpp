@@ -11,8 +11,8 @@ namespace Lua {
  * 从 CodeGenerator 中提取的寄存器管理子系统。
  * 负责临时寄存器的分配/回收，以及 maxStackSize 的维护。
  *
- * 迁移说明 (PR-7):
- * - freereg_ 现在是 regs_.freereg_（公开字段，兼容旧代码）
+ * 迁移说明:
+ * - CodeGenerator 通过语义化方法移动/恢复空闲寄存器指针
  * - allocReg() / freeReg() / freeRegs() / checkStack() 作为便捷方法提供
  */
 class RegisterAllocator {
@@ -21,6 +21,9 @@ public:
 
     /// 绑定当前 Proto（用于读写 maxStackSize）
     void bind(Proto* proto) noexcept { proto_ = proto; }
+
+    /// 当前下一个空闲寄存器
+    i32 current() const noexcept { return freereg_; }
 
     /// 分配一个新寄存器，更新 maxStackSize（原 CodeGenerator::allocReg）
     i32 alloc() {
@@ -53,14 +56,31 @@ public:
         }
     }
 
+    /// 将下一个空闲寄存器设置到指定位置
+    void setFreeReg(i32 reg) noexcept { freereg_ = reg; }
+
+    /// 将下一个空闲寄存器重置到当前活动局部变量之后
+    void resetToLocals(i32 activeLocals) noexcept { freereg_ = activeLocals; }
+
+    /// 恢复到先前保存的空闲寄存器位置
+    void restore(i32 saved) noexcept { freereg_ = saved; }
+
+    /// 保留连续寄存器，不立即更新 maxStackSize
+    void reserve(i32 count) noexcept { freereg_ += count; }
+
+    /// 确保下一个空闲寄存器至少位于指定位置
+    void ensureAtLeast(i32 reg) noexcept {
+        if (freereg_ < reg) {
+            freereg_ = reg;
+        }
+    }
+
     /// 重置到初始状态（用于子函数编译）
     void reset(i32 start = 0) noexcept { freereg_ = start; }
 
-    // === 公开字段（兼容旧代码的直接读写） ===
-    i32 freereg_ = 0;
-
 private:
     Proto* proto_ = nullptr;
+    i32 freereg_ = 0;
 };
 
 }  // namespace Lua

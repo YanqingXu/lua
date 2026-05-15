@@ -727,6 +727,29 @@
 
 ---
 
+## 后续清理记录：PR-C1 到 PR-C5
+
+状态：`done` (2026-05-15)
+
+本轮在 `docs/refactor_singlepass_cleanup_plan.md` 的 PR-C1/PR-C2 基础上完成 PR-C3 到 PR-C5：
+
+- `RegisterAllocator` 封装完成，`CodeGenerator` 不再直接读写 `regs_.freereg_`。
+- `codegen.hpp` 中的 `luaK_*`、`exp2*`、`单遍`、`lua_c_analysis` 等过时描述已清理。
+- 测试 runner 注册 FunctionCall、DynamicBuffer、InputStream 相关测试，并改为汇总真实执行结果数。
+- 新增 upvalue close 单元测试和 `tests/lua/regressions/test_upvalue_close.lua`。
+- `OP_CLOSE` 发射接入作用域退出和 `break` 路径；VM 执行 `CLOSE` 时使用当前调用帧 base。
+
+验证结果：
+
+- `bin/build_test.bat`：成功，0 警告 0 错误
+- `bin/lua_test.exe`：402 个注册测试，1574 个结果，0 失败
+- `bin/build_app.bat`：成功，0 警告 0 错误
+- `tests/lua/regressions/*.lua`：全部通过
+- `rg "ExprDesc|ExprKind|expdesc" src/compiler`：0 结果
+- `rg "luaK_|discharge|P0修复|lua_c_analysis|单遍|exp2Val|exp2RK|exp2AnyReg|exp2NextReg|regs_\.freereg_" src/compiler/codegen.cpp src/compiler/codegen.hpp src/compiler/codegen_types.hpp src/compiler/register_allocator.hpp`：0 结果
+
+---
+
 ## 风险最高的语义点
 
 以下项目必须在每个阶段持续回归：

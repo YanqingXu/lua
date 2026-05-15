@@ -2,13 +2,13 @@
 
 > **从零开始用C++17/20/23实现Lua 5.1.5解释器**
 
-[![Tests](https://img.shields.io/badge/tests-1047%2F1047-brightgreen)]()
+[![Tests](https://img.shields.io/badge/tests-1605%2F1605-brightgreen)]()
 [![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen)]()
-[![C++](https://img.shields.io/badge/C%2B%2B-17-blue)]()
+[![C++](https://img.shields.io/badge/C%2B%2B-17%2F23-blue)]()
 [![Platform](https://img.shields.io/badge/platform-Windows-blue)]()
-[![Progress](https://img.shields.io/badge/progress-92%25-yellow)]()
+[![Progress](https://img.shields.io/badge/progress-94%25-yellow)]()
 [![Code](https://img.shields.io/badge/code-19k%20lines-blue)]()
-[![Last Updated](https://img.shields.io/badge/updated-2026--04--10-blue)]()
+[![Last Updated](https://img.shields.io/badge/updated-2026--05--15-blue)]()
 
 ---
 
@@ -21,7 +21,7 @@
 本项目旨在从零开始，用现代 C++ 重建 Lua 5.1.5 的核心执行链路，包括词法分析、语法分析、字节码生成、虚拟机执行、垃圾回收和标准库。
 
 **核心特点**：
--  **技术路线明确**：Windows + Visual Studio 2026 + MSVC + C++17
+-  **技术路线明确**：Windows + Visual Studio 2026 + MSVC + C++17/23（项目文件当前使用 C++23 preview）
 - ✨ **实现风格现代**：使用 `std::variant`、类型别名、STL 容器等现代 C++ 手段组织 Lua 运行时
 - 🎓 **偏学习型工程**：强调结构可读、模块可追踪、便于理解 Lua 语言设计
 
@@ -31,7 +31,7 @@
 
 ### 总体状态
 
-- **整体完成度**：约 92%
+- **整体完成度**：约 94%
 - **代码规模**：约 87 个源文件，约 19k 行有效代码
 - **核心链路**：类型系统、编译器前端、字节码执行引擎已基本成型
 - **主要短板**：部分标准库函数尚有缺失或不完整实现
@@ -41,9 +41,11 @@
 - ✅ **已较稳定的部分**：Value / Table / Function / Lexer / Parser / CodeGen / VM 主体
 - ✅ **已补齐的初始化部分**：GlobalState 元方法、保留字、固定字符串初始化
 - ✅ **GC / pcall / xpcall**：已全部通过测试，基础行为稳定
-- ✅ **标准库状态**：math / os / io / string / table / coroutine / debug / package 库已全部实现（部分函数仍有缺失或简化）
+- ✅ **CodeGen 重构状态**：`ExprDesc` / `ExprKind` 已从产品代码移除，PR-C1~PR-C5 清理完成，寄存器指针访问已封装
+- ✅ **闭包语义**：upvalue 捕获、写回、嵌套捕获链，以及作用域退出 / `break` 时的 `OP_CLOSE` 关闭路径已覆盖
+- ✅ **标准库状态**：math / os / io / string / table / coroutine / debug / package 库主体已实现（少量函数仍为 stub 或简化）
 
-### 已完成模块（28个核心模块）
+### 已完成模块（核心模块）
 
 | 模块 | 文件 | 代码行数 | 功能描述 | 完成度 |
 |------|------|----------|---------|--------|
@@ -69,41 +71,35 @@
 | **CodeGenerator字节码生成器** | `src/compiler/codegen.hpp/cpp` + `opcode.hpp/cpp` | 2,249 | 字节码生成（AST→Bytecode） | ✅ 95% |
 | **VM字节码执行引擎** | `src/vm/vm.hpp/cpp` | 2,030 | 字节码解释执行（38条指令） | ✅ 95% |
 | **I/O系统** | `src/io/*.hpp/cpp` | 670 | InputStream + DynamicBuffer | ✅ 100% |
-| **基础库（Base Library）** | `src/lib/baselib.hpp/cpp` | 730 | 27/30函数（print、type、pcall、xpcall、unpack、load等） | 🔄 90% |
+| **基础库（Base Library）** | `src/lib/baselib.hpp/cpp` | 730+ | Lua 5.1 常用全局函数 + `_G` / `_VERSION`（newproxy 缺失，部分边界简化） | 🔄 93% |
 | **数学库（Math Library）** | `src/lib/mathlib.hpp/cpp` | 681 | 28/28函数（含 sinh、cosh、tanh） | ✅ 100% |
 | **I/O库（I/O Library）** | `src/lib/iolib.hpp/cpp` | 1,111 | 11/11函数 + 7/7文件方法（完整实现） | ✅ 100% |
 | **字符串库（String Library）** | `src/lib/stringlib.hpp/cpp` | ~1,200 | 14/14函数（format 已补全，dump 为 stub） | 🔄 88% |
-| **表库（Table Library）** | `src/lib/tablelib.hpp/cpp` | ~400 | 4/5核心函数（缺 maxn，sort 已支持自定义比较器） | 🔄 85% |
+| **表库（Table Library）** | `src/lib/tablelib.hpp/cpp` | ~430 | Lua 5.1 核心函数 5/5（concat、insert、maxn、remove、sort）+ 5.2 风格扩展 | ✅ 100% |
 | **OS库（OS Library）** | `src/lib/oslib.hpp/cpp` | ~500 | 11/11函数（完整实现） | ✅ 100% |
 | **协程库（Coroutine Library）** | `src/lib/coroutinelib.hpp/cpp` | ~210 | 6/6函数（create、resume、yield、status、running、wrap） | ✅ 100% |
 | **Thread类** | `src/core/thread.hpp/cpp` | ~300 | 协程执行引擎，独立 LuaState + 栈转移 | ✅ 95% |
-| **调试库（Debug Library）** | `src/lib/debuglib.hpp/cpp` | ~1,000 | 10/14函数（缺 getfenv、setfenv、getmetatable、setmetatable） | 🔄 71% |
-| **包/模块库（Package Library）** | `src/lib/packagelib.hpp/cpp` | ~490 | require、module、package.loaded/preload/loaders/path/seeall/loadlib | ✅ 95% |
+| **调试库（Debug Library）** | `src/lib/debuglib.hpp/cpp` | ~1,100 | 14/14函数表面实现（env/线程/栈层级边界仍简化） | 🔄 90% |
+| **包/模块库（Package Library）** | `src/lib/packagelib.hpp/cpp` | ~490 | require、module、package.loaded/preload/loaders/path/seeall；loadlib/C loader 为 stub | 🔄 90% |
 | **库管理系统** | `src/lib/lib_manager.hpp/cpp` | 73 | 标准库注册和管理 | ✅ 100% |
 
-### 测试统计（2026-04-10更新）✅
+### 测试统计（2026-05-15更新）✅
 
 ```
 测试框架：自定义轻量级测试框架（零外部依赖）
-测试套件：29个
-  - Core模块：Value（16）、GCString（9）、StringPool（11）、Table（13）、Function（20）
-  - VM模块：VM Core（84）、LuaState Init（20）
-  - GC模块：GC系统（18）
-  - 编译器：Binary/Unary Expressions（54）、Function Codegen（27）、
-           Lua File Compilation（5）、Syntax Sugar（71）、
-           Table Indexed Access（18）、Method Call（23）、Variable Storage（11）、
-           Lexer Number（10）、Lexer Lookahead（27）、
-           Parser Recursion（4）、Parser Error（8）、Parser Memory Pool（31）
-  - 标准库：Base Library（136）、String Library（68）、
-           Table Library（41）、OS Library（23）、Coroutine Library（62）、
-           Debug Library（144）、Package Library（61）
-  - 元方法：Metamethod（8）、Complete Metamethods（24）
-总测试数：1047个单元测试 ✅
-通过率：  100% (1047/1047)
+注册测试：406个
+断言结果：1605个 ✅
+通过率：  100% (1605/1605)
 失败测试：0个
-编译状态：Debug版本无警告，无链接冲突
+编译状态：Debug|x64 版本无警告，无链接冲突
 平台：    Windows + MSVC (Visual Studio 2026)
 ```
+
+补充验证：
+- `bin/build_test.bat`：通过
+- `bin/lua_test.exe`：406 个注册测试，1605 个结果，0 失败
+- `bin/build_app.bat`：通过
+- `tests/lua/regressions/*.lua`：全部通过
 
 ### 距离完整 Lua 5.1.5 仍缺失的功能
 
@@ -122,12 +118,10 @@
 |--------|----------|------|
 | **`string.gsub` 函数/表替换** | string 库 | 仅支持字符串替换模式，不支持函数和表替换 |
 | **`string.dump`** | string 库 | 当前为 stub，抛出 "not yet implemented" |
-| **`table.maxn`** | table 库 | Lua 5.1 函数，返回最大正整数键 |
-| **`debug.getfenv/setfenv`** | debug 库 | 缺失，应委托给 base 库同名函数 |
-| **`debug.getmetatable/setmetatable`** | debug 库 | 缺失，需提供绕过 `__metatable` 保护的原始版本 |
+| **`package.loadlib` / C loader** | package 库 | 动态 C 库加载和 C 模块 loader 仍为 stub |
 | **`error()` level 参数** | base 库 | level 参数已解析但不会在错误消息前添加源位置信息 |
-| **`_G` 全局自引用** | base 库 | 全局表未注册 `_G` 变量 |
 | **`newproxy()`** | base 库 | 未实现（Lua 5.1 未文档化但存在的函数） |
+| **`debug.getfenv/setfenv` 栈层级/线程环境** | debug/base 库 | 函数对象路径已支持；栈层级、线程环境和 C 函数环境仍未完整兼容 |
 
 #### ⚪ 低优先级/已废弃
 
@@ -142,7 +136,7 @@
 2. **弱表与终结器**：`__mode` 和 `__gc` 支持
 3. **补全 `string.gsub` 的函数/表替换**：提升字符串库兼容性
 4. **实现 `collectgarbage("collect")`**：补齐 GC 控制路径
-5. **补齐 `table.maxn`**：完成 table 库剩余兼容函数
+5. **实现 `package.loadlib` / C 模块 loader**：补齐 package 库的动态加载能力
 
 ### 核心实现亮点
 
@@ -155,15 +149,15 @@
 ✅ **Metatable元方法系统**：完整支持17种元方法（__add、__sub、__mul、__div、__mod、__pow、__unm、__eq、__lt、__le、__index、__newindex、__call、__concat、__len、__gc、__mode），包括快速元方法缓存优化
 ✅ **Lexer词法分析器**：完整Lua 5.1词法规则，支持所有关键字、运算符、字面量、注释
 ✅ **Parser语法分析器**：递归下降解析，完整AST生成，正确的运算符优先级和结合性
-✅ **CodeGenerator字节码生成器**：AST→字节码转换，寄存器分配，常量表管理，跳转回填
+✅ **CodeGenerator字节码生成器**：AST→字节码转换，寄存器分配，常量表管理，跳转回填；`ExprDesc` / `ExprKind` 迁移和 PR-C 清理已完成
 ✅ **OpCode指令集**：完整Lua 5.1指令集（38条指令），iABC/iABx/iAsBx三种格式
 ✅ **VM字节码执行引擎**：完整38条指令实现，Upvalue操作，函数调用（C函数），循环指令（FORLOOP/FORPREP/TFORLOOP），闭包创建，表初始化（SETLIST）
-✅ **基础库（Base Library）**：26/30函数（print、type、tostring、tonumber、error、assert、pcall、xpcall、pairs、ipairs、next、select、rawget、rawset、rawequal、loadstring、loadfile、dofile、collectgarbage、unpack、load 等），87%完成
+✅ **基础库（Base Library）**：Lua 5.1 常用全局函数已覆盖，包含 `_G` / `_VERSION`、print、type、tostring、tonumber、error、assert、pcall、xpcall、pairs、ipairs、next、select、rawget、rawset、rawequal、loadstring、loadfile、dofile、collectgarbage、unpack、load、getfenv、setfenv 等
 ✅ **数学库（Math Library）**：22/22函数完整实现（abs, floor, ceil, sqrt, sin, cos, tan, log, exp, random 等），包括数学常量 math.pi 和 math.huge
 ✅ **I/O库（I/O Library）**：11/11函数 + 7/7文件方法完整实现（io.open, io.close, io.read, io.write, file:read, file:write 等），100%完成
 ✅ **协程库（Coroutine Library）**：6/6函数实现（coroutine.create、resume、yield、status、running、wrap），支持独立栈协程执行
-✅ **调试库（Debug Library）**：10/14函数实现（debug.getinfo、getlocal、setlocal、getupvalue、setupvalue、traceback、sethook、gethook、getregistry、debug），支持运行时调试能力
-✅ **包/模块库（Package Library）**：require、module 全局函数 + package.loaded/preload/loaders/path/cpath/config/seeall/loadlib，支持 preload 和文件模块加载
+✅ **调试库（Debug Library）**：14/14函数表面实现（debug.getinfo、getlocal、setlocal、getupvalue、setupvalue、traceback、sethook、gethook、getregistry、getmetatable、setmetatable、getfenv、setfenv、debug），支持运行时调试能力
+✅ **包/模块库（Package Library）**：require、module 全局函数 + package.loaded/preload/loaders/path/cpath/config/seeall，支持 preload 和 Lua 文件模块加载；动态 C 模块加载仍为 stub
 ✅ **库管理系统**：模块化的标准库注册机制，支持全局函数注册和表函数注册
 ✅ **StringPool**：字符串驻留（interning），节省内存
 ✅ **GarbageCollector**：标记-清除算法，根对象管理
@@ -748,11 +742,11 @@ void doJump(i32 offset) {
 
 **核心功能**：
 - 提供Lua脚本运行所需的核心函数
-- 实现8个最基础的全局函数
+- 实现 Lua 5.1 常用基础全局函数
 - 支持基本的类型操作、输出和错误处理
 - 与VM和LuaState完全集成
 
-**已实现的8个核心函数**：
+**基础函数实现概览**：
 
 1. **print(...)**
    - 打印任意数量的参数到标准输出
@@ -776,7 +770,7 @@ void doJump(i32 offset) {
 5. **error(message [, level])**
    - 抛出错误并终止执行
    - 支持自定义错误消息
-   - TODO: 添加位置信息（level参数）
+   - 已解析 level 参数；错误消息位置信息仍为后续兼容项
 
 6. **assert(v [, message])**
    - 断言检查，如果v为假值则抛出错误
@@ -787,12 +781,14 @@ void doJump(i32 offset) {
    - 设置表的元表
    - 只能为表类型设置元表
    - 元表必须是表或nil
-   - TODO: 检查__metatable字段（保护机制）
+   - 已检查 `__metatable` 保护字段
 
 8. **getmetatable(object)**
    - 获取对象的元表
    - 如果没有元表返回nil
-   - TODO: 检查__metatable字段
+   - 已按 Lua 5.1 语义返回 `__metatable` 保护字段
+
+其他已实现基础函数包括：`next`、`pairs`、`ipairs`、`rawget`、`rawset`、`rawequal`、`select`、`pcall`、`xpcall`、`loadstring`、`loadfile`、`dofile`、`gcinfo`、`getfenv`、`setfenv`、`collectgarbage`、`unpack`、`load`。`getfenv/setfenv` 当前支持函数对象路径；栈层级、线程环境和 C 函数环境仍为兼容边界。
 
 **关键特性**：
 ```cpp
@@ -816,9 +812,10 @@ openBaseLib(L);  // 注册所有函数到全局环境
 
 **已知限制**：
 - `newproxy` 尚未实现
-- `_G` 全局自引用未注册
+- `error()` 的 level 参数尚未用于生成源位置信息
+- `collectgarbage("collect")` 当前仍为保守禁用/简化路径
 
-**测试覆盖**：136个测试用例全部通过
+**测试覆盖**：Base Library 相关单元测试全部通过，并覆盖 `_G` 自引用和受保护元表行为
 
 ---
 
@@ -888,7 +885,7 @@ openBaseLib(L);  // 注册所有函数到全局环境
 
 - **操作系统**：Windows 10/11
 - **编译器**：Visual Studio 2026（MSVC）
-- **C++标准**：C++17
+- **C++标准**：C++17/23（Visual Studio 项目当前使用 C++23 preview）
 
 ### 建议阅读顺序
 
@@ -918,12 +915,13 @@ openBaseLib(L);  // 注册所有函数到全局环境
 
 2. **已经完成了什么？**
    - 编译器前端、VM 主体、GC 框架、核心对象系统已经成型
-   - 当前仍有少量失败测试和标准库补完工作
+   - 当前单元测试和 Lua 回归脚本均为全绿
+   - 标准库仍有少量 Lua 5.1 兼容补完工作
    - 重点不再是“从零搭骨架”，而是“持续补功能、修边界、稳行为”
 
 3. **下一步做什么？**
-   - 先看当前失败测试和最近在改的模块
-   - 优先补标准库、错误处理和工具链边缘能力
+   - 先看最近在改的模块和回归脚本
+   - 优先补 `string.gsub` 函数/表替换、`string.dump`、`collectgarbage("collect")`、`package.loadlib` 等兼容边界
 
 4. **在哪里找详细信息？**
    - 架构设计：`docs/ARCHITECTURE.md`
@@ -1001,21 +999,18 @@ openBaseLib(L);  // 注册所有函数到全局环境
 
 **测试文件结构**：
 ```
-lua/tests/unit/
-├── test_framework.hpp          # 测试框架核心
-├── test_registry.hpp           # 测试注册函数声明
-├── test_value.cpp              # Value类测试（16个测试）
-├── test_gc_string.cpp          # GCString和StringPool测试（20个测试）
-├── test_table.cpp              # Table类测试（13个测试）
-├── test_vm_core.cpp            # VM核心测试（23个测试）
-├── test_function.cpp           # Function和Proto测试（20个测试）
-├── test_gc.cpp                 # GC系统测试（18个测试）
-├── test_binary_unary_expr.cpp  # 二元/一元表达式测试（10个测试）
-├── test_function_codegen.cpp   # 函数代码生成测试（16个测试）
-├── test_baselib.cpp            # 基础库测试（6个测试，当前跳过）
-├── test_lua_functions.cpp      # Lua文件编译测试（5个测试）
-└── test_runner.cpp             # 测试运行器（main函数）
+tests/unit/
+├── compiler/                   # Lexer / Parser / CodeGen / 调用管线 / 符号绑定
+├── core/                       # Value / Table / Function / GCString
+├── framework/                  # 测试框架和 test_runner
+├── gc/                         # GC 与 Upvalue 基础测试
+├── io/                         # DynamicBuffer 与 InputStream
+├── metamethod/                 # 算术、比较、索引等元方法测试
+├── stdlib/                     # base / string / table / os / coroutine / debug / package
+└── vm/                         # VM Core、LuaState 初始化、函数调用
 ```
+
+当前测试入口会输出真实注册测试数和断言结果数；最近一次验证为 406 个注册测试、1605 个结果、0 失败。
 
 ## 📊 技术栈和工具
 
@@ -1023,12 +1018,12 @@ lua/tests/unit/
 
 | 技术 | 版本 | 用途 |
 |------|------|------|
-| **C++** | C++17 | 主实现语言 |
+| **C++** | C++17/23 | 主实现语言（项目文件当前使用 C++23 preview） |
 | **MSVC** | Visual Studio 2026 | 编译器与 IDE 工具链 |
 | **Windows** | 10/11 | 当前主要开发平台 |
 | **Git** | Latest | 版本管理 |
 
-### C++17特性使用
+### 现代 C++ 特性使用
 
 | 特性 | 应用场景 | 示例 |
 |------|---------|------|

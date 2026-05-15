@@ -172,7 +172,7 @@ public:
         currentBlock_ = bl->previous;
 
         locals.closeLocals(bl->nactvar, currentPc);
-        regs.freereg_ = locals.nactvar_;
+        regs.resetToLocals(locals.nactvar_);
         regs.checkStack(0);
 
         patchToHere(bl->breaklist);

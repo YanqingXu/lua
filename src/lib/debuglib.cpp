@@ -18,6 +18,8 @@
 #include "core/table.hpp"
 #include "core/thread.hpp"
 #include "core/upvalue.hpp"
+#include "core/userdata.hpp"
+#include "lib/baselib.hpp"
 #include "lib/lib_manager.hpp"
 #include "lib/lib_registry.hpp"
 #include "vm/call_info.hpp"
@@ -894,6 +896,66 @@ i32 luaDebug_setlocal(LuaState* L) {
 }
 
 // =====================================================================
+// debug.getmetatable(object) / debug.setmetatable(object, table|nil)
+// =====================================================================
+
+i32 luaDebug_getmetatable(LuaState* L) {
+    if (L->getTop() < 1) {
+        L->error("debug.getmetatable: missing argument");
+    }
+
+    const Value& value = L->at(1);
+    Table* metatable = nullptr;
+    if (value.isTable()) {
+        metatable = value.asTable()->getMetatable();
+    } else if (value.isUserdata()) {
+        metatable = value.asUserdata()->getMetatable();
+    }
+
+    if (metatable != nullptr) {
+        L->pushTable(metatable);
+    } else {
+        L->pushNil();
+    }
+    return 1;
+}
+
+i32 luaDebug_setmetatable(LuaState* L) {
+    if (L->getTop() < 2) {
+        L->error("debug.setmetatable: expected 2 arguments");
+    }
+
+    const Value& value = L->at(1);
+    if (!value.isTable() && !value.isUserdata()) {
+        L->error("debug.setmetatable: table or userdata expected");
+    }
+
+    if (!L->at(2).isNil() && !L->at(2).isTable()) {
+        L->error("debug.setmetatable: metatable must be nil or table");
+    }
+
+    L->pushValue(2);
+    if (!L->setMetatable(1)) {
+        L->error("debug.setmetatable: cannot set metatable");
+    }
+
+    L->setTop(1);
+    return 1;
+}
+
+// =====================================================================
+// debug.getfenv(f) / debug.setfenv(f, table)
+// =====================================================================
+
+i32 luaDebug_getfenv(LuaState* L) {
+    return luaB_getfenv(L);
+}
+
+i32 luaDebug_setfenv(LuaState* L) {
+    return luaB_setfenv(L);
+}
+
+// =====================================================================
 // debug.traceback([thread,] [message [, level]]) - Build a traceback string
 // =====================================================================
 
@@ -1057,6 +1119,10 @@ void DebugLibModule::registerFunctions(LuaState* L) {
         .addGlobal("getinfo", luaDebug_getinfo)
         .addGlobal("getlocal", luaDebug_getlocal)
         .addGlobal("setlocal", luaDebug_setlocal)
+        .addGlobal("getmetatable", luaDebug_getmetatable)
+        .addGlobal("setmetatable", luaDebug_setmetatable)
+        .addGlobal("getfenv", luaDebug_getfenv)
+        .addGlobal("setfenv", luaDebug_setfenv)
         .addGlobal("traceback", luaDebug_traceback)
         .addGlobal("sethook", luaDebug_sethook)
         .addGlobal("gethook", luaDebug_gethook)
