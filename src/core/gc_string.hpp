@@ -130,7 +130,7 @@ public:
      *
      * 字符串对象不引用其他GC对象，所以这个方法为空实现。
      */
-    void mark() override {
+    void mark(GarbageCollector& /*gc*/) override {
         // 字符串对象不引用其他GC对象
     }
 

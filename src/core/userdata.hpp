@@ -149,7 +149,7 @@ public:
      *
      * 标记元表（如果存在）
      */
-    void mark() override;
+    void mark(GarbageCollector& gc) override;
 
     /**
      * @brief 获取用户数据占用的内存大小

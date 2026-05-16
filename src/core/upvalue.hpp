@@ -186,7 +186,7 @@ public:
      * - Open状态：标记自身即可（栈上的值由栈管理）
      * - Closed状态：标记自身和closedValue_中的GC对象
      */
-    void mark() override;
+    void mark(GarbageCollector& gc) override;
 
     /**
      * @brief 获取Upvalue对象的大小

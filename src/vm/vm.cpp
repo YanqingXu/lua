@@ -692,6 +692,7 @@ static void vmClosure(LuaState* L, Value* base, Proto* currentProto,
 
     Proto* childProto = currentProto->getSubProto(bx);
     Function* closure = new Function(childProto);
+    L->getGlobalState().getGC().registerObject(closure);
 
     i32 nups = childProto->getNumUpvalues();
     if (nups > 0) {
@@ -1062,7 +1063,11 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
             }
 
             case OpCode::NEWTABLE:
-                base[a] = Value(new Table());
+                {
+                    Table* table = new Table();
+                    L->getGlobalState().getGC().registerObject(table);
+                    base[a] = Value(table);
+                }
                 break;
 
             case OpCode::SELF: {

@@ -65,7 +65,7 @@ public:
 
     // === GCObject 接口 ===
 
-    void mark() override;
+    void mark(GarbageCollector& gc) override;
     usize getSize() const override;
 
 private:

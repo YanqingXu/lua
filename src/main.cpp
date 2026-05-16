@@ -267,8 +267,7 @@ int executeScript(LuaState* L, const char* filename) {
         // 步骤5：执行字节码
         VM::execute(L, func);
 
-        // 清理Proto（Function已经复制了必要的数据）
-        delete proto;
+        // Proto由GC管理，并通过Function的标记路径保持可达。
 
         return 0;
 

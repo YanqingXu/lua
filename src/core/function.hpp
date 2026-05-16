@@ -552,7 +552,7 @@ public:
     // GCObject接口实现
     // =====================================================================
 
-    void mark() override;
+    void mark(GarbageCollector& gc) override;
     usize getSize() const override;
 
 private:
@@ -800,7 +800,7 @@ public:
     // GCObject接口实现
     // =====================================================================
 
-    void mark() override;
+    void mark(GarbageCollector& gc) override;
     usize getSize() const override;
 
 private:

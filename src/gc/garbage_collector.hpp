@@ -35,6 +35,8 @@ namespace Lua {
 // 前向声明
 class GCString;
 class Table;
+class LuaState;
+class Value;
 
 /**
  * @brief 垃圾回收器类
@@ -103,6 +105,13 @@ public:
      * @param obj GC对象指针
      */
     void registerObject(GCObject* obj);
+
+    /**
+     * @brief 从GC管理链表中摘除对象
+     *
+     * 主要用于兼容仍然手动 delete 的旧代码路径。该函数不释放对象本身。
+     */
+    void unregisterObject(GCObject* obj) noexcept;
     
     /**
      * @brief 添加根对象
@@ -148,6 +157,17 @@ public:
      * @return 回收的对象数量
      */
     usize collect();
+
+    /**
+     * @brief 执行完整的垃圾回收，并将当前LuaState作为执行根
+     *
+     * collectgarbage("collect") 应使用此入口，这样当前线程栈、主线程栈
+     * 和全局状态中的共享根都会参与标记。
+     *
+     * @param currentState 当前执行 collectgarbage 的 LuaState
+     * @return 回收的对象数量
+     */
+    usize collect(LuaState* currentState);
     
     /**
      * @brief 标记阶段
@@ -155,6 +175,12 @@ public:
      * 从根对象开始，标记所有可达对象。
      */
     void mark();
+
+    /**
+     * @brief 标记阶段，并额外扫描当前执行状态根集
+     * @param currentState 当前执行状态；nullptr 时只扫描显式 roots_
+     */
+    void mark(LuaState* currentState);
     
     /**
      * @brief 清除阶段
@@ -164,6 +190,23 @@ public:
      * @return 回收的对象数量
      */
     usize sweep();
+
+    /**
+     * @brief 标记单个对象
+     *
+     * 该方法是所有子对象报告引用关系的统一入口。只有白色对象会进入灰色队列。
+     */
+    void markObject(GCObject* obj);
+
+    /**
+     * @brief 标记一个 Lua Value 中包含的 GCObject
+     */
+    void markValue(const Value& value);
+
+    /**
+     * @brief 标记 LuaState 中的活动栈、调用帧窗口和 open upvalue
+     */
+    void markState(LuaState* state);
     
     // =====================================================================
     // 统计信息
@@ -231,15 +274,6 @@ private:
      * 并将自己标记为黑色。
      */
     void propagateMarks();
-    
-    /**
-     * @brief 标记单个对象
-     * 
-     * 将对象标记为灰色，并添加到灰色对象列表。
-     * 
-     * @param obj 要标记的对象
-     */
-    void markObject(GCObject* obj);
     
     // =====================================================================
     // 数据成员

@@ -1175,10 +1175,7 @@ i32 luaB_collectgarbage(LuaState* L) {
 
     if (firstChar == 'c') {
         if (strcmp(opt, "collect") == 0) {
-            // 简化实现：暂不执行实际的垃圾回收
-            // 注意：gc.collect() 可能导致问题，暂时禁用
-            // TODO: 修复GC回收机制后启用
-            // gc.collect();
+            gc.collect(L);
             L->pushNumber(0);
             return 1;
         }

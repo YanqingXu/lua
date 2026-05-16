@@ -303,6 +303,7 @@ i32 table_pack(LuaState* L) {
 
     // 创建新表
     Table* result = new Table();
+    L->getGlobalState().getGC().registerObject(result);
 
     // 将所有参数打包到表中
     for (i32 i = 1; i <= nargs; i++) {

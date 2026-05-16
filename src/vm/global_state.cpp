@@ -7,6 +7,8 @@
  */
 
 #include "vm/global_state.hpp"
+#include "core/thread.hpp"
+#include "vm/lua_state.hpp"
 #include <cstring>  // for memset
 #include <iostream> // for debug output
 
@@ -55,6 +57,7 @@ GlobalState::GlobalState()
     // 创建注册表
     registry_ = new Table();
     gc_.registerObject(registry_);
+    registry_->setMarked(registry_->getMarked() | GCBits::FIXED);
     gc_.addRoot(registry_);  // 注册表永远不被回收
 }
 
@@ -83,6 +86,29 @@ void GlobalState::setMetatable(ValueType type, Table* metatable) noexcept {
     if (index < 9) {
         metatables_[index] = metatable;
     }
+}
+
+void GlobalState::markRoots(GarbageCollector& gc, LuaState* currentState) const {
+    gc.markObject(registry_);
+    gc.markObject(memerrmsg_);
+
+    for (GCString* name : tmname_) {
+        gc.markObject(name);
+    }
+
+    for (Table* metatable : metatables_) {
+        gc.markObject(metatable);
+    }
+
+    if (currentState != nullptr) {
+        gc.markState(currentState);
+    }
+
+    if (mainThread_ != nullptr && mainThread_ != currentState) {
+        gc.markState(mainThread_);
+    }
+
+    gc.markObject(runningThread_);
 }
 
 // =====================================================================

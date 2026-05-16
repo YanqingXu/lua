@@ -10,11 +10,13 @@
  */
 
 #include "core/gc_object.hpp"
+#include "gc/garbage_collector.hpp"
 
 namespace Lua {
 
-// 当前版本中，所有方法都在头文件中内联实现
-// 此文件预留用于后续扩展
+GCObject::~GCObject() {
+    GarbageCollector::getInstance().unregisterObject(this);
+}
 
 } // namespace Lua
 

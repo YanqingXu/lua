@@ -343,8 +343,7 @@ int executeREPLInput(LuaState* L, const Str& source, bool isExpression) {
             }
         }
 
-        // 清理 Proto
-        delete proto;
+        // Proto由GC管理，并通过Function的标记路径保持可达。
 
         return 0;
 

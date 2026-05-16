@@ -48,7 +48,7 @@ int main(int argc, char** argv) {
 
         printProtoBytecode(proto, std::cout, full);
 
-        delete proto;
+        // Proto由GC管理；字节码工具结束时由进程/GC清理。
         return 0;
     } catch (const std::exception& e) {
         std::cerr << "[ERROR] Exception: " << e.what() << std::endl;

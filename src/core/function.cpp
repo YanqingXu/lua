@@ -7,6 +7,7 @@
 #include "core/gc_string.hpp"
 #include "core/table.hpp"
 #include "core/upvalue.hpp"
+#include "gc/garbage_collector.hpp"
 #include <stdexcept>
 #include <iostream>
 
@@ -187,43 +188,28 @@ GCString* Proto::getUpvalueName(usize index) const {
     return upvalueNames_[index];
 }
 
-void Proto::mark() {
+void Proto::mark(GarbageCollector& gc) {
     // 标记源文件名
-    if (source_ != nullptr) {
-        source_->setColor(GCColor::Gray);
-    }
+    gc.markObject(source_);
 
     // 标记常量表中的GC对象
     for (const Value& val : constants_) {
-        if (val.isString()) {
-            val.asString()->setColor(GCColor::Gray);
-        } else if (val.isTable()) {
-            val.asTable()->setColor(GCColor::Gray);
-        } else if (val.isFunction()) {
-            val.asFunction()->setColor(GCColor::Gray);
-        }
-        // TODO: 添加Userdata和Thread的标记
+        gc.markValue(val);
     }
 
     // 标记子函数原型
     for (Proto* subProto : subProtos_) {
-        if (subProto != nullptr) {
-            subProto->setColor(GCColor::Gray);
-        }
+        gc.markObject(subProto);
     }
 
     // 标记局部变量名称
     for (const LocVar& locvar : locvars_) {
-        if (locvar.varname != nullptr) {
-            locvar.varname->setColor(GCColor::Gray);
-        }
+        gc.markObject(locvar.varname);
     }
 
     // 标记上值名称
     for (GCString* name : upvalueNames_) {
-        if (name != nullptr) {
-            name->setColor(GCColor::Gray);
-        }
+        gc.markObject(name);
     }
 }
 
@@ -302,23 +288,19 @@ void Function::addUpvalue(Upvalue* upvalue) {
 // GC支持
 // =====================================================================
 
-void Function::mark() {
+void Function::mark(GarbageCollector& gc) {
     // 如果是Lua函数，标记函数原型
-    if (!isC_ && proto_ != nullptr) {
-        proto_->setColor(GCColor::Gray);
+    if (!isC_) {
+        gc.markObject(proto_);
     }
 
     // 标记所有upvalue
     for (Upvalue* uv : upvalues_) {
-        if (uv != nullptr && !uv->isMarked()) {
-            uv->mark();
-        }
+        gc.markObject(uv);
     }
 
     // 标记环境表（Lua 5.1兼容）
-    if (env_ != nullptr) {
-        env_->mark();
-    }
+    gc.markObject(env_);
 }
 
 usize Function::getSize() const {

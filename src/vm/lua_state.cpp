@@ -94,6 +94,10 @@ LuaState::~LuaState() {
     // 关闭所有open upvalue
     closeUpvalues(0);
 
+    if (globalState_.getMainThread() == this) {
+        globalState_.setMainThread(nullptr);
+    }
+
     if (hookFunc_ != nullptr) {
         globalState_.getGC().removeRoot(hookFunc_);
         hookFunc_ = nullptr;

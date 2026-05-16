@@ -24,6 +24,8 @@
 
 namespace Lua {
 
+class GarbageCollector;
+
 /**
  * @brief GCObject抽象基类 - 所有可回收对象的基类
  * 
@@ -58,7 +60,7 @@ public:
     /**
      * @brief 虚析构函数 - 确保正确的多态销毁
      */
-    virtual ~GCObject() = default;
+    virtual ~GCObject();
     
     // 禁止拷贝和移动（GC对象由GC系统管理生命周期）
     GCObject(const GCObject&) = delete;
@@ -173,7 +175,7 @@ public:
      * 
      * @note 这个方法在GC标记阶段被调用
      */
-    virtual void mark() = 0;
+    virtual void mark(GarbageCollector& gc) = 0;
     
     /**
      * @brief 获取对象占用的内存大小

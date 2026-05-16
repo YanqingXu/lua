@@ -9,9 +9,13 @@
 #include "../framework/test_framework.hpp"
 #include "core/gc_object.hpp"
 #include "core/gc_string.hpp"
+#include "core/function.hpp"
 #include "core/table.hpp"
+#include "core/thread.hpp"
 #include "core/upvalue.hpp"
+#include "core/userdata.hpp"
 #include "gc/garbage_collector.hpp"
+#include "lib/baselib.hpp"
 #include "vm/lua_state.hpp"
 
 using namespace Lua;
@@ -21,9 +25,13 @@ using namespace LuaTest;
 class TestGCObject : public GCObject {
 public:
     TestGCObject() : GCObject(GCObjectType::String) {}
-    void mark() override {}
+    void mark(GarbageCollector& /*gc*/) override {}
     usize getSize() const override { return sizeof(TestGCObject); }
 };
+
+static i32 gcDummyCFunction(LuaState*) {
+    return 0;
+}
 
 void testGCObjectBasics(TestSuite& suite) {
     TestGCObject* obj = new TestGCObject();
@@ -140,6 +148,76 @@ void testGarbageCollectorCollect(TestSuite& suite) {
     gc.clearAll();
 }
 
+void testGarbageCollectorMarksCompositeObjects(TestSuite& suite) {
+    GarbageCollector& gc = GarbageCollector::getInstance();
+    gc.clearAll();
+
+    LuaState* L = LuaState::newState();
+    auto& pool = L->getGlobalState().getStringPool();
+
+    Table* root = new Table();
+    Userdata* userdata = Userdata::createFull(sizeof(i32));
+    Table* userdataMetatable = new Table();
+    Function* threadFunc = new Function(gcDummyCFunction);
+
+    gc.registerObject(root);
+    gc.registerObject(userdata);
+    gc.registerObject(userdataMetatable);
+    gc.registerObject(threadFunc);
+    gc.addRoot(root);
+
+    userdata->setMetatable(userdataMetatable);
+    Thread* thread = Thread::create(L, threadFunc);
+
+    GCString* userdataKey = pool.intern("userdata");
+    GCString* threadKey = pool.intern("thread");
+    root->set(Value(userdataKey), Value(userdata));
+    root->set(Value(threadKey), Value(thread));
+
+    Table* garbage = new Table();
+    gc.registerObject(garbage);
+
+    usize collected = gc.collect(L);
+    ASSERT_EQ(suite, (usize)1, collected, "Only unreachable object collected");
+    ASSERT_TRUE(suite, root->get(Value(userdataKey)).isUserdata(), "Table marks userdata value");
+    ASSERT_TRUE(suite, root->get(Value(threadKey)).isThread(), "Table marks thread value");
+    ASSERT_TRUE(suite, userdata->getMetatable() == userdataMetatable, "Userdata marks metatable");
+
+    gc.removeRoot(root);
+    delete L;
+    gc.clearAll();
+}
+
+void testCollectGarbageCollectReclaimsMemory(TestSuite& suite) {
+    GarbageCollector& gc = GarbageCollector::getInstance();
+    gc.clearAll();
+
+    LuaState* L = LuaState::newState();
+    openBaseLib(L);
+
+    usize beforeBytes = gc.getTotalMemory();
+    for (i32 i = 0; i < 128; i++) {
+        Table* garbage = new Table();
+        gc.registerObject(garbage);
+        garbage->setArray(1, Value(static_cast<f64>(i)));
+        garbage->setArray(64, Value(static_cast<f64>(i)));
+    }
+    usize midBytes = gc.getTotalMemory();
+    ASSERT_TRUE(suite, midBytes > beforeBytes, "Unreachable tables increase GC memory");
+
+    L->setTop(0);
+    L->pushString(L->getGlobalState().getStringPool().intern("collect"));
+    i32 nresults = luaB_collectgarbage(L);
+    usize afterBytes = gc.getTotalMemory();
+
+    ASSERT_EQ(suite, 1, nresults, "collectgarbage('collect') returns one value");
+    ASSERT_TRUE(suite, L->top().isNumber(), "collectgarbage('collect') returns numeric status");
+    ASSERT_TRUE(suite, afterBytes < midBytes, "collectgarbage('collect') reclaims memory");
+
+    delete L;
+    gc.clearAll();
+}
+
 void testUpvalueOpen(TestSuite& suite) {
     LuaState* L = LuaState::newState();
     L->pushNumber(42.0);
@@ -198,6 +276,8 @@ void registerGCTests() {
     registry.registerTest("GC", "GC Register", testGarbageCollectorRegister);
     registry.registerTest("GC", "GC Roots", testGarbageCollectorRoots);
     registry.registerTest("GC", "GC Collect", testGarbageCollectorCollect);
+    registry.registerTest("GC", "Composite Marking", testGarbageCollectorMarksCompositeObjects);
+    registry.registerTest("GC", "collectgarbage Collect", testCollectGarbageCollectReclaimsMemory);
     registry.registerTest("GC", "Upvalue Open", testUpvalueOpen);
     registry.registerTest("GC", "Upvalue Closed", testUpvalueClosed);
     registry.registerTest("GC", "Upvalue Close All", testUpvalueCloseAll);

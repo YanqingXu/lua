@@ -4,6 +4,7 @@
  */
 
 #include "core/string_pool.hpp"
+#include "gc/garbage_collector.hpp"
 
 namespace Lua {
 
@@ -23,6 +24,7 @@ GCString* StringPool::intern(StrView str) {
 
     // 不存在，创建新的字符串对象
     GCString* newString = new GCString(str);
+    GarbageCollector::getInstance().registerObject(newString);
 
     // 加入池中
     // 使用GCString内部的data_作为key，确保与find()和remove()一致

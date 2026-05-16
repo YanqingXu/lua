@@ -9,6 +9,7 @@
 #include "core/table.hpp"
 #include "core/function.hpp"
 #include "core/userdata.hpp"
+#include "gc/garbage_collector.hpp"
 #include <stdexcept>
 
 namespace Lua {
@@ -124,43 +125,12 @@ void Upvalue::setNext(Upvalue* next) noexcept {
 
 // ========== GC支持 ==========
 
-void Upvalue::mark() {
-    if (isMarked()) {
-        return;  // 已标记，避免重复标记
-    }
-    
-    // 标记自身
-    setColor(GCColor::Gray);
-    
-    // 标记closedValue_中的GC对象
-    // 注意：Open状态下，栈上的值由栈管理，不需要在这里标记
+void Upvalue::mark(GarbageCollector& gc) {
     if (isClosed()) {
-        if (closedValue_.isString()) {
-            GCString* str = closedValue_.asString();
-            if (str != nullptr && !str->isMarked()) {
-                str->mark();
-            }
-        } else if (closedValue_.isTable()) {
-            Table* table = closedValue_.asTable();
-            if (table != nullptr && !table->isMarked()) {
-                table->mark();
-            }
-        } else if (closedValue_.isFunction()) {
-            Function* func = closedValue_.asFunction();
-            if (func != nullptr && !func->isMarked()) {
-                func->mark();
-            }
-        } else if (closedValue_.isUserdata()) {
-            Userdata* ud = closedValue_.asUserdata();
-            if (ud != nullptr && !ud->isMarked()) {
-                ud->mark();
-            }
-        }
-        // 其他GC对象类型（Thread）暂未实现
+        gc.markValue(closedValue_);
+    } else if (ownerStack_ != nullptr && stackIndex_ < ownerStack_->size()) {
+        gc.markValue(ownerStack_->at(stackIndex_));
     }
-    
-    // 标记完成
-    setColor(GCColor::Black);
 }
 
 usize Upvalue::getSize() const {

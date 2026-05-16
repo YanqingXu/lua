@@ -7,6 +7,7 @@
 #include "core/gc_string.hpp"
 #include "core/string_pool.hpp"
 #include "core/value.hpp"
+#include "gc/garbage_collector.hpp"
 #include <stdexcept>
 #include <cassert>
 #include <iostream>
@@ -37,7 +38,7 @@ CodeGenerator::CodeGenerator(StringPool* pool)
 }
 
 CodeGenerator::~CodeGenerator() {
-    // Proto由调用者管理
+    // Proto由GC管理
 }
 
 // =====================================================================
@@ -47,6 +48,7 @@ CodeGenerator::~CodeGenerator() {
 Proto* CodeGenerator::generate(const Chunk& chunk, StrView sourceName) {
     // 创建新的Proto对象
     proto_ = new Proto();
+    GarbageCollector::getInstance().registerObject(proto_);
     regs_.bind(proto_);
     proto_->setMaxStackSize(2);  // 最小栈大小
     proto_->setVararg(true);     // 主函数（chunk）默认是可变参数的
@@ -1782,6 +1784,7 @@ Proto* CodeGenerator::compileFunction(const Vec<Str>& params, bool isVararg, con
     child.parent_ = this;
 
     Proto* newProto = new Proto();
+    GarbageCollector::getInstance().registerObject(newProto);
     newProto->setNumParams(static_cast<u8>(params.size()));
     newProto->setVararg(isVararg);
     newProto->setLineDefined(linedefined);

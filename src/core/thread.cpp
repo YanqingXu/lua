@@ -238,28 +238,9 @@ bool Thread::resume(LuaState* callerL, i32 nargs) {
 // GCObject 接口
 // =====================================================================
 
-void Thread::mark() {
-    Stack& stack = state_->getStack();
-    usize top = state_->getAbsoluteTop();
-
-    // 标记协程栈上的所有 GC 对象
-    for (usize i = 0; i < top && i < stack.size(); i++) {
-        Value& v = stack.at(i);
-        if (v.isCollectable()) {
-            if (v.isString())       v.asString()->setColor(GCColor::Gray);
-            else if (v.isTable())   v.asTable()->setColor(GCColor::Gray);
-            else if (v.isFunction()) v.asFunction()->setColor(GCColor::Gray);
-            else if (v.isUserdata()) v.asUserdata()->setColor(GCColor::Gray);
-            else if (v.isThread())  v.asThread()->setColor(GCColor::Gray);
-        }
-    }
-
-    // 标记 open upvalues
-    Upvalue* uv = state_->getOpenUpvalues();
-    while (uv) {
-        uv->setColor(GCColor::Gray);
-        uv = uv->getNext();
-    }
+void Thread::mark(GarbageCollector& gc) {
+    gc.markState(state_);
+    gc.markObject(caller_);
 }
 
 usize Thread::getSize() const {

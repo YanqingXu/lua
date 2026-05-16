@@ -90,11 +90,9 @@ void testStringPoolIntern(TestSuite& suite) {
     GCString* notFound = pool.find("Not exists");
     ASSERT_TRUE(suite, notFound == nullptr, "Find non-existing string");
 
-    // Cleanup: 只删除我们创建的字符串，不清空整个池
+    // Cleanup: 只从池中移除测试字符串；对象本身由GC统一释放
     pool.remove(poolStr3);
     pool.remove(poolStr1);
-    delete poolStr3;
-    delete poolStr1;
 }
 
 void testStringPoolStringView(TestSuite& suite) {
@@ -115,9 +113,8 @@ void testStringPoolStringView(TestSuite& suite) {
     // Test 3: Pool size (应该增加1个字符串)
     ASSERT_EQ(suite, initialSize + 1, pool.size(), "Pool size after string_view");
 
-    // Cleanup: 只删除我们创建的字符串
+    // Cleanup: 只从池中移除测试字符串；对象本身由GC统一释放
     pool.remove(poolStr4);
-    delete poolStr4;
 }
 
 void testStringPoolRemove(TestSuite& suite) {
@@ -136,10 +133,8 @@ void testStringPoolRemove(TestSuite& suite) {
     pool.remove(str2);
     ASSERT_EQ(suite, initialSize + 1, pool.size(), "Pool size after remove");
 
-    // Cleanup: 删除我们创建的字符串
-    delete str2;
+    // Cleanup: 只从池中移除测试字符串；对象本身由GC统一释放
     pool.remove(str1);
-    delete str1;
 }
 
 void registerGCStringTests() {

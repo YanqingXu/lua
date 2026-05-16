@@ -109,6 +109,13 @@ public:
     GarbageCollector& getGC() noexcept {
         return gc_;
     }
+
+    /**
+     * @brief 标记全局状态持有的 GC 根
+     *
+     * 由完整 GC 在 collectgarbage("collect") 路径调用。
+     */
+    void markRoots(GarbageCollector& gc, LuaState* currentState) const;
     
     // =====================================================================
     // 注册表管理

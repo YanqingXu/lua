@@ -6,6 +6,7 @@
 #include "core/table.hpp"
 #include "core/gc_string.hpp"
 #include "core/function.hpp"
+#include "gc/garbage_collector.hpp"
 #include <cmath>
 
 namespace Lua {
@@ -204,46 +205,20 @@ usize Table::length() const {
 // GCObject接口实现
 // =====================================================================
 
-void Table::mark() {
+void Table::mark(GarbageCollector& gc) {
     // 标记数组部分中的GC对象
     for (const Value& val : array_) {
-        if (val.isString()) {
-            val.asString()->setColor(GCColor::Gray);
-        } else if (val.isTable()) {
-            val.asTable()->setColor(GCColor::Gray);
-        } else if (val.isFunction()) {
-            val.asFunction()->setColor(GCColor::Gray);
-        }
-        // TODO: 添加Userdata/Thread的标记（当这些类型实现后）
+        gc.markValue(val);
     }
 
     // 标记哈希部分中的GC对象
     for (const auto& [key, val] : hash_) {
-        // 标记键
-        if (key.isString()) {
-            key.asString()->setColor(GCColor::Gray);
-        } else if (key.isTable()) {
-            key.asTable()->setColor(GCColor::Gray);
-        } else if (key.isFunction()) {
-            key.asFunction()->setColor(GCColor::Gray);
-        }
-        // TODO: 添加Userdata/Thread的标记（当这些类型实现后）
-
-        // 标记值
-        if (val.isString()) {
-            val.asString()->setColor(GCColor::Gray);
-        } else if (val.isTable()) {
-            val.asTable()->setColor(GCColor::Gray);
-        } else if (val.isFunction()) {
-            val.asFunction()->setColor(GCColor::Gray);
-        }
-        // TODO: 添加Userdata/Thread的标记（当这些类型实现后）
+        gc.markValue(key);
+        gc.markValue(val);
     }
 
     // 标记元表
-    if (metatable_ != nullptr) {
-        metatable_->setColor(GCColor::Gray);
-    }
+    gc.markObject(metatable_);
 }
 
 usize Table::getSize() const {

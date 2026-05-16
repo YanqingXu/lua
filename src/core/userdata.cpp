@@ -75,11 +75,9 @@ Userdata::~Userdata() {
 // GCObject接口实现
 // =====================================================================
 
-void Userdata::mark() {
+void Userdata::mark(GarbageCollector& gc) {
     // 标记元表(如果存在)
-    if (metatable_) {
-        metatable_->setColor(GCColor::Gray);
-    }
+    gc.markObject(metatable_);
 
     // 注意: 我们不标记用户数据内容,因为我们不知道它是否包含GC引用
     // 如果用户数据包含GC对象,用户应该通过元表的__gc方法或子类化来处理

@@ -276,7 +276,7 @@ public:
      * - 线程对象
      * - 元表
      */
-    void mark() override;
+    void mark(GarbageCollector& gc) override;
     
     /**
      * @brief 获取表占用的内存大小

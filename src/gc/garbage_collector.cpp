@@ -5,7 +5,15 @@
 
 #include "gc/garbage_collector.hpp"
 #include "core/gc_string.hpp"
+#include "core/function.hpp"
+#include "core/string_pool.hpp"
 #include "core/table.hpp"
+#include "core/thread.hpp"
+#include "core/userdata.hpp"
+#include "core/value.hpp"
+#include "core/upvalue.hpp"
+#include "vm/global_state.hpp"
+#include "vm/lua_state.hpp"
 #include <iostream>
 #include <algorithm>
 
@@ -41,7 +49,17 @@ void GarbageCollector::registerObject(GCObject* obj) {
     if (obj == nullptr) {
         return;
     }
+
+    // 防止同一个对象被重复挂入侵入式链表。
+    // StringPool::intern() 现在会自动注册字符串，旧代码中仍可能显式注册一次。
+    for (GCObject* current = allObjects_; current != nullptr; current = current->getNext()) {
+        if (current == obj) {
+            return;
+        }
+    }
     
+    obj->setColor(GCColor::White);
+
     // 将对象添加到链表头部
     obj->setNext(allObjects_);
     allObjects_ = obj;
@@ -49,6 +67,36 @@ void GarbageCollector::registerObject(GCObject* obj) {
     // 更新统计信息
     ++objectCount_;
     totalMemory_ += obj->getSize();
+}
+
+void GarbageCollector::unregisterObject(GCObject* obj) noexcept {
+    if (obj == nullptr) {
+        return;
+    }
+
+    GCObject* prev = nullptr;
+    GCObject* current = allObjects_;
+    while (current != nullptr) {
+        GCObject* next = current->getNext();
+        if (current == obj) {
+            if (prev == nullptr) {
+                allObjects_ = next;
+            } else {
+                prev->setNext(next);
+            }
+            obj->setNext(nullptr);
+            if (objectCount_ > 0) {
+                --objectCount_;
+            }
+            totalMemory_ = 0;
+            break;
+        }
+        prev = current;
+        current = next;
+    }
+
+    roots_.erase(std::remove(roots_.begin(), roots_.end(), obj), roots_.end());
+    grayList_.erase(std::remove(grayList_.begin(), grayList_.end(), obj), grayList_.end());
 }
 
 void GarbageCollector::addRoot(GCObject* obj) {
@@ -89,8 +137,12 @@ bool GarbageCollector::isRoot(GCObject* obj) const {
 // =====================================================================
 
 usize GarbageCollector::collect() {
+    return collect(nullptr);
+}
+
+usize GarbageCollector::collect(LuaState* currentState) {
     // 1. 标记阶段
-    mark();
+    mark(currentState);
     
     // 2. 清除阶段
     usize collected = sweep();
@@ -99,6 +151,10 @@ usize GarbageCollector::collect() {
 }
 
 void GarbageCollector::mark() {
+    mark(nullptr);
+}
+
+void GarbageCollector::mark(LuaState* currentState) {
     // 1. 重置所有对象为白色（但保留FIXED等特殊标志）
     GCObject* obj = allObjects_;
     while (obj != nullptr) {
@@ -127,7 +183,12 @@ void GarbageCollector::mark() {
         }
     }
 
-    // 4. 传播标记
+    // 4. 标记当前执行状态及全局状态中的共享根
+    if (currentState != nullptr) {
+        currentState->getGlobalState().markRoots(*this, currentState);
+    }
+
+    // 5. 传播标记
     propagateMarks();
 }
 
@@ -141,32 +202,8 @@ void GarbageCollector::propagateMarks() {
         // 标记为黑色
         obj->setColor(GCColor::Black);
         
-        // 调用对象的mark方法，标记其引用的对象
-        obj->mark();
-        
-        // 注意：obj->mark()内部会调用其引用对象的setColor(Gray)
-        // 我们需要将这些灰色对象添加到grayList_
-        // 但当前实现中，我们直接在GCObject::mark()中设置颜色
-        // 这里需要改进：让mark()方法通知GC添加到灰色列表
-        
-        // 临时解决方案：遍历所有对象，找出新的灰色对象
-        GCObject* current = allObjects_;
-        while (current != nullptr) {
-            if (current->getColor() == GCColor::Gray) {
-                // 检查是否已在灰色列表中
-                bool inList = false;
-                for (GCObject* gray : grayList_) {
-                    if (gray == current) {
-                        inList = true;
-                        break;
-                    }
-                }
-                if (!inList) {
-                    grayList_.push_back(current);
-                }
-            }
-            current = current->getNext();
-        }
+        // 调用对象的mark方法，由对象通过gc.markObject/markValue报告引用关系。
+        obj->mark(*this);
     }
 }
 
@@ -185,6 +222,50 @@ void GarbageCollector::markObject(GCObject* obj) {
     
     // 添加到灰色列表
     grayList_.push_back(obj);
+}
+
+void GarbageCollector::markValue(const Value& value) {
+    if (value.isString()) {
+        markObject(value.asString());
+    } else if (value.isTable()) {
+        markObject(value.asTable());
+    } else if (value.isFunction()) {
+        markObject(value.asFunction());
+    } else if (value.isUserdata()) {
+        markObject(value.asUserdata());
+    } else if (value.isThread()) {
+        markObject(value.asThread());
+    }
+}
+
+void GarbageCollector::markState(LuaState* state) {
+    if (state == nullptr) {
+        return;
+    }
+
+    Stack& stack = state->getStack();
+    usize scanTop = std::min(state->getAbsoluteTop(), stack.size());
+
+    Vec<CallInfo>& callStack = state->getCallStack();
+    usize callStackSize = state->getCallStackSize();
+    for (usize i = 0; i < callStackSize && i < callStack.size(); i++) {
+        scanTop = std::max(scanTop, std::min(callStack[i].top, stack.size()));
+        if (callStack[i].func < stack.size()) {
+            markValue(stack.at(callStack[i].func));
+        }
+    }
+
+    for (usize i = 0; i < scanTop; i++) {
+        markValue(stack.at(i));
+    }
+
+    Upvalue* uv = state->getOpenUpvalues();
+    while (uv != nullptr) {
+        markObject(uv);
+        uv = uv->getNext();
+    }
+
+    markObject(state->getDebugHook());
 }
 
 usize GarbageCollector::sweep() {
@@ -208,8 +289,13 @@ usize GarbageCollector::sweep() {
             }
 
             // 更新统计信息
-            totalMemory_ -= obj->getSize();
+            usize objSize = obj->getSize();
+            totalMemory_ = totalMemory_ >= objSize ? totalMemory_ - objSize : 0;
             --objectCount_;
+
+            if (obj->getType() == GCObjectType::String) {
+                StringPool::getInstance().remove(static_cast<GCString*>(obj));
+            }
             
             // 删除对象
             delete obj;
@@ -241,13 +327,17 @@ usize GarbageCollector::getRootCount() const noexcept {
 }
 
 usize GarbageCollector::getTotalMemory() const noexcept {
-    return totalMemory_;
+    usize total = 0;
+    for (GCObject* obj = allObjects_; obj != nullptr; obj = obj->getNext()) {
+        total += obj->getSize();
+    }
+    return total;
 }
 
 void GarbageCollector::getStatistics(usize& outObjectCount, usize& outRootCount, usize& outTotalMemory) const noexcept {
     outObjectCount = objectCount_;
     outRootCount = roots_.size();
-    outTotalMemory = totalMemory_;
+    outTotalMemory = getTotalMemory();
 }
 
 // =====================================================================
@@ -276,8 +366,13 @@ void GarbageCollector::clearAll() {
             }
 
             // 更新统计信息
-            totalMemory_ -= obj->getSize();
+            usize objSize = obj->getSize();
+            totalMemory_ = totalMemory_ >= objSize ? totalMemory_ - objSize : 0;
             --objectCount_;
+
+            if (obj->getType() == GCObjectType::String) {
+                StringPool::getInstance().remove(static_cast<GCString*>(obj));
+            }
 
             delete obj;
         } else {
