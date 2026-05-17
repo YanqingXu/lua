@@ -18,9 +18,38 @@
 #include "core/function.hpp"
 #include "vm/lua_state.hpp"
 #include "vm/global_state.hpp"
+#include "vm/vm.hpp"
+#include "lib/lib_manager.hpp"
+#include "compiler/parser.hpp"
+#include "compiler/codegen.hpp"
+#include <string>
 
 using namespace Lua;
 using namespace LuaTest;
+
+namespace {
+
+bool runLua(LuaState* L, const char* code) {
+    try {
+        Parser parser(code);
+        Chunk chunk = parser.parse();
+        StringPool& pool = StringPool::getInstance();
+        CodeGenerator codegen(&pool);
+        Proto* proto = codegen.generate(chunk, "metamethod_test");
+        if (!proto) return false;
+
+        Function* func = new Function(proto);
+        L->getGlobalState().getGC().registerObject(func);
+        func->setEnv(L->getGlobalTable());
+        VM::execute(L, func);
+        delete proto;
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+} // namespace
 
 // =====================================================================
 // 测试用的C函数元方法
@@ -36,17 +65,12 @@ using namespace LuaTest;
  * 但由于我们不知道savedTop，需要从栈顶往回找参数
  */
 static i32 vector_add(LuaState* L) {
-    auto& stack = L->getStack();
-
-    // 参数在栈顶往下数：top-2是arg1，top-1是arg2
-    // 栈布局: [...][func][arg1][arg2] <- top
-    if (stack.size() < 3) {
+    if (L->getTop() < 2) {
         return 0;
     }
 
-    usize top = stack.size();
-    Value v1 = stack.at(top - 2);  // arg1 (栈顶-2)
-    Value v2 = stack.at(top - 1);  // arg2 (栈顶-1)
+    Value v1 = L->at(1);
+    Value v2 = L->at(2);
 
     if (!v1.isTable() || !v2.isTable()) {
         return 0;
@@ -63,11 +87,12 @@ static i32 vector_add(LuaState* L) {
 
     // 创建结果表
     Table* result = new Table();
+    L->getGlobalState().getGC().registerObject(result);
     result->setArray(1, Value(x1 + x2));
     result->setArray(2, Value(y1 + y2));
 
     // 推入返回值
-    stack.push(Value(result));
+    L->pushTable(result);
 
     return 1;  // 返回1个值
 }
@@ -78,16 +103,11 @@ static i32 vector_add(LuaState* L) {
  * 实现向量取负：-{x, y} = {-x, -y}
  */
 static i32 vector_unm(LuaState* L) {
-    auto& stack = L->getStack();
-
-    // 对于一元运算符，参数在栈顶-1位置
-    // 栈布局: [...][func][arg] <- top
-    if (stack.size() < 2) {
+    if (L->getTop() < 1) {
         return 0;
     }
 
-    usize top = stack.size();
-    Value v = stack.at(top - 1);  // arg (栈顶-1)
+    Value v = L->at(1);
 
     if (!v.isTable()) {
         return 0;
@@ -101,11 +121,12 @@ static i32 vector_unm(LuaState* L) {
 
     // 创建结果表
     Table* result = new Table();
+    L->getGlobalState().getGC().registerObject(result);
     result->setArray(1, Value(-x));
     result->setArray(2, Value(-y));
 
     // 推入返回值
-    stack.push(Value(result));
+    L->pushTable(result);
 
     return 1;  // 返回1个值
 }
@@ -222,6 +243,50 @@ void testMetamethodFallback(TestSuite& suite) {
     ASSERT_TRUE(suite, fallbackResult.isTable(), "Result should be a table");
 }
 
+void testLuaFunctionMetamethodsAndBasicTypeMetatable(TestSuite& suite) {
+    LuaState* L = LuaState::newState();
+    StandardLibrary::openAll(L);
+
+    bool ok = runLua(L, R"lua(
+        local mt = {
+            __add = function(a, b)
+                return { value = a.value + b.value }
+            end,
+            __index = function(_, key)
+                return "fallback:" .. key
+            end,
+            __newindex = function(t, key, value)
+                rawset(t, "set_" .. key, value * 2)
+            end,
+            __call = function(self, value)
+                return self.value + value
+            end
+        }
+
+        local a = setmetatable({ value = 10 }, mt)
+        local b = setmetatable({ value = 32 }, mt)
+
+        _sum = (a + b).value
+        _indexed = a.missing
+        a.answer = 21
+        _newindex = a.set_answer
+        _call = a(5)
+        _string_method = ("abcdef"):sub(2, 4)
+    )lua");
+
+    ASSERT_TRUE(suite, ok, "Lua function metamethods should execute");
+    ASSERT_EQ(suite, 42.0, L->getGlobal("_sum").asNumber(), "Lua __add result");
+    ASSERT_TRUE(suite, L->getGlobal("_indexed").isString(), "Lua __index result is string");
+    ASSERT_EQ(suite, std::string("fallback:missing"),
+              std::string(L->getGlobal("_indexed").asString()->c_str()),
+              "Lua __index fallback result");
+    ASSERT_EQ(suite, 42.0, L->getGlobal("_newindex").asNumber(), "Lua __newindex side effect");
+    ASSERT_EQ(suite, 15.0, L->getGlobal("_call").asNumber(), "Lua __call result");
+    ASSERT_EQ(suite, std::string("bcd"),
+              std::string(L->getGlobal("_string_method").asString()->c_str()),
+              "string metatable __index enables method syntax");
+}
+
 /**
  * @brief 注册所有元方法算术测试
  */
@@ -231,5 +296,7 @@ void registerMetamethodArithTests() {
     registry.registerTest("Metamethod", "Lookup", testMetamethodLookup);
     registry.registerTest("Metamethod", "Add", testAddMetamethod);
     registry.registerTest("Metamethod", "Fallback", testMetamethodFallback);
+    registry.registerTest("Metamethod", "Lua function metamethods and basic type metatable",
+                          testLuaFunctionMetamethodsAndBasicTypeMetatable);
 }
 

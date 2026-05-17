@@ -1074,8 +1074,10 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
                 Value obj = base[b];
                 base[a + 1] = obj;
                 Value key = getRK(proto, base, c);
-                vmGettable(L, obj, key, base[a]);
+                Value result;
+                vmGettable(L, obj, key, result);
                 base = refreshBase(L);
+                base[a] = result;
                 break;
             }
 

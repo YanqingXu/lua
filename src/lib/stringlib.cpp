@@ -1157,6 +1157,18 @@ void StringLibModule::registerFunctions(LuaState* L) {
         .addGlobal("format", str_format)
         .addGlobal("dump", str_dump)
         .commitToTable(stringTable);
+
+    // Lua 5.1 exposes string methods through the shared string metatable.
+    auto& gs = L->getGlobalState();
+    Table* stringMT = gs.getMetatable(ValueType::String);
+    if (stringMT == nullptr) {
+        stringMT = new Table();
+        gs.getGC().registerObject(stringMT);
+        gs.setMetatable(ValueType::String, stringMT);
+    }
+
+    GCString* indexKey = gs.getStringPool().intern("__index");
+    stringMT->set(Value(indexKey), Value(stringTable));
 }
 
 void StringLibModule::initialize(LuaState* L) {

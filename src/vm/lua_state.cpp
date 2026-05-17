@@ -897,6 +897,12 @@ bool LuaState::getMetatable(i32 idx) {
                 pushTable(mt);
                 return true;
             }
+        } else {
+            Table* mt = globalState_.getMetatable(v.getType());
+            if (mt) {
+                pushTable(mt);
+                return true;
+            }
         }
         return false;
     } catch (...) {

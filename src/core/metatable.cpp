@@ -16,6 +16,7 @@
 #include "core/gc_string.hpp"
 #include "vm/lua_state.hpp"
 #include "vm/global_state.hpp"
+#include "vm/vm.hpp"
 #include <stdexcept>
 
 namespace Lua {
@@ -120,10 +121,12 @@ Value getMetamethodByObject(LuaState* L, const Value& obj, TMS event) {
         }
         
         default: {
-            // 其他类型：使用全局类型元表
-            // TODO: 实现全局类型元表支持（存储在LuaState中）
-            // metatable = L->getGlobalMetatable(obj.getType());
-            return Value();  // 返回nil
+            // 基础类型：使用 GlobalState 中按 ValueType 存放的全局元表。
+            if (L == nullptr) {
+                return Value();
+            }
+            metatable = L->getGlobalState().getMetatable(obj.getType());
+            break;
         }
     }
 
@@ -161,10 +164,6 @@ Value fastMetamethod(Table* metatable, TMS event) {
 /**
  * @brief 调用元方法并获取返回值
  *
- * 实现说明：
- * 这是一个简化的元方法调用实现。完整的实现需要集成VM的函数调用机制，
- * 包括precall/postcall、栈帧管理等。当前实现直接调用C函数或抛出错误。
- *
  * @see lua_c_analysis/src/lvm.c 第396-409行 callTMres()
  */
 void callTMWithResult(LuaState* L, Value& result, const Value& metamethod,
@@ -174,49 +173,35 @@ void callTMWithResult(LuaState* L, Value& result, const Value& metamethod,
         throw std::runtime_error("Metamethod is not a function");
     }
 
-    Function* func = metamethod.asFunction();
+    Stack& stack = L->getStack();
+    usize savedTop = L->getAbsoluteTop();
+    usize savedStackSize = stack.size();
+    auto restoreStack = [&]() {
+        for (usize i = savedTop; i < savedStackSize && i < stack.size(); i++) {
+            stack.at(i) = Value();
+        }
+        stack.setTop(savedStackSize);
+        L->setAbsoluteTop(savedTop);
+    };
 
-    // 如果是C函数，可以直接调用
-    if (func->isCFunction()) {
-        auto& stack = L->getStack();
-        usize savedTop = stack.size();
+    try {
+        L->pushValue(metamethod);
+        L->pushValue(arg1);
+        L->pushValue(arg2);
 
-        // 1. 将元方法函数推入栈（索引 savedTop）
-        stack.push(metamethod);
+        VM::call(L, 2, 1);
 
-        // 2. 将两个参数推入栈（索引 savedTop+1 和 savedTop+2）
-        stack.push(arg1);
-        stack.push(arg2);
-
-        // 3. 调用C函数
-        CFunction cfunc = func->getCFunction();
-        i32 nret = cfunc(L);
-
-        // 4. 获取返回值（如果有）
-        if (nret > 0 && stack.size() > savedTop + 3) {
-            // 返回值被C函数推到栈顶
-            result = stack.at(stack.size() - 1);
+        if (L->getAbsoluteTop() > savedTop) {
+            result = stack.at(savedTop);
         } else {
-            result = Value();  // 返回nil
+            result = Value();
         }
 
-        // 5. 恢复栈顶
-        stack.setTop(savedTop);
-        return;
+        restoreStack();
+    } catch (...) {
+        restoreStack();
+        throw;
     }
-
-    // Lua函数调用需要完整的VM支持
-    // TODO: 实现Lua函数的元方法调用
-    // 这需要：
-    // 1. 创建新的CallInfo
-    // 2. 设置参数
-    // 3. 执行函数
-    // 4. 获取返回值
-    // 5. 清理CallInfo
-
-    // 暂时抛出错误，提示需要完整的VM集成
-    throw std::runtime_error("callTMWithResult: Lua function metamethods not yet fully implemented. "
-                           "Please use C function metamethods for now.");
 }
 
 /**
@@ -231,33 +216,30 @@ void callTM(LuaState* L, const Value& metamethod, const Value& arg1,
         throw std::runtime_error("Metamethod is not a function");
     }
 
-    Function* func = metamethod.asFunction();
+    Stack& stack = L->getStack();
+    usize savedTop = L->getAbsoluteTop();
+    usize savedStackSize = stack.size();
+    auto restoreStack = [&]() {
+        for (usize i = savedTop; i < savedStackSize && i < stack.size(); i++) {
+            stack.at(i) = Value();
+        }
+        stack.setTop(savedStackSize);
+        L->setAbsoluteTop(savedTop);
+    };
 
-    // 如果是C函数，可以直接调用
-    if (func->isCFunction()) {
-        auto& stack = L->getStack();
-        usize savedTop = stack.size();
+    try {
+        L->pushValue(metamethod);
+        L->pushValue(arg1);
+        L->pushValue(arg2);
+        L->pushValue(arg3);
 
-        // 1. 将元方法函数推入栈
-        stack.push(metamethod);
+        VM::call(L, 3, 0);
 
-        // 2. 将三个参数推入栈
-        stack.push(arg1);
-        stack.push(arg2);
-        stack.push(arg3);
-
-        // 3. 调用C函数（忽略返回值）
-        CFunction cfunc = func->getCFunction();
-        cfunc(L);
-
-        // 4. 恢复栈顶
-        stack.setTop(savedTop);
-        return;
+        restoreStack();
+    } catch (...) {
+        restoreStack();
+        throw;
     }
-
-    // Lua函数调用需要完整的VM支持
-    throw std::runtime_error("callTM: Lua function metamethods not yet fully implemented. "
-                           "Please use C function metamethods for now.");
 }
 
 /**

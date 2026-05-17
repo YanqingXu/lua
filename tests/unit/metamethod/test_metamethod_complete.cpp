@@ -20,6 +20,7 @@
 #include "core/function.hpp"
 #include "vm/lua_state.hpp"
 #include "vm/global_state.hpp"
+#include "vm/vm.hpp"
 #include <cmath>
 #include <string>
 
@@ -43,12 +44,10 @@ static Table* createVector(f64 x, f64 y) {
 
 // __sub: 向量减法
 static i32 vector_sub(LuaState* L) {
-    auto& stack = L->getStack();
-    if (stack.size() < 3) return 0;
-    
-    usize top = stack.size();
-    Value v1 = stack.at(top - 2);
-    Value v2 = stack.at(top - 1);
+    if (L->getTop() < 2) return 0;
+
+    Value v1 = L->at(1);
+    Value v2 = L->at(2);
     
     if (!v1.isTable() || !v2.isTable()) return 0;
     
@@ -61,18 +60,17 @@ static i32 vector_sub(LuaState* L) {
     f64 y2 = t2->getArray(2).asNumber();
     
     Table* result = createVector(x1 - x2, y1 - y2);
-    stack.push(Value(result));
+    L->getGlobalState().getGC().registerObject(result);
+    L->pushTable(result);
     return 1;
 }
 
 // __mul: 向量数乘
 static i32 vector_mul(LuaState* L) {
-    auto& stack = L->getStack();
-    if (stack.size() < 3) return 0;
-    
-    usize top = stack.size();
-    Value v1 = stack.at(top - 2);
-    Value v2 = stack.at(top - 1);
+    if (L->getTop() < 2) return 0;
+
+    Value v1 = L->at(1);
+    Value v2 = L->at(2);
     
     // 支持向量*标量和标量*向量
     Table* vec = nullptr;
@@ -92,18 +90,17 @@ static i32 vector_mul(LuaState* L) {
     f64 y = vec->getArray(2).asNumber();
     
     Table* result = createVector(x * scalar, y * scalar);
-    stack.push(Value(result));
+    L->getGlobalState().getGC().registerObject(result);
+    L->pushTable(result);
     return 1;
 }
 
 // __div: 向量除法
 static i32 vector_div(LuaState* L) {
-    auto& stack = L->getStack();
-    if (stack.size() < 3) return 0;
-    
-    usize top = stack.size();
-    Value v1 = stack.at(top - 2);
-    Value v2 = stack.at(top - 1);
+    if (L->getTop() < 2) return 0;
+
+    Value v1 = L->at(1);
+    Value v2 = L->at(2);
     
     if (!v1.isTable() || !v2.isNumber()) return 0;
     
@@ -116,18 +113,17 @@ static i32 vector_div(LuaState* L) {
     f64 y = vec->getArray(2).asNumber();
     
     Table* result = createVector(x / scalar, y / scalar);
-    stack.push(Value(result));
+    L->getGlobalState().getGC().registerObject(result);
+    L->pushTable(result);
     return 1;
 }
 
 // __mod: 取模运算
 static i32 vector_mod(LuaState* L) {
-    auto& stack = L->getStack();
-    if (stack.size() < 3) return 0;
-    
-    usize top = stack.size();
-    Value v1 = stack.at(top - 2);
-    Value v2 = stack.at(top - 1);
+    if (L->getTop() < 2) return 0;
+
+    Value v1 = L->at(1);
+    Value v2 = L->at(2);
     
     if (!v1.isNumber() || !v2.isNumber()) return 0;
     
@@ -138,18 +134,16 @@ static i32 vector_mod(LuaState* L) {
     
     // Lua风格的取模
     f64 result = a - floor(a / b) * b;
-    stack.push(Value(result));
+    L->pushNumber(result);
     return 1;
 }
 
 // __pow: 幂运算
 static i32 number_pow(LuaState* L) {
-    auto& stack = L->getStack();
-    if (stack.size() < 3) return 0;
-    
-    usize top = stack.size();
-    Value v1 = stack.at(top - 2);
-    Value v2 = stack.at(top - 1);
+    if (L->getTop() < 2) return 0;
+
+    Value v1 = L->at(1);
+    Value v2 = L->at(2);
     
     if (!v1.isNumber() || !v2.isNumber()) return 0;
     
@@ -157,7 +151,7 @@ static i32 number_pow(LuaState* L) {
     f64 exp = v2.asNumber();
     
     f64 result = pow(base, exp);
-    stack.push(Value(result));
+    L->pushNumber(result);
     return 1;
 }
 
@@ -167,15 +161,13 @@ static i32 number_pow(LuaState* L) {
 
 // __eq: 向量相等比较
 static i32 vector_eq(LuaState* L) {
-    auto& stack = L->getStack();
-    if (stack.size() < 3) return 0;
-    
-    usize top = stack.size();
-    Value v1 = stack.at(top - 2);
-    Value v2 = stack.at(top - 1);
+    if (L->getTop() < 2) return 0;
+
+    Value v1 = L->at(1);
+    Value v2 = L->at(2);
     
     if (!v1.isTable() || !v2.isTable()) {
-        stack.push(Value(false));
+        L->pushBoolean(false);
         return 1;
     }
     
@@ -188,18 +180,16 @@ static i32 vector_eq(LuaState* L) {
     f64 y2 = t2->getArray(2).asNumber();
     
     bool equal = (x1 == x2) && (y1 == y2);
-    stack.push(Value(equal));
+    L->pushBoolean(equal);
     return 1;
 }
 
 // __lt: 向量小于比较（按长度）
 static i32 vector_lt(LuaState* L) {
-    auto& stack = L->getStack();
-    if (stack.size() < 3) return 0;
-    
-    usize top = stack.size();
-    Value v1 = stack.at(top - 2);
-    Value v2 = stack.at(top - 1);
+    if (L->getTop() < 2) return 0;
+
+    Value v1 = L->at(1);
+    Value v2 = L->at(2);
     
     if (!v1.isTable() || !v2.isTable()) return 0;
     
@@ -214,18 +204,16 @@ static i32 vector_lt(LuaState* L) {
     f64 len1 = sqrt(x1*x1 + y1*y1);
     f64 len2 = sqrt(x2*x2 + y2*y2);
     
-    stack.push(Value(len1 < len2));
+    L->pushBoolean(len1 < len2);
     return 1;
 }
 
 // __le: 向量小于等于比较（按长度）
 static i32 vector_le(LuaState* L) {
-    auto& stack = L->getStack();
-    if (stack.size() < 3) return 0;
-    
-    usize top = stack.size();
-    Value v1 = stack.at(top - 2);
-    Value v2 = stack.at(top - 1);
+    if (L->getTop() < 2) return 0;
+
+    Value v1 = L->at(1);
+    Value v2 = L->at(2);
     
     if (!v1.isTable() || !v2.isTable()) return 0;
     
@@ -240,7 +228,7 @@ static i32 vector_le(LuaState* L) {
     f64 len1 = sqrt(x1*x1 + y1*y1);
     f64 len2 = sqrt(x2*x2 + y2*y2);
     
-    stack.push(Value(len1 <= len2));
+    L->pushBoolean(len1 <= len2);
     return 1;
 }
 
@@ -250,11 +238,9 @@ static i32 vector_le(LuaState* L) {
 
 // __len: 向量长度
 static i32 vector_len(LuaState* L) {
-    auto& stack = L->getStack();
-    if (stack.size() < 2) return 0;
-    
-    usize top = stack.size();
-    Value v = stack.at(top - 1);
+    if (L->getTop() < 1) return 0;
+
+    Value v = L->at(1);
     
     if (!v.isTable()) return 0;
     
@@ -263,18 +249,16 @@ static i32 vector_len(LuaState* L) {
     f64 y = t->getArray(2).asNumber();
     
     f64 len = sqrt(x*x + y*y);
-    stack.push(Value(len));
+    L->pushNumber(len);
     return 1;
 }
 
 // __concat: 字符串连接
 static i32 custom_concat(LuaState* L) {
-    auto& stack = L->getStack();
-    if (stack.size() < 3) return 0;
-    
-    usize top = stack.size();
-    Value v1 = stack.at(top - 2);
-    Value v2 = stack.at(top - 1);
+    if (L->getTop() < 2) return 0;
+
+    Value v1 = L->at(1);
+    Value v2 = L->at(2);
     
     // 简单实现：如果都是数字，转换为字符串连接
     if (v1.isNumber() && v2.isNumber()) {
@@ -284,7 +268,7 @@ static i32 custom_concat(LuaState* L) {
         
         StringPool& pool = GlobalState::getInstance().getStringPool();
         GCString* str = pool.intern(result);
-        stack.push(Value(str));
+        L->pushString(str);
         return 1;
     }
     
@@ -293,10 +277,8 @@ static i32 custom_concat(LuaState* L) {
 
 // __call: 可调用表
 static i32 callable_table(LuaState* L) {
-    auto& stack = L->getStack();
-    
     // 返回一个固定值表示被调用
-    stack.push(Value(42.0));
+    L->pushNumber(42.0);
     return 1;
 }
 
@@ -393,22 +375,18 @@ void testOtherMetamethods(TestSuite& suite) {
     StringPool& pool = GlobalState::getInstance().getStringPool();
     
     // 测试 __len
-    // 注意：__len 是一元运算符，需要通过VM的executeLen来调用
-    // 这里我们简化测试，直接验证元方法函数本身
     Function* lenFunc = new Function(vector_len);
-    auto& stack = L->getStack();
     
-    // 手动设置栈并调用
     Table* v1 = createVector(3.0, 4.0);  // 长度应该是5
-    stack.push(Value(lenFunc));  // function
-    stack.push(Value(v1));        // argument
-    
-    i32 nret = vector_len(L);
-    bool hasResult = (nret > 0 && stack.size() > 2);
+    L->pushFunction(lenFunc);
+    L->pushTable(v1);
+
+    VM::call(L, 1, 1);
+    bool hasResult = (L->getAbsoluteTop() > 1);
     ASSERT_TRUE(suite, hasResult, "__len should return a result");
     
     if (hasResult) {
-        Value lenResult = stack.at(stack.size() - 1);
+        Value lenResult = L->top();
         ASSERT_TRUE(suite, lenResult.isNumber(), "__len result should be a number");
         if (lenResult.isNumber()) {
             ASSERT_EQ(suite, 5.0, lenResult.asNumber(), "__len: sqrt(3^2+4^2) = 5");
@@ -416,7 +394,8 @@ void testOtherMetamethods(TestSuite& suite) {
     }
     
     // 清理栈
-    stack.clear();
+    L->getStack().setTop(1);
+    L->setAbsoluteTop(1);
     
     // 测试 __concat
     Table* mt_concat = new Table();
@@ -494,8 +473,7 @@ void testMetamethodEdgeCases(TestSuite& suite) {
     
     // 这里需要一个简单的add函数
     auto simple_add = [](LuaState* L) -> i32 {
-        auto& stack = L->getStack();
-        stack.push(Value(100.0));  // 返回固定值
+        L->pushNumber(100.0);  // 返回固定值
         return 1;
     };
     

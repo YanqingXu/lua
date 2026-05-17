@@ -156,7 +156,7 @@ Value getMetamethod(Table* metatable, TMS event);
  * 支持的对象类型：
  * - 表：使用对象自身的元表
  * - 用户数据：使用对象自身的元表
- * - 其他类型：使用全局类型元表（暂未实现）
+ * - 其他类型：使用 GlobalState 中的全局基础类型元表
  * 
  * @param L Lua状态指针
  * @param obj 要查找元方法的对象
