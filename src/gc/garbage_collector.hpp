@@ -36,6 +36,7 @@ namespace Lua {
 class GCString;
 class Table;
 class LuaState;
+class Userdata;
 class Value;
 
 /**
@@ -207,6 +208,21 @@ public:
      * @brief 标记 LuaState 中的活动栈、调用帧窗口和 open upvalue
      */
     void markState(LuaState* state);
+
+    /**
+     * @brief 标记表对象，并按 __mode 应用弱键/弱值语义
+     */
+    void markTable(Table* table);
+
+    /**
+     * @brief 检查对象是否会在当前 sweep 中被回收
+     */
+    bool isObjectDead(GCObject* obj) const;
+
+    /**
+     * @brief 检查 Value 中的可回收对象是否会在当前 sweep 中被回收
+     */
+    bool isValueDead(const Value& value) const;
     
     // =====================================================================
     // 统计信息
@@ -274,6 +290,26 @@ private:
      * 并将自己标记为黑色。
      */
     void propagateMarks();
+
+    /**
+     * @brief 清理所有已标记弱表中的死亡键/值
+     */
+    void clearWeakTableEntries();
+
+    /**
+     * @brief 将带 __gc 的不可达 userdata 复活并加入待终结队列
+     */
+    void prepareFinalizers();
+
+    /**
+     * @brief 查询 userdata 的 __gc 元方法
+     */
+    Value getFinalizer(Userdata* userdata) const;
+
+    /**
+     * @brief 运行本轮收集期间排队的终结器
+     */
+    void runFinalizers(LuaState* state);
     
     // =====================================================================
     // 数据成员
@@ -287,6 +323,15 @@ private:
     
     /// 灰色对象列表（待处理）
     Vec<GCObject*> grayList_;
+
+    /// 本轮标记中发现的弱表
+    Vec<Table*> weakTables_;
+
+    /// 等待执行 __gc 的 userdata
+    Vec<Userdata*> pendingFinalizers_;
+
+    /// 防止终结器递归执行
+    bool finalizersRunning_;
     
     /// 统计信息：对象总数
     usize objectCount_;

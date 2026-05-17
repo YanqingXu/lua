@@ -4,6 +4,7 @@
  */
 
 #include "gc/garbage_collector.hpp"
+#include "core/metatable.hpp"
 #include "core/gc_string.hpp"
 #include "core/function.hpp"
 #include "core/string_pool.hpp"
@@ -14,10 +15,39 @@
 #include "core/upvalue.hpp"
 #include "vm/global_state.hpp"
 #include "vm/lua_state.hpp"
+#include "vm/vm.hpp"
 #include <iostream>
 #include <algorithm>
 
 namespace Lua {
+
+namespace {
+
+bool valueContainsObject(const Value& value) {
+    return value.isString() || value.isTable() || value.isFunction() ||
+           value.isUserdata() || value.isThread();
+}
+
+GCObject* objectFromValue(const Value& value) {
+    if (value.isString()) {
+        return value.asString();
+    }
+    if (value.isTable()) {
+        return value.asTable();
+    }
+    if (value.isFunction()) {
+        return value.asFunction();
+    }
+    if (value.isUserdata()) {
+        return value.asUserdata();
+    }
+    if (value.isThread()) {
+        return value.asThread();
+    }
+    return nullptr;
+}
+
+} // namespace
 
 // =====================================================================
 // 单例模式实现
@@ -32,6 +62,9 @@ GarbageCollector::GarbageCollector()
     : allObjects_(nullptr)
     , roots_()
     , grayList_()
+    , weakTables_()
+    , pendingFinalizers_()
+    , finalizersRunning_(false)
     , objectCount_(0)
     , totalMemory_(0)
 {
@@ -97,6 +130,15 @@ void GarbageCollector::unregisterObject(GCObject* obj) noexcept {
 
     roots_.erase(std::remove(roots_.begin(), roots_.end(), obj), roots_.end());
     grayList_.erase(std::remove(grayList_.begin(), grayList_.end(), obj), grayList_.end());
+    if (obj->getType() == GCObjectType::Table) {
+        auto* table = static_cast<Table*>(obj);
+        weakTables_.erase(std::remove(weakTables_.begin(), weakTables_.end(), table), weakTables_.end());
+    } else if (obj->getType() == GCObjectType::Userdata) {
+        auto* userdata = static_cast<Userdata*>(obj);
+        pendingFinalizers_.erase(
+            std::remove(pendingFinalizers_.begin(), pendingFinalizers_.end(), userdata),
+            pendingFinalizers_.end());
+    }
 }
 
 void GarbageCollector::addRoot(GCObject* obj) {
@@ -143,9 +185,24 @@ usize GarbageCollector::collect() {
 usize GarbageCollector::collect(LuaState* currentState) {
     // 1. 标记阶段
     mark(currentState);
+
+    // 2. 带 __gc 的不可达 userdata 需要先复活一轮，并保留其引用图。
+    if (currentState != nullptr) {
+        prepareFinalizers();
+        propagateMarks();
+    }
+
+    // 3. 清理弱表条目。必须在 sweep 删除白色对象之前执行。
+    clearWeakTableEntries();
     
-    // 2. 清除阶段
+    // 4. 清除阶段
     usize collected = sweep();
+    weakTables_.clear();
+
+    // 5. 在对象已被复活且本轮垃圾已释放后运行终结器。
+    if (currentState != nullptr) {
+        runFinalizers(currentState);
+    }
     
     return collected;
 }
@@ -155,26 +212,21 @@ void GarbageCollector::mark() {
 }
 
 void GarbageCollector::mark(LuaState* currentState) {
-    // 1. 重置所有对象为白色（但保留FIXED等特殊标志）
+    // 1. 重置所有对象为白色（保留FIXED和FINALIZED，清除上一轮弱表模式）
     GCObject* obj = allObjects_;
     while (obj != nullptr) {
-        // 保存FIXED标志
-        u8 marked = obj->getMarked();
-        bool isFixed = (marked & GCBits::FIXED) != 0;
+        u8 preserved = obj->getMarked() & (GCBits::FIXED | GCBits::FINALIZED);
+        obj->setMarked(preserved);
 
         // 设置为白色
         obj->setColor(GCColor::White);
 
-        // 恢复FIXED标志
-        if (isFixed) {
-            obj->setMarked(obj->getMarked() | GCBits::FIXED);
-        }
-
         obj = obj->getNext();
     }
 
-    // 2. 清空灰色列表
+    // 2. 清空本轮临时列表
     grayList_.clear();
+    weakTables_.clear();
 
     // 3. 标记所有根对象为灰色
     for (GCObject* root : roots_) {
@@ -186,6 +238,11 @@ void GarbageCollector::mark(LuaState* currentState) {
     // 4. 标记当前执行状态及全局状态中的共享根
     if (currentState != nullptr) {
         currentState->getGlobalState().markRoots(*this, currentState);
+    }
+
+    // 终结器队列中的 userdata 已经被复活，必须在真正运行 __gc 前保持存活。
+    for (Userdata* userdata : pendingFinalizers_) {
+        markObject(userdata);
     }
 
     // 5. 传播标记
@@ -225,16 +282,8 @@ void GarbageCollector::markObject(GCObject* obj) {
 }
 
 void GarbageCollector::markValue(const Value& value) {
-    if (value.isString()) {
-        markObject(value.asString());
-    } else if (value.isTable()) {
-        markObject(value.asTable());
-    } else if (value.isFunction()) {
-        markObject(value.asFunction());
-    } else if (value.isUserdata()) {
-        markObject(value.asUserdata());
-    } else if (value.isThread()) {
-        markObject(value.asThread());
+    if (valueContainsObject(value)) {
+        markObject(objectFromValue(value));
     }
 }
 
@@ -266,6 +315,138 @@ void GarbageCollector::markState(LuaState* state) {
     }
 
     markObject(state->getDebugHook());
+}
+
+void GarbageCollector::markTable(Table* table) {
+    if (table == nullptr) {
+        return;
+    }
+
+    bool weakKeys = false;
+    bool weakValues = false;
+    Table* mt = table->getMetatable();
+    if (mt != nullptr) {
+        GCString* modeName = GlobalState::getInstance().getMetamethodName(TMS::TM_MODE);
+        Value mode = mt->get(Value(modeName));
+        if (mode.isString()) {
+            const Str& modeText = mode.asString()->getData();
+            weakKeys = modeText.find('k') != Str::npos;
+            weakValues = modeText.find('v') != Str::npos;
+        }
+    }
+
+    u8 marked = table->getMarked() & ~GCBits::WEAKBITS;
+    if (weakKeys) {
+        marked |= GCBits::WEAKKEY;
+    }
+    if (weakValues) {
+        marked |= GCBits::WEAKVALUE;
+    }
+    table->setMarked(marked);
+
+    if (weakKeys || weakValues) {
+        weakTables_.push_back(table);
+    }
+
+    table->markContents(*this, weakKeys, weakValues);
+}
+
+bool GarbageCollector::isObjectDead(GCObject* obj) const {
+    if (obj == nullptr) {
+        return false;
+    }
+    if ((obj->getMarked() & GCBits::FIXED) != 0) {
+        return false;
+    }
+    return obj->getColor() == GCColor::White;
+}
+
+bool GarbageCollector::isValueDead(const Value& value) const {
+    if (!valueContainsObject(value)) {
+        return false;
+    }
+    return isObjectDead(objectFromValue(value));
+}
+
+void GarbageCollector::clearWeakTableEntries() {
+    for (Table* table : weakTables_) {
+        if (table == nullptr || isObjectDead(table)) {
+            continue;
+        }
+
+        u8 marked = table->getMarked();
+        bool weakKeys = (marked & GCBits::WEAKKEY) != 0;
+        bool weakValues = (marked & GCBits::WEAKVALUE) != 0;
+        table->removeWeakEntries(*this, weakKeys, weakValues);
+    }
+}
+
+Value GarbageCollector::getFinalizer(Userdata* userdata) const {
+    if (userdata == nullptr || userdata->getMetatable() == nullptr) {
+        return Value();
+    }
+
+    GCString* gcName = GlobalState::getInstance().getMetamethodName(TMS::TM_GC);
+    return userdata->getMetatable()->get(Value(gcName));
+}
+
+void GarbageCollector::prepareFinalizers() {
+    GCObject* obj = allObjects_;
+    while (obj != nullptr) {
+        if (obj->getType() == GCObjectType::Userdata &&
+            obj->getColor() == GCColor::White &&
+            (obj->getMarked() & (GCBits::FIXED | GCBits::FINALIZED)) == 0) {
+            auto* userdata = static_cast<Userdata*>(obj);
+            Value finalizer = getFinalizer(userdata);
+            if (!finalizer.isNil()) {
+                obj->setMarked(obj->getMarked() | GCBits::FINALIZED);
+                pendingFinalizers_.push_back(userdata);
+                markObject(obj);
+            }
+        }
+
+        obj = obj->getNext();
+    }
+}
+
+void GarbageCollector::runFinalizers(LuaState* state) {
+    if (state == nullptr || finalizersRunning_ || pendingFinalizers_.empty()) {
+        return;
+    }
+
+    finalizersRunning_ = true;
+    Vec<Userdata*> finalizers;
+    finalizers.swap(pendingFinalizers_);
+
+    Stack& stack = state->getStack();
+    for (Userdata* userdata : finalizers) {
+        Value finalizer = getFinalizer(userdata);
+        if (finalizer.isNil()) {
+            continue;
+        }
+
+        usize savedTop = state->getAbsoluteTop();
+        usize savedStackTop = stack.size();
+        usize savedCI = state->getCurrentCI();
+
+        try {
+            stack.setTop(savedTop);
+            state->setAbsoluteTop(savedTop);
+            state->pushValue(finalizer);
+            state->pushUserdata(userdata);
+            VM::call(state, 1, 0);
+        } catch (...) {
+            // Lua 5.1 的 GC 终结流程不应让单个 finalizer 错误打断整轮回收。
+        }
+
+        while (state->getCurrentCI() > savedCI) {
+            state->popCallInfo();
+        }
+        stack.setTop(savedStackTop);
+        state->setAbsoluteTop(savedTop);
+    }
+
+    finalizersRunning_ = false;
 }
 
 usize GarbageCollector::sweep() {
@@ -347,6 +528,9 @@ void GarbageCollector::getStatistics(usize& outObjectCount, usize& outRootCount,
 void GarbageCollector::clearAll() {
     // 清空根对象列表
     roots_.clear();
+    grayList_.clear();
+    weakTables_.clear();
+    pendingFinalizers_.clear();
 
     // 删除所有非固定对象
     GCObject* prev = nullptr;
@@ -383,8 +567,10 @@ void GarbageCollector::clearAll() {
         obj = next;
     }
 
-    // 清空灰色列表
+    // 清空临时列表
     grayList_.clear();
+    weakTables_.clear();
+    pendingFinalizers_.clear();
 }
 
 void GarbageCollector::printStatistics() const {

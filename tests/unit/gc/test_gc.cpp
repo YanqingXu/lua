@@ -10,6 +10,7 @@
 #include "core/gc_object.hpp"
 #include "core/gc_string.hpp"
 #include "core/function.hpp"
+#include "core/metatable.hpp"
 #include "core/table.hpp"
 #include "core/thread.hpp"
 #include "core/upvalue.hpp"
@@ -30,6 +31,21 @@ public:
 };
 
 static i32 gcDummyCFunction(LuaState*) {
+    return 0;
+}
+
+static i32 gFinalizerCalls = 0;
+static i32 gFinalizerPayload = 0;
+
+static i32 gcRecordingFinalizer(LuaState* L) {
+    gFinalizerCalls++;
+    if (L->isUserdata(1)) {
+        Userdata* userdata = L->at(1).asUserdata();
+        i32* payload = userdata->getTypedData<i32>();
+        if (payload != nullptr) {
+            gFinalizerPayload = *payload;
+        }
+    }
     return 0;
 }
 
@@ -218,6 +234,107 @@ void testCollectGarbageCollectReclaimsMemory(TestSuite& suite) {
     gc.clearAll();
 }
 
+void testWeakTableValuesAreCleared(TestSuite& suite) {
+    GarbageCollector& gc = GarbageCollector::getInstance();
+    gc.clearAll();
+
+    LuaState* L = LuaState::newState();
+    auto& pool = L->getGlobalState().getStringPool();
+
+    Table* weak = new Table();
+    Table* metatable = new Table();
+    Table* value = new Table();
+    gc.registerObject(weak);
+    gc.registerObject(metatable);
+    gc.registerObject(value);
+    gc.addRoot(weak);
+
+    metatable->set(Value(L->getGlobalState().getMetamethodName(TMS::TM_MODE)), Value(pool.intern("v")));
+    weak->setMetatable(metatable);
+
+    GCString* key = pool.intern("weak-value-slot");
+    weak->set(Value(key), Value(value));
+
+    usize collected = gc.collect(L);
+
+    ASSERT_TRUE(suite, collected >= 1, "Weak value target collected");
+    ASSERT_TRUE(suite, weak->get(Value(key)).isNil(), "Weak value entry cleared");
+
+    gc.removeRoot(weak);
+    delete L;
+    gc.clearAll();
+}
+
+void testWeakTableKeysAreCleared(TestSuite& suite) {
+    GarbageCollector& gc = GarbageCollector::getInstance();
+    gc.clearAll();
+
+    LuaState* L = LuaState::newState();
+    auto& pool = L->getGlobalState().getStringPool();
+
+    Table* weak = new Table();
+    Table* metatable = new Table();
+    Table* key = new Table();
+    gc.registerObject(weak);
+    gc.registerObject(metatable);
+    gc.registerObject(key);
+    gc.addRoot(weak);
+
+    metatable->set(Value(L->getGlobalState().getMetamethodName(TMS::TM_MODE)), Value(pool.intern("k")));
+    weak->setMetatable(metatable);
+    weak->set(Value(key), Value(pool.intern("weak-key-value")));
+
+    usize collected = gc.collect(L);
+
+    ASSERT_TRUE(suite, collected >= 1, "Weak key target collected");
+    ASSERT_EQ(suite, (usize)0, weak->getHashSize(), "Weak key entry removed before sweep");
+
+    gc.removeRoot(weak);
+    delete L;
+    gc.clearAll();
+}
+
+void testCollectGarbageRunsUserdataFinalizer(TestSuite& suite) {
+    GarbageCollector& gc = GarbageCollector::getInstance();
+    gc.clearAll();
+
+    gFinalizerCalls = 0;
+    gFinalizerPayload = 0;
+
+    LuaState* L = LuaState::newState();
+    openBaseLib(L);
+
+    Userdata* userdata = Userdata::createFull(sizeof(i32));
+    *userdata->getTypedData<i32>() = 1234;
+    Table* metatable = new Table();
+    Function* finalizer = new Function(gcRecordingFinalizer);
+
+    gc.registerObject(userdata);
+    gc.registerObject(metatable);
+    gc.registerObject(finalizer);
+
+    metatable->set(Value(L->getGlobalState().getMetamethodName(TMS::TM_GC)), Value(finalizer));
+    userdata->setMetatable(metatable);
+
+    L->setTop(0);
+    L->pushString(L->getGlobalState().getStringPool().intern("collect"));
+    i32 nresults = luaB_collectgarbage(L);
+
+    ASSERT_EQ(suite, 1, nresults, "collectgarbage('collect') returns after finalizer");
+    ASSERT_EQ(suite, 1, gFinalizerCalls, "__gc finalizer called once");
+    ASSERT_EQ(suite, 1234, gFinalizerPayload, "__gc receives userdata argument");
+    ASSERT_TRUE(suite, (userdata->getMarked() & GCBits::FINALIZED) != 0, "Finalized userdata survives first cycle");
+
+    L->setTop(0);
+    L->pushString(L->getGlobalState().getStringPool().intern("collect"));
+    luaB_collectgarbage(L);
+
+    ASSERT_EQ(suite, 1, gFinalizerCalls, "__gc finalizer is not called twice");
+
+    delete L;
+    gc.clearAll();
+}
+
 void testUpvalueOpen(TestSuite& suite) {
     LuaState* L = LuaState::newState();
     L->pushNumber(42.0);
@@ -278,6 +395,9 @@ void registerGCTests() {
     registry.registerTest("GC", "GC Collect", testGarbageCollectorCollect);
     registry.registerTest("GC", "Composite Marking", testGarbageCollectorMarksCompositeObjects);
     registry.registerTest("GC", "collectgarbage Collect", testCollectGarbageCollectReclaimsMemory);
+    registry.registerTest("GC", "Weak Table Values", testWeakTableValuesAreCleared);
+    registry.registerTest("GC", "Weak Table Keys", testWeakTableKeysAreCleared);
+    registry.registerTest("GC", "Userdata Finalizer", testCollectGarbageRunsUserdataFinalizer);
     registry.registerTest("GC", "Upvalue Open", testUpvalueOpen);
     registry.registerTest("GC", "Upvalue Closed", testUpvalueClosed);
     registry.registerTest("GC", "Upvalue Close All", testUpvalueCloseAll);

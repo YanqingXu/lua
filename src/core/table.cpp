@@ -206,19 +206,59 @@ usize Table::length() const {
 // =====================================================================
 
 void Table::mark(GarbageCollector& gc) {
+    gc.markTable(this);
+}
+
+void Table::markContents(GarbageCollector& gc, bool weakKeys, bool weakValues) {
     // 标记数组部分中的GC对象
-    for (const Value& val : array_) {
-        gc.markValue(val);
+    if (!weakValues) {
+        for (const Value& val : array_) {
+            gc.markValue(val);
+        }
     }
 
     // 标记哈希部分中的GC对象
     for (const auto& [key, val] : hash_) {
-        gc.markValue(key);
-        gc.markValue(val);
+        if (!weakKeys) {
+            gc.markValue(key);
+        }
+        if (!weakValues) {
+            gc.markValue(val);
+        }
     }
 
     // 标记元表
     gc.markObject(metatable_);
+}
+
+void Table::removeWeakEntries(const GarbageCollector& gc, bool weakKeys, bool weakValues) {
+    if (!weakKeys && !weakValues) {
+        return;
+    }
+
+    if (weakValues) {
+        for (Value& val : array_) {
+            if (gc.isValueDead(val)) {
+                val = Value();
+            }
+        }
+    }
+
+    for (auto it = hash_.begin(); it != hash_.end(); ) {
+        bool removeEntry = false;
+        if (weakKeys && gc.isValueDead(it->first)) {
+            removeEntry = true;
+        }
+        if (weakValues && gc.isValueDead(it->second)) {
+            removeEntry = true;
+        }
+
+        if (removeEntry) {
+            it = hash_.erase(it);
+        } else {
+            ++it;
+        }
+    }
 }
 
 usize Table::getSize() const {

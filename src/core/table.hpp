@@ -277,6 +277,21 @@ public:
      * - 元表
      */
     void mark(GarbageCollector& gc) override;
+
+    /**
+     * @brief 按弱表模式标记表内容
+     *
+     * 元表始终是强引用；数组元素在弱值模式下不标记；哈希键/值分别按弱键/弱值模式跳过。
+     * 由 GarbageCollector::markTable 调用，普通代码不需要直接使用。
+     */
+    void markContents(GarbageCollector& gc, bool weakKeys, bool weakValues);
+
+    /**
+     * @brief 清理弱表中指向死亡对象的条目
+     *
+     * 该方法必须在 sweep 删除白色对象之前调用，确保仍可安全检查键和值的颜色。
+     */
+    void removeWeakEntries(const GarbageCollector& gc, bool weakKeys, bool weakValues);
     
     /**
      * @brief 获取表占用的内存大小
