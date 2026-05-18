@@ -1,3 +1,10 @@
+---
+status: current
+verified_against: docs/PROJECT_STATUS.md; lua.slnx; lua.vcxproj; lua_test.vcxproj; tests/unit/framework/test_runner.cpp
+last_checked: 2026-05-18
+applies_to: current contributor workflow and coding conventions
+---
+
 # Lua 解释器开发指南
 
 > **面向**: 项目开发者和贡献者
@@ -19,12 +26,15 @@
 
 ## 🛠️ 开发环境设置
 
+当前可复现主路径是 Windows + Visual Studio/MSBuild + `.vcxproj`。CMake/CTest 是后续规划目标；在仓库根目录出现真实 `CMakeLists.txt` 之前，不把它们写作当前构建入口。当前事实源见 `docs/PROJECT_STATUS.md`。
+
 ### 必需工具
 
 | 工具 | 版本要求 | 用途 |
 |------|---------|------|
-| C++编译器 | GCC 9+, Clang 10+, MSVC 2019+ | 编译C++17代码 |
-| CMake | 3.15+ | 构建系统 |
+| Windows | 10/11 | 当前主要开发平台 |
+| Visual Studio / MSVC | 项目文件当前记录 `v145` toolset | 编译和调试 |
+| MSBuild | 随 Visual Studio 安装 | 构建 `.vcxproj` 项目 |
 | Git | 2.0+ | 版本控制 |
 
 ### 推荐工具
@@ -32,44 +42,37 @@
 | 工具 | 用途 |
 |------|------|
 | Visual Studio Code | 代码编辑器 |
-| CLion / Visual Studio | IDE |
+| Visual Studio | 当前推荐 IDE |
 | clang-format | 代码格式化 |
 | clang-tidy | 静态分析 |
-| Valgrind | 内存检查（Linux） |
 | Dr. Memory | 内存检查（Windows） |
+| CMake / CTest | 计划中的跨平台构建与测试入口，不是当前主路径 |
 
 ### 环境配置
 
-#### Windows (Visual Studio)
+#### Windows (Visual Studio / MSBuild)
 
 ```powershell
 # 克隆仓库
 git clone <repository-url>
 cd lua
 
-# 生成Visual Studio项目
-cmake -B build -G "Visual Studio 16 2019"
+# 打开当前解决方案
+start lua.slnx
 
-# 打开解决方案
-start build/lua.sln
+# 或使用仓库内批处理脚本构建
+bin\build_lua.bat
+bin\build_app.bat
+bin\build_test.bat
+bin\build_bytecode.bat
+
+# 运行单元测试
+bin\lua_test.exe
 ```
 
 #### Linux / macOS
 
-```bash
-# 克隆仓库
-git clone <repository-url>
-cd lua
-
-# 生成Makefile
-cmake -B build -DCMAKE_BUILD_TYPE=Debug
-
-# 编译
-cmake --build build
-
-# 运行测试
-cd build && ctest
-```
+当前没有已维护的跨平台构建入口。请先以 Windows/MSBuild 路径验证功能；跨平台构建应等仓库加入真实 CMake 配置后再写入当前流程。
 
 ---
 
@@ -398,19 +401,19 @@ public:
 
 ```cpp
 // tests/core/test_value.cpp
-#include <gtest/gtest.h>
+#include "framework/test_framework.hpp"
 #include "core/value.hpp"
 
-TEST(ValueTest, NilValue) {
+void testNilValue(LuaTest::TestSuite& suite) {
     Lua::Value v;
-    EXPECT_TRUE(v.isNil());
-    EXPECT_EQ(v.type(), Lua::ValueType::Nil);
+    ASSERT_TRUE(suite, v.isNil(), "nil value is nil");
+    ASSERT_EQ(suite, Lua::ValueType::Nil, v.type(), "nil value type");
 }
 
-TEST(ValueTest, BooleanValue) {
+void testBooleanValue(LuaTest::TestSuite& suite) {
     Lua::Value v(true);
-    EXPECT_TRUE(v.isBoolean());
-    EXPECT_EQ(v.asBoolean(), true);
+    ASSERT_TRUE(suite, v.isBoolean(), "boolean value is boolean");
+    ASSERT_EQ(suite, true, v.asBoolean(), "boolean payload");
 }
 ```
 
@@ -444,13 +447,13 @@ namespace Lua {
 
 #### 5. 测试验证
 
-```bash
-# 运行测试
-cmake --build build --target test_value
-./build/tests/test_value
+```powershell
+# 构建并运行当前测试入口
+bin\build_test.bat
+bin\lua_test.exe
 
-# 运行所有测试
-cd build && ctest
+# 检查文档/实现事实是否漂移
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\check_doc_drift.ps1
 ```
 
 #### 6. 代码审查
@@ -471,10 +474,10 @@ cd build && ctest
 测试单个类或函数的功能。
 
 ```cpp
-TEST(ValueTest, NumberValue) {
+void testNumberValue(LuaTest::TestSuite& suite) {
     Lua::Value v(42.0);
-    EXPECT_TRUE(v.isNumber());
-    EXPECT_DOUBLE_EQ(v.asNumber(), 42.0);
+    ASSERT_TRUE(suite, v.isNumber(), "number value is number");
+    ASSERT_TRUE(suite, v.asNumber() == 42.0, "number payload");
 }
 ```
 
@@ -483,15 +486,15 @@ TEST(ValueTest, NumberValue) {
 测试多个模块的协作。
 
 ```cpp
-TEST(IntegrationTest, TableWithGC) {
-    auto gc = std::make_unique<Lua::GarbageCollector>();
-    auto table = Lua::make_gc_table();
+void testTableWithGC(LuaTest::TestSuite& suite) {
+    Lua::LuaState* L = Lua::LuaState::newState();
+    Lua::Table* table = new Lua::Table();
+    L->getGlobalState().getGC().registerObject(table);
     
     table->set(Lua::Value(1), Lua::Value(100));
-    EXPECT_EQ(table->get(Lua::Value(1)).asNumber(), 100);
+    ASSERT_TRUE(suite, table->get(Lua::Value(1)).asNumber() == 100, "table lookup");
     
-    gc->collect();
-    // 验证table仍然有效
+    delete L;
 }
 ```
 
@@ -500,8 +503,8 @@ TEST(IntegrationTest, TableWithGC) {
 测试关键路径的性能。
 
 ```cpp
-TEST(PerformanceTest, TableInsert) {
-    auto table = Lua::make_gc_table();
+void testTableInsertSmoke(LuaTest::TestSuite& suite) {
+    Lua::Table table;
     
     auto start = std::chrono::high_resolution_clock::now();
     for (int i = 0; i < 100000; ++i) {
@@ -510,21 +513,13 @@ TEST(PerformanceTest, TableInsert) {
     auto end = std::chrono::high_resolution_clock::now();
     
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-    std::cout << "Insert 100k items: " << duration.count() << "ms\n";
+    ASSERT_TRUE(suite, duration.count() >= 0, "table insert smoke");
 }
 ```
 
 ### 测试覆盖率
 
-目标: 代码覆盖率 > 80%
-
-```bash
-# 使用gcov生成覆盖率报告
-cmake -B build -DCMAKE_BUILD_TYPE=Debug -DENABLE_COVERAGE=ON
-cmake --build build
-cd build && ctest
-gcov -r ../src/core/*.cpp
-```
+当前仓库尚未维护统一覆盖率入口。提交前优先保证 `bin\lua_test.exe` 全绿，并在新增功能附近补充单元测试或 Lua 回归脚本。覆盖率、CTest 与 JUnit 输出属于后续工具链收敛任务。
 
 ---
 

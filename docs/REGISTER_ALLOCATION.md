@@ -1,3 +1,10 @@
+---
+status: current
+verified_against: docs/PROJECT_STATUS.md; src/compiler/register_allocator.hpp; src/compiler/codegen.cpp
+last_checked: 2026-05-18
+applies_to: current register allocation model
+---
+
 # 寄存器分配详解：`freereg_` 的完整生命周期
 
 本文从寄存器分配的角度，以 `freereg_` 这一核心字段为主线，系统梳理 `CodeGenerator` 在各类代码生成场景下如何操控寄存器空间，以及每一次 `freereg_` 变动背后的真实原因。

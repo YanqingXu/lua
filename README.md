@@ -1,3 +1,10 @@
+---
+status: current
+verified_against: docs/PROJECT_STATUS.md; lua.slnx; lua.vcxproj; lua_app.vcxproj; lua_test.vcxproj; lua_bytecode.vcxproj
+last_checked: 2026-05-18
+applies_to: repository overview and current Windows/MSBuild workflow
+---
+
 # 现代C++ Lua解释器
 
 > **从零开始用C++17/20/23实现Lua 5.1.5解释器**
@@ -16,12 +23,14 @@
 
 本项目是一个**使用现代 C++ 重新实现 Lua 5.1.5 解释器**的实验性工程，当前主要面向学习、验证和逐步补全实现。
 
+> 当前构建、测试、工具链与编译器管线事实以 `docs/PROJECT_STATUS.md` 为准。README 只保留概览信息，避免与工程文件和开发指南重复漂移。
+
 ### 项目目标
 
 本项目旨在从零开始，用现代 C++ 重建 Lua 5.1.5 的核心执行链路，包括词法分析、语法分析、字节码生成、虚拟机执行、垃圾回收和标准库。
 
 **核心特点**：
--  **技术路线明确**：Windows + Visual Studio 2026 + MSVC + C++17/23（项目文件当前使用 C++23 preview）
+-  **技术路线明确**：当前主路径为 Windows + Visual Studio/MSBuild + `.vcxproj`；CMake/CTest 仍是规划目标，尚不是当前可复现入口
 - ✨ **实现风格现代**：使用 `std::variant`、类型别名、STL 容器等现代 C++ 手段组织 Lua 运行时
 - 🎓 **偏学习型工程**：强调结构可读、模块可追踪、便于理解 Lua 语言设计
 
@@ -932,8 +941,8 @@ openBaseLib(L);  // 注册所有函数到全局环境
 |------|------|------|
 | **ARCHITECTURE.md** | 架构设计文档 | 理解系统整体架构和模块设计 |
 | **DEVELOPMENT_GUIDE.md** | 开发规范 | 编码规范、类型系统使用指南、质量标准 |
-| **PROJECT_OVERVIEW.md** | 项目总览 | 项目概况和技术栈 |
-| **PROJECT_SUMMARY_CN.md** | 中文项目总结 | 项目进展总结（中文） |
+| **PROJECT_STATUS.md** | 当前事实源 | 构建入口、测试状态、文档状态、CodeGen 管线事实 |
+| **BYTECODE_GENERATION.md** | 字节码生成说明 | 当前 `AST -> SymbolRef / ValueResult / CondResult / LValueRef / CallResultInfo -> Proto` 主线 |
 
 ## 💡 快速上手指南（给新AI会话）
 
@@ -953,9 +962,9 @@ openBaseLib(L);  // 注册所有函数到全局环境
    - 优先补泛型 `for`、`string.gsub` 函数/表替换、`string.dump`、`package.loadlib` 等兼容边界
 
 4. **在哪里找详细信息？**
+   - 当前事实源：`docs/PROJECT_STATUS.md`
    - 架构设计：`docs/ARCHITECTURE.md`
    - 编码规范：`docs/DEVELOPMENT_GUIDE.md`
-   - 项目总览：`docs/PROJECT_OVERVIEW.md`
 
 ---
 

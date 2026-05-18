@@ -1,3 +1,10 @@
+---
+status: current
+verified_against: docs/PROJECT_STATUS.md; src/debug/trace_sink.hpp; src/debug/json_trace_sink.cpp; src/vm/vm.cpp
+last_checked: 2026-05-18
+applies_to: current VM trace system
+---
+
 # VM Trace 调试系统设计与实施文档
 
 > **目标**：为 C++20 Lua 解释器实现一套 JSON + 可视化的 VM 执行追踪系统，  

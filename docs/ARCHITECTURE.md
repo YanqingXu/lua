@@ -1,3 +1,10 @@
+---
+status: current
+verified_against: docs/PROJECT_STATUS.md; README.md; src/
+last_checked: 2026-05-18
+applies_to: current high-level architecture
+---
+
 # Lua 解释器架构设计文档
 
 > **项目目标**: 使用现代C++标准(C++17/20/23)从零实现一个完整的Lua 5.1.5解释器

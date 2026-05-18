@@ -1,3 +1,10 @@
+---
+status: current
+verified_against: docs/PROJECT_STATUS.md; src/compiler/parser.hpp; src/compiler/parser.cpp; src/compiler/ast.hpp
+last_checked: 2026-05-18
+applies_to: current parser expression grammar
+---
+
 # 表达式解析实现说明
 
 本文档说明 `src/compiler/parser.hpp` 与 `src/compiler/parser.cpp` 中“表达式解析”相关函数的实现方式、调用关系，以及每一种写法背后的设计理由。重点覆盖以下函数：

@@ -1,3 +1,10 @@
+---
+status: current
+verified_against: docs/PROJECT_STATUS.md; docs/VM_TRACE_SYSTEM.md; src/debug/; src/vm/vm.cpp
+last_checked: 2026-05-18
+applies_to: VM trace and debugging notes
+---
+
 这个问题本质是：**如何观测 Lua VM 的执行轨迹（Execution Trace）**。
 如果你正在做“C++20 重写 Lua”或深度调试，这个能力非常关键，相当于给 VM 加一个“可视化探针”。
 

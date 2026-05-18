@@ -1,3 +1,10 @@
+---
+status: historical
+verified_against: docs/refactor_expdesc_pr_checklist.md; src/compiler/codegen.cpp; src/compiler/codegen.hpp
+last_checked: 2026-05-18
+applies_to: completed single-pass cleanup plan
+---
+
 # 单遍编译策略残留清理 — 重构计划
 
 > 本文档基于 [refactor_expdesc_plan.md](./refactor_expdesc_plan.md) 和 [refactor_expdesc_pr_checklist.md](./refactor_expdesc_pr_checklist.md) 的基础之上，

@@ -1,3 +1,10 @@
+---
+status: historical
+verified_against: src/compiler/codegen_types.hpp; src/compiler/codegen.hpp; src/compiler/codegen.cpp
+last_checked: 2026-05-18
+applies_to: completed PR/task record for legacy expression pipeline removal
+---
+
 # expdesc 渐进式重构 PR / Task Checklist
 
 本文档把 [refactor_expdesc_plan.md](./refactor_expdesc_plan.md) 的目标架构，落成一份可以逐个 PR 推进的执行清单。

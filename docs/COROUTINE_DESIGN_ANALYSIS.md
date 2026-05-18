@@ -1,3 +1,10 @@
+---
+status: historical
+verified_against: docs/PROJECT_STATUS.md; src/core/thread.hpp; src/lib/coroutinelib.cpp
+last_checked: 2026-05-18
+applies_to: coroutine design analysis notes before current implementation cleanup
+---
+
 可行，但我给你的结论不是“高度可行，直接上”，而是：
 
 **这个方向总体可行，工程价值也高；但你文档里的当前方案只能算“半可行”，适合做 PoC，不适合直接当最终工程方案落地。**

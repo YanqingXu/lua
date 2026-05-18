@@ -1,3 +1,10 @@
+---
+status: planned
+verified_against: docs/PROJECT_STATUS.md
+last_checked: 2026-05-18
+applies_to: future architecture blueprint, not current implementation
+---
+
 下面直接给你一份可落盘的工程级蓝图初稿。
 
 ---
