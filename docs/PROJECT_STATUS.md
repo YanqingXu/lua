@@ -34,6 +34,16 @@ This file is the repository's single source of truth for externally visible proj
 - Latest documented test count in README: 414 registered tests, 1634 assertion results, 0 failures.
 - This number describes the project test runner result. It is not a Lua 5.1.5 compatibility percentage.
 
+## Quality Gate Status
+
+- Formatting configuration: `.clang-format`, based on LLVM with repository-specific width/include choices.
+- Static analysis configuration: `.clang-tidy`, currently limited to conservative `bugprone-*`, `performance-*`, `portability-*`, and selected `readability-*` checks.
+- Local quality entry: `tools/run_quality_gate.ps1`.
+- Quality-gate self-test: `tools/test_quality_gate.ps1`.
+- Documentation drift guard: `tools/check_doc_drift.ps1`.
+- CI entry: `.github/workflows/ci.yml` on GitHub Actions, using Windows/MSBuild as the current primary workflow.
+- The quality gate is intentionally incremental: local formatting defaults to changed source files, missing local `clang-format` or `clang-tidy` tools are reported as skips by the local script, while MSBuild and unit tests remain the canonical Windows validation path.
+
 ## Compiler Pipeline Status
 
 - `ExprDesc` and `ExprKind` have been removed from production compiler sources.

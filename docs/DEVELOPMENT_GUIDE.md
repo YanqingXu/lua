@@ -454,12 +454,15 @@ bin\lua_test.exe
 
 # 检查文档/实现事实是否漂移
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\check_doc_drift.ps1
+
+# 运行本地质量门禁（文档漂移、格式、静态检查烟测、MSBuild、测试）
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_quality_gate.ps1
 ```
 
 #### 6. 代码审查
 
 - 自我审查代码
-- 运行静态分析工具
+- 运行 `tools\run_quality_gate.ps1`
 - 检查内存泄漏
 - 性能测试
 
@@ -622,6 +625,9 @@ gdb ./build/tests/test_value
 
 - [ ] 代码通过编译，无警告
 - [ ] 所有测试通过
+- [ ] `powershell -NoProfile -ExecutionPolicy Bypass -File tools\check_doc_drift.ps1` 通过
+- [ ] `powershell -NoProfile -ExecutionPolicy Bypass -File tools\test_quality_gate.ps1` 通过
+- [ ] `powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_quality_gate.ps1` 通过，或记录本机缺失的 clang 工具跳过项
 - [ ] 代码符合编码规范
 - [ ] 添加了必要的注释
 - [ ] 更新了相关文档

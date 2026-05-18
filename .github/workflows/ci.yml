@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - master
+
+jobs:
+  windows-msbuild:
+    name: Windows MSBuild
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Documentation drift
+        shell: powershell
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File tools\check_doc_drift.ps1
+
+      - name: Quality gate smoke
+        shell: powershell
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_quality_gate.ps1 -SkipBuild -SkipClangTidy
+
+      - name: Build tests
+        shell: powershell
+        run: MSBuild.exe lua_test.vcxproj /m /p:Configuration=Debug /p:Platform=x64
+
+      - name: Run tests
+        shell: powershell
+        run: bin\lua_test.exe
