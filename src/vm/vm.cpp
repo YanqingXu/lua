@@ -483,8 +483,12 @@ static bool vmPrecall(LuaState* L, i32 funcIndex, i32 nArgs, i32 nResults) {
     // __call 元方法支持
     if (!funcVal.isFunction()) {
         Value tm = getMetamethodByObject(L, funcVal, TMS::TM_CALL);
-        if (tm.isNil() || !tm.isFunction())
-            throw std::runtime_error("VM::precall: attempt to call non-function value without __call metamethod");
+        if (tm.isNil() || !tm.isFunction()) {
+            throw std::runtime_error(
+                "VM::precall: attempt to call non-function value without __call metamethod at R("
+                + std::to_string(funcIndex) + "), abs="
+                + std::to_string(funcPos) + ", value=" + funcVal.toString());
+        }
 
         Value originalFunc = funcVal;
         Vec<Value> args;
@@ -602,6 +606,45 @@ static bool vmPrecall(LuaState* L, i32 funcIndex, i32 nArgs, i32 nResults) {
 
         return true; // Lua 函数，调用方需 goto reentry
     }
+}
+
+static void vmReuseCurrentFrameForTailCall(LuaState* L, usize callerIndex,
+                                           usize callerFunc, i32 callerTailcalls) {
+    Stack& stack = L->getStack();
+    CallInfo callee = L->getCurrentCallInfo();
+
+    usize src = callee.func;
+    usize dst = callerFunc;
+    usize count = callee.top - callee.func;
+
+    if (src != dst && count > 0) {
+        if (dst < src) {
+            for (usize i = 0; i < count; i++) {
+                stack[dst + i] = stack[src + i];
+            }
+        } else {
+            for (usize i = count; i > 0; i--) {
+                stack[dst + i - 1] = stack[src + i - 1];
+            }
+        }
+    }
+
+    i64 offset = static_cast<i64>(dst) - static_cast<i64>(src);
+    auto adjustIndex = [offset](usize index) -> usize {
+        return static_cast<usize>(static_cast<i64>(index) + offset);
+    };
+
+    callee.func = adjustIndex(callee.func);
+    callee.base = adjustIndex(callee.base);
+    callee.top = adjustIndex(callee.top);
+    callee.savedpc = nullptr;
+    callee.tailcalls = callerTailcalls + 1;
+    callee.hookLine = -1;
+
+    L->popCallInfo();
+    L->getCallStack()[callerIndex] = callee;
+    stack.setTop(callee.top);
+    L->setAbsoluteTop(callee.top);
 }
 
 // -----------------------------------------------------------------
@@ -1290,25 +1333,23 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
             case OpCode::TAILCALL: {
                 i32 nArgs = b - 1;
 
+                usize callerIndex = L->getCurrentCI();
                 CallInfo& currentCI = L->getCurrentCallInfo();
+                usize callerFunc = currentCI.func;
+                i32 callerTailcalls = currentCI.tailcalls;
                 L->closeUpvalues(currentCI.base);
                 currentCI.savedpc = &code[pc];
 
                 bool isLua = vmPrecall(L, a, nArgs, -1);
 
                 if (isLua) {
-                    currentCI.tailcalls++;
-                    // 注意：当前实现简化处理尾调用，未做完整的栈帧复用优化
-                    // TODO: 参考 Lua C 实现进行完整的尾调用优化
+                    vmReuseCurrentFrameForTailCall(
+                        L, callerIndex, callerFunc, callerTailcalls);
                     goto reentry;
                 }
-                // C 函数 tailcall，同步当前 Lua 帧的寄存器窗口。
-                {
-                    CallInfo& callerCI = L->getCurrentCallInfo();
-                    Stack& stack = L->getStack();
-                    stack.setTop(callerCI.top);
-                    L->setAbsoluteTop(callerCI.top);
-                }
+
+                // C 函数 tailcall 已经由 vmPrecall 把返回值放到 R(A)
+                // 并设置 absoluteTop；紧随其后的 RETURN 会把这些值返回给调用者。
                 base = refreshBase(L);
                 break;
             }

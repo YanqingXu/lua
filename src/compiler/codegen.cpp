@@ -1443,6 +1443,11 @@ void CodeGenerator::emitStmt(const ReturnStmt& s) {
             // emitCallExpr 保证 callBase >= base + nret - 1
             // 如果 callBase 恰好等于 base + (nret - 1)，完美对齐
             if (info.baseReg == base + (nret - 1)) {
+                if (nret == 1) {
+                    Instruction inst = proto_->getInstruction(info.instructionPc);
+                    inst = CREATE_ABC(OpCode::TAILCALL, GETARG_A(inst), GETARG_B(inst), 0);
+                    proto_->setInstruction(info.instructionPc, inst);
+                }
                 codeABC(OpCode::RETURN, base, 0, 0);  // B=0 → 从 base 到栈顶
             } else {
                 // callBase 在更高位置（嵌套调用保护发生了搬移），

@@ -11,6 +11,7 @@
 #include "../framework/test_framework.hpp"
 #include "compiler/parser.hpp"
 #include "compiler/codegen.hpp"
+#include "compiler/opcode.hpp"
 #include "core/string_pool.hpp"
 #include "core/function.hpp"
 #include "lib/lib_manager.hpp"
@@ -41,7 +42,11 @@ bool runLua(LuaState* L, const char* code) {
         VM::execute(L, func);
         delete proto;
         return true;
+    } catch (const std::exception& e) {
+        std::cout << "  [ERROR] Call pipeline chunk exception: " << e.what() << std::endl;
+        return false;
     } catch (...) {
+        std::cout << "  [ERROR] Call pipeline chunk unknown exception" << std::endl;
         return false;
     }
 }
@@ -50,6 +55,31 @@ LuaState* createFullState() {
     LuaState* L = LuaState::newState();
     StandardLibrary::openAll(L);
     return L;
+}
+
+bool protoContainsOp(const Proto* proto, OpCode op) {
+    if (proto == nullptr) {
+        return false;
+    }
+
+    for (usize i = 0; i < proto->getInstructionCount(); i++) {
+        if (GET_OPCODE(proto->getInstruction(i)) == op) {
+            return true;
+        }
+    }
+
+    for (usize i = 0; i < proto->getSubProtoCount(); i++) {
+        if (protoContainsOp(proto->getSubProto(i), op)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+i32 reportCallStackDepth(LuaState* L) {
+    L->pushNumber(static_cast<f64>(L->getCallStackSize()));
+    return 1;
 }
 
 } // namespace
@@ -266,6 +296,63 @@ void testNestedReturnCallChain(TestSuite& suite) {
     delete L;
 }
 
+void testTailReturnCallEmitsTailcall(TestSuite& suite) {
+    try {
+        Parser parser(R"lua(
+            local function target()
+                return 42
+            end
+
+            local function relay()
+                return target()
+            end
+
+            return relay()
+        )lua");
+        Chunk chunk = parser.parse();
+        StringPool& pool = StringPool::getInstance();
+        CodeGenerator codegen(&pool);
+        Proto* proto = codegen.generate(chunk, "test_tailcall_codegen");
+
+        ASSERT_TRUE(suite, proto != nullptr, "tail call proto generated");
+        ASSERT_TRUE(suite, protoContainsOp(proto, OpCode::TAILCALL),
+                    "return f() emits TAILCALL");
+
+        delete proto;
+    } catch (const std::exception& e) {
+        std::cout << "  [ERROR] Exception: " << e.what() << std::endl;
+        ASSERT_TRUE(suite, false, "tail call codegen should not throw");
+    }
+}
+
+void testTailRecursiveLuaCallReusesFrame(TestSuite& suite) {
+    LuaState* L = createFullState();
+    Function* depthProbe = new Function(reportCallStackDepth);
+    L->getGlobalState().getGC().registerObject(depthProbe);
+    L->setGlobal("report_call_depth", Value(depthProbe));
+
+    bool ok = runLua(L, R"lua(
+        function loop(n)
+            if n == 0 then
+                return report_call_depth()
+            end
+            return loop(n - 1)
+        end
+
+        depth_after_tail_recursion = loop(200)
+    )lua");
+
+    ASSERT_TRUE(suite, ok, "tail recursive chunk runs");
+    Value depth = L->getGlobal("depth_after_tail_recursion");
+    ASSERT_TRUE(suite, depth.isNumber(), "tail recursion records call depth");
+    if (depth.isNumber()) {
+        ASSERT_TRUE(suite, depth.asNumber() <= 5.0,
+                    "tail recursion reuses Lua call frames");
+    }
+
+    delete L;
+}
+
 void registerCallPipelineTests() {
     auto& registry = TestRegistry::getInstance();
     registry.registerTest(kSuiteName, "return f() multret", testReturnCallMultret);
@@ -282,4 +369,6 @@ void registerCallPipelineTests() {
     registry.registerTest(kSuiteName, "call stmt discards returns", testCallStmtDiscardsReturns);
     registry.registerTest(kSuiteName, "method call multret", testMethodCallMultret);
     registry.registerTest(kSuiteName, "nested return f(g())", testNestedReturnCallChain);
+    registry.registerTest(kSuiteName, "return f() emits TAILCALL", testTailReturnCallEmitsTailcall);
+    registry.registerTest(kSuiteName, "tail recursion reuses frames", testTailRecursiveLuaCallReusesFrame);
 }

@@ -2,7 +2,7 @@
 
 > **从零开始用C++17/20/23实现Lua 5.1.5解释器**
 
-[![Tests](https://img.shields.io/badge/tests-1629%2F1629-brightgreen)]()
+[![Tests](https://img.shields.io/badge/tests-1634%2F1634-brightgreen)]()
 [![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen)]()
 [![C++](https://img.shields.io/badge/C%2B%2B-17%2F23-blue)]()
 [![Platform](https://img.shields.io/badge/platform-Windows-blue)]()
@@ -44,6 +44,7 @@
 - ✅ **GC 最新进度**：`collectgarbage("collect")` 已恢复真实标记-清除流程；VM/标准库创建的主要 GCObject 已统一注册，Table/Function/Proto/Upvalue/Userdata/Thread 标记路径已补齐，根集会扫描全局状态、当前/主线程栈和 open upvalue；弱表 `__mode` 与 userdata `__gc` 终结器已接入
 - ✅ **CodeGen 重构状态**：`ExprDesc` / `ExprKind` 已从产品代码移除，PR-C1~PR-C5 清理完成，寄存器指针访问已封装
 - ✅ **闭包语义**：upvalue 捕获、写回、嵌套捕获链，以及作用域退出 / `break` 时的 `OP_CLOSE` 关闭路径已覆盖
+- ✅ **尾调用优化（TCO）**：CodeGen 已对单值 `return f()` 发出 `TAILCALL`，VM 侧 Lua 尾调用会复用当前 `CallInfo`/栈帧
 - ✅ **元方法最新进度**：`callTMWithResult/callTM` 已统一走 `VM::call`，Lua 函数形式的 `__add/__index/__newindex/__call` 等元方法已可用；基础类型元表查找已接入，string 类型已安装 `__index = string`
 - ✅ **标准库状态**：math / os / io / string / table / coroutine / debug / package 库主体已实现（少量函数仍为 stub 或简化）
 
@@ -70,8 +71,8 @@
 | **LuaState类** | `src/vm/lua_state.hpp/cpp` | 1,095 | Lua状态（线程执行环境） | ✅ 95% |
 | **Lexer词法分析器** | `src/compiler/lexer.hpp/cpp` + `token.hpp` | 1,167 | 词法分析（Token流生成） | ✅ 100% |
 | **Parser语法分析器** | `src/compiler/parser.hpp/cpp` + `ast.hpp/cpp` | 2,031 | 语法分析（AST生成） | ✅ 100% |
-| **CodeGenerator字节码生成器** | `src/compiler/codegen.hpp/cpp` + `opcode.hpp/cpp` | 2,249 | 字节码生成（AST→Bytecode） | ✅ 95% |
-| **VM字节码执行引擎** | `src/vm/vm.hpp/cpp` | 2,030 | 38条指令均有执行分支；TAILCALL/TFORLOOP高级语义仍简化 | ✅ 92% |
+| **CodeGenerator字节码生成器** | `src/compiler/codegen.hpp/cpp` + `opcode.hpp/cpp` | 2,249 | 字节码生成（AST→Bytecode），单值 return call 已生成 TAILCALL | ✅ 95% |
+| **VM字节码执行引擎** | `src/vm/vm.hpp/cpp` | 2,030 | 38条指令均有执行分支；TAILCALL 已复用栈帧，TFORLOOP Lua 迭代器仍简化 | ✅ 94% |
 | **I/O系统** | `src/io/*.hpp/cpp` | 670 | InputStream + DynamicBuffer | ✅ 100% |
 | **基础库（Base Library）** | `src/lib/baselib.hpp/cpp` | 730+ | Lua 5.1 常用全局函数 + `_G` / `_VERSION`（newproxy 缺失，部分边界简化） | 🔄 93% |
 | **数学库（Math Library）** | `src/lib/mathlib.hpp/cpp` | 681 | 28/28函数（含 sinh、cosh、tanh） | ✅ 100% |
@@ -85,13 +86,13 @@
 | **包/模块库（Package Library）** | `src/lib/packagelib.hpp/cpp` | ~490 | require、module、package.loaded/preload/loaders/path/seeall；loadlib/C loader 为 stub | 🔄 90% |
 | **库管理系统** | `src/lib/lib_manager.hpp/cpp` | 73 | 标准库注册和管理 | ✅ 100% |
 
-### 测试统计（2026-05-17更新）✅
+### 测试统计（2026-05-18更新）✅
 
 ```
 测试框架：自定义轻量级测试框架（零外部依赖）
-注册测试：412个
-断言结果：1629个 ✅
-通过率：  100% (1629/1629)
+注册测试：414个
+断言结果：1634个 ✅
+通过率：  100% (1634/1634)
 失败测试：0个
 编译状态：Debug|x64 版本无警告，无链接冲突
 平台：    Windows + MSVC (Visual Studio 2026)
@@ -99,22 +100,21 @@
 
 补充验证：
 - `bin/build_test.bat`：通过
-- `bin/lua_test.exe`：412 个注册测试，1629 个结果，0 失败
+- `bin/lua_test.exe`：414 个注册测试，1634 个结果，0 失败
 - `bin/build_app.bat`：通过
 - `tests/lua/regressions/*.lua`：全部通过
 - `tests/lua/stdlib/test_collectgarbage*.lua` 与 `test_gcinfo*.lua`：全部通过，`collectgarbage("collect")` 可观察到内存下降
 
 ### 距离完整 Lua 5.1.5 仍缺失的功能
 
-> **兼容性审计记录（2026-05-17）**：已对 README、本地 `src/lib/` 标准库实现、`src/vm/` 指令执行逻辑、GC/元方法相关核心代码进行核对。`bin/lua_test.exe` 当前为 412 个注册测试、1629 个结果、0 失败；这说明项目内测试覆盖的路径稳定，但不等价于 Lua 5.1.5 官方语义已经达到 95% 兼容。
+> **兼容性审计记录（2026-05-18）**：已对 README、本地 `src/lib/` 标准库实现、`src/vm/` 指令执行逻辑、GC/元方法相关核心代码进行核对。`bin/lua_test.exe` 当前为 414 个注册测试、1634 个结果、0 失败；这说明项目内测试覆盖的路径稳定，但不等价于 Lua 5.1.5 官方语义已经达到 95% 兼容。
 
-> **最新补齐**：Lua 函数元方法调用链已打通，`callTMWithResult/callTM` 统一走 `VM::call`，C Closure 与 Lua Closure 共用同一调用入口；`getMetamethodByObject()` 已接入基础类型元表，string 类型已安装 `__index = string`；GC 已支持弱表 `__mode = "k"/"v"/"kv"` 清理和 userdata `__gc` 两阶段终结。
+> **最新补齐**：Lua 函数元方法调用链已打通，`callTMWithResult/callTM` 统一走 `VM::call`，C Closure 与 Lua Closure 共用同一调用入口；`getMetamethodByObject()` 已接入基础类型元表，string 类型已安装 `__index = string`；GC 已支持弱表 `__mode = "k"/"v"/"kv"` 清理和 userdata `__gc` 两阶段终结；尾调用优化已覆盖单值 `return f()` 的 `TAILCALL` 生成和 Lua 函数调用帧复用。
 
 #### 🔴 关键缺失（影响语义正确性）
 
 | 缺失项 | 所属模块 | 说明 |
 |--------|----------|------|
-| **尾调用优化（TCO）** | CodeGen / VM | `return f()` 当前主要生成 `CALL + RETURN`；即使执行到 `TAILCALL`，VM 也未复用栈帧，深递归尾调用仍会增长调用深度 |
 | **泛型 `for` 完整语义** | CodeGen / VM | CodeGen 只接受一个返回三元组的调用/vararg 作为 iterator；VM 的 `TFORLOOP` 对 Lua 函数迭代器仍抛出 `not supported yet` |
 
 #### 🟡 标准库函数缺失/不完整
@@ -155,16 +155,17 @@
 
 #### 95% 完成度复核
 
-当前“95%”更适合理解为**项目内功能和测试进度**，而不是严格的 Lua 5.1.5 官方兼容率。标准库主体、编译器前端、VM 主要指令路径、GC 基础/高级生命周期以及 Lua 函数元方法调用链已经成型并全绿；但 tail call、package/debug/string 边界都是高权重语义项，若按官方规范和第三方 Lua 5.1 测试套衡量，实际兼容度应更保守。
+当前“95%”更适合理解为**项目内功能和测试进度**，而不是严格的 Lua 5.1.5 官方兼容率。标准库主体、编译器前端、VM 主要指令路径、GC 基础/高级生命周期、Lua 函数元方法调用链以及尾调用栈帧复用已经成型并全绿；但泛型 `for`、package/debug/string 边界仍是高权重语义项，若按官方规范和第三方 Lua 5.1 测试套衡量，实际兼容度应更保守。
 
 ### 接下来优先做什么
 
-1. **实现真正的尾调用**：CodeGen 对 `return f()` 生成 `TAILCALL`，VM 复用当前调用帧
-2. **补泛型 `for` 完整语义**：让 `TFORLOOP` 支持 Lua 函数迭代器，并放宽 CodeGen 对 iterator 表达式的限制
-3. **补齐 string 兼容性**：`string.gsub` 表/函数替换、`string.dump`、二进制安全字符串处理
-4. **补 package 兼容性**：`package.loadlib`、C loader/all-in-one loader、`module()` 的 `_PACKAGE`/环境/复合模块名语义
-5. **补错误与调试边界**：`error(level)` 位置信息、任意错误对象、`xpcall` errfunc、`getfenv/setfenv` 栈层级/线程环境、debug 库基础类型元表操作
-6. **引入官方兼容测试**：在现有单元测试全绿基础上，逐步接入 Lua 5.1 官方/社区行为测试，避免只验证 happy path
+已完成：真正的尾调用优化（TCO）已覆盖单值 `return f()` 的字节码生成和 Lua 函数尾调用的栈帧复用，并新增 `TAILCALL` 字节码与深尾递归帧深度回归测试。
+
+1. **补泛型 `for` 完整语义**：让 `TFORLOOP` 支持 Lua 函数迭代器，并放宽 CodeGen 对 iterator 表达式的限制
+2. **补齐 string 兼容性**：`string.gsub` 表/函数替换、`string.dump`、二进制安全字符串处理
+3. **补 package 兼容性**：`package.loadlib`、C loader/all-in-one loader、`module()` 的 `_PACKAGE`/环境/复合模块名语义
+4. **补错误与调试边界**：`error(level)` 位置信息、任意错误对象、`xpcall` errfunc、`getfenv/setfenv` 栈层级/线程环境、debug 库基础类型元表操作
+5. **引入官方兼容测试**：在现有单元测试全绿基础上，逐步接入 Lua 5.1 官方/社区行为测试，避免只验证 happy path
 
 ### 核心实现亮点
 
@@ -179,7 +180,7 @@
 ✅ **Parser语法分析器**：递归下降解析，完整AST生成，正确的运算符优先级和结合性
 ✅ **CodeGenerator字节码生成器**：AST→字节码转换，寄存器分配，常量表管理，跳转回填；`ExprDesc` / `ExprKind` 迁移和 PR-C 清理已完成
 ✅ **OpCode指令集**：完整Lua 5.1指令集（38条指令），iABC/iABx/iAsBx三种格式
-✅ **VM字节码执行引擎**：38条指令均有执行分支，已覆盖 Upvalue、函数调用、循环、闭包、SETLIST 等主路径；`TAILCALL` 栈帧复用和 Lua 函数泛型迭代器仍需补齐
+✅ **VM字节码执行引擎**：38条指令均有执行分支，已覆盖 Upvalue、函数调用、尾调用栈帧复用、循环、闭包、SETLIST 等主路径；Lua 函数泛型迭代器仍需补齐
 ✅ **基础库（Base Library）**：Lua 5.1 常用全局函数已覆盖，包含 `_G` / `_VERSION`、print、type、tostring、tonumber、error、assert、pcall、xpcall、pairs、ipairs、next、select、rawget、rawset、rawequal、loadstring、loadfile、dofile、collectgarbage、unpack、load、getfenv、setfenv 等
 ✅ **数学库（Math Library）**：28/28函数完整实现（abs, floor, ceil, sqrt, sin, cos, tan, sinh, cosh, tanh, log, exp, random 等），包括数学常量 math.pi 和 math.huge
 ✅ **I/O库（I/O Library）**：11/11函数 + 7/7文件方法主体实现（io.open, io.close, io.read, io.write, file:read, file:write 等），`io.lines/file:lines` 格式参数仍简化
@@ -751,13 +752,13 @@ void doJump(i32 offset) {
 - ✅ TEST, TESTSET
 - ✅ RETURN
 - ✅ GETUPVAL, SETUPVAL, CLOSE（Upvalue操作）
-- ✅ CALL, TAILCALL, SELF（函数调用，简化版）
+- ✅ CALL, TAILCALL, SELF（函数调用；TAILCALL 已复用 Lua 调用帧）
 - ✅ FORLOOP, FORPREP, TFORLOOP（循环指令）
 - ✅ CLOSURE, SETLIST, VARARG（闭包和表初始化）
 
 **指令实现状态**：38条指令中，已实现38条（100%）
 - 基础指令：完全实现
-- 高级指令：简化实现（嵌套调用、完整闭包支持待完善）
+- 高级指令：TFORLOOP Lua 函数迭代器等边界仍简化
 
 **性能优化**：
 - 使用switch-case指令分发（编译器优化为跳转表）
@@ -949,7 +950,7 @@ openBaseLib(L);  // 注册所有函数到全局环境
 
 3. **下一步做什么？**
    - 先看最近在改的模块和回归脚本
-   - 优先补真正尾调用、泛型 `for`、`string.gsub` 函数/表替换、`string.dump`、`package.loadlib` 等兼容边界
+   - 优先补泛型 `for`、`string.gsub` 函数/表替换、`string.dump`、`package.loadlib` 等兼容边界
 
 4. **在哪里找详细信息？**
    - 架构设计：`docs/ARCHITECTURE.md`
@@ -1038,7 +1039,7 @@ tests/unit/
 └── vm/                         # VM Core、LuaState 初始化、函数调用
 ```
 
-当前测试入口会输出真实注册测试数和断言结果数；最近一次验证为 412 个注册测试、1629 个结果、0 失败。
+当前测试入口会输出真实注册测试数和断言结果数；最近一次验证为 414 个注册测试、1634 个结果、0 失败。
 
 ## 📊 技术栈和工具
 
