@@ -13,6 +13,8 @@
 namespace Lua {
 
 class LuaState;
+class Function;
+class Proto;
 
 namespace VM::detail {
 
@@ -33,6 +35,12 @@ void concat(RuntimeServices& services, LuaState* L, Value* base, i32 a, i32 b, i
 bool precall(LuaState* L, i32 funcIndex, i32 nArgs, i32 nResults);
 void postcall(LuaState* L, i32 funcPos, i32 wantedResults, usize firstResult = 0);
 void reuseCurrentFrameForTailCall(LuaState* L, usize callerIndex, usize callerFunc, i32 callerTailcalls);
+
+void setList(LuaState* L, Value* base, i32 a, i32 b, i32 c);
+void closure(LuaState* L, Value* base, Proto* currentProto, Function* currentFunc,
+             usize& pc, i32 a, i32 bx);
+void vararg(LuaState* L, Value*& base, Proto* proto, i32 a, i32 b);
+void tforLoop(LuaState* L, Value*& base, Proto* proto, usize& pc, i32 a, i32 c);
 
 }  // namespace VM::detail
 

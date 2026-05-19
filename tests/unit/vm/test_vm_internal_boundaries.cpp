@@ -58,6 +58,19 @@ void testCallHelpersExposeStableSignatures(TestSuite& suite) {
     ASSERT_TRUE(suite, true, "call helper signatures are stable");
 }
 
+void testRemainingHelperSignatures(TestSuite& suite) {
+    static_assert(std::is_same_v<decltype(&VM::detail::setList),
+                                 void (*)(LuaState*, Value*, i32, i32, i32)>);
+    static_assert(std::is_same_v<decltype(&VM::detail::closure),
+                                 void (*)(LuaState*, Value*, Proto*, Function*, usize&, i32, i32)>);
+    static_assert(std::is_same_v<decltype(&VM::detail::vararg),
+                                 void (*)(LuaState*, Value*&, Proto*, i32, i32)>);
+    static_assert(std::is_same_v<decltype(&VM::detail::tforLoop),
+                                 void (*)(LuaState*, Value*&, Proto*, usize&, i32, i32)>);
+
+    ASSERT_TRUE(suite, true, "remaining VM helper signatures are stable");
+}
+
 }  // namespace
 
 void registerVMInternalBoundaryTests() {
@@ -65,4 +78,5 @@ void registerVMInternalBoundaryTests() {
 
     registry.registerTest(kSuiteName, "Operation Helper Signatures", testOperationHelpersExposeStableSignatures);
     registry.registerTest(kSuiteName, "Call Helper Signatures", testCallHelpersExposeStableSignatures);
+    registry.registerTest(kSuiteName, "Remaining Helper Signatures", testRemainingHelperSignatures);
 }

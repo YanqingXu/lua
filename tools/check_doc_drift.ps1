@@ -118,7 +118,7 @@ foreach ($required in @("CMakeLists.txt", "tools\run_cmake_smoke.ps1", "CMake", 
 }
 
 $statusDoc = Read-Text "docs/PROJECT_STATUS.md"
-foreach ($required in @("Visual Studio", "MSBuild", ".vcxproj", "CMake", "CTest", "secondary", "CMakeLists.txt", "tools/run_cmake_smoke.ps1", "433", "1829", "--report=junit", "RuntimeServices", "Learning Path")) {
+foreach ($required in @("Visual Studio", "MSBuild", ".vcxproj", "CMake", "CTest", "secondary", "CMakeLists.txt", "tools/run_cmake_smoke.ps1", "434", "1830", "--report=junit", "RuntimeServices", "Learning Path")) {
     if ($statusDoc -notmatch [regex]::Escape($required)) {
         Add-Failure $failures "PROJECT_STATUS.md is missing required fact: $required"
     }

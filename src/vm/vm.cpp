@@ -123,179 +123,6 @@ static inline Value getRK(Proto* proto, Value* base, i32 rk) {
     return base[rk];
 }
 
-// -----------------------------------------------------------------
-// SETLIST
-// -----------------------------------------------------------------
-
-static void vmSetList(LuaState* L, Value* base, i32 a, i32 b, i32 c) {
-    if (!base[a].isTable())
-        throw std::runtime_error("VM: SETLIST requires table");
-
-    Table* table = base[a].asTable();
-    i32 n = b;
-
-    if (n == 0) {
-        CallInfo& ci = L->getCurrentCallInfo();
-        usize ra = ci.base + static_cast<usize>(a);
-        n = static_cast<i32>(L->getAbsoluteTop() - ra) - 1;
-        L->setAbsoluteTop(ci.top);
-    }
-
-    i32 base_index = (c - 1) * FIELDS_PER_FLUSH;
-    for (i32 i = 1; i <= n; i++) {
-        table->setArray(base_index + i, base[a + i]);
-    }
-}
-
-// -----------------------------------------------------------------
-// TFORLOOP（泛型 for 循环迭代）
-// -----------------------------------------------------------------
-
-static void vmTForLoop(LuaState* L, Value*& base, Proto* proto,
-                       usize& pc, i32 a, i32 c) {
-    i32 cb = a + 3;
-    CallInfo& ci = L->getCurrentCallInfo();
-    Stack& stack = L->getStack();
-    usize requiredSize = ci.base + cb + 3 + c;
-    while (stack.size() < requiredSize) stack.push(Value());
-    base = &stack[ci.base]; // refresh
-
-    // 复制迭代器函数和参数
-    base[cb + 2] = base[a + 2];
-    base[cb + 1] = base[a + 1];
-    base[cb]     = base[a];
-
-    if (!base[cb].isFunction())
-        throw std::runtime_error("VM: TFORLOOP requires function at R("
-                                 + std::to_string(cb) + ")");
-
-    Function* func = base[cb].asFunction();
-
-    if (func->isCFunction()) {
-        ci.savedpc = &proto->getCode()[pc];
-
-        bool isLua = VM::detail::precall(L, cb, 2, c);
-        if (isLua) {
-            throw std::runtime_error("VM: TFORLOOP Lua iterators not supported yet");
-        }
-
-        // 与普通 CALL 一样，恢复调用者寄存器窗口，避免后续写寄存器时覆盖高位槽位。
-        stack.setTop(ci.top);
-        L->setAbsoluteTop(ci.top);
-        base = refreshBase(L);
-    } else {
-        throw std::runtime_error("VM: TFORLOOP Lua iterators not supported yet");
-    }
-
-    cb = a + 3;
-    if (!base[cb].isNil()) {
-        base[a + 2] = base[cb];
-        if (pc < proto->getCode().size()) {
-            // 模拟执行“下一条 JMP”指令本身：主循环在进入 case 前已经先做过 pc++，
-            // 因此这里除了加上 JMP 的 sBx，还需要额外前进一步，才能落到循环体开头。
-            pc += GETARG_sBx(proto->getCode()[pc]) + 1; // 跳回循环体
-        }
-    } else {
-        pc++; // 跳过 JMP，退出循环
-    }
-}
-
-// -----------------------------------------------------------------
-// CLOSURE
-// -----------------------------------------------------------------
-
-static void vmClosure(LuaState* L, Value* base, Proto* currentProto,
-                      Function* currentFunc, usize& pc, i32 a, i32 bx) {
-    if (bx < 0 || static_cast<usize>(bx) >= currentProto->getSubProtoCount())
-        throw std::runtime_error("VM: CLOSURE proto index out of range");
-
-    Proto* childProto = currentProto->getSubProto(bx);
-    Function* closure = new Function(childProto);
-    L->getGlobalState().getGC().registerObject(closure);
-
-    i32 nups = childProto->getNumUpvalues();
-    if (nups > 0) {
-        const Vec<Instruction>& code = currentProto->getCode();
-        const CallInfo& ci = L->getCurrentCallInfo();
-
-        for (i32 j = 0; j < nups; j++) {
-            if (pc >= code.size()) {
-                throw std::runtime_error("VM: CLOSURE missing upvalue pseudo instruction");
-            }
-
-            Instruction inst = code[pc++];
-            OpCode pop = GET_OPCODE(inst);
-            i32 b = GETARG_B(inst);
-
-            if (pop == OpCode::MOVE) {
-                // 从父函数栈槽捕获upvalue（open upvalue，可共享）
-                closure->addUpvalue(L->findOrCreateUpvalue(ci.base + static_cast<usize>(b)));
-            } else if (pop == OpCode::GETUPVAL) {
-                // 复用父闭包的upvalue
-                Upvalue* uv = currentFunc->getUpvalue(static_cast<usize>(b));
-                if (!uv) {
-                    throw std::runtime_error("VM: CLOSURE invalid parent upvalue index");
-                }
-                closure->addUpvalue(uv);
-            } else {
-                throw std::runtime_error("VM: CLOSURE expects MOVE/GETUPVAL pseudo instruction");
-            }
-        }
-    }
-
-    base[a] = Value(closure);
-}
-
-// -----------------------------------------------------------------
-// VARARG
-// -----------------------------------------------------------------
-
-static void vmVararg(LuaState* L, Value*& base, Proto* proto, i32 a, i32 b) {
-    CallInfo& ci = L->getCurrentCallInfo();
-    Stack& stack = L->getStack();
-    i32 numParams = proto->getNumParams();
-
-    i32 n = static_cast<i32>(ci.base - ci.func - 1) - numParams;
-    if (n < 0) n = 0;
-
-    // std::fprintf(stderr, "[VARARG] a=%d b=%d n=%d ci.base=%zu ci.func=%zu numParams=%d\n",
-    //     a, b, n, ci.base, ci.func, numParams);
-
-    i32 wanted;
-    if (b == 0) {
-        wanted = n;
-        usize neededTop = ci.base + static_cast<usize>(a) + static_cast<usize>(n);
-        // Use setTop to both ensure capacity AND sync Stack::top_.
-        // setTop nil-fills positions Stack::top_..neededTop-1, but that's fine
-        // because the for loop below will overwrite them with actual vararg values.
-        if (stack.size() < neededTop) {
-            stack.setTop(neededTop);
-            base = refreshBase(L);
-        }
-        L->setAbsoluteTop(neededTop);
-        if (g_dumpBytecode) {
-            std::fprintf(stderr, "[VARARG] open multret: wanted=%d neededTop=%zu absTop=%zu stackTop=%zu\n",
-                wanted, neededTop, neededTop, stack.size());
-        }
-    } else {
-        wanted = b - 1;
-    }
-
-    for (i32 j = 0; j < wanted; j++) {
-        if (j < n) {
-            usize srcIndex = ci.base - static_cast<usize>(n) + static_cast<usize>(j);
-            if (g_dumpBytecode) {
-                std::fprintf(stderr, "[VARARG] copy j=%d srcIdx=%zu val=%s\n",
-                    j, srcIndex, stack[srcIndex].isNumber() ? 
-                        std::to_string(stack[srcIndex].asNumber()).c_str() : "non-number");
-            }
-            base[a + j] = stack[srcIndex];
-        } else {
-            base[a + j] = Value();
-        }
-    }
-}
-
 } // anonymous namespace
 
 // =====================================================================
@@ -539,7 +366,7 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
             }
 
             case OpCode::SETLIST:
-                vmSetList(L, base, a, b, c);
+                VM::detail::setList(L, base, a, b, c);
                 break;
 
             // ============== 算术运算 ==============
@@ -860,17 +687,17 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
             }
 
             case OpCode::TFORLOOP:
-                vmTForLoop(L, base, proto, pc, a, c);
+                VM::detail::tforLoop(L, base, proto, pc, a, c);
                 break;
 
             // ============== 闭包和变参 ==============
 
             case OpCode::CLOSURE:
-                vmClosure(L, base, proto, func, pc, a, bx);
+                VM::detail::closure(L, base, proto, func, pc, a, bx);
                 break;
 
             case OpCode::VARARG:
-                vmVararg(L, base, proto, a, b);
+                VM::detail::vararg(L, base, proto, a, b);
                 break;
 
             // ============== 未知指令 ==============

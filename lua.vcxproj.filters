@@ -70,7 +70,16 @@
     <ClCompile Include="src\vm\vm_entry.cpp">
       <Filter>src\vm</Filter>
     </ClCompile>
+    <ClCompile Include="src\vm\vm_frame.cpp">
+      <Filter>src\vm</Filter>
+    </ClCompile>
+    <ClCompile Include="src\vm\vm_loop.cpp">
+      <Filter>src\vm</Filter>
+    </ClCompile>
     <ClCompile Include="src\vm\vm_ops.cpp">
+      <Filter>src\vm</Filter>
+    </ClCompile>
+    <ClCompile Include="src\vm\vm_table.cpp">
       <Filter>src\vm</Filter>
     </ClCompile>
     <ClCompile Include="src\vm\lua_state.cpp">

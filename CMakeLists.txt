@@ -50,7 +50,10 @@ set(LUA_CORE_SOURCES
     src/vm/stack.cpp
     src/vm/vm_call.cpp
     src/vm/vm_entry.cpp
+    src/vm/vm_frame.cpp
+    src/vm/vm_loop.cpp
     src/vm/vm_ops.cpp
+    src/vm/vm_table.cpp
     src/vm/vm.cpp
     src/debug/value_serializer.cpp
     src/debug/json_trace_sink.cpp

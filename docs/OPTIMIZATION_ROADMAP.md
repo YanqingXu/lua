@@ -46,7 +46,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_quality_gate.ps1
 | 中 | EngineContext / RuntimeServices | 已完成 | 已引入显式 RuntimeServices，并迁移入口层、CodeGenerator、Parser/VM 兼容重载 |
 | 中 | 教学导航 | 已完成 | 已新增 START_HERE、术语表和 examples，并扩展 walkthrough 索引 |
 | 低 | CMake + CTest | 已完成 | 已新增 secondary CMake/CTest 路径，不替代 VS/MSBuild 主路径 |
-| 长期 | 拆分 CodeGenerator / VM / Parser | 进行中 | 8A-8C CodeGenerator 边界已完成，8D-8E VM 入口、dispatch 分类、ops/call 分片已完成；下一步评估 VM 剩余 helper 分片 |
+| 长期 | 拆分 CodeGenerator / VM / Parser | 进行中 | 8A-8C CodeGenerator 边界已完成，8D-8F VM 入口、dispatch 分类、ops/call/剩余 helper 分片已完成；下一步评估 VM trace/debug 边界或 Parser 分片 |
 
 ## 已完成优化
 
@@ -756,20 +756,53 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_quality_gate.ps1
 - `src/vm/vm.cpp` 的主 dispatch 循环未拆分，pc、栈帧、yield、return 协议保持原路径。
 - VM 表/元方法、算术比较、concat 和 call/return helper 已通过 `VM::detail` 内部接口分片。
 
-## 下一步推荐任务：VM 剩余辅助逻辑分片
-
-建议从这里继续。
-
 ### 任务 8F：VM 剩余 helper 分片
 
 **目标：** 在 8E 已经拆出 ops 和 call helper 后，继续评估 `src/vm/vm.cpp` 中剩余的 `SETLIST`、`TFORLOOP`、`CLOSURE`、`VARARG`、trace event 构造等 helper 是否适合拆到更窄的 `vm_table.cpp`、`vm_loop.cpp`、`vm_closure.cpp` 或 `vm_trace.cpp`，仍保持 `executeProto()` 主循环为唯一指令调度位置。
 
+已完成：
+
+- [x] 新增 `src/vm/vm_table.cpp`，承载 `setList()` / `SETLIST` 表数组批量写入 helper。
+- [x] 新增 `src/vm/vm_frame.cpp`，承载 `closure()` 和 `vararg()`，保留闭包 upvalue 捕获与 vararg 栈顶协议。
+- [x] 新增 `src/vm/vm_loop.cpp`，承载 `tforLoop()`，主 dispatch 循环仍持有 `pc` 并通过引用传入。
+- [x] 扩展 `src/vm/vm_internal.hpp` 和 `tests/unit/vm/test_vm_internal_boundaries.cpp`，锁定剩余 VM helper 的内部签名边界。
+- [x] `src/vm/vm.cpp` 保留 `executeProto()` 主循环、trace/debug hook 状态、计数/行 hook 和 call/return trace event 构造。
+- [x] 将新增源码加入 `CMakeLists.txt`、`lua.vcxproj` 和 `lua.vcxproj.filters`。
+
+已使用的验证命令：
+
+```powershell
+D:\VS2026\MSBuild\Current\Bin\MSBuild.exe lua_test.vcxproj /p:Configuration=Debug /p:Platform=x64 /m
+bin\lua_test.exe --filter "VM Internal Boundaries"
+bin\lua_test.exe --filter "VM Core"
+bin\lua_test.exe --filter "Call Pipeline"
+bin\lua_test.exe --filter "Symbol Binding"
+bin\lua_test.exe --filter "Coroutine Lib"
+bin\lua_test.exe --filter "String Library"
+bin\lua_test.exe --filter "Metamethod"
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_quality_gate.ps1
+```
+
+验收结果：
+
+- 默认 `bin\lua_test.exe` 运行 434 个注册测试 / 1830 个结果 / 0 失败。
+- `SETLIST`、`TFORLOOP`、`CLOSURE`、`VARARG` helper 已从 `src/vm/vm.cpp` 拆出。
+- `executeProto()` 仍是唯一主 dispatch 循环，未改变 pc、栈帧、yield 或 return 协议。
+
+## 下一步推荐任务：VM trace/debug 边界评估
+
+建议从这里继续。
+
+### 任务 8G：VM trace/debug 边界评估
+
+**目标：** 在 VM 行为 helper 已完成主要物理分片后，评估 `src/vm/vm.cpp` 中剩余的 trace/debug hook 状态和事件构造是否需要收口到更窄的内部 helper，或者是否应先转入 Parser 分片。该任务应优先输出边界设计和测试策略，避免直接搬动会影响事件顺序的代码。
+
 建议顺序：
 
-1. 先只梳理剩余 helper 的调用点和共享状态，不急于移动 trace/debug hook。
-2. 优先拆不依赖 pc/yield 协议的 `SETLIST`、`CLOSURE`、`VARARG`。
-3. `TFORLOOP` 同时触碰 pc 和 call 边界，应单独成步并重点验证 `Call Pipeline`、循环和 coroutine 相关测试。
-4. 每一步继续运行 `VM Core`、`Call Pipeline`、metamethod、CMake smoke 和 full quality gate。
+1. 梳理 `g_traceSink`、`g_traceSeq`、`g_dumpBytecode`、`dispatchCountHook()`、`dispatchLineHook()`、call/return trace event 构造的调用顺序。
+2. 为 trace/debug hook 增加最小回归测试，覆盖 instruction/call/return/count/line 事件顺序。
+3. 仅在测试锁定后再考虑引入 `vm_trace.cpp`，并保持 `executeProto()` 主循环中的事件触发位置清晰可见。
+4. 如果 trace/debug 风险高于收益，则把下一阶段切换到 Parser 分片准备。
 
 ## 维护规则
 
