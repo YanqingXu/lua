@@ -24,6 +24,7 @@
 #include "core/string_pool.hpp"
 #include "core/function.hpp"
 #include "core/gc_string.hpp"
+#include "runtime/runtime_services.hpp"
 
 #include <iostream>
 #include <string>
@@ -279,12 +280,13 @@ Str tryAsExpression(const Str& source, bool& wasExplicitReturn) {
 int executeREPLInput(LuaState* L, const Str& source, bool isExpression) {
     try {
         // 解析源码
-        Parser parser(source);
+        RuntimeServices services(L->getGlobalState());
+
+        Parser parser(source, services);
         Chunk chunk = parser.parse();
 
         // 生成字节码
-        StringPool& pool = StringPool::getInstance();
-        CodeGenerator codegen(&pool);
+        CodeGenerator codegen(services);
         Proto* proto = codegen.generate(chunk, "=(repl)");
 
         if (!proto) {
@@ -303,7 +305,7 @@ int executeREPLInput(LuaState* L, const Str& source, bool isExpression) {
         usize stackSizeBefore = L->getStack().size();
 
         // 执行字节码
-        VM::execute(L, func);
+        VM::execute(services, L, func);
 
         // 如果是表达式，打印返回值
         if (isExpression) {
@@ -399,7 +401,8 @@ int luaB_exit(LuaState* L) {
 // ============================================================================
 
 void initialize(LuaState* L) {
-    StringPool& pool = StringPool::getInstance();
+    RuntimeServices services(L->getGlobalState());
+    StringPool& pool = services.strings;
 
     // 设置 _VERSION 全局变量
     GCString* versionVal = pool.intern(LUA_VERSION);
@@ -486,7 +489,8 @@ int run(LuaState* L) {
             // 官方 Lua 5.1.5 行为：
             // - 只有 "=expr" 语法才会打印表达式结果
             // - 普通输入直接作为语句处理，不自动包装为表达式
-            Parser parser(inputBuffer);
+            RuntimeServices services(L->getGlobalState());
+            Parser parser(inputBuffer, services);
             parser.parse();
             sourceToExecute = inputBuffer;
             isExpression = wasExplicitReturn;  // 只有使用了 "=" 前缀才打印结果

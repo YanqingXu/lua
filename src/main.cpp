@@ -41,6 +41,7 @@
 #include "core/function.hpp"
 #include "io/file_loader.hpp"
 #include "io/input_stream.hpp"
+#include "runtime/runtime_services.hpp"
 #include "debug/json_trace_sink.hpp"
 #include "repl.hpp"
 
@@ -221,12 +222,13 @@ int executeScript(LuaState* L, const char* filename) {
         Str source = readWholeFile(filename);
 
         // 步骤2：解析源码生成AST
-        Parser parser(source);
+        RuntimeServices services(L->getGlobalState());
+
+        Parser parser(source, services);
         Chunk chunk = parser.parse();
 
         // 步骤3：生成字节码
-        StringPool& pool = StringPool::getInstance();
-        CodeGenerator codegen(&pool);
+        CodeGenerator codegen(services);
         Proto* proto = codegen.generate(chunk, filename);
 
         if (!proto) {
@@ -242,7 +244,7 @@ int executeScript(LuaState* L, const char* filename) {
         func->setEnv(L->getGlobalTable());
 
         // 步骤5：执行字节码
-        VM::execute(L, func);
+        VM::execute(services, L, func);
 
         // Proto由GC管理，并通过Function的标记路径保持可达。
 

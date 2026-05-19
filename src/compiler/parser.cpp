@@ -51,6 +51,12 @@ Parser::Parser(const Str& source)
     , current_(lexer_.nextToken()) {
 }
 
+Parser::Parser(const Str& source, RuntimeServices& services)
+    : lexer_(source)
+    , current_(lexer_.nextToken())
+    , services_(&services) {
+}
+
 const Token& Parser::current() const {
     return current_;
 }

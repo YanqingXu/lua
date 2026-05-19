@@ -43,8 +43,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_quality_gate.ps1
 | 最高 | 质量门禁 | 已完成 | 已有格式化/静态检查配置、本地门禁脚本和 CI 烟测工作流 |
 | 高 | 可读性快修 | 已完成 | 共享文件读取、CLI 解析抽取和标准库表驱动注册已完成 |
 | 高 | 测试 runner 报告与教学索引 | 已完成 | runner 已支持 `--list`、`--filter`、`--report=junit`，并新增 walkthrough 索引 |
-| 中 | EngineContext / RuntimeServices | 待开始 | 下一步建议阻断入口层直接访问单例运行时服务 |
-| 中 | 教学导航 | 待开始 | 新增 START_HERE、术语表、walkthroughs、examples |
+| 中 | EngineContext / RuntimeServices | 已完成 | 已引入显式 RuntimeServices，并迁移入口层、CodeGenerator、Parser/VM 兼容重载 |
+| 中 | 教学导航 | 待开始 | 下一步建议新增 START_HERE、术语表、walkthroughs、examples |
 | 低 | CMake + CTest | 待开始 | 等 MSBuild 事实和测试报告稳定后再补跨平台路径 |
 | 长期 | 拆分 CodeGenerator / VM / Parser | 待开始 | 等边界、测试和入口快修完成后再启动 |
 
@@ -243,7 +243,7 @@ MSBuild.exe lua_bytecode.vcxproj /m /p:Configuration=Debug /p:Platform=x64
 期望状态：
 
 - 质量门禁通过。
-- `bin\lua_test.exe` 运行 421 个注册测试 / 1717 个结果 / 0 失败。
+- `bin\lua_test.exe` 运行 424 个注册测试 / 1725 个结果 / 0 失败。
 - `lua_app.vcxproj` 和 `lua_bytecode.vcxproj` 构建通过。
 
 ### 4. 测试 runner 报告与教学索引
@@ -281,9 +281,70 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_quality_gate.ps1
 期望状态：
 
 - 质量门禁通过。
-- 默认 `bin\lua_test.exe` 仍运行 421 个注册测试 / 1717 个结果 / 0 失败。
+- 默认 `bin\lua_test.exe` 运行 424 个注册测试 / 1725 个结果 / 0 失败。
 - 过滤运行不会执行不匹配的测试套件。
 - JUnit 报告包含 `<testsuites>` 根节点和对应 `<testsuite>` / `<testcase>` 条目。
+
+### 5. EngineContext / RuntimeServices
+
+完成日期：2026-05-19
+
+创建的文件：
+
+- `src/runtime/runtime_services.hpp`
+- `tests/unit/vm/test_runtime_services.cpp`
+
+更新的文件：
+
+- `src/compiler/codegen.hpp`
+- `src/compiler/codegen.cpp`
+- `src/compiler/parser.hpp`
+- `src/compiler/parser.cpp`
+- `src/vm/lua_state.hpp`
+- `src/vm/lua_state.cpp`
+- `src/vm/vm.hpp`
+- `src/vm/vm.cpp`
+- `src/core/metatable.hpp`
+- `src/core/metatable.cpp`
+- `src/main.cpp`
+- `src/repl.cpp`
+- `src/bytecode/bytecode_main.cpp`
+- `lua.vcxproj`
+- `lua.vcxproj.filters`
+- `lua_app.vcxproj`
+- `lua_app.vcxproj.filters`
+- `lua_bytecode.vcxproj`
+- `lua_bytecode.vcxproj.filters`
+- `lua_test.vcxproj`
+- `lua_test.vcxproj.filters`
+- `tests/unit/framework/test_runner.cpp`
+- `docs/PROJECT_STATUS.md`
+- `tools/check_doc_drift.ps1`
+
+完成效果：
+
+- 新增 `RuntimeServices`，把 `GlobalState`、`StringPool` 和 `GarbageCollector` 收拢为显式运行时服务集合。
+- `CodeGenerator` 新增 `CodeGenerator(RuntimeServices&)` 构造路径，`generate()` 和子函数编译改用 context 中的 GC；旧的 `StringPool*` 构造函数保留为兼容层。
+- `Parser`、`LuaState` 和 `VM::{execute, executeProto, call}` 新增接收 context 的重载接口，旧接口继续走单例兼容层。
+- `src/main.cpp`、`src/repl.cpp` 和 `src/bytecode/bytecode_main.cpp` 不再直接调用 `StringPool::getInstance()` 来驱动编译入口。
+- VM 字符串连接路径和元方法调用路径开始通过显式服务或 `LuaState::getGlobalState()` 取运行时资源。
+- 新增 `Runtime Services` 测试覆盖单例兼容层、context-aware 编译入口和 context-aware VM 执行入口。
+
+已使用的验证命令：
+
+```powershell
+bin\lua_test.exe --filter "Runtime Services"
+bin\lua_test.exe
+MSBuild.exe lua_app.vcxproj /m /p:Configuration=Debug /p:Platform=x64
+MSBuild.exe lua_bytecode.vcxproj /m /p:Configuration=Debug /p:Platform=x64
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_quality_gate.ps1
+```
+
+期望状态：
+
+- 质量门禁通过。
+- 默认 `bin\lua_test.exe` 运行 424 个注册测试 / 1725 个结果 / 0 失败。
+- 入口层和优先迁移文件中不再直接出现 `StringPool::getInstance()` / `GlobalState::getInstance()` / `GarbageCollector::getInstance()` 的业务调用；兼容层保留在 `RuntimeServices::fromSingletons()` 等 API 内部。
 
 ## 已完成快修任务
 
@@ -414,26 +475,32 @@ AppOptions parseArgs(int argc, char** argv);
 
 先增强当前测试框架 API，不要急着迁移到新测试框架。
 
-## 下一步推荐任务：EngineContext / RuntimeServices
-
-建议从这里继续。
+## 已完成任务：EngineContext / RuntimeServices
 
 ### 任务 5：EngineContext / RuntimeServices
 
 **目标：** 在不重写运行时的前提下，开始降低单例压力。
 
-建议第一步：
+已完成：
 
-- 引入 `RuntimeServices` 或 `EngineContext`。
-- 增加接收 context 的重载接口。
-- 当前单例访问先保留为兼容层，等调用点逐步迁移。
+- [x] 引入 `RuntimeServices`。
+- [x] 增加接收 context 的重载接口。
+- [x] 当前单例访问先保留为兼容层，等调用点逐步迁移。
 
-优先迁移的调用点：
+已迁移的第一批调用点：
 
 - `src/main.cpp`
 - `src/repl.cpp`
 - `src/bytecode/bytecode_main.cpp`
 - `src/compiler/codegen.hpp/.cpp`
+- `src/compiler/parser.hpp/.cpp`
+- `src/vm/lua_state.hpp/.cpp`
+- `src/vm/vm.hpp/.cpp`
+- `src/core/metatable.hpp/.cpp`
+
+## 下一步推荐任务：教学导航
+
+建议从这里继续。
 
 ### 任务 6：教学导航
 
@@ -476,7 +543,7 @@ walkthrough 初始素材：
 2. `VM`：dispatch、call/return、table ops、算术/元方法慢路径、trace。
 3. `Parser`：token 工具、语句解析、表达式解析、表/函数解析、错误恢复。
 
-在共享文件读取、CLI 抽取、标准库 catalog 和 EngineContext 基础完成前，不建议启动这一阶段。
+共享文件读取、CLI 抽取、标准库 catalog 和 EngineContext 基础已经完成；深拆大型模块可以在教学导航和构建路径更稳定后启动。
 
 ## 维护规则
 

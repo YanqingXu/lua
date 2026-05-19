@@ -164,6 +164,9 @@
     <ClCompile Include="tests\unit\vm\test_lua_state_init.cpp">
       <Filter>tests\vm</Filter>
     </ClCompile>
+    <ClCompile Include="tests\unit\vm\test_runtime_services.cpp">
+      <Filter>tests\vm</Filter>
+    </ClCompile>
     <ClCompile Include="tests\unit\vm\test_vm_core.cpp">
       <Filter>tests\vm</Filter>
     </ClCompile>

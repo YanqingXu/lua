@@ -22,7 +22,8 @@ static i32 getLastLineOfBlock(const Vec<StmtPtr>& body);
 // =====================================================================
 
 CodeGenerator::CodeGenerator(StringPool* pool)
-    : pool_(pool)
+    : services_(RuntimeServices::fromSingletons())
+    , pool_(pool)
     , parent_(nullptr)
     , proto_(nullptr)
     , regs_()
@@ -37,6 +38,20 @@ CodeGenerator::CodeGenerator(StringPool* pool)
     }
 }
 
+CodeGenerator::CodeGenerator(RuntimeServices& services)
+    : services_(services)
+    , pool_(&services.strings)
+    , parent_(nullptr)
+    , proto_(nullptr)
+    , regs_()
+    , locals_()
+    , blocks_()
+    , upvalueCtx_()
+    , pc_(0)
+    , currentLine_(0)
+{
+}
+
 CodeGenerator::~CodeGenerator() {
     // Proto由GC管理
 }
@@ -48,7 +63,7 @@ CodeGenerator::~CodeGenerator() {
 Proto* CodeGenerator::generate(const Chunk& chunk, StrView sourceName) {
     // 创建新的Proto对象
     proto_ = new Proto();
-    GarbageCollector::getInstance().registerObject(proto_);
+    services_.gc.registerObject(proto_);
     regs_.bind(proto_);
     proto_->setMaxStackSize(2);  // 最小栈大小
     proto_->setVararg(true);     // 主函数（chunk）默认是可变参数的
@@ -1785,11 +1800,11 @@ Proto* CodeGenerator::compileFunction(const Vec<Str>& params, bool isVararg, con
                                      i32 linedefined, i32 lastlinedefined,
                                      Vec<UpvalueCapture>* outUpvalues) {
     // 使用独立子生成器编译子函数，保留父函数上下文以解析upvalue
-    CodeGenerator child(pool_);
+    CodeGenerator child(services_);
     child.parent_ = this;
 
     Proto* newProto = new Proto();
-    GarbageCollector::getInstance().registerObject(newProto);
+    services_.gc.registerObject(newProto);
     newProto->setNumParams(static_cast<u8>(params.size()));
     newProto->setVararg(isVararg);
     newProto->setLineDefined(linedefined);

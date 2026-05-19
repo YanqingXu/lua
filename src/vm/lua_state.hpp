@@ -40,6 +40,7 @@ namespace Lua {
 class Upvalue;
 class Userdata;
 class Thread;
+struct RuntimeServices;
 
 /**
  * @brief Lua线程状态枚举
@@ -105,6 +106,11 @@ public:
      * @return 新创建的LuaState指针
      */
     static LuaState* newState();
+
+    /**
+     * @brief 使用显式运行时服务创建新的Lua状态（主线程）
+     */
+    static LuaState* newState(RuntimeServices& services);
     
     /**
      * @brief 析构函数
@@ -651,6 +657,7 @@ private:
      * @brief 私有构造函数
      */
     LuaState();
+    explicit LuaState(GlobalState& globalState);
     
     /**
      * @brief 初始化状态

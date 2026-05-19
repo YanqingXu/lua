@@ -109,7 +109,7 @@ for ($i = 0; $i -lt $guideLines.Count; $i++) {
 }
 
 $statusDoc = Read-Text "docs/PROJECT_STATUS.md"
-foreach ($required in @("Visual Studio", "MSBuild", ".vcxproj", "CMake", "CTest", "not current", "421", "1717", "--report=junit")) {
+foreach ($required in @("Visual Studio", "MSBuild", ".vcxproj", "CMake", "CTest", "not current", "424", "1725", "--report=junit", "RuntimeServices")) {
     if ($statusDoc -notmatch [regex]::Escape($required)) {
         Add-Failure $failures "PROJECT_STATUS.md is missing required fact: $required"
     }

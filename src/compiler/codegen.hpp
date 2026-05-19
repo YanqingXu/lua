@@ -25,6 +25,7 @@
 #include "compiler/codegen_types.hpp"
 #include "compiler/codegen_context.hpp"
 #include "core/function.hpp"
+#include "runtime/runtime_services.hpp"
 #include <memory>
 #include <unordered_map>
 
@@ -49,6 +50,12 @@ public:
      * @param pool 字符串池（用于创建字符串常量）
      */
     explicit CodeGenerator(StringPool* pool);
+
+    /**
+     * @brief 构造函数
+     * @param services 显式运行时服务集合
+     */
+    explicit CodeGenerator(RuntimeServices& services);
     
     /**
      * @brief 析构函数
@@ -303,6 +310,7 @@ private:
     void attachDebugMetadata();
 
 private:
+    RuntimeServices services_;  // 运行时服务（当前由单例兼容层提供默认实现）
     StringPool* pool_;          // 字符串池
     CodeGenerator* parent_;     // 父函数代码生成器（用于upvalue解析）
     Proto* proto_;              // 当前函数原型

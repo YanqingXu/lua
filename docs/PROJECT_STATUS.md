@@ -1,6 +1,6 @@
 ---
 status: current
-verified_against: README.md; lua.slnx; lua.vcxproj; lua_app.vcxproj; lua_test.vcxproj; lua_bytecode.vcxproj; tests/unit/framework/test_runner.cpp; docs/walkthroughs/index.md
+verified_against: README.md; lua.slnx; lua.vcxproj; lua_app.vcxproj; lua_test.vcxproj; lua_bytecode.vcxproj; tests/unit/framework/test_runner.cpp; docs/walkthroughs/index.md; src/runtime/runtime_services.hpp
 last_checked: 2026-05-19
 applies_to: current repository facts and contributor-facing workflow
 ---
@@ -31,7 +31,7 @@ This file is the repository's single source of truth for externally visible proj
 ## Test Status
 
 - Test framework: custom lightweight C++ test framework vendored under `lua_test/include/test_framework` and adapted by `tests/unit/framework`.
-- Latest verified test count: 421 registered tests, 1717 assertion results, 0 failures.
+- Latest verified test count: 424 registered tests, 1725 assertion results, 0 failures.
 - `bin\lua_test.exe` supports `--list`, `--filter <suite-or-name>`, and `--report=junit`.
 - These numbers describe the project test runner result. They are not a Lua 5.1.5 compatibility percentage.
 
@@ -65,6 +65,12 @@ rg "ExprDesc|ExprKind|expdesc" src/compiler
 ```
 
 The command above must return no matches for production compiler sources.
+
+## Runtime Boundary Status
+
+- `src/runtime/runtime_services.hpp` defines `RuntimeServices` as the current explicit compatibility layer over `GlobalState`, `StringPool`, and `GarbageCollector`.
+- `CodeGenerator`, `Parser`, `LuaState`, and `VM` expose context-aware construction/execution overloads while retaining singleton-backed compatibility overloads.
+- `src/main.cpp`, `src/repl.cpp`, and `src/bytecode/bytecode_main.cpp` use `RuntimeServices` for the first compiler/VM entry-point slice.
 
 ## Documentation Status Rules
 

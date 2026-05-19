@@ -176,6 +176,7 @@
     <ClInclude Include="src\lib\oslib.hpp" />
     <ClInclude Include="src\lib\stringlib.hpp" />
     <ClInclude Include="src\lib\tablelib.hpp" />
+    <ClInclude Include="src\runtime\runtime_services.hpp" />
     <ClInclude Include="src\vm\call_info.hpp" />
     <ClInclude Include="src\vm\global_state.hpp" />
     <ClInclude Include="src\vm\lua_state.hpp" />

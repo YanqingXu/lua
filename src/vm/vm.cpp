@@ -24,6 +24,7 @@
 #include "core/userdata.hpp"
 #include "core/metatable.hpp"
 #include "vm/global_state.hpp"
+#include "runtime/runtime_services.hpp"
 #include "compiler/opcode.hpp"
 #include "debug/trace_sink.hpp"
 #include "debug/trace_types.hpp"
@@ -368,10 +369,10 @@ static void vmLen(LuaState* L, Value& result, const Value& val) {
 // -----------------------------------------------------------------
 
 /** @brief 连接操作，支持 __concat 元方法 */
-static void vmConcat(LuaState* L, Value* base, i32 a, i32 b, i32 c) {
+static void vmConcat(RuntimeServices& services, LuaState* L, Value* base, i32 a, i32 b, i32 c) {
     i32 total = c - b + 1;
     i32 last = c;
-    StringPool& pool = GlobalState::getInstance().getStringPool();
+    StringPool& pool = services.strings;
 
     while (total > 1) {
         Value& top1 = base[last];
@@ -844,6 +845,11 @@ namespace VM {
 //   absoluteTop 指向最后一个 result 之后
 // -----------------------------------------------------------------
 void call(LuaState* L, i32 nargs, i32 nresults) {
+    RuntimeServices services = RuntimeServices::fromSingletons();
+    call(services, L, nargs, nresults);
+}
+
+void call(RuntimeServices& services, LuaState* L, i32 nargs, i32 nresults) {
     // funcPos（绝对栈索引）= top - nargs - 1
     usize absTop = L->getAbsoluteTop();
     usize funcPos = absTop - static_cast<usize>(nargs) - 1;
@@ -859,7 +865,7 @@ void call(LuaState* L, i32 nargs, i32 nresults) {
         // 并关闭了 upvalues，但不调用 vmPostcall/popCallInfo。
         CallInfo& newCI = L->getCurrentCallInfo();
         Proto* proto = L->getStack()[newCI.func].asFunction()->getProto();
-        executeProto(L, proto, 1);
+        executeProto(services, L, proto, 1);
 
         // OP_RETURN (nexeccalls==0) 已经把返回值放到 newCI.func 位置，
         // 并调用了 closeUpvalues、shrunk stack。现在只需 popCallInfo 和
@@ -877,6 +883,11 @@ void call(LuaState* L, i32 nargs, i32 nresults) {
 // -----------------------------------------------------------------
 
 void execute(LuaState* L, Function* func) {
+    RuntimeServices services = RuntimeServices::fromSingletons();
+    execute(services, L, func);
+}
+
+void execute(RuntimeServices& services, LuaState* L, Function* func) {
     if (!func)
         throw std::runtime_error("VM::execute: null function");
     if (func->isCFunction())
@@ -910,7 +921,7 @@ void execute(LuaState* L, Function* func) {
     dispatchCallHook(L);
 
     // 执行（nexeccalls = 1）
-    executeProto(L, proto, 1);
+    executeProto(services, L, proto, 1);
 
     L->popCallInfo();
 }
@@ -921,6 +932,11 @@ void execute(LuaState* L, Function* func) {
 // -----------------------------------------------------------------
 
 ExecResult executeProto(LuaState* L, Proto* proto, i32 nexeccalls) {
+    RuntimeServices services = RuntimeServices::fromSingletons();
+    return executeProto(services, L, proto, nexeccalls);
+}
+
+ExecResult executeProto(RuntimeServices& services, LuaState* L, Proto* proto, i32 nexeccalls) {
     // 深度检查
     if (!proto)
         throw std::runtime_error("VM::executeProto: null proto");
@@ -1170,7 +1186,7 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
             }
 
             case OpCode::CONCAT:
-                vmConcat(L, base, a, b, c);
+                vmConcat(services, L, base, a, b, c);
                 base = refreshBase(L);
                 break;
 

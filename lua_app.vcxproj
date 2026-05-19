@@ -140,6 +140,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="src\app\app_options.hpp" />
+    <ClInclude Include="src\runtime\runtime_services.hpp" />
     <ClInclude Include="src\repl.hpp" />
   </ItemGroup>
   <ItemGroup>

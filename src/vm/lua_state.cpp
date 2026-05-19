@@ -11,6 +11,7 @@
 #include "core/gc_string.hpp"
 #include "core/userdata.hpp"
 #include "core/function.hpp"
+#include "runtime/runtime_services.hpp"
 #include "vm/vm.hpp"
 #include "core/upvalue.hpp"
 #include <algorithm>
@@ -44,13 +45,18 @@ const char* hookEventName(DebugHookEvent event) {
 // =====================================================================
 
 LuaState* LuaState::newState() {
-    LuaState* L = new LuaState();
+    RuntimeServices services = RuntimeServices::fromSingletons();
+    return newState(services);
+}
+
+LuaState* LuaState::newState(RuntimeServices& services) {
+    LuaState* L = new LuaState(services.globalState);
     L->initialize();
     return L;
 }
 
 LuaState* LuaState::newThread(LuaState* parentL) {
-    LuaState* L = new LuaState();
+    LuaState* L = new LuaState(parentL->getGlobalState());
 
     // 共享全局表（不创建新的，不注册为 GC root）
     L->globalTable_ = parentL->globalTable_;
@@ -79,7 +85,12 @@ LuaState* LuaState::newThread(LuaState* parentL) {
 // =====================================================================
 
 LuaState::LuaState()
-    : globalState_(GlobalState::getInstance())
+    : LuaState(GlobalState::getInstance())
+{
+}
+
+LuaState::LuaState(GlobalState& globalState)
+    : globalState_(globalState)
     , stack_(INITIAL_STACK_SIZE)
     , top_(0)
     , callStack_(INITIAL_CI_SIZE)

@@ -40,6 +40,7 @@ namespace Lua {
 // 前向声明
 class Table;
 class LuaState;
+class GlobalState;
 
 /**
  * @brief 元方法类型枚举（Tag Method System）
@@ -146,6 +147,11 @@ extern const char* const kMetamethodNames[static_cast<usize>(TMS::TM_N)];
  * @see lua_c_analysis/src/ltm.c 第282-290行
  */
 Value getMetamethod(Table* metatable, TMS event);
+
+/**
+ * @brief 从元表中查找指定的元方法，使用显式全局状态解析元方法名称
+ */
+Value getMetamethod(GlobalState& globalState, Table* metatable, TMS event);
 
 /**
  * @brief 根据对象类型查找元方法
@@ -313,6 +319,11 @@ Value getComparisonTM(LuaState* L, Table* mt1, Table* mt2, TMS event);
  * @see lua_c_analysis/src/ltm.h 第434行
  */
 Value fastMetamethod(Table* metatable, TMS event);
+
+/**
+ * @brief 使用显式全局状态的快速元方法访问
+ */
+Value fastMetamethod(GlobalState& globalState, Table* metatable, TMS event);
 
 /**
  * @brief 将TMS枚举转换为字符串名称

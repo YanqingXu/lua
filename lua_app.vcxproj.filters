@@ -7,10 +7,16 @@
     <Filter Include="src\app">
       <UniqueIdentifier>{E1000001-0002-0002-0002-000000000002}</UniqueIdentifier>
     </Filter>
+    <Filter Include="src\runtime">
+      <UniqueIdentifier>{E1000001-0003-0003-0003-000000000003}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\app\app_options.hpp">
       <Filter>src\app</Filter>
+    </ClInclude>
+    <ClInclude Include="src\runtime\runtime_services.hpp">
+      <Filter>src\runtime</Filter>
     </ClInclude>
     <ClInclude Include="src\repl.hpp">
       <Filter>src</Filter>

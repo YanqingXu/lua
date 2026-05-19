@@ -17,6 +17,7 @@
 #include "vm/lua_state.hpp"
 #include "vm/global_state.hpp"
 #include "vm/vm.hpp"
+#include "runtime/runtime_services.hpp"
 #include <stdexcept>
 
 namespace Lua {
@@ -64,6 +65,10 @@ const char* const kMetamethodNames[static_cast<usize>(TMS::TM_N)] = {
  * @see lua_c_analysis/src/ltm.c 第282-290行
  */
 Value getMetamethod(Table* metatable, TMS event) {
+    return getMetamethod(GlobalState::getInstance(), metatable, event);
+}
+
+Value getMetamethod(GlobalState& globalState, Table* metatable, TMS event) {
     // 1. 检查元表是否为空
     if (metatable == nullptr) {
         return Value();  // 返回nil
@@ -82,7 +87,7 @@ Value getMetamethod(Table* metatable, TMS event) {
     const char* name = kMetamethodNames[static_cast<usize>(event)];
 
     // 使用StringPool获取内部化字符串，确保相同内容的字符串有相同的指针
-    StringPool& pool = GlobalState::getInstance().getStringPool();
+    StringPool& pool = globalState.getStringPool();
     GCString* nameStr = pool.intern(name);
     Value key = Value(nameStr);
     Value result = metatable->get(key);
@@ -135,8 +140,8 @@ Value getMetamethodByObject(LuaState* L, const Value& obj, TMS event) {
         return Value();  // 返回nil
     }
     
-    // 在元表中查找元方法
-    return getMetamethod(metatable, event);
+    GlobalState& globalState = (L != nullptr) ? L->getGlobalState() : GlobalState::getInstance();
+    return getMetamethod(globalState, metatable, event);
 }
 
 // =====================================================================
@@ -149,12 +154,16 @@ Value getMetamethodByObject(LuaState* L, const Value& obj, TMS event) {
  * @see lua_c_analysis/src/ltm.h 第434行
  */
 Value fastMetamethod(Table* metatable, TMS event) {
+    return fastMetamethod(GlobalState::getInstance(), metatable, event);
+}
+
+Value fastMetamethod(GlobalState& globalState, Table* metatable, TMS event) {
     // 快速元方法必须 <= TM_EQ
     if (event > TMS::TM_EQ) {
         throw std::runtime_error("fastMetamethod: event must be <= TM_EQ");
     }
 
-    return getMetamethod(metatable, event);
+    return getMetamethod(globalState, metatable, event);
 }
 
 // =====================================================================
@@ -189,7 +198,8 @@ void callTMWithResult(LuaState* L, Value& result, const Value& metamethod,
         L->pushValue(arg1);
         L->pushValue(arg2);
 
-        VM::call(L, 2, 1);
+        RuntimeServices services(L->getGlobalState());
+        VM::call(services, L, 2, 1);
 
         if (L->getAbsoluteTop() > savedTop) {
             result = stack.at(savedTop);
@@ -233,7 +243,8 @@ void callTM(LuaState* L, const Value& metamethod, const Value& arg1,
         L->pushValue(arg2);
         L->pushValue(arg3);
 
-        VM::call(L, 3, 0);
+        RuntimeServices services(L->getGlobalState());
+        VM::call(services, L, 3, 0);
 
         restoreStack();
     } catch (...) {
@@ -273,8 +284,10 @@ bool callBinaryTM(LuaState* L, const Value& p1, const Value& p2,
  * @see lua_c_analysis/src/lvm.c 第738-750行
  */
 Value getComparisonTM(LuaState* L, Table* mt1, Table* mt2, TMS event) {
+    GlobalState& globalState = (L != nullptr) ? L->getGlobalState() : GlobalState::getInstance();
+
     // 1. 获取第一个元表的元方法
-    Value tm1 = fastMetamethod(mt1, event);
+    Value tm1 = fastMetamethod(globalState, mt1, event);
 
     // 2. 如果没有元方法，返回nil
     if (tm1.isNil()) {
@@ -287,7 +300,7 @@ Value getComparisonTM(LuaState* L, Table* mt1, Table* mt2, TMS event) {
     }
 
     // 4. 获取第二个元表的元方法
-    Value tm2 = fastMetamethod(mt2, event);
+    Value tm2 = fastMetamethod(globalState, mt2, event);
 
     // 5. 如果第二个元方法不存在，返回nil
     if (tm2.isNil()) {

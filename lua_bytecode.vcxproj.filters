@@ -6,5 +6,6 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\bytecode\bytecode_printer.hpp" />
+    <ClInclude Include="src\runtime\runtime_services.hpp" />
   </ItemGroup>
 </Project>

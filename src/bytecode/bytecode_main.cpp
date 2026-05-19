@@ -1,8 +1,8 @@
 ﻿#include "compiler/parser.hpp"
 #include "compiler/codegen.hpp"
 #include "bytecode_printer.hpp"
-#include "core/string_pool.hpp"
 #include "io/file_loader.hpp"
+#include "runtime/runtime_services.hpp"
 
 #include <cstring>
 #include <functional>
@@ -24,11 +24,11 @@ int main(int argc, char** argv) {
     try {
         Str source = readWholeFile(scriptPath);
 
-        StringPool& pool = StringPool::getInstance();
-        Parser parser(source);
+        RuntimeServices services = RuntimeServices::fromSingletons();
+        Parser parser(source, services);
         Chunk chunk = parser.parse();
 
-        CodeGenerator codegen(&pool);
+        CodeGenerator codegen(services);
         Proto* proto = codegen.generate(chunk, scriptPath);
         if (!proto) {
             std::cerr << "[ERROR] Failed to generate Proto" << std::endl;

@@ -228,6 +228,9 @@
     <ClInclude Include="src\lib\tablelib.hpp">
       <Filter>src\lib</Filter>
     </ClInclude>
+    <ClInclude Include="src\runtime\runtime_services.hpp">
+      <Filter>src\runtime</Filter>
+    </ClInclude>
     <ClInclude Include="src\lib\oslib.hpp">
       <Filter>src\lib</Filter>
     </ClInclude>
@@ -292,6 +295,9 @@
     </Filter>
     <Filter Include="src\debug">
       <UniqueIdentifier>{d1a2b3c4-e5f6-7890-abcd-ef1234567890}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\runtime">
+      <UniqueIdentifier>{f2b3c4d5-e6f7-8901-bcde-f23456789012}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
 </Project>

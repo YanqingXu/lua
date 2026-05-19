@@ -31,6 +31,8 @@
 
 namespace Lua {
 
+struct RuntimeServices;
+
 /**
  * @brief 语法错误异常
  */
@@ -67,6 +69,13 @@ public:
      * @param source 源代码字符串
      */
     explicit Parser(const Str& source);
+
+    /**
+     * @brief 构造函数
+     * @param source 源代码字符串
+     * @param services 显式运行时服务集合（保留给后续词法/解析服务注入）
+     */
+    Parser(const Str& source, RuntimeServices& services);
     
     /**
      * @brief 解析源代码，生成AST
@@ -343,6 +352,7 @@ private:
 private:
     Lexer lexer_;
     Token current_;
+    RuntimeServices* services_ = nullptr;
 
     // AST 节点内存池
     NodePool<Expr> exprPool_;

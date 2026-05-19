@@ -35,6 +35,7 @@ class LuaState;
 class Function;
 class Proto;
 class ITraceSink;
+struct RuntimeServices;
 
 /// VM 执行结果（替代 void 返回，让 yield 成为正常控制流）
 enum class ExecResult : u8 {
@@ -63,6 +64,11 @@ namespace VM {
     void execute(LuaState* L, Function* func);
 
     /**
+     * @brief 使用显式运行时服务执行Lua函数
+     */
+    void execute(RuntimeServices& services, LuaState* L, Function* func);
+
+    /**
      * @brief 执行字节码块（Proto）
      * @param L Lua状态指针
      * @param proto 函数原型
@@ -70,6 +76,11 @@ namespace VM {
      * @return ExecResult::Returned 或 ExecResult::Yielded
      */
     ExecResult executeProto(LuaState* L, Proto* proto, i32 nexeccalls = 1);
+
+    /**
+     * @brief 使用显式运行时服务执行字节码块（Proto）
+     */
+    ExecResult executeProto(RuntimeServices& services, LuaState* L, Proto* proto, i32 nexeccalls = 1);
 
     /**
      * @brief 从CFunction内部调用栈上的函数（不清除栈）
@@ -82,6 +93,11 @@ namespace VM {
      * @param nresults 期望的返回值数量（-1 = MULTRET）
      */
     void call(LuaState* L, i32 nargs, i32 nresults);
+
+    /**
+     * @brief 使用显式运行时服务从CFunction内部调用栈上的函数
+     */
+    void call(RuntimeServices& services, LuaState* L, i32 nargs, i32 nresults);
 
     /**
      * @brief 设置全局 Trace Sink（nullptr 表示关闭 trace）
