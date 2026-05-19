@@ -10,6 +10,7 @@
 #include "vm/call_info.hpp"
 #include "vm/lua_state.hpp"
 #include "vm/stack.hpp"
+#include "vm/vm.hpp"
 
 #include <stdexcept>
 #include <string>
@@ -37,27 +38,20 @@ void tforLoop(LuaState* L, Value*& base, Proto* proto, usize& pc, i32 a, i32 c) 
     base[cb + 1] = base[a + 1];
     base[cb]     = base[a];
 
-    if (!base[cb].isFunction()) {
-        throw std::runtime_error("VM: TFORLOOP requires function at R("
-                                 + std::to_string(cb) + ")");
-    }
-
-    Function* func = base[cb].asFunction();
-
-    if (func->isCFunction()) {
+    if (pc < proto->getCode().size()) {
         ci.savedpc = &proto->getCode()[pc];
-
-        bool isLua = precall(L, cb, 2, c);
-        if (isLua) {
-            throw std::runtime_error("VM: TFORLOOP Lua iterators not supported yet");
-        }
-
-        stack.setTop(ci.top);
-        L->setAbsoluteTop(ci.top);
-        base = refreshBase(L);
-    } else {
-        throw std::runtime_error("VM: TFORLOOP Lua iterators not supported yet");
     }
+
+    usize callTop = ci.base + static_cast<usize>(cb + 3);
+    stack.setTop(callTop);
+    L->setAbsoluteTop(callTop);
+
+    VM::call(L, 2, c);
+
+    CallInfo& callerCI = L->getCurrentCallInfo();
+    stack.setTop(callerCI.top);
+    L->setAbsoluteTop(callerCI.top);
+    base = refreshBase(L);
 
     cb = a + 3;
     if (!base[cb].isNil()) {

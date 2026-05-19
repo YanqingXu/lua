@@ -436,10 +436,8 @@ Proto* CodeGenerator::compileFunction(const Vec<Str>& params, bool isVararg, con
     // 编译函数体
     child.block(body);
 
-    // 添加隐式return（如果函数体没有显式return）
-    if (!child.state_.bytecode.hasInstructions() || child.state_.bytecode.lastOpcode() != OpCode::RETURN) {
-        child.codeABC(OpCode::RETURN, 0, 1, 0);
-    }
+    // 保留一个兜底 RETURN，覆盖条件分支 return 后仍可落出的路径。
+    child.codeABC(OpCode::RETURN, 0, 1, 0);
 
     // 写入upvalue元信息（数量 + 名称）
     newProto->setNumUpvalues(static_cast<u8>(child.state_.upvalues.upvalues_.size()));
@@ -618,9 +616,6 @@ void CodeGenerator::emitStmt(const ForNumStmt& s) {
 
     // 离开代码块，修补所有break跳转，并移除循环变量
     leaveBlock();
-
-    // 释放寄存器
-    freeRegs(4);  // init, limit, step, var
 }
 
 void CodeGenerator::emitStmt(const ForInStmt& s) {
@@ -638,33 +633,66 @@ void CodeGenerator::emitStmt(const ForInStmt& s) {
     i32 base = state_.regs.current();  // 迭代器变量的基址
     i32 nvars = static_cast<i32>(s.vars.size());  // 循环变量数量
 
-    // 计算迭代器表达式（应该返回3个值：func, state, var）
-    // 例如：for k, v in pairs(t) do ... end
-    // pairs(t) 返回 (next, t, nil)
-
-    if (s.iterators.size() != 1) {
-        throw std::runtime_error("CodeGenerator: for-in loop requires exactly 1 iterator expression");
+    if (s.iterators.empty()) {
+        throw std::runtime_error("CodeGenerator: for-in loop requires iterator expression");
     }
 
-    // 计算迭代器表达式。当前实现要求唯一的迭代表达式直接提供
-    // generator/state/control 三元组，因此这里显式消费 Call/Vararg 多返回值通道。
-    const Expr& iteratorExpr = *s.iterators[0];
-    if (auto* callExpr = std::get_if<CallExpr>(&iteratorExpr.variant)) {
-        CallResultInfo info = emitCallExpr(*callExpr, base);
-        setWantedResults(info, 3);
-        state_.regs.setFreeReg(base + 3);
-        checkStack(0);
-    } else if (std::holds_alternative<VarargExpr>(iteratorExpr.variant)) {
-        CallResultInfo info = emitVarargExpr();
-        Instruction inst = state_.bytecode.instruction(info.instructionPc);
-        SETARG_A(inst, base);
-        SETARG_B(inst, 4);  // B=4 -> 3 个结果
-        state_.bytecode.replaceInstruction(info.instructionPc, inst);
-        state_.regs.setFreeReg(base + 3);
-        checkStack(0);
-    } else {
-        throw std::runtime_error("CodeGenerator: for-in loop iterator must be a function call or vararg");
+    state_.regs.setFreeReg(base);
+    i32 filled = 0;
+    i32 nexps = static_cast<i32>(s.iterators.size());
+    for (i32 i = 0; i < nexps; i++) {
+        const Expr& iteratorExpr = *s.iterators[i];
+        bool isLast = (i == nexps - 1);
+
+        if (filled < 3) {
+            i32 targetReg = base + filled;
+            i32 wanted = 3 - filled;
+
+            if (isLast) {
+                if (auto* callExpr = std::get_if<CallExpr>(&iteratorExpr.variant)) {
+                    CallResultInfo info = emitCallExpr(*callExpr, targetReg);
+                    setWantedResults(info, wanted);
+                    filled = 3;
+                    state_.regs.setFreeReg(base + 3);
+                    checkStack(0);
+                    break;
+                }
+                if (std::holds_alternative<VarargExpr>(iteratorExpr.variant)) {
+                    CallResultInfo info = emitVarargExpr();
+                    Instruction inst = state_.bytecode.instruction(info.instructionPc);
+                    SETARG_A(inst, targetReg);
+                    SETARG_B(inst, wanted + 1);
+                    state_.bytecode.replaceInstruction(info.instructionPc, inst);
+                    filled = 3;
+                    state_.regs.setFreeReg(base + 3);
+                    checkStack(0);
+                    break;
+                }
+            }
+
+            ValueResult val = emitValue(iteratorExpr);
+            val = forceSingleValue(val);
+            materializeValue(val, targetReg);
+            filled++;
+            state_.regs.setFreeReg(base + filled);
+            checkStack(0);
+        } else {
+            ValueResult val = emitValue(iteratorExpr);
+            val = forceSingleValue(val);
+            i32 discardReg = valueToAnyReg(val);
+            freeReg(discardReg);
+        }
     }
+
+    while (filled < 3) {
+        ValueResult nilVal;
+        nilVal.kind = ValueResult::Kind::Immediate;
+        nilVal.immediate = ValueResult::ImmediateKind::Nil;
+        materializeValue(nilVal, base + filled);
+        filled++;
+    }
+    state_.regs.setFreeReg(base + 3);
+    checkStack(0);
 
     // 进入可break的代码块（在添加循环变量之前）
     enterBlock(true);  // isbreakable = true
@@ -709,9 +737,6 @@ void CodeGenerator::emitStmt(const ForInStmt& s) {
 
     // 离开代码块，修补所有break跳转，并移除循环变量
     leaveBlock();
-
-    // 释放寄存器
-    freeRegs(3 + nvars);  // func, state, var, loop_vars
 }
 
 void CodeGenerator::block(const Vec<StmtPtr>& stmts) {

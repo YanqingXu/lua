@@ -37,7 +37,7 @@ This file is the repository's single source of truth for externally visible proj
 ## Test Status
 
 - Test framework: custom lightweight C++ test framework vendored under `lua_test/include/test_framework` and adapted by `tests/unit/framework`.
-- Latest verified test count: 437 registered tests, 1860 assertion results, 0 failures.
+- Latest verified test count: 439 registered tests, 1862 assertion results, 0 failures.
 - `bin\lua_test.exe` supports `--list`, `--filter <suite-or-name>`, and `--report=junit`.
 - These numbers describe the project test runner result. They are not a Lua 5.1.5 compatibility percentage.
 

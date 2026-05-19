@@ -46,10 +46,8 @@ Proto* CodeGenerator::generate(const Chunk& chunk, StrView sourceName) {
     // 生成语句块
     block(chunk.statements);
     
-    // 添加RETURN指令（如果最后一条指令不是RETURN）
-    if (!state_.bytecode.hasInstructions() || state_.bytecode.lastOpcode() != OpCode::RETURN) {
-        codeABC(OpCode::RETURN, 0, 1, 0);  // return (no values)
-    }
+    // 保留一个兜底 RETURN，覆盖条件分支 return 后仍可落出的路径。
+    codeABC(OpCode::RETURN, 0, 1, 0);  // return (no values)
 
     attachDebugMetadata();
     

@@ -32,10 +32,11 @@ void call(RuntimeServices& services, LuaState* L, i32 nargs, i32 nresults) {
     if (isLua) {
         CallInfo& newCI = L->getCurrentCallInfo();
         Proto* proto = L->getStack()[newCI.func].asFunction()->getProto();
-        executeProto(services, L, proto, 1);
-
         i32 fpos = static_cast<i32>(newCI.func);
         i32 wantedResults = newCI.nresults;
+
+        executeProto(services, L, proto, 1);
+
         L->popCallInfo();
         detail::postcall(L, fpos, wantedResults);
     }

@@ -817,7 +817,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_quality_gate.ps1
 
 验收结果：
 
-- 默认 `bin\lua_test.exe` 运行 437 个注册测试 / 1860 个结果 / 0 失败。
+- 默认 `bin\lua_test.exe` 运行 439 个注册测试 / 1862 个结果 / 0 失败。
 - `src/vm/vm_trace.cpp` 已收口 trace/debug 状态与事件构造，`src/vm/vm.cpp` 仍是唯一主 dispatch 循环。
 - 新增回归测试锁定 instruction/call/return trace 顺序，以及 call/count/line/return debug hook 顺序。
 

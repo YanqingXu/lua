@@ -296,6 +296,58 @@ void testNestedReturnCallChain(TestSuite& suite) {
     delete L;
 }
 
+void testGenericForExplicitLuaIteratorTriple(TestSuite& suite) {
+    LuaState* L = createFullState();
+    bool ok = runLua(L, R"lua(
+        local function range(limit, control)
+            local next_value = control + 1
+            if next_value <= limit then
+                return next_value, next_value * 10
+            end
+        end
+
+        local sum_i = 0
+        local sum_v = 0
+        for i, v in range, 4, 0 do
+            sum_i = sum_i + i
+            sum_v = sum_v + v
+        end
+
+        assert(sum_i == 10, "generic for should update control from Lua iterator")
+        assert(sum_v == 100, "generic for should copy all requested iterator results")
+    )lua");
+    ASSERT_TRUE(suite, ok, "generic for explicit Lua iterator triple");
+    delete L;
+}
+
+void testGenericForCallReturningLuaIterator(TestSuite& suite) {
+    LuaState* L = createFullState();
+    bool ok = runLua(L, R"lua(
+        local function make_range(limit)
+            local current = 0
+            return function()
+                current = current + 1
+                if current <= limit then
+                    return current, current * 2
+                end
+            end
+        end
+
+        local seen = {}
+        local total = 0
+        for i, v in make_range(4) do
+            seen[i] = v
+            total = total + v
+        end
+
+        assert(seen[1] == 2 and seen[2] == 4 and seen[3] == 6 and seen[4] == 8,
+               "generic for should accept a Lua iterator returned by a call")
+        assert(total == 20, "generic for should continue until iterator returns nil")
+    )lua");
+    ASSERT_TRUE(suite, ok, "generic for call returning Lua iterator");
+    delete L;
+}
+
 void testTailReturnCallEmitsTailcall(TestSuite& suite) {
     try {
         Parser parser(R"lua(
@@ -369,6 +421,8 @@ void registerCallPipelineTests() {
     registry.registerTest(kSuiteName, "call stmt discards returns", testCallStmtDiscardsReturns);
     registry.registerTest(kSuiteName, "method call multret", testMethodCallMultret);
     registry.registerTest(kSuiteName, "nested return f(g())", testNestedReturnCallChain);
+    registry.registerTest(kSuiteName, "generic for explicit Lua iterator triple", testGenericForExplicitLuaIteratorTriple);
+    registry.registerTest(kSuiteName, "generic for call returning Lua iterator", testGenericForCallReturningLuaIterator);
     registry.registerTest(kSuiteName, "return f() emits TAILCALL", testTailReturnCallEmitsTailcall);
     registry.registerTest(kSuiteName, "tail recursion reuses frames", testTailRecursiveLuaCallReusesFrame);
 }
