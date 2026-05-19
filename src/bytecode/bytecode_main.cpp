@@ -2,26 +2,15 @@
 #include "compiler/codegen.hpp"
 #include "bytecode_printer.hpp"
 #include "core/string_pool.hpp"
+#include "io/file_loader.hpp"
 
 #include <cstring>
-#include <fstream>
 #include <functional>
 #include <iostream>
-#include <sstream>
 #include <stdexcept>
 #include <string>
 
 using namespace Lua;
-
-static std::string readFile(const char* path) {
-    std::ifstream in(path, std::ios::binary);
-    if (!in) {
-        throw std::runtime_error(std::string("Cannot open file: ") + path);
-    }
-    std::ostringstream ss;
-    ss << in.rdbuf();
-    return ss.str();
-}
 
 int main(int argc, char** argv) {
     if (argc < 2) {
@@ -33,7 +22,7 @@ int main(int argc, char** argv) {
     bool full = (argc >= 3) && (std::string(argv[2]) == "full");
 
     try {
-        std::string source = readFile(scriptPath);
+        Str source = readWholeFile(scriptPath);
 
         StringPool& pool = StringPool::getInstance();
         Parser parser(source);

@@ -35,18 +35,18 @@
 #include "lib/baselib.hpp"
 #include "compiler/parser.hpp"
 #include "compiler/codegen.hpp"
+#include "app/app_options.hpp"
 #include "bytecode/bytecode_printer.hpp"
 #include "core/string_pool.hpp"
 #include "core/function.hpp"
+#include "io/file_loader.hpp"
 #include "io/input_stream.hpp"
 #include "debug/json_trace_sink.hpp"
 #include "repl.hpp"
 
 #include <iostream>
-#include <cstring>
 #include <memory>
 #include <sstream>
-#include <fstream>
 #include <filesystem>
 #include <windows.h>
 
@@ -202,29 +202,6 @@ void setupArgTable(LuaState* L, i32 argc, char* argv[], i32 scriptIndex) {
 // ============================================================================
 
 /**
- * @brief 读取文件全部内容到字符串
- * @param filename 文件名
- * @return 文件内容字符串
- * @throws std::runtime_error 如果文件打开失败
- */
-Str readFileContents(const char* filename) {
-    std::ifstream file(filename, std::ios::binary | std::ios::ate);
-    if (!file.is_open()) {
-        throw std::runtime_error(Str("cannot open ") + filename + ": No such file or directory");
-    }
-
-    std::streamsize size = file.tellg();
-    file.seekg(0, std::ios::beg);
-
-    Str content(static_cast<usize>(size), '\0');
-    if (!file.read(&content[0], size)) {
-        throw std::runtime_error(Str("error reading ") + filename);
-    }
-
-    return content;
-}
-
-/**
  * @brief 执行Lua脚本文件
  *
  * 执行流程：
@@ -241,7 +218,7 @@ Str readFileContents(const char* filename) {
 int executeScript(LuaState* L, const char* filename) {
     try {
         // 步骤1：读取文件内容
-        Str source = readFileContents(filename);
+        Str source = readWholeFile(filename);
 
         // 步骤2：解析源码生成AST
         Parser parser(source);
@@ -288,6 +265,112 @@ int executeScript(LuaState* L, const char* filename) {
     }
 }
 
+int Lua::runApp(const AppOptions& opt) {
+    const char* programName = opt.programName ? opt.programName : "lua";
+
+    REPL::setProgName(programName);
+
+    switch (opt.mode) {
+    case RunMode::ShowVersion:
+        printVersion();
+        return 0;
+
+    case RunMode::ShowHelp:
+        printUsage(programName);
+        return 0;
+
+    case RunMode::Script:
+    case RunMode::Repl:
+    case RunMode::DefaultBehavior:
+        break;
+    }
+
+    auto L = createLuaState();
+    if (!L) {
+        REPL::reportError("cannot create state: not enough memory");
+        return 1;
+    }
+
+    i32 status = 0;
+
+    UPtr<JsonTraceSink> traceSink;
+    if (opt.traceFile) {
+        traceSink = makeUnique<JsonTraceSink>(opt.traceFile);
+        if (traceSink->isOpen()) {
+            VM::setTraceSink(traceSink.get());
+            std::cout << "[TRACE] Trace enabled → " << opt.traceFile << std::endl;
+        } else {
+            std::cerr << "[TRACE] Warning: cannot open trace file, trace disabled." << std::endl;
+            traceSink.reset();
+        }
+    }
+
+    switch (opt.mode) {
+    case RunMode::Script:
+        setupArgTable(L.get(), static_cast<i32>(opt.argc), opt.argv, opt.scriptIndex);
+        status = executeScript(L.get(), opt.scriptFile);
+        break;
+
+    case RunMode::Repl:
+        std::cout << "[INFO] 进入 REPL 模式。" << std::endl;
+        REPL::initialize(L.get());
+        status = REPL::run(L.get());
+        break;
+
+    case RunMode::DefaultBehavior: {
+        constexpr const char* kTestScriptPath = LUA_TEST_SCRIPT_PATH;
+
+        if (kTestScriptPath[0] == '\0') {
+            std::cout << "[INFO] 未指定脚本，进入 REPL 模式。" << std::endl;
+            REPL::initialize(L.get());
+            status = REPL::run(L.get());
+        } else if (std::filesystem::exists(kTestScriptPath)) {
+            constexpr const char* kTestTraceOutput = LUA_TRACE_TEST_SCRIPT_OUTPUT;
+            UPtr<JsonTraceSink> testTraceSink;
+            if (kTestTraceOutput[0] != '\0' && !traceSink) {
+                testTraceSink = makeUnique<JsonTraceSink>(kTestTraceOutput);
+                if (testTraceSink->isOpen()) {
+                    VM::setTraceSink(testTraceSink.get());
+                    std::cout << "[TRACE] Test trace enabled \u2192 " << kTestTraceOutput << std::endl;
+                } else {
+                    testTraceSink.reset();
+                }
+            }
+
+            std::cout << "[INFO] 执行测试脚本: " << kTestScriptPath << std::endl;
+            status = executeScript(L.get(), kTestScriptPath);
+
+            if (testTraceSink) {
+                testTraceSink->flush();
+                VM::setTraceSink(nullptr);
+                std::cout << "[TRACE] Test trace complete: " << testTraceSink->getEventCount() << " events written."
+                          << std::endl;
+            }
+        } else {
+            std::ostringstream oss;
+            oss << "test script not found: " << kTestScriptPath;
+            REPL::reportError(oss.str().c_str());
+            status = 1;
+        }
+        break;
+    }
+
+    case RunMode::ShowVersion:
+    case RunMode::ShowHelp:
+        break;
+    }
+
+    if (traceSink) {
+        traceSink->flush();
+        VM::setTraceSink(nullptr);
+        std::cout << "[TRACE] Trace complete: " << traceSink->getEventCount() << " events written." << std::endl;
+        traceSink.reset();
+    }
+
+    L.reset();
+    return status > 0 ? 1 : 0;
+}
+
 // ============================================================================
 // 主函数（参考lua_c_analysis/src/lua.c的main函数）
 // ============================================================================
@@ -323,127 +406,7 @@ int main(int argc, char** argv) {
 	
 
     try {
-        // 设置程序名（用于错误消息），参考官方 Lua 的 progname
-        REPL::setProgName(argv[0]);
-
-        // 步骤1：解析命令行参数
-        bool showVersion = false;
-        bool showHelp = false;
-        bool interactiveMode = false;
-        const char* scriptFile = nullptr;
-        const char* traceFile = nullptr;
-        i32 scriptIndex = -1;  // 脚本文件在argv中的索引（用于arg表）
-
-        for (i32 i = 1; i < argc; ++i) {
-            if (std::strcmp(argv[i], "-v") == 0) {
-                showVersion = true;
-            } else if (std::strcmp(argv[i], "-h") == 0) {
-                showHelp = true;
-            } else if (std::strcmp(argv[i], "-i") == 0) {
-                interactiveMode = true;
-            } else if (std::strcmp(argv[i], "--trace") == 0 && i + 1 < argc) {
-                traceFile = argv[++i];
-            } else if (argv[i][0] != '-') {
-                scriptFile = argv[i];
-                scriptIndex = i;  // 记录脚本文件索引
-                break;
-            }
-        }
-
-        // 显示版本或帮助
-        if (showVersion) {
-            printVersion();
-            return 0;
-        }
-
-        if (showHelp) {
-            printUsage(argv[0]);
-            return 0;
-        }
-
-        // 步骤2-3：创建并初始化Lua状态机
-        // 对应C版本的：lua_State *L = lua_open();
-        auto L = createLuaState();
-
-        if (!L) {
-            REPL::reportError("cannot create state: not enough memory");
-            return 1;
-        }
-
-        // 步骤4-5：执行主程序
-        i32 status = 0;
-
-        // 设置 Trace Sink（如果指定了 --trace）
-        UPtr<JsonTraceSink> traceSink;
-        if (traceFile) {
-            traceSink = makeUnique<JsonTraceSink>(traceFile);
-            if (traceSink->isOpen()) {
-                VM::setTraceSink(traceSink.get());
-                std::cout << "[TRACE] Trace enabled → " << traceFile << std::endl;
-            } else {
-                std::cerr << "[TRACE] Warning: cannot open trace file, trace disabled." << std::endl;
-                traceSink.reset();
-            }
-        }
-
-        if (scriptFile) {
-            // 设置arg表（使脚本可通过arg[0], arg[1]...访问命令行参数）
-            setupArgTable(L.get(), argc, argv, scriptIndex);
-
-            // 脚本执行模式
-            status = executeScript(L.get(), scriptFile);
-        } else if (interactiveMode) {
-            std::cout << "[INFO] 进入 REPL 模式。" << std::endl;
-            REPL::initialize(L.get());
-            status = REPL::run(L.get());
-        } else {
-            constexpr const char* kTestScriptPath = LUA_TEST_SCRIPT_PATH;
-
-            if (kTestScriptPath[0] == '\0') {
-                std::cout << "[INFO] 未指定脚本，进入 REPL 模式。" << std::endl;
-                REPL::initialize(L.get());
-                status = REPL::run(L.get());
-            } else if (std::filesystem::exists(kTestScriptPath)) {
-                // 宏开关：若未通过 --trace 指定，则自动为测试脚本启用 Trace
-                constexpr const char* kTestTraceOutput = LUA_TRACE_TEST_SCRIPT_OUTPUT;
-                UPtr<JsonTraceSink> testTraceSink;
-                if (kTestTraceOutput[0] != '\0' && !traceSink) {
-                    testTraceSink = makeUnique<JsonTraceSink>(kTestTraceOutput);
-                    if (testTraceSink->isOpen()) {
-                        VM::setTraceSink(testTraceSink.get());
-                        std::cout << "[TRACE] Test trace enabled \u2192 " << kTestTraceOutput << std::endl;
-                    } else {
-                        testTraceSink.reset();
-                    }
-                }
-                std::cout << "[INFO] 执行测试脚本: " << kTestScriptPath << std::endl;
-                status = executeScript(L.get(), kTestScriptPath);
-                if (testTraceSink) {
-                    testTraceSink->flush();
-                    VM::setTraceSink(nullptr);
-                    std::cout << "[TRACE] Test trace complete: " << testTraceSink->getEventCount() << " events written." << std::endl;
-                }
-            } else {
-                std::ostringstream oss;
-                oss << "test script not found: " << kTestScriptPath;
-                REPL::reportError(oss.str().c_str());
-                status = 1;
-            }
-        }
-
-        // 步骤6：关闭 Trace
-        if (traceSink) {
-            traceSink->flush();
-            VM::setTraceSink(nullptr);
-            std::cout << "[TRACE] Trace complete: " << traceSink->getEventCount() << " events written." << std::endl;
-            traceSink.reset();
-        }
-
-        // 步骤7：清理资源（RAII自动管理）
-        L.reset();  // 显式释放，对应lua_close(L)
-
-        // 步骤8：返回退出码
-        return status > 0 ? 1 : 0;
+        return runApp(parseArgs(argc, argv));
 
     } catch (const std::exception& e) {
         std::cerr << "\n[ERROR] Exception caught: " << e.what() << std::endl;

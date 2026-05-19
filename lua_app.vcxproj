@@ -139,9 +139,11 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="src\app\app_options.hpp" />
     <ClInclude Include="src\repl.hpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="src\app\app_options.cpp" />
     <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\repl.cpp" />
   </ItemGroup>

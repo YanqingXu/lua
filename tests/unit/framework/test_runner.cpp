@@ -54,6 +54,8 @@ extern void registerDynamicBufferTests();
 extern void registerInputStreamStringTests();
 extern void registerInputStreamStreamTests();
 extern void registerInputStreamFileTests();
+extern void registerFileLoaderTests();
+extern void registerAppOptionsTests();
 
 /**
  * @brief 打印测试框架标题
@@ -140,6 +142,8 @@ int main() {
     registerInputStreamStringTests();
     registerInputStreamStreamTests();
     registerInputStreamFileTests();
+    registerFileLoaderTests();
+    registerAppOptionsTests();
 
     std::cout << "[INFO] All tests registered." << std::endl;
     std::cout << "[INFO] Starting test execution...\n" << std::endl;

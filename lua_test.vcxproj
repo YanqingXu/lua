@@ -141,8 +141,10 @@
     <ClInclude Include="tests\unit\framework\test_registry.hpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="src\app\app_options.cpp" />
     <ClCompile Include="tests\unit\framework\test_framework.cpp" />
     <ClCompile Include="tests\unit\framework\test_runner.cpp" />
+    <ClCompile Include="tests\unit\app\test_app_options.cpp" />
     <ClCompile Include="tests\unit\compiler\test_indexed_access.cpp" />
     <ClCompile Include="tests\unit\compiler\test_lexer_lookahead.cpp" />
     <ClCompile Include="tests\unit\compiler\test_lexer_number.cpp" />
@@ -168,6 +170,7 @@
     <ClCompile Include="tests\unit\core\test_value.cpp" />
     <ClCompile Include="tests\unit\gc\test_gc.cpp" />
     <ClCompile Include="tests\unit\io\test_dynamic_buffer.cpp" />
+    <ClCompile Include="tests\unit\io\test_file_loader.cpp" />
     <ClCompile Include="tests\unit\io\test_input_stream_file.cpp" />
     <ClCompile Include="tests\unit\io\test_input_stream_stream.cpp" />
     <ClCompile Include="tests\unit\io\test_input_stream_string.cpp" />

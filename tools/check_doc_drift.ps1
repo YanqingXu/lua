@@ -46,6 +46,7 @@ $failures = [System.Collections.Generic.List[string]]::new()
 
 $coreDocs = @(
     "README.md",
+    "docs/OPTIMIZATION_ROADMAP.md",
     "docs/PROJECT_STATUS.md",
     "docs/DEVELOPMENT_GUIDE.md",
     "docs/BYTECODE_GENERATION.md",

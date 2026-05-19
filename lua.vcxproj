@@ -161,6 +161,7 @@
     <ClInclude Include="src\core\thread.hpp" />
     <ClInclude Include="src\gc\garbage_collector.hpp" />
     <ClInclude Include="src\io\dynamic_buffer.hpp" />
+    <ClInclude Include="src\io\file_loader.hpp" />
     <ClInclude Include="src\io\input_stream.hpp" />
     <ClInclude Include="src\lib\baselib.hpp" />
     <ClInclude Include="src\lib\iolib.hpp" />
@@ -203,6 +204,7 @@
     <ClCompile Include="src\core\thread.cpp" />
     <ClCompile Include="src\gc\garbage_collector.cpp" />
     <ClCompile Include="src\io\dynamic_buffer.cpp" />
+    <ClCompile Include="src\io\file_loader.cpp" />
     <ClCompile Include="src\io\input_stream.cpp" />
     <ClCompile Include="src\lib\baselib.cpp" />
     <ClCompile Include="src\lib\coroutinelib.cpp" />

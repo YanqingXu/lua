@@ -7,6 +7,9 @@
     <Filter Include="tests">
       <UniqueIdentifier>{D1000001-0003-0003-0003-000000000003}</UniqueIdentifier>
     </Filter>
+    <Filter Include="tests\app">
+      <UniqueIdentifier>{D1000001-000B-000B-000B-00000000000B}</UniqueIdentifier>
+    </Filter>
     <Filter Include="tests\compiler">
       <UniqueIdentifier>{D1000001-0004-0004-0004-000000000004}</UniqueIdentifier>
     </Filter>
@@ -38,11 +41,17 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="src\app\app_options.cpp">
+      <Filter>tests\app</Filter>
+    </ClCompile>
     <ClCompile Include="tests\unit\framework\test_framework.cpp">
       <Filter>framework</Filter>
     </ClCompile>
     <ClCompile Include="tests\unit\framework\test_runner.cpp">
       <Filter>framework</Filter>
+    </ClCompile>
+    <ClCompile Include="tests\unit\app\test_app_options.cpp">
+      <Filter>tests\app</Filter>
     </ClCompile>
     <ClCompile Include="tests\unit\compiler\test_indexed_access.cpp">
       <Filter>tests\compiler</Filter>
@@ -117,6 +126,9 @@
       <Filter>tests\gc</Filter>
     </ClCompile>
     <ClCompile Include="tests\unit\io\test_dynamic_buffer.cpp">
+      <Filter>tests\io</Filter>
+    </ClCompile>
+    <ClCompile Include="tests\unit\io\test_file_loader.cpp">
       <Filter>tests\io</Filter>
     </ClCompile>
     <ClCompile Include="tests\unit\io\test_input_stream_file.cpp">
