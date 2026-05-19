@@ -1,6 +1,6 @@
 ---
 status: current
-verified_against: docs/PROJECT_STATUS.md; lua.slnx; lua.vcxproj; lua_test.vcxproj; tests/unit/framework/test_runner.cpp
+verified_against: docs/PROJECT_STATUS.md; lua.slnx; lua.vcxproj; lua_test.vcxproj; CMakeLists.txt; tools/run_cmake_smoke.ps1; tests/unit/framework/test_runner.cpp
 last_checked: 2026-05-19
 applies_to: current contributor workflow and coding conventions
 ---
@@ -26,7 +26,7 @@ applies_to: current contributor workflow and coding conventions
 
 ## 🛠️ 开发环境设置
 
-当前可复现主路径是 Windows + Visual Studio/MSBuild + `.vcxproj`。CMake/CTest 是后续规划目标；在仓库根目录出现真实 `CMakeLists.txt` 之前，不把它们写作当前构建入口。当前事实源见 `docs/PROJECT_STATUS.md`。
+当前可复现主路径仍是 Windows + Visual Studio/MSBuild + `.vcxproj`。仓库根目录现在维护 `CMakeLists.txt`，CMake/CTest 是 secondary 辅助构建与测试路径，用于提前稳定未来跨平台入口；当前事实源见 `docs/PROJECT_STATUS.md`。
 
 ### 必需工具
 
@@ -46,7 +46,7 @@ applies_to: current contributor workflow and coding conventions
 | clang-format | 代码格式化 |
 | clang-tidy | 静态分析 |
 | Dr. Memory | 内存检查（Windows） |
-| CMake / CTest | 计划中的跨平台构建与测试入口，不是当前主路径 |
+| CMake / CTest | secondary 辅助构建与测试入口，不替代当前主路径 |
 
 ### 环境配置
 
@@ -77,9 +77,23 @@ bin\lua_test.exe --filter "Symbol Binding"
 bin\lua_test.exe --report=junit
 ```
 
-#### Linux / macOS
+#### CMake / CTest secondary 路径
 
-当前没有已维护的跨平台构建入口。请先以 Windows/MSBuild 路径验证功能；跨平台构建应等仓库加入真实 CMake 配置后再写入当前流程。
+当前 CMake 配置优先作为辅助验证路径维护。Windows 本机可以通过 smoke 脚本自动发现 PATH 或 Visual Studio 自带的 CMake/CTest：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_cmake_smoke.ps1
+```
+
+如果 CMake 和 CTest 已在 PATH，也可以直接运行：
+
+```powershell
+cmake -S . -B build\cmake
+cmake --build build\cmake --config Debug
+ctest --test-dir build\cmake -C Debug --output-on-failure
+```
+
+Linux / macOS 仍应先作为实验性路径处理；在 CI 矩阵覆盖前，不把它视为跨平台兼容承诺。
 
 ---
 
@@ -462,6 +476,9 @@ bin\lua_test.exe
 # 检查文档/实现事实是否漂移
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\check_doc_drift.ps1
 
+# 运行 CMake / CTest secondary smoke
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_cmake_smoke.ps1
+
 # 运行本地质量门禁（文档漂移、格式、静态检查烟测、MSBuild、测试）
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_quality_gate.ps1
 ```
@@ -529,7 +546,7 @@ void testTableInsertSmoke(LuaTest::TestSuite& suite) {
 
 ### 测试覆盖率
 
-当前仓库尚未维护统一覆盖率入口。提交前优先保证 `bin\lua_test.exe` 全绿，并在新增功能附近补充单元测试或 Lua 回归脚本。测试 runner 已支持 `--list`、`--filter <suite-or-name>` 和 `--report=junit`；覆盖率和 CTest 仍属于后续工具链收敛任务。
+当前仓库尚未维护统一覆盖率入口。提交前优先保证 `bin\lua_test.exe` 全绿，并在新增功能附近补充单元测试或 Lua 回归脚本。测试 runner 已支持 `--list`、`--filter <suite-or-name>` 和 `--report=junit`；CTest 作为 secondary 路径运行同一个 `lua_test` 可执行文件和 examples smoke，覆盖率仍属于后续工具链收敛任务。
 
 ---
 

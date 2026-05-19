@@ -1,6 +1,6 @@
 ---
 status: current
-verified_against: README.md; lua.slnx; lua.vcxproj; lua_app.vcxproj; lua_test.vcxproj; lua_bytecode.vcxproj; tests/unit/framework/test_runner.cpp; docs/walkthroughs/index.md; src/runtime/runtime_services.hpp
+verified_against: README.md; lua.slnx; lua.vcxproj; lua_app.vcxproj; lua_test.vcxproj; lua_bytecode.vcxproj; CMakeLists.txt; tools/run_cmake_smoke.ps1; tests/unit/framework/test_runner.cpp; docs/START_HERE.md; docs/glossary.md; docs/walkthroughs/index.md; examples/README.md; src/runtime/runtime_services.hpp
 last_checked: 2026-05-19
 applies_to: current repository facts and contributor-facing workflow
 ---
@@ -22,11 +22,17 @@ This file is the repository's single source of truth for externally visible proj
 - MSVC platform toolset recorded in project files: `v145`.
 - Current C++ standard setting in project files: mixed `stdcpp20` and `stdcpp23`; the active x64 Debug configuration currently uses `stdcpp23`.
 
-## Planned Build Path
+## Secondary Build Path
 
-- CMake and CTest are architectural goals; they are planned and not current.
-- There is currently no repository-root `CMakeLists.txt`.
-- Any CMake/CTest instructions in contributor-facing docs must be marked as planned/future work until a real CMake entry exists.
+- CMake and CTest now exist as a secondary build/test path, not a replacement for the primary Visual Studio/MSBuild workflow.
+- Repository-root `CMakeLists.txt` builds `lua_core`, `lua_app`, `lua_bytecode`, and `lua_test`.
+- Local secondary smoke entry: `tools/run_cmake_smoke.ps1`.
+- CTest currently registers one unit-test executable test plus the example Lua scripts under `examples/`.
+
+## Planned Build Path Work
+
+- Broaden CMake validation beyond the current Windows smoke path before treating it as a cross-platform contract.
+- Add install/export or packaging rules only after the source target boundaries stabilize.
 
 ## Test Status
 
@@ -71,6 +77,13 @@ The command above must return no matches for production compiler sources.
 - `src/runtime/runtime_services.hpp` defines `RuntimeServices` as the current explicit compatibility layer over `GlobalState`, `StringPool`, and `GarbageCollector`.
 - `CodeGenerator`, `Parser`, `LuaState`, and `VM` expose context-aware construction/execution overloads while retaining singleton-backed compatibility overloads.
 - `src/main.cpp`, `src/repl.cpp`, and `src/bytecode/bytecode_main.cpp` use `RuntimeServices` for the first compiler/VM entry-point slice.
+
+## Learning Path Status
+
+- `docs/START_HERE.md` is the first-read entry point for new contributors.
+- `docs/glossary.md` maps Lua terminology to current repository types and files.
+- `docs/walkthroughs/index.md` organizes important test suites into a guided compiler, VM, runtime, and standard-library reading path.
+- `examples/` contains small Lua scripts that can be run with `bin\lua_app.exe` after building the app target.
 
 ## Documentation Status Rules
 

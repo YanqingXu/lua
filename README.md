@@ -1,15 +1,15 @@
 ---
 status: current
-verified_against: docs/PROJECT_STATUS.md; lua.slnx; lua.vcxproj; lua_app.vcxproj; lua_test.vcxproj; lua_bytecode.vcxproj
-last_checked: 2026-05-18
-applies_to: repository overview and current Windows/MSBuild workflow
+verified_against: docs/PROJECT_STATUS.md; lua.slnx; lua.vcxproj; lua_app.vcxproj; lua_test.vcxproj; lua_bytecode.vcxproj; CMakeLists.txt; tools/run_cmake_smoke.ps1
+last_checked: 2026-05-19
+applies_to: repository overview and current build workflows
 ---
 
 # 现代C++ Lua解释器
 
 > **从零开始用C++17/20/23实现Lua 5.1.5解释器**
 
-[![Tests](https://img.shields.io/badge/tests-1634%2F1634-brightgreen)]()
+[![Tests](https://img.shields.io/badge/tests-1725%2F1725-brightgreen)]()
 [![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen)]()
 [![C++](https://img.shields.io/badge/C%2B%2B-17%2F23-blue)]()
 [![Platform](https://img.shields.io/badge/platform-Windows-blue)]()
@@ -30,7 +30,7 @@ applies_to: repository overview and current Windows/MSBuild workflow
 本项目旨在从零开始，用现代 C++ 重建 Lua 5.1.5 的核心执行链路，包括词法分析、语法分析、字节码生成、虚拟机执行、垃圾回收和标准库。
 
 **核心特点**：
--  **技术路线明确**：当前主路径为 Windows + Visual Studio/MSBuild + `.vcxproj`；CMake/CTest 仍是规划目标，尚不是当前可复现入口
+-  **技术路线明确**：当前主路径为 Windows + Visual Studio/MSBuild + `.vcxproj`；CMake/CTest 已作为 secondary 辅助路径落地
 - ✨ **实现风格现代**：使用 `std::variant`、类型别名、STL 容器等现代 C++ 手段组织 Lua 运行时
 - 🎓 **偏学习型工程**：强调结构可读、模块可追踪、便于理解 Lua 语言设计
 

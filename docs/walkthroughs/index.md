@@ -1,6 +1,6 @@
 ---
 status: current
-verified_against: docs/OPTIMIZATION_ROADMAP.md; docs/deep-research-report.md; tests/unit/framework/test_runner.cpp; bin/lua_test.exe --list
+verified_against: docs/OPTIMIZATION_ROADMAP.md; docs/START_HERE.md; docs/glossary.md; examples/README.md; tests/unit/framework/test_runner.cpp; bin/lua_test.exe --list
 last_checked: 2026-05-19
 applies_to: test-based learning path for compiler, VM, runtime, and standard library behavior
 ---
@@ -8,6 +8,8 @@ applies_to: test-based learning path for compiler, VM, runtime, and standard lib
 # Walkthrough Test Index
 
 这份索引把现有测试从“验证清单”整理成“阅读路线”。如果你想理解这个解释器如何把 Lua 源码变成字节码、如何执行、以及标准库如何装配，可以先从这些测试切片读起，再回到实现文件。
+
+第一次阅读请先看 `docs/START_HERE.md` 和 `docs/glossary.md`。如果你更想先运行代码，再看 `examples/README.md`。
 
 ## Runner Commands
 
@@ -30,6 +32,7 @@ bin\lua_test.exe --report=junit
 |---|---|---|---|---|
 | 1 | 值、表和函数对象 | `Value` / `Table` / `Function` | `tests/unit/core/test_value.cpp`, `tests/unit/core/test_table.cpp`, `tests/unit/core/test_function.cpp` | Lua 值类型、表存储、函数/Proto 的基础形态 |
 | 2 | LuaState 与 VM 基础 | `VM Core` / `LuaState Init` | `tests/unit/vm/test_vm_core.cpp`, `tests/unit/vm/test_lua_state_init.cpp` | 栈、全局表、固定字符串、基础 VM 执行状态 |
+| 2.5 | 显式运行时边界 | `Runtime Services` | `tests/unit/vm/test_runtime_services.cpp`, `src/runtime/runtime_services.hpp` | `RuntimeServices` 如何把单例兼容层变成可传递的上下文 |
 | 3 | 词法和解析边界 | `Lexer` / `Parser` | `tests/unit/compiler/test_lexer_number.cpp`, `tests/unit/compiler/test_parser_error_recovery.cpp` | 源码如何进入 AST，以及错误恢复的边界 |
 | 4 | 符号绑定 | `Symbol Binding` | `tests/unit/compiler/test_symbol_binding.cpp` | local/global/upvalue 如何被解析为 `SymbolRef` 并映射到读写通道 |
 | 5 | 值表达式通道 | `Value Pipeline` | `tests/unit/compiler/test_value_pipeline.cpp` | literal/name/index/call 如何生成 `ValueResult` 并落到运行时行为 |
@@ -41,6 +44,25 @@ bin\lua_test.exe --report=junit
 | 11 | GC 与 upvalue 生命周期 | `GC` | `tests/unit/gc/test_gc.cpp` | 根集、弱表、终结器和 upvalue 关闭语义 |
 | 12 | 协程 | `Coroutine Library` | `tests/unit/stdlib/test_coroutinelib.cpp` | `resume`/`yield`、状态切换、wrap 和多值传递 |
 | 13 | 标准库装配 | `Standard Library Catalog` / `Package Library` | `tests/unit/stdlib/test_lib_catalog.cpp`, `tests/unit/stdlib/test_packagelib.cpp` | 标准库默认加载顺序、`package.loaded` 缓存和 `require` 路径 |
+
+## Topic Shortcuts
+
+| 想理解 | 先运行 | 再读 |
+|---|---|---|
+| 名字如何绑定到 local/global/upvalue | `bin\lua_test.exe --filter "Symbol Binding"` | `src/compiler/codegen.hpp`, `src/compiler/codegen.cpp` |
+| 条件和短路如何避免错误物化 | `bin\lua_test.exe --filter "Codegen Conditions"` | `src/compiler/codegen.cpp` 中的 `emitCond` / `CondResult` 路径 |
+| 多返回值为什么依赖调用位置 | `bin\lua_test.exe --filter "Call Pipeline"` | `src/compiler/codegen_types.hpp`, `src/vm/vm.cpp` |
+| RuntimeServices 当前解决了什么 | `bin\lua_test.exe --filter "Runtime Services"` | `src/runtime/runtime_services.hpp`, `src/main.cpp`, `src/repl.cpp` |
+| 标准库如何统一装配 | `bin\lua_test.exe --filter "Standard Library Catalog"` | `src/lib/lib_catalog.hpp`, `src/lib/lib_manager.cpp` |
+
+## Example Pairings
+
+| 示例 | 配套测试 | 说明 |
+|---|---|---|
+| `examples/hello.lua` | `Value Pipeline` | 字符串常量和连接表达式如何进入运行时。 |
+| `examples/control_flow.lua` | `Codegen Conditions` | `if`、`while` 和比较跳转如何配合。 |
+| `examples/tables_and_methods.lua` | `Method Call` / `LValue Pipeline` | 冒号调用和表字段写入如何降低。 |
+| `examples/metamethods.lua` | `Metamethod` | 算术慢路径如何通过元方法返回新值。 |
 
 ## Walkthrough Workflow
 

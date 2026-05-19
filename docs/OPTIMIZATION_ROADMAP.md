@@ -1,6 +1,6 @@
 ---
 status: current
-verified_against: docs/deep-research-report.md; docs/PROJECT_STATUS.md; docs/DEVELOPMENT_GUIDE.md; tools/check_doc_drift.ps1; tools/run_quality_gate.ps1
+verified_against: docs/deep-research-report.md; docs/PROJECT_STATUS.md; docs/DEVELOPMENT_GUIDE.md; CMakeLists.txt; tools/run_cmake_smoke.ps1; tools/check_doc_drift.ps1; tools/run_quality_gate.ps1
 last_checked: 2026-05-19
 applies_to: 仓库优化路线图与下次续接检查清单
 ---
@@ -33,7 +33,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\test_quality_gate.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_quality_gate.ps1
 ```
 
-如果本机没有安装 `clang-format` 或 `clang-tidy`，`run_quality_gate.ps1` 会报告跳过对应项。当前 Windows/MSBuild 构建和 `bin\lua_test.exe` 仍是本仓库的标准验证路径。
+如果本机没有安装 `clang-format` 或 `clang-tidy`，`run_quality_gate.ps1` 会报告跳过对应项。当前 Windows/MSBuild 构建和 `bin\lua_test.exe` 仍是本仓库的标准验证路径；CMake/CTest 作为 secondary 辅助路径由 `tools\run_cmake_smoke.ps1` 验证。
 
 ## 当前状态总览
 
@@ -44,8 +44,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_quality_gate.ps1
 | 高 | 可读性快修 | 已完成 | 共享文件读取、CLI 解析抽取和标准库表驱动注册已完成 |
 | 高 | 测试 runner 报告与教学索引 | 已完成 | runner 已支持 `--list`、`--filter`、`--report=junit`，并新增 walkthrough 索引 |
 | 中 | EngineContext / RuntimeServices | 已完成 | 已引入显式 RuntimeServices，并迁移入口层、CodeGenerator、Parser/VM 兼容重载 |
-| 中 | 教学导航 | 待开始 | 下一步建议新增 START_HERE、术语表、walkthroughs、examples |
-| 低 | CMake + CTest | 待开始 | 等 MSBuild 事实和测试报告稳定后再补跨平台路径 |
+| 中 | 教学导航 | 已完成 | 已新增 START_HERE、术语表和 examples，并扩展 walkthrough 索引 |
+| 低 | CMake + CTest | 已完成 | 已新增 secondary CMake/CTest 路径，不替代 VS/MSBuild 主路径 |
 | 长期 | 拆分 CodeGenerator / VM / Parser | 待开始 | 等边界、测试和入口快修完成后再启动 |
 
 ## 已完成优化
@@ -70,7 +70,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_quality_gate.ps1
 完成效果：
 
 - README 和开发指南都把 Windows/MSBuild/`.vcxproj` 描述为当前可复现路径。
-- CMake/CTest 已标记为规划项，而不是当前构建入口。
+- CMake/CTest 曾在任务 1 标记为规划项；任务 7 后已作为 secondary 辅助路径落地。
 - 当前字节码生成文档改为说明 `AST -> SymbolRef / ValueResult / CondResult / LValueRef / CallResultInfo -> Proto`。
 - 旧的 `ExprDesc / ExprKind` 说明已移动到 `docs/history/exprdesc.md`。
 - `tools/check_doc_drift.ps1` 会检查产品编译器源码中的 `ExprDesc` 漂移，以及开发文档里的当前构建路径漂移。
@@ -346,6 +346,52 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_quality_gate.ps1
 - 默认 `bin\lua_test.exe` 运行 424 个注册测试 / 1725 个结果 / 0 失败。
 - 入口层和优先迁移文件中不再直接出现 `StringPool::getInstance()` / `GlobalState::getInstance()` / `GarbageCollector::getInstance()` 的业务调用；兼容层保留在 `RuntimeServices::fromSingletons()` 等 API 内部。
 
+### 6. 教学导航
+
+完成日期：2026-05-19
+
+创建的文件：
+
+- `docs/START_HERE.md`
+- `docs/glossary.md`
+- `examples/README.md`
+- `examples/hello.lua`
+- `examples/control_flow.lua`
+- `examples/tables_and_methods.lua`
+- `examples/metamethods.lua`
+
+更新的文件：
+
+- `docs/walkthroughs/index.md`
+- `docs/PROJECT_STATUS.md`
+- `docs/OPTIMIZATION_ROADMAP.md`
+- `tools/check_doc_drift.ps1`
+
+完成效果：
+
+- 新增第一次进入仓库的阅读入口，按 10 分钟、30 分钟、2 小时和深入源码路线组织材料。
+- 新增术语表，把 Lua 概念映射到当前仓库类型、文件和测试入口。
+- 扩展 walkthrough 索引，加入 `Runtime Services`、topic shortcuts 和 examples 与测试的配对关系。
+- 新增 `examples/` 小脚本，用于快速运行当前解释器支持的 print、控制流、表方法和元方法路径。
+- 文档漂移检查会要求教学入口、术语表和示例索引持续存在，并检查关键引用。
+
+已使用的验证命令：
+
+```powershell
+bin\lua_app.exe examples\hello.lua
+bin\lua_app.exe examples\control_flow.lua
+bin\lua_app.exe examples\tables_and_methods.lua
+bin\lua_app.exe examples\metamethods.lua
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\check_doc_drift.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_quality_gate.ps1
+```
+
+期望状态：
+
+- 教学导航文档都有事实页眉。
+- `examples/README.md` 中列出的示例脚本可以用 `bin\lua_app.exe` 运行。
+- 质量门禁通过，默认测试数量仍为 424 个注册测试 / 1725 个结果 / 0 失败。
+
 ## 已完成快修任务
 
 这个阶段风险较低，主要删除重复逻辑、澄清入口职责，不改变 VM 或编译器语义；当前 3A、3B、3C 均已完成。
@@ -498,20 +544,18 @@ AppOptions parseArgs(int argc, char** argv);
 - `src/vm/vm.hpp/.cpp`
 - `src/core/metatable.hpp/.cpp`
 
-## 下一步推荐任务：教学导航
-
-建议从这里继续。
+## 已完成任务：教学导航
 
 ### 任务 6：教学导航
 
 **目标：** 把现有文档和测试组织成清晰的学习路径。
 
-建议创建：
+已完成：
 
-- `docs/START_HERE.md`
-- `docs/glossary.md`
-- `docs/walkthroughs/`
-- `examples/`
+- [x] `docs/START_HERE.md`
+- [x] `docs/glossary.md`
+- [x] `docs/walkthroughs/index.md` 扩展
+- [x] `examples/`
 
 walkthrough 初始素材：
 
@@ -523,19 +567,46 @@ walkthrough 初始素材：
 - `test_codegen_multret`
 - 元方法和协程相关测试
 
+## 已完成任务：CMake + CTest
+
 ### 任务 7：CMake + CTest
 
 **目标：** 在不打断当前 Visual Studio 工作流的前提下，增加未来跨平台路径。
 
-启动前置条件：
+已完成：
 
-- MSBuild CI 已稳定。
-- 项目文件事实仍由文档维护。
-- 测试 runner 已有机器可读输出。
+- [x] 新增仓库根目录 `CMakeLists.txt`。
+- [x] 通过 CMake 构建 `lua_core`、`lua_app`、`lua_bytecode` 和 `lua_test`。
+- [x] 通过 CTest 注册 `lua_test` 和 `examples/` smoke。
+- [x] 新增 `tools\run_cmake_smoke.ps1`，自动发现 PATH 或 Visual Studio 自带的 CMake/CTest。
+- [x] 更新 `docs/PROJECT_STATUS.md` 和 `docs/DEVELOPMENT_GUIDE.md`，明确 CMake/CTest 是 secondary 辅助路径。
+- [x] 更新 `tools\check_doc_drift.ps1`，防止 CMake/CTest 状态再次漂移。
+
+已使用的验证命令：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_cmake_smoke.ps1
+```
+
+验收结果：
+
+- CMake configure/build 通过。
+- CTest 通过 5 个测试：`lua_test` 和 4 个 examples smoke。
+
+## 下一步推荐任务：深拆大型模块
+
+建议从这里继续。
 
 ### 任务 8：深拆大型模块
 
 **目标：** 在显式边界已经建立后，拆分超大模块。
+
+启动前置条件：
+
+- RuntimeServices 兼容边界已存在。
+- 测试 runner 已有过滤和 JUnit 报告。
+- CMake/CTest secondary 路径已可运行。
+- 教学导航已能帮助新贡献者定位关键测试。
 
 建议顺序：
 

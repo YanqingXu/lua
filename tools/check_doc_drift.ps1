@@ -46,9 +46,12 @@ $failures = [System.Collections.Generic.List[string]]::new()
 
 $coreDocs = @(
     "README.md",
+    "docs/START_HERE.md",
     "docs/OPTIMIZATION_ROADMAP.md",
     "docs/PROJECT_STATUS.md",
     "docs/DEVELOPMENT_GUIDE.md",
+    "docs/glossary.md",
+    "docs/walkthroughs/index.md",
     "docs/BYTECODE_GENERATION.md",
     "docs/ARCHITECTURE.md",
     "docs/EXPRESSION_PARSING.md",
@@ -61,7 +64,8 @@ $coreDocs = @(
     "docs/refactor_expdesc_plan.md",
     "docs/refactor_expdesc_pr_checklist.md",
     "docs/refactor_singlepass_cleanup_plan.md",
-    "docs/history/exprdesc.md"
+    "docs/history/exprdesc.md",
+    "examples/README.md"
 )
 
 foreach ($doc in $coreDocs) {
@@ -74,6 +78,13 @@ foreach ($doc in $coreDocs) {
     $text = Get-Content -LiteralPath $path -Raw
     if (-not (Test-FrontMatter $text)) {
         Add-Failure $failures "Missing or invalid fact header: $doc"
+    }
+}
+
+foreach ($requiredFile in @("CMakeLists.txt", "tools/run_cmake_smoke.ps1")) {
+    $path = Join-RepoPath $requiredFile
+    if (-not (Test-Path -LiteralPath $path)) {
+        Add-Failure $failures "Missing build support file: $requiredFile"
     }
 }
 
@@ -100,18 +111,37 @@ if ($guide -notmatch "MSBuild" -or $guide -notmatch "\.vcxproj" -or $guide -notm
     Add-Failure $failures "DEVELOPMENT_GUIDE.md must name the current MSBuild/.vcxproj path and reference docs/PROJECT_STATUS.md"
 }
 
-$guideLines = $guide -split "\r?\n"
-for ($i = 0; $i -lt $guideLines.Count; $i++) {
-    $line = $guideLines[$i]
-    if ($line -match "^\s*(cmake|ctest)\b" -or $line -match "cmake\s+-B" -or $line -match "cd\s+build\s*&&\s*ctest") {
-        Add-Failure $failures "DEVELOPMENT_GUIDE.md presents CMake/CTest as an executable current command at line $($i + 1): $line"
+foreach ($required in @("CMakeLists.txt", "tools\run_cmake_smoke.ps1", "CMake", "CTest", "secondary")) {
+    if ($guide -notmatch [regex]::Escape($required)) {
+        Add-Failure $failures "DEVELOPMENT_GUIDE.md is missing CMake/CTest support fact: $required"
     }
 }
 
 $statusDoc = Read-Text "docs/PROJECT_STATUS.md"
-foreach ($required in @("Visual Studio", "MSBuild", ".vcxproj", "CMake", "CTest", "not current", "424", "1725", "--report=junit", "RuntimeServices")) {
+foreach ($required in @("Visual Studio", "MSBuild", ".vcxproj", "CMake", "CTest", "secondary", "CMakeLists.txt", "tools/run_cmake_smoke.ps1", "424", "1725", "--report=junit", "RuntimeServices", "Learning Path")) {
     if ($statusDoc -notmatch [regex]::Escape($required)) {
         Add-Failure $failures "PROJECT_STATUS.md is missing required fact: $required"
+    }
+}
+
+$startHereDoc = Read-Text "docs/START_HERE.md"
+foreach ($required in @("PROJECT_STATUS.md", "DEVELOPMENT_GUIDE.md", "walkthroughs/index.md", "glossary.md", "examples/README.md", "bin\lua_test.exe --list")) {
+    if ($startHereDoc -notmatch [regex]::Escape($required)) {
+        Add-Failure $failures "START_HERE.md is missing learning path reference: $required"
+    }
+}
+
+$glossaryDoc = Read-Text "docs/glossary.md"
+foreach ($required in @("RuntimeServices", "GlobalState", "LuaState", "Proto", "SymbolRef", "ValueResult", "CondResult", "LValueRef", "TMS", "RK")) {
+    if ($glossaryDoc -notmatch [regex]::Escape($required)) {
+        Add-Failure $failures "glossary.md is missing required term: $required"
+    }
+}
+
+$examplesDoc = Read-Text "examples/README.md"
+foreach ($required in @("bin\lua_app.exe", "hello.lua", "control_flow.lua", "tables_and_methods.lua", "metamethods.lua")) {
+    if ($examplesDoc -notmatch [regex]::Escape($required)) {
+        Add-Failure $failures "examples/README.md is missing example reference: $required"
     }
 }
 
