@@ -12,6 +12,10 @@ option(LUA_CPP_BUILD_TESTS "Build the unit test runner" ON)
 set(LUA_CORE_SOURCES
     src/compiler/ast.cpp
     src/compiler/codegen.cpp
+    src/compiler/codegen_binding.cpp
+    src/compiler/codegen_expr.cpp
+    src/compiler/codegen_jump.cpp
+    src/compiler/codegen_stmt.cpp
     src/compiler/lexer.cpp
     src/compiler/opcode.cpp
     src/compiler/parser.cpp

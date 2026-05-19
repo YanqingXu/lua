@@ -1,6 +1,6 @@
 ---
 status: current
-verified_against: README.md; lua.slnx; lua.vcxproj; lua_app.vcxproj; lua_test.vcxproj; lua_bytecode.vcxproj; CMakeLists.txt; tools/run_cmake_smoke.ps1; tests/unit/framework/test_runner.cpp; docs/START_HERE.md; docs/glossary.md; docs/walkthroughs/index.md; examples/README.md; src/runtime/runtime_services.hpp
+verified_against: README.md; lua.slnx; lua.vcxproj; lua_app.vcxproj; lua_test.vcxproj; lua_bytecode.vcxproj; CMakeLists.txt; tools/run_cmake_smoke.ps1; tests/unit/framework/test_runner.cpp; docs/START_HERE.md; docs/glossary.md; docs/walkthroughs/index.md; examples/README.md; src/runtime/runtime_services.hpp; src/compiler/codegen.cpp; src/compiler/codegen_binding.cpp; src/compiler/codegen_expr.cpp; src/compiler/codegen_jump.cpp; src/compiler/codegen_stmt.cpp
 last_checked: 2026-05-19
 applies_to: current repository facts and contributor-facing workflow
 ---
@@ -54,6 +54,7 @@ This file is the repository's single source of truth for externally visible proj
 ## Compiler Pipeline Status
 
 - `ExprDesc` and `ExprKind` have been removed from production compiler sources.
+- `CodeGenerator` keeps its public API in `src/compiler/codegen.hpp`, while its implementation is physically split across `codegen.cpp`, `codegen_binding.cpp`, `codegen_expr.cpp`, `codegen_jump.cpp`, and `codegen_stmt.cpp`.
 - Current bytecode-generation documentation should explain this pipeline:
 
 ```text

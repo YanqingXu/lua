@@ -16,6 +16,18 @@
     <ClCompile Include="src\compiler\codegen.cpp">
       <Filter>src\compiler</Filter>
     </ClCompile>
+    <ClCompile Include="src\compiler\codegen_binding.cpp">
+      <Filter>src\compiler</Filter>
+    </ClCompile>
+    <ClCompile Include="src\compiler\codegen_expr.cpp">
+      <Filter>src\compiler</Filter>
+    </ClCompile>
+    <ClCompile Include="src\compiler\codegen_jump.cpp">
+      <Filter>src\compiler</Filter>
+    </ClCompile>
+    <ClCompile Include="src\compiler\codegen_stmt.cpp">
+      <Filter>src\compiler</Filter>
+    </ClCompile>
     <ClCompile Include="src\core\function.cpp">
       <Filter>src\core</Filter>
     </ClCompile>

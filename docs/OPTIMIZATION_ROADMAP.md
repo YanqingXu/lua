@@ -46,7 +46,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_quality_gate.ps1
 | 中 | EngineContext / RuntimeServices | 已完成 | 已引入显式 RuntimeServices，并迁移入口层、CodeGenerator、Parser/VM 兼容重载 |
 | 中 | 教学导航 | 已完成 | 已新增 START_HERE、术语表和 examples，并扩展 walkthrough 索引 |
 | 低 | CMake + CTest | 已完成 | 已新增 secondary CMake/CTest 路径，不替代 VS/MSBuild 主路径 |
-| 长期 | 拆分 CodeGenerator / VM / Parser | 待开始 | 等边界、测试和入口快修完成后再启动 |
+| 长期 | 拆分 CodeGenerator / VM / Parser | 进行中 | 8A CodeGenerator 物理拆分已完成；下一步做 8B 状态收口 |
 
 ## 已完成优化
 
@@ -593,11 +593,44 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_cmake_smoke.ps1
 - CMake configure/build 通过。
 - CTest 通过 5 个测试：`lua_test` 和 4 个 examples smoke。
 
-## 下一步推荐任务：深拆大型模块
+## 已完成任务：CodeGenerator 物理拆分
+
+### 任务 8A：CodeGenerator 物理拆分
+
+**目标：** 先降低 `src/compiler/codegen.cpp` 的单文件体积，不改变 `CodeGenerator` 的 public API、字节码语义或测试行为。
+
+已完成：
+
+- [x] `src/compiler/codegen.cpp` 保留构造、`generate()`、基础指令发射、寄存器、常量和局部变量管理。
+- [x] 新增 `src/compiler/codegen_binding.cpp`，承载 upvalue 查找、`resolve()`、`symbolToValue()` 和 `symbolToLValue()`。
+- [x] 新增 `src/compiler/codegen_expr.cpp`，承载值通道、条件通道、复合表达式、调用/vararg 和 LValue/store。
+- [x] 新增 `src/compiler/codegen_jump.cpp`，承载跳转链、比较跳转和条件物化。
+- [x] 新增 `src/compiler/codegen_stmt.cpp`，承载语句 lowering、函数编译、代码块管理和 debug metadata。
+- [x] 将新文件加入 `lua.vcxproj`、`lua.vcxproj.filters` 和 `CMakeLists.txt`。
+- [x] 在 `lua.vcxproj` 中补齐 `/utf-8`，与 CMake 的 MSVC 编译选项对齐，避免拆分后的 UTF-8 源文件产生 C4819 编码警告。
+
+已使用的验证命令：
+
+```powershell
+MSBuild.exe lua_test.vcxproj /p:Configuration=Debug /p:Platform=x64 /m
+bin\lua_test.exe --filter "Symbol Binding"
+bin\lua_test.exe --filter "ValueResult Pipeline"
+bin\lua_test.exe --filter "Call Pipeline"
+bin\lua_test.exe --filter "Function Codegen"
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_cmake_smoke.ps1
+```
+
+验收结果：
+
+- MSBuild x64 Debug 通过，0 警告 / 0 错误。
+- CMake/CTest secondary 路径通过 5 个测试。
+- 定向测试覆盖符号绑定、值通道、调用多返回值和函数生成路径。
+
+## 下一步推荐任务：CodeGenerator 状态收口
 
 建议从这里继续。
 
-### 任务 8：深拆大型模块
+### 任务 8B：CodeGenerator 状态收口
 
 **目标：** 在显式边界已经建立后，拆分超大模块。
 
@@ -610,9 +643,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_cmake_smoke.ps1
 
 建议顺序：
 
-1. `CodeGenerator`：binder、表达式 lowering、语句 lowering、bytecode builder、function compiler。
-2. `VM`：dispatch、call/return、table ops、算术/元方法慢路径、trace。
-3. `Parser`：token 工具、语句解析、表达式解析、表/函数解析、错误恢复。
+1. 在不改变 `CodeGenerator` public API 的前提下，评估 `CodegenState` 或 `BytecodeBuilder`。
+2. 收拢 `proto_`、`pc_`、`currentLine_`、`regs_`、`locals_`、`blocks_`、`upvalueCtx_` 的访问方式。
+3. 先让 8A 新增的物理分片通过更窄的 state/builder API 协作，再考虑拆 VM 和 Parser。
 
 共享文件读取、CLI 抽取、标准库 catalog 和 EngineContext 基础已经完成；深拆大型模块可以在教学导航和构建路径更稳定后启动。
 
