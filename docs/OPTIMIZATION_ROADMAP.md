@@ -1,7 +1,7 @@
 ---
 status: current
 verified_against: docs/deep-research-report.md; docs/PROJECT_STATUS.md; docs/DEVELOPMENT_GUIDE.md; tools/check_doc_drift.ps1; tools/run_quality_gate.ps1
-last_checked: 2026-05-18
+last_checked: 2026-05-19
 applies_to: 仓库优化路线图与下次续接检查清单
 ---
 
@@ -41,8 +41,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_quality_gate.ps1
 |---|---|---|---|
 | 最高 | 事实对齐 | 已完成 | 当前构建、测试和编译器管线事实已经集中记录并加入漂移检查 |
 | 最高 | 质量门禁 | 已完成 | 已有格式化/静态检查配置、本地门禁脚本和 CI 烟测工作流 |
-| 高 | 可读性快修 | 进行中 | 共享文件读取和 CLI 解析抽取已完成，下一步建议做标准库表驱动注册 |
-| 高 | 测试 runner 报告与教学索引 | 待开始 | 增加机器可读输出，并把关键测试组织成 walkthrough 索引 |
+| 高 | 可读性快修 | 已完成 | 共享文件读取、CLI 解析抽取和标准库表驱动注册已完成 |
+| 高 | 测试 runner 报告与教学索引 | 待开始 | 下一步建议增加机器可读输出，并把关键测试组织成 walkthrough 索引 |
 | 中 | EngineContext / RuntimeServices | 待开始 | 阻断入口层直接访问单例运行时服务 |
 | 中 | 教学导航 | 待开始 | 新增 START_HERE、术语表、walkthroughs、examples |
 | 低 | CMake + CTest | 待开始 | 等 MSBuild 事实和测试报告稳定后再补跨平台路径 |
@@ -205,9 +205,50 @@ MSBuild.exe lua_bytecode.vcxproj /m /p:Configuration=Debug /p:Platform=x64
 - `bin\lua_test.exe` 运行 419 个注册测试 / 1658 个结果 / 0 失败。
 - `lua_app.vcxproj` 和 `lua_bytecode.vcxproj` 构建通过。
 
-## 下一步推荐任务：可读性快修
+### 3C. 标准库表驱动注册
 
-建议从这里继续。这个阶段风险较低，因为主要是删除重复逻辑、澄清入口职责，不改变 VM 或编译器语义。
+完成日期：2026-05-19
+
+创建的文件：
+
+- `src/lib/lib_catalog.hpp`
+- `src/lib/lib_catalog.cpp`
+- `tests/unit/stdlib/test_lib_catalog.cpp`
+
+更新的文件：
+
+- `src/lib/lib_manager.cpp`
+- `tests/unit/framework/test_runner.cpp`
+- `lua.vcxproj`
+- `lua.vcxproj.filters`
+- `lua_test.vcxproj`
+- `lua_test.vcxproj.filters`
+
+完成效果：
+
+- 标准库默认装配顺序集中到 `Lua::getStandardLibraryCatalog()` 返回的 `{id, name, open}` 表。
+- `StandardLibrary::openAll()` 改为遍历 catalog，不再手写逐个标准库调用。
+- `StandardLibrary::openBase()`、`openMath()` 等单库入口保留，但通过 catalog 查找执行，避免包装逻辑分叉。
+- 新增测试同时覆盖 catalog 顺序、open 函数存在性、`openAll()` 注册全局函数/库表，以及 `package.loaded` 中的标准库缓存。
+
+已使用的验证命令：
+
+```powershell
+bin\lua_test.exe
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_quality_gate.ps1
+MSBuild.exe lua_app.vcxproj /m /p:Configuration=Debug /p:Platform=x64
+MSBuild.exe lua_bytecode.vcxproj /m /p:Configuration=Debug /p:Platform=x64
+```
+
+期望状态：
+
+- 质量门禁通过。
+- `bin\lua_test.exe` 运行 421 个注册测试 / 1717 个结果 / 0 失败。
+- `lua_app.vcxproj` 和 `lua_bytecode.vcxproj` 构建通过。
+
+## 已完成快修任务
+
+这个阶段风险较低，主要删除重复逻辑、澄清入口职责，不改变 VM 或编译器语义；当前 3A、3B、3C 均已完成。
 
 ### 任务 3A：共享文件读取
 
@@ -301,15 +342,19 @@ AppOptions parseArgs(int argc, char** argv);
 - 修改：`src/lib/lib_manager.cpp`
 - 可选创建：`src/lib/lib_catalog.hpp`
 - 可选创建：`src/lib/lib_catalog.cpp`
-- 如果创建新文件，需要同步修改项目和 filters 文件。
+- 创建：`tests/unit/stdlib/test_lib_catalog.cpp`
+- 修改：`lua.vcxproj`
+- 修改：`lua.vcxproj.filters`
+- 修改：`lua_test.vcxproj`
+- 修改：`lua_test.vcxproj.filters`
 
 **实施步骤：**
 
-- [ ] 增加一个测试或烟测断言，确认 `openAll()` 仍注册预期的库表和函数。
-- [ ] 定义 `{id, name, openFn}` catalog。
-- [ ] 将 `openAll()` 改为遍历 catalog。
-- [ ] 保留 `openBase()`、`openMath()` 等单库入口，供测试和按需加载使用。
-- [ ] 运行 `tools\run_quality_gate.ps1`。
+- [x] 增加一个测试或烟测断言，确认 `openAll()` 仍注册预期的库表和函数。
+- [x] 定义 `{id, name, openFn}` catalog。
+- [x] 将 `openAll()` 改为遍历 catalog。
+- [x] 保留 `openBase()`、`openMath()` 等单库入口，供测试和按需加载使用。
+- [x] 运行 `tools\run_quality_gate.ps1`。
 
 **验收标准：**
 
@@ -317,7 +362,7 @@ AppOptions parseArgs(int argc, char** argv);
 - 现有测试通过。
 - 以后新增标准库时，只需增加一条 catalog 记录，不需要复制一组包装逻辑。
 
-## 后续工作
+## 下一步推荐任务：测试 runner 报告与教学索引
 
 ### 任务 4：测试 runner 报告与教学索引
 

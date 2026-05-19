@@ -27,6 +27,7 @@ extern void registerCodegenConditionTests();
 extern void registerCodegenMultiRetTests();
 extern void registerCodegenResultTypeTests();
 extern void registerMathLibTests();
+extern void registerLibCatalogTests();
 extern void registerBaselibTests();
 extern void registerStringLibTests();
 extern void registerTableLibTests();
@@ -115,6 +116,7 @@ int main() {
     registerCodegenMultiRetTests();
     registerCodegenResultTypeTests();
     registerSyntaxSugarTests();
+    registerLibCatalogTests();
     registerMathLibTests();
     registerBaselibTests();
     registerStringLibTests();

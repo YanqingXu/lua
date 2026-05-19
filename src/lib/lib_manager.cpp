@@ -1,17 +1,30 @@
 ﻿#include "lib/lib_manager.hpp"
 
-#include "lib/baselib.hpp"
-#include "lib/mathlib.hpp"
-#include "lib/iolib.hpp"
-#include "lib/stringlib.hpp"
-#include "lib/tablelib.hpp"
-#include "lib/oslib.hpp"
-#include "lib/coroutinelib.hpp"
-#include "lib/debuglib.hpp"
-#include "lib/packagelib.hpp"
+#include "lib/lib_catalog.hpp"
 #include "vm/lua_state.hpp"
 
 namespace Lua {
+
+namespace {
+
+void openCatalogEntry(LuaState* L, const LibCatalogEntry& entry) {
+    if (!L || !entry.open) {
+        return;
+    }
+
+    entry.open(L);
+}
+
+void openCatalogLibrary(LuaState* L, StrView id) {
+    const LibCatalogEntry* entry = findStandardLibrary(id);
+    if (!entry) {
+        return;
+    }
+
+    openCatalogEntry(L, *entry);
+}
+
+} // namespace
 
 void StandardLibrary::openModule(LuaState* L, LibModule& module) {
     if (!L) {
@@ -23,67 +36,35 @@ void StandardLibrary::openModule(LuaState* L, LibModule& module) {
 }
 
 void StandardLibrary::openBase(LuaState* L) {
-    if (!L) {
-        return;
-    }
-
-    openBaseLib(L);
+    openCatalogLibrary(L, "base");
 }
 
 void StandardLibrary::openMath(LuaState* L) {
-    if (!L) {
-        return;
-    }
-
-    openMathLib(L);
+    openCatalogLibrary(L, "math");
 }
 
 void StandardLibrary::openIO(LuaState* L) {
-    if (!L) {
-        return;
-    }
-
-    openIOLib(L);
+    openCatalogLibrary(L, "io");
 }
 
 void StandardLibrary::openString(LuaState* L) {
-    if (!L) {
-        return;
-    }
-
-    openStringLib(L);
+    openCatalogLibrary(L, "string");
 }
 
 void StandardLibrary::openTable(LuaState* L) {
-    if (!L) {
-        return;
-    }
-
-    openTableLib(L);
+    openCatalogLibrary(L, "table");
 }
 
 void StandardLibrary::openOS(LuaState* L) {
-    if (!L) {
-        return;
-    }
-
-    openOSLib(L);
+    openCatalogLibrary(L, "os");
 }
 
 void StandardLibrary::openCoroutine(LuaState* L) {
-    if (!L) {
-        return;
-    }
-
-    openCoroutineLib(L);
+    openCatalogLibrary(L, "coroutine");
 }
 
 void StandardLibrary::openDebug(LuaState* L) {
-    if (!L) {
-        return;
-    }
-
-    openDebugLib(L);
+    openCatalogLibrary(L, "debug");
 }
 
 void StandardLibrary::openAll(LuaState* L) {
@@ -91,23 +72,13 @@ void StandardLibrary::openAll(LuaState* L) {
         return;
     }
 
-    openBase(L);
-    openMath(L);
-    openIO(L);
-    openString(L);
-    openTable(L);
-    openOS(L);
-    openCoroutine(L);
-    openDebug(L);
-    openPackage(L);
+    for (const LibCatalogEntry& entry : getStandardLibraryCatalog()) {
+        openCatalogEntry(L, entry);
+    }
 }
 
 void StandardLibrary::openPackage(LuaState* L) {
-    if (!L) {
-        return;
-    }
-
-    openPackageLib(L);
+    openCatalogLibrary(L, "package");
 }
 
 } // namespace Lua

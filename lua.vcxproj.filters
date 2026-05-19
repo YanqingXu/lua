@@ -109,6 +109,9 @@
     <ClCompile Include="src\lib\packagelib.cpp">
       <Filter>src\lib</Filter>
     </ClCompile>
+    <ClCompile Include="src\lib\lib_catalog.cpp">
+      <Filter>src\lib</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\compiler\ast.hpp">
@@ -256,6 +259,9 @@
       <Filter>src\common</Filter>
     </ClInclude>
     <ClInclude Include="src\lib\packagelib.hpp">
+      <Filter>src\lib</Filter>
+    </ClInclude>
+    <ClInclude Include="src\lib\lib_catalog.hpp">
       <Filter>src\lib</Filter>
     </ClInclude>
   </ItemGroup>

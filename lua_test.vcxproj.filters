@@ -173,6 +173,9 @@
     <ClCompile Include="tests\unit\stdlib\test_debuglib.cpp">
       <Filter>tests\stdlib</Filter>
     </ClCompile>
+    <ClCompile Include="tests\unit\stdlib\test_lib_catalog.cpp">
+      <Filter>tests\stdlib</Filter>
+    </ClCompile>
     <ClCompile Include="tests\unit\stdlib\test_mathlib.cpp">
       <Filter>tests\stdlib</Filter>
     </ClCompile>
