@@ -64,6 +64,16 @@ std::string getGlobalStr(LuaState* L, const char* name) {
     return v.isString() ? std::string(v.asString()->c_str()) : "";
 }
 
+/// Helper: get global string including embedded NUL bytes
+std::string getGlobalBytes(LuaState* L, const char* name) {
+    Value v = L->getGlobal(name);
+    if (!v.isString()) {
+        return "";
+    }
+    GCString* str = v.asString();
+    return std::string(str->c_str(), str->getLength());
+}
+
 /// Helper: create state with all standard libraries
 LuaState* createFullState() {
     LuaState* L = LuaState::newState();
@@ -757,6 +767,139 @@ void testStringGsubPattern(TestSuite& suite) {
     delete L;
 }
 
+void testStringGsubTableReplacement(TestSuite& suite) {
+    LuaState* L = createFullState();
+
+    bool ok = runLua(L, R"lua(
+        local r, n = string.gsub("a b c d", "(%a)", { a = "A", b = false, c = nil, d = "D" })
+        gResult = r
+        gCount = n
+    )lua");
+    ASSERT_TRUE(suite, ok, "gsub table replacement runs");
+    ASSERT_EQ(suite, std::string("A b c D"), getGlobalStr(L, "gResult"),
+              "gsub table uses first capture as lookup key and preserves false/nil matches");
+    ASSERT_EQ(suite, 4.0, getGlobalNumber(L, "gCount"),
+              "gsub table replacement counts all matches");
+
+    ok = runLua(L, R"lua(
+        local r = string.gsub("foo bar", "%a+", { foo = "FOO" })
+        gResult2 = r
+    )lua");
+    ASSERT_TRUE(suite, ok, "gsub table replacement without captures runs");
+    ASSERT_EQ(suite, std::string("FOO bar"), getGlobalStr(L, "gResult2"),
+              "gsub table uses whole match when there are no captures");
+
+    ok = runLua(L, R"lua(
+        local r = string.gsub("ab", "(.)", { a = "%1", b = 7 })
+        gResult3 = r
+    )lua");
+    ASSERT_TRUE(suite, ok, "gsub table raw replacement values run");
+    ASSERT_EQ(suite, std::string("%17"), getGlobalStr(L, "gResult3"),
+              "gsub table replacement values are raw and numbers stringify");
+
+    delete L;
+}
+
+void testStringGsubFunctionReplacement(TestSuite& suite) {
+    LuaState* L = createFullState();
+
+    bool ok = runLua(L, R"lua(
+        local calls = ""
+        local r, n = string.gsub("x=1 y=2 z=3", "(%a)=(%d)", function(k, v)
+            calls = calls .. k .. v
+            if k == "y" then return false end
+            return k .. ":" .. v
+        end)
+        gResult = r
+        gCalls = calls
+        gCount = n
+    )lua");
+    ASSERT_TRUE(suite, ok, "gsub function replacement runs");
+    ASSERT_EQ(suite, std::string("x:1 y=2 z:3"), getGlobalStr(L, "gResult"),
+              "gsub function uses captures and preserves false return matches");
+    ASSERT_EQ(suite, std::string("x1y2z3"), getGlobalStr(L, "gCalls"),
+              "gsub function receives all captures");
+    ASSERT_EQ(suite, 3.0, getGlobalNumber(L, "gCount"),
+              "gsub function replacement counts all matches");
+
+    ok = runLua(L, R"lua(
+        local r = string.gsub("abc", ".", function(ch) return "[" .. ch .. "]" end)
+        gResult2 = r
+    )lua");
+    ASSERT_TRUE(suite, ok, "gsub function replacement without captures runs");
+    ASSERT_EQ(suite, std::string("[a][b][c]"), getGlobalStr(L, "gResult2"),
+              "gsub function receives whole match when there are no captures");
+
+    ok = runLua(L, R"lua(
+        local r = string.gsub("ab", "(.)", function() return "%1" end)
+        gResult3 = r
+    )lua");
+    ASSERT_TRUE(suite, ok, "gsub function raw replacement values run");
+    ASSERT_EQ(suite, std::string("%1%1"), getGlobalStr(L, "gResult3"),
+              "gsub function replacement strings are not capture-expanded again");
+
+    delete L;
+}
+
+void testStringBinarySafety(TestSuite& suite) {
+    LuaState* L = createFullState();
+
+    bool ok = runLua(L, R"lua(
+        local s = string.char(65, 0, 66, 0, 67)
+        gLen = string.len(s)
+        gSub = string.sub(s, 1, 5)
+        local r, n = string.gsub(s, "%z", "Z")
+        gGsub = r
+        gCount = n
+        local fs, fe = string.find(s, string.char(0, 66), 1, true)
+        gFindStart = fs
+        gFindEnd = fe
+    )lua");
+    ASSERT_TRUE(suite, ok, "binary-safe string operations run");
+    ASSERT_EQ(suite, 5.0, getGlobalNumber(L, "gLen"),
+              "string.len counts embedded NUL bytes");
+    ASSERT_EQ(suite, std::string("A\0B\0C", 5), getGlobalBytes(L, "gSub"),
+              "string.sub preserves embedded NUL bytes");
+    ASSERT_EQ(suite, std::string("AZBZC"), getGlobalBytes(L, "gGsub"),
+              "string.gsub can replace embedded NUL bytes");
+    ASSERT_EQ(suite, 2.0, getGlobalNumber(L, "gCount"),
+              "string.gsub counts NUL replacements");
+    ASSERT_EQ(suite, 2.0, getGlobalNumber(L, "gFindStart"),
+              "plain string.find can locate embedded NUL sequence start");
+    ASSERT_EQ(suite, 3.0, getGlobalNumber(L, "gFindEnd"),
+              "plain string.find can locate embedded NUL sequence end");
+
+    delete L;
+}
+
+void testStringDump(TestSuite& suite) {
+    LuaState* L = createFullState();
+
+    bool ok = runLua(L, R"lua(
+        local dumped = string.dump(function(a) return a + 1 end)
+        gDumpType = type(dumped)
+        gDumpLen = string.len(dumped)
+        gDumpPrefix = string.sub(dumped, 1, 4)
+    )lua");
+    ASSERT_TRUE(suite, ok, "string.dump returns for Lua function");
+    ASSERT_EQ(suite, std::string("string"), getGlobalStr(L, "gDumpType"),
+              "string.dump returns a string");
+    ASSERT_TRUE(suite, getGlobalNumber(L, "gDumpLen") > 12.0,
+                "string.dump returns a non-trivial binary chunk");
+    ASSERT_EQ(suite, std::string("\x1bLua", 4), getGlobalBytes(L, "gDumpPrefix"),
+              "string.dump chunk starts with Lua signature");
+
+    ok = runLua(L, R"lua(
+        local ok = pcall(function() return string.dump(print) end)
+        gDumpCFunctionFailed = ok and 0 or 1
+    )lua");
+    ASSERT_TRUE(suite, ok, "string.dump C function error check runs");
+    ASSERT_EQ(suite, 1.0, getGlobalNumber(L, "gDumpCFunctionFailed"),
+              "string.dump rejects C functions");
+
+    delete L;
+}
+
 // =====================================================================
 // Test Registration
 // =====================================================================
@@ -780,5 +923,9 @@ void registerStringLibTests() {
     registry.registerTest(kSuiteName, "string.find pattern", testStringFindPattern);
     registry.registerTest(kSuiteName, "string.match pattern", testStringMatchPattern);
     registry.registerTest(kSuiteName, "string.gsub pattern", testStringGsubPattern);
+    registry.registerTest(kSuiteName, "string.gsub table replacement", testStringGsubTableReplacement);
+    registry.registerTest(kSuiteName, "string.gsub function replacement", testStringGsubFunctionReplacement);
+    registry.registerTest(kSuiteName, "string binary safety", testStringBinarySafety);
+    registry.registerTest(kSuiteName, "string.dump", testStringDump);
 }
 
