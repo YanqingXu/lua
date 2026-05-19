@@ -8,26 +8,26 @@
 namespace Lua {
 
 i32 CodeGenerator::findUpvalue(const Str& name) {
-    return upvalueCtx_.find(name);
+    return state_.upvalues.find(name);
 }
 
 i32 CodeGenerator::addUpvalue(const Str& name, bool inStack, i32 index) {
-    return upvalueCtx_.add(name, inStack, index);
+    return state_.upvalues.add(name, inStack, index);
 }
 
 i32 CodeGenerator::resolveUpvalue(const Str& name) {
-    if (parent_ == nullptr) {
+    if (state_.parent == nullptr) {
         return -1;
     }
 
     // 优先在直接父函数的局部变量中查找
-    i32 local = parent_->findLocalVar(name);
+    i32 local = state_.parent->findLocalVar(name);
     if (local >= 0) {
         return addUpvalue(name, true, local);
     }
 
     // 否则递归在更外层查找，并在父函数中建立中转upvalue
-    i32 parentUp = parent_->resolveUpvalue(name);
+    i32 parentUp = state_.parent->resolveUpvalue(name);
     if (parentUp >= 0) {
         return addUpvalue(name, false, parentUp);
     }

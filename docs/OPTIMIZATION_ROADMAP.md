@@ -46,7 +46,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_quality_gate.ps1
 | 中 | EngineContext / RuntimeServices | 已完成 | 已引入显式 RuntimeServices，并迁移入口层、CodeGenerator、Parser/VM 兼容重载 |
 | 中 | 教学导航 | 已完成 | 已新增 START_HERE、术语表和 examples，并扩展 walkthrough 索引 |
 | 低 | CMake + CTest | 已完成 | 已新增 secondary CMake/CTest 路径，不替代 VS/MSBuild 主路径 |
-| 长期 | 拆分 CodeGenerator / VM / Parser | 进行中 | 8A CodeGenerator 物理拆分已完成；下一步做 8B 状态收口 |
+| 长期 | 拆分 CodeGenerator / VM / Parser | 进行中 | 8A CodeGenerator 物理拆分与 8B 状态收口已完成；下一步做 8C 发射边界收口 |
 
 ## 已完成优化
 
@@ -593,7 +593,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_cmake_smoke.ps1
 - CMake configure/build 通过。
 - CTest 通过 5 个测试：`lua_test` 和 4 个 examples smoke。
 
-## 已完成任务：CodeGenerator 物理拆分
+## 已完成任务：CodeGenerator 模块拆分与状态收口
 
 ### 任务 8A：CodeGenerator 物理拆分
 
@@ -626,13 +626,44 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_cmake_smoke.ps1
 - CMake/CTest secondary 路径通过 5 个测试。
 - 定向测试覆盖符号绑定、值通道、调用多返回值和函数生成路径。
 
-## 下一步推荐任务：CodeGenerator 状态收口
+### 任务 8B：CodeGenerator 状态收口
+
+**目标：** 在 8A 的物理分片基础上，先把跨分片共享的可变状态集中到显式对象中，避免 `CodeGenerator` 顶层继续散落运行时服务、当前函数原型、PC、行号、寄存器、局部变量、block 和 upvalue 状态。
+
+已完成：
+
+- [x] 新增 `src/compiler/codegen_state.hpp`，引入 `CodegenState` 作为 `CodeGenerator` 实现分片共享的状态边界。
+- [x] 将 `services_`、`pool_`、`parent_`、`proto_`、`pc_`、`currentLine_`、`regs_`、`locals_`、`blocks_`、`upvalueCtx_` 收口到 `state_`。
+- [x] 新增 `CodegenState::resetForProto()`，统一主函数和子函数编译的 Proto 初始化、寄存器绑定、source、vararg 和短生命周期状态清理。
+- [x] 新增 `tests/unit/compiler/test_codegen_state.cpp`，锁定 `resetForProto()` 对临时状态和 Proto 初始字段的行为。
+- [x] 将新增测试加入 `CMakeLists.txt`、`lua_test.vcxproj` 和 `lua_test.vcxproj.filters`，将新增头文件加入 `lua.vcxproj` 和 `lua.vcxproj.filters`。
+- [x] 同步更新 `docs/PROJECT_STATUS.md`、README 测试徽章和文档漂移检查计数。
+
+已使用的验证命令：
+
+```powershell
+MSBuild.exe lua_test.vcxproj /p:Configuration=Debug /p:Platform=x64 /m
+bin\lua_test.exe --filter "Codegen State"
+bin\lua_test.exe --filter "Symbol Binding"
+bin\lua_test.exe --filter "ValueResult Pipeline"
+bin\lua_test.exe --filter "Call Pipeline"
+bin\lua_test.exe --filter "Function Codegen"
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_quality_gate.ps1
+```
+
+验收结果：
+
+- 默认 `bin\lua_test.exe` 运行 425 个注册测试 / 1738 个结果 / 0 失败。
+- 状态边界重构未改变 `CodeGenerator` public API、字节码语义或 CLI 行为。
+- 8A 新增的实现分片现在通过 `state_` 共享上下文，后续可继续把发射逻辑收口到更窄的 builder API。
+
+## 下一步推荐任务：CodeGenerator 发射边界收口
 
 建议从这里继续。
 
-### 任务 8B：CodeGenerator 状态收口
+### 任务 8C：CodeGenerator 发射边界收口
 
-**目标：** 在显式边界已经建立后，拆分超大模块。
+**目标：** 在 `CodegenState` 已经集中可变状态后，进一步把字节码发射、常量写入、line info 和 Proto 写操作收口到更窄的 `BytecodeBuilder` / emission API，为后续拆 VM 和 Parser 前的编译器边界继续降耦。
 
 启动前置条件：
 
@@ -643,9 +674,10 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_cmake_smoke.ps1
 
 建议顺序：
 
-1. 在不改变 `CodeGenerator` public API 的前提下，评估 `CodegenState` 或 `BytecodeBuilder`。
-2. 收拢 `proto_`、`pc_`、`currentLine_`、`regs_`、`locals_`、`blocks_`、`upvalueCtx_` 的访问方式。
-3. 先让 8A 新增的物理分片通过更窄的 state/builder API 协作，再考虑拆 VM 和 Parser。
+1. 在不改变 `CodeGenerator` public API 的前提下，评估 `BytecodeBuilder` 或 `CodegenEmitter`。
+2. 优先收拢 `codeABC()`、`codeABx()`、`codeAsBx()`、常量表写入、line info 和 `Proto::addInstruction()` 路径。
+3. 保持 `CodegenState` 作为共享上下文，逐步让表达式/语句 lowering 只依赖更窄的发射接口。
+4. 完成后再评估 VM dispatch 拆分或 Parser 解析阶段拆分。
 
 共享文件读取、CLI 抽取、标准库 catalog 和 EngineContext 基础已经完成；深拆大型模块可以在教学导航和构建路径更稳定后启动。
 

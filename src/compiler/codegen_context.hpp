@@ -33,8 +33,8 @@ struct LocalVar {
  *
  * 从 CodeGenerator 中提取的局部变量管理子系统。
  * 迁移说明 (PR-7):
- * - nactvar_  现在是 locals_.nactvar_（公开字段）
- * - localVars_ 现在是 locals_.localVars_（公开字段）
+ * - nactvar_  现在由 CodegenState::locals.nactvar_ 持有（公开字段）
+ * - localVars_ 现在由 CodegenState::locals.localVars_ 持有（公开字段）
  */
 class LocalVarScope {
 public:
@@ -89,10 +89,10 @@ struct UpvalueCapture {
  * @brief Upvalue 上下文
  *
  * 管理当前函数捕获的 upvalue 列表。
- * parent_ 指针保留在 CodeGenerator 中用于跨函数 upvalue 解析。
+ * parent 指针保留在 CodegenState 中用于跨函数 upvalue 解析。
  *
  * 迁移说明 (PR-7):
- * - upvalues_ 现在是 upvalueCtx_.upvalues_（公开字段）
+ * - upvalues_ 现在由 CodegenState::upvalues.upvalues_ 持有（公开字段）
  */
 class UpvalueContext {
 public:
@@ -145,8 +145,8 @@ struct BlockInfo {
  * 从 CodeGenerator 中提取的代码块嵌套和跳转链管理子系统。
  *
  * 迁移说明 (PR-7):
- * - currentBlock_ 现在是 blocks_.currentBlock_（公开字段）
- * - jpc_          现在是 blocks_.jpc_（公开字段）
+ * - currentBlock_ 现在由 CodegenState::blocks.currentBlock_ 持有（公开字段）
+ * - jpc_          现在由 CodegenState::blocks.jpc_ 持有（公开字段）
  */
 class BlockManager {
 public:

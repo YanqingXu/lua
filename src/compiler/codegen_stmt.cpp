@@ -22,15 +22,15 @@ static i32 getLastLineOfBlock(const Vec<StmtPtr>& body) {
 // =====================================================================
 
 void CodeGenerator::statement(const Stmt& s) {
-    i32 previousLine = currentLine_;
+    i32 previousLine = state_.currentLine;
     i32 stmtLine = s.getLine();
     if (stmtLine > 0) {
-        currentLine_ = stmtLine;
+        state_.currentLine = stmtLine;
     }
     std::visit([this](auto&& arg) {
         emitStmt(arg);
     }, s.variant);
-    currentLine_ = previousLine;
+    state_.currentLine = previousLine;
 }
 
 void CodeGenerator::emitStmt(const EmptyStmt&) {
@@ -71,9 +71,9 @@ void CodeGenerator::emitStmt(const AssignStmt& s) {
         }
         else if (std::holds_alternative<VarargExpr>(lastExpr.variant)) {
             CallResultInfo callResult = emitVarargExpr();
-            Instruction inst = proto_->getInstruction(callResult.instructionPc);
+            Instruction inst = state_.proto->getInstruction(callResult.instructionPc);
             SETARG_B(inst, wanted + 1);
-            proto_->setInstruction(callResult.instructionPc, inst);
+            state_.proto->setInstruction(callResult.instructionPc, inst);
             i32 valueBase = GETARG_A(inst);
 
             for (i32 j = 0; j < wanted; j++) {
@@ -107,29 +107,29 @@ void CodeGenerator::emitStmt(const LocalStmt& s) {
     i32 nvars = static_cast<i32>(s.names.size());
     i32 nexps = static_cast<i32>(s.values.size());
 
-    // ⭐ 关键修复：保存 locals_.nactvar_ 的初始值（第一个变量的寄存器索引）
-    i32 base = locals_.nactvar_;
+    // ⭐ 关键修复：保存 state_.locals.nactvar_ 的初始值（第一个变量的寄存器索引）
+    i32 base = state_.locals.nactvar_;
 
     //std::fprintf(stderr, "DEBUG LocalStmt: nvars=%d, nexps=%d, base=%d, freereg=%d\n",
-    //             nvars, nexps, base, regs_.current());
+    //             nvars, nexps, base, state_.regs.current());
 
     // 保存当前寄存器状态，表达式求值将从 base 开始分配寄存器
-    i32 savedFreereg = regs_.current();
+    i32 savedFreereg = state_.regs.current();
 
     // 将临时分配指针对齐到第一个局部变量槽位。
-    regs_.setFreeReg(base);
+    state_.regs.setFreeReg(base);
 
     // 为每个变量分配寄存器。
     for (i32 i = 0; i < nvars; i++) {
         addLocalVar(s.names[i]);
     }
 
-    //std::fprintf(stderr, "DEBUG LocalStmt: after addLocalVar, freereg=%d\n", regs_.current());
+    //std::fprintf(stderr, "DEBUG LocalStmt: after addLocalVar, freereg=%d\n", state_.regs.current());
 
     // 重置寄存器基址为 base，确保后续分配从 base 开始
-    regs_.setFreeReg(base);
+    state_.regs.setFreeReg(base);
 
-    //std::fprintf(stderr, "DEBUG LocalStmt: reset freereg to %d\n", regs_.current());
+    //std::fprintf(stderr, "DEBUG LocalStmt: reset freereg to %d\n", state_.regs.current());
 
     // 生成初始化代码
     bool allVarsInitialized = false;  // 标记是否所有变量都已初始化
@@ -170,10 +170,10 @@ void CodeGenerator::emitStmt(const LocalStmt& s) {
             }
             else if (std::holds_alternative<VarargExpr>(lastExpr.variant)) {
                 CallResultInfo callResult = emitVarargExpr();
-                Instruction inst = proto_->getInstruction(callResult.instructionPc);
+                Instruction inst = state_.proto->getInstruction(callResult.instructionPc);
                 SETARG_A(inst, targetReg);
                 SETARG_B(inst, wanted + 1);
-                proto_->setInstruction(callResult.instructionPc, inst);
+                state_.proto->setInstruction(callResult.instructionPc, inst);
                 allVarsInitialized = true;
             }
             else {
@@ -189,11 +189,11 @@ void CodeGenerator::emitStmt(const LocalStmt& s) {
     // ⭐ 关键修复：如果最后一个表达式是多返回值表达式（Vararg/Call），
     // 它已经初始化了所有剩余变量，不需要再生成 LOADNIL
     if (nexps < nvars && !allVarsInitialized) {
-        codeABC(OpCode::LOADNIL, base + nexps, base + nvars - 1, 0);  // ⭐ 使用 base 而不是 locals_.nactvar_
+        codeABC(OpCode::LOADNIL, base + nexps, base + nvars - 1, 0);  // ⭐ 使用 base 而不是 state_.locals.nactvar_
     }
 
     // 恢复寄存器状态
-    regs_.restore(savedFreereg);
+    state_.regs.restore(savedFreereg);
 
     adjustLocalVars(nvars);
 }
@@ -204,9 +204,9 @@ void CodeGenerator::emitStmt(const ReturnStmt& s) {
     if (nret == 0) {
         codeABC(OpCode::RETURN, 0, 1, 0);
     } else {
-        i32 base = locals_.nactvar_;
-        i32 savedFreereg = regs_.current();
-        regs_.setFreeReg(base);
+        i32 base = state_.locals.nactvar_;
+        i32 savedFreereg = state_.regs.current();
+        state_.regs.setFreeReg(base);
         checkStack(nret);
 
         // 处理前 nret-1 个值（每个固定为单值）
@@ -217,7 +217,7 @@ void CodeGenerator::emitStmt(const ReturnStmt& s) {
         }
 
         // 确保下一个空闲寄存器指向最后一个值应落的位置。
-        regs_.setFreeReg(base + (nret - 1));
+        state_.regs.setFreeReg(base + (nret - 1));
 
         // 处理最后一个值 — 可能是 Call/Vararg 开放多返回
         const Expr& lastExpr = *s.values[nret - 1];
@@ -229,32 +229,32 @@ void CodeGenerator::emitStmt(const ReturnStmt& s) {
             // 如果 callBase 恰好等于 base + (nret - 1)，完美对齐
             if (info.baseReg == base + (nret - 1)) {
                 if (nret == 1) {
-                    Instruction inst = proto_->getInstruction(info.instructionPc);
+                    Instruction inst = state_.proto->getInstruction(info.instructionPc);
                     inst = CREATE_ABC(OpCode::TAILCALL, GETARG_A(inst), GETARG_B(inst), 0);
-                    proto_->setInstruction(info.instructionPc, inst);
+                    state_.proto->setInstruction(info.instructionPc, inst);
                 }
                 codeABC(OpCode::RETURN, base, 0, 0);  // B=0 → 从 base 到栈顶
             } else {
                 // callBase 在更高位置（嵌套调用保护发生了搬移），
                 // 无法 MOVE multret，退化为单值
-                Instruction inst = proto_->getInstruction(info.instructionPc);
+                Instruction inst = state_.proto->getInstruction(info.instructionPc);
                 SETARG_C(inst, 2);  // 恢复为单值 C=2
-                proto_->setInstruction(info.instructionPc, inst);
+                state_.proto->setInstruction(info.instructionPc, inst);
                 codeABC(OpCode::MOVE, base + (nret - 1), info.baseReg, 0);
                 codeABC(OpCode::RETURN, base, nret + 1, 0);
             }
-            regs_.restore(savedFreereg);
+            state_.regs.restore(savedFreereg);
             return;
         }
         else if (std::holds_alternative<VarargExpr>(lastExpr.variant)) {
             // return ..., ... — 保持 multret 传播
             CallResultInfo info = emitVarargExpr();
-            Instruction inst = proto_->getInstruction(info.instructionPc);
+            Instruction inst = state_.proto->getInstruction(info.instructionPc);
             SETARG_A(inst, base + (nret - 1));
             SETARG_B(inst, 0);  // B=0 → 复制全部 vararg
-            proto_->setInstruction(info.instructionPc, inst);
+            state_.proto->setInstruction(info.instructionPc, inst);
             codeABC(OpCode::RETURN, base, 0, 0);  // B=0 → 返回到栈顶
-            regs_.restore(savedFreereg);
+            state_.regs.restore(savedFreereg);
             return;
         }
         else {
@@ -265,7 +265,7 @@ void CodeGenerator::emitStmt(const ReturnStmt& s) {
         }
 
         codeABC(OpCode::RETURN, base, nret + 1, 0);
-        regs_.restore(savedFreereg);
+        state_.regs.restore(savedFreereg);
     }
 }
 
@@ -347,12 +347,12 @@ void CodeGenerator::emitStmt(const CallStmt& s) {
     }
 
     // 语句级函数调用不会跨语句保留临时寄存器。
-    regs_.resetToLocals(locals_.nactvar_);
+    state_.regs.resetToLocals(state_.locals.nactvar_);
 }
 
 void CodeGenerator::emitStmt(const BreakStmt&) {
     // 查找最近的可 break 代码块
-    BlockInfo* bl = blocks_.currentBlock_;
+    BlockInfo* bl = state_.blocks.currentBlock_;
     while (bl && !bl->isbreakable) {
         bl = bl->previous;
     }
@@ -383,7 +383,7 @@ void CodeGenerator::emitStmt(const RepeatStmt& s) {
     enterBlock(true);  // isbreakable = true
 
     // 记录循环体前的局部变量数量
-    i32 body_nactvar = locals_.nactvar_;
+    i32 body_nactvar = state_.locals.nactvar_;
 
     // 生成循环体（不使用 block()，避免提前移除局部变量）
     for (const auto& stmt : s.body) {
@@ -409,31 +409,23 @@ Proto* CodeGenerator::compileFunction(const Vec<Str>& params, bool isVararg, con
                                      i32 linedefined, i32 lastlinedefined,
                                      Vec<UpvalueCapture>* outUpvalues) {
     // 使用独立子生成器编译子函数，保留父函数上下文以解析upvalue
-    CodeGenerator child(services_);
-    child.parent_ = this;
+    CodeGenerator child(state_.services);
+    child.state_.parent = this;
 
     Proto* newProto = new Proto();
-    services_.gc.registerObject(newProto);
+    state_.services.gc.registerObject(newProto);
     newProto->setNumParams(static_cast<u8>(params.size()));
     newProto->setVararg(isVararg);
     newProto->setLineDefined(linedefined);
     newProto->setLastLineDefined(lastlinedefined);
 
     // 继承父Proto的源文件名
-    if (proto_ != nullptr) {
-        newProto->setSource(proto_->getSource());
+    if (state_.proto != nullptr) {
+        newProto->setSource(state_.proto->getSource());
     }
 
-    child.proto_ = newProto;
-    child.regs_.bind(newProto);
-    child.regs_.setFreeReg(0);
-    child.locals_.nactvar_ = 0;
-    child.locals_.localVars_.clear();
-    child.upvalueCtx_.upvalues_.clear();
-    child.pc_ = 0;
-    child.blocks_.jpc_ = NO_JUMP;
-    child.blocks_.currentBlock_ = nullptr;
-    child.currentLine_ = linedefined;
+    child.state_.resetForProto(*newProto, isVararg);
+    child.state_.currentLine = linedefined;
 
     // 添加参数作为局部变量
     for (const Str& param : params) {
@@ -451,20 +443,20 @@ Proto* CodeGenerator::compileFunction(const Vec<Str>& params, bool isVararg, con
     }
 
     // 写入upvalue元信息（数量 + 名称）
-    newProto->setNumUpvalues(static_cast<u8>(child.upvalueCtx_.upvalues_.size()));
-    for (const UpvalueCapture& uv : child.upvalueCtx_.upvalues_) {
-        newProto->addUpvalueName(pool_->intern(uv.name));
+    newProto->setNumUpvalues(static_cast<u8>(child.state_.upvalues.upvalues_.size()));
+    for (const UpvalueCapture& uv : child.state_.upvalues.upvalues_) {
+        newProto->addUpvalueName(state_.pool->intern(uv.name));
     }
 
     child.attachDebugMetadata();
 
     // 设置最大栈大小（只增不减）
-    if (static_cast<i32>(newProto->getMaxStackSize()) < child.regs_.current()) {
-        newProto->setMaxStackSize(static_cast<u8>(child.regs_.current()));
+    if (static_cast<i32>(newProto->getMaxStackSize()) < child.state_.regs.current()) {
+        newProto->setMaxStackSize(static_cast<u8>(child.state_.regs.current()));
     }
 
     if (outUpvalues != nullptr) {
-        *outUpvalues = child.upvalueCtx_.upvalues_;
+        *outUpvalues = child.state_.upvalues.upvalues_;
     }
 
     return newProto;
@@ -495,7 +487,7 @@ void CodeGenerator::emitStmt(const FunctionStmt& s) {
     Proto* funcProto = compileFunction(s.params, s.isVararg, s.body, linedefined, lastlinedefined, &childUpvalues);
 
     // 将Proto添加到当前Proto的子函数列表
-    i32 protoIdx = static_cast<i32>(proto_->addProto(funcProto));
+    i32 protoIdx = static_cast<i32>(state_.proto->addProto(funcProto));
 
     if (s.isLocal) {
         // 局部函数：local function name() end
@@ -510,7 +502,7 @@ void CodeGenerator::emitStmt(const FunctionStmt& s) {
         adjustLocalVars(1);
     } else {
         // 全局/表成员函数：function name() end / function t.a.b:name() end
-        i32 savedFreereg = regs_.current();
+        i32 savedFreereg = state_.regs.current();
 
         if (s.tablePath.empty()) {
             // 生成CLOSURE指令到临时寄存器
@@ -559,7 +551,7 @@ void CodeGenerator::emitStmt(const FunctionStmt& s) {
         }
 
         // 释放本语句使用的临时寄存器（包含closure和路径求值临时寄存器）
-        regs_.restore(savedFreereg);
+        state_.regs.restore(savedFreereg);
         checkStack(0);
     }
 }
@@ -573,7 +565,7 @@ void CodeGenerator::emitStmt(const ForNumStmt& s) {
     // <loop body>
     // FORLOOP base sBx    ; R(base) += step, if R(base) <= limit then pc += sBx
 
-    i32 base = regs_.current();  // 循环变量的基址
+    i32 base = state_.regs.current();  // 循环变量的基址
 
     // 计算init, limit, step并存储到R(base), R(base+1), R(base+2)
     ValueResult initVal = emitValue(*s.init);
@@ -598,10 +590,10 @@ void CodeGenerator::emitStmt(const ForNumStmt& s) {
     enterBlock(true);  // isbreakable = true
 
     // 注册 3 个内部控制变量和可见循环变量为局部变量（与 Lua 5.1 C 一致）。
-    // 这确保 locals_.nactvar_ 包含它们，防止后续语句把临时寄存器指针
+    // 这确保 state_.locals.nactvar_ 包含它们，防止后续语句把临时寄存器指针
     // 重置到控制寄存器区域。init/limit/step 已经落在 R(base)..R(base+2)，
     // 这里先回退分配指针，让 addLocalVar 映射到正确槽位。
-    regs_.setFreeReg(base);
+    state_.regs.setFreeReg(base);
     addLocalVar("(for index)");   // R(base)
     addLocalVar("(for limit)");   // R(base+1)
     addLocalVar("(for step)");    // R(base+2)
@@ -609,7 +601,7 @@ void CodeGenerator::emitStmt(const ForNumStmt& s) {
     adjustLocalVars(4);
 
     // 确保临时寄存器从所有保留寄存器之后开始。
-    regs_.setFreeReg(base + 4);
+    state_.regs.setFreeReg(base + 4);
     checkStack(0);
 
     // 生成FORPREP指令（跳转到FORLOOP）
@@ -644,7 +636,7 @@ void CodeGenerator::emitStmt(const ForInStmt& s) {
     // TFORLOOP base nvars
     // JMP -> loop
 
-    i32 base = regs_.current();  // 迭代器变量的基址
+    i32 base = state_.regs.current();  // 迭代器变量的基址
     i32 nvars = static_cast<i32>(s.vars.size());  // 循环变量数量
 
     // 计算迭代器表达式（应该返回3个值：func, state, var）
@@ -661,15 +653,15 @@ void CodeGenerator::emitStmt(const ForInStmt& s) {
     if (auto* callExpr = std::get_if<CallExpr>(&iteratorExpr.variant)) {
         CallResultInfo info = emitCallExpr(*callExpr, base);
         setWantedResults(info, 3);
-        regs_.setFreeReg(base + 3);
+        state_.regs.setFreeReg(base + 3);
         checkStack(0);
     } else if (std::holds_alternative<VarargExpr>(iteratorExpr.variant)) {
         CallResultInfo info = emitVarargExpr();
-        Instruction inst = proto_->getInstruction(info.instructionPc);
+        Instruction inst = state_.proto->getInstruction(info.instructionPc);
         SETARG_A(inst, base);
         SETARG_B(inst, 4);  // B=4 -> 3 个结果
-        proto_->setInstruction(info.instructionPc, inst);
-        regs_.setFreeReg(base + 3);
+        state_.proto->setInstruction(info.instructionPc, inst);
+        state_.regs.setFreeReg(base + 3);
         checkStack(0);
     } else {
         throw std::runtime_error("CodeGenerator: for-in loop iterator must be a function call or vararg");
@@ -680,7 +672,7 @@ void CodeGenerator::emitStmt(const ForInStmt& s) {
 
     // 注册 3 个内部控制变量为局部变量（与 Lua 5.1 C 一致）。
     // 类似数值 for，先回退分配指针以映射到 R(base)..R(base+2)。
-    regs_.setFreeReg(base);
+    state_.regs.setFreeReg(base);
     addLocalVar("(for generator)");  // R(base)
     addLocalVar("(for state)");      // R(base+1)
     addLocalVar("(for control)");    // R(base+2)
@@ -697,7 +689,7 @@ void CodeGenerator::emitStmt(const ForInStmt& s) {
     // - R(base+2) = control variable
     // - R(base+3)... = visible loop variables
     // 循环体临时寄存器从保留区之后开始分配。
-    regs_.setFreeReg(base + 3 + nvars);
+    state_.regs.setFreeReg(base + 3 + nvars);
     checkStack(0);
 
     // 跳转到TFORLOOP（跳过循环体）
@@ -724,7 +716,7 @@ void CodeGenerator::emitStmt(const ForInStmt& s) {
 }
 
 void CodeGenerator::block(const Vec<StmtPtr>& stmts) {
-    i32 oldnactvar = locals_.nactvar_;
+    i32 oldnactvar = state_.locals.nactvar_;
 
     for (const auto& stmt : stmts) {
         statement(*stmt);
@@ -734,15 +726,15 @@ void CodeGenerator::block(const Vec<StmtPtr>& stmts) {
 }
 
 void CodeGenerator::attachDebugMetadata() {
-    if (proto_ == nullptr) {
+    if (state_.proto == nullptr) {
         return;
     }
 
-    for (const LocalVar& local : locals_.localVars_) {
+    for (const LocalVar& local : state_.locals.localVars_) {
         i32 endpc = local.endpc >= 0
             ? local.endpc
-            : static_cast<i32>(proto_->getInstructionCount());
-        proto_->addLocVar(pool_->intern(local.name), local.startpc, endpc, local.reg);
+            : static_cast<i32>(state_.proto->getInstructionCount());
+        state_.proto->addLocVar(state_.pool->intern(local.name), local.startpc, endpc, local.reg);
     }
 }
 // =====================================================================
@@ -750,16 +742,16 @@ void CodeGenerator::attachDebugMetadata() {
 // =====================================================================
 
 void CodeGenerator::enterBlock(bool isbreakable) {
-    blocks_.enterBlock(isbreakable, locals_.nactvar_);
+    state_.blocks.enterBlock(isbreakable, state_.locals.nactvar_);
 }
 
 void CodeGenerator::closeScopeUpvalues(i32 level) {
-    if (locals_.nactvar_ <= level) {
+    if (state_.locals.nactvar_ <= level) {
         return;
     }
 
-    if (proto_->getInstructionCount() > 0) {
-        Instruction last = proto_->getInstruction(proto_->getInstructionCount() - 1);
+    if (state_.proto->getInstructionCount() > 0) {
+        Instruction last = state_.proto->getInstruction(state_.proto->getInstructionCount() - 1);
         if (GET_OPCODE(last) == OpCode::RETURN) {
             return;
         }
@@ -769,12 +761,12 @@ void CodeGenerator::closeScopeUpvalues(i32 level) {
 }
 
 void CodeGenerator::leaveBlock() {
-    if (blocks_.currentBlock_ == nullptr) {
+    if (state_.blocks.currentBlock_ == nullptr) {
         throw std::runtime_error("No block to leave");
     }
 
-    BlockInfo* bl = blocks_.currentBlock_;
-    blocks_.currentBlock_ = bl->previous;
+    BlockInfo* bl = state_.blocks.currentBlock_;
+    state_.blocks.currentBlock_ = bl->previous;
 
     removeLocalVars(bl->nactvar);
     patchtohere(bl->breaklist);

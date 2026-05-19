@@ -23,9 +23,8 @@
 #include "compiler/ast.hpp"
 #include "compiler/opcode.hpp"
 #include "compiler/codegen_types.hpp"
-#include "compiler/codegen_context.hpp"
+#include "compiler/codegen_state.hpp"
 #include "core/function.hpp"
-#include "runtime/runtime_services.hpp"
 #include <memory>
 #include <unordered_map>
 
@@ -310,18 +309,7 @@ private:
     void attachDebugMetadata();
 
 private:
-    RuntimeServices services_;  // 运行时服务（当前由单例兼容层提供默认实现）
-    StringPool* pool_;          // 字符串池
-    CodeGenerator* parent_;     // 父函数代码生成器（用于upvalue解析）
-    Proto* proto_;              // 当前函数原型
-    i32 pc_;                    // 当前指令索引
-    i32 currentLine_;           // 当前发射指令所属的源码行号
-
-    // === PR-7: 提取的子系统结构 ===
-    RegisterAllocator regs_;        // 寄存器分配/回收/栈检查
-    LocalVarScope     locals_;      // 局部变量作用域管理
-    BlockManager      blocks_;      // 代码块嵌套/break/跳转链
-    UpvalueContext    upvalueCtx_;  // upvalue 捕获/查找
+    CodegenState state_;
 };
 
 }  // namespace Lua

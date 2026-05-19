@@ -11,8 +11,8 @@
 namespace Lua {
 
 i32 CodeGenerator::jump() {
-    i32 jpc = blocks_.jpc_;  // 保存当前待处理跳转列表
-    blocks_.jpc_ = NO_JUMP;  // 清空blocks_.jpc_
+    i32 jpc = state_.blocks.jpc_;  // 保存当前待处理跳转列表
+    state_.blocks.jpc_ = NO_JUMP;  // 清空state_.blocks.jpc_
     i32 j = codeAsBx(OpCode::JMP, 0, NO_JUMP);  // 生成JMP指令
     concatJumpList(j, jpc);  // 将jpc链表连接到j后面
     return j;
@@ -34,13 +34,13 @@ void CodeGenerator::patchList(const PatchList& list, i32 target) {
 
 void CodeGenerator::flushPendingJumps() {
     // 将所有待处理跳转修补到当前指令位置
-    i32 target = static_cast<i32>(proto_->getInstructionCount());
-    patchList(blocks_.jpc_, target);
-    blocks_.jpc_ = NO_JUMP;
+    i32 target = static_cast<i32>(state_.proto->getInstructionCount());
+    patchList(state_.blocks.jpc_, target);
+    state_.blocks.jpc_ = NO_JUMP;
 }
 
 i32 CodeGenerator::getLabel() {
-    return static_cast<i32>(proto_->getInstructionCount());
+    return static_cast<i32>(state_.proto->getInstructionCount());
 }
 void CodeGenerator::concatJumpList(i32& l1, i32 l2) {
     if (l2 == NO_JUMP) return;
@@ -70,29 +70,29 @@ i32 CodeGenerator::condjump(OpCode op, i32 a, i32 b, i32 c) {
     }
 
     codeABC(op, a, b, c);
-    i32 jpc = blocks_.jpc_;
-    blocks_.jpc_ = NO_JUMP;
+    i32 jpc = state_.blocks.jpc_;
+    state_.blocks.jpc_ = NO_JUMP;
     i32 j = codeAsBx(OpCode::JMP, 0, NO_JUMP);
     concatJumpList(j, jpc);  // ⭐ 将jpc链表连接到j后面
     return j;
 }
 
 void CodeGenerator::patchtohere(i32 list) {
-    pc_ = static_cast<i32>(proto_->getInstructionCount());
-    concatJumpList(blocks_.jpc_, list);
+    state_.pc = static_cast<i32>(state_.proto->getInstructionCount());
+    concatJumpList(state_.blocks.jpc_, list);
 }
 
 void CodeGenerator::patchtohere(const PatchList& list) {
-    pc_ = static_cast<i32>(proto_->getInstructionCount());
-    patchList(list, pc_);
+    state_.pc = static_cast<i32>(state_.proto->getInstructionCount());
+    patchList(list, state_.pc);
 }
 
 void CodeGenerator::syncPC() {
-    pc_ = static_cast<i32>(proto_->getInstructionCount());
+    state_.pc = static_cast<i32>(state_.proto->getInstructionCount());
 }
 
 i32 CodeGenerator::getjump(i32 pc) {
-    Instruction inst = proto_->getInstruction(pc);
+    Instruction inst = state_.proto->getInstruction(pc);
     i32 offset = GETARG_sBx(inst);
     if (offset == NO_JUMP) {
         return NO_JUMP;
@@ -102,13 +102,13 @@ i32 CodeGenerator::getjump(i32 pc) {
 }
 
 void CodeGenerator::fixjump(i32 pc, i32 dest) {
-    Instruction jmp = proto_->getInstruction(pc);
+    Instruction jmp = state_.proto->getInstruction(pc);
     i32 offset = dest - (pc + 1);
     if (offset > MAXARG_sBx || offset < -MAXARG_sBx) {
         throw std::runtime_error("control structure too long");
     }
     SETARG_sBx(jmp, offset);
-    proto_->setInstruction(pc, jmp);
+    state_.proto->setInstruction(pc, jmp);
 }
 
 PatchList CodeGenerator::collectPatchList(i32 list) {

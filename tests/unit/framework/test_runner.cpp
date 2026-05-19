@@ -31,6 +31,7 @@ extern void registerFunctionCodegenTests();
 extern void registerCodegenConditionTests();
 extern void registerCodegenMultiRetTests();
 extern void registerCodegenResultTypeTests();
+extern void registerCodegenStateTests();
 extern void registerMathLibTests();
 extern void registerLibCatalogTests();
 extern void registerBaselibTests();
@@ -158,6 +159,7 @@ void registerAllTests() {
     registerCodegenConditionTests();
     registerCodegenMultiRetTests();
     registerCodegenResultTypeTests();
+    registerCodegenStateTests();
     registerSyntaxSugarTests();
     registerLibCatalogTests();
     registerMathLibTests();

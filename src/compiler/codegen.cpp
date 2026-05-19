@@ -17,16 +17,7 @@ namespace Lua {
 // =====================================================================
 
 CodeGenerator::CodeGenerator(StringPool* pool)
-    : services_(RuntimeServices::fromSingletons())
-    , pool_(pool)
-    , parent_(nullptr)
-    , proto_(nullptr)
-    , regs_()
-    , locals_()
-    , blocks_()
-    , upvalueCtx_()
-    , pc_(0)
-    , currentLine_(0)
+    : state_(RuntimeServices::fromSingletons(), pool)
 {
     if (pool == nullptr) {
         throw std::invalid_argument("StringPool cannot be null");
@@ -34,16 +25,7 @@ CodeGenerator::CodeGenerator(StringPool* pool)
 }
 
 CodeGenerator::CodeGenerator(RuntimeServices& services)
-    : services_(services)
-    , pool_(&services.strings)
-    , parent_(nullptr)
-    , proto_(nullptr)
-    , regs_()
-    , locals_()
-    , blocks_()
-    , upvalueCtx_()
-    , pc_(0)
-    , currentLine_(0)
+    : state_(services)
 {
 }
 
@@ -57,35 +39,22 @@ CodeGenerator::~CodeGenerator() {
 
 Proto* CodeGenerator::generate(const Chunk& chunk, StrView sourceName) {
     // 创建新的Proto对象
-    proto_ = new Proto();
-    services_.gc.registerObject(proto_);
-    regs_.bind(proto_);
-    proto_->setMaxStackSize(2);  // 最小栈大小
-    proto_->setVararg(true);     // 主函数（chunk）默认是可变参数的
-    if (!sourceName.empty()) {
-        proto_->setSource(pool_->intern(sourceName));
-    }
-
-    // 重置状态
-    regs_.setFreeReg(0);
-    locals_.nactvar_ = 0;
-    locals_.localVars_.clear();
-    upvalueCtx_.upvalues_.clear();
-    pc_ = 0;
-    currentLine_ = 0;
+    state_.proto = new Proto();
+    state_.services.gc.registerObject(state_.proto);
+    state_.resetForProto(*state_.proto, true, sourceName);
     
     // 生成语句块
     block(chunk.statements);
     
     // 添加RETURN指令（如果最后一条指令不是RETURN）
-    if (proto_->getInstructionCount() == 0 || 
-        GET_OPCODE(proto_->getInstruction(proto_->getInstructionCount() - 1)) != OpCode::RETURN) {
+    if (state_.proto->getInstructionCount() == 0 ||
+        GET_OPCODE(state_.proto->getInstruction(state_.proto->getInstructionCount() - 1)) != OpCode::RETURN) {
         codeABC(OpCode::RETURN, 0, 1, 0);  // return (no values)
     }
 
     attachDebugMetadata();
     
-    return proto_;
+    return state_.proto;
 }
 
 // =====================================================================
@@ -97,8 +66,8 @@ i32 CodeGenerator::codeABC(OpCode op, i32 a, i32 b, i32 c) {
     flushPendingJumps();
 
     Instruction inst = CREATE_ABC(op, a, b, c);
-    i32 pc = static_cast<i32>(proto_->addInstruction(inst));
-    proto_->addLineInfo(currentLine_);
+    i32 pc = static_cast<i32>(state_.proto->addInstruction(inst));
+    state_.proto->addLineInfo(state_.currentLine);
     return pc;
 }
 
@@ -107,8 +76,8 @@ i32 CodeGenerator::codeABx(OpCode op, i32 a, i32 bx) {
     flushPendingJumps();
 
     Instruction inst = CREATE_ABx(op, a, bx);
-    i32 pc = static_cast<i32>(proto_->addInstruction(inst));
-    proto_->addLineInfo(currentLine_);
+    i32 pc = static_cast<i32>(state_.proto->addInstruction(inst));
+    state_.proto->addLineInfo(state_.currentLine);
     return pc;
 }
 
@@ -117,8 +86,8 @@ i32 CodeGenerator::codeAsBx(OpCode op, i32 a, i32 sbx) {
     flushPendingJumps();
 
     Instruction inst = CREATE_AsBx(op, a, sbx);
-    i32 pc = static_cast<i32>(proto_->addInstruction(inst));
-    proto_->addLineInfo(currentLine_);
+    i32 pc = static_cast<i32>(state_.proto->addInstruction(inst));
+    state_.proto->addLineInfo(state_.currentLine);
     return pc;
 }
 
@@ -127,19 +96,19 @@ i32 CodeGenerator::codeAsBx(OpCode op, i32 a, i32 sbx) {
 // =====================================================================
 
 i32 CodeGenerator::allocReg() {
-    return regs_.alloc();
+    return state_.regs.alloc();
 }
 
 void CodeGenerator::freeReg(i32 reg) {
-    regs_.freeReg(reg, locals_.nactvar_);
+    state_.regs.freeReg(reg, state_.locals.nactvar_);
 }
 
 void CodeGenerator::freeRegs(i32 n) {
-    regs_.freeRegs(n);
+    state_.regs.freeRegs(n);
 }
 
 void CodeGenerator::checkStack(i32 n) {
-    regs_.checkStack(n);
+    state_.regs.checkStack(n);
 }
 
 // =====================================================================
@@ -148,23 +117,23 @@ void CodeGenerator::checkStack(i32 n) {
 
 i32 CodeGenerator::numberConstant(f64 value) {
     Value v(value);
-    return static_cast<i32>(proto_->addConstant(v));
+    return static_cast<i32>(state_.proto->addConstant(v));
 }
 
 i32 CodeGenerator::stringConstant(const Str& value) {
-    GCString* str = pool_->intern(value);
+    GCString* str = state_.pool->intern(value);
     Value v(str);
-    return static_cast<i32>(proto_->addConstant(v));
+    return static_cast<i32>(state_.proto->addConstant(v));
 }
 
 i32 CodeGenerator::boolConstant(bool value) {
     Value v(value);
-    return static_cast<i32>(proto_->addConstant(v));
+    return static_cast<i32>(state_.proto->addConstant(v));
 }
 
 i32 CodeGenerator::nilConstant() {
     Value v;  // nil
-    return static_cast<i32>(proto_->addConstant(v));
+    return static_cast<i32>(state_.proto->addConstant(v));
 }
 
 // =====================================================================
@@ -172,29 +141,29 @@ i32 CodeGenerator::nilConstant() {
 // =====================================================================
 
 i32 CodeGenerator::addLocalVar(const Str& name) {
-    i32 reg = regs_.current();
-    locals_.localVars_.emplace_back(name, reg, static_cast<i32>(proto_->getInstructionCount()));
-    regs_.reserve(1);
+    i32 reg = state_.regs.current();
+    state_.locals.localVars_.emplace_back(name, reg, static_cast<i32>(state_.proto->getInstructionCount()));
+    state_.regs.reserve(1);
     checkStack(0);
     return reg;
 }
 
 i32 CodeGenerator::findLocalVar(const Str& name) {
-    return locals_.findLocal(name);
+    return state_.locals.findLocal(name);
 }
 
 void CodeGenerator::adjustLocalVars(i32 nvars) {
-    locals_.nactvar_ += nvars;
-    regs_.resetToLocals(locals_.nactvar_);
-    regs_.checkStack(0);
+    state_.locals.nactvar_ += nvars;
+    state_.regs.resetToLocals(state_.locals.nactvar_);
+    state_.regs.checkStack(0);
 }
 
 void CodeGenerator::removeLocalVars(i32 tolevel) {
     closeScopeUpvalues(tolevel);
-    i32 pc = static_cast<i32>(proto_->getInstructionCount());
-    locals_.closeLocals(tolevel, pc);
-    regs_.resetToLocals(locals_.nactvar_);
-    regs_.checkStack(0);
+    i32 pc = static_cast<i32>(state_.proto->getInstructionCount());
+    state_.locals.closeLocals(tolevel, pc);
+    state_.regs.resetToLocals(state_.locals.nactvar_);
+    state_.regs.checkStack(0);
 }
 
 }  // namespace Lua
