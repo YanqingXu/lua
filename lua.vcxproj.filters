@@ -64,7 +64,13 @@
     <ClCompile Include="src\vm\vm.cpp">
       <Filter>src\vm</Filter>
     </ClCompile>
+    <ClCompile Include="src\vm\vm_call.cpp">
+      <Filter>src\vm</Filter>
+    </ClCompile>
     <ClCompile Include="src\vm\vm_entry.cpp">
+      <Filter>src\vm</Filter>
+    </ClCompile>
+    <ClCompile Include="src\vm\vm_ops.cpp">
       <Filter>src\vm</Filter>
     </ClCompile>
     <ClCompile Include="src\vm\lua_state.cpp">

@@ -176,6 +176,9 @@
     <ClCompile Include="tests\unit\vm\test_vm_dispatch.cpp">
       <Filter>tests\vm</Filter>
     </ClCompile>
+    <ClCompile Include="tests\unit\vm\test_vm_internal_boundaries.cpp">
+      <Filter>tests\vm</Filter>
+    </ClCompile>
     <ClCompile Include="tests\unit\vm\test_vm_core.cpp">
       <Filter>tests\vm</Filter>
     </ClCompile>

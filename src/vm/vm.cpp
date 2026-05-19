@@ -81,7 +81,7 @@ static inline void vmDispatchCallHook(LuaState* L) {
     }
 }
 
-static inline void dispatchReturnHook(LuaState* L) {
+static inline void vmDispatchReturnHook(LuaState* L) {
     if (L->hasDebugHookMask(HookMaskReturn)) {
         L->callDebugHook(DebugHookEvent::Return);
     }
@@ -121,533 +121,6 @@ static inline Value getRK(Proto* proto, Value* base, i32 rk) {
         return proto->getConstant(INDEXK(rk));
     }
     return base[rk];
-}
-
-/**
- * @brief 尝试将 Value 转换为数字
- * 对应 Lua C: luaV_tonumber()
- */
-static bool tryToNumber(const Value& val, f64& result) {
-    if (val.isNumber()) {
-        result = val.asNumber();
-        return true;
-    }
-    if (val.isString()) {
-        GCString* str = val.asString();
-        const char* s = str->c_str();
-        char* endptr;
-        f64 num = std::strtod(s, &endptr);
-        if (endptr != s && *endptr == '\0') {
-            result = num;
-            return true;
-        }
-    }
-    return false;
-}
-
-// -----------------------------------------------------------------
-// 表操作（可能触发元方法 → 栈重分配）
-// -----------------------------------------------------------------
-
-/**
- * @brief 表读取，支持 __index 元方法链
- * 对应 Lua C: luaV_gettable()
- *
- * @note 调用方需在返回后 refreshBase
- */
-static void vmGettable(LuaState* L, Value t, const Value& key, Value& result) {
-    for (i32 loop = 0; loop < MAXTAGLOOP; loop++) {
-        if (t.isTable()) {
-            Table* h = t.asTable();
-            Value res = h->get(key);
-            if (!res.isNil()) { result = res; return; }
-
-            Value tm = getMetamethodByObject(L, t, TMS::TM_INDEX);
-            if (tm.isNil()) { result = Value(); return; }
-            if (tm.isFunction()) {
-                callTMWithResult(L, result, tm, t, key);
-                return;
-            }
-            t = tm; // __index 是表，继续链式查找
-        } else {
-            Value tm = getMetamethodByObject(L, t, TMS::TM_INDEX);
-            if (tm.isNil())
-                throw std::runtime_error("VM: attempt to index a non-table value");
-            if (tm.isFunction()) {
-                callTMWithResult(L, result, tm, t, key);
-                return;
-            }
-            t = tm;
-        }
-    }
-    throw std::runtime_error("VM: loop in gettable");
-}
-
-/**
- * @brief 表写入，支持 __newindex 元方法链
- * 对应 Lua C: luaV_settable()
- */
-static void vmSettable(LuaState* L, Value t, const Value& key, const Value& val) {
-    for (i32 loop = 0; loop < MAXTAGLOOP; loop++) {
-        if (t.isTable()) {
-            Table* h = t.asTable();
-            Value oldval = h->get(key);
-            if (!oldval.isNil()) { h->set(key, val); return; }
-
-            Value tm = getMetamethodByObject(L, t, TMS::TM_NEWINDEX);
-            if (tm.isNil()) { h->set(key, val); return; }
-            if (tm.isFunction()) { callTM(L, tm, t, key, val); return; }
-            t = tm;
-        } else {
-            Value tm = getMetamethodByObject(L, t, TMS::TM_NEWINDEX);
-            if (tm.isNil())
-                throw std::runtime_error("VM: attempt to index a non-table value");
-            if (tm.isFunction()) { callTM(L, tm, t, key, val); return; }
-            t = tm;
-        }
-    }
-    throw std::runtime_error("VM: loop in settable");
-}
-
-// -----------------------------------------------------------------
-// 算术运算（可能触发元方法）
-// -----------------------------------------------------------------
-
-/**
- * @brief 执行二元算术运算，支持元方法
- * 对应 Lua C: Arith() 宏 + luaV_execute 中的算术分支
- */
-static void vmArith(LuaState* L, Value& result,
-                    const Value& left, const Value& right, OpCode op) {
-    f64 lval, rval;
-    if (tryToNumber(left, lval) && tryToNumber(right, rval)) {
-        f64 res = 0.0;
-        switch (op) {
-            case OpCode::ADD: res = lval + rval; break;
-            case OpCode::SUB: res = lval - rval; break;
-            case OpCode::MUL: res = lval * rval; break;
-            case OpCode::DIV:
-                if (rval == 0.0) throw std::runtime_error("VM: division by zero");
-                res = lval / rval; break;
-            case OpCode::MOD: res = std::fmod(lval, rval); break;
-            case OpCode::POW: res = std::pow(lval, rval); break;
-            default: throw std::runtime_error("VM::arith: invalid opcode");
-        }
-        result = Value(res);
-        return;
-    }
-
-    // 数字转换失败 → 尝试元方法
-    TMS tmEvent;
-    switch (op) {
-        case OpCode::ADD: tmEvent = TMS::TM_ADD; break;
-        case OpCode::SUB: tmEvent = TMS::TM_SUB; break;
-        case OpCode::MUL: tmEvent = TMS::TM_MUL; break;
-        case OpCode::DIV: tmEvent = TMS::TM_DIV; break;
-        case OpCode::MOD: tmEvent = TMS::TM_MOD; break;
-        case OpCode::POW: tmEvent = TMS::TM_POW; break;
-        default: throw std::runtime_error("VM::arith: invalid opcode for metamethod");
-    }
-
-    Value tmResult;
-    if (callBinaryTM(L, left, right, tmResult, tmEvent)) {
-        result = tmResult;
-        return;
-    }
-    throw std::runtime_error("VM: attempt to perform arithmetic on non-number values");
-}
-
-// -----------------------------------------------------------------
-// 比较运算（可能触发元方法，返回 bool）
-// -----------------------------------------------------------------
-
-/** 对应 Lua C: luaV_equalobj() */
-static bool vmEqual(LuaState* L, const Value& left, const Value& right) {
-    if (left.getType() != right.getType()) return false;
-    if (left.isNil()) return true;
-    if (left.isNumber()) return left.asNumber() == right.asNumber();
-    if (left.isBoolean()) return left.asBoolean() == right.asBoolean();
-    if (left.isString()) return left.asString()->getData() == right.asString()->getData();
-
-    if (left.isTable()) {
-        if (left.asTable() == right.asTable()) return true;
-        Table* mt1 = left.asTable()->getMetatable();
-        Table* mt2 = right.asTable()->getMetatable();
-        Value tm = getComparisonTM(L, mt1, mt2, TMS::TM_EQ);
-        if (!tm.isNil()) {
-            Value r; callTMWithResult(L, r, tm, left, right);
-            return !(r.isNil() || (r.isBoolean() && !r.asBoolean()));
-        }
-        return false;
-    }
-    if (left.isUserdata()) {
-        if (left.asUserdata() == right.asUserdata()) return true;
-        Table* mt1 = left.asUserdata()->getMetatable();
-        Table* mt2 = right.asUserdata()->getMetatable();
-        Value tm = getComparisonTM(L, mt1, mt2, TMS::TM_EQ);
-        if (!tm.isNil()) {
-            Value r; callTMWithResult(L, r, tm, left, right);
-            return !(r.isNil() || (r.isBoolean() && !r.asBoolean()));
-        }
-        return false;
-    }
-    return left == right;
-}
-
-/** 对应 Lua C: luaV_lessthan() */
-static bool vmLessThan(LuaState* L, const Value& left, const Value& right) {
-    if (left.getType() != right.getType())
-        throw std::runtime_error("VM: attempt to compare two different types");
-    if (left.isNumber()) return left.asNumber() < right.asNumber();
-    if (left.isString()) return left.asString()->getData() < right.asString()->getData();
-
-    i32 tmResult = callOrderTM(L, left, right, TMS::TM_LT);
-    if (tmResult == -1)
-        throw std::runtime_error("VM: attempt to compare without __lt metamethod");
-    return tmResult != 0;
-}
-
-/** 对应 Lua C: lessequal() */
-static bool vmLessEqual(LuaState* L, const Value& left, const Value& right) {
-    if (left.getType() != right.getType())
-        throw std::runtime_error("VM: attempt to compare two different types");
-    if (left.isNumber()) return left.asNumber() <= right.asNumber();
-    if (left.isString()) return left.asString()->getData() <= right.asString()->getData();
-
-    i32 tmResult = callOrderTM(L, left, right, TMS::TM_LE);
-    if (tmResult != -1) return tmResult != 0;
-
-    // 回退到 __lt: a <= b ⟺ !(b < a)
-    tmResult = callOrderTM(L, right, left, TMS::TM_LT);
-    if (tmResult == -1)
-        throw std::runtime_error("VM: attempt to compare without __le or __lt metamethod");
-    return tmResult == 0; // 取反
-}
-
-// -----------------------------------------------------------------
-// 一元运算
-// -----------------------------------------------------------------
-
-/** @brief 取负运算，支持 __unm 元方法 */
-static void vmUnm(LuaState* L, Value& result, const Value& val) {
-    f64 num;
-    if (tryToNumber(val, num)) { result = Value(-num); return; }
-
-    Value tmResult;
-    if (callBinaryTM(L, val, Value(), tmResult, TMS::TM_UNM)) {
-        result = tmResult; return;
-    }
-    throw std::runtime_error("VM: attempt to perform arithmetic on a non-number value");
-}
-
-/** @brief 取长度运算，支持 __len 元方法 */
-static void vmLen(LuaState* L, Value& result, const Value& val) {
-    if (val.isString()) {
-        result = Value(static_cast<f64>(val.asString()->getLength()));
-        return;
-    }
-    if (val.isTable()) {
-        Value tm = getMetamethodByObject(L, val, TMS::TM_LEN);
-        if (!tm.isNil() && tm.isFunction()) {
-            Value r; callTMWithResult(L, r, tm, val, Value());
-            if (r.isNumber()) { result = r; return; }
-            throw std::runtime_error("VM: __len metamethod must return a number");
-        }
-        result = Value(static_cast<f64>(val.asTable()->length()));
-        return;
-    }
-    // 其他类型
-    Value tm = getMetamethodByObject(L, val, TMS::TM_LEN);
-    if (!tm.isNil() && tm.isFunction()) {
-        Value r; callTMWithResult(L, r, tm, val, Value());
-        if (r.isNumber()) { result = r; return; }
-        throw std::runtime_error("VM: __len metamethod must return a number");
-    }
-    throw std::runtime_error("VM: attempt to get length of a value without __len metamethod");
-}
-
-// -----------------------------------------------------------------
-// 字符串连接
-// -----------------------------------------------------------------
-
-/** @brief 连接操作，支持 __concat 元方法 */
-static void vmConcat(RuntimeServices& services, LuaState* L, Value* base, i32 a, i32 b, i32 c) {
-    i32 total = c - b + 1;
-    i32 last = c;
-    StringPool& pool = services.strings;
-
-    while (total > 1) {
-        Value& top1 = base[last];
-        Value& top2 = base[last - 1];
-
-        Str str1, str2;
-        bool canConcat = false;
-
-        if (top2.isString())      { str2 = top2.asString()->getData(); canConcat = true; }
-        else if (top2.isNumber()) { str2 = std::to_string(top2.asNumber()); canConcat = true; }
-
-        if (canConcat) {
-            if (top1.isString())      str1 = top1.asString()->getData();
-            else if (top1.isNumber()) str1 = std::to_string(top1.asNumber());
-            else canConcat = false;
-        }
-
-        if (!canConcat) {
-            Value result;
-            if (!callBinaryTM(L, top2, top1, result, TMS::TM_CONCAT))
-                throw std::runtime_error("VM: attempt to concatenate non-string/number values");
-            base[last - 1] = result;
-            total--; last--;
-            continue;
-        }
-
-        if (!str1.empty()) {
-            Str result = str2 + str1;
-            base[last - 1] = Value(pool.intern(result));
-        }
-        total--; last--;
-    }
-    base[a] = base[b];
-}
-
-// -----------------------------------------------------------------
-// 返回值处理 (postcall)
-// -----------------------------------------------------------------
-
-/**
- * @brief 处理函数返回后的返回值复制和栈调整
- * 对应 Lua C: luaD_poscall()
- *
- * @param firstResult 返回值的起始位置，0 表示返回值已在 funcPos 位置
- */
-static void vmPostcall(LuaState* L, i32 funcPos, i32 wantedResults,
-                       usize firstResult = 0) {
-    Stack& stack = L->getStack();
-    usize res = static_cast<usize>(funcPos);
-    usize currentTop = L->getAbsoluteTop();
-
-    if (firstResult == 0) {
-        // 返回值已在 funcPos 位置 — 只调整数量
-        i32 actualResults = static_cast<i32>(currentTop) - funcPos;
-        if (wantedResults >= 0) {
-            if (actualResults < wantedResults) {
-                while (actualResults < wantedResults) {
-                    if (currentTop >= stack.size()) stack.push(Value());
-                    else stack.at(currentTop) = Value();
-                    currentTop++;
-                    actualResults++;
-                }
-            } else if (actualResults > wantedResults) {
-                currentTop -= (actualResults - wantedResults);
-                actualResults = wantedResults;
-            }
-        }
-        L->setAbsoluteTop(funcPos + actualResults);
-    } else {
-        // 将返回值从 firstResult 复制到 funcPos
-        i32 i = wantedResults;
-        usize src = firstResult;
-        /*std::fprintf(stderr, "[POSTCALL] funcPos=%d wanted=%d firstResult=%zu currentTop=%zu\n",
-                     funcPos, wantedResults, firstResult, currentTop);*/
-        while (i != 0 && src < currentTop) {
-            if (g_dumpBytecode) {
-                std::fprintf(stderr, "[POSTCALL] copy stack[%zu] -> stack[%zu] val=", src, res);
-                if (stack[src].isNumber()) std::fprintf(stderr, "%g", stack[src].asNumber());
-                else if (stack[src].isNil()) std::fprintf(stderr, "nil");
-                else std::fprintf(stderr, "other");
-                std::fprintf(stderr, "\n");
-            }
-            
-            stack[res++] = stack[src++];
-            i--;
-        }
-        while (i-- > 0) stack[res++] = Value();
-        //std::fprintf(stderr, "[POSTCALL] final absoluteTop=%zu\n", res);
-        L->setAbsoluteTop(res);
-    }
-}
-
-// -----------------------------------------------------------------
-// 函数调用准备 (precall)
-// -----------------------------------------------------------------
-
-/**
- * @brief 准备函数调用（C函数完整执行，Lua函数仅创建CallInfo）
- * 对应 Lua C: luaD_precall()
- *
- * @return true = Lua 函数（调用方需 goto reentry），false = C 函数（已执行完毕）
- */
-static bool vmPrecall(LuaState* L, i32 funcIndex, i32 nArgs, i32 nResults) {
-    Stack& stack = L->getStack();
-    CallInfo& currentCI = L->getCurrentCallInfo();
-    usize funcPos = currentCI.base + funcIndex;
-    Value& funcVal = stack.at(funcPos);
-
-    // __call 元方法支持
-    if (!funcVal.isFunction()) {
-        Value tm = getMetamethodByObject(L, funcVal, TMS::TM_CALL);
-        if (tm.isNil() || !tm.isFunction()) {
-            throw std::runtime_error(
-                "VM::precall: attempt to call non-function value without __call metamethod at R("
-                + std::to_string(funcIndex) + "), abs="
-                + std::to_string(funcPos) + ", value=" + funcVal.toString());
-        }
-
-        Value originalFunc = funcVal;
-        Vec<Value> args;
-        for (i32 i = 1; i <= nArgs; i++) args.push_back(stack.at(funcPos + i));
-
-        stack.at(funcPos) = tm;
-        stack.at(funcPos + 1) = originalFunc;
-        for (usize i = 0; i < args.size(); i++) stack.at(funcPos + 2 + i) = args[i];
-        nArgs++;
-
-        // 重新获取
-        funcVal = stack.at(funcPos);
-        if (!funcVal.isFunction())
-            throw std::runtime_error("VM::precall: __call metamethod is not a function");
-    }
-
-    Function* func = funcVal.asFunction();
-
-    if (func->isCFunction()) {
-        // ---- C 函数：创建 CallInfo → 调用 → postcall → 弹出 ----
-        CFunction cfunc = func->getCFunction();
-
-        // B=0 (nArgs<0): 实际参数数量由栈顶推断
-        i32 actualNArgs = nArgs;
-        if (nArgs < 0) {
-            actualNArgs = static_cast<i32>(L->getAbsoluteTop())
-                        - static_cast<i32>(funcPos + 1);
-        }
-
-        CallInfo& ci = L->pushCallInfo();
-        ci.func = funcPos;
-        ci.base = funcPos + 1;
-        ci.top = funcPos + 1 + actualNArgs + 20;
-        ci.nresults = nResults;
-        ci.savedpc = nullptr;
-        ci.tailcalls = 0;
-
-        while (stack.size() < ci.top) stack.push(Value());
-        L->setAbsoluteTop(funcPos + 1 + actualNArgs);
-
-        vmDispatchCallHook(L);
-
-        i32 nReturnValues = cfunc(L);
-
-        // If C function triggered yield, preserve its CallInfo for resume
-        if (L->getStatus() == ThreadStatus::Yield) {
-            return false;
-        }
-
-        dispatchReturnHook(L);
-
-        usize currentTop = L->getAbsoluteTop();
-        usize firstResult = currentTop - static_cast<usize>(nReturnValues);
-        vmPostcall(L, static_cast<i32>(funcPos), nResults, firstResult);
-
-        L->popCallInfo();
-        return false; // C 函数已执行完毕
-    } else {
-        // ---- Lua 函数：创建 CallInfo → 返回 true ----
-        Proto* proto = func->getProto();
-        i32 actualArgs = nArgs;
-        if (nArgs < 0) {
-            actualArgs = static_cast<i32>(L->getAbsoluteTop())
-                       - static_cast<i32>(funcPos + 1);
-        }
-
-        i32 numParams = proto->getNumParams();
-        usize base;
-
-        if (proto->isVararg()) {
-            // adjust_varargs 逻辑
-            usize oldBase = funcPos + 1;
-            usize minArgsTop = oldBase + static_cast<usize>(numParams);
-            while (stack.size() < minArgsTop) {
-                stack.push(Value());
-            }
-            for (i32 i = actualArgs; i < numParams; i++) {
-                stack[oldBase + static_cast<usize>(i)] = Value();
-            }
-            if (actualArgs < numParams) {
-                actualArgs = numParams;
-            }
-            base = oldBase + static_cast<usize>(actualArgs);
-            stack.checkSpace(static_cast<usize>(numParams) + 1);
-            for (i32 i = 0; i < numParams; i++) {
-                stack.push(stack[oldBase + i]);
-                stack[oldBase + i] = Value();
-            }
-        } else {
-            base = funcPos + 1;
-            usize minArgsTop = base + static_cast<usize>(numParams);
-            while (stack.size() < minArgsTop) {
-                stack.push(Value());
-            }
-            for (i32 i = actualArgs; i < numParams; i++) {
-                stack[base + static_cast<usize>(i)] = Value();
-            }
-            if (actualArgs < numParams) {
-                actualArgs = numParams;
-            }
-        }
-
-        CallInfo& ci = L->pushCallInfo();
-        ci.func = funcPos;
-        ci.base = base;
-        ci.top = base + proto->getMaxStackSize();
-        ci.nresults = nResults;
-        ci.savedpc = nullptr;
-        ci.tailcalls = 0;
-
-        while (stack.size() < ci.top) stack.push(Value());
-        L->setAbsoluteTop(ci.top);
-
-        vmDispatchCallHook(L);
-
-        return true; // Lua 函数，调用方需 goto reentry
-    }
-}
-
-static void vmReuseCurrentFrameForTailCall(LuaState* L, usize callerIndex,
-                                           usize callerFunc, i32 callerTailcalls) {
-    Stack& stack = L->getStack();
-    CallInfo callee = L->getCurrentCallInfo();
-
-    usize src = callee.func;
-    usize dst = callerFunc;
-    usize count = callee.top - callee.func;
-
-    if (src != dst && count > 0) {
-        if (dst < src) {
-            for (usize i = 0; i < count; i++) {
-                stack[dst + i] = stack[src + i];
-            }
-        } else {
-            for (usize i = count; i > 0; i--) {
-                stack[dst + i - 1] = stack[src + i - 1];
-            }
-        }
-    }
-
-    i64 offset = static_cast<i64>(dst) - static_cast<i64>(src);
-    auto adjustIndex = [offset](usize index) -> usize {
-        return static_cast<usize>(static_cast<i64>(index) + offset);
-    };
-
-    callee.func = adjustIndex(callee.func);
-    callee.base = adjustIndex(callee.base);
-    callee.top = adjustIndex(callee.top);
-    callee.savedpc = nullptr;
-    callee.tailcalls = callerTailcalls + 1;
-    callee.hookLine = -1;
-
-    L->popCallInfo();
-    L->getCallStack()[callerIndex] = callee;
-    stack.setTop(callee.top);
-    L->setAbsoluteTop(callee.top);
 }
 
 // -----------------------------------------------------------------
@@ -701,7 +174,7 @@ static void vmTForLoop(LuaState* L, Value*& base, Proto* proto,
     if (func->isCFunction()) {
         ci.savedpc = &proto->getCode()[pc];
 
-        bool isLua = vmPrecall(L, cb, 2, c);
+        bool isLua = VM::detail::precall(L, cb, 2, c);
         if (isLua) {
             throw std::runtime_error("VM: TFORLOOP Lua iterators not supported yet");
         }
@@ -835,12 +308,12 @@ void dispatchCallHook(LuaState* L) {
     vmDispatchCallHook(L);
 }
 
-bool precall(LuaState* L, i32 funcIndex, i32 nArgs, i32 nResults) {
-    return vmPrecall(L, funcIndex, nArgs, nResults);
+void dispatchReturnHook(LuaState* L) {
+    vmDispatchReturnHook(L);
 }
 
-void postcall(LuaState* L, i32 funcPos, i32 wantedResults, usize firstResult) {
-    vmPostcall(L, funcPos, wantedResults, firstResult);
+bool shouldDumpBytecode() {
+    return g_dumpBytecode;
 }
 
 } // namespace VM::detail
@@ -1031,7 +504,7 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
                 Value t   = base[b];            // copy（防止栈重分配后悬挂）
                 Value key = getRK(proto, base, c); // copy
                 Value result;
-                vmGettable(L, t, key, result);
+                VM::detail::gettable(L, t, key, result);
                 base = refreshBase(L);          // 元方法可能导致栈重分配
                 base[a] = result;
                 break;
@@ -1041,7 +514,7 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
                 Value t   = base[a];
                 Value key = getRK(proto, base, b);
                 Value val = getRK(proto, base, c);
-                vmSettable(L, t, key, val);
+                VM::detail::settable(L, t, key, val);
                 base = refreshBase(L);
                 break;
             }
@@ -1059,7 +532,7 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
                 base[a + 1] = obj;
                 Value key = getRK(proto, base, c);
                 Value result;
-                vmGettable(L, obj, key, result);
+                VM::detail::gettable(L, obj, key, result);
                 base = refreshBase(L);
                 base[a] = result;
                 break;
@@ -1080,7 +553,7 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
                 Value left  = getRK(proto, base, b);
                 Value right = getRK(proto, base, c);
                 Value result;
-                vmArith(L, result, left, right, op);
+                VM::detail::arith(L, result, left, right, op);
                 base = refreshBase(L);
                 base[a] = result;
                 break;
@@ -1091,7 +564,7 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
             case OpCode::UNM: {
                 Value val = base[b]; // copy
                 Value result;
-                vmUnm(L, result, val);
+                VM::detail::unaryMinus(L, result, val);
                 base = refreshBase(L);
                 base[a] = result;
                 break;
@@ -1104,14 +577,14 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
             case OpCode::LEN: {
                 Value val = base[b]; // copy
                 Value result;
-                vmLen(L, result, val);
+                VM::detail::length(L, result, val);
                 base = refreshBase(L);
                 base[a] = result;
                 break;
             }
 
             case OpCode::CONCAT:
-                vmConcat(services, L, base, a, b, c);
+                VM::detail::concat(services, L, base, a, b, c);
                 base = refreshBase(L);
                 break;
 
@@ -1124,7 +597,7 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
             case OpCode::EQ: {
                 Value left  = getRK(proto, base, b);
                 Value right = getRK(proto, base, c);
-                bool result = vmEqual(L, left, right);
+                bool result = VM::detail::equal(L, left, right);
                 base = refreshBase(L);
                 // Lua 5.1 语义：若比较结果与A不同，则跳过下一条指令（通常是JMP）
                 if (result != (a != 0)) {
@@ -1136,7 +609,7 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
             case OpCode::LT: {
                 Value left  = getRK(proto, base, b);
                 Value right = getRK(proto, base, c);
-                bool result = vmLessThan(L, left, right);
+                bool result = VM::detail::lessThan(L, left, right);
                 base = refreshBase(L);
                 if (result != (a != 0)) {
                     pc++;
@@ -1147,7 +620,7 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
             case OpCode::LE: {
                 Value left  = getRK(proto, base, b);
                 Value right = getRK(proto, base, c);
-                bool result = vmLessEqual(L, left, right);
+                bool result = VM::detail::lessEqual(L, left, right);
                 base = refreshBase(L);
                 if (result != (a != 0)) {
                     pc++;
@@ -1226,7 +699,7 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
                 // 保存 PC（返回后需要）
                 L->getCurrentCallInfo().savedpc = &code[pc];
 
-                bool isLua = vmPrecall(L, a, nArgs, nResults);
+                bool isLua = VM::detail::precall(L, a, nArgs, nResults);
 
                 if (isLua) {
                     nexeccalls++;
@@ -1241,7 +714,7 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
                 {
                     CallInfo& callerCI = L->getCurrentCallInfo();
                     Stack& stack = L->getStack();
-                    // nResults = -1 (C=0) → 多返回值模式，vmPostcall 已正确设置 absoluteTop，不可覆盖
+                    // nResults = -1 (C=0) → 多返回值模式，postcall 已正确设置 absoluteTop，不可覆盖
                     if (nResults >= 0) {
                         // std::fprintf(stderr, "[CALL-POST] before setTop: callerCI.top=%zu stack.top=%zu absTop=%zu\n",
                         //              callerCI.top, stack.size(), L->getAbsoluteTop());
@@ -1281,15 +754,15 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
                 L->closeUpvalues(currentCI.base);
                 currentCI.savedpc = &code[pc];
 
-                bool isLua = vmPrecall(L, a, nArgs, -1);
+                bool isLua = VM::detail::precall(L, a, nArgs, -1);
 
                 if (isLua) {
-                    vmReuseCurrentFrameForTailCall(
+                    VM::detail::reuseCurrentFrameForTailCall(
                         L, callerIndex, callerFunc, callerTailcalls);
                     goto reentry;
                 }
 
-                // C 函数 tailcall 已经由 vmPrecall 把返回值放到 R(A)
+                // C 函数 tailcall 已经由 precall 把返回值放到 R(A)
                 // 并设置 absoluteTop；紧随其后的 RETURN 会把这些值返回给调用者。
                 base = refreshBase(L);
                 break;
@@ -1305,7 +778,7 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
                     g_traceSink->onReturn(revt);
                 }
 
-                dispatchReturnHook(L);
+                vmDispatchReturnHook(L);
                 base = refreshBase(L);
 
                 CallInfo& ci = L->getCurrentCallInfo();
@@ -1343,7 +816,7 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
                     i32 funcPos       = static_cast<i32>(ci.func);
                     i32 wantedResults = ci.nresults;
                     L->popCallInfo();
-                    vmPostcall(L, funcPos, wantedResults);
+                    VM::detail::postcall(L, funcPos, wantedResults);
                 }
                 goto reentry; // 继续执行调用者
             }

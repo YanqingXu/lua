@@ -46,7 +46,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_quality_gate.ps1
 | 中 | EngineContext / RuntimeServices | 已完成 | 已引入显式 RuntimeServices，并迁移入口层、CodeGenerator、Parser/VM 兼容重载 |
 | 中 | 教学导航 | 已完成 | 已新增 START_HERE、术语表和 examples，并扩展 walkthrough 索引 |
 | 低 | CMake + CTest | 已完成 | 已新增 secondary CMake/CTest 路径，不替代 VS/MSBuild 主路径 |
-| 长期 | 拆分 CodeGenerator / VM / Parser | 进行中 | 8A-8C CodeGenerator 边界已完成，8D VM dispatch 拆分准备已完成；下一步做 VM 操作分片 |
+| 长期 | 拆分 CodeGenerator / VM / Parser | 进行中 | 8A-8C CodeGenerator 边界已完成，8D-8E VM 入口、dispatch 分类、ops/call 分片已完成；下一步评估 VM 剩余 helper 分片 |
 
 ## 已完成优化
 
@@ -724,22 +724,52 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_quality_gate.ps1
 - `VM::call()` 和 `VM::execute()` 已从 `src/vm/vm.cpp` 拆到 `src/vm/vm_entry.cpp`。
 - 主 dispatch 循环仍在 `src/vm/vm.cpp`，避免本阶段改动 pc、栈帧、yield 或 return 协议。
 
-## 下一步推荐任务：VM 操作分片
-
-建议从这里继续。
-
 ### 任务 8E：VM 操作分片
 
 **目标：** 在 8D 已经拆出入口和 opcode 分类边界后，继续按行为把 VM 内部 helper 从 `src/vm/vm.cpp` 拆出，优先拆表/元方法、算术比较和 call/return 辅助逻辑，仍保持主 dispatch 循环与 public API 不变。
 
+已完成：
+
+- [x] 新增 `src/vm/vm_ops.cpp`，承载 `gettable()`、`settable()`、`arith()`、`equal()`、`lessThan()`、`lessEqual()`、`unaryMinus()`、`length()` 和 `concat()`。
+- [x] 新增 `src/vm/vm_call.cpp`，承载 `precall()`、`postcall()` 和 `reuseCurrentFrameForTailCall()`。
+- [x] 扩展 `src/vm/vm_internal.hpp`，将 8D 的桥接声明升级为 VM 实现分片共享的内部接口。
+- [x] `src/vm/vm.cpp` 保留主 dispatch 循环、trace/debug hook 状态、`SETLIST`、`TFORLOOP`、`CLOSURE` 和 `VARARG` helper。
+- [x] 新增 `tests/unit/vm/test_vm_internal_boundaries.cpp`，用编译期签名检查锁定内部 helper 边界。
+- [x] 将新增源文件和测试加入 `CMakeLists.txt`、`lua.vcxproj`、`lua.vcxproj.filters`、`lua_test.vcxproj` 和 `lua_test.vcxproj.filters`。
+
+已使用的验证命令：
+
+```powershell
+D:\VS2026\MSBuild\Current\Bin\MSBuild.exe lua_test.vcxproj /p:Configuration=Debug /p:Platform=x64 /m
+bin\lua_test.exe --filter "VM Internal Boundaries"
+bin\lua_test.exe --filter "VM Dispatch"
+bin\lua_test.exe --filter "VM Core"
+bin\lua_test.exe --filter "Function Call"
+bin\lua_test.exe --filter "Call Pipeline"
+bin\lua_test.exe --filter "Metamethod"
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_quality_gate.ps1
+```
+
+验收结果：
+
+- 默认 `bin\lua_test.exe` 运行 433 个注册测试 / 1829 个结果 / 0 失败。
+- `src/vm/vm.cpp` 的主 dispatch 循环未拆分，pc、栈帧、yield、return 协议保持原路径。
+- VM 表/元方法、算术比较、concat 和 call/return helper 已通过 `VM::detail` 内部接口分片。
+
+## 下一步推荐任务：VM 剩余辅助逻辑分片
+
+建议从这里继续。
+
+### 任务 8F：VM 剩余 helper 分片
+
+**目标：** 在 8E 已经拆出 ops 和 call helper 后，继续评估 `src/vm/vm.cpp` 中剩余的 `SETLIST`、`TFORLOOP`、`CLOSURE`、`VARARG`、trace event 构造等 helper 是否适合拆到更窄的 `vm_table.cpp`、`vm_loop.cpp`、`vm_closure.cpp` 或 `vm_trace.cpp`，仍保持 `executeProto()` 主循环为唯一指令调度位置。
+
 建议顺序：
 
-1. 先将 `vmGettable()`、`vmSettable()`、`vmArith()`、`vmEqual()`、`vmLessThan()`、`vmLessEqual()`、`vmUnm()`、`vmLen()`、`vmConcat()` 拆到 `src/vm/vm_ops.cpp` 或相近分片。
-2. 将 `vmPostcall()`、`vmPrecall()`、`vmReuseCurrentFrameForTailCall()` 拆到 `src/vm/vm_call.cpp`，同时把 `vm_internal.hpp` 的桥接声明变为真实内部接口。
-3. 保持 `executeProto()` 主循环只做指令解码、pc 管理和 helper 调用。
-4. 每一步都用 `VM Core`、`Function Call`、`Call Pipeline`、metamethod 和 full quality gate 验证。
-
-共享文件读取、CLI 抽取、标准库 catalog 和 EngineContext 基础已经完成；深拆大型模块可以在教学导航和构建路径更稳定后启动。
+1. 先只梳理剩余 helper 的调用点和共享状态，不急于移动 trace/debug hook。
+2. 优先拆不依赖 pc/yield 协议的 `SETLIST`、`CLOSURE`、`VARARG`。
+3. `TFORLOOP` 同时触碰 pc 和 call 边界，应单独成步并重点验证 `Call Pipeline`、循环和 coroutine 相关测试。
+4. 每一步继续运行 `VM Core`、`Call Pipeline`、metamethod、CMake smoke 和 full quality gate。
 
 ## 维护规则
 
