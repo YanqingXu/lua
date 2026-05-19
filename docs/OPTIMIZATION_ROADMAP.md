@@ -1,6 +1,6 @@
 ---
 status: current
-verified_against: docs/deep-research-report.md; docs/PROJECT_STATUS.md; docs/DEVELOPMENT_GUIDE.md; CMakeLists.txt; tools/run_cmake_smoke.ps1; tools/check_doc_drift.ps1; tools/run_quality_gate.ps1
+verified_against: docs/deep-research-report.md; docs/PROJECT_STATUS.md; docs/DEVELOPMENT_GUIDE.md; CMakeLists.txt; lua.vcxproj; lua.vcxproj.filters; src/compiler/parser.cpp; src/compiler/parser_stmt.cpp; src/compiler/parser_expr.cpp; src/compiler/parser_primary.cpp; src/compiler/parser_func.cpp; src/compiler/parser_table.cpp; tools/run_cmake_smoke.ps1; tools/check_doc_drift.ps1; tools/run_quality_gate.ps1
 last_checked: 2026-05-19
 applies_to: 仓库优化路线图与下次续接检查清单
 ---
@@ -46,7 +46,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_quality_gate.ps1
 | 中 | EngineContext / RuntimeServices | 已完成 | 已引入显式 RuntimeServices，并迁移入口层、CodeGenerator、Parser/VM 兼容重载 |
 | 中 | 教学导航 | 已完成 | 已新增 START_HERE、术语表和 examples，并扩展 walkthrough 索引 |
 | 低 | CMake + CTest | 已完成 | 已新增 secondary CMake/CTest 路径，不替代 VS/MSBuild 主路径 |
-| 长期 | 拆分 CodeGenerator / VM / Parser | 进行中 | 8A-8C CodeGenerator 边界已完成，8D-8G VM 入口、dispatch 分类、ops/call/剩余 helper 与 trace/debug 边界已完成；下一步进入 Parser 分片准备 |
+| 长期 | 拆分 CodeGenerator / VM / Parser | 进行中 | 8A-8C CodeGenerator 边界已完成，8D-8G VM 入口、dispatch 分类、ops/call/剩余 helper 与 trace/debug 边界已完成；8H Parser 函数组审计与行为锁定、8I Parser 物理拆分执行已完成 |
 
 ## 已完成优化
 
@@ -821,20 +821,95 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_quality_gate.ps1
 - `src/vm/vm_trace.cpp` 已收口 trace/debug 状态与事件构造，`src/vm/vm.cpp` 仍是唯一主 dispatch 循环。
 - 新增回归测试锁定 instruction/call/return trace 顺序，以及 call/count/line/return debug hook 顺序。
 
-## 下一步推荐任务：Parser 分片准备
-
-建议从这里继续。
+## 已完成任务：Parser 分片准备
 
 ### 任务 8H：Parser 物理拆分准备
 
 **目标：** 在 CodeGenerator 和 VM 的主要边界已经收口后，开始降低 `src/compiler/parser.cpp` 的单文件阅读负担。第一步不改变语法语义，只梳理 Parser 成员函数分组，并准备按表达式、语句、函数体/块、表构造器等主题拆分实现文件。
 
-建议顺序：
+已完成：
 
-1. 先阅读 `src/compiler/parser.hpp` 和 `src/compiler/parser.cpp`，把 parse chunk/block/stat、表达式优先级、primary/suffixed expression、function body、table constructor、error recovery 等函数分组记录到路线图。
-2. 增加或复用现有 parser 回归测试，重点覆盖递归、错误恢复、函数定义、表构造和复杂表达式，先锁定行为。
-3. 在不改 public API 的前提下，把成员函数实现分批移动到 `parser_stmt.cpp`、`parser_expr.cpp`、`parser_func.cpp` 或等价命名的实现切片。
-4. 更新 `CMakeLists.txt`、`lua.vcxproj`、`lua.vcxproj.filters`，并运行 parser/compiler 相关过滤测试和质量门禁。
+- [x] 审计 `src/compiler/parser.hpp` 和 `src/compiler/parser.cpp`，按后续物理分片边界记录 Parser 成员函数分组。
+- [x] 新增 `tests/unit/compiler/test_parser_boundaries.cpp`，集中锁定语句族、表达式优先级、函数/表构造器/后缀表达式和错误边界 AST 形状。
+- [x] 将新增测试加入 `tests/unit/framework/test_runner.cpp`、`CMakeLists.txt`、`lua_test.vcxproj` 和 `lua_test.vcxproj.filters`。
+- [x] 本阶段不移动 Parser 产品代码，不改变 public API、AST 结构或语法语义。
+
+Parser 函数组审计结果：
+
+| 建议分片 | 当前函数 | 说明 |
+|---|---|---|
+| `parser_core.cpp` 或保留在 `parser.cpp` | 构造函数、`current()`、`advance()`、`peek()`、`check()`、`match()`、`expect()`、`error()`、`reportError()`、`synchronize()`、`getTokenText()`、`makeErrorWithNear()`、`getTokenString()` | Token 管理、错误报告和恢复同步是所有分片共享的底层边界。 |
+| `parser_block.cpp` / `parser_stmt.cpp` | `parse()`、`parseBlock()`、`parseStatement()` | chunk/block/stat dispatch 是语句层入口，后续可优先迁出。 |
+| `parser_stmt.cpp` | `parseIfStmt()`、`parseWhileStmt()`、`parseDoStmt()`、`parseForStmt()`、`parseRepeatStmt()`、`parseLocalStmt()`、`parseReturnStmt()`、`parseBreakStmt()`、`parseExprStmt()` | 控制流、局部声明、return/break、赋值/调用语句；依赖表达式入口和块入口。 |
+| `parser_func.cpp` | `parseFunctionStmt()`、`parseFunctionExpr()`、`parseParamList()` | 函数语句和函数表达式共享参数列表、vararg 和 body 解析规则。 |
+| `parser_expr.cpp` | `parseExpression()`、`parseOrExpr()`、`parseAndExpr()`、`parseRelationalExpr()`、`parseConcatExpr()`、`parseAdditiveExpr()`、`parseMultiplicativeExpr()`、`parseUnaryExpr()`、`parsePowerExpr()` | 表达式优先级链；`..` 和 `^` 右结合规则应由新增 sentinels 保护。 |
+| `parser_primary.cpp` | `parsePrimaryExpr()`、`parsePostfixExpr()` | literal/name/function/table/paren 基础表达式，以及 call/index/member/method/string-call/table-call 后缀链。 |
+| `parser_table.cpp` | `parseTableConstructor()` | `[key]=value`、`name=value`、数组项、`,`/`;` 混合分隔符和尾随分隔符。 |
+| `parser_list.cpp` 或并入表达式分片 | `parseExprList()` | 被语句、调用、return、table 字段等多处复用；拆分时要避免形成循环 include。 |
+| 保留在 `parser.hpp` | `NodePool`、`RecursionGuard`、`makeExpr()`、`makeStmt()` | 模板和 RAII guard 当前适合留在头文件，后续只移动成员函数实现。 |
+
+行为锁定测试：
+
+- 现有 `Parser Recursion Depth` 覆盖嵌套括号、嵌套 if 和递归深度错误。
+- 现有 `Parser Error Reporting` 覆盖基础语法错误、缺 `then`、未闭合括号和缺 `end`。
+- 现有 syntax/call/value/lvalue/symbol/codegen 测试覆盖函数定义、表路径函数、函数调用、表构造和复杂表达式的下游 codegen/VM 行为。
+- 新增 `Parser Boundary Sentinels` 直接检查 AST 形状，作为后续 Parser 物理拆分时的第一层回归测试。
+
+已使用的验证命令：
+
+```powershell
+D:\VS2026\MSBuild\Current\Bin\MSBuild.exe lua_test.vcxproj /p:Configuration=Debug /p:Platform=x64 /m
+bin\lua_test.exe --filter "Parser Boundary Sentinels"
+bin\lua_test.exe --filter "Parser"
+bin\lua_test.exe
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\check_doc_drift.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\test_quality_gate.ps1
+```
+
+验收结果：
+
+- `Parser Boundary Sentinels` 运行 4 个注册测试 / 54 个结果 / 0 失败。
+- `Parser` 过滤测试运行 17 个注册测试 / 97 个结果 / 0 失败。
+- 默认 `bin\lua_test.exe` 运行 452 个注册测试 / 1987 个结果 / 0 失败。
+- 新增测试只锁定当前 Parser 行为，没有修改 `src/compiler/parser.*` 产品实现。
+
+## 已完成任务：Parser 物理拆分执行
+
+### 任务 8I：Parser 物理拆分执行
+
+**目标：** 基于 8H 的函数分组和行为锁定测试，在不改变 public API、AST 结构和语法语义的前提下，把 `src/compiler/parser.cpp` 分批拆成更窄的实现文件。
+
+已完成：
+
+- [x] `src/compiler/parser.cpp` 保留构造函数、token 管理、错误报告/同步、`parse()` 入口，以及跨分片共享的 `tokenString()` / `errorWithNear()` 私有 helper。
+- [x] 新增 `src/compiler/parser_stmt.cpp`，承载 `parseBlock()`、`parseStatement()` 和控制流/local/return/break/赋值/调用语句解析。
+- [x] 新增 `src/compiler/parser_expr.cpp`，承载表达式优先级链和 `parseExprList()`。
+- [x] 新增 `src/compiler/parser_primary.cpp`，承载 primary 与 postfix 表达式解析。
+- [x] 新增 `src/compiler/parser_func.cpp`，承载函数语句、函数表达式和参数列表解析。
+- [x] 新增 `src/compiler/parser_table.cpp`，承载表构造器解析。
+- [x] 更新 `CMakeLists.txt`、`lua.vcxproj`、`lua.vcxproj.filters`，让 CMake 与 VS 核心静态库都编译新分片。
+- [x] 本阶段不改变 Parser public API、AST 结构或 Lua 语法语义。
+
+已使用的验证命令：
+
+```powershell
+D:\VS2026\MSBuild\Current\Bin\MSBuild.exe lua_test.vcxproj /p:Configuration=Debug /p:Platform=x64 /m
+bin\lua_test.exe --filter "Parser Boundary Sentinels"
+bin\lua_test.exe --filter "Parser"
+bin\lua_test.exe
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\check_doc_drift.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\test_quality_gate.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_cmake_smoke.ps1
+```
+
+验收结果：
+
+- MSBuild `lua_test.vcxproj` 输出 0 警告 / 0 错误。
+- `Parser Boundary Sentinels` 运行 4 个注册测试 / 54 个结果 / 0 失败。
+- `Parser` 过滤测试运行 17 个注册测试 / 97 个结果 / 0 失败。
+- 默认 `bin\lua_test.exe` 运行 452 个注册测试 / 1987 个结果 / 0 失败。
+- `tools\check_doc_drift.ps1` 与 `tools\test_quality_gate.ps1` 通过。
+- `tools\run_cmake_smoke.ps1` 通过，CTest 5/5。
 
 ## 维护规则
 

@@ -202,6 +202,11 @@
     <ClCompile Include="src\compiler\lexer.cpp" />
     <ClCompile Include="src\compiler\opcode.cpp" />
     <ClCompile Include="src\compiler\parser.cpp" />
+    <ClCompile Include="src\compiler\parser_expr.cpp" />
+    <ClCompile Include="src\compiler\parser_func.cpp" />
+    <ClCompile Include="src\compiler\parser_primary.cpp" />
+    <ClCompile Include="src\compiler\parser_stmt.cpp" />
+    <ClCompile Include="src\compiler\parser_table.cpp" />
     <ClCompile Include="src\core\function.cpp" />
     <ClCompile Include="src\core\gc_object.cpp" />
     <ClCompile Include="src\core\gc_string.cpp" />

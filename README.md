@@ -9,7 +9,7 @@ applies_to: repository overview and current build workflows
 
 > **从零开始用C++17/20/23实现Lua 5.1.5解释器**
 
-[![Tests](https://img.shields.io/badge/tests-1933%2F1933-brightgreen)]()
+[![Tests](https://img.shields.io/badge/tests-1987%2F1987-brightgreen)]()
 [![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen)]()
 [![C++](https://img.shields.io/badge/C%2B%2B-17%2F23-blue)]()
 [![Platform](https://img.shields.io/badge/platform-Windows-blue)]()
@@ -79,7 +79,7 @@ applies_to: repository overview and current build workflows
 | **CallInfo类** | `src/vm/call_info.hpp` | 197 | 调用信息（函数调用上下文） | ✅ 100% |
 | **LuaState类** | `src/vm/lua_state.hpp/cpp` | 1,095 | Lua状态（线程执行环境） | ✅ 95% |
 | **Lexer词法分析器** | `src/compiler/lexer.hpp/cpp` + `token.hpp` | 1,167 | 词法分析（Token流生成） | ✅ 100% |
-| **Parser语法分析器** | `src/compiler/parser.hpp/cpp` + `ast.hpp/cpp` | 2,031 | 语法分析（AST生成） | ✅ 100% |
+| **Parser语法分析器** | `src/compiler/parser.hpp/cpp` + `parser_*.cpp` + `ast.hpp/cpp` | 2,128 | 语法分析（AST生成，Parser 实现已按语句/表达式/函数/表构造分片） | ✅ 100% |
 | **CodeGenerator字节码生成器** | `src/compiler/codegen.hpp/cpp` + `opcode.hpp/cpp` | 2,249 | 字节码生成（AST→Bytecode），单值 return call 已生成 TAILCALL | ✅ 95% |
 | **VM字节码执行引擎** | `src/vm/vm.hpp/cpp` | 2,030 | 38条指令均有执行分支；TAILCALL 已复用栈帧，TFORLOOP 已支持 C/Lua 函数迭代器 | ✅ 95% |
 | **I/O系统** | `src/io/*.hpp/cpp` | 670 | InputStream + DynamicBuffer | ✅ 100% |
@@ -99,9 +99,9 @@ applies_to: repository overview and current build workflows
 
 ```
 测试框架：自定义轻量级测试框架（零外部依赖）
-注册测试：448个
-断言结果：1933个 ✅
-通过率：  100% (1933/1933)
+注册测试：452个
+断言结果：1987个 ✅
+通过率：  100% (1987/1987)
 失败测试：0个
 编译状态：Debug|x64 版本无警告，无链接冲突
 平台：    Windows + MSVC (Visual Studio 2026)
@@ -109,14 +109,14 @@ applies_to: repository overview and current build workflows
 
 补充验证：
 - `bin/build_test.bat`：通过
-- `bin/lua_test.exe`：448 个注册测试，1933 个结果，0 失败
+- `bin/lua_test.exe`：452 个注册测试，1987 个结果，0 失败
 - `bin/build_app.bat`：通过
 - `tests/lua/regressions/*.lua`：全部通过
 - `tests/lua/stdlib/test_collectgarbage*.lua` 与 `test_gcinfo*.lua`：全部通过，`collectgarbage("collect")` 可观察到内存下降
 
 ### 距离完整 Lua 5.1.5 仍缺失的功能
 
-> **兼容性审计记录（2026-05-19）**：已对 README、本地 `src/lib/` 标准库实现、`src/vm/` 指令执行逻辑、GC/元方法相关核心代码进行核对。`bin/lua_test.exe` 当前为 448 个注册测试、1933 个结果、0 失败；这说明项目内测试覆盖的路径稳定，但不等价于 Lua 5.1.5 官方语义已经达到 95% 兼容。
+> **兼容性审计记录（2026-05-19）**：已对 README、本地 `src/lib/` 标准库实现、`src/vm/` 指令执行逻辑、GC/元方法相关核心代码进行核对。`bin/lua_test.exe` 当前为 452 个注册测试、1987 个结果、0 失败；这说明项目内测试覆盖的路径稳定，但不等价于 Lua 5.1.5 官方语义已经达到 95% 兼容。
 
 > **最新补齐**：Lua 函数元方法调用链已打通，`callTMWithResult/callTM` 统一走 `VM::call`，C Closure 与 Lua Closure 共用同一调用入口；`getMetamethodByObject()` 已接入基础类型元表，string 类型已安装 `__index = string`；GC 已支持弱表 `__mode = "k"/"v"/"kv"` 清理和 userdata `__gc` 两阶段终结；尾调用优化已覆盖单值 `return f()` 的 `TAILCALL` 生成和 Lua 函数调用帧复用；泛型 `for` 已支持显式 iterator 三元组、函数/vararg 三值调整和 Lua 函数迭代器；string 库已补齐 `gsub` 表/函数替换、`string.dump` Proto/字节码序列化输出和含 `\0` 字符串的长度安全处理；`module()` 已补齐 `_PACKAGE`、复合模块名全局路径、调用方环境切换和 Lua option 函数调用语义；package 已补齐 `package.loadlib`、C loader 和 all-in-one C loader 动态加载边界。
 
@@ -177,7 +177,7 @@ applies_to: repository overview and current build workflows
 ✅ **Userdata类**：完整用户数据支持，8字节对齐，元表支持，GC集成
 ✅ **Metatable元方法系统**：已初始化17种元方法名称并支持 table/userdata 与基础类型元表查找；`callTMWithResult/callTM` 已统一走 `VM::call`，C/Lua 函数元方法均可用；string 类型已安装 `__index = string`；`__gc`、`__mode` 已接入 GC 语义
 ✅ **Lexer词法分析器**：完整Lua 5.1词法规则，支持所有关键字、运算符、字面量、注释
-✅ **Parser语法分析器**：递归下降解析，完整AST生成，正确的运算符优先级和结合性
+✅ **Parser语法分析器**：递归下降解析，完整AST生成，正确的运算符优先级和结合性；实现已按语句、表达式、函数和表构造边界分片
 ✅ **CodeGenerator字节码生成器**：AST→字节码转换，寄存器分配，常量表管理，跳转回填；`ExprDesc` / `ExprKind` 迁移和 PR-C 清理已完成
 ✅ **OpCode指令集**：完整Lua 5.1指令集（38条指令），iABC/iABx/iAsBx三种格式
 ✅ **VM字节码执行引擎**：38条指令均有执行分支，已覆盖 Upvalue、函数调用、尾调用栈帧复用、循环、闭包、SETLIST、TFORLOOP C/Lua 迭代器等主路径
@@ -1039,7 +1039,7 @@ tests/unit/
 └── vm/                         # VM Core、LuaState 初始化、函数调用
 ```
 
-当前测试入口会输出真实注册测试数和断言结果数；最近一次验证为 448 个注册测试、1933 个结果、0 失败。
+当前测试入口会输出真实注册测试数和断言结果数；最近一次验证为 452 个注册测试、1987 个结果、0 失败。
 
 ## 📊 技术栈和工具
 

@@ -147,6 +147,16 @@ private:
      */
     void synchronize();
 
+    /**
+     * @brief 安全获取 token 的字符串值，供多个 Parser 实现分片共享。
+     */
+    static Str tokenString(const Token& token);
+
+    /**
+     * @brief 生成带有 near token 后缀的 Lua 风格错误消息。
+     */
+    static Str errorWithNear(const Str& message, const Token& token);
+
     // =====================================================================
     // 语句解析
     // =====================================================================

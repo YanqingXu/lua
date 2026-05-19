@@ -65,6 +65,9 @@
     <ClCompile Include="tests\unit\compiler\test_method_call.cpp">
       <Filter>tests\compiler</Filter>
     </ClCompile>
+    <ClCompile Include="tests\unit\compiler\test_parser_boundaries.cpp">
+      <Filter>tests\compiler</Filter>
+    </ClCompile>
     <ClCompile Include="tests\unit\compiler\test_parser_error_recovery.cpp">
       <Filter>tests\compiler</Filter>
     </ClCompile>

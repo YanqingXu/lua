@@ -1,6 +1,6 @@
 ---
 status: current
-verified_against: README.md; lua.slnx; lua.vcxproj; lua_app.vcxproj; lua_test.vcxproj; lua_bytecode.vcxproj; CMakeLists.txt; tools/run_cmake_smoke.ps1; tests/unit/framework/test_runner.cpp; tests/unit/compiler/test_codegen_state.cpp; tests/unit/compiler/test_bytecode_builder.cpp; tests/unit/vm/test_vm_dispatch.cpp; tests/unit/vm/test_vm_internal_boundaries.cpp; tests/unit/vm/test_vm_trace_debug.cpp; docs/START_HERE.md; docs/glossary.md; docs/walkthroughs/index.md; examples/README.md; src/runtime/runtime_services.hpp; src/compiler/codegen.cpp; src/compiler/codegen_binding.cpp; src/compiler/codegen_expr.cpp; src/compiler/codegen_jump.cpp; src/compiler/codegen_stmt.cpp; src/compiler/codegen_state.hpp; src/compiler/bytecode_builder.hpp; src/vm/vm.cpp; src/vm/vm_entry.cpp; src/vm/vm_dispatch.hpp; src/vm/vm_internal.hpp; src/vm/vm_ops.cpp; src/vm/vm_call.cpp; src/vm/vm_table.cpp; src/vm/vm_frame.cpp; src/vm/vm_loop.cpp; src/vm/vm_trace.cpp
+verified_against: README.md; lua.slnx; lua.vcxproj; lua_app.vcxproj; lua_test.vcxproj; lua_bytecode.vcxproj; CMakeLists.txt; tools/run_cmake_smoke.ps1; tests/unit/framework/test_runner.cpp; tests/unit/compiler/test_parser_boundaries.cpp; tests/unit/compiler/test_codegen_state.cpp; tests/unit/compiler/test_bytecode_builder.cpp; tests/unit/vm/test_vm_dispatch.cpp; tests/unit/vm/test_vm_internal_boundaries.cpp; tests/unit/vm/test_vm_trace_debug.cpp; docs/START_HERE.md; docs/glossary.md; docs/walkthroughs/index.md; examples/README.md; src/runtime/runtime_services.hpp; src/compiler/parser.hpp; src/compiler/parser.cpp; src/compiler/parser_stmt.cpp; src/compiler/parser_expr.cpp; src/compiler/parser_primary.cpp; src/compiler/parser_func.cpp; src/compiler/parser_table.cpp; src/compiler/codegen.cpp; src/compiler/codegen_binding.cpp; src/compiler/codegen_expr.cpp; src/compiler/codegen_jump.cpp; src/compiler/codegen_stmt.cpp; src/compiler/codegen_state.hpp; src/compiler/bytecode_builder.hpp; src/vm/vm.cpp; src/vm/vm_entry.cpp; src/vm/vm_dispatch.hpp; src/vm/vm_internal.hpp; src/vm/vm_ops.cpp; src/vm/vm_call.cpp; src/vm/vm_table.cpp; src/vm/vm_frame.cpp; src/vm/vm_loop.cpp; src/vm/vm_trace.cpp
 last_checked: 2026-05-19
 applies_to: current repository facts and contributor-facing workflow
 ---
@@ -37,7 +37,7 @@ This file is the repository's single source of truth for externally visible proj
 ## Test Status
 
 - Test framework: custom lightweight C++ test framework vendored under `lua_test/include/test_framework` and adapted by `tests/unit/framework`.
-- Latest verified test count: 439 registered tests, 1862 assertion results, 0 failures.
+- Latest verified test count: 452 registered tests, 1987 assertion results, 0 failures.
 - `bin\lua_test.exe` supports `--list`, `--filter <suite-or-name>`, and `--report=junit`.
 - These numbers describe the project test runner result. They are not a Lua 5.1.5 compatibility percentage.
 
@@ -79,6 +79,7 @@ The command above must return no matches for production compiler sources.
 
 - `src/runtime/runtime_services.hpp` defines `RuntimeServices` as the current explicit compatibility layer over `GlobalState`, `StringPool`, and `GarbageCollector`.
 - `CodeGenerator`, `Parser`, `LuaState`, and `VM` expose context-aware construction/execution overloads while retaining singleton-backed compatibility overloads.
+- `src/compiler/parser.cpp` now keeps Parser construction, token/error handling, synchronization, and the top-level parse entry, while `parser_stmt.cpp`, `parser_expr.cpp`, `parser_primary.cpp`, `parser_func.cpp`, and `parser_table.cpp` hold grammar production shards covered by `Parser Boundary Sentinels`.
 - `src/main.cpp`, `src/repl.cpp`, and `src/bytecode/bytecode_main.cpp` use `RuntimeServices` for the first compiler/VM entry-point slice.
 - `src/vm/vm_entry.cpp` now holds `VM::call()` and `VM::execute()` entry points, while `src/vm/vm.cpp` retains the main bytecode dispatch loop.
 - `src/vm/vm_dispatch.hpp` classifies opcode families and metamethod-capable opcodes as the first VM dispatch split boundary.

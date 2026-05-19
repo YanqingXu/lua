@@ -19,6 +19,11 @@ set(LUA_CORE_SOURCES
     src/compiler/lexer.cpp
     src/compiler/opcode.cpp
     src/compiler/parser.cpp
+    src/compiler/parser_expr.cpp
+    src/compiler/parser_func.cpp
+    src/compiler/parser_primary.cpp
+    src/compiler/parser_stmt.cpp
+    src/compiler/parser_table.cpp
     src/core/function.cpp
     src/core/gc_object.cpp
     src/core/gc_string.cpp
@@ -69,6 +74,7 @@ set(LUA_TEST_SOURCES
     tests/unit/compiler/test_lexer_lookahead.cpp
     tests/unit/compiler/test_lexer_number.cpp
     tests/unit/compiler/test_method_call.cpp
+    tests/unit/compiler/test_parser_boundaries.cpp
     tests/unit/compiler/test_parser_error_recovery.cpp
     tests/unit/compiler/test_parser_memory_pool.cpp
     tests/unit/compiler/test_parser_recursion.cpp

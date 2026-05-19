@@ -49,6 +49,21 @@
     <ClCompile Include="src\compiler\parser.cpp">
       <Filter>src\compiler</Filter>
     </ClCompile>
+    <ClCompile Include="src\compiler\parser_expr.cpp">
+      <Filter>src\compiler</Filter>
+    </ClCompile>
+    <ClCompile Include="src\compiler\parser_func.cpp">
+      <Filter>src\compiler</Filter>
+    </ClCompile>
+    <ClCompile Include="src\compiler\parser_primary.cpp">
+      <Filter>src\compiler</Filter>
+    </ClCompile>
+    <ClCompile Include="src\compiler\parser_stmt.cpp">
+      <Filter>src\compiler</Filter>
+    </ClCompile>
+    <ClCompile Include="src\compiler\parser_table.cpp">
+      <Filter>src\compiler</Filter>
+    </ClCompile>
     <ClCompile Include="src\vm\stack.cpp">
       <Filter>src\vm</Filter>
     </ClCompile>

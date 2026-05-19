@@ -53,6 +53,7 @@ extern void registerLValuePipelineTests();
 extern void registerValuePipelineTests();
 extern void registerLexerNumberTests();
 extern void registerLexerLookaheadTests();
+extern void registerParserBoundaryTests();
 extern void registerParserRecursionTests();
 extern void registerParserErrorRecoveryTests();
 extern void registerParserMemoryPoolTests();
@@ -185,6 +186,7 @@ void registerAllTests() {
     registerValuePipelineTests();
     registerLexerNumberTests();
     registerLexerLookaheadTests();
+    registerParserBoundaryTests();
     registerParserRecursionTests();
     registerParserErrorRecoveryTests();
     registerParserMemoryPoolTests();
