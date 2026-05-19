@@ -1,0 +1,89 @@
+/**
+ * @file vm_entry.cpp
+ * @brief VM public entry points and C-call bridge.
+ */
+
+#include "vm/vm.hpp"
+
+#include "core/function.hpp"
+#include "core/value.hpp"
+#include "runtime/runtime_services.hpp"
+#include "vm/call_info.hpp"
+#include "vm/lua_state.hpp"
+#include "vm/vm_internal.hpp"
+
+#include <stdexcept>
+
+namespace Lua::VM {
+
+void call(LuaState* L, i32 nargs, i32 nresults) {
+    RuntimeServices services = RuntimeServices::fromSingletons();
+    call(services, L, nargs, nresults);
+}
+
+void call(RuntimeServices& services, LuaState* L, i32 nargs, i32 nresults) {
+    usize absTop = L->getAbsoluteTop();
+    usize funcPos = absTop - static_cast<usize>(nargs) - 1;
+
+    CallInfo& ci = L->getCurrentCallInfo();
+    i32 funcIndex = static_cast<i32>(funcPos - ci.base);
+
+    bool isLua = detail::precall(L, funcIndex, nargs, nresults);
+    if (isLua) {
+        CallInfo& newCI = L->getCurrentCallInfo();
+        Proto* proto = L->getStack()[newCI.func].asFunction()->getProto();
+        executeProto(services, L, proto, 1);
+
+        i32 fpos = static_cast<i32>(newCI.func);
+        i32 wantedResults = newCI.nresults;
+        L->popCallInfo();
+        detail::postcall(L, fpos, wantedResults);
+    }
+}
+
+void execute(LuaState* L, Function* func) {
+    RuntimeServices services = RuntimeServices::fromSingletons();
+    execute(services, L, func);
+}
+
+void execute(RuntimeServices& services, LuaState* L, Function* func) {
+    if (!func) {
+        throw std::runtime_error("VM::execute: null function");
+    }
+    if (func->isCFunction()) {
+        throw std::runtime_error("VM::execute: C functions not supported yet");
+    }
+
+    Stack& stack = L->getStack();
+
+    stack.push(Value(func));
+    usize funcIndex = stack.size() - 1;
+
+    CallInfo& ci = L->pushCallInfo();
+    ci.func = funcIndex;
+    ci.base = funcIndex + 1;
+    ci.top = ci.base;
+    ci.savedpc = nullptr;
+    ci.nresults = -1;
+    ci.tailcalls = 0;
+
+    Proto* proto = func->getProto();
+    usize requiredTop = ci.base + proto->getMaxStackSize();
+    if (stack.capacity() < requiredTop) {
+        stack.checkSpace(requiredTop - stack.size());
+    }
+    while (stack.size() < requiredTop) {
+        stack.push(Value());
+    }
+
+    ci.top = requiredTop;
+    L->setAbsoluteTop(requiredTop);
+
+    detail::dispatchCallHook(L);
+
+    executeProto(services, L, proto, 1);
+
+    L->popCallInfo();
+}
+
+}  // namespace Lua::VM

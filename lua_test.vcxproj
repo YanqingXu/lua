@@ -190,6 +190,7 @@
     <ClCompile Include="tests\unit\vm\test_function_call.cpp" />
     <ClCompile Include="tests\unit\vm\test_lua_state_init.cpp" />
     <ClCompile Include="tests\unit\vm\test_runtime_services.cpp" />
+    <ClCompile Include="tests\unit\vm\test_vm_dispatch.cpp" />
     <ClCompile Include="tests\unit\vm\test_vm_core.cpp" />
   </ItemGroup>
   <ItemGroup>

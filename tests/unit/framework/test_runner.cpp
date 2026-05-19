@@ -21,6 +21,7 @@ extern void registerValueTests();
 extern void registerGCStringTests();
 extern void registerTableTests();
 extern void registerVMCoreTests();
+extern void registerVMDispatchTests();
 extern void registerFunctionCallTests();
 extern void registerFunctionTests();
 extern void registerGCTests();
@@ -150,6 +151,7 @@ void registerAllTests() {
     registerGCStringTests();
     registerTableTests();
     registerVMCoreTests();
+    registerVMDispatchTests();
     registerFunctionCallTests();
     registerFunctionTests();
     registerGCTests();

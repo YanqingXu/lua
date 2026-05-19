@@ -183,7 +183,9 @@
     <ClInclude Include="src\vm\global_state.hpp" />
     <ClInclude Include="src\vm\lua_state.hpp" />
     <ClInclude Include="src\vm\stack.hpp" />
+    <ClInclude Include="src\vm\vm_dispatch.hpp" />
     <ClInclude Include="src\vm\vm.hpp" />
+    <ClInclude Include="src\vm\vm_internal.hpp" />
     <ClInclude Include="src\vm\vm_constants.hpp" />
     <ClInclude Include="src\debug\trace_types.hpp" />
     <ClInclude Include="src\debug\trace_sink.hpp" />
@@ -229,6 +231,7 @@
     <ClCompile Include="src\vm\global_state.cpp" />
     <ClCompile Include="src\vm\lua_state.cpp" />
     <ClCompile Include="src\vm\stack.cpp" />
+    <ClCompile Include="src\vm\vm_entry.cpp" />
     <ClCompile Include="src\vm\vm.cpp" />
     <ClCompile Include="src\debug\value_serializer.cpp" />
     <ClCompile Include="src\debug\json_trace_sink.cpp" />
