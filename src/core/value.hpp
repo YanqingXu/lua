@@ -16,7 +16,7 @@
  * 
  * 参考实现：
  * - lua_c_analysis/src/lobject.h 中的 TValue 结构
- * - lua/docs/ARCHITECTURE.md 中的设计文档
+ * - lua/docs/architecture/overview.md 中的设计文档
  */
 
 #include "common/types.hpp"

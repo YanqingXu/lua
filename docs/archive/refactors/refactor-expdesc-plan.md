@@ -1,13 +1,13 @@
 ---
 status: historical
-verified_against: docs/refactor_expdesc_pr_checklist.md; src/compiler/codegen_types.hpp; src/compiler/codegen.hpp
+verified_against: docs/archive/refactors/refactor-expdesc-pr-checklist.md; src/compiler/codegen_types.hpp; src/compiler/codegen.hpp
 last_checked: 2026-05-18
 applies_to: completed legacy expression pipeline refactor planning
 ---
 
 下面直接给你一份工程级版本。
 
-执行清单见：[refactor_expdesc_pr_checklist.md](./refactor_expdesc_pr_checklist.md)
+执行清单见：[refactor-expdesc-pr-checklist.md](./refactor-expdesc-pr-checklist.md)
 
 ---
 

@@ -1,6 +1,6 @@
 ---
 status: current
-verified_against: README.md; lua.slnx; lua.vcxproj; lua_app.vcxproj; lua_test.vcxproj; lua_bytecode.vcxproj; CMakeLists.txt; tools/run_cmake_smoke.ps1; tests/unit/framework/test_runner.cpp; tests/unit/compiler/test_parser_boundaries.cpp; tests/unit/compiler/test_codegen_state.cpp; tests/unit/compiler/test_bytecode_builder.cpp; tests/unit/vm/test_vm_dispatch.cpp; tests/unit/vm/test_vm_internal_boundaries.cpp; tests/unit/vm/test_vm_trace_debug.cpp; docs/START_HERE.md; docs/glossary.md; docs/walkthroughs/index.md; examples/README.md; src/runtime/runtime_services.hpp; src/compiler/parser.hpp; src/compiler/parser.cpp; src/compiler/parser_stmt.cpp; src/compiler/parser_expr.cpp; src/compiler/parser_primary.cpp; src/compiler/parser_func.cpp; src/compiler/parser_table.cpp; src/compiler/codegen.cpp; src/compiler/codegen_binding.cpp; src/compiler/codegen_expr.cpp; src/compiler/codegen_jump.cpp; src/compiler/codegen_stmt.cpp; src/compiler/codegen_state.hpp; src/compiler/bytecode_builder.hpp; src/vm/vm.cpp; src/vm/vm_entry.cpp; src/vm/vm_dispatch.hpp; src/vm/vm_internal.hpp; src/vm/vm_ops.cpp; src/vm/vm_call.cpp; src/vm/vm_table.cpp; src/vm/vm_frame.cpp; src/vm/vm_loop.cpp; src/vm/vm_trace.cpp
+verified_against: README.md; lua.slnx; lua.vcxproj; lua_app.vcxproj; lua_test.vcxproj; lua_bytecode.vcxproj; CMakeLists.txt; tools/run_cmake_smoke.ps1; tests/unit/framework/test_runner.cpp; tests/unit/compiler/test_parser_boundaries.cpp; tests/unit/compiler/test_codegen_state.cpp; tests/unit/compiler/test_bytecode_builder.cpp; tests/unit/vm/test_vm_dispatch.cpp; tests/unit/vm/test_vm_internal_boundaries.cpp; tests/unit/vm/test_vm_trace_debug.cpp; docs/index.md; docs/glossary.md; docs/walkthroughs/index.md; examples/README.md; src/runtime/runtime_services.hpp; src/compiler/parser.hpp; src/compiler/parser.cpp; src/compiler/parser_stmt.cpp; src/compiler/parser_expr.cpp; src/compiler/parser_primary.cpp; src/compiler/parser_func.cpp; src/compiler/parser_table.cpp; src/compiler/codegen.cpp; src/compiler/codegen_binding.cpp; src/compiler/codegen_expr.cpp; src/compiler/codegen_jump.cpp; src/compiler/codegen_stmt.cpp; src/compiler/codegen_state.hpp; src/compiler/bytecode_builder.hpp; src/vm/vm.cpp; src/vm/vm_entry.cpp; src/vm/vm_dispatch.hpp; src/vm/vm_internal.hpp; src/vm/vm_ops.cpp; src/vm/vm_call.cpp; src/vm/vm_table.cpp; src/vm/vm_frame.cpp; src/vm/vm_loop.cpp; src/vm/vm_trace.cpp
 last_checked: 2026-05-19
 applies_to: current repository facts and contributor-facing workflow
 ---
@@ -28,6 +28,13 @@ This file is the repository's single source of truth for externally visible proj
 - Repository-root `CMakeLists.txt` builds `lua_core`, `lua_app`, `lua_bytecode`, and `lua_test`.
 - Local secondary smoke entry: `tools/run_cmake_smoke.ps1`.
 - CTest currently registers one unit-test executable test plus the example Lua scripts under `examples/`.
+
+## Project Target Status
+
+- `lua.vcxproj` / `lua_core`: current core library target.
+- `lua_app.vcxproj` / `lua_app`: current script and REPL executable.
+- `lua_test.vcxproj` / `lua_test`: current unit test executable.
+- `lua_bytecode.vcxproj` / `lua_bytecode`: compile-to-`Proto` tool target; `src/bytecode/bytecode_printer.cpp` is still a printer stub and should not be documented as a complete disassembler.
 
 ## Planned Build Path Work
 
@@ -66,7 +73,7 @@ AST
   -> Proto
 ```
 
-- Historical `ExprDesc` notes belong under `docs/history/exprdesc.md`.
+- Historical `ExprDesc` notes belong under `docs/archive/history/exprdesc.md`.
 - Drift guard:
 
 ```powershell
@@ -90,9 +97,12 @@ The command above must return no matches for production compiler sources.
 
 ## Learning Path Status
 
-- `docs/START_HERE.md` is the first-read entry point for new contributors.
+- `docs/index.md` is the first-read entry point for new contributors.
 - `docs/glossary.md` maps Lua terminology to current repository types and files.
 - `docs/walkthroughs/index.md` organizes important test suites into a guided compiler, VM, runtime, and standard-library reading path.
+- `docs/projects/` documents the four build targets.
+- `docs/guides/` documents contributor and executable usage workflows.
+- `docs/architecture/`, `docs/compiler/`, `docs/vm/`, and `docs/stdlib/` hold implementation-oriented current documentation.
 - `examples/` contains small Lua scripts that can be run with `bin\lua_app.exe` after building the app target.
 
 ## Documentation Status Rules

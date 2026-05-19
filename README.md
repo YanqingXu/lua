@@ -1,6 +1,6 @@
 ---
 status: current
-verified_against: docs/PROJECT_STATUS.md; lua.slnx; lua.vcxproj; lua_app.vcxproj; lua_test.vcxproj; lua_bytecode.vcxproj; CMakeLists.txt; tools/run_cmake_smoke.ps1
+verified_against: docs/status/project-status.md; lua.slnx; lua.vcxproj; lua_app.vcxproj; lua_test.vcxproj; lua_bytecode.vcxproj; CMakeLists.txt; tools/run_cmake_smoke.ps1
 last_checked: 2026-05-19
 applies_to: repository overview and current build workflows
 ---
@@ -23,7 +23,7 @@ applies_to: repository overview and current build workflows
 
 本项目是一个**使用现代 C++ 重新实现 Lua 5.1.5 解释器**的实验性工程，当前主要面向学习、验证和逐步补全实现。
 
-> 当前构建、测试、工具链与编译器管线事实以 `docs/PROJECT_STATUS.md` 为准。README 只保留概览信息，避免与工程文件和开发指南重复漂移。
+> 当前构建、测试、工具链与编译器管线事实以 `docs/status/project-status.md` 为准。README 只保留概览信息，避免与工程文件和开发指南重复漂移。
 
 ### 项目目标
 
@@ -892,12 +892,12 @@ openBaseLib(L);  // 注册所有函数到全局环境
 |------|------|--------|
 | `src/` | 解释器核心实现目录，日常代码修改的主战场 | ⭐⭐⭐ |
 | `src/main.cpp` | `lua_app.exe` 的入口文件 | ⭐⭐⭐ |
-| `src/bytecode_main.cpp` | `lua_bytecode.exe` 的入口文件 | ⭐⭐⭐ |
-| `src/compiler/bytecode_printer.cpp` | 字节码打印工具的核心实现 | ⭐⭐⭐ |
+| `src/bytecode/bytecode_main.cpp` | `lua_bytecode.exe` 的入口文件 | ⭐⭐ |
+| `src/bytecode/bytecode_printer.cpp` | 字节码打印工具的输出层；当前仍是 stub | ⭐ |
 | `tests/unit/` | 单元测试目录，是验证 C++ 模块行为的第一入口 | ⭐⭐⭐ |
 | `tests/lua/` | Lua 脚本级样例与回归测试输入，现已按语法/功能分类整理 | ⭐⭐ |
-| `docs/ARCHITECTURE.md` | 架构设计说明，适合先建立整体认识 | ⭐⭐⭐ |
-| `docs/DEVELOPMENT_GUIDE.md` | 开发规范与类型系统约定 | ⭐⭐⭐ |
+| `docs/architecture/overview.md` | 架构设计说明，适合先建立整体认识 | ⭐⭐⭐ |
+| `docs/guides/development.md` | 开发规范与类型系统约定 | ⭐⭐⭐ |
 | `lua.slnx` | 当前 Visual Studio 解决方案入口 | ⭐⭐⭐ |
 
 ### 目录说明补充
@@ -919,7 +919,7 @@ openBaseLib(L);  // 注册所有函数到全局环境
 ### 建议阅读顺序
 
 1. 先看本文档开头的“必读约定”
-2. 再看 `docs/ARCHITECTURE.md`
+2. 再看 `docs/architecture/overview.md`
 3. 最后进入 `src/` 和 `tests/unit/` 开始实际开发或排错
 
 ---
@@ -930,10 +930,13 @@ openBaseLib(L);  // 注册所有函数到全局环境
 
 | 文档 | 描述 | 用途 |
 |------|------|------|
-| **ARCHITECTURE.md** | 架构设计文档 | 理解系统整体架构和模块设计 |
-| **DEVELOPMENT_GUIDE.md** | 开发规范 | 编码规范、类型系统使用指南、质量标准 |
-| **PROJECT_STATUS.md** | 当前事实源 | 构建入口、测试状态、文档状态、CodeGen 管线事实 |
-| **BYTECODE_GENERATION.md** | 字节码生成说明 | 当前 `AST -> SymbolRef / ValueResult / CondResult / LValueRef / CallResultInfo -> Proto` 主线 |
+| `docs/index.md` | 新人入口 | 第一次打开仓库时的阅读顺序 |
+| `docs/status/project-status.md` | 当前事实源 | 构建入口、测试状态、文档状态、CodeGen 管线事实 |
+| `docs/architecture/overview.md` | 架构总览 | 理解当前源码分层和模块设计 |
+| `docs/guides/development.md` | 开发规范 | 编码规范、类型系统使用指南、质量标准 |
+| `docs/compiler/bytecode-generation.md` | 字节码生成说明 | 当前 `AST -> SymbolRef / ValueResult / CondResult / LValueRef / CallResultInfo -> Proto` 主线 |
+| `docs/vm/instruction-set.md` | VM 指令集 | 38 条 Lua 5.1 风格指令的当前语义入口 |
+| `docs/stdlib/overview.md` | 标准库总览 | 标准库 catalog、注册方式和兼容性缺口 |
 
 ## 💡 快速上手指南（给新AI会话）
 
@@ -953,9 +956,9 @@ openBaseLib(L);  // 注册所有函数到全局环境
    - 优先补 `error(level)` / `xpcall` / debug 环境边界，其次补 `io.lines` 格式参数、`os.remove/os.rename` 失败返回值和 `table.concat` 类型边界
 
 4. **在哪里找详细信息？**
-   - 当前事实源：`docs/PROJECT_STATUS.md`
-   - 架构设计：`docs/ARCHITECTURE.md`
-   - 编码规范：`docs/DEVELOPMENT_GUIDE.md`
+   - 当前事实源：`docs/status/project-status.md`
+   - 架构设计：`docs/architecture/overview.md`
+   - 编码规范：`docs/guides/development.md`
 
 ---
 
@@ -978,7 +981,7 @@ openBaseLib(L);  // 注册所有函数到全局环境
 | `uint64_t` | `u64` | 64位无符号整数 |
 | `double` | `f64` | 64位浮点数 |
 
-**重要**：新增代码优先使用这些类型别名，而不是直接散落使用标准库原始类型。详细规范见 `docs/DEVELOPMENT_GUIDE.md`。
+**重要**：新增代码优先使用这些类型别名，而不是直接散落使用标准库原始类型。详细规范见 `docs/guides/development.md`。
 
 ### 核心实现约定
 
@@ -1090,7 +1093,7 @@ tests/unit/
 
 ## 🏗️ 子项目说明（Visual Studio 解决方案）
 
-本仓库包含一个 Visual Studio 解决方案，用于组织核心库、运行入口、测试程序和字节码分析工具。
+本仓库包含一个 Visual Studio 解决方案，用于组织核心库、运行入口、测试程序和字节码工具项目。
 
 ### 解决方案与构建信息
 
@@ -1127,17 +1130,17 @@ bin\build_bytecode.bat
 | 项目文件 | 输出类型 | 说明 |
 |---------|---------|------|
 | `lua.vcxproj` | 静态库（`lua.lib`） | 核心库，包含 Lexer、Parser、CodeGen、VM、GC 等所有产品源码，供其他子项目链接使用 |
-| `lua_app.vcxproj` | 可执行文件（`lua_app.exe`） | 临时交互式执行入口（REPL），`main()` 函数为临时实现，后续可能重构 |
+| `lua_app.vcxproj` | 可执行文件（`lua_app.exe`） | 解释器与 REPL 入口，支持脚本执行、默认 REPL、`-v`/`-h`/`-i` 和 `--trace` |
 | `lua_test.vcxproj` | 可执行文件（`lua_test.exe`） | 单元测试运行器，覆盖 compiler、core、gc、vm 等各模块的测试用例 |
-| `lua_bytecode.vcxproj` | 可执行文件（`lua_bytecode.exe`） | 字节码分析工具，将源码编译后以人类可读格式打印字节码，用于与原生 Lua（官方实现）的字节码进行对比测试 |
+| `lua_bytecode.vcxproj` | 可执行文件（`lua_bytecode.exe`） | 字节码工具入口，当前可走通源码到 `Proto` 的编译链路；`bytecode_printer` 仍是 stub，尚不能输出完整指令清单 |
 
 ### 使用建议
 
 - 开发核心功能时，优先修改并维护 `lua.vcxproj` 对应的库源码
-- 需要手动运行解释器流程时，使用 `lua_app.vcxproj`
+- 需要手动运行解释器或 REPL 流程时，使用 `lua_app.vcxproj`
 - 需要验证回归和模块正确性时，使用 `lua_test.vcxproj`
-- 需要分析编译结果或对比官方 Lua 字节码时，使用 `lua_bytecode.vcxproj`
+- 需要验证字节码工具入口、Parser/CodeGen 集成或后续打印器改造时，使用 `lua_bytecode.vcxproj`
 
 ### 一句话理解
 
-> `lua.vcxproj` 是核心静态库；`lua_app.vcxproj` 是临时 REPL 入口；`lua_test.vcxproj` 是测试运行器；`lua_bytecode.vcxproj` 是字节码对比分析工具。
+> `lua.vcxproj` 是核心静态库；`lua_app.vcxproj` 是解释器/REPL 入口；`lua_test.vcxproj` 是测试运行器；`lua_bytecode.vcxproj` 是仍在补齐打印能力的字节码工具入口。

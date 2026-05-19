@@ -1,13 +1,13 @@
 ---
 status: historical
-verified_against: docs/refactor_expdesc_pr_checklist.md; src/compiler/codegen.cpp; src/compiler/codegen.hpp
+verified_against: docs/archive/refactors/refactor-expdesc-pr-checklist.md; src/compiler/codegen.cpp; src/compiler/codegen.hpp
 last_checked: 2026-05-18
 applies_to: completed single-pass cleanup plan
 ---
 
 # 单遍编译策略残留清理 — 重构计划
 
-> 本文档基于 [refactor_expdesc_plan.md](./refactor_expdesc_plan.md) 和 [refactor_expdesc_pr_checklist.md](./refactor_expdesc_pr_checklist.md) 的基础之上，
+> 本文档基于 [refactor-expdesc-plan.md](./refactor-expdesc-plan.md) 和 [refactor-expdesc-pr-checklist.md](./refactor-expdesc-pr-checklist.md) 的基础之上，
 > 针对 PR-0 ~ PR-9 完成后仍残留在代码库中的单遍编译策略模式，制定系统性的分阶段清理方案。
 
 ---
@@ -459,7 +459,7 @@ void restore(i32 saved) noexcept { freereg_ = saved; }
 - [x] `rg "ExprDesc|ExprKind|expdesc" src/compiler` → 0 结果
 - [x] 全量单元测试：`bin/lua_test.exe` 全部通过（402 个注册测试，1574 个结果，0 失败）
 - [x] 全量 Lua 回归测试：所有 `tests/lua/regressions/*.lua` 通过
-- [x] 更新 `docs/refactor_expdesc_pr_checklist.md`：追加本文档的完成记录
+- [x] 更新 `docs/archive/refactors/refactor-expdesc-pr-checklist.md`：追加本文档的完成记录
 
 **状态**：`done` (2026-05-15)
 

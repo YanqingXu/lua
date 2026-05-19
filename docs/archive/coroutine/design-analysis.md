@@ -1,6 +1,6 @@
 ---
 status: historical
-verified_against: docs/PROJECT_STATUS.md; src/core/thread.hpp; src/lib/coroutinelib.cpp
+verified_against: docs/status/project-status.md; src/core/thread.hpp; src/lib/coroutinelib.cpp
 last_checked: 2026-05-18
 applies_to: coroutine design analysis notes before current implementation cleanup
 ---

@@ -1,6 +1,6 @@
 ---
 status: current
-verified_against: docs/OPTIMIZATION_ROADMAP.md; docs/START_HERE.md; docs/glossary.md; examples/README.md; tests/unit/framework/test_runner.cpp; bin/lua_test.exe --list
+verified_against: docs/roadmap/current.md; docs/index.md; docs/glossary.md; examples/README.md; tests/unit/framework/test_runner.cpp; bin/lua_test.exe --list
 last_checked: 2026-05-19
 applies_to: test-based learning path for compiler, VM, runtime, and standard library behavior
 ---
@@ -9,7 +9,7 @@ applies_to: test-based learning path for compiler, VM, runtime, and standard lib
 
 这份索引把现有测试从“验证清单”整理成“阅读路线”。如果你想理解这个解释器如何把 Lua 源码变成字节码、如何执行、以及标准库如何装配，可以先从这些测试切片读起，再回到实现文件。
 
-第一次阅读请先看 `docs/START_HERE.md` 和 `docs/glossary.md`。如果你更想先运行代码，再看 `examples/README.md`。
+第一次阅读请先看 `docs/index.md` 和 `docs/glossary.md`。如果你更想先运行代码，再看 `examples/README.md`。
 
 ## Runner Commands
 
@@ -49,11 +49,11 @@ bin\lua_test.exe --report=junit
 
 | 想理解 | 先运行 | 再读 |
 |---|---|---|
-| 名字如何绑定到 local/global/upvalue | `bin\lua_test.exe --filter "Symbol Binding"` | `src/compiler/codegen.hpp`, `src/compiler/codegen.cpp` |
-| 条件和短路如何避免错误物化 | `bin\lua_test.exe --filter "Codegen Conditions"` | `src/compiler/codegen.cpp` 中的 `emitCond` / `CondResult` 路径 |
-| 多返回值为什么依赖调用位置 | `bin\lua_test.exe --filter "Call Pipeline"` | `src/compiler/codegen_types.hpp`, `src/vm/vm.cpp` |
+| 名字如何绑定到 local/global/upvalue | `bin\lua_test.exe --filter "Symbol Binding"` | `src/compiler/codegen_binding.cpp`, `src/compiler/codegen.hpp` |
+| 条件和短路如何避免错误物化 | `bin\lua_test.exe --filter "Codegen Conditions"` | `src/compiler/codegen_expr.cpp`, `src/compiler/codegen_jump.cpp`, `src/compiler/codegen_types.hpp` |
+| 多返回值为什么依赖调用位置 | `bin\lua_test.exe --filter "Call Pipeline"` | `src/compiler/codegen_types.hpp`, `src/compiler/codegen_expr.cpp`, `src/compiler/codegen_stmt.cpp`, `src/vm/vm.cpp` |
 | RuntimeServices 当前解决了什么 | `bin\lua_test.exe --filter "Runtime Services"` | `src/runtime/runtime_services.hpp`, `src/main.cpp`, `src/repl.cpp` |
-| 标准库如何统一装配 | `bin\lua_test.exe --filter "Standard Library Catalog"` | `src/lib/lib_catalog.hpp`, `src/lib/lib_manager.cpp` |
+| 标准库如何统一装配 | `bin\lua_test.exe --filter "Standard Library Catalog"` | `src/lib/lib_catalog.hpp`, `src/lib/lib_manager.cpp`, `docs/stdlib/overview.md` |
 
 ## Example Pairings
 

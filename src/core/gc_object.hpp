@@ -17,7 +17,7 @@
  * 参考实现：
  * - lua_c_analysis/src/lobject.h 中的 CommonHeader 和 GCheader
  * - lua_c_analysis/src/lgc.h 中的三色标记算法
- * - lua/docs/ARCHITECTURE.md 中的设计文档
+ * - lua/docs/architecture/overview.md 中的设计文档
  */
 
 #include "common/types.hpp"

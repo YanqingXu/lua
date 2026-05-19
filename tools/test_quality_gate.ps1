@@ -56,7 +56,7 @@ Assert-FileContains ".github/workflows/ci.yml" @(
     "bin\\lua_test\.exe"
 )
 
-Assert-FileContains "docs/PROJECT_STATUS.md" @(
+Assert-FileContains "docs/status/project-status.md" @(
     "clang-format",
     "clang-tidy",
     "GitHub Actions",

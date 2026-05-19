@@ -29,6 +29,6 @@ bin\lua_app.exe examples\metamethods.lua
 
 ## Related Reading
 
-- `docs/START_HERE.md`
+- `docs/index.md`
 - `docs/glossary.md`
 - `docs/walkthroughs/index.md`

@@ -46,25 +46,37 @@ $failures = [System.Collections.Generic.List[string]]::new()
 
 $coreDocs = @(
     "README.md",
-    "docs/START_HERE.md",
-    "docs/OPTIMIZATION_ROADMAP.md",
-    "docs/PROJECT_STATUS.md",
-    "docs/DEVELOPMENT_GUIDE.md",
+    "docs/index.md",
+    "docs/roadmap/current.md",
+    "docs/status/project-status.md",
+    "docs/guides/development.md",
+    "docs/guides/repl-cli.md",
+    "docs/guides/test-runner.md",
+    "docs/guides/bytecode-tool.md",
     "docs/glossary.md",
     "docs/walkthroughs/index.md",
-    "docs/BYTECODE_GENERATION.md",
-    "docs/ARCHITECTURE.md",
-    "docs/EXPRESSION_PARSING.md",
-    "docs/REGISTER_ALLOCATION.md",
-    "docs/VM_TRACE_SYSTEM.md",
-    "docs/COROUTINE_DESIGN_ANALYSIS.md",
-    "docs/COROUTINE_DESIGN_V2.md",
-    "docs/DEBUG.md",
-    "docs/PLAN.md",
-    "docs/refactor_expdesc_plan.md",
-    "docs/refactor_expdesc_pr_checklist.md",
-    "docs/refactor_singlepass_cleanup_plan.md",
-    "docs/history/exprdesc.md",
+    "docs/projects/lua-lib.md",
+    "docs/projects/lua-app.md",
+    "docs/projects/lua-test.md",
+    "docs/projects/lua-bytecode.md",
+    "docs/architecture/gc.md",
+    "docs/compiler/bytecode-generation.md",
+    "docs/architecture/overview.md",
+    "docs/architecture/runtime-services.md",
+    "docs/compiler/parser-expression.md",
+    "docs/compiler/register-allocation.md",
+    "docs/vm/instruction-set.md",
+    "docs/vm/trace-system.md",
+    "docs/stdlib/overview.md",
+    "docs/archive/research/deep-research-report.md",
+    "docs/archive/coroutine/design-analysis.md",
+    "docs/architecture/coroutine.md",
+    "docs/archive/debug/debug-notes.md",
+    "docs/roadmap/future-architecture.md",
+    "docs/archive/refactors/refactor-expdesc-plan.md",
+    "docs/archive/refactors/refactor-expdesc-pr-checklist.md",
+    "docs/archive/refactors/refactor-singlepass-cleanup-plan.md",
+    "docs/archive/history/exprdesc.md",
     "examples/README.md"
 )
 
@@ -102,32 +114,32 @@ if (Test-Path -LiteralPath $compilerDir) {
 }
 
 $readme = Read-Text "README.md"
-if ($readme -notmatch "docs/PROJECT_STATUS\.md") {
-    Add-Failure $failures "README.md must point readers to docs/PROJECT_STATUS.md"
+if ($readme -notmatch "docs/status/project-status\.md") {
+    Add-Failure $failures "README.md must point readers to docs/status/project-status.md"
 }
 
-$guide = Read-Text "docs/DEVELOPMENT_GUIDE.md"
-if ($guide -notmatch "MSBuild" -or $guide -notmatch "\.vcxproj" -or $guide -notmatch "docs/PROJECT_STATUS\.md") {
-    Add-Failure $failures "DEVELOPMENT_GUIDE.md must name the current MSBuild/.vcxproj path and reference docs/PROJECT_STATUS.md"
+$guide = Read-Text "docs/guides/development.md"
+if ($guide -notmatch "MSBuild" -or $guide -notmatch "\.vcxproj" -or $guide -notmatch "docs/status/project-status\.md") {
+    Add-Failure $failures "docs/guides/development.md must name the current MSBuild/.vcxproj path and reference docs/status/project-status.md"
 }
 
 foreach ($required in @("CMakeLists.txt", "tools\run_cmake_smoke.ps1", "CMake", "CTest", "secondary")) {
     if ($guide -notmatch [regex]::Escape($required)) {
-        Add-Failure $failures "DEVELOPMENT_GUIDE.md is missing CMake/CTest support fact: $required"
+        Add-Failure $failures "docs/guides/development.md is missing CMake/CTest support fact: $required"
     }
 }
 
-$statusDoc = Read-Text "docs/PROJECT_STATUS.md"
-foreach ($required in @("Visual Studio", "MSBuild", ".vcxproj", "CMake", "CTest", "secondary", "CMakeLists.txt", "tools/run_cmake_smoke.ps1", "452", "1987", "--report=junit", "RuntimeServices", "Learning Path")) {
+$statusDoc = Read-Text "docs/status/project-status.md"
+foreach ($required in @("Visual Studio", "MSBuild", ".vcxproj", "CMake", "CTest", "secondary", "CMakeLists.txt", "tools/run_cmake_smoke.ps1", "452", "1987", "--report=junit", "RuntimeServices", "Learning Path", "lua_bytecode", "stub")) {
     if ($statusDoc -notmatch [regex]::Escape($required)) {
-        Add-Failure $failures "PROJECT_STATUS.md is missing required fact: $required"
+        Add-Failure $failures "docs/status/project-status.md is missing required fact: $required"
     }
 }
 
-$startHereDoc = Read-Text "docs/START_HERE.md"
-foreach ($required in @("PROJECT_STATUS.md", "DEVELOPMENT_GUIDE.md", "walkthroughs/index.md", "glossary.md", "examples/README.md", "bin\lua_test.exe --list")) {
+$startHereDoc = Read-Text "docs/index.md"
+foreach ($required in @("docs/status/project-status.md", "docs/guides/development.md", "docs/guides/repl-cli.md", "docs/guides/test-runner.md", "docs/guides/bytecode-tool.md", "docs/projects/lua-lib.md", "docs/projects/lua-app.md", "docs/projects/lua-test.md", "docs/projects/lua-bytecode.md", "docs/vm/instruction-set.md", "walkthroughs/index.md", "glossary.md", "examples/README.md", "bin\lua_test.exe --list")) {
     if ($startHereDoc -notmatch [regex]::Escape($required)) {
-        Add-Failure $failures "START_HERE.md is missing learning path reference: $required"
+        Add-Failure $failures "docs/index.md is missing learning path reference: $required"
     }
 }
 
@@ -145,16 +157,16 @@ foreach ($required in @("bin\lua_app.exe", "hello.lua", "control_flow.lua", "tab
     }
 }
 
-$bytecodeDoc = Read-Text "docs/BYTECODE_GENERATION.md"
-foreach ($required in @("AST", "SymbolRef", "ValueResult", "CondResult", "LValueRef", "CallResultInfo", "Proto")) {
+$bytecodeDoc = Read-Text "docs/compiler/bytecode-generation.md"
+foreach ($required in @("AST", "SymbolRef", "ValueResult", "CondResult", "LValueRef", "CallResultInfo", "Proto", "BytecodeBuilder")) {
     if ($bytecodeDoc -notmatch [regex]::Escape($required)) {
-        Add-Failure $failures "BYTECODE_GENERATION.md is missing current pipeline term: $required"
+        Add-Failure $failures "docs/compiler/bytecode-generation.md is missing current pipeline term: $required"
     }
 }
 
-$historyDoc = Read-Text "docs/history/exprdesc.md"
+$historyDoc = Read-Text "docs/archive/history/exprdesc.md"
 if ($historyDoc -notmatch "status:\s*historical") {
-    Add-Failure $failures "docs/history/exprdesc.md must be marked historical"
+    Add-Failure $failures "docs/archive/history/exprdesc.md must be marked historical"
 }
 
 if ($failures.Count -gt 0) {

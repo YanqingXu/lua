@@ -738,7 +738,7 @@ applies_to: completed PR/task record for legacy expression pipeline removal
 
 状态：`done` (2026-05-15)
 
-本轮在 `docs/refactor_singlepass_cleanup_plan.md` 的 PR-C1/PR-C2 基础上完成 PR-C3 到 PR-C5：
+本轮在 `docs/archive/refactors/refactor-singlepass-cleanup-plan.md` 的 PR-C1/PR-C2 基础上完成 PR-C3 到 PR-C5：
 
 - `RegisterAllocator` 封装完成，`CodeGenerator` 不再直接读写 `regs_.freereg_`。
 - `codegen.hpp` 中的 `luaK_*`、`exp2*`、`单遍`、`lua_c_analysis` 等过时描述已清理。

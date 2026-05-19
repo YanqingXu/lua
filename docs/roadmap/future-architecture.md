@@ -1,6 +1,6 @@
 ---
 status: planned
-verified_against: docs/PROJECT_STATUS.md
+verified_against: docs/status/project-status.md
 last_checked: 2026-05-18
 applies_to: future architecture blueprint, not current implementation
 ---

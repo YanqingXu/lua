@@ -1,6 +1,6 @@
 ---
 status: current
-verified_against: docs/PROJECT_STATUS.md; docs/BYTECODE_GENERATION.md; src/runtime/runtime_services.hpp; src/compiler/codegen_types.hpp; src/vm/vm.hpp
+verified_against: docs/status/project-status.md; docs/compiler/bytecode-generation.md; src/runtime/runtime_services.hpp; src/compiler/codegen_types.hpp; src/vm/vm.hpp
 last_checked: 2026-05-19
 applies_to: Lua terminology mapped to current repository code
 ---
@@ -20,13 +20,13 @@ applies_to: Lua terminology mapped to current repository code
 | Function | `Function` | `src/core/function.hpp` | 可执行函数对象，可能包装 `Proto` 或 C 函数。 |
 | Value | `Value` | `src/core/value.hpp` | Lua 值的统一表示，覆盖 nil、boolean、number、string、table、function 等。 |
 | Table | `Table` | `src/core/table.hpp` | Lua 表对象，承载数组部分、哈希部分和元表。 |
-| StringPool | `StringPool` | `src/core/string_pool.hpp` | 字符串驻留池；任务 5 后优先通过 `RuntimeServices` 显式传递。 |
+| StringPool | `StringPool` | `src/core/string_pool.hpp` | 字符串驻留池；新入口优先通过 `RuntimeServices` 显式传递。 |
 | GlobalState | `GlobalState` | `src/vm/global_state.hpp` | 共享运行时状态，包含字符串池、GC、registry、基础类型元表和元方法名称。 |
 | RuntimeServices | `RuntimeServices` | `src/runtime/runtime_services.hpp` | 当前显式运行时服务边界，封装 `GlobalState`、`StringPool`、`GarbageCollector`。 |
 | LuaState | `LuaState` | `src/vm/lua_state.hpp` | 单个 Lua 线程/协程的执行状态，包含栈、调用帧、全局表和 hook 状态。 |
 | Stack | `Stack` | `src/vm/stack.hpp` | VM 执行时的值栈。 |
 | CallInfo | `CallInfo` | `src/vm/call_info.hpp` | 单个调用帧的信息，包括函数位置、base、top、savedpc 和期望返回值。 |
-| VM | `Lua::VM` 自由函数 | `src/vm/vm.hpp` | 执行 `Proto` 的字节码解释器；任务 5 后有 context-aware 执行重载。 |
+| VM | `Lua::VM` 自由函数 | `src/vm/vm.hpp` | 执行 `Proto` 的字节码解释器；已有可接收 `RuntimeServices` 的 context-aware 执行重载。 |
 | OpCode | `OpCode` | `src/compiler/opcode.hpp` | Lua 5.1 风格的字节码指令枚举。 |
 | RK | `RK` 操作数编码 | `src/compiler/opcode.hpp`, `src/vm/vm.cpp` | 指令操作数可指向寄存器或常量表，VM 通过 `ISK` / `INDEXK` 区分。 |
 | SymbolRef | `SymbolRef` | `src/compiler/codegen_types.hpp` | 名字绑定结果，描述 local、upvalue 或 global。 |
@@ -44,7 +44,7 @@ applies_to: Lua terminology mapped to current repository code
 
 ## 推荐交叉阅读
 
-- 编译管线：`docs/BYTECODE_GENERATION.md`
+- 编译管线：`docs/compiler/bytecode-generation.md`
 - 测试学习路径：`docs/walkthroughs/index.md`
-- 当前事实：`docs/PROJECT_STATUS.md`
-- 后续任务：`docs/OPTIMIZATION_ROADMAP.md`
+- 当前事实：`docs/status/project-status.md`
+- 后续任务：`docs/roadmap/current.md`

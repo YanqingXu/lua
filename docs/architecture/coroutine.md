@@ -1,13 +1,13 @@
 ---
 status: current
-verified_against: docs/PROJECT_STATUS.md; src/core/thread.hpp; src/core/thread.cpp; src/lib/coroutinelib.cpp
+verified_against: docs/status/project-status.md; src/core/thread.hpp; src/core/thread.cpp; src/lib/coroutinelib.cpp
 last_checked: 2026-05-18
 applies_to: coroutine implementation design reference
 ---
 
 # Lua 协程实现技术方案 v2：显式 VM 状态机 + C++20 协程调度壳
 
-> **基于 COROUTINE_DESIGN_ANALYSIS.MD 评审意见的完整重新设计**
+> **基于 `docs/archive/coroutine/design-analysis.md` 评审意见的完整重新设计**
 
 ---
 

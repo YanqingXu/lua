@@ -1,6 +1,6 @@
 ---
 status: current
-verified_against: docs/PROJECT_STATUS.md; lua.slnx; lua.vcxproj; lua_test.vcxproj; CMakeLists.txt; tools/run_cmake_smoke.ps1; tests/unit/framework/test_runner.cpp
+verified_against: docs/status/project-status.md; lua.slnx; lua.vcxproj; lua_test.vcxproj; CMakeLists.txt; tools/run_cmake_smoke.ps1; tests/unit/framework/test_runner.cpp
 last_checked: 2026-05-19
 applies_to: current contributor workflow and coding conventions
 ---
@@ -26,7 +26,7 @@ applies_to: current contributor workflow and coding conventions
 
 ## 🛠️ 开发环境设置
 
-当前可复现主路径仍是 Windows + Visual Studio/MSBuild + `.vcxproj`。仓库根目录现在维护 `CMakeLists.txt`，CMake/CTest 是 secondary 辅助构建与测试路径，用于提前稳定未来跨平台入口；当前事实源见 `docs/PROJECT_STATUS.md`。
+当前可复现主路径仍是 Windows + Visual Studio/MSBuild + `.vcxproj`。仓库根目录现在维护 `CMakeLists.txt`，CMake/CTest 是 secondary 辅助构建与测试路径，用于提前稳定未来跨平台入口；当前事实源见 `docs/status/project-status.md`。
 
 ### 必需工具
 

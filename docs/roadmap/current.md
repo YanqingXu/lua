@@ -1,6 +1,6 @@
 ---
 status: current
-verified_against: docs/deep-research-report.md; docs/PROJECT_STATUS.md; docs/DEVELOPMENT_GUIDE.md; CMakeLists.txt; lua.vcxproj; lua.vcxproj.filters; src/compiler/parser.cpp; src/compiler/parser_stmt.cpp; src/compiler/parser_expr.cpp; src/compiler/parser_primary.cpp; src/compiler/parser_func.cpp; src/compiler/parser_table.cpp; tools/run_cmake_smoke.ps1; tools/check_doc_drift.ps1; tools/run_quality_gate.ps1
+verified_against: docs/archive/research/deep-research-report.md; docs/status/project-status.md; docs/guides/development.md; CMakeLists.txt; lua.vcxproj; lua.vcxproj.filters; src/compiler/parser.cpp; src/compiler/parser_stmt.cpp; src/compiler/parser_expr.cpp; src/compiler/parser_primary.cpp; src/compiler/parser_func.cpp; src/compiler/parser_table.cpp; tools/run_cmake_smoke.ps1; tools/check_doc_drift.ps1; tools/run_quality_gate.ps1
 last_checked: 2026-05-19
 applies_to: 仓库优化路线图与下次续接检查清单
 ---
@@ -44,7 +44,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_quality_gate.ps1
 | 高 | 可读性快修 | 已完成 | 共享文件读取、CLI 解析抽取和标准库表驱动注册已完成 |
 | 高 | 测试 runner 报告与教学索引 | 已完成 | runner 已支持 `--list`、`--filter`、`--report=junit`，并新增 walkthrough 索引 |
 | 中 | EngineContext / RuntimeServices | 已完成 | 已引入显式 RuntimeServices，并迁移入口层、CodeGenerator、Parser/VM 兼容重载 |
-| 中 | 教学导航 | 已完成 | 已新增 START_HERE、术语表和 examples，并扩展 walkthrough 索引 |
+| 中 | 教学导航 | 已完成 | 已新增 `docs/index.md`、术语表和 examples，并扩展 walkthrough 索引 |
 | 低 | CMake + CTest | 已完成 | 已新增 secondary CMake/CTest 路径，不替代 VS/MSBuild 主路径 |
 | 长期 | 拆分 CodeGenerator / VM / Parser | 进行中 | 8A-8C CodeGenerator 边界已完成，8D-8G VM 入口、dispatch 分类、ops/call/剩余 helper 与 trace/debug 边界已完成；8H Parser 函数组审计与行为锁定、8I Parser 物理拆分执行已完成 |
 
@@ -56,15 +56,15 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_quality_gate.ps1
 
 创建或重组的文件：
 
-- `docs/PROJECT_STATUS.md`
-- `docs/BYTECODE_GENERATION.md`
-- `docs/history/exprdesc.md`
+- `docs/status/project-status.md`
+- `docs/compiler/bytecode-generation.md`
+- `docs/archive/history/exprdesc.md`
 - `tools/check_doc_drift.ps1`
 
 更新的文件：
 
 - `README.md`
-- `docs/DEVELOPMENT_GUIDE.md`
+- `docs/guides/development.md`
 - 核心文档已统一增加 `status`、`verified_against`、`last_checked`、`applies_to` 页眉。
 
 完成效果：
@@ -72,7 +72,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_quality_gate.ps1
 - README 和开发指南都把 Windows/MSBuild/`.vcxproj` 描述为当前可复现路径。
 - CMake/CTest 曾在任务 1 标记为规划项；任务 7 后已作为 secondary 辅助路径落地。
 - 当前字节码生成文档改为说明 `AST -> SymbolRef / ValueResult / CondResult / LValueRef / CallResultInfo -> Proto`。
-- 旧的 `ExprDesc / ExprKind` 说明已移动到 `docs/history/exprdesc.md`。
+- 旧的 `ExprDesc / ExprKind` 说明已移动到 `docs/archive/history/exprdesc.md`。
 - `tools/check_doc_drift.ps1` 会检查产品编译器源码中的 `ExprDesc` 漂移，以及开发文档里的当前构建路径漂移。
 
 已使用的验证命令：
@@ -101,8 +101,8 @@ rg "ExprDesc|ExprKind|expdesc" src/compiler
 
 更新的文件：
 
-- `docs/PROJECT_STATUS.md`
-- `docs/DEVELOPMENT_GUIDE.md`
+- `docs/status/project-status.md`
+- `docs/guides/development.md`
 
 完成效果：
 
@@ -124,7 +124,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_quality_gate.ps1
 
 - 质量门禁配置自检通过。
 - 文档漂移检查通过。
-- 本机有 MSBuild 和 `bin\lua_test.exe` 时，`run_quality_gate.ps1` 会构建 `lua_test.vcxproj`，并运行 414 个注册测试 / 1634 个结果 / 0 失败。
+- 本机有 MSBuild 和 `bin\lua_test.exe` 时，`run_quality_gate.ps1` 会构建 `lua_test.vcxproj`，并运行 452 个注册测试 / 1987 个结果 / 0 失败。
 
 ### 3A. 共享文件读取
 
@@ -258,9 +258,9 @@ MSBuild.exe lua_bytecode.vcxproj /m /p:Configuration=Debug /p:Platform=x64
 
 - `lua_test/include/test_framework/test_framework.hpp`
 - `tests/unit/framework/test_runner.cpp`
-- `docs/PROJECT_STATUS.md`
-- `docs/DEVELOPMENT_GUIDE.md`
-- `docs/OPTIMIZATION_ROADMAP.md`
+- `docs/status/project-status.md`
+- `docs/guides/development.md`
+- `docs/roadmap/current.md`
 
 完成效果：
 
@@ -318,7 +318,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_quality_gate.ps1
 - `lua_test.vcxproj`
 - `lua_test.vcxproj.filters`
 - `tests/unit/framework/test_runner.cpp`
-- `docs/PROJECT_STATUS.md`
+- `docs/status/project-status.md`
 - `tools/check_doc_drift.ps1`
 
 完成效果：
@@ -352,7 +352,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_quality_gate.ps1
 
 创建的文件：
 
-- `docs/START_HERE.md`
+- `docs/index.md`
 - `docs/glossary.md`
 - `examples/README.md`
 - `examples/hello.lua`
@@ -363,8 +363,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_quality_gate.ps1
 更新的文件：
 
 - `docs/walkthroughs/index.md`
-- `docs/PROJECT_STATUS.md`
-- `docs/OPTIMIZATION_ROADMAP.md`
+- `docs/status/project-status.md`
+- `docs/roadmap/current.md`
 - `tools/check_doc_drift.ps1`
 
 完成效果：
@@ -552,7 +552,7 @@ AppOptions parseArgs(int argc, char** argv);
 
 已完成：
 
-- [x] `docs/START_HERE.md`
+- [x] `docs/index.md`
 - [x] `docs/glossary.md`
 - [x] `docs/walkthroughs/index.md` 扩展
 - [x] `examples/`
@@ -579,7 +579,7 @@ walkthrough 初始素材：
 - [x] 通过 CMake 构建 `lua_core`、`lua_app`、`lua_bytecode` 和 `lua_test`。
 - [x] 通过 CTest 注册 `lua_test` 和 `examples/` smoke。
 - [x] 新增 `tools\run_cmake_smoke.ps1`，自动发现 PATH 或 Visual Studio 自带的 CMake/CTest。
-- [x] 更新 `docs/PROJECT_STATUS.md` 和 `docs/DEVELOPMENT_GUIDE.md`，明确 CMake/CTest 是 secondary 辅助路径。
+- [x] 更新 `docs/status/project-status.md` 和 `docs/guides/development.md`，明确 CMake/CTest 是 secondary 辅助路径。
 - [x] 更新 `tools\check_doc_drift.ps1`，防止 CMake/CTest 状态再次漂移。
 
 已使用的验证命令：
@@ -637,7 +637,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_cmake_smoke.ps1
 - [x] 新增 `CodegenState::resetForProto()`，统一主函数和子函数编译的 Proto 初始化、寄存器绑定、source、vararg 和短生命周期状态清理。
 - [x] 新增 `tests/unit/compiler/test_codegen_state.cpp`，锁定 `resetForProto()` 对临时状态和 Proto 初始字段的行为。
 - [x] 将新增测试加入 `CMakeLists.txt`、`lua_test.vcxproj` 和 `lua_test.vcxproj.filters`，将新增头文件加入 `lua.vcxproj` 和 `lua.vcxproj.filters`。
-- [x] 同步更新 `docs/PROJECT_STATUS.md`、README 测试徽章和文档漂移检查计数。
+- [x] 同步更新 `docs/status/project-status.md`、README 测试徽章和文档漂移检查计数。
 
 已使用的验证命令：
 
@@ -803,7 +803,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_quality_gate.ps1
 - [x] 扩展 `src/vm/vm_internal.hpp` 和 `tests/unit/vm/test_vm_internal_boundaries.cpp`，锁定 trace/debug helper 签名。
 - [x] 新增 `tests/unit/vm/test_vm_trace_debug.cpp`，覆盖 instruction/call/return trace 顺序，以及 call/count/line/return debug hook 顺序。
 - [x] 将新增源文件和测试加入 `CMakeLists.txt`、`lua.vcxproj`、`lua.vcxproj.filters`、`lua_test.vcxproj` 和 `lua_test.vcxproj.filters`。
-- [x] 同步更新 `docs/PROJECT_STATUS.md`、README 测试统计和文档漂移检查计数。
+- [x] 同步更新 `docs/status/project-status.md`、README 测试统计和文档漂移检查计数。
 
 已使用的验证命令：
 
@@ -917,5 +917,5 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_cmake_smoke.ps1
 
 - 更新 `当前状态总览` 中对应行。
 - 在 `已完成优化` 中追加简短记录，包括修改文件和验证命令。
-- 如果仓库事实发生变化，同步更新 `docs/PROJECT_STATUS.md`。
+- 如果仓库事实发生变化，同步更新 `docs/status/project-status.md`。
 - 运行 `tools\check_doc_drift.ps1`。

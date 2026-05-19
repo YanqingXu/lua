@@ -1,8 +1,8 @@
 ---
-status: current
-verified_against: docs/PROJECT_STATUS.md; docs/VM_TRACE_SYSTEM.md; src/debug/; src/vm/vm.cpp
+status: historical
+verified_against: docs/status/project-status.md; docs/vm/trace-system.md; src/debug/; src/vm/vm.cpp
 last_checked: 2026-05-18
-applies_to: VM trace and debugging notes
+applies_to: archived VM trace brainstorming notes superseded by docs/vm/trace-system.md
 ---
 
 这个问题本质是：**如何观测 Lua VM 的执行轨迹（Execution Trace）**。

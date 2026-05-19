@@ -18,7 +18,7 @@
  * 
  * 参考实现：
  * - lua_c_analysis/src/ltable.h - Lua 5.1.5 C实现
- * - lua/docs/ARCHITECTURE.md - 架构设计文档
+ * - lua/docs/architecture/overview.md - 架构设计文档
  * 
  * @author YanqingXu
  * @date 2025-11-12

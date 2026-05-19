@@ -18,7 +18,7 @@
  * 参考实现：
  * - lua_c_analysis/src/lstring.h 中的 TString 结构
  * - lua_c_analysis/src/lstring.c 中的字符串管理函数
- * - lua/docs/ARCHITECTURE.md 中的设计文档
+ * - lua/docs/architecture/overview.md 中的设计文档
  */
 
 #include "core/gc_object.hpp"

@@ -1,13 +1,13 @@
 ---
 status: current
-verified_against: docs/PROJECT_STATUS.md; src/compiler/parser.hpp; src/compiler/parser.cpp; src/compiler/ast.hpp
+verified_against: docs/status/project-status.md; src/compiler/parser.hpp; src/compiler/parser.cpp; src/compiler/parser_expr.cpp; src/compiler/parser_primary.cpp; src/compiler/parser_table.cpp; src/compiler/parser_func.cpp; src/compiler/ast.hpp
 last_checked: 2026-05-18
 applies_to: current parser expression grammar
 ---
 
 # 表达式解析实现说明
 
-本文档说明 `src/compiler/parser.hpp` 与 `src/compiler/parser.cpp` 中“表达式解析”相关函数的实现方式、调用关系，以及每一种写法背后的设计理由。重点覆盖以下函数：
+本文档说明 `src/compiler/parser.hpp` 与当前 `parser_*.cpp` 分片中“表达式解析”相关函数的实现方式、调用关系，以及每一种写法背后的设计理由。表达式主体在 `src/compiler/parser_expr.cpp`，primary/postfix 在 `src/compiler/parser_primary.cpp`，表构造在 `src/compiler/parser_table.cpp`，函数表达式和参数列表在 `src/compiler/parser_func.cpp`。
 
 - `parseExpression`
 - `parseOrExpr`

@@ -17,7 +17,7 @@
  * 参考实现：
  * - lua_c_analysis/src/lstring.c 中的字符串表管理
  * - lua_c_analysis/src/lstate.h 中的 stringtable 结构
- * - lua/docs/ARCHITECTURE.md 中的设计文档
+ * - lua/docs/architecture/overview.md 中的设计文档
  */
 
 #include "core/gc_string.hpp"
