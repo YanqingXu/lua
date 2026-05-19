@@ -221,7 +221,7 @@ ValueResult CodeGenerator::emitValue(const Expr& e) {
         Proto* funcProto = compileFunction(funcExpr->params, funcExpr->isVararg,
                                            funcExpr->body, linedefined, lastlinedefined,
                                            &childUpvalues);
-        i32 protoIdx = static_cast<i32>(state_.proto->addProto(funcProto));
+        i32 protoIdx = state_.bytecode.addSubProto(funcProto);
         i32 reg = allocReg();
         codeABx(OpCode::CLOSURE, reg, protoIdx);
         emitClosureUpvalues(childUpvalues);
@@ -321,26 +321,26 @@ void CodeGenerator::materializeValue(const ValueResult& val, i32 reg) {
             break;
         }
         case ValueResult::Kind::Relocatable: {
-            Instruction inst = state_.proto->getInstruction(val.instructionPc);
+            Instruction inst = state_.bytecode.instruction(val.instructionPc);
             SETARG_A(inst, reg);
-            state_.proto->setInstruction(val.instructionPc, inst);
+            state_.bytecode.replaceInstruction(val.instructionPc, inst);
             break;
         }
         case ValueResult::Kind::MultiRet: {
             if (val.access == ValueResult::AccessKind::Call) {
                 // Call: 返回值在 baseReg，不能直接重写 A
-                Instruction inst = state_.proto->getInstruction(val.instructionPc);
+                Instruction inst = state_.bytecode.instruction(val.instructionPc);
                 i32 callBase = GETARG_A(inst);
                 SETARG_C(inst, 2);  // 固定为 1 个返回值
-                state_.proto->setInstruction(val.instructionPc, inst);
+                state_.bytecode.replaceInstruction(val.instructionPc, inst);
                 if (callBase != reg) {
                     codeABC(OpCode::MOVE, reg, callBase, 0);
                 }
             } else if (val.access == ValueResult::AccessKind::Vararg) {
-                Instruction inst = state_.proto->getInstruction(val.instructionPc);
+                Instruction inst = state_.bytecode.instruction(val.instructionPc);
                 SETARG_A(inst, reg);
                 SETARG_B(inst, 2);  // 固定为 1 个值
-                state_.proto->setInstruction(val.instructionPc, inst);
+                state_.bytecode.replaceInstruction(val.instructionPc, inst);
             }
             break;
         }
@@ -383,9 +383,9 @@ i32 CodeGenerator::valueToAnyReg(const ValueResult& val) {
     // MultiRet(Call): 返回值已在 baseReg
     if (val.kind == ValueResult::Kind::MultiRet && val.access == ValueResult::AccessKind::Call) {
         // 先固定为单值
-        Instruction inst = state_.proto->getInstruction(val.instructionPc);
+        Instruction inst = state_.bytecode.instruction(val.instructionPc);
         SETARG_C(inst, 2);
-        state_.proto->setInstruction(val.instructionPc, inst);
+        state_.bytecode.replaceInstruction(val.instructionPc, inst);
         return GETARG_A(inst);
     }
     // 否则分配寄存器并物化
@@ -409,18 +409,18 @@ ValueResult CodeGenerator::forceSingleValue(const ValueResult& val) {
     }
     // 将 CALL/VARARG 固定为单返回值并转为 Relocatable/Register
     if (val.access == ValueResult::AccessKind::Vararg) {
-        Instruction inst = state_.proto->getInstruction(val.instructionPc);
+        Instruction inst = state_.bytecode.instruction(val.instructionPc);
         SETARG_B(inst, 2);  // B=2 → 1 个值
-        state_.proto->setInstruction(val.instructionPc, inst);
+        state_.bytecode.replaceInstruction(val.instructionPc, inst);
         ValueResult result;
         result.kind = ValueResult::Kind::Relocatable;
         result.instructionPc = val.instructionPc;
         return result;
     }
     if (val.access == ValueResult::AccessKind::Call) {
-        Instruction inst = state_.proto->getInstruction(val.instructionPc);
+        Instruction inst = state_.bytecode.instruction(val.instructionPc);
         SETARG_C(inst, 2);  // C=2 → 1 个返回值
-        state_.proto->setInstruction(val.instructionPc, inst);
+        state_.bytecode.replaceInstruction(val.instructionPc, inst);
         ValueResult result;
         result.kind = ValueResult::Kind::Register;
         result.reg = GETARG_A(inst);
@@ -614,9 +614,9 @@ ValueResult CodeGenerator::emitValueTable(const TableExpr& table) {
     i32 tableReg = allocReg();
     // 设置 NEWTABLE 的 A 字段为 tableReg
     {
-        Instruction inst = state_.proto->getInstruction(pc);
+        Instruction inst = state_.bytecode.instruction(pc);
         SETARG_A(inst, tableReg);
-        state_.proto->setInstruction(pc, inst);
+        state_.bytecode.replaceInstruction(pc, inst);
     }
 
     i32 na = 0, nh = 0, tostore = 0;
@@ -679,16 +679,16 @@ ValueResult CodeGenerator::emitValueTable(const TableExpr& table) {
         if (hasLastCallResult) {
             i32 targetBase = tableReg + tostore;
             if (lastCallResult.kind == CallResultInfo::Kind::Call) {
-                Instruction inst = state_.proto->getInstruction(lastCallResult.instructionPc);
+                Instruction inst = state_.bytecode.instruction(lastCallResult.instructionPc);
                 i32 callBase = GETARG_A(inst);
                 if (callBase != targetBase) {
                     throw std::runtime_error("CALL base mismatch in table multret field");
                 }
                 setOpenMultiRet(lastCallResult);
             } else {
-                Instruction inst = state_.proto->getInstruction(lastCallResult.instructionPc);
+                Instruction inst = state_.bytecode.instruction(lastCallResult.instructionPc);
                 SETARG_A(inst, targetBase);
-                state_.proto->setInstruction(lastCallResult.instructionPc, inst);
+                state_.bytecode.replaceInstruction(lastCallResult.instructionPc, inst);
                 setOpenMultiRet(lastCallResult);
             }
             i32 c = (na - 1) / LFIELDS_PER_FLUSH + 1;
@@ -706,10 +706,10 @@ ValueResult CodeGenerator::emitValueTable(const TableExpr& table) {
 
     // 回填 NEWTABLE 的 B/C (na, nh)
     {
-        Instruction inst = state_.proto->getInstruction(pc);
+        Instruction inst = state_.bytecode.instruction(pc);
         SETARG_B(inst, na);
         SETARG_C(inst, nh);
-        state_.proto->setInstruction(pc, inst);
+        state_.bytecode.replaceInstruction(pc, inst);
     }
 
     ValueResult result;
@@ -813,10 +813,10 @@ CallResultInfo CodeGenerator::emitCallExpr(const CallExpr& e, i32 targetBase) {
                 // g(...) — 最后一个实参是 vararg，保持 multret
                 CallResultInfo innerInfo = emitVarargExpr();
                 // 设置 VARARG A 到 targetReg
-                Instruction inst = state_.proto->getInstruction(innerInfo.instructionPc);
+                Instruction inst = state_.bytecode.instruction(innerInfo.instructionPc);
                 SETARG_A(inst, targetReg);
                 SETARG_B(inst, 0);  // B=0 → 全部 vararg
-                state_.proto->setInstruction(innerInfo.instructionPc, inst);
+                state_.bytecode.replaceInstruction(innerInfo.instructionPc, inst);
                 lastArgIsMultiRet = true;
             }
             else {
@@ -870,24 +870,24 @@ CallResultInfo CodeGenerator::emitVarargExpr() {
 }
 
 void CodeGenerator::setOpenMultiRet(CallResultInfo& info) {
-    Instruction inst = state_.proto->getInstruction(info.instructionPc);
+    Instruction inst = state_.bytecode.instruction(info.instructionPc);
     if (info.kind == CallResultInfo::Kind::Call) {
         SETARG_C(inst, 0);  // C=0 → 返回所有值
     } else if (info.kind == CallResultInfo::Kind::Vararg) {
         SETARG_B(inst, 0);  // B=0 → 复制所有 vararg
     }
-    state_.proto->setInstruction(info.instructionPc, inst);
+    state_.bytecode.replaceInstruction(info.instructionPc, inst);
     info.openMultiRet = true;
 }
 
 void CodeGenerator::setWantedResults(CallResultInfo& info, i32 wanted) {
-    Instruction inst = state_.proto->getInstruction(info.instructionPc);
+    Instruction inst = state_.bytecode.instruction(info.instructionPc);
     if (info.kind == CallResultInfo::Kind::Call) {
         SETARG_C(inst, wanted + 1);  // C = wanted+1
     } else if (info.kind == CallResultInfo::Kind::Vararg) {
         SETARG_B(inst, wanted + 1);  // B = wanted+1
     }
-    state_.proto->setInstruction(info.instructionPc, inst);
+    state_.bytecode.replaceInstruction(info.instructionPc, inst);
 }
 
 

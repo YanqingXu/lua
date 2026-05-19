@@ -9,7 +9,7 @@ applies_to: repository overview and current build workflows
 
 > **从零开始用C++17/20/23实现Lua 5.1.5解释器**
 
-[![Tests](https://img.shields.io/badge/tests-1738%2F1738-brightgreen)]()
+[![Tests](https://img.shields.io/badge/tests-1765%2F1765-brightgreen)]()
 [![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen)]()
 [![C++](https://img.shields.io/badge/C%2B%2B-17%2F23-blue)]()
 [![Platform](https://img.shields.io/badge/platform-Windows-blue)]()

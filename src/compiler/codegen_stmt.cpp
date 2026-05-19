@@ -71,9 +71,9 @@ void CodeGenerator::emitStmt(const AssignStmt& s) {
         }
         else if (std::holds_alternative<VarargExpr>(lastExpr.variant)) {
             CallResultInfo callResult = emitVarargExpr();
-            Instruction inst = state_.proto->getInstruction(callResult.instructionPc);
+            Instruction inst = state_.bytecode.instruction(callResult.instructionPc);
             SETARG_B(inst, wanted + 1);
-            state_.proto->setInstruction(callResult.instructionPc, inst);
+            state_.bytecode.replaceInstruction(callResult.instructionPc, inst);
             i32 valueBase = GETARG_A(inst);
 
             for (i32 j = 0; j < wanted; j++) {
@@ -170,10 +170,10 @@ void CodeGenerator::emitStmt(const LocalStmt& s) {
             }
             else if (std::holds_alternative<VarargExpr>(lastExpr.variant)) {
                 CallResultInfo callResult = emitVarargExpr();
-                Instruction inst = state_.proto->getInstruction(callResult.instructionPc);
+                Instruction inst = state_.bytecode.instruction(callResult.instructionPc);
                 SETARG_A(inst, targetReg);
                 SETARG_B(inst, wanted + 1);
-                state_.proto->setInstruction(callResult.instructionPc, inst);
+                state_.bytecode.replaceInstruction(callResult.instructionPc, inst);
                 allVarsInitialized = true;
             }
             else {
@@ -229,17 +229,17 @@ void CodeGenerator::emitStmt(const ReturnStmt& s) {
             // 如果 callBase 恰好等于 base + (nret - 1)，完美对齐
             if (info.baseReg == base + (nret - 1)) {
                 if (nret == 1) {
-                    Instruction inst = state_.proto->getInstruction(info.instructionPc);
+                    Instruction inst = state_.bytecode.instruction(info.instructionPc);
                     inst = CREATE_ABC(OpCode::TAILCALL, GETARG_A(inst), GETARG_B(inst), 0);
-                    state_.proto->setInstruction(info.instructionPc, inst);
+                    state_.bytecode.replaceInstruction(info.instructionPc, inst);
                 }
                 codeABC(OpCode::RETURN, base, 0, 0);  // B=0 → 从 base 到栈顶
             } else {
                 // callBase 在更高位置（嵌套调用保护发生了搬移），
                 // 无法 MOVE multret，退化为单值
-                Instruction inst = state_.proto->getInstruction(info.instructionPc);
+                Instruction inst = state_.bytecode.instruction(info.instructionPc);
                 SETARG_C(inst, 2);  // 恢复为单值 C=2
-                state_.proto->setInstruction(info.instructionPc, inst);
+                state_.bytecode.replaceInstruction(info.instructionPc, inst);
                 codeABC(OpCode::MOVE, base + (nret - 1), info.baseReg, 0);
                 codeABC(OpCode::RETURN, base, nret + 1, 0);
             }
@@ -249,10 +249,10 @@ void CodeGenerator::emitStmt(const ReturnStmt& s) {
         else if (std::holds_alternative<VarargExpr>(lastExpr.variant)) {
             // return ..., ... — 保持 multret 传播
             CallResultInfo info = emitVarargExpr();
-            Instruction inst = state_.proto->getInstruction(info.instructionPc);
+            Instruction inst = state_.bytecode.instruction(info.instructionPc);
             SETARG_A(inst, base + (nret - 1));
             SETARG_B(inst, 0);  // B=0 → 复制全部 vararg
-            state_.proto->setInstruction(info.instructionPc, inst);
+            state_.bytecode.replaceInstruction(info.instructionPc, inst);
             codeABC(OpCode::RETURN, base, 0, 0);  // B=0 → 返回到栈顶
             state_.regs.restore(savedFreereg);
             return;
@@ -437,8 +437,7 @@ Proto* CodeGenerator::compileFunction(const Vec<Str>& params, bool isVararg, con
     child.block(body);
 
     // 添加隐式return（如果函数体没有显式return）
-    if (newProto->getInstructionCount() == 0 ||
-        GET_OPCODE(newProto->getInstruction(newProto->getInstructionCount() - 1)) != OpCode::RETURN) {
+    if (!child.state_.bytecode.hasInstructions() || child.state_.bytecode.lastOpcode() != OpCode::RETURN) {
         child.codeABC(OpCode::RETURN, 0, 1, 0);
     }
 
@@ -487,7 +486,7 @@ void CodeGenerator::emitStmt(const FunctionStmt& s) {
     Proto* funcProto = compileFunction(s.params, s.isVararg, s.body, linedefined, lastlinedefined, &childUpvalues);
 
     // 将Proto添加到当前Proto的子函数列表
-    i32 protoIdx = static_cast<i32>(state_.proto->addProto(funcProto));
+    i32 protoIdx = state_.bytecode.addSubProto(funcProto);
 
     if (s.isLocal) {
         // 局部函数：local function name() end
@@ -657,10 +656,10 @@ void CodeGenerator::emitStmt(const ForInStmt& s) {
         checkStack(0);
     } else if (std::holds_alternative<VarargExpr>(iteratorExpr.variant)) {
         CallResultInfo info = emitVarargExpr();
-        Instruction inst = state_.proto->getInstruction(info.instructionPc);
+        Instruction inst = state_.bytecode.instruction(info.instructionPc);
         SETARG_A(inst, base);
         SETARG_B(inst, 4);  // B=4 -> 3 个结果
-        state_.proto->setInstruction(info.instructionPc, inst);
+        state_.bytecode.replaceInstruction(info.instructionPc, inst);
         state_.regs.setFreeReg(base + 3);
         checkStack(0);
     } else {
@@ -733,8 +732,8 @@ void CodeGenerator::attachDebugMetadata() {
     for (const LocalVar& local : state_.locals.localVars_) {
         i32 endpc = local.endpc >= 0
             ? local.endpc
-            : static_cast<i32>(state_.proto->getInstructionCount());
-        state_.proto->addLocVar(state_.pool->intern(local.name), local.startpc, endpc, local.reg);
+            : state_.bytecode.instructionCount();
+        state_.bytecode.addLocalDebug(local.name, local.startpc, endpc, local.reg);
     }
 }
 // =====================================================================
@@ -750,9 +749,8 @@ void CodeGenerator::closeScopeUpvalues(i32 level) {
         return;
     }
 
-    if (state_.proto->getInstructionCount() > 0) {
-        Instruction last = state_.proto->getInstruction(state_.proto->getInstructionCount() - 1);
-        if (GET_OPCODE(last) == OpCode::RETURN) {
+    if (state_.bytecode.hasInstructions()) {
+        if (state_.bytecode.lastOpcode() == OpCode::RETURN) {
             return;
         }
     }

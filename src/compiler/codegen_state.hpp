@@ -5,6 +5,7 @@
  * @brief Shared mutable state for CodeGenerator implementation slices.
  */
 
+#include "compiler/bytecode_builder.hpp"
 #include "compiler/codegen_context.hpp"
 #include "core/string_pool.hpp"
 #include "runtime/runtime_services.hpp"
@@ -32,6 +33,7 @@ struct CodegenState {
     LocalVarScope locals;
     BlockManager blocks;
     UpvalueContext upvalues;
+    BytecodeBuilder bytecode;
 
     explicit CodegenState(RuntimeServices runtimeServices)
         : services(runtimeServices)
@@ -43,11 +45,12 @@ struct CodegenState {
 
     void resetForProto(Proto& nextProto, bool isVararg, StrView sourceName = {}) {
         proto = &nextProto;
+        bytecode.bind(nextProto, *pool);
         regs.bind(proto);
         proto->setMaxStackSize(2);
         proto->setVararg(isVararg);
         if (!sourceName.empty()) {
-            proto->setSource(pool->intern(sourceName));
+            bytecode.setSource(sourceName);
         }
 
         regs.reset(0);

@@ -141,6 +141,7 @@
     <ClInclude Include="src\common\macros.hpp" />
     <ClInclude Include="src\common\types.hpp" />
     <ClInclude Include="src\compiler\ast.hpp" />
+    <ClInclude Include="src\compiler\bytecode_builder.hpp" />
     <ClInclude Include="src\compiler\codegen.hpp" />
     <ClInclude Include="src\compiler\codegen_context.hpp" />
     <ClInclude Include="src\compiler\codegen_state.hpp" />

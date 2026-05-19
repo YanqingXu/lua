@@ -147,6 +147,9 @@
     <ClInclude Include="src\compiler\codegen.hpp">
       <Filter>src\compiler</Filter>
     </ClInclude>
+    <ClInclude Include="src\compiler\bytecode_builder.hpp">
+      <Filter>src\compiler</Filter>
+    </ClInclude>
     <ClInclude Include="src\compiler\codegen_context.hpp">
       <Filter>src\compiler</Filter>
     </ClInclude>

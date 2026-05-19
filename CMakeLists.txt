@@ -76,6 +76,7 @@ set(LUA_TEST_SOURCES
     tests/unit/compiler/test_symbol_binding.cpp
     tests/unit/compiler/test_codegen_result_types.cpp
     tests/unit/compiler/test_codegen_state.cpp
+    tests/unit/compiler/test_bytecode_builder.cpp
     tests/unit/compiler/test_function_codegen.cpp
     tests/unit/compiler/test_lua_functions.cpp
     tests/unit/core/test_function.cpp

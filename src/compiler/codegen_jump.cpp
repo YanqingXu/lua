@@ -34,13 +34,13 @@ void CodeGenerator::patchList(const PatchList& list, i32 target) {
 
 void CodeGenerator::flushPendingJumps() {
     // 将所有待处理跳转修补到当前指令位置
-    i32 target = static_cast<i32>(state_.proto->getInstructionCount());
+    i32 target = state_.bytecode.instructionCount();
     patchList(state_.blocks.jpc_, target);
     state_.blocks.jpc_ = NO_JUMP;
 }
 
 i32 CodeGenerator::getLabel() {
-    return static_cast<i32>(state_.proto->getInstructionCount());
+    return state_.bytecode.instructionCount();
 }
 void CodeGenerator::concatJumpList(i32& l1, i32 l2) {
     if (l2 == NO_JUMP) return;
@@ -78,21 +78,21 @@ i32 CodeGenerator::condjump(OpCode op, i32 a, i32 b, i32 c) {
 }
 
 void CodeGenerator::patchtohere(i32 list) {
-    state_.pc = static_cast<i32>(state_.proto->getInstructionCount());
+    state_.pc = state_.bytecode.instructionCount();
     concatJumpList(state_.blocks.jpc_, list);
 }
 
 void CodeGenerator::patchtohere(const PatchList& list) {
-    state_.pc = static_cast<i32>(state_.proto->getInstructionCount());
+    state_.pc = state_.bytecode.instructionCount();
     patchList(list, state_.pc);
 }
 
 void CodeGenerator::syncPC() {
-    state_.pc = static_cast<i32>(state_.proto->getInstructionCount());
+    state_.pc = state_.bytecode.instructionCount();
 }
 
 i32 CodeGenerator::getjump(i32 pc) {
-    Instruction inst = state_.proto->getInstruction(pc);
+    Instruction inst = state_.bytecode.instruction(pc);
     i32 offset = GETARG_sBx(inst);
     if (offset == NO_JUMP) {
         return NO_JUMP;
@@ -102,13 +102,13 @@ i32 CodeGenerator::getjump(i32 pc) {
 }
 
 void CodeGenerator::fixjump(i32 pc, i32 dest) {
-    Instruction jmp = state_.proto->getInstruction(pc);
+    Instruction jmp = state_.bytecode.instruction(pc);
     i32 offset = dest - (pc + 1);
     if (offset > MAXARG_sBx || offset < -MAXARG_sBx) {
         throw std::runtime_error("control structure too long");
     }
     SETARG_sBx(jmp, offset);
-    state_.proto->setInstruction(pc, jmp);
+    state_.bytecode.replaceInstruction(pc, jmp);
 }
 
 PatchList CodeGenerator::collectPatchList(i32 list) {

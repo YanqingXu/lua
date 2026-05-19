@@ -46,7 +46,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_quality_gate.ps1
 | 中 | EngineContext / RuntimeServices | 已完成 | 已引入显式 RuntimeServices，并迁移入口层、CodeGenerator、Parser/VM 兼容重载 |
 | 中 | 教学导航 | 已完成 | 已新增 START_HERE、术语表和 examples，并扩展 walkthrough 索引 |
 | 低 | CMake + CTest | 已完成 | 已新增 secondary CMake/CTest 路径，不替代 VS/MSBuild 主路径 |
-| 长期 | 拆分 CodeGenerator / VM / Parser | 进行中 | 8A CodeGenerator 物理拆分与 8B 状态收口已完成；下一步做 8C 发射边界收口 |
+| 长期 | 拆分 CodeGenerator / VM / Parser | 进行中 | 8A-8C CodeGenerator 拆分、状态收口与发射边界收口已完成；下一步评估 VM dispatch 拆分 |
 
 ## 已完成优化
 
@@ -657,10 +657,6 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_quality_gate.ps1
 - 状态边界重构未改变 `CodeGenerator` public API、字节码语义或 CLI 行为。
 - 8A 新增的实现分片现在通过 `state_` 共享上下文，后续可继续把发射逻辑收口到更窄的 builder API。
 
-## 下一步推荐任务：CodeGenerator 发射边界收口
-
-建议从这里继续。
-
 ### 任务 8C：CodeGenerator 发射边界收口
 
 **目标：** 在 `CodegenState` 已经集中可变状态后，进一步把字节码发射、常量写入、line info 和 Proto 写操作收口到更窄的 `BytecodeBuilder` / emission API，为后续拆 VM 和 Parser 前的编译器边界继续降耦。
@@ -672,12 +668,45 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_quality_gate.ps1
 - CMake/CTest secondary 路径已可运行。
 - 教学导航已能帮助新贡献者定位关键测试。
 
+已完成：
+
+- [x] 新增 `src/compiler/bytecode_builder.hpp`，引入 `BytecodeBuilder` 作为当前 `Proto` 的发射写入边界。
+- [x] `BytecodeBuilder` 统一承载 `emitABC()`、`emitABx()`、`emitAsBx()`、line info、常量表、子 Proto、指令读取/替换和局部调试信息写入。
+- [x] `CodegenState::resetForProto()` 绑定 `bytecode`，主函数和子函数编译共享同一套发射初始化路径。
+- [x] `CodeGenerator` 的 `codeABC()`、`codeABx()`、`codeAsBx()`、常量 helper、跳转回填、call/vararg 调整、table 回填、函数闭包子 Proto 写入和 debug metadata 写入已改为经过 `state_.bytecode`。
+- [x] 新增 `tests/unit/compiler/test_bytecode_builder.cpp`，覆盖指令发射 + line info、常量/子 Proto 写入和指令替换。
+- [x] 将新增测试加入 `CMakeLists.txt`、`lua_test.vcxproj` 和 `lua_test.vcxproj.filters`，将新增头文件加入 `lua.vcxproj` 和 `lua.vcxproj.filters`。
+
+已使用的验证命令：
+
+```powershell
+D:\VS2026\MSBuild\Current\Bin\MSBuild.exe lua_test.vcxproj /p:Configuration=Debug /p:Platform=x64 /m
+bin\lua_test.exe --filter "Bytecode Builder"
+bin\lua_test.exe --filter "Codegen State"
+bin\lua_test.exe --filter "Function Codegen"
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_quality_gate.ps1
+```
+
+验收结果：
+
+- 默认 `bin\lua_test.exe` 运行 428 个注册测试 / 1765 个结果 / 0 失败。
+- CodeGenerator public API 保持不变；发射、常量和指令替换路径已通过 `BytecodeBuilder` 收口。
+- `src/compiler` 中 CodeGenerator 实现文件不再直接调用 `Proto::addInstruction()`、`addLineInfo()`、`addConstant()`、`addProto()`、`getInstruction()`、`setInstruction()` 或 `getInstructionCount()`。
+
+## 下一步推荐任务：VM dispatch 拆分准备
+
+建议从这里继续。
+
+### 任务 8D：VM dispatch 拆分准备
+
+**目标：** 在 CodeGenerator 边界已经完成 8A-8C 收口后，开始评估 VM 大文件拆分，优先把指令 dispatch、call/return、metamethod 路径按行为边界拆开，同时保持 `VM` public API 和现有执行语义不变。
+
 建议顺序：
 
-1. 在不改变 `CodeGenerator` public API 的前提下，评估 `BytecodeBuilder` 或 `CodegenEmitter`。
-2. 优先收拢 `codeABC()`、`codeABx()`、`codeAsBx()`、常量表写入、line info 和 `Proto::addInstruction()` 路径。
-3. 保持 `CodegenState` 作为共享上下文，逐步让表达式/语句 lowering 只依赖更窄的发射接口。
-4. 完成后再评估 VM dispatch 拆分或 Parser 解析阶段拆分。
+1. 先用 `rg` 梳理 `src/vm/vm.cpp` 中的 dispatch、call/return、metamethod、table/global/upvalue 操作分段。
+2. 增加一组小的 VM 边界回归测试或复用现有 `VM Core` / `Function Call` / metamethod 测试作为拆分护栏。
+3. 先做物理拆分，不改变执行循环和栈协议。
+4. 拆分完成后再考虑更窄的 `CallFrame` / `DispatchContext` 边界。
 
 共享文件读取、CLI 抽取、标准库 catalog 和 EngineContext 基础已经完成；深拆大型模块可以在教学导航和构建路径更稳定后启动。
 

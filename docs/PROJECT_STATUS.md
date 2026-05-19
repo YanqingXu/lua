@@ -1,6 +1,6 @@
 ---
 status: current
-verified_against: README.md; lua.slnx; lua.vcxproj; lua_app.vcxproj; lua_test.vcxproj; lua_bytecode.vcxproj; CMakeLists.txt; tools/run_cmake_smoke.ps1; tests/unit/framework/test_runner.cpp; tests/unit/compiler/test_codegen_state.cpp; docs/START_HERE.md; docs/glossary.md; docs/walkthroughs/index.md; examples/README.md; src/runtime/runtime_services.hpp; src/compiler/codegen.cpp; src/compiler/codegen_binding.cpp; src/compiler/codegen_expr.cpp; src/compiler/codegen_jump.cpp; src/compiler/codegen_stmt.cpp; src/compiler/codegen_state.hpp
+verified_against: README.md; lua.slnx; lua.vcxproj; lua_app.vcxproj; lua_test.vcxproj; lua_bytecode.vcxproj; CMakeLists.txt; tools/run_cmake_smoke.ps1; tests/unit/framework/test_runner.cpp; tests/unit/compiler/test_codegen_state.cpp; tests/unit/compiler/test_bytecode_builder.cpp; docs/START_HERE.md; docs/glossary.md; docs/walkthroughs/index.md; examples/README.md; src/runtime/runtime_services.hpp; src/compiler/codegen.cpp; src/compiler/codegen_binding.cpp; src/compiler/codegen_expr.cpp; src/compiler/codegen_jump.cpp; src/compiler/codegen_stmt.cpp; src/compiler/codegen_state.hpp; src/compiler/bytecode_builder.hpp
 last_checked: 2026-05-19
 applies_to: current repository facts and contributor-facing workflow
 ---
@@ -37,7 +37,7 @@ This file is the repository's single source of truth for externally visible proj
 ## Test Status
 
 - Test framework: custom lightweight C++ test framework vendored under `lua_test/include/test_framework` and adapted by `tests/unit/framework`.
-- Latest verified test count: 425 registered tests, 1738 assertion results, 0 failures.
+- Latest verified test count: 428 registered tests, 1765 assertion results, 0 failures.
 - `bin\lua_test.exe` supports `--list`, `--filter <suite-or-name>`, and `--report=junit`.
 - These numbers describe the project test runner result. They are not a Lua 5.1.5 compatibility percentage.
 
@@ -56,6 +56,7 @@ This file is the repository's single source of truth for externally visible proj
 - `ExprDesc` and `ExprKind` have been removed from production compiler sources.
 - `CodeGenerator` keeps its public API in `src/compiler/codegen.hpp`, while its implementation is physically split across `codegen.cpp`, `codegen_binding.cpp`, `codegen_expr.cpp`, `codegen_jump.cpp`, and `codegen_stmt.cpp`.
 - `src/compiler/codegen_state.hpp` centralizes the mutable generation state shared by those implementation slices, including the current `Proto`, program counter, line number, register allocator, local scope, block manager, and upvalue context.
+- `src/compiler/bytecode_builder.hpp` centralizes bytecode emission writes to the current `Proto`, including instruction creation, line info, constants, sub-protos, instruction replacement, and local debug metadata.
 - Current bytecode-generation documentation should explain this pipeline:
 
 ```text

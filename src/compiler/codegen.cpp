@@ -47,8 +47,7 @@ Proto* CodeGenerator::generate(const Chunk& chunk, StrView sourceName) {
     block(chunk.statements);
     
     // 添加RETURN指令（如果最后一条指令不是RETURN）
-    if (state_.proto->getInstructionCount() == 0 ||
-        GET_OPCODE(state_.proto->getInstruction(state_.proto->getInstructionCount() - 1)) != OpCode::RETURN) {
+    if (!state_.bytecode.hasInstructions() || state_.bytecode.lastOpcode() != OpCode::RETURN) {
         codeABC(OpCode::RETURN, 0, 1, 0);  // return (no values)
     }
 
@@ -65,30 +64,21 @@ i32 CodeGenerator::codeABC(OpCode op, i32 a, i32 b, i32 c) {
     // 在生成指令前刷新所有待处理跳转
     flushPendingJumps();
 
-    Instruction inst = CREATE_ABC(op, a, b, c);
-    i32 pc = static_cast<i32>(state_.proto->addInstruction(inst));
-    state_.proto->addLineInfo(state_.currentLine);
-    return pc;
+    return state_.bytecode.emitABC(state_.currentLine, op, a, b, c);
 }
 
 i32 CodeGenerator::codeABx(OpCode op, i32 a, i32 bx) {
     // 在生成指令前刷新待处理跳转
     flushPendingJumps();
 
-    Instruction inst = CREATE_ABx(op, a, bx);
-    i32 pc = static_cast<i32>(state_.proto->addInstruction(inst));
-    state_.proto->addLineInfo(state_.currentLine);
-    return pc;
+    return state_.bytecode.emitABx(state_.currentLine, op, a, bx);
 }
 
 i32 CodeGenerator::codeAsBx(OpCode op, i32 a, i32 sbx) {
     // 在生成指令前刷新待处理跳转
     flushPendingJumps();
 
-    Instruction inst = CREATE_AsBx(op, a, sbx);
-    i32 pc = static_cast<i32>(state_.proto->addInstruction(inst));
-    state_.proto->addLineInfo(state_.currentLine);
-    return pc;
+    return state_.bytecode.emitAsBx(state_.currentLine, op, a, sbx);
 }
 
 // =====================================================================
@@ -116,24 +106,19 @@ void CodeGenerator::checkStack(i32 n) {
 // =====================================================================
 
 i32 CodeGenerator::numberConstant(f64 value) {
-    Value v(value);
-    return static_cast<i32>(state_.proto->addConstant(v));
+    return state_.bytecode.addNumberConstant(value);
 }
 
 i32 CodeGenerator::stringConstant(const Str& value) {
-    GCString* str = state_.pool->intern(value);
-    Value v(str);
-    return static_cast<i32>(state_.proto->addConstant(v));
+    return state_.bytecode.addStringConstant(value);
 }
 
 i32 CodeGenerator::boolConstant(bool value) {
-    Value v(value);
-    return static_cast<i32>(state_.proto->addConstant(v));
+    return state_.bytecode.addBoolConstant(value);
 }
 
 i32 CodeGenerator::nilConstant() {
-    Value v;  // nil
-    return static_cast<i32>(state_.proto->addConstant(v));
+    return state_.bytecode.addNilConstant();
 }
 
 // =====================================================================
@@ -142,7 +127,7 @@ i32 CodeGenerator::nilConstant() {
 
 i32 CodeGenerator::addLocalVar(const Str& name) {
     i32 reg = state_.regs.current();
-    state_.locals.localVars_.emplace_back(name, reg, static_cast<i32>(state_.proto->getInstructionCount()));
+    state_.locals.localVars_.emplace_back(name, reg, state_.bytecode.instructionCount());
     state_.regs.reserve(1);
     checkStack(0);
     return reg;
@@ -160,7 +145,7 @@ void CodeGenerator::adjustLocalVars(i32 nvars) {
 
 void CodeGenerator::removeLocalVars(i32 tolevel) {
     closeScopeUpvalues(tolevel);
-    i32 pc = static_cast<i32>(state_.proto->getInstructionCount());
+    i32 pc = state_.bytecode.instructionCount();
     state_.locals.closeLocals(tolevel, pc);
     state_.regs.resetToLocals(state_.locals.nactvar_);
     state_.regs.checkStack(0);
