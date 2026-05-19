@@ -17,6 +17,10 @@
 #include <functional>
 #include <iomanip>
 #include <sstream>
+#include <algorithm>
+#include <cctype>
+#include <fstream>
+#include <iterator>
 
 namespace TestFramework {
 
@@ -73,6 +77,7 @@ public:
     int getPassCount() const { return passCount_; }
     int getTotalCount() const { return passCount_ + failCount_; }
     const std::string& getName() const { return suiteName_; }
+    const std::vector<TestResult>& getResults() const { return results_; }
     
 private:
     std::string suiteName_;
@@ -87,6 +92,17 @@ private:
 class TestRegistry {
 public:
     using TestFunction = std::function<void(TestSuite&)>;
+
+    struct TestEntry {
+        std::string suiteName;
+        std::string testName;
+        TestFunction func;
+    };
+
+    struct RunOptions {
+        std::string filter;
+        bool printReports = true;
+    };
     
     static TestRegistry& getInstance() {
         static TestRegistry instance;
@@ -98,23 +114,38 @@ public:
     }
     
     int runAllTests() {
+        return runTests(RunOptions{});
+    }
+
+    int runTests(const RunOptions& options) {
         int totalFail = 0;
         int totalPass = 0;
         std::string currentSuite;
         TestSuite* suite = nullptr;
+
+        lastSuites_.clear();
+        lastRunTestCount_ = 0;
         
         for (const auto& test : tests_) {
+            if (!matchesFilter(test, options.filter)) {
+                continue;
+            }
+
             if (test.suiteName != currentSuite) {
                 if (suite) {
-                    suite->printReport();
+                    if (options.printReports) {
+                        suite->printReport();
+                    }
                     totalFail += suite->getFailCount();
                     totalPass += suite->getPassCount();
+                    lastSuites_.push_back(*suite);
                     delete suite;
                 }
                 currentSuite = test.suiteName;
                 suite = new TestSuite(currentSuite);
             }
             
+            lastRunTestCount_++;
             try {
                 test.func(*suite);
             } catch (const std::exception& e) {
@@ -123,9 +154,12 @@ public:
         }
         
         if (suite) {
-            suite->printReport();
+            if (options.printReports) {
+                suite->printReport();
+            }
             totalFail += suite->getFailCount();
             totalPass += suite->getPassCount();
+            lastSuites_.push_back(*suite);
             delete suite;
         }
         
@@ -139,20 +173,112 @@ public:
         return static_cast<int>(tests_.size());
     }
 
+    const std::vector<TestEntry>& getTests() const { return tests_; }
+    const std::vector<TestSuite>& getLastSuites() const { return lastSuites_; }
+    int getLastRunTestCount() const { return lastRunTestCount_; }
     int getLastPassCount() const { return lastPassCount_; }
     int getLastFailCount() const { return lastFailCount_; }
     int getLastTotalCount() const { return lastTotalCount_; }
+
+    bool writeJUnitReport(const std::string& path) const {
+        std::ofstream out(path, std::ios::binary);
+        if (!out.is_open()) {
+            return false;
+        }
+
+        out << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
+        out << "<testsuites tests=\"" << lastTotalCount_ << "\" failures=\"" << lastFailCount_ << "\">\n";
+        for (const auto& suite : lastSuites_) {
+            out << "  <testsuite name=\"" << escapeXml(suite.getName()) << "\" tests=\"" << suite.getTotalCount()
+                << "\" failures=\"" << suite.getFailCount() << "\">\n";
+
+            for (const auto& result : suite.getResults()) {
+                out << "    <testcase classname=\"" << escapeXml(suite.getName()) << "\" name=\""
+                    << escapeXml(result.testName) << "\"";
+                if (result.passed) {
+                    out << " />\n";
+                } else {
+                    out << ">\n";
+                    out << "      <failure message=\"" << escapeXml(result.message) << "\">"
+                        << escapeXml(result.message) << "</failure>\n";
+                    out << "    </testcase>\n";
+                }
+            }
+
+            out << "  </testsuite>\n";
+        }
+        out << "</testsuites>\n";
+
+        return static_cast<bool>(out);
+    }
     
 private:
     TestRegistry() = default;
-    
-    struct TestEntry {
-        std::string suiteName;
-        std::string testName;
-        TestFunction func;
-    };
+
+    static bool containsCaseInsensitive(const std::string& haystack, const std::string& needle) {
+        if (needle.empty()) {
+            return true;
+        }
+
+        auto toLower = [](unsigned char ch) {
+            return static_cast<char>(std::tolower(ch));
+        };
+
+        std::string loweredHaystack;
+        loweredHaystack.reserve(haystack.size());
+        std::transform(haystack.begin(), haystack.end(), std::back_inserter(loweredHaystack), toLower);
+
+        std::string loweredNeedle;
+        loweredNeedle.reserve(needle.size());
+        std::transform(needle.begin(), needle.end(), std::back_inserter(loweredNeedle), toLower);
+
+        return loweredHaystack.find(loweredNeedle) != std::string::npos;
+    }
+
+    static bool matchesFilter(const TestEntry& test, const std::string& filter) {
+        if (filter.empty()) {
+            return true;
+        }
+
+        const std::string fullName = test.suiteName + "::" + test.testName;
+        return containsCaseInsensitive(test.suiteName, filter) ||
+               containsCaseInsensitive(test.testName, filter) ||
+               containsCaseInsensitive(fullName, filter);
+    }
+
+    static std::string escapeXml(const std::string& text) {
+        std::string escaped;
+        escaped.reserve(text.size());
+
+        for (char ch : text) {
+            switch (ch) {
+            case '&':
+                escaped += "&amp;";
+                break;
+            case '<':
+                escaped += "&lt;";
+                break;
+            case '>':
+                escaped += "&gt;";
+                break;
+            case '"':
+                escaped += "&quot;";
+                break;
+            case '\'':
+                escaped += "&apos;";
+                break;
+            default:
+                escaped += ch;
+                break;
+            }
+        }
+
+        return escaped;
+    }
     
     std::vector<TestEntry> tests_;
+    std::vector<TestSuite> lastSuites_;
+    int lastRunTestCount_ = 0;
     int lastPassCount_ = 0;
     int lastFailCount_ = 0;
     int lastTotalCount_ = 0;

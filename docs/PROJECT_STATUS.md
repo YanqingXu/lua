@@ -1,7 +1,7 @@
 ---
 status: current
-verified_against: README.md; lua.slnx; lua.vcxproj; lua_app.vcxproj; lua_test.vcxproj; lua_bytecode.vcxproj; docs/refactor_expdesc_pr_checklist.md
-last_checked: 2026-05-18
+verified_against: README.md; lua.slnx; lua.vcxproj; lua_app.vcxproj; lua_test.vcxproj; lua_bytecode.vcxproj; tests/unit/framework/test_runner.cpp; docs/walkthroughs/index.md
+last_checked: 2026-05-19
 applies_to: current repository facts and contributor-facing workflow
 ---
 
@@ -31,8 +31,9 @@ This file is the repository's single source of truth for externally visible proj
 ## Test Status
 
 - Test framework: custom lightweight C++ test framework vendored under `lua_test/include/test_framework` and adapted by `tests/unit/framework`.
-- Latest documented test count in README: 414 registered tests, 1634 assertion results, 0 failures.
-- This number describes the project test runner result. It is not a Lua 5.1.5 compatibility percentage.
+- Latest verified test count: 421 registered tests, 1717 assertion results, 0 failures.
+- `bin\lua_test.exe` supports `--list`, `--filter <suite-or-name>`, and `--report=junit`.
+- These numbers describe the project test runner result. They are not a Lua 5.1.5 compatibility percentage.
 
 ## Quality Gate Status
 

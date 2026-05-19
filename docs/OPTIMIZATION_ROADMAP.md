@@ -42,8 +42,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_quality_gate.ps1
 | 最高 | 事实对齐 | 已完成 | 当前构建、测试和编译器管线事实已经集中记录并加入漂移检查 |
 | 最高 | 质量门禁 | 已完成 | 已有格式化/静态检查配置、本地门禁脚本和 CI 烟测工作流 |
 | 高 | 可读性快修 | 已完成 | 共享文件读取、CLI 解析抽取和标准库表驱动注册已完成 |
-| 高 | 测试 runner 报告与教学索引 | 待开始 | 下一步建议增加机器可读输出，并把关键测试组织成 walkthrough 索引 |
-| 中 | EngineContext / RuntimeServices | 待开始 | 阻断入口层直接访问单例运行时服务 |
+| 高 | 测试 runner 报告与教学索引 | 已完成 | runner 已支持 `--list`、`--filter`、`--report=junit`，并新增 walkthrough 索引 |
+| 中 | EngineContext / RuntimeServices | 待开始 | 下一步建议阻断入口层直接访问单例运行时服务 |
 | 中 | 教学导航 | 待开始 | 新增 START_HERE、术语表、walkthroughs、examples |
 | 低 | CMake + CTest | 待开始 | 等 MSBuild 事实和测试报告稳定后再补跨平台路径 |
 | 长期 | 拆分 CodeGenerator / VM / Parser | 待开始 | 等边界、测试和入口快修完成后再启动 |
@@ -246,6 +246,45 @@ MSBuild.exe lua_bytecode.vcxproj /m /p:Configuration=Debug /p:Platform=x64
 - `bin\lua_test.exe` 运行 421 个注册测试 / 1717 个结果 / 0 失败。
 - `lua_app.vcxproj` 和 `lua_bytecode.vcxproj` 构建通过。
 
+### 4. 测试 runner 报告与教学索引
+
+完成日期：2026-05-19
+
+创建的文件：
+
+- `docs/walkthroughs/index.md`
+
+更新的文件：
+
+- `lua_test/include/test_framework/test_framework.hpp`
+- `tests/unit/framework/test_runner.cpp`
+- `docs/PROJECT_STATUS.md`
+- `docs/DEVELOPMENT_GUIDE.md`
+- `docs/OPTIMIZATION_ROADMAP.md`
+
+完成效果：
+
+- `bin\lua_test.exe --list` 可以列出所有已注册测试用例。
+- `bin\lua_test.exe --filter <suite-or-name>` 可以按套件名、测试名或 `Suite::Name` 子串过滤执行，匹配大小写不敏感。
+- `bin\lua_test.exe --report=junit` 会在当前目录生成 `lua_test_junit.xml`，供 CI 归档或后续 GitHub Actions 集成使用。
+- `docs/walkthroughs/index.md` 将关键测试组织成编译器、VM、运行时和标准库的阅读路径。
+
+已使用的验证命令：
+
+```powershell
+bin\lua_test.exe --list
+bin\lua_test.exe --filter "Math Library"
+bin\lua_test.exe --filter "Math Library" --report=junit
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_quality_gate.ps1
+```
+
+期望状态：
+
+- 质量门禁通过。
+- 默认 `bin\lua_test.exe` 仍运行 421 个注册测试 / 1717 个结果 / 0 失败。
+- 过滤运行不会执行不匹配的测试套件。
+- JUnit 报告包含 `<testsuites>` 根节点和对应 `<testsuite>` / `<testcase>` 条目。
+
 ## 已完成快修任务
 
 这个阶段风险较低，主要删除重复逻辑、澄清入口职责，不改变 VM 或编译器语义；当前 3A、3B、3C 均已完成。
@@ -362,20 +401,22 @@ AppOptions parseArgs(int argc, char** argv);
 - 现有测试通过。
 - 以后新增标准库时，只需增加一条 catalog 记录，不需要复制一组包装逻辑。
 
-## 下一步推荐任务：测试 runner 报告与教学索引
+## 已完成任务：测试 runner 报告与教学索引
 
 ### 任务 4：测试 runner 报告与教学索引
 
 **目标：** 让测试结果更适合 CI 消费，也更适合作为教学入口。
 
-建议输出：
-
-- `--list`
-- `--filter <suite-or-name>`
-- `--report=junit`
-- `docs/walkthroughs/index.md`
+- [x] `--list`
+- [x] `--filter <suite-or-name>`
+- [x] `--report=junit`
+- [x] `docs/walkthroughs/index.md`
 
 先增强当前测试框架 API，不要急着迁移到新测试框架。
+
+## 下一步推荐任务：EngineContext / RuntimeServices
+
+建议从这里继续。
 
 ### 任务 5：EngineContext / RuntimeServices
 

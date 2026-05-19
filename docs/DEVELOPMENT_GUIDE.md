@@ -1,7 +1,7 @@
 ---
 status: current
 verified_against: docs/PROJECT_STATUS.md; lua.slnx; lua.vcxproj; lua_test.vcxproj; tests/unit/framework/test_runner.cpp
-last_checked: 2026-05-18
+last_checked: 2026-05-19
 applies_to: current contributor workflow and coding conventions
 ---
 
@@ -68,6 +68,13 @@ bin\build_bytecode.bat
 
 # 运行单元测试
 bin\lua_test.exe
+
+# 列出或过滤测试
+bin\lua_test.exe --list
+bin\lua_test.exe --filter "Symbol Binding"
+
+# 生成 JUnit XML 报告
+bin\lua_test.exe --report=junit
 ```
 
 #### Linux / macOS
@@ -522,7 +529,7 @@ void testTableInsertSmoke(LuaTest::TestSuite& suite) {
 
 ### 测试覆盖率
 
-当前仓库尚未维护统一覆盖率入口。提交前优先保证 `bin\lua_test.exe` 全绿，并在新增功能附近补充单元测试或 Lua 回归脚本。覆盖率、CTest 与 JUnit 输出属于后续工具链收敛任务。
+当前仓库尚未维护统一覆盖率入口。提交前优先保证 `bin\lua_test.exe` 全绿，并在新增功能附近补充单元测试或 Lua 回归脚本。测试 runner 已支持 `--list`、`--filter <suite-or-name>` 和 `--report=junit`；覆盖率和 CTest 仍属于后续工具链收敛任务。
 
 ---
 
