@@ -237,6 +237,7 @@
     <ClCompile Include="src\vm\vm_loop.cpp" />
     <ClCompile Include="src\vm\vm_ops.cpp" />
     <ClCompile Include="src\vm\vm_table.cpp" />
+    <ClCompile Include="src\vm\vm_trace.cpp" />
     <ClCompile Include="src\vm\vm.cpp" />
     <ClCompile Include="src\debug\value_serializer.cpp" />
     <ClCompile Include="src\debug\json_trace_sink.cpp" />

@@ -28,34 +28,10 @@
 #include "vm/global_state.hpp"
 #include "runtime/runtime_services.hpp"
 #include "compiler/opcode.hpp"
-#include "debug/trace_sink.hpp"
-#include "debug/trace_types.hpp"
 #include <stdexcept>
 #include <cmath>
 
 namespace Lua {
-
-// =====================================================================
-// Trace 全局状态
-// =====================================================================
-
-static ITraceSink* g_traceSink = nullptr;
-static u64         g_traceSeq  = 0;
-static bool        g_dumpBytecode = false;
-
-
-namespace VM {
-
-void setTraceSink(ITraceSink* sink) {
-    g_traceSink = sink;
-    g_traceSeq  = 0;
-}
-
-ITraceSink* getTraceSink() {
-    return g_traceSink;
-}
-
-} // namespace VM
 
 // =====================================================================
 // 匿名命名空间：内部辅助自由函数
@@ -75,43 +51,6 @@ static inline Value* refreshBase(LuaState* L) {
     return &L->getStack()[L->getCurrentCallInfo().base];
 }
 
-static inline void vmDispatchCallHook(LuaState* L) {
-    if (L->hasDebugHookMask(HookMaskCall)) {
-        L->callDebugHook(DebugHookEvent::Call);
-    }
-}
-
-static inline void vmDispatchReturnHook(LuaState* L) {
-    if (L->hasDebugHookMask(HookMaskReturn)) {
-        L->callDebugHook(DebugHookEvent::Return);
-    }
-}
-
-static inline void dispatchCountHook(LuaState* L) {
-    if (L->consumeDebugHookCount()) {
-        L->callDebugHook(DebugHookEvent::Count);
-    }
-}
-
-static inline void dispatchLineHook(LuaState* L, Proto* proto, usize pc) {
-    if (!L->hasDebugHookMask(HookMaskLine) || L->isDebugHookActive() || proto == nullptr) {
-        return;
-    }
-
-    i32 line = proto->getLine(pc);
-    if (line <= 0) {
-        return;
-    }
-
-    CallInfo& ci = L->getCurrentCallInfo();
-    if (ci.hookLine == line) {
-        return;
-    }
-
-    ci.hookLine = line;
-    L->callDebugHook(DebugHookEvent::Line, line);
-}
-
 /**
  * @brief 获取 RK 值（寄存器或常量）
  * 对应 Lua C:  ISK(x) ? k[INDEXK(x)] : base[x]
@@ -124,26 +63,6 @@ static inline Value getRK(Proto* proto, Value* base, i32 rk) {
 }
 
 } // anonymous namespace
-
-// =====================================================================
-// 跨实现分片的内部桥接
-// =====================================================================
-
-namespace VM::detail {
-
-void dispatchCallHook(LuaState* L) {
-    vmDispatchCallHook(L);
-}
-
-void dispatchReturnHook(LuaState* L) {
-    vmDispatchReturnHook(L);
-}
-
-bool shouldDumpBytecode() {
-    return g_dumpBytecode;
-}
-
-} // namespace VM::detail
 
 // =====================================================================
 // 公共 API：namespace VM
@@ -193,7 +112,7 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
            : 0;
 
         // dump bytecode at entry
-        if (g_dumpBytecode)
+        if (VM::detail::shouldDumpBytecode())
         {
             const Vec<Instruction>& dcode = proto->getCode();
             std::fprintf(stderr, "[BCDUMP] proto(%p) %zu instructions, pc=%zu\n",
@@ -237,35 +156,19 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
             CallInfo& currentCI = L->getCurrentCallInfo();
             currentCI.savedpc = code.data() + pc;
 
-            dispatchCountHook(L);
+            VM::detail::dispatchCountHook(L);
             base = refreshBase(L);
-            dispatchLineHook(L, proto, instructionPc);
+            VM::detail::dispatchLineHook(L, proto, instructionPc);
             base = refreshBase(L);
 
-            // ---- Trace: 指令事件 ----
-            if (g_traceSink) {
-                TraceEvent tevt;
-                tevt.seq       = g_traceSeq++;
-                tevt.kind      = TraceEventKind::Instruction;
-                tevt.pc        = static_cast<i32>(instructionPc);
-                tevt.op        = op;
-                tevt.a = a; tevt.b = b; tevt.c = c;
-                tevt.bx = bx; tevt.sbx = sbx;
-                tevt.line      = proto->getLine(instructionPc);
-                tevt.source    = proto->getSource() ? proto->getSource()->c_str() : "?";
-                tevt.callDepth = nexeccalls;
-                tevt.base      = base;
-                tevt.maxStack  = proto->getMaxStackSize();
-                tevt.proto     = proto;
-                g_traceSink->onInstruction(tevt);
-            }
+            VM::detail::emitInstructionTrace(proto, base, instructionPc, inst, nexeccalls);
 
             switch (op) {
 
             // ============== 基础操作 ==============
 
             case OpCode::MOVE:
-                if (g_dumpBytecode) {
+                if (VM::detail::shouldDumpBytecode()) {
                     std::fprintf(stderr, "[MOVE] pc=%zu a=%d b=%d base[b]=", instructionPc, a, b);
                     if (base[b].isNumber()) std::fprintf(stderr, "%g", base[b].asNumber());
                     else if (base[b].isNil()) std::fprintf(stderr, "nil");
@@ -484,7 +387,7 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
                 i32 nArgs    = b - 1;
                 i32 nResults = c - 1;
 
-                if (g_dumpBytecode)
+                if (VM::detail::shouldDumpBytecode())
                 {
                     CallInfo& dbgCI = L->getCurrentCallInfo();
                     std::fprintf(stderr, "[CALL] pc=%zu a=%d B=%d C=%d nArgs=%d nRes=%d base=%zu absTop=%zu\n",
@@ -505,23 +408,7 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
                     }
                 }
 
-                // ---- Trace: call 事件 ----
-                if (g_traceSink) {
-                    TraceEvent cevt;
-                    cevt.seq       = g_traceSeq++;
-                    cevt.kind      = TraceEventKind::Call;
-                    cevt.line      = proto->getLine(instructionPc);
-                    cevt.source    = proto->getSource() ? proto->getSource()->c_str() : "?";
-                    cevt.callDepth = nexeccalls + 1;
-                    // 尝试获取被调用函数名
-                    Value& callee = base[a];
-                    if (callee.isFunction()) {
-                        Function* cf = callee.asFunction();
-                        if (cf->getProto() && cf->getProto()->getSource())
-                            cevt.funcName = cf->getProto()->getSource()->c_str();
-                    }
-                    g_traceSink->onCall(cevt);
-                }
+                VM::detail::emitCallTrace(proto, base, instructionPc, a, nexeccalls + 1);
 
                 // 保存 PC（返回后需要）
                 L->getCurrentCallInfo().savedpc = &code[pc];
@@ -596,16 +483,8 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
             }
 
             case OpCode::RETURN: {
-                // ---- Trace: return 事件 ----
-                if (g_traceSink) {
-                    TraceEvent revt;
-                    revt.seq       = g_traceSeq++;
-                    revt.kind      = TraceEventKind::Return;
-                    revt.callDepth = nexeccalls;
-                    g_traceSink->onReturn(revt);
-                }
-
-                vmDispatchReturnHook(L);
+                VM::detail::emitReturnTrace(nexeccalls);
+                VM::detail::dispatchReturnHook(L);
                 base = refreshBase(L);
 
                 CallInfo& ci = L->getCurrentCallInfo();

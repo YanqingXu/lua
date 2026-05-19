@@ -9,13 +9,13 @@ applies_to: repository overview and current build workflows
 
 > **从零开始用C++17/20/23实现Lua 5.1.5解释器**
 
-[![Tests](https://img.shields.io/badge/tests-1830%2F1830-brightgreen)]()
+[![Tests](https://img.shields.io/badge/tests-1860%2F1860-brightgreen)]()
 [![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen)]()
 [![C++](https://img.shields.io/badge/C%2B%2B-17%2F23-blue)]()
 [![Platform](https://img.shields.io/badge/platform-Windows-blue)]()
 [![Progress](https://img.shields.io/badge/progress-95%25-yellow)]()
 [![Code](https://img.shields.io/badge/code-19k%20lines-blue)]()
-[![Last Updated](https://img.shields.io/badge/updated-2026--05--17-blue)]()
+[![Last Updated](https://img.shields.io/badge/updated-2026--05--19-blue)]()
 
 ---
 
@@ -95,13 +95,13 @@ applies_to: repository overview and current build workflows
 | **包/模块库（Package Library）** | `src/lib/packagelib.hpp/cpp` | ~490 | require、module、package.loaded/preload/loaders/path/seeall；loadlib/C loader 为 stub | 🔄 90% |
 | **库管理系统** | `src/lib/lib_manager.hpp/cpp` | 73 | 标准库注册和管理 | ✅ 100% |
 
-### 测试统计（2026-05-18更新）✅
+### 测试统计（2026-05-19更新）✅
 
 ```
 测试框架：自定义轻量级测试框架（零外部依赖）
-注册测试：414个
-断言结果：1634个 ✅
-通过率：  100% (1634/1634)
+注册测试：437个
+断言结果：1860个 ✅
+通过率：  100% (1860/1860)
 失败测试：0个
 编译状态：Debug|x64 版本无警告，无链接冲突
 平台：    Windows + MSVC (Visual Studio 2026)
@@ -109,14 +109,14 @@ applies_to: repository overview and current build workflows
 
 补充验证：
 - `bin/build_test.bat`：通过
-- `bin/lua_test.exe`：414 个注册测试，1634 个结果，0 失败
+- `bin/lua_test.exe`：437 个注册测试，1860 个结果，0 失败
 - `bin/build_app.bat`：通过
 - `tests/lua/regressions/*.lua`：全部通过
 - `tests/lua/stdlib/test_collectgarbage*.lua` 与 `test_gcinfo*.lua`：全部通过，`collectgarbage("collect")` 可观察到内存下降
 
 ### 距离完整 Lua 5.1.5 仍缺失的功能
 
-> **兼容性审计记录（2026-05-18）**：已对 README、本地 `src/lib/` 标准库实现、`src/vm/` 指令执行逻辑、GC/元方法相关核心代码进行核对。`bin/lua_test.exe` 当前为 414 个注册测试、1634 个结果、0 失败；这说明项目内测试覆盖的路径稳定，但不等价于 Lua 5.1.5 官方语义已经达到 95% 兼容。
+> **兼容性审计记录（2026-05-19）**：已对 README、本地 `src/lib/` 标准库实现、`src/vm/` 指令执行逻辑、GC/元方法相关核心代码进行核对。`bin/lua_test.exe` 当前为 437 个注册测试、1860 个结果、0 失败；这说明项目内测试覆盖的路径稳定，但不等价于 Lua 5.1.5 官方语义已经达到 95% 兼容。
 
 > **最新补齐**：Lua 函数元方法调用链已打通，`callTMWithResult/callTM` 统一走 `VM::call`，C Closure 与 Lua Closure 共用同一调用入口；`getMetamethodByObject()` 已接入基础类型元表，string 类型已安装 `__index = string`；GC 已支持弱表 `__mode = "k"/"v"/"kv"` 清理和 userdata `__gc` 两阶段终结；尾调用优化已覆盖单值 `return f()` 的 `TAILCALL` 生成和 Lua 函数调用帧复用。
 
@@ -1048,7 +1048,7 @@ tests/unit/
 └── vm/                         # VM Core、LuaState 初始化、函数调用
 ```
 
-当前测试入口会输出真实注册测试数和断言结果数；最近一次验证为 414 个注册测试、1634 个结果、0 失败。
+当前测试入口会输出真实注册测试数和断言结果数；最近一次验证为 437 个注册测试、1860 个结果、0 失败。
 
 ## 📊 技术栈和工具
 

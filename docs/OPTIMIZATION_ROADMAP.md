@@ -46,7 +46,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_quality_gate.ps1
 | 中 | EngineContext / RuntimeServices | 已完成 | 已引入显式 RuntimeServices，并迁移入口层、CodeGenerator、Parser/VM 兼容重载 |
 | 中 | 教学导航 | 已完成 | 已新增 START_HERE、术语表和 examples，并扩展 walkthrough 索引 |
 | 低 | CMake + CTest | 已完成 | 已新增 secondary CMake/CTest 路径，不替代 VS/MSBuild 主路径 |
-| 长期 | 拆分 CodeGenerator / VM / Parser | 进行中 | 8A-8C CodeGenerator 边界已完成，8D-8F VM 入口、dispatch 分类、ops/call/剩余 helper 分片已完成；下一步评估 VM trace/debug 边界或 Parser 分片 |
+| 长期 | 拆分 CodeGenerator / VM / Parser | 进行中 | 8A-8C CodeGenerator 边界已完成，8D-8G VM 入口、dispatch 分类、ops/call/剩余 helper 与 trace/debug 边界已完成；下一步进入 Parser 分片准备 |
 
 ## 已完成优化
 
@@ -789,20 +789,52 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_quality_gate.ps1
 - `SETLIST`、`TFORLOOP`、`CLOSURE`、`VARARG` helper 已从 `src/vm/vm.cpp` 拆出。
 - `executeProto()` 仍是唯一主 dispatch 循环，未改变 pc、栈帧、yield 或 return 协议。
 
-## 下一步推荐任务：VM trace/debug 边界评估
-
-建议从这里继续。
+## 已完成任务：VM trace/debug 边界评估
 
 ### 任务 8G：VM trace/debug 边界评估
 
 **目标：** 在 VM 行为 helper 已完成主要物理分片后，评估 `src/vm/vm.cpp` 中剩余的 trace/debug hook 状态和事件构造是否需要收口到更窄的内部 helper，或者是否应先转入 Parser 分片。该任务应优先输出边界设计和测试策略，避免直接搬动会影响事件顺序的代码。
 
+已完成：
+
+- [x] 梳理 `g_traceSink`、`g_traceSeq`、`g_dumpBytecode`、count/line hook、instruction/call/return trace event 的调用顺序。
+- [x] 新增 `src/vm/vm_trace.cpp`，承载 trace sink 状态、debug hook 分发和 trace event 构造。
+- [x] `src/vm/vm.cpp` 保留 `executeProto()` 主循环以及 count/line、instruction trace、call/return trace 的清晰触发点。
+- [x] 扩展 `src/vm/vm_internal.hpp` 和 `tests/unit/vm/test_vm_internal_boundaries.cpp`，锁定 trace/debug helper 签名。
+- [x] 新增 `tests/unit/vm/test_vm_trace_debug.cpp`，覆盖 instruction/call/return trace 顺序，以及 call/count/line/return debug hook 顺序。
+- [x] 将新增源文件和测试加入 `CMakeLists.txt`、`lua.vcxproj`、`lua.vcxproj.filters`、`lua_test.vcxproj` 和 `lua_test.vcxproj.filters`。
+- [x] 同步更新 `docs/PROJECT_STATUS.md`、README 测试统计和文档漂移检查计数。
+
+已使用的验证命令：
+
+```powershell
+D:\VS2026\MSBuild\Current\Bin\MSBuild.exe lua_test.vcxproj /p:Configuration=Debug /p:Platform=x64 /m
+bin\lua_test.exe --filter "VM Trace Debug"
+bin\lua_test.exe --filter "VM Internal Boundaries"
+bin\lua_test.exe
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_quality_gate.ps1
+```
+
+验收结果：
+
+- 默认 `bin\lua_test.exe` 运行 437 个注册测试 / 1860 个结果 / 0 失败。
+- `src/vm/vm_trace.cpp` 已收口 trace/debug 状态与事件构造，`src/vm/vm.cpp` 仍是唯一主 dispatch 循环。
+- 新增回归测试锁定 instruction/call/return trace 顺序，以及 call/count/line/return debug hook 顺序。
+
+## 下一步推荐任务：Parser 分片准备
+
+建议从这里继续。
+
+### 任务 8H：Parser 物理拆分准备
+
+**目标：** 在 CodeGenerator 和 VM 的主要边界已经收口后，开始降低 `src/compiler/parser.cpp` 的单文件阅读负担。第一步不改变语法语义，只梳理 Parser 成员函数分组，并准备按表达式、语句、函数体/块、表构造器等主题拆分实现文件。
+
 建议顺序：
 
-1. 梳理 `g_traceSink`、`g_traceSeq`、`g_dumpBytecode`、`dispatchCountHook()`、`dispatchLineHook()`、call/return trace event 构造的调用顺序。
-2. 为 trace/debug hook 增加最小回归测试，覆盖 instruction/call/return/count/line 事件顺序。
-3. 仅在测试锁定后再考虑引入 `vm_trace.cpp`，并保持 `executeProto()` 主循环中的事件触发位置清晰可见。
-4. 如果 trace/debug 风险高于收益，则把下一阶段切换到 Parser 分片准备。
+1. 先阅读 `src/compiler/parser.hpp` 和 `src/compiler/parser.cpp`，把 parse chunk/block/stat、表达式优先级、primary/suffixed expression、function body、table constructor、error recovery 等函数分组记录到路线图。
+2. 增加或复用现有 parser 回归测试，重点覆盖递归、错误恢复、函数定义、表构造和复杂表达式，先锁定行为。
+3. 在不改 public API 的前提下，把成员函数实现分批移动到 `parser_stmt.cpp`、`parser_expr.cpp`、`parser_func.cpp` 或等价命名的实现切片。
+4. 更新 `CMakeLists.txt`、`lua.vcxproj`、`lua.vcxproj.filters`，并运行 parser/compiler 相关过滤测试和质量门禁。
 
 ## 维护规则
 

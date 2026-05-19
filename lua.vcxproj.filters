@@ -82,6 +82,9 @@
     <ClCompile Include="src\vm\vm_table.cpp">
       <Filter>src\vm</Filter>
     </ClCompile>
+    <ClCompile Include="src\vm\vm_trace.cpp">
+      <Filter>src\vm</Filter>
+    </ClCompile>
     <ClCompile Include="src\vm\lua_state.cpp">
       <Filter>src\vm</Filter>
     </ClCompile>

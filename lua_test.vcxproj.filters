@@ -173,6 +173,9 @@
     <ClCompile Include="tests\unit\vm\test_runtime_services.cpp">
       <Filter>tests\vm</Filter>
     </ClCompile>
+    <ClCompile Include="tests\unit\vm\test_vm_trace_debug.cpp">
+      <Filter>tests\vm</Filter>
+    </ClCompile>
     <ClCompile Include="tests\unit\vm\test_vm_dispatch.cpp">
       <Filter>tests\vm</Filter>
     </ClCompile>

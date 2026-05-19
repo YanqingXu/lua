@@ -58,6 +58,21 @@ void testCallHelpersExposeStableSignatures(TestSuite& suite) {
     ASSERT_TRUE(suite, true, "call helper signatures are stable");
 }
 
+void testTraceAndDebugHelpersExposeStableSignatures(TestSuite& suite) {
+    static_assert(std::is_same_v<decltype(&VM::detail::dispatchCountHook),
+                                 void (*)(LuaState*)>);
+    static_assert(std::is_same_v<decltype(&VM::detail::dispatchLineHook),
+                                 void (*)(LuaState*, Proto*, usize)>);
+    static_assert(std::is_same_v<decltype(&VM::detail::emitInstructionTrace),
+                                 void (*)(Proto*, Value*, usize, Instruction, i32)>);
+    static_assert(std::is_same_v<decltype(&VM::detail::emitCallTrace),
+                                 void (*)(Proto*, Value*, usize, i32, i32)>);
+    static_assert(std::is_same_v<decltype(&VM::detail::emitReturnTrace),
+                                 void (*)(i32)>);
+
+    ASSERT_TRUE(suite, true, "trace and debug helper signatures are stable");
+}
+
 void testRemainingHelperSignatures(TestSuite& suite) {
     static_assert(std::is_same_v<decltype(&VM::detail::setList),
                                  void (*)(LuaState*, Value*, i32, i32, i32)>);
@@ -78,5 +93,7 @@ void registerVMInternalBoundaryTests() {
 
     registry.registerTest(kSuiteName, "Operation Helper Signatures", testOperationHelpersExposeStableSignatures);
     registry.registerTest(kSuiteName, "Call Helper Signatures", testCallHelpersExposeStableSignatures);
+    registry.registerTest(kSuiteName, "Trace And Debug Helper Signatures",
+                          testTraceAndDebugHelpersExposeStableSignatures);
     registry.registerTest(kSuiteName, "Remaining Helper Signatures", testRemainingHelperSignatures);
 }

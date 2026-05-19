@@ -54,6 +54,7 @@ set(LUA_CORE_SOURCES
     src/vm/vm_loop.cpp
     src/vm/vm_ops.cpp
     src/vm/vm_table.cpp
+    src/vm/vm_trace.cpp
     src/vm/vm.cpp
     src/debug/value_serializer.cpp
     src/debug/json_trace_sink.cpp
@@ -109,6 +110,7 @@ set(LUA_TEST_SOURCES
     tests/unit/vm/test_function_call.cpp
     tests/unit/vm/test_lua_state_init.cpp
     tests/unit/vm/test_runtime_services.cpp
+    tests/unit/vm/test_vm_trace_debug.cpp
     tests/unit/vm/test_vm_dispatch.cpp
     tests/unit/vm/test_vm_internal_boundaries.cpp
     tests/unit/vm/test_vm_core.cpp

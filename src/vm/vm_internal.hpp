@@ -20,7 +20,12 @@ namespace VM::detail {
 
 void dispatchCallHook(LuaState* L);
 void dispatchReturnHook(LuaState* L);
+void dispatchCountHook(LuaState* L);
+void dispatchLineHook(LuaState* L, Proto* proto, usize pc);
 bool shouldDumpBytecode();
+void emitInstructionTrace(Proto* proto, Value* base, usize instructionPc, Instruction inst, i32 callDepth);
+void emitCallTrace(Proto* proto, Value* base, usize instructionPc, i32 registerIndex, i32 callDepth);
+void emitReturnTrace(i32 callDepth);
 
 void gettable(LuaState* L, Value t, const Value& key, Value& result);
 void settable(LuaState* L, Value t, const Value& key, const Value& val);

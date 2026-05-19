@@ -1,6 +1,6 @@
 ---
 status: current
-verified_against: README.md; lua.slnx; lua.vcxproj; lua_app.vcxproj; lua_test.vcxproj; lua_bytecode.vcxproj; CMakeLists.txt; tools/run_cmake_smoke.ps1; tests/unit/framework/test_runner.cpp; tests/unit/compiler/test_codegen_state.cpp; tests/unit/compiler/test_bytecode_builder.cpp; tests/unit/vm/test_vm_dispatch.cpp; tests/unit/vm/test_vm_internal_boundaries.cpp; docs/START_HERE.md; docs/glossary.md; docs/walkthroughs/index.md; examples/README.md; src/runtime/runtime_services.hpp; src/compiler/codegen.cpp; src/compiler/codegen_binding.cpp; src/compiler/codegen_expr.cpp; src/compiler/codegen_jump.cpp; src/compiler/codegen_stmt.cpp; src/compiler/codegen_state.hpp; src/compiler/bytecode_builder.hpp; src/vm/vm.cpp; src/vm/vm_entry.cpp; src/vm/vm_dispatch.hpp; src/vm/vm_internal.hpp; src/vm/vm_ops.cpp; src/vm/vm_call.cpp; src/vm/vm_table.cpp; src/vm/vm_frame.cpp; src/vm/vm_loop.cpp
+verified_against: README.md; lua.slnx; lua.vcxproj; lua_app.vcxproj; lua_test.vcxproj; lua_bytecode.vcxproj; CMakeLists.txt; tools/run_cmake_smoke.ps1; tests/unit/framework/test_runner.cpp; tests/unit/compiler/test_codegen_state.cpp; tests/unit/compiler/test_bytecode_builder.cpp; tests/unit/vm/test_vm_dispatch.cpp; tests/unit/vm/test_vm_internal_boundaries.cpp; tests/unit/vm/test_vm_trace_debug.cpp; docs/START_HERE.md; docs/glossary.md; docs/walkthroughs/index.md; examples/README.md; src/runtime/runtime_services.hpp; src/compiler/codegen.cpp; src/compiler/codegen_binding.cpp; src/compiler/codegen_expr.cpp; src/compiler/codegen_jump.cpp; src/compiler/codegen_stmt.cpp; src/compiler/codegen_state.hpp; src/compiler/bytecode_builder.hpp; src/vm/vm.cpp; src/vm/vm_entry.cpp; src/vm/vm_dispatch.hpp; src/vm/vm_internal.hpp; src/vm/vm_ops.cpp; src/vm/vm_call.cpp; src/vm/vm_table.cpp; src/vm/vm_frame.cpp; src/vm/vm_loop.cpp; src/vm/vm_trace.cpp
 last_checked: 2026-05-19
 applies_to: current repository facts and contributor-facing workflow
 ---
@@ -37,7 +37,7 @@ This file is the repository's single source of truth for externally visible proj
 ## Test Status
 
 - Test framework: custom lightweight C++ test framework vendored under `lua_test/include/test_framework` and adapted by `tests/unit/framework`.
-- Latest verified test count: 434 registered tests, 1830 assertion results, 0 failures.
+- Latest verified test count: 437 registered tests, 1860 assertion results, 0 failures.
 - `bin\lua_test.exe` supports `--list`, `--filter <suite-or-name>`, and `--report=junit`.
 - These numbers describe the project test runner result. They are not a Lua 5.1.5 compatibility percentage.
 
@@ -83,8 +83,9 @@ The command above must return no matches for production compiler sources.
 - `src/vm/vm_entry.cpp` now holds `VM::call()` and `VM::execute()` entry points, while `src/vm/vm.cpp` retains the main bytecode dispatch loop.
 - `src/vm/vm_dispatch.hpp` classifies opcode families and metamethod-capable opcodes as the first VM dispatch split boundary.
 - `src/vm/vm_ops.cpp` contains table/metamethod, arithmetic, comparison, unary, length, and concat helpers; `src/vm/vm_call.cpp` contains precall, postcall, and tailcall frame reuse helpers.
-- `src/vm/vm_table.cpp`, `src/vm/vm_frame.cpp`, and `src/vm/vm_loop.cpp` contain SETLIST, closure/vararg, and TFORLOOP helpers while `src/vm/vm.cpp` keeps the main dispatch loop and trace/debug event state.
-- `src/vm/vm_internal.hpp` is the internal VM slice boundary and is covered by `tests/unit/vm/test_vm_internal_boundaries.cpp`.
+- `src/vm/vm_table.cpp`, `src/vm/vm_frame.cpp`, and `src/vm/vm_loop.cpp` contain SETLIST, closure/vararg, and TFORLOOP helpers.
+- `src/vm/vm_trace.cpp` contains trace sink state, debug hook dispatch, and trace event construction while `src/vm/vm.cpp` keeps the main dispatch loop and visible event trigger points.
+- `src/vm/vm_internal.hpp` is the internal VM slice boundary and is covered by `tests/unit/vm/test_vm_internal_boundaries.cpp` plus trace/debug ordering tests in `tests/unit/vm/test_vm_trace_debug.cpp`.
 
 ## Learning Path Status
 
