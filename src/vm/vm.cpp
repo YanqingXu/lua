@@ -200,7 +200,10 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
                 const Value& key = proto->getConstant(bx);
                 Table* env = func->getEnv();
                 if (!env) env = L->getGlobalTable();
-                base[a] = env->get(key);
+                Value result;
+                VM::detail::gettable(L, Value(env), key, result);
+                base = refreshBase(L);
+                base[a] = result;
                 break;
             }
 
@@ -208,7 +211,9 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
                 const Value& key = proto->getConstant(bx);
                 Table* env = func->getEnv();
                 if (!env) env = L->getGlobalTable();
-                env->set(key, base[a]);
+                Value val = base[a];
+                VM::detail::settable(L, Value(env), key, val);
+                base = refreshBase(L);
                 break;
             }
 

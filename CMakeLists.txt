@@ -120,6 +120,9 @@ add_library(lua_core STATIC ${LUA_CORE_SOURCES})
 target_include_directories(lua_core PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
+if(CMAKE_DL_LIBS)
+    target_link_libraries(lua_core PUBLIC ${CMAKE_DL_LIBS})
+endif()
 
 if(MSVC)
     target_compile_options(lua_core PRIVATE /utf-8 /FS)
@@ -164,6 +167,8 @@ if(BUILD_TESTING AND LUA_CPP_BUILD_TESTS)
 
     if(MSVC)
         target_compile_options(lua_test PRIVATE /utf-8 /FS)
+    elseif(UNIX)
+        target_link_options(lua_test PRIVATE -rdynamic)
     endif()
 
     add_test(NAME lua_test COMMAND $<TARGET_FILE:lua_test>)

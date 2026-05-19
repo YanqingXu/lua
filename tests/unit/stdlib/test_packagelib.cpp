@@ -9,7 +9,7 @@
  * - require() file loading via package.path
  * - module() function
  * - package.seeall()
- * - package.loadlib() stub
+ * - package.loadlib()
  * - package.config, package.path, package.cpath
  * - Error handling for missing modules
  *
@@ -34,8 +34,53 @@
 #include <fstream>
 #include <string>
 
+#ifdef _WIN32
+#include <windows.h>
+#else
+#include <unistd.h>
+#endif
+
 using namespace Lua;
 using namespace LuaTest;
+
+namespace {
+
+Table* createNativeModuleTable(LuaState* L, const char* kind, f64 value) {
+    auto& pool = L->getGlobalState().getStringPool();
+
+    Table* table = new Table();
+    L->getGlobalState().getGC().registerObject(table);
+
+    table->set(Value(pool.intern("kind")), Value(pool.intern(kind)));
+    table->set(Value(pool.intern("value")), Value(value));
+    return table;
+}
+
+} // namespace
+
+#if defined(_WIN32)
+#define LUA_PACKAGE_TEST_EXPORT extern "C" __declspec(dllexport)
+#else
+#define LUA_PACKAGE_TEST_EXPORT extern "C" __attribute__((visibility("default")))
+#endif
+
+LUA_PACKAGE_TEST_EXPORT int luaopen_loadlibfixture(LuaState* L) {
+    L->setTop(0);
+    L->pushValue(Value(createNativeModuleTable(L, "loadlib", 701.0)));
+    return 1;
+}
+
+LUA_PACKAGE_TEST_EXPORT int luaopen_pkgdirect(LuaState* L) {
+    L->setTop(0);
+    L->pushValue(Value(createNativeModuleTable(L, "direct", 702.0)));
+    return 1;
+}
+
+LUA_PACKAGE_TEST_EXPORT int luaopen_pkgroot_child(LuaState* L) {
+    L->setTop(0);
+    L->pushValue(Value(createNativeModuleTable(L, "allinone", 703.0)));
+    return 1;
+}
 
 namespace {
 
@@ -90,6 +135,36 @@ bool writeLuaFile(const std::string& path, const std::string& content) {
 // Helper: delete a file
 void deleteFile(const std::string& path) {
     std::remove(path.c_str());
+}
+
+std::string currentExecutablePath() {
+#ifdef _WIN32
+    char buffer[MAX_PATH];
+    DWORD len = GetModuleFileNameA(nullptr, buffer, static_cast<DWORD>(sizeof(buffer)));
+    if (len == 0 || len >= sizeof(buffer)) {
+        return "";
+    }
+    return std::string(buffer, len);
+#else
+    char buffer[4096];
+    ssize_t len = readlink("/proc/self/exe", buffer, sizeof(buffer) - 1);
+    if (len <= 0) {
+        return "";
+    }
+    buffer[len] = '\0';
+    return std::string(buffer);
+#endif
+}
+
+bool setPackageTestExecutablePath(LuaState* L) {
+    std::string exePath = currentExecutablePath();
+    if (exePath.empty()) {
+        return false;
+    }
+
+    GCString* exe = L->getGlobalState().getStringPool().intern(exePath.c_str());
+    L->setGlobal("package_test_exe", Value(exe));
+    return true;
 }
 
 // =====================================================================
@@ -175,16 +250,18 @@ void testPackageLoaders(TestSuite& suite) {
     Table* pkg = pkgVal.asTable();
     Table* loaders = getField(L, pkg, "loaders").asTable();
 
-    // Should have 3 loaders: preload, lua, clib
+    // Should have 4 loaders: preload, lua, clib, all-in-one clib
     Value l1 = loaders->get(Value(1.0));
     Value l2 = loaders->get(Value(2.0));
     Value l3 = loaders->get(Value(3.0));
     Value l4 = loaders->get(Value(4.0));
+    Value l5 = loaders->get(Value(5.0));
 
     ASSERT_TRUE(suite, l1.isFunction(), "loader[1] is function (preload)");
     ASSERT_TRUE(suite, l2.isFunction(), "loader[2] is function (lua)");
-    ASSERT_TRUE(suite, l3.isFunction(), "loader[3] is function (clib stub)");
-    ASSERT_TRUE(suite, l4.isNil(), "loader[4] is nil (no more loaders)");
+    ASSERT_TRUE(suite, l3.isFunction(), "loader[3] is function (clib)");
+    ASSERT_TRUE(suite, l4.isFunction(), "loader[4] is function (all-in-one clib)");
+    ASSERT_TRUE(suite, l5.isNil(), "loader[5] is nil (no more loaders)");
 }
 
 // =====================================================================
@@ -381,26 +458,157 @@ void testPackageLoadedDirectSet(TestSuite& suite) {
 }
 
 // =====================================================================
-// Test: package.loadlib returns nil + error (stub)
+// Test: package.loadlib opens libraries and resolves symbols
 // =====================================================================
 
 void testPackageLoadlib(TestSuite& suite) {
     LuaStdLibTestContext ctx(openBaseAndPackage);
     LuaState* L = ctx.getState();
+    bool hasExePath = setPackageTestExecutablePath(L);
+    ASSERT_TRUE(suite, hasExePath, "current executable path is available");
+    if (!hasExePath) return;
 
     bool ok = runLuaChunk(L, R"(
-        local f, err, what = package.loadlib("test.dll", "luaopen_test")
-        loadlib_result_nil = (f == nil)
-        loadlib_has_errmsg = (type(err) == "string")
-        loadlib_what = what
+        local missing, openerr, openwhere = package.loadlib("definitely_missing_package_test_library.dll", "luaopen_missing")
+        loadlib_missing_nil = (missing == nil)
+        loadlib_missing_has_error = (type(openerr) == "string")
+        loadlib_missing_where = openwhere
+
+        local nosym, symerr, symwhere = package.loadlib(package_test_exe, "luaopen_missing_symbol_for_test")
+        loadlib_symbol_nil = (nosym == nil)
+        loadlib_symbol_has_error = (type(symerr) == "string")
+        loadlib_symbol_where = symwhere
+
+        local linked = package.loadlib(package_test_exe, "*")
+        loadlib_star_ok = (linked == true)
+
+        local f, err, where = package.loadlib(package_test_exe, "luaopen_loadlibfixture")
+        loadlib_result_function = (type(f) == "function")
+        loadlib_result_error_nil = (err == nil and where == nil)
+
+        local mod = f("loadlibfixture")
+        loadlib_result_kind = mod.kind
+        loadlib_result_value = mod.value
     )");
     ASSERT_TRUE(suite, ok, "package.loadlib runs without crash");
 
-    Value isNil = L->getGlobal("loadlib_result_nil");
-    ASSERT_TRUE(suite, isNil.isBoolean() && isNil.asBoolean(), "loadlib returns nil");
+    Value missingNil = L->getGlobal("loadlib_missing_nil");
+    ASSERT_TRUE(suite, missingNil.isBoolean() && missingNil.asBoolean(),
+                "loadlib returns nil for missing library");
 
-    Value hasErr = L->getGlobal("loadlib_has_errmsg");
-    ASSERT_TRUE(suite, hasErr.isBoolean() && hasErr.asBoolean(), "loadlib returns error message");
+    Value missingErr = L->getGlobal("loadlib_missing_has_error");
+    ASSERT_TRUE(suite, missingErr.isBoolean() && missingErr.asBoolean(),
+                "loadlib returns error message for missing library");
+
+    Value missingWhere = L->getGlobal("loadlib_missing_where");
+    ASSERT_TRUE(suite, missingWhere.isString() &&
+                std::string(missingWhere.asString()->c_str()) == "open",
+                "loadlib reports open failures");
+
+    Value symNil = L->getGlobal("loadlib_symbol_nil");
+    ASSERT_TRUE(suite, symNil.isBoolean() && symNil.asBoolean(),
+                "loadlib returns nil for missing symbol");
+
+    Value symErr = L->getGlobal("loadlib_symbol_has_error");
+    ASSERT_TRUE(suite, symErr.isBoolean() && symErr.asBoolean(),
+                "loadlib returns error message for missing symbol");
+
+    Value symWhere = L->getGlobal("loadlib_symbol_where");
+    ASSERT_TRUE(suite, symWhere.isString() &&
+                std::string(symWhere.asString()->c_str()) == "init",
+                "loadlib reports symbol lookup failures");
+
+    Value starOk = L->getGlobal("loadlib_star_ok");
+    ASSERT_TRUE(suite, starOk.isBoolean() && starOk.asBoolean(),
+                "loadlib with '*' links and returns true");
+
+    Value isFunction = L->getGlobal("loadlib_result_function");
+    ASSERT_TRUE(suite, isFunction.isBoolean() && isFunction.asBoolean(),
+                "loadlib returns a callable C function");
+
+    Value noError = L->getGlobal("loadlib_result_error_nil");
+    ASSERT_TRUE(suite, noError.isBoolean() && noError.asBoolean(),
+                "loadlib success does not return error values");
+
+    Value kind = L->getGlobal("loadlib_result_kind");
+    ASSERT_TRUE(suite, kind.isString() &&
+                std::string(kind.asString()->c_str()) == "loadlib",
+                "loadlib returned function can be called");
+
+    Value value = L->getGlobal("loadlib_result_value");
+    ASSERT_TRUE(suite, value.isNumber() && value.asNumber() == 701.0,
+                "loadlib returned function produces module value");
+}
+
+// =====================================================================
+// Test: require() loads native modules via package.loaders[3]
+// =====================================================================
+
+void testRequireFromCLoader(TestSuite& suite) {
+    LuaStdLibTestContext ctx(openBaseAndPackage);
+    LuaState* L = ctx.getState();
+    bool hasExePath = setPackageTestExecutablePath(L);
+    ASSERT_TRUE(suite, hasExePath, "current executable path is available");
+    if (!hasExePath) return;
+
+    bool ok = runLuaChunk(L, R"(
+        package.cpath = package_test_exe
+        local mod = require("pkgdirect")
+        cloader_kind = mod.kind
+        cloader_value = mod.value
+        cloader_cached = (package.loaded.pkgdirect == mod)
+    )");
+    ASSERT_TRUE(suite, ok, "require loads module through C loader");
+
+    Value kind = L->getGlobal("cloader_kind");
+    ASSERT_TRUE(suite, kind.isString() &&
+                std::string(kind.asString()->c_str()) == "direct",
+                "C loader resolves luaopen_<module>");
+
+    Value value = L->getGlobal("cloader_value");
+    ASSERT_TRUE(suite, value.isNumber() && value.asNumber() == 702.0,
+                "C loader returns native module result");
+
+    Value cached = L->getGlobal("cloader_cached");
+    ASSERT_TRUE(suite, cached.isBoolean() && cached.asBoolean(),
+                "require caches C loader result");
+}
+
+// =====================================================================
+// Test: package.loaders[4] supports all-in-one C modules
+// =====================================================================
+
+void testAllInOneCLoader(TestSuite& suite) {
+    LuaStdLibTestContext ctx(openBaseAndPackage);
+    LuaState* L = ctx.getState();
+    bool hasExePath = setPackageTestExecutablePath(L);
+    ASSERT_TRUE(suite, hasExePath, "current executable path is available");
+    if (!hasExePath) return;
+
+    bool ok = runLuaChunk(L, R"(
+        package.cpath = package_test_exe
+        local loader = package.loaders[4]
+        local f = loader("pkgroot.child")
+        allinone_loader_function = (type(f) == "function")
+
+        local mod = f("pkgroot.child")
+        allinone_kind = mod.kind
+        allinone_value = mod.value
+    )");
+    ASSERT_TRUE(suite, ok, "all-in-one C loader returns a native loader");
+
+    Value isFunction = L->getGlobal("allinone_loader_function");
+    ASSERT_TRUE(suite, isFunction.isBoolean() && isFunction.asBoolean(),
+                "all-in-one loader returns a function for dotted modules");
+
+    Value kind = L->getGlobal("allinone_kind");
+    ASSERT_TRUE(suite, kind.isString() &&
+                std::string(kind.asString()->c_str()) == "allinone",
+                "all-in-one loader resolves luaopen_root_child");
+
+    Value value = L->getGlobal("allinone_value");
+    ASSERT_TRUE(suite, value.isNumber() && value.asNumber() == 703.0,
+                "all-in-one loader function produces module value");
 }
 
 // =====================================================================
@@ -441,6 +649,146 @@ void testModuleCreation(TestSuite& suite) {
     // Also check global
     Value globalMod = L->getGlobal("testmod");
     ASSERT_TRUE(suite, globalMod.isTable(), "module registered as global");
+}
+
+// =====================================================================
+// Test: module() switches the caller's environment to the module table
+// =====================================================================
+
+void testModuleSetsCallerEnvironment(TestSuite& suite) {
+    LuaStdLibTestContext ctx(openBaseAndPackage);
+    LuaState* L = ctx.getState();
+
+    bool ok = runLuaChunk(L, R"lua(
+        module('plainenv')
+        plainValue = 321
+    )lua");
+    ASSERT_TRUE(suite, ok, "module() switches caller environment");
+
+    Value pkgVal = L->getGlobal("package");
+    Table* loaded = getField(L, pkgVal.asTable(), "loaded").asTable();
+    auto& pool = L->getGlobalState().getStringPool();
+
+    Value modVal = loaded->get(Value(pool.intern("plainenv")));
+    ASSERT_TRUE(suite, modVal.isTable(), "plainenv table stored in package.loaded");
+
+    if (modVal.isTable()) {
+        Table* modTable = modVal.asTable();
+        Value value = getField(L, modTable, "plainValue");
+        ASSERT_TRUE(suite, value.isNumber() && value.asNumber() == 321.0,
+                    "assignment after module() goes into module table");
+
+        Value packageVal = getField(L, modTable, "_PACKAGE");
+        ASSERT_TRUE(suite, packageVal.isString(), "_PACKAGE field exists");
+        if (packageVal.isString()) {
+            ASSERT_TRUE(suite, std::string(packageVal.asString()->c_str()).empty(),
+                        "_PACKAGE is empty for top-level module");
+        }
+    }
+
+    Value globalValue = L->getGlobal("plainValue");
+    ASSERT_TRUE(suite, globalValue.isNil(), "assignment after module() does not leak to _G");
+}
+
+// =====================================================================
+// Test: module() creates/reuses compound global paths
+// =====================================================================
+
+void testModuleCompoundName(TestSuite& suite) {
+    LuaStdLibTestContext ctx(openBaseAndPackage);
+    LuaState* L = ctx.getState();
+
+    bool ok = runLuaChunk(L, R"lua(
+        module('alpha.beta.gamma', package.seeall)
+        compoundValue = 99
+        _G.compoundName = _NAME
+        _G.compoundPackage = _PACKAGE
+        _G.compoundCanSeeGlobal = (type(package) == 'table')
+    )lua");
+    ASSERT_TRUE(suite, ok, "module() supports compound names");
+
+    Value pkgVal = L->getGlobal("package");
+    Table* loaded = getField(L, pkgVal.asTable(), "loaded").asTable();
+    auto& pool = L->getGlobalState().getStringPool();
+
+    Value modVal = loaded->get(Value(pool.intern("alpha.beta.gamma")));
+    ASSERT_TRUE(suite, modVal.isTable(), "compound module table stored in package.loaded");
+
+    Value alphaVal = L->getGlobal("alpha");
+    ASSERT_TRUE(suite, alphaVal.isTable(), "compound module creates global root table");
+
+    if (alphaVal.isTable() && modVal.isTable()) {
+        Value betaVal = getField(L, alphaVal.asTable(), "beta");
+        ASSERT_TRUE(suite, betaVal.isTable(), "compound module creates nested table");
+
+        if (betaVal.isTable()) {
+            Value gammaVal = getField(L, betaVal.asTable(), "gamma");
+            ASSERT_TRUE(suite, gammaVal.isTable(), "compound module creates leaf table");
+            ASSERT_TRUE(suite, gammaVal.isTable() && gammaVal.asTable() == modVal.asTable(),
+                        "global compound path points at package.loaded module table");
+        }
+
+        Value compound = getField(L, modVal.asTable(), "compoundValue");
+        ASSERT_TRUE(suite, compound.isNumber() && compound.asNumber() == 99.0,
+                    "compound module assignment goes into module table");
+
+        Value packageVal = getField(L, modVal.asTable(), "_PACKAGE");
+        ASSERT_TRUE(suite, packageVal.isString(), "compound module _PACKAGE exists");
+        if (packageVal.isString()) {
+            ASSERT_TRUE(suite, std::string(packageVal.asString()->c_str()) == "alpha.beta.",
+                        "compound module _PACKAGE contains parent prefix");
+        }
+    }
+
+    Value nameVal = L->getGlobal("compoundName");
+    ASSERT_TRUE(suite, nameVal.isString() &&
+                std::string(nameVal.asString()->c_str()) == "alpha.beta.gamma",
+                "package.seeall allows module body to publish _NAME through _G");
+
+    Value packageVal = L->getGlobal("compoundPackage");
+    ASSERT_TRUE(suite, packageVal.isString() &&
+                std::string(packageVal.asString()->c_str()) == "alpha.beta.",
+                "package.seeall allows module body to publish _PACKAGE through _G");
+
+    Value canSeeGlobal = L->getGlobal("compoundCanSeeGlobal");
+    ASSERT_TRUE(suite, canSeeGlobal.isBoolean() && canSeeGlobal.asBoolean(),
+                "package.seeall lets module environment read globals");
+}
+
+// =====================================================================
+// Test: module() calls Lua option functions
+// =====================================================================
+
+void testModuleLuaOption(TestSuite& suite) {
+    LuaStdLibTestContext ctx(openBaseAndPackage);
+    LuaState* L = ctx.getState();
+
+    bool ok = runLuaChunk(L, R"lua(
+        local function mark(M)
+            M.optionCalled = true
+        end
+
+        module('optionmod', mark)
+        optionValue = 17
+    )lua");
+    ASSERT_TRUE(suite, ok, "module() accepts Lua option functions");
+
+    Value pkgVal = L->getGlobal("package");
+    Table* loaded = getField(L, pkgVal.asTable(), "loaded").asTable();
+    auto& pool = L->getGlobalState().getStringPool();
+
+    Value modVal = loaded->get(Value(pool.intern("optionmod")));
+    ASSERT_TRUE(suite, modVal.isTable(), "optionmod table stored in package.loaded");
+
+    if (modVal.isTable()) {
+        Value optionCalled = getField(L, modVal.asTable(), "optionCalled");
+        ASSERT_TRUE(suite, optionCalled.isBoolean() && optionCalled.asBoolean(),
+                    "Lua option function receives module table");
+
+        Value optionValue = getField(L, modVal.asTable(), "optionValue");
+        ASSERT_TRUE(suite, optionValue.isNumber() && optionValue.asNumber() == 17.0,
+                    "caller environment still switches after Lua option");
+    }
 }
 
 // =====================================================================
@@ -615,7 +963,12 @@ void registerPackageLibTests() {
     registry.registerTest(kSuiteName, "require from file", testRequireFromFile);
     registry.registerTest(kSuiteName, "package.loaded set", testPackageLoadedDirectSet);
     registry.registerTest(kSuiteName, "package.loadlib", testPackageLoadlib);
+    registry.registerTest(kSuiteName, "require C loader", testRequireFromCLoader);
+    registry.registerTest(kSuiteName, "all-in-one C loader", testAllInOneCLoader);
     registry.registerTest(kSuiteName, "module creation", testModuleCreation);
+    registry.registerTest(kSuiteName, "module caller env", testModuleSetsCallerEnvironment);
+    registry.registerTest(kSuiteName, "module compound name", testModuleCompoundName);
+    registry.registerTest(kSuiteName, "module Lua option", testModuleLuaOption);
     registry.registerTest(kSuiteName, "package.seeall", testPackageSeeall);
     registry.registerTest(kSuiteName, "require stdlibs", testRequireStdlibs);
     registry.registerTest(kSuiteName, "preload no return", testRequirePreloadNoReturn);

@@ -8,10 +8,10 @@
  * - package.loaded      — table of already-loaded modules
  * - package.preload     — table of preload functions
  * - package.path        — search path for Lua modules
- * - package.cpath       — search path for C modules (stub)
+ * - package.cpath       — search path for C modules
  * - package.config      — path configuration string
  * - package.loaders     — table of searcher functions
- * - package.loadlib     — dynamic library loader (stub)
+ * - package.loadlib     — dynamic library loader
  * - package.seeall      — open module environment to _G
  *
  * Reference Implementation:

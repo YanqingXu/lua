@@ -9,7 +9,7 @@ applies_to: repository overview and current build workflows
 
 > **从零开始用C++17/20/23实现Lua 5.1.5解释器**
 
-[![Tests](https://img.shields.io/badge/tests-1862%2F1862-brightgreen)]()
+[![Tests](https://img.shields.io/badge/tests-1933%2F1933-brightgreen)]()
 [![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen)]()
 [![C++](https://img.shields.io/badge/C%2B%2B-17%2F23-blue)]()
 [![Platform](https://img.shields.io/badge/platform-Windows-blue)]()
@@ -92,16 +92,16 @@ applies_to: repository overview and current build workflows
 | **协程库（Coroutine Library）** | `src/lib/coroutinelib.hpp/cpp` | ~210 | 6/6函数（create、resume、yield、status、running、wrap） | ✅ 100% |
 | **Thread类** | `src/core/thread.hpp/cpp` | ~300 | 协程执行引擎，独立 LuaState + 栈转移 | ✅ 95% |
 | **调试库（Debug Library）** | `src/lib/debuglib.hpp/cpp` | ~1,100 | 14/14函数表面实现（env/线程/栈层级边界仍简化） | 🔄 90% |
-| **包/模块库（Package Library）** | `src/lib/packagelib.hpp/cpp` | ~490 | require、module、package.loaded/preload/loaders/path/seeall；loadlib/C loader 为 stub | 🔄 90% |
+| **包/模块库（Package Library）** | `src/lib/packagelib.hpp/cpp` | ~830 | require、module、package.loaded/preload/loaders/path/cpath/loadlib/seeall；module 复合名/环境语义与 C loader/all-in-one loader 已补齐 | ✅ 98% |
 | **库管理系统** | `src/lib/lib_manager.hpp/cpp` | 73 | 标准库注册和管理 | ✅ 100% |
 
 ### 测试统计（2026-05-19更新）✅
 
 ```
 测试框架：自定义轻量级测试框架（零外部依赖）
-注册测试：443个
-断言结果：1890个 ✅
-通过率：  100% (1890/1890)
+注册测试：448个
+断言结果：1933个 ✅
+通过率：  100% (1933/1933)
 失败测试：0个
 编译状态：Debug|x64 版本无警告，无链接冲突
 平台：    Windows + MSVC (Visual Studio 2026)
@@ -109,16 +109,16 @@ applies_to: repository overview and current build workflows
 
 补充验证：
 - `bin/build_test.bat`：通过
-- `bin/lua_test.exe`：443 个注册测试，1890 个结果，0 失败
+- `bin/lua_test.exe`：448 个注册测试，1933 个结果，0 失败
 - `bin/build_app.bat`：通过
 - `tests/lua/regressions/*.lua`：全部通过
 - `tests/lua/stdlib/test_collectgarbage*.lua` 与 `test_gcinfo*.lua`：全部通过，`collectgarbage("collect")` 可观察到内存下降
 
 ### 距离完整 Lua 5.1.5 仍缺失的功能
 
-> **兼容性审计记录（2026-05-19）**：已对 README、本地 `src/lib/` 标准库实现、`src/vm/` 指令执行逻辑、GC/元方法相关核心代码进行核对。`bin/lua_test.exe` 当前为 443 个注册测试、1890 个结果、0 失败；这说明项目内测试覆盖的路径稳定，但不等价于 Lua 5.1.5 官方语义已经达到 95% 兼容。
+> **兼容性审计记录（2026-05-19）**：已对 README、本地 `src/lib/` 标准库实现、`src/vm/` 指令执行逻辑、GC/元方法相关核心代码进行核对。`bin/lua_test.exe` 当前为 448 个注册测试、1933 个结果、0 失败；这说明项目内测试覆盖的路径稳定，但不等价于 Lua 5.1.5 官方语义已经达到 95% 兼容。
 
-> **最新补齐**：Lua 函数元方法调用链已打通，`callTMWithResult/callTM` 统一走 `VM::call`，C Closure 与 Lua Closure 共用同一调用入口；`getMetamethodByObject()` 已接入基础类型元表，string 类型已安装 `__index = string`；GC 已支持弱表 `__mode = "k"/"v"/"kv"` 清理和 userdata `__gc` 两阶段终结；尾调用优化已覆盖单值 `return f()` 的 `TAILCALL` 生成和 Lua 函数调用帧复用；泛型 `for` 已支持显式 iterator 三元组、函数/vararg 三值调整和 Lua 函数迭代器；string 库已补齐 `gsub` 表/函数替换、`string.dump` Proto/字节码序列化输出和含 `\0` 字符串的长度安全处理。
+> **最新补齐**：Lua 函数元方法调用链已打通，`callTMWithResult/callTM` 统一走 `VM::call`，C Closure 与 Lua Closure 共用同一调用入口；`getMetamethodByObject()` 已接入基础类型元表，string 类型已安装 `__index = string`；GC 已支持弱表 `__mode = "k"/"v"/"kv"` 清理和 userdata `__gc` 两阶段终结；尾调用优化已覆盖单值 `return f()` 的 `TAILCALL` 生成和 Lua 函数调用帧复用；泛型 `for` 已支持显式 iterator 三元组、函数/vararg 三值调整和 Lua 函数迭代器；string 库已补齐 `gsub` 表/函数替换、`string.dump` Proto/字节码序列化输出和含 `\0` 字符串的长度安全处理；`module()` 已补齐 `_PACKAGE`、复合模块名全局路径、调用方环境切换和 Lua option 函数调用语义；package 已补齐 `package.loadlib`、C loader 和 all-in-one C loader 动态加载边界。
 
 #### 🔴 关键缺失（影响语义正确性）
 
@@ -128,8 +128,6 @@ applies_to: repository overview and current build workflows
 
 | 缺失项 | 所属模块 | 说明 |
 |--------|----------|------|
-| **`package.loadlib` / C loader** | package 库 | `package.loadlib` 只返回 `nil, errmsg, "absent"`；`package.loaders[3]` 为 C loader stub，Lua 5.1 的 all-in-one C loader 也未实现 |
-| **`module()` 细节** | package 库 | 未设置 `_PACKAGE`，未把当前函数环境切到模块表，复合模块名 `a.b.c` 不会逐级创建/复用全局表 |
 | **`error()` level 参数** | base 库 | level 已解析但不会在错误消息前添加源位置信息；非字符串错误对象也未完全按 Lua 语义保留 |
 | **`pcall/xpcall` 错误处理** | base 库 / LuaState | `xpcall` 会传入错误处理器位置，但 `LuaState::pcall()` 中 `errfunc` 调用仍是 TODO |
 | **`newproxy()`** | base 库 | 未实现（Lua 5.1 未文档化但存在的兼容函数） |
@@ -148,7 +146,7 @@ applies_to: repository overview and current build workflows
 | **表长度 `#t`** | `Table::length()` 返回数组部分最后一个非 nil 索引；对有洞数组未完全复现 Lua 5.1 边界定义 |
 | **元方法覆盖面** | C 函数与 Lua 函数元方法、table/userdata 与基础类型查找路径已有测试；`__gc/__mode` 已由 GC 消费；debug 库基础类型元表操作仍是兼容边界 |
 | **错误对象与 traceback** | 基础 traceback/debug hook 已有实现；错误位置 level、任意类型 error object、xpcall handler 仍不完整 |
-| **Lua 文件模块加载** | `require()` 可通过 `package.path` 加载 Lua 文件；但 C 模块、复杂 `module()` 环境语义、loader 返回值边界仍需补齐 |
+| **Lua/动态 C 模块加载** | `require()` 可通过 `package.path` 加载 Lua 文件，也可通过 `package.cpath` 加载 C 模块；更细的系统 loader 搜索错误文本仍可继续对齐官方实现 |
 
 #### ⚪ 低优先级/已废弃
 
@@ -159,16 +157,15 @@ applies_to: repository overview and current build workflows
 
 #### 95% 完成度复核
 
-当前“95%”更适合理解为**项目内功能和测试进度**，而不是严格的 Lua 5.1.5 官方兼容率。标准库主体、编译器前端、VM 主要指令路径、GC 基础/高级生命周期、Lua 函数元方法调用链、泛型 `for`、string 兼容性补强以及尾调用栈帧复用已经成型并全绿；但 package/debug/base 小边界仍是高权重语义项，若按官方规范和第三方 Lua 5.1 测试套衡量，实际兼容度应更保守。
+当前“95%”更适合理解为**项目内功能和测试进度**，而不是严格的 Lua 5.1.5 官方兼容率。标准库主体、编译器前端、VM 主要指令路径、GC 基础/高级生命周期、Lua 函数元方法调用链、泛型 `for`、string 兼容性补强、`module()` 语义、package 动态 C 加载以及尾调用栈帧复用已经成型并全绿；但 debug/base 小边界仍是高权重语义项，若按官方规范和第三方 Lua 5.1 测试套衡量，实际兼容度应更保守。
 
 ### 接下来优先做什么
 
-已完成：真正的尾调用优化（TCO）已覆盖单值 `return f()` 的字节码生成和 Lua 函数尾调用的栈帧复用，并新增 `TAILCALL` 字节码与深尾递归帧深度回归测试；泛型 `for` 已补齐 CodeGen iterator 表达式调整和 VM `TFORLOOP` Lua 函数迭代器调用路径；string 兼容性已补齐 `string.gsub` 表/函数替换、`string.dump` 和二进制安全字符串处理。
+已完成：真正的尾调用优化（TCO）已覆盖单值 `return f()` 的字节码生成和 Lua 函数尾调用的栈帧复用，并新增 `TAILCALL` 字节码与深尾递归帧深度回归测试；泛型 `for` 已补齐 CodeGen iterator 表达式调整和 VM `TFORLOOP` Lua 函数迭代器调用路径；string 兼容性已补齐 `string.gsub` 表/函数替换、`string.dump` 和二进制安全字符串处理；`module()` 已补齐复合名、`_PACKAGE`、调用方环境和 option 函数语义；package 动态加载已补齐 `package.loadlib`、C loader 和 all-in-one loader。
 
-1. **补 package 兼容性**：`package.loadlib`、C loader/all-in-one loader、`module()` 的 `_PACKAGE`/环境/复合模块名语义
-2. **补错误与调试边界**：`error(level)` 位置信息、任意错误对象、`xpcall` errfunc、`getfenv/setfenv` 栈层级/线程环境、debug 库基础类型元表操作
-3. **补小型标准库边界**：`io.lines/file:lines` 格式参数、`os.remove/os.rename` 失败返回值、`table.concat` 类型边界
-4. **引入官方兼容测试**：在现有单元测试全绿基础上，逐步接入 Lua 5.1 官方/社区行为测试，避免只验证 happy path
+1. **补错误与调试边界**：`error(level)` 位置信息、任意错误对象、`xpcall` errfunc、`getfenv/setfenv` 栈层级/线程环境、debug 库基础类型元表操作
+2. **补小型标准库边界**：`io.lines/file:lines` 格式参数、`os.remove/os.rename` 失败返回值、`table.concat` 类型边界
+3. **引入官方兼容测试**：在现有单元测试全绿基础上，逐步接入 Lua 5.1 官方/社区行为测试，避免只验证 happy path
 
 ### 核心实现亮点
 
@@ -189,7 +186,7 @@ applies_to: repository overview and current build workflows
 ✅ **I/O库（I/O Library）**：11/11函数 + 7/7文件方法主体实现（io.open, io.close, io.read, io.write, file:read, file:write 等），`io.lines/file:lines` 格式参数仍简化
 ✅ **协程库（Coroutine Library）**：6/6函数实现（coroutine.create、resume、yield、status、running、wrap），支持独立栈协程执行
 ✅ **调试库（Debug Library）**：14/14函数表面实现（debug.getinfo、getlocal、setlocal、getupvalue、setupvalue、traceback、sethook、gethook、getregistry、getmetatable、setmetatable、getfenv、setfenv、debug），支持运行时调试能力
-✅ **包/模块库（Package Library）**：require、module 全局函数 + package.loaded/preload/loaders/path/cpath/config/seeall，支持 preload 和 Lua 文件模块加载；动态 C 模块加载仍为 stub
+✅ **包/模块库（Package Library）**：require、module 全局函数 + package.loaded/preload/loaders/path/cpath/config/loadlib/seeall，支持 preload、Lua 文件模块、动态 C 模块和 all-in-one C 模块加载
 ✅ **库管理系统**：模块化的标准库注册机制，支持全局函数注册和表函数注册
 ✅ **StringPool**：字符串驻留（interning），节省内存
 ✅ **GarbageCollector**：真实标记-清除流程、根集扫描、对象生命周期统一注册、弱表清理和 userdata `__gc` 两阶段终结，`collectgarbage("collect")` 已接入
@@ -953,7 +950,7 @@ openBaseLib(L);  // 注册所有函数到全局环境
 
 3. **下一步做什么？**
    - 先看最近在改的模块和回归脚本
-   - 优先补 `string.gsub` 函数/表替换、`string.dump`、`package.loadlib` 等兼容边界
+   - 优先补 `error(level)` / `xpcall` / debug 环境边界，其次补 `io.lines` 格式参数、`os.remove/os.rename` 失败返回值和 `table.concat` 类型边界
 
 4. **在哪里找详细信息？**
    - 当前事实源：`docs/PROJECT_STATUS.md`
@@ -1042,7 +1039,7 @@ tests/unit/
 └── vm/                         # VM Core、LuaState 初始化、函数调用
 ```
 
-当前测试入口会输出真实注册测试数和断言结果数；最近一次验证为 439 个注册测试、1862 个结果、0 失败。
+当前测试入口会输出真实注册测试数和断言结果数；最近一次验证为 448 个注册测试、1933 个结果、0 失败。
 
 ## 📊 技术栈和工具
 
