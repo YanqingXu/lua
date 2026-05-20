@@ -17,6 +17,7 @@
  */
 
 #include "repl.hpp"
+#include "bytecode/bytecode_printer.hpp"
 #include "vm/vm.hpp"
 #include "vm/global_state.hpp"
 #include "compiler/parser.hpp"
@@ -30,7 +31,10 @@
 #include <iostream>
 #include <string>
 #include <csignal>
+#include <cctype>
 #include <cstdlib>
+#include <expected>
+#include <fstream>
 
 namespace Lua {
 namespace REPL {
@@ -139,6 +143,24 @@ bool wasInterrupted() {
  */
 void clearInterruptFlag() {
     g_interrupted = 0;
+}
+
+bool isSpace(char ch) {
+    return std::isspace(static_cast<unsigned char>(ch)) != 0;
+}
+
+Str trimCopy(const Str& text) {
+    usize first = 0;
+    while (first < text.size() && isSpace(text[first])) {
+        first++;
+    }
+
+    usize last = text.size();
+    while (last > first && isSpace(text[last - 1])) {
+        last--;
+    }
+
+    return text.substr(first, last - first);
 }
 
 /**
@@ -268,6 +290,28 @@ Str tryAsExpression(const Str& source, bool& wasExplicitReturn) {
     }
     wasExplicitReturn = false;
     return source;
+}
+
+std::expected<Proto*, ParseError> compileForBytecode(LuaState* L, const Str& source) {
+    RuntimeServices services(L->getGlobalState());
+
+    Parser parser(source, services);
+    auto parsed = parser.parse();
+    if (!parsed) {
+        return std::unexpected(parsed.error());
+    }
+
+    CodeGenerator codegen(services);
+    Proto* proto = codegen.generate(*parsed, "=(repl bytecode)");
+    if (!proto) {
+        throw RuntimeError("code generation failed");
+    }
+
+    return proto;
+}
+
+void printParseError(std::ostream& err, const ParseError& error) {
+    err << "stdin:" << error.getLine() << ": " << error.what() << std::endl;
 }
 
 /**
@@ -410,6 +454,135 @@ int luaB_exit(LuaState* L) {
 // REPL 公共接口实现
 // ============================================================================
 
+MetaCommand parseMetaCommand(const Str& line) {
+    const Str trimmed = trimCopy(line);
+    if (trimmed.empty() || trimmed[0] != '.') {
+        return {};
+    }
+
+    usize commandEnd = 1;
+    while (commandEnd < trimmed.size() && !isSpace(trimmed[commandEnd])) {
+        commandEnd++;
+    }
+
+    const Str command = trimmed.substr(1, commandEnd - 1);
+    const Str argument = trimCopy(trimmed.substr(commandEnd));
+
+    if (command == "help") {
+        return {MetaCommandKind::Help, ""};
+    }
+    if (command == "bytecode") {
+        return {MetaCommandKind::Bytecode, argument};
+    }
+
+    return {MetaCommandKind::Unknown, command};
+}
+
+void printHelp(std::ostream& out) {
+    out << "REPL commands:" << std::endl;
+    out << "  .help                  show this help" << std::endl;
+    out << "  .bytecode <expr|chunk> compile input and print bytecode" << std::endl;
+    out << "  =expr                  evaluate expression and print results" << std::endl;
+    out << "  exit, quit             leave the REPL" << std::endl;
+}
+
+void recordHistory(Vec<Str>& history, const Str& line) {
+    if (!line.empty()) {
+        history.push_back(line);
+    }
+}
+
+bool loadHistory(const Str& path, Vec<Str>& history) {
+    history.clear();
+
+    std::ifstream input(path);
+    if (!input) {
+        return false;
+    }
+
+    Str line;
+    while (std::getline(input, line)) {
+        if (!line.empty() && line.back() == '\r') {
+            line.pop_back();
+        }
+        recordHistory(history, line);
+    }
+
+    return input.eof() || input.good();
+}
+
+bool saveHistory(const Str& path, const Vec<Str>& history) {
+    std::ofstream output(path, std::ios::trunc);
+    if (!output) {
+        return false;
+    }
+
+    for (const Str& line : history) {
+        output << line << '\n';
+    }
+
+    return output.good();
+}
+
+int printBytecode(LuaState* L, const Str& source, std::ostream& out, std::ostream& err) {
+    if (L == nullptr) {
+        err << ".bytecode: LuaState is null" << std::endl;
+        return 1;
+    }
+
+    const Str input = trimCopy(source);
+    if (input.empty()) {
+        err << "usage: .bytecode <expr|chunk>" << std::endl;
+        return 1;
+    }
+
+    try {
+        bool wasExplicitReturn = false;
+        const Str primarySource = tryAsExpression(input, wasExplicitReturn);
+        auto primary = compileForBytecode(L, primarySource);
+        if (primary) {
+            printProtoBytecode(*primary, out, false);
+            return 0;
+        }
+
+        if (!wasExplicitReturn) {
+            auto expression = compileForBytecode(L, "return " + input);
+            if (expression) {
+                printProtoBytecode(*expression, out, false);
+                return 0;
+            }
+            printParseError(err, expression.error());
+            return 1;
+        }
+
+        printParseError(err, primary.error());
+        return 1;
+    } catch (const LuaError& e) {
+        err << e.what() << std::endl;
+        return 1;
+    } catch (const std::exception& e) {
+        err << e.what() << std::endl;
+        return 1;
+    }
+}
+
+int runMetaCommand(LuaState* L, const MetaCommand& command, std::ostream& out, std::ostream& err) {
+    switch (command.kind) {
+        case MetaCommandKind::None:
+            return 0;
+        case MetaCommandKind::Help:
+            printHelp(out);
+            return 0;
+        case MetaCommandKind::Bytecode:
+            return printBytecode(L, command.argument, out, err);
+        case MetaCommandKind::Unknown:
+            err << "unknown REPL command: ." << command.argument << std::endl;
+            return 1;
+    }
+
+    return 1;
+}
+
 void initialize(LuaState* L) {
     RuntimeServices services(L->getGlobalState());
     StringPool& pool = services.strings;
@@ -438,10 +611,13 @@ int run(LuaState* L) {
 
     // 显示欢迎信息
     std::cout << VERSION << "  " << COPYRIGHT << std::endl;
-    std::cout << "Type 'exit' or press Ctrl+D to quit." << std::endl;
+    std::cout << "Type '.help' for commands, 'exit' or press Ctrl+D to quit." << std::endl;
 
     Str inputBuffer;  // 累积的输入
+    Vec<Str> history;
     bool isFirstLine = true;
+
+    loadHistory(DEFAULT_HISTORY_FILE, history);
 
     while (true) {
         // 检查中断标志
@@ -472,6 +648,8 @@ int run(LuaState* L) {
             continue;
         }
 
+        recordHistory(history, line);
+
         // 检查退出命令（仅在首行时检查）
         if (isFirstLine && (line == "exit" || line == "quit")) {
             break;
@@ -480,6 +658,16 @@ int run(LuaState* L) {
         // 跳过空行（仅在首行时）
         if (isFirstLine && line.empty()) {
             continue;
+        }
+
+        if (isFirstLine) {
+            const MetaCommand command = parseMetaCommand(line);
+            if (command.kind != MetaCommandKind::None) {
+                runMetaCommand(L, command, std::cout, std::cerr);
+                inputBuffer.clear();
+                isFirstLine = true;
+                continue;
+            }
         }
 
         // 累积输入
@@ -537,6 +725,8 @@ int run(LuaState* L) {
     // 恢复默认信号处理
     restoreSignalHandler();
     g_currentState = nullptr;
+
+    saveHistory(DEFAULT_HISTORY_FILE, history);
 
     std::cout << "Goodbye!" << std::endl;
     return 0;

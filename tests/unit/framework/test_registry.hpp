@@ -81,6 +81,11 @@ void registerCodegenMultiRetTests();
 void registerCodegenResultTypeTests();
 
 /**
+ * @brief 注册字节码打印器输出测试
+ */
+void registerBytecodePrinterTests();
+
+/**
  * @brief 注册基础库函数测试
  */
 void registerBaselibTests();
@@ -215,6 +220,11 @@ void registerCallPipelineTests();
  * @brief 注册 Symbol Binding 测试（PR-8）
  */
 void registerSymbolBindingTests();
+
+/**
+ * @brief 注册 REPL 元命令和历史测试
+ */
+void registerReplCommandTests();
 
 #endif // LUA_TEST_REGISTRY_HPP
 

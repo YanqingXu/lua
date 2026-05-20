@@ -10,6 +10,15 @@
     <Filter Include="tests\app">
       <UniqueIdentifier>{D1000001-000B-000B-000B-00000000000B}</UniqueIdentifier>
     </Filter>
+    <Filter Include="tests\bytecode">
+      <UniqueIdentifier>{D1000001-000C-000C-000C-00000000000C}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src">
+      <UniqueIdentifier>{D1000001-000E-000E-000E-00000000000E}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\bytecode">
+      <UniqueIdentifier>{D1000001-000D-000D-000D-00000000000D}</UniqueIdentifier>
+    </Filter>
     <Filter Include="tests\compiler">
       <UniqueIdentifier>{D1000001-0004-0004-0004-000000000004}</UniqueIdentifier>
     </Filter>
@@ -44,6 +53,12 @@
     <ClCompile Include="src\app\app_options.cpp">
       <Filter>tests\app</Filter>
     </ClCompile>
+    <ClCompile Include="src\bytecode\bytecode_printer.cpp">
+      <Filter>src\bytecode</Filter>
+    </ClCompile>
+    <ClCompile Include="src\repl.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
     <ClCompile Include="tests\unit\framework\test_framework.cpp">
       <Filter>framework</Filter>
     </ClCompile>
@@ -52,6 +67,12 @@
     </ClCompile>
     <ClCompile Include="tests\unit\app\test_app_options.cpp">
       <Filter>tests\app</Filter>
+    </ClCompile>
+    <ClCompile Include="tests\unit\app\test_repl_commands.cpp">
+      <Filter>tests\app</Filter>
+    </ClCompile>
+    <ClCompile Include="tests\unit\bytecode\test_bytecode_printer.cpp">
+      <Filter>tests\bytecode</Filter>
     </ClCompile>
     <ClCompile Include="tests\unit\compiler\test_ast_visitor.cpp">
       <Filter>tests\compiler</Filter>

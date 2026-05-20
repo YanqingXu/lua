@@ -10,6 +10,9 @@
     <Filter Include="src\runtime">
       <UniqueIdentifier>{E1000001-0003-0003-0003-000000000003}</UniqueIdentifier>
     </Filter>
+    <Filter Include="src\bytecode">
+      <UniqueIdentifier>{E1000001-0004-0004-0004-000000000004}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\app\app_options.hpp">
@@ -25,6 +28,9 @@
   <ItemGroup>
     <ClCompile Include="src\app\app_options.cpp">
       <Filter>src\app</Filter>
+    </ClCompile>
+    <ClCompile Include="src\bytecode\bytecode_printer.cpp">
+      <Filter>src\bytecode</Filter>
     </ClCompile>
     <ClCompile Include="src\main.cpp">
       <Filter>src</Filter>

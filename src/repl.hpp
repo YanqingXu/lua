@@ -27,6 +27,9 @@
 #ifndef LUA_REPL_HPP
 #define LUA_REPL_HPP
 
+#include <iosfwd>
+
+#include "common/types.hpp"
 #include "vm/lua_state.hpp"
 
 namespace Lua {
@@ -60,9 +63,59 @@ constexpr const char* LUA_VERSION = "Lua 5.1";
 /// 默认程序名（用于错误消息前缀）
 constexpr const char* DEFAULT_PROGNAME = "lua";
 
+/// 默认持久化历史文件名
+constexpr const char* DEFAULT_HISTORY_FILE = ".lua_history";
+
+enum class MetaCommandKind {
+    None,
+    Help,
+    Bytecode,
+    Unknown,
+};
+
+struct MetaCommand {
+    MetaCommandKind kind = MetaCommandKind::None;
+    Str argument;
+};
+
 // ============================================================================
 // REPL 公共接口
 // ============================================================================
+
+/**
+ * @brief 解析 REPL 元命令（以 . 开头的首行输入）
+ */
+MetaCommand parseMetaCommand(const Str& line);
+
+/**
+ * @brief 打印 REPL 帮助文本
+ */
+void printHelp(std::ostream& out);
+
+/**
+ * @brief 记录一条历史输入（忽略空行）
+ */
+void recordHistory(Vec<Str>& history, const Str& line);
+
+/**
+ * @brief 从文件读取历史记录
+ */
+bool loadHistory(const Str& path, Vec<Str>& history);
+
+/**
+ * @brief 将历史记录保存到文件
+ */
+bool saveHistory(const Str& path, const Vec<Str>& history);
+
+/**
+ * @brief 编译 REPL 输入并打印字节码
+ */
+int printBytecode(LuaState* L, const Str& source, std::ostream& out, std::ostream& err);
+
+/**
+ * @brief 执行已解析的 REPL 元命令
+ */
+int runMetaCommand(LuaState* L, const MetaCommand& command, std::ostream& out, std::ostream& err);
 
 /**
  * @brief 设置程序名（用于错误消息前缀）

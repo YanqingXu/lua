@@ -72,9 +72,13 @@ set(LUA_CORE_SOURCES
 
 set(LUA_TEST_SOURCES
     src/app/app_options.cpp
+    src/bytecode/bytecode_printer.cpp
+    src/repl.cpp
     tests/unit/framework/test_framework.cpp
     tests/unit/framework/test_runner.cpp
     tests/unit/app/test_app_options.cpp
+    tests/unit/app/test_repl_commands.cpp
+    tests/unit/bytecode/test_bytecode_printer.cpp
     tests/unit/compiler/test_ast_visitor.cpp
     tests/unit/compiler/test_indexed_access.cpp
     tests/unit/compiler/test_lexer_lookahead.cpp
@@ -143,6 +147,7 @@ endif()
 if(LUA_CPP_BUILD_TOOLS)
     add_executable(lua_app
         src/app/app_options.cpp
+        src/bytecode/bytecode_printer.cpp
         src/main.cpp
         src/repl.cpp
     )

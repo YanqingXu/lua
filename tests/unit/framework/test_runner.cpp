@@ -37,6 +37,7 @@ extern void registerCodegenMultiRetTests();
 extern void registerCodegenResultTypeTests();
 extern void registerCodegenStateTests();
 extern void registerBytecodeBuilderTests();
+extern void registerBytecodePrinterTests();
 extern void registerMathLibTests();
 extern void registerLibCatalogTests();
 extern void registerBaselibTests();
@@ -69,6 +70,7 @@ extern void registerInputStreamStreamTests();
 extern void registerInputStreamFileTests();
 extern void registerFileLoaderTests();
 extern void registerAppOptionsTests();
+extern void registerReplCommandTests();
 
 namespace {
 
@@ -171,6 +173,7 @@ void registerAllTests() {
     registerCodegenResultTypeTests();
     registerCodegenStateTests();
     registerBytecodeBuilderTests();
+    registerBytecodePrinterTests();
     registerSyntaxSugarTests();
     registerLibCatalogTests();
     registerMathLibTests();
@@ -203,6 +206,7 @@ void registerAllTests() {
     registerInputStreamFileTests();
     registerFileLoaderTests();
     registerAppOptionsTests();
+    registerReplCommandTests();
 }
 
 void printTestList(const LuaTest::TestRegistry& registry, const std::string& filter) {
