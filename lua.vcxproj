@@ -186,6 +186,7 @@
     <ClInclude Include="src\vm\stack.hpp" />
     <ClInclude Include="src\vm\vm_dispatch.hpp" />
     <ClInclude Include="src\vm\vm_dispatch_strategy.hpp" />
+    <ClInclude Include="src\vm\vm_handlers.hpp" />
     <ClInclude Include="src\vm\vm.hpp" />
     <ClInclude Include="src\vm\vm_internal.hpp" />
     <ClInclude Include="src\vm\vm_constants.hpp" />
@@ -245,6 +246,7 @@
     <ClCompile Include="src\vm\vm_arith.cpp" />
     <ClCompile Include="src\vm\vm_call.cpp" />
     <ClCompile Include="src\vm\vm_dispatch_strategy.cpp" />
+    <ClCompile Include="src\vm\vm_handlers.cpp" />
     <ClCompile Include="src\vm\vm_entry.cpp" />
     <ClCompile Include="src\vm\vm_frame.cpp" />
     <ClCompile Include="src\vm\vm_loop.cpp" />

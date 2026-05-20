@@ -31,6 +31,7 @@ bin\lua_test.exe --report=junit
 | 顺序 | 主题 | 推荐过滤器 | 重点文件 | 读完后应理解 |
 |---|---|---|---|---|
 | 1 | 值、表和函数对象 | `Value` / `Table` / `Function` | `tests/unit/core/test_value.cpp`, `tests/unit/core/test_table.cpp`, `tests/unit/core/test_function.cpp` | Lua 值类型、表存储、函数/Proto 的基础形态 |
+| 1.5 | Hello World 端到端 | `VM Dispatch` / `Value Pipeline` | `docs/walkthroughs/hello-world.md`, `src/compiler/codegen_expr.cpp`, `src/vm/vm.cpp`, `src/lib/baselib.cpp` | `print("hello")` 如何从源码走到字节码、VM 调度和 C 函数输出 |
 | 2 | LuaState 与 VM 基础 | `VM Core` / `LuaState Init` | `tests/unit/vm/test_vm_core.cpp`, `tests/unit/vm/test_lua_state_init.cpp` | 栈、全局表、固定字符串、基础 VM 执行状态 |
 | 2.5 | 显式运行时边界 | `Runtime Services` | `tests/unit/vm/test_runtime_services.cpp`, `src/runtime/runtime_services.hpp` | `RuntimeServices` 如何把单例兼容层变成可传递的上下文 |
 | 3 | 词法和解析边界 | `Lexer` / `Parser` | `tests/unit/compiler/test_lexer_number.cpp`, `tests/unit/compiler/test_parser_error_recovery.cpp` | 源码如何进入 AST，以及错误恢复的边界 |
@@ -54,6 +55,7 @@ bin\lua_test.exe --report=junit
 | 多返回值为什么依赖调用位置 | `bin\lua_test.exe --filter "Call Pipeline"` | `src/compiler/codegen_types.hpp`, `src/compiler/codegen_expr.cpp`, `src/compiler/codegen_stmt.cpp`, `src/vm/vm.cpp` |
 | RuntimeServices 当前解决了什么 | `bin\lua_test.exe --filter "Runtime Services"` | `src/runtime/runtime_services.hpp`, `src/main.cpp`, `src/repl.cpp` |
 | 标准库如何统一装配 | `bin\lua_test.exe --filter "Standard Library Catalog"` | `src/lib/lib_catalog.hpp`, `src/lib/lib_manager.cpp`, `docs/stdlib/overview.md` |
+| `print("hello")` 如何走完整链路 | `bin\lua_test.exe --filter "VM Dispatch"` | `docs/walkthroughs/hello-world.md` |
 
 ## Example Pairings
 

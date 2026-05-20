@@ -9,8 +9,10 @@
 #include "vm/lua_state.hpp"
 #include "vm/vm_dispatch.hpp"
 #include "vm/vm_dispatch_strategy.hpp"
+#include "vm/vm_handlers.hpp"
 #include "vm/vm.hpp"
 
+#include <array>
 #include <string>
 
 using namespace Lua;
@@ -116,6 +118,75 @@ void testRuntimeServicesCanInjectDispatchStrategy(TestSuite& suite) {
     services.gc.clearAll();
 }
 
+void testHandlerTableCoversOpcodeSpace(TestSuite& suite) {
+    const auto& table = VM::handlerTable();
+
+    ASSERT_EQ(suite, NUM_OPCODES, static_cast<int>(table.size()),
+              "Handler table should have one entry per opcode");
+
+    for (i32 index = 0; index < NUM_OPCODES; ++index) {
+        const VM::HandlerEntry& entry = table[static_cast<usize>(index)];
+        OpCode expected = static_cast<OpCode>(index);
+
+        ASSERT_EQ(suite, index, static_cast<int>(entry.opcode),
+                  "Handler entry opcode should match table index");
+        ASSERT_TRUE(suite, std::string(entry.name) == getOpName(expected),
+                    "Handler entry name should match opcode name");
+    }
+}
+
+void testInitialHandlersCoverDataMoveOpcodes(TestSuite& suite) {
+    ASSERT_TRUE(suite, VM::hasHandler(OpCode::MOVE), "MOVE should have a handler");
+    ASSERT_TRUE(suite, VM::hasHandler(OpCode::LOADK), "LOADK should have a handler");
+    ASSERT_TRUE(suite, VM::hasHandler(OpCode::LOADBOOL), "LOADBOOL should have a handler");
+    ASSERT_TRUE(suite, VM::hasHandler(OpCode::LOADNIL), "LOADNIL should have a handler");
+    ASSERT_FALSE(suite, VM::hasHandler(OpCode::CALL), "CALL remains switch-only in the first handler-table slice");
+}
+
+void testDataMoveHandlersExecuteDirectly(TestSuite& suite) {
+    RuntimeServices services = RuntimeServices::fromSingletons();
+    Proto proto;
+    usize constantIndex = proto.addConstant(Value(42.0));
+
+    std::array<Value, 4> registers{};
+    registers[1] = Value(7.0);
+    registers[3] = Value(99.0);
+
+    Value* base = registers.data();
+    usize pc = 10;
+    VM::OpExecutionContext context{
+        services,
+        nullptr,
+        nullptr,
+        &proto,
+        base,
+        pc,
+        0,
+        1
+    };
+
+    VM::HandlerStatus moveStatus = VM::runHandler(context, CREATE_ABC(OpCode::MOVE, 0, 1, 0));
+    ASSERT_EQ(suite, static_cast<int>(VM::HandlerStatus::Continue), static_cast<int>(moveStatus),
+              "MOVE handler should continue dispatch");
+    ASSERT_TRUE(suite, registers[0].isNumber() && registers[0].asNumber() == 7.0,
+                "MOVE handler should copy source register");
+
+    VM::runHandler(context, CREATE_ABx(OpCode::LOADK, 2, static_cast<i32>(constantIndex)));
+    ASSERT_TRUE(suite, registers[2].isNumber() && registers[2].asNumber() == 42.0,
+                "LOADK handler should load a constant");
+
+    pc = 5;
+    VM::runHandler(context, CREATE_ABC(OpCode::LOADBOOL, 0, 1, 1));
+    ASSERT_TRUE(suite, registers[0].isBoolean() && registers[0].asBoolean(),
+                "LOADBOOL handler should write a boolean");
+    ASSERT_EQ(suite, 6, static_cast<int>(pc), "LOADBOOL handler should skip the next instruction when C is set");
+
+    VM::runHandler(context, CREATE_ABC(OpCode::LOADNIL, 1, 3, 0));
+    ASSERT_TRUE(suite, registers[1].isNil(), "LOADNIL handler should clear first register");
+    ASSERT_TRUE(suite, registers[2].isNil(), "LOADNIL handler should clear middle register");
+    ASSERT_TRUE(suite, registers[3].isNil(), "LOADNIL handler should clear last register");
+}
+
 }  // namespace
 
 void registerVMDispatchTests() {
@@ -127,4 +198,8 @@ void registerVMDispatchTests() {
     registry.registerTest(kSuiteName, "Default Dispatch Strategy Is Switch", testDefaultDispatchStrategyIsSwitch);
     registry.registerTest(kSuiteName, "RuntimeServices Can Inject Dispatch Strategy",
                           testRuntimeServicesCanInjectDispatchStrategy);
+    registry.registerTest(kSuiteName, "Handler Table Covers Opcode Space", testHandlerTableCoversOpcodeSpace);
+    registry.registerTest(kSuiteName, "Initial Handlers Cover Data Move Opcodes",
+                          testInitialHandlersCoverDataMoveOpcodes);
+    registry.registerTest(kSuiteName, "Data Move Handlers Execute Directly", testDataMoveHandlersExecuteDirectly);
 }

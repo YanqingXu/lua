@@ -18,6 +18,7 @@
 #include "vm/vm_constants.hpp"
 #include "vm/vm_dispatch.hpp"
 #include "vm/vm_dispatch_strategy.hpp"
+#include "vm/vm_handlers.hpp"
 #include "vm/vm_internal.hpp"
 #include "vm/lua_state.hpp"
 #include "core/value.hpp"
@@ -186,31 +187,22 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
             // ============== 基础操作 ==============
 
             case OpCode::MOVE:
-                if (VM::detail::shouldDumpBytecode()) {
-                    std::fprintf(stderr, "[MOVE] pc=%zu a=%d b=%d base[b]=", instructionPc, a, b);
-                    if (base[b].isNumber()) std::fprintf(stderr, "%g", base[b].asNumber());
-                    else if (base[b].isNil()) std::fprintf(stderr, "nil");
-                    else if (base[b].isFunction()) std::fprintf(stderr, "function");
-                    else if (base[b].isString()) std::fprintf(stderr, "'%s'", base[b].asString()->c_str());
-                    else std::fprintf(stderr, "other");
-                    std::fprintf(stderr, "\n");
-                }
-                
-                base[a] = base[b];
-                break;
-
             case OpCode::LOADK:
-                base[a] = proto->getConstant(bx);
-                break;
-
             case OpCode::LOADBOOL:
-                base[a] = Value(b != 0);
-                if (c != 0) pc++;
+            case OpCode::LOADNIL: {
+                OpExecutionContext opContext{
+                    services,
+                    L,
+                    func,
+                    proto,
+                    base,
+                    pc,
+                    instructionPc,
+                    nexeccalls
+                };
+                VM::runHandler(opContext, inst);
                 break;
-
-            case OpCode::LOADNIL:
-                for (i32 i = a; i <= b; i++) base[i] = Value();
-                break;
+            }
 
             // ============== 全局变量操作 ==============
 
