@@ -158,6 +158,13 @@ public:
         next_ = next;
     }
 
+    /**
+     * @brief 获取当前管理此对象的垃圾回收器
+     */
+    GarbageCollector* getOwnerCollector() const noexcept {
+        return ownerCollector_;
+    }
+
     // =====================================================================
     // 虚函数接口（子类必须实现）
     // =====================================================================
@@ -193,13 +200,21 @@ protected:
      */
     explicit GCObject(GCObjectType type) noexcept
         : next_(nullptr)
+        , ownerCollector_(nullptr)
         , type_(type)
         , marked_(0)
     {
     }
 
 private:
+    friend class GarbageCollector;
+
+    void setOwnerCollector(GarbageCollector* collector) noexcept {
+        ownerCollector_ = collector;
+    }
+
     GCObject* next_;        ///< GC链表指针
+    GarbageCollector* ownerCollector_; ///< 当前管理此对象的GC实例
     GCObjectType type_;     ///< 对象类型
     u8 marked_;             ///< GC标记位
 };

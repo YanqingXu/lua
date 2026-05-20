@@ -72,6 +72,8 @@ void GarbageCollector::mark(LuaState* currentState) {
     // 4. 标记当前执行状态及全局状态中的共享根
     if (currentState != nullptr) {
         currentState->getGlobalState().markRoots(*this, currentState);
+    } else if (globalState_ != nullptr) {
+        globalState_->markRoots(*this, nullptr);
     }
 
     // 终结器队列中的 userdata 已经被复活，必须在真正运行 __gc 前保持存活。

@@ -37,7 +37,8 @@ void testRuntimeServicesExposeSingletonCompatibilityLayer(TestSuite& suite) {
 
     ASSERT_TRUE(suite, &services.globalState == &GlobalState::getInstance(), "global state comes from singleton layer");
     ASSERT_TRUE(suite, &services.strings == &StringPool::getInstance(), "string pool comes from singleton layer");
-    ASSERT_TRUE(suite, &services.gc == &GarbageCollector::getInstance(), "gc comes from singleton layer");
+    ASSERT_TRUE(suite, &services.gc == &GlobalState::getInstance().getGC(), "gc comes from global state ownership");
+    ASSERT_TRUE(suite, &services.gc != &GarbageCollector::getInstance(), "legacy GC shim is distinct");
 }
 
 void testCompilerAcceptsRuntimeServices(TestSuite& suite) {

@@ -12,7 +12,7 @@
  * - 内存统计
  * 
  * 设计特点：
- * - 单例模式：全局唯一的GC实例
+ * - 由 GlobalState 显式拥有；保留 getInstance() 作为旧代码兼容入口
  * - 链表管理：使用侵入式链表管理所有GC对象
  * - 增量准备：为后续增量GC预留接口
  * - 现代C++：使用RAII和智能指针辅助管理
@@ -38,6 +38,7 @@ class Table;
 class LuaState;
 class Userdata;
 class Value;
+class GlobalState;
 
 /**
  * @brief 垃圾回收器类
@@ -55,7 +56,7 @@ class Value;
  * 
  * 使用示例：
  * @code
- * GarbageCollector& gc = GarbageCollector::getInstance();
+ * GarbageCollector& gc = L->getGlobalState().getGC();
  * 
  * // 创建对象时注册到GC
  * GCString* str = new GCString("hello");
@@ -74,12 +75,18 @@ class Value;
 class GarbageCollector {
 public:
     // =====================================================================
-    // 单例模式
+    // 构造和兼容入口
     // =====================================================================
+
+    /**
+     * @brief 构造独立的GC实例
+     */
+    GarbageCollector();
     
     /**
-     * @brief 获取GC单例实例
-     * @return GC实例的引用
+     * @brief 获取旧的兼容GC实例
+     *
+     * 新代码应优先使用 GlobalState::getGC() 或 RuntimeServices::gc。
      */
     static GarbageCollector& getInstance();
     
@@ -272,12 +279,19 @@ public:
      */
     void printStatistics() const;
 
+    // =====================================================================
+    // 所属全局状态
+    // =====================================================================
+
+    void setGlobalState(GlobalState* state) noexcept {
+        globalState_ = state;
+    }
+
+    GlobalState* getGlobalState() const noexcept {
+        return globalState_;
+    }
+
 private:
-    // =====================================================================
-    // 私有构造函数（单例模式）
-    // =====================================================================
-    
-    GarbageCollector();
     
     // =====================================================================
     // 内部辅助方法
@@ -335,6 +349,9 @@ private:
 
     /// 防止终结器递归执行
     bool finalizersRunning_;
+
+    /// 拥有此GC的全局状态；独立测试实例为空
+    GlobalState* globalState_;
     
     /// 统计信息：对象总数
     usize objectCount_;

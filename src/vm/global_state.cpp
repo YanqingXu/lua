@@ -28,12 +28,15 @@ GlobalState& GlobalState::getInstance() {
 // =====================================================================
 
 GlobalState::GlobalState()
-    : stringPool_(StringPool::getInstance())
-    , gc_(GarbageCollector::getInstance())
+    : gc_()
+    , stringPool_(StringPool::getInstance())
     , registry_(nullptr)
     , mainThread_(nullptr)
     , memerrmsg_(nullptr)
 {
+    gc_.setGlobalState(this);
+    stringPool_.setGarbageCollector(&gc_);
+
     // 初始化元表数组为nullptr
     std::memset(metatables_, 0, sizeof(metatables_));
 
@@ -67,6 +70,7 @@ GlobalState::~GlobalState() {
     if (registry_) {
         gc_.removeRoot(registry_);
     }
+    stringPool_.setGarbageCollector(nullptr);
 }
 
 // =====================================================================

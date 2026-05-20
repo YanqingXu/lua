@@ -88,9 +88,30 @@ void testGCObjectChaining(TestSuite& suite) {
     delete obj1;
 }
 
+void testGarbageCollectorInstancesAreIndependent(TestSuite& suite) {
+    GarbageCollector localGC;
+    GarbageCollector& shimGC = GarbageCollector::getInstance();
+    shimGC.clearAll();
+
+    GCString* localString = new GCString("local-gc");
+    GCString* shimString = new GCString("shim-gc");
+
+    localGC.registerObject(localString);
+    shimGC.registerObject(shimString);
+
+    ASSERT_EQ(suite, static_cast<usize>(1), localGC.getObjectCount(), "Local GC tracks its own object");
+    ASSERT_EQ(suite, static_cast<usize>(1), shimGC.getObjectCount(), "Shim GC tracks its own object");
+
+    delete localString;
+
+    ASSERT_EQ(suite, static_cast<usize>(0), localGC.getObjectCount(), "Deleting object unregisters from owner GC");
+    ASSERT_EQ(suite, static_cast<usize>(1), shimGC.getObjectCount(), "Deleting local object does not affect shim GC");
+
+    shimGC.clearAll();
+}
+
 void testGarbageCollectorRegister(TestSuite& suite) {
-    GarbageCollector& gc = GarbageCollector::getInstance();
-    gc.clearAll(); // Start fresh
+    GarbageCollector gc;
 
     // Get initial count (may have fixed objects)
     usize initialCount = gc.getObjectCount();
@@ -112,8 +133,7 @@ void testGarbageCollectorRegister(TestSuite& suite) {
 }
 
 void testGarbageCollectorRoots(TestSuite& suite) {
-    GarbageCollector& gc = GarbageCollector::getInstance();
-    gc.clearAll();
+    GarbageCollector gc;
     
     GCString* gcStr1 = new GCString("Root 1");
     GCString* gcStr2 = new GCString("Not Root");
@@ -137,8 +157,7 @@ void testGarbageCollectorRoots(TestSuite& suite) {
 }
 
 void testGarbageCollectorCollect(TestSuite& suite) {
-    GarbageCollector& gc = GarbageCollector::getInstance();
-    gc.clearAll();
+    GarbageCollector gc;
 
     // Get initial count (may have fixed objects)
     usize initialCount = gc.getObjectCount();
@@ -165,7 +184,7 @@ void testGarbageCollectorCollect(TestSuite& suite) {
 }
 
 void testGarbageCollectorMarksCompositeObjects(TestSuite& suite) {
-    GarbageCollector& gc = GarbageCollector::getInstance();
+    GarbageCollector& gc = GlobalState::getInstance().getGC();
     gc.clearAll();
 
     LuaState* L = LuaState::newState();
@@ -205,7 +224,7 @@ void testGarbageCollectorMarksCompositeObjects(TestSuite& suite) {
 }
 
 void testCollectGarbageCollectReclaimsMemory(TestSuite& suite) {
-    GarbageCollector& gc = GarbageCollector::getInstance();
+    GarbageCollector& gc = GlobalState::getInstance().getGC();
     gc.clearAll();
 
     LuaState* L = LuaState::newState();
@@ -235,7 +254,7 @@ void testCollectGarbageCollectReclaimsMemory(TestSuite& suite) {
 }
 
 void testWeakTableValuesAreCleared(TestSuite& suite) {
-    GarbageCollector& gc = GarbageCollector::getInstance();
+    GarbageCollector& gc = GlobalState::getInstance().getGC();
     gc.clearAll();
 
     LuaState* L = LuaState::newState();
@@ -266,7 +285,7 @@ void testWeakTableValuesAreCleared(TestSuite& suite) {
 }
 
 void testWeakTableKeysAreCleared(TestSuite& suite) {
-    GarbageCollector& gc = GarbageCollector::getInstance();
+    GarbageCollector& gc = GlobalState::getInstance().getGC();
     gc.clearAll();
 
     LuaState* L = LuaState::newState();
@@ -295,7 +314,7 @@ void testWeakTableKeysAreCleared(TestSuite& suite) {
 }
 
 void testCollectGarbageRunsUserdataFinalizer(TestSuite& suite) {
-    GarbageCollector& gc = GarbageCollector::getInstance();
+    GarbageCollector& gc = GlobalState::getInstance().getGC();
     gc.clearAll();
 
     gFinalizerCalls = 0;
@@ -390,6 +409,7 @@ void registerGCTests() {
     
     registry.registerTest("GC", "GCObject Basics", testGCObjectBasics);
     registry.registerTest("GC", "GCObject Chaining", testGCObjectChaining);
+    registry.registerTest("GC", "Independent Instances", testGarbageCollectorInstancesAreIndependent);
     registry.registerTest("GC", "GC Register", testGarbageCollectorRegister);
     registry.registerTest("GC", "GC Roots", testGarbageCollectorRoots);
     registry.registerTest("GC", "GC Collect", testGarbageCollectorCollect);

@@ -33,6 +33,7 @@ usize GarbageCollector::sweep() {
             usize objSize = obj->getSize();
             totalMemory_ = totalMemory_ >= objSize ? totalMemory_ - objSize : 0;
             --objectCount_;
+            obj->setOwnerCollector(nullptr);
 
             if (obj->getType() == GCObjectType::String) {
                 StringPool::getInstance().remove(static_cast<GCString*>(obj));

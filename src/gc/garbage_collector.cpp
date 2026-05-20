@@ -29,6 +29,7 @@ GarbageCollector::GarbageCollector()
     , weakTables_()
     , pendingFinalizers_()
     , finalizersRunning_(false)
+    , globalState_(nullptr)
     , objectCount_(0)
     , totalMemory_(0)
 {
@@ -47,6 +48,10 @@ void GarbageCollector::registerObject(GCObject* obj) {
         return;
     }
 
+    if (GarbageCollector* owner = obj->getOwnerCollector(); owner != nullptr && owner != this) {
+        owner->unregisterObject(obj);
+    }
+
     // 防止同一个对象被重复挂入侵入式链表。
     // StringPool::intern() 现在会自动注册字符串，旧代码中仍可能显式注册一次。
     for (GCObject* current = allObjects_; current != nullptr; current = current->getNext()) {
@@ -56,6 +61,7 @@ void GarbageCollector::registerObject(GCObject* obj) {
     }
     
     obj->setColor(GCColor::White);
+    obj->setOwnerCollector(this);
 
     // 将对象添加到链表头部
     obj->setNext(allObjects_);
@@ -73,6 +79,7 @@ void GarbageCollector::unregisterObject(GCObject* obj) noexcept {
 
     GCObject* prev = nullptr;
     GCObject* current = allObjects_;
+    bool removed = false;
     while (current != nullptr) {
         GCObject* next = current->getNext();
         if (current == obj) {
@@ -82,26 +89,30 @@ void GarbageCollector::unregisterObject(GCObject* obj) noexcept {
                 prev->setNext(next);
             }
             obj->setNext(nullptr);
+            obj->setOwnerCollector(nullptr);
             if (objectCount_ > 0) {
                 --objectCount_;
             }
             totalMemory_ = 0;
+            removed = true;
             break;
         }
         prev = current;
         current = next;
     }
 
-    roots_.erase(std::remove(roots_.begin(), roots_.end(), obj), roots_.end());
-    grayList_.erase(std::remove(grayList_.begin(), grayList_.end(), obj), grayList_.end());
-    if (obj->getType() == GCObjectType::Table) {
-        auto* table = static_cast<Table*>(obj);
-        weakTables_.erase(std::remove(weakTables_.begin(), weakTables_.end(), table), weakTables_.end());
-    } else if (obj->getType() == GCObjectType::Userdata) {
-        auto* userdata = static_cast<Userdata*>(obj);
-        pendingFinalizers_.erase(
-            std::remove(pendingFinalizers_.begin(), pendingFinalizers_.end(), userdata),
-            pendingFinalizers_.end());
+    if (removed || obj->getOwnerCollector() == this) {
+        roots_.erase(std::remove(roots_.begin(), roots_.end(), obj), roots_.end());
+        grayList_.erase(std::remove(grayList_.begin(), grayList_.end(), obj), grayList_.end());
+        if (obj->getType() == GCObjectType::Table) {
+            auto* table = static_cast<Table*>(obj);
+            weakTables_.erase(std::remove(weakTables_.begin(), weakTables_.end(), table), weakTables_.end());
+        } else if (obj->getType() == GCObjectType::Userdata) {
+            auto* userdata = static_cast<Userdata*>(obj);
+            pendingFinalizers_.erase(
+                std::remove(pendingFinalizers_.begin(), pendingFinalizers_.end(), userdata),
+                pendingFinalizers_.end());
+        }
     }
 }
 
@@ -229,6 +240,7 @@ void GarbageCollector::clearAll() {
             usize objSize = obj->getSize();
             totalMemory_ = totalMemory_ >= objSize ? totalMemory_ - objSize : 0;
             --objectCount_;
+            obj->setOwnerCollector(nullptr);
 
             if (obj->getType() == GCObjectType::String) {
                 StringPool::getInstance().remove(static_cast<GCString*>(obj));

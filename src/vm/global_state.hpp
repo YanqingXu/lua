@@ -5,7 +5,7 @@
  * 详细说明：
  * GlobalState类管理Lua虚拟机中所有线程共享的全局资源，包括：
  * - 字符串池（StringPool）
- * - 垃圾回收器（GarbageCollector）
+ * - 垃圾回收器（GarbageCollector，由GlobalState拥有）
  * - 元表（metatable）
  * - 注册表（registry）
  * - 主线程引用
@@ -221,11 +221,11 @@ private:
     // 成员变量
     // =====================================================================
 
+    /// 垃圾回收器（由GlobalState拥有）
+    GarbageCollector gc_;
+
     /// 字符串池（单例引用）
     StringPool& stringPool_;
-
-    /// 垃圾回收器（单例引用）
-    GarbageCollector& gc_;
 
     /// 注册表（C代码专用的全局表）
     Table* registry_;

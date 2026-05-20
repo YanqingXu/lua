@@ -27,6 +27,8 @@
 
 namespace Lua {
 
+class GarbageCollector;
+
 /**
  * @brief StringPool类 - 字符串池管理器
  * 
@@ -109,6 +111,15 @@ public:
      */
     GCString* intern(const char* str, usize len) {
         return intern(StrView(str, len));
+    }
+
+    /**
+     * @brief 设置新字符串默认注册到的GC实例
+     */
+    void setGarbageCollector(GarbageCollector* collector);
+
+    GarbageCollector* getGarbageCollector() const noexcept {
+        return collector_;
     }
 
     // =====================================================================
@@ -220,6 +231,7 @@ private:
      * 因为StrView不拥有数据，可能导致悬空引用。
      */
     HashMap<Str, GCString*> pool_;
+    GarbageCollector* collector_ = nullptr;
 };
 
 } // namespace Lua

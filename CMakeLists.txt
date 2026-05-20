@@ -59,6 +59,7 @@ set(LUA_CORE_SOURCES
     src/vm/stack.cpp
     src/vm/vm_arith.cpp
     src/vm/vm_call.cpp
+    src/vm/vm_dispatch_strategy.cpp
     src/vm/vm_entry.cpp
     src/vm/vm_frame.cpp
     src/vm/vm_loop.cpp

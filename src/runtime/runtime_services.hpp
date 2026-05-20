@@ -9,10 +9,14 @@
 
 namespace Lua {
 
+namespace VM {
+class DispatchStrategy;
+}
+
 /**
  * @brief Runtime services passed across compiler/VM boundaries.
  *
- * This is intentionally a thin compatibility layer over the current singleton-backed
+ * This is intentionally a thin compatibility layer over the current GlobalState-backed
  * runtime. It makes service dependencies explicit at call sites while preserving the
  * existing GlobalState/StringPool/GarbageCollector ownership model.
  */
@@ -20,16 +24,20 @@ struct RuntimeServices {
     GlobalState& globalState;
     StringPool& strings;
     GarbageCollector& gc;
+    VM::DispatchStrategy* dispatchStrategy;
 
-    explicit RuntimeServices(GlobalState& global)
+    explicit RuntimeServices(GlobalState& global, VM::DispatchStrategy* dispatch = nullptr)
         : globalState(global)
         , strings(global.getStringPool())
-        , gc(global.getGC()) {}
+        , gc(global.getGC())
+        , dispatchStrategy(dispatch) {}
 
-    RuntimeServices(GlobalState& global, StringPool& stringPool, GarbageCollector& collector)
+    RuntimeServices(GlobalState& global, StringPool& stringPool, GarbageCollector& collector,
+                    VM::DispatchStrategy* dispatch = nullptr)
         : globalState(global)
         , strings(stringPool)
-        , gc(collector) {}
+        , gc(collector)
+        , dispatchStrategy(dispatch) {}
 
     static RuntimeServices fromSingletons() {
         return RuntimeServices(GlobalState::getInstance());

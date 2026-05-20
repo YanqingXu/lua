@@ -20,7 +20,8 @@ Value GarbageCollector::getFinalizer(Userdata* userdata) const {
         return Value();
     }
 
-    GCString* gcName = GlobalState::getInstance().getMetamethodName(TMS::TM_GC);
+    GlobalState& state = globalState_ != nullptr ? *globalState_ : GlobalState::getInstance();
+    GCString* gcName = state.getMetamethodName(TMS::TM_GC);
     return userdata->getMetatable()->get(Value(gcName));
 }
 

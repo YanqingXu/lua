@@ -8,6 +8,17 @@
 
 namespace Lua {
 
+void StringPool::setGarbageCollector(GarbageCollector* collector) {
+    collector_ = collector;
+    if (collector_ == nullptr) {
+        return;
+    }
+
+    for (auto& entry : pool_) {
+        collector_->registerObject(entry.second);
+    }
+}
+
 /**
  * @brief 驻留字符串 - 获取或创建字符串对象
  */
@@ -24,7 +35,8 @@ GCString* StringPool::intern(StrView str) {
 
     // 不存在，创建新的字符串对象
     GCString* newString = new GCString(str);
-    GarbageCollector::getInstance().registerObject(newString);
+    GarbageCollector& gc = collector_ != nullptr ? *collector_ : GarbageCollector::getInstance();
+    gc.registerObject(newString);
 
     // 加入池中
     // 使用GCString内部的data_作为key，确保与find()和remove()一致

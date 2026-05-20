@@ -98,7 +98,7 @@ void testMemoryErrorMessageFixed(TestSuite& suite) {
 // =====================================================================
 
 void testFixedStringsNotCollected(TestSuite& suite) {
-    GarbageCollector& gc = GarbageCollector::getInstance();
+    GarbageCollector& gc = GlobalState::getInstance().getGC();
     StringPool& pool = StringPool::getInstance();
     
     // 获取固定字符串

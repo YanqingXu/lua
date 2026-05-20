@@ -20,7 +20,8 @@ void GarbageCollector::markTable(Table* table) {
     bool weakValues = false;
     Table* mt = table->getMetatable();
     if (mt != nullptr) {
-        GCString* modeName = GlobalState::getInstance().getMetamethodName(TMS::TM_MODE);
+        GlobalState& state = globalState_ != nullptr ? *globalState_ : GlobalState::getInstance();
+        GCString* modeName = state.getMetamethodName(TMS::TM_MODE);
         Value mode = mt->get(Value(modeName));
         if (mode.isString()) {
             const Str& modeText = mode.asString()->getData();

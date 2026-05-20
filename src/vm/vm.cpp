@@ -17,6 +17,7 @@
 #include "common/lua_error.hpp"
 #include "vm/vm_constants.hpp"
 #include "vm/vm_dispatch.hpp"
+#include "vm/vm_dispatch_strategy.hpp"
 #include "vm/vm_internal.hpp"
 #include "vm/lua_state.hpp"
 #include "core/value.hpp"
@@ -80,6 +81,24 @@ ExecResult executeProto(LuaState* L, Proto* proto, i32 nexeccalls) {
 }
 
 ExecResult executeProto(RuntimeServices& services, LuaState* L, Proto* proto, i32 nexeccalls) {
+    if (!proto)
+        throw RuntimeError("VM::executeProto: null proto");
+    if (nexeccalls >= MAX_CALLS)
+        throw MemoryError("VM: stack overflow (too many nested calls)");
+
+    VMContext context{services, L, proto, nexeccalls};
+    DispatchStrategy& strategy = services.dispatchStrategy != nullptr
+                               ? *services.dispatchStrategy
+                               : defaultDispatchStrategy();
+    return strategy.run(context);
+}
+
+ExecResult SwitchDispatch::run(VMContext& context) {
+    RuntimeServices& services = context.services;
+    LuaState* L = context.state;
+    Proto* proto = context.proto;
+    i32 nexeccalls = context.nexeccalls;
+
     // 深度检查
     if (!proto)
         throw RuntimeError("VM::executeProto: null proto");

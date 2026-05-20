@@ -70,7 +70,7 @@ void testGlobalState(TestSuite& suite) {
     
     // Test 3: getGC
     GarbageCollector& gc = gs.getGC();
-    ASSERT_TRUE(suite, &gc == &GarbageCollector::getInstance(), "getGC");
+    ASSERT_TRUE(suite, &gc != &GarbageCollector::getInstance(), "getGC is owned by GlobalState");
     
     // Test 4: getRegistry
     Table* registry = gs.getRegistry();

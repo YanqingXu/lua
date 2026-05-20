@@ -4,7 +4,14 @@
  */
 
 #include "../framework/test_framework.hpp"
+#include "core/function.hpp"
+#include "runtime/runtime_services.hpp"
+#include "vm/lua_state.hpp"
 #include "vm/vm_dispatch.hpp"
+#include "vm/vm_dispatch_strategy.hpp"
+#include "vm/vm.hpp"
+
+#include <string>
 
 using namespace Lua;
 using namespace LuaTest;
@@ -12,6 +19,28 @@ using namespace LuaTest;
 namespace {
 
 constexpr const char* kSuiteName = "VM Dispatch";
+
+class RecordingDispatchStrategy final : public VM::DispatchStrategy {
+public:
+    ExecResult run(VM::VMContext& context) override {
+        called = true;
+        services = &context.services;
+        state = context.state;
+        proto = context.proto;
+        nexeccalls = context.nexeccalls;
+        return ExecResult::Returned;
+    }
+
+    const char* name() const noexcept override {
+        return "recording";
+    }
+
+    bool called = false;
+    RuntimeServices* services = nullptr;
+    LuaState* state = nullptr;
+    Proto* proto = nullptr;
+    i32 nexeccalls = 0;
+};
 
 void testOpcodeGroupsCoverDispatchFamilies(TestSuite& suite) {
     ASSERT_TRUE(suite, VM::isDataMoveOpcode(OpCode::MOVE), "MOVE is data move");
@@ -57,6 +86,36 @@ void testMetamethodCandidateGrouping(TestSuite& suite) {
     ASSERT_FALSE(suite, VM::mayInvokeMetamethod(OpCode::RETURN), "RETURN does not invoke metamethod");
 }
 
+void testDefaultDispatchStrategyIsSwitch(TestSuite& suite) {
+    ASSERT_TRUE(suite, std::string(VM::defaultDispatchStrategy().name()) == "switch",
+                "Default dispatch strategy should be switch");
+}
+
+void testRuntimeServicesCanInjectDispatchStrategy(TestSuite& suite) {
+    RuntimeServices services = RuntimeServices::fromSingletons();
+    RecordingDispatchStrategy strategy;
+    services.dispatchStrategy = &strategy;
+
+    LuaState* L = LuaState::newState(services);
+    Proto* proto = new Proto();
+    proto->setMaxStackSize(1);
+    Function* func = new Function(proto);
+    func->setEnv(L->getGlobalTable());
+    services.gc.registerObject(proto);
+    services.gc.registerObject(func);
+
+    VM::execute(services, L, func);
+
+    ASSERT_TRUE(suite, strategy.called, "Injected dispatch strategy should run");
+    ASSERT_TRUE(suite, strategy.services == &services, "Dispatch context carries RuntimeServices");
+    ASSERT_TRUE(suite, strategy.state == L, "Dispatch context carries LuaState");
+    ASSERT_TRUE(suite, strategy.proto == proto, "Dispatch context carries Proto");
+    ASSERT_EQ(suite, 1, strategy.nexeccalls, "Dispatch context carries call depth");
+
+    delete L;
+    services.gc.clearAll();
+}
+
 }  // namespace
 
 void registerVMDispatchTests() {
@@ -65,4 +124,7 @@ void registerVMDispatchTests() {
     registry.registerTest(kSuiteName, "Opcode Groups Cover Dispatch Families", testOpcodeGroupsCoverDispatchFamilies);
     registry.registerTest(kSuiteName, "All Opcodes Have Dispatch Group", testAllOpcodesHaveDispatchGroup);
     registry.registerTest(kSuiteName, "Metamethod Candidate Grouping", testMetamethodCandidateGrouping);
+    registry.registerTest(kSuiteName, "Default Dispatch Strategy Is Switch", testDefaultDispatchStrategyIsSwitch);
+    registry.registerTest(kSuiteName, "RuntimeServices Can Inject Dispatch Strategy",
+                          testRuntimeServicesCanInjectDispatchStrategy);
 }

@@ -15,7 +15,9 @@
 namespace Lua {
 
 GCObject::~GCObject() {
-    GarbageCollector::getInstance().unregisterObject(this);
+    if (GarbageCollector* owner = getOwnerCollector()) {
+        owner->unregisterObject(this);
+    }
 }
 
 } // namespace Lua
