@@ -25,6 +25,8 @@ void testOperationHelpersExposeStableSignatures(TestSuite& suite) {
                                  void (*)(LuaState*, Value, const Value&, const Value&)>);
     static_assert(std::is_same_v<decltype(&VM::detail::arith),
                                  void (*)(LuaState*, Value&, const Value&, const Value&, OpCode)>);
+    static_assert(std::is_same_v<decltype(&VM::detail::execArithmetic),
+                                 void (*)(LuaState*, Proto*, Value*&, i32, i32, i32, OpCode)>);
     static_assert(std::is_same_v<decltype(&VM::detail::equal),
                                  bool (*)(LuaState*, const Value&, const Value&)>);
     static_assert(std::is_same_v<decltype(&VM::detail::lessThan),

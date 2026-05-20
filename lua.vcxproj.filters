@@ -34,6 +34,18 @@
     <ClCompile Include="src\gc\garbage_collector.cpp">
       <Filter>src\gc</Filter>
     </ClCompile>
+    <ClCompile Include="src\gc\gc_mark.cpp">
+      <Filter>src\gc</Filter>
+    </ClCompile>
+    <ClCompile Include="src\gc\gc_sweep.cpp">
+      <Filter>src\gc</Filter>
+    </ClCompile>
+    <ClCompile Include="src\gc\gc_finalize.cpp">
+      <Filter>src\gc</Filter>
+    </ClCompile>
+    <ClCompile Include="src\gc\gc_weak.cpp">
+      <Filter>src\gc</Filter>
+    </ClCompile>
     <ClCompile Include="src\core\gc_object.cpp">
       <Filter>src\core</Filter>
     </ClCompile>
@@ -77,6 +89,9 @@
       <Filter>src\core</Filter>
     </ClCompile>
     <ClCompile Include="src\vm\vm.cpp">
+      <Filter>src\vm</Filter>
+    </ClCompile>
+    <ClCompile Include="src\vm\vm_arith.cpp">
       <Filter>src\vm</Filter>
     </ClCompile>
     <ClCompile Include="src\vm\vm_call.cpp">

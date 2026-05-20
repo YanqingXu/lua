@@ -30,6 +30,7 @@ void emitReturnTrace(i32 callDepth);
 void gettable(LuaState* L, Value t, const Value& key, Value& result);
 void settable(LuaState* L, Value t, const Value& key, const Value& val);
 void arith(LuaState* L, Value& result, const Value& left, const Value& right, OpCode op);
+void execArithmetic(LuaState* L, Proto* proto, Value*& base, i32 a, i32 b, i32 c, OpCode op);
 bool equal(LuaState* L, const Value& left, const Value& right);
 bool lessThan(LuaState* L, const Value& left, const Value& right);
 bool lessEqual(LuaState* L, const Value& left, const Value& right);

@@ -218,6 +218,10 @@
     <ClCompile Include="src\core\value.cpp" />
     <ClCompile Include="src\core\thread.cpp" />
     <ClCompile Include="src\gc\garbage_collector.cpp" />
+    <ClCompile Include="src\gc\gc_mark.cpp" />
+    <ClCompile Include="src\gc\gc_sweep.cpp" />
+    <ClCompile Include="src\gc\gc_finalize.cpp" />
+    <ClCompile Include="src\gc\gc_weak.cpp" />
     <ClCompile Include="src\io\dynamic_buffer.cpp" />
     <ClCompile Include="src\io\file_loader.cpp" />
     <ClCompile Include="src\io\input_stream.cpp" />
@@ -236,6 +240,7 @@
     <ClCompile Include="src\vm\global_state.cpp" />
     <ClCompile Include="src\vm\lua_state.cpp" />
     <ClCompile Include="src\vm\stack.cpp" />
+    <ClCompile Include="src\vm\vm_arith.cpp" />
     <ClCompile Include="src\vm\vm_call.cpp" />
     <ClCompile Include="src\vm\vm_entry.cpp" />
     <ClCompile Include="src\vm\vm_frame.cpp" />

@@ -282,6 +282,9 @@ private:
     // =====================================================================
     // 内部辅助方法
     // =====================================================================
+
+    static bool valueContainsObject(const Value& value);
+    static GCObject* objectFromValue(const Value& value);
     
     /**
      * @brief 传播标记

@@ -35,6 +35,10 @@ set(LUA_CORE_SOURCES
     src/core/value.cpp
     src/core/thread.cpp
     src/gc/garbage_collector.cpp
+    src/gc/gc_mark.cpp
+    src/gc/gc_sweep.cpp
+    src/gc/gc_finalize.cpp
+    src/gc/gc_weak.cpp
     src/io/dynamic_buffer.cpp
     src/io/file_loader.cpp
     src/io/input_stream.cpp
@@ -53,6 +57,7 @@ set(LUA_CORE_SOURCES
     src/vm/global_state.cpp
     src/vm/lua_state.cpp
     src/vm/stack.cpp
+    src/vm/vm_arith.cpp
     src/vm/vm_call.cpp
     src/vm/vm_entry.cpp
     src/vm/vm_frame.cpp

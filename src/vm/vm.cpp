@@ -29,7 +29,6 @@
 #include "runtime/runtime_services.hpp"
 #include "compiler/opcode.hpp"
 #include <stdexcept>
-#include <cmath>
 
 namespace Lua {
 
@@ -285,12 +284,7 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
             case OpCode::DIV:
             case OpCode::MOD:
             case OpCode::POW: {
-                Value left  = getRK(proto, base, b);
-                Value right = getRK(proto, base, c);
-                Value result;
-                VM::detail::arith(L, result, left, right, op);
-                base = refreshBase(L);
-                base[a] = result;
+                VM::detail::execArithmetic(L, proto, base, a, b, c, op);
                 break;
             }
 
