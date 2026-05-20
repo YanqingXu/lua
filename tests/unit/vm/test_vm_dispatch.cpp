@@ -5,6 +5,9 @@
 
 #include "../framework/test_framework.hpp"
 #include "core/function.hpp"
+#include "core/gc_string.hpp"
+#include "core/table.hpp"
+#include "core/upvalue.hpp"
 #include "runtime/runtime_services.hpp"
 #include "vm/lua_state.hpp"
 #include "vm/vm_dispatch.hpp"
@@ -135,11 +138,26 @@ void testHandlerTableCoversOpcodeSpace(TestSuite& suite) {
     }
 }
 
-void testInitialHandlersCoverDataMoveOpcodes(TestSuite& suite) {
+void testHandlersCoverMigratedOpcodes(TestSuite& suite) {
     ASSERT_TRUE(suite, VM::hasHandler(OpCode::MOVE), "MOVE should have a handler");
     ASSERT_TRUE(suite, VM::hasHandler(OpCode::LOADK), "LOADK should have a handler");
     ASSERT_TRUE(suite, VM::hasHandler(OpCode::LOADBOOL), "LOADBOOL should have a handler");
     ASSERT_TRUE(suite, VM::hasHandler(OpCode::LOADNIL), "LOADNIL should have a handler");
+    ASSERT_TRUE(suite, VM::hasHandler(OpCode::GETGLOBAL), "GETGLOBAL should have a handler");
+    ASSERT_TRUE(suite, VM::hasHandler(OpCode::SETGLOBAL), "SETGLOBAL should have a handler");
+    ASSERT_TRUE(suite, VM::hasHandler(OpCode::GETUPVAL), "GETUPVAL should have a handler");
+    ASSERT_TRUE(suite, VM::hasHandler(OpCode::SETUPVAL), "SETUPVAL should have a handler");
+    ASSERT_TRUE(suite, VM::hasHandler(OpCode::GETTABLE), "GETTABLE should have a handler");
+    ASSERT_TRUE(suite, VM::hasHandler(OpCode::SETTABLE), "SETTABLE should have a handler");
+    ASSERT_TRUE(suite, VM::hasHandler(OpCode::NEWTABLE), "NEWTABLE should have a handler");
+    ASSERT_TRUE(suite, VM::hasHandler(OpCode::SELF), "SELF should have a handler");
+    ASSERT_TRUE(suite, VM::hasHandler(OpCode::SETLIST), "SETLIST should have a handler");
+    ASSERT_TRUE(suite, VM::hasHandler(OpCode::ADD), "ADD should have a handler");
+    ASSERT_TRUE(suite, VM::hasHandler(OpCode::SUB), "SUB should have a handler");
+    ASSERT_TRUE(suite, VM::hasHandler(OpCode::MUL), "MUL should have a handler");
+    ASSERT_TRUE(suite, VM::hasHandler(OpCode::DIV), "DIV should have a handler");
+    ASSERT_TRUE(suite, VM::hasHandler(OpCode::MOD), "MOD should have a handler");
+    ASSERT_TRUE(suite, VM::hasHandler(OpCode::POW), "POW should have a handler");
     ASSERT_FALSE(suite, VM::hasHandler(OpCode::CALL), "CALL remains switch-only in the first handler-table slice");
 }
 
@@ -187,6 +205,206 @@ void testDataMoveHandlersExecuteDirectly(TestSuite& suite) {
     ASSERT_TRUE(suite, registers[3].isNil(), "LOADNIL handler should clear last register");
 }
 
+void testGlobalAndUpvalueHandlersExecuteDirectly(TestSuite& suite) {
+    RuntimeServices services = RuntimeServices::fromSingletons();
+    LuaState* L = LuaState::newState(services);
+
+    Proto proto;
+    GCString* globalName = services.strings.intern("pr12_global");
+    usize globalNameIndex = proto.addConstant(Value(globalName));
+
+    Function func(&proto);
+    func.setEnv(L->getGlobalTable());
+
+    Upvalue* upvalue = Upvalue::createClosed(Value(12.0));
+    services.gc.registerObject(upvalue);
+    func.addUpvalue(upvalue);
+
+    Stack& stack = L->getStack();
+    usize frameBase = L->getCurrentCallInfo().base;
+    while (stack.size() < frameBase + 4) {
+        stack.push(Value());
+    }
+    L->setAbsoluteTop(frameBase + 4);
+
+    Value* base = &stack[frameBase];
+    usize pc = 0;
+    VM::OpExecutionContext context{
+        services,
+        L,
+        &func,
+        &proto,
+        base,
+        pc,
+        0,
+        1
+    };
+
+    L->getGlobalTable()->set(Value(globalName), Value(24.0));
+    VM::runHandler(context, CREATE_ABx(OpCode::GETGLOBAL, 0, static_cast<i32>(globalNameIndex)));
+    base = context.base;
+    ASSERT_TRUE(suite, base[0].isNumber() && base[0].asNumber() == 24.0,
+                "GETGLOBAL handler should read from the function environment");
+
+    base[1] = Value(36.0);
+    VM::runHandler(context, CREATE_ABx(OpCode::SETGLOBAL, 1, static_cast<i32>(globalNameIndex)));
+    Value storedGlobal = L->getGlobalTable()->get(Value(globalName));
+    ASSERT_TRUE(suite, storedGlobal.isNumber() && storedGlobal.asNumber() == 36.0,
+                "SETGLOBAL handler should write to the function environment");
+
+    VM::runHandler(context, CREATE_ABC(OpCode::GETUPVAL, 2, 0, 0));
+    base = context.base;
+    ASSERT_TRUE(suite, base[2].isNumber() && base[2].asNumber() == 12.0,
+                "GETUPVAL handler should read the selected upvalue");
+
+    base[3] = Value(48.0);
+    VM::runHandler(context, CREATE_ABC(OpCode::SETUPVAL, 3, 0, 0));
+    Value storedUpvalue = upvalue->getValue(L->getStack());
+    ASSERT_TRUE(suite, storedUpvalue.isNumber() && storedUpvalue.asNumber() == 48.0,
+                "SETUPVAL handler should write the selected upvalue");
+
+    delete L;
+    services.gc.clearAll();
+}
+
+void testTableHandlersExecuteDirectly(TestSuite& suite) {
+    RuntimeServices services = RuntimeServices::fromSingletons();
+    LuaState* L = LuaState::newState(services);
+
+    Proto proto;
+    GCString* fieldName = services.strings.intern("pr13_field");
+    usize fieldNameIndex = proto.addConstant(Value(fieldName));
+
+    Table* table = new Table();
+    services.gc.registerObject(table);
+
+    Stack& stack = L->getStack();
+    usize frameBase = L->getCurrentCallInfo().base;
+    while (stack.size() < frameBase + 8) {
+        stack.push(Value());
+    }
+    L->setAbsoluteTop(frameBase + 8);
+
+    Value* base = &stack[frameBase];
+    usize pc = 0;
+    VM::OpExecutionContext context{
+        services,
+        L,
+        nullptr,
+        &proto,
+        base,
+        pc,
+        0,
+        1
+    };
+
+    table->set(Value(fieldName), Value(55.0));
+    base[1] = Value(table);
+    VM::runHandler(context, CREATE_ABC(OpCode::GETTABLE, 0, 1, RKASK(static_cast<i32>(fieldNameIndex))));
+    base = context.base;
+    ASSERT_TRUE(suite, base[0].isNumber() && base[0].asNumber() == 55.0,
+                "GETTABLE handler should read table fields through RK keys");
+
+    base[2] = Value(table);
+    base[3] = Value(fieldName);
+    base[4] = Value(66.0);
+    VM::runHandler(context, CREATE_ABC(OpCode::SETTABLE, 2, 3, 4));
+    Value storedField = table->get(Value(fieldName));
+    ASSERT_TRUE(suite, storedField.isNumber() && storedField.asNumber() == 66.0,
+                "SETTABLE handler should write table fields through register keys");
+
+    VM::runHandler(context, CREATE_ABC(OpCode::NEWTABLE, 5, 0, 0));
+    base = context.base;
+    ASSERT_TRUE(suite, base[5].isTable(), "NEWTABLE handler should create a table");
+
+    table->set(Value(fieldName), Value(77.0));
+    base[6] = Value(table);
+    VM::runHandler(context, CREATE_ABC(OpCode::SELF, 0, 6, RKASK(static_cast<i32>(fieldNameIndex))));
+    base = context.base;
+    ASSERT_TRUE(suite, base[0].isNumber() && base[0].asNumber() == 77.0,
+                "SELF handler should load the selected method field");
+    ASSERT_TRUE(suite, base[1].isTable() && base[1].asTable() == table,
+                "SELF handler should copy the receiver to A+1");
+
+    Table* list = base[5].asTable();
+    base[6] = Value(100.0);
+    base[7] = Value(200.0);
+    VM::runHandler(context, CREATE_ABC(OpCode::SETLIST, 5, 2, 1));
+    Value first = list->getArray(1);
+    Value second = list->getArray(2);
+    ASSERT_TRUE(suite, first.isNumber() && first.asNumber() == 100.0,
+                "SETLIST handler should write the first array element");
+    ASSERT_TRUE(suite, second.isNumber() && second.asNumber() == 200.0,
+                "SETLIST handler should write the second array element");
+
+    delete L;
+    services.gc.clearAll();
+}
+
+void testArithmeticHandlersExecuteDirectly(TestSuite& suite) {
+    RuntimeServices services = RuntimeServices::fromSingletons();
+    LuaState* L = LuaState::newState(services);
+
+    Proto proto;
+    usize constantIndex = proto.addConstant(Value(3.0));
+
+    Stack& stack = L->getStack();
+    usize frameBase = L->getCurrentCallInfo().base;
+    while (stack.size() < frameBase + 3) {
+        stack.push(Value());
+    }
+    L->setAbsoluteTop(frameBase + 3);
+
+    Value* base = &stack[frameBase];
+    usize pc = 0;
+    VM::OpExecutionContext context{
+        services,
+        L,
+        nullptr,
+        &proto,
+        base,
+        pc,
+        0,
+        1
+    };
+
+    base[1] = Value(10.0);
+    base[2] = Value(2.0);
+    VM::runHandler(context, CREATE_ABC(OpCode::ADD, 0, 1, RKASK(static_cast<i32>(constantIndex))));
+    base = context.base;
+    ASSERT_TRUE(suite, base[0].isNumber() && base[0].asNumber() == 13.0,
+                "ADD handler should support RK constants");
+
+    VM::runHandler(context, CREATE_ABC(OpCode::SUB, 0, 1, 2));
+    base = context.base;
+    ASSERT_TRUE(suite, base[0].isNumber() && base[0].asNumber() == 8.0,
+                "SUB handler should subtract register operands");
+
+    VM::runHandler(context, CREATE_ABC(OpCode::MUL, 0, 1, 2));
+    base = context.base;
+    ASSERT_TRUE(suite, base[0].isNumber() && base[0].asNumber() == 20.0,
+                "MUL handler should multiply register operands");
+
+    VM::runHandler(context, CREATE_ABC(OpCode::DIV, 0, 1, 2));
+    base = context.base;
+    ASSERT_TRUE(suite, base[0].isNumber() && base[0].asNumber() == 5.0,
+                "DIV handler should divide register operands");
+
+    VM::runHandler(context, CREATE_ABC(OpCode::MOD, 0, 1, RKASK(static_cast<i32>(constantIndex))));
+    base = context.base;
+    ASSERT_TRUE(suite, base[0].isNumber() && base[0].asNumber() == 1.0,
+                "MOD handler should support RK constants");
+
+    base[1] = Value(2.0);
+    VM::runHandler(context, CREATE_ABC(OpCode::POW, 0, 1, RKASK(static_cast<i32>(constantIndex))));
+    base = context.base;
+    ASSERT_TRUE(suite, base[0].isNumber() && base[0].asNumber() == 8.0,
+                "POW handler should support RK constants");
+
+    delete L;
+    services.gc.clearAll();
+}
+
 }  // namespace
 
 void registerVMDispatchTests() {
@@ -199,7 +417,13 @@ void registerVMDispatchTests() {
     registry.registerTest(kSuiteName, "RuntimeServices Can Inject Dispatch Strategy",
                           testRuntimeServicesCanInjectDispatchStrategy);
     registry.registerTest(kSuiteName, "Handler Table Covers Opcode Space", testHandlerTableCoversOpcodeSpace);
-    registry.registerTest(kSuiteName, "Initial Handlers Cover Data Move Opcodes",
-                          testInitialHandlersCoverDataMoveOpcodes);
+    registry.registerTest(kSuiteName, "Handlers Cover Migrated Opcodes",
+                          testHandlersCoverMigratedOpcodes);
     registry.registerTest(kSuiteName, "Data Move Handlers Execute Directly", testDataMoveHandlersExecuteDirectly);
+    registry.registerTest(kSuiteName, "Global And Upvalue Handlers Execute Directly",
+                          testGlobalAndUpvalueHandlersExecuteDirectly);
+    registry.registerTest(kSuiteName, "Table Handlers Execute Directly",
+                          testTableHandlersExecuteDirectly);
+    registry.registerTest(kSuiteName, "Arithmetic Handlers Execute Directly",
+                          testArithmeticHandlersExecuteDirectly);
 }

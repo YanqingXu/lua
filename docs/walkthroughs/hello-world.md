@@ -1,6 +1,6 @@
 ---
 status: current
-verified_against: bin/lua_bytecode.exe; bin/lua_app.exe; src/compiler/lexer.cpp; src/compiler/parser.cpp; src/compiler/parser_primary.cpp; src/compiler/codegen_expr.cpp; src/compiler/codegen_stmt.cpp; src/vm/vm.cpp; src/lib/baselib.cpp
+verified_against: bin/lua_bytecode.exe; bin/lua_app.exe; src/compiler/lexer.cpp; src/compiler/parser.cpp; src/compiler/parser_primary.cpp; src/compiler/codegen_expr.cpp; src/compiler/codegen_stmt.cpp; src/vm/vm.cpp; src/vm/vm_handlers.cpp; src/lib/baselib.cpp
 last_checked: 2026-05-20
 applies_to: end-to-end execution path for print("hello")
 ---
@@ -123,21 +123,21 @@ RETURN                  -- chunk 结束
 
 ## 4. VM Dispatch：逐条解释字节码
 
-运行时入口最终会调用 `VM::executeProto(RuntimeServices&, LuaState*, Proto*, i32)`。这个函数先构造 `VMContext`，再选择 `RuntimeServices::dispatchStrategy` 或默认 `defaultDispatchStrategy()`，见 `src/vm/vm.cpp:90`。
+运行时入口最终会调用 `VM::executeProto(RuntimeServices&, LuaState*, Proto*, i32)`。这个函数先构造 `VMContext`，再选择 `RuntimeServices::dispatchStrategy` 或默认 `defaultDispatchStrategy()`，见 `src/vm/vm.cpp:84`。
 
 默认策略是 `SwitchDispatch`。它恢复当前 `CallInfo`、`base`、`pc`，进入主循环，然后每条指令解码出 `op`、`A/B/C/Bx/sBx`，见 `src/vm/vm.cpp:97`。
 
-这个例子经过的 switch 分支是：
+这个例子经过的调度分支是：
 
 | PC | 指令 | VM 行为 | 相关实现 |
 |---|---|---|---|
-| 0 | `GETGLOBAL R0 K0` | 从函数环境或全局表读取 `print`，放入 `R0` | `src/vm/vm.cpp:209` |
-| 1 | `MOVE R1 R0` | 把函数值移动到调用基址；当前由 handler 表处理 | `src/vm/vm.cpp:189`, `src/vm/vm_handlers.cpp:23` |
-| 2 | `LOADK R2 K1` | 把常量 `"hello"` 放入 `R2`；当前由 handler 表处理 | `src/vm/vm.cpp:190`, `src/vm/vm_handlers.cpp:41` |
-| 3 | `CALL R1 2 1` | 调用 `R1` 中的函数，传入 1 个参数，不保留返回值 | `src/vm/vm.cpp:396` |
-| 4 | `RETURN R0 1` | chunk 返回，结束最外层执行 | `src/vm/vm.cpp:495` |
+| 0 | `GETGLOBAL R0 K0` | 从函数环境或全局表读取 `print`，放入 `R0`；当前由 handler 表处理 | `src/vm/vm.cpp:209`, `src/vm/vm_handlers.cpp:99` |
+| 1 | `MOVE R1 R0` | 把函数值移动到调用基址；当前由 handler 表处理 | `src/vm/vm.cpp:189`, `src/vm/vm_handlers.cpp:51` |
+| 2 | `LOADK R2 K1` | 把常量 `"hello"` 放入 `R2`；当前由 handler 表处理 | `src/vm/vm.cpp:190`, `src/vm/vm_handlers.cpp:69` |
+| 3 | `CALL R1 2 1` | 调用 `R1` 中的函数，传入 1 个参数，不保留返回值 | `src/vm/vm.cpp:380` |
+| 4 | `RETURN R0 1` | chunk 返回，结束最外层执行 | `src/vm/vm.cpp:479` |
 
-其中 `GETGLOBAL` 通过 `VM::detail::gettable()` 读取全局表；`MOVE` / `LOADK` 等数据移动 opcode 已经有 `vm_handlers` 命令表入口，表注册点见 `src/vm/vm_handlers.cpp:84`。`CALL` 仍在 `SwitchDispatch` 的主 switch 中，通过 `VM::detail::precall()` 区分 Lua 函数和 C 函数。如果被调用对象是 C 函数，`precall()` 会直接调用 C++ 函数并完成返回值整理。
+其中 `GETGLOBAL` / `MOVE` / `LOADK` 等 opcode 已经有 `vm_handlers` 命令表入口，`GETGLOBAL` handler 内部通过 `VM::detail::gettable()` 读取全局表；表注册点见 `src/vm/vm_handlers.cpp:262`。`GETTABLE` / `SETTABLE` / `SELF` / `SETLIST` 等表操作，以及 `ADD` / `SUB` / `MUL` / `DIV` / `MOD` / `POW` 算术操作也已进入同一张 handler 表，算术注册点从 `src/vm/vm_handlers.cpp:275` 开始。`CALL` 则仍在 `SwitchDispatch` 的主 switch 中，通过 `VM::detail::precall()` 区分 Lua 函数和 C 函数。如果被调用对象是 C 函数，`precall()` 会直接调用 C++ 函数并完成返回值整理。
 
 ## 5. 标准库：`print` 写入 stdout
 

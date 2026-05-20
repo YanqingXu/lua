@@ -6,8 +6,11 @@
 #include "vm/vm_handlers.hpp"
 #include "common/lua_error.hpp"
 #include "core/gc_string.hpp"
+#include "core/table.hpp"
+#include "core/upvalue.hpp"
 #include "core/value.hpp"
 #include "core/function.hpp"
+#include "vm/lua_state.hpp"
 #include "vm/vm_internal.hpp"
 
 #include <cstdio>
@@ -18,6 +21,31 @@ namespace {
 
 usize opcodeIndex(OpCode op) noexcept {
     return static_cast<usize>(op);
+}
+
+LuaState* requireState(const OpExecutionContext& context) {
+    if (!context.state) {
+        throw RuntimeError("VM handler requires LuaState");
+    }
+    return context.state;
+}
+
+Function* requireFunction(const OpExecutionContext& context) {
+    if (!context.function) {
+        throw RuntimeError("VM handler requires Function");
+    }
+    return context.function;
+}
+
+Value* refreshBase(LuaState* state) {
+    return &state->getStack()[state->getCurrentCallInfo().base];
+}
+
+Value getRK(const OpExecutionContext& context, i32 rk) {
+    if (ISK(rk)) {
+        return context.proto->getConstant(INDEXK(rk));
+    }
+    return context.base[rk];
 }
 
 HandlerStatus handleMove(OpExecutionContext& context, Instruction inst) {
@@ -68,6 +96,156 @@ HandlerStatus handleLoadNil(OpExecutionContext& context, Instruction inst) {
     return HandlerStatus::Continue;
 }
 
+HandlerStatus handleGetGlobal(OpExecutionContext& context, Instruction inst) {
+    LuaState* state = requireState(context);
+    Function* function = requireFunction(context);
+
+    i32 a = GETARG_A(inst);
+    i32 bx = GETARG_Bx(inst);
+    const Value& key = context.proto->getConstant(bx);
+
+    Table* env = function->getEnv();
+    if (!env) {
+        env = state->getGlobalTable();
+    }
+
+    Value result;
+    VM::detail::gettable(state, Value(env), key, result);
+    context.base = refreshBase(state);
+    context.base[a] = result;
+    return HandlerStatus::Continue;
+}
+
+HandlerStatus handleSetGlobal(OpExecutionContext& context, Instruction inst) {
+    LuaState* state = requireState(context);
+    Function* function = requireFunction(context);
+
+    i32 a = GETARG_A(inst);
+    i32 bx = GETARG_Bx(inst);
+    const Value& key = context.proto->getConstant(bx);
+
+    Table* env = function->getEnv();
+    if (!env) {
+        env = state->getGlobalTable();
+    }
+
+    Value val = context.base[a];
+    VM::detail::settable(state, Value(env), key, val);
+    context.base = refreshBase(state);
+    return HandlerStatus::Continue;
+}
+
+HandlerStatus handleGetUpval(OpExecutionContext& context, Instruction inst) {
+    LuaState* state = requireState(context);
+    Function* function = requireFunction(context);
+
+    i32 a = GETARG_A(inst);
+    i32 b = GETARG_B(inst);
+
+    Upvalue* uv = function->getUpvalue(b);
+    if (!uv) {
+        throw RuntimeError("VM: GETUPVAL invalid upvalue index");
+    }
+    context.base[a] = uv->getValue(state->getStack());
+    return HandlerStatus::Continue;
+}
+
+HandlerStatus handleSetUpval(OpExecutionContext& context, Instruction inst) {
+    LuaState* state = requireState(context);
+    Function* function = requireFunction(context);
+
+    i32 a = GETARG_A(inst);
+    i32 b = GETARG_B(inst);
+
+    Upvalue* uv = function->getUpvalue(b);
+    if (!uv) {
+        throw RuntimeError("VM: SETUPVAL invalid upvalue index");
+    }
+    uv->setValue(state->getStack(), context.base[a]);
+    return HandlerStatus::Continue;
+}
+
+HandlerStatus handleGetTable(OpExecutionContext& context, Instruction inst) {
+    LuaState* state = requireState(context);
+
+    i32 a = GETARG_A(inst);
+    i32 b = GETARG_B(inst);
+    i32 c = GETARG_C(inst);
+
+    Value table = context.base[b];
+    Value key = getRK(context, c);
+    Value result;
+    VM::detail::gettable(state, table, key, result);
+    context.base = refreshBase(state);
+    context.base[a] = result;
+    return HandlerStatus::Continue;
+}
+
+HandlerStatus handleSetTable(OpExecutionContext& context, Instruction inst) {
+    LuaState* state = requireState(context);
+
+    i32 a = GETARG_A(inst);
+    i32 b = GETARG_B(inst);
+    i32 c = GETARG_C(inst);
+
+    Value table = context.base[a];
+    Value key = getRK(context, b);
+    Value val = getRK(context, c);
+    VM::detail::settable(state, table, key, val);
+    context.base = refreshBase(state);
+    return HandlerStatus::Continue;
+}
+
+HandlerStatus handleNewTable(OpExecutionContext& context, Instruction inst) {
+    LuaState* state = requireState(context);
+
+    i32 a = GETARG_A(inst);
+
+    Table* table = new Table();
+    state->getGlobalState().getGC().registerObject(table);
+    context.base[a] = Value(table);
+    return HandlerStatus::Continue;
+}
+
+HandlerStatus handleSelf(OpExecutionContext& context, Instruction inst) {
+    LuaState* state = requireState(context);
+
+    i32 a = GETARG_A(inst);
+    i32 b = GETARG_B(inst);
+    i32 c = GETARG_C(inst);
+
+    Value obj = context.base[b];
+    context.base[a + 1] = obj;
+    Value key = getRK(context, c);
+    Value result;
+    VM::detail::gettable(state, obj, key, result);
+    context.base = refreshBase(state);
+    context.base[a] = result;
+    return HandlerStatus::Continue;
+}
+
+HandlerStatus handleSetList(OpExecutionContext& context, Instruction inst) {
+    LuaState* state = requireState(context);
+
+    i32 a = GETARG_A(inst);
+    i32 b = GETARG_B(inst);
+    i32 c = GETARG_C(inst);
+
+    VM::detail::setList(state, context.base, a, b, c);
+    return HandlerStatus::Continue;
+}
+
+HandlerStatus handleArithmetic(OpExecutionContext& context, Instruction inst) {
+    LuaState* state = requireState(context);
+
+    i32 a = GETARG_A(inst);
+    i32 b = GETARG_B(inst);
+    i32 c = GETARG_C(inst);
+
+    VM::detail::execArithmetic(state, context.proto, context.base, a, b, c, GET_OPCODE(inst));
+    return HandlerStatus::Continue;
+}
+
 HandlerTable makeHandlerTable() {
     HandlerTable table{};
 
@@ -85,6 +263,21 @@ HandlerTable makeHandlerTable() {
     table[opcodeIndex(OpCode::LOADK)].handler = handleLoadK;
     table[opcodeIndex(OpCode::LOADBOOL)].handler = handleLoadBool;
     table[opcodeIndex(OpCode::LOADNIL)].handler = handleLoadNil;
+    table[opcodeIndex(OpCode::GETGLOBAL)].handler = handleGetGlobal;
+    table[opcodeIndex(OpCode::SETGLOBAL)].handler = handleSetGlobal;
+    table[opcodeIndex(OpCode::GETUPVAL)].handler = handleGetUpval;
+    table[opcodeIndex(OpCode::SETUPVAL)].handler = handleSetUpval;
+    table[opcodeIndex(OpCode::GETTABLE)].handler = handleGetTable;
+    table[opcodeIndex(OpCode::SETTABLE)].handler = handleSetTable;
+    table[opcodeIndex(OpCode::NEWTABLE)].handler = handleNewTable;
+    table[opcodeIndex(OpCode::SELF)].handler = handleSelf;
+    table[opcodeIndex(OpCode::SETLIST)].handler = handleSetList;
+    table[opcodeIndex(OpCode::ADD)].handler = handleArithmetic;
+    table[opcodeIndex(OpCode::SUB)].handler = handleArithmetic;
+    table[opcodeIndex(OpCode::MUL)].handler = handleArithmetic;
+    table[opcodeIndex(OpCode::DIV)].handler = handleArithmetic;
+    table[opcodeIndex(OpCode::MOD)].handler = handleArithmetic;
+    table[opcodeIndex(OpCode::POW)].handler = handleArithmetic;
 
     return table;
 }

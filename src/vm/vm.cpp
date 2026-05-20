@@ -206,86 +206,60 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
 
             // ============== 全局变量操作 ==============
 
-            case OpCode::GETGLOBAL: {
-                const Value& key = proto->getConstant(bx);
-                Table* env = func->getEnv();
-                if (!env) env = L->getGlobalTable();
-                Value result;
-                VM::detail::gettable(L, Value(env), key, result);
-                base = refreshBase(L);
-                base[a] = result;
-                break;
-            }
-
+            case OpCode::GETGLOBAL:
             case OpCode::SETGLOBAL: {
-                const Value& key = proto->getConstant(bx);
-                Table* env = func->getEnv();
-                if (!env) env = L->getGlobalTable();
-                Value val = base[a];
-                VM::detail::settable(L, Value(env), key, val);
-                base = refreshBase(L);
+                OpExecutionContext opContext{
+                    services,
+                    L,
+                    func,
+                    proto,
+                    base,
+                    pc,
+                    instructionPc,
+                    nexeccalls
+                };
+                VM::runHandler(opContext, inst);
                 break;
             }
 
             // ============== Upvalue 操作 ==============
 
-            case OpCode::GETUPVAL: {
-                Upvalue* uv = func->getUpvalue(b);
-                if (!uv) throw RuntimeError("VM: GETUPVAL invalid upvalue index");
-                base[a] = uv->getValue(L->getStack());
-                break;
-            }
-
+            case OpCode::GETUPVAL:
             case OpCode::SETUPVAL: {
-                Upvalue* uv = func->getUpvalue(b);
-                if (!uv) throw RuntimeError("VM: SETUPVAL invalid upvalue index");
-                uv->setValue(L->getStack(), base[a]);
+                OpExecutionContext opContext{
+                    services,
+                    L,
+                    func,
+                    proto,
+                    base,
+                    pc,
+                    instructionPc,
+                    nexeccalls
+                };
+                VM::runHandler(opContext, inst);
                 break;
             }
 
             // ============== 表操作 ==============
 
-            case OpCode::GETTABLE: {
-                Value t   = base[b];            // copy（防止栈重分配后悬挂）
-                Value key = getRK(proto, base, c); // copy
-                Value result;
-                VM::detail::gettable(L, t, key, result);
-                base = refreshBase(L);          // 元方法可能导致栈重分配
-                base[a] = result;
-                break;
-            }
-
-            case OpCode::SETTABLE: {
-                Value t   = base[a];
-                Value key = getRK(proto, base, b);
-                Value val = getRK(proto, base, c);
-                VM::detail::settable(L, t, key, val);
-                base = refreshBase(L);
-                break;
-            }
-
+            case OpCode::GETTABLE:
+            case OpCode::SETTABLE:
             case OpCode::NEWTABLE:
-                {
-                    Table* table = new Table();
-                    L->getGlobalState().getGC().registerObject(table);
-                    base[a] = Value(table);
-                }
-                break;
-
-            case OpCode::SELF: {
-                Value obj = base[b];
-                base[a + 1] = obj;
-                Value key = getRK(proto, base, c);
-                Value result;
-                VM::detail::gettable(L, obj, key, result);
-                base = refreshBase(L);
-                base[a] = result;
+            case OpCode::SELF:
+            case OpCode::SETLIST: {
+                OpExecutionContext opContext{
+                    services,
+                    L,
+                    func,
+                    proto,
+                    base,
+                    pc,
+                    instructionPc,
+                    nexeccalls
+                };
+                VM::runHandler(opContext, inst);
                 break;
             }
-
-            case OpCode::SETLIST:
-                VM::detail::setList(L, base, a, b, c);
-                break;
 
             // ============== 算术运算 ==============
 
@@ -295,7 +269,17 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
             case OpCode::DIV:
             case OpCode::MOD:
             case OpCode::POW: {
-                VM::detail::execArithmetic(L, proto, base, a, b, c, op);
+                OpExecutionContext opContext{
+                    services,
+                    L,
+                    func,
+                    proto,
+                    base,
+                    pc,
+                    instructionPc,
+                    nexeccalls
+                };
+                VM::runHandler(opContext, inst);
                 break;
             }
 
