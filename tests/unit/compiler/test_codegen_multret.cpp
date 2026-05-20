@@ -22,7 +22,11 @@ constexpr const char* kSuiteName = "Codegen MultiRet";
 bool runLua(LuaState* L, const char* code) {
     try {
         Parser parser(code);
-        Chunk chunk = parser.parse();
+        auto parsed = parser.parse();
+        if (!parsed) {
+            throw parsed.error();
+        }
+        Chunk chunk = std::move(*parsed);
         StringPool& pool = StringPool::getInstance();
         CodeGenerator codegen(&pool);
         Proto* proto = codegen.generate(chunk, "test_codegen_multret");

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file packagelib.cpp
  * @brief Lua package/module library implementation
  *
@@ -461,7 +461,11 @@ static Function* loadLuaFile(LuaState* L, const Str& filename) {
 
     try {
         Parser parser(source);
-        Chunk chunk = parser.parse();
+        auto parsed = parser.parse();
+        if (!parsed) {
+            throw parsed.error();
+        }
+        Chunk chunk = std::move(*parsed);
 
         CodeGenerator codegen(&pool);
         Str chunkName = "@" + filename;

@@ -43,7 +43,11 @@ Vec<HookRecord>* g_hookRecords = nullptr;
 
 Proto* compileChunk(RuntimeServices& services, const char* source, const char* sourceName) {
     Parser parser(source, services);
-    Chunk chunk = parser.parse();
+    auto parsed = parser.parse();
+    if (!parsed) {
+        throw parsed.error();
+    }
+    Chunk chunk = std::move(*parsed);
 
     CodeGenerator codegen(services);
     return codegen.generate(chunk, sourceName);

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file test_baselib.cpp
  * @brief 基础库函数测试 - 依赖统一测试框架
  */
@@ -29,7 +29,11 @@ constexpr const char* kSuiteName = "Base Library";
 bool runLua(LuaState* L, const char* code) {
     try {
         Parser parser(code);
-        Chunk chunk = parser.parse();
+        auto parsed = parser.parse();
+        if (!parsed) {
+            throw parsed.error();
+        }
+        Chunk chunk = std::move(*parsed);
         StringPool& pool = StringPool::getInstance();
         CodeGenerator codegen(&pool);
         Proto* proto = codegen.generate(chunk, "test");

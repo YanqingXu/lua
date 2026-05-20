@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file test_function_codegen.cpp
  * @brief 测试函数定义和调用的代码生成
  */
@@ -23,7 +23,11 @@ void testSimpleFunctionDef(TestSuite& suite) {
     // 测试: function add(a, b) return a + b end
     const char* code = "function add(a, b) return a + b end";
     Parser parser(code);
-    Chunk chunk = parser.parse();
+    auto parsed = parser.parse();
+    if (!parsed) {
+        throw parsed.error();
+    }
+    Chunk chunk = std::move(*parsed);
 
     CodeGenerator codegen(&pool);
     Proto* proto = codegen.generate(chunk);
@@ -50,7 +54,11 @@ void testLocalFunctionDef(TestSuite& suite) {
     // 测试: local function foo() end
     const char* code = "local function foo() end";
     Parser parser(code);
-    Chunk chunk = parser.parse();
+    auto parsed = parser.parse();
+    if (!parsed) {
+        throw parsed.error();
+    }
+    Chunk chunk = std::move(*parsed);
 
     CodeGenerator codegen(&pool);
     Proto* proto = codegen.generate(chunk);
@@ -68,7 +76,11 @@ void testFunctionExpr(TestSuite& suite) {
     // 测试: local f = function(x) return x * 2 end
     const char* code = "local f = function(x) return x * 2 end";
     Parser parser(code);
-    Chunk chunk = parser.parse();
+    auto parsed = parser.parse();
+    if (!parsed) {
+        throw parsed.error();
+    }
+    Chunk chunk = std::move(*parsed);
 
     CodeGenerator codegen(&pool);
     Proto* proto = codegen.generate(chunk);
@@ -89,7 +101,11 @@ void testFunctionCall(TestSuite& suite) {
     // 测试: local result = add(1, 2)
     const char* code = "local result = add(1, 2)";
     Parser parser(code);
-    Chunk chunk = parser.parse();
+    auto parsed = parser.parse();
+    if (!parsed) {
+        throw parsed.error();
+    }
+    Chunk chunk = std::move(*parsed);
 
     CodeGenerator codegen(&pool);
     Proto* proto = codegen.generate(chunk);
@@ -118,7 +134,11 @@ void testVarargFunction(TestSuite& suite) {
     // 测试: function foo(...) end
     const char* code = "function foo(...) end";
     Parser parser(code);
-    Chunk chunk = parser.parse();
+    auto parsed = parser.parse();
+    if (!parsed) {
+        throw parsed.error();
+    }
+    Chunk chunk = std::move(*parsed);
 
     CodeGenerator codegen(&pool);
     Proto* proto = codegen.generate(chunk);
@@ -137,7 +157,11 @@ void testDebugMetadata(TestSuite& suite) {
 
     const char* code = "local x = 42\nprint(x)\n";
     Parser parser(code);
-    Chunk chunk = parser.parse();
+    auto parsed = parser.parse();
+    if (!parsed) {
+        throw parsed.error();
+    }
+    Chunk chunk = std::move(*parsed);
 
     CodeGenerator codegen(&pool);
     Proto* proto = codegen.generate(chunk, "test_debug_metadata.lua");
@@ -165,7 +189,11 @@ void testAssignMultiReturnCall(TestSuite& suite) {
         "local ok, err\n"
         "ok, err = pcall(function() error('boom') end)\n";
     Parser parser(code);
-    Chunk chunk = parser.parse();
+    auto parsed = parser.parse();
+    if (!parsed) {
+        throw parsed.error();
+    }
+    Chunk chunk = std::move(*parsed);
 
     CodeGenerator codegen(&pool);
     Proto* proto = codegen.generate(chunk, "test_assign_multret.lua");

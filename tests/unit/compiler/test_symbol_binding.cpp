@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file test_symbol_binding.cpp
  * @brief PR-8 Symbol Binding 单元测试
  *
@@ -37,7 +37,11 @@ LuaState* createFullState() {
 bool runLua(LuaState* L, const char* code) {
     try {
         Parser parser(code);
-        Chunk chunk = parser.parse();
+        auto parsed = parser.parse();
+        if (!parsed) {
+            throw parsed.error();
+        }
+        Chunk chunk = std::move(*parsed);
         StringPool& pool = StringPool::getInstance();
         CodeGenerator codegen(&pool);
         Proto* proto = codegen.generate(chunk, "test_symbol_binding");
@@ -57,7 +61,11 @@ bool runLua(LuaState* L, const char* code) {
 int countOpcode(const char* code, OpCode op) {
     StringPool& pool = StringPool::getInstance();
     Parser parser(code);
-    Chunk chunk = parser.parse();
+    auto parsed = parser.parse();
+    if (!parsed) {
+        throw parsed.error();
+    }
+    Chunk chunk = std::move(*parsed);
     CodeGenerator codegen(&pool);
     Proto* proto = codegen.generate(chunk, "test_symbol_binding");
     if (proto == nullptr) return 0;

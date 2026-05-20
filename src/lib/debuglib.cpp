@@ -623,7 +623,11 @@ void runDebugCommand(LuaState* L, const Str& source) {
     auto& pool = L->getGlobalState().getStringPool();
 
     Parser parser(source);
-    Chunk chunk = parser.parse();
+    auto parsed = parser.parse();
+    if (!parsed) {
+        throw parsed.error();
+    }
+    Chunk chunk = std::move(*parsed);
 
     CodeGenerator codegen(&pool);
     Proto* proto = codegen.generate(chunk, "=(debug command)");

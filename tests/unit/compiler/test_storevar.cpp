@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file test_storevar.cpp
  * @brief 测试变量存储统一接口（luaK_storevar）
  * 
@@ -26,7 +26,11 @@ namespace {
 bool runLua(LuaState* L, const char* code) {
     try {
         Parser parser(code);
-        Chunk chunk = parser.parse();
+        auto parsed = parser.parse();
+        if (!parsed) {
+            throw parsed.error();
+        }
+        Chunk chunk = std::move(*parsed);
         StringPool& pool = StringPool::getInstance();
         CodeGenerator codegen(&pool);
         Proto* proto = codegen.generate(chunk, "test_storevar_runtime");
@@ -62,7 +66,11 @@ void testLocalVarAssignment(TestSuite& suite) {
     
     const char* code = "local x = 10";
     Parser parser(code);
-    Chunk chunk = parser.parse();
+    auto parsed = parser.parse();
+    if (!parsed) {
+        throw parsed.error();
+    }
+    Chunk chunk = std::move(*parsed);
     
     CodeGenerator codegen(&pool);
     Proto* proto = codegen.generate(chunk);
@@ -92,7 +100,11 @@ void testGlobalVarAssignment(TestSuite& suite) {
     
     const char* code = "g = 20";
     Parser parser(code);
-    Chunk chunk = parser.parse();
+    auto parsed = parser.parse();
+    if (!parsed) {
+        throw parsed.error();
+    }
+    Chunk chunk = std::move(*parsed);
     
     CodeGenerator codegen(&pool);
     Proto* proto = codegen.generate(chunk);
@@ -121,7 +133,11 @@ void testTableIndexAssignment(TestSuite& suite) {
     
     const char* code = "t[\"key\"] = 30";
     Parser parser(code);
-    Chunk chunk = parser.parse();
+    auto parsed = parser.parse();
+    if (!parsed) {
+        throw parsed.error();
+    }
+    Chunk chunk = std::move(*parsed);
     
     CodeGenerator codegen(&pool);
     Proto* proto = codegen.generate(chunk);
@@ -150,7 +166,11 @@ void testTableMemberAssignment(TestSuite& suite) {
     
     const char* code = "t.field = 40";
     Parser parser(code);
-    Chunk chunk = parser.parse();
+    auto parsed = parser.parse();
+    if (!parsed) {
+        throw parsed.error();
+    }
+    Chunk chunk = std::move(*parsed);
     
     CodeGenerator codegen(&pool);
     Proto* proto = codegen.generate(chunk);
@@ -179,7 +199,11 @@ void testMultipleAssignment(TestSuite& suite) {
     
     const char* code = "a, b = 1, 2";
     Parser parser(code);
-    Chunk chunk = parser.parse();
+    auto parsed = parser.parse();
+    if (!parsed) {
+        throw parsed.error();
+    }
+    Chunk chunk = std::move(*parsed);
     
     CodeGenerator codegen(&pool);
     Proto* proto = codegen.generate(chunk);

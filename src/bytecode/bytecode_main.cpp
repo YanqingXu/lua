@@ -1,4 +1,4 @@
-﻿#include "compiler/parser.hpp"
+#include "compiler/parser.hpp"
 #include "compiler/codegen.hpp"
 #include "bytecode_printer.hpp"
 #include "io/file_loader.hpp"
@@ -26,7 +26,11 @@ int main(int argc, char** argv) {
 
         RuntimeServices services = RuntimeServices::fromSingletons();
         Parser parser(source, services);
-        Chunk chunk = parser.parse();
+        auto parsed = parser.parse();
+        if (!parsed) {
+            throw parsed.error();
+        }
+        Chunk chunk = std::move(*parsed);
 
         CodeGenerator codegen(services);
         Proto* proto = codegen.generate(chunk, scriptPath);

@@ -34,7 +34,11 @@ LuaState* createFullState() {
 bool runLua(LuaState* L, const char* code) {
     try {
         Parser parser(code);
-        Chunk chunk = parser.parse();
+        auto parsed = parser.parse();
+        if (!parsed) {
+            throw parsed.error();
+        }
+        Chunk chunk = std::move(*parsed);
         StringPool& pool = StringPool::getInstance();
         CodeGenerator codegen(&pool);
         Proto* proto = codegen.generate(chunk, "test_value_pipeline");
@@ -54,7 +58,11 @@ bool runLua(LuaState* L, const char* code) {
 Proto* generateProto(const char* code) {
     StringPool& pool = StringPool::getInstance();
     Parser parser(code);
-    Chunk chunk = parser.parse();
+    auto parsed = parser.parse();
+    if (!parsed) {
+        throw parsed.error();
+    }
+    Chunk chunk = std::move(*parsed);
     CodeGenerator codegen(&pool);
     return codegen.generate(chunk);
 }

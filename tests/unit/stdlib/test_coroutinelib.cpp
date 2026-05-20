@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file test_coroutinelib.cpp
  * @brief Lua coroutine library tests
  */
@@ -30,7 +30,11 @@ constexpr const char* kSuiteName = "Coroutine Library";
 bool runLua(LuaState* L, const char* code) {
     try {
         Parser parser(code);
-        Chunk chunk = parser.parse();
+        auto parsed = parser.parse();
+        if (!parsed) {
+            throw parsed.error();
+        }
+        Chunk chunk = std::move(*parsed);
         StringPool& pool = StringPool::getInstance();
         CodeGenerator codegen(&pool);
         Proto* proto = codegen.generate(chunk, "test");

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file baselib.cpp
  * @brief Lua基础库实现
  * 
@@ -772,7 +772,11 @@ i32 luaB_loadstring(LuaState* L) {
     try {
         // 解析代码
         Parser parser(code);
-        Chunk chunk = parser.parse();
+        auto parsed = parser.parse();
+        if (!parsed) {
+            throw parsed.error();
+        }
+        Chunk chunk = std::move(*parsed);
 
         // 生成字节码
         CodeGenerator codegen(&pool);
@@ -862,7 +866,11 @@ i32 luaB_loadfile(LuaState* L) {
 
         // 解析代码
         Parser parser(source);
-        Chunk chunk = parser.parse();
+        auto parsed = parser.parse();
+        if (!parsed) {
+            throw parsed.error();
+        }
+        Chunk chunk = std::move(*parsed);
 
         // 生成字节码
         CodeGenerator codegen(&pool);
@@ -1295,7 +1303,11 @@ static i32 luaB_load(LuaState* L) {
     // Compile the collected source
     try {
         Parser parser(source);
-        Chunk chunk = parser.parse();
+        auto parsed = parser.parse();
+        if (!parsed) {
+            throw parsed.error();
+        }
+        Chunk chunk = std::move(*parsed);
 
         CodeGenerator codegen(&pool);
         Proto* proto = codegen.generate(chunk, chunkname);

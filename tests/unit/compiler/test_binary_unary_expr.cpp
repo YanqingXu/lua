@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file test_binary_unary_expr.cpp
  * @brief 测试二元和一元表达式的代码生成
  */
@@ -22,7 +22,11 @@ namespace {
 Proto* generateProto(const char* code) {
     StringPool& pool = StringPool::getInstance();
     Parser parser(code);
-    Chunk chunk = parser.parse();
+    auto parsed = parser.parse();
+    if (!parsed) {
+        throw parsed.error();
+    }
+    Chunk chunk = std::move(*parsed);
 
     CodeGenerator codegen(&pool);
     return codegen.generate(chunk);

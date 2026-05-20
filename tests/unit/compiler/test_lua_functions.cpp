@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file test_lua_functions.cpp
  * @brief 测试Lua函数文件的编译
  */
@@ -38,7 +38,11 @@ void testLuaFunctionFile(TestSuite& suite) {
         // 编译
         StringPool& pool = StringPool::getInstance();
         Parser parser(code.c_str());
-        Chunk chunk = parser.parse();
+        auto parsed = parser.parse();
+        if (!parsed) {
+            throw parsed.error();
+        }
+        Chunk chunk = std::move(*parsed);
 
         CodeGenerator codegen(&pool);
         Proto* proto = codegen.generate(chunk);

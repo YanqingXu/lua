@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file main.cpp
  * @brief Lua C++ 解释器主程序入口
  *
@@ -226,7 +226,11 @@ int executeScript(LuaState* L, const char* filename) {
         RuntimeServices services(L->getGlobalState());
 
         Parser parser(source, services);
-        Chunk chunk = parser.parse();
+        auto parsed = parser.parse();
+        if (!parsed) {
+            throw parsed.error();
+        }
+        Chunk chunk = std::move(*parsed);
 
         // 步骤3：生成字节码
         CodeGenerator codegen(services);

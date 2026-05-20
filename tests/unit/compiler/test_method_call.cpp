@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file test_method_call.cpp
  * @brief 测试方法调用的代码生成（obj:method(args)）
  *
@@ -28,7 +28,11 @@ void testSimpleMethodCall(TestSuite& suite) {
 
     const char* code = "local result = obj:method()";
     Parser parser(code);
-    Chunk chunk = parser.parse();
+    auto parsed = parser.parse();
+    if (!parsed) {
+        throw parsed.error();
+    }
+    Chunk chunk = std::move(*parsed);
 
     CodeGenerator codegen(&pool);
     Proto* proto = codegen.generate(chunk);
@@ -69,7 +73,11 @@ void testMethodCallWithArgs(TestSuite& suite) {
 
     const char* code = "local result = obj:method(a, b)";
     Parser parser(code);
-    Chunk chunk = parser.parse();
+    auto parsed = parser.parse();
+    if (!parsed) {
+        throw parsed.error();
+    }
+    Chunk chunk = std::move(*parsed);
 
     CodeGenerator codegen(&pool);
     Proto* proto = codegen.generate(chunk);
@@ -109,7 +117,11 @@ void testChainedMethodCall(TestSuite& suite) {
 
     const char* code = "local result = obj:method1():method2()";
     Parser parser(code);
-    Chunk chunk = parser.parse();
+    auto parsed = parser.parse();
+    if (!parsed) {
+        throw parsed.error();
+    }
+    Chunk chunk = std::move(*parsed);
 
     CodeGenerator codegen(&pool);
     Proto* proto = codegen.generate(chunk);
@@ -147,7 +159,11 @@ void testMethodCallWithFunctionArg(TestSuite& suite) {
 
     const char* code = "local result = obj:method(func())";
     Parser parser(code);
-    Chunk chunk = parser.parse();
+    auto parsed = parser.parse();
+    if (!parsed) {
+        throw parsed.error();
+    }
+    Chunk chunk = std::move(*parsed);
 
     CodeGenerator codegen(&pool);
     Proto* proto = codegen.generate(chunk);
@@ -186,7 +202,11 @@ void testSelfInstructionFormat(TestSuite& suite) {
 
     const char* code = "local result = obj:method()";
     Parser parser(code);
-    Chunk chunk = parser.parse();
+    auto parsed = parser.parse();
+    if (!parsed) {
+        throw parsed.error();
+    }
+    Chunk chunk = std::move(*parsed);
 
     CodeGenerator codegen(&pool);
     Proto* proto = codegen.generate(chunk);
@@ -234,7 +254,11 @@ void testMethodNameInConstants(TestSuite& suite) {
 
     const char* code = "local result = obj:method()";
     Parser parser(code);
-    Chunk chunk = parser.parse();
+    auto parsed = parser.parse();
+    if (!parsed) {
+        throw parsed.error();
+    }
+    Chunk chunk = std::move(*parsed);
 
     CodeGenerator codegen(&pool);
     Proto* proto = codegen.generate(chunk);
@@ -266,7 +290,11 @@ void testMethodCallMultipleArgs(TestSuite& suite) {
 
     const char* code = "local result = obj:method(1, 2, 3)";
     Parser parser(code);
-    Chunk chunk = parser.parse();
+    auto parsed = parser.parse();
+    if (!parsed) {
+        throw parsed.error();
+    }
+    Chunk chunk = std::move(*parsed);
 
     CodeGenerator codegen(&pool);
     Proto* proto = codegen.generate(chunk);

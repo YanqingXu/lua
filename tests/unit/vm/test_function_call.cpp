@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file test_function_call.cpp
  * @brief 测试VM函数调用机制：递归调用、多返回值、嵌套调用
  */
@@ -37,7 +37,11 @@ void testSimpleFunctionCall(TestSuite& suite) {
     try {
         StringPool& pool = StringPool::getInstance();
         Parser parser(code);
-        Chunk chunk = parser.parse();
+        auto parsed = parser.parse();
+        if (!parsed) {
+            throw parsed.error();
+        }
+        Chunk chunk = std::move(*parsed);
 
         CodeGenerator codegen(&pool);
         Proto* proto = codegen.generate(chunk);
@@ -85,7 +89,11 @@ void testFactorialRecursion(TestSuite& suite) {
     try {
         StringPool& pool = StringPool::getInstance();
         Parser parser(code);
-        Chunk chunk = parser.parse();
+        auto parsed = parser.parse();
+        if (!parsed) {
+            throw parsed.error();
+        }
+        Chunk chunk = std::move(*parsed);
 
         CodeGenerator codegen(&pool);
         Proto* proto = codegen.generate(chunk);
@@ -131,7 +139,11 @@ void testMultipleReturnValues(TestSuite& suite) {
     try {
         StringPool& pool = StringPool::getInstance();
         Parser parser(code);
-        Chunk chunk = parser.parse();
+        auto parsed = parser.parse();
+        if (!parsed) {
+            throw parsed.error();
+        }
+        Chunk chunk = std::move(*parsed);
         
         CodeGenerator codegen(&pool);
         Proto* proto = codegen.generate(chunk);
@@ -181,7 +193,11 @@ void testNestedFunctionCalls(TestSuite& suite) {
     try {
         StringPool& pool = StringPool::getInstance();
         Parser parser(code);
-        Chunk chunk = parser.parse();
+        auto parsed = parser.parse();
+        if (!parsed) {
+            throw parsed.error();
+        }
+        Chunk chunk = std::move(*parsed);
         
         CodeGenerator codegen(&pool);
         Proto* proto = codegen.generate(chunk);

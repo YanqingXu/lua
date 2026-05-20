@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file test_parser_recursion.cpp
  * @brief 测试Parser递归深度限制功能
  * 
@@ -98,7 +98,11 @@ void testNormalDepthNesting(TestSuite& suite) {
     
     try {
         Parser parser(code);
-        Chunk chunk = parser.parse();
+        auto parsed = parser.parse();
+        if (!parsed) {
+            throw parsed.error();
+        }
+        Chunk chunk = std::move(*parsed);
         ASSERT_TRUE(suite, true, "Normal depth (50) parsing succeeded");
     } catch (const ParseError& e) {
 		std::cerr << "ParseError: " << e.what() << " at line " << e.getLine() << ", column " << e.getColumn() << std::endl;
@@ -115,7 +119,11 @@ void testNearLimitDepthNesting(TestSuite& suite) {
 
     try {
         Parser parser(code);
-        Chunk chunk = parser.parse();
+        auto parsed = parser.parse();
+        if (!parsed) {
+            throw parsed.error();
+        }
+        Chunk chunk = std::move(*parsed);
         ASSERT_TRUE(suite, true, "Near limit depth (90) parsing succeeded");
     } catch (const ParseError& e) {
 		std::cerr << "ParseError: " << e.what() << " at line " << e.getLine() << ", column " << e.getColumn() << std::endl;
@@ -132,7 +140,11 @@ void testExceedLimitDepthNesting(TestSuite& suite) {
 
     try {
         Parser parser(code);
-        Chunk chunk = parser.parse();
+        auto parsed = parser.parse();
+        if (!parsed) {
+            throw parsed.error();
+        }
+        Chunk chunk = std::move(*parsed);
         ASSERT_TRUE(suite, false, "Exceed limit depth (150) should throw");
     } catch (const ParseError& e) {
         // 验证错误信息包含"too many syntax levels"
@@ -151,7 +163,11 @@ void testNestedIfStatements(TestSuite& suite) {
 
     try {
         Parser parser(code);
-        Chunk chunk = parser.parse();
+        auto parsed = parser.parse();
+        if (!parsed) {
+            throw parsed.error();
+        }
+        Chunk chunk = std::move(*parsed);
         ASSERT_TRUE(suite, false, "Deeply nested if statements should throw");
     } catch (const ParseError& e) {
         std::string errorMsg = e.what();

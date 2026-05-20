@@ -1,4 +1,4 @@
-﻿#include "../framework/test_framework.hpp"
+#include "../framework/test_framework.hpp"
 
 #include "compiler/codegen.hpp"
 #include "compiler/parser.hpp"
@@ -48,7 +48,11 @@ int invokeDebug(LuaState* L, const char* name, const std::function<void(LuaState
 bool runLuaChunk(LuaState* L, const char* source, const char* chunkName) {
     try {
         Parser parser(source);
-        Chunk chunk = parser.parse();
+        auto parsed = parser.parse();
+        if (!parsed) {
+            throw parsed.error();
+        }
+        Chunk chunk = std::move(*parsed);
         StringPool& pool = StringPool::getInstance();
         CodeGenerator codegen(&pool);
         Proto* proto = codegen.generate(chunk, chunkName);

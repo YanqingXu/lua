@@ -150,18 +150,22 @@ Str Parser::tokenString(const Token& token) {
 // 主解析函数
 // =====================================================================
 
-Chunk Parser::parse() {
-    Chunk chunk;
+std::expected<Chunk, ParseError> Parser::parse() {
+    try {
+        Chunk chunk;
 
-    // 解析语句块
-    chunk.statements = parseBlock();
+        // 解析语句块
+        chunk.statements = parseBlock();
 
-    // 确保到达文件末尾
-    if (!check(TokenType::Eos)) {
-        error("Expected end of file");
+        // 确保到达文件末尾
+        if (!check(TokenType::Eos)) {
+            error("Expected end of file");
+        }
+
+        return chunk;
+    } catch (const ParseError& error) {
+        return std::unexpected(error);
     }
-
-    return chunk;
 }
 
 // Grammar productions are implemented in the parser_*.cpp shards.

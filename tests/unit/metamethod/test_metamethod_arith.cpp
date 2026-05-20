@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file test_metamethod_arith.cpp
  * @brief 算术元方法测试
  *
@@ -32,7 +32,11 @@ namespace {
 bool runLua(LuaState* L, const char* code) {
     try {
         Parser parser(code);
-        Chunk chunk = parser.parse();
+        auto parsed = parser.parse();
+        if (!parsed) {
+            throw parsed.error();
+        }
+        Chunk chunk = std::move(*parsed);
         StringPool& pool = StringPool::getInstance();
         CodeGenerator codegen(&pool);
         Proto* proto = codegen.generate(chunk, "metamethod_test");

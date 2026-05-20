@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file test_syntax_sugar.cpp
  * @brief 测试Lua 5.1.5语法糖功能
  * 
@@ -33,7 +33,11 @@ void testMethodDefinition(TestSuite& suite) {
     )";
 
     Parser parser(code);
-    Chunk chunk = parser.parse();
+    auto parsed = parser.parse();
+    if (!parsed) {
+        throw parsed.error();
+    }
+    Chunk chunk = std::move(*parsed);
 
     ASSERT_TRUE(suite, chunk.statements.size() == 1, "One statement parsed");
 
@@ -62,7 +66,11 @@ void testTableMemberFunction(TestSuite& suite) {
     )";
 
     Parser parser(code);
-    Chunk chunk = parser.parse();
+    auto parsed = parser.parse();
+    if (!parsed) {
+        throw parsed.error();
+    }
+    Chunk chunk = std::move(*parsed);
 
     ASSERT_TRUE(suite, chunk.statements.size() == 1, "One statement parsed");
 
@@ -89,7 +97,11 @@ void testSimpleFunctionDefinition(TestSuite& suite) {
     )";
 
     Parser parser(code);
-    Chunk chunk = parser.parse();
+    auto parsed = parser.parse();
+    if (!parsed) {
+        throw parsed.error();
+    }
+    Chunk chunk = std::move(*parsed);
 
     ASSERT_TRUE(suite, chunk.statements.size() == 1, "One statement parsed");
 
@@ -111,7 +123,11 @@ void testFunctionCallStringSugar(TestSuite& suite) {
     )";
 
     Parser parser(code);
-    Chunk chunk = parser.parse();
+    auto parsed = parser.parse();
+    if (!parsed) {
+        throw parsed.error();
+    }
+    Chunk chunk = std::move(*parsed);
 
     ASSERT_TRUE(suite, chunk.statements.size() == 1, "One statement parsed");
 
@@ -139,7 +155,11 @@ void testFunctionCallTableSugar(TestSuite& suite) {
     )";
 
     Parser parser(code);
-    Chunk chunk = parser.parse();
+    auto parsed = parser.parse();
+    if (!parsed) {
+        throw parsed.error();
+    }
+    Chunk chunk = std::move(*parsed);
 
     ASSERT_TRUE(suite, chunk.statements.size() == 1, "One statement parsed");
 
@@ -172,7 +192,11 @@ void testTableFieldLookahead(TestSuite& suite) {
     )";
 
     Parser parser(code);
-    Chunk chunk = parser.parse();
+    auto parsed = parser.parse();
+    if (!parsed) {
+        throw parsed.error();
+    }
+    Chunk chunk = std::move(*parsed);
 
     ASSERT_TRUE(suite, chunk.statements.size() == 1, "One statement parsed");
 
@@ -217,7 +241,11 @@ void testComplexArrayElement(TestSuite& suite) {
     )";
 
     Parser parser(code);
-    Chunk chunk = parser.parse();
+    auto parsed = parser.parse();
+    if (!parsed) {
+        throw parsed.error();
+    }
+    Chunk chunk = std::move(*parsed);
 
     ASSERT_TRUE(suite, chunk.statements.size() == 1, "One statement parsed");
 
@@ -250,7 +278,11 @@ void testMixedTableConstructor(TestSuite& suite) {
     )";
 
     Parser parser(code);
-    Chunk chunk = parser.parse();
+    auto parsed = parser.parse();
+    if (!parsed) {
+        throw parsed.error();
+    }
+    Chunk chunk = std::move(*parsed);
 
     ASSERT_TRUE(suite, chunk.statements.size() == 1, "One statement parsed");
 

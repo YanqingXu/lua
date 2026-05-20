@@ -28,6 +28,8 @@
 #include "token.hpp"
 #include "common/lua_error.hpp"
 #include "common/types.hpp"
+#include <expected>
+#include <utility>
 
 namespace Lua {
 
@@ -61,9 +63,9 @@ public:
     
     /**
      * @brief 解析源代码，生成AST
-     * @return Chunk对象（程序块）
+     * @return Chunk对象（程序块）或 ParseError
      */
-    Chunk parse();
+    [[nodiscard]] std::expected<Chunk, ParseError> parse();
 
 private:
     // =====================================================================
@@ -105,7 +107,7 @@ private:
      * @param message 错误消息
      *
      * 注意：此方法已修改为支持错误恢复。
-     * 错误会被记录到 errors_ 向量中，并在 parse() 结束时统一抛出。
+     * 错误会被记录到 errors_ 向量中，并在 parse() 结束时统一返回。
      */
     void error(const Str& message);
 
@@ -205,7 +207,7 @@ private:
      * @brief 错误收集器
      *
      * 存储解析过程中遇到的所有错误。
-     * 在 parse() 方法结束时，如果有错误，会抛出包含所有错误信息的异常。
+     * 在 parse() 方法结束时，如果有错误，会返回包含错误信息的 expected。
      */
     Vec<ParseError> errors_;
 

@@ -21,15 +21,15 @@ namespace {
 constexpr const char* kSuiteName = "Parser Boundary Sentinels";
 
 bool parseChunk(TestSuite& suite, const char* source, Chunk& out, const char* testName) {
-    try {
-        Parser parser(source);
-        out = parser.parse();
-        return true;
-    } catch (const ParseError& e) {
-        (void)e;
+    Parser parser(source);
+    auto parsed = parser.parse();
+    if (!parsed) {
         ASSERT_TRUE(suite, false, testName);
         return false;
     }
+
+    out = std::move(*parsed);
+    return true;
 }
 
 template<typename T>
@@ -71,16 +71,18 @@ void expectParseError(TestSuite& suite,
                       const char* source,
                       const char* expectedText,
                       const char* testName) {
-    try {
-        Parser parser(source);
-        (void)parser.parse();
+    Parser parser(source);
+    auto parsed = parser.parse();
+    if (parsed) {
         ASSERT_TRUE(suite, false, testName);
-    } catch (const ParseError& e) {
-        std::string message = e.what();
-        ASSERT_TRUE(suite, !message.empty(), testName);
-        ASSERT_TRUE(suite, message.find(expectedText) != std::string::npos, testName);
-        ASSERT_TRUE(suite, e.getLine() >= 1 && e.getColumn() >= 0, testName);
+        return;
     }
+
+    const ParseError& e = parsed.error();
+    std::string message = e.what();
+    ASSERT_TRUE(suite, !message.empty(), testName);
+    ASSERT_TRUE(suite, message.find(expectedText) != std::string::npos, testName);
+    ASSERT_TRUE(suite, e.getLine() >= 1 && e.getColumn() >= 0, testName);
 }
 
 void testStatementBoundaryFamilies(TestSuite& suite) {

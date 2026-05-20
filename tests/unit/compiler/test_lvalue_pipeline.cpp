@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file test_lvalue_pipeline.cpp
  * @brief PR-3 LValue Pipeline 单元测试
  *
@@ -35,7 +35,11 @@ LuaState* createFullState() {
 bool runLua(LuaState* L, const char* code) {
     try {
         Parser parser(code);
-        Chunk chunk = parser.parse();
+        auto parsed = parser.parse();
+        if (!parsed) {
+            throw parsed.error();
+        }
+        Chunk chunk = std::move(*parsed);
         StringPool& pool = StringPool::getInstance();
         CodeGenerator codegen(&pool);
         Proto* proto = codegen.generate(chunk, "test_lvalue_pipeline");
@@ -56,7 +60,11 @@ bool runLua(LuaState* L, const char* code) {
 int countOpcode(const char* code, OpCode op) {
     StringPool& pool = StringPool::getInstance();
     Parser parser(code);
-    Chunk chunk = parser.parse();
+    auto parsed = parser.parse();
+    if (!parsed) {
+        throw parsed.error();
+    }
+    Chunk chunk = std::move(*parsed);
     CodeGenerator codegen(&pool);
     Proto* proto = codegen.generate(chunk);
     int count = 0;

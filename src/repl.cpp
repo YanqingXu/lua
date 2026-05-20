@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file repl.cpp
  * @brief REPL（交互式解释器）模块实现
  *
@@ -284,7 +284,11 @@ int executeREPLInput(LuaState* L, const Str& source, bool isExpression) {
         RuntimeServices services(L->getGlobalState());
 
         Parser parser(source, services);
-        Chunk chunk = parser.parse();
+        auto parsed = parser.parse();
+        if (!parsed) {
+            throw parsed.error();
+        }
+        Chunk chunk = std::move(*parsed);
 
         // 生成字节码
         CodeGenerator codegen(services);
@@ -497,7 +501,10 @@ int run(LuaState* L) {
             // - 普通输入直接作为语句处理，不自动包装为表达式
             RuntimeServices services(L->getGlobalState());
             Parser parser(inputBuffer, services);
-            parser.parse();
+            auto parsed = parser.parse();
+            if (!parsed) {
+                throw parsed.error();
+            }
             sourceToExecute = inputBuffer;
             isExpression = wasExplicitReturn;  // 只有使用了 "=" 前缀才打印结果
             parseSuccess = true;

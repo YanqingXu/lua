@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file test_parser_memory_pool.cpp
  * @brief 测试 Parser 内存池功能
  *
@@ -28,7 +28,11 @@ void testBasicMemoryPoolFunctionality(TestSuite& suite) {
 
     try {
         Parser parser(code);
-        Chunk block = parser.parse();
+        auto parsed = parser.parse();
+        if (!parsed) {
+            throw parsed.error();
+        }
+        Chunk block = std::move(*parsed);
 
         // 验证解析成功
         ASSERT_TRUE(suite, block.statements.size() == 2, "Should have 2 statements");
@@ -51,7 +55,11 @@ void testMemoryPoolStateAfterParsing(TestSuite& suite) {
 
     try {
         Parser parser(code);
-        Chunk block = parser.parse();
+        auto parsed = parser.parse();
+        if (!parsed) {
+            throw parsed.error();
+        }
+        Chunk block = std::move(*parsed);
 
         // 验证解析成功
         ASSERT_TRUE(suite, block.statements.size() == 3, "Should have 3 statements");
@@ -107,7 +115,11 @@ void testComplexNestedStructures(TestSuite& suite) {
 
     try {
         Parser parser(code);
-        Chunk block = parser.parse();
+        auto parsed = parser.parse();
+        if (!parsed) {
+            throw parsed.error();
+        }
+        Chunk block = std::move(*parsed);
 
         // 验证解析成功
         ASSERT_TRUE(suite, block.statements.size() == 2, "Should have 2 statements");
@@ -146,7 +158,11 @@ void testMemoryPoolStatistics(TestSuite& suite) {
 
     try {
         Parser parser(code);
-        Chunk block = parser.parse();
+        auto parsed = parser.parse();
+        if (!parsed) {
+            throw parsed.error();
+        }
+        Chunk block = std::move(*parsed);
 
         // 验证解析成功
         ASSERT_TRUE(suite, block.statements.size() == 3, "Should have 3 statements");

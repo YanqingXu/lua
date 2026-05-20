@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file test_packagelib.cpp
  * @brief Unit tests for the Lua package/module library
  *
@@ -107,7 +107,11 @@ Value getField(LuaState* L, Table* table, const char* key) {
 bool runLuaChunk(LuaState* L, const char* source, const char* chunkName = "test") {
     try {
         Parser parser(source);
-        Chunk chunk = parser.parse();
+        auto parsed = parser.parse();
+        if (!parsed) {
+            throw parsed.error();
+        }
+        Chunk chunk = std::move(*parsed);
         StringPool& pool = StringPool::getInstance();
         CodeGenerator codegen(&pool);
         Proto* proto = codegen.generate(chunk, chunkName);

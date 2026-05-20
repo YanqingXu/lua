@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file test_indexed_access.cpp
  * @brief 测试表索引访问和成员访问的代码生成
  * 
@@ -63,7 +63,11 @@ void testSimpleIndexAccessStringKey(TestSuite& suite) {
 
     const char* code = "local x = t[\"key\"]";
     Parser parser(code);
-    Chunk chunk = parser.parse();
+    auto parsed = parser.parse();
+    if (!parsed) {
+        throw parsed.error();
+    }
+    Chunk chunk = std::move(*parsed);
 
     CodeGenerator codegen(&pool);
     Proto* proto = codegen.generate(chunk);
@@ -94,7 +98,11 @@ void testMemberAccess(TestSuite& suite) {
 
     const char* code = "local x = t.member";
     Parser parser(code);
-    Chunk chunk = parser.parse();
+    auto parsed = parser.parse();
+    if (!parsed) {
+        throw parsed.error();
+    }
+    Chunk chunk = std::move(*parsed);
 
     CodeGenerator codegen(&pool);
     Proto* proto = codegen.generate(chunk);
@@ -124,7 +132,11 @@ void testIndexAccessNumberKey(TestSuite& suite) {
 
     const char* code = "local x = t[1]";
     Parser parser(code);
-    Chunk chunk = parser.parse();
+    auto parsed = parser.parse();
+    if (!parsed) {
+        throw parsed.error();
+    }
+    Chunk chunk = std::move(*parsed);
 
     CodeGenerator codegen(&pool);
     Proto* proto = codegen.generate(chunk);
@@ -153,7 +165,11 @@ void testNestedMemberAccess(TestSuite& suite) {
 
     const char* code = "local x = t.a.b";
     Parser parser(code);
-    Chunk chunk = parser.parse();
+    auto parsed = parser.parse();
+    if (!parsed) {
+        throw parsed.error();
+    }
+    Chunk chunk = std::move(*parsed);
 
     CodeGenerator codegen(&pool);
     Proto* proto = codegen.generate(chunk);
@@ -181,7 +197,11 @@ void testGlobalVariableAccess(TestSuite& suite) {
 
     const char* code = "local x = print";
     Parser parser(code);
-    Chunk chunk = parser.parse();
+    auto parsed = parser.parse();
+    if (!parsed) {
+        throw parsed.error();
+    }
+    Chunk chunk = std::move(*parsed);
 
     CodeGenerator codegen(&pool);
     Proto* proto = codegen.generate(chunk);
@@ -211,7 +231,11 @@ void testDynamicIndex(TestSuite& suite) {
 
     const char* code = "local x = t[key]";
     Parser parser(code);
-    Chunk chunk = parser.parse();
+    auto parsed = parser.parse();
+    if (!parsed) {
+        throw parsed.error();
+    }
+    Chunk chunk = std::move(*parsed);
 
     CodeGenerator codegen(&pool);
     Proto* proto = codegen.generate(chunk);
@@ -240,7 +264,11 @@ void testMixedAccess(TestSuite& suite) {
 
     const char* code = "local x = t[\"a\"].b[1]";
     Parser parser(code);
-    Chunk chunk = parser.parse();
+    auto parsed = parser.parse();
+    if (!parsed) {
+        throw parsed.error();
+    }
+    Chunk chunk = std::move(*parsed);
 
     CodeGenerator codegen(&pool);
     Proto* proto = codegen.generate(chunk);
@@ -269,7 +297,11 @@ void testLocalTableAccess(TestSuite& suite) {
 
     const char* code = "local x = t.a";
     Parser parser(code);
-    Chunk chunk = parser.parse();
+    auto parsed = parser.parse();
+    if (!parsed) {
+        throw parsed.error();
+    }
+    Chunk chunk = std::move(*parsed);
 
     CodeGenerator codegen(&pool);
     Proto* proto = codegen.generate(chunk);

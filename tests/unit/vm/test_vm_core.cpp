@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file test_vm_core.cpp
  * @brief VM核心类单元测试 (GlobalState, Stack, CallInfo, LuaState)
  * 
@@ -29,7 +29,11 @@ namespace {
 LuaState* executeChunk(const char* code, const char* chunkName, Proto*& outProto) {
     StringPool& pool = StringPool::getInstance();
     Parser parser(code);
-    Chunk chunk = parser.parse();
+    auto parsed = parser.parse();
+    if (!parsed) {
+        throw parsed.error();
+    }
+    Chunk chunk = std::move(*parsed);
 
     CodeGenerator codegen(&pool);
     outProto = codegen.generate(chunk, chunkName);
@@ -228,7 +232,11 @@ void testSelfDispatchOnUserdata(TestSuite& suite) {
     try {
         StringPool& pool = StringPool::getInstance();
         Parser parser(code);
-        Chunk chunk = parser.parse();
+        auto parsed = parser.parse();
+        if (!parsed) {
+            throw parsed.error();
+        }
+        Chunk chunk = std::move(*parsed);
 
         CodeGenerator codegen(&pool);
         Proto* proto = codegen.generate(chunk, "=(userdata_self)");
@@ -278,7 +286,11 @@ void testTailReturnFromCFunctionKeepsLogicalTop(TestSuite& suite) {
     try {
         StringPool& pool = StringPool::getInstance();
         Parser parser(code);
-        Chunk chunk = parser.parse();
+        auto parsed = parser.parse();
+        if (!parsed) {
+            throw parsed.error();
+        }
+        Chunk chunk = std::move(*parsed);
 
         CodeGenerator codegen(&pool);
         Proto* proto = codegen.generate(chunk, "=(tail_c_return)");
