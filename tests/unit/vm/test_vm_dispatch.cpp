@@ -47,6 +47,24 @@ public:
     i32 nexeccalls = 0;
 };
 
+i32 pr17GenericForIterator(LuaState* L) {
+    if (L->getTop() < 2 || !L->at(1).isNumber() || !L->at(2).isNumber()) {
+        L->pushNil();
+        return 1;
+    }
+
+    f64 limit = L->at(1).asNumber();
+    f64 control = L->at(2).asNumber();
+    f64 next = control + 1.0;
+    if (next > limit) {
+        L->pushNil();
+        return 1;
+    }
+
+    L->pushNumber(next);
+    return 1;
+}
+
 void testOpcodeGroupsCoverDispatchFamilies(TestSuite& suite) {
     ASSERT_TRUE(suite, VM::isDataMoveOpcode(OpCode::MOVE), "MOVE is data move");
     ASSERT_TRUE(suite, VM::isDataMoveOpcode(OpCode::LOADK), "LOADK is data move");
@@ -168,6 +186,12 @@ void testHandlersCoverMigratedOpcodes(TestSuite& suite) {
     ASSERT_TRUE(suite, VM::hasHandler(OpCode::LE), "LE should have a handler");
     ASSERT_TRUE(suite, VM::hasHandler(OpCode::TEST), "TEST should have a handler");
     ASSERT_TRUE(suite, VM::hasHandler(OpCode::TESTSET), "TESTSET should have a handler");
+    ASSERT_TRUE(suite, VM::hasHandler(OpCode::CLOSE), "CLOSE should have a handler");
+    ASSERT_TRUE(suite, VM::hasHandler(OpCode::FORLOOP), "FORLOOP should have a handler");
+    ASSERT_TRUE(suite, VM::hasHandler(OpCode::FORPREP), "FORPREP should have a handler");
+    ASSERT_TRUE(suite, VM::hasHandler(OpCode::TFORLOOP), "TFORLOOP should have a handler");
+    ASSERT_TRUE(suite, VM::hasHandler(OpCode::CLOSURE), "CLOSURE should have a handler");
+    ASSERT_TRUE(suite, VM::hasHandler(OpCode::VARARG), "VARARG should have a handler");
     ASSERT_FALSE(suite, VM::hasHandler(OpCode::CALL), "CALL remains switch-only in the first handler-table slice");
 }
 
@@ -555,6 +579,193 @@ void testBranchAndComparisonHandlersExecuteDirectly(TestSuite& suite) {
     services.gc.clearAll();
 }
 
+void testLoopAndCloseHandlersExecuteDirectly(TestSuite& suite) {
+    RuntimeServices services = RuntimeServices::fromSingletons();
+    LuaState* L = LuaState::newState(services);
+
+    Proto proto;
+    proto.addInstruction(CREATE_AsBx(OpCode::JMP, 0, 2));
+    Function iterator(pr17GenericForIterator);
+
+    Stack& stack = L->getStack();
+    CallInfo& ci = L->getCurrentCallInfo();
+    usize frameBase = ci.base;
+    while (stack.size() < frameBase + 12) {
+        stack.push(Value());
+    }
+    ci.top = frameBase + 12;
+    L->setAbsoluteTop(frameBase + 12);
+
+    Value* base = &stack[frameBase];
+    usize pc = 0;
+    VM::OpExecutionContext context{
+        services,
+        L,
+        nullptr,
+        &proto,
+        base,
+        pc,
+        0,
+        1
+    };
+
+    base[0] = Value(10.0);
+    base[1] = Value(20.0);
+    Upvalue* lower = L->findOrCreateUpvalue(frameBase);
+    Upvalue* upper = L->findOrCreateUpvalue(frameBase + 1);
+    VM::runHandler(context, CREATE_ABC(OpCode::CLOSE, 1, 0, 0));
+    ASSERT_TRUE(suite, lower->isOpen(), "CLOSE handler should leave lower upvalues open");
+    ASSERT_TRUE(suite, upper->isClosed(), "CLOSE handler should close upvalues at base plus A");
+    ASSERT_TRUE(suite, upper->getValue(stack).isNumber() && upper->getValue(stack).asNumber() == 20.0,
+                "CLOSE handler should preserve the closed value");
+
+    base[0] = Value(1.0);
+    base[1] = Value(3.0);
+    base[2] = Value(1.0);
+    pc = 5;
+    VM::runHandler(context, CREATE_AsBx(OpCode::FORPREP, 0, 4));
+    ASSERT_TRUE(suite, base[0].isNumber() && base[0].asNumber() == 0.0,
+                "FORPREP handler should initialize index to init minus step");
+    ASSERT_EQ(suite, 9, static_cast<int>(pc), "FORPREP handler should apply sBx to pc");
+
+    base[0] = Value(0.0);
+    base[1] = Value(3.0);
+    base[2] = Value(1.0);
+    base[3] = Value();
+    pc = 10;
+    VM::runHandler(context, CREATE_AsBx(OpCode::FORLOOP, 0, -2));
+    ASSERT_TRUE(suite, base[0].isNumber() && base[0].asNumber() == 1.0,
+                "FORLOOP handler should update the internal index when continuing");
+    ASSERT_TRUE(suite, base[3].isNumber() && base[3].asNumber() == 1.0,
+                "FORLOOP handler should update the visible loop variable when continuing");
+    ASSERT_EQ(suite, 8, static_cast<int>(pc), "FORLOOP handler should jump when continuing");
+
+    base[0] = Value(3.0);
+    base[1] = Value(3.0);
+    base[2] = Value(1.0);
+    base[3] = Value(99.0);
+    pc = 20;
+    VM::runHandler(context, CREATE_AsBx(OpCode::FORLOOP, 0, -2));
+    ASSERT_TRUE(suite, base[0].isNumber() && base[0].asNumber() == 3.0,
+                "FORLOOP handler should leave the internal index when terminating");
+    ASSERT_TRUE(suite, base[3].isNumber() && base[3].asNumber() == 99.0,
+                "FORLOOP handler should leave the visible loop variable when terminating");
+    ASSERT_EQ(suite, 20, static_cast<int>(pc), "FORLOOP handler should not jump when terminating");
+
+    base[0] = Value(&iterator);
+    base[1] = Value(2.0);
+    base[2] = Value(0.0);
+    pc = 0;
+    VM::runHandler(context, CREATE_ABC(OpCode::TFORLOOP, 0, 0, 1));
+    base = context.base;
+    ASSERT_TRUE(suite, base[2].isNumber() && base[2].asNumber() == 1.0,
+                "TFORLOOP handler should store the non-nil iterator result as control");
+    ASSERT_EQ(suite, 3, static_cast<int>(pc), "TFORLOOP handler should apply the following JMP when continuing");
+
+    base[0] = Value(&iterator);
+    base[1] = Value(1.0);
+    base[2] = Value(1.0);
+    pc = 0;
+    VM::runHandler(context, CREATE_ABC(OpCode::TFORLOOP, 0, 0, 1));
+    base = context.base;
+    ASSERT_TRUE(suite, base[2].isNumber() && base[2].asNumber() == 1.0,
+                "TFORLOOP handler should keep control when iterator returns nil");
+    ASSERT_EQ(suite, 1, static_cast<int>(pc), "TFORLOOP handler should advance once when iterator returns nil");
+
+    delete L;
+    services.gc.clearAll();
+}
+
+void testClosureAndVarargHandlersExecuteDirectly(TestSuite& suite) {
+    RuntimeServices services = RuntimeServices::fromSingletons();
+    LuaState* L = LuaState::newState(services);
+
+    Proto parentProto;
+    Proto childProto;
+    childProto.setNumUpvalues(2);
+    usize childIndex = parentProto.addProto(&childProto);
+    parentProto.addInstruction(CREATE_ABC(OpCode::MOVE, 0, 2, 0));
+    parentProto.addInstruction(CREATE_ABC(OpCode::GETUPVAL, 0, 0, 0));
+
+    Function parentFunc(&parentProto);
+    Upvalue* parentUpvalue = Upvalue::createClosed(Value(456.0));
+    services.gc.registerObject(parentUpvalue);
+    parentFunc.addUpvalue(parentUpvalue);
+
+    Stack& stack = L->getStack();
+    CallInfo& ci = L->getCurrentCallInfo();
+    ci.func = 0;
+    ci.base = 4;
+    ci.top = 12;
+    while (stack.size() < ci.top) {
+        stack.push(Value());
+    }
+    L->setAbsoluteTop(ci.top);
+
+    Value* base = &stack[ci.base];
+    base[2] = Value(123.0);
+    usize pc = 0;
+    VM::OpExecutionContext context{
+        services,
+        L,
+        &parentFunc,
+        &parentProto,
+        base,
+        pc,
+        0,
+        1
+    };
+
+    VM::runHandler(context, CREATE_ABx(OpCode::CLOSURE, 0, static_cast<i32>(childIndex)));
+    base = context.base;
+    ASSERT_TRUE(suite, base[0].isFunction(), "CLOSURE handler should create a function");
+    Function* closure = base[0].asFunction();
+    ASSERT_TRUE(suite, closure->getProto() == &childProto, "CLOSURE handler should use selected child proto");
+    ASSERT_EQ(suite, 2, static_cast<int>(closure->getUpvalueCount()),
+              "CLOSURE handler should attach child upvalues");
+    ASSERT_EQ(suite, 2, static_cast<int>(pc), "CLOSURE handler should consume upvalue pseudo instructions");
+
+    Upvalue* localCapture = closure->getUpvalue(0);
+    ASSERT_TRUE(suite, localCapture != nullptr && localCapture->isOpen(),
+                "CLOSURE handler should capture MOVE upvalues as open locals");
+    ASSERT_TRUE(suite, localCapture->getValue(stack).isNumber() &&
+                       localCapture->getValue(stack).asNumber() == 123.0,
+                "CLOSURE handler should capture the frame-relative local value");
+    ASSERT_TRUE(suite, closure->getUpvalue(1) == parentUpvalue,
+                "CLOSURE handler should reuse parent GETUPVAL captures");
+
+    Proto varargProto;
+    varargProto.setNumParams(1);
+    varargProto.setVararg(true);
+    context.proto = &varargProto;
+    context.function = nullptr;
+
+    stack[2] = Value(11.0);
+    stack[3] = Value(22.0);
+    base = &stack[ci.base];
+    context.base = base;
+    VM::runHandler(context, CREATE_ABC(OpCode::VARARG, 0, 3, 0));
+    base = context.base;
+    ASSERT_TRUE(suite, base[0].isNumber() && base[0].asNumber() == 11.0,
+                "VARARG handler should copy the first fixed requested vararg");
+    ASSERT_TRUE(suite, base[1].isNumber() && base[1].asNumber() == 22.0,
+                "VARARG handler should copy the second fixed requested vararg");
+
+    base[2] = Value();
+    base[3] = Value();
+    VM::runHandler(context, CREATE_ABC(OpCode::VARARG, 2, 0, 0));
+    base = context.base;
+    ASSERT_TRUE(suite, base[2].isNumber() && base[2].asNumber() == 11.0,
+                "VARARG handler should copy the first open requested vararg");
+    ASSERT_TRUE(suite, base[3].isNumber() && base[3].asNumber() == 22.0,
+                "VARARG handler should copy the second open requested vararg");
+    ASSERT_EQ(suite, static_cast<int>(ci.base + 4), static_cast<int>(L->getAbsoluteTop()),
+              "VARARG handler should extend absolute top for open results");
+
+    delete L;
+    services.gc.clearAll();
+}
+
 }  // namespace
 
 void registerVMDispatchTests() {
@@ -580,4 +791,8 @@ void registerVMDispatchTests() {
                           testUnaryHandlersExecuteDirectly);
     registry.registerTest(kSuiteName, "Branch And Comparison Handlers Execute Directly",
                           testBranchAndComparisonHandlersExecuteDirectly);
+    registry.registerTest(kSuiteName, "Loop And Close Handlers Execute Directly",
+                          testLoopAndCloseHandlersExecuteDirectly);
+    registry.registerTest(kSuiteName, "Closure And Vararg Handlers Execute Directly",
+                          testClosureAndVarargHandlersExecuteDirectly);
 }

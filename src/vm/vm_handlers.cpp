@@ -10,6 +10,7 @@
 #include "core/upvalue.hpp"
 #include "core/value.hpp"
 #include "core/function.hpp"
+#include "vm/call_info.hpp"
 #include "vm/lua_state.hpp"
 #include "vm/vm_internal.hpp"
 
@@ -374,6 +375,86 @@ HandlerStatus handleTestSet(OpExecutionContext& context, Instruction inst) {
     return HandlerStatus::Continue;
 }
 
+HandlerStatus handleClose(OpExecutionContext& context, Instruction inst) {
+    LuaState* state = requireState(context);
+
+    i32 a = GETARG_A(inst);
+
+    const CallInfo& ci = state->getCurrentCallInfo();
+    state->closeUpvalues(ci.base + static_cast<usize>(a));
+    return HandlerStatus::Continue;
+}
+
+HandlerStatus handleForLoop(OpExecutionContext& context, Instruction inst) {
+    i32 a = GETARG_A(inst);
+
+    if (!context.base[a].isNumber() || !context.base[a + 1].isNumber() ||
+        !context.base[a + 2].isNumber()) {
+        throw RuntimeError("VM: FORLOOP requires numeric values");
+    }
+
+    f64 step = context.base[a + 2].asNumber();
+    f64 idx = context.base[a].asNumber() + step;
+    f64 limit = context.base[a + 1].asNumber();
+
+    bool cont = (step > 0) ? (idx <= limit) : (idx >= limit);
+    if (cont) {
+        context.pc += GETARG_sBx(inst);
+        context.base[a] = Value(idx);
+        context.base[a + 3] = Value(idx);
+    }
+    return HandlerStatus::Continue;
+}
+
+HandlerStatus handleForPrep(OpExecutionContext& context, Instruction inst) {
+    i32 a = GETARG_A(inst);
+
+    if (!context.base[a].isNumber() || !context.base[a + 1].isNumber() ||
+        !context.base[a + 2].isNumber()) {
+        throw RuntimeError("VM: FORPREP requires numeric values");
+    }
+
+    f64 init = context.base[a].asNumber();
+    f64 step = context.base[a + 2].asNumber();
+    context.base[a] = Value(init - step);
+    context.pc += GETARG_sBx(inst);
+    return HandlerStatus::Continue;
+}
+
+HandlerStatus handleTForLoop(OpExecutionContext& context, Instruction inst) {
+    LuaState* state = requireState(context);
+    Proto* proto = requireProto(context);
+
+    i32 a = GETARG_A(inst);
+    i32 c = GETARG_C(inst);
+
+    VM::detail::tforLoop(state, context.base, proto, context.pc, a, c);
+    return HandlerStatus::Continue;
+}
+
+HandlerStatus handleClosure(OpExecutionContext& context, Instruction inst) {
+    LuaState* state = requireState(context);
+    Function* function = requireFunction(context);
+    Proto* proto = requireProto(context);
+
+    i32 a = GETARG_A(inst);
+    i32 bx = GETARG_Bx(inst);
+
+    VM::detail::closure(state, context.base, proto, function, context.pc, a, bx);
+    return HandlerStatus::Continue;
+}
+
+HandlerStatus handleVararg(OpExecutionContext& context, Instruction inst) {
+    LuaState* state = requireState(context);
+    Proto* proto = requireProto(context);
+
+    i32 a = GETARG_A(inst);
+    i32 b = GETARG_B(inst);
+
+    VM::detail::vararg(state, context.base, proto, a, b);
+    return HandlerStatus::Continue;
+}
+
 HandlerTable makeHandlerTable() {
     HandlerTable table{};
 
@@ -416,6 +497,12 @@ HandlerTable makeHandlerTable() {
     table[opcodeIndex(OpCode::LE)].handler = handleComparison;
     table[opcodeIndex(OpCode::TEST)].handler = handleTest;
     table[opcodeIndex(OpCode::TESTSET)].handler = handleTestSet;
+    table[opcodeIndex(OpCode::CLOSE)].handler = handleClose;
+    table[opcodeIndex(OpCode::FORLOOP)].handler = handleForLoop;
+    table[opcodeIndex(OpCode::FORPREP)].handler = handleForPrep;
+    table[opcodeIndex(OpCode::TFORLOOP)].handler = handleTForLoop;
+    table[opcodeIndex(OpCode::CLOSURE)].handler = handleClosure;
+    table[opcodeIndex(OpCode::VARARG)].handler = handleVararg;
 
     return table;
 }

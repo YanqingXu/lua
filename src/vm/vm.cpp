@@ -471,57 +471,43 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
                 goto reentry; // 继续执行调用者
             }
 
-            // ============== Upvalue 关闭 ==============
+            // ============== Upvalue 关闭和循环指令 ==============
 
             case OpCode::CLOSE:
-                {
-                    const CallInfo& ci = L->getCurrentCallInfo();
-                    L->closeUpvalues(ci.base + static_cast<usize>(a));
-                }
-                break;
-
-            // ============== 循环指令 ==============
-
-            case OpCode::FORLOOP: {
-                if (!base[a].isNumber() || !base[a + 1].isNumber() || !base[a + 2].isNumber())
-                    throw RuntimeError("VM: FORLOOP requires numeric values");
-
-                f64 step  = base[a + 2].asNumber();
-                f64 idx   = base[a].asNumber() + step;
-                f64 limit = base[a + 1].asNumber();
-
-                bool cont = (step > 0) ? (idx <= limit) : (idx >= limit);
-                if (cont) {
-                    pc += sbx;                  // 跳回循环体
-                    base[a]     = Value(idx);   // 内部索引
-                    base[a + 3] = Value(idx);   // 用户可见变量
-                }
+            case OpCode::FORLOOP:
+            case OpCode::FORPREP:
+            case OpCode::TFORLOOP: {
+                OpExecutionContext opContext{
+                    services,
+                    L,
+                    func,
+                    proto,
+                    base,
+                    pc,
+                    instructionPc,
+                    nexeccalls
+                };
+                VM::runHandler(opContext, inst);
                 break;
             }
-
-            case OpCode::FORPREP: {
-                if (!base[a].isNumber() || !base[a + 1].isNumber() || !base[a + 2].isNumber())
-                    throw RuntimeError("VM: FORPREP requires numeric values");
-                f64 init = base[a].asNumber();
-                f64 step = base[a + 2].asNumber();
-                base[a] = Value(init - step);
-                pc += sbx;
-                break;
-            }
-
-            case OpCode::TFORLOOP:
-                VM::detail::tforLoop(L, base, proto, pc, a, c);
-                break;
 
             // ============== 闭包和变参 ==============
 
             case OpCode::CLOSURE:
-                VM::detail::closure(L, base, proto, func, pc, a, bx);
+            case OpCode::VARARG: {
+                OpExecutionContext opContext{
+                    services,
+                    L,
+                    func,
+                    proto,
+                    base,
+                    pc,
+                    instructionPc,
+                    nexeccalls
+                };
+                VM::runHandler(opContext, inst);
                 break;
-
-            case OpCode::VARARG:
-                VM::detail::vararg(L, base, proto, a, b);
-                break;
+            }
 
             // ============== 未知指令 ==============
 
