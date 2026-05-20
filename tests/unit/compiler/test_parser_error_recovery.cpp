@@ -13,9 +13,11 @@
  */
 
 #include "../framework/test_framework.hpp"
+#include "common/lua_error.hpp"
 #include "compiler/parser.hpp"
 #include <iostream>
 #include <string>
+#include <type_traits>
 
 using namespace Lua;
 using namespace LuaTest;
@@ -142,6 +144,20 @@ void testMissingEnd(TestSuite& suite) {
     }
 }
 
+/**
+ * @brief 测试解析、运行时、内存异常统一继承 LuaError。
+ */
+void testUnifiedErrorHierarchy(TestSuite& suite) {
+    ASSERT_TRUE(suite, (std::is_base_of<LuaError, ParseError>::value),
+                "ParseError derives from LuaError");
+    ASSERT_TRUE(suite, (std::is_base_of<LuaError, RuntimeError>::value),
+                "RuntimeError derives from LuaError");
+    ASSERT_TRUE(suite, (std::is_base_of<RuntimeError, MemoryError>::value),
+                "MemoryError derives from RuntimeError");
+    ASSERT_TRUE(suite, (std::is_base_of<std::runtime_error, LuaError>::value),
+                "LuaError remains compatible with std::runtime_error");
+}
+
 } // namespace
 
 /**
@@ -154,5 +170,6 @@ void registerParserErrorRecoveryTests() {
     registry.registerTest(kSuiteName, "normal code parsing", testNormalCodeParsing);
     registry.registerTest(kSuiteName, "unclosed parenthesis", testUnclosedParenthesis);
     registry.registerTest(kSuiteName, "missing end", testMissingEnd);
+    registry.registerTest(kSuiteName, "unified error hierarchy", testUnifiedErrorHierarchy);
 }
 

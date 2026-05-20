@@ -5,6 +5,7 @@
 
 #include "vm/vm_internal.hpp"
 
+#include "common/lua_error.hpp"
 #include "core/gc_string.hpp"
 #include "core/metatable.hpp"
 #include "core/table.hpp"
@@ -14,7 +15,6 @@
 
 #include <cmath>
 #include <cstdlib>
-#include <stdexcept>
 #include <string>
 
 namespace Lua {
@@ -59,7 +59,7 @@ void gettable(LuaState* L, Value t, const Value& key, Value& result) {
         } else {
             Value tm = getMetamethodByObject(L, t, TMS::TM_INDEX);
             if (tm.isNil()) {
-                throw std::runtime_error("VM: attempt to index a non-table value");
+                throw RuntimeError("VM: attempt to index a non-table value");
             }
             if (tm.isFunction()) {
                 callTMWithResult(L, result, tm, t, key);
@@ -68,7 +68,7 @@ void gettable(LuaState* L, Value t, const Value& key, Value& result) {
             t = tm;
         }
     }
-    throw std::runtime_error("VM: loop in gettable");
+    throw RuntimeError("VM: loop in gettable");
 }
 
 void settable(LuaState* L, Value t, const Value& key, const Value& val) {
@@ -85,13 +85,13 @@ void settable(LuaState* L, Value t, const Value& key, const Value& val) {
         } else {
             Value tm = getMetamethodByObject(L, t, TMS::TM_NEWINDEX);
             if (tm.isNil()) {
-                throw std::runtime_error("VM: attempt to index a non-table value");
+                throw RuntimeError("VM: attempt to index a non-table value");
             }
             if (tm.isFunction()) { callTM(L, tm, t, key, val); return; }
             t = tm;
         }
     }
-    throw std::runtime_error("VM: loop in settable");
+    throw RuntimeError("VM: loop in settable");
 }
 
 void arith(LuaState* L, Value& result, const Value& left, const Value& right, OpCode op) {
@@ -103,12 +103,12 @@ void arith(LuaState* L, Value& result, const Value& left, const Value& right, Op
             case OpCode::SUB: res = lval - rval; break;
             case OpCode::MUL: res = lval * rval; break;
             case OpCode::DIV:
-                if (rval == 0.0) throw std::runtime_error("VM: division by zero");
+                if (rval == 0.0) throw RuntimeError("VM: division by zero");
                 res = lval / rval;
                 break;
             case OpCode::MOD: res = std::fmod(lval, rval); break;
             case OpCode::POW: res = std::pow(lval, rval); break;
-            default: throw std::runtime_error("VM::arith: invalid opcode");
+            default: throw RuntimeError("VM::arith: invalid opcode");
         }
         result = Value(res);
         return;
@@ -122,7 +122,7 @@ void arith(LuaState* L, Value& result, const Value& left, const Value& right, Op
         case OpCode::DIV: tmEvent = TMS::TM_DIV; break;
         case OpCode::MOD: tmEvent = TMS::TM_MOD; break;
         case OpCode::POW: tmEvent = TMS::TM_POW; break;
-        default: throw std::runtime_error("VM::arith: invalid opcode for metamethod");
+        default: throw RuntimeError("VM::arith: invalid opcode for metamethod");
     }
 
     Value tmResult;
@@ -130,7 +130,7 @@ void arith(LuaState* L, Value& result, const Value& left, const Value& right, Op
         result = tmResult;
         return;
     }
-    throw std::runtime_error("VM: attempt to perform arithmetic on non-number values");
+    throw RuntimeError("VM: attempt to perform arithmetic on non-number values");
 }
 
 bool equal(LuaState* L, const Value& left, const Value& right) {
@@ -169,21 +169,21 @@ bool equal(LuaState* L, const Value& left, const Value& right) {
 
 bool lessThan(LuaState* L, const Value& left, const Value& right) {
     if (left.getType() != right.getType()) {
-        throw std::runtime_error("VM: attempt to compare two different types");
+        throw RuntimeError("VM: attempt to compare two different types");
     }
     if (left.isNumber()) return left.asNumber() < right.asNumber();
     if (left.isString()) return left.asString()->getData() < right.asString()->getData();
 
     i32 tmResult = callOrderTM(L, left, right, TMS::TM_LT);
     if (tmResult == -1) {
-        throw std::runtime_error("VM: attempt to compare without __lt metamethod");
+        throw RuntimeError("VM: attempt to compare without __lt metamethod");
     }
     return tmResult != 0;
 }
 
 bool lessEqual(LuaState* L, const Value& left, const Value& right) {
     if (left.getType() != right.getType()) {
-        throw std::runtime_error("VM: attempt to compare two different types");
+        throw RuntimeError("VM: attempt to compare two different types");
     }
     if (left.isNumber()) return left.asNumber() <= right.asNumber();
     if (left.isString()) return left.asString()->getData() <= right.asString()->getData();
@@ -193,7 +193,7 @@ bool lessEqual(LuaState* L, const Value& left, const Value& right) {
 
     tmResult = callOrderTM(L, right, left, TMS::TM_LT);
     if (tmResult == -1) {
-        throw std::runtime_error("VM: attempt to compare without __le or __lt metamethod");
+        throw RuntimeError("VM: attempt to compare without __le or __lt metamethod");
     }
     return tmResult == 0;
 }
@@ -207,7 +207,7 @@ void unaryMinus(LuaState* L, Value& result, const Value& val) {
         result = tmResult;
         return;
     }
-    throw std::runtime_error("VM: attempt to perform arithmetic on a non-number value");
+    throw RuntimeError("VM: attempt to perform arithmetic on a non-number value");
 }
 
 void length(LuaState* L, Value& result, const Value& val) {
@@ -221,7 +221,7 @@ void length(LuaState* L, Value& result, const Value& val) {
             Value r;
             callTMWithResult(L, r, tm, val, Value());
             if (r.isNumber()) { result = r; return; }
-            throw std::runtime_error("VM: __len metamethod must return a number");
+            throw RuntimeError("VM: __len metamethod must return a number");
         }
         result = Value(static_cast<f64>(val.asTable()->length()));
         return;
@@ -232,9 +232,9 @@ void length(LuaState* L, Value& result, const Value& val) {
         Value r;
         callTMWithResult(L, r, tm, val, Value());
         if (r.isNumber()) { result = r; return; }
-        throw std::runtime_error("VM: __len metamethod must return a number");
+        throw RuntimeError("VM: __len metamethod must return a number");
     }
-    throw std::runtime_error("VM: attempt to get length of a value without __len metamethod");
+    throw RuntimeError("VM: attempt to get length of a value without __len metamethod");
 }
 
 void concat(RuntimeServices& services, LuaState* L, Value* base, i32 a, i32 b, i32 c) {
@@ -261,7 +261,7 @@ void concat(RuntimeServices& services, LuaState* L, Value* base, i32 a, i32 b, i
         if (!canConcat) {
             Value result;
             if (!callBinaryTM(L, top2, top1, result, TMS::TM_CONCAT)) {
-                throw std::runtime_error("VM: attempt to concatenate non-string/number values");
+                throw RuntimeError("VM: attempt to concatenate non-string/number values");
             }
             base[last - 1] = result;
             total--;

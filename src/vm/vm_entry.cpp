@@ -5,14 +5,13 @@
 
 #include "vm/vm.hpp"
 
+#include "common/lua_error.hpp"
 #include "core/function.hpp"
 #include "core/value.hpp"
 #include "runtime/runtime_services.hpp"
 #include "vm/call_info.hpp"
 #include "vm/lua_state.hpp"
 #include "vm/vm_internal.hpp"
-
-#include <stdexcept>
 
 namespace Lua::VM {
 
@@ -49,10 +48,10 @@ void execute(LuaState* L, Function* func) {
 
 void execute(RuntimeServices& services, LuaState* L, Function* func) {
     if (!func) {
-        throw std::runtime_error("VM::execute: null function");
+        throw RuntimeError("VM::execute: null function");
     }
     if (func->isCFunction()) {
-        throw std::runtime_error("VM::execute: C functions not supported yet");
+        throw RuntimeError("VM::execute: C functions not supported yet");
     }
 
     Stack& stack = L->getStack();

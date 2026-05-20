@@ -5,6 +5,7 @@
 
 #include "vm/vm_internal.hpp"
 
+#include "common/lua_error.hpp"
 #include "core/function.hpp"
 #include "core/metatable.hpp"
 #include "core/value.hpp"
@@ -13,7 +14,6 @@
 #include "vm/stack.hpp"
 
 #include <cstdio>
-#include <stdexcept>
 #include <string>
 
 namespace Lua::VM::detail {
@@ -68,7 +68,7 @@ bool precall(LuaState* L, i32 funcIndex, i32 nArgs, i32 nResults) {
     if (!funcVal.isFunction()) {
         Value tm = getMetamethodByObject(L, funcVal, TMS::TM_CALL);
         if (tm.isNil() || !tm.isFunction()) {
-            throw std::runtime_error(
+            throw RuntimeError(
                 "VM::precall: attempt to call non-function value without __call metamethod at R("
                 + std::to_string(funcIndex) + "), abs="
                 + std::to_string(funcPos) + ", value=" + funcVal.toString());
@@ -85,7 +85,7 @@ bool precall(LuaState* L, i32 funcIndex, i32 nArgs, i32 nResults) {
 
         funcVal = stack.at(funcPos);
         if (!funcVal.isFunction()) {
-            throw std::runtime_error("VM::precall: __call metamethod is not a function");
+            throw RuntimeError("VM::precall: __call metamethod is not a function");
         }
     }
 

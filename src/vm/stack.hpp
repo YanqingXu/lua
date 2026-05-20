@@ -95,7 +95,7 @@ public:
     /**
      * @brief 检查栈空间是否足够（✅ 新增 - 预检查机制）
      * @param needed 需要的空间数量
-     * @throws std::runtime_error 如果超过最大栈限制
+     * @throws MemoryError 如果超过最大栈限制
      *
      * 用途：
      * - 批量操作前预先检查空间
@@ -135,14 +135,14 @@ public:
     /**
      * @brief 弹出栈顶值
      * @return 栈顶的值
-     * @throws std::runtime_error 如果栈为空
+     * @throws RuntimeError 如果栈为空
      */
     Value pop();
     
     /**
      * @brief 获取栈顶值（不弹出）
      * @return 栈顶值的引用
-     * @throws std::runtime_error 如果栈为空
+     * @throws RuntimeError 如果栈为空
      */
     Value& top();
     const Value& top() const;

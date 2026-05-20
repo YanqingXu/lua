@@ -26,30 +26,12 @@
 #include "ast.hpp"
 #include "lexer.hpp"
 #include "token.hpp"
+#include "common/lua_error.hpp"
 #include "common/types.hpp"
-#include <stdexcept>
 
 namespace Lua {
 
 struct RuntimeServices;
-
-/**
- * @brief 语法错误异常
- */
-class ParseError : public std::runtime_error {
-public:
-    ParseError(const Str& message, i32 line, i32 column)
-        : std::runtime_error(message)
-        , line_(line)
-        , column_(column) {}
-    
-    i32 getLine() const { return line_; }
-    i32 getColumn() const { return column_; }
-
-private:
-    i32 line_;
-    i32 column_;
-};
 
 /**
  * @brief Lua语法分析器类

@@ -53,6 +53,9 @@
     <ClCompile Include="tests\unit\app\test_app_options.cpp">
       <Filter>tests\app</Filter>
     </ClCompile>
+    <ClCompile Include="tests\unit\compiler\test_ast_visitor.cpp">
+      <Filter>tests\compiler</Filter>
+    </ClCompile>
     <ClCompile Include="tests\unit\compiler\test_indexed_access.cpp">
       <Filter>tests\compiler</Filter>
     </ClCompile>

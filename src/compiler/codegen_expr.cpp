@@ -177,102 +177,125 @@ ValueResult CodeGenerator::emitValue(const Expr& e) {
         state_.currentLine = exprLine;
     }
 
-    ValueResult result;
-
-    if (auto* nil = std::get_if<NilExpr>(&e.variant)) {
-        result.kind = ValueResult::Kind::Immediate;
-        result.immediate = ValueResult::ImmediateKind::Nil;
-    }
-    else if (auto* boolExpr = std::get_if<BoolExpr>(&e.variant)) {
-        result.kind = ValueResult::Kind::Immediate;
-        result.immediate = ValueResult::ImmediateKind::Boolean;
-        result.boolValue = boolExpr->value;
-    }
-    else if (auto* numExpr = std::get_if<NumberExpr>(&e.variant)) {
-        result.kind = ValueResult::Kind::Immediate;
-        result.immediate = ValueResult::ImmediateKind::Number;
-        result.numberValue = numExpr->value;
-    }
-    else if (auto* strExpr = std::get_if<StringExpr>(&e.variant)) {
-        i32 k = stringConstant(strExpr->value);
-        result.kind = ValueResult::Kind::Constant;
-        result.constIndex = k;
-    }
-    else if (auto* nameExpr = std::get_if<NameExpr>(&e.variant)) {
-        SymbolRef sym = resolve(nameExpr->name);
-        result = symbolToValue(sym);
-    }
-    else if (auto* parenExpr = std::get_if<ParenExpr>(&e.variant)) {
-        // Lua 5.1 语义：括号表达式将 multret 收敛为单值
-        ValueResult inner = emitValue(*parenExpr->expression);
-        inner = forceSingleValue(inner);
-        i32 reg = valueToAnyReg(inner);
-        result.kind = ValueResult::Kind::Register;
-        result.reg = reg;
-        result.ownsRegister = true;
-    }
-    else if (auto* funcExpr = std::get_if<FunctionExpr>(&e.variant)) {
-        i32 linedefined = funcExpr->line;
-        i32 lastlinedefined = getLastLineOfBlock(funcExpr->body);
-        if (lastlinedefined < linedefined) {
-            lastlinedefined = linedefined;
-        }
-        Vec<UpvalueCapture> childUpvalues;
-        Proto* funcProto = compileFunction(funcExpr->params, funcExpr->isVararg,
-                                           funcExpr->body, linedefined, lastlinedefined,
-                                           &childUpvalues);
-        i32 protoIdx = state_.bytecode.addSubProto(funcProto);
-        i32 reg = allocReg();
-        codeABx(OpCode::CLOSURE, reg, protoIdx);
-        emitClosureUpvalues(childUpvalues);
-        result.kind = ValueResult::Kind::Register;
-        result.reg = reg;
-        result.ownsRegister = true;
-    }
-    else if (auto* indexExpr = std::get_if<IndexExpr>(&e.variant)) {
-        // PR-6: table[key] 读路径 — 原生 ValueResult 通道
-        result = emitValueIndex(*indexExpr);
-    }
-    else if (auto* memberExpr = std::get_if<MemberExpr>(&e.variant)) {
-        // PR-6: table.member 读路径 — 原生 ValueResult 通道
-        result = emitValueMember(*memberExpr);
-    }
-    else if (auto* callExpr = std::get_if<CallExpr>(&e.variant)) {
-        // 函数调用 — PR-5: 直接使用 emitCallExpr 通道
-        CallResultInfo info = emitCallExpr(*callExpr);
-        result.kind = ValueResult::Kind::MultiRet;
-        result.access = ValueResult::AccessKind::Call;
-        result.reg = info.baseReg;
-        result.instructionPc = info.instructionPc;
-        result.isMultiResult = true;
-        result.isSingleValue = false;
-    }
-    else if (auto* varargExpr = std::get_if<VarargExpr>(&e.variant)) {
-        // vararg — PR-5: 直接使用 emitVarargExpr 通道
-        CallResultInfo info = emitVarargExpr();
-        result.kind = ValueResult::Kind::MultiRet;
-        result.access = ValueResult::AccessKind::Vararg;
-        result.instructionPc = info.instructionPc;
-        result.isMultiResult = true;
-        result.isSingleValue = false;
-    }
-    else if (auto* binaryExpr = std::get_if<BinaryExpr>(&e.variant)) {
-        // PR-6: 二元表达式 — 原生 ValueResult 通道
-        result = emitValueBinary(*binaryExpr);
-    }
-    else if (auto* unaryExpr = std::get_if<UnaryExpr>(&e.variant)) {
-        // PR-6: 一元表达式 — 原生 ValueResult 通道
-        result = emitValueUnary(*unaryExpr);
-    }
-    else if (auto* tableExpr = std::get_if<TableExpr>(&e.variant)) {
-        // PR-6: 表构造器 — 原生 ValueResult 通道
-        result = emitValueTable(*tableExpr);
-    }
-    else {
-        throw std::runtime_error("emitValue: unsupported expression type");
-    }
+    ValueResult result = ExprVisitor<CodeGenerator, ValueResult>::visit(e);
 
     state_.currentLine = previousLine;
+    return result;
+}
+
+ValueResult CodeGenerator::visitNode(const NilExpr&) {
+    ValueResult result;
+    result.kind = ValueResult::Kind::Immediate;
+    result.immediate = ValueResult::ImmediateKind::Nil;
+    return result;
+}
+
+ValueResult CodeGenerator::visitNode(const BoolExpr& e) {
+    ValueResult result;
+    result.kind = ValueResult::Kind::Immediate;
+    result.immediate = ValueResult::ImmediateKind::Boolean;
+    result.boolValue = e.value;
+    return result;
+}
+
+ValueResult CodeGenerator::visitNode(const NumberExpr& e) {
+    ValueResult result;
+    result.kind = ValueResult::Kind::Immediate;
+    result.immediate = ValueResult::ImmediateKind::Number;
+    result.numberValue = e.value;
+    return result;
+}
+
+ValueResult CodeGenerator::visitNode(const StringExpr& e) {
+    ValueResult result;
+    i32 k = stringConstant(e.value);
+    result.kind = ValueResult::Kind::Constant;
+    result.constIndex = k;
+    return result;
+}
+
+ValueResult CodeGenerator::visitNode(const VarargExpr&) {
+    CallResultInfo info = emitVarargExpr();
+
+    ValueResult result;
+    result.kind = ValueResult::Kind::MultiRet;
+    result.access = ValueResult::AccessKind::Vararg;
+    result.instructionPc = info.instructionPc;
+    result.isMultiResult = true;
+    result.isSingleValue = false;
+    return result;
+}
+
+ValueResult CodeGenerator::visitNode(const NameExpr& e) {
+    SymbolRef sym = resolve(e.name);
+    return symbolToValue(sym);
+}
+
+ValueResult CodeGenerator::visitNode(const BinaryExpr& e) {
+    return emitValueBinary(e);
+}
+
+ValueResult CodeGenerator::visitNode(const UnaryExpr& e) {
+    return emitValueUnary(e);
+}
+
+ValueResult CodeGenerator::visitNode(const TableExpr& e) {
+    return emitValueTable(e);
+}
+
+ValueResult CodeGenerator::visitNode(const CallExpr& e) {
+    CallResultInfo info = emitCallExpr(e);
+
+    ValueResult result;
+    result.kind = ValueResult::Kind::MultiRet;
+    result.access = ValueResult::AccessKind::Call;
+    result.reg = info.baseReg;
+    result.instructionPc = info.instructionPc;
+    result.isMultiResult = true;
+    result.isSingleValue = false;
+    return result;
+}
+
+ValueResult CodeGenerator::visitNode(const IndexExpr& e) {
+    return emitValueIndex(e);
+}
+
+ValueResult CodeGenerator::visitNode(const MemberExpr& e) {
+    return emitValueMember(e);
+}
+
+ValueResult CodeGenerator::visitNode(const FunctionExpr& e) {
+    i32 linedefined = e.line;
+    i32 lastlinedefined = getLastLineOfBlock(e.body);
+    if (lastlinedefined < linedefined) {
+        lastlinedefined = linedefined;
+    }
+
+    Vec<UpvalueCapture> childUpvalues;
+    Proto* funcProto = compileFunction(e.params, e.isVararg,
+                                       e.body, linedefined, lastlinedefined,
+                                       &childUpvalues);
+    i32 protoIdx = state_.bytecode.addSubProto(funcProto);
+    i32 reg = allocReg();
+    codeABx(OpCode::CLOSURE, reg, protoIdx);
+    emitClosureUpvalues(childUpvalues);
+
+    ValueResult result;
+    result.kind = ValueResult::Kind::Register;
+    result.reg = reg;
+    result.ownsRegister = true;
+    return result;
+}
+
+ValueResult CodeGenerator::visitNode(const ParenExpr& e) {
+    ValueResult inner = emitValue(*e.expression);
+    inner = forceSingleValue(inner);
+    i32 reg = valueToAnyReg(inner);
+
+    ValueResult result;
+    result.kind = ValueResult::Kind::Register;
+    result.reg = reg;
+    result.ownsRegister = true;
     return result;
 }
 

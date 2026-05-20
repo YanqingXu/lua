@@ -75,6 +75,7 @@ set(LUA_TEST_SOURCES
     tests/unit/framework/test_framework.cpp
     tests/unit/framework/test_runner.cpp
     tests/unit/app/test_app_options.cpp
+    tests/unit/compiler/test_ast_visitor.cpp
     tests/unit/compiler/test_indexed_access.cpp
     tests/unit/compiler/test_lexer_lookahead.cpp
     tests/unit/compiler/test_lexer_number.cpp

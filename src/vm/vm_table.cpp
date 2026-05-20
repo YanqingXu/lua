@@ -5,18 +5,17 @@
 
 #include "vm/vm_internal.hpp"
 
+#include "common/lua_error.hpp"
 #include "core/table.hpp"
 #include "vm/call_info.hpp"
 #include "vm/lua_state.hpp"
 #include "vm/vm_constants.hpp"
 
-#include <stdexcept>
-
 namespace Lua::VM::detail {
 
 void setList(LuaState* L, Value* base, i32 a, i32 b, i32 c) {
     if (!base[a].isTable()) {
-        throw std::runtime_error("VM: SETLIST requires table");
+        throw RuntimeError("VM: SETLIST requires table");
     }
 
     Table* table = base[a].asTable();

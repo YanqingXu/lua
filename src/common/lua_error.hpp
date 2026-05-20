@@ -1,41 +1,84 @@
-﻿/**
+/**
  * @file lua_error.hpp
- * @brief 统一的 Lua 运行时错误类型
+ * @brief Unified Lua exception hierarchy.
  *
- * 替代当前散落的 std::runtime_error，成为 VM 内部的错误抛出类型。
- * 错误对象本身就是一个 Lua Value（可以是 string，也可以是 table 或任意类型），
- * 与 Lua 5.1 的 error(msg) 语义对齐。
+ * LuaError is the interpreter exception base and still preserves the
+ * Lua 5.1 error(obj) Value-object path. ParseError, RuntimeError, and
+ * MemoryError derive from it while std::runtime_error remains a catch
+ * boundary for callers that need standard exception compatibility.
  */
 
 #pragma once
 
 #include "common/types.hpp"
+#include "core/gc_string.hpp"
 #include "core/value.hpp"
-#include <exception>
+#include <stdexcept>
 
 namespace Lua {
 
-class LuaError : public std::exception {
+class LuaError : public std::runtime_error {
 public:
-    explicit LuaError(Value errorObj)
-        : errorObj_(std::move(errorObj)) {}
+    explicit LuaError(const Str& message)
+        : std::runtime_error(message)
+        , errorObj_()
+        , hasErrorObject_(false) {}
 
-    const char* what() const noexcept override {
-        if (cachedWhat_.empty()) {
-            if (errorObj_.isString()) {
-                cachedWhat_ = errorObj_.asString()->c_str();
-            } else {
-                cachedWhat_ = "(error object is not a string)";
-            }
-        }
-        return cachedWhat_.c_str();
-    }
+    explicit LuaError(const char* message)
+        : LuaError(Str(message ? message : "")) {}
+
+    explicit LuaError(Value errorObj)
+        : std::runtime_error(messageFromValue(errorObj))
+        , errorObj_(std::move(errorObj))
+        , hasErrorObject_(true) {}
 
     const Value& getErrorObject() const noexcept { return errorObj_; }
+    bool hasErrorObject() const noexcept { return hasErrorObject_; }
 
 private:
+    static Str messageFromValue(const Value& errorObj) {
+        if (errorObj.isString()) {
+            return errorObj.asString()->c_str();
+        }
+        return "(error object is not a string)";
+    }
+
     Value errorObj_;
-    mutable Str cachedWhat_;
+    bool hasErrorObject_;
+};
+
+/**
+ * @brief Syntax error with source location.
+ */
+class ParseError : public LuaError {
+public:
+    ParseError(const Str& message, i32 line, i32 column)
+        : LuaError(message)
+        , line_(line)
+        , column_(column) {}
+
+    i32 getLine() const { return line_; }
+    i32 getColumn() const { return column_; }
+
+private:
+    i32 line_;
+    i32 column_;
+};
+
+/**
+ * @brief VM/runtime error.
+ */
+class RuntimeError : public LuaError {
+public:
+    using LuaError::LuaError;
+};
+
+/**
+ * @brief Memory and resource exhaustion error.
+ */
+class MemoryError : public RuntimeError {
+public:
+    using RuntimeError::RuntimeError;
 };
 
 } // namespace Lua

@@ -5,6 +5,7 @@
 
 #include "vm/vm_internal.hpp"
 
+#include "common/lua_error.hpp"
 #include "compiler/opcode.hpp"
 #include "core/function.hpp"
 #include "core/upvalue.hpp"
@@ -14,7 +15,6 @@
 #include "vm/stack.hpp"
 
 #include <cstdio>
-#include <stdexcept>
 #include <string>
 
 namespace Lua {
@@ -31,7 +31,7 @@ namespace VM::detail {
 void closure(LuaState* L, Value* base, Proto* currentProto, Function* currentFunc,
              usize& pc, i32 a, i32 bx) {
     if (bx < 0 || static_cast<usize>(bx) >= currentProto->getSubProtoCount()) {
-        throw std::runtime_error("VM: CLOSURE proto index out of range");
+        throw RuntimeError("VM: CLOSURE proto index out of range");
     }
 
     Proto* childProto = currentProto->getSubProto(bx);
@@ -45,7 +45,7 @@ void closure(LuaState* L, Value* base, Proto* currentProto, Function* currentFun
 
         for (i32 j = 0; j < nups; j++) {
             if (pc >= code.size()) {
-                throw std::runtime_error("VM: CLOSURE missing upvalue pseudo instruction");
+                throw RuntimeError("VM: CLOSURE missing upvalue pseudo instruction");
             }
 
             Instruction inst = code[pc++];
@@ -57,11 +57,11 @@ void closure(LuaState* L, Value* base, Proto* currentProto, Function* currentFun
             } else if (pop == OpCode::GETUPVAL) {
                 Upvalue* uv = currentFunc->getUpvalue(static_cast<usize>(b));
                 if (!uv) {
-                    throw std::runtime_error("VM: CLOSURE invalid parent upvalue index");
+                    throw RuntimeError("VM: CLOSURE invalid parent upvalue index");
                 }
                 closure->addUpvalue(uv);
             } else {
-                throw std::runtime_error("VM: CLOSURE expects MOVE/GETUPVAL pseudo instruction");
+                throw RuntimeError("VM: CLOSURE expects MOVE/GETUPVAL pseudo instruction");
             }
         }
     }

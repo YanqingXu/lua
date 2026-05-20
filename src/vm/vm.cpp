@@ -14,6 +14,7 @@
  */
 
 #include "vm/vm.hpp"
+#include "common/lua_error.hpp"
 #include "vm/vm_constants.hpp"
 #include "vm/vm_dispatch.hpp"
 #include "vm/vm_internal.hpp"
@@ -28,7 +29,6 @@
 #include "vm/global_state.hpp"
 #include "runtime/runtime_services.hpp"
 #include "compiler/opcode.hpp"
-#include <stdexcept>
 
 namespace Lua {
 
@@ -82,9 +82,9 @@ ExecResult executeProto(LuaState* L, Proto* proto, i32 nexeccalls) {
 ExecResult executeProto(RuntimeServices& services, LuaState* L, Proto* proto, i32 nexeccalls) {
     // 深度检查
     if (!proto)
-        throw std::runtime_error("VM::executeProto: null proto");
+        throw RuntimeError("VM::executeProto: null proto");
     if (nexeccalls >= MAX_CALLS)
-        throw std::runtime_error("VM: stack overflow (too many nested calls)");
+        throw MemoryError("VM: stack overflow (too many nested calls)");
 
     // ---- 局部执行状态 ----
     Function* func  = nullptr;
@@ -98,10 +98,10 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
 
         // 恢复 func
         if (ci.func >= stack.capacity())
-            throw std::runtime_error("VM::executeProto: CallInfo.func out of range");
+            throw RuntimeError("VM::executeProto: CallInfo.func out of range");
         Value& funcVal = stack[ci.func];
         if (!funcVal.isFunction())
-            throw std::runtime_error("VM::executeProto: CallInfo.func is not a function");
+            throw RuntimeError("VM::executeProto: CallInfo.func is not a function");
         func = funcVal.asFunction();
 
         // 恢复 proto 和 pc
@@ -220,14 +220,14 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
 
             case OpCode::GETUPVAL: {
                 Upvalue* uv = func->getUpvalue(b);
-                if (!uv) throw std::runtime_error("VM: GETUPVAL invalid upvalue index");
+                if (!uv) throw RuntimeError("VM: GETUPVAL invalid upvalue index");
                 base[a] = uv->getValue(L->getStack());
                 break;
             }
 
             case OpCode::SETUPVAL: {
                 Upvalue* uv = func->getUpvalue(b);
-                if (!uv) throw std::runtime_error("VM: SETUPVAL invalid upvalue index");
+                if (!uv) throw RuntimeError("VM: SETUPVAL invalid upvalue index");
                 uv->setValue(L->getStack(), base[a]);
                 break;
             }
@@ -539,7 +539,7 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
 
             case OpCode::FORLOOP: {
                 if (!base[a].isNumber() || !base[a + 1].isNumber() || !base[a + 2].isNumber())
-                    throw std::runtime_error("VM: FORLOOP requires numeric values");
+                    throw RuntimeError("VM: FORLOOP requires numeric values");
 
                 f64 step  = base[a + 2].asNumber();
                 f64 idx   = base[a].asNumber() + step;
@@ -556,7 +556,7 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
 
             case OpCode::FORPREP: {
                 if (!base[a].isNumber() || !base[a + 1].isNumber() || !base[a + 2].isNumber())
-                    throw std::runtime_error("VM: FORPREP requires numeric values");
+                    throw RuntimeError("VM: FORPREP requires numeric values");
                 f64 init = base[a].asNumber();
                 f64 step = base[a + 2].asNumber();
                 base[a] = Value(init - step);
@@ -581,8 +581,8 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
             // ============== 未知指令 ==============
 
             default:
-                throw std::runtime_error("VM: unsupported opcode: "
-                                         + Str(getOpName(op)));
+                throw RuntimeError("VM: unsupported opcode: "
+                                   + Str(getOpName(op)));
 
             } // switch
         } // while

@@ -29,6 +29,7 @@ extern void registerGCTests();
 extern void registerLuaStateInitTests();
 extern void registerRuntimeServicesTests();
 extern void registerVMTraceDebugTests();
+extern void registerAstVisitorTests();
 extern void registerBinaryUnaryExprTests();
 extern void registerFunctionCodegenTests();
 extern void registerCodegenConditionTests();
@@ -162,6 +163,7 @@ void registerAllTests() {
     registerLuaStateInitTests();
     registerRuntimeServicesTests();
     registerVMTraceDebugTests();
+    registerAstVisitorTests();
     registerBinaryUnaryExprTests();
     registerFunctionCodegenTests();
     registerCodegenConditionTests();

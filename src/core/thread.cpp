@@ -183,7 +183,12 @@ bool Thread::resume(LuaState* callerL, i32 nargs) {
         if (callerThread) callerThread->coStatus_ = prevCallerStatus;
         callerL->getGlobalState().setRunningThread(callerThread);
         callerL->pushBoolean(false);
-        callerL->pushValue(e.getErrorObject());
+        if (e.hasErrorObject()) {
+            callerL->pushValue(e.getErrorObject());
+        } else {
+            auto& pool = callerL->getGlobalState().getStringPool();
+            callerL->pushString(pool.intern(e.what()));
+        }
         return false;
     } catch (const std::exception& e) {
         state_->decAllowYield();

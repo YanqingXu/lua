@@ -7,8 +7,9 @@
  */
 
 #include "vm/stack.hpp"
-#include <stdexcept>
+#include "common/lua_error.hpp"
 #include <algorithm>
+#include <stdexcept>
 
 namespace Lua {
 
@@ -53,7 +54,7 @@ void Stack::push(const Value& value) {
 
 Value Stack::pop() {
     if (empty()) {
-        throw std::runtime_error("Stack underflow: cannot pop from empty stack");
+        throw RuntimeError("Stack underflow: cannot pop from empty stack");
     }
     
     return stack_[--top_];
@@ -61,7 +62,7 @@ Value Stack::pop() {
 
 Value& Stack::top() {
     if (empty()) {
-        throw std::runtime_error("Stack is empty: cannot access top");
+        throw RuntimeError("Stack is empty: cannot access top");
     }
     
     return stack_[top_ - 1];
@@ -69,7 +70,7 @@ Value& Stack::top() {
 
 const Value& Stack::top() const {
     if (empty()) {
-        throw std::runtime_error("Stack is empty: cannot access top");
+        throw RuntimeError("Stack is empty: cannot access top");
     }
     
     return stack_[top_ - 1];
@@ -108,7 +109,7 @@ void Stack::ensureSpace(usize needed) {
         if (newCapacity > MAX_STACK_SIZE) {
             // 如果确实需要超过限制，抛出异常
             if (top_ + needed > MAX_STACK_SIZE) {
-                throw std::runtime_error("stack overflow: maximum stack size exceeded");
+                throw MemoryError("stack overflow: maximum stack size exceeded");
             }
             // 否则，限制在最大值
             newCapacity = MAX_STACK_SIZE;
@@ -123,7 +124,7 @@ void Stack::setTop(usize newTop) {
         usize newCapacity = newTop + EXTRA_STACK;
         if (newCapacity > MAX_STACK_SIZE) {
             if (newTop > MAX_STACK_SIZE) {
-                throw std::runtime_error("stack overflow: maximum stack size exceeded");
+                throw MemoryError("stack overflow: maximum stack size exceeded");
             }
             newCapacity = MAX_STACK_SIZE;
         }

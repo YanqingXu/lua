@@ -291,7 +291,7 @@ void LuaState::callDebugHook(DebugHookEvent event, i32 line) {
 CallInfo& LuaState::pushCallInfo() {
     // ✅ 改进：检查最大调用深度
     if (currentCI_ + 1 >= MAX_CALL_DEPTH) {
-        throw std::runtime_error(
+        throw MemoryError(
             "stack overflow: maximum call depth exceeded (limit: " +
             std::to_string(MAX_CALL_DEPTH) + ")"
         );
@@ -315,7 +315,7 @@ CallInfo& LuaState::pushCallInfo() {
 
 void LuaState::popCallInfo() {
     if (currentCI_ == 0) {
-        throw std::runtime_error("LuaState::popCallInfo: cannot pop base CallInfo");
+        throw RuntimeError("LuaState::popCallInfo: cannot pop base CallInfo");
     }
 
     // ✅ 改进：清理当前CallInfo（调试模式）
@@ -378,7 +378,7 @@ void LuaState::setTop(i32 idx) {
     }
 
     if (newTop < static_cast<i32>(base)) {
-        throw std::runtime_error("invalid stack index");
+        throw RuntimeError("invalid stack index");
     }
 
     // 填充nil值或收缩栈
@@ -409,7 +409,7 @@ void LuaState::insert(i32 idx) {
     // 注意：栈大小不变，栈顶元素被移动到目标位置
 
     if (stack_.size() == 0) {
-        throw std::runtime_error("insert: stack is empty");
+        throw RuntimeError("insert: stack is empty");
     }
 
     // 计算绝对索引（0-based）
@@ -427,7 +427,7 @@ void LuaState::insert(i32 idx) {
     }
 
     if (absIdx < 0 || absIdx >= static_cast<i32>(stack_.size())) {
-        throw std::runtime_error("insert: invalid index");
+        throw RuntimeError("insert: invalid index");
     }
 
     // 保存栈顶元素
@@ -450,7 +450,7 @@ void LuaState::replace(i32 idx) {
     // 用栈顶元素替换指定位置的元素，然后弹出栈顶
 
     if (stack_.size() == 0) {
-        throw std::runtime_error("replace: stack is empty");
+        throw RuntimeError("replace: stack is empty");
     }
 
     // 获取栈顶元素
@@ -469,7 +469,7 @@ void LuaState::replace(i32 idx) {
     }
 
     if (absIdx < 0 || absIdx >= static_cast<i32>(stack_.size()) - 1) {
-        throw std::runtime_error("replace: invalid index");
+        throw RuntimeError("replace: invalid index");
     }
 
     // 替换目标位置的元素
@@ -593,7 +593,7 @@ i32 LuaState::pcall(i32 nargs, i32 nresults, i32 errfunc) {
         } else {
             Proto* proto = func->getProto();
             if (!proto) {
-                throw std::runtime_error("invalid function");
+                throw RuntimeError("invalid function");
             }
 
             CallInfo& ci = pushCallInfo();
@@ -655,10 +655,14 @@ i32 LuaState::pcall(i32 nargs, i32 nresults, i32 errfunc) {
         return LUA_OK;
 
     } catch (const LuaError& e) {
-        // LuaError: 直接使用 Lua Value 作为错误对象
         restoreCallFrames();
         restoreStackPrefix(savedStack);
-        pushValue(e.getErrorObject());
+        auto& pool = getGlobalState().getStringPool();
+        if (e.hasErrorObject()) {
+            pushValue(e.getErrorObject());
+        } else {
+            pushString(pool.intern(e.what()));
+        }
         setStatus(ThreadStatus::OK);
         return LUA_ERRRUN;
 
@@ -734,7 +738,7 @@ const Value& LuaState::at(i32 idx) const {
 
 void LuaState::setGlobal(const Str& name, const Value& value) {
     if (!globalTable_) {
-        throw std::runtime_error("global table not initialized");
+        throw RuntimeError("global table not initialized");
     }
 
     // 创建字符串键
@@ -744,7 +748,7 @@ void LuaState::setGlobal(const Str& name, const Value& value) {
 
 Value LuaState::getGlobal(const Str& name) {
     if (!globalTable_) {
-        throw std::runtime_error("global table not initialized");
+        throw RuntimeError("global table not initialized");
     }
 
     // 创建字符串键
@@ -958,16 +962,16 @@ bool LuaState::setMetatable(i32 idx) {
 
 void LuaState::error(const char* msg) {
     setStatus(ThreadStatus::ErrRun);
-    throw std::runtime_error(msg);
+    throw RuntimeError(msg);
 }
 
 i32 LuaState::error() {
     setStatus(ThreadStatus::ErrRun);
     const char* msg = toString(-1);
     if (msg) {
-        throw std::runtime_error(msg);
+        throw RuntimeError(msg);
     }
-    throw std::runtime_error("error object is not a string");
+    throw RuntimeError("error object is not a string");
 }
 
 } // namespace Lua

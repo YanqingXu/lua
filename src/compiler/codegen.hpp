@@ -21,6 +21,7 @@
  */
 
 #include "compiler/ast.hpp"
+#include "compiler/ast_visitor.hpp"
 #include "compiler/opcode.hpp"
 #include "compiler/codegen_types.hpp"
 #include "compiler/codegen_state.hpp"
@@ -42,7 +43,9 @@ class StringPool;
  * 
  * 负责将AST转换为字节码。
  */
-class CodeGenerator {
+class CodeGenerator : private ExprVisitor<CodeGenerator, ValueResult> {
+    friend struct ExprVisitor<CodeGenerator, ValueResult>;
+
 public:
     /**
      * @brief 构造函数
@@ -167,6 +170,21 @@ private:
      * 支持字面量、名字读取、括号、函数表达式、索引/成员/调用等。
      */
     ValueResult emitValue(const Expr& e);
+
+    ValueResult visitNode(const NilExpr& e);
+    ValueResult visitNode(const BoolExpr& e);
+    ValueResult visitNode(const NumberExpr& e);
+    ValueResult visitNode(const StringExpr& e);
+    ValueResult visitNode(const VarargExpr& e);
+    ValueResult visitNode(const NameExpr& e);
+    ValueResult visitNode(const BinaryExpr& e);
+    ValueResult visitNode(const UnaryExpr& e);
+    ValueResult visitNode(const TableExpr& e);
+    ValueResult visitNode(const CallExpr& e);
+    ValueResult visitNode(const IndexExpr& e);
+    ValueResult visitNode(const MemberExpr& e);
+    ValueResult visitNode(const FunctionExpr& e);
+    ValueResult visitNode(const ParenExpr& e);
 
     /**
      * @brief 将 ValueResult 物化到指定寄存器

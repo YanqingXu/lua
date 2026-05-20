@@ -51,6 +51,11 @@ void registerFunctionCallTests();
 void registerGCTests();
 
 /**
+ * @brief 注册 AST Visitor 基础设施测试
+ */
+void registerAstVisitorTests();
+
+/**
  * @brief 注册二元和一元表达式代码生成测试
  */
 void registerBinaryUnaryExprTests();

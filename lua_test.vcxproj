@@ -145,6 +145,7 @@
     <ClCompile Include="tests\unit\framework\test_framework.cpp" />
     <ClCompile Include="tests\unit\framework\test_runner.cpp" />
     <ClCompile Include="tests\unit\app\test_app_options.cpp" />
+    <ClCompile Include="tests\unit\compiler\test_ast_visitor.cpp" />
     <ClCompile Include="tests\unit\compiler\test_indexed_access.cpp" />
     <ClCompile Include="tests\unit\compiler\test_lexer_lookahead.cpp" />
     <ClCompile Include="tests\unit\compiler\test_lexer_number.cpp" />

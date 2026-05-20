@@ -25,6 +25,7 @@
 #include "core/function.hpp"
 #include "core/gc_string.hpp"
 #include "runtime/runtime_services.hpp"
+#include "common/lua_error.hpp"
 
 #include <iostream>
 #include <string>
@@ -353,6 +354,11 @@ int executeREPLInput(LuaState* L, const Str& source, bool isExpression) {
         // REPL 模式：不显示程序名前缀
         // 格式：stdin:line: message
         reportError("stdin", e.getLine(), e.what(), false);
+        return 1;
+
+    } catch (const LuaError& e) {
+        // REPL 模式：不显示程序名前缀
+        reportError(e.what(), false);
         return 1;
 
     } catch (const std::runtime_error& e) {

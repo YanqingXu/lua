@@ -12,7 +12,6 @@
 #include "vm/stack.hpp"
 #include "vm/vm.hpp"
 
-#include <stdexcept>
 #include <string>
 
 namespace Lua {

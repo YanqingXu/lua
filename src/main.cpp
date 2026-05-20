@@ -43,6 +43,7 @@
 #include "io/input_stream.hpp"
 #include "runtime/runtime_services.hpp"
 #include "debug/json_trace_sink.hpp"
+#include "common/lua_error.hpp"
 #include "repl.hpp"
 
 #include <iostream>
@@ -253,6 +254,11 @@ int executeScript(LuaState* L, const char* filename) {
     } catch (const ParseError& e) {
         // 语法错误 - 使用官方 Lua 风格：progname: source:line: message
         REPL::reportError(filename, e.getLine(), e.what());
+        return 1;
+
+    } catch (const LuaError& e) {
+        // VM / runtime 层错误
+        REPL::reportError(e.what());
         return 1;
 
     } catch (const std::runtime_error& e) {
