@@ -285,93 +285,43 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
 
             // ============== 一元运算 ==============
 
-            case OpCode::UNM: {
-                Value val = base[b]; // copy
-                Value result;
-                VM::detail::unaryMinus(L, result, val);
-                base = refreshBase(L);
-                base[a] = result;
-                break;
-            }
-
+            case OpCode::UNM:
             case OpCode::NOT:
-                base[a] = Value(!base[b].isTrue());
-                break;
-
-            case OpCode::LEN: {
-                Value val = base[b]; // copy
-                Value result;
-                VM::detail::length(L, result, val);
-                base = refreshBase(L);
-                base[a] = result;
+            case OpCode::LEN:
+            case OpCode::CONCAT: {
+                OpExecutionContext opContext{
+                    services,
+                    L,
+                    func,
+                    proto,
+                    base,
+                    pc,
+                    instructionPc,
+                    nexeccalls
+                };
+                VM::runHandler(opContext, inst);
                 break;
             }
-
-            case OpCode::CONCAT:
-                VM::detail::concat(services, L, base, a, b, c);
-                base = refreshBase(L);
-                break;
 
             // ============== 跳转和比较 ==============
 
             case OpCode::JMP:
-                pc += sbx;
-                break;
-
-            case OpCode::EQ: {
-                Value left  = getRK(proto, base, b);
-                Value right = getRK(proto, base, c);
-                bool result = VM::detail::equal(L, left, right);
-                base = refreshBase(L);
-                // Lua 5.1 语义：若比较结果与A不同，则跳过下一条指令（通常是JMP）
-                if (result != (a != 0)) {
-                    pc++;
-                }
-                break;
-            }
-
-            case OpCode::LT: {
-                Value left  = getRK(proto, base, b);
-                Value right = getRK(proto, base, c);
-                bool result = VM::detail::lessThan(L, left, right);
-                base = refreshBase(L);
-                if (result != (a != 0)) {
-                    pc++;
-                }
-                break;
-            }
-
-            case OpCode::LE: {
-                Value left  = getRK(proto, base, b);
-                Value right = getRK(proto, base, c);
-                bool result = VM::detail::lessEqual(L, left, right);
-                base = refreshBase(L);
-                if (result != (a != 0)) {
-                    pc++;
-                }
-                break;
-            }
-
-            // ============== 条件测试 ==============
-
-            case OpCode::TEST: {
-                bool val = base[a].isTrue();
-                if ((!val) != (c != 0)) {
-                    if (pc < code.size())
-                        pc += GETARG_sBx(code[pc]);
-                }
-                pc++;
-                break;
-            }
-
+            case OpCode::EQ:
+            case OpCode::LT:
+            case OpCode::LE:
+            case OpCode::TEST:
             case OpCode::TESTSET: {
-                bool val = base[b].isTrue();
-                if ((!val) != (c != 0)) {
-                    base[a] = base[b];
-                    if (pc < code.size())
-                        pc += GETARG_sBx(code[pc]);
-                }
-                pc++;
+                OpExecutionContext opContext{
+                    services,
+                    L,
+                    func,
+                    proto,
+                    base,
+                    pc,
+                    instructionPc,
+                    nexeccalls
+                };
+                VM::runHandler(opContext, inst);
                 break;
             }
 

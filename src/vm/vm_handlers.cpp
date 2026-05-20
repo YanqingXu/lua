@@ -37,6 +37,13 @@ Function* requireFunction(const OpExecutionContext& context) {
     return context.function;
 }
 
+Proto* requireProto(const OpExecutionContext& context) {
+    if (!context.proto) {
+        throw RuntimeError("VM handler requires Proto");
+    }
+    return context.proto;
+}
+
 Value* refreshBase(LuaState* state) {
     return &state->getStack()[state->getCurrentCallInfo().base];
 }
@@ -246,6 +253,127 @@ HandlerStatus handleArithmetic(OpExecutionContext& context, Instruction inst) {
     return HandlerStatus::Continue;
 }
 
+HandlerStatus handleUnaryMinus(OpExecutionContext& context, Instruction inst) {
+    LuaState* state = requireState(context);
+
+    i32 a = GETARG_A(inst);
+    i32 b = GETARG_B(inst);
+
+    Value val = context.base[b];
+    Value result;
+    VM::detail::unaryMinus(state, result, val);
+    context.base = refreshBase(state);
+    context.base[a] = result;
+    return HandlerStatus::Continue;
+}
+
+HandlerStatus handleNot(OpExecutionContext& context, Instruction inst) {
+    i32 a = GETARG_A(inst);
+    i32 b = GETARG_B(inst);
+
+    context.base[a] = Value(!context.base[b].isTrue());
+    return HandlerStatus::Continue;
+}
+
+HandlerStatus handleLength(OpExecutionContext& context, Instruction inst) {
+    LuaState* state = requireState(context);
+
+    i32 a = GETARG_A(inst);
+    i32 b = GETARG_B(inst);
+
+    Value val = context.base[b];
+    Value result;
+    VM::detail::length(state, result, val);
+    context.base = refreshBase(state);
+    context.base[a] = result;
+    return HandlerStatus::Continue;
+}
+
+HandlerStatus handleConcat(OpExecutionContext& context, Instruction inst) {
+    LuaState* state = requireState(context);
+
+    i32 a = GETARG_A(inst);
+    i32 b = GETARG_B(inst);
+    i32 c = GETARG_C(inst);
+
+    VM::detail::concat(context.services, state, context.base, a, b, c);
+    context.base = refreshBase(state);
+    return HandlerStatus::Continue;
+}
+
+HandlerStatus handleJump(OpExecutionContext& context, Instruction inst) {
+    context.pc += GETARG_sBx(inst);
+    return HandlerStatus::Continue;
+}
+
+HandlerStatus handleComparison(OpExecutionContext& context, Instruction inst) {
+    LuaState* state = requireState(context);
+
+    i32 a = GETARG_A(inst);
+    i32 b = GETARG_B(inst);
+    i32 c = GETARG_C(inst);
+
+    Value left = getRK(context, b);
+    Value right = getRK(context, c);
+    bool result = false;
+
+    switch (GET_OPCODE(inst)) {
+        case OpCode::EQ:
+            result = VM::detail::equal(state, left, right);
+            break;
+        case OpCode::LT:
+            result = VM::detail::lessThan(state, left, right);
+            break;
+        case OpCode::LE:
+            result = VM::detail::lessEqual(state, left, right);
+            break;
+        default:
+            throw RuntimeError("VM: invalid comparison handler opcode");
+    }
+
+    context.base = refreshBase(state);
+    if (result != (a != 0)) {
+        context.pc++;
+    }
+    return HandlerStatus::Continue;
+}
+
+HandlerStatus handleTest(OpExecutionContext& context, Instruction inst) {
+    Proto* proto = requireProto(context);
+
+    i32 a = GETARG_A(inst);
+    i32 c = GETARG_C(inst);
+
+    bool val = context.base[a].isTrue();
+    if ((!val) != (c != 0)) {
+        const Vec<Instruction>& code = proto->getCode();
+        if (context.pc < code.size()) {
+            context.pc += GETARG_sBx(code[context.pc]);
+        }
+    }
+    context.pc++;
+    return HandlerStatus::Continue;
+}
+
+HandlerStatus handleTestSet(OpExecutionContext& context, Instruction inst) {
+    Proto* proto = requireProto(context);
+
+    i32 a = GETARG_A(inst);
+    i32 b = GETARG_B(inst);
+    i32 c = GETARG_C(inst);
+
+    bool val = context.base[b].isTrue();
+    if ((!val) != (c != 0)) {
+        context.base[a] = context.base[b];
+        const Vec<Instruction>& code = proto->getCode();
+        if (context.pc < code.size()) {
+            context.pc += GETARG_sBx(code[context.pc]);
+        }
+    }
+    context.pc++;
+    return HandlerStatus::Continue;
+}
+
 HandlerTable makeHandlerTable() {
     HandlerTable table{};
 
@@ -278,6 +406,16 @@ HandlerTable makeHandlerTable() {
     table[opcodeIndex(OpCode::DIV)].handler = handleArithmetic;
     table[opcodeIndex(OpCode::MOD)].handler = handleArithmetic;
     table[opcodeIndex(OpCode::POW)].handler = handleArithmetic;
+    table[opcodeIndex(OpCode::UNM)].handler = handleUnaryMinus;
+    table[opcodeIndex(OpCode::NOT)].handler = handleNot;
+    table[opcodeIndex(OpCode::LEN)].handler = handleLength;
+    table[opcodeIndex(OpCode::CONCAT)].handler = handleConcat;
+    table[opcodeIndex(OpCode::JMP)].handler = handleJump;
+    table[opcodeIndex(OpCode::EQ)].handler = handleComparison;
+    table[opcodeIndex(OpCode::LT)].handler = handleComparison;
+    table[opcodeIndex(OpCode::LE)].handler = handleComparison;
+    table[opcodeIndex(OpCode::TEST)].handler = handleTest;
+    table[opcodeIndex(OpCode::TESTSET)].handler = handleTestSet;
 
     return table;
 }

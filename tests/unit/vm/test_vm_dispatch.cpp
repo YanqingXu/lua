@@ -158,6 +158,16 @@ void testHandlersCoverMigratedOpcodes(TestSuite& suite) {
     ASSERT_TRUE(suite, VM::hasHandler(OpCode::DIV), "DIV should have a handler");
     ASSERT_TRUE(suite, VM::hasHandler(OpCode::MOD), "MOD should have a handler");
     ASSERT_TRUE(suite, VM::hasHandler(OpCode::POW), "POW should have a handler");
+    ASSERT_TRUE(suite, VM::hasHandler(OpCode::UNM), "UNM should have a handler");
+    ASSERT_TRUE(suite, VM::hasHandler(OpCode::NOT), "NOT should have a handler");
+    ASSERT_TRUE(suite, VM::hasHandler(OpCode::LEN), "LEN should have a handler");
+    ASSERT_TRUE(suite, VM::hasHandler(OpCode::CONCAT), "CONCAT should have a handler");
+    ASSERT_TRUE(suite, VM::hasHandler(OpCode::JMP), "JMP should have a handler");
+    ASSERT_TRUE(suite, VM::hasHandler(OpCode::EQ), "EQ should have a handler");
+    ASSERT_TRUE(suite, VM::hasHandler(OpCode::LT), "LT should have a handler");
+    ASSERT_TRUE(suite, VM::hasHandler(OpCode::LE), "LE should have a handler");
+    ASSERT_TRUE(suite, VM::hasHandler(OpCode::TEST), "TEST should have a handler");
+    ASSERT_TRUE(suite, VM::hasHandler(OpCode::TESTSET), "TESTSET should have a handler");
     ASSERT_FALSE(suite, VM::hasHandler(OpCode::CALL), "CALL remains switch-only in the first handler-table slice");
 }
 
@@ -405,6 +415,146 @@ void testArithmeticHandlersExecuteDirectly(TestSuite& suite) {
     services.gc.clearAll();
 }
 
+void testUnaryHandlersExecuteDirectly(TestSuite& suite) {
+    RuntimeServices services = RuntimeServices::fromSingletons();
+    LuaState* L = LuaState::newState(services);
+
+    Proto proto;
+    GCString* hello = services.strings.intern("hello");
+    GCString* spaceWorld = services.strings.intern(" world");
+
+    Stack& stack = L->getStack();
+    usize frameBase = L->getCurrentCallInfo().base;
+    while (stack.size() < frameBase + 4) {
+        stack.push(Value());
+    }
+    L->setAbsoluteTop(frameBase + 4);
+
+    Value* base = &stack[frameBase];
+    usize pc = 0;
+    VM::OpExecutionContext context{
+        services,
+        L,
+        nullptr,
+        &proto,
+        base,
+        pc,
+        0,
+        1
+    };
+
+    base[1] = Value(7.0);
+    VM::runHandler(context, CREATE_ABC(OpCode::UNM, 0, 1, 0));
+    base = context.base;
+    ASSERT_TRUE(suite, base[0].isNumber() && base[0].asNumber() == -7.0,
+                "UNM handler should negate numeric operands");
+
+    base[1] = Value(false);
+    VM::runHandler(context, CREATE_ABC(OpCode::NOT, 0, 1, 0));
+    base = context.base;
+    ASSERT_TRUE(suite, base[0].isBoolean() && base[0].asBoolean(),
+                "NOT handler should invert Lua truthiness");
+
+    base[1] = Value(hello);
+    VM::runHandler(context, CREATE_ABC(OpCode::LEN, 0, 1, 0));
+    base = context.base;
+    ASSERT_TRUE(suite, base[0].isNumber() && base[0].asNumber() == 5.0,
+                "LEN handler should measure strings");
+
+    base[1] = Value(hello);
+    base[2] = Value(spaceWorld);
+    VM::runHandler(context, CREATE_ABC(OpCode::CONCAT, 0, 1, 2));
+    base = context.base;
+    ASSERT_TRUE(suite, base[0].isString() && std::string(base[0].asString()->c_str()) == "hello world",
+                "CONCAT handler should concatenate string operands");
+
+    delete L;
+    services.gc.clearAll();
+}
+
+void testBranchAndComparisonHandlersExecuteDirectly(TestSuite& suite) {
+    RuntimeServices services = RuntimeServices::fromSingletons();
+    LuaState* L = LuaState::newState(services);
+
+    Proto proto;
+    usize eightIndex = proto.addConstant(Value(8.0));
+    proto.addInstruction(CREATE_ABC(OpCode::MOVE, 0, 0, 0));
+    proto.addInstruction(CREATE_AsBx(OpCode::JMP, 0, 2));
+
+    Stack& stack = L->getStack();
+    usize frameBase = L->getCurrentCallInfo().base;
+    while (stack.size() < frameBase + 4) {
+        stack.push(Value());
+    }
+    L->setAbsoluteTop(frameBase + 4);
+
+    Value* base = &stack[frameBase];
+    usize pc = 0;
+    VM::OpExecutionContext context{
+        services,
+        L,
+        nullptr,
+        &proto,
+        base,
+        pc,
+        0,
+        1
+    };
+
+    pc = 5;
+    VM::runHandler(context, CREATE_AsBx(OpCode::JMP, 0, -2));
+    ASSERT_EQ(suite, 3, static_cast<int>(pc), "JMP handler should apply sBx to pc");
+
+    base[1] = Value(4.0);
+    base[2] = Value(4.0);
+    pc = 10;
+    VM::runHandler(context, CREATE_ABC(OpCode::EQ, 0, 1, 2));
+    base = context.base;
+    ASSERT_EQ(suite, 11, static_cast<int>(pc), "EQ handler should skip when result differs from A");
+
+    base[1] = Value(3.0);
+    base[2] = Value(7.0);
+    pc = 20;
+    VM::runHandler(context, CREATE_ABC(OpCode::LT, 0, 1, 2));
+    base = context.base;
+    ASSERT_EQ(suite, 21, static_cast<int>(pc), "LT handler should skip when result differs from A");
+
+    base[1] = Value(8.0);
+    pc = 30;
+    VM::runHandler(context, CREATE_ABC(OpCode::LE, 1, 1, RKASK(static_cast<i32>(eightIndex))));
+    base = context.base;
+    ASSERT_EQ(suite, 30, static_cast<int>(pc), "LE handler should keep pc when result matches A");
+
+    base[0] = Value(false);
+    pc = 1;
+    VM::runHandler(context, CREATE_ABC(OpCode::TEST, 0, 0, 0));
+    ASSERT_EQ(suite, 4, static_cast<int>(pc), "TEST handler should apply next JMP when condition matches");
+
+    base[0] = Value(true);
+    pc = 1;
+    VM::runHandler(context, CREATE_ABC(OpCode::TEST, 0, 0, 0));
+    ASSERT_EQ(suite, 2, static_cast<int>(pc), "TEST handler should advance once when condition does not match");
+
+    base[0] = Value(99.0);
+    base[2] = Value(42.0);
+    pc = 1;
+    VM::runHandler(context, CREATE_ABC(OpCode::TESTSET, 0, 2, 1));
+    ASSERT_TRUE(suite, base[0].isNumber() && base[0].asNumber() == 42.0,
+                "TESTSET handler should copy B when condition matches");
+    ASSERT_EQ(suite, 4, static_cast<int>(pc), "TESTSET handler should apply next JMP when condition matches");
+
+    base[0] = Value(99.0);
+    base[2] = Value(42.0);
+    pc = 1;
+    VM::runHandler(context, CREATE_ABC(OpCode::TESTSET, 0, 2, 0));
+    ASSERT_TRUE(suite, base[0].isNumber() && base[0].asNumber() == 99.0,
+                "TESTSET handler should not copy B when condition does not match");
+    ASSERT_EQ(suite, 2, static_cast<int>(pc), "TESTSET handler should advance once when condition does not match");
+
+    delete L;
+    services.gc.clearAll();
+}
+
 }  // namespace
 
 void registerVMDispatchTests() {
@@ -426,4 +576,8 @@ void registerVMDispatchTests() {
                           testTableHandlersExecuteDirectly);
     registry.registerTest(kSuiteName, "Arithmetic Handlers Execute Directly",
                           testArithmeticHandlersExecuteDirectly);
+    registry.registerTest(kSuiteName, "Unary Handlers Execute Directly",
+                          testUnaryHandlersExecuteDirectly);
+    registry.registerTest(kSuiteName, "Branch And Comparison Handlers Execute Directly",
+                          testBranchAndComparisonHandlersExecuteDirectly);
 }
