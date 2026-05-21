@@ -54,7 +54,7 @@ HandlerStatus handleTest(OpExecutionContext& context, Instruction inst) {
 
     bool val = context.base[a].isTrue();
     if ((!val) != (c != 0)) {
-        const Vec<Instruction>& code = proto->getCode();
+        const auto code = proto->getInstructionSpan();
         if (context.pc < code.size()) {
             context.pc += GETARG_sBx(code[context.pc]);
         }
@@ -73,7 +73,7 @@ HandlerStatus handleTestSet(OpExecutionContext& context, Instruction inst) {
     bool val = context.base[b].isTrue();
     if ((!val) != (c != 0)) {
         context.base[a] = context.base[b];
-        const Vec<Instruction>& code = proto->getCode();
+        const auto code = proto->getInstructionSpan();
         if (context.pc < code.size()) {
             context.pc += GETARG_sBx(code[context.pc]);
         }

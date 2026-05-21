@@ -34,6 +34,7 @@
 #include <unordered_map>
 #include <variant>
 #include <functional>
+#include <span>
 
 namespace Lua {
 
@@ -360,6 +361,14 @@ public:
      * @return 代码数组引用
      */
     const Vec<Instruction>& getCode() const noexcept { return code_; }
+
+    /**
+     * @brief 获取只读指令视图
+     * @return 指令 span
+     */
+    std::span<const Instruction> getInstructionSpan() const noexcept {
+        return std::span<const Instruction>(code_.data(), code_.size());
+    }
 
     /**
      * @brief 获取代码数组（可写）

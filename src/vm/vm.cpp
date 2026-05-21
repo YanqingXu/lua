@@ -153,14 +153,15 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
 
         // 恢复 proto 和 pc
         proto = func->getProto();
+        const auto entryCode = proto->getInstructionSpan();
         pc = ci.savedpc
-           ? static_cast<usize>(ci.savedpc - proto->getCode().data())
+           ? static_cast<usize>(ci.savedpc - entryCode.data())
            : 0;
 
         // dump bytecode at entry
         if (VM::detail::shouldDumpBytecode())
         {
-            const Vec<Instruction>& dcode = proto->getCode();
+            const auto dcode = proto->getInstructionSpan();
             std::fprintf(stderr, "[BCDUMP] proto(%p) %zu instructions, pc=%zu\n",
                 (void*)proto, dcode.size(), pc);
             for (usize di = 0; di < dcode.size(); di++) {
@@ -186,7 +187,7 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
 
     // ---- 主执行循环 ----
     {
-        const Vec<Instruction>& code = proto->getCode();
+        const auto code = proto->getInstructionSpan();
 
         while (pc < code.size()) {
             usize instructionPc = pc;

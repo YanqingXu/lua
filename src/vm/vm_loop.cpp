@@ -37,8 +37,9 @@ void tforLoop(LuaState* L, Value*& base, Proto* proto, usize& pc, i32 a, i32 c) 
     base[cb + 1] = base[a + 1];
     base[cb]     = base[a];
 
-    if (pc < proto->getCode().size()) {
-        ci.savedpc = &proto->getCode()[pc];
+    const auto code = proto->getInstructionSpan();
+    if (pc < code.size()) {
+        ci.savedpc = code.data() + pc;
     }
 
     usize callTop = ci.base + static_cast<usize>(cb + 3);
@@ -55,8 +56,8 @@ void tforLoop(LuaState* L, Value*& base, Proto* proto, usize& pc, i32 a, i32 c) 
     cb = a + 3;
     if (!base[cb].isNil()) {
         base[a + 2] = base[cb];
-        if (pc < proto->getCode().size()) {
-            pc += GETARG_sBx(proto->getCode()[pc]) + 1;
+        if (pc < code.size()) {
+            pc += GETARG_sBx(code[pc]) + 1;
         }
     } else {
         pc++;

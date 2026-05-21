@@ -5,10 +5,12 @@
 
 #include "../framework/test_framework.hpp"
 #include "compiler/opcode.hpp"
+#include "core/function.hpp"
 #include "core/value.hpp"
 #include "runtime/runtime_services.hpp"
 #include "vm/vm_internal.hpp"
 
+#include <span>
 #include <type_traits>
 
 using namespace Lua;
@@ -88,6 +90,13 @@ void testRemainingHelperSignatures(TestSuite& suite) {
     ASSERT_TRUE(suite, true, "remaining VM helper signatures are stable");
 }
 
+void testProtoInstructionSpanBoundary(TestSuite& suite) {
+    static_assert(std::is_same_v<decltype(std::declval<const Proto&>().getInstructionSpan()),
+                                 std::span<const Instruction>>);
+
+    ASSERT_TRUE(suite, true, "proto instruction stream exposes a read-only span");
+}
+
 }  // namespace
 
 void registerVMInternalBoundaryTests() {
@@ -98,4 +107,5 @@ void registerVMInternalBoundaryTests() {
     registry.registerTest(kSuiteName, "Trace And Debug Helper Signatures",
                           testTraceAndDebugHelpersExposeStableSignatures);
     registry.registerTest(kSuiteName, "Remaining Helper Signatures", testRemainingHelperSignatures);
+    registry.registerTest(kSuiteName, "Proto Instruction Span Boundary", testProtoInstructionSpanBoundary);
 }

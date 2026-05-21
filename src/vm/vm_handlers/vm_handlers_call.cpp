@@ -44,7 +44,7 @@ HandlerStatus handleCall(OpExecutionContext& context, Instruction inst) {
 
     detail::emitCallTrace(proto, context.base, context.instructionPc, a, context.nexeccalls + 1);
 
-    const Vec<Instruction>& code = proto->getCode();
+    const auto code = proto->getInstructionSpan();
     state->getCurrentCallInfo().savedpc = code.data() + context.pc;
 
     bool isLua = detail::precall(state, a, nArgs, nResults);
@@ -84,7 +84,7 @@ HandlerStatus handleTailCall(OpExecutionContext& context, Instruction inst) {
     i32 callerTailcalls = currentCI.tailcalls;
     state->closeUpvalues(currentCI.base);
 
-    const Vec<Instruction>& code = proto->getCode();
+    const auto code = proto->getInstructionSpan();
     currentCI.savedpc = code.data() + context.pc;
 
     bool isLua = detail::precall(state, a, nArgs, -1);

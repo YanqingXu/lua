@@ -40,7 +40,7 @@ void closure(LuaState* L, Value* base, Proto* currentProto, Function* currentFun
 
     i32 nups = childProto->getNumUpvalues();
     if (nups > 0) {
-        const Vec<Instruction>& code = currentProto->getCode();
+        const auto code = currentProto->getInstructionSpan();
         const CallInfo& ci = L->getCurrentCallInfo();
 
         for (i32 j = 0; j < nups; j++) {
