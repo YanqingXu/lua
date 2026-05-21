@@ -26,7 +26,10 @@
 
 #pragma once
 
+#include "common/lua_error.hpp"
 #include "common/types.hpp"
+
+#include <expected>
 
 namespace Lua {
 
@@ -81,6 +84,18 @@ namespace VM {
      * @brief 使用显式运行时服务执行字节码块（Proto）
      */
     ExecResult executeProto(RuntimeServices& services, LuaState* L, Proto* proto, i32 nexeccalls = 1);
+
+    /**
+     * @brief 执行字节码块（Proto），以 expected 返回运行期错误
+     */
+    [[nodiscard]] std::expected<ExecResult, RuntimeError> tryExecuteProto(
+        LuaState* L, Proto* proto, i32 nexeccalls = 1);
+
+    /**
+     * @brief 使用显式运行时服务执行字节码块（Proto），以 expected 返回运行期错误
+     */
+    [[nodiscard]] std::expected<ExecResult, RuntimeError> tryExecuteProto(
+        RuntimeServices& services, LuaState* L, Proto* proto, i32 nexeccalls = 1);
 
     /**
      * @brief 从CFunction内部调用栈上的函数（不清除栈）

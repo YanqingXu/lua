@@ -3,9 +3,10 @@
  * @brief Unified Lua exception hierarchy.
  *
  * LuaError is the interpreter exception base and still preserves the
- * Lua 5.1 error(obj) Value-object path. ParseError, RuntimeError, and
- * MemoryError derive from it while std::runtime_error remains a catch
- * boundary for callers that need standard exception compatibility.
+ * Lua 5.1 error(obj) Value-object path. ParseError, CodegenError,
+ * RuntimeError, and MemoryError derive from it while std::runtime_error
+ * remains a catch boundary for callers that need standard exception
+ * compatibility.
  */
 
 #pragma once
@@ -63,6 +64,14 @@ public:
 private:
     i32 line_;
     i32 column_;
+};
+
+/**
+ * @brief Bytecode generation error.
+ */
+class CodegenError : public LuaError {
+public:
+    using LuaError::LuaError;
 };
 
 /**

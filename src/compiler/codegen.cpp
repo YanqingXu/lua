@@ -8,6 +8,8 @@
 #include "core/string_pool.hpp"
 #include "core/value.hpp"
 #include "gc/garbage_collector.hpp"
+#include <expected>
+#include <new>
 #include <stdexcept>
 
 namespace Lua {
@@ -38,20 +40,60 @@ CodeGenerator::~CodeGenerator() {
 // =====================================================================
 
 Proto* CodeGenerator::generate(const Chunk& chunk, StrView sourceName) {
+    auto generated = tryGenerate(chunk, sourceName);
+    if (!generated) {
+        throw generated.error();
+    }
+    return *generated;
+}
+
+std::expected<Proto*, CodegenError> CodeGenerator::tryGenerate(const Chunk& chunk, StrView sourceName) {
+    try {
+        return generateUnchecked(chunk, sourceName);
+    } catch (const std::bad_alloc&) {
+        discardCurrentProto();
+        throw;
+    } catch (const CodegenError& error) {
+        discardCurrentProto();
+        return std::unexpected(error);
+    } catch (const LuaError& error) {
+        discardCurrentProto();
+        return std::unexpected(CodegenError(error.what()));
+    } catch (const std::exception& error) {
+        discardCurrentProto();
+        return std::unexpected(CodegenError(error.what()));
+    }
+}
+
+Proto* CodeGenerator::generateUnchecked(const Chunk& chunk, StrView sourceName) {
     // 创建新的Proto对象
     state_.proto = new Proto();
     state_.services.gc.registerObject(state_.proto);
     state_.resetForProto(*state_.proto, true, sourceName);
-    
+
     // 生成语句块
     block(chunk.statements);
-    
+
     // 保留一个兜底 RETURN，覆盖条件分支 return 后仍可落出的路径。
     codeABC(OpCode::RETURN, 0, 1, 0);  // return (no values)
 
     attachDebugMetadata();
-    
+
     return state_.proto;
+}
+
+void CodeGenerator::discardCurrentProto() noexcept {
+    Proto* failedProto = state_.proto;
+    state_.proto = nullptr;
+    state_.bytecode = BytecodeBuilder();
+    state_.regs.bind(nullptr);
+
+    if (failedProto == nullptr) {
+        return;
+    }
+
+    state_.services.gc.unregisterObject(failedProto);
+    delete failedProto;
 }
 
 // =====================================================================

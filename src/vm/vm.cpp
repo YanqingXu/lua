@@ -32,6 +32,9 @@
 #include "runtime/runtime_services.hpp"
 #include "compiler/opcode.hpp"
 
+#include <exception>
+#include <new>
+
 namespace Lua {
 
 // =====================================================================
@@ -65,12 +68,9 @@ namespace VM {
 // 局部变量：func, proto, pc, base（与 Lua C luaV_execute 一致）
 // -----------------------------------------------------------------
 
-ExecResult executeProto(LuaState* L, Proto* proto, i32 nexeccalls) {
-    RuntimeServices services = RuntimeServices::fromSingletons();
-    return executeProto(services, L, proto, nexeccalls);
-}
+namespace {
 
-ExecResult executeProto(RuntimeServices& services, LuaState* L, Proto* proto, i32 nexeccalls) {
+ExecResult executeProtoUnchecked(RuntimeServices& services, LuaState* L, Proto* proto, i32 nexeccalls) {
     if (!proto)
         throw RuntimeError("VM::executeProto: null proto");
     if (nexeccalls >= MAX_CALLS)
@@ -81,6 +81,37 @@ ExecResult executeProto(RuntimeServices& services, LuaState* L, Proto* proto, i3
                                ? *services.dispatchStrategy
                                : defaultDispatchStrategy();
     return strategy.run(context);
+}
+
+}  // namespace
+
+ExecResult executeProto(LuaState* L, Proto* proto, i32 nexeccalls) {
+    RuntimeServices services = RuntimeServices::fromSingletons();
+    return executeProto(services, L, proto, nexeccalls);
+}
+
+ExecResult executeProto(RuntimeServices& services, LuaState* L, Proto* proto, i32 nexeccalls) {
+    return executeProtoUnchecked(services, L, proto, nexeccalls);
+}
+
+std::expected<ExecResult, RuntimeError> tryExecuteProto(LuaState* L, Proto* proto, i32 nexeccalls) {
+    RuntimeServices services = RuntimeServices::fromSingletons();
+    return tryExecuteProto(services, L, proto, nexeccalls);
+}
+
+std::expected<ExecResult, RuntimeError> tryExecuteProto(
+    RuntimeServices& services, LuaState* L, Proto* proto, i32 nexeccalls) {
+    try {
+        return executeProtoUnchecked(services, L, proto, nexeccalls);
+    } catch (const std::bad_alloc&) {
+        throw;
+    } catch (const RuntimeError& error) {
+        return std::unexpected(RuntimeError(error.what()));
+    } catch (const LuaError& error) {
+        return std::unexpected(RuntimeError(error.what()));
+    } catch (const std::exception& error) {
+        return std::unexpected(RuntimeError(error.what()));
+    }
 }
 
 namespace {

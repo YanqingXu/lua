@@ -4,10 +4,18 @@
  */
 
 #include "../framework/test_framework.hpp"
+#include "common/lua_error.hpp"
+#include "compiler/codegen.hpp"
 #include "compiler/codegen_state.hpp"
+#include "compiler/parser.hpp"
 #include "core/function.hpp"
 #include "core/gc_string.hpp"
 #include "runtime/runtime_services.hpp"
+
+#include <expected>
+#include <string>
+#include <type_traits>
+#include <utility>
 
 using namespace Lua;
 using namespace LuaTest;
@@ -47,10 +55,92 @@ void testResetForProtoClearsTransientState(TestSuite& suite) {
     ASSERT_EQ(suite, Str("state_test.lua"), proto.getSource()->getData(), "proto source should match");
 }
 
+void testTryGenerateReturnsExpectedType(TestSuite& suite) {
+    using GenerateResult = decltype(std::declval<CodeGenerator&>().tryGenerate(std::declval<const Chunk&>()));
+    bool hasExpectedSignature = std::is_same_v<GenerateResult, std::expected<Proto*, CodegenError>>;
+    ASSERT_TRUE(suite, hasExpectedSignature, "tryGenerate returns expected proto or codegen error");
+}
+
+void testTryGenerateReturnsProtoOnSuccess(TestSuite& suite) {
+    Parser parser("return 42");
+    auto parsed = parser.parse();
+    ASSERT_TRUE(suite, parsed.has_value(), "valid source should parse");
+    if (!parsed) {
+        return;
+    }
+
+    RuntimeServices services = RuntimeServices::fromSingletons();
+    CodeGenerator codegen(services);
+    auto generated = codegen.tryGenerate(*parsed, "=(codegen expected success)");
+
+    ASSERT_TRUE(suite, generated.has_value(), "valid chunk should generate a proto");
+    if (!generated) {
+        return;
+    }
+
+    Proto* proto = *generated;
+    ASSERT_TRUE(suite, proto != nullptr, "generated proto should not be null");
+    ASSERT_TRUE(suite, proto->getSource() != nullptr, "generated proto should keep source name");
+    ASSERT_EQ(suite, Str("=(codegen expected success)"), proto->getSource()->getData(),
+              "generated proto source should match");
+}
+
+void testTryGenerateReturnsCodegenErrorOnFailure(TestSuite& suite) {
+    Parser parser("break");
+    auto parsed = parser.parse();
+    ASSERT_TRUE(suite, parsed.has_value(), "semantic codegen failure source should still parse");
+    if (!parsed) {
+        return;
+    }
+
+    RuntimeServices services = RuntimeServices::fromSingletons();
+    CodeGenerator codegen(services);
+    auto generated = codegen.tryGenerate(*parsed, "=(codegen expected failure)");
+
+    ASSERT_TRUE(suite, !generated.has_value(), "invalid codegen input should return CodegenError");
+    if (generated) {
+        return;
+    }
+
+    const CodegenError& error = generated.error();
+    std::string message = error.what();
+    ASSERT_TRUE(suite, message.find("no loop to break") != std::string::npos,
+                "CodegenError should preserve the original message");
+    ASSERT_TRUE(suite, (std::is_base_of<LuaError, CodegenError>::value),
+                "CodegenError derives from LuaError");
+}
+
+void testGenerateKeepsThrowingForCompatibility(TestSuite& suite) {
+    Parser parser("break");
+    auto parsed = parser.parse();
+    ASSERT_TRUE(suite, parsed.has_value(), "semantic codegen failure source should still parse");
+    if (!parsed) {
+        return;
+    }
+
+    RuntimeServices services = RuntimeServices::fromSingletons();
+    CodeGenerator codegen(services);
+
+    bool threwCodegenError = false;
+    try {
+        (void)codegen.generate(*parsed, "=(codegen compatibility failure)");
+    } catch (const CodegenError& error) {
+        threwCodegenError = std::string(error.what()).find("no loop to break") != std::string::npos;
+    }
+
+    ASSERT_TRUE(suite, threwCodegenError, "legacy generate should still throw on codegen failure");
+}
+
 }  // namespace
 
 void registerCodegenStateTests() {
     auto& registry = TestRegistry::getInstance();
 
     registry.registerTest(kSuiteName, "Reset For Proto Clears Transient State", testResetForProtoClearsTransientState);
+    registry.registerTest(kSuiteName, "tryGenerate returns expected type", testTryGenerateReturnsExpectedType);
+    registry.registerTest(kSuiteName, "tryGenerate returns proto on success", testTryGenerateReturnsProtoOnSuccess);
+    registry.registerTest(kSuiteName, "tryGenerate returns CodegenError on failure",
+                          testTryGenerateReturnsCodegenErrorOnFailure);
+    registry.registerTest(kSuiteName, "generate keeps throwing for compatibility",
+                          testGenerateKeepsThrowingForCompatibility);
 }

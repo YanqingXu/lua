@@ -25,7 +25,9 @@
 #include "compiler/opcode.hpp"
 #include "compiler/codegen_types.hpp"
 #include "compiler/codegen_state.hpp"
+#include "common/lua_error.hpp"
 #include "core/function.hpp"
+#include <expected>
 #include <memory>
 #include <unordered_map>
 
@@ -70,6 +72,13 @@ public:
      * @return 生成的函数原型
      */
     Proto* generate(const Chunk& chunk, StrView sourceName = {});
+
+    /**
+     * @brief 生成字节码，以 expected 形式返回入口错误
+     * @param chunk AST根节点
+     * @return 生成的函数原型，或 CodegenError
+     */
+    [[nodiscard]] std::expected<Proto*, CodegenError> tryGenerate(const Chunk& chunk, StrView sourceName = {});
 
     // =====================================================================
     // 符号绑定（PR-8 Symbol Binding）
@@ -327,6 +336,9 @@ private:
     void attachDebugMetadata();
 
 private:
+    Proto* generateUnchecked(const Chunk& chunk, StrView sourceName);
+    void discardCurrentProto() noexcept;
+
     CodegenState state_;
 };
 

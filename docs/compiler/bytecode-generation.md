@@ -1,7 +1,7 @@
 ---
 status: current
-verified_against: docs/status/project-status.md; src/compiler/codegen.hpp; src/compiler/codegen.cpp; src/compiler/codegen_binding.cpp; src/compiler/codegen_expr.cpp; src/compiler/codegen_jump.cpp; src/compiler/codegen_stmt.cpp; src/compiler/codegen_types.hpp; src/compiler/codegen_context.hpp; src/compiler/codegen_state.hpp; src/compiler/bytecode_builder.hpp; src/compiler/register_allocator.hpp
-last_checked: 2026-05-18
+verified_against: docs/status/project-status.md; src/common/lua_error.hpp; src/compiler/codegen.hpp; src/compiler/codegen.cpp; src/compiler/codegen_binding.cpp; src/compiler/codegen_expr.cpp; src/compiler/codegen_jump.cpp; src/compiler/codegen_stmt.cpp; src/compiler/codegen_types.hpp; src/compiler/codegen_context.hpp; src/compiler/codegen_state.hpp; src/compiler/bytecode_builder.hpp; src/compiler/register_allocator.hpp; tests/unit/compiler/test_codegen_state.cpp
+last_checked: 2026-05-21
 applies_to: current AST-to-Proto bytecode generator
 ---
 
@@ -49,7 +49,9 @@ source
 - 源码行号信息。
 - `maxStackSize`、参数个数、vararg 标记等执行元数据。
 
-换句话说，`CodeGenerator::generate()` 的目标不是“直接执行 AST”，而是把 AST 规整成 VM 可执行的函数原型。
+换句话说，`CodeGenerator::tryGenerate()` / `CodeGenerator::generate()` 的目标不是“直接执行 AST”，而是把 AST 规整成 VM 可执行的函数原型。
+
+`tryGenerate()` 是当前的显式错误返回入口，返回 `std::expected<Proto*, CodegenError>`。旧的 `generate()` 仍保留 `Proto*` public API，内部通过 `tryGenerate()` 生成；失败时继续抛出 `CodegenError`，用于兼容已有调用点。
 
 ## 3. 当前结果类型
 
