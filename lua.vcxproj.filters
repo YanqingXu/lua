@@ -103,6 +103,33 @@
     <ClCompile Include="src\vm\vm_handlers.cpp">
       <Filter>src\vm</Filter>
     </ClCompile>
+    <ClCompile Include="src\vm\vm_handlers\vm_handlers_arith.cpp">
+      <Filter>src\vm\vm_handlers</Filter>
+    </ClCompile>
+    <ClCompile Include="src\vm\vm_handlers\vm_handlers_branch.cpp">
+      <Filter>src\vm\vm_handlers</Filter>
+    </ClCompile>
+    <ClCompile Include="src\vm\vm_handlers\vm_handlers_call.cpp">
+      <Filter>src\vm\vm_handlers</Filter>
+    </ClCompile>
+    <ClCompile Include="src\vm\vm_handlers\vm_handlers_closure.cpp">
+      <Filter>src\vm\vm_handlers</Filter>
+    </ClCompile>
+    <ClCompile Include="src\vm\vm_handlers\vm_handlers_data.cpp">
+      <Filter>src\vm\vm_handlers</Filter>
+    </ClCompile>
+    <ClCompile Include="src\vm\vm_handlers\vm_handlers_global_upvalue.cpp">
+      <Filter>src\vm\vm_handlers</Filter>
+    </ClCompile>
+    <ClCompile Include="src\vm\vm_handlers\vm_handlers_loop.cpp">
+      <Filter>src\vm\vm_handlers</Filter>
+    </ClCompile>
+    <ClCompile Include="src\vm\vm_handlers\vm_handlers_table.cpp">
+      <Filter>src\vm\vm_handlers</Filter>
+    </ClCompile>
+    <ClCompile Include="src\vm\vm_handlers\vm_handlers_unary.cpp">
+      <Filter>src\vm\vm_handlers</Filter>
+    </ClCompile>
     <ClCompile Include="src\vm\vm_entry.cpp">
       <Filter>src\vm</Filter>
     </ClCompile>
@@ -276,6 +303,9 @@
     <ClInclude Include="src\vm\vm_handlers.hpp">
       <Filter>src\vm</Filter>
     </ClInclude>
+    <ClInclude Include="src\vm\vm_handlers\vm_handler_utils.hpp">
+      <Filter>src\vm\vm_handlers</Filter>
+    </ClInclude>
     <ClInclude Include="src\vm\vm_internal.hpp">
       <Filter>src\vm</Filter>
     </ClInclude>
@@ -370,6 +400,9 @@
     </Filter>
     <Filter Include="src\vm">
       <UniqueIdentifier>{83aed53b-cd08-49f3-9206-89fc9e5ed6e8}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\vm\vm_handlers">
+      <UniqueIdentifier>{a1fd84a7-1c2e-4e66-8d42-08b2125f31cb}</UniqueIdentifier>
     </Filter>
     <Filter Include="src\lib">
       <UniqueIdentifier>{ade4e4bb-accb-4b49-8621-4ac5a3af2632}</UniqueIdentifier>

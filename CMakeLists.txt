@@ -61,6 +61,15 @@ set(LUA_CORE_SOURCES
     src/vm/vm_call.cpp
     src/vm/vm_dispatch_strategy.cpp
     src/vm/vm_handlers.cpp
+    src/vm/vm_handlers/vm_handlers_arith.cpp
+    src/vm/vm_handlers/vm_handlers_branch.cpp
+    src/vm/vm_handlers/vm_handlers_call.cpp
+    src/vm/vm_handlers/vm_handlers_closure.cpp
+    src/vm/vm_handlers/vm_handlers_data.cpp
+    src/vm/vm_handlers/vm_handlers_global_upvalue.cpp
+    src/vm/vm_handlers/vm_handlers_loop.cpp
+    src/vm/vm_handlers/vm_handlers_table.cpp
+    src/vm/vm_handlers/vm_handlers_unary.cpp
     src/vm/vm_entry.cpp
     src/vm/vm_frame.cpp
     src/vm/vm_loop.cpp

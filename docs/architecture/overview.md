@@ -1,7 +1,7 @@
 ---
 status: current
-verified_against: docs/status/project-status.md; README.md; src/common/; src/core/; src/compiler/; src/vm/; src/gc/; src/lib/; src/runtime/runtime_services.hpp
-last_checked: 2026-05-19
+verified_against: docs/status/project-status.md; README.md; docs/architecture/patterns.md; src/common/; src/core/; src/compiler/; src/vm/; src/gc/; src/lib/; src/runtime/runtime_services.hpp
+last_checked: 2026-05-21
 applies_to: current high-level architecture and source layout
 ---
 
@@ -110,6 +110,7 @@ CMake/CTest exists as a secondary validation path and builds `lua_core`, `lua_ap
 - Current facts: `docs/status/project-status.md`
 - First-read path: `docs/index.md`
 - Compiler details: `docs/compiler/bytecode-generation.md`
+- Architecture patterns: `docs/architecture/patterns.md`
 - VM opcodes: `docs/vm/instruction-set.md`
 - GC details: `docs/architecture/gc.md`
 - Standard library overview: `docs/stdlib/overview.md`

@@ -1,7 +1,7 @@
 ---
 status: current
-verified_against: docs/status/project-status.md; docs/guides/development.md; docs/walkthroughs/index.md; docs/glossary.md; examples/README.md
-last_checked: 2026-05-19
+verified_against: docs/status/project-status.md; docs/guides/development.md; docs/architecture/patterns.md; docs/walkthroughs/index.md; docs/glossary.md; examples/README.md
+last_checked: 2026-05-21
 applies_to: first-read learning path for contributors and readers
 ---
 
@@ -47,10 +47,11 @@ bin\lua_test.exe --filter "Symbol Binding"
 
 1. `docs/glossary.md`：把 Lua 术语和仓库类名对齐。
 2. `docs/architecture/overview.md`：确认源码分层和四个构建目标。
-3. `docs/compiler/bytecode-generation.md`：理解当前编译管线。
-4. `docs/vm/instruction-set.md`：理解 VM 指令集。
-5. `docs/walkthroughs/index.md`：从测试反推实现。
-6. `examples/README.md`：运行小脚本，观察解释器行为。
+3. `docs/architecture/patterns.md`：确认哪些设计模式已经落地，哪些仍只是路线图目标。
+4. `docs/compiler/bytecode-generation.md`：理解当前编译管线。
+5. `docs/vm/instruction-set.md`：理解 VM 指令集。
+6. `docs/walkthroughs/index.md`：从测试反推实现。
+7. `examples/README.md`：运行小脚本，观察解释器行为。
 
 对应的实现主线是：
 
