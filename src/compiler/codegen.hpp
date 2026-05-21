@@ -71,7 +71,7 @@ public:
      * @param chunk AST根节点
      * @return 生成的函数原型
      */
-    Proto* generate(const Chunk& chunk, StrView sourceName = {});
+    [[nodiscard]] Proto* generate(const Chunk& chunk, StrView sourceName = {});
 
     /**
      * @brief 生成字节码，以 expected 形式返回入口错误

@@ -164,7 +164,7 @@ public:
      * 
      * @return 回收的对象数量
      */
-    usize collect();
+    [[nodiscard]] usize collect();
 
     /**
      * @brief 执行完整的垃圾回收，并将当前LuaState作为执行根
@@ -175,7 +175,7 @@ public:
      * @param currentState 当前执行 collectgarbage 的 LuaState
      * @return 回收的对象数量
      */
-    usize collect(LuaState* currentState);
+    [[nodiscard]] usize collect(LuaState* currentState);
     
     /**
      * @brief 标记阶段

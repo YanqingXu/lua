@@ -4,17 +4,21 @@
 #include "io/file_loader.hpp"
 #include "runtime/runtime_services.hpp"
 
-#include <cstring>
-#include <functional>
+#include <format>
 #include <iostream>
 #include <stdexcept>
 #include <string>
+#include <utility>
 
 using namespace Lua;
 
+namespace {
+constexpr const char* kToolName = "bytecode_main";
+} // namespace
+
 int main(int argc, char** argv) {
     if (argc < 2) {
-        std::cerr << "Usage: bytecode_main <script.lua> [full]\n";
+        std::cerr << std::format("Usage: {} <script.lua> [full]\n", kToolName);
         return 1;
     }
 
@@ -35,7 +39,7 @@ int main(int argc, char** argv) {
         CodeGenerator codegen(services);
         Proto* proto = codegen.generate(chunk, scriptPath);
         if (!proto) {
-            std::cerr << "[ERROR] Failed to generate Proto" << std::endl;
+            std::cerr << std::format("[ERROR] {}\n", "Failed to generate Proto");
             return 2;
         }
 
@@ -44,10 +48,10 @@ int main(int argc, char** argv) {
         // Proto由GC管理；字节码工具结束时由进程/GC清理。
         return 0;
     } catch (const std::exception& e) {
-        std::cerr << "[ERROR] Exception: " << e.what() << std::endl;
+        std::cerr << std::format("[ERROR] Exception: {}\n", e.what());
         return 3;
     } catch (...) {
-        std::cerr << "[ERROR] Unknown exception" << std::endl;
+        std::cerr << std::format("[ERROR] {}\n", "Unknown exception");
         return 4;
     }
 }

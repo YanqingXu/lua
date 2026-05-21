@@ -109,7 +109,7 @@ void testFixedStringsNotCollected(TestSuite& suite) {
     usize beforeCount = gc.getObjectCount();
     
     // 执行GC
-    gc.collect();
+    (void)gc.collect();
     
     // 固定字符串不应该被回收
     ASSERT_TRUE(suite, andStr == pool.find("and"), "Fixed string 'and' should not be collected");

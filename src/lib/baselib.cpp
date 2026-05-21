@@ -1183,7 +1183,7 @@ i32 luaB_collectgarbage(LuaState* L) {
 
     if (firstChar == 'c') {
         if (strcmp(opt, "collect") == 0) {
-            gc.collect(L);
+            (void)gc.collect(L);
             L->pushNumber(0);
             return 1;
         }
