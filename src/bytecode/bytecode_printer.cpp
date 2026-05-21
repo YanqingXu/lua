@@ -4,9 +4,8 @@
 #include "core/gc_string.hpp"
 #include "core/value.hpp"
 
-#include <iomanip>
+#include <format>
 #include <ostream>
-#include <sstream>
 #include <string>
 #include <vector>
 
@@ -42,44 +41,36 @@ std::string escapeString(const char* value) {
 }
 
 std::string formatValue(const Value& value) {
-    std::ostringstream out;
-
     if (value.isNil()) {
-        out << "nil";
+        return "nil";
     } else if (value.isBoolean()) {
-        out << "boolean " << (value.asBoolean() ? "true" : "false");
+        return std::format("boolean {}", value.asBoolean() ? "true" : "false");
     } else if (value.isNumber()) {
-        out << "number " << value.asNumber();
+        return std::format("number {}", value.asNumber());
     } else if (value.isString()) {
-        out << "string \"" << escapeString(value.asString() ? value.asString()->c_str() : "") << "\"";
+        return std::format("string \"{}\"", escapeString(value.asString() ? value.asString()->c_str() : ""));
     } else if (value.isLightUserdata()) {
-        out << "lightuserdata";
+        return "lightuserdata";
     } else if (value.isTable()) {
-        out << "table";
+        return "table";
     } else if (value.isFunction()) {
-        out << "function";
+        return "function";
     } else if (value.isUserdata()) {
-        out << "userdata";
+        return "userdata";
     } else if (value.isThread()) {
-        out << "thread";
+        return "thread";
     } else {
-        out << "unknown";
+        return "unknown";
     }
-
-    return out.str();
 }
 
 std::string formatConstant(const Proto* proto, i32 index) {
-    std::ostringstream out;
-
-    out << "K[" << index << "]";
+    std::string prefix = std::format("K[{}]", index);
     if (!proto || index < 0 || static_cast<usize>(index) >= proto->getConstantCount()) {
-        out << " = <out of range>";
-        return out.str();
+        return std::format("{} = <out of range>", prefix);
     }
 
-    out << " = " << formatValue(proto->getConstant(static_cast<usize>(index)));
-    return out.str();
+    return std::format("{} = {}", prefix, formatValue(proto->getConstant(static_cast<usize>(index))));
 }
 
 void addRKComment(std::vector<std::string>& comments,
@@ -91,9 +82,7 @@ void addRKComment(std::vector<std::string>& comments,
         return;
     }
 
-    std::ostringstream out;
-    out << name << "=" << formatConstant(proto, INDEXK(operand));
-    comments.push_back(out.str());
+    comments.push_back(std::format("{}={}", name, formatConstant(proto, INDEXK(operand))));
 }
 
 void printComments(std::ostream& out, const std::vector<std::string>& comments) {
@@ -149,9 +138,7 @@ void printProtoBytecode(const Proto* f, std::ostream& out, bool full) {
         OpMode mode = getOpMode(op);
         std::vector<std::string> comments;
 
-        out << std::setw(4) << std::setfill('0') << pc << std::setfill(' ')
-            << " | line " << f->getLine(pc)
-            << " | " << getOpName(op) << " | ";
+        out << std::format("{:04} | line {} | {} | ", pc, f->getLine(pc), getOpName(op));
 
         switch (mode) {
         case OpMode::iABC: {
@@ -177,9 +164,7 @@ void printProtoBytecode(const Proto* f, std::ostream& out, bool full) {
             i32 sbx = GETARG_sBx(inst);
             out << "A=" << a << " sBx=" << sbx;
 
-            std::ostringstream target;
-            target << "target=" << (static_cast<i32>(pc) + 1 + sbx);
-            comments.push_back(target.str());
+            comments.push_back(std::format("target={}", static_cast<i32>(pc) + 1 + sbx));
             break;
         }
         }

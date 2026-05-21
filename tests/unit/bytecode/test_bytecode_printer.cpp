@@ -78,10 +78,31 @@ void testPrinterShowsProtoMetadataAndConstants(TestSuite& suite) {
     (void)nilIndex;
 }
 
+void testPrinterKeepsEscapedStringsAndOutOfRangeConstants(TestSuite& suite) {
+    StringPool& pool = StringPool::getInstance();
+    Proto proto;
+
+    proto.setSource(pool.intern("escape.lua"));
+    proto.addConstant(Value(pool.intern("quote\" slash\\ line\n tab\t")));
+
+    addInstruction(proto, 20, CREATE_ABx(OpCode::LOADK, 0, 3));
+
+    std::ostringstream output;
+    printProtoBytecode(&proto, output, false);
+    std::string text = output.str();
+
+    ASSERT_TRUE(suite, contains(text, "K[0] = string \"quote\\\" slash\\\\ line\\n tab\\t\""),
+                "string constants keep escaped printable form");
+    ASSERT_TRUE(suite, contains(text, "0000 | line 20 | LOADK | A=0 Bx=3 ; K[3] = <out of range>"),
+                "out of range constants keep decoded instruction comment");
+}
+
 } // namespace
 
 void registerBytecodePrinterTests() {
     auto& registry = TestRegistry::getInstance();
     registry.registerTest(kSuiteName, "Proto Metadata And Constants",
                           testPrinterShowsProtoMetadataAndConstants);
+    registry.registerTest(kSuiteName, "Escaped Strings And Out Of Range Constants",
+                          testPrinterKeepsEscapedStringsAndOutOfRangeConstants);
 }

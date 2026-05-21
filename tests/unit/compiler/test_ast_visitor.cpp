@@ -49,6 +49,18 @@ struct StmtNameVisitor : StmtVisitor<StmtNameVisitor, const char*> {
     const char* visitNode(const DoStmt&) { return "do"; }
 };
 
+struct PartialExprVisitor {
+    const char* visitNode(const NumberExpr&) { return "number"; }
+};
+
+static_assert(VisitsNode<ExprNameVisitor, NumberExpr>);
+static_assert(!VisitsNode<PartialExprVisitor, NilExpr>);
+static_assert(VisitsNodeAs<ExprNameVisitor, NumberExpr, const char*>);
+static_assert(!VisitsNodeAs<ExprNameVisitor, NumberExpr, int>);
+static_assert(VisitsExprNodes<ExprNameVisitor, const char*>);
+static_assert(!VisitsExprNodes<PartialExprVisitor, const char*>);
+static_assert(VisitsStmtNodes<StmtNameVisitor, const char*>);
+
 void testExprVisitorDispatchesVariant(TestSuite& suite) {
     NumberExpr number{};
     number.value = 42.0;
@@ -75,4 +87,3 @@ void registerAstVisitorTests() {
     registry.registerTest(kSuiteName, "expr visitor dispatch", testExprVisitorDispatchesVariant);
     registry.registerTest(kSuiteName, "stmt visitor dispatch", testStmtVisitorDispatchesVariant);
 }
-
