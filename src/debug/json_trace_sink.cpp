@@ -6,6 +6,7 @@
 #include "debug/json_trace_sink.hpp"
 #include "debug/value_serializer.hpp"
 #include "compiler/opcode.hpp"
+#include <format>
 #include <iostream>
 
 namespace Lua {
@@ -37,62 +38,72 @@ JsonTraceSink::~JsonTraceSink() {
 void JsonTraceSink::onInstruction(const TraceEvent& evt) {
     if (!file_.is_open() || reachedLimit()) return;
 
-    file_ << "{\"seq\":" << evt.seq
-          << ",\"kind\":\"instruction\""
-          << ",\"pc\":" << evt.pc
-          << ",\"op\":\"" << getOpName(evt.op) << "\""
-          << ",\"a\":" << evt.a
-          << ",\"b\":" << evt.b
-          << ",\"c\":" << evt.c
-          << ",\"bx\":" << evt.bx
-          << ",\"sbx\":" << evt.sbx
-          << ",\"line\":" << evt.line
-          << ",\"source\":\"" << Trace::jsonEscape(evt.source ? evt.source : "?") << "\""
-          << ",\"callDepth\":" << evt.callDepth;
-
-    // 寄存器快照
+    Str registers;
     if (evt.base && evt.maxStack > 0) {
-        file_ << ",\"registers\":"
-              << Trace::serializeRegisters(evt.base, evt.maxStack, evt.proto, evt.pc);
+        registers = std::format(
+            ",\"registers\":{}",
+            Trace::serializeRegisters(evt.base, evt.maxStack, evt.proto, evt.pc)
+        );
     }
 
-    file_ << "}\n";
+    file_ << std::format(
+        "{{\"seq\":{},\"kind\":\"instruction\",\"pc\":{},\"op\":\"{}\","
+        "\"a\":{},\"b\":{},\"c\":{},\"bx\":{},\"sbx\":{},\"line\":{},"
+        "\"source\":\"{}\",\"callDepth\":{}{}}}\n",
+        evt.seq,
+        evt.pc,
+        getOpName(evt.op),
+        evt.a,
+        evt.b,
+        evt.c,
+        evt.bx,
+        evt.sbx,
+        evt.line,
+        Trace::jsonEscape(evt.source ? evt.source : "?"),
+        evt.callDepth,
+        registers
+    );
     ++eventCount_;
 }
 
 void JsonTraceSink::onCall(const TraceEvent& evt) {
     if (!file_.is_open() || reachedLimit()) return;
 
-    file_ << "{\"seq\":" << evt.seq
-          << ",\"kind\":\"call\""
-          << ",\"funcName\":\"" << Trace::jsonEscape(evt.funcName ? evt.funcName : "?") << "\""
-          << ",\"source\":\"" << Trace::jsonEscape(evt.source ? evt.source : "?") << "\""
-          << ",\"line\":" << evt.line
-          << ",\"callDepth\":" << evt.callDepth
-          << "}\n";
+    file_ << std::format(
+        "{{\"seq\":{},\"kind\":\"call\",\"funcName\":\"{}\","
+        "\"source\":\"{}\",\"line\":{},\"callDepth\":{}}}\n",
+        evt.seq,
+        Trace::jsonEscape(evt.funcName ? evt.funcName : "?"),
+        Trace::jsonEscape(evt.source ? evt.source : "?"),
+        evt.line,
+        evt.callDepth
+    );
     ++eventCount_;
 }
 
 void JsonTraceSink::onReturn(const TraceEvent& evt) {
     if (!file_.is_open() || reachedLimit()) return;
 
-    file_ << "{\"seq\":" << evt.seq
-          << ",\"kind\":\"return\""
-          << ",\"callDepth\":" << evt.callDepth
-          << "}\n";
+    file_ << std::format(
+        "{{\"seq\":{},\"kind\":\"return\",\"callDepth\":{}}}\n",
+        evt.seq,
+        evt.callDepth
+    );
     ++eventCount_;
 }
 
 void JsonTraceSink::onError(const TraceEvent& evt) {
     if (!file_.is_open() || reachedLimit()) return;
 
-    file_ << "{\"seq\":" << evt.seq
-          << ",\"kind\":\"error\""
-          << ",\"message\":\"" << Trace::jsonEscape(evt.errorMsg ? evt.errorMsg : "") << "\""
-          << ",\"source\":\"" << Trace::jsonEscape(evt.source ? evt.source : "?") << "\""
-          << ",\"line\":" << evt.line
-          << ",\"callDepth\":" << evt.callDepth
-          << "}\n";
+    file_ << std::format(
+        "{{\"seq\":{},\"kind\":\"error\",\"message\":\"{}\","
+        "\"source\":\"{}\",\"line\":{},\"callDepth\":{}}}\n",
+        evt.seq,
+        Trace::jsonEscape(evt.errorMsg ? evt.errorMsg : ""),
+        Trace::jsonEscape(evt.source ? evt.source : "?"),
+        evt.line,
+        evt.callDepth
+    );
     ++eventCount_;
 }
 

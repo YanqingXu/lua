@@ -7,6 +7,7 @@
 #include "repl.hpp"
 
 #include <filesystem>
+#include <iostream>
 #include <sstream>
 #include <string>
 
@@ -107,6 +108,53 @@ void testBytecodeCommandRejectsMissingArgument(TestSuite& suite) {
     delete L;
 }
 
+void testReportErrorKeepsErrorFormat(TestSuite& suite) {
+    std::ostringstream err;
+    std::streambuf* oldBuffer = std::cerr.rdbuf(err.rdbuf());
+
+    REPL::setProgName("C:\\tools\\lua_test.exe");
+    REPL::reportError("chunk.lua", 17, "syntax boom", true);
+    REPL::reportError("stdin", 3, "repl boom", false);
+
+    std::cerr.rdbuf(oldBuffer);
+    REPL::setProgName(nullptr);
+
+    const std::string text = err.str();
+    ASSERT_TRUE(
+        suite,
+        contains(text, "lua_test.exe: chunk.lua:17: syntax boom"),
+        "script error should include program source line and message"
+    );
+    ASSERT_TRUE(
+        suite,
+        contains(text, "stdin:3: repl boom"),
+        "repl error should omit program prefix"
+    );
+}
+
+void testUnknownMetaCommandErrorFormat(TestSuite& suite) {
+    LuaState* L = LuaState::newState();
+    std::ostringstream out;
+    std::ostringstream err;
+
+    REPL::MetaCommand command;
+    command.kind = REPL::MetaCommandKind::Unknown;
+    command.argument = "wat";
+
+    const int status = REPL::runMetaCommand(L, command, out, err);
+
+    ASSERT_EQ(suite, 1, status, "unknown REPL command should fail");
+    ASSERT_TRUE(suite, out.str().empty(), "unknown REPL command should not write stdout");
+    ASSERT_EQ(
+        suite,
+        std::string("unknown REPL command: .wat\n"),
+        err.str(),
+        "unknown REPL command error format is stable"
+    );
+
+    delete L;
+}
+
 } // namespace
 
 void registerReplCommandTests() {
@@ -119,4 +167,6 @@ void registerReplCommandTests() {
                           testBytecodeCommandPrintsCompiledExpression);
     registry.registerTest(kSuiteName, "Bytecode Command Rejects Missing Argument",
                           testBytecodeCommandRejectsMissingArgument);
+    registry.registerTest(kSuiteName, "Report Error Format", testReportErrorKeepsErrorFormat);
+    registry.registerTest(kSuiteName, "Unknown Meta Command Error Format", testUnknownMetaCommandErrorFormat);
 }

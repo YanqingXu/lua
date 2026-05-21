@@ -8,10 +8,8 @@
 #include "core/table.hpp"
 #include "core/function.hpp"
 #include "core/userdata.hpp"
-#include <sstream>
-#include <iomanip>
 #include <cmath>
-#include <cstdio>
+#include <format>
 
 namespace Lua {
 namespace Trace {
@@ -26,10 +24,10 @@ namespace {
  * @brief 将指针格式化为十六进制 ID 字符串
  */
 Str ptrToHex(const void* p) {
-    char buf[32];
-    std::snprintf(buf, sizeof(buf), "0x%llx",
-                  static_cast<unsigned long long>(reinterpret_cast<uintptr_t>(p)));
-    return buf;
+    return std::format(
+        "0x{:x}",
+        static_cast<unsigned long long>(reinterpret_cast<uintptr_t>(p))
+    );
 }
 
 } // anonymous namespace
@@ -67,10 +65,7 @@ Str jsonEscape(StrView s) {
             case '\t': out += "\\t";  break;
             default:
                 if (static_cast<unsigned char>(ch) < 0x20) {
-                    char buf[8];
-                    std::snprintf(buf, sizeof(buf), "\\u%04x",
-                                  static_cast<unsigned>(static_cast<unsigned char>(ch)));
-                    out += buf;
+                    out += std::format("\\u{:04x}", static_cast<unsigned>(static_cast<unsigned char>(ch)));
                 } else {
                     out += ch;
                 }
@@ -94,13 +89,9 @@ Str serializeValue(const Value& v) {
             if (std::isinf(n))   return n > 0 ? "\"Infinity\"" : "\"-Infinity\"";
             // 整数优化：如果是整数值，不带小数点
             if (n == std::floor(n) && std::abs(n) < 1e15) {
-                char buf[32];
-                std::snprintf(buf, sizeof(buf), "%.0f", n);
-                return buf;
+                return std::format("{:.0f}", n);
             }
-            char buf[64];
-            std::snprintf(buf, sizeof(buf), "%.14g", n);
-            return buf;
+            return std::format("{:.14g}", n);
         }
 
         case ValueType::String: {

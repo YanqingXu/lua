@@ -27,8 +27,8 @@
 
 #include <algorithm>
 #include <cstring>
+#include <format>
 #include <iostream>
-#include <sstream>
 
 namespace Lua {
 
@@ -521,9 +521,7 @@ Str describeFunction(Function* func) {
         return "main chunk";
     }
 
-    std::ostringstream oss;
-    oss << "function <" << source << ":" << proto->getLineDefined() << ">";
-    return oss.str();
+    return std::format("function <{}:{}>", source, proto->getLineDefined());
 }
 
 Str formatFrameLine(LuaState* ownerL, const CallInfo& ci) {
@@ -543,13 +541,10 @@ Str formatFrameLine(LuaState* ownerL, const CallInfo& ci) {
         line = proto->getLineDefined();
     }
 
-    std::ostringstream oss;
     if (line > 0) {
-        oss << "\t" << source << ":" << line << ": in " << describeFunction(func);
-    } else {
-        oss << "\t" << source << ": in " << describeFunction(func);
+        return std::format("\t{}:{}: in {}", source, line, describeFunction(func));
     }
-    return oss.str();
+    return std::format("\t{}: in {}", source, describeFunction(func));
 }
 
 Function* checkFunctionArg(LuaState* L, i32 idx, const char* message) {
@@ -984,11 +979,12 @@ i32 luaDebug_traceback(LuaState* L) {
         level = std::max(0, static_cast<i32>(L->toNumber(argBase + 1)));
     }
 
-    std::ostringstream oss;
+    Str traceback;
     if (message != nullptr && *message != '\0') {
-        oss << message << "\n";
+        traceback = std::format("{}\nstack traceback:", message);
+    } else {
+        traceback = "stack traceback:";
     }
-    oss << "stack traceback:";
 
     i32 startIndex = static_cast<i32>(ownerL->getCurrentCI()) - level;
     for (i32 index = startIndex; index >= 0; --index) {
@@ -998,10 +994,10 @@ i32 luaDebug_traceback(LuaState* L) {
             continue;
         }
 
-        oss << "\n" << formatFrameLine(ownerL, ci);
+        traceback += std::format("\n{}", formatFrameLine(ownerL, ci));
     }
 
-    L->pushString(internString(L, oss.str()));
+    L->pushString(internString(L, traceback));
     return 1;
 }
 

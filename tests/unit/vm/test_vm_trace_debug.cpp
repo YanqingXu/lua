@@ -8,12 +8,15 @@
 #include "compiler/codegen.hpp"
 #include "compiler/parser.hpp"
 #include "core/function.hpp"
+#include "debug/json_trace_sink.hpp"
 #include "debug/trace_sink.hpp"
 #include "debug/trace_types.hpp"
 #include "runtime/runtime_services.hpp"
 #include "vm/lua_state.hpp"
 #include "vm/vm.hpp"
 
+#include <filesystem>
+#include <fstream>
 #include <string>
 #include <vector>
 
@@ -115,6 +118,14 @@ i32 captureDebugHook(LuaState* L) {
     return 0;
 }
 
+Str readTextFile(const std::filesystem::path& path) {
+    std::ifstream input(path, std::ios::binary);
+    return Str(
+        std::istreambuf_iterator<char>(input),
+        std::istreambuf_iterator<char>()
+    );
+}
+
 }  // namespace
 
 void testTraceEventsKeepInstructionCallReturnOrder(TestSuite& suite) {
@@ -205,6 +216,81 @@ void testDebugHooksKeepCountLineCallReturnOrder(TestSuite& suite) {
     delete L;
 }
 
+void testJsonTraceSinkWritesStableJsonLines(TestSuite& suite) {
+    const std::filesystem::path path =
+        std::filesystem::temp_directory_path() / "lua_cpp_trace_json_sink_test.jsonl";
+    std::filesystem::remove(path);
+
+    {
+        JsonTraceSink sink(path.string(), 4);
+        ASSERT_TRUE(suite, sink.isOpen(), "json trace sink opens temp file");
+
+        TraceEvent instruction;
+        instruction.seq = 7;
+        instruction.kind = TraceEventKind::Instruction;
+        instruction.pc = 3;
+        instruction.op = OpCode::LOADK;
+        instruction.a = 1;
+        instruction.b = 2;
+        instruction.c = 3;
+        instruction.bx = 4;
+        instruction.sbx = -5;
+        instruction.line = 99;
+        instruction.source = "trace \"src\"\n.lua";
+        instruction.callDepth = 2;
+        sink.onInstruction(instruction);
+
+        TraceEvent call;
+        call.seq = 8;
+        call.kind = TraceEventKind::Call;
+        call.funcName = "fn\"name";
+        call.source = "call.lua";
+        call.line = 12;
+        call.callDepth = 3;
+        sink.onCall(call);
+
+        TraceEvent ret;
+        ret.seq = 9;
+        ret.kind = TraceEventKind::Return;
+        ret.callDepth = 2;
+        sink.onReturn(ret);
+
+        TraceEvent error;
+        error.seq = 10;
+        error.kind = TraceEventKind::Error;
+        error.errorMsg = "bad\tthing";
+        error.source = "err.lua";
+        error.line = 14;
+        error.callDepth = 1;
+        sink.onError(error);
+
+        sink.flush();
+        ASSERT_EQ(suite, static_cast<u64>(4), sink.getEventCount(), "json trace sink records four events");
+    }
+
+    const Str content = readTextFile(path);
+    ASSERT_TRUE(suite, content.find(
+        "{\"seq\":7,\"kind\":\"instruction\",\"pc\":3,\"op\":\"LOADK\","
+        "\"a\":1,\"b\":2,\"c\":3,\"bx\":4,\"sbx\":-5,\"line\":99,"
+        "\"source\":\"trace \\\"src\\\"\\n.lua\",\"callDepth\":2}"
+    ) != Str::npos, "instruction trace JSON line is stable");
+    ASSERT_TRUE(suite, content.find(
+        "{\"seq\":8,\"kind\":\"call\",\"funcName\":\"fn\\\"name\","
+        "\"source\":\"call.lua\",\"line\":12,\"callDepth\":3}"
+    ) != Str::npos, "call trace JSON line is stable");
+    ASSERT_TRUE(
+        suite,
+        content.find("{\"seq\":9,\"kind\":\"return\",\"callDepth\":2}") != Str::npos,
+        "return trace JSON line is stable"
+    );
+    ASSERT_TRUE(suite, content.find(
+        "{\"seq\":10,\"kind\":\"error\",\"message\":\"bad\\tthing\","
+        "\"source\":\"err.lua\",\"line\":14,\"callDepth\":1}"
+    ) != Str::npos, "error trace JSON line is stable");
+
+    std::filesystem::remove(path);
+}
+
 void registerVMTraceDebugTests() {
     auto& registry = TestRegistry::getInstance();
 
@@ -212,4 +298,6 @@ void registerVMTraceDebugTests() {
                           testTraceEventsKeepInstructionCallReturnOrder);
     registry.registerTest(kSuiteName, "Debug Hooks Keep Count Line Call Return Order",
                           testDebugHooksKeepCountLineCallReturnOrder);
+    registry.registerTest(kSuiteName, "JsonTraceSink Writes Stable Json Lines",
+                          testJsonTraceSinkWritesStableJsonLines);
 }

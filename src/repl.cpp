@@ -34,6 +34,7 @@
 #include <cctype>
 #include <cstdlib>
 #include <expected>
+#include <format>
 #include <fstream>
 
 namespace Lua {
@@ -80,18 +81,21 @@ const char* getProgName() {
 void reportError(const char* msg, bool showProgName) {
     // 参考官方 Lua 的 l_message() 函数
     if (showProgName && g_progname) {
-        std::cerr << g_progname << ": ";
+        std::cerr << std::format("{}: {}", g_progname, msg) << std::endl;
+    } else {
+        std::cerr << msg << std::endl;
     }
-    std::cerr << msg << std::endl;
 }
 
 void reportError(const char* source, int line, const char* msg, bool showProgName) {
     // 格式（脚本模式）：progname: source:line: message
     // 格式（REPL 模式）：source:line: message
+    const Str message = std::format("{}:{}: {}", source, line, msg);
     if (showProgName && g_progname) {
-        std::cerr << g_progname << ": ";
+        std::cerr << std::format("{}: {}", g_progname, message) << std::endl;
+    } else {
+        std::cerr << message << std::endl;
     }
-    std::cerr << source << ":" << line << ": " << msg << std::endl;
 }
 
 // ============================================================================
@@ -311,7 +315,7 @@ std::expected<Proto*, ParseError> compileForBytecode(LuaState* L, const Str& sou
 }
 
 void printParseError(std::ostream& err, const ParseError& error) {
-    err << "stdin:" << error.getLine() << ": " << error.what() << std::endl;
+    err << std::format("stdin:{}: {}", error.getLine(), error.what()) << std::endl;
 }
 
 /**
@@ -576,7 +580,7 @@ int runMetaCommand(LuaState* L, const MetaCommand& command, std::ostream& out, s
         case MetaCommandKind::Bytecode:
             return printBytecode(L, command.argument, out, err);
         case MetaCommandKind::Unknown:
-            err << "unknown REPL command: ." << command.argument << std::endl;
+            err << std::format("unknown REPL command: .{}", command.argument) << std::endl;
             return 1;
     }
 

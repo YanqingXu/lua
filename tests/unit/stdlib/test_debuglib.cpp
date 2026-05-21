@@ -459,6 +459,11 @@ void testTracebackFromLua(TestSuite& suite) {
                 text.find("test_debuglib_trace.lua") != std::string::npos,
                 "traceback includes chunk name"
             );
+            ASSERT_TRUE(
+                suite,
+                text.find(": in function <test_debuglib_trace.lua:1>") != std::string::npos,
+                "traceback includes Lua function frame"
+            );
         }
     }
 

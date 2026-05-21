@@ -46,10 +46,10 @@
 #include "common/lua_error.hpp"
 #include "repl.hpp"
 
+#include <filesystem>
+#include <format>
 #include <iostream>
 #include <memory>
-#include <sstream>
-#include <filesystem>
 #include <windows.h>
 
 // 默认测试脚本路径。
@@ -237,7 +237,8 @@ int executeScript(LuaState* L, const char* filename) {
         Proto* proto = codegen.generate(chunk, filename);
 
         if (!proto) {
-            REPL::reportError((Str(filename) + ": code generation failed").c_str());
+            const Str message = std::format("{}: code generation failed", filename);
+            REPL::reportError(message.c_str());
             return 1;
         }
 
@@ -359,9 +360,8 @@ int Lua::runApp(const AppOptions& opt) {
                           << std::endl;
             }
         } else {
-            std::ostringstream oss;
-            oss << "test script not found: " << kTestScriptPath;
-            REPL::reportError(oss.str().c_str());
+            const Str message = std::format("test script not found: {}", kTestScriptPath);
+            REPL::reportError(message.c_str());
             status = 1;
         }
         break;
