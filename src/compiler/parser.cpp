@@ -136,16 +136,6 @@ void Parser::synchronize() {
     }
 }
 
-/**
- * @brief 安全地获取 Token 的字符串值。
- */
-Str Parser::tokenString(const Token& token) {
-    if (std::holds_alternative<Str>(token.value)) {
-        return std::get<Str>(token.value);
-    }
-    return token.lexeme;  // 回退到lexeme
-}
-
 // =====================================================================
 // 主解析函数
 // =====================================================================

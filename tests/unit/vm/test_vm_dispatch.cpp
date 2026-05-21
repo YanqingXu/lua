@@ -230,6 +230,8 @@ void testHandlerTableCoversOpcodeSpace(TestSuite& suite) {
                   "Handler entry opcode should match table index");
         ASSERT_TRUE(suite, std::string(entry.name) == getOpName(expected),
                     "Handler entry name should match opcode name");
+        ASSERT_EQ(suite, static_cast<int>(opcodeMetadata(expected).group), static_cast<int>(entry.group),
+                  "Handler entry group should match opcode metadata");
     }
 }
 

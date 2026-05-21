@@ -38,13 +38,13 @@ ExprPtr Parser::parseTableConstructor() {
 
             if (nextToken.type == static_cast<TokenType>('=')) {
                 // name = value 形式
-                Str name = tokenString(current_);
+                Str name(tokenString(current_));
                 i32 nameLine = current_.line;
                 i32 nameColumn = current_.column;
                 advance();  // 消费 name
 
                 StringExpr keyExpr;
-                keyExpr.value = name;
+                keyExpr.value = std::move(name);
                 keyExpr.line = nameLine;
                 keyExpr.column = nameColumn;
                 field.key = makeExpr<StringExpr>(std::move(keyExpr));

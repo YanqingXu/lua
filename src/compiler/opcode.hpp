@@ -23,6 +23,8 @@
 
 #include "common/types.hpp"
 
+#include <array>
+
 namespace Lua {
 
 // =====================================================================
@@ -299,6 +301,151 @@ enum class OpArgMask {
     OpArgR,  // 寄存器或跳转偏移
     OpArgK   // 常量或寄存器/常量（RK）
 };
+
+namespace VM {
+
+enum class OpcodeGroup : u8 {
+    Unknown,
+    DataMove,
+    Global,
+    Upvalue,
+    Table,
+    Arithmetic,
+    Unary,
+    Branch,
+    Comparison,
+    Call,
+    Loop,
+    Closure,
+    Vararg,
+};
+
+}  // namespace VM
+
+struct OpcodeMetadata {
+    OpCode opcode;
+    const char* name;
+    OpMode mode;
+    OpArgMask bMode;
+    OpArgMask cMode;
+    bool setsA;
+    bool isTest;
+    VM::OpcodeGroup group;
+    bool mayInvokeMetamethod;
+};
+
+namespace detail {
+
+constexpr OpcodeMetadata makeOpcodeMetadata(OpCode opcode, const char* name, OpMode mode,
+                                            OpArgMask bMode, OpArgMask cMode, bool setsA,
+                                            bool isTest, VM::OpcodeGroup group,
+                                            bool mayInvokeMetamethod) noexcept {
+    return OpcodeMetadata{opcode, name, mode, bMode, cMode, setsA, isTest, group, mayInvokeMetamethod};
+}
+
+}  // namespace detail
+
+inline constexpr std::array<OpcodeMetadata, static_cast<usize>(NUM_OPCODES)> kOpcodeMetadata = {{
+    detail::makeOpcodeMetadata(OpCode::MOVE, "MOVE", OpMode::iABC, OpArgMask::OpArgR, OpArgMask::OpArgN,
+                               true, false, VM::OpcodeGroup::DataMove, false),
+    detail::makeOpcodeMetadata(OpCode::LOADK, "LOADK", OpMode::iABx, OpArgMask::OpArgK, OpArgMask::OpArgN,
+                               true, false, VM::OpcodeGroup::DataMove, false),
+    detail::makeOpcodeMetadata(OpCode::LOADBOOL, "LOADBOOL", OpMode::iABC, OpArgMask::OpArgU,
+                               OpArgMask::OpArgU, true, false, VM::OpcodeGroup::DataMove, false),
+    detail::makeOpcodeMetadata(OpCode::LOADNIL, "LOADNIL", OpMode::iABC, OpArgMask::OpArgR,
+                               OpArgMask::OpArgN, true, false, VM::OpcodeGroup::DataMove, false),
+    detail::makeOpcodeMetadata(OpCode::GETUPVAL, "GETUPVAL", OpMode::iABC, OpArgMask::OpArgU,
+                               OpArgMask::OpArgN, true, false, VM::OpcodeGroup::Upvalue, false),
+    detail::makeOpcodeMetadata(OpCode::GETGLOBAL, "GETGLOBAL", OpMode::iABx, OpArgMask::OpArgK,
+                               OpArgMask::OpArgN, true, false, VM::OpcodeGroup::Global, false),
+    detail::makeOpcodeMetadata(OpCode::GETTABLE, "GETTABLE", OpMode::iABC, OpArgMask::OpArgR,
+                               OpArgMask::OpArgK, true, false, VM::OpcodeGroup::Table, true),
+    detail::makeOpcodeMetadata(OpCode::SETGLOBAL, "SETGLOBAL", OpMode::iABx, OpArgMask::OpArgK,
+                               OpArgMask::OpArgN, false, false, VM::OpcodeGroup::Global, false),
+    detail::makeOpcodeMetadata(OpCode::SETUPVAL, "SETUPVAL", OpMode::iABC, OpArgMask::OpArgU,
+                               OpArgMask::OpArgN, false, false, VM::OpcodeGroup::Upvalue, false),
+    detail::makeOpcodeMetadata(OpCode::SETTABLE, "SETTABLE", OpMode::iABC, OpArgMask::OpArgK,
+                               OpArgMask::OpArgK, false, false, VM::OpcodeGroup::Table, true),
+    detail::makeOpcodeMetadata(OpCode::NEWTABLE, "NEWTABLE", OpMode::iABC, OpArgMask::OpArgU,
+                               OpArgMask::OpArgU, true, false, VM::OpcodeGroup::Table, false),
+    detail::makeOpcodeMetadata(OpCode::SELF, "SELF", OpMode::iABC, OpArgMask::OpArgR, OpArgMask::OpArgK,
+                               true, false, VM::OpcodeGroup::Table, true),
+    detail::makeOpcodeMetadata(OpCode::ADD, "ADD", OpMode::iABC, OpArgMask::OpArgK, OpArgMask::OpArgK,
+                               true, false, VM::OpcodeGroup::Arithmetic, true),
+    detail::makeOpcodeMetadata(OpCode::SUB, "SUB", OpMode::iABC, OpArgMask::OpArgK, OpArgMask::OpArgK,
+                               true, false, VM::OpcodeGroup::Arithmetic, true),
+    detail::makeOpcodeMetadata(OpCode::MUL, "MUL", OpMode::iABC, OpArgMask::OpArgK, OpArgMask::OpArgK,
+                               true, false, VM::OpcodeGroup::Arithmetic, true),
+    detail::makeOpcodeMetadata(OpCode::DIV, "DIV", OpMode::iABC, OpArgMask::OpArgK, OpArgMask::OpArgK,
+                               true, false, VM::OpcodeGroup::Arithmetic, true),
+    detail::makeOpcodeMetadata(OpCode::MOD, "MOD", OpMode::iABC, OpArgMask::OpArgK, OpArgMask::OpArgK,
+                               true, false, VM::OpcodeGroup::Arithmetic, true),
+    detail::makeOpcodeMetadata(OpCode::POW, "POW", OpMode::iABC, OpArgMask::OpArgK, OpArgMask::OpArgK,
+                               true, false, VM::OpcodeGroup::Arithmetic, true),
+    detail::makeOpcodeMetadata(OpCode::UNM, "UNM", OpMode::iABC, OpArgMask::OpArgR, OpArgMask::OpArgN,
+                               true, false, VM::OpcodeGroup::Unary, true),
+    detail::makeOpcodeMetadata(OpCode::NOT, "NOT", OpMode::iABC, OpArgMask::OpArgR, OpArgMask::OpArgN,
+                               true, false, VM::OpcodeGroup::Unary, false),
+    detail::makeOpcodeMetadata(OpCode::LEN, "LEN", OpMode::iABC, OpArgMask::OpArgR, OpArgMask::OpArgN,
+                               true, false, VM::OpcodeGroup::Unary, true),
+    detail::makeOpcodeMetadata(OpCode::CONCAT, "CONCAT", OpMode::iABC, OpArgMask::OpArgR,
+                               OpArgMask::OpArgR, true, false, VM::OpcodeGroup::Unary, true),
+    detail::makeOpcodeMetadata(OpCode::JMP, "JMP", OpMode::iAsBx, OpArgMask::OpArgR, OpArgMask::OpArgN,
+                               false, false, VM::OpcodeGroup::Branch, false),
+    detail::makeOpcodeMetadata(OpCode::EQ, "EQ", OpMode::iABC, OpArgMask::OpArgK, OpArgMask::OpArgK,
+                               false, true, VM::OpcodeGroup::Comparison, true),
+    detail::makeOpcodeMetadata(OpCode::LT, "LT", OpMode::iABC, OpArgMask::OpArgK, OpArgMask::OpArgK,
+                               false, true, VM::OpcodeGroup::Comparison, true),
+    detail::makeOpcodeMetadata(OpCode::LE, "LE", OpMode::iABC, OpArgMask::OpArgK, OpArgMask::OpArgK,
+                               false, true, VM::OpcodeGroup::Comparison, true),
+    detail::makeOpcodeMetadata(OpCode::TEST, "TEST", OpMode::iABC, OpArgMask::OpArgR, OpArgMask::OpArgU,
+                               true, true, VM::OpcodeGroup::Branch, false),
+    detail::makeOpcodeMetadata(OpCode::TESTSET, "TESTSET", OpMode::iABC, OpArgMask::OpArgR,
+                               OpArgMask::OpArgU, true, true, VM::OpcodeGroup::Branch, false),
+    detail::makeOpcodeMetadata(OpCode::CALL, "CALL", OpMode::iABC, OpArgMask::OpArgU, OpArgMask::OpArgU,
+                               true, false, VM::OpcodeGroup::Call, true),
+    detail::makeOpcodeMetadata(OpCode::TAILCALL, "TAILCALL", OpMode::iABC, OpArgMask::OpArgU,
+                               OpArgMask::OpArgU, true, false, VM::OpcodeGroup::Call, true),
+    detail::makeOpcodeMetadata(OpCode::RETURN, "RETURN", OpMode::iABC, OpArgMask::OpArgU,
+                               OpArgMask::OpArgN, false, false, VM::OpcodeGroup::Call, false),
+    detail::makeOpcodeMetadata(OpCode::FORLOOP, "FORLOOP", OpMode::iAsBx, OpArgMask::OpArgR,
+                               OpArgMask::OpArgN, true, false, VM::OpcodeGroup::Loop, false),
+    detail::makeOpcodeMetadata(OpCode::FORPREP, "FORPREP", OpMode::iAsBx, OpArgMask::OpArgR,
+                               OpArgMask::OpArgN, true, false, VM::OpcodeGroup::Loop, false),
+    detail::makeOpcodeMetadata(OpCode::TFORLOOP, "TFORLOOP", OpMode::iABC, OpArgMask::OpArgN,
+                               OpArgMask::OpArgU, false, true, VM::OpcodeGroup::Loop, false),
+    detail::makeOpcodeMetadata(OpCode::SETLIST, "SETLIST", OpMode::iABC, OpArgMask::OpArgU,
+                               OpArgMask::OpArgU, false, false, VM::OpcodeGroup::Table, false),
+    detail::makeOpcodeMetadata(OpCode::CLOSE, "CLOSE", OpMode::iABC, OpArgMask::OpArgN, OpArgMask::OpArgN,
+                               false, false, VM::OpcodeGroup::Branch, false),
+    detail::makeOpcodeMetadata(OpCode::CLOSURE, "CLOSURE", OpMode::iABx, OpArgMask::OpArgU,
+                               OpArgMask::OpArgN, true, false, VM::OpcodeGroup::Closure, false),
+    detail::makeOpcodeMetadata(OpCode::VARARG, "VARARG", OpMode::iABC, OpArgMask::OpArgU,
+                               OpArgMask::OpArgN, true, false, VM::OpcodeGroup::Vararg, false),
+}};
+
+inline constexpr OpcodeMetadata kUnknownOpcodeMetadata = {
+    static_cast<OpCode>(0),
+    "UNKNOWN",
+    OpMode::iABC,
+    OpArgMask::OpArgN,
+    OpArgMask::OpArgN,
+    false,
+    false,
+    VM::OpcodeGroup::Unknown,
+    false,
+};
+
+static_assert(kOpcodeMetadata.size() == static_cast<usize>(NUM_OPCODES),
+              "opcode metadata must cover every opcode");
+
+constexpr bool isValidOpcode(OpCode op) noexcept {
+    return static_cast<usize>(op) < kOpcodeMetadata.size();
+}
+
+constexpr const OpcodeMetadata& opcodeMetadata(OpCode op) noexcept {
+    return isValidOpcode(op) ? kOpcodeMetadata[static_cast<usize>(op)] : kUnknownOpcodeMetadata;
+}
 
 /**
  * @brief 获取指令格式

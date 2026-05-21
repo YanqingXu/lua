@@ -27,7 +27,7 @@ StmtPtr Parser::parseFunctionStmt() {
     }
 
     // 第一个名字
-    funcStmt.name = tokenString(current_);
+    funcStmt.name = Str(tokenString(current_));
     advance();
 
     // 解析表路径和方法语法
@@ -35,22 +35,22 @@ StmtPtr Parser::parseFunctionStmt() {
     while (check(static_cast<TokenType>('.')) || check(static_cast<TokenType>(':'))) {
         if (match(static_cast<TokenType>('.'))) {
             // 表成员访问
-            funcStmt.tablePath.push_back(funcStmt.name);
+            funcStmt.tablePath.push_back(std::move(funcStmt.name));
 
             if (!current_.isName()) {
                 error("Expected field name after '.'");
             }
-            funcStmt.name = tokenString(current_);
+            funcStmt.name = Str(tokenString(current_));
             advance();
         } else if (match(static_cast<TokenType>(':'))) {
             // 方法定义语法糖
-            funcStmt.tablePath.push_back(funcStmt.name);
+            funcStmt.tablePath.push_back(std::move(funcStmt.name));
             funcStmt.isMethod = true;
 
             if (!current_.isName()) {
                 error("Expected method name after ':'");
             }
-            funcStmt.name = tokenString(current_);
+            funcStmt.name = Str(tokenString(current_));
             advance();
             break;  // 冒号后不能再有点或冒号
         }
@@ -128,7 +128,7 @@ Vec<Str> Parser::parseParamList() {
     // 解析参数名
     do {
         if (current_.isName()) {
-            params.push_back(tokenString(current_));
+            params.emplace_back(tokenString(current_));
             advance();
         } else if (match(TokenType::Dots)) {
             params.push_back("...");
