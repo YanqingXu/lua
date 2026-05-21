@@ -52,17 +52,6 @@ static inline Value* refreshBase(LuaState* L) {
     return &L->getStack()[L->getCurrentCallInfo().base];
 }
 
-/**
- * @brief 获取 RK 值（寄存器或常量）
- * 对应 Lua C:  ISK(x) ? k[INDEXK(x)] : base[x]
- */
-static inline Value getRK(Proto* proto, Value* base, i32 rk) {
-    if (ISK(rk)) {
-        return proto->getConstant(INDEXK(rk));
-    }
-    return base[rk];
-}
-
 } // anonymous namespace
 
 // =====================================================================
@@ -94,7 +83,14 @@ ExecResult executeProto(RuntimeServices& services, LuaState* L, Proto* proto, i3
     return strategy.run(context);
 }
 
-ExecResult SwitchDispatch::run(VMContext& context) {
+namespace {
+
+enum class DispatchBackend : u8 {
+    Switch,
+    Table,
+};
+
+ExecResult runDispatchBackend(VMContext& context, DispatchBackend backend) {
     RuntimeServices& services = context.services;
     LuaState* L = context.state;
     Proto* proto = context.proto;
@@ -165,11 +161,6 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
             usize instructionPc = pc;
             Instruction inst = code[pc];
             OpCode op  = GET_OPCODE(inst);
-            i32    a   = GETARG_A(inst);
-            i32    b   = GETARG_B(inst);
-            i32    c   = GETARG_C(inst);
-            i32    bx  = GETARG_Bx(inst);
-            i32    sbx = GETARG_sBx(inst);
             pc++;
 
             CallInfo& currentCI = L->getCurrentCallInfo();
@@ -182,330 +173,88 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
 
             VM::detail::emitInstructionTrace(proto, base, instructionPc, inst, nexeccalls);
 
-            switch (op) {
+            auto runCurrentHandler = [&]() -> HandlerStatus {
+                OpExecutionContext opContext{
+                    services,
+                    L,
+                    func,
+                    proto,
+                    base,
+                    pc,
+                    instructionPc,
+                    nexeccalls
+                };
+                HandlerStatus status = VM::runHandler(opContext, inst);
+                base = opContext.base;
+                nexeccalls = opContext.nexeccalls;
+                return status;
+            };
 
-            // ============== 基础操作 ==============
+            if (backend == DispatchBackend::Table) {
+                HandlerStatus status = runCurrentHandler();
+                switch (status) {
+                    case HandlerStatus::Continue:
+                        continue;
+                    case HandlerStatus::Reenter:
+                        goto reentry;
+                    case HandlerStatus::Yielded:
+                        return ExecResult::Yielded;
+                    case HandlerStatus::Returned:
+                        return ExecResult::Returned;
+                }
+            }
+
+            switch (op) {
 
             case OpCode::MOVE:
             case OpCode::LOADK:
             case OpCode::LOADBOOL:
-            case OpCode::LOADNIL: {
-                OpExecutionContext opContext{
-                    services,
-                    L,
-                    func,
-                    proto,
-                    base,
-                    pc,
-                    instructionPc,
-                    nexeccalls
-                };
-                VM::runHandler(opContext, inst);
-                break;
-            }
-
-            // ============== 全局变量操作 ==============
-
+            case OpCode::LOADNIL:
             case OpCode::GETGLOBAL:
-            case OpCode::SETGLOBAL: {
-                OpExecutionContext opContext{
-                    services,
-                    L,
-                    func,
-                    proto,
-                    base,
-                    pc,
-                    instructionPc,
-                    nexeccalls
-                };
-                VM::runHandler(opContext, inst);
-                break;
-            }
-
-            // ============== Upvalue 操作 ==============
-
+            case OpCode::SETGLOBAL:
             case OpCode::GETUPVAL:
-            case OpCode::SETUPVAL: {
-                OpExecutionContext opContext{
-                    services,
-                    L,
-                    func,
-                    proto,
-                    base,
-                    pc,
-                    instructionPc,
-                    nexeccalls
-                };
-                VM::runHandler(opContext, inst);
-                break;
-            }
-
-            // ============== 表操作 ==============
-
+            case OpCode::SETUPVAL:
             case OpCode::GETTABLE:
             case OpCode::SETTABLE:
             case OpCode::NEWTABLE:
             case OpCode::SELF:
-            case OpCode::SETLIST: {
-                OpExecutionContext opContext{
-                    services,
-                    L,
-                    func,
-                    proto,
-                    base,
-                    pc,
-                    instructionPc,
-                    nexeccalls
-                };
-                VM::runHandler(opContext, inst);
-                break;
-            }
-
-            // ============== 算术运算 ==============
-
+            case OpCode::SETLIST:
             case OpCode::ADD:
             case OpCode::SUB:
             case OpCode::MUL:
             case OpCode::DIV:
             case OpCode::MOD:
-            case OpCode::POW: {
-                OpExecutionContext opContext{
-                    services,
-                    L,
-                    func,
-                    proto,
-                    base,
-                    pc,
-                    instructionPc,
-                    nexeccalls
-                };
-                VM::runHandler(opContext, inst);
-                break;
-            }
-
-            // ============== 一元运算 ==============
-
+            case OpCode::POW:
             case OpCode::UNM:
             case OpCode::NOT:
             case OpCode::LEN:
-            case OpCode::CONCAT: {
-                OpExecutionContext opContext{
-                    services,
-                    L,
-                    func,
-                    proto,
-                    base,
-                    pc,
-                    instructionPc,
-                    nexeccalls
-                };
-                VM::runHandler(opContext, inst);
-                break;
-            }
-
-            // ============== 跳转和比较 ==============
-
+            case OpCode::CONCAT:
             case OpCode::JMP:
             case OpCode::EQ:
             case OpCode::LT:
             case OpCode::LE:
             case OpCode::TEST:
-            case OpCode::TESTSET: {
-                OpExecutionContext opContext{
-                    services,
-                    L,
-                    func,
-                    proto,
-                    base,
-                    pc,
-                    instructionPc,
-                    nexeccalls
-                };
-                VM::runHandler(opContext, inst);
-                break;
-            }
-
-            // ============== 函数调用 ==============
-
-            case OpCode::CALL: {
-                i32 nArgs    = b - 1;
-                i32 nResults = c - 1;
-
-                if (VM::detail::shouldDumpBytecode())
-                {
-                    CallInfo& dbgCI = L->getCurrentCallInfo();
-                    std::fprintf(stderr, "[CALL] pc=%zu a=%d B=%d C=%d nArgs=%d nRes=%d base=%zu absTop=%zu\n",
-                        instructionPc, a, b, c, nArgs, nResults, dbgCI.base, L->getAbsoluteTop());
-                    if (nArgs < 0) {
-                        // show stack from base+a to absTop
-                        usize funcP = dbgCI.base + a;
-                        //std::fprintf(stderr, "[CALL] B=0 stack from %zu to %zu:\n", funcP, L->getAbsoluteTop());
-                        Stack& dbgStk = L->getStack();
-                        for (usize si = funcP; si < L->getAbsoluteTop(); si++) {
-                            Value& v = dbgStk[si];
-                            if (v.isNumber()) std::fprintf(stderr, "  [%zu] number=%g\n", si, v.asNumber());
-                            else if (v.isFunction()) std::fprintf(stderr, "  [%zu] function\n", si);
-                            else if (v.isString()) std::fprintf(stderr, "  [%zu] string='%s'\n", si, v.asString()->c_str());
-                            else if (v.isNil()) std::fprintf(stderr, "  [%zu] nil\n", si);
-                            else std::fprintf(stderr, "  [%zu] other\n", si);
-                        }
-                    }
-                }
-
-                VM::detail::emitCallTrace(proto, base, instructionPc, a, nexeccalls + 1);
-
-                // 保存 PC（返回后需要）
-                L->getCurrentCallInfo().savedpc = &code[pc];
-
-                bool isLua = VM::detail::precall(L, a, nArgs, nResults);
-
-                if (isLua) {
-                    nexeccalls++;
-                    goto reentry;
-                }
-                // yield detection: C function (e.g. coroutine.yield) may set Yield
-                if (L->getStatus() == ThreadStatus::Yield) {
-                    L->setSavedNexeccalls(nexeccalls);
-                    return ExecResult::Yielded;
-                }
-
-                {
-                    CallInfo& callerCI = L->getCurrentCallInfo();
-                    Stack& stack = L->getStack();
-                    // nResults = -1 (C=0) → 多返回值模式，postcall 已正确设置 absoluteTop，不可覆盖
-                    if (nResults >= 0) {
-                        // std::fprintf(stderr, "[CALL-POST] before setTop: callerCI.top=%zu stack.top=%zu absTop=%zu\n",
-                        //              callerCI.top, stack.size(), L->getAbsoluteTop());
-                        // std::fprintf(stderr, "[CALL-POST] base+a=%zu stack[base+a]=", callerCI.base + static_cast<usize>(a));
-                        // {
-                        //     usize pos = callerCI.base + static_cast<usize>(a);
-                        //     if (stack[pos].isNumber()) std::fprintf(stderr, "%g", stack[pos].asNumber());
-                        //     else if (stack[pos].isNil()) std::fprintf(stderr, "nil");
-                        //     else if (stack[pos].isFunction()) std::fprintf(stderr, "function");
-                        //     else std::fprintf(stderr, "other");
-                        // }
-                        // std::fprintf(stderr, "\n");
-                        stack.setTop(callerCI.top);
-                        L->setAbsoluteTop(callerCI.top);
-                        // std::fprintf(stderr, "[CALL-POST] after setTop: stack[base+a]=");
-                        // {
-                        //     usize pos = callerCI.base + static_cast<usize>(a);
-                        //     if (stack[pos].isNumber()) std::fprintf(stderr, "%g", stack[pos].asNumber());
-                        //     else if (stack[pos].isNil()) std::fprintf(stderr, "nil");
-                        //     else if (stack[pos].isFunction()) std::fprintf(stderr, "function");
-                        //     else std::fprintf(stderr, "other");
-                        // }
-                        // std::fprintf(stderr, "\n");
-                    }
-                }
-                base = refreshBase(L);
-                break;
-            }
-
-            case OpCode::TAILCALL: {
-                i32 nArgs = b - 1;
-
-                usize callerIndex = L->getCurrentCI();
-                CallInfo& currentCI = L->getCurrentCallInfo();
-                usize callerFunc = currentCI.func;
-                i32 callerTailcalls = currentCI.tailcalls;
-                L->closeUpvalues(currentCI.base);
-                currentCI.savedpc = &code[pc];
-
-                bool isLua = VM::detail::precall(L, a, nArgs, -1);
-
-                if (isLua) {
-                    VM::detail::reuseCurrentFrameForTailCall(
-                        L, callerIndex, callerFunc, callerTailcalls);
-                    goto reentry;
-                }
-
-                // C 函数 tailcall 已经由 precall 把返回值放到 R(A)
-                // 并设置 absoluteTop；紧随其后的 RETURN 会把这些值返回给调用者。
-                base = refreshBase(L);
-                break;
-            }
-
-            case OpCode::RETURN: {
-                VM::detail::emitReturnTrace(nexeccalls);
-                VM::detail::dispatchReturnHook(L);
-                base = refreshBase(L);
-
-                CallInfo& ci = L->getCurrentCallInfo();
-                Stack& stack = L->getStack();
-
-                // 关闭 upvalues（必须在移动返回值和收缩栈之前）
-                // 参考 lua_c_analysis/src/lvm.c OP_RETURN: luaF_close(L, base) 在 luaD_poscall 之前
-                L->closeUpvalues(ci.base);
-
-                // 计算返回值数量
-                i32 nres;
-                if (b == 0) {
-                    nres = static_cast<i32>(L->getAbsoluteTop())
-                         - (static_cast<i32>(ci.base) + a);
-                } else {
-                    nres = b - 1;
-                }
-
-                // 将返回值移到 funcPos
-                for (i32 i = 0; i < nres; i++)
-                    stack.at(ci.func + i) = base[a + i];
-
-                // 收缩栈
-                usize newTop = ci.func + nres;
-                while (stack.size() > newTop) stack.pop();
-                // 同步LuaState逻辑栈顶，避免postcall按过期top_计算返回值数量
-                L->setAbsoluteTop(newTop);
-
-                if (--nexeccalls == 0) {
-                    return ExecResult::Returned; // 最外层函数返回
-                }
-
-                // 弹出 CallInfo，处理返回值
-                {
-                    i32 funcPos       = static_cast<i32>(ci.func);
-                    i32 wantedResults = ci.nresults;
-                    L->popCallInfo();
-                    VM::detail::postcall(L, funcPos, wantedResults);
-                }
-                goto reentry; // 继续执行调用者
-            }
-
-            // ============== Upvalue 关闭和循环指令 ==============
-
+            case OpCode::TESTSET:
+            case OpCode::CALL:
+            case OpCode::TAILCALL:
+            case OpCode::RETURN:
             case OpCode::CLOSE:
             case OpCode::FORLOOP:
             case OpCode::FORPREP:
-            case OpCode::TFORLOOP: {
-                OpExecutionContext opContext{
-                    services,
-                    L,
-                    func,
-                    proto,
-                    base,
-                    pc,
-                    instructionPc,
-                    nexeccalls
-                };
-                VM::runHandler(opContext, inst);
-                break;
-            }
-
-            // ============== 闭包和变参 ==============
-
+            case OpCode::TFORLOOP:
             case OpCode::CLOSURE:
             case OpCode::VARARG: {
-                OpExecutionContext opContext{
-                    services,
-                    L,
-                    func,
-                    proto,
-                    base,
-                    pc,
-                    instructionPc,
-                    nexeccalls
-                };
-                VM::runHandler(opContext, inst);
+                HandlerStatus status = runCurrentHandler();
+                switch (status) {
+                    case HandlerStatus::Continue:
+                        break;
+                    case HandlerStatus::Reenter:
+                        goto reentry;
+                    case HandlerStatus::Yielded:
+                        return ExecResult::Yielded;
+                    case HandlerStatus::Returned:
+                        return ExecResult::Returned;
+                }
                 break;
             }
 
@@ -520,6 +269,16 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
     } // scope for code reference
 
     return ExecResult::Returned;
+}
+
+}  // namespace
+
+ExecResult SwitchDispatch::run(VMContext& context) {
+    return runDispatchBackend(context, DispatchBackend::Switch);
+}
+
+ExecResult TableDispatch::run(VMContext& context) {
+    return runDispatchBackend(context, DispatchBackend::Table);
 }
 
 } // namespace VM

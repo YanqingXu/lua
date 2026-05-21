@@ -4,6 +4,8 @@
  */
 
 #include "../framework/test_framework.hpp"
+#include "compiler/codegen.hpp"
+#include "compiler/parser.hpp"
 #include "core/function.hpp"
 #include "core/gc_string.hpp"
 #include "core/table.hpp"
@@ -63,6 +65,34 @@ i32 pr17GenericForIterator(LuaState* L) {
 
     L->pushNumber(next);
     return 1;
+}
+
+i32 pr19ReturnArgPlusFive(LuaState* L) {
+    if (L->getTop() < 1 || !L->at(1).isNumber()) {
+        L->pushNil();
+        return 1;
+    }
+
+    L->pushNumber(L->at(1).asNumber() + 5.0);
+    return 1;
+}
+
+i32 pr19YieldingFunction(LuaState* L) {
+    L->setStatus(ThreadStatus::Yield);
+    L->setYieldResults(0);
+    return 0;
+}
+
+Proto* compileDispatchChunk(RuntimeServices& services, const char* source, const char* sourceName) {
+    Parser parser(source, services);
+    auto parsed = parser.parse();
+    if (!parsed) {
+        throw parsed.error();
+    }
+
+    Chunk chunk = std::move(*parsed);
+    CodeGenerator codegen(services);
+    return codegen.generate(chunk, sourceName);
 }
 
 void testOpcodeGroupsCoverDispatchFamilies(TestSuite& suite) {
@@ -139,6 +169,53 @@ void testRuntimeServicesCanInjectDispatchStrategy(TestSuite& suite) {
     services.gc.clearAll();
 }
 
+void testTableDispatchStrategyIsAvailable(TestSuite& suite) {
+    VM::DispatchStrategy& table = VM::tableDispatchStrategy();
+
+    ASSERT_TRUE(suite, std::string(table.name()) == "table",
+                "Table dispatch strategy should identify itself");
+    ASSERT_TRUE(suite, &table != &VM::defaultDispatchStrategy(),
+                "Table dispatch strategy should be distinct from the default switch strategy");
+}
+
+void testTableDispatchExecutesCompiledChunk(TestSuite& suite) {
+    RuntimeServices services = RuntimeServices::fromSingletons();
+    VM::DispatchStrategy& table = VM::tableDispatchStrategy();
+    services.dispatchStrategy = &table;
+
+    Proto* proto = compileDispatchChunk(services, R"(
+        function pr20_pair(a, b)
+            if a < b then
+                return a + b, a * b
+            end
+            return 0, 0
+        end
+
+        function pr20_relay()
+            return pr20_pair(6, 7)
+        end
+
+        local x, y = pr20_relay()
+        return x, y
+    )", "=(table_dispatch_chunk)");
+
+    LuaState* L = LuaState::newState(services);
+    Function* func = new Function(proto);
+    func->setEnv(L->getGlobalTable());
+    services.gc.registerObject(func);
+
+    VM::execute(services, L, func);
+
+    ASSERT_TRUE(suite, L->getTop() >= 2, "Table dispatch should return two values");
+    ASSERT_TRUE(suite, L->at(-2).isNumber() && L->at(-2).asNumber() == 13.0,
+                "Table dispatch should execute arithmetic and return the sum");
+    ASSERT_TRUE(suite, L->at(-1).isNumber() && L->at(-1).asNumber() == 42.0,
+                "Table dispatch should execute tailcalls and return the product");
+
+    delete L;
+    services.gc.clearAll();
+}
+
 void testHandlerTableCoversOpcodeSpace(TestSuite& suite) {
     const auto& table = VM::handlerTable();
 
@@ -192,7 +269,9 @@ void testHandlersCoverMigratedOpcodes(TestSuite& suite) {
     ASSERT_TRUE(suite, VM::hasHandler(OpCode::TFORLOOP), "TFORLOOP should have a handler");
     ASSERT_TRUE(suite, VM::hasHandler(OpCode::CLOSURE), "CLOSURE should have a handler");
     ASSERT_TRUE(suite, VM::hasHandler(OpCode::VARARG), "VARARG should have a handler");
-    ASSERT_FALSE(suite, VM::hasHandler(OpCode::CALL), "CALL remains switch-only in the first handler-table slice");
+    ASSERT_TRUE(suite, VM::hasHandler(OpCode::CALL), "CALL should have a handler");
+    ASSERT_TRUE(suite, VM::hasHandler(OpCode::TAILCALL), "TAILCALL should have a handler");
+    ASSERT_TRUE(suite, VM::hasHandler(OpCode::RETURN), "RETURN should have a handler");
 }
 
 void testDataMoveHandlersExecuteDirectly(TestSuite& suite) {
@@ -766,6 +845,272 @@ void testClosureAndVarargHandlersExecuteDirectly(TestSuite& suite) {
     services.gc.clearAll();
 }
 
+void testCallAndReturnHandlersExecuteDirectly(TestSuite& suite) {
+    RuntimeServices services = RuntimeServices::fromSingletons();
+
+    {
+        LuaState* L = LuaState::newState(services);
+
+        Proto callerProto;
+        callerProto.setMaxStackSize(8);
+        callerProto.addInstruction(CREATE_ABC(OpCode::CALL, 0, 2, 2));
+        callerProto.addInstruction(CREATE_ABC(OpCode::RETURN, 0, 1, 0));
+
+        Function callerFunc(&callerProto);
+        Function cFunc(pr19ReturnArgPlusFive);
+
+        Stack& stack = L->getStack();
+        CallInfo& ci = L->getCurrentCallInfo();
+        ci.func = 0;
+        ci.base = 1;
+        ci.top = 9;
+        ci.nresults = 0;
+        while (stack.size() < ci.top) {
+            stack.push(Value());
+        }
+
+        stack[ci.func] = Value(&callerFunc);
+        stack[ci.base] = Value(&cFunc);
+        stack[ci.base + 1] = Value(37.0);
+        L->setAbsoluteTop(ci.base + 2);
+
+        Value* base = &stack[ci.base];
+        usize pc = 1;
+        VM::OpExecutionContext context{
+            services,
+            L,
+            &callerFunc,
+            &callerProto,
+            base,
+            pc,
+            0,
+            1
+        };
+
+        VM::HandlerStatus status = VM::runHandler(context, CREATE_ABC(OpCode::CALL, 0, 2, 2));
+        ASSERT_EQ(suite, static_cast<int>(VM::HandlerStatus::Continue), static_cast<int>(status),
+                  "CALL handler should continue after a C call returns normally");
+        ASSERT_TRUE(suite, stack[ci.base].isNumber() && stack[ci.base].asNumber() == 42.0,
+                    "CALL handler should store fixed C call results at R(A)");
+        ASSERT_EQ(suite, 1, static_cast<int>(L->getCallStackSize()),
+                  "CALL handler should pop the C CallInfo after a normal C return");
+        ASSERT_EQ(suite, static_cast<int>(ci.top), static_cast<int>(L->getAbsoluteTop()),
+                  "CALL handler should restore the caller fixed-result top");
+
+        delete L;
+    }
+
+    {
+        LuaState* L = LuaState::newState(services);
+
+        Proto callerProto;
+        callerProto.setMaxStackSize(8);
+        callerProto.addInstruction(CREATE_ABC(OpCode::CALL, 0, 1, 1));
+        callerProto.addInstruction(CREATE_ABC(OpCode::RETURN, 0, 1, 0));
+
+        Proto calleeProto;
+        calleeProto.setMaxStackSize(3);
+        calleeProto.setNumParams(0);
+
+        Function callerFunc(&callerProto);
+        Function calleeFunc(&calleeProto);
+
+        Stack& stack = L->getStack();
+        CallInfo& callerCI = L->getCurrentCallInfo();
+        callerCI.func = 0;
+        callerCI.base = 1;
+        callerCI.top = 9;
+        callerCI.nresults = 0;
+        while (stack.size() < callerCI.top) {
+            stack.push(Value());
+        }
+
+        stack[callerCI.func] = Value(&callerFunc);
+        stack[callerCI.base] = Value(&calleeFunc);
+        L->setAbsoluteTop(callerCI.base + 1);
+
+        Value* base = &stack[callerCI.base];
+        usize pc = 1;
+        VM::OpExecutionContext context{
+            services,
+            L,
+            &callerFunc,
+            &callerProto,
+            base,
+            pc,
+            0,
+            1
+        };
+
+        VM::HandlerStatus status = VM::runHandler(context, CREATE_ABC(OpCode::CALL, 0, 1, 1));
+        ASSERT_EQ(suite, static_cast<int>(VM::HandlerStatus::Reenter), static_cast<int>(status),
+                  "CALL handler should request reentry after a Lua call");
+        ASSERT_EQ(suite, 2, context.nexeccalls, "CALL handler should increment Lua call depth");
+        ASSERT_EQ(suite, 2, static_cast<int>(L->getCallStackSize()),
+                  "CALL handler should push a Lua CallInfo");
+        ASSERT_TRUE(suite, L->getCallStack()[0].savedpc == callerProto.getCode().data() + pc,
+                    "CALL handler should save the caller pc before entering Lua");
+        const CallInfo& calleeCI = L->getCurrentCallInfo();
+        ASSERT_EQ(suite, static_cast<int>(callerCI.base), static_cast<int>(calleeCI.func),
+                  "CALL handler should place the callee function at the new frame function slot");
+
+        delete L;
+    }
+
+    {
+        LuaState* L = LuaState::newState(services);
+
+        Proto callerProto;
+        callerProto.setMaxStackSize(4);
+        callerProto.addInstruction(CREATE_ABC(OpCode::CALL, 0, 1, 1));
+        callerProto.addInstruction(CREATE_ABC(OpCode::RETURN, 0, 1, 0));
+
+        Function callerFunc(&callerProto);
+        Function yieldingFunc(pr19YieldingFunction);
+
+        Stack& stack = L->getStack();
+        CallInfo& ci = L->getCurrentCallInfo();
+        ci.func = 0;
+        ci.base = 1;
+        ci.top = 6;
+        ci.nresults = 0;
+        while (stack.size() < ci.top) {
+            stack.push(Value());
+        }
+
+        stack[ci.func] = Value(&callerFunc);
+        stack[ci.base] = Value(&yieldingFunc);
+        L->setAbsoluteTop(ci.base + 1);
+
+        Value* base = &stack[ci.base];
+        usize pc = 1;
+        VM::OpExecutionContext context{
+            services,
+            L,
+            &callerFunc,
+            &callerProto,
+            base,
+            pc,
+            0,
+            3
+        };
+
+        VM::HandlerStatus status = VM::runHandler(context, CREATE_ABC(OpCode::CALL, 0, 1, 1));
+        ASSERT_EQ(suite, static_cast<int>(VM::HandlerStatus::Yielded), static_cast<int>(status),
+                  "CALL handler should surface yielded C calls");
+        ASSERT_EQ(suite, 3, L->getSavedNexeccalls(),
+                  "CALL handler should save call depth when yielding");
+
+        delete L;
+    }
+
+    {
+        LuaState* L = LuaState::newState(services);
+
+        Proto callerProto;
+        callerProto.setMaxStackSize(8);
+        callerProto.addInstruction(CREATE_ABC(OpCode::TAILCALL, 0, 1, 0));
+        callerProto.addInstruction(CREATE_ABC(OpCode::RETURN, 0, 0, 0));
+
+        Proto calleeProto;
+        calleeProto.setMaxStackSize(4);
+
+        Function callerFunc(&callerProto);
+        Function calleeFunc(&calleeProto);
+
+        Stack& stack = L->getStack();
+        CallInfo& ci = L->getCurrentCallInfo();
+        ci.func = 0;
+        ci.base = 1;
+        ci.top = 9;
+        ci.tailcalls = 2;
+        while (stack.size() < ci.top) {
+            stack.push(Value());
+        }
+
+        stack[ci.func] = Value(&callerFunc);
+        stack[ci.base] = Value(&calleeFunc);
+        L->setAbsoluteTop(ci.base + 1);
+
+        Value* base = &stack[ci.base];
+        usize pc = 1;
+        VM::OpExecutionContext context{
+            services,
+            L,
+            &callerFunc,
+            &callerProto,
+            base,
+            pc,
+            0,
+            4
+        };
+
+        VM::HandlerStatus status = VM::runHandler(context, CREATE_ABC(OpCode::TAILCALL, 0, 1, 0));
+        ASSERT_EQ(suite, static_cast<int>(VM::HandlerStatus::Reenter), static_cast<int>(status),
+                  "TAILCALL handler should request reentry for Lua tail calls");
+        ASSERT_EQ(suite, 1, static_cast<int>(L->getCallStackSize()),
+                  "TAILCALL handler should reuse the current CallInfo");
+        const CallInfo& reusedCI = L->getCurrentCallInfo();
+        ASSERT_EQ(suite, 0, static_cast<int>(reusedCI.func),
+                  "TAILCALL handler should move the callee into the caller function slot");
+        ASSERT_EQ(suite, 3, reusedCI.tailcalls,
+                  "TAILCALL handler should increment the reused frame tailcall count");
+        ASSERT_TRUE(suite, stack[reusedCI.func].isFunction() && stack[reusedCI.func].asFunction() == &calleeFunc,
+                    "TAILCALL handler should preserve the callee function in the reused frame");
+
+        delete L;
+    }
+
+    {
+        LuaState* L = LuaState::newState(services);
+
+        Proto proto;
+        proto.setMaxStackSize(4);
+
+        Function func(&proto);
+
+        Stack& stack = L->getStack();
+        CallInfo& ci = L->getCurrentCallInfo();
+        ci.func = 0;
+        ci.base = 1;
+        ci.top = 5;
+        ci.nresults = 0;
+        while (stack.size() < ci.top) {
+            stack.push(Value());
+        }
+
+        stack[ci.func] = Value(&func);
+        stack[ci.base] = Value(64.0);
+        L->setAbsoluteTop(ci.base + 1);
+
+        Value* base = &stack[ci.base];
+        usize pc = 0;
+        VM::OpExecutionContext context{
+            services,
+            L,
+            &func,
+            &proto,
+            base,
+            pc,
+            0,
+            1
+        };
+
+        VM::HandlerStatus status = VM::runHandler(context, CREATE_ABC(OpCode::RETURN, 0, 2, 0));
+        ASSERT_EQ(suite, static_cast<int>(VM::HandlerStatus::Returned), static_cast<int>(status),
+                  "RETURN handler should report outermost frame completion");
+        ASSERT_EQ(suite, 0, context.nexeccalls, "RETURN handler should decrement call depth");
+        ASSERT_TRUE(suite, stack[0].isNumber() && stack[0].asNumber() == 64.0,
+                    "RETURN handler should move returned values to ci.func");
+        ASSERT_EQ(suite, 1, static_cast<int>(L->getAbsoluteTop()),
+                  "RETURN handler should shrink absolute top to the returned values");
+
+        delete L;
+    }
+
+    services.gc.clearAll();
+}
+
 }  // namespace
 
 void registerVMDispatchTests() {
@@ -777,6 +1122,10 @@ void registerVMDispatchTests() {
     registry.registerTest(kSuiteName, "Default Dispatch Strategy Is Switch", testDefaultDispatchStrategyIsSwitch);
     registry.registerTest(kSuiteName, "RuntimeServices Can Inject Dispatch Strategy",
                           testRuntimeServicesCanInjectDispatchStrategy);
+    registry.registerTest(kSuiteName, "Table Dispatch Strategy Is Available",
+                          testTableDispatchStrategyIsAvailable);
+    registry.registerTest(kSuiteName, "Table Dispatch Executes Compiled Chunk",
+                          testTableDispatchExecutesCompiledChunk);
     registry.registerTest(kSuiteName, "Handler Table Covers Opcode Space", testHandlerTableCoversOpcodeSpace);
     registry.registerTest(kSuiteName, "Handlers Cover Migrated Opcodes",
                           testHandlersCoverMigratedOpcodes);
@@ -795,4 +1144,6 @@ void registerVMDispatchTests() {
                           testLoopAndCloseHandlersExecuteDirectly);
     registry.registerTest(kSuiteName, "Closure And Vararg Handlers Execute Directly",
                           testClosureAndVarargHandlersExecuteDirectly);
+    registry.registerTest(kSuiteName, "Call And Return Handlers Execute Directly",
+                          testCallAndReturnHandlersExecuteDirectly);
 }

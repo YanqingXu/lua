@@ -131,13 +131,13 @@ RETURN                  -- chunk 结束
 
 | PC | 指令 | VM 行为 | 相关实现 |
 |---|---|---|---|
-| 0 | `GETGLOBAL R0 K0` | 从函数环境或全局表读取 `print`，放入 `R0`；当前由 handler 表处理 | `src/vm/vm.cpp:209`, `src/vm/vm_handlers.cpp:107` |
-| 1 | `MOVE R1 R0` | 把函数值移动到调用基址；当前由 handler 表处理 | `src/vm/vm.cpp:189`, `src/vm/vm_handlers.cpp:59` |
-| 2 | `LOADK R2 K1` | 把常量 `"hello"` 放入 `R2`；当前由 handler 表处理 | `src/vm/vm.cpp:190`, `src/vm/vm_handlers.cpp:77` |
-| 3 | `CALL R1 2 1` | 调用 `R1` 中的函数，传入 1 个参数，不保留返回值 | `src/vm/vm.cpp:330` |
-| 4 | `RETURN R0 1` | chunk 返回，结束最外层执行 | `src/vm/vm.cpp:429` |
+| 0 | `GETGLOBAL R0 K0` | 从函数环境或全局表读取 `print`，放入 `R0`；当前由 handler 表处理 | `src/vm/vm.cpp:213`, `src/vm/vm_handlers.cpp:107` |
+| 1 | `MOVE R1 R0` | 把函数值移动到调用基址；当前由 handler 表处理 | `src/vm/vm.cpp:209`, `src/vm/vm_handlers.cpp:59` |
+| 2 | `LOADK R2 K1` | 把常量 `"hello"` 放入 `R2`；当前由 handler 表处理 | `src/vm/vm.cpp:210`, `src/vm/vm_handlers.cpp:77` |
+| 3 | `CALL R1 2 1` | 调用 `R1` 中的函数，传入 1 个参数，不保留返回值；当前由 handler 表处理 | `src/vm/vm.cpp:238`, `src/vm/vm_handlers.cpp:458` |
+| 4 | `RETURN R0 1` | chunk 返回，结束最外层执行；当前由 handler 表处理 | `src/vm/vm.cpp:240`, `src/vm/vm_handlers.cpp:543` |
 
-其中 `GETGLOBAL` / `MOVE` / `LOADK` 等 opcode 已经有 `vm_handlers` 命令表入口，`GETGLOBAL` handler 内部通过 `VM::detail::gettable()` 读取全局表；表注册点见 `src/vm/vm_handlers.cpp:471`。`GETTABLE` / `SETTABLE` / `SELF` / `SETLIST` 等表操作、`ADD` / `SUB` / `MUL` / `DIV` / `MOD` / `POW` 算术操作、`UNM` / `NOT` / `LEN` / `CONCAT` 一元与连接操作，`JMP` / `EQ` / `LT` / `LE` / `TEST` / `TESTSET` 跳转与比较操作，`CLOSE` / `FORLOOP` / `FORPREP` / `TFORLOOP` upvalue 关闭与循环操作，以及 `CLOSURE` / `VARARG` 闭包与变参操作也已进入同一张 handler 表；闭包与变参注册点从 `src/vm/vm_handlers.cpp:504` 开始。`CALL` 则仍在 `SwitchDispatch` 的主 switch 中，通过 `VM::detail::precall()` 区分 Lua 函数和 C 函数。如果被调用对象是 C 函数，`precall()` 会直接调用 C++ 函数并完成返回值整理。
+其中 `GETGLOBAL` / `MOVE` / `LOADK` 等 opcode 已经有 `vm_handlers` 命令表入口，`GETGLOBAL` handler 内部通过 `VM::detail::gettable()` 读取全局表；表注册点见 `src/vm/vm_handlers.cpp:605`。`GETTABLE` / `SETTABLE` / `SELF` / `SETLIST` 等表操作、`ADD` / `SUB` / `MUL` / `DIV` / `MOD` / `POW` 算术操作、`UNM` / `NOT` / `LEN` / `CONCAT` 一元与连接操作，`JMP` / `EQ` / `LT` / `LE` / `TEST` / `TESTSET` 跳转与比较操作，`CLOSE` / `FORLOOP` / `FORPREP` / `TFORLOOP` upvalue 关闭与循环操作，`CLOSURE` / `VARARG` 闭包与变参操作，以及 `CALL` / `TAILCALL` / `RETURN` 调用与返回操作都已进入同一张 handler 表；调用族注册点从 `src/vm/vm_handlers.cpp:636` 开始。默认执行策略仍是 `SwitchDispatch`，但也可以通过 `RuntimeServices::dispatchStrategy = &VM::tableDispatchStrategy()` 切到函数指针表执行。`CALL` handler 仍通过 `VM::detail::precall()` 区分 Lua 函数和 C 函数。如果被调用对象是 C 函数，`precall()` 会直接调用 C++ 函数并完成返回值整理；如果进入 Lua 函数、遇到 yield 或完成最外层返回，则 handler 通过 `HandlerStatus` 把 `Reenter` / `Yielded` / `Returned` 控制流交还给当前 dispatch 策略。
 
 ## 5. 标准库：`print` 写入 stdout
 

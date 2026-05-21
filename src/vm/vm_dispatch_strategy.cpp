@@ -11,8 +11,17 @@ const char* SwitchDispatch::name() const noexcept {
     return "switch";
 }
 
+const char* TableDispatch::name() const noexcept {
+    return "table";
+}
+
 DispatchStrategy& defaultDispatchStrategy() noexcept {
     static SwitchDispatch strategy;
+    return strategy;
+}
+
+DispatchStrategy& tableDispatchStrategy() noexcept {
+    static TableDispatch strategy;
     return strategy;
 }
 

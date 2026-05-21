@@ -37,7 +37,14 @@ public:
     const char* name() const noexcept override;
 };
 
+class TableDispatch final : public DispatchStrategy {
+public:
+    ExecResult run(VMContext& context) override;
+    const char* name() const noexcept override;
+};
+
 DispatchStrategy& defaultDispatchStrategy() noexcept;
+DispatchStrategy& tableDispatchStrategy() noexcept;
 
 }  // namespace VM
 }  // namespace Lua

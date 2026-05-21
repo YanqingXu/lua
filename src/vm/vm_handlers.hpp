@@ -34,6 +34,9 @@ struct OpExecutionContext {
 
 enum class HandlerStatus : u8 {
     Continue,
+    Reenter,
+    Yielded,
+    Returned,
 };
 
 using OpHandler = HandlerStatus (*)(OpExecutionContext& context, Instruction inst);
