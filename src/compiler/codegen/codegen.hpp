@@ -25,6 +25,7 @@
 #include "compiler/opcode.hpp"
 #include "compiler/codegen/codegen_types.hpp"
 #include "compiler/codegen/codegen_state.hpp"
+#include "compiler/codegen/jump_patcher.hpp"
 #include "common/lua_error.hpp"
 #include "core/function.hpp"
 #include <expected>
@@ -340,6 +341,7 @@ private:
     void discardCurrentProto() noexcept;
 
     CodegenState state_;
+    JumpPatcher jumps_;
 };
 
 }  // namespace Lua

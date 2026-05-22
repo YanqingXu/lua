@@ -116,6 +116,9 @@
     <ClCompile Include="tests\unit\compiler\test_binary_unary_expr.cpp">
       <Filter>tests\compiler</Filter>
     </ClCompile>
+    <ClCompile Include="tests\unit\compiler\test_codegen_characterization.cpp">
+      <Filter>tests\compiler</Filter>
+    </ClCompile>
     <ClCompile Include="tests\unit\compiler\test_codegen_conditions.cpp">
       <Filter>tests\compiler</Filter>
     </ClCompile>
@@ -132,6 +135,9 @@
       <Filter>tests\compiler</Filter>
     </ClCompile>
     <ClCompile Include="tests\unit\compiler\test_codegen_state.cpp">
+      <Filter>tests\compiler</Filter>
+    </ClCompile>
+    <ClCompile Include="tests\unit\compiler\test_jump_patcher.cpp">
       <Filter>tests\compiler</Filter>
     </ClCompile>
     <ClCompile Include="tests\unit\compiler\test_bytecode_builder.cpp">

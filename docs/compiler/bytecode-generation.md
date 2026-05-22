@@ -1,7 +1,7 @@
 ---
 status: current
-verified_against: docs/status/project-status.md; src/common/lua_error.hpp; src/compiler/codegen/codegen.hpp; src/compiler/codegen/codegen.cpp; src/compiler/codegen/codegen_binding.cpp; src/compiler/codegen/codegen_expr.cpp; src/compiler/codegen/codegen_jump.cpp; src/compiler/codegen/codegen_stmt.cpp; src/compiler/codegen/codegen_types.hpp; src/compiler/codegen/codegen_context.hpp; src/compiler/codegen/codegen_state.hpp; src/compiler/codegen/bytecode_builder.hpp; src/compiler/register_allocator.hpp; tests/unit/compiler/test_codegen_state.cpp
-last_checked: 2026-05-21
+verified_against: docs/status/project-status.md; docs/compiler/codegen-responsibility-map.md; src/common/lua_error.hpp; src/compiler/codegen/codegen.hpp; src/compiler/codegen/codegen.cpp; src/compiler/codegen/codegen_binding.cpp; src/compiler/codegen/codegen_expr.cpp; src/compiler/codegen/codegen_jump.cpp; src/compiler/codegen/codegen_stmt.cpp; src/compiler/codegen/codegen_types.hpp; src/compiler/codegen/codegen_context.hpp; src/compiler/codegen/codegen_state.hpp; src/compiler/codegen/jump_patcher.hpp; src/compiler/codegen/jump_patcher.cpp; src/compiler/codegen/bytecode_builder.hpp; src/compiler/register_allocator.hpp; tests/unit/compiler/test_codegen_state.cpp; tests/unit/compiler/test_codegen_characterization.cpp; tests/unit/compiler/test_jump_patcher.cpp
+last_checked: 2026-05-22
 applies_to: current AST-to-Proto bytecode generator
 ---
 
@@ -29,6 +29,7 @@ source
 |---|---|
 | `src/compiler/parser/parser.hpp` + `src/compiler/parser/parser*.cpp` | 将 token 流解析为 AST；实现按语句、表达式、函数、表构造等边界拆分 |
 | `src/compiler/codegen/codegen.hpp` + `src/compiler/codegen/codegen*.cpp` | 编译总控，遍历 AST 并生成 `Proto`；实现已按 binding / expr / jump / stmt 拆分 |
+| `src/compiler/codegen/jump_patcher.hpp/.cpp` | `CodeGenerator` 的 jump-list、pending jump 和 PC offset 回填边界 |
 | `src/compiler/codegen/codegen_types.hpp` | 编译管线结果类型：`SymbolRef`、`ValueResult`、`CondResult`、`LValueRef`、`CallResultInfo` |
 | `src/compiler/codegen/codegen_context.hpp` | 局部变量、upvalue、block 与跳转上下文 |
 | `src/compiler/codegen/codegen_state.hpp` | `CodeGenerator` 分片共享的当前 `Proto`、PC、行号、寄存器、上下文和 bytecode builder |
@@ -38,6 +39,8 @@ source
 | `src/core/function.hpp/.cpp` | `Proto`、`Function`、closure 与 upvalue 容器 |
 
 `src/compiler/ast.hpp/.cpp` 保留在 compiler 根目录，因为 AST 是 parser 输出、codegen 输入的共享模型。`src/compiler/opcode.hpp/.cpp` 也保留在 compiler 根目录，因为它是 codegen、bytecode printer 和 VM 共同使用的字节码契约。
+
+更细的拆分边界见 `docs/compiler/codegen-responsibility-map.md`。该文档记录 PR-42 后的 `CodeGenerator` 职责地图、PR-43/PR-45 拆分顺序和 characterization 测试护栏。
 
 ## 2. 生成结果：Proto
 
@@ -172,6 +175,7 @@ emitStore(target, value)
 - `codegen_jump.cpp`：跳转链表、条件跳转和回填。
 - `codegen_stmt.cpp`：语句、block、循环、return、break、函数编译。
 - `codegen_state.hpp`：分片共享状态。
+- `jump_patcher.hpp/.cpp`：jump-list、`PatchList`、pending `jpc_` 和 `fixJump/getJump` 回填操作。
 - `bytecode_builder.hpp`：当前 `Proto` 写入边界。
 
 后续建议按以下顺序继续拆分，避免一次性重写：

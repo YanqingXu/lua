@@ -16,6 +16,7 @@ set(LUA_CORE_SOURCES
     src/compiler/codegen/codegen_expr.cpp
     src/compiler/codegen/codegen_jump.cpp
     src/compiler/codegen/codegen_stmt.cpp
+    src/compiler/codegen/jump_patcher.cpp
     src/compiler/parser/lexer.cpp
     src/compiler/opcode.cpp
     src/compiler/parser/parser.cpp
@@ -104,12 +105,14 @@ set(LUA_TEST_SOURCES
     tests/unit/compiler/test_value_pipeline.cpp
     tests/unit/compiler/test_syntax_sugar.cpp
     tests/unit/compiler/test_binary_unary_expr.cpp
+    tests/unit/compiler/test_codegen_characterization.cpp
     tests/unit/compiler/test_codegen_conditions.cpp
     tests/unit/compiler/test_codegen_multret.cpp
     tests/unit/compiler/test_call_pipeline.cpp
     tests/unit/compiler/test_symbol_binding.cpp
     tests/unit/compiler/test_codegen_result_types.cpp
     tests/unit/compiler/test_codegen_state.cpp
+    tests/unit/compiler/test_jump_patcher.cpp
     tests/unit/compiler/test_bytecode_builder.cpp
     tests/unit/compiler/test_function_codegen.cpp
     tests/unit/compiler/test_lua_functions.cpp

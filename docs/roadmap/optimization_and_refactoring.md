@@ -2,7 +2,7 @@
 
 > 适用范围：`g:\github\lua`（现代 C++ Lua 5.1.5 解释器）
 > 设计目标：**可读性 > 可维护性 > 教育价值 > 性能**
-> 约束：保持 496 个注册测试 / 2423 个断言结果 / 0 失败，不破坏 `LuaState` / `VM` public API。
+> 约束：保持 504 个注册测试 / 2459 个断言结果 / 0 失败，不破坏 `LuaState` / `VM` public API。
 > 最近审计：2026-05-21（深度审计报告，覆盖 Readability / Extensibility / Educational Value 三维度）
 > 最近同步：2026-05-22（核对 `docs/roadmap/current.md`、`docs/status/project-status.md`、`tools/check_doc_drift.ps1` 与当前源码）
 
@@ -25,10 +25,10 @@
 | 阶段 | 周期定位 | 关注点 | 是否触发 API 变化 | 完成度 |
 |---|---|---|---|---|
 | **阶段 1 — 短期代码清理** | 1–2 个迭代 | 删冗余、统一命名、收紧错误处理、文档与代码同步 | 否 | ~85% |
-| **阶段 2 — 中期模式重构** | 3–5 个迭代 | 引入访问者 / 策略 / 命令模式，VM dispatch 与 GC 抽象化 | 内部 API 调整、public 不变 | ~70% |
+| **阶段 2 — 中期模式重构** | 3–5 个迭代 | 引入访问者 / 策略 / 命令模式，VM dispatch 与 GC 抽象化 | 内部 API 调整、public 不变 | ~75% |
 | **阶段 3 — 现代 C++ 特性** | 穿插于 1 & 2 | `std::expected` / `concepts` / `std::format` / `[[nodiscard]]` | 部分 public 签名变更 | ~90% |
 | **阶段 4 — 教育价值增强** | 持续推进 | 自解释代码、字节码可视化、执行链路教学文档、REPL 体验、Trace 差异模式 | 否（增量增强） | ~55% |
-| **阶段 5 — 工程实践** | 持续 | 测试覆盖、质量门、构建一致性、文档漂移检测 | 否 | ~70% |
+| **阶段 5 — 工程实践** | 持续 | 测试覆盖、质量门、构建一致性、文档漂移检测 | 否 | ~73% |
 
 ---
 
@@ -42,7 +42,7 @@
 - `src/vm/vm.cpp` 已从 ~2000 行 switch 精简为 ~327 行，handler 实现分入 `vm_handlers/` 子目录（9 个分组文件）。✓
 - `src/gc/garbage_collector.cpp` 已拆分为 `gc_mark.cpp` / `gc_sweep.cpp` / `gc_finalize.cpp` / `gc_weak.cpp`。✓
 
-**2026-05-22 重新排序**：`1.1.1` 已作为 PR-39 完成，因为它直接决定 `SwitchDispatch` 与 `TableDispatch` 的教学差异；`1.3.1` 已作为 PR-40 完成，把 VM expected 边界的异常映射集中到可复用 helper；下一步进入 `2.5.1-a`，先做 CodeGenerator 职责地图和 characterization 测试。命名类清理跟随 CodeGenerator 拆分一起推进，避免在同一批代码上重复改名。
+**2026-05-22 重新排序**：`1.1.1` 已作为 PR-39 完成，因为它直接决定 `SwitchDispatch` 与 `TableDispatch` 的教学差异；`1.3.1` 已作为 PR-40 完成，把 VM expected 边界的异常映射集中到可复用 helper；`2.5.1-a` 已作为 PR-41 完成；`2.5.1-b` 已作为 PR-42 完成，后续进入 `2.5.1-c` 抽取 `ScopeManager`。命名类清理跟随 CodeGenerator 拆分一起推进，避免在同一批代码上重复改名。
 
 **审计发现**：
 
@@ -187,8 +187,8 @@ CodeGenerator (orchestration facade)
 
 | 编号 | 子任务 | 说明 | 状态 |
 |---|---|---|---|
-| 2.5.1-a | 职责地图 + 现有行为锁定 | 以 `codegen.hpp` 方法分组为准，补齐最薄弱的 statement / jump characterization 测试 | P1 待执行 |
-| 2.5.1-b | 抽取 `JumpPatcher` | 从 `codegen_jump.cpp` 先切出回填链表和 pending jump 管理，风险最低 | P1 待执行 |
+| 2.5.1-a | 职责地图 + 现有行为锁定 | 已新增 `docs/compiler/codegen-responsibility-map.md` 与 `Codegen Characterization` 测试，锁住 statement / jump / repeat scope / generic-for 行为 | ✓ **已完成** |
+| 2.5.1-b | 抽取 `JumpPatcher` | 已新增 `jump_patcher.hpp/.cpp`，切出 jump-list、pending `jpc_`、`PatchList` 和 `fixJump/getJump`，`CodeGenerator` 保留薄包装 | ✓ **已完成** |
 | 2.5.1-c | 抽取 `ScopeManager` | 收口 locals / blocks / upvalues 命名与作用域生命周期，顺带处理 1.2 命名清理 | P1 待执行 |
 | 2.5.1-d | 抽取 `ExpressionEmitter` | 承载 `emitValue` / `emitCond` / `emitLValue` / call-vararg-table 通道 | P2 待执行 |
 | 2.5.1-e | 抽取 `StatementEmitter` | 承载控制流、local、return、function、loop 降低；依赖 ScopeManager 稳定 | P2 待执行 |
@@ -219,7 +219,7 @@ namespace { LibRegistrar kReg("base", "Base Library", openBaseLib); }
 
 | 编号 | 任务 | 说明 | 状态 |
 |---|---|---|---|
-| 2.5.1 | `CodeGenerator` 拆分为 ExpressionEmitter / StatementEmitter / JumpPatcher / ScopeManager | 共享 CodegenState；按 2.5.1-a 到 2.5.1-e 分 PR 落地 | P1/P2 待执行 |
+| 2.5.1 | `CodeGenerator` 拆分为 ExpressionEmitter / StatementEmitter / JumpPatcher / ScopeManager | 共享 CodegenState；2.5.1-a/b 已完成，后续按 2.5.1-c 到 2.5.1-e 分 PR 落地 | P1/P2 进行中 |
 | 2.6.1 | `lib_manager.hpp` 的 9 个 `openXxx()` 标记 `[[deprecated]]`，引导调用方使用 `openCatalogLibrary()` | 消除冗余声明 | P3 待执行 |
 | 2.6.2 | 引入 `LibRegistrar` 声明式自注册，消除 #include 耦合 | 可选：注意 MSVC linker 行为 | P4 候选 |
 
@@ -378,7 +378,7 @@ using ValueResult = std::variant<
 
 ### 5.1 测试覆盖精细化
 
-**现状**：496 个注册测试 / 2423 个断言结果 / 0 失败，目录 `tests/unit/`、`tests/lua/`。
+**现状**：504 个注册测试 / 2459 个断言结果 / 0 失败，目录 `tests/unit/`、`tests/lua/`。
 
 **改进方向**（仅修改现有测试文件，不主动新建）：
 
@@ -391,7 +391,7 @@ using ValueResult = std::variant<
 ### 5.2 质量门（已有 `tools/run_quality_gate.ps1`）
 
 - 把 `check_doc_drift.ps1` 接入质量门，让"代码与 README 章节不同步"成为可失败信号。
-- **当前事实**：`check_doc_drift.ps1` 仍硬编码测试数字 "496" / "2423"，用于保证 README / status docs 不回退到旧计数；随着测试增加会过期，建议改为从 `bin\lua_test.exe` 输出动态解析，或集中维护一份机器可读计数源。
+- **当前事实**：`check_doc_drift.ps1` 仍硬编码测试数字 "504" / "2459"，用于保证 README / status docs 不回退到旧计数；随着测试增加会过期，建议改为从 `bin\lua_test.exe` 输出动态解析，或集中维护一份机器可读计数源。
 - **已修正文档偏差**：`docs/architecture/runtime-services.md` 的结构体示例已补齐 `VM::DispatchStrategy* dispatchStrategy`，且 `check_doc_drift.ps1` 已加入该字段守卫。
 - 加一条 `clang-tidy` 检查（针对 modernize-*、readability-*、bugprone-*），不强制全过，但持续记录。
 - CMake 路径补充 `-Wpedantic -Wconversion`（已用 MSVC `/W4`，CMake 旁路需对齐）。
@@ -407,7 +407,7 @@ using ValueResult = std::variant<
 | 风险 | 影响 | 缓解 |
 |---|---|---|
 | VM dispatch 命令模式化引入函数指针表，调试器单步体验下降 | 影响教学 | 保留 `SwitchDispatch` 作为默认；调试构建强制使用；1.1.1 落地的独立 inline 函数进一步改善 Switch 路径单步体验 |
-| `std::expected` 大范围替换异常导致调用链翻新 | 496 测试可能批量红 | 按 3.1 表格逐个函数迁移，每次 1 个函数 + 全量测试 |
+| `std::expected` 大范围替换异常导致调用链翻新 | 504 测试可能批量红 | 按 3.1 表格逐个函数迁移，每次 1 个函数 + 全量测试 |
 | GC 去单例化破坏标准库内部对 `GarbageCollector::getInstance()` 的引用 | 编译错误广泛 | 保留 inline shim `getInstance()` 一版本，标记 `[[deprecated]]` |
 | Visitor 化后 codegen 性能下降 | 不影响目标，但需观察 | 教学项目可接受；基准用 `examples/*.lua` 跑回归 |
 | `ValueResult` → `std::variant` 重构引入大量访问代码 | 调用侧需逐一迁移 `std::visit` | 先做 prototype 分支验证可行性，再逐步迁移 |
@@ -428,18 +428,18 @@ using ValueResult = std::variant<
 | PR-35 ∼ PR-38 | VM 主循环、GC finalizer、CodeGenerator jump model 注释与阶段 4 注释位置收口 | 4.1 |
 | PR-39 | Switch dispatch 每 opcode 独立 inline 函数，移除 switch 路径的统一 `runCurrentHandler()` lambda | 1.1.1 / 2.2 |
 | PR-40 | `captureRuntimeErrors` / `mapExceptionToUnexpected`，集中 `tryExecuteProto` expected 边界异常映射 | 1.3.1 / 3.1 |
+| PR-41 | CodeGenerator 职责地图与 statement/jump characterization 测试 | 2.5.1-a / 5.1 |
+| PR-42 | `JumpPatcher` 抽取，集中 jump-list / pending jump / patch offset 边界 | 2.5.1-b / 5.1 |
 
 后续推荐顺序：
 
 | PR | 编号 | 任务 | 阶段 | 依赖 / 理由 |
 |---|---|---|---|---|
-| PR-41 | 2.5.1-a | CodeGenerator 职责地图 + characterization 测试 | 2 | P1；为拆分 `JumpPatcher` / `ScopeManager` 提供行为锁 |
-| PR-42 | 2.5.1-b | 抽取 `JumpPatcher` | 2 | P1；`codegen_jump.cpp` 聚合度最高，最适合先切 |
 | PR-43 | 2.5.1-c | 抽取 `ScopeManager` 并顺带完成 `regs` / `locals` / `blocks` 命名收口 | 1 / 2 | P1；解决 1.2 命名和作用域职责耦合 |
 | PR-44 | 2.5.1-d | 抽取 `ExpressionEmitter` | 2 | P2；为后续 `ValueResult -> std::variant` 降低迁移面 |
 | PR-45 | 2.5.1-e | 抽取 `StatementEmitter` | 2 | P2；依赖 ScopeManager 稳定 |
 | PR-46 | 2.3 | GC sweep 显式接收 `StringPool&`，旧 shim 标记 `[[deprecated]]` | 2 | P2；收尾 GC 单例残留，降低 RuntimeServices 绕路 |
-| PR-47 | 5.2 | `check_doc_drift.ps1` 动态解析测试计数，替代硬编码 "496" / "2423" | 5 | P2；字段漂移已守住，剩余风险是测试计数继续增长 |
+| PR-47 | 5.2 | `check_doc_drift.ps1` 动态解析测试计数，替代硬编码 "504" / "2459" | 5 | P2；字段漂移已守住，剩余风险是测试计数继续增长 |
 | PR-48 | 3.5.1 | `ValueResult -> std::variant` prototype | 3 | P3；等待 emitter 边界稳定后再迁移 |
 | PR-49 | 4.3.2 | `closure-and-upvalue.md` walkthrough | 4 | P3；可复用 bytecode 基础输出 |
 | PR-50 | 4.5.1 | `--trace-diff` + `changedRegisters` | 4 | P3；适合在 VM dispatch 差异稳定后推进 |

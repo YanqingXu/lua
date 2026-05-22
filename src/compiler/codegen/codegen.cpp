@@ -20,6 +20,7 @@ namespace Lua {
 
 CodeGenerator::CodeGenerator(StringPool* pool)
     : state_(RuntimeServices::fromSingletons(), pool)
+    , jumps_(state_)
 {
     if (pool == nullptr) {
         throw std::invalid_argument("StringPool cannot be null");
@@ -28,6 +29,7 @@ CodeGenerator::CodeGenerator(StringPool* pool)
 
 CodeGenerator::CodeGenerator(RuntimeServices& services)
     : state_(services)
+    , jumps_(state_)
 {
 }
 
@@ -102,21 +104,21 @@ void CodeGenerator::discardCurrentProto() noexcept {
 
 i32 CodeGenerator::codeABC(OpCode op, i32 a, i32 b, i32 c) {
     // 在生成指令前刷新所有待处理跳转
-    flushPendingJumps();
+    jumps_.flushPendingJumps();
 
     return state_.bytecode.emitABC(state_.currentLine, op, a, b, c);
 }
 
 i32 CodeGenerator::codeABx(OpCode op, i32 a, i32 bx) {
     // 在生成指令前刷新待处理跳转
-    flushPendingJumps();
+    jumps_.flushPendingJumps();
 
     return state_.bytecode.emitABx(state_.currentLine, op, a, bx);
 }
 
 i32 CodeGenerator::codeAsBx(OpCode op, i32 a, i32 sbx) {
     // 在生成指令前刷新待处理跳转
-    flushPendingJumps();
+    jumps_.flushPendingJumps();
 
     return state_.bytecode.emitAsBx(state_.currentLine, op, a, sbx);
 }

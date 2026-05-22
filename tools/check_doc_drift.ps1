@@ -65,6 +65,7 @@ $coreDocs = @(
     "docs/architecture/runtime-services.md",
     "docs/compiler/parser-expression.md",
     "docs/compiler/register-allocation.md",
+    "docs/compiler/codegen-responsibility-map.md",
     "docs/vm/instruction-set.md",
     "docs/vm/trace-system.md",
     "docs/stdlib/overview.md",
@@ -131,7 +132,7 @@ foreach ($required in @("CMakeLists.txt", "tools\run_cmake_smoke.ps1", "CMake", 
 
 $statusDoc = Read-Text "docs/status/project-status.md"
 $statusDocPath = Join-RepoPath "docs/status/project-status.md"
-foreach ($required in @("Visual Studio", "MSBuild", ".vcxproj", "CMake", "CTest", "secondary", "CMakeLists.txt", "tools/run_cmake_smoke.ps1", "496", "2423", "--report=junit", "RuntimeServices", "Learning Path", "lua_bytecode", "decoded instructions", "constant table")) {
+foreach ($required in @("Visual Studio", "MSBuild", ".vcxproj", "CMake", "CTest", "secondary", "CMakeLists.txt", "tools/run_cmake_smoke.ps1", "504", "2459", "--report=junit", "RuntimeServices", "Learning Path", "lua_bytecode", "decoded instructions", "constant table")) {
     if (-not (Select-String -LiteralPath $statusDocPath -SimpleMatch -Pattern $required -Quiet)) {
         Add-Failure $failures "docs/status/project-status.md is missing required fact: $required"
     }
