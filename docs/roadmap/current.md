@@ -1,6 +1,6 @@
 ---
 status: current
-verified_against: docs/archive/research/deep-research-report.md; docs/status/project-status.md; docs/guides/development.md; docs/compiler/codegen-responsibility-map.md; CMakeLists.txt; lua.vcxproj; lua.vcxproj.filters; lua_test.vcxproj; lua_test.vcxproj.filters; src/compiler/parser/parser.cpp; src/compiler/parser/parser_stmt.cpp; src/compiler/parser/parser_expr.cpp; src/compiler/parser/parser_primary.cpp; src/compiler/parser/parser_func.cpp; src/compiler/parser/parser_table.cpp; src/compiler/codegen/codegen.hpp; src/compiler/codegen/codegen_expr.cpp; src/compiler/codegen/expression_emitter.hpp; src/compiler/codegen/expression_emitter.cpp; src/compiler/codegen/statement_emitter.hpp; src/compiler/codegen/statement_emitter.cpp; src/compiler/codegen/codegen_jump.cpp; src/compiler/codegen/codegen_stmt.cpp; src/compiler/codegen/jump_patcher.hpp; src/compiler/codegen/jump_patcher.cpp; src/compiler/codegen/scope_manager.hpp; src/compiler/codegen/scope_manager.cpp; src/core/string_pool.cpp; src/gc/garbage_collector.hpp; src/gc/garbage_collector.cpp; src/gc/gc_sweep.cpp; src/vm/vm.cpp; src/vm/vm_internal.hpp; src/vm/vm_switch_dispatch.hpp; tests/unit/compiler/test_codegen_characterization.cpp; tests/unit/compiler/test_jump_patcher.cpp; tests/unit/compiler/test_scope_manager.cpp; tests/unit/compiler/test_expression_emitter.cpp; tests/unit/compiler/test_statement_emitter.cpp; tests/unit/framework/test_runner.cpp; tests/unit/gc/test_gc.cpp; tests/unit/vm/test_runtime_services.cpp; tests/unit/vm/test_vm_core.cpp; tests/unit/vm/test_vm_dispatch.cpp; tools/run_cmake_smoke.ps1; tools/check_doc_drift.ps1; tools/run_quality_gate.ps1
+verified_against: docs/archive/research/deep-research-report.md; docs/status/project-status.md; docs/guides/development.md; docs/compiler/codegen-responsibility-map.md; CMakeLists.txt; lua.vcxproj; lua.vcxproj.filters; lua_test.vcxproj; lua_test.vcxproj.filters; src/compiler/parser/parser.cpp; src/compiler/parser/parser_stmt.cpp; src/compiler/parser/parser_expr.cpp; src/compiler/parser/parser_primary.cpp; src/compiler/parser/parser_func.cpp; src/compiler/parser/parser_table.cpp; src/compiler/codegen/codegen.hpp; src/compiler/codegen/codegen_expr.cpp; src/compiler/codegen/expression_emitter.hpp; src/compiler/codegen/expression_emitter.cpp; src/compiler/codegen/statement_emitter.hpp; src/compiler/codegen/statement_emitter.cpp; src/compiler/codegen/codegen_jump.cpp; src/compiler/codegen/codegen_stmt.cpp; src/compiler/codegen/jump_patcher.hpp; src/compiler/codegen/jump_patcher.cpp; src/compiler/codegen/scope_manager.hpp; src/compiler/codegen/scope_manager.cpp; src/core/string_pool.cpp; src/gc/garbage_collector.hpp; src/gc/garbage_collector.cpp; src/gc/gc_sweep.cpp; src/vm/vm.cpp; src/vm/vm_internal.hpp; src/vm/vm_switch_dispatch.hpp; tests/unit/compiler/test_codegen_characterization.cpp; tests/unit/compiler/test_jump_patcher.cpp; tests/unit/compiler/test_scope_manager.cpp; tests/unit/compiler/test_expression_emitter.cpp; tests/unit/compiler/test_statement_emitter.cpp; tests/unit/framework/test_runner.cpp; tests/unit/gc/test_gc.cpp; tests/unit/vm/test_runtime_services.cpp; tests/unit/vm/test_vm_core.cpp; tests/unit/vm/test_vm_dispatch.cpp; .github/workflows/ci.yml; tools/run_cmake_smoke.ps1; tools/check_doc_drift.ps1; tools/test_quality_gate.ps1; tools/run_quality_gate.ps1
 last_checked: 2026-05-22
 applies_to: 仓库优化路线图与下次续接检查清单
 ---
@@ -27,6 +27,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\check_doc_drift.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\test_quality_gate.ps1
 ```
 
+`check_doc_drift.ps1` 会运行 `bin\lua_test.exe` 来动态解析当前测试计数；如果是干净 checkout，先构建 `lua_test.vcxproj`。
+
 如果下一项任务会修改 C++ 行为，还要运行：
 
 ```powershell
@@ -40,7 +42,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_quality_gate.ps1
 | 优先级 | 领域 | 状态 | 说明 |
 |---|---|---|---|
 | 最高 | 事实对齐 | 已完成 | 当前构建、测试和编译器管线事实已经集中记录并加入漂移检查 |
-| 最高 | 质量门禁 | 已完成 | 已有格式化/静态检查配置、本地门禁脚本和 CI 烟测工作流 |
+| 最高 | 质量门禁 | 已完成 | 已有格式化/静态检查配置、本地门禁脚本和 CI 烟测工作流；PR-47 后测试计数由文档漂移脚本动态解析 |
 | 高 | 可读性快修 | 已完成 | 共享文件读取、CLI 解析抽取和标准库表驱动注册已完成 |
 | 高 | 测试 runner 报告与教学索引 | 已完成 | runner 已支持 `--list`、`--filter`、`--report=junit`，并新增 walkthrough 索引 |
 | 中 | EngineContext / RuntimeServices | 已完成 | 已引入显式 RuntimeServices，并迁移入口层、CodeGenerator、Parser/VM 兼容重载 |
@@ -111,6 +113,7 @@ rg "ExprDesc|ExprKind|expdesc" src/compiler
 - GitHub Actions 使用 `windows-latest`、MSBuild、文档漂移检查、质量门禁烟测和 `bin\lua_test.exe`。
 - 本地可以用一个 PowerShell 命令运行质量门禁。
 - 本地格式化默认只检查变更过的源文件，避免在一个 PR 里强制全仓重排。
+- PR-47 后，`tools/check_doc_drift.ps1` 会从 `bin\lua_test.exe` 汇总输出动态解析测试计数，并检查 README / status 文档同步；CI 和 `run_quality_gate.ps1` 会先构建测试入口再运行文档漂移。
 
 已使用的验证命令：
 
@@ -1221,6 +1224,39 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_cmake_smoke.ps1
 - 质量门禁配置自检通过。
 - `tools\run_quality_gate.ps1` 通过；本机未发现 `clang-format` / `clang-tidy` 时按脚本设计跳过对应项。
 - CMake/CTest secondary 路径通过 5 个测试。
+
+## 已完成任务：文档漂移动态测试计数
+
+### PR-47 / 5.2：`check_doc_drift.ps1` 动态解析测试计数
+
+**目标：** 移除文档漂移脚本中对当前测试总数的硬编码，让 README / status 文档继续受到计数漂移保护，同时避免每次新增测试都要同步修改脚本内的固定数字。
+
+已完成：
+
+- [x] `tools/check_doc_drift.ps1` 新增 `Get-TestRunSummary`，运行 `bin\lua_test.exe` 并解析 `Registered Tests`、`Total Results` 和 `Failed`。
+- [x] `check_doc_drift.ps1` 改为用解析出的测试计数检查 README 和 `docs/status/project-status.md`，脚本内不再硬编码 `513` / `2497`。
+- [x] `tools/test_quality_gate.ps1` 新增自检，防止 `check_doc_drift.ps1` 重新引入旧测试总数字面量。
+- [x] `tools/run_quality_gate.ps1` 与 `.github/workflows/ci.yml` 调整为先构建 `lua_test`，再运行依赖测试入口的文档漂移检查。
+- [x] 同步 README、`docs/status/project-status.md` 和 `docs/roadmap/optimization_and_refactoring.md`。
+
+TDD 记录：
+
+- 先在 `tools/test_quality_gate.ps1` 增加对 `Get-TestRunSummary` / 动态解析逻辑的断言；初始运行失败于 `tools/check_doc_drift.ps1 is missing required pattern: Get-TestRunSummary`。
+- 实现动态解析和文档计数检查后，自检与文档漂移均通过。
+
+已使用的验证命令：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\test_quality_gate.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\check_doc_drift.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_quality_gate.ps1
+```
+
+验收结果：
+
+- 质量门禁配置自检通过。
+- 文档漂移检查通过，并动态解析到 513 个注册测试 / 2497 个结果 / 0 失败。
+- `tools\run_quality_gate.ps1` 通过。
 
 ## 维护规则
 

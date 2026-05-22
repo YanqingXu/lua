@@ -473,7 +473,7 @@ namespace Lua {
 bin\build_test.bat
 bin\lua_test.exe
 
-# 检查文档/实现事实是否漂移
+# 检查文档/实现事实是否漂移（会运行 bin\lua_test.exe 解析当前测试计数）
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\check_doc_drift.ps1
 
 # 运行 CMake / CTest secondary smoke

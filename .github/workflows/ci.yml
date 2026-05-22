@@ -21,6 +21,10 @@ jobs:
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v2
 
+      - name: Build tests
+        shell: powershell
+        run: MSBuild.exe lua_test.vcxproj /m /p:Configuration=Debug /p:Platform=x64
+
       - name: Documentation drift
         shell: powershell
         run: powershell -NoProfile -ExecutionPolicy Bypass -File tools\check_doc_drift.ps1
@@ -28,10 +32,6 @@ jobs:
       - name: Quality gate smoke
         shell: powershell
         run: powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_quality_gate.ps1 -SkipBuild -SkipClangTidy
-
-      - name: Build tests
-        shell: powershell
-        run: MSBuild.exe lua_test.vcxproj /m /p:Configuration=Debug /p:Platform=x64
 
       - name: Run tests
         shell: powershell

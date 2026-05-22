@@ -1,5 +1,6 @@
 param(
-    [string]$Root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+    [string]$Root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path,
+    [string]$TestExecutable = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -35,11 +36,109 @@ function Get-RepoRelativePath {
     param([string]$Path)
 
     $fullRoot = (Resolve-Path -LiteralPath $Root).Path.TrimEnd('\', '/')
-    $fullPath = (Resolve-Path -LiteralPath $Path).Path
+    $fullPath = [System.IO.Path]::GetFullPath($Path)
     if ($fullPath.StartsWith($fullRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
         return $fullPath.Substring($fullRoot.Length).TrimStart('\', '/')
     }
     return $fullPath
+}
+
+function Resolve-TestExecutablePath {
+    param([string]$Path)
+
+    if ([string]::IsNullOrWhiteSpace($Path)) {
+        return Join-RepoPath "bin\lua_test.exe"
+    }
+
+    if ([System.IO.Path]::IsPathRooted($Path)) {
+        return $Path
+    }
+
+    return Join-Path $Root $Path
+}
+
+function Convert-CommandOutputToText {
+    param([object[]]$Output)
+
+    return ($Output | ForEach-Object { $_.ToString() }) -join "`n"
+}
+
+function Get-TestRunSummary {
+    param(
+        [System.Collections.Generic.List[string]]$Failures,
+        [string]$ExecutablePath
+    )
+
+    if (-not (Test-Path -LiteralPath $ExecutablePath)) {
+        Add-Failure $Failures "Missing test executable for dynamic test count check: $(Get-RepoRelativePath $ExecutablePath). Build lua_test.vcxproj first."
+        return $null
+    }
+
+    $previousErrorActionPreference = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = "Continue"
+        $output = & $ExecutablePath 2>&1
+        $exitCode = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
+    $text = Convert-CommandOutputToText $output
+
+    if ($exitCode -ne 0) {
+        Add-Failure $Failures "Dynamic test count check failed: $(Get-RepoRelativePath $ExecutablePath) exited with code $exitCode"
+        return $null
+    }
+
+    $registered = [regex]::Match($text, "(?m)^Registered Tests:\s*(\d+)\s*$")
+    $total = [regex]::Match($text, "(?m)^Total Results:\s*(\d+)\s*$")
+    $failed = [regex]::Match($text, "(?m)^Failed:\s*(\d+)\s*$")
+
+    foreach ($matchInfo in @(
+        @{ Name = "Registered Tests"; Match = $registered },
+        @{ Name = "Total Results"; Match = $total },
+        @{ Name = "Failed"; Match = $failed }
+    )) {
+        if (-not $matchInfo.Match.Success) {
+            Add-Failure $Failures "Dynamic test count check could not parse '$($matchInfo.Name)' from $(Get-RepoRelativePath $ExecutablePath) output"
+        }
+    }
+
+    if (-not ($registered.Success -and $total.Success -and $failed.Success)) {
+        return $null
+    }
+
+    return [pscustomobject]@{
+        RegisteredTests = [int]$registered.Groups[1].Value
+        TotalResults = [int]$total.Groups[1].Value
+        Failed = [int]$failed.Groups[1].Value
+    }
+}
+
+function Assert-DocHasCurrentTestCounts {
+    param(
+        [System.Collections.Generic.List[string]]$Failures,
+        [string]$RelativePath,
+        [pscustomobject]$Summary
+    )
+
+    $registered = [regex]::Escape($Summary.RegisteredTests.ToString())
+    $total = [regex]::Escape($Summary.TotalResults.ToString())
+
+    $registeredPattern = "(?<!\d)$registered(?!\d)"
+    $totalPattern = "(?<!\d)$total(?!\d)"
+    $path = Join-RepoPath $RelativePath
+
+    if (-not (Select-String -LiteralPath $path -Pattern $registeredPattern -Quiet)) {
+        Add-Failure $Failures "$RelativePath is missing current registered test count: $($Summary.RegisteredTests) registered / $($Summary.TotalResults) results / $($Summary.Failed) failures"
+    }
+
+    if (-not (Select-String -LiteralPath $path -Pattern $totalPattern -Quiet)) {
+        Add-Failure $Failures "$RelativePath is missing current assertion result count: $($Summary.RegisteredTests) registered / $($Summary.TotalResults) results / $($Summary.Failed) failures"
+    }
+
+    if (-not (Select-String -LiteralPath $path -SimpleMatch -Pattern "$($Summary.Failed) failures" -Quiet)) {
+        Add-Failure $Failures "$RelativePath is missing current failure count: $($Summary.RegisteredTests) registered / $($Summary.TotalResults) results / $($Summary.Failed) failures"
+    }
 }
 
 $failures = [System.Collections.Generic.List[string]]::new()
@@ -132,10 +231,16 @@ foreach ($required in @("CMakeLists.txt", "tools\run_cmake_smoke.ps1", "CMake", 
 
 $statusDoc = Read-Text "docs/status/project-status.md"
 $statusDocPath = Join-RepoPath "docs/status/project-status.md"
-foreach ($required in @("Visual Studio", "MSBuild", ".vcxproj", "CMake", "CTest", "secondary", "CMakeLists.txt", "tools/run_cmake_smoke.ps1", "513", "2497", "--report=junit", "RuntimeServices", "Learning Path", "lua_bytecode", "decoded instructions", "constant table")) {
+foreach ($required in @("Visual Studio", "MSBuild", ".vcxproj", "CMake", "CTest", "secondary", "CMakeLists.txt", "tools/run_cmake_smoke.ps1", "--report=junit", "RuntimeServices", "Learning Path", "lua_bytecode", "decoded instructions", "constant table")) {
     if (-not (Select-String -LiteralPath $statusDocPath -SimpleMatch -Pattern $required -Quiet)) {
         Add-Failure $failures "docs/status/project-status.md is missing required fact: $required"
     }
+}
+
+$testSummary = Get-TestRunSummary -Failures $failures -ExecutablePath (Resolve-TestExecutablePath $TestExecutable)
+if ($null -ne $testSummary) {
+    Assert-DocHasCurrentTestCounts -Failures $failures -RelativePath "README.md" -Summary $testSummary
+    Assert-DocHasCurrentTestCounts -Failures $failures -RelativePath "docs/status/project-status.md" -Summary $testSummary
 }
 
 $runtimeServicesDoc = Read-Text "docs/architecture/runtime-services.md"

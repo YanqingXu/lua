@@ -118,10 +118,6 @@ function Find-MSBuild {
 
 Push-Location $root
 try {
-    Invoke-Step "documentation drift" {
-        & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root "tools\check_doc_drift.ps1")
-    }
-
     Invoke-Step "clang-format" {
         $clangFormat = Get-CommandOrNull "clang-format"
         if (-not $clangFormat) {
@@ -188,6 +184,10 @@ try {
         }
 
         & $msbuild (Join-Path $root "lua_test.vcxproj") /m "/p:Configuration=$Configuration" "/p:Platform=$Platform"
+    }
+
+    Invoke-Step "documentation drift" {
+        & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root "tools\check_doc_drift.ps1")
     }
 
     Invoke-Step "unit tests" {

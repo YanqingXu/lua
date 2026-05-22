@@ -109,7 +109,7 @@ applies_to: repository overview and current build workflows
 
 补充验证：
 - `bin/build_test.bat`：通过
-- `bin/lua_test.exe`：513 个注册测试，2497 个结果，0 失败
+- `bin/lua_test.exe`：513 个注册测试，2497 个结果，0 失败（0 failures）
 - `bin/build_app.bat`：通过
 - `tests/lua/regressions/*.lua`：全部通过
 - `tests/lua/stdlib/test_collectgarbage*.lua` 与 `test_gcinfo*.lua`：全部通过，`collectgarbage("collect")` 可观察到内存下降

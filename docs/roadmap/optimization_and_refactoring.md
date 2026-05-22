@@ -391,7 +391,7 @@ using ValueResult = std::variant<
 ### 5.2 质量门（已有 `tools/run_quality_gate.ps1`）
 
 - 把 `check_doc_drift.ps1` 接入质量门，让"代码与 README 章节不同步"成为可失败信号。
-- **当前事实**：`check_doc_drift.ps1` 仍硬编码测试数字 "513" / "2497"，用于保证 README / status docs 不回退到旧计数；随着测试增加会过期，建议改为从 `bin\lua_test.exe` 输出动态解析，或集中维护一份机器可读计数源。
+- ✓ **已完成**：PR-47 后 `check_doc_drift.ps1` 会运行 `bin\lua_test.exe`，从 `Registered Tests` / `Total Results` / `Failed` 汇总动态解析当前测试计数，再检查 README / status docs 是否同步；脚本内不再硬编码 "513" / "2497"。
 - **已修正文档偏差**：`docs/architecture/runtime-services.md` 的结构体示例已补齐 `VM::DispatchStrategy* dispatchStrategy`，且 `check_doc_drift.ps1` 已加入该字段守卫。
 - 加一条 `clang-tidy` 检查（针对 modernize-*、readability-*、bugprone-*），不强制全过，但持续记录。
 - CMake 路径补充 `-Wpedantic -Wconversion`（已用 MSVC `/W4`，CMake 旁路需对齐）。
@@ -434,12 +434,12 @@ using ValueResult = std::variant<
 | PR-44 | `ExpressionEmitter` 抽取，集中 ValueResult / CondResult / CallResultInfo / LValueRef 表达式通道 | 2.5.1-d / 5.1 |
 | PR-45 | `StatementEmitter` 抽取，集中 statement / block lowering 和语句级控制流编排 | 2.5.1-e / 5.1 |
 | PR-46 | GC sweep / clearAll 显式接收 `StringPool&`，旧 `GarbageCollector::getInstance()` 标记 `[[deprecated]]` | 2.3 / 5.1 |
+| PR-47 | `check_doc_drift.ps1` 动态解析测试计数，移除脚本内测试总数字面量；CI / 本地质量门先构建测试入口再做漂移检查 | 5.2 |
 
 后续推荐顺序：
 
 | PR | 编号 | 任务 | 阶段 | 依赖 / 理由 |
 |---|---|---|---|---|
-| PR-47 | 5.2 | `check_doc_drift.ps1` 动态解析测试计数，替代硬编码 "513" / "2497" | 5 | P2；字段漂移已守住，剩余风险是测试计数继续增长 |
 | PR-48 | 3.5.1 | `ValueResult -> std::variant` prototype | 3 | P2；StatementEmitter 已稳定，适合先做小范围 prototype |
 | PR-49 | 1.2 | `CodegenState` 命名清理：`nactvar_` / `regs` / `locals` 等缩写收口 | 1 | P3；等 emitter 边界稳定后再做机械重命名，降低重复 churn |
 | PR-50 | 4.3.2 | `closure-and-upvalue.md` walkthrough | 4 | P3；可复用 bytecode 基础输出 |

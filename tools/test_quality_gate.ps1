@@ -47,6 +47,20 @@ Assert-FileContains "tools/run_quality_gate.ps1" @(
     "MSBuild"
 )
 
+Assert-FileContains "tools/check_doc_drift.ps1" @(
+    "Get-TestRunSummary",
+    "Registered Tests:\s*",
+    "Total Results:\s*",
+    "Assert-DocHasCurrentTestCounts"
+)
+
+$docDriftScript = Get-Content -LiteralPath (Join-RepoPath "tools/check_doc_drift.ps1") -Raw
+foreach ($staleCount in @("513", "2497")) {
+    if ($docDriftScript -match "(?<!\d)$staleCount(?!\d)") {
+        throw "tools/check_doc_drift.ps1 must parse test counts dynamically instead of hard-coding $staleCount"
+    }
+}
+
 Assert-FileContains ".github/workflows/ci.yml" @(
     "pull_request",
     "windows-latest",
