@@ -1,13 +1,13 @@
 ---
 status: current
-verified_against: src/compiler/codegen/codegen.hpp; src/compiler/codegen/codegen.cpp; src/compiler/codegen/codegen_binding.cpp; src/compiler/codegen/codegen_expr.cpp; src/compiler/codegen/expression_emitter.hpp; src/compiler/codegen/expression_emitter.cpp; src/compiler/codegen/codegen_jump.cpp; src/compiler/codegen/codegen_stmt.cpp; src/compiler/codegen/codegen_state.hpp; src/compiler/codegen/jump_patcher.hpp; src/compiler/codegen/jump_patcher.cpp; src/compiler/codegen/scope_manager.hpp; src/compiler/codegen/scope_manager.cpp; src/compiler/codegen/bytecode_builder.hpp; tests/unit/compiler/test_codegen_characterization.cpp; tests/unit/compiler/test_jump_patcher.cpp; tests/unit/compiler/test_scope_manager.cpp; tests/unit/compiler/test_expression_emitter.cpp
+verified_against: src/compiler/codegen/codegen.hpp; src/compiler/codegen/codegen.cpp; src/compiler/codegen/codegen_binding.cpp; src/compiler/codegen/codegen_expr.cpp; src/compiler/codegen/expression_emitter.hpp; src/compiler/codegen/expression_emitter.cpp; src/compiler/codegen/statement_emitter.hpp; src/compiler/codegen/statement_emitter.cpp; src/compiler/codegen/codegen_jump.cpp; src/compiler/codegen/codegen_stmt.cpp; src/compiler/codegen/codegen_state.hpp; src/compiler/codegen/jump_patcher.hpp; src/compiler/codegen/jump_patcher.cpp; src/compiler/codegen/scope_manager.hpp; src/compiler/codegen/scope_manager.cpp; src/compiler/codegen/bytecode_builder.hpp; tests/unit/compiler/test_codegen_characterization.cpp; tests/unit/compiler/test_jump_patcher.cpp; tests/unit/compiler/test_scope_manager.cpp; tests/unit/compiler/test_expression_emitter.cpp; tests/unit/compiler/test_statement_emitter.cpp
 last_checked: 2026-05-22
-applies_to: CodeGenerator responsibilities after PR-44 ExpressionEmitter extraction
+applies_to: CodeGenerator responsibilities after PR-45 StatementEmitter extraction
 ---
 
 # CodeGenerator 职责地图
 
-本文记录 2026-05-22 当前 `CodeGenerator` 的真实职责边界，用于指导 PR-45 之后的渐进拆分。PR-41 补齐职责地图和 characterization 测试；PR-42 已抽出 `JumpPatcher`，PR-43 已抽出 `ScopeManager`，PR-44 已抽出 `ExpressionEmitter`，但仍保留 `CodeGenerator` 的兼容包装方法。
+本文记录 2026-05-22 当前 `CodeGenerator` 的真实职责边界，用于指导 PR-45 之后的渐进拆分。PR-41 补齐职责地图和 characterization 测试；PR-42 已抽出 `JumpPatcher`，PR-43 已抽出 `ScopeManager`，PR-44 已抽出 `ExpressionEmitter`，PR-45 已抽出 `StatementEmitter`，但仍保留 `CodeGenerator` 的兼容包装方法。
 
 ## 当前结构
 
@@ -25,7 +25,7 @@ applies_to: CodeGenerator responsibilities after PR-44 ExpressionEmitter extract
 | 右值表达式 | `ExpressionEmitter::emitValue()`、`visitNode()`、`materializeValue()`、`valueToRK()` | `expression_emitter.hpp/.cpp`；`CodeGenerator` 保留薄包装 | ✓ PR-44 已抽出 |
 | 调用 / vararg / 多返回值 | `ExpressionEmitter::emitCallExpr()`、`emitVarargExpr()`、`setWantedResults()` | `expression_emitter.hpp/.cpp`；`CodeGenerator` 保留薄包装 | ✓ PR-44 已抽出 |
 | 左值与存储 | `ExpressionEmitter::emitLValue()`、`emitStore()` | `expression_emitter.hpp/.cpp`；`CodeGenerator` 保留薄包装 | ✓ PR-44 已抽出 |
-| 语句 lowering | `statement()`、各 `emitStmt()`、`block()` | `codegen_stmt.cpp` | PR-45 `StatementEmitter` |
+| 语句 lowering | `StatementEmitter::statement()`、各 `emitStmt()`、`block()` | `statement_emitter.hpp/.cpp`；`CodeGenerator` 保留薄包装 | ✓ PR-45 已抽出 |
 | 函数编译 | `compileFunction()`、`emitClosureUpvalues()`、`attachDebugMetadata()` | `codegen_stmt.cpp` + `codegen.cpp` | 拆分后仍由 facade 编排 |
 
 `CodegenState` 是所有分片共享的状态容器，包含当前 `Proto`、`RuntimeServices`、`BytecodeBuilder`、`RegisterAllocator`、局部/upvalue/block 上下文、PC 和源码行号。后续拆分时应优先把行为从 `CodeGenerator` 移走，暂不急于移动 `CodegenState` 字段，避免同时改变数据所有权和控制流。
@@ -44,9 +44,9 @@ applies_to: CodeGenerator responsibilities after PR-44 ExpressionEmitter extract
 
    `src/compiler/codegen/expression_emitter.hpp/.cpp` 已承载 `ValueResult`、`CondResult`、`LValueRef`、`CallResultInfo` 表达式通道。`CodeGenerator` 仍保留 `emitValue()` / `emitCondResult()` / `emitCallExpr()` / `emitLValue()` 等薄包装，避免同时改动 statement 调用面。
 
-4. **PR-45：抽取 `StatementEmitter`**
+4. **PR-45：抽取 `StatementEmitter`** ✓ 已完成
 
-   语句 lowering 依赖 ScopeManager、JumpPatcher 和 ExpressionEmitter。它应作为上面三个边界稳定后的编排层迁移，而不是最先拆。
+   `src/compiler/codegen/statement_emitter.hpp/.cpp` 已承载 `statement()`、各 `emitStmt()` 和 `block()`。`CodeGenerator` 仍保留 statement / block 薄包装，函数体编译、closure upvalue 装配和 debug metadata 暂留 facade 编排。
 
 ## Characterization 护栏
 
@@ -60,6 +60,7 @@ PR-41 新增 `tests/unit/compiler/test_codegen_characterization.cpp`，测试套
 | `Jump Patcher` | 直接锁住 pending `jpc_` flush、旧式链表头尾方向、`PatchList` 显式回填、`TESTSET + NO_REG -> TEST` 和过长跳转错误 | PR-42 / PR-43 |
 | `Scope Manager` | 直接锁住 local 生命周期、`RETURN` 后冗余 `CLOSE` 抑制、breaklist 延迟进入 pending `jpc_`、upvalue 去重与查找 | PR-43 / PR-45 |
 | `Expression Emitter` | 直接锁住 `ExpressionEmitter` facade 构造、`emitValue` / `emitCondResult` / `emitLValue` 返回契约和 immediate literal lowering | PR-44 / PR-45 |
+| `Statement Emitter` | 直接锁住 `StatementEmitter` facade 构造、`statement()` / `block()` void 契约和空语句 lowering | PR-45 |
 
 相邻护栏仍包括：
 
@@ -73,7 +74,8 @@ PR-41 新增 `tests/unit/compiler/test_codegen_characterization.cpp`，测试套
 - PR-42 已完成；后续不要把 statement lowering 或 expression lowering 重新塞回 `JumpPatcher`。
 - PR-43 已完成；后续不要把 expression 或 statement lowering 塞进 `ScopeManager`。
 - PR-44 已完成；后续不要把 statement lowering 塞进 `ExpressionEmitter`。
-- `ValueResult` 改成 `std::variant` 仍应等 PR-45 `StatementEmitter` 稳定后再做类型表达升级。
+- PR-45 已完成；后续不要把 statement lowering 重新塞回 `CodeGenerator`，除非是兼容包装。
+- `ValueResult` 改成 `std::variant` 可在 `StatementEmitter` 边界稳定后作为独立任务推进。
 - 每次新增 `.cpp` 必须同步 `CMakeLists.txt`、`lua_test.vcxproj` 和 `lua_test.vcxproj.filters`；新增生产源文件还必须同步 `lua.vcxproj` 和 `lua.vcxproj.filters`。
 
 ## 推荐验证命令
@@ -83,6 +85,7 @@ bin\lua_test.exe --filter "Codegen Characterization"
 bin\lua_test.exe --filter "Codegen Conditions"
 bin\lua_test.exe --filter "Symbol Binding"
 bin\lua_test.exe --filter "Expression Emitter"
+bin\lua_test.exe --filter "Statement Emitter"
 bin\lua_test.exe --filter "ValueResult Pipeline"
 bin\lua_test.exe --filter "Call Pipeline"
 bin\lua_test.exe

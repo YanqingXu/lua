@@ -19,6 +19,7 @@ set(LUA_CORE_SOURCES
     src/compiler/codegen/expression_emitter.cpp
     src/compiler/codegen/jump_patcher.cpp
     src/compiler/codegen/scope_manager.cpp
+    src/compiler/codegen/statement_emitter.cpp
     src/compiler/parser/lexer.cpp
     src/compiler/opcode.cpp
     src/compiler/parser/parser.cpp
@@ -117,6 +118,7 @@ set(LUA_TEST_SOURCES
     tests/unit/compiler/test_jump_patcher.cpp
     tests/unit/compiler/test_scope_manager.cpp
     tests/unit/compiler/test_expression_emitter.cpp
+    tests/unit/compiler/test_statement_emitter.cpp
     tests/unit/compiler/test_bytecode_builder.cpp
     tests/unit/compiler/test_function_codegen.cpp
     tests/unit/compiler/test_lua_functions.cpp

@@ -40,6 +40,7 @@ extern void registerCodegenStateTests();
 extern void registerJumpPatcherTests();
 extern void registerScopeManagerTests();
 extern void registerExpressionEmitterTests();
+extern void registerStatementEmitterTests();
 extern void registerBytecodeBuilderTests();
 extern void registerBytecodePrinterTests();
 extern void registerMathLibTests();
@@ -180,6 +181,7 @@ void registerAllTests() {
     registerJumpPatcherTests();
     registerScopeManagerTests();
     registerExpressionEmitterTests();
+    registerStatementEmitterTests();
     registerBytecodeBuilderTests();
     registerBytecodePrinterTests();
     registerSyntaxSugarTests();

@@ -27,6 +27,7 @@
 #include "compiler/codegen/expression_emitter.hpp"
 #include "compiler/codegen/jump_patcher.hpp"
 #include "compiler/codegen/scope_manager.hpp"
+#include "compiler/codegen/statement_emitter.hpp"
 #include "common/lua_error.hpp"
 #include "core/function.hpp"
 #include <expected>
@@ -50,6 +51,7 @@ class StringPool;
 class CodeGenerator {
     friend class ScopeManager;
     friend class ExpressionEmitter;
+    friend class StatementEmitter;
 
 public:
     /**
@@ -325,6 +327,7 @@ private:
     JumpPatcher jumps_;
     ScopeManager scopes_;
     ExpressionEmitter expressions_;
+    StatementEmitter statements_;
 };
 
 }  // namespace Lua

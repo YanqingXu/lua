@@ -173,6 +173,7 @@
     <ClCompile Include="tests\unit\compiler\test_jump_patcher.cpp" />
     <ClCompile Include="tests\unit\compiler\test_scope_manager.cpp" />
     <ClCompile Include="tests\unit\compiler\test_expression_emitter.cpp" />
+    <ClCompile Include="tests\unit\compiler\test_statement_emitter.cpp" />
     <ClCompile Include="tests\unit\compiler\test_bytecode_builder.cpp" />
     <ClCompile Include="tests\unit\compiler\test_function_codegen.cpp" />
     <ClCompile Include="tests\unit\compiler\test_lua_functions.cpp" />

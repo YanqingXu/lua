@@ -150,6 +150,7 @@
     <ClInclude Include="src\compiler\codegen\expression_emitter.hpp" />
     <ClInclude Include="src\compiler\codegen\jump_patcher.hpp" />
     <ClInclude Include="src\compiler\codegen\scope_manager.hpp" />
+    <ClInclude Include="src\compiler\codegen\statement_emitter.hpp" />
     <ClInclude Include="src\compiler\register_allocator.hpp" />
     <ClInclude Include="src\compiler\parser\lexer.hpp" />
     <ClInclude Include="src\compiler\opcode.hpp" />
@@ -210,6 +211,7 @@
     <ClCompile Include="src\compiler\codegen\expression_emitter.cpp" />
     <ClCompile Include="src\compiler\codegen\jump_patcher.cpp" />
     <ClCompile Include="src\compiler\codegen\scope_manager.cpp" />
+    <ClCompile Include="src\compiler\codegen\statement_emitter.cpp" />
     <ClCompile Include="src\compiler\parser\lexer.cpp" />
     <ClCompile Include="src\compiler\opcode.cpp" />
     <ClCompile Include="src\compiler\parser\parser.cpp" />

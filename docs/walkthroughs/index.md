@@ -52,7 +52,7 @@ bin\lua_test.exe --report=junit
 |---|---|---|
 | 名字如何绑定到 local/global/upvalue | `bin\lua_test.exe --filter "Symbol Binding"` | `src/compiler/codegen/codegen_binding.cpp`, `src/compiler/codegen/codegen.hpp` |
 | 条件和短路如何避免错误物化 | `bin\lua_test.exe --filter "Codegen Conditions"` | `src/compiler/codegen/codegen_expr.cpp`, `src/compiler/codegen/codegen_jump.cpp`, `src/compiler/codegen/codegen_types.hpp` |
-| 多返回值为什么依赖调用位置 | `bin\lua_test.exe --filter "Call Pipeline"` | `src/compiler/codegen/codegen_types.hpp`, `src/compiler/codegen/codegen_expr.cpp`, `src/compiler/codegen/codegen_stmt.cpp`, `src/vm/vm.cpp` |
+| 多返回值为什么依赖调用位置 | `bin\lua_test.exe --filter "Call Pipeline"` | `src/compiler/codegen/codegen_types.hpp`, `src/compiler/codegen/expression_emitter.cpp`, `src/compiler/codegen/statement_emitter.cpp`, `src/vm/vm.cpp` |
 | RuntimeServices 当前解决了什么 | `bin\lua_test.exe --filter "Runtime Services"` | `src/runtime/runtime_services.hpp`, `src/main.cpp`, `src/repl.cpp` |
 | 标准库如何统一装配 | `bin\lua_test.exe --filter "Standard Library Catalog"` | `src/lib/lib_catalog.hpp`, `src/lib/lib_manager.cpp`, `docs/stdlib/overview.md` |
 | `print("hello")` 如何走完整链路 | `bin\lua_test.exe --filter "VM Dispatch"` | `docs/walkthroughs/hello-world.md` |

@@ -23,6 +23,7 @@ CodeGenerator::CodeGenerator(StringPool* pool)
     , jumps_(state_)
     , scopes_(state_, jumps_)
     , expressions_(*this)
+    , statements_(*this)
 {
     if (pool == nullptr) {
         throw std::invalid_argument("StringPool cannot be null");
@@ -34,6 +35,7 @@ CodeGenerator::CodeGenerator(RuntimeServices& services)
     , jumps_(state_)
     , scopes_(state_, jumps_)
     , expressions_(*this)
+    , statements_(*this)
 {
 }
 

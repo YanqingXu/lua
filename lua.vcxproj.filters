@@ -37,6 +37,9 @@
     <ClCompile Include="src\compiler\codegen\scope_manager.cpp">
       <Filter>src\compiler\codegen</Filter>
     </ClCompile>
+    <ClCompile Include="src\compiler\codegen\statement_emitter.cpp">
+      <Filter>src\compiler\codegen</Filter>
+    </ClCompile>
     <ClCompile Include="src\core\function.cpp">
       <Filter>src\core</Filter>
     </ClCompile>
@@ -262,6 +265,9 @@
       <Filter>src\compiler\codegen</Filter>
     </ClInclude>
     <ClInclude Include="src\compiler\codegen\scope_manager.hpp">
+      <Filter>src\compiler\codegen</Filter>
+    </ClInclude>
+    <ClInclude Include="src\compiler\codegen\statement_emitter.hpp">
       <Filter>src\compiler\codegen</Filter>
     </ClInclude>
     <ClInclude Include="src\compiler\register_allocator.hpp">

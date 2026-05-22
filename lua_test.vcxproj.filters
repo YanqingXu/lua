@@ -146,6 +146,9 @@
     <ClCompile Include="tests\unit\compiler\test_expression_emitter.cpp">
       <Filter>tests\compiler</Filter>
     </ClCompile>
+    <ClCompile Include="tests\unit\compiler\test_statement_emitter.cpp">
+      <Filter>tests\compiler</Filter>
+    </ClCompile>
     <ClCompile Include="tests\unit\compiler\test_bytecode_builder.cpp">
       <Filter>tests\compiler</Filter>
     </ClCompile>
