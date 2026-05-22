@@ -56,6 +56,23 @@ Function* getTableFunction(Table* table, StringPool& pool, const char* name) {
     return func.isFunction() ? func.asFunction() : nullptr;
 }
 
+GarbageCollector& legacyGarbageCollectorForVMCoreTest() {
+#if defined(_MSC_VER)
+#pragma warning(push)
+#pragma warning(disable: 4996)
+#elif defined(__clang__) || defined(__GNUC__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#endif
+    GarbageCollector& gc = GarbageCollector::getInstance();
+#if defined(_MSC_VER)
+#pragma warning(pop)
+#elif defined(__clang__) || defined(__GNUC__)
+#pragma GCC diagnostic pop
+#endif
+    return gc;
+}
+
 } // namespace
 
 void testGlobalState(TestSuite& suite) {
@@ -70,7 +87,7 @@ void testGlobalState(TestSuite& suite) {
     
     // Test 3: getGC
     GarbageCollector& gc = gs.getGC();
-    ASSERT_TRUE(suite, &gc != &GarbageCollector::getInstance(), "getGC is owned by GlobalState");
+    ASSERT_TRUE(suite, &gc != &legacyGarbageCollectorForVMCoreTest(), "getGC is owned by GlobalState");
     
     // Test 4: getRegistry
     Table* registry = gs.getRegistry();

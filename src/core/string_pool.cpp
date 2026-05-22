@@ -14,6 +14,8 @@ void StringPool::setGarbageCollector(GarbageCollector* collector) {
         return;
     }
 
+    collector_->setStringPool(this);
+
     for (auto& entry : pool_) {
         collector_->registerObject(entry.second);
     }
@@ -35,7 +37,8 @@ GCString* StringPool::intern(StrView str) {
 
     // 不存在，创建新的字符串对象
     GCString* newString = new GCString(str);
-    GarbageCollector& gc = collector_ != nullptr ? *collector_ : GarbageCollector::getInstance();
+    GarbageCollector& gc = collector_ != nullptr ? *collector_ : GarbageCollector::legacyInstance();
+    gc.setStringPool(this);
     gc.registerObject(newString);
 
     // 加入池中

@@ -1,6 +1,6 @@
 ---
 status: current
-verified_against: docs/archive/research/deep-research-report.md; docs/status/project-status.md; docs/guides/development.md; docs/compiler/codegen-responsibility-map.md; CMakeLists.txt; lua.vcxproj; lua.vcxproj.filters; lua_test.vcxproj; lua_test.vcxproj.filters; src/compiler/parser/parser.cpp; src/compiler/parser/parser_stmt.cpp; src/compiler/parser/parser_expr.cpp; src/compiler/parser/parser_primary.cpp; src/compiler/parser/parser_func.cpp; src/compiler/parser/parser_table.cpp; src/compiler/codegen/codegen.hpp; src/compiler/codegen/codegen_expr.cpp; src/compiler/codegen/expression_emitter.hpp; src/compiler/codegen/expression_emitter.cpp; src/compiler/codegen/statement_emitter.hpp; src/compiler/codegen/statement_emitter.cpp; src/compiler/codegen/codegen_jump.cpp; src/compiler/codegen/codegen_stmt.cpp; src/compiler/codegen/jump_patcher.hpp; src/compiler/codegen/jump_patcher.cpp; src/compiler/codegen/scope_manager.hpp; src/compiler/codegen/scope_manager.cpp; src/vm/vm.cpp; src/vm/vm_internal.hpp; src/vm/vm_switch_dispatch.hpp; tests/unit/compiler/test_codegen_characterization.cpp; tests/unit/compiler/test_jump_patcher.cpp; tests/unit/compiler/test_scope_manager.cpp; tests/unit/compiler/test_expression_emitter.cpp; tests/unit/compiler/test_statement_emitter.cpp; tests/unit/framework/test_runner.cpp; tests/unit/vm/test_runtime_services.cpp; tests/unit/vm/test_vm_dispatch.cpp; tools/run_cmake_smoke.ps1; tools/check_doc_drift.ps1; tools/run_quality_gate.ps1
+verified_against: docs/archive/research/deep-research-report.md; docs/status/project-status.md; docs/guides/development.md; docs/compiler/codegen-responsibility-map.md; CMakeLists.txt; lua.vcxproj; lua.vcxproj.filters; lua_test.vcxproj; lua_test.vcxproj.filters; src/compiler/parser/parser.cpp; src/compiler/parser/parser_stmt.cpp; src/compiler/parser/parser_expr.cpp; src/compiler/parser/parser_primary.cpp; src/compiler/parser/parser_func.cpp; src/compiler/parser/parser_table.cpp; src/compiler/codegen/codegen.hpp; src/compiler/codegen/codegen_expr.cpp; src/compiler/codegen/expression_emitter.hpp; src/compiler/codegen/expression_emitter.cpp; src/compiler/codegen/statement_emitter.hpp; src/compiler/codegen/statement_emitter.cpp; src/compiler/codegen/codegen_jump.cpp; src/compiler/codegen/codegen_stmt.cpp; src/compiler/codegen/jump_patcher.hpp; src/compiler/codegen/jump_patcher.cpp; src/compiler/codegen/scope_manager.hpp; src/compiler/codegen/scope_manager.cpp; src/core/string_pool.cpp; src/gc/garbage_collector.hpp; src/gc/garbage_collector.cpp; src/gc/gc_sweep.cpp; src/vm/vm.cpp; src/vm/vm_internal.hpp; src/vm/vm_switch_dispatch.hpp; tests/unit/compiler/test_codegen_characterization.cpp; tests/unit/compiler/test_jump_patcher.cpp; tests/unit/compiler/test_scope_manager.cpp; tests/unit/compiler/test_expression_emitter.cpp; tests/unit/compiler/test_statement_emitter.cpp; tests/unit/framework/test_runner.cpp; tests/unit/gc/test_gc.cpp; tests/unit/vm/test_runtime_services.cpp; tests/unit/vm/test_vm_core.cpp; tests/unit/vm/test_vm_dispatch.cpp; tools/run_cmake_smoke.ps1; tools/check_doc_drift.ps1; tools/run_quality_gate.ps1
 last_checked: 2026-05-22
 applies_to: 仓库优化路线图与下次续接检查清单
 ---
@@ -46,7 +46,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_quality_gate.ps1
 | 中 | EngineContext / RuntimeServices | 已完成 | 已引入显式 RuntimeServices，并迁移入口层、CodeGenerator、Parser/VM 兼容重载 |
 | 中 | 教学导航 | 已完成 | 已新增 `docs/index.md`、术语表和 examples，并扩展 walkthrough 索引 |
 | 低 | CMake + CTest | 已完成 | 已新增 secondary CMake/CTest 路径，不替代 VS/MSBuild 主路径 |
-| 长期 | 拆分 CodeGenerator / VM / Parser | 进行中 | 8A-8C CodeGenerator 边界已完成，8D-8G VM 入口、dispatch 分类、ops/call/剩余 helper 与 trace/debug 边界已完成；8H Parser 函数组审计与行为锁定、8I Parser 物理拆分执行已完成；PR-39 已完成 Switch dispatch 每 opcode inline helper；PR-40 已完成 VM expected 异常映射 helper；PR-41 已完成 CodeGenerator 职责地图与 characterization 测试；PR-42 已完成 JumpPatcher 抽取；PR-43 已完成 ScopeManager 抽取；PR-44 已完成 ExpressionEmitter 抽取；PR-45 已完成 StatementEmitter 抽取 |
+| 长期 | 拆分 CodeGenerator / VM / Parser | 进行中 | 8A-8C CodeGenerator 边界已完成，8D-8G VM 入口、dispatch 分类、ops/call/剩余 helper 与 trace/debug 边界已完成；8H Parser 函数组审计与行为锁定、8I Parser 物理拆分执行已完成；PR-39 已完成 Switch dispatch 每 opcode inline helper；PR-40 已完成 VM expected 异常映射 helper；PR-41 已完成 CodeGenerator 职责地图与 characterization 测试；PR-42 已完成 JumpPatcher 抽取；PR-43 已完成 ScopeManager 抽取；PR-44 已完成 ExpressionEmitter 抽取；PR-45 已完成 StatementEmitter 抽取；PR-46 已完成 GC sweep 显式 StringPool 边界 |
 
 ## 已完成优化
 
@@ -124,7 +124,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_quality_gate.ps1
 
 - 质量门禁配置自检通过。
 - 文档漂移检查通过。
-- 本机有 MSBuild 和 `bin\lua_test.exe` 时，`run_quality_gate.ps1` 会构建 `lua_test.vcxproj`，并运行 512 个注册测试 / 2494 个结果 / 0 失败。
+- 本机有 MSBuild 和 `bin\lua_test.exe` 时，`run_quality_gate.ps1` 会构建 `lua_test.vcxproj`，并运行 513 个注册测试 / 2497 个结果 / 0 失败。
 
 ### 3A. 共享文件读取
 
@@ -1175,6 +1175,52 @@ bin\lua_test.exe
 - `Symbol Binding` 过滤测试运行 24 个注册测试 / 49 个结果 / 0 失败。
 - `LValue Pipeline` 过滤测试运行 17 个注册测试 / 17 个结果 / 0 失败。
 - 默认 `bin\lua_test.exe` 运行 512 个注册测试 / 2494 个结果 / 0 失败。
+
+## 已完成任务：GC sweep 显式 StringPool 边界
+
+### PR-46 / 2.3：GC sweep 显式接收 `StringPool&`
+
+**目标：** 按 `docs/roadmap/optimization_and_refactoring.md` 的 2.3 规划，让 GC sweep / clearAll 删除 `GCString` 时使用显式传入的字符串池，避免清扫逻辑直接绕回 `StringPool::getInstance()`；同时把旧 `GarbageCollector::getInstance()` 标记为兼容 shim。
+
+已完成：
+
+- [x] `GarbageCollector::sweep(StringPool&)` 显式接收字符串池，并在删除 `GCString` 时调用传入池的 `remove()`。
+- [x] 新增 `collect(StringPool&)`、`collect(StringPool&, LuaState*)` 和 `clearAll(StringPool&)`，保留旧无参入口作为兼容包装。
+- [x] `StringPool::setGarbageCollector()` / fallback intern 路径会把 `StringPool*` 记录到 collector，旧 fallback 使用内部 `legacyInstance()`，外部 `getInstance()` 标记为 `[[deprecated]]`。
+- [x] 新增 `GC::Explicit StringPool Sweep` 测试，锁住 `sweep(StringPool&)` 签名和白色字符串清扫行为。
+- [x] 调整旧 shim 相关测试调用，局部抑制 deprecation warning，保持 MSBuild 无新增警告。
+- [x] 同步 README、`docs/status/project-status.md`、`docs/architecture/gc.md`、`docs/architecture/runtime-services.md`、`docs/architecture/patterns.md`、`docs/roadmap/optimization_and_refactoring.md` 和 `tools/check_doc_drift.ps1`。
+
+TDD 记录：
+
+- 先新增 `GC::Explicit StringPool Sweep` 测试；MSBuild 失败于 `GarbageCollector::sweep` 不接受 `StringPool&` 参数。
+- 实现显式 `StringPool&` sweep / collect / clearAll 后，GC、Runtime Services 和 VM Core 专项均通过。
+
+已使用的验证命令：
+
+```powershell
+D:\VS2026\MSBuild\Current\Bin\MSBuild.exe lua_test.vcxproj /p:Configuration=Debug /p:Platform=x64 /m /nologo /v:minimal
+bin\lua_test.exe --filter "GC"
+bin\lua_test.exe --filter "Runtime Services"
+bin\lua_test.exe --filter "VM Core"
+bin\lua_test.exe
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\check_doc_drift.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\test_quality_gate.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_quality_gate.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_cmake_smoke.ps1
+```
+
+验收结果：
+
+- MSBuild `lua_test.vcxproj` 通过。
+- `GC` 过滤测试选中 17 个注册测试 / 51 个结果 / 0 失败。
+- `Runtime Services` 过滤测试运行 8 个注册测试 / 26 个结果 / 0 失败。
+- `VM Core` 过滤测试运行 21 个注册测试 / 98 个结果 / 0 失败。
+- 默认 `bin\lua_test.exe` 运行 513 个注册测试 / 2497 个结果 / 0 失败。
+- 文档漂移检查通过。
+- 质量门禁配置自检通过。
+- `tools\run_quality_gate.ps1` 通过；本机未发现 `clang-format` / `clang-tidy` 时按脚本设计跳过对应项。
+- CMake/CTest secondary 路径通过 5 个测试。
 
 ## 维护规则
 

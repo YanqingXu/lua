@@ -46,6 +46,23 @@ Function* createFunction(RuntimeServices& services, LuaState* L, Proto* proto) {
     return func;
 }
 
+GarbageCollector& legacyGarbageCollectorForRuntimeServicesTest() {
+#if defined(_MSC_VER)
+#pragma warning(push)
+#pragma warning(disable: 4996)
+#elif defined(__clang__) || defined(__GNUC__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#endif
+    GarbageCollector& gc = GarbageCollector::getInstance();
+#if defined(_MSC_VER)
+#pragma warning(pop)
+#elif defined(__clang__) || defined(__GNUC__)
+#pragma GCC diagnostic pop
+#endif
+    return gc;
+}
+
 void prepareLuaCallFrame(LuaState* L, Function* func) {
     Stack& stack = L->getStack();
 
@@ -81,7 +98,7 @@ void testRuntimeServicesExposeSingletonCompatibilityLayer(TestSuite& suite) {
     ASSERT_TRUE(suite, &services.globalState == &GlobalState::getInstance(), "global state comes from singleton layer");
     ASSERT_TRUE(suite, &services.strings == &StringPool::getInstance(), "string pool comes from singleton layer");
     ASSERT_TRUE(suite, &services.gc == &GlobalState::getInstance().getGC(), "gc comes from global state ownership");
-    ASSERT_TRUE(suite, &services.gc != &GarbageCollector::getInstance(), "legacy GC shim is distinct");
+    ASSERT_TRUE(suite, &services.gc != &legacyGarbageCollectorForRuntimeServicesTest(), "legacy GC shim is distinct");
 }
 
 void testCompilerAcceptsRuntimeServices(TestSuite& suite) {

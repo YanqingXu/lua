@@ -1,6 +1,6 @@
 ---
 status: current
-verified_against: src/runtime/runtime_services.hpp; src/vm/vm_dispatch_strategy.hpp; src/vm/vm.cpp; src/main.cpp; src/repl.cpp; src/bytecode/bytecode_main.cpp; src/compiler/parser/parser.hpp; src/compiler/codegen/codegen.hpp; src/vm/vm.hpp; tests/unit/vm/test_runtime_services.cpp; tests/unit/vm/test_vm_dispatch.cpp
+verified_against: src/runtime/runtime_services.hpp; src/gc/garbage_collector.hpp; src/gc/gc_sweep.cpp; src/vm/vm_dispatch_strategy.hpp; src/vm/vm.cpp; src/main.cpp; src/repl.cpp; src/bytecode/bytecode_main.cpp; src/compiler/parser/parser.hpp; src/compiler/codegen/codegen.hpp; src/vm/vm.hpp; tests/unit/vm/test_runtime_services.cpp; tests/unit/vm/test_vm_dispatch.cpp; tests/unit/gc/test_gc.cpp
 last_checked: 2026-05-22
 applies_to: current RuntimeServices boundary
 ---
@@ -18,7 +18,7 @@ struct RuntimeServices {
 };
 ```
 
-It is intentionally thin. The main runtime path is still anchored by `GlobalState::getInstance()`, while the legacy `GarbageCollector::getInstance()` remains only as a compatibility shim. Newer compiler and VM entry points can receive the services they use instead of reaching for singletons at every call site. VM execution can also receive an optional dispatch strategy for testing or teaching the switch/table dispatch difference.
+It is intentionally thin. The main runtime path is still anchored by `GlobalState::getInstance()`, while the legacy `GarbageCollector::getInstance()` remains only as a deprecated compatibility shim. Newer compiler, VM, and GC paths can receive the services they use instead of reaching for singletons at every call site. VM execution can also receive an optional dispatch strategy for testing or teaching the switch/table dispatch difference.
 
 ## Why It Exists
 
@@ -28,6 +28,7 @@ The project is moving from implicit global access toward explicit runtime bounda
 - VM execution can be context-aware
 - VM dispatch can use the default `SwitchDispatch` or an injected `TableDispatch`
 - CLI tools can create one services bundle and pass it through
+- GC sweep receives the relevant `StringPool&` explicitly when removing interned strings
 - tests can assert the boundary without forcing a large ownership rewrite
 
 ## Current Users

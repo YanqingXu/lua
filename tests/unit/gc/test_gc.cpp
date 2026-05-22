@@ -11,6 +11,7 @@
 #include "core/gc_string.hpp"
 #include "core/function.hpp"
 #include "core/metatable.hpp"
+#include "core/string_pool.hpp"
 #include "core/table.hpp"
 #include "core/thread.hpp"
 #include "core/upvalue.hpp"
@@ -18,6 +19,9 @@
 #include "gc/garbage_collector.hpp"
 #include "lib/baselib.hpp"
 #include "vm/state/lua_state.hpp"
+
+#include <type_traits>
+#include <utility>
 
 using namespace Lua;
 using namespace LuaTest;
@@ -47,6 +51,23 @@ static i32 gcRecordingFinalizer(LuaState* L) {
         }
     }
     return 0;
+}
+
+static GarbageCollector& legacyGarbageCollectorForTest() {
+#if defined(_MSC_VER)
+#pragma warning(push)
+#pragma warning(disable: 4996)
+#elif defined(__clang__) || defined(__GNUC__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#endif
+    GarbageCollector& gc = GarbageCollector::getInstance();
+#if defined(_MSC_VER)
+#pragma warning(pop)
+#elif defined(__clang__) || defined(__GNUC__)
+#pragma GCC diagnostic pop
+#endif
+    return gc;
 }
 
 void testGCObjectBasics(TestSuite& suite) {
@@ -90,7 +111,7 @@ void testGCObjectChaining(TestSuite& suite) {
 
 void testGarbageCollectorInstancesAreIndependent(TestSuite& suite) {
     GarbageCollector localGC;
-    GarbageCollector& shimGC = GarbageCollector::getInstance();
+    GarbageCollector& shimGC = legacyGarbageCollectorForTest();
     shimGC.clearAll();
 
     GCString* localString = new GCString("local-gc");
@@ -108,6 +129,23 @@ void testGarbageCollectorInstancesAreIndependent(TestSuite& suite) {
     ASSERT_EQ(suite, static_cast<usize>(1), shimGC.getObjectCount(), "Deleting local object does not affect shim GC");
 
     shimGC.clearAll();
+}
+
+void testGarbageCollectorSweepUsesExplicitStringPool(TestSuite& suite) {
+    using SweepResult =
+        decltype(std::declval<GarbageCollector&>().sweep(std::declval<StringPool&>()));
+    constexpr bool sweepReturnsCount = std::is_same_v<SweepResult, usize>;
+
+    GarbageCollector gc;
+    StringPool& pool = StringPool::getInstance();
+    GCString* gcStr = new GCString("explicit-sweep-pool");
+    gc.registerObject(gcStr);
+
+    usize collected = gc.sweep(pool);
+
+    ASSERT_TRUE(suite, sweepReturnsCount, "sweep should accept an explicit StringPool and return count");
+    ASSERT_EQ(suite, static_cast<usize>(1), collected, "Explicit-pool sweep should collect white string");
+    ASSERT_EQ(suite, static_cast<usize>(0), gc.getObjectCount(), "Explicit-pool sweep should unlink collected string");
 }
 
 void testGarbageCollectorRegister(TestSuite& suite) {
@@ -410,6 +448,7 @@ void registerGCTests() {
     registry.registerTest("GC", "GCObject Basics", testGCObjectBasics);
     registry.registerTest("GC", "GCObject Chaining", testGCObjectChaining);
     registry.registerTest("GC", "Independent Instances", testGarbageCollectorInstancesAreIndependent);
+    registry.registerTest("GC", "Explicit StringPool Sweep", testGarbageCollectorSweepUsesExplicitStringPool);
     registry.registerTest("GC", "GC Register", testGarbageCollectorRegister);
     registry.registerTest("GC", "GC Roots", testGarbageCollectorRoots);
     registry.registerTest("GC", "GC Collect", testGarbageCollectorCollect);

@@ -34,6 +34,7 @@ namespace Lua {
 
 // 前向声明
 class GCString;
+class StringPool;
 class Table;
 class LuaState;
 class Userdata;
@@ -88,6 +89,7 @@ public:
      *
      * 新代码应优先使用 GlobalState::getGC() 或 RuntimeServices::gc。
      */
+    [[deprecated("Use GlobalState::getGC() or RuntimeServices::gc instead")]]
     static GarbageCollector& getInstance();
     
     // 禁止拷贝和赋值
@@ -167,6 +169,13 @@ public:
     [[nodiscard]] usize collect();
 
     /**
+     * @brief 使用显式字符串池执行完整垃圾回收
+     *
+     * StringPool 负责字符串驻留表，sweep 删除字符串时必须从同一个池中摘除。
+     */
+    [[nodiscard]] usize collect(StringPool& stringPool);
+
+    /**
      * @brief 执行完整的垃圾回收，并将当前LuaState作为执行根
      *
      * collectgarbage("collect") 应使用此入口，这样当前线程栈、主线程栈
@@ -176,6 +185,11 @@ public:
      * @return 回收的对象数量
      */
     [[nodiscard]] usize collect(LuaState* currentState);
+
+    /**
+     * @brief 使用显式字符串池执行完整垃圾回收，并将当前LuaState作为执行根
+     */
+    [[nodiscard]] usize collect(StringPool& stringPool, LuaState* currentState);
     
     /**
      * @brief 标记阶段
@@ -197,7 +211,7 @@ public:
      * 
      * @return 回收的对象数量
      */
-    usize sweep();
+    usize sweep(StringPool& stringPool);
 
     /**
      * @brief 标记单个对象
@@ -273,6 +287,11 @@ public:
      * 仅用于测试和程序退出时的清理。
      */
     void clearAll();
+
+    /**
+     * @brief 使用显式字符串池清理所有对象（用于测试）
+     */
+    void clearAll(StringPool& stringPool);
     
     /**
      * @brief 打印GC统计信息（调试用）
@@ -291,14 +310,26 @@ public:
         return globalState_;
     }
 
+    void setStringPool(StringPool* stringPool) noexcept {
+        stringPool_ = stringPool;
+    }
+
+    StringPool* getStringPool() const noexcept {
+        return stringPool_;
+    }
+
 private:
-    
+    friend class StringPool;
+
     // =====================================================================
     // 内部辅助方法
     // =====================================================================
 
     static bool valueContainsObject(const Value& value);
     static GCObject* objectFromValue(const Value& value);
+    static GarbageCollector& legacyInstance();
+
+    StringPool& stringPoolForCollection(LuaState* currentState) const;
     
     /**
      * @brief 传播标记
@@ -352,6 +383,9 @@ private:
 
     /// 拥有此GC的全局状态；独立测试实例为空
     GlobalState* globalState_;
+
+    /// 字符串驻留池；用于 sweep/clearAll 删除字符串时同步摘除池条目
+    StringPool* stringPool_;
     
     /// 统计信息：对象总数
     usize objectCount_;

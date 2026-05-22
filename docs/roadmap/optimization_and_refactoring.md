@@ -2,7 +2,7 @@
 
 > 适用范围：`g:\github\lua`（现代 C++ Lua 5.1.5 解释器）
 > 设计目标：**可读性 > 可维护性 > 教育价值 > 性能**
-> 约束：保持 512 个注册测试 / 2494 个断言结果 / 0 失败，不破坏 `LuaState` / `VM` public API。
+> 约束：保持 513 个注册测试 / 2497 个断言结果 / 0 失败，不破坏 `LuaState` / `VM` public API。
 > 最近审计：2026-05-21（深度审计报告，覆盖 Readability / Extensibility / Educational Value 三维度）
 > 最近同步：2026-05-22（核对 `docs/roadmap/current.md`、`docs/status/project-status.md`、`tools/check_doc_drift.ps1` 与当前源码）
 
@@ -25,7 +25,7 @@
 | 阶段 | 周期定位 | 关注点 | 是否触发 API 变化 | 完成度 |
 |---|---|---|---|---|
 | **阶段 1 — 短期代码清理** | 1–2 个迭代 | 删冗余、统一命名、收紧错误处理、文档与代码同步 | 否 | ~85% |
-| **阶段 2 — 中期模式重构** | 3–5 个迭代 | 引入访问者 / 策略 / 命令模式，VM dispatch 与 GC 抽象化 | 内部 API 调整、public 不变 | ~86% |
+| **阶段 2 — 中期模式重构** | 3–5 个迭代 | 引入访问者 / 策略 / 命令模式，VM dispatch 与 GC 抽象化 | 内部 API 调整、public 不变 | ~88% |
 | **阶段 3 — 现代 C++ 特性** | 穿插于 1 & 2 | `std::expected` / `concepts` / `std::format` / `[[nodiscard]]` | 部分 public 签名变更 | ~90% |
 | **阶段 4 — 教育价值增强** | 持续推进 | 自解释代码、字节码可视化、执行链路教学文档、REPL 体验、Trace 差异模式 | 否（增量增强） | ~55% |
 | **阶段 5 — 工程实践** | 持续 | 测试覆盖、质量门、构建一致性、文档漂移检测 | 否 | ~75% |
@@ -131,14 +131,14 @@ static std::expected<T, RuntimeError> captureRuntimeErrors(Fn&& fn) {
 
 **现状**
 
-`GlobalState` 已拥有当前主路径使用的 `GarbageCollector`，`RuntimeServices::fromSingletons().gc` 指向 `GlobalState::getInstance().getGC()`；`GarbageCollector::getInstance()` 仍保留为旧兼容 shim。GC sweep/finalize 路径中仍有 2 处 `StringPool::getInstance()` 直接调用，以及若干 `GlobalState::getInstance()` fallback。
+`GlobalState` 已拥有当前主路径使用的 `GarbageCollector`，`RuntimeServices::fromSingletons().gc` 指向 `GlobalState::getInstance().getGC()`；PR-46 后 `GarbageCollector::getInstance()` 仍保留为 `[[deprecated]]` 旧兼容 shim。`GarbageCollector::sweep(StringPool&)` 和 `clearAll(StringPool&)` 已显式接收字符串池，sweep / clearAll 删除 `GCString` 时不再在清扫逻辑中直接调用 `StringPool::getInstance().remove()`。
 
 **单例残留清单（2026-05-21 审计）**：
 
 | 位置 | 调用 | 风险等级 |
 |---|---|---|
-| [gc_sweep.cpp:39](src/gc/gc_sweep.cpp#L39) | `StringPool::getInstance().remove()` | 中 — GC sweep 绕过 RuntimeServices |
-| [garbage_collector.cpp:256](src/gc/garbage_collector.cpp#L256) | `StringPool::getInstance().remove()` | 中 — 同上 |
+| [gc_sweep.cpp](src/gc/gc_sweep.cpp) | `sweep(StringPool&)` 显式接收字符串池 | ✓ 已完成 — PR-46 |
+| [garbage_collector.cpp](src/gc/garbage_collector.cpp) | `clearAll(StringPool&)` 显式接收字符串池；无上下文旧入口才走兼容 fallback | ✓ 已完成 — PR-46 |
 | [gc_finalize.cpp:23](src/gc/gc_finalize.cpp#L23) | `GlobalState::getInstance()` (fallback) | 低 — 已有 `globalState_` 成员优先 |
 | [gc_weak.cpp:23](src/gc/gc_weak.cpp#L23) | `GlobalState::getInstance()` (fallback) | 低 — 同上 |
 | [metatable.cpp](src/core/metatable.cpp) (4 处) | `GlobalState::getInstance()` | 低 — 静态辅助函数无上下文时的 fallback |
@@ -147,7 +147,7 @@ static std::expected<T, RuntimeError> captureRuntimeErrors(Fn&& fn) {
 **重构目标**
 
 1. ✓ **已完成**：主运行时 GC 所有权迁入 `GlobalState`，`RuntimeServices` 通过显式 `GlobalState&` 取得 GC。
-2. **待执行**：去单例化收尾，`GarbageCollector::sweep()` 接收 `StringPool&` 参数，替代内部 `getInstance()`；标记旧 shim 为 `[[deprecated]]`。
+2. ✓ **已完成**：去单例化收尾，`GarbageCollector::sweep(StringPool&)` 接收显式字符串池；`clearAll(StringPool&)` 同步收口；旧 `GarbageCollector::getInstance()` 标记为 `[[deprecated]]`。
 3. **待执行**：抽象 `GCStrategy`（保留教学预留）：
 
    ```cpp
@@ -378,7 +378,7 @@ using ValueResult = std::variant<
 
 ### 5.1 测试覆盖精细化
 
-**现状**：512 个注册测试 / 2494 个断言结果 / 0 失败，目录 `tests/unit/`、`tests/lua/`。
+**现状**：513 个注册测试 / 2497 个断言结果 / 0 失败，目录 `tests/unit/`、`tests/lua/`。
 
 **改进方向**（仅修改现有测试文件，不主动新建）：
 
@@ -391,7 +391,7 @@ using ValueResult = std::variant<
 ### 5.2 质量门（已有 `tools/run_quality_gate.ps1`）
 
 - 把 `check_doc_drift.ps1` 接入质量门，让"代码与 README 章节不同步"成为可失败信号。
-- **当前事实**：`check_doc_drift.ps1` 仍硬编码测试数字 "512" / "2494"，用于保证 README / status docs 不回退到旧计数；随着测试增加会过期，建议改为从 `bin\lua_test.exe` 输出动态解析，或集中维护一份机器可读计数源。
+- **当前事实**：`check_doc_drift.ps1` 仍硬编码测试数字 "513" / "2497"，用于保证 README / status docs 不回退到旧计数；随着测试增加会过期，建议改为从 `bin\lua_test.exe` 输出动态解析，或集中维护一份机器可读计数源。
 - **已修正文档偏差**：`docs/architecture/runtime-services.md` 的结构体示例已补齐 `VM::DispatchStrategy* dispatchStrategy`，且 `check_doc_drift.ps1` 已加入该字段守卫。
 - 加一条 `clang-tidy` 检查（针对 modernize-*、readability-*、bugprone-*），不强制全过，但持续记录。
 - CMake 路径补充 `-Wpedantic -Wconversion`（已用 MSVC `/W4`，CMake 旁路需对齐）。
@@ -407,7 +407,7 @@ using ValueResult = std::variant<
 | 风险 | 影响 | 缓解 |
 |---|---|---|
 | VM dispatch 命令模式化引入函数指针表，调试器单步体验下降 | 影响教学 | 保留 `SwitchDispatch` 作为默认；调试构建强制使用；1.1.1 落地的独立 inline 函数进一步改善 Switch 路径单步体验 |
-| `std::expected` 大范围替换异常导致调用链翻新 | 512 测试可能批量红 | 按 3.1 表格逐个函数迁移，每次 1 个函数 + 全量测试 |
+| `std::expected` 大范围替换异常导致调用链翻新 | 513 测试可能批量红 | 按 3.1 表格逐个函数迁移，每次 1 个函数 + 全量测试 |
 | GC 去单例化破坏标准库内部对 `GarbageCollector::getInstance()` 的引用 | 编译错误广泛 | 保留 inline shim `getInstance()` 一版本，标记 `[[deprecated]]` |
 | Visitor 化后 codegen 性能下降 | 不影响目标，但需观察 | 教学项目可接受；基准用 `examples/*.lua` 跑回归 |
 | `ValueResult` → `std::variant` 重构引入大量访问代码 | 调用侧需逐一迁移 `std::visit` | 先做 prototype 分支验证可行性，再逐步迁移 |
@@ -433,13 +433,13 @@ using ValueResult = std::variant<
 | PR-43 | `ScopeManager` 抽取，集中 local / block / upvalue 作用域生命周期和 scope close 边界 | 2.5.1-c / 5.1 |
 | PR-44 | `ExpressionEmitter` 抽取，集中 ValueResult / CondResult / CallResultInfo / LValueRef 表达式通道 | 2.5.1-d / 5.1 |
 | PR-45 | `StatementEmitter` 抽取，集中 statement / block lowering 和语句级控制流编排 | 2.5.1-e / 5.1 |
+| PR-46 | GC sweep / clearAll 显式接收 `StringPool&`，旧 `GarbageCollector::getInstance()` 标记 `[[deprecated]]` | 2.3 / 5.1 |
 
 后续推荐顺序：
 
 | PR | 编号 | 任务 | 阶段 | 依赖 / 理由 |
 |---|---|---|---|---|
-| PR-46 | 2.3 | GC sweep 显式接收 `StringPool&`，旧 shim 标记 `[[deprecated]]` | 2 | P2；收尾 GC 单例残留，降低 RuntimeServices 绕路 |
-| PR-47 | 5.2 | `check_doc_drift.ps1` 动态解析测试计数，替代硬编码 "512" / "2494" | 5 | P2；字段漂移已守住，剩余风险是测试计数继续增长 |
+| PR-47 | 5.2 | `check_doc_drift.ps1` 动态解析测试计数，替代硬编码 "513" / "2497" | 5 | P2；字段漂移已守住，剩余风险是测试计数继续增长 |
 | PR-48 | 3.5.1 | `ValueResult -> std::variant` prototype | 3 | P2；StatementEmitter 已稳定，适合先做小范围 prototype |
 | PR-49 | 1.2 | `CodegenState` 命名清理：`nactvar_` / `regs` / `locals` 等缩写收口 | 1 | P3；等 emitter 边界稳定后再做机械重命名，降低重复 churn |
 | PR-50 | 4.3.2 | `closure-and-upvalue.md` walkthrough | 4 | P3；可复用 bytecode 基础输出 |

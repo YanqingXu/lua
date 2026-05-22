@@ -9,7 +9,7 @@
 
 namespace Lua {
 
-usize GarbageCollector::sweep() {
+usize GarbageCollector::sweep(StringPool& stringPool) {
     usize collected = 0;
     GCObject* prev = nullptr;
     GCObject* obj = allObjects_;
@@ -36,7 +36,7 @@ usize GarbageCollector::sweep() {
             obj->setOwnerCollector(nullptr);
 
             if (obj->getType() == GCObjectType::String) {
-                StringPool::getInstance().remove(static_cast<GCString*>(obj));
+                stringPool.remove(static_cast<GCString*>(obj));
             }
             
             // 删除对象

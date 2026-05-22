@@ -1,13 +1,13 @@
 ---
 status: current
-verified_against: src/gc/garbage_collector.hpp; src/gc/garbage_collector.cpp; src/core/gc_object.hpp; src/core/table.cpp; src/core/function.cpp; src/core/upvalue.cpp; src/core/thread.cpp; src/vm/state/global_state.cpp; tests/unit/gc/test_gc.cpp
-last_checked: 2026-05-19
+verified_against: src/gc/garbage_collector.hpp; src/gc/garbage_collector.cpp; src/gc/gc_sweep.cpp; src/core/string_pool.cpp; src/core/gc_object.hpp; src/core/table.cpp; src/core/function.cpp; src/core/upvalue.cpp; src/core/thread.cpp; src/vm/state/global_state.cpp; tests/unit/gc/test_gc.cpp
+last_checked: 2026-05-22
 applies_to: current garbage collector implementation
 ---
 
 # Garbage Collection
 
-The current collector is a singleton-backed mark-sweep collector exposed through `GarbageCollector::getInstance()` and through `RuntimeServices::gc`. It is not yet an incremental collector, but object headers keep Lua-style mark bits and color helpers.
+The current collector is a GlobalState-backed mark-sweep collector exposed through `RuntimeServices::gc` and `GlobalState::getGC()`. The legacy `GarbageCollector::getInstance()` still exists as a deprecated compatibility shim. It is not yet an incremental collector, but object headers keep Lua-style mark bits and color helpers.
 
 ## Managed Objects
 
@@ -29,7 +29,7 @@ Objects are linked through the collector's `allObjects_` list. Most object const
 3. Propagate gray objects by calling each object's `mark()`.
 4. Prepare unreachable userdata with `__gc` finalizers.
 5. Clear weak table entries before sweeping.
-6. Sweep unreachable objects.
+6. Sweep unreachable objects with an explicit `StringPool&` so dead `GCString` entries are removed from the same interning table.
 7. Run queued finalizers when a current `LuaState` is available.
 
 `collectgarbage("collect")` enters this path through the base library.
@@ -74,7 +74,7 @@ Current behavior:
 ## Known Limits
 
 - `collectgarbage("stop")`, `"restart"`, `"step"`, `"setpause"`, and `"setstepmul"` are compatibility surfaces, not a real incremental-control implementation.
-- The collector is global/singleton-backed.
+- The main collector is still GlobalState-backed; the deprecated legacy collector singleton remains for compatibility.
 - Write barriers are not a current feature because collection is stop-the-world mark-sweep.
 
 ## Verification

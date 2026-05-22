@@ -8,6 +8,8 @@
 #include "core/string_pool.hpp"
 #include "core/table.hpp"
 #include "core/userdata.hpp"
+#include "vm/state/global_state.hpp"
+#include "vm/state/lua_state.hpp"
 #include <algorithm>
 #include <iostream>
 
@@ -17,9 +19,13 @@ namespace Lua {
 // 单例模式实现
 // =====================================================================
 
-GarbageCollector& GarbageCollector::getInstance() {
+GarbageCollector& GarbageCollector::legacyInstance() {
     static GarbageCollector instance;
     return instance;
+}
+
+GarbageCollector& GarbageCollector::getInstance() {
+    return legacyInstance();
 }
 
 GarbageCollector::GarbageCollector()
@@ -30,6 +36,7 @@ GarbageCollector::GarbageCollector()
     , pendingFinalizers_()
     , finalizersRunning_(false)
     , globalState_(nullptr)
+    , stringPool_(nullptr)
     , objectCount_(0)
     , totalMemory_(0)
 {
@@ -154,7 +161,11 @@ bool GarbageCollector::isRoot(GCObject* obj) const {
 // =====================================================================
 
 usize GarbageCollector::collect() {
-    return collect(nullptr);
+    return collect(stringPoolForCollection(nullptr), nullptr);
+}
+
+usize GarbageCollector::collect(StringPool& stringPool) {
+    return collect(stringPool, nullptr);
 }
 
 // collect(LuaState*) phase contract:
@@ -168,6 +179,10 @@ usize GarbageCollector::collect() {
 // white garbage is already reclaimed, while finalized userdata can still be
 // resurrected without being queued for `__gc` a second time.
 usize GarbageCollector::collect(LuaState* currentState) {
+    return collect(stringPoolForCollection(currentState), currentState);
+}
+
+usize GarbageCollector::collect(StringPool& stringPool, LuaState* currentState) {
     // 1. 标记阶段
     mark(currentState);
 
@@ -181,7 +196,7 @@ usize GarbageCollector::collect(LuaState* currentState) {
     clearWeakTableEntries();
     
     // 4. 清除阶段
-    usize collected = sweep();
+    usize collected = sweep(stringPool);
     weakTables_.clear();
 
     // 5. 在对象已被复活且本轮垃圾已释放后运行终结器。
@@ -190,6 +205,19 @@ usize GarbageCollector::collect(LuaState* currentState) {
     }
     
     return collected;
+}
+
+StringPool& GarbageCollector::stringPoolForCollection(LuaState* currentState) const {
+    if (currentState != nullptr) {
+        return currentState->getGlobalState().getStringPool();
+    }
+    if (stringPool_ != nullptr) {
+        return *stringPool_;
+    }
+    if (globalState_ != nullptr) {
+        return globalState_->getStringPool();
+    }
+    return StringPool::getInstance();
 }
 
 // =====================================================================
@@ -223,6 +251,10 @@ void GarbageCollector::getStatistics(usize& outObjectCount, usize& outRootCount,
 // =====================================================================
 
 void GarbageCollector::clearAll() {
+    clearAll(stringPoolForCollection(nullptr));
+}
+
+void GarbageCollector::clearAll(StringPool& stringPool) {
     // 清空根对象列表
     roots_.clear();
     grayList_.clear();
@@ -253,7 +285,7 @@ void GarbageCollector::clearAll() {
             obj->setOwnerCollector(nullptr);
 
             if (obj->getType() == GCObjectType::String) {
-                StringPool::getInstance().remove(static_cast<GCString*>(obj));
+                stringPool.remove(static_cast<GCString*>(obj));
             }
 
             delete obj;
