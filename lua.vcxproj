@@ -148,6 +148,7 @@
     <ClInclude Include="src\compiler\codegen\codegen_state.hpp" />
     <ClInclude Include="src\compiler\codegen\codegen_types.hpp" />
     <ClInclude Include="src\compiler\codegen\jump_patcher.hpp" />
+    <ClInclude Include="src\compiler\codegen\scope_manager.hpp" />
     <ClInclude Include="src\compiler\register_allocator.hpp" />
     <ClInclude Include="src\compiler\parser\lexer.hpp" />
     <ClInclude Include="src\compiler\opcode.hpp" />
@@ -206,6 +207,7 @@
     <ClCompile Include="src\compiler\codegen\codegen_jump.cpp" />
     <ClCompile Include="src\compiler\codegen\codegen_stmt.cpp" />
     <ClCompile Include="src\compiler\codegen\jump_patcher.cpp" />
+    <ClCompile Include="src\compiler\codegen\scope_manager.cpp" />
     <ClCompile Include="src\compiler\parser\lexer.cpp" />
     <ClCompile Include="src\compiler\opcode.cpp" />
     <ClCompile Include="src\compiler\parser\parser.cpp" />

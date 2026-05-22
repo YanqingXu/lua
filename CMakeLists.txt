@@ -17,6 +17,7 @@ set(LUA_CORE_SOURCES
     src/compiler/codegen/codegen_jump.cpp
     src/compiler/codegen/codegen_stmt.cpp
     src/compiler/codegen/jump_patcher.cpp
+    src/compiler/codegen/scope_manager.cpp
     src/compiler/parser/lexer.cpp
     src/compiler/opcode.cpp
     src/compiler/parser/parser.cpp
@@ -113,6 +114,7 @@ set(LUA_TEST_SOURCES
     tests/unit/compiler/test_codegen_result_types.cpp
     tests/unit/compiler/test_codegen_state.cpp
     tests/unit/compiler/test_jump_patcher.cpp
+    tests/unit/compiler/test_scope_manager.cpp
     tests/unit/compiler/test_bytecode_builder.cpp
     tests/unit/compiler/test_function_codegen.cpp
     tests/unit/compiler/test_lua_functions.cpp

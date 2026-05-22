@@ -1,13 +1,13 @@
 ---
 status: current
-verified_against: src/compiler/codegen/codegen.hpp; src/compiler/codegen/codegen.cpp; src/compiler/codegen/codegen_binding.cpp; src/compiler/codegen/codegen_expr.cpp; src/compiler/codegen/codegen_jump.cpp; src/compiler/codegen/codegen_stmt.cpp; src/compiler/codegen/codegen_state.hpp; src/compiler/codegen/jump_patcher.hpp; src/compiler/codegen/jump_patcher.cpp; src/compiler/codegen/bytecode_builder.hpp; tests/unit/compiler/test_codegen_characterization.cpp; tests/unit/compiler/test_jump_patcher.cpp
+verified_against: src/compiler/codegen/codegen.hpp; src/compiler/codegen/codegen.cpp; src/compiler/codegen/codegen_binding.cpp; src/compiler/codegen/codegen_expr.cpp; src/compiler/codegen/codegen_jump.cpp; src/compiler/codegen/codegen_stmt.cpp; src/compiler/codegen/codegen_state.hpp; src/compiler/codegen/jump_patcher.hpp; src/compiler/codegen/jump_patcher.cpp; src/compiler/codegen/scope_manager.hpp; src/compiler/codegen/scope_manager.cpp; src/compiler/codegen/bytecode_builder.hpp; tests/unit/compiler/test_codegen_characterization.cpp; tests/unit/compiler/test_jump_patcher.cpp; tests/unit/compiler/test_scope_manager.cpp
 last_checked: 2026-05-22
-applies_to: CodeGenerator responsibilities after PR-42 JumpPatcher extraction
+applies_to: CodeGenerator responsibilities after PR-43 ScopeManager extraction
 ---
 
 # CodeGenerator 职责地图
 
-本文记录 2026-05-22 当前 `CodeGenerator` 的真实职责边界，用于指导 PR-43 之后的渐进拆分。PR-41 补齐职责地图和 characterization 测试；PR-42 已抽出 `JumpPatcher`，但仍保留 `CodeGenerator` 的兼容包装方法。
+本文记录 2026-05-22 当前 `CodeGenerator` 的真实职责边界，用于指导 PR-44 之后的渐进拆分。PR-41 补齐职责地图和 characterization 测试；PR-42 已抽出 `JumpPatcher`，PR-43 已抽出 `ScopeManager`，但仍保留 `CodeGenerator` 的兼容包装方法。
 
 ## 当前结构
 
@@ -19,7 +19,7 @@ applies_to: CodeGenerator responsibilities after PR-42 JumpPatcher extraction
 | 指令写入 | `codeABC()`、`codeABx()`、`codeAsBx()` | `codegen.cpp` + `BytecodeBuilder` | 继续收敛到 `BytecodeBuilder` |
 | 寄存器与常量 | `allocReg()`、`freeReg()`、`numberConstant()`、`stringConstant()` | `codegen.cpp` + `RegisterAllocator` | 保留轻包装，避免拆分期扩大调用面 |
 | 符号绑定 | `resolve()`、`symbolToValue()`、`symbolToLValue()` | `codegen_binding.cpp` | 后续可独立为 `NameBinder` |
-| 作用域 / 局部 / upvalue | `addLocalVar()`、`resolveUpvalue()`、`enterBlock()`、`leaveBlock()`、`closeScopeUpvalues()` | `codegen.cpp` + `codegen_stmt.cpp` | PR-43 `ScopeManager` |
+| 作用域 / 局部 / upvalue | `ScopeManager::addLocalVar()`、`resolveUpvalue()`、`enterBlock()`、`leaveBlock()`、`closeScopeUpvalues()` | `scope_manager.hpp/.cpp`；`CodeGenerator` 保留薄包装 | ✓ PR-43 已抽出 |
 | 跳转回填 | `JumpPatcher::emitJump()`、`patchList()`、`patchToHere()`、`flushPendingJumps()`、`getJump()`、`fixJump()` | `jump_patcher.hpp/.cpp`；`CodeGenerator` 保留薄包装 | ✓ PR-42 已抽出 |
 | 条件 lowering | `emitCondResult()`、`emitComparisonJump()`、`materializeCondResult()` | `codegen_expr.cpp` + `codegen_jump.cpp` | PR-44 `ExpressionEmitter` |
 | 右值表达式 | `emitValue()`、`visitNode()`、`materializeValue()`、`valueToRK()` | `codegen_expr.cpp` | PR-44 `ExpressionEmitter` |
@@ -36,9 +36,9 @@ applies_to: CodeGenerator responsibilities after PR-42 JumpPatcher extraction
 
    `src/compiler/codegen/jump_patcher.hpp/.cpp` 已承载旧式 jump-list、`NO_JUMP` 哨兵、pending `jpc_`、`PatchList` 回填和 `JMP` offset 写入。`CodeGenerator` 仍保留 `jump()` / `patchList()` / `fixjump()` 等薄包装，避免同时改动 statement / expression 调用面。
 
-2. **PR-43：抽取 `ScopeManager`**
+2. **PR-43：抽取 `ScopeManager`** ✓ 已完成
 
-   局部变量、block、breaklist、upvalue close 和 repeat-until 作用域互相耦合。应在 JumpPatcher 稳定后再切，以便 breaklist / patchlist 的责任归属清楚。此 PR 可顺带收口 `regs` / `locals` / `blocks` 等命名偏差。
+   `src/compiler/codegen/scope_manager.hpp/.cpp` 已承载局部变量、block、breaklist、upvalue close 和 repeat-until 作用域生命周期。`CodeGenerator` 仍保留 `addLocalVar()` / `enterBlock()` / `resolveUpvalue()` 等薄包装，避免同时改动 expression / statement 调用面。
 
 3. **PR-44：抽取 `ExpressionEmitter`**
 
@@ -58,6 +58,7 @@ PR-41 新增 `tests/unit/compiler/test_codegen_characterization.cpp`，测试套
 | `Structured Statements Leave No Pending Jumps` | if/elseif/else、while、repeat、numeric for 的 `JMP` 全部回填；同时保留前跳/后跳和 `FORPREP` / `FORLOOP` | PR-42 / PR-45 |
 | `Generic For Bytecode Shape Is Stable` | generic for 保留 `TFORLOOP` 和回到 loop body 的后跳，且没有 pending `JMP` | PR-42 / PR-43 |
 | `Jump Patcher` | 直接锁住 pending `jpc_` flush、旧式链表头尾方向、`PatchList` 显式回填、`TESTSET + NO_REG -> TEST` 和过长跳转错误 | PR-42 / PR-43 |
+| `Scope Manager` | 直接锁住 local 生命周期、`RETURN` 后冗余 `CLOSE` 抑制、breaklist 延迟进入 pending `jpc_`、upvalue 去重与查找 | PR-43 / PR-45 |
 
 相邻护栏仍包括：
 
@@ -69,7 +70,7 @@ PR-41 新增 `tests/unit/compiler/test_codegen_characterization.cpp`，测试套
 ## 拆分约束
 
 - PR-42 已完成；后续不要把 statement lowering 或 expression lowering 重新塞回 `JumpPatcher`。
-- PR-43 不应重写条件生成；只把 locals、blocks、upvalues、scope close 的状态操作集中到新 helper。
+- PR-43 已完成；后续不要把 expression 或 statement lowering 塞进 `ScopeManager`。
 - PR-44 前不要把 `ValueResult` 改成 `std::variant`；先让 expression 边界独立，再做类型表达升级。
 - 每次新增 `.cpp` 必须同步 `CMakeLists.txt`、`lua_test.vcxproj` 和 `lua_test.vcxproj.filters`；新增生产源文件还必须同步 `lua.vcxproj` 和 `lua.vcxproj.filters`。
 

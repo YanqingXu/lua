@@ -38,6 +38,7 @@ extern void registerCodegenMultiRetTests();
 extern void registerCodegenResultTypeTests();
 extern void registerCodegenStateTests();
 extern void registerJumpPatcherTests();
+extern void registerScopeManagerTests();
 extern void registerBytecodeBuilderTests();
 extern void registerBytecodePrinterTests();
 extern void registerMathLibTests();
@@ -176,6 +177,7 @@ void registerAllTests() {
     registerCodegenResultTypeTests();
     registerCodegenStateTests();
     registerJumpPatcherTests();
+    registerScopeManagerTests();
     registerBytecodeBuilderTests();
     registerBytecodePrinterTests();
     registerSyntaxSugarTests();

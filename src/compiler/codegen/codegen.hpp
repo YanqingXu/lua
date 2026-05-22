@@ -26,6 +26,7 @@
 #include "compiler/codegen/codegen_types.hpp"
 #include "compiler/codegen/codegen_state.hpp"
 #include "compiler/codegen/jump_patcher.hpp"
+#include "compiler/codegen/scope_manager.hpp"
 #include "common/lua_error.hpp"
 #include "core/function.hpp"
 #include <expected>
@@ -48,6 +49,7 @@ class StringPool;
  */
 class CodeGenerator : private ExprVisitor<CodeGenerator, ValueResult> {
     friend struct ExprVisitor<CodeGenerator, ValueResult>;
+    friend class ScopeManager;
 
 public:
     /**
@@ -342,6 +344,7 @@ private:
 
     CodegenState state_;
     JumpPatcher jumps_;
+    ScopeManager scopes_;
 };
 
 }  // namespace Lua

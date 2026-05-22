@@ -347,15 +347,12 @@ void CodeGenerator::emitStmt(const CallStmt& s) {
     }
 
     // 语句级函数调用不会跨语句保留临时寄存器。
-    state_.regs.resetToLocals(state_.locals.nactvar_);
+    state_.regs.resetToLocals(scopes_.activeLocalCount());
 }
 
 void CodeGenerator::emitStmt(const BreakStmt&) {
     // 查找最近的可 break 代码块
-    BlockInfo* bl = state_.blocks.currentBlock_;
-    while (bl && !bl->isbreakable) {
-        bl = bl->previous;
-    }
+    BlockInfo* bl = scopes_.findBreakableBlock();
 
     // 如果没有找到可break的代码块，报错
     if (!bl) {
@@ -365,7 +362,7 @@ void CodeGenerator::emitStmt(const BreakStmt&) {
     closeScopeUpvalues(bl->nactvar);
 
     // 生成跳转指令并添加到break列表
-    concatJumpList(bl->breaklist, jump());
+    scopes_.appendBreakJump(*bl, jump());
 }
 
 void CodeGenerator::emitStmt(const RepeatStmt& s) {
@@ -383,7 +380,7 @@ void CodeGenerator::emitStmt(const RepeatStmt& s) {
     enterBlock(true);  // isbreakable = true
 
     // 记录循环体前的局部变量数量
-    i32 body_nactvar = state_.locals.nactvar_;
+    i32 body_nactvar = scopes_.activeLocalCount();
 
     // 生成循环体（不使用 block()，避免提前移除局部变量）
     for (const auto& stmt : s.body) {
@@ -440,8 +437,8 @@ Proto* CodeGenerator::compileFunction(const Vec<Str>& params, bool isVararg, con
     child.codeABC(OpCode::RETURN, 0, 1, 0);
 
     // 写入upvalue元信息（数量 + 名称）
-    newProto->setNumUpvalues(static_cast<u8>(child.state_.upvalues.upvalues_.size()));
-    for (const UpvalueCapture& uv : child.state_.upvalues.upvalues_) {
+    newProto->setNumUpvalues(static_cast<u8>(child.scopes_.upvalues().size()));
+    for (const UpvalueCapture& uv : child.scopes_.upvalues()) {
         newProto->addUpvalueName(state_.pool->intern(uv.name));
     }
 
@@ -453,7 +450,7 @@ Proto* CodeGenerator::compileFunction(const Vec<Str>& params, bool isVararg, con
     }
 
     if (outUpvalues != nullptr) {
-        *outUpvalues = child.state_.upvalues.upvalues_;
+        *outUpvalues = child.scopes_.upvalues();
     }
 
     return newProto;
@@ -740,7 +737,7 @@ void CodeGenerator::emitStmt(const ForInStmt& s) {
 }
 
 void CodeGenerator::block(const Vec<StmtPtr>& stmts) {
-    i32 oldnactvar = state_.locals.nactvar_;
+    i32 oldnactvar = scopes_.activeLocalCount();
 
     for (const auto& stmt : stmts) {
         statement(*stmt);
@@ -754,7 +751,7 @@ void CodeGenerator::attachDebugMetadata() {
         return;
     }
 
-    for (const LocalVar& local : state_.locals.localVars_) {
+    for (const LocalVar& local : scopes_.localVars()) {
         i32 endpc = local.endpc >= 0
             ? local.endpc
             : state_.bytecode.instructionCount();
@@ -766,35 +763,15 @@ void CodeGenerator::attachDebugMetadata() {
 // =====================================================================
 
 void CodeGenerator::enterBlock(bool isbreakable) {
-    state_.blocks.enterBlock(isbreakable, state_.locals.nactvar_);
+    scopes_.enterBlock(isbreakable);
 }
 
 void CodeGenerator::closeScopeUpvalues(i32 level) {
-    if (state_.locals.nactvar_ <= level) {
-        return;
-    }
-
-    if (state_.bytecode.hasInstructions()) {
-        if (state_.bytecode.lastOpcode() == OpCode::RETURN) {
-            return;
-        }
-    }
-
-    codeABC(OpCode::CLOSE, level, 0, 0);
+    scopes_.closeScopeUpvalues(level);
 }
 
 void CodeGenerator::leaveBlock() {
-    if (state_.blocks.currentBlock_ == nullptr) {
-        throw std::runtime_error("No block to leave");
-    }
-
-    BlockInfo* bl = state_.blocks.currentBlock_;
-    state_.blocks.currentBlock_ = bl->previous;
-
-    removeLocalVars(bl->nactvar);
-    patchtohere(bl->breaklist);
-
-    delete bl;
+    scopes_.leaveBlock();
 }
 
 }  // namespace Lua

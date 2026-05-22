@@ -21,6 +21,7 @@ namespace Lua {
 CodeGenerator::CodeGenerator(StringPool* pool)
     : state_(RuntimeServices::fromSingletons(), pool)
     , jumps_(state_)
+    , scopes_(state_, jumps_)
 {
     if (pool == nullptr) {
         throw std::invalid_argument("StringPool cannot be null");
@@ -30,6 +31,7 @@ CodeGenerator::CodeGenerator(StringPool* pool)
 CodeGenerator::CodeGenerator(RuntimeServices& services)
     : state_(services)
     , jumps_(state_)
+    , scopes_(state_, jumps_)
 {
 }
 
@@ -132,7 +134,7 @@ i32 CodeGenerator::allocReg() {
 }
 
 void CodeGenerator::freeReg(i32 reg) {
-    state_.regs.freeReg(reg, state_.locals.nactvar_);
+    state_.regs.freeReg(reg, scopes_.activeLocalCount());
 }
 
 void CodeGenerator::freeRegs(i32 n) {
@@ -168,29 +170,19 @@ i32 CodeGenerator::nilConstant() {
 // =====================================================================
 
 i32 CodeGenerator::addLocalVar(const Str& name) {
-    i32 reg = state_.regs.current();
-    state_.locals.localVars_.emplace_back(name, reg, state_.bytecode.instructionCount());
-    state_.regs.reserve(1);
-    checkStack(0);
-    return reg;
+    return scopes_.addLocalVar(name);
 }
 
 i32 CodeGenerator::findLocalVar(const Str& name) {
-    return state_.locals.findLocal(name);
+    return scopes_.findLocalVar(name);
 }
 
 void CodeGenerator::adjustLocalVars(i32 nvars) {
-    state_.locals.nactvar_ += nvars;
-    state_.regs.resetToLocals(state_.locals.nactvar_);
-    state_.regs.checkStack(0);
+    scopes_.adjustLocalVars(nvars);
 }
 
 void CodeGenerator::removeLocalVars(i32 tolevel) {
-    closeScopeUpvalues(tolevel);
-    i32 pc = state_.bytecode.instructionCount();
-    state_.locals.closeLocals(tolevel, pc);
-    state_.regs.resetToLocals(state_.locals.nactvar_);
-    state_.regs.checkStack(0);
+    scopes_.removeLocalVars(tolevel);
 }
 
 }  // namespace Lua

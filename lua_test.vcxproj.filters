@@ -140,6 +140,9 @@
     <ClCompile Include="tests\unit\compiler\test_jump_patcher.cpp">
       <Filter>tests\compiler</Filter>
     </ClCompile>
+    <ClCompile Include="tests\unit\compiler\test_scope_manager.cpp">
+      <Filter>tests\compiler</Filter>
+    </ClCompile>
     <ClCompile Include="tests\unit\compiler\test_bytecode_builder.cpp">
       <Filter>tests\compiler</Filter>
     </ClCompile>
