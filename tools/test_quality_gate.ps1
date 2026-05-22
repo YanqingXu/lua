@@ -55,7 +55,13 @@ Assert-FileContains "tools/check_doc_drift.ps1" @(
 )
 
 $docDriftScript = Get-Content -LiteralPath (Join-RepoPath "tools/check_doc_drift.ps1") -Raw
-foreach ($staleCount in @("513", "2497")) {
+$statusDoc = Get-Content -LiteralPath (Join-RepoPath "docs/status/project-status.md") -Raw
+$testCountMatch = [regex]::Match($statusDoc, "(\d+)\D+registered tests\D+(\d+)\D+assertion results")
+if (-not $testCountMatch.Success) {
+    throw "docs/status/project-status.md is missing parseable test count facts"
+}
+
+foreach ($staleCount in @($testCountMatch.Groups[1].Value, $testCountMatch.Groups[2].Value)) {
     if ($docDriftScript -match "(?<!\d)$staleCount(?!\d)") {
         throw "tools/check_doc_drift.ps1 must parse test counts dynamically instead of hard-coding $staleCount"
     }

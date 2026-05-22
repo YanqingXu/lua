@@ -44,7 +44,7 @@ applies_to: 当前仓库事实与面向贡献者的工作流
 ## 测试状态
 
 - 测试框架：自定义轻量级 C++ 测试框架，vendored 在 `lua_test/include/test_framework`，由 `tests/unit/framework` 适配。
-- 最近验证的测试计数：513 个 registered tests，2497 个 assertion results，0 failures。
+- 最近验证的测试计数：514 个 registered tests，2515 个 assertion results，0 failures。
 - `bin\lua_test.exe` 支持 `--list`、`--filter <suite-or-name>` 和 `--report=junit`。
 - 这些数字描述的是项目测试运行器结果，不是 Lua 5.1.5 兼容率百分比。
 
@@ -62,7 +62,7 @@ applies_to: 当前仓库事实与面向贡献者的工作流
 
 - `ExprDesc` 和 `ExprKind` 已从产品编译器源码中移除。
 - `CodeGenerator` 的 public API 保留在 `src/compiler/codegen/codegen.hpp`，实现已物理拆分到 `src/compiler/codegen/codegen.cpp`、`src/compiler/codegen/codegen_binding.cpp`、`src/compiler/codegen/codegen_expr.cpp`、`src/compiler/codegen/expression_emitter.cpp`、`src/compiler/codegen/statement_emitter.cpp`、`src/compiler/codegen/codegen_jump.cpp` 和 `src/compiler/codegen/codegen_stmt.cpp`。
-- `docs/compiler/codegen-responsibility-map.md` 记录了 PR-45 后的 CodeGenerator 职责地图；`JumpPatcher` 已抽出 jump-list / pending-jump / PC offset 回填边界，`ScopeManager` 已抽出 local / block / upvalue 作用域生命周期边界，`ExpressionEmitter` 已抽出 ValueResult / CondResult / CallResultInfo / LValueRef 表达式通道边界，`StatementEmitter` 已抽出 statement / block lowering 边界，`Codegen Characterization`、`Jump Patcher`、`Scope Manager`、`Expression Emitter` 与 `Statement Emitter` 测试套件共同锁住 statement lowering、jump patching、repeat-until scope、generic-for 和表达式 lowering 行为。
+- `docs/compiler/codegen-responsibility-map.md` 记录了 PR-48 后的 CodeGenerator 职责地图；`JumpPatcher` 已抽出 jump-list / pending-jump / PC offset 回填边界，`ScopeManager` 已抽出 local / block / upvalue 作用域生命周期边界，`ExpressionEmitter` 已抽出 ValueResult / CondResult / CallResultInfo / LValueRef 表达式通道边界，`StatementEmitter` 已抽出 statement / block lowering 边界，`ValueResult` 已有兼容式 `std::variant` payload 原型；`Codegen Characterization`、`Jump Patcher`、`Scope Manager`、`Expression Emitter`、`Statement Emitter` 与 `Codegen Result Types` 测试套件共同锁住 statement lowering、jump patching、repeat-until scope、generic-for、表达式 lowering 和 ValueResult payload 同步行为。
 - `src/compiler/codegen/codegen_state.hpp` 集中管理这些实现分片共享的可变生成状态，包括当前 `Proto`、程序计数器、行号、寄存器分配器、局部作用域、块管理器和 upvalue 上下文。
 - `src/compiler/codegen/bytecode_builder.hpp` 集中管理对当前 `Proto` 的字节码发射写入，包括指令创建、行号信息、常量、子 Proto、指令替换和局部调试元数据。
 - 当前字节码生成文档应解释这条管线：

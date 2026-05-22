@@ -12,6 +12,7 @@
 
 #include <type_traits>
 #include <utility>
+#include <variant>
 
 using namespace Lua;
 using namespace LuaTest;
@@ -54,6 +55,8 @@ void testExpressionEmitterLowersImmediateValues(TestSuite& suite) {
     Expr numberExpr(number);
 
     ValueResult numberValue = expressions.emitValue(numberExpr);
+    ASSERT_TRUE(suite, std::holds_alternative<ValueResult::Immediate>(numberValue.payload()),
+                "number literal should use the Immediate payload");
     ASSERT_EQ(suite, static_cast<int>(ValueResult::Kind::Immediate),
               static_cast<int>(numberValue.kind),
               "number literal should lower to an immediate ValueResult");
@@ -67,6 +70,8 @@ void testExpressionEmitterLowersImmediateValues(TestSuite& suite) {
     Expr boolExpr(boolean);
 
     ValueResult boolValue = expressions.emitValue(boolExpr);
+    ASSERT_TRUE(suite, std::holds_alternative<ValueResult::Immediate>(boolValue.payload()),
+                "boolean literal should use the Immediate payload");
     ASSERT_EQ(suite, static_cast<int>(ValueResult::Kind::Immediate),
               static_cast<int>(boolValue.kind),
               "boolean literal should lower to an immediate ValueResult");

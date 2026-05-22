@@ -265,46 +265,26 @@ ValueResult ExpressionEmitter::emitValue(const Expr& e) {
 }
 
 ValueResult ExpressionEmitter::visitNode(const NilExpr&) {
-    ValueResult result;
-    result.kind = ValueResult::Kind::Immediate;
-    result.immediate = ValueResult::ImmediateKind::Nil;
-    return result;
+    return ValueResult::makeNil();
 }
 
 ValueResult ExpressionEmitter::visitNode(const BoolExpr& e) {
-    ValueResult result;
-    result.kind = ValueResult::Kind::Immediate;
-    result.immediate = ValueResult::ImmediateKind::Boolean;
-    result.boolValue = e.value;
-    return result;
+    return ValueResult::makeBoolean(e.value);
 }
 
 ValueResult ExpressionEmitter::visitNode(const NumberExpr& e) {
-    ValueResult result;
-    result.kind = ValueResult::Kind::Immediate;
-    result.immediate = ValueResult::ImmediateKind::Number;
-    result.numberValue = e.value;
-    return result;
+    return ValueResult::makeNumber(e.value);
 }
 
 ValueResult ExpressionEmitter::visitNode(const StringExpr& e) {
-    ValueResult result;
     i32 k = stringConstant(e.value);
-    result.kind = ValueResult::Kind::Constant;
-    result.constIndex = k;
-    return result;
+    return ValueResult::makeConstant(k);
 }
 
 ValueResult ExpressionEmitter::visitNode(const VarargExpr&) {
     CallResultInfo info = emitVarargExpr();
 
-    ValueResult result;
-    result.kind = ValueResult::Kind::MultiRet;
-    result.access = ValueResult::AccessKind::Vararg;
-    result.instructionPc = info.instructionPc;
-    result.isMultiResult = true;
-    result.isSingleValue = false;
-    return result;
+    return ValueResult::makeMultiRet(ValueResult::AccessKind::Vararg, info.baseReg, info.instructionPc);
 }
 
 ValueResult ExpressionEmitter::visitNode(const NameExpr& e) {
@@ -327,14 +307,7 @@ ValueResult ExpressionEmitter::visitNode(const TableExpr& e) {
 ValueResult ExpressionEmitter::visitNode(const CallExpr& e) {
     CallResultInfo info = emitCallExpr(e);
 
-    ValueResult result;
-    result.kind = ValueResult::Kind::MultiRet;
-    result.access = ValueResult::AccessKind::Call;
-    result.reg = info.baseReg;
-    result.instructionPc = info.instructionPc;
-    result.isMultiResult = true;
-    result.isSingleValue = false;
-    return result;
+    return ValueResult::makeMultiRet(ValueResult::AccessKind::Call, info.baseReg, info.instructionPc);
 }
 
 ValueResult ExpressionEmitter::visitNode(const IndexExpr& e) {
@@ -361,11 +334,7 @@ ValueResult ExpressionEmitter::visitNode(const FunctionExpr& e) {
     codeABx(OpCode::CLOSURE, reg, protoIdx);
     emitClosureUpvalues(childUpvalues);
 
-    ValueResult result;
-    result.kind = ValueResult::Kind::Register;
-    result.reg = reg;
-    result.ownsRegister = true;
-    return result;
+    return ValueResult::makeRegister(reg, true);
 }
 
 ValueResult ExpressionEmitter::visitNode(const ParenExpr& e) {
@@ -373,11 +342,7 @@ ValueResult ExpressionEmitter::visitNode(const ParenExpr& e) {
     inner = forceSingleValue(inner);
     i32 reg = valueToAnyReg(inner);
 
-    ValueResult result;
-    result.kind = ValueResult::Kind::Register;
-    result.reg = reg;
-    result.ownsRegister = true;
-    return result;
+    return ValueResult::makeRegister(reg, true);
 }
 
 void ExpressionEmitter::materializeValue(const ValueResult& val, i32 reg) {
@@ -516,20 +481,13 @@ ValueResult ExpressionEmitter::forceSingleValue(const ValueResult& val) {
         Instruction inst = state_.bytecode.instruction(val.instructionPc);
         SETARG_B(inst, 2);  // B=2 → 1 个值
         state_.bytecode.replaceInstruction(val.instructionPc, inst);
-        ValueResult result;
-        result.kind = ValueResult::Kind::Relocatable;
-        result.instructionPc = val.instructionPc;
-        return result;
+        return ValueResult::makeRelocatable(val.instructionPc);
     }
     if (val.access == ValueResult::AccessKind::Call) {
         Instruction inst = state_.bytecode.instruction(val.instructionPc);
         SETARG_C(inst, 2);  // C=2 → 1 个返回值
         state_.bytecode.replaceInstruction(val.instructionPc, inst);
-        ValueResult result;
-        result.kind = ValueResult::Kind::Register;
-        result.reg = GETARG_A(inst);
-        result.ownsRegister = false;
-        return result;
+        return ValueResult::makeRegister(GETARG_A(inst), false);
     }
     return val;
 }
@@ -539,7 +497,6 @@ ValueResult ExpressionEmitter::forceSingleValue(const ValueResult& val) {
 // =====================================================================
 
 ValueResult ExpressionEmitter::emitValueBinary(const BinaryExpr& e) {
-    ValueResult result;
     BinaryExpr::Op op = e.op;
 
     // === 比较表达式 → 条件通道 + 物化 ===
@@ -550,10 +507,7 @@ ValueResult ExpressionEmitter::emitValueBinary(const BinaryExpr& e) {
         cond.trueList = emitComparisonJump(e, true);
         i32 resultReg = allocReg();
         materializeCondResult(cond, resultReg, false);
-        result.kind = ValueResult::Kind::Register;
-        result.reg = resultReg;
-        result.ownsRegister = true;
-        return result;
+        return ValueResult::makeRegister(resultReg, true);
     }
 
     // === And/Or: 短路求值 ===
@@ -573,10 +527,7 @@ ValueResult ExpressionEmitter::emitValueBinary(const BinaryExpr& e) {
 
         fixjump(skipRight, getLabel());
 
-        result.kind = ValueResult::Kind::Register;
-        result.reg = resultReg;
-        result.ownsRegister = true;
-        return result;
+        return ValueResult::makeRegister(resultReg, true);
     }
 
     // === Concat ===
@@ -595,9 +546,7 @@ ValueResult ExpressionEmitter::emitValueBinary(const BinaryExpr& e) {
         freeReg(regLeft);
 
         i32 pc = codeABC(OpCode::CONCAT, 0, regLeft, regRight);
-        result.kind = ValueResult::Kind::Relocatable;
-        result.instructionPc = pc;
-        return result;
+        return ValueResult::makeRelocatable(pc);
     }
 
     // === 算术表达式: Add/Sub/Mul/Div/Mod/Pow ===
@@ -622,24 +571,17 @@ ValueResult ExpressionEmitter::emitValueBinary(const BinaryExpr& e) {
     else                  { freeReg(rkRight); freeReg(rkLeft); }
 
     i32 pc = codeABC(arithOp, 0, rkLeft, rkRight);
-    result.kind = ValueResult::Kind::Relocatable;
-    result.instructionPc = pc;
-    return result;
+    return ValueResult::makeRelocatable(pc);
 }
 
 ValueResult ExpressionEmitter::emitValueUnary(const UnaryExpr& e) {
-    ValueResult result;
-
     // === Not: 条件通道 + 物化 ===
     if (e.op == UnaryExpr::Op::Not) {
         CondResult cond;
         cond.trueList = emitCondResult(*e.operand).falseList;
         i32 resultReg = allocReg();
         materializeCondResult(cond, resultReg, false);
-        result.kind = ValueResult::Kind::Register;
-        result.reg = resultReg;
-        result.ownsRegister = true;
-        return result;
+        return ValueResult::makeRegister(resultReg, true);
     }
 
     // === Neg: 常量折叠 ===
@@ -647,18 +589,13 @@ ValueResult ExpressionEmitter::emitValueUnary(const UnaryExpr& e) {
         ValueResult operand = emitValue(*e.operand);
         if (operand.kind == ValueResult::Kind::Immediate &&
             operand.immediate == ValueResult::ImmediateKind::Number) {
-            result.kind = ValueResult::Kind::Immediate;
-            result.immediate = ValueResult::ImmediateKind::Number;
-            result.numberValue = -operand.numberValue;
-            return result;
+            return ValueResult::makeNumber(-operand.numberValue);
         }
         // 非常量: 物化到寄存器后生成 UNM
         i32 opReg = valueToAnyReg(operand);
         freeReg(opReg);
         i32 pc = codeABC(OpCode::UNM, 0, opReg, 0);
-        result.kind = ValueResult::Kind::Relocatable;
-        result.instructionPc = pc;
-        return result;
+        return ValueResult::makeRelocatable(pc);
     }
 
     // === Len ===
@@ -667,9 +604,7 @@ ValueResult ExpressionEmitter::emitValueUnary(const UnaryExpr& e) {
         i32 opReg = valueToAnyReg(operand);
         freeReg(opReg);
         i32 pc = codeABC(OpCode::LEN, 0, opReg, 0);
-        result.kind = ValueResult::Kind::Relocatable;
-        result.instructionPc = pc;
-        return result;
+        return ValueResult::makeRelocatable(pc);
     }
 
     throw std::runtime_error("emitValueUnary: unsupported unary operator");
@@ -682,12 +617,7 @@ ValueResult ExpressionEmitter::emitValueIndex(const IndexExpr& e) {
     ValueResult key = emitValue(*e.index);
     i32 rkKey = valueToRK(key);
 
-    ValueResult result;
-    result.kind = ValueResult::Kind::PendingLoad;
-    result.access = ValueResult::AccessKind::Indexed;
-    result.reg = tableReg;
-    result.aux = rkKey;
-    return result;
+    return ValueResult::makePendingLoad(ValueResult::AccessKind::Indexed, tableReg, -1, rkKey);
 }
 
 ValueResult ExpressionEmitter::emitValueMember(const MemberExpr& e) {
@@ -699,18 +629,11 @@ ValueResult ExpressionEmitter::emitValueMember(const MemberExpr& e) {
     if (k <= MAXINDEXRK) {
         rkKey = RKASK(k);
     } else {
-        ValueResult keyVal;
-        keyVal.kind = ValueResult::Kind::Constant;
-        keyVal.constIndex = k;
+        ValueResult keyVal = ValueResult::makeConstant(k);
         rkKey = valueToAnyReg(keyVal);
     }
 
-    ValueResult result;
-    result.kind = ValueResult::Kind::PendingLoad;
-    result.access = ValueResult::AccessKind::Indexed;
-    result.reg = tableReg;
-    result.aux = rkKey;
-    return result;
+    return ValueResult::makePendingLoad(ValueResult::AccessKind::Indexed, tableReg, -1, rkKey);
 }
 
 ValueResult ExpressionEmitter::emitValueTable(const TableExpr& table) {
@@ -816,11 +739,7 @@ ValueResult ExpressionEmitter::emitValueTable(const TableExpr& table) {
         state_.bytecode.replaceInstruction(pc, inst);
     }
 
-    ValueResult result;
-    result.kind = ValueResult::Kind::Register;
-    result.reg = tableReg;
-    result.ownsRegister = true;
-    return result;
+    return ValueResult::makeRegister(tableReg, true);
 }
 
 // =====================================================================
@@ -1107,9 +1026,7 @@ LValueRef ExpressionEmitter::emitLValue(const Expr& e) {
         i32 tableReg = valueToAnyReg(tableVal);
 
         i32 constIdx = stringConstant(mem->member);
-        ValueResult keyVal;
-        keyVal.kind = ValueResult::Kind::Constant;
-        keyVal.constIndex = constIdx;
+        ValueResult keyVal = ValueResult::makeConstant(constIdx);
         i32 rkKey = valueToRK(keyVal);
 
         result.kind = LValueRef::Kind::Indexed;

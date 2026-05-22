@@ -51,22 +51,15 @@ ValueResult CodeGenerator::symbolToValue(const SymbolRef& sym) {
 
     switch (sym.kind) {
         case SymbolRef::Kind::Local:
-            result.kind = ValueResult::Kind::Register;
-            result.access = ValueResult::AccessKind::Local;
-            result.reg = sym.index;
-            result.ownsRegister = false;
+            result = ValueResult::makeRegister(sym.index, false, ValueResult::AccessKind::Local);
             break;
 
         case SymbolRef::Kind::Upvalue:
-            result.kind = ValueResult::Kind::PendingLoad;
-            result.access = ValueResult::AccessKind::Upvalue;
-            result.aux = sym.index;
+            result = ValueResult::makePendingLoad(ValueResult::AccessKind::Upvalue, -1, -1, sym.index);
             break;
 
         case SymbolRef::Kind::Global:
-            result.kind = ValueResult::Kind::PendingLoad;
-            result.access = ValueResult::AccessKind::Global;
-            result.constIndex = sym.index;
+            result = ValueResult::makePendingLoad(ValueResult::AccessKind::Global, -1, sym.index, -1);
             break;
 
         default:

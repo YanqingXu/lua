@@ -2,7 +2,7 @@
 
 > 适用范围：`g:\github\lua`（现代 C++ Lua 5.1.5 解释器）
 > 设计目标：**可读性 > 可维护性 > 教育价值 > 性能**
-> 约束：保持 513 个注册测试 / 2497 个断言结果 / 0 失败，不破坏 `LuaState` / `VM` public API。
+> 约束：保持 514 个注册测试 / 2515 个断言结果 / 0 失败，不破坏 `LuaState` / `VM` public API。
 > 最近审计：2026-05-21（深度审计报告，覆盖 Readability / Extensibility / Educational Value 三维度）
 > 最近同步：2026-05-22（核对 `docs/roadmap/current.md`、`docs/status/project-status.md`、`tools/check_doc_drift.ps1` 与当前源码）
 
@@ -12,7 +12,7 @@
 
 | 维度 | 评分 | 关键优势 | 关键改进点 |
 |---|---|---|---|
-| **可读性** | **A-** | CRTP+concept 编译期检查、`std::expected` 边界清晰、VM 主循环已精简为策略入口 + handler table | `ValueResult` 字段过多(12)、`CodeGenerator` 方法数 60+、部分命名继承 Lua C 缩写 |
+| **可读性** | **A-** | CRTP+concept 编译期检查、`std::expected` 边界清晰、VM 主循环已精简为策略入口 + handler table | `ValueResult` 已有 variant prototype 但旧兼容字段仍待迁移、`CodeGenerator` 方法数 60+、部分命名继承 Lua C 缩写 |
 | **易扩展性** | **B+** | Visitor 模式添加新工具零摩擦、`DispatchStrategy` 可插拔、`HandlerTable` 按组注册 | GC/metatable 兼容 fallback 仍需收口、`lib_manager.hpp` 冗余声明、`CodeGenerator` 单体类 |
 | **教学价值** | **A-** | hello-world walkthrough 典范级、管线结构清晰、glossary 降低认知负担、trace 系统层次分明 | 缺 `closure-and-upvalue` / `gc-cycle` 两篇 walkthrough、REPL `.ast` / `.gc` 待实现、trace 无差异模式 |
 
@@ -171,7 +171,7 @@ static std::expected<T, RuntimeError> captureRuntimeErrors(Fn&& fn) {
 
 **审计发现**：[codegen.hpp](src/compiler/codegen/codegen.hpp) 暴露约 60 个 private/protected 方法。虽然实现已按文件分片（`codegen_binding/expr/jump/stmt.cpp`），但类声明本身仍是"上帝类"——方法涵盖指令生成、寄存器分配、常量表管理、局部变量管理、跳转回填、表达式降低、语句降低、块管理、函数编译等 9 类职责。
 
-**重新排序**：`CodeGenerator` 拆分是 2026-05-21 审计后最重要的中期重构，但不应直接一次性拆完整个类。已先做职责地图和 characterization 测试，再按低耦合到高耦合的顺序抽取：`JumpPatcher`、`ScopeManager`、`ExpressionEmitter`、`StatementEmitter`。下一步可在稳定边界上推进 `ValueResult -> std::variant` prototype，或先做低风险的 GC 单例残留收尾。
+**重新排序**：`CodeGenerator` 拆分是 2026-05-21 审计后最重要的中期重构，但不应直接一次性拆完整个类。已先做职责地图和 characterization 测试，再按低耦合到高耦合的顺序抽取：`JumpPatcher`、`ScopeManager`、`ExpressionEmitter`、`StatementEmitter`。PR-48 已在稳定边界上完成 `ValueResult -> std::variant` 兼容式 prototype；后续可继续迁移调用点到 `std::visit`，或先做低风险命名清理。
 
 **建议**：将 `CodeGenerator` 拆分为独立策略对象，共享 `CodegenState`：
 
@@ -264,6 +264,8 @@ namespace { LibRegistrar kReg("base", "Base Library", openBaseLib); }
 
 **审计发现**：[codegen_types.hpp](src/compiler/codegen/codegen_types.hpp) 的 `ValueResult` 结构体有 12 个公开字段（`kind`, `immediate`, `access`, `reg`, `constIndex`, `aux`, `instructionPc`, `boolValue`, `numberValue`, `ownsRegister`, `isMultiResult`, `isSingleValue`）。部分字段仅在特定 `Kind` 下有效，类似 tagged union，但缺少编译期约束保证字段使用的一致性。
 
+**当前进展**：PR-48 已加入兼容式 `std::variant` payload prototype，定义 `None`、`Immediate`、`ConstantRef`、`RegisterRef`、`PendingLoad`、`Relocatable`、`MultiRet` 和 `PendingJump` alternatives，并通过工厂函数同步填充 payload 与旧字段。`ExpressionEmitter` / `StatementEmitter` 主要构造点已改用工厂函数；旧字段读面暂保留，后续可按调用点迁移到 `std::visit`。
+
 **建议**：将 `ValueResult` 重构为 `std::variant` 子类型：
 
 ```cpp
@@ -282,7 +284,7 @@ using ValueResult = std::variant<
 
 | 编号 | 任务 | 说明 |
 |---|---|---|
-| 3.5.1 | `ValueResult` 重构为 `std::variant<Immediate, ConstantRef, RegisterRef, MultiRet, PendingJump>` | 消除隐式 tagged union 契约 |
+| 3.5.1 | `ValueResult` 兼容式 `std::variant` payload prototype | ✓ **已完成** — PR-48；旧字段读面仍保留，后续逐步迁移到 `std::visit` |
 
 ---
 
@@ -378,7 +380,7 @@ using ValueResult = std::variant<
 
 ### 5.1 测试覆盖精细化
 
-**现状**：513 个注册测试 / 2497 个断言结果 / 0 失败，目录 `tests/unit/`、`tests/lua/`。
+**现状**：514 个注册测试 / 2515 个断言结果 / 0 失败，目录 `tests/unit/`、`tests/lua/`。
 
 **改进方向**（仅修改现有测试文件，不主动新建）：
 
@@ -407,7 +409,7 @@ using ValueResult = std::variant<
 | 风险 | 影响 | 缓解 |
 |---|---|---|
 | VM dispatch 命令模式化引入函数指针表，调试器单步体验下降 | 影响教学 | 保留 `SwitchDispatch` 作为默认；调试构建强制使用；1.1.1 落地的独立 inline 函数进一步改善 Switch 路径单步体验 |
-| `std::expected` 大范围替换异常导致调用链翻新 | 513 测试可能批量红 | 按 3.1 表格逐个函数迁移，每次 1 个函数 + 全量测试 |
+| `std::expected` 大范围替换异常导致调用链翻新 | 514 测试可能批量红 | 按 3.1 表格逐个函数迁移，每次 1 个函数 + 全量测试 |
 | GC 去单例化破坏标准库内部对 `GarbageCollector::getInstance()` 的引用 | 编译错误广泛 | 保留 inline shim `getInstance()` 一版本，标记 `[[deprecated]]` |
 | Visitor 化后 codegen 性能下降 | 不影响目标，但需观察 | 教学项目可接受；基准用 `examples/*.lua` 跑回归 |
 | `ValueResult` → `std::variant` 重构引入大量访问代码 | 调用侧需逐一迁移 `std::visit` | 先做 prototype 分支验证可行性，再逐步迁移 |
@@ -435,12 +437,12 @@ using ValueResult = std::variant<
 | PR-45 | `StatementEmitter` 抽取，集中 statement / block lowering 和语句级控制流编排 | 2.5.1-e / 5.1 |
 | PR-46 | GC sweep / clearAll 显式接收 `StringPool&`，旧 `GarbageCollector::getInstance()` 标记 `[[deprecated]]` | 2.3 / 5.1 |
 | PR-47 | `check_doc_drift.ps1` 动态解析测试计数，移除脚本内测试总数字面量；CI / 本地质量门先构建测试入口再做漂移检查 | 5.2 |
+| PR-48 | `ValueResult` 兼容式 `std::variant` payload prototype，生产构造点改用工厂函数，并保留旧字段兼容读面 | 3.5.1 |
 
 后续推荐顺序：
 
 | PR | 编号 | 任务 | 阶段 | 依赖 / 理由 |
 |---|---|---|---|---|
-| PR-48 | 3.5.1 | `ValueResult -> std::variant` prototype | 3 | P2；StatementEmitter 已稳定，适合先做小范围 prototype |
 | PR-49 | 1.2 | `CodegenState` 命名清理：`nactvar_` / `regs` / `locals` 等缩写收口 | 1 | P3；等 emitter 边界稳定后再做机械重命名，降低重复 churn |
 | PR-50 | 4.3.2 | `closure-and-upvalue.md` walkthrough | 4 | P3；可复用 bytecode 基础输出 |
 | PR-51 | 4.5.1 | `--trace-diff` + `changedRegisters` | 4 | P3；适合在 VM dispatch 差异稳定后推进 |

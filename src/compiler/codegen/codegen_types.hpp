@@ -77,6 +77,48 @@ struct ValueResult {
         Vararg
     };
 
+    struct None {};
+
+    struct Immediate {
+        ImmediateKind kind = ImmediateKind::None;
+        bool boolValue = false;
+        f64 numberValue = 0.0;
+    };
+
+    struct ConstantRef {
+        i32 constIndex = -1;
+    };
+
+    struct RegisterRef {
+        i32 reg = -1;
+        bool ownsRegister = false;
+        AccessKind access = AccessKind::None;
+    };
+
+    struct PendingLoad {
+        AccessKind access = AccessKind::None;
+        i32 reg = -1;
+        i32 constIndex = -1;
+        i32 aux = -1;
+    };
+
+    struct Relocatable {
+        i32 instructionPc = NO_JUMP;
+    };
+
+    struct MultiRet {
+        AccessKind access = AccessKind::None;
+        i32 reg = -1;
+        i32 instructionPc = NO_JUMP;
+    };
+
+    struct PendingJump {
+        i32 instructionPc = NO_JUMP;
+    };
+
+    using Variant = std::variant<None, Immediate, ConstantRef, RegisterRef, PendingLoad, Relocatable,
+                                 MultiRet, PendingJump>;
+
     Kind kind = Kind::None;
     ImmediateKind immediate = ImmediateKind::None;
     AccessKind access = AccessKind::None;
@@ -89,6 +131,150 @@ struct ValueResult {
     bool ownsRegister = false;
     bool isMultiResult = false;
     bool isSingleValue = true;
+
+    [[nodiscard]] const Variant& payload() const noexcept {
+        return payload_;
+    }
+
+    [[nodiscard]] Variant& payload() noexcept {
+        return payload_;
+    }
+
+    static ValueResult makeNil() {
+        ValueResult result;
+        result.setPayload(Immediate{ImmediateKind::Nil});
+        return result;
+    }
+
+    static ValueResult makeBoolean(bool value) {
+        ValueResult result;
+        result.setPayload(Immediate{ImmediateKind::Boolean, value, 0.0});
+        return result;
+    }
+
+    static ValueResult makeNumber(f64 value) {
+        ValueResult result;
+        result.setPayload(Immediate{ImmediateKind::Number, false, value});
+        return result;
+    }
+
+    static ValueResult makeConstant(i32 index) {
+        ValueResult result;
+        result.setPayload(ConstantRef{index});
+        return result;
+    }
+
+    static ValueResult makeRegister(i32 index, bool owns, AccessKind accessKind = AccessKind::None) {
+        ValueResult result;
+        result.setPayload(RegisterRef{index, owns, accessKind});
+        return result;
+    }
+
+    static ValueResult makePendingLoad(AccessKind accessKind, i32 sourceReg = -1, i32 constantIndex = -1,
+                                       i32 auxIndex = -1) {
+        ValueResult result;
+        result.setPayload(PendingLoad{accessKind, sourceReg, constantIndex, auxIndex});
+        return result;
+    }
+
+    static ValueResult makeRelocatable(i32 pc) {
+        ValueResult result;
+        result.setPayload(Relocatable{pc});
+        return result;
+    }
+
+    static ValueResult makeMultiRet(AccessKind accessKind, i32 baseReg, i32 pc) {
+        ValueResult result;
+        result.setPayload(MultiRet{accessKind, baseReg, pc});
+        return result;
+    }
+
+    static ValueResult makePendingJump(i32 pc) {
+        ValueResult result;
+        result.setPayload(PendingJump{pc});
+        return result;
+    }
+
+    void setPayload(Variant value) {
+        payload_ = std::move(value);
+        syncLegacyFieldsFromPayload();
+    }
+
+private:
+    Variant payload_ = None{};
+
+    void resetLegacyFields() noexcept {
+        kind = Kind::None;
+        immediate = ImmediateKind::None;
+        access = AccessKind::None;
+        reg = -1;
+        constIndex = -1;
+        aux = -1;
+        instructionPc = NO_JUMP;
+        boolValue = false;
+        numberValue = 0.0;
+        ownsRegister = false;
+        isMultiResult = false;
+        isSingleValue = true;
+    }
+
+    void syncLegacyFieldsFromPayload() {
+        resetLegacyFields();
+
+        struct Visitor {
+            ValueResult& result;
+
+            void operator()(const None&) const noexcept {}
+
+            void operator()(const Immediate& value) const noexcept {
+                result.kind = Kind::Immediate;
+                result.immediate = value.kind;
+                result.boolValue = value.boolValue;
+                result.numberValue = value.numberValue;
+            }
+
+            void operator()(const ConstantRef& value) const noexcept {
+                result.kind = Kind::Constant;
+                result.constIndex = value.constIndex;
+            }
+
+            void operator()(const RegisterRef& value) const noexcept {
+                result.kind = Kind::Register;
+                result.access = value.access;
+                result.reg = value.reg;
+                result.ownsRegister = value.ownsRegister;
+            }
+
+            void operator()(const PendingLoad& value) const noexcept {
+                result.kind = Kind::PendingLoad;
+                result.access = value.access;
+                result.reg = value.reg;
+                result.constIndex = value.constIndex;
+                result.aux = value.aux;
+            }
+
+            void operator()(const Relocatable& value) const noexcept {
+                result.kind = Kind::Relocatable;
+                result.instructionPc = value.instructionPc;
+            }
+
+            void operator()(const MultiRet& value) const noexcept {
+                result.kind = Kind::MultiRet;
+                result.access = value.access;
+                result.reg = value.reg;
+                result.instructionPc = value.instructionPc;
+                result.isMultiResult = true;
+                result.isSingleValue = false;
+            }
+
+            void operator()(const PendingJump& value) const noexcept {
+                result.kind = Kind::PendingJump;
+                result.instructionPc = value.instructionPc;
+            }
+        };
+
+        std::visit(Visitor{*this}, payload_);
+    }
 };
 
 struct LValueRef {

@@ -265,9 +265,7 @@ void StatementEmitter::emitStmt(const AssignStmt& s) {
 
             for (i32 j = 0; j < wanted; j++) {
                 LValueRef target = emitLValue(*s.targets[targetIndex + j]);
-                ValueResult tmp;
-                tmp.kind = ValueResult::Kind::Register;
-                tmp.reg = valueBase + j;
+                ValueResult tmp = ValueResult::makeRegister(valueBase + j, false);
                 emitStore(target, tmp);
             }
             return;
@@ -280,9 +278,7 @@ void StatementEmitter::emitStmt(const AssignStmt& s) {
 
             for (i32 j = 0; j < wanted; j++) {
                 LValueRef target = emitLValue(*s.targets[targetIndex + j]);
-                ValueResult tmp;
-                tmp.kind = ValueResult::Kind::Register;
-                tmp.reg = valueBase + j;
+                ValueResult tmp = ValueResult::makeRegister(valueBase + j, false);
                 emitStore(target, tmp);
             }
             return;
@@ -296,9 +292,7 @@ void StatementEmitter::emitStmt(const AssignStmt& s) {
 
     for (i32 i = nexps; i < nvars; i++) {
         LValueRef target = emitLValue(*s.targets[i]);
-        ValueResult nilVal;
-        nilVal.kind = ValueResult::Kind::Immediate;
-        nilVal.immediate = ValueResult::ImmediateKind::Nil;
+        ValueResult nilVal = ValueResult::makeNil();
         emitStore(target, nilVal);
     }
 }
@@ -694,9 +688,7 @@ void StatementEmitter::emitStmt(const ForInStmt& s) {
     }
 
     while (filled < 3) {
-        ValueResult nilVal;
-        nilVal.kind = ValueResult::Kind::Immediate;
-        nilVal.immediate = ValueResult::ImmediateKind::Nil;
+        ValueResult nilVal = ValueResult::makeNil();
         materializeValue(nilVal, base + filled);
         filled++;
     }

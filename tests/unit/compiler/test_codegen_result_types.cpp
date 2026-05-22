@@ -6,6 +6,9 @@
 #include "../framework/test_framework.hpp"
 #include "compiler/codegen/codegen_types.hpp"
 
+#include <type_traits>
+#include <variant>
+
 using namespace Lua;
 using namespace LuaTest;
 
@@ -58,9 +61,56 @@ void testPatchListAppendAndMerge(TestSuite& suite) {
     ASSERT_EQ(suite, 3, static_cast<int>(left.size()), "PatchList append(list) concatenates entries");
 }
 
+void testValueResultVariantPrototype(TestSuite& suite) {
+    using Variant = ValueResult::Variant;
+
+    constexpr bool usesStdVariant = std::is_same_v<
+        Variant,
+        std::variant<ValueResult::None, ValueResult::Immediate, ValueResult::ConstantRef,
+                     ValueResult::RegisterRef, ValueResult::PendingLoad, ValueResult::Relocatable,
+                     ValueResult::MultiRet, ValueResult::PendingJump>>;
+    ASSERT_TRUE(suite, usesStdVariant, "ValueResult exposes a std::variant prototype payload");
+
+    ValueResult none;
+    ASSERT_TRUE(suite, std::holds_alternative<ValueResult::None>(none.payload()),
+                "default ValueResult payload is None");
+
+    ValueResult number = ValueResult::makeNumber(12.5);
+    ASSERT_TRUE(suite, std::holds_alternative<ValueResult::Immediate>(number.payload()),
+                "number ValueResult uses Immediate payload");
+    const auto* immediate = std::get_if<ValueResult::Immediate>(&number.payload());
+    ASSERT_TRUE(suite, immediate != nullptr, "number immediate payload is readable");
+    ASSERT_EQ(suite, static_cast<int>(ValueResult::ImmediateKind::Number),
+              static_cast<int>(immediate->kind), "number payload keeps immediate kind");
+    ASSERT_EQ(suite, static_cast<int>(ValueResult::Kind::Immediate),
+              static_cast<int>(number.kind), "number factory keeps legacy kind field");
+    ASSERT_EQ(suite, 12.5, number.numberValue, "number factory keeps legacy number field");
+
+    ValueResult local = ValueResult::makeRegister(3, false, ValueResult::AccessKind::Local);
+    ASSERT_TRUE(suite, std::holds_alternative<ValueResult::RegisterRef>(local.payload()),
+                "local ValueResult uses RegisterRef payload");
+    ASSERT_EQ(suite, static_cast<int>(ValueResult::Kind::Register),
+              static_cast<int>(local.kind), "register factory keeps legacy kind field");
+    ASSERT_EQ(suite, static_cast<int>(ValueResult::AccessKind::Local),
+              static_cast<int>(local.access), "register factory keeps legacy access field");
+    ASSERT_EQ(suite, 3, local.reg, "register factory keeps legacy register field");
+
+    ValueResult global = ValueResult::makePendingLoad(ValueResult::AccessKind::Global, -1, 7, -1);
+    ASSERT_TRUE(suite, std::holds_alternative<ValueResult::PendingLoad>(global.payload()),
+                "global read ValueResult uses PendingLoad payload");
+    ASSERT_EQ(suite, 7, global.constIndex, "pending-load factory keeps constant index");
+
+    ValueResult call = ValueResult::makeMultiRet(ValueResult::AccessKind::Call, 2, 9);
+    ASSERT_TRUE(suite, std::holds_alternative<ValueResult::MultiRet>(call.payload()),
+                "call ValueResult uses MultiRet payload");
+    ASSERT_TRUE(suite, call.isMultiResult, "multi-ret factory keeps legacy multi flag");
+    ASSERT_FALSE(suite, call.isSingleValue, "multi-ret factory clears legacy single flag");
+}
+
 void registerCodegenResultTypeTests() {
     auto& registry = TestRegistry::getInstance();
 
     registry.registerTest(kSuiteName, "Default Result Type State", testDefaultResultTypeState);
     registry.registerTest(kSuiteName, "PatchList Append And Merge", testPatchListAppendAndMerge);
+    registry.registerTest(kSuiteName, "ValueResult Variant Prototype", testValueResultVariantPrototype);
 }

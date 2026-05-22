@@ -1,8 +1,8 @@
 ---
 status: current
-verified_against: src/compiler/codegen/codegen.hpp; src/compiler/codegen/codegen.cpp; src/compiler/codegen/codegen_binding.cpp; src/compiler/codegen/codegen_expr.cpp; src/compiler/codegen/expression_emitter.hpp; src/compiler/codegen/expression_emitter.cpp; src/compiler/codegen/statement_emitter.hpp; src/compiler/codegen/statement_emitter.cpp; src/compiler/codegen/codegen_jump.cpp; src/compiler/codegen/codegen_stmt.cpp; src/compiler/codegen/codegen_state.hpp; src/compiler/codegen/jump_patcher.hpp; src/compiler/codegen/jump_patcher.cpp; src/compiler/codegen/scope_manager.hpp; src/compiler/codegen/scope_manager.cpp; src/compiler/codegen/bytecode_builder.hpp; tests/unit/compiler/test_codegen_characterization.cpp; tests/unit/compiler/test_jump_patcher.cpp; tests/unit/compiler/test_scope_manager.cpp; tests/unit/compiler/test_expression_emitter.cpp; tests/unit/compiler/test_statement_emitter.cpp
+verified_against: src/compiler/codegen/codegen.hpp; src/compiler/codegen/codegen.cpp; src/compiler/codegen/codegen_binding.cpp; src/compiler/codegen/codegen_expr.cpp; src/compiler/codegen/expression_emitter.hpp; src/compiler/codegen/expression_emitter.cpp; src/compiler/codegen/statement_emitter.hpp; src/compiler/codegen/statement_emitter.cpp; src/compiler/codegen/codegen_jump.cpp; src/compiler/codegen/codegen_stmt.cpp; src/compiler/codegen/codegen_types.hpp; src/compiler/codegen/codegen_state.hpp; src/compiler/codegen/jump_patcher.hpp; src/compiler/codegen/jump_patcher.cpp; src/compiler/codegen/scope_manager.hpp; src/compiler/codegen/scope_manager.cpp; src/compiler/codegen/bytecode_builder.hpp; tests/unit/compiler/test_codegen_result_types.cpp; tests/unit/compiler/test_codegen_characterization.cpp; tests/unit/compiler/test_jump_patcher.cpp; tests/unit/compiler/test_scope_manager.cpp; tests/unit/compiler/test_expression_emitter.cpp; tests/unit/compiler/test_statement_emitter.cpp
 last_checked: 2026-05-22
-applies_to: CodeGenerator responsibilities after PR-45 StatementEmitter extraction
+applies_to: CodeGenerator responsibilities after PR-48 ValueResult variant prototype
 ---
 
 # CodeGenerator 职责地图
@@ -75,7 +75,7 @@ PR-41 新增 `tests/unit/compiler/test_codegen_characterization.cpp`，测试套
 - PR-43 已完成；后续不要把 expression 或 statement lowering 塞进 `ScopeManager`。
 - PR-44 已完成；后续不要把 statement lowering 塞进 `ExpressionEmitter`。
 - PR-45 已完成；后续不要把 statement lowering 重新塞回 `CodeGenerator`，除非是兼容包装。
-- `ValueResult` 改成 `std::variant` 可在 `StatementEmitter` 边界稳定后作为独立任务推进。
+- PR-48 已完成 `ValueResult` 的兼容式 `std::variant` payload prototype；后续迁移调用点时优先用 `payload()` / `std::visit`，并保留旧字段读面直到 expression / statement 两侧都完成迁移。
 - 每次新增 `.cpp` 必须同步 `CMakeLists.txt`、`lua_test.vcxproj` 和 `lua_test.vcxproj.filters`；新增生产源文件还必须同步 `lua.vcxproj` 和 `lua.vcxproj.filters`。
 
 ## 推荐验证命令
@@ -86,6 +86,7 @@ bin\lua_test.exe --filter "Codegen Conditions"
 bin\lua_test.exe --filter "Symbol Binding"
 bin\lua_test.exe --filter "Expression Emitter"
 bin\lua_test.exe --filter "Statement Emitter"
+bin\lua_test.exe --filter "Codegen Result Types"
 bin\lua_test.exe --filter "ValueResult Pipeline"
 bin\lua_test.exe --filter "Call Pipeline"
 bin\lua_test.exe
