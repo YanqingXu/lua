@@ -1,7 +1,7 @@
 ---
 status: current
 verified_against: src/app/app_options.hpp; src/app/app_options.cpp; src/main.cpp; src/repl.hpp; src/repl.cpp; tests/unit/app/test_app_options.cpp
-last_checked: 2026-05-19
+last_checked: 2026-05-23
 applies_to: lua_app command-line and REPL behavior
 ---
 
@@ -23,6 +23,7 @@ Options currently parsed by `AppOptions`:
 | `-h` | Show usage and exit |
 | `-i` | Enter REPL when no script is provided |
 | `--trace <file>` | Write VM execution trace as JSONL |
+| `--trace-diff <file>` | Write VM execution trace with `changedRegisters` instead of full register snapshots |
 
 The first non-option argument is treated as the script path. Arguments after it are left as script arguments.
 
@@ -41,6 +42,7 @@ With no script and no `-i`, the current default behavior enters the REPL.
 ```powershell
 bin\lua_app.exe examples\hello.lua
 bin\lua_app.exe --trace bin\hello.jsonl examples\hello.lua
+bin\lua_app.exe --trace-diff bin\hello-diff.jsonl examples\hello.lua
 ```
 
 Script mode reads the file through `readWholeFile()`, parses it, generates a `Proto`, and executes it through the VM.
@@ -80,7 +82,7 @@ _PROMPT2 = "...> "
 
 ## Trace Output
 
-`--trace <file>` installs `JsonTraceSink` through `VM::setTraceSink()`. See `docs/vm/trace-system.md`.
+`--trace <file>` installs `JsonTraceSink` through `VM::setTraceSink()`. `--trace-diff <file>` additionally enables VM diff mode so instruction events contain `changedRegisters`. See `docs/vm/trace-system.md`.
 
 ## Related Tests
 

@@ -19,6 +19,7 @@ struct AppOptions {
     char** argv = nullptr;
     const char* scriptFile = nullptr;
     const char* traceFile = nullptr;
+    bool traceDiff = false;
     i32 scriptIndex = -1;
 };
 

@@ -202,7 +202,15 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
             VM::detail::dispatchLineHook(L, proto, instructionPc);
             base = refreshBase(L);
 
-            VM::detail::emitInstructionTrace(proto, base, instructionPc, inst, nexeccalls);
+            const bool traceDiff = VM::isTraceDiffEnabled() && VM::getTraceSink() != nullptr;
+            const usize traceFrameBase = L->getCurrentCallInfo().base;
+            const i32 traceCallDepth = nexeccalls;
+            Vec<Value> traceBefore;
+            if (traceDiff) {
+                traceBefore = VM::detail::captureTraceRegisters(L, traceFrameBase, proto->getMaxStackSize());
+            } else {
+                VM::detail::emitInstructionTrace(proto, base, instructionPc, inst, nexeccalls);
+            }
 
             if (backend == DispatchBackend::Table) {
                 OpExecutionContext opContext{
@@ -218,6 +226,10 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
                 HandlerStatus status = VM::runHandler(opContext, inst);
                 base = opContext.base;
                 nexeccalls = opContext.nexeccalls;
+                if (traceDiff) {
+                    VM::detail::emitInstructionTraceDiff(
+                        proto, L, traceFrameBase, instructionPc, inst, traceCallDepth, traceBefore);
+                }
                 switch (status) {
                     case HandlerStatus::Continue:
                         continue;
@@ -238,6 +250,11 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
         HandlerStatus status = VM::detail::handlerName(opContext, inst);       \
         base = opContext.base;                                                 \
         nexeccalls = opContext.nexeccalls;                                     \
+        if (traceDiff) {                                                       \
+            VM::detail::emitInstructionTraceDiff(                              \
+                proto, L, traceFrameBase, instructionPc, inst,                 \
+                traceCallDepth, traceBefore);                                  \
+        }                                                                      \
         switch (status) {                                                      \
             case HandlerStatus::Continue:                                      \
                 continue;                                                      \

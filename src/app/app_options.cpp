@@ -28,6 +28,10 @@ AppOptions parseArgs(int argc, char** argv) {
             interactiveMode = true;
         } else if (std::strcmp(arg, "--trace") == 0 && i + 1 < argc) {
             opt.traceFile = argv[++i];
+            opt.traceDiff = false;
+        } else if (std::strcmp(arg, "--trace-diff") == 0 && i + 1 < argc) {
+            opt.traceFile = argv[++i];
+            opt.traceDiff = true;
         } else if (arg[0] != '-') {
             opt.scriptFile = arg;
             opt.scriptIndex = i;

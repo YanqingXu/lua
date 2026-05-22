@@ -2,9 +2,9 @@
 
 > 适用范围：`g:\github\lua`（现代 C++ Lua 5.1.5 解释器）
 > 设计目标：**可读性 > 可维护性 > 教育价值 > 性能**
-> 约束：保持 514 个注册测试 / 2515 个断言结果 / 0 失败，不破坏 `LuaState` / `VM` public API。
+> 约束：保持 515 个注册测试 / 2531 个断言结果 / 0 失败，不破坏 `LuaState` / `VM` public API。
 > 最近审计：2026-05-21（深度审计报告，覆盖 Readability / Extensibility / Educational Value 三维度）
-> 最近同步：2026-05-22（核对 `docs/roadmap/current.md`、`docs/status/project-status.md`、`tools/check_doc_drift.ps1` 与当前源码）
+> 最近同步：2026-05-23（PR-51：`--trace-diff` + `changedRegisters` 落地，并同步 CLI / Trace 文档）
 
 ---
 
@@ -14,7 +14,7 @@
 |---|---|---|---|
 | **可读性** | **A-** | CRTP+concept 编译期检查、`std::expected` 边界清晰、VM 主循环已精简为策略入口 + handler table | `ValueResult` 已有 variant prototype 但旧兼容字段仍待迁移、`CodeGenerator` 方法数 60+、部分命名继承 Lua C 缩写 |
 | **易扩展性** | **B+** | Visitor 模式添加新工具零摩擦、`DispatchStrategy` 可插拔、`HandlerTable` 按组注册 | GC/metatable 兼容 fallback 仍需收口、`lib_manager.hpp` 冗余声明、`CodeGenerator` 单体类 |
-| **教学价值** | **A-** | hello-world / closure-and-upvalue walkthrough 已覆盖端到端执行与闭包生命周期、管线结构清晰、glossary 降低认知负担、trace 系统层次分明 | 缺 `gc-cycle` walkthrough、REPL `.ast` / `.gc` 待实现、trace 无差异模式 |
+| **教学价值** | **A-** | hello-world / closure-and-upvalue walkthrough 已覆盖端到端执行与闭包生命周期、管线结构清晰、glossary 降低认知负担、trace 系统层次分明且已有差异模式 | 缺 `gc-cycle` walkthrough、REPL `.ast` / `.gc` 待实现 |
 
 各维度详细评估见本文档对应阶段的任务标注；已完成项以 ✓ 标记。
 
@@ -27,7 +27,7 @@
 | **阶段 1 — 短期代码清理** | 1–2 个迭代 | 删冗余、统一命名、收紧错误处理、文档与代码同步 | 否 | ~90% |
 | **阶段 2 — 中期模式重构** | 3–5 个迭代 | 引入访问者 / 策略 / 命令模式，VM dispatch 与 GC 抽象化 | 内部 API 调整、public 不变 | ~88% |
 | **阶段 3 — 现代 C++ 特性** | 穿插于 1 & 2 | `std::expected` / `concepts` / `std::format` / `[[nodiscard]]` | 部分 public 签名变更 | ~90% |
-| **阶段 4 — 教育价值增强** | 持续推进 | 自解释代码、字节码可视化、执行链路教学文档、REPL 体验、Trace 差异模式 | 否（增量增强） | ~60% |
+| **阶段 4 — 教育价值增强** | 持续推进 | 自解释代码、字节码可视化、执行链路教学文档、REPL 体验、Trace 差异模式 | 否（增量增强） | ~65% |
 | **阶段 5 — 工程实践** | 持续 | 测试覆盖、质量门、构建一致性、文档漂移检测 | 否 | ~75% |
 
 ---
@@ -353,9 +353,9 @@ using ValueResult = std::variant<
 
 ### 4.5 审计新增：Trace 系统差异模式
 
-**审计发现**：[Trace 系统](src/debug/trace_sink.hpp) 层次清晰（`ITraceSink` ← `JsonTraceSink` / `NullTraceSink`），`TraceEvent` 扁平 struct 携带 PC、指令操作数、源码位置、调用深度和寄存器快照上下文。但当前只输出绝对状态，缺少前后指令的寄存器变化对比。
+**审计发现**：[Trace 系统](src/debug/trace_sink.hpp) 层次清晰（`ITraceSink` ← `JsonTraceSink` / `NullTraceSink`），`TraceEvent` 扁平 struct 携带 PC、指令操作数、源码位置、调用深度和寄存器快照上下文。PR-51 已补上差异模式：`--trace-diff` 在每条指令后输出 `changedRegisters`，避免学习者手动对比前后两帧。
 
-**建议**：添加 `--trace-diff` 模式，JSONL 中增加 `changedRegisters` 字段：
+**PR-51 实现形态**：`--trace-diff` 模式会在 JSONL 中增加 `changedRegisters` 字段：
 
 ```json
 {
@@ -368,10 +368,10 @@ using ValueResult = std::variant<
 
 让学习者直观看到每条指令对寄存器栈的影响，而非通过前后两帧手动对比。
 
-| 编号 | 增强 | 备注 |
-|---|---|---|
-| 4.5.1 | `--trace-diff` 模式 | JSONL 中增加 `changedRegisters` 字段，记录每条指令引起的寄存器变化 |
-| 4.5.2 | `TraceEvent` 统一 `funcName` 填充 | 确保每个 event 都有可读的函数名（当前指令事件中 funcName 可能缺失） |
+| 编号 | 增强 | 备注 | 状态 |
+|---|---|---|---|
+| 4.5.1 | `--trace-diff` 模式 | JSONL 中增加 `changedRegisters` 字段，记录每条指令引起的寄存器变化 | ✓ **已完成 — PR-51** |
+| 4.5.2 | `TraceEvent` 统一 `funcName` 填充 | 确保每个 event 都有可读的函数名（当前指令事件中 funcName 可能缺失） | 待实现 |
 
 ---
 
@@ -379,7 +379,7 @@ using ValueResult = std::variant<
 
 ### 5.1 测试覆盖精细化
 
-**现状**：514 个注册测试 / 2515 个断言结果 / 0 失败，目录 `tests/unit/`、`tests/lua/`。
+**现状**：515 个注册测试 / 2531 个断言结果 / 0 失败，目录 `tests/unit/`、`tests/lua/`。
 
 **改进方向**（仅修改现有测试文件，不主动新建）：
 
@@ -408,7 +408,7 @@ using ValueResult = std::variant<
 | 风险 | 影响 | 缓解 |
 |---|---|---|
 | VM dispatch 命令模式化引入函数指针表，调试器单步体验下降 | 影响教学 | 保留 `SwitchDispatch` 作为默认；调试构建强制使用；1.1.1 落地的独立 inline 函数进一步改善 Switch 路径单步体验 |
-| `std::expected` 大范围替换异常导致调用链翻新 | 514 测试可能批量红 | 按 3.1 表格逐个函数迁移，每次 1 个函数 + 全量测试 |
+| `std::expected` 大范围替换异常导致调用链翻新 | 515 测试可能批量红 | 按 3.1 表格逐个函数迁移，每次 1 个函数 + 全量测试 |
 | GC 去单例化破坏标准库内部对 `GarbageCollector::getInstance()` 的引用 | 编译错误广泛 | 保留 inline shim `getInstance()` 一版本，标记 `[[deprecated]]` |
 | Visitor 化后 codegen 性能下降 | 不影响目标，但需观察 | 教学项目可接受；基准用 `examples/*.lua` 跑回归 |
 | `ValueResult` → `std::variant` 重构引入大量访问代码 | 调用侧需逐一迁移 `std::visit` | 先做 prototype 分支验证可行性，再逐步迁移 |
@@ -439,12 +439,13 @@ using ValueResult = std::variant<
 | PR-48 | `ValueResult` 兼容式 `std::variant` payload prototype，生产构造点改用工厂函数，并保留旧字段兼容读面 | 3.5.1 |
 | PR-49 | `CodegenState` 命名清理：`regs` / `locals` / `blocks` / `upvalues` 改为职责名，`nactvar` 收口为 `activeVarCount` | 1.2 |
 | PR-50 | `closure-and-upvalue.md` walkthrough，覆盖闭包捕获、`CLOSURE` 伪指令、`GETUPVAL` / `SETUPVAL` 和 open-to-closed upvalue 生命周期 | 4.3.2 |
+| PR-51 | `--trace-diff` + `changedRegisters`，CLI 增量开关、VM 指令后差异发射、JSONL schema 与测试覆盖 | 4.5.1 |
 
 后续推荐顺序：
 
 | PR | 编号 | 任务 | 阶段 | 依赖 / 理由 |
 |---|---|---|---|---|
-| PR-51 | 4.5.1 | `--trace-diff` + `changedRegisters` | 4 | P3；适合在 VM dispatch 差异稳定后推进 |
+| PR-52 | 4.3.3 | `gc-cycle.md` walkthrough | 4 | P3；Trace diff 已落地，继续补齐三篇核心执行链路文档的最后一篇 |
 
 每个 PR 完成后跑：
 

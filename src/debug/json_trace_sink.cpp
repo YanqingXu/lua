@@ -11,6 +11,42 @@
 
 namespace Lua {
 
+namespace {
+
+Str serializeChangedRegisters(const Vec<TraceRegisterChange>& changes) {
+    Str out = "[";
+
+    for (usize i = 0; i < changes.size(); ++i) {
+        if (i > 0) {
+            out += ",";
+        }
+
+        const TraceRegisterChange& change = changes[i];
+        out += "{\"slot\":";
+        out += std::to_string(change.slot);
+        out += ",\"name\":";
+        if (change.hasName) {
+            out += "\"" + Trace::jsonEscape(change.name) + "\"";
+        } else {
+            out += "null";
+        }
+        out += ",\"old\":";
+        out += change.oldValue.empty() ? "null" : change.oldValue;
+        out += ",\"new\":";
+        out += change.newValue.empty() ? "null" : change.newValue;
+        out += ",\"oldType\":\"";
+        out += Trace::jsonEscape(change.oldType ? change.oldType : "unknown");
+        out += "\",\"newType\":\"";
+        out += Trace::jsonEscape(change.newType ? change.newType : "unknown");
+        out += "\"}";
+    }
+
+    out += "]";
+    return out;
+}
+
+}  // namespace
+
 // =========================================================================
 // 构造 / 析构
 // =========================================================================
@@ -46,10 +82,18 @@ void JsonTraceSink::onInstruction(const TraceEvent& evt) {
         );
     }
 
+    Str changedRegisters;
+    if (evt.includeChangedRegisters) {
+        changedRegisters = std::format(
+            ",\"changedRegisters\":{}",
+            serializeChangedRegisters(evt.changedRegisters)
+        );
+    }
+
     file_ << std::format(
         "{{\"seq\":{},\"kind\":\"instruction\",\"pc\":{},\"op\":\"{}\","
         "\"a\":{},\"b\":{},\"c\":{},\"bx\":{},\"sbx\":{},\"line\":{},"
-        "\"source\":\"{}\",\"callDepth\":{}{}}}\n",
+        "\"source\":\"{}\",\"callDepth\":{}{}{}}}\n",
         evt.seq,
         evt.pc,
         getOpName(evt.op),
@@ -61,7 +105,8 @@ void JsonTraceSink::onInstruction(const TraceEvent& evt) {
         evt.line,
         Trace::jsonEscape(evt.source ? evt.source : "?"),
         evt.callDepth,
-        registers
+        registers,
+        changedRegisters
     );
     ++eventCount_;
 }

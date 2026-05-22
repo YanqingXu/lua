@@ -69,6 +69,11 @@ void testTraceAndDebugHelpersExposeStableSignatures(TestSuite& suite) {
                                  void (*)(LuaState*, Proto*, usize)>);
     static_assert(std::is_same_v<decltype(&VM::detail::emitInstructionTrace),
                                  void (*)(Proto*, Value*, usize, Instruction, i32)>);
+    static_assert(std::is_same_v<decltype(&VM::detail::captureTraceRegisters),
+                                 Vec<Value> (*)(LuaState*, usize, i32)>);
+    static_assert(std::is_same_v<decltype(&VM::detail::emitInstructionTraceDiff),
+                                 void (*)(Proto*, LuaState*, usize, usize, Instruction, i32,
+                                          const Vec<Value>&)>);
     static_assert(std::is_same_v<decltype(&VM::detail::emitCallTrace),
                                  void (*)(Proto*, Value*, usize, i32, i32)>);
     static_assert(std::is_same_v<decltype(&VM::detail::emitReturnTrace),

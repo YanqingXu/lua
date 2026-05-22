@@ -9,8 +9,10 @@
 #include "core/gc_string.hpp"
 #include "debug/trace_sink.hpp"
 #include "debug/trace_types.hpp"
+#include "debug/value_serializer.hpp"
 #include "vm/state/call_info.hpp"
 #include "vm/state/lua_state.hpp"
+#include "vm/state/stack.hpp"
 #include "vm/vm.hpp"
 
 namespace Lua {
@@ -20,11 +22,46 @@ namespace {
 ITraceSink* g_traceSink = nullptr;
 u64 g_traceSeq = 0;
 bool g_dumpBytecode = false;
+bool g_traceDiffEnabled = false;
 
 const char* sourceName(Proto* proto) {
     return proto != nullptr && proto->getSource() != nullptr
                ? proto->getSource()->c_str()
                : "?";
+}
+
+Value registerValueAt(LuaState* L, usize frameBase, i32 slot) {
+    if (L == nullptr || slot < 0) {
+        return Value();
+    }
+
+    Stack& stack = L->getStack();
+    usize index = frameBase + static_cast<usize>(slot);
+    if (index >= stack.size()) {
+        return Value();
+    }
+    return stack[index];
+}
+
+TraceEvent makeInstructionEvent(Proto* proto, Value* base, usize instructionPc,
+                                Instruction inst, i32 callDepth) {
+    TraceEvent event;
+    event.seq = g_traceSeq++;
+    event.kind = TraceEventKind::Instruction;
+    event.pc = static_cast<i32>(instructionPc);
+    event.op = GET_OPCODE(inst);
+    event.a = GETARG_A(inst);
+    event.b = GETARG_B(inst);
+    event.c = GETARG_C(inst);
+    event.bx = GETARG_Bx(inst);
+    event.sbx = GETARG_sBx(inst);
+    event.line = proto->getLine(instructionPc);
+    event.source = sourceName(proto);
+    event.callDepth = callDepth;
+    event.base = base;
+    event.maxStack = proto->getMaxStackSize();
+    event.proto = proto;
+    return event;
 }
 
 }  // namespace
@@ -38,6 +75,14 @@ void setTraceSink(ITraceSink* sink) {
 
 ITraceSink* getTraceSink() {
     return g_traceSink;
+}
+
+void setTraceDiffEnabled(bool enabled) {
+    g_traceDiffEnabled = enabled;
+}
+
+bool isTraceDiffEnabled() {
+    return g_traceDiffEnabled;
 }
 
 }  // namespace VM
@@ -91,22 +136,58 @@ void emitInstructionTrace(Proto* proto, Value* base, usize instructionPc,
         return;
     }
 
-    TraceEvent event;
-    event.seq = g_traceSeq++;
-    event.kind = TraceEventKind::Instruction;
-    event.pc = static_cast<i32>(instructionPc);
-    event.op = GET_OPCODE(inst);
-    event.a = GETARG_A(inst);
-    event.b = GETARG_B(inst);
-    event.c = GETARG_C(inst);
-    event.bx = GETARG_Bx(inst);
-    event.sbx = GETARG_sBx(inst);
-    event.line = proto->getLine(instructionPc);
-    event.source = sourceName(proto);
-    event.callDepth = callDepth;
-    event.base = base;
-    event.maxStack = proto->getMaxStackSize();
-    event.proto = proto;
+    TraceEvent event = makeInstructionEvent(proto, base, instructionPc, inst, callDepth);
+
+    g_traceSink->onInstruction(event);
+}
+
+Vec<Value> captureTraceRegisters(LuaState* L, usize frameBase, i32 maxStack) {
+    Vec<Value> snapshot;
+    if (L == nullptr || maxStack <= 0) {
+        return snapshot;
+    }
+
+    snapshot.reserve(static_cast<usize>(maxStack));
+    for (i32 slot = 0; slot < maxStack; ++slot) {
+        snapshot.push_back(registerValueAt(L, frameBase, slot));
+    }
+    return snapshot;
+}
+
+void emitInstructionTraceDiff(Proto* proto, LuaState* L, usize frameBase, usize instructionPc,
+                              Instruction inst, i32 callDepth, const Vec<Value>& before) {
+    if (g_traceSink == nullptr || proto == nullptr || L == nullptr) {
+        return;
+    }
+
+    TraceEvent event = makeInstructionEvent(proto, nullptr, instructionPc, inst, callDepth);
+    event.includeChangedRegisters = true;
+
+    i32 maxStack = proto->getMaxStackSize();
+    i32 slots = static_cast<i32>(before.size());
+    if (maxStack < slots) {
+        slots = maxStack;
+    }
+
+    for (i32 slot = 0; slot < slots; ++slot) {
+        Value after = registerValueAt(L, frameBase, slot);
+        const Value& old = before[static_cast<usize>(slot)];
+        if (old == after) {
+            continue;
+        }
+
+        TraceRegisterChange change;
+        change.slot = slot;
+        if (const char* name = proto->getLocalName(slot + 1, static_cast<i32>(instructionPc))) {
+            change.hasName = true;
+            change.name = name;
+        }
+        change.oldValue = Trace::serializeValue(old);
+        change.newValue = Trace::serializeValue(after);
+        change.oldType = Trace::getValueTypeName(old.getType());
+        change.newType = Trace::getValueTypeName(after.getType());
+        event.changedRegisters.push_back(std::move(change));
+    }
 
     g_traceSink->onInstruction(event);
 }

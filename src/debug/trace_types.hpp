@@ -28,6 +28,22 @@ enum class TraceEventKind : u8 {
 };
 
 /**
+ * @brief One register slot changed by an instruction.
+ *
+ * oldValue/newValue are already serialized as JSON value fragments so sinks can
+ * write them without re-reading VM stack state after the event crosses layers.
+ */
+struct TraceRegisterChange {
+    i32         slot       = 0;
+    bool        hasName    = false;
+    Str         name;
+    Str         oldValue;
+    Str         newValue;
+    const char* oldType    = "nil";
+    const char* newType    = "nil";
+};
+
+/**
  * @brief Trace 事件结构体
  *
  * 扁平结构，根据 kind 字段决定哪些字段有效。
@@ -61,6 +77,10 @@ struct TraceEvent {
     Value*          base      = nullptr;    ///< 寄存器基地址
     i32             maxStack  = 0;          ///< 栈帧大小
     Proto*          proto     = nullptr;    ///< 当前函数原型（用于获取局部变量名）
+
+    // ---- 差异模式（--trace-diff）----
+    bool            includeChangedRegisters = false;
+    Vec<TraceRegisterChange> changedRegisters;
 
     // ---- 错误信息 ----
     const char*     errorMsg  = nullptr;    ///< Error 事件的错误消息

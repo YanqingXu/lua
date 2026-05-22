@@ -57,7 +57,7 @@ Proto* compileChunk(RuntimeServices& services, const char* source, const char* s
 }
 
 bool runLuaChunk(RuntimeServices& services, LuaState* L, const char* source,
-                 const char* sourceName, RecordingTraceSink* traceSink = nullptr) {
+                 const char* sourceName, ITraceSink* traceSink = nullptr, bool traceDiff = false) {
     Proto* proto = nullptr;
 
     try {
@@ -70,14 +70,17 @@ bool runLuaChunk(RuntimeServices& services, LuaState* L, const char* source,
         services.gc.registerObject(func);
         func->setEnv(L->getGlobalTable());
 
+        VM::setTraceDiffEnabled(traceDiff);
         VM::setTraceSink(traceSink);
         VM::execute(services, L, func);
         VM::setTraceSink(nullptr);
+        VM::setTraceDiffEnabled(false);
 
         delete proto;
         return true;
     } catch (...) {
         VM::setTraceSink(nullptr);
+        VM::setTraceDiffEnabled(false);
         delete proto;
         return false;
     }
@@ -238,6 +241,16 @@ void testJsonTraceSinkWritesStableJsonLines(TestSuite& suite) {
         instruction.line = 99;
         instruction.source = "trace \"src\"\n.lua";
         instruction.callDepth = 2;
+        instruction.includeChangedRegisters = true;
+        TraceRegisterChange change;
+        change.slot = 1;
+        change.hasName = true;
+        change.name = "x";
+        change.oldValue = "null";
+        change.newValue = "42";
+        change.oldType = "nil";
+        change.newType = "number";
+        instruction.changedRegisters.push_back(change);
         sink.onInstruction(instruction);
 
         TraceEvent call;
@@ -272,7 +285,9 @@ void testJsonTraceSinkWritesStableJsonLines(TestSuite& suite) {
     ASSERT_TRUE(suite, content.find(
         "{\"seq\":7,\"kind\":\"instruction\",\"pc\":3,\"op\":\"LOADK\","
         "\"a\":1,\"b\":2,\"c\":3,\"bx\":4,\"sbx\":-5,\"line\":99,"
-        "\"source\":\"trace \\\"src\\\"\\n.lua\",\"callDepth\":2}"
+        "\"source\":\"trace \\\"src\\\"\\n.lua\",\"callDepth\":2,"
+        "\"changedRegisters\":[{\"slot\":1,\"name\":\"x\",\"old\":null,"
+        "\"new\":42,\"oldType\":\"nil\",\"newType\":\"number\"}]}"
     ) != Str::npos, "instruction trace JSON line is stable");
     ASSERT_TRUE(suite, content.find(
         "{\"seq\":8,\"kind\":\"call\",\"funcName\":\"fn\\\"name\","
@@ -291,6 +306,49 @@ void testJsonTraceSinkWritesStableJsonLines(TestSuite& suite) {
     std::filesystem::remove(path);
 }
 
+void testTraceDiffWritesChangedRegisters(TestSuite& suite) {
+    const std::filesystem::path path =
+        std::filesystem::temp_directory_path() / "lua_cpp_trace_diff_test.jsonl";
+    std::filesystem::remove(path);
+
+    RuntimeServices services = RuntimeServices::fromSingletons();
+    LuaState* L = LuaState::newState(services);
+
+    bool ok = false;
+    {
+        JsonTraceSink sink(path.string(), 64);
+        ASSERT_TRUE(suite, sink.isOpen(), "json trace diff sink opens temp file");
+
+        ok = runLuaChunk(
+            services,
+            L,
+            "local x = 1\n"
+            "x = x + 2\n"
+            "return x\n",
+            "test_vm_trace_diff.lua",
+            &sink,
+            true);
+        sink.flush();
+    }
+
+    ASSERT_TRUE(suite, ok, "trace diff target chunk runs");
+
+    const Str content = readTextFile(path);
+    ASSERT_TRUE(suite, content.find("\"changedRegisters\"") != Str::npos,
+                "trace diff writes changedRegisters");
+    ASSERT_TRUE(suite, content.find("\"registers\"") == Str::npos,
+                "trace diff omits full register snapshots");
+    ASSERT_TRUE(suite, content.find("\"old\":null") != Str::npos,
+                "trace diff records old nil value");
+    ASSERT_TRUE(suite, content.find("\"new\":1") != Str::npos,
+                "trace diff records first assigned value");
+    ASSERT_TRUE(suite, content.find("\"new\":3") != Str::npos,
+                "trace diff records updated value");
+
+    std::filesystem::remove(path);
+    delete L;
+}
+
 void registerVMTraceDebugTests() {
     auto& registry = TestRegistry::getInstance();
 
@@ -300,4 +358,6 @@ void registerVMTraceDebugTests() {
                           testDebugHooksKeepCountLineCallReturnOrder);
     registry.registerTest(kSuiteName, "JsonTraceSink Writes Stable Json Lines",
                           testJsonTraceSinkWritesStableJsonLines);
+    registry.registerTest(kSuiteName, "Trace Diff Writes Changed Registers",
+                          testTraceDiffWritesChangedRegisters);
 }

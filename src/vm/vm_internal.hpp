@@ -49,6 +49,9 @@ void dispatchCountHook(LuaState* L);
 void dispatchLineHook(LuaState* L, Proto* proto, usize pc);
 bool shouldDumpBytecode();
 void emitInstructionTrace(Proto* proto, Value* base, usize instructionPc, Instruction inst, i32 callDepth);
+Vec<Value> captureTraceRegisters(LuaState* L, usize frameBase, i32 maxStack);
+void emitInstructionTraceDiff(Proto* proto, LuaState* L, usize frameBase, usize instructionPc,
+                              Instruction inst, i32 callDepth, const Vec<Value>& before);
 void emitCallTrace(Proto* proto, Value* base, usize instructionPc, i32 registerIndex, i32 callDepth);
 void emitReturnTrace(i32 callDepth);
 

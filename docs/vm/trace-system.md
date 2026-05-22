@@ -1,7 +1,7 @@
 ---
 status: current
-verified_against: docs/status/project-status.md; src/debug/trace_types.hpp; src/debug/trace_sink.hpp; src/debug/json_trace_sink.cpp; src/debug/value_serializer.cpp; src/vm/vm_trace.cpp; src/main.cpp; src/app/app_options.cpp; tests/unit/vm/test_vm_trace_debug.cpp
-last_checked: 2026-05-19
+verified_against: docs/status/project-status.md; src/debug/trace_types.hpp; src/debug/trace_sink.hpp; src/debug/json_trace_sink.cpp; src/debug/value_serializer.cpp; src/vm/vm_trace.cpp; src/vm/vm.cpp; src/main.cpp; src/app/app_options.cpp; tests/unit/vm/test_vm_trace_debug.cpp
+last_checked: 2026-05-23
 applies_to: current JSONL VM trace system
 ---
 
@@ -13,6 +13,7 @@ Current user-facing entry:
 
 ```powershell
 bin\lua_app.exe --trace trace.jsonl examples\hello.lua
+bin\lua_app.exe --trace-diff trace-diff.jsonl examples\hello.lua
 ```
 
 There is no checked-in HTML trace viewer yet. Earlier viewer ideas are historical; the current implemented surface is JSONL output.
@@ -27,7 +28,7 @@ There is no checked-in HTML trace viewer yet. Earlier viewer ideas are historica
 | `JsonTraceSink` | `src/debug/json_trace_sink.*` | JSONL writer |
 | Value serialization | `src/debug/value_serializer.*` | Convert `Value` and registers to JSON-compatible text |
 | VM trace hooks | `src/vm/vm_trace.cpp` | Build and emit instruction/call/return events |
-| CLI wiring | `src/app/app_options.cpp`, `src/main.cpp` | Parse `--trace <file>` and install sink |
+| CLI wiring | `src/app/app_options.cpp`, `src/main.cpp` | Parse `--trace <file>` / `--trace-diff <file>` and install sink |
 
 ## Event Types
 
@@ -42,7 +43,7 @@ There is no checked-in HTML trace viewer yet. Earlier viewer ideas are historica
 
 ## Instruction Event
 
-Instruction events include decoded operands and source location:
+Instruction events include decoded operands and source location. Plain `--trace` also includes a full frame register snapshot when the VM can provide one:
 
 ```json
 {"seq":0,"kind":"instruction","pc":0,"op":"LOADK","a":0,"b":0,"c":0,"bx":0,"sbx":0,"line":1,"source":"examples/hello.lua","callDepth":1,"registers":[]}
@@ -60,7 +61,8 @@ Fields:
 | `line` | Source line from `Proto` line info |
 | `source` | Source name from the active `Proto` |
 | `callDepth` | Current logical VM call depth |
-| `registers` | Serialized frame register snapshot when available |
+| `registers` | Serialized frame register snapshot in plain trace mode |
+| `changedRegisters` | Register changes in diff trace mode |
 
 ## Call And Return Events
 
@@ -89,12 +91,32 @@ Instruction events may include `registers`. Each element includes:
 
 The serializer is observational only: it reads VM values and does not mutate stack state.
 
+## Trace Diff Mode
+
+`--trace-diff <file>` captures the frame before each instruction, executes the handler, and then writes only the slots whose value changed. Diff instruction events omit the full `registers` snapshot and add `changedRegisters`:
+
+```json
+{"seq":1,"kind":"instruction","pc":1,"op":"ADD","a":0,"b":0,"c":1,"bx":1,"sbx":-131070,"line":2,"source":"examples/math.lua","callDepth":1,"changedRegisters":[{"slot":0,"name":"x","old":1,"new":3,"oldType":"number","newType":"number"}]}
+```
+
+Each changed register entry includes:
+
+| Field | Meaning |
+|---|---|
+| `slot` | Register index relative to the captured frame |
+| `name` | Local variable name when debug info can resolve it, otherwise `null` |
+| `old` | Serialized value before the instruction |
+| `new` | Serialized value after the instruction |
+| `oldType` | Lua value type before the instruction |
+| `newType` | Lua value type after the instruction |
+
 ## Control Flow
 
 ```text
 main.cpp
-  -> parse --trace <file>
+  -> parse --trace <file> or --trace-diff <file>
   -> create JsonTraceSink
+  -> optionally enable VM::setTraceDiffEnabled(true)
   -> VM::setTraceSink(...)
   -> VM::executeProto(...)
   -> vm_trace.cpp emits events
@@ -106,7 +128,7 @@ main.cpp
 ## Known Gaps
 
 - No committed HTML or browser viewer.
-- No trace-level filtering such as opcode-only vs full registers.
+- No opcode/function-level trace filtering yet.
 - Error events are represented in the schema but are not yet emitted by the VM error paths.
 - Trace sink state is global, matching the current VM entry-point shape.
 
@@ -117,4 +139,5 @@ Relevant checks:
 ```powershell
 bin\lua_test.exe --filter "VM Trace Debug"
 bin\lua_app.exe --trace bin\trace-example.jsonl examples\hello.lua
+bin\lua_app.exe --trace-diff bin\trace-diff-example.jsonl examples\hello.lua
 ```

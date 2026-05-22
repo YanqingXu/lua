@@ -94,6 +94,7 @@ void printUsage(const char* progname) {
     std::cout << "  -h       show this help message" << std::endl;
     std::cout << "  -i       enter interactive mode" << std::endl;
     std::cout << "  --trace <file>  write execution trace to JSONL file" << std::endl;
+    std::cout << "  --trace-diff <file>  write execution trace with changedRegisters" << std::endl;
     std::cout << "  -        execute stdin (not implemented)" << std::endl;
 }
 
@@ -306,14 +307,20 @@ int Lua::runApp(const AppOptions& opt) {
 
     i32 status = 0;
 
+    VM::setTraceSink(nullptr);
+    VM::setTraceDiffEnabled(false);
+
     UPtr<JsonTraceSink> traceSink;
     if (opt.traceFile) {
         traceSink = makeUnique<JsonTraceSink>(opt.traceFile);
         if (traceSink->isOpen()) {
+            VM::setTraceDiffEnabled(opt.traceDiff);
             VM::setTraceSink(traceSink.get());
-            std::cout << "[TRACE] Trace enabled → " << opt.traceFile << std::endl;
+            std::cout << (opt.traceDiff ? "[TRACE] Trace diff enabled → " : "[TRACE] Trace enabled → ")
+                      << opt.traceFile << std::endl;
         } else {
             std::cerr << "[TRACE] Warning: cannot open trace file, trace disabled." << std::endl;
+            VM::setTraceDiffEnabled(false);
             traceSink.reset();
         }
     }
@@ -343,6 +350,7 @@ int Lua::runApp(const AppOptions& opt) {
             if (kTestTraceOutput[0] != '\0' && !traceSink) {
                 testTraceSink = makeUnique<JsonTraceSink>(kTestTraceOutput);
                 if (testTraceSink->isOpen()) {
+                    VM::setTraceDiffEnabled(false);
                     VM::setTraceSink(testTraceSink.get());
                     std::cout << "[TRACE] Test trace enabled \u2192 " << kTestTraceOutput << std::endl;
                 } else {
@@ -356,6 +364,7 @@ int Lua::runApp(const AppOptions& opt) {
             if (testTraceSink) {
                 testTraceSink->flush();
                 VM::setTraceSink(nullptr);
+                VM::setTraceDiffEnabled(false);
                 std::cout << "[TRACE] Test trace complete: " << testTraceSink->getEventCount() << " events written."
                           << std::endl;
             }
@@ -375,6 +384,7 @@ int Lua::runApp(const AppOptions& opt) {
     if (traceSink) {
         traceSink->flush();
         VM::setTraceSink(nullptr);
+        VM::setTraceDiffEnabled(false);
         std::cout << "[TRACE] Trace complete: " << traceSink->getEventCount() << " events written." << std::endl;
         traceSink.reset();
     }

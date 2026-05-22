@@ -14,6 +14,7 @@ static void testParseArgsModes(TestSuite& suite) {
         ASSERT_EQ(suite, RunMode::DefaultBehavior, opt.mode, "No args should use default behavior");
         ASSERT_EQ(suite, static_cast<const char*>(nullptr), opt.scriptFile, "Default mode has no script");
         ASSERT_EQ(suite, static_cast<const char*>(nullptr), opt.traceFile, "Default mode has no trace file");
+        ASSERT_TRUE(suite, !opt.traceDiff, "Default mode has trace diff disabled");
         ASSERT_EQ(suite, static_cast<i32>(-1), opt.scriptIndex, "Default mode has no script index");
     }
 
@@ -56,9 +57,25 @@ static void testParseArgsModes(TestSuite& suite) {
         ASSERT_EQ(suite, RunMode::Script, opt.mode, "--trace before script should still run script mode");
         ASSERT_TRUE(suite, opt.traceFile != nullptr, "Trace path should be recorded");
         ASSERT_TRUE(suite, std::strcmp(opt.traceFile, "trace.jsonl") == 0, "Trace path should match");
+        ASSERT_TRUE(suite, !opt.traceDiff, "Plain trace should leave trace diff disabled");
         ASSERT_TRUE(suite, opt.scriptFile != nullptr, "Script path after trace should be recorded");
         ASSERT_TRUE(suite, std::strcmp(opt.scriptFile, "script.lua") == 0, "Script path after trace should match");
         ASSERT_EQ(suite, static_cast<i32>(3), opt.scriptIndex, "Script index after trace should be recorded");
+    }
+
+    {
+        char* argv[] = {const_cast<char*>("lua"), const_cast<char*>("--trace-diff"),
+                        const_cast<char*>("trace-diff.jsonl"), const_cast<char*>("script.lua")};
+        const AppOptions opt = parseArgs(4, argv);
+
+        ASSERT_EQ(suite, RunMode::Script, opt.mode, "--trace-diff before script should still run script mode");
+        ASSERT_TRUE(suite, opt.traceFile != nullptr, "Trace diff path should be recorded");
+        ASSERT_TRUE(suite, std::strcmp(opt.traceFile, "trace-diff.jsonl") == 0, "Trace diff path should match");
+        ASSERT_TRUE(suite, opt.traceDiff, "--trace-diff should enable trace diff mode");
+        ASSERT_TRUE(suite, opt.scriptFile != nullptr, "Script path after trace diff should be recorded");
+        ASSERT_TRUE(suite, std::strcmp(opt.scriptFile, "script.lua") == 0,
+                    "Script path after trace diff should match");
+        ASSERT_EQ(suite, static_cast<i32>(3), opt.scriptIndex, "Script index after trace diff should be recorded");
     }
 
     {

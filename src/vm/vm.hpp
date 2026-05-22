@@ -124,6 +124,16 @@ namespace VM {
      */
     ITraceSink* getTraceSink();
 
+    /**
+     * @brief 开关 trace 差异模式；开启后 instruction 事件包含 changedRegisters。
+     */
+    void setTraceDiffEnabled(bool enabled);
+
+    /**
+     * @brief 查询 trace 差异模式是否开启。
+     */
+    bool isTraceDiffEnabled();
+
 } // namespace VM
 
 } // namespace Lua
