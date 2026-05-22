@@ -28,6 +28,9 @@
     <ClCompile Include="src\compiler\codegen\codegen_stmt.cpp">
       <Filter>src\compiler\codegen</Filter>
     </ClCompile>
+    <ClCompile Include="src\compiler\codegen\expression_emitter.cpp">
+      <Filter>src\compiler\codegen</Filter>
+    </ClCompile>
     <ClCompile Include="src\compiler\codegen\jump_patcher.cpp">
       <Filter>src\compiler\codegen</Filter>
     </ClCompile>
@@ -250,6 +253,9 @@
       <Filter>src\compiler\codegen</Filter>
     </ClInclude>
     <ClInclude Include="src\compiler\codegen\codegen_types.hpp">
+      <Filter>src\compiler\codegen</Filter>
+    </ClInclude>
+    <ClInclude Include="src\compiler\codegen\expression_emitter.hpp">
       <Filter>src\compiler\codegen</Filter>
     </ClInclude>
     <ClInclude Include="src\compiler\codegen\jump_patcher.hpp">

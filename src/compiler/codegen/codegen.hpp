@@ -21,10 +21,10 @@
  */
 
 #include "compiler/ast.hpp"
-#include "compiler/ast_visitor.hpp"
 #include "compiler/opcode.hpp"
 #include "compiler/codegen/codegen_types.hpp"
 #include "compiler/codegen/codegen_state.hpp"
+#include "compiler/codegen/expression_emitter.hpp"
 #include "compiler/codegen/jump_patcher.hpp"
 #include "compiler/codegen/scope_manager.hpp"
 #include "common/lua_error.hpp"
@@ -47,9 +47,9 @@ class StringPool;
  * 
  * 负责将AST转换为字节码。
  */
-class CodeGenerator : private ExprVisitor<CodeGenerator, ValueResult> {
-    friend struct ExprVisitor<CodeGenerator, ValueResult>;
+class CodeGenerator {
     friend class ScopeManager;
+    friend class ExpressionEmitter;
 
 public:
     /**
@@ -183,21 +183,6 @@ private:
      */
     ValueResult emitValue(const Expr& e);
 
-    ValueResult visitNode(const NilExpr& e);
-    ValueResult visitNode(const BoolExpr& e);
-    ValueResult visitNode(const NumberExpr& e);
-    ValueResult visitNode(const StringExpr& e);
-    ValueResult visitNode(const VarargExpr& e);
-    ValueResult visitNode(const NameExpr& e);
-    ValueResult visitNode(const BinaryExpr& e);
-    ValueResult visitNode(const UnaryExpr& e);
-    ValueResult visitNode(const TableExpr& e);
-    ValueResult visitNode(const CallExpr& e);
-    ValueResult visitNode(const IndexExpr& e);
-    ValueResult visitNode(const MemberExpr& e);
-    ValueResult visitNode(const FunctionExpr& e);
-    ValueResult visitNode(const ParenExpr& e);
-
     /**
      * @brief 将 ValueResult 物化到指定寄存器
      */
@@ -226,12 +211,6 @@ private:
     // =====================================================================
     // 复合表达式原生通道（PR-6 Composite Expressions Cleanup）
     // =====================================================================
-
-    ValueResult emitValueBinary(const BinaryExpr& e);
-    ValueResult emitValueUnary(const UnaryExpr& e);
-    ValueResult emitValueTable(const TableExpr& e);
-    ValueResult emitValueIndex(const IndexExpr& e);
-    ValueResult emitValueMember(const MemberExpr& e);
 
     // =====================================================================
     // 调用/多返回值通道（PR-5 Call/Vararg/MultiRet pipeline）
@@ -345,6 +324,7 @@ private:
     CodegenState state_;
     JumpPatcher jumps_;
     ScopeManager scopes_;
+    ExpressionEmitter expressions_;
 };
 
 }  // namespace Lua

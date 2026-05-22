@@ -109,73 +109,11 @@ PatchList CodeGenerator::collectPatchList(i32 list) {
 
 
 PatchList CodeGenerator::emitComparisonJump(const BinaryExpr& e, bool jumpOnTrue) {
-    OpCode op = OpCode::EQ;
-    i32 cond = jumpOnTrue ? 1 : 0;
-    bool swapOperands = false;
-
-    switch (e.op) {
-        case BinaryExpr::Op::Eq:
-            op = OpCode::EQ;
-            cond = jumpOnTrue ? 1 : 0;
-            break;
-        case BinaryExpr::Op::Ne:
-            op = OpCode::EQ;
-            cond = jumpOnTrue ? 0 : 1;
-            break;
-        case BinaryExpr::Op::Lt:
-            op = OpCode::LT;
-            cond = jumpOnTrue ? 1 : 0;
-            break;
-        case BinaryExpr::Op::Le:
-            op = OpCode::LE;
-            cond = jumpOnTrue ? 1 : 0;
-            break;
-        case BinaryExpr::Op::Gt:
-            op = OpCode::LT;
-            cond = jumpOnTrue ? 1 : 0;
-            swapOperands = true;
-            break;
-        case BinaryExpr::Op::Ge:
-            op = OpCode::LE;
-            cond = jumpOnTrue ? 1 : 0;
-            swapOperands = true;
-            break;
-        default:
-            throw std::runtime_error("emitComparisonJump requires comparison operator");
-    }
-
-    ValueResult left = emitValue(*e.left);
-    ValueResult right = emitValue(*e.right);
-
-    if (swapOperands) {
-        std::swap(left, right);
-    }
-
-    i32 o1 = valueToRK(left);
-    i32 o2 = valueToRK(right);
-    freeReg(o1);
-    freeReg(o2);
-
-    codeABC(op, cond, o1, o2);
-
-    PatchList result;
-    result.append(jump());
-    return result;
+    return expressions_.emitComparisonJump(e, jumpOnTrue);
 }
 
 void CodeGenerator::materializeCondResult(const CondResult& cond, i32 reg, bool fallthroughOnTrue) {
-    if (fallthroughOnTrue) {
-        codeABC(OpCode::LOADBOOL, reg, 1, 1);
-        i32 falseLabel = getLabel();
-        patchList(cond.falseList, falseLabel);
-        codeABC(OpCode::LOADBOOL, reg, 0, 0);
-        return;
-    }
-
-    codeABC(OpCode::LOADBOOL, reg, 0, 1);
-    i32 trueLabel = getLabel();
-    patchList(cond.trueList, trueLabel);
-    codeABC(OpCode::LOADBOOL, reg, 1, 0);
+    expressions_.materializeCondResult(cond, reg, fallthroughOnTrue);
 }
 
 }  // namespace Lua

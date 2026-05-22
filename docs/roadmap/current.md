@@ -1,6 +1,6 @@
 ---
 status: current
-verified_against: docs/archive/research/deep-research-report.md; docs/status/project-status.md; docs/guides/development.md; docs/compiler/codegen-responsibility-map.md; CMakeLists.txt; lua.vcxproj; lua.vcxproj.filters; lua_test.vcxproj; lua_test.vcxproj.filters; src/compiler/parser/parser.cpp; src/compiler/parser/parser_stmt.cpp; src/compiler/parser/parser_expr.cpp; src/compiler/parser/parser_primary.cpp; src/compiler/parser/parser_func.cpp; src/compiler/parser/parser_table.cpp; src/compiler/codegen/codegen.hpp; src/compiler/codegen/codegen_jump.cpp; src/compiler/codegen/codegen_stmt.cpp; src/compiler/codegen/jump_patcher.hpp; src/compiler/codegen/jump_patcher.cpp; src/compiler/codegen/scope_manager.hpp; src/compiler/codegen/scope_manager.cpp; src/vm/vm.cpp; src/vm/vm_internal.hpp; src/vm/vm_switch_dispatch.hpp; tests/unit/compiler/test_codegen_characterization.cpp; tests/unit/compiler/test_jump_patcher.cpp; tests/unit/compiler/test_scope_manager.cpp; tests/unit/framework/test_runner.cpp; tests/unit/vm/test_runtime_services.cpp; tests/unit/vm/test_vm_dispatch.cpp; tools/run_cmake_smoke.ps1; tools/check_doc_drift.ps1; tools/run_quality_gate.ps1
+verified_against: docs/archive/research/deep-research-report.md; docs/status/project-status.md; docs/guides/development.md; docs/compiler/codegen-responsibility-map.md; CMakeLists.txt; lua.vcxproj; lua.vcxproj.filters; lua_test.vcxproj; lua_test.vcxproj.filters; src/compiler/parser/parser.cpp; src/compiler/parser/parser_stmt.cpp; src/compiler/parser/parser_expr.cpp; src/compiler/parser/parser_primary.cpp; src/compiler/parser/parser_func.cpp; src/compiler/parser/parser_table.cpp; src/compiler/codegen/codegen.hpp; src/compiler/codegen/codegen_expr.cpp; src/compiler/codegen/expression_emitter.hpp; src/compiler/codegen/expression_emitter.cpp; src/compiler/codegen/codegen_jump.cpp; src/compiler/codegen/codegen_stmt.cpp; src/compiler/codegen/jump_patcher.hpp; src/compiler/codegen/jump_patcher.cpp; src/compiler/codegen/scope_manager.hpp; src/compiler/codegen/scope_manager.cpp; src/vm/vm.cpp; src/vm/vm_internal.hpp; src/vm/vm_switch_dispatch.hpp; tests/unit/compiler/test_codegen_characterization.cpp; tests/unit/compiler/test_jump_patcher.cpp; tests/unit/compiler/test_scope_manager.cpp; tests/unit/compiler/test_expression_emitter.cpp; tests/unit/framework/test_runner.cpp; tests/unit/vm/test_runtime_services.cpp; tests/unit/vm/test_vm_dispatch.cpp; tools/run_cmake_smoke.ps1; tools/check_doc_drift.ps1; tools/run_quality_gate.ps1
 last_checked: 2026-05-22
 applies_to: 仓库优化路线图与下次续接检查清单
 ---
@@ -46,7 +46,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_quality_gate.ps1
 | 中 | EngineContext / RuntimeServices | 已完成 | 已引入显式 RuntimeServices，并迁移入口层、CodeGenerator、Parser/VM 兼容重载 |
 | 中 | 教学导航 | 已完成 | 已新增 `docs/index.md`、术语表和 examples，并扩展 walkthrough 索引 |
 | 低 | CMake + CTest | 已完成 | 已新增 secondary CMake/CTest 路径，不替代 VS/MSBuild 主路径 |
-| 长期 | 拆分 CodeGenerator / VM / Parser | 进行中 | 8A-8C CodeGenerator 边界已完成，8D-8G VM 入口、dispatch 分类、ops/call/剩余 helper 与 trace/debug 边界已完成；8H Parser 函数组审计与行为锁定、8I Parser 物理拆分执行已完成；PR-39 已完成 Switch dispatch 每 opcode inline helper；PR-40 已完成 VM expected 异常映射 helper；PR-41 已完成 CodeGenerator 职责地图与 characterization 测试；PR-42 已完成 JumpPatcher 抽取；PR-43 已完成 ScopeManager 抽取 |
+| 长期 | 拆分 CodeGenerator / VM / Parser | 进行中 | 8A-8C CodeGenerator 边界已完成，8D-8G VM 入口、dispatch 分类、ops/call/剩余 helper 与 trace/debug 边界已完成；8H Parser 函数组审计与行为锁定、8I Parser 物理拆分执行已完成；PR-39 已完成 Switch dispatch 每 opcode inline helper；PR-40 已完成 VM expected 异常映射 helper；PR-41 已完成 CodeGenerator 职责地图与 characterization 测试；PR-42 已完成 JumpPatcher 抽取；PR-43 已完成 ScopeManager 抽取；PR-44 已完成 ExpressionEmitter 抽取 |
 
 ## 已完成优化
 
@@ -124,7 +124,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_quality_gate.ps1
 
 - 质量门禁配置自检通过。
 - 文档漂移检查通过。
-- 本机有 MSBuild 和 `bin\lua_test.exe` 时，`run_quality_gate.ps1` 会构建 `lua_test.vcxproj`，并运行 508 个注册测试 / 2480 个结果 / 0 失败。
+- 本机有 MSBuild 和 `bin\lua_test.exe` 时，`run_quality_gate.ps1` 会构建 `lua_test.vcxproj`，并运行 510 个注册测试 / 2490 个结果 / 0 失败。
 
 ### 3A. 共享文件读取
 
@@ -1077,6 +1077,54 @@ bin\lua_test.exe
 - `Symbol Binding` 过滤测试运行 24 个注册测试 / 49 个结果 / 0 失败。
 - `Codegen Conditions` 过滤测试运行 4 个注册测试 / 12 个结果 / 0 失败。
 - 默认 `bin\lua_test.exe` 运行 508 个注册测试 / 2480 个结果 / 0 失败。
+
+## 已完成任务：CodeGenerator ExpressionEmitter 抽取
+
+### PR-44 / 2.5.1-d：抽取 `ExpressionEmitter`
+
+**目标：** 按 `docs/roadmap/optimization_and_refactoring.md` 的 2.5.1-d 规划，把 `CodeGenerator` 中 `ValueResult` / `CondResult` / `CallResultInfo` / `LValueRef` 表达式通道移入 `ExpressionEmitter`，让 statement 层继续通过 `CodeGenerator` 的稳定包装调用。
+
+已完成：
+
+- [x] 新增 `src/compiler/codegen/expression_emitter.hpp` 和 `src/compiler/codegen/expression_emitter.cpp`，集中 `emitValue()`、`emitCondResult()`、`emitComparisonJump()`、`materializeCondResult()`、`emitCallExpr()`、`emitVarargExpr()`、`emitLValue()` 和 `emitStore()`。
+- [x] 更新 `CodeGenerator`，移除自身 AST expression visitor 继承，保留 `emitValue()` / `emitCondResult()` / `emitCallExpr()` / `emitLValue()` 等薄包装。
+- [x] 新增 `tests/unit/compiler/test_expression_emitter.cpp`，直接覆盖 `ExpressionEmitter` public boundary、返回类型契约和 immediate literal lowering。
+- [x] 将新增生产源文件加入 `CMakeLists.txt`、`lua.vcxproj`、`lua.vcxproj.filters`；将新增测试加入 `CMakeLists.txt`、`lua_test.vcxproj`、`lua_test.vcxproj.filters` 和 `test_runner.cpp`。
+- [x] 同步更新 README、`docs/status/project-status.md`、`docs/compiler/bytecode-generation.md`、`docs/compiler/codegen-responsibility-map.md`、`docs/roadmap/optimization_and_refactoring.md` 和 `tools/check_doc_drift.ps1`。
+
+TDD 记录：
+
+- 先新增 `Expression Emitter` 测试并接入项目清单；MSBuild 失败于缺失 `compiler/codegen/expression_emitter.hpp`。
+- 实现迁移后构建暴露一处测试宏使用问题：`ASSERT_TRUE` 宏会把 `std::is_same_v<A, B>` 中的逗号当作参数分隔。将类型判断先保存为 `constexpr bool` 后恢复编译。
+- 第二次构建暴露一处迁移遗漏：`emitComparisonJump()` / `materializeCondResult()` 已被 `CodeGenerator` 委托但尚未搬到 `ExpressionEmitter`。补齐后构建和表达式专项通过。
+
+已使用的验证命令：
+
+```powershell
+D:\VS2026\MSBuild\Current\Bin\MSBuild.exe lua_test.vcxproj /p:Configuration=Debug /p:Platform=x64 /m /nologo /v:minimal
+bin\lua_test.exe --filter "Expression Emitter"
+bin\lua_test.exe --filter "ValueResult Pipeline"
+bin\lua_test.exe --filter "Codegen Conditions"
+bin\lua_test.exe --filter "LValue Pipeline"
+bin\lua_test.exe --filter "Call Pipeline"
+bin\lua_test.exe --filter "Codegen MultiRet"
+bin\lua_test.exe --filter "Symbol Binding"
+bin\lua_test.exe --filter "Codegen Characterization"
+bin\lua_test.exe
+```
+
+验收结果：
+
+- MSBuild `lua_test.vcxproj` 通过。
+- `Expression Emitter` 过滤测试运行 2 个注册测试 / 10 个结果 / 0 失败。
+- `ValueResult Pipeline` 过滤测试运行 22 个注册测试 / 26 个结果 / 0 失败。
+- `Codegen Conditions` 过滤测试运行 4 个注册测试 / 12 个结果 / 0 失败。
+- `LValue Pipeline` 过滤测试运行 17 个注册测试 / 17 个结果 / 0 失败。
+- `Call Pipeline` 过滤测试运行 18 个注册测试 / 21 个结果 / 0 失败。
+- `Codegen MultiRet` 过滤测试运行 3 个注册测试 / 3 个结果 / 0 失败。
+- `Symbol Binding` 过滤测试运行 24 个注册测试 / 49 个结果 / 0 失败。
+- `Codegen Characterization` 过滤测试运行 3 个注册测试 / 20 个结果 / 0 失败。
+- 默认 `bin\lua_test.exe` 运行 510 个注册测试 / 2490 个结果 / 0 失败。
 
 ## 维护规则
 
