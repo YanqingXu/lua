@@ -190,6 +190,7 @@
     <ClInclude Include="src\vm\vm_handlers\vm_handler_utils.hpp" />
     <ClInclude Include="src\vm\vm.hpp" />
     <ClInclude Include="src\vm\vm_internal.hpp" />
+    <ClInclude Include="src\vm\vm_switch_dispatch.hpp" />
     <ClInclude Include="src\vm\vm_constants.hpp" />
     <ClInclude Include="src\debug\trace_types.hpp" />
     <ClInclude Include="src\debug\trace_sink.hpp" />

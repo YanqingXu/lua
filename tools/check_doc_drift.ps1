@@ -130,9 +130,17 @@ foreach ($required in @("CMakeLists.txt", "tools\run_cmake_smoke.ps1", "CMake", 
 }
 
 $statusDoc = Read-Text "docs/status/project-status.md"
-foreach ($required in @("Visual Studio", "MSBuild", ".vcxproj", "CMake", "CTest", "secondary", "CMakeLists.txt", "tools/run_cmake_smoke.ps1", "452", "1987", "--report=junit", "RuntimeServices", "Learning Path", "lua_bytecode", "stub")) {
-    if ($statusDoc -notmatch [regex]::Escape($required)) {
+$statusDocPath = Join-RepoPath "docs/status/project-status.md"
+foreach ($required in @("Visual Studio", "MSBuild", ".vcxproj", "CMake", "CTest", "secondary", "CMakeLists.txt", "tools/run_cmake_smoke.ps1", "496", "2423", "--report=junit", "RuntimeServices", "Learning Path", "lua_bytecode", "decoded instructions", "constant table")) {
+    if (-not (Select-String -LiteralPath $statusDocPath -SimpleMatch -Pattern $required -Quiet)) {
         Add-Failure $failures "docs/status/project-status.md is missing required fact: $required"
+    }
+}
+
+$runtimeServicesDoc = Read-Text "docs/architecture/runtime-services.md"
+foreach ($required in @("GlobalState& globalState", "StringPool& strings", "GarbageCollector& gc", "VM::DispatchStrategy* dispatchStrategy")) {
+    if ($runtimeServicesDoc -notmatch [regex]::Escape($required)) {
+        Add-Failure $failures "docs/architecture/runtime-services.md is missing RuntimeServices field: $required"
     }
 }
 
@@ -161,6 +169,13 @@ $bytecodeDoc = Read-Text "docs/compiler/bytecode-generation.md"
 foreach ($required in @("AST", "SymbolRef", "ValueResult", "CondResult", "LValueRef", "CallResultInfo", "Proto", "BytecodeBuilder")) {
     if ($bytecodeDoc -notmatch [regex]::Escape($required)) {
         Add-Failure $failures "docs/compiler/bytecode-generation.md is missing current pipeline term: $required"
+    }
+}
+
+$bytecodeToolDoc = Read-Text "docs/guides/bytecode-tool.md"
+foreach ($required in @("decoded instructions", "constant references", "constant table", "recursive child Proto output is still pending")) {
+    if ($bytecodeToolDoc -notmatch [regex]::Escape($required)) {
+        Add-Failure $failures "docs/guides/bytecode-tool.md is missing current bytecode printer fact: $required"
     }
 }
 

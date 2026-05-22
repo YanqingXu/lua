@@ -15,10 +15,12 @@
 #include "vm/vm_dispatch.hpp"
 #include "vm/vm_dispatch_strategy.hpp"
 #include "vm/vm_handlers.hpp"
+#include "vm/vm_switch_dispatch.hpp"
 #include "vm/vm.hpp"
 
 #include <array>
 #include <string>
+#include <utility>
 
 using namespace Lua;
 using namespace LuaTest;
@@ -214,6 +216,58 @@ void testTableDispatchExecutesCompiledChunk(TestSuite& suite) {
 
     delete L;
     services.gc.clearAll();
+}
+
+void testSwitchDispatchHelpersCoverOpcodeSpace(TestSuite& suite) {
+    using SwitchOpHandler = VM::detail::SwitchOpHandler;
+
+    const std::array<std::pair<OpCode, SwitchOpHandler>, static_cast<usize>(NUM_OPCODES)> expected = {{
+        {OpCode::MOVE, VM::detail::execOpMove},
+        {OpCode::LOADK, VM::detail::execOpLoadK},
+        {OpCode::LOADBOOL, VM::detail::execOpLoadBool},
+        {OpCode::LOADNIL, VM::detail::execOpLoadNil},
+        {OpCode::GETGLOBAL, VM::detail::execOpGetGlobal},
+        {OpCode::SETGLOBAL, VM::detail::execOpSetGlobal},
+        {OpCode::GETUPVAL, VM::detail::execOpGetUpval},
+        {OpCode::SETUPVAL, VM::detail::execOpSetUpval},
+        {OpCode::GETTABLE, VM::detail::execOpGetTable},
+        {OpCode::SETTABLE, VM::detail::execOpSetTable},
+        {OpCode::NEWTABLE, VM::detail::execOpNewTable},
+        {OpCode::SELF, VM::detail::execOpSelf},
+        {OpCode::ADD, VM::detail::execOpAdd},
+        {OpCode::SUB, VM::detail::execOpSub},
+        {OpCode::MUL, VM::detail::execOpMul},
+        {OpCode::DIV, VM::detail::execOpDiv},
+        {OpCode::MOD, VM::detail::execOpMod},
+        {OpCode::POW, VM::detail::execOpPow},
+        {OpCode::UNM, VM::detail::execOpUnm},
+        {OpCode::NOT, VM::detail::execOpNot},
+        {OpCode::LEN, VM::detail::execOpLen},
+        {OpCode::CONCAT, VM::detail::execOpConcat},
+        {OpCode::JMP, VM::detail::execOpJmp},
+        {OpCode::EQ, VM::detail::execOpEq},
+        {OpCode::LT, VM::detail::execOpLt},
+        {OpCode::LE, VM::detail::execOpLe},
+        {OpCode::TEST, VM::detail::execOpTest},
+        {OpCode::TESTSET, VM::detail::execOpTestSet},
+        {OpCode::CALL, VM::detail::execOpCall},
+        {OpCode::TAILCALL, VM::detail::execOpTailCall},
+        {OpCode::RETURN, VM::detail::execOpReturn},
+        {OpCode::FORLOOP, VM::detail::execOpForLoop},
+        {OpCode::FORPREP, VM::detail::execOpForPrep},
+        {OpCode::TFORLOOP, VM::detail::execOpTForLoop},
+        {OpCode::SETLIST, VM::detail::execOpSetList},
+        {OpCode::CLOSE, VM::detail::execOpClose},
+        {OpCode::CLOSURE, VM::detail::execOpClosure},
+        {OpCode::VARARG, VM::detail::execOpVararg},
+    }};
+
+    for (usize i = 0; i < expected.size(); ++i) {
+        const OpCode opcode = expected[i].first;
+        ASSERT_TRUE(suite, expected[i].second != nullptr, "switch helper should be callable");
+        ASSERT_TRUE(suite, VM::detail::switchHandlerFor(opcode) == expected[i].second,
+                    "switch handler lookup should return the opcode-specific helper");
+    }
 }
 
 void testHandlerTableCoversOpcodeSpace(TestSuite& suite) {
@@ -1128,6 +1182,8 @@ void registerVMDispatchTests() {
                           testTableDispatchStrategyIsAvailable);
     registry.registerTest(kSuiteName, "Table Dispatch Executes Compiled Chunk",
                           testTableDispatchExecutesCompiledChunk);
+    registry.registerTest(kSuiteName, "Switch Dispatch Helpers Cover Opcode Space",
+                          testSwitchDispatchHelpersCoverOpcodeSpace);
     registry.registerTest(kSuiteName, "Handler Table Covers Opcode Space", testHandlerTableCoversOpcodeSpace);
     registry.registerTest(kSuiteName, "Handlers Cover Migrated Opcodes",
                           testHandlersCoverMigratedOpcodes);

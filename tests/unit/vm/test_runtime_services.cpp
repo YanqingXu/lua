@@ -10,9 +10,12 @@
 #include "core/function.hpp"
 #include "runtime/runtime_services.hpp"
 #include "vm/state/lua_state.hpp"
+#include "vm/vm_internal.hpp"
 #include "vm/vm.hpp"
 
 #include <expected>
+#include <new>
+#include <stdexcept>
 #include <string>
 #include <type_traits>
 #include <utility>
@@ -157,6 +160,53 @@ void testVmTryExecuteProtoReturnsRuntimeErrorOnFailure(TestSuite& suite) {
     delete L;
 }
 
+void testRuntimeErrorCaptureHelperMapsExpectedBoundary(TestSuite& suite) {
+    auto successful = VM::detail::captureRuntimeErrors<i32>([] {
+        return 42;
+    });
+    ASSERT_TRUE(suite, successful.has_value(), "runtime capture should return successful values");
+    if (successful) {
+        ASSERT_EQ(suite, 42, *successful, "runtime capture should preserve successful values");
+    }
+
+    auto runtimeFailure = VM::detail::captureRuntimeErrors<i32>([]() -> i32 {
+        throw RuntimeError("runtime boundary");
+    });
+    ASSERT_TRUE(suite, !runtimeFailure.has_value(), "runtime capture should map RuntimeError to unexpected");
+    if (!runtimeFailure) {
+        ASSERT_TRUE(suite, std::string(runtimeFailure.error().what()).find("runtime boundary") != std::string::npos,
+                    "runtime capture should preserve RuntimeError messages");
+    }
+
+    auto luaFailure = VM::detail::captureRuntimeErrors<i32>([]() -> i32 {
+        throw LuaError("lua boundary");
+    });
+    ASSERT_TRUE(suite, !luaFailure.has_value(), "runtime capture should map LuaError to RuntimeError");
+    if (!luaFailure) {
+        ASSERT_TRUE(suite, std::string(luaFailure.error().what()).find("lua boundary") != std::string::npos,
+                    "runtime capture should preserve LuaError messages");
+    }
+
+    auto stdFailure = VM::detail::captureRuntimeErrors<i32>([]() -> i32 {
+        throw std::logic_error("standard boundary");
+    });
+    ASSERT_TRUE(suite, !stdFailure.has_value(), "runtime capture should map std::exception to RuntimeError");
+    if (!stdFailure) {
+        ASSERT_TRUE(suite, std::string(stdFailure.error().what()).find("standard boundary") != std::string::npos,
+                    "runtime capture should preserve std::exception messages");
+    }
+
+    bool rethrewBadAlloc = false;
+    try {
+        (void)VM::detail::captureRuntimeErrors<i32>([]() -> i32 {
+            throw std::bad_alloc();
+        });
+    } catch (const std::bad_alloc&) {
+        rethrewBadAlloc = true;
+    }
+    ASSERT_TRUE(suite, rethrewBadAlloc, "runtime capture should rethrow bad_alloc");
+}
+
 void testVmExecuteProtoKeepsThrowingForCompatibility(TestSuite& suite) {
     RuntimeServices services = RuntimeServices::fromSingletons();
     LuaState* L = LuaState::newState(services);
@@ -186,6 +236,8 @@ void registerRuntimeServicesTests() {
                           testVmTryExecuteProtoReturnsExecResultOnSuccess);
     registry.registerTest(kSuiteName, "tryExecuteProto returns RuntimeError on failure",
                           testVmTryExecuteProtoReturnsRuntimeErrorOnFailure);
+    registry.registerTest(kSuiteName, "Runtime error capture helper maps expected boundary",
+                          testRuntimeErrorCaptureHelperMapsExpectedBoundary);
     registry.registerTest(kSuiteName, "executeProto keeps throwing for compatibility",
                           testVmExecuteProtoKeepsThrowingForCompatibility);
 }

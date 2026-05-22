@@ -1,7 +1,7 @@
 ---
 status: current
 verified_against: docs/status/project-status.md; lua.slnx; lua.vcxproj; lua_app.vcxproj; lua_test.vcxproj; lua_bytecode.vcxproj; CMakeLists.txt; tools/run_cmake_smoke.ps1
-last_checked: 2026-05-19
+last_checked: 2026-05-22
 applies_to: repository overview and current build workflows
 ---
 
@@ -9,13 +9,13 @@ applies_to: repository overview and current build workflows
 
 > **从零开始用C++17/20/23实现Lua 5.1.5解释器**
 
-[![Tests](https://img.shields.io/badge/tests-1987%2F1987-brightgreen)]()
+[![Tests](https://img.shields.io/badge/tests-2423%2F2423-brightgreen)]()
 [![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen)]()
 [![C++](https://img.shields.io/badge/C%2B%2B-17%2F23-blue)]()
 [![Platform](https://img.shields.io/badge/platform-Windows-blue)]()
 [![Progress](https://img.shields.io/badge/progress-95%25-yellow)]()
 [![Code](https://img.shields.io/badge/code-19k%20lines-blue)]()
-[![Last Updated](https://img.shields.io/badge/updated-2026--05--19-blue)]()
+[![Last Updated](https://img.shields.io/badge/updated-2026--05--22-blue)]()
 
 ---
 
@@ -95,13 +95,13 @@ applies_to: repository overview and current build workflows
 | **包/模块库（Package Library）** | `src/lib/packagelib.hpp/cpp` | ~830 | require、module、package.loaded/preload/loaders/path/cpath/loadlib/seeall；module 复合名/环境语义与 C loader/all-in-one loader 已补齐 | ✅ 98% |
 | **库管理系统** | `src/lib/lib_manager.hpp/cpp` | 73 | 标准库注册和管理 | ✅ 100% |
 
-### 测试统计（2026-05-19更新）✅
+### 测试统计（2026-05-22 更新）✅
 
 ```
 测试框架：自定义轻量级测试框架（零外部依赖）
-注册测试：452个
-断言结果：1987个 ✅
-通过率：  100% (1987/1987)
+注册测试：496个
+断言结果：2423个 ✅
+通过率：  100% (2423/2423)
 失败测试：0个
 编译状态：Debug|x64 版本无警告，无链接冲突
 平台：    Windows + MSVC (Visual Studio 2026)
@@ -109,14 +109,14 @@ applies_to: repository overview and current build workflows
 
 补充验证：
 - `bin/build_test.bat`：通过
-- `bin/lua_test.exe`：452 个注册测试，1987 个结果，0 失败
+- `bin/lua_test.exe`：496 个注册测试，2423 个结果，0 失败
 - `bin/build_app.bat`：通过
 - `tests/lua/regressions/*.lua`：全部通过
 - `tests/lua/stdlib/test_collectgarbage*.lua` 与 `test_gcinfo*.lua`：全部通过，`collectgarbage("collect")` 可观察到内存下降
 
 ### 距离完整 Lua 5.1.5 仍缺失的功能
 
-> **兼容性审计记录（2026-05-19）**：已对 README、本地 `src/lib/` 标准库实现、`src/vm/` 指令执行逻辑、GC/元方法相关核心代码进行核对。`bin/lua_test.exe` 当前为 452 个注册测试、1987 个结果、0 失败；这说明项目内测试覆盖的路径稳定，但不等价于 Lua 5.1.5 官方语义已经达到 95% 兼容。
+> **兼容性审计记录（2026-05-22）**：已对 README、本地 `src/lib/` 标准库实现、`src/vm/` 指令执行逻辑、GC/元方法相关核心代码进行核对。`bin/lua_test.exe` 当前为 496 个注册测试、2423 个结果、0 失败；这说明项目内测试覆盖的路径稳定，但不等价于 Lua 5.1.5 官方语义已经达到 95% 兼容。
 
 > **最新补齐**：Lua 函数元方法调用链已打通，`callTMWithResult/callTM` 统一走 `VM::call`，C Closure 与 Lua Closure 共用同一调用入口；`getMetamethodByObject()` 已接入基础类型元表，string 类型已安装 `__index = string`；GC 已支持弱表 `__mode = "k"/"v"/"kv"` 清理和 userdata `__gc` 两阶段终结；尾调用优化已覆盖单值 `return f()` 的 `TAILCALL` 生成和 Lua 函数调用帧复用；泛型 `for` 已支持显式 iterator 三元组、函数/vararg 三值调整和 Lua 函数迭代器；string 库已补齐 `gsub` 表/函数替换、`string.dump` Proto/字节码序列化输出和含 `\0` 字符串的长度安全处理；`module()` 已补齐 `_PACKAGE`、复合模块名全局路径、调用方环境切换和 Lua option 函数调用语义；package 已补齐 `package.loadlib`、C loader 和 all-in-one C loader 动态加载边界。
 
@@ -893,7 +893,7 @@ openBaseLib(L);  // 注册所有函数到全局环境
 | `src/` | 解释器核心实现目录，日常代码修改的主战场 | ⭐⭐⭐ |
 | `src/main.cpp` | `lua_app.exe` 的入口文件 | ⭐⭐⭐ |
 | `src/bytecode/bytecode_main.cpp` | `lua_bytecode.exe` 的入口文件 | ⭐⭐ |
-| `src/bytecode/bytecode_printer.cpp` | 字节码打印工具的输出层；当前仍是 stub | ⭐ |
+| `src/bytecode/bytecode_printer.cpp` | 字节码打印工具的输出层；当前可打印 Proto 头信息、指令和常量表 | ⭐ |
 | `tests/unit/` | 单元测试目录，是验证 C++ 模块行为的第一入口 | ⭐⭐⭐ |
 | `tests/lua/` | Lua 脚本级样例与回归测试输入，现已按语法/功能分类整理 | ⭐⭐ |
 | `docs/architecture/overview.md` | 架构设计说明，适合先建立整体认识 | ⭐⭐⭐ |
@@ -1042,7 +1042,7 @@ tests/unit/
 └── vm/                         # VM Core、LuaState 初始化、函数调用
 ```
 
-当前测试入口会输出真实注册测试数和断言结果数；最近一次验证为 452 个注册测试、1987 个结果、0 失败。
+当前测试入口会输出真实注册测试数和断言结果数；最近一次验证为 496 个注册测试、2423 个结果、0 失败。
 
 ## 📊 技术栈和工具
 
@@ -1132,7 +1132,7 @@ bin\build_bytecode.bat
 | `lua.vcxproj` | 静态库（`lua.lib`） | 核心库，包含 Lexer、Parser、CodeGen、VM、GC 等所有产品源码，供其他子项目链接使用 |
 | `lua_app.vcxproj` | 可执行文件（`lua_app.exe`） | 解释器与 REPL 入口，支持脚本执行、默认 REPL、`-v`/`-h`/`-i` 和 `--trace` |
 | `lua_test.vcxproj` | 可执行文件（`lua_test.exe`） | 单元测试运行器，覆盖 compiler、core、gc、vm 等各模块的测试用例 |
-| `lua_bytecode.vcxproj` | 可执行文件（`lua_bytecode.exe`） | 字节码工具入口，当前可走通源码到 `Proto` 的编译链路；`bytecode_printer` 仍是 stub，尚不能输出完整指令清单 |
+| `lua_bytecode.vcxproj` | 可执行文件（`lua_bytecode.exe`） | 字节码工具入口，当前可走通源码到 `Proto` 的编译链路，并输出基础字节码清单；递归子 Proto、diff 和 CFG 仍待增强 |
 
 ### 使用建议
 

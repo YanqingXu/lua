@@ -1,7 +1,7 @@
 ---
 status: current
-verified_against: docs/archive/research/deep-research-report.md; docs/status/project-status.md; docs/guides/development.md; CMakeLists.txt; lua.vcxproj; lua.vcxproj.filters; src/compiler/parser/parser.cpp; src/compiler/parser/parser_stmt.cpp; src/compiler/parser/parser_expr.cpp; src/compiler/parser/parser_primary.cpp; src/compiler/parser/parser_func.cpp; src/compiler/parser/parser_table.cpp; tools/run_cmake_smoke.ps1; tools/check_doc_drift.ps1; tools/run_quality_gate.ps1
-last_checked: 2026-05-19
+verified_against: docs/archive/research/deep-research-report.md; docs/status/project-status.md; docs/guides/development.md; CMakeLists.txt; lua.vcxproj; lua.vcxproj.filters; src/compiler/parser/parser.cpp; src/compiler/parser/parser_stmt.cpp; src/compiler/parser/parser_expr.cpp; src/compiler/parser/parser_primary.cpp; src/compiler/parser/parser_func.cpp; src/compiler/parser/parser_table.cpp; src/vm/vm.cpp; src/vm/vm_internal.hpp; src/vm/vm_switch_dispatch.hpp; tests/unit/vm/test_runtime_services.cpp; tests/unit/vm/test_vm_dispatch.cpp; tools/run_cmake_smoke.ps1; tools/check_doc_drift.ps1; tools/run_quality_gate.ps1
+last_checked: 2026-05-22
 applies_to: 仓库优化路线图与下次续接检查清单
 ---
 
@@ -46,7 +46,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_quality_gate.ps1
 | 中 | EngineContext / RuntimeServices | 已完成 | 已引入显式 RuntimeServices，并迁移入口层、CodeGenerator、Parser/VM 兼容重载 |
 | 中 | 教学导航 | 已完成 | 已新增 `docs/index.md`、术语表和 examples，并扩展 walkthrough 索引 |
 | 低 | CMake + CTest | 已完成 | 已新增 secondary CMake/CTest 路径，不替代 VS/MSBuild 主路径 |
-| 长期 | 拆分 CodeGenerator / VM / Parser | 进行中 | 8A-8C CodeGenerator 边界已完成，8D-8G VM 入口、dispatch 分类、ops/call/剩余 helper 与 trace/debug 边界已完成；8H Parser 函数组审计与行为锁定、8I Parser 物理拆分执行已完成 |
+| 长期 | 拆分 CodeGenerator / VM / Parser | 进行中 | 8A-8C CodeGenerator 边界已完成，8D-8G VM 入口、dispatch 分类、ops/call/剩余 helper 与 trace/debug 边界已完成；8H Parser 函数组审计与行为锁定、8I Parser 物理拆分执行已完成；PR-39 已完成 Switch dispatch 每 opcode inline helper；PR-40 已完成 VM expected 异常映射 helper |
 
 ## 已完成优化
 
@@ -124,7 +124,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_quality_gate.ps1
 
 - 质量门禁配置自检通过。
 - 文档漂移检查通过。
-- 本机有 MSBuild 和 `bin\lua_test.exe` 时，`run_quality_gate.ps1` 会构建 `lua_test.vcxproj`，并运行 452 个注册测试 / 1987 个结果 / 0 失败。
+- 本机有 MSBuild 和 `bin\lua_test.exe` 时，`run_quality_gate.ps1` 会构建 `lua_test.vcxproj`，并运行 496 个注册测试 / 2423 个结果 / 0 失败。
 
 ### 3A. 共享文件读取
 
@@ -870,7 +870,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\test_quality_gate.ps1
 
 - `Parser Boundary Sentinels` 运行 4 个注册测试 / 54 个结果 / 0 失败。
 - `Parser` 过滤测试运行 17 个注册测试 / 97 个结果 / 0 失败。
-- 默认 `bin\lua_test.exe` 运行 452 个注册测试 / 1987 个结果 / 0 失败。
+- 默认 `bin\lua_test.exe` 运行 496 个注册测试 / 2423 个结果 / 0 失败。
 - 新增测试只锁定当前 Parser 行为，没有修改 `src/compiler/parser/parser.*` 产品实现。
 
 ## 已完成任务：Parser 物理拆分执行
@@ -907,9 +907,66 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_cmake_smoke.ps1
 - MSBuild `lua_test.vcxproj` 输出 0 警告 / 0 错误。
 - `Parser Boundary Sentinels` 运行 4 个注册测试 / 54 个结果 / 0 失败。
 - `Parser` 过滤测试运行 17 个注册测试 / 97 个结果 / 0 失败。
-- 默认 `bin\lua_test.exe` 运行 452 个注册测试 / 1987 个结果 / 0 失败。
+- 默认 `bin\lua_test.exe` 运行 496 个注册测试 / 2423 个结果 / 0 失败。
 - `tools\check_doc_drift.ps1` 与 `tools\test_quality_gate.ps1` 通过。
 - `tools\run_cmake_smoke.ps1` 通过，CTest 5/5。
+
+## 已完成任务：VM Switch dispatch 路径重构
+
+### PR-39 / 1.1.1：Switch dispatch 每 opcode 独立 inline 函数
+
+**目标：** 按 `docs/roadmap/optimization_and_refactoring.md` 的 1.1.1 规划，让 `SwitchDispatch` 不再把 38 个 opcode 汇入同一个 `runCurrentHandler()` lambda，而是在 switch case 中逐条调用 opcode-specific inline helper，增强调试单步体验，并与 `TableDispatch` 的 handler table 路径形成清晰对比。
+
+已完成：
+
+- [x] 新增 `src/vm/vm_switch_dispatch.hpp`，为 38 条 opcode 提供 `execOp*()` inline entry point，并提供 `switchHandlerFor()` 用于测试和覆盖检查。
+- [x] 更新 `src/vm/vm.cpp`，Switch dispatch 路径逐 case 调用 `VM::detail::execOp*()`，Table dispatch 仍直接走 `VM::runHandler()`。
+- [x] 移除 `vm.cpp` 中 switch 路径专用的 `runCurrentHandler()` lambda。
+- [x] 新增 `Switch Dispatch Helpers Cover Opcode Space` 测试，锁定 38 条 opcode 到 helper 的映射完整性。
+- [x] 将新增头文件加入 `lua.vcxproj` 与 `lua.vcxproj.filters`。
+- [x] 同步更新 README、`docs/status/project-status.md`、`docs/roadmap/optimization_and_refactoring.md` 和 `tools/check_doc_drift.ps1` 的测试计数。
+
+已使用的验证命令：
+
+```powershell
+D:\VS2026\MSBuild\Current\Bin\MSBuild.exe lua_test.vcxproj /p:Configuration=Debug /p:Platform=x64 /m /nologo /v:minimal
+bin\lua_test.exe --filter "VM Dispatch"
+bin\lua_test.exe
+```
+
+验收结果：
+
+- MSBuild `lua_test.vcxproj` 通过。
+- `VM Dispatch` 过滤测试运行 19 个注册测试 / 388 个结果 / 0 失败。
+- 默认 `bin\lua_test.exe` 运行 496 个注册测试 / 2423 个结果 / 0 失败。
+
+## 已完成任务：VM expected 异常映射边界收口
+
+### PR-40 / 1.3.1：提取 `tryExecuteProto` 异常映射 helper
+
+**目标：** 按 `docs/roadmap/optimization_and_refactoring.md` 的 1.3.1 规划，把 `VM::tryExecuteProto(RuntimeServices&, ...)` 中内联的异常到 `RuntimeError` 映射规则提取为可复用内部 helper，后续新增 `std::expected` 边界时不再复制 catch 链。
+
+已完成：
+
+- [x] 在 `src/vm/vm_internal.hpp` 新增 `VM::detail::mapExceptionToUnexpected()`。
+- [x] 在 `src/vm/vm_internal.hpp` 新增模板 helper `VM::detail::captureRuntimeErrors<T>()`，统一处理成功返回、`RuntimeError` / `LuaError` / `std::exception` 到 `std::unexpected<RuntimeError>` 的映射，并保持 `std::bad_alloc` 继续抛出。
+- [x] 更新 `src/vm/vm.cpp`，`tryExecuteProto(RuntimeServices&, ...)` 通过 `captureRuntimeErrors<ExecResult>()` 包裹 `executeProtoUnchecked()`。
+- [x] 新增 `Runtime error capture helper maps expected boundary` 测试，覆盖成功值、三类异常映射和 `std::bad_alloc` 重抛。
+- [x] 同步更新 README、`docs/status/project-status.md`、`docs/roadmap/optimization_and_refactoring.md` 和 `tools/check_doc_drift.ps1` 的测试计数。
+
+已使用的验证命令：
+
+```powershell
+D:\VS2026\MSBuild\Current\Bin\MSBuild.exe lua_test.vcxproj /p:Configuration=Debug /p:Platform=x64 /m /nologo /v:minimal
+bin\lua_test.exe --filter "Runtime Services"
+bin\lua_test.exe
+```
+
+验收结果：
+
+- MSBuild `lua_test.vcxproj` 通过。
+- `Runtime Services` 过滤测试运行 8 个注册测试 / 26 个结果 / 0 失败。
+- 默认 `bin\lua_test.exe` 运行 496 个注册测试 / 2423 个结果 / 0 失败。
 
 ## 维护规则
 

@@ -5,10 +5,16 @@
  * @brief Internal VM helpers shared by implementation slices.
  */
 
+#include "common/lua_error.hpp"
 #include "common/types.hpp"
 #include "compiler/opcode.hpp"
 #include "core/value.hpp"
 #include "runtime/runtime_services.hpp"
+
+#include <exception>
+#include <expected>
+#include <new>
+#include <utility>
 
 namespace Lua {
 
@@ -17,6 +23,25 @@ class Function;
 class Proto;
 
 namespace VM::detail {
+
+inline std::unexpected<RuntimeError> mapExceptionToUnexpected(const std::exception& error) {
+    return std::unexpected(RuntimeError(error.what()));
+}
+
+template <typename T, typename Fn>
+[[nodiscard]] std::expected<T, RuntimeError> captureRuntimeErrors(Fn&& fn) {
+    try {
+        return std::forward<Fn>(fn)();
+    } catch (const std::bad_alloc&) {
+        throw;
+    } catch (const RuntimeError& error) {
+        return mapExceptionToUnexpected(error);
+    } catch (const LuaError& error) {
+        return mapExceptionToUnexpected(error);
+    } catch (const std::exception& error) {
+        return mapExceptionToUnexpected(error);
+    }
+}
 
 void dispatchCallHook(LuaState* L);
 void dispatchReturnHook(LuaState* L);

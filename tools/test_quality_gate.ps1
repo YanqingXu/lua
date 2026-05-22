@@ -20,9 +20,8 @@ function Assert-FileContains {
         throw "Missing required quality gate file: $RelativePath"
     }
 
-    $text = Get-Content -LiteralPath $path -Raw
     foreach ($pattern in $Patterns) {
-        if ($text -notmatch $pattern) {
+        if (-not (Select-String -LiteralPath $path -Pattern $pattern -Quiet)) {
             throw "$RelativePath is missing required pattern: $pattern"
         }
     }

@@ -309,6 +309,9 @@
     <ClInclude Include="src\vm\vm_internal.hpp">
       <Filter>src\vm</Filter>
     </ClInclude>
+    <ClInclude Include="src\vm\vm_switch_dispatch.hpp">
+      <Filter>src\vm</Filter>
+    </ClInclude>
     <ClInclude Include="src\vm\state\lua_state.hpp">
       <Filter>src\vm\state</Filter>
     </ClInclude>
