@@ -1,7 +1,7 @@
 ---
 status: current
-verified_against: docs/roadmap/current.md; docs/index.md; docs/glossary.md; docs/walkthroughs/hello-world.md; docs/walkthroughs/closure-and-upvalue.md; examples/README.md; tests/unit/framework/test_runner.cpp; bin/lua_test.exe --list
-last_checked: 2026-05-22
+verified_against: docs/roadmap/current.md; docs/index.md; docs/glossary.md; docs/walkthroughs/hello-world.md; docs/walkthroughs/closure-and-upvalue.md; docs/walkthroughs/gc-cycle.md; examples/README.md; tests/unit/framework/test_runner.cpp; bin/lua_test.exe --list
+last_checked: 2026-05-23
 applies_to: test-based learning path for compiler, VM, runtime, and standard library behavior
 ---
 
@@ -42,7 +42,7 @@ bin\lua_test.exe --report=junit
 | 8 | 多返回值 | `Codegen MultiRet` / `Call Pipeline` | `tests/unit/compiler/test_codegen_multret.cpp`, `tests/unit/compiler/test_call_pipeline.cpp` | 函数调用、vararg、括号、表构造和返回语句中的多返回值规则 |
 | 9 | 函数编译与调用 | `Function Codegen` / `Function Call` | `docs/walkthroughs/closure-and-upvalue.md`, `tests/unit/compiler/test_function_codegen.cpp`, `tests/unit/vm/test_function_call.cpp` | 函数定义、闭包、递归、upvalue 生命周期和调用帧如何串起来 |
 | 10 | 元方法 | `Metamethod` | `tests/unit/metamethod/test_metamethod_arith.cpp`, `tests/unit/metamethod/test_metamethod_complete.cpp` | 算术、索引、调用等慢路径如何委托给元方法 |
-| 11 | GC 与 upvalue 生命周期 | `GC` | `tests/unit/gc/test_gc.cpp` | 根集、弱表、终结器和 upvalue 关闭语义 |
+| 11 | GC 与 upvalue 生命周期 | `GC` | `docs/walkthroughs/gc-cycle.md`, `tests/unit/gc/test_gc.cpp` | 根集、弱表、终结器和 upvalue 关闭语义 |
 | 12 | 协程 | `Coroutine Library` | `tests/unit/stdlib/test_coroutinelib.cpp` | `resume`/`yield`、状态切换、wrap 和多值传递 |
 | 13 | 标准库装配 | `Standard Library Catalog` / `Package Library` | `tests/unit/stdlib/test_lib_catalog.cpp`, `tests/unit/stdlib/test_packagelib.cpp` | 标准库默认加载顺序、`package.loaded` 缓存和 `require` 路径 |
 
@@ -58,6 +58,7 @@ bin\lua_test.exe --report=junit
 | 标准库如何统一装配 | `bin\lua_test.exe --filter "Standard Library Catalog"` | `src/lib/lib_catalog.hpp`, `src/lib/lib_manager.cpp`, `docs/stdlib/overview.md` |
 | `print("hello")` 如何走完整链路 | `bin\lua_test.exe --filter "VM Dispatch"` | `docs/walkthroughs/hello-world.md` |
 | `local function` 返回闭包后变量为什么还活着 | `bin\lua_test.exe --filter "Symbol Binding"` | `docs/walkthroughs/closure-and-upvalue.md` |
+| 弱表和 `__gc` 如何经过完整 GC 周期 | `bin\lua_test.exe --filter "GC"` | `docs/walkthroughs/gc-cycle.md`, `src/gc/garbage_collector.cpp`, `src/gc/gc_finalize.cpp`, `src/gc/gc_weak.cpp` |
 
 ## Example Pairings
 

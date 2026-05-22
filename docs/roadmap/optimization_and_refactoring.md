@@ -4,7 +4,7 @@
 > 设计目标：**可读性 > 可维护性 > 教育价值 > 性能**
 > 约束：保持 515 个注册测试 / 2531 个断言结果 / 0 失败，不破坏 `LuaState` / `VM` public API。
 > 最近审计：2026-05-21（深度审计报告，覆盖 Readability / Extensibility / Educational Value 三维度）
-> 最近同步：2026-05-23（PR-51：`--trace-diff` + `changedRegisters` 落地，并同步 CLI / Trace 文档）
+> 最近同步：2026-05-23（PR-52：`gc-cycle.md` walkthrough 落地，并同步教学索引）
 
 ---
 
@@ -14,7 +14,7 @@
 |---|---|---|---|
 | **可读性** | **A-** | CRTP+concept 编译期检查、`std::expected` 边界清晰、VM 主循环已精简为策略入口 + handler table | `ValueResult` 已有 variant prototype 但旧兼容字段仍待迁移、`CodeGenerator` 方法数 60+、部分命名继承 Lua C 缩写 |
 | **易扩展性** | **B+** | Visitor 模式添加新工具零摩擦、`DispatchStrategy` 可插拔、`HandlerTable` 按组注册 | GC/metatable 兼容 fallback 仍需收口、`lib_manager.hpp` 冗余声明、`CodeGenerator` 单体类 |
-| **教学价值** | **A-** | hello-world / closure-and-upvalue walkthrough 已覆盖端到端执行与闭包生命周期、管线结构清晰、glossary 降低认知负担、trace 系统层次分明且已有差异模式 | 缺 `gc-cycle` walkthrough、REPL `.ast` / `.gc` 待实现 |
+| **教学价值** | **A-** | hello-world / closure-and-upvalue / gc-cycle walkthrough 已覆盖端到端执行、闭包生命周期和完整 GC 周期，glossary 降低认知负担，trace 系统层次分明且已有差异模式 | REPL `.ast` / `.gc` 待实现 |
 
 各维度详细评估见本文档对应阶段的任务标注；已完成项以 ✓ 标记。
 
@@ -27,7 +27,7 @@
 | **阶段 1 — 短期代码清理** | 1–2 个迭代 | 删冗余、统一命名、收紧错误处理、文档与代码同步 | 否 | ~90% |
 | **阶段 2 — 中期模式重构** | 3–5 个迭代 | 引入访问者 / 策略 / 命令模式，VM dispatch 与 GC 抽象化 | 内部 API 调整、public 不变 | ~88% |
 | **阶段 3 — 现代 C++ 特性** | 穿插于 1 & 2 | `std::expected` / `concepts` / `std::format` / `[[nodiscard]]` | 部分 public 签名变更 | ~90% |
-| **阶段 4 — 教育价值增强** | 持续推进 | 自解释代码、字节码可视化、执行链路教学文档、REPL 体验、Trace 差异模式 | 否（增量增强） | ~65% |
+| **阶段 4 — 教育价值增强** | 持续推进 | 自解释代码、字节码可视化、执行链路教学文档、REPL 体验、Trace 差异模式 | 否（增量增强） | ~70% |
 | **阶段 5 — 工程实践** | 持续 | 测试覆盖、质量门、构建一致性、文档漂移检测 | 否 | ~75% |
 
 ---
@@ -333,7 +333,7 @@ using ValueResult = std::variant<
 
 1. **`hello-world.md`**：✓ **已完成**。从 `print("hello")` 走完 Lexer → Parser → AST → CodeGen → Bytecode → VM dispatch → C 函数调用 → I/O。典范级教学文档，含具体文件:行号引用、字节码输出、寄存器视角分析。
 2. **`closure-and-upvalue.md`**：✓ **已完成 — PR-50**。闭包从语法结构到 `OP_CLOSURE` / `OP_GETUPVAL` / `OP_SETUPVAL`，并追踪 Open/Closed Upvalue 状态转换。
-3. **`gc-cycle.md`**：构造一个含 weak table + `__gc` 的最小例子，逐步追踪 mark → finalizer prepare → sweep。**（待编写）**
+3. **`gc-cycle.md`**：✓ **已完成 — PR-52**。构造一个含 weak table + `__gc` 的最小例子，逐步追踪 mark → finalizer prepare → weak cleanup → sweep → finalizer run。
 
 每篇文章应同时引用源码 `:line` 锚点和 `lua_bytecode` 工具输出，做到"边看代码边看产物"。
 
@@ -440,12 +440,13 @@ using ValueResult = std::variant<
 | PR-49 | `CodegenState` 命名清理：`regs` / `locals` / `blocks` / `upvalues` 改为职责名，`nactvar` 收口为 `activeVarCount` | 1.2 |
 | PR-50 | `closure-and-upvalue.md` walkthrough，覆盖闭包捕获、`CLOSURE` 伪指令、`GETUPVAL` / `SETUPVAL` 和 open-to-closed upvalue 生命周期 | 4.3.2 |
 | PR-51 | `--trace-diff` + `changedRegisters`，CLI 增量开关、VM 指令后差异发射、JSONL schema 与测试覆盖 | 4.5.1 |
+| PR-52 | `gc-cycle.md` walkthrough，覆盖 weak table、userdata `__gc`、finalizer 复活、弱表清理和 sweep 顺序 | 4.3.3 |
 
 后续推荐顺序：
 
 | PR | 编号 | 任务 | 阶段 | 依赖 / 理由 |
 |---|---|---|---|---|
-| PR-52 | 4.3.3 | `gc-cycle.md` walkthrough | 4 | P3；Trace diff 已落地，继续补齐三篇核心执行链路文档的最后一篇 |
+| PR-53 | 4.5.2 | `TraceEvent` 统一 `funcName` 填充 | 4 | P3；Trace diff 已落地，继续提升 JSONL trace 的可读定位能力 |
 
 每个 PR 完成后跑：
 
