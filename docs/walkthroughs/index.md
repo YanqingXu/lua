@@ -1,7 +1,7 @@
 ---
 status: current
-verified_against: docs/roadmap/current.md; docs/index.md; docs/glossary.md; examples/README.md; tests/unit/framework/test_runner.cpp; bin/lua_test.exe --list
-last_checked: 2026-05-19
+verified_against: docs/roadmap/current.md; docs/index.md; docs/glossary.md; docs/walkthroughs/hello-world.md; docs/walkthroughs/closure-and-upvalue.md; examples/README.md; tests/unit/framework/test_runner.cpp; bin/lua_test.exe --list
+last_checked: 2026-05-22
 applies_to: test-based learning path for compiler, VM, runtime, and standard library behavior
 ---
 
@@ -40,7 +40,7 @@ bin\lua_test.exe --report=junit
 | 6 | 左值写入通道 | `LValue Pipeline` | `tests/unit/compiler/test_lvalue_pipeline.cpp` | local/global/table/upvalue 赋值如何降低为可写目标 |
 | 7 | 条件与短路 | `Codegen Conditions` | `tests/unit/compiler/test_codegen_conditions.cpp` | `and`、`or`、`not` 和条件上下文如何使用跳转列表避免错误物化 |
 | 8 | 多返回值 | `Codegen MultiRet` / `Call Pipeline` | `tests/unit/compiler/test_codegen_multret.cpp`, `tests/unit/compiler/test_call_pipeline.cpp` | 函数调用、vararg、括号、表构造和返回语句中的多返回值规则 |
-| 9 | 函数编译与调用 | `Function Codegen` / `Function Call` | `tests/unit/compiler/test_function_codegen.cpp`, `tests/unit/vm/test_function_call.cpp` | 函数定义、闭包、递归和调用帧如何串起来 |
+| 9 | 函数编译与调用 | `Function Codegen` / `Function Call` | `docs/walkthroughs/closure-and-upvalue.md`, `tests/unit/compiler/test_function_codegen.cpp`, `tests/unit/vm/test_function_call.cpp` | 函数定义、闭包、递归、upvalue 生命周期和调用帧如何串起来 |
 | 10 | 元方法 | `Metamethod` | `tests/unit/metamethod/test_metamethod_arith.cpp`, `tests/unit/metamethod/test_metamethod_complete.cpp` | 算术、索引、调用等慢路径如何委托给元方法 |
 | 11 | GC 与 upvalue 生命周期 | `GC` | `tests/unit/gc/test_gc.cpp` | 根集、弱表、终结器和 upvalue 关闭语义 |
 | 12 | 协程 | `Coroutine Library` | `tests/unit/stdlib/test_coroutinelib.cpp` | `resume`/`yield`、状态切换、wrap 和多值传递 |
@@ -51,11 +51,13 @@ bin\lua_test.exe --report=junit
 | 想理解 | 先运行 | 再读 |
 |---|---|---|
 | 名字如何绑定到 local/global/upvalue | `bin\lua_test.exe --filter "Symbol Binding"` | `src/compiler/codegen/codegen_binding.cpp`, `src/compiler/codegen/codegen.hpp` |
+| 闭包如何捕获并关闭 upvalue | `bin\lua_test.exe --filter "Function Codegen"` | `docs/walkthroughs/closure-and-upvalue.md`, `src/compiler/codegen/codegen_stmt.cpp`, `src/vm/vm_frame.cpp`, `src/vm/state/lua_state.cpp` |
 | 条件和短路如何避免错误物化 | `bin\lua_test.exe --filter "Codegen Conditions"` | `src/compiler/codegen/codegen_expr.cpp`, `src/compiler/codegen/codegen_jump.cpp`, `src/compiler/codegen/codegen_types.hpp` |
 | 多返回值为什么依赖调用位置 | `bin\lua_test.exe --filter "Call Pipeline"` | `src/compiler/codegen/codegen_types.hpp`, `src/compiler/codegen/expression_emitter.cpp`, `src/compiler/codegen/statement_emitter.cpp`, `src/vm/vm.cpp` |
 | RuntimeServices 当前解决了什么 | `bin\lua_test.exe --filter "Runtime Services"` | `src/runtime/runtime_services.hpp`, `src/main.cpp`, `src/repl.cpp` |
 | 标准库如何统一装配 | `bin\lua_test.exe --filter "Standard Library Catalog"` | `src/lib/lib_catalog.hpp`, `src/lib/lib_manager.cpp`, `docs/stdlib/overview.md` |
 | `print("hello")` 如何走完整链路 | `bin\lua_test.exe --filter "VM Dispatch"` | `docs/walkthroughs/hello-world.md` |
+| `local function` 返回闭包后变量为什么还活着 | `bin\lua_test.exe --filter "Symbol Binding"` | `docs/walkthroughs/closure-and-upvalue.md` |
 
 ## Example Pairings
 

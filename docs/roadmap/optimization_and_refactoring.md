@@ -14,7 +14,7 @@
 |---|---|---|---|
 | **可读性** | **A-** | CRTP+concept 编译期检查、`std::expected` 边界清晰、VM 主循环已精简为策略入口 + handler table | `ValueResult` 已有 variant prototype 但旧兼容字段仍待迁移、`CodeGenerator` 方法数 60+、部分命名继承 Lua C 缩写 |
 | **易扩展性** | **B+** | Visitor 模式添加新工具零摩擦、`DispatchStrategy` 可插拔、`HandlerTable` 按组注册 | GC/metatable 兼容 fallback 仍需收口、`lib_manager.hpp` 冗余声明、`CodeGenerator` 单体类 |
-| **教学价值** | **A-** | hello-world walkthrough 典范级、管线结构清晰、glossary 降低认知负担、trace 系统层次分明 | 缺 `closure-and-upvalue` / `gc-cycle` 两篇 walkthrough、REPL `.ast` / `.gc` 待实现、trace 无差异模式 |
+| **教学价值** | **A-** | hello-world / closure-and-upvalue walkthrough 已覆盖端到端执行与闭包生命周期、管线结构清晰、glossary 降低认知负担、trace 系统层次分明 | 缺 `gc-cycle` walkthrough、REPL `.ast` / `.gc` 待实现、trace 无差异模式 |
 
 各维度详细评估见本文档对应阶段的任务标注；已完成项以 ✓ 标记。
 
@@ -27,7 +27,7 @@
 | **阶段 1 — 短期代码清理** | 1–2 个迭代 | 删冗余、统一命名、收紧错误处理、文档与代码同步 | 否 | ~90% |
 | **阶段 2 — 中期模式重构** | 3–5 个迭代 | 引入访问者 / 策略 / 命令模式，VM dispatch 与 GC 抽象化 | 内部 API 调整、public 不变 | ~88% |
 | **阶段 3 — 现代 C++ 特性** | 穿插于 1 & 2 | `std::expected` / `concepts` / `std::format` / `[[nodiscard]]` | 部分 public 签名变更 | ~90% |
-| **阶段 4 — 教育价值增强** | 持续推进 | 自解释代码、字节码可视化、执行链路教学文档、REPL 体验、Trace 差异模式 | 否（增量增强） | ~55% |
+| **阶段 4 — 教育价值增强** | 持续推进 | 自解释代码、字节码可视化、执行链路教学文档、REPL 体验、Trace 差异模式 | 否（增量增强） | ~60% |
 | **阶段 5 — 工程实践** | 持续 | 测试覆盖、质量门、构建一致性、文档漂移检测 | 否 | ~75% |
 
 ---
@@ -332,7 +332,7 @@ using ValueResult = std::variant<
 在 `docs/walkthroughs/`（已存在目录）补三篇"端到端追踪"文章：
 
 1. **`hello-world.md`**：✓ **已完成**。从 `print("hello")` 走完 Lexer → Parser → AST → CodeGen → Bytecode → VM dispatch → C 函数调用 → I/O。典范级教学文档，含具体文件:行号引用、字节码输出、寄存器视角分析。
-2. **`closure-and-upvalue.md`**：闭包从语法结构到 `OP_CLOSURE` + `OP_GETUPVAL`，Open/Closed Upvalue 状态转换。**（待编写）**
+2. **`closure-and-upvalue.md`**：✓ **已完成 — PR-50**。闭包从语法结构到 `OP_CLOSURE` / `OP_GETUPVAL` / `OP_SETUPVAL`，并追踪 Open/Closed Upvalue 状态转换。
 3. **`gc-cycle.md`**：构造一个含 weak table + `__gc` 的最小例子，逐步追踪 mark → finalizer prepare → sweep。**（待编写）**
 
 每篇文章应同时引用源码 `:line` 锚点和 `lua_bytecode` 工具输出，做到"边看代码边看产物"。
@@ -438,12 +438,12 @@ using ValueResult = std::variant<
 | PR-47 | `check_doc_drift.ps1` 动态解析测试计数，移除脚本内测试总数字面量；CI / 本地质量门先构建测试入口再做漂移检查 | 5.2 |
 | PR-48 | `ValueResult` 兼容式 `std::variant` payload prototype，生产构造点改用工厂函数，并保留旧字段兼容读面 | 3.5.1 |
 | PR-49 | `CodegenState` 命名清理：`regs` / `locals` / `blocks` / `upvalues` 改为职责名，`nactvar` 收口为 `activeVarCount` | 1.2 |
+| PR-50 | `closure-and-upvalue.md` walkthrough，覆盖闭包捕获、`CLOSURE` 伪指令、`GETUPVAL` / `SETUPVAL` 和 open-to-closed upvalue 生命周期 | 4.3.2 |
 
 后续推荐顺序：
 
 | PR | 编号 | 任务 | 阶段 | 依赖 / 理由 |
 |---|---|---|---|---|
-| PR-50 | 4.3.2 | `closure-and-upvalue.md` walkthrough | 4 | P3；可复用 bytecode 基础输出 |
 | PR-51 | 4.5.1 | `--trace-diff` + `changedRegisters` | 4 | P3；适合在 VM dispatch 差异稳定后推进 |
 
 每个 PR 完成后跑：
