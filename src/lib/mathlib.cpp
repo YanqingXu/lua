@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file mathlib.cpp
  * @brief Lua数学库实现
  * 
@@ -14,7 +14,7 @@
 #include "lib/lib_manager.hpp"
 #include "core/gc_string.hpp"
 #include "core/table.hpp"
-#include "vm/global_state.hpp"
+#include "vm/state/global_state.hpp"
 #include <cmath>
 #include <algorithm>
 #include <limits>

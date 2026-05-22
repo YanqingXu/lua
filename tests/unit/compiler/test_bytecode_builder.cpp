@@ -4,7 +4,7 @@
  */
 
 #include "../framework/test_framework.hpp"
-#include "compiler/bytecode_builder.hpp"
+#include "compiler/codegen/bytecode_builder.hpp"
 #include "core/function.hpp"
 #include "core/gc_string.hpp"
 #include "core/string_pool.hpp"

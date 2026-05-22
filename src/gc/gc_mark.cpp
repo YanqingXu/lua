@@ -11,8 +11,8 @@
 #include "core/upvalue.hpp"
 #include "core/userdata.hpp"
 #include "core/value.hpp"
-#include "vm/global_state.hpp"
-#include "vm/lua_state.hpp"
+#include "vm/state/global_state.hpp"
+#include "vm/state/lua_state.hpp"
 #include <algorithm>
 
 namespace Lua {

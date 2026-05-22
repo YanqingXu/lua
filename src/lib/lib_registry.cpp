@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file lib_registry.cpp
  * @brief Lua函数注册工具实现
  * 
@@ -14,8 +14,8 @@
 #include "core/gc_string.hpp"
 #include "core/table.hpp"
 #include "core/value.hpp"
-#include "vm/global_state.hpp"
-#include "vm/lua_state.hpp"
+#include "vm/state/global_state.hpp"
+#include "vm/state/lua_state.hpp"
 
 namespace Lua {
 

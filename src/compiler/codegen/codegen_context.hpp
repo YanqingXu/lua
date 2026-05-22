@@ -1,7 +1,7 @@
-﻿#pragma once
+#pragma once
 
 #include "common/types.hpp"
-#include "compiler/codegen_types.hpp"
+#include "compiler/codegen/codegen_types.hpp"
 #include "compiler/register_allocator.hpp"
 #include <stdexcept>
 

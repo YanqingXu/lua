@@ -3,7 +3,7 @@
  * @brief CodeGenerator expression, condition, call, and lvalue lowering.
  */
 
-#include "compiler/codegen.hpp"
+#include "compiler/codegen/codegen.hpp"
 
 #include <stdexcept>
 #include <utility>

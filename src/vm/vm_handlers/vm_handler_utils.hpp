@@ -8,7 +8,7 @@
 #include "common/lua_error.hpp"
 #include "core/function.hpp"
 #include "core/value.hpp"
-#include "vm/lua_state.hpp"
+#include "vm/state/lua_state.hpp"
 #include "vm/vm_handlers.hpp"
 #include "vm/vm_internal.hpp"
 

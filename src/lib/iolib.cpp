@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file iolib.cpp
  * @brief Lua I/O库实现
  * 
@@ -17,7 +17,7 @@
 #include "core/table.hpp"
 #include "core/upvalue.hpp"
 #include "core/userdata.hpp"
-#include "vm/global_state.hpp"
+#include "vm/state/global_state.hpp"
 #include <cstdio>
 #include <cctype>
 #include <cstring>

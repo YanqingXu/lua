@@ -5,7 +5,7 @@
 #include "core/value.hpp"
 #include "lib/lib_catalog.hpp"
 #include "lib/lib_manager.hpp"
-#include "vm/lua_state.hpp"
+#include "vm/state/lua_state.hpp"
 
 #include <algorithm>
 #include <array>

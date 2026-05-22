@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file test_input_stream_file.cpp
  * @brief InputStream 类（文件模式）单元测试
  * 
@@ -13,7 +13,7 @@
 #include "../framework/test_framework.hpp"
 #include "common/types.hpp"
 #include "io/input_stream.hpp"
-#include "compiler/lexer.hpp"
+#include "compiler/parser/lexer.hpp"
 #include <fstream>
 #include <cstdio>  // std::remove
 

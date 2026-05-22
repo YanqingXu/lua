@@ -1,6 +1,6 @@
 ---
 status: current
-verified_against: README.md; lua.slnx; lua.vcxproj; lua_app.vcxproj; lua_test.vcxproj; lua_bytecode.vcxproj; CMakeLists.txt; tools/run_cmake_smoke.ps1; tests/unit/framework/test_runner.cpp; tests/unit/compiler/test_parser_boundaries.cpp; tests/unit/compiler/test_codegen_state.cpp; tests/unit/compiler/test_bytecode_builder.cpp; tests/unit/vm/test_vm_dispatch.cpp; tests/unit/vm/test_vm_internal_boundaries.cpp; tests/unit/vm/test_vm_trace_debug.cpp; docs/index.md; docs/glossary.md; docs/walkthroughs/index.md; examples/README.md; src/runtime/runtime_services.hpp; src/compiler/parser.hpp; src/compiler/parser.cpp; src/compiler/parser_stmt.cpp; src/compiler/parser_expr.cpp; src/compiler/parser_primary.cpp; src/compiler/parser_func.cpp; src/compiler/parser_table.cpp; src/compiler/codegen.cpp; src/compiler/codegen_binding.cpp; src/compiler/codegen_expr.cpp; src/compiler/codegen_jump.cpp; src/compiler/codegen_stmt.cpp; src/compiler/codegen_state.hpp; src/compiler/bytecode_builder.hpp; src/vm/vm.cpp; src/vm/vm_entry.cpp; src/vm/vm_dispatch.hpp; src/vm/vm_internal.hpp; src/vm/vm_ops.cpp; src/vm/vm_call.cpp; src/vm/vm_table.cpp; src/vm/vm_frame.cpp; src/vm/vm_loop.cpp; src/vm/vm_trace.cpp
+verified_against: README.md; lua.slnx; lua.vcxproj; lua_app.vcxproj; lua_test.vcxproj; lua_bytecode.vcxproj; CMakeLists.txt; tools/run_cmake_smoke.ps1; tests/unit/framework/test_runner.cpp; tests/unit/compiler/test_parser_boundaries.cpp; tests/unit/compiler/test_codegen_state.cpp; tests/unit/compiler/test_bytecode_builder.cpp; tests/unit/vm/test_vm_dispatch.cpp; tests/unit/vm/test_vm_internal_boundaries.cpp; tests/unit/vm/test_vm_trace_debug.cpp; docs/index.md; docs/glossary.md; docs/walkthroughs/index.md; examples/README.md; src/runtime/runtime_services.hpp; src/compiler/parser/parser.hpp; src/compiler/parser/parser.cpp; src/compiler/parser/parser_stmt.cpp; src/compiler/parser/parser_expr.cpp; src/compiler/parser/parser_primary.cpp; src/compiler/parser/parser_func.cpp; src/compiler/parser/parser_table.cpp; src/compiler/codegen/codegen.cpp; src/compiler/codegen/codegen_binding.cpp; src/compiler/codegen/codegen_expr.cpp; src/compiler/codegen/codegen_jump.cpp; src/compiler/codegen/codegen_stmt.cpp; src/compiler/codegen/codegen_state.hpp; src/compiler/codegen/bytecode_builder.hpp; src/vm/state/lua_state.hpp; src/vm/state/global_state.hpp; src/vm/state/stack.hpp; src/vm/state/call_info.hpp; src/vm/vm.cpp; src/vm/vm_entry.cpp; src/vm/vm_dispatch.hpp; src/vm/vm_internal.hpp; src/vm/vm_ops.cpp; src/vm/vm_call.cpp; src/vm/vm_table.cpp; src/vm/vm_frame.cpp; src/vm/vm_loop.cpp; src/vm/vm_trace.cpp
 last_checked: 2026-05-19
 applies_to: current repository facts and contributor-facing workflow
 ---
@@ -61,9 +61,9 @@ This file is the repository's single source of truth for externally visible proj
 ## Compiler Pipeline Status
 
 - `ExprDesc` and `ExprKind` have been removed from production compiler sources.
-- `CodeGenerator` keeps its public API in `src/compiler/codegen.hpp`, while its implementation is physically split across `codegen.cpp`, `codegen_binding.cpp`, `codegen_expr.cpp`, `codegen_jump.cpp`, and `codegen_stmt.cpp`.
-- `src/compiler/codegen_state.hpp` centralizes the mutable generation state shared by those implementation slices, including the current `Proto`, program counter, line number, register allocator, local scope, block manager, and upvalue context.
-- `src/compiler/bytecode_builder.hpp` centralizes bytecode emission writes to the current `Proto`, including instruction creation, line info, constants, sub-protos, instruction replacement, and local debug metadata.
+- `CodeGenerator` keeps its public API in `src/compiler/codegen/codegen.hpp`, while its implementation is physically split across `src/compiler/codegen/codegen.cpp`, `src/compiler/codegen/codegen_binding.cpp`, `src/compiler/codegen/codegen_expr.cpp`, `src/compiler/codegen/codegen_jump.cpp`, and `src/compiler/codegen/codegen_stmt.cpp`.
+- `src/compiler/codegen/codegen_state.hpp` centralizes the mutable generation state shared by those implementation slices, including the current `Proto`, program counter, line number, register allocator, local scope, block manager, and upvalue context.
+- `src/compiler/codegen/bytecode_builder.hpp` centralizes bytecode emission writes to the current `Proto`, including instruction creation, line info, constants, sub-protos, instruction replacement, and local debug metadata.
 - Current bytecode-generation documentation should explain this pipeline:
 
 ```text
@@ -86,9 +86,10 @@ The command above must return no matches for production compiler sources.
 
 - `src/runtime/runtime_services.hpp` defines `RuntimeServices` as the current explicit compatibility layer over `GlobalState`, `StringPool`, and `GarbageCollector`.
 - `CodeGenerator`, `Parser`, `LuaState`, and `VM` expose context-aware construction/execution overloads while retaining singleton-backed compatibility overloads.
-- `src/compiler/parser.cpp` now keeps Parser construction, token/error handling, synchronization, and the top-level parse entry, while `parser_stmt.cpp`, `parser_expr.cpp`, `parser_primary.cpp`, `parser_func.cpp`, and `parser_table.cpp` hold grammar production shards covered by `Parser Boundary Sentinels`.
+- `src/compiler/parser/parser.cpp` now keeps Parser construction, token/error handling, synchronization, and the top-level parse entry, while `src/compiler/parser/parser_stmt.cpp`, `src/compiler/parser/parser_expr.cpp`, `src/compiler/parser/parser_primary.cpp`, `src/compiler/parser/parser_func.cpp`, and `src/compiler/parser/parser_table.cpp` hold grammar production shards covered by `Parser Boundary Sentinels`.
 - `src/main.cpp`, `src/repl.cpp`, and `src/bytecode/bytecode_main.cpp` use `RuntimeServices` for the first compiler/VM entry-point slice.
 - `src/vm/vm_entry.cpp` now holds `VM::call()` and `VM::execute()` entry points, while `src/vm/vm.cpp` retains the main bytecode dispatch loop.
+- VM state and frame storage types live under `src/vm/state/`: `lua_state.*`, `global_state.*`, `stack.*`, and `call_info.hpp`.
 - `src/vm/vm_dispatch.hpp` classifies opcode families and metamethod-capable opcodes as the first VM dispatch split boundary.
 - `src/vm/vm_ops.cpp` contains table/metamethod, arithmetic, comparison, unary, length, and concat helpers; `src/vm/vm_call.cpp` contains precall, postcall, and tailcall frame reuse helpers.
 - `src/vm/vm_table.cpp`, `src/vm/vm_frame.cpp`, and `src/vm/vm_loop.cpp` contain SETLIST, closure/vararg, and TFORLOOP helpers.

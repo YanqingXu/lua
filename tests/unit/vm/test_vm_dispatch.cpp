@@ -4,14 +4,14 @@
  */
 
 #include "../framework/test_framework.hpp"
-#include "compiler/codegen.hpp"
-#include "compiler/parser.hpp"
+#include "compiler/codegen/codegen.hpp"
+#include "compiler/parser/parser.hpp"
 #include "core/function.hpp"
 #include "core/gc_string.hpp"
 #include "core/table.hpp"
 #include "core/upvalue.hpp"
 #include "runtime/runtime_services.hpp"
-#include "vm/lua_state.hpp"
+#include "vm/state/lua_state.hpp"
 #include "vm/vm_dispatch.hpp"
 #include "vm/vm_dispatch_strategy.hpp"
 #include "vm/vm_handlers.hpp"

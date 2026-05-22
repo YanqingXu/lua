@@ -7,9 +7,9 @@
 
 #include "compiler/opcode.hpp"
 #include "core/function.hpp"
-#include "vm/call_info.hpp"
-#include "vm/lua_state.hpp"
-#include "vm/stack.hpp"
+#include "vm/state/call_info.hpp"
+#include "vm/state/lua_state.hpp"
+#include "vm/state/stack.hpp"
 #include "vm/vm.hpp"
 
 #include <string>

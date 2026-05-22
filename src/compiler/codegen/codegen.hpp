@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 /**
  * @file codegen.hpp
@@ -23,8 +23,8 @@
 #include "compiler/ast.hpp"
 #include "compiler/ast_visitor.hpp"
 #include "compiler/opcode.hpp"
-#include "compiler/codegen_types.hpp"
-#include "compiler/codegen_state.hpp"
+#include "compiler/codegen/codegen_types.hpp"
+#include "compiler/codegen/codegen_state.hpp"
 #include "common/lua_error.hpp"
 #include "core/function.hpp"
 #include <expected>
@@ -37,7 +37,7 @@ namespace Lua {
 class GCString;
 class StringPool;
 
-// LocalVar / UpvalueCapture / BlockInfo 已迁移至 compiler/codegen_context.hpp
+// LocalVar / UpvalueCapture / BlockInfo 已迁移至 compiler/codegen/codegen_context.hpp
 // 同一命名空间 Lua 中无需额外 using 声明
 
 /**

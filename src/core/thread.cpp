@@ -1,17 +1,17 @@
-﻿/**
+/**
  * @file thread.cpp
  * @brief Lua Thread (协程) 实现
  */
 
 #include "core/thread.hpp"
-#include "vm/lua_state.hpp"
+#include "vm/state/lua_state.hpp"
 #include "vm/vm.hpp"
 #include "core/function.hpp"
 #include "core/value.hpp"
 #include "core/upvalue.hpp"
 #include "core/gc_string.hpp"
 #include "core/userdata.hpp"
-#include "vm/global_state.hpp"
+#include "vm/state/global_state.hpp"
 #include "gc/garbage_collector.hpp"
 #include "common/lua_error.hpp"
 

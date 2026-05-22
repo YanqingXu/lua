@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file test_lua_state_init.cpp
  * @brief LuaState初始化测试
  *
@@ -11,7 +11,7 @@
  */
 
 #include "test_framework.hpp"
-#include "vm/global_state.hpp"
+#include "vm/state/global_state.hpp"
 #include "core/string_pool.hpp"
 #include "core/metatable.hpp"
 #include "gc/garbage_collector.hpp"

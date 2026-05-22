@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file stack.cpp
  * @brief Lua栈管理实现
  * 
@@ -6,7 +6,7 @@
  * @date 2025-11-12
  */
 
-#include "vm/stack.hpp"
+#include "vm/state/stack.hpp"
 #include "common/lua_error.hpp"
 #include <algorithm>
 #include <stdexcept>

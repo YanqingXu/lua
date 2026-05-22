@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file test_metamethod_complete.cpp
  * @brief 完整的Lua元方法测试套件
  *
@@ -18,8 +18,8 @@
 #include "core/metatable.hpp"
 #include "core/table.hpp"
 #include "core/function.hpp"
-#include "vm/lua_state.hpp"
-#include "vm/global_state.hpp"
+#include "vm/state/lua_state.hpp"
+#include "vm/state/global_state.hpp"
 #include "vm/vm.hpp"
 #include <cmath>
 #include <string>

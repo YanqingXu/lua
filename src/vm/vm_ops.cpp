@@ -10,7 +10,7 @@
 #include "core/metatable.hpp"
 #include "core/table.hpp"
 #include "core/userdata.hpp"
-#include "vm/lua_state.hpp"
+#include "vm/state/lua_state.hpp"
 #include "vm/vm_constants.hpp"
 
 #include <cmath>

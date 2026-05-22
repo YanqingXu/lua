@@ -3,18 +3,63 @@
  * @brief CodeGenerator jump list and condition materialization helpers.
  */
 
-#include "compiler/codegen.hpp"
+#include "compiler/codegen/codegen.hpp"
 
 #include <stdexcept>
 #include <utility>
 
 namespace Lua {
 
+// =============================================================================
+// Jump backpatching model
+// =============================================================================
+//
+// 控制流生成时经常还不知道最终目标 PC：`if` 的出口、`break` 的出口、
+// `while` 的失败分支都只能先占一个 `JMP sBx = NO_JUMP`，等目标位置
+// 出现后再回填。这里同时保留两种表示：
+//
+// 1. 旧式 i32 jump list：把尚未回填的 `JMP` 当作单向链表节点。
+//    节点的 `sBx` 在未最终回填前暂存 nextPc - (pc + 1)，
+//    getjump() 解码回“下一条待回填 JMP 的 PC”；`NO_JUMP` 表示链表结束。
+//
+//        list head
+//            |
+//            v
+//        pc 12: JMP -> pc 20 -> pc 34 -> NO_JUMP
+//
+//    patchList(list, target) 回填时必须先读 next，再覆盖当前 `sBx`：
+//
+//        pc 12: JMP target
+//        pc 20: JMP target
+//        pc 34: JMP target
+//
+// 2. PatchList：显式保存 PC 列表，用于 CondResult 的 trueList/falseList。
+//    这比把布尔条件组合编码进隐式链表更直观，适合 `and` / `or` /
+//    `not` 的短路组合；最终仍然通过 fixjump(pc, target) 写回真实偏移。
+//
+// `state_.blocks.jpc_` 表示“已经决定跳到当前位置，但当前位置还没有发出
+// 实际指令”的延迟列表。下一条普通指令发出前会被 flushPendingJumps()
+// 回填到当前 instructionCount()；如果当前位置马上又发出一个新的 JMP，
+// jump() 会把 jpc_ 串到新 JMP 后面，让所有跳转最终直达同一个目标，
+// 避免生成“跳到一条跳转”的中间跳。
+//
+// Helper contracts:
+// - jump() drains jpc_ and links pending jumps behind the newly emitted JMP.
+// - patchtohere(i32) records an old-style list in jpc_ instead of patching
+//   immediately, so a following JMP can be folded into the same final target.
+// - concatJumpList() finds the old-style list tail and temporarily rewrites it
+//   to point at the appended list.
+// - condjump() lowers TESTSET with NO_REG to TEST because NO_REG is a sentinel,
+//   not a valid runtime register; the original B operand becomes TEST.A.
+// - getjump() and fixjump() both use the VM encoding `target = pc + 1 + sBx`;
+//   while unresolved, that target is the next list node, and after patching it
+//   is the real runtime destination.
+
 i32 CodeGenerator::jump() {
-    i32 jpc = state_.blocks.jpc_;  // 保存当前待处理跳转列表
-    state_.blocks.jpc_ = NO_JUMP;  // 清空state_.blocks.jpc_
-    i32 j = codeAsBx(OpCode::JMP, 0, NO_JUMP);  // 生成JMP指令
-    concatJumpList(j, jpc);  // 将jpc链表连接到j后面
+    i32 jpc = state_.blocks.jpc_;
+    state_.blocks.jpc_ = NO_JUMP;
+    i32 j = codeAsBx(OpCode::JMP, 0, NO_JUMP);
+    concatJumpList(j, jpc);
     return j;
 }
 
@@ -33,7 +78,6 @@ void CodeGenerator::patchList(const PatchList& list, i32 target) {
 }
 
 void CodeGenerator::flushPendingJumps() {
-    // 将所有待处理跳转修补到当前指令位置
     i32 target = state_.bytecode.instructionCount();
     patchList(state_.blocks.jpc_, target);
     state_.blocks.jpc_ = NO_JUMP;
@@ -42,6 +86,7 @@ void CodeGenerator::flushPendingJumps() {
 i32 CodeGenerator::getLabel() {
     return state_.bytecode.instructionCount();
 }
+
 void CodeGenerator::concatJumpList(i32& l1, i32 l2) {
     if (l2 == NO_JUMP) return;
     if (l1 == NO_JUMP) {
@@ -56,14 +101,8 @@ void CodeGenerator::concatJumpList(i32& l1, i32 l2) {
     }
 }
 
-// invertJump / jumponcond are no longer used
-
 i32 CodeGenerator::condjump(OpCode op, i32 a, i32 b, i32 c) {
-    // 当 TESTSET 的 A 参数为 NO_REG 时转换为 TEST：
-    // NO_REG(255) 是无效寄存器索引，直接使用会导致 VM 运行时错误
     if (op == OpCode::TESTSET && a == NO_REG) {
-        // 转换为TEST指令：TEST A B C
-        // TESTSET的B参数变为TEST的A参数（被测试的寄存器）
         op = OpCode::TEST;
         a = b;
         b = 0;
@@ -73,7 +112,7 @@ i32 CodeGenerator::condjump(OpCode op, i32 a, i32 b, i32 c) {
     i32 jpc = state_.blocks.jpc_;
     state_.blocks.jpc_ = NO_JUMP;
     i32 j = codeAsBx(OpCode::JMP, 0, NO_JUMP);
-    concatJumpList(j, jpc);  // ⭐ 将jpc链表连接到j后面
+    concatJumpList(j, jpc);
     return j;
 }
 
@@ -159,7 +198,6 @@ PatchList CodeGenerator::emitComparisonJump(const BinaryExpr& e, bool jumpOnTrue
             throw std::runtime_error("emitComparisonJump requires comparison operator");
     }
 
-    // PR-6: native ValueResult pipeline
     ValueResult left = emitValue(*e.left);
     ValueResult right = emitValue(*e.right);
 

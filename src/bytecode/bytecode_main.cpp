@@ -1,5 +1,5 @@
-#include "compiler/parser.hpp"
-#include "compiler/codegen.hpp"
+#include "compiler/parser/parser.hpp"
+#include "compiler/codegen/codegen.hpp"
 #include "bytecode_printer.hpp"
 #include "io/file_loader.hpp"
 #include "runtime/runtime_services.hpp"

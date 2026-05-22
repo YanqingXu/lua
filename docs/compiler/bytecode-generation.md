@@ -1,6 +1,6 @@
 ---
 status: current
-verified_against: docs/status/project-status.md; src/common/lua_error.hpp; src/compiler/codegen.hpp; src/compiler/codegen.cpp; src/compiler/codegen_binding.cpp; src/compiler/codegen_expr.cpp; src/compiler/codegen_jump.cpp; src/compiler/codegen_stmt.cpp; src/compiler/codegen_types.hpp; src/compiler/codegen_context.hpp; src/compiler/codegen_state.hpp; src/compiler/bytecode_builder.hpp; src/compiler/register_allocator.hpp; tests/unit/compiler/test_codegen_state.cpp
+verified_against: docs/status/project-status.md; src/common/lua_error.hpp; src/compiler/codegen/codegen.hpp; src/compiler/codegen/codegen.cpp; src/compiler/codegen/codegen_binding.cpp; src/compiler/codegen/codegen_expr.cpp; src/compiler/codegen/codegen_jump.cpp; src/compiler/codegen/codegen_stmt.cpp; src/compiler/codegen/codegen_types.hpp; src/compiler/codegen/codegen_context.hpp; src/compiler/codegen/codegen_state.hpp; src/compiler/codegen/bytecode_builder.hpp; src/compiler/register_allocator.hpp; tests/unit/compiler/test_codegen_state.cpp
 last_checked: 2026-05-21
 applies_to: current AST-to-Proto bytecode generator
 ---
@@ -27,15 +27,17 @@ source
 
 | 文件 | 当前职责 |
 |---|---|
-| `src/compiler/parser.hpp` + `parser*.cpp` | 将 token 流解析为 AST；实现按语句、表达式、函数、表构造等边界拆分 |
-| `src/compiler/codegen.hpp` + `codegen*.cpp` | 编译总控，遍历 AST 并生成 `Proto`；实现已按 binding / expr / jump / stmt 拆分 |
-| `src/compiler/codegen_types.hpp` | 编译管线结果类型：`SymbolRef`、`ValueResult`、`CondResult`、`LValueRef`、`CallResultInfo` |
-| `src/compiler/codegen_context.hpp` | 局部变量、upvalue、block 与跳转上下文 |
-| `src/compiler/codegen_state.hpp` | `CodeGenerator` 分片共享的当前 `Proto`、PC、行号、寄存器、上下文和 bytecode builder |
-| `src/compiler/bytecode_builder.hpp` | 当前 `Proto` 的指令、行号、常量、子原型和局部调试信息写入边界 |
+| `src/compiler/parser/parser.hpp` + `src/compiler/parser/parser*.cpp` | 将 token 流解析为 AST；实现按语句、表达式、函数、表构造等边界拆分 |
+| `src/compiler/codegen/codegen.hpp` + `src/compiler/codegen/codegen*.cpp` | 编译总控，遍历 AST 并生成 `Proto`；实现已按 binding / expr / jump / stmt 拆分 |
+| `src/compiler/codegen/codegen_types.hpp` | 编译管线结果类型：`SymbolRef`、`ValueResult`、`CondResult`、`LValueRef`、`CallResultInfo` |
+| `src/compiler/codegen/codegen_context.hpp` | 局部变量、upvalue、block 与跳转上下文 |
+| `src/compiler/codegen/codegen_state.hpp` | `CodeGenerator` 分片共享的当前 `Proto`、PC、行号、寄存器、上下文和 bytecode builder |
+| `src/compiler/codegen/bytecode_builder.hpp` | 当前 `Proto` 的指令、行号、常量、子原型和局部调试信息写入边界 |
 | `src/compiler/register_allocator.hpp` | 临时寄存器分配、回收与 `maxStackSize` 维护 |
 | `src/compiler/opcode.hpp/.cpp` | Lua 5.1 风格 VM 指令编码 |
 | `src/core/function.hpp/.cpp` | `Proto`、`Function`、closure 与 upvalue 容器 |
+
+`src/compiler/ast.hpp/.cpp` 保留在 compiler 根目录，因为 AST 是 parser 输出、codegen 输入的共享模型。`src/compiler/opcode.hpp/.cpp` 也保留在 compiler 根目录，因为它是 codegen、bytecode printer 和 VM 共同使用的字节码契约。
 
 ## 2. 生成结果：Proto
 
@@ -183,10 +185,10 @@ emitStore(target, value)
 
 ## 8. 阅读顺序
 
-1. `src/compiler/codegen_types.hpp`：先看五个结果类型。
+1. `src/compiler/codegen/codegen_types.hpp`：先看五个结果类型。
 2. `src/compiler/register_allocator.hpp`：理解寄存器分配。
-3. `src/compiler/codegen_context.hpp`：理解局部变量、upvalue 与 block。
-4. `src/compiler/codegen_state.hpp` 和 `src/compiler/bytecode_builder.hpp`：理解共享状态和 `Proto` 写入边界。
-5. `src/compiler/codegen.hpp`：看当前总控 API。
-6. `src/compiler/codegen_binding.cpp`、`codegen_expr.cpp`、`codegen_jump.cpp`、`codegen_stmt.cpp`：按 `resolve -> emitValue/emitCond/emitLValue -> emitStmt -> compileFunction` 的顺序读。
+3. `src/compiler/codegen/codegen_context.hpp`：理解局部变量、upvalue 与 block。
+4. `src/compiler/codegen/codegen_state.hpp` 和 `src/compiler/codegen/bytecode_builder.hpp`：理解共享状态和 `Proto` 写入边界。
+5. `src/compiler/codegen/codegen.hpp`：看当前总控 API。
+6. `src/compiler/codegen/codegen_binding.cpp`、`src/compiler/codegen/codegen_expr.cpp`、`src/compiler/codegen/codegen_jump.cpp`、`src/compiler/codegen/codegen_stmt.cpp`：按 `resolve -> emitValue/emitCond/emitLValue -> emitStmt -> compileFunction` 的顺序读。
 7. `tests/unit/compiler/test_*pipeline.cpp`：把测试当作可执行示例。

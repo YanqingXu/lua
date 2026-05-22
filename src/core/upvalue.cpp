@@ -1,10 +1,10 @@
-﻿/**
+/**
  * @file upvalue.cpp
  * @brief Upvalue类的实现（✅ 改进版 - 使用索引避免悬空指针）
  */
 
 #include "core/upvalue.hpp"
-#include "vm/stack.hpp"
+#include "vm/state/stack.hpp"
 #include "core/gc_string.hpp"
 #include "core/table.hpp"
 #include "core/function.hpp"

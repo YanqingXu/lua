@@ -4,6 +4,7 @@
 #include "core/gc_string.hpp"
 #include "core/value.hpp"
 
+#include <algorithm>
 #include <format>
 #include <ostream>
 #include <string>
@@ -99,6 +100,88 @@ void printComments(std::ostream& out, const std::vector<std::string>& comments) 
     }
 }
 
+void printProtoHeader(const Proto* f, std::ostream& out) {
+    out << "Proto" << '\n';
+    out << "  source: " << (f->getSource() ? f->getSource()->c_str() : "?") << '\n';
+    out << "  linedefined: " << f->getLineDefined() << '\n';
+    out << "  lastlinedefined: " << f->getLastLineDefined() << '\n';
+    out << "  numparams: " << static_cast<int>(f->getNumParams()) << '\n';
+    out << std::format("  is_vararg: {} (flags={})\n",
+                       f->isVararg() ? "true" : "false",
+                       static_cast<int>(f->getVarargFlags()));
+    out << "  maxStackSize: " << static_cast<int>(f->getMaxStackSize()) << '\n';
+
+    const usize upvalueCount =
+        std::max(static_cast<usize>(f->getNumUpvalues()), f->getUpvalueNameCount());
+    out << "  upvalues (" << upvalueCount << "): ";
+    if (upvalueCount == 0) {
+        out << "(none)";
+    } else {
+        for (usize i = 0; i < upvalueCount; ++i) {
+            if (i != 0) {
+                out << ", ";
+            }
+            GCString* name = f->getUpvalueName(i);
+            out << (name ? name->c_str() : "?");
+        }
+    }
+    out << '\n';
+}
+
+void printInstruction(const Proto* f, usize pc, Instruction inst, std::ostream& out) {
+    const OpCode op = GET_OPCODE(inst);
+    const OpcodeMetadata& metadata = opcodeMetadata(op);
+    std::vector<std::string> comments;
+
+    out << std::format("{:04} | line {} | {} | ", pc, f->getLine(pc), metadata.name);
+
+    switch (metadata.mode) {
+    case OpMode::iABC: {
+        const i32 a = GETARG_A(inst);
+        const i32 b = GETARG_B(inst);
+        const i32 c = GETARG_C(inst);
+        out << "A=" << a << " B=" << b << " C=" << c;
+        addRKComment(comments, f, "B", b, metadata.bMode);
+        addRKComment(comments, f, "C", c, metadata.cMode);
+        break;
+    }
+    case OpMode::iABx: {
+        const i32 a = GETARG_A(inst);
+        const i32 bx = GETARG_Bx(inst);
+        out << "A=" << a << " Bx=" << bx;
+        if (metadata.bMode == OpArgMask::OpArgK) {
+            comments.push_back(formatConstant(f, bx));
+        }
+        break;
+    }
+    case OpMode::iAsBx: {
+        const i32 a = GETARG_A(inst);
+        const i32 sbx = GETARG_sBx(inst);
+        out << "A=" << a << " sBx=" << sbx;
+        comments.push_back(std::format("target={}", static_cast<i32>(pc) + 1 + sbx));
+        break;
+    }
+    }
+
+    printComments(out, comments);
+    out << '\n';
+}
+
+void printInstructions(const Proto* f, std::ostream& out) {
+    const auto code = f->getInstructionSpan();
+    out << "instructions (" << code.size() << ")" << '\n';
+    for (usize pc = 0; pc < code.size(); ++pc) {
+        printInstruction(f, pc, code[pc], out);
+    }
+}
+
+void printConstants(const Proto* f, std::ostream& out) {
+    out << "constants (" << f->getConstantCount() << ")" << '\n';
+    for (usize i = 0; i < f->getConstantCount(); ++i) {
+        out << "  " << formatConstant(f, static_cast<i32>(i)) << '\n';
+    }
+}
+
 } // namespace
 
 void printProtoBytecode(const Proto* f, std::ostream& out, bool full) {
@@ -109,74 +192,9 @@ void printProtoBytecode(const Proto* f, std::ostream& out, bool full) {
         return;
     }
 
-    out << "Proto" << '\n';
-    out << "  source: " << (f->getSource() ? f->getSource()->c_str() : "?") << '\n';
-    out << "  linedefined: " << f->getLineDefined() << '\n';
-    out << "  lastlinedefined: " << f->getLastLineDefined() << '\n';
-    out << "  numparams: " << static_cast<int>(f->getNumParams()) << '\n';
-    out << "  is_vararg: " << (f->isVararg() ? "true" : "false") << '\n';
-    out << "  maxStackSize: " << static_cast<int>(f->getMaxStackSize()) << '\n';
-
-    out << "  upvalues (" << f->getUpvalueNameCount() << "): ";
-    if (f->getUpvalueNameCount() == 0) {
-        out << "(none)";
-    } else {
-        for (usize i = 0; i < f->getUpvalueNameCount(); ++i) {
-            if (i != 0) {
-                out << ", ";
-            }
-            GCString* name = f->getUpvalueName(i);
-            out << (name ? name->c_str() : "?");
-        }
-    }
-    out << '\n';
-
-    out << "instructions (" << f->getInstructionCount() << ")" << '\n';
-    for (usize pc = 0; pc < f->getInstructionCount(); ++pc) {
-        Instruction inst = f->getInstruction(pc);
-        OpCode op = GET_OPCODE(inst);
-        OpMode mode = getOpMode(op);
-        std::vector<std::string> comments;
-
-        out << std::format("{:04} | line {} | {} | ", pc, f->getLine(pc), getOpName(op));
-
-        switch (mode) {
-        case OpMode::iABC: {
-            i32 a = GETARG_A(inst);
-            i32 b = GETARG_B(inst);
-            i32 c = GETARG_C(inst);
-            out << "A=" << a << " B=" << b << " C=" << c;
-            addRKComment(comments, f, "B", b, getBMode(op));
-            addRKComment(comments, f, "C", c, getCMode(op));
-            break;
-        }
-        case OpMode::iABx: {
-            i32 a = GETARG_A(inst);
-            i32 bx = GETARG_Bx(inst);
-            out << "A=" << a << " Bx=" << bx;
-            if (getBMode(op) == OpArgMask::OpArgK) {
-                comments.push_back(formatConstant(f, bx));
-            }
-            break;
-        }
-        case OpMode::iAsBx: {
-            i32 a = GETARG_A(inst);
-            i32 sbx = GETARG_sBx(inst);
-            out << "A=" << a << " sBx=" << sbx;
-
-            comments.push_back(std::format("target={}", static_cast<i32>(pc) + 1 + sbx));
-            break;
-        }
-        }
-
-        printComments(out, comments);
-        out << '\n';
-    }
-
-    out << "constants (" << f->getConstantCount() << ")" << '\n';
-    for (usize i = 0; i < f->getConstantCount(); ++i) {
-        out << "  " << formatConstant(f, static_cast<i32>(i)) << '\n';
-    }
+    printProtoHeader(f, out);
+    printInstructions(f, out);
+    printConstants(f, out);
 }
 
 } // namespace Lua

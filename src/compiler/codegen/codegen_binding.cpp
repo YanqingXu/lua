@@ -3,7 +3,7 @@
  * @brief CodeGenerator symbol binding and upvalue resolution.
  */
 
-#include "compiler/codegen.hpp"
+#include "compiler/codegen/codegen.hpp"
 
 namespace Lua {
 

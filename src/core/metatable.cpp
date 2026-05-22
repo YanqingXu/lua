@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file metatable.cpp
  * @brief Lua元方法系统实现
  * 
@@ -14,8 +14,8 @@
 #include "core/userdata.hpp"
 #include "core/function.hpp"
 #include "core/gc_string.hpp"
-#include "vm/lua_state.hpp"
-#include "vm/global_state.hpp"
+#include "vm/state/lua_state.hpp"
+#include "vm/state/global_state.hpp"
 #include "vm/vm.hpp"
 #include "runtime/runtime_services.hpp"
 #include <stdexcept>

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file stringlib.cpp
  * @brief Lua String Library Implementation
  * 
@@ -16,7 +16,7 @@
 #include "core/table.hpp"
 #include "core/upvalue.hpp"
 #include "core/function.hpp"
-#include "vm/global_state.hpp"
+#include "vm/state/global_state.hpp"
 #include "vm/vm.hpp"
 #include "gc/garbage_collector.hpp"
 #include <algorithm>

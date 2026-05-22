@@ -74,13 +74,13 @@ applies_to: repository overview and current build workflows
 | **Userdata类** | `src/core/userdata.hpp/cpp` | 282 | 用户数据（C++数据包装） | ✅ 100% |
 | **Metatable元方法系统** | `src/core/metatable.hpp/cpp` | 697 | 17种元方法名称、table/userdata 与基础类型元表查找；C/Lua 函数元方法统一调用；`__gc/__mode` 名称供 GC 使用 | ✅ 96% |
 | **GarbageCollector** | `src/gc/garbage_collector.hpp/cpp` | 808 | 标记-清除、根集扫描、弱表清理、userdata `__gc` 两阶段终结与 `collectgarbage("collect")` 接入 | ✅ 97% |
-| **GlobalState类** | `src/vm/global_state.hpp/cpp` | 261 | 全局状态管理（单例模式） | ✅ 95% |
-| **Stack类** | `src/vm/stack.hpp/cpp` | 394 | 值栈管理（动态扩展） | ✅ 100% |
-| **CallInfo类** | `src/vm/call_info.hpp` | 197 | 调用信息（函数调用上下文） | ✅ 100% |
-| **LuaState类** | `src/vm/lua_state.hpp/cpp` | 1,095 | Lua状态（线程执行环境） | ✅ 95% |
-| **Lexer词法分析器** | `src/compiler/lexer.hpp/cpp` + `token.hpp` | 1,167 | 词法分析（Token流生成） | ✅ 100% |
-| **Parser语法分析器** | `src/compiler/parser.hpp/cpp` + `parser_*.cpp` + `ast.hpp/cpp` | 2,128 | 语法分析（AST生成，Parser 实现已按语句/表达式/函数/表构造分片） | ✅ 100% |
-| **CodeGenerator字节码生成器** | `src/compiler/codegen.hpp/cpp` + `opcode.hpp/cpp` | 2,249 | 字节码生成（AST→Bytecode），单值 return call 已生成 TAILCALL | ✅ 95% |
+| **GlobalState类** | `src/vm/state/global_state.hpp/cpp` | 261 | 全局状态管理（单例模式） | ✅ 95% |
+| **Stack类** | `src/vm/state/stack.hpp/cpp` | 394 | 值栈管理（动态扩展） | ✅ 100% |
+| **CallInfo类** | `src/vm/state/call_info.hpp` | 197 | 调用信息（函数调用上下文） | ✅ 100% |
+| **LuaState类** | `src/vm/state/lua_state.hpp/cpp` | 1,095 | Lua状态（线程执行环境） | ✅ 95% |
+| **Lexer词法分析器** | `src/compiler/parser/lexer.hpp/cpp` + `src/compiler/parser/token.hpp` | 1,167 | 词法分析（Token流生成） | ✅ 100% |
+| **Parser语法分析器** | `src/compiler/parser/parser.hpp/cpp` + `src/compiler/parser/parser_*.cpp` + `src/compiler/ast.hpp/cpp` | 2,128 | 语法分析（AST生成，Parser 实现已按语句/表达式/函数/表构造分片） | ✅ 100% |
+| **CodeGenerator字节码生成器** | `src/compiler/codegen/codegen.hpp/cpp` + `src/compiler/opcode.hpp/cpp` | 2,249 | 字节码生成（AST→Bytecode），单值 return call 已生成 TAILCALL | ✅ 95% |
 | **VM字节码执行引擎** | `src/vm/vm.hpp/cpp` | 2,030 | 38条指令均有执行分支；TAILCALL 已复用栈帧，TFORLOOP 已支持 C/Lua 函数迭代器 | ✅ 95% |
 | **I/O系统** | `src/io/*.hpp/cpp` | 670 | InputStream + DynamicBuffer | ✅ 100% |
 | **基础库（Base Library）** | `src/lib/baselib.hpp/cpp` | 730+ | Lua 5.1 常用全局函数 + `_G` / `_VERSION`（newproxy 缺失，部分边界简化） | 🔄 93% |

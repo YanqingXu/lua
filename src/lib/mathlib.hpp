@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file mathlib.hpp
  * @brief Lua数学库：标准数学函数集合
  * 
@@ -31,7 +31,7 @@
 
 #include "common/types.hpp"
 #include "lib/lib_module.hpp"
-#include "vm/lua_state.hpp"
+#include "vm/state/lua_state.hpp"
 
 namespace Lua {
 

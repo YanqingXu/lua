@@ -9,8 +9,8 @@
 #include "core/gc_string.hpp"
 #include "debug/trace_sink.hpp"
 #include "debug/trace_types.hpp"
-#include "vm/call_info.hpp"
-#include "vm/lua_state.hpp"
+#include "vm/state/call_info.hpp"
+#include "vm/state/lua_state.hpp"
 #include "vm/vm.hpp"
 
 namespace Lua {

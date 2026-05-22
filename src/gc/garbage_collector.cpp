@@ -157,6 +157,16 @@ usize GarbageCollector::collect() {
     return collect(nullptr);
 }
 
+// collect(LuaState*) phase contract:
+//
+// The order is mark roots -> schedule finalizers -> propagate the resurrection
+// graph -> clean weak tables -> sweep -> run finalizers. `prepareFinalizers()`
+// must happen before weak cleanup and sweep because unreachable userdata with
+// `__gc` is not freed immediately; it is queued, marked FINALIZED, and marked
+// again so metatables, closures, and objects reachable from the finalizer path
+// survive this cycle. `runFinalizers()` is intentionally after sweep: other
+// white garbage is already reclaimed, while finalized userdata can still be
+// resurrected without being queued for `__gc` a second time.
 usize GarbageCollector::collect(LuaState* currentState) {
     // 1. 标记阶段
     mark(currentState);

@@ -11,7 +11,7 @@
  */
 
 #include "../framework/test_framework.hpp"
-#include "compiler/parser.hpp"
+#include "compiler/parser/parser.hpp"
 #include "compiler/ast.hpp"
 #include <cassert>
 #include <string>

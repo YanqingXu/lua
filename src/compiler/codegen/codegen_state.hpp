@@ -5,8 +5,8 @@
  * @brief Shared mutable state for CodeGenerator implementation slices.
  */
 
-#include "compiler/bytecode_builder.hpp"
-#include "compiler/codegen_context.hpp"
+#include "compiler/codegen/bytecode_builder.hpp"
+#include "compiler/codegen/codegen_context.hpp"
 #include "core/string_pool.hpp"
 #include "runtime/runtime_services.hpp"
 

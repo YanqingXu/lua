@@ -471,7 +471,7 @@ LuaStdLibTestContext::~LuaStdLibTestContext() {
 
 #include "../framework/test_framework.hpp"  // 注意相对路径
 #include "my_feature.hpp"  // 被测试模块的头文件
-#include "vm/lua_state.hpp"
+#include "vm/state/lua_state.hpp"
 #include "core/value.hpp"
 
 using namespace Lua;
@@ -722,7 +722,7 @@ set(TEST_SOURCES
 
 #include "test_framework.hpp"
 #include "lib/mathlib.hpp"
-#include "vm/lua_state.hpp"
+#include "vm/state/lua_state.hpp"
 #include "core/string_pool.hpp"
 
 using namespace Lua;

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file packagelib.hpp
  * @brief Lua package/module library: require() and module loading system
  *
@@ -26,7 +26,7 @@
 
 #include "common/types.hpp"
 #include "lib/lib_module.hpp"
-#include "vm/lua_state.hpp"
+#include "vm/state/lua_state.hpp"
 
 namespace Lua {
 

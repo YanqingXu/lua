@@ -27,10 +27,11 @@ The implementation is intentionally learning-friendly: most Lua concepts have di
 | Application | `src/main.cpp`, `src/repl.cpp`, `src/app/app_options.*` | CLI, script mode, REPL mode, trace option parsing |
 | Bytecode tool | `src/bytecode/bytecode_main.cpp`, `src/bytecode/bytecode_printer.*` | Compile a script to `Proto`; printer is currently a stub |
 | Runtime services | `src/runtime/runtime_services.hpp` | Thin explicit bundle over `GlobalState`, `StringPool`, and `GarbageCollector` |
-| Compiler frontend | `src/compiler/lexer.*`, `src/compiler/parser*.cpp`, `src/compiler/ast.*` | Tokenize source and build AST |
-| Code generation | `src/compiler/codegen*.cpp`, `codegen_types.hpp`, `codegen_context.hpp`, `bytecode_builder.hpp` | Lower AST to `Proto` bytecode |
+| Compiler frontend | `src/compiler/parser/lexer.*`, `src/compiler/parser/parser*.cpp`, `src/compiler/ast.*` | Tokenize source and build AST |
+| Compiler shared model | `src/compiler/ast.*`, `src/compiler/ast_visitor.hpp`, `src/compiler/opcode.*`, `src/compiler/register_allocator.hpp` | Shared AST and bytecode definitions used across parser, codegen, tests, and VM |
+| Code generation | `src/compiler/codegen/codegen*.cpp`, `src/compiler/codegen/codegen_types.hpp`, `src/compiler/codegen/codegen_context.hpp`, `src/compiler/codegen/bytecode_builder.hpp` | Lower AST to `Proto` bytecode |
 | Core objects | `src/core/value.*`, `table.*`, `function.*`, `upvalue.*`, `userdata.*`, `thread.*` | C++ representation of Lua values and GC objects |
-| VM | `src/vm/vm*.cpp`, `lua_state.*`, `stack.*`, `call_info.hpp` | Execute bytecode, manage calls, stack, hooks, trace, coroutine yield |
+| VM | `src/vm/vm*.cpp`, `src/vm/state/lua_state.*`, `src/vm/state/stack.*`, `src/vm/state/call_info.hpp` | Execute bytecode, manage calls, stack, hooks, trace, coroutine yield |
 | GC | `src/gc/garbage_collector.*`, `src/core/gc_object.*` | Mark-sweep collection, weak tables, userdata finalizers |
 | Standard library | `src/lib/*.cpp`, `lib_catalog.*`, `lib_manager.*`, `lib_registry.*` | Register Lua standard libraries into a `LuaState` |
 | Debug trace | `src/debug/*.hpp`, `src/debug/*.cpp`, `src/vm/vm_trace.cpp` | JSONL VM execution trace and value serialization |
@@ -63,10 +64,12 @@ Each subclass implements `mark(GarbageCollector&)` and `getSize()`. The collecto
 - main and currently running thread pointers
 
 `LuaState` represents an execution state. It owns the value stack, call stack, global table, debug hook state, open upvalues, and yield bookkeeping. `Thread` wraps an independent `LuaState` for coroutine execution.
+VM state types live under `src/vm/state/`; execution, dispatch, helper, and handler files remain under `src/vm/` and `src/vm/vm_handlers/`.
 
 ## Compiler Shape
 
 The compiler is currently AST-based rather than Lua 5.1's original single-pass parser/codegen pipeline.
+`ast.hpp/.cpp` stay in `src/compiler/` because they are produced by the parser and consumed by code generation/tests. `opcode.hpp/.cpp` also stay in `src/compiler/` because they define the bytecode contract shared by code generation, bytecode printing, and the VM.
 
 ```text
 Parser -> Chunk AST -> CodeGenerator -> Proto

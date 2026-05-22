@@ -6,7 +6,7 @@
 #include "vm/vm_internal.hpp"
 
 #include "core/function.hpp"
-#include "vm/lua_state.hpp"
+#include "vm/state/lua_state.hpp"
 #include "vm/vm_constants.hpp"
 
 namespace Lua {

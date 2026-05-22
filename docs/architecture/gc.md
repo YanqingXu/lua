@@ -1,6 +1,6 @@
 ---
 status: current
-verified_against: src/gc/garbage_collector.hpp; src/gc/garbage_collector.cpp; src/core/gc_object.hpp; src/core/table.cpp; src/core/function.cpp; src/core/upvalue.cpp; src/core/thread.cpp; src/vm/global_state.cpp; tests/unit/gc/test_gc.cpp
+verified_against: src/gc/garbage_collector.hpp; src/gc/garbage_collector.cpp; src/core/gc_object.hpp; src/core/table.cpp; src/core/function.cpp; src/core/upvalue.cpp; src/core/thread.cpp; src/vm/state/global_state.cpp; tests/unit/gc/test_gc.cpp
 last_checked: 2026-05-19
 applies_to: current garbage collector implementation
 ---

@@ -12,7 +12,7 @@
 #include "common/lua_error.hpp"
 #include "common/types.hpp"
 #include "compiler/ast.hpp"
-#include "compiler/lexer.hpp"
+#include "compiler/parser/lexer.hpp"
 
 #include <expected>
 #include <string>
@@ -23,7 +23,7 @@
 // This boundary sentinel needs to assert the private helper return type without
 // widening Parser's production interface.
 #define private public
-#include "compiler/parser.hpp"
+#include "compiler/parser/parser.hpp"
 #undef private
 
 using namespace Lua;

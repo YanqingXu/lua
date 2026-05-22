@@ -5,7 +5,7 @@
 
 #include "vm/vm_handlers/vm_handler_utils.hpp"
 #include "core/gc_string.hpp"
-#include "vm/call_info.hpp"
+#include "vm/state/call_info.hpp"
 
 #include <cstdio>
 

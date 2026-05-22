@@ -14,7 +14,7 @@
 
 #include "../framework/test_framework.hpp"
 #include "common/lua_error.hpp"
-#include "compiler/parser.hpp"
+#include "compiler/parser/parser.hpp"
 #include <expected>
 #include <string>
 #include <type_traits>

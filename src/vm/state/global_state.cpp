@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file global_state.cpp
  * @brief Lua全局状态管理实现
  *
@@ -6,9 +6,9 @@
  * @date 2025-11-12
  */
 
-#include "vm/global_state.hpp"
+#include "vm/state/global_state.hpp"
 #include "core/thread.hpp"
-#include "vm/lua_state.hpp"
+#include "vm/state/lua_state.hpp"
 #include <cstring>  // for memset
 #include <iostream> // for debug output
 

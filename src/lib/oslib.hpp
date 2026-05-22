@@ -1,7 +1,7 @@
-﻿#pragma once
+#pragma once
 
 #include "common/types.hpp"
-#include "vm/lua_state.hpp"
+#include "vm/state/lua_state.hpp"
 #include <ctime>
 
 namespace Lua {

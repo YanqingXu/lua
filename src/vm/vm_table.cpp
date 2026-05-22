@@ -7,8 +7,8 @@
 
 #include "common/lua_error.hpp"
 #include "core/table.hpp"
-#include "vm/call_info.hpp"
-#include "vm/lua_state.hpp"
+#include "vm/state/call_info.hpp"
+#include "vm/state/lua_state.hpp"
 #include "vm/vm_constants.hpp"
 
 namespace Lua::VM::detail {

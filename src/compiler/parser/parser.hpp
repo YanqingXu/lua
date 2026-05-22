@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 /**
  * @file parser.hpp
@@ -23,7 +23,7 @@
  * - 完整的错误恢复机制
  */
 
-#include "ast.hpp"
+#include "compiler/ast.hpp"
 #include "lexer.hpp"
 #include "token.hpp"
 #include "common/lua_error.hpp"

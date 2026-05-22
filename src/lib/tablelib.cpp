@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file tablelib.cpp
  * @brief Lua Table Library Implementation - 表操作库实现
  * 
@@ -7,7 +7,7 @@
  */
 
 #include "lib/tablelib.hpp"
-#include "vm/lua_state.hpp"
+#include "vm/state/lua_state.hpp"
 #include "core/table.hpp"
 #include "core/value.hpp"
 #include "core/string_pool.hpp"

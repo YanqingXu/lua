@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file lua_state.cpp
  * @brief Lua状态管理实现
  *
@@ -6,7 +6,7 @@
  * @date 2025-11-12
  */
 
-#include "vm/lua_state.hpp"
+#include "vm/state/lua_state.hpp"
 #include "common/lua_error.hpp"
 #include "core/gc_string.hpp"
 #include "core/userdata.hpp"

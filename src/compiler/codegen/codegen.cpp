@@ -3,7 +3,7 @@
  * @brief Lua字节码生成器实现
  */
 
-#include "compiler/codegen.hpp"
+#include "compiler/codegen/codegen.hpp"
 #include "core/gc_string.hpp"
 #include "core/string_pool.hpp"
 #include "core/value.hpp"

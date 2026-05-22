@@ -1,6 +1,6 @@
 #include "../framework/test_framework.hpp"
 #include "lib/mathlib.hpp"
-#include "vm/lua_state.hpp"
+#include "vm/state/lua_state.hpp"
 #include "core/string_pool.hpp"
 #include "core/table.hpp"
 #include "core/function.hpp"

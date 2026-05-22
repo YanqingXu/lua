@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file lua_state.hpp
  * @brief Lua状态管理：每个线程的独立执行环境
  * 
@@ -18,7 +18,7 @@
  * 
  * 参考实现：
  * - lua_c_analysis/src/lstate.h 中的 lua_State 结构
- * - lua_with_cpp/src/vm/lua_state.hpp 中的实现
+ * - lua_with_cpp/src/vm/state/lua_state.hpp 中的实现
  * 
  * @author Lua C++ Project
  * @date 2025-11-12
@@ -29,9 +29,9 @@
 #include "common/types.hpp"
 #include "core/value.hpp"
 #include "core/table.hpp"
-#include "vm/global_state.hpp"
-#include "vm/stack.hpp"
-#include "vm/call_info.hpp"
+#include "vm/state/global_state.hpp"
+#include "vm/state/stack.hpp"
+#include "vm/state/call_info.hpp"
 #include "vm/vm_constants.hpp"
 
 namespace Lua {

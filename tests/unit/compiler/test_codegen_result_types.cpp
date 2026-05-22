@@ -4,7 +4,7 @@
  */
 
 #include "../framework/test_framework.hpp"
-#include "compiler/codegen_types.hpp"
+#include "compiler/codegen/codegen_types.hpp"
 
 using namespace Lua;
 using namespace LuaTest;

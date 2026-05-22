@@ -1,11 +1,11 @@
-﻿/**
+/**
  * @file test_lexer_lookahead.cpp
  * @brief 测试词法分析器的Token预读机制（LL(1)支持）
  */
 
 #include "../framework/test_framework.hpp"
 #include "../framework/test_registry.hpp"
-#include "compiler/lexer.hpp"
+#include "compiler/parser/lexer.hpp"
 #include <string>
 
 using namespace Lua;

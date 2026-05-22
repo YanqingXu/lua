@@ -76,7 +76,7 @@ source text
 如果你想理解运行时：
 
 - 从 `tests/unit/vm/test_vm_core.cpp` 和 `tests/unit/vm/test_runtime_services.cpp` 开始。
-- 接着看 `src/vm/lua_state.hpp`、`src/vm/vm.hpp`、`src/runtime/runtime_services.hpp`。
+- 接着看 `src/vm/state/lua_state.hpp`、`src/vm/vm.hpp`、`src/runtime/runtime_services.hpp`。
 - 元方法慢路径从 `tests/unit/metamethod/` 和 `src/core/metatable.cpp` 开始。
 - GC 路径看 `docs/architecture/gc.md`。
 - Trace 路径看 `docs/vm/trace-system.md`。

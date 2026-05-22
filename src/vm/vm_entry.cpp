@@ -9,8 +9,8 @@
 #include "core/function.hpp"
 #include "core/value.hpp"
 #include "runtime/runtime_services.hpp"
-#include "vm/call_info.hpp"
-#include "vm/lua_state.hpp"
+#include "vm/state/call_info.hpp"
+#include "vm/state/lua_state.hpp"
 #include "vm/vm_internal.hpp"
 
 namespace Lua::VM {

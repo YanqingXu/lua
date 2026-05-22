@@ -28,13 +28,13 @@
  * @date 2025-12-04
  */
 
-#include "vm/lua_state.hpp"
-#include "vm/global_state.hpp"
+#include "vm/state/lua_state.hpp"
+#include "vm/state/global_state.hpp"
 #include "vm/vm.hpp"
 #include "lib/lib_manager.hpp"
 #include "lib/baselib.hpp"
-#include "compiler/parser.hpp"
-#include "compiler/codegen.hpp"
+#include "compiler/parser/parser.hpp"
+#include "compiler/codegen/codegen.hpp"
 #include "app/app_options.hpp"
 #include "bytecode/bytecode_printer.hpp"
 #include "core/string_pool.hpp"

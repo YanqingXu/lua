@@ -1,7 +1,7 @@
-﻿#include "test_framework.hpp"
+#include "test_framework.hpp"
 
-#include "vm/lua_state.hpp"
-#include "vm/stack.hpp"
+#include "vm/state/lua_state.hpp"
+#include "vm/state/stack.hpp"
 #include "core/function.hpp"
 
 namespace LuaTest {

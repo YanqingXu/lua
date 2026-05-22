@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file vm.cpp
  * @brief Lua虚拟机执行引擎实现 — 纯自由函数风格
  *
@@ -20,7 +20,7 @@
 #include "vm/vm_dispatch_strategy.hpp"
 #include "vm/vm_handlers.hpp"
 #include "vm/vm_internal.hpp"
-#include "vm/lua_state.hpp"
+#include "vm/state/lua_state.hpp"
 #include "core/value.hpp"
 #include "core/function.hpp"
 #include "core/table.hpp"
@@ -28,7 +28,7 @@
 #include "core/upvalue.hpp"
 #include "core/userdata.hpp"
 #include "core/metatable.hpp"
-#include "vm/global_state.hpp"
+#include "vm/state/global_state.hpp"
 #include "runtime/runtime_services.hpp"
 #include "compiler/opcode.hpp"
 
@@ -121,6 +121,16 @@ enum class DispatchBackend : u8 {
     Table,
 };
 
+// Dispatch timing note:
+//
+// runDispatchBackend keeps a next-pc invariant. After fetch, `pc` immediately
+// points at the next instruction; branch, TEST-skip, CALL reentry, and table
+// handlers all adjust that next-pc value. `CallInfo::savedpc` stores the same
+// recoverable position before any debug/count/line hook runs, while
+// `instructionPc` remains the current instruction for line hooks and tracing.
+// New Lua frames have no saved position yet, so a null savedpc starts at PC 0.
+// Count hooks run before line hooks; either hook may touch the stack or call
+// info, so `base` is refreshed after each hook before executing the opcode.
 ExecResult runDispatchBackend(VMContext& context, DispatchBackend backend) {
     RuntimeServices& services = context.services;
     LuaState* L = context.state;
@@ -151,7 +161,6 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
             throw RuntimeError("VM::executeProto: CallInfo.func is not a function");
         func = funcVal.asFunction();
 
-        // 恢复 proto 和 pc
         proto = func->getProto();
         const auto entryCode = proto->getInstructionSpan();
         pc = ci.savedpc

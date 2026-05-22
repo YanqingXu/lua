@@ -10,9 +10,9 @@
 
 #include "lib/debuglib.hpp"
 
-#include "compiler/codegen.hpp"
+#include "compiler/codegen/codegen.hpp"
 #include "compiler/opcode.hpp"
-#include "compiler/parser.hpp"
+#include "compiler/parser/parser.hpp"
 #include "core/function.hpp"
 #include "core/gc_string.hpp"
 #include "core/table.hpp"
@@ -22,7 +22,7 @@
 #include "lib/baselib.hpp"
 #include "lib/lib_manager.hpp"
 #include "lib/lib_registry.hpp"
-#include "vm/call_info.hpp"
+#include "vm/state/call_info.hpp"
 #include "vm/vm.hpp"
 
 #include <algorithm>

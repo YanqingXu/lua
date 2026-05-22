@@ -6,7 +6,7 @@
  */
 
 #include "../framework/test_framework.hpp"
-#include "compiler/parser.hpp"
+#include "compiler/parser/parser.hpp"
 #include <iostream>
 #include <string>
 #include <sstream>

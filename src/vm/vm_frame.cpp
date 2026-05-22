@@ -9,10 +9,10 @@
 #include "compiler/opcode.hpp"
 #include "core/function.hpp"
 #include "core/upvalue.hpp"
-#include "vm/call_info.hpp"
-#include "vm/global_state.hpp"
-#include "vm/lua_state.hpp"
-#include "vm/stack.hpp"
+#include "vm/state/call_info.hpp"
+#include "vm/state/global_state.hpp"
+#include "vm/state/lua_state.hpp"
+#include "vm/state/stack.hpp"
 
 #include <cstdio>
 #include <string>

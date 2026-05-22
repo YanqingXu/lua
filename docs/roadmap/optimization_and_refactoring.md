@@ -212,16 +212,25 @@ concept VisitsNode = requires(V v, const Node& n) {
 
 ### 4.1 自解释代码：注释规范
 
-**原则**：注释必须解释 **"为什么"**，不解释 **"是什么"**。当前 `garbage_collector.hpp` 的中文 doxygen 块是好的样板。
+**原则**：注释必须解释 **"为什么"**，不解释 **"是什么"**。新增教育性注释不要插入函数体中间；函数体需要保持连续、可扫读，避免被大段讲解切割。当前 `garbage_collector.hpp` 的中文 doxygen 块是好的样板。
+
+**注释分层**：
+
+1. **文件级 / 函数组注释**：承载状态机、时序约束、核心算法和 ASCII 图示，放在 `namespace` 内或一组 helper 之前。
+2. **函数前契约注释**：承载调用顺序、不变量、异常/恢复语义，放在函数定义前，不打断函数体。
+3. **类型旁表格注释**：承载 enum / variant / 常量映射表，放在类型定义上方。
+4. **深度教学文档**：超过 8-12 行、需要例子或逐步推演的内容放到 `docs/walkthroughs/`、`docs/compiler/` 或 `docs/architecture/`；代码中只保留一句文档入口。
+
+**函数体内注释限制**：阶段 4 新增注释不进入函数体；已有函数体短注释如果只是分段标题，可保留或在后续顺手外移。禁止为了教学在语句之间插入多行解释。
 
 **重点补强位置**：
 
-| 文件 | 缺失类型 |
+| 主题 | 推荐落点 | 说明 |
 |---|---|
-| `src/vm/vm.cpp` 主循环 | 缺少"为何 `pc++` 在 dispatch 前、为何 `savedpc` 在 hook 前更新"等关键注释 |
-| `src/gc/garbage_collector.cpp` `collect()` | 5 步流程已有编号注释，但 `prepareFinalizers` → `propagateMarks` 的顺序原因（避免 finalizer 复活链被误清）缺解释 |
-| `src/compiler/codegen_jump.cpp` | 回填算法（jump list 链表如何形成）需要附 ASCII 图示 |
-| `src/core/value.hpp` Value::Tag | variant 中索引与 Lua 5.1 `LUA_T*` 常量对照表 |
+| `src/vm/vm.cpp` 主循环时序 | `runDispatchBackend()` 前的 dispatch timing note | 解释 `pc++` / `savedpc` / hook 时序，不在 loop 内穿插长注释 |
+| `src/gc/garbage_collector.cpp` `collect()` finalizer 顺序 | `collect(LuaState*)` 前的 phase contract | 解释 `prepareFinalizers` → `propagateMarks` → sweep → `runFinalizers` 的顺序原因 |
+| `src/compiler/codegen/codegen_jump.cpp` 回填算法 | 文件级 backpatching model | 用 ASCII 图示解释 jump list 链表如何形成，helper 内部不再放教学段落 |
+| `src/core/value.hpp` `Value::Tag` | enum / struct 上方类型旁表格 | 说明 variant 索引与 Lua 5.1 `LUA_T*` 常量对照关系 |
 
 ### 4.2 `lua_bytecode` 工具可视化升级
 

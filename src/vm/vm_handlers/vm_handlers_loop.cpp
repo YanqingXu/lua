@@ -4,7 +4,7 @@
  */
 
 #include "vm/vm_handlers/vm_handler_utils.hpp"
-#include "vm/call_info.hpp"
+#include "vm/state/call_info.hpp"
 
 namespace Lua::VM::handlers {
 

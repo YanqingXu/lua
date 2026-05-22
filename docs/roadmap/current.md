@@ -1,6 +1,6 @@
 ---
 status: current
-verified_against: docs/archive/research/deep-research-report.md; docs/status/project-status.md; docs/guides/development.md; CMakeLists.txt; lua.vcxproj; lua.vcxproj.filters; src/compiler/parser.cpp; src/compiler/parser_stmt.cpp; src/compiler/parser_expr.cpp; src/compiler/parser_primary.cpp; src/compiler/parser_func.cpp; src/compiler/parser_table.cpp; tools/run_cmake_smoke.ps1; tools/check_doc_drift.ps1; tools/run_quality_gate.ps1
+verified_against: docs/archive/research/deep-research-report.md; docs/status/project-status.md; docs/guides/development.md; CMakeLists.txt; lua.vcxproj; lua.vcxproj.filters; src/compiler/parser/parser.cpp; src/compiler/parser/parser_stmt.cpp; src/compiler/parser/parser_expr.cpp; src/compiler/parser/parser_primary.cpp; src/compiler/parser/parser_func.cpp; src/compiler/parser/parser_table.cpp; tools/run_cmake_smoke.ps1; tools/check_doc_drift.ps1; tools/run_quality_gate.ps1
 last_checked: 2026-05-19
 applies_to: 仓库优化路线图与下次续接检查清单
 ---
@@ -296,12 +296,12 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_quality_gate.ps1
 
 更新的文件：
 
-- `src/compiler/codegen.hpp`
-- `src/compiler/codegen.cpp`
-- `src/compiler/parser.hpp`
-- `src/compiler/parser.cpp`
-- `src/vm/lua_state.hpp`
-- `src/vm/lua_state.cpp`
+- `src/compiler/codegen/codegen.hpp`
+- `src/compiler/codegen/codegen.cpp`
+- `src/compiler/parser/parser.hpp`
+- `src/compiler/parser/parser.cpp`
+- `src/vm/state/lua_state.hpp`
+- `src/vm/state/lua_state.cpp`
 - `src/vm/vm.hpp`
 - `src/vm/vm.cpp`
 - `src/core/metatable.hpp`
@@ -538,9 +538,9 @@ AppOptions parseArgs(int argc, char** argv);
 - `src/main.cpp`
 - `src/repl.cpp`
 - `src/bytecode/bytecode_main.cpp`
-- `src/compiler/codegen.hpp/.cpp`
-- `src/compiler/parser.hpp/.cpp`
-- `src/vm/lua_state.hpp/.cpp`
+- `src/compiler/codegen/codegen.hpp/.cpp`
+- `src/compiler/parser/parser.hpp/.cpp`
+- `src/vm/state/lua_state.hpp/.cpp`
 - `src/vm/vm.hpp/.cpp`
 - `src/core/metatable.hpp/.cpp`
 
@@ -597,15 +597,15 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_cmake_smoke.ps1
 
 ### 任务 8A：CodeGenerator 物理拆分
 
-**目标：** 先降低 `src/compiler/codegen.cpp` 的单文件体积，不改变 `CodeGenerator` 的 public API、字节码语义或测试行为。
+**目标：** 先降低 `src/compiler/codegen/codegen.cpp` 的单文件体积，不改变 `CodeGenerator` 的 public API、字节码语义或测试行为。
 
 已完成：
 
-- [x] `src/compiler/codegen.cpp` 保留构造、`generate()`、基础指令发射、寄存器、常量和局部变量管理。
-- [x] 新增 `src/compiler/codegen_binding.cpp`，承载 upvalue 查找、`resolve()`、`symbolToValue()` 和 `symbolToLValue()`。
-- [x] 新增 `src/compiler/codegen_expr.cpp`，承载值通道、条件通道、复合表达式、调用/vararg 和 LValue/store。
-- [x] 新增 `src/compiler/codegen_jump.cpp`，承载跳转链、比较跳转和条件物化。
-- [x] 新增 `src/compiler/codegen_stmt.cpp`，承载语句 lowering、函数编译、代码块管理和 debug metadata。
+- [x] `src/compiler/codegen/codegen.cpp` 保留构造、`generate()`、基础指令发射、寄存器、常量和局部变量管理。
+- [x] 新增 `src/compiler/codegen/codegen_binding.cpp`，承载 upvalue 查找、`resolve()`、`symbolToValue()` 和 `symbolToLValue()`。
+- [x] 新增 `src/compiler/codegen/codegen_expr.cpp`，承载值通道、条件通道、复合表达式、调用/vararg 和 LValue/store。
+- [x] 新增 `src/compiler/codegen/codegen_jump.cpp`，承载跳转链、比较跳转和条件物化。
+- [x] 新增 `src/compiler/codegen/codegen_stmt.cpp`，承载语句 lowering、函数编译、代码块管理和 debug metadata。
 - [x] 将新文件加入 `lua.vcxproj`、`lua.vcxproj.filters` 和 `CMakeLists.txt`。
 - [x] 在 `lua.vcxproj` 中补齐 `/utf-8`，与 CMake 的 MSVC 编译选项对齐，避免拆分后的 UTF-8 源文件产生 C4819 编码警告。
 
@@ -632,7 +632,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_cmake_smoke.ps1
 
 已完成：
 
-- [x] 新增 `src/compiler/codegen_state.hpp`，引入 `CodegenState` 作为 `CodeGenerator` 实现分片共享的状态边界。
+- [x] 新增 `src/compiler/codegen/codegen_state.hpp`，引入 `CodegenState` 作为 `CodeGenerator` 实现分片共享的状态边界。
 - [x] 将 `services_`、`pool_`、`parent_`、`proto_`、`pc_`、`currentLine_`、`regs_`、`locals_`、`blocks_`、`upvalueCtx_` 收口到 `state_`。
 - [x] 新增 `CodegenState::resetForProto()`，统一主函数和子函数编译的 Proto 初始化、寄存器绑定、source、vararg 和短生命周期状态清理。
 - [x] 新增 `tests/unit/compiler/test_codegen_state.cpp`，锁定 `resetForProto()` 对临时状态和 Proto 初始字段的行为。
@@ -670,7 +670,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_quality_gate.ps1
 
 已完成：
 
-- [x] 新增 `src/compiler/bytecode_builder.hpp`，引入 `BytecodeBuilder` 作为当前 `Proto` 的发射写入边界。
+- [x] 新增 `src/compiler/codegen/bytecode_builder.hpp`，引入 `BytecodeBuilder` 作为当前 `Proto` 的发射写入边界。
 - [x] `BytecodeBuilder` 统一承载 `emitABC()`、`emitABx()`、`emitAsBx()`、line info、常量表、子 Proto、指令读取/替换和局部调试信息写入。
 - [x] `CodegenState::resetForProto()` 绑定 `bytecode`，主函数和子函数编译共享同一套发射初始化路径。
 - [x] `CodeGenerator` 的 `codeABC()`、`codeABx()`、`codeAsBx()`、常量 helper、跳转回填、call/vararg 调整、table 回填、函数闭包子 Proto 写入和 debug metadata 写入已改为经过 `state_.bytecode`。
@@ -825,11 +825,11 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_quality_gate.ps1
 
 ### 任务 8H：Parser 物理拆分准备
 
-**目标：** 在 CodeGenerator 和 VM 的主要边界已经收口后，开始降低 `src/compiler/parser.cpp` 的单文件阅读负担。第一步不改变语法语义，只梳理 Parser 成员函数分组，并准备按表达式、语句、函数体/块、表构造器等主题拆分实现文件。
+**目标：** 在 CodeGenerator 和 VM 的主要边界已经收口后，开始降低 `src/compiler/parser/parser.cpp` 的单文件阅读负担。第一步不改变语法语义，只梳理 Parser 成员函数分组，并准备按表达式、语句、函数体/块、表构造器等主题拆分实现文件。
 
 已完成：
 
-- [x] 审计 `src/compiler/parser.hpp` 和 `src/compiler/parser.cpp`，按后续物理分片边界记录 Parser 成员函数分组。
+- [x] 审计 `src/compiler/parser/parser.hpp` 和 `src/compiler/parser/parser.cpp`，按后续物理分片边界记录 Parser 成员函数分组。
 - [x] 新增 `tests/unit/compiler/test_parser_boundaries.cpp`，集中锁定语句族、表达式优先级、函数/表构造器/后缀表达式和错误边界 AST 形状。
 - [x] 将新增测试加入 `tests/unit/framework/test_runner.cpp`、`CMakeLists.txt`、`lua_test.vcxproj` 和 `lua_test.vcxproj.filters`。
 - [x] 本阶段不移动 Parser 产品代码，不改变 public API、AST 结构或语法语义。
@@ -871,22 +871,22 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\test_quality_gate.ps1
 - `Parser Boundary Sentinels` 运行 4 个注册测试 / 54 个结果 / 0 失败。
 - `Parser` 过滤测试运行 17 个注册测试 / 97 个结果 / 0 失败。
 - 默认 `bin\lua_test.exe` 运行 452 个注册测试 / 1987 个结果 / 0 失败。
-- 新增测试只锁定当前 Parser 行为，没有修改 `src/compiler/parser.*` 产品实现。
+- 新增测试只锁定当前 Parser 行为，没有修改 `src/compiler/parser/parser.*` 产品实现。
 
 ## 已完成任务：Parser 物理拆分执行
 
 ### 任务 8I：Parser 物理拆分执行
 
-**目标：** 基于 8H 的函数分组和行为锁定测试，在不改变 public API、AST 结构和语法语义的前提下，把 `src/compiler/parser.cpp` 分批拆成更窄的实现文件。
+**目标：** 基于 8H 的函数分组和行为锁定测试，在不改变 public API、AST 结构和语法语义的前提下，把 `src/compiler/parser/parser.cpp` 分批拆成更窄的实现文件。
 
 已完成：
 
-- [x] `src/compiler/parser.cpp` 保留构造函数、token 管理、错误报告/同步、`parse()` 入口，以及跨分片共享的 `tokenString()` / `errorWithNear()` 私有 helper。
-- [x] 新增 `src/compiler/parser_stmt.cpp`，承载 `parseBlock()`、`parseStatement()` 和控制流/local/return/break/赋值/调用语句解析。
-- [x] 新增 `src/compiler/parser_expr.cpp`，承载表达式优先级链和 `parseExprList()`。
-- [x] 新增 `src/compiler/parser_primary.cpp`，承载 primary 与 postfix 表达式解析。
-- [x] 新增 `src/compiler/parser_func.cpp`，承载函数语句、函数表达式和参数列表解析。
-- [x] 新增 `src/compiler/parser_table.cpp`，承载表构造器解析。
+- [x] `src/compiler/parser/parser.cpp` 保留构造函数、token 管理、错误报告/同步、`parse()` 入口，以及跨分片共享的 `tokenString()` / `errorWithNear()` 私有 helper。
+- [x] 新增 `src/compiler/parser/parser_stmt.cpp`，承载 `parseBlock()`、`parseStatement()` 和控制流/local/return/break/赋值/调用语句解析。
+- [x] 新增 `src/compiler/parser/parser_expr.cpp`，承载表达式优先级链和 `parseExprList()`。
+- [x] 新增 `src/compiler/parser/parser_primary.cpp`，承载 primary 与 postfix 表达式解析。
+- [x] 新增 `src/compiler/parser/parser_func.cpp`，承载函数语句、函数表达式和参数列表解析。
+- [x] 新增 `src/compiler/parser/parser_table.cpp`，承载表构造器解析。
 - [x] 更新 `CMakeLists.txt`、`lua.vcxproj`、`lua.vcxproj.filters`，让 CMake 与 VS 核心静态库都编译新分片。
 - [x] 本阶段不改变 Parser public API、AST 结构或 Lua 语法语义。
 

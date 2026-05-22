@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file coroutinelib.hpp
  * @brief Lua协程库：coroutine.create/resume/yield/status/running/wrap
  */
@@ -7,7 +7,7 @@
 
 #include "common/types.hpp"
 #include "lib/lib_module.hpp"
-#include "vm/lua_state.hpp"
+#include "vm/state/lua_state.hpp"
 
 namespace Lua {
 

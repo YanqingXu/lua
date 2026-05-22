@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file global_state.hpp
  * @brief Lua全局状态管理：所有线程共享的系统级资源
  * 
@@ -18,7 +18,7 @@
  * 
  * 参考实现：
  * - lua_c_analysis/src/lstate.h 中的 global_State 结构
- * - lua_with_cpp/src/vm/lua_state.hpp 中的实现
+ * - lua_with_cpp/src/vm/state/lua_state.hpp 中的实现
  * 
  * @author Lua C++ Project
  * @date 2025-11-12

@@ -46,7 +46,8 @@ void testPrinterShowsProtoMetadataAndConstants(TestSuite& suite) {
     addInstruction(proto, 10, CREATE_ABx(OpCode::LOADK, 0, numberIndex));
     addInstruction(proto, 11, CREATE_ABx(OpCode::GETGLOBAL, 1, stringIndex));
     addInstruction(proto, 12, CREATE_ABC(OpCode::ADD, 2, RKASK(numberIndex), RKASK(numberIndex)));
-    addInstruction(proto, 13, CREATE_AsBx(OpCode::JMP, 0, 2));
+    addInstruction(proto, 13, CREATE_ABx(OpCode::SETGLOBAL, 2, stringIndex));
+    addInstruction(proto, 14, CREATE_AsBx(OpCode::JMP, 0, 2));
 
     std::ostringstream output;
     printProtoBytecode(&proto, output, false);
@@ -55,6 +56,7 @@ void testPrinterShowsProtoMetadataAndConstants(TestSuite& suite) {
     ASSERT_TRUE(suite, contains(text, "source: sample.lua"), "source metadata is printed");
     ASSERT_TRUE(suite, contains(text, "numparams: 2"), "numparams metadata is printed");
     ASSERT_TRUE(suite, contains(text, "is_vararg: true"), "vararg metadata is printed");
+    ASSERT_TRUE(suite, contains(text, "flags=2"), "raw vararg flags are printed");
     ASSERT_TRUE(suite, contains(text, "maxStackSize: 7"), "max stack metadata is printed");
     ASSERT_TRUE(suite, contains(text, "upvalues (1): outer"), "upvalue names are printed");
     ASSERT_TRUE(suite, contains(text, "constants (4)"), "constant table header is printed");
@@ -69,13 +71,32 @@ void testPrinterShowsProtoMetadataAndConstants(TestSuite& suite) {
                 contains(text, "0001 | line 11 | GETGLOBAL | A=1 Bx=0 ; K[0] = string \"answer\""),
                 "GETGLOBAL instruction shows decoded constant");
     ASSERT_TRUE(suite,
+                contains(text, "0003 | line 13 | SETGLOBAL | A=2 Bx=0 ; K[0] = string \"answer\""),
+                "SETGLOBAL instruction shows decoded constant");
+    ASSERT_TRUE(suite,
                 contains(text, "0002 | line 12 | ADD | A=2 B=257 C=257 ; B=K[1] = number 42; C=K[1] = number 42"),
                 "RK operands show decoded constants");
-    ASSERT_TRUE(suite, contains(text, "0003 | line 13 | JMP | A=0 sBx=2 ; target=6"),
+    ASSERT_TRUE(suite, contains(text, "0004 | line 14 | JMP | A=0 sBx=2 ; target=7"),
                 "JMP instruction shows absolute target");
 
     (void)boolIndex;
     (void)nilIndex;
+}
+
+void testPrinterShowsAsBxTargetsForLoopOpcodes(TestSuite& suite) {
+    Proto proto;
+
+    addInstruction(proto, 30, CREATE_AsBx(OpCode::FORPREP, 0, 4));
+    addInstruction(proto, 31, CREATE_AsBx(OpCode::FORLOOP, 0, -2));
+
+    std::ostringstream output;
+    printProtoBytecode(&proto, output, false);
+    std::string text = output.str();
+
+    ASSERT_TRUE(suite, contains(text, "0000 | line 30 | FORPREP | A=0 sBx=4 ; target=5"),
+                "FORPREP instruction shows absolute target");
+    ASSERT_TRUE(suite, contains(text, "0001 | line 31 | FORLOOP | A=0 sBx=-2 ; target=0"),
+                "FORLOOP instruction shows absolute target");
 }
 
 void testPrinterKeepsEscapedStringsAndOutOfRangeConstants(TestSuite& suite) {
@@ -103,6 +124,8 @@ void registerBytecodePrinterTests() {
     auto& registry = TestRegistry::getInstance();
     registry.registerTest(kSuiteName, "Proto Metadata And Constants",
                           testPrinterShowsProtoMetadataAndConstants);
+    registry.registerTest(kSuiteName, "Loop Opcode Targets",
+                          testPrinterShowsAsBxTargetsForLoopOpcodes);
     registry.registerTest(kSuiteName, "Escaped Strings And Out Of Range Constants",
                           testPrinterKeepsEscapedStringsAndOutOfRangeConstants);
 }

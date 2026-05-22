@@ -5,7 +5,7 @@
  * @brief Explicit bundle of runtime-wide services used by compiler and VM entry points.
  */
 
-#include "vm/global_state.hpp"
+#include "vm/state/global_state.hpp"
 
 namespace Lua {
 

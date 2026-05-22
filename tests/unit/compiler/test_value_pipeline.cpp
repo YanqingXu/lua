@@ -7,15 +7,15 @@
  */
 
 #include "../framework/test_framework.hpp"
-#include "compiler/lexer.hpp"
-#include "compiler/parser.hpp"
-#include "compiler/codegen.hpp"
-#include "compiler/codegen_types.hpp"
+#include "compiler/parser/lexer.hpp"
+#include "compiler/parser/parser.hpp"
+#include "compiler/codegen/codegen.hpp"
+#include "compiler/codegen/codegen_types.hpp"
 #include "compiler/opcode.hpp"
 #include "core/string_pool.hpp"
 #include "core/function.hpp"
 #include "lib/lib_manager.hpp"
-#include "vm/lua_state.hpp"
+#include "vm/state/lua_state.hpp"
 #include "vm/vm.hpp"
 
 using namespace Lua;

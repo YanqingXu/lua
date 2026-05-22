@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="Current" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <ClCompile Include="src\compiler\ast.cpp">
@@ -13,20 +13,20 @@
     <ClCompile Include="src\lib\lib_registry.cpp">
       <Filter>src\lib</Filter>
     </ClCompile>
-    <ClCompile Include="src\compiler\codegen.cpp">
-      <Filter>src\compiler</Filter>
+    <ClCompile Include="src\compiler\codegen\codegen.cpp">
+      <Filter>src\compiler\codegen</Filter>
     </ClCompile>
-    <ClCompile Include="src\compiler\codegen_binding.cpp">
-      <Filter>src\compiler</Filter>
+    <ClCompile Include="src\compiler\codegen\codegen_binding.cpp">
+      <Filter>src\compiler\codegen</Filter>
     </ClCompile>
-    <ClCompile Include="src\compiler\codegen_expr.cpp">
-      <Filter>src\compiler</Filter>
+    <ClCompile Include="src\compiler\codegen\codegen_expr.cpp">
+      <Filter>src\compiler\codegen</Filter>
     </ClCompile>
-    <ClCompile Include="src\compiler\codegen_jump.cpp">
-      <Filter>src\compiler</Filter>
+    <ClCompile Include="src\compiler\codegen\codegen_jump.cpp">
+      <Filter>src\compiler\codegen</Filter>
     </ClCompile>
-    <ClCompile Include="src\compiler\codegen_stmt.cpp">
-      <Filter>src\compiler</Filter>
+    <ClCompile Include="src\compiler\codegen\codegen_stmt.cpp">
+      <Filter>src\compiler\codegen</Filter>
     </ClCompile>
     <ClCompile Include="src\core\function.cpp">
       <Filter>src\core</Filter>
@@ -52,32 +52,32 @@
     <ClCompile Include="src\core\gc_string.cpp">
       <Filter>src\core</Filter>
     </ClCompile>
-    <ClCompile Include="src\compiler\lexer.cpp">
-      <Filter>src\compiler</Filter>
+    <ClCompile Include="src\compiler\parser\lexer.cpp">
+      <Filter>src\compiler\parser</Filter>
     </ClCompile>
     <ClCompile Include="src\compiler\opcode.cpp">
       <Filter>src\compiler</Filter>
     </ClCompile>
-    <ClCompile Include="src\compiler\parser.cpp">
-      <Filter>src\compiler</Filter>
+    <ClCompile Include="src\compiler\parser\parser.cpp">
+      <Filter>src\compiler\parser</Filter>
     </ClCompile>
-    <ClCompile Include="src\compiler\parser_expr.cpp">
-      <Filter>src\compiler</Filter>
+    <ClCompile Include="src\compiler\parser\parser_expr.cpp">
+      <Filter>src\compiler\parser</Filter>
     </ClCompile>
-    <ClCompile Include="src\compiler\parser_func.cpp">
-      <Filter>src\compiler</Filter>
+    <ClCompile Include="src\compiler\parser\parser_func.cpp">
+      <Filter>src\compiler\parser</Filter>
     </ClCompile>
-    <ClCompile Include="src\compiler\parser_primary.cpp">
-      <Filter>src\compiler</Filter>
+    <ClCompile Include="src\compiler\parser\parser_primary.cpp">
+      <Filter>src\compiler\parser</Filter>
     </ClCompile>
-    <ClCompile Include="src\compiler\parser_stmt.cpp">
-      <Filter>src\compiler</Filter>
+    <ClCompile Include="src\compiler\parser\parser_stmt.cpp">
+      <Filter>src\compiler\parser</Filter>
     </ClCompile>
-    <ClCompile Include="src\compiler\parser_table.cpp">
-      <Filter>src\compiler</Filter>
+    <ClCompile Include="src\compiler\parser\parser_table.cpp">
+      <Filter>src\compiler\parser</Filter>
     </ClCompile>
-    <ClCompile Include="src\vm\stack.cpp">
-      <Filter>src\vm</Filter>
+    <ClCompile Include="src\vm\state\stack.cpp">
+      <Filter>src\vm\state</Filter>
     </ClCompile>
     <ClCompile Include="src\core\string_pool.cpp">
       <Filter>src\core</Filter>
@@ -148,11 +148,11 @@
     <ClCompile Include="src\vm\vm_trace.cpp">
       <Filter>src\vm</Filter>
     </ClCompile>
-    <ClCompile Include="src\vm\lua_state.cpp">
-      <Filter>src\vm</Filter>
+    <ClCompile Include="src\vm\state\lua_state.cpp">
+      <Filter>src\vm\state</Filter>
     </ClCompile>
-    <ClCompile Include="src\vm\global_state.cpp">
-      <Filter>src\vm</Filter>
+    <ClCompile Include="src\vm\state\global_state.cpp">
+      <Filter>src\vm\state</Filter>
     </ClCompile>
     <ClCompile Include="src\core\value.cpp">
       <Filter>src\core</Filter>
@@ -228,23 +228,23 @@
     <ClInclude Include="src\lib\lib_registry.hpp">
       <Filter>src\lib</Filter>
     </ClInclude>
-    <ClInclude Include="src\vm\call_info.hpp">
-      <Filter>src\vm</Filter>
+    <ClInclude Include="src\vm\state\call_info.hpp">
+      <Filter>src\vm\state</Filter>
     </ClInclude>
-    <ClInclude Include="src\compiler\codegen.hpp">
-      <Filter>src\compiler</Filter>
+    <ClInclude Include="src\compiler\codegen\codegen.hpp">
+      <Filter>src\compiler\codegen</Filter>
     </ClInclude>
-    <ClInclude Include="src\compiler\bytecode_builder.hpp">
-      <Filter>src\compiler</Filter>
+    <ClInclude Include="src\compiler\codegen\bytecode_builder.hpp">
+      <Filter>src\compiler\codegen</Filter>
     </ClInclude>
-    <ClInclude Include="src\compiler\codegen_context.hpp">
-      <Filter>src\compiler</Filter>
+    <ClInclude Include="src\compiler\codegen\codegen_context.hpp">
+      <Filter>src\compiler\codegen</Filter>
     </ClInclude>
-    <ClInclude Include="src\compiler\codegen_state.hpp">
-      <Filter>src\compiler</Filter>
+    <ClInclude Include="src\compiler\codegen\codegen_state.hpp">
+      <Filter>src\compiler\codegen</Filter>
     </ClInclude>
-    <ClInclude Include="src\compiler\codegen_types.hpp">
-      <Filter>src\compiler</Filter>
+    <ClInclude Include="src\compiler\codegen\codegen_types.hpp">
+      <Filter>src\compiler\codegen</Filter>
     </ClInclude>
     <ClInclude Include="src\compiler\register_allocator.hpp">
       <Filter>src\compiler</Filter>
@@ -264,8 +264,8 @@
     <ClInclude Include="src\core\gc_string.hpp">
       <Filter>src\core</Filter>
     </ClInclude>
-    <ClInclude Include="src\compiler\lexer.hpp">
-      <Filter>src\compiler</Filter>
+    <ClInclude Include="src\compiler\parser\lexer.hpp">
+      <Filter>src\compiler\parser</Filter>
     </ClInclude>
     <ClInclude Include="src\common\macros.hpp">
       <Filter>src\common</Filter>
@@ -273,11 +273,11 @@
     <ClInclude Include="src\compiler\opcode.hpp">
       <Filter>src\compiler</Filter>
     </ClInclude>
-    <ClInclude Include="src\compiler\parser.hpp">
-      <Filter>src\compiler</Filter>
+    <ClInclude Include="src\compiler\parser\parser.hpp">
+      <Filter>src\compiler\parser</Filter>
     </ClInclude>
-    <ClInclude Include="src\vm\stack.hpp">
-      <Filter>src\vm</Filter>
+    <ClInclude Include="src\vm\state\stack.hpp">
+      <Filter>src\vm\state</Filter>
     </ClInclude>
     <ClInclude Include="src\core\string_pool.hpp">
       <Filter>src\core</Filter>
@@ -309,11 +309,11 @@
     <ClInclude Include="src\vm\vm_internal.hpp">
       <Filter>src\vm</Filter>
     </ClInclude>
-    <ClInclude Include="src\vm\lua_state.hpp">
-      <Filter>src\vm</Filter>
+    <ClInclude Include="src\vm\state\lua_state.hpp">
+      <Filter>src\vm\state</Filter>
     </ClInclude>
-    <ClInclude Include="src\vm\global_state.hpp">
-      <Filter>src\vm</Filter>
+    <ClInclude Include="src\vm\state\global_state.hpp">
+      <Filter>src\vm\state</Filter>
     </ClInclude>
     <ClInclude Include="src\core\value.hpp">
       <Filter>src\core</Filter>
@@ -321,8 +321,8 @@
     <ClInclude Include="src\core\userdata.hpp">
       <Filter>src\core</Filter>
     </ClInclude>
-    <ClInclude Include="src\compiler\token.hpp">
-      <Filter>src\compiler</Filter>
+    <ClInclude Include="src\compiler\parser\token.hpp">
+      <Filter>src\compiler\parser</Filter>
     </ClInclude>
     <ClInclude Include="src\core\metatable.hpp">
       <Filter>src\core</Filter>
@@ -398,8 +398,17 @@
     <Filter Include="src\compiler">
       <UniqueIdentifier>{b8d653a8-754a-4e11-b05e-869534ed1b67}</UniqueIdentifier>
     </Filter>
+    <Filter Include="src\compiler\codegen">
+      <UniqueIdentifier>{c2d7cf2f-7a30-4db6-8f69-584b0eb4a4e1}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\compiler\parser">
+      <UniqueIdentifier>{f00ab15e-21db-475a-82c1-1ed8708c3df4}</UniqueIdentifier>
+    </Filter>
     <Filter Include="src\vm">
       <UniqueIdentifier>{83aed53b-cd08-49f3-9206-89fc9e5ed6e8}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\vm\state">
+      <UniqueIdentifier>{b67fcff0-8bd8-49d9-9f02-36583d01d8ac}</UniqueIdentifier>
     </Filter>
     <Filter Include="src\vm\vm_handlers">
       <UniqueIdentifier>{a1fd84a7-1c2e-4e66-8d42-08b2125f31cb}</UniqueIdentifier>

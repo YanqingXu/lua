@@ -11,19 +11,19 @@ option(LUA_CPP_BUILD_TESTS "Build the unit test runner" ON)
 
 set(LUA_CORE_SOURCES
     src/compiler/ast.cpp
-    src/compiler/codegen.cpp
-    src/compiler/codegen_binding.cpp
-    src/compiler/codegen_expr.cpp
-    src/compiler/codegen_jump.cpp
-    src/compiler/codegen_stmt.cpp
-    src/compiler/lexer.cpp
+    src/compiler/codegen/codegen.cpp
+    src/compiler/codegen/codegen_binding.cpp
+    src/compiler/codegen/codegen_expr.cpp
+    src/compiler/codegen/codegen_jump.cpp
+    src/compiler/codegen/codegen_stmt.cpp
+    src/compiler/parser/lexer.cpp
     src/compiler/opcode.cpp
-    src/compiler/parser.cpp
-    src/compiler/parser_expr.cpp
-    src/compiler/parser_func.cpp
-    src/compiler/parser_primary.cpp
-    src/compiler/parser_stmt.cpp
-    src/compiler/parser_table.cpp
+    src/compiler/parser/parser.cpp
+    src/compiler/parser/parser_expr.cpp
+    src/compiler/parser/parser_func.cpp
+    src/compiler/parser/parser_primary.cpp
+    src/compiler/parser/parser_stmt.cpp
+    src/compiler/parser/parser_table.cpp
     src/core/function.cpp
     src/core/gc_object.cpp
     src/core/gc_string.cpp
@@ -54,9 +54,9 @@ set(LUA_CORE_SOURCES
     src/lib/oslib.cpp
     src/lib/stringlib.cpp
     src/lib/tablelib.cpp
-    src/vm/global_state.cpp
-    src/vm/lua_state.cpp
-    src/vm/stack.cpp
+    src/vm/state/global_state.cpp
+    src/vm/state/lua_state.cpp
+    src/vm/state/stack.cpp
     src/vm/vm_arith.cpp
     src/vm/vm_call.cpp
     src/vm/vm_dispatch_strategy.cpp

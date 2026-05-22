@@ -3,7 +3,7 @@
  * @brief CodeGenerator statement lowering, function compilation, and block management.
  */
 
-#include "compiler/codegen.hpp"
+#include "compiler/codegen/codegen.hpp"
 
 #include <stdexcept>
 

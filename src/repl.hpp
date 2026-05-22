@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file repl.hpp
  * @brief REPL（交互式解释器）模块头文件
  *
@@ -30,7 +30,7 @@
 #include <iosfwd>
 
 #include "common/types.hpp"
-#include "vm/lua_state.hpp"
+#include "vm/state/lua_state.hpp"
 
 namespace Lua {
 

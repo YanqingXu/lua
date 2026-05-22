@@ -1,6 +1,6 @@
 ---
 status: current
-verified_against: docs/status/project-status.md; src/compiler/register_allocator.hpp; src/compiler/codegen.hpp; src/compiler/codegen.cpp; src/compiler/codegen_expr.cpp; src/compiler/codegen_stmt.cpp; src/compiler/codegen_state.hpp
+verified_against: docs/status/project-status.md; src/compiler/register_allocator.hpp; src/compiler/codegen/codegen.hpp; src/compiler/codegen/codegen.cpp; src/compiler/codegen/codegen_expr.cpp; src/compiler/codegen/codegen_stmt.cpp; src/compiler/codegen/codegen_state.hpp
 last_checked: 2026-05-19
 applies_to: current CodeGenerator register allocation model
 ---

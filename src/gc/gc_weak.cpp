@@ -7,7 +7,7 @@
 #include "core/gc_string.hpp"
 #include "core/table.hpp"
 #include "core/value.hpp"
-#include "vm/global_state.hpp"
+#include "vm/state/global_state.hpp"
 
 namespace Lua {
 

@@ -19,8 +19,8 @@
 
 #include "../framework/test_framework.hpp"
 
-#include "compiler/codegen.hpp"
-#include "compiler/parser.hpp"
+#include "compiler/codegen/codegen.hpp"
+#include "compiler/parser/parser.hpp"
 #include "core/function.hpp"
 #include "core/gc_string.hpp"
 #include "core/string_pool.hpp"
@@ -28,7 +28,7 @@
 #include "lib/baselib.hpp"
 #include "lib/packagelib.hpp"
 #include "lib/lib_manager.hpp"
-#include "vm/lua_state.hpp"
+#include "vm/state/lua_state.hpp"
 #include "vm/vm.hpp"
 
 #include <fstream>

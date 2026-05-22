@@ -5,7 +5,7 @@
 
 #include "vm/vm_handlers/vm_handler_utils.hpp"
 #include "core/table.hpp"
-#include "vm/global_state.hpp"
+#include "vm/state/global_state.hpp"
 
 namespace Lua::VM::handlers {
 

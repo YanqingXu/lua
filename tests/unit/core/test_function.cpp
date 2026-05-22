@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file test_function.cpp
  * @brief Function和Proto类单元测试
  * 
@@ -9,7 +9,7 @@
 #include "../framework/test_framework.hpp"
 #include "core/function.hpp"
 #include "core/upvalue.hpp"
-#include "vm/lua_state.hpp"
+#include "vm/state/lua_state.hpp"
 
 using namespace Lua;
 using namespace LuaTest;

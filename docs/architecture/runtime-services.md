@@ -1,6 +1,6 @@
 ---
 status: current
-verified_against: src/runtime/runtime_services.hpp; src/main.cpp; src/repl.cpp; src/bytecode/bytecode_main.cpp; src/compiler/parser.hpp; src/compiler/codegen.hpp; src/vm/vm.hpp; tests/unit/vm/test_runtime_services.cpp
+verified_against: src/runtime/runtime_services.hpp; src/main.cpp; src/repl.cpp; src/bytecode/bytecode_main.cpp; src/compiler/parser/parser.hpp; src/compiler/codegen/codegen.hpp; src/vm/vm.hpp; tests/unit/vm/test_runtime_services.cpp
 last_checked: 2026-05-19
 applies_to: current RuntimeServices boundary
 ---
@@ -35,8 +35,8 @@ The project is moving from implicit global access toward explicit runtime bounda
 | Interpreter app | `src/main.cpp` |
 | REPL | `src/repl.cpp` |
 | Bytecode tool | `src/bytecode/bytecode_main.cpp` |
-| Parser overloads | `src/compiler/parser.hpp/.cpp` |
-| CodeGenerator constructors | `src/compiler/codegen.hpp/.cpp` |
+| Parser overloads | `src/compiler/parser/parser.hpp`, `src/compiler/parser/parser.cpp` |
+| CodeGenerator constructors | `src/compiler/codegen/codegen.hpp`, `src/compiler/codegen/codegen.cpp` |
 | VM execute overloads | `src/vm/vm.hpp`, `src/vm/vm.cpp`, `src/vm/vm_entry.cpp` |
 | Tests | `tests/unit/vm/test_runtime_services.cpp` |
 

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file test_gc.cpp
  * @brief GC系统单元测试 (GCObject, GarbageCollector, Upvalue)
  * 
@@ -17,7 +17,7 @@
 #include "core/userdata.hpp"
 #include "gc/garbage_collector.hpp"
 #include "lib/baselib.hpp"
-#include "vm/lua_state.hpp"
+#include "vm/state/lua_state.hpp"
 
 using namespace Lua;
 using namespace LuaTest;

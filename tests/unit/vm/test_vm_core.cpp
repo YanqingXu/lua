@@ -7,17 +7,17 @@
  */
 
 #include "../framework/test_framework.hpp"
-#include "vm/global_state.hpp"
-#include "vm/stack.hpp"
-#include "vm/call_info.hpp"
-#include "vm/lua_state.hpp"
+#include "vm/state/global_state.hpp"
+#include "vm/state/stack.hpp"
+#include "vm/state/call_info.hpp"
+#include "vm/state/lua_state.hpp"
 #include "vm/vm.hpp"
 #include "core/value.hpp"
 #include "core/userdata.hpp"
 #include "core/function.hpp"
 #include "core/gc_string.hpp"
-#include "compiler/parser.hpp"
-#include "compiler/codegen.hpp"
+#include "compiler/parser/parser.hpp"
+#include "compiler/codegen/codegen.hpp"
 #include "lib/iolib.hpp"
 #include <cstdio>
 

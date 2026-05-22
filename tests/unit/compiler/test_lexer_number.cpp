@@ -1,10 +1,10 @@
-﻿/**
+/**
  * @file test_lexer_number.cpp
  * @brief 验证词法分析器对非法数字的处理
  */
 
 #include "../framework/test_framework.hpp"
-#include "compiler/lexer.hpp"
+#include "compiler/parser/lexer.hpp"
 #include <string>
 #include <variant>
 

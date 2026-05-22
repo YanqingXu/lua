@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file coroutinelib.cpp
  * @brief Lua协程库实现
  *
@@ -13,7 +13,7 @@
 #include "core/gc_string.hpp"
 #include "core/table.hpp"
 #include "core/upvalue.hpp"
-#include "vm/global_state.hpp"
+#include "vm/state/global_state.hpp"
 #include "common/lua_error.hpp"
 
 namespace Lua {

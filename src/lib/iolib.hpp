@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file iolib.hpp
  * @brief Lua I/O库：文件操作和标准输入输出功能
  * 
@@ -35,7 +35,7 @@
 
 #include "common/types.hpp"
 #include "lib/lib_module.hpp"
-#include "vm/lua_state.hpp"
+#include "vm/state/lua_state.hpp"
 #include <cstdio>
 
 namespace Lua {

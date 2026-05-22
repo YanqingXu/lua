@@ -1,8 +1,8 @@
-﻿#include "lib/oslib.hpp"
+#include "lib/oslib.hpp"
 #include "lib/lib_registry.hpp"
 #include "core/table.hpp"
 #include "core/gc_string.hpp"
-#include "vm/global_state.hpp"
+#include "vm/state/global_state.hpp"
 #include <cstdlib>
 #include <ctime>
 #include <cstring>
