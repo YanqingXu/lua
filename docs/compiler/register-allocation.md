@@ -1,7 +1,7 @@
 ---
 status: current
 verified_against: docs/status/project-status.md; src/compiler/register_allocator.hpp; src/compiler/codegen/codegen.hpp; src/compiler/codegen/codegen.cpp; src/compiler/codegen/codegen_expr.cpp; src/compiler/codegen/expression_emitter.cpp; src/compiler/codegen/statement_emitter.cpp; src/compiler/codegen/codegen_stmt.cpp; src/compiler/codegen/codegen_state.hpp
-last_checked: 2026-05-19
+last_checked: 2026-05-22
 applies_to: current CodeGenerator register allocation model
 ---
 
@@ -36,12 +36,12 @@ public:
 At any point in a function body, registers are organized like this:
 
 ```text
-R(0) ... R(nactvar-1)     active locals
-R(nactvar) ... R(free-1)  temporary values, call frames, table fields
+R(0) ... R(activeVarCount-1)     active locals
+R(activeVarCount) ... R(free-1)  temporary values, call frames, table fields
 R(free) ...               available registers
 ```
 
-`LocalVarScope::nactvar_` is the number of active local variables. `RegisterAllocator::current()` points at the next available temporary slot.
+`LocalVarScope::activeVarCount_` is the number of active local variables. `RegisterAllocator::current()` points at the next available temporary slot.
 
 ## Main Rules
 
@@ -73,7 +73,7 @@ The old `ExprDesc` / `exp2*` model is no longer part of production compiler sour
 For `local a, b = f()`:
 
 1. Save the current free register.
-2. Reserve local slots starting at `nactvar_`.
+2. Reserve local slots starting at `activeVarCount_`.
 3. Generate initializer values into the local base.
 4. If the final initializer is a call or vararg, set its wanted result count.
 5. Fill missing locals with `LOADNIL`.

@@ -33,8 +33,8 @@ struct LocalVar {
  *
  * 从 CodeGenerator 中提取的局部变量管理子系统。
  * 迁移说明 (PR-7):
- * - nactvar_  现在由 CodegenState::locals.nactvar_ 持有（公开字段）
- * - localVars_ 现在由 CodegenState::locals.localVars_ 持有（公开字段）
+ * - activeVarCount_  现在由 CodegenState::localScope.activeVarCount_ 持有（公开字段）
+ * - localVars_ 现在由 CodegenState::localScope.localVars_ 持有（公开字段）
  */
 class LocalVarScope {
 public:
@@ -51,8 +51,8 @@ public:
 
     /// 关闭离开作用域的局部变量（设置 endpc）
     void closeLocals(i32 tolevel, i32 currentPc) {
-        while (nactvar_ > tolevel) {
-            nactvar_--;
+        while (activeVarCount_ > tolevel) {
+            activeVarCount_--;
             if (!localVars_.empty() && localVars_.back().endpc == -1) {
                 localVars_.back().endpc = currentPc;
             }
@@ -61,12 +61,12 @@ public:
 
     void clear() noexcept {
         localVars_.clear();
-        nactvar_ = 0;
+        activeVarCount_ = 0;
     }
 
     // === 公开字段（兼容旧代码的直接读写） ===
     Vec<LocalVar> localVars_;
-    i32 nactvar_ = 0;
+    i32 activeVarCount_ = 0;
 };
 
 // =============================================================================
@@ -92,7 +92,7 @@ struct UpvalueCapture {
  * parent 指针保留在 CodegenState 中用于跨函数 upvalue 解析。
  *
  * 迁移说明 (PR-7):
- * - upvalues_ 现在由 CodegenState::upvalues.upvalues_ 持有（公开字段）
+ * - upvalues_ 现在由 CodegenState::upvalueContext.upvalues_ 持有（公开字段）
  */
 class UpvalueContext {
 public:
@@ -132,11 +132,11 @@ public:
 struct BlockInfo {
     BlockInfo* previous;
     i32 breaklist;
-    i32 nactvar;
+    i32 activeVarCount;
     bool isbreakable;
 
-    BlockInfo(BlockInfo* prev, i32 nact, bool breakable)
-        : previous(prev), breaklist(NO_JUMP), nactvar(nact), isbreakable(breakable) {}
+    BlockInfo(BlockInfo* prev, i32 activeCount, bool breakable)
+        : previous(prev), breaklist(NO_JUMP), activeVarCount(activeCount), isbreakable(breakable) {}
 };
 
 /**
@@ -145,24 +145,24 @@ struct BlockInfo {
  * 从 CodeGenerator 中提取的代码块嵌套和跳转链管理子系统。
  *
  * 迁移说明 (PR-7):
- * - currentBlock_ 现在由 CodegenState::blocks.currentBlock_ 持有（公开字段）
- * - jpc_          现在由 CodegenState::blocks.jpc_ 持有（公开字段）
+ * - currentBlock_ 现在由 CodegenState::blockManager.currentBlock_ 持有（公开字段）
+ * - jpc_          现在由 CodegenState::blockManager.jpc_ 持有（公开字段）
  */
 class BlockManager {
 public:
     BlockManager() = default;
 
-    void enterBlock(bool isBreakable, i32 nactvar) {
-        BlockInfo* newBlock = new BlockInfo(currentBlock_, nactvar, isBreakable);
+    void enterBlock(bool isBreakable, i32 activeVarCount) {
+        BlockInfo* newBlock = new BlockInfo(currentBlock_, activeVarCount, isBreakable);
         currentBlock_ = newBlock;
     }
 
     /// 离开当前代码块，移除局部变量，修复 break 跳转
-    /// @param locals 局部变量作用域
-    /// @param regs   寄存器分配器
+    /// @param localScope 局部变量作用域
+    /// @param registers  寄存器分配器
     /// @param currentPc 当前指令位置
     /// @param patchToHere 修补跳转到当前位置的回调
-    void leaveBlock(LocalVarScope& locals, RegisterAllocator& regs,
+    void leaveBlock(LocalVarScope& localScope, RegisterAllocator& registers,
                     i32 currentPc, const std::function<void(i32)>& patchToHere) {
         if (currentBlock_ == nullptr) {
             throw std::runtime_error("No block to leave");
@@ -171,9 +171,9 @@ public:
         BlockInfo* bl = currentBlock_;
         currentBlock_ = bl->previous;
 
-        locals.closeLocals(bl->nactvar, currentPc);
-        regs.resetToLocals(locals.nactvar_);
-        regs.checkStack(0);
+        localScope.closeLocals(bl->activeVarCount, currentPc);
+        registers.resetToLocals(localScope.activeVarCount_);
+        registers.checkStack(0);
 
         patchToHere(bl->breaklist);
 

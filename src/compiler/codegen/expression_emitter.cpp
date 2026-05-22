@@ -465,7 +465,7 @@ i32 ExpressionEmitter::valueToAnyReg(const ValueResult& val) {
 
 void ExpressionEmitter::valueToNextReg(const ValueResult& val) {
     ValueResult v = forceSingleValue(val);
-    if (v.kind == ValueResult::Kind::Register && v.reg == state_.regs.current() - 1) {
+    if (v.kind == ValueResult::Kind::Register && v.reg == state_.registers.current() - 1) {
         return;  // 已在下一个位置
     }
     i32 reg = allocReg();
@@ -656,13 +656,13 @@ ValueResult ExpressionEmitter::emitValueTable(const TableExpr& table) {
 
         if (field.key) {
             // 哈希字段: SETTABLE
-            i32 savedFreereg = state_.regs.current();
+            i32 savedFreereg = state_.registers.current();
             ValueResult keyVal = emitValue(*field.key);
             i32 rkKey = valueToRK(keyVal);
             ValueResult valVal = emitValue(*field.value);
             i32 rkVal = valueToRK(valVal);
             codeABC(OpCode::SETTABLE, tableReg, rkKey, rkVal);
-            state_.regs.restore(savedFreereg);
+            state_.registers.restore(savedFreereg);
             checkStack(0);
             nh++;
         } else {
@@ -694,7 +694,7 @@ ValueResult ExpressionEmitter::emitValueTable(const TableExpr& table) {
             if (!hasLastCallResult && tostore == LFIELDS_PER_FLUSH) {
                 i32 c = (na - 1) / LFIELDS_PER_FLUSH + 1;
                 codeABC(OpCode::SETLIST, tableReg, LFIELDS_PER_FLUSH, c);
-                state_.regs.setFreeReg(tableReg + 1);
+                state_.registers.setFreeReg(tableReg + 1);
                 checkStack(0);
                 tostore = 0;
             }
@@ -720,13 +720,13 @@ ValueResult ExpressionEmitter::emitValueTable(const TableExpr& table) {
             }
             i32 c = (na - 1) / LFIELDS_PER_FLUSH + 1;
             codeABC(OpCode::SETLIST, tableReg, 0, c);
-            state_.regs.setFreeReg(tableReg + 1);
+            state_.registers.setFreeReg(tableReg + 1);
             checkStack(0);
             na--;
         } else {
             i32 c = (na - 1) / LFIELDS_PER_FLUSH + 1;
             codeABC(OpCode::SETLIST, tableReg, tostore, c);
-            state_.regs.setFreeReg(tableReg + 1);
+            state_.registers.setFreeReg(tableReg + 1);
             checkStack(0);
         }
     }
@@ -774,8 +774,8 @@ CallResultInfo ExpressionEmitter::emitCallExpr(const CallExpr& e, i32 targetBase
         freeReg(objReg);
 
         // 分配 2 个连续寄存器：func 和 self
-        base = state_.regs.current();
-        state_.regs.reserve(2);
+        base = state_.registers.current();
+        state_.registers.reserve(2);
         checkStack(0);
 
         // SELF base objReg RK(method)
@@ -788,7 +788,7 @@ CallResultInfo ExpressionEmitter::emitCallExpr(const CallExpr& e, i32 targetBase
         base = valueToAnyReg(funcVal);
     }
 
-    i32 savedFreeReg = state_.regs.current();
+    i32 savedFreeReg = state_.registers.current();
 
     auto moveRegRange = [this](i32 dst, i32 src, i32 count) {
         if (count <= 0 || dst == src) return;
@@ -813,7 +813,7 @@ CallResultInfo ExpressionEmitter::emitCallExpr(const CallExpr& e, i32 targetBase
     }
 
     i32 firstArgReg = hasImplicitSelf ? (base + 2) : (base + 1);
-    state_.regs.setFreeReg(firstArgReg);
+    state_.registers.setFreeReg(firstArgReg);
     checkStack(0);
     checkStack(explicitArgCount);
 
@@ -856,7 +856,7 @@ CallResultInfo ExpressionEmitter::emitCallExpr(const CallExpr& e, i32 targetBase
             materializeValue(argVal, targetReg);
         }
 
-        state_.regs.ensureAtLeast(targetReg + 1);
+        state_.registers.ensureAtLeast(targetReg + 1);
         argIndex++;
     }
 
@@ -867,7 +867,7 @@ CallResultInfo ExpressionEmitter::emitCallExpr(const CallExpr& e, i32 targetBase
     // C=2: 默认期望 1 个返回值（上层按需修改）
     i32 callPC = codeABC(OpCode::CALL, base, bArg, 2);
 
-    state_.regs.setFreeReg((savedFreeReg > (base + 1)) ? savedFreeReg : (base + 1));
+    state_.registers.setFreeReg((savedFreeReg > (base + 1)) ? savedFreeReg : (base + 1));
     checkStack(0);
 
     state_.currentLine = previousLine;

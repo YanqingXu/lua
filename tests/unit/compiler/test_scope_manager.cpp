@@ -41,7 +41,7 @@ void testLocalLifecycleClosesScopeAndResetsRegisters(TestSuite& suite) {
     ASSERT_EQ(suite, 0, reg, "first local should use register zero");
     ASSERT_EQ(suite, -1, fixture.scopes.findLocalVar("captured"), "removed local should no longer resolve");
     ASSERT_EQ(suite, 0, fixture.scopes.activeLocalCount(), "active locals should reset");
-    ASSERT_EQ(suite, 0, fixture.state.regs.current(), "register cursor should reset to active locals");
+    ASSERT_EQ(suite, 0, fixture.state.registers.current(), "register cursor should reset to active locals");
     ASSERT_EQ(suite, 1, fixture.state.bytecode.instructionCount(), "scope close should emit CLOSE");
 
     Instruction closeInst = fixture.state.bytecode.instruction(0);
@@ -81,10 +81,10 @@ void testBreakableBlockDefersBreakListUntilFlush(TestSuite& suite) {
     fixture.scopes.leaveBlock();
 
     ASSERT_TRUE(suite, fixture.scopes.currentBlock() == nullptr, "leaving block should restore previous block");
-    ASSERT_EQ(suite, breakJump, fixture.state.blocks.jpc_, "break jump should be deferred through pending jpc");
+    ASSERT_EQ(suite, breakJump, fixture.state.blockManager.jpc_, "break jump should be deferred through pending jpc");
     fixture.jumps.flushPendingJumps();
     ASSERT_EQ(suite, 1, fixture.jumps.getJump(breakJump), "break jump should target current pc after leave");
-    ASSERT_EQ(suite, NO_JUMP, fixture.state.blocks.jpc_, "flush should drain pending break jump");
+    ASSERT_EQ(suite, NO_JUMP, fixture.state.blockManager.jpc_, "flush should drain pending break jump");
 }
 
 void testUpvalueContextDeduplicatesCaptures(TestSuite& suite) {

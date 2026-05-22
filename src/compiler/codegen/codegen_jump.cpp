@@ -37,7 +37,7 @@ namespace Lua {
 //    这比把布尔条件组合编码进隐式链表更直观，适合 `and` / `or` /
 //    `not` 的短路组合；最终仍然通过 fixjump(pc, target) 写回真实偏移。
 //
-// `state_.blocks.jpc_` 表示“已经决定跳到当前位置，但当前位置还没有发出
+// `state_.blockManager.jpc_` 表示“已经决定跳到当前位置，但当前位置还没有发出
 // 实际指令”的延迟列表。下一条普通指令发出前会被 flushPendingJumps()
 // 回填到当前 instructionCount()；如果当前位置马上又发出一个新的 JMP，
 // jump() 会把 jpc_ 串到新 JMP 后面，让所有跳转最终直达同一个目标，

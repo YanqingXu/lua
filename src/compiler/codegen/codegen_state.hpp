@@ -29,10 +29,10 @@ struct CodegenState {
     i32 pc = 0;
     i32 currentLine = 0;
 
-    RegisterAllocator regs;
-    LocalVarScope locals;
-    BlockManager blocks;
-    UpvalueContext upvalues;
+    RegisterAllocator registers;
+    LocalVarScope localScope;
+    BlockManager blockManager;
+    UpvalueContext upvalueContext;
     BytecodeBuilder bytecode;
 
     explicit CodegenState(RuntimeServices runtimeServices)
@@ -46,17 +46,17 @@ struct CodegenState {
     void resetForProto(Proto& nextProto, bool isVararg, StrView sourceName = {}) {
         proto = &nextProto;
         bytecode.bind(nextProto, *pool);
-        regs.bind(proto);
+        registers.bind(proto);
         proto->setMaxStackSize(2);
         proto->setVararg(isVararg);
         if (!sourceName.empty()) {
             bytecode.setSource(sourceName);
         }
 
-        regs.reset(0);
-        locals.clear();
-        blocks.reset();
-        upvalues.clear();
+        registers.reset(0);
+        localScope.clear();
+        blockManager.reset();
+        upvalueContext.clear();
         pc = 0;
         currentLine = 0;
     }

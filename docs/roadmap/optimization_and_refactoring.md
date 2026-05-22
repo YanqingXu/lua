@@ -24,7 +24,7 @@
 
 | 阶段 | 周期定位 | 关注点 | 是否触发 API 变化 | 完成度 |
 |---|---|---|---|---|
-| **阶段 1 — 短期代码清理** | 1–2 个迭代 | 删冗余、统一命名、收紧错误处理、文档与代码同步 | 否 | ~85% |
+| **阶段 1 — 短期代码清理** | 1–2 个迭代 | 删冗余、统一命名、收紧错误处理、文档与代码同步 | 否 | ~90% |
 | **阶段 2 — 中期模式重构** | 3–5 个迭代 | 引入访问者 / 策略 / 命令模式，VM dispatch 与 GC 抽象化 | 内部 API 调整、public 不变 | ~88% |
 | **阶段 3 — 现代 C++ 特性** | 穿插于 1 & 2 | `std::expected` / `concepts` / `std::format` / `[[nodiscard]]` | 部分 public 签名变更 | ~90% |
 | **阶段 4 — 教育价值增强** | 持续推进 | 自解释代码、字节码可视化、执行链路教学文档、REPL 体验、Trace 差异模式 | 否（增量增强） | ~55% |
@@ -62,11 +62,10 @@
 
 - GC 内部成员命名 `allObjects_` / `roots_` / `grayList_` 已是 trailing-underscore 风格。✓
 - 删除 `ExprDesc` / `ExprKind` 历史残留：`check_doc_drift.ps1` 已覆盖扫描。✓
-- **审计发现**：`CodegenState::locals.nactvar_` 继承自 Lua C 源码缩写（number of active vars），建议改为 `activeVarCount_`。
-- **审计发现**：`CodegenState` 内部成员 `regs` / `locals` / `blocks` / `upvalues` 使用缩写，而完整类型名 `RegisterAllocator` / `LocalVarScope` / `BlockManager` / `UpvalueContext` / `BytecodeBuilder` 使用全称——应统一为全称（如 `registers` / `localScope` / `blockManager`）。
+- ✓ **已完成 — PR-49**：`CodegenState` 内部成员已从 `regs` / `locals` / `blocks` / `upvalues` 收口为 `registers` / `localScope` / `blockManager` / `upvalueContext`；`LocalVarScope::nactvar_` 与 `BlockInfo::nactvar` 已改为 `activeVarCount_` / `activeVarCount`。
 - `Parser::tokenString` 等 static helper 已散布在 `parser.cpp`，可以集中到 `parser_utils.hpp`。
 
-命名清理优先级低于 `1.1.1` / `1.3.1` / `2.5.1`。其中 `regs` / `locals` / `blocks` / `upvalues` 的重命名应并入 CodeGenerator 拆分阶段，否则会与 emitter 抽取形成重复 churn。
+`Parser::tokenString` 清理仍可作为后续低风险 P3 项；CodeGenerator 状态命名已在 emitter 边界稳定后完成，避免了拆分期重复 churn。
 
 ### 1.3 错误处理收紧
 
@@ -438,12 +437,12 @@ using ValueResult = std::variant<
 | PR-46 | GC sweep / clearAll 显式接收 `StringPool&`，旧 `GarbageCollector::getInstance()` 标记 `[[deprecated]]` | 2.3 / 5.1 |
 | PR-47 | `check_doc_drift.ps1` 动态解析测试计数，移除脚本内测试总数字面量；CI / 本地质量门先构建测试入口再做漂移检查 | 5.2 |
 | PR-48 | `ValueResult` 兼容式 `std::variant` payload prototype，生产构造点改用工厂函数，并保留旧字段兼容读面 | 3.5.1 |
+| PR-49 | `CodegenState` 命名清理：`regs` / `locals` / `blocks` / `upvalues` 改为职责名，`nactvar` 收口为 `activeVarCount` | 1.2 |
 
 后续推荐顺序：
 
 | PR | 编号 | 任务 | 阶段 | 依赖 / 理由 |
 |---|---|---|---|---|
-| PR-49 | 1.2 | `CodegenState` 命名清理：`nactvar_` / `regs` / `locals` 等缩写收口 | 1 | P3；等 emitter 边界稳定后再做机械重命名，降低重复 churn |
 | PR-50 | 4.3.2 | `closure-and-upvalue.md` walkthrough | 4 | P3；可复用 bytecode 基础输出 |
 | PR-51 | 4.5.1 | `--trace-diff` + `changedRegisters` | 4 | P3；适合在 VM dispatch 差异稳定后推进 |
 

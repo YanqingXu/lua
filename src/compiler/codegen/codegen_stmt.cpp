@@ -111,8 +111,8 @@ Proto* CodeGenerator::compileFunction(const Vec<Str>& params, bool isVararg, con
 
     child.attachDebugMetadata();
 
-    if (static_cast<i32>(newProto->getMaxStackSize()) < child.state_.regs.current()) {
-        newProto->setMaxStackSize(static_cast<u8>(child.state_.regs.current()));
+    if (static_cast<i32>(newProto->getMaxStackSize()) < child.state_.registers.current()) {
+        newProto->setMaxStackSize(static_cast<u8>(child.state_.registers.current()));
     }
 
     if (outUpvalues != nullptr) {

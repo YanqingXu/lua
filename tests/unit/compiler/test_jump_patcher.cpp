@@ -44,7 +44,7 @@ void testPendingJumpListFlushesToCurrentPc(TestSuite& suite) {
 
     ASSERT_EQ(suite, 1, fixture.state.bytecode.instructionCount(), "flush should not emit instructions");
     ASSERT_EQ(suite, 1, jumpTarget(patcher, jumpPc), "pending jump should target current pc");
-    ASSERT_EQ(suite, NO_JUMP, fixture.state.blocks.jpc_, "pending jump list should be drained");
+    ASSERT_EQ(suite, NO_JUMP, fixture.state.blockManager.jpc_, "pending jump list should be drained");
 }
 
 void testJumpKeepsNewJumpAsListHead(TestSuite& suite) {
@@ -58,7 +58,7 @@ void testJumpKeepsNewJumpAsListHead(TestSuite& suite) {
     ASSERT_EQ(suite, 2, fixture.state.bytecode.instructionCount(), "new jump should be emitted");
     ASSERT_EQ(suite, firstJump, jumpTarget(patcher, secondJump), "new jump should link to old pending list");
     ASSERT_EQ(suite, NO_JUMP, jumpTarget(patcher, firstJump), "old pending tail should remain unresolved");
-    ASSERT_EQ(suite, NO_JUMP, fixture.state.blocks.jpc_, "pending list should be drained");
+    ASSERT_EQ(suite, NO_JUMP, fixture.state.blockManager.jpc_, "pending list should be drained");
 }
 
 void testPatchListWritesExplicitTargets(TestSuite& suite) {

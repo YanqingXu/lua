@@ -15,33 +15,33 @@ ScopeManager::ScopeManager(CodegenState& state, JumpPatcher& jumps) noexcept
     , jumps_(jumps) {}
 
 i32 ScopeManager::addLocalVar(const Str& name) {
-    i32 reg = state_.regs.current();
-    state_.locals.localVars_.emplace_back(name, reg, state_.bytecode.instructionCount());
-    state_.regs.reserve(1);
-    state_.regs.checkStack(0);
+    i32 reg = state_.registers.current();
+    state_.localScope.localVars_.emplace_back(name, reg, state_.bytecode.instructionCount());
+    state_.registers.reserve(1);
+    state_.registers.checkStack(0);
     return reg;
 }
 
 i32 ScopeManager::findLocalVar(const Str& name) const {
-    return state_.locals.findLocal(name);
+    return state_.localScope.findLocal(name);
 }
 
 void ScopeManager::adjustLocalVars(i32 count) {
-    state_.locals.nactvar_ += count;
-    state_.regs.resetToLocals(state_.locals.nactvar_);
-    state_.regs.checkStack(0);
+    state_.localScope.activeVarCount_ += count;
+    state_.registers.resetToLocals(state_.localScope.activeVarCount_);
+    state_.registers.checkStack(0);
 }
 
 void ScopeManager::removeLocalVars(i32 toLevel) {
     closeScopeUpvalues(toLevel);
     i32 pc = state_.bytecode.instructionCount();
-    state_.locals.closeLocals(toLevel, pc);
-    state_.regs.resetToLocals(state_.locals.nactvar_);
-    state_.regs.checkStack(0);
+    state_.localScope.closeLocals(toLevel, pc);
+    state_.registers.resetToLocals(state_.localScope.activeVarCount_);
+    state_.registers.checkStack(0);
 }
 
 void ScopeManager::closeScopeUpvalues(i32 level) {
-    if (state_.locals.nactvar_ <= level) {
+    if (state_.localScope.activeVarCount_ <= level) {
         return;
     }
 
@@ -53,19 +53,19 @@ void ScopeManager::closeScopeUpvalues(i32 level) {
 }
 
 i32 ScopeManager::activeLocalCount() const noexcept {
-    return state_.locals.nactvar_;
+    return state_.localScope.activeVarCount_;
 }
 
 const Vec<LocalVar>& ScopeManager::localVars() const noexcept {
-    return state_.locals.localVars_;
+    return state_.localScope.localVars_;
 }
 
 i32 ScopeManager::findUpvalue(const Str& name) const {
-    return state_.upvalues.find(name);
+    return state_.upvalueContext.find(name);
 }
 
 i32 ScopeManager::addUpvalue(const Str& name, bool inStack, i32 index) {
-    return state_.upvalues.add(name, inStack, index);
+    return state_.upvalueContext.add(name, inStack, index);
 }
 
 i32 ScopeManager::resolveUpvalue(const Str& name) {
@@ -87,33 +87,33 @@ i32 ScopeManager::resolveUpvalue(const Str& name) {
 }
 
 const Vec<UpvalueCapture>& ScopeManager::upvalues() const noexcept {
-    return state_.upvalues.upvalues_;
+    return state_.upvalueContext.upvalues_;
 }
 
 void ScopeManager::enterBlock(bool isBreakable) {
-    state_.blocks.enterBlock(isBreakable, state_.locals.nactvar_);
+    state_.blockManager.enterBlock(isBreakable, state_.localScope.activeVarCount_);
 }
 
 void ScopeManager::leaveBlock() {
-    if (state_.blocks.currentBlock_ == nullptr) {
+    if (state_.blockManager.currentBlock_ == nullptr) {
         throw std::runtime_error("No block to leave");
     }
 
-    BlockInfo* block = state_.blocks.currentBlock_;
-    state_.blocks.currentBlock_ = block->previous;
+    BlockInfo* block = state_.blockManager.currentBlock_;
+    state_.blockManager.currentBlock_ = block->previous;
 
-    removeLocalVars(block->nactvar);
+    removeLocalVars(block->activeVarCount);
     jumps_.patchToHere(block->breaklist);
 
     delete block;
 }
 
 BlockInfo* ScopeManager::currentBlock() const noexcept {
-    return state_.blocks.currentBlock_;
+    return state_.blockManager.currentBlock_;
 }
 
 BlockInfo* ScopeManager::findBreakableBlock() const noexcept {
-    BlockInfo* block = state_.blocks.currentBlock_;
+    BlockInfo* block = state_.blockManager.currentBlock_;
     while (block != nullptr && !block->isbreakable) {
         block = block->previous;
     }

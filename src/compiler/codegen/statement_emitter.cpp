@@ -301,16 +301,16 @@ void StatementEmitter::emitStmt(const LocalStmt& s) {
     i32 nvars = static_cast<i32>(s.names.size());
     i32 nexps = static_cast<i32>(s.values.size());
 
-    i32 base = state_.locals.nactvar_;
-    i32 savedFreereg = state_.regs.current();
+    i32 base = state_.localScope.activeVarCount_;
+    i32 savedFreereg = state_.registers.current();
 
-    state_.regs.setFreeReg(base);
+    state_.registers.setFreeReg(base);
 
     for (i32 i = 0; i < nvars; i++) {
         addLocalVar(s.names[i]);
     }
 
-    state_.regs.setFreeReg(base);
+    state_.registers.setFreeReg(base);
 
     bool allVarsInitialized = false;
     if (nexps > 0) {
@@ -361,7 +361,7 @@ void StatementEmitter::emitStmt(const LocalStmt& s) {
         codeABC(OpCode::LOADNIL, base + nexps, base + nvars - 1, 0);
     }
 
-    state_.regs.restore(savedFreereg);
+    state_.registers.restore(savedFreereg);
 
     adjustLocalVars(nvars);
 }
@@ -371,9 +371,9 @@ void StatementEmitter::emitStmt(const ReturnStmt& s) {
     if (nret == 0) {
         codeABC(OpCode::RETURN, 0, 1, 0);
     } else {
-        i32 base = state_.locals.nactvar_;
-        i32 savedFreereg = state_.regs.current();
-        state_.regs.setFreeReg(base);
+        i32 base = state_.localScope.activeVarCount_;
+        i32 savedFreereg = state_.registers.current();
+        state_.registers.setFreeReg(base);
         checkStack(nret);
 
         for (i32 i = 0; i < nret - 1; i++) {
@@ -382,7 +382,7 @@ void StatementEmitter::emitStmt(const ReturnStmt& s) {
             materializeValue(val, base + i);
         }
 
-        state_.regs.setFreeReg(base + (nret - 1));
+        state_.registers.setFreeReg(base + (nret - 1));
 
         const Expr& lastExpr = *s.values[nret - 1];
         if (auto* callExpr = std::get_if<CallExpr>(&lastExpr.variant)) {
@@ -402,7 +402,7 @@ void StatementEmitter::emitStmt(const ReturnStmt& s) {
                 codeABC(OpCode::MOVE, base + (nret - 1), info.baseReg, 0);
                 codeABC(OpCode::RETURN, base, nret + 1, 0);
             }
-            state_.regs.restore(savedFreereg);
+            state_.registers.restore(savedFreereg);
             return;
         } else if (std::holds_alternative<VarargExpr>(lastExpr.variant)) {
             CallResultInfo info = emitVarargExpr();
@@ -411,7 +411,7 @@ void StatementEmitter::emitStmt(const ReturnStmt& s) {
             SETARG_B(inst, 0);
             state_.bytecode.replaceInstruction(info.instructionPc, inst);
             codeABC(OpCode::RETURN, base, 0, 0);
-            state_.regs.restore(savedFreereg);
+            state_.registers.restore(savedFreereg);
             return;
         } else {
             ValueResult val = emitValue(lastExpr);
@@ -420,7 +420,7 @@ void StatementEmitter::emitStmt(const ReturnStmt& s) {
         }
 
         codeABC(OpCode::RETURN, base, nret + 1, 0);
-        state_.regs.restore(savedFreereg);
+        state_.registers.restore(savedFreereg);
     }
 }
 
@@ -490,7 +490,7 @@ void StatementEmitter::emitStmt(const CallStmt& s) {
         emitValue(callExpr);
     }
 
-    state_.regs.resetToLocals(scopes_.activeLocalCount());
+    state_.registers.resetToLocals(scopes_.activeLocalCount());
 }
 
 void StatementEmitter::emitStmt(const BreakStmt&) {
@@ -500,7 +500,7 @@ void StatementEmitter::emitStmt(const BreakStmt&) {
         throw std::runtime_error("no loop to break");
     }
 
-    closeScopeUpvalues(bl->nactvar);
+    closeScopeUpvalues(bl->activeVarCount);
 
     scopes_.appendBreakJump(*bl, jump());
 }
@@ -510,7 +510,7 @@ void StatementEmitter::emitStmt(const RepeatStmt& s) {
 
     enterBlock(true);
 
-    i32 body_nactvar = scopes_.activeLocalCount();
+    i32 bodyActiveVarCount = scopes_.activeLocalCount();
 
     for (const auto& stmt : s.body) {
         statement(*stmt);
@@ -518,7 +518,7 @@ void StatementEmitter::emitStmt(const RepeatStmt& s) {
 
     CondResult cond = emitCondResult(*s.condition);
 
-    removeLocalVars(body_nactvar);
+    removeLocalVars(bodyActiveVarCount);
 
     patchList(cond.falseList, repeat_init);
 
@@ -545,7 +545,7 @@ void StatementEmitter::emitStmt(const FunctionStmt& s) {
 
         adjustLocalVars(1);
     } else {
-        i32 savedFreereg = state_.regs.current();
+        i32 savedFreereg = state_.registers.current();
 
         if (s.tablePath.empty()) {
             i32 reg = allocReg();
@@ -583,13 +583,13 @@ void StatementEmitter::emitStmt(const FunctionStmt& s) {
             codeABC(OpCode::SETTABLE, tableReg, rkKey, reg);
         }
 
-        state_.regs.restore(savedFreereg);
+        state_.registers.restore(savedFreereg);
         checkStack(0);
     }
 }
 
 void StatementEmitter::emitStmt(const ForNumStmt& s) {
-    i32 base = state_.regs.current();
+    i32 base = state_.registers.current();
 
     ValueResult initVal = emitValue(*s.init);
     initVal = forceSingleValue(initVal);
@@ -610,14 +610,14 @@ void StatementEmitter::emitStmt(const ForNumStmt& s) {
 
     enterBlock(true);
 
-    state_.regs.setFreeReg(base);
+    state_.registers.setFreeReg(base);
     addLocalVar("(for index)");
     addLocalVar("(for limit)");
     addLocalVar("(for step)");
     addLocalVar(s.var);
     adjustLocalVars(4);
 
-    state_.regs.setFreeReg(base + 4);
+    state_.registers.setFreeReg(base + 4);
     checkStack(0);
 
     i32 prep = codeAsBx(OpCode::FORPREP, base, 0);
@@ -633,14 +633,14 @@ void StatementEmitter::emitStmt(const ForNumStmt& s) {
 }
 
 void StatementEmitter::emitStmt(const ForInStmt& s) {
-    i32 base = state_.regs.current();
+    i32 base = state_.registers.current();
     i32 nvars = static_cast<i32>(s.vars.size());
 
     if (s.iterators.empty()) {
         throw std::runtime_error("CodeGenerator: for-in loop requires iterator expression");
     }
 
-    state_.regs.setFreeReg(base);
+    state_.registers.setFreeReg(base);
     i32 filled = 0;
     i32 nexps = static_cast<i32>(s.iterators.size());
     for (i32 i = 0; i < nexps; i++) {
@@ -656,7 +656,7 @@ void StatementEmitter::emitStmt(const ForInStmt& s) {
                     CallResultInfo info = emitCallExpr(*callExpr, targetReg);
                     setWantedResults(info, wanted);
                     filled = 3;
-                    state_.regs.setFreeReg(base + 3);
+                    state_.registers.setFreeReg(base + 3);
                     checkStack(0);
                     break;
                 }
@@ -667,7 +667,7 @@ void StatementEmitter::emitStmt(const ForInStmt& s) {
                     SETARG_B(inst, wanted + 1);
                     state_.bytecode.replaceInstruction(info.instructionPc, inst);
                     filled = 3;
-                    state_.regs.setFreeReg(base + 3);
+                    state_.registers.setFreeReg(base + 3);
                     checkStack(0);
                     break;
                 }
@@ -677,7 +677,7 @@ void StatementEmitter::emitStmt(const ForInStmt& s) {
             val = forceSingleValue(val);
             materializeValue(val, targetReg);
             filled++;
-            state_.regs.setFreeReg(base + filled);
+            state_.registers.setFreeReg(base + filled);
             checkStack(0);
         } else {
             ValueResult val = emitValue(iteratorExpr);
@@ -692,12 +692,12 @@ void StatementEmitter::emitStmt(const ForInStmt& s) {
         materializeValue(nilVal, base + filled);
         filled++;
     }
-    state_.regs.setFreeReg(base + 3);
+    state_.registers.setFreeReg(base + 3);
     checkStack(0);
 
     enterBlock(true);
 
-    state_.regs.setFreeReg(base);
+    state_.registers.setFreeReg(base);
     addLocalVar("(for generator)");
     addLocalVar("(for state)");
     addLocalVar("(for control)");
@@ -707,7 +707,7 @@ void StatementEmitter::emitStmt(const ForInStmt& s) {
     }
     adjustLocalVars(3 + nvars);
 
-    state_.regs.setFreeReg(base + 3 + nvars);
+    state_.registers.setFreeReg(base + 3 + nvars);
     checkStack(0);
 
     i32 jmpToTfor = jump();
@@ -725,13 +725,13 @@ void StatementEmitter::emitStmt(const ForInStmt& s) {
 }
 
 void StatementEmitter::block(const Vec<StmtPtr>& stmts) {
-    i32 oldnactvar = scopes_.activeLocalCount();
+    i32 oldActiveVarCount = scopes_.activeLocalCount();
 
     for (const auto& stmt : stmts) {
         statement(*stmt);
     }
 
-    removeLocalVars(oldnactvar);
+    removeLocalVars(oldActiveVarCount);
 }
 
 }  // namespace Lua

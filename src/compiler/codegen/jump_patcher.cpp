@@ -13,8 +13,8 @@ JumpPatcher::JumpPatcher(CodegenState& state) noexcept
     : state_(state) {}
 
 i32 JumpPatcher::emitJump() {
-    i32 pending = state_.blocks.jpc_;
-    state_.blocks.jpc_ = NO_JUMP;
+    i32 pending = state_.blockManager.jpc_;
+    state_.blockManager.jpc_ = NO_JUMP;
     i32 jumpPc = state_.bytecode.emitAsBx(state_.currentLine, OpCode::JMP, 0, NO_JUMP);
     concatJumpList(jumpPc, pending);
     return jumpPc;
@@ -48,7 +48,7 @@ void JumpPatcher::patchList(const PatchList& list, i32 target) {
 
 void JumpPatcher::patchToHere(i32 list) {
     state_.pc = state_.bytecode.instructionCount();
-    concatJumpList(state_.blocks.jpc_, list);
+    concatJumpList(state_.blockManager.jpc_, list);
 }
 
 void JumpPatcher::patchToHere(const PatchList& list) {
@@ -58,8 +58,8 @@ void JumpPatcher::patchToHere(const PatchList& list) {
 
 void JumpPatcher::flushPendingJumps() {
     i32 target = state_.bytecode.instructionCount();
-    patchList(state_.blocks.jpc_, target);
-    state_.blocks.jpc_ = NO_JUMP;
+    patchList(state_.blockManager.jpc_, target);
+    state_.blockManager.jpc_ = NO_JUMP;
 }
 
 void JumpPatcher::concatJumpList(i32& left, i32 right) {

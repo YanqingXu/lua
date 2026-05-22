@@ -94,7 +94,7 @@ void CodeGenerator::discardCurrentProto() noexcept {
     Proto* failedProto = state_.proto;
     state_.proto = nullptr;
     state_.bytecode = BytecodeBuilder();
-    state_.regs.bind(nullptr);
+    state_.registers.bind(nullptr);
 
     if (failedProto == nullptr) {
         return;
@@ -134,19 +134,19 @@ i32 CodeGenerator::codeAsBx(OpCode op, i32 a, i32 sbx) {
 // =====================================================================
 
 i32 CodeGenerator::allocReg() {
-    return state_.regs.alloc();
+    return state_.registers.alloc();
 }
 
 void CodeGenerator::freeReg(i32 reg) {
-    state_.regs.freeReg(reg, scopes_.activeLocalCount());
+    state_.registers.freeReg(reg, scopes_.activeLocalCount());
 }
 
 void CodeGenerator::freeRegs(i32 n) {
-    state_.regs.freeRegs(n);
+    state_.registers.freeRegs(n);
 }
 
 void CodeGenerator::checkStack(i32 n) {
-    state_.regs.checkStack(n);
+    state_.registers.checkStack(n);
 }
 
 // =====================================================================
