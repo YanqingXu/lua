@@ -26,6 +26,8 @@ class CodeGenerator;
  */
 class ExpressionEmitter : private ExprVisitor<ExpressionEmitter, ValueResult> {
     friend struct ExprVisitor<ExpressionEmitter, ValueResult>;
+    template <typename Visitor, typename Node, typename R>
+    friend consteval bool detail::canVisitNode();
 
 public:
     explicit ExpressionEmitter(CodeGenerator& owner) noexcept;

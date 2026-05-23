@@ -71,7 +71,7 @@ applies_to: 当前仓库事实与面向贡献者的工作流
 ## 编译器管线状态
 
 - `ExprDesc` 和 `ExprKind` 已从产品编译器源码中移除。
-- `src/compiler/ast_visitor.hpp` 提供 `ExprVisitor<Derived, R>`、`StmtVisitor<Derived, R>`、`AstVisitor<Derived, R>` 以及 `VisitsExprNodes` / `VisitsStmtNodes` / `VisitsAstNodes` concepts；`tests/unit/compiler/test_ast_visitor.cpp` 锁住表达式、语句和组合 visitor 的分派边界。
+- `src/compiler/ast_visitor.hpp` 提供 `ExprVisitor<Derived, R>`、`StmtVisitor<Derived, R>`、`AstVisitor<Derived, R>` 以及 `VisitsExprNodes` / `VisitsStmtNodes` / `VisitsAstNodes` concepts；节点覆盖检查复用 `detail::canVisitNode()` / `detail::visitsVariantNodes()`，`tests/unit/compiler/test_ast_visitor.cpp` 锁住表达式、语句和组合 visitor 的分派边界。
 - `CodeGenerator` 的 public API 保留在 `src/compiler/codegen/codegen.hpp`，实现已物理拆分到 `src/compiler/codegen/codegen.cpp`、`src/compiler/codegen/codegen_binding.cpp`、`src/compiler/codegen/codegen_expr.cpp`、`src/compiler/codegen/expression_emitter.cpp`、`src/compiler/codegen/statement_emitter.cpp`、`src/compiler/codegen/codegen_jump.cpp` 和 `src/compiler/codegen/codegen_stmt.cpp`。
 - `docs/compiler/codegen-responsibility-map.md` 记录了 PR-48 后的 CodeGenerator 职责地图；`JumpPatcher` 已抽出 jump-list / pending-jump / PC offset 回填边界，`ScopeManager` 已抽出 local / block / upvalue 作用域生命周期边界，`ExpressionEmitter` 已抽出 ValueResult / CondResult / CallResultInfo / LValueRef 表达式通道边界，`StatementEmitter` 已抽出 statement / block lowering 边界，`ValueResult` 已有兼容式 `std::variant` payload 原型；`Codegen Characterization`、`Jump Patcher`、`Scope Manager`、`Expression Emitter`、`Statement Emitter` 与 `Codegen Result Types` 测试套件共同锁住 statement lowering、jump patching、repeat-until scope、generic-for、表达式 lowering 和 ValueResult payload 同步行为。
 - `src/compiler/codegen/codegen_state.hpp` 集中管理这些实现分片共享的可变生成状态，包括当前 `Proto`、程序计数器、行号、寄存器分配器、局部作用域、块管理器和 upvalue 上下文。

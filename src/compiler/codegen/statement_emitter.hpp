@@ -27,6 +27,8 @@ class CodeGenerator;
  */
 class StatementEmitter : private StmtVisitor<StatementEmitter, void> {
     friend struct StmtVisitor<StatementEmitter, void>;
+    template <typename Visitor, typename Node, typename R>
+    friend consteval bool detail::canVisitNode();
 
 public:
     explicit StatementEmitter(CodeGenerator& owner) noexcept;

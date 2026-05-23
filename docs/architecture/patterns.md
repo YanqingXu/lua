@@ -23,7 +23,7 @@ This file records the design patterns that are intentionally present in the curr
 
 ### Visitor
 
-The AST visitor layer intentionally stays small. `ExprVisitor`, `StmtVisitor`, and the combined `AstVisitor` only centralize variant dispatch; they do not own traversal policy, scope state, bytecode emission, or diagnostics. Those responsibilities remain in users such as `CodeGenerator` and the REPL AST printer.
+The AST visitor layer intentionally stays small. `ExprVisitor`, `StmtVisitor`, and the combined `AstVisitor` only centralize variant dispatch; their coverage checks share `detail::canVisitNode()` and `detail::visitsVariantNodes()`. They do not own traversal policy, scope state, bytecode emission, or diagnostics. Those responsibilities remain in users such as `CodeGenerator` and the REPL AST printer.
 
 When adding a new AST consumer, prefer a concrete visitor type over adding more branching to `CodeGenerator`. When changing code generation itself, keep the current `CodeGenerator` public API stable.
 
