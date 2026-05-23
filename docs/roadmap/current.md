@@ -127,7 +127,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_quality_gate.ps1
 
 - 质量门禁配置自检通过。
 - 文档漂移检查通过。
-- 本机有 MSBuild 和 `bin\lua_test.exe` 时，`run_quality_gate.ps1` 会构建 `lua_test.vcxproj`，并运行 534 个注册测试 / 2664 个结果 / 0 失败。
+- 本机有 MSBuild 和 `bin\lua_test.exe` 时，`run_quality_gate.ps1` 会构建 `lua_test.vcxproj`，并运行 537 个注册测试 / 2682 个结果 / 0 失败。
 
 ### 3A. 共享文件读取
 
@@ -1362,7 +1362,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\check_doc_drift.ps1
 - MSBuild `lua_test.vcxproj` 通过，0 警告 / 0 错误。
 - `VM Trace Debug` 过滤测试选中 4 个注册测试 / 42 个结果 / 0 失败。
 - `AppOptions` 过滤测试选中 1 个注册测试 / 27 个结果 / 0 失败。
-- 默认 `bin\lua_test.exe` 运行 534 个注册测试 / 2664 个结果 / 0 失败。
+- 默认 `bin\lua_test.exe` 运行 537 个注册测试 / 2682 个结果 / 0 失败。
 
 ## 维护规则
 

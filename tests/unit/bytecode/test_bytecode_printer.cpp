@@ -219,6 +219,101 @@ void testPrinterShowsIdenticalDiffSummary(TestSuite& suite) {
                 "identical diff should not print an empty table");
 }
 
+void testPrinterShowsMermaidCfgForBranches(TestSuite& suite) {
+    StringPool& pool = StringPool::getInstance();
+    Proto proto;
+
+    proto.setSource(pool.intern("cfg.lua"));
+    i32 thenConstant = static_cast<i32>(proto.addConstant(Value(1.0)));
+    i32 elseConstant = static_cast<i32>(proto.addConstant(Value(2.0)));
+    i32 doneConstant = static_cast<i32>(proto.addConstant(Value(3.0)));
+
+    addInstruction(proto, 1, CREATE_ABx(OpCode::LOADK, 0, thenConstant));
+    addInstruction(proto, 2, CREATE_ABC(OpCode::TEST, 0, 0, 1));
+    addInstruction(proto, 2, CREATE_AsBx(OpCode::JMP, 0, 2));
+    addInstruction(proto, 3, CREATE_ABx(OpCode::LOADK, 1, elseConstant));
+    addInstruction(proto, 3, CREATE_AsBx(OpCode::JMP, 0, 1));
+    addInstruction(proto, 4, CREATE_ABx(OpCode::LOADK, 2, doneConstant));
+    addInstruction(proto, 5, CREATE_ABC(OpCode::RETURN, 0, 1, 0));
+
+    std::ostringstream output;
+    printProtoBytecodeCfg(&proto, output, false);
+    std::string text = output.str();
+
+    ASSERT_TRUE(suite, contains(text, "flowchart TD"), "CFG output should be Mermaid flowchart");
+    ASSERT_TRUE(suite, contains(text, "%% lua_bytecode Mermaid CFG"), "CFG output should name tool mode");
+    ASSERT_TRUE(suite, contains(text, "subgraph P0[\"Proto cfg.lua\"]"), "CFG should label root proto");
+    ASSERT_TRUE(suite, contains(text, "P0_B0[\"B0\\npc 0..2\\nLOADK -> JMP\"]"),
+                "TEST companion JMP should stay in the same basic block");
+    ASSERT_TRUE(suite, contains(text, "P0_B0 -->|test jump| P0_B2"),
+                "TEST jump edge should target the patched branch block");
+    ASSERT_TRUE(suite, contains(text, "P0_B0 -->|test fallthrough| P0_B1"),
+                "TEST fallthrough edge should skip the companion JMP");
+    ASSERT_TRUE(suite, contains(text, "P0_B1 -->|jump| P0_B3"), "JMP edge should be explicit");
+    ASSERT_TRUE(suite, contains(text, "P0_B3 -->|return| P0_EXIT"), "RETURN should point at exit");
+}
+
+void testPrinterShowsMermaidCfgForLoops(TestSuite& suite) {
+    StringPool& pool = StringPool::getInstance();
+    Proto proto;
+
+    proto.setSource(pool.intern("loop.lua"));
+    i32 bodyConstant = static_cast<i32>(proto.addConstant(Value(pool.intern("body"))));
+
+    addInstruction(proto, 1, CREATE_AsBx(OpCode::FORPREP, 0, 2));
+    addInstruction(proto, 2, CREATE_ABx(OpCode::LOADK, 4, bodyConstant));
+    addInstruction(proto, 2, CREATE_AsBx(OpCode::JMP, 0, 1));
+    addInstruction(proto, 3, CREATE_AsBx(OpCode::FORLOOP, 0, -3));
+    addInstruction(proto, 4, CREATE_ABC(OpCode::RETURN, 0, 1, 0));
+
+    std::ostringstream output;
+    printProtoBytecodeCfg(&proto, output, false);
+    std::string text = output.str();
+
+    ASSERT_TRUE(suite, contains(text, "subgraph P0[\"Proto loop.lua\"]"), "loop CFG should label proto");
+    ASSERT_TRUE(suite, contains(text, "P0_B0[\"B0\\npc 0\\nFORPREP\"]"),
+                "FORPREP should start its own block");
+    ASSERT_TRUE(suite, contains(text, "P0_B0 -->|prepare| P0_B2"),
+                "FORPREP edge should jump to loop check block");
+    ASSERT_TRUE(suite, contains(text, "P0_B2[\"B2\\npc 3\\nFORLOOP\"]"),
+                "FORLOOP should be visible as a loop block");
+    ASSERT_TRUE(suite, contains(text, "P0_B2 -->|loop| P0_B1"), "FORLOOP back edge should be explicit");
+    ASSERT_TRUE(suite, contains(text, "P0_B2 -->|exit| P0_B3"), "FORLOOP exit edge should be explicit");
+}
+
+void testPrinterShowsCfgForChildProtosInFullMode(TestSuite& suite) {
+    StringPool& pool = StringPool::getInstance();
+    Proto root;
+    Proto child;
+
+    root.setSource(pool.intern("root-cfg.lua"));
+    child.setSource(pool.intern("child-cfg.lua"));
+    child.setLineDefined(10);
+
+    root.addProto(&child);
+    addInstruction(root, 1, CREATE_ABx(OpCode::CLOSURE, 0, 0));
+    addInstruction(root, 1, CREATE_ABC(OpCode::RETURN, 0, 1, 0));
+    addInstruction(child, 10, CREATE_ABC(OpCode::RETURN, 0, 1, 0));
+
+    std::ostringstream compactOutput;
+    printProtoBytecodeCfg(&root, compactOutput, false);
+    std::string compact = compactOutput.str();
+
+    ASSERT_TRUE(suite, !contains(compact, "proto[0] child-cfg.lua:10"),
+                "compact CFG should only print the root proto");
+
+    std::ostringstream fullOutput;
+    printProtoBytecodeCfg(&root, fullOutput, true);
+    std::string full = fullOutput.str();
+
+    ASSERT_TRUE(suite, contains(full, "subgraph P0[\"Proto root-cfg.lua\"]"),
+                "full CFG should include root proto");
+    ASSERT_TRUE(suite, contains(full, "subgraph P1[\"proto[0] child-cfg.lua:10\"]"),
+                "full CFG should recurse into child proto CFG");
+    ASSERT_TRUE(suite, contains(full, "P1_B0[\"B0\\npc 0\\nRETURN\"]"),
+                "child proto CFG should include child instructions");
+}
+
 } // namespace
 
 void registerBytecodePrinterTests() {
@@ -235,4 +330,10 @@ void registerBytecodePrinterTests() {
                           testPrinterShowsSideBySideDiff);
     registry.registerTest(kSuiteName, "Identical Diff Summary",
                           testPrinterShowsIdenticalDiffSummary);
+    registry.registerTest(kSuiteName, "Mermaid CFG Branches",
+                          testPrinterShowsMermaidCfgForBranches);
+    registry.registerTest(kSuiteName, "Mermaid CFG Loops",
+                          testPrinterShowsMermaidCfgForLoops);
+    registry.registerTest(kSuiteName, "Mermaid CFG Full Child Protos",
+                          testPrinterShowsCfgForChildProtosInFullMode);
 }

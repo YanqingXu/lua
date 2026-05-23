@@ -11,7 +11,7 @@ applies_to: lua_bytecode executable
 
 ## Current Status
 
-The executable can parse and compile Lua source files into `Proto` objects. `printProtoBytecode()` prints Proto metadata, decoded instructions, constant references, the constant table, and recursive child Proto sections when the optional `full` argument is used. `--diff` compiles two scripts and prints a side-by-side summary of changed bytecode lines.
+The executable can parse and compile Lua source files into `Proto` objects. `printProtoBytecode()` prints Proto metadata, decoded instructions, constant references, the constant table, and recursive child Proto sections when the optional `full` argument is used. `--diff` compiles two scripts and prints a side-by-side summary of changed bytecode lines. `--cfg` compiles one script and emits a Mermaid `flowchart TD` control-flow graph with basic blocks and labeled jump / fallthrough / loop / return edges.
 
 ## Source Files
 

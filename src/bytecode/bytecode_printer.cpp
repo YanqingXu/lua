@@ -336,6 +336,376 @@ usize countChangedLines(const std::vector<std::string>& leftLines,
     return changed;
 }
 
+struct CfgBlock {
+    usize id = 0;
+    usize startPc = 0;
+    usize endPc = 0;
+};
+
+struct CfgEdge {
+    usize fromBlock = 0;
+    i32 targetPc = 0;
+    std::string label;
+};
+
+struct CfgGraph {
+    std::vector<CfgBlock> blocks;
+    std::vector<CfgEdge> edges;
+    std::vector<i32> pcToBlock;
+};
+
+struct CfgRenderState {
+    usize nextProtoId = 0;
+};
+
+bool isCompanionJumpConsumer(OpCode op) {
+    return op == OpCode::TEST || op == OpCode::TESTSET || op == OpCode::TFORLOOP;
+}
+
+bool isComparisonOpcode(OpCode op) {
+    return op == OpCode::EQ || op == OpCode::LT || op == OpCode::LE;
+}
+
+i32 nextPc(usize pc) {
+    return static_cast<i32>(pc) + 1;
+}
+
+i32 jumpTarget(usize pc, Instruction inst) {
+    return static_cast<i32>(pc) + 1 + GETARG_sBx(inst);
+}
+
+bool hasCompanionJump(const std::vector<Instruction>& code, usize pc) {
+    return pc + 1 < code.size() && GET_OPCODE(code[pc + 1]) == OpCode::JMP;
+}
+
+void addLeader(std::vector<bool>& leaders, i32 pc) {
+    if (pc >= 0 && static_cast<usize>(pc) < leaders.size()) {
+        leaders[static_cast<usize>(pc)] = true;
+    }
+}
+
+std::vector<bool> collectCfgLeaders(const std::vector<Instruction>& code) {
+    std::vector<bool> leaders(code.size(), false);
+    if (code.empty()) {
+        return leaders;
+    }
+
+    leaders[0] = true;
+
+    for (usize pc = 0; pc < code.size(); ++pc) {
+        const Instruction inst = code[pc];
+        const OpCode op = GET_OPCODE(inst);
+
+        if (isCompanionJumpConsumer(op) && hasCompanionJump(code, pc)) {
+            const usize companionPc = pc + 1;
+            addLeader(leaders, jumpTarget(companionPc, code[companionPc]));
+            addLeader(leaders, static_cast<i32>(pc) + 2);
+            continue;
+        }
+
+        if (isComparisonOpcode(op)) {
+            addLeader(leaders, nextPc(pc));
+            addLeader(leaders, static_cast<i32>(pc) + 2);
+            continue;
+        }
+
+        switch (op) {
+        case OpCode::JMP:
+            addLeader(leaders, jumpTarget(pc, inst));
+            addLeader(leaders, nextPc(pc));
+            break;
+        case OpCode::LOADBOOL:
+            if (GETARG_C(inst) != 0) {
+                addLeader(leaders, nextPc(pc));
+                addLeader(leaders, static_cast<i32>(pc) + 2);
+            }
+            break;
+        case OpCode::RETURN:
+        case OpCode::TAILCALL:
+            addLeader(leaders, nextPc(pc));
+            break;
+        case OpCode::FORPREP:
+            addLeader(leaders, jumpTarget(pc, inst));
+            addLeader(leaders, nextPc(pc));
+            break;
+        case OpCode::FORLOOP:
+            addLeader(leaders, jumpTarget(pc, inst));
+            addLeader(leaders, nextPc(pc));
+            break;
+        default:
+            break;
+        }
+    }
+
+    return leaders;
+}
+
+std::vector<CfgBlock> buildCfgBlocks(const std::vector<Instruction>& code,
+                                     const std::vector<bool>& leaders) {
+    std::vector<usize> leaderPcs;
+    for (usize pc = 0; pc < leaders.size(); ++pc) {
+        if (leaders[pc]) {
+            leaderPcs.push_back(pc);
+        }
+    }
+
+    std::vector<CfgBlock> blocks;
+    blocks.reserve(leaderPcs.size());
+    for (usize i = 0; i < leaderPcs.size(); ++i) {
+        const usize start = leaderPcs[i];
+        const usize nextLeader = (i + 1 < leaderPcs.size()) ? leaderPcs[i + 1] : code.size();
+        if (start >= code.size() || nextLeader == 0 || nextLeader <= start) {
+            continue;
+        }
+
+        blocks.push_back(CfgBlock{
+            blocks.size(),
+            start,
+            nextLeader - 1,
+        });
+    }
+
+    return blocks;
+}
+
+std::vector<i32> buildPcToBlock(const std::vector<Instruction>& code,
+                                const std::vector<CfgBlock>& blocks) {
+    std::vector<i32> pcToBlock(code.size(), -1);
+    for (const CfgBlock& block : blocks) {
+        for (usize pc = block.startPc; pc <= block.endPc && pc < pcToBlock.size(); ++pc) {
+            pcToBlock[pc] = static_cast<i32>(block.id);
+        }
+    }
+    return pcToBlock;
+}
+
+void addCfgEdge(std::vector<CfgEdge>& edges, usize fromBlock, i32 targetPc, std::string label) {
+    edges.push_back(CfgEdge{fromBlock, targetPc, std::move(label)});
+}
+
+bool blockEndsWithCompanionJump(const std::vector<Instruction>& code, const CfgBlock& block) {
+    if (block.endPc == 0 || block.endPc <= block.startPc || block.endPc >= code.size()) {
+        return false;
+    }
+
+    return isCompanionJumpConsumer(GET_OPCODE(code[block.endPc - 1]))
+        && GET_OPCODE(code[block.endPc]) == OpCode::JMP;
+}
+
+std::vector<CfgEdge> buildCfgEdges(const std::vector<Instruction>& code,
+                                   const std::vector<CfgBlock>& blocks) {
+    std::vector<CfgEdge> edges;
+
+    for (const CfgBlock& block : blocks) {
+        if (block.endPc >= code.size()) {
+            continue;
+        }
+
+        if (blockEndsWithCompanionJump(code, block)) {
+            const OpCode op = GET_OPCODE(code[block.endPc - 1]);
+            const i32 jump = jumpTarget(block.endPc, code[block.endPc]);
+            const i32 fallthrough = static_cast<i32>(block.endPc) + 1;
+
+            if (op == OpCode::TFORLOOP) {
+                addCfgEdge(edges, block.id, jump, "iterator next");
+                addCfgEdge(edges, block.id, fallthrough, "iterator done");
+            } else {
+                addCfgEdge(edges, block.id, jump, "test jump");
+                addCfgEdge(edges, block.id, fallthrough, "test fallthrough");
+            }
+            continue;
+        }
+
+        const Instruction inst = code[block.endPc];
+        const OpCode op = GET_OPCODE(inst);
+
+        if (isComparisonOpcode(op)) {
+            addCfgEdge(edges, block.id, nextPc(block.endPc), "compare next");
+            addCfgEdge(edges, block.id, static_cast<i32>(block.endPc) + 2, "compare skip");
+            continue;
+        }
+
+        switch (op) {
+        case OpCode::JMP:
+            addCfgEdge(edges, block.id, jumpTarget(block.endPc, inst), "jump");
+            break;
+        case OpCode::LOADBOOL:
+            if (GETARG_C(inst) != 0) {
+                addCfgEdge(edges, block.id, static_cast<i32>(block.endPc) + 2, "skip");
+            } else {
+                addCfgEdge(edges, block.id, nextPc(block.endPc), "fallthrough");
+            }
+            break;
+        case OpCode::RETURN:
+        case OpCode::TAILCALL:
+            addCfgEdge(edges, block.id, static_cast<i32>(code.size()), "return");
+            break;
+        case OpCode::FORPREP:
+            addCfgEdge(edges, block.id, jumpTarget(block.endPc, inst), "prepare");
+            break;
+        case OpCode::FORLOOP:
+            addCfgEdge(edges, block.id, jumpTarget(block.endPc, inst), "loop");
+            addCfgEdge(edges, block.id, nextPc(block.endPc), "exit");
+            break;
+        default:
+            addCfgEdge(edges, block.id, nextPc(block.endPc), "fallthrough");
+            break;
+        }
+    }
+
+    return edges;
+}
+
+CfgGraph buildCfgGraph(const Proto* proto) {
+    std::vector<Instruction> code;
+    if (proto) {
+        const auto span = proto->getInstructionSpan();
+        code.assign(span.begin(), span.end());
+    }
+
+    const std::vector<bool> leaders = collectCfgLeaders(code);
+    std::vector<CfgBlock> blocks = buildCfgBlocks(code, leaders);
+    std::vector<i32> pcToBlock = buildPcToBlock(code, blocks);
+    std::vector<CfgEdge> edges = buildCfgEdges(code, blocks);
+    return CfgGraph{std::move(blocks), std::move(edges), std::move(pcToBlock)};
+}
+
+std::string escapeMermaidLabel(std::string_view value) {
+    std::string escaped;
+    escaped.reserve(value.size());
+
+    for (char ch : value) {
+        switch (ch) {
+        case '\\':
+            escaped += "\\\\";
+            break;
+        case '"':
+            escaped += "\\\"";
+            break;
+        case '\n':
+            escaped += "\\n";
+            break;
+        case '\r':
+            break;
+        default:
+            escaped += ch;
+            break;
+        }
+    }
+
+    return escaped;
+}
+
+std::string cfgNodeId(usize protoId, usize blockId) {
+    return std::format("P{}_B{}", protoId, blockId);
+}
+
+std::string cfgExitNodeId(usize protoId) {
+    return std::format("P{}_EXIT", protoId);
+}
+
+std::string cfgBlockPcRange(const CfgBlock& block) {
+    if (block.startPc == block.endPc) {
+        return std::format("pc {}", block.startPc);
+    }
+
+    return std::format("pc {}..{}", block.startPc, block.endPc);
+}
+
+std::string cfgBlockOpcodeSummary(const Proto* proto, const CfgBlock& block) {
+    const auto code = proto->getInstructionSpan();
+    const char* first = opcodeMetadata(GET_OPCODE(code[block.startPc])).name;
+    const char* last = opcodeMetadata(GET_OPCODE(code[block.endPc])).name;
+
+    if (block.startPc == block.endPc) {
+        return first;
+    }
+
+    return std::format("{} -> {}", first, last);
+}
+
+std::string cfgBlockLabel(const Proto* proto, const CfgBlock& block) {
+    return std::format("B{}\n{}\n{}",
+                       block.id,
+                       cfgBlockPcRange(block),
+                       cfgBlockOpcodeSummary(proto, block));
+}
+
+void printCfgEdge(const CfgGraph& graph,
+                  usize protoId,
+                  const CfgEdge& edge,
+                  std::ostream& out) {
+    const std::string from = cfgNodeId(protoId, edge.fromBlock);
+    std::string to = cfgExitNodeId(protoId);
+
+    if (edge.targetPc >= 0 && static_cast<usize>(edge.targetPc) < graph.pcToBlock.size()) {
+        const i32 blockId = graph.pcToBlock[static_cast<usize>(edge.targetPc)];
+        if (blockId >= 0) {
+            to = cfgNodeId(protoId, static_cast<usize>(blockId));
+        }
+    }
+
+    out << "  " << from << " -->|" << edge.label << "| " << to << '\n';
+}
+
+void printSingleProtoCfg(const Proto* proto,
+                         std::ostream& out,
+                         usize protoId,
+                         std::string_view title) {
+    out << std::format("  subgraph P{}[\"{}\"]\n", protoId, escapeMermaidLabel(title));
+
+    if (!proto) {
+        out << std::format("    {}((\"exit\"))\n", cfgExitNodeId(protoId));
+        out << "  end" << '\n';
+        return;
+    }
+
+    const CfgGraph graph = buildCfgGraph(proto);
+    out << std::format("    {}((\"exit\"))\n", cfgExitNodeId(protoId));
+    for (const CfgBlock& block : graph.blocks) {
+        out << std::format("    {}[\"{}\"]\n",
+                           cfgNodeId(protoId, block.id),
+                           escapeMermaidLabel(cfgBlockLabel(proto, block)));
+    }
+    out << "  end" << '\n';
+
+    for (const CfgEdge& edge : graph.edges) {
+        printCfgEdge(graph, protoId, edge, out);
+    }
+}
+
+void printProtoCfgRecursive(const Proto* proto,
+                            std::ostream& out,
+                            bool full,
+                            CfgRenderState& state,
+                            std::string_view title,
+                            const std::vector<const Proto*>& ancestry) {
+    const usize protoId = state.nextProtoId++;
+    printSingleProtoCfg(proto, out, protoId, title);
+
+    if (!full || !proto) {
+        return;
+    }
+
+    std::vector<const Proto*> nextAncestry = ancestry;
+    nextAncestry.push_back(proto);
+
+    for (usize i = 0; i < proto->getSubProtoCount(); ++i) {
+        const Proto* child = proto->getSubProto(i);
+        if (child && containsProto(nextAncestry, child)) {
+            out << std::format("  %% proto[{}] skipped: cycle\n", i);
+            continue;
+        }
+
+        printProtoCfgRecursive(child,
+                               out,
+                               true,
+                               state,
+                               std::format("proto[{}] {}", i, formatProtoSummary(child)),
+                               nextAncestry);
+    }
+}
+
 } // namespace
 
 void printProtoBytecode(const Proto* f, std::ostream& out, bool full) {
@@ -382,6 +752,14 @@ void printProtoBytecodeDiff(const Proto* left,
 
         out << std::format("{:04} | {} | {}\n", i, leftLine, rightLine);
     }
+}
+
+void printProtoBytecodeCfg(const Proto* f, std::ostream& out, bool full) {
+    out << "flowchart TD" << '\n';
+    out << "  %% lua_bytecode Mermaid CFG" << '\n';
+
+    CfgRenderState state;
+    printProtoCfgRecursive(f, out, full, state, std::format("Proto {}", formatProtoSummary(f)), {});
 }
 
 } // namespace Lua

@@ -231,7 +231,7 @@ foreach ($required in @("CMakeLists.txt", "tools\run_cmake_smoke.ps1", "CMake", 
 
 $statusDoc = Read-Text "docs/status/project-status.md"
 $statusDocPath = Join-RepoPath "docs/status/project-status.md"
-foreach ($required in @("Visual Studio", "MSBuild", ".vcxproj", "CMake", "CTest", "secondary", "CMakeLists.txt", "tools/run_cmake_smoke.ps1", "--report=junit", "RuntimeServices", "GCStrategy", "Learning Path", "lua_bytecode", "decoded instructions", "constant table")) {
+foreach ($required in @("Visual Studio", "MSBuild", ".vcxproj", "CMake", "CTest", "secondary", "CMakeLists.txt", "tools/run_cmake_smoke.ps1", "--report=junit", "RuntimeServices", "GCStrategy", "Learning Path", "lua_bytecode", "decoded instructions", "constant table", "--cfg", "Mermaid")) {
     if (-not (Select-String -LiteralPath $statusDocPath -SimpleMatch -Pattern $required -Quiet)) {
         Add-Failure $failures "docs/status/project-status.md is missing required fact: $required"
     }
@@ -303,7 +303,7 @@ foreach ($required in @("AST", "SymbolRef", "ValueResult", "CondResult", "LValue
 }
 
 $bytecodeToolDoc = Read-Text "docs/guides/bytecode-tool.md"
-foreach ($required in @("decoded instructions", "constant references", "constant table", "recursive child protos in full mode", "--diff", "side-by-side", "changed lines")) {
+foreach ($required in @("decoded instructions", "constant references", "constant table", "recursive child protos in full mode", "--diff", "side-by-side", "changed lines", "--cfg", "Mermaid", "basic blocks", "control-flow edges")) {
     if ($bytecodeToolDoc -notmatch [regex]::Escape($required)) {
         Add-Failure $failures "docs/guides/bytecode-tool.md is missing current bytecode printer fact: $required"
     }

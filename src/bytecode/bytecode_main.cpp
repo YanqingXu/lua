@@ -19,12 +19,14 @@ constexpr const char* kToolName = "bytecode_main";
 struct BytecodeToolOptions {
     bool diff = false;
     bool full = false;
+    bool cfg = false;
     std::vector<std::string> scripts;
 };
 
 void printUsage(std::ostream& err) {
     err << "Usage:\n";
     err << std::format("  {} <script.lua> [full|--full]\n", kToolName);
+    err << std::format("  {} <script.lua> --cfg [full|--full]\n", kToolName);
     err << std::format("  {} <left.lua> <right.lua> --diff [full|--full]\n", kToolName);
 }
 
@@ -38,6 +40,8 @@ bool parseOptions(int argc, char** argv, BytecodeToolOptions& options, std::ostr
         std::string arg = argv[i];
         if (arg == "--diff") {
             options.diff = true;
+        } else if (arg == "--cfg") {
+            options.cfg = true;
         } else if (arg == "full" || arg == "--full") {
             options.full = true;
         } else if (!arg.empty() && arg[0] == '-') {
@@ -49,12 +53,18 @@ bool parseOptions(int argc, char** argv, BytecodeToolOptions& options, std::ostr
         }
     }
 
+    if (options.diff && options.cfg) {
+        err << "[ERROR] --cfg cannot be combined with --diff\n";
+        printUsage(err);
+        return false;
+    }
+
     const usize expectedScripts = options.diff ? 2 : 1;
     if (options.scripts.size() != expectedScripts) {
         err << std::format("[ERROR] Expected {} script path{} for {} mode, got {}\n",
                            expectedScripts,
                            expectedScripts == 1 ? "" : "s",
-                           options.diff ? "diff" : "print",
+                           options.diff ? "diff" : (options.cfg ? "cfg" : "print"),
                            options.scripts.size());
         printUsage(err);
         return false;
@@ -99,7 +109,11 @@ int main(int argc, char** argv) {
             printProtoBytecodeDiff(left, right, std::cout, options.full, options.scripts[0], options.scripts[1]);
         } else {
             Proto* proto = compileScript(services, options.scripts[0]);
-            printProtoBytecode(proto, std::cout, options.full);
+            if (options.cfg) {
+                printProtoBytecodeCfg(proto, std::cout, options.full);
+            } else {
+                printProtoBytecode(proto, std::cout, options.full);
+            }
         }
 
         // Proto由GC管理；字节码工具结束时由进程/GC清理。

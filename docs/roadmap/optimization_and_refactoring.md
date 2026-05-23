@@ -2,9 +2,9 @@
 
 > 适用范围：`g:\github\lua`（现代 C++ Lua 5.1.5 解释器）
 > 设计目标：**可读性 > 可维护性 > 教育价值 > 性能**
-> 约束：保持 534 个注册测试 / 2664 个断言结果 / 0 失败，不破坏 `LuaState` / `VM` public API。
+> 约束：保持 537 个注册测试 / 2682 个断言结果 / 0 失败，不破坏 `LuaState` / `VM` public API。
 > 最近审计：2026-05-21（深度审计报告，覆盖 Readability / Extensibility / Educational Value 三维度）
-> 最近同步：2026-05-23（PR-62：`GCStrategy` 抽象，接入 `MarkSweepGC` 与 incremental 教学占位策略，并补策略选择 / 等价性测试）
+> 最近同步：2026-05-23（PR-63：`lua_bytecode --cfg` Mermaid basic-block CFG 输出，补 Bytecode Printer CFG 输出契约测试）
 
 ---
 
@@ -14,7 +14,7 @@
 |---|---|---|---|
 | **可读性** | **A-** | CRTP+concept 编译期检查、`std::expected` 边界清晰、VM 主循环已精简为策略入口 + handler table | `ValueResult` 已有 variant prototype 但旧兼容字段仍待迁移、`CodeGenerator` 方法数 60+、部分命名继承 Lua C 缩写 |
 | **易扩展性** | **B+** | Visitor 模式添加新工具零摩擦、`DispatchStrategy` 可插拔、`HandlerTable` 按组注册，`GCStrategy` 已把 collector 算法边界显式化 | GC/metatable 兼容 fallback 仍需收口、`lib_manager.hpp` 冗余声明、`CodeGenerator` facade 仍可继续瘦身 |
-| **教学价值** | **A-** | hello-world / closure-and-upvalue / gc-cycle walkthrough 已覆盖端到端执行、闭包生命周期和完整 GC 周期，glossary 降低认知负担，trace 系统层次分明且已有差异模式，REPL 已能打印 AST、bytecode 与 GC 状态，支持 Tab 探索全局名和库字段，并在终端中高亮错误和展示行号 prompt | 字节码 CFG 待实现 |
+| **教学价值** | **A-** | hello-world / closure-and-upvalue / gc-cycle walkthrough 已覆盖端到端执行、闭包生命周期和完整 GC 周期，glossary 降低认知负担，trace 系统层次分明且已有差异模式，REPL 已能打印 AST、bytecode 与 GC 状态，支持 Tab 探索全局名和库字段，并在终端中高亮错误和展示行号 prompt，`lua_bytecode --cfg` 可直接生成 Mermaid CFG | Trace golden 样本和 REPL 增量解析专项测试仍可补强 |
 
 各维度详细评估见本文档对应阶段的任务标注；已完成项以 ✓ 标记。
 
@@ -27,7 +27,7 @@
 | **阶段 1 — 短期代码清理** | 1–2 个迭代 | 删冗余、统一命名、收紧错误处理、文档与代码同步 | 否 | ~90% |
 | **阶段 2 — 中期模式重构** | 3–5 个迭代 | 引入访问者 / 策略 / 命令模式，VM dispatch 与 GC 抽象化 | 内部 API 调整、public 不变 | ~91% |
 | **阶段 3 — 现代 C++ 特性** | 穿插于 1 & 2 | `std::expected` / `concepts` / `std::format` / `[[nodiscard]]` | 部分 public 签名变更 | ~90% |
-| **阶段 4 — 教育价值增强** | 持续推进 | 自解释代码、字节码可视化、执行链路教学文档、REPL 体验、Trace 差异模式 | 否（增量增强） | ~85% |
+| **阶段 4 — 教育价值增强** | 持续推进 | 自解释代码、字节码可视化、执行链路教学文档、REPL 体验、Trace 差异模式 | 否（增量增强） | ~88% |
 | **阶段 5 — 工程实践** | 持续 | 测试覆盖、质量门、构建一致性、文档漂移检测 | 否 | ~77% |
 
 ---
@@ -313,7 +313,7 @@ using ValueResult = std::variant<
 
 ### 4.2 `lua_bytecode` 工具可视化升级
 
-**现状**：`bytecode_main.cpp` 支持单脚本打印和双脚本 `--diff`；`src/bytecode/bytecode_printer.cpp` 已能打印 source、参数信息、upvalue 摘要、逐条指令、常量引用和常量表。PR-55 后 `full` 参数会递归打印 child protos；PR-56 后 `--diff` 会并排展示两段渲染后字节码的差异，并忽略 `source:` 路径元数据噪声。CFG 仍未实现。
+**现状**：`bytecode_main.cpp` 支持单脚本打印、单脚本 `--cfg` Mermaid CFG 和双脚本 `--diff`；`src/bytecode/bytecode_printer.cpp` 已能打印 source、参数信息、upvalue 摘要、逐条指令、常量引用和常量表。PR-55 后 `full` 参数会递归打印 child protos；PR-56 后 `--diff` 会并排展示两段渲染后字节码的差异，并忽略 `source:` 路径元数据噪声；PR-63 后 `--cfg [full]` 会输出 basic block、TEST / TFORLOOP companion jump、FORLOOP 回边和 return exit 的 Mermaid `flowchart TD`。
 
 **升级方案（分子任务）**：
 
@@ -325,7 +325,7 @@ using ValueResult = std::variant<
 3. ✓ **已完成**：常量表分类型打印，如 `K[0] = number 42`。
 4. ✓ **已完成 — PR-55**：子原型递归，`full` 模式下深入打印 child protos，缩进可视化层级，并在 `CLOSURE` 指令注释中显示 `proto[index]` 摘要。
 5. ✓ **已完成 — PR-56**：diff 模式，`bin\lua_bytecode.exe a.lua b.lua --diff`，并排展示两段字节码差异；`full` 参数可把 child protos 纳入对比。
-6. **候选**：Graphviz/Mermaid 输出，`--cfg` 子命令输出函数的基本块控制流图（Mermaid 格式），可直接贴入文档。
+6. ✓ **已完成 — PR-63**：Mermaid 输出，`bin\lua_bytecode.exe script.lua --cfg [full]` 输出函数的基本块控制流图（Mermaid 格式），可直接贴入文档；`full` 会递归打印 child Proto CFG 子图。
 
 ### 4.3 核心执行链路逻辑文档
 
@@ -379,7 +379,7 @@ using ValueResult = std::variant<
 
 ### 5.1 测试覆盖精细化
 
-**现状**：534 个注册测试 / 2664 个断言结果 / 0 失败，目录 `tests/unit/`、`tests/lua/`。
+**现状**：537 个注册测试 / 2682 个断言结果 / 0 失败，目录 `tests/unit/`、`tests/lua/`。
 
 **改进方向**（优先小步增量；覆盖矩阵作为 checklist 文档）：
 
@@ -409,7 +409,7 @@ using ValueResult = std::variant<
 | 风险 | 影响 | 缓解 |
 |---|---|---|
 | VM dispatch 命令模式化引入函数指针表，调试器单步体验下降 | 影响教学 | 保留 `SwitchDispatch` 作为默认；调试构建强制使用；1.1.1 落地的独立 inline 函数进一步改善 Switch 路径单步体验 |
-| `std::expected` 大范围替换异常导致调用链翻新 | 534 测试可能批量红 | 按 3.1 表格逐个函数迁移，每次 1 个函数 + 全量测试 |
+| `std::expected` 大范围替换异常导致调用链翻新 | 537 测试可能批量红 | 按 3.1 表格逐个函数迁移，每次 1 个函数 + 全量测试 |
 | GC 去单例化破坏标准库内部对 `GarbageCollector::getInstance()` 的引用 | 编译错误广泛 | 保留 inline shim `getInstance()` 一版本，标记 `[[deprecated]]` |
 | Visitor 化后 codegen 性能下降 | 不影响目标，但需观察 | 教学项目可接受；基准用 `examples/*.lua` 跑回归 |
 | `ValueResult` → `std::variant` 重构引入大量访问代码 | 调用侧需逐一迁移 `std::visit` | 先做 prototype 分支验证可行性，再逐步迁移 |
@@ -452,12 +452,12 @@ using ValueResult = std::variant<
 | PR-60 | REPL 终端彩色错误输出，集中 `writeErrorLine()`，Auto 模式仅在 REPL TTY 中启用，Windows 开启 virtual terminal processing，并补颜色输出契约测试 | 4.4.4 |
 | PR-61 | REPL 行号 prompt，默认 `_PROMPT` / `_PROMPT2` 显示 `lua:N> ` / `lua:N>> `，自定义 prompt 保持不变，并补 REPL Commands 输出契约测试 | 4.4.5 |
 | PR-62 | `GCStrategy` 抽象，`MarkSweepGC` 承载真实 mark-sweep，`IncrementalGC` 作为等价行为教学占位，并补策略选择 / 等价性 / `collectgarbage("strategy")` 测试 | 2.3 / 5.1 |
+| PR-63 | `lua_bytecode --cfg [full]` Mermaid CFG 输出，按 basic block 展示 fallthrough / jump / TEST companion / TFORLOOP / FORLOOP / return 边，并补 Bytecode Printer CFG 输出契约测试 | 4.2.6 / 5.1 |
 
 后续推荐顺序：
 
 | PR | 编号 | 任务 | 阶段 | 依赖 / 理由 |
 |---|---|---|---|---|
-| PR-63 | 4.2.6 | `lua_bytecode --cfg` Mermaid CFG 输出 | 4 | P2；在已有 decoded bytecode / recursive proto / diff 基础上补控制流可视化 |
 | PR-64 | 5.1 | Trace JSONL golden test | 5 | P2；trace schema 已稳定，适合补输出回归样本 |
 
 每个 PR 完成后跑：
@@ -480,9 +480,9 @@ using ValueResult = std::variant<
 | 阶段 1 — 短期代码清理 | ~90% | **~93%** | +3% | 仅 `tokenString` 集中化未做（P3 低风险） |
 | 阶段 2 — 中期模式重构 | ~91% | **~86%** | −5% | GCStrategy 已落地；lib_manager 声明清理、Visitor 去重仍未落地 |
 | 阶段 3 — 现代 C++ 特性 | ~90% | **~90%** | 0 | ValueResult variant prototype 已就位，后续 std::visit 迁移为渐进工作 |
-| 阶段 4 — 教育价值增强 | ~85% | **~82%** | −3% | REPL 体验已闭环；字节码 CFG 仍未做 |
-| 阶段 5 — 工程实践 | ~77% | **~74%** | −3% | 指令级覆盖矩阵与 GC 策略等价测试已补齐；golden 测试、REPL 增量解析测试、add_source 脚本仍缺失 |
-| **加权综合** | **~86%** | **~82%** | **−4%** | |
+| 阶段 4 — 教育价值增强 | ~88% | **~86%** | −2% | REPL 体验和字节码可视化主线已闭环；后续偏样例和文档深挖 |
+| 阶段 5 — 工程实践 | ~77% | **~75%** | −2% | 指令级覆盖矩阵、GC 策略等价测试和 CFG 输出契约测试已补齐；golden 测试、REPL 增量解析测试、add_source 脚本仍缺失 |
+| **加权综合** | **~86%** | **~83%** | **−3%** | |
 
 ---
 
@@ -539,7 +539,7 @@ using ValueResult = std::variant<
 | 4.2.1-4.2.3 字节码基础 | ✓ 已完成 | source / numparams / is_vararg / maxStackSize / 逐条指令 (pc\|line\|OP\|A/B/C) / 常量引用 / 常量表 | ✓ 确认 |
 | 4.2.4 子原型递归 | ✓ PR-55 | `bytecode_printer.cpp` 使用 `full` 递归打印 child protos；紧凑模式保持顶层输出，`CLOSURE` 注释显示 `proto[index]` 摘要 | ✓ 确认 |
 | 4.2.5 `--diff` 模式 | ✓ PR-56 | `bytecode_main.cpp` 支持 `a.lua b.lua --diff [full]`；`printProtoBytecodeDiff()` 输出 left/right/mode/status/changed lines 摘要和 side-by-side 差异行，并忽略 `source:` 路径噪声 | ✓ 确认 |
-| 4.2.6 Mermaid CFG | 候选 | 无 `--cfg` 或 Mermaid/Graphviz 输出 | ✗ 未完成 |
+| 4.2.6 Mermaid CFG | ✓ PR-63 | `bytecode_main.cpp` 支持 `script.lua --cfg [full]`；`printProtoBytecodeCfg()` 输出 Mermaid `flowchart TD`，按 basic block 展示 fallthrough / jump / TEST companion / TFORLOOP / FORLOOP / return 边，`full` 会递归 child Proto CFG | ✓ 确认 |
 | 4.3 walkthrough 三篇 | ✓ 已完成 | `hello-world.md` / `closure-and-upvalue.md` / `gc-cycle.md` 全部存在，含源码 `:line` 锚点 | ✓ 确认 |
 | 4.4.1 REPL 历史 | ✓ 已完成 | `.lua_history` 持久化：`loadHistory()` + `saveHistory()` + `recordHistory()` 均实现 | ✓ 确认 |
 | 4.4.2 Tab 补全 | ✓ PR-59 | `completeInput()` 已覆盖元命令、`.gc` 选项、全局名和已加载库 dotted field；交互 TTY 下 Tab 调用该补全，管道输入中的 `\t` 也走同一逻辑 | ✓ 确认 |
@@ -549,7 +549,7 @@ using ValueResult = std::variant<
 | 4.5.1 `--trace-diff` | ✓ 已完成 | `changedRegisters` 字段已落地 JSONL，CLI 开关 + VM 发射 + 测试覆盖完整 | ✓ 确认 |
 | 4.5.2 `funcName` 统一 | ✓ 已完成 | `TraceEvent::funcName` 已改为拥有型 `Str`，instruction / call / return / error JSONL 均输出 `funcName`；VM 指令与返回事件使用当前/返回 `Proto` 标签，Call 事件使用 callee 标签 | ✓ 确认 — PR-53 |
 
-**结论**：阶段 4 的 REPL 体验（4.4.1 ∼ 4.4.5）已经闭环，字节码侧剩余 CFG（4.2.6）。walkthrough 三篇、trace-diff、child proto 递归输出、`--diff` 字节码对比、`.ast` AST 输出、`.gc` GC 状态输出、Tab 补全、终端彩色错误和行号 prompt 是亮点。
+**结论**：阶段 4 的 REPL 体验（4.4.1 ∼ 4.4.5）已经闭环，字节码侧 compact / full / `--diff` / `--cfg` 也已形成完整教学工具链。walkthrough 三篇、trace-diff、child proto 递归输出、`--diff` 字节码对比、Mermaid CFG、`.ast` AST 输出、`.gc` GC 状态输出、Tab 补全、终端彩色错误和行号 prompt 是亮点。
 
 #### 阶段 5 核验
 
@@ -558,6 +558,7 @@ using ValueResult = std::variant<
 | 5.1 opcode 覆盖矩阵 | ✓ PR-54 | `tests/unit/vm/opcode_coverage_matrix.md` 覆盖 38 条 opcode；`tools/check_opcode_coverage_matrix.ps1` 从 `opcode.hpp` 解析真实 enum 并校验矩阵行数、顺序、重复和未知 opcode | ✓ 确认 |
 | 5.1 AST Visitor 测试 | ✓ | `tests/unit/compiler/test_ast_visitor.cpp` 存在 | ✓ 确认 |
 | 5.1 GC 策略测试 | ✓ PR-62 | `GC Strategy Selection` / `GC Strategy Equivalence` / `collectgarbage Strategy` 已覆盖策略边界、同根集等价和标准库切换入口 | ✓ 确认 |
+| 5.1 Bytecode CFG 输出契约测试 | ✓ PR-63 | `Bytecode Printer` 测试已覆盖 Mermaid CFG branch、loop 和 `full` child Proto 子图输出 | ✓ 确认 |
 | 5.1 REPL 增量解析测试 | 建议 | `isIncompleteInput` 已从 `repl.cpp` 抽到 `src/repl/repl_exe.cpp`；仍需补直接覆盖 incomplete 判定的单测 | △ 部分完成 |
 | 5.1 Trace golden 测试 | 建议 | 无 golden 文件目录或对比逻辑 | ✗ 未完成 |
 | 5.2 质量门 | ✓ | `run_quality_gate.ps1` + `check_doc_drift.ps1` 动态解析测试计数，并已接入 opcode 覆盖矩阵漂移检查 | ✓ 确认 |
@@ -579,7 +580,8 @@ using ValueResult = std::variant<
 
 | 编号 | 任务 |
 |---|---|
-| 4.2.6 | 字节码 Mermaid CFG |
+| 5.1 | Trace JSONL golden test |
+| 5.1 | REPL 增量解析测试 |
 
 #### P3 — 代码质量收尾
 

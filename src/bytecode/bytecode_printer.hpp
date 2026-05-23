@@ -17,4 +17,7 @@ void printProtoBytecodeDiff(const Proto* left,
                             std::string_view leftLabel = "left",
                             std::string_view rightLabel = "right");
 
+// 打印 Proto 的 Mermaid 控制流图。full=true 时递归打印 child protos 的 CFG。
+void printProtoBytecodeCfg(const Proto* f, std::ostream& out, bool full = false);
+
 } // namespace Lua
