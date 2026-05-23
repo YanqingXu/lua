@@ -76,8 +76,12 @@ Supported meta commands:
 - `.help` prints the command list
 - `.bytecode <expr|chunk>` parses and compiles the input, then prints the compact Proto bytecode
 - `.ast <expr|chunk>` parses the input and prints a tree view of the AST
+- `.gc [stats|collect|strategy|help]` prints GC statistics, runs a full mark-sweep collection, or shows the planned strategy boundary
 
 Both `.bytecode` and `.ast` first try the argument as a chunk. If that fails and the input was not explicitly written as `=expr`, they retry it as `return <expr>`. The `.ast` output labels this fallback as `mode: expression`; normal chunks are labeled `mode: chunk`.
+
+The `.gc` command intentionally uses the active collector through `RuntimeServices.gc`.
+It reports the current strategy as `mark-sweep`; `strategy` output names `incremental` as planned rather than switchable.
 
 ## Prompt Customization
 

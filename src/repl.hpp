@@ -71,6 +71,7 @@ enum class MetaCommandKind {
     Help,
     Bytecode,
     Ast,
+    Gc,
     Unknown,
 };
 
@@ -117,6 +118,11 @@ int printBytecode(LuaState* L, const Str& source, std::ostream& out, std::ostrea
  * @brief 解析 REPL 输入并打印 AST
  */
 int printAst(LuaState* L, const Str& source, std::ostream& out, std::ostream& err);
+
+/**
+ * @brief 打印或触发 GC 相关 REPL 信息
+ */
+int printGc(LuaState* L, const Str& argument, std::ostream& out, std::ostream& err);
 
 /**
  * @brief 执行已解析的 REPL 元命令

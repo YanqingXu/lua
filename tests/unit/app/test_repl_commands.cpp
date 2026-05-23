@@ -36,6 +36,10 @@ void testParseMetaCommands(TestSuite& suite) {
     ASSERT_EQ(suite, REPL::MetaCommandKind::Ast, ast.kind, ".ast should parse as ast command");
     ASSERT_EQ(suite, Str("local x = 1"), ast.argument, ".ast should trim its argument");
 
+    const REPL::MetaCommand gc = REPL::parseMetaCommand("  .gc  collect  ");
+    ASSERT_EQ(suite, REPL::MetaCommandKind::Gc, gc.kind, ".gc should parse as gc command");
+    ASSERT_EQ(suite, Str("collect"), gc.argument, ".gc should trim its argument");
+
     const REPL::MetaCommand normalInput = REPL::parseMetaCommand("print(1)");
     ASSERT_EQ(suite, REPL::MetaCommandKind::None, normalInput.kind,
               "regular Lua source should not parse as a meta command");
@@ -55,6 +59,7 @@ void testPrintHelpShowsSupportedCommands(TestSuite& suite) {
     ASSERT_TRUE(suite, contains(text, ".help"), "help should list .help");
     ASSERT_TRUE(suite, contains(text, ".bytecode <expr|chunk>"), "help should list .bytecode");
     ASSERT_TRUE(suite, contains(text, ".ast <expr|chunk>"), "help should list .ast");
+    ASSERT_TRUE(suite, contains(text, ".gc [stats|collect|strategy|help]"), "help should list .gc");
     ASSERT_TRUE(suite, contains(text, "=expr"), "help should mention quick expression evaluation");
     ASSERT_TRUE(suite, contains(text, "exit"), "help should mention exit");
 }
@@ -172,6 +177,61 @@ void testAstCommandRejectsMissingArgument(TestSuite& suite) {
     delete L;
 }
 
+void testGcCommandPrintsStats(TestSuite& suite) {
+    LuaState* L = LuaState::newState();
+    std::ostringstream out;
+    std::ostringstream err;
+
+    const int status = REPL::printGc(L, "", out, err);
+    const std::string text = out.str();
+
+    ASSERT_EQ(suite, 0, status, ".gc stats should succeed");
+    ASSERT_TRUE(suite, contains(text, "GC"), "gc should print header");
+    ASSERT_TRUE(suite, contains(text, "command: stats"), "gc should default to stats");
+    ASSERT_TRUE(suite, contains(text, "strategy: mark-sweep"), "gc should name active strategy");
+    ASSERT_TRUE(suite, contains(text, "boundary: RuntimeServices.gc"), "gc should expose boundary");
+    ASSERT_TRUE(suite, contains(text, "objects:"), "gc should print object count");
+    ASSERT_TRUE(suite, contains(text, "memory bytes:"), "gc should print memory bytes");
+    ASSERT_TRUE(suite, err.str().empty(), ".gc stats should not emit errors");
+
+    delete L;
+}
+
+void testGcCommandPrintsStrategyBoundary(TestSuite& suite) {
+    LuaState* L = LuaState::newState();
+    std::ostringstream out;
+    std::ostringstream err;
+
+    const int status = REPL::printGc(L, "strategy", out, err);
+    const std::string text = out.str();
+
+    ASSERT_EQ(suite, 0, status, ".gc strategy should succeed");
+    ASSERT_TRUE(suite, contains(text, "active: mark-sweep"), "gc should print active strategy");
+    ASSERT_TRUE(suite, contains(text, "available: mark-sweep"), "gc should print available strategy");
+    ASSERT_TRUE(suite, contains(text, "planned: incremental"), "gc should print planned strategy");
+    ASSERT_TRUE(suite, contains(text, "RuntimeServices.gc"), "gc should document service boundary");
+    ASSERT_TRUE(suite, err.str().empty(), ".gc strategy should not emit errors");
+
+    delete L;
+}
+
+void testGcCommandRejectsUnknownOption(TestSuite& suite) {
+    LuaState* L = LuaState::newState();
+    std::ostringstream out;
+    std::ostringstream err;
+
+    const int status = REPL::printGc(L, "warp", out, err);
+
+    ASSERT_EQ(suite, 1, status, ".gc unknown option should fail");
+    ASSERT_TRUE(suite, out.str().empty(), "invalid .gc should not print stdout");
+    ASSERT_TRUE(suite, contains(err.str(), ".gc: unknown option 'warp'"),
+                "invalid .gc should name bad option");
+    ASSERT_TRUE(suite, contains(err.str(), "usage: .gc [stats|collect|strategy|help]"),
+                "invalid .gc should print usage");
+
+    delete L;
+}
+
 void testReportErrorKeepsErrorFormat(TestSuite& suite) {
     std::ostringstream err;
     std::streambuf* oldBuffer = std::cerr.rdbuf(err.rdbuf());
@@ -237,6 +297,12 @@ void registerReplCommandTests() {
                           testAstCommandPrintsChunkTree);
     registry.registerTest(kSuiteName, "AST Command Rejects Missing Argument",
                           testAstCommandRejectsMissingArgument);
+    registry.registerTest(kSuiteName, "GC Command Prints Stats",
+                          testGcCommandPrintsStats);
+    registry.registerTest(kSuiteName, "GC Command Prints Strategy Boundary",
+                          testGcCommandPrintsStrategyBoundary);
+    registry.registerTest(kSuiteName, "GC Command Rejects Unknown Option",
+                          testGcCommandRejectsUnknownOption);
     registry.registerTest(kSuiteName, "Report Error Format", testReportErrorKeepsErrorFormat);
     registry.registerTest(kSuiteName, "Unknown Meta Command Error Format", testUnknownMetaCommandErrorFormat);
 }

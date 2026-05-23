@@ -26,6 +26,7 @@
 #include "core/string_pool.hpp"
 #include "core/function.hpp"
 #include "core/gc_string.hpp"
+#include "gc/garbage_collector.hpp"
 #include "runtime/runtime_services.hpp"
 #include "common/lua_error.hpp"
 
@@ -331,6 +332,43 @@ std::expected<Chunk, ParseError> parseForAst(LuaState* L, const Str& source) {
 
 void printParseError(std::ostream& err, const ParseError& error) {
     err << std::format("stdin:{}: {}", error.getLine(), error.what()) << std::endl;
+}
+
+struct GcSnapshot {
+    usize objects = 0;
+    usize roots = 0;
+    usize memoryBytes = 0;
+};
+
+GcSnapshot captureGcSnapshot(RuntimeServices& services) {
+    GcSnapshot snapshot;
+    services.gc.getStatistics(snapshot.objects, snapshot.roots, snapshot.memoryBytes);
+    return snapshot;
+}
+
+double memoryKilobytes(usize bytes) {
+    return static_cast<double>(bytes) / 1024.0;
+}
+
+void printGcSnapshot(std::ostream& out, std::string_view label, const GcSnapshot& snapshot) {
+    out << label << '\n';
+    out << "    objects: " << snapshot.objects << '\n';
+    out << "    roots: " << snapshot.roots << '\n';
+    out << "    memory bytes: " << snapshot.memoryBytes << '\n';
+    out << std::format("    memory KB: {:.3f}\n", memoryKilobytes(snapshot.memoryBytes));
+}
+
+void printGcUsage(std::ostream& out) {
+    out << "usage: .gc [stats|collect|strategy|help]" << std::endl;
+}
+
+void printGcStrategy(std::ostream& out) {
+    out << "GC" << '\n';
+    out << "  command: strategy" << '\n';
+    out << "  active: mark-sweep" << '\n';
+    out << "  available: mark-sweep" << '\n';
+    out << "  planned: incremental" << '\n';
+    out << "  boundary: RuntimeServices.gc owns the active collector" << '\n';
 }
 
 const char* binaryOpName(BinaryExpr::Op op) {
@@ -863,6 +901,9 @@ MetaCommand parseMetaCommand(const Str& line) {
     if (command == "ast") {
         return {MetaCommandKind::Ast, argument};
     }
+    if (command == "gc") {
+        return {MetaCommandKind::Gc, argument};
+    }
 
     return {MetaCommandKind::Unknown, command};
 }
@@ -872,6 +913,7 @@ void printHelp(std::ostream& out) {
     out << "  .help                  show this help" << std::endl;
     out << "  .bytecode <expr|chunk> compile input and print bytecode" << std::endl;
     out << "  .ast <expr|chunk>      parse input and print AST" << std::endl;
+    out << "  .gc [stats|collect|strategy|help] inspect or run the active GC" << std::endl;
     out << "  =expr                  evaluate expression and print results" << std::endl;
     out << "  exit, quit             leave the REPL" << std::endl;
 }
@@ -1004,6 +1046,53 @@ int printAst(LuaState* L, const Str& source, std::ostream& out, std::ostream& er
     }
 }
 
+int printGc(LuaState* L, const Str& argument, std::ostream& out, std::ostream& err) {
+    if (L == nullptr) {
+        err << ".gc: LuaState is null" << std::endl;
+        return 1;
+    }
+
+    const Str option = trimCopy(argument);
+    if (option.empty() || option == "stats" || option == "status") {
+        RuntimeServices services(L->getGlobalState());
+        out << "GC" << '\n';
+        out << "  command: stats" << '\n';
+        out << "  strategy: mark-sweep" << '\n';
+        out << "  boundary: RuntimeServices.gc" << '\n';
+        printGcSnapshot(out, "  current:", captureGcSnapshot(services));
+        return 0;
+    }
+
+    if (option == "collect") {
+        RuntimeServices services(L->getGlobalState());
+        const GcSnapshot before = captureGcSnapshot(services);
+        const usize collected = services.gc.collect(L);
+        const GcSnapshot after = captureGcSnapshot(services);
+
+        out << "GC" << '\n';
+        out << "  command: collect" << '\n';
+        out << "  strategy: mark-sweep" << '\n';
+        out << "  collected objects: " << collected << '\n';
+        printGcSnapshot(out, "  before:", before);
+        printGcSnapshot(out, "  after:", after);
+        return 0;
+    }
+
+    if (option == "strategy") {
+        printGcStrategy(out);
+        return 0;
+    }
+
+    if (option == "help") {
+        printGcUsage(out);
+        return 0;
+    }
+
+    err << std::format(".gc: unknown option '{}'", option) << std::endl;
+    printGcUsage(err);
+    return 1;
+}
+
 int runMetaCommand(LuaState* L, const MetaCommand& command, std::ostream& out, std::ostream& err) {
     switch (command.kind) {
         case MetaCommandKind::None:
@@ -1015,6 +1104,8 @@ int runMetaCommand(LuaState* L, const MetaCommand& command, std::ostream& out, s
             return printBytecode(L, command.argument, out, err);
         case MetaCommandKind::Ast:
             return printAst(L, command.argument, out, err);
+        case MetaCommandKind::Gc:
+            return printGc(L, command.argument, out, err);
         case MetaCommandKind::Unknown:
             err << std::format("unknown REPL command: .{}", command.argument) << std::endl;
             return 1;

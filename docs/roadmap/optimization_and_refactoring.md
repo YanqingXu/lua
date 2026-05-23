@@ -2,9 +2,9 @@
 
 > 适用范围：`g:\github\lua`（现代 C++ Lua 5.1.5 解释器）
 > 设计目标：**可读性 > 可维护性 > 教育价值 > 性能**
-> 约束：保持 521 个注册测试 / 2602 个断言结果 / 0 失败，不破坏 `LuaState` / `VM` public API。
+> 约束：保持 524 个注册测试 / 2623 个断言结果 / 0 失败，不破坏 `LuaState` / `VM` public API。
 > 最近审计：2026-05-21（深度审计报告，覆盖 Readability / Extensibility / Educational Value 三维度）
-> 最近同步：2026-05-23（PR-57：REPL `.ast <expr|chunk>` 元命令，并同步 REPL 文档与漂移守卫）
+> 最近同步：2026-05-23（PR-58：REPL `.gc [stats|collect|strategy|help]` 元命令前置设计，并同步 REPL 文档与漂移守卫）
 
 ---
 
@@ -14,7 +14,7 @@
 |---|---|---|---|
 | **可读性** | **A-** | CRTP+concept 编译期检查、`std::expected` 边界清晰、VM 主循环已精简为策略入口 + handler table | `ValueResult` 已有 variant prototype 但旧兼容字段仍待迁移、`CodeGenerator` 方法数 60+、部分命名继承 Lua C 缩写 |
 | **易扩展性** | **B+** | Visitor 模式添加新工具零摩擦、`DispatchStrategy` 可插拔、`HandlerTable` 按组注册 | GC/metatable 兼容 fallback 仍需收口、`lib_manager.hpp` 冗余声明、`CodeGenerator` 单体类 |
-| **教学价值** | **A-** | hello-world / closure-and-upvalue / gc-cycle walkthrough 已覆盖端到端执行、闭包生命周期和完整 GC 周期，glossary 降低认知负担，trace 系统层次分明且已有差异模式，REPL 已能打印 AST 与 bytecode | REPL `.gc` / Tab 补全待实现 |
+| **教学价值** | **A-** | hello-world / closure-and-upvalue / gc-cycle walkthrough 已覆盖端到端执行、闭包生命周期和完整 GC 周期，glossary 降低认知负担，trace 系统层次分明且已有差异模式，REPL 已能打印 AST、bytecode 与 GC 状态 | REPL Tab 补全待实现 |
 
 各维度详细评估见本文档对应阶段的任务标注；已完成项以 ✓ 标记。
 
@@ -27,7 +27,7 @@
 | **阶段 1 — 短期代码清理** | 1–2 个迭代 | 删冗余、统一命名、收紧错误处理、文档与代码同步 | 否 | ~90% |
 | **阶段 2 — 中期模式重构** | 3–5 个迭代 | 引入访问者 / 策略 / 命令模式，VM dispatch 与 GC 抽象化 | 内部 API 调整、public 不变 | ~88% |
 | **阶段 3 — 现代 C++ 特性** | 穿插于 1 & 2 | `std::expected` / `concepts` / `std::format` / `[[nodiscard]]` | 部分 public 签名变更 | ~90% |
-| **阶段 4 — 教育价值增强** | 持续推进 | 自解释代码、字节码可视化、执行链路教学文档、REPL 体验、Trace 差异模式 | 否（增量增强） | ~74% |
+| **阶段 4 — 教育价值增强** | 持续推进 | 自解释代码、字节码可视化、执行链路教学文档、REPL 体验、Trace 差异模式 | 否（增量增强） | ~76% |
 | **阶段 5 — 工程实践** | 持续 | 测试覆盖、质量门、构建一致性、文档漂移检测 | 否 | ~75% |
 
 ---
@@ -347,7 +347,7 @@ using ValueResult = std::variant<
 |---|---|---|---|
 | 4.4.1 | 持久化历史记录（`.lua_history`） | 跨会话；启动时加载、退出时保存 | ✓ 已完成 |
 | 4.4.2 | 简单 Tab 补全（全局名 + 已加载库的字段） | 利用 `LuaState->getGlobalTable()` 遍历 | 待实现 |
-| 4.4.3 | 内置 `.help` / `.bytecode <expr>` / `.ast <expr>` / `.gc` 元命令 | `.help`、`.bytecode` 与 `.ast` 已完成；`.gc` 待实现 | 部分完成 |
+| 4.4.3 | 内置 `.help` / `.bytecode <expr>` / `.ast <expr>` / `.gc` 元命令 | `.help`、`.bytecode`、`.ast` 与 `.gc` 已完成；`.gc strategy` 仅声明当前 mark-sweep 与 future incremental 边界，不做策略切换 | ✓ 已完成 |
 | 4.4.4 | 颜色化错误输出（仅在 stdout 是 TTY 时） | Windows 控制台需 `SetConsoleMode(ENABLE_VIRTUAL_TERMINAL_PROCESSING)` | 待实现 |
 | 4.4.5 | 行号 prompt：`lua:1>` / `lua:2>>` | 多行时显示当前行 | 待实现 |
 
@@ -379,7 +379,7 @@ using ValueResult = std::variant<
 
 ### 5.1 测试覆盖精细化
 
-**现状**：521 个注册测试 / 2602 个断言结果 / 0 失败，目录 `tests/unit/`、`tests/lua/`。
+**现状**：524 个注册测试 / 2623 个断言结果 / 0 失败，目录 `tests/unit/`、`tests/lua/`。
 
 **改进方向**（优先小步增量；覆盖矩阵作为 checklist 文档）：
 
@@ -409,7 +409,7 @@ using ValueResult = std::variant<
 | 风险 | 影响 | 缓解 |
 |---|---|---|
 | VM dispatch 命令模式化引入函数指针表，调试器单步体验下降 | 影响教学 | 保留 `SwitchDispatch` 作为默认；调试构建强制使用；1.1.1 落地的独立 inline 函数进一步改善 Switch 路径单步体验 |
-| `std::expected` 大范围替换异常导致调用链翻新 | 521 测试可能批量红 | 按 3.1 表格逐个函数迁移，每次 1 个函数 + 全量测试 |
+| `std::expected` 大范围替换异常导致调用链翻新 | 524 测试可能批量红 | 按 3.1 表格逐个函数迁移，每次 1 个函数 + 全量测试 |
 | GC 去单例化破坏标准库内部对 `GarbageCollector::getInstance()` 的引用 | 编译错误广泛 | 保留 inline shim `getInstance()` 一版本，标记 `[[deprecated]]` |
 | Visitor 化后 codegen 性能下降 | 不影响目标，但需观察 | 教学项目可接受；基准用 `examples/*.lua` 跑回归 |
 | `ValueResult` → `std::variant` 重构引入大量访问代码 | 调用侧需逐一迁移 `std::visit` | 先做 prototype 分支验证可行性，再逐步迁移 |
@@ -447,13 +447,14 @@ using ValueResult = std::variant<
 | PR-55 | `lua_bytecode full` 子原型递归打印，`CLOSURE` 指令显示 `proto[index]` 摘要，并补 Bytecode Printer 输出契约测试 | 4.2.4 |
 | PR-56 | `lua_bytecode --diff` side-by-side 字节码差异，支持 compact / full 两种对比，并补 Bytecode Printer diff 输出契约测试 | 4.2.5 |
 | PR-57 | REPL `.ast <expr|chunk>` 元命令，使用 AST visitor 打印 Chunk / Stmt / Expr 树形结构，并补 REPL Commands 输出契约测试 | 4.4.3 |
+| PR-58 | REPL `.gc [stats|collect|strategy|help]` 元命令前置设计，使用 `RuntimeServices.gc` 暴露 mark-sweep 统计 / full collect / strategy 边界，并补 REPL Commands 输出契约测试 | 4.4.3 / 2.3 |
 
 后续推荐顺序：
 
 | PR | 编号 | 任务 | 阶段 | 依赖 / 理由 |
 |---|---|---|---|---|
-| PR-58 | 4.4.3 / 2.3 | REPL `.gc` 元命令前置设计 | 4 / 2 | P0；需先明确 GCStrategy 或现有 GC 统计输出边界，避免把 REPL 命令绑死在单例实现上 |
-| PR-59 | 4.4.2 | REPL Tab 补全 | 4 | P1；补齐交互体验，可复用全局表和已加载库字段遍历 |
+| PR-59 | 4.4.2 | REPL Tab 补全 | 4 | P0；补齐交互体验，可复用全局表和已加载库字段遍历 |
+| PR-60 | 4.4.4 | REPL 颜色化错误输出 | 4 | P1；需仅在 TTY 下启用，Windows 控制台先打开 virtual terminal processing |
 
 每个 PR 完成后跑：
 
@@ -475,7 +476,7 @@ using ValueResult = std::variant<
 | 阶段 1 — 短期代码清理 | ~90% | **~93%** | +3% | 仅 `tokenString` 集中化未做（P3 低风险） |
 | 阶段 2 — 中期模式重构 | ~88% | **~80%** | −8% | GCStrategy 抽象、lib_manager 声明清理、Visitor 去重均未落地 |
 | 阶段 3 — 现代 C++ 特性 | ~90% | **~90%** | 0 | ValueResult variant prototype 已就位，后续 std::visit 迁移为渐进工作 |
-| 阶段 4 — 教育价值增强 | ~74% | **~68%** | −6% | REPL 5 项增强中 3 项未做、字节码 CFG 仍未做 |
+| 阶段 4 — 教育价值增强 | ~76% | **~70%** | −6% | REPL 5 项增强中 3 项未做、字节码 CFG 仍未做 |
 | 阶段 5 — 工程实践 | ~75% | **~71%** | −4% | 指令级覆盖矩阵已补齐；golden 测试、REPL 增量解析测试、add_source 脚本仍缺失 |
 | **加权综合** | **~84%** | **~77%** | **−7%** | |
 
@@ -538,13 +539,13 @@ using ValueResult = std::variant<
 | 4.3 walkthrough 三篇 | ✓ 已完成 | `hello-world.md` / `closure-and-upvalue.md` / `gc-cycle.md` 全部存在，含源码 `:line` 锚点 | ✓ 确认 |
 | 4.4.1 REPL 历史 | ✓ 已完成 | `.lua_history` 持久化：`loadHistory()` + `saveHistory()` + `recordHistory()` 均实现 | ✓ 确认 |
 | 4.4.2 Tab 补全 | 待实现 | `repl.cpp` 无补全逻辑，无 `getGlobalTable()` 遍历 | ✗ 未完成 |
-| 4.4.3 `.ast` / `.gc` | 部分完成 | `.help`、`.bytecode` 与 `.ast` 已实现；`.ast` 会输出 `mode: chunk` / `mode: expression` 和 Chunk / Stmt / Expr 树形结构；`.gc` 不存在 | ⚠ 75% — PR-57 |
+| 4.4.3 `.ast` / `.gc` | ✓ PR-57 / PR-58 | `.help`、`.bytecode`、`.ast` 与 `.gc` 已实现；`.ast` 输出 `mode: chunk` / `mode: expression` 和 Chunk / Stmt / Expr 树形结构；`.gc` 输出当前 mark-sweep 统计、full collect 前后快照和 strategy 边界 | ✓ 确认 |
 | 4.4.4 颜色化错误 | 待实现 | 无 `isatty` / `SetConsoleMode(ENABLE_VIRTUAL_TERMINAL_PROCESSING)` 调用 | ✗ 未完成 |
 | 4.4.5 行号 prompt | 待实现 | 无限模式 `lua:1>` / `lua:2>>` 行号提示 | ✗ 未完成 |
 | 4.5.1 `--trace-diff` | ✓ 已完成 | `changedRegisters` 字段已落地 JSONL，CLI 开关 + VM 发射 + 测试覆盖完整 | ✓ 确认 |
 | 4.5.2 `funcName` 统一 | ✓ 已完成 | `TraceEvent::funcName` 已改为拥有型 `Str`，instruction / call / return / error JSONL 均输出 `funcName`；VM 指令与返回事件使用当前/返回 `Proto` 标签，Call 事件使用 callee 标签 | ✓ 确认 — PR-53 |
 
-**结论**：阶段 4 仍是差距最大的阶段。REPL 体验（4.4.2、4.4.3 `.gc`、4.4.4、4.4.5）和字节码 CFG（4.2.6）是两个集中的未完成块。walkthrough 三篇、trace-diff、child proto 递归输出、`--diff` 字节码对比和 `.ast` AST 输出是亮点。
+**结论**：阶段 4 仍是差距最大的阶段。REPL 体验（4.4.2、4.4.4、4.4.5）和字节码 CFG（4.2.6）是两个集中的未完成块。walkthrough 三篇、trace-diff、child proto 递归输出、`--diff` 字节码对比、`.ast` AST 输出和 `.gc` GC 状态输出是亮点。
 
 #### 阶段 5 核验
 
@@ -570,14 +571,13 @@ using ValueResult = std::variant<
 
 | 编号 | 任务 | 阻碍 |
 |---|---|---|
-| 2.3 | `GCStrategy` 抽象 + `MarkSweepGC` | REPL `.gc` 命令、GC 策略测试 |
-| 4.4.3 | REPL `.gc` 元命令 | 教学演示完整性 |
+| 2.3 | `GCStrategy` 抽象 + `MarkSweepGC` | GC 策略测试、未来 `.gc strategy` 切换 |
+| 4.4.2 | REPL Tab 补全 | 交互式探索效率 |
 
 #### P2 — 提升教学体验（建议后续跟进）
 
 | 编号 | 任务 |
 |---|---|
-| 4.4.2 | REPL Tab 补全 |
 | 4.4.4 | 颜色化错误输出 |
 | 4.4.5 | 行号 prompt |
 

@@ -28,7 +28,7 @@ The executable supports:
 - default behavior mode
 - optional JSONL VM trace output
 
-The REPL includes `.help`, `.bytecode <expr|chunk>`, and `.ast <expr|chunk>` meta commands for inspecting parser and bytecode output without leaving the interactive session.
+The REPL includes `.help`, `.bytecode <expr|chunk>`, `.ast <expr|chunk>`, and `.gc [stats|collect|strategy|help]` meta commands for inspecting parser, bytecode, and current mark-sweep GC state without leaving the interactive session.
 
 See `docs/guides/repl-cli.md` for user-facing behavior.
 
