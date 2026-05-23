@@ -193,7 +193,7 @@ foreach ($doc in $coreDocs) {
     }
 }
 
-foreach ($requiredFile in @("CMakeLists.txt", "tools/run_cmake_smoke.ps1")) {
+foreach ($requiredFile in @("CMakeLists.txt", "tools/run_cmake_smoke.ps1", "tools/add_source.ps1")) {
     $path = Join-RepoPath $requiredFile
     if (-not (Test-Path -LiteralPath $path)) {
         Add-Failure $failures "Missing build support file: $requiredFile"
@@ -223,7 +223,7 @@ if ($guide -notmatch "MSBuild" -or $guide -notmatch "\.vcxproj" -or $guide -notm
     Add-Failure $failures "docs/guides/development.md must name the current MSBuild/.vcxproj path and reference docs/status/project-status.md"
 }
 
-foreach ($required in @("CMakeLists.txt", "tools\run_cmake_smoke.ps1", "CMake", "CTest", "secondary")) {
+foreach ($required in @("CMakeLists.txt", "tools\run_cmake_smoke.ps1", "tools\add_source.ps1", "CMake", "CTest", "secondary")) {
     if ($guide -notmatch [regex]::Escape($required)) {
         Add-Failure $failures "docs/guides/development.md is missing CMake/CTest support fact: $required"
     }
@@ -231,7 +231,7 @@ foreach ($required in @("CMakeLists.txt", "tools\run_cmake_smoke.ps1", "CMake", 
 
 $statusDoc = Read-Text "docs/status/project-status.md"
 $statusDocPath = Join-RepoPath "docs/status/project-status.md"
-foreach ($required in @("Visual Studio", "MSBuild", ".vcxproj", "CMake", "CTest", "secondary", "CMakeLists.txt", "tools/run_cmake_smoke.ps1", "--report=junit", "RuntimeServices", "GCStrategy", "Learning Path", "lua_bytecode", "decoded instructions", "constant table", "--cfg", "Mermaid")) {
+foreach ($required in @("Visual Studio", "MSBuild", ".vcxproj", "CMake", "CTest", "secondary", "CMakeLists.txt", "tools/run_cmake_smoke.ps1", "tools/add_source.ps1", "--report=junit", "RuntimeServices", "GCStrategy", "Learning Path", "lua_bytecode", "decoded instructions", "constant table", "--cfg", "Mermaid")) {
     if (-not (Select-String -LiteralPath $statusDocPath -SimpleMatch -Pattern $required -Quiet)) {
         Add-Failure $failures "docs/status/project-status.md is missing required fact: $required"
     }

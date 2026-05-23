@@ -4,7 +4,7 @@
 > 设计目标：**可读性 > 可维护性 > 教育价值 > 性能**
 > 约束：保持 542 个注册测试 / 2728 个断言结果 / 0 失败，不破坏 `LuaState` / `VM` public API。
 > 最近审计：2026-05-21（深度审计报告，覆盖 Readability / Extensibility / Educational Value 三维度）
-> 最近同步：2026-05-23（PR-65：REPL 增量解析测试，锁住 EOF 驱动的 continuation 判定）
+> 最近同步：2026-05-23（PR-66：`tools/add_source.ps1` 源码清单同步脚本）
 
 ---
 
@@ -28,7 +28,7 @@
 | **阶段 2 — 中期模式重构** | 3–5 个迭代 | 引入访问者 / 策略 / 命令模式，VM dispatch 与 GC 抽象化 | 内部 API 调整、public 不变 | ~91% |
 | **阶段 3 — 现代 C++ 特性** | 穿插于 1 & 2 | `std::expected` / `concepts` / `std::format` / `[[nodiscard]]` | 部分 public 签名变更 | ~90% |
 | **阶段 4 — 教育价值增强** | 持续推进 | 自解释代码、字节码可视化、执行链路教学文档、REPL 体验、Trace 差异模式 | 否（增量增强） | ~88% |
-| **阶段 5 — 工程实践** | 持续 | 测试覆盖、质量门、构建一致性、文档漂移检测 | 否 | ~80% |
+| **阶段 5 — 工程实践** | 持续 | 测试覆盖、质量门、构建一致性、文档漂移检测 | 否 | ~82% |
 
 ---
 
@@ -400,7 +400,7 @@ using ValueResult = std::variant<
 
 ### 5.3 构建一致性
 
-- VS solution 与 `CMakeLists.txt` 文件清单偏差是已知风险。阶段 1 拆分文件时，**每次新增 .cpp 必须同步 4 处**：`CMakeLists.txt`、`lua.vcxproj`、`lua.vcxproj.filters`、`lua_test.vcxproj`（已有 roadmap 文档规定，建议固化为脚本 `tools/add_source.ps1`）。
+- ✓ **已完成 — PR-66**：`tools/add_source.ps1` 可按 `Core` / `Repl` / `App` / `Bytecode` / `Test` 目标同步 `CMakeLists.txt`、`.vcxproj` 与 `.vcxproj.filters`，支持 `-DryRun`、`-AllowMissing`、`-Quiet` 和路径自动推断；`tools/test_quality_gate.ps1` 会在临时项目清单上做脚本烟测。
 
 ---
 
@@ -455,12 +455,13 @@ using ValueResult = std::variant<
 | PR-63 | `lua_bytecode --cfg [full]` Mermaid CFG 输出，按 basic block 展示 fallthrough / jump / TEST companion / TFORLOOP / FORLOOP / return 边，并补 Bytecode Printer CFG 输出契约测试 | 4.2.6 / 5.1 |
 | PR-64 | Trace JSONL plain / diff golden 测试，使用无指针值的小脚本精确对比 `registers` 与 `changedRegisters` 输出，防止 trace schema 漂移 | 5.1 |
 | PR-65 | REPL 增量解析测试，使用真实 Parser 错误锁住 EOF-driven continuation、明确语法错误立即报告，以及 `=function(...)` 多行表达式保持 expression mode | 5.1 |
+| PR-66 | `tools/add_source.ps1` 源码清单同步脚本，覆盖 CMake / VS project / filters 追加、目标自动推断、dry-run 和质量门烟测 | 5.3 |
 
 后续推荐顺序：
 
 | PR | 编号 | 任务 | 阶段 | 依赖 / 理由 |
 |---|---|---|---|---|
-| PR-66 | 5.3 | `tools/add_source.ps1` 新增源码同步脚本 | 5 | P3；新增 `.cpp/.hpp` 仍需手动同步 CMake 与 VS 项目文件，适合转成工程脚本 |
+| PR-67 | 1.2 | `Parser::tokenString` 集中到 `parser_utils.hpp` | 1 | P3；低风险命名/结构收尾，能减少 parser 分片共享 helper 的散落感 |
 
 每个 PR 完成后跑：
 
@@ -483,7 +484,7 @@ using ValueResult = std::variant<
 | 阶段 2 — 中期模式重构 | ~91% | **~86%** | −5% | GCStrategy 已落地；lib_manager 声明清理、Visitor 去重仍未落地 |
 | 阶段 3 — 现代 C++ 特性 | ~90% | **~90%** | 0 | ValueResult variant prototype 已就位，后续 std::visit 迁移为渐进工作 |
 | 阶段 4 — 教育价值增强 | ~88% | **~86%** | −2% | REPL 体验和字节码可视化主线已闭环；后续偏样例和文档深挖 |
-| 阶段 5 — 工程实践 | ~80% | **~79%** | −1% | 指令级覆盖矩阵、GC 策略等价测试、CFG 输出契约测试、Trace JSONL golden 和 REPL 增量解析测试已补齐；add_source 脚本仍缺失 |
+| 阶段 5 — 工程实践 | ~82% | **~82%** | 0 | 指令级覆盖矩阵、GC 策略等价测试、CFG 输出契约测试、Trace JSONL golden、REPL 增量解析测试和 add_source 脚本已补齐；剩余为 CMake 编译选项对齐 |
 | **加权综合** | **~86%** | **~83%** | **−3%** | |
 
 ---
@@ -566,9 +567,9 @@ using ValueResult = std::variant<
 | 5.2 质量门 | ✓ | `run_quality_gate.ps1` + `check_doc_drift.ps1` 动态解析测试计数，并已接入 opcode 覆盖矩阵漂移检查 | ✓ 确认 |
 | 5.2 clang-tidy | ✓ 增量 | `.clang-tidy` 配置文件存在；`run_quality_gate.ps1` 已有 `clang-tidy smoke`，本机无工具时按增量策略跳过 | ✓ 已接入 |
 | 5.2 CMake 编译选项 | 待验证 | `-Wpedantic -Wconversion` 对齐状态未确认（项目用 MSVC `/W4`） | ⚠ 待验证 |
-| 5.3 `add_source.ps1` | 建议 | 文件不存在，新增 `.cpp` 仍需手动同步 4 处 (CMakeLists.txt / vcxproj / vcxproj.filters / test vcxproj) | ✗ 未完成 |
+| 5.3 `add_source.ps1` | ✓ PR-66 | `tools/add_source.ps1` 已支持按目标同步 CMake、VS project 和 filters；质量门自检会复制临时项目清单验证 Core / Bytecode / Test 追加与幂等性 | ✓ 确认 |
 
-**结论**：质量门自动化继续加强：动态测试计数、opcode 覆盖矩阵漂移和 Trace JSONL schema 漂移都已变成可失败信号。后续主要差距转为工程脚本自动化和低优先级构建选项对齐。
+**结论**：质量门自动化继续加强：动态测试计数、opcode 覆盖矩阵漂移、Trace JSONL schema 漂移和新增源码清单同步脚本烟测都已变成可失败信号。后续主要差距转为低优先级构建选项对齐。
 
 ---
 
@@ -590,7 +591,6 @@ using ValueResult = std::variant<
 | 2.1.1 | `AstVisitor<Derived, R>` 组合模板 |
 | 2.1.2 | `ExprVisitor` / `StmtVisitor` 内部 `canVisit*` 去重 |
 | 2.6.1 | `lib_manager.hpp` `openXxx()` 标记 `[[deprecated]]` |
-| 5.3 | `tools/add_source.ps1` 脚本 |
 
 #### P4 — 锦上添花
 

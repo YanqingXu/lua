@@ -1,7 +1,7 @@
 ---
 status: current
-verified_against: tests/unit/framework/test_runner.cpp; tests/unit/framework/test_framework.hpp; lua_test.vcxproj; CMakeLists.txt; docs/status/project-status.md
-last_checked: 2026-05-19
+verified_against: tests/unit/framework/test_runner.cpp; tests/unit/framework/test_framework.hpp; lua_test.vcxproj; CMakeLists.txt; tools/add_source.ps1; docs/status/project-status.md
+last_checked: 2026-05-23
 applies_to: lua_test executable usage and extension
 ---
 
@@ -37,7 +37,7 @@ bin\lua_test.exe --report=junit:bin\lua_test_junit.xml
 2. Define a `registerXTests()` function.
 3. Register individual tests through `TestRegistry::getInstance().registerTest(...)`.
 4. Add the declaration and call in `tests/unit/framework/test_runner.cpp`.
-5. Add the new file to `lua_test.vcxproj`, filters, and `CMakeLists.txt`.
+5. Add the new file to `lua_test.vcxproj`, filters, and `CMakeLists.txt` with `tools\add_source.ps1 -SourcePath tests\unit\<area>\test_name.cpp -Target Test`.
 
 Use focused filters while developing:
 

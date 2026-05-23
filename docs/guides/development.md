@@ -1,7 +1,7 @@
 ---
 status: current
-verified_against: docs/status/project-status.md; lua.slnx; lua.vcxproj; lua_test.vcxproj; CMakeLists.txt; tools/run_cmake_smoke.ps1; tests/unit/framework/test_runner.cpp
-last_checked: 2026-05-19
+verified_against: docs/status/project-status.md; lua.slnx; lua.vcxproj; lua_test.vcxproj; CMakeLists.txt; tools/run_cmake_smoke.ps1; tools/add_source.ps1; tests/unit/framework/test_runner.cpp
+last_checked: 2026-05-23
 applies_to: current contributor workflow and coding conventions
 ---
 
@@ -94,6 +94,22 @@ ctest --test-dir build\cmake -C Debug --output-on-failure
 ```
 
 Linux / macOS 仍应先作为实验性路径处理；在 CI 矩阵覆盖前，不把它视为跨平台兼容承诺。
+
+#### 新增 C++ 源文件
+
+新增 `.cpp` / `.hpp` 后，优先使用 `tools\add_source.ps1` 同步 `CMakeLists.txt`、`.vcxproj` 和 `.vcxproj.filters`：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\add_source.ps1 `
+  -SourcePath src\gc\new_phase.cpp, src\gc\new_phase.hpp `
+  -Target Core
+
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\add_source.ps1 `
+  -SourcePath tests\unit\gc\test_new_phase.cpp `
+  -Target Test
+```
+
+`-Target Auto` 会按路径推断常见目标；共享源码可以显式传多个目标，例如 `-Target Bytecode, Test`。用 `-DryRun` 预览改动，只有在需要提前登记计划文件时才使用 `-AllowMissing`。
 
 ---
 

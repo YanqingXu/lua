@@ -76,7 +76,7 @@ PR-41 新增 `tests/unit/compiler/test_codegen_characterization.cpp`，测试套
 - PR-44 已完成；后续不要把 statement lowering 塞进 `ExpressionEmitter`。
 - PR-45 已完成；后续不要把 statement lowering 重新塞回 `CodeGenerator`，除非是兼容包装。
 - PR-48 已完成 `ValueResult` 的兼容式 `std::variant` payload prototype；后续迁移调用点时优先用 `payload()` / `std::visit`，并保留旧字段读面直到 expression / statement 两侧都完成迁移。
-- 每次新增 `.cpp` 必须同步 `CMakeLists.txt`、`lua_test.vcxproj` 和 `lua_test.vcxproj.filters`；新增生产源文件还必须同步 `lua.vcxproj` 和 `lua.vcxproj.filters`。
+- 每次新增 `.cpp` / `.hpp` 优先使用 `tools\add_source.ps1` 同步 `CMakeLists.txt`、`.vcxproj` 和 `.vcxproj.filters`；新增生产源文件用 `-Target Core`，新增测试用 `-Target Test`。
 
 ## 推荐验证命令
 

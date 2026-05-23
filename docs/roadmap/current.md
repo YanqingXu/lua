@@ -48,7 +48,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_quality_gate.ps1
 | 中 | EngineContext / RuntimeServices | 已完成 | 已引入显式 RuntimeServices，并迁移入口层、CodeGenerator、Parser/VM 兼容重载 |
 | 中 | 教学导航 | 已完成 | 已新增 `docs/index.md`、术语表和 examples，并扩展 walkthrough 索引 |
 | 低 | CMake + CTest | 已完成 | 已新增 secondary CMake/CTest 路径，不替代 VS/MSBuild 主路径 |
-| 长期 | 拆分 CodeGenerator / VM / Parser / GC 策略边界 | 进行中 | 8A-8C CodeGenerator 边界已完成，8D-8G VM 入口、dispatch 分类、ops/call/剩余 helper 与 trace/debug 边界已完成；8H Parser 函数组审计与行为锁定、8I Parser 物理拆分执行已完成；PR-39 已完成 Switch dispatch 每 opcode inline helper；PR-40 已完成 VM expected 异常映射 helper；PR-41 已完成 CodeGenerator 职责地图与 characterization 测试；PR-42 已完成 JumpPatcher 抽取；PR-43 已完成 ScopeManager 抽取；PR-44 已完成 ExpressionEmitter 抽取；PR-45 已完成 StatementEmitter 抽取；PR-46 已完成 GC sweep 显式 StringPool 边界；PR-48 已完成 ValueResult variant prototype；PR-51 已完成 trace diff + changedRegisters；PR-52 已完成 gc-cycle walkthrough；PR-62 已完成 GCStrategy / MarkSweepGC / IncrementalGC 教学占位策略与等价性测试；PR-63 已完成 lua_bytecode Mermaid CFG；PR-64 已完成 Trace JSONL golden 测试；PR-65 已完成 REPL 增量解析测试 |
+| 长期 | 拆分 CodeGenerator / VM / Parser / GC 策略边界 | 进行中 | 8A-8C CodeGenerator 边界已完成，8D-8G VM 入口、dispatch 分类、ops/call/剩余 helper 与 trace/debug 边界已完成；8H Parser 函数组审计与行为锁定、8I Parser 物理拆分执行已完成；PR-39 已完成 Switch dispatch 每 opcode inline helper；PR-40 已完成 VM expected 异常映射 helper；PR-41 已完成 CodeGenerator 职责地图与 characterization 测试；PR-42 已完成 JumpPatcher 抽取；PR-43 已完成 ScopeManager 抽取；PR-44 已完成 ExpressionEmitter 抽取；PR-45 已完成 StatementEmitter 抽取；PR-46 已完成 GC sweep 显式 StringPool 边界；PR-48 已完成 ValueResult variant prototype；PR-51 已完成 trace diff + changedRegisters；PR-52 已完成 gc-cycle walkthrough；PR-62 已完成 GCStrategy / MarkSweepGC / IncrementalGC 教学占位策略与等价性测试；PR-63 已完成 lua_bytecode Mermaid CFG；PR-64 已完成 Trace JSONL golden 测试；PR-65 已完成 REPL 增量解析测试；PR-66 已完成 add_source 源码清单同步脚本 |
 
 ## 已完成优化
 
@@ -1388,6 +1388,43 @@ bin\lua_test.exe
 
 - `REPL Commands` 过滤测试选中 23 个注册测试 / 139 个结果 / 0 失败。
 - 默认 `bin\lua_test.exe` 运行 542 个注册测试 / 2728 个结果 / 0 失败。
+
+## 已完成任务：source list sync script
+
+### PR-66 / 5.3：新增 `tools/add_source.ps1`
+
+**目标：** 降低新增 `.cpp` / `.hpp` 时 CMake 与 Visual Studio 项目清单漂移的风险，让生产源码、REPL / app / bytecode 工具源码和测试源码都能通过同一脚本登记。
+
+已完成：
+
+- [x] 新增 `tools/add_source.ps1`，支持 `Core`、`Repl`、`App`、`Bytecode`、`Test` 五类目标，以及 `Auto` 路径推断。
+- [x] `.cpp` / `.cxx` / `.cc` / `.c` 会同步到对应 CMake 容器和 VS `<ClCompile>`；`.hpp` / `.h` 系列会同步 VS `<ClInclude>`。
+- [x] `.vcxproj.filters` 会按路径推断 filter，并为缺失 filter 生成稳定 GUID；脚本重复运行不会重复追加。
+- [x] 支持 `-DryRun`、`-AllowMissing` 和 `-Quiet`，用于预览、计划文件登记和质量门自检。
+- [x] `tools/test_quality_gate.ps1` 已加入临时项目清单烟测，覆盖 Core / Bytecode / Test 追加和幂等性。
+- [x] 同步 `docs/guides/development.md`、`docs/guides/test-runner.md`、`docs/compiler/codegen-responsibility-map.md`、`docs/status/project-status.md` 和本路线图。
+
+示例：
+
+```powershell
+.\tools\add_source.ps1 -SourcePath src\gc\new_phase.cpp, src\gc\new_phase.hpp -Target Core
+.\tools\add_source.ps1 -SourcePath tests\unit\gc\test_new_phase.cpp -Target Test
+.\tools\add_source.ps1 -SourcePath src\bytecode\new_view.cpp -Target Bytecode, Test
+```
+
+已使用的验证命令：
+
+```powershell
+.\tools\add_source.ps1 -SourcePath src\gc\gc_strategy.cpp -Target Core -DryRun
+.\tools\test_quality_gate.ps1
+.\tools\check_doc_drift.ps1
+```
+
+验收结果：
+
+- `add_source.ps1` existing-file dry-run 正确报告 no-op。
+- `test_quality_gate.ps1` 临时项目清单烟测通过。
+- 文档漂移检查通过。
 
 ## 维护规则
 

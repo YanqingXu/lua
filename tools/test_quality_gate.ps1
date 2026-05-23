@@ -48,6 +48,16 @@ Assert-FileContains "tools/run_quality_gate.ps1" @(
     "MSBuild"
 )
 
+Assert-FileContains "tools/add_source.ps1" @(
+    "LUA_CORE_SOURCES",
+    "LUA_REPL_SOURCES",
+    "LUA_TEST_SOURCES",
+    "lua_bytecode",
+    "AllowMissing",
+    "DryRun",
+    "Quiet"
+)
+
 Assert-FileContains "tools/check_opcode_coverage_matrix.ps1" @(
     "enum\\s\+class\\s\+OpCode",
     "opcode_coverage_matrix\.md",
@@ -81,6 +91,83 @@ foreach ($staleCount in @($testCountMatch.Groups[1].Value, $testCountMatch.Group
         throw "tools/check_doc_drift.ps1 must parse test counts dynamically instead of hard-coding $staleCount"
     }
 }
+
+function Invoke-AddSourceSmokeTest {
+    $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("lua_add_source_quality_" + [guid]::NewGuid().ToString("N"))
+    New-Item -ItemType Directory -Path $tempRoot | Out-Null
+
+    try {
+        foreach ($relative in @(
+            "CMakeLists.txt",
+            "lua.vcxproj",
+            "lua.vcxproj.filters",
+            "lua_bytecode.vcxproj",
+            "lua_bytecode.vcxproj.filters",
+            "lua_test.vcxproj",
+            "lua_test.vcxproj.filters"
+        )) {
+            Copy-Item -LiteralPath (Join-RepoPath $relative) -Destination (Join-Path $tempRoot $relative)
+        }
+
+        New-Item -ItemType Directory -Path (Join-Path $tempRoot "src\compiler\probe") -Force | Out-Null
+        New-Item -ItemType Directory -Path (Join-Path $tempRoot "src\bytecode") -Force | Out-Null
+        Set-Content -LiteralPath (Join-Path $tempRoot "src\compiler\probe\sample.cpp") -Value "// sample" -NoNewline
+        Set-Content -LiteralPath (Join-Path $tempRoot "src\compiler\probe\sample.hpp") -Value "// sample" -NoNewline
+        Set-Content -LiteralPath (Join-Path $tempRoot "src\bytecode\probe_tool.cpp") -Value "// sample" -NoNewline
+
+        $scriptPath = Join-RepoPath "tools/add_source.ps1"
+        & $scriptPath -Root $tempRoot -SourcePath "src\compiler\probe\sample.cpp", "src\compiler\probe\sample.hpp" -Target Core -Quiet
+        & $scriptPath -Root $tempRoot -SourcePath "src\compiler\probe\sample.cpp", "src\compiler\probe\sample.hpp" -Target Core -Quiet
+        & $scriptPath -Root $tempRoot -SourcePath "src\bytecode\probe_tool.cpp" -Target @("Bytecode", "Test") -Quiet
+
+        $cmake = Get-Content -LiteralPath (Join-Path $tempRoot "CMakeLists.txt") -Raw
+        $coreProject = Get-Content -LiteralPath (Join-Path $tempRoot "lua.vcxproj") -Raw
+        $coreFilters = Get-Content -LiteralPath (Join-Path $tempRoot "lua.vcxproj.filters") -Raw
+        $bytecodeProject = Get-Content -LiteralPath (Join-Path $tempRoot "lua_bytecode.vcxproj") -Raw
+        $bytecodeFilters = Get-Content -LiteralPath (Join-Path $tempRoot "lua_bytecode.vcxproj.filters") -Raw
+        $testProject = Get-Content -LiteralPath (Join-Path $tempRoot "lua_test.vcxproj") -Raw
+
+        foreach ($required in @(
+            "src/compiler/probe/sample.cpp",
+            "src/bytecode/probe_tool.cpp"
+        )) {
+            if ($cmake -notmatch [regex]::Escape($required)) {
+                throw "tools/add_source.ps1 smoke missing CMake entry: $required"
+            }
+        }
+
+        if (([regex]::Matches($cmake, [regex]::Escape("src/compiler/probe/sample.cpp"))).Count -ne 1) {
+            throw "tools/add_source.ps1 must be idempotent for repeated CMake entries"
+        }
+
+        foreach ($required in @(
+            "src\compiler\probe\sample.cpp",
+            "src\compiler\probe\sample.hpp"
+        )) {
+            if ($coreProject -notmatch [regex]::Escape($required)) {
+                throw "tools/add_source.ps1 smoke missing core project entry: $required"
+            }
+            if ($coreFilters -notmatch [regex]::Escape($required)) {
+                throw "tools/add_source.ps1 smoke missing core filter entry: $required"
+            }
+        }
+
+        if ($bytecodeProject -notmatch [regex]::Escape("src\bytecode\probe_tool.cpp") -or
+            $bytecodeFilters -notmatch [regex]::Escape("src\bytecode")) {
+            throw "tools/add_source.ps1 smoke missing bytecode project/filter entry"
+        }
+
+        if ($testProject -notmatch [regex]::Escape("src\bytecode\probe_tool.cpp")) {
+            throw "tools/add_source.ps1 smoke missing test project entry"
+        }
+    } finally {
+        if (Test-Path -LiteralPath $tempRoot) {
+            Remove-Item -LiteralPath $tempRoot -Recurse -Force
+        }
+    }
+}
+
+Invoke-AddSourceSmokeTest
 
 Assert-FileContains ".github/workflows/ci.yml" @(
     "pull_request",
