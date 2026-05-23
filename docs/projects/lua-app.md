@@ -1,7 +1,7 @@
 ---
 status: current
 verified_against: lua_app.vcxproj; CMakeLists.txt; src/main.cpp; src/repl.cpp; src/repl.hpp; src/app/app_options.cpp; src/app/app_options.hpp
-last_checked: 2026-05-19
+last_checked: 2026-05-23
 applies_to: lua_app interpreter executable
 ---
 
@@ -27,6 +27,8 @@ The executable supports:
 - REPL mode
 - default behavior mode
 - optional JSONL VM trace output
+
+The REPL includes `.help`, `.bytecode <expr|chunk>`, and `.ast <expr|chunk>` meta commands for inspecting parser and bytecode output without leaving the interactive session.
 
 See `docs/guides/repl-cli.md` for user-facing behavior.
 

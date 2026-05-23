@@ -32,6 +32,10 @@ void testParseMetaCommands(TestSuite& suite) {
               ".bytecode should parse as bytecode command");
     ASSERT_EQ(suite, Str("1 + 2"), bytecode.argument, ".bytecode should trim its argument");
 
+    const REPL::MetaCommand ast = REPL::parseMetaCommand("  .ast  local x = 1  ");
+    ASSERT_EQ(suite, REPL::MetaCommandKind::Ast, ast.kind, ".ast should parse as ast command");
+    ASSERT_EQ(suite, Str("local x = 1"), ast.argument, ".ast should trim its argument");
+
     const REPL::MetaCommand normalInput = REPL::parseMetaCommand("print(1)");
     ASSERT_EQ(suite, REPL::MetaCommandKind::None, normalInput.kind,
               "regular Lua source should not parse as a meta command");
@@ -50,6 +54,7 @@ void testPrintHelpShowsSupportedCommands(TestSuite& suite) {
 
     ASSERT_TRUE(suite, contains(text, ".help"), "help should list .help");
     ASSERT_TRUE(suite, contains(text, ".bytecode <expr|chunk>"), "help should list .bytecode");
+    ASSERT_TRUE(suite, contains(text, ".ast <expr|chunk>"), "help should list .ast");
     ASSERT_TRUE(suite, contains(text, "=expr"), "help should mention quick expression evaluation");
     ASSERT_TRUE(suite, contains(text, "exit"), "help should mention exit");
 }
@@ -104,6 +109,65 @@ void testBytecodeCommandRejectsMissingArgument(TestSuite& suite) {
     ASSERT_TRUE(suite, out.str().empty(), "empty .bytecode should not print bytecode");
     ASSERT_TRUE(suite, contains(err.str(), "usage: .bytecode <expr|chunk>"),
                 "empty .bytecode should print usage");
+
+    delete L;
+}
+
+void testAstCommandPrintsExpressionTree(TestSuite& suite) {
+    LuaState* L = LuaState::newState();
+    std::ostringstream out;
+    std::ostringstream err;
+
+    REPL::MetaCommand command;
+    command.kind = REPL::MetaCommandKind::Ast;
+    command.argument = "1 + 2 * 3";
+
+    const int status = REPL::runMetaCommand(L, command, out, err);
+    const std::string text = out.str();
+
+    ASSERT_EQ(suite, 0, status, ".ast expression should succeed through dispatcher");
+    ASSERT_TRUE(suite, contains(text, "AST"), "ast should print header");
+    ASSERT_TRUE(suite, contains(text, "mode: expression"), "ast expression should mark expression mode");
+    ASSERT_TRUE(suite, contains(text, "Chunk"), "ast should print chunk root");
+    ASSERT_TRUE(suite, contains(text, "ReturnStmt"), "expression fallback should be a return statement");
+    ASSERT_TRUE(suite, contains(text, "BinaryExpr op=Add"), "ast should print outer binary add");
+    ASSERT_TRUE(suite, contains(text, "BinaryExpr op=Mul"), "ast should preserve precedence tree");
+    ASSERT_TRUE(suite, contains(text, "NumberExpr value=1"), "ast should print number literal");
+    ASSERT_TRUE(suite, err.str().empty(), ".ast expression should not emit errors");
+
+    delete L;
+}
+
+void testAstCommandPrintsChunkTree(TestSuite& suite) {
+    LuaState* L = LuaState::newState();
+    std::ostringstream out;
+    std::ostringstream err;
+
+    const int status = REPL::printAst(L, "local x = {name = \"lua\", 7}\nreturn x.name", out, err);
+    const std::string text = out.str();
+
+    ASSERT_EQ(suite, 0, status, ".ast chunk should succeed");
+    ASSERT_TRUE(suite, contains(text, "mode: chunk"), "ast chunk should mark chunk mode");
+    ASSERT_TRUE(suite, contains(text, "LocalStmt names=[x]"), "ast should print local names");
+    ASSERT_TRUE(suite, contains(text, "TableExpr fields=2"), "ast should print table field count");
+    ASSERT_TRUE(suite, contains(text, "StringExpr value=\"lua\""), "ast should print string literal");
+    ASSERT_TRUE(suite, contains(text, "MemberExpr member=name"), "ast should print member access");
+    ASSERT_TRUE(suite, err.str().empty(), ".ast chunk should not emit errors");
+
+    delete L;
+}
+
+void testAstCommandRejectsMissingArgument(TestSuite& suite) {
+    LuaState* L = LuaState::newState();
+    std::ostringstream out;
+    std::ostringstream err;
+
+    const int status = REPL::printAst(L, "   ", out, err);
+
+    ASSERT_EQ(suite, 1, status, ".ast without an argument should fail");
+    ASSERT_TRUE(suite, out.str().empty(), "empty .ast should not print AST");
+    ASSERT_TRUE(suite, contains(err.str(), "usage: .ast <expr|chunk>"),
+                "empty .ast should print usage");
 
     delete L;
 }
@@ -167,6 +231,12 @@ void registerReplCommandTests() {
                           testBytecodeCommandPrintsCompiledExpression);
     registry.registerTest(kSuiteName, "Bytecode Command Rejects Missing Argument",
                           testBytecodeCommandRejectsMissingArgument);
+    registry.registerTest(kSuiteName, "AST Command Prints Expression Tree",
+                          testAstCommandPrintsExpressionTree);
+    registry.registerTest(kSuiteName, "AST Command Prints Chunk Tree",
+                          testAstCommandPrintsChunkTree);
+    registry.registerTest(kSuiteName, "AST Command Rejects Missing Argument",
+                          testAstCommandRejectsMissingArgument);
     registry.registerTest(kSuiteName, "Report Error Format", testReportErrorKeepsErrorFormat);
     registry.registerTest(kSuiteName, "Unknown Meta Command Error Format", testUnknownMetaCommandErrorFormat);
 }

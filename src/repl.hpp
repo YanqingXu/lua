@@ -70,6 +70,7 @@ enum class MetaCommandKind {
     None,
     Help,
     Bytecode,
+    Ast,
     Unknown,
 };
 
@@ -111,6 +112,11 @@ bool saveHistory(const Str& path, const Vec<Str>& history);
  * @brief 编译 REPL 输入并打印字节码
  */
 int printBytecode(LuaState* L, const Str& source, std::ostream& out, std::ostream& err);
+
+/**
+ * @brief 解析 REPL 输入并打印 AST
+ */
+int printAst(LuaState* L, const Str& source, std::ostream& out, std::ostream& err);
 
 /**
  * @brief 执行已解析的 REPL 元命令

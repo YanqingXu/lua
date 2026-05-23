@@ -22,6 +22,7 @@
 #include "vm/state/global_state.hpp"
 #include "compiler/parser/parser.hpp"
 #include "compiler/codegen/codegen.hpp"
+#include "compiler/ast_visitor.hpp"
 #include "core/string_pool.hpp"
 #include "core/function.hpp"
 #include "core/gc_string.hpp"
@@ -30,12 +31,14 @@
 
 #include <iostream>
 #include <string>
+#include <string_view>
 #include <csignal>
 #include <cctype>
 #include <cstdlib>
 #include <expected>
 #include <format>
 #include <fstream>
+#include <ostream>
 
 namespace Lua {
 namespace REPL {
@@ -314,9 +317,388 @@ std::expected<Proto*, ParseError> compileForBytecode(LuaState* L, const Str& sou
     return proto;
 }
 
+std::expected<Chunk, ParseError> parseForAst(LuaState* L, const Str& source) {
+    RuntimeServices services(L->getGlobalState());
+
+    Parser parser(source, services);
+    auto parsed = parser.parse();
+    if (!parsed) {
+        return std::unexpected(parsed.error());
+    }
+
+    return std::move(*parsed);
+}
+
 void printParseError(std::ostream& err, const ParseError& error) {
     err << std::format("stdin:{}: {}", error.getLine(), error.what()) << std::endl;
 }
+
+const char* binaryOpName(BinaryExpr::Op op) {
+    switch (op) {
+        case BinaryExpr::Op::Add:
+            return "Add";
+        case BinaryExpr::Op::Sub:
+            return "Sub";
+        case BinaryExpr::Op::Mul:
+            return "Mul";
+        case BinaryExpr::Op::Div:
+            return "Div";
+        case BinaryExpr::Op::Mod:
+            return "Mod";
+        case BinaryExpr::Op::Pow:
+            return "Pow";
+        case BinaryExpr::Op::Eq:
+            return "Eq";
+        case BinaryExpr::Op::Ne:
+            return "Ne";
+        case BinaryExpr::Op::Lt:
+            return "Lt";
+        case BinaryExpr::Op::Le:
+            return "Le";
+        case BinaryExpr::Op::Gt:
+            return "Gt";
+        case BinaryExpr::Op::Ge:
+            return "Ge";
+        case BinaryExpr::Op::And:
+            return "And";
+        case BinaryExpr::Op::Or:
+            return "Or";
+        case BinaryExpr::Op::Concat:
+            return "Concat";
+    }
+
+    return "Unknown";
+}
+
+const char* unaryOpName(UnaryExpr::Op op) {
+    switch (op) {
+        case UnaryExpr::Op::Not:
+            return "Not";
+        case UnaryExpr::Op::Neg:
+            return "Neg";
+        case UnaryExpr::Op::Len:
+            return "Len";
+    }
+
+    return "Unknown";
+}
+
+Str escapeAstString(const Str& value) {
+    Str escaped;
+    for (char ch : value) {
+        switch (ch) {
+            case '\\':
+                escaped += "\\\\";
+                break;
+            case '"':
+                escaped += "\\\"";
+                break;
+            case '\n':
+                escaped += "\\n";
+                break;
+            case '\r':
+                escaped += "\\r";
+                break;
+            case '\t':
+                escaped += "\\t";
+                break;
+            default:
+                escaped += ch;
+                break;
+        }
+    }
+    return escaped;
+}
+
+class AstPrinter : public ExprVisitor<AstPrinter>, public StmtVisitor<AstPrinter> {
+public:
+    explicit AstPrinter(std::ostream& out) : out_(out) {}
+
+    void print(const Chunk& chunk) {
+        line("Chunk");
+        IndentGuard indent(*this);
+        line(std::format("statements ({})", chunk.statements.size()));
+        printStmtList(chunk.statements);
+    }
+
+    void visitNode(const NilExpr& node) {
+        lineWithLocation("NilExpr", node);
+    }
+
+    void visitNode(const BoolExpr& node) {
+        lineWithLocation(std::format("BoolExpr value={}", node.value ? "true" : "false"), node);
+    }
+
+    void visitNode(const NumberExpr& node) {
+        lineWithLocation(std::format("NumberExpr value={}", node.value), node);
+    }
+
+    void visitNode(const StringExpr& node) {
+        lineWithLocation(std::format("StringExpr value=\"{}\"", escapeAstString(node.value)), node);
+    }
+
+    void visitNode(const VarargExpr& node) {
+        lineWithLocation("VarargExpr", node);
+    }
+
+    void visitNode(const NameExpr& node) {
+        lineWithLocation(std::format("NameExpr name={}", node.name), node);
+    }
+
+    void visitNode(const BinaryExpr& node) {
+        lineWithLocation(std::format("BinaryExpr op={}", binaryOpName(node.op)), node);
+        IndentGuard indent(*this);
+        printExprField("left", node.left.get());
+        printExprField("right", node.right.get());
+    }
+
+    void visitNode(const UnaryExpr& node) {
+        lineWithLocation(std::format("UnaryExpr op={}", unaryOpName(node.op)), node);
+        IndentGuard indent(*this);
+        printExprField("operand", node.operand.get());
+    }
+
+    void visitNode(const TableExpr& node) {
+        lineWithLocation(std::format("TableExpr fields={}", node.fields.size()), node);
+        IndentGuard indent(*this);
+        for (usize i = 0; i < node.fields.size(); ++i) {
+            line(std::format("field[{}]", i));
+            IndentGuard fieldIndent(*this);
+            printExprField("key", node.fields[i].key.get());
+            printExprField("value", node.fields[i].value.get());
+        }
+    }
+
+    void visitNode(const CallExpr& node) {
+        lineWithLocation(std::format("CallExpr method={}", node.isMethodCall ? "true" : "false"), node);
+        IndentGuard indent(*this);
+        printExprField("func", node.func.get());
+        line(std::format("args ({})", node.args.size()));
+        printExprList(node.args);
+    }
+
+    void visitNode(const IndexExpr& node) {
+        lineWithLocation("IndexExpr", node);
+        IndentGuard indent(*this);
+        printExprField("table", node.table.get());
+        printExprField("index", node.index.get());
+    }
+
+    void visitNode(const MemberExpr& node) {
+        lineWithLocation(std::format("MemberExpr member={}", node.member), node);
+        IndentGuard indent(*this);
+        printExprField("table", node.table.get());
+    }
+
+    void visitNode(const FunctionExpr& node) {
+        lineWithLocation(functionLabel("FunctionExpr", node.params, node.isVararg), node);
+        IndentGuard indent(*this);
+        line(std::format("body ({})", node.body.size()));
+        printStmtList(node.body);
+    }
+
+    void visitNode(const ParenExpr& node) {
+        lineWithLocation("ParenExpr", node);
+        IndentGuard indent(*this);
+        printExprField("expression", node.expression.get());
+    }
+
+    void visitNode(const EmptyStmt& node) {
+        lineWithLocation("EmptyStmt", node);
+    }
+
+    void visitNode(const AssignStmt& node) {
+        lineWithLocation("AssignStmt", node);
+        IndentGuard indent(*this);
+        line(std::format("targets ({})", node.targets.size()));
+        printExprList(node.targets);
+        line(std::format("values ({})", node.values.size()));
+        printExprList(node.values);
+    }
+
+    void visitNode(const LocalStmt& node) {
+        lineWithLocation(std::format("LocalStmt names=[{}]", joinNames(node.names)), node);
+        IndentGuard indent(*this);
+        line(std::format("values ({})", node.values.size()));
+        printExprList(node.values);
+    }
+
+    void visitNode(const CallStmt& node) {
+        lineWithLocation("CallStmt", node);
+        IndentGuard indent(*this);
+        printExprField("call", node.call.get());
+    }
+
+    void visitNode(const IfStmt& node) {
+        lineWithLocation(std::format("IfStmt branches={}", node.branches.size()), node);
+        IndentGuard indent(*this);
+        for (usize i = 0; i < node.branches.size(); ++i) {
+            line(std::format("branch[{}]", i));
+            IndentGuard branchIndent(*this);
+            printExprField("condition", node.branches[i].condition.get());
+            line(std::format("body ({})", node.branches[i].body.size()));
+            printStmtList(node.branches[i].body);
+        }
+        if (!node.elseBranch.empty()) {
+            line(std::format("else ({})", node.elseBranch.size()));
+            printStmtList(node.elseBranch);
+        }
+    }
+
+    void visitNode(const WhileStmt& node) {
+        lineWithLocation("WhileStmt", node);
+        IndentGuard indent(*this);
+        printExprField("condition", node.condition.get());
+        line(std::format("body ({})", node.body.size()));
+        printStmtList(node.body);
+    }
+
+    void visitNode(const RepeatStmt& node) {
+        lineWithLocation("RepeatStmt", node);
+        IndentGuard indent(*this);
+        line(std::format("body ({})", node.body.size()));
+        printStmtList(node.body);
+        printExprField("condition", node.condition.get());
+    }
+
+    void visitNode(const ForNumStmt& node) {
+        lineWithLocation(std::format("ForNumStmt var={}", node.var), node);
+        IndentGuard indent(*this);
+        printExprField("init", node.init.get());
+        printExprField("limit", node.limit.get());
+        printExprField("step", node.step.get());
+        line(std::format("body ({})", node.body.size()));
+        printStmtList(node.body);
+    }
+
+    void visitNode(const ForInStmt& node) {
+        lineWithLocation(std::format("ForInStmt vars=[{}]", joinNames(node.vars)), node);
+        IndentGuard indent(*this);
+        line(std::format("iterators ({})", node.iterators.size()));
+        printExprList(node.iterators);
+        line(std::format("body ({})", node.body.size()));
+        printStmtList(node.body);
+    }
+
+    void visitNode(const FunctionStmt& node) {
+        lineWithLocation(functionStmtLabel(node), node);
+        IndentGuard indent(*this);
+        line(std::format("body ({})", node.body.size()));
+        printStmtList(node.body);
+    }
+
+    void visitNode(const ReturnStmt& node) {
+        lineWithLocation("ReturnStmt", node);
+        IndentGuard indent(*this);
+        line(std::format("values ({})", node.values.size()));
+        printExprList(node.values);
+    }
+
+    void visitNode(const BreakStmt& node) {
+        lineWithLocation("BreakStmt", node);
+    }
+
+    void visitNode(const DoStmt& node) {
+        lineWithLocation("DoStmt", node);
+        IndentGuard indent(*this);
+        line(std::format("body ({})", node.body.size()));
+        printStmtList(node.body);
+    }
+
+private:
+    class IndentGuard {
+    public:
+        explicit IndentGuard(AstPrinter& printer) : printer_(printer) {
+            printer_.indent_ += 1;
+        }
+
+        ~IndentGuard() {
+            printer_.indent_ -= 1;
+        }
+
+    private:
+        AstPrinter& printer_;
+    };
+
+    template <typename Node>
+    void lineWithLocation(std::string_view label, const Node& node) {
+        line(std::format("{} @ {}:{}", label, node.line, node.column));
+    }
+
+    void line(std::string_view text) {
+        out_ << Str(indent_ * 2, ' ') << text << '\n';
+    }
+
+    void printExpr(const Expr& expr) {
+        ExprVisitor<AstPrinter>::visit(expr);
+    }
+
+    void printStmt(const Stmt& stmt) {
+        StmtVisitor<AstPrinter>::visit(stmt);
+    }
+
+    void printExprField(std::string_view label, const Expr* expr) {
+        line(std::format("{}:", label));
+        IndentGuard indent(*this);
+        if (expr == nullptr) {
+            line("<none>");
+            return;
+        }
+        printExpr(*expr);
+    }
+
+    void printExprList(const Vec<ExprPtr>& expressions) {
+        IndentGuard indent(*this);
+        for (usize i = 0; i < expressions.size(); ++i) {
+            line(std::format("[{}]", i));
+            IndentGuard itemIndent(*this);
+            printExpr(*expressions[i]);
+        }
+    }
+
+    void printStmtList(const Vec<StmtPtr>& statements) {
+        IndentGuard indent(*this);
+        for (usize i = 0; i < statements.size(); ++i) {
+            line(std::format("[{}]", i));
+            IndentGuard itemIndent(*this);
+            printStmt(*statements[i]);
+        }
+    }
+
+    Str joinNames(const Vec<Str>& names) {
+        Str text;
+        for (usize i = 0; i < names.size(); ++i) {
+            if (i != 0) {
+                text += ", ";
+            }
+            text += names[i];
+        }
+        return text;
+    }
+
+    Str functionLabel(std::string_view nodeName, const Vec<Str>& params, bool isVararg) {
+        return std::format("{} params=[{}] vararg={}", nodeName, joinNames(params),
+                           isVararg ? "true" : "false");
+    }
+
+    Str functionStmtLabel(const FunctionStmt& node) {
+        Str fullName = node.name;
+        for (const Str& part : node.tablePath) {
+            fullName += ".";
+            fullName += part;
+        }
+
+        return std::format("FunctionStmt name={} local={} method={} params=[{}] vararg={}",
+                           fullName,
+                           node.isLocal ? "true" : "false",
+                           node.isMethod ? "true" : "false",
+                           joinNames(node.params),
+                           node.isVararg ? "true" : "false");
+    }
+
+    std::ostream& out_;
+    usize indent_ = 0;
+};
 
 /**
  * @brief 执行 REPL 输入并打印结果
@@ -478,6 +860,9 @@ MetaCommand parseMetaCommand(const Str& line) {
     if (command == "bytecode") {
         return {MetaCommandKind::Bytecode, argument};
     }
+    if (command == "ast") {
+        return {MetaCommandKind::Ast, argument};
+    }
 
     return {MetaCommandKind::Unknown, command};
 }
@@ -486,6 +871,7 @@ void printHelp(std::ostream& out) {
     out << "REPL commands:" << std::endl;
     out << "  .help                  show this help" << std::endl;
     out << "  .bytecode <expr|chunk> compile input and print bytecode" << std::endl;
+    out << "  .ast <expr|chunk>      parse input and print AST" << std::endl;
     out << "  =expr                  evaluate expression and print results" << std::endl;
     out << "  exit, quit             leave the REPL" << std::endl;
 }
@@ -570,6 +956,54 @@ int printBytecode(LuaState* L, const Str& source, std::ostream& out, std::ostrea
     }
 }
 
+int printAst(LuaState* L, const Str& source, std::ostream& out, std::ostream& err) {
+    if (L == nullptr) {
+        err << ".ast: LuaState is null" << std::endl;
+        return 1;
+    }
+
+    const Str input = trimCopy(source);
+    if (input.empty()) {
+        err << "usage: .ast <expr|chunk>" << std::endl;
+        return 1;
+    }
+
+    try {
+        bool wasExplicitReturn = false;
+        const Str primarySource = tryAsExpression(input, wasExplicitReturn);
+        auto primary = parseForAst(L, primarySource);
+        if (primary) {
+            out << "AST" << std::endl;
+            out << "  mode: " << (wasExplicitReturn ? "expression" : "chunk") << std::endl;
+            AstPrinter printer(out);
+            printer.print(*primary);
+            return 0;
+        }
+
+        if (!wasExplicitReturn) {
+            auto expression = parseForAst(L, "return " + input);
+            if (expression) {
+                out << "AST" << std::endl;
+                out << "  mode: expression" << std::endl;
+                AstPrinter printer(out);
+                printer.print(*expression);
+                return 0;
+            }
+            printParseError(err, expression.error());
+            return 1;
+        }
+
+        printParseError(err, primary.error());
+        return 1;
+    } catch (const LuaError& e) {
+        err << e.what() << std::endl;
+        return 1;
+    } catch (const std::exception& e) {
+        err << e.what() << std::endl;
+        return 1;
+    }
+}
+
 int runMetaCommand(LuaState* L, const MetaCommand& command, std::ostream& out, std::ostream& err) {
     switch (command.kind) {
         case MetaCommandKind::None:
@@ -579,6 +1013,8 @@ int runMetaCommand(LuaState* L, const MetaCommand& command, std::ostream& out, s
             return 0;
         case MetaCommandKind::Bytecode:
             return printBytecode(L, command.argument, out, err);
+        case MetaCommandKind::Ast:
+            return printAst(L, command.argument, out, err);
         case MetaCommandKind::Unknown:
             err << std::format("unknown REPL command: .{}", command.argument) << std::endl;
             return 1;

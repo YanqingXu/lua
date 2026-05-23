@@ -32,7 +32,7 @@ applies_to: 当前仓库事实与面向贡献者的工作流
 ## 项目目标状态
 
 - `lua.vcxproj` / `lua_core`：当前核心库目标。
-- `lua_app.vcxproj` / `lua_app`：当前脚本执行和 REPL 可执行目标。
+- `lua_app.vcxproj` / `lua_app`：当前脚本执行和 REPL 可执行目标；REPL 支持 `.help`、`.bytecode <expr|chunk>`、`.ast <expr|chunk>`、历史记录和 `=expr` 快速求值。
 - `lua_test.vcxproj` / `lua_test`：当前单元测试可执行目标。
 - `lua_bytecode.vcxproj` / `lua_bytecode`：编译到 `Proto` 的工具目标；`src/bytecode/bytecode_printer.cpp` 目前已经能输出 Proto 头信息、decoded instructions、常量注释、constant table，在 `full` 模式递归打印 child protos，并支持 `--diff` side-by-side 字节码差异；CFG 模式仍未实现。
 
@@ -44,7 +44,7 @@ applies_to: 当前仓库事实与面向贡献者的工作流
 ## 测试状态
 
 - 测试框架：自定义轻量级 C++ 测试框架，vendored 在 `lua_test/include/test_framework`，由 `tests/unit/framework` 适配。
-- 最近验证的测试计数：518 个 registered tests，2580 个 assertion results，0 failures。
+- 最近验证的测试计数：521 个 registered tests，2602 个 assertion results，0 failures。
 - `bin\lua_test.exe` 支持 `--list`、`--filter <suite-or-name>` 和 `--report=junit`。
 - 这些数字描述的是项目测试运行器结果，不是 Lua 5.1.5 兼容率百分比。
 

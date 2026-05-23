@@ -257,6 +257,20 @@ foreach ($required in @("docs/status/project-status.md", "docs/guides/developmen
     }
 }
 
+$replGuideDoc = Read-Text "docs/guides/repl-cli.md"
+$replGuideFacts = @(
+    ".help",
+    ".bytecode <expr|chunk>",
+    ".ast <expr|chunk>",
+    "mode: expression",
+    "REPL Commands"
+)
+foreach ($required in $replGuideFacts) {
+    if ($replGuideDoc -notmatch [regex]::Escape($required)) {
+        Add-Failure $failures "docs/guides/repl-cli.md is missing current REPL command fact: $required"
+    }
+}
+
 $glossaryDoc = Read-Text "docs/glossary.md"
 foreach ($required in @("RuntimeServices", "GlobalState", "LuaState", "Proto", "SymbolRef", "ValueResult", "CondResult", "LValueRef", "TMS", "RK")) {
     if ($glossaryDoc -notmatch [regex]::Escape($required)) {

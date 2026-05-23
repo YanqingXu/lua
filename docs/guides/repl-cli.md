@@ -1,6 +1,6 @@
 ---
 status: current
-verified_against: src/app/app_options.hpp; src/app/app_options.cpp; src/main.cpp; src/repl.hpp; src/repl.cpp; tests/unit/app/test_app_options.cpp
+verified_against: src/app/app_options.hpp; src/app/app_options.cpp; src/main.cpp; src/repl.hpp; src/repl.cpp; tests/unit/app/test_app_options.cpp; tests/unit/app/test_repl_commands.cpp
 last_checked: 2026-05-23
 applies_to: lua_app command-line and REPL behavior
 ---
@@ -71,6 +71,14 @@ Supported REPL behavior:
 - `=expr` is transformed into `return expr` and prints returned values
 - ordinary input is parsed as statements and does not auto-print expression values
 
+Supported meta commands:
+
+- `.help` prints the command list
+- `.bytecode <expr|chunk>` parses and compiles the input, then prints the compact Proto bytecode
+- `.ast <expr|chunk>` parses the input and prints a tree view of the AST
+
+Both `.bytecode` and `.ast` first try the argument as a chunk. If that fails and the input was not explicitly written as `=expr`, they retry it as `return <expr>`. The `.ast` output labels this fallback as `mode: expression`; normal chunks are labeled `mode: chunk`.
+
 ## Prompt Customization
 
 Inside the REPL:
@@ -88,5 +96,6 @@ _PROMPT2 = "...> "
 
 ```powershell
 bin\lua_test.exe --filter "AppOptions"
+bin\lua_test.exe --filter "REPL Commands"
 bin\lua_test.exe --filter "VM Trace Debug"
 ```
