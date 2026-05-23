@@ -263,8 +263,10 @@ $replGuideFacts = @(
     ".bytecode <expr|chunk>",
     ".ast <expr|chunk>",
     ".gc [stats|collect|strategy|help]",
+    "Tab completion",
     "mode: expression",
     "RuntimeServices.gc",
+    "string.sub",
     "REPL Commands"
 )
 foreach ($required in $replGuideFacts) {

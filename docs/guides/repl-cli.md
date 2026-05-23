@@ -70,6 +70,7 @@ Supported REPL behavior:
 - multi-line input uses `_PROMPT2`
 - `=expr` is transformed into `return expr` and prints returned values
 - ordinary input is parsed as statements and does not auto-print expression values
+- Tab completion covers meta commands, globals, and loaded library fields such as `string.sub`
 
 Supported meta commands:
 
@@ -82,6 +83,8 @@ Both `.bytecode` and `.ast` first try the argument as a chunk. If that fails and
 
 The `.gc` command intentionally uses the active collector through `RuntimeServices.gc`.
 It reports the current strategy as `mark-sweep`; `strategy` output names `incremental` as planned rather than switchable.
+
+Tab completion is intentionally conservative. It completes from the end of the current line, uses the current `LuaState` global table for global names, and walks dotted table paths for loaded library fields.
 
 ## Prompt Customization
 

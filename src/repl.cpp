@@ -30,6 +30,8 @@
 #include "runtime/runtime_services.hpp"
 #include "common/lua_error.hpp"
 
+#include <algorithm>
+#include <cstdio>
 #include <iostream>
 #include <string>
 #include <string_view>
@@ -40,6 +42,13 @@
 #include <format>
 #include <fstream>
 #include <ostream>
+
+#ifdef _WIN32
+#include <conio.h>
+#include <io.h>
+#else
+#include <unistd.h>
+#endif
 
 namespace Lua {
 namespace REPL {
@@ -171,6 +180,285 @@ Str trimCopy(const Str& text) {
     return text.substr(first, last - first);
 }
 
+bool startsWith(std::string_view text, std::string_view prefix) {
+    return text.size() >= prefix.size() && text.substr(0, prefix.size()) == prefix;
+}
+
+bool isIdentifierChar(char ch) {
+    return std::isalnum(static_cast<unsigned char>(ch)) != 0 || ch == '_';
+}
+
+bool isCompletionTokenChar(char ch) {
+    return isIdentifierChar(ch) || ch == '.';
+}
+
+void sortUnique(Vec<Str>& values) {
+    std::sort(values.begin(), values.end());
+    values.erase(std::unique(values.begin(), values.end()), values.end());
+}
+
+Str commonPrefix(const Vec<Str>& values) {
+    if (values.empty()) {
+        return "";
+    }
+
+    Str prefix = values.front();
+    for (usize i = 1; i < values.size(); ++i) {
+        const Str& value = values[i];
+        usize len = 0;
+        while (len < prefix.size() && len < value.size() && prefix[len] == value[len]) {
+            len++;
+        }
+        prefix.resize(len);
+        if (prefix.empty()) {
+            break;
+        }
+    }
+    return prefix;
+}
+
+CompletionResult buildCompletionResult(const Str& line, usize tokenStart, const Str& token,
+                                       Vec<Str> candidates) {
+    sortUnique(candidates);
+
+    CompletionResult result;
+    result.completedLine = line;
+    result.candidates = std::move(candidates);
+
+    if (result.candidates.empty()) {
+        return result;
+    }
+
+    const Str replacement = result.candidates.size() == 1
+                                ? result.candidates.front()
+                                : commonPrefix(result.candidates);
+    if (replacement.size() > token.size()) {
+        result.completedLine = line.substr(0, tokenStart) + replacement;
+    }
+
+    return result;
+}
+
+void collectStringKeys(Table* table, std::string_view prefix, std::string_view candidatePrefix,
+                       Vec<Str>& candidates) {
+    if (table == nullptr) {
+        return;
+    }
+
+    Value key;
+    Value nextKey;
+    Value nextValue;
+    while (table->next(key, nextKey, nextValue)) {
+        if (nextKey.isString()) {
+            const Str name = nextKey.asString()->c_str();
+            if (startsWith(name, prefix)) {
+                candidates.push_back(Str(candidatePrefix) + name);
+            }
+        }
+        key = nextKey;
+    }
+}
+
+Vec<Str> splitDottedPath(std::string_view path) {
+    Vec<Str> parts;
+    usize start = 0;
+    while (start <= path.size()) {
+        const usize dot = path.find('.', start);
+        const usize end = dot == std::string_view::npos ? path.size() : dot;
+        if (end == start) {
+            return {};
+        }
+        parts.emplace_back(path.substr(start, end - start));
+        if (dot == std::string_view::npos) {
+            break;
+        }
+        start = dot + 1;
+    }
+    return parts;
+}
+
+Table* resolveTablePath(LuaState* L, std::string_view path) {
+    if (L == nullptr || path.empty()) {
+        return nullptr;
+    }
+
+    Vec<Str> parts = splitDottedPath(path);
+    if (parts.empty()) {
+        return nullptr;
+    }
+
+    StringPool& pool = L->getGlobalState().getStringPool();
+    Value current = L->getGlobal(parts.front());
+    for (usize i = 1; i < parts.size(); ++i) {
+        if (!current.isTable()) {
+            return nullptr;
+        }
+        GCString* key = pool.intern(parts[i]);
+        current = current.asTable()->get(Value(key));
+    }
+
+    return current.isTable() ? current.asTable() : nullptr;
+}
+
+usize findCompletionTokenStart(const Str& line) {
+    usize start = line.size();
+    while (start > 0 && isCompletionTokenChar(line[start - 1])) {
+        start--;
+    }
+    return start;
+}
+
+Vec<Str> completeMetaCommandToken(std::string_view token) {
+    static constexpr std::string_view kCommands[] = {
+        ".ast",
+        ".bytecode",
+        ".gc",
+        ".help",
+    };
+
+    Vec<Str> candidates;
+    for (std::string_view command : kCommands) {
+        if (startsWith(command, token)) {
+            candidates.emplace_back(command);
+        }
+    }
+    return candidates;
+}
+
+Vec<Str> completeGcOption(std::string_view token) {
+    static constexpr std::string_view kOptions[] = {
+        "collect",
+        "help",
+        "stats",
+        "status",
+        "strategy",
+    };
+
+    Vec<Str> candidates;
+    for (std::string_view option : kOptions) {
+        if (startsWith(option, token)) {
+            candidates.emplace_back(option);
+        }
+    }
+    return candidates;
+}
+
+CompletionResult completeMetaInput(const Str& line, usize commandStart) {
+    usize commandEnd = commandStart;
+    while (commandEnd < line.size() && !isSpace(line[commandEnd])) {
+        commandEnd++;
+    }
+
+    if (commandEnd == line.size()) {
+        const Str token = line.substr(commandStart);
+        return buildCompletionResult(line, commandStart, token, completeMetaCommandToken(token));
+    }
+
+    const Str command = line.substr(commandStart, commandEnd - commandStart);
+    if (command != ".gc") {
+        return {line, {}};
+    }
+
+    usize optionStart = line.size();
+    while (optionStart > commandEnd && !isSpace(line[optionStart - 1])) {
+        optionStart--;
+    }
+
+    const Str token = line.substr(optionStart);
+    return buildCompletionResult(line, optionStart, token, completeGcOption(token));
+}
+
+CompletionResult completeLuaInput(LuaState* L, const Str& line) {
+    if (L == nullptr) {
+        return {line, {}};
+    }
+
+    const usize tokenStart = findCompletionTokenStart(line);
+    const Str token = line.substr(tokenStart);
+    if (token.empty()) {
+        return {line, {}};
+    }
+
+    Vec<Str> candidates;
+    const usize dot = token.rfind('.');
+    if (dot != Str::npos) {
+        const Str tablePath = token.substr(0, dot);
+        const Str fieldPrefix = token.substr(dot + 1);
+        Table* table = resolveTablePath(L, tablePath);
+        collectStringKeys(table, fieldPrefix, tablePath + ".", candidates);
+        return buildCompletionResult(line, tokenStart, token, std::move(candidates));
+    }
+
+    collectStringKeys(L->getGlobalTable(), token, "", candidates);
+    return buildCompletionResult(line, tokenStart, token, std::move(candidates));
+}
+
+bool isInputTerminal() {
+#ifdef _WIN32
+    return _isatty(_fileno(stdin)) != 0;
+#else
+    return isatty(fileno(stdin)) != 0;
+#endif
+}
+
+void printCompletionCandidates(const Vec<Str>& candidates) {
+    if (candidates.empty()) {
+        return;
+    }
+
+    std::cout << '\n';
+    for (usize i = 0; i < candidates.size(); ++i) {
+        if (i != 0) {
+            std::cout << "  ";
+        }
+        std::cout << candidates[i];
+    }
+    std::cout << '\n';
+}
+
+void redrawInputLine(const Str& prompt, const Str& line) {
+    std::cout << prompt << line << std::flush;
+}
+
+void applyInteractiveCompletion(LuaState* L, const Str& prompt, Str& line) {
+    const CompletionResult completion = completeInput(L, line);
+    if (completion.candidates.empty()) {
+        std::cout << '\a' << std::flush;
+        return;
+    }
+
+    const Str oldLine = line;
+    line = completion.completedLine;
+
+    if (completion.candidates.size() > 1) {
+        printCompletionCandidates(completion.candidates);
+        redrawInputLine(prompt, line);
+        return;
+    }
+
+    if (startsWith(line, oldLine)) {
+        std::cout << line.substr(oldLine.size()) << std::flush;
+        return;
+    }
+
+    std::cout << '\n';
+    redrawInputLine(prompt, line);
+}
+
+void applySubmittedTabCompletion(LuaState* L, Str& line) {
+    usize tab = line.find('\t');
+    while (tab != Str::npos) {
+        const Str beforeTab = line.substr(0, tab);
+        const Str afterTab = line.substr(tab + 1);
+        const CompletionResult completion = completeInput(L, beforeTab);
+        line = completion.completedLine + afterTab;
+        if (completion.candidates.size() > 1) {
+            printCompletionCandidates(completion.candidates);
+        }
+        tab = line.find('\t');
+    }
+}
+
 /**
  * @brief 检测输入是否因为不完整而导致解析失败
  *
@@ -249,7 +537,7 @@ Str getPrompt(LuaState* L, bool firstLine) {
  * @param line [out] 读取的行
  * @return true 如果成功读取，false 如果 EOF 或被中断
  */
-bool readLine(const Str& prompt, Str& line) {
+bool readLine(LuaState* L, const Str& prompt, Str& line) {
     std::cout << prompt << std::flush;
 
     // 检查是否被中断
@@ -258,6 +546,47 @@ bool readLine(const Str& prompt, Str& line) {
         std::cout << std::endl;
         line.clear();
         return true;  // 返回 true 但 line 为空，让主循环继续
+    }
+
+    if (isInputTerminal()) {
+#ifdef _WIN32
+        line.clear();
+        while (true) {
+            const int ch = _getch();
+            if (ch == 0 || ch == 224) {
+                (void)_getch();
+                continue;
+            }
+            if (ch == '\r' || ch == '\n') {
+                std::cout << std::endl;
+                return true;
+            }
+            if (ch == '\t') {
+                applyInteractiveCompletion(L, prompt, line);
+                continue;
+            }
+            if (ch == '\b' || ch == 127) {
+                if (!line.empty()) {
+                    line.pop_back();
+                    std::cout << "\b \b" << std::flush;
+                }
+                continue;
+            }
+            if (ch == 4 || ch == 26) {
+                return false;
+            }
+            if (ch == 3) {
+                clearInterruptFlag();
+                std::cout << std::endl;
+                line.clear();
+                return true;
+            }
+            if (std::isprint(static_cast<unsigned char>(ch)) != 0) {
+                line.push_back(static_cast<char>(ch));
+                std::cout << static_cast<char>(ch) << std::flush;
+            }
+        }
+#endif
     }
 
     if (!std::getline(std::cin, line)) {
@@ -276,6 +605,8 @@ bool readLine(const Str& prompt, Str& line) {
     if (!line.empty() && line.back() == '\r') {
         line.pop_back();
     }
+
+    applySubmittedTabCompletion(L, line);
 
     return true;
 }
@@ -956,6 +1287,19 @@ bool saveHistory(const Str& path, const Vec<Str>& history) {
     return output.good();
 }
 
+CompletionResult completeInput(LuaState* L, const Str& line) {
+    usize first = 0;
+    while (first < line.size() && isSpace(line[first])) {
+        first++;
+    }
+
+    if (first < line.size() && line[first] == '.') {
+        return completeMetaInput(line, first);
+    }
+
+    return completeLuaInput(L, line);
+}
+
 int printBytecode(LuaState* L, const Str& source, std::ostream& out, std::ostream& err) {
     if (L == nullptr) {
         err << ".bytecode: LuaState is null" << std::endl;
@@ -1165,7 +1509,7 @@ int run(LuaState* L) {
 
         // 读取一行输入
         Str line;
-        if (!readLine(prompt, line)) {
+        if (!readLine(L, prompt, line)) {
             // EOF，退出 REPL
             std::cout << std::endl;
             break;

@@ -4,6 +4,7 @@
  */
 
 #include "../framework/test_framework.hpp"
+#include "lib/lib_manager.hpp"
 #include "repl.hpp"
 
 #include <filesystem>
@@ -20,6 +21,15 @@ constexpr const char* kSuiteName = "REPL Commands";
 
 bool contains(const std::string& text, const char* needle) {
     return text.find(needle) != std::string::npos;
+}
+
+bool hasCandidate(const Vec<Str>& candidates, const Str& value) {
+    for (const Str& candidate : candidates) {
+        if (candidate == value) {
+            return true;
+        }
+    }
+    return false;
 }
 
 void testParseMetaCommands(TestSuite& suite) {
@@ -84,6 +94,62 @@ void testHistoryRoundTrip(TestSuite& suite) {
     ASSERT_EQ(suite, history[1], loaded[1], "second history entry should round-trip");
 
     std::filesystem::remove(historyPath);
+}
+
+void testCompleteMetaCommand(TestSuite& suite) {
+    const REPL::CompletionResult result = REPL::completeInput(nullptr, ".g");
+
+    ASSERT_EQ(suite, Str(".gc"), result.completedLine, "meta completion should complete .gc");
+    ASSERT_EQ(suite, static_cast<usize>(1), result.candidates.size(),
+              "meta completion should return one candidate");
+    ASSERT_EQ(suite, Str(".gc"), result.candidates[0], "meta completion candidate should be .gc");
+}
+
+void testCompleteGcOptionUsesCommonPrefix(TestSuite& suite) {
+    const REPL::CompletionResult result = REPL::completeInput(nullptr, ".gc st");
+
+    ASSERT_EQ(suite, Str(".gc st"), result.completedLine,
+              "ambiguous .gc option should keep shared prefix");
+    ASSERT_TRUE(suite, hasCandidate(result.candidates, "stats"),
+                "gc option completion should include stats");
+    ASSERT_TRUE(suite, hasCandidate(result.candidates, "status"),
+                "gc option completion should include status alias");
+    ASSERT_TRUE(suite, hasCandidate(result.candidates, "strategy"),
+                "gc option completion should include strategy");
+}
+
+void testCompleteGlobalName(TestSuite& suite) {
+    LuaState* L = LuaState::newState();
+    StandardLibrary::openAll(L);
+    REPL::initialize(L);
+
+    const REPL::CompletionResult result = REPL::completeInput(L, "pri");
+
+    ASSERT_EQ(suite, Str("print"), result.completedLine,
+              "global completion should complete print");
+    ASSERT_EQ(suite, static_cast<usize>(1), result.candidates.size(),
+              "global completion should return one candidate");
+    ASSERT_EQ(suite, Str("print"), result.candidates[0],
+              "global completion candidate should be print");
+
+    delete L;
+}
+
+void testCompleteLibraryFieldName(TestSuite& suite) {
+    LuaState* L = LuaState::newState();
+    StandardLibrary::openAll(L);
+    REPL::initialize(L);
+
+    const REPL::CompletionResult result = REPL::completeInput(L, "string.su");
+
+    ASSERT_EQ(suite, Str("string.sub"), result.completedLine,
+              "field completion should complete string.sub");
+    ASSERT_EQ(suite, static_cast<usize>(1), result.candidates.size(),
+              "field completion should return one candidate");
+    ASSERT_EQ(suite, Str("string.sub"), result.candidates[0],
+              "field completion candidate should be string.sub");
+
+    delete L;
 }
 
 void testBytecodeCommandPrintsCompiledExpression(TestSuite& suite) {
@@ -287,6 +353,11 @@ void registerReplCommandTests() {
     registry.registerTest(kSuiteName, "Parse Meta Commands", testParseMetaCommands);
     registry.registerTest(kSuiteName, "Print Help Shows Supported Commands", testPrintHelpShowsSupportedCommands);
     registry.registerTest(kSuiteName, "History Round Trip", testHistoryRoundTrip);
+    registry.registerTest(kSuiteName, "Complete Meta Command", testCompleteMetaCommand);
+    registry.registerTest(kSuiteName, "Complete GC Option Uses Common Prefix",
+                          testCompleteGcOptionUsesCommonPrefix);
+    registry.registerTest(kSuiteName, "Complete Global Name", testCompleteGlobalName);
+    registry.registerTest(kSuiteName, "Complete Library Field Name", testCompleteLibraryFieldName);
     registry.registerTest(kSuiteName, "Bytecode Command Prints Compiled Expression",
                           testBytecodeCommandPrintsCompiledExpression);
     registry.registerTest(kSuiteName, "Bytecode Command Rejects Missing Argument",

@@ -80,6 +80,11 @@ struct MetaCommand {
     Str argument;
 };
 
+struct CompletionResult {
+    Str completedLine;
+    Vec<Str> candidates;
+};
+
 // ============================================================================
 // REPL 公共接口
 // ============================================================================
@@ -108,6 +113,11 @@ bool loadHistory(const Str& path, Vec<Str>& history);
  * @brief 将历史记录保存到文件
  */
 bool saveHistory(const Str& path, const Vec<Str>& history);
+
+/**
+ * @brief 计算 REPL 行尾 Tab 补全结果
+ */
+CompletionResult completeInput(LuaState* L, const Str& line);
 
 /**
  * @brief 编译 REPL 输入并打印字节码
