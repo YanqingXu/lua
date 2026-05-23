@@ -19,6 +19,9 @@
     <Filter Include="src\bytecode">
       <UniqueIdentifier>{D1000001-000D-000D-000D-00000000000D}</UniqueIdentifier>
     </Filter>
+    <Filter Include="src\repl">
+      <UniqueIdentifier>{D1000001-000F-000F-000F-00000000000F}</UniqueIdentifier>
+    </Filter>
     <Filter Include="tests\compiler">
       <UniqueIdentifier>{D1000001-0004-0004-0004-000000000004}</UniqueIdentifier>
     </Filter>
@@ -48,6 +51,27 @@
     <ClInclude Include="tests\unit\framework\test_registry.hpp">
       <Filter>framework</Filter>
     </ClInclude>
+    <ClInclude Include="src\repl\completion.hpp">
+      <Filter>src\repl</Filter>
+    </ClInclude>
+    <ClInclude Include="src\repl\context.hpp">
+      <Filter>src\repl</Filter>
+    </ClInclude>
+    <ClInclude Include="src\repl\executor.hpp">
+      <Filter>src\repl</Filter>
+    </ClInclude>
+    <ClInclude Include="src\repl\history.hpp">
+      <Filter>src\repl</Filter>
+    </ClInclude>
+    <ClInclude Include="src\repl\meta_commands.hpp">
+      <Filter>src\repl</Filter>
+    </ClInclude>
+    <ClInclude Include="src\repl\signals.hpp">
+      <Filter>src\repl</Filter>
+    </ClInclude>
+    <ClInclude Include="src\repl\text.hpp">
+      <Filter>src\repl</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\app\app_options.cpp">
@@ -58,6 +82,24 @@
     </ClCompile>
     <ClCompile Include="src\repl.cpp">
       <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\repl\completion.cpp">
+      <Filter>src\repl</Filter>
+    </ClCompile>
+    <ClCompile Include="src\repl\context.cpp">
+      <Filter>src\repl</Filter>
+    </ClCompile>
+    <ClCompile Include="src\repl\executor.cpp">
+      <Filter>src\repl</Filter>
+    </ClCompile>
+    <ClCompile Include="src\repl\history.cpp">
+      <Filter>src\repl</Filter>
+    </ClCompile>
+    <ClCompile Include="src\repl\meta_commands.cpp">
+      <Filter>src\repl</Filter>
+    </ClCompile>
+    <ClCompile Include="src\repl\signals.cpp">
+      <Filter>src\repl</Filter>
     </ClCompile>
     <ClCompile Include="tests\unit\framework\test_framework.cpp">
       <Filter>framework</Filter>

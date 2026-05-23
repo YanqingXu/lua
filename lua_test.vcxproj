@@ -139,11 +139,24 @@
   <ItemGroup>
     <ClInclude Include="tests\unit\framework\test_framework.hpp" />
     <ClInclude Include="tests\unit\framework\test_registry.hpp" />
+    <ClInclude Include="src\repl\completion.hpp" />
+    <ClInclude Include="src\repl\context.hpp" />
+    <ClInclude Include="src\repl\executor.hpp" />
+    <ClInclude Include="src\repl\history.hpp" />
+    <ClInclude Include="src\repl\meta_commands.hpp" />
+    <ClInclude Include="src\repl\signals.hpp" />
+    <ClInclude Include="src\repl\text.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\app\app_options.cpp" />
     <ClCompile Include="src\bytecode\bytecode_printer.cpp" />
     <ClCompile Include="src\repl.cpp" />
+    <ClCompile Include="src\repl\completion.cpp" />
+    <ClCompile Include="src\repl\context.cpp" />
+    <ClCompile Include="src\repl\executor.cpp" />
+    <ClCompile Include="src\repl\history.cpp" />
+    <ClCompile Include="src\repl\meta_commands.cpp" />
+    <ClCompile Include="src\repl\signals.cpp" />
     <ClCompile Include="tests\unit\framework\test_framework.cpp" />
     <ClCompile Include="tests\unit\framework\test_runner.cpp" />
     <ClCompile Include="tests\unit\app\test_app_options.cpp" />

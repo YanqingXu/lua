@@ -1,6 +1,6 @@
 ---
 status: current
-verified_against: lua_app.vcxproj; CMakeLists.txt; src/main.cpp; src/repl.cpp; src/repl.hpp; src/app/app_options.cpp; src/app/app_options.hpp
+verified_against: lua_app.vcxproj; CMakeLists.txt; src/main.cpp; src/repl.cpp; src/repl/; src/repl.hpp; src/app/app_options.cpp; src/app/app_options.hpp
 last_checked: 2026-05-23
 applies_to: lua_app interpreter executable
 ---
@@ -15,6 +15,7 @@ applies_to: lua_app interpreter executable
 - `src/app/app_options.hpp`
 - `src/main.cpp`
 - `src/repl.cpp`
+- `src/repl/*.cpp`
 - `src/repl.hpp`
 
 ## Modes

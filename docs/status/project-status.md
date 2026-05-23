@@ -32,7 +32,7 @@ applies_to: 当前仓库事实与面向贡献者的工作流
 ## 项目目标状态
 
 - `lua.vcxproj` / `lua_core`：当前核心库目标。
-- `lua_app.vcxproj` / `lua_app`：当前脚本执行和 REPL 可执行目标；REPL 支持 `.help`、`.bytecode <expr|chunk>`、`.ast <expr|chunk>`、`.gc [stats|collect|strategy|help]`、Tab 补全、REPL 终端彩色错误、历史记录和 `=expr` 快速求值。
+- `lua_app.vcxproj` / `lua_app`：当前脚本执行和 REPL 可执行目标；REPL 支持 `.help`、`.bytecode <expr|chunk>`、`.ast <expr|chunk>`、`.gc [stats|collect|strategy|help]`、Tab 补全、REPL 终端彩色错误、历史记录和 `=expr` 快速求值；实现已拆分为 `src/repl.cpp` 会话入口和 `src/repl/*` 子模块。
 - `lua_test.vcxproj` / `lua_test`：当前单元测试可执行目标。
 - `lua_bytecode.vcxproj` / `lua_bytecode`：编译到 `Proto` 的工具目标；`src/bytecode/bytecode_printer.cpp` 目前已经能输出 Proto 头信息、decoded instructions、常量注释、constant table，在 `full` 模式递归打印 child protos，并支持 `--diff` side-by-side 字节码差异；CFG 模式仍未实现。
 
@@ -90,7 +90,7 @@ rg "ExprDesc|ExprKind|expdesc" src/compiler
 - `CodeGenerator`、`Parser`、`LuaState` 和 `VM` 都暴露了 context-aware 的构造 / 执行重载，同时保留基于单例的兼容重载。
 - `GarbageCollector::sweep(StringPool&)` 和 `clearAll(StringPool&)` 已显式接收字符串池，用于在删除 `GCString` 时同步摘除驻留表；旧 `GarbageCollector::getInstance()` 已标记为 `[[deprecated]]` 兼容 shim。
 - `src/compiler/parser/parser.cpp` 现在保留 Parser 构造、token / error 处理、同步恢复和顶层 parse 入口；`src/compiler/parser/parser_stmt.cpp`、`src/compiler/parser/parser_expr.cpp`、`src/compiler/parser/parser_primary.cpp`、`src/compiler/parser/parser_func.cpp` 和 `src/compiler/parser/parser_table.cpp` 承载具体语法产生式分片，并由 `Parser Boundary Sentinels` 覆盖。
-- `src/main.cpp`、`src/repl.cpp` 和 `src/bytecode/bytecode_main.cpp` 已在第一批编译器 / VM 入口分片中使用 `RuntimeServices`。
+- `src/main.cpp`、`src/repl.cpp` / `src/repl/*` 和 `src/bytecode/bytecode_main.cpp` 已在第一批编译器 / VM 入口分片中使用 `RuntimeServices`。
 - `src/vm/vm_entry.cpp` 现在承载 `VM::call()` 和 `VM::execute()` 入口点；`src/vm/vm.cpp` 保留主字节码 dispatch 循环。
 - VM 状态和栈帧存储类型位于 `src/vm/state/`：`lua_state.*`、`global_state.*`、`stack.*` 和 `call_info.hpp`。
 - `src/vm/vm_dispatch.hpp` 对 opcode 家族和可触发元方法的 opcode 做分类，是第一层 VM dispatch 拆分边界。

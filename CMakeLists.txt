@@ -85,10 +85,20 @@ set(LUA_CORE_SOURCES
     src/debug/json_trace_sink.cpp
 )
 
+set(LUA_REPL_SOURCES
+    src/repl.cpp
+    src/repl/completion.cpp
+    src/repl/context.cpp
+    src/repl/executor.cpp
+    src/repl/history.cpp
+    src/repl/meta_commands.cpp
+    src/repl/signals.cpp
+)
+
 set(LUA_TEST_SOURCES
     src/app/app_options.cpp
     src/bytecode/bytecode_printer.cpp
-    src/repl.cpp
+    ${LUA_REPL_SOURCES}
     tests/unit/framework/test_framework.cpp
     tests/unit/framework/test_runner.cpp
     tests/unit/app/test_app_options.cpp
@@ -169,7 +179,7 @@ if(LUA_CPP_BUILD_TOOLS)
         src/app/app_options.cpp
         src/bytecode/bytecode_printer.cpp
         src/main.cpp
-        src/repl.cpp
+        ${LUA_REPL_SOURCES}
     )
     target_link_libraries(lua_app PRIVATE lua_core)
     target_include_directories(lua_app PRIVATE

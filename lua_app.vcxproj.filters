@@ -13,6 +13,9 @@
     <Filter Include="src\bytecode">
       <UniqueIdentifier>{E1000001-0004-0004-0004-000000000004}</UniqueIdentifier>
     </Filter>
+    <Filter Include="src\repl">
+      <UniqueIdentifier>{E1000001-0005-0005-0005-000000000005}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\app\app_options.hpp">
@@ -23,6 +26,27 @@
     </ClInclude>
     <ClInclude Include="src\repl.hpp">
       <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="src\repl\completion.hpp">
+      <Filter>src\repl</Filter>
+    </ClInclude>
+    <ClInclude Include="src\repl\context.hpp">
+      <Filter>src\repl</Filter>
+    </ClInclude>
+    <ClInclude Include="src\repl\executor.hpp">
+      <Filter>src\repl</Filter>
+    </ClInclude>
+    <ClInclude Include="src\repl\history.hpp">
+      <Filter>src\repl</Filter>
+    </ClInclude>
+    <ClInclude Include="src\repl\meta_commands.hpp">
+      <Filter>src\repl</Filter>
+    </ClInclude>
+    <ClInclude Include="src\repl\signals.hpp">
+      <Filter>src\repl</Filter>
+    </ClInclude>
+    <ClInclude Include="src\repl\text.hpp">
+      <Filter>src\repl</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -37,6 +61,24 @@
     </ClCompile>
     <ClCompile Include="src\repl.cpp">
       <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\repl\completion.cpp">
+      <Filter>src\repl</Filter>
+    </ClCompile>
+    <ClCompile Include="src\repl\context.cpp">
+      <Filter>src\repl</Filter>
+    </ClCompile>
+    <ClCompile Include="src\repl\executor.cpp">
+      <Filter>src\repl</Filter>
+    </ClCompile>
+    <ClCompile Include="src\repl\history.cpp">
+      <Filter>src\repl</Filter>
+    </ClCompile>
+    <ClCompile Include="src\repl\meta_commands.cpp">
+      <Filter>src\repl</Filter>
+    </ClCompile>
+    <ClCompile Include="src\repl\signals.cpp">
+      <Filter>src\repl</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

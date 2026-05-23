@@ -142,12 +142,25 @@
     <ClInclude Include="src\app\app_options.hpp" />
     <ClInclude Include="src\runtime\runtime_services.hpp" />
     <ClInclude Include="src\repl.hpp" />
+    <ClInclude Include="src\repl\completion.hpp" />
+    <ClInclude Include="src\repl\context.hpp" />
+    <ClInclude Include="src\repl\executor.hpp" />
+    <ClInclude Include="src\repl\history.hpp" />
+    <ClInclude Include="src\repl\meta_commands.hpp" />
+    <ClInclude Include="src\repl\signals.hpp" />
+    <ClInclude Include="src\repl\text.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\app\app_options.cpp" />
     <ClCompile Include="src\bytecode\bytecode_printer.cpp" />
     <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\repl.cpp" />
+    <ClCompile Include="src\repl\completion.cpp" />
+    <ClCompile Include="src\repl\context.cpp" />
+    <ClCompile Include="src\repl\executor.cpp" />
+    <ClCompile Include="src\repl\history.cpp" />
+    <ClCompile Include="src\repl\meta_commands.cpp" />
+    <ClCompile Include="src\repl\signals.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="lua.vcxproj">

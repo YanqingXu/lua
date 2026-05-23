@@ -1,6 +1,6 @@
 ---
 status: current
-verified_against: src/app/app_options.hpp; src/app/app_options.cpp; src/main.cpp; src/repl.hpp; src/repl.cpp; tests/unit/app/test_app_options.cpp; tests/unit/app/test_repl_commands.cpp
+verified_against: src/app/app_options.hpp; src/app/app_options.cpp; src/main.cpp; src/repl.hpp; src/repl.cpp; src/repl/; tests/unit/app/test_app_options.cpp; tests/unit/app/test_repl_commands.cpp
 last_checked: 2026-05-23
 applies_to: lua_app command-line and REPL behavior
 ---
