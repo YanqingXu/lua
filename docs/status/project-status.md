@@ -20,7 +20,8 @@ applies_to: 当前仓库事实与面向贡献者的工作流
   - `lua_test.vcxproj`：单元测试可执行程序。
   - `lua_bytecode.vcxproj`：字节码查看工具可执行程序。
 - 项目文件中记录的 MSVC platform toolset：`v145`。
-- 项目文件中的 C++ 标准设置混合使用 `stdcpp20` 和 `stdcpp23`；当前 x64 Debug 活跃配置使用 `stdcpp23`。
+- 项目文件中的 C++ 标准设置统一为 `stdcpp23`。
+- 项目文件中的 warning level 统一为 `Level4`；当前 x64 Debug MSBuild 验证路径已保持 0 warnings / 0 errors。
 
 ## 辅助构建路径
 
@@ -29,6 +30,7 @@ applies_to: 当前仓库事实与面向贡献者的工作流
 - 本地 secondary 烟测入口：`tools/run_cmake_smoke.ps1`。
 - CTest 当前注册了一个单元测试可执行程序测试，以及 `examples/` 下的示例 Lua 脚本。
 - 新增 C++ 源文件时优先使用 `tools/add_source.ps1` 同步 CMake 与 Visual Studio 项目 / filters 清单，避免双构建路径漂移。
+- CMake 通过 `lua_configure_target_warnings()` 映射 warning 策略：MSVC 使用 `/W4 /permissive- /utf-8 /FS`，非 MSVC 编译器使用 `-Wall -Wextra -Wpedantic -Wconversion`。
 
 ## 项目目标状态
 
@@ -55,7 +57,7 @@ applies_to: 当前仓库事实与面向贡献者的工作流
 - 静态分析配置：`.clang-tidy`，当前限制在保守的 `bugprone-*`、`performance-*`、`portability-*` 和部分 `readability-*` 检查。
 - 本地质量门入口：`tools/run_quality_gate.ps1`，包括 clang-format、clang-tidy smoke、opcode coverage matrix、MSBuild、documentation drift 和 unit tests。
 - 质量门自检入口：`tools/test_quality_gate.ps1`。
-- 文档漂移守卫：`tools/check_doc_drift.ps1`，会从 `bin\lua_test.exe` 汇总输出动态解析当前测试计数，并检查 README / status 文档没有落后。
+- 文档漂移守卫：`tools/check_doc_drift.ps1`，会从 `bin\lua_test.exe` 汇总输出动态解析当前测试计数，并检查 README / status 文档没有落后；同时守卫 `.vcxproj` `Level4` 和 CMake warning policy 不回退。
 - 源码清单同步脚本：`tools/add_source.ps1`，支持 `Core`、`Repl`、`App`、`Bytecode`、`Test` 目标，并由 `tools/test_quality_gate.ps1` 做临时项目烟测。
 - CI 平台：GitHub Actions；入口文件为 `.github/workflows/ci.yml`，当前以 Windows/MSBuild 作为主要工作流，并先构建 `lua_test` 再运行文档漂移检查。
 - 质量门有意采用增量策略：本地格式化默认只检查变更过的源文件；本机缺少 `clang-format` 或 `clang-tidy` 时，本地脚本会明确报告跳过；MSBuild 和单元测试仍是 Windows 路径下的标准验证方式。

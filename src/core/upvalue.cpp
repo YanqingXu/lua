@@ -60,7 +60,7 @@ bool Upvalue::isClosed() const noexcept {
 
 // ========== 值访问（✅ 改进版 - 动态计算地址） ==========
 
-Value& Upvalue::getValue(Stack& stack) noexcept {
+Value& Upvalue::getValue(Stack&) noexcept {
     if (isOpen_) {
         // Open状态：使用ownerStack_访问正确的栈（跨协程安全）
         return (*ownerStack_)[stackIndex_];
@@ -70,7 +70,7 @@ Value& Upvalue::getValue(Stack& stack) noexcept {
     }
 }
 
-const Value& Upvalue::getValue(const Stack& stack) const noexcept {
+const Value& Upvalue::getValue(const Stack&) const noexcept {
     if (isOpen_) {
         // Open状态：使用ownerStack_访问正确的栈（跨协程安全）
         return (*ownerStack_)[stackIndex_];
@@ -80,7 +80,7 @@ const Value& Upvalue::getValue(const Stack& stack) const noexcept {
     }
 }
 
-void Upvalue::setValue(Stack& stack, const Value& value) {
+void Upvalue::setValue(Stack&, const Value& value) {
     if (isOpen_) {
         // Open状态：使用ownerStack_设置正确的栈上的值
         (*ownerStack_)[stackIndex_] = value;
@@ -92,7 +92,7 @@ void Upvalue::setValue(Stack& stack, const Value& value) {
 
 // ========== 状态转换 ==========
 
-void Upvalue::close(Stack& stack) {
+void Upvalue::close(Stack&) {
     if (isClosed()) {
         // 已经是Closed状态，无需操作
         return;

@@ -200,6 +200,23 @@ foreach ($requiredFile in @("CMakeLists.txt", "tools/run_cmake_smoke.ps1", "tool
     }
 }
 
+$cmakeLists = Read-Text "CMakeLists.txt"
+foreach ($required in @("lua_configure_target_warnings", "/W4", "/permissive-", "-Wpedantic", "-Wconversion")) {
+    if ($cmakeLists -notmatch [regex]::Escape($required)) {
+        Add-Failure $failures "CMakeLists.txt is missing compile warning policy fact: $required"
+    }
+}
+
+foreach ($projectFile in @("lua.vcxproj", "lua_app.vcxproj", "lua_bytecode.vcxproj", "lua_test.vcxproj")) {
+    $projectText = Read-Text $projectFile
+    if ($projectText -match "<WarningLevel>Level3</WarningLevel>") {
+        Add-Failure $failures "$projectFile must not regress to WarningLevel Level3"
+    }
+    if ($projectText -notmatch "<WarningLevel>Level4</WarningLevel>") {
+        Add-Failure $failures "$projectFile is missing WarningLevel Level4"
+    }
+}
+
 $compilerDir = Join-RepoPath "src/compiler"
 if (Test-Path -LiteralPath $compilerDir) {
     $legacyMatches = Get-ChildItem -LiteralPath $compilerDir -Recurse -File |

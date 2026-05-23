@@ -451,6 +451,7 @@ static void testLargeStreamData(TestSuite& suite) {
     // 逐字符读取前 100 个字符
     for (int i = 0; i < 100; ++i) {
         i32 ch = input.getChar();
+        (void)ch;
         // ASSERT_EQ(suite, 'x', ch, "Each char should be 'x'");
     }
 
@@ -558,6 +559,7 @@ static void testLargeFileStream(TestSuite& suite) {
     // 逐字符读取前 1000 个字符
     for (int i = 0; i < 1000; ++i) {
         i32 ch = input.getChar();
+        (void)ch;
         // ASSERT_EQ(suite, 'A', ch, "Each char should be 'A'");
     }
 

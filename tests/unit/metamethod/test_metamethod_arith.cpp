@@ -101,40 +101,6 @@ static i32 vector_add(LuaState* L) {
     return 1;  // 返回1个值
 }
 
-/**
- * @brief __unm元方法的C函数实现
- *
- * 实现向量取负：-{x, y} = {-x, -y}
- */
-static i32 vector_unm(LuaState* L) {
-    if (L->getTop() < 1) {
-        return 0;
-    }
-
-    Value v = L->at(1);
-
-    if (!v.isTable()) {
-        return 0;
-    }
-
-    Table* t = v.asTable();
-
-    // 获取x和y分量
-    f64 x = t->getArray(1).asNumber();
-    f64 y = t->getArray(2).asNumber();
-
-    // 创建结果表
-    Table* result = new Table();
-    L->getGlobalState().getGC().registerObject(result);
-    result->setArray(1, Value(-x));
-    result->setArray(2, Value(-y));
-
-    // 推入返回值
-    L->pushTable(result);
-
-    return 1;  // 返回1个值
-}
-
 // =====================================================================
 // 测试用例
 // =====================================================================
@@ -143,9 +109,6 @@ static i32 vector_unm(LuaState* L) {
  * @brief 测试元方法查找机制
  */
 void testMetamethodLookup(TestSuite& suite) {
-    // 创建Lua状态
-    LuaState* L = LuaState::newState();
-
     // 创建元表
     Table* metatable = new Table();
 

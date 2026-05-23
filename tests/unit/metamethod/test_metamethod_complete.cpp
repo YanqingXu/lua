@@ -447,7 +447,6 @@ void testModAndPow(TestSuite& suite) {
 
 void testMetamethodEdgeCases(TestSuite& suite) {
     LuaState* L = LuaState::newState();
-    StringPool& pool = GlobalState::getInstance().getStringPool();
     
     // 测试：没有元方法的表
     Table* noMT = new Table();

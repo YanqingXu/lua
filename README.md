@@ -104,7 +104,7 @@ applies_to: repository overview and current build workflows
 断言结果：2735个 ✅
 通过率：  100% (2735/2735)
 失败测试：0个
-编译状态：Debug|x64 版本无警告，无链接冲突
+编译状态：Debug|x64 `/W4` 版本无警告，无链接冲突
 平台：    Windows + MSVC (Visual Studio 2026)
 ```
 

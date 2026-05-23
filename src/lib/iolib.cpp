@@ -620,7 +620,6 @@ i32 io_lines(LuaState* L) {
     }
 
     L->error("io.lines: string expected");
-    return 0;
 }
 
 i32 io_tmpfile(LuaState* L) {
@@ -861,7 +860,6 @@ i32 f_setvbuf(LuaState* L) {
         m = _IOLBF;
     } else {
         L->error("invalid buffer mode");
-        return 0;
     }
     
     usize size = BUFSIZ;

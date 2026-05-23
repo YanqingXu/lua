@@ -267,7 +267,7 @@ i32 str_upper(LuaState* L) {
 
     Str result(s, len);
     std::transform(result.begin(), result.end(), result.begin(),
-                   [](unsigned char c) { return std::toupper(c); });
+                   [](unsigned char c) { return static_cast<char>(std::toupper(c)); });
 
     GCString* str = L->getGlobalState().getStringPool().intern(result);
     L->pushString(str);
@@ -284,7 +284,7 @@ i32 str_lower(LuaState* L) {
 
     Str result(s, len);
     std::transform(result.begin(), result.end(), result.begin(),
-                   [](unsigned char c) { return std::tolower(c); });
+                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
 
     GCString* str = L->getGlobalState().getStringPool().intern(result);
     L->pushString(str);
@@ -836,7 +836,7 @@ static Value captureToValue(MatchState* ms, i32 i,
 
 static void addStringReplacement(MatchState* ms, Str& result,
                                  const char* s, const char* e,
-                                 const char* repl, usize rlen, LuaState* L) {
+                                 const char* repl, usize rlen) {
     for (usize i = 0; i < rlen; i++) {
         if (repl[i] != L_ESC) {
             result.push_back(repl[i]);
@@ -957,7 +957,7 @@ i32 str_gsub(LuaState* L) {
             bool replaced = true;
             switch (replKind) {
                 case GsubReplacementKind::String:
-                    addStringReplacement(&ms, result, s + srcPos, e, repl, rlen, L);
+                    addStringReplacement(&ms, result, s + srcPos, e, repl, rlen);
                     break;
                 case GsubReplacementKind::Table:
                     replaced = addValueReplacement(

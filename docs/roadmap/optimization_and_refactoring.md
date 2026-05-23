@@ -4,7 +4,7 @@
 > 设计目标：**可读性 > 可维护性 > 教育价值 > 性能**
 > 约束：保持 544 个注册测试 / 2735 个断言结果 / 0 失败，不破坏 `LuaState` / `VM` public API。
 > 最近审计：2026-05-21（深度审计报告，覆盖 Readability / Extensibility / Educational Value 三维度）
-> 最近同步：2026-05-23（PR-70：`lib_manager.hpp` deprecated 单库包装清理）
+> 最近同步：2026-05-23（PR-71：CMake / MSBuild warning 策略对齐）
 
 ---
 
@@ -28,7 +28,7 @@
 | **阶段 2 — 中期模式重构** | 3–5 个迭代 | 引入访问者 / 策略 / 命令模式，VM dispatch 与 GC 抽象化 | 内部 API 调整、public 不变 | ~94% |
 | **阶段 3 — 现代 C++ 特性** | 穿插于 1 & 2 | `std::expected` / `concepts` / `std::format` / `[[nodiscard]]` | 部分 public 签名变更 | ~90% |
 | **阶段 4 — 教育价值增强** | 持续推进 | 自解释代码、字节码可视化、执行链路教学文档、REPL 体验、Trace 差异模式 | 否（增量增强） | ~88% |
-| **阶段 5 — 工程实践** | 持续 | 测试覆盖、质量门、构建一致性、文档漂移检测 | 否 | ~82% |
+| **阶段 5 — 工程实践** | 持续 | 测试覆盖、质量门、构建一致性、文档漂移检测 | 否 | ~84% |
 
 ---
 
@@ -396,7 +396,7 @@ using ValueResult = std::variant<
 - **已修正文档偏差**：`docs/architecture/runtime-services.md` 的结构体示例已补齐 `VM::DispatchStrategy* dispatchStrategy`，且 `check_doc_drift.ps1` 已加入该字段守卫。
 - ✓ **已完成 — PR-54**：`run_quality_gate.ps1` 已新增 `opcode coverage matrix` 步骤，先运行 `check_opcode_coverage_matrix.ps1`，让 opcode 清单与测试覆盖 checklist 的漂移成为可失败信号。
 - ✓ **已接入**：`run_quality_gate.ps1` 已包含 `clang-tidy smoke`（针对 `.clang-tidy` 中的 `bugprone-*`、`performance-*`、`portability-*`、`readability-*` 等保守规则；本机未安装 `clang-tidy` 时明确跳过）。
-- CMake 路径补充 `-Wpedantic -Wconversion`（已用 MSVC `/W4`，CMake 旁路需对齐）。
+- ✓ **已完成 — PR-71**：MSBuild 四个 `.vcxproj` 目标已统一 `WarningLevel` `Level4`；CMake 新增 `lua_configure_target_warnings()`，MSVC 映射 `/W4 /permissive- /utf-8 /FS`，非 MSVC 映射 `-Wall -Wextra -Wpedantic -Wconversion`；`check_doc_drift.ps1` 已守卫该策略不回退。
 
 ### 5.3 构建一致性
 
@@ -460,12 +460,14 @@ using ValueResult = std::variant<
 | PR-68 | `AstVisitor<Derived, R>` 组合模板与 `VisitsAstNodes` concept，REPL AST printer 迁移到组合 visitor，并补 AST Visitor 分派契约测试 | 2.1.1 |
 | PR-69 | 复用 `detail::canVisitNode()` / `detail::visitsVariantNodes()` 去重 `ExprVisitor` / `StmtVisitor` 内部 `canVisit*` 检查，并保持 Expression/StatementEmitter 私有访问边界 | 2.1.2 |
 | PR-70 | 公开 `StandardLibrary::openCatalogLibrary()` 单库加载入口，并将 `openBase()` / `openMath()` / ... 9 个包装器标记为 `[[deprecated]]` 兼容 shim | 2.6.1 |
+| PR-71 | MSBuild `.vcxproj` 统一 `Level4`，CMake `lua_configure_target_warnings()` 对齐 MSVC `/W4` 与非 MSVC `-Wpedantic -Wconversion`，并清理 `/W4` 暴露的 warning | 5.2 |
 
 后续推荐顺序：
 
 | PR | 编号 | 任务 | 阶段 | 依赖 / 理由 |
 |---|---|---|---|---|
-| PR-71 | 5.2 | CMake 编译选项与 MSBuild `/W4` 策略对齐核验 | 5 | 当前阶段 5 剩余项；确认 `-Wpedantic` / `-Wconversion` 是否适合 CMake secondary path |
+| PR-72 | 3.5 | `ValueResult` 旧字段读面向 `std::visit` 迁移第一批 | 3 | 当前主要剩余技术债；以小范围 characterization 测试锁住行为后逐步减少 tagged-field 读面 |
+| PR-73 | 2.6.2 | 评估 `LibRegistrar` 声明式自注册是否仍值得落地 | 2 | P4 候选；catalog 已足够清晰，需先确认 linker 风险是否值得引入新机制 |
 
 每个 PR 完成后跑：
 
@@ -488,8 +490,8 @@ using ValueResult = std::variant<
 | 阶段 2 — 中期模式重构 | ~94% | **~91%** | −3% | GCStrategy、AstVisitor 组合模板、Visitor 内部检查去重和标准库 catalog 单库入口清理已落地；剩余主要是 P4 级 `LibRegistrar` 设想与 facade 瘦身 |
 | 阶段 3 — 现代 C++ 特性 | ~90% | **~90%** | 0 | ValueResult variant prototype 已就位，后续 std::visit 迁移为渐进工作 |
 | 阶段 4 — 教育价值增强 | ~88% | **~86%** | −2% | REPL 体验和字节码可视化主线已闭环；后续偏样例和文档深挖 |
-| 阶段 5 — 工程实践 | ~82% | **~82%** | 0 | 指令级覆盖矩阵、GC 策略等价测试、CFG 输出契约测试、Trace JSONL golden、REPL 增量解析测试和 add_source 脚本已补齐；剩余为 CMake 编译选项对齐 |
-| **加权综合** | **~88%** | **~87%** | **−1%** | |
+| 阶段 5 — 工程实践 | ~84% | **~84%** | 0 | 指令级覆盖矩阵、GC 策略等价测试、CFG 输出契约测试、Trace JSONL golden、REPL 增量解析测试、add_source 脚本和 CMake/MSBuild warning 策略对齐已补齐 |
+| **加权综合** | **~88%** | **~88%** | **0%** | |
 
 ---
 
@@ -570,10 +572,10 @@ using ValueResult = std::variant<
 | 5.1 Trace golden 测试 | ✓ PR-64 | `Trace JSONL Plain Golden` / `Trace JSONL Diff Golden` 已精确对比实际 VM 执行产生的 JSONL，覆盖 plain `registers` 与 diff `changedRegisters` schema | ✓ 确认 |
 | 5.2 质量门 | ✓ | `run_quality_gate.ps1` + `check_doc_drift.ps1` 动态解析测试计数，并已接入 opcode 覆盖矩阵漂移检查 | ✓ 确认 |
 | 5.2 clang-tidy | ✓ 增量 | `.clang-tidy` 配置文件存在；`run_quality_gate.ps1` 已有 `clang-tidy smoke`，本机无工具时按增量策略跳过 | ✓ 已接入 |
-| 5.2 CMake 编译选项 | 待验证 | `-Wpedantic -Wconversion` 对齐状态未确认（项目用 MSVC `/W4`） | ⚠ 待验证 |
+| 5.2 CMake 编译选项 | ✓ PR-71 | `.vcxproj` 已统一 `Level4`；CMake `lua_configure_target_warnings()` 已对齐 MSVC `/W4` 与非 MSVC `-Wall -Wextra -Wpedantic -Wconversion`；MSBuild 与 CMake smoke 均 0 warning 通过 | ✓ 确认 |
 | 5.3 `add_source.ps1` | ✓ PR-66 | `tools/add_source.ps1` 已支持按目标同步 CMake、VS project 和 filters；质量门自检会复制临时项目清单验证 Core / Bytecode / Test 追加与幂等性 | ✓ 确认 |
 
-**结论**：质量门自动化继续加强：动态测试计数、opcode 覆盖矩阵漂移、Trace JSONL schema 漂移和新增源码清单同步脚本烟测都已变成可失败信号。后续主要差距转为低优先级构建选项对齐。
+**结论**：质量门自动化继续加强：动态测试计数、opcode 覆盖矩阵漂移、Trace JSONL schema 漂移、新增源码清单同步脚本烟测，以及 CMake/MSBuild warning 策略都已变成可失败信号。阶段 5 当前已无明确 P1-P3 缺口。
 
 ---
 

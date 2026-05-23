@@ -105,9 +105,6 @@ void testFixedStringsNotCollected(TestSuite& suite) {
     GCString* andStr = pool.find("and");
     GCString* indexName = GlobalState::getInstance().getMetamethodName(TMS::TM_INDEX);
     
-    // 记录当前对象数量
-    usize beforeCount = gc.getObjectCount();
-    
     // 执行GC
     (void)gc.collect();
     

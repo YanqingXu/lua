@@ -683,7 +683,6 @@ i32 luaB_pcall(LuaState* L) {
     i32 nargs = L->getTop();
     if (nargs < 1) {
         L->error("pcall: function expected");
-        return 0;
     }
 
     // 调用 pcall(nargs-1, MULTRET, 0)
@@ -716,7 +715,6 @@ i32 luaB_xpcall(LuaState* L) {
     i32 nargs = L->getTop();
     if (nargs < 2) {
         L->error("xpcall: function and error handler expected");
-        return 0;
     }
 
     // 手动调整栈：只保留前 2 个参数（func 和 msgh）
@@ -927,13 +925,11 @@ i32 luaB_dofile(LuaState* L) {
     Value func = L->at(1);
     if (!func.isFunction()) {
         L->error("dofile: loadfile did not return a function");
-        return 0;
     }
 
     Function* function = func.asFunction();
     if (!function) {
         L->error("dofile: invalid function");
-        return 0;
     }
 
     // 执行函数
@@ -956,7 +952,6 @@ i32 luaB_dofile(LuaState* L) {
     } catch (const std::exception& e) {
         Str errorMsg = Str("dofile: ") + e.what();
         L->error(errorMsg.c_str());
-        return 0;  // 不会执行到这里
     }
 }
 
@@ -1078,19 +1073,16 @@ i32 luaB_setfenv(LuaState* L) {
     // 检查参数数量
     if (nargs < 2) {
         L->error("setfenv: expected 2 arguments");
-        return 0;
     }
 
     // 检查第二个参数必须是table
     if (!L->isTable(2)) {
         L->error("setfenv: 'table' expected");
-        return 0;
     }
 
     // 检查第一个参数必须是函数
     if (!L->isFunction(1)) {
         L->error("setfenv: 'function' expected");
-        return 0;
     }
 
     // 获取函数对象
@@ -1099,13 +1091,11 @@ i32 luaB_setfenv(LuaState* L) {
 
     if (!func) {
         L->error("setfenv: invalid function");
-        return 0;
     }
 
     // 检查是否为C函数（C函数不能修改环境）
     if (func->isCFunction()) {
         L->error("setfenv: cannot change environment of given object");
-        return 0;
     }
 
     // 获取新的环境表
@@ -1114,7 +1104,6 @@ i32 luaB_setfenv(LuaState* L) {
 
     if (!newEnv) {
         L->error("setfenv: invalid table");
-        return 0;
     }
 
     // 设置Lua函数的环境表
@@ -1240,7 +1229,6 @@ i32 luaB_collectgarbage(LuaState* L) {
 
     // 无效的操作类型
     L->error("collectgarbage: invalid option");
-    return 0;
 }
 
 // =====================================================================

@@ -38,7 +38,6 @@ int luaB_exit(LuaState* L) {
     }
 
     std::exit(exitCode);
-    return 0;
 }
 
 enum class SessionStep {

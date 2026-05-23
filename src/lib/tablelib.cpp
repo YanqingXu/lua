@@ -67,7 +67,6 @@ static bool defaultSortLess(LuaState* L, const Value& left, const Value& right) 
     }
 
     L->error("table.sort: invalid order function for sorting");
-    return false;
 }
 
 static bool callSortComparator(LuaState* L, Function* comparator, const Value& left, const Value& right) {

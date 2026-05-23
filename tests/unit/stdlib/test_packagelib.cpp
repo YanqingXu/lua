@@ -903,7 +903,6 @@ void testRequirePreloadNoReturn(TestSuite& suite) {
     // A loader that doesn't return anything
     auto modLoader = [](LuaState* L) -> i32 {
         // Set a global variable to prove we ran
-        GCString* key = L->getGlobalState().getStringPool().intern("noreturn_ran");
         L->setGlobal("noreturn_ran", Value(true));
         L->setTop(0);
         return 0;

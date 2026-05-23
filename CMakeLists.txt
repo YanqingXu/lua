@@ -9,6 +9,14 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 option(LUA_CPP_BUILD_TOOLS "Build the interpreter and bytecode tools" ON)
 option(LUA_CPP_BUILD_TESTS "Build the unit test runner" ON)
 
+function(lua_configure_target_warnings target_name)
+    if(MSVC)
+        target_compile_options(${target_name} PRIVATE /W4 /permissive- /utf-8 /FS)
+    else()
+        target_compile_options(${target_name} PRIVATE -Wall -Wextra -Wpedantic -Wconversion)
+    endif()
+endfunction()
+
 set(LUA_CORE_SOURCES
     src/compiler/ast.cpp
     src/compiler/codegen/codegen.cpp
@@ -172,9 +180,7 @@ if(CMAKE_DL_LIBS)
     target_link_libraries(lua_core PUBLIC ${CMAKE_DL_LIBS})
 endif()
 
-if(MSVC)
-    target_compile_options(lua_core PRIVATE /utf-8 /FS)
-endif()
+lua_configure_target_warnings(lua_core)
 
 if(LUA_CPP_BUILD_TOOLS)
     add_executable(lua_app
@@ -197,10 +203,8 @@ if(LUA_CPP_BUILD_TOOLS)
         ${CMAKE_CURRENT_SOURCE_DIR}/src
     )
 
-    if(MSVC)
-        target_compile_options(lua_app PRIVATE /utf-8 /FS)
-        target_compile_options(lua_bytecode PRIVATE /utf-8 /FS)
-    endif()
+    lua_configure_target_warnings(lua_app)
+    lua_configure_target_warnings(lua_bytecode)
 endif()
 
 include(CTest)
@@ -214,9 +218,8 @@ if(BUILD_TESTING AND LUA_CPP_BUILD_TESTS)
         ${CMAKE_CURRENT_SOURCE_DIR}/lua_test/include
     )
 
-    if(MSVC)
-        target_compile_options(lua_test PRIVATE /utf-8 /FS)
-    elseif(UNIX)
+    lua_configure_target_warnings(lua_test)
+    if(UNIX AND NOT MSVC)
         target_link_options(lua_test PRIVATE -rdynamic)
     endif()
 

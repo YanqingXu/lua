@@ -48,7 +48,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_quality_gate.ps1
 | 中 | EngineContext / RuntimeServices | 已完成 | 已引入显式 RuntimeServices，并迁移入口层、CodeGenerator、Parser/VM 兼容重载 |
 | 中 | 教学导航 | 已完成 | 已新增 `docs/index.md`、术语表和 examples，并扩展 walkthrough 索引 |
 | 低 | CMake + CTest | 已完成 | 已新增 secondary CMake/CTest 路径，不替代 VS/MSBuild 主路径 |
-| 长期 | 拆分 CodeGenerator / VM / Parser / GC 策略边界 | 进行中 | 8A-8C CodeGenerator 边界已完成，8D-8G VM 入口、dispatch 分类、ops/call/剩余 helper 与 trace/debug 边界已完成；8H Parser 函数组审计与行为锁定、8I Parser 物理拆分执行已完成；PR-39 已完成 Switch dispatch 每 opcode inline helper；PR-40 已完成 VM expected 异常映射 helper；PR-41 已完成 CodeGenerator 职责地图与 characterization 测试；PR-42 已完成 JumpPatcher 抽取；PR-43 已完成 ScopeManager 抽取；PR-44 已完成 ExpressionEmitter 抽取；PR-45 已完成 StatementEmitter 抽取；PR-46 已完成 GC sweep 显式 StringPool 边界；PR-48 已完成 ValueResult variant prototype；PR-51 已完成 trace diff + changedRegisters；PR-52 已完成 gc-cycle walkthrough；PR-62 已完成 GCStrategy / MarkSweepGC / IncrementalGC 教学占位策略与等价性测试；PR-63 已完成 lua_bytecode Mermaid CFG；PR-64 已完成 Trace JSONL golden 测试；PR-65 已完成 REPL 增量解析测试；PR-66 已完成 add_source 源码清单同步脚本；PR-67 已完成 Parser tokenString utility 抽取；PR-68 已完成 AstVisitor 组合模板；PR-69 已完成 Visitor canVisit 检查去重；PR-70 已完成标准库 openXxx deprecated 包装清理 |
+| 长期 | 拆分 CodeGenerator / VM / Parser / GC 策略边界 | 进行中 | 8A-8C CodeGenerator 边界已完成，8D-8G VM 入口、dispatch 分类、ops/call/剩余 helper 与 trace/debug 边界已完成；8H Parser 函数组审计与行为锁定、8I Parser 物理拆分执行已完成；PR-39 已完成 Switch dispatch 每 opcode inline helper；PR-40 已完成 VM expected 异常映射 helper；PR-41 已完成 CodeGenerator 职责地图与 characterization 测试；PR-42 已完成 JumpPatcher 抽取；PR-43 已完成 ScopeManager 抽取；PR-44 已完成 ExpressionEmitter 抽取；PR-45 已完成 StatementEmitter 抽取；PR-46 已完成 GC sweep 显式 StringPool 边界；PR-48 已完成 ValueResult variant prototype；PR-51 已完成 trace diff + changedRegisters；PR-52 已完成 gc-cycle walkthrough；PR-62 已完成 GCStrategy / MarkSweepGC / IncrementalGC 教学占位策略与等价性测试；PR-63 已完成 lua_bytecode Mermaid CFG；PR-64 已完成 Trace JSONL golden 测试；PR-65 已完成 REPL 增量解析测试；PR-66 已完成 add_source 源码清单同步脚本；PR-67 已完成 Parser tokenString utility 抽取；PR-68 已完成 AstVisitor 组合模板；PR-69 已完成 Visitor canVisit 检查去重；PR-70 已完成标准库 openXxx deprecated 包装清理；PR-71 已完成 CMake/MSBuild warning 策略对齐 |
 
 ## 已完成优化
 
@@ -1538,7 +1538,7 @@ git diff --check
 - [x] `openBase()`、`openMath()`、`openIO()`、`openString()`、`openTable()`、`openOS()`、`openCoroutine()`、`openDebug()`、`openPackage()` 标记为 `[[deprecated]]` 兼容 shim。
 - [x] 包库测试 helper 改用 `openCatalogLibrary(L, "base")` / `openCatalogLibrary(L, "package")`，避免新 deprecated API 在测试中继续扩散。
 - [x] `Standard Library Catalog` 新增单库加载测试，确认 `math` 可按 id 加载、未请求的 `string` 不会被打开、未知 id 安静忽略。
-- [x] 同步标准库 overview、架构 pattern registry、项目状态和优化路线图；下一项推荐推进到 PR-71：CMake 编译选项对齐核验。
+- [x] 同步标准库 overview、架构 pattern registry、项目状态和优化路线图；后续 PR-71 已收口 CMake 编译选项对齐核验。
 
 已使用的验证命令：
 
@@ -1560,6 +1560,38 @@ git diff --check
 - CMake smoke 构建 `lua_core` / `lua_app` / `lua_bytecode` / `lua_test`，CTest 5/5 通过。
 - `git diff --check` 通过；仅报告 Windows 换行提示。
 - `clang-format` / `clang-tidy` 未在 PATH 中，按质量门设计跳过。
+
+## 已完成任务：CMake / MSBuild warning 策略对齐
+
+### PR-71 / 5.2：`/W4` 与 CMake warning policy
+
+**目标：** 让主 MSBuild 路径和 CMake secondary 路径使用同一套可见 warning 策略，并确认该策略能真实通过，而不是只写在文档里。
+
+已完成：
+
+- [x] 四个 Visual Studio 项目 `lua.vcxproj` / `lua_app.vcxproj` / `lua_bytecode.vcxproj` / `lua_test.vcxproj` 的 `WarningLevel` 从 `Level3` 提升到 `Level4`。
+- [x] `CMakeLists.txt` 新增 `lua_configure_target_warnings()`，所有目标复用同一 helper。
+- [x] CMake MSVC 路径使用 `/W4 /permissive- /utf-8 /FS`；非 MSVC 路径使用 `-Wall -Wextra -Wpedantic -Wconversion`。
+- [x] 清理 `/W4` 暴露的 warning：异常 / `std::exit` 后的不可达返回、未使用参数 / 局部变量、`toupper` / `tolower` 的显式 `char` 转换、未使用测试 helper。
+- [x] `check_doc_drift.ps1` 新增 warning policy 守卫，防止 `.vcxproj` 回退到 `Level3` 或 CMake 丢失 `/W4` / `-Wpedantic` / `-Wconversion`。
+- [x] 同步 README、开发指南、项目状态和优化路线图；下一项推荐推进到 PR-72：`ValueResult` 读面向 `std::visit` 迁移第一批。
+
+已使用的验证命令：
+
+```powershell
+MSBuild lua_test.vcxproj /m /p:Configuration=Debug /p:Platform=x64
+MSBuild lua_app.vcxproj /m /p:Configuration=Debug /p:Platform=x64
+MSBuild lua_bytecode.vcxproj /m /p:Configuration=Debug /p:Platform=x64
+.\tools\run_cmake_smoke.ps1 -Clean
+bin\lua_test.exe
+```
+
+验收结果：
+
+- 三个 MSBuild 入口在 `/W4` 下均 0 warnings / 0 errors。
+- CMake clean smoke 构建 `lua_core` / `lua_app` / `lua_bytecode` / `lua_test`，CTest 5/5 通过。
+- CMake 生成的 `lua_core` / `lua_app` / `lua_bytecode` / `lua_test` `.vcxproj` 均为 `WarningLevel` `Level4`。
+- 默认 `bin\lua_test.exe` 运行 544 个 registered tests / 2735 个 assertion results / 0 failures。
 
 ## 维护规则
 

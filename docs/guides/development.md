@@ -1,6 +1,6 @@
 ---
 status: current
-verified_against: docs/status/project-status.md; lua.slnx; lua.vcxproj; lua_test.vcxproj; CMakeLists.txt; tools/run_cmake_smoke.ps1; tools/add_source.ps1; tests/unit/framework/test_runner.cpp
+verified_against: docs/status/project-status.md; lua.slnx; lua.vcxproj; lua_app.vcxproj; lua_bytecode.vcxproj; lua_test.vcxproj; CMakeLists.txt; tools/run_cmake_smoke.ps1; tools/add_source.ps1; tools/check_doc_drift.ps1; tests/unit/framework/test_runner.cpp
 last_checked: 2026-05-23
 applies_to: current contributor workflow and coding conventions
 ---
@@ -94,6 +94,10 @@ ctest --test-dir build\cmake -C Debug --output-on-failure
 ```
 
 Linux / macOS 仍应先作为实验性路径处理；在 CI 矩阵覆盖前，不把它视为跨平台兼容承诺。
+
+#### 编译警告策略
+
+MSBuild 主路径的四个 `.vcxproj` 目标使用 `WarningLevel` `Level4`，并保持 `/permissive-` / `/utf-8`。CMake secondary 路径通过 `lua_configure_target_warnings()` 复用同一策略：MSVC 使用 `/W4 /permissive- /utf-8 /FS`，非 MSVC 编译器使用 `-Wall -Wextra -Wpedantic -Wconversion`。当前策略不启用 warnings-as-errors；目标是让 warning 作为可见质量信号，而不是把教学构建变成脆弱入口。
 
 #### 新增 C++ 源文件
 

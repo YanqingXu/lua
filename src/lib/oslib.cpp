@@ -126,7 +126,6 @@ i32 luaOS_exit(LuaState* L) {
         exitCode = static_cast<i32>(L->toNumber(1));
     }
     std::exit(exitCode);
-    return 0; // 不会执行到这里
 }
 
 i32 luaOS_getenv(LuaState* L) {

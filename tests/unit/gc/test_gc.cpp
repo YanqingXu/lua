@@ -229,9 +229,6 @@ void testGarbageCollectorRoots(TestSuite& suite) {
 void testGarbageCollectorCollect(TestSuite& suite) {
     GarbageCollector gc;
 
-    // Get initial count (may have fixed objects)
-    usize initialCount = gc.getObjectCount();
-
     GCString* gcStr1 = new GCString("Root");
     GCString* gcStr2 = new GCString("Garbage");
 

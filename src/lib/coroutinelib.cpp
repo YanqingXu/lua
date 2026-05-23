@@ -167,7 +167,6 @@ static i32 wrap_iterator(LuaState* L) {
         } else {
             L->error("cannot resume dead coroutine");
         }
-        return 0;  // unreachable
     }
 
     // 成功：把 bool 之后的结果值搬到栈帧起点

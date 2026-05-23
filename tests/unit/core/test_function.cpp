@@ -15,7 +15,7 @@ using namespace Lua;
 using namespace LuaTest;
 
 void testCFunction(TestSuite& suite) {
-    auto testCFunc = [](LuaState* L) -> i32 { return 0; };
+    auto testCFunc = [](LuaState*) -> i32 { return 0; };
     Function* cfunc = new Function(testCFunc);
     
     // Test 1: C function creation
@@ -63,6 +63,7 @@ void testProtoConstants(TestSuite& suite) {
     usize idx1 = proto->addConstant(Value(42.0));
     usize idx2 = proto->addConstant(Value(true));
     ASSERT_EQ(suite, (usize)2, proto->getConstantCount(), "Add constants");
+    (void)idx2;
     
     // Test 2: Get constants
     Value c1 = proto->getConstant(idx1);

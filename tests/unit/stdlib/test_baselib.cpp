@@ -425,7 +425,6 @@ void testPcallWrapper(TestSuite& suite) {
 
     // 测试成功调用
     // 创建一个简单的函数：function() return 42 end
-    auto& pool = L->getGlobalState().getStringPool();
     Proto* proto = new Proto();
     proto->setMaxStackSize(2);
 
