@@ -39,7 +39,10 @@ static Str getTokenText(const Token& token) {
  * 错误消息格式：message near 'token'
  */
 Str Parser::errorWithNear(const Str& message, const Token& token) {
-    return message + " near '" + getTokenText(token) + "'";
+    const Str& diagnostic = (token.type == TokenType::Error && !token.errorMessage.empty())
+        ? token.errorMessage
+        : message;
+    return diagnostic + " near '" + getTokenText(token) + "'";
 }
 
 // =====================================================================

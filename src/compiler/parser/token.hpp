@@ -94,6 +94,7 @@ struct Token {
     TokenType type;         ///< 标记类型
     TokenValue value;       ///< 语义值
     Str lexeme;             ///< 原始词素（源代码中的文本）
+    Str errorMessage;       ///< 词法错误消息（仅 Error token 使用）
     i32 line;               ///< 行号（从1开始）
     i32 column;             ///< 列号（从1开始）
     
@@ -104,6 +105,7 @@ struct Token {
         : type(TokenType::Eos)
         , value(std::monostate{})
         , lexeme()
+        , errorMessage()
         , line(1)
         , column(1)
     {
@@ -116,6 +118,7 @@ struct Token {
         : type(t)
         , value(std::monostate{})
         , lexeme(lex)
+        , errorMessage()
         , line(ln)
         , column(col)
     {

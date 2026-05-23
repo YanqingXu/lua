@@ -91,51 +91,117 @@ const char* tokenTypeToString(TokenType type) {
 }
 
 // =====================================================================
+// InputCursor
+// =====================================================================
+
+Lexer::InputCursor::InputCursor(IO::InputStream& input)
+    : input_(&input)
+    , buffer_()
+    , cursor_(0)
+    , reachedEof_(false)
+    , line_(1)
+    , column_(1)
+    , pendingNewlineChar_(-1)
+{
+    ensureLookahead();
+}
+
+char Lexer::InputCursor::advance() {
+    ensureBuffered(cursor_);
+    i32 ch = buffer_[cursor_];
+    if (ch == -1) return '\0';
+
+    cursor_++;
+
+    // Lua 5.1 将 CRLF/LFCR 视为一个换行。
+    if (isNewline(static_cast<char>(ch))) {
+        if (pendingNewlineChar_ != -1 && ch != pendingNewlineChar_) {
+            pendingNewlineChar_ = -1;
+        } else {
+            line_++;
+            column_ = 1;
+            pendingNewlineChar_ = ch;
+        }
+    } else {
+        column_++;
+        pendingNewlineChar_ = -1;
+    }
+
+    ensureLookahead();
+
+    return static_cast<char>(ch);
+}
+
+char Lexer::InputCursor::peek(usize offset) const noexcept {
+    usize index = cursor_ + offset;
+    if (index >= buffer_.size() || buffer_[index] == -1) {
+        return '\0';
+    }
+    return static_cast<char>(buffer_[index]);
+}
+
+bool Lexer::InputCursor::isAtEnd() const noexcept {
+    return cursor_ < buffer_.size() && buffer_[cursor_] == -1;
+}
+
+Lexer::InputCursor::State Lexer::InputCursor::save() const noexcept {
+    return State{
+        cursor_,
+        line_,
+        column_,
+        pendingNewlineChar_
+    };
+}
+
+void Lexer::InputCursor::restore(const State& state) {
+    cursor_ = state.cursor;
+    line_ = state.line;
+    column_ = state.column;
+    pendingNewlineChar_ = state.pendingNewlineChar;
+    ensureLookahead();
+}
+
+void Lexer::InputCursor::ensureBuffered(usize absoluteIndex) {
+    while (buffer_.size() <= absoluteIndex && !reachedEof_) {
+        i32 ch = input_->getChar();
+        buffer_.push_back(ch);
+        if (ch == -1) {
+            reachedEof_ = true;
+        }
+    }
+}
+
+void Lexer::InputCursor::ensureLookahead() {
+    ensureBuffered(cursor_ + 1);
+}
+
+bool Lexer::InputCursor::isNewline(char c) noexcept {
+    return c == '\n' || c == '\r';
+}
+
+// =====================================================================
 // Lexer构造函数
 // =====================================================================
 
 Lexer::Lexer(const Str& source)
     : sourceStorage_(source)
-    , input_(nullptr)
     , ownedInput_(makeUnique<IO::InputStream>(StrView(sourceStorage_)))
-    , currentChar_(-1)
-    , nextChar_(-1)
-    , hasNextChar_(false)
+    , inputCursor_(*ownedInput_)
     , lexemeBuffer_()
-    , start_(0)
-    , line_(1)
-    , column_(1)
+    , tokenStartLine_(1)
+    , tokenStartColumn_(1)
     , lookahead_(std::nullopt)
 {
-    // 使用拥有的 InputStream（基于内部保存的 sourceStorage_）
-    input_ = ownedInput_.get();
-
-    // 预填充字符缓存
-    currentChar_ = input_->getChar();
-    if (currentChar_ != -1) {
-        nextChar_ = input_->getChar();
-        hasNextChar_ = true;
-    }
 }
 
 Lexer::Lexer(IO::InputStream& input)
-    : input_(&input)
-    , ownedInput_(nullptr)
-    , currentChar_(-1)
-    , nextChar_(-1)
-    , hasNextChar_(false)
+    : ownedInput_(nullptr)
+    , inputCursor_(input)
     , lexemeBuffer_()
-    , start_(0)
-    , line_(1)
-    , column_(1)
+    , tokenStartLine_(1)
+    , tokenStartColumn_(1)
     , lookahead_(std::nullopt)
 {
-    // 预填充字符缓存
-    currentChar_ = input_->getChar();
-    if (currentChar_ != -1) {
-        nextChar_ = input_->getChar();
-        hasNextChar_ = true;
-    }
 }
 
 // =====================================================================
@@ -143,49 +209,24 @@ Lexer::Lexer(IO::InputStream& input)
 // =====================================================================
 
 bool Lexer::isAtEnd() const noexcept {
-    return currentChar_ == -1;
+    return inputCursor_.isAtEnd();
 }
 
 char Lexer::advance() {
-    i32 ch = currentChar_;
-    if (ch == -1) return '\0';
-
-    // 累积到 lexeme 缓冲区
-    lexemeBuffer_ += static_cast<char>(ch);
-
-    // 更新行列号（在前移字符缓存之前）
-    if (ch == '\n') {
-        line_++;
-        column_ = 0;
-    } else {
-        column_++;
+    if (inputCursor_.isAtEnd()) {
+        return '\0';
     }
-
-    // 前移字符缓存
-    currentChar_ = nextChar_;
-
-    // 读取新的 nextChar_
-    if (currentChar_ != -1) {
-        nextChar_ = input_->getChar();
-        hasNextChar_ = true;
-    } else {
-        nextChar_ = -1;
-        hasNextChar_ = false;
-    }
-
-    return static_cast<char>(ch);
+    char ch = inputCursor_.advance();
+    lexemeBuffer_ += ch;
+    return ch;
 }
 
 char Lexer::peek() const noexcept {
-    return (currentChar_ == -1) ? '\0' : static_cast<char>(currentChar_);
+    return inputCursor_.peek();
 }
 
 char Lexer::peekNext() const noexcept {
-    if (hasNextChar_) {
-        return (nextChar_ == -1) ? '\0' : static_cast<char>(nextChar_);
-    }
-
-    return '\0';
+    return inputCursor_.peek(1);
 }
 
 bool Lexer::match(char expected) {
@@ -196,28 +237,71 @@ bool Lexer::match(char expected) {
     return true;
 }
 
+bool Lexer::isNewline(char c) noexcept {
+    return c == '\n' || c == '\r';
+}
+
+bool Lexer::isAlpha(char c) noexcept {
+    return std::isalpha(static_cast<unsigned char>(c)) != 0;
+}
+
+bool Lexer::isAlphaNum(char c) noexcept {
+    return std::isalnum(static_cast<unsigned char>(c)) != 0;
+}
+
+bool Lexer::isDigit(char c) noexcept {
+    return std::isdigit(static_cast<unsigned char>(c)) != 0;
+}
+
+bool Lexer::isHexDigit(char c) noexcept {
+    return std::isxdigit(static_cast<unsigned char>(c)) != 0;
+}
+
+void Lexer::beginToken() {
+    tokenStartLine_ = inputCursor_.line();
+    tokenStartColumn_ = inputCursor_.column();
+}
+
+void Lexer::consumeNewlineSequence() {
+    if (!isNewline(peek())) {
+        return;
+    }
+
+    char firstNewline = advance();
+    consumeNewlinePairRemainder(firstNewline);
+}
+
+void Lexer::consumeNewlinePairRemainder(char firstNewline) {
+    if (isNewline(peek()) && peek() != firstNewline) {
+        advance();
+    }
+}
+
 // =====================================================================
 // Token创建
 // =====================================================================
 
 Token Lexer::makeToken(TokenType type) {
-    // 使用累积的 lexeme 缓冲区
-    i32 tokenColumn = column_ - static_cast<i32>(lexemeBuffer_.length());
-    Token token(type, lexemeBuffer_, line_, tokenColumn);
+    Token token(type, lexemeBuffer_, tokenStartLine_, tokenStartColumn_);
     return token;
 }
 
 Token Lexer::errorToken(const Str& message) {
     // 使用累积的 lexeme 缓冲区，如果为空则使用错误消息
     Str lexeme = lexemeBuffer_.empty() ? message : lexemeBuffer_;
-    return Token(TokenType::Error, lexeme, line_, column_);
+    Token token(TokenType::Error, lexeme, tokenStartLine_, tokenStartColumn_);
+    token.errorMessage = message;
+    return token;
 }
 
 // =====================================================================
 // 跳过空白和注释
 // =====================================================================
 
-void Lexer::skipComment() {
+Opt<Token> Lexer::skipComment() {
+    lexemeBuffer_.clear();
+    beginToken();
+
     // 此函数假设已经检测到 '--'，需要跳过这两个字符
     advance(); // 跳过第一个'-'
     advance(); // 跳过第二个'-'
@@ -225,19 +309,21 @@ void Lexer::skipComment() {
     if (peek() != '[') {
         // 短注释
         skipLineComment();
-        return;
+        return std::nullopt;
     }
 
     // 可能是长注释
-    i32 level = skipSeparator();
+    i32 level = readLongBracketDelimiter();
     if (level >= 0) {
-        skipLongComment(level);
+        return skipLongComment(level);
     } else {
         skipLineComment();
     }
+
+    return std::nullopt;
 }
 
-void Lexer::skipWhitespace() {
+Opt<Token> Lexer::skipWhitespace() {
     while (!isAtEnd()) {
         char c = peek();
 
@@ -252,49 +338,47 @@ void Lexer::skipWhitespace() {
             case '-':
                 // 检查是否为注释
                 if (peekNext() == '-') {
-                    skipComment();
+                    if (Opt<Token> error = skipComment()) {
+                        return error;
+                    }
                 } else {
-                    return;
+                    return std::nullopt;
                 }
                 break;
 
             default:
-                return;
+                return std::nullopt;
         }
     }
+
+    return std::nullopt;
 }
 
 void Lexer::skipLineComment() {
-    while (peek() != '\n' && !isAtEnd()) {
+    while (!isNewline(peek()) && !isAtEnd()) {
         advance();
     }
 }
 
-void Lexer::skipLongComment(i32 level) {
-    // 如果起始分隔符后立刻是换行，则跳过（与长字符串行为一致）
-    if (peek() == '\n' || peek() == '\r') {
-        char firstNewline = peek();
-        advance();
-        // 处理 \r\n 或 \n\r
-        if ((peek() == '\n' || peek() == '\r') && peek() != firstNewline) {
-            advance();
-        }
-    }
+Opt<Token> Lexer::skipLongComment(i32 level) {
+    skipInitialLongLiteralNewline();
 
     // 跳过长注释内容，直到找到匹配的结束符 ]=*]
     while (!isAtEnd()) {
         if (peek() == ']') {
-            i32 endLevel = skipSeparator();
+            i32 endLevel = readLongBracketDelimiter();
             if (endLevel == level) {
-                return;
+                return std::nullopt;
             }
         }
 
         advance();
     }
+
+    return errorToken("Unterminated long comment");
 }
 
-i32 Lexer::skipSeparator() {
+i32 Lexer::readLongBracketDelimiter() {
     // 跳过 [=*[ 或 ]=*] 形式的分隔符
     // 返回等号的数量，如果不是有效分隔符返回-1
     // 注意：调用此函数时，peek()应该指向第一个'['或']'
@@ -336,7 +420,7 @@ i32 Lexer::skipSeparator() {
 
 Token Lexer::identifier() {
     // 标识符：[a-zA-Z_][a-zA-Z0-9_]*
-    while (std::isalnum(peek()) || peek() == '_') {
+    while (isAlphaNum(peek()) || peek() == '_') {
         advance();
     }
 
@@ -351,18 +435,14 @@ Token Lexer::identifier() {
 // 数字识别
 // =====================================================================
 
-Token Lexer::number() {
+Token Lexer::decimalNumber() {
     // 整数部分
-    while (std::isdigit(peek())) {
-        advance();
-    }
+    consumeDecimalDigits();
 
     // 小数部分
-    if (peek() == '.' && std::isdigit(peekNext())) {
+    if (peek() == '.' && isDigit(peekNext())) {
         advance();
-        while (std::isdigit(peek())) {
-            advance();
-        }
+        consumeDecimalDigits();
     }
 
     // 指数部分 (e或E)
@@ -375,21 +455,15 @@ Token Lexer::number() {
         }
 
         // 指数数字
-        if (!std::isdigit(peek())) {
+        if (!isDigit(peek())) {
             return errorToken("Invalid number: expected digits after exponent");
         }
 
-        while (std::isdigit(peek())) {
-            advance();
-        }
+        consumeDecimalDigits();
     }
 
     // 读取尾随的字母/下划线以捕获 Lua 5.1 定义的非法数字形式（如 123abc）
-    if (std::isalpha(peek()) || peek() == '_') {
-        while (std::isalnum(peek()) || peek() == '_') {
-            advance();
-        }
-    }
+    consumeMalformedNumberSuffix();
 
     // 转换为数字并校验是否完全消费，若未完全消费则视为 malformed number
     Token token = makeToken(TokenType::Number);
@@ -422,26 +496,21 @@ Token Lexer::number() {
     return token;
 }
 
-Token Lexer::hexNumber() {
-    // 跳过'0x'或'0X'
-    advance(); // '0'
-    advance(); // 'x'或'X'
+Token Lexer::hexadecimalNumber() {
+    // scanToken 已经消费了前导 '0'，这里消费 'x' 或 'X'
+    advance();
 
-    if (!std::isxdigit(peek())) {
+    if (!isHexDigit(peek())) {
         return errorToken("Invalid hexadecimal number: expected hex digits after 0x");
     }
 
-    // 如果后续紧跟字母/下划线，按照 Lua 5.1 语义视为格式错误
-    if (std::isalpha(peek()) || peek() == '_') {
-        while (std::isalnum(peek()) || peek() == '_') {
-            advance();
-        }
-        return errorToken("Malformed hexadecimal number");
-    }
-
     // 十六进制数字
-    while (std::isxdigit(peek())) {
-        advance();
+    consumeHexDigits();
+
+    // 如果后续紧跟字母/下划线，按照 Lua 5.1 语义视为格式错误
+    if (isAlpha(peek()) || peek() == '_') {
+        consumeMalformedNumberSuffix();
+        return errorToken("Malformed hexadecimal number");
     }
 
     // 转换为数字
@@ -465,70 +534,45 @@ Token Lexer::hexNumber() {
     return token;
 }
 
+void Lexer::consumeDecimalDigits() {
+    while (isDigit(peek())) {
+        advance();
+    }
+}
+
+void Lexer::consumeHexDigits() {
+    while (isHexDigit(peek())) {
+        advance();
+    }
+}
+
+void Lexer::consumeMalformedNumberSuffix() {
+    if (!isAlpha(peek()) && peek() != '_') {
+        return;
+    }
+
+    while (isAlphaNum(peek()) || peek() == '_') {
+        advance();
+    }
+}
+
 // =====================================================================
 // 字符串识别
 // =====================================================================
 
-Token Lexer::string(char quote) {
+Token Lexer::shortString(char quote) {
     Str result;
 
     while (peek() != quote && !isAtEnd()) {
-        if (peek() == '\n') {
+        if (isNewline(peek())) {
             return errorToken("Unterminated string");
         }
 
         if (peek() == '\\') {
-            advance(); // 跳过'\'
-
-            if (isAtEnd()) {
-                return errorToken("Unterminated string");
-            }
-
-            // 转义字符
-            char c = advance();
-            switch (c) {
-                case 'a': result += '\a'; break;
-                case 'b': result += '\b'; break;
-                case 'f': result += '\f'; break;
-                case 'n': result += '\n'; break;
-                case 'r': result += '\r'; break;
-                case 't': result += '\t'; break;
-                case 'v': result += '\v'; break;
-                case '\\': result += '\\'; break;
-                case '"': result += '"'; break;
-                case '\'': result += '\''; break;
-                case '\n':
-                    line_++;
-                    column_ = 0;
-                    result += '\n';
-                    break;
-                default:
-                    // 数字转义 \ddd
-                    if (std::isdigit(c)) {
-                        i32 value = c - '0';
-                        i32 count = 1;
-
-                        while (count < 3 && std::isdigit(peek())) {
-                            value = value * 10 + (peek() - '0');
-                            advance();
-                            count++;
-                        }
-
-                        if (value > 255) {
-                            return errorToken("Decimal escape too large");
-                        }
-
-                        result += static_cast<char>(value);
-                    } else {
-                        result += c;
-                    }
-                    break;
+            if (Opt<Token> error = appendShortStringEscape(result)) {
+                return error.value();
             }
         } else {
-            if (peek() == '\n') {
-                line_++;
-                column_ = 0;
-            }
             result += advance();
         }
     }
@@ -546,53 +590,97 @@ Token Lexer::string(char quote) {
     return token;
 }
 
+Opt<Token> Lexer::appendShortStringEscape(Str& result) {
+    advance(); // 跳过'\'
+
+    if (isAtEnd()) {
+        return errorToken("Unterminated string");
+    }
+
+    char c = advance();
+    switch (c) {
+        case 'a': result += '\a'; break;
+        case 'b': result += '\b'; break;
+        case 'f': result += '\f'; break;
+        case 'n': result += '\n'; break;
+        case 'r': result += '\r'; break;
+        case 't': result += '\t'; break;
+        case 'v': result += '\v'; break;
+        case '\\': result += '\\'; break;
+        case '"': result += '"'; break;
+        case '\'': result += '\''; break;
+        case '\n':
+        case '\r':
+            consumeNewlinePairRemainder(c);
+            result += '\n';
+            break;
+        default:
+            if (isDigit(c)) {
+                return appendDecimalEscape(c, result);
+            }
+            result += c;
+            break;
+    }
+
+    return std::nullopt;
+}
+
+Opt<Token> Lexer::appendDecimalEscape(char firstDigit, Str& result) {
+    i32 value = firstDigit - '0';
+    i32 count = 1;
+
+    while (count < 3 && isDigit(peek())) {
+        value = value * 10 + (peek() - '0');
+        advance();
+        count++;
+    }
+
+    if (value > 255) {
+        return errorToken("Decimal escape too large");
+    }
+
+    result += static_cast<char>(value);
+    return std::nullopt;
+}
+
 Token Lexer::longString(i32 level) {
     Str result;
 
-    // 如果长字符串起始分隔符后立刻是换行，则丢弃该换行（Lua 5.1 行为）
-    if (peek() == '\n' || peek() == '\r') {
-        char firstNewline = peek();
-        advance();
-        // 处理潜在的 CRLF / LFCR 组合
-        if ((peek() == '\n' || peek() == '\r') && peek() != firstNewline) {
-            advance();
-        }
-    }
+    skipInitialLongLiteralNewline();
 
     // 跳过长字符串内容，直到找到匹配的结束符
     while (!isAtEnd()) {
         if (peek() == ']') {
-            // 检查是否为结束符 ]=*]
-            // 保存状态以便回退
             LexerState savedState = saveState();
-
-            advance(); // 跳过']'
-
-            // 计算等号数量
-            i32 endLevel = 0;
-            while (peek() == '=') {
-                endLevel++;
-                advance();
-            }
-
-            // 检查是否匹配
-            if (peek() == ']' && endLevel == level) {
-                advance(); // 跳过最后的']'
-                // 找到匹配的结束符
+            i32 endLevel = readLongBracketDelimiter();
+            if (endLevel == level) {
                 Token token = makeToken(TokenType::String);
                 token.value = result;
                 return token;
             }
-
-            // 不匹配，回退并添加到结果
             restoreState(savedState);
-            result += advance();
-        } else {
-            result += advance();
         }
+
+        appendLongStringChar(result);
     }
 
     return errorToken("Unterminated long string");
+}
+
+void Lexer::skipInitialLongLiteralNewline() {
+    if (isNewline(peek())) {
+        consumeNewlineSequence();
+    }
+}
+
+void Lexer::appendLongStringChar(Str& result) {
+    if (isNewline(peek())) {
+        consumeNewlineSequence();
+        result += '\n';
+        return;
+    }
+
+    result += advance();
 }
 
 // =====================================================================
@@ -601,22 +689,18 @@ Token Lexer::longString(i32 level) {
 
 Lexer::LexerState Lexer::saveState() const {
     return LexerState{
-        lexemeBuffer_,
-        line_,
-        column_,
-        currentChar_,
-        nextChar_,
-        hasNextChar_
+        lexemeBuffer_.size(),
+        inputCursor_.save(),
+        tokenStartLine_,
+        tokenStartColumn_
     };
 }
 
 void Lexer::restoreState(const LexerState& state) {
-    lexemeBuffer_ = state.lexemeBuffer;
-    line_ = state.line;
-    column_ = state.column;
-    currentChar_ = state.currentChar;
-    nextChar_ = state.nextChar;
-    hasNextChar_ = state.hasNextChar;
+    lexemeBuffer_.resize(state.lexemeLength);
+    inputCursor_.restore(state.input);
+    tokenStartLine_ = state.tokenStartLine;
+    tokenStartColumn_ = state.tokenStartColumn;
 }
 
 // =====================================================================
@@ -651,6 +735,15 @@ Token Lexer::peekToken() {
 // =====================================================================
 
 Opt<Token> Lexer::tryLongString() {
+    Opt<i32> level = tryReadLongBracketStart();
+    if (!level.has_value()) {
+        return std::nullopt;
+    }
+
+    return longString(level.value());
+}
+
+Opt<i32> Lexer::tryReadLongBracketStart() {
     LexerState savedState = saveState();
     
     // 计算等号数量
@@ -663,7 +756,7 @@ Opt<Token> Lexer::tryLongString() {
     // 检查是否为长字符串开始符 [=*[
     if (peek() == '[') {
         advance();
-        return longString(level);
+        return level;
     }
     
     // 不是长字符串，恢复状态
@@ -720,8 +813,8 @@ Token Lexer::handleOperator(char c) {
                 return makeToken(TokenType::Concat);    // ..
             }
             // 检查是否为数字 .123
-            if (std::isdigit(peek())) {
-                return number();
+            if (isDigit(peek())) {
+                return decimalNumber();
             }
             return makeToken(static_cast<TokenType>('.'));
         
@@ -736,10 +829,13 @@ Token Lexer::handleOperator(char c) {
 // =====================================================================
 
 Token Lexer::scanToken() {
-    skipWhitespace();
+    if (Opt<Token> error = skipWhitespace()) {
+        return error.value();
+    }
 
     // 清空 lexeme 缓冲区，准备扫描新 token
     lexemeBuffer_.clear();
+    beginToken();
 
     // 检查是否到达文件末尾
     if (isAtEnd()) {
@@ -749,21 +845,21 @@ Token Lexer::scanToken() {
     char c = advance();
 
     // 1. 标识符或关键字：[a-zA-Z_][a-zA-Z0-9_]*
-    if (std::isalpha(c) || c == '_') {
+    if (isAlpha(c) || c == '_') {
         return identifier();
     }
 
     // 2. 数字：十进制或十六进制（0x 或 0X）
-    if (std::isdigit(c)) {
+    if (isDigit(c)) {
         if (c == '0' && (peek() == 'x' || peek() == 'X')) {
-            return hexNumber();
+            return hexadecimalNumber();
         }
-        return number();
+        return decimalNumber();
     }
 
     // 3. 字符串：单引号或双引号
     if (c == '"' || c == '\'') {
-        return string(c);
+        return shortString(c);
     }
 
     // 4. 长字符串：[[ 或 [=[... 或单字符 '['

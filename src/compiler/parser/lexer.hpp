@@ -57,6 +57,11 @@ public:
      * 注意：input 必须在 Lexer 生命周期内保持有效。
      */
     explicit Lexer(IO::InputStream& input);
+
+    Lexer(const Lexer&) = delete;
+    Lexer& operator=(const Lexer&) = delete;
+    Lexer(Lexer&&) = delete;
+    Lexer& operator=(Lexer&&) = delete;
     
     /**
      * @brief 获取下一个Token
@@ -84,14 +89,60 @@ public:
     /**
      * @brief 获取当前行号
      */
-    i32 getCurrentLine() const noexcept { return line_; }
+    i32 getCurrentLine() const noexcept { return inputCursor_.line(); }
     
     /**
      * @brief 获取当前列号
      */
-    i32 getCurrentColumn() const noexcept { return column_; }
+    i32 getCurrentColumn() const noexcept { return inputCursor_.column(); }
 
 private:
+    // =====================================================================
+    // 输入游标
+    // =====================================================================
+
+    /**
+     * @brief 输入字符游标
+     *
+     * 负责字符缓冲、前瞻、回放以及 Lua 换行规则下的行列号维护。
+     */
+    class InputCursor {
+    public:
+        struct State {
+            usize cursor;
+            i32 line;
+            i32 column;
+            i32 pendingNewlineChar;
+        };
+
+        explicit InputCursor(IO::InputStream& input);
+
+        char advance();
+        char peek(usize offset = 0) const noexcept;
+        bool isAtEnd() const noexcept;
+
+        State save() const noexcept;
+        void restore(const State& state);
+
+        i32 line() const noexcept { return line_; }
+        i32 column() const noexcept { return column_; }
+        usize offset() const noexcept { return cursor_; }
+
+    private:
+        void ensureBuffered(usize absoluteIndex);
+        void ensureLookahead();
+        static bool isNewline(char c) noexcept;
+
+    private:
+        IO::InputStream* input_;
+        Vec<i32> buffer_;
+        usize cursor_;
+        bool reachedEof_;
+        i32 line_;
+        i32 column_;
+        i32 pendingNewlineChar_;
+    };
+
     // =====================================================================
     // 字符操作
     // =====================================================================
@@ -115,6 +166,34 @@ private:
      * @brief 如果当前字符匹配，则前进
      */
     bool match(char expected);
+
+    /**
+     * @brief 判断是否为 Lua 换行字符
+     */
+    static bool isNewline(char c) noexcept;
+
+    /**
+     * @brief 判断字符分类（避免对负 char 调用 <cctype>）
+     */
+    static bool isAlpha(char c) noexcept;
+    static bool isAlphaNum(char c) noexcept;
+    static bool isDigit(char c) noexcept;
+    static bool isHexDigit(char c) noexcept;
+
+    /**
+     * @brief 记录当前 token 的起始位置
+     */
+    void beginToken();
+
+    /**
+     * @brief 消费 Lua 换行序列（LF、CR、CRLF 或 LFCR）
+     */
+    void consumeNewlineSequence();
+
+    /**
+     * @brief 若已消费换行序列首字符，则消费可选的第二个配对换行字符
+     */
+    void consumeNewlinePairRemainder(char firstNewline);
     
     // =====================================================================
     // Token创建
@@ -137,7 +216,7 @@ private:
     /**
      * @brief 跳过空白字符和注释
      */
-    void skipWhitespace();
+    Opt<Token> skipWhitespace();
     
     /**
      * @brief 跳过注释（包括短注释和长注释）
@@ -145,7 +224,7 @@ private:
      * 当检测到 '--' 时调用此函数，自动识别是短注释还是长注释
      * 并调用相应的处理函数。
      */
-    void skipComment();
+    Opt<Token> skipComment();
     
     /**
      * @brief 跳过单行注释
@@ -156,7 +235,7 @@ private:
      * @brief 跳过多行注释
      * @param level 分隔符等级（=的数量）
      */
-    void skipLongComment(i32 level);
+    Opt<Token> skipLongComment(i32 level);
     
     // =====================================================================
     // 识别不同类型的Token
@@ -170,17 +249,17 @@ private:
     /**
      * @brief 识别数字（十进制或十六进制）
      */
-    Token number();
+    Token decimalNumber();
     
     /**
      * @brief 识别十六进制数字
      */
-    Token hexNumber();
+    Token hexadecimalNumber();
     
     /**
      * @brief 识别字符串（单引号或双引号）
      */
-    Token string(char quote);
+    Token shortString(char quote);
     
     /**
      * @brief 识别长字符串
@@ -192,7 +271,7 @@ private:
      * @brief 跳过长字符串/注释的分隔符 [=*[
      * @return 等号数量，如果不是有效分隔符返回-1
      */
-    i32 skipSeparator();
+    i32 readLongBracketDelimiter();
 
 private:
     /**
@@ -210,6 +289,42 @@ private:
      * 当检测到'['字符时调用，用于判断是长字符串还是单字符标记。
      */
     Opt<Token> tryLongString();
+
+    /**
+     * @brief 在初始 '[' 已经消费后继续读取 =*[ 长字符串起始部分
+     */
+    Opt<i32> tryReadLongBracketStart();
+
+    /**
+     * @brief 长字符串/长注释起始分隔符后丢弃首个换行（Lua 5.1 行为）
+     */
+    void skipInitialLongLiteralNewline();
+
+    /**
+     * @brief 读取一个长字符串正文字符，并按 Lua 5.1 规则规范化换行
+     */
+    void appendLongStringChar(Str& result);
+
+    /**
+     * @brief 读取短字符串反斜杠转义
+     */
+    Opt<Token> appendShortStringEscape(Str& result);
+
+    /**
+     * @brief 读取短字符串十进制转义
+     */
+    Opt<Token> appendDecimalEscape(char firstDigit, Str& result);
+
+    /**
+     * @brief 消费十进制/十六进制数字字符
+     */
+    void consumeDecimalDigits();
+    void consumeHexDigits();
+
+    /**
+     * @brief 消费非法数字后缀（如 123abc 或 0x1G）以形成完整错误词素
+     */
+    void consumeMalformedNumberSuffix();
     
     /**
      * @brief 处理运算符和分隔符
@@ -230,12 +345,10 @@ private:
      * 用于在解析失败时回退到之前的状态（如长字符串检测失败）。
      */
     struct LexerState {
-        Str lexemeBuffer;
-        i32 line;
-        i32 column;
-        i32 currentChar;
-        i32 nextChar;
-        bool hasNextChar;
+        usize lexemeLength;
+        InputCursor::State input;
+        i32 tokenStartLine;
+        i32 tokenStartColumn;
     };
     
     /**
@@ -258,16 +371,13 @@ private:
     // 注意：此成员不会再用于基于下标的字符访问，仅用于管理生命周期。
     Str sourceStorage_;
 
-    IO::InputStream* input_;           ///< 输入流指针（非拥有，用于引用构造）
     UPtr<IO::InputStream> ownedInput_; ///< 拥有的输入流（用于字符串构造）
 
     // =====================================================================
-    // 字符缓存（用于实现 peek 和 peekNext）
+    // 字符游标（用于实现 peek、peekNext、位置跟踪和内部回溯）
     // =====================================================================
 
-    i32 currentChar_;    ///< 当前字符缓存（-1 表示 EOF）
-    i32 nextChar_;       ///< 下一个字符缓存（用于 peekNext）
-    bool hasNextChar_;   ///< nextChar_ 是否已加载
+    InputCursor inputCursor_;
 
     // =====================================================================
     // Lexeme 累积缓冲区
@@ -279,9 +389,8 @@ private:
     // 位置跟踪
     // =====================================================================
 
-    usize start_;        ///< 当前 Token 起始位置（用于错误报告）
-    i32 line_;           ///< 当前行号（Lexer 自行维护）
-    i32 column_;         ///< 当前列号（Lexer 自行维护）
+    i32 tokenStartLine_;     ///< 当前 Token 起始行号
+    i32 tokenStartColumn_;   ///< 当前 Token 起始列号
 
     // =====================================================================
     // Token 预读机制（支持 LL(1) 语法分析）
