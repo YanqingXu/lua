@@ -1,13 +1,13 @@
 ---
 status: current
 verified_against: src/compiler/codegen/codegen.hpp; src/compiler/codegen/codegen.cpp; src/compiler/codegen/codegen_binding.cpp; src/compiler/codegen/codegen_expr.cpp; src/compiler/codegen/expression_emitter.hpp; src/compiler/codegen/expression_emitter.cpp; src/compiler/codegen/statement_emitter.hpp; src/compiler/codegen/statement_emitter.cpp; src/compiler/codegen/codegen_jump.cpp; src/compiler/codegen/codegen_stmt.cpp; src/compiler/codegen/codegen_types.hpp; src/compiler/codegen/codegen_state.hpp; src/compiler/codegen/jump_patcher.hpp; src/compiler/codegen/jump_patcher.cpp; src/compiler/codegen/scope_manager.hpp; src/compiler/codegen/scope_manager.cpp; src/compiler/codegen/bytecode_builder.hpp; tests/unit/compiler/test_codegen_result_types.cpp; tests/unit/compiler/test_codegen_characterization.cpp; tests/unit/compiler/test_jump_patcher.cpp; tests/unit/compiler/test_scope_manager.cpp; tests/unit/compiler/test_expression_emitter.cpp; tests/unit/compiler/test_statement_emitter.cpp
-last_checked: 2026-05-22
-applies_to: CodeGenerator responsibilities after PR-48 ValueResult variant prototype
+last_checked: 2026-05-23
+applies_to: CodeGenerator responsibilities after PR-72 ValueResult visitor first slice
 ---
 
 # CodeGenerator 职责地图
 
-本文记录 2026-05-22 当前 `CodeGenerator` 的真实职责边界，用于指导 PR-45 之后的渐进拆分。PR-41 补齐职责地图和 characterization 测试；PR-42 已抽出 `JumpPatcher`，PR-43 已抽出 `ScopeManager`，PR-44 已抽出 `ExpressionEmitter`，PR-45 已抽出 `StatementEmitter`，但仍保留 `CodeGenerator` 的兼容包装方法。
+本文记录 2026-05-23 当前 `CodeGenerator` 的真实职责边界，用于指导 PR-45 之后的渐进拆分。PR-41 补齐职责地图和 characterization 测试；PR-42 已抽出 `JumpPatcher`，PR-43 已抽出 `ScopeManager`，PR-44 已抽出 `ExpressionEmitter`，PR-45 已抽出 `StatementEmitter`，PR-72 已完成 `ExpressionEmitter` 核心 `ValueResult` 读路径的 payload visitor 第一批迁移，但仍保留 `CodeGenerator` 的兼容包装方法。
 
 ## 当前结构
 
@@ -59,7 +59,7 @@ PR-41 新增 `tests/unit/compiler/test_codegen_characterization.cpp`，测试套
 | `Generic For Bytecode Shape Is Stable` | generic for 保留 `TFORLOOP` 和回到 loop body 的后跳，且没有 pending `JMP` | PR-42 / PR-43 |
 | `Jump Patcher` | 直接锁住 pending `jpc_` flush、旧式链表头尾方向、`PatchList` 显式回填、`TESTSET + NO_REG -> TEST` 和过长跳转错误 | PR-42 / PR-43 |
 | `Scope Manager` | 直接锁住 local 生命周期、`RETURN` 后冗余 `CLOSE` 抑制、breaklist 延迟进入 pending `jpc_`、upvalue 去重与查找 | PR-43 / PR-45 |
-| `Expression Emitter` | 直接锁住 `ExpressionEmitter` facade 构造、`emitValue` / `emitCondResult` / `emitLValue` 返回契约和 immediate literal lowering | PR-44 / PR-45 |
+| `Expression Emitter` | 直接锁住 `ExpressionEmitter` facade 构造、`emitValue` / `emitCondResult` / `emitLValue` 返回契约、immediate literal lowering，以及 payload 与旧字段漂移时 `materializeValue()` 仍按 payload 发射 | PR-44 / PR-45 / PR-72 |
 | `Statement Emitter` | 直接锁住 `StatementEmitter` facade 构造、`statement()` / `block()` void 契约和空语句 lowering | PR-45 |
 
 相邻护栏仍包括：
@@ -75,7 +75,7 @@ PR-41 新增 `tests/unit/compiler/test_codegen_characterization.cpp`，测试套
 - PR-43 已完成；后续不要把 expression 或 statement lowering 塞进 `ScopeManager`。
 - PR-44 已完成；后续不要把 statement lowering 塞进 `ExpressionEmitter`。
 - PR-45 已完成；后续不要把 statement lowering 重新塞回 `CodeGenerator`，除非是兼容包装。
-- PR-48 已完成 `ValueResult` 的兼容式 `std::variant` payload prototype；后续迁移调用点时优先用 `payload()` / `std::visit`，并保留旧字段读面直到 expression / statement 两侧都完成迁移。
+- PR-48 已完成 `ValueResult` 的兼容式 `std::variant` payload prototype；PR-72 已新增 `ValueResultVisitor` / `ValueResult::visit()` 并迁移 `ExpressionEmitter` 核心读路径。后续迁移调用点时优先用 payload visitor，并保留旧字段读面直到 expression / statement 两侧都完成迁移。
 - 每次新增 `.cpp` / `.hpp` 优先使用 `tools\add_source.ps1` 同步 `CMakeLists.txt`、`.vcxproj` 和 `.vcxproj.filters`；新增生产源文件用 `-Target Core`，新增测试用 `-Target Test`。
 
 ## 推荐验证命令

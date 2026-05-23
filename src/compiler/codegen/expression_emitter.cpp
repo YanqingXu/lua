@@ -11,6 +11,76 @@
 
 namespace Lua {
 
+namespace {
+
+enum class PayloadTruthiness {
+    Falsy,
+    Truthy,
+    Runtime
+};
+
+PayloadTruthiness constantTruthiness(const ValueResult& value) {
+    return value.visit(ValueResultVisitor{
+        [](const ValueResult::Immediate& immediate) noexcept -> PayloadTruthiness {
+            switch (immediate.kind) {
+                case ValueResult::ImmediateKind::Nil:
+                    return PayloadTruthiness::Falsy;
+                case ValueResult::ImmediateKind::Boolean:
+                    return immediate.boolValue ? PayloadTruthiness::Truthy : PayloadTruthiness::Falsy;
+                case ValueResult::ImmediateKind::Number:
+                    return PayloadTruthiness::Truthy;
+                case ValueResult::ImmediateKind::None:
+                default:
+                    return PayloadTruthiness::Runtime;
+            }
+        },
+        [](const ValueResult::ConstantRef&) noexcept -> PayloadTruthiness {
+            return PayloadTruthiness::Truthy;
+        },
+        [](const auto&) noexcept -> PayloadTruthiness {
+            return PayloadTruthiness::Runtime;
+        },
+    });
+}
+
+Opt<f64> immediateNumber(const ValueResult& value) {
+    return value.visit(ValueResultVisitor{
+        [](const ValueResult::Immediate& immediate) -> Opt<f64> {
+            if (immediate.kind == ValueResult::ImmediateKind::Number) {
+                return immediate.numberValue;
+            }
+            return std::nullopt;
+        },
+        [](const auto&) -> Opt<f64> {
+            return std::nullopt;
+        },
+    });
+}
+
+Opt<i32> ownedRegister(const ValueResult& value) {
+    return value.visit(ValueResultVisitor{
+        [](const ValueResult::RegisterRef& reg) -> Opt<i32> {
+            if (reg.ownsRegister) {
+                return reg.reg;
+            }
+            return std::nullopt;
+        },
+        [](const auto&) -> Opt<i32> {
+            return std::nullopt;
+        },
+    });
+}
+
+// 辅助函数：获取语句块的最后一行号
+i32 getLastLineOfBlock(const Vec<StmtPtr>& body) {
+    if (body.empty()) {
+        return 0;
+    }
+    return body.back()->getLine();
+}
+
+}  // namespace
+
 ExpressionEmitter::ExpressionEmitter(CodeGenerator& owner) noexcept
     : owner_(owner)
     , state_(owner.state_)
@@ -91,14 +161,6 @@ void ExpressionEmitter::emitClosureUpvalues(const Vec<UpvalueCapture>& upvalues)
     owner_.emitClosureUpvalues(upvalues);
 }
 
-// 辅助函数：获取语句块的最后一行号
-static i32 getLastLineOfBlock(const Vec<StmtPtr>& body) {
-    if (body.empty()) {
-        return 0;
-    }
-    return body.back()->getLine();
-}
-
 // =====================================================================
 // 条件代码生成（emitCond通道）
 // =====================================================================
@@ -153,23 +215,22 @@ CondResult ExpressionEmitter::emitCondResult(const Expr& e) {
     ValueResult val = emitValue(e);
     val = forceSingleValue(val);
 
-    if (val.kind == ValueResult::Kind::Immediate) {
-        if (val.immediate == ValueResult::ImmediateKind::Nil ||
-            (val.immediate == ValueResult::ImmediateKind::Boolean && !val.boolValue)) {
+    switch (constantTruthiness(val)) {
+        case PayloadTruthiness::Falsy:
             // 常假值 — 无条件跳转到 falseList
             result.falseList.append(jump());
+            break;
+        case PayloadTruthiness::Truthy:
+            // 常真值（true / number / constant）— 无条件通过，falseList 为空
+            break;
+        case PayloadTruthiness::Runtime: {
+            i32 reg = valueToAnyReg(val);
+            // TEST reg 0 0: truthy → skip JMP (fall through = true), falsy → exec JMP (→ falseList)
+            codeABC(OpCode::TEST, reg, 0, 0);
+            result.falseList.append(jump());
+            freeReg(reg);
+            break;
         }
-        // 常真值（true / number）— 无条件通过，falseList 为空
-    }
-    else if (val.kind == ValueResult::Kind::Constant) {
-        // 字符串常量始终为真
-    }
-    else {
-        i32 reg = valueToAnyReg(val);
-        // TEST reg 0 0: truthy → skip JMP (fall through = true), falsy → exec JMP (→ falseList)
-        codeABC(OpCode::TEST, reg, 0, 0);
-        result.falseList.append(jump());
-        freeReg(reg);
     }
 
     return result;
@@ -221,27 +282,22 @@ CondResult ExpressionEmitter::emitCondResultTrue(const Expr& e) {
     ValueResult val = emitValue(e);
     val = forceSingleValue(val);
 
-    if (val.kind == ValueResult::Kind::Immediate) {
-        if (val.immediate == ValueResult::ImmediateKind::Boolean && val.boolValue) {
-            // true — 无条件跳转到 trueList
+    switch (constantTruthiness(val)) {
+        case PayloadTruthiness::Truthy:
+            // 常真值 — 无条件跳转到 trueList
             result.trueList.append(jump());
-        }
-        if (val.immediate == ValueResult::ImmediateKind::Number) {
-            // number 始终为真
+            break;
+        case PayloadTruthiness::Falsy:
+            // nil / false — 无条件通过，trueList 为空
+            break;
+        case PayloadTruthiness::Runtime: {
+            i32 reg = valueToAnyReg(val);
+            // TEST reg 0 1: falsy → skip JMP (fall through = false), truthy → exec JMP (→ trueList)
+            codeABC(OpCode::TEST, reg, 0, 1);
             result.trueList.append(jump());
+            freeReg(reg);
+            break;
         }
-        // nil / false — 无条件通过，trueList 为空
-    }
-    else if (val.kind == ValueResult::Kind::Constant) {
-        // 字符串常量始终为真
-        result.trueList.append(jump());
-    }
-    else {
-        i32 reg = valueToAnyReg(val);
-        // TEST reg 0 1: falsy → skip JMP (fall through = false), truthy → exec JMP (→ trueList)
-        codeABC(OpCode::TEST, reg, 0, 1);
-        result.trueList.append(jump());
-        freeReg(reg);
     }
 
     return result;
@@ -346,117 +402,136 @@ ValueResult ExpressionEmitter::visitNode(const ParenExpr& e) {
 }
 
 void ExpressionEmitter::materializeValue(const ValueResult& val, i32 reg) {
-    switch (val.kind) {
-        case ValueResult::Kind::Immediate: {
-            switch (val.immediate) {
+    val.visit(ValueResultVisitor{
+        [](const ValueResult::None&) {},
+        [&](const ValueResult::Immediate& immediate) {
+            switch (immediate.kind) {
                 case ValueResult::ImmediateKind::Nil:
                     codeABC(OpCode::LOADNIL, reg, reg, 0);
                     break;
                 case ValueResult::ImmediateKind::Boolean:
-                    codeABC(OpCode::LOADBOOL, reg, val.boolValue ? 1 : 0, 0);
+                    codeABC(OpCode::LOADBOOL, reg, immediate.boolValue ? 1 : 0, 0);
                     break;
                 case ValueResult::ImmediateKind::Number: {
-                    i32 k = numberConstant(val.numberValue);
+                    i32 k = numberConstant(immediate.numberValue);
                     codeABx(OpCode::LOADK, reg, k);
                     break;
                 }
+                case ValueResult::ImmediateKind::None:
                 default:
                     break;
             }
-            break;
-        }
-        case ValueResult::Kind::Constant:
-            codeABx(OpCode::LOADK, reg, val.constIndex);
-            break;
-        case ValueResult::Kind::Register:
-            if (val.reg != reg) {
-                codeABC(OpCode::MOVE, reg, val.reg, 0);
+        },
+        [&](const ValueResult::ConstantRef& constant) {
+            codeABx(OpCode::LOADK, reg, constant.constIndex);
+        },
+        [&](const ValueResult::RegisterRef& source) {
+            if (source.reg != reg) {
+                codeABC(OpCode::MOVE, reg, source.reg, 0);
             }
-            break;
-        case ValueResult::Kind::PendingLoad: {
-            switch (val.access) {
+        },
+        [&](const ValueResult::PendingLoad& pending) {
+            switch (pending.access) {
                 case ValueResult::AccessKind::Global:
-                    codeABx(OpCode::GETGLOBAL, reg, val.constIndex);
+                    codeABx(OpCode::GETGLOBAL, reg, pending.constIndex);
                     break;
                 case ValueResult::AccessKind::Upvalue:
-                    codeABC(OpCode::GETUPVAL, reg, val.aux, 0);
+                    codeABC(OpCode::GETUPVAL, reg, pending.aux, 0);
                     break;
                 case ValueResult::AccessKind::Indexed:
-                    codeABC(OpCode::GETTABLE, reg, val.reg, val.aux);
+                    codeABC(OpCode::GETTABLE, reg, pending.reg, pending.aux);
                     break;
                 default:
                     break;
             }
-            break;
-        }
-        case ValueResult::Kind::Relocatable: {
-            Instruction inst = state_.bytecode.instruction(val.instructionPc);
+        },
+        [&](const ValueResult::Relocatable& relocatable) {
+            Instruction inst = state_.bytecode.instruction(relocatable.instructionPc);
             SETARG_A(inst, reg);
-            state_.bytecode.replaceInstruction(val.instructionPc, inst);
-            break;
-        }
-        case ValueResult::Kind::MultiRet: {
-            if (val.access == ValueResult::AccessKind::Call) {
+            state_.bytecode.replaceInstruction(relocatable.instructionPc, inst);
+        },
+        [&](const ValueResult::MultiRet& multi) {
+            if (multi.access == ValueResult::AccessKind::Call) {
                 // Call: 返回值在 baseReg，不能直接重写 A
-                Instruction inst = state_.bytecode.instruction(val.instructionPc);
+                Instruction inst = state_.bytecode.instruction(multi.instructionPc);
                 i32 callBase = GETARG_A(inst);
                 SETARG_C(inst, 2);  // 固定为 1 个返回值
-                state_.bytecode.replaceInstruction(val.instructionPc, inst);
+                state_.bytecode.replaceInstruction(multi.instructionPc, inst);
                 if (callBase != reg) {
                     codeABC(OpCode::MOVE, reg, callBase, 0);
                 }
-            } else if (val.access == ValueResult::AccessKind::Vararg) {
-                Instruction inst = state_.bytecode.instruction(val.instructionPc);
+            } else if (multi.access == ValueResult::AccessKind::Vararg) {
+                Instruction inst = state_.bytecode.instruction(multi.instructionPc);
                 SETARG_A(inst, reg);
                 SETARG_B(inst, 2);  // 固定为 1 个值
-                state_.bytecode.replaceInstruction(val.instructionPc, inst);
+                state_.bytecode.replaceInstruction(multi.instructionPc, inst);
             }
-            break;
-        }
-        case ValueResult::Kind::PendingJump: {
+        },
+        [&](const ValueResult::PendingJump& pending) {
             // 比较表达式物化为布尔值
-            i32 trueJump = val.instructionPc;
+            i32 trueJump = pending.instructionPc;
             codeABC(OpCode::LOADBOOL, reg, 0, 1);
             i32 trueLabel = getLabel();
             fixjump(trueJump, trueLabel);
             codeABC(OpCode::LOADBOOL, reg, 1, 0);
-            break;
-        }
-        default:
-            break;
-    }
+        },
+    });
 }
 
 i32 ExpressionEmitter::valueToRK(const ValueResult& val) {
-    // 常量可直接编码为 RK 操作数
-    if (val.kind == ValueResult::Kind::Immediate && val.immediate == ValueResult::ImmediateKind::Number) {
-        i32 k = numberConstant(val.numberValue);
-        if (k <= MAXINDEXRK) {
-            return RKASK(k);
-        }
+    Opt<i32> encoded = val.visit(ValueResultVisitor{
+        [&](const ValueResult::Immediate& immediate) -> Opt<i32> {
+            if (immediate.kind != ValueResult::ImmediateKind::Number) {
+                return std::nullopt;
+            }
+            i32 k = numberConstant(immediate.numberValue);
+            if (k <= MAXINDEXRK) {
+                return RKASK(k);
+            }
+            return std::nullopt;
+        },
+        [](const ValueResult::ConstantRef& constant) -> Opt<i32> {
+            if (constant.constIndex <= MAXINDEXRK) {
+                return RKASK(constant.constIndex);
+            }
+            return std::nullopt;
+        },
+        [](const auto&) -> Opt<i32> {
+            return std::nullopt;
+        },
+    });
+    if (encoded.has_value()) {
+        return *encoded;
     }
-    if (val.kind == ValueResult::Kind::Constant) {
-        if (val.constIndex <= MAXINDEXRK) {
-            return RKASK(val.constIndex);
-        }
-    }
+
     // 否则落到寄存器
     return valueToAnyReg(val);
 }
 
 i32 ExpressionEmitter::valueToAnyReg(const ValueResult& val) {
-    // 已经在寄存器中则直接返回
-    if (val.kind == ValueResult::Kind::Register) {
-        return val.reg;
+    Opt<i32> existingReg = val.visit(ValueResultVisitor{
+        [](const ValueResult::RegisterRef& source) -> Opt<i32> {
+            return source.reg;
+        },
+        [&](const ValueResult::MultiRet& multi) -> Opt<i32> {
+            if (multi.access != ValueResult::AccessKind::Call) {
+                return std::nullopt;
+            }
+
+            // MultiRet(Call): 返回值已在 baseReg，先固定为单值
+            Instruction inst = state_.bytecode.instruction(multi.instructionPc);
+            SETARG_C(inst, 2);
+            state_.bytecode.replaceInstruction(multi.instructionPc, inst);
+            return GETARG_A(inst);
+        },
+        [](const auto&) -> Opt<i32> {
+            return std::nullopt;
+        },
+    });
+    if (existingReg.has_value()) {
+        return *existingReg;
     }
-    // MultiRet(Call): 返回值已在 baseReg
-    if (val.kind == ValueResult::Kind::MultiRet && val.access == ValueResult::AccessKind::Call) {
-        // 先固定为单值
-        Instruction inst = state_.bytecode.instruction(val.instructionPc);
-        SETARG_C(inst, 2);
-        state_.bytecode.replaceInstruction(val.instructionPc, inst);
-        return GETARG_A(inst);
-    }
+
     // 否则分配寄存器并物化
     i32 reg = allocReg();
     materializeValue(val, reg);
@@ -465,7 +540,15 @@ i32 ExpressionEmitter::valueToAnyReg(const ValueResult& val) {
 
 void ExpressionEmitter::valueToNextReg(const ValueResult& val) {
     ValueResult v = forceSingleValue(val);
-    if (v.kind == ValueResult::Kind::Register && v.reg == state_.registers.current() - 1) {
+    bool alreadyAtNextReg = v.visit(ValueResultVisitor{
+        [&](const ValueResult::RegisterRef& source) {
+            return source.reg == state_.registers.current() - 1;
+        },
+        [](const auto&) {
+            return false;
+        },
+    });
+    if (alreadyAtNextReg) {
         return;  // 已在下一个位置
     }
     i32 reg = allocReg();
@@ -473,23 +556,27 @@ void ExpressionEmitter::valueToNextReg(const ValueResult& val) {
 }
 
 ValueResult ExpressionEmitter::forceSingleValue(const ValueResult& val) {
-    if (val.kind != ValueResult::Kind::MultiRet) {
-        return val;
-    }
-    // 将 CALL/VARARG 固定为单返回值并转为 Relocatable/Register
-    if (val.access == ValueResult::AccessKind::Vararg) {
-        Instruction inst = state_.bytecode.instruction(val.instructionPc);
-        SETARG_B(inst, 2);  // B=2 → 1 个值
-        state_.bytecode.replaceInstruction(val.instructionPc, inst);
-        return ValueResult::makeRelocatable(val.instructionPc);
-    }
-    if (val.access == ValueResult::AccessKind::Call) {
-        Instruction inst = state_.bytecode.instruction(val.instructionPc);
-        SETARG_C(inst, 2);  // C=2 → 1 个返回值
-        state_.bytecode.replaceInstruction(val.instructionPc, inst);
-        return ValueResult::makeRegister(GETARG_A(inst), false);
-    }
-    return val;
+    return val.visit(ValueResultVisitor{
+        [&](const ValueResult::MultiRet& multi) -> ValueResult {
+            // 将 CALL/VARARG 固定为单返回值并转为 Relocatable/Register
+            if (multi.access == ValueResult::AccessKind::Vararg) {
+                Instruction inst = state_.bytecode.instruction(multi.instructionPc);
+                SETARG_B(inst, 2);  // B=2 → 1 个值
+                state_.bytecode.replaceInstruction(multi.instructionPc, inst);
+                return ValueResult::makeRelocatable(multi.instructionPc);
+            }
+            if (multi.access == ValueResult::AccessKind::Call) {
+                Instruction inst = state_.bytecode.instruction(multi.instructionPc);
+                SETARG_C(inst, 2);  // C=2 → 1 个返回值
+                state_.bytecode.replaceInstruction(multi.instructionPc, inst);
+                return ValueResult::makeRegister(GETARG_A(inst), false);
+            }
+            return val;
+        },
+        [&](const auto&) -> ValueResult {
+            return val;
+        },
+    });
 }
 
 // =====================================================================
@@ -587,9 +674,9 @@ ValueResult ExpressionEmitter::emitValueUnary(const UnaryExpr& e) {
     // === Neg: 常量折叠 ===
     if (e.op == UnaryExpr::Op::Neg) {
         ValueResult operand = emitValue(*e.operand);
-        if (operand.kind == ValueResult::Kind::Immediate &&
-            operand.immediate == ValueResult::ImmediateKind::Number) {
-            return ValueResult::makeNumber(-operand.numberValue);
+        Opt<f64> number = immediateNumber(operand);
+        if (number.has_value()) {
+            return ValueResult::makeNumber(-*number);
         }
         // 非常量: 物化到寄存器后生成 UNM
         i32 opReg = valueToAnyReg(operand);
@@ -1042,8 +1129,8 @@ void ExpressionEmitter::emitStore(const LValueRef& target, const ValueResult& va
     switch (target.kind) {
         case LValueRef::Kind::Local: {
             // 局部变量：直接存储到指定寄存器
-            if (val.kind == ValueResult::Kind::Register && val.ownsRegister) {
-                freeReg(val.reg);
+            if (Opt<i32> reg = ownedRegister(val); reg.has_value()) {
+                freeReg(*reg);
             }
             materializeValue(val, target.slot);
             return;
@@ -1054,7 +1141,7 @@ void ExpressionEmitter::emitStore(const LValueRef& target, const ValueResult& va
             ValueResult v = forceSingleValue(val);
             i32 reg = valueToAnyReg(v);
             codeABC(OpCode::SETUPVAL, reg, target.slot, 0);
-            if (v.kind == ValueResult::Kind::Register && v.ownsRegister) {
+            if (ownedRegister(v).has_value()) {
                 freeReg(reg);
             }
             break;
@@ -1065,7 +1152,7 @@ void ExpressionEmitter::emitStore(const LValueRef& target, const ValueResult& va
             ValueResult v = forceSingleValue(val);
             i32 reg = valueToAnyReg(v);
             codeABx(OpCode::SETGLOBAL, reg, target.slot);
-            if (v.kind == ValueResult::Kind::Register && v.ownsRegister) {
+            if (ownedRegister(v).has_value()) {
                 freeReg(reg);
             }
             break;
@@ -1076,7 +1163,7 @@ void ExpressionEmitter::emitStore(const LValueRef& target, const ValueResult& va
             ValueResult v = forceSingleValue(val);
             i32 rk = valueToRK(v);
             codeABC(OpCode::SETTABLE, target.tableReg, target.key, rk);
-            if (v.kind == ValueResult::Kind::Register && v.ownsRegister) {
+            if (ownedRegister(v).has_value()) {
                 freeReg(rk);
             }
             break;

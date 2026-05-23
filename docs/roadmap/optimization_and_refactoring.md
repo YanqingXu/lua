@@ -2,9 +2,9 @@
 
 > 适用范围：`g:\github\lua`（现代 C++ Lua 5.1.5 解释器）
 > 设计目标：**可读性 > 可维护性 > 教育价值 > 性能**
-> 约束：保持 544 个注册测试 / 2735 个断言结果 / 0 失败，不破坏 `LuaState` / `VM` public API。
+> 约束：保持 546 个注册测试 / 2741 个断言结果 / 0 失败，不破坏 `LuaState` / `VM` public API。
 > 最近审计：2026-05-21（深度审计报告，覆盖 Readability / Extensibility / Educational Value 三维度）
-> 最近同步：2026-05-23（PR-71：CMake / MSBuild warning 策略对齐）
+> 最近同步：2026-05-23（PR-72：ValueResult 读取侧第一批迁移到 payload visitor）
 
 ---
 
@@ -26,7 +26,7 @@
 |---|---|---|---|---|
 | **阶段 1 — 短期代码清理** | 1–2 个迭代 | 删冗余、统一命名、收紧错误处理、文档与代码同步 | 否 | ~95% |
 | **阶段 2 — 中期模式重构** | 3–5 个迭代 | 引入访问者 / 策略 / 命令模式，VM dispatch 与 GC 抽象化 | 内部 API 调整、public 不变 | ~94% |
-| **阶段 3 — 现代 C++ 特性** | 穿插于 1 & 2 | `std::expected` / `concepts` / `std::format` / `[[nodiscard]]` | 部分 public 签名变更 | ~90% |
+| **阶段 3 — 现代 C++ 特性** | 穿插于 1 & 2 | `std::expected` / `concepts` / `std::format` / `[[nodiscard]]` | 部分 public 签名变更 | ~92% |
 | **阶段 4 — 教育价值增强** | 持续推进 | 自解释代码、字节码可视化、执行链路教学文档、REPL 体验、Trace 差异模式 | 否（增量增强） | ~88% |
 | **阶段 5 — 工程实践** | 持续 | 测试覆盖、质量门、构建一致性、文档漂移检测 | 否 | ~84% |
 
@@ -263,7 +263,7 @@ namespace { LibRegistrar kReg("base", "Base Library", openBaseLib); }
 
 **审计发现**：[codegen_types.hpp](src/compiler/codegen/codegen_types.hpp) 的 `ValueResult` 结构体有 12 个公开字段（`kind`, `immediate`, `access`, `reg`, `constIndex`, `aux`, `instructionPc`, `boolValue`, `numberValue`, `ownsRegister`, `isMultiResult`, `isSingleValue`）。部分字段仅在特定 `Kind` 下有效，类似 tagged union，但缺少编译期约束保证字段使用的一致性。
 
-**当前进展**：PR-48 已加入兼容式 `std::variant` payload prototype，定义 `None`、`Immediate`、`ConstantRef`、`RegisterRef`、`PendingLoad`、`Relocatable`、`MultiRet` 和 `PendingJump` alternatives，并通过工厂函数同步填充 payload 与旧字段。`ExpressionEmitter` / `StatementEmitter` 主要构造点已改用工厂函数；旧字段读面暂保留，后续可按调用点迁移到 `std::visit`。
+**当前进展**：PR-48 已加入兼容式 `std::variant` payload prototype，定义 `None`、`Immediate`、`ConstantRef`、`RegisterRef`、`PendingLoad`、`Relocatable`、`MultiRet` 和 `PendingJump` alternatives，并通过工厂函数同步填充 payload 与旧字段。`ExpressionEmitter` / `StatementEmitter` 主要构造点已改用工厂函数；PR-72 已新增 `ValueResultVisitor` / `ValueResult::visit()`，并将 `ExpressionEmitter` 的 truthiness、`materializeValue()`、`valueToRK()`、`valueToAnyReg()`、`valueToNextReg()`、`forceSingleValue()`、一元负号常量折叠和 store owned-register 释放判断迁移到 payload visitor。旧公开字段仍保留为兼容读写面，后续继续按调用点收口。
 
 **建议**：将 `ValueResult` 重构为 `std::variant` 子类型：
 
@@ -284,6 +284,7 @@ using ValueResult = std::variant<
 | 编号 | 任务 | 说明 |
 |---|---|---|
 | 3.5.1 | `ValueResult` 兼容式 `std::variant` payload prototype | ✓ **已完成** — PR-48；旧字段读面仍保留，后续逐步迁移到 `std::visit` |
+| 3.5.2 | `ValueResult` 读取侧第一批迁移到 payload visitor | ✓ **已完成** — PR-72；`ExpressionEmitter` 核心读路径已从旧字段判断迁移到 `ValueResult::visit()` / `ValueResultVisitor` |
 
 ---
 
@@ -379,7 +380,7 @@ using ValueResult = std::variant<
 
 ### 5.1 测试覆盖精细化
 
-**现状**：544 个注册测试 / 2735 个断言结果 / 0 失败，目录 `tests/unit/`、`tests/lua/`。
+**现状**：546 个注册测试 / 2741 个断言结果 / 0 失败，目录 `tests/unit/`、`tests/lua/`。
 
 **改进方向**（优先小步增量；覆盖矩阵作为 checklist 文档）：
 
@@ -409,7 +410,7 @@ using ValueResult = std::variant<
 | 风险 | 影响 | 缓解 |
 |---|---|---|
 | VM dispatch 命令模式化引入函数指针表，调试器单步体验下降 | 影响教学 | 保留 `SwitchDispatch` 作为默认；调试构建强制使用；1.1.1 落地的独立 inline 函数进一步改善 Switch 路径单步体验 |
-| `std::expected` 大范围替换异常导致调用链翻新 | 544 测试可能批量红 | 按 3.1 表格逐个函数迁移，每次 1 个函数 + 全量测试 |
+| `std::expected` 大范围替换异常导致调用链翻新 | 546 测试可能批量红 | 按 3.1 表格逐个函数迁移，每次 1 个函数 + 全量测试 |
 | GC 去单例化破坏标准库内部对 `GarbageCollector::getInstance()` 的引用 | 编译错误广泛 | 保留 inline shim `getInstance()` 一版本，标记 `[[deprecated]]` |
 | Visitor 化后 codegen 性能下降 | 不影响目标，但需观察 | 教学项目可接受；基准用 `examples/*.lua` 跑回归 |
 | `ValueResult` → `std::variant` 重构引入大量访问代码 | 调用侧需逐一迁移 `std::visit` | 先做 prototype 分支验证可行性，再逐步迁移 |
@@ -461,13 +462,14 @@ using ValueResult = std::variant<
 | PR-69 | 复用 `detail::canVisitNode()` / `detail::visitsVariantNodes()` 去重 `ExprVisitor` / `StmtVisitor` 内部 `canVisit*` 检查，并保持 Expression/StatementEmitter 私有访问边界 | 2.1.2 |
 | PR-70 | 公开 `StandardLibrary::openCatalogLibrary()` 单库加载入口，并将 `openBase()` / `openMath()` / ... 9 个包装器标记为 `[[deprecated]]` 兼容 shim | 2.6.1 |
 | PR-71 | MSBuild `.vcxproj` 统一 `Level4`，CMake `lua_configure_target_warnings()` 对齐 MSVC `/W4` 与非 MSVC `-Wpedantic -Wconversion`，并清理 `/W4` 暴露的 warning | 5.2 |
+| PR-72 | `ValueResultVisitor` / `ValueResult::visit()` 访问入口，`ExpressionEmitter` 核心读取辅助函数迁移到 payload visitor，并补 legacy drift characterization 测试 | 3.5.2 |
 
 后续推荐顺序：
 
 | PR | 编号 | 任务 | 阶段 | 依赖 / 理由 |
 |---|---|---|---|---|
-| PR-72 | 3.5 | `ValueResult` 旧字段读面向 `std::visit` 迁移第一批 | 3 | 当前主要剩余技术债；以小范围 characterization 测试锁住行为后逐步减少 tagged-field 读面 |
 | PR-73 | 2.6.2 | 评估 `LibRegistrar` 声明式自注册是否仍值得落地 | 2 | P4 候选；catalog 已足够清晰，需先确认 linker 风险是否值得引入新机制 |
+| PR-74 | 3.5 | `ValueResult` 旧字段读面第二批：测试断言与剩余 facade/statement 读点梳理 | 3 | PR-72 已迁移生产热路径；下一批可降低公开字段依赖并评估 deprecation 路径 |
 
 每个 PR 完成后跑：
 
@@ -488,10 +490,10 @@ using ValueResult = std::variant<
 |---|---|---|---|---|
 | 阶段 1 — 短期代码清理 | ~95% | **~96%** | +1% | `tokenString` 集中化已完成；剩余工作转入跨阶段 P3 清理 |
 | 阶段 2 — 中期模式重构 | ~94% | **~91%** | −3% | GCStrategy、AstVisitor 组合模板、Visitor 内部检查去重和标准库 catalog 单库入口清理已落地；剩余主要是 P4 级 `LibRegistrar` 设想与 facade 瘦身 |
-| 阶段 3 — 现代 C++ 特性 | ~90% | **~90%** | 0 | ValueResult variant prototype 已就位，后续 std::visit 迁移为渐进工作 |
+| 阶段 3 — 现代 C++ 特性 | ~92% | **~92%** | 0 | ValueResult variant prototype 已就位，ExpressionEmitter 核心读路径已完成第一批 visitor 迁移 |
 | 阶段 4 — 教育价值增强 | ~88% | **~86%** | −2% | REPL 体验和字节码可视化主线已闭环；后续偏样例和文档深挖 |
 | 阶段 5 — 工程实践 | ~84% | **~84%** | 0 | 指令级覆盖矩阵、GC 策略等价测试、CFG 输出契约测试、Trace JSONL golden、REPL 增量解析测试、add_source 脚本和 CMake/MSBuild warning 策略对齐已补齐 |
-| **加权综合** | **~88%** | **~88%** | **0%** | |
+| **加权综合** | **~89%** | **~89%** | **0%** | |
 
 ---
 
@@ -536,9 +538,10 @@ using ValueResult = std::variant<
 | 3.3 `std::format` | ✓ 已完成 | debug / repl / bytecode / 标准库格式化均已迁移 | ✓ 确认 |
 | 3.4 其它 | ✓ 基本完成 | `[[nodiscard]]` / `std::span` / `constexpr` opcode 表 / `string_view` 均已覆盖 | ✓ 确认 |
 | 3.5.1 ValueResult variant | ✓ 已完成 | `std::variant` payload prototype 已合入，工厂函数覆盖 ExpressionEmitter / StatementEmitter 主要构造点 | ✓ 确认 |
-| 3.5 后续迁移 | 隐含待执行 | 旧字段读面仍保留，调用点尚未迁移到 `std::visit` | ⚠ 渐进进行中 |
+| 3.5.2 ValueResult visitor 第一批 | ✓ PR-72 | `ValueResultVisitor` / `ValueResult::visit()` 已新增；`ExpressionEmitter` truthiness、物化、RK/register、多返回值收敛、一元负号常量折叠和 owned-register 释放判断已读 payload | ✓ 确认 |
+| 3.5 后续迁移 | 渐进进行中 | 旧公开字段仍保留兼容；测试断言与剩余低风险读点后续继续按批次收口 | ⚠ 渐进进行中 |
 
-**结论**：现代 C++ 特性应用是五个阶段中完成度最高的，文档自评 90% 准确。ValueResult 的 variant 迁移是渐进式工作，prototype 阶段已达标。
+**结论**：现代 C++ 特性应用是五个阶段中完成度最高的，文档自评 92% 准确。ValueResult 的 variant 迁移是渐进式工作，prototype 阶段和第一批生产读路径迁移已达标。
 
 #### 阶段 4 核验
 

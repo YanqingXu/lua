@@ -81,9 +81,39 @@ void testExpressionEmitterLowersImmediateValues(TestSuite& suite) {
     ASSERT_TRUE(suite, boolValue.boolValue, "boolean literal value should be preserved");
 }
 
+void testExpressionEmitterMaterializesPayloadWhenLegacyFieldsDrift(TestSuite& suite) {
+    RuntimeServices services = RuntimeServices::fromSingletons();
+    CodeGenerator codegen(services);
+
+    Chunk chunk;
+    Proto* proto = codegen.generate(chunk, "test_expression_emitter");
+    ExpressionEmitter expressions(codegen);
+
+    ValueResult value = ValueResult::makeNumber(21.0);
+    value.kind = ValueResult::Kind::Register;
+    value.reg = 42;
+    value.numberValue = -1.0;
+
+    usize pc = proto->getInstructionCount();
+    expressions.materializeValue(value, 0);
+
+    Instruction inst = proto->getInstruction(pc);
+    ASSERT_EQ(suite, static_cast<int>(OpCode::LOADK), static_cast<int>(GET_OPCODE(inst)),
+              "materializeValue should dispatch from payload, not drifted legacy kind");
+    ASSERT_EQ(suite, 0, GETARG_A(inst), "materialized payload number targets the requested register");
+
+    Value constant = proto->getConstant(static_cast<usize>(GETARG_Bx(inst)));
+    ASSERT_TRUE(suite, constant.isNumber(), "payload number materializes as a numeric constant");
+    ASSERT_EQ(suite, 21.0, constant.asNumber(), "payload number value is preserved");
+
+    delete proto;
+}
+
 void registerExpressionEmitterTests() {
     auto& registry = TestRegistry::getInstance();
 
     registry.registerTest(kSuiteName, "Public Boundary", testExpressionEmitterPublicBoundary);
     registry.registerTest(kSuiteName, "Lowers Immediate Values", testExpressionEmitterLowersImmediateValues);
+    registry.registerTest(kSuiteName, "Materializes Payload When Legacy Fields Drift",
+                          testExpressionEmitterMaterializesPayloadWhenLegacyFieldsDrift);
 }

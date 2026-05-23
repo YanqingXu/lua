@@ -6,6 +6,14 @@ namespace Lua {
 
 constexpr i32 NO_JUMP = -1;
 
+template <typename... Visitors>
+struct ValueResultVisitor : Visitors... {
+    using Visitors::operator()...;
+};
+
+template <typename... Visitors>
+ValueResultVisitor(Visitors...) -> ValueResultVisitor<Visitors...>;
+
 struct PatchList {
     Vec<i32> pcs;
 
@@ -138,6 +146,16 @@ struct ValueResult {
 
     [[nodiscard]] Variant& payload() noexcept {
         return payload_;
+    }
+
+    template <typename Visitor>
+    decltype(auto) visit(Visitor&& visitor) const {
+        return std::visit(std::forward<Visitor>(visitor), payload_);
+    }
+
+    template <typename Visitor>
+    decltype(auto) visit(Visitor&& visitor) {
+        return std::visit(std::forward<Visitor>(visitor), payload_);
     }
 
     static ValueResult makeNil() {

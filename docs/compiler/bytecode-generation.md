@@ -1,7 +1,7 @@
 ---
 status: current
 verified_against: docs/status/project-status.md; docs/compiler/codegen-responsibility-map.md; src/common/lua_error.hpp; src/compiler/codegen/codegen.hpp; src/compiler/codegen/codegen.cpp; src/compiler/codegen/codegen_binding.cpp; src/compiler/codegen/codegen_expr.cpp; src/compiler/codegen/expression_emitter.hpp; src/compiler/codegen/expression_emitter.cpp; src/compiler/codegen/statement_emitter.hpp; src/compiler/codegen/statement_emitter.cpp; src/compiler/codegen/codegen_jump.cpp; src/compiler/codegen/codegen_stmt.cpp; src/compiler/codegen/codegen_types.hpp; src/compiler/codegen/codegen_context.hpp; src/compiler/codegen/codegen_state.hpp; src/compiler/codegen/jump_patcher.hpp; src/compiler/codegen/jump_patcher.cpp; src/compiler/codegen/scope_manager.hpp; src/compiler/codegen/scope_manager.cpp; src/compiler/codegen/bytecode_builder.hpp; src/compiler/register_allocator.hpp; tests/unit/compiler/test_codegen_result_types.cpp; tests/unit/compiler/test_codegen_state.cpp; tests/unit/compiler/test_codegen_characterization.cpp; tests/unit/compiler/test_jump_patcher.cpp; tests/unit/compiler/test_scope_manager.cpp; tests/unit/compiler/test_expression_emitter.cpp; tests/unit/compiler/test_statement_emitter.cpp
-last_checked: 2026-05-22
+last_checked: 2026-05-23
 applies_to: current AST-to-Proto bytecode generator
 ---
 
@@ -91,7 +91,7 @@ NameExpr("x")
 - 多返回值通过独立标记表达，不再和普通单值混在一起。
 
 PR-48 后，`ValueResult` 已有兼容式 `std::variant` prototype payload：
-`None`、`Immediate`、`ConstantRef`、`RegisterRef`、`PendingLoad`、`Relocatable`、`MultiRet` 和 `PendingJump`。旧的 `kind` / `reg` / `constIndex` 等公开字段仍保留为兼容读写面，新的工厂函数会同时填充 payload 和旧字段，后续可以按调用点逐步迁移到 `std::visit`。
+`None`、`Immediate`、`ConstantRef`、`RegisterRef`、`PendingLoad`、`Relocatable`、`MultiRet` 和 `PendingJump`。旧的 `kind` / `reg` / `constIndex` 等公开字段仍保留为兼容读写面，新的工厂函数会同时填充 payload 和旧字段。PR-72 后，`ValueResultVisitor` / `ValueResult::visit()` 已成为读取 payload 的主入口，`ExpressionEmitter` 的物化、RK/register 转换、多返回值收敛、truthiness 和 owned-register 查询已开始使用 visitor；剩余调用点继续按批次迁移。
 
 常见转换：
 

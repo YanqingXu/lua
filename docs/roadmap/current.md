@@ -48,7 +48,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_quality_gate.ps1
 | 中 | EngineContext / RuntimeServices | 已完成 | 已引入显式 RuntimeServices，并迁移入口层、CodeGenerator、Parser/VM 兼容重载 |
 | 中 | 教学导航 | 已完成 | 已新增 `docs/index.md`、术语表和 examples，并扩展 walkthrough 索引 |
 | 低 | CMake + CTest | 已完成 | 已新增 secondary CMake/CTest 路径，不替代 VS/MSBuild 主路径 |
-| 长期 | 拆分 CodeGenerator / VM / Parser / GC 策略边界 | 进行中 | 8A-8C CodeGenerator 边界已完成，8D-8G VM 入口、dispatch 分类、ops/call/剩余 helper 与 trace/debug 边界已完成；8H Parser 函数组审计与行为锁定、8I Parser 物理拆分执行已完成；PR-39 已完成 Switch dispatch 每 opcode inline helper；PR-40 已完成 VM expected 异常映射 helper；PR-41 已完成 CodeGenerator 职责地图与 characterization 测试；PR-42 已完成 JumpPatcher 抽取；PR-43 已完成 ScopeManager 抽取；PR-44 已完成 ExpressionEmitter 抽取；PR-45 已完成 StatementEmitter 抽取；PR-46 已完成 GC sweep 显式 StringPool 边界；PR-48 已完成 ValueResult variant prototype；PR-51 已完成 trace diff + changedRegisters；PR-52 已完成 gc-cycle walkthrough；PR-62 已完成 GCStrategy / MarkSweepGC / IncrementalGC 教学占位策略与等价性测试；PR-63 已完成 lua_bytecode Mermaid CFG；PR-64 已完成 Trace JSONL golden 测试；PR-65 已完成 REPL 增量解析测试；PR-66 已完成 add_source 源码清单同步脚本；PR-67 已完成 Parser tokenString utility 抽取；PR-68 已完成 AstVisitor 组合模板；PR-69 已完成 Visitor canVisit 检查去重；PR-70 已完成标准库 openXxx deprecated 包装清理；PR-71 已完成 CMake/MSBuild warning 策略对齐 |
+| 长期 | 拆分 CodeGenerator / VM / Parser / GC 策略边界 | 进行中 | 8A-8C CodeGenerator 边界已完成，8D-8G VM 入口、dispatch 分类、ops/call/剩余 helper 与 trace/debug 边界已完成；8H Parser 函数组审计与行为锁定、8I Parser 物理拆分执行已完成；PR-39 已完成 Switch dispatch 每 opcode inline helper；PR-40 已完成 VM expected 异常映射 helper；PR-41 已完成 CodeGenerator 职责地图与 characterization 测试；PR-42 已完成 JumpPatcher 抽取；PR-43 已完成 ScopeManager 抽取；PR-44 已完成 ExpressionEmitter 抽取；PR-45 已完成 StatementEmitter 抽取；PR-46 已完成 GC sweep 显式 StringPool 边界；PR-48 已完成 ValueResult variant prototype；PR-51 已完成 trace diff + changedRegisters；PR-52 已完成 gc-cycle walkthrough；PR-62 已完成 GCStrategy / MarkSweepGC / IncrementalGC 教学占位策略与等价性测试；PR-63 已完成 lua_bytecode Mermaid CFG；PR-64 已完成 Trace JSONL golden 测试；PR-65 已完成 REPL 增量解析测试；PR-66 已完成 add_source 源码清单同步脚本；PR-67 已完成 Parser tokenString utility 抽取；PR-68 已完成 AstVisitor 组合模板；PR-69 已完成 Visitor canVisit 检查去重；PR-70 已完成标准库 openXxx deprecated 包装清理；PR-71 已完成 CMake/MSBuild warning 策略对齐；PR-72 已完成 ValueResult 读取侧第一批 visitor 迁移 |
 
 ## 已完成优化
 
@@ -127,7 +127,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_quality_gate.ps1
 
 - 质量门禁配置自检通过。
 - 文档漂移检查通过。
-- 本机有 MSBuild 和 `bin\lua_test.exe` 时，`run_quality_gate.ps1` 会构建 `lua_test.vcxproj`，并运行 544 个注册测试 / 2735 个结果 / 0 失败。
+- 本机有 MSBuild 和 `bin\lua_test.exe` 时，`run_quality_gate.ps1` 会构建 `lua_test.vcxproj`，并运行 546 个注册测试 / 2741 个结果 / 0 失败。
 
 ### 3A. 共享文件读取
 
@@ -1574,7 +1574,7 @@ git diff --check
 - [x] CMake MSVC 路径使用 `/W4 /permissive- /utf-8 /FS`；非 MSVC 路径使用 `-Wall -Wextra -Wpedantic -Wconversion`。
 - [x] 清理 `/W4` 暴露的 warning：异常 / `std::exit` 后的不可达返回、未使用参数 / 局部变量、`toupper` / `tolower` 的显式 `char` 转换、未使用测试 helper。
 - [x] `check_doc_drift.ps1` 新增 warning policy 守卫，防止 `.vcxproj` 回退到 `Level3` 或 CMake 丢失 `/W4` / `-Wpedantic` / `-Wconversion`。
-- [x] 同步 README、开发指南、项目状态和优化路线图；下一项推荐推进到 PR-72：`ValueResult` 读面向 `std::visit` 迁移第一批。
+- [x] 同步 README、开发指南、项目状态和优化路线图；后续 PR-72 已收口 `ValueResult` 读面向 visitor 迁移第一批。
 
 已使用的验证命令：
 
@@ -1592,6 +1592,41 @@ bin\lua_test.exe
 - CMake clean smoke 构建 `lua_core` / `lua_app` / `lua_bytecode` / `lua_test`，CTest 5/5 通过。
 - CMake 生成的 `lua_core` / `lua_app` / `lua_bytecode` / `lua_test` `.vcxproj` 均为 `WarningLevel` `Level4`。
 - 默认 `bin\lua_test.exe` 运行 544 个 registered tests / 2735 个 assertion results / 0 failures。
+
+## 已完成任务：ValueResult visitor 第一批迁移
+
+### PR-72 / 3.5.2：读取侧从旧字段迁移到 payload visitor
+
+**目标：** 保留 `ValueResult` 旧公开字段的兼容面，但让生产热路径开始读取 `std::variant` payload，降低 tagged-field 隐式契约风险。
+
+已完成：
+
+- [x] `src/compiler/codegen/codegen_types.hpp` 新增 `ValueResultVisitor` overload helper 与 `ValueResult::visit()` const / non-const 入口。
+- [x] `ExpressionEmitter` 的 truthiness 判断、`materializeValue()`、`valueToRK()`、`valueToAnyReg()`、`valueToNextReg()` 和 `forceSingleValue()` 改为读取 payload。
+- [x] 一元负号常量折叠和 `emitStore()` 的 owned-register 释放判断改为通过 payload helper 查询。
+- [x] 新增 `Codegen Result Types::ValueResult Payload Visit Ignores Legacy Drift`，确认 visitor 读取不受旧字段漂移影响。
+- [x] 新增 `Expression Emitter::Materializes Payload When Legacy Fields Drift`，确认物化路径按 payload 发射 `LOADK`，而不是按旧 `kind` 字段误判。
+- [x] 同步 README、项目状态、字节码生成说明、职责地图和优化路线图；下一项推荐推进到 PR-73：评估 `LibRegistrar` 是否仍值得落地。
+
+已使用的验证命令：
+
+```powershell
+& 'D:\VS2026\2026\MSBuild\Current\Bin\MSBuild.exe' lua_test.vcxproj /m /p:Configuration=Debug /p:Platform=x64
+bin\lua_test.exe --filter "Codegen Result Types"
+bin\lua_test.exe --filter "Expression Emitter"
+bin\lua_test.exe --filter "ValueResult Pipeline"
+bin\lua_test.exe
+.\tools\run_cmake_smoke.ps1
+```
+
+验收结果：
+
+- `lua_test.vcxproj` 在 `/W4` 下 0 warnings / 0 errors。
+- `Codegen Result Types` 过滤测试运行 4 个 selected tests / 35 个 results / 0 failures。
+- `Expression Emitter` 过滤测试运行 3 个 selected tests / 16 个 results / 0 failures。
+- `ValueResult Pipeline` 过滤测试运行 22 个 selected tests / 26 个 results / 0 failures。
+- 默认 `bin\lua_test.exe` 运行 546 个 registered tests / 2741 个 assertion results / 0 failures。
+- CMake smoke 构建 `lua_core` / `lua_app` / `lua_bytecode` / `lua_test`，CTest 5/5 通过。
 
 ## 维护规则
 

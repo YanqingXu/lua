@@ -107,10 +107,44 @@ void testValueResultVariantPrototype(TestSuite& suite) {
     ASSERT_FALSE(suite, call.isSingleValue, "multi-ret factory clears legacy single flag");
 }
 
+void testValueResultPayloadVisitIgnoresLegacyDrift(TestSuite& suite) {
+    ValueResult number = ValueResult::makeNumber(12.5);
+    number.kind = ValueResult::Kind::Register;
+    number.reg = 99;
+    number.numberValue = -1.0;
+
+    f64 visitedNumber = number.visit(ValueResultVisitor{
+        [](const ValueResult::Immediate& immediate) -> f64 {
+            return immediate.kind == ValueResult::ImmediateKind::Number ? immediate.numberValue : -1.0;
+        },
+        [](const auto&) -> f64 {
+            return -1.0;
+        },
+    });
+    ASSERT_EQ(suite, 12.5, visitedNumber, "payload visit reads the variant, not drifted legacy fields");
+
+    ValueResult call = ValueResult::makeMultiRet(ValueResult::AccessKind::Call, 2, 9);
+    call.access = ValueResult::AccessKind::Vararg;
+    call.reg = 77;
+    call.instructionPc = 101;
+
+    i32 visitedBase = call.visit(ValueResultVisitor{
+        [](const ValueResult::MultiRet& multi) -> i32 {
+            return multi.access == ValueResult::AccessKind::Call ? multi.reg : -1;
+        },
+        [](const auto&) -> i32 {
+            return -1;
+        },
+    });
+    ASSERT_EQ(suite, 2, visitedBase, "payload visit keeps multi-ret base independent from legacy fields");
+}
+
 void registerCodegenResultTypeTests() {
     auto& registry = TestRegistry::getInstance();
 
     registry.registerTest(kSuiteName, "Default Result Type State", testDefaultResultTypeState);
     registry.registerTest(kSuiteName, "PatchList Append And Merge", testPatchListAppendAndMerge);
     registry.registerTest(kSuiteName, "ValueResult Variant Prototype", testValueResultVariantPrototype);
+    registry.registerTest(kSuiteName, "ValueResult Payload Visit Ignores Legacy Drift",
+                          testValueResultPayloadVisitIgnoresLegacyDrift);
 }
