@@ -14,7 +14,7 @@
  * - 打印表达式结果
  * - 处理错误并继续运行
  * - 支持 Ctrl+C 中断信号
- * - 支持可配置的提示符 (_PROMPT, _PROMPT2)
+ * - 支持默认行号提示符和可配置的提示符 (_PROMPT, _PROMPT2)
  *
  * 参考实现：
  * - lua_c_analysis/src/lua.c - dotty(), loadline(), pushline(), incomplete()
@@ -200,8 +200,8 @@ void reportError(const char* source, int line, const char* msg, bool showProgNam
  *
  * 设置 REPL 所需的全局变量和函数：
  * - _VERSION: Lua 版本信息
- * - _PROMPT: 主提示符（可由用户修改）
- * - _PROMPT2: 续行提示符（可由用户修改）
+ * - _PROMPT: 主提示符（默认值启用 lua:N> 行号显示，可由用户修改）
+ * - _PROMPT2: 续行提示符（默认值启用 lua:N>> 行号显示，可由用户修改）
  * - exit(): 退出 REPL 的函数
  *
  * @param L Lua 状态机指针
@@ -221,7 +221,7 @@ void initialize(LuaState* L);
  *
  * 支持的特性：
  * - Ctrl+C 中断当前输入
- * - 可配置的提示符（通过 _PROMPT 和 _PROMPT2 全局变量）
+ * - 默认行号提示符，可通过 _PROMPT 和 _PROMPT2 全局变量覆盖
  * - exit() 函数退出
  *
  * 参考官方 Lua 的 dotty() 函数实现。

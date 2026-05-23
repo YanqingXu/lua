@@ -92,6 +92,7 @@ set(LUA_REPL_SOURCES
     src/repl/repl_exe.cpp
     src/repl/repl_hist.cpp
     src/repl/repl_meta.cpp
+    src/repl/repl_prompt.cpp
     src/repl/repl_sig.cpp
 )
 

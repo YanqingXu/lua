@@ -144,6 +144,7 @@
     <ClInclude Include="src\repl\repl_exe.hpp" />
     <ClInclude Include="src\repl\repl_hist.hpp" />
     <ClInclude Include="src\repl\repl_meta.hpp" />
+    <ClInclude Include="src\repl\repl_prompt.hpp" />
     <ClInclude Include="src\repl\repl_sig.hpp" />
     <ClInclude Include="src\repl\repl_txt.hpp" />
   </ItemGroup>
@@ -156,6 +157,7 @@
     <ClCompile Include="src\repl\repl_exe.cpp" />
     <ClCompile Include="src\repl\repl_hist.cpp" />
     <ClCompile Include="src\repl\repl_meta.cpp" />
+    <ClCompile Include="src\repl\repl_prompt.cpp" />
     <ClCompile Include="src\repl\repl_sig.cpp" />
     <ClCompile Include="tests\unit\framework\test_framework.cpp" />
     <ClCompile Include="tests\unit\framework\test_runner.cpp" />

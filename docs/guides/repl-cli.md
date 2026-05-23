@@ -67,7 +67,8 @@ Supported REPL behavior:
 - `exit()` exits through the registered function
 - Ctrl+D / EOF exits
 - Ctrl+C cancels current input where supported
-- multi-line input uses `_PROMPT2`
+- default prompts are line-numbered as `lua:1> ` for the first line and `lua:2>> ` for continuation lines
+- custom multi-line prompts use `_PROMPT2` literally
 - `=expr` is transformed into `return expr` and prints returned values
 - ordinary input is parsed as statements and does not auto-print expression values
 - Tab completion covers meta commands, globals, and loaded library fields such as `string.sub`
@@ -98,6 +99,9 @@ Inside the REPL:
 _PROMPT = "lua> "
 _PROMPT2 = "...> "
 ```
+
+The default `_PROMPT` / `_PROMPT2` values opt into line-numbered prompts.
+Assigning custom prompt strings keeps those strings unchanged.
 
 ## Trace Output
 

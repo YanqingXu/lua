@@ -13,6 +13,7 @@
 #include "repl/repl_exe.hpp"
 #include "repl/repl_hist.hpp"
 #include "repl/repl_meta.hpp"
+#include "repl/repl_prompt.hpp"
 #include "repl/repl_sig.hpp"
 #include "runtime/runtime_services.hpp"
 #include "vm/state/global_state.hpp"
@@ -23,27 +24,6 @@
 
 namespace Lua::REPL {
 namespace {
-
-Str getPrompt(LuaState* L, bool firstLine) {
-    static Str cachedPrompt1;
-    static Str cachedPrompt2;
-
-    const char* varName = firstLine ? "_PROMPT" : "_PROMPT2";
-    const char* defaultPrompt = firstLine ? DEFAULT_PROMPT1 : DEFAULT_PROMPT2;
-    Str& cachedPrompt = firstLine ? cachedPrompt1 : cachedPrompt2;
-
-    try {
-        Value val = L->getGlobal(varName);
-        if (val.isString()) {
-            cachedPrompt = val.asString()->c_str();
-            return cachedPrompt;
-        }
-    } catch (...) {
-        // Fall back to the default prompt if user-provided globals misbehave.
-    }
-
-    return defaultPrompt;
-}
 
 int luaB_exit(LuaState* L) {
     int exitCode = 0;
@@ -84,7 +64,7 @@ public:
                 continue;
             }
 
-            const Str prompt = getPrompt(L_, isFirstLine_);
+            const Str prompt = detail::getPrompt(L_, isFirstLine_, currentLine_);
             Str line;
             if (!readLine(prompt, line)) {
                 output_ << std::endl;
@@ -226,6 +206,7 @@ private:
     void handleParseFailure(const ParseError& error) {
         if (detail::isIncompleteInput(error.what())) {
             isFirstLine_ = false;
+            currentLine_ += 1;
             return;
         }
 
@@ -237,6 +218,7 @@ private:
         inputBuffer_.clear();
         bufferIsExpression_ = false;
         isFirstLine_ = true;
+        currentLine_ = 1;
     }
 
     detail::ReplContext& context_;
@@ -248,6 +230,7 @@ private:
     Str inputBuffer_;
     bool bufferIsExpression_ = false;
     bool isFirstLine_ = true;
+    usize currentLine_ = 1;
 };
 
 }  // namespace

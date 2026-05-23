@@ -66,6 +66,9 @@
     <ClInclude Include="src\repl\repl_meta.hpp">
       <Filter>src\repl</Filter>
     </ClInclude>
+    <ClInclude Include="src\repl\repl_prompt.hpp">
+      <Filter>src\repl</Filter>
+    </ClInclude>
     <ClInclude Include="src\repl\repl_sig.hpp">
       <Filter>src\repl</Filter>
     </ClInclude>
@@ -96,6 +99,9 @@
       <Filter>src\repl</Filter>
     </ClCompile>
     <ClCompile Include="src\repl\repl_meta.cpp">
+      <Filter>src\repl</Filter>
+    </ClCompile>
+    <ClCompile Include="src\repl\repl_prompt.cpp">
       <Filter>src\repl</Filter>
     </ClCompile>
     <ClCompile Include="src\repl\repl_sig.cpp">

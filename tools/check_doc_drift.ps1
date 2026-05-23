@@ -264,6 +264,8 @@ $replGuideFacts = @(
     ".ast <expr|chunk>",
     ".gc [stats|collect|strategy|help]",
     "Tab completion",
+    "line-numbered",
+    "lua:1>",
     "colorized error output",
     "ErrorColorMode::Auto",
     "mode: expression",

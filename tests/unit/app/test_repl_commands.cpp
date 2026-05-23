@@ -4,8 +4,11 @@
  */
 
 #include "../framework/test_framework.hpp"
+#include "core/string_pool.hpp"
 #include "lib/lib_manager.hpp"
 #include "repl.hpp"
+#include "repl/repl_prompt.hpp"
+#include "vm/state/global_state.hpp"
 
 #include <filesystem>
 #include <iostream>
@@ -94,6 +97,27 @@ void testHistoryRoundTrip(TestSuite& suite) {
     ASSERT_EQ(suite, history[1], loaded[1], "second history entry should round-trip");
 
     std::filesystem::remove(historyPath);
+}
+
+void testLinePromptDefaultsAndCustomPrompts(TestSuite& suite) {
+    LuaState* L = LuaState::newState();
+    REPL::initialize(L);
+
+    ASSERT_EQ(suite, Str("lua:1> "), REPL::detail::getPrompt(L, true, 1),
+              "default first-line prompt should include the REPL line number");
+    ASSERT_EQ(suite, Str("lua:2>> "), REPL::detail::getPrompt(L, false, 2),
+              "default continuation prompt should include the REPL line number");
+
+    StringPool& pool = L->getGlobalState().getStringPool();
+    L->setGlobal("_PROMPT", Value(pool.intern("custom> ")));
+    L->setGlobal("_PROMPT2", Value(pool.intern("custom>> ")));
+
+    ASSERT_EQ(suite, Str("custom> "), REPL::detail::getPrompt(L, true, 10),
+              "custom first-line prompt should remain unchanged");
+    ASSERT_EQ(suite, Str("custom>> "), REPL::detail::getPrompt(L, false, 11),
+              "custom continuation prompt should remain unchanged");
+
+    delete L;
 }
 
 void testCompleteMetaCommand(TestSuite& suite) {
@@ -397,6 +421,8 @@ void registerReplCommandTests() {
     registry.registerTest(kSuiteName, "Parse Meta Commands", testParseMetaCommands);
     registry.registerTest(kSuiteName, "Print Help Shows Supported Commands", testPrintHelpShowsSupportedCommands);
     registry.registerTest(kSuiteName, "History Round Trip", testHistoryRoundTrip);
+    registry.registerTest(kSuiteName, "Line Prompt Defaults And Custom Prompts",
+                          testLinePromptDefaultsAndCustomPrompts);
     registry.registerTest(kSuiteName, "Complete Meta Command", testCompleteMetaCommand);
     registry.registerTest(kSuiteName, "Complete GC Option Uses Common Prefix",
                           testCompleteGcOptionUsesCommonPrefix);
