@@ -2,9 +2,9 @@
 
 > 适用范围：`g:\github\lua`（现代 C++ Lua 5.1.5 解释器）
 > 设计目标：**可读性 > 可维护性 > 教育价值 > 性能**
-> 约束：保持 542 个注册测试 / 2728 个断言结果 / 0 失败，不破坏 `LuaState` / `VM` public API。
+> 约束：保持 543 个注册测试 / 2730 个断言结果 / 0 失败，不破坏 `LuaState` / `VM` public API。
 > 最近审计：2026-05-21（深度审计报告，覆盖 Readability / Extensibility / Educational Value 三维度）
-> 最近同步：2026-05-23（PR-67：`ParserUtils::tokenString` 集中到 `parser_utils.hpp`）
+> 最近同步：2026-05-23（PR-68：`AstVisitor<Derived, R>` 组合模板）
 
 ---
 
@@ -25,7 +25,7 @@
 | 阶段 | 周期定位 | 关注点 | 是否触发 API 变化 | 完成度 |
 |---|---|---|---|---|
 | **阶段 1 — 短期代码清理** | 1–2 个迭代 | 删冗余、统一命名、收紧错误处理、文档与代码同步 | 否 | ~95% |
-| **阶段 2 — 中期模式重构** | 3–5 个迭代 | 引入访问者 / 策略 / 命令模式，VM dispatch 与 GC 抽象化 | 内部 API 调整、public 不变 | ~91% |
+| **阶段 2 — 中期模式重构** | 3–5 个迭代 | 引入访问者 / 策略 / 命令模式，VM dispatch 与 GC 抽象化 | 内部 API 调整、public 不变 | ~92% |
 | **阶段 3 — 现代 C++ 特性** | 穿插于 1 & 2 | `std::expected` / `concepts` / `std::format` / `[[nodiscard]]` | 部分 public 签名变更 | ~90% |
 | **阶段 4 — 教育价值增强** | 持续推进 | 自解释代码、字节码可视化、执行链路教学文档、REPL 体验、Trace 差异模式 | 否（增量增强） | ~88% |
 | **阶段 5 — 工程实践** | 持续 | 测试覆盖、质量门、构建一致性、文档漂移检测 | 否 | ~82% |
@@ -103,7 +103,7 @@ static std::expected<T, RuntimeError> captureRuntimeErrors(Fn&& fn) {
 
 ### 2.1 访问者模式（Visitor）应用到 AST ✓ 已完成
 
-[ast_visitor.hpp](src/compiler/ast_visitor.hpp) 已实现 CRTP `ExprVisitor<Derived, R>` + `StmtVisitor<Derived, R>`，`CodeGenerator` 通过 `ExprVisitor<CodeGenerator, ValueResult>` 继承获得分发能力。
+[ast_visitor.hpp](src/compiler/ast_visitor.hpp) 已实现 CRTP `ExprVisitor<Derived, R>` + `StmtVisitor<Derived, R>`，并在 PR-68 新增 `AstVisitor<Derived, R>` 组合模板与 `VisitsAstNodes` concept；`CodeGenerator` 通过 `ExprVisitor<CodeGenerator, ValueResult>` 继承获得分发能力，REPL AST printer 使用 `AstVisitor<AstPrinter>` 覆盖表达式与语句树。
 
 **审计评价（A 级）**：`consteval canVisitAll()` 使用 fold expression 遍历 variant 的 `std::index_sequence`，确保遗漏任何 AST 节点类型都会产生编译期 `static_assert` 错误——这对教学项目极有价值。
 
@@ -111,7 +111,7 @@ static std::expected<T, RuntimeError> captureRuntimeErrors(Fn&& fn) {
 
 | 编号 | 任务 | 说明 | 状态 |
 |---|---|---|---|
-| 2.1.1 | 提供 `AstVisitor<Derived, R>` 组合模板 | 继承 `ExprVisitor + StmtVisitor`，减少新 visitor 的样板代码 | P3 待执行 |
+| 2.1.1 | 提供 `AstVisitor<Derived, R>` 组合模板 | 继承 `ExprVisitor + StmtVisitor`，减少新 visitor 的样板代码；`AstPrinter` 已迁移为真实使用点 | ✓ **已完成 — PR-68** |
 | 2.1.2 | 复用 `detail::visitsVariantNodes`，减少 `ExprVisitor` / `StmtVisitor` 内部 `canVisit*` 重复 | 公共 `VisitsNode*` / `VisitsExprNodes` / `VisitsStmtNodes` concepts 已可复用，剩余是内部去重 | P3 待执行 |
 
 ### 2.2 命令模式 + 策略模式 应用到 VM Dispatch ✓ 已完成
@@ -379,7 +379,7 @@ using ValueResult = std::variant<
 
 ### 5.1 测试覆盖精细化
 
-**现状**：542 个注册测试 / 2728 个断言结果 / 0 失败，目录 `tests/unit/`、`tests/lua/`。
+**现状**：543 个注册测试 / 2730 个断言结果 / 0 失败，目录 `tests/unit/`、`tests/lua/`。
 
 **改进方向**（优先小步增量；覆盖矩阵作为 checklist 文档）：
 
@@ -409,7 +409,7 @@ using ValueResult = std::variant<
 | 风险 | 影响 | 缓解 |
 |---|---|---|
 | VM dispatch 命令模式化引入函数指针表，调试器单步体验下降 | 影响教学 | 保留 `SwitchDispatch` 作为默认；调试构建强制使用；1.1.1 落地的独立 inline 函数进一步改善 Switch 路径单步体验 |
-| `std::expected` 大范围替换异常导致调用链翻新 | 542 测试可能批量红 | 按 3.1 表格逐个函数迁移，每次 1 个函数 + 全量测试 |
+| `std::expected` 大范围替换异常导致调用链翻新 | 543 测试可能批量红 | 按 3.1 表格逐个函数迁移，每次 1 个函数 + 全量测试 |
 | GC 去单例化破坏标准库内部对 `GarbageCollector::getInstance()` 的引用 | 编译错误广泛 | 保留 inline shim `getInstance()` 一版本，标记 `[[deprecated]]` |
 | Visitor 化后 codegen 性能下降 | 不影响目标，但需观察 | 教学项目可接受；基准用 `examples/*.lua` 跑回归 |
 | `ValueResult` → `std::variant` 重构引入大量访问代码 | 调用侧需逐一迁移 `std::visit` | 先做 prototype 分支验证可行性，再逐步迁移 |
@@ -457,12 +457,13 @@ using ValueResult = std::variant<
 | PR-65 | REPL 增量解析测试，使用真实 Parser 错误锁住 EOF-driven continuation、明确语法错误立即报告，以及 `=function(...)` 多行表达式保持 expression mode | 5.1 |
 | PR-66 | `tools/add_source.ps1` 源码清单同步脚本，覆盖 CMake / VS project / filters 追加、目标自动推断、dry-run 和质量门烟测 | 5.3 |
 | PR-67 | `ParserUtils::tokenString` 集中到 `parser_utils.hpp`，移除 `Parser` 类内无状态字符串 helper，并保持借用型 `StrView` 测试边界 | 1.2 |
+| PR-68 | `AstVisitor<Derived, R>` 组合模板与 `VisitsAstNodes` concept，REPL AST printer 迁移到组合 visitor，并补 AST Visitor 分派契约测试 | 2.1.1 |
 
 后续推荐顺序：
 
 | PR | 编号 | 任务 | 阶段 | 依赖 / 理由 |
 |---|---|---|---|---|
-| PR-68 | 2.1.1 | 提供 `AstVisitor<Derived, R>` 组合模板 | 2 | P3；复用已有 Expr/Stmt visitor，减少新 visitor 的样板继承写法 |
+| PR-69 | 2.1.2 | 复用 `detail::visitsVariantNodes` 去重 `ExprVisitor` / `StmtVisitor` 内部 `canVisit*` | 2 | P3；在 PR-68 组合层稳定后，收口 visitor 内部重复检查实现 |
 
 每个 PR 完成后跑：
 
@@ -482,11 +483,11 @@ using ValueResult = std::variant<
 | 阶段 | 文档自评 | 实际评估 | 偏差 | 关键差距 |
 |---|---|---|---|---|
 | 阶段 1 — 短期代码清理 | ~95% | **~96%** | +1% | `tokenString` 集中化已完成；剩余工作转入跨阶段 P3 清理 |
-| 阶段 2 — 中期模式重构 | ~91% | **~86%** | −5% | GCStrategy 已落地；lib_manager 声明清理、Visitor 去重仍未落地 |
+| 阶段 2 — 中期模式重构 | ~92% | **~88%** | −4% | GCStrategy 与 AstVisitor 组合模板已落地；lib_manager 声明清理、Visitor 内部去重仍未落地 |
 | 阶段 3 — 现代 C++ 特性 | ~90% | **~90%** | 0 | ValueResult variant prototype 已就位，后续 std::visit 迁移为渐进工作 |
 | 阶段 4 — 教育价值增强 | ~88% | **~86%** | −2% | REPL 体验和字节码可视化主线已闭环；后续偏样例和文档深挖 |
 | 阶段 5 — 工程实践 | ~82% | **~82%** | 0 | 指令级覆盖矩阵、GC 策略等价测试、CFG 输出契约测试、Trace JSONL golden、REPL 增量解析测试和 add_source 脚本已补齐；剩余为 CMake 编译选项对齐 |
-| **加权综合** | **~87%** | **~84%** | **−3%** | |
+| **加权综合** | **~87%** | **~85%** | **−2%** | |
 
 ---
 
@@ -509,8 +510,8 @@ using ValueResult = std::variant<
 
 | 编号 | 文档标记 | 代码库实际 | 判定 |
 |---|---|---|---|
-| 2.1 Visitor | ✓ 已完成 | `ExprVisitor<Derived, R>` + `StmtVisitor<Derived, R>` + concepts 完整 | ✓ 确认 |
-| 2.1.1 | P3 待执行 | 无 `AstVisitor<Derived, R>` 组合模板，两个 Visitor 各自独立 | ✗ 未完成 |
+| 2.1 Visitor | ✓ 已完成 | `ExprVisitor<Derived, R>` + `StmtVisitor<Derived, R>` + `AstVisitor<Derived, R>` + concepts 完整 | ✓ 确认 |
+| 2.1.1 | ✓ PR-68 | `src/compiler/ast_visitor.hpp` 提供 `AstVisitor<Derived, R>` 与 `VisitsAstNodes`；`src/repl/repl_meta.cpp` 的 `AstPrinter` 已迁移到组合 visitor | ✓ 确认 |
 | 2.1.2 | P3 待执行 | `ExprVisitor::canVisitNode()` / `canVisitAll()` 与 `StmtVisitor` 内同名方法逻辑完全重复，未提取公共实现 | ✗ 未完成 |
 | 2.2 VM Dispatch | ✓ 已完成 | `DispatchStrategy` + `SwitchDispatch` + `TableDispatch` + `HandlerTable` (38 条目, 9 组注册) | ✓ 确认 |
 | 2.3 GC 去单例 | ✓ 已完成 | `GarbageCollector::sweep(StringPool&)` / `clearAll(StringPool&)` 已收口；`getInstance()` 标记 `[[deprecated]]` | ✓ 确认 |
@@ -520,7 +521,7 @@ using ValueResult = std::variant<
 | 2.6.1 | P3 待执行 | `lib_manager.hpp` 仍保留 7 个 `openXxx()` 方法声明，无 `[[deprecated]]` 标记 | ✗ 未完成 |
 | 2.6.2 | P4 候选 | 代码库中不存在 `LibRegistrar` 类 | ✗ 未完成 |
 
-**结论**：核心重构（Visitor、Dispatch、CodeGen 拆分、GCStrategy）全部落地且质量高。剩余阶段 2 差距主要是 `lib_manager.hpp` 冗余声明和 Visitor 内部去重，均属于低优先级清理。
+**结论**：核心重构（Visitor、Dispatch、CodeGen 拆分、GCStrategy）全部落地且质量高。PR-68 已补齐 full-tree visitor 组合模板；剩余阶段 2 差距主要是 `lib_manager.hpp` 冗余声明和 Visitor 内部去重，均属于低优先级清理。
 
 #### 阶段 3 核验
 
@@ -588,7 +589,6 @@ using ValueResult = std::variant<
 
 | 编号 | 任务 |
 |---|---|
-| 2.1.1 | `AstVisitor<Derived, R>` 组合模板 |
 | 2.1.2 | `ExprVisitor` / `StmtVisitor` 内部 `canVisit*` 去重 |
 | 2.6.1 | `lib_manager.hpp` `openXxx()` 标记 `[[deprecated]]` |
 

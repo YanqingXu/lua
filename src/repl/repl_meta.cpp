@@ -170,7 +170,7 @@ Str escapeAstString(const Str& value) {
     return escaped;
 }
 
-class AstPrinter : public ExprVisitor<AstPrinter>, public StmtVisitor<AstPrinter> {
+class AstPrinter : public AstVisitor<AstPrinter> {
 public:
     explicit AstPrinter(std::ostream& out) : out_(out) {}
 
@@ -391,11 +391,11 @@ private:
     }
 
     void printExpr(const Expr& expr) {
-        ExprVisitor<AstPrinter>::visit(expr);
+        visit(expr);
     }
 
     void printStmt(const Stmt& stmt) {
-        StmtVisitor<AstPrinter>::visit(stmt);
+        visit(stmt);
     }
 
     void printExprField(std::string_view label, const Expr* expr) {

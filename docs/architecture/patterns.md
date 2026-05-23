@@ -13,7 +13,7 @@ This file records the design patterns that are intentionally present in the curr
 
 | Pattern | Status | Primary files | Current role |
 |---|---|---|---|
-| Visitor | Implemented | `src/compiler/ast_visitor.hpp`, `src/compiler/codegen/codegen.hpp`, `src/compiler/codegen/codegen_expr.cpp` | CRTP visitors wrap AST `std::variant` dispatch. Expression lowering currently uses `ExprVisitor<CodeGenerator, ValueResult>`; `StmtVisitor` is available for future statement-side migration. |
+| Visitor | Implemented | `src/compiler/ast_visitor.hpp`, `src/compiler/codegen/codegen.hpp`, `src/compiler/codegen/codegen_expr.cpp`, `src/repl/repl_meta.cpp` | CRTP visitors wrap AST `std::variant` dispatch. `ExprVisitor` and `StmtVisitor` cover expression-only and statement-only consumers; `AstVisitor` combines both for full-tree tools such as the REPL AST printer. |
 | Command | Implemented | `src/vm/vm_handlers.hpp`, `src/vm/vm_handlers.cpp`, `src/vm/vm_handlers/` | VM opcode behavior is represented by free-function handlers registered into `HandlerTable`. Table dispatch calls `runHandler()` instead of switching directly on every opcode. |
 | Strategy | Implemented | `src/vm/vm_dispatch_strategy.hpp`, `src/vm/vm_dispatch_strategy.cpp`, `src/gc/gc_strategy.hpp`, `src/gc/gc_strategy.cpp`, `src/runtime/runtime_services.hpp`, `src/vm/vm.cpp` | `DispatchStrategy` selects the VM execution algorithm; `GCStrategy` selects the collector algorithm boundary. `SwitchDispatch` and `MarkSweepGC` are the defaults. |
 | Singleton | Compatibility boundary | `src/vm/state/global_state.hpp`, `src/runtime/runtime_services.hpp`, `src/gc/garbage_collector.hpp` | `GlobalState` remains singleton-backed for process-wide runtime services. New compiler, VM, and GC paths should prefer explicit service wiring. `GarbageCollector::getInstance()` remains only as a deprecated compatibility shim. |
@@ -23,7 +23,7 @@ This file records the design patterns that are intentionally present in the curr
 
 ### Visitor
 
-The AST visitor layer intentionally stays small. `ExprVisitor` and `StmtVisitor` only centralize variant dispatch; they do not own traversal policy, scope state, bytecode emission, or diagnostics. Those responsibilities remain in users such as `CodeGenerator`.
+The AST visitor layer intentionally stays small. `ExprVisitor`, `StmtVisitor`, and the combined `AstVisitor` only centralize variant dispatch; they do not own traversal policy, scope state, bytecode emission, or diagnostics. Those responsibilities remain in users such as `CodeGenerator` and the REPL AST printer.
 
 When adding a new AST consumer, prefer a concrete visitor type over adding more branching to `CodeGenerator`. When changing code generation itself, keep the current `CodeGenerator` public API stable.
 

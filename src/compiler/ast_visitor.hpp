@@ -44,6 +44,9 @@ template <typename Visitor, typename R = void>
 concept VisitsStmtNodes = detail::visitsVariantNodes<Visitor, StmtVariant, R>(
     std::make_index_sequence<std::variant_size_v<StmtVariant>>{});
 
+template <typename Visitor, typename R = void>
+concept VisitsAstNodes = VisitsExprNodes<Visitor, R> && VisitsStmtNodes<Visitor, R>;
+
 template <typename Derived, typename R = void>
 struct ExprVisitor {
     R visit(const Expr& expr) {
@@ -134,6 +137,12 @@ private:
     static consteval bool canVisitAll(std::index_sequence<I...>) {
         return (canVisitNode<std::variant_alternative_t<I, StmtVariant>>() && ...);
     }
+};
+
+template <typename Derived, typename R = void>
+struct AstVisitor : ExprVisitor<Derived, R>, StmtVisitor<Derived, R> {
+    using ExprVisitor<Derived, R>::visit;
+    using StmtVisitor<Derived, R>::visit;
 };
 
 } // namespace Lua

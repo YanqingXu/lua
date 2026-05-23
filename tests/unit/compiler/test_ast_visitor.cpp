@@ -49,6 +49,16 @@ struct StmtNameVisitor : StmtVisitor<StmtNameVisitor, const char*> {
     const char* visitNode(const DoStmt&) { return "do"; }
 };
 
+struct AstNameVisitor : AstVisitor<AstNameVisitor, const char*> {
+    const char* visitNode(const NumberExpr&) { return "number"; }
+    const char* visitNode(const EmptyStmt&) { return "empty"; }
+
+    template <typename Node>
+    const char* visitNode(const Node&) {
+        return "other";
+    }
+};
+
 struct PartialExprVisitor {
     const char* visitNode(const NumberExpr&) { return "number"; }
 };
@@ -60,6 +70,8 @@ static_assert(!VisitsNodeAs<ExprNameVisitor, NumberExpr, int>);
 static_assert(VisitsExprNodes<ExprNameVisitor, const char*>);
 static_assert(!VisitsExprNodes<PartialExprVisitor, const char*>);
 static_assert(VisitsStmtNodes<StmtNameVisitor, const char*>);
+static_assert(VisitsAstNodes<AstNameVisitor, const char*>);
+static_assert(!VisitsAstNodes<PartialExprVisitor, const char*>);
 
 void testExprVisitorDispatchesVariant(TestSuite& suite) {
     NumberExpr number{};
@@ -80,10 +92,26 @@ void testStmtVisitorDispatchesVariant(TestSuite& suite) {
               "StmtVisitor dispatches EmptyStmt");
 }
 
+void testAstVisitorDispatchesExprAndStmtVariants(TestSuite& suite) {
+    NumberExpr number{};
+    number.value = 7.0;
+    Expr expr(std::move(number));
+
+    EmptyStmt empty{};
+    Stmt stmt(std::move(empty));
+
+    AstNameVisitor visitor;
+    ASSERT_EQ(suite, std::string("number"), std::string(visitor.visit(expr)),
+              "AstVisitor dispatches Expr variants");
+    ASSERT_EQ(suite, std::string("empty"), std::string(visitor.visit(stmt)),
+              "AstVisitor dispatches Stmt variants");
+}
+
 } // namespace
 
 void registerAstVisitorTests() {
     auto& registry = TestRegistry::getInstance();
     registry.registerTest(kSuiteName, "expr visitor dispatch", testExprVisitorDispatchesVariant);
     registry.registerTest(kSuiteName, "stmt visitor dispatch", testStmtVisitorDispatchesVariant);
+    registry.registerTest(kSuiteName, "combined visitor dispatch", testAstVisitorDispatchesExprAndStmtVariants);
 }
