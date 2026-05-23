@@ -7,8 +7,10 @@
 #include <algorithm>
 #include <format>
 #include <ostream>
+#include <sstream>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace Lua {
@@ -268,10 +270,118 @@ void printProtoBytecodeRecursive(const Proto* f,
     }
 }
 
+std::string renderProtoBytecode(const Proto* proto, bool full) {
+    std::ostringstream rendered;
+    printProtoBytecodeRecursive(proto, rendered, full, 0, {});
+    return rendered.str();
+}
+
+std::vector<std::string> splitLines(const std::string& text) {
+    std::vector<std::string> lines;
+    usize start = 0;
+
+    while (start < text.size()) {
+        usize end = text.find('\n', start);
+        if (end == std::string::npos) {
+            end = text.size();
+        }
+
+        std::string line = text.substr(start, end - start);
+        if (!line.empty() && line.back() == '\r') {
+            line.pop_back();
+        }
+        lines.push_back(std::move(line));
+
+        if (end == text.size()) {
+            break;
+        }
+        start = end + 1;
+    }
+
+    return lines;
+}
+
+bool isSourceMetadataLine(std::string_view line) {
+    const usize first = line.find_first_not_of(' ');
+    if (first == std::string_view::npos) {
+        return false;
+    }
+
+    constexpr std::string_view kSourcePrefix = "source: ";
+    return line.substr(first).starts_with(kSourcePrefix);
+}
+
+std::vector<std::string> removeDiffNoise(std::vector<std::string> lines) {
+    std::erase_if(lines, [](const std::string& line) {
+        return isSourceMetadataLine(line);
+    });
+    return lines;
+}
+
+usize countChangedLines(const std::vector<std::string>& leftLines,
+                        const std::vector<std::string>& rightLines) {
+    const usize lineCount = std::max(leftLines.size(), rightLines.size());
+    usize changed = 0;
+
+    for (usize i = 0; i < lineCount; ++i) {
+        const bool hasLeft = i < leftLines.size();
+        const bool hasRight = i < rightLines.size();
+        const std::string_view left = hasLeft ? std::string_view(leftLines[i]) : std::string_view();
+        const std::string_view right = hasRight ? std::string_view(rightLines[i]) : std::string_view();
+        if (!hasLeft || !hasRight || left != right) {
+            changed += 1;
+        }
+    }
+
+    return changed;
+}
+
 } // namespace
 
 void printProtoBytecode(const Proto* f, std::ostream& out, bool full) {
     printProtoBytecodeRecursive(f, out, full, 0, {});
+}
+
+void printProtoBytecodeDiff(const Proto* left,
+                            const Proto* right,
+                            std::ostream& out,
+                            bool full,
+                            std::string_view leftLabel,
+                            std::string_view rightLabel) {
+    std::vector<std::string> leftLines =
+        removeDiffNoise(splitLines(renderProtoBytecode(left, full)));
+    std::vector<std::string> rightLines =
+        removeDiffNoise(splitLines(renderProtoBytecode(right, full)));
+    const usize changed = countChangedLines(leftLines, rightLines);
+
+    out << "Bytecode diff" << '\n';
+    out << "  left: " << leftLabel << '\n';
+    out << "  right: " << rightLabel << '\n';
+    out << "  mode: " << (full ? "full" : "compact") << '\n';
+    out << "  status: " << (changed == 0 ? "identical" : "different") << '\n';
+    out << "  changed lines: " << changed << '\n';
+
+    if (changed == 0) {
+        return;
+    }
+
+    out << "line | left | right" << '\n';
+
+    const usize lineCount = std::max(leftLines.size(), rightLines.size());
+    for (usize i = 0; i < lineCount; ++i) {
+        const bool hasLeft = i < leftLines.size();
+        const bool hasRight = i < rightLines.size();
+        const std::string_view leftLine =
+            hasLeft ? std::string_view(leftLines[i]) : std::string_view("<missing>");
+        const std::string_view rightLine =
+            hasRight ? std::string_view(rightLines[i]) : std::string_view("<missing>");
+
+        if (hasLeft && hasRight && leftLine == rightLine) {
+            continue;
+        }
+
+        out << std::format("{:04} | {} | {}\n", i, leftLine, rightLine);
+    }
 }
 
 } // namespace Lua

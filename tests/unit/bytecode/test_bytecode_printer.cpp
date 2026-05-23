@@ -165,6 +165,60 @@ void testPrinterRecursesIntoChildProtosInFullMode(TestSuite& suite) {
                 "full mode prints grandchild instructions");
 }
 
+void testPrinterShowsSideBySideDiff(TestSuite& suite) {
+    Proto left;
+    Proto right;
+
+    left.setSource(StringPool::getInstance().intern("same.lua"));
+    right.setSource(StringPool::getInstance().intern("same.lua"));
+
+    i32 leftConstant = static_cast<i32>(left.addConstant(Value(1.0)));
+    i32 rightConstant = static_cast<i32>(right.addConstant(Value(2.0)));
+
+    addInstruction(left, 1, CREATE_ABx(OpCode::LOADK, 0, leftConstant));
+    addInstruction(right, 1, CREATE_ABx(OpCode::LOADK, 0, rightConstant));
+
+    std::ostringstream output;
+    printProtoBytecodeDiff(&left, &right, output, false, "left.lua", "right.lua");
+    std::string text = output.str();
+
+    ASSERT_TRUE(suite, contains(text, "Bytecode diff"), "diff header is printed");
+    ASSERT_TRUE(suite, contains(text, "left: left.lua"), "left label is printed");
+    ASSERT_TRUE(suite, contains(text, "right: right.lua"), "right label is printed");
+    ASSERT_TRUE(suite, contains(text, "mode: compact"), "compact diff mode is printed");
+    ASSERT_TRUE(suite, contains(text, "status: different"), "different status is printed");
+    ASSERT_TRUE(suite, contains(text, "changed lines: 2"), "changed line count is printed");
+    ASSERT_TRUE(suite, contains(text, "line | left | right"), "side-by-side diff header is printed");
+    ASSERT_TRUE(suite,
+                contains(text,
+                         "LOADK | A=0 Bx=0 ; K[0] = number 1 | "
+                         "0000 | line 1 | LOADK | A=0 Bx=0 ; K[0] = number 2"),
+                "instruction difference is printed side-by-side");
+    ASSERT_TRUE(suite, contains(text, "K[0] = number 1 |   K[0] = number 2"),
+                "constant table difference is printed side-by-side");
+}
+
+void testPrinterShowsIdenticalDiffSummary(TestSuite& suite) {
+    Proto left;
+    Proto right;
+
+    left.setSource(StringPool::getInstance().intern("left.lua"));
+    right.setSource(StringPool::getInstance().intern("right.lua"));
+
+    addInstruction(left, 1, CREATE_ABC(OpCode::RETURN, 0, 1, 0));
+    addInstruction(right, 1, CREATE_ABC(OpCode::RETURN, 0, 1, 0));
+
+    std::ostringstream output;
+    printProtoBytecodeDiff(&left, &right, output, true, "same-left.lua", "same-right.lua");
+    std::string text = output.str();
+
+    ASSERT_TRUE(suite, contains(text, "mode: full"), "full diff mode is printed");
+    ASSERT_TRUE(suite, contains(text, "status: identical"), "identical status is printed");
+    ASSERT_TRUE(suite, contains(text, "changed lines: 0"), "zero changed line count is printed");
+    ASSERT_TRUE(suite, !contains(text, "line | left | right"),
+                "identical diff should not print an empty table");
+}
+
 } // namespace
 
 void registerBytecodePrinterTests() {
@@ -177,4 +231,8 @@ void registerBytecodePrinterTests() {
                           testPrinterKeepsEscapedStringsAndOutOfRangeConstants);
     registry.registerTest(kSuiteName, "Recursive Child Protos In Full Mode",
                           testPrinterRecursesIntoChildProtosInFullMode);
+    registry.registerTest(kSuiteName, "Side By Side Diff",
+                          testPrinterShowsSideBySideDiff);
+    registry.registerTest(kSuiteName, "Identical Diff Summary",
+                          testPrinterShowsIdenticalDiffSummary);
 }

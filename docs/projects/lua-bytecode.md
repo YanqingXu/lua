@@ -11,7 +11,7 @@ applies_to: lua_bytecode executable
 
 ## Current Status
 
-The executable can parse and compile a Lua source file into a `Proto`. `printProtoBytecode()` prints Proto metadata, decoded instructions, constant references, the constant table, and recursive child Proto sections when the optional `full` argument is used.
+The executable can parse and compile Lua source files into `Proto` objects. `printProtoBytecode()` prints Proto metadata, decoded instructions, constant references, the constant table, and recursive child Proto sections when the optional `full` argument is used. `--diff` compiles two scripts and prints a side-by-side summary of changed bytecode lines.
 
 ## Source Files
 

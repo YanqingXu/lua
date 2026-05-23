@@ -279,7 +279,7 @@ foreach ($required in @("AST", "SymbolRef", "ValueResult", "CondResult", "LValue
 }
 
 $bytecodeToolDoc = Read-Text "docs/guides/bytecode-tool.md"
-foreach ($required in @("decoded instructions", "constant references", "constant table", "recursive child protos in full mode")) {
+foreach ($required in @("decoded instructions", "constant references", "constant table", "recursive child protos in full mode", "--diff", "side-by-side", "changed lines")) {
     if ($bytecodeToolDoc -notmatch [regex]::Escape($required)) {
         Add-Failure $failures "docs/guides/bytecode-tool.md is missing current bytecode printer fact: $required"
     }
