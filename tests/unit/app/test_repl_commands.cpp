@@ -320,6 +320,50 @@ void testReportErrorKeepsErrorFormat(TestSuite& suite) {
         contains(text, "stdin:3: repl boom"),
         "repl error should omit program prefix"
     );
+    ASSERT_TRUE(suite, !contains(text, "\x1b[31m"),
+                "redirected error output should stay plain by default");
+}
+
+void testReportErrorColorModeCanBeForced(TestSuite& suite) {
+    const REPL::ErrorColorMode oldMode = REPL::getErrorColorMode();
+    std::ostringstream err;
+    std::streambuf* oldBuffer = std::cerr.rdbuf(err.rdbuf());
+
+    REPL::setErrorColorMode(REPL::ErrorColorMode::Always);
+    REPL::reportError("stdin", 3, "color boom", false);
+
+    std::cerr.rdbuf(oldBuffer);
+    REPL::setErrorColorMode(oldMode);
+
+    ASSERT_EQ(
+        suite,
+        std::string("\x1b[31mstdin:3: color boom\x1b[0m\n"),
+        err.str(),
+        "forced color mode should wrap reportError line in red"
+    );
+}
+
+void testMetaCommandErrorColorModeCanBeForced(TestSuite& suite) {
+    const REPL::ErrorColorMode oldMode = REPL::getErrorColorMode();
+    std::ostringstream out;
+    std::ostringstream err;
+
+    REPL::MetaCommand command;
+    command.kind = REPL::MetaCommandKind::Unknown;
+    command.argument = "wat";
+
+    REPL::setErrorColorMode(REPL::ErrorColorMode::Always);
+    const int status = REPL::runMetaCommand(nullptr, command, out, err);
+    REPL::setErrorColorMode(oldMode);
+
+    ASSERT_EQ(suite, 1, status, "unknown REPL command should still fail");
+    ASSERT_TRUE(suite, out.str().empty(), "colored unknown command should not write stdout");
+    ASSERT_EQ(
+        suite,
+        std::string("\x1b[31munknown REPL command: .wat\x1b[0m\n"),
+        err.str(),
+        "forced color mode should wrap meta command errors in red"
+    );
 }
 
 void testUnknownMetaCommandErrorFormat(TestSuite& suite) {
@@ -375,5 +419,9 @@ void registerReplCommandTests() {
     registry.registerTest(kSuiteName, "GC Command Rejects Unknown Option",
                           testGcCommandRejectsUnknownOption);
     registry.registerTest(kSuiteName, "Report Error Format", testReportErrorKeepsErrorFormat);
+    registry.registerTest(kSuiteName, "Report Error Color Mode Can Be Forced",
+                          testReportErrorColorModeCanBeForced);
+    registry.registerTest(kSuiteName, "Meta Command Error Color Mode Can Be Forced",
+                          testMetaCommandErrorColorModeCanBeForced);
     registry.registerTest(kSuiteName, "Unknown Meta Command Error Format", testUnknownMetaCommandErrorFormat);
 }

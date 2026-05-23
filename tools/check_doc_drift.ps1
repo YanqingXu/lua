@@ -264,6 +264,8 @@ $replGuideFacts = @(
     ".ast <expr|chunk>",
     ".gc [stats|collect|strategy|help]",
     "Tab completion",
+    "colorized error output",
+    "ErrorColorMode::Auto",
     "mode: expression",
     "RuntimeServices.gc",
     "string.sub",

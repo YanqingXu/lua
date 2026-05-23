@@ -85,6 +85,12 @@ struct CompletionResult {
     Vec<Str> candidates;
 };
 
+enum class ErrorColorMode {
+    Auto,
+    Never,
+    Always,
+};
+
 // ============================================================================
 // REPL 公共接口
 // ============================================================================
@@ -154,6 +160,16 @@ void setProgName(const char* name);
  * @return 程序名字符串
  */
 const char* getProgName();
+
+/**
+ * @brief 设置错误输出颜色模式
+ */
+void setErrorColorMode(ErrorColorMode mode);
+
+/**
+ * @brief 获取当前错误输出颜色模式
+ */
+ErrorColorMode getErrorColorMode();
 
 /**
  * @brief 输出错误消息到 stderr

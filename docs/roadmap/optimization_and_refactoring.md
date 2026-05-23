@@ -2,9 +2,9 @@
 
 > 适用范围：`g:\github\lua`（现代 C++ Lua 5.1.5 解释器）
 > 设计目标：**可读性 > 可维护性 > 教育价值 > 性能**
-> 约束：保持 528 个注册测试 / 2636 个断言结果 / 0 失败，不破坏 `LuaState` / `VM` public API。
+> 约束：保持 530 个注册测试 / 2641 个断言结果 / 0 失败，不破坏 `LuaState` / `VM` public API。
 > 最近审计：2026-05-21（深度审计报告，覆盖 Readability / Extensibility / Educational Value 三维度）
-> 最近同步：2026-05-23（PR-59：REPL Tab 补全，覆盖元命令、全局名与已加载库字段，并同步 REPL 文档与漂移守卫）
+> 最近同步：2026-05-23（PR-60：REPL 终端彩色错误输出，Auto 模式仅在 REPL TTY 中启用，并同步 REPL 文档与漂移守卫）
 
 ---
 
@@ -14,7 +14,7 @@
 |---|---|---|---|
 | **可读性** | **A-** | CRTP+concept 编译期检查、`std::expected` 边界清晰、VM 主循环已精简为策略入口 + handler table | `ValueResult` 已有 variant prototype 但旧兼容字段仍待迁移、`CodeGenerator` 方法数 60+、部分命名继承 Lua C 缩写 |
 | **易扩展性** | **B+** | Visitor 模式添加新工具零摩擦、`DispatchStrategy` 可插拔、`HandlerTable` 按组注册 | GC/metatable 兼容 fallback 仍需收口、`lib_manager.hpp` 冗余声明、`CodeGenerator` 单体类 |
-| **教学价值** | **A-** | hello-world / closure-and-upvalue / gc-cycle walkthrough 已覆盖端到端执行、闭包生命周期和完整 GC 周期，glossary 降低认知负担，trace 系统层次分明且已有差异模式，REPL 已能打印 AST、bytecode 与 GC 状态，并支持 Tab 探索全局名和库字段 | REPL 颜色化错误和行号 prompt 待实现 |
+| **教学价值** | **A-** | hello-world / closure-and-upvalue / gc-cycle walkthrough 已覆盖端到端执行、闭包生命周期和完整 GC 周期，glossary 降低认知负担，trace 系统层次分明且已有差异模式，REPL 已能打印 AST、bytecode 与 GC 状态，支持 Tab 探索全局名和库字段，并在终端中高亮错误 | REPL 行号 prompt 待实现 |
 
 各维度详细评估见本文档对应阶段的任务标注；已完成项以 ✓ 标记。
 
@@ -27,7 +27,7 @@
 | **阶段 1 — 短期代码清理** | 1–2 个迭代 | 删冗余、统一命名、收紧错误处理、文档与代码同步 | 否 | ~90% |
 | **阶段 2 — 中期模式重构** | 3–5 个迭代 | 引入访问者 / 策略 / 命令模式，VM dispatch 与 GC 抽象化 | 内部 API 调整、public 不变 | ~88% |
 | **阶段 3 — 现代 C++ 特性** | 穿插于 1 & 2 | `std::expected` / `concepts` / `std::format` / `[[nodiscard]]` | 部分 public 签名变更 | ~90% |
-| **阶段 4 — 教育价值增强** | 持续推进 | 自解释代码、字节码可视化、执行链路教学文档、REPL 体验、Trace 差异模式 | 否（增量增强） | ~78% |
+| **阶段 4 — 教育价值增强** | 持续推进 | 自解释代码、字节码可视化、执行链路教学文档、REPL 体验、Trace 差异模式 | 否（增量增强） | ~80% |
 | **阶段 5 — 工程实践** | 持续 | 测试覆盖、质量门、构建一致性、文档漂移检测 | 否 | ~75% |
 
 ---
@@ -348,7 +348,7 @@ using ValueResult = std::variant<
 | 4.4.1 | 持久化历史记录（`.lua_history`） | 跨会话；启动时加载、退出时保存 | ✓ 已完成 |
 | 4.4.2 | 简单 Tab 补全（全局名 + 已加载库的字段） | 利用 `LuaState->getGlobalTable()` 遍历；`completeInput()` 覆盖元命令、`.gc` 选项、全局名和 dotted table field | ✓ **已完成 — PR-59** |
 | 4.4.3 | 内置 `.help` / `.bytecode <expr>` / `.ast <expr>` / `.gc` 元命令 | `.help`、`.bytecode`、`.ast` 与 `.gc` 已完成；`.gc strategy` 仅声明当前 mark-sweep 与 future incremental 边界，不做策略切换 | ✓ 已完成 |
-| 4.4.4 | 颜色化错误输出（仅在 stdout 是 TTY 时） | Windows 控制台需 `SetConsoleMode(ENABLE_VIRTUAL_TERMINAL_PROCESSING)` | 待实现 |
+| 4.4.4 | 颜色化错误输出（仅在 stdout/stderr 是 TTY 时） | `ErrorColorMode::Auto` 仅在 REPL 顶层循环启用；Windows 控制台通过 `SetConsoleMode(ENABLE_VIRTUAL_TERMINAL_PROCESSING)` 开启 ANSI | ✓ **已完成 — PR-60** |
 | 4.4.5 | 行号 prompt：`lua:1>` / `lua:2>>` | 多行时显示当前行 | 待实现 |
 
 ### 4.5 审计新增：Trace 系统差异模式
@@ -379,7 +379,7 @@ using ValueResult = std::variant<
 
 ### 5.1 测试覆盖精细化
 
-**现状**：528 个注册测试 / 2636 个断言结果 / 0 失败，目录 `tests/unit/`、`tests/lua/`。
+**现状**：530 个注册测试 / 2641 个断言结果 / 0 失败，目录 `tests/unit/`、`tests/lua/`。
 
 **改进方向**（优先小步增量；覆盖矩阵作为 checklist 文档）：
 
@@ -409,7 +409,7 @@ using ValueResult = std::variant<
 | 风险 | 影响 | 缓解 |
 |---|---|---|
 | VM dispatch 命令模式化引入函数指针表，调试器单步体验下降 | 影响教学 | 保留 `SwitchDispatch` 作为默认；调试构建强制使用；1.1.1 落地的独立 inline 函数进一步改善 Switch 路径单步体验 |
-| `std::expected` 大范围替换异常导致调用链翻新 | 528 测试可能批量红 | 按 3.1 表格逐个函数迁移，每次 1 个函数 + 全量测试 |
+| `std::expected` 大范围替换异常导致调用链翻新 | 530 测试可能批量红 | 按 3.1 表格逐个函数迁移，每次 1 个函数 + 全量测试 |
 | GC 去单例化破坏标准库内部对 `GarbageCollector::getInstance()` 的引用 | 编译错误广泛 | 保留 inline shim `getInstance()` 一版本，标记 `[[deprecated]]` |
 | Visitor 化后 codegen 性能下降 | 不影响目标，但需观察 | 教学项目可接受；基准用 `examples/*.lua` 跑回归 |
 | `ValueResult` → `std::variant` 重构引入大量访问代码 | 调用侧需逐一迁移 `std::visit` | 先做 prototype 分支验证可行性，再逐步迁移 |
@@ -449,13 +449,14 @@ using ValueResult = std::variant<
 | PR-57 | REPL `.ast <expr|chunk>` 元命令，使用 AST visitor 打印 Chunk / Stmt / Expr 树形结构，并补 REPL Commands 输出契约测试 | 4.4.3 |
 | PR-58 | REPL `.gc [stats|collect|strategy|help]` 元命令前置设计，使用 `RuntimeServices.gc` 暴露 mark-sweep 统计 / full collect / strategy 边界，并补 REPL Commands 输出契约测试 | 4.4.3 / 2.3 |
 | PR-59 | REPL Tab 补全，`completeInput()` 覆盖元命令、`.gc` 选项、全局名和已加载库 dotted field，并补 REPL Commands 输出契约测试 | 4.4.2 |
+| PR-60 | REPL 终端彩色错误输出，集中 `writeErrorLine()`，Auto 模式仅在 REPL TTY 中启用，Windows 开启 virtual terminal processing，并补颜色输出契约测试 | 4.4.4 |
 
 后续推荐顺序：
 
 | PR | 编号 | 任务 | 阶段 | 依赖 / 理由 |
 |---|---|---|---|---|
-| PR-60 | 4.4.4 | REPL 颜色化错误输出 | 4 | P1；需仅在 TTY 下启用，Windows 控制台先打开 virtual terminal processing |
-| PR-61 | 4.4.5 | REPL 行号 prompt | 4 | P2；多行输入时展示 `lua:1>` / `lua:2>>`，提升教学定位能力 |
+| PR-61 | 4.4.5 | REPL 行号 prompt | 4 | P1；多行输入时展示 `lua:1>` / `lua:2>>`，提升教学定位能力 |
+| PR-62 | 2.3 / 5.1 | `GCStrategy` 抽象 + 策略等价测试 | 2 / 5 | P1；为未来 `.gc strategy` 切换和 GC 教学实验打基础 |
 
 每个 PR 完成后跑：
 
@@ -477,7 +478,7 @@ using ValueResult = std::variant<
 | 阶段 1 — 短期代码清理 | ~90% | **~93%** | +3% | 仅 `tokenString` 集中化未做（P3 低风险） |
 | 阶段 2 — 中期模式重构 | ~88% | **~80%** | −8% | GCStrategy 抽象、lib_manager 声明清理、Visitor 去重均未落地 |
 | 阶段 3 — 现代 C++ 特性 | ~90% | **~90%** | 0 | ValueResult variant prototype 已就位，后续 std::visit 迁移为渐进工作 |
-| 阶段 4 — 教育价值增强 | ~78% | **~73%** | −5% | REPL 5 项增强中 2 项未做、字节码 CFG 仍未做 |
+| 阶段 4 — 教育价值增强 | ~80% | **~75%** | −5% | REPL 5 项增强中 1 项未做、字节码 CFG 仍未做 |
 | 阶段 5 — 工程实践 | ~75% | **~71%** | −4% | 指令级覆盖矩阵已补齐；golden 测试、REPL 增量解析测试、add_source 脚本仍缺失 |
 | **加权综合** | **~84%** | **~77%** | **−7%** | |
 
@@ -541,12 +542,12 @@ using ValueResult = std::variant<
 | 4.4.1 REPL 历史 | ✓ 已完成 | `.lua_history` 持久化：`loadHistory()` + `saveHistory()` + `recordHistory()` 均实现 | ✓ 确认 |
 | 4.4.2 Tab 补全 | ✓ PR-59 | `completeInput()` 已覆盖元命令、`.gc` 选项、全局名和已加载库 dotted field；交互 TTY 下 Tab 调用该补全，管道输入中的 `\t` 也走同一逻辑 | ✓ 确认 |
 | 4.4.3 `.ast` / `.gc` | ✓ PR-57 / PR-58 | `.help`、`.bytecode`、`.ast` 与 `.gc` 已实现；`.ast` 输出 `mode: chunk` / `mode: expression` 和 Chunk / Stmt / Expr 树形结构；`.gc` 输出当前 mark-sweep 统计、full collect 前后快照和 strategy 边界 | ✓ 确认 |
-| 4.4.4 颜色化错误 | 待实现 | 无 `isatty` / `SetConsoleMode(ENABLE_VIRTUAL_TERMINAL_PROCESSING)` 调用 | ✗ 未完成 |
+| 4.4.4 颜色化错误 | ✓ PR-60 | `ErrorColorMode::Auto` 仅在 REPL 顶层循环和 stdout/stderr TTY 下启用；强制 Always 模式用于输出契约测试；Windows 通过 `SetConsoleMode(ENABLE_VIRTUAL_TERMINAL_PROCESSING)` 启用 ANSI | ✓ 确认 |
 | 4.4.5 行号 prompt | 待实现 | 无限模式 `lua:1>` / `lua:2>>` 行号提示 | ✗ 未完成 |
 | 4.5.1 `--trace-diff` | ✓ 已完成 | `changedRegisters` 字段已落地 JSONL，CLI 开关 + VM 发射 + 测试覆盖完整 | ✓ 确认 |
 | 4.5.2 `funcName` 统一 | ✓ 已完成 | `TraceEvent::funcName` 已改为拥有型 `Str`，instruction / call / return / error JSONL 均输出 `funcName`；VM 指令与返回事件使用当前/返回 `Proto` 标签，Call 事件使用 callee 标签 | ✓ 确认 — PR-53 |
 
-**结论**：阶段 4 仍是差距最大的阶段。REPL 体验（4.4.4、4.4.5）和字节码 CFG（4.2.6）是两个集中的未完成块。walkthrough 三篇、trace-diff、child proto 递归输出、`--diff` 字节码对比、`.ast` AST 输出、`.gc` GC 状态输出和 Tab 补全是亮点。
+**结论**：阶段 4 仍是差距最大的阶段。REPL 体验剩余 4.4.5 行号 prompt，字节码侧剩余 CFG（4.2.6）。walkthrough 三篇、trace-diff、child proto 递归输出、`--diff` 字节码对比、`.ast` AST 输出、`.gc` GC 状态输出、Tab 补全和终端彩色错误是亮点。
 
 #### 阶段 5 核验
 
@@ -573,13 +574,13 @@ using ValueResult = std::variant<
 | 编号 | 任务 | 阻碍 |
 |---|---|---|
 | 2.3 | `GCStrategy` 抽象 + `MarkSweepGC` | GC 策略测试、未来 `.gc strategy` 切换 |
-| 4.4.4 | REPL 颜色化错误输出 | 错误定位与教学可读性 |
+| 4.4.5 | REPL 行号 prompt | 多行输入定位与教学可读性 |
 
 #### P2 — 提升教学体验（建议后续跟进）
 
 | 编号 | 任务 |
 |---|---|
-| 4.4.5 | 行号 prompt |
+| 4.2.6 | 字节码 Mermaid CFG |
 
 #### P3 — 代码质量收尾
 
@@ -596,7 +597,6 @@ using ValueResult = std::variant<
 | 编号 | 任务 |
 |---|---|
 | 2.6.2 | `LibRegistrar` 声明式自注册 |
-| 4.2.6 | Mermaid CFG 输出 |
 | 5.1 | golden 测试 / REPL 增量解析测试 |
 
 ---

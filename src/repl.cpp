@@ -46,6 +46,13 @@
 #ifdef _WIN32
 #include <conio.h>
 #include <io.h>
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#ifndef ENABLE_VIRTUAL_TERMINAL_PROCESSING
+#define ENABLE_VIRTUAL_TERMINAL_PROCESSING 0x0004
+#endif
 #else
 #include <unistd.h>
 #endif
@@ -66,9 +73,19 @@ static volatile sig_atomic_t g_interrupted = 0;
 /// 程序名（用于错误消息前缀），参考官方 Lua 的 progname
 static const char* g_progname = DEFAULT_PROGNAME;
 
+/// 错误输出颜色模式；Auto 仅在 REPL 终端上下文中启用
+static ErrorColorMode g_errorColorMode = ErrorColorMode::Auto;
+
+/// 当前是否处于 REPL 顶层循环，用于避免脚本模式被自动着色
+static bool g_replErrorColorContext = false;
+
 // ============================================================================
 // 错误报告函数（参考 lua_c_analysis/src/lua.c 的 l_message 和 report）
 // ============================================================================
+
+namespace {
+void writeErrorLine(std::ostream& err, std::string_view message);
+}
 
 void setProgName(const char* name) {
     if (name != nullptr && name[0] != '\0') {
@@ -91,12 +108,20 @@ const char* getProgName() {
     return g_progname;
 }
 
+void setErrorColorMode(ErrorColorMode mode) {
+    g_errorColorMode = mode;
+}
+
+ErrorColorMode getErrorColorMode() {
+    return g_errorColorMode;
+}
+
 void reportError(const char* msg, bool showProgName) {
     // 参考官方 Lua 的 l_message() 函数
     if (showProgName && g_progname) {
-        std::cerr << std::format("{}: {}", g_progname, msg) << std::endl;
+        writeErrorLine(std::cerr, std::format("{}: {}", g_progname, msg));
     } else {
-        std::cerr << msg << std::endl;
+        writeErrorLine(std::cerr, msg);
     }
 }
 
@@ -105,9 +130,9 @@ void reportError(const char* source, int line, const char* msg, bool showProgNam
     // 格式（REPL 模式）：source:line: message
     const Str message = std::format("{}:{}: {}", source, line, msg);
     if (showProgName && g_progname) {
-        std::cerr << std::format("{}: {}", g_progname, message) << std::endl;
+        writeErrorLine(std::cerr, std::format("{}: {}", g_progname, message));
     } else {
-        std::cerr << message << std::endl;
+        writeErrorLine(std::cerr, message);
     }
 }
 
@@ -161,6 +186,84 @@ bool wasInterrupted() {
 void clearInterruptFlag() {
     g_interrupted = 0;
 }
+
+constexpr std::string_view kErrorColor = "\x1b[31m";
+constexpr std::string_view kResetColor = "\x1b[0m";
+
+bool isTerminal(FILE* stream) {
+#ifdef _WIN32
+    return stream != nullptr && _isatty(_fileno(stream)) != 0;
+#else
+    return stream != nullptr && isatty(fileno(stream)) != 0;
+#endif
+}
+
+bool enableVirtualTerminalFor(FILE* stream) {
+#ifdef _WIN32
+    if (stream == nullptr) {
+        return false;
+    }
+
+    const intptr_t osHandle = _get_osfhandle(_fileno(stream));
+    if (osHandle == -1) {
+        return false;
+    }
+
+    HANDLE handle = reinterpret_cast<HANDLE>(osHandle);
+    DWORD mode = 0;
+    if (GetConsoleMode(handle, &mode) == 0) {
+        return false;
+    }
+
+    if ((mode & ENABLE_VIRTUAL_TERMINAL_PROCESSING) != 0) {
+        return true;
+    }
+
+    return SetConsoleMode(handle, mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING) != 0;
+#else
+    (void)stream;
+    return true;
+#endif
+}
+
+bool shouldColorizeErrors() {
+    switch (g_errorColorMode) {
+        case ErrorColorMode::Never:
+            return false;
+        case ErrorColorMode::Always:
+            return true;
+        case ErrorColorMode::Auto:
+            break;
+    }
+
+    return g_replErrorColorContext
+        && isTerminal(stdout)
+        && isTerminal(stderr)
+        && enableVirtualTerminalFor(stderr);
+}
+
+void writeErrorLine(std::ostream& err, std::string_view message) {
+    if (shouldColorizeErrors()) {
+        err << kErrorColor << message << kResetColor << std::endl;
+        return;
+    }
+
+    err << message << std::endl;
+}
+
+class ReplErrorColorContextGuard {
+public:
+    ReplErrorColorContextGuard() : previous_(g_replErrorColorContext) {
+        g_replErrorColorContext = true;
+    }
+
+    ~ReplErrorColorContextGuard() {
+        g_replErrorColorContext = previous_;
+    }
+
+private:
+    bool previous_;
+};
 
 bool isSpace(char ch) {
     return std::isspace(static_cast<unsigned char>(ch)) != 0;
@@ -394,11 +497,7 @@ CompletionResult completeLuaInput(LuaState* L, const Str& line) {
 }
 
 bool isInputTerminal() {
-#ifdef _WIN32
-    return _isatty(_fileno(stdin)) != 0;
-#else
-    return isatty(fileno(stdin)) != 0;
-#endif
+    return isTerminal(stdin);
 }
 
 void printCompletionCandidates(const Vec<Str>& candidates) {
@@ -662,7 +761,7 @@ std::expected<Chunk, ParseError> parseForAst(LuaState* L, const Str& source) {
 }
 
 void printParseError(std::ostream& err, const ParseError& error) {
-    err << std::format("stdin:{}: {}", error.getLine(), error.what()) << std::endl;
+    writeErrorLine(err, std::format("stdin:{}: {}", error.getLine(), error.what()));
 }
 
 struct GcSnapshot {
@@ -1094,7 +1193,7 @@ int executeREPLInput(LuaState* L, const Str& source, bool isExpression) {
         Proto* proto = codegen.generate(chunk, "=(repl)");
 
         if (!proto) {
-            std::cerr << "code generation failed" << std::endl;
+            writeErrorLine(std::cerr, "code generation failed");
             return 1;
         }
 
@@ -1302,13 +1401,13 @@ CompletionResult completeInput(LuaState* L, const Str& line) {
 
 int printBytecode(LuaState* L, const Str& source, std::ostream& out, std::ostream& err) {
     if (L == nullptr) {
-        err << ".bytecode: LuaState is null" << std::endl;
+        writeErrorLine(err, ".bytecode: LuaState is null");
         return 1;
     }
 
     const Str input = trimCopy(source);
     if (input.empty()) {
-        err << "usage: .bytecode <expr|chunk>" << std::endl;
+        writeErrorLine(err, "usage: .bytecode <expr|chunk>");
         return 1;
     }
 
@@ -1334,23 +1433,23 @@ int printBytecode(LuaState* L, const Str& source, std::ostream& out, std::ostrea
         printParseError(err, primary.error());
         return 1;
     } catch (const LuaError& e) {
-        err << e.what() << std::endl;
+        writeErrorLine(err, e.what());
         return 1;
     } catch (const std::exception& e) {
-        err << e.what() << std::endl;
+        writeErrorLine(err, e.what());
         return 1;
     }
 }
 
 int printAst(LuaState* L, const Str& source, std::ostream& out, std::ostream& err) {
     if (L == nullptr) {
-        err << ".ast: LuaState is null" << std::endl;
+        writeErrorLine(err, ".ast: LuaState is null");
         return 1;
     }
 
     const Str input = trimCopy(source);
     if (input.empty()) {
-        err << "usage: .ast <expr|chunk>" << std::endl;
+        writeErrorLine(err, "usage: .ast <expr|chunk>");
         return 1;
     }
 
@@ -1382,17 +1481,17 @@ int printAst(LuaState* L, const Str& source, std::ostream& out, std::ostream& er
         printParseError(err, primary.error());
         return 1;
     } catch (const LuaError& e) {
-        err << e.what() << std::endl;
+        writeErrorLine(err, e.what());
         return 1;
     } catch (const std::exception& e) {
-        err << e.what() << std::endl;
+        writeErrorLine(err, e.what());
         return 1;
     }
 }
 
 int printGc(LuaState* L, const Str& argument, std::ostream& out, std::ostream& err) {
     if (L == nullptr) {
-        err << ".gc: LuaState is null" << std::endl;
+        writeErrorLine(err, ".gc: LuaState is null");
         return 1;
     }
 
@@ -1432,7 +1531,7 @@ int printGc(LuaState* L, const Str& argument, std::ostream& out, std::ostream& e
         return 0;
     }
 
-    err << std::format(".gc: unknown option '{}'", option) << std::endl;
+    writeErrorLine(err, std::format(".gc: unknown option '{}'", option));
     printGcUsage(err);
     return 1;
 }
@@ -1451,7 +1550,7 @@ int runMetaCommand(LuaState* L, const MetaCommand& command, std::ostream& out, s
         case MetaCommandKind::Gc:
             return printGc(L, command.argument, out, err);
         case MetaCommandKind::Unknown:
-            err << std::format("unknown REPL command: .{}", command.argument) << std::endl;
+            writeErrorLine(err, std::format("unknown REPL command: .{}", command.argument));
             return 1;
     }
 
@@ -1483,6 +1582,7 @@ int run(LuaState* L) {
     // 安装信号处理器
     installSignalHandler();
     g_currentState = L;
+    ReplErrorColorContextGuard errorColorContext;
 
     // 显示欢迎信息
     std::cout << VERSION << "  " << COPYRIGHT << std::endl;

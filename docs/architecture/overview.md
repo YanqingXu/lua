@@ -24,7 +24,7 @@ The implementation is intentionally learning-friendly: most Lua concepts have di
 
 | Layer | Main files | Current responsibility |
 |---|---|---|
-| Application | `src/main.cpp`, `src/repl.cpp`, `src/app/app_options.*` | CLI, script mode, REPL mode, trace option parsing, REPL bytecode / AST / GC meta commands, Tab completion |
+| Application | `src/main.cpp`, `src/repl.cpp`, `src/app/app_options.*` | CLI, script mode, REPL mode, trace option parsing, REPL bytecode / AST / GC meta commands, Tab completion, terminal-colored REPL errors |
 | Bytecode tool | `src/bytecode/bytecode_main.cpp`, `src/bytecode/bytecode_printer.*` | Compile scripts to `Proto`; print decoded instructions, constants, recursive child Protos in full mode, and side-by-side bytecode diffs |
 | Runtime services | `src/runtime/runtime_services.hpp` | Thin explicit bundle over `GlobalState`, `StringPool`, `GarbageCollector`, and optional VM dispatch strategy |
 | Compiler frontend | `src/compiler/parser/lexer.*`, `src/compiler/parser/parser*.cpp`, `src/compiler/ast.*` | Tokenize source and build AST |
