@@ -69,6 +69,21 @@ void testCatalogOrder(TestSuite& suite) {
     }
 }
 
+void testCatalogIdsAreUnique(TestSuite& suite) {
+    const auto catalog = getStandardLibraryCatalog();
+    bool unique = true;
+
+    for (usize left = 0; left < catalog.size(); ++left) {
+        for (usize right = left + 1; right < catalog.size(); ++right) {
+            if (StrView(catalog[left].id) == StrView(catalog[right].id)) {
+                unique = false;
+            }
+        }
+    }
+
+    ASSERT_TRUE(suite, unique, "catalog ids are unique");
+}
+
 void testOpenCatalogLibraryRegistersSingleLibrary(TestSuite& suite) {
     LuaStdLibTestContext ctx(openMathByCatalog);
     LuaState* L = ctx.getState();
@@ -130,6 +145,7 @@ void registerLibCatalogTests() {
     auto& registry = TestRegistry::getInstance();
 
     registry.registerTest(kSuiteName, "catalog order", testCatalogOrder);
+    registry.registerTest(kSuiteName, "catalog ids are unique", testCatalogIdsAreUnique);
     registry.registerTest(kSuiteName, "openCatalogLibrary single library", testOpenCatalogLibraryRegistersSingleLibrary);
     registry.registerTest(kSuiteName, "openAll registrations", testOpenAllRegistersCatalogLibraries);
 }

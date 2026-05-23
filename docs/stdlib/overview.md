@@ -1,6 +1,6 @@
 ---
 status: current
-verified_against: src/lib/lib_catalog.cpp; src/lib/lib_manager.cpp; src/lib/lib_registry.hpp; src/lib/baselib.cpp; src/gc/gc_strategy.hpp; src/lib/mathlib.cpp; src/lib/iolib.cpp; src/lib/stringlib.cpp; src/lib/tablelib.cpp; src/lib/oslib.cpp; src/lib/coroutinelib.cpp; src/lib/debuglib.cpp; src/lib/packagelib.cpp; tests/unit/stdlib/; tests/unit/gc/test_gc.cpp
+verified_against: src/lib/lib_catalog.cpp; src/lib/lib_manager.cpp; src/lib/lib_registry.hpp; src/lib/baselib.cpp; src/gc/gc_strategy.hpp; src/lib/mathlib.cpp; src/lib/iolib.cpp; src/lib/stringlib.cpp; src/lib/tablelib.cpp; src/lib/oslib.cpp; src/lib/coroutinelib.cpp; src/lib/debuglib.cpp; src/lib/packagelib.cpp; tests/unit/stdlib/test_lib_catalog.cpp; tests/unit/stdlib/; tests/unit/gc/test_gc.cpp
 last_checked: 2026-05-23
 applies_to: current standard library implementation overview
 ---
@@ -22,6 +22,8 @@ Current catalog order:
 9. `package`
 
 `StandardLibrary::openAll()` iterates this catalog. Single-library loading should use `StandardLibrary::openCatalogLibrary(L, "<id>")`; the older `openMath()` / `openPackage()` convenience wrappers are deprecated compatibility shims over the same path.
+
+PR-73 evaluated but intentionally rejected a `LibRegistrar` self-registration layer. The current explicit `constexpr` catalog stays as the only standard-library assembly source of truth because it makes load order visible, keeps tests direct, and avoids static-initialization / MSVC linker keep-alive surprises.
 
 ## Registration Model
 

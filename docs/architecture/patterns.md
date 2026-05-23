@@ -18,7 +18,7 @@ This file records the design patterns that are intentionally present in the curr
 | Strategy | Implemented | `src/vm/vm_dispatch_strategy.hpp`, `src/vm/vm_dispatch_strategy.cpp`, `src/gc/gc_strategy.hpp`, `src/gc/gc_strategy.cpp`, `src/runtime/runtime_services.hpp`, `src/vm/vm.cpp` | `DispatchStrategy` selects the VM execution algorithm; `GCStrategy` selects the collector algorithm boundary. `SwitchDispatch` and `MarkSweepGC` are the defaults. |
 | Singleton | Compatibility boundary | `src/vm/state/global_state.hpp`, `src/runtime/runtime_services.hpp`, `src/gc/garbage_collector.hpp` | `GlobalState` remains singleton-backed for process-wide runtime services. New compiler, VM, and GC paths should prefer explicit service wiring. `GarbageCollector::getInstance()` remains only as a deprecated compatibility shim. |
 | Builder | Implemented | `src/compiler/codegen/bytecode_builder.hpp`, `src/compiler/codegen/codegen_state.hpp` | `BytecodeBuilder` is the narrow write boundary for mutating the active `Proto`: instructions, line info, constants, sub-protos, and debug locals. |
-| Catalog | Implemented | `src/lib/lib_catalog.hpp`, `src/lib/lib_catalog.cpp`, `src/lib/lib_manager.hpp` | Standard-library load order and single-library lookup are data-driven; `openCatalogLibrary()` is the named single-library entry point. |
+| Catalog | Implemented | `src/lib/lib_catalog.hpp`, `src/lib/lib_catalog.cpp`, `src/lib/lib_manager.hpp` | Standard-library load order and single-library lookup are data-driven through an explicit `constexpr` table; `openCatalogLibrary()` is the named single-library entry point. |
 
 ## Boundaries
 
@@ -55,6 +55,8 @@ New code should not reach for `GlobalState::getInstance()` when a `RuntimeServic
 ### Catalog
 
 The standard-library catalog is the readable source of truth for default library order and library identifiers. Use `StandardLibrary::openAll()` for the full set and `StandardLibrary::openCatalogLibrary(L, "<id>")` for one library. The older `openBase()` / `openMath()` / ... wrappers are retained only as deprecated compatibility shims.
+
+PR-73 evaluated a `LibRegistrar` self-registration design and rejected it for now. A static registrar would reduce one edit to `lib_catalog.cpp`, but it would also hide load order behind dynamic initialization and require linker keep-alive rules on MSVC. For this teaching-oriented codebase, the explicit catalog is easier to read, test, and audit.
 
 ## Updating This File
 

@@ -2,9 +2,9 @@
 
 > 适用范围：`g:\github\lua`（现代 C++ Lua 5.1.5 解释器）
 > 设计目标：**可读性 > 可维护性 > 教育价值 > 性能**
-> 约束：保持 546 个注册测试 / 2741 个断言结果 / 0 失败，不破坏 `LuaState` / `VM` public API。
+> 约束：保持 547 个注册测试 / 2742 个断言结果 / 0 失败，不破坏 `LuaState` / `VM` public API。
 > 最近审计：2026-05-21（深度审计报告，覆盖 Readability / Extensibility / Educational Value 三维度）
-> 最近同步：2026-05-23（PR-72：ValueResult 读取侧第一批迁移到 payload visitor）
+> 最近同步：2026-05-23（PR-73：LibRegistrar 自注册评估，决定保留显式 catalog）
 
 ---
 
@@ -196,7 +196,9 @@ CodeGenerator (orchestration facade)
 
 **现状**：`lib_catalog.cpp` 的 `constexpr std::array<LibCatalogEntry, 9>` 已实现表驱动注册；PR-70 已公开 `StandardLibrary::openCatalogLibrary(L, id)` 作为单库加载主入口，并将 `openBase()` / `openMath()` / ... 9 个兼容包装标记为 `[[deprecated]]`。
 
-**建议方案**（声明式自注册）：
+**PR-73 评估结论**：不落地 `LibRegistrar` 声明式自注册。理由是：当前只有 9 个标准库，显式 catalog 已足够短；默认加载顺序是教学和兼容语义的一部分，应直接可见；自注册会引入静态初始化顺序、MSVC linker 保活和调试不可见性风险。按"可读性 > 教学价值 > 性能"原则，保留 `constexpr` catalog 更合适。
+
+**已评估但不采用的方案**（声明式自注册）：
 
 ```cpp
 // lib_catalog.hpp
@@ -214,13 +216,13 @@ static Vec<LibCatalogEntry>& mutableCatalog() {
 namespace { LibRegistrar kReg("base", "Base Library", openBaseLib); }
 ```
 
-添加新库只需创建 `.cpp` 文件，无需修改任何注册中心文件。注意：MSVC `/OPT:REF` 可能丢弃未引用的静态对象，需添加 `#pragma comment(linker, "/include:...")`。
+添加新库只需创建 `.cpp` 文件，无需修改任何注册中心文件。但 MSVC `/OPT:REF` 可能丢弃未引用的静态对象，需要额外 `#pragma comment(linker, "/include:...")` 或锚点符号；这会让教学项目的装配路径更隐式。
 
 | 编号 | 任务 | 说明 | 状态 |
 |---|---|---|---|
 | 2.5.1 | `CodeGenerator` 拆分为 ExpressionEmitter / StatementEmitter / JumpPatcher / ScopeManager | 共享 CodegenState；2.5.1-a/b/c/d/e 已完成，后续剩余是 facade 瘦身与类型表达升级 | ✓ **已完成（核心拆分）** |
 | 2.6.1 | `lib_manager.hpp` 的 9 个 `openXxx()` 标记 `[[deprecated]]`，引导调用方使用 `openCatalogLibrary()` | 消除冗余声明；`StandardLibrary::openCatalogLibrary()` 已成为可调用 public 入口 | ✓ **已完成 — PR-70** |
-| 2.6.2 | 引入 `LibRegistrar` 声明式自注册，消除 #include 耦合 | 可选：注意 MSVC linker 行为 | P4 候选 |
+| 2.6.2 | 评估 `LibRegistrar` 声明式自注册，消除 #include 耦合 | 已评估并决定不落地；保留显式 `constexpr` catalog，新增 catalog id 唯一性测试 | ✓ **已完成 — PR-73（不采用）** |
 
 ---
 
@@ -380,7 +382,7 @@ using ValueResult = std::variant<
 
 ### 5.1 测试覆盖精细化
 
-**现状**：546 个注册测试 / 2741 个断言结果 / 0 失败，目录 `tests/unit/`、`tests/lua/`。
+**现状**：547 个注册测试 / 2742 个断言结果 / 0 失败，目录 `tests/unit/`、`tests/lua/`。
 
 **改进方向**（优先小步增量；覆盖矩阵作为 checklist 文档）：
 
@@ -410,11 +412,11 @@ using ValueResult = std::variant<
 | 风险 | 影响 | 缓解 |
 |---|---|---|
 | VM dispatch 命令模式化引入函数指针表，调试器单步体验下降 | 影响教学 | 保留 `SwitchDispatch` 作为默认；调试构建强制使用；1.1.1 落地的独立 inline 函数进一步改善 Switch 路径单步体验 |
-| `std::expected` 大范围替换异常导致调用链翻新 | 546 测试可能批量红 | 按 3.1 表格逐个函数迁移，每次 1 个函数 + 全量测试 |
+| `std::expected` 大范围替换异常导致调用链翻新 | 547 测试可能批量红 | 按 3.1 表格逐个函数迁移，每次 1 个函数 + 全量测试 |
 | GC 去单例化破坏标准库内部对 `GarbageCollector::getInstance()` 的引用 | 编译错误广泛 | 保留 inline shim `getInstance()` 一版本，标记 `[[deprecated]]` |
 | Visitor 化后 codegen 性能下降 | 不影响目标，但需观察 | 教学项目可接受；基准用 `examples/*.lua` 跑回归 |
 | `ValueResult` → `std::variant` 重构引入大量访问代码 | 调用侧需逐一迁移 `std::visit` | 先做 prototype 分支验证可行性，再逐步迁移 |
-| `LibRegistrar` 自注册的静态对象被 linker 优化掉 | 新库静默不加载 | 添加 `#pragma comment(linker, "/include:...")` 并在测试中验证 `openAll()` 库数量 |
+| `LibRegistrar` 自注册的静态对象被 linker 优化掉 | 新库静默不加载 | PR-73 已决定不引入该机制；继续使用显式 catalog，并测试库 id 唯一性 |
 
 ---
 
@@ -463,12 +465,12 @@ using ValueResult = std::variant<
 | PR-70 | 公开 `StandardLibrary::openCatalogLibrary()` 单库加载入口，并将 `openBase()` / `openMath()` / ... 9 个包装器标记为 `[[deprecated]]` 兼容 shim | 2.6.1 |
 | PR-71 | MSBuild `.vcxproj` 统一 `Level4`，CMake `lua_configure_target_warnings()` 对齐 MSVC `/W4` 与非 MSVC `-Wpedantic -Wconversion`，并清理 `/W4` 暴露的 warning | 5.2 |
 | PR-72 | `ValueResultVisitor` / `ValueResult::visit()` 访问入口，`ExpressionEmitter` 核心读取辅助函数迁移到 payload visitor，并补 legacy drift characterization 测试 | 3.5.2 |
+| PR-73 | 评估 `LibRegistrar` 声明式自注册并决定不落地，保留显式 `constexpr` 标准库 catalog；新增 catalog id 唯一性测试并更新模式/标准库文档 | 2.6.2 |
 
 后续推荐顺序：
 
 | PR | 编号 | 任务 | 阶段 | 依赖 / 理由 |
 |---|---|---|---|---|
-| PR-73 | 2.6.2 | 评估 `LibRegistrar` 声明式自注册是否仍值得落地 | 2 | P4 候选；catalog 已足够清晰，需先确认 linker 风险是否值得引入新机制 |
 | PR-74 | 3.5 | `ValueResult` 旧字段读面第二批：测试断言与剩余 facade/statement 读点梳理 | 3 | PR-72 已迁移生产热路径；下一批可降低公开字段依赖并评估 deprecation 路径 |
 
 每个 PR 完成后跑：
@@ -489,7 +491,7 @@ using ValueResult = std::variant<
 | 阶段 | 文档自评 | 实际评估 | 偏差 | 关键差距 |
 |---|---|---|---|---|
 | 阶段 1 — 短期代码清理 | ~95% | **~96%** | +1% | `tokenString` 集中化已完成；剩余工作转入跨阶段 P3 清理 |
-| 阶段 2 — 中期模式重构 | ~94% | **~91%** | −3% | GCStrategy、AstVisitor 组合模板、Visitor 内部检查去重和标准库 catalog 单库入口清理已落地；剩余主要是 P4 级 `LibRegistrar` 设想与 facade 瘦身 |
+| 阶段 2 — 中期模式重构 | ~94% | **~93%** | −1% | GCStrategy、AstVisitor 组合模板、Visitor 内部检查去重和标准库 catalog 单库入口清理已落地；`LibRegistrar` 设想已评估并决定不采用，剩余主要是 facade 瘦身 |
 | 阶段 3 — 现代 C++ 特性 | ~92% | **~92%** | 0 | ValueResult variant prototype 已就位，ExpressionEmitter 核心读路径已完成第一批 visitor 迁移 |
 | 阶段 4 — 教育价值增强 | ~88% | **~86%** | −2% | REPL 体验和字节码可视化主线已闭环；后续偏样例和文档深挖 |
 | 阶段 5 — 工程实践 | ~84% | **~84%** | 0 | 指令级覆盖矩阵、GC 策略等价测试、CFG 输出契约测试、Trace JSONL golden、REPL 增量解析测试、add_source 脚本和 CMake/MSBuild warning 策略对齐已补齐 |
@@ -525,9 +527,9 @@ using ValueResult = std::variant<
 | 2.4 模式文档 | ✓ 已完成 | `docs/architecture/patterns.md` 已记录 | ✓ 确认 |
 | 2.5 CodeGen 拆分 | ✓ 已完成 | 五个子任务 (2.5.1-a ∼ 2.5.1-e) 全部落地：`jump_patcher` / `scope_manager` / `expression_emitter` / `statement_emitter` | ✓ 确认 |
 | 2.6.1 | ✓ PR-70 | `StandardLibrary::openCatalogLibrary(L, id)` 已公开；`lib_manager.hpp` 的 9 个 `openXxx()` 包装已标记 `[[deprecated]]`，测试调用改用 catalog 入口 | ✓ 确认 |
-| 2.6.2 | P4 候选 | 代码库中不存在 `LibRegistrar` 类 | ✗ 未完成 |
+| 2.6.2 | ✓ PR-73 | `LibRegistrar` 声明式自注册已评估并决定不采用；`docs/architecture/patterns.md` 和 `docs/stdlib/overview.md` 记录该决策，`Standard Library Catalog` 测试锁住 id 唯一性 | ✓ 确认 |
 
-**结论**：核心重构（Visitor、Dispatch、CodeGen 拆分、GCStrategy、标准库 catalog 入口）全部落地且质量高。PR-68 / PR-69 已补齐 full-tree visitor 组合模板和内部检查去重；PR-70 已收口标准库单库包装迁移提示。剩余阶段 2 差距主要是 P4 级 `LibRegistrar` 设想和后续 facade 瘦身。
+**结论**：核心重构（Visitor、Dispatch、CodeGen 拆分、GCStrategy、标准库 catalog 入口）全部落地且质量高。PR-68 / PR-69 已补齐 full-tree visitor 组合模板和内部检查去重；PR-70 已收口标准库单库包装迁移提示；PR-73 已否决 `LibRegistrar` 自注册，保留更易读的显式 catalog。剩余阶段 2 差距主要是后续 facade 瘦身。
 
 #### 阶段 3 核验
 
@@ -594,13 +596,11 @@ using ValueResult = std::variant<
 
 #### P3 — 代码质量收尾
 
-当前无未完成 P3 项；PR-70 已收口最后一个低风险声明清理项。
+当前无未完成 P3 项；PR-73 已收口最后一个低风险架构评估项。
 
 #### P4 — 锦上添花
 
-| 编号 | 任务 |
-|---|---|
-| 2.6.2 | `LibRegistrar` 声明式自注册 |
+当前无未完成 P4 项；`LibRegistrar` 自注册已评估并决定不采用。
 
 ---
 
