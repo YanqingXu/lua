@@ -1,4 +1,4 @@
-#include "repl/meta_commands.hpp"
+#include "repl/repl_meta.hpp"
 
 #include "bytecode/bytecode_printer.hpp"
 #include "common/lua_error.hpp"
@@ -6,8 +6,8 @@
 #include "compiler/codegen/codegen.hpp"
 #include "compiler/parser/parser.hpp"
 #include "core/function.hpp"
-#include "repl/executor.hpp"
-#include "repl/text.hpp"
+#include "repl/repl_exe.hpp"
+#include "repl/repl_txt.hpp"
 #include "runtime/runtime_services.hpp"
 
 #include <expected>

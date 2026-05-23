@@ -15,7 +15,7 @@ applies_to: lua_app interpreter executable
 - `src/app/app_options.hpp`
 - `src/main.cpp`
 - `src/repl.cpp`
-- `src/repl/*.cpp`
+- `src/repl/repl_*.cpp`
 - `src/repl.hpp`
 
 ## Modes

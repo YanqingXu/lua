@@ -1,9 +1,9 @@
-#include "repl/completion.hpp"
+#include "repl/repl_comp.hpp"
 
 #include "core/gc_string.hpp"
 #include "core/string_pool.hpp"
 #include "core/table.hpp"
-#include "repl/text.hpp"
+#include "repl/repl_txt.hpp"
 #include "vm/state/global_state.hpp"
 
 #include <algorithm>

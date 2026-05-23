@@ -1,5 +1,5 @@
-#ifndef LUA_REPL_CONTEXT_HPP
-#define LUA_REPL_CONTEXT_HPP
+#ifndef LUA_REPL_CTX_HPP
+#define LUA_REPL_CTX_HPP
 
 #include "repl.hpp"
 
@@ -48,4 +48,4 @@ void reportError(ReplContext& context, std::ostream& err, std::string_view sourc
 
 }  // namespace Lua::REPL::detail
 
-#endif  // LUA_REPL_CONTEXT_HPP
+#endif  // LUA_REPL_CTX_HPP

@@ -386,7 +386,7 @@ using ValueResult = std::variant<
 1. ✓ **指令级覆盖矩阵**：PR-54 已新增 `tests/unit/vm/opcode_coverage_matrix.md`，为 38 条 opcode 显性列出正向 / 边界 / metamethod 覆盖锚点；`tools/check_opcode_coverage_matrix.ps1` 已接入质量门，新增 / 删除 / 重命名 opcode 时矩阵会失败并要求同步更新。
 2. ✓ **AST Visitor 测试**：`tests/unit/compiler/test_ast_visitor.cpp` 已覆盖最小 visitor 分发与 concept 检查；后续若新增 AST dumper，再补端到端输出测试。
 3. **GC 策略测试**：阶段 2.3 引入 `GCStrategy` 后，给每个 strategy 写"等价性测试"——同样根集应产生同样的存活集（不要求时间一致）。
-4. **REPL 增量解析测试**：`isIncompleteInput` 已抽到 `src/repl/executor.cpp`，后续补面向 incomplete 语法模式的单测。
+4. **REPL 增量解析测试**：`isIncompleteInput` 已抽到 `src/repl/repl_exe.cpp`，后续补面向 incomplete 语法模式的单测。
 5. **Trace 文件 golden test**：`src/debug/*` 的 JSONL trace 容易回归，建议固化一组 golden 文件。
 
 ### 5.2 质量门（已有 `tools/run_quality_gate.ps1`）
@@ -556,7 +556,7 @@ using ValueResult = std::variant<
 | 5.1 opcode 覆盖矩阵 | ✓ PR-54 | `tests/unit/vm/opcode_coverage_matrix.md` 覆盖 38 条 opcode；`tools/check_opcode_coverage_matrix.ps1` 从 `opcode.hpp` 解析真实 enum 并校验矩阵行数、顺序、重复和未知 opcode | ✓ 确认 |
 | 5.1 AST Visitor 测试 | ✓ | `tests/unit/compiler/test_ast_visitor.cpp` 存在 | ✓ 确认 |
 | 5.1 GC 策略测试 | 依赖 2.3 | 因 `GCStrategy` 未实现而无法进行 | ⚠ 阻塞 |
-| 5.1 REPL 增量解析测试 | 建议 | `isIncompleteInput` 已从 `repl.cpp` 抽到 `src/repl/executor.cpp`；仍需补直接覆盖 incomplete 判定的单测 | △ 部分完成 |
+| 5.1 REPL 增量解析测试 | 建议 | `isIncompleteInput` 已从 `repl.cpp` 抽到 `src/repl/repl_exe.cpp`；仍需补直接覆盖 incomplete 判定的单测 | △ 部分完成 |
 | 5.1 Trace golden 测试 | 建议 | 无 golden 文件目录或对比逻辑 | ✗ 未完成 |
 | 5.2 质量门 | ✓ | `run_quality_gate.ps1` + `check_doc_drift.ps1` 动态解析测试计数，并已接入 opcode 覆盖矩阵漂移检查 | ✓ 确认 |
 | 5.2 clang-tidy | ✓ 增量 | `.clang-tidy` 配置文件存在；`run_quality_gate.ps1` 已有 `clang-tidy smoke`，本机无工具时按增量策略跳过 | ✓ 已接入 |

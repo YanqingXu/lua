@@ -1,5 +1,5 @@
-#ifndef LUA_REPL_SIGNALS_HPP
-#define LUA_REPL_SIGNALS_HPP
+#ifndef LUA_REPL_SIG_HPP
+#define LUA_REPL_SIG_HPP
 
 #include "common/types.hpp"
 
@@ -43,4 +43,4 @@ ConsoleReadStatus readInteractiveConsoleLine(LuaState* L, const Str& prompt, Str
 }  // namespace REPL::detail
 }  // namespace Lua
 
-#endif  // LUA_REPL_SIGNALS_HPP
+#endif  // LUA_REPL_SIG_HPP

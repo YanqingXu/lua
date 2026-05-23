@@ -1,8 +1,8 @@
-#ifndef LUA_REPL_META_COMMANDS_HPP
-#define LUA_REPL_META_COMMANDS_HPP
+#ifndef LUA_REPL_META_HPP
+#define LUA_REPL_META_HPP
 
 #include "repl.hpp"
-#include "repl/context.hpp"
+#include "repl/repl_ctx.hpp"
 
 namespace Lua::REPL::detail {
 
@@ -17,4 +17,4 @@ int runMetaCommand(ReplContext& context, LuaState* L, const MetaCommand& command
 
 }  // namespace Lua::REPL::detail
 
-#endif  // LUA_REPL_META_COMMANDS_HPP
+#endif  // LUA_REPL_META_HPP

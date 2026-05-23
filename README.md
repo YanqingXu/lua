@@ -863,7 +863,7 @@ openBaseLib(L);  // 注册所有函数到全局环境
 │   ├── vm/                        # GlobalState / LuaState / Stack / VM
 │   ├── main.cpp                   # `lua_app` 入口
 │   ├── repl.cpp/.hpp              # REPL 公共入口与会话循环
-│   ├── repl/                      # REPL completion / history / meta commands / signals / execution helpers
+│   ├── repl/                      # REPL repl_* 子模块：completion / history / meta / signals / execution helpers
 │   └── bytecode_main.cpp          # `lua_bytecode` 入口
 ├── tests/
 │   ├── lua/                       # Lua 脚本级测试样例

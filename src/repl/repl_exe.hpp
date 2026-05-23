@@ -1,9 +1,9 @@
-#ifndef LUA_REPL_EXECUTOR_HPP
-#define LUA_REPL_EXECUTOR_HPP
+#ifndef LUA_REPL_EXE_HPP
+#define LUA_REPL_EXE_HPP
 
 #include "compiler/ast.hpp"
 #include "common/lua_error.hpp"
-#include "repl/context.hpp"
+#include "repl/repl_ctx.hpp"
 
 #include <expected>
 #include <iosfwd>
@@ -31,4 +31,4 @@ int executePreparedInput(ReplContext& context, LuaState* L, PreparedInput&& inpu
 }  // namespace REPL::detail
 }  // namespace Lua
 
-#endif  // LUA_REPL_EXECUTOR_HPP
+#endif  // LUA_REPL_EXE_HPP

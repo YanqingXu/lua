@@ -87,12 +87,12 @@ set(LUA_CORE_SOURCES
 
 set(LUA_REPL_SOURCES
     src/repl.cpp
-    src/repl/completion.cpp
-    src/repl/context.cpp
-    src/repl/executor.cpp
-    src/repl/history.cpp
-    src/repl/meta_commands.cpp
-    src/repl/signals.cpp
+    src/repl/repl_comp.cpp
+    src/repl/repl_ctx.cpp
+    src/repl/repl_exe.cpp
+    src/repl/repl_hist.cpp
+    src/repl/repl_meta.cpp
+    src/repl/repl_sig.cpp
 )
 
 set(LUA_TEST_SOURCES

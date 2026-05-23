@@ -1,5 +1,5 @@
-#ifndef LUA_REPL_HISTORY_HPP
-#define LUA_REPL_HISTORY_HPP
+#ifndef LUA_REPL_HIST_HPP
+#define LUA_REPL_HIST_HPP
 
 #include "repl.hpp"
 
@@ -11,4 +11,4 @@ bool saveHistory(const Str& path, const Vec<Str>& history);
 
 }  // namespace Lua::REPL
 
-#endif  // LUA_REPL_HISTORY_HPP
+#endif  // LUA_REPL_HIST_HPP

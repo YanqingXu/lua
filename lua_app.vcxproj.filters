@@ -27,25 +27,25 @@
     <ClInclude Include="src\repl.hpp">
       <Filter>src</Filter>
     </ClInclude>
-    <ClInclude Include="src\repl\completion.hpp">
+    <ClInclude Include="src\repl\repl_comp.hpp">
       <Filter>src\repl</Filter>
     </ClInclude>
-    <ClInclude Include="src\repl\context.hpp">
+    <ClInclude Include="src\repl\repl_ctx.hpp">
       <Filter>src\repl</Filter>
     </ClInclude>
-    <ClInclude Include="src\repl\executor.hpp">
+    <ClInclude Include="src\repl\repl_exe.hpp">
       <Filter>src\repl</Filter>
     </ClInclude>
-    <ClInclude Include="src\repl\history.hpp">
+    <ClInclude Include="src\repl\repl_hist.hpp">
       <Filter>src\repl</Filter>
     </ClInclude>
-    <ClInclude Include="src\repl\meta_commands.hpp">
+    <ClInclude Include="src\repl\repl_meta.hpp">
       <Filter>src\repl</Filter>
     </ClInclude>
-    <ClInclude Include="src\repl\signals.hpp">
+    <ClInclude Include="src\repl\repl_sig.hpp">
       <Filter>src\repl</Filter>
     </ClInclude>
-    <ClInclude Include="src\repl\text.hpp">
+    <ClInclude Include="src\repl\repl_txt.hpp">
       <Filter>src\repl</Filter>
     </ClInclude>
   </ItemGroup>
@@ -62,22 +62,22 @@
     <ClCompile Include="src\repl.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="src\repl\completion.cpp">
+    <ClCompile Include="src\repl\repl_comp.cpp">
       <Filter>src\repl</Filter>
     </ClCompile>
-    <ClCompile Include="src\repl\context.cpp">
+    <ClCompile Include="src\repl\repl_ctx.cpp">
       <Filter>src\repl</Filter>
     </ClCompile>
-    <ClCompile Include="src\repl\executor.cpp">
+    <ClCompile Include="src\repl\repl_exe.cpp">
       <Filter>src\repl</Filter>
     </ClCompile>
-    <ClCompile Include="src\repl\history.cpp">
+    <ClCompile Include="src\repl\repl_hist.cpp">
       <Filter>src\repl</Filter>
     </ClCompile>
-    <ClCompile Include="src\repl\meta_commands.cpp">
+    <ClCompile Include="src\repl\repl_meta.cpp">
       <Filter>src\repl</Filter>
     </ClCompile>
-    <ClCompile Include="src\repl\signals.cpp">
+    <ClCompile Include="src\repl\repl_sig.cpp">
       <Filter>src\repl</Filter>
     </ClCompile>
   </ItemGroup>

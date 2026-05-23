@@ -1,5 +1,5 @@
-#ifndef LUA_REPL_COMPLETION_HPP
-#define LUA_REPL_COMPLETION_HPP
+#ifndef LUA_REPL_COMP_HPP
+#define LUA_REPL_COMP_HPP
 
 #include "repl.hpp"
 
@@ -12,4 +12,4 @@ void applySubmittedTabCompletion(LuaState* L, Str& line, std::ostream& out);
 
 }  // namespace Lua::REPL::detail
 
-#endif  // LUA_REPL_COMPLETION_HPP
+#endif  // LUA_REPL_COMP_HPP

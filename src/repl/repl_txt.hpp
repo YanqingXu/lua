@@ -1,5 +1,5 @@
-#ifndef LUA_REPL_TEXT_HPP
-#define LUA_REPL_TEXT_HPP
+#ifndef LUA_REPL_TXT_HPP
+#define LUA_REPL_TXT_HPP
 
 #include "common/types.hpp"
 
@@ -32,4 +32,4 @@ inline bool startsWith(std::string_view text, std::string_view prefix) {
 
 }  // namespace Lua::REPL::detail
 
-#endif  // LUA_REPL_TEXT_HPP
+#endif  // LUA_REPL_TXT_HPP
