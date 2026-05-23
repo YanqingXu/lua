@@ -48,7 +48,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_quality_gate.ps1
 | 中 | EngineContext / RuntimeServices | 已完成 | 已引入显式 RuntimeServices，并迁移入口层、CodeGenerator、Parser/VM 兼容重载 |
 | 中 | 教学导航 | 已完成 | 已新增 `docs/index.md`、术语表和 examples，并扩展 walkthrough 索引 |
 | 低 | CMake + CTest | 已完成 | 已新增 secondary CMake/CTest 路径，不替代 VS/MSBuild 主路径 |
-| 长期 | 拆分 CodeGenerator / VM / Parser / GC 策略边界 | 进行中 | 8A-8C CodeGenerator 边界已完成，8D-8G VM 入口、dispatch 分类、ops/call/剩余 helper 与 trace/debug 边界已完成；8H Parser 函数组审计与行为锁定、8I Parser 物理拆分执行已完成；PR-39 已完成 Switch dispatch 每 opcode inline helper；PR-40 已完成 VM expected 异常映射 helper；PR-41 已完成 CodeGenerator 职责地图与 characterization 测试；PR-42 已完成 JumpPatcher 抽取；PR-43 已完成 ScopeManager 抽取；PR-44 已完成 ExpressionEmitter 抽取；PR-45 已完成 StatementEmitter 抽取；PR-46 已完成 GC sweep 显式 StringPool 边界；PR-48 已完成 ValueResult variant prototype；PR-51 已完成 trace diff + changedRegisters；PR-52 已完成 gc-cycle walkthrough；PR-62 已完成 GCStrategy / MarkSweepGC / IncrementalGC 教学占位策略与等价性测试；PR-63 已完成 lua_bytecode Mermaid CFG；PR-64 已完成 Trace JSONL golden 测试；PR-65 已完成 REPL 增量解析测试；PR-66 已完成 add_source 源码清单同步脚本；PR-67 已完成 Parser tokenString utility 抽取；PR-68 已完成 AstVisitor 组合模板；PR-69 已完成 Visitor canVisit 检查去重 |
+| 长期 | 拆分 CodeGenerator / VM / Parser / GC 策略边界 | 进行中 | 8A-8C CodeGenerator 边界已完成，8D-8G VM 入口、dispatch 分类、ops/call/剩余 helper 与 trace/debug 边界已完成；8H Parser 函数组审计与行为锁定、8I Parser 物理拆分执行已完成；PR-39 已完成 Switch dispatch 每 opcode inline helper；PR-40 已完成 VM expected 异常映射 helper；PR-41 已完成 CodeGenerator 职责地图与 characterization 测试；PR-42 已完成 JumpPatcher 抽取；PR-43 已完成 ScopeManager 抽取；PR-44 已完成 ExpressionEmitter 抽取；PR-45 已完成 StatementEmitter 抽取；PR-46 已完成 GC sweep 显式 StringPool 边界；PR-48 已完成 ValueResult variant prototype；PR-51 已完成 trace diff + changedRegisters；PR-52 已完成 gc-cycle walkthrough；PR-62 已完成 GCStrategy / MarkSweepGC / IncrementalGC 教学占位策略与等价性测试；PR-63 已完成 lua_bytecode Mermaid CFG；PR-64 已完成 Trace JSONL golden 测试；PR-65 已完成 REPL 增量解析测试；PR-66 已完成 add_source 源码清单同步脚本；PR-67 已完成 Parser tokenString utility 抽取；PR-68 已完成 AstVisitor 组合模板；PR-69 已完成 Visitor canVisit 检查去重；PR-70 已完成标准库 openXxx deprecated 包装清理 |
 
 ## 已完成优化
 
@@ -127,7 +127,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_quality_gate.ps1
 
 - 质量门禁配置自检通过。
 - 文档漂移检查通过。
-- 本机有 MSBuild 和 `bin\lua_test.exe` 时，`run_quality_gate.ps1` 会构建 `lua_test.vcxproj`，并运行 543 个注册测试 / 2730 个结果 / 0 失败。
+- 本机有 MSBuild 和 `bin\lua_test.exe` 时，`run_quality_gate.ps1` 会构建 `lua_test.vcxproj`，并运行 544 个注册测试 / 2735 个结果 / 0 失败。
 
 ### 3A. 共享文件读取
 
@@ -231,7 +231,7 @@ MSBuild.exe lua_bytecode.vcxproj /m /p:Configuration=Debug /p:Platform=x64
 
 - 标准库默认装配顺序集中到 `Lua::getStandardLibraryCatalog()` 返回的 `{id, name, open}` 表。
 - `StandardLibrary::openAll()` 改为遍历 catalog，不再手写逐个标准库调用。
-- `StandardLibrary::openBase()`、`openMath()` 等单库入口保留，但通过 catalog 查找执行，避免包装逻辑分叉。
+- `StandardLibrary::openCatalogLibrary(L, id)` 是单库加载主入口；`openBase()`、`openMath()` 等旧入口保留为 `[[deprecated]]` 兼容包装。
 - 新增测试同时覆盖 catalog 顺序、open 函数存在性、`openAll()` 注册全局函数/库表，以及 `package.loaded` 中的标准库缓存。
 
 已使用的验证命令：
@@ -502,7 +502,7 @@ AppOptions parseArgs(int argc, char** argv);
 - [x] 增加一个测试或烟测断言，确认 `openAll()` 仍注册预期的库表和函数。
 - [x] 定义 `{id, name, openFn}` catalog。
 - [x] 将 `openAll()` 改为遍历 catalog。
-- [x] 保留 `openBase()`、`openMath()` 等单库入口，供测试和按需加载使用。
+- [x] 公开 `openCatalogLibrary()`，并将 `openBase()`、`openMath()` 等旧单库入口保留为 `[[deprecated]]` 兼容包装。
 - [x] 运行 `tools\run_quality_gate.ps1`。
 
 **验收标准：**
@@ -1362,7 +1362,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\check_doc_drift.ps1
 - MSBuild `lua_test.vcxproj` 通过，0 警告 / 0 错误。
 - `VM Trace Debug` 过滤测试选中 6 个注册测试 / 70 个结果 / 0 失败。
 - `AppOptions` 过滤测试选中 1 个注册测试 / 27 个结果 / 0 失败。
-- 默认 `bin\lua_test.exe` 运行 543 个注册测试 / 2730 个结果 / 0 失败。
+- 默认 `bin\lua_test.exe` 运行 544 个注册测试 / 2735 个结果 / 0 失败。
 
 ## 已完成任务：REPL incremental parsing tests
 
@@ -1387,7 +1387,7 @@ bin\lua_test.exe
 验收结果：
 
 - `REPL Commands` 过滤测试选中 23 个注册测试 / 139 个结果 / 0 失败。
-- 默认 `bin\lua_test.exe` 运行 543 个注册测试 / 2730 个结果 / 0 失败。
+- 默认 `bin\lua_test.exe` 运行 544 个注册测试 / 2735 个结果 / 0 失败。
 
 ## 已完成任务：source list sync script
 
@@ -1455,7 +1455,7 @@ git diff --check
 验收结果：
 
 - `Parser Boundary Sentinels` 继续覆盖 token string 借用边界。
-- 默认 `bin\lua_test.exe` 仍运行 543 个 registered tests / 2730 个 assertion results / 0 failures。
+- 默认 `bin\lua_test.exe` 仍运行 544 个 registered tests / 2735 个 assertion results / 0 failures。
 - `run_quality_gate.ps1` 通过；本机未发现 `clang-format` / `clang-tidy` 时按脚本设计跳过对应项。
 - 文档漂移检查、质量门配置自检、CMake/CTest secondary 路径和 whitespace 检查均通过。
 
@@ -1490,7 +1490,7 @@ git diff --check
 
 - `AST Visitor` 新增 combined visitor dispatch 测试通过。
 - REPL `.ast` 仍使用同一输出路径，`REPL Commands` 保持全绿。
-- 默认 `bin\lua_test.exe` 仍运行 543 个 registered tests / 2730 个 assertion results / 0 failures。
+- 默认 `bin\lua_test.exe` 仍运行 544 个 registered tests / 2735 个 assertion results / 0 failures。
 
 ## 已完成任务：Visitor canVisit 检查去重
 
@@ -1504,7 +1504,7 @@ git diff --check
 - [x] `detail::visitsVariantNodes()` 改为复用 `detail::canVisitNode()`，统一遍历 `ExprVariant` / `StmtVariant` alternative。
 - [x] `ExprVisitor` / `StmtVisitor` 删除各自私有 `canVisitNode()` / `canVisitAll()`，直接复用 detail helper。
 - [x] `ExpressionEmitter` / `StatementEmitter` 精确 friend `detail::canVisitNode()`，保留私有 `visitNode()` 封装，同时允许编译期覆盖检查访问。
-- [x] 同步优化路线图；下一项推荐推进到 PR-70：`lib_manager.hpp` 的 `openXxx()` deprecated 包装清理。
+- [x] 同步优化路线图；后续 PR-70 已收口 `lib_manager.hpp` 的 `openXxx()` deprecated 包装清理。
 
 已使用的验证命令：
 
@@ -1523,7 +1523,42 @@ git diff --check
 - 质量门配置测试通过。
 - CMake smoke 构建 `lua_core` / `lua_app` / `lua_bytecode` / `lua_test`，CTest 5/5 通过。
 - `git diff --check` 通过；仅报告 Windows 换行提示。
-- 默认 `bin\lua_test.exe` 仍运行 543 个 registered tests / 2730 个 assertion results / 0 failures。
+- 默认 `bin\lua_test.exe` 仍运行 544 个 registered tests / 2735 个 assertion results / 0 failures。
+- `clang-format` / `clang-tidy` 未在 PATH 中，按质量门设计跳过。
+
+## 已完成任务：标准库单库入口清理
+
+### PR-70 / 2.6.1：`openXxx()` deprecated 包装
+
+**目标：** 让标准库按需加载的主路径显式落到 catalog，而不是继续鼓励调用 9 个同构 `openBase()` / `openMath()` / ... 包装器。
+
+已完成：
+
+- [x] `StandardLibrary::openCatalogLibrary(L, id)` 从 `lib_manager.cpp` 内部 helper 提升为 public API。
+- [x] `openBase()`、`openMath()`、`openIO()`、`openString()`、`openTable()`、`openOS()`、`openCoroutine()`、`openDebug()`、`openPackage()` 标记为 `[[deprecated]]` 兼容 shim。
+- [x] 包库测试 helper 改用 `openCatalogLibrary(L, "base")` / `openCatalogLibrary(L, "package")`，避免新 deprecated API 在测试中继续扩散。
+- [x] `Standard Library Catalog` 新增单库加载测试，确认 `math` 可按 id 加载、未请求的 `string` 不会被打开、未知 id 安静忽略。
+- [x] 同步标准库 overview、架构 pattern registry、项目状态和优化路线图；下一项推荐推进到 PR-71：CMake 编译选项对齐核验。
+
+已使用的验证命令：
+
+```powershell
+MSBuild lua_test.vcxproj /m /p:Configuration=Debug /p:Platform=x64
+bin\lua_test.exe --filter "Standard Library Catalog"
+bin\lua_test.exe
+.\tools\run_quality_gate.ps1
+.\tools\run_cmake_smoke.ps1
+git diff --check
+```
+
+验收结果：
+
+- `lua_test.vcxproj` 编译通过，0 warnings / 0 errors。
+- `Standard Library Catalog` 3 个 selected tests / 64 个 assertion results / 0 failures。
+- 默认 `bin\lua_test.exe` 运行 544 个 registered tests / 2735 个 assertion results / 0 failures。
+- 完整质量门通过；文档漂移检查已接受新的动态测试计数。
+- CMake smoke 构建 `lua_core` / `lua_app` / `lua_bytecode` / `lua_test`，CTest 5/5 通过。
+- `git diff --check` 通过；仅报告 Windows 换行提示。
 - `clang-format` / `clang-tidy` 未在 PATH 中，按质量门设计跳过。
 
 ## 维护规则

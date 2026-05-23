@@ -45,7 +45,7 @@ applies_to: 当前仓库事实与面向贡献者的工作流
 ## 测试状态
 
 - 测试框架：自定义轻量级 C++ 测试框架，vendored 在 `lua_test/include/test_framework`，由 `tests/unit/framework` 适配。
-- 最近验证的测试计数：543 个 registered tests，2730 个 assertion results，0 failures。
+- 最近验证的测试计数：544 个 registered tests，2735 个 assertion results，0 failures。
 - `bin\lua_test.exe` 支持 `--list`、`--filter <suite-or-name>` 和 `--report=junit`。
 - 这些数字描述的是项目测试运行器结果，不是 Lua 5.1.5 兼容率百分比。
 
@@ -109,6 +109,7 @@ rg "ExprDesc|ExprKind|expdesc" src/compiler
 - `src/vm/vm_table.cpp`、`src/vm/vm_frame.cpp` 和 `src/vm/vm_loop.cpp` 分别包含 SETLIST、closure / vararg 和 TFORLOOP helper。
 - `src/vm/vm_trace.cpp` 包含 trace sink 状态、debug hook 分发、trace event 构造和 `changedRegisters` 差异计算；`src/vm/vm.cpp` 保留主 dispatch 循环以及普通 trace / `--trace-diff` 的事件触发点；`VM Trace Debug` 测试已用 plain / diff JSONL golden 锁住 `registers` 与 `changedRegisters` schema。
 - `src/vm/vm_internal.hpp` 是 VM 内部实现分片边界，包含 `captureRuntimeErrors` / `mapExceptionToUnexpected` 这类可复用 expected 边界 helper；由 `tests/unit/vm/test_runtime_services.cpp`、`tests/unit/vm/test_vm_internal_boundaries.cpp` 以及 `tests/unit/vm/test_vm_trace_debug.cpp` 覆盖。
+- `src/lib/lib_manager.hpp` 暴露 `StandardLibrary::openCatalogLibrary(L, id)` 作为单库加载主入口；旧 `openBase()` / `openMath()` / ... 包装器保留为 `[[deprecated]]` 兼容 shim。
 
 ## 学习路径状态（Learning Path）
 

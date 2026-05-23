@@ -21,7 +21,7 @@ Current catalog order:
 8. `debug`
 9. `package`
 
-`StandardLibrary::openAll()` iterates this catalog. Single-library helpers such as `openMath()` and `openPackage()` resolve through the same catalog path.
+`StandardLibrary::openAll()` iterates this catalog. Single-library loading should use `StandardLibrary::openCatalogLibrary(L, "<id>")`; the older `openMath()` / `openPackage()` convenience wrappers are deprecated compatibility shims over the same path.
 
 ## Registration Model
 

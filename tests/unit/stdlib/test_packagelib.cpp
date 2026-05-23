@@ -88,8 +88,8 @@ constexpr const char* kSuiteName = "Package Library";
 
 // Helper: open both base library and package library
 void openBaseAndPackage(LuaState* L) {
-    StandardLibrary::openBase(L);
-    StandardLibrary::openPackage(L);
+    StandardLibrary::openCatalogLibrary(L, "base");
+    StandardLibrary::openCatalogLibrary(L, "package");
 }
 
 // Helper: open all standard libraries

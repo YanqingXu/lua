@@ -2,9 +2,9 @@
 
 > 适用范围：`g:\github\lua`（现代 C++ Lua 5.1.5 解释器）
 > 设计目标：**可读性 > 可维护性 > 教育价值 > 性能**
-> 约束：保持 543 个注册测试 / 2730 个断言结果 / 0 失败，不破坏 `LuaState` / `VM` public API。
+> 约束：保持 544 个注册测试 / 2735 个断言结果 / 0 失败，不破坏 `LuaState` / `VM` public API。
 > 最近审计：2026-05-21（深度审计报告，覆盖 Readability / Extensibility / Educational Value 三维度）
-> 最近同步：2026-05-23（PR-69：Visitor 内部 `canVisit*` 检查去重）
+> 最近同步：2026-05-23（PR-70：`lib_manager.hpp` deprecated 单库包装清理）
 
 ---
 
@@ -13,7 +13,7 @@
 | 维度 | 评分 | 关键优势 | 关键改进点 |
 |---|---|---|---|
 | **可读性** | **A-** | CRTP+concept 编译期检查、`std::expected` 边界清晰、VM 主循环已精简为策略入口 + handler table | `ValueResult` 已有 variant prototype 但旧兼容字段仍待迁移、`CodeGenerator` 方法数 60+、部分命名继承 Lua C 缩写 |
-| **易扩展性** | **B+** | Visitor 模式添加新工具零摩擦、`DispatchStrategy` 可插拔、`HandlerTable` 按组注册，`GCStrategy` 已把 collector 算法边界显式化 | GC/metatable 兼容 fallback 仍需收口、`lib_manager.hpp` 冗余声明、`CodeGenerator` facade 仍可继续瘦身 |
+| **易扩展性** | **B+** | Visitor 模式添加新工具零摩擦、`DispatchStrategy` 可插拔、`HandlerTable` 按组注册，`GCStrategy` 已把 collector 算法边界显式化，标准库单库加载已统一到 catalog 入口 | GC/metatable 兼容 fallback 仍需收口、`CodeGenerator` facade 仍可继续瘦身 |
 | **教学价值** | **A-** | hello-world / closure-and-upvalue / gc-cycle walkthrough 已覆盖端到端执行、闭包生命周期和完整 GC 周期，glossary 降低认知负担，trace 系统层次分明且已有差异模式与 JSONL golden，REPL 已能打印 AST、bytecode 与 GC 状态，支持 Tab 探索全局名和库字段，并在终端中高亮错误、展示行号 prompt 和覆盖增量解析行为，`lua_bytecode --cfg` 可直接生成 Mermaid CFG | 后续可继续补样例和文档深挖 |
 
 各维度详细评估见本文档对应阶段的任务标注；已完成项以 ✓ 标记。
@@ -25,7 +25,7 @@
 | 阶段 | 周期定位 | 关注点 | 是否触发 API 变化 | 完成度 |
 |---|---|---|---|---|
 | **阶段 1 — 短期代码清理** | 1–2 个迭代 | 删冗余、统一命名、收紧错误处理、文档与代码同步 | 否 | ~95% |
-| **阶段 2 — 中期模式重构** | 3–5 个迭代 | 引入访问者 / 策略 / 命令模式，VM dispatch 与 GC 抽象化 | 内部 API 调整、public 不变 | ~93% |
+| **阶段 2 — 中期模式重构** | 3–5 个迭代 | 引入访问者 / 策略 / 命令模式，VM dispatch 与 GC 抽象化 | 内部 API 调整、public 不变 | ~94% |
 | **阶段 3 — 现代 C++ 特性** | 穿插于 1 & 2 | `std::expected` / `concepts` / `std::format` / `[[nodiscard]]` | 部分 public 签名变更 | ~90% |
 | **阶段 4 — 教育价值增强** | 持续推进 | 自解释代码、字节码可视化、执行链路教学文档、REPL 体验、Trace 差异模式 | 否（增量增强） | ~88% |
 | **阶段 5 — 工程实践** | 持续 | 测试覆盖、质量门、构建一致性、文档漂移检测 | 否 | ~82% |
@@ -194,7 +194,7 @@ CodeGenerator (orchestration facade)
 
 ### 2.6 审计新增：标准库声明式注册
 
-**现状**：`lib_catalog.cpp` 的 `constexpr std::array<LibCatalogEntry, 9>` 已实现表驱动注册，但 `lib_manager.hpp` 仍保留 9 个独立的 `openBase()` / `openMath()` / ... 方法声明——这些只是对 `openCatalogLibrary(L, "base")` 的薄封装，属于冗余的便利包装。
+**现状**：`lib_catalog.cpp` 的 `constexpr std::array<LibCatalogEntry, 9>` 已实现表驱动注册；PR-70 已公开 `StandardLibrary::openCatalogLibrary(L, id)` 作为单库加载主入口，并将 `openBase()` / `openMath()` / ... 9 个兼容包装标记为 `[[deprecated]]`。
 
 **建议方案**（声明式自注册）：
 
@@ -219,7 +219,7 @@ namespace { LibRegistrar kReg("base", "Base Library", openBaseLib); }
 | 编号 | 任务 | 说明 | 状态 |
 |---|---|---|---|
 | 2.5.1 | `CodeGenerator` 拆分为 ExpressionEmitter / StatementEmitter / JumpPatcher / ScopeManager | 共享 CodegenState；2.5.1-a/b/c/d/e 已完成，后续剩余是 facade 瘦身与类型表达升级 | ✓ **已完成（核心拆分）** |
-| 2.6.1 | `lib_manager.hpp` 的 9 个 `openXxx()` 标记 `[[deprecated]]`，引导调用方使用 `openCatalogLibrary()` | 消除冗余声明 | P3 待执行 |
+| 2.6.1 | `lib_manager.hpp` 的 9 个 `openXxx()` 标记 `[[deprecated]]`，引导调用方使用 `openCatalogLibrary()` | 消除冗余声明；`StandardLibrary::openCatalogLibrary()` 已成为可调用 public 入口 | ✓ **已完成 — PR-70** |
 | 2.6.2 | 引入 `LibRegistrar` 声明式自注册，消除 #include 耦合 | 可选：注意 MSVC linker 行为 | P4 候选 |
 
 ---
@@ -379,7 +379,7 @@ using ValueResult = std::variant<
 
 ### 5.1 测试覆盖精细化
 
-**现状**：543 个注册测试 / 2730 个断言结果 / 0 失败，目录 `tests/unit/`、`tests/lua/`。
+**现状**：544 个注册测试 / 2735 个断言结果 / 0 失败，目录 `tests/unit/`、`tests/lua/`。
 
 **改进方向**（优先小步增量；覆盖矩阵作为 checklist 文档）：
 
@@ -409,7 +409,7 @@ using ValueResult = std::variant<
 | 风险 | 影响 | 缓解 |
 |---|---|---|
 | VM dispatch 命令模式化引入函数指针表，调试器单步体验下降 | 影响教学 | 保留 `SwitchDispatch` 作为默认；调试构建强制使用；1.1.1 落地的独立 inline 函数进一步改善 Switch 路径单步体验 |
-| `std::expected` 大范围替换异常导致调用链翻新 | 543 测试可能批量红 | 按 3.1 表格逐个函数迁移，每次 1 个函数 + 全量测试 |
+| `std::expected` 大范围替换异常导致调用链翻新 | 544 测试可能批量红 | 按 3.1 表格逐个函数迁移，每次 1 个函数 + 全量测试 |
 | GC 去单例化破坏标准库内部对 `GarbageCollector::getInstance()` 的引用 | 编译错误广泛 | 保留 inline shim `getInstance()` 一版本，标记 `[[deprecated]]` |
 | Visitor 化后 codegen 性能下降 | 不影响目标，但需观察 | 教学项目可接受；基准用 `examples/*.lua` 跑回归 |
 | `ValueResult` → `std::variant` 重构引入大量访问代码 | 调用侧需逐一迁移 `std::visit` | 先做 prototype 分支验证可行性，再逐步迁移 |
@@ -459,12 +459,13 @@ using ValueResult = std::variant<
 | PR-67 | `ParserUtils::tokenString` 集中到 `parser_utils.hpp`，移除 `Parser` 类内无状态字符串 helper，并保持借用型 `StrView` 测试边界 | 1.2 |
 | PR-68 | `AstVisitor<Derived, R>` 组合模板与 `VisitsAstNodes` concept，REPL AST printer 迁移到组合 visitor，并补 AST Visitor 分派契约测试 | 2.1.1 |
 | PR-69 | 复用 `detail::canVisitNode()` / `detail::visitsVariantNodes()` 去重 `ExprVisitor` / `StmtVisitor` 内部 `canVisit*` 检查，并保持 Expression/StatementEmitter 私有访问边界 | 2.1.2 |
+| PR-70 | 公开 `StandardLibrary::openCatalogLibrary()` 单库加载入口，并将 `openBase()` / `openMath()` / ... 9 个包装器标记为 `[[deprecated]]` 兼容 shim | 2.6.1 |
 
 后续推荐顺序：
 
 | PR | 编号 | 任务 | 阶段 | 依赖 / 理由 |
 |---|---|---|---|---|
-| PR-70 | 2.6.1 | `lib_manager.hpp` 的 `openXxx()` 包装标记 `[[deprecated]]` | 2 | P3；引导调用方使用表驱动 `openCatalogLibrary()`，减少标准库注册冗余入口 |
+| PR-71 | 5.2 | CMake 编译选项与 MSBuild `/W4` 策略对齐核验 | 5 | 当前阶段 5 剩余项；确认 `-Wpedantic` / `-Wconversion` 是否适合 CMake secondary path |
 
 每个 PR 完成后跑：
 
@@ -484,11 +485,11 @@ using ValueResult = std::variant<
 | 阶段 | 文档自评 | 实际评估 | 偏差 | 关键差距 |
 |---|---|---|---|---|
 | 阶段 1 — 短期代码清理 | ~95% | **~96%** | +1% | `tokenString` 集中化已完成；剩余工作转入跨阶段 P3 清理 |
-| 阶段 2 — 中期模式重构 | ~93% | **~90%** | −3% | GCStrategy、AstVisitor 组合模板和 Visitor 内部检查去重已落地；主要剩余是 lib_manager 声明清理 |
+| 阶段 2 — 中期模式重构 | ~94% | **~91%** | −3% | GCStrategy、AstVisitor 组合模板、Visitor 内部检查去重和标准库 catalog 单库入口清理已落地；剩余主要是 P4 级 `LibRegistrar` 设想与 facade 瘦身 |
 | 阶段 3 — 现代 C++ 特性 | ~90% | **~90%** | 0 | ValueResult variant prototype 已就位，后续 std::visit 迁移为渐进工作 |
 | 阶段 4 — 教育价值增强 | ~88% | **~86%** | −2% | REPL 体验和字节码可视化主线已闭环；后续偏样例和文档深挖 |
 | 阶段 5 — 工程实践 | ~82% | **~82%** | 0 | 指令级覆盖矩阵、GC 策略等价测试、CFG 输出契约测试、Trace JSONL golden、REPL 增量解析测试和 add_source 脚本已补齐；剩余为 CMake 编译选项对齐 |
-| **加权综合** | **~88%** | **~86%** | **−2%** | |
+| **加权综合** | **~88%** | **~87%** | **−1%** | |
 
 ---
 
@@ -519,10 +520,10 @@ using ValueResult = std::variant<
 | 2.3 GCStrategy | ✓ PR-62 | `src/gc/gc_strategy.hpp/.cpp` 已定义 `GCStrategy` / `MarkSweepGC` / `IncrementalGC`；`GarbageCollector::collect()` 委托当前策略；`collectgarbage("strategy",...)` 已可查询 / 切换策略边界 | ✓ 确认 |
 | 2.4 模式文档 | ✓ 已完成 | `docs/architecture/patterns.md` 已记录 | ✓ 确认 |
 | 2.5 CodeGen 拆分 | ✓ 已完成 | 五个子任务 (2.5.1-a ∼ 2.5.1-e) 全部落地：`jump_patcher` / `scope_manager` / `expression_emitter` / `statement_emitter` | ✓ 确认 |
-| 2.6.1 | P3 待执行 | `lib_manager.hpp` 仍保留 7 个 `openXxx()` 方法声明，无 `[[deprecated]]` 标记 | ✗ 未完成 |
+| 2.6.1 | ✓ PR-70 | `StandardLibrary::openCatalogLibrary(L, id)` 已公开；`lib_manager.hpp` 的 9 个 `openXxx()` 包装已标记 `[[deprecated]]`，测试调用改用 catalog 入口 | ✓ 确认 |
 | 2.6.2 | P4 候选 | 代码库中不存在 `LibRegistrar` 类 | ✗ 未完成 |
 
-**结论**：核心重构（Visitor、Dispatch、CodeGen 拆分、GCStrategy）全部落地且质量高。PR-68 / PR-69 已补齐 full-tree visitor 组合模板和内部检查去重；剩余阶段 2 差距主要是 `lib_manager.hpp` 冗余声明，属于低优先级清理。
+**结论**：核心重构（Visitor、Dispatch、CodeGen 拆分、GCStrategy、标准库 catalog 入口）全部落地且质量高。PR-68 / PR-69 已补齐 full-tree visitor 组合模板和内部检查去重；PR-70 已收口标准库单库包装迁移提示。剩余阶段 2 差距主要是 P4 级 `LibRegistrar` 设想和后续 facade 瘦身。
 
 #### 阶段 3 核验
 
@@ -588,9 +589,7 @@ using ValueResult = std::variant<
 
 #### P3 — 代码质量收尾
 
-| 编号 | 任务 |
-|---|---|
-| 2.6.1 | `lib_manager.hpp` `openXxx()` 标记 `[[deprecated]]` |
+当前无未完成 P3 项；PR-70 已收口最后一个低风险声明清理项。
 
 #### P4 — 锦上添花
 

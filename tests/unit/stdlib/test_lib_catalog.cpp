@@ -41,6 +41,10 @@ void assertTableFunction(TestSuite& suite, LuaState* L, const char* tableName, c
     ASSERT_TRUE(suite, functionValue.isFunction(), functionName);
 }
 
+void openMathByCatalog(LuaState* L) {
+    StandardLibrary::openCatalogLibrary(L, "math");
+}
+
 void testCatalogOrder(TestSuite& suite) {
     const auto catalog = getStandardLibraryCatalog();
     constexpr std::array<const char*, 9> expectedIds = {
@@ -63,6 +67,18 @@ void testCatalogOrder(TestSuite& suite) {
         ASSERT_TRUE(suite, catalog[index].name != nullptr && catalog[index].name[0] != '\0', expectedIds[index]);
         ASSERT_TRUE(suite, catalog[index].open != nullptr, expectedIds[index]);
     }
+}
+
+void testOpenCatalogLibraryRegistersSingleLibrary(TestSuite& suite) {
+    LuaStdLibTestContext ctx(openMathByCatalog);
+    LuaState* L = ctx.getState();
+
+    assertGlobalTable(suite, L, "math");
+    assertTableFunction(suite, L, "math", "sin");
+    ASSERT_TRUE(suite, L->getGlobal("string").isNil(), "catalog single open leaves string unopened");
+
+    StandardLibrary::openCatalogLibrary(L, "missing");
+    ASSERT_TRUE(suite, L->getGlobal("missing").isNil(), "unknown catalog id is ignored");
 }
 
 void testOpenAllRegistersCatalogLibraries(TestSuite& suite) {
@@ -114,5 +130,6 @@ void registerLibCatalogTests() {
     auto& registry = TestRegistry::getInstance();
 
     registry.registerTest(kSuiteName, "catalog order", testCatalogOrder);
+    registry.registerTest(kSuiteName, "openCatalogLibrary single library", testOpenCatalogLibraryRegistersSingleLibrary);
     registry.registerTest(kSuiteName, "openAll registrations", testOpenAllRegistersCatalogLibraries);
 }

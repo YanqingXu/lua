@@ -15,15 +15,6 @@ void openCatalogEntry(LuaState* L, const LibCatalogEntry& entry) {
     entry.open(L);
 }
 
-void openCatalogLibrary(LuaState* L, StrView id) {
-    const LibCatalogEntry* entry = findStandardLibrary(id);
-    if (!entry) {
-        return;
-    }
-
-    openCatalogEntry(L, *entry);
-}
-
 } // namespace
 
 void StandardLibrary::openModule(LuaState* L, LibModule& module) {
@@ -33,6 +24,15 @@ void StandardLibrary::openModule(LuaState* L, LibModule& module) {
 
     module.registerFunctions(L);
     module.initialize(L);
+}
+
+void StandardLibrary::openCatalogLibrary(LuaState* L, StrView id) {
+    const LibCatalogEntry* entry = findStandardLibrary(id);
+    if (!entry) {
+        return;
+    }
+
+    openCatalogEntry(L, *entry);
 }
 
 void StandardLibrary::openBase(LuaState* L) {
