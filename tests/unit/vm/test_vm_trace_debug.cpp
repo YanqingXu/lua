@@ -129,6 +129,47 @@ Str readTextFile(const std::filesystem::path& path) {
     );
 }
 
+Str normalizeLineEndings(Str text) {
+    usize pos = 0;
+    while ((pos = text.find("\r\n", pos)) != Str::npos) {
+        text.replace(pos, 2, "\n");
+        pos += 1;
+    }
+    return text;
+}
+
+Str writeTraceGoldenJsonl(const std::filesystem::path& path,
+                          const char* sourceName,
+                          bool traceDiff) {
+    std::filesystem::remove(path);
+
+    RuntimeServices services = RuntimeServices::fromSingletons();
+    LuaState* L = LuaState::newState(services);
+
+    bool ok = false;
+    {
+        JsonTraceSink sink(path.string(), 64);
+        ok = sink.isOpen()
+          && runLuaChunk(
+                 services,
+                 L,
+                 "local x = 1\n"
+                 "x = x + 2\n"
+                 "return x\n",
+                 sourceName,
+                 &sink,
+                 traceDiff);
+        sink.flush();
+    }
+
+    delete L;
+    if (!ok) {
+        return "";
+    }
+
+    return normalizeLineEndings(readTextFile(path));
+}
+
 }  // namespace
 
 void testTraceEventsKeepInstructionCallReturnOrder(TestSuite& suite) {
@@ -371,6 +412,38 @@ void testTraceDiffWritesChangedRegisters(TestSuite& suite) {
     delete L;
 }
 
+void testTraceJsonlPlainGolden(TestSuite& suite) {
+    const std::filesystem::path path =
+        std::filesystem::temp_directory_path() / "lua_cpp_trace_plain_golden_test.jsonl";
+
+    const Str actual = writeTraceGoldenJsonl(path, "trace_plain_golden.lua", false);
+    const Str expected =
+        "{\"seq\":0,\"kind\":\"instruction\",\"funcName\":\"trace_plain_golden.lua\",\"pc\":0,\"op\":\"LOADK\",\"a\":0,\"b\":0,\"c\":0,\"bx\":0,\"sbx\":-131071,\"line\":1,\"source\":\"trace_plain_golden.lua\",\"callDepth\":1,\"registers\":[{\"slot\":0,\"name\":\"x\",\"value\":null,\"type\":\"nil\"},{\"slot\":1,\"name\":null,\"value\":null,\"type\":\"nil\"}]}\n"
+        "{\"seq\":1,\"kind\":\"instruction\",\"funcName\":\"trace_plain_golden.lua\",\"pc\":1,\"op\":\"ADD\",\"a\":0,\"b\":0,\"c\":257,\"bx\":257,\"sbx\":-130814,\"line\":2,\"source\":\"trace_plain_golden.lua\",\"callDepth\":1,\"registers\":[{\"slot\":0,\"name\":\"x\",\"value\":1,\"type\":\"number\"},{\"slot\":1,\"name\":null,\"value\":null,\"type\":\"nil\"}]}\n"
+        "{\"seq\":2,\"kind\":\"instruction\",\"funcName\":\"trace_plain_golden.lua\",\"pc\":2,\"op\":\"MOVE\",\"a\":1,\"b\":0,\"c\":0,\"bx\":0,\"sbx\":-131071,\"line\":3,\"source\":\"trace_plain_golden.lua\",\"callDepth\":1,\"registers\":[{\"slot\":0,\"name\":\"x\",\"value\":3,\"type\":\"number\"},{\"slot\":1,\"name\":null,\"value\":null,\"type\":\"nil\"}]}\n"
+        "{\"seq\":3,\"kind\":\"instruction\",\"funcName\":\"trace_plain_golden.lua\",\"pc\":3,\"op\":\"RETURN\",\"a\":1,\"b\":2,\"c\":0,\"bx\":1024,\"sbx\":-130047,\"line\":3,\"source\":\"trace_plain_golden.lua\",\"callDepth\":1,\"registers\":[{\"slot\":0,\"name\":\"x\",\"value\":3,\"type\":\"number\"},{\"slot\":1,\"name\":null,\"value\":3,\"type\":\"number\"}]}\n"
+        "{\"seq\":4,\"kind\":\"return\",\"funcName\":\"trace_plain_golden.lua\",\"source\":\"trace_plain_golden.lua\",\"line\":3,\"callDepth\":1}\n";
+
+    ASSERT_EQ(suite, expected, actual, "plain trace JSONL matches golden output");
+    std::filesystem::remove(path);
+}
+
+void testTraceJsonlDiffGolden(TestSuite& suite) {
+    const std::filesystem::path path =
+        std::filesystem::temp_directory_path() / "lua_cpp_trace_diff_golden_test.jsonl";
+
+    const Str actual = writeTraceGoldenJsonl(path, "trace_diff_golden.lua", true);
+    const Str expected =
+        "{\"seq\":0,\"kind\":\"instruction\",\"funcName\":\"trace_diff_golden.lua\",\"pc\":0,\"op\":\"LOADK\",\"a\":0,\"b\":0,\"c\":0,\"bx\":0,\"sbx\":-131071,\"line\":1,\"source\":\"trace_diff_golden.lua\",\"callDepth\":1,\"changedRegisters\":[{\"slot\":0,\"name\":\"x\",\"old\":null,\"new\":1,\"oldType\":\"nil\",\"newType\":\"number\"}]}\n"
+        "{\"seq\":1,\"kind\":\"instruction\",\"funcName\":\"trace_diff_golden.lua\",\"pc\":1,\"op\":\"ADD\",\"a\":0,\"b\":0,\"c\":257,\"bx\":257,\"sbx\":-130814,\"line\":2,\"source\":\"trace_diff_golden.lua\",\"callDepth\":1,\"changedRegisters\":[{\"slot\":0,\"name\":\"x\",\"old\":1,\"new\":3,\"oldType\":\"number\",\"newType\":\"number\"}]}\n"
+        "{\"seq\":2,\"kind\":\"instruction\",\"funcName\":\"trace_diff_golden.lua\",\"pc\":2,\"op\":\"MOVE\",\"a\":1,\"b\":0,\"c\":0,\"bx\":0,\"sbx\":-131071,\"line\":3,\"source\":\"trace_diff_golden.lua\",\"callDepth\":1,\"changedRegisters\":[{\"slot\":1,\"name\":null,\"old\":null,\"new\":3,\"oldType\":\"nil\",\"newType\":\"number\"}]}\n"
+        "{\"seq\":3,\"kind\":\"return\",\"funcName\":\"trace_diff_golden.lua\",\"source\":\"trace_diff_golden.lua\",\"line\":3,\"callDepth\":1}\n"
+        "{\"seq\":4,\"kind\":\"instruction\",\"funcName\":\"trace_diff_golden.lua\",\"pc\":3,\"op\":\"RETURN\",\"a\":1,\"b\":2,\"c\":0,\"bx\":1024,\"sbx\":-130047,\"line\":3,\"source\":\"trace_diff_golden.lua\",\"callDepth\":1,\"changedRegisters\":[{\"slot\":0,\"name\":\"x\",\"old\":3,\"new\":null,\"oldType\":\"number\",\"newType\":\"nil\"},{\"slot\":1,\"name\":null,\"old\":3,\"new\":null,\"oldType\":\"number\",\"newType\":\"nil\"}]}\n";
+
+    ASSERT_EQ(suite, expected, actual, "trace-diff JSONL matches golden output");
+    std::filesystem::remove(path);
+}
+
 void registerVMTraceDebugTests() {
     auto& registry = TestRegistry::getInstance();
 
@@ -382,4 +455,8 @@ void registerVMTraceDebugTests() {
                           testJsonTraceSinkWritesStableJsonLines);
     registry.registerTest(kSuiteName, "Trace Diff Writes Changed Registers",
                           testTraceDiffWritesChangedRegisters);
+    registry.registerTest(kSuiteName, "Trace JSONL Plain Golden",
+                          testTraceJsonlPlainGolden);
+    registry.registerTest(kSuiteName, "Trace JSONL Diff Golden",
+                          testTraceJsonlDiffGolden);
 }

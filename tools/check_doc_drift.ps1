@@ -309,6 +309,13 @@ foreach ($required in @("decoded instructions", "constant references", "constant
     }
 }
 
+$traceSystemDoc = Read-Text "docs/vm/trace-system.md"
+foreach ($required in @("Trace JSONL Plain Golden", "Trace JSONL Diff Golden", "changedRegisters", "funcName", "registers", "VM Trace Debug")) {
+    if ($traceSystemDoc -notmatch [regex]::Escape($required)) {
+        Add-Failure $failures "docs/vm/trace-system.md is missing current trace system fact: $required"
+    }
+}
+
 $historyDoc = Read-Text "docs/archive/history/exprdesc.md"
 if ($historyDoc -notmatch "status:\s*historical") {
     Add-Failure $failures "docs/archive/history/exprdesc.md must be marked historical"

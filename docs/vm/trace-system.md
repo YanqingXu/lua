@@ -41,6 +41,13 @@ There is no checked-in HTML trace viewer yet. Earlier viewer ideas are historica
 
 `JsonTraceSink` implements `onError`, but the current VM path does not yet emit runtime error trace events. Treat error events as reserved schema support.
 
+`VM Trace Debug` includes two exact JSONL golden tests for a tiny script:
+
+- `Trace JSONL Plain Golden` locks the plain trace sequence with full `registers` snapshots.
+- `Trace JSONL Diff Golden` locks the `--trace-diff` sequence with `changedRegisters` and no full `registers` snapshots.
+
+The golden script intentionally uses only numbers and locals so the output does not contain pointer-shaped function, table, userdata, or thread values.
+
 ## Instruction Event
 
 Instruction events include decoded operands, source location, and the current function label. Plain `--trace` also includes a full frame register snapshot when the VM can provide one:
