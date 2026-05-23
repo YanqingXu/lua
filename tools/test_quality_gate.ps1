@@ -41,10 +41,25 @@ Assert-FileContains ".clang-tidy" @(
 )
 
 Assert-FileContains "tools/run_quality_gate.ps1" @(
+    "check_opcode_coverage_matrix\.ps1",
     "check_doc_drift\.ps1",
     "clang-format",
     "clang-tidy",
     "MSBuild"
+)
+
+Assert-FileContains "tools/check_opcode_coverage_matrix.ps1" @(
+    "enum\\s\+class\\s\+OpCode",
+    "opcode_coverage_matrix\.md",
+    "Duplicate matrix row",
+    "Opcode matrix order mismatch"
+)
+
+Assert-FileContains "tests/unit/vm/opcode_coverage_matrix.md" @(
+    "VM Opcode Coverage Matrix",
+    "\| MOVE \|",
+    "\| VARARG \|",
+    "PR-54 Verification Standard"
 )
 
 Assert-FileContains "tools/check_doc_drift.ps1" @(

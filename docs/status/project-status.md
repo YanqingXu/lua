@@ -52,11 +52,12 @@ applies_to: 当前仓库事实与面向贡献者的工作流
 
 - 格式化配置：`.clang-format`，基于 LLVM，并带有仓库自己的宽度和 include 排序选择。
 - 静态分析配置：`.clang-tidy`，当前限制在保守的 `bugprone-*`、`performance-*`、`portability-*` 和部分 `readability-*` 检查。
-- 本地质量门入口：`tools/run_quality_gate.ps1`。
+- 本地质量门入口：`tools/run_quality_gate.ps1`，包括 clang-format、clang-tidy smoke、opcode coverage matrix、MSBuild、documentation drift 和 unit tests。
 - 质量门自检入口：`tools/test_quality_gate.ps1`。
 - 文档漂移守卫：`tools/check_doc_drift.ps1`，会从 `bin\lua_test.exe` 汇总输出动态解析当前测试计数，并检查 README / status 文档没有落后。
 - CI 平台：GitHub Actions；入口文件为 `.github/workflows/ci.yml`，当前以 Windows/MSBuild 作为主要工作流，并先构建 `lua_test` 再运行文档漂移检查。
 - 质量门有意采用增量策略：本地格式化默认只检查变更过的源文件；本机缺少 `clang-format` 或 `clang-tidy` 时，本地脚本会明确报告跳过；MSBuild 和单元测试仍是 Windows 路径下的标准验证方式。
+- `tools/check_opcode_coverage_matrix.ps1` 从 `src/compiler/opcode.hpp` 解析 38 条 opcode，并校验 `tests/unit/vm/opcode_coverage_matrix.md` 的覆盖矩阵同步。
 
 ## 编译器管线状态
 

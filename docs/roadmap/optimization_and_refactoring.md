@@ -381,9 +381,9 @@ using ValueResult = std::variant<
 
 **现状**：515 个注册测试 / 2557 个断言结果 / 0 失败，目录 `tests/unit/`、`tests/lua/`。
 
-**改进方向**（仅修改现有测试文件，不主动新建）：
+**改进方向**（优先小步增量；覆盖矩阵作为 checklist 文档）：
 
-1. **指令级覆盖矩阵**：为 38 条 opcode 建立"每条至少 1 个正向 + 1 个边界 + 1 个 metamethod 路径"用例。建议在 `tests/unit/vm/` 下整理一张 `opcode_coverage_matrix.md`（仅作 checklist，不是 test runner）。
+1. ✓ **指令级覆盖矩阵**：PR-54 已新增 `tests/unit/vm/opcode_coverage_matrix.md`，为 38 条 opcode 显性列出正向 / 边界 / metamethod 覆盖锚点；`tools/check_opcode_coverage_matrix.ps1` 已接入质量门，新增 / 删除 / 重命名 opcode 时矩阵会失败并要求同步更新。
 2. ✓ **AST Visitor 测试**：`tests/unit/compiler/test_ast_visitor.cpp` 已覆盖最小 visitor 分发与 concept 检查；后续若新增 AST dumper，再补端到端输出测试。
 3. **GC 策略测试**：阶段 2.3 引入 `GCStrategy` 后，给每个 strategy 写"等价性测试"——同样根集应产生同样的存活集（不要求时间一致）。
 4. **REPL 增量解析测试**：把 `isIncompleteInput` 的判定从 `repl.cpp` 中抽出为可单测函数。
@@ -394,7 +394,8 @@ using ValueResult = std::variant<
 - 把 `check_doc_drift.ps1` 接入质量门，让"代码与 README 章节不同步"成为可失败信号。
 - ✓ **已完成**：PR-47 后 `check_doc_drift.ps1` 会运行 `bin\lua_test.exe`，从 `Registered Tests` / `Total Results` / `Failed` 汇总动态解析当前测试计数，再检查 README / status docs 是否同步；脚本内不再硬编码 "513" / "2497"。
 - **已修正文档偏差**：`docs/architecture/runtime-services.md` 的结构体示例已补齐 `VM::DispatchStrategy* dispatchStrategy`，且 `check_doc_drift.ps1` 已加入该字段守卫。
-- 加一条 `clang-tidy` 检查（针对 modernize-*、readability-*、bugprone-*），不强制全过，但持续记录。
+- ✓ **已完成 — PR-54**：`run_quality_gate.ps1` 已新增 `opcode coverage matrix` 步骤，先运行 `check_opcode_coverage_matrix.ps1`，让 opcode 清单与测试覆盖 checklist 的漂移成为可失败信号。
+- ✓ **已接入**：`run_quality_gate.ps1` 已包含 `clang-tidy smoke`（针对 `.clang-tidy` 中的 `bugprone-*`、`performance-*`、`portability-*`、`readability-*` 等保守规则；本机未安装 `clang-tidy` 时明确跳过）。
 - CMake 路径补充 `-Wpedantic -Wconversion`（已用 MSVC `/W4`，CMake 旁路需对齐）。
 
 ### 5.3 构建一致性
@@ -442,12 +443,14 @@ using ValueResult = std::variant<
 | PR-51 | `--trace-diff` + `changedRegisters`，CLI 增量开关、VM 指令后差异发射、JSONL schema 与测试覆盖 | 4.5.1 |
 | PR-52 | `gc-cycle.md` walkthrough，覆盖 weak table、userdata `__gc`、finalizer 复活、弱表清理和 sweep 顺序 | 4.3.3 |
 | PR-53 | `TraceEvent` 统一 `funcName` 填充，instruction / call / return / error JSONL schema 与测试覆盖同步 | 4.5.2 |
+| PR-54 | 指令级覆盖矩阵，覆盖 38 条 opcode 的正向 / 边界 / metamethod checklist，并接入质量门漂移检查 | 5.1.1 / 5.2 |
 
 后续推荐顺序：
 
 | PR | 编号 | 任务 | 阶段 | 依赖 / 理由 |
 |---|---|---|---|---|
-| PR-54 | 5.1.1 | 指令级覆盖矩阵 | 5 | P0；Trace 可读性已补齐，下一步优先把 38 条 opcode 的正向 / 边界 / metamethod 覆盖缺口显性化 |
+| PR-55 | 4.2.4 | `lua_bytecode` 子原型递归打印 | 4 | P0；PR-54 已把 opcode 测试缺口显性化，下一步回到阶段 4 的低完成度块，优先补闭包 / 子函数教学可视化 |
+| PR-56 | 4.2.5 | `lua_bytecode --diff` 模式 | 4 | P1；依赖 PR-55 稳定递归输出结构后，再做优化前后或版本间字节码差异对比 |
 
 每个 PR 完成后跑：
 
@@ -470,7 +473,7 @@ using ValueResult = std::variant<
 | 阶段 2 — 中期模式重构 | ~88% | **~80%** | −8% | GCStrategy 抽象、lib_manager 声明清理、Visitor 去重均未落地 |
 | 阶段 3 — 现代 C++ 特性 | ~90% | **~90%** | 0 | ValueResult variant prototype 已就位，后续 std::visit 迁移为渐进工作 |
 | 阶段 4 — 教育价值增强 | ~70% | **~58%** | −12% | REPL 5 项增强中 4 项未做、字节码 3 项高级功能未做 |
-| 阶段 5 — 工程实践 | ~75% | **~68%** | −7% | 测试矩阵文档、golden 测试、add_source 脚本均缺失 |
+| 阶段 5 — 工程实践 | ~75% | **~71%** | −4% | 指令级覆盖矩阵已补齐；golden 测试、REPL 增量解析测试、add_source 脚本仍缺失 |
 | **加权综合** | **~83%** | **~74%** | **−9%** | |
 
 ---
@@ -544,17 +547,17 @@ using ValueResult = std::variant<
 
 | 编号 | 文档标记 | 代码库实际 | 判定 |
 |---|---|---|---|
-| 5.1 opcode 覆盖矩阵 | 建议 | `tests/unit/vm/` 下无 `opcode_coverage_matrix.md`，仅在 roadmap 文档中被提及 | ✗ 未完成 |
+| 5.1 opcode 覆盖矩阵 | ✓ PR-54 | `tests/unit/vm/opcode_coverage_matrix.md` 覆盖 38 条 opcode；`tools/check_opcode_coverage_matrix.ps1` 从 `opcode.hpp` 解析真实 enum 并校验矩阵行数、顺序、重复和未知 opcode | ✓ 确认 |
 | 5.1 AST Visitor 测试 | ✓ | `tests/unit/compiler/test_ast_visitor.cpp` 存在 | ✓ 确认 |
 | 5.1 GC 策略测试 | 依赖 2.3 | 因 `GCStrategy` 未实现而无法进行 | ⚠ 阻塞 |
 | 5.1 REPL 增量解析测试 | 建议 | `isIncompleteInput` 未从 `repl.cpp` 抽出为独立可测函数 | ✗ 未完成 |
 | 5.1 Trace golden 测试 | 建议 | 无 golden 文件目录或对比逻辑 | ✗ 未完成 |
-| 5.2 质量门 | ✓ | `run_quality_gate.ps1` + `check_doc_drift.ps1` 动态解析测试计数，不再硬编码 | ✓ 确认 |
-| 5.2 clang-tidy | 部分 | `.clang-tidy` 配置文件存在于项目根目录，但未接入质量门作为可失败信号 | ⚠ 部分 |
+| 5.2 质量门 | ✓ | `run_quality_gate.ps1` + `check_doc_drift.ps1` 动态解析测试计数，并已接入 opcode 覆盖矩阵漂移检查 | ✓ 确认 |
+| 5.2 clang-tidy | ✓ 增量 | `.clang-tidy` 配置文件存在；`run_quality_gate.ps1` 已有 `clang-tidy smoke`，本机无工具时按增量策略跳过 | ✓ 已接入 |
 | 5.2 CMake 编译选项 | 待验证 | `-Wpedantic -Wconversion` 对齐状态未确认（项目用 MSVC `/W4`） | ⚠ 待验证 |
 | 5.3 `add_source.ps1` | 建议 | 文件不存在，新增 `.cpp` 仍需手动同步 4 处 (CMakeLists.txt / vcxproj / vcxproj.filters / test vcxproj) | ✗ 未完成 |
 
-**结论**：质量门自动化（动态测试计数）是亮点。测试覆盖精细化和工程脚本自动化是主要差距。
+**结论**：质量门自动化继续加强：动态测试计数和 opcode 覆盖矩阵漂移都已变成可失败信号。后续主要差距转为 golden 测试、REPL 增量解析测试和工程脚本自动化。
 
 ---
 
@@ -593,7 +596,7 @@ using ValueResult = std::variant<
 |---|---|
 | 2.6.2 | `LibRegistrar` 声明式自注册 |
 | 4.2.6 | Mermaid CFG 输出 |
-| 5.1 | opcode 覆盖矩阵 / golden 测试 / REPL 增量解析测试 |
+| 5.1 | golden 测试 / REPL 增量解析测试 |
 
 ---
 
@@ -601,5 +604,5 @@ using ValueResult = std::variant<
 
 1. **核心重构质量极高**：Visitor 模式（compile-time 全覆盖检查）、VM Dispatch 双策略、CodeGenerator 四路拆分——每个都经过 characterization 测试锁定行为后再抽取，工程纪律严明。
 2. **walkthrough 三部曲完整**：hello-world → closure-and-upvalue → gc-cycle，构成从语法到执行到内存管理的完整教学链路。
-3. **质量门自动化**：`check_doc_drift.ps1` 动态解析测试计数，消除了文档与代码不同步的隐性风险。
+3. **质量门自动化**：`check_doc_drift.ps1` 动态解析测试计数，`check_opcode_coverage_matrix.ps1` 锁住 38 条 opcode 覆盖矩阵，消除了文档与代码不同步的隐性风险。
 4. **现代 C++ 应用深入**：`std::expected` 错误边界、concepts 编译期约束、`std::variant` 渐进迁移，三者均是该规模教学项目中少见的深度应用。
