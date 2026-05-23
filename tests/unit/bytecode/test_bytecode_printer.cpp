@@ -118,6 +118,53 @@ void testPrinterKeepsEscapedStringsAndOutOfRangeConstants(TestSuite& suite) {
                 "out of range constants keep decoded instruction comment");
 }
 
+void testPrinterRecursesIntoChildProtosInFullMode(TestSuite& suite) {
+    StringPool& pool = StringPool::getInstance();
+    Proto root;
+    Proto child;
+    Proto grandchild;
+
+    root.setSource(pool.intern("root.lua"));
+    child.setSource(pool.intern("child.lua"));
+    child.setLineDefined(20);
+    grandchild.setSource(pool.intern("grandchild.lua"));
+    grandchild.setLineDefined(30);
+
+    i32 childConstant = static_cast<i32>(child.addConstant(Value(pool.intern("nested"))));
+    child.addProto(&grandchild);
+    root.addProto(&child);
+
+    addInstruction(root, 1, CREATE_ABx(OpCode::CLOSURE, 0, 0));
+    addInstruction(child, 20, CREATE_ABx(OpCode::LOADK, 0, childConstant));
+    addInstruction(child, 21, CREATE_ABx(OpCode::CLOSURE, 1, 0));
+    addInstruction(grandchild, 30, CREATE_ABC(OpCode::RETURN, 0, 1, 0));
+
+    std::ostringstream compactOutput;
+    printProtoBytecode(&root, compactOutput, false);
+    std::string compact = compactOutput.str();
+
+    ASSERT_TRUE(suite, contains(compact, "0000 | line 1 | CLOSURE | A=0 Bx=0 ; proto[0] = child.lua:20"),
+                "CLOSURE instruction shows child proto summary");
+    ASSERT_TRUE(suite, !contains(compact, "child protos"),
+                "compact mode should not print recursive child proto sections");
+
+    std::ostringstream fullOutput;
+    printProtoBytecode(&root, fullOutput, true);
+    std::string full = fullOutput.str();
+
+    ASSERT_TRUE(suite, contains(full, "child protos (1)"), "full mode prints child proto count");
+    ASSERT_TRUE(suite, contains(full, "  proto[0] child.lua:20"), "full mode labels child proto index");
+    ASSERT_TRUE(suite, contains(full, "    source: child.lua"), "full mode prints child proto header");
+    ASSERT_TRUE(suite, contains(full, "    0000 | line 20 | LOADK | A=0 Bx=0 ; K[0] = string \"nested\""),
+                "full mode prints child proto instructions");
+    ASSERT_TRUE(suite, contains(full, "    0001 | line 21 | CLOSURE | A=1 Bx=0 ; proto[0] = grandchild.lua:30"),
+                "nested CLOSURE instruction shows grandchild proto summary");
+    ASSERT_TRUE(suite, contains(full, "      proto[0] grandchild.lua:30"), "full mode labels grandchild proto index");
+    ASSERT_TRUE(suite, contains(full, "        source: grandchild.lua"), "full mode recurses into grandchild proto");
+    ASSERT_TRUE(suite, contains(full, "        0000 | line 30 | RETURN | A=0 B=1 C=0"),
+                "full mode prints grandchild instructions");
+}
+
 } // namespace
 
 void registerBytecodePrinterTests() {
@@ -128,4 +175,6 @@ void registerBytecodePrinterTests() {
                           testPrinterShowsAsBxTargetsForLoopOpcodes);
     registry.registerTest(kSuiteName, "Escaped Strings And Out Of Range Constants",
                           testPrinterKeepsEscapedStringsAndOutOfRangeConstants);
+    registry.registerTest(kSuiteName, "Recursive Child Protos In Full Mode",
+                          testPrinterRecursesIntoChildProtosInFullMode);
 }

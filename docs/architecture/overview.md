@@ -1,7 +1,7 @@
 ---
 status: current
 verified_against: docs/status/project-status.md; README.md; docs/architecture/patterns.md; src/common/; src/core/; src/compiler/; src/vm/; src/gc/; src/lib/; src/runtime/runtime_services.hpp
-last_checked: 2026-05-22
+last_checked: 2026-05-23
 applies_to: current high-level architecture and source layout
 ---
 
@@ -25,7 +25,7 @@ The implementation is intentionally learning-friendly: most Lua concepts have di
 | Layer | Main files | Current responsibility |
 |---|---|---|
 | Application | `src/main.cpp`, `src/repl.cpp`, `src/app/app_options.*` | CLI, script mode, REPL mode, trace option parsing |
-| Bytecode tool | `src/bytecode/bytecode_main.cpp`, `src/bytecode/bytecode_printer.*` | Compile a script to `Proto`; printer is currently a stub |
+| Bytecode tool | `src/bytecode/bytecode_main.cpp`, `src/bytecode/bytecode_printer.*` | Compile a script to `Proto`; print decoded instructions, constants, and recursive child Protos in full mode |
 | Runtime services | `src/runtime/runtime_services.hpp` | Thin explicit bundle over `GlobalState`, `StringPool`, `GarbageCollector`, and optional VM dispatch strategy |
 | Compiler frontend | `src/compiler/parser/lexer.*`, `src/compiler/parser/parser*.cpp`, `src/compiler/ast.*` | Tokenize source and build AST |
 | Compiler shared model | `src/compiler/ast.*`, `src/compiler/ast_visitor.hpp`, `src/compiler/opcode.*`, `src/compiler/register_allocator.hpp` | Shared AST and bytecode definitions used across parser, codegen, tests, and VM |

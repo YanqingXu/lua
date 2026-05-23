@@ -1,7 +1,7 @@
 ---
 status: current
 verified_against: bin/lua_bytecode.exe; bin/lua_app.exe; src/compiler/parser/parser_func.cpp; src/compiler/parser/parser_stmt.cpp; src/compiler/codegen/codegen_binding.cpp; src/compiler/codegen/expression_emitter.cpp; src/compiler/codegen/statement_emitter.cpp; src/compiler/codegen/codegen_stmt.cpp; src/compiler/codegen/scope_manager.cpp; src/vm/vm_frame.cpp; src/vm/vm_handlers/vm_handlers_closure.cpp; src/vm/vm_handlers/vm_handlers_global_upvalue.cpp; src/vm/vm_handlers/vm_handlers_call.cpp; src/vm/state/lua_state.cpp; src/core/upvalue.cpp
-last_checked: 2026-05-22
+last_checked: 2026-05-23
 applies_to: closure creation, upvalue capture, and open-to-closed upvalue lifetime
 ---
 
@@ -50,7 +50,7 @@ print(c(2), c(3))
 2	5
 ```
 
-当前 `lua_bytecode full` 仍只打印顶层 Proto。它已经足够展示顶层闭包创建和调用形状；子 Proto 的细节在后文通过 CodeGen 和 VM 源码继续追踪。
+PR-55 后，`lua_bytecode full` 会先打印顶层 Proto，再递归打印 child protos。下面摘录了关键行：外层函数、返回的内部闭包，以及内部闭包捕获的 `count` upvalue 都可以直接从工具输出里看到。
 
 ```text
 Proto
@@ -62,7 +62,7 @@ Proto
   maxStackSize: 7
   upvalues (0): (none)
 instructions (14)
-0000 | line 1 | CLOSURE | A=0 Bx=0
+0000 | line 1 | CLOSURE | A=0 Bx=0 ; proto[0] = <temporary file>:1
 0001 | line 9 | MOVE | A=1 B=0 C=0
 0002 | line 9 | CALL | A=1 B=1 C=2
 0003 | line 10 | GETGLOBAL | A=2 Bx=0 ; K[0] = string "print"
@@ -80,6 +80,31 @@ constants (3)
   K[0] = string "print"
   K[1] = number 2
   K[2] = number 3
+child protos (1)
+  proto[0] <temporary file>:1
+    Proto
+      source: <temporary file>
+      linedefined: 1
+      ...
+      numparams: 0
+      upvalues (0): (none)
+    instructions (5)
+    0001 | line 3 | CLOSURE | A=1 Bx=0 ; proto[0] = <temporary file>:3
+    0002 | line 3 | MOVE | A=0 B=0 C=0
+    0003 | line 3 | RETURN | A=1 B=2 C=0
+    child protos (1)
+      proto[0] <temporary file>:3
+        Proto
+          source: <temporary file>
+          ...
+          numparams: 1
+          upvalues (1): count
+        instructions (6)
+        0000 | line 4 | GETUPVAL | A=1 B=0 C=0
+        0001 | line 4 | ADD | A=1 B=1 C=0
+        0002 | line 4 | SETUPVAL | A=1 B=0 C=0
+        0003 | line 5 | GETUPVAL | A=1 B=0 C=0
+        0004 | line 5 | RETURN | A=1 B=2 C=0
 ```
 
 读这段输出时先抓住三件事：
@@ -158,7 +183,7 @@ GETUPVAL result, 0
 RETURN   result, 2
 ```
 
-这段是从当前 CodeGen 规则推导的子 Proto 形状；等 `lua_bytecode full` 支持递归打印 child protos 后，可以把这里换成工具的真实输出。
+这段核心形状现在可以直接在 `lua_bytecode full` 的递归 child proto 输出中看到：内部函数的 `upvalues (1): count` 对应捕获，`GETUPVAL` / `SETUPVAL` 对应读写捕获值。
 
 ## 4. CodeGen：函数变成子 Proto
 

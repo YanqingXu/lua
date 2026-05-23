@@ -2,9 +2,9 @@
 
 > 适用范围：`g:\github\lua`（现代 C++ Lua 5.1.5 解释器）
 > 设计目标：**可读性 > 可维护性 > 教育价值 > 性能**
-> 约束：保持 515 个注册测试 / 2557 个断言结果 / 0 失败，不破坏 `LuaState` / `VM` public API。
+> 约束：保持 516 个注册测试 / 2567 个断言结果 / 0 失败，不破坏 `LuaState` / `VM` public API。
 > 最近审计：2026-05-21（深度审计报告，覆盖 Readability / Extensibility / Educational Value 三维度）
-> 最近同步：2026-05-23（PR-53：`TraceEvent` 统一 `funcName` 填充，并同步 JSONL trace schema）
+> 最近同步：2026-05-23（PR-55：`lua_bytecode full` 子原型递归打印，并同步 Bytecode Printer 输出契约）
 
 ---
 
@@ -313,7 +313,7 @@ using ValueResult = std::variant<
 
 ### 4.2 `lua_bytecode` 工具可视化升级
 
-**现状**：`bytecode_main.cpp` 调用 `printProtoBytecode(proto, std::cout, full)`；`src/bytecode/bytecode_printer.cpp` 已能打印 source、参数信息、upvalue 摘要、逐条指令、常量引用和常量表。`full` 参数仍未驱动子原型递归输出，diff/CFG 仍未实现。
+**现状**：`bytecode_main.cpp` 调用 `printProtoBytecode(proto, std::cout, full)`；`src/bytecode/bytecode_printer.cpp` 已能打印 source、参数信息、upvalue 摘要、逐条指令、常量引用和常量表。PR-55 后 `full` 参数会递归打印 child protos，diff/CFG 仍未实现。
 
 **升级方案（分子任务）**：
 
@@ -323,7 +323,7 @@ using ValueResult = std::variant<
    - 对 `LOADK` / `GETGLOBAL` 等同时显示其引用的常量内容
    - 对 `JMP` 计算并显示绝对目标 PC
 3. ✓ **已完成**：常量表分类型打印，如 `K[0] = number 42`。
-4. **待执行**：子原型递归，`full` 模式下深入打印 child protos，缩进可视化层级。
+4. ✓ **已完成 — PR-55**：子原型递归，`full` 模式下深入打印 child protos，缩进可视化层级，并在 `CLOSURE` 指令注释中显示 `proto[index]` 摘要。
 5. **待执行**：diff 模式，`bin\lua_bytecode.exe a.lua b.lua --diff`，并排展示两段字节码差异 —— 对教学"为什么这样写更高效"极有帮助。
 6. **候选**：Graphviz/Mermaid 输出，`--cfg` 子命令输出函数的基本块控制流图（Mermaid 格式），可直接贴入文档。
 
@@ -379,7 +379,7 @@ using ValueResult = std::variant<
 
 ### 5.1 测试覆盖精细化
 
-**现状**：515 个注册测试 / 2557 个断言结果 / 0 失败，目录 `tests/unit/`、`tests/lua/`。
+**现状**：516 个注册测试 / 2567 个断言结果 / 0 失败，目录 `tests/unit/`、`tests/lua/`。
 
 **改进方向**（优先小步增量；覆盖矩阵作为 checklist 文档）：
 
@@ -409,7 +409,7 @@ using ValueResult = std::variant<
 | 风险 | 影响 | 缓解 |
 |---|---|---|
 | VM dispatch 命令模式化引入函数指针表，调试器单步体验下降 | 影响教学 | 保留 `SwitchDispatch` 作为默认；调试构建强制使用；1.1.1 落地的独立 inline 函数进一步改善 Switch 路径单步体验 |
-| `std::expected` 大范围替换异常导致调用链翻新 | 515 测试可能批量红 | 按 3.1 表格逐个函数迁移，每次 1 个函数 + 全量测试 |
+| `std::expected` 大范围替换异常导致调用链翻新 | 516 测试可能批量红 | 按 3.1 表格逐个函数迁移，每次 1 个函数 + 全量测试 |
 | GC 去单例化破坏标准库内部对 `GarbageCollector::getInstance()` 的引用 | 编译错误广泛 | 保留 inline shim `getInstance()` 一版本，标记 `[[deprecated]]` |
 | Visitor 化后 codegen 性能下降 | 不影响目标，但需观察 | 教学项目可接受；基准用 `examples/*.lua` 跑回归 |
 | `ValueResult` → `std::variant` 重构引入大量访问代码 | 调用侧需逐一迁移 `std::visit` | 先做 prototype 分支验证可行性，再逐步迁移 |
@@ -444,13 +444,14 @@ using ValueResult = std::variant<
 | PR-52 | `gc-cycle.md` walkthrough，覆盖 weak table、userdata `__gc`、finalizer 复活、弱表清理和 sweep 顺序 | 4.3.3 |
 | PR-53 | `TraceEvent` 统一 `funcName` 填充，instruction / call / return / error JSONL schema 与测试覆盖同步 | 4.5.2 |
 | PR-54 | 指令级覆盖矩阵，覆盖 38 条 opcode 的正向 / 边界 / metamethod checklist，并接入质量门漂移检查 | 5.1.1 / 5.2 |
+| PR-55 | `lua_bytecode full` 子原型递归打印，`CLOSURE` 指令显示 `proto[index]` 摘要，并补 Bytecode Printer 输出契约测试 | 4.2.4 |
 
 后续推荐顺序：
 
 | PR | 编号 | 任务 | 阶段 | 依赖 / 理由 |
 |---|---|---|---|---|
-| PR-55 | 4.2.4 | `lua_bytecode` 子原型递归打印 | 4 | P0；PR-54 已把 opcode 测试缺口显性化，下一步回到阶段 4 的低完成度块，优先补闭包 / 子函数教学可视化 |
-| PR-56 | 4.2.5 | `lua_bytecode --diff` 模式 | 4 | P1；依赖 PR-55 稳定递归输出结构后，再做优化前后或版本间字节码差异对比 |
+| PR-56 | 4.2.5 | `lua_bytecode --diff` 模式 | 4 | P0；PR-55 已稳定递归输出结构，下一步可做优化前后或版本间字节码差异对比 |
+| PR-57 | 4.4.3 | REPL `.ast` 元命令 | 4 | P1；补齐 REPL 教学入口，让 parser / AST 产物能与 bytecode 输出并排观察 |
 
 每个 PR 完成后跑：
 
@@ -472,9 +473,9 @@ using ValueResult = std::variant<
 | 阶段 1 — 短期代码清理 | ~90% | **~93%** | +3% | 仅 `tokenString` 集中化未做（P3 低风险） |
 | 阶段 2 — 中期模式重构 | ~88% | **~80%** | −8% | GCStrategy 抽象、lib_manager 声明清理、Visitor 去重均未落地 |
 | 阶段 3 — 现代 C++ 特性 | ~90% | **~90%** | 0 | ValueResult variant prototype 已就位，后续 std::visit 迁移为渐进工作 |
-| 阶段 4 — 教育价值增强 | ~70% | **~58%** | −12% | REPL 5 项增强中 4 项未做、字节码 3 项高级功能未做 |
+| 阶段 4 — 教育价值增强 | ~70% | **~62%** | −8% | REPL 5 项增强中 4 项未做、字节码 diff / CFG 仍未做 |
 | 阶段 5 — 工程实践 | ~75% | **~71%** | −4% | 指令级覆盖矩阵已补齐；golden 测试、REPL 增量解析测试、add_source 脚本仍缺失 |
-| **加权综合** | **~83%** | **~74%** | **−9%** | |
+| **加权综合** | **~83%** | **~75%** | **−8%** | |
 
 ---
 
@@ -529,7 +530,7 @@ using ValueResult = std::variant<
 |---|---|---|---|
 | 4.1 注释规范 | ✓ 已完成 | VM 主循环 dispatch timing note、GC `collect()` phase contract、CodeGen jump backpatching model 均已收口 | ✓ 确认 |
 | 4.2.1-4.2.3 字节码基础 | ✓ 已完成 | source / numparams / is_vararg / maxStackSize / 逐条指令 (pc\|line\|OP\|A/B/C) / 常量引用 / 常量表 | ✓ 确认 |
-| 4.2.4 子原型递归 | 待执行 | `bytecode_printer.cpp` 无递归 child proto 遍历逻辑，`full` 参数未驱动此行为 | ✗ 未完成 |
+| 4.2.4 子原型递归 | ✓ PR-55 | `bytecode_printer.cpp` 使用 `full` 递归打印 child protos；紧凑模式保持顶层输出，`CLOSURE` 注释显示 `proto[index]` 摘要 | ✓ 确认 |
 | 4.2.5 `--diff` 模式 | 待执行 | `src/bytecode/` 目录无 diff 对比功能 | ✗ 未完成 |
 | 4.2.6 Mermaid CFG | 候选 | 无 `--cfg` 或 Mermaid/Graphviz 输出 | ✗ 未完成 |
 | 4.3 walkthrough 三篇 | ✓ 已完成 | `hello-world.md` / `closure-and-upvalue.md` / `gc-cycle.md` 全部存在，含源码 `:line` 锚点 | ✓ 确认 |
@@ -541,7 +542,7 @@ using ValueResult = std::variant<
 | 4.5.1 `--trace-diff` | ✓ 已完成 | `changedRegisters` 字段已落地 JSONL，CLI 开关 + VM 发射 + 测试覆盖完整 | ✓ 确认 |
 | 4.5.2 `funcName` 统一 | ✓ 已完成 | `TraceEvent::funcName` 已改为拥有型 `Str`，instruction / call / return / error JSONL 均输出 `funcName`；VM 指令与返回事件使用当前/返回 `Proto` 标签，Call 事件使用 callee 标签 | ✓ 确认 — PR-53 |
 
-**结论**：阶段 4 是差距最大的阶段。REPL 体验（4.4.2-4.4.5）和字节码高级可视化（4.2.4-4.2.6）是两个集中的未完成块。walkthrough 三篇和 trace-diff 是亮点。
+**结论**：阶段 4 仍是差距最大的阶段。REPL 体验（4.4.2-4.4.5）和字节码 diff / CFG（4.2.5-4.2.6）是两个集中的未完成块。walkthrough 三篇、trace-diff 和 child proto 递归输出是亮点。
 
 #### 阶段 5 核验
 
@@ -574,7 +575,6 @@ using ValueResult = std::variant<
 
 | 编号 | 任务 |
 |---|---|
-| 4.2.4 | 字节码子原型递归输出 |
 | 4.2.5 | 字节码 `--diff` 模式 |
 | 4.4.2 | REPL Tab 补全 |
 | 4.4.4 | 颜色化错误输出 |

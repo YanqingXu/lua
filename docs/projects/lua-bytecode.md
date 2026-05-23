@@ -1,7 +1,7 @@
 ---
 status: current
 verified_against: lua_bytecode.vcxproj; CMakeLists.txt; src/bytecode/bytecode_main.cpp; src/bytecode/bytecode_printer.cpp; src/bytecode/bytecode_printer.hpp
-last_checked: 2026-05-19
+last_checked: 2026-05-23
 applies_to: lua_bytecode executable
 ---
 
@@ -11,7 +11,7 @@ applies_to: lua_bytecode executable
 
 ## Current Status
 
-The executable can parse and compile a Lua source file into a `Proto`, but the printer is currently a stub. Running it reaches `printProtoBytecode()`, which prints `(bytecode_printer stub)`.
+The executable can parse and compile a Lua source file into a `Proto`. `printProtoBytecode()` prints Proto metadata, decoded instructions, constant references, the constant table, and recursive child Proto sections when the optional `full` argument is used.
 
 ## Source Files
 

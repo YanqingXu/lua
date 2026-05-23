@@ -8,6 +8,7 @@
 #include <format>
 #include <ostream>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace Lua {
@@ -74,6 +75,31 @@ std::string formatConstant(const Proto* proto, i32 index) {
     return std::format("{} = {}", prefix, formatValue(proto->getConstant(static_cast<usize>(index))));
 }
 
+std::string formatProtoSummary(const Proto* proto) {
+    if (!proto) {
+        return "<null>";
+    }
+
+    const char* source = proto->getSource() ? proto->getSource()->c_str() : "?";
+    if (proto->getLineDefined() > 0) {
+        return std::format("{}:{}", source, proto->getLineDefined());
+    }
+    return source;
+}
+
+std::string formatSubProto(const Proto* proto, i32 index) {
+    std::string prefix = std::format("proto[{}]", index);
+    if (!proto || index < 0 || static_cast<usize>(index) >= proto->getSubProtoCount()) {
+        return std::format("{} = <out of range>", prefix);
+    }
+
+    return std::format("{} = {}", prefix, formatProtoSummary(proto->getSubProto(static_cast<usize>(index))));
+}
+
+std::string indentFor(usize depth) {
+    return std::string(depth * 2, ' ');
+}
+
 void addRKComment(std::vector<std::string>& comments,
                   const Proto* proto,
                   const char* name,
@@ -100,20 +126,20 @@ void printComments(std::ostream& out, const std::vector<std::string>& comments) 
     }
 }
 
-void printProtoHeader(const Proto* f, std::ostream& out) {
-    out << "Proto" << '\n';
-    out << "  source: " << (f->getSource() ? f->getSource()->c_str() : "?") << '\n';
-    out << "  linedefined: " << f->getLineDefined() << '\n';
-    out << "  lastlinedefined: " << f->getLastLineDefined() << '\n';
-    out << "  numparams: " << static_cast<int>(f->getNumParams()) << '\n';
-    out << std::format("  is_vararg: {} (flags={})\n",
+void printProtoHeader(const Proto* f, std::ostream& out, std::string_view indent) {
+    out << indent << "Proto" << '\n';
+    out << indent << "  source: " << (f->getSource() ? f->getSource()->c_str() : "?") << '\n';
+    out << indent << "  linedefined: " << f->getLineDefined() << '\n';
+    out << indent << "  lastlinedefined: " << f->getLastLineDefined() << '\n';
+    out << indent << "  numparams: " << static_cast<int>(f->getNumParams()) << '\n';
+    out << indent << std::format("  is_vararg: {} (flags={})\n",
                        f->isVararg() ? "true" : "false",
                        static_cast<int>(f->getVarargFlags()));
-    out << "  maxStackSize: " << static_cast<int>(f->getMaxStackSize()) << '\n';
+    out << indent << "  maxStackSize: " << static_cast<int>(f->getMaxStackSize()) << '\n';
 
     const usize upvalueCount =
         std::max(static_cast<usize>(f->getNumUpvalues()), f->getUpvalueNameCount());
-    out << "  upvalues (" << upvalueCount << "): ";
+    out << indent << "  upvalues (" << upvalueCount << "): ";
     if (upvalueCount == 0) {
         out << "(none)";
     } else {
@@ -128,12 +154,12 @@ void printProtoHeader(const Proto* f, std::ostream& out) {
     out << '\n';
 }
 
-void printInstruction(const Proto* f, usize pc, Instruction inst, std::ostream& out) {
+void printInstruction(const Proto* f, usize pc, Instruction inst, std::ostream& out, std::string_view indent) {
     const OpCode op = GET_OPCODE(inst);
     const OpcodeMetadata& metadata = opcodeMetadata(op);
     std::vector<std::string> comments;
 
-    out << std::format("{:04} | line {} | {} | ", pc, f->getLine(pc), metadata.name);
+    out << indent << std::format("{:04} | line {} | {} | ", pc, f->getLine(pc), metadata.name);
 
     switch (metadata.mode) {
     case OpMode::iABC: {
@@ -151,6 +177,8 @@ void printInstruction(const Proto* f, usize pc, Instruction inst, std::ostream& 
         out << "A=" << a << " Bx=" << bx;
         if (metadata.bMode == OpArgMask::OpArgK) {
             comments.push_back(formatConstant(f, bx));
+        } else if (metadata.opcode == OpCode::CLOSURE) {
+            comments.push_back(formatSubProto(f, bx));
         }
         break;
     }
@@ -167,34 +195,83 @@ void printInstruction(const Proto* f, usize pc, Instruction inst, std::ostream& 
     out << '\n';
 }
 
-void printInstructions(const Proto* f, std::ostream& out) {
+void printInstructions(const Proto* f, std::ostream& out, std::string_view indent) {
     const auto code = f->getInstructionSpan();
-    out << "instructions (" << code.size() << ")" << '\n';
+    out << indent << "instructions (" << code.size() << ")" << '\n';
     for (usize pc = 0; pc < code.size(); ++pc) {
-        printInstruction(f, pc, code[pc], out);
+        printInstruction(f, pc, code[pc], out, indent);
     }
 }
 
-void printConstants(const Proto* f, std::ostream& out) {
-    out << "constants (" << f->getConstantCount() << ")" << '\n';
+void printConstants(const Proto* f, std::ostream& out, std::string_view indent) {
+    out << indent << "constants (" << f->getConstantCount() << ")" << '\n';
     for (usize i = 0; i < f->getConstantCount(); ++i) {
-        out << "  " << formatConstant(f, static_cast<i32>(i)) << '\n';
+        out << indent << "  " << formatConstant(f, static_cast<i32>(i)) << '\n';
+    }
+}
+
+bool containsProto(const std::vector<const Proto*>& protos, const Proto* proto) {
+    return std::find(protos.begin(), protos.end(), proto) != protos.end();
+}
+
+void printProtoBytecodeRecursive(const Proto* f,
+                                 std::ostream& out,
+                                 bool full,
+                                 usize depth,
+                                 const std::vector<const Proto*>& ancestry);
+
+void printChildProtos(const Proto* f,
+                      std::ostream& out,
+                      usize depth,
+                      const std::vector<const Proto*>& ancestry) {
+    const std::string indent = indentFor(depth);
+    out << indent << "child protos (" << f->getSubProtoCount() << ")" << '\n';
+
+    for (usize i = 0; i < f->getSubProtoCount(); ++i) {
+        const Proto* child = f->getSubProto(i);
+        out << indent << "  proto[" << i << "] " << formatProtoSummary(child) << '\n';
+
+        if (!child) {
+            out << indent << "    Proto <null>" << '\n';
+            continue;
+        }
+
+        if (containsProto(ancestry, child)) {
+            out << indent << "    Proto <cycle>" << '\n';
+            continue;
+        }
+
+        printProtoBytecodeRecursive(child, out, true, depth + 2, ancestry);
+    }
+}
+
+void printProtoBytecodeRecursive(const Proto* f,
+                                 std::ostream& out,
+                                 bool full,
+                                 usize depth,
+                                 const std::vector<const Proto*>& ancestry) {
+    const std::string indent = indentFor(depth);
+
+    if (!f) {
+        out << indent << "Proto <null>" << '\n';
+        return;
+    }
+
+    printProtoHeader(f, out, indent);
+    printInstructions(f, out, indent);
+    printConstants(f, out, indent);
+
+    if (full) {
+        std::vector<const Proto*> nextAncestry = ancestry;
+        nextAncestry.push_back(f);
+        printChildProtos(f, out, depth, nextAncestry);
     }
 }
 
 } // namespace
 
 void printProtoBytecode(const Proto* f, std::ostream& out, bool full) {
-    (void)full;
-
-    if (!f) {
-        out << "Proto <null>" << '\n';
-        return;
-    }
-
-    printProtoHeader(f, out);
-    printInstructions(f, out);
-    printConstants(f, out);
+    printProtoBytecodeRecursive(f, out, full, 0, {});
 }
 
 } // namespace Lua
