@@ -28,6 +28,30 @@ using namespace LuaTest;
 
 namespace {
 
+struct ValuePayloadSnapshot {
+    ValueResult::Kind payloadKind = ValueResult::Kind::None;
+    ValueResult::AccessKind payloadAccess = ValueResult::AccessKind::None;
+    i32 payloadReg = -1;
+    i32 payloadConstIndex = -1;
+    i32 payloadAux = -1;
+    bool payloadOwnsRegister = false;
+};
+
+ValuePayloadSnapshot snapshotValuePayload(const ValueResult& value) {
+    return value.visit(ValueResultVisitor{
+        [](const ValueResult::RegisterRef& reg) -> ValuePayloadSnapshot {
+            return {ValueResult::Kind::Register, reg.access, reg.reg, -1, -1, reg.ownsRegister};
+        },
+        [](const ValueResult::PendingLoad& pending) -> ValuePayloadSnapshot {
+            return {ValueResult::Kind::PendingLoad, pending.access, pending.reg, pending.constIndex,
+                    pending.aux, false};
+        },
+        [](const auto&) -> ValuePayloadSnapshot {
+            return {};
+        },
+    });
+}
+
 LuaState* createFullState() {
     LuaState* L = LuaState::newState();
     StandardLibrary::openAll(L);
@@ -111,10 +135,11 @@ void testSymbolToValueLocal(TestSuite& suite) {
     StringPool& pool = StringPool::getInstance();
     CodeGenerator codegen(&pool);
     ValueResult vr = codegen.symbolToValue(sym);
-    ASSERT_TRUE(suite, vr.kind == ValueResult::Kind::Register, "Local → Register kind");
-    ASSERT_TRUE(suite, vr.access == ValueResult::AccessKind::Local, "Local → Local access");
-    ASSERT_EQ(suite, 3, vr.reg, "Local → reg should be 3");
-    ASSERT_FALSE(suite, vr.ownsRegister, "Local should not own register");
+    ValuePayloadSnapshot value = snapshotValuePayload(vr);
+    ASSERT_TRUE(suite, value.payloadKind == ValueResult::Kind::Register, "Local → Register payload");
+    ASSERT_TRUE(suite, value.payloadAccess == ValueResult::AccessKind::Local, "Local → Local access");
+    ASSERT_EQ(suite, 3, value.payloadReg, "Local → reg should be 3");
+    ASSERT_FALSE(suite, value.payloadOwnsRegister, "Local should not own register");
 }
 
 void testSymbolToValueUpvalue(TestSuite& suite) {
@@ -125,9 +150,10 @@ void testSymbolToValueUpvalue(TestSuite& suite) {
     StringPool& pool = StringPool::getInstance();
     CodeGenerator codegen(&pool);
     ValueResult vr = codegen.symbolToValue(sym);
-    ASSERT_TRUE(suite, vr.kind == ValueResult::Kind::PendingLoad, "Upvalue → PendingLoad kind");
-    ASSERT_TRUE(suite, vr.access == ValueResult::AccessKind::Upvalue, "Upvalue → Upvalue access");
-    ASSERT_EQ(suite, 0, vr.aux, "Upvalue → aux should be 0");
+    ValuePayloadSnapshot value = snapshotValuePayload(vr);
+    ASSERT_TRUE(suite, value.payloadKind == ValueResult::Kind::PendingLoad, "Upvalue → PendingLoad payload");
+    ASSERT_TRUE(suite, value.payloadAccess == ValueResult::AccessKind::Upvalue, "Upvalue → Upvalue access");
+    ASSERT_EQ(suite, 0, value.payloadAux, "Upvalue → aux should be 0");
 }
 
 void testSymbolToValueGlobal(TestSuite& suite) {
@@ -138,9 +164,10 @@ void testSymbolToValueGlobal(TestSuite& suite) {
     StringPool& pool = StringPool::getInstance();
     CodeGenerator codegen(&pool);
     ValueResult vr = codegen.symbolToValue(sym);
-    ASSERT_TRUE(suite, vr.kind == ValueResult::Kind::PendingLoad, "Global → PendingLoad kind");
-    ASSERT_TRUE(suite, vr.access == ValueResult::AccessKind::Global, "Global → Global access");
-    ASSERT_EQ(suite, 5, vr.constIndex, "Global → constIndex should be 5");
+    ValuePayloadSnapshot value = snapshotValuePayload(vr);
+    ASSERT_TRUE(suite, value.payloadKind == ValueResult::Kind::PendingLoad, "Global → PendingLoad payload");
+    ASSERT_TRUE(suite, value.payloadAccess == ValueResult::AccessKind::Global, "Global → Global access");
+    ASSERT_EQ(suite, 5, value.payloadConstIndex, "Global → constIndex should be 5");
 }
 
 void testSymbolToLValueLocal(TestSuite& suite) {

@@ -1,6 +1,6 @@
 ---
 status: current
-verified_against: docs/archive/research/deep-research-report.md; docs/status/project-status.md; docs/guides/development.md; docs/compiler/codegen-responsibility-map.md; docs/walkthroughs/gc-cycle.md; CMakeLists.txt; lua.vcxproj; lua.vcxproj.filters; lua_test.vcxproj; lua_test.vcxproj.filters; src/compiler/ast_visitor.hpp; src/compiler/parser/parser_utils.hpp; src/compiler/parser/parser.cpp; src/compiler/parser/parser_stmt.cpp; src/compiler/parser/parser_expr.cpp; src/compiler/parser/parser_primary.cpp; src/compiler/parser/parser_func.cpp; src/compiler/parser/parser_table.cpp; src/compiler/codegen/codegen.hpp; src/compiler/codegen/codegen_types.hpp; src/compiler/codegen/codegen_expr.cpp; src/compiler/codegen/expression_emitter.hpp; src/compiler/codegen/expression_emitter.cpp; src/compiler/codegen/statement_emitter.hpp; src/compiler/codegen/statement_emitter.cpp; src/compiler/codegen/codegen_jump.cpp; src/compiler/codegen/codegen_stmt.cpp; src/compiler/codegen/jump_patcher.hpp; src/compiler/codegen/jump_patcher.cpp; src/compiler/codegen/scope_manager.hpp; src/compiler/codegen/scope_manager.cpp; src/lib/lib_catalog.hpp; src/lib/lib_catalog.cpp; src/lib/lib_manager.hpp; src/repl/repl_meta.cpp; src/core/string_pool.cpp; src/gc/garbage_collector.hpp; src/gc/garbage_collector.cpp; src/gc/gc_strategy.hpp; src/gc/gc_strategy.cpp; src/gc/gc_sweep.cpp; src/vm/vm.cpp; src/vm/vm_internal.hpp; src/vm/vm_switch_dispatch.hpp; tests/unit/compiler/test_ast_visitor.cpp; tests/unit/compiler/test_parser_boundaries.cpp; tests/unit/compiler/test_codegen_result_types.cpp; tests/unit/compiler/test_codegen_characterization.cpp; tests/unit/compiler/test_jump_patcher.cpp; tests/unit/compiler/test_scope_manager.cpp; tests/unit/compiler/test_expression_emitter.cpp; tests/unit/compiler/test_statement_emitter.cpp; tests/unit/stdlib/test_lib_catalog.cpp; tests/unit/framework/test_runner.cpp; tests/unit/gc/test_gc.cpp; tests/unit/vm/test_runtime_services.cpp; tests/unit/vm/test_vm_core.cpp; tests/unit/vm/test_vm_dispatch.cpp; .github/workflows/ci.yml; tools/run_cmake_smoke.ps1; tools/check_doc_drift.ps1; tools/test_quality_gate.ps1; tools/run_quality_gate.ps1
+verified_against: docs/archive/research/deep-research-report.md; docs/status/project-status.md; docs/guides/development.md; docs/compiler/codegen-responsibility-map.md; docs/walkthroughs/gc-cycle.md; CMakeLists.txt; lua.vcxproj; lua.vcxproj.filters; lua_test.vcxproj; lua_test.vcxproj.filters; src/compiler/ast_visitor.hpp; src/compiler/parser/parser_utils.hpp; src/compiler/parser/parser.cpp; src/compiler/parser/parser_stmt.cpp; src/compiler/parser/parser_expr.cpp; src/compiler/parser/parser_primary.cpp; src/compiler/parser/parser_func.cpp; src/compiler/parser/parser_table.cpp; src/compiler/codegen/codegen.hpp; src/compiler/codegen/codegen_types.hpp; src/compiler/codegen/codegen_expr.cpp; src/compiler/codegen/expression_emitter.hpp; src/compiler/codegen/expression_emitter.cpp; src/compiler/codegen/statement_emitter.hpp; src/compiler/codegen/statement_emitter.cpp; src/compiler/codegen/codegen_jump.cpp; src/compiler/codegen/codegen_stmt.cpp; src/compiler/codegen/jump_patcher.hpp; src/compiler/codegen/jump_patcher.cpp; src/compiler/codegen/scope_manager.hpp; src/compiler/codegen/scope_manager.cpp; src/lib/lib_catalog.hpp; src/lib/lib_catalog.cpp; src/lib/lib_manager.hpp; src/repl/repl_meta.cpp; src/core/string_pool.cpp; src/gc/garbage_collector.hpp; src/gc/garbage_collector.cpp; src/gc/gc_strategy.hpp; src/gc/gc_strategy.cpp; src/gc/gc_sweep.cpp; src/vm/vm.cpp; src/vm/vm_internal.hpp; src/vm/vm_switch_dispatch.hpp; tests/unit/compiler/test_ast_visitor.cpp; tests/unit/compiler/test_parser_boundaries.cpp; tests/unit/compiler/test_codegen_result_types.cpp; tests/unit/compiler/test_codegen_characterization.cpp; tests/unit/compiler/test_jump_patcher.cpp; tests/unit/compiler/test_scope_manager.cpp; tests/unit/compiler/test_expression_emitter.cpp; tests/unit/compiler/test_statement_emitter.cpp; tests/unit/compiler/test_symbol_binding.cpp; tests/unit/stdlib/test_lib_catalog.cpp; tests/unit/framework/test_runner.cpp; tests/unit/gc/test_gc.cpp; tests/unit/vm/test_runtime_services.cpp; tests/unit/vm/test_vm_core.cpp; tests/unit/vm/test_vm_dispatch.cpp; .github/workflows/ci.yml; tools/run_cmake_smoke.ps1; tools/check_doc_drift.ps1; tools/test_quality_gate.ps1; tools/run_quality_gate.ps1
 last_checked: 2026-05-23
 applies_to: 仓库优化路线图与下次续接检查清单
 ---
@@ -48,7 +48,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_quality_gate.ps1
 | 中 | EngineContext / RuntimeServices | 已完成 | 已引入显式 RuntimeServices，并迁移入口层、CodeGenerator、Parser/VM 兼容重载 |
 | 中 | 教学导航 | 已完成 | 已新增 `docs/index.md`、术语表和 examples，并扩展 walkthrough 索引 |
 | 低 | CMake + CTest | 已完成 | 已新增 secondary CMake/CTest 路径，不替代 VS/MSBuild 主路径 |
-| 长期 | 拆分 CodeGenerator / VM / Parser / GC 策略边界 | 进行中 | 8A-8C CodeGenerator 边界已完成，8D-8G VM 入口、dispatch 分类、ops/call/剩余 helper 与 trace/debug 边界已完成；8H Parser 函数组审计与行为锁定、8I Parser 物理拆分执行已完成；PR-39 已完成 Switch dispatch 每 opcode inline helper；PR-40 已完成 VM expected 异常映射 helper；PR-41 已完成 CodeGenerator 职责地图与 characterization 测试；PR-42 已完成 JumpPatcher 抽取；PR-43 已完成 ScopeManager 抽取；PR-44 已完成 ExpressionEmitter 抽取；PR-45 已完成 StatementEmitter 抽取；PR-46 已完成 GC sweep 显式 StringPool 边界；PR-48 已完成 ValueResult variant prototype；PR-51 已完成 trace diff + changedRegisters；PR-52 已完成 gc-cycle walkthrough；PR-62 已完成 GCStrategy / MarkSweepGC / IncrementalGC 教学占位策略与等价性测试；PR-63 已完成 lua_bytecode Mermaid CFG；PR-64 已完成 Trace JSONL golden 测试；PR-65 已完成 REPL 增量解析测试；PR-66 已完成 add_source 源码清单同步脚本；PR-67 已完成 Parser tokenString utility 抽取；PR-68 已完成 AstVisitor 组合模板；PR-69 已完成 Visitor canVisit 检查去重；PR-70 已完成标准库 openXxx deprecated 包装清理；PR-71 已完成 CMake/MSBuild warning 策略对齐；PR-72 已完成 ValueResult 读取侧第一批 visitor 迁移；PR-73 已完成 LibRegistrar 自注册评估并决定保留显式 catalog |
+| 长期 | 拆分 CodeGenerator / VM / Parser / GC 策略边界 | 进行中 | 8A-8C CodeGenerator 边界已完成，8D-8G VM 入口、dispatch 分类、ops/call/剩余 helper 与 trace/debug 边界已完成；8H Parser 函数组审计与行为锁定、8I Parser 物理拆分执行已完成；PR-39 已完成 Switch dispatch 每 opcode inline helper；PR-40 已完成 VM expected 异常映射 helper；PR-41 已完成 CodeGenerator 职责地图与 characterization 测试；PR-42 已完成 JumpPatcher 抽取；PR-43 已完成 ScopeManager 抽取；PR-44 已完成 ExpressionEmitter 抽取；PR-45 已完成 StatementEmitter 抽取；PR-46 已完成 GC sweep 显式 StringPool 边界；PR-48 已完成 ValueResult variant prototype；PR-51 已完成 trace diff + changedRegisters；PR-52 已完成 gc-cycle walkthrough；PR-62 已完成 GCStrategy / MarkSweepGC / IncrementalGC 教学占位策略与等价性测试；PR-63 已完成 lua_bytecode Mermaid CFG；PR-64 已完成 Trace JSONL golden 测试；PR-65 已完成 REPL 增量解析测试；PR-66 已完成 add_source 源码清单同步脚本；PR-67 已完成 Parser tokenString utility 抽取；PR-68 已完成 AstVisitor 组合模板；PR-69 已完成 Visitor canVisit 检查去重；PR-70 已完成标准库 openXxx deprecated 包装清理；PR-71 已完成 CMake/MSBuild warning 策略对齐；PR-72 已完成 ValueResult 读取侧第一批 visitor 迁移；PR-73 已完成 LibRegistrar 自注册评估并决定保留显式 catalog；PR-74 已完成 ValueResult 旧字段读取侧第二批迁移 |
 
 ## 已完成优化
 
@@ -127,7 +127,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_quality_gate.ps1
 
 - 质量门禁配置自检通过。
 - 文档漂移检查通过。
-- 本机有 MSBuild 和 `bin\lua_test.exe` 时，`run_quality_gate.ps1` 会构建 `lua_test.vcxproj`，并运行 547 个注册测试 / 2742 个结果 / 0 失败。
+- 本机有 MSBuild 和 `bin\lua_test.exe` 时，`run_quality_gate.ps1` 会构建 `lua_test.vcxproj`，并运行 548 个注册测试 / 2745 个结果 / 0 失败。
 
 ### 3A. 共享文件读取
 
@@ -1641,7 +1641,7 @@ bin\lua_test.exe
 - [x] 对比当前显式 catalog 与 `LibRegistrar` 自注册方案：显式 catalog 保持加载顺序可见、测试直接、无动态初始化顺序风险。
 - [x] 确认自注册方案的主要风险：MSVC linker 可能丢弃未引用静态 registrar，且需要锚点符号或 `#pragma comment(linker, "/include:...")` 这类教学价值较低的机制。
 - [x] 新增 `Standard Library Catalog::catalog ids are unique`，防止手动维护 catalog 时出现重复 id。
-- [x] 同步 `docs/architecture/patterns.md`、`docs/stdlib/overview.md`、`docs/status/project-status.md` 和优化路线图；下一项推荐推进到 PR-74：`ValueResult` 旧字段读面第二批。
+- [x] 同步 `docs/architecture/patterns.md`、`docs/stdlib/overview.md`、`docs/status/project-status.md` 和优化路线图；后续 PR-74 已收口 `ValueResult` 旧字段读面第二批。
 
 已使用的验证命令：
 
@@ -1656,6 +1656,38 @@ bin\lua_test.exe
 - `lua_test.vcxproj` 在 `/W4` 下 0 warnings / 0 errors。
 - `Standard Library Catalog` 过滤测试运行 4 个 selected tests / 65 个 results / 0 failures。
 - 默认 `bin\lua_test.exe` 运行 547 个 registered tests / 2742 个 assertion results / 0 failures。
+
+## 已完成任务：ValueResult visitor 第二批迁移
+
+### PR-74 / 3.5.3：测试读取面从旧字段迁移到 payload visitor
+
+**目标：** 延续 PR-72 的生产读路径迁移，把 compiler 单测中的普通 `ValueResult` 断言也改为读取 `std::variant` payload，旧公开字段只留在明确命名的兼容性测试里。
+
+已完成：
+
+- [x] `Expression Emitter::Lowers Immediate Values` 改为通过 `ValueResult::visit()` 读取 immediate payload，不再读取 `kind` / `immediate` / `numberValue` / `boolValue` 旧字段。
+- [x] `Symbol Binding (PR-8)` 的 `symbolToValue()` Local / Upvalue / Global 断言改为 payload visitor snapshot，覆盖 public facade 返回值的 payload 契约。
+- [x] `Codegen Result Types::ValueResult Variant Prototype` 改为 payload snapshot；新增 `ValueResult Legacy Fields Stay Synced`，把旧字段读取集中到显式 compatibility mirror 测试。
+- [x] 审计 `src/compiler/codegen/codegen_expr.cpp` 与 `src/compiler/codegen/statement_emitter.cpp`：两者是 facade / statement 委托层，没有直接读取 `ValueResult` 旧公开字段。
+- [x] 同步 README、项目状态、字节码生成说明、职责地图和优化路线图；下一项推荐推进到 PR-75：`ValueResult` 旧字段兼容面 deprecation 预审。
+
+已使用的验证命令：
+
+```powershell
+& 'D:\VS2026\2026\MSBuild\Current\Bin\MSBuild.exe' lua_test.vcxproj /m /p:Configuration=Debug /p:Platform=x64
+bin\lua_test.exe --filter "Codegen Result Types"
+bin\lua_test.exe --filter "Expression Emitter"
+bin\lua_test.exe --filter "Symbol Binding"
+bin\lua_test.exe
+```
+
+验收结果：
+
+- `lua_test.vcxproj` 在 `/W4` 下 0 warnings / 0 errors。
+- `Codegen Result Types` 过滤测试运行 5 个 selected tests / 40 个 results / 0 failures。
+- `Expression Emitter` 过滤测试运行 3 个 selected tests / 14 个 results / 0 failures。
+- `Symbol Binding` 过滤测试运行 24 个 selected tests / 49 个 results / 0 failures。
+- 默认 `bin\lua_test.exe` 运行 548 个 registered tests / 2745 个 assertion results / 0 failures。
 
 ## 维护规则
 

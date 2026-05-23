@@ -12,7 +12,6 @@
 
 #include <type_traits>
 #include <utility>
-#include <variant>
 
 using namespace Lua;
 using namespace LuaTest;
@@ -20,6 +19,24 @@ using namespace LuaTest;
 namespace {
 
 constexpr const char* kSuiteName = "Expression Emitter";
+
+struct ImmediatePayload {
+    ValueResult::ImmediateKind kind = ValueResult::ImmediateKind::None;
+    bool boolValue = false;
+    f64 numberValue = 0.0;
+    bool matched = false;
+};
+
+ImmediatePayload readImmediatePayload(const ValueResult& value) {
+    return value.visit(ValueResultVisitor{
+        [](const ValueResult::Immediate& immediate) -> ImmediatePayload {
+            return {immediate.kind, immediate.boolValue, immediate.numberValue, true};
+        },
+        [](const auto&) -> ImmediatePayload {
+            return {};
+        },
+    });
+}
 
 }  // namespace
 
@@ -55,30 +72,26 @@ void testExpressionEmitterLowersImmediateValues(TestSuite& suite) {
     Expr numberExpr(number);
 
     ValueResult numberValue = expressions.emitValue(numberExpr);
-    ASSERT_TRUE(suite, std::holds_alternative<ValueResult::Immediate>(numberValue.payload()),
+    ImmediatePayload numberPayload = readImmediatePayload(numberValue);
+    ASSERT_TRUE(suite, numberPayload.matched,
                 "number literal should use the Immediate payload");
-    ASSERT_EQ(suite, static_cast<int>(ValueResult::Kind::Immediate),
-              static_cast<int>(numberValue.kind),
-              "number literal should lower to an immediate ValueResult");
     ASSERT_EQ(suite, static_cast<int>(ValueResult::ImmediateKind::Number),
-              static_cast<int>(numberValue.immediate),
+              static_cast<int>(numberPayload.kind),
               "number literal immediate kind should be number");
-    ASSERT_EQ(suite, 42.5, numberValue.numberValue, "number literal value should be preserved");
+    ASSERT_EQ(suite, 42.5, numberPayload.numberValue, "number literal value should be preserved");
 
     BoolExpr boolean{};
     boolean.value = true;
     Expr boolExpr(boolean);
 
     ValueResult boolValue = expressions.emitValue(boolExpr);
-    ASSERT_TRUE(suite, std::holds_alternative<ValueResult::Immediate>(boolValue.payload()),
+    ImmediatePayload boolPayload = readImmediatePayload(boolValue);
+    ASSERT_TRUE(suite, boolPayload.matched,
                 "boolean literal should use the Immediate payload");
-    ASSERT_EQ(suite, static_cast<int>(ValueResult::Kind::Immediate),
-              static_cast<int>(boolValue.kind),
-              "boolean literal should lower to an immediate ValueResult");
     ASSERT_EQ(suite, static_cast<int>(ValueResult::ImmediateKind::Boolean),
-              static_cast<int>(boolValue.immediate),
+              static_cast<int>(boolPayload.kind),
               "boolean literal immediate kind should be boolean");
-    ASSERT_TRUE(suite, boolValue.boolValue, "boolean literal value should be preserved");
+    ASSERT_TRUE(suite, boolPayload.boolValue, "boolean literal value should be preserved");
 }
 
 void testExpressionEmitterMaterializesPayloadWhenLegacyFieldsDrift(TestSuite& suite) {
@@ -90,6 +103,7 @@ void testExpressionEmitterMaterializesPayloadWhenLegacyFieldsDrift(TestSuite& su
     ExpressionEmitter expressions(codegen);
 
     ValueResult value = ValueResult::makeNumber(21.0);
+    // Deliberately desync the compatibility fields; materialization should read the payload.
     value.kind = ValueResult::Kind::Register;
     value.reg = 42;
     value.numberValue = -1.0;
