@@ -1,6 +1,6 @@
 ---
 status: current
-verified_against: docs/archive/research/deep-research-report.md; docs/status/project-status.md; docs/guides/development.md; docs/compiler/codegen-responsibility-map.md; docs/walkthroughs/gc-cycle.md; CMakeLists.txt; lua.vcxproj; lua.vcxproj.filters; lua_test.vcxproj; lua_test.vcxproj.filters; src/compiler/parser/parser.cpp; src/compiler/parser/parser_stmt.cpp; src/compiler/parser/parser_expr.cpp; src/compiler/parser/parser_primary.cpp; src/compiler/parser/parser_func.cpp; src/compiler/parser/parser_table.cpp; src/compiler/codegen/codegen.hpp; src/compiler/codegen/codegen_types.hpp; src/compiler/codegen/codegen_expr.cpp; src/compiler/codegen/expression_emitter.hpp; src/compiler/codegen/expression_emitter.cpp; src/compiler/codegen/statement_emitter.hpp; src/compiler/codegen/statement_emitter.cpp; src/compiler/codegen/codegen_jump.cpp; src/compiler/codegen/codegen_stmt.cpp; src/compiler/codegen/jump_patcher.hpp; src/compiler/codegen/jump_patcher.cpp; src/compiler/codegen/scope_manager.hpp; src/compiler/codegen/scope_manager.cpp; src/core/string_pool.cpp; src/gc/garbage_collector.hpp; src/gc/garbage_collector.cpp; src/gc/gc_strategy.hpp; src/gc/gc_strategy.cpp; src/gc/gc_sweep.cpp; src/vm/vm.cpp; src/vm/vm_internal.hpp; src/vm/vm_switch_dispatch.hpp; tests/unit/compiler/test_codegen_result_types.cpp; tests/unit/compiler/test_codegen_characterization.cpp; tests/unit/compiler/test_jump_patcher.cpp; tests/unit/compiler/test_scope_manager.cpp; tests/unit/compiler/test_expression_emitter.cpp; tests/unit/compiler/test_statement_emitter.cpp; tests/unit/framework/test_runner.cpp; tests/unit/gc/test_gc.cpp; tests/unit/vm/test_runtime_services.cpp; tests/unit/vm/test_vm_core.cpp; tests/unit/vm/test_vm_dispatch.cpp; .github/workflows/ci.yml; tools/run_cmake_smoke.ps1; tools/check_doc_drift.ps1; tools/test_quality_gate.ps1; tools/run_quality_gate.ps1
+verified_against: docs/archive/research/deep-research-report.md; docs/status/project-status.md; docs/guides/development.md; docs/compiler/codegen-responsibility-map.md; docs/walkthroughs/gc-cycle.md; CMakeLists.txt; lua.vcxproj; lua.vcxproj.filters; lua_test.vcxproj; lua_test.vcxproj.filters; src/compiler/parser/parser_utils.hpp; src/compiler/parser/parser.cpp; src/compiler/parser/parser_stmt.cpp; src/compiler/parser/parser_expr.cpp; src/compiler/parser/parser_primary.cpp; src/compiler/parser/parser_func.cpp; src/compiler/parser/parser_table.cpp; src/compiler/codegen/codegen.hpp; src/compiler/codegen/codegen_types.hpp; src/compiler/codegen/codegen_expr.cpp; src/compiler/codegen/expression_emitter.hpp; src/compiler/codegen/expression_emitter.cpp; src/compiler/codegen/statement_emitter.hpp; src/compiler/codegen/statement_emitter.cpp; src/compiler/codegen/codegen_jump.cpp; src/compiler/codegen/codegen_stmt.cpp; src/compiler/codegen/jump_patcher.hpp; src/compiler/codegen/jump_patcher.cpp; src/compiler/codegen/scope_manager.hpp; src/compiler/codegen/scope_manager.cpp; src/core/string_pool.cpp; src/gc/garbage_collector.hpp; src/gc/garbage_collector.cpp; src/gc/gc_strategy.hpp; src/gc/gc_strategy.cpp; src/gc/gc_sweep.cpp; src/vm/vm.cpp; src/vm/vm_internal.hpp; src/vm/vm_switch_dispatch.hpp; tests/unit/compiler/test_parser_boundaries.cpp; tests/unit/compiler/test_codegen_result_types.cpp; tests/unit/compiler/test_codegen_characterization.cpp; tests/unit/compiler/test_jump_patcher.cpp; tests/unit/compiler/test_scope_manager.cpp; tests/unit/compiler/test_expression_emitter.cpp; tests/unit/compiler/test_statement_emitter.cpp; tests/unit/framework/test_runner.cpp; tests/unit/gc/test_gc.cpp; tests/unit/vm/test_runtime_services.cpp; tests/unit/vm/test_vm_core.cpp; tests/unit/vm/test_vm_dispatch.cpp; .github/workflows/ci.yml; tools/run_cmake_smoke.ps1; tools/check_doc_drift.ps1; tools/test_quality_gate.ps1; tools/run_quality_gate.ps1
 last_checked: 2026-05-23
 applies_to: 仓库优化路线图与下次续接检查清单
 ---
@@ -48,7 +48,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_quality_gate.ps1
 | 中 | EngineContext / RuntimeServices | 已完成 | 已引入显式 RuntimeServices，并迁移入口层、CodeGenerator、Parser/VM 兼容重载 |
 | 中 | 教学导航 | 已完成 | 已新增 `docs/index.md`、术语表和 examples，并扩展 walkthrough 索引 |
 | 低 | CMake + CTest | 已完成 | 已新增 secondary CMake/CTest 路径，不替代 VS/MSBuild 主路径 |
-| 长期 | 拆分 CodeGenerator / VM / Parser / GC 策略边界 | 进行中 | 8A-8C CodeGenerator 边界已完成，8D-8G VM 入口、dispatch 分类、ops/call/剩余 helper 与 trace/debug 边界已完成；8H Parser 函数组审计与行为锁定、8I Parser 物理拆分执行已完成；PR-39 已完成 Switch dispatch 每 opcode inline helper；PR-40 已完成 VM expected 异常映射 helper；PR-41 已完成 CodeGenerator 职责地图与 characterization 测试；PR-42 已完成 JumpPatcher 抽取；PR-43 已完成 ScopeManager 抽取；PR-44 已完成 ExpressionEmitter 抽取；PR-45 已完成 StatementEmitter 抽取；PR-46 已完成 GC sweep 显式 StringPool 边界；PR-48 已完成 ValueResult variant prototype；PR-51 已完成 trace diff + changedRegisters；PR-52 已完成 gc-cycle walkthrough；PR-62 已完成 GCStrategy / MarkSweepGC / IncrementalGC 教学占位策略与等价性测试；PR-63 已完成 lua_bytecode Mermaid CFG；PR-64 已完成 Trace JSONL golden 测试；PR-65 已完成 REPL 增量解析测试；PR-66 已完成 add_source 源码清单同步脚本 |
+| 长期 | 拆分 CodeGenerator / VM / Parser / GC 策略边界 | 进行中 | 8A-8C CodeGenerator 边界已完成，8D-8G VM 入口、dispatch 分类、ops/call/剩余 helper 与 trace/debug 边界已完成；8H Parser 函数组审计与行为锁定、8I Parser 物理拆分执行已完成；PR-39 已完成 Switch dispatch 每 opcode inline helper；PR-40 已完成 VM expected 异常映射 helper；PR-41 已完成 CodeGenerator 职责地图与 characterization 测试；PR-42 已完成 JumpPatcher 抽取；PR-43 已完成 ScopeManager 抽取；PR-44 已完成 ExpressionEmitter 抽取；PR-45 已完成 StatementEmitter 抽取；PR-46 已完成 GC sweep 显式 StringPool 边界；PR-48 已完成 ValueResult variant prototype；PR-51 已完成 trace diff + changedRegisters；PR-52 已完成 gc-cycle walkthrough；PR-62 已完成 GCStrategy / MarkSweepGC / IncrementalGC 教学占位策略与等价性测试；PR-63 已完成 lua_bytecode Mermaid CFG；PR-64 已完成 Trace JSONL golden 测试；PR-65 已完成 REPL 增量解析测试；PR-66 已完成 add_source 源码清单同步脚本；PR-67 已完成 Parser tokenString utility 抽取 |
 
 ## 已完成优化
 
@@ -884,7 +884,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\test_quality_gate.ps1
 
 已完成：
 
-- [x] `src/compiler/parser/parser.cpp` 保留构造函数、token 管理、错误报告/同步、`parse()` 入口，以及跨分片共享的 `tokenString()` / `errorWithNear()` 私有 helper。
+- [x] `src/compiler/parser/parser.cpp` 保留构造函数、token 管理、错误报告/同步、`parse()` 入口，以及跨分片共享的 `errorWithNear()` 私有 helper；`tokenString()` 后续已在 PR-67 移入 `parser_utils.hpp`。
 - [x] 新增 `src/compiler/parser/parser_stmt.cpp`，承载 `parseBlock()`、`parseStatement()` 和控制流/local/return/break/赋值/调用语句解析。
 - [x] 新增 `src/compiler/parser/parser_expr.cpp`，承载表达式优先级链和 `parseExprList()`。
 - [x] 新增 `src/compiler/parser/parser_primary.cpp`，承载 primary 与 postfix 表达式解析。
@@ -1425,6 +1425,39 @@ bin\lua_test.exe
 - `add_source.ps1` existing-file dry-run 正确报告 no-op。
 - `test_quality_gate.ps1` 临时项目清单烟测通过。
 - 文档漂移检查通过。
+
+## 已完成任务：Parser tokenString utility 抽取
+
+### PR-67 / 1.2：抽取 `Parser::tokenString` 到 `parser_utils.hpp`
+
+**目标：** 把无状态的 token 字符串借用逻辑从 `Parser` 类声明中移出，让 `parser_*.cpp` 分片共享一个更窄、更直观的工具边界，同时保持 `StrView` 借用语义不变。
+
+已完成：
+
+- [x] 新增 `src/compiler/parser/parser_utils.hpp`，提供 `ParserUtils::tokenString(const Token&) -> StrView`。
+- [x] 从 `src/compiler/parser/parser.hpp` 移除 `Parser::tokenString` 类成员，减少 Parser 声明里的跨分片 helper。
+- [x] 更新 `parser_stmt.cpp`、`parser_func.cpp`、`parser_primary.cpp` 和 `parser_table.cpp`，显式调用 `ParserUtils::tokenString()`。
+- [x] 更新 `Parser Boundary Sentinels`，不再用 `#define private public` 暴露 Parser 私有实现，直接锁住 utility 的返回类型与借用存储边界。
+- [x] 使用 `tools/add_source.ps1` 将新头文件登记到 Visual Studio 核心项目和 filters。
+
+已使用的验证命令：
+
+```powershell
+.\tools\run_quality_gate.ps1
+bin\lua_test.exe --filter "Parser Boundary Sentinels"
+bin\lua_test.exe
+.\tools\check_doc_drift.ps1
+.\tools\test_quality_gate.ps1
+.\tools\run_cmake_smoke.ps1
+git diff --check
+```
+
+验收结果：
+
+- `Parser Boundary Sentinels` 继续覆盖 token string 借用边界。
+- 默认 `bin\lua_test.exe` 仍运行 542 个 registered tests / 2728 个 assertion results / 0 failures。
+- `run_quality_gate.ps1` 通过；本机未发现 `clang-format` / `clang-tidy` 时按脚本设计跳过对应项。
+- 文档漂移检查、质量门配置自检、CMake/CTest secondary 路径和 whitespace 检查均通过。
 
 ## 维护规则
 

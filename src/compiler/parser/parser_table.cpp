@@ -4,6 +4,7 @@
  */
 
 #include "parser.hpp"
+#include "parser_utils.hpp"
 
 #include <utility>
 
@@ -38,7 +39,7 @@ ExprPtr Parser::parseTableConstructor() {
 
             if (nextToken.type == static_cast<TokenType>('=')) {
                 // name = value 形式
-                Str name(tokenString(current_));
+                Str name(ParserUtils::tokenString(current_));
                 i32 nameLine = current_.line;
                 i32 nameColumn = current_.column;
                 advance();  // 消费 name

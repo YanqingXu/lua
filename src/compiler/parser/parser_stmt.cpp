@@ -4,6 +4,7 @@
  */
 
 #include "parser.hpp"
+#include "parser_utils.hpp"
 
 #include <utility>
 
@@ -155,7 +156,7 @@ StmtPtr Parser::parseForStmt() {
     if (!current_.isName()) {
         error("Expected variable name after 'for'");
     }
-    Str varName(tokenString(current_));
+    Str varName(ParserUtils::tokenString(current_));
     advance();
 
     // 判断是数值for还是泛型for
@@ -199,7 +200,7 @@ StmtPtr Parser::parseForStmt() {
             if (!current_.isName()) {
                 error("Expected variable name in for-in loop");
             }
-            forStmt.vars.emplace_back(tokenString(current_));
+            forStmt.vars.emplace_back(ParserUtils::tokenString(current_));
             advance();
         } while (match(static_cast<TokenType>(',')));
 
@@ -251,7 +252,7 @@ StmtPtr Parser::parseLocalStmt() {
         if (!current_.isName()) {
             error("Expected function name after 'local function'");
         }
-        funcStmt.name = Str(tokenString(current_));
+        funcStmt.name = Str(ParserUtils::tokenString(current_));
         advance();
 
         expect(static_cast<TokenType>('('), "Expected '(' after function name");
@@ -281,7 +282,7 @@ StmtPtr Parser::parseLocalStmt() {
         if (!current_.isName()) {
             error("Expected variable name in local statement");
         }
-        localStmt.names.emplace_back(tokenString(current_));
+        localStmt.names.emplace_back(ParserUtils::tokenString(current_));
         advance();
     } while (match(static_cast<TokenType>(',')));
 

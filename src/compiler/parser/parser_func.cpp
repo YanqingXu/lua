@@ -4,6 +4,7 @@
  */
 
 #include "parser.hpp"
+#include "parser_utils.hpp"
 
 #include <utility>
 
@@ -27,7 +28,7 @@ StmtPtr Parser::parseFunctionStmt() {
     }
 
     // 第一个名字
-    funcStmt.name = Str(tokenString(current_));
+    funcStmt.name = Str(ParserUtils::tokenString(current_));
     advance();
 
     // 解析表路径和方法语法
@@ -40,7 +41,7 @@ StmtPtr Parser::parseFunctionStmt() {
             if (!current_.isName()) {
                 error("Expected field name after '.'");
             }
-            funcStmt.name = Str(tokenString(current_));
+            funcStmt.name = Str(ParserUtils::tokenString(current_));
             advance();
         } else if (match(static_cast<TokenType>(':'))) {
             // 方法定义语法糖
@@ -50,7 +51,7 @@ StmtPtr Parser::parseFunctionStmt() {
             if (!current_.isName()) {
                 error("Expected method name after ':'");
             }
-            funcStmt.name = Str(tokenString(current_));
+            funcStmt.name = Str(ParserUtils::tokenString(current_));
             advance();
             break;  // 冒号后不能再有点或冒号
         }
@@ -128,7 +129,7 @@ Vec<Str> Parser::parseParamList() {
     // 解析参数名
     do {
         if (current_.isName()) {
-            params.emplace_back(tokenString(current_));
+            params.emplace_back(ParserUtils::tokenString(current_));
             advance();
         } else if (match(TokenType::Dots)) {
             params.push_back("...");

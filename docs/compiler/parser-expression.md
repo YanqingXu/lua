@@ -1,7 +1,7 @@
 ---
 status: current
-verified_against: docs/status/project-status.md; src/compiler/parser/parser.hpp; src/compiler/parser/parser.cpp; src/compiler/parser/parser_expr.cpp; src/compiler/parser/parser_primary.cpp; src/compiler/parser/parser_table.cpp; src/compiler/parser/parser_func.cpp; src/compiler/ast.hpp
-last_checked: 2026-05-18
+verified_against: docs/status/project-status.md; src/compiler/parser/parser_utils.hpp; src/compiler/parser/parser.hpp; src/compiler/parser/parser.cpp; src/compiler/parser/parser_expr.cpp; src/compiler/parser/parser_primary.cpp; src/compiler/parser/parser_table.cpp; src/compiler/parser/parser_func.cpp; src/compiler/ast.hpp
+last_checked: 2026-05-23
 applies_to: current parser expression grammar
 ---
 
@@ -25,7 +25,7 @@ applies_to: current parser expression grammar
 - `parseParamList`
 - `parseExprList`
 
-同时会顺带解释几个与表达式解析紧密相关的基础设施：`current` / `advance` / `peek` / `match` / `expect`、`RecursionGuard`、`makeExpr`。
+同时会顺带解释几个与表达式解析紧密相关的基础设施：`current` / `advance` / `peek` / `match` / `expect`、`ParserUtils::tokenString`、`RecursionGuard`、`makeExpr`。
 
 ## 1. 整体设计：分层递归下降，而不是一张“大优先级表”
 
@@ -89,7 +89,13 @@ parseExpression
 
 前瞻的价值在于：不必回溯，也不必复制整个 lexer 状态，就能解决局部歧义。
 
-### 2.4 `RecursionGuard`
+### 2.4 `ParserUtils::tokenString()`
+
+`ParserUtils::tokenString(const Token&)` 是表达式、语句、函数和表构造分片共享的无状态 helper。它优先借用 token 语义值中的 `Str`，用于字符串字面量这类已经解码过的 token；否则借用原始 `lexeme`，用于标识符等普通文本 token。
+
+这个 helper 返回 `StrView`，所以解析函数在写入 AST 字段、函数名、参数名或表字段名时会显式构造 `Str`。这样能把“临时借用当前 token 内容”和“AST 需要拥有字符串”两个边界分清楚，也避免把纯工具函数继续挂在 `Parser` 类声明上。
+
+### 2.5 `RecursionGuard`
 
 `parseExpression()`、`parseBlock()`、`parseTableConstructor()`、`parseFunctionExpr()` 里都用了 `RecursionGuard`。
 
@@ -101,7 +107,7 @@ parseExpression
 
 这是一种很工程化的防御性设计：它不改变语法能力，但能显著提升解析器的稳健性。
 
-### 2.5 `makeExpr()`
+### 2.6 `makeExpr()`
 
 所有表达式节点都通过 `makeExpr<T>()` 构造，而不是在各个函数里直接 `std::make_unique`。
 

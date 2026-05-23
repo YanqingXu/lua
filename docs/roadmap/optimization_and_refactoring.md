@@ -4,7 +4,7 @@
 > 设计目标：**可读性 > 可维护性 > 教育价值 > 性能**
 > 约束：保持 542 个注册测试 / 2728 个断言结果 / 0 失败，不破坏 `LuaState` / `VM` public API。
 > 最近审计：2026-05-21（深度审计报告，覆盖 Readability / Extensibility / Educational Value 三维度）
-> 最近同步：2026-05-23（PR-66：`tools/add_source.ps1` 源码清单同步脚本）
+> 最近同步：2026-05-23（PR-67：`ParserUtils::tokenString` 集中到 `parser_utils.hpp`）
 
 ---
 
@@ -24,7 +24,7 @@
 
 | 阶段 | 周期定位 | 关注点 | 是否触发 API 变化 | 完成度 |
 |---|---|---|---|---|
-| **阶段 1 — 短期代码清理** | 1–2 个迭代 | 删冗余、统一命名、收紧错误处理、文档与代码同步 | 否 | ~90% |
+| **阶段 1 — 短期代码清理** | 1–2 个迭代 | 删冗余、统一命名、收紧错误处理、文档与代码同步 | 否 | ~95% |
 | **阶段 2 — 中期模式重构** | 3–5 个迭代 | 引入访问者 / 策略 / 命令模式，VM dispatch 与 GC 抽象化 | 内部 API 调整、public 不变 | ~91% |
 | **阶段 3 — 现代 C++ 特性** | 穿插于 1 & 2 | `std::expected` / `concepts` / `std::format` / `[[nodiscard]]` | 部分 public 签名变更 | ~90% |
 | **阶段 4 — 教育价值增强** | 持续推进 | 自解释代码、字节码可视化、执行链路教学文档、REPL 体验、Trace 差异模式 | 否（增量增强） | ~88% |
@@ -63,9 +63,9 @@
 - GC 内部成员命名 `allObjects_` / `roots_` / `grayList_` 已是 trailing-underscore 风格。✓
 - 删除 `ExprDesc` / `ExprKind` 历史残留：`check_doc_drift.ps1` 已覆盖扫描。✓
 - ✓ **已完成 — PR-49**：`CodegenState` 内部成员已从 `regs` / `locals` / `blocks` / `upvalues` 收口为 `registers` / `localScope` / `blockManager` / `upvalueContext`；`LocalVarScope::nactvar_` 与 `BlockInfo::nactvar` 已改为 `activeVarCount_` / `activeVarCount`。
-- `Parser::tokenString` 等 static helper 已散布在 `parser.cpp`，可以集中到 `parser_utils.hpp`。
+- ✓ **已完成 — PR-67**：`Parser::tokenString` 已从 `Parser` 类声明中移出，集中为 `src/compiler/parser/parser_utils.hpp` 的 `ParserUtils::tokenString()`；`parser_*.cpp` 分片显式依赖该无状态 helper，`Parser Boundary Sentinels` 继续锁住借用型 `StrView` 返回边界。
 
-`Parser::tokenString` 清理仍可作为后续低风险 P3 项；CodeGenerator 状态命名已在 emitter 边界稳定后完成，避免了拆分期重复 churn。
+CodeGenerator 状态命名已在 emitter 边界稳定后完成，`tokenString` 也已完成低风险收尾，阶段 1 后续只剩更低优先级的跨阶段清理项。
 
 ### 1.3 错误处理收紧
 
@@ -456,12 +456,13 @@ using ValueResult = std::variant<
 | PR-64 | Trace JSONL plain / diff golden 测试，使用无指针值的小脚本精确对比 `registers` 与 `changedRegisters` 输出，防止 trace schema 漂移 | 5.1 |
 | PR-65 | REPL 增量解析测试，使用真实 Parser 错误锁住 EOF-driven continuation、明确语法错误立即报告，以及 `=function(...)` 多行表达式保持 expression mode | 5.1 |
 | PR-66 | `tools/add_source.ps1` 源码清单同步脚本，覆盖 CMake / VS project / filters 追加、目标自动推断、dry-run 和质量门烟测 | 5.3 |
+| PR-67 | `ParserUtils::tokenString` 集中到 `parser_utils.hpp`，移除 `Parser` 类内无状态字符串 helper，并保持借用型 `StrView` 测试边界 | 1.2 |
 
 后续推荐顺序：
 
 | PR | 编号 | 任务 | 阶段 | 依赖 / 理由 |
 |---|---|---|---|---|
-| PR-67 | 1.2 | `Parser::tokenString` 集中到 `parser_utils.hpp` | 1 | P3；低风险命名/结构收尾，能减少 parser 分片共享 helper 的散落感 |
+| PR-68 | 2.1.1 | 提供 `AstVisitor<Derived, R>` 组合模板 | 2 | P3；复用已有 Expr/Stmt visitor，减少新 visitor 的样板继承写法 |
 
 每个 PR 完成后跑：
 
@@ -480,12 +481,12 @@ using ValueResult = std::variant<
 
 | 阶段 | 文档自评 | 实际评估 | 偏差 | 关键差距 |
 |---|---|---|---|---|
-| 阶段 1 — 短期代码清理 | ~90% | **~93%** | +3% | 仅 `tokenString` 集中化未做（P3 低风险） |
+| 阶段 1 — 短期代码清理 | ~95% | **~96%** | +1% | `tokenString` 集中化已完成；剩余工作转入跨阶段 P3 清理 |
 | 阶段 2 — 中期模式重构 | ~91% | **~86%** | −5% | GCStrategy 已落地；lib_manager 声明清理、Visitor 去重仍未落地 |
 | 阶段 3 — 现代 C++ 特性 | ~90% | **~90%** | 0 | ValueResult variant prototype 已就位，后续 std::visit 迁移为渐进工作 |
 | 阶段 4 — 教育价值增强 | ~88% | **~86%** | −2% | REPL 体验和字节码可视化主线已闭环；后续偏样例和文档深挖 |
 | 阶段 5 — 工程实践 | ~82% | **~82%** | 0 | 指令级覆盖矩阵、GC 策略等价测试、CFG 输出契约测试、Trace JSONL golden、REPL 增量解析测试和 add_source 脚本已补齐；剩余为 CMake 编译选项对齐 |
-| **加权综合** | **~86%** | **~83%** | **−3%** | |
+| **加权综合** | **~87%** | **~84%** | **−3%** | |
 
 ---
 
@@ -499,10 +500,10 @@ using ValueResult = std::variant<
 | 1.1.2 | ✓ 已完成 | `src/gc/` 下 `gc_mark.cpp` / `gc_sweep.cpp` / `gc_finalize.cpp` / `gc_weak.cpp` 均已存在 | ✓ 确认 |
 | 1.1.3 | ✓ 已完成 | `check_doc_drift.ps1` 已含 dispatchStrategy 字段守卫 | ✓ 确认 |
 | 1.2 命名清理 | ✓ 已完成 | `CodegenState` 成员已改名 `registers` / `localScope` / `blockManager` / `upvalueContext`；`activeVarCount` 已收口 | ✓ 确认 |
-| 1.2 tokenString | 文档提及"P3 后续低风险" | `Parser::tokenString` 仍在 `parser.hpp:137` 定义，被 4 个 `parser_*.cpp` 分别使用，未集中到 `parser_utils.hpp` | ✗ 未完成 |
+| 1.2 tokenString | ✓ PR-67 | `src/compiler/parser/parser_utils.hpp` 提供 `ParserUtils::tokenString()`；`parser_*.cpp` 分片显式调用该 helper，`parser.hpp` 不再携带无状态 `tokenString` 类成员 | ✓ 确认 |
 | 1.3.1 | ✓ 已完成 | `VM::detail::captureRuntimeErrors<T>()` / `mapExceptionToUnexpected()` 已提取 | ✓ 确认 |
 
-**结论**：仅 `tokenString` 一个 P3 项遗留，其余全部兑现。实际完成度略高于文档自评。
+**结论**：阶段 1 原有 `tokenString` P3 遗留已收口；后续短期清理的主要价值来自跨阶段低风险去重。
 
 #### 阶段 2 核验
 
@@ -587,7 +588,6 @@ using ValueResult = std::variant<
 
 | 编号 | 任务 |
 |---|---|
-| 1.2 | `Parser::tokenString` 集中到 `parser_utils.hpp` |
 | 2.1.1 | `AstVisitor<Derived, R>` 组合模板 |
 | 2.1.2 | `ExprVisitor` / `StmtVisitor` 内部 `canVisit*` 去重 |
 | 2.6.1 | `lib_manager.hpp` `openXxx()` 标记 `[[deprecated]]` |

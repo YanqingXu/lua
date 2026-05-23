@@ -132,16 +132,6 @@ private:
     void synchronize();
 
     /**
-     * @brief 安全借用 token 的字符串值，供多个 Parser 实现分片共享。
-     */
-    static StrView tokenString(const Token& token) noexcept {
-        if (std::holds_alternative<Str>(token.value)) {
-            return std::get<Str>(token.value);
-        }
-        return token.lexeme;
-    }
-
-    /**
      * @brief 生成带有 near token 后缀的 Lua 风格错误消息。
      */
     static Str errorWithNear(const Str& message, const Token& token);

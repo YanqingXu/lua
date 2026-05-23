@@ -420,6 +420,9 @@
     <ClInclude Include="src\lib\lib_catalog.hpp">
       <Filter>src\lib</Filter>
     </ClInclude>
+    <ClInclude Include="src\compiler\parser\parser_utils.hpp">
+      <Filter>src\compiler\parser</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="src">

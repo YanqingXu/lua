@@ -13,6 +13,7 @@
 #include "common/types.hpp"
 #include "compiler/ast.hpp"
 #include "compiler/parser/lexer.hpp"
+#include "compiler/parser/parser_utils.hpp"
 
 #include <expected>
 #include <string>
@@ -20,11 +21,7 @@
 #include <utility>
 #include <variant>
 
-// This boundary sentinel needs to assert the private helper return type without
-// widening Parser's production interface.
-#define private public
 #include "compiler/parser/parser.hpp"
-#undef private
 
 using namespace Lua;
 using namespace LuaTest;
@@ -292,10 +289,10 @@ void testParserErrorBoundaries(TestSuite& suite) {
 }
 
 void testTokenStringReturnsBorrowedView(TestSuite& suite) {
-    static_assert(std::is_same_v<decltype(Parser::tokenString(std::declval<const Token&>())), StrView>);
+    static_assert(std::is_same_v<decltype(ParserUtils::tokenString(std::declval<const Token&>())), StrView>);
 
     Token nameToken(TokenType::Name, "identifier", 1, 1);
-    StrView nameView = Parser::tokenString(nameToken);
+    StrView nameView = ParserUtils::tokenString(nameToken);
     ASSERT_TRUE(suite, nameView == "identifier", "name token string should expose lexeme text");
     ASSERT_TRUE(suite, nameView.data() == nameToken.lexeme.data(),
                 "name token string should borrow the token lexeme storage");
@@ -303,7 +300,7 @@ void testTokenStringReturnsBorrowedView(TestSuite& suite) {
     Token stringToken(TokenType::String, "\"literal\"", 1, 1);
     stringToken.value = Str("literal");
     const Str& stringValue = std::get<Str>(stringToken.value);
-    StrView stringView = Parser::tokenString(stringToken);
+    StrView stringView = ParserUtils::tokenString(stringToken);
     ASSERT_TRUE(suite, stringView == "literal", "string token string should expose decoded value");
     ASSERT_TRUE(suite, stringView.data() == stringValue.data(),
                 "string token string should borrow the token value storage");

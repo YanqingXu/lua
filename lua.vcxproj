@@ -201,6 +201,7 @@
     <ClInclude Include="src\debug\trace_sink.hpp" />
     <ClInclude Include="src\debug\value_serializer.hpp" />
     <ClInclude Include="src\debug\json_trace_sink.hpp" />
+    <ClInclude Include="src\compiler\parser\parser_utils.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\compiler\ast.cpp" />

@@ -4,6 +4,7 @@
  */
 
 #include "parser.hpp"
+#include "parser_utils.hpp"
 
 #include <utility>
 
@@ -52,7 +53,7 @@ ExprPtr Parser::parsePrimaryExpr() {
     // 字符串
     if (current_.isString()) {
         StringExpr strExpr;
-        strExpr.value = Str(tokenString(current_));
+        strExpr.value = Str(ParserUtils::tokenString(current_));
         strExpr.line = line;
         strExpr.column = column;
         advance();
@@ -92,7 +93,7 @@ ExprPtr Parser::parsePrimaryExpr() {
     // 标识符
     if (current_.isName()) {
         NameExpr nameExpr;
-        nameExpr.name = Str(tokenString(current_));
+        nameExpr.name = Str(ParserUtils::tokenString(current_));
         nameExpr.line = line;
         nameExpr.column = column;
         advance();
@@ -143,7 +144,7 @@ ExprPtr Parser::parsePostfixExpr(ExprPtr base) {
 
             MemberExpr memberExpr;
             memberExpr.table = std::move(base);
-            memberExpr.member = Str(tokenString(current_));
+            memberExpr.member = Str(ParserUtils::tokenString(current_));
             memberExpr.line = line;
             memberExpr.column = column;
             advance();
@@ -156,7 +157,7 @@ ExprPtr Parser::parsePostfixExpr(ExprPtr base) {
                 error("Expected method name after ':'");
             }
 
-            Str methodName(tokenString(current_));
+            Str methodName(ParserUtils::tokenString(current_));
             advance();
 
             // 创建成员访问
@@ -193,7 +194,7 @@ ExprPtr Parser::parsePostfixExpr(ExprPtr base) {
 
             // 创建字符串参数
             StringExpr strExpr;
-            strExpr.value = Str(tokenString(current_));
+            strExpr.value = Str(ParserUtils::tokenString(current_));
             strExpr.line = current_.line;
             strExpr.column = current_.column;
             advance();
