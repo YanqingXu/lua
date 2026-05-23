@@ -1,7 +1,7 @@
 ---
 status: current
-verified_against: src/lib/lib_catalog.cpp; src/lib/lib_manager.cpp; src/lib/lib_registry.hpp; src/lib/baselib.cpp; src/lib/mathlib.cpp; src/lib/iolib.cpp; src/lib/stringlib.cpp; src/lib/tablelib.cpp; src/lib/oslib.cpp; src/lib/coroutinelib.cpp; src/lib/debuglib.cpp; src/lib/packagelib.cpp; tests/unit/stdlib/
-last_checked: 2026-05-19
+verified_against: src/lib/lib_catalog.cpp; src/lib/lib_manager.cpp; src/lib/lib_registry.hpp; src/lib/baselib.cpp; src/gc/gc_strategy.hpp; src/lib/mathlib.cpp; src/lib/iolib.cpp; src/lib/stringlib.cpp; src/lib/tablelib.cpp; src/lib/oslib.cpp; src/lib/coroutinelib.cpp; src/lib/debuglib.cpp; src/lib/packagelib.cpp; tests/unit/stdlib/; tests/unit/gc/test_gc.cpp
+last_checked: 2026-05-23
 applies_to: current standard library implementation overview
 ---
 
@@ -41,7 +41,7 @@ public:
 
 | Library | Files | Notes |
 |---|---|---|
-| base | `baselib.hpp/.cpp` | Global functions, `_G`, `_VERSION`, `pcall`, `xpcall`, loading helpers, environment helpers, GC facade |
+| base | `baselib.hpp/.cpp` | Global functions, `_G`, `_VERSION`, `pcall`, `xpcall`, loading helpers, environment helpers, GC facade including `collectgarbage("strategy")` |
 | math | `mathlib.hpp/.cpp` | Math functions and constants |
 | io | `iolib.hpp/.cpp` | File userdata, `io` table, file methods |
 | string | `stringlib.hpp/.cpp` | String operations, pattern functions, `string.dump` |
@@ -64,7 +64,7 @@ The current project tests are green, but this does not mean full official Lua 5.
 - `io.lines` and `file:lines` format arguments
 - `os.remove` / `os.rename` failure return details
 - `table.concat` strict element type behavior
-- incremental `collectgarbage` control options
+- real incremental `collectgarbage` scheduling and write barriers; `collectgarbage("strategy", "incremental")` currently selects an equivalent teaching placeholder
 
 ## Verification
 

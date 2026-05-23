@@ -1,6 +1,6 @@
 ---
 status: current
-verified_against: README.md; lua.slnx; lua.vcxproj; lua_app.vcxproj; lua_test.vcxproj; lua_bytecode.vcxproj; CMakeLists.txt; tools/run_cmake_smoke.ps1; tools/check_doc_drift.ps1; tools/test_quality_gate.ps1; tools/run_quality_gate.ps1; .github/workflows/ci.yml; tests/unit/framework/test_runner.cpp; tests/unit/compiler/test_parser_boundaries.cpp; tests/unit/compiler/test_codegen_characterization.cpp; tests/unit/compiler/test_jump_patcher.cpp; tests/unit/compiler/test_scope_manager.cpp; tests/unit/compiler/test_expression_emitter.cpp; tests/unit/compiler/test_statement_emitter.cpp; tests/unit/compiler/test_codegen_state.cpp; tests/unit/compiler/test_bytecode_builder.cpp; tests/unit/vm/test_runtime_services.cpp; tests/unit/vm/test_vm_dispatch.cpp; tests/unit/vm/test_vm_internal_boundaries.cpp; tests/unit/vm/test_vm_trace_debug.cpp; docs/index.md; docs/glossary.md; docs/walkthroughs/index.md; docs/walkthroughs/gc-cycle.md; docs/compiler/codegen-responsibility-map.md; examples/README.md; src/runtime/runtime_services.hpp; src/compiler/parser/parser.hpp; src/compiler/parser/parser.cpp; src/compiler/parser/parser_stmt.cpp; src/compiler/parser/parser_expr.cpp; src/compiler/parser/parser_primary.cpp; src/compiler/parser/parser_func.cpp; src/compiler/parser/parser_table.cpp; src/compiler/codegen/codegen.cpp; src/compiler/codegen/codegen_binding.cpp; src/compiler/codegen/codegen_expr.cpp; src/compiler/codegen/expression_emitter.hpp; src/compiler/codegen/expression_emitter.cpp; src/compiler/codegen/codegen_jump.cpp; src/compiler/codegen/codegen_stmt.cpp; src/compiler/codegen/statement_emitter.hpp; src/compiler/codegen/statement_emitter.cpp; src/compiler/codegen/codegen_state.hpp; src/compiler/codegen/jump_patcher.hpp; src/compiler/codegen/jump_patcher.cpp; src/compiler/codegen/scope_manager.hpp; src/compiler/codegen/scope_manager.cpp; src/compiler/codegen/bytecode_builder.hpp; src/vm/state/lua_state.hpp; src/vm/state/global_state.hpp; src/vm/state/stack.hpp; src/vm/state/call_info.hpp; src/vm/vm.cpp; src/vm/vm_entry.cpp; src/vm/vm_dispatch.hpp; src/vm/vm_switch_dispatch.hpp; src/vm/vm_dispatch_strategy.hpp; src/vm/vm_internal.hpp; src/vm/vm_ops.cpp; src/vm/vm_call.cpp; src/vm/vm_table.cpp; src/vm/vm_frame.cpp; src/vm/vm_loop.cpp; src/vm/vm_trace.cpp
+verified_against: README.md; lua.slnx; lua.vcxproj; lua_app.vcxproj; lua_test.vcxproj; lua_bytecode.vcxproj; CMakeLists.txt; tools/run_cmake_smoke.ps1; tools/check_doc_drift.ps1; tools/test_quality_gate.ps1; tools/run_quality_gate.ps1; .github/workflows/ci.yml; tests/unit/framework/test_runner.cpp; tests/unit/compiler/test_parser_boundaries.cpp; tests/unit/compiler/test_codegen_characterization.cpp; tests/unit/compiler/test_jump_patcher.cpp; tests/unit/compiler/test_scope_manager.cpp; tests/unit/compiler/test_expression_emitter.cpp; tests/unit/compiler/test_statement_emitter.cpp; tests/unit/compiler/test_codegen_state.cpp; tests/unit/compiler/test_bytecode_builder.cpp; tests/unit/vm/test_runtime_services.cpp; tests/unit/vm/test_vm_dispatch.cpp; tests/unit/vm/test_vm_internal_boundaries.cpp; tests/unit/vm/test_vm_trace_debug.cpp; tests/unit/gc/test_gc.cpp; docs/index.md; docs/glossary.md; docs/walkthroughs/index.md; docs/walkthroughs/gc-cycle.md; docs/compiler/codegen-responsibility-map.md; examples/README.md; src/runtime/runtime_services.hpp; src/gc/gc_strategy.hpp; src/gc/gc_strategy.cpp; src/gc/garbage_collector.hpp; src/gc/garbage_collector.cpp; src/compiler/parser/parser.hpp; src/compiler/parser/parser.cpp; src/compiler/parser/parser_stmt.cpp; src/compiler/parser/parser_expr.cpp; src/compiler/parser/parser_primary.cpp; src/compiler/parser/parser_func.cpp; src/compiler/parser/parser_table.cpp; src/compiler/codegen/codegen.cpp; src/compiler/codegen/codegen_binding.cpp; src/compiler/codegen/codegen_expr.cpp; src/compiler/codegen/expression_emitter.hpp; src/compiler/codegen/expression_emitter.cpp; src/compiler/codegen/codegen_jump.cpp; src/compiler/codegen/codegen_stmt.cpp; src/compiler/codegen/statement_emitter.hpp; src/compiler/codegen/statement_emitter.cpp; src/compiler/codegen/codegen_state.hpp; src/compiler/codegen/jump_patcher.hpp; src/compiler/codegen/jump_patcher.cpp; src/compiler/codegen/scope_manager.hpp; src/compiler/codegen/scope_manager.cpp; src/compiler/codegen/bytecode_builder.hpp; src/vm/state/lua_state.hpp; src/vm/state/global_state.hpp; src/vm/state/stack.hpp; src/vm/state/call_info.hpp; src/vm/vm.cpp; src/vm/vm_entry.cpp; src/vm/vm_dispatch.hpp; src/vm/vm_switch_dispatch.hpp; src/vm/vm_dispatch_strategy.hpp; src/vm/vm_internal.hpp; src/vm/vm_ops.cpp; src/vm/vm_call.cpp; src/vm/vm_table.cpp; src/vm/vm_frame.cpp; src/vm/vm_loop.cpp; src/vm/vm_trace.cpp
 last_checked: 2026-05-23
 applies_to: 当前仓库事实与面向贡献者的工作流
 ---
@@ -44,7 +44,7 @@ applies_to: 当前仓库事实与面向贡献者的工作流
 ## 测试状态
 
 - 测试框架：自定义轻量级 C++ 测试框架，vendored 在 `lua_test/include/test_framework`，由 `tests/unit/framework` 适配。
-- 最近验证的测试计数：531 个 registered tests，2645 个 assertion results，0 failures。
+- 最近验证的测试计数：534 个 registered tests，2664 个 assertion results，0 failures。
 - `bin\lua_test.exe` 支持 `--list`、`--filter <suite-or-name>` 和 `--report=junit`。
 - 这些数字描述的是项目测试运行器结果，不是 Lua 5.1.5 兼容率百分比。
 
@@ -58,6 +58,13 @@ applies_to: 当前仓库事实与面向贡献者的工作流
 - CI 平台：GitHub Actions；入口文件为 `.github/workflows/ci.yml`，当前以 Windows/MSBuild 作为主要工作流，并先构建 `lua_test` 再运行文档漂移检查。
 - 质量门有意采用增量策略：本地格式化默认只检查变更过的源文件；本机缺少 `clang-format` 或 `clang-tidy` 时，本地脚本会明确报告跳过；MSBuild 和单元测试仍是 Windows 路径下的标准验证方式。
 - `tools/check_opcode_coverage_matrix.ps1` 从 `src/compiler/opcode.hpp` 解析 38 条 opcode，并校验 `tests/unit/vm/opcode_coverage_matrix.md` 的覆盖矩阵同步。
+
+## GC 策略状态
+
+- `src/gc/gc_strategy.hpp` 定义 `GCStrategy`、`MarkSweepGC` 和 `IncrementalGC` 策略边界。
+- 当前默认策略是 `mark-sweep`；`incremental` 是教学占位策略，现阶段委托同一套 mark-sweep 阶段以保持对象存活语义等价。
+- `collectgarbage("strategy")` 可查询当前策略，`collectgarbage("strategy", "mark-sweep" | "incremental")` 可切换策略边界；真正的 incremental 写屏障和调度仍是未来工作。
+- `GC` 测试套件已覆盖策略选择、未知策略拒绝和 mark-sweep / incremental 占位策略的同根集等价性。
 
 ## 编译器管线状态
 

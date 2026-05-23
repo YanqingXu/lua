@@ -46,6 +46,9 @@
     <ClCompile Include="src\gc\garbage_collector.cpp">
       <Filter>src\gc</Filter>
     </ClCompile>
+    <ClCompile Include="src\gc\gc_strategy.cpp">
+      <Filter>src\gc</Filter>
+    </ClCompile>
     <ClCompile Include="src\gc\gc_mark.cpp">
       <Filter>src\gc</Filter>
     </ClCompile>
@@ -280,6 +283,9 @@
       <Filter>src\core</Filter>
     </ClInclude>
     <ClInclude Include="src\gc\garbage_collector.hpp">
+      <Filter>src\gc</Filter>
+    </ClInclude>
+    <ClInclude Include="src\gc\gc_strategy.hpp">
       <Filter>src\gc</Filter>
     </ClInclude>
     <ClInclude Include="src\core\gc_object.hpp">

@@ -9,7 +9,7 @@ applies_to: repository overview and current build workflows
 
 > **从零开始用C++17/20/23实现Lua 5.1.5解释器**
 
-[![Tests](https://img.shields.io/badge/tests-2645%2F2645-brightgreen)]()
+[![Tests](https://img.shields.io/badge/tests-2664%2F2664-brightgreen)]()
 [![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen)]()
 [![C++](https://img.shields.io/badge/C%2B%2B-17%2F23-blue)]()
 [![Platform](https://img.shields.io/badge/platform-Windows-blue)]()
@@ -41,7 +41,7 @@ applies_to: repository overview and current build workflows
 ### 总体状态
 
 - **整体完成度**：约 95%
-- **代码规模**：约 87 个源文件，约 19k 行有效代码
+- **代码规模**：约 89 个源文件，约 19k 行有效代码
 - **核心链路**：类型系统、编译器前端、字节码执行引擎已基本成型
 - **主要短板**：部分标准库函数尚有缺失或不完整实现
 
@@ -50,7 +50,7 @@ applies_to: repository overview and current build workflows
 - ✅ **已较稳定的部分**：Value / Table / Function / Lexer / Parser / CodeGen / VM 主体
 - ✅ **已补齐的初始化部分**：GlobalState 元方法、保留字、固定字符串初始化
 - ✅ **GC / pcall / xpcall**：已全部通过测试，基础行为稳定
-- ✅ **GC 最新进度**：`collectgarbage("collect")` 已恢复真实标记-清除流程；VM/标准库创建的主要 GCObject 已统一注册，Table/Function/Proto/Upvalue/Userdata/Thread 标记路径已补齐，根集会扫描全局状态、当前/主线程栈和 open upvalue；弱表 `__mode` 与 userdata `__gc` 终结器已接入
+- ✅ **GC 最新进度**：`collectgarbage("collect")` 已恢复真实标记-清除流程；VM/标准库创建的主要 GCObject 已统一注册，Table/Function/Proto/Upvalue/Userdata/Thread 标记路径已补齐，根集会扫描全局状态、当前/主线程栈和 open upvalue；弱表 `__mode` 与 userdata `__gc` 终结器已接入；`GCStrategy` 已抽出 `MarkSweepGC` 与 incremental 教学占位策略
 - ✅ **CodeGen 重构状态**：`ExprDesc` / `ExprKind` 已从产品代码移除，PR-C1~PR-C5 清理完成，寄存器指针访问已封装
 - ✅ **闭包语义**：upvalue 捕获、写回、嵌套捕获链，以及作用域退出 / `break` 时的 `OP_CLOSE` 关闭路径已覆盖
 - ✅ **尾调用优化（TCO）**：CodeGen 已对单值 `return f()` 发出 `TAILCALL`，VM 侧 Lua 尾调用会复用当前 `CallInfo`/栈帧
@@ -73,7 +73,7 @@ applies_to: repository overview and current build workflows
 | **Upvalue类** | `src/core/upvalue.hpp/cpp` | 419 | 闭包上值管理（Open/Closed状态） | ✅ 100% |
 | **Userdata类** | `src/core/userdata.hpp/cpp` | 282 | 用户数据（C++数据包装） | ✅ 100% |
 | **Metatable元方法系统** | `src/core/metatable.hpp/cpp` | 697 | 17种元方法名称、table/userdata 与基础类型元表查找；C/Lua 函数元方法统一调用；`__gc/__mode` 名称供 GC 使用 | ✅ 96% |
-| **GarbageCollector** | `src/gc/garbage_collector.hpp/cpp` | 808 | 标记-清除、根集扫描、弱表清理、userdata `__gc` 两阶段终结与 `collectgarbage("collect")` 接入 | ✅ 97% |
+| **GarbageCollector** | `src/gc/garbage_collector.hpp/cpp` + `src/gc/gc_strategy.hpp/cpp` | 808+ | 标记-清除、根集扫描、弱表清理、userdata `__gc` 两阶段终结、`GCStrategy` 策略边界与 `collectgarbage("strategy", ...)` 接入 | ✅ 98% |
 | **GlobalState类** | `src/vm/state/global_state.hpp/cpp` | 261 | 全局状态管理（单例模式） | ✅ 95% |
 | **Stack类** | `src/vm/state/stack.hpp/cpp` | 394 | 值栈管理（动态扩展） | ✅ 100% |
 | **CallInfo类** | `src/vm/state/call_info.hpp` | 197 | 调用信息（函数调用上下文） | ✅ 100% |
@@ -99,9 +99,9 @@ applies_to: repository overview and current build workflows
 
 ```
 测试框架：自定义轻量级测试框架（零外部依赖）
-注册测试：531个
-断言结果：2645个 ✅
-通过率：  100% (2645/2645)
+注册测试：534个
+断言结果：2664个 ✅
+通过率：  100% (2664/2664)
 失败测试：0个
 编译状态：Debug|x64 版本无警告，无链接冲突
 平台：    Windows + MSVC (Visual Studio 2026)
@@ -109,16 +109,16 @@ applies_to: repository overview and current build workflows
 
 补充验证：
 - `bin/build_test.bat`：通过
-- `bin/lua_test.exe`：531 个注册测试，2645 个结果，0 失败（0 failures）
+- `bin/lua_test.exe`：534 个注册测试，2664 个结果，0 失败（0 failures）
 - `bin/build_app.bat`：通过
 - `tests/lua/regressions/*.lua`：全部通过
 - `tests/lua/stdlib/test_collectgarbage*.lua` 与 `test_gcinfo*.lua`：全部通过，`collectgarbage("collect")` 可观察到内存下降
 
 ### 距离完整 Lua 5.1.5 仍缺失的功能
 
-> **兼容性审计记录（2026-05-23）**：已对 README、本地 `src/lib/` 标准库实现、`src/vm/` 指令执行逻辑、GC/元方法相关核心代码进行核对。`bin/lua_test.exe` 当前为 531 个注册测试、2645 个结果、0 失败；这说明项目内测试覆盖的路径稳定，但不等价于 Lua 5.1.5 官方语义已经达到 95% 兼容。
+> **兼容性审计记录（2026-05-23）**：已对 README、本地 `src/lib/` 标准库实现、`src/vm/` 指令执行逻辑、GC/元方法相关核心代码进行核对。`bin/lua_test.exe` 当前为 534 个注册测试、2664 个结果、0 失败；这说明项目内测试覆盖的路径稳定，但不等价于 Lua 5.1.5 官方语义已经达到 95% 兼容。
 
-> **最新补齐**：Lua 函数元方法调用链已打通，`callTMWithResult/callTM` 统一走 `VM::call`，C Closure 与 Lua Closure 共用同一调用入口；`getMetamethodByObject()` 已接入基础类型元表，string 类型已安装 `__index = string`；GC 已支持弱表 `__mode = "k"/"v"/"kv"` 清理和 userdata `__gc` 两阶段终结；尾调用优化已覆盖单值 `return f()` 的 `TAILCALL` 生成和 Lua 函数调用帧复用；泛型 `for` 已支持显式 iterator 三元组、函数/vararg 三值调整和 Lua 函数迭代器；string 库已补齐 `gsub` 表/函数替换、`string.dump` Proto/字节码序列化输出和含 `\0` 字符串的长度安全处理；`module()` 已补齐 `_PACKAGE`、复合模块名全局路径、调用方环境切换和 Lua option 函数调用语义；package 已补齐 `package.loadlib`、C loader 和 all-in-one C loader 动态加载边界。
+> **最新补齐**：Lua 函数元方法调用链已打通，`callTMWithResult/callTM` 统一走 `VM::call`，C Closure 与 Lua Closure 共用同一调用入口；`getMetamethodByObject()` 已接入基础类型元表，string 类型已安装 `__index = string`；GC 已支持弱表 `__mode = "k"/"v"/"kv"` 清理、userdata `__gc` 两阶段终结和 `GCStrategy` 教学策略边界；尾调用优化已覆盖单值 `return f()` 的 `TAILCALL` 生成和 Lua 函数调用帧复用；泛型 `for` 已支持显式 iterator 三元组、函数/vararg 三值调整和 Lua 函数迭代器；string 库已补齐 `gsub` 表/函数替换、`string.dump` Proto/字节码序列化输出和含 `\0` 字符串的长度安全处理；`module()` 已补齐 `_PACKAGE`、复合模块名全局路径、调用方环境切换和 Lua option 函数调用语义；package 已补齐 `package.loadlib`、C loader 和 all-in-one C loader 动态加载边界。
 
 #### 🔴 关键缺失（影响语义正确性）
 
@@ -142,7 +142,7 @@ applies_to: repository overview and current build workflows
 
 | 项目 | 当前状态 |
 |------|----------|
-| **`collectgarbage` 控制路径** | `"count"` 可用；`"collect"` 已触发完整标记-清除流程，并扫描全局状态、当前线程栈、主线程栈和 open upvalue；弱表清理和 `__gc` finalizer 已接入；`"stop"`、`"restart"`、`"step"`、`"setpause"`、`"setstepmul"` 仍是占位返回 |
+| **`collectgarbage` 控制路径** | `"count"` 可用；`"collect"` 已通过当前 `GCStrategy` 触发完整标记-清除流程，并扫描全局状态、当前线程栈、主线程栈和 open upvalue；`"strategy"` 可查询/切换 `mark-sweep` 与 incremental 教学占位策略；`"stop"`、`"restart"`、`"step"`、`"setpause"`、`"setstepmul"` 仍是占位返回 |
 | **表长度 `#t`** | `Table::length()` 返回数组部分最后一个非 nil 索引；对有洞数组未完全复现 Lua 5.1 边界定义 |
 | **元方法覆盖面** | C 函数与 Lua 函数元方法、table/userdata 与基础类型查找路径已有测试；`__gc/__mode` 已由 GC 消费；debug 库基础类型元表操作仍是兼容边界 |
 | **错误对象与 traceback** | 基础 traceback/debug hook 已有实现；错误位置 level、任意类型 error object、xpcall handler 仍不完整 |
@@ -189,7 +189,7 @@ applies_to: repository overview and current build workflows
 ✅ **包/模块库（Package Library）**：require、module 全局函数 + package.loaded/preload/loaders/path/cpath/config/loadlib/seeall，支持 preload、Lua 文件模块、动态 C 模块和 all-in-one C 模块加载
 ✅ **库管理系统**：模块化的标准库注册机制，支持全局函数注册和表函数注册
 ✅ **StringPool**：字符串驻留（interning），节省内存
-✅ **GarbageCollector**：真实标记-清除流程、根集扫描、对象生命周期统一注册、弱表清理和 userdata `__gc` 两阶段终结，`collectgarbage("collect")` 已接入
+✅ **GarbageCollector**：真实标记-清除流程、根集扫描、对象生命周期统一注册、弱表清理和 userdata `__gc` 两阶段终结，`GCStrategy` 已抽出 `MarkSweepGC` 与 incremental 教学占位策略，`collectgarbage("collect")` / `collectgarbage("strategy")` 已接入
 ✅ **GlobalState**：单例模式管理全局资源（字符串池、GC、注册表）
 ✅ **Stack**：动态值栈，自动扩展，O(1)压栈/弹栈操作
 ✅ **CallInfo**：轻量级调用上下文，支持函数调用链管理
@@ -842,7 +842,7 @@ openBaseLib(L);  // 注册所有函数到全局环境
 **已知限制**：
 - `newproxy` 尚未实现
 - `error()` 的 level 参数尚未用于生成源位置信息
-- `collectgarbage("stop"/"restart"/"step"/"setpause"/"setstepmul")` 仍为简化占位返回
+- `collectgarbage("stop"/"restart"/"step"/"setpause"/"setstepmul")` 仍为简化占位返回；真正 incremental 写屏障和调度仍待实现
 
 **测试覆盖**：Base Library 相关单元测试全部通过，并覆盖 `_G` 自引用和受保护元表行为
 
@@ -857,7 +857,7 @@ openBaseLib(L);  // 注册所有函数到全局环境
 │   ├── common/                    # 基础类型、配置、宏
 │   ├── compiler/                  # Lexer / Parser / AST / CodeGen / Bytecode Printer
 │   ├── core/                      # Value / Table / Function / String / Metatable 等核心对象
-│   ├── gc/                        # 垃圾回收器
+│   ├── gc/                        # 垃圾回收器与 GCStrategy 策略边界
 │   ├── io/                        # 输入流、动态缓冲区
 │   ├── lib/                       # base / math / io / os / string / table / coroutine / debug / package 等标准库
 │   ├── vm/                        # GlobalState / LuaState / Stack / VM
@@ -1043,7 +1043,7 @@ tests/unit/
 └── vm/                         # VM Core、LuaState 初始化、函数调用
 ```
 
-当前测试入口会输出真实注册测试数和断言结果数；最近一次验证为 531 个注册测试、2645 个结果、0 失败。
+当前测试入口会输出真实注册测试数和断言结果数；最近一次验证为 534 个注册测试、2664 个结果、0 失败。
 
 ## 📊 技术栈和工具
 

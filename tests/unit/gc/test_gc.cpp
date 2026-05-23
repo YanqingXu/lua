@@ -17,6 +17,7 @@
 #include "core/upvalue.hpp"
 #include "core/userdata.hpp"
 #include "gc/garbage_collector.hpp"
+#include "gc/gc_strategy.hpp"
 #include "lib/baselib.hpp"
 #include "vm/state/lua_state.hpp"
 
@@ -51,6 +52,37 @@ static i32 gcRecordingFinalizer(LuaState* L) {
         }
     }
     return 0;
+}
+
+struct StrategyFixtureResult {
+    usize collected = 0;
+    usize objectsAfter = 0;
+    bool rootKeptChild = false;
+};
+
+static StrategyFixtureResult runStrategyFixture(StrView strategyName) {
+    GarbageCollector gc;
+    gc.useStrategy(strategyName);
+
+    Table* root = new Table();
+    Table* child = new Table();
+    Table* garbage = new Table();
+
+    gc.registerObject(root);
+    gc.registerObject(child);
+    gc.registerObject(garbage);
+    gc.addRoot(root);
+
+    root->setArray(1, Value(child));
+
+    StrategyFixtureResult result;
+    result.collected = gc.collect(StringPool::getInstance());
+    result.objectsAfter = gc.getObjectCount();
+    result.rootKeptChild = root->getArray(1).isTable() && root->getArray(1).asTable() == child;
+
+    gc.removeRoot(root);
+    gc.clearAll();
+    return result;
 }
 
 static GarbageCollector& legacyGarbageCollectorForTest() {
@@ -218,6 +250,73 @@ void testGarbageCollectorCollect(TestSuite& suite) {
     ASSERT_EQ(suite, countBeforeGC - 1, objCountAfter, "Objects after GC");
 
     // Cleanup
+    gc.clearAll();
+}
+
+void testGarbageCollectorStrategySelection(TestSuite& suite) {
+    GarbageCollector gc;
+
+    ASSERT_EQ(suite, Str("mark-sweep"), Str(gc.getStrategyName()),
+              "Default GC strategy should be mark-sweep");
+    ASSERT_EQ(suite, Str("mark-sweep"), Str(markSweepGCStrategy().name()),
+              "MarkSweepGC strategy exposes its name");
+    ASSERT_EQ(suite, Str("incremental"), Str(incrementalGCStrategy().name()),
+              "IncrementalGC strategy exposes its name");
+
+    ASSERT_TRUE(suite, gc.useStrategy("incremental"), "Collector should accept incremental strategy");
+    ASSERT_EQ(suite, Str("incremental"), Str(gc.getStrategyName()),
+              "Collector should switch active strategy by name");
+
+    ASSERT_TRUE(suite, !gc.useStrategy("generational"), "Unknown GC strategy should be rejected");
+    ASSERT_EQ(suite, Str("incremental"), Str(gc.getStrategyName()),
+              "Rejected strategy should not change the active strategy");
+
+    ASSERT_TRUE(suite, gc.useStrategy("mark-sweep"), "Collector should switch back to mark-sweep");
+}
+
+void testGCStrategiesHaveEquivalentReachability(TestSuite& suite) {
+    const StrategyFixtureResult markSweep = runStrategyFixture("mark-sweep");
+    const StrategyFixtureResult incremental = runStrategyFixture("incremental");
+
+    ASSERT_EQ(suite, markSweep.collected, incremental.collected,
+              "Strategies should collect the same unreachable object count");
+    ASSERT_EQ(suite, markSweep.objectsAfter, incremental.objectsAfter,
+              "Strategies should leave the same live object count");
+    ASSERT_TRUE(suite, markSweep.rootKeptChild, "Mark-sweep should preserve reachable child");
+    ASSERT_TRUE(suite, incremental.rootKeptChild, "Incremental placeholder should preserve reachable child");
+}
+
+void testCollectGarbageStrategyCommand(TestSuite& suite) {
+    GarbageCollector& gc = GlobalState::getInstance().getGC();
+    gc.clearAll();
+    gc.useStrategy("mark-sweep");
+
+    LuaState* L = LuaState::newState();
+    openBaseLib(L);
+    StringPool& pool = L->getGlobalState().getStringPool();
+
+    L->setTop(0);
+    L->pushString(pool.intern("strategy"));
+    i32 nresults = luaB_collectgarbage(L);
+    ASSERT_EQ(suite, 1, nresults, "collectgarbage('strategy') returns one value");
+    ASSERT_TRUE(suite, L->top().isString(), "collectgarbage('strategy') returns a string");
+    ASSERT_EQ(suite, Str("mark-sweep"), Str(L->top().asString()->c_str()),
+              "collectgarbage('strategy') reports active strategy");
+
+    L->setTop(0);
+    L->pushString(pool.intern("strategy"));
+    L->pushString(pool.intern("incremental"));
+    nresults = luaB_collectgarbage(L);
+    ASSERT_EQ(suite, 1, nresults,
+              "collectgarbage('strategy', 'incremental') returns one value");
+    ASSERT_EQ(suite, Str("incremental"), Str(gc.getStrategyName()),
+              "collectgarbage should switch the active strategy");
+    ASSERT_TRUE(suite, L->top().isString(), "strategy switch returns the active strategy name");
+    ASSERT_EQ(suite, Str("incremental"), Str(L->top().asString()->c_str()),
+              "strategy switch returns incremental");
+
+    gc.useStrategy("mark-sweep");
+    delete L;
     gc.clearAll();
 }
 
@@ -452,6 +551,9 @@ void registerGCTests() {
     registry.registerTest("GC", "GC Register", testGarbageCollectorRegister);
     registry.registerTest("GC", "GC Roots", testGarbageCollectorRoots);
     registry.registerTest("GC", "GC Collect", testGarbageCollectorCollect);
+    registry.registerTest("GC", "GC Strategy Selection", testGarbageCollectorStrategySelection);
+    registry.registerTest("GC", "GC Strategy Equivalence", testGCStrategiesHaveEquivalentReachability);
+    registry.registerTest("GC", "collectgarbage Strategy", testCollectGarbageStrategyCommand);
     registry.registerTest("GC", "Composite Marking", testGarbageCollectorMarksCompositeObjects);
     registry.registerTest("GC", "collectgarbage Collect", testCollectGarbageCollectReclaimsMemory);
     registry.registerTest("GC", "Weak Table Values", testWeakTableValuesAreCleared);

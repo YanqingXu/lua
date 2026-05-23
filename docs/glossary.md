@@ -1,7 +1,7 @@
 ---
 status: current
-verified_against: docs/status/project-status.md; docs/compiler/bytecode-generation.md; src/runtime/runtime_services.hpp; src/vm/vm_dispatch_strategy.hpp; src/compiler/codegen/codegen_types.hpp; src/vm/vm.hpp
-last_checked: 2026-05-22
+verified_against: docs/status/project-status.md; docs/compiler/bytecode-generation.md; src/runtime/runtime_services.hpp; src/gc/gc_strategy.hpp; src/vm/vm_dispatch_strategy.hpp; src/compiler/codegen/codegen_types.hpp; src/vm/vm.hpp
+last_checked: 2026-05-23
 applies_to: Lua terminology mapped to current repository code
 ---
 
@@ -22,7 +22,8 @@ applies_to: Lua terminology mapped to current repository code
 | Table | `Table` | `src/core/table.hpp` | Lua 表对象，承载数组部分、哈希部分和元表。 |
 | StringPool | `StringPool` | `src/core/string_pool.hpp` | 字符串驻留池；新入口优先通过 `RuntimeServices` 显式传递。 |
 | GlobalState | `GlobalState` | `src/vm/state/global_state.hpp` | 共享运行时状态，包含字符串池、GC、registry、基础类型元表和元方法名称。 |
-| RuntimeServices | `RuntimeServices` | `src/runtime/runtime_services.hpp` | 当前显式运行时服务边界，封装 `GlobalState`、`StringPool`、`GarbageCollector` 和可选 VM dispatch 策略。 |
+| RuntimeServices | `RuntimeServices` | `src/runtime/runtime_services.hpp` | 当前显式运行时服务边界，封装 `GlobalState`、`StringPool`、`GarbageCollector` / `GCStrategy` 和可选 VM dispatch 策略。 |
+| GCStrategy | `GCStrategy` / `MarkSweepGC` / `IncrementalGC` | `src/gc/gc_strategy.hpp` | GC 策略边界；默认 `MarkSweepGC` 执行真实 stop-the-world 标记清除，`IncrementalGC` 当前是保持等价行为的教学占位策略。 |
 | LuaState | `LuaState` | `src/vm/state/lua_state.hpp` | 单个 Lua 线程/协程的执行状态，包含栈、调用帧、全局表和 hook 状态。 |
 | Stack | `Stack` | `src/vm/state/stack.hpp` | VM 执行时的值栈。 |
 | CallInfo | `CallInfo` | `src/vm/state/call_info.hpp` | 单个调用帧的信息，包括函数位置、base、top、savedpc 和期望返回值。 |

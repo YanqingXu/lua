@@ -40,6 +40,9 @@ class LuaState;
 class Userdata;
 class Value;
 class GlobalState;
+class GCStrategy;
+class MarkSweepGC;
+class IncrementalGC;
 
 /**
  * @brief 垃圾回收器类
@@ -190,6 +193,21 @@ public:
      * @brief 使用显式字符串池执行完整垃圾回收，并将当前LuaState作为执行根
      */
     [[nodiscard]] usize collect(StringPool& stringPool, LuaState* currentState);
+
+    /**
+     * @brief 获取当前 GC 策略对象
+     */
+    [[nodiscard]] const GCStrategy& getStrategy() const noexcept;
+
+    /**
+     * @brief 获取当前 GC 策略名称
+     */
+    [[nodiscard]] const char* getStrategyName() const noexcept;
+
+    /**
+     * @brief 按名称切换 GC 策略；未知名称返回 false 并保持原策略
+     */
+    bool useStrategy(StrView name) noexcept;
     
     /**
      * @brief 标记阶段
@@ -320,6 +338,8 @@ public:
 
 private:
     friend class StringPool;
+    friend class MarkSweepGC;
+    friend class IncrementalGC;
 
     // =====================================================================
     // 内部辅助方法
@@ -330,6 +350,7 @@ private:
     static GarbageCollector& legacyInstance();
 
     StringPool& stringPoolForCollection(LuaState* currentState) const;
+    [[nodiscard]] usize collectMarkSweep(StringPool& stringPool, LuaState* currentState);
     
     /**
      * @brief 传播标记
@@ -386,6 +407,9 @@ private:
 
     /// 字符串驻留池；用于 sweep/clearAll 删除字符串时同步摘除池条目
     StringPool* stringPool_;
+
+    /// 当前 GC 策略；默认指向 mark-sweep，策略对象本身为静态共享实例
+    const GCStrategy* strategy_;
     
     /// 统计信息：对象总数
     usize objectCount_;

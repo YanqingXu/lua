@@ -29,7 +29,7 @@ The executable supports:
 - default behavior mode
 - optional JSONL VM trace output
 
-The REPL includes `.help`, `.bytecode <expr|chunk>`, `.ast <expr|chunk>`, and `.gc [stats|collect|strategy|help]` meta commands for inspecting parser, bytecode, and current mark-sweep GC state without leaving the interactive session. Tab completion covers meta commands, global names, and loaded library table fields such as `string.sub`; default prompts show line numbers, and terminal REPL errors are colorized while redirected output stays plain.
+The REPL includes `.help`, `.bytecode <expr|chunk>`, `.ast <expr|chunk>`, and `.gc [stats|collect|strategy|help]` meta commands for inspecting parser, bytecode, and the active `GCStrategy` state without leaving the interactive session. Tab completion covers meta commands, global names, and loaded library table fields such as `string.sub`; default prompts show line numbers, and terminal REPL errors are colorized while redirected output stays plain.
 
 See `docs/guides/repl-cli.md` for user-facing behavior.
 

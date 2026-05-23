@@ -2,9 +2,9 @@
 
 > 适用范围：`g:\github\lua`（现代 C++ Lua 5.1.5 解释器）
 > 设计目标：**可读性 > 可维护性 > 教育价值 > 性能**
-> 约束：保持 531 个注册测试 / 2645 个断言结果 / 0 失败，不破坏 `LuaState` / `VM` public API。
+> 约束：保持 534 个注册测试 / 2664 个断言结果 / 0 失败，不破坏 `LuaState` / `VM` public API。
 > 最近审计：2026-05-21（深度审计报告，覆盖 Readability / Extensibility / Educational Value 三维度）
-> 最近同步：2026-05-23（PR-61：REPL 默认行号 prompt，`lua:1> ` / `lua:2>> ` 覆盖首行与续行，自定义 `_PROMPT` / `_PROMPT2` 保持原样）
+> 最近同步：2026-05-23（PR-62：`GCStrategy` 抽象，接入 `MarkSweepGC` 与 incremental 教学占位策略，并补策略选择 / 等价性测试）
 
 ---
 
@@ -13,7 +13,7 @@
 | 维度 | 评分 | 关键优势 | 关键改进点 |
 |---|---|---|---|
 | **可读性** | **A-** | CRTP+concept 编译期检查、`std::expected` 边界清晰、VM 主循环已精简为策略入口 + handler table | `ValueResult` 已有 variant prototype 但旧兼容字段仍待迁移、`CodeGenerator` 方法数 60+、部分命名继承 Lua C 缩写 |
-| **易扩展性** | **B+** | Visitor 模式添加新工具零摩擦、`DispatchStrategy` 可插拔、`HandlerTable` 按组注册 | GC/metatable 兼容 fallback 仍需收口、`lib_manager.hpp` 冗余声明、`CodeGenerator` 单体类 |
+| **易扩展性** | **B+** | Visitor 模式添加新工具零摩擦、`DispatchStrategy` 可插拔、`HandlerTable` 按组注册，`GCStrategy` 已把 collector 算法边界显式化 | GC/metatable 兼容 fallback 仍需收口、`lib_manager.hpp` 冗余声明、`CodeGenerator` facade 仍可继续瘦身 |
 | **教学价值** | **A-** | hello-world / closure-and-upvalue / gc-cycle walkthrough 已覆盖端到端执行、闭包生命周期和完整 GC 周期，glossary 降低认知负担，trace 系统层次分明且已有差异模式，REPL 已能打印 AST、bytecode 与 GC 状态，支持 Tab 探索全局名和库字段，并在终端中高亮错误和展示行号 prompt | 字节码 CFG 待实现 |
 
 各维度详细评估见本文档对应阶段的任务标注；已完成项以 ✓ 标记。
@@ -25,10 +25,10 @@
 | 阶段 | 周期定位 | 关注点 | 是否触发 API 变化 | 完成度 |
 |---|---|---|---|---|
 | **阶段 1 — 短期代码清理** | 1–2 个迭代 | 删冗余、统一命名、收紧错误处理、文档与代码同步 | 否 | ~90% |
-| **阶段 2 — 中期模式重构** | 3–5 个迭代 | 引入访问者 / 策略 / 命令模式，VM dispatch 与 GC 抽象化 | 内部 API 调整、public 不变 | ~88% |
+| **阶段 2 — 中期模式重构** | 3–5 个迭代 | 引入访问者 / 策略 / 命令模式，VM dispatch 与 GC 抽象化 | 内部 API 调整、public 不变 | ~91% |
 | **阶段 3 — 现代 C++ 特性** | 穿插于 1 & 2 | `std::expected` / `concepts` / `std::format` / `[[nodiscard]]` | 部分 public 签名变更 | ~90% |
 | **阶段 4 — 教育价值增强** | 持续推进 | 自解释代码、字节码可视化、执行链路教学文档、REPL 体验、Trace 差异模式 | 否（增量增强） | ~85% |
-| **阶段 5 — 工程实践** | 持续 | 测试覆盖、质量门、构建一致性、文档漂移检测 | 否 | ~75% |
+| **阶段 5 — 工程实践** | 持续 | 测试覆盖、质量门、构建一致性、文档漂移检测 | 否 | ~77% |
 
 ---
 
@@ -147,20 +147,20 @@ static std::expected<T, RuntimeError> captureRuntimeErrors(Fn&& fn) {
 
 1. ✓ **已完成**：主运行时 GC 所有权迁入 `GlobalState`，`RuntimeServices` 通过显式 `GlobalState&` 取得 GC。
 2. ✓ **已完成**：去单例化收尾，`GarbageCollector::sweep(StringPool&)` 接收显式字符串池；`clearAll(StringPool&)` 同步收口；旧 `GarbageCollector::getInstance()` 标记为 `[[deprecated]]`。
-3. **待执行**：抽象 `GCStrategy`（保留教学预留）：
+3. ✓ **已完成 — PR-62**：抽象 `GCStrategy`（保留教学预留）：
 
    ```cpp
    class GCStrategy {
    public:
        virtual ~GCStrategy() = default;
-       virtual usize collect(GCContext& ctx) = 0;
+       virtual usize collect(GCContext& ctx) const = 0;
        virtual const char* name() const = 0;
    };
    class MarkSweepGC : public GCStrategy { ... };   // 当前实现
-   class IncrementalGC : public GCStrategy { ... }; // 教学预留，先空实现 + TODO
+   class IncrementalGC : public GCStrategy { ... }; // 教学占位，当前委托 mark-sweep 保持语义等价
    ```
 
-4. **教学价值**：标准库新增 `collectgarbage("strategy", "mark-sweep" | "incremental")` 子命令，让学习者直接在 REPL 中切换算法。
+4. ✓ **已完成 — PR-62**：标准库新增 `collectgarbage("strategy")` 查询当前策略，并支持 `collectgarbage("strategy", "mark-sweep" | "incremental")` 切换教学策略边界。
 
 ### 2.4 编译期/编辑期模式登记 ✓ 已完成
 
@@ -379,13 +379,13 @@ using ValueResult = std::variant<
 
 ### 5.1 测试覆盖精细化
 
-**现状**：531 个注册测试 / 2645 个断言结果 / 0 失败，目录 `tests/unit/`、`tests/lua/`。
+**现状**：534 个注册测试 / 2664 个断言结果 / 0 失败，目录 `tests/unit/`、`tests/lua/`。
 
 **改进方向**（优先小步增量；覆盖矩阵作为 checklist 文档）：
 
 1. ✓ **指令级覆盖矩阵**：PR-54 已新增 `tests/unit/vm/opcode_coverage_matrix.md`，为 38 条 opcode 显性列出正向 / 边界 / metamethod 覆盖锚点；`tools/check_opcode_coverage_matrix.ps1` 已接入质量门，新增 / 删除 / 重命名 opcode 时矩阵会失败并要求同步更新。
 2. ✓ **AST Visitor 测试**：`tests/unit/compiler/test_ast_visitor.cpp` 已覆盖最小 visitor 分发与 concept 检查；后续若新增 AST dumper，再补端到端输出测试。
-3. **GC 策略测试**：阶段 2.3 引入 `GCStrategy` 后，给每个 strategy 写"等价性测试"——同样根集应产生同样的存活集（不要求时间一致）。
+3. ✓ **GC 策略测试**：PR-62 已补 `GC Strategy Selection` / `GC Strategy Equivalence` / `collectgarbage Strategy`，锁住策略选择、未知策略拒绝和同根集存活语义等价。
 4. **REPL 增量解析测试**：`isIncompleteInput` 已抽到 `src/repl/repl_exe.cpp`，后续补面向 incomplete 语法模式的单测。
 5. **Trace 文件 golden test**：`src/debug/*` 的 JSONL trace 容易回归，建议固化一组 golden 文件。
 
@@ -409,7 +409,7 @@ using ValueResult = std::variant<
 | 风险 | 影响 | 缓解 |
 |---|---|---|
 | VM dispatch 命令模式化引入函数指针表，调试器单步体验下降 | 影响教学 | 保留 `SwitchDispatch` 作为默认；调试构建强制使用；1.1.1 落地的独立 inline 函数进一步改善 Switch 路径单步体验 |
-| `std::expected` 大范围替换异常导致调用链翻新 | 531 测试可能批量红 | 按 3.1 表格逐个函数迁移，每次 1 个函数 + 全量测试 |
+| `std::expected` 大范围替换异常导致调用链翻新 | 534 测试可能批量红 | 按 3.1 表格逐个函数迁移，每次 1 个函数 + 全量测试 |
 | GC 去单例化破坏标准库内部对 `GarbageCollector::getInstance()` 的引用 | 编译错误广泛 | 保留 inline shim `getInstance()` 一版本，标记 `[[deprecated]]` |
 | Visitor 化后 codegen 性能下降 | 不影响目标，但需观察 | 教学项目可接受；基准用 `examples/*.lua` 跑回归 |
 | `ValueResult` → `std::variant` 重构引入大量访问代码 | 调用侧需逐一迁移 `std::visit` | 先做 prototype 分支验证可行性，再逐步迁移 |
@@ -451,13 +451,14 @@ using ValueResult = std::variant<
 | PR-59 | REPL Tab 补全，`completeInput()` 覆盖元命令、`.gc` 选项、全局名和已加载库 dotted field，并补 REPL Commands 输出契约测试 | 4.4.2 |
 | PR-60 | REPL 终端彩色错误输出，集中 `writeErrorLine()`，Auto 模式仅在 REPL TTY 中启用，Windows 开启 virtual terminal processing，并补颜色输出契约测试 | 4.4.4 |
 | PR-61 | REPL 行号 prompt，默认 `_PROMPT` / `_PROMPT2` 显示 `lua:N> ` / `lua:N>> `，自定义 prompt 保持不变，并补 REPL Commands 输出契约测试 | 4.4.5 |
+| PR-62 | `GCStrategy` 抽象，`MarkSweepGC` 承载真实 mark-sweep，`IncrementalGC` 作为等价行为教学占位，并补策略选择 / 等价性 / `collectgarbage("strategy")` 测试 | 2.3 / 5.1 |
 
 后续推荐顺序：
 
 | PR | 编号 | 任务 | 阶段 | 依赖 / 理由 |
 |---|---|---|---|---|
-| PR-62 | 2.3 / 5.1 | `GCStrategy` 抽象 + 策略等价测试 | 2 / 5 | P1；为未来 `.gc strategy` 切换和 GC 教学实验打基础 |
 | PR-63 | 4.2.6 | `lua_bytecode --cfg` Mermaid CFG 输出 | 4 | P2；在已有 decoded bytecode / recursive proto / diff 基础上补控制流可视化 |
+| PR-64 | 5.1 | Trace JSONL golden test | 5 | P2；trace schema 已稳定，适合补输出回归样本 |
 
 每个 PR 完成后跑：
 
@@ -477,11 +478,11 @@ using ValueResult = std::variant<
 | 阶段 | 文档自评 | 实际评估 | 偏差 | 关键差距 |
 |---|---|---|---|---|
 | 阶段 1 — 短期代码清理 | ~90% | **~93%** | +3% | 仅 `tokenString` 集中化未做（P3 低风险） |
-| 阶段 2 — 中期模式重构 | ~88% | **~80%** | −8% | GCStrategy 抽象、lib_manager 声明清理、Visitor 去重均未落地 |
+| 阶段 2 — 中期模式重构 | ~91% | **~86%** | −5% | GCStrategy 已落地；lib_manager 声明清理、Visitor 去重仍未落地 |
 | 阶段 3 — 现代 C++ 特性 | ~90% | **~90%** | 0 | ValueResult variant prototype 已就位，后续 std::visit 迁移为渐进工作 |
 | 阶段 4 — 教育价值增强 | ~85% | **~82%** | −3% | REPL 体验已闭环；字节码 CFG 仍未做 |
-| 阶段 5 — 工程实践 | ~75% | **~71%** | −4% | 指令级覆盖矩阵已补齐；golden 测试、REPL 增量解析测试、add_source 脚本仍缺失 |
-| **加权综合** | **~85%** | **~79%** | **−6%** | |
+| 阶段 5 — 工程实践 | ~77% | **~74%** | −3% | 指令级覆盖矩阵与 GC 策略等价测试已补齐；golden 测试、REPL 增量解析测试、add_source 脚本仍缺失 |
+| **加权综合** | **~86%** | **~82%** | **−4%** | |
 
 ---
 
@@ -509,13 +510,13 @@ using ValueResult = std::variant<
 | 2.1.2 | P3 待执行 | `ExprVisitor::canVisitNode()` / `canVisitAll()` 与 `StmtVisitor` 内同名方法逻辑完全重复，未提取公共实现 | ✗ 未完成 |
 | 2.2 VM Dispatch | ✓ 已完成 | `DispatchStrategy` + `SwitchDispatch` + `TableDispatch` + `HandlerTable` (38 条目, 9 组注册) | ✓ 确认 |
 | 2.3 GC 去单例 | ✓ 已完成 | `GarbageCollector::sweep(StringPool&)` / `clearAll(StringPool&)` 已收口；`getInstance()` 标记 `[[deprecated]]` | ✓ 确认 |
-| 2.3 GCStrategy | 待执行 | 无 `GCStrategy` 基类、无 `MarkSweepGC` / `IncrementalGC` 子类、无 `collectgarbage("strategy",...)` 子命令 | ✗ 未完成 |
+| 2.3 GCStrategy | ✓ PR-62 | `src/gc/gc_strategy.hpp/.cpp` 已定义 `GCStrategy` / `MarkSweepGC` / `IncrementalGC`；`GarbageCollector::collect()` 委托当前策略；`collectgarbage("strategy",...)` 已可查询 / 切换策略边界 | ✓ 确认 |
 | 2.4 模式文档 | ✓ 已完成 | `docs/architecture/patterns.md` 已记录 | ✓ 确认 |
 | 2.5 CodeGen 拆分 | ✓ 已完成 | 五个子任务 (2.5.1-a ∼ 2.5.1-e) 全部落地：`jump_patcher` / `scope_manager` / `expression_emitter` / `statement_emitter` | ✓ 确认 |
 | 2.6.1 | P3 待执行 | `lib_manager.hpp` 仍保留 7 个 `openXxx()` 方法声明，无 `[[deprecated]]` 标记 | ✗ 未完成 |
 | 2.6.2 | P4 候选 | 代码库中不存在 `LibRegistrar` 类 | ✗ 未完成 |
 
-**结论**：核心重构（Visitor、Dispatch、CodeGen 拆分）全部落地且质量高。**GCStrategy 抽象是整个路线图中最大的未完成设计项**——它阻塞未来 `.gc strategy` 切换和阶段 5 的 GC 策略等价性测试。`lib_manager.hpp` 冗余声明和 Visitor 内部去重属于低优先级清理。
+**结论**：核心重构（Visitor、Dispatch、CodeGen 拆分、GCStrategy）全部落地且质量高。剩余阶段 2 差距主要是 `lib_manager.hpp` 冗余声明和 Visitor 内部去重，均属于低优先级清理。
 
 #### 阶段 3 核验
 
@@ -556,7 +557,7 @@ using ValueResult = std::variant<
 |---|---|---|---|
 | 5.1 opcode 覆盖矩阵 | ✓ PR-54 | `tests/unit/vm/opcode_coverage_matrix.md` 覆盖 38 条 opcode；`tools/check_opcode_coverage_matrix.ps1` 从 `opcode.hpp` 解析真实 enum 并校验矩阵行数、顺序、重复和未知 opcode | ✓ 确认 |
 | 5.1 AST Visitor 测试 | ✓ | `tests/unit/compiler/test_ast_visitor.cpp` 存在 | ✓ 确认 |
-| 5.1 GC 策略测试 | 依赖 2.3 | 因 `GCStrategy` 未实现而无法进行 | ⚠ 阻塞 |
+| 5.1 GC 策略测试 | ✓ PR-62 | `GC Strategy Selection` / `GC Strategy Equivalence` / `collectgarbage Strategy` 已覆盖策略边界、同根集等价和标准库切换入口 | ✓ 确认 |
 | 5.1 REPL 增量解析测试 | 建议 | `isIncompleteInput` 已从 `repl.cpp` 抽到 `src/repl/repl_exe.cpp`；仍需补直接覆盖 incomplete 判定的单测 | △ 部分完成 |
 | 5.1 Trace golden 测试 | 建议 | 无 golden 文件目录或对比逻辑 | ✗ 未完成 |
 | 5.2 质量门 | ✓ | `run_quality_gate.ps1` + `check_doc_drift.ps1` 动态解析测试计数，并已接入 opcode 覆盖矩阵漂移检查 | ✓ 确认 |
@@ -570,11 +571,9 @@ using ValueResult = std::variant<
 
 ### 未完成项优先级排序
 
-#### P1 — 影响教学连贯性（建议下 2-3 个 PR 优先处理）
+#### P1 — 影响教学连贯性
 
-| 编号 | 任务 | 阻碍 |
-|---|---|---|
-| 2.3 | `GCStrategy` 抽象 + `MarkSweepGC` | GC 策略测试、未来 `.gc strategy` 切换 |
+当前无未完成 P1 项；PR-62 已收口最后一个阻塞性策略边界。
 
 #### P2 — 提升教学体验（建议后续跟进）
 

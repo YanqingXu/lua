@@ -167,6 +167,7 @@
     <ClInclude Include="src\core\value.hpp" />
     <ClInclude Include="src\core\thread.hpp" />
     <ClInclude Include="src\gc\garbage_collector.hpp" />
+    <ClInclude Include="src\gc\gc_strategy.hpp" />
     <ClInclude Include="src\io\dynamic_buffer.hpp" />
     <ClInclude Include="src\io\file_loader.hpp" />
     <ClInclude Include="src\io\input_stream.hpp" />
@@ -231,6 +232,7 @@
     <ClCompile Include="src\core\value.cpp" />
     <ClCompile Include="src\core\thread.cpp" />
     <ClCompile Include="src\gc\garbage_collector.cpp" />
+    <ClCompile Include="src\gc\gc_strategy.cpp" />
     <ClCompile Include="src\gc\gc_mark.cpp" />
     <ClCompile Include="src\gc\gc_sweep.cpp" />
     <ClCompile Include="src\gc\gc_finalize.cpp" />

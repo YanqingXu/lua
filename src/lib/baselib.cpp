@@ -1149,6 +1149,7 @@ i32 luaB_setfenv(LuaState* L) {
  * - "stop"：停止垃圾回收器（简化实现：返回0）
  * - "restart"：重启垃圾回收器（简化实现：返回0）
  * - "step"：执行一步增量垃圾回收（简化实现：返回false）
+ * - "strategy"：查询或切换教学用GC策略（mark-sweep / incremental placeholder）
  * - "setpause"：设置垃圾回收暂停参数（简化实现：返回0）
  * - "setstepmul"：设置垃圾回收步长倍数（简化实现：返回0）
  *
@@ -1204,6 +1205,18 @@ i32 luaB_collectgarbage(LuaState* L) {
         else if (strcmp(opt, "step") == 0) {
             // 简化实现：执行一步GC（暂不支持，返回false）
             L->pushBoolean(false);
+            return 1;
+        }
+        else if (strcmp(opt, "strategy") == 0) {
+            if (L->getTop() >= 2) {
+                Value strategy = L->at(2);
+                if (!strategy.isString() || !gc.useStrategy(strategy.asString()->c_str())) {
+                    L->error("collectgarbage: invalid strategy");
+                }
+            }
+
+            GCString* name = L->getGlobalState().getStringPool().intern(gc.getStrategyName());
+            L->pushString(name);
             return 1;
         }
         else if (strcmp(opt, "setpause") == 0) {

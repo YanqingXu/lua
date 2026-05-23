@@ -6,6 +6,7 @@
 #include "compiler/codegen/codegen.hpp"
 #include "compiler/parser/parser.hpp"
 #include "core/function.hpp"
+#include "gc/gc_strategy.hpp"
 #include "repl/repl_exe.hpp"
 #include "repl/repl_txt.hpp"
 #include "runtime/runtime_services.hpp"
@@ -81,13 +82,15 @@ void printGcUsage(std::ostream& out) {
     out << "usage: .gc [stats|collect|strategy|help]" << '\n';
 }
 
-void printGcStrategy(std::ostream& out) {
+void printGcStrategy(RuntimeServices& services, std::ostream& out) {
     out << "GC" << '\n';
     out << "  command: strategy" << '\n';
-    out << "  active: mark-sweep" << '\n';
-    out << "  available: mark-sweep" << '\n';
-    out << "  planned: incremental" << '\n';
+    out << "  active: " << services.gc.getStrategyName() << '\n';
+    out << "  active summary: " << services.gc.getStrategy().summary() << '\n';
+    out << "  available: mark-sweep, incremental" << '\n';
+    out << "  planned: incremental write barriers and scheduling" << '\n';
     out << "  boundary: RuntimeServices.gc owns the active collector" << '\n';
+    out << "  switch: collectgarbage(\"strategy\", \"mark-sweep\"|\"incremental\")" << '\n';
 }
 
 const char* binaryOpName(BinaryExpr::Op op) {
@@ -560,7 +563,7 @@ int printGc(ReplContext& context, LuaState* L, const Str& argument, std::ostream
         RuntimeServices services(L->getGlobalState());
         out << "GC" << '\n';
         out << "  command: stats" << '\n';
-        out << "  strategy: mark-sweep" << '\n';
+        out << "  strategy: " << services.gc.getStrategyName() << '\n';
         out << "  boundary: RuntimeServices.gc" << '\n';
         printGcSnapshot(out, "  current:", captureGcSnapshot(services));
         return 0;
@@ -574,7 +577,7 @@ int printGc(ReplContext& context, LuaState* L, const Str& argument, std::ostream
 
         out << "GC" << '\n';
         out << "  command: collect" << '\n';
-        out << "  strategy: mark-sweep" << '\n';
+        out << "  strategy: " << services.gc.getStrategyName() << '\n';
         out << "  collected objects: " << collected << '\n';
         printGcSnapshot(out, "  before:", before);
         printGcSnapshot(out, "  after:", after);
@@ -582,7 +585,8 @@ int printGc(ReplContext& context, LuaState* L, const Str& argument, std::ostream
     }
 
     if (option == "strategy") {
-        printGcStrategy(out);
+        RuntimeServices services(L->getGlobalState());
+        printGcStrategy(services, out);
         return 0;
     }
 

@@ -79,12 +79,22 @@ Supported meta commands:
 - `.help` prints the command list
 - `.bytecode <expr|chunk>` parses and compiles the input, then prints the compact Proto bytecode
 - `.ast <expr|chunk>` parses the input and prints a tree view of the AST
-- `.gc [stats|collect|strategy|help]` prints GC statistics, runs a full mark-sweep collection, or shows the planned strategy boundary
+- `.gc [stats|collect|strategy|help]` prints GC statistics, runs collection through the active `GCStrategy`, or shows the strategy boundary
 
 Both `.bytecode` and `.ast` first try the argument as a chunk. If that fails and the input was not explicitly written as `=expr`, they retry it as `return <expr>`. The `.ast` output labels this fallback as `mode: expression`; normal chunks are labeled `mode: chunk`.
 
 The `.gc` command intentionally uses the active collector through `RuntimeServices.gc`.
-It reports the current strategy as `mark-sweep`; `strategy` output names `incremental` as planned rather than switchable.
+It reports the current strategy and lists the available `mark-sweep` and incremental teaching-placeholder strategies.
+
+GC strategy can also be queried or switched from Lua:
+
+```lua
+collectgarbage("strategy")
+collectgarbage("strategy", "mark-sweep")
+collectgarbage("strategy", "incremental")
+```
+
+The incremental strategy currently delegates to the same mark-sweep collection phases so the live-object semantics stay equivalent while the future write-barrier and scheduling work remains explicit.
 
 Tab completion is intentionally conservative. It completes from the end of the current line, uses the current `LuaState` global table for global names, and walks dotted table paths for loaded library fields.
 

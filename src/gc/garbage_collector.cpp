@@ -8,6 +8,7 @@
 #include "core/string_pool.hpp"
 #include "core/table.hpp"
 #include "core/userdata.hpp"
+#include "gc/gc_strategy.hpp"
 #include "vm/state/global_state.hpp"
 #include "vm/state/lua_state.hpp"
 #include <algorithm>
@@ -37,6 +38,7 @@ GarbageCollector::GarbageCollector()
     , finalizersRunning_(false)
     , globalState_(nullptr)
     , stringPool_(nullptr)
+    , strategy_(&markSweepGCStrategy())
     , objectCount_(0)
     , totalMemory_(0)
 {
@@ -183,6 +185,29 @@ usize GarbageCollector::collect(LuaState* currentState) {
 }
 
 usize GarbageCollector::collect(StringPool& stringPool, LuaState* currentState) {
+    GCContext context{*this, stringPool, currentState};
+    return strategy_->collect(context);
+}
+
+const GCStrategy& GarbageCollector::getStrategy() const noexcept {
+    return *strategy_;
+}
+
+const char* GarbageCollector::getStrategyName() const noexcept {
+    return strategy_->name();
+}
+
+bool GarbageCollector::useStrategy(StrView name) noexcept {
+    const GCStrategy* strategy = findGCStrategy(name);
+    if (strategy == nullptr) {
+        return false;
+    }
+
+    strategy_ = strategy;
+    return true;
+}
+
+usize GarbageCollector::collectMarkSweep(StringPool& stringPool, LuaState* currentState) {
     // 1. 标记阶段
     mark(currentState);
 

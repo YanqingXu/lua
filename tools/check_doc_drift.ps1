@@ -231,7 +231,7 @@ foreach ($required in @("CMakeLists.txt", "tools\run_cmake_smoke.ps1", "CMake", 
 
 $statusDoc = Read-Text "docs/status/project-status.md"
 $statusDocPath = Join-RepoPath "docs/status/project-status.md"
-foreach ($required in @("Visual Studio", "MSBuild", ".vcxproj", "CMake", "CTest", "secondary", "CMakeLists.txt", "tools/run_cmake_smoke.ps1", "--report=junit", "RuntimeServices", "Learning Path", "lua_bytecode", "decoded instructions", "constant table")) {
+foreach ($required in @("Visual Studio", "MSBuild", ".vcxproj", "CMake", "CTest", "secondary", "CMakeLists.txt", "tools/run_cmake_smoke.ps1", "--report=junit", "RuntimeServices", "GCStrategy", "Learning Path", "lua_bytecode", "decoded instructions", "constant table")) {
     if (-not (Select-String -LiteralPath $statusDocPath -SimpleMatch -Pattern $required -Quiet)) {
         Add-Failure $failures "docs/status/project-status.md is missing required fact: $required"
     }
@@ -266,6 +266,8 @@ $replGuideFacts = @(
     "Tab completion",
     "line-numbered",
     "lua:1>",
+    "GCStrategy",
+    "collectgarbage(`"strategy`")",
     "colorized error output",
     "ErrorColorMode::Auto",
     "mode: expression",
@@ -280,7 +282,7 @@ foreach ($required in $replGuideFacts) {
 }
 
 $glossaryDoc = Read-Text "docs/glossary.md"
-foreach ($required in @("RuntimeServices", "GlobalState", "LuaState", "Proto", "SymbolRef", "ValueResult", "CondResult", "LValueRef", "TMS", "RK")) {
+foreach ($required in @("RuntimeServices", "GCStrategy", "GlobalState", "LuaState", "Proto", "SymbolRef", "ValueResult", "CondResult", "LValueRef", "TMS", "RK")) {
     if ($glossaryDoc -notmatch [regex]::Escape($required)) {
         Add-Failure $failures "glossary.md is missing required term: $required"
     }
