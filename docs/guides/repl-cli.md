@@ -69,6 +69,7 @@ Supported REPL behavior:
 - Ctrl+C cancels current input where supported
 - default prompts are line-numbered as `lua:1> ` for the first line and `lua:2>> ` for continuation lines
 - custom multi-line prompts use `_PROMPT2` literally
+- parser errors that end near `<eof>` keep the buffer open for continuation; definite syntax errors are reported immediately
 - `=expr` is transformed into `return expr` and prints returned values
 - ordinary input is parsed as statements and does not auto-print expression values
 - Tab completion covers meta commands, globals, and loaded library fields such as `string.sub`

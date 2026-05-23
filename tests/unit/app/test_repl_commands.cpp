@@ -7,6 +7,7 @@
 #include "core/string_pool.hpp"
 #include "lib/lib_manager.hpp"
 #include "repl.hpp"
+#include "repl/repl_exe.hpp"
 #include "repl/repl_prompt.hpp"
 #include "vm/state/global_state.hpp"
 
@@ -116,6 +117,120 @@ void testLinePromptDefaultsAndCustomPrompts(TestSuite& suite) {
               "custom first-line prompt should remain unchanged");
     ASSERT_EQ(suite, Str("custom>> "), REPL::detail::getPrompt(L, false, 11),
               "custom continuation prompt should remain unchanged");
+
+    delete L;
+}
+
+void testIncrementalParsingRecognizesRecoverableEofSources(TestSuite& suite) {
+    struct Sample {
+        const char* source;
+        const char* completed;
+        const char* label;
+    };
+
+    const Sample samples[] = {
+        {"if true then\n",
+         "if true then\nprint(1)\nend",
+         "if block should wait for end"},
+        {"while true do\n",
+         "while true do\nbreak\nend",
+         "while block should wait for end"},
+        {"do\nlocal x = 1\n",
+         "do\nlocal x = 1\nend",
+         "do block should wait for end"},
+        {"for i = 1, 3 do\n",
+         "for i = 1, 3 do\nprint(i)\nend",
+         "numeric for should wait for end"},
+        {"for k, v in pairs(t) do\n",
+         "for k, v in pairs(t) do\nprint(k, v)\nend",
+         "generic for should wait for end"},
+        {"function f(a)\n  return a\n",
+         "function f(a)\n  return a\nend",
+         "function statement should wait for end"},
+        {"local function f(a)\n  return a\n",
+         "local function f(a)\n  return a\nend",
+         "local function should wait for end"},
+        {"repeat\n  local x = 1\n",
+         "repeat\n  local x = 1\nuntil true",
+         "repeat block should wait for until"},
+        {"local t = { name = \n",
+         "local t = { name = 1 }",
+         "table constructor should wait for a value"},
+        {"return (\n",
+         "return (1)",
+         "parenthesized expression should wait for close"},
+    };
+
+    LuaState* L = LuaState::newState();
+
+    for (const Sample& sample : samples) {
+        auto incomplete = REPL::detail::prepareInputForExecution(L, sample.source, false);
+        ASSERT_FALSE(suite, incomplete.has_value(), sample.label);
+        if (!incomplete) {
+            ASSERT_TRUE(suite, REPL::detail::isIncompleteInput(incomplete.error().what()),
+                        sample.label);
+        }
+
+        auto completed = REPL::detail::prepareInputForExecution(L, sample.completed, false);
+        ASSERT_TRUE(suite, completed.has_value(), sample.label);
+    }
+
+    delete L;
+}
+
+void testIncrementalParsingRejectsDefiniteSyntaxErrors(TestSuite& suite) {
+    struct Sample {
+        const char* source;
+        const char* label;
+    };
+
+    const Sample samples[] = {
+        {"return +\n", "operator without rhs is a definite syntax error"},
+        {"local t = { name = }\n", "missing table value before brace is definite"},
+        {"if true then )\n", "unexpected close paren is definite"},
+        {"function f(a) until true\n", "wrong block closer is definite"},
+    };
+
+    LuaState* L = LuaState::newState();
+
+    for (const Sample& sample : samples) {
+        auto prepared = REPL::detail::prepareInputForExecution(L, sample.source, false);
+        ASSERT_FALSE(suite, prepared.has_value(), sample.label);
+        if (!prepared) {
+            ASSERT_FALSE(suite, REPL::detail::isIncompleteInput(prepared.error().what()),
+                         sample.label);
+        }
+    }
+
+    delete L;
+}
+
+void testIncrementalParsingKeepsQuickExpressionMode(TestSuite& suite) {
+    bool wasExplicitReturn = false;
+    Str source = REPL::detail::tryAsExpression("=function(a)", wasExplicitReturn);
+
+    ASSERT_TRUE(suite, wasExplicitReturn, "=function should enter expression mode");
+    ASSERT_EQ(suite, Str("return function(a)"), source,
+              "=function should be compiled as a return expression");
+
+    LuaState* L = LuaState::newState();
+
+    auto incomplete = REPL::detail::prepareInputForExecution(L, source, wasExplicitReturn);
+    ASSERT_FALSE(suite, incomplete.has_value(),
+                 "unfinished function expression should stay in incremental mode");
+    if (!incomplete) {
+        ASSERT_TRUE(suite, REPL::detail::isIncompleteInput(incomplete.error().what()),
+                    "unfinished function expression should be recoverable");
+    }
+
+    source += "\n  return a\nend";
+    auto completed = REPL::detail::prepareInputForExecution(L, source, wasExplicitReturn);
+    ASSERT_TRUE(suite, completed.has_value(),
+                "completed function expression should parse after continuation lines");
+    if (completed) {
+        ASSERT_TRUE(suite, completed->isExpression,
+                    "completed quick expression should preserve expression printing mode");
+    }
 
     delete L;
 }
@@ -423,6 +538,12 @@ void registerReplCommandTests() {
     registry.registerTest(kSuiteName, "History Round Trip", testHistoryRoundTrip);
     registry.registerTest(kSuiteName, "Line Prompt Defaults And Custom Prompts",
                           testLinePromptDefaultsAndCustomPrompts);
+    registry.registerTest(kSuiteName, "Incremental Parsing Recognizes Recoverable EOF Sources",
+                          testIncrementalParsingRecognizesRecoverableEofSources);
+    registry.registerTest(kSuiteName, "Incremental Parsing Rejects Definite Syntax Errors",
+                          testIncrementalParsingRejectsDefiniteSyntaxErrors);
+    registry.registerTest(kSuiteName, "Incremental Parsing Keeps Quick Expression Mode",
+                          testIncrementalParsingKeepsQuickExpressionMode);
     registry.registerTest(kSuiteName, "Complete Meta Command", testCompleteMetaCommand);
     registry.registerTest(kSuiteName, "Complete GC Option Uses Common Prefix",
                           testCompleteGcOptionUsesCommonPrefix);

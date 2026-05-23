@@ -72,28 +72,8 @@ Str tryAsExpression(const Str& source, bool& wasExplicitReturn) {
 }
 
 bool isIncompleteInput(const Str& errorMessage) {
-    const char* eofPatterns[] = {
-        "<eof>",
-        "'end' expected",
-        "Expected 'end'",
-        "'until' expected",
-        "Expected 'until'",
-        "unexpected end of input",
-        "Unexpected token in expression",
-        "to close function",
-        "to close 'if'",
-        "to close 'while'",
-        "to close 'for'",
-        "to close 'do'",
-    };
-
-    for (const char* pattern : eofPatterns) {
-        if (errorMessage.find(pattern) != Str::npos) {
-            return true;
-        }
-    }
-
-    return false;
+    return errorMessage.find("<eof>") != Str::npos ||
+           errorMessage.find("unexpected end of input") != Str::npos;
 }
 
 std::expected<PreparedInput, ParseError> prepareInputForExecution(LuaState* L, const Str& source,

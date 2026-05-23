@@ -2,9 +2,9 @@
 
 > 适用范围：`g:\github\lua`（现代 C++ Lua 5.1.5 解释器）
 > 设计目标：**可读性 > 可维护性 > 教育价值 > 性能**
-> 约束：保持 539 个注册测试 / 2684 个断言结果 / 0 失败，不破坏 `LuaState` / `VM` public API。
+> 约束：保持 542 个注册测试 / 2728 个断言结果 / 0 失败，不破坏 `LuaState` / `VM` public API。
 > 最近审计：2026-05-21（深度审计报告，覆盖 Readability / Extensibility / Educational Value 三维度）
-> 最近同步：2026-05-23（PR-64：Trace JSONL plain / diff golden 测试，锁住 `registers` 与 `changedRegisters` schema）
+> 最近同步：2026-05-23（PR-65：REPL 增量解析测试，锁住 EOF 驱动的 continuation 判定）
 
 ---
 
@@ -14,7 +14,7 @@
 |---|---|---|---|
 | **可读性** | **A-** | CRTP+concept 编译期检查、`std::expected` 边界清晰、VM 主循环已精简为策略入口 + handler table | `ValueResult` 已有 variant prototype 但旧兼容字段仍待迁移、`CodeGenerator` 方法数 60+、部分命名继承 Lua C 缩写 |
 | **易扩展性** | **B+** | Visitor 模式添加新工具零摩擦、`DispatchStrategy` 可插拔、`HandlerTable` 按组注册，`GCStrategy` 已把 collector 算法边界显式化 | GC/metatable 兼容 fallback 仍需收口、`lib_manager.hpp` 冗余声明、`CodeGenerator` facade 仍可继续瘦身 |
-| **教学价值** | **A-** | hello-world / closure-and-upvalue / gc-cycle walkthrough 已覆盖端到端执行、闭包生命周期和完整 GC 周期，glossary 降低认知负担，trace 系统层次分明且已有差异模式与 JSONL golden，REPL 已能打印 AST、bytecode 与 GC 状态，支持 Tab 探索全局名和库字段，并在终端中高亮错误和展示行号 prompt，`lua_bytecode --cfg` 可直接生成 Mermaid CFG | REPL 增量解析专项测试仍可补强 |
+| **教学价值** | **A-** | hello-world / closure-and-upvalue / gc-cycle walkthrough 已覆盖端到端执行、闭包生命周期和完整 GC 周期，glossary 降低认知负担，trace 系统层次分明且已有差异模式与 JSONL golden，REPL 已能打印 AST、bytecode 与 GC 状态，支持 Tab 探索全局名和库字段，并在终端中高亮错误、展示行号 prompt 和覆盖增量解析行为，`lua_bytecode --cfg` 可直接生成 Mermaid CFG | 后续可继续补样例和文档深挖 |
 
 各维度详细评估见本文档对应阶段的任务标注；已完成项以 ✓ 标记。
 
@@ -28,7 +28,7 @@
 | **阶段 2 — 中期模式重构** | 3–5 个迭代 | 引入访问者 / 策略 / 命令模式，VM dispatch 与 GC 抽象化 | 内部 API 调整、public 不变 | ~91% |
 | **阶段 3 — 现代 C++ 特性** | 穿插于 1 & 2 | `std::expected` / `concepts` / `std::format` / `[[nodiscard]]` | 部分 public 签名变更 | ~90% |
 | **阶段 4 — 教育价值增强** | 持续推进 | 自解释代码、字节码可视化、执行链路教学文档、REPL 体验、Trace 差异模式 | 否（增量增强） | ~88% |
-| **阶段 5 — 工程实践** | 持续 | 测试覆盖、质量门、构建一致性、文档漂移检测 | 否 | ~77% |
+| **阶段 5 — 工程实践** | 持续 | 测试覆盖、质量门、构建一致性、文档漂移检测 | 否 | ~80% |
 
 ---
 
@@ -379,14 +379,14 @@ using ValueResult = std::variant<
 
 ### 5.1 测试覆盖精细化
 
-**现状**：539 个注册测试 / 2684 个断言结果 / 0 失败，目录 `tests/unit/`、`tests/lua/`。
+**现状**：542 个注册测试 / 2728 个断言结果 / 0 失败，目录 `tests/unit/`、`tests/lua/`。
 
 **改进方向**（优先小步增量；覆盖矩阵作为 checklist 文档）：
 
 1. ✓ **指令级覆盖矩阵**：PR-54 已新增 `tests/unit/vm/opcode_coverage_matrix.md`，为 38 条 opcode 显性列出正向 / 边界 / metamethod 覆盖锚点；`tools/check_opcode_coverage_matrix.ps1` 已接入质量门，新增 / 删除 / 重命名 opcode 时矩阵会失败并要求同步更新。
 2. ✓ **AST Visitor 测试**：`tests/unit/compiler/test_ast_visitor.cpp` 已覆盖最小 visitor 分发与 concept 检查；后续若新增 AST dumper，再补端到端输出测试。
 3. ✓ **GC 策略测试**：PR-62 已补 `GC Strategy Selection` / `GC Strategy Equivalence` / `collectgarbage Strategy`，锁住策略选择、未知策略拒绝和同根集存活语义等价。
-4. **REPL 增量解析测试**：`isIncompleteInput` 已抽到 `src/repl/repl_exe.cpp`，后续补面向 incomplete 语法模式的单测。
+4. ✓ **已完成 — PR-65**：REPL 增量解析测试：`REPL Commands` 已补真实 Parser 驱动样本，覆盖 EOF 可恢复输入、明确语法错误和 `=function(...)` 快速表达式 continuation。
 5. ✓ **已完成 — PR-64**：Trace 文件 golden test：`VM Trace Debug` 已补 plain trace / trace-diff 两组 exact JSONL golden，锁住 `registers` 与 `changedRegisters` schema。
 
 ### 5.2 质量门（已有 `tools/run_quality_gate.ps1`）
@@ -409,7 +409,7 @@ using ValueResult = std::variant<
 | 风险 | 影响 | 缓解 |
 |---|---|---|
 | VM dispatch 命令模式化引入函数指针表，调试器单步体验下降 | 影响教学 | 保留 `SwitchDispatch` 作为默认；调试构建强制使用；1.1.1 落地的独立 inline 函数进一步改善 Switch 路径单步体验 |
-| `std::expected` 大范围替换异常导致调用链翻新 | 539 测试可能批量红 | 按 3.1 表格逐个函数迁移，每次 1 个函数 + 全量测试 |
+| `std::expected` 大范围替换异常导致调用链翻新 | 542 测试可能批量红 | 按 3.1 表格逐个函数迁移，每次 1 个函数 + 全量测试 |
 | GC 去单例化破坏标准库内部对 `GarbageCollector::getInstance()` 的引用 | 编译错误广泛 | 保留 inline shim `getInstance()` 一版本，标记 `[[deprecated]]` |
 | Visitor 化后 codegen 性能下降 | 不影响目标，但需观察 | 教学项目可接受；基准用 `examples/*.lua` 跑回归 |
 | `ValueResult` → `std::variant` 重构引入大量访问代码 | 调用侧需逐一迁移 `std::visit` | 先做 prototype 分支验证可行性，再逐步迁移 |
@@ -454,12 +454,13 @@ using ValueResult = std::variant<
 | PR-62 | `GCStrategy` 抽象，`MarkSweepGC` 承载真实 mark-sweep，`IncrementalGC` 作为等价行为教学占位，并补策略选择 / 等价性 / `collectgarbage("strategy")` 测试 | 2.3 / 5.1 |
 | PR-63 | `lua_bytecode --cfg [full]` Mermaid CFG 输出，按 basic block 展示 fallthrough / jump / TEST companion / TFORLOOP / FORLOOP / return 边，并补 Bytecode Printer CFG 输出契约测试 | 4.2.6 / 5.1 |
 | PR-64 | Trace JSONL plain / diff golden 测试，使用无指针值的小脚本精确对比 `registers` 与 `changedRegisters` 输出，防止 trace schema 漂移 | 5.1 |
+| PR-65 | REPL 增量解析测试，使用真实 Parser 错误锁住 EOF-driven continuation、明确语法错误立即报告，以及 `=function(...)` 多行表达式保持 expression mode | 5.1 |
 
 后续推荐顺序：
 
 | PR | 编号 | 任务 | 阶段 | 依赖 / 理由 |
 |---|---|---|---|---|
-| PR-65 | 5.1 | REPL 增量解析测试 | 5 | P2；`isIncompleteInput` 已抽出到 `repl_exe.cpp`，适合补语法未完成判定样本 |
+| PR-66 | 5.3 | `tools/add_source.ps1` 新增源码同步脚本 | 5 | P3；新增 `.cpp/.hpp` 仍需手动同步 CMake 与 VS 项目文件，适合转成工程脚本 |
 
 每个 PR 完成后跑：
 
@@ -482,7 +483,7 @@ using ValueResult = std::variant<
 | 阶段 2 — 中期模式重构 | ~91% | **~86%** | −5% | GCStrategy 已落地；lib_manager 声明清理、Visitor 去重仍未落地 |
 | 阶段 3 — 现代 C++ 特性 | ~90% | **~90%** | 0 | ValueResult variant prototype 已就位，后续 std::visit 迁移为渐进工作 |
 | 阶段 4 — 教育价值增强 | ~88% | **~86%** | −2% | REPL 体验和字节码可视化主线已闭环；后续偏样例和文档深挖 |
-| 阶段 5 — 工程实践 | ~79% | **~77%** | −2% | 指令级覆盖矩阵、GC 策略等价测试、CFG 输出契约测试和 Trace JSONL golden 已补齐；REPL 增量解析测试、add_source 脚本仍缺失 |
+| 阶段 5 — 工程实践 | ~80% | **~79%** | −1% | 指令级覆盖矩阵、GC 策略等价测试、CFG 输出契约测试、Trace JSONL golden 和 REPL 增量解析测试已补齐；add_source 脚本仍缺失 |
 | **加权综合** | **~86%** | **~83%** | **−3%** | |
 
 ---
@@ -560,14 +561,14 @@ using ValueResult = std::variant<
 | 5.1 AST Visitor 测试 | ✓ | `tests/unit/compiler/test_ast_visitor.cpp` 存在 | ✓ 确认 |
 | 5.1 GC 策略测试 | ✓ PR-62 | `GC Strategy Selection` / `GC Strategy Equivalence` / `collectgarbage Strategy` 已覆盖策略边界、同根集等价和标准库切换入口 | ✓ 确认 |
 | 5.1 Bytecode CFG 输出契约测试 | ✓ PR-63 | `Bytecode Printer` 测试已覆盖 Mermaid CFG branch、loop 和 `full` child Proto 子图输出 | ✓ 确认 |
-| 5.1 REPL 增量解析测试 | 建议 | `isIncompleteInput` 已从 `repl.cpp` 抽到 `src/repl/repl_exe.cpp`；仍需补直接覆盖 incomplete 判定的单测 | △ 部分完成 |
+| 5.1 REPL 增量解析测试 | ✓ PR-65 | `REPL Commands` 已补 `Incremental Parsing Recognizes Recoverable EOF Sources`、`Rejects Definite Syntax Errors` 和 `Keeps Quick Expression Mode`，直接覆盖 `prepareInputForExecution()` + `isIncompleteInput()` 的真实 Parser 错误路径 | ✓ 确认 |
 | 5.1 Trace golden 测试 | ✓ PR-64 | `Trace JSONL Plain Golden` / `Trace JSONL Diff Golden` 已精确对比实际 VM 执行产生的 JSONL，覆盖 plain `registers` 与 diff `changedRegisters` schema | ✓ 确认 |
 | 5.2 质量门 | ✓ | `run_quality_gate.ps1` + `check_doc_drift.ps1` 动态解析测试计数，并已接入 opcode 覆盖矩阵漂移检查 | ✓ 确认 |
 | 5.2 clang-tidy | ✓ 增量 | `.clang-tidy` 配置文件存在；`run_quality_gate.ps1` 已有 `clang-tidy smoke`，本机无工具时按增量策略跳过 | ✓ 已接入 |
 | 5.2 CMake 编译选项 | 待验证 | `-Wpedantic -Wconversion` 对齐状态未确认（项目用 MSVC `/W4`） | ⚠ 待验证 |
 | 5.3 `add_source.ps1` | 建议 | 文件不存在，新增 `.cpp` 仍需手动同步 4 处 (CMakeLists.txt / vcxproj / vcxproj.filters / test vcxproj) | ✗ 未完成 |
 
-**结论**：质量门自动化继续加强：动态测试计数、opcode 覆盖矩阵漂移和 Trace JSONL schema 漂移都已变成可失败信号。后续主要差距转为 REPL 增量解析测试和工程脚本自动化。
+**结论**：质量门自动化继续加强：动态测试计数、opcode 覆盖矩阵漂移和 Trace JSONL schema 漂移都已变成可失败信号。后续主要差距转为工程脚本自动化和低优先级构建选项对齐。
 
 ---
 
@@ -579,9 +580,7 @@ using ValueResult = std::variant<
 
 #### P2 — 提升教学体验（建议后续跟进）
 
-| 编号 | 任务 |
-|---|---|
-| 5.1 | REPL 增量解析测试 |
+当前无未完成 P2 项；PR-65 已补齐 REPL 增量解析专项测试。
 
 #### P3 — 代码质量收尾
 
@@ -598,7 +597,6 @@ using ValueResult = std::variant<
 | 编号 | 任务 |
 |---|---|
 | 2.6.2 | `LibRegistrar` 声明式自注册 |
-| 5.1 | REPL 增量解析测试 |
 
 ---
 
