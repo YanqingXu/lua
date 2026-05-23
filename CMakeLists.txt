@@ -8,6 +8,8 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 option(LUA_CPP_BUILD_TOOLS "Build the interpreter and bytecode tools" ON)
 option(LUA_CPP_BUILD_TESTS "Build the unit test runner" ON)
+option(LUA_VALUE_RESULT_PRIVATE_LEGACY_FIELDS
+       "Compile ValueResult legacy mirror fields as private for migration trials" OFF)
 
 function(lua_configure_target_warnings target_name)
     if(MSVC)
@@ -176,6 +178,9 @@ add_library(lua_core STATIC ${LUA_CORE_SOURCES})
 target_include_directories(lua_core PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
+if(LUA_VALUE_RESULT_PRIVATE_LEGACY_FIELDS)
+    target_compile_definitions(lua_core PUBLIC LUA_VALUE_RESULT_PRIVATE_LEGACY_FIELDS=1)
+endif()
 if(CMAKE_DL_LIBS)
     target_link_libraries(lua_core PUBLIC ${CMAKE_DL_LIBS})
 endif()

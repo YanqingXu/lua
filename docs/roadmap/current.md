@@ -1,6 +1,6 @@
 ---
 status: current
-verified_against: docs/archive/research/deep-research-report.md; docs/status/project-status.md; docs/guides/development.md; docs/compiler/codegen-responsibility-map.md; docs/walkthroughs/gc-cycle.md; CMakeLists.txt; lua.vcxproj; lua.vcxproj.filters; lua_test.vcxproj; lua_test.vcxproj.filters; src/compiler/ast_visitor.hpp; src/compiler/parser/parser_utils.hpp; src/compiler/parser/parser.cpp; src/compiler/parser/parser_stmt.cpp; src/compiler/parser/parser_expr.cpp; src/compiler/parser/parser_primary.cpp; src/compiler/parser/parser_func.cpp; src/compiler/parser/parser_table.cpp; src/compiler/codegen/codegen.hpp; src/compiler/codegen/codegen_types.hpp; src/compiler/codegen/codegen_expr.cpp; src/compiler/codegen/expression_emitter.hpp; src/compiler/codegen/expression_emitter.cpp; src/compiler/codegen/statement_emitter.hpp; src/compiler/codegen/statement_emitter.cpp; src/compiler/codegen/codegen_jump.cpp; src/compiler/codegen/codegen_stmt.cpp; src/compiler/codegen/jump_patcher.hpp; src/compiler/codegen/jump_patcher.cpp; src/compiler/codegen/scope_manager.hpp; src/compiler/codegen/scope_manager.cpp; src/lib/lib_catalog.hpp; src/lib/lib_catalog.cpp; src/lib/lib_manager.hpp; src/repl/repl_meta.cpp; src/core/string_pool.cpp; src/gc/garbage_collector.hpp; src/gc/garbage_collector.cpp; src/gc/gc_strategy.hpp; src/gc/gc_strategy.cpp; src/gc/gc_sweep.cpp; src/vm/vm.cpp; src/vm/vm_internal.hpp; src/vm/vm_switch_dispatch.hpp; tests/unit/compiler/test_ast_visitor.cpp; tests/unit/compiler/test_parser_boundaries.cpp; tests/unit/compiler/test_codegen_result_types.cpp; tests/unit/compiler/test_codegen_characterization.cpp; tests/unit/compiler/test_jump_patcher.cpp; tests/unit/compiler/test_scope_manager.cpp; tests/unit/compiler/test_expression_emitter.cpp; tests/unit/compiler/test_statement_emitter.cpp; tests/unit/compiler/test_symbol_binding.cpp; tests/unit/stdlib/test_lib_catalog.cpp; tests/unit/framework/test_runner.cpp; tests/unit/gc/test_gc.cpp; tests/unit/vm/test_runtime_services.cpp; tests/unit/vm/test_vm_core.cpp; tests/unit/vm/test_vm_dispatch.cpp; .github/workflows/ci.yml; tools/run_cmake_smoke.ps1; tools/check_doc_drift.ps1; tools/test_quality_gate.ps1; tools/run_quality_gate.ps1
+verified_against: docs/archive/research/deep-research-report.md; docs/status/project-status.md; docs/guides/development.md; docs/compiler/codegen-responsibility-map.md; docs/walkthroughs/gc-cycle.md; CMakeLists.txt; lua.vcxproj; lua.vcxproj.filters; lua_test.vcxproj; lua_test.vcxproj.filters; src/common/diagnostics.hpp; src/compiler/ast_visitor.hpp; src/compiler/parser/parser_utils.hpp; src/compiler/parser/parser.cpp; src/compiler/parser/parser_stmt.cpp; src/compiler/parser/parser_expr.cpp; src/compiler/parser/parser_primary.cpp; src/compiler/parser/parser_func.cpp; src/compiler/parser/parser_table.cpp; src/compiler/codegen/codegen.hpp; src/compiler/codegen/codegen_types.hpp; src/compiler/codegen/codegen_expr.cpp; src/compiler/codegen/expression_emitter.hpp; src/compiler/codegen/expression_emitter.cpp; src/compiler/codegen/statement_emitter.hpp; src/compiler/codegen/statement_emitter.cpp; src/compiler/codegen/codegen_jump.cpp; src/compiler/codegen/codegen_stmt.cpp; src/compiler/codegen/jump_patcher.hpp; src/compiler/codegen/jump_patcher.cpp; src/compiler/codegen/scope_manager.hpp; src/compiler/codegen/scope_manager.cpp; src/lib/lib_catalog.hpp; src/lib/lib_catalog.cpp; src/lib/lib_manager.hpp; src/repl/repl_meta.cpp; src/core/string_pool.cpp; src/gc/garbage_collector.hpp; src/gc/garbage_collector.cpp; src/gc/gc_strategy.hpp; src/gc/gc_strategy.cpp; src/gc/gc_sweep.cpp; src/vm/vm.cpp; src/vm/vm_internal.hpp; src/vm/vm_switch_dispatch.hpp; tests/unit/compiler/test_ast_visitor.cpp; tests/unit/compiler/test_parser_boundaries.cpp; tests/unit/compiler/test_codegen_result_types.cpp; tests/unit/compiler/test_codegen_characterization.cpp; tests/unit/compiler/test_jump_patcher.cpp; tests/unit/compiler/test_scope_manager.cpp; tests/unit/compiler/test_expression_emitter.cpp; tests/unit/compiler/test_statement_emitter.cpp; tests/unit/compiler/test_symbol_binding.cpp; tests/unit/stdlib/test_lib_catalog.cpp; tests/unit/framework/test_runner.cpp; tests/unit/gc/test_gc.cpp; tests/unit/vm/test_runtime_services.cpp; tests/unit/vm/test_vm_core.cpp; tests/unit/vm/test_vm_dispatch.cpp; .github/workflows/ci.yml; tools/run_cmake_smoke.ps1; tools/run_value_result_private_trial.ps1; tools/check_doc_drift.ps1; tools/check_value_result_legacy_fields.ps1; tools/test_quality_gate.ps1; tools/run_quality_gate.ps1
 last_checked: 2026-05-23
 applies_to: 仓库优化路线图与下次续接检查清单
 ---
@@ -48,7 +48,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_quality_gate.ps1
 | 中 | EngineContext / RuntimeServices | 已完成 | 已引入显式 RuntimeServices，并迁移入口层、CodeGenerator、Parser/VM 兼容重载 |
 | 中 | 教学导航 | 已完成 | 已新增 `docs/index.md`、术语表和 examples，并扩展 walkthrough 索引 |
 | 低 | CMake + CTest | 已完成 | 已新增 secondary CMake/CTest 路径，不替代 VS/MSBuild 主路径 |
-| 长期 | 拆分 CodeGenerator / VM / Parser / GC 策略边界 | 进行中 | 8A-8C CodeGenerator 边界已完成，8D-8G VM 入口、dispatch 分类、ops/call/剩余 helper 与 trace/debug 边界已完成；8H Parser 函数组审计与行为锁定、8I Parser 物理拆分执行已完成；PR-39 已完成 Switch dispatch 每 opcode inline helper；PR-40 已完成 VM expected 异常映射 helper；PR-41 已完成 CodeGenerator 职责地图与 characterization 测试；PR-42 已完成 JumpPatcher 抽取；PR-43 已完成 ScopeManager 抽取；PR-44 已完成 ExpressionEmitter 抽取；PR-45 已完成 StatementEmitter 抽取；PR-46 已完成 GC sweep 显式 StringPool 边界；PR-48 已完成 ValueResult variant prototype；PR-51 已完成 trace diff + changedRegisters；PR-52 已完成 gc-cycle walkthrough；PR-62 已完成 GCStrategy / MarkSweepGC / IncrementalGC 教学占位策略与等价性测试；PR-63 已完成 lua_bytecode Mermaid CFG；PR-64 已完成 Trace JSONL golden 测试；PR-65 已完成 REPL 增量解析测试；PR-66 已完成 add_source 源码清单同步脚本；PR-67 已完成 Parser tokenString utility 抽取；PR-68 已完成 AstVisitor 组合模板；PR-69 已完成 Visitor canVisit 检查去重；PR-70 已完成标准库 openXxx deprecated 包装清理；PR-71 已完成 CMake/MSBuild warning 策略对齐；PR-72 已完成 ValueResult 读取侧第一批 visitor 迁移；PR-73 已完成 LibRegistrar 自注册评估并决定保留显式 catalog；PR-74 已完成 ValueResult 旧字段读取侧第二批迁移 |
+| 长期 | 拆分 CodeGenerator / VM / Parser / GC 策略边界 | 进行中 | 8A-8C CodeGenerator 边界已完成，8D-8G VM 入口、dispatch 分类、ops/call/剩余 helper 与 trace/debug 边界已完成；8H Parser 函数组审计与行为锁定、8I Parser 物理拆分执行已完成；PR-39 已完成 Switch dispatch 每 opcode inline helper；PR-40 已完成 VM expected 异常映射 helper；PR-41 已完成 CodeGenerator 职责地图与 characterization 测试；PR-42 已完成 JumpPatcher 抽取；PR-43 已完成 ScopeManager 抽取；PR-44 已完成 ExpressionEmitter 抽取；PR-45 已完成 StatementEmitter 抽取；PR-46 已完成 GC sweep 显式 StringPool 边界；PR-48 已完成 ValueResult variant prototype；PR-51 已完成 trace diff + changedRegisters；PR-52 已完成 gc-cycle walkthrough；PR-62 已完成 GCStrategy / MarkSweepGC / IncrementalGC 教学占位策略与等价性测试；PR-63 已完成 lua_bytecode Mermaid CFG；PR-64 已完成 Trace JSONL golden 测试；PR-65 已完成 REPL 增量解析测试；PR-66 已完成 add_source 源码清单同步脚本；PR-67 已完成 Parser tokenString utility 抽取；PR-68 已完成 AstVisitor 组合模板；PR-69 已完成 Visitor canVisit 检查去重；PR-70 已完成标准库 openXxx deprecated 包装清理；PR-71 已完成 CMake/MSBuild warning 策略对齐；PR-72 已完成 ValueResult 读取侧第一批 visitor 迁移；PR-73 已完成 LibRegistrar 自注册评估并决定保留显式 catalog；PR-74 已完成 ValueResult 旧字段读取侧第二批迁移；PR-75 已完成 ValueResult legacyFields deprecation 预审；PR-76 已完成 ValueResult 旧字段 deprecation warning fence；PR-77 已完成 ValueResult 旧字段最终收口评估与回流护栏；PR-78 已完成 ValueResult 旧字段宏开关式私有化试运行 |
 
 ## 已完成优化
 
@@ -1667,9 +1667,9 @@ bin\lua_test.exe
 
 - [x] `Expression Emitter::Lowers Immediate Values` 改为通过 `ValueResult::visit()` 读取 immediate payload，不再读取 `kind` / `immediate` / `numberValue` / `boolValue` 旧字段。
 - [x] `Symbol Binding (PR-8)` 的 `symbolToValue()` Local / Upvalue / Global 断言改为 payload visitor snapshot，覆盖 public facade 返回值的 payload 契约。
-- [x] `Codegen Result Types::ValueResult Variant Prototype` 改为 payload snapshot；新增 `ValueResult Legacy Fields Stay Synced`，把旧字段读取集中到显式 compatibility mirror 测试。
+- [x] `Codegen Result Types::ValueResult Variant Prototype` 改为 payload snapshot；新增 legacy mirror 同步测试，并在 PR-75 收口为 `ValueResult Legacy Snapshot Stays Synced`。
 - [x] 审计 `src/compiler/codegen/codegen_expr.cpp` 与 `src/compiler/codegen/statement_emitter.cpp`：两者是 facade / statement 委托层，没有直接读取 `ValueResult` 旧公开字段。
-- [x] 同步 README、项目状态、字节码生成说明、职责地图和优化路线图；下一项推荐推进到 PR-75：`ValueResult` 旧字段兼容面 deprecation 预审。
+- [x] 同步 README、项目状态、字节码生成说明、职责地图和优化路线图；后续 PR-75 已收口 `ValueResult` 旧字段兼容面 deprecation 预审。
 
 已使用的验证命令：
 
@@ -1688,6 +1688,154 @@ bin\lua_test.exe
 - `Expression Emitter` 过滤测试运行 3 个 selected tests / 14 个 results / 0 failures。
 - `Symbol Binding` 过滤测试运行 24 个 selected tests / 49 个 results / 0 failures。
 - 默认 `bin\lua_test.exe` 运行 548 个 registered tests / 2745 个 assertion results / 0 failures。
+
+## 已完成任务：ValueResult 旧字段 deprecation 预审
+
+### PR-75 / 3.5.4：`legacyFields()` compatibility bridge
+
+**目标：** 在字段级 `[[deprecated]]` 前先审计 `ValueResult` 旧公开字段的兼容面，把合法的 legacy mirror 读取集中到单一桥接入口，同时确认不会破坏 0 warning 质量门。
+
+决策：
+
+- 暂不直接把 `kind` / `reg` / `numberValue` 等旧字段标记为 `[[deprecated]]`。
+- 原因是 `ValueResult` 内部 payload 同步仍要写入这些 mirror 字段，drift characterization 测试也需要刻意改写旧字段；直接弃用会制造 warning 噪声，不符合当前 `/W4` + 0 warnings 策略。
+
+已完成：
+
+- [x] `ValueResult` 新增 `LegacyFields` 快照结构和 `legacyFields()` 访问器，作为旧字段读取的唯一兼容桥。
+- [x] `Codegen Result Types::ValueResult Legacy Snapshot Stays Synced` 改读 `legacyFields()`，不再把公开旧字段作为普通断言读取源。
+- [x] 保留 drift characterization 测试中的直接旧字段写入，用于证明 payload visitor 不受 legacy mirror 漂移影响，并明确这是后续 warning fence 的剩余边界。
+- [x] 同步项目状态、字节码生成说明、职责地图和优化路线图；后续 PR-76 已收口 `ValueResult` 旧字段 deprecation warning fence。
+
+已使用的验证命令：
+
+```powershell
+& 'D:\VS2026\2026\MSBuild\Current\Bin\MSBuild.exe' lua_test.vcxproj /m /p:Configuration=Debug /p:Platform=x64
+bin\lua_test.exe --filter "Codegen Result Types"
+bin\lua_test.exe
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\check_doc_drift.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_quality_gate.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_cmake_smoke.ps1
+```
+
+验收结果：
+
+- `lua_test.vcxproj` 在 `/W4` 下 0 warnings / 0 errors。
+- `Codegen Result Types` 过滤测试运行 5 个 selected tests / 40 个 results / 0 failures。
+- 默认 `bin\lua_test.exe` 运行 548 个 registered tests / 2745 个 assertion results / 0 failures。
+- 文档漂移检查、质量门和 CMake smoke 均通过；本机缺少 `clang-format` / `clang-tidy` 时质量门按既有增量策略跳过对应检查。
+
+## 已完成任务：ValueResult 旧字段 deprecation warning fence
+
+### PR-76 / 3.5.5：deprecated fields with explicit fences
+
+**目标：** 让 `ValueResult` 旧公开字段的新增直接访问变成可见 warning，同时保持内部 mirror 同步和 drift characterization 测试不污染 0 warning 构建。
+
+已完成：
+
+- [x] 新增 `src/common/diagnostics.hpp`，提供 `LUA_SUPPRESS_DEPRECATED_DECLARATIONS_BEGIN/END`，统一 MSVC / Clang / GCC 的 deprecation warning 抑制写法。
+- [x] `ValueResult` 的 `kind`、`immediate`、`access`、`reg`、`constIndex`、`aux`、`instructionPc`、`boolValue`、`numberValue`、`ownsRegister`、`isMultiResult` 和 `isSingleValue` 已标记为 `[[deprecated]]`。
+- [x] `legacyFields()`、`resetLegacyFields()` 和 `syncLegacyFieldsFromPayload()` 局部包进 warning fence，明确这些是兼容 mirror 边界。
+- [x] `Codegen Result Types` 和 `Expression Emitter` 的 drift 测试把旧字段改写集中到 helper，并只在 helper 上使用 warning fence。
+- [x] 同步 VS 项目文件、项目状态、字节码生成说明、职责地图和优化路线图；后续 PR-77 已收口 `ValueResult` 旧字段最终收口评估与回流护栏。
+
+已使用的验证命令：
+
+```powershell
+& 'D:\VS2026\2026\MSBuild\Current\Bin\MSBuild.exe' lua_test.vcxproj /m /p:Configuration=Debug /p:Platform=x64
+bin\lua_test.exe --filter "Codegen Result Types"
+bin\lua_test.exe --filter "Expression Emitter"
+bin\lua_test.exe
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\check_doc_drift.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_quality_gate.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_cmake_smoke.ps1
+```
+
+验收结果：
+
+- `lua_test.vcxproj` 在 `/W4` 下 0 warnings / 0 errors。
+- `Codegen Result Types` 过滤测试运行 5 个 selected tests / 40 个 results / 0 failures。
+- `Expression Emitter` 过滤测试运行 3 个 selected tests / 14 个 results / 0 failures。
+- 默认 `bin\lua_test.exe` 运行 548 个 registered tests / 2745 个 assertion results / 0 failures。
+- 文档漂移检查、质量门和 CMake smoke 均通过；本机缺少 `clang-format` / `clang-tidy` 时质量门按既有增量策略跳过对应检查。
+
+## 已完成任务：ValueResult 旧字段最终收口评估
+
+### PR-77 / 3.5.6：legacy field closure window
+
+**目标：** 评估 `ValueResult` 旧公开字段是否可以立即私有化或删除，并把评估结论转成自动化护栏，避免兼容窗口期间旧字段访问回流。
+
+评估结论：
+
+- 暂不立即私有化或删除旧字段。
+- 理由是字段仍作为 deprecated compatibility mirror 存在，`legacyFields()` 和 drift characterization 依赖该 mirror 描述迁移期行为；直接删除会把兼容迁移和测试意图混在同一个 PR 中。
+- 当前窗口策略是：保留 deprecated 字段，禁止新增普通直接访问；只有 `ValueResult` 内部 mirror 同步和显式 drift helper 可以使用 suppression fence。
+
+已完成：
+
+- [x] 新增 `tools/check_value_result_legacy_fields.ps1`，扫描 `ValueResult` 变量的旧字段直接访问，并要求访问必须位于受控 suppression fence 内。
+- [x] `run_quality_gate.ps1` 新增 `ValueResult legacy field fence` 步骤。
+- [x] `test_quality_gate.ps1` 增加配置测试，保证质量门继续调用该脚本。
+- [x] 当前审计结果为 34 个允许的 fenced accesses，全部来自 `codegen_types.hpp` 内部 mirror 或 drift characterization helper。
+- [x] 同步项目状态、字节码生成说明、职责地图和优化路线图；后续 PR-78 已完成宏开关式私有化试运行。
+
+已使用的验证命令：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\check_value_result_legacy_fields.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\test_quality_gate.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\check_doc_drift.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_quality_gate.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_cmake_smoke.ps1
+```
+
+验收标准：
+
+- `check_value_result_legacy_fields.ps1` 输出 34 个允许的 fenced accesses，并对未受控 `ValueResult` 旧字段访问失败。
+- `run_quality_gate.ps1` 必须包含并执行 `check_value_result_legacy_fields.ps1`。
+- `run_quality_gate.ps1` 通过；本机未发现 `clang-format` / `clang-tidy` 时按脚本设计跳过对应项，MSBuild 保持 0 warnings / 0 errors，单元测试保持 548 registered tests / 2745 assertion results / 0 failures。
+- `run_cmake_smoke.ps1` 通过，CTest 5/5。
+
+## 已完成任务：ValueResult 旧字段宏开关式私有化试运行
+
+### PR-78 / 3.5.7：macro-gated private mirror trial
+
+**目标：** 在默认兼容行为不变的前提下，提供一个可回滚的编译期试运行开关，验证 `ValueResult` 旧字段进入 private 区域后，生产代码和必要 characterization 测试是否仍能通过。
+
+评估结论：
+
+- 默认构建仍保留 deprecated 旧字段 public，继续服务兼容窗口。
+- `LUA_VALUE_RESULT_PRIVATE_LEGACY_FIELDS` 打开后，旧字段进入 `ValueResult` private 区域；普通调用面依旧通过 `payload()` / `visit()` / `legacyFields()`。
+- drift characterization 不再直接写旧字段，而是集中到 `detail::ValueResultLegacyMirrorProbe::overwriteForCharacterization()`，这样 private mirror 仍能保留必要的“payload 不受 legacy drift 影响”测试意图。
+
+已完成：
+
+- [x] `src/compiler/codegen/codegen_types.hpp` 新增 `LUA_VALUE_RESULT_PRIVATE_LEGACY_FIELDS` 可选访问级别开关。
+- [x] `CMakeLists.txt` 新增 `LUA_VALUE_RESULT_PRIVATE_LEGACY_FIELDS` 选项，并通过 `target_compile_definitions(lua_core PUBLIC ...)` 传递到 tools / tests。
+- [x] `tools/run_cmake_smoke.ps1` 支持额外 `-ConfigureArgs`。
+- [x] 新增 `tools/run_value_result_private_trial.ps1`，使用独立 `build\cmake-value-result-private` 构建目录打开 private trial。
+- [x] `Codegen Result Types` 和 `Expression Emitter` 的 drift helper 改用 `ValueResultLegacyMirrorProbe`，测试文件不再需要 deprecation suppression fence。
+- [x] `tools/check_value_result_legacy_fields.ps1` 的 suppression allowlist 收紧到 `codegen_types.hpp` 和 `diagnostics.hpp`。
+- [x] `tools/test_quality_gate.ps1` 增加 CMake option、private trial 脚本和 probe 配置自检。
+
+已使用的验证命令：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\check_value_result_legacy_fields.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\test_quality_gate.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\check_doc_drift.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_quality_gate.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_cmake_smoke.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_value_result_private_trial.ps1
+```
+
+验收标准：
+
+- `check_value_result_legacy_fields.ps1` 通过，当前 37 个允许的 fenced accesses 均位于受控兼容边界。
+- `run_quality_gate.ps1` 通过；本机未发现 `clang-format` / `clang-tidy` 时按脚本设计跳过对应项，MSBuild 保持 0 warnings / 0 errors，单元测试保持 548 registered tests / 2745 assertion results / 0 failures。
+- 默认 `run_cmake_smoke.ps1` 通过，CTest 5/5。
+- `run_value_result_private_trial.ps1` 打开 `LUA_VALUE_RESULT_PRIVATE_LEGACY_FIELDS=ON` 后 CMake configure/build 通过。
+- private trial 下 CTest 5/5 通过，说明外部调用面没有依赖旧字段 public 可见性。
 
 ## 维护规则
 

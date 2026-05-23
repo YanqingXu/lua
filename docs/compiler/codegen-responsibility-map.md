@@ -1,13 +1,13 @@
 ---
 status: current
-verified_against: src/compiler/codegen/codegen.hpp; src/compiler/codegen/codegen.cpp; src/compiler/codegen/codegen_binding.cpp; src/compiler/codegen/codegen_expr.cpp; src/compiler/codegen/expression_emitter.hpp; src/compiler/codegen/expression_emitter.cpp; src/compiler/codegen/statement_emitter.hpp; src/compiler/codegen/statement_emitter.cpp; src/compiler/codegen/codegen_jump.cpp; src/compiler/codegen/codegen_stmt.cpp; src/compiler/codegen/codegen_types.hpp; src/compiler/codegen/codegen_state.hpp; src/compiler/codegen/jump_patcher.hpp; src/compiler/codegen/jump_patcher.cpp; src/compiler/codegen/scope_manager.hpp; src/compiler/codegen/scope_manager.cpp; src/compiler/codegen/bytecode_builder.hpp; tests/unit/compiler/test_codegen_result_types.cpp; tests/unit/compiler/test_codegen_characterization.cpp; tests/unit/compiler/test_jump_patcher.cpp; tests/unit/compiler/test_scope_manager.cpp; tests/unit/compiler/test_expression_emitter.cpp; tests/unit/compiler/test_statement_emitter.cpp; tests/unit/compiler/test_symbol_binding.cpp
+verified_against: src/common/diagnostics.hpp; src/compiler/codegen/codegen.hpp; src/compiler/codegen/codegen.cpp; src/compiler/codegen/codegen_binding.cpp; src/compiler/codegen/codegen_expr.cpp; src/compiler/codegen/expression_emitter.hpp; src/compiler/codegen/expression_emitter.cpp; src/compiler/codegen/statement_emitter.hpp; src/compiler/codegen/statement_emitter.cpp; src/compiler/codegen/codegen_jump.cpp; src/compiler/codegen/codegen_stmt.cpp; src/compiler/codegen/codegen_types.hpp; src/compiler/codegen/codegen_state.hpp; src/compiler/codegen/jump_patcher.hpp; src/compiler/codegen/jump_patcher.cpp; src/compiler/codegen/scope_manager.hpp; src/compiler/codegen/scope_manager.cpp; src/compiler/codegen/bytecode_builder.hpp; tests/unit/compiler/test_codegen_result_types.cpp; tests/unit/compiler/test_codegen_characterization.cpp; tests/unit/compiler/test_jump_patcher.cpp; tests/unit/compiler/test_scope_manager.cpp; tests/unit/compiler/test_expression_emitter.cpp; tests/unit/compiler/test_statement_emitter.cpp; tests/unit/compiler/test_symbol_binding.cpp; tools/check_value_result_legacy_fields.ps1; tools/run_value_result_private_trial.ps1
 last_checked: 2026-05-23
-applies_to: CodeGenerator responsibilities after PR-74 ValueResult visitor second slice
+applies_to: CodeGenerator responsibilities after PR-78 ValueResult private-field trial
 ---
 
 # CodeGenerator 职责地图
 
-本文记录 2026-05-23 当前 `CodeGenerator` 的真实职责边界，用于指导 PR-45 之后的渐进拆分。PR-41 补齐职责地图和 characterization 测试；PR-42 已抽出 `JumpPatcher`，PR-43 已抽出 `ScopeManager`，PR-44 已抽出 `ExpressionEmitter`，PR-45 已抽出 `StatementEmitter`，PR-72 已完成 `ExpressionEmitter` 核心 `ValueResult` 读路径的 payload visitor 第一批迁移，PR-74 已将 compiler 单测的普通 ValueResult 读取断言迁移到 payload visitor 并确认 facade / statement 分片没有新增旧字段读点；`CodeGenerator` 仍保留兼容包装方法。
+本文记录 2026-05-23 当前 `CodeGenerator` 的真实职责边界，用于指导 PR-45 之后的渐进拆分。PR-41 补齐职责地图和 characterization 测试；PR-42 已抽出 `JumpPatcher`，PR-43 已抽出 `ScopeManager`，PR-44 已抽出 `ExpressionEmitter`，PR-45 已抽出 `StatementEmitter`，PR-72 已完成 `ExpressionEmitter` 核心 `ValueResult` 读路径的 payload visitor 第一批迁移，PR-74 已将 compiler 单测的普通 ValueResult 读取断言迁移到 payload visitor 并确认 facade / statement 分片没有新增旧字段读点，PR-75 已把合法 legacy mirror 读取集中到 `legacyFields()` 快照桥，PR-76 已给旧公开字段建立 `[[deprecated]]` warning fence，PR-77 已把旧字段回流检查接入质量门，PR-78 已新增宏开关式 private mirror 试运行；`CodeGenerator` 仍保留兼容包装方法。
 
 ## 当前结构
 
@@ -59,7 +59,7 @@ PR-41 新增 `tests/unit/compiler/test_codegen_characterization.cpp`，测试套
 | `Generic For Bytecode Shape Is Stable` | generic for 保留 `TFORLOOP` 和回到 loop body 的后跳，且没有 pending `JMP` | PR-42 / PR-43 |
 | `Jump Patcher` | 直接锁住 pending `jpc_` flush、旧式链表头尾方向、`PatchList` 显式回填、`TESTSET + NO_REG -> TEST` 和过长跳转错误 | PR-42 / PR-43 |
 | `Scope Manager` | 直接锁住 local 生命周期、`RETURN` 后冗余 `CLOSE` 抑制、breaklist 延迟进入 pending `jpc_`、upvalue 去重与查找 | PR-43 / PR-45 |
-| `Expression Emitter` | 直接锁住 `ExpressionEmitter` facade 构造、`emitValue` / `emitCondResult` / `emitLValue` 返回契约、immediate literal lowering，以及 payload 与旧字段漂移时 `materializeValue()` 仍按 payload 发射 | PR-44 / PR-45 / PR-72 / PR-74 |
+| `Expression Emitter` | 直接锁住 `ExpressionEmitter` facade 构造、`emitValue` / `emitCondResult` / `emitLValue` 返回契约、immediate literal lowering，以及 payload 与旧字段漂移时 `materializeValue()` 仍按 payload 发射 | PR-44 / PR-45 / PR-72 / PR-74 / PR-75 / PR-76 / PR-77 / PR-78 |
 | `Statement Emitter` | 直接锁住 `StatementEmitter` facade 构造、`statement()` / `block()` void 契约和空语句 lowering | PR-45 |
 
 相邻护栏仍包括：
@@ -75,7 +75,7 @@ PR-41 新增 `tests/unit/compiler/test_codegen_characterization.cpp`，测试套
 - PR-43 已完成；后续不要把 expression 或 statement lowering 塞进 `ScopeManager`。
 - PR-44 已完成；后续不要把 statement lowering 塞进 `ExpressionEmitter`。
 - PR-45 已完成；后续不要把 statement lowering 重新塞回 `CodeGenerator`，除非是兼容包装。
-- PR-48 已完成 `ValueResult` 的兼容式 `std::variant` payload prototype；PR-72 已新增 `ValueResultVisitor` / `ValueResult::visit()` 并迁移 `ExpressionEmitter` 核心读路径；PR-74 已把 `Codegen Result Types`、`Expression Emitter` 和 `Symbol Binding` 的普通断言读取面迁到 payload visitor。旧字段读取只应出现在 legacy mirror / drift characterization 这类明确命名的兼容测试中，后续迁移调用点时继续优先用 payload visitor。
+- PR-48 已完成 `ValueResult` 的兼容式 `std::variant` payload prototype；PR-72 已新增 `ValueResultVisitor` / `ValueResult::visit()` 并迁移 `ExpressionEmitter` 核心读路径；PR-74 已把 `Codegen Result Types`、`Expression Emitter` 和 `Symbol Binding` 的普通断言读取面迁到 payload visitor；PR-75 已新增 `legacyFields()` 快照桥，旧字段兼容读取应通过该入口表达；PR-76 已把旧公开字段标记为 `[[deprecated]]`；PR-77 已新增 `tools/check_value_result_legacy_fields.ps1`；PR-78 已新增 `LUA_VALUE_RESULT_PRIVATE_LEGACY_FIELDS` 和 `tools/run_value_result_private_trial.ps1`。旧字段直接读写只应出现在 legacy mirror 内部同步或 `detail::ValueResultLegacyMirrorProbe` 这类明确命名的兼容边界中，并用 `LUA_SUPPRESS_DEPRECATED_DECLARATIONS_*` 局部包裹；质量门会阻止新增普通直接访问，private trial 可验证调用面不依赖旧字段 public 可见性。
 - 每次新增 `.cpp` / `.hpp` 优先使用 `tools\add_source.ps1` 同步 `CMakeLists.txt`、`.vcxproj` 和 `.vcxproj.filters`；新增生产源文件用 `-Target Core`，新增测试用 `-Target Test`。
 
 ## 推荐验证命令
@@ -90,4 +90,5 @@ bin\lua_test.exe --filter "Codegen Result Types"
 bin\lua_test.exe --filter "ValueResult Pipeline"
 bin\lua_test.exe --filter "Call Pipeline"
 bin\lua_test.exe
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_value_result_private_trial.ps1
 ```

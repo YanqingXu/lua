@@ -3,6 +3,7 @@ param(
     [string]$Configuration = "Debug",
     [string]$Generator = "",
     [string]$Platform = "x64",
+    [string[]]$ConfigureArgs = @(),
     [switch]$Clean
 )
 
@@ -102,15 +103,16 @@ if ($Clean -and (Test-Path -LiteralPath $buildPath)) {
 Push-Location $root
 try {
     Invoke-Step "Configure CMake" {
-        $configureArgs = @("-S", $root, "-B", $buildPath)
+        $cmakeConfigureArgs = @("-S", $root, "-B", $buildPath)
         if ($Generator) {
-            $configureArgs += @("-G", $Generator)
+            $cmakeConfigureArgs += @("-G", $Generator)
             if ($Platform) {
-                $configureArgs += @("-A", $Platform)
+                $cmakeConfigureArgs += @("-A", $Platform)
             }
         }
+        $cmakeConfigureArgs += $ConfigureArgs
 
-        Invoke-NativeCommand $cmake $configureArgs
+        Invoke-NativeCommand $cmake $cmakeConfigureArgs
     }
 
     Invoke-Step "Build CMake targets" {

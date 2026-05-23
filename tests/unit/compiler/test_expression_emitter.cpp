@@ -38,6 +38,14 @@ ImmediatePayload readImmediatePayload(const ValueResult& value) {
     });
 }
 
+void desyncLegacyNumberFields(ValueResult& value) {
+    ValueResult::LegacyFields fields = value.legacyFields();
+    fields.kind = ValueResult::Kind::Register;
+    fields.reg = 42;
+    fields.numberValue = -1.0;
+    detail::ValueResultLegacyMirrorProbe::overwriteForCharacterization(value, fields);
+}
+
 }  // namespace
 
 void testExpressionEmitterPublicBoundary(TestSuite& suite) {
@@ -104,9 +112,7 @@ void testExpressionEmitterMaterializesPayloadWhenLegacyFieldsDrift(TestSuite& su
 
     ValueResult value = ValueResult::makeNumber(21.0);
     // Deliberately desync the compatibility fields; materialization should read the payload.
-    value.kind = ValueResult::Kind::Register;
-    value.reg = 42;
-    value.numberValue = -1.0;
+    desyncLegacyNumberFields(value);
 
     usize pc = proto->getInstructionCount();
     expressions.materializeValue(value, 0);

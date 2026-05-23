@@ -1,10 +1,15 @@
 ﻿#pragma once
 
+#include "common/diagnostics.hpp"
 #include "common/types.hpp"
 
 namespace Lua {
 
 constexpr i32 NO_JUMP = -1;
+
+namespace detail {
+struct ValueResultLegacyMirrorProbe;
+}
 
 template <typename... Visitors>
 struct ValueResultVisitor : Visitors... {
@@ -127,18 +132,47 @@ struct ValueResult {
     using Variant = std::variant<None, Immediate, ConstantRef, RegisterRef, PendingLoad, Relocatable,
                                  MultiRet, PendingJump>;
 
-    Kind kind = Kind::None;
-    ImmediateKind immediate = ImmediateKind::None;
-    AccessKind access = AccessKind::None;
-    i32 reg = -1;
-    i32 constIndex = -1;
-    i32 aux = -1;
-    i32 instructionPc = NO_JUMP;
-    bool boolValue = false;
-    f64 numberValue = 0.0;
-    bool ownsRegister = false;
-    bool isMultiResult = false;
-    bool isSingleValue = true;
+    struct LegacyFields {
+        Kind kind = Kind::None;
+        ImmediateKind immediate = ImmediateKind::None;
+        AccessKind access = AccessKind::None;
+        i32 reg = -1;
+        i32 constIndex = -1;
+        i32 aux = -1;
+        i32 instructionPc = NO_JUMP;
+        bool boolValue = false;
+        f64 numberValue = 0.0;
+        bool ownsRegister = false;
+        bool isMultiResult = false;
+        bool isSingleValue = true;
+    };
+
+#define LUA_VALUE_RESULT_LEGACY_FIELD \
+    [[deprecated("Use ValueResult::payload()/visit(); legacyFields() is only for compatibility snapshots.")]]
+
+#ifdef LUA_VALUE_RESULT_PRIVATE_LEGACY_FIELDS
+private:
+#endif
+
+    // Compatibility mirror for older call sites. New code should read payload()/visit() instead.
+    LUA_VALUE_RESULT_LEGACY_FIELD Kind kind = Kind::None;
+    LUA_VALUE_RESULT_LEGACY_FIELD ImmediateKind immediate = ImmediateKind::None;
+    LUA_VALUE_RESULT_LEGACY_FIELD AccessKind access = AccessKind::None;
+    LUA_VALUE_RESULT_LEGACY_FIELD i32 reg = -1;
+    LUA_VALUE_RESULT_LEGACY_FIELD i32 constIndex = -1;
+    LUA_VALUE_RESULT_LEGACY_FIELD i32 aux = -1;
+    LUA_VALUE_RESULT_LEGACY_FIELD i32 instructionPc = NO_JUMP;
+    LUA_VALUE_RESULT_LEGACY_FIELD bool boolValue = false;
+    LUA_VALUE_RESULT_LEGACY_FIELD f64 numberValue = 0.0;
+    LUA_VALUE_RESULT_LEGACY_FIELD bool ownsRegister = false;
+    LUA_VALUE_RESULT_LEGACY_FIELD bool isMultiResult = false;
+    LUA_VALUE_RESULT_LEGACY_FIELD bool isSingleValue = true;
+
+#undef LUA_VALUE_RESULT_LEGACY_FIELD
+
+#ifdef LUA_VALUE_RESULT_PRIVATE_LEGACY_FIELDS
+public:
+#endif
 
     [[nodiscard]] const Variant& payload() const noexcept {
         return payload_;
@@ -156,6 +190,26 @@ struct ValueResult {
     template <typename Visitor>
     decltype(auto) visit(Visitor&& visitor) {
         return std::visit(std::forward<Visitor>(visitor), payload_);
+    }
+
+    [[nodiscard]] LegacyFields legacyFields() const noexcept {
+        LUA_SUPPRESS_DEPRECATED_DECLARATIONS_BEGIN
+        LegacyFields fields{
+            kind,
+            immediate,
+            access,
+            reg,
+            constIndex,
+            aux,
+            instructionPc,
+            boolValue,
+            numberValue,
+            ownsRegister,
+            isMultiResult,
+            isSingleValue,
+        };
+        LUA_SUPPRESS_DEPRECATED_DECLARATIONS_END
+        return fields;
     }
 
     static ValueResult makeNil() {
@@ -219,9 +273,12 @@ struct ValueResult {
     }
 
 private:
+    friend struct detail::ValueResultLegacyMirrorProbe;
+
     Variant payload_ = None{};
 
     void resetLegacyFields() noexcept {
+        LUA_SUPPRESS_DEPRECATED_DECLARATIONS_BEGIN
         kind = Kind::None;
         immediate = ImmediateKind::None;
         access = AccessKind::None;
@@ -234,11 +291,13 @@ private:
         ownsRegister = false;
         isMultiResult = false;
         isSingleValue = true;
+        LUA_SUPPRESS_DEPRECATED_DECLARATIONS_END
     }
 
     void syncLegacyFieldsFromPayload() {
         resetLegacyFields();
 
+        LUA_SUPPRESS_DEPRECATED_DECLARATIONS_BEGIN
         struct Visitor {
             ValueResult& result;
 
@@ -292,8 +351,33 @@ private:
         };
 
         std::visit(Visitor{*this}, payload_);
+        LUA_SUPPRESS_DEPRECATED_DECLARATIONS_END
     }
 };
+
+namespace detail {
+
+struct ValueResultLegacyMirrorProbe {
+    static void overwriteForCharacterization(ValueResult& value,
+                                             const ValueResult::LegacyFields& fields) noexcept {
+        LUA_SUPPRESS_DEPRECATED_DECLARATIONS_BEGIN
+        value.kind = fields.kind;
+        value.immediate = fields.immediate;
+        value.access = fields.access;
+        value.reg = fields.reg;
+        value.constIndex = fields.constIndex;
+        value.aux = fields.aux;
+        value.instructionPc = fields.instructionPc;
+        value.boolValue = fields.boolValue;
+        value.numberValue = fields.numberValue;
+        value.ownsRegister = fields.ownsRegister;
+        value.isMultiResult = fields.isMultiResult;
+        value.isSingleValue = fields.isSingleValue;
+        LUA_SUPPRESS_DEPRECATED_DECLARATIONS_END
+    }
+};
+
+}  // namespace detail
 
 struct LValueRef {
     enum class Kind {

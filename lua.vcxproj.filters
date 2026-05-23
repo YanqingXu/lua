@@ -279,6 +279,9 @@
     <ClInclude Include="src\common\config.hpp">
       <Filter>src\common</Filter>
     </ClInclude>
+    <ClInclude Include="src\common\diagnostics.hpp">
+      <Filter>src\common</Filter>
+    </ClInclude>
     <ClInclude Include="src\core\function.hpp">
       <Filter>src\core</Filter>
     </ClInclude>
