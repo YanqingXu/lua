@@ -44,7 +44,7 @@ applies_to: 当前仓库事实与面向贡献者的工作流
 ## 测试状态
 
 - 测试框架：自定义轻量级 C++ 测试框架，vendored 在 `lua_test/include/test_framework`，由 `tests/unit/framework` 适配。
-- 最近验证的测试计数：515 个 registered tests，2531 个 assertion results，0 failures。
+- 最近验证的测试计数：515 个 registered tests，2557 个 assertion results，0 failures。
 - `bin\lua_test.exe` 支持 `--list`、`--filter <suite-or-name>` 和 `--report=junit`。
 - 这些数字描述的是项目测试运行器结果，不是 Lua 5.1.5 兼容率百分比。
 

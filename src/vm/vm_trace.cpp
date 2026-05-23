@@ -15,6 +15,8 @@
 #include "vm/state/stack.hpp"
 #include "vm/vm.hpp"
 
+#include <format>
+
 namespace Lua {
 
 namespace {
@@ -28,6 +30,37 @@ const char* sourceName(Proto* proto) {
     return proto != nullptr && proto->getSource() != nullptr
                ? proto->getSource()->c_str()
                : "?";
+}
+
+Str protoFunctionName(Proto* proto) {
+    if (proto == nullptr) {
+        return "?";
+    }
+
+    const char* source = sourceName(proto);
+    const i32 lineDefined = proto->getLineDefined();
+    if (lineDefined > 0) {
+        return std::format("{}:{}", source, lineDefined);
+    }
+
+    return source;
+}
+
+Str functionNameFromValue(const Value& value) {
+    if (!value.isFunction()) {
+        return "?";
+    }
+
+    Function* function = value.asFunction();
+    if (function == nullptr) {
+        return "?";
+    }
+
+    if (function->isCFunction()) {
+        return "C function";
+    }
+
+    return protoFunctionName(function->getProto());
 }
 
 Value registerValueAt(LuaState* L, usize frameBase, i32 slot) {
@@ -58,6 +91,7 @@ TraceEvent makeInstructionEvent(Proto* proto, Value* base, usize instructionPc,
     event.line = proto->getLine(instructionPc);
     event.source = sourceName(proto);
     event.callDepth = callDepth;
+    event.funcName = protoFunctionName(proto);
     event.base = base;
     event.maxStack = proto->getMaxStackSize();
     event.proto = proto;
@@ -206,26 +240,23 @@ void emitCallTrace(Proto* proto, Value* base, usize instructionPc,
     event.callDepth = callDepth;
 
     Value& callee = base[registerIndex];
-    if (callee.isFunction()) {
-        Function* calleeFunction = callee.asFunction();
-        if (calleeFunction->getProto() != nullptr &&
-            calleeFunction->getProto()->getSource() != nullptr) {
-            event.funcName = calleeFunction->getProto()->getSource()->c_str();
-        }
-    }
+    event.funcName = functionNameFromValue(callee);
 
     g_traceSink->onCall(event);
 }
 
-void emitReturnTrace(i32 callDepth) {
-    if (g_traceSink == nullptr) {
+void emitReturnTrace(Proto* proto, usize instructionPc, i32 callDepth) {
+    if (g_traceSink == nullptr || proto == nullptr) {
         return;
     }
 
     TraceEvent event;
     event.seq = g_traceSeq++;
     event.kind = TraceEventKind::Return;
+    event.line = proto->getLine(instructionPc);
+    event.source = sourceName(proto);
     event.callDepth = callDepth;
+    event.funcName = protoFunctionName(proto);
 
     g_traceSink->onReturn(event);
 }

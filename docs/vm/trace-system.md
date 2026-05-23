@@ -43,10 +43,10 @@ There is no checked-in HTML trace viewer yet. Earlier viewer ideas are historica
 
 ## Instruction Event
 
-Instruction events include decoded operands and source location. Plain `--trace` also includes a full frame register snapshot when the VM can provide one:
+Instruction events include decoded operands, source location, and the current function label. Plain `--trace` also includes a full frame register snapshot when the VM can provide one:
 
 ```json
-{"seq":0,"kind":"instruction","pc":0,"op":"LOADK","a":0,"b":0,"c":0,"bx":0,"sbx":0,"line":1,"source":"examples/hello.lua","callDepth":1,"registers":[]}
+{"seq":0,"kind":"instruction","funcName":"examples/hello.lua","pc":0,"op":"LOADK","a":0,"b":0,"c":0,"bx":0,"sbx":0,"line":1,"source":"examples/hello.lua","callDepth":1,"registers":[]}
 ```
 
 Fields:
@@ -55,6 +55,7 @@ Fields:
 |---|---|
 | `seq` | Monotonic event sequence number |
 | `kind` | `"instruction"` |
+| `funcName` | Readable current function label, normally `source` or `source:linedefined` |
 | `pc` | Program counter within the current `Proto` |
 | `op` | Opcode name |
 | `a`, `b`, `c`, `bx`, `sbx` | Decoded instruction operands |
@@ -69,13 +70,15 @@ Fields:
 Call events are emitted around visible VM call points:
 
 ```json
-{"seq":3,"kind":"call","funcName":"?","source":"examples/hello.lua","line":1,"callDepth":2}
+{"seq":3,"kind":"call","funcName":"examples/hello.lua:1","source":"examples/hello.lua","line":1,"callDepth":2}
 ```
 
-Return events are smaller:
+For call events, `funcName` names the callee when it is known. For instruction and return events, it names the active or returning `Proto`.
+
+Return events include the same function label and source location:
 
 ```json
-{"seq":8,"kind":"return","callDepth":1}
+{"seq":8,"kind":"return","funcName":"examples/hello.lua:1","source":"examples/hello.lua","line":2,"callDepth":1}
 ```
 
 ## Register Snapshots
@@ -96,7 +99,7 @@ The serializer is observational only: it reads VM values and does not mutate sta
 `--trace-diff <file>` captures the frame before each instruction, executes the handler, and then writes only the slots whose value changed. Diff instruction events omit the full `registers` snapshot and add `changedRegisters`:
 
 ```json
-{"seq":1,"kind":"instruction","pc":1,"op":"ADD","a":0,"b":0,"c":1,"bx":1,"sbx":-131070,"line":2,"source":"examples/math.lua","callDepth":1,"changedRegisters":[{"slot":0,"name":"x","old":1,"new":3,"oldType":"number","newType":"number"}]}
+{"seq":1,"kind":"instruction","funcName":"examples/math.lua","pc":1,"op":"ADD","a":0,"b":0,"c":1,"bx":1,"sbx":-131070,"line":2,"source":"examples/math.lua","callDepth":1,"changedRegisters":[{"slot":0,"name":"x","old":1,"new":3,"oldType":"number","newType":"number"}]}
 ```
 
 Each changed register entry includes:
@@ -130,6 +133,7 @@ main.cpp
 - No committed HTML or browser viewer.
 - No opcode/function-level trace filtering yet.
 - Error events are represented in the schema but are not yet emitted by the VM error paths.
+- C function call events use the generic `C function` label because C closures do not currently carry debug names.
 - Trace sink state is global, matching the current VM entry-point shape.
 
 ## Verification

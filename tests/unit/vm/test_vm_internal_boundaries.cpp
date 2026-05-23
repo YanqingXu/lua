@@ -77,7 +77,7 @@ void testTraceAndDebugHelpersExposeStableSignatures(TestSuite& suite) {
     static_assert(std::is_same_v<decltype(&VM::detail::emitCallTrace),
                                  void (*)(Proto*, Value*, usize, i32, i32)>);
     static_assert(std::is_same_v<decltype(&VM::detail::emitReturnTrace),
-                                 void (*)(i32)>);
+                                 void (*)(Proto*, usize, i32)>);
 
     ASSERT_TRUE(suite, true, "trace and debug helper signatures are stable");
 }

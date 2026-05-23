@@ -91,10 +91,11 @@ void JsonTraceSink::onInstruction(const TraceEvent& evt) {
     }
 
     file_ << std::format(
-        "{{\"seq\":{},\"kind\":\"instruction\",\"pc\":{},\"op\":\"{}\","
+        "{{\"seq\":{},\"kind\":\"instruction\",\"funcName\":\"{}\",\"pc\":{},\"op\":\"{}\","
         "\"a\":{},\"b\":{},\"c\":{},\"bx\":{},\"sbx\":{},\"line\":{},"
         "\"source\":\"{}\",\"callDepth\":{}{}{}}}\n",
         evt.seq,
+        Trace::jsonEscape(evt.funcName),
         evt.pc,
         getOpName(evt.op),
         evt.a,
@@ -118,7 +119,7 @@ void JsonTraceSink::onCall(const TraceEvent& evt) {
         "{{\"seq\":{},\"kind\":\"call\",\"funcName\":\"{}\","
         "\"source\":\"{}\",\"line\":{},\"callDepth\":{}}}\n",
         evt.seq,
-        Trace::jsonEscape(evt.funcName ? evt.funcName : "?"),
+        Trace::jsonEscape(evt.funcName),
         Trace::jsonEscape(evt.source ? evt.source : "?"),
         evt.line,
         evt.callDepth
@@ -130,8 +131,12 @@ void JsonTraceSink::onReturn(const TraceEvent& evt) {
     if (!file_.is_open() || reachedLimit()) return;
 
     file_ << std::format(
-        "{{\"seq\":{},\"kind\":\"return\",\"callDepth\":{}}}\n",
+        "{{\"seq\":{},\"kind\":\"return\",\"funcName\":\"{}\","
+        "\"source\":\"{}\",\"line\":{},\"callDepth\":{}}}\n",
         evt.seq,
+        Trace::jsonEscape(evt.funcName),
+        Trace::jsonEscape(evt.source ? evt.source : "?"),
+        evt.line,
         evt.callDepth
     );
     ++eventCount_;
@@ -141,9 +146,10 @@ void JsonTraceSink::onError(const TraceEvent& evt) {
     if (!file_.is_open() || reachedLimit()) return;
 
     file_ << std::format(
-        "{{\"seq\":{},\"kind\":\"error\",\"message\":\"{}\","
+        "{{\"seq\":{},\"kind\":\"error\",\"funcName\":\"{}\",\"message\":\"{}\","
         "\"source\":\"{}\",\"line\":{},\"callDepth\":{}}}\n",
         evt.seq,
+        Trace::jsonEscape(evt.funcName),
         Trace::jsonEscape(evt.errorMsg ? evt.errorMsg : ""),
         Trace::jsonEscape(evt.source ? evt.source : "?"),
         evt.line,

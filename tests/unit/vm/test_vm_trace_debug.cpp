@@ -168,6 +168,18 @@ void testTraceEventsKeepInstructionCallReturnOrder(TestSuite& suite) {
         ASSERT_TRUE(suite, sink.events[firstCall].callDepth > 0, "call trace records call depth");
     }
 
+    for (const TraceEvent& event : sink.events) {
+        ASSERT_TRUE(suite, !event.funcName.empty(), "trace event records a function name");
+        ASSERT_TRUE(suite, event.funcName != "?", "trace event function name is resolved");
+    }
+
+    ASSERT_EQ(suite, Str("test_vm_trace_order.lua"), sink.events[firstInstruction].funcName,
+              "instruction trace uses current proto name");
+    ASSERT_EQ(suite, Str("test_vm_trace_order.lua:1"), sink.events[firstCall].funcName,
+              "call trace uses callee proto name");
+    ASSERT_EQ(suite, Str("test_vm_trace_order.lua:1"), sink.events[firstReturn].funcName,
+              "return trace uses returning proto name");
+
     delete L;
 }
 
@@ -241,6 +253,7 @@ void testJsonTraceSinkWritesStableJsonLines(TestSuite& suite) {
         instruction.line = 99;
         instruction.source = "trace \"src\"\n.lua";
         instruction.callDepth = 2;
+        instruction.funcName = "trace\"fn";
         instruction.includeChangedRegisters = true;
         TraceRegisterChange change;
         change.slot = 1;
@@ -265,12 +278,16 @@ void testJsonTraceSinkWritesStableJsonLines(TestSuite& suite) {
         TraceEvent ret;
         ret.seq = 9;
         ret.kind = TraceEventKind::Return;
+        ret.funcName = "ret\"fn";
+        ret.source = "return.lua";
+        ret.line = 13;
         ret.callDepth = 2;
         sink.onReturn(ret);
 
         TraceEvent error;
         error.seq = 10;
         error.kind = TraceEventKind::Error;
+        error.funcName = "err\"fn";
         error.errorMsg = "bad\tthing";
         error.source = "err.lua";
         error.line = 14;
@@ -283,7 +300,7 @@ void testJsonTraceSinkWritesStableJsonLines(TestSuite& suite) {
 
     const Str content = readTextFile(path);
     ASSERT_TRUE(suite, content.find(
-        "{\"seq\":7,\"kind\":\"instruction\",\"pc\":3,\"op\":\"LOADK\","
+        "{\"seq\":7,\"kind\":\"instruction\",\"funcName\":\"trace\\\"fn\",\"pc\":3,\"op\":\"LOADK\","
         "\"a\":1,\"b\":2,\"c\":3,\"bx\":4,\"sbx\":-5,\"line\":99,"
         "\"source\":\"trace \\\"src\\\"\\n.lua\",\"callDepth\":2,"
         "\"changedRegisters\":[{\"slot\":1,\"name\":\"x\",\"old\":null,"
@@ -295,11 +312,14 @@ void testJsonTraceSinkWritesStableJsonLines(TestSuite& suite) {
     ) != Str::npos, "call trace JSON line is stable");
     ASSERT_TRUE(
         suite,
-        content.find("{\"seq\":9,\"kind\":\"return\",\"callDepth\":2}") != Str::npos,
+        content.find(
+            "{\"seq\":9,\"kind\":\"return\",\"funcName\":\"ret\\\"fn\","
+            "\"source\":\"return.lua\",\"line\":13,\"callDepth\":2}"
+        ) != Str::npos,
         "return trace JSON line is stable"
     );
     ASSERT_TRUE(suite, content.find(
-        "{\"seq\":10,\"kind\":\"error\",\"message\":\"bad\\tthing\","
+        "{\"seq\":10,\"kind\":\"error\",\"funcName\":\"err\\\"fn\",\"message\":\"bad\\tthing\","
         "\"source\":\"err.lua\",\"line\":14,\"callDepth\":1}"
     ) != Str::npos, "error trace JSON line is stable");
 
@@ -336,6 +356,8 @@ void testTraceDiffWritesChangedRegisters(TestSuite& suite) {
     const Str content = readTextFile(path);
     ASSERT_TRUE(suite, content.find("\"changedRegisters\"") != Str::npos,
                 "trace diff writes changedRegisters");
+    ASSERT_TRUE(suite, content.find("\"funcName\":\"test_vm_trace_diff.lua\"") != Str::npos,
+                "trace diff writes instruction function names");
     ASSERT_TRUE(suite, content.find("\"registers\"") == Str::npos,
                 "trace diff omits full register snapshots");
     ASSERT_TRUE(suite, content.find("\"old\":null") != Str::npos,

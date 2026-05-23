@@ -100,11 +100,12 @@ HandlerStatus handleTailCall(OpExecutionContext& context, Instruction inst) {
 
 HandlerStatus handleReturn(OpExecutionContext& context, Instruction inst) {
     LuaState* state = requireState(context);
+    Proto* proto = requireProto(context);
 
     i32 a = GETARG_A(inst);
     i32 b = GETARG_B(inst);
 
-    detail::emitReturnTrace(context.nexeccalls);
+    detail::emitReturnTrace(proto, context.instructionPc, context.nexeccalls);
     detail::dispatchReturnHook(state);
     context.base = refreshBase(state);
 

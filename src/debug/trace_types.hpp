@@ -47,10 +47,10 @@ struct TraceRegisterChange {
  * @brief Trace 事件结构体
  *
  * 扁平结构，根据 kind 字段决定哪些字段有效。
- * - Instruction: 全部字段有效
+ * - Instruction: seq, kind, pc/op/operands, source, line, callDepth, funcName
  * - Call:        seq, kind, source, line, callDepth, funcName
- * - Return:      seq, kind, callDepth
- * - Error:       seq, kind, source, line, callDepth, errorMsg
+ * - Return:      seq, kind, source, line, callDepth, funcName
+ * - Error:       seq, kind, source, line, callDepth, funcName, errorMsg
  */
 struct TraceEvent {
     u64             seq       = 0;          ///< 全局递增序号
@@ -71,7 +71,7 @@ struct TraceEvent {
 
     // ---- 调用信息 ----
     i32             callDepth = 0;          ///< 当前调用深度
-    const char*     funcName  = nullptr;    ///< 函数名（Call 事件用）
+    Str             funcName  = "?";        ///< 可读函数名或 source:line 标签
 
     // ---- 寄存器快照上下文（由 sink 读取，不拥有内存）----
     Value*          base      = nullptr;    ///< 寄存器基地址

@@ -53,7 +53,7 @@ Vec<Value> captureTraceRegisters(LuaState* L, usize frameBase, i32 maxStack);
 void emitInstructionTraceDiff(Proto* proto, LuaState* L, usize frameBase, usize instructionPc,
                               Instruction inst, i32 callDepth, const Vec<Value>& before);
 void emitCallTrace(Proto* proto, Value* base, usize instructionPc, i32 registerIndex, i32 callDepth);
-void emitReturnTrace(i32 callDepth);
+void emitReturnTrace(Proto* proto, usize instructionPc, i32 callDepth);
 
 void gettable(LuaState* L, Value t, const Value& key, Value& result);
 void settable(LuaState* L, Value t, const Value& key, const Value& val);

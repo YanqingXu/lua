@@ -2,9 +2,9 @@
 
 > 适用范围：`g:\github\lua`（现代 C++ Lua 5.1.5 解释器）
 > 设计目标：**可读性 > 可维护性 > 教育价值 > 性能**
-> 约束：保持 515 个注册测试 / 2531 个断言结果 / 0 失败，不破坏 `LuaState` / `VM` public API。
+> 约束：保持 515 个注册测试 / 2557 个断言结果 / 0 失败，不破坏 `LuaState` / `VM` public API。
 > 最近审计：2026-05-21（深度审计报告，覆盖 Readability / Extensibility / Educational Value 三维度）
-> 最近同步：2026-05-23（PR-52：`gc-cycle.md` walkthrough 落地，并同步教学索引）
+> 最近同步：2026-05-23（PR-53：`TraceEvent` 统一 `funcName` 填充，并同步 JSONL trace schema）
 
 ---
 
@@ -371,7 +371,7 @@ using ValueResult = std::variant<
 | 编号 | 增强 | 备注 | 状态 |
 |---|---|---|---|
 | 4.5.1 | `--trace-diff` 模式 | JSONL 中增加 `changedRegisters` 字段，记录每条指令引起的寄存器变化 | ✓ **已完成 — PR-51** |
-| 4.5.2 | `TraceEvent` 统一 `funcName` 填充 | 确保每个 event 都有可读的函数名（当前指令事件中 funcName 可能缺失） | 待实现 |
+| 4.5.2 | `TraceEvent` 统一 `funcName` 填充 | 确保 instruction / call / return / error JSONL event 都带 `funcName`；Lua `Proto` 使用 `source` 或 `source:linedefined` 标签，C 函数使用 `C function` | ✓ **已完成 — PR-53** |
 
 ---
 
@@ -379,7 +379,7 @@ using ValueResult = std::variant<
 
 ### 5.1 测试覆盖精细化
 
-**现状**：515 个注册测试 / 2531 个断言结果 / 0 失败，目录 `tests/unit/`、`tests/lua/`。
+**现状**：515 个注册测试 / 2557 个断言结果 / 0 失败，目录 `tests/unit/`、`tests/lua/`。
 
 **改进方向**（仅修改现有测试文件，不主动新建）：
 
@@ -441,12 +441,13 @@ using ValueResult = std::variant<
 | PR-50 | `closure-and-upvalue.md` walkthrough，覆盖闭包捕获、`CLOSURE` 伪指令、`GETUPVAL` / `SETUPVAL` 和 open-to-closed upvalue 生命周期 | 4.3.2 |
 | PR-51 | `--trace-diff` + `changedRegisters`，CLI 增量开关、VM 指令后差异发射、JSONL schema 与测试覆盖 | 4.5.1 |
 | PR-52 | `gc-cycle.md` walkthrough，覆盖 weak table、userdata `__gc`、finalizer 复活、弱表清理和 sweep 顺序 | 4.3.3 |
+| PR-53 | `TraceEvent` 统一 `funcName` 填充，instruction / call / return / error JSONL schema 与测试覆盖同步 | 4.5.2 |
 
 后续推荐顺序：
 
 | PR | 编号 | 任务 | 阶段 | 依赖 / 理由 |
 |---|---|---|---|---|
-| PR-53 | 4.5.2 | `TraceEvent` 统一 `funcName` 填充 | 4 | P3；Trace diff 已落地，继续提升 JSONL trace 的可读定位能力 |
+| PR-54 | 5.1.1 | 指令级覆盖矩阵 | 5 | P0；Trace 可读性已补齐，下一步优先把 38 条 opcode 的正向 / 边界 / metamethod 覆盖缺口显性化 |
 
 每个 PR 完成后跑：
 
@@ -454,3 +455,151 @@ using ValueResult = std::variant<
 .\tools\run_quality_gate.ps1
 .\bin\lua_test.exe
 ```
+
+---
+
+## 附录：完成度审计（2026-05-23）
+
+> 审计方法：逐条对照文档任务编号，以当前代码库实际状态验证每个标记为"待执行"/"P3 待执行"/"P4 候选"/"待实现"的条目。已完成项以 ✓ 复核确认。
+
+### 审计结果总览
+
+| 阶段 | 文档自评 | 实际评估 | 偏差 | 关键差距 |
+|---|---|---|---|---|
+| 阶段 1 — 短期代码清理 | ~90% | **~93%** | +3% | 仅 `tokenString` 集中化未做（P3 低风险） |
+| 阶段 2 — 中期模式重构 | ~88% | **~80%** | −8% | GCStrategy 抽象、lib_manager 声明清理、Visitor 去重均未落地 |
+| 阶段 3 — 现代 C++ 特性 | ~90% | **~90%** | 0 | ValueResult variant prototype 已就位，后续 std::visit 迁移为渐进工作 |
+| 阶段 4 — 教育价值增强 | ~70% | **~58%** | −12% | REPL 5 项增强中 4 项未做、字节码 3 项高级功能未做 |
+| 阶段 5 — 工程实践 | ~75% | **~68%** | −7% | 测试矩阵文档、golden 测试、add_source 脚本均缺失 |
+| **加权综合** | **~83%** | **~74%** | **−9%** | |
+
+---
+
+### 逐阶段逐任务核实
+
+#### 阶段 1 核验
+
+| 编号 | 文档标记 | 代码库实际 | 判定 |
+|---|---|---|---|
+| 1.1.1 | ✓ 已完成 | `src/vm/vm_switch_dispatch.hpp` 存在，每 opcode 独立 inline 函数 | ✓ 确认 |
+| 1.1.2 | ✓ 已完成 | `src/gc/` 下 `gc_mark.cpp` / `gc_sweep.cpp` / `gc_finalize.cpp` / `gc_weak.cpp` 均已存在 | ✓ 确认 |
+| 1.1.3 | ✓ 已完成 | `check_doc_drift.ps1` 已含 dispatchStrategy 字段守卫 | ✓ 确认 |
+| 1.2 命名清理 | ✓ 已完成 | `CodegenState` 成员已改名 `registers` / `localScope` / `blockManager` / `upvalueContext`；`activeVarCount` 已收口 | ✓ 确认 |
+| 1.2 tokenString | 文档提及"P3 后续低风险" | `Parser::tokenString` 仍在 `parser.hpp:137` 定义，被 4 个 `parser_*.cpp` 分别使用，未集中到 `parser_utils.hpp` | ✗ 未完成 |
+| 1.3.1 | ✓ 已完成 | `VM::detail::captureRuntimeErrors<T>()` / `mapExceptionToUnexpected()` 已提取 | ✓ 确认 |
+
+**结论**：仅 `tokenString` 一个 P3 项遗留，其余全部兑现。实际完成度略高于文档自评。
+
+#### 阶段 2 核验
+
+| 编号 | 文档标记 | 代码库实际 | 判定 |
+|---|---|---|---|
+| 2.1 Visitor | ✓ 已完成 | `ExprVisitor<Derived, R>` + `StmtVisitor<Derived, R>` + concepts 完整 | ✓ 确认 |
+| 2.1.1 | P3 待执行 | 无 `AstVisitor<Derived, R>` 组合模板，两个 Visitor 各自独立 | ✗ 未完成 |
+| 2.1.2 | P3 待执行 | `ExprVisitor::canVisitNode()` / `canVisitAll()` 与 `StmtVisitor` 内同名方法逻辑完全重复，未提取公共实现 | ✗ 未完成 |
+| 2.2 VM Dispatch | ✓ 已完成 | `DispatchStrategy` + `SwitchDispatch` + `TableDispatch` + `HandlerTable` (38 条目, 9 组注册) | ✓ 确认 |
+| 2.3 GC 去单例 | ✓ 已完成 | `GarbageCollector::sweep(StringPool&)` / `clearAll(StringPool&)` 已收口；`getInstance()` 标记 `[[deprecated]]` | ✓ 确认 |
+| 2.3 GCStrategy | 待执行 | 无 `GCStrategy` 基类、无 `MarkSweepGC` / `IncrementalGC` 子类、无 `collectgarbage("strategy",...)` 子命令 | ✗ 未完成 |
+| 2.4 模式文档 | ✓ 已完成 | `docs/architecture/patterns.md` 已记录 | ✓ 确认 |
+| 2.5 CodeGen 拆分 | ✓ 已完成 | 五个子任务 (2.5.1-a ∼ 2.5.1-e) 全部落地：`jump_patcher` / `scope_manager` / `expression_emitter` / `statement_emitter` | ✓ 确认 |
+| 2.6.1 | P3 待执行 | `lib_manager.hpp` 仍保留 7 个 `openXxx()` 方法声明，无 `[[deprecated]]` 标记 | ✗ 未完成 |
+| 2.6.2 | P4 候选 | 代码库中不存在 `LibRegistrar` 类 | ✗ 未完成 |
+
+**结论**：核心重构（Visitor、Dispatch、CodeGen 拆分）全部落地且质量高。**GCStrategy 抽象是整个路线图中最大的未完成设计项**——它同时阻塞阶段 4 的 REPL `.gc` 命令和阶段 5 的 GC 策略等价性测试。`lib_manager.hpp` 冗余声明和 Visitor 内部去重属于低优先级清理。
+
+#### 阶段 3 核验
+
+| 编号 | 文档标记 | 代码库实际 | 判定 |
+|---|---|---|---|
+| 3.1 `std::expected` | ✓ 已完成 | `Parser::parse()` / `CodeGenerator::tryGenerate()` / `VM::tryExecuteProto()` 三个入口全部 expected | ✓ 确认 |
+| 3.2 concepts | ✓ 已完成 | `VisitsNode` / `VisitsNodeAs` / `VisitsExprNodes` / `VisitsStmtNodes` + `visitsVariantNodes` compile-time check | ✓ 确认 |
+| 3.3 `std::format` | ✓ 已完成 | debug / repl / bytecode / 标准库格式化均已迁移 | ✓ 确认 |
+| 3.4 其它 | ✓ 基本完成 | `[[nodiscard]]` / `std::span` / `constexpr` opcode 表 / `string_view` 均已覆盖 | ✓ 确认 |
+| 3.5.1 ValueResult variant | ✓ 已完成 | `std::variant` payload prototype 已合入，工厂函数覆盖 ExpressionEmitter / StatementEmitter 主要构造点 | ✓ 确认 |
+| 3.5 后续迁移 | 隐含待执行 | 旧字段读面仍保留，调用点尚未迁移到 `std::visit` | ⚠ 渐进进行中 |
+
+**结论**：现代 C++ 特性应用是五个阶段中完成度最高的，文档自评 90% 准确。ValueResult 的 variant 迁移是渐进式工作，prototype 阶段已达标。
+
+#### 阶段 4 核验
+
+| 编号 | 文档标记 | 代码库实际 | 判定 |
+|---|---|---|---|
+| 4.1 注释规范 | ✓ 已完成 | VM 主循环 dispatch timing note、GC `collect()` phase contract、CodeGen jump backpatching model 均已收口 | ✓ 确认 |
+| 4.2.1-4.2.3 字节码基础 | ✓ 已完成 | source / numparams / is_vararg / maxStackSize / 逐条指令 (pc\|line\|OP\|A/B/C) / 常量引用 / 常量表 | ✓ 确认 |
+| 4.2.4 子原型递归 | 待执行 | `bytecode_printer.cpp` 无递归 child proto 遍历逻辑，`full` 参数未驱动此行为 | ✗ 未完成 |
+| 4.2.5 `--diff` 模式 | 待执行 | `src/bytecode/` 目录无 diff 对比功能 | ✗ 未完成 |
+| 4.2.6 Mermaid CFG | 候选 | 无 `--cfg` 或 Mermaid/Graphviz 输出 | ✗ 未完成 |
+| 4.3 walkthrough 三篇 | ✓ 已完成 | `hello-world.md` / `closure-and-upvalue.md` / `gc-cycle.md` 全部存在，含源码 `:line` 锚点 | ✓ 确认 |
+| 4.4.1 REPL 历史 | ✓ 已完成 | `.lua_history` 持久化：`loadHistory()` + `saveHistory()` + `recordHistory()` 均实现 | ✓ 确认 |
+| 4.4.2 Tab 补全 | 待实现 | `repl.cpp` 无补全逻辑，无 `getGlobalTable()` 遍历 | ✗ 未完成 |
+| 4.4.3 `.ast` / `.gc` | 部分完成 | 仅 `.help` 和 `.bytecode` 实现，`.ast` / `.gc` 不存在 | ⚠ 50% |
+| 4.4.4 颜色化错误 | 待实现 | 无 `isatty` / `SetConsoleMode(ENABLE_VIRTUAL_TERMINAL_PROCESSING)` 调用 | ✗ 未完成 |
+| 4.4.5 行号 prompt | 待实现 | 无限模式 `lua:1>` / `lua:2>>` 行号提示 | ✗ 未完成 |
+| 4.5.1 `--trace-diff` | ✓ 已完成 | `changedRegisters` 字段已落地 JSONL，CLI 开关 + VM 发射 + 测试覆盖完整 | ✓ 确认 |
+| 4.5.2 `funcName` 统一 | ✓ 已完成 | `TraceEvent::funcName` 已改为拥有型 `Str`，instruction / call / return / error JSONL 均输出 `funcName`；VM 指令与返回事件使用当前/返回 `Proto` 标签，Call 事件使用 callee 标签 | ✓ 确认 — PR-53 |
+
+**结论**：阶段 4 是差距最大的阶段。REPL 体验（4.4.2-4.4.5）和字节码高级可视化（4.2.4-4.2.6）是两个集中的未完成块。walkthrough 三篇和 trace-diff 是亮点。
+
+#### 阶段 5 核验
+
+| 编号 | 文档标记 | 代码库实际 | 判定 |
+|---|---|---|---|
+| 5.1 opcode 覆盖矩阵 | 建议 | `tests/unit/vm/` 下无 `opcode_coverage_matrix.md`，仅在 roadmap 文档中被提及 | ✗ 未完成 |
+| 5.1 AST Visitor 测试 | ✓ | `tests/unit/compiler/test_ast_visitor.cpp` 存在 | ✓ 确认 |
+| 5.1 GC 策略测试 | 依赖 2.3 | 因 `GCStrategy` 未实现而无法进行 | ⚠ 阻塞 |
+| 5.1 REPL 增量解析测试 | 建议 | `isIncompleteInput` 未从 `repl.cpp` 抽出为独立可测函数 | ✗ 未完成 |
+| 5.1 Trace golden 测试 | 建议 | 无 golden 文件目录或对比逻辑 | ✗ 未完成 |
+| 5.2 质量门 | ✓ | `run_quality_gate.ps1` + `check_doc_drift.ps1` 动态解析测试计数，不再硬编码 | ✓ 确认 |
+| 5.2 clang-tidy | 部分 | `.clang-tidy` 配置文件存在于项目根目录，但未接入质量门作为可失败信号 | ⚠ 部分 |
+| 5.2 CMake 编译选项 | 待验证 | `-Wpedantic -Wconversion` 对齐状态未确认（项目用 MSVC `/W4`） | ⚠ 待验证 |
+| 5.3 `add_source.ps1` | 建议 | 文件不存在，新增 `.cpp` 仍需手动同步 4 处 (CMakeLists.txt / vcxproj / vcxproj.filters / test vcxproj) | ✗ 未完成 |
+
+**结论**：质量门自动化（动态测试计数）是亮点。测试覆盖精细化和工程脚本自动化是主要差距。
+
+---
+
+### 未完成项优先级排序
+
+#### P1 — 影响教学连贯性（建议下 2-3 个 PR 优先处理）
+
+| 编号 | 任务 | 阻碍 |
+|---|---|---|
+| 2.3 | `GCStrategy` 抽象 + `MarkSweepGC` | REPL `.gc` 命令、GC 策略测试 |
+| 4.4.3 | REPL `.ast` / `.gc` 元命令 | 教学演示完整性 |
+
+#### P2 — 提升教学体验（建议后续跟进）
+
+| 编号 | 任务 |
+|---|---|
+| 4.2.4 | 字节码子原型递归输出 |
+| 4.2.5 | 字节码 `--diff` 模式 |
+| 4.4.2 | REPL Tab 补全 |
+| 4.4.4 | 颜色化错误输出 |
+| 4.4.5 | 行号 prompt |
+
+#### P3 — 代码质量收尾
+
+| 编号 | 任务 |
+|---|---|
+| 1.2 | `Parser::tokenString` 集中到 `parser_utils.hpp` |
+| 2.1.1 | `AstVisitor<Derived, R>` 组合模板 |
+| 2.1.2 | `ExprVisitor` / `StmtVisitor` 内部 `canVisit*` 去重 |
+| 2.6.1 | `lib_manager.hpp` `openXxx()` 标记 `[[deprecated]]` |
+| 5.3 | `tools/add_source.ps1` 脚本 |
+
+#### P4 — 锦上添花
+
+| 编号 | 任务 |
+|---|---|
+| 2.6.2 | `LibRegistrar` 声明式自注册 |
+| 4.2.6 | Mermaid CFG 输出 |
+| 5.1 | opcode 覆盖矩阵 / golden 测试 / REPL 增量解析测试 |
+
+---
+
+### 亮点总结
+
+1. **核心重构质量极高**：Visitor 模式（compile-time 全覆盖检查）、VM Dispatch 双策略、CodeGenerator 四路拆分——每个都经过 characterization 测试锁定行为后再抽取，工程纪律严明。
+2. **walkthrough 三部曲完整**：hello-world → closure-and-upvalue → gc-cycle，构成从语法到执行到内存管理的完整教学链路。
+3. **质量门自动化**：`check_doc_drift.ps1` 动态解析测试计数，消除了文档与代码不同步的隐性风险。
+4. **现代 C++ 应用深入**：`std::expected` 错误边界、concepts 编译期约束、`std::variant` 渐进迁移，三者均是该规模教学项目中少见的深度应用。
