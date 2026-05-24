@@ -92,6 +92,7 @@ set(LUA_CORE_SOURCES
     src/vm/vm.cpp
     src/debug/value_serializer.cpp
     src/debug/json_trace_sink.cpp
+    src/compiler/codegen/function_compiler.cpp
 )
 
 set(LUA_REPL_SOURCES

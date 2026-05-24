@@ -29,7 +29,7 @@ The implementation is intentionally learning-friendly: most Lua concepts have di
 | Runtime services | `src/runtime/runtime_services.hpp` | Thin explicit bundle over `GlobalState`, `StringPool`, `GarbageCollector`, active `GCStrategy`, and optional VM dispatch strategy |
 | Compiler frontend | `src/compiler/lexer/lexer.*`, `src/compiler/parser/parser*.cpp`, `src/compiler/ast.*` | Tokenize source and build AST |
 | Compiler shared model | `src/compiler/ast.*`, `src/compiler/ast_visitor.hpp`, `src/compiler/opcode.*`, `src/compiler/register_allocator.hpp` | Shared AST and bytecode definitions used across parser, codegen, tests, and VM |
-| Code generation | `src/compiler/codegen/codegen*.cpp`, `src/compiler/codegen/codegen_types.hpp`, `src/compiler/codegen/codegen_context.hpp`, `src/compiler/codegen/codegen_ops.hpp`, `src/compiler/codegen/bytecode_builder.hpp` | Lower AST to `Proto` bytecode |
+| Code generation | `src/compiler/codegen/codegen*.cpp`, `src/compiler/codegen/function_compiler.*`, `src/compiler/codegen/codegen_types.hpp`, `src/compiler/codegen/codegen_context.hpp`, `src/compiler/codegen/codegen_ops.hpp`, `src/compiler/codegen/bytecode_builder.hpp` | Lower AST to `Proto` bytecode |
 | Core objects | `src/core/value.*`, `table.*`, `function.*`, `upvalue.*`, `userdata.*`, `thread.*` | C++ representation of Lua values and GC objects |
 | VM | `src/vm/vm*.cpp`, `src/vm/state/lua_state.*`, `src/vm/state/stack.*`, `src/vm/state/call_info.hpp` | Execute bytecode, manage calls, stack, hooks, trace, coroutine yield |
 | GC | `src/gc/garbage_collector.*`, `src/gc/gc_strategy.*`, `src/core/gc_object.*` | Strategy-dispatched mark-sweep collection, weak tables, userdata finalizers, incremental teaching placeholder |
@@ -80,10 +80,11 @@ Parser -> Chunk AST -> CodeGenerator -> Proto
 - `name_binder.cpp`: name resolution to `SymbolRef` and binding conversion to value/lvalue channels
 - `codegen_binding.cpp`: stable public binding wrappers on `CodeGenerator`
 - `codegen_ops.hpp`: shared low-level instruction emission, argument patching, and line/register guards
+- `function_compiler.cpp`: child `Proto` compilation, closure upvalues, and debug metadata
 - `expression_emitter.cpp`: value, condition, lvalue, call, vararg, table expression lowering
 - `statement_emitter.cpp`: statements, loops, returns, blocks, and statement-level control flow
 - `jump_patcher.cpp`: jump lists and patching
-- `codegen_stmt.cpp`: functions, closure upvalues, and debug metadata
+- `codegen_stmt.cpp`: compatibility forwarding for function-level helpers
 - `codegen.cpp`: constructor, top-level generation, bytecode emission wrappers
 
 The current expression pipeline uses `SymbolRef`, `ValueResult`, `CondResult`, `LValueRef`, and `CallResultInfo`. Historical `ExprDesc` material is archived under `docs/archive/history/exprdesc.md`.

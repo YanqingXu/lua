@@ -298,13 +298,13 @@ void StatementEmitter::emitStmt(const LocalStmt& s) {
     i32 base = state_.localScope.activeVarCount_;
     RegisterGuard registers(state_);
 
-    state_.registers.setFreeReg(base);
+    ops_.setFreeReg(base);
 
     for (i32 i = 0; i < nvars; i++) {
         addLocalVar(s.names[i]);
     }
 
-    state_.registers.setFreeReg(base);
+    ops_.setFreeReg(base);
 
     bool allVarsInitialized = false;
     if (nexps > 0) {
@@ -363,7 +363,7 @@ void StatementEmitter::emitStmt(const ReturnStmt& s) {
     } else {
         i32 base = state_.localScope.activeVarCount_;
         RegisterGuard registers(state_);
-        state_.registers.setFreeReg(base);
+        ops_.setFreeReg(base);
         checkStack(nret);
 
         for (i32 i = 0; i < nret - 1; i++) {
@@ -372,7 +372,7 @@ void StatementEmitter::emitStmt(const ReturnStmt& s) {
             materializeValue(val, base + i);
         }
 
-        state_.registers.setFreeReg(base + (nret - 1));
+        ops_.setFreeReg(base + (nret - 1));
 
         const Expr& lastExpr = *s.values[nret - 1];
         if (auto* callExpr = std::get_if<CallExpr>(&lastExpr.variant)) {
@@ -471,7 +471,7 @@ void StatementEmitter::emitStmt(const CallStmt& s) {
         emitValue(callExpr);
     }
 
-    state_.registers.resetToLocals(scopes_.activeLocalCount());
+    ops_.resetToLocals(scopes_.activeLocalCount());
 }
 
 void StatementEmitter::emitStmt(const BreakStmt&) {
@@ -570,7 +570,7 @@ void StatementEmitter::emitStmt(const FunctionStmt& s) {
 }
 
 void StatementEmitter::emitStmt(const ForNumStmt& s) {
-    i32 base = state_.registers.current();
+    i32 base = ops_.currentReg();
 
     ValueResult initVal = emitValue(*s.init);
     initVal = forceSingleValue(initVal);
@@ -591,15 +591,14 @@ void StatementEmitter::emitStmt(const ForNumStmt& s) {
 
     enterBlock(true);
 
-    state_.registers.setFreeReg(base);
+    RegisterFrame loopRegs(ops_, base);
     addLocalVar("(for index)");
     addLocalVar("(for limit)");
     addLocalVar("(for step)");
     addLocalVar(s.var);
     adjustLocalVars(4);
 
-    state_.registers.setFreeReg(base + 4);
-    checkStack(0);
+    loopRegs.setTop(4);
 
     i32 prep = codeAsBx(OpCode::FORPREP, base, 0);
 
@@ -614,14 +613,14 @@ void StatementEmitter::emitStmt(const ForNumStmt& s) {
 }
 
 void StatementEmitter::emitStmt(const ForInStmt& s) {
-    i32 base = state_.registers.current();
+    i32 base = ops_.currentReg();
     i32 nvars = static_cast<i32>(s.vars.size());
 
     if (s.iterators.empty()) {
         throw std::runtime_error("CodeGenerator: for-in loop requires iterator expression");
     }
 
-    state_.registers.setFreeReg(base);
+    RegisterFrame iteratorRegs(ops_, base);
     i32 filled = 0;
     i32 nexps = static_cast<i32>(s.iterators.size());
     for (i32 i = 0; i < nexps; i++) {
@@ -637,16 +636,14 @@ void StatementEmitter::emitStmt(const ForInStmt& s) {
                     CallResultInfo info = emitCallExpr(*callExpr, targetReg);
                     setWantedResults(info, wanted);
                     filled = 3;
-                    state_.registers.setFreeReg(base + 3);
-                    checkStack(0);
+                    iteratorRegs.setTop(3);
                     break;
                 }
                 if (std::holds_alternative<VarargExpr>(iteratorExpr.variant)) {
                     CallResultInfo info = emitVarargExpr();
                     ops_.patchArgsAB(info.instructionPc, targetReg, wanted + 1);
                     filled = 3;
-                    state_.registers.setFreeReg(base + 3);
-                    checkStack(0);
+                    iteratorRegs.setTop(3);
                     break;
                 }
             }
@@ -655,8 +652,7 @@ void StatementEmitter::emitStmt(const ForInStmt& s) {
             val = forceSingleValue(val);
             materializeValue(val, targetReg);
             filled++;
-            state_.registers.setFreeReg(base + filled);
-            checkStack(0);
+            iteratorRegs.setTop(filled);
         } else {
             ValueResult val = emitValue(iteratorExpr);
             val = forceSingleValue(val);
@@ -670,12 +666,11 @@ void StatementEmitter::emitStmt(const ForInStmt& s) {
         materializeValue(nilVal, base + filled);
         filled++;
     }
-    state_.registers.setFreeReg(base + 3);
-    checkStack(0);
+    iteratorRegs.setTop(3);
 
     enterBlock(true);
 
-    state_.registers.setFreeReg(base);
+    iteratorRegs.setTopUnchecked(0);
     addLocalVar("(for generator)");
     addLocalVar("(for state)");
     addLocalVar("(for control)");
@@ -685,8 +680,7 @@ void StatementEmitter::emitStmt(const ForInStmt& s) {
     }
     adjustLocalVars(3 + nvars);
 
-    state_.registers.setFreeReg(base + 3 + nvars);
-    checkStack(0);
+    iteratorRegs.setTop(3 + nvars);
 
     i32 jmpToTfor = jump();
 

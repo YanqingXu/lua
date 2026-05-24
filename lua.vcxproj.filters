@@ -223,6 +223,9 @@
     <ClCompile Include="src\lib\lib_catalog.cpp">
       <Filter>src\lib</Filter>
     </ClCompile>
+    <ClCompile Include="src\compiler\codegen\function_compiler.cpp">
+      <Filter>src\compiler\codegen</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\compiler\ast.hpp">
@@ -434,6 +437,9 @@
     </ClInclude>
     <ClInclude Include="src\compiler\parser\parser_utils.hpp">
       <Filter>src\compiler\parser</Filter>
+    </ClInclude>
+    <ClInclude Include="src\compiler\codegen\function_compiler.hpp">
+      <Filter>src\compiler\codegen</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

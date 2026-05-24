@@ -1,6 +1,6 @@
 ---
 status: current
-verified_against: docs/status/project-status.md; src/compiler/register_allocator.hpp; src/compiler/codegen/codegen.hpp; src/compiler/codegen/codegen.cpp; src/compiler/codegen/codegen_ops.hpp; src/compiler/codegen/expression_emitter.cpp; src/compiler/codegen/statement_emitter.cpp; src/compiler/codegen/codegen_stmt.cpp; src/compiler/codegen/codegen_state.hpp
+verified_against: docs/status/project-status.md; src/compiler/register_allocator.hpp; src/compiler/codegen/codegen.hpp; src/compiler/codegen/codegen.cpp; src/compiler/codegen/codegen_ops.hpp; src/compiler/codegen/function_compiler.hpp; src/compiler/codegen/function_compiler.cpp; src/compiler/codegen/expression_emitter.cpp; src/compiler/codegen/statement_emitter.cpp; src/compiler/codegen/codegen_stmt.cpp; src/compiler/codegen/codegen_state.hpp
 last_checked: 2026-05-22
 applies_to: current CodeGenerator register allocation model
 ---
@@ -29,7 +29,7 @@ public:
 };
 ```
 
-`freereg_` is private. Code generation code reaches it through the semantic methods above.
+`freereg_` is private. Code generation code reaches it through the semantic methods above. Emitter code uses `CodegenOps::currentReg()` / `setFreeRegAndCheck()` / `reserveRegsAndCheck()` and the small `RegisterFrame` helper for repeated frame-shaped cursor updates.
 
 ## Register Regions
 

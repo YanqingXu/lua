@@ -4,7 +4,7 @@
 > 设计目标：**可读性 > 可维护性 > 教育价值 > 性能**
 > 约束：保持当前注册测试 / 断言结果 / 0 失败，不破坏 `LuaState` / `VM` public API。
 > 最近审计：2026-05-21（深度审计报告，覆盖 Readability / Extensibility / Educational Value 三维度）
-> 最近同步：2026-05-24（NameBinder 抽取；ValueResult legacy mirror 物理删除；退役 facade slice 移出工程；CodegenOps 低层发射 helper 落地）
+> 最近同步：2026-05-24（NameBinder 抽取；ValueResult legacy mirror 物理删除；退役 facade slice 移出工程；CodegenOps 与 FunctionCompiler 边界落地）
 
 ---
 
@@ -12,8 +12,8 @@
 
 | 维度 | 评分 | 关键优势 | 关键改进点 |
 |---|---|---|---|
-| **可读性** | **A-** | CRTP+concept 编译期检查、`std::expected` 边界清晰、VM 主循环已精简为策略入口 + handler table，`CodeGenerator` expression/statement/jump 私有包装已瘦身，`NameBinder` / `CodegenOps` 已抽出，`ValueResult` 已是 variant-only | 部分命名继承 Lua C 缩写 |
-| **易扩展性** | **B+** | Visitor 模式添加新工具零摩擦、`DispatchStrategy` 可插拔、`HandlerTable` 按组注册，`GCStrategy` 已把 collector 算法边界显式化，标准库单库加载已统一到 catalog 入口 | GC/metatable 兼容 fallback 仍需收口、`FunctionCompiler` 可继续独立 |
+| **可读性** | **A-** | CRTP+concept 编译期检查、`std::expected` 边界清晰、VM 主循环已精简为策略入口 + handler table，`CodeGenerator` expression/statement/jump 私有包装已瘦身，`NameBinder` / `CodegenOps` / `FunctionCompiler` 已抽出，`ValueResult` 已是 variant-only | 部分命名继承 Lua C 缩写 |
+| **易扩展性** | **B+** | Visitor 模式添加新工具零摩擦、`DispatchStrategy` 可插拔、`HandlerTable` 按组注册，`GCStrategy` 已把 collector 算法边界显式化，标准库单库加载已统一到 catalog 入口 | GC/metatable 兼容 fallback 仍需收口 |
 | **教学价值** | **A-** | hello-world / closure-and-upvalue / gc-cycle walkthrough 已覆盖端到端执行、闭包生命周期和完整 GC 周期，glossary 降低认知负担，trace 系统层次分明且已有差异模式与 JSONL golden，REPL 已能打印 AST、bytecode 与 GC 状态，支持 Tab 探索全局名和库字段，并在终端中高亮错误、展示行号 prompt 和覆盖增量解析行为，`lua_bytecode --cfg` 可直接生成 Mermaid CFG | 后续可继续补样例和文档深挖 |
 
 各维度详细评估见本文档对应阶段的任务标注；已完成项以 ✓ 标记。
@@ -170,7 +170,7 @@ static std::expected<T, RuntimeError> captureRuntimeErrors(Fn&& fn) {
 
 **审计发现**：[codegen.hpp](src/compiler/codegen/codegen.hpp) 暴露约 60 个 private/protected 方法。虽然实现已按文件分片（`codegen_binding/expr/jump/stmt.cpp`），但类声明本身仍是"上帝类"——方法涵盖指令生成、寄存器分配、常量表管理、局部变量管理、跳转回填、表达式降低、语句降低、块管理、函数编译等 9 类职责。
 
-**重新排序**：`CodeGenerator` 拆分是 2026-05-21 审计后最重要的中期重构，但不应直接一次性拆完整个类。已先做职责地图和 characterization 测试，再按低耦合到高耦合的顺序抽取：`JumpPatcher`、`ScopeManager`、`ExpressionEmitter`、`StatementEmitter`、`NameBinder`、`CodegenOps`。PR-48 至当前已把 `ValueResult` 推进到 variant-only，旧字段 mirror 和兼容试运行入口已删除。
+**重新排序**：`CodeGenerator` 拆分是 2026-05-21 审计后最重要的中期重构，但不应直接一次性拆完整个类。已先做职责地图和 characterization 测试，再按低耦合到高耦合的顺序抽取：`JumpPatcher`、`ScopeManager`、`ExpressionEmitter`、`StatementEmitter`、`NameBinder`、`CodegenOps`、`FunctionCompiler`。PR-48 至当前已把 `ValueResult` 推进到 variant-only，旧字段 mirror 和兼容试运行入口已删除。
 
 **建议**：将 `CodeGenerator` 拆分为独立策略对象，共享 `CodegenState`：
 
@@ -180,11 +180,12 @@ CodeGenerator (orchestration facade)
   ├── ExpressionEmitter  (emitValue / emitCond / emitLValue 通道)
   ├── StatementEmitter   (13 种语句降低)
   ├── CodegenOps         (codeABC / patchArg / LineGuard / RegisterGuard)
+  ├── FunctionCompiler   (child Proto / closure upvalues / debug metadata)
   ├── JumpPatcher        (回填链表管理)
   └── ScopeManager       (块/局部变量/upvalue 作用域)
 ```
 
-facade cleanup 后，`CodeGenerator` 私有声明已收敛为编译总控、函数编译和少量指令入口；expression / statement / jump 的转发包装已从 facade 移除，binding 逻辑已移到 `NameBinder`，底层指令发射和常见回填操作已移到 `CodegenOps`。`CodeGenerator::resolve()` / `symbolToValue()` / `symbolToLValue()` 仍作为 public wrapper 保持 API 稳定。
+facade cleanup 后，`CodeGenerator` 私有声明已收敛为编译总控和少量兼容转发入口；expression / statement / jump 的转发包装已从 facade 移除，binding 逻辑已移到 `NameBinder`，底层指令发射和常见回填操作已移到 `CodegenOps`，函数级 `Proto` 编译已移到 `FunctionCompiler`。`CodeGenerator::resolve()` / `symbolToValue()` / `symbolToLValue()` 仍作为 public wrapper 保持 API 稳定。
 
 | 编号 | 子任务 | 说明 | 状态 |
 |---|---|---|---|
@@ -195,6 +196,7 @@ facade cleanup 后，`CodeGenerator` 私有声明已收敛为编译总控、函�
 | 2.5.1-e | 抽取 `StatementEmitter` | 已新增 `statement_emitter.hpp/.cpp`，承载 `statement()`、各 `emitStmt()`、`block()` 和控制流 / local / return / function / loop lowering；facade cleanup 后不再保留 statement 私有包装 | ✓ **已完成** |
 | 2.5.1-f | 抽取 `NameBinder` | 已新增 `name_binder.hpp/.cpp`，承载 Local -> Upvalue -> Global 查找和 `SymbolRef` 到 `ValueResult` / `LValueRef` 转换；facade public wrapper 保持稳定 | ✓ **已完成** |
 | 2.5.1-g | 抽取 `CodegenOps` | 已新增 `codegen_ops.hpp`，承载 `codeABC` / `codeABx` / `codeAsBx` pending-jump flush、`patchArg*` 参数回填、`LineGuard` 和 `RegisterGuard` | ✓ **已完成** |
+| 2.5.1-h | 抽取 `FunctionCompiler` | 已新增 `function_compiler.hpp/.cpp`，承载子函数 `Proto` 创建、参数局部绑定、closure upvalue 伪指令和 debug metadata；`codegen_stmt.cpp` 仅保留 facade 兼容转发 | ✓ **已完成** |
 
 ### 2.6 审计新增：标准库声明式注册
 
@@ -486,12 +488,13 @@ using ValueResult = std::variant<
 | PR-80 | `ValueResult` legacy mirror 物理删除，质量门升级为 variant-only，并移除退役 codegen facade slice | 3.5.9 / 2.5 |
 | PR-81 | `NameBinder` 抽取，名字解析和 `SymbolRef` 转换脱离 `CodeGenerator` facade，public wrapper 保持兼容 | 2.5.1-f |
 | PR-82 | `CodegenOps` 抽取，统一 codegen 分片的指令发射、参数回填以及行号 / 寄存器 guard | 2.5.1-g |
+| PR-83 | `FunctionCompiler` 抽取，统一子函数 `Proto` 编译、closure upvalue 发射和 debug metadata 附加 | 2.5.1-h |
 
 后续推荐顺序：
 
 | PR | 编号 | 任务 | 阶段 | 依赖 / 理由 |
 |---|---|---|---|---|
-| PR-83 | 2.5 | 评估 `FunctionCompiler` 是否值得抽出；仅在函数编译继续增长时执行 | 3 | 候选 |
+| PR-84 | 2.5 | 评估是否继续收敛 call/table 多返回值 patcher；仅在重复规则继续增长时执行 | 3 | 候选 |
 
 每个 PR 完成后跑：
 
@@ -545,11 +548,11 @@ using ValueResult = std::variant<
 | 2.3 GC 去单例 | ✓ 已完成 | `GarbageCollector::sweep(StringPool&)` / `clearAll(StringPool&)` 已收口；`getInstance()` 标记 `[[deprecated]]` | ✓ 确认 |
 | 2.3 GCStrategy | ✓ PR-62 | `src/gc/gc_strategy.hpp/.cpp` 已定义 `GCStrategy` / `MarkSweepGC` / `IncrementalGC`；`GarbageCollector::collect()` 委托当前策略；`collectgarbage("strategy",...)` 已可查询 / 切换策略边界 | ✓ 确认 |
 | 2.4 模式文档 | ✓ 已完成 | `docs/architecture/patterns.md` 已记录 | ✓ 确认 |
-| 2.5 CodeGen 拆分 | ✓ 已完成 | 七个子任务 (2.5.1-a ∼ 2.5.1-g) 全部落地：`jump_patcher` / `scope_manager` / `expression_emitter` / `statement_emitter` / `name_binder` / `codegen_ops` | ✓ 确认 |
+| 2.5 CodeGen 拆分 | ✓ 已完成 | 八个子任务 (2.5.1-a ∼ 2.5.1-h) 全部落地：`jump_patcher` / `scope_manager` / `expression_emitter` / `statement_emitter` / `name_binder` / `codegen_ops` / `function_compiler` | ✓ 确认 |
 | 2.6.1 | ✓ PR-70 | `StandardLibrary::openCatalogLibrary(L, id)` 已公开；`lib_manager.hpp` 的 9 个 `openXxx()` 包装已标记 `[[deprecated]]`，测试调用改用 catalog 入口 | ✓ 确认 |
 | 2.6.2 | ✓ PR-73 | `LibRegistrar` 声明式自注册已评估并决定不采用；`docs/architecture/patterns.md` 和 `docs/stdlib/overview.md` 记录该决策，`Standard Library Catalog` 测试锁住 id 唯一性 | ✓ 确认 |
 
-**结论**：核心重构（Visitor、Dispatch、CodeGen 拆分与 facade 瘦身、NameBinder、CodegenOps、GCStrategy、标准库 catalog 入口）全部落地且质量高。PR-68 / PR-69 已补齐 full-tree visitor 组合模板和内部检查去重；PR-70 已收口标准库单库包装迁移提示；PR-73 已否决 `LibRegistrar` 自注册，保留更易读的显式 catalog。阶段 2 当前无明确 P1/P2 缺口。
+**结论**：核心重构（Visitor、Dispatch、CodeGen 拆分与 facade 瘦身、NameBinder、CodegenOps、FunctionCompiler、GCStrategy、标准库 catalog 入口）全部落地且质量高。PR-68 / PR-69 已补齐 full-tree visitor 组合模板和内部检查去重；PR-70 已收口标准库单库包装迁移提示；PR-73 已否决 `LibRegistrar` 自注册，保留更易读的显式 catalog。阶段 2 当前无明确 P1/P2 缺口。
 
 #### 阶段 3 核验
 
@@ -622,7 +625,7 @@ using ValueResult = std::variant<
 
 #### P3 — 代码质量收尾
 
-当前无未完成 P3 项；`ValueResult` legacy mirror 已物理删除，`CodegenOps` 已收口重复低层发射模式，后续只需观察是否需要抽出 `FunctionCompiler`。
+当前无未完成 P3 项；`ValueResult` legacy mirror 已物理删除，`CodegenOps` 已收口重复低层发射模式，`FunctionCompiler` 已收口函数级编译生命周期。后续只需观察 call/table 多返回值 patcher 是否继续增长到值得单独抽取。
 
 #### P4 — 锦上添花
 

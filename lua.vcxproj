@@ -206,6 +206,7 @@
     <ClInclude Include="src\debug\value_serializer.hpp" />
     <ClInclude Include="src\debug\json_trace_sink.hpp" />
     <ClInclude Include="src\compiler\parser\parser_utils.hpp" />
+    <ClInclude Include="src\compiler\codegen\function_compiler.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\compiler\ast.cpp" />
@@ -282,6 +283,7 @@
     <ClCompile Include="src\vm\vm.cpp" />
     <ClCompile Include="src\debug\value_serializer.cpp" />
     <ClCompile Include="src\debug\json_trace_sink.cpp" />
+    <ClCompile Include="src\compiler\codegen\function_compiler.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

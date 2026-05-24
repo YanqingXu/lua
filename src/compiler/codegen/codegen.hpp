@@ -25,6 +25,7 @@
 #include "compiler/codegen/codegen_types.hpp"
 #include "compiler/codegen/codegen_ops.hpp"
 #include "compiler/codegen/codegen_state.hpp"
+#include "compiler/codegen/function_compiler.hpp"
 #include "compiler/codegen/jump_patcher.hpp"
 #include "compiler/codegen/name_binder.hpp"
 #include "compiler/codegen/scope_manager.hpp"
@@ -51,6 +52,7 @@ class StringPool;
  * 负责将AST转换为字节码。
  */
 class CodeGenerator {
+    friend class FunctionCompiler;
     friend class ScopeManager;
     friend class ExpressionEmitter;
     friend class StatementEmitter;
@@ -140,6 +142,7 @@ private:
     NameBinder binder_;
     ExpressionEmitter expressions_;
     StatementEmitter statements_;
+    FunctionCompiler functions_;
 };
 
 }  // namespace Lua

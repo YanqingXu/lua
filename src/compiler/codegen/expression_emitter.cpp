@@ -536,7 +536,7 @@ void ExpressionEmitter::valueToNextReg(const ValueResult& val) {
     ValueResult v = forceSingleValue(val);
     bool alreadyAtNextReg = v.visit(ValueResultVisitor{
         [&](const ValueResult::RegisterRef& source) {
-            return source.reg == state_.registers.current() - 1;
+            return source.reg == ops_.currentReg() - 1;
         },
         [](const auto&) {
             return false;
@@ -771,8 +771,7 @@ ValueResult ExpressionEmitter::emitValueTable(const TableExpr& table) {
             if (!hasLastCallResult && tostore == LFIELDS_PER_FLUSH) {
                 i32 c = (na - 1) / LFIELDS_PER_FLUSH + 1;
                 codeABC(OpCode::SETLIST, tableReg, LFIELDS_PER_FLUSH, c);
-                state_.registers.setFreeReg(tableReg + 1);
-                checkStack(0);
+                ops_.setFreeRegAndCheck(tableReg + 1);
                 tostore = 0;
             }
         }
@@ -795,14 +794,12 @@ ValueResult ExpressionEmitter::emitValueTable(const TableExpr& table) {
             }
             i32 c = (na - 1) / LFIELDS_PER_FLUSH + 1;
             codeABC(OpCode::SETLIST, tableReg, 0, c);
-            state_.registers.setFreeReg(tableReg + 1);
-            checkStack(0);
+            ops_.setFreeRegAndCheck(tableReg + 1);
             na--;
         } else {
             i32 c = (na - 1) / LFIELDS_PER_FLUSH + 1;
             codeABC(OpCode::SETLIST, tableReg, tostore, c);
-            state_.registers.setFreeReg(tableReg + 1);
-            checkStack(0);
+            ops_.setFreeRegAndCheck(tableReg + 1);
         }
     }
 
@@ -840,9 +837,8 @@ CallResultInfo ExpressionEmitter::emitCallExpr(const CallExpr& e, i32 targetBase
         freeReg(objReg);
 
         // 分配 2 个连续寄存器：func 和 self
-        base = state_.registers.current();
-        state_.registers.reserve(2);
-        checkStack(0);
+        base = ops_.currentReg();
+        ops_.reserveRegsAndCheck(2);
 
         // SELF base objReg RK(method)
         // R(base+1) = R(objReg); R(base) = R(objReg)[RK(method)]
@@ -854,7 +850,7 @@ CallResultInfo ExpressionEmitter::emitCallExpr(const CallExpr& e, i32 targetBase
         base = valueToAnyReg(funcVal);
     }
 
-    i32 savedFreeReg = state_.registers.current();
+    i32 savedFreeReg = ops_.currentReg();
 
     auto moveRegRange = [this](i32 dst, i32 src, i32 count) {
         if (count <= 0 || dst == src) return;
@@ -879,8 +875,7 @@ CallResultInfo ExpressionEmitter::emitCallExpr(const CallExpr& e, i32 targetBase
     }
 
     i32 firstArgReg = hasImplicitSelf ? (base + 2) : (base + 1);
-    state_.registers.setFreeReg(firstArgReg);
-    checkStack(0);
+    ops_.setFreeRegAndCheck(firstArgReg);
     checkStack(explicitArgCount);
 
     // 编译所有实参。最后一个实参如果是 Call/Vararg 则保持 multret 打开。
@@ -918,7 +913,7 @@ CallResultInfo ExpressionEmitter::emitCallExpr(const CallExpr& e, i32 targetBase
             materializeValue(argVal, targetReg);
         }
 
-        state_.registers.ensureAtLeast(targetReg + 1);
+        ops_.ensureRegAtLeast(targetReg + 1);
         argIndex++;
     }
 
@@ -929,8 +924,7 @@ CallResultInfo ExpressionEmitter::emitCallExpr(const CallExpr& e, i32 targetBase
     // C=2: 默认期望 1 个返回值（上层按需修改）
     i32 callPC = codeABC(OpCode::CALL, base, bArg, 2);
 
-    state_.registers.setFreeReg((savedFreeReg > (base + 1)) ? savedFreeReg : (base + 1));
-    checkStack(0);
+    ops_.setFreeRegAndCheck((savedFreeReg > (base + 1)) ? savedFreeReg : (base + 1));
 
     CallResultInfo result;
     result.kind = CallResultInfo::Kind::Call;

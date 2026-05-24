@@ -43,12 +43,42 @@ public:
         return state_.registers.alloc();
     }
 
+    [[nodiscard]] i32 currentReg() const noexcept {
+        return state_.registers.current();
+    }
+
     void freeReg(i32 reg, i32 activeLocalCount) {
         state_.registers.freeReg(reg, activeLocalCount);
     }
 
     void checkStack(i32 n) {
         state_.registers.checkStack(n);
+    }
+
+    void setFreeReg(i32 reg) noexcept {
+        state_.registers.setFreeReg(reg);
+    }
+
+    void setFreeRegAndCheck(i32 reg) {
+        setFreeReg(reg);
+        checkStack(0);
+    }
+
+    void reserveRegs(i32 count) noexcept {
+        state_.registers.reserve(count);
+    }
+
+    void reserveRegsAndCheck(i32 count) {
+        reserveRegs(count);
+        checkStack(0);
+    }
+
+    void ensureRegAtLeast(i32 reg) noexcept {
+        state_.registers.ensureAtLeast(reg);
+    }
+
+    void resetToLocals(i32 activeLocalCount) noexcept {
+        state_.registers.resetToLocals(activeLocalCount);
     }
 
     [[nodiscard]] i32 numberConstant(f64 value) {
@@ -121,7 +151,7 @@ public:
     LineGuard(const LineGuard&) = delete;
     LineGuard& operator=(const LineGuard&) = delete;
 
-    ~LineGuard() {
+    ~LineGuard() noexcept {
         state_.currentLine = previousLine_;
     }
 
@@ -139,7 +169,7 @@ public:
     RegisterGuard(const RegisterGuard&) = delete;
     RegisterGuard& operator=(const RegisterGuard&) = delete;
 
-    ~RegisterGuard() {
+    ~RegisterGuard() noexcept {
         if (active_) {
             state_.registers.restore(savedFreeReg_);
         }
@@ -164,6 +194,35 @@ private:
     CodegenState& state_;
     i32 savedFreeReg_;
     bool active_ = true;
+};
+
+class RegisterFrame {
+public:
+    RegisterFrame(CodegenOps& ops, i32 base) noexcept
+        : ops_(ops)
+        , base_(base) {
+        ops_.setFreeReg(base_);
+    }
+
+    [[nodiscard]] i32 base() const noexcept {
+        return base_;
+    }
+
+    [[nodiscard]] i32 at(i32 offset) const noexcept {
+        return base_ + offset;
+    }
+
+    void setTop(i32 offset) {
+        ops_.setFreeRegAndCheck(at(offset));
+    }
+
+    void setTopUnchecked(i32 offset) noexcept {
+        ops_.setFreeReg(at(offset));
+    }
+
+private:
+    CodegenOps& ops_;
+    i32 base_;
 };
 
 }  // namespace Lua

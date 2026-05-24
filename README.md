@@ -81,7 +81,7 @@ applies_to: repository overview and current build workflows
 | **LuaState类** | `src/vm/state/lua_state.hpp/cpp` | 1,095 | Lua状态（线程执行环境） | ✅ 95% |
 | **Lexer词法分析器** | `src/compiler/lexer/lexer.hpp/cpp` + `src/compiler/parser/token.hpp` | 1,167 | 词法分析（Token流生成） | ✅ 100% |
 | **Parser语法分析器** | `src/compiler/parser/parser.hpp/cpp` + `src/compiler/parser/parser_*.cpp` + `src/compiler/ast.hpp/cpp` | 2,128 | 语法分析（AST生成，Parser 实现已按语句/表达式/函数/表构造分片） | ✅ 100% |
-| **CodeGenerator字节码生成器** | `src/compiler/codegen/*` + `src/compiler/opcode.hpp/cpp` | 3,089 | 字节码生成（AST→Bytecode），CodegenOps 收口低层发射 / 回填 / guard | ✅ 95% |
+| **CodeGenerator字节码生成器** | `src/compiler/codegen/*` + `src/compiler/opcode.hpp/cpp` | 3,622 | 字节码生成（AST→Bytecode），CodegenOps 收口低层发射 / 回填 / guard，FunctionCompiler 收口函数级编译 | ✅ 96% |
 | **VM字节码执行引擎** | `src/vm/vm.hpp/cpp` | 2,030 | 38条指令均有执行分支；TAILCALL 已复用栈帧，TFORLOOP 已支持 C/Lua 函数迭代器 | ✅ 95% |
 | **I/O系统** | `src/io/*.hpp/cpp` | 670 | InputStream + DynamicBuffer | ✅ 100% |
 | **基础库（Base Library）** | `src/lib/baselib.hpp/cpp` | 730+ | Lua 5.1 常用全局函数 + `_G` / `_VERSION`（newproxy 缺失，部分边界简化） | 🔄 93% |
@@ -179,7 +179,7 @@ applies_to: repository overview and current build workflows
 ✅ **Metatable元方法系统**：已初始化17种元方法名称并支持 table/userdata 与基础类型元表查找；`callTMWithResult/callTM` 已统一走 `VM::call`，C/Lua 函数元方法均可用；string 类型已安装 `__index = string`；`__gc`、`__mode` 已接入 GC 语义
 ✅ **Lexer词法分析器**：完整Lua 5.1词法规则，支持所有关键字、运算符、字面量、注释
 ✅ **Parser语法分析器**：递归下降解析，完整AST生成，正确的运算符优先级和结合性；实现已按语句、表达式、函数和表构造边界分片
-✅ **CodeGenerator字节码生成器**：AST→字节码转换，寄存器分配，常量表管理，跳转回填；`CodegenOps` 已收口重复发射 / 回填 / guard，`ExprDesc` / `ExprKind` 迁移和 PR-C 清理已完成
+✅ **CodeGenerator字节码生成器**：AST→字节码转换，寄存器分配，常量表管理，跳转回填；`CodegenOps` 已收口重复发射 / 回填 / guard，`FunctionCompiler` 已收口子函数 Proto 编译和 closure upvalue 装配，`ExprDesc` / `ExprKind` 迁移和 PR-C 清理已完成
 ✅ **OpCode指令集**：完整Lua 5.1指令集（38条指令），iABC/iABx/iAsBx三种格式
 ✅ **VM字节码执行引擎**：38条指令均有执行分支，已覆盖 Upvalue、函数调用、尾调用栈帧复用、循环、闭包、SETLIST、TFORLOOP C/Lua 迭代器等主路径
 ✅ **基础库（Base Library）**：Lua 5.1 常用全局函数已覆盖，包含 `_G` / `_VERSION`、print、type、tostring、tonumber、error、assert、pcall、xpcall、pairs、ipairs、next、select、rawget、rawset、rawequal、loadstring、loadfile、dofile、collectgarbage、unpack、load、getfenv、setfenv 等
