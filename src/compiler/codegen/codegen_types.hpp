@@ -148,13 +148,13 @@ struct ValueResult {
     };
 
 #define LUA_VALUE_RESULT_LEGACY_FIELD \
-    [[deprecated("Use ValueResult::payload()/visit(); legacyFields() is only for compatibility snapshots.")]]
+    [[deprecated("Use ValueResult::visit(); legacyFields() is only for compatibility snapshots.")]]
 
 #ifdef LUA_VALUE_RESULT_PRIVATE_LEGACY_FIELDS
 private:
 #endif
 
-    // Compatibility mirror for older call sites. New code should read payload()/visit() instead.
+    // Compatibility mirror for older call sites. New code should read visit() instead.
     LUA_VALUE_RESULT_LEGACY_FIELD Kind kind = Kind::None;
     LUA_VALUE_RESULT_LEGACY_FIELD ImmediateKind immediate = ImmediateKind::None;
     LUA_VALUE_RESULT_LEGACY_FIELD AccessKind access = AccessKind::None;
@@ -175,10 +175,6 @@ public:
 #endif
 
     [[nodiscard]] const Variant& payload() const noexcept {
-        return payload_;
-    }
-
-    [[nodiscard]] Variant& payload() noexcept {
         return payload_;
     }
 
@@ -267,15 +263,15 @@ public:
         return result;
     }
 
-    void setPayload(Variant value) {
-        payload_ = std::move(value);
-        syncLegacyFieldsFromPayload();
-    }
-
 private:
     friend struct detail::ValueResultLegacyMirrorProbe;
 
     Variant payload_ = None{};
+
+    void setPayload(Variant value) {
+        payload_ = std::move(value);
+        syncLegacyFieldsFromPayload();
+    }
 
     void resetLegacyFields() noexcept {
         LUA_SUPPRESS_DEPRECATED_DECLARATIONS_BEGIN

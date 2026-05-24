@@ -88,35 +88,38 @@ ExpressionEmitter::ExpressionEmitter(CodeGenerator& owner) noexcept
     , scopes_(owner.scopes_) {}
 
 i32 ExpressionEmitter::codeABC(OpCode op, i32 a, i32 b, i32 c) {
-    return owner_.codeABC(op, a, b, c);
+    jumps_.flushPendingJumps();
+    return state_.bytecode.emitABC(state_.currentLine, op, a, b, c);
 }
 
 i32 ExpressionEmitter::codeABx(OpCode op, i32 a, i32 bx) {
-    return owner_.codeABx(op, a, bx);
+    jumps_.flushPendingJumps();
+    return state_.bytecode.emitABx(state_.currentLine, op, a, bx);
 }
 
 i32 ExpressionEmitter::codeAsBx(OpCode op, i32 a, i32 sbx) {
-    return owner_.codeAsBx(op, a, sbx);
+    jumps_.flushPendingJumps();
+    return state_.bytecode.emitAsBx(state_.currentLine, op, a, sbx);
 }
 
 i32 ExpressionEmitter::allocReg() {
-    return owner_.allocReg();
+    return state_.registers.alloc();
 }
 
 void ExpressionEmitter::freeReg(i32 reg) {
-    owner_.freeReg(reg);
+    state_.registers.freeReg(reg, scopes_.activeLocalCount());
 }
 
 void ExpressionEmitter::checkStack(i32 n) {
-    owner_.checkStack(n);
+    state_.registers.checkStack(n);
 }
 
 i32 ExpressionEmitter::numberConstant(f64 value) {
-    return owner_.numberConstant(value);
+    return state_.bytecode.addNumberConstant(value);
 }
 
 i32 ExpressionEmitter::stringConstant(const Str& value) {
-    return owner_.stringConstant(value);
+    return state_.bytecode.addStringConstant(value);
 }
 
 SymbolRef ExpressionEmitter::resolve(const Str& name) {
@@ -132,23 +135,23 @@ LValueRef ExpressionEmitter::symbolToLValue(const SymbolRef& sym) {
 }
 
 i32 ExpressionEmitter::jump() {
-    return owner_.jump();
+    return jumps_.emitJump();
 }
 
 void ExpressionEmitter::patchList(const PatchList& list, i32 target) {
-    owner_.patchList(list, target);
+    jumps_.patchList(list, target);
 }
 
 i32 ExpressionEmitter::getLabel() {
-    return owner_.getLabel();
+    return jumps_.getLabel();
 }
 
 void ExpressionEmitter::patchtohere(const PatchList& list) {
-    owner_.patchtohere(list);
+    jumps_.patchToHere(list);
 }
 
 void ExpressionEmitter::fixjump(i32 pc, i32 dest) {
-    owner_.fixjump(pc, dest);
+    jumps_.fixJump(pc, dest);
 }
 
 Proto* ExpressionEmitter::compileFunction(const Vec<Str>& params, bool isVararg, const Vec<StmtPtr>& body,

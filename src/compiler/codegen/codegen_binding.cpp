@@ -7,18 +7,6 @@
 
 namespace Lua {
 
-i32 CodeGenerator::findUpvalue(const Str& name) {
-    return scopes_.findUpvalue(name);
-}
-
-i32 CodeGenerator::addUpvalue(const Str& name, bool inStack, i32 index) {
-    return scopes_.addUpvalue(name, inStack, index);
-}
-
-i32 CodeGenerator::resolveUpvalue(const Str& name) {
-    return scopes_.resolveUpvalue(name);
-}
-
 // =====================================================================
 // 符号绑定（PR-8 Symbol Binding）
 // =====================================================================
@@ -27,14 +15,14 @@ SymbolRef CodeGenerator::resolve(const Str& name) {
     SymbolRef result;
     result.name = name;
 
-    i32 reg = findLocalVar(name);
+    i32 reg = scopes_.findLocalVar(name);
     if (reg >= 0) {
         result.kind = SymbolRef::Kind::Local;
         result.index = reg;
         return result;
     }
 
-    i32 up = resolveUpvalue(name);
+    i32 up = scopes_.resolveUpvalue(name);
     if (up >= 0) {
         result.kind = SymbolRef::Kind::Upvalue;
         result.index = up;
@@ -42,7 +30,7 @@ SymbolRef CodeGenerator::resolve(const Str& name) {
     }
 
     result.kind = SymbolRef::Kind::Global;
-    result.index = stringConstant(name);
+    result.index = state_.bytecode.addStringConstant(name);
     return result;
 }
 

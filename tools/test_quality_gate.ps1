@@ -82,8 +82,15 @@ Assert-FileContains "tools/run_value_result_private_trial.ps1" @(
 
 Assert-FileContains "CMakeLists.txt" @(
     "option\(LUA_VALUE_RESULT_PRIVATE_LEGACY_FIELDS",
+    "compatibility checks"" ON\)",
     "target_compile_definitions\(lua_core PUBLIC LUA_VALUE_RESULT_PRIVATE_LEGACY_FIELDS=1\)"
 )
+
+foreach ($projectFile in @("lua.vcxproj", "lua_app.vcxproj", "lua_bytecode.vcxproj", "lua_test.vcxproj")) {
+    Assert-FileContains $projectFile @(
+        "LUA_VALUE_RESULT_PRIVATE_LEGACY_FIELDS=1"
+    )
+}
 
 Assert-FileContains "src/compiler/codegen/codegen_types.hpp" @(
     "LUA_VALUE_RESULT_PRIVATE_LEGACY_FIELDS",

@@ -80,7 +80,7 @@ Proto* CodeGenerator::generateUnchecked(const Chunk& chunk, StrView sourceName) 
     state_.resetForProto(*state_.proto, true, sourceName);
 
     // 生成语句块
-    block(chunk.statements);
+    statements_.block(chunk.statements);
 
     // 保留一个兜底 RETURN，覆盖条件分支 return 后仍可落出的路径。
     codeABC(OpCode::RETURN, 0, 1, 0);  // return (no values)
@@ -127,66 +127,6 @@ i32 CodeGenerator::codeAsBx(OpCode op, i32 a, i32 sbx) {
     jumps_.flushPendingJumps();
 
     return state_.bytecode.emitAsBx(state_.currentLine, op, a, sbx);
-}
-
-// =====================================================================
-// 寄存器管理
-// =====================================================================
-
-i32 CodeGenerator::allocReg() {
-    return state_.registers.alloc();
-}
-
-void CodeGenerator::freeReg(i32 reg) {
-    state_.registers.freeReg(reg, scopes_.activeLocalCount());
-}
-
-void CodeGenerator::freeRegs(i32 n) {
-    state_.registers.freeRegs(n);
-}
-
-void CodeGenerator::checkStack(i32 n) {
-    state_.registers.checkStack(n);
-}
-
-// =====================================================================
-// 常量表管理
-// =====================================================================
-
-i32 CodeGenerator::numberConstant(f64 value) {
-    return state_.bytecode.addNumberConstant(value);
-}
-
-i32 CodeGenerator::stringConstant(const Str& value) {
-    return state_.bytecode.addStringConstant(value);
-}
-
-i32 CodeGenerator::boolConstant(bool value) {
-    return state_.bytecode.addBoolConstant(value);
-}
-
-i32 CodeGenerator::nilConstant() {
-    return state_.bytecode.addNilConstant();
-}
-
-// =====================================================================
-// 局部变量管理
-// =====================================================================
-
-i32 CodeGenerator::addLocalVar(const Str& name) {
-    return scopes_.addLocalVar(name);
-}
-
-i32 CodeGenerator::findLocalVar(const Str& name) {
-    return scopes_.findLocalVar(name);
-}
-
-void CodeGenerator::adjustLocalVars(i32 nvars) {
-    scopes_.adjustLocalVars(nvars);
-}
-
-void CodeGenerator::removeLocalVars(i32 tolevel) {
-    scopes_.removeLocalVars(tolevel);
 }
 
 }  // namespace Lua

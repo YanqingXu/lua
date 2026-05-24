@@ -4,7 +4,7 @@
 > 设计目标：**可读性 > 可维护性 > 教育价值 > 性能**
 > 约束：保持 548 个注册测试 / 2745 个断言结果 / 0 失败，不破坏 `LuaState` / `VM` public API。
 > 最近审计：2026-05-21（深度审计报告，覆盖 Readability / Extensibility / Educational Value 三维度）
-> 最近同步：2026-05-23（PR-78：ValueResult 旧字段宏开关式私有化试运行）
+> 最近同步：2026-05-24（facade cleanup：CodeGenerator 私有包装瘦身；ValueResult 旧字段默认私有化）
 
 ---
 
@@ -12,8 +12,8 @@
 
 | 维度 | 评分 | 关键优势 | 关键改进点 |
 |---|---|---|---|
-| **可读性** | **A-** | CRTP+concept 编译期检查、`std::expected` 边界清晰、VM 主循环已精简为策略入口 + handler table，`ValueResult` 旧字段已加 deprecation warning fence、回流检查和宏开关式 private trial | `ValueResult` 旧字段仍保留一段默认兼容期、`CodeGenerator` 方法数 60+、部分命名继承 Lua C 缩写 |
-| **易扩展性** | **B+** | Visitor 模式添加新工具零摩擦、`DispatchStrategy` 可插拔、`HandlerTable` 按组注册，`GCStrategy` 已把 collector 算法边界显式化，标准库单库加载已统一到 catalog 入口 | GC/metatable 兼容 fallback 仍需收口、`CodeGenerator` facade 仍可继续瘦身 |
+| **可读性** | **A-** | CRTP+concept 编译期检查、`std::expected` 边界清晰、VM 主循环已精简为策略入口 + handler table，`CodeGenerator` expression/statement/jump 私有包装已瘦身，`ValueResult` 旧字段默认 private | `ValueResult` 旧字段物理 mirror 仍保留一段兼容期、部分命名继承 Lua C 缩写 |
+| **易扩展性** | **B+** | Visitor 模式添加新工具零摩擦、`DispatchStrategy` 可插拔、`HandlerTable` 按组注册，`GCStrategy` 已把 collector 算法边界显式化，标准库单库加载已统一到 catalog 入口 | GC/metatable 兼容 fallback 仍需收口、`NameBinder` / `FunctionCompiler` 仍可继续独立 |
 | **教学价值** | **A-** | hello-world / closure-and-upvalue / gc-cycle walkthrough 已覆盖端到端执行、闭包生命周期和完整 GC 周期，glossary 降低认知负担，trace 系统层次分明且已有差异模式与 JSONL golden，REPL 已能打印 AST、bytecode 与 GC 状态，支持 Tab 探索全局名和库字段，并在终端中高亮错误、展示行号 prompt 和覆盖增量解析行为，`lua_bytecode --cfg` 可直接生成 Mermaid CFG | 后续可继续补样例和文档深挖 |
 
 各维度详细评估见本文档对应阶段的任务标注；已完成项以 ✓ 标记。
@@ -103,7 +103,7 @@ static std::expected<T, RuntimeError> captureRuntimeErrors(Fn&& fn) {
 
 ### 2.1 访问者模式（Visitor）应用到 AST ✓ 已完成
 
-[ast_visitor.hpp](src/compiler/ast_visitor.hpp) 已实现 CRTP `ExprVisitor<Derived, R>` + `StmtVisitor<Derived, R>`，并在 PR-68 新增 `AstVisitor<Derived, R>` 组合模板与 `VisitsAstNodes` concept；PR-69 已将节点可访问性检查收口到 `detail::canVisitNode()` / `detail::visitsVariantNodes()`，让公开 concepts 与 visitor 入口共享同一套 variant 覆盖逻辑。`CodeGenerator` 通过 `ExprVisitor<CodeGenerator, ValueResult>` 继承获得分发能力，REPL AST printer 使用 `AstVisitor<AstPrinter>` 覆盖表达式与语句树。
+[ast_visitor.hpp](src/compiler/ast_visitor.hpp) 已实现 CRTP `ExprVisitor<Derived, R>` + `StmtVisitor<Derived, R>`，并在 PR-68 新增 `AstVisitor<Derived, R>` 组合模板与 `VisitsAstNodes` concept；PR-69 已将节点可访问性检查收口到 `detail::canVisitNode()` / `detail::visitsVariantNodes()`，让公开 concepts 与 visitor 入口共享同一套 variant 覆盖逻辑。`ExpressionEmitter` 通过 `ExprVisitor<ExpressionEmitter, ValueResult>` 覆盖表达式树，`StatementEmitter` 通过 `StmtVisitor<StatementEmitter, void>` 覆盖语句树，REPL AST printer 使用 `AstVisitor<AstPrinter>` 覆盖表达式与语句树。
 
 **审计评价（A 级）**：`detail::visitsVariantNodes()` 使用 fold expression 遍历 variant 的 `std::index_sequence`，确保遗漏任何 AST 节点类型都会产生编译期 `static_assert` 错误——这对教学项目极有价值。
 
@@ -182,15 +182,15 @@ CodeGenerator (orchestration facade)
   └── ScopeManager       (块/局部变量/upvalue 作用域)
 ```
 
-这同时解决"一个类声明 60+ 方法"的可读性问题，且各 emitter 可独立单测。
+facade cleanup 后，`CodeGenerator` 私有声明已收敛为编译总控、函数编译和少量指令入口；expression / statement / jump 的转发包装已从 facade 移除，各 emitter 可独立单测。
 
 | 编号 | 子任务 | 说明 | 状态 |
 |---|---|---|---|
 | 2.5.1-a | 职责地图 + 现有行为锁定 | 已新增 `docs/compiler/codegen-responsibility-map.md` 与 `Codegen Characterization` 测试，锁住 statement / jump / repeat scope / generic-for 行为 | ✓ **已完成** |
-| 2.5.1-b | 抽取 `JumpPatcher` | 已新增 `jump_patcher.hpp/.cpp`，切出 jump-list、pending `jpc_`、`PatchList` 和 `fixJump/getJump`，`CodeGenerator` 保留薄包装 | ✓ **已完成** |
-| 2.5.1-c | 抽取 `ScopeManager` | 已新增 `scope_manager.hpp/.cpp`，切出 locals / blocks / upvalues 作用域生命周期、breaklist 接入、scope close 和 upvalue 查找；`CodeGenerator` 保留薄包装 | ✓ **已完成** |
-| 2.5.1-d | 抽取 `ExpressionEmitter` | 已新增 `expression_emitter.hpp/.cpp`，切出 `ValueResult` / `CondResult` / `CallResultInfo` / `LValueRef` 表达式通道；`CodeGenerator` 保留薄包装 | ✓ **已完成** |
-| 2.5.1-e | 抽取 `StatementEmitter` | 已新增 `statement_emitter.hpp/.cpp`，承载 `statement()`、各 `emitStmt()`、`block()` 和控制流 / local / return / function / loop lowering；`CodeGenerator` 保留薄包装 | ✓ **已完成** |
+| 2.5.1-b | 抽取 `JumpPatcher` | 已新增 `jump_patcher.hpp/.cpp`，切出 jump-list、pending `jpc_`、`PatchList` 和 `fixJump/getJump`；facade cleanup 后不再保留 jump 私有包装 | ✓ **已完成** |
+| 2.5.1-c | 抽取 `ScopeManager` | 已新增 `scope_manager.hpp/.cpp`，切出 locals / blocks / upvalues 作用域生命周期、breaklist 接入、scope close 和 upvalue 查找；facade cleanup 后不再保留 scope 私有包装 | ✓ **已完成** |
+| 2.5.1-d | 抽取 `ExpressionEmitter` | 已新增 `expression_emitter.hpp/.cpp`，切出 `ValueResult` / `CondResult` / `CallResultInfo` / `LValueRef` 表达式通道；facade cleanup 后不再保留 expression 私有包装 | ✓ **已完成** |
+| 2.5.1-e | 抽取 `StatementEmitter` | 已新增 `statement_emitter.hpp/.cpp`，承载 `statement()`、各 `emitStmt()`、`block()` 和控制流 / local / return / function / loop lowering；facade cleanup 后不再保留 statement 私有包装 | ✓ **已完成** |
 
 ### 2.6 审计新增：标准库声明式注册
 
@@ -220,7 +220,7 @@ namespace { LibRegistrar kReg("base", "Base Library", openBaseLib); }
 
 | 编号 | 任务 | 说明 | 状态 |
 |---|---|---|---|
-| 2.5.1 | `CodeGenerator` 拆分为 ExpressionEmitter / StatementEmitter / JumpPatcher / ScopeManager | 共享 CodegenState；2.5.1-a/b/c/d/e 已完成，后续剩余是 facade 瘦身与类型表达升级 | ✓ **已完成（核心拆分）** |
+| 2.5.1 | `CodeGenerator` 拆分为 ExpressionEmitter / StatementEmitter / JumpPatcher / ScopeManager | 共享 CodegenState；2.5.1-a/b/c/d/e 已完成，facade 私有转发层已瘦身 | ✓ **已完成** |
 | 2.6.1 | `lib_manager.hpp` 的 9 个 `openXxx()` 标记 `[[deprecated]]`，引导调用方使用 `openCatalogLibrary()` | 消除冗余声明；`StandardLibrary::openCatalogLibrary()` 已成为可调用 public 入口 | ✓ **已完成 — PR-70** |
 | 2.6.2 | 评估 `LibRegistrar` 声明式自注册，消除 #include 耦合 | 已评估并决定不落地；保留显式 `constexpr` catalog，新增 catalog id 唯一性测试 | ✓ **已完成 — PR-73（不采用）** |
 
@@ -265,7 +265,7 @@ namespace { LibRegistrar kReg("base", "Base Library", openBaseLib); }
 
 **审计发现**：[codegen_types.hpp](src/compiler/codegen/codegen_types.hpp) 的 `ValueResult` 结构体有 12 个公开字段（`kind`, `immediate`, `access`, `reg`, `constIndex`, `aux`, `instructionPc`, `boolValue`, `numberValue`, `ownsRegister`, `isMultiResult`, `isSingleValue`）。部分字段仅在特定 `Kind` 下有效，类似 tagged union，但缺少编译期约束保证字段使用的一致性。
 
-**当前进展**：PR-48 已加入兼容式 `std::variant` payload prototype，定义 `None`、`Immediate`、`ConstantRef`、`RegisterRef`、`PendingLoad`、`Relocatable`、`MultiRet` 和 `PendingJump` alternatives，并通过工厂函数同步填充 payload 与旧字段。`ExpressionEmitter` / `StatementEmitter` 主要构造点已改用工厂函数；PR-72 已新增 `ValueResultVisitor` / `ValueResult::visit()`，并将 `ExpressionEmitter` 的 truthiness、`materializeValue()`、`valueToRK()`、`valueToAnyReg()`、`valueToNextReg()`、`forceSingleValue()`、一元负号常量折叠和 store owned-register 释放判断迁移到 payload visitor。PR-74 已将 `Codegen Result Types`、`Expression Emitter` 和 `Symbol Binding` 的普通测试断言读取面迁移到 payload visitor，并确认 `codegen_expr.cpp` / `statement_emitter.cpp` 没有直接读取 `ValueResult` 旧公开字段。PR-75 新增 `ValueResult::LegacyFields` / `legacyFields()` 快照访问器，把兼容 mirror 的读取集中到单一桥接入口。PR-76 新增 `common/diagnostics.hpp` 的跨编译器 deprecation suppression 宏，旧公开字段已标记为 `[[deprecated]]`；只有 `ValueResult` 内部 mirror 同步使用显式 warning fence。PR-77 新增 `tools/check_value_result_legacy_fields.ps1` 并接入质量门，确认现阶段不立刻私有化 / 删除旧字段，而是用自动化回流检查保护兼容窗口。PR-78 新增 `LUA_VALUE_RESULT_PRIVATE_LEGACY_FIELDS` / CMake 选项和 `tools/run_value_result_private_trial.ps1`，并把 drift characterization 改走 `detail::ValueResultLegacyMirrorProbe`；宏打开时旧字段会进入 private 区域，CMake/CTest private trial 已通过。
+**当前进展**：PR-48 已加入兼容式 `std::variant` payload prototype，定义 `None`、`Immediate`、`ConstantRef`、`RegisterRef`、`PendingLoad`、`Relocatable`、`MultiRet` 和 `PendingJump` alternatives，并通过工厂函数同步填充 payload 与旧字段。PR-72/74 已把生产读路径和普通测试读取面迁到 `ValueResult::visit()` / `ValueResultVisitor`。PR-75/76/77 已建立 `legacyFields()` 快照桥、deprecation warning fence 和旧字段回流质量门。PR-78 已新增 `LUA_VALUE_RESULT_PRIVATE_LEGACY_FIELDS` 和 private trial 脚本。2026-05-24 facade cleanup 后，CMake 和 VS 工程默认启用旧字段 private，`ValueResult::payload()` 只保留 const 观察入口，`setPayload()` 收回 private，普通调用点不能绕过工厂函数改写 payload。
 
 **建议**：将 `ValueResult` 重构为 `std::variant` 子类型：
 
@@ -291,7 +291,8 @@ using ValueResult = std::variant<
 | 3.5.4 | `ValueResult` 旧字段兼容面 deprecation 预审 | ✓ **已完成** — PR-75；新增 `legacyFields()` 快照桥接读取面，决定暂不直接 `[[deprecated]]`，下一步先隔离 drift 写入和 warning fence |
 | 3.5.5 | `ValueResult` 旧字段 deprecation warning fence | ✓ **已完成** — PR-76；旧字段已标记 `[[deprecated]]`，受控兼容边界使用 `LUA_SUPPRESS_DEPRECATED_DECLARATIONS_*` |
 | 3.5.6 | `ValueResult` 旧字段最终收口评估 | ✓ **已完成** — PR-77；暂不私有化 / 删除，新增质量门脚本阻止旧字段访问回流 |
-| 3.5.7 | `ValueResult` 旧字段宏开关式私有化试运行 | ✓ **已完成** — PR-78；默认兼容面不变，`LUA_VALUE_RESULT_PRIVATE_LEGACY_FIELDS` 打开后 private mirror 构建与 CTest 通过 |
+| 3.5.7 | `ValueResult` 旧字段宏开关式私有化试运行 | ✓ **已完成** — PR-78；`LUA_VALUE_RESULT_PRIVATE_LEGACY_FIELDS` 打开后 private mirror 构建与 CTest 通过 |
+| 3.5.8 | `ValueResult` 旧字段默认私有化 | ✓ **已完成** — CMake / VS 工程默认启用 private mirror；mutable payload / public setPayload 已收回 |
 
 ---
 
@@ -316,7 +317,7 @@ using ValueResult = std::variant<
 |---|---|---|---|
 | `src/vm/vm.cpp` 主循环时序 | `runDispatchBackend()` 前的 dispatch timing note | 解释 `pc++` / `savedpc` / hook 时序，不在 loop 内穿插长注释 | ✓ 已完成 |
 | `src/gc/garbage_collector.cpp` `collect()` finalizer 顺序 | `collect(LuaState*)` 前的 phase contract | 解释 `prepareFinalizers` → `propagateMarks` → sweep → `runFinalizers` 的顺序原因 | ✓ 已完成 |
-| `src/compiler/codegen/codegen_jump.cpp` 回填算法 | 文件级 backpatching model | 用 ASCII 图示解释 jump list 链表如何形成，helper 内部不再放教学段落 | ✓ 已完成 |
+| `src/compiler/codegen/jump_patcher.cpp` 回填算法 | 文件级 backpatching model | 用源码注释 / docs 解释 jump list 链表如何形成，facade slice 不再承载教学段落 | ✓ 已完成 |
 | `src/core/value.hpp` `ValueVariant` 类型旁表格 | `ValueVariant` 上方类型旁表格 | 现有注释已说明 variant 索引；后续可补 Lua 5.1 `LUA_T*` 常量对照关系 | P4 候选 |
 
 ### 4.2 `lua_bytecode` 工具可视化升级
@@ -481,7 +482,7 @@ using ValueResult = std::variant<
 
 | PR | 编号 | 任务 | 阶段 | 依赖 / 理由 |
 |---|---|---|---|---|
-| PR-79 | 3.5 | `ValueResult` 旧字段默认私有化决策：在一个迭代窗口后评估是否把 private trial 变成默认行为 | 3 | PR-78 已证明宏打开时可构建；下一步应等待兼容窗口和外部调用面稳定 |
+| PR-79 | 3.5 | `ValueResult` 旧字段默认私有化决策：把 private trial 变成默认行为，并收回 mutable payload 写入口 | 3 | ✓ 已完成 |
 
 每个 PR 完成后跑：
 
@@ -492,7 +493,7 @@ using ValueResult = std::variant<
 
 ---
 
-## 附录：完成度审计（2026-05-23）
+## 附录：完成度审计（2026-05-24）
 
 > 审计方法：逐条对照文档任务编号，以当前代码库实际状态验证每个标记为"待执行"/"P3 待执行"/"P4 候选"/"待实现"的条目。已完成项以 ✓ 复核确认。
 
@@ -501,11 +502,11 @@ using ValueResult = std::variant<
 | 阶段 | 文档自评 | 实际评估 | 偏差 | 关键差距 |
 |---|---|---|---|---|
 | 阶段 1 — 短期代码清理 | ~95% | **~96%** | +1% | `tokenString` 集中化已完成；剩余工作转入跨阶段 P3 清理 |
-| 阶段 2 — 中期模式重构 | ~94% | **~93%** | −1% | GCStrategy、AstVisitor 组合模板、Visitor 内部检查去重和标准库 catalog 单库入口清理已落地；`LibRegistrar` 设想已评估并决定不采用，剩余主要是 facade 瘦身 |
-| 阶段 3 — 现代 C++ 特性 | ~93% | **~96%** | +3% | ValueResult variant prototype 已就位，核心读路径和普通测试读取面已迁移到 payload visitor；旧字段已加 deprecation warning fence、回流检查和宏开关式 private trial |
+| 阶段 2 — 中期模式重构 | ~94% | **~97%** | +3% | GCStrategy、AstVisitor 组合模板、Visitor 内部检查去重、标准库 catalog 单库入口清理和 CodeGenerator facade 瘦身已落地；剩余仅为低风险兼容窗口收尾 |
+| 阶段 3 — 现代 C++ 特性 | ~93% | **~97%** | +4% | ValueResult variant prototype 已就位，核心读路径和普通测试读取面已迁移到 payload visitor；旧字段已默认 private，回流检查继续保护兼容窗口 |
 | 阶段 4 — 教育价值增强 | ~88% | **~86%** | −2% | REPL 体验和字节码可视化主线已闭环；后续偏样例和文档深挖 |
 | 阶段 5 — 工程实践 | ~84% | **~84%** | 0 | 指令级覆盖矩阵、GC 策略等价测试、CFG 输出契约测试、Trace JSONL golden、REPL 增量解析测试、add_source 脚本和 CMake/MSBuild warning 策略对齐已补齐 |
-| **加权综合** | **~89%** | **~89%** | **0%** | |
+| **加权综合** | **~89%** | **~90%** | **+1%** | |
 
 ---
 
@@ -539,7 +540,7 @@ using ValueResult = std::variant<
 | 2.6.1 | ✓ PR-70 | `StandardLibrary::openCatalogLibrary(L, id)` 已公开；`lib_manager.hpp` 的 9 个 `openXxx()` 包装已标记 `[[deprecated]]`，测试调用改用 catalog 入口 | ✓ 确认 |
 | 2.6.2 | ✓ PR-73 | `LibRegistrar` 声明式自注册已评估并决定不采用；`docs/architecture/patterns.md` 和 `docs/stdlib/overview.md` 记录该决策，`Standard Library Catalog` 测试锁住 id 唯一性 | ✓ 确认 |
 
-**结论**：核心重构（Visitor、Dispatch、CodeGen 拆分、GCStrategy、标准库 catalog 入口）全部落地且质量高。PR-68 / PR-69 已补齐 full-tree visitor 组合模板和内部检查去重；PR-70 已收口标准库单库包装迁移提示；PR-73 已否决 `LibRegistrar` 自注册，保留更易读的显式 catalog。剩余阶段 2 差距主要是后续 facade 瘦身。
+**结论**：核心重构（Visitor、Dispatch、CodeGen 拆分与 facade 瘦身、GCStrategy、标准库 catalog 入口）全部落地且质量高。PR-68 / PR-69 已补齐 full-tree visitor 组合模板和内部检查去重；PR-70 已收口标准库单库包装迁移提示；PR-73 已否决 `LibRegistrar` 自注册，保留更易读的显式 catalog。阶段 2 当前无明确 P1/P2 缺口，后续只剩低风险兼容窗口和文档微调。
 
 #### 阶段 3 核验
 
@@ -556,9 +557,10 @@ using ValueResult = std::variant<
 | 3.5.5 ValueResult warning fence | ✓ PR-76 | `kind` / `reg` / `numberValue` 等旧公开字段已标记 `[[deprecated]]`；内部同步和 drift 测试 helper 使用显式 deprecation suppression | ✓ 确认 |
 | 3.5.6 ValueResult 收口评估 | ✓ PR-77 | `tools/check_value_result_legacy_fields.ps1` 已接入质量门；当前结论为保留 deprecated 兼容窗口，暂不立即私有化 / 删除 | ✓ 确认 |
 | 3.5.7 ValueResult private trial | ✓ PR-78 | `LUA_VALUE_RESULT_PRIVATE_LEGACY_FIELDS` 打开后旧字段进入 private 区域；`tools/run_value_result_private_trial.ps1` 已验证 CMake/CTest 通过 | ✓ 确认 |
-| 3.5 后续迁移 | 渐进进行中 | 默认兼容字段仍保留 public；后续可在一个窗口后评估是否把 private trial 变成默认行为 | ⚠ 渐进进行中 |
+| 3.5.8 ValueResult 默认私有化 | ✓ 2026-05-24 | CMake / VS 工程默认启用 private mirror；`payload()` 只保留 const 观察入口，`setPayload()` 收回 private | ✓ 确认 |
+| 3.5 后续迁移 | 渐进进行中 | 物理 legacy mirror 仍保留；后续可评估由 payload 派生 `legacyFields()` 并删除 mirror/probe | ⚠ 渐进进行中 |
 
-**结论**：现代 C++ 特性应用是五个阶段中完成度最高的。ValueResult 的 variant 迁移保持渐进式：prototype、第一批生产读路径、第二批测试读取面迁移、deprecation 预审、warning fence、回流质量门和 private trial 均已达标，剩余风险集中在旧字段兼容期后的默认私有化 / 删除策略。
+**结论**：现代 C++ 特性应用是五个阶段中完成度最高的。ValueResult 的 variant 迁移保持渐进式：prototype、生产读路径、测试读取面迁移、deprecation 预审、warning fence、回流质量门、private trial 和默认私有化均已达标，剩余风险集中在物理 legacy mirror / probe 的最终删除策略。
 
 #### 阶段 4 核验
 
@@ -590,12 +592,12 @@ using ValueResult = std::variant<
 | 5.1 Bytecode CFG 输出契约测试 | ✓ PR-63 | `Bytecode Printer` 测试已覆盖 Mermaid CFG branch、loop 和 `full` child Proto 子图输出 | ✓ 确认 |
 | 5.1 REPL 增量解析测试 | ✓ PR-65 | `REPL Commands` 已补 `Incremental Parsing Recognizes Recoverable EOF Sources`、`Rejects Definite Syntax Errors` 和 `Keeps Quick Expression Mode`，直接覆盖 `prepareInputForExecution()` + `isIncompleteInput()` 的真实 Parser 错误路径 | ✓ 确认 |
 | 5.1 Trace golden 测试 | ✓ PR-64 | `Trace JSONL Plain Golden` / `Trace JSONL Diff Golden` 已精确对比实际 VM 执行产生的 JSONL，覆盖 plain `registers` 与 diff `changedRegisters` schema | ✓ 确认 |
-| 5.2 质量门 | ✓ | `run_quality_gate.ps1` + `check_doc_drift.ps1` 动态解析测试计数，并已接入 opcode 覆盖矩阵漂移检查、ValueResult legacy field fence 和 private trial 配置自检 | ✓ 确认 |
+| 5.2 质量门 | ✓ | `run_quality_gate.ps1` + `check_doc_drift.ps1` 动态解析测试计数，并已接入 opcode 覆盖矩阵漂移检查、ValueResult legacy field fence 和默认 private 配置自检 | ✓ 确认 |
 | 5.2 clang-tidy | ✓ 增量 | `.clang-tidy` 配置文件存在；`run_quality_gate.ps1` 已有 `clang-tidy smoke`，本机无工具时按增量策略跳过 | ✓ 已接入 |
 | 5.2 CMake 编译选项 | ✓ PR-71 | `.vcxproj` 已统一 `Level4`；CMake `lua_configure_target_warnings()` 已对齐 MSVC `/W4` 与非 MSVC `-Wall -Wextra -Wpedantic -Wconversion`；MSBuild 与 CMake smoke 均 0 warning 通过 | ✓ 确认 |
 | 5.3 `add_source.ps1` | ✓ PR-66 | `tools/add_source.ps1` 已支持按目标同步 CMake、VS project 和 filters；质量门自检会复制临时项目清单验证 Core / Bytecode / Test 追加与幂等性 | ✓ 确认 |
 
-**结论**：质量门自动化继续加强：动态测试计数、opcode 覆盖矩阵漂移、ValueResult legacy field fence、private trial 脚本自检、Trace JSONL schema 漂移、新增源码清单同步脚本烟测，以及 CMake/MSBuild warning 策略都已变成可失败信号。阶段 5 当前已无明确 P1-P3 缺口。
+**结论**：质量门自动化继续加强：动态测试计数、opcode 覆盖矩阵漂移、ValueResult legacy field fence、默认 private 配置自检、Trace JSONL schema 漂移、新增源码清单同步脚本烟测，以及 CMake/MSBuild warning 策略都已变成可失败信号。阶段 5 当前已无明确 P1-P3 缺口。
 
 ---
 
@@ -611,7 +613,7 @@ using ValueResult = std::variant<
 
 #### P3 — 代码质量收尾
 
-当前无未完成 P3 项；PR-78 已完成 `ValueResult` 旧字段宏开关式私有化试运行。
+当前无未完成 P3 项；`ValueResult` 旧字段已默认私有化，后续只剩物理 legacy mirror 删除评估。
 
 #### P4 — 锦上添花
 
@@ -621,7 +623,7 @@ using ValueResult = std::variant<
 
 ### 亮点总结
 
-1. **核心重构质量极高**：Visitor 模式（compile-time 全覆盖检查）、VM Dispatch 双策略、CodeGenerator 四路拆分——每个都经过 characterization 测试锁定行为后再抽取，工程纪律严明。
+1. **核心重构质量极高**：Visitor 模式（compile-time 全覆盖检查）、VM Dispatch 双策略、CodeGenerator 四路拆分与 facade 瘦身——每个都经过 characterization 测试锁定行为后再抽取，工程纪律严明。
 2. **walkthrough 三部曲完整**：hello-world → closure-and-upvalue → gc-cycle，构成从语法到执行到内存管理的完整教学链路。
 3. **质量门自动化**：`check_doc_drift.ps1` 动态解析测试计数，`check_opcode_coverage_matrix.ps1` 锁住 38 条 opcode 覆盖矩阵，消除了文档与代码不同步的隐性风险。
 4. **现代 C++ 应用深入**：`std::expected` 错误边界、concepts 编译期约束、`std::variant` 渐进迁移，三者均是该规模教学项目中少见的深度应用。

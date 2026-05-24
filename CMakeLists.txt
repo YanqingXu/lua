@@ -9,7 +9,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 option(LUA_CPP_BUILD_TOOLS "Build the interpreter and bytecode tools" ON)
 option(LUA_CPP_BUILD_TESTS "Build the unit test runner" ON)
 option(LUA_VALUE_RESULT_PRIVATE_LEGACY_FIELDS
-       "Compile ValueResult legacy mirror fields as private for migration trials" OFF)
+       "Compile ValueResult legacy mirror fields as private; disable only for legacy compatibility checks" ON)
 
 function(lua_configure_target_warnings target_name)
     if(MSVC)

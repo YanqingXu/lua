@@ -73,12 +73,12 @@ i32 ScopeManager::resolveUpvalue(const Str& name) {
         return -1;
     }
 
-    i32 local = state_.parent->findLocalVar(name);
+    i32 local = state_.parent->scopes_.findLocalVar(name);
     if (local >= 0) {
         return addUpvalue(name, true, local);
     }
 
-    i32 parentUp = state_.parent->resolveUpvalue(name);
+    i32 parentUp = state_.parent->scopes_.resolveUpvalue(name);
     if (parentUp >= 0) {
         return addUpvalue(name, false, parentUp);
     }

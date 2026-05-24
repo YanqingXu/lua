@@ -12,6 +12,12 @@ namespace Lua {
 JumpPatcher::JumpPatcher(CodegenState& state) noexcept
     : state_(state) {}
 
+// Unresolved JMP instructions are encoded as a singly linked list: while a
+// jump is pending, its sBx points at the next unresolved jump PC rather than a
+// final destination. patchList() must read that next node before overwriting
+// sBx with the real target. blockManager.jpc_ holds jumps that should land on
+// "the next ordinary instruction"; emitting bytecode flushes that pending list.
+
 i32 JumpPatcher::emitJump() {
     i32 pending = state_.blockManager.jpc_;
     state_.blockManager.jpc_ = NO_JUMP;

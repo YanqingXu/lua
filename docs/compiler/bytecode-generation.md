@@ -1,7 +1,7 @@
 ---
 status: current
 verified_against: docs/status/project-status.md; docs/compiler/codegen-responsibility-map.md; src/common/diagnostics.hpp; src/common/lua_error.hpp; src/compiler/codegen/codegen.hpp; src/compiler/codegen/codegen.cpp; src/compiler/codegen/codegen_binding.cpp; src/compiler/codegen/codegen_expr.cpp; src/compiler/codegen/expression_emitter.hpp; src/compiler/codegen/expression_emitter.cpp; src/compiler/codegen/statement_emitter.hpp; src/compiler/codegen/statement_emitter.cpp; src/compiler/codegen/codegen_jump.cpp; src/compiler/codegen/codegen_stmt.cpp; src/compiler/codegen/codegen_types.hpp; src/compiler/codegen/codegen_context.hpp; src/compiler/codegen/codegen_state.hpp; src/compiler/codegen/jump_patcher.hpp; src/compiler/codegen/jump_patcher.cpp; src/compiler/codegen/scope_manager.hpp; src/compiler/codegen/scope_manager.cpp; src/compiler/codegen/bytecode_builder.hpp; src/compiler/register_allocator.hpp; tests/unit/compiler/test_codegen_result_types.cpp; tests/unit/compiler/test_codegen_state.cpp; tests/unit/compiler/test_codegen_characterization.cpp; tests/unit/compiler/test_jump_patcher.cpp; tests/unit/compiler/test_scope_manager.cpp; tests/unit/compiler/test_expression_emitter.cpp; tests/unit/compiler/test_statement_emitter.cpp; tests/unit/compiler/test_symbol_binding.cpp; tools/check_value_result_legacy_fields.ps1; tools/run_value_result_private_trial.ps1
-last_checked: 2026-05-23
+last_checked: 2026-05-24
 applies_to: current AST-to-Proto bytecode generator
 ---
 
@@ -28,7 +28,7 @@ source
 | 文件 | 当前职责 |
 |---|---|
 | `src/compiler/parser/parser.hpp` + `src/compiler/parser/parser*.cpp` | 将 token 流解析为 AST；实现按语句、表达式、函数、表构造等边界拆分 |
-| `src/compiler/codegen/codegen.hpp` + `src/compiler/codegen/codegen*.cpp` | 编译总控，遍历 AST 并生成 `Proto`；实现已按 binding / expr / jump / stmt 拆分 |
+| `src/compiler/codegen/codegen.hpp` + `src/compiler/codegen/codegen*.cpp` | 编译总控，生成顶层/子函数 `Proto`；expression / statement / jump lowering 已由专门 helper 承载 |
 | `src/compiler/codegen/jump_patcher.hpp/.cpp` | `CodeGenerator` 的 jump-list、pending jump 和 PC offset 回填边界 |
 | `src/compiler/codegen/scope_manager.hpp/.cpp` | `CodeGenerator` 的 local / block / upvalue 作用域生命周期边界 |
 | `src/compiler/codegen/expression_emitter.hpp/.cpp` | `CodeGenerator` 的 ValueResult / CondResult / CallResultInfo / LValueRef 表达式 lowering 边界 |
@@ -91,7 +91,7 @@ NameExpr("x")
 - 多返回值通过独立标记表达，不再和普通单值混在一起。
 
 PR-48 后，`ValueResult` 已有兼容式 `std::variant` prototype payload：
-`None`、`Immediate`、`ConstantRef`、`RegisterRef`、`PendingLoad`、`Relocatable`、`MultiRet` 和 `PendingJump`。旧的 `kind` / `reg` / `constIndex` 等公开字段默认仍保留为兼容读写面，新的工厂函数会同时填充 payload 和旧字段。PR-72 后，`ValueResultVisitor` / `ValueResult::visit()` 已成为读取 payload 的主入口，`ExpressionEmitter` 的物化、RK/register 转换、多返回值收敛、truthiness 和 owned-register 查询已开始使用 visitor；PR-74 后，compiler 单测中的普通 `ValueResult` 断言也改为读取 payload visitor；PR-75 后，合法的 legacy mirror 读取集中到 `legacyFields()` 快照桥。PR-76 后，旧公开字段已标记为 `[[deprecated]]`；只有 `ValueResult` 内部 mirror 同步和 characterization probe 使用 `LUA_SUPPRESS_DEPRECATED_DECLARATIONS_*` 作为 warning fence。PR-77 后，`tools/check_value_result_legacy_fields.ps1` 已接入质量门，结论是暂不立即删除旧字段，但禁止新增普通直接访问。PR-78 后，`LUA_VALUE_RESULT_PRIVATE_LEGACY_FIELDS` 可把旧字段切到 private 区域，`tools/run_value_result_private_trial.ps1` 已验证该模式下 CMake/CTest 通过。
+`None`、`Immediate`、`ConstantRef`、`RegisterRef`、`PendingLoad`、`Relocatable`、`MultiRet` 和 `PendingJump`。`ValueResultVisitor` / `ValueResult::visit()` 是读取 payload 的主入口；`ExpressionEmitter` 的物化、RK/register 转换、多返回值收敛、truthiness 和 owned-register 查询均按 payload visitor 分发。旧的 `kind` / `reg` / `constIndex` 等 mirror 字段仍存在于类型内部，用于 `legacyFields()` 兼容快照和 drift characterization，但默认构建已通过 `LUA_VALUE_RESULT_PRIVATE_LEGACY_FIELDS` 将其设为 private。质量门 `tools/check_value_result_legacy_fields.ps1` 会阻止普通代码重新直接访问旧字段。
 
 常见转换：
 
@@ -177,11 +177,11 @@ emitStore(target, value)
 当前 `CodeGenerator` 仍是编译总控类，但已经完成以下物理边界：
 
 - `codegen_binding.cpp`：`resolve()` 和符号绑定。
-- `codegen_expr.cpp`：保留 `CodeGenerator` 的表达式包装 API。
+- `codegen_expr.cpp`：已退役的 expression facade slice，暂留在工程源清单中。
 - `expression_emitter.hpp/.cpp`：承载 `emitValue()`、`emitCondResult()`、`emitLValue()`、调用、vararg 和表构造。
 - `statement_emitter.hpp/.cpp`：承载 `statement()`、各 `emitStmt()`、`block()` 和语句级控制流 lowering。
-- `codegen_jump.cpp`：跳转链表、条件跳转和回填。
-- `codegen_stmt.cpp`：保留 statement/block 兼容包装、函数编译、closure upvalue 装配和 debug metadata。
+- `codegen_jump.cpp`：已退役的 jump facade slice，实际回填逻辑在 `JumpPatcher`。
+- `codegen_stmt.cpp`：函数编译、closure upvalue 装配和 debug metadata。
 - `codegen_state.hpp`：分片共享状态。
 - `jump_patcher.hpp/.cpp`：jump-list、`PatchList`、pending `jpc_` 和 `fixJump/getJump` 回填操作。
 - `bytecode_builder.hpp`：当前 `Proto` 写入边界。
@@ -202,5 +202,5 @@ emitStore(target, value)
 3. `src/compiler/codegen/codegen_context.hpp`：理解局部变量、upvalue 与 block。
 4. `src/compiler/codegen/codegen_state.hpp` 和 `src/compiler/codegen/bytecode_builder.hpp`：理解共享状态和 `Proto` 写入边界。
 5. `src/compiler/codegen/codegen.hpp`：看当前总控 API。
-6. `src/compiler/codegen/codegen_binding.cpp`、`src/compiler/codegen/expression_emitter.cpp`、`src/compiler/codegen/statement_emitter.cpp`、`src/compiler/codegen/codegen_jump.cpp`、`src/compiler/codegen/codegen_stmt.cpp`：按 `resolve -> emitValue/emitCond/emitLValue -> emitStmt -> compileFunction` 的顺序读。
+6. `src/compiler/codegen/codegen_binding.cpp`、`src/compiler/codegen/expression_emitter.cpp`、`src/compiler/codegen/statement_emitter.cpp`、`src/compiler/codegen/jump_patcher.cpp`、`src/compiler/codegen/codegen_stmt.cpp`：按 `resolve -> emitValue/emitCond/emitLValue -> emitStmt -> jump patching -> compileFunction` 的顺序读。
 7. `tests/unit/compiler/test_*pipeline.cpp`：把测试当作可执行示例。

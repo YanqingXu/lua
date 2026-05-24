@@ -1,75 +1,11 @@
 /**
  * @file codegen_stmt.cpp
- * @brief CodeGenerator statement facade wrappers, function compilation, and block management.
+ * @brief CodeGenerator function compilation and debug metadata helpers.
  */
 
 #include "compiler/codegen/codegen.hpp"
 
 namespace Lua {
-
-// =====================================================================
-// Statement lowering facade wrappers
-// =====================================================================
-
-void CodeGenerator::statement(const Stmt& s) {
-    statements_.statement(s);
-}
-
-void CodeGenerator::emitStmt(const EmptyStmt& s) {
-    statements_.emitStmt(s);
-}
-
-void CodeGenerator::emitStmt(const AssignStmt& s) {
-    statements_.emitStmt(s);
-}
-
-void CodeGenerator::emitStmt(const LocalStmt& s) {
-    statements_.emitStmt(s);
-}
-
-void CodeGenerator::emitStmt(const ReturnStmt& s) {
-    statements_.emitStmt(s);
-}
-
-void CodeGenerator::emitStmt(const IfStmt& s) {
-    statements_.emitStmt(s);
-}
-
-void CodeGenerator::emitStmt(const WhileStmt& s) {
-    statements_.emitStmt(s);
-}
-
-void CodeGenerator::emitStmt(const DoStmt& s) {
-    statements_.emitStmt(s);
-}
-
-void CodeGenerator::emitStmt(const ForNumStmt& s) {
-    statements_.emitStmt(s);
-}
-
-void CodeGenerator::emitStmt(const ForInStmt& s) {
-    statements_.emitStmt(s);
-}
-
-void CodeGenerator::emitStmt(const FunctionStmt& s) {
-    statements_.emitStmt(s);
-}
-
-void CodeGenerator::emitStmt(const CallStmt& s) {
-    statements_.emitStmt(s);
-}
-
-void CodeGenerator::emitStmt(const BreakStmt& s) {
-    statements_.emitStmt(s);
-}
-
-void CodeGenerator::emitStmt(const RepeatStmt& s) {
-    statements_.emitStmt(s);
-}
-
-void CodeGenerator::block(const Vec<StmtPtr>& stmts) {
-    statements_.block(stmts);
-}
 
 // =====================================================================
 // Function definition helpers
@@ -96,11 +32,11 @@ Proto* CodeGenerator::compileFunction(const Vec<Str>& params, bool isVararg, con
     child.state_.currentLine = linedefined;
 
     for (const Str& param : params) {
-        child.addLocalVar(param);
+        child.scopes_.addLocalVar(param);
     }
-    child.adjustLocalVars(static_cast<i32>(params.size()));
+    child.scopes_.adjustLocalVars(static_cast<i32>(params.size()));
 
-    child.block(body);
+    child.statements_.block(body);
 
     child.codeABC(OpCode::RETURN, 0, 1, 0);
 
@@ -143,22 +79,6 @@ void CodeGenerator::attachDebugMetadata() {
             : state_.bytecode.instructionCount();
         state_.bytecode.addLocalDebug(local.name, local.startpc, endpc, local.reg);
     }
-}
-
-// =====================================================================
-// Block lifecycle facade wrappers
-// =====================================================================
-
-void CodeGenerator::enterBlock(bool isbreakable) {
-    scopes_.enterBlock(isbreakable);
-}
-
-void CodeGenerator::closeScopeUpvalues(i32 level) {
-    scopes_.closeScopeUpvalues(level);
-}
-
-void CodeGenerator::leaveBlock() {
-    scopes_.leaveBlock();
 }
 
 }  // namespace Lua

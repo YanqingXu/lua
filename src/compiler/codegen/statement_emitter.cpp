@@ -18,47 +18,50 @@ StatementEmitter::StatementEmitter(CodeGenerator& owner) noexcept
     , expressions_(owner.expressions_) {}
 
 i32 StatementEmitter::codeABC(OpCode op, i32 a, i32 b, i32 c) {
-    return owner_.codeABC(op, a, b, c);
+    jumps_.flushPendingJumps();
+    return state_.bytecode.emitABC(state_.currentLine, op, a, b, c);
 }
 
 i32 StatementEmitter::codeABx(OpCode op, i32 a, i32 bx) {
-    return owner_.codeABx(op, a, bx);
+    jumps_.flushPendingJumps();
+    return state_.bytecode.emitABx(state_.currentLine, op, a, bx);
 }
 
 i32 StatementEmitter::codeAsBx(OpCode op, i32 a, i32 sbx) {
-    return owner_.codeAsBx(op, a, sbx);
+    jumps_.flushPendingJumps();
+    return state_.bytecode.emitAsBx(state_.currentLine, op, a, sbx);
 }
 
 i32 StatementEmitter::allocReg() {
-    return owner_.allocReg();
+    return state_.registers.alloc();
 }
 
 void StatementEmitter::freeReg(i32 reg) {
-    owner_.freeReg(reg);
+    state_.registers.freeReg(reg, scopes_.activeLocalCount());
 }
 
 void StatementEmitter::checkStack(i32 n) {
-    owner_.checkStack(n);
+    state_.registers.checkStack(n);
 }
 
 i32 StatementEmitter::numberConstant(f64 value) {
-    return owner_.numberConstant(value);
+    return state_.bytecode.addNumberConstant(value);
 }
 
 i32 StatementEmitter::stringConstant(const Str& value) {
-    return owner_.stringConstant(value);
+    return state_.bytecode.addStringConstant(value);
 }
 
 i32 StatementEmitter::addLocalVar(const Str& name) {
-    return owner_.addLocalVar(name);
+    return scopes_.addLocalVar(name);
 }
 
 void StatementEmitter::adjustLocalVars(i32 nvars) {
-    owner_.adjustLocalVars(nvars);
+    scopes_.adjustLocalVars(nvars);
 }
 
 void StatementEmitter::removeLocalVars(i32 tolevel) {
-    owner_.removeLocalVars(tolevel);
+    scopes_.removeLocalVars(tolevel);
 }
 
 SymbolRef StatementEmitter::resolve(const Str& name) {
@@ -118,43 +121,43 @@ void StatementEmitter::emitStore(const LValueRef& target, const ValueResult& val
 }
 
 i32 StatementEmitter::jump() {
-    return owner_.jump();
+    return jumps_.emitJump();
 }
 
 void StatementEmitter::patchList(i32 list, i32 target) {
-    owner_.patchList(list, target);
+    jumps_.patchList(list, target);
 }
 
 void StatementEmitter::patchList(const PatchList& list, i32 target) {
-    owner_.patchList(list, target);
+    jumps_.patchList(list, target);
 }
 
 i32 StatementEmitter::getLabel() {
-    return owner_.getLabel();
+    return jumps_.getLabel();
 }
 
 void StatementEmitter::patchtohere(i32 list) {
-    owner_.patchtohere(list);
+    jumps_.patchToHere(list);
 }
 
 void StatementEmitter::patchtohere(const PatchList& list) {
-    owner_.patchtohere(list);
+    jumps_.patchToHere(list);
 }
 
 void StatementEmitter::fixjump(i32 pc, i32 dest) {
-    owner_.fixjump(pc, dest);
+    jumps_.fixJump(pc, dest);
 }
 
 void StatementEmitter::enterBlock(bool isbreakable) {
-    owner_.enterBlock(isbreakable);
+    scopes_.enterBlock(isbreakable);
 }
 
 void StatementEmitter::leaveBlock() {
-    owner_.leaveBlock();
+    scopes_.leaveBlock();
 }
 
 void StatementEmitter::closeScopeUpvalues(i32 level) {
-    owner_.closeScopeUpvalues(level);
+    scopes_.closeScopeUpvalues(level);
 }
 
 Proto* StatementEmitter::compileFunction(const Vec<Str>& params, bool isVararg, const Vec<StmtPtr>& body,
