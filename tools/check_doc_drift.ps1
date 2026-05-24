@@ -162,7 +162,7 @@ $coreDocs = @(
     "docs/compiler/bytecode-generation.md",
     "docs/architecture/overview.md",
     "docs/architecture/runtime-services.md",
-    "docs/compiler/parser-expression.md",
+    "docs/compiler/parser.md",
     "docs/compiler/register-allocation.md",
     "docs/compiler/codegen-responsibility-map.md",
     "docs/vm/instruction-set.md",
