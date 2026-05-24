@@ -77,12 +77,12 @@ Parser -> Chunk AST -> CodeGenerator -> Proto
 
 `CodeGenerator` is still the orchestration class, but its implementation has been split:
 
-- `codegen_binding.cpp`: name resolution to `SymbolRef`
-- `codegen_expr.cpp`: facade wrappers for expression lowering
+- `name_binder.cpp`: name resolution to `SymbolRef` and binding conversion to value/lvalue channels
+- `codegen_binding.cpp`: stable public binding wrappers on `CodeGenerator`
 - `expression_emitter.cpp`: value, condition, lvalue, call, vararg, table expression lowering
 - `statement_emitter.cpp`: statements, loops, returns, blocks, and statement-level control flow
-- `codegen_jump.cpp`: jump lists and patching
-- `codegen_stmt.cpp`: statement facade wrappers, functions, closure upvalues, and debug metadata
+- `jump_patcher.cpp`: jump lists and patching
+- `codegen_stmt.cpp`: functions, closure upvalues, and debug metadata
 - `codegen.cpp`: constructor, top-level generation, bytecode emission wrappers
 
 The current expression pipeline uses `SymbolRef`, `ValueResult`, `CondResult`, `LValueRef`, and `CallResultInfo`. Historical `ExprDesc` material is archived under `docs/archive/history/exprdesc.md`.

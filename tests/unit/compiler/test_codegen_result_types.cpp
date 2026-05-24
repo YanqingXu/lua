@@ -92,22 +92,6 @@ ValuePayloadSnapshot snapshotValuePayload(const ValueResult& value) {
     });
 }
 
-void desyncLegacyNumberFields(ValueResult& value) {
-    ValueResult::LegacyFields fields = value.legacyFields();
-    fields.kind = ValueResult::Kind::Register;
-    fields.reg = 99;
-    fields.numberValue = -1.0;
-    detail::ValueResultLegacyMirrorProbe::overwriteForCharacterization(value, fields);
-}
-
-void desyncLegacyMultiRetFields(ValueResult& value) {
-    ValueResult::LegacyFields fields = value.legacyFields();
-    fields.access = ValueResult::AccessKind::Vararg;
-    fields.reg = 77;
-    fields.instructionPc = 101;
-    detail::ValueResultLegacyMirrorProbe::overwriteForCharacterization(value, fields);
-}
-
 }  // namespace
 
 void testDefaultResultTypeState(TestSuite& suite) {
@@ -198,35 +182,8 @@ void testValueResultVariantPrototype(TestSuite& suite) {
     ASSERT_FALSE(suite, callPayload.payloadIsSingleValue, "multi-ret payload is not a single value");
 }
 
-void testValueResultLegacySnapshotStaysSynced(TestSuite& suite) {
+void testValueResultPayloadVisitReadsVariant(TestSuite& suite) {
     ValueResult number = ValueResult::makeNumber(12.5);
-    ValueResult::LegacyFields numberLegacy = number.legacyFields();
-    ASSERT_EQ(suite, static_cast<int>(ValueResult::Kind::Immediate),
-              static_cast<int>(numberLegacy.kind), "number factory keeps legacy kind snapshot");
-    ASSERT_EQ(suite, 12.5, numberLegacy.numberValue, "number factory keeps legacy number snapshot");
-
-    ValueResult local = ValueResult::makeRegister(3, false, ValueResult::AccessKind::Local);
-    ValueResult::LegacyFields localLegacy = local.legacyFields();
-    ASSERT_EQ(suite, static_cast<int>(ValueResult::Kind::Register),
-              static_cast<int>(localLegacy.kind), "register factory keeps legacy kind snapshot");
-    ASSERT_EQ(suite, static_cast<int>(ValueResult::AccessKind::Local),
-              static_cast<int>(localLegacy.access), "register factory keeps legacy access snapshot");
-    ASSERT_EQ(suite, 3, localLegacy.reg, "register factory keeps legacy register snapshot");
-
-    ValueResult global = ValueResult::makePendingLoad(ValueResult::AccessKind::Global, -1, 7, -1);
-    ValueResult::LegacyFields globalLegacy = global.legacyFields();
-    ASSERT_EQ(suite, 7, globalLegacy.constIndex, "pending-load factory keeps legacy constant snapshot");
-
-    ValueResult call = ValueResult::makeMultiRet(ValueResult::AccessKind::Call, 2, 9);
-    ValueResult::LegacyFields callLegacy = call.legacyFields();
-    ASSERT_TRUE(suite, callLegacy.isMultiResult, "multi-ret factory keeps legacy multi snapshot");
-    ASSERT_FALSE(suite, callLegacy.isSingleValue, "multi-ret factory clears legacy single snapshot");
-}
-
-void testValueResultPayloadVisitIgnoresLegacyDrift(TestSuite& suite) {
-    ValueResult number = ValueResult::makeNumber(12.5);
-    desyncLegacyNumberFields(number);
-
     f64 visitedNumber = number.visit(ValueResultVisitor{
         [](const ValueResult::Immediate& immediate) -> f64 {
             return immediate.kind == ValueResult::ImmediateKind::Number ? immediate.numberValue : -1.0;
@@ -235,11 +192,9 @@ void testValueResultPayloadVisitIgnoresLegacyDrift(TestSuite& suite) {
             return -1.0;
         },
     });
-    ASSERT_EQ(suite, 12.5, visitedNumber, "payload visit reads the variant, not drifted legacy fields");
+    ASSERT_EQ(suite, 12.5, visitedNumber, "payload visit reads the variant number");
 
     ValueResult call = ValueResult::makeMultiRet(ValueResult::AccessKind::Call, 2, 9);
-    desyncLegacyMultiRetFields(call);
-
     i32 visitedBase = call.visit(ValueResultVisitor{
         [](const ValueResult::MultiRet& multi) -> i32 {
             return multi.access == ValueResult::AccessKind::Call ? multi.reg : -1;
@@ -248,7 +203,7 @@ void testValueResultPayloadVisitIgnoresLegacyDrift(TestSuite& suite) {
             return -1;
         },
     });
-    ASSERT_EQ(suite, 2, visitedBase, "payload visit keeps multi-ret base independent from legacy fields");
+    ASSERT_EQ(suite, 2, visitedBase, "payload visit reads the multi-ret base");
 }
 
 void registerCodegenResultTypeTests() {
@@ -257,8 +212,6 @@ void registerCodegenResultTypeTests() {
     registry.registerTest(kSuiteName, "Default Result Type State", testDefaultResultTypeState);
     registry.registerTest(kSuiteName, "PatchList Append And Merge", testPatchListAppendAndMerge);
     registry.registerTest(kSuiteName, "ValueResult Variant Prototype", testValueResultVariantPrototype);
-    registry.registerTest(kSuiteName, "ValueResult Legacy Snapshot Stays Synced",
-                          testValueResultLegacySnapshotStaysSynced);
-    registry.registerTest(kSuiteName, "ValueResult Payload Visit Ignores Legacy Drift",
-                          testValueResultPayloadVisitIgnoresLegacyDrift);
+    registry.registerTest(kSuiteName, "ValueResult Payload Visit Reads Variant",
+                          testValueResultPayloadVisitReadsVariant);
 }

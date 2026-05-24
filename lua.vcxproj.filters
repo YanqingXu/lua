@@ -19,12 +19,6 @@
     <ClCompile Include="src\compiler\codegen\codegen_binding.cpp">
       <Filter>src\compiler\codegen</Filter>
     </ClCompile>
-    <ClCompile Include="src\compiler\codegen\codegen_expr.cpp">
-      <Filter>src\compiler\codegen</Filter>
-    </ClCompile>
-    <ClCompile Include="src\compiler\codegen\codegen_jump.cpp">
-      <Filter>src\compiler\codegen</Filter>
-    </ClCompile>
     <ClCompile Include="src\compiler\codegen\codegen_stmt.cpp">
       <Filter>src\compiler\codegen</Filter>
     </ClCompile>
@@ -32,6 +26,9 @@
       <Filter>src\compiler\codegen</Filter>
     </ClCompile>
     <ClCompile Include="src\compiler\codegen\jump_patcher.cpp">
+      <Filter>src\compiler\codegen</Filter>
+    </ClCompile>
+    <ClCompile Include="src\compiler\codegen\name_binder.cpp">
       <Filter>src\compiler\codegen</Filter>
     </ClCompile>
     <ClCompile Include="src\compiler\codegen\scope_manager.cpp">
@@ -270,6 +267,9 @@
     <ClInclude Include="src\compiler\codegen\jump_patcher.hpp">
       <Filter>src\compiler\codegen</Filter>
     </ClInclude>
+    <ClInclude Include="src\compiler\codegen\name_binder.hpp">
+      <Filter>src\compiler\codegen</Filter>
+    </ClInclude>
     <ClInclude Include="src\compiler\codegen\scope_manager.hpp">
       <Filter>src\compiler\codegen</Filter>
     </ClInclude>
@@ -280,9 +280,6 @@
       <Filter>src\compiler</Filter>
     </ClInclude>
     <ClInclude Include="src\common\config.hpp">
-      <Filter>src\common</Filter>
-    </ClInclude>
-    <ClInclude Include="src\common\diagnostics.hpp">
       <Filter>src\common</Filter>
     </ClInclude>
     <ClInclude Include="src\core\function.hpp">

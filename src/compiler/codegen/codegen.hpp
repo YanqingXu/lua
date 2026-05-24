@@ -24,9 +24,10 @@
 #include "compiler/opcode.hpp"
 #include "compiler/codegen/codegen_types.hpp"
 #include "compiler/codegen/codegen_state.hpp"
-#include "compiler/codegen/expression_emitter.hpp"
 #include "compiler/codegen/jump_patcher.hpp"
+#include "compiler/codegen/name_binder.hpp"
 #include "compiler/codegen/scope_manager.hpp"
+#include "compiler/codegen/expression_emitter.hpp"
 #include "compiler/codegen/statement_emitter.hpp"
 #include "common/lua_error.hpp"
 #include "core/function.hpp"
@@ -134,6 +135,7 @@ private:
     CodegenState state_;
     JumpPatcher jumps_;
     ScopeManager scopes_;
+    NameBinder binder_;
     ExpressionEmitter expressions_;
     StatementEmitter statements_;
 };

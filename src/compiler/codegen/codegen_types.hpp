@@ -1,15 +1,10 @@
 ﻿#pragma once
 
-#include "common/diagnostics.hpp"
 #include "common/types.hpp"
 
 namespace Lua {
 
 constexpr i32 NO_JUMP = -1;
-
-namespace detail {
-struct ValueResultLegacyMirrorProbe;
-}
 
 template <typename... Visitors>
 struct ValueResultVisitor : Visitors... {
@@ -132,47 +127,7 @@ struct ValueResult {
     using Variant = std::variant<None, Immediate, ConstantRef, RegisterRef, PendingLoad, Relocatable,
                                  MultiRet, PendingJump>;
 
-    struct LegacyFields {
-        Kind kind = Kind::None;
-        ImmediateKind immediate = ImmediateKind::None;
-        AccessKind access = AccessKind::None;
-        i32 reg = -1;
-        i32 constIndex = -1;
-        i32 aux = -1;
-        i32 instructionPc = NO_JUMP;
-        bool boolValue = false;
-        f64 numberValue = 0.0;
-        bool ownsRegister = false;
-        bool isMultiResult = false;
-        bool isSingleValue = true;
-    };
-
-#define LUA_VALUE_RESULT_LEGACY_FIELD \
-    [[deprecated("Use ValueResult::visit(); legacyFields() is only for compatibility snapshots.")]]
-
-#ifdef LUA_VALUE_RESULT_PRIVATE_LEGACY_FIELDS
-private:
-#endif
-
-    // Compatibility mirror for older call sites. New code should read visit() instead.
-    LUA_VALUE_RESULT_LEGACY_FIELD Kind kind = Kind::None;
-    LUA_VALUE_RESULT_LEGACY_FIELD ImmediateKind immediate = ImmediateKind::None;
-    LUA_VALUE_RESULT_LEGACY_FIELD AccessKind access = AccessKind::None;
-    LUA_VALUE_RESULT_LEGACY_FIELD i32 reg = -1;
-    LUA_VALUE_RESULT_LEGACY_FIELD i32 constIndex = -1;
-    LUA_VALUE_RESULT_LEGACY_FIELD i32 aux = -1;
-    LUA_VALUE_RESULT_LEGACY_FIELD i32 instructionPc = NO_JUMP;
-    LUA_VALUE_RESULT_LEGACY_FIELD bool boolValue = false;
-    LUA_VALUE_RESULT_LEGACY_FIELD f64 numberValue = 0.0;
-    LUA_VALUE_RESULT_LEGACY_FIELD bool ownsRegister = false;
-    LUA_VALUE_RESULT_LEGACY_FIELD bool isMultiResult = false;
-    LUA_VALUE_RESULT_LEGACY_FIELD bool isSingleValue = true;
-
-#undef LUA_VALUE_RESULT_LEGACY_FIELD
-
-#ifdef LUA_VALUE_RESULT_PRIVATE_LEGACY_FIELDS
-public:
-#endif
+    ValueResult() = default;
 
     [[nodiscard]] const Variant& payload() const noexcept {
         return payload_;
@@ -188,192 +143,50 @@ public:
         return std::visit(std::forward<Visitor>(visitor), payload_);
     }
 
-    [[nodiscard]] LegacyFields legacyFields() const noexcept {
-        LUA_SUPPRESS_DEPRECATED_DECLARATIONS_BEGIN
-        LegacyFields fields{
-            kind,
-            immediate,
-            access,
-            reg,
-            constIndex,
-            aux,
-            instructionPc,
-            boolValue,
-            numberValue,
-            ownsRegister,
-            isMultiResult,
-            isSingleValue,
-        };
-        LUA_SUPPRESS_DEPRECATED_DECLARATIONS_END
-        return fields;
-    }
-
     static ValueResult makeNil() {
-        ValueResult result;
-        result.setPayload(Immediate{ImmediateKind::Nil});
-        return result;
+        return ValueResult(Immediate{ImmediateKind::Nil});
     }
 
     static ValueResult makeBoolean(bool value) {
-        ValueResult result;
-        result.setPayload(Immediate{ImmediateKind::Boolean, value, 0.0});
-        return result;
+        return ValueResult(Immediate{ImmediateKind::Boolean, value, 0.0});
     }
 
     static ValueResult makeNumber(f64 value) {
-        ValueResult result;
-        result.setPayload(Immediate{ImmediateKind::Number, false, value});
-        return result;
+        return ValueResult(Immediate{ImmediateKind::Number, false, value});
     }
 
     static ValueResult makeConstant(i32 index) {
-        ValueResult result;
-        result.setPayload(ConstantRef{index});
-        return result;
+        return ValueResult(ConstantRef{index});
     }
 
     static ValueResult makeRegister(i32 index, bool owns, AccessKind accessKind = AccessKind::None) {
-        ValueResult result;
-        result.setPayload(RegisterRef{index, owns, accessKind});
-        return result;
+        return ValueResult(RegisterRef{index, owns, accessKind});
     }
 
     static ValueResult makePendingLoad(AccessKind accessKind, i32 sourceReg = -1, i32 constantIndex = -1,
                                        i32 auxIndex = -1) {
-        ValueResult result;
-        result.setPayload(PendingLoad{accessKind, sourceReg, constantIndex, auxIndex});
-        return result;
+        return ValueResult(PendingLoad{accessKind, sourceReg, constantIndex, auxIndex});
     }
 
     static ValueResult makeRelocatable(i32 pc) {
-        ValueResult result;
-        result.setPayload(Relocatable{pc});
-        return result;
+        return ValueResult(Relocatable{pc});
     }
 
     static ValueResult makeMultiRet(AccessKind accessKind, i32 baseReg, i32 pc) {
-        ValueResult result;
-        result.setPayload(MultiRet{accessKind, baseReg, pc});
-        return result;
+        return ValueResult(MultiRet{accessKind, baseReg, pc});
     }
 
     static ValueResult makePendingJump(i32 pc) {
-        ValueResult result;
-        result.setPayload(PendingJump{pc});
-        return result;
+        return ValueResult(PendingJump{pc});
     }
 
 private:
-    friend struct detail::ValueResultLegacyMirrorProbe;
-
     Variant payload_ = None{};
 
-    void setPayload(Variant value) {
-        payload_ = std::move(value);
-        syncLegacyFieldsFromPayload();
-    }
-
-    void resetLegacyFields() noexcept {
-        LUA_SUPPRESS_DEPRECATED_DECLARATIONS_BEGIN
-        kind = Kind::None;
-        immediate = ImmediateKind::None;
-        access = AccessKind::None;
-        reg = -1;
-        constIndex = -1;
-        aux = -1;
-        instructionPc = NO_JUMP;
-        boolValue = false;
-        numberValue = 0.0;
-        ownsRegister = false;
-        isMultiResult = false;
-        isSingleValue = true;
-        LUA_SUPPRESS_DEPRECATED_DECLARATIONS_END
-    }
-
-    void syncLegacyFieldsFromPayload() {
-        resetLegacyFields();
-
-        LUA_SUPPRESS_DEPRECATED_DECLARATIONS_BEGIN
-        struct Visitor {
-            ValueResult& result;
-
-            void operator()(const None&) const noexcept {}
-
-            void operator()(const Immediate& value) const noexcept {
-                result.kind = Kind::Immediate;
-                result.immediate = value.kind;
-                result.boolValue = value.boolValue;
-                result.numberValue = value.numberValue;
-            }
-
-            void operator()(const ConstantRef& value) const noexcept {
-                result.kind = Kind::Constant;
-                result.constIndex = value.constIndex;
-            }
-
-            void operator()(const RegisterRef& value) const noexcept {
-                result.kind = Kind::Register;
-                result.access = value.access;
-                result.reg = value.reg;
-                result.ownsRegister = value.ownsRegister;
-            }
-
-            void operator()(const PendingLoad& value) const noexcept {
-                result.kind = Kind::PendingLoad;
-                result.access = value.access;
-                result.reg = value.reg;
-                result.constIndex = value.constIndex;
-                result.aux = value.aux;
-            }
-
-            void operator()(const Relocatable& value) const noexcept {
-                result.kind = Kind::Relocatable;
-                result.instructionPc = value.instructionPc;
-            }
-
-            void operator()(const MultiRet& value) const noexcept {
-                result.kind = Kind::MultiRet;
-                result.access = value.access;
-                result.reg = value.reg;
-                result.instructionPc = value.instructionPc;
-                result.isMultiResult = true;
-                result.isSingleValue = false;
-            }
-
-            void operator()(const PendingJump& value) const noexcept {
-                result.kind = Kind::PendingJump;
-                result.instructionPc = value.instructionPc;
-            }
-        };
-
-        std::visit(Visitor{*this}, payload_);
-        LUA_SUPPRESS_DEPRECATED_DECLARATIONS_END
+    explicit ValueResult(Variant value)
+        : payload_(std::move(value)) {
     }
 };
-
-namespace detail {
-
-struct ValueResultLegacyMirrorProbe {
-    static void overwriteForCharacterization(ValueResult& value,
-                                             const ValueResult::LegacyFields& fields) noexcept {
-        LUA_SUPPRESS_DEPRECATED_DECLARATIONS_BEGIN
-        value.kind = fields.kind;
-        value.immediate = fields.immediate;
-        value.access = fields.access;
-        value.reg = fields.reg;
-        value.constIndex = fields.constIndex;
-        value.aux = fields.aux;
-        value.instructionPc = fields.instructionPc;
-        value.boolValue = fields.boolValue;
-        value.numberValue = fields.numberValue;
-        value.ownsRegister = fields.ownsRegister;
-        value.isMultiResult = fields.isMultiResult;
-        value.isSingleValue = fields.isSingleValue;
-        LUA_SUPPRESS_DEPRECATED_DECLARATIONS_END
-    }
-};
-
-}  // namespace detail
 
 struct LValueRef {
     enum class Kind {

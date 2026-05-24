@@ -11,6 +11,7 @@
 #include "compiler/codegen/codegen_types.hpp"
 #include "compiler/codegen/expression_emitter.hpp"
 #include "compiler/codegen/jump_patcher.hpp"
+#include "compiler/codegen/name_binder.hpp"
 #include "compiler/codegen/scope_manager.hpp"
 #include "compiler/opcode.hpp"
 
@@ -23,7 +24,7 @@ class CodeGenerator;
  *
  * StatementEmitter centralizes statement and block lowering while sharing the
  * facade-owned CodegenState and helper boundaries. It does not own compiler
- * state and keeps CodeGenerator's existing private wrapper API intact.
+ * state and keeps the public CodeGenerator facade stable.
  */
 class StatementEmitter : private StmtVisitor<StatementEmitter, void> {
     friend struct StmtVisitor<StatementEmitter, void>;
@@ -119,6 +120,7 @@ private:
     CodegenState& state_;
     JumpPatcher& jumps_;
     ScopeManager& scopes_;
+    NameBinder& binder_;
     ExpressionEmitter& expressions_;
 };
 

@@ -85,7 +85,8 @@ ExpressionEmitter::ExpressionEmitter(CodeGenerator& owner) noexcept
     : owner_(owner)
     , state_(owner.state_)
     , jumps_(owner.jumps_)
-    , scopes_(owner.scopes_) {}
+    , scopes_(owner.scopes_)
+    , binder_(owner.binder_) {}
 
 i32 ExpressionEmitter::codeABC(OpCode op, i32 a, i32 b, i32 c) {
     jumps_.flushPendingJumps();
@@ -123,15 +124,15 @@ i32 ExpressionEmitter::stringConstant(const Str& value) {
 }
 
 SymbolRef ExpressionEmitter::resolve(const Str& name) {
-    return owner_.resolve(name);
+    return binder_.resolve(name);
 }
 
 ValueResult ExpressionEmitter::symbolToValue(const SymbolRef& sym) {
-    return owner_.symbolToValue(sym);
+    return binder_.symbolToValue(sym);
 }
 
 LValueRef ExpressionEmitter::symbolToLValue(const SymbolRef& sym) {
-    return owner_.symbolToLValue(sym);
+    return binder_.symbolToLValue(sym);
 }
 
 i32 ExpressionEmitter::jump() {

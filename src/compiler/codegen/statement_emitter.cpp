@@ -15,6 +15,7 @@ StatementEmitter::StatementEmitter(CodeGenerator& owner) noexcept
     , state_(owner.state_)
     , jumps_(owner.jumps_)
     , scopes_(owner.scopes_)
+    , binder_(owner.binder_)
     , expressions_(owner.expressions_) {}
 
 i32 StatementEmitter::codeABC(OpCode op, i32 a, i32 b, i32 c) {
@@ -65,11 +66,11 @@ void StatementEmitter::removeLocalVars(i32 tolevel) {
 }
 
 SymbolRef StatementEmitter::resolve(const Str& name) {
-    return owner_.resolve(name);
+    return binder_.resolve(name);
 }
 
 ValueResult StatementEmitter::symbolToValue(const SymbolRef& sym) {
-    return owner_.symbolToValue(sym);
+    return binder_.symbolToValue(sym);
 }
 
 CondResult StatementEmitter::emitCondResult(const Expr& e) {

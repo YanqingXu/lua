@@ -42,7 +42,7 @@ Assert-FileContains ".clang-tidy" @(
 
 Assert-FileContains "tools/run_quality_gate.ps1" @(
     "check_opcode_coverage_matrix\.ps1",
-    "check_value_result_legacy_fields\.ps1",
+    "check_value_result_variant_only\.ps1",
     "check_doc_drift\.ps1",
     "clang-format",
     "clang-tidy",
@@ -66,36 +66,17 @@ Assert-FileContains "tools/check_opcode_coverage_matrix.ps1" @(
     "Opcode matrix order mismatch"
 )
 
-Assert-FileContains "tools/check_value_result_legacy_fields.ps1" @(
+Assert-FileContains "tools/check_value_result_variant_only.ps1" @(
     "ValueResult",
-    "legacyFields",
-    "ValueResultLegacyMirrorProbe",
-    "LUA_SUPPRESS_DEPRECATED_DECLARATIONS_BEGIN",
-    "payload\(\)/visit\(\)"
+    "variant-only",
+    "forbiddenPatterns",
+    "setPayload"
 )
-
-Assert-FileContains "tools/run_value_result_private_trial.ps1" @(
-    "run_cmake_smoke\.ps1",
-    "cmake-value-result-private",
-    "LUA_VALUE_RESULT_PRIVATE_LEGACY_FIELDS=ON"
-)
-
-Assert-FileContains "CMakeLists.txt" @(
-    "option\(LUA_VALUE_RESULT_PRIVATE_LEGACY_FIELDS",
-    "compatibility checks"" ON\)",
-    "target_compile_definitions\(lua_core PUBLIC LUA_VALUE_RESULT_PRIVATE_LEGACY_FIELDS=1\)"
-)
-
-foreach ($projectFile in @("lua.vcxproj", "lua_app.vcxproj", "lua_bytecode.vcxproj", "lua_test.vcxproj")) {
-    Assert-FileContains $projectFile @(
-        "LUA_VALUE_RESULT_PRIVATE_LEGACY_FIELDS=1"
-    )
-}
 
 Assert-FileContains "src/compiler/codegen/codegen_types.hpp" @(
-    "LUA_VALUE_RESULT_PRIVATE_LEGACY_FIELDS",
-    "ValueResultLegacyMirrorProbe",
-    "overwriteForCharacterization"
+    "using Variant = std::variant",
+    "ValueResult\(\) = default",
+    "explicit ValueResult\(Variant value\)"
 )
 
 Assert-FileContains "tests/unit/vm/opcode_coverage_matrix.md" @(

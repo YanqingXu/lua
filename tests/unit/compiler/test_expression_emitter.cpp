@@ -38,14 +38,6 @@ ImmediatePayload readImmediatePayload(const ValueResult& value) {
     });
 }
 
-void desyncLegacyNumberFields(ValueResult& value) {
-    ValueResult::LegacyFields fields = value.legacyFields();
-    fields.kind = ValueResult::Kind::Register;
-    fields.reg = 42;
-    fields.numberValue = -1.0;
-    detail::ValueResultLegacyMirrorProbe::overwriteForCharacterization(value, fields);
-}
-
 }  // namespace
 
 void testExpressionEmitterPublicBoundary(TestSuite& suite) {
@@ -102,7 +94,7 @@ void testExpressionEmitterLowersImmediateValues(TestSuite& suite) {
     ASSERT_TRUE(suite, boolPayload.boolValue, "boolean literal value should be preserved");
 }
 
-void testExpressionEmitterMaterializesPayloadWhenLegacyFieldsDrift(TestSuite& suite) {
+void testExpressionEmitterMaterializesNumberPayload(TestSuite& suite) {
     RuntimeServices services = RuntimeServices::fromSingletons();
     CodeGenerator codegen(services);
 
@@ -111,15 +103,12 @@ void testExpressionEmitterMaterializesPayloadWhenLegacyFieldsDrift(TestSuite& su
     ExpressionEmitter expressions(codegen);
 
     ValueResult value = ValueResult::makeNumber(21.0);
-    // Deliberately desync the compatibility fields; materialization should read the payload.
-    desyncLegacyNumberFields(value);
-
     usize pc = proto->getInstructionCount();
     expressions.materializeValue(value, 0);
 
     Instruction inst = proto->getInstruction(pc);
     ASSERT_EQ(suite, static_cast<int>(OpCode::LOADK), static_cast<int>(GET_OPCODE(inst)),
-              "materializeValue should dispatch from payload, not drifted legacy kind");
+              "materializeValue should dispatch from the variant payload");
     ASSERT_EQ(suite, 0, GETARG_A(inst), "materialized payload number targets the requested register");
 
     Value constant = proto->getConstant(static_cast<usize>(GETARG_Bx(inst)));
@@ -134,6 +123,6 @@ void registerExpressionEmitterTests() {
 
     registry.registerTest(kSuiteName, "Public Boundary", testExpressionEmitterPublicBoundary);
     registry.registerTest(kSuiteName, "Lowers Immediate Values", testExpressionEmitterLowersImmediateValues);
-    registry.registerTest(kSuiteName, "Materializes Payload When Legacy Fields Drift",
-                          testExpressionEmitterMaterializesPayloadWhenLegacyFieldsDrift);
+    registry.registerTest(kSuiteName, "Materializes Number Payload",
+                          testExpressionEmitterMaterializesNumberPayload);
 }

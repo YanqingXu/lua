@@ -8,8 +8,6 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 option(LUA_CPP_BUILD_TOOLS "Build the interpreter and bytecode tools" ON)
 option(LUA_CPP_BUILD_TESTS "Build the unit test runner" ON)
-option(LUA_VALUE_RESULT_PRIVATE_LEGACY_FIELDS
-       "Compile ValueResult legacy mirror fields as private; disable only for legacy compatibility checks" ON)
 
 function(lua_configure_target_warnings target_name)
     if(MSVC)
@@ -23,11 +21,10 @@ set(LUA_CORE_SOURCES
     src/compiler/ast.cpp
     src/compiler/codegen/codegen.cpp
     src/compiler/codegen/codegen_binding.cpp
-    src/compiler/codegen/codegen_expr.cpp
-    src/compiler/codegen/codegen_jump.cpp
     src/compiler/codegen/codegen_stmt.cpp
     src/compiler/codegen/expression_emitter.cpp
     src/compiler/codegen/jump_patcher.cpp
+    src/compiler/codegen/name_binder.cpp
     src/compiler/codegen/scope_manager.cpp
     src/compiler/codegen/statement_emitter.cpp
     src/compiler/lexer/lexer.cpp
@@ -179,9 +176,6 @@ add_library(lua_core STATIC ${LUA_CORE_SOURCES})
 target_include_directories(lua_core PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
-if(LUA_VALUE_RESULT_PRIVATE_LEGACY_FIELDS)
-    target_compile_definitions(lua_core PUBLIC LUA_VALUE_RESULT_PRIVATE_LEGACY_FIELDS=1)
-endif()
 if(CMAKE_DL_LIBS)
     target_link_libraries(lua_core PUBLIC ${CMAKE_DL_LIBS})
 endif()

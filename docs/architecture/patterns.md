@@ -1,6 +1,6 @@
 ---
 status: current
-verified_against: src/compiler/ast_visitor.hpp; src/compiler/codegen/codegen.hpp; src/compiler/codegen/codegen_expr.cpp; src/vm/vm_handlers.hpp; src/vm/vm_handlers.cpp; src/vm/vm_handlers/; src/vm/vm_dispatch_strategy.hpp; src/vm/vm_dispatch_strategy.cpp; src/runtime/runtime_services.hpp; src/vm/state/global_state.hpp; src/gc/garbage_collector.hpp; src/gc/gc_strategy.hpp; src/gc/gc_strategy.cpp; src/compiler/codegen/bytecode_builder.hpp; src/compiler/codegen/codegen_state.hpp; src/lib/lib_catalog.hpp; src/lib/lib_catalog.cpp; src/lib/lib_manager.hpp; docs/roadmap/optimization_and_refactoring.md
+verified_against: src/compiler/ast_visitor.hpp; src/compiler/codegen/codegen.hpp; src/compiler/codegen/expression_emitter.hpp; src/compiler/codegen/statement_emitter.hpp; src/vm/vm_handlers.hpp; src/vm/vm_handlers.cpp; src/vm/vm_handlers/; src/vm/vm_dispatch_strategy.hpp; src/vm/vm_dispatch_strategy.cpp; src/runtime/runtime_services.hpp; src/vm/state/global_state.hpp; src/gc/garbage_collector.hpp; src/gc/gc_strategy.hpp; src/gc/gc_strategy.cpp; src/compiler/codegen/bytecode_builder.hpp; src/compiler/codegen/codegen_state.hpp; src/lib/lib_catalog.hpp; src/lib/lib_catalog.cpp; src/lib/lib_manager.hpp; docs/roadmap/optimization_and_refactoring.md
 last_checked: 2026-05-23
 applies_to: architecture pattern registry and implementation boundaries
 ---
@@ -13,7 +13,7 @@ This file records the design patterns that are intentionally present in the curr
 
 | Pattern | Status | Primary files | Current role |
 |---|---|---|---|
-| Visitor | Implemented | `src/compiler/ast_visitor.hpp`, `src/compiler/codegen/codegen.hpp`, `src/compiler/codegen/codegen_expr.cpp`, `src/repl/repl_meta.cpp` | CRTP visitors wrap AST `std::variant` dispatch. `ExprVisitor` and `StmtVisitor` cover expression-only and statement-only consumers; `AstVisitor` combines both for full-tree tools such as the REPL AST printer. |
+| Visitor | Implemented | `src/compiler/ast_visitor.hpp`, `src/compiler/codegen/expression_emitter.hpp`, `src/compiler/codegen/statement_emitter.hpp`, `src/repl/repl_meta.cpp` | CRTP visitors wrap AST `std::variant` dispatch. `ExprVisitor` and `StmtVisitor` cover expression-only and statement-only consumers; `AstVisitor` combines both for full-tree tools such as the REPL AST printer. |
 | Command | Implemented | `src/vm/vm_handlers.hpp`, `src/vm/vm_handlers.cpp`, `src/vm/vm_handlers/` | VM opcode behavior is represented by free-function handlers registered into `HandlerTable`. Table dispatch calls `runHandler()` instead of switching directly on every opcode. |
 | Strategy | Implemented | `src/vm/vm_dispatch_strategy.hpp`, `src/vm/vm_dispatch_strategy.cpp`, `src/gc/gc_strategy.hpp`, `src/gc/gc_strategy.cpp`, `src/runtime/runtime_services.hpp`, `src/vm/vm.cpp` | `DispatchStrategy` selects the VM execution algorithm; `GCStrategy` selects the collector algorithm boundary. `SwitchDispatch` and `MarkSweepGC` are the defaults. |
 | Singleton | Compatibility boundary | `src/vm/state/global_state.hpp`, `src/runtime/runtime_services.hpp`, `src/gc/garbage_collector.hpp` | `GlobalState` remains singleton-backed for process-wide runtime services. New compiler, VM, and GC paths should prefer explicit service wiring. `GarbageCollector::getInstance()` remains only as a deprecated compatibility shim. |

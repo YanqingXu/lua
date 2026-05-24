@@ -175,8 +175,8 @@ try {
         & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root "tools\check_opcode_coverage_matrix.ps1")
     }
 
-    Invoke-Step "ValueResult legacy field fence" {
-        & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root "tools\check_value_result_legacy_fields.ps1")
+    Invoke-Step "ValueResult variant-only boundary" {
+        & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root "tools\check_value_result_variant_only.ps1")
     }
 
     Invoke-Step "MSBuild lua_test" {

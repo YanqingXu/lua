@@ -10,6 +10,7 @@
 #include "compiler/codegen/codegen_state.hpp"
 #include "compiler/codegen/codegen_types.hpp"
 #include "compiler/codegen/jump_patcher.hpp"
+#include "compiler/codegen/name_binder.hpp"
 #include "compiler/codegen/scope_manager.hpp"
 #include "compiler/opcode.hpp"
 
@@ -106,6 +107,7 @@ private:
     CodegenState& state_;
     JumpPatcher& jumps_;
     ScopeManager& scopes_;
+    NameBinder& binder_;
 };
 
 }  // namespace Lua
