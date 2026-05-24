@@ -24,7 +24,7 @@
  */
 
 #include "compiler/ast.hpp"
-#include "lexer.hpp"
+#include "compiler/lexer/lexer.hpp"
 #include "token.hpp"
 #include "common/lua_error.hpp"
 #include "common/types.hpp"

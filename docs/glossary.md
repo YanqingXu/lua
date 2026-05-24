@@ -13,7 +13,7 @@ applies_to: Lua terminology mapped to current repository code
 |---|---|---|---|
 | Chunk | `Chunk` | `src/compiler/ast.hpp` | 一段 Lua 源码解析后的顶层 AST 节点。 |
 | AST | `Expr` / `Stmt` 派生节点 | `src/compiler/ast.hpp` | Parser 产出的语法树，CodeGenerator 的输入。 |
-| Lexer | `Lexer` | `src/compiler/parser/lexer.hpp` | 把源码切成 Token。 |
+| Lexer | `Lexer` | `src/compiler/lexer/lexer.hpp` | 把源码切成 Token。 |
 | Parser | `Parser` | `src/compiler/parser/parser.hpp` | 把 Token 流转换成 AST；现在支持接收 `RuntimeServices` 的构造重载。 |
 | Token | `Token` / `TokenType` | `src/compiler/parser/token.hpp` | Parser 消费的词法单元。 |
 | Proto | `Proto` | `src/core/function.hpp` | Lua 函数原型，保存字节码、常量表、子函数、调试信息。 |

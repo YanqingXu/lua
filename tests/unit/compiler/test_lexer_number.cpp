@@ -4,7 +4,7 @@
  */
 
 #include "../framework/test_framework.hpp"
-#include "compiler/parser/lexer.hpp"
+#include "compiler/lexer/lexer.hpp"
 #include <string>
 #include <variant>
 

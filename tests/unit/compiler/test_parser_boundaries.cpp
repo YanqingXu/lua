@@ -12,7 +12,7 @@
 #include "common/lua_error.hpp"
 #include "common/types.hpp"
 #include "compiler/ast.hpp"
-#include "compiler/parser/lexer.hpp"
+#include "compiler/lexer/lexer.hpp"
 #include "compiler/parser/parser_utils.hpp"
 
 #include <expected>

@@ -1,6 +1,6 @@
 ---
 status: current
-verified_against: bin/lua_bytecode.exe; bin/lua_app.exe; src/compiler/parser/lexer.cpp; src/compiler/parser/parser.cpp; src/compiler/parser/parser_primary.cpp; src/compiler/codegen/expression_emitter.cpp; src/compiler/codegen/statement_emitter.cpp; src/compiler/codegen/codegen_stmt.cpp; src/vm/vm.cpp; src/vm/vm_handlers.cpp; src/lib/baselib.cpp
+verified_against: bin/lua_bytecode.exe; bin/lua_app.exe; src/compiler/lexer/lexer.cpp; src/compiler/parser/parser.cpp; src/compiler/parser/parser_primary.cpp; src/compiler/codegen/expression_emitter.cpp; src/compiler/codegen/statement_emitter.cpp; src/compiler/codegen/codegen_stmt.cpp; src/vm/vm.cpp; src/vm/vm_handlers.cpp; src/lib/baselib.cpp
 last_checked: 2026-05-20
 applies_to: end-to-end execution path for print("hello")
 ---
@@ -59,17 +59,17 @@ constants (2)
 
 ## 1. Lexer：字符变成 Token
 
-入口在 `Lexer::nextToken()`，它负责处理 peek 缓存并调用 `scanToken()` 取下一个词法单元，见 `src/compiler/parser/lexer.cpp:626` 和 `src/compiler/parser/lexer.cpp:738`。
+入口在 `Lexer::nextToken()`，它负责处理 peek 缓存并调用 `scanToken()` 取下一个词法单元，见 `src/compiler/lexer/lexer.cpp:626` 和 `src/compiler/lexer/lexer.cpp:738`。
 
 `print("hello")` 被拆成这些 token：
 
 | 源码片段 | Token 含义 | 相关实现 |
 |---|---|---|
-| `print` | identifier / name | `Lexer::identifier()`，`src/compiler/parser/lexer.cpp:337` |
-| `(` | 单字符操作符 | `Lexer::scanToken()`，`src/compiler/parser/lexer.cpp:738` |
-| `"hello"` | string literal | `Lexer::string()`，`src/compiler/parser/lexer.cpp:472` |
-| `)` | 单字符操作符 | `Lexer::scanToken()`，`src/compiler/parser/lexer.cpp:738` |
-| EOF | 输入结束 | `Lexer::scanToken()`，`src/compiler/parser/lexer.cpp:738` |
+| `print` | identifier / name | `Lexer::identifier()`，`src/compiler/lexer/lexer.cpp:337` |
+| `(` | 单字符操作符 | `Lexer::scanToken()`，`src/compiler/lexer/lexer.cpp:738` |
+| `"hello"` | string literal | `Lexer::string()`，`src/compiler/lexer/lexer.cpp:472` |
+| `)` | 单字符操作符 | `Lexer::scanToken()`，`src/compiler/lexer/lexer.cpp:738` |
+| EOF | 输入结束 | `Lexer::scanToken()`，`src/compiler/lexer/lexer.cpp:738` |
 
 这里还没有“函数调用”的概念。Lexer 只负责告诉后续阶段：有一个名字、一个左括号、一个字符串、一个右括号。
 

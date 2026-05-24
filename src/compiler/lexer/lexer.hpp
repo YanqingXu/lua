@@ -20,7 +20,7 @@
  * - lua_with_cpp/src/lexer/lexer.cpp - C++参考实现
  */
 
-#include "token.hpp"
+#include "compiler/parser/token.hpp"
 #include "lexer_cursor.hpp"
 #include "common/types.hpp"
 #include "io/input_stream.hpp"

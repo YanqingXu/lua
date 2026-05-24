@@ -1,23 +1,23 @@
 ---
 status: current
-verified_against: docs/status/project-status.md; src/compiler/parser/lexer.hpp; src/compiler/parser/lexer.cpp; src/compiler/parser/lexer_cursor.hpp; src/compiler/parser/lexer_cursor.cpp; src/compiler/parser/token.hpp; src/common/types.hpp; tests/unit/compiler/test_lexer_number.cpp; tests/unit/compiler/test_lexer_lookahead.cpp; tests/unit/io/test_input_stream_string.cpp; tests/unit/io/test_input_stream_stream.cpp; tests/unit/io/test_input_stream_file.cpp; https://www.lua.org/source/5.1/llex.c.html
+verified_against: docs/status/project-status.md; src/compiler/lexer/lexer.hpp; src/compiler/lexer/lexer.cpp; src/compiler/lexer/lexer_cursor.hpp; src/compiler/lexer/lexer_cursor.cpp; src/compiler/parser/token.hpp; src/common/types.hpp; tests/unit/compiler/test_lexer_number.cpp; tests/unit/compiler/test_lexer_lookahead.cpp; tests/unit/io/test_input_stream_string.cpp; tests/unit/io/test_input_stream_stream.cpp; tests/unit/io/test_input_stream_file.cpp; https://www.lua.org/source/5.1/llex.c.html
 last_checked: 2026-05-24
 applies_to: current Lua 5.1 lexer and InputCursor implementation
 ---
 
 # Lua 词法分析器实现说明
 
-本文档说明当前 `src/compiler/parser/lexer.hpp`、`src/compiler/parser/lexer.cpp`、`src/compiler/parser/lexer_cursor.hpp` 和 `src/compiler/parser/lexer_cursor.cpp` 的职责边界、扫描流程和 Lua 5.1 语义实现。项目当前以 Windows / MSBuild 为主要构建路径，CMake 作为辅助构建与测试路径；源码目标使用 C++23 标准，但这里的 lexer 主要依赖 C++17 已有的 `std::optional`、`std::string_view`、智能指针和类型安全枚举等设施。
+本文档说明当前 `src/compiler/lexer/lexer.hpp`、`src/compiler/lexer/lexer.cpp`、`src/compiler/lexer/lexer_cursor.hpp` 和 `src/compiler/lexer/lexer_cursor.cpp` 的职责边界、扫描流程和 Lua 5.1 语义实现。项目当前以 Windows / MSBuild 为主要构建路径，CMake 作为辅助构建与测试路径；源码目标使用 C++23 标准，但这里的 lexer 主要依赖 C++17 已有的 `std::optional`、`std::string_view`、智能指针和类型安全枚举等设施。
 
 ## 1. 文件与职责边界
 
 | 文件 | 当前职责 |
 |---|---|
 | `src/compiler/parser/token.hpp` | 定义 `TokenType`、`TokenValue` 和 `Token`。单字符 token 直接复用 ASCII 值，多字符 token 从 257 开始，避免和字符 token 冲突。 |
-| `src/compiler/parser/lexer_cursor.hpp` | 声明 `InputCursor`，负责输入字符缓冲、字符级 lookahead、回放状态和行列号维护。 |
-| `src/compiler/parser/lexer_cursor.cpp` | 实现 `InputCursor::advance()`、`peek()`、`save()`、`restore()`、`ensureBuffered()` 等输入游标操作。 |
-| `src/compiler/parser/lexer.hpp` | 声明 `Lexer` 的 public token API、扫描 helper、局部回溯状态 `LexerState` 和输入生命周期成员。 |
-| `src/compiler/parser/lexer.cpp` | 实现 Lua 5.1 token 扫描：空白与注释跳过、关键字、数字、字符串、长字符串、运算符、错误 token 和 token 级预读。 |
+| `src/compiler/lexer/lexer_cursor.hpp` | 声明 `InputCursor`，负责输入字符缓冲、字符级 lookahead、回放状态和行列号维护。 |
+| `src/compiler/lexer/lexer_cursor.cpp` | 实现 `InputCursor::advance()`、`peek()`、`save()`、`restore()`、`ensureBuffered()` 等输入游标操作。 |
+| `src/compiler/lexer/lexer.hpp` | 声明 `Lexer` 的 public token API、扫描 helper、局部回溯状态 `LexerState` 和输入生命周期成员。 |
+| `src/compiler/lexer/lexer.cpp` | 实现 Lua 5.1 token 扫描：空白与注释跳过、关键字、数字、字符串、长字符串、运算符、错误 token 和 token 级预读。 |
 
 这个拆分的核心目标是把“字符输入状态”和“词法规则状态”分开：`InputCursor` 不理解 Lua token，只负责稳定地给出字符；`Lexer` 不直接管理底层 stream offset，只通过 `advance()`、`peek()`、`peekNext()` 组合 Lua 词法规则。
 

@@ -5,7 +5,7 @@
 
 #include "../framework/test_framework.hpp"
 #include "../framework/test_registry.hpp"
-#include "compiler/parser/lexer.hpp"
+#include "compiler/lexer/lexer.hpp"
 #include <string>
 
 using namespace Lua;

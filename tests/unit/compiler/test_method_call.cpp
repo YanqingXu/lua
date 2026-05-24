@@ -7,7 +7,7 @@
  */
 
 #include "../framework/test_framework.hpp"
-#include "compiler/parser/lexer.hpp"
+#include "compiler/lexer/lexer.hpp"
 #include "compiler/parser/parser.hpp"
 #include "compiler/codegen/codegen.hpp"
 #include "compiler/opcode.hpp"

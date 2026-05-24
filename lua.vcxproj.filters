@@ -67,11 +67,11 @@
     <ClCompile Include="src\core\gc_string.cpp">
       <Filter>src\core</Filter>
     </ClCompile>
-    <ClCompile Include="src\compiler\parser\lexer.cpp">
-      <Filter>src\compiler\parser</Filter>
+    <ClCompile Include="src\compiler\lexer\lexer.cpp">
+      <Filter>src\compiler\lexer</Filter>
     </ClCompile>
-    <ClCompile Include="src\compiler\parser\lexer_cursor.cpp">
-      <Filter>src\compiler\parser</Filter>
+    <ClCompile Include="src\compiler\lexer\lexer_cursor.cpp">
+      <Filter>src\compiler\lexer</Filter>
     </ClCompile>
     <ClCompile Include="src\compiler\opcode.cpp">
       <Filter>src\compiler</Filter>
@@ -300,11 +300,11 @@
     <ClInclude Include="src\core\gc_string.hpp">
       <Filter>src\core</Filter>
     </ClInclude>
-    <ClInclude Include="src\compiler\parser\lexer.hpp">
-      <Filter>src\compiler\parser</Filter>
+    <ClInclude Include="src\compiler\lexer\lexer.hpp">
+      <Filter>src\compiler\lexer</Filter>
     </ClInclude>
-    <ClInclude Include="src\compiler\parser\lexer_cursor.hpp">
-      <Filter>src\compiler\parser</Filter>
+    <ClInclude Include="src\compiler\lexer\lexer_cursor.hpp">
+      <Filter>src\compiler\lexer</Filter>
     </ClInclude>
     <ClInclude Include="src\common\macros.hpp">
       <Filter>src\common</Filter>
@@ -445,6 +445,9 @@
     </Filter>
     <Filter Include="src\compiler\codegen">
       <UniqueIdentifier>{c2d7cf2f-7a30-4db6-8f69-584b0eb4a4e1}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\compiler\lexer">
+      <UniqueIdentifier>{54e9d57c-b5f2-469e-b5a9-a84ca943b9e5}</UniqueIdentifier>
     </Filter>
     <Filter Include="src\compiler\parser">
       <UniqueIdentifier>{f00ab15e-21db-475a-82c1-1ed8708c3df4}</UniqueIdentifier>

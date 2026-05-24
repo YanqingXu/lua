@@ -13,7 +13,7 @@
 #include "../framework/test_framework.hpp"
 #include "common/types.hpp"
 #include "io/input_stream.hpp"
-#include "compiler/parser/lexer.hpp"
+#include "compiler/lexer/lexer.hpp"
 #include <fstream>
 #include <cstdio>  // std::remove
 

@@ -153,8 +153,8 @@
     <ClInclude Include="src\compiler\codegen\scope_manager.hpp" />
     <ClInclude Include="src\compiler\codegen\statement_emitter.hpp" />
     <ClInclude Include="src\compiler\register_allocator.hpp" />
-    <ClInclude Include="src\compiler\parser\lexer.hpp" />
-    <ClInclude Include="src\compiler\parser\lexer_cursor.hpp" />
+    <ClInclude Include="src\compiler\lexer\lexer.hpp" />
+    <ClInclude Include="src\compiler\lexer\lexer_cursor.hpp" />
     <ClInclude Include="src\compiler\opcode.hpp" />
     <ClInclude Include="src\compiler\parser\parser.hpp" />
     <ClInclude Include="src\compiler\parser\token.hpp" />
@@ -216,8 +216,8 @@
     <ClCompile Include="src\compiler\codegen\jump_patcher.cpp" />
     <ClCompile Include="src\compiler\codegen\scope_manager.cpp" />
     <ClCompile Include="src\compiler\codegen\statement_emitter.cpp" />
-    <ClCompile Include="src\compiler\parser\lexer.cpp" />
-    <ClCompile Include="src\compiler\parser\lexer_cursor.cpp" />
+    <ClCompile Include="src\compiler\lexer\lexer.cpp" />
+    <ClCompile Include="src\compiler\lexer\lexer_cursor.cpp" />
     <ClCompile Include="src\compiler\opcode.cpp" />
     <ClCompile Include="src\compiler\parser\parser.cpp" />
     <ClCompile Include="src\compiler\parser\parser_expr.cpp" />

@@ -27,7 +27,7 @@ The implementation is intentionally learning-friendly: most Lua concepts have di
 | Application | `src/main.cpp`, `src/repl.cpp`, `src/repl/*`, `src/app/app_options.*` | CLI, script mode, REPL mode, trace option parsing, REPL bytecode / AST / GC meta commands, Tab completion, line-numbered prompts, terminal-colored REPL errors |
 | Bytecode tool | `src/bytecode/bytecode_main.cpp`, `src/bytecode/bytecode_printer.*` | Compile scripts to `Proto`; print decoded instructions, constants, recursive child Protos in full mode, side-by-side bytecode diffs, and Mermaid CFG graphs |
 | Runtime services | `src/runtime/runtime_services.hpp` | Thin explicit bundle over `GlobalState`, `StringPool`, `GarbageCollector`, active `GCStrategy`, and optional VM dispatch strategy |
-| Compiler frontend | `src/compiler/parser/lexer.*`, `src/compiler/parser/parser*.cpp`, `src/compiler/ast.*` | Tokenize source and build AST |
+| Compiler frontend | `src/compiler/lexer/lexer.*`, `src/compiler/parser/parser*.cpp`, `src/compiler/ast.*` | Tokenize source and build AST |
 | Compiler shared model | `src/compiler/ast.*`, `src/compiler/ast_visitor.hpp`, `src/compiler/opcode.*`, `src/compiler/register_allocator.hpp` | Shared AST and bytecode definitions used across parser, codegen, tests, and VM |
 | Code generation | `src/compiler/codegen/codegen*.cpp`, `src/compiler/codegen/codegen_types.hpp`, `src/compiler/codegen/codegen_context.hpp`, `src/compiler/codegen/bytecode_builder.hpp` | Lower AST to `Proto` bytecode |
 | Core objects | `src/core/value.*`, `table.*`, `function.*`, `upvalue.*`, `userdata.*`, `thread.*` | C++ representation of Lua values and GC objects |
