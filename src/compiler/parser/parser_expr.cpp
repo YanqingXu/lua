@@ -1,6 +1,8 @@
 /**
  * @file parser_expr.cpp
- * @brief Lua Parser expression precedence implementation.
+ * @brief Lua表达式优先级链解析实现
+ *
+ * 实现逻辑、关系、连接、算术、一元和幂运算等表达式优先级规则。
  */
 
 #include "parser_impl.hpp"
@@ -10,7 +12,7 @@
 namespace Lua {
 
 ExprPtr Parser::Impl::parseExpression() {
-    RecursionGuard guard(*this);  // 递归深度保护
+    RecursionGuard guard(*this);
     return parseOrExpr();
 }
 
@@ -45,12 +47,10 @@ ExprPtr Parser::Impl::parseAndExpr() {
 ExprPtr Parser::Impl::parseRelationalExpr() {
     ExprPtr left = parseConcatExpr();
 
-    // 关系运算符: <, >, <=, >=, ==, ~=
     TokenType op = current().type;
     if (op == static_cast<TokenType>('<') || op == static_cast<TokenType>('>') ||
         op == TokenType::Le || op == TokenType::Ge ||
         op == TokenType::Eq || op == TokenType::Ne) {
-
         Token opToken = current();
         advance();
 
@@ -80,12 +80,11 @@ ExprPtr Parser::Impl::parseRelationalExpr() {
 ExprPtr Parser::Impl::parseConcatExpr() {
     ExprPtr left = parseAdditiveExpr();
 
-    // 字符串连接是右结合的
     if (check(TokenType::Concat)) {
         Token opToken = current();
         advance();
 
-        ExprPtr right = parseConcatExpr();  // 右结合
+        ExprPtr right = parseConcatExpr();
         left = makeBinaryExpr(BinaryExpr::Op::Concat, opToken, std::move(left), std::move(right));
     }
 
@@ -114,7 +113,6 @@ ExprPtr Parser::Impl::parseMultiplicativeExpr() {
     while (check(static_cast<TokenType>('*')) ||
            check(static_cast<TokenType>('/')) ||
            check(static_cast<TokenType>('%'))) {
-
         Token opToken = current();
         TokenType op = opToken.type;
         advance();
@@ -135,7 +133,6 @@ ExprPtr Parser::Impl::parseMultiplicativeExpr() {
 }
 
 ExprPtr Parser::Impl::parseUnaryExpr() {
-    // 一元运算符: not, -, #
     if (check(TokenType::Not)) {
         Token opToken = current();
         advance();
@@ -162,12 +159,11 @@ ExprPtr Parser::Impl::parseUnaryExpr() {
 ExprPtr Parser::Impl::parsePowerExpr() {
     ExprPtr left = parsePrimaryExpr();
 
-    // 幂运算是右结合的
     if (check(static_cast<TokenType>('^'))) {
         Token opToken = current();
         advance();
 
-        ExprPtr right = parsePowerExpr();  // 右结合
+        ExprPtr right = parsePowerExpr();
         left = makeBinaryExpr(BinaryExpr::Op::Pow, opToken, std::move(left), std::move(right));
     }
 
@@ -184,4 +180,4 @@ Vec<ExprPtr> Parser::Impl::parseExprList() {
     return exprs;
 }
 
-} // namespace Lua
+}

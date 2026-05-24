@@ -1,5 +1,12 @@
 #pragma once
 
+/**
+ * @file parser_impl.hpp
+ * @brief Lua语法分析器内部实现声明
+ *
+ * 声明Parser::Impl的内部状态、AST构造、Token流、诊断恢复和各语法分片接口。
+ */
+
 #include "parser.hpp"
 #include "compiler/lexer/lexer.hpp"
 #include "token.hpp"
@@ -151,7 +158,6 @@ private:
     };
 
 private:
-    // Token management
     const Token& current() const;
     void advance();
     Token peek();
@@ -159,7 +165,6 @@ private:
     bool match(TokenType type);
     void expect(TokenType type, const Str& message);
 
-    // Diagnostics and recovery
     void error(const Str& message);
     void errorAt(const Token& token, const Str& message);
     void reportError(const Str& message);
@@ -171,7 +176,6 @@ private:
     [[nodiscard]] static Str errorWithNear(const Str& message, const Token& token);
     [[nodiscard]] static UPtr<ErrorRecoveryStrategy> makeRecoveryStrategy(ParseRecoveryMode mode);
 
-    // Statements
     StmtPtr parseStatement();
     StmtPtr parseIfStmt();
     StmtPtr parseWhileStmt();
@@ -184,7 +188,6 @@ private:
     StmtPtr parseBreakStmt();
     StmtPtr parseExprStmt();
 
-    // Expressions
     ExprPtr parseExpression();
     ExprPtr parseOrExpr();
     ExprPtr parseAndExpr();
@@ -199,7 +202,6 @@ private:
     ExprPtr parseFunctionExpr();
     ExprPtr parsePostfixExpr(ExprPtr base);
 
-    // Shared parsing helpers
     Vec<Str> parseParamList();
     Vec<StmtPtr> parseBlock();
     Vec<ExprPtr> parseExprList();
@@ -265,4 +267,4 @@ private:
     UPtr<ErrorRecoveryStrategy> recoveryStrategy_;
 };
 
-} // namespace Lua
+}

@@ -1,6 +1,8 @@
 /**
  * @file parser_primary.cpp
- * @brief Lua Parser primary and postfix expression implementation.
+ * @brief Lua基础表达式与后缀表达式解析实现
+ *
+ * 实现字面量、标识符、括号表达式、表与函数表达式入口以及调用、索引、成员访问解析。
  */
 
 #include "parser_impl.hpp"
@@ -14,7 +16,6 @@ ExprPtr Parser::Impl::parsePrimaryExpr() {
     i32 line = current().line;
     i32 column = current().column;
 
-    // nil
     if (match(TokenType::Nil)) {
         NilExpr nilExpr;
         nilExpr.line = line;
@@ -22,7 +23,6 @@ ExprPtr Parser::Impl::parsePrimaryExpr() {
         return parsePostfixExpr(makeExpr<NilExpr>(std::move(nilExpr)));
     }
 
-    // true
     if (match(TokenType::True)) {
         BoolExpr boolExpr;
         boolExpr.value = true;
@@ -31,7 +31,6 @@ ExprPtr Parser::Impl::parsePrimaryExpr() {
         return parsePostfixExpr(makeExpr<BoolExpr>(std::move(boolExpr)));
     }
 
-    // false
     if (match(TokenType::False)) {
         BoolExpr boolExpr;
         boolExpr.value = false;
@@ -40,7 +39,6 @@ ExprPtr Parser::Impl::parsePrimaryExpr() {
         return parsePostfixExpr(makeExpr<BoolExpr>(std::move(boolExpr)));
     }
 
-    // 数字
     if (current().isNumber()) {
         NumberExpr numExpr;
         numExpr.value = std::get<f64>(current().value);
@@ -50,7 +48,6 @@ ExprPtr Parser::Impl::parsePrimaryExpr() {
         return parsePostfixExpr(makeExpr<NumberExpr>(std::move(numExpr)));
     }
 
-    // 字符串
     if (current().isString()) {
         StringExpr strExpr;
         strExpr.value = Str(ParserUtils::tokenString(current()));
@@ -60,7 +57,6 @@ ExprPtr Parser::Impl::parsePrimaryExpr() {
         return parsePostfixExpr(makeExpr<StringExpr>(std::move(strExpr)));
     }
 
-    // ...（变长参数）
     if (match(TokenType::Dots)) {
         VarargExpr varargExpr;
         varargExpr.line = line;
@@ -68,17 +64,14 @@ ExprPtr Parser::Impl::parsePrimaryExpr() {
         return parsePostfixExpr(makeExpr<VarargExpr>(std::move(varargExpr)));
     }
 
-    // 表构造器
     if (check(static_cast<TokenType>('{'))) {
         return parsePostfixExpr(parseTableConstructor());
     }
 
-    // 函数定义
     if (check(TokenType::Function)) {
         return parsePostfixExpr(parseFunctionExpr());
     }
 
-    // 括号表达式
     if (match(static_cast<TokenType>('('))) {
         ExprPtr expr = parseExpression();
         expect(static_cast<TokenType>(')'), "Expected ')' after expression");
@@ -90,7 +83,6 @@ ExprPtr Parser::Impl::parsePrimaryExpr() {
         return parsePostfixExpr(makeExpr<ParenExpr>(std::move(parenExpr)));
     }
 
-    // 标识符
     if (current().isName()) {
         NameExpr nameExpr;
         nameExpr.name = Str(ParserUtils::tokenString(current()));
@@ -100,9 +92,8 @@ ExprPtr Parser::Impl::parsePrimaryExpr() {
         return parsePostfixExpr(makeExpr<NameExpr>(std::move(nameExpr)));
     }
 
-    // 使用官方 Lua 风格的错误消息
     error("unexpected symbol");
-	return nullptr;  // 永远不会到达
+	return nullptr;
 }
 
 ExprPtr Parser::Impl::parsePostfixExpr(ExprPtr base) {
@@ -110,14 +101,12 @@ ExprPtr Parser::Impl::parsePostfixExpr(ExprPtr base) {
         i32 line = current().line;
         i32 column = current().column;
 
-        // 函数调用: func(args)
         if (match(static_cast<TokenType>('('))) {
             CallExpr callExpr;
             callExpr.func = std::move(base);
             callExpr.line = line;
             callExpr.column = column;
 
-            // 解析参数列表
             if (!check(static_cast<TokenType>(')'))) {
                 callExpr.args = parseExprList();
             }
@@ -125,7 +114,6 @@ ExprPtr Parser::Impl::parsePostfixExpr(ExprPtr base) {
             expect(static_cast<TokenType>(')'), "Expected ')' after arguments");
             base = makeExpr<CallExpr>(std::move(callExpr));
         }
-        // 索引访问: table[key]
         else if (match(static_cast<TokenType>('['))) {
             IndexExpr indexExpr;
             indexExpr.table = std::move(base);
@@ -136,7 +124,6 @@ ExprPtr Parser::Impl::parsePostfixExpr(ExprPtr base) {
             expect(static_cast<TokenType>(']'), "Expected ']' after index");
             base = makeExpr<IndexExpr>(std::move(indexExpr));
         }
-        // 成员访问: table.member
         else if (match(static_cast<TokenType>('.'))) {
             if (!current().isName()) {
                 error("Expected member name after '.'");
@@ -151,7 +138,6 @@ ExprPtr Parser::Impl::parsePostfixExpr(ExprPtr base) {
 
             base = makeExpr<MemberExpr>(std::move(memberExpr));
         }
-        // 方法调用: obj:method(args)
         else if (match(static_cast<TokenType>(':'))) {
             if (!current().isName()) {
                 error("Expected method name after ':'");
@@ -160,7 +146,6 @@ ExprPtr Parser::Impl::parsePostfixExpr(ExprPtr base) {
             Str methodName(ParserUtils::tokenString(current()));
             advance();
 
-            // 创建成员访问
             MemberExpr memberExpr;
             memberExpr.table = std::move(base);
             memberExpr.member = std::move(methodName);
@@ -169,12 +154,11 @@ ExprPtr Parser::Impl::parsePostfixExpr(ExprPtr base) {
 
             ExprPtr method = makeExpr<MemberExpr>(std::move(memberExpr));
 
-            // 创建函数调用
             expect(static_cast<TokenType>('('), "Expected '(' after method name");
 
             CallExpr callExpr;
             callExpr.func = std::move(method);
-            callExpr.isMethodCall = true;  // 标记为方法调用
+            callExpr.isMethodCall = true;
             callExpr.line = line;
             callExpr.column = column;
 
@@ -185,14 +169,12 @@ ExprPtr Parser::Impl::parsePostfixExpr(ExprPtr base) {
             expect(static_cast<TokenType>(')'), "Expected ')' after arguments");
             base = makeExpr<CallExpr>(std::move(callExpr));
         }
-        // 函数调用语法糖: f"string" 等价于 f("string")
         else if (current().isString()) {
             CallExpr callExpr;
             callExpr.func = std::move(base);
             callExpr.line = line;
             callExpr.column = column;
 
-            // 创建字符串参数
             StringExpr strExpr;
             strExpr.value = Str(ParserUtils::tokenString(current()));
             strExpr.line = current().line;
@@ -202,14 +184,12 @@ ExprPtr Parser::Impl::parsePostfixExpr(ExprPtr base) {
             callExpr.args.push_back(makeExpr<StringExpr>(std::move(strExpr)));
             base = makeExpr<CallExpr>(std::move(callExpr));
         }
-        // 函数调用语法糖: f{table} 等价于 f({table})
         else if (check(static_cast<TokenType>('{'))) {
             CallExpr callExpr;
             callExpr.func = std::move(base);
             callExpr.line = line;
             callExpr.column = column;
 
-            // 解析表构造器作为参数
             callExpr.args.push_back(parseTableConstructor());
             base = makeExpr<CallExpr>(std::move(callExpr));
         }
@@ -221,4 +201,4 @@ ExprPtr Parser::Impl::parsePostfixExpr(ExprPtr base) {
     return base;
 }
 
-} // namespace Lua
+}

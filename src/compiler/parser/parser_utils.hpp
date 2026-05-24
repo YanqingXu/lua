@@ -2,7 +2,9 @@
 
 /**
  * @file parser_utils.hpp
- * @brief Shared parser helpers that do not need Parser object state.
+ * @brief Lua语法分析器通用辅助函数
+ *
+ * 提供不依赖Parser对象状态的Token语义值访问等共享解析辅助能力。
  */
 
 #include "token.hpp"
@@ -11,13 +13,6 @@
 
 namespace Lua::ParserUtils {
 
-/**
- * @brief Borrow the semantic string carried by a token.
- *
- * String tokens prefer the decoded TokenValue storage; all other textual
- * tokens fall back to the original lexeme. Callers that store the result past
- * the current token lifetime must copy it into Str explicitly.
- */
 [[nodiscard]] inline StrView tokenString(const Token& token) noexcept {
     if (std::holds_alternative<Str>(token.value)) {
         return std::get<Str>(token.value);
@@ -25,4 +20,4 @@ namespace Lua::ParserUtils {
     return token.lexeme;
 }
 
-} // namespace Lua::ParserUtils
+}

@@ -1,6 +1,8 @@
-﻿/**
+/**
  * @file parser.cpp
- * @brief Lua语法分析器实现
+ * @brief Lua语法分析器核心实现
+ *
+ * 实现解析入口、Token管理、错误诊断发布与语法错误恢复策略。
  */
 
 #include "parser_impl.hpp"
@@ -8,45 +10,24 @@
 
 namespace Lua {
 
-// =====================================================================
-// 辅助函数：生成官方 Lua 风格的错误消息
-// =====================================================================
-
-/**
- * @brief 获取 Token 的可读字符串表示（用于错误消息）
- *
- * Lua 风格的 Token 文本格式：
- * - 对于标识符、字符串、数字：返回实际的词素内容
- * - 对于 EOF：返回 "<eof>"
- * - 对于其他 token：返回词素内容
- */
 static Str getTokenText(const Token& token) {
     if (token.type == TokenType::Eos) {
         return "<eof>";
     }
-    // 对于大多数 token，直接返回其词素
+
     if (!token.lexeme.empty()) {
         return token.lexeme;
     }
-    // 如果没有词素，返回 token 类型的字符串表示
+
     return tokenTypeToString(token.type);
 }
 
-/**
- * @brief 生成带有 "near 'X'" 后缀的错误消息
- *
- * 错误消息格式：message near 'token'
- */
 Str Parser::Impl::errorWithNear(const Str& message, const Token& token) {
     const Str& diagnostic = (token.type == TokenType::Error && !token.errorMessage.empty())
         ? token.errorMessage
         : message;
     return diagnostic + " near '" + getTokenText(token) + "'";
 }
-
-// =====================================================================
-// 构造函数和基本Token管理
-// =====================================================================
 
 Parser::Parser(const Str& source)
     : Parser(source, ParserOptions{}) {
@@ -98,8 +79,6 @@ void Parser::Impl::advance() {
 }
 
 Token Parser::Impl::peek() {
-    // 使用Lexer的peekToken()方法实现高效的Token预读
-    // 支持LL(1)语法分析，避免复制整个Lexer状态
     return tokenStream_.peek();
 }
 
@@ -126,7 +105,6 @@ void Parser::Impl::error(const Str& message) {
 }
 
 void Parser::Impl::errorAt(const Token& token, const Str& message) {
-    // 生成 Lua 风格的错误消息：message near 'token'
     Str fullMessage = errorWithNear(message, token);
     ParseError parseError(fullMessage, token.line, token.column);
     publishDiagnostic(parseError);
@@ -138,7 +116,6 @@ void Parser::Impl::reportError(const Str& message) {
 }
 
 void Parser::Impl::reportErrorAt(const Token& token, const Str& message) {
-    // 生成官方 Lua 风格的错误消息
     Str fullMessage = errorWithNear(message, token);
     publishDiagnostic(ParseError(fullMessage, token.line, token.column));
 }
@@ -150,21 +127,18 @@ void Parser::Impl::publishDiagnostic(const ParseError& error) {
 }
 
 void Parser::Impl::synchronize() {
-    // 跳过 token 直到找到语句边界
     while (!check(TokenType::Eos)) {
         if (match(static_cast<TokenType>(';'))) {
             return;
         }
 
-        // 检查是否到达块结束符
         if (check(TokenType::End) ||
             check(TokenType::Else) ||
             check(TokenType::Elseif) ||
             check(TokenType::Until)) {
-            return;  // 不消费这些 token，让调用者处理
+            return;
         }
 
-        // 检查是否到达语句开始符
         if (check(TokenType::Local) ||
             check(TokenType::Function) ||
             check(TokenType::If) ||
@@ -173,10 +147,9 @@ void Parser::Impl::synchronize() {
             check(TokenType::Repeat) ||
             check(TokenType::Return) ||
             check(TokenType::Break)) {
-            return;  // 不消费这些 token，让调用者处理
+            return;
         }
 
-        // 继续跳过当前 token
         advance();
     }
 }
@@ -199,20 +172,14 @@ UPtr<Parser::Impl::ErrorRecoveryStrategy> Parser::Impl::makeRecoveryStrategy(Par
     }
 }
 
-// =====================================================================
-// 主解析函数
-// =====================================================================
-
 std::expected<Chunk, ParseError> Parser::Impl::parse() {
     diagnosticCollector_.clear();
 
     try {
         Chunk chunk;
 
-        // 解析语句块
         chunk.statements = parseBlock();
 
-        // 确保到达文件末尾
         if (!check(TokenType::Eos)) {
             error("Expected end of file");
         }
@@ -231,8 +198,4 @@ const Vec<ParseError>& Parser::Impl::diagnostics() const noexcept {
     return diagnosticCollector_.diagnostics();
 }
 
-// Grammar productions are implemented in the parser_*.cpp shards.
-
-} // namespace Lua
-
-
+}

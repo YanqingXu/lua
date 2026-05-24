@@ -1,6 +1,8 @@
 /**
  * @file parser_func.cpp
- * @brief Lua Parser function declaration/expression implementation.
+ * @brief Lua函数声明与函数表达式解析实现
+ *
+ * 实现全局函数、局部函数共享的参数列表解析以及函数体解析流程。
  */
 
 #include "parser_impl.hpp"
@@ -22,20 +24,15 @@ StmtPtr Parser::Impl::parseFunctionStmt() {
     funcStmt.isLocal = false;
     funcStmt.isMethod = false;
 
-    // 解析函数名：支持 name, t.a.b.c.name, t:method
     if (!current().isName()) {
         error("Expected function name");
     }
 
-    // 第一个名字
     funcStmt.name = Str(ParserUtils::tokenString(current()));
     advance();
 
-    // 解析表路径和方法语法
-    // function t.a.b.c.foo() 或 function t:method()
     while (check(static_cast<TokenType>('.')) || check(static_cast<TokenType>(':'))) {
         if (match(static_cast<TokenType>('.'))) {
-            // 表成员访问
             funcStmt.tablePath.push_back(std::move(funcStmt.name));
 
             if (!current().isName()) {
@@ -44,7 +41,6 @@ StmtPtr Parser::Impl::parseFunctionStmt() {
             funcStmt.name = Str(ParserUtils::tokenString(current()));
             advance();
         } else if (match(static_cast<TokenType>(':'))) {
-            // 方法定义语法糖
             funcStmt.tablePath.push_back(std::move(funcStmt.name));
             funcStmt.isMethod = true;
 
@@ -53,28 +49,24 @@ StmtPtr Parser::Impl::parseFunctionStmt() {
             }
             funcStmt.name = Str(ParserUtils::tokenString(current()));
             advance();
-            break;  // 冒号后不能再有点或冒号
+            break;
         }
     }
 
-    // 解析参数列表
     expect(static_cast<TokenType>('('), "Expected '(' after function name");
     funcStmt.params = parseParamList();
     expect(static_cast<TokenType>(')'), "Expected ')' after parameters");
 
-    // 检查是否有可变参数（最后一个参数是 "..."）
     funcStmt.isVararg = false;
     if (!funcStmt.params.empty() && funcStmt.params.back() == "...") {
         funcStmt.isVararg = true;
-        funcStmt.params.pop_back();  // 移除 "..." 参数名
+        funcStmt.params.pop_back();
     }
 
-    // 如果是方法定义，自动在参数列表开头添加 self
     if (funcStmt.isMethod) {
         funcStmt.params.insert(funcStmt.params.begin(), "self");
     }
 
-    // 解析函数体
     funcStmt.body = parseBlock();
     expect(TokenType::End, "Expected 'end' to close function");
 
@@ -82,7 +74,7 @@ StmtPtr Parser::Impl::parseFunctionStmt() {
 }
 
 ExprPtr Parser::Impl::parseFunctionExpr() {
-    RecursionGuard guard(*this);  // 递归深度保护
+    RecursionGuard guard(*this);
 
     i32 line = current().line;
     i32 column = current().column;
@@ -93,19 +85,16 @@ ExprPtr Parser::Impl::parseFunctionExpr() {
     funcExpr.line = line;
     funcExpr.column = column;
 
-    // 解析参数列表
     expect(static_cast<TokenType>('('), "Expected '(' after 'function'");
     funcExpr.params = parseParamList();
     expect(static_cast<TokenType>(')'), "Expected ')' after parameters");
 
-    // 检查是否有可变参数
     funcExpr.isVararg = false;
     if (!funcExpr.params.empty() && funcExpr.params.back() == "...") {
         funcExpr.isVararg = true;
-        funcExpr.params.pop_back();  // 移除 "..." 参数名
+        funcExpr.params.pop_back();
     }
 
-    // 解析函数体
     funcExpr.body = parseBlock();
     expect(TokenType::End, "Expected 'end' to close function");
 
@@ -115,25 +104,22 @@ ExprPtr Parser::Impl::parseFunctionExpr() {
 Vec<Str> Parser::Impl::parseParamList() {
     Vec<Str> params;
 
-    // 空参数列表
     if (check(static_cast<TokenType>(')'))) {
         return params;
     }
 
-    // 变长参数
     if (match(TokenType::Dots)) {
         params.push_back("...");
         return params;
     }
 
-    // 解析参数名
     do {
         if (current().isName()) {
             params.emplace_back(ParserUtils::tokenString(current()));
             advance();
         } else if (match(TokenType::Dots)) {
             params.push_back("...");
-            break;  // ... 必须是最后一个参数
+            break;
         } else {
             error("Expected parameter name");
         }
@@ -142,4 +128,4 @@ Vec<Str> Parser::Impl::parseParamList() {
     return params;
 }
 
-} // namespace Lua
+}
