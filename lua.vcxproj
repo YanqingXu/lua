@@ -145,6 +145,7 @@
     <ClInclude Include="src\compiler\codegen\bytecode_builder.hpp" />
     <ClInclude Include="src\compiler\codegen\codegen.hpp" />
     <ClInclude Include="src\compiler\codegen\codegen_context.hpp" />
+    <ClInclude Include="src\compiler\codegen\codegen_ops.hpp" />
     <ClInclude Include="src\compiler\codegen\codegen_state.hpp" />
     <ClInclude Include="src\compiler\codegen\codegen_types.hpp" />
     <ClInclude Include="src\compiler\codegen\expression_emitter.hpp" />

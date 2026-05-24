@@ -84,43 +84,41 @@ i32 getLastLineOfBlock(const Vec<StmtPtr>& body) {
 ExpressionEmitter::ExpressionEmitter(CodeGenerator& owner) noexcept
     : owner_(owner)
     , state_(owner.state_)
+    , ops_(owner.ops_)
     , jumps_(owner.jumps_)
     , scopes_(owner.scopes_)
     , binder_(owner.binder_) {}
 
 i32 ExpressionEmitter::codeABC(OpCode op, i32 a, i32 b, i32 c) {
-    jumps_.flushPendingJumps();
-    return state_.bytecode.emitABC(state_.currentLine, op, a, b, c);
+    return ops_.codeABC(op, a, b, c);
 }
 
 i32 ExpressionEmitter::codeABx(OpCode op, i32 a, i32 bx) {
-    jumps_.flushPendingJumps();
-    return state_.bytecode.emitABx(state_.currentLine, op, a, bx);
+    return ops_.codeABx(op, a, bx);
 }
 
 i32 ExpressionEmitter::codeAsBx(OpCode op, i32 a, i32 sbx) {
-    jumps_.flushPendingJumps();
-    return state_.bytecode.emitAsBx(state_.currentLine, op, a, sbx);
+    return ops_.codeAsBx(op, a, sbx);
 }
 
 i32 ExpressionEmitter::allocReg() {
-    return state_.registers.alloc();
+    return ops_.allocReg();
 }
 
 void ExpressionEmitter::freeReg(i32 reg) {
-    state_.registers.freeReg(reg, scopes_.activeLocalCount());
+    ops_.freeReg(reg, scopes_.activeLocalCount());
 }
 
 void ExpressionEmitter::checkStack(i32 n) {
-    state_.registers.checkStack(n);
+    ops_.checkStack(n);
 }
 
 i32 ExpressionEmitter::numberConstant(f64 value) {
-    return state_.bytecode.addNumberConstant(value);
+    return ops_.numberConstant(value);
 }
 
 i32 ExpressionEmitter::stringConstant(const Str& value) {
-    return state_.bytecode.addStringConstant(value);
+    return ops_.stringConstant(value);
 }
 
 SymbolRef ExpressionEmitter::resolve(const Str& name) {
@@ -312,16 +310,8 @@ CondResult ExpressionEmitter::emitCondResultTrue(const Expr& e) {
 // =====================================================================
 
 ValueResult ExpressionEmitter::emitValue(const Expr& e) {
-    i32 previousLine = state_.currentLine;
-    i32 exprLine = e.getLine();
-    if (exprLine > 0) {
-        state_.currentLine = exprLine;
-    }
-
-    ValueResult result = ExprVisitor<ExpressionEmitter, ValueResult>::visit(e);
-
-    state_.currentLine = previousLine;
-    return result;
+    LineGuard line(state_, e.getLine());
+    return ExprVisitor<ExpressionEmitter, ValueResult>::visit(e);
 }
 
 ValueResult ExpressionEmitter::visitNode(const NilExpr&) {
@@ -450,25 +440,25 @@ void ExpressionEmitter::materializeValue(const ValueResult& val, i32 reg) {
             }
         },
         [&](const ValueResult::Relocatable& relocatable) {
-            Instruction inst = state_.bytecode.instruction(relocatable.instructionPc);
+            Instruction inst = ops_.instruction(relocatable.instructionPc);
             SETARG_A(inst, reg);
-            state_.bytecode.replaceInstruction(relocatable.instructionPc, inst);
+            ops_.replaceInstruction(relocatable.instructionPc, inst);
         },
         [&](const ValueResult::MultiRet& multi) {
             if (multi.access == ValueResult::AccessKind::Call) {
                 // Call: 返回值在 baseReg，不能直接重写 A
-                Instruction inst = state_.bytecode.instruction(multi.instructionPc);
+                Instruction inst = ops_.instruction(multi.instructionPc);
                 i32 callBase = GETARG_A(inst);
                 SETARG_C(inst, 2);  // 固定为 1 个返回值
-                state_.bytecode.replaceInstruction(multi.instructionPc, inst);
+                ops_.replaceInstruction(multi.instructionPc, inst);
                 if (callBase != reg) {
                     codeABC(OpCode::MOVE, reg, callBase, 0);
                 }
             } else if (multi.access == ValueResult::AccessKind::Vararg) {
-                Instruction inst = state_.bytecode.instruction(multi.instructionPc);
+                Instruction inst = ops_.instruction(multi.instructionPc);
                 SETARG_A(inst, reg);
                 SETARG_B(inst, 2);  // 固定为 1 个值
-                state_.bytecode.replaceInstruction(multi.instructionPc, inst);
+                ops_.replaceInstruction(multi.instructionPc, inst);
             }
         },
         [&](const ValueResult::PendingJump& pending) {
@@ -523,9 +513,9 @@ i32 ExpressionEmitter::valueToAnyReg(const ValueResult& val) {
             }
 
             // MultiRet(Call): 返回值已在 baseReg，先固定为单值
-            Instruction inst = state_.bytecode.instruction(multi.instructionPc);
+            Instruction inst = ops_.instruction(multi.instructionPc);
             SETARG_C(inst, 2);
-            state_.bytecode.replaceInstruction(multi.instructionPc, inst);
+            ops_.replaceInstruction(multi.instructionPc, inst);
             return GETARG_A(inst);
         },
         [](const auto&) -> Opt<i32> {
@@ -564,15 +554,15 @@ ValueResult ExpressionEmitter::forceSingleValue(const ValueResult& val) {
         [&](const ValueResult::MultiRet& multi) -> ValueResult {
             // 将 CALL/VARARG 固定为单返回值并转为 Relocatable/Register
             if (multi.access == ValueResult::AccessKind::Vararg) {
-                Instruction inst = state_.bytecode.instruction(multi.instructionPc);
+                Instruction inst = ops_.instruction(multi.instructionPc);
                 SETARG_B(inst, 2);  // B=2 → 1 个值
-                state_.bytecode.replaceInstruction(multi.instructionPc, inst);
+                ops_.replaceInstruction(multi.instructionPc, inst);
                 return ValueResult::makeRelocatable(multi.instructionPc);
             }
             if (multi.access == ValueResult::AccessKind::Call) {
-                Instruction inst = state_.bytecode.instruction(multi.instructionPc);
+                Instruction inst = ops_.instruction(multi.instructionPc);
                 SETARG_C(inst, 2);  // C=2 → 1 个返回值
-                state_.bytecode.replaceInstruction(multi.instructionPc, inst);
+                ops_.replaceInstruction(multi.instructionPc, inst);
                 return ValueResult::makeRegister(GETARG_A(inst), false);
             }
             return val;
@@ -730,12 +720,7 @@ ValueResult ExpressionEmitter::emitValueMember(const MemberExpr& e) {
 ValueResult ExpressionEmitter::emitValueTable(const TableExpr& table) {
     i32 pc = codeABC(OpCode::NEWTABLE, 0, 0, 0);
     i32 tableReg = allocReg();
-    // 设置 NEWTABLE 的 A 字段为 tableReg
-    {
-        Instruction inst = state_.bytecode.instruction(pc);
-        SETARG_A(inst, tableReg);
-        state_.bytecode.replaceInstruction(pc, inst);
-    }
+    ops_.patchArgA(pc, tableReg);
 
     i32 na = 0, nh = 0, tostore = 0;
     CallResultInfo lastCallResult;
@@ -747,13 +732,14 @@ ValueResult ExpressionEmitter::emitValueTable(const TableExpr& table) {
 
         if (field.key) {
             // 哈希字段: SETTABLE
-            i32 savedFreereg = state_.registers.current();
-            ValueResult keyVal = emitValue(*field.key);
-            i32 rkKey = valueToRK(keyVal);
-            ValueResult valVal = emitValue(*field.value);
-            i32 rkVal = valueToRK(valVal);
-            codeABC(OpCode::SETTABLE, tableReg, rkKey, rkVal);
-            state_.registers.restore(savedFreereg);
+            {
+                RegisterGuard registers(state_);
+                ValueResult keyVal = emitValue(*field.key);
+                i32 rkKey = valueToRK(keyVal);
+                ValueResult valVal = emitValue(*field.value);
+                i32 rkVal = valueToRK(valVal);
+                codeABC(OpCode::SETTABLE, tableReg, rkKey, rkVal);
+            }
             checkStack(0);
             nh++;
         } else {
@@ -797,16 +783,14 @@ ValueResult ExpressionEmitter::emitValueTable(const TableExpr& table) {
         if (hasLastCallResult) {
             i32 targetBase = tableReg + tostore;
             if (lastCallResult.kind == CallResultInfo::Kind::Call) {
-                Instruction inst = state_.bytecode.instruction(lastCallResult.instructionPc);
+                Instruction inst = ops_.instruction(lastCallResult.instructionPc);
                 i32 callBase = GETARG_A(inst);
                 if (callBase != targetBase) {
                     throw std::runtime_error("CALL base mismatch in table multret field");
                 }
                 setOpenMultiRet(lastCallResult);
             } else {
-                Instruction inst = state_.bytecode.instruction(lastCallResult.instructionPc);
-                SETARG_A(inst, targetBase);
-                state_.bytecode.replaceInstruction(lastCallResult.instructionPc, inst);
+                ops_.patchArgA(lastCallResult.instructionPc, targetBase);
                 setOpenMultiRet(lastCallResult);
             }
             i32 c = (na - 1) / LFIELDS_PER_FLUSH + 1;
@@ -822,13 +806,7 @@ ValueResult ExpressionEmitter::emitValueTable(const TableExpr& table) {
         }
     }
 
-    // 回填 NEWTABLE 的 B/C (na, nh)
-    {
-        Instruction inst = state_.bytecode.instruction(pc);
-        SETARG_B(inst, na);
-        SETARG_C(inst, nh);
-        state_.bytecode.replaceInstruction(pc, inst);
-    }
+    ops_.patchArgsBC(pc, na, nh);
 
     return ValueResult::makeRegister(tableReg, true);
 }
@@ -838,10 +816,7 @@ ValueResult ExpressionEmitter::emitValueTable(const TableExpr& table) {
 // =====================================================================
 
 CallResultInfo ExpressionEmitter::emitCallExpr(const CallExpr& e, i32 targetBase) {
-    i32 previousLine = state_.currentLine;
-    if (e.line > 0) {
-        state_.currentLine = e.line;
-    }
+    LineGuard line(state_, e.line);
 
     i32 base;  // 函数所在的寄存器（调用帧的基址）
     i32 explicitArgCount = static_cast<i32>(e.args.size());
@@ -926,11 +901,7 @@ CallResultInfo ExpressionEmitter::emitCallExpr(const CallExpr& e, i32 targetBase
             else if (std::holds_alternative<VarargExpr>(arg->variant)) {
                 // g(...) — 最后一个实参是 vararg，保持 multret
                 CallResultInfo innerInfo = emitVarargExpr();
-                // 设置 VARARG A 到 targetReg
-                Instruction inst = state_.bytecode.instruction(innerInfo.instructionPc);
-                SETARG_A(inst, targetReg);
-                SETARG_B(inst, 0);  // B=0 → 全部 vararg
-                state_.bytecode.replaceInstruction(innerInfo.instructionPc, inst);
+                ops_.patchArgsAB(innerInfo.instructionPc, targetReg, 0);
                 lastArgIsMultiRet = true;
             }
             else {
@@ -961,8 +932,6 @@ CallResultInfo ExpressionEmitter::emitCallExpr(const CallExpr& e, i32 targetBase
     state_.registers.setFreeReg((savedFreeReg > (base + 1)) ? savedFreeReg : (base + 1));
     checkStack(0);
 
-    state_.currentLine = previousLine;
-
     CallResultInfo result;
     result.kind = CallResultInfo::Kind::Call;
     result.baseReg = base;
@@ -984,24 +953,20 @@ CallResultInfo ExpressionEmitter::emitVarargExpr() {
 }
 
 void ExpressionEmitter::setOpenMultiRet(CallResultInfo& info) {
-    Instruction inst = state_.bytecode.instruction(info.instructionPc);
     if (info.kind == CallResultInfo::Kind::Call) {
-        SETARG_C(inst, 0);  // C=0 → 返回所有值
+        ops_.patchArgC(info.instructionPc, 0);  // C=0 → 返回所有值
     } else if (info.kind == CallResultInfo::Kind::Vararg) {
-        SETARG_B(inst, 0);  // B=0 → 复制所有 vararg
+        ops_.patchArgB(info.instructionPc, 0);  // B=0 → 复制所有 vararg
     }
-    state_.bytecode.replaceInstruction(info.instructionPc, inst);
     info.openMultiRet = true;
 }
 
 void ExpressionEmitter::setWantedResults(CallResultInfo& info, i32 wanted) {
-    Instruction inst = state_.bytecode.instruction(info.instructionPc);
     if (info.kind == CallResultInfo::Kind::Call) {
-        SETARG_C(inst, wanted + 1);  // C = wanted+1
+        ops_.patchArgC(info.instructionPc, wanted + 1);  // C = wanted+1
     } else if (info.kind == CallResultInfo::Kind::Vararg) {
-        SETARG_B(inst, wanted + 1);  // B = wanted+1
+        ops_.patchArgB(info.instructionPc, wanted + 1);  // B = wanted+1
     }
-    state_.bytecode.replaceInstruction(info.instructionPc, inst);
 }
 
 PatchList ExpressionEmitter::emitComparisonJump(const BinaryExpr& e, bool jumpOnTrue) {

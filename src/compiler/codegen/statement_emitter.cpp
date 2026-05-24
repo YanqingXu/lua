@@ -13,44 +13,42 @@ namespace Lua {
 StatementEmitter::StatementEmitter(CodeGenerator& owner) noexcept
     : owner_(owner)
     , state_(owner.state_)
+    , ops_(owner.ops_)
     , jumps_(owner.jumps_)
     , scopes_(owner.scopes_)
     , binder_(owner.binder_)
     , expressions_(owner.expressions_) {}
 
 i32 StatementEmitter::codeABC(OpCode op, i32 a, i32 b, i32 c) {
-    jumps_.flushPendingJumps();
-    return state_.bytecode.emitABC(state_.currentLine, op, a, b, c);
+    return ops_.codeABC(op, a, b, c);
 }
 
 i32 StatementEmitter::codeABx(OpCode op, i32 a, i32 bx) {
-    jumps_.flushPendingJumps();
-    return state_.bytecode.emitABx(state_.currentLine, op, a, bx);
+    return ops_.codeABx(op, a, bx);
 }
 
 i32 StatementEmitter::codeAsBx(OpCode op, i32 a, i32 sbx) {
-    jumps_.flushPendingJumps();
-    return state_.bytecode.emitAsBx(state_.currentLine, op, a, sbx);
+    return ops_.codeAsBx(op, a, sbx);
 }
 
 i32 StatementEmitter::allocReg() {
-    return state_.registers.alloc();
+    return ops_.allocReg();
 }
 
 void StatementEmitter::freeReg(i32 reg) {
-    state_.registers.freeReg(reg, scopes_.activeLocalCount());
+    ops_.freeReg(reg, scopes_.activeLocalCount());
 }
 
 void StatementEmitter::checkStack(i32 n) {
-    state_.registers.checkStack(n);
+    ops_.checkStack(n);
 }
 
 i32 StatementEmitter::numberConstant(f64 value) {
-    return state_.bytecode.addNumberConstant(value);
+    return ops_.numberConstant(value);
 }
 
 i32 StatementEmitter::stringConstant(const Str& value) {
-    return state_.bytecode.addStringConstant(value);
+    return ops_.stringConstant(value);
 }
 
 i32 StatementEmitter::addLocalVar(const Str& name) {
@@ -231,15 +229,8 @@ void StatementEmitter::visitNode(const RepeatStmt& s) {
 }
 
 void StatementEmitter::statement(const Stmt& s) {
-    i32 previousLine = state_.currentLine;
-    i32 stmtLine = s.getLine();
-    if (stmtLine > 0) {
-        state_.currentLine = stmtLine;
-    }
-
+    LineGuard line(state_, s.getLine());
     StmtVisitor<StatementEmitter, void>::visit(s);
-
-    state_.currentLine = previousLine;
 }
 
 void StatementEmitter::emitStmt(const EmptyStmt&) {
@@ -275,9 +266,8 @@ void StatementEmitter::emitStmt(const AssignStmt& s) {
             return;
         } else if (std::holds_alternative<VarargExpr>(lastExpr.variant)) {
             CallResultInfo callResult = emitVarargExpr();
-            Instruction inst = state_.bytecode.instruction(callResult.instructionPc);
-            SETARG_B(inst, wanted + 1);
-            state_.bytecode.replaceInstruction(callResult.instructionPc, inst);
+            ops_.patchArgB(callResult.instructionPc, wanted + 1);
+            Instruction inst = ops_.instruction(callResult.instructionPc);
             i32 valueBase = GETARG_A(inst);
 
             for (i32 j = 0; j < wanted; j++) {
@@ -306,7 +296,7 @@ void StatementEmitter::emitStmt(const LocalStmt& s) {
     i32 nexps = static_cast<i32>(s.values.size());
 
     i32 base = state_.localScope.activeVarCount_;
-    i32 savedFreereg = state_.registers.current();
+    RegisterGuard registers(state_);
 
     state_.registers.setFreeReg(base);
 
@@ -348,10 +338,7 @@ void StatementEmitter::emitStmt(const LocalStmt& s) {
                 allVarsInitialized = true;
             } else if (std::holds_alternative<VarargExpr>(lastExpr.variant)) {
                 CallResultInfo callResult = emitVarargExpr();
-                Instruction inst = state_.bytecode.instruction(callResult.instructionPc);
-                SETARG_A(inst, targetReg);
-                SETARG_B(inst, wanted + 1);
-                state_.bytecode.replaceInstruction(callResult.instructionPc, inst);
+                ops_.patchArgsAB(callResult.instructionPc, targetReg, wanted + 1);
                 allVarsInitialized = true;
             } else {
                 ValueResult val = emitValue(lastExpr);
@@ -365,8 +352,7 @@ void StatementEmitter::emitStmt(const LocalStmt& s) {
         codeABC(OpCode::LOADNIL, base + nexps, base + nvars - 1, 0);
     }
 
-    state_.registers.restore(savedFreereg);
-
+    registers.restoreNow();
     adjustLocalVars(nvars);
 }
 
@@ -376,7 +362,7 @@ void StatementEmitter::emitStmt(const ReturnStmt& s) {
         codeABC(OpCode::RETURN, 0, 1, 0);
     } else {
         i32 base = state_.localScope.activeVarCount_;
-        i32 savedFreereg = state_.registers.current();
+        RegisterGuard registers(state_);
         state_.registers.setFreeReg(base);
         checkStack(nret);
 
@@ -394,28 +380,20 @@ void StatementEmitter::emitStmt(const ReturnStmt& s) {
             setOpenMultiRet(info);
             if (info.baseReg == base + (nret - 1)) {
                 if (nret == 1) {
-                    Instruction inst = state_.bytecode.instruction(info.instructionPc);
-                    inst = CREATE_ABC(OpCode::TAILCALL, GETARG_A(inst), GETARG_B(inst), 0);
-                    state_.bytecode.replaceInstruction(info.instructionPc, inst);
+                    Instruction inst = ops_.instruction(info.instructionPc);
+                    ops_.patchToABC(info.instructionPc, OpCode::TAILCALL, GETARG_A(inst), GETARG_B(inst), 0);
                 }
                 codeABC(OpCode::RETURN, base, 0, 0);
             } else {
-                Instruction inst = state_.bytecode.instruction(info.instructionPc);
-                SETARG_C(inst, 2);
-                state_.bytecode.replaceInstruction(info.instructionPc, inst);
+                ops_.patchArgC(info.instructionPc, 2);
                 codeABC(OpCode::MOVE, base + (nret - 1), info.baseReg, 0);
                 codeABC(OpCode::RETURN, base, nret + 1, 0);
             }
-            state_.registers.restore(savedFreereg);
             return;
         } else if (std::holds_alternative<VarargExpr>(lastExpr.variant)) {
             CallResultInfo info = emitVarargExpr();
-            Instruction inst = state_.bytecode.instruction(info.instructionPc);
-            SETARG_A(inst, base + (nret - 1));
-            SETARG_B(inst, 0);
-            state_.bytecode.replaceInstruction(info.instructionPc, inst);
+            ops_.patchArgsAB(info.instructionPc, base + (nret - 1), 0);
             codeABC(OpCode::RETURN, base, 0, 0);
-            state_.registers.restore(savedFreereg);
             return;
         } else {
             ValueResult val = emitValue(lastExpr);
@@ -424,7 +402,6 @@ void StatementEmitter::emitStmt(const ReturnStmt& s) {
         }
 
         codeABC(OpCode::RETURN, base, nret + 1, 0);
-        state_.registers.restore(savedFreereg);
     }
 }
 
@@ -549,45 +526,45 @@ void StatementEmitter::emitStmt(const FunctionStmt& s) {
 
         adjustLocalVars(1);
     } else {
-        i32 savedFreereg = state_.registers.current();
+        {
+            RegisterGuard registers(state_);
 
-        if (s.tablePath.empty()) {
-            i32 reg = allocReg();
-            codeABx(OpCode::CLOSURE, reg, protoIdx);
-            emitClosureUpvalues(childUpvalues);
-
-            i32 k = stringConstant(s.name);
-            codeABx(OpCode::SETGLOBAL, reg, k);
-        } else {
-            auto loadNameToReg = [this](const Str& name) -> i32 {
-                SymbolRef sym = resolve(name);
-                if (sym.kind == SymbolRef::Kind::Local) {
-                    return sym.index;
-                }
+            if (s.tablePath.empty()) {
                 i32 reg = allocReg();
-                ValueResult val = symbolToValue(sym);
-                materializeValue(val, reg);
-                return reg;
-            };
+                codeABx(OpCode::CLOSURE, reg, protoIdx);
+                emitClosureUpvalues(childUpvalues);
 
-            i32 tableReg = loadNameToReg(s.tablePath[0]);
+                i32 k = stringConstant(s.name);
+                codeABx(OpCode::SETGLOBAL, reg, k);
+            } else {
+                auto loadNameToReg = [this](const Str& name) -> i32 {
+                    SymbolRef sym = resolve(name);
+                    if (sym.kind == SymbolRef::Kind::Local) {
+                        return sym.index;
+                    }
+                    i32 reg = allocReg();
+                    ValueResult val = symbolToValue(sym);
+                    materializeValue(val, reg);
+                    return reg;
+                };
 
-            for (usize i = 1; i < s.tablePath.size(); i++) {
-                i32 nextReg = allocReg();
-                i32 k = stringConstant(s.tablePath[i]);
-                codeABC(OpCode::GETTABLE, nextReg, tableReg, RKASK(k));
-                tableReg = nextReg;
+                i32 tableReg = loadNameToReg(s.tablePath[0]);
+
+                for (usize i = 1; i < s.tablePath.size(); i++) {
+                    i32 nextReg = allocReg();
+                    i32 k = stringConstant(s.tablePath[i]);
+                    codeABC(OpCode::GETTABLE, nextReg, tableReg, RKASK(k));
+                    tableReg = nextReg;
+                }
+
+                i32 reg = allocReg();
+                codeABx(OpCode::CLOSURE, reg, protoIdx);
+                emitClosureUpvalues(childUpvalues);
+
+                i32 rkKey = RKASK(stringConstant(s.name));
+                codeABC(OpCode::SETTABLE, tableReg, rkKey, reg);
             }
-
-            i32 reg = allocReg();
-            codeABx(OpCode::CLOSURE, reg, protoIdx);
-            emitClosureUpvalues(childUpvalues);
-
-            i32 rkKey = RKASK(stringConstant(s.name));
-            codeABC(OpCode::SETTABLE, tableReg, rkKey, reg);
         }
-
-        state_.registers.restore(savedFreereg);
         checkStack(0);
     }
 }
@@ -666,10 +643,7 @@ void StatementEmitter::emitStmt(const ForInStmt& s) {
                 }
                 if (std::holds_alternative<VarargExpr>(iteratorExpr.variant)) {
                     CallResultInfo info = emitVarargExpr();
-                    Instruction inst = state_.bytecode.instruction(info.instructionPc);
-                    SETARG_A(inst, targetReg);
-                    SETARG_B(inst, wanted + 1);
-                    state_.bytecode.replaceInstruction(info.instructionPc, inst);
+                    ops_.patchArgsAB(info.instructionPc, targetReg, wanted + 1);
                     filled = 3;
                     state_.registers.setFreeReg(base + 3);
                     checkStack(0);

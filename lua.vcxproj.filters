@@ -255,6 +255,9 @@
     <ClInclude Include="src\compiler\codegen\codegen_context.hpp">
       <Filter>src\compiler\codegen</Filter>
     </ClInclude>
+    <ClInclude Include="src\compiler\codegen\codegen_ops.hpp">
+      <Filter>src\compiler\codegen</Filter>
+    </ClInclude>
     <ClInclude Include="src\compiler\codegen\codegen_state.hpp">
       <Filter>src\compiler\codegen</Filter>
     </ClInclude>

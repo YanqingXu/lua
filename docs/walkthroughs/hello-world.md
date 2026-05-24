@@ -99,17 +99,17 @@ AST 节点定义在 `src/compiler/ast.hpp`，其中 `StringExpr` 位于 `src/com
 
 ## 3. CodeGen：AST 变成 Proto
 
-`CodeGenerator::generate()` 创建当前 Proto，编译 chunk 中的语句，并在末尾补一条空返回，入口见 `src/compiler/codegen/codegen.cpp:50` 和 `src/compiler/codegen/codegen.cpp:76`。
+`CodeGenerator::generate()` 创建当前 Proto，编译 chunk 中的语句，并在末尾补一条空返回，入口见 `src/compiler/codegen/codegen.cpp:54` 和 `src/compiler/codegen/codegen.cpp:80`。
 
-对于语句级调用，`StatementEmitter::emitStmt(const CallStmt&)` 会复用 `emitCallExpr()`，然后把期望返回值改成 0 个，见 `src/compiler/codegen/statement_emitter.cpp:489`。这就是字节码里 `CALL A=1 B=2 C=1` 的原因：Lua 5.1 指令格式中 `C=1` 表示调用语句丢弃返回值。
+对于语句级调用，`StatementEmitter::emitStmt(const CallStmt&)` 会复用 `emitCallExpr()`，然后把期望返回值改成 0 个，见 `src/compiler/codegen/statement_emitter.cpp:464`。这就是字节码里 `CALL A=1 B=2 C=1` 的原因：Lua 5.1 指令格式中 `C=1` 表示调用语句丢弃返回值。
 
-`emitCallExpr()` 的几个关键动作在 `src/compiler/codegen/expression_emitter.cpp:830` 开始：
+`emitCallExpr()` 的几个关键动作在 `src/compiler/codegen/expression_emitter.cpp:818` 开始：
 
-1. `print` 是全局名，`materializeValue()` 会生成 `GETGLOBAL`，见 `src/compiler/codegen/expression_emitter.cpp:383`。
-2. 调用需要函数和参数位于连续寄存器。因为 `print` 先落在 `R0`，而调用基址选择为 `R1`，所以生成 `MOVE R1 R0`，对应 `src/compiler/codegen/expression_emitter.cpp:830` 之后的调用基址调整。
-3. `"hello"` 是字符串常量，`StringExpr` 的访问器在 `src/compiler/codegen/expression_emitter.cpp:290`，最终用 `LOADK` 放入参数寄存器。
-4. `CALL` 由 `codeABC(OpCode::CALL, base, bArg, 2)` 生成，随后语句层把 C 改为 1，见 `src/compiler/codegen/expression_emitter.cpp:949`。
-5. chunk 末尾补 `RETURN A=0 B=1`，见 `src/compiler/codegen/codegen.cpp:86`。
+1. `print` 是全局名，`materializeValue()` 会生成 `GETGLOBAL`，见 `src/compiler/codegen/expression_emitter.cpp:398`。
+2. 调用需要函数和参数位于连续寄存器。因为 `print` 先落在 `R0`，而调用基址选择为 `R1`，所以生成 `MOVE R1 R0`，对应 `src/compiler/codegen/expression_emitter.cpp:818` 之后的调用基址调整。
+3. `"hello"` 是字符串常量，`StringExpr` 的访问器在 `src/compiler/codegen/expression_emitter.cpp:329`，最终用 `LOADK` 放入参数寄存器。
+4. `CALL` 由 `codeABC(OpCode::CALL, base, bArg, 2)` 生成，随后语句层把 C 改为 1，见 `src/compiler/codegen/expression_emitter.cpp:930`。
+5. chunk 末尾补 `RETURN A=0 B=1`，见 `src/compiler/codegen/codegen.cpp:90`。
 
 寄存器视角如下：
 

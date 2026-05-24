@@ -1,6 +1,6 @@
 ---
 status: current
-verified_against: docs/status/project-status.md; docs/compiler/codegen-responsibility-map.md; src/common/lua_error.hpp; src/compiler/codegen/codegen.hpp; src/compiler/codegen/codegen.cpp; src/compiler/codegen/codegen_binding.cpp; src/compiler/codegen/name_binder.hpp; src/compiler/codegen/name_binder.cpp; src/compiler/codegen/expression_emitter.hpp; src/compiler/codegen/expression_emitter.cpp; src/compiler/codegen/statement_emitter.hpp; src/compiler/codegen/statement_emitter.cpp; src/compiler/codegen/codegen_stmt.cpp; src/compiler/codegen/codegen_types.hpp; src/compiler/codegen/codegen_context.hpp; src/compiler/codegen/codegen_state.hpp; src/compiler/codegen/jump_patcher.hpp; src/compiler/codegen/jump_patcher.cpp; src/compiler/codegen/scope_manager.hpp; src/compiler/codegen/scope_manager.cpp; src/compiler/codegen/bytecode_builder.hpp; src/compiler/register_allocator.hpp; tests/unit/compiler/test_codegen_result_types.cpp; tests/unit/compiler/test_codegen_state.cpp; tests/unit/compiler/test_codegen_characterization.cpp; tests/unit/compiler/test_jump_patcher.cpp; tests/unit/compiler/test_scope_manager.cpp; tests/unit/compiler/test_expression_emitter.cpp; tests/unit/compiler/test_statement_emitter.cpp; tests/unit/compiler/test_symbol_binding.cpp; tools/check_value_result_variant_only.ps1
+verified_against: docs/status/project-status.md; docs/compiler/codegen-responsibility-map.md; src/common/lua_error.hpp; src/compiler/codegen/codegen.hpp; src/compiler/codegen/codegen.cpp; src/compiler/codegen/codegen_binding.cpp; src/compiler/codegen/name_binder.hpp; src/compiler/codegen/name_binder.cpp; src/compiler/codegen/codegen_ops.hpp; src/compiler/codegen/expression_emitter.hpp; src/compiler/codegen/expression_emitter.cpp; src/compiler/codegen/statement_emitter.hpp; src/compiler/codegen/statement_emitter.cpp; src/compiler/codegen/codegen_stmt.cpp; src/compiler/codegen/codegen_types.hpp; src/compiler/codegen/codegen_context.hpp; src/compiler/codegen/codegen_state.hpp; src/compiler/codegen/jump_patcher.hpp; src/compiler/codegen/jump_patcher.cpp; src/compiler/codegen/scope_manager.hpp; src/compiler/codegen/scope_manager.cpp; src/compiler/codegen/bytecode_builder.hpp; src/compiler/register_allocator.hpp; tests/unit/compiler/test_codegen_result_types.cpp; tests/unit/compiler/test_codegen_state.cpp; tests/unit/compiler/test_codegen_characterization.cpp; tests/unit/compiler/test_jump_patcher.cpp; tests/unit/compiler/test_scope_manager.cpp; tests/unit/compiler/test_expression_emitter.cpp; tests/unit/compiler/test_statement_emitter.cpp; tests/unit/compiler/test_symbol_binding.cpp; tools/check_value_result_variant_only.ps1
 last_checked: 2026-05-24
 applies_to: current AST-to-Proto bytecode generator
 ---
@@ -37,6 +37,7 @@ source
 | `src/compiler/codegen/codegen_types.hpp` | 编译管线结果类型：`SymbolRef`、`ValueResult`、`CondResult`、`LValueRef`、`CallResultInfo` |
 | `src/compiler/codegen/codegen_context.hpp` | 局部变量、upvalue、block 与跳转上下文 |
 | `src/compiler/codegen/codegen_state.hpp` | `CodeGenerator` 分片共享的当前 `Proto`、PC、行号、寄存器、上下文和 bytecode builder |
+| `src/compiler/codegen/codegen_ops.hpp` | 分片共享的低层发射 / 指令参数回填 / 行号与寄存器 guard |
 | `src/compiler/codegen/bytecode_builder.hpp` | 当前 `Proto` 的指令、行号、常量、子原型和局部调试信息写入边界 |
 | `src/compiler/register_allocator.hpp` | 临时寄存器分配、回收与 `maxStackSize` 维护 |
 | `src/compiler/opcode.hpp/.cpp` | Lua 5.1 风格 VM 指令编码 |
@@ -183,6 +184,7 @@ emitStore(target, value)
 - `statement_emitter.hpp/.cpp`：承载 `statement()`、各 `emitStmt()`、`block()` 和语句级控制流 lowering。
 - `codegen_stmt.cpp`：函数编译、closure upvalue 装配和 debug metadata。
 - `codegen_state.hpp`：分片共享状态。
+- `codegen_ops.hpp`：共享 `codeABC` / `codeABx` / `codeAsBx` pending-jump flush、指令参数回填和 `LineGuard` / `RegisterGuard`。
 - `jump_patcher.hpp/.cpp`：jump-list、`PatchList`、pending `jpc_` 和 `fixJump/getJump` 回填操作。
 - `bytecode_builder.hpp`：当前 `Proto` 写入边界。
 
@@ -191,7 +193,8 @@ emitStore(target, value)
 1. `NameBinder`：已拥有 `resolve()`、`symbolToValue()`、`symbolToLValue()`。
 2. `ExpressionEmitter`：已拥有 `emitValue()`、`emitCondResult()`、`emitLValue()`、调用与 vararg lowering。
 3. `StatementEmitter`：已拥有语句、block、循环、return、break 生成。
-4. `FunctionCompiler`：后续候选，可拥有子函数编译、closure 和 upvalue 捕获装配。
+4. `CodegenOps`：已拥有低层指令发射、参数回填和 guard。
+5. `FunctionCompiler`：后续候选，可拥有子函数编译、closure 和 upvalue 捕获装配。
 
 拆分时每一步都应保持 `Proto` 字节码输出不变，并优先复用现有 `test_symbol_binding`、`test_value_pipeline`、`test_codegen_conditions`、`test_lvalue_pipeline`、`test_call_pipeline` 和 `test_codegen_multret`。
 
@@ -200,7 +203,7 @@ emitStore(target, value)
 1. `src/compiler/codegen/codegen_types.hpp`：先看五个结果类型。
 2. `src/compiler/register_allocator.hpp`：理解寄存器分配。
 3. `src/compiler/codegen/codegen_context.hpp`：理解局部变量、upvalue 与 block。
-4. `src/compiler/codegen/codegen_state.hpp` 和 `src/compiler/codegen/bytecode_builder.hpp`：理解共享状态和 `Proto` 写入边界。
+4. `src/compiler/codegen/codegen_state.hpp`、`src/compiler/codegen/codegen_ops.hpp` 和 `src/compiler/codegen/bytecode_builder.hpp`：理解共享状态、低层发射工具和 `Proto` 写入边界。
 5. `src/compiler/codegen/codegen.hpp`：看当前总控 API。
 6. `src/compiler/codegen/name_binder.cpp`、`src/compiler/codegen/expression_emitter.cpp`、`src/compiler/codegen/statement_emitter.cpp`、`src/compiler/codegen/jump_patcher.cpp`、`src/compiler/codegen/codegen_stmt.cpp`：按 `resolve -> emitValue/emitCond/emitLValue -> emitStmt -> jump patching -> compileFunction` 的顺序读。
 7. `tests/unit/compiler/test_*pipeline.cpp`：把测试当作可执行示例。

@@ -23,6 +23,7 @@
 #include "compiler/ast.hpp"
 #include "compiler/opcode.hpp"
 #include "compiler/codegen/codegen_types.hpp"
+#include "compiler/codegen/codegen_ops.hpp"
 #include "compiler/codegen/codegen_state.hpp"
 #include "compiler/codegen/jump_patcher.hpp"
 #include "compiler/codegen/name_binder.hpp"
@@ -111,7 +112,7 @@ private:
     // =====================================================================
     // 指令生成
     // =====================================================================
-    
+
     i32 codeABC(OpCode op, i32 a, i32 b, i32 c);
     i32 codeABx(OpCode op, i32 a, i32 bx);
     i32 codeAsBx(OpCode op, i32 a, i32 sbx);
@@ -134,6 +135,7 @@ private:
 
     CodegenState state_;
     JumpPatcher jumps_;
+    CodegenOps ops_;
     ScopeManager scopes_;
     NameBinder binder_;
     ExpressionEmitter expressions_;

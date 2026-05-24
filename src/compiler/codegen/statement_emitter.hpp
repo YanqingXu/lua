@@ -7,6 +7,7 @@
 
 #include "compiler/ast.hpp"
 #include "compiler/ast_visitor.hpp"
+#include "compiler/codegen/codegen_ops.hpp"
 #include "compiler/codegen/codegen_state.hpp"
 #include "compiler/codegen/codegen_types.hpp"
 #include "compiler/codegen/expression_emitter.hpp"
@@ -118,6 +119,7 @@ private:
 
     CodeGenerator& owner_;
     CodegenState& state_;
+    CodegenOps& ops_;
     JumpPatcher& jumps_;
     ScopeManager& scopes_;
     NameBinder& binder_;
