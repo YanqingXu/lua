@@ -9,7 +9,7 @@ applies_to: repository overview and current build workflows
 
 > **从零开始用C++17/20/23实现Lua 5.1.5解释器**
 
-[![Tests](https://img.shields.io/badge/tests-2789%2F2789-brightgreen)]()
+[![Tests](https://img.shields.io/badge/tests-2790%2F2790-brightgreen)]()
 [![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen)]()
 [![C++](https://img.shields.io/badge/C%2B%2B-17%2F23-blue)]()
 [![Platform](https://img.shields.io/badge/platform-Windows-blue)]()
@@ -100,9 +100,9 @@ applies_to: repository overview and current build workflows
 
 ```
 测试框架：自定义轻量级测试框架（零外部依赖）
-注册测试：558个
-断言结果：2789个 ✅
-通过率：  100% (2789/2789)
+注册测试：559个
+断言结果：2790个 ✅
+通过率：  100% (2790/2790)
 失败测试：0个
 编译状态：Debug|x64 `/W4` 版本无警告，无链接冲突
 平台：    Windows + MSVC (Visual Studio 2026)
@@ -110,14 +110,15 @@ applies_to: repository overview and current build workflows
 
 补充验证：
 - `bin/build_test.bat`：通过
-- `bin/lua_test.exe`：558 个注册测试，2789 个结果，0 失败（0 failures）
+- `bin/lua_test.exe`：559 个注册测试，2790 个结果，0 失败（0 failures）
+- `tests/lua/official/all.lua`：Lua 5.1 官方测试套件已接入 staged smoke；当前通过 skip 表记录并跳过 22 个已知未兼容脚本
 - `bin/build_app.bat`：通过
 - `tests/lua/regressions/*.lua`：全部通过
 - `tests/lua/stdlib/test_collectgarbage*.lua` 与 `test_gcinfo*.lua`：全部通过，`collectgarbage("collect")` 可观察到内存下降
 
 ### 距离完整 Lua 5.1.5 仍缺失的功能
 
-> **兼容性审计记录（2026-05-24）**：已对 README、本地 `src/lib/` 标准库实现、`src/vm/` 指令执行逻辑、GC/元方法相关核心代码进行核对。`bin/lua_test.exe` 当前为 558 个注册测试、2789 个结果、0 失败；这说明项目内测试覆盖的路径稳定，但不等价于 Lua 5.1.5 官方语义已经达到 95% 兼容。
+> **兼容性审计记录（2026-05-24）**：已对 README、本地 `src/lib/` 标准库实现、`src/vm/` 指令执行逻辑、GC/元方法相关核心代码进行核对。`bin/lua_test.exe` 当前为 559 个注册测试、2790 个结果、0 失败；这说明项目内测试覆盖的路径稳定，但不等价于 Lua 5.1.5 官方语义已经达到 95% 兼容。Lua 5.1 官方测试套件已以 staged smoke 形式接入，当前 skip 表仍标记了 22 个官方子脚本。
 
 > **最新补齐**：Lua 函数元方法调用链已打通，`callTMWithResult/callTM` 统一走 `VM::call`，C Closure 与 Lua Closure 共用同一调用入口；`getMetamethodByObject()` 已接入基础类型元表，string 类型已安装 `__index = string`；GC 已支持弱表 `__mode = "k"/"v"/"kv"` 清理、userdata `__gc` 两阶段终结和 `GCStrategy` 教学策略边界；尾调用优化已覆盖单值 `return f()` 的 `TAILCALL` 生成和 Lua 函数调用帧复用；泛型 `for` 已支持显式 iterator 三元组、函数/vararg 三值调整和 Lua 函数迭代器；string 库已补齐 `gsub` 表/函数替换、`string.dump` Proto/字节码序列化输出和含 `\0` 字符串的长度安全处理；`module()` 已补齐 `_PACKAGE`、复合模块名全局路径、调用方环境切换和 Lua option 函数调用语义；package 已补齐 `package.loadlib`、C loader 和 all-in-one C loader 动态加载边界。
 
@@ -166,7 +167,7 @@ applies_to: repository overview and current build workflows
 
 1. **补错误与调试边界**：`error(level)` 位置信息、任意错误对象、`xpcall` errfunc、`getfenv/setfenv` 栈层级/线程环境、debug 库基础类型元表操作
 2. **补小型标准库边界**：`io.lines/file:lines` 格式参数、`os.remove/os.rename` 失败返回值、`table.concat` 类型边界
-3. **引入官方兼容测试**：在现有单元测试全绿基础上，逐步接入 Lua 5.1 官方/社区行为测试，避免只验证 happy path
+3. **扩大官方兼容测试覆盖**：在已接入 Lua 5.1 官方测试套件 staged smoke 的基础上，逐步减少 skip 表，避免只验证 happy path
 
 ### 核心实现亮点
 
@@ -868,6 +869,7 @@ openBaseLib(L);  // 注册所有函数到全局环境
 │   └── bytecode_main.cpp          # `lua_bytecode` 入口
 ├── tests/
 │   ├── lua/                       # Lua 脚本级测试样例
+│   │   └── official/              # Lua 5.1 官方测试套件 staged smoke 输入
 │   └── unit/                      # C++ 单元测试
 │       ├── compiler/              # 编译器相关测试
 │       ├── core/                  # 核心对象测试
@@ -1040,11 +1042,12 @@ tests/unit/
 ├── gc/                         # GC 与 Upvalue 基础测试
 ├── io/                         # DynamicBuffer 与 InputStream
 ├── metamethod/                 # 算术、比较、索引等元方法测试
+├── official/                   # Lua 5.1 官方测试套件入口
 ├── stdlib/                     # base / string / table / os / coroutine / debug / package
 └── vm/                         # VM Core、LuaState 初始化、函数调用
 ```
 
-当前测试入口会输出真实注册测试数和断言结果数；最近一次验证为 558 个注册测试、2789 个结果、0 失败。
+当前测试入口会输出真实注册测试数和断言结果数；最近一次验证为 559 个注册测试、2790 个结果、0 失败。
 
 ## 📊 技术栈和工具
 

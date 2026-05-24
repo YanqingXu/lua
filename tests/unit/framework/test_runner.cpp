@@ -76,6 +76,7 @@ extern void registerInputStreamFileTests();
 extern void registerFileLoaderTests();
 extern void registerAppOptionsTests();
 extern void registerReplCommandTests();
+extern void registerOfficialSuiteTests();
 
 namespace {
 
@@ -217,6 +218,7 @@ void registerAllTests() {
     registerFileLoaderTests();
     registerAppOptionsTests();
     registerReplCommandTests();
+    registerOfficialSuiteTests();
 }
 
 void printTestList(const LuaTest::TestRegistry& registry, const std::string& filter) {

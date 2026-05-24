@@ -43,6 +43,9 @@
     <Filter Include="tests\vm">
       <UniqueIdentifier>{D1000001-000A-000A-000A-00000000000A}</UniqueIdentifier>
     </Filter>
+    <Filter Include="tests\official">
+      <UniqueIdentifier>{da736ba3-4ee1-bec7-f99d-c58b1ea386f0}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="tests\unit\framework\test_framework.hpp">
@@ -289,6 +292,9 @@
     </ClCompile>
     <ClCompile Include="tests\unit\stdlib\test_packagelib.cpp">
       <Filter>tests\stdlib</Filter>
+    </ClCompile>
+    <ClCompile Include="tests\unit\official\test_official_suite.cpp">
+      <Filter>tests\official</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

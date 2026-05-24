@@ -171,6 +171,7 @@ set(LUA_TEST_SOURCES
     tests/unit/vm/test_vm_dispatch.cpp
     tests/unit/vm/test_vm_internal_boundaries.cpp
     tests/unit/vm/test_vm_core.cpp
+    tests/unit/official/test_official_suite.cpp
 )
 
 add_library(lua_core STATIC ${LUA_CORE_SOURCES})

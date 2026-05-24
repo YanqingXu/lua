@@ -220,6 +220,7 @@
     <ClCompile Include="tests\unit\vm\test_vm_dispatch.cpp" />
     <ClCompile Include="tests\unit\vm\test_vm_internal_boundaries.cpp" />
     <ClCompile Include="tests\unit\vm\test_vm_core.cpp" />
+    <ClCompile Include="tests\unit\official\test_official_suite.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="lua.vcxproj">
