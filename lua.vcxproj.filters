@@ -315,6 +315,9 @@
     <ClInclude Include="src\compiler\parser\parser.hpp">
       <Filter>src\compiler\parser</Filter>
     </ClInclude>
+    <ClInclude Include="src\compiler\parser\parser_impl.hpp">
+      <Filter>src\compiler\parser</Filter>
+    </ClInclude>
     <ClInclude Include="src\vm\state\stack.hpp">
       <Filter>src\vm\state</Filter>
     </ClInclude>

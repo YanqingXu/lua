@@ -3,14 +3,14 @@
  * @brief Lua Parser statement and block implementation.
  */
 
-#include "parser.hpp"
+#include "parser_impl.hpp"
 #include "parser_utils.hpp"
 
 #include <utility>
 
 namespace Lua {
 
-Vec<StmtPtr> Parser::parseBlock() {
+Vec<StmtPtr> Parser::Impl::parseBlock() {
     RecursionGuard guard(*this);  // 递归深度保护
 
     Vec<StmtPtr> statements;
@@ -22,21 +22,34 @@ Vec<StmtPtr> Parser::parseBlock() {
            !check(TokenType::Elseif) &&
            !check(TokenType::Until)) {
 
-        // return语句必须是块的最后一条语句
-        if (check(TokenType::Return)) {
-            statements.push_back(parseReturnStmt());
-            break;
-        }
+        try {
+            // return语句必须是块的最后一条语句
+            if (check(TokenType::Return)) {
+                StmtPtr stmt = parseReturnStmt();
+                if (stmt) {
+                    statements.push_back(std::move(stmt));
+                }
+                break;
+            }
 
-        statements.push_back(parseStatement());
+            StmtPtr stmt = parseStatement();
+            if (stmt) {
+                statements.push_back(std::move(stmt));
+            }
+        } catch (const ParseError& error) {
+            if (!canRecoverFrom(error)) {
+                throw;
+            }
+            recoverAfterError();
+        }
     }
 
     return statements;
 }
 
-StmtPtr Parser::parseStatement() {
+StmtPtr Parser::Impl::parseStatement() {
     // 根据当前Token类型分发到相应的解析函数
-    switch (current_.type) {
+    switch (current().type) {
         case TokenType::If:
             return parseIfStmt();
         case TokenType::While:
@@ -59,9 +72,9 @@ StmtPtr Parser::parseStatement() {
     }
 }
 
-StmtPtr Parser::parseIfStmt() {
-    i32 line = current_.line;
-    i32 column = current_.column;
+StmtPtr Parser::Impl::parseIfStmt() {
+    i32 line = current().line;
+    i32 column = current().column;
     
     expect(TokenType::If, "Expected 'if'");
     
@@ -95,9 +108,9 @@ StmtPtr Parser::parseIfStmt() {
     return makeStmt<IfStmt>(std::move(ifStmt));
 }
 
-StmtPtr Parser::parseWhileStmt() {
-    i32 line = current_.line;
-    i32 column = current_.column;
+StmtPtr Parser::Impl::parseWhileStmt() {
+    i32 line = current().line;
+    i32 column = current().column;
 
     expect(TokenType::While, "Expected 'while'");
 
@@ -113,9 +126,9 @@ StmtPtr Parser::parseWhileStmt() {
     return makeStmt<WhileStmt>(std::move(whileStmt));
 }
 
-StmtPtr Parser::parseDoStmt() {
-    i32 line = current_.line;
-    i32 column = current_.column;
+StmtPtr Parser::Impl::parseDoStmt() {
+    i32 line = current().line;
+    i32 column = current().column;
 
     expect(TokenType::Do, "Expected 'do'");
 
@@ -129,9 +142,9 @@ StmtPtr Parser::parseDoStmt() {
     return makeStmt<DoStmt>(std::move(doStmt));
 }
 
-StmtPtr Parser::parseRepeatStmt() {
-    i32 line = current_.line;
-    i32 column = current_.column;
+StmtPtr Parser::Impl::parseRepeatStmt() {
+    i32 line = current().line;
+    i32 column = current().column;
 
     expect(TokenType::Repeat, "Expected 'repeat'");
 
@@ -146,17 +159,17 @@ StmtPtr Parser::parseRepeatStmt() {
     return makeStmt<RepeatStmt>(std::move(repeatStmt));
 }
 
-StmtPtr Parser::parseForStmt() {
-    i32 line = current_.line;
-    i32 column = current_.column;
+StmtPtr Parser::Impl::parseForStmt() {
+    i32 line = current().line;
+    i32 column = current().column;
 
     expect(TokenType::For, "Expected 'for'");
 
     // 解析循环变量
-    if (!current_.isName()) {
+    if (!current().isName()) {
         error("Expected variable name after 'for'");
     }
-    Str varName(ParserUtils::tokenString(current_));
+    Str varName(ParserUtils::tokenString(current()));
     advance();
 
     // 判断是数值for还是泛型for
@@ -178,8 +191,8 @@ StmtPtr Parser::parseForStmt() {
             // 默认step为1
             NumberExpr one;
             one.value = 1.0;
-            one.line = current_.line;
-            one.column = current_.column;
+            one.line = current().line;
+            one.column = current().column;
             forStmt.step = makeExpr<NumberExpr>(std::move(one));
         }
 
@@ -197,10 +210,10 @@ StmtPtr Parser::parseForStmt() {
 
         // 解析更多变量
         do {
-            if (!current_.isName()) {
+            if (!current().isName()) {
                 error("Expected variable name in for-in loop");
             }
-            forStmt.vars.emplace_back(ParserUtils::tokenString(current_));
+            forStmt.vars.emplace_back(ParserUtils::tokenString(current()));
             advance();
         } while (match(static_cast<TokenType>(',')));
 
@@ -233,9 +246,9 @@ StmtPtr Parser::parseForStmt() {
     }
 }
 
-StmtPtr Parser::parseLocalStmt() {
-    i32 line = current_.line;
-    i32 column = current_.column;
+StmtPtr Parser::Impl::parseLocalStmt() {
+    i32 line = current().line;
+    i32 column = current().column;
 
     expect(TokenType::Local, "Expected 'local'");
 
@@ -249,10 +262,10 @@ StmtPtr Parser::parseLocalStmt() {
         funcStmt.isLocal = true;
         funcStmt.isMethod = false;  // 局部函数不支持方法语法
 
-        if (!current_.isName()) {
+        if (!current().isName()) {
             error("Expected function name after 'local function'");
         }
-        funcStmt.name = Str(ParserUtils::tokenString(current_));
+        funcStmt.name = Str(ParserUtils::tokenString(current()));
         advance();
 
         expect(static_cast<TokenType>('('), "Expected '(' after function name");
@@ -279,10 +292,10 @@ StmtPtr Parser::parseLocalStmt() {
 
     // 解析变量名列表
     do {
-        if (!current_.isName()) {
+        if (!current().isName()) {
             error("Expected variable name in local statement");
         }
-        localStmt.names.emplace_back(ParserUtils::tokenString(current_));
+        localStmt.names.emplace_back(ParserUtils::tokenString(current()));
         advance();
     } while (match(static_cast<TokenType>(',')));
 
@@ -294,9 +307,9 @@ StmtPtr Parser::parseLocalStmt() {
     return makeStmt<LocalStmt>(std::move(localStmt));
 }
 
-StmtPtr Parser::parseReturnStmt() {
-    i32 line = current_.line;
-    i32 column = current_.column;
+StmtPtr Parser::Impl::parseReturnStmt() {
+    i32 line = current().line;
+    i32 column = current().column;
 
     expect(TokenType::Return, "Expected 'return'");
 
@@ -316,9 +329,9 @@ StmtPtr Parser::parseReturnStmt() {
     return makeStmt<ReturnStmt>(std::move(returnStmt));
 }
 
-StmtPtr Parser::parseBreakStmt() {
-    i32 line = current_.line;
-    i32 column = current_.column;
+StmtPtr Parser::Impl::parseBreakStmt() {
+    i32 line = current().line;
+    i32 column = current().column;
 
     expect(TokenType::Break, "Expected 'break'");
 
@@ -329,10 +342,10 @@ StmtPtr Parser::parseBreakStmt() {
     return makeStmt<BreakStmt>(std::move(breakStmt));
 }
 
-StmtPtr Parser::parseExprStmt() {
+StmtPtr Parser::Impl::parseExprStmt() {
     // 保存第一个 token，用于错误报告
     // 参考官方 Lua 5.1.5 的 "unexpected symbol near 'X'" 格式
-    Token firstToken = current_;
+    Token firstToken = current();
 
     // 解析表达式
     ExprPtr expr = parseExpression();
@@ -369,8 +382,8 @@ StmtPtr Parser::parseExprStmt() {
         // 其他表达式（如 1+2）不是有效的语句
         if (!std::holds_alternative<CallExpr>(expr->variant)) {
             // 使用官方 Lua 风格的错误消息：unexpected symbol near 'X'
-            Str errorMsg = errorWithNear("unexpected symbol", firstToken);
-            throw ParseError(errorMsg, firstToken.line, firstToken.column);
+            errorAt(firstToken, "unexpected symbol");
+            return nullptr;
         }
 
         CallStmt callStmt;

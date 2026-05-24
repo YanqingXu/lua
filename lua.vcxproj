@@ -157,6 +157,7 @@
     <ClInclude Include="src\compiler\lexer\lexer_cursor.hpp" />
     <ClInclude Include="src\compiler\opcode.hpp" />
     <ClInclude Include="src\compiler\parser\parser.hpp" />
+    <ClInclude Include="src\compiler\parser\parser_impl.hpp" />
     <ClInclude Include="src\compiler\parser\token.hpp" />
     <ClInclude Include="src\core\function.hpp" />
     <ClInclude Include="src\core\gc_object.hpp" />

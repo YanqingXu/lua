@@ -3,16 +3,16 @@
  * @brief Lua Parser function declaration/expression implementation.
  */
 
-#include "parser.hpp"
+#include "parser_impl.hpp"
 #include "parser_utils.hpp"
 
 #include <utility>
 
 namespace Lua {
 
-StmtPtr Parser::parseFunctionStmt() {
-    i32 line = current_.line;
-    i32 column = current_.column;
+StmtPtr Parser::Impl::parseFunctionStmt() {
+    i32 line = current().line;
+    i32 column = current().column;
 
     expect(TokenType::Function, "Expected 'function'");
 
@@ -23,12 +23,12 @@ StmtPtr Parser::parseFunctionStmt() {
     funcStmt.isMethod = false;
 
     // 解析函数名：支持 name, t.a.b.c.name, t:method
-    if (!current_.isName()) {
+    if (!current().isName()) {
         error("Expected function name");
     }
 
     // 第一个名字
-    funcStmt.name = Str(ParserUtils::tokenString(current_));
+    funcStmt.name = Str(ParserUtils::tokenString(current()));
     advance();
 
     // 解析表路径和方法语法
@@ -38,20 +38,20 @@ StmtPtr Parser::parseFunctionStmt() {
             // 表成员访问
             funcStmt.tablePath.push_back(std::move(funcStmt.name));
 
-            if (!current_.isName()) {
+            if (!current().isName()) {
                 error("Expected field name after '.'");
             }
-            funcStmt.name = Str(ParserUtils::tokenString(current_));
+            funcStmt.name = Str(ParserUtils::tokenString(current()));
             advance();
         } else if (match(static_cast<TokenType>(':'))) {
             // 方法定义语法糖
             funcStmt.tablePath.push_back(std::move(funcStmt.name));
             funcStmt.isMethod = true;
 
-            if (!current_.isName()) {
+            if (!current().isName()) {
                 error("Expected method name after ':'");
             }
-            funcStmt.name = Str(ParserUtils::tokenString(current_));
+            funcStmt.name = Str(ParserUtils::tokenString(current()));
             advance();
             break;  // 冒号后不能再有点或冒号
         }
@@ -81,11 +81,11 @@ StmtPtr Parser::parseFunctionStmt() {
     return makeStmt<FunctionStmt>(std::move(funcStmt));
 }
 
-ExprPtr Parser::parseFunctionExpr() {
+ExprPtr Parser::Impl::parseFunctionExpr() {
     RecursionGuard guard(*this);  // 递归深度保护
 
-    i32 line = current_.line;
-    i32 column = current_.column;
+    i32 line = current().line;
+    i32 column = current().column;
 
     expect(TokenType::Function, "Expected 'function'");
 
@@ -112,7 +112,7 @@ ExprPtr Parser::parseFunctionExpr() {
     return makeExpr<FunctionExpr>(std::move(funcExpr));
 }
 
-Vec<Str> Parser::parseParamList() {
+Vec<Str> Parser::Impl::parseParamList() {
     Vec<Str> params;
 
     // 空参数列表
@@ -128,8 +128,8 @@ Vec<Str> Parser::parseParamList() {
 
     // 解析参数名
     do {
-        if (current_.isName()) {
-            params.emplace_back(ParserUtils::tokenString(current_));
+        if (current().isName()) {
+            params.emplace_back(ParserUtils::tokenString(current()));
             advance();
         } else if (match(TokenType::Dots)) {
             params.push_back("...");

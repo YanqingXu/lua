@@ -3,18 +3,18 @@
  * @brief Lua Parser table constructor implementation.
  */
 
-#include "parser.hpp"
+#include "parser_impl.hpp"
 #include "parser_utils.hpp"
 
 #include <utility>
 
 namespace Lua {
 
-ExprPtr Parser::parseTableConstructor() {
+ExprPtr Parser::Impl::parseTableConstructor() {
     RecursionGuard guard(*this);  // 递归深度保护
 
-    i32 line = current_.line;
-    i32 column = current_.column;
+    i32 line = current().line;
+    i32 column = current().column;
 
     expect(static_cast<TokenType>('{'), "Expected '{'");
 
@@ -33,15 +33,15 @@ ExprPtr Parser::parseTableConstructor() {
             field.value = parseExpression();
         }
         // name = value 或数组元素
-        else if (current_.isName()) {
+        else if (current().isName()) {
             // 使用前瞻判断是 name = value 还是数组元素
             Token nextToken = peek();
 
             if (nextToken.type == static_cast<TokenType>('=')) {
                 // name = value 形式
-                Str name(ParserUtils::tokenString(current_));
-                i32 nameLine = current_.line;
-                i32 nameColumn = current_.column;
+                Str name(ParserUtils::tokenString(current()));
+                i32 nameLine = current().line;
+                i32 nameColumn = current().column;
                 advance();  // 消费 name
 
                 StringExpr keyExpr;

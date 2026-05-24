@@ -3,8 +3,8 @@
  * @brief 测试Parser错误报告机制
  *
  * 验证P0-2优化基础：ParseError 包含行号和列号信息
- * 注意：完整的错误恢复机制（支持一次性报告多个错误）需要更复杂的实现，
- * 目前暂时使用简化版本（遇到第一个错误就返回 ParseError）
+ * 默认 FailFast 模式保持遇到第一个错误即返回 ParseError；
+ * StatementBoundary 模式会尝试同步到下一条语句并收集多条诊断。
  *
  * 错误消息格式已简化为与官方 Lua 5.1.5 保持一致：
  * - 错误消息本身只包含简洁的描述（如 "syntax error"、"Expected 'then'"）
@@ -45,6 +45,26 @@ void testParseExpectedFailureValue(TestSuite& suite) {
     const ParseError& error = parsed.error();
     ASSERT_TRUE(suite, error.getLine() >= 1, "parse error has line info");
     ASSERT_TRUE(suite, error.getColumn() >= 1, "parse error has column info");
+}
+
+void testStatementBoundaryRecoveryCollectsDiagnostics(TestSuite& suite) {
+    std::string code =
+        "local x = +\n"
+        "local y = +\n"
+        "local z = 1\n";
+
+    Parser parser(code, ParserOptions{ParseRecoveryMode::StatementBoundary});
+    auto parsed = parser.parse();
+
+    ASSERT_TRUE(suite, !parsed.has_value(), "invalid input still returns parse error");
+    const Vec<ParseError>& diagnostics = parser.diagnostics();
+    ASSERT_TRUE(suite, diagnostics.size() >= 2, "statement recovery collects multiple diagnostics");
+    if (diagnostics.size() < 2) {
+        return;
+    }
+
+    ASSERT_TRUE(suite, diagnostics[0].getLine() == 1, "first diagnostic keeps first error line");
+    ASSERT_TRUE(suite, diagnostics[1].getLine() == 2, "second diagnostic keeps second error line");
 }
 
 /**
@@ -185,6 +205,7 @@ void registerParserErrorRecoveryTests() {
     auto& registry = TestRegistry::getInstance();
     registry.registerTest(kSuiteName, "parse returns expected type", testParseReturnsExpectedType);
     registry.registerTest(kSuiteName, "parse expected failure value", testParseExpectedFailureValue);
+    registry.registerTest(kSuiteName, "statement recovery diagnostics", testStatementBoundaryRecoveryCollectsDiagnostics);
     registry.registerTest(kSuiteName, "syntax error reporting", testSyntaxErrorReporting);
     registry.registerTest(kSuiteName, "error message format", testErrorMessageFormat);
     registry.registerTest(kSuiteName, "normal code parsing", testNormalCodeParsing);

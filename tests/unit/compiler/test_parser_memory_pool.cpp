@@ -1,8 +1,8 @@
 /**
  * @file test_parser_memory_pool.cpp
- * @brief 测试 Parser 内存池功能
+ * @brief 测试 Parser AST 节点分配功能
  *
- * 验证P0-3优化：NodePool 内存池减少内存分配开销
+ * 验证解析器通过 AST 工厂创建节点后仍保持正确的所有权和结构。
  */
 
 #include "../framework/test_framework.hpp"
@@ -15,10 +15,10 @@ using namespace LuaTest;
 
 namespace {
 
-constexpr const char* kSuiteName = "Parser Memory Pool";
+constexpr const char* kSuiteName = "Parser AST Allocation";
 
 /**
- * @brief 测试用例 1：基本内存池功能
+ * @brief 测试用例 1：基本节点分配功能
  */
 void testBasicMemoryPoolFunctionality(TestSuite& suite) {
     const char* code = R"(
@@ -44,7 +44,7 @@ void testBasicMemoryPoolFunctionality(TestSuite& suite) {
 }
 
 /**
- * @brief 测试用例 2：解析后内存池状态
+ * @brief 测试用例 2：解析后的 AST 状态
  */
 void testMemoryPoolStateAfterParsing(TestSuite& suite) {
     const char* code = R"(
@@ -147,7 +147,7 @@ void testComplexNestedStructures(TestSuite& suite) {
 }
 
 /**
- * @brief 测试用例 4：内存池统计信息
+ * @brief 测试用例 4：节点所有权稳定性
  */
 void testMemoryPoolStatistics(TestSuite& suite) {
     const char* code = R"(
@@ -185,8 +185,8 @@ void testMemoryPoolStatistics(TestSuite& suite) {
 void registerParserMemoryPoolTests() {
     auto& registry = TestRegistry::getInstance();
 
-    registry.registerTest(kSuiteName, "Basic memory pool functionality", testBasicMemoryPoolFunctionality);
-    registry.registerTest(kSuiteName, "Memory pool state after parsing", testMemoryPoolStateAfterParsing);
+    registry.registerTest(kSuiteName, "Basic AST allocation functionality", testBasicMemoryPoolFunctionality);
+    registry.registerTest(kSuiteName, "AST state after parsing", testMemoryPoolStateAfterParsing);
     registry.registerTest(kSuiteName, "Complex nested structures", testComplexNestedStructures);
-    registry.registerTest(kSuiteName, "Memory pool statistics", testMemoryPoolStatistics);
+    registry.registerTest(kSuiteName, "AST ownership stability", testMemoryPoolStatistics);
 }

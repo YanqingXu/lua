@@ -3,235 +3,178 @@
  * @brief Lua Parser expression precedence implementation.
  */
 
-#include "parser.hpp"
+#include "parser_impl.hpp"
 
 #include <utility>
 
 namespace Lua {
 
-ExprPtr Parser::parseExpression() {
+ExprPtr Parser::Impl::parseExpression() {
     RecursionGuard guard(*this);  // 递归深度保护
     return parseOrExpr();
 }
 
-ExprPtr Parser::parseOrExpr() {
+ExprPtr Parser::Impl::parseOrExpr() {
     ExprPtr left = parseAndExpr();
 
-    while (match(TokenType::Or)) {
-        i32 line = current_.line;
-        i32 column = current_.column;
+    while (check(TokenType::Or)) {
+        Token opToken = current();
+        advance();
 
-        BinaryExpr binExpr;
-        binExpr.op = BinaryExpr::Op::Or;
-        binExpr.left = std::move(left);
-        binExpr.right = parseAndExpr();
-        binExpr.line = line;
-        binExpr.column = column;
-
-        left = makeExpr<BinaryExpr>(std::move(binExpr));
+        ExprPtr right = parseAndExpr();
+        left = makeBinaryExpr(BinaryExpr::Op::Or, opToken, std::move(left), std::move(right));
     }
 
     return left;
 }
 
-ExprPtr Parser::parseAndExpr() {
+ExprPtr Parser::Impl::parseAndExpr() {
     ExprPtr left = parseRelationalExpr();
 
-    while (match(TokenType::And)) {
-        i32 line = current_.line;
-        i32 column = current_.column;
+    while (check(TokenType::And)) {
+        Token opToken = current();
+        advance();
 
-        BinaryExpr binExpr;
-        binExpr.op = BinaryExpr::Op::And;
-        binExpr.left = std::move(left);
-        binExpr.right = parseRelationalExpr();
-        binExpr.line = line;
-        binExpr.column = column;
-
-        left = makeExpr<BinaryExpr>(std::move(binExpr));
+        ExprPtr right = parseRelationalExpr();
+        left = makeBinaryExpr(BinaryExpr::Op::And, opToken, std::move(left), std::move(right));
     }
 
     return left;
 }
 
-ExprPtr Parser::parseRelationalExpr() {
+ExprPtr Parser::Impl::parseRelationalExpr() {
     ExprPtr left = parseConcatExpr();
 
     // 关系运算符: <, >, <=, >=, ==, ~=
-    TokenType op = current_.type;
+    TokenType op = current().type;
     if (op == static_cast<TokenType>('<') || op == static_cast<TokenType>('>') ||
         op == TokenType::Le || op == TokenType::Ge ||
         op == TokenType::Eq || op == TokenType::Ne) {
 
-        i32 line = current_.line;
-        i32 column = current_.column;
+        Token opToken = current();
         advance();
 
-        BinaryExpr binExpr;
-        binExpr.line = line;
-        binExpr.column = column;
+        BinaryExpr::Op binaryOp = BinaryExpr::Op::Eq;
 
         if (op == static_cast<TokenType>('<')) {
-            binExpr.op = BinaryExpr::Op::Lt;
+            binaryOp = BinaryExpr::Op::Lt;
         } else if (op == static_cast<TokenType>('>')) {
-            binExpr.op = BinaryExpr::Op::Gt;
+            binaryOp = BinaryExpr::Op::Gt;
         } else if (op == TokenType::Le) {
-            binExpr.op = BinaryExpr::Op::Le;
+            binaryOp = BinaryExpr::Op::Le;
         } else if (op == TokenType::Ge) {
-            binExpr.op = BinaryExpr::Op::Ge;
+            binaryOp = BinaryExpr::Op::Ge;
         } else if (op == TokenType::Eq) {
-            binExpr.op = BinaryExpr::Op::Eq;
+            binaryOp = BinaryExpr::Op::Eq;
         } else if (op == TokenType::Ne) {
-            binExpr.op = BinaryExpr::Op::Ne;
+            binaryOp = BinaryExpr::Op::Ne;
         }
 
-        binExpr.left = std::move(left);
-        binExpr.right = parseConcatExpr();
-
-        left = makeExpr<BinaryExpr>(std::move(binExpr));
+        ExprPtr right = parseConcatExpr();
+        left = makeBinaryExpr(binaryOp, opToken, std::move(left), std::move(right));
     }
 
     return left;
 }
 
-ExprPtr Parser::parseConcatExpr() {
+ExprPtr Parser::Impl::parseConcatExpr() {
     ExprPtr left = parseAdditiveExpr();
 
     // 字符串连接是右结合的
-    if (match(TokenType::Concat)) {
-        i32 line = current_.line;
-        i32 column = current_.column;
+    if (check(TokenType::Concat)) {
+        Token opToken = current();
+        advance();
 
-        BinaryExpr binExpr;
-        binExpr.op = BinaryExpr::Op::Concat;
-        binExpr.left = std::move(left);
-        binExpr.right = parseConcatExpr();  // 右结合
-        binExpr.line = line;
-        binExpr.column = column;
-
-        left = makeExpr<BinaryExpr>(std::move(binExpr));
+        ExprPtr right = parseConcatExpr();  // 右结合
+        left = makeBinaryExpr(BinaryExpr::Op::Concat, opToken, std::move(left), std::move(right));
     }
 
     return left;
 }
 
-ExprPtr Parser::parseAdditiveExpr() {
+ExprPtr Parser::Impl::parseAdditiveExpr() {
     ExprPtr left = parseMultiplicativeExpr();
 
     while (check(static_cast<TokenType>('+')) || check(static_cast<TokenType>('-'))) {
-        i32 line = current_.line;
-        i32 column = current_.column;
-        TokenType op = current_.type;
+        Token opToken = current();
+        TokenType op = opToken.type;
         advance();
 
-        BinaryExpr binExpr;
-        binExpr.op = (op == static_cast<TokenType>('+')) ? BinaryExpr::Op::Add : BinaryExpr::Op::Sub;
-        binExpr.left = std::move(left);
-        binExpr.right = parseMultiplicativeExpr();
-        binExpr.line = line;
-        binExpr.column = column;
-
-        left = makeExpr<BinaryExpr>(std::move(binExpr));
+        BinaryExpr::Op binaryOp = (op == static_cast<TokenType>('+')) ? BinaryExpr::Op::Add : BinaryExpr::Op::Sub;
+        ExprPtr right = parseMultiplicativeExpr();
+        left = makeBinaryExpr(binaryOp, opToken, std::move(left), std::move(right));
     }
 
     return left;
 }
 
-ExprPtr Parser::parseMultiplicativeExpr() {
+ExprPtr Parser::Impl::parseMultiplicativeExpr() {
     ExprPtr left = parseUnaryExpr();
 
     while (check(static_cast<TokenType>('*')) ||
            check(static_cast<TokenType>('/')) ||
            check(static_cast<TokenType>('%'))) {
 
-        i32 line = current_.line;
-        i32 column = current_.column;
-        TokenType op = current_.type;
+        Token opToken = current();
+        TokenType op = opToken.type;
         advance();
 
-        BinaryExpr binExpr;
-        binExpr.line = line;
-        binExpr.column = column;
+        BinaryExpr::Op binaryOp = BinaryExpr::Op::Mod;
 
         if (op == static_cast<TokenType>('*')) {
-            binExpr.op = BinaryExpr::Op::Mul;
+            binaryOp = BinaryExpr::Op::Mul;
         } else if (op == static_cast<TokenType>('/')) {
-            binExpr.op = BinaryExpr::Op::Div;
-        } else {
-            binExpr.op = BinaryExpr::Op::Mod;
+            binaryOp = BinaryExpr::Op::Div;
         }
 
-        binExpr.left = std::move(left);
-        binExpr.right = parseUnaryExpr();
-
-        left = makeExpr<BinaryExpr>(std::move(binExpr));
+        ExprPtr right = parseUnaryExpr();
+        left = makeBinaryExpr(binaryOp, opToken, std::move(left), std::move(right));
     }
 
     return left;
 }
 
-ExprPtr Parser::parseUnaryExpr() {
+ExprPtr Parser::Impl::parseUnaryExpr() {
     // 一元运算符: not, -, #
-    if (match(TokenType::Not)) {
-        i32 line = current_.line;
-        i32 column = current_.column;
+    if (check(TokenType::Not)) {
+        Token opToken = current();
+        advance();
 
-        UnaryExpr unExpr;
-        unExpr.op = UnaryExpr::Op::Not;
-        unExpr.operand = parseUnaryExpr();
-        unExpr.line = line;
-        unExpr.column = column;
+        ExprPtr operand = parseUnaryExpr();
+        return makeUnaryExpr(UnaryExpr::Op::Not, opToken, std::move(operand));
+    } else if (check(static_cast<TokenType>('-'))) {
+        Token opToken = current();
+        advance();
 
-        return makeExpr<UnaryExpr>(std::move(unExpr));
-    } else if (match(static_cast<TokenType>('-'))) {
-        i32 line = current_.line;
-        i32 column = current_.column;
+        ExprPtr operand = parseUnaryExpr();
+        return makeUnaryExpr(UnaryExpr::Op::Neg, opToken, std::move(operand));
+    } else if (check(static_cast<TokenType>('#'))) {
+        Token opToken = current();
+        advance();
 
-        UnaryExpr unExpr;
-        unExpr.op = UnaryExpr::Op::Neg;
-        unExpr.operand = parseUnaryExpr();
-        unExpr.line = line;
-        unExpr.column = column;
-
-        return makeExpr<UnaryExpr>(std::move(unExpr));
-    } else if (match(static_cast<TokenType>('#'))) {
-        i32 line = current_.line;
-        i32 column = current_.column;
-
-        UnaryExpr unExpr;
-        unExpr.op = UnaryExpr::Op::Len;
-        unExpr.operand = parseUnaryExpr();
-        unExpr.line = line;
-        unExpr.column = column;
-
-        return makeExpr<UnaryExpr>(std::move(unExpr));
+        ExprPtr operand = parseUnaryExpr();
+        return makeUnaryExpr(UnaryExpr::Op::Len, opToken, std::move(operand));
     }
 
     return parsePowerExpr();
 }
 
-ExprPtr Parser::parsePowerExpr() {
+ExprPtr Parser::Impl::parsePowerExpr() {
     ExprPtr left = parsePrimaryExpr();
 
     // 幂运算是右结合的
-    if (match(static_cast<TokenType>('^'))) {
-        i32 line = current_.line;
-        i32 column = current_.column;
+    if (check(static_cast<TokenType>('^'))) {
+        Token opToken = current();
+        advance();
 
-        BinaryExpr binExpr;
-        binExpr.op = BinaryExpr::Op::Pow;
-        binExpr.left = std::move(left);
-        binExpr.right = parsePowerExpr();  // 右结合
-        binExpr.line = line;
-        binExpr.column = column;
-
-        left = makeExpr<BinaryExpr>(std::move(binExpr));
+        ExprPtr right = parsePowerExpr();  // 右结合
+        left = makeBinaryExpr(BinaryExpr::Op::Pow, opToken, std::move(left), std::move(right));
     }
 
     return left;
 }
 
-Vec<ExprPtr> Parser::parseExprList() {
+Vec<ExprPtr> Parser::Impl::parseExprList() {
     Vec<ExprPtr> exprs;
 
     do {

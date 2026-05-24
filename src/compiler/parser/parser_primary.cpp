@@ -3,16 +3,16 @@
  * @brief Lua Parser primary and postfix expression implementation.
  */
 
-#include "parser.hpp"
+#include "parser_impl.hpp"
 #include "parser_utils.hpp"
 
 #include <utility>
 
 namespace Lua {
 
-ExprPtr Parser::parsePrimaryExpr() {
-    i32 line = current_.line;
-    i32 column = current_.column;
+ExprPtr Parser::Impl::parsePrimaryExpr() {
+    i32 line = current().line;
+    i32 column = current().column;
 
     // nil
     if (match(TokenType::Nil)) {
@@ -41,9 +41,9 @@ ExprPtr Parser::parsePrimaryExpr() {
     }
 
     // 数字
-    if (current_.isNumber()) {
+    if (current().isNumber()) {
         NumberExpr numExpr;
-        numExpr.value = std::get<f64>(current_.value);
+        numExpr.value = std::get<f64>(current().value);
         numExpr.line = line;
         numExpr.column = column;
         advance();
@@ -51,9 +51,9 @@ ExprPtr Parser::parsePrimaryExpr() {
     }
 
     // 字符串
-    if (current_.isString()) {
+    if (current().isString()) {
         StringExpr strExpr;
-        strExpr.value = Str(ParserUtils::tokenString(current_));
+        strExpr.value = Str(ParserUtils::tokenString(current()));
         strExpr.line = line;
         strExpr.column = column;
         advance();
@@ -91,9 +91,9 @@ ExprPtr Parser::parsePrimaryExpr() {
     }
 
     // 标识符
-    if (current_.isName()) {
+    if (current().isName()) {
         NameExpr nameExpr;
-        nameExpr.name = Str(ParserUtils::tokenString(current_));
+        nameExpr.name = Str(ParserUtils::tokenString(current()));
         nameExpr.line = line;
         nameExpr.column = column;
         advance();
@@ -105,10 +105,10 @@ ExprPtr Parser::parsePrimaryExpr() {
 	return nullptr;  // 永远不会到达
 }
 
-ExprPtr Parser::parsePostfixExpr(ExprPtr base) {
+ExprPtr Parser::Impl::parsePostfixExpr(ExprPtr base) {
     while (true) {
-        i32 line = current_.line;
-        i32 column = current_.column;
+        i32 line = current().line;
+        i32 column = current().column;
 
         // 函数调用: func(args)
         if (match(static_cast<TokenType>('('))) {
@@ -138,13 +138,13 @@ ExprPtr Parser::parsePostfixExpr(ExprPtr base) {
         }
         // 成员访问: table.member
         else if (match(static_cast<TokenType>('.'))) {
-            if (!current_.isName()) {
+            if (!current().isName()) {
                 error("Expected member name after '.'");
             }
 
             MemberExpr memberExpr;
             memberExpr.table = std::move(base);
-            memberExpr.member = Str(ParserUtils::tokenString(current_));
+            memberExpr.member = Str(ParserUtils::tokenString(current()));
             memberExpr.line = line;
             memberExpr.column = column;
             advance();
@@ -153,11 +153,11 @@ ExprPtr Parser::parsePostfixExpr(ExprPtr base) {
         }
         // 方法调用: obj:method(args)
         else if (match(static_cast<TokenType>(':'))) {
-            if (!current_.isName()) {
+            if (!current().isName()) {
                 error("Expected method name after ':'");
             }
 
-            Str methodName(ParserUtils::tokenString(current_));
+            Str methodName(ParserUtils::tokenString(current()));
             advance();
 
             // 创建成员访问
@@ -186,7 +186,7 @@ ExprPtr Parser::parsePostfixExpr(ExprPtr base) {
             base = makeExpr<CallExpr>(std::move(callExpr));
         }
         // 函数调用语法糖: f"string" 等价于 f("string")
-        else if (current_.isString()) {
+        else if (current().isString()) {
             CallExpr callExpr;
             callExpr.func = std::move(base);
             callExpr.line = line;
@@ -194,9 +194,9 @@ ExprPtr Parser::parsePostfixExpr(ExprPtr base) {
 
             // 创建字符串参数
             StringExpr strExpr;
-            strExpr.value = Str(ParserUtils::tokenString(current_));
-            strExpr.line = current_.line;
-            strExpr.column = current_.column;
+            strExpr.value = Str(ParserUtils::tokenString(current()));
+            strExpr.line = current().line;
+            strExpr.column = current().column;
             advance();
 
             callExpr.args.push_back(makeExpr<StringExpr>(std::move(strExpr)));

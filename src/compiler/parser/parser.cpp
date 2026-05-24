@@ -3,7 +3,7 @@
  * @brief Lua语法分析器实现
  */
 
-#include "parser.hpp"
+#include "parser_impl.hpp"
 #include <sstream>
 
 namespace Lua {
@@ -38,7 +38,7 @@ static Str getTokenText(const Token& token) {
  * 参考官方 Lua 5.1.5 的 luaX_lexerror() 函数：
  * 错误消息格式：message near 'token'
  */
-Str Parser::errorWithNear(const Str& message, const Token& token) {
+Str Parser::Impl::errorWithNear(const Str& message, const Token& token) {
     const Str& diagnostic = (token.type == TokenType::Error && !token.errorMessage.empty())
         ? token.errorMessage
         : message;
@@ -50,35 +50,65 @@ Str Parser::errorWithNear(const Str& message, const Token& token) {
 // =====================================================================
 
 Parser::Parser(const Str& source)
-    : lexer_(source)
-    , current_(lexer_.nextToken()) {
+    : Parser(source, ParserOptions{}) {
+}
+
+Parser::Parser(const Str& source, ParserOptions options)
+    : impl_(makeUnique<Impl>(source, options)) {
 }
 
 Parser::Parser(const Str& source, RuntimeServices& services)
-    : lexer_(source)
-    , current_(lexer_.nextToken())
-    , services_(&services) {
+    : Parser(source, services, ParserOptions{}) {
 }
 
-const Token& Parser::current() const {
-    return current_;
+Parser::Parser(const Str& source, RuntimeServices& services, ParserOptions options)
+    : impl_(makeUnique<Impl>(source, services, options)) {
 }
 
-void Parser::advance() {
-    current_ = lexer_.nextToken();
+Parser::~Parser() = default;
+Parser::Parser(Parser&&) noexcept = default;
+Parser& Parser::operator=(Parser&&) noexcept = default;
+
+std::expected<Chunk, ParseError> Parser::parse() {
+    return impl_->parse();
 }
 
-Token Parser::peek() {
+const Vec<ParseError>& Parser::diagnostics() const noexcept {
+    return impl_->diagnostics();
+}
+
+Parser::Impl::Impl(const Str& source, ParserOptions options)
+    : tokenStream_(source)
+    , recoveryStrategy_(makeRecoveryStrategy(options.recoveryMode)) {
+    diagnosticObservers_.push_back(&diagnosticCollector_);
+}
+
+Parser::Impl::Impl(const Str& source, RuntimeServices& services, ParserOptions options)
+    : tokenStream_(source)
+    , services_(&services)
+    , recoveryStrategy_(makeRecoveryStrategy(options.recoveryMode)) {
+    diagnosticObservers_.push_back(&diagnosticCollector_);
+}
+
+const Token& Parser::Impl::current() const {
+    return tokenStream_.current();
+}
+
+void Parser::Impl::advance() {
+    tokenStream_.advance();
+}
+
+Token Parser::Impl::peek() {
     // 使用Lexer的peekToken()方法实现高效的Token预读
     // 支持LL(1)语法分析，避免复制整个Lexer状态
-    return lexer_.peekToken();
+    return tokenStream_.peek();
 }
 
-bool Parser::check(TokenType type) const {
-    return current_.type == type;
+bool Parser::Impl::check(TokenType type) const {
+    return tokenStream_.check(type);
 }
 
-bool Parser::match(TokenType type) {
+bool Parser::Impl::match(TokenType type) {
     if (check(type)) {
         advance();
         return true;
@@ -86,34 +116,48 @@ bool Parser::match(TokenType type) {
     return false;
 }
 
-void Parser::expect(TokenType type, const Str& message) {
+void Parser::Impl::expect(TokenType type, const Str& message) {
     if (!match(type)) {
         error(message);
     }
 }
 
-void Parser::error(const Str& message) {
+void Parser::Impl::error(const Str& message) {
+    errorAt(current(), message);
+}
+
+void Parser::Impl::errorAt(const Token& token, const Str& message) {
     // 生成官方 Lua 风格的错误消息：message near 'token'
     // 参考官方 Lua 5.1.5 的 luaX_syntaxerror() 函数
-    Str fullMessage = errorWithNear(message, current_);
-    throw ParseError(fullMessage, current_.line, current_.column);
+    Str fullMessage = errorWithNear(message, token);
+    ParseError parseError(fullMessage, token.line, token.column);
+    publishDiagnostic(parseError);
+    throw parseError;
 }
 
-void Parser::reportError(const Str& message) {
+void Parser::Impl::reportError(const Str& message) {
+    reportErrorAt(current(), message);
+}
+
+void Parser::Impl::reportErrorAt(const Token& token, const Str& message) {
     // 生成官方 Lua 风格的错误消息
-    Str fullMessage = errorWithNear(message, current_);
-    errors_.emplace_back(fullMessage, current_.line, current_.column);
-
-    // 设置 panic 模式（为将来的错误恢复机制预留）
-    panicMode_ = true;
+    Str fullMessage = errorWithNear(message, token);
+    publishDiagnostic(ParseError(fullMessage, token.line, token.column));
 }
 
-void Parser::synchronize() {
-    // 重置 panic 模式
-    panicMode_ = false;
+void Parser::Impl::publishDiagnostic(const ParseError& error) {
+    for (ParseDiagnosticObserver* observer : diagnosticObservers_) {
+        observer->onParseDiagnostic(error);
+    }
+}
 
+void Parser::Impl::synchronize() {
     // 跳过 token 直到找到语句边界
     while (!check(TokenType::Eos)) {
+        if (match(static_cast<TokenType>(';'))) {
+            return;
+        }
+
         // 检查是否到达块结束符
         if (check(TokenType::End) ||
             check(TokenType::Else) ||
@@ -139,11 +183,31 @@ void Parser::synchronize() {
     }
 }
 
+bool Parser::Impl::canRecoverFrom(const ParseError& error) const {
+    return recoveryStrategy_->canRecover(*this, error);
+}
+
+void Parser::Impl::recoverAfterError() {
+    recoveryStrategy_->recover(*this);
+}
+
+UPtr<Parser::Impl::ErrorRecoveryStrategy> Parser::Impl::makeRecoveryStrategy(ParseRecoveryMode mode) {
+    switch (mode) {
+        case ParseRecoveryMode::StatementBoundary:
+            return makeUnique<StatementBoundaryRecoveryStrategy>();
+        case ParseRecoveryMode::FailFast:
+        default:
+            return makeUnique<FailFastRecoveryStrategy>();
+    }
+}
+
 // =====================================================================
 // 主解析函数
 // =====================================================================
 
-std::expected<Chunk, ParseError> Parser::parse() {
+std::expected<Chunk, ParseError> Parser::Impl::parse() {
+    diagnosticCollector_.clear();
+
     try {
         Chunk chunk;
 
@@ -155,10 +219,18 @@ std::expected<Chunk, ParseError> Parser::parse() {
             error("Expected end of file");
         }
 
+        if (!diagnosticCollector_.empty()) {
+            return std::unexpected(diagnosticCollector_.first());
+        }
+
         return chunk;
     } catch (const ParseError& error) {
         return std::unexpected(error);
     }
+}
+
+const Vec<ParseError>& Parser::Impl::diagnostics() const noexcept {
+    return diagnosticCollector_.diagnostics();
 }
 
 // Grammar productions are implemented in the parser_*.cpp shards.
