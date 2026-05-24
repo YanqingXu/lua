@@ -15,7 +15,7 @@ namespace Lua {
 /**
  * @brief 获取 Token 的可读字符串表示（用于错误消息）
  *
- * 参考官方 Lua 5.1.5 的 txtToken() 函数：
+ * Lua 风格的 Token 文本格式：
  * - 对于标识符、字符串、数字：返回实际的词素内容
  * - 对于 EOF：返回 "<eof>"
  * - 对于其他 token：返回词素内容
@@ -35,7 +35,6 @@ static Str getTokenText(const Token& token) {
 /**
  * @brief 生成带有 "near 'X'" 后缀的错误消息
  *
- * 参考官方 Lua 5.1.5 的 luaX_lexerror() 函数：
  * 错误消息格式：message near 'token'
  */
 Str Parser::Impl::errorWithNear(const Str& message, const Token& token) {
@@ -127,8 +126,7 @@ void Parser::Impl::error(const Str& message) {
 }
 
 void Parser::Impl::errorAt(const Token& token, const Str& message) {
-    // 生成官方 Lua 风格的错误消息：message near 'token'
-    // 参考官方 Lua 5.1.5 的 luaX_syntaxerror() 函数
+    // 生成 Lua 风格的错误消息：message near 'token'
     Str fullMessage = errorWithNear(message, token);
     ParseError parseError(fullMessage, token.line, token.column);
     publishDiagnostic(parseError);

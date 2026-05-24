@@ -13,11 +13,8 @@
  * - 哈希表管理：使用哈希表快速查找字符串
  * - GC集成：与垃圾回收器协作管理字符串生命周期
  * - 单例模式：全局唯一的字符串池实例
- * 
- * 参考实现：
- * - lua_c_analysis/src/lstring.c 中的字符串表管理
- * - lua_c_analysis/src/lstate.h 中的 stringtable 结构
- * - lua/docs/architecture/overview.md 中的设计文档
+ *
+ * 相关文档：lua/docs/architecture/overview.md
  */
 
 #include "core/gc_string.hpp"
@@ -199,9 +196,6 @@ public:
      * 这是Lua 5.1.5初始化过程的一部分。
      *
      * @param newSize 新的哈希表大小
-     *
-     * @note 对应C实现的 luaS_resize()
-     * @see lua_c_analysis/src/lstring.c 第93-130行
      */
     void resize(usize newSize);
 

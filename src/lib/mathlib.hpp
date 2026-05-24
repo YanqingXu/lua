@@ -18,11 +18,6 @@
  * 数学常量：
  * - math.pi: 圆周率π
  * - math.huge: 正无穷大（HUGE_VAL）
- * 
- * 参考实现：
- * - lua_c_analysis/src/lmathlib.c 中的C实现
- * - lua_with_cpp/src/lib/math/ 中的C++实现参考
- * 
  * @author Lua C++ Project
  * @date 2025-12-19
  */

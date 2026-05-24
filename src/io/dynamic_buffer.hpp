@@ -10,11 +10,6 @@
  * - 零拷贝视图（StrView）
  * - 移动语义优化
  * - 预留容量避免频繁重分配
- * 
- * 参考实现：
- * - lua_c_analysis/src/lzio.h - Mbuffer 结构
- * - lua_c_analysis/src/lzio.c - Mbuffer 操作函数
- * 
  * @author Lua C++ Implementation Team
  * @version 0.1.0
  * @date 2025-12-08

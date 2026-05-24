@@ -2,7 +2,7 @@
  * @file test_parser_recursion.cpp
  * @brief 测试Parser递归深度限制功能
  * 
- * 验证P0-1优化：RecursionGuard RAII类防止深度嵌套导致栈溢出
+ * 验证 RecursionGuard RAII 类防止深度嵌套导致栈溢出
  */
 
 #include "../framework/test_framework.hpp"
@@ -93,7 +93,7 @@ std::string generateNestedTables(int depth) {
  * @brief 测试正常深度的嵌套（应该成功）
  */
 void testNormalDepthNesting(TestSuite& suite) {
-    // 测试50层嵌套（远低于200的限制）
+    // 测试50层嵌套（低于递归限制）
     std::string code = generateNestedParentheses(50);
     
     try {
@@ -114,7 +114,7 @@ void testNormalDepthNesting(TestSuite& suite) {
  * @brief 测试接近限制的嵌套（应该成功）
  */
 void testNearLimitDepthNesting(TestSuite& suite) {
-    // 测试90层嵌套（接近100的限制）
+    // 测试90层嵌套（接近表达式递归限制）
     std::string code = generateNestedParentheses(90);
 
     try {

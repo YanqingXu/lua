@@ -16,10 +16,6 @@
  * - 链表管理：使用侵入式链表管理所有GC对象
  * - 增量准备：为后续增量GC预留接口
  * - 现代C++：使用RAII和智能指针辅助管理
- * 
- * 参考实现：
- * - lua_c_analysis/src/lgc.h/c - Lua 5.1.5 GC实现
- * 
  * @author Lua C++ Project
  * @date 2025-11-12
  */

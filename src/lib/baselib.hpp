@@ -11,10 +11,6 @@
  * 2. 类型操作：type、tonumber、tostring
  * 3. 元表操作：getmetatable、setmetatable
  * 4. 错误处理：error、assert
- * 
- * 参考实现：
- * - lua_c_analysis/src/lbaselib.c 中的C实现
- * 
  * @author Lua C++ Project
  * @date 2025-11-13
  */

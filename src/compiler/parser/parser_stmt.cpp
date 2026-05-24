@@ -11,7 +11,7 @@
 namespace Lua {
 
 Vec<StmtPtr> Parser::Impl::parseBlock() {
-    RecursionGuard guard(*this);  // 递归深度保护
+    RecursionGuard guard(*this, MAX_BLOCK_RECURSION_DEPTH);  // 递归深度保护
 
     Vec<StmtPtr> statements;
 
@@ -343,8 +343,7 @@ StmtPtr Parser::Impl::parseBreakStmt() {
 }
 
 StmtPtr Parser::Impl::parseExprStmt() {
-    // 保存第一个 token，用于错误报告
-    // 参考官方 Lua 5.1.5 的 "unexpected symbol near 'X'" 格式
+    // 保存第一个 token，用于生成 "unexpected symbol near 'X'" 错误
     Token firstToken = current();
 
     // 解析表达式
@@ -378,7 +377,6 @@ StmtPtr Parser::Impl::parseExprStmt() {
         return makeStmt<AssignStmt>(std::move(assignStmt));
     } else {
         // 只有函数调用才能作为表达式语句
-        // 参考官方 Lua 5.1.5: lparser.c exprstat() 函数
         // 其他表达式（如 1+2）不是有效的语句
         if (!std::holds_alternative<CallExpr>(expr->variant)) {
             // 使用官方 Lua 风格的错误消息：unexpected symbol near 'X'

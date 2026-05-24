@@ -16,9 +16,6 @@
  * - iABC:  [OP:6][A:8][C:9][B:9]
  * - iABx:  [OP:6][A:8][Bx:18]
  * - iAsBx: [OP:6][A:8][sBx:18] (有符号)
- * 
- * 参考实现：
- * - lua_c_analysis/src/lopcodes.h - Lua 5.1.5 C版本
  */
 
 #include "common/types.hpp"

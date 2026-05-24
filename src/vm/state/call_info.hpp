@@ -28,11 +28,6 @@
  * │  函数对象   │ ← func
  * └─────────────┘
  * ```
- * 
- * 参考实现：
- * - lua_c_analysis/src/lstate.h 中的 CallInfo 结构
- * - lua_c_analysis/src/ldo.h 中的调用管理
- * 
  * @author Lua C++ Project
  * @date 2025-11-12
  */

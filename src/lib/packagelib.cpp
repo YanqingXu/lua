@@ -13,10 +13,6 @@
  *   [4] all-in-one C library
  * - require() is idempotent: repeated calls return the cached value
  * - module() creates a module table and adjusts the environment
- *
- * Reference Implementation:
- * - lua_c_analysis/src/loadlib.c — Lua 5.1.5 loadlib
- *
  * @author Lua C++ Project
  * @date 2026-04-10
  */

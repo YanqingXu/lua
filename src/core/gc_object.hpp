@@ -5,7 +5,7 @@
  * @brief GC对象基类 - 垃圾回收系统的基础
  * 
  * 设计说明：
- * GCObject是所有需要垃圾回收的对象的抽象基类，对应C版本的GCObject和CommonHeader。
+ * GCObject是所有需要垃圾回收的对象的抽象基类。
  * 使用C++的虚函数机制实现多态，提供统一的GC接口。
  * 
  * 核心特性：
@@ -13,11 +13,8 @@
  * - 链表管理：通过next指针形成GC对象链表
  * - 类型识别：每个对象都有明确的类型标识
  * - 虚函数接口：支持子类自定义标记和大小计算
- * 
- * 参考实现：
- * - lua_c_analysis/src/lobject.h 中的 CommonHeader 和 GCheader
- * - lua_c_analysis/src/lgc.h 中的三色标记算法
- * - lua/docs/architecture/overview.md 中的设计文档
+ *
+ * 相关文档：lua/docs/architecture/overview.md
  */
 
 #include "common/types.hpp"

@@ -123,9 +123,6 @@ void GlobalState::markRoots(GarbageCollector& gc, LuaState* currentState) const 
  * @brief 初始化元方法名称
  *
  * 创建并固定所有17个元方法名称字符串，防止GC回收。
- *
- * @note 对应C实现的 luaT_init()
- * @see lua_c_analysis/src/ltm.c 第202-215行
  */
 void GlobalState::initMetamethodNames() {
     // 元方法名称数组（与TMS枚举顺序一致）
@@ -160,9 +157,6 @@ GCString* GlobalState::getMetamethodName(TMS event) const noexcept {
  * @brief 初始化保留字（关键字）
  *
  * 创建并固定所有21个Lua关键字字符串，防止GC回收。
- *
- * @note 对应C实现的 luaX_init()
- * @see lua_c_analysis/src/llex.c 第309-328行
  */
 void GlobalState::initReservedWords() {
     // Lua 5.1的21个保留字（按字母顺序）

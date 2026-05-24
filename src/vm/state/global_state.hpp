@@ -15,11 +15,6 @@
  * - 资源共享：所有LuaState共享同一个GlobalState
  * - 现代C++：使用智能指针和RAII管理资源
  * - 线程安全：为后续多线程支持预留接口
- * 
- * 参考实现：
- * - lua_c_analysis/src/lstate.h 中的 global_State 结构
- * - lua_with_cpp/src/vm/state/lua_state.hpp 中的实现
- * 
  * @author Lua C++ Project
  * @date 2025-11-12
  */
@@ -178,9 +173,6 @@ public:
      * @brief 获取元方法名称字符串
      * @param event 元方法类型
      * @return 元方法名称的GCString指针
-     *
-     * @note 对应C实现的 G(L)->tmname[event]
-     * @see lua_c_analysis/src/ltm.c 第212行
      */
     GCString* getMetamethodName(TMS event) const noexcept;
 
@@ -201,9 +193,6 @@ private:
      * @brief 初始化元方法名称
      *
      * 创建并固定所有元方法名称字符串，防止GC回收。
-     *
-     * @note 对应C实现的 luaT_init()
-     * @see lua_c_analysis/src/ltm.c 第202-215行
      */
     void initMetamethodNames();
 
@@ -211,9 +200,6 @@ private:
      * @brief 初始化保留字（关键字）
      *
      * 创建并固定所有Lua关键字字符串，防止GC回收。
-     *
-     * @note 对应C实现的 luaX_init()
-     * @see lua_c_analysis/src/llex.c 第309-328行
      */
     void initReservedWords();
 

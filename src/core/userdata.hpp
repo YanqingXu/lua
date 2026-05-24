@@ -15,10 +15,6 @@
  * - 元表支持: 完整用户数据可以设置元表实现自定义行为
  * - 类型安全: 提供类型化访问接口
  * - 对齐保证: 用户数据内存按8字节对齐
- * 
- * 参考实现:
- * - lua_c_analysis/src/lobject.h 中的 Udata 结构
- * - lua_c_analysis/src/lstring.c 中的 luaS_newudata 函数
  */
 
 #include "common/types.hpp"

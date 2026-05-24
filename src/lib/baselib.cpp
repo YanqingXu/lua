@@ -383,8 +383,6 @@ i32 luaB_getmetatable(LuaState* L) {
  *
  * 返回表中的下一个键值对。如果index为nil，返回第一个键值对。
  * 如果index是表中的最后一个键，返回nil。
- *
- * 参考：lua_c_analysis/src/lbaselib.c 中的luaB_next
  */
 static i32 luaB_next(LuaState* L) {
     if (L->getTop() < 1) {
@@ -417,8 +415,6 @@ static i32 luaB_next(LuaState* L) {
  *
  * 返回三个值：迭代器函数、表、nil（初始键）
  * 用于泛型for循环遍历表的所有键值对。
- *
- * 参考：lua_c_analysis/src/lbaselib.c 中的luaB_pairs
  */
 static i32 luaB_pairs(LuaState* L) {
     if (L->getTop() < 1) {
@@ -481,8 +477,6 @@ static i32 ipairsIter(LuaState* L) {
  *
  * 返回三个值：迭代器函数、表、0（初始索引）
  * 用于泛型for循环遍历表的数组部分。
- *
- * 参考：lua_c_analysis/src/lbaselib.c 中的luaB_ipairs
  */
 static i32 luaB_ipairs(LuaState* L) {
     if (L->getTop() < 1) {
@@ -516,8 +510,6 @@ static i32 luaB_ipairs(LuaState* L) {
  *
  * 在不触发任何元方法的情况下获取 table[index] 的值。
  * table 必须是一个表；index 可以是任何值。
- *
- * 参考：lua_c_analysis/src/lbaselib.c 中的luaB_rawget
  */
 i32 luaB_rawget(LuaState* L) {
     if (L->getTop() < 2) {
@@ -546,8 +538,6 @@ i32 luaB_rawget(LuaState* L) {
  * 在不触发任何元方法的情况下设置 table[index] = value。
  * table 必须是一个表，index 不能是 nil 或 NaN，value 可以是任何值。
  * 返回 table。
- *
- * 参考：lua_c_analysis/src/lbaselib.c 中的luaB_rawset
  */
 i32 luaB_rawset(LuaState* L) {
     if (L->getTop() < 3) {
@@ -588,8 +578,6 @@ i32 luaB_rawset(LuaState* L) {
  *
  * 在不触发任何元方法的情况下检查 v1 是否等于 v2。
  * 返回布尔值。
- *
- * 参考：lua_c_analysis/src/lbaselib.c 中的luaB_rawequal
  */
 i32 luaB_rawequal(LuaState* L) {
     if (L->getTop() < 2) {
@@ -614,8 +602,6 @@ i32 luaB_rawequal(LuaState* L) {
  * 如果 index 是数字，返回参数 index 之后的所有参数。
  * 如果 index 是字符串 "#"，返回额外参数的总数。
  * 负数索引从末尾开始计数（-1 是最后一个参数）。
- *
- * 参考：lua_c_analysis/src/lbaselib.c 中的luaB_select
  */
 i32 luaB_select(LuaState* L) {
     i32 n = L->getTop();
@@ -672,14 +658,6 @@ i32 luaB_select(LuaState* L) {
 // =====================================================================
 
 i32 luaB_pcall(LuaState* L) {
-    // 参考：lua_c_analysis/src/lbaselib.c:1512 luaB_pcall
-    // 标准实现（仅6行代码）：
-    //   luaL_checkany(L, 1);
-    //   status = lua_pcall(L, lua_gettop(L) - 1, LUA_MULTRET, 0);
-    //   lua_pushboolean(L, (status == 0));
-    //   lua_insert(L, 1);
-    //   return lua_gettop(L);
-
     i32 nargs = L->getTop();
     if (nargs < 1) {
         L->error("pcall: function expected");
@@ -702,16 +680,6 @@ i32 luaB_pcall(LuaState* L) {
 // =====================================================================
 
 i32 luaB_xpcall(LuaState* L) {
-    // 参考：lua_c_analysis/src/lbaselib.c:1568 luaB_xpcall
-    // 标准实现（仅7行代码）：
-    //   luaL_checkany(L, 2);
-    //   lua_settop(L, 2);
-    //   lua_insert(L, 1);  // 将错误函数放在要调用的函数下面
-    //   status = lua_pcall(L, 0, LUA_MULTRET, 1);
-    //   lua_pushboolean(L, (status == 0));
-    //   lua_replace(L, 1);
-    //   return lua_gettop(L);
-
     i32 nargs = L->getTop();
     if (nargs < 2) {
         L->error("xpcall: function and error handler expected");
@@ -964,9 +932,6 @@ i32 luaB_dofile(LuaState* L) {
  *
  * 返回GC使用的内存量（KB）。这是一个已废弃的兼容性函数，
  * 在Lua 5.1中保留用于向后兼容。
- *
- * 参考：lua_c_analysis/src/lbaselib.c 中的luaB_gcinfo
- *
  * @note 已废弃，建议使用collectgarbage("count")代替
  */
 i32 luaB_gcinfo(LuaState* L) {
@@ -991,9 +956,6 @@ i32 luaB_gcinfo(LuaState* L) {
  *
  * 获取指定函数的环境表。对于C函数，返回全局环境；
  * 对于Lua函数，返回其特定的环境表。
- *
- * 参考：lua_c_analysis/src/lbaselib.c 中的luaB_getfenv
- *
  * @param L Lua状态机指针
  * @return 返回值数量（1个：环境表）
  *
@@ -1053,9 +1015,6 @@ i32 luaB_getfenv(LuaState* L) {
  *
  * 为指定函数设置新的环境表。只能为Lua函数设置环境，
  * C函数的环境无法修改。
- *
- * 参考：lua_c_analysis/src/lbaselib.c 中的luaB_setfenv
- *
  * @param L Lua状态机指针
  * @return 返回值数量（1个：被修改的函数对象）
  *
@@ -1122,9 +1081,6 @@ i32 luaB_setfenv(LuaState* L) {
  * @brief collectgarbage(opt [, arg])
  *
  * 控制垃圾回收器的行为，支持多种操作模式。
- *
- * 参考：lua_c_analysis/src/lbaselib.c 中的luaB_collectgarbage
- *
  * @param L Lua状态机指针
  * @return 返回值数量（1个：操作结果）
  *

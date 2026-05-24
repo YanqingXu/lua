@@ -15,11 +15,6 @@
  * - 函数调用和返回机制
  * - 栈帧管理和程序计数器
  * - 错误处理和异常传播
- * 
- * 参考实现：
- * - lua_c_analysis/src/lvm.h 和 lvm.c - Lua 5.1.5虚拟机实现
- * - lua_c_analysis/src/ldo.h 和 ldo.c - 函数调用和栈管理
- * 
  * @author Lua C++ Project
  * @date 2025-11-13
  */

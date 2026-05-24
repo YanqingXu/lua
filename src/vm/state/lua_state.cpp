@@ -133,7 +133,7 @@ void LuaState::initialize() {
     // 初始化第一个调用信息（虚拟的主函数）
     CallInfo& ci = callStack_[0];
     ci.func = 0;
-    ci.base = 1;  // ⭐ P0修复：base应该是1（func在位置0，局部变量从1开始）
+    ci.base = 1;  // func 在位置 0，局部变量从 1 开始
     ci.top = MIN_STACK_SIZE;
     ci.savedpc = nullptr;
     ci.nresults = MULTRET;
@@ -361,7 +361,6 @@ void LuaState::validateCallStack() const {
 // =====================================================================
 
 void LuaState::setTop(i32 idx) {
-    // 参考：lua_c_analysis/src/lapi.c:618 lua_settop
     // 计算新的栈顶位置
     usize base = 0;
     if (currentCI_ > 0) {
@@ -399,11 +398,7 @@ void LuaState::pushValue(i32 idx) {
 }
 
 void LuaState::insert(i32 idx) {
-    // 参考：lua_c_analysis/src/lapi.c:753 lua_insert
-    // 官方实现：
-    //   p = index2adr(L, idx);
-    //   for (q = L->top; q>p; q--) setobjs2s(L, q, q-1);
-    //   setobjs2s(L, p, L->top);
+    // 将栈顶元素插入目标位置，目标位置之后的元素整体后移。
     //
     // 将栈顶元素插入到指定位置，其他元素向上移动
     // 注意：栈大小不变，栈顶元素被移动到目标位置
@@ -446,7 +441,6 @@ void LuaState::insert(i32 idx) {
 }
 
 void LuaState::replace(i32 idx) {
-    // 参考：lua_c_analysis/src/lapi.c lua_replace
     // 用栈顶元素替换指定位置的元素，然后弹出栈顶
 
     if (stack_.size() == 0) {
@@ -481,8 +475,6 @@ void LuaState::replace(i32 idx) {
 }
 
 i32 LuaState::pcall(i32 nargs, i32 nresults, i32 errfunc) {
-    // 参考：lua_c_analysis/src/lapi.c:3027 lua_pcall
-
     // 计算函数在栈中的绝对位置（0-based）
     // 栈布局：[... func arg1 arg2 ...]
     // 函数在参数之前，所以 funcIdx = top_ - nargs - 1
@@ -687,8 +679,7 @@ i32 LuaState::pcall(i32 nargs, i32 nresults, i32 errfunc) {
 }
 
 i32 LuaState::getTop() const {
-    // 参考：lua_c_analysis/src/lapi.c:608 lua_gettop
-    // 返回值 = L->top - L->base
+    // 返回值 = top - base
     if (currentCI_ > 0) {
         const CallInfo& ci = callStack_[currentCI_];
         return static_cast<i32>(top_ - ci.base);
@@ -698,7 +689,6 @@ i32 LuaState::getTop() const {
 }
 
 Value& LuaState::at(i32 idx) {
-    // 参考：lua_c_analysis/src/lapi.c:164-186 index2adr
     // 正索引从当前调用帧的 base 开始（1-based）
     // 负索引从栈顶倒数
 

@@ -11,10 +11,8 @@
  * - Pattern matching: find, gsub, match, gmatch
  * - Formatting: format
  * - Advanced: dump
- * 
- * Reference Implementation:
- * - lua_c_analysis/src/lstrlib.c for C implementation
- * - Lua 5.1 Reference Manual for API specifications
+ *
+ * API behavior follows the Lua 5.1 Reference Manual.
  * 
  * @author Lua C++ Project
  * @date 2026-01-23

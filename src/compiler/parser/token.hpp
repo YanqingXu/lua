@@ -6,9 +6,7 @@
  * 
  * 定义Lua 5.1词法分析器使用的所有标记类型和相关数据结构。
  * 
- * 参考实现：
- * - lua_c_analysis/src/llex.h - Lua 5.1.5 C版本词法分析器
- * - Lua 5.1 Reference Manual - 词法约定
+ * 词法约定遵循 Lua 5.1 Reference Manual。
  */
 
 #include "common/types.hpp"

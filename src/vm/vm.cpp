@@ -9,8 +9,6 @@
  * - 辅助操作（gettable, settable, arith, concat 等）是独立的自由函数，
  *   仅接收 LuaState* 和具体的值参数
  * - 无任何类或对象——所有执行状态显式传递
- *
- * 参考：lua_c_analysis/src/lvm.c luaV_execute()
  */
 
 #include "vm/vm.hpp"

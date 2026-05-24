@@ -30,8 +30,6 @@ namespace Lua {
  * @brief 元方法名称字符串数组
  * 
  * 顺序必须与TMS枚举完全一致。
- * 
- * @see lua_c_analysis/src/ltm.c 第203-208行
  */
 const char* const kMetamethodNames[static_cast<usize>(TMS::TM_N)] = {
     "__index",      // TM_INDEX
@@ -61,8 +59,6 @@ const char* const kMetamethodNames[static_cast<usize>(TMS::TM_N)] = {
  * @brief 从元表中查找指定的元方法
  * 
  * 实现标志位缓存机制，避免重复查找不存在的元方法。
- * 
- * @see lua_c_analysis/src/ltm.c 第282-290行
  */
 Value getMetamethod(Table* metatable, TMS event) {
     return getMetamethod(GlobalState::getInstance(), metatable, event);
@@ -103,8 +99,6 @@ Value getMetamethod(GlobalState& globalState, Table* metatable, TMS event) {
 
 /**
  * @brief 根据对象类型查找元方法
- * 
- * @see lua_c_analysis/src/ltm.c 第368-381行
  */
 Value getMetamethodByObject(LuaState* L, const Value& obj, TMS event) {
     Table* metatable = nullptr;
@@ -150,8 +144,6 @@ Value getMetamethodByObject(LuaState* L, const Value& obj, TMS event) {
 
 /**
  * @brief 快速元方法访问
- * 
- * @see lua_c_analysis/src/ltm.h 第434行
  */
 Value fastMetamethod(Table* metatable, TMS event) {
     return fastMetamethod(GlobalState::getInstance(), metatable, event);
@@ -172,8 +164,6 @@ Value fastMetamethod(GlobalState& globalState, Table* metatable, TMS event) {
 
 /**
  * @brief 调用元方法并获取返回值
- *
- * @see lua_c_analysis/src/lvm.c 第396-409行 callTMres()
  */
 void callTMWithResult(LuaState* L, Value& result, const Value& metamethod,
                       const Value& arg1, const Value& arg2) {
@@ -216,8 +206,6 @@ void callTMWithResult(LuaState* L, Value& result, const Value& metamethod,
 
 /**
  * @brief 调用元方法（无返回值）
- *
- * @see lua_c_analysis/src/lvm.c 第453-463行
  */
 void callTM(LuaState* L, const Value& metamethod, const Value& arg1,
             const Value& arg2, const Value& arg3) {
@@ -255,8 +243,6 @@ void callTM(LuaState* L, const Value& metamethod, const Value& arg1,
 
 /**
  * @brief 调用二元运算元方法
- *
- * @see lua_c_analysis/src/lvm.c 第689-698行
  */
 bool callBinaryTM(LuaState* L, const Value& p1, const Value& p2,
                   Value& result, TMS event) {
@@ -280,8 +266,6 @@ bool callBinaryTM(LuaState* L, const Value& p1, const Value& p2,
 
 /**
  * @brief 获取比较元方法并检查对称性
- *
- * @see lua_c_analysis/src/lvm.c 第738-750行
  */
 Value getComparisonTM(LuaState* L, Table* mt1, Table* mt2, TMS event) {
     GlobalState& globalState = (L != nullptr) ? L->getGlobalState() : GlobalState::getInstance();
@@ -318,8 +302,6 @@ Value getComparisonTM(LuaState* L, Table* mt1, Table* mt2, TMS event) {
 
 /**
  * @brief 调用比较运算元方法
- *
- * @see lua_c_analysis/src/lvm.c 第789-800行
  */
 i32 callOrderTM(LuaState* L, const Value& p1, const Value& p2, TMS event) {
     // 1. 获取第一个操作数的元方法

@@ -12,11 +12,6 @@
  * - RAII 资源管理
  * - 零拷贝优化（字符串模式）
  * - 类型安全
- * 
- * 参考实现：
- * - lua_c_analysis/src/lzio.h - ZIO 结构
- * - lua_c_analysis/src/lzio.c - ZIO 操作函数
- * 
  * @author Lua C++ Implementation Team
  * @version 0.1.0
  * @date 2025-12-08

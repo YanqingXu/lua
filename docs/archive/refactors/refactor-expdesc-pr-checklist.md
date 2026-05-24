@@ -741,7 +741,7 @@ applies_to: completed PR/task record for legacy expression pipeline removal
 本轮在 `docs/archive/refactors/refactor-singlepass-cleanup-plan.md` 的 PR-C1/PR-C2 基础上完成 PR-C3 到 PR-C5：
 
 - `RegisterAllocator` 封装完成，`CodeGenerator` 不再直接读写 `regs_.freereg_`。
-- `codegen.hpp` 中的 `luaK_*`、`exp2*`、`单遍`、`lua_c_analysis` 等过时描述已清理。
+- `codegen.hpp` 中的 `luaK_*`、`exp2*`、`单遍`、外部分析仓库名等过时描述已清理。
 - 测试 runner 注册 FunctionCall、DynamicBuffer、InputStream 相关测试，并改为汇总真实执行结果数。
 - 新增 upvalue close 单元测试和 `tests/lua/regressions/test_upvalue_close.lua`。
 - `OP_CLOSE` 发射接入作用域退出和 `break` 路径；VM 执行 `CLOSE` 时使用当前调用帧 base。
@@ -753,7 +753,7 @@ applies_to: completed PR/task record for legacy expression pipeline removal
 - `bin/build_app.bat`：成功，0 警告 0 错误
 - `tests/lua/regressions/*.lua`：全部通过
 - `rg "ExprDesc|ExprKind|expdesc" src/compiler`：0 结果
-- `rg "luaK_|discharge|P0修复|lua_c_analysis|单遍|exp2Val|exp2RK|exp2AnyReg|exp2NextReg|regs_\.freereg_" src/compiler/codegen.cpp src/compiler/codegen.hpp src/compiler/codegen_types.hpp src/compiler/register_allocator.hpp`：0 结果
+- `rg "luaK_|discharge|P0修复|外部分析仓库标记|单遍|exp2Val|exp2RK|exp2AnyReg|exp2NextReg|regs_\.freereg_" src/compiler/codegen.cpp src/compiler/codegen.hpp src/compiler/codegen_types.hpp src/compiler/register_allocator.hpp`：0 结果
 
 ---
 

@@ -24,11 +24,6 @@
  *       │   值 1      │
  * 低地址 └─────────────┘ ← base (栈底，索引0)
  * ```
- * 
- * 参考实现：
- * - lua_c_analysis/src/lstate.h 中的栈管理
- * - lua_c_analysis/src/ldo.h 中的栈操作
- * 
  * @author Lua C++ Project
  * @date 2025-11-12
  */

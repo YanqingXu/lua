@@ -92,9 +92,6 @@ void StringPool::clear() {
  * 功能等价，但实现更简单。
  *
  * @param newSize 新的哈希表大小
- *
- * @note 对应C实现的 luaS_resize()
- * @see lua_c_analysis/src/lstring.c 第93-130行
  */
 void StringPool::resize(usize newSize) {
     pool_.reserve(newSize);

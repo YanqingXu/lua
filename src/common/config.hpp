@@ -11,10 +11,6 @@
  * - 性能优化：提供性能相关的配置选项
  * - 平台适配：支持不同平台的特定配置
  * - 调试支持：提供调试模式的配置
- * 
- * 参考资源：
- * - lua_c_analysis/src/luaconf.h - Lua 5.1.5配置文件
- * 
  * @author Lua C++ Implementation Team
  * @version 0.1.0
  * @date 2025-11-11

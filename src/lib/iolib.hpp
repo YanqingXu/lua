@@ -22,11 +22,6 @@
  * 文件句柄类型：
  * 文件句柄通过 Userdata 实现，包含文件指针和元表。
  * 支持面向对象的方法调用（如 file:read()）。
- * 
- * 参考实现：
- * - lua_c_analysis/src/liolib.c 中的C实现
- * - lua_with_cpp/src/lib/io/ 中的C++参考实现
- * 
  * @author Lua C++ Project
  * @date 2025-12-19
  */

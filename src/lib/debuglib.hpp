@@ -19,9 +19,7 @@
  * - Raw metatable access: getmetatable, setmetatable
  * - Function environment wrappers: getfenv, setfenv
  *
- * Reference Implementation:
- * - lua_c_analysis/src/ldblib.c for the C implementation
- * - Lua 5.1 Reference Manual for debug library API behavior
+ * API behavior follows the Lua 5.1 Reference Manual where practical.
  *
  * @author Lua C++ Project
  * @date 2026-04-10

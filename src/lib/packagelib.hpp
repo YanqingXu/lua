@@ -14,9 +14,7 @@
  * - package.loadlib     — dynamic library loader
  * - package.seeall      — open module environment to _G
  *
- * Reference Implementation:
- * - lua_c_analysis/src/loadlib.c — Lua 5.1.5 package library
- * - Lua 5.1 Reference Manual §5.3
+ * API behavior follows the Lua 5.1 Reference Manual §5.3.
  *
  * @author Lua C++ Project
  * @date 2026-04-10

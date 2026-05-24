@@ -15,11 +15,6 @@
  * - 资源共享：通过GlobalState共享字符串池、GC等资源
  * - 协程支持：为后续协程实现预留接口
  * - 现代C++：使用RAII管理资源
- * 
- * 参考实现：
- * - lua_c_analysis/src/lstate.h 中的 lua_State 结构
- * - lua_with_cpp/src/vm/state/lua_state.hpp 中的实现
- * 
  * @author Lua C++ Project
  * @date 2025-11-12
  */
@@ -227,9 +222,8 @@ public:
     /**
      * @brief 获取栈大小（栈顶索引）
      *
-     * 返回当前调用帧中的栈元素数量（相对于当前base的栈顶位置）
-     * 参考：lua_c_analysis/src/lapi.c:608 lua_gettop
-     * 返回值 = L->top - L->base
+     * 返回当前调用帧中的栈元素数量（相对于当前base的栈顶位置）。
+     * 返回值 = top - base。
      */
     i32 getTop() const;
 
@@ -242,8 +236,6 @@ public:
     /**
      * @brief 将栈顶元素插入到指定位置
      * @param idx 目标位置索引（1-based）
-     *
-     * 参考：lua_c_analysis/src/lapi.c lua_insert
      * 将栈顶元素移动到指定位置，其他元素向上移动
      */
     void insert(i32 idx);
@@ -251,8 +243,6 @@ public:
     /**
      * @brief 用栈顶元素替换指定位置的元素
      * @param idx 目标位置索引（1-based）
-     *
-     * 参考：lua_c_analysis/src/lapi.c lua_replace
      * 用栈顶元素替换指定位置的元素，然后弹出栈顶
      */
     void replace(i32 idx);
@@ -271,8 +261,6 @@ public:
      * - 调用前：[... func arg1 arg2 ...]
      * - 成功后：[... result1 result2 ...]
      * - 失败后：[... error_msg]
-     *
-     * @note 参考 lua_c_analysis/src/lapi.c:3027 lua_pcall
      */
     i32 pcall(i32 nargs, i32 nresults, i32 errfunc);
 
@@ -675,7 +663,6 @@ private:
     Stack stack_;
 
     /// 栈顶索引（指向下一个可用位置）
-    /// 参考：lua_c_analysis/src/lstate.h 中的 L->top
     usize top_;
 
     /// 调用信息栈

@@ -5,18 +5,16 @@
  * @brief Lua动态类型系统的核心实现 - Value类
  * 
  * 设计说明：
- * Value类是Lua解释器中所有值的统一表示，对应C版本的TValue结构。
+ * Value类是Lua解释器中所有值的统一表示。
  * 使用C++17的std::variant替代C的union，提供类型安全的动态类型系统。
  * 
  * 核心特性：
  * - 类型安全：使用std::variant避免未定义行为
- * - 零开销：编译器优化后性能与C版本相当
+ * - 高效表示：依赖std::variant进行类型分派
  * - 现代C++：支持移动语义、RAII等特性
  * - 易于调试：提供丰富的类型检查和转换方法
- * 
- * 参考实现：
- * - lua_c_analysis/src/lobject.h 中的 TValue 结构
- * - lua/docs/architecture/overview.md 中的设计文档
+ *
+ * 相关文档：lua/docs/architecture/overview.md
  */
 
 #include "common/types.hpp"

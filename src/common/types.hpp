@@ -11,12 +11,6 @@
  * - 现代C++：充分利用C++17/20特性（variant、optional、string_view等）
  * - 可读性：清晰的命名和完整的注释
  * - 可维护性：统一的类型定义，便于修改和扩展
- * 
- * 参考资源：
- * - lua_c_analysis/src/lua.h - Lua 5.1.5 C API类型定义
- * - lua_c_analysis/src/lobject.h - Lua对象类型系统
- * - lua_with_cpp/src/common/types.hpp - C++实现参考
- * 
  * @author Lua C++ Implementation Team
  * @version 0.1.0
  * @date 2025-11-11

@@ -109,20 +109,20 @@ applies_to: completed single-pass cleanup plan
 | 1573 | `lparser.c:4712-4725 breakstat` | `emitStmt(BreakStmt)` 实现参考 |
 | 1651 | `lcode.c:477-486 patchtestreg` | `condjump` 中 TESTSET→TEST 转换说明 |
 
-- **问题**：这些是开发期用于追踪原始 Lua 5.1 代码对应关系的标记，对当前代码库的维护者已经没有参考价值。其中引用的 `lua_c_analysis` 是项目外部的分析仓库。
+- **问题**：这些是开发期用于追踪原始 Lua 5.1 代码对应关系的标记，对当前代码库的维护者已经没有参考价值。其中引用的是项目外部的分析仓库。
 - **建议**：全部移除，将其中仍然有用的信息（如 TESTSET→TEST 转换的语义原因）改写为独立的、自解释的注释。
 
-#### B-2：其他 `lua_c_analysis` 引用
+#### B-2：其他外部分析仓库引用
 
 - **位置**：[codegen.cpp](src/compiler/codegen.cpp) 共 5 处（非 P0 标记）
 
 | 行号 | 内容 |
 |------|------|
-| 1325 | `// 参考：lua_c_analysis/src/lparser.c localstat() 函数` |
-| 1489 | `// ifstat: lua_c_analysis/src/lparser.c:5522-5542` |
-| 1529 | `// 参考lua_c_analysis/src/lparser.c:4808-4823 whilestat实现` |
-| 1591 | `// 参考lua_c_analysis/src/lparser.c:4853-4875 repeatstat实现` |
-| 2031 | `// 参考lua_c_analysis/src/lcode.c中的forbody()和forlist()` |
+| 1325 | `// 参考：<external-analysis>/src/lparser.c localstat() 函数` |
+| 1489 | `// ifstat: <external-analysis>/src/lparser.c:5522-5542` |
+| 1529 | `// 参考 <external-analysis>/src/lparser.c:4808-4823 whilestat实现` |
+| 1591 | `// 参考 <external-analysis>/src/lparser.c:4853-4875 repeatstat实现` |
+| 2031 | `// 参考 <external-analysis>/src/lcode.c中的forbody()和forlist()` |
 
 - **建议**：与 B-1 一并处理。
 
@@ -293,7 +293,7 @@ codeAsBx → dischargejpc() → 发射指令
 
 ### PR-C2：注释债务清理
 
-**目标**：移除 "P0修复" 及 `lua_c_analysis` 开发期注释，替换为自解释注释或直接删除。
+**目标**：移除 "P0修复" 及外部分析仓库相关开发期注释，替换为自解释注释或直接删除。
 
 **改动清单**：
 
@@ -301,20 +301,20 @@ codeAsBx → dischargejpc() → 发射指令
 
 | 行号 | 当前注释 | 处理方式 |
 |------|---------|---------|
-| 84 | `// ⭐ P0修复：参考lua_c_analysis/...luaK_code实现` | 删除 |
+| 84 | `// ⭐ P0修复：参考 <external-analysis>/...luaK_code实现` | 删除 |
 | 95 | `// ⭐ P0修复：在生成指令前修补待处理的跳转` | 保留语义，改为 `// 在生成指令前刷新待处理跳转` |
 | 105 | 同上 | 同上 |
 | 166 | `// ⭐ P0修复：添加局部变量后需要递增regs_.freereg_` | 删除（`regs_.alloc()` 已自解释） |
 | 167 | `// ⭐ P0修复：确保maxStackSize >= regs_.freereg_` | 删除（`checkStack(0)` 已自解释） |
-| 193 | `// ⭐ P0修复：参考lua_c_analysis/...luaK_jump实现` | 删除 |
+| 193 | `// ⭐ P0修复：参考 <external-analysis>/...luaK_jump实现` | 删除 |
 | 203-204 | `// ⭐ P0修复：使用getjump...` / `// ⭐ P0修复：使用fixjump...` | 删除（函数名已自解释） |
-| 216 | `// ⭐ P0修复：参考lua_c_analysis/...dischargejpc实现` | 删除 |
+| 216 | `// ⭐ P0修复：参考 <external-analysis>/...dischargejpc实现` | 删除 |
 | 1335/1349 | `// ⭐ P0修复：在编译表达式之前/重新设置...` | 保留语义，改为描述寄存器保存/恢复逻辑 |
 | 1416 | `// ⭐ P0修复：恢复regs_.freereg_` | 精简为 `// 恢复寄存器状态` |
-| 1573 | `// ⭐ P0修复：参考lua_c_analysis/...breakstat实现` | 删除 |
-| 1651 | `// ⭐ P0修复：参考lua_c_analysis/...patchtestreg实现` | **保留并改写**：TESTSET→TEST 转换是重要语义，改为 `// TESTSET(A=NO_REG) 转换为 TEST，避免无效寄存器引用` |
+| 1573 | `// ⭐ P0修复：参考 <external-analysis>/...breakstat实现` | 删除 |
+| 1651 | `// ⭐ P0修复：参考 <external-analysis>/...patchtestreg实现` | **保留并改写**：TESTSET→TEST 转换是重要语义，改为 `// TESTSET(A=NO_REG) 转换为 TEST，避免无效寄存器引用` |
 
-#### 2.2 移除其他 `lua_c_analysis` 引用（5 处）
+#### 2.2 移除其他外部分析仓库引用（5 处）
 
 | 行号 | 处理方式 |
 |------|---------|
@@ -329,7 +329,7 @@ codeAsBx → dischargejpc() → 发射指令
 
 **验证标准**：
 - `grep -r "P0修复" src/compiler/codegen.cpp` 返回 0 结果
-- `grep -r "lua_c_analysis" src/compiler/codegen.cpp` 返回 0 结果
+- 外部分析仓库名在 `src/compiler/codegen.cpp` 中返回 0 结果
 - 全量测试通过
 
 **状态**：`done` (2026-05-02)
@@ -339,18 +339,18 @@ codeAsBx → dischargejpc() → 发射指令
   - 4 处完全删除（行 166, 167, 193, 203, 204, 1573 等）
   - 5 处替换为简短的自解释注释
   - 1 处（TESTSET→TEST 转换）保留语义但移除标记
-- 移除 5 处 `lua_c_analysis` 参考注释
+- 移除 5 处外部分析仓库参考注释
 - 清理 1 处 `luaK_goiftrue` 残留注释引用
 - 额外清理：修复 `codegen.cpp` 中 1 处已修改的行内注释（`flushPendingJumps` 已反映 PR-C1 重命名）
 
 **验证结果**：
 - `grep -r "P0修复" src/compiler/codegen.cpp` → 0 结果
-- `grep -r "lua_c_analysis" src/compiler/codegen.cpp` → 0 结果
+- 外部分析仓库名在 `src/compiler/codegen.cpp` 中 → 0 结果
 - `lua.vcxproj` / `lua_test.vcxproj` / `lua_app.vcxproj` 全部编译成功
 - `bin/lua_test.exe`：50 个测试套件，0 失败
 - 全部 10 个 Lua 回归测试通过
 
-**注意**：`codegen.hpp:23-24` 文件头中的 `lua_c_analysis` 参考注释保留，将在 PR-C4（头文件文档更新）中处理。
+**注意**：`codegen.hpp:23-24` 文件头中的外部分析仓库参考注释保留，将在 PR-C4（头文件文档更新）中处理。
 
 ---
 
@@ -445,7 +445,7 @@ void restore(i32 saved) noexcept { freereg_ = saved; }
 - `forceSingleValue()` 注释改为“括号单值收敛语义”。
 
 **验证结果**：
-- `rg "luaK_|discharge|P0修复|lua_c_analysis|单遍|exp2Val|exp2RK|exp2AnyReg|exp2NextReg|regs_\.freereg_" src/compiler/codegen.cpp src/compiler/codegen.hpp src/compiler/codegen_types.hpp src/compiler/register_allocator.hpp` → 0 结果
+- `rg "luaK_|discharge|P0修复|外部分析仓库标记|单遍|exp2Val|exp2RK|exp2AnyReg|exp2NextReg|regs_\.freereg_" src/compiler/codegen.cpp src/compiler/codegen.hpp src/compiler/codegen_types.hpp src/compiler/register_allocator.hpp` → 0 结果
 
 ---
 
@@ -455,7 +455,7 @@ void restore(i32 saved) noexcept { freereg_ = saved; }
 
 **检查清单**：
 
-- [x] `rg "luaK_|discharge|P0修复|lua_c_analysis|单遍|exp2Val|exp2RK|exp2AnyReg|exp2NextReg|regs_\.freereg_" src/compiler/codegen.cpp src/compiler/codegen.hpp src/compiler/codegen_types.hpp src/compiler/register_allocator.hpp` → 0 结果
+- [x] `rg "luaK_|discharge|P0修复|外部分析仓库标记|单遍|exp2Val|exp2RK|exp2AnyReg|exp2NextReg|regs_\.freereg_" src/compiler/codegen.cpp src/compiler/codegen.hpp src/compiler/codegen_types.hpp src/compiler/register_allocator.hpp` → 0 结果
 - [x] `rg "ExprDesc|ExprKind|expdesc" src/compiler` → 0 结果
 - [x] 全量单元测试：`bin/lua_test.exe` 全部通过（402 个注册测试，1574 个结果，0 失败）
 - [x] 全量 Lua 回归测试：所有 `tests/lua/regressions/*.lua` 通过
@@ -541,7 +541,7 @@ PR-C5 (最终审查)
 执行完 PR-C1 到 PR-C5 后，代码库将达到以下状态：
 
 - **命名**：不再有 `luaK_`、`discharge` 等 Lua 5.1 C 源码前缀
-- **注释**：不再有 "P0修复"、"lua_c_analysis" 等开发期标记
+- **注释**：不再有 "P0修复"、外部分析仓库名等开发期标记
 - **寄存器管理**：所有 `freereg_` 操作通过语义化方法进行
 - **文档**：`codegen.hpp` 描述准确反映当前两遍架构
 - **行为**：字节码输出完全不变

@@ -7,7 +7,7 @@
  * 1. 测试模式：运行单元测试套件（默认模式）
  * 2. 解释器模式：作为完整的Lua解释器运行（未来扩展）
  *
- * 初始化流程（参考lua_c_analysis/src/lua.c）：
+ * 初始化流程：
  * 1. 创建Lua状态机（LuaState::newState）
  * 2. 初始化全局状态（GlobalState单例）
  * 3. 加载标准库（StandardLibrary::openAll）
@@ -18,12 +18,6 @@
  * - 测试模式：直接运行 main.exe
  * - 解释器模式：main.exe <script.lua> (未来实现)
  * - 交互模式：main.exe -i (未来实现)
- *
- * 参考实现：
- * - lua_c_analysis/src/lua.c - Lua 5.1.5官方解释器入口
- * - lua_c_analysis/src/lstate.c - lua_newstate初始化流程
- * - lua_c_analysis/src/linit.c - 标准库加载
- *
  * @author Lua C++ Project
  * @date 2025-12-04
  */
@@ -99,7 +93,7 @@ void printUsage(const char* progname) {
 }
 
 // ============================================================================
-// Lua虚拟机初始化（参考lua_c_analysis/src/lstate.c）
+// Lua虚拟机初始化
 // ============================================================================
 
 /**
@@ -123,8 +117,7 @@ void printUsage(const char* progname) {
  */
 UPtr<LuaState> createLuaState() {
     try {
-        // 步骤1-4：LuaState::newState内部完成所有初始化
-        // 对应C版本的：lua_newstate + preinit_state + f_luaopen
+        // 步骤1-4：LuaState::newState内部完成状态、栈和全局环境初始化
         UPtr<LuaState> L(LuaState::newState());
 
         if (!L) {
@@ -132,8 +125,7 @@ UPtr<LuaState> createLuaState() {
             return nullptr;
         }
 
-        // 步骤5：加载标准库（对应luaL_openlibs）
-        // 注意：在C版本中，这通常在pmain中调用
+        // 步骤5：加载标准库
         StandardLibrary::openAll(L.get());
 
         return L;
@@ -155,8 +147,6 @@ UPtr<LuaState> createLuaState() {
 
 /**
  * @brief Setup arg table for Lua script to access command-line arguments
- *
- * Reference implementation: lua_c_analysis/src/lua.c:getargs()
  *
  * arg table structure (Lua 5.1.5 standard):
  * - arg[-1]: interpreter name (e.g., "lua.exe")
@@ -394,7 +384,7 @@ int Lua::runApp(const AppOptions& opt) {
 }
 
 // ============================================================================
-// 主函数（参考lua_c_analysis/src/lua.c的main函数）
+// 主函数
 // ============================================================================
 
 /**

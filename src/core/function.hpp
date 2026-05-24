@@ -15,11 +15,6 @@
  * - 支持C函数：可以注册C++函数供Lua调用
  * - 为后续扩展预留接口：字节码、上值等
  * - 继承GCObject：支持垃圾回收
- * 
- * 参考实现：
- * - lua_c_analysis/src/lobject.h - Proto和Closure定义
- * - lua_c_analysis/src/lfunc.h/c - 函数对象操作
- * 
  * @author Lua C++ Project
  * @date 2025-11-12
  */
@@ -148,7 +143,6 @@ constexpr u8 VARARG_NEEDSARG = 4;
  * @brief 局部变量信息结构
  *
  * 存储函数中局部变量的调试信息，包括变量名称和生命周期。
- * 对应Lua C实现中的LocVar结构。
  *
  * 用途：
  * - 调试器显示变量名称
@@ -185,7 +179,6 @@ struct LocVar {
  * @brief 函数原型类（完整版）
  *
  * Proto包含了Lua函数编译后的所有信息，是Lua虚拟机执行的基础数据结构。
- * 本实现完全对应Lua 5.1.5 C版本中的Proto结构。
  *
  * 核心组成部分：
  * 1. **字节码序列**：
@@ -214,10 +207,6 @@ struct LocVar {
  *    - maxStackSize_: 栈大小需求
  *    - nups_: 上值数量
  *    - gclist_: 垃圾回收链表指针
- *
- * 参考实现：
- * - lua_c_analysis/src/lobject.h - Proto结构定义
- * - lua_c_analysis/src/lfunc.c - Proto管理函数
  */
 class Proto : public GCObject {
 public:
@@ -814,23 +803,21 @@ public:
 
 private:
     // =====================================================================
-    // ClosureHeader 字段（对应Lua C实现）
+    // ClosureHeader 字段
     // =====================================================================
 
-    /// 是否为C函数（对应C实现的lu_byte isC）
-    /// 注意：为了与C实现完全兼容，应该使用u8类型，但为了保持现有代码兼容性暂时保留bool
+    /// 是否为C函数
+    /// 注意：为了保持现有代码兼容性暂时保留bool
     bool isC_;
 
-    /// 上值数量（对应C实现的lu_byte nupvalues）
-    /// 注意：这是新增字段，用于完全兼容Lua C实现
+    /// 上值数量
     u8 nupvalues_;
 
-    /// GC链表指针（对应C实现的GCObject *gclist）
+    /// GC链表指针
     /// 用于增量GC和分代GC的灰色对象链表遍历
-    /// 注意：这是新增字段，用于完全兼容Lua C实现
     GCObject* gclist_;
 
-    /// 环境表（对应C实现的struct Table *env）
+    /// 环境表
     /// 用于控制函数的全局变量访问范围
     /// 如果为nullptr，则使用LuaState的全局表
     Table* env_;

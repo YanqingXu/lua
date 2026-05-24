@@ -38,8 +38,6 @@ usize GCString::getSize() const {
  * - 短字符串：扫描所有字符
  * - 长字符串：采样计算（每隔一定步长取一个字符）
  * - 包含字符串长度，避免不同长度字符串的哈希冲突
- *
- * 参考：lua_c_analysis/src/lstring.c 中的哈希算法
  */
 usize GCString::computeHash(StrView str) noexcept {
     usize len = str.length();

@@ -15,10 +15,8 @@
  * - 动态调整：根据使用模式自动调整内存布局（当前版本简化实现）
  * - 元表支持：完整的元编程能力
  * - GC集成：继承自GCObject，支持垃圾回收
- * 
- * 参考实现：
- * - lua_c_analysis/src/ltable.h - Lua 5.1.5 C实现
- * - lua/docs/architecture/overview.md - 架构设计文档
+ *
+ * 相关文档：lua/docs/architecture/overview.md
  * 
  * @author YanqingXu
  * @date 2025-11-12
@@ -217,7 +215,6 @@ public:
      * @return true 如果找到下一个键值对，false 如果已到表尾
      *
      * @note 遍历过程中修改表可能导致未定义行为
-     * @see luaH_next() in lua_c_analysis/src/ltable.c
      */
     bool next(const Value& key, Value& nextKey, Value& nextValue) const;
 
@@ -345,7 +342,6 @@ private:
     /// 元方法缓存标志位：用于快速判断元方法是否存在
     /// 每个位对应一个元方法类型（TM_INDEX到TM_EQ）
     /// 位为1表示该元方法不存在，避免重复查找
-    /// @see lua_c_analysis/src/lobject.h Table结构的flags字段
     u8 flags_;
 
     // =====================================================================

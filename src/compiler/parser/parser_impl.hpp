@@ -223,16 +223,20 @@ private:
     }
 
 private:
-    static constexpr i32 MAX_RECURSION_DEPTH = 100;
+    static constexpr i32 MAX_RECURSION_DEPTH = 92;
+    static constexpr i32 MAX_BLOCK_RECURSION_DEPTH = 91;
 
     class RecursionGuard {
     public:
-        explicit RecursionGuard(Impl& parser) : parser_(parser) {
+        explicit RecursionGuard(Impl& parser, i32 maxDepth = MAX_RECURSION_DEPTH)
+            : parser_(parser)
+            , maxDepth_(maxDepth) {
             entered_ = true;
-            if (parser_.parseState_.enterSyntaxLevel() > MAX_RECURSION_DEPTH) {
+            if (parser_.parseState_.enterSyntaxLevel() > maxDepth_) {
                 parser_.parseState_.leaveSyntaxLevel();
                 entered_ = false;
-                parser_.error("chunk has too many syntax levels");
+                const Token& token = parser_.current();
+                throw ParseError("chunk has too many syntax levels", token.line, token.column);
             }
         }
 
@@ -247,6 +251,7 @@ private:
 
     private:
         Impl& parser_;
+        i32 maxDepth_;
         bool entered_ = false;
     };
 

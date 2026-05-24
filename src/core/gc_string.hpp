@@ -14,11 +14,8 @@
  * - 不可变性：字符串创建后内容不可修改
  * - 指针比较：驻留字符串可以直接比较地址（O(1)）
  * - GC集成：继承自GCObject，由垃圾回收器管理
- * 
- * 参考实现：
- * - lua_c_analysis/src/lstring.h 中的 TString 结构
- * - lua_c_analysis/src/lstring.c 中的字符串管理函数
- * - lua/docs/architecture/overview.md 中的设计文档
+ *
+ * 相关文档：lua/docs/architecture/overview.md
  */
 
 #include "core/gc_object.hpp"
@@ -31,7 +28,7 @@ namespace Lua {
  * @brief GCString类 - GC管理的字符串对象
  * 
  * 详细说明：
- * GCString实现了Lua的字符串类型，对应C版本的TString结构。
+ * GCString实现了Lua的字符串类型。
  * 每个字符串对象包含预计算的哈希值、长度信息和实际的字符串数据。
  * 
  * 内存布局：
@@ -151,9 +148,6 @@ public:
      * - Lua关键字（if, then, else等）
      * - 元方法名称（__index, __add等）
      * - 系统常量字符串
-     *
-     * @note 对应C实现的 luaS_fix() 宏
-     * @see lua_c_analysis/src/lstring.h 第296行
      */
     void markFixed() noexcept {
         setMarked(getMarked() | GCBits::FIXED);

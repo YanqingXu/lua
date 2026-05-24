@@ -4,7 +4,7 @@
  *
  * 详细说明：
  * 本模块实现了 Lua 的交互式 REPL（Read-Eval-Print Loop）功能，
- * 参考官方 Lua 5.1.5 的 lua.c 中的 dotty()、loadline()、pushline() 等函数。
+ * 提供交互式读取、补全多行输入、执行和错误展示流程。
  *
  * 主要功能：
  * - 显示欢迎信息和提示符
@@ -15,11 +15,6 @@
  * - 处理错误并继续运行
  * - 支持 Ctrl+C 中断信号
  * - 支持默认行号提示符和可配置的提示符 (_PROMPT, _PROMPT2)
- *
- * 参考实现：
- * - lua_c_analysis/src/lua.c - dotty(), loadline(), pushline(), incomplete()
- * - lua_with_cpp/src/repl.cpp - 信号处理、可配置提示符
- *
  * @author Lua C++ Project
  * @date 2025-12-04
  */
@@ -228,8 +223,6 @@ void initialize(LuaState* L);
  *
  * @param L Lua 状态机指针
  * @return 执行状态码（0=成功）
- *
- * @see lua_c_analysis/src/lua.c - dotty()
  */
 int run(LuaState* L);
 

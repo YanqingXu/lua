@@ -19,12 +19,6 @@
  * - 比较操作：__eq, __lt, __le
  * - 其他操作：__concat, __len, __call
  * - 特殊方法：__gc, __mode
- * 
- * 参考实现：
- * - lua_c_analysis/src/ltm.h - Lua 5.1.5元方法系统接口
- * - lua_c_analysis/src/ltm.c - Lua 5.1.5元方法系统实现
- * - lua_c_analysis/src/lvm.c - 元方法调用机制
- * 
  * @author Lua C++ Project
  * @date 2025-11-22
  */
@@ -49,8 +43,6 @@ class GlobalState;
  * 前5个（TM_INDEX到TM_EQ）是"快速"元方法，有特殊优化。
  * 
  * 注意：修改此枚举的顺序需要同步更新 kMetamethodNames 数组
- * 
- * @see lua_c_analysis/src/ltm.h 第146-364行
  */
 enum class TMS : u8 {
     // ===== 快速访问元方法（有缓存优化） =====
@@ -118,8 +110,6 @@ enum class TMS : u8 {
  * @brief 元方法名称字符串数组
  * 
  * 按照TMS枚举顺序定义的元方法名称，用于元表查找。
- * 
- * @see lua_c_analysis/src/ltm.c 第203-208行
  */
 extern const char* const kMetamethodNames[static_cast<usize>(TMS::TM_N)];
 
@@ -142,9 +132,6 @@ extern const char* const kMetamethodNames[static_cast<usize>(TMS::TM_N)];
  * @param metatable 元表指针，可以为nullptr
  * @param event 元方法类型
  * @return 找到的元方法值，如果不存在返回nil
- * 
- * @note 对应C实现的 luaT_gettm()
- * @see lua_c_analysis/src/ltm.c 第282-290行
  */
 Value getMetamethod(Table* metatable, TMS event);
 
@@ -168,9 +155,6 @@ Value getMetamethod(GlobalState& globalState, Table* metatable, TMS event);
  * @param obj 要查找元方法的对象
  * @param event 元方法类型
  * @return 找到的元方法值，如果不存在返回nil
- * 
- * @note 对应C实现的 luaT_gettmbyobj()
- * @see lua_c_analysis/src/ltm.c 第368-381行
  */
 Value getMetamethodByObject(LuaState* L, const Value& obj, TMS event);
 
@@ -195,9 +179,6 @@ Value getMetamethodByObject(LuaState* L, const Value& obj, TMS event);
  * @param metamethod 元方法函数
  * @param arg1 第一个参数
  * @param arg2 第二个参数
- *
- * @note 对应C实现的 callTMres()
- * @see lua_c_analysis/src/lvm.c 第396-409行
  */
 void callTMWithResult(LuaState* L, Value& result, const Value& metamethod,
                       const Value& arg1, const Value& arg2);
@@ -218,9 +199,6 @@ void callTMWithResult(LuaState* L, Value& result, const Value& metamethod,
  * @param arg1 第一个参数
  * @param arg2 第二个参数
  * @param arg3 第三个参数
- *
- * @note 对应C实现的 callTM()
- * @see lua_c_analysis/src/lvm.c 第453-463行
  */
 void callTM(LuaState* L, const Value& metamethod, const Value& arg1,
             const Value& arg2, const Value& arg3);
@@ -243,9 +221,6 @@ void callTM(LuaState* L, const Value& metamethod, const Value& arg1,
  * @param result 存储结果的位置
  * @param event 元方法类型（TM_ADD, TM_SUB等）
  * @return true 如果成功调用元方法，false 如果没有找到元方法
- *
- * @note 对应C实现的 call_binTM()
- * @see lua_c_analysis/src/lvm.c 第689-698行
  */
 bool callBinaryTM(LuaState* L, const Value& p1, const Value& p2,
                   Value& result, TMS event);
@@ -266,9 +241,6 @@ bool callBinaryTM(LuaState* L, const Value& p1, const Value& p2,
  * @param p2 右操作数
  * @param event 元方法类型（TM_LT或TM_LE）
  * @return 比较结果：-1表示没有元方法，0表示false，1表示true
- *
- * @note 对应C实现的 call_orderTM()
- * @see lua_c_analysis/src/lvm.c 第789-800行
  */
 i32 callOrderTM(LuaState* L, const Value& p1, const Value& p2, TMS event);
 
@@ -290,9 +262,6 @@ i32 callOrderTM(LuaState* L, const Value& p1, const Value& p2, TMS event);
  * @param mt2 第二个元表
  * @param event 元方法类型
  * @return 找到的元方法（如果对称），否则返回nil
- *
- * @note 对应C实现的 get_compTM()
- * @see lua_c_analysis/src/lvm.c 第738-750行
  */
 Value getComparisonTM(LuaState* L, Table* mt1, Table* mt2, TMS event);
 
@@ -314,9 +283,6 @@ Value getComparisonTM(LuaState* L, Table* mt1, Table* mt2, TMS event);
  * @param metatable 元表指针
  * @param event 元方法类型（必须 <= TM_EQ）
  * @return 找到的元方法值，如果不存在返回nil
- *
- * @note 对应C实现的 fasttm() 宏
- * @see lua_c_analysis/src/ltm.h 第434行
  */
 Value fastMetamethod(Table* metatable, TMS event);
 

@@ -14,10 +14,6 @@
  * - 详细的错误报告
  * - Token预读机制，支持LL(1)语法分析
  * - 哈希表优化的关键字识别
- * 
- * 参考实现：
- * - lua_c_analysis/src/llex.c - Lua 5.1.5 C版本词法分析器
- * - lua_with_cpp/src/lexer/lexer.cpp - C++参考实现
  */
 
 #include "compiler/parser/token.hpp"
