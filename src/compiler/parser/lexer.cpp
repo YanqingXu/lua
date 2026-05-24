@@ -40,6 +40,47 @@ static const HashMap<Str, TokenType> keywords = {
     {"while", TokenType::While}
 };
 
+namespace {
+
+struct SimpleEscape {
+    char escaped;
+    char value;
+};
+
+constexpr SimpleEscape kSimpleEscapes[] = {
+    {'a', '\a'},
+    {'b', '\b'},
+    {'f', '\f'},
+    {'n', '\n'},
+    {'r', '\r'},
+    {'t', '\t'},
+    {'v', '\v'},
+    {'\\', '\\'},
+    {'"', '"'},
+    {'\'', '\''}
+};
+
+Opt<char> decodeSimpleEscape(char c) noexcept {
+    for (const SimpleEscape& escape : kSimpleEscapes) {
+        if (escape.escaped == c) {
+            return escape.value;
+        }
+    }
+
+    return std::nullopt;
+}
+
+bool isSingleCharToken(char c) noexcept {
+    if (c == '\0') {
+        return false;
+    }
+
+    constexpr const char* kSingleCharTokens = "+-*/%^#(){}];,:";
+    return std::strchr(kSingleCharTokens, c) != nullptr;
+}
+
+} // namespace
+
 // =====================================================================
 // TokenType转字符串（用于调试）
 // =====================================================================
@@ -88,95 +129,6 @@ const char* tokenTypeToString(TokenType type) {
         
         default: return "<unknown>";
     }
-}
-
-// =====================================================================
-// InputCursor
-// =====================================================================
-
-Lexer::InputCursor::InputCursor(IO::InputStream& input)
-    : input_(&input)
-    , buffer_()
-    , cursor_(0)
-    , reachedEof_(false)
-    , line_(1)
-    , column_(1)
-    , pendingNewlineChar_(-1)
-{
-    ensureLookahead();
-}
-
-char Lexer::InputCursor::advance() {
-    ensureBuffered(cursor_);
-    i32 ch = buffer_[cursor_];
-    if (ch == -1) return '\0';
-
-    cursor_++;
-
-    // Lua 5.1 将 CRLF/LFCR 视为一个换行。
-    if (isNewline(static_cast<char>(ch))) {
-        if (pendingNewlineChar_ != -1 && ch != pendingNewlineChar_) {
-            pendingNewlineChar_ = -1;
-        } else {
-            line_++;
-            column_ = 1;
-            pendingNewlineChar_ = ch;
-        }
-    } else {
-        column_++;
-        pendingNewlineChar_ = -1;
-    }
-
-    ensureLookahead();
-
-    return static_cast<char>(ch);
-}
-
-char Lexer::InputCursor::peek(usize offset) const noexcept {
-    usize index = cursor_ + offset;
-    if (index >= buffer_.size() || buffer_[index] == -1) {
-        return '\0';
-    }
-    return static_cast<char>(buffer_[index]);
-}
-
-bool Lexer::InputCursor::isAtEnd() const noexcept {
-    return cursor_ < buffer_.size() && buffer_[cursor_] == -1;
-}
-
-Lexer::InputCursor::State Lexer::InputCursor::save() const noexcept {
-    return State{
-        cursor_,
-        line_,
-        column_,
-        pendingNewlineChar_
-    };
-}
-
-void Lexer::InputCursor::restore(const State& state) {
-    cursor_ = state.cursor;
-    line_ = state.line;
-    column_ = state.column;
-    pendingNewlineChar_ = state.pendingNewlineChar;
-    ensureLookahead();
-}
-
-void Lexer::InputCursor::ensureBuffered(usize absoluteIndex) {
-    while (buffer_.size() <= absoluteIndex && !reachedEof_) {
-        i32 ch = input_->getChar();
-        buffer_.push_back(ch);
-        if (ch == -1) {
-            reachedEof_ = true;
-        }
-    }
-}
-
-void Lexer::InputCursor::ensureLookahead() {
-    ensureBuffered(cursor_ + 1);
-}
-
-bool Lexer::InputCursor::isNewline(char c) noexcept {
-    return c == '\n' || c == '\r';
 }
 
 // =====================================================================
@@ -598,30 +550,23 @@ Opt<Token> Lexer::appendShortStringEscape(Str& result) {
     }
 
     char c = advance();
-    switch (c) {
-        case 'a': result += '\a'; break;
-        case 'b': result += '\b'; break;
-        case 'f': result += '\f'; break;
-        case 'n': result += '\n'; break;
-        case 'r': result += '\r'; break;
-        case 't': result += '\t'; break;
-        case 'v': result += '\v'; break;
-        case '\\': result += '\\'; break;
-        case '"': result += '"'; break;
-        case '\'': result += '\''; break;
-        case '\n':
-        case '\r':
-            consumeNewlinePairRemainder(c);
-            result += '\n';
-            break;
-        default:
-            if (isDigit(c)) {
-                return appendDecimalEscape(c, result);
-            }
-            result += c;
-            break;
+
+    if (Opt<char> simpleEscape = decodeSimpleEscape(c)) {
+        result += simpleEscape.value();
+        return std::nullopt;
     }
 
+    if (isNewline(c)) {
+        consumeNewlinePairRemainder(c);
+        result += '\n';
+        return std::nullopt;
+    }
+
+    if (isDigit(c)) {
+        return appendDecimalEscape(c, result);
+    }
+
+    result += c;
     return std::nullopt;
 }
 
@@ -768,60 +713,45 @@ Opt<i32> Lexer::tryReadLongBracketStart() {
 // 运算符和分隔符处理
 // =====================================================================
 
-Token Lexer::handleOperator(char c) {
-    // 处理所有单字符和多字符运算符、分隔符
-    switch (c) {
-        // 单字符运算符和分隔符
-        case '+': return makeToken(static_cast<TokenType>('+'));
-        case '-': return makeToken(static_cast<TokenType>('-'));
-        case '*': return makeToken(static_cast<TokenType>('*'));
-        case '/': return makeToken(static_cast<TokenType>('/'));
-        case '%': return makeToken(static_cast<TokenType>('%'));
-        case '^': return makeToken(static_cast<TokenType>('^'));
-        case '#': return makeToken(static_cast<TokenType>('#'));
-        case '(': return makeToken(static_cast<TokenType>('('));
-        case ')': return makeToken(static_cast<TokenType>(')'));
-        case '{': return makeToken(static_cast<TokenType>('{'));
-        case '}': return makeToken(static_cast<TokenType>('}'));
-        case ']': return makeToken(static_cast<TokenType>(']'));
-        case ';': return makeToken(static_cast<TokenType>(';'));
-        case ',': return makeToken(static_cast<TokenType>(','));
-        case ':': return makeToken(static_cast<TokenType>(':'));
-        
-        // 多字符运算符（可能）
-        case '=':
-            return match('=') ? makeToken(TokenType::Eq) : makeToken(static_cast<TokenType>('='));
-        
-        case '<':
-            return match('=') ? makeToken(TokenType::Le) : makeToken(static_cast<TokenType>('<'));
-        
-        case '>':
-            return match('=') ? makeToken(TokenType::Ge) : makeToken(static_cast<TokenType>('>'));
-        
-        case '~':
-            if (match('=')) {
-                return makeToken(TokenType::Ne);
-            }
-            return errorToken("Unexpected character '~'");
-        
-        // 点号：可能是 . 或 .. 或 ... 或数字（.123）
-        case '.':
-            if (match('.')) {
-                if (match('.')) {
-                    return makeToken(TokenType::Dots);  // ...
-                }
-                return makeToken(TokenType::Concat);    // ..
-            }
-            // 检查是否为数字 .123
-            if (isDigit(peek())) {
-                return decimalNumber();
-            }
-            return makeToken(static_cast<TokenType>('.'));
-        
-        default:
-            // 未识别的字符
-            return errorToken("Unexpected character");
+Token Lexer::handleEqualsSuffix(TokenType singleType, TokenType compoundType) {
+    return match('=') ? makeToken(compoundType) : makeToken(singleType);
+}
+
+Token Lexer::handleTildeOperator() {
+    if (match('=')) {
+        return makeToken(TokenType::Ne);
     }
+
+    return errorToken("Unexpected character '~'");
+}
+
+Token Lexer::handleDotOperator() {
+    if (match('.')) {
+        if (match('.')) {
+            return makeToken(TokenType::Dots);
+        }
+        return makeToken(TokenType::Concat);
+    }
+
+    if (isDigit(peek())) {
+        return decimalNumber();
+    }
+
+    return makeToken(static_cast<TokenType>('.'));
+}
+
+Token Lexer::handleOperator(char c) {
+    if (isSingleCharToken(c)) {
+        return makeToken(static_cast<TokenType>(c));
+    }
+
+    if (c == '=') return handleEqualsSuffix(static_cast<TokenType>('='), TokenType::Eq);
+    if (c == '<') return handleEqualsSuffix(static_cast<TokenType>('<'), TokenType::Le);
+    if (c == '>') return handleEqualsSuffix(static_cast<TokenType>('>'), TokenType::Ge);
+    if (c == '~') return handleTildeOperator();
+    if (c == '.') return handleDotOperator();
+
+    return errorToken("Unexpected character");
 }
 
 // =====================================================================

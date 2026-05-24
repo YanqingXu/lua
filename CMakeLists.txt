@@ -31,6 +31,7 @@ set(LUA_CORE_SOURCES
     src/compiler/codegen/scope_manager.cpp
     src/compiler/codegen/statement_emitter.cpp
     src/compiler/parser/lexer.cpp
+    src/compiler/parser/lexer_cursor.cpp
     src/compiler/opcode.cpp
     src/compiler/parser/parser.cpp
     src/compiler/parser/parser_expr.cpp

@@ -21,6 +21,7 @@
  */
 
 #include "token.hpp"
+#include "lexer_cursor.hpp"
 #include "common/types.hpp"
 #include "io/input_stream.hpp"
 #include <optional>
@@ -97,52 +98,6 @@ public:
     i32 getCurrentColumn() const noexcept { return inputCursor_.column(); }
 
 private:
-    // =====================================================================
-    // 输入游标
-    // =====================================================================
-
-    /**
-     * @brief 输入字符游标
-     *
-     * 负责字符缓冲、前瞻、回放以及 Lua 换行规则下的行列号维护。
-     */
-    class InputCursor {
-    public:
-        struct State {
-            usize cursor;
-            i32 line;
-            i32 column;
-            i32 pendingNewlineChar;
-        };
-
-        explicit InputCursor(IO::InputStream& input);
-
-        char advance();
-        char peek(usize offset = 0) const noexcept;
-        bool isAtEnd() const noexcept;
-
-        State save() const noexcept;
-        void restore(const State& state);
-
-        i32 line() const noexcept { return line_; }
-        i32 column() const noexcept { return column_; }
-        usize offset() const noexcept { return cursor_; }
-
-    private:
-        void ensureBuffered(usize absoluteIndex);
-        void ensureLookahead();
-        static bool isNewline(char c) noexcept;
-
-    private:
-        IO::InputStream* input_;
-        Vec<i32> buffer_;
-        usize cursor_;
-        bool reachedEof_;
-        i32 line_;
-        i32 column_;
-        i32 pendingNewlineChar_;
-    };
-
     // =====================================================================
     // 字符操作
     // =====================================================================
@@ -334,6 +289,21 @@ private:
      * 处理所有单字符和多字符运算符、分隔符。
      */
     Token handleOperator(char c);
+
+    /**
+     * @brief 处理后缀可能为 '=' 的运算符
+     */
+    Token handleEqualsSuffix(TokenType singleType, TokenType compoundType);
+
+    /**
+     * @brief 处理 '~' 或 '~='
+     */
+    Token handleTildeOperator();
+
+    /**
+     * @brief 处理 '.'、'..'、'...' 或小数
+     */
+    Token handleDotOperator();
     
     // =====================================================================
     // 词法分析器状态保存/恢复（用于回溯）

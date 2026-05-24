@@ -70,6 +70,9 @@
     <ClCompile Include="src\compiler\parser\lexer.cpp">
       <Filter>src\compiler\parser</Filter>
     </ClCompile>
+    <ClCompile Include="src\compiler\parser\lexer_cursor.cpp">
+      <Filter>src\compiler\parser</Filter>
+    </ClCompile>
     <ClCompile Include="src\compiler\opcode.cpp">
       <Filter>src\compiler</Filter>
     </ClCompile>
@@ -298,6 +301,9 @@
       <Filter>src\core</Filter>
     </ClInclude>
     <ClInclude Include="src\compiler\parser\lexer.hpp">
+      <Filter>src\compiler\parser</Filter>
+    </ClInclude>
+    <ClInclude Include="src\compiler\parser\lexer_cursor.hpp">
       <Filter>src\compiler\parser</Filter>
     </ClInclude>
     <ClInclude Include="src\common\macros.hpp">
