@@ -23,6 +23,10 @@ Vec<StmtPtr> Parser::Impl::parseBlock() {
            !check(TokenType::Elseif) &&
            !check(TokenType::Until)) {
         try {
+            if (match(static_cast<TokenType>(';'))) {
+                continue;
+            }
+
             if (check(TokenType::Return)) {
                 StmtPtr stmt = parseReturnStmt();
                 if (stmt) {
@@ -302,9 +306,12 @@ StmtPtr Parser::Impl::parseReturnStmt() {
         !check(TokenType::Eos) &&
         !check(TokenType::Else) &&
         !check(TokenType::Elseif) &&
-        !check(TokenType::Until)) {
+        !check(TokenType::Until) &&
+        !check(static_cast<TokenType>(';'))) {
         returnStmt.values = parseExprList();
     }
+
+    match(static_cast<TokenType>(';'));
 
     return makeStmt<ReturnStmt>(std::move(returnStmt));
 }

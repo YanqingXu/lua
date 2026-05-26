@@ -177,6 +177,45 @@ void testFunctionCallTableSugar(TestSuite& suite) {
 }
 
 /**
+ * @brief 测试方法调用的字符串和表参数语法糖
+ *
+ * obj:write"ok" 和 obj:write{ok=true} 应按 Lua 5.1 函数参数规则解析。
+ */
+void testMethodCallLiteralArgumentSugar(TestSuite& suite) {
+    const char* code = R"(
+        sink:write"ok"
+        sink:write{ok=true}
+    )";
+
+    Parser parser(code);
+    auto parsed = parser.parse();
+    if (!parsed) {
+        throw parsed.error();
+    }
+    Chunk chunk = std::move(*parsed);
+
+    ASSERT_TRUE(suite, chunk.statements.size() == 2, "Two method call statements parsed");
+
+    auto* stringCallStmt = std::get_if<CallStmt>(&chunk.statements[0]->variant);
+    ASSERT_TRUE(suite, stringCallStmt != nullptr, "String sugar statement is CallStmt");
+    auto* stringCall = stringCallStmt ? std::get_if<CallExpr>(&stringCallStmt->call->variant) : nullptr;
+    ASSERT_TRUE(suite, stringCall != nullptr && stringCall->isMethodCall, "String sugar keeps method call flag");
+    ASSERT_TRUE(suite, stringCall != nullptr && stringCall->args.size() == 1, "String sugar has one argument");
+    ASSERT_TRUE(suite, stringCall != nullptr &&
+                std::get_if<StringExpr>(&stringCall->args[0]->variant) != nullptr,
+                "String sugar argument is string");
+
+    auto* tableCallStmt = std::get_if<CallStmt>(&chunk.statements[1]->variant);
+    ASSERT_TRUE(suite, tableCallStmt != nullptr, "Table sugar statement is CallStmt");
+    auto* tableCall = tableCallStmt ? std::get_if<CallExpr>(&tableCallStmt->call->variant) : nullptr;
+    ASSERT_TRUE(suite, tableCall != nullptr && tableCall->isMethodCall, "Table sugar keeps method call flag");
+    ASSERT_TRUE(suite, tableCall != nullptr && tableCall->args.size() == 1, "Table sugar has one argument");
+    ASSERT_TRUE(suite, tableCall != nullptr &&
+                std::get_if<TableExpr>(&tableCall->args[0]->variant) != nullptr,
+                "Table sugar argument is table");
+}
+
+/**
  * @brief 测试表字段前瞻解析
  *
  * 测试表构造器中正确区分数组元素和命名字段
@@ -323,6 +362,7 @@ void registerSyntaxSugarTests() {
     registry.registerTest("Syntax Sugar", "Simple Function Definition", testSimpleFunctionDefinition);
     registry.registerTest("Syntax Sugar", "Function Call String Sugar", testFunctionCallStringSugar);
     registry.registerTest("Syntax Sugar", "Function Call Table Sugar", testFunctionCallTableSugar);
+    registry.registerTest("Syntax Sugar", "Method Call Literal Argument Sugar", testMethodCallLiteralArgumentSugar);
     registry.registerTest("Syntax Sugar", "Table Field Lookahead", testTableFieldLookahead);
     registry.registerTest("Syntax Sugar", "Complex Array Element", testComplexArrayElement);
     registry.registerTest("Syntax Sugar", "Mixed Table Constructor", testMixedTableConstructor);

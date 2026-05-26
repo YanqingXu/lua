@@ -1,7 +1,7 @@
 ---
 status: current
 verified_against: docs/status/project-status.md; lua.slnx; lua.vcxproj; lua_app.vcxproj; lua_test.vcxproj; lua_bytecode.vcxproj; CMakeLists.txt; tools/run_cmake_smoke.ps1
-last_checked: 2026-05-23
+last_checked: 2026-05-26
 applies_to: repository overview and current build workflows
 ---
 
@@ -9,13 +9,13 @@ applies_to: repository overview and current build workflows
 
 > **从零开始用C++17/20/23实现Lua 5.1.5解释器**
 
-[![Tests](https://img.shields.io/badge/tests-2790%2F2790-brightgreen)]()
+[![Tests](https://img.shields.io/badge/tests-2846%2F2846-brightgreen)]()
 [![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen)]()
 [![C++](https://img.shields.io/badge/C%2B%2B-17%2F23-blue)]()
 [![Platform](https://img.shields.io/badge/platform-Windows-blue)]()
 [![Progress](https://img.shields.io/badge/progress-95%25-yellow)]()
 [![Code](https://img.shields.io/badge/code-19k%20lines-blue)]()
-[![Last Updated](https://img.shields.io/badge/updated-2026--05--24-blue)]()
+[![Last Updated](https://img.shields.io/badge/updated-2026--05--26-blue)]()
 
 ---
 
@@ -96,31 +96,32 @@ applies_to: repository overview and current build workflows
 | **包/模块库（Package Library）** | `src/lib/packagelib.hpp/cpp` | ~830 | require、module、package.loaded/preload/loaders/path/cpath/loadlib/seeall；module 复合名/环境语义与 C loader/all-in-one loader 已补齐 | ✅ 98% |
 | **库管理系统** | `src/lib/lib_manager.hpp/cpp` | ~130 | catalog 驱动的标准库注册和单库加载 | ✅ 100% |
 
-### 测试统计（2026-05-24 更新）✅
+### 测试统计（2026-05-26 更新）✅
 
 ```
 测试框架：自定义轻量级测试框架（零外部依赖）
-注册测试：559个
-断言结果：2790个 ✅
-通过率：  100% (2790/2790)
+注册测试：572个
+断言结果：2846个 ✅
+通过率：  100% (2846/2846)
 失败测试：0个
 编译状态：Debug|x64 `/W4` 版本无警告，无链接冲突
 平台：    Windows + MSVC (Visual Studio 2026)
 ```
 
 补充验证：
-- `bin/build_test.bat`：通过
-- `bin/lua_test.exe`：559 个注册测试，2790 个结果，0 失败（0 failures）
-- `tests/lua/official/all.lua`：Lua 5.1 官方测试套件已接入 staged smoke；当前通过 skip 表记录并跳过 22 个已知未兼容脚本
-- `bin/build_app.bat`：通过
+- `lua_test.vcxproj`：MSBuild Debug|x64 通过
+- `bin/lua_test.exe`：572 个注册测试，2846 个结果，0 失败（0 failures）
+- `tests/lua/official/all.lua`：Lua 5.1 官方测试套件已接入 staged smoke；当前通过 skip 表记录并跳过 21 个已知未兼容脚本
+- `bin/lua_app.exe tests/lua/official/literals.lua`：通过
+- `lua_app.vcxproj`：MSBuild Debug|x64 通过
 - `tests/lua/regressions/*.lua`：全部通过
 - `tests/lua/stdlib/test_collectgarbage*.lua` 与 `test_gcinfo*.lua`：全部通过，`collectgarbage("collect")` 可观察到内存下降
 
 ### 距离完整 Lua 5.1.5 仍缺失的功能
 
-> **兼容性审计记录（2026-05-24）**：已对 README、本地 `src/lib/` 标准库实现、`src/vm/` 指令执行逻辑、GC/元方法相关核心代码进行核对。`bin/lua_test.exe` 当前为 559 个注册测试、2790 个结果、0 失败；这说明项目内测试覆盖的路径稳定，但不等价于 Lua 5.1.5 官方语义已经达到 95% 兼容。Lua 5.1 官方测试套件已以 staged smoke 形式接入，当前 skip 表仍标记了 22 个官方子脚本。
+> **兼容性审计记录（2026-05-26）**：已对 README、本地 `src/lib/` 标准库实现、`src/vm/` 指令执行逻辑、GC/元方法相关核心代码进行核对。`bin/lua_test.exe` 当前为 572 个注册测试、2846 个结果、0 失败；这说明项目内测试覆盖的路径稳定，但不等价于 Lua 5.1.5 官方语义已经达到 95% 兼容。Lua 5.1 官方测试套件已以 staged smoke 形式接入，当前 skip 表仍标记了 21 个官方子脚本，`literals.lua` 已从 skip 表移除并可由 `bin/lua_app.exe` 单独执行通过。
 
-> **最新补齐**：Lua 函数元方法调用链已打通，`callTMWithResult/callTM` 统一走 `VM::call`，C Closure 与 Lua Closure 共用同一调用入口；`getMetamethodByObject()` 已接入基础类型元表，string 类型已安装 `__index = string`；GC 已支持弱表 `__mode = "k"/"v"/"kv"` 清理、userdata `__gc` 两阶段终结和 `GCStrategy` 教学策略边界；尾调用优化已覆盖单值 `return f()` 的 `TAILCALL` 生成和 Lua 函数调用帧复用；泛型 `for` 已支持显式 iterator 三元组、函数/vararg 三值调整和 Lua 函数迭代器；string 库已补齐 `gsub` 表/函数替换、`string.dump` Proto/字节码序列化输出和含 `\0` 字符串的长度安全处理；`module()` 已补齐 `_PACKAGE`、复合模块名全局路径、调用方环境切换和 Lua option 函数调用语义；package 已补齐 `package.loadlib`、C loader 和 all-in-one C loader 动态加载边界。
+> **最新补齐**：Lua 5.1 scanner/literals 路径已补齐 shebang、长字符串/长注释分隔符回退、`1.`/`1.e2`/`.4` 数字形式、`4.5.` malformed number 诊断、短字符串换行边界、`;` 空语句/`return` 终止、关系链表达式、`2^-2` 幂运算右侧一元表达式、方法调用字符串/表构造器实参糖；局部声明初始化已按 Lua 5.1 先求 RHS 后引入新 local，并保护多值初始化的已写结果槽；`local function` 已支持自递归捕获；语句级临时寄存器会回收到活动 locals 边界；`loadstring` 已支持含 `\0` 源码；数字参与 `..` 拼接时按 Lua 风格格式化。Lua 函数元方法调用链已打通，`callTMWithResult/callTM` 统一走 `VM::call`，C Closure 与 Lua Closure 共用同一调用入口；`getMetamethodByObject()` 已接入基础类型元表，string 类型已安装 `__index = string`；GC 已支持弱表 `__mode = "k"/"v"/"kv"` 清理、userdata `__gc` 两阶段终结和 `GCStrategy` 教学策略边界；尾调用优化已覆盖单值 `return f()` 的 `TAILCALL` 生成和 Lua 函数调用帧复用；泛型 `for` 已支持显式 iterator 三元组、函数/vararg 三值调整和 Lua 函数迭代器；string 库已补齐 `gsub` 表/函数替换、`string.dump` Proto/字节码序列化输出和含 `\0` 字符串的长度安全处理；`module()` 已补齐 `_PACKAGE`、复合模块名全局路径、调用方环境切换和 Lua option 函数调用语义；package 已补齐 `package.loadlib`、C loader 和 all-in-one C loader 动态加载边界。
 
 #### 🔴 关键缺失（影响语义正确性）
 
@@ -159,11 +160,11 @@ applies_to: repository overview and current build workflows
 
 #### 95% 完成度复核
 
-当前“95%”更适合理解为**项目内功能和测试进度**，而不是严格的 Lua 5.1.5 官方兼容率。标准库主体、编译器前端、VM 主要指令路径、GC 基础/高级生命周期、Lua 函数元方法调用链、泛型 `for`、string 兼容性补强、`module()` 语义、package 动态 C 加载以及尾调用栈帧复用已经成型并全绿；但 debug/base 小边界仍是高权重语义项，若按官方规范和第三方 Lua 5.1 测试套衡量，实际兼容度应更保守。
+当前“95%”更适合理解为**项目内功能和测试进度**，而不是严格的 Lua 5.1.5 官方兼容率。标准库主体、编译器前端、VM 主要指令路径、GC 基础/高级生命周期、Lua 函数元方法调用链、泛型 `for`、string 兼容性补强、`module()` 语义、package 动态 C 加载、尾调用栈帧复用以及官方 `literals.lua` 覆盖的 scanner/字面量兼容项已经成型并全绿；但 debug/base 小边界和剩余官方 skip 脚本仍是高权重语义项，若按官方规范和第三方 Lua 5.1 测试套衡量，实际兼容度应更保守。
 
 ### 接下来优先做什么
 
-已完成：真正的尾调用优化（TCO）已覆盖单值 `return f()` 的字节码生成和 Lua 函数尾调用的栈帧复用，并新增 `TAILCALL` 字节码与深尾递归帧深度回归测试；泛型 `for` 已补齐 CodeGen iterator 表达式调整和 VM `TFORLOOP` Lua 函数迭代器调用路径；string 兼容性已补齐 `string.gsub` 表/函数替换、`string.dump` 和二进制安全字符串处理；`module()` 已补齐复合名、`_PACKAGE`、调用方环境和 option 函数语义；package 动态加载已补齐 `package.loadlib`、C loader 和 all-in-one loader。
+已完成：真正的尾调用优化（TCO）已覆盖单值 `return f()` 的字节码生成和 Lua 函数尾调用的栈帧复用，并新增 `TAILCALL` 字节码与深尾递归帧深度回归测试；泛型 `for` 已补齐 CodeGen iterator 表达式调整和 VM `TFORLOOP` Lua 函数迭代器调用路径；scanner/字面量兼容已打通官方 `literals.lua`；string 兼容性已补齐 `string.gsub` 表/函数替换、`string.dump` 和二进制安全字符串处理；`module()` 已补齐复合名、`_PACKAGE`、调用方环境和 option 函数语义；package 动态加载已补齐 `package.loadlib`、C loader 和 all-in-one loader。
 
 1. **补错误与调试边界**：`error(level)` 位置信息、任意错误对象、`xpcall` errfunc、`getfenv/setfenv` 栈层级/线程环境、debug 库基础类型元表操作
 2. **补小型标准库边界**：`io.lines/file:lines` 格式参数、`os.remove/os.rename` 失败返回值、`table.concat` 类型边界
@@ -1047,7 +1048,7 @@ tests/unit/
 └── vm/                         # VM Core、LuaState 初始化、函数调用
 ```
 
-当前测试入口会输出真实注册测试数和断言结果数；最近一次验证为 559 个注册测试、2790 个结果、0 失败。
+当前测试入口会输出真实注册测试数和断言结果数；最近一次验证为 572 个注册测试、2846 个结果、0 失败。
 
 ## 📊 技术栈和工具
 

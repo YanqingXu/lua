@@ -210,6 +210,68 @@ void testExpressionPrecedenceBoundary(TestSuite& suite) {
                  "power expression remains right associative");
 }
 
+void testLua51StatementSeparatorsAndRelationalChains(TestSuite& suite) {
+    Chunk chunk;
+    bool ok = parseChunk(suite, R"lua(
+        local a = 1; local b = 2;;
+        assert(a < b == true);
+        do return a; end
+    )lua", chunk, "semicolon statements and relational chains parse");
+    if (!ok) return;
+
+    ASSERT_TRUE(suite, chunk.statements.size() == 4, "semicolon sentinel top-level count");
+
+    const CallStmt* callStmt = asStmt<CallStmt>(chunk.statements[2]);
+    ASSERT_TRUE(suite, callStmt != nullptr, "relational chain call statement exists");
+    if (!callStmt) return;
+
+    const CallExpr* assertCall = asExpr<CallExpr>(callStmt->call);
+    ASSERT_TRUE(suite, assertCall != nullptr && assertCall->args.size() == 1,
+                "relational chain assert has one argument");
+    if (!assertCall || assertCall->args.empty()) return;
+
+    const BinaryExpr* eqExpr = expectBinary(suite, assertCall->args[0],
+                                            BinaryExpr::Op::Eq,
+                                            "relational chain parses as equality at the outside");
+    if (!eqExpr) return;
+
+    expectBinary(suite, eqExpr->left, BinaryExpr::Op::Lt,
+                 "relational chain keeps the left comparison");
+}
+
+void testLua51PowerAcceptsUnaryRightOperand(TestSuite& suite) {
+    Chunk chunk;
+    bool ok = parseChunk(suite,
+        "local result = 2^-2 + -2^2",
+        chunk,
+        "power and unary precedence parses");
+    if (!ok) return;
+
+    ASSERT_TRUE(suite, chunk.statements.size() == 1, "power sentinel has one statement");
+    const LocalStmt* localStmt = asStmt<LocalStmt>(chunk.statements[0]);
+    ASSERT_TRUE(suite, localStmt != nullptr && localStmt->values.size() == 1,
+                "power sentinel local value exists");
+    if (!localStmt || localStmt->values.empty()) return;
+
+    const BinaryExpr* addExpr = expectBinary(suite, localStmt->values[0],
+                                             BinaryExpr::Op::Add,
+                                             "power sentinel outer addition");
+    if (!addExpr) return;
+
+    const BinaryExpr* leftPow = expectBinary(suite, addExpr->left,
+                                             BinaryExpr::Op::Pow,
+                                             "2^-2 parses as power");
+    ASSERT_TRUE(suite, leftPow != nullptr && asExpr<UnaryExpr>(leftPow->right) != nullptr,
+                "power right operand may be unary");
+
+    const UnaryExpr* rightNeg = asExpr<UnaryExpr>(addExpr->right);
+    ASSERT_TRUE(suite, rightNeg != nullptr, "-2^2 parses as outer unary negation");
+    if (!rightNeg) return;
+
+    expectBinary(suite, rightNeg->operand, BinaryExpr::Op::Pow,
+                 "-2^2 unary operand is the power expression");
+}
+
 void testFunctionTableAndPostfixBoundaries(TestSuite& suite) {
     Chunk chunk;
     bool ok = parseChunk(suite, R"lua(
@@ -313,6 +375,8 @@ void registerParserBoundaryTests() {
 
     registry.registerTest(kSuiteName, "statement families", testStatementBoundaryFamilies);
     registry.registerTest(kSuiteName, "expression precedence", testExpressionPrecedenceBoundary);
+    registry.registerTest(kSuiteName, "lua51 statement separators and relational chains", testLua51StatementSeparatorsAndRelationalChains);
+    registry.registerTest(kSuiteName, "lua51 power accepts unary right operand", testLua51PowerAcceptsUnaryRightOperand);
     registry.registerTest(kSuiteName, "function table postfix", testFunctionTableAndPostfixBoundaries);
     registry.registerTest(kSuiteName, "error boundaries", testParserErrorBoundaries);
     registry.registerTest(kSuiteName, "tokenString returns borrowed view", testTokenStringReturnsBorrowedView);

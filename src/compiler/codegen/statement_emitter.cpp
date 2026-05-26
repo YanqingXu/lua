@@ -231,6 +231,7 @@ void StatementEmitter::visitNode(const RepeatStmt& s) {
 void StatementEmitter::statement(const Stmt& s) {
     LineGuard line(state_, s.getLine());
     StmtVisitor<StatementEmitter, void>::visit(s);
+    ops_.resetToLocals(scopes_.activeLocalCount());
 }
 
 void StatementEmitter::emitStmt(const EmptyStmt&) {
@@ -257,6 +258,7 @@ void StatementEmitter::emitStmt(const AssignStmt& s) {
             CallResultInfo callResult = emitCallExpr(*callExpr);
             setWantedResults(callResult, wanted);
             i32 valueBase = callResult.baseReg;
+            ops_.setFreeRegAndCheck(valueBase + wanted);
 
             for (i32 j = 0; j < wanted; j++) {
                 LValueRef target = emitLValue(*s.targets[targetIndex + j]);
@@ -269,6 +271,7 @@ void StatementEmitter::emitStmt(const AssignStmt& s) {
             ops_.patchArgB(callResult.instructionPc, wanted + 1);
             Instruction inst = ops_.instruction(callResult.instructionPc);
             i32 valueBase = GETARG_A(inst);
+            ops_.setFreeRegAndCheck(valueBase + wanted);
 
             for (i32 j = 0; j < wanted; j++) {
                 LValueRef target = emitLValue(*s.targets[targetIndex + j]);
@@ -300,18 +303,13 @@ void StatementEmitter::emitStmt(const LocalStmt& s) {
 
     ops_.setFreeReg(base);
 
-    for (i32 i = 0; i < nvars; i++) {
-        addLocalVar(s.names[i]);
-    }
-
-    ops_.setFreeReg(base);
-
     bool allVarsInitialized = false;
     if (nexps > 0) {
         for (i32 i = 0; i < nexps - 1 && i < nvars; i++) {
             ValueResult val = emitValue(*s.values[i]);
             val = forceSingleValue(val);
             materializeValue(val, base + i);
+            ops_.setFreeRegAndCheck(base + i + 1);
         }
 
         if (nexps <= nvars) {
@@ -335,21 +333,29 @@ void StatementEmitter::emitStmt(const LocalStmt& s) {
                         }
                     }
                 }
+                ops_.setFreeRegAndCheck(base + nvars);
                 allVarsInitialized = true;
             } else if (std::holds_alternative<VarargExpr>(lastExpr.variant)) {
                 CallResultInfo callResult = emitVarargExpr();
                 ops_.patchArgsAB(callResult.instructionPc, targetReg, wanted + 1);
+                ops_.setFreeRegAndCheck(base + nvars);
                 allVarsInitialized = true;
             } else {
                 ValueResult val = emitValue(lastExpr);
                 val = forceSingleValue(val);
                 materializeValue(val, base + (nexps - 1));
+                ops_.setFreeRegAndCheck(base + nexps);
             }
         }
     }
 
     if (nexps < nvars && !allVarsInitialized) {
         codeABC(OpCode::LOADNIL, base + nexps, base + nvars - 1, 0);
+    }
+
+    ops_.setFreeReg(base);
+    for (i32 i = 0; i < nvars; i++) {
+        addLocalVar(s.names[i]);
     }
 
     registers.restoreNow();
@@ -513,15 +519,18 @@ void StatementEmitter::emitStmt(const FunctionStmt& s) {
         lastlinedefined = linedefined;
     }
 
+    i32 localReg = -1;
+    if (s.isLocal) {
+        localReg = addLocalVar(s.name);
+    }
+
     Vec<UpvalueCapture> childUpvalues;
     Proto* funcProto = compileFunction(s.params, s.isVararg, s.body, linedefined, lastlinedefined, &childUpvalues);
 
     i32 protoIdx = state_.bytecode.addSubProto(funcProto);
 
     if (s.isLocal) {
-        i32 reg = addLocalVar(s.name);
-
-        codeABx(OpCode::CLOSURE, reg, protoIdx);
+        codeABx(OpCode::CLOSURE, localReg, protoIdx);
         emitClosureUpvalues(childUpvalues);
 
         adjustLocalVars(1);

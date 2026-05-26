@@ -152,21 +152,32 @@ ExprPtr Parser::Impl::parsePostfixExpr(ExprPtr base) {
             memberExpr.line = line;
             memberExpr.column = column;
 
-            ExprPtr method = makeExpr<MemberExpr>(std::move(memberExpr));
-
-            expect(static_cast<TokenType>('('), "Expected '(' after method name");
-
             CallExpr callExpr;
-            callExpr.func = std::move(method);
+            callExpr.func = makeExpr<MemberExpr>(std::move(memberExpr));
             callExpr.isMethodCall = true;
             callExpr.line = line;
             callExpr.column = column;
 
-            if (!check(static_cast<TokenType>(')'))) {
-                callExpr.args = parseExprList();
+            if (match(static_cast<TokenType>('('))) {
+                if (!check(static_cast<TokenType>(')'))) {
+                    callExpr.args = parseExprList();
+                }
+
+                expect(static_cast<TokenType>(')'), "Expected ')' after arguments");
+            } else if (current().isString()) {
+                StringExpr strExpr;
+                strExpr.value = Str(ParserUtils::tokenString(current()));
+                strExpr.line = current().line;
+                strExpr.column = current().column;
+                advance();
+
+                callExpr.args.push_back(makeExpr<StringExpr>(std::move(strExpr)));
+            } else if (check(static_cast<TokenType>('{'))) {
+                callExpr.args.push_back(parseTableConstructor());
+            } else {
+                error("Expected function arguments after method name");
             }
 
-            expect(static_cast<TokenType>(')'), "Expected ')' after arguments");
             base = makeExpr<CallExpr>(std::move(callExpr));
         }
         else if (current().isString()) {

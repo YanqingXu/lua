@@ -730,7 +730,7 @@ i32 luaB_loadstring(LuaState* L) {
         return 2;
     }
 
-    Str code = codeVal.asString()->c_str();
+    Str code = codeVal.asString()->getData();
     Str chunkname = (nargs >= 2 && L->at(2).isString())
         ? L->at(2).asString()->c_str()
         : "=(loadstring)";

@@ -298,6 +298,14 @@ Opt<Token> Lexer::skipWhitespace() {
                 }
                 break;
 
+            case '#':
+                if (inputCursor_.line() == 1 && inputCursor_.column() == 1) {
+                    skipLineComment();
+                } else {
+                    return std::nullopt;
+                }
+                break;
+
             default:
                 return std::nullopt;
         }
@@ -318,10 +326,12 @@ Opt<Token> Lexer::skipLongComment(i32 level) {
     // 跳过长注释内容，直到找到匹配的结束符 ]=*]
     while (!isAtEnd()) {
         if (peek() == ']') {
+            LexerState savedState = saveState();
             i32 endLevel = readLongBracketDelimiter();
             if (endLevel == level) {
                 return std::nullopt;
             }
+            restoreState(savedState);
         }
 
         advance();
@@ -392,7 +402,7 @@ Token Lexer::decimalNumber() {
     consumeDecimalDigits();
 
     // 小数部分
-    if (peek() == '.' && isDigit(peekNext())) {
+    if (peek() == '.' && peekNext() != '.') {
         advance();
         consumeDecimalDigits();
     }
@@ -412,6 +422,12 @@ Token Lexer::decimalNumber() {
         }
 
         consumeDecimalDigits();
+    }
+
+    if (peek() == '.' && peekNext() != '.') {
+        advance();
+        consumeDecimalDigits();
+        return errorToken("Malformed number");
     }
 
     // 读取尾随的字母/下划线以捕获 Lua 5.1 定义的非法数字形式（如 123abc）

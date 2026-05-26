@@ -352,6 +352,90 @@ void testGenericForCallReturningLuaIterator(TestSuite& suite) {
     delete L;
 }
 
+void testGenericForLoopVarSurvivesLocalCallInitializer(TestSuite& suite) {
+    LuaState* L = createFullState();
+    bool ok = runLua(L, R"lua(
+        local joined = ""
+        for _, n in pairs{"A", "B"} do
+            local replaced, count = string.gsub("x", "x", n)
+            joined = joined .. replaced .. count
+        end
+
+        assert(joined == "A1B1",
+               "generic for loop variables should remain readable in local call initializers")
+    )lua");
+    ASSERT_TRUE(suite, ok, "generic for loop var survives local call initializer");
+    delete L;
+}
+
+void testGenericForLocalCallInitializerCanReadShadowedOuter(TestSuite& suite) {
+    LuaState* L = createFullState();
+    bool ok = runLua(L, R"lua(
+        local joined = ""
+        local prog = "x"
+        for _, n in pairs{"A", "B"} do
+            local prog, count = string.gsub(prog, "x", n)
+            joined = joined .. prog .. count
+        end
+
+        assert(joined == "A1B1",
+               "local call initializer should read the outer variable before the new local is active")
+    )lua");
+    ASSERT_TRUE(suite, ok, "generic for local call initializer reads shadowed outer");
+    delete L;
+}
+
+void testGenericForAfterTemporaryHeavyAssignments(TestSuite& suite) {
+    LuaState* L = createFullState();
+    bool ok = runLua(L, R"lua(
+        local sentinel = true
+        leak1 = "one"
+        leak2 = "two"
+        leak3 = "three"
+        prog = "x"
+
+        joined = ""
+        for _, n in pairs{"A", "B"} do
+            local prog, count = string.gsub(prog, "x", n)
+            joined = joined .. prog .. count
+        end
+
+        assert(sentinel == true and joined == "A1B1",
+               "generic for registers should start after active locals, not leaked temporaries")
+    )lua");
+    ASSERT_TRUE(suite, ok, "generic for after temporary-heavy assignments");
+    delete L;
+}
+
+void testOfficialLineEndingRewriteLoop(TestSuite& suite) {
+    LuaState* L = createFullState();
+    bool ok = runLua(L, R"lua(
+        local function dostring (x) return assert(loadstring(x))() end
+
+        prog = [[
+a = 1        -- a comment
+b = 2
+
+
+x = [=[
+hi
+]=]
+y = "\
+hello\r\n\
+"
+return debug.getinfo(1).currentline
+]]
+
+        for _, n in pairs{"\n", "\r", "\n\r", "\r\n"} do
+            local prog, nn = string.gsub(prog, "\n", n)
+            assert(dostring(prog) == nn)
+            assert(_G.x == "hi\n" and _G.y == "\nhello\r\n\n")
+        end
+    )lua");
+    ASSERT_TRUE(suite, ok, "official literals line-ending rewrite loop");
+    delete L;
+}
+
 void testTailReturnCallEmitsTailcall(TestSuite& suite) {
     try {
         Parser parser(R"lua(
@@ -431,6 +515,14 @@ void registerCallPipelineTests() {
     registry.registerTest(kSuiteName, "nested return f(g())", testNestedReturnCallChain);
     registry.registerTest(kSuiteName, "generic for explicit Lua iterator triple", testGenericForExplicitLuaIteratorTriple);
     registry.registerTest(kSuiteName, "generic for call returning Lua iterator", testGenericForCallReturningLuaIterator);
+    registry.registerTest(kSuiteName, "generic for loop var survives local call initializer",
+                          testGenericForLoopVarSurvivesLocalCallInitializer);
+    registry.registerTest(kSuiteName, "generic for local call initializer reads shadowed outer",
+                          testGenericForLocalCallInitializerCanReadShadowedOuter);
+    registry.registerTest(kSuiteName, "generic for after temporary-heavy assignments",
+                          testGenericForAfterTemporaryHeavyAssignments);
+    registry.registerTest(kSuiteName, "official literals line-ending rewrite loop",
+                          testOfficialLineEndingRewriteLoop);
     registry.registerTest(kSuiteName, "return f() emits TAILCALL", testTailReturnCallEmitsTailcall);
     registry.registerTest(kSuiteName, "tail recursion reuses frames", testTailRecursiveLuaCallReusesFrame);
 }

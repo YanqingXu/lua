@@ -526,6 +526,15 @@ void testLoadstringWrapper(TestSuite& suite) {
     ASSERT_EQ(suite, ret, 1, "loadstring returns 1 value on success");
     ASSERT_TRUE(suite, L->top().isFunction(), "loadstring returns function");
 
+    // 含 NUL 的源码字符串必须按 GCString 长度传给解析器，不能按 C 字符串截断
+    const std::string embeddedNullSource("x = 'a\0a'", 9);
+    ret = ctx.invoke("loadstring", [&](LuaState* s) {
+        s->pushString(pool.intern(embeddedNullSource.data(), embeddedNullSource.size()));
+    });
+
+    ASSERT_EQ(suite, ret, 1, "loadstring accepts embedded NUL source");
+    ASSERT_TRUE(suite, L->top().isFunction(), "embedded NUL loadstring returns function");
+
     // 测试语法错误
     ret = ctx.invoke("loadstring", [&](LuaState* s) {
         s->pushString(pool.intern("return return"));
@@ -534,6 +543,19 @@ void testLoadstringWrapper(TestSuite& suite) {
     ASSERT_EQ(suite, ret, 2, "loadstring returns 2 values on error");
     ASSERT_TRUE(suite, L->at(-2).isNil(), "first return is nil on error");
     ASSERT_TRUE(suite, L->at(-1).isString(), "second return is error message");
+
+    ret = ctx.invoke("loadstring", [&](LuaState* s) {
+        s->pushString(pool.intern("return 4.5."));
+    });
+
+    ASSERT_EQ(suite, ret, 2, "loadstring returns 2 values on malformed number");
+    ASSERT_TRUE(suite, L->at(-2).isNil(), "malformed number first return is nil");
+    ASSERT_TRUE(suite, L->at(-1).isString(), "malformed number second return is error message");
+    if (L->at(-1).isString()) {
+        const Str message = L->at(-1).asString()->getData();
+        ASSERT_TRUE(suite, message.find("'4.5.'") != Str::npos,
+                    "malformed number error mentions the full numeric token");
+    }
 
     // 测试非字符串参数
     ret = ctx.invoke("loadstring", [](LuaState* s) {

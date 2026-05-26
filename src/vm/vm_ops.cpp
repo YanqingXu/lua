@@ -14,6 +14,7 @@
 #include "vm/vm_constants.hpp"
 
 #include <cmath>
+#include <cstdio>
 #include <cstdlib>
 #include <string>
 
@@ -36,6 +37,12 @@ bool tryToNumber(const Value& val, f64& result) {
         }
     }
     return false;
+}
+
+Str numberToLuaString(f64 value) {
+    char buffer[64];
+    std::snprintf(buffer, sizeof(buffer), "%.14g", value);
+    return Str(buffer);
 }
 
 }  // namespace
@@ -250,11 +257,11 @@ void concat(RuntimeServices& services, LuaState* L, Value* base, i32 a, i32 b, i
         bool canConcat = false;
 
         if (top2.isString())      { str2 = top2.asString()->getData(); canConcat = true; }
-        else if (top2.isNumber()) { str2 = std::to_string(top2.asNumber()); canConcat = true; }
+        else if (top2.isNumber()) { str2 = numberToLuaString(top2.asNumber()); canConcat = true; }
 
         if (canConcat) {
             if (top1.isString())      str1 = top1.asString()->getData();
-            else if (top1.isNumber()) str1 = std::to_string(top1.asNumber());
+            else if (top1.isNumber()) str1 = numberToLuaString(top1.asNumber());
             else canConcat = false;
         }
 

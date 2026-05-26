@@ -627,6 +627,14 @@ void testUnaryHandlersExecuteDirectly(TestSuite& suite) {
     ASSERT_TRUE(suite, base[0].isString() && std::string(base[0].asString()->c_str()) == "hello world",
                 "CONCAT handler should concatenate string operands");
 
+    base[1] = Value(10.0);
+    base[2] = Value(20.0);
+    base[3] = Value(-30.0);
+    VM::runHandler(context, CREATE_ABC(OpCode::CONCAT, 0, 1, 3));
+    base = context.base;
+    ASSERT_TRUE(suite, base[0].isString() && std::string(base[0].asString()->c_str()) == "1020-30",
+                "CONCAT handler should stringify numbers without fixed decimals");
+
     delete L;
     services.gc.clearAll();
 }

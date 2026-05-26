@@ -255,6 +255,47 @@ void testLocalShadowsGlobal(TestSuite& suite) {
     delete L;
 }
 
+void testLocalInitializerUsesOuterScope(TestSuite& suite) {
+    LuaState* L = createFullState();
+    bool ok = runLua(L, R"lua(
+        local value = "outer"
+        do
+            local value, copy = value, value
+            _result = value .. ":" .. copy
+        end
+    )lua");
+    ASSERT_TRUE(suite, ok, "local initializer should run");
+    if (!ok) {
+        delete L;
+        return;
+    }
+    ASSERT_TRUE(suite, getGlobalString(L, "_result") == "outer:outer",
+                "local initializer should resolve names before new locals enter scope");
+    delete L;
+}
+
+void testLocalInitializerProtectsEarlierResults(TestSuite& suite) {
+    LuaState* L = createFullState();
+    bool ok = runLua(L, R"lua(
+        local msgs = {}
+        local T, print, format, assert, type =
+              T, print, string.format, assert, type
+        if type(print) == "function" and type(format) == "function" and type(msgs) == "table" then
+            _result = "ok"
+        else
+            _result = "bad"
+        end
+    )lua");
+    ASSERT_TRUE(suite, ok, "multi-local initializer should run");
+    if (!ok) {
+        delete L;
+        return;
+    }
+    ASSERT_TRUE(suite, getGlobalString(L, "_result") == "ok",
+                "later RHS temporaries should not overwrite earlier local initializer results");
+    delete L;
+}
+
 void testUpvalueCaptureRuntime(TestSuite& suite) {
     LuaState* L = createFullState();
     bool ok = runLua(L, "local outer = 10\nlocal f = function() _result = outer end\nf()");
@@ -385,6 +426,24 @@ void testLocalFunctionDefinition(TestSuite& suite) {
     delete L;
 }
 
+void testLocalFunctionSelfRecursion(TestSuite& suite) {
+    LuaState* L = createFullState();
+    bool ok = runLua(L,
+        "local function fact(n)\n"
+        "  if n == 0 then return 1 end\n"
+        "  return n * fact(n - 1)\n"
+        "end\n"
+        "_result = fact(5)");
+    ASSERT_TRUE(suite, ok, "local function self recursion should run");
+    if (!ok) {
+        delete L;
+        return;
+    }
+    ASSERT_EQ(suite, 120.0, getGlobalNumber(L, "_result"),
+              "local function body should capture its own binding");
+    delete L;
+}
+
 // =============================================================================
 // 注册
 // =============================================================================
@@ -408,6 +467,8 @@ void registerSymbolBindingTests() {
     registry.registerTest("Symbol Binding (PR-8)", "local read/write runtime", testLocalReadWriteRuntime);
     registry.registerTest("Symbol Binding (PR-8)", "global read/write runtime", testGlobalReadWriteRuntime);
     registry.registerTest("Symbol Binding (PR-8)", "local shadows global", testLocalShadowsGlobal);
+    registry.registerTest("Symbol Binding (PR-8)", "local initializer uses outer scope", testLocalInitializerUsesOuterScope);
+    registry.registerTest("Symbol Binding (PR-8)", "local initializer protects earlier results", testLocalInitializerProtectsEarlierResults);
     registry.registerTest("Symbol Binding (PR-8)", "upvalue capture runtime", testUpvalueCaptureRuntime);
     registry.registerTest("Symbol Binding (PR-8)", "upvalue writeback runtime", testUpvalueWritebackRuntime);
     registry.registerTest("Symbol Binding (PR-8)", "nested upvalue chain", testNestedUpvalueChain);
@@ -419,4 +480,5 @@ void registerSymbolBindingTests() {
     registry.registerTest("Symbol Binding (PR-8)", "function table path resolve", testFunctionTablePathResolve);
     registry.registerTest("Symbol Binding (PR-8)", "global function definition", testGlobalFunctionDefinition);
     registry.registerTest("Symbol Binding (PR-8)", "local function definition", testLocalFunctionDefinition);
+    registry.registerTest("Symbol Binding (PR-8)", "local function self recursion", testLocalFunctionSelfRecursion);
 }

@@ -226,7 +226,7 @@ private:
 
 private:
     static constexpr i32 MAX_RECURSION_DEPTH = 92;
-    static constexpr i32 MAX_BLOCK_RECURSION_DEPTH = 91;
+    static constexpr i32 MAX_BLOCK_RECURSION_DEPTH = 80;
 
     class RecursionGuard {
     public:

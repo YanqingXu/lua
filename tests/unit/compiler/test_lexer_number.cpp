@@ -74,6 +74,47 @@ static void testLongCommentSkipFirstNewline(TestSuite& suite) {
     ASSERT_EQ(suite, 2, t.line, "Line number accounts for stripped first newline");
 }
 
+// 长注释中不匹配的 ]=*] 分隔符不应吞掉可能构成真正结束符的后续字符
+static void testLongCommentMismatchedCloseRestoresInput(TestSuite& suite) {
+    Lexer lexer("--[===[\n]=]===]\nlocal value = 1");
+    Token t = lexer.nextToken();
+    ASSERT_EQ(suite, static_cast<int>(TokenType::Local), static_cast<int>(t.type), "Token after tricky long comment");
+    ASSERT_EQ(suite, 3, t.line, "Line after tricky long comment");
+}
+
+// 独立解释器兼容 Lua 5.1：首行 #! 应作为注释跳过
+static void testInitialShebangLineIsSkipped(TestSuite& suite) {
+    Lexer lexer("#!/usr/bin/env lua\nreturn 1");
+    Token t = lexer.nextToken();
+    ASSERT_EQ(suite, static_cast<int>(TokenType::Return), static_cast<int>(t.type), "Shebang skips to return token");
+    ASSERT_EQ(suite, 2, t.line, "Return line after shebang");
+}
+
+// Lua 5.1 接受没有小数部分的尾随小数点，但 1..2 仍应保留为数字加连接符
+static void testTrailingDotNumbersDoNotConsumeConcat(TestSuite& suite) {
+    Lexer trailing("1. 1.e2 .1");
+
+    Token one = trailing.nextToken();
+    ASSERT_EQ(suite, static_cast<int>(TokenType::Number), static_cast<int>(one.type), "1. token type");
+    ASSERT_EQ(suite, 1.0, std::get<f64>(one.value), "1. value");
+
+    Token hundred = trailing.nextToken();
+    ASSERT_EQ(suite, static_cast<int>(TokenType::Number), static_cast<int>(hundred.type), "1.e2 token type");
+    ASSERT_EQ(suite, 100.0, std::get<f64>(hundred.value), "1.e2 value");
+
+    Token fraction = trailing.nextToken();
+    ASSERT_EQ(suite, static_cast<int>(TokenType::Number), static_cast<int>(fraction.type), ".1 token type");
+    ASSERT_EQ(suite, 0.1, std::get<f64>(fraction.value), ".1 value");
+
+    Lexer concat("1..2");
+    Token left = concat.nextToken();
+    ASSERT_EQ(suite, static_cast<int>(TokenType::Number), static_cast<int>(left.type), "1..2 left number");
+    ASSERT_EQ(suite, 1.0, std::get<f64>(left.value), "1..2 left value");
+
+    Token dots = concat.nextToken();
+    ASSERT_EQ(suite, static_cast<int>(TokenType::Concat), static_cast<int>(dots.type), "1..2 concat token");
+}
+
 // 单行注释应在 LF、CR、CRLF 或 LFCR 处结束
 static void testLineCommentStopsAtCarriageReturn(TestSuite& suite) {
     Lexer lexer("--comment\rb");
@@ -206,6 +247,9 @@ void registerLexerNumberTests() {
     registry.registerTest("Lexer Number", "Valid hex numbers", testValidHexNumbers);
     registry.registerTest("Lexer Number", "Long string skip first newline", testLongStringSkipFirstNewline);
     registry.registerTest("Lexer Number", "Long comment skip first newline", testLongCommentSkipFirstNewline);
+    registry.registerTest("Lexer Number", "Long comment mismatched close restores input", testLongCommentMismatchedCloseRestoresInput);
+    registry.registerTest("Lexer Number", "Initial shebang line is skipped", testInitialShebangLineIsSkipped);
+    registry.registerTest("Lexer Number", "Trailing dot numbers do not consume concat", testTrailingDotNumbersDoNotConsumeConcat);
     registry.registerTest("Lexer Number", "Line comment stops at CR", testLineCommentStopsAtCarriageReturn);
     registry.registerTest("Lexer Number", "Failed long string probe restores input", testFailedLongStringProbeRestoresInput);
     registry.registerTest("Lexer Number", "Long string mismatched close preserves content", testLongStringMismatchedClosePreservesContent);

@@ -26,7 +26,7 @@ namespace {
 
 constexpr const char* kSuiteName = "Lua 5.1 Official Suite";
 constexpr const char* kOfficialAllLua = "tests/lua/official/all.lua";
-constexpr LuaNumber kExpectedSkippedScripts = 22.0;
+constexpr LuaNumber kExpectedSkippedScripts = 21.0;
 
 struct RunResult {
     bool ok = false;
@@ -150,12 +150,10 @@ local __official_skip = {
     -- the in-process unit runner yet.
     ["main.lua"] = "standalone lua executable and os.execute coverage",
 
-    -- These scripts currently rely on unsupported parser forms such as
-    -- semicolon statement separators, method calls with literal arguments, and
-    -- long-comment edge cases that the current frontend does not accept yet.
+    -- These scripts currently rely on remaining frontend/runtime forms that
+    -- still need staged compatibility work.
     ["calls.lua"] = "frontend syntax coverage not fully implemented",
     ["strings.lua"] = "frontend syntax coverage not fully implemented",
-    ["literals.lua"] = "frontend syntax coverage not fully implemented",
     ["attrib.lua"] = "frontend syntax coverage not fully implemented",
     ["locals.lua"] = "frontend syntax coverage not fully implemented",
     ["constructs.lua"] = "frontend syntax coverage not fully implemented",

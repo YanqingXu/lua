@@ -47,10 +47,14 @@ ExprPtr Parser::Impl::parseAndExpr() {
 ExprPtr Parser::Impl::parseRelationalExpr() {
     ExprPtr left = parseConcatExpr();
 
-    TokenType op = current().type;
-    if (op == static_cast<TokenType>('<') || op == static_cast<TokenType>('>') ||
-        op == TokenType::Le || op == TokenType::Ge ||
-        op == TokenType::Eq || op == TokenType::Ne) {
+    while (true) {
+        TokenType op = current().type;
+        if (op != static_cast<TokenType>('<') && op != static_cast<TokenType>('>') &&
+            op != TokenType::Le && op != TokenType::Ge &&
+            op != TokenType::Eq && op != TokenType::Ne) {
+            break;
+        }
+
         Token opToken = current();
         advance();
 
@@ -163,7 +167,7 @@ ExprPtr Parser::Impl::parsePowerExpr() {
         Token opToken = current();
         advance();
 
-        ExprPtr right = parsePowerExpr();
+        ExprPtr right = parseUnaryExpr();
         left = makeBinaryExpr(BinaryExpr::Op::Pow, opToken, std::move(left), std::move(right));
     }
 
