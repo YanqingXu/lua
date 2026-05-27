@@ -615,19 +615,20 @@ ValueResult ExpressionEmitter::emitValueBinary(const BinaryExpr& e) {
     if (op == BinaryExpr::Op::Concat) {
         ValueResult left = emitValue(*e.left);
         left = forceSingleValue(left);
-        i32 regLeft = allocReg();
-        materializeValue(left, regLeft);
+        i32 leftReg = valueToAnyReg(left);
 
         ValueResult right = emitValue(*e.right);
         right = forceSingleValue(right);
-        i32 regRight = allocReg();
-        materializeValue(right, regRight);
+        i32 rightReg = valueToAnyReg(right);
 
-        freeReg(regRight);
-        freeReg(regLeft);
+        i32 target = ops_.currentReg();
+        ops_.reserveRegsAndCheck(2);
+        materializeValue(ValueResult::makeRegister(leftReg, false), target);
+        materializeValue(ValueResult::makeRegister(rightReg, false), target + 1);
 
-        i32 pc = codeABC(OpCode::CONCAT, 0, regLeft, regRight);
-        return ValueResult::makeRelocatable(pc);
+        codeABC(OpCode::CONCAT, target, target, target + 1);
+        ops_.setFreeRegAndCheck(target + 1);
+        return ValueResult::makeRegister(target, true);
     }
 
     // === 算术表达式: Add/Sub/Mul/Div/Mod/Pow ===

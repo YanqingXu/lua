@@ -242,61 +242,96 @@ void StatementEmitter::emitStmt(const AssignStmt& s) {
     i32 nvars = static_cast<i32>(s.targets.size());
     i32 nexps = static_cast<i32>(s.values.size());
 
-    for (const auto& target : s.targets) {
-        if (auto* name = std::get_if<NameExpr>(&target->variant)) {
-            (void)resolve(name->name);
+    auto freezeRegister = [&](i32 reg) -> i32 {
+        i32 stableReg = ops_.currentReg();
+        ops_.reserveRegsAndCheck(1);
+        if (stableReg != reg) {
+            codeABC(OpCode::MOVE, stableReg, reg, 0);
         }
+        return stableReg;
+    };
+
+    auto freezeLValue = [&](const Expr& targetExpr) -> LValueRef {
+        LValueRef target = emitLValue(targetExpr);
+        if (target.kind == LValueRef::Kind::Indexed) {
+            target.tableReg = freezeRegister(target.tableReg);
+            if (!ISK(target.key)) {
+                target.key = freezeRegister(target.key);
+            }
+        }
+        return target;
+    };
+
+    Vec<LValueRef> targets;
+    targets.reserve(static_cast<usize>(nvars));
+    for (const auto& targetExpr : s.targets) {
+        targets.push_back(freezeLValue(*targetExpr));
     }
 
-    for (i32 i = 0; i < nexps - 1 && i < nvars; i++) {
-        ValueResult val = emitValue(*s.values[i]);
-        val = forceSingleValue(val);
-        LValueRef target = emitLValue(*s.targets[i]);
-        emitStore(target, val);
-    }
+    i32 valueBase = ops_.currentReg();
+    i32 assignedValues = 0;
 
-    if (nexps > 0 && nexps <= nvars) {
-        i32 targetIndex = nexps - 1;
-        const Expr& lastExpr = *s.values[targetIndex];
-        i32 wanted = nvars - targetIndex;
+    auto discardExpression = [&](const Expr& expr) {
+        i32 scratchReg = valueBase + nvars;
+        ops_.setFreeRegAndCheck(scratchReg);
 
-        if (auto* callExpr = std::get_if<CallExpr>(&lastExpr.variant)) {
-            CallResultInfo callResult = emitCallExpr(*callExpr);
-            setWantedResults(callResult, wanted);
-            i32 valueBase = callResult.baseReg;
-            ops_.setFreeRegAndCheck(valueBase + wanted);
-
-            for (i32 j = 0; j < wanted; j++) {
-                LValueRef target = emitLValue(*s.targets[targetIndex + j]);
-                ValueResult tmp = ValueResult::makeRegister(valueBase + j, false);
-                emitStore(target, tmp);
-            }
-            return;
-        } else if (std::holds_alternative<VarargExpr>(lastExpr.variant)) {
-            CallResultInfo callResult = emitVarargExpr();
-            ops_.patchArgB(callResult.instructionPc, wanted + 1);
-            Instruction inst = ops_.instruction(callResult.instructionPc);
-            i32 valueBase = GETARG_A(inst);
-            ops_.setFreeRegAndCheck(valueBase + wanted);
-
-            for (i32 j = 0; j < wanted; j++) {
-                LValueRef target = emitLValue(*s.targets[targetIndex + j]);
-                ValueResult tmp = ValueResult::makeRegister(valueBase + j, false);
-                emitStore(target, tmp);
-            }
-            return;
+        if (auto* callExpr = std::get_if<CallExpr>(&expr.variant)) {
+            CallResultInfo callResult = emitCallExpr(*callExpr, scratchReg);
+            setWantedResults(callResult, 0);
+        } else if (std::holds_alternative<VarargExpr>(expr.variant)) {
+            CallResultInfo varargResult = emitVarargExpr();
+            ops_.patchArgsAB(varargResult.instructionPc, scratchReg, 1);
         } else {
-            ValueResult val = emitValue(lastExpr);
+            ValueResult val = emitValue(expr);
             val = forceSingleValue(val);
-            LValueRef target = emitLValue(*s.targets[targetIndex]);
-            emitStore(target, val);
+            materializeValue(val, scratchReg);
         }
+
+        ops_.setFreeRegAndCheck(scratchReg);
+    };
+
+    i32 directValues = nvars < nexps ? nvars : nexps;
+    for (i32 i = 0; i < directValues; i++) {
+        const Expr& expr = *s.values[i];
+        bool isLastExpr = (i == nexps - 1);
+        i32 targetReg = valueBase + i;
+
+        if (isLastExpr && nexps <= nvars) {
+            i32 wanted = nvars - i;
+            if (auto* callExpr = std::get_if<CallExpr>(&expr.variant)) {
+                CallResultInfo callResult = emitCallExpr(*callExpr, targetReg);
+                setWantedResults(callResult, wanted);
+                ops_.setFreeRegAndCheck(targetReg + wanted);
+                assignedValues = nvars;
+                break;
+            }
+            if (std::holds_alternative<VarargExpr>(expr.variant)) {
+                CallResultInfo varargResult = emitVarargExpr();
+                ops_.patchArgsAB(varargResult.instructionPc, targetReg, wanted + 1);
+                ops_.setFreeRegAndCheck(targetReg + wanted);
+                assignedValues = nvars;
+                break;
+            }
+        }
+
+        ops_.setFreeRegAndCheck(targetReg);
+        ValueResult val = emitValue(expr);
+        val = forceSingleValue(val);
+        materializeValue(val, targetReg);
+        ops_.setFreeRegAndCheck(targetReg + 1);
+        assignedValues = i + 1;
     }
 
-    for (i32 i = nexps; i < nvars; i++) {
-        LValueRef target = emitLValue(*s.targets[i]);
-        ValueResult nilVal = ValueResult::makeNil();
-        emitStore(target, nilVal);
+    for (i32 i = directValues; i < nexps; i++) {
+        discardExpression(*s.values[i]);
+    }
+
+    for (i32 i = 0; i < nvars; i++) {
+        if (i < assignedValues) {
+            emitStore(targets[i], ValueResult::makeRegister(valueBase + i, false));
+        } else {
+            emitStore(targets[i], ValueResult::makeNil());
+        }
     }
 }
 

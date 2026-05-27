@@ -344,6 +344,17 @@ void testValueStringConcatRuntime(TestSuite& suite) {
     delete L;
 }
 
+void testValueFieldConcatRuntime(TestSuite& suite) {
+    LuaState* L = createFullState();
+    bool ok = runLua(L, R"(
+        pkg_concat_probe = {path = "left", cpath = "right"}
+        local s = pkg_concat_probe.path .. ";" .. pkg_concat_probe.cpath
+        assert(s == "left;right")
+    )");
+    ASSERT_TRUE(suite, ok, "field concat keeps operands contiguous");
+    delete L;
+}
+
 void testValueTableIndexRuntime(TestSuite& suite) {
     LuaState* L = createFullState();
     bool ok = runLua(L, R"(
@@ -368,6 +379,70 @@ void testValueCallResultRuntime(TestSuite& suite) {
         assert(c == 2)
     )");
     ASSERT_TRUE(suite, ok, "call result correctly captured in locals");
+    delete L;
+}
+
+void testValueBlockLocalShadowEndsRuntime(TestSuite& suite) {
+    LuaState* L = createFullState();
+    bool ok = runLua(L, R"(
+        function f() return "global" end
+        do
+            local f = function() return "local" end
+            assert(f() == "local")
+        end
+        block_shadow_result = f()
+    )");
+    ASSERT_TRUE(suite, ok, "block local shadow does not leak after do-end");
+
+    Value result = L->getGlobal("block_shadow_result");
+    ASSERT_TRUE(
+        suite,
+        result.isString() && std::string(result.asString()->c_str()) == "global",
+        "name after do-end resolves to global function");
+    delete L;
+}
+
+void testValueMixedLValueCallAssignmentRuntime(TestSuite& suite) {
+    LuaState* L = createFullState();
+    bool ok = runLua(L, R"(
+        do
+            local assert = assert
+            do
+                local inner = "closed before outer"
+                assert(inner == "closed before outer")
+            end
+            local f = nil
+            do
+                local later = "also closed"
+                assert(later == "also closed")
+            end
+        end
+
+        a = {}
+        function f() return 10, 11, 12 end
+        a.x, b, a[1] = 1, 2, f()
+        assert(a.x == 1 and b == 2 and a[1] == 10)
+    )");
+    ASSERT_TRUE(suite, ok, "mixed lvalue assignment evaluates trailing call");
+    delete L;
+}
+
+void testValueMultipleAssignmentFreezesReferencesRuntime(TestSuite& suite) {
+    LuaState* L = createFullState();
+    bool ok = runLua(L, R"(
+        a = {10}
+        function f(x) return x end
+        a[1], f(a)[2], b, c = {alo = assert}, 10, a[1], print
+        assert(a[1].alo == assert and a[2] == 10 and b == 10 and c == print)
+
+        do
+            local a, i, j, b
+            a = {'a', 'b'}; i = 1; j = 2; b = a
+            i, a[i], a, j, a[j], a[i+j] = j, i, i, b, j, i
+            assert(i == 2 and b[1] == 1 and a == 1 and j == b and b[2] == 2 and b[3] == 1)
+        end
+    )");
+    ASSERT_TRUE(suite, ok, "multiple assignment freezes lhs references before stores");
     delete L;
 }
 
@@ -401,6 +476,10 @@ void registerValuePipelineTests() {
     registry.registerTest(kSuiteName, "FunctionExpr Runtime", testValueFunctionExprRuntime);
     registry.registerTest(kSuiteName, "Arithmetic Runtime", testValueArithRuntime);
     registry.registerTest(kSuiteName, "String Concat Runtime", testValueStringConcatRuntime);
+    registry.registerTest(kSuiteName, "Field Concat Runtime", testValueFieldConcatRuntime);
     registry.registerTest(kSuiteName, "Table Index Runtime", testValueTableIndexRuntime);
     registry.registerTest(kSuiteName, "Call Result Runtime", testValueCallResultRuntime);
+    registry.registerTest(kSuiteName, "Block Local Shadow Ends Runtime", testValueBlockLocalShadowEndsRuntime);
+    registry.registerTest(kSuiteName, "Mixed LValue Call Assignment Runtime", testValueMixedLValueCallAssignmentRuntime);
+    registry.registerTest(kSuiteName, "Multiple Assignment Freezes References Runtime", testValueMultipleAssignmentFreezesReferencesRuntime);
 }

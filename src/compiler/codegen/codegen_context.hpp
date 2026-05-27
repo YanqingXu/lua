@@ -53,8 +53,11 @@ public:
     void closeLocals(i32 tolevel, i32 currentPc) {
         while (activeVarCount_ > tolevel) {
             activeVarCount_--;
-            if (!localVars_.empty() && localVars_.back().endpc == -1) {
-                localVars_.back().endpc = currentPc;
+            for (i32 i = static_cast<i32>(localVars_.size()) - 1; i >= 0; --i) {
+                if (localVars_[i].endpc == -1) {
+                    localVars_[i].endpc = currentPc;
+                    break;
+                }
             }
         }
     }

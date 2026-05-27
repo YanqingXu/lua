@@ -372,6 +372,22 @@ void testRawequalWrapper(TestSuite& suite) {
     ASSERT_FALSE(suite, L->top().asBoolean(), "rawequal(42, '42') == false");
 }
 
+void testSetfenvStackLevelWrapper(TestSuite& suite) {
+    LuaState* L = createFullState();
+    bool ok = runLua(L, R"lua(
+        local env = {setfenv = setfenv, getfenv = getfenv, _G = _G, marker = 42}
+        setfenv(1, env)
+        written = marker
+        local switched = getfenv(1) == env
+        setfenv(1, _G)
+        gSetfenvLevel = switched and env.written == 42 and _G.written == nil and getfenv(1) == _G
+    )lua");
+    ASSERT_TRUE(suite, ok, "setfenv stack level chunk runs");
+    Value result = L->getGlobal("gSetfenvLevel");
+    ASSERT_TRUE(suite, result.isBoolean() && result.asBoolean(), "setfenv(1, env) switches caller env");
+    delete L;
+}
+
 void testSelectWrapper(TestSuite& suite) {
     LuaStdLibTestContext ctx(openBaseLib);
     if (!ctx.ensureGlobalFunction("select", suite, "select exists")) {
@@ -919,6 +935,7 @@ void registerBaselibTests() {
     registry.registerTest(kSuiteName, "rawget", testRawgetWrapper);
     registry.registerTest(kSuiteName, "rawset", testRawsetWrapper);
     registry.registerTest(kSuiteName, "rawequal", testRawequalWrapper);
+    registry.registerTest(kSuiteName, "setfenv stack level", testSetfenvStackLevelWrapper);
     registry.registerTest(kSuiteName, "select", testSelectWrapper);
     registry.registerTest(kSuiteName, "pcall", testPcallWrapper);
     registry.registerTest(kSuiteName, "xpcall", testXpcallWrapper);

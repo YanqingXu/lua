@@ -204,7 +204,7 @@ void testAssignMultiReturnCall(TestSuite& suite) {
     bool sawErrLoadNil = false;
     for (usize i = 0; i < proto->getInstructionCount(); i++) {
         Instruction inst = proto->getInstruction(i);
-        if (GET_OPCODE(inst) == OpCode::CALL && GETARG_A(inst) == 3) {
+        if (GET_OPCODE(inst) == OpCode::CALL && GETARG_A(inst) == 2) {
             sawPcallCall = true;
             ASSERT_EQ(suite, GETARG_C(inst), 3, "Assignment CALL requests two return values");
         }

@@ -26,7 +26,7 @@ namespace {
 
 constexpr const char* kSuiteName = "Lua 5.1 Official Suite";
 constexpr const char* kOfficialAllLua = "tests/lua/official/all.lua";
-constexpr LuaNumber kExpectedSkippedScripts = 20.0;
+constexpr LuaNumber kExpectedSkippedScripts = 19.0;
 
 struct RunResult {
     bool ok = false;
@@ -143,7 +143,6 @@ local __official_skip = {
     -- These scripts currently rely on remaining frontend/runtime forms that
     -- still need staged compatibility work.
     ["strings.lua"] = "frontend syntax coverage not fully implemented",
-    ["attrib.lua"] = "frontend syntax coverage not fully implemented",
     ["locals.lua"] = "frontend syntax coverage not fully implemented",
     ["constructs.lua"] = "frontend syntax coverage not fully implemented",
     ["code.lua"] = "frontend syntax coverage not fully implemented",
@@ -177,9 +176,7 @@ local function __official_skip_source(name, reason)
         "__official_skipped_count = __official_skipped_count + 1\n" ..
         "if Message then Message(" .. quoted_message .. ") end\n"
 
-    if name == "attrib.lua" then
-        source = source .. "return 27\n"
-    elseif name == "locals.lua" then
+    if name == "locals.lua" then
         source = source .. "return 5\n"
     elseif name == "events.lua" then
         source = source .. "return 12\n"

@@ -866,7 +866,7 @@ i32 luaP_require(LuaState* L) {
     GCString* modKey = pool.intern(modname.c_str());
     Value cachedVal = loaded->get(Value(modKey));
 
-    if (!cachedVal.isNil()) {
+    if (cachedVal.isTrue()) {
         // Already loaded — return cached value
         L->setTop(0);
         L->pushValue(cachedVal);
@@ -1153,12 +1153,14 @@ void PackageLibModule::registerFunctions(LuaState* L) {
 
     // ---- package.path ----
     GCString* pathKey = pool.intern("path");
-    GCString* pathVal = pool.intern(LUA_DEFAULT_PATH);
+    Str defaultPath = applyExecutableDirectory(LUA_DEFAULT_PATH);
+    GCString* pathVal = pool.intern(defaultPath.c_str());
     pkgTable->set(Value(pathKey), Value(pathVal));
 
     // ---- package.cpath ----
     GCString* cpathKey = pool.intern("cpath");
-    GCString* cpathVal = pool.intern(LUA_DEFAULT_CPATH);
+    Str defaultCPath = applyExecutableDirectory(LUA_DEFAULT_CPATH);
+    GCString* cpathVal = pool.intern(defaultCPath.c_str());
     pkgTable->set(Value(cpathKey), Value(cpathVal));
 
     // ---- package.config ----

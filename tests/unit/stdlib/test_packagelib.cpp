@@ -369,6 +369,45 @@ void testRequireCaching(TestSuite& suite) {
 }
 
 // =====================================================================
+// Test: require() does not treat package.loaded[name] = false as cached
+// =====================================================================
+
+void testRequireFalseResultReloads(TestSuite& suite) {
+    LuaStdLibTestContext ctx(openBaseAndPackage);
+    LuaState* L = ctx.getState();
+
+    auto& pool = L->getGlobalState().getStringPool();
+    auto& gc = L->getGlobalState().getGC();
+
+    static int falseCallCount = 0;
+    falseCallCount = 0;
+
+    auto falseLoader = [](LuaState* L) -> i32 {
+        falseCallCount++;
+        L->setTop(0);
+        L->pushBoolean(false);
+        return 1;
+    };
+
+    Value pkgVal = L->getGlobal("package");
+    Table* preload = getField(L, pkgVal.asTable(), "preload").asTable();
+
+    Function* loaderFunc = new Function(static_cast<LibCFunction>(falseLoader));
+    gc.registerObject(loaderFunc);
+    GCString* modKey = pool.intern("falsemod");
+    preload->set(Value(modKey), Value(loaderFunc));
+
+    bool ok = runLuaChunk(L, "r1 = require('falsemod'); r2 = require('falsemod')");
+    ASSERT_TRUE(suite, ok, "require false-valued module runs");
+    ASSERT_EQ(suite, 2, falseCallCount, "false package.loaded entry does not cache require");
+
+    Value r1 = L->getGlobal("r1");
+    Value r2 = L->getGlobal("r2");
+    ASSERT_TRUE(suite, r1.isBoolean() && !r1.asBoolean(), "first require returns false");
+    ASSERT_TRUE(suite, r2.isBoolean() && !r2.asBoolean(), "second require returns false");
+}
+
+// =====================================================================
 // Test: require() error for missing module
 // =====================================================================
 
@@ -947,6 +986,30 @@ void testPackagePath(TestSuite& suite) {
     ASSERT_TRUE(suite, path.find(".lua") != std::string::npos, "package.path contains .lua");
 }
 
+void testRequireMissingErrorMatchesVisiblePaths(TestSuite& suite) {
+    LuaStdLibTestContext ctx(openAllLibs);
+    LuaState* L = ctx.getState();
+
+    const char* script = R"lua(
+local fname = "__missing_require_path_probe__"
+local ok, err = pcall(require, fname)
+require_path_error_matches = not ok
+for template in string.gmatch(package.path .. ";" .. package.cpath, "[^;]+") do
+    local expected = string.gsub(template, "?", fname)
+    if not string.find(err, expected, 1, true) then
+        require_path_error_matches = false
+        break
+    end
+end
+)lua";
+
+    bool ok = runLuaChunk(L, script, "require_path_error_matches");
+    ASSERT_TRUE(suite, ok, "require missing path probe runs");
+
+    Value matches = L->getGlobal("require_path_error_matches");
+    ASSERT_TRUE(suite, matches.isBoolean() && matches.asBoolean(), "require error matches visible package paths");
+}
+
 } // end anonymous namespace
 
 // =====================================================================
@@ -962,6 +1025,7 @@ void registerPackageLibTests() {
     registry.registerTest(kSuiteName, "package.loaders", testPackageLoaders);
     registry.registerTest(kSuiteName, "require preload", testRequirePreload);
     registry.registerTest(kSuiteName, "require caching", testRequireCaching);
+    registry.registerTest(kSuiteName, "require false reloads", testRequireFalseResultReloads);
     registry.registerTest(kSuiteName, "require missing", testRequireMissingModule);
     registry.registerTest(kSuiteName, "require from file", testRequireFromFile);
     registry.registerTest(kSuiteName, "package.loaded set", testPackageLoadedDirectSet);
@@ -976,4 +1040,5 @@ void registerPackageLibTests() {
     registry.registerTest(kSuiteName, "require stdlibs", testRequireStdlibs);
     registry.registerTest(kSuiteName, "preload no return", testRequirePreloadNoReturn);
     registry.registerTest(kSuiteName, "package.path", testPackagePath);
+    registry.registerTest(kSuiteName, "require missing visible paths", testRequireMissingErrorMatchesVisiblePaths);
 }

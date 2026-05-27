@@ -1172,6 +1172,30 @@ i32 luaB_gcinfo(LuaState* L) {
 // getfenv(f) - 获取函数环境表
 // =====================================================================
 
+static Function* functionAtStackLevel(LuaState* L, i32 level) {
+    if (level < 0 || static_cast<usize>(level) > L->getCurrentCI()) {
+        return nullptr;
+    }
+
+    usize targetIndex = L->getCurrentCI() - static_cast<usize>(level);
+    Vec<CallInfo>& frames = L->getCallStack();
+    if (targetIndex >= frames.size()) {
+        return nullptr;
+    }
+
+    const CallInfo& ci = frames[targetIndex];
+    if (ci.func >= L->getStack().size()) {
+        return nullptr;
+    }
+
+    Value& funcVal = L->getStack().at(ci.func);
+    if (!funcVal.isFunction()) {
+        return nullptr;
+    }
+
+    return funcVal.asFunction();
+}
+
 /**
  * @brief getfenv(f)
  *
@@ -1185,7 +1209,6 @@ i32 luaB_gcinfo(LuaState* L) {
  *
  * @note C函数使用全局环境
  * @note Lua函数可以有独立的环境
- * @note 简化实现：暂不支持栈级别参数，只支持函数对象
  */
 i32 luaB_getfenv(LuaState* L) {
     // 获取参数（函数对象或栈级别）
@@ -1197,11 +1220,22 @@ i32 luaB_getfenv(LuaState* L) {
         // 参数是函数对象
         Value v = L->at(1);
         func = v.asFunction();
+    } else if (nargs >= 1 && L->isNumber(1)) {
+        i32 level = static_cast<i32>(L->toNumber(1));
+        if (level == 0) {
+            L->pushTable(L->getGlobalTable());
+            return 1;
+        }
+        func = functionAtStackLevel(L, level);
+        if (func == nullptr) {
+            L->error("getfenv: invalid level");
+        }
     } else {
-        // 简化实现：如果没有参数或参数不是函数，返回全局表
-        // 完整实现应该支持栈级别参数
-        L->pushTable(L->getGlobalTable());
-        return 1;
+        func = functionAtStackLevel(L, 1);
+        if (func == nullptr) {
+            L->pushTable(L->getGlobalTable());
+            return 1;
+        }
     }
 
     if (!func) {
@@ -1240,12 +1274,12 @@ i32 luaB_getfenv(LuaState* L) {
  * @return 返回值数量（1个：被修改的函数对象）
  *
  * 参数说明：
- * - 参数1：函数对象（暂不支持栈级别）
+ * - 参数1：函数对象或调用栈级别
  * - 参数2：新的环境表（必须是table类型）
  *
  * @note 只能为Lua函数设置环境
  * @note C函数的环境无法修改
- * @note 简化实现：暂不支持栈级别参数和线程环境设置
+ * @note 简化实现：暂不支持线程环境设置
  */
 i32 luaB_setfenv(LuaState* L) {
     i32 nargs = L->getTop();
@@ -1260,14 +1294,19 @@ i32 luaB_setfenv(LuaState* L) {
         L->error("setfenv: 'table' expected");
     }
 
-    // 检查第一个参数必须是函数
-    if (!L->isFunction(1)) {
-        L->error("setfenv: 'function' expected");
+    Function* func = nullptr;
+    if (L->isFunction(1)) {
+        Value funcVal = L->at(1);
+        func = funcVal.asFunction();
+    } else if (L->isNumber(1)) {
+        i32 level = static_cast<i32>(L->toNumber(1));
+        if (level == 0) {
+            L->error("setfenv: thread environment is not supported");
+        }
+        func = functionAtStackLevel(L, level);
+    } else {
+        L->error("setfenv: 'function' or stack level expected");
     }
-
-    // 获取函数对象
-    Value funcVal = L->at(1);
-    Function* func = funcVal.asFunction();
 
     if (!func) {
         L->error("setfenv: invalid function");
