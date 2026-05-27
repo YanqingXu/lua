@@ -200,6 +200,29 @@ void testStringSub(TestSuite& suite) {
         std::string str = result.asString()->c_str();
         ASSERT_TRUE(suite, str == "llo", "sub('hello', 3) == 'llo'");
     }
+
+    // Test 4: Lua 5.1 boundary normalization
+    ret = callStringFunc(L, "sub", [&](LuaState* s) {
+        s->pushString(s->getGlobalState().getStringPool().intern("123456789"));
+        s->pushNumber(0.0);
+        s->pushNumber(0.0);
+    });
+    result = L->top();
+    if (result.isString()) {
+        std::string str = result.asString()->c_str();
+        ASSERT_TRUE(suite, str.empty(), "sub('123456789', 0, 0) == ''");
+    }
+
+    ret = callStringFunc(L, "sub", [&](LuaState* s) {
+        s->pushString(s->getGlobalState().getStringPool().intern("123456789"));
+        s->pushNumber(-10.0);
+        s->pushNumber(10.0);
+    });
+    result = L->top();
+    if (result.isString()) {
+        std::string str = result.asString()->c_str();
+        ASSERT_TRUE(suite, str == "123456789", "sub('123456789', -10, 10) clamps to full string");
+    }
 }
 
 // =====================================================================
@@ -295,7 +318,20 @@ void testStringByteChar(TestSuite& suite) {
     });
     ASSERT_EQ(suite, ret, 3, "byte('ABC', 1, 3) returns 3 values");
 
-    // Test 3: char
+    // Test 3: byte boundary normalization
+    ret = callStringFunc(L, "byte", [&](LuaState* s) {
+        s->pushString(s->getGlobalState().getStringPool().intern("hi"));
+        s->pushNumber(-3.0);
+    });
+    ASSERT_EQ(suite, ret, 0, "byte('hi', -3) returns no values");
+
+    ret = callStringFunc(L, "byte", [&](LuaState* s) {
+        s->pushString(s->getGlobalState().getStringPool().intern("hi"));
+        s->pushNumber(3.0);
+    });
+    ASSERT_EQ(suite, ret, 0, "byte('hi', 3) returns no values");
+
+    // Test 4: char
     ret = callStringFunc(L, "char", [&](LuaState* s) {
         s->pushNumber(65.0);
         s->pushNumber(66.0);
@@ -462,11 +498,46 @@ void testStringFormat(TestSuite& suite) {
     });
     result = L->top();
     if (result.isString()) {
-        std::string str = result.asString()->c_str();
-        ASSERT_TRUE(suite, str == "\"line\\n\\\"quoted\\\"\"", "format('%q', s) quotes and escapes");
+        std::string str = result.asString()->getData();
+        std::string expected = "\"line\\";
+        expected.push_back('\n');
+        expected += "\\\"quoted\\\"\"";
+        ASSERT_TRUE(suite, str == expected, "format('%q', s) quotes and escapes");
     }
 
-    // Test 10: Escaped percent
+    // Test 10: Lua 5.1 %q preserves high-bit bytes and appends raw %s data
+    ret = callStringFunc(L, "format", [&](LuaState* s) {
+        std::string raw;
+        raw.push_back('"');
+        raw.push_back(static_cast<char>(0xED));
+        raw += "lo\"\n\\";
+
+        s->pushString(s->getGlobalState().getStringPool().intern("%q%s"));
+        s->pushString(s->getGlobalState().getStringPool().intern(raw.data(), raw.size()));
+        s->pushString(s->getGlobalState().getStringPool().intern(raw.data(), raw.size()));
+    });
+    result = L->top();
+    if (result.isString()) {
+        std::string raw;
+        raw.push_back('"');
+        raw.push_back(static_cast<char>(0xED));
+        raw += "lo\"\n\\";
+
+        std::string quoted;
+        quoted.push_back('"');
+        quoted += "\\\"";
+        quoted.push_back(static_cast<char>(0xED));
+        quoted += "lo\\\"";
+        quoted.push_back('\\');
+        quoted.push_back('\n');
+        quoted += "\\\\";
+        quoted.push_back('"');
+
+        std::string str = result.asString()->getData();
+        ASSERT_TRUE(suite, str == quoted + raw, "format('%q%s', binary, binary) follows Lua 5.1 quoting");
+    }
+
+    // Test 11: Escaped percent
     ret = callStringFunc(L, "format", [&](LuaState* s) {
         s->pushString(s->getGlobalState().getStringPool().intern("100%% done"));
     });
@@ -476,7 +547,7 @@ void testStringFormat(TestSuite& suite) {
         ASSERT_TRUE(suite, str == "100% done", "format handles %% escape");
     }
 
-    // Test 11: %s accepts numbers via tostring semantics
+    // Test 12: %s accepts numbers via tostring semantics
     ret = callStringFunc(L, "format", [&](LuaState* s) {
         s->pushString(s->getGlobalState().getStringPool().intern("value=%s"));
         s->pushNumber(12.5);
@@ -487,7 +558,7 @@ void testStringFormat(TestSuite& suite) {
         ASSERT_TRUE(suite, str == "value=12.5", "%s accepts number arguments");
     }
 
-    // Test 12: Not enough arguments throws
+    // Test 13: Not enough arguments throws
     bool notEnoughArgs = false;
     try {
         callStringFunc(L, "format", [&](LuaState* s) {
@@ -499,7 +570,7 @@ void testStringFormat(TestSuite& suite) {
     }
     ASSERT_TRUE(suite, notEnoughArgs, "format throws when arguments are missing");
 
-    // Test 13: Invalid format option throws
+    // Test 14: Invalid format option throws
     bool invalidOption = false;
     try {
         callStringFunc(L, "format", [&](LuaState* s) {

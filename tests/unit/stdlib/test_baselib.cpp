@@ -145,6 +145,14 @@ void testTostringWrapper(TestSuite& suite) {
     checkTostring([](LuaState* s) { s->pushNumber(123.0); }, "123", "tostring(123) == '123'");
     checkTostring([](LuaState* s) { s->pushBoolean(true); }, "true", "tostring(true) == 'true'");
     checkTostring([](LuaState* s) { s->pushBoolean(false); }, "false", "tostring(false) == 'false'");
+
+    i32 ret = ctx.invoke("tostring", [](LuaState* s) {
+        s->pushString(s->getGlobalState().getStringPool().intern("\0", 1));
+    });
+    ASSERT_EQ(suite, ret, 1, "tostring binary string returns 1 value");
+    Value binary = L->top();
+    ASSERT_TRUE(suite, binary.isString() && binary.asString()->getLength() == 1,
+                "tostring preserves embedded NUL strings");
 }
 
 void testTonumberWrapper(TestSuite& suite) {

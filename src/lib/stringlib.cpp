@@ -146,40 +146,16 @@ static Str quoteLuaString(const char* str, usize len) {
         unsigned char ch = static_cast<unsigned char>(str[i]);
         switch (ch) {
             case '"':
-                quoted.append("\\\"");
-                break;
             case '\\':
-                quoted.append("\\\\");
-                break;
-            case '\a':
-                quoted.append("\\a");
-                break;
-            case '\b':
-                quoted.append("\\b");
-                break;
-            case '\f':
-                quoted.append("\\f");
-                break;
             case '\n':
-                quoted.append("\\n");
+                quoted.push_back('\\');
+                quoted.push_back(static_cast<char>(ch));
                 break;
-            case '\r':
-                quoted.append("\\r");
-                break;
-            case '\t':
-                quoted.append("\\t");
-                break;
-            case '\v':
-                quoted.append("\\v");
+            case '\0':
+                quoted.append("\\000");
                 break;
             default:
-                if (std::isprint(ch) != 0) {
-                    quoted.push_back(static_cast<char>(ch));
-                } else {
-                    char buffer[8];
-                    std::snprintf(buffer, sizeof(buffer), "\\%03u", static_cast<unsigned>(ch));
-                    quoted.append(buffer);
-                }
+                quoted.push_back(static_cast<char>(ch));
                 break;
         }
     }
@@ -205,6 +181,19 @@ static inline usize adjustPosition(i32 pos, usize len) {
         // pos == 0 is treated as 1 in Lua
         return 0;
     }
+}
+
+static inline i32 luaStringPosition(i32 pos, usize len) {
+    if (pos >= 0) {
+        return pos;
+    }
+
+    const i32 signedLen = static_cast<i32>(len);
+    if (pos < -signedLen) {
+        return 0;
+    }
+
+    return signedLen + pos + 1;
 }
 
 // =====================================================================
@@ -233,24 +222,21 @@ i32 str_sub(LuaState* L) {
     i32 start = static_cast<i32>(getNumberArg(L, 2, "sub"));
     i32 end = (L->getTop() >= 3) ? static_cast<i32>(getNumberArg(L, 3, "sub")) : static_cast<i32>(len);
     
-    // Adjust positions
-    usize startPos = adjustPosition(start, len);
-    usize endPos = adjustPosition(end, len);
-    
-    // Handle edge cases
-    if (startPos >= len || endPos < startPos) {
+    i32 startPos = luaStringPosition(start, len);
+    i32 endPos = luaStringPosition(end, len);
+
+    if (startPos < 1) startPos = 1;
+    if (endPos > static_cast<i32>(len)) endPos = static_cast<i32>(len);
+
+    if (startPos > endPos) {
         L->pushString(L->getGlobalState().getStringPool().intern(""));
         return 1;
     }
-    
-    // Clamp end position
-    if (endPos >= len) {
-        endPos = len - 1;
-    }
-    
+
     // Extract substring
-    usize subLen = endPos - startPos + 1;
-    Str result(s + startPos, subLen);
+    usize startIndex = static_cast<usize>(startPos - 1);
+    usize subLen = static_cast<usize>(endPos - startPos + 1);
+    Str result(s + startIndex, subLen);
     
     GCString* str = L->getGlobalState().getStringPool().intern(result);
     L->pushString(str);
@@ -342,26 +328,22 @@ i32 str_byte(LuaState* L) {
     const char* s = getStringArg(L, 1, "byte", &len);
 
     i32 start = (L->getTop() >= 2) ? static_cast<i32>(getNumberArg(L, 2, "byte")) : 1;
-    i32 end = (L->getTop() >= 3) ? static_cast<i32>(getNumberArg(L, 3, "byte")) : start;
+    i32 startPos = luaStringPosition(start, len);
+    i32 endPos = (L->getTop() >= 3)
+        ? luaStringPosition(static_cast<i32>(getNumberArg(L, 3, "byte")), len)
+        : startPos;
 
-    // Adjust positions
-    usize startPos = adjustPosition(start, len);
-    usize endPos = adjustPosition(end, len);
+    if (startPos <= 0) startPos = 1;
+    if (endPos > static_cast<i32>(len)) endPos = static_cast<i32>(len);
 
-    // Handle edge cases
-    if (startPos >= len || endPos < startPos) {
+    if (startPos > endPos) {
         return 0;  // Return no values
-    }
-
-    // Clamp end position
-    if (endPos >= len) {
-        endPos = len - 1;
     }
 
     // Push byte values
     i32 count = 0;
-    for (usize i = startPos; i <= endPos; i++) {
-        L->pushNumber(static_cast<f64>(static_cast<unsigned char>(s[i])));
+    for (i32 i = startPos; i <= endPos; i++) {
+        L->pushNumber(static_cast<f64>(static_cast<unsigned char>(s[i - 1])));
         count++;
     }
 

@@ -230,6 +230,32 @@ void testTableConcat(TestSuite& suite) {
         std::string str = result.asString()->c_str();
         ASSERT_TRUE(suite, str == "1-2-3", "concat numbers");
     }
+
+    // 测试 4: 保留字符串和分隔符中的内嵌 NUL
+    Table* t3 = new Table();
+    auto& pool = L->getGlobalState().getStringPool();
+    const char s1[] = {'\0'};
+    const char s2[] = {'\0', '\1'};
+    const char s3[] = {'\0', '\1', '\2'};
+    const char sep[] = {'.', '\0', '.'};
+    t3->set(Value(1.0), Value(pool.intern(s1, sizeof(s1))));
+    t3->set(Value(2.0), Value(pool.intern(s2, sizeof(s2))));
+    t3->set(Value(3.0), Value(pool.intern(s3, sizeof(s3))));
+
+    ret = callTableFunc(L, "concat", [&](LuaState* s) {
+        s->pushValue(Value(t3));
+        s->pushString(s->getGlobalState().getStringPool().intern(sep, sizeof(sep)));
+    });
+    result = L->top();
+    if (result.isString()) {
+        std::string expected;
+        expected.append(s1, sizeof(s1));
+        expected.append(sep, sizeof(sep));
+        expected.append(s2, sizeof(s2));
+        expected.append(sep, sizeof(sep));
+        expected.append(s3, sizeof(s3));
+        ASSERT_TRUE(suite, result.asString()->getData() == expected, "concat preserves embedded NUL bytes");
+    }
 }
 
 // =====================================================================

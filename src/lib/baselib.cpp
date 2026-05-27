@@ -130,6 +130,11 @@ i32 luaB_tostring(LuaState* L) {
         }
     }
 
+    if (original.isString()) {
+        L->pushValue(original);
+        return 1;
+    }
+
     // 默认转换逻辑
     if (L->isString(1)) {
         s = L->toString(1);

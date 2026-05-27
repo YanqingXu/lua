@@ -6,6 +6,7 @@
 #include "core/function.hpp"
 #include <ctime>
 #include <cstdlib>
+#include <clocale>
 #include <functional>
 #include <string>
 
@@ -149,6 +150,51 @@ void testDateWrapper(TestSuite& suite) {
     ASSERT_TRUE(suite, day.asNumber() >= 1.0 && day.asNumber() <= 31.0, "day is 1-31");
 }
 
+void testSetlocaleWrapper(TestSuite& suite) {
+    LuaStdLibTestContext ctx(openOSLib);
+    LuaState* L = ctx.getState();
+    auto& pool = L->getGlobalState().getStringPool();
+
+    const char* current = std::setlocale(LC_ALL, nullptr);
+    std::string previous = current != nullptr ? current : "";
+
+    bool setC = false;
+    try {
+        i32 ret = callOSFunc(L, "setlocale", [&pool](LuaState* s) {
+            s->pushString(pool.intern("C"));
+        });
+        setC = ret == 1 && L->top().isString() && std::string(L->top().asString()->c_str()) == "C";
+    } catch (...) {
+        setC = false;
+    }
+    ASSERT_TRUE(suite, setC, "setlocale('C') returns C");
+
+    bool queryAll = false;
+    try {
+        i32 ret = callOSFunc(L, "setlocale", nullptr);
+        queryAll = ret == 1 && L->top().isString() && std::string(L->top().asString()->c_str()) == "C";
+    } catch (...) {
+        queryAll = false;
+    }
+    ASSERT_TRUE(suite, queryAll, "setlocale() queries current locale");
+
+    bool queryNumeric = false;
+    try {
+        i32 ret = callOSFunc(L, "setlocale", [&pool](LuaState* s) {
+            s->pushNil();
+            s->pushString(pool.intern("numeric"));
+        });
+        queryNumeric = ret == 1 && L->top().isString() && std::string(L->top().asString()->c_str()) == "C";
+    } catch (...) {
+        queryNumeric = false;
+    }
+    ASSERT_TRUE(suite, queryNumeric, "setlocale(nil, 'numeric') queries numeric locale");
+
+    if (!previous.empty()) {
+        std::setlocale(LC_ALL, previous.c_str());
+    }
+}
+
 void registerOSlibTests() {
     auto& registry = TestRegistry::getInstance();
     
@@ -156,5 +202,6 @@ void registerOSlibTests() {
     registry.registerTest(kSuiteName, "difftime", testDifftimeWrapper);
     registry.registerTest(kSuiteName, "time", testTimeWrapper);
     registry.registerTest(kSuiteName, "date", testDateWrapper);
+    registry.registerTest(kSuiteName, "setlocale", testSetlocaleWrapper);
 }
 

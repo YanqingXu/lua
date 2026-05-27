@@ -15,10 +15,12 @@
 #include "vm/vm_dispatch.hpp"
 #include "vm/vm_dispatch_strategy.hpp"
 #include "vm/vm_handlers.hpp"
+#include "vm/vm_internal.hpp"
 #include "vm/vm_switch_dispatch.hpp"
 #include "vm/vm.hpp"
 
 #include <array>
+#include <clocale>
 #include <string>
 #include <utility>
 
@@ -581,6 +583,7 @@ void testUnaryHandlersExecuteDirectly(TestSuite& suite) {
     Proto proto;
     GCString* hello = services.strings.intern("hello");
     GCString* spaceWorld = services.strings.intern(" world");
+    GCString* empty = services.strings.intern("");
 
     Stack& stack = L->getStack();
     usize frameBase = L->getCurrentCallInfo().base;
@@ -634,6 +637,13 @@ void testUnaryHandlersExecuteDirectly(TestSuite& suite) {
     base = context.base;
     ASSERT_TRUE(suite, base[0].isString() && std::string(base[0].asString()->c_str()) == "1020-30",
                 "CONCAT handler should stringify numbers without fixed decimals");
+
+    base[1] = Value(12.0);
+    base[2] = Value(empty);
+    VM::runHandler(context, CREATE_ABC(OpCode::CONCAT, 0, 1, 2));
+    base = context.base;
+    ASSERT_TRUE(suite, base[0].isString() && std::string(base[0].asString()->c_str()) == "12",
+                "CONCAT handler should stringify numbers when appending an empty string");
 
     delete L;
     services.gc.clearAll();
@@ -717,6 +727,32 @@ void testBranchAndComparisonHandlersExecuteDirectly(TestSuite& suite) {
     ASSERT_TRUE(suite, base[0].isNumber() && base[0].asNumber() == 99.0,
                 "TESTSET handler should not copy B when condition does not match");
     ASSERT_EQ(suite, 2, static_cast<int>(pc), "TESTSET handler should advance once when condition does not match");
+
+    const char* currentLocale = std::setlocale(LC_COLLATE, nullptr);
+    std::string previousLocale = currentLocale != nullptr ? currentLocale : "";
+    bool localeSelected = false;
+    for (const char* localeName : {"ptb", "ISO-8859-1", "pt_BR"}) {
+        if (std::setlocale(LC_COLLATE, localeName) != nullptr) {
+            localeSelected = true;
+            break;
+        }
+    }
+    if (localeSelected) {
+        const char aacuteLo[] = {static_cast<char>(0xE1), 'l', 'o'};
+        GCString* alo = services.strings.intern("alo");
+        GCString* accented = services.strings.intern(aacuteLo, sizeof(aacuteLo));
+        GCString* amo = services.strings.intern("amo");
+
+        ASSERT_TRUE(suite, VM::detail::lessThan(L, Value(alo), Value(accented)),
+                    "string LT should honor LC_COLLATE for accented order");
+        ASSERT_TRUE(suite, VM::detail::lessThan(L, Value(accented), Value(amo)),
+                    "string LT should compare the full locale collation order");
+    } else {
+        ASSERT_TRUE(suite, true, "locale collation test skipped when Portuguese locale is unavailable");
+    }
+    if (!previousLocale.empty()) {
+        std::setlocale(LC_COLLATE, previousLocale.c_str());
+    }
 
     delete L;
     services.gc.clearAll();

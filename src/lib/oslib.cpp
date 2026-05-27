@@ -198,23 +198,28 @@ i32 luaOS_rename(LuaState* L) {
 }
 
 i32 luaOS_setlocale(LuaState* L) {
-    if (L->getTop() < 1) {
-        L->error("setlocale: missing argument");
-    }
-    if (!L->isString(1)) {
-        L->error("setlocale: argument must be a string");
+    i32 nargs = L->getTop();
+    const char* locale = nullptr;
+    if (nargs >= 1 && !L->isNil(1)) {
+        if (!L->isString(1)) {
+            L->error("setlocale: argument must be a string");
+        }
+        locale = L->toString(1);
     }
 
-    const char* locale = L->toString(1);
     i32 category = LC_ALL; // 默认类别
-
-    if (L->getTop() >= 2 && L->isString(2)) {
+    if (nargs >= 2 && !L->isNil(2)) {
+        if (!L->isString(2)) {
+            L->error("setlocale: category must be a string");
+        }
         const char* catStr = L->toString(2);
-        if (std::strcmp(catStr, "collate") == 0) category = LC_COLLATE;
+        if (std::strcmp(catStr, "all") == 0) category = LC_ALL;
+        else if (std::strcmp(catStr, "collate") == 0) category = LC_COLLATE;
         else if (std::strcmp(catStr, "ctype") == 0) category = LC_CTYPE;
         else if (std::strcmp(catStr, "monetary") == 0) category = LC_MONETARY;
         else if (std::strcmp(catStr, "numeric") == 0) category = LC_NUMERIC;
         else if (std::strcmp(catStr, "time") == 0) category = LC_TIME;
+        else L->error("setlocale: invalid category");
     }
 
     const char* result = std::setlocale(category, locale);

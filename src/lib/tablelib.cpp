@@ -20,6 +20,8 @@
 #include <sstream>
 #include <algorithm>
 #include <vector>
+#include <cstdio>
+#include <cstring>
 
 namespace Lua {
 
@@ -49,6 +51,12 @@ static f64 getNumberArg(LuaState* L, i32 idx, const char* funcName) {
         L->error(buffer);
     }
     return L->toNumber(idx);
+}
+
+static Str tableNumberToLuaString(f64 value) {
+    char buffer[64];
+    std::snprintf(buffer, sizeof(buffer), "%.14g", value);
+    return Str(buffer);
 }
 
 /**
@@ -188,9 +196,15 @@ i32 table_concat(LuaState* L) {
     Table* table = getTableArg(L, 1, "concat");
     
     // 获取分隔符（默认为空字符串）
-    std::string sep = "";
-    if (nargs >= 2 && L->isString(2)) {
-        sep = L->toString(2);
+    Str sep;
+    if (nargs >= 2 && !L->isNil(2)) {
+        const char* sepChars = L->toString(2);
+        if (sepChars == nullptr) {
+            L->error("table.concat: separator must be a string or number");
+        }
+        const Value& sepVal = L->at(2);
+        usize sepLen = sepVal.isString() ? sepVal.asString()->getLength() : std::strlen(sepChars);
+        sep.assign(sepChars, sepLen);
     }
 
     // 获取起始和结束索引
@@ -198,28 +212,23 @@ i32 table_concat(LuaState* L) {
     i32 j = (nargs >= 4) ? static_cast<i32>(getNumberArg(L, 4, "concat")) : getTableLength(table);
 
     // 连接字符串
-    std::ostringstream oss;
+    Str result;
     for (i32 idx = i; idx <= j; idx++) {
         if (idx > i) {
-            oss << sep;
+            result.append(sep);
         }
 
         Value v = table->get(Value(static_cast<f64>(idx)));
         if (v.isString()) {
-            oss << v.asString()->c_str();
+            result.append(v.asString()->getData());
         } else if (v.isNumber()) {
-            oss << v.asNumber();
-        } else if (v.isBoolean()) {
-            oss << (v.asBoolean() ? "true" : "false");
-        } else if (v.isNil()) {
-            // 跳过 nil 值
+            result.append(tableNumberToLuaString(v.asNumber()));
         } else {
             L->error("table.concat: invalid value (must be string or number)");
         }
     }
 
     // 返回连接后的字符串
-    std::string result = oss.str();
     L->pushString(L->getGlobalState().getStringPool().intern(result));
     return 1;
 }

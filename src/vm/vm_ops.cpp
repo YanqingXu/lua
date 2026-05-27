@@ -16,6 +16,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <string>
 
 namespace Lua {
@@ -43,6 +44,34 @@ Str numberToLuaString(f64 value) {
     char buffer[64];
     std::snprintf(buffer, sizeof(buffer), "%.14g", value);
     return Str(buffer);
+}
+
+int luaStringCompare(const GCString* left, const GCString* right) {
+    const char* l = left->c_str();
+    const char* r = right->c_str();
+    usize ll = left->getLength();
+    usize lr = right->getLength();
+
+    for (;;) {
+        int cmp = std::strcoll(l, r);
+        if (cmp != 0) {
+            return cmp;
+        }
+
+        usize len = std::strlen(l);
+        if (len == lr) {
+            return (len == ll) ? 0 : 1;
+        }
+        if (len == ll) {
+            return -1;
+        }
+
+        len++;
+        l += len;
+        r += len;
+        ll -= len;
+        lr -= len;
+    }
 }
 
 }  // namespace
@@ -179,7 +208,7 @@ bool lessThan(LuaState* L, const Value& left, const Value& right) {
         throw RuntimeError("VM: attempt to compare two different types");
     }
     if (left.isNumber()) return left.asNumber() < right.asNumber();
-    if (left.isString()) return left.asString()->getData() < right.asString()->getData();
+    if (left.isString()) return luaStringCompare(left.asString(), right.asString()) < 0;
 
     i32 tmResult = callOrderTM(L, left, right, TMS::TM_LT);
     if (tmResult == -1) {
@@ -193,7 +222,7 @@ bool lessEqual(LuaState* L, const Value& left, const Value& right) {
         throw RuntimeError("VM: attempt to compare two different types");
     }
     if (left.isNumber()) return left.asNumber() <= right.asNumber();
-    if (left.isString()) return left.asString()->getData() <= right.asString()->getData();
+    if (left.isString()) return luaStringCompare(left.asString(), right.asString()) <= 0;
 
     i32 tmResult = callOrderTM(L, left, right, TMS::TM_LE);
     if (tmResult != -1) return tmResult != 0;
@@ -276,10 +305,8 @@ void concat(RuntimeServices& services, LuaState* L, Value* base, i32 a, i32 b, i
             continue;
         }
 
-        if (!str1.empty()) {
-            Str result = str2 + str1;
-            base[last - 1] = Value(pool.intern(result));
-        }
+        Str result = str2 + str1;
+        base[last - 1] = Value(pool.intern(result));
         total--;
         last--;
     }
