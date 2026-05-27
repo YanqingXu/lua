@@ -112,9 +112,26 @@ void testMathHyperbolicFunctions(TestSuite& suite) {
     ASSERT_TRUE(suite, nearlyEqual(L->top().asNumber(), std::tanh(1.0)), "math.tanh(1) matches std::tanh");
 }
 
+void testMathModAlias(TestSuite& suite) {
+    LuaStdLibTestContext ctx(openMathLib);
+    LuaState* L = ctx.getState();
+
+    i32 ret = callMathFunc(L, "mod", [](LuaState* s) {
+        s->pushNumber(7.0);
+        s->pushNumber(3.0);
+    });
+
+    ASSERT_EQ(suite, ret, 1, "math.mod returns 1 value");
+    ASSERT_TRUE(suite, L->top().isNumber(), "math.mod returns number");
+    if (L->top().isNumber()) {
+        ASSERT_TRUE(suite, nearlyEqual(L->top().asNumber(), 1.0), "math.mod aliases math.fmod");
+    }
+}
+
 void registerMathLibTests() {
     auto& registry = TestRegistry::getInstance();
 
     registry.registerTest(kSuiteName, "constants", testMathConstants);
     registry.registerTest(kSuiteName, "hyperbolic functions", testMathHyperbolicFunctions);
+    registry.registerTest(kSuiteName, "mod alias", testMathModAlias);
 }

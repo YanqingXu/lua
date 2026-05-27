@@ -103,7 +103,7 @@ void ScopeManager::leaveBlock() {
     state_.blockManager.currentBlock_ = block->previous;
 
     removeLocalVars(block->activeVarCount);
-    jumps_.patchToHere(block->breaklist);
+    jumps_.patchList(block->breaklist, jumps_.getLabel());
 
     delete block;
 }

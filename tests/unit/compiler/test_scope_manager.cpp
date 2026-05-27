@@ -66,7 +66,7 @@ void testReturnSuppressesRedundantClose(TestSuite& suite) {
     ASSERT_EQ(suite, 0, fixture.scopes.activeLocalCount(), "locals should still be removed after RETURN");
 }
 
-void testBreakableBlockDefersBreakListUntilFlush(TestSuite& suite) {
+void testBreakableBlockPatchesBreakListOnLeave(TestSuite& suite) {
     ScopeFixture fixture;
 
     fixture.scopes.enterBlock(true);
@@ -81,10 +81,8 @@ void testBreakableBlockDefersBreakListUntilFlush(TestSuite& suite) {
     fixture.scopes.leaveBlock();
 
     ASSERT_TRUE(suite, fixture.scopes.currentBlock() == nullptr, "leaving block should restore previous block");
-    ASSERT_EQ(suite, breakJump, fixture.state.blockManager.jpc_, "break jump should be deferred through pending jpc");
-    fixture.jumps.flushPendingJumps();
+    ASSERT_EQ(suite, NO_JUMP, fixture.state.blockManager.jpc_, "break jump should not leak into pending jpc");
     ASSERT_EQ(suite, 1, fixture.jumps.getJump(breakJump), "break jump should target current pc after leave");
-    ASSERT_EQ(suite, NO_JUMP, fixture.state.blockManager.jpc_, "flush should drain pending break jump");
 }
 
 void testUpvalueContextDeduplicatesCaptures(TestSuite& suite) {
@@ -106,8 +104,8 @@ void registerScopeManagerTests() {
     registry.registerTest(kSuiteName, "Local Lifecycle Closes Scope And Resets Registers",
                           testLocalLifecycleClosesScopeAndResetsRegisters);
     registry.registerTest(kSuiteName, "Return Suppresses Redundant Close", testReturnSuppressesRedundantClose);
-    registry.registerTest(kSuiteName, "Breakable Block Defers Break List Until Flush",
-                          testBreakableBlockDefersBreakListUntilFlush);
+    registry.registerTest(kSuiteName, "Breakable Block Patches Break List On Leave",
+                          testBreakableBlockPatchesBreakListOnLeave);
     registry.registerTest(kSuiteName, "Upvalue Context Deduplicates Captures",
                           testUpvalueContextDeduplicatesCaptures);
 }

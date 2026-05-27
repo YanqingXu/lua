@@ -465,6 +465,47 @@ void testFunctionStatementBindsLocalRuntime(TestSuite& suite) {
     delete L;
 }
 
+void testNestedNumericForUsesOuterControlRuntime(TestSuite& suite) {
+    LuaState* L = createFullState();
+    bool ok = runLua(L, R"(
+        local n = 5
+        nested_for_sum = 0
+        for i = 1, n do
+            for j = i, 1, -1 do
+                nested_for_sum = nested_for_sum + 1
+            end
+        end
+        assert(nested_for_sum == n * (n + 1) / 2)
+    )");
+    ASSERT_TRUE(suite, ok, "nested numeric for copies outer control value into inner init");
+    delete L;
+}
+
+void testWhileBreakPatchesBeforeFollowingJumpBytecode(TestSuite& suite) {
+    Proto* proto = generateProto(R"(
+        function ID(x) return x end
+        local a = (not nil and ((1 < 2) and (1 < 2)))
+        local b = not ID(not nil and ID((1 < 2) and (1 < 2)))
+        while ID(not nil and ID((1 < 2) and (1 < 2))) do WX2 = a; break end
+        repeat
+            if ((not nil and ((1 < 2) and (1 < 2)))) then break end
+            assert(b)
+        until not(ID(not nil and ID((1 < 2) and (1 < 2))))
+    )");
+
+    bool foundUnpatchedJump = false;
+    for (size_t i = 0; i < proto->getInstructionCount(); i++) {
+        Instruction inst = proto->getInstruction(i);
+        if (GET_OPCODE(inst) == OpCode::JMP && GETARG_sBx(inst) == NO_JUMP) {
+            foundUnpatchedJump = true;
+            break;
+        }
+    }
+
+    ASSERT_TRUE(suite, !foundUnpatchedJump, "while break is patched before the next jump-heavy statement");
+    delete proto;
+}
+
 // =====================================================================
 // Registration
 // =====================================================================
@@ -502,4 +543,6 @@ void registerValuePipelineTests() {
     registry.registerTest(kSuiteName, "Mixed LValue Call Assignment Runtime", testValueMixedLValueCallAssignmentRuntime);
     registry.registerTest(kSuiteName, "Multiple Assignment Freezes References Runtime", testValueMultipleAssignmentFreezesReferencesRuntime);
     registry.registerTest(kSuiteName, "Function Statement Binds Local Runtime", testFunctionStatementBindsLocalRuntime);
+    registry.registerTest(kSuiteName, "Nested Numeric For Uses Outer Control Runtime", testNestedNumericForUsesOuterControlRuntime);
+    registry.registerTest(kSuiteName, "While Break Patches Before Following Jump Bytecode", testWhileBreakPatchesBeforeFollowingJumpBytecode);
 }

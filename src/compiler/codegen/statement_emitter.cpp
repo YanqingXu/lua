@@ -625,20 +625,22 @@ void StatementEmitter::emitStmt(const ForNumStmt& s) {
 
     ValueResult initVal = emitValue(*s.init);
     initVal = forceSingleValue(initVal);
-    valueToNextReg(initVal);
+    materializeValue(initVal, base);
+    ops_.setFreeRegAndCheck(base + 1);
 
     ValueResult limitVal = emitValue(*s.limit);
     limitVal = forceSingleValue(limitVal);
-    valueToNextReg(limitVal);
+    materializeValue(limitVal, base + 1);
+    ops_.setFreeRegAndCheck(base + 2);
 
     if (s.step) {
         ValueResult stepVal = emitValue(*s.step);
         stepVal = forceSingleValue(stepVal);
-        valueToNextReg(stepVal);
+        materializeValue(stepVal, base + 2);
     } else {
-        i32 stepReg = allocReg();
-        codeABx(OpCode::LOADK, stepReg, numberConstant(1.0));
+        codeABx(OpCode::LOADK, base + 2, numberConstant(1.0));
     }
+    ops_.setFreeRegAndCheck(base + 3);
 
     enterBlock(true);
 

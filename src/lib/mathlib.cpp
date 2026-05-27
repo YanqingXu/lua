@@ -375,6 +375,7 @@ void MathLibModule::registerFunctions(LuaState* L) {
         .addGlobal("sqrt", math_sqrt)
         .addGlobal("pow", math_pow)
         .addGlobal("fmod", math_fmod)
+        .addGlobal("mod", math_fmod)
         .addGlobal("modf", math_modf)
         // 三角函数
         .addGlobal("sin", math_sin)
