@@ -580,12 +580,13 @@ void StatementEmitter::emitStmt(const FunctionStmt& s) {
             RegisterGuard registers(state_);
 
             if (s.tablePath.empty()) {
+                SymbolRef sym = resolve(s.name);
+                LValueRef target = binder_.symbolToLValue(sym);
+
                 i32 reg = allocReg();
                 codeABx(OpCode::CLOSURE, reg, protoIdx);
                 emitClosureUpvalues(childUpvalues);
-
-                i32 k = stringConstant(s.name);
-                codeABx(OpCode::SETGLOBAL, reg, k);
+                emitStore(target, ValueResult::makeRegister(reg, false));
             } else {
                 auto loadNameToReg = [this](const Str& name) -> i32 {
                     SymbolRef sym = resolve(name);

@@ -325,6 +325,8 @@ public:
         return globalTable_;
     }
 
+    void setGlobalTable(Table* table);
+
     /**
      * @brief 设置全局变量
      * @param name 变量名

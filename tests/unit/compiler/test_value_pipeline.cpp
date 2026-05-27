@@ -446,6 +446,25 @@ void testValueMultipleAssignmentFreezesReferencesRuntime(TestSuite& suite) {
     delete L;
 }
 
+void testFunctionStatementBindsLocalRuntime(TestSuite& suite) {
+    LuaState* L = createFullState();
+    bool ok = runLua(L, R"(
+        f = nil
+        local f
+        function f(x) return x + 1 end
+        local_result = f(2)
+        assert(type(_G.f) == "nil")
+    )");
+    ASSERT_TRUE(suite, ok, "function statement assigns existing local binding");
+
+    Value result = L->getGlobal("local_result");
+    ASSERT_TRUE(
+        suite,
+        result.isNumber() && result.asNumber() == 3,
+        "local function statement result is callable");
+    delete L;
+}
+
 // =====================================================================
 // Registration
 // =====================================================================
@@ -482,4 +501,5 @@ void registerValuePipelineTests() {
     registry.registerTest(kSuiteName, "Block Local Shadow Ends Runtime", testValueBlockLocalShadowEndsRuntime);
     registry.registerTest(kSuiteName, "Mixed LValue Call Assignment Runtime", testValueMixedLValueCallAssignmentRuntime);
     registry.registerTest(kSuiteName, "Multiple Assignment Freezes References Runtime", testValueMultipleAssignmentFreezesReferencesRuntime);
+    registry.registerTest(kSuiteName, "Function Statement Binds Local Runtime", testFunctionStatementBindsLocalRuntime);
 }

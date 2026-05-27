@@ -1301,7 +1301,13 @@ i32 luaB_setfenv(LuaState* L) {
     } else if (L->isNumber(1)) {
         i32 level = static_cast<i32>(L->toNumber(1));
         if (level == 0) {
-            L->error("setfenv: thread environment is not supported");
+            Table* newEnv = L->at(2).asTable();
+            if (!newEnv) {
+                L->error("setfenv: invalid table");
+            }
+            L->setGlobalTable(newEnv);
+            L->pushNumber(0.0);
+            return 1;
         }
         func = functionAtStackLevel(L, level);
     } else {

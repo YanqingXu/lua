@@ -149,6 +149,23 @@ void LuaState::initialize() {
     }
 }
 
+void LuaState::setGlobalTable(Table* table) {
+    if (table == nullptr || table == globalTable_) {
+        return;
+    }
+
+    auto& gc = globalState_.getGC();
+    if (globalTable_ && !isChildThread_) {
+        gc.removeRoot(globalTable_);
+    }
+
+    globalTable_ = table;
+
+    if (!isChildThread_) {
+        gc.addRoot(globalTable_);
+    }
+}
+
 // =====================================================================
 // Upvalue管理
 // =====================================================================
