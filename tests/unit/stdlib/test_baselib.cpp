@@ -808,6 +808,102 @@ void testLoadWrapper(TestSuite& suite) {
         ASSERT_EQ(suite, 1.0, getGlobalNumber(L, "gEmpty"), "load empty source produces valid function");
         delete L;
     }
+
+    // Test 5: Lua 5.1 reader treats an empty string as end-of-input
+    {
+        LuaState* L = createFullState();
+        bool ok = runLua(L, R"lua(
+            local i = 0
+            local f = load(function()
+                i = i + 1
+                if i == 1 then return "gLoadEmptyStringEOF = 77" end
+                if i == 2 then return "" end
+                error("reader called after empty string")
+            end)
+            assert(i == 2)
+            f()
+        )lua");
+        ASSERT_TRUE(suite, ok, "load empty string EOF runs");
+        ASSERT_EQ(suite, 77.0, getGlobalNumber(L, "gLoadEmptyStringEOF"),
+                  "load stops reading after empty string");
+        delete L;
+    }
+
+    // Test 6: load can read a binary chunk produced by string.dump
+    {
+        LuaState* L = createFullState();
+        bool ok = runLua(L, R"lua(
+            local dumped = string.dump(loadstring("gDumpLoaded = 1; return gDumpLoaded"))
+            local i = 0
+            local f = assert(load(function()
+                i = i + 1
+                return string.sub(dumped, i, i)
+            end))
+            assert(f() == 1 and gDumpLoaded == 1)
+        )lua");
+        ASSERT_TRUE(suite, ok, "load reads dumped binary chunk");
+        ASSERT_EQ(suite, 1.0, getGlobalNumber(L, "gDumpLoaded"),
+                  "loaded binary chunk executes");
+        delete L;
+    }
+
+    // Test 7: loadstring can restore dumped upvalue metadata for debug.setupvalue
+    {
+        LuaState* L = createFullState();
+        bool ok = runLua(L, R"lua(
+            local a, b = 20, 30
+            local x = assert(loadstring(string.dump(function (arg)
+                if arg == "set" then
+                    a = 10 + b
+                    b = b + 1
+                else
+                    return a
+                end
+            end)))
+            assert(x() == nil)
+            assert(debug.setupvalue(x, 1, "hi") == "a")
+            assert(x() == "hi")
+            assert(debug.setupvalue(x, 2, 13) == "b")
+            assert(not debug.setupvalue(x, 3, 10))
+            x("set")
+            assert(x() == 23)
+        )lua");
+        ASSERT_TRUE(suite, ok, "loadstring restores dumped upvalues");
+        delete L;
+    }
+
+    // Test 8: reader-based load reports definitive syntax errors before EOF
+    {
+        LuaState* L = createFullState();
+        bool ok = runLua(L, R"lua(
+            local source = "*a = 123"
+            local i = 0
+            local f, err = load(function()
+                i = i + 1
+                return string.sub(source, i, i)
+            end)
+            assert(not f and type(err) == "string")
+            gEarlySyntaxReads = i
+        )lua");
+        ASSERT_TRUE(suite, ok, "load reader early syntax error runs");
+        ASSERT_EQ(suite, 2.0, getGlobalNumber(L, "gEarlySyntaxReads"),
+                  "load reader stops after definitive syntax error");
+        delete L;
+    }
+
+    // Test 9: reader errors are reported as load return values
+    {
+        LuaState* L = createFullState();
+        bool ok = runLua(L, R"lua(
+            local f, err = load(function() error("hhi") end)
+            assert(not f and string.find(err, "hhi"))
+            gLoadReaderError = 1
+        )lua");
+        ASSERT_TRUE(suite, ok, "load reader error returns nil and message");
+        ASSERT_EQ(suite, 1.0, getGlobalNumber(L, "gLoadReaderError"),
+                  "load reader error does not escape");
+        delete L;
+    }
 }
 
 void registerBaselibTests() {

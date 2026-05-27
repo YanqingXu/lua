@@ -387,6 +387,32 @@ void testTableMaxn(TestSuite& suite) {
     }
 }
 
+void testTableGetnCompatibility(TestSuite& suite) {
+    LuaStdLibTestContext ctx(openTableLib);
+    LuaState* L = ctx.getState();
+
+    Value tableValue = ctx.getGlobal("table");
+    ASSERT_TRUE(suite, tableValue.isTable(), "table table exists for getn");
+    if (tableValue.isTable()) {
+        GCString* key = L->getGlobalState().getStringPool().intern("getn");
+        ASSERT_TRUE(suite, tableValue.asTable()->get(Value(key)).isFunction(), "table.getn exists");
+    }
+
+    Table* t = new Table();
+    t->set(Value(1.0), Value(10.0));
+    t->set(Value(2.0), Value(20.0));
+    t->set(Value(3.0), Value(30.0));
+
+    i32 ret = callTableFunc(L, "getn", [&](LuaState* s) {
+        s->pushValue(Value(t));
+    });
+    ASSERT_EQ(suite, 1, ret, "getn returns one value");
+    ASSERT_TRUE(suite, L->top().isNumber(), "getn returns number");
+    if (L->top().isNumber()) {
+        ASSERT_EQ(suite, 3.0, L->top().asNumber(), "getn returns Lua length");
+    }
+}
+
 // =====================================================================
 // table.pack 测试
 // =====================================================================
@@ -523,6 +549,7 @@ void registerTableLibTests() {
     registry.registerTest(kSuiteName, "table.sort comparator descending", testTableSortWithLuaComparator);
     registry.registerTest(kSuiteName, "table.sort comparator derived key", testTableSortWithComparatorUsingDerivedKey);
     registry.registerTest(kSuiteName, "table.maxn", testTableMaxn);
+    registry.registerTest(kSuiteName, "table.getn compatibility", testTableGetnCompatibility);
     registry.registerTest(kSuiteName, "table.pack", testTablePack);
     registry.registerTest(kSuiteName, "table.unpack", testTableUnpack);
     registry.registerTest(kSuiteName, "table.move", testTableMove);

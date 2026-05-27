@@ -15,6 +15,7 @@
 #include "core/gc_string.hpp"
 #include "core/table.hpp"
 #include "core/function.hpp"
+#include "core/upvalue.hpp"
 #include "vm/state/global_state.hpp"
 #include "vm/vm.hpp"
 #include "compiler/parser/parser.hpp"
@@ -25,6 +26,7 @@
 #include <cstdio>
 #include <cstring>
 #include <cctype>
+#include <limits>
 
 namespace Lua {
 
@@ -639,15 +641,8 @@ i32 luaB_select(LuaState* L) {
 
     // 返回从 index+1 到 n 的所有参数
     i32 count = n - index;
-    std::fprintf(stderr, "[SELECT] n=%d index=%d count=%d\n", n, index, count);
     for (i32 i = index + 1; i <= n; i++) {
-        Value val = L->at(i);
-        std::fprintf(stderr, "[SELECT] pushing at(%d)=", i);
-        if (val.isNumber()) std::fprintf(stderr, "%g", val.asNumber());
-        else if (val.isNil()) std::fprintf(stderr, "nil");
-        else std::fprintf(stderr, "other");
-        std::fprintf(stderr, " absTop=%zu\n", L->getAbsoluteTop());
-        L->pushValue(val);
+        L->pushValue(L->at(i));
     }
 
     return count;
@@ -709,6 +704,222 @@ i32 luaB_xpcall(LuaState* L) {
 }
 
 // =====================================================================
+// Project-local binary chunk loader for string.dump/load round-trips
+// =====================================================================
+
+class DumpReader {
+public:
+    DumpReader(StrView data, StringPool& pool, GarbageCollector& gc)
+        : data_(data)
+        , pool_(pool)
+        , gc_(gc) {}
+
+    Proto* readChunk() {
+        readHeader();
+        Proto* proto = readProto();
+        if (pos_ != data_.size()) {
+            throw std::runtime_error("binary chunk has trailing data");
+        }
+        return proto;
+    }
+
+private:
+    StrView data_;
+    StringPool& pool_;
+    GarbageCollector& gc_;
+    usize pos_ = 0;
+
+    void require(usize count) const {
+        if (count > data_.size() || pos_ > data_.size() - count) {
+            throw std::runtime_error("truncated binary chunk");
+        }
+    }
+
+    u8 readByte() {
+        require(1);
+        return static_cast<u8>(data_[pos_++]);
+    }
+
+    u32 readU32() {
+        require(4);
+        u32 value = 0;
+        for (i32 i = 0; i < 4; ++i) {
+            value |= static_cast<u32>(static_cast<u8>(data_[pos_++])) << (i * 8);
+        }
+        return value;
+    }
+
+    i32 readI32() {
+        return static_cast<i32>(readU32());
+    }
+
+    u64 readU64() {
+        require(8);
+        u64 value = 0;
+        for (i32 i = 0; i < 8; ++i) {
+            value |= static_cast<u64>(static_cast<u8>(data_[pos_++])) << (i * 8);
+        }
+        return value;
+    }
+
+    LuaNumber readNumber() {
+        u64 bits = readU64();
+        LuaNumber value = 0;
+        static_assert(sizeof(bits) == sizeof(value), "LuaNumber undump expects 64-bit double");
+        std::memcpy(&value, &bits, sizeof(value));
+        return value;
+    }
+
+    usize readSize() {
+        return static_cast<usize>(readU32());
+    }
+
+    void readHeader() {
+        require(16);
+        if (data_.substr(0, 4) != StrView("\x1bLua", 4)) {
+            throw std::runtime_error("not a binary chunk");
+        }
+        pos_ = 4;
+        if (readByte() != 0x51 || readByte() != 0 || readByte() != 1 ||
+            readByte() != sizeof(i32) || readByte() != sizeof(usize) ||
+            readByte() != sizeof(Instruction) || readByte() != sizeof(LuaNumber) ||
+            readByte() != 0) {
+            throw std::runtime_error("unsupported binary chunk format");
+        }
+        if (data_.substr(pos_, 4) != StrView("LC++", 4)) {
+            throw std::runtime_error("unsupported binary chunk payload");
+        }
+        pos_ += 4;
+    }
+
+    GCString* readMaybeString() {
+        u32 len = readU32();
+        if (len == std::numeric_limits<u32>::max()) {
+            return nullptr;
+        }
+        require(len);
+        GCString* str = pool_.intern(data_.data() + pos_, static_cast<usize>(len));
+        pos_ += static_cast<usize>(len);
+        return str;
+    }
+
+    Value readConstant() {
+        u8 tag = readByte();
+        switch (tag) {
+            case 0:
+                return Value();
+            case 1:
+                return Value(readByte() != 0);
+            case 3:
+                return Value(readNumber());
+            case 4:
+                return Value(readMaybeString());
+            default:
+                throw std::runtime_error("unsupported constant in binary chunk");
+        }
+    }
+
+    Proto* readProto() {
+        Proto* proto = new Proto();
+        gc_.registerObject(proto);
+        proto->setSource(readMaybeString());
+        proto->setLineDefined(readI32());
+        proto->setLastLineDefined(readI32());
+        proto->setNumParams(readByte());
+        proto->setVarargFlags(readByte());
+        proto->setMaxStackSize(readByte());
+        proto->setNumUpvalues(readByte());
+
+        usize instructionCount = readSize();
+        for (usize i = 0; i < instructionCount; ++i) {
+            proto->addInstruction(readU32());
+        }
+
+        usize constantCount = readSize();
+        for (usize i = 0; i < constantCount; ++i) {
+            proto->addConstant(readConstant());
+        }
+
+        usize subProtoCount = readSize();
+        for (usize i = 0; i < subProtoCount; ++i) {
+            proto->addProto(readProto());
+        }
+
+        usize lineInfoCount = readSize();
+        for (usize i = 0; i < lineInfoCount; ++i) {
+            proto->addLineInfo(readI32());
+        }
+
+        usize locVarCount = readSize();
+        for (usize i = 0; i < locVarCount; ++i) {
+            GCString* name = readMaybeString();
+            i32 startpc = readI32();
+            i32 endpc = readI32();
+            i32 reg = readI32();
+            proto->addLocVar(name, startpc, endpc, reg);
+        }
+
+        usize upvalueNameCount = readSize();
+        for (usize i = 0; i < upvalueNameCount; ++i) {
+            proto->addUpvalueName(readMaybeString());
+        }
+
+        return proto;
+    }
+};
+
+static bool isProjectBinaryChunk(StrView source) {
+    return source.size() >= 4 && source.substr(0, 4) == StrView("\x1bLua", 4);
+}
+
+static Function* createLuaFunctionFromProto(LuaState* L, Proto* proto) {
+    Function* func = new Function(proto);
+    L->getGlobalState().getGC().registerObject(func);
+    func->setEnv(L->getGlobalTable());
+
+    for (u8 i = 0; i < proto->getNumUpvalues(); ++i) {
+        Upvalue* upvalue = Upvalue::createClosed(Value());
+        L->getGlobalState().getGC().registerObject(upvalue);
+        func->addUpvalue(upvalue);
+    }
+
+    return func;
+}
+
+static Function* loadBinaryChunk(LuaState* L, StrView source) {
+    DumpReader reader(source, L->getGlobalState().getStringPool(), L->getGlobalState().getGC());
+    Proto* proto = reader.readChunk();
+    return createLuaFunctionFromProto(L, proto);
+}
+
+static bool stopOnDefinitiveReaderSyntaxError(LuaState* L, StringPool& pool, const Str& source) {
+    if (source.size() < 2 || static_cast<u8>(source[0]) == 0x1b) {
+        return false;
+    }
+
+    usize first = 0;
+    while (first < source.size() &&
+           std::isspace(static_cast<unsigned char>(source[first])) != 0) {
+        first++;
+    }
+    if (first >= source.size() || source[first] != '*') {
+        return false;
+    }
+
+    Parser parser(source);
+    auto parsed = parser.parse();
+    if (parsed) {
+        return false;
+    }
+
+    Str message = parsed.error().what();
+    L->setTop(0);
+    L->pushNil();
+    L->pushString(pool.intern((Str("load: ") + message).c_str()));
+    return true;
+}
+
+// =====================================================================
 // loadstring(string [, chunkname]) - 编译字符串为函数
 // =====================================================================
 
@@ -736,6 +947,13 @@ i32 luaB_loadstring(LuaState* L) {
         : "=(loadstring)";
 
     try {
+        if (isProjectBinaryChunk(StrView(code.data(), code.size()))) {
+            Function* func = loadBinaryChunk(L, StrView(code.data(), code.size()));
+            L->setTop(0);
+            L->pushValue(Value(func));
+            return 1;
+        }
+
         // 解析代码
         Parser parser(code);
         auto parsed = parser.parse();
@@ -756,9 +974,7 @@ i32 luaB_loadstring(LuaState* L) {
         }
 
         // 创建函数对象
-        Function* func = new Function(proto);
-        L->getGlobalState().getGC().registerObject(func);
-        func->setEnv(L->getGlobalTable());
+        Function* func = createLuaFunctionFromProto(L, proto);
 
         // 返回成功
         L->setTop(0);
@@ -830,6 +1046,13 @@ i32 luaB_loadfile(LuaState* L) {
             return 2;
         }
 
+        if (isProjectBinaryChunk(StrView(source.data(), source.size()))) {
+            Function* func = loadBinaryChunk(L, StrView(source.data(), source.size()));
+            L->setTop(0);
+            L->pushValue(Value(func));
+            return 1;
+        }
+
         // 解析代码
         Parser parser(source);
         auto parsed = parser.parse();
@@ -851,9 +1074,7 @@ i32 luaB_loadfile(LuaState* L) {
         }
 
         // 创建函数对象
-        Function* func = new Function(proto);
-        L->getGlobalState().getGC().registerObject(func);
-        func->setEnv(L->getGlobalTable());
+        Function* func = createLuaFunctionFromProto(L, proto);
 
         // 返回成功
         L->setTop(0);
@@ -1235,8 +1456,31 @@ static i32 luaB_load(LuaState* L) {
     Str source;
     for (;;) {
         // Push the loader and call it
-        L->pushValue(loaderFunc);
-        VM::call(L, 0, 1);
+        usize savedCI = L->getCurrentCI();
+        usize savedTop = L->getAbsoluteTop();
+        Vec<Value> savedStack;
+        savedStack.reserve(savedTop);
+        for (usize i = 0; i < savedTop; ++i) {
+            savedStack.push_back(L->getStack().at(i));
+        }
+
+        try {
+            L->pushValue(loaderFunc);
+            VM::call(L, 0, 1);
+        } catch (const std::exception& e) {
+            while (L->getCurrentCI() > savedCI) {
+                L->popCallInfo();
+            }
+            L->getStack().setTop(0);
+            L->setAbsoluteTop(0);
+            for (const Value& value : savedStack) {
+                L->pushValue(value);
+            }
+            L->setTop(0);
+            L->pushNil();
+            L->pushString(pool.intern(e.what()));
+            return 2;
+        }
 
         // Result is now at absolute top - 1; read it via getTop()
         Value result = L->at(L->getTop());
@@ -1253,12 +1497,29 @@ static i32 luaB_load(LuaState* L) {
             return 2;
         }
 
-        source.append(result.asString()->c_str());
+        GCString* piece = result.asString();
+        if (piece->getLength() == 0) {
+            L->pop();
+            break;
+        }
+
+        source.append(piece->c_str(), piece->getLength());
         L->pop();
+
+        if (stopOnDefinitiveReaderSyntaxError(L, pool, source)) {
+            return 2;
+        }
     }
 
-    // Compile the collected source
     try {
+        if (isProjectBinaryChunk(StrView(source.data(), source.size()))) {
+            Function* func = loadBinaryChunk(L, StrView(source.data(), source.size()));
+            L->setTop(0);
+            L->pushValue(Value(func));
+            return 1;
+        }
+
+        // Compile the collected source
         Parser parser(source);
         auto parsed = parser.parse();
         if (!parsed) {
@@ -1276,9 +1537,7 @@ static i32 luaB_load(LuaState* L) {
             return 2;
         }
 
-        Function* func = new Function(proto);
-        L->getGlobalState().getGC().registerObject(func);
-        func->setEnv(L->getGlobalTable());
+        Function* func = createLuaFunctionFromProto(L, proto);
 
         L->setTop(0);
         L->pushValue(Value(func));

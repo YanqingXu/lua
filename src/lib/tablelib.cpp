@@ -13,6 +13,7 @@
 #include "core/string_pool.hpp"
 #include "core/function.hpp"
 #include "lib/lib_registry.hpp"
+#include "vm/vm.hpp"
 #include "vm/vm_constants.hpp"
 
 #include <string>
@@ -71,18 +72,29 @@ static bool defaultSortLess(LuaState* L, const Value& left, const Value& right) 
 
 static bool callSortComparator(LuaState* L, Function* comparator, const Value& left, const Value& right) {
     i32 originalTop = L->getTop();
+    usize savedCI = L->getCurrentCI();
+    usize savedTop = L->getAbsoluteTop();
+    Vec<Value> savedStack;
+    savedStack.reserve(savedTop);
+    for (usize i = 0; i < savedTop; ++i) {
+        savedStack.push_back(L->getStack().at(i));
+    }
 
-    L->pushFunction(comparator);
-    L->pushValue(left);
-    L->pushValue(right);
-
-    i32 status = L->pcall(2, 1, 0);
-    if (status != LUA_OK) {
-        const char* msg = L->toString(-1);
-        if (msg != nullptr) {
-            L->error(msg);
+    try {
+        L->pushFunction(comparator);
+        L->pushValue(left);
+        L->pushValue(right);
+        VM::call(L, 2, 1);
+    } catch (const std::exception& e) {
+        while (L->getCurrentCI() > savedCI) {
+            L->popCallInfo();
         }
-        L->error("table.sort: comparator failed");
+        L->getStack().setTop(0);
+        L->setAbsoluteTop(0);
+        for (const Value& value : savedStack) {
+            L->pushValue(value);
+        }
+        L->error(e.what());
     }
 
     bool result = L->toBoolean(-1);
@@ -294,6 +306,20 @@ i32 table_maxn(LuaState* L) {
 }
 
 // =====================================================================
+// table.getn 实现（Lua 5.1 兼容函数）
+// =====================================================================
+
+i32 table_getn(LuaState* L) {
+    if (L->getTop() < 1) {
+        L->error("table.getn: missing table argument");
+    }
+
+    Table* table = getTableArg(L, 1, "getn");
+    L->pushNumber(static_cast<LuaNumber>(getTableLength(table)));
+    return 1;
+}
+
+// =====================================================================
 // table.pack 实现
 // =====================================================================
 
@@ -404,6 +430,7 @@ void TableLibModule::registerFunctions(LuaState* L) {
         .addGlobal("concat", table_concat)
         .addGlobal("sort", table_sort)
         .addGlobal("maxn", table_maxn)
+        .addGlobal("getn", table_getn)
         .addGlobal("pack", table_pack)
         .addGlobal("unpack", table_unpack)
         .addGlobal("move", table_move)

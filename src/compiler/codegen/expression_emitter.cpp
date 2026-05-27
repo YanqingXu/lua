@@ -764,9 +764,11 @@ ValueResult ExpressionEmitter::emitValueTable(const TableExpr& table) {
                 }
             }
 
+            i32 targetReg = tableReg + tostore;
             ValueResult val = emitValue(*field.value);
             val = forceSingleValue(val);
-            valueToNextReg(val);
+            materializeValue(val, targetReg);
+            ops_.setFreeRegAndCheck(targetReg + 1);
 
             if (!hasLastCallResult && tostore == LFIELDS_PER_FLUSH) {
                 i32 c = (na - 1) / LFIELDS_PER_FLUSH + 1;
@@ -1000,16 +1002,17 @@ PatchList ExpressionEmitter::emitComparisonJump(const BinaryExpr& e, bool jumpOn
     }
 
     ValueResult left = emitValue(*e.left);
+    i32 o1 = valueToRK(left);
+
     ValueResult right = emitValue(*e.right);
+    i32 o2 = valueToRK(right);
 
     if (swapOperands) {
-        std::swap(left, right);
+        std::swap(o1, o2);
     }
 
-    i32 o1 = valueToRK(left);
-    i32 o2 = valueToRK(right);
-    freeReg(o1);
-    freeReg(o2);
+    if (o1 > o2) { freeReg(o1); freeReg(o2); }
+    else         { freeReg(o2); freeReg(o1); }
 
     codeABC(op, cond, o1, o2);
 

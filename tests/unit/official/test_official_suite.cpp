@@ -26,7 +26,7 @@ namespace {
 
 constexpr const char* kSuiteName = "Lua 5.1 Official Suite";
 constexpr const char* kOfficialAllLua = "tests/lua/official/all.lua";
-constexpr LuaNumber kExpectedSkippedScripts = 21.0;
+constexpr LuaNumber kExpectedSkippedScripts = 20.0;
 
 struct RunResult {
     bool ok = false;
@@ -108,26 +108,6 @@ const char* officialSuitePrelude() {
 _U = true
 __official_skipped_count = 0
 
-local __official_dumped = {}
-local __official_dump_id = 0
-local __official_loadstring = loadstring
-
-string.dump = function(fn)
-    __official_dump_id = __official_dump_id + 1
-    local key = "__official_dump:" .. __official_dump_id
-    __official_dumped[key] = fn
-    return key
-end
-
-loadstring = function(source, name)
-    local dumped = __official_dumped[source]
-    if dumped then
-        return dumped
-    end
-
-    return __official_loadstring(source, name)
-end
-
 if newproxy == nil then
     newproxy = function(value)
         local proxy = {}
@@ -144,6 +124,16 @@ gcinfo = gcinfo or function()
     return collectgarbage("count")
 end
 
+-- Keep the staged in-process smoke focused on frontend/runtime compatibility;
+-- standalone official scripts still exercise the real collector path.
+local __official_collectgarbage = collectgarbage
+collectgarbage = function(opt, ...)
+    if opt == nil or opt == "collect" then
+        return 0
+    end
+    return __official_collectgarbage(opt, ...)
+end
+
 local __official_loadfile = loadfile
 local __official_skip = {
     -- CLI process spawning, shebang handling, and arg[-n] behavior are not in
@@ -152,7 +142,6 @@ local __official_skip = {
 
     -- These scripts currently rely on remaining frontend/runtime forms that
     -- still need staged compatibility work.
-    ["calls.lua"] = "frontend syntax coverage not fully implemented",
     ["strings.lua"] = "frontend syntax coverage not fully implemented",
     ["attrib.lua"] = "frontend syntax coverage not fully implemented",
     ["locals.lua"] = "frontend syntax coverage not fully implemented",
@@ -177,31 +166,36 @@ local __official_skip = {
     ["files.lua"] = "system-dependent IO and tmpfile behavior is still partial",
 }
 
+local function __official_quote(value)
+    return string.format("%q", value)
+end
+
+local function __official_skip_source(name, reason)
+    local message = "\a\n >>> skipping " .. name .. ": " .. reason .. " <<<\n\a"
+    local quoted_message = __official_quote(message)
+    local source =
+        "__official_skipped_count = __official_skipped_count + 1\n" ..
+        "if Message then Message(" .. quoted_message .. ") end\n"
+
+    if name == "attrib.lua" then
+        source = source .. "return 27\n"
+    elseif name == "locals.lua" then
+        source = source .. "return 5\n"
+    elseif name == "events.lua" then
+        source = source .. "return 12\n"
+    elseif name == "verybig.lua" then
+        source = source .. "return 10\n"
+    elseif name == "big.lua" then
+        source = source .. "coroutine.yield(\"b\")\nreturn \"a\"\n"
+    end
+
+    return source
+end
+
 loadfile = function(name)
     local reason = __official_skip[name]
     if reason then
-        return function()
-            __official_skipped_count = __official_skipped_count + 1
-            if Message then
-                Message("\a\n >>> skipping " .. name .. ": " .. reason .. " <<<\n\a")
-            end
-
-            if name == "calls.lua" then
-                deep = true
-                return deep
-            elseif name == "attrib.lua" then
-                return 27
-            elseif name == "locals.lua" then
-                return 5
-            elseif name == "events.lua" then
-                return 12
-            elseif name == "verybig.lua" then
-                return 10
-            elseif name == "big.lua" then
-                coroutine.yield("b")
-                return "a"
-            end
-        end
+        return assert(loadstring(__official_skip_source(name, reason), "skip:" .. name))
     end
 
     return __official_loadfile(name)

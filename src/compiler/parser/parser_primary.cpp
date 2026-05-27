@@ -20,7 +20,7 @@ ExprPtr Parser::Impl::parsePrimaryExpr() {
         NilExpr nilExpr;
         nilExpr.line = line;
         nilExpr.column = column;
-        return parsePostfixExpr(makeExpr<NilExpr>(std::move(nilExpr)));
+        return makeExpr<NilExpr>(std::move(nilExpr));
     }
 
     if (match(TokenType::True)) {
@@ -28,7 +28,7 @@ ExprPtr Parser::Impl::parsePrimaryExpr() {
         boolExpr.value = true;
         boolExpr.line = line;
         boolExpr.column = column;
-        return parsePostfixExpr(makeExpr<BoolExpr>(std::move(boolExpr)));
+        return makeExpr<BoolExpr>(std::move(boolExpr));
     }
 
     if (match(TokenType::False)) {
@@ -36,7 +36,7 @@ ExprPtr Parser::Impl::parsePrimaryExpr() {
         boolExpr.value = false;
         boolExpr.line = line;
         boolExpr.column = column;
-        return parsePostfixExpr(makeExpr<BoolExpr>(std::move(boolExpr)));
+        return makeExpr<BoolExpr>(std::move(boolExpr));
     }
 
     if (current().isNumber()) {
@@ -45,7 +45,7 @@ ExprPtr Parser::Impl::parsePrimaryExpr() {
         numExpr.line = line;
         numExpr.column = column;
         advance();
-        return parsePostfixExpr(makeExpr<NumberExpr>(std::move(numExpr)));
+        return makeExpr<NumberExpr>(std::move(numExpr));
     }
 
     if (current().isString()) {
@@ -54,22 +54,22 @@ ExprPtr Parser::Impl::parsePrimaryExpr() {
         strExpr.line = line;
         strExpr.column = column;
         advance();
-        return parsePostfixExpr(makeExpr<StringExpr>(std::move(strExpr)));
+        return makeExpr<StringExpr>(std::move(strExpr));
     }
 
     if (match(TokenType::Dots)) {
         VarargExpr varargExpr;
         varargExpr.line = line;
         varargExpr.column = column;
-        return parsePostfixExpr(makeExpr<VarargExpr>(std::move(varargExpr)));
+        return makeExpr<VarargExpr>(std::move(varargExpr));
     }
 
     if (check(static_cast<TokenType>('{'))) {
-        return parsePostfixExpr(parseTableConstructor());
+        return parseTableConstructor();
     }
 
     if (check(TokenType::Function)) {
-        return parsePostfixExpr(parseFunctionExpr());
+        return parseFunctionExpr();
     }
 
     if (match(static_cast<TokenType>('('))) {

@@ -254,6 +254,25 @@ void testTableConstructorCallMultret(TestSuite& suite) {
     delete L;
 }
 
+void testTableConstructorCollapsesNonLastCalls(TestSuite& suite) {
+    LuaState* L = createFullState();
+    bool ok = runLua(L, R"lua(
+        function unroll(t, i)
+            i = i or 1
+            if i <= table.getn(t) then
+                return t[i], unroll(t, i + 1)
+            end
+        end
+
+        function ret2(a, b) return a, b end
+        local values = ret2{ unroll{1,2,3}, unroll{3,2,1}, unroll{"a", "b"}}
+        assert(values[1] == 1 and values[2] == 3 and values[3] == "a" and values[4] == "b",
+               "non-last calls inside a table argument should collapse to one value")
+    )lua");
+    ASSERT_TRUE(suite, ok, "table constructor collapses non-last calls");
+    delete L;
+}
+
 // -- CallStmt discards returns --
 void testCallStmtDiscardsReturns(TestSuite& suite) {
     LuaState* L = createFullState();
@@ -283,6 +302,31 @@ void testMethodCallMultret(TestSuite& suite) {
                "method call should propagate multret")
     )lua");
     ASSERT_TRUE(suite, ok, "method call multret propagation");
+    delete L;
+}
+
+void testBinaryComparisonKeepsLeftCallResult(TestSuite& suite) {
+    LuaState* L = createFullState();
+    bool ok = runLua(L, R"lua(
+        a = {i = 10}
+        self = 20
+        function a:x (x) return x+self.i end
+        function a.y (x) return x+self end
+        assert(a:x(1)+10 == a.y(1),
+               "right-hand call arguments must not overwrite the left expression result")
+    )lua");
+    ASSERT_TRUE(suite, ok, "binary comparison keeps left call-derived result");
+    delete L;
+}
+
+void testImmediatelyInvokedFunctionExpression(TestSuite& suite) {
+    LuaState* L = createFullState();
+    bool ok = runLua(L, R"lua(
+        local a = 0
+        (function (x) a = x end)(23)
+        assert(a == 23, "parenthesized function expression calls should use the closure as callee")
+    )lua");
+    ASSERT_TRUE(suite, ok, "immediately invoked function expression");
     delete L;
 }
 
@@ -510,8 +554,14 @@ void registerCallPipelineTests() {
     registry.registerTest(kSuiteName, "local a,b,c = f()", testLocalMultiAssignFromCall);
     registry.registerTest(kSuiteName, "a,b,c = f()", testAssignMultiFromCall);
     registry.registerTest(kSuiteName, "{f()} table multret", testTableConstructorCallMultret);
+    registry.registerTest(kSuiteName, "table constructor collapses non-last calls",
+                          testTableConstructorCollapsesNonLastCalls);
     registry.registerTest(kSuiteName, "call stmt discards returns", testCallStmtDiscardsReturns);
     registry.registerTest(kSuiteName, "method call multret", testMethodCallMultret);
+    registry.registerTest(kSuiteName, "binary comparison keeps left call result",
+                          testBinaryComparisonKeepsLeftCallResult);
+    registry.registerTest(kSuiteName, "immediately invoked function expression",
+                          testImmediatelyInvokedFunctionExpression);
     registry.registerTest(kSuiteName, "nested return f(g())", testNestedReturnCallChain);
     registry.registerTest(kSuiteName, "generic for explicit Lua iterator triple", testGenericForExplicitLuaIteratorTriple);
     registry.registerTest(kSuiteName, "generic for call returning Lua iterator", testGenericForCallReturningLuaIterator);

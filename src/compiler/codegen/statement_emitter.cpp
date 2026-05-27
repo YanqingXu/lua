@@ -242,6 +242,12 @@ void StatementEmitter::emitStmt(const AssignStmt& s) {
     i32 nvars = static_cast<i32>(s.targets.size());
     i32 nexps = static_cast<i32>(s.values.size());
 
+    for (const auto& target : s.targets) {
+        if (auto* name = std::get_if<NameExpr>(&target->variant)) {
+            (void)resolve(name->name);
+        }
+    }
+
     for (i32 i = 0; i < nexps - 1 && i < nvars; i++) {
         ValueResult val = emitValue(*s.values[i]);
         val = forceSingleValue(val);

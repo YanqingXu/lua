@@ -85,6 +85,14 @@ i32 table_sort(LuaState* L);
 i32 table_maxn(LuaState* L);
 
 /**
+ * @brief table.getn(table) - Lua 5.1 compatibility wrapper for #table
+ *
+ * @param L Lua 状态机
+ * @return 返回值数量（1，数组长度）
+ */
+i32 table_getn(LuaState* L);
+
+/**
  * @brief table.pack(...) - 打包可变参数为表
  * 
  * 返回一个包含所有参数的表，表中有一个字段 "n" 表示参数数量。
