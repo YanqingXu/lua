@@ -117,6 +117,54 @@ void testReturnVarargMultret(TestSuite& suite) {
     delete L;
 }
 
+void testCompatArgTableForOldStyleVararg(TestSuite& suite) {
+    LuaState* L = createFullState();
+    bool ok = runLua(L, R"lua(
+        _G.arg = nil
+
+        local function oldstyle(a, ...)
+            assert(type(arg) == "table")
+            if a == nil then
+                assert(arg.n == 0)
+                return nil
+            end
+            assert(arg.n == 3)
+            assert(arg[1] == "x" and arg[2] == nil and arg[3] == "z")
+            if type(a) == "table" then
+                assert(a[1] == 10)
+                return a[1]
+            end
+            return a
+        end
+
+        local function newstyle(...)
+            assert(arg == nil)
+            local t = {...}
+            return t[1], t[2]
+        end
+
+        assert(oldstyle() == nil)
+        assert(oldstyle(10, "x", nil, "z") == 10)
+        assert(oldstyle({10}, "x", nil, "z") == 10)
+
+        local function compare(a, ...)
+            assert(type(arg) == "table")
+            for i = 1, arg.n do
+                assert(a[i] == arg[i])
+            end
+            return arg.n
+        end
+
+        assert(compare() == 0)
+        assert(compare({1, 2, 3}, 1, 2, 3) == 3)
+
+        local a, b = newstyle(20, 30)
+        assert(a == 20 and b == 30)
+    )lua");
+    ASSERT_TRUE(suite, ok, "old-style vararg creates local arg table without breaking ...");
+    delete L;
+}
+
 // -- g(f()) last-arg multret --
 void testCallLastArgMultret(TestSuite& suite) {
     LuaState* L = createFullState();
@@ -545,6 +593,7 @@ void registerCallPipelineTests() {
     auto& registry = TestRegistry::getInstance();
     registry.registerTest(kSuiteName, "return f() multret", testReturnCallMultret);
     registry.registerTest(kSuiteName, "return ... multret", testReturnVarargMultret);
+    registry.registerTest(kSuiteName, "compat arg table for old-style vararg", testCompatArgTableForOldStyleVararg);
     registry.registerTest(kSuiteName, "g(f()) last-arg multret", testCallLastArgMultret);
     registry.registerTest(kSuiteName, "g(fixed, f()) leading + multret", testCallLeadingFixedPlusMultret);
     registry.registerTest(kSuiteName, "g(f(), x) non-last collapse", testCallNonLastArgCollapsed);

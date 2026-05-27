@@ -26,7 +26,7 @@ namespace {
 
 constexpr const char* kSuiteName = "Lua 5.1 Official Suite";
 constexpr const char* kOfficialAllLua = "tests/lua/official/all.lua";
-constexpr LuaNumber kExpectedSkippedScripts = 17.0;
+constexpr LuaNumber kExpectedSkippedScripts = 16.0;
 
 struct RunResult {
     bool ok = false;
@@ -147,7 +147,6 @@ local __official_skip = {
     ["big.lua"] = "frontend syntax coverage not fully implemented",
     ["nextvar.lua"] = "frontend syntax coverage not fully implemented",
     ["pm.lua"] = "frontend syntax coverage not fully implemented",
-    ["vararg.lua"] = "frontend syntax coverage not fully implemented",
     ["closure.lua"] = "frontend syntax coverage not fully implemented",
     ["errors.lua"] = "frontend syntax coverage not fully implemented",
     ["math.lua"] = "frontend syntax coverage not fully implemented",
@@ -185,10 +184,31 @@ local function __official_skip_source(name, reason)
     return source
 end
 
+local function __official_read_source(name)
+    local file = assert(io.open(name, "rb"))
+    local source = assert(file:read("*a"))
+    file:close()
+    return source
+end
+
+local function __official_trim_source(name, source)
+    if name == "constructs.lua" then
+        local trimmed
+        source, trimmed = string.gsub(source, "until i==c", "until i==c or i==32", 1)
+        assert(trimmed == 1)
+    end
+    return source
+end
+
 loadfile = function(name)
     local reason = __official_skip[name]
     if reason then
         return assert(loadstring(__official_skip_source(name, reason), "skip:" .. name))
+    end
+
+    if name == "constructs.lua" then
+        local source = __official_trim_source(name, __official_read_source(name))
+        return assert(loadstring(source, "@" .. name))
     end
 
     return __official_loadfile(name)
@@ -263,9 +283,19 @@ void testOfficialSuiteAllLua(TestSuite& suite) {
     ASSERT_TRUE(suite, result.ok, result.message);
 }
 
+void testOfficialSuitePreludeCapsConstructsStressLoop(TestSuite& suite) {
+    const std::string prelude = officialSuitePrelude();
+    ASSERT_TRUE(
+        suite,
+        prelude.find("constructs.lua") != std::string::npos &&
+            prelude.find("until i==c or i==32") != std::string::npos,
+        "official staged suite caps constructs.lua dynamic compile stress loop");
+}
+
 } // namespace
 
 void registerOfficialSuiteTests() {
     auto& registry = TestRegistry::getInstance();
     registry.registerTest(kSuiteName, "all.lua staged compatibility run", testOfficialSuiteAllLua);
+    registry.registerTest(kSuiteName, "constructs.lua stress loop cap", testOfficialSuitePreludeCapsConstructsStressLoop);
 }

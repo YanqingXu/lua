@@ -8,6 +8,7 @@
 #include "common/lua_error.hpp"
 #include "core/function.hpp"
 #include "core/metatable.hpp"
+#include "core/table.hpp"
 #include "core/value.hpp"
 #include "vm/state/call_info.hpp"
 #include "vm/state/lua_state.hpp"
@@ -138,6 +139,7 @@ bool precall(LuaState* L, i32 funcIndex, i32 nArgs, i32 nResults) {
 
     i32 numParams = proto->getNumParams();
     usize base;
+    Table* compatArgTable = nullptr;
 
     if (proto->isVararg()) {
         usize oldBase = funcPos + 1;
@@ -151,10 +153,27 @@ bool precall(LuaState* L, i32 funcIndex, i32 nArgs, i32 nResults) {
         if (actualArgs < numParams) {
             actualArgs = numParams;
         }
+        i32 nVarargs = actualArgs - numParams;
+        if ((proto->getVarargFlags() & VARARG_NEEDSARG) != 0) {
+            compatArgTable = new Table();
+            L->getGlobalState().getGC().registerObject(compatArgTable);
+
+            for (i32 i = 0; i < nVarargs; i++) {
+                compatArgTable->set(
+                    Value(static_cast<LuaNumber>(i + 1)),
+                    stack[oldBase + static_cast<usize>(numParams + i)]);
+            }
+
+            GCString* nKey = L->getGlobalState().getStringPool().intern("n");
+            compatArgTable->set(Value(nKey), Value(static_cast<LuaNumber>(nVarargs)));
+        }
         base = oldBase + static_cast<usize>(actualArgs);
-        stack.checkSpace(static_cast<usize>(numParams) + 1);
+        usize fixedTop = base + static_cast<usize>(numParams);
+        if (stack.size() < fixedTop) {
+            stack.setTop(fixedTop);
+        }
         for (i32 i = 0; i < numParams; i++) {
-            stack.push(stack[oldBase + i]);
+            stack[base + static_cast<usize>(i)] = stack[oldBase + static_cast<usize>(i)];
             stack[oldBase + i] = Value();
         }
     } else {
@@ -180,6 +199,9 @@ bool precall(LuaState* L, i32 funcIndex, i32 nArgs, i32 nResults) {
     ci.tailcalls = 0;
 
     while (stack.size() < ci.top) stack.push(Value());
+    if (compatArgTable != nullptr) {
+        stack[base + static_cast<usize>(numParams)] = Value(compatArgTable);
+    }
     L->setAbsoluteTop(ci.top);
 
     dispatchCallHook(L);

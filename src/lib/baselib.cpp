@@ -1463,9 +1463,10 @@ static i32 luaB_unpack(LuaState* L) {
     }
 
     Table* table = L->at(1).asTable();
-    i32 i = (L->getTop() >= 2) ? static_cast<i32>(L->toNumber(2)) : 1;
-    i32 j = (L->getTop() >= 3) ? static_cast<i32>(L->toNumber(3))
-                                : static_cast<i32>(table->length());
+    i32 i = (L->getTop() >= 2 && !L->at(2).isNil()) ? static_cast<i32>(L->toNumber(2)) : 1;
+    i32 j = (L->getTop() >= 3 && !L->at(3).isNil())
+        ? static_cast<i32>(L->toNumber(3))
+        : static_cast<i32>(table->length());
 
     if (i > j) return 0;  // empty range
 

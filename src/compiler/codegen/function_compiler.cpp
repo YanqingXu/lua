@@ -5,8 +5,130 @@
 
 #include "compiler/codegen/function_compiler.hpp"
 #include "compiler/codegen/codegen.hpp"
+#include "compiler/codegen/codegen_types.hpp"
 
 namespace Lua {
+
+namespace {
+
+bool exprUsesDirectVararg(const Expr& expr);
+bool stmtUsesDirectVararg(const Stmt& stmt);
+
+bool exprListUsesDirectVararg(const Vec<ExprPtr>& exprs) {
+    for (const auto& expr : exprs) {
+        if (expr && exprUsesDirectVararg(*expr)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool stmtListUsesDirectVararg(const Vec<StmtPtr>& stmts) {
+    for (const auto& stmt : stmts) {
+        if (stmt && stmtUsesDirectVararg(*stmt)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool tableFieldsUseDirectVararg(const Vec<TableField>& fields) {
+    for (const TableField& field : fields) {
+        if ((field.key && exprUsesDirectVararg(*field.key)) ||
+            (field.value && exprUsesDirectVararg(*field.value))) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool exprUsesDirectVararg(const Expr& expr) {
+    return std::visit(ValueResultVisitor{
+        [](const VarargExpr&) { return true; },
+        [](const NilExpr&) { return false; },
+        [](const BoolExpr&) { return false; },
+        [](const NumberExpr&) { return false; },
+        [](const StringExpr&) { return false; },
+        [](const NameExpr&) { return false; },
+        [](const FunctionExpr&) { return false; },
+        [](const BinaryExpr& e) {
+            return (e.left && exprUsesDirectVararg(*e.left)) ||
+                   (e.right && exprUsesDirectVararg(*e.right));
+        },
+        [](const UnaryExpr& e) {
+            return e.operand && exprUsesDirectVararg(*e.operand);
+        },
+        [](const TableExpr& e) {
+            return tableFieldsUseDirectVararg(e.fields);
+        },
+        [](const CallExpr& e) {
+            return (e.func && exprUsesDirectVararg(*e.func)) ||
+                   exprListUsesDirectVararg(e.args);
+        },
+        [](const IndexExpr& e) {
+            return (e.table && exprUsesDirectVararg(*e.table)) ||
+                   (e.index && exprUsesDirectVararg(*e.index));
+        },
+        [](const MemberExpr& e) {
+            return e.table && exprUsesDirectVararg(*e.table);
+        },
+        [](const ParenExpr& e) {
+            return e.expression && exprUsesDirectVararg(*e.expression);
+        },
+    }, expr.variant);
+}
+
+bool stmtUsesDirectVararg(const Stmt& stmt) {
+    return std::visit(ValueResultVisitor{
+        [](const EmptyStmt&) { return false; },
+        [](const BreakStmt&) { return false; },
+        [](const FunctionStmt&) { return false; },
+        [](const AssignStmt& s) {
+            return exprListUsesDirectVararg(s.targets) || exprListUsesDirectVararg(s.values);
+        },
+        [](const LocalStmt& s) {
+            return exprListUsesDirectVararg(s.values);
+        },
+        [](const CallStmt& s) {
+            return s.call && exprUsesDirectVararg(*s.call);
+        },
+        [](const IfStmt& s) {
+            for (const IfStmt::Branch& branch : s.branches) {
+                if ((branch.condition && exprUsesDirectVararg(*branch.condition)) ||
+                    stmtListUsesDirectVararg(branch.body)) {
+                    return true;
+                }
+            }
+            return stmtListUsesDirectVararg(s.elseBranch);
+        },
+        [](const WhileStmt& s) {
+            return (s.condition && exprUsesDirectVararg(*s.condition)) ||
+                   stmtListUsesDirectVararg(s.body);
+        },
+        [](const RepeatStmt& s) {
+            return stmtListUsesDirectVararg(s.body) ||
+                   (s.condition && exprUsesDirectVararg(*s.condition));
+        },
+        [](const ForNumStmt& s) {
+            return (s.init && exprUsesDirectVararg(*s.init)) ||
+                   (s.limit && exprUsesDirectVararg(*s.limit)) ||
+                   (s.step && exprUsesDirectVararg(*s.step)) ||
+                   stmtListUsesDirectVararg(s.body);
+        },
+        [](const ForInStmt& s) {
+            return exprListUsesDirectVararg(s.iterators) ||
+                   stmtListUsesDirectVararg(s.body);
+        },
+        [](const ReturnStmt& s) {
+            return exprListUsesDirectVararg(s.values);
+        },
+        [](const DoStmt& s) {
+            return stmtListUsesDirectVararg(s.body);
+        },
+    }, stmt.variant);
+}
+
+}  // namespace
 
 Proto* FunctionCompiler::compile(const Vec<Str>& params, bool isVararg, const Vec<StmtPtr>& body,
                                  i32 linedefined, i32 lastlinedefined,
@@ -14,10 +136,18 @@ Proto* FunctionCompiler::compile(const Vec<Str>& params, bool isVararg, const Ve
     CodeGenerator child(owner_.state_.services);
     child.state_.parent = &owner_;
 
+    const bool needsCompatArg = isVararg && !stmtListUsesDirectVararg(body);
+    u8 varargFlags = 0;
+    if (isVararg) {
+        varargFlags = VARARG_ISVARARG;
+        if (needsCompatArg) {
+            varargFlags |= VARARG_HASARG | VARARG_NEEDSARG;
+        }
+    }
+
     Proto* newProto = new Proto();
     owner_.state_.services.gc.registerObject(newProto);
     newProto->setNumParams(static_cast<u8>(params.size()));
-    newProto->setVararg(isVararg);
     newProto->setLineDefined(linedefined);
     newProto->setLastLineDefined(lastlinedefined);
 
@@ -26,12 +156,18 @@ Proto* FunctionCompiler::compile(const Vec<Str>& params, bool isVararg, const Ve
     }
 
     child.state_.resetForProto(*newProto, isVararg);
+    newProto->setVarargFlags(varargFlags);
     child.state_.currentLine = linedefined;
 
     for (const Str& param : params) {
         child.scopes_.addLocalVar(param);
     }
     child.scopes_.adjustLocalVars(static_cast<i32>(params.size()));
+
+    if (needsCompatArg) {
+        child.scopes_.addLocalVar("arg");
+        child.scopes_.adjustLocalVars(1);
+    }
 
     child.statements_.block(body);
 

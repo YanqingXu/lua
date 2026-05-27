@@ -356,8 +356,8 @@ i32 table_unpack(LuaState* L) {
     Table* table = getTableArg(L, 1, "unpack");
 
     // 获取起始和结束索引
-    i32 i = (nargs >= 2) ? static_cast<i32>(getNumberArg(L, 2, "unpack")) : 1;
-    i32 j = (nargs >= 3) ? static_cast<i32>(getNumberArg(L, 3, "unpack")) : getTableLength(table);
+    i32 i = (nargs >= 2 && !L->at(2).isNil()) ? static_cast<i32>(getNumberArg(L, 2, "unpack")) : 1;
+    i32 j = (nargs >= 3 && !L->at(3).isNil()) ? static_cast<i32>(getNumberArg(L, 3, "unpack")) : getTableLength(table);
 
     // 将表元素压入栈
     i32 count = 0;

@@ -768,6 +768,26 @@ void testUnpackLua(TestSuite& suite) {
     delete L;
 }
 
+void testUnpackNilUpperBoundUsesLength(TestSuite& suite) {
+    LuaState* L = createFullState();
+
+    bool ok = runLua(L, R"lua(
+        local t = {1, 2}
+        local a, b, c = unpack(t, 1, t.n)
+        assert(a == 1 and b == 2 and c == nil)
+
+        local d, e, f = table.unpack(t, 1, t.n)
+        assert(d == 1 and e == 2 and f == nil)
+
+        gUnpackNilUpperBound = 1
+    )lua");
+    ASSERT_TRUE(suite, ok, "unpack nil upper bound defaults to table length");
+    ASSERT_EQ(suite, 1.0, getGlobalNumber(L, "gUnpackNilUpperBound"),
+              "unpack nil upper bound completed");
+
+    delete L;
+}
+
 // =====================================================================
 // load Tests (via Lua execution)
 // =====================================================================
@@ -963,6 +983,7 @@ void registerBaselibTests() {
     registry.registerTest(kSuiteName, "dofile", testDofileWrapper);
     registry.registerTest(kSuiteName, "unpack", testUnpackWrapper);
     registry.registerTest(kSuiteName, "unpack lua", testUnpackLua);
+    registry.registerTest(kSuiteName, "unpack nil upper bound", testUnpackNilUpperBoundUsesLength);
     registry.registerTest(kSuiteName, "load", testLoadWrapper);
 }
 
