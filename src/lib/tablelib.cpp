@@ -53,6 +53,15 @@ static f64 getNumberArg(LuaState* L, i32 idx, const char* funcName) {
     return L->toNumber(idx);
 }
 
+static Function* getFunctionArg(LuaState* L, i32 idx, const char* funcName) {
+    if (!L->isFunction(idx)) {
+        char buffer[128];
+        std::snprintf(buffer, sizeof(buffer), "bad argument #%d to 'table.%s' (function expected)", idx, funcName);
+        L->error(buffer);
+    }
+    return L->at(idx).asFunction();
+}
+
 static Str tableNumberToLuaString(f64 value) {
     char buffer[64];
     std::snprintf(buffer, sizeof(buffer), "%.14g", value);
@@ -110,6 +119,41 @@ static bool callSortComparator(LuaState* L, Function* comparator, const Value& l
     return result;
 }
 
+static Value callForeachCallback(LuaState* L, Function* callback, const Value& key, const Value& value) {
+    usize savedCI = L->getCurrentCI();
+    usize savedTop = L->getAbsoluteTop();
+    Vec<Value> savedStack;
+    savedStack.reserve(savedTop);
+    for (usize i = 0; i < savedTop; ++i) {
+        savedStack.push_back(L->getStack().at(i));
+    }
+
+    try {
+        L->pushFunction(callback);
+        L->pushValue(key);
+        L->pushValue(value);
+        VM::call(L, 2, 1);
+        Value result = L->top();
+
+        L->getStack().setTop(0);
+        L->setAbsoluteTop(0);
+        for (const Value& stackValue : savedStack) {
+            L->pushValue(stackValue);
+        }
+        return result;
+    } catch (const std::exception& e) {
+        while (L->getCurrentCI() > savedCI) {
+            L->popCallInfo();
+        }
+        L->getStack().setTop(0);
+        L->setAbsoluteTop(0);
+        for (const Value& stackValue : savedStack) {
+            L->pushValue(stackValue);
+        }
+        L->error(e.what());
+    }
+}
+
 // =====================================================================
 // table.insert 实现
 // =====================================================================
@@ -143,6 +187,57 @@ i32 table_insert(LuaState* L) {
         table->set(Value(static_cast<f64>(pos)), value);
     }
     
+    return 0;
+}
+
+// =====================================================================
+// table.foreach / table.foreachi 实现
+// =====================================================================
+
+i32 table_foreach(LuaState* L) {
+    i32 nargs = L->getTop();
+    if (nargs < 2) {
+        L->error("table.foreach: missing arguments");
+    }
+
+    Table* table = getTableArg(L, 1, "foreach");
+    Function* callback = getFunctionArg(L, 2, "foreach");
+
+    Value key;
+    Value nextKey;
+    Value nextValue;
+    while (table->next(key, nextKey, nextValue)) {
+        Value result = callForeachCallback(L, callback, nextKey, nextValue);
+        if (!result.isNil()) {
+            L->pushValue(result);
+            return 1;
+        }
+        key = nextKey;
+    }
+
+    return 0;
+}
+
+i32 table_foreachi(LuaState* L) {
+    i32 nargs = L->getTop();
+    if (nargs < 2) {
+        L->error("table.foreachi: missing arguments");
+    }
+
+    Table* table = getTableArg(L, 1, "foreachi");
+    Function* callback = getFunctionArg(L, 2, "foreachi");
+    i32 len = getTableLength(table);
+
+    for (i32 i = 1; i <= len; ++i) {
+        Value key(static_cast<f64>(i));
+        Value value = table->get(key);
+        Value result = callForeachCallback(L, callback, key, value);
+        if (!result.isNil()) {
+            L->pushValue(result);
+            return 1;
+        }
+    }
+
     return 0;
 }
 
@@ -438,6 +533,8 @@ void TableLibModule::registerFunctions(LuaState* L) {
         .addGlobal("remove", table_remove)
         .addGlobal("concat", table_concat)
         .addGlobal("sort", table_sort)
+        .addGlobal("foreach", table_foreach)
+        .addGlobal("foreachi", table_foreachi)
         .addGlobal("maxn", table_maxn)
         .addGlobal("getn", table_getn)
         .addGlobal("pack", table_pack)

@@ -337,7 +337,15 @@ bool Table::next(const Value& key, Value& nextKey, Value& nextValue) const {
     // 当前键在哈希部分
     auto it = hash_.find(key);
     if (it == hash_.end()) {
-        // 键不存在，这是一个错误
+        // Lua 5.1 permits deleting the current key during traversal. In that
+        // case the iterator key no longer exists, so continue from any
+        // remaining hash entry instead of terminating the traversal.
+        if (!hash_.empty()) {
+            auto restart = hash_.begin();
+            nextKey = restart->first;
+            nextValue = restart->second;
+            return true;
+        }
         return false;
     }
 

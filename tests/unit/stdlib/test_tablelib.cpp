@@ -562,6 +562,80 @@ void testTableMove(TestSuite& suite) {
 }
 
 // =====================================================================
+// table.foreach / table.foreachi 兼容测试
+// =====================================================================
+
+void testTableForeachCompatibility(TestSuite& suite) {
+    LuaState* L = createFullState();
+    bool ok = runLua(L, R"lua(
+        local t = {x = 90, y = 8, z = 23}
+        foreach_value = table.foreach(t, function(k, v)
+            if k == "x" then
+                return v
+            end
+        end)
+        foreach_nil = table.foreach(t, function(k, v)
+            if k == "missing" then
+                return v
+            end
+        end)
+
+        foreach_empty_ok = true
+        table.foreach({}, function()
+            foreach_empty_ok = false
+        end)
+    )lua");
+
+    ASSERT_TRUE(suite, ok, "table.foreach Lua callback compatibility runs");
+    ASSERT_EQ(suite, 90.0, getGlobalNumber(L, "foreach_value"), "foreach returns first callback value");
+    ASSERT_TRUE(suite, L->getGlobal("foreach_nil").isNil(), "foreach returns nil when callback never returns");
+    ASSERT_TRUE(suite, L->getGlobal("foreach_empty_ok").isBoolean()
+                       && L->getGlobal("foreach_empty_ok").asBoolean(),
+                "foreach does not call callback for empty table");
+    delete L;
+}
+
+void testTableForeachiCompatibility(TestSuite& suite) {
+    LuaState* L = createFullState();
+    bool ok = runLua(L, R"lua(
+        foreachi_hash_only_ok = true
+        table.foreachi({x = 10, y = 20}, function()
+            foreachi_hash_only_ok = false
+        end)
+
+        local seen = {}
+        table.foreachi({10, 20, 30, nil, 50}, function(i, v)
+            seen[i] = v
+        end)
+        foreachi_seen_1 = seen[1]
+        foreachi_seen_3 = seen[3]
+        foreachi_seen_4_is_nil = seen[4] == nil
+        foreachi_seen_5 = seen[5]
+
+        foreachi_value = table.foreachi({"a", "b", "c"}, function(i, v)
+            if i == 2 then
+                return v
+            end
+        end)
+    )lua");
+
+    ASSERT_TRUE(suite, ok, "table.foreachi Lua callback compatibility runs");
+    ASSERT_TRUE(suite, L->getGlobal("foreachi_hash_only_ok").isBoolean()
+                       && L->getGlobal("foreachi_hash_only_ok").asBoolean(),
+                "foreachi ignores hash-only fields");
+    ASSERT_EQ(suite, 10.0, getGlobalNumber(L, "foreachi_seen_1"), "foreachi visits index 1");
+    ASSERT_EQ(suite, 30.0, getGlobalNumber(L, "foreachi_seen_3"), "foreachi visits index 3");
+    ASSERT_TRUE(suite, L->getGlobal("foreachi_seen_4_is_nil").isBoolean()
+                       && L->getGlobal("foreachi_seen_4_is_nil").asBoolean(),
+                "foreachi passes nil array slots through the callback");
+    ASSERT_EQ(suite, 50.0, getGlobalNumber(L, "foreachi_seen_5"), "foreachi visits final array index");
+    Value returned = L->getGlobal("foreachi_value");
+    ASSERT_TRUE(suite, returned.isString() && std::string(returned.asString()->c_str()) == "b",
+                "foreachi returns first callback value");
+    delete L;
+}
+
+// =====================================================================
 // 测试注册
 // =====================================================================
 
@@ -579,6 +653,8 @@ void registerTableLibTests() {
     registry.registerTest(kSuiteName, "table.pack", testTablePack);
     registry.registerTest(kSuiteName, "table.unpack", testTableUnpack);
     registry.registerTest(kSuiteName, "table.move", testTableMove);
+    registry.registerTest(kSuiteName, "table.foreach compatibility", testTableForeachCompatibility);
+    registry.registerTest(kSuiteName, "table.foreachi compatibility", testTableForeachiCompatibility);
 }
 
 

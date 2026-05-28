@@ -846,6 +846,23 @@ void testLoopAndCloseHandlersExecuteDirectly(TestSuite& suite) {
                 "FORPREP handler should initialize index to init minus step");
     ASSERT_EQ(suite, 9, static_cast<int>(pc), "FORPREP handler should apply sBx to pc");
 
+    bool stringForPrepOk = true;
+    try {
+        base[0] = Value(services.strings.intern("10"));
+        base[1] = Value(services.strings.intern("1"));
+        base[2] = Value(services.strings.intern("-2"));
+        pc = 3;
+        VM::runHandler(context, CREATE_AsBx(OpCode::FORPREP, 0, 4));
+        base = context.base;
+    } catch (...) {
+        stringForPrepOk = false;
+    }
+    ASSERT_TRUE(suite,
+                stringForPrepOk && base[0].isNumber() && base[0].asNumber() == 12.0
+                && base[1].isNumber() && base[1].asNumber() == 1.0
+                && base[2].isNumber() && base[2].asNumber() == -2.0,
+                "FORPREP handler should coerce numeric string bounds");
+
     base[0] = Value(0.0);
     base[1] = Value(3.0);
     base[2] = Value(1.0);

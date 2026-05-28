@@ -51,6 +51,7 @@ namespace Lua {
 // =====================================================================
 
 static const char* const PACKAGE_TABLE_NAME = "package";
+static const char* const PACKAGE_REGISTRY_KEY = "_PACKAGE_TABLE";
 
 // Default paths
 #ifdef _WIN32
@@ -102,6 +103,12 @@ static Table* getPackageTable(LuaState* L) {
     Value pkgVal = L->getGlobal(PACKAGE_TABLE_NAME);
     if (pkgVal.isTable()) {
         return pkgVal.asTable();
+    }
+
+    GCString* registryKey = L->getGlobalState().getStringPool().intern(PACKAGE_REGISTRY_KEY);
+    Value registryVal = L->getGlobalState().getRegistry()->get(Value(registryKey));
+    if (registryVal.isTable()) {
+        return registryVal.asTable();
     }
     return nullptr;
 }
@@ -1121,6 +1128,9 @@ void PackageLibModule::registerFunctions(LuaState* L) {
         L->error("Failed to create package library table");
         return;
     }
+
+    GCString* registryKey = pool.intern(PACKAGE_REGISTRY_KEY);
+    L->getGlobalState().getRegistry()->set(Value(registryKey), Value(pkgTable));
 
     // ---- Register functions into the package table ----
     FunctionRegistrar(L)

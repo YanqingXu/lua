@@ -964,6 +964,24 @@ void testRequirePreloadNoReturn(TestSuite& suite) {
                  "module with no return defaults to true");
 }
 
+void testRequireSurvivesDeletedPackageGlobal(TestSuite& suite) {
+    LuaStdLibTestContext ctx(openAllLibs);
+    LuaState* L = ctx.getState();
+
+    bool ok = runLuaChunk(L, R"lua(
+        package.preload.afterclear = function()
+            return { value = 42 }
+        end
+        package = nil
+        require_after_clear = require("afterclear").value
+    )lua");
+
+    ASSERT_TRUE(suite, ok, "require survives deleted global package table");
+    Value result = L->getGlobal("require_after_clear");
+    ASSERT_TRUE(suite, result.isNumber() && result.asNumber() == 42.0,
+                "require still uses package tables after package global deletion");
+}
+
 // =====================================================================
 // Test: package.path string format
 // =====================================================================
@@ -1039,6 +1057,7 @@ void registerPackageLibTests() {
     registry.registerTest(kSuiteName, "package.seeall", testPackageSeeall);
     registry.registerTest(kSuiteName, "require stdlibs", testRequireStdlibs);
     registry.registerTest(kSuiteName, "preload no return", testRequirePreloadNoReturn);
+    registry.registerTest(kSuiteName, "require without package global", testRequireSurvivesDeletedPackageGlobal);
     registry.registerTest(kSuiteName, "package.path", testPackagePath);
     registry.registerTest(kSuiteName, "require missing visible paths", testRequireMissingErrorMatchesVisiblePaths);
 }

@@ -4,11 +4,41 @@
  */
 
 #include "vm/vm_handlers/vm_handler_utils.hpp"
+#include "core/gc_string.hpp"
 #include "vm/state/call_info.hpp"
+
+#include <cctype>
+#include <cstdlib>
 
 namespace Lua::VM::handlers {
 
 namespace {
+
+bool coerceNumber(Value& value) {
+    if (value.isNumber()) {
+        return true;
+    }
+
+    if (!value.isString()) {
+        return false;
+    }
+
+    const char* text = value.asString()->c_str();
+    char* end = nullptr;
+    f64 number = std::strtod(text, &end);
+    if (end == text) {
+        return false;
+    }
+    while (std::isspace(static_cast<unsigned char>(*end))) {
+        ++end;
+    }
+    if (*end != '\0') {
+        return false;
+    }
+
+    value = Value(number);
+    return true;
+}
 
 HandlerStatus handleClose(OpExecutionContext& context, Instruction inst) {
     LuaState* state = requireState(context);
@@ -44,8 +74,8 @@ HandlerStatus handleForLoop(OpExecutionContext& context, Instruction inst) {
 HandlerStatus handleForPrep(OpExecutionContext& context, Instruction inst) {
     i32 a = GETARG_A(inst);
 
-    if (!context.base[a].isNumber() || !context.base[a + 1].isNumber() ||
-        !context.base[a + 2].isNumber()) {
+    if (!coerceNumber(context.base[a]) || !coerceNumber(context.base[a + 1]) ||
+        !coerceNumber(context.base[a + 2])) {
         throw RuntimeError("VM: FORPREP requires numeric values");
     }
 

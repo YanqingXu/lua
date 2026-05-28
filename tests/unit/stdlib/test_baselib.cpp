@@ -974,6 +974,32 @@ void testLoadWrapper(TestSuite& suite) {
     }
 }
 
+void testPairsAllowsDeletingCurrentHashKey(TestSuite& suite) {
+    LuaState* L = createFullState();
+    bool ok = runLua(L, R"lua(
+        local t = {
+            [{1}] = 1,
+            [{2}] = 2,
+            [string.rep("x ", 4)] = 3,
+            [100.3] = 4,
+            [4] = 5,
+        }
+
+        gPairsDeleteCount = 0
+        for k, v in pairs(t) do
+            assert(t[k] == v)
+            gPairsDeleteCount = gPairsDeleteCount + 1
+            t[k] = nil
+            assert(t[k] == nil)
+        end
+    )lua");
+
+    ASSERT_TRUE(suite, ok, "pairs deleting current key runs");
+    ASSERT_EQ(suite, 5.0, getGlobalNumber(L, "gPairsDeleteCount"),
+              "pairs continues after deleting the current hash key");
+    delete L;
+}
+
 void registerBaselibTests() {
     auto& registry = TestRegistry::getInstance();
 
@@ -999,5 +1025,6 @@ void registerBaselibTests() {
     registry.registerTest(kSuiteName, "unpack lua", testUnpackLua);
     registry.registerTest(kSuiteName, "unpack nil upper bound", testUnpackNilUpperBoundUsesLength);
     registry.registerTest(kSuiteName, "load", testLoadWrapper);
+    registry.registerTest(kSuiteName, "pairs deleting current key", testPairsAllowsDeletingCurrentHashKey);
 }
 

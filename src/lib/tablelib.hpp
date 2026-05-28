@@ -77,6 +77,28 @@ i32 table_concat(LuaState* L);
 i32 table_sort(LuaState* L);
 
 /**
+ * @brief table.foreach(table, func) - Lua 5.1 compatibility iterator
+ *
+ * Calls func(key, value) for each table entry. If the callback returns a
+ * non-nil value, iteration stops and that value is returned.
+ *
+ * @param L Lua 状态机
+ * @return 返回值数量（0 或 1）
+ */
+i32 table_foreach(LuaState* L);
+
+/**
+ * @brief table.foreachi(table, func) - Lua 5.1 compatibility array iterator
+ *
+ * Calls func(index, value) for indices 1..table.getn(table). If the callback
+ * returns a non-nil value, iteration stops and that value is returned.
+ *
+ * @param L Lua 状态机
+ * @return 返回值数量（0 或 1）
+ */
+i32 table_foreachi(LuaState* L);
+
+/**
  * @brief table.maxn(table) - 返回表中最大的正数键
  *
  * @param L Lua 状态机
