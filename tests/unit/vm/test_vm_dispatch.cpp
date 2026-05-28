@@ -566,6 +566,33 @@ void testArithmeticHandlersExecuteDirectly(TestSuite& suite) {
     ASSERT_TRUE(suite, base[0].isNumber() && base[0].asNumber() == 1.0,
                 "MOD handler should support RK constants");
 
+    base[1] = Value(-4.0);
+    base[2] = Value(3.0);
+    VM::runHandler(context, CREATE_ABC(OpCode::MOD, 0, 1, 2));
+    base = context.base;
+    ASSERT_TRUE(suite, base[0].isNumber() && base[0].asNumber() == 2.0,
+                "MOD handler should use Lua floor remainder for negative dividends");
+
+    base[1] = Value(4.0);
+    base[2] = Value(-3.0);
+    VM::runHandler(context, CREATE_ABC(OpCode::MOD, 0, 1, 2));
+    base = context.base;
+    ASSERT_TRUE(suite, base[0].isNumber() && base[0].asNumber() == -2.0,
+                "MOD handler should use Lua floor remainder for negative divisors");
+
+    bool stringArithmeticOk = true;
+    try {
+        base[1] = Value(services.strings.intern("2"));
+        base[2] = Value(services.strings.intern(" 3e0 "));
+        VM::runHandler(context, CREATE_ABC(OpCode::ADD, 0, 1, 2));
+        base = context.base;
+    } catch (...) {
+        stringArithmeticOk = false;
+    }
+    ASSERT_TRUE(suite,
+                stringArithmeticOk && base[0].isNumber() && base[0].asNumber() == 5.0,
+                "ADD handler should coerce numeric strings with surrounding whitespace");
+
     base[1] = Value(2.0);
     VM::runHandler(context, CREATE_ABC(OpCode::POW, 0, 1, RKASK(static_cast<i32>(constantIndex))));
     base = context.base;
@@ -610,6 +637,18 @@ void testUnaryHandlersExecuteDirectly(TestSuite& suite) {
     base = context.base;
     ASSERT_TRUE(suite, base[0].isNumber() && base[0].asNumber() == -7.0,
                 "UNM handler should negate numeric operands");
+
+    bool stringUnaryOk = true;
+    try {
+        base[1] = Value(services.strings.intern("  10 "));
+        VM::runHandler(context, CREATE_ABC(OpCode::UNM, 0, 1, 0));
+        base = context.base;
+    } catch (...) {
+        stringUnaryOk = false;
+    }
+    ASSERT_TRUE(suite,
+                stringUnaryOk && base[0].isNumber() && base[0].asNumber() == -10.0,
+                "UNM handler should coerce numeric strings with surrounding whitespace");
 
     base[1] = Value(false);
     VM::runHandler(context, CREATE_ABC(OpCode::NOT, 0, 1, 0));

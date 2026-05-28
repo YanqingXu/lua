@@ -534,15 +534,6 @@ i32 LuaState::pcall(i32 nargs, i32 nresults, i32 errfunc) {
         savedStack.push_back(stack_.at(i));
     }
 
-    // 保存参数
-    Vec<Value> args;
-    for (i32 i = 0; i < nargs; i++) {
-        i32 argIdx = funcIdx + 1 + i;
-        if (argIdx >= 0 && argIdx < static_cast<i32>(stack_.size())) {
-            args.push_back(stack_.at(argIdx));
-        }
-    }
-
     Vec<CallInfo> savedCallStack = callStack_;
     usize savedCurrentCI = currentCI_;
 
@@ -560,107 +551,8 @@ i32 LuaState::pcall(i32 nargs, i32 nresults, i32 errfunc) {
     };
 
     try {
-        // 使用干净的绝对栈执行 protected call，避免当前 C 栈帧残留值干扰结果布局。
-        stack_.clear();
-        top_ = 0;
-        pushValue(Value(func));
-        for (const auto& arg : args) {
-            pushValue(arg);
-        }
-
-        if (func->isCFunction()) {
-            CallInfo& ci = pushCallInfo();
-            ci.func = 0;
-            ci.base = 1;
-            ci.top = 1 + static_cast<usize>(nargs) + 20;
-            ci.nresults = MULTRET;
-            ci.savedpc = nullptr;
-            ci.tailcalls = 0;
-
-            while (stack_.size() < ci.top) {
-                stack_.push(Value());
-            }
-            setAbsoluteTop(1 + static_cast<usize>(nargs));
-
-            if (hasDebugHookMask(HookMaskCall)) {
-                callDebugHook(DebugHookEvent::Call);
-            }
-
-            i32 nReturnValues = func->getCFunction()(this);
-            if (hasDebugHookMask(HookMaskReturn)) {
-                callDebugHook(DebugHookEvent::Return);
-            }
-            usize currentTop = getAbsoluteTop();
-            usize firstResult = currentTop - static_cast<usize>(nReturnValues);
-            for (i32 i = 0; i < nReturnValues; i++) {
-                stack_.at(static_cast<usize>(i)) =
-                    stack_.at(firstResult + static_cast<usize>(i));
-            }
-            stack_.setTop(static_cast<usize>(nReturnValues));
-            setAbsoluteTop(static_cast<usize>(nReturnValues));
-            popCallInfo();
-        } else {
-            Proto* proto = func->getProto();
-            if (!proto) {
-                throw RuntimeError("invalid function");
-            }
-
-            CallInfo& ci = pushCallInfo();
-            ci.func = 0;
-            ci.base = 1;
-            ci.top = ci.base;
-            ci.savedpc = nullptr;
-            ci.nresults = MULTRET;
-            ci.tailcalls = 0;
-
-            usize requiredTop = ci.base + proto->getMaxStackSize();
-            if (stack_.capacity() < requiredTop) {
-                stack_.checkSpace(requiredTop - stack_.size());
-            }
-            while (stack_.size() < requiredTop) {
-                stack_.push(Value());
-            }
-
-            ci.top = requiredTop;
-            setAbsoluteTop(requiredTop);
-
-            if (hasDebugHookMask(HookMaskCall)) {
-                callDebugHook(DebugHookEvent::Call);
-            }
-
-            VM::executeProto(this, proto, 1);
-            popCallInfo();
-        }
-
-        Vec<Value> results;
-        for (usize i = 0; i < getAbsoluteTop(); i++) {
-            results.push_back(stack_.at(i));
-        }
-
-        restoreCallFrames();
-        restoreStackPrefix(savedStack);
-        for (const auto& v : results) {
-            pushValue(v);
-        }
-
+        VM::call(this, nargs, nresults);
         setStatus(ThreadStatus::OK);
-
-        // 调整返回值数量
-        if (nresults != MULTRET) {
-            i32 actualResults = static_cast<i32>(results.size());
-            i32 savedSize = static_cast<i32>(savedStack.size());
-            if (actualResults < nresults) {
-                // 补充 nil
-                for (i32 i = actualResults; i < nresults; i++) {
-                    pushValue(Value());
-                }
-            } else if (actualResults > nresults) {
-                // 截断：保留 saved + nresults 个结果
-                setTop(savedSize + nresults);
-                setAbsoluteTop(savedSize + nresults);
-            }
-        }
-
         return LUA_OK;
 
     } catch (const LuaError& e) {

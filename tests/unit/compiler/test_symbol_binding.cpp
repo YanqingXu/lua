@@ -315,6 +315,19 @@ void testUpvalueWritebackRuntime(TestSuite& suite) {
     delete L;
 }
 
+void testPcallPreservesOpenUpvalues(TestSuite& suite) {
+    LuaState* L = createFullState();
+    bool ok = runLua(L,
+        "local marker = {}\n"
+        "local n = 37\n"
+        "local ok, gotMarker, gotN = pcall(function() return marker, n end)\n"
+        "_result = (ok and gotMarker == marker and gotN == 37) and 1 or 0");
+    ASSERT_TRUE(suite, ok, "pcall open-upvalue chunk should run");
+    ASSERT_EQ(suite, 1.0, getGlobalNumber(L, "_result"),
+              "pcall should preserve open upvalue stack slots");
+    delete L;
+}
+
 void testNestedUpvalueChain(TestSuite& suite) {
     LuaState* L = createFullState();
     bool ok = runLua(L,
@@ -471,6 +484,7 @@ void registerSymbolBindingTests() {
     registry.registerTest("Symbol Binding (PR-8)", "local initializer protects earlier results", testLocalInitializerProtectsEarlierResults);
     registry.registerTest("Symbol Binding (PR-8)", "upvalue capture runtime", testUpvalueCaptureRuntime);
     registry.registerTest("Symbol Binding (PR-8)", "upvalue writeback runtime", testUpvalueWritebackRuntime);
+    registry.registerTest("Symbol Binding (PR-8)", "pcall preserves open upvalues", testPcallPreservesOpenUpvalues);
     registry.registerTest("Symbol Binding (PR-8)", "nested upvalue chain", testNestedUpvalueChain);
     registry.registerTest("Symbol Binding (PR-8)", "block exit emits CLOSE", testBlockExitEmitsClose);
     registry.registerTest("Symbol Binding (PR-8)", "block exit closes upvalue", testUpvalueClosedOnBlockExitRuntime);

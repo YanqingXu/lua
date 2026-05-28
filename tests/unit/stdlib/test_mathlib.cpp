@@ -124,8 +124,24 @@ void testMathModAlias(TestSuite& suite) {
     ASSERT_EQ(suite, ret, 1, "math.mod returns 1 value");
     ASSERT_TRUE(suite, L->top().isNumber(), "math.mod returns number");
     if (L->top().isNumber()) {
-        ASSERT_TRUE(suite, nearlyEqual(L->top().asNumber(), 1.0), "math.mod aliases math.fmod");
+        ASSERT_TRUE(suite, nearlyEqual(L->top().asNumber(), 1.0), "math.mod returns Lua remainder");
     }
+
+    ret = callMathFunc(L, "mod", [](LuaState* s) {
+        s->pushNumber(-4.0);
+        s->pushNumber(3.0);
+    });
+    ASSERT_EQ(suite, ret, 1, "math.mod negative dividend returns 1 value");
+    ASSERT_TRUE(suite, L->top().isNumber() && nearlyEqual(L->top().asNumber(), 2.0),
+                "math.mod should use Lua floor remainder for negative dividends");
+
+    ret = callMathFunc(L, "mod", [](LuaState* s) {
+        s->pushNumber(4.0);
+        s->pushNumber(-3.0);
+    });
+    ASSERT_EQ(suite, ret, 1, "math.mod negative divisor returns 1 value");
+    ASSERT_TRUE(suite, L->top().isNumber() && nearlyEqual(L->top().asNumber(), -2.0),
+                "math.mod should use Lua floor remainder for negative divisors");
 }
 
 void registerMathLibTests() {

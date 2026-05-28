@@ -11,6 +11,8 @@
 #include "core/value.hpp"
 #include "core/gc_string.hpp"
 
+#include <limits>
+
 using namespace Lua;
 using namespace LuaTest;
 
@@ -113,6 +115,24 @@ void testTableMixedStorage(TestSuite& suite) {
     delete table;
 }
 
+void testTableRejectsNaNKey(TestSuite& suite) {
+    Table* table = new Table();
+    Value nanKey(std::numeric_limits<f64>::quiet_NaN());
+
+    bool threw = false;
+    try {
+        table->set(nanKey, Value(1.0));
+    } catch (...) {
+        threw = true;
+    }
+
+    ASSERT_TRUE(suite, threw, "Table rejects NaN keys");
+    ASSERT_TRUE(suite, table->get(nanKey).isNil(), "NaN lookup remains nil after rejected set");
+    ASSERT_EQ(suite, static_cast<usize>(0), table->getHashSize(), "Rejected NaN key does not enter hash part");
+
+    delete table;
+}
+
 void registerTableTests() {
     auto& registry = TestRegistry::getInstance();
     
@@ -121,5 +141,6 @@ void registerTableTests() {
     registry.registerTest("Table", "Hash Operations", testTableHashOperations);
     registry.registerTest("Table", "Metatable", testTableMetatable);
     registry.registerTest("Table", "Mixed Storage", testTableMixedStorage);
+    registry.registerTest("Table", "Rejects NaN Key", testTableRejectsNaNKey);
 }
 

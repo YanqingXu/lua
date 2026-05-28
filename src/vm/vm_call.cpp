@@ -41,7 +41,8 @@ void postcall(LuaState* L, i32 funcPos, i32 wantedResults, usize firstResult) {
         }
         L->setAbsoluteTop(funcPos + actualResults);
     } else {
-        i32 i = wantedResults;
+        i32 availableResults = static_cast<i32>(currentTop - firstResult);
+        i32 i = (wantedResults < 0) ? availableResults : wantedResults;
         usize src = firstResult;
         while (i != 0 && src < currentTop) {
             if (shouldDumpBytecode()) {

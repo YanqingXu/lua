@@ -177,6 +177,12 @@ void testTonumberWrapper(TestSuite& suite) {
         s->pushString(pool.intern("1A"));
         s->pushNumber(16.0);
     }, [](const Value& v) { return v.isNumber() && v.asNumber() == 26.0; }, "tonumber('1A', 16) == 26.0");
+    checkTonumber([&](LuaState* s) {
+        s->pushString(pool.intern(" +1.23E2 "));
+    }, [](const Value& v) { return v.isNumber() && v.asNumber() == 123.0; }, "tonumber accepts signed decimal strings with surrounding whitespace");
+    checkTonumber([&](LuaState* s) {
+        s->pushString(pool.intern("+ 0.01"));
+    }, [](const Value& v) { return v.isNil(); }, "tonumber rejects whitespace between sign and digits");
 
     i32 ret = ctx.invoke("tonumber", [&](LuaState* s) {
         s->pushString(pool.intern("xyz"));

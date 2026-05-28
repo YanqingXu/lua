@@ -26,7 +26,7 @@ namespace {
 
 constexpr const char* kSuiteName = "Lua 5.1 Official Suite";
 constexpr const char* kOfficialAllLua = "tests/lua/official/all.lua";
-constexpr LuaNumber kExpectedSkippedScripts = 15.0;
+constexpr LuaNumber kExpectedSkippedScripts = 14.0;
 
 struct RunResult {
     bool ok = false;
@@ -148,7 +148,6 @@ local __official_skip = {
     ["pm.lua"] = "frontend syntax coverage not fully implemented",
     ["closure.lua"] = "frontend syntax coverage not fully implemented",
     ["errors.lua"] = "frontend syntax coverage not fully implemented",
-    ["math.lua"] = "frontend syntax coverage not fully implemented",
     ["sort.lua"] = "frontend syntax coverage not fully implemented",
     ["verybig.lua"] = "frontend syntax coverage not fully implemented",
 

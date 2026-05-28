@@ -112,6 +112,14 @@ i32 math_fmod(LuaState* L) {
     return 1;
 }
 
+i32 math_mod(LuaState* L) {
+    checkArgCount(L, 2, "mod");
+    f64 x = getNumberArg(L, 1, "mod");
+    f64 y = getNumberArg(L, 2, "mod");
+    L->pushNumber(x - std::floor(x / y) * y);
+    return 1;
+}
+
 i32 math_modf(LuaState* L) {
     checkArgCount(L, 1, "modf");
     f64 x = getNumberArg(L, 1, "modf");
@@ -375,7 +383,7 @@ void MathLibModule::registerFunctions(LuaState* L) {
         .addGlobal("sqrt", math_sqrt)
         .addGlobal("pow", math_pow)
         .addGlobal("fmod", math_fmod)
-        .addGlobal("mod", math_fmod)
+        .addGlobal("mod", math_mod)
         .addGlobal("modf", math_modf)
         // 三角函数
         .addGlobal("sin", math_sin)

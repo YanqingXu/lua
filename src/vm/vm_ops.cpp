@@ -13,6 +13,7 @@
 #include "vm/state/lua_state.hpp"
 #include "vm/vm_constants.hpp"
 
+#include <cctype>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -30,12 +31,19 @@ bool tryToNumber(const Value& val, f64& result) {
     if (val.isString()) {
         GCString* str = val.asString();
         const char* s = str->c_str();
-        char* endptr;
+        char* endptr = nullptr;
         f64 num = std::strtod(s, &endptr);
-        if (endptr != s && *endptr == '\0') {
-            result = num;
-            return true;
+        if (endptr == s) {
+            return false;
         }
+        while (std::isspace(static_cast<unsigned char>(*endptr))) {
+            endptr++;
+        }
+        if (*endptr != '\0') {
+            return false;
+        }
+        result = num;
+        return true;
     }
     return false;
 }
@@ -44,6 +52,10 @@ Str numberToLuaString(f64 value) {
     char buffer[64];
     std::snprintf(buffer, sizeof(buffer), "%.14g", value);
     return Str(buffer);
+}
+
+f64 luaModulo(f64 left, f64 right) {
+    return left - std::floor(left / right) * right;
 }
 
 int luaStringCompare(const GCString* left, const GCString* right) {
@@ -142,7 +154,7 @@ void arith(LuaState* L, Value& result, const Value& left, const Value& right, Op
                 if (rval == 0.0) throw RuntimeError("VM: division by zero");
                 res = lval / rval;
                 break;
-            case OpCode::MOD: res = std::fmod(lval, rval); break;
+            case OpCode::MOD: res = luaModulo(lval, rval); break;
             case OpCode::POW: res = std::pow(lval, rval); break;
             default: throw RuntimeError("VM::arith: invalid opcode");
         }

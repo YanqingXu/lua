@@ -198,15 +198,6 @@ i32 luaB_tonumber(LuaState* L) {
         // 跳过前导空白
         while (std::isspace(*s)) s++;
         
-        // 处理符号
-        bool negative = false;
-        if (*s == '-') {
-            negative = true;
-            s++;
-        } else if (*s == '+') {
-            s++;
-        }
-        
         // 转换数字
         f64 result = 0.0;
         bool hasDigit = false;
@@ -227,6 +218,15 @@ i32 luaB_tonumber(LuaState* L) {
             }
             hasDigit = true;
         } else {
+            // 处理符号；Lua 5.1 不允许符号和数字之间出现空白。
+            bool negative = false;
+            if (*s == '-') {
+                negative = true;
+                s++;
+            } else if (*s == '+') {
+                s++;
+            }
+
             // 其他进制：只支持整数
             while (*s != '\0' && !std::isspace(*s)) {
                 i32 digit = -1;
@@ -254,10 +254,12 @@ i32 luaB_tonumber(LuaState* L) {
             if (*s != '\0') {
                 hasDigit = false;
             }
+            if (hasDigit && negative) {
+                result = -result;
+            }
         }
         
         if (hasDigit) {
-            if (negative) result = -result;
             L->pushNumber(result);
             return 1;
         }

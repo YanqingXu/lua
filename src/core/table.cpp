@@ -4,6 +4,7 @@
  */
 
 #include "core/table.hpp"
+#include "common/lua_error.hpp"
 #include "core/gc_string.hpp"
 #include "core/function.hpp"
 #include "gc/garbage_collector.hpp"
@@ -106,6 +107,9 @@ void Table::set(const Value& key, const Value& value) {
     if (key.isNil()) {
         // TODO: 应该抛出错误，当前简单忽略
         return;
+    }
+    if (key.isNumber() && std::isnan(key.asNumber())) {
+        throw RuntimeError("table index is NaN");
     }
     
     // 如果value是nil，表示删除该键
