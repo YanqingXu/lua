@@ -11,6 +11,7 @@
 #include "compiler/lexer/lexer.hpp"
 #include "token.hpp"
 
+#include <algorithm>
 #include <utility>
 
 namespace Lua {
@@ -60,7 +61,8 @@ private:
     public:
         explicit TokenStream(const Str& source)
             : lexer_(source)
-            , current_(lexer_.nextToken()) {
+            , current_(lexer_.nextToken())
+            , previous_(current_) {
         }
 
         [[nodiscard]] const Token& current() const noexcept {
@@ -68,7 +70,12 @@ private:
         }
 
         void advance() {
+            previous_ = current_;
             current_ = lexer_.nextToken();
+        }
+
+        [[nodiscard]] const Token& previous() const noexcept {
+            return previous_;
         }
 
         [[nodiscard]] Token peek() {
@@ -82,6 +89,7 @@ private:
     private:
         Lexer lexer_;
         Token current_;
+        Token previous_;
     };
 
     class ParseState {
@@ -159,6 +167,7 @@ private:
 
 private:
     const Token& current() const;
+    const Token& previous() const;
     void advance();
     Token peek();
     bool check(TokenType type) const;
@@ -175,6 +184,10 @@ private:
     void recoverAfterError();
     [[nodiscard]] static Str errorWithNear(const Str& message, const Token& token);
     [[nodiscard]] static UPtr<ErrorRecoveryStrategy> makeRecoveryStrategy(ParseRecoveryMode mode);
+    void enterFunctionSyntaxScope(i32 line, const Vec<Str>& params = {});
+    void leaveFunctionSyntaxScope();
+    void declareLocalName(const Str& name, const Token& token);
+    void noteNameUse(const Str& name, const Token& token);
 
     StmtPtr parseStatement();
     StmtPtr parseIfStmt();
@@ -227,6 +240,18 @@ private:
 private:
     static constexpr i32 MAX_RECURSION_DEPTH = 92;
     static constexpr i32 MAX_BLOCK_RECURSION_DEPTH = 80;
+    static constexpr usize MAX_LOCAL_VARIABLES = 200;
+    static constexpr usize MAX_UPVALUES_PER_FUNCTION = 60;
+
+    struct FunctionSyntaxScope {
+        i32 line = 1;
+        Vec<Str> locals;
+        Vec<Str> upvalues;
+    };
+
+    static bool containsName(const Vec<Str>& names, const Str& name) {
+        return std::find(names.begin(), names.end(), name) != names.end();
+    }
 
     class RecursionGuard {
     public:
@@ -262,6 +287,7 @@ private:
     RuntimeServices* services_ = nullptr;
     ParseState parseState_;
     AstFactory astFactory_;
+    Vec<FunctionSyntaxScope> functionScopes_;
     ParseDiagnosticCollector diagnosticCollector_;
     Vec<ParseDiagnosticObserver*> diagnosticObservers_;
     UPtr<ErrorRecoveryStrategy> recoveryStrategy_;

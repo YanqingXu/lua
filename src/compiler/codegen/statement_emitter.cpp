@@ -742,7 +742,10 @@ void StatementEmitter::emitStmt(const ForInStmt& s) {
 
     patchtohere(jmpToTfor);
 
-    codeABC(OpCode::TFORLOOP, base, 0, nvars);
+    {
+        LineGuard iteratorLine(state_, s.iterators.front()->getLine());
+        codeABC(OpCode::TFORLOOP, base, 0, nvars);
+    }
 
     codeAsBx(OpCode::JMP, 0, loopStart - getLabel() - 1);
 

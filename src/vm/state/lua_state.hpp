@@ -22,6 +22,7 @@
 #pragma once
 
 #include "common/types.hpp"
+#include "common/lua_error.hpp"
 #include "core/value.hpp"
 #include "core/table.hpp"
 #include "vm/state/global_state.hpp"
@@ -207,8 +208,11 @@ public:
      * @brief 弹出栈顶值
      */
     Value pop() {
-        Value v = stack_.pop();
-        top_ = stack_.size();
+        if (top_ == 0) {
+            throw RuntimeError("pop: stack is empty");
+        }
+        Value v = stack_.at(top_ - 1);
+        --top_;
         return v;
     }
 

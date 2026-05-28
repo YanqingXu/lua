@@ -74,6 +74,10 @@ const Token& Parser::Impl::current() const {
     return tokenStream_.current();
 }
 
+const Token& Parser::Impl::previous() const {
+    return tokenStream_.previous();
+}
+
 void Parser::Impl::advance() {
     tokenStream_.advance();
 }
@@ -162,6 +166,71 @@ void Parser::Impl::recoverAfterError() {
     recoveryStrategy_->recover(*this);
 }
 
+void Parser::Impl::enterFunctionSyntaxScope(i32 line, const Vec<Str>& params) {
+    FunctionSyntaxScope scope;
+    scope.line = line;
+    for (const Str& param : params) {
+        if (param != "...") {
+            scope.locals.push_back(param);
+        }
+    }
+    functionScopes_.push_back(std::move(scope));
+}
+
+void Parser::Impl::leaveFunctionSyntaxScope() {
+    if (!functionScopes_.empty()) {
+        functionScopes_.pop_back();
+    }
+}
+
+void Parser::Impl::declareLocalName(const Str& name, const Token& token) {
+    if (functionScopes_.empty() || containsName(functionScopes_.back().locals, name)) {
+        return;
+    }
+
+    FunctionSyntaxScope& scope = functionScopes_.back();
+    if (scope.locals.size() >= MAX_LOCAL_VARIABLES) {
+        throw ParseError(
+            "function at line " + std::to_string(scope.line) + " has more than 200 local variables",
+            token.line,
+            token.column
+        );
+    }
+    scope.locals.push_back(name);
+}
+
+void Parser::Impl::noteNameUse(const Str& name, const Token& token) {
+    if (functionScopes_.empty()) {
+        return;
+    }
+
+    i32 owner = -1;
+    for (i32 i = static_cast<i32>(functionScopes_.size()) - 1; i >= 0; --i) {
+        if (containsName(functionScopes_[static_cast<usize>(i)].locals, name)) {
+            owner = i;
+            break;
+        }
+    }
+    if (owner < 0 || owner == static_cast<i32>(functionScopes_.size()) - 1) {
+        return;
+    }
+
+    for (i32 i = static_cast<i32>(functionScopes_.size()) - 1; i > owner; --i) {
+        FunctionSyntaxScope& scope = functionScopes_[static_cast<usize>(i)];
+        if (containsName(scope.upvalues, name)) {
+            continue;
+        }
+        if (scope.upvalues.size() >= MAX_UPVALUES_PER_FUNCTION) {
+            throw ParseError(
+                "function at line " + std::to_string(scope.line) + " has more than 60 upvalues",
+                token.line,
+                token.column
+            );
+        }
+        scope.upvalues.push_back(name);
+    }
+}
+
 UPtr<Parser::Impl::ErrorRecoveryStrategy> Parser::Impl::makeRecoveryStrategy(ParseRecoveryMode mode) {
     switch (mode) {
         case ParseRecoveryMode::StatementBoundary:
@@ -174,6 +243,8 @@ UPtr<Parser::Impl::ErrorRecoveryStrategy> Parser::Impl::makeRecoveryStrategy(Par
 
 std::expected<Chunk, ParseError> Parser::Impl::parse() {
     diagnosticCollector_.clear();
+    functionScopes_.clear();
+    enterFunctionSyntaxScope(1);
 
     try {
         Chunk chunk;

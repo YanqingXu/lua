@@ -38,6 +38,82 @@ const char* hookEventName(DebugHookEvent event) {
     return "unknown";
 }
 
+Str makeStringChunkSnippet(StrView source) {
+    constexpr usize kChunkSnippetLimit = 60;
+    Str snippet;
+    bool truncated = false;
+
+    for (char ch : source) {
+        if (ch == '\n' || ch == '\r') {
+            truncated = true;
+            break;
+        }
+        if (snippet.size() >= kChunkSnippetLimit) {
+            truncated = true;
+            break;
+        }
+        if (ch == '"' || ch == '\\') {
+            snippet.push_back('\\');
+        }
+        snippet.push_back(ch);
+    }
+
+    if (truncated) {
+        snippet += "...";
+    }
+    return snippet;
+}
+
+Str makeLuaChunkId(StrView source) {
+    if (!source.empty()) {
+        if (source.front() == '=') {
+            return Str(source.substr(1));
+        }
+        if (source.front() == '@') {
+            return Str(source.substr(1));
+        }
+    }
+
+    return Str("[string \"") + makeStringChunkSnippet(source) + "\"]";
+}
+
+Str runtimeErrorWithLocation(LuaState* L, const Str& message) {
+    if (!L) {
+        return message;
+    }
+
+    Vec<CallInfo>& frames = L->getCallStack();
+    usize frameIndex = L->getCurrentCI();
+    while (true) {
+        if (frameIndex < frames.size()) {
+            const CallInfo& ci = frames[frameIndex];
+            Stack& stack = L->getStack();
+            if (ci.func < stack.size()) {
+                const Value& funcValue = stack[ci.func];
+                if (funcValue.isFunction()) {
+                    Function* func = funcValue.asFunction();
+                    Proto* proto = func ? func->getProto() : nullptr;
+                    if (proto && ci.savedpc) {
+                        const auto code = proto->getInstructionSpan();
+                        usize pc = static_cast<usize>(ci.savedpc - code.data());
+                        usize errorPc = pc > 0 ? pc - 1 : 0;
+                        i32 line = proto->getLine(errorPc);
+                        StrView source = proto->getSource() ? proto->getSource()->view() : StrView("=?");
+                        return makeLuaChunkId(source) + ":" + std::to_string(line) + ": " + message;
+                    }
+                }
+            }
+        }
+
+        if (frameIndex == 0) {
+            break;
+        }
+        --frameIndex;
+    }
+
+    return message;
+}
+
 } // namespace
 
 // =====================================================================
@@ -410,8 +486,8 @@ void LuaState::setTop(i32 idx) {
 }
 
 void LuaState::pushValue(i32 idx) {
-    stack_.push(at(idx));
-    top_ = stack_.size();  // 同步 top_
+    Value value = at(idx);
+    pushValue(value);
 }
 
 void LuaState::insert(i32 idx) {
@@ -420,7 +496,7 @@ void LuaState::insert(i32 idx) {
     // 将栈顶元素插入到指定位置，其他元素向上移动
     // 注意：栈大小不变，栈顶元素被移动到目标位置
 
-    if (stack_.size() == 0) {
+    if (top_ == 0) {
         throw RuntimeError("insert: stack is empty");
     }
 
@@ -438,16 +514,16 @@ void LuaState::insert(i32 idx) {
         absIdx = static_cast<i32>(base) + idx - 1;  // 转换为0-based
     }
 
-    if (absIdx < 0 || absIdx >= static_cast<i32>(stack_.size())) {
+    if (absIdx < 0 || absIdx >= static_cast<i32>(top_)) {
         throw RuntimeError("insert: invalid index");
     }
 
     // 保存栈顶元素
-    Value topValue = stack_.at(stack_.size() - 1);
+    Value topValue = stack_.at(top_ - 1);
 
     // 将元素从 absIdx 到 top-1 向上移动一位
     // 从栈顶向下移动（避免覆盖）
-    for (i32 i = static_cast<i32>(stack_.size()) - 1; i > absIdx; i--) {
+    for (i32 i = static_cast<i32>(top_) - 1; i > absIdx; i--) {
         stack_.at(i) = stack_.at(i - 1);
     }
 
@@ -460,12 +536,12 @@ void LuaState::insert(i32 idx) {
 void LuaState::replace(i32 idx) {
     // 用栈顶元素替换指定位置的元素，然后弹出栈顶
 
-    if (stack_.size() == 0) {
+    if (top_ == 0) {
         throw RuntimeError("replace: stack is empty");
     }
 
     // 获取栈顶元素
-    Value top = stack_.top();
+    Value top = stack_.at(top_ - 1);
 
     // 计算绝对索引
     i32 absIdx = idx;
@@ -479,16 +555,15 @@ void LuaState::replace(i32 idx) {
         absIdx = static_cast<i32>(base) + idx - 1;  // 转换为0-based
     }
 
-    if (absIdx < 0 || absIdx >= static_cast<i32>(stack_.size()) - 1) {
+    if (absIdx < 0 || absIdx >= static_cast<i32>(top_)) {
         throw RuntimeError("replace: invalid index");
     }
 
     // 替换目标位置的元素
     stack_.at(absIdx) = top;
 
-    // 弹出栈顶
-    stack_.pop();
-    top_ = stack_.size();  // 同步 top_
+    // 弹出逻辑栈顶；保留物理预留空间供当前调用帧复用。
+    --top_;
 }
 
 i32 LuaState::pcall(i32 nargs, i32 nresults, i32 errfunc) {
@@ -497,52 +572,36 @@ i32 LuaState::pcall(i32 nargs, i32 nresults, i32 errfunc) {
     // 函数在参数之前，所以 funcIdx = top_ - nargs - 1
     i32 funcIdx = static_cast<i32>(top_) - nargs - 1;
 
-    if (funcIdx < 0 || funcIdx >= static_cast<i32>(stack_.size())) {
+    if (funcIdx < 0 || funcIdx >= static_cast<i32>(top_)) {
         // 栈索引无效
         // 移除 func 和 args，压入错误消息
-        while (static_cast<i32>(top_) > funcIdx) {
-            pop();
-        }
+        top_ = funcIdx > 0 ? static_cast<usize>(funcIdx) : 0;
         auto& pool = getGlobalState().getStringPool();
         pushString(pool.intern("pcall: invalid function index"));
         return LUA_ERRRUN;
     }
 
-    Value& funcVal = stack_.at(funcIdx);
-    if (!funcVal.isFunction()) {
-        // 不是函数
-        // 移除 func 和 args，压入错误消息
-        while (static_cast<i32>(top_) > funcIdx) {
-            pop();
-        }
-        auto& pool = getGlobalState().getStringPool();
-        pushString(pool.intern("attempt to call a non-function value"));
-        return LUA_ERRRUN;
-    }
-
-    Function* func = funcVal.asFunction();
-    if (!func) {
-        auto& pool = getGlobalState().getStringPool();
-        setTop(funcIdx);
-        pushString(pool.intern("invalid function"));
-        return LUA_ERRRUN;
-    }
-
-    // 保存 funcIdx 之前的栈内容（包括可能的 errfunc）
-    Vec<Value> savedStack;
-    for (i32 i = 0; i < funcIdx; i++) {
-        savedStack.push_back(stack_.at(i));
-    }
+    // 保护调用结束后只回收 func/args 之上的逻辑栈顶，不能覆盖外层帧槽位：
+    // 被保护函数在抛错前可能已经写入了外层 local/upvalue。
+    usize savedPrefixTop = static_cast<usize>(funcIdx);
 
     Vec<CallInfo> savedCallStack = callStack_;
     usize savedCurrentCI = currentCI_;
+    auto& pool = getGlobalState().getStringPool();
 
-    auto restoreStackPrefix = [&](const Vec<Value>& prefix) {
-        stack_.clear();
-        top_ = 0;
-        for (const auto& v : prefix) {
-            pushValue(v);
+    Value errorHandler;
+    bool hasErrorHandler = false;
+    if (errfunc != 0) {
+        try {
+            errorHandler = at(errfunc);
+            hasErrorHandler = errorHandler.isFunction();
+        } catch (...) {
+            hasErrorHandler = false;
         }
+    }
+
+    auto restoreStackPrefix = [&]() {
+        top_ = savedPrefixTop;
     };
 
     auto restoreCallFrames = [&]() {
@@ -550,38 +609,77 @@ i32 LuaState::pcall(i32 nargs, i32 nresults, i32 errfunc) {
         currentCI_ = savedCurrentCI;
     };
 
+    auto makeStringValue = [&](const Str& message) -> Value {
+        return Value(pool.intern(message.c_str()));
+    };
+
+    auto invokeErrorHandler = [&](const Value& errorValue) -> Value {
+        if (!hasErrorHandler) {
+            return errorValue;
+        }
+
+        usize handlerSavedCI = currentCI_;
+        if (currentCI_ + 1 >= MAX_CALL_DEPTH && currentCI_ > 0) {
+            --currentCI_;
+        }
+
+        try {
+            pushValue(errorHandler);
+            pushValue(errorValue);
+            VM::call(this, 1, 1);
+            Value handled = top();
+            currentCI_ = handlerSavedCI;
+            return handled;
+        } catch (...) {
+            currentCI_ = handlerSavedCI;
+            return makeStringValue("error in error handling");
+        }
+    };
+
+    Value& funcVal = stack_.at(funcIdx);
+    if (!funcVal.isFunction()) {
+        Value errorValue = invokeErrorHandler(makeStringValue("attempt to call a non-function value"));
+        restoreCallFrames();
+        restoreStackPrefix();
+        pushValue(errorValue);
+        setStatus(ThreadStatus::OK);
+        return LUA_ERRRUN;
+    }
+
+    Function* func = funcVal.asFunction();
+    if (!func) {
+        Value errorValue = invokeErrorHandler(makeStringValue("invalid function"));
+        restoreCallFrames();
+        restoreStackPrefix();
+        pushValue(errorValue);
+        setStatus(ThreadStatus::OK);
+        return LUA_ERRRUN;
+    }
+
     try {
         VM::call(this, nargs, nresults);
         setStatus(ThreadStatus::OK);
         return LUA_OK;
 
     } catch (const LuaError& e) {
+        Value errorValue = e.hasErrorObject()
+                         ? e.getErrorObject()
+                         : makeStringValue(runtimeErrorWithLocation(this, e.what()));
+        errorValue = invokeErrorHandler(errorValue);
+
         restoreCallFrames();
-        restoreStackPrefix(savedStack);
-        auto& pool = getGlobalState().getStringPool();
-        if (e.hasErrorObject()) {
-            pushValue(e.getErrorObject());
-        } else {
-            pushString(pool.intern(e.what()));
-        }
+        restoreStackPrefix();
+        pushValue(errorValue);
         setStatus(ThreadStatus::OK);
         return LUA_ERRRUN;
 
     } catch (const std::exception& e) {
-        // 捕获异常并返回错误
-        // 恢复栈：[saved...] [error_msg]
+        Value errorValue = makeStringValue(runtimeErrorWithLocation(this, e.what()));
+        errorValue = invokeErrorHandler(errorValue);
+
         restoreCallFrames();
-        restoreStackPrefix(savedStack);
-
-        auto& pool = getGlobalState().getStringPool();
-
-        // 如果有错误处理函数，调用它
-        if (errfunc != 0) {
-            // TODO: 实现错误处理函数调用
-            // 当前简化版本直接返回错误消息
-        }
-
-        pushString(pool.intern(e.what()));
+        restoreStackPrefix();
+        pushValue(errorValue);
         setStatus(ThreadStatus::OK);
         return LUA_ERRRUN;
     }
@@ -866,11 +964,7 @@ void LuaState::error(const char* msg) {
 
 i32 LuaState::error() {
     setStatus(ThreadStatus::ErrRun);
-    const char* msg = toString(-1);
-    if (msg) {
-        throw RuntimeError(msg);
-    }
-    throw RuntimeError("error object is not a string");
+    throw RuntimeError(top());
 }
 
 } // namespace Lua

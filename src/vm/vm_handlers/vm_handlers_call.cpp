@@ -4,8 +4,9 @@
  */
 
 #include "vm/vm_handlers/vm_handler_utils.hpp"
-#include "core/gc_string.hpp"
+#include "core/function.hpp"
 #include "vm/state/call_info.hpp"
+#include "vm/vm_handlers/vm_diagnostics.hpp"
 
 #include <cstdio>
 
@@ -47,7 +48,8 @@ HandlerStatus handleCall(OpExecutionContext& context, Instruction inst) {
     const auto code = proto->getInstructionSpan();
     state->getCurrentCallInfo().savedpc = code.data() + context.pc;
 
-    bool isLua = detail::precall(state, a, nArgs, nResults);
+    Str callTargetName = diagnostics::describeRegister(proto, a, context.instructionPc).value_or(Str());
+    bool isLua = detail::precallWithName(state, a, nArgs, nResults, callTargetName);
 
     if (isLua) {
         context.nexeccalls++;
@@ -87,7 +89,8 @@ HandlerStatus handleTailCall(OpExecutionContext& context, Instruction inst) {
     const auto code = proto->getInstructionSpan();
     currentCI.savedpc = code.data() + context.pc;
 
-    bool isLua = detail::precall(state, a, nArgs, -1);
+    Str callTargetName = diagnostics::describeRegister(proto, a, context.instructionPc).value_or(Str());
+    bool isLua = detail::precallWithName(state, a, nArgs, -1, callTargetName);
 
     if (isLua) {
         detail::reuseCurrentFrameForTailCall(state, callerIndex, callerFunc, callerTailcalls);

@@ -213,7 +213,7 @@ void testExpressionPrecedenceBoundary(TestSuite& suite) {
 void testLua51StatementSeparatorsAndRelationalChains(TestSuite& suite) {
     Chunk chunk;
     bool ok = parseChunk(suite, R"lua(
-        local a = 1; local b = 2;;
+        local a = 1; local b = 2;
         assert(a < b == true);
         do return a; end
     )lua", chunk, "semicolon statements and relational chains parse");
@@ -237,6 +237,20 @@ void testLua51StatementSeparatorsAndRelationalChains(TestSuite& suite) {
 
     expectBinary(suite, eqExpr->left, BinaryExpr::Op::Lt,
                  "relational chain keeps the left comparison");
+
+    expectParseError(suite, ";", "near ';'", "standalone semicolon is rejected");
+    expectParseError(suite, "local a = 1;;", "near ';'", "double semicolon is rejected");
+    expectParseError(suite, "do return 1;; end", "near ';'", "double return semicolon is rejected");
+    expectParseError(suite, "a = math.sin\n(3)", "near '('",
+                     "newline before call arguments is rejected");
+    expectParseError(suite, "syntax error", "near 'error'",
+                     "statement parser reports the unexpected following token");
+
+    Chunk callChunk;
+    ASSERT_TRUE(suite,
+                parseChunk(suite, "assert(loadstring([[return 1]])) ()", callChunk,
+                           "call result can be called after same-line close paren"),
+                "call result can be called after same-line close paren");
 }
 
 void testLua51PowerAcceptsUnaryRightOperand(TestSuite& suite) {

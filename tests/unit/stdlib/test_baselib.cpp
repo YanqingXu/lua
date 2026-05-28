@@ -506,6 +506,143 @@ void testPcallWrapper(TestSuite& suite) {
     ASSERT_TRUE(suite, L->at(-1).isString(), "second return is error message");
 }
 
+void testErrorPreservesLuaObject(TestSuite& suite) {
+    LuaState* L = createFullState();
+
+    bool ok = runLua(L, R"(
+        local ok_nil, msg_nil = pcall(function() error() end)
+        gErrorNilObject = (not ok_nil and msg_nil == nil)
+
+        local payload = { msg = 'x' }
+        local ok_table, msg_table = pcall(function() error(payload) end)
+        gErrorTableObject = (not ok_table and msg_table == payload)
+
+        local ok_level0, msg_level0 = pcall(function() error('hi', 0) end)
+        gErrorLevelZero = (not ok_level0 and msg_level0 == 'hi')
+    )");
+
+    ASSERT_TRUE(suite, ok, "error object chunk runs");
+
+    Value nilObject = L->getGlobal("gErrorNilObject");
+    Value tableObject = L->getGlobal("gErrorTableObject");
+    Value levelZero = L->getGlobal("gErrorLevelZero");
+    ASSERT_TRUE(suite, nilObject.isBoolean() && nilObject.asBoolean(), "error() propagates nil object");
+    ASSERT_TRUE(suite, tableObject.isBoolean() && tableObject.asBoolean(), "error(table) preserves table object");
+    ASSERT_TRUE(suite, levelZero.isBoolean() && levelZero.asBoolean(), "error(message, 0) keeps raw message");
+}
+
+void testCallErrorNamesOffendingValue(TestSuite& suite) {
+    LuaState* L = createFullState();
+
+    bool ok = runLua(L, R"lua(
+        local function capture(src)
+            local f = assert(loadstring(src))
+            local ok, msg = pcall(f)
+            return msg or ''
+        end
+
+        local globalMsg = capture("bbbb = 2; bbbb()")
+        gCallErrGlobal = string.find(globalMsg, "global 'bbbb'", 1, true) ~= nil
+
+        local localMsg = capture("local bbbb = 2; bbbb()")
+        gCallErrLocal = string.find(localMsg, "local 'bbbb'", 1, true) ~= nil
+
+        local fieldMsg = capture("local a = { bbbb = 3 }; a.bbbb()")
+        gCallErrField = string.find(fieldMsg, "field 'bbbb'", 1, true) ~= nil
+
+        local methodMsg = capture("local a = { bbbb = 3 }; a:bbbb()")
+        gCallErrMethod = string.find(methodMsg, "method 'bbbb'", 1, true) ~= nil
+
+        local indexMsg = capture("local a = {13}; local bbbb = 1; a[bbbb]()")
+        gCallErrIndexType = string.find(indexMsg, "number", 1, true) ~= nil
+        gCallErrIndexNotLocal = string.find(indexMsg, "'bbbb'", 1, true) == nil
+
+        local globalIndexMsg = capture("aaa = nil; aaa.bbb:ddd()")
+        gIndexErrGlobal = string.find(globalIndexMsg, "global 'aaa'", 1, true) ~= nil
+
+        local fieldIndexMsg = capture("local aaa = { bbb = 1 }; aaa.bbb:ddd()")
+        gIndexErrField = string.find(fieldIndexMsg, "field 'bbb'", 1, true) ~= nil
+
+        local upvalueArithMsg = capture("local a, b, c; (function () a = b + 1 end)()")
+        gArithErrUpvalue = string.find(upvalueArithMsg, "upvalue 'b'", 1, true) ~= nil
+
+        local localArithMsg = capture("b = 1; local aaa = 'a'; x = aaa + b")
+        gArithErrLocal = string.find(localArithMsg, "local 'aaa'", 1, true) ~= nil
+
+        local globalArithMsg = capture("aaa = {}; x = 3 / aaa")
+        gArithErrGlobal = string.find(globalArithMsg, "global 'aaa'", 1, true) ~= nil
+
+        local globalNilArithMsg = capture("aaa = '2'; b = nil; x = aaa * b")
+        gArithErrGlobalNil = string.find(globalNilArithMsg, "global 'b'", 1, true) ~= nil
+
+        local unaryArithMsg = capture("aaa = {}; x = -aaa")
+        gUnaryErrGlobal = string.find(unaryArithMsg, "global 'aaa'", 1, true) ~= nil
+
+        local expressionCallMsg = capture("aaa = {}; (aaa or aaa)()")
+        gCallErrExpressionNotGlobal = string.find(expressionCallMsg, "'aaa'", 1, true) == nil
+        gCallErrExpressionType = string.find(expressionCallMsg, "table", 1, true) ~= nil
+    )lua");
+
+    ASSERT_TRUE(suite, ok, "call error naming chunk runs");
+    ASSERT_TRUE(suite, L->getGlobal("gCallErrGlobal").asBoolean(), "call error names global");
+    ASSERT_TRUE(suite, L->getGlobal("gCallErrLocal").asBoolean(), "call error names local");
+    ASSERT_TRUE(suite, L->getGlobal("gCallErrField").asBoolean(), "call error names field");
+    ASSERT_TRUE(suite, L->getGlobal("gCallErrMethod").asBoolean(), "call error names method");
+    ASSERT_TRUE(suite, L->getGlobal("gCallErrIndexType").asBoolean(), "call error names value type");
+    ASSERT_TRUE(suite, L->getGlobal("gCallErrIndexNotLocal").asBoolean(), "indexed call does not name key local");
+    ASSERT_TRUE(suite, L->getGlobal("gIndexErrGlobal").asBoolean(), "index error names global");
+    ASSERT_TRUE(suite, L->getGlobal("gIndexErrField").asBoolean(), "index error names field");
+    ASSERT_TRUE(suite, L->getGlobal("gArithErrUpvalue").asBoolean(), "arithmetic error names upvalue");
+    ASSERT_TRUE(suite, L->getGlobal("gArithErrLocal").asBoolean(), "arithmetic error names local");
+    ASSERT_TRUE(suite, L->getGlobal("gArithErrGlobal").asBoolean(), "arithmetic error names global");
+    ASSERT_TRUE(suite, L->getGlobal("gArithErrGlobalNil").asBoolean(), "arithmetic error names nil global");
+    ASSERT_TRUE(suite, L->getGlobal("gUnaryErrGlobal").asBoolean(), "unary arithmetic error names global");
+    ASSERT_TRUE(suite, L->getGlobal("gCallErrExpressionNotGlobal").asBoolean(),
+                "expression call error does not name folded global");
+    ASSERT_TRUE(suite, L->getGlobal("gCallErrExpressionType").asBoolean(),
+                "expression call error still names value type");
+}
+
+void testRuntimeErrorMessageCarriesLine(TestSuite& suite) {
+    LuaState* L = createFullState();
+
+    bool ok = runLua(L, R"lua(
+        local f = assert(loadstring("local a\n for i=1,'a' do \n print(i) \n end"))
+        local ok, msg = pcall(f)
+        gRuntimeErrorLine = (not ok and string.match(msg, ":(%d+):") == "2")
+
+        local g = assert(loadstring("\n\n for k,v in \n 3 \n do \n print(k) \n end"))
+        local gok, gmsg = pcall(g)
+        gGenericForRuntimeErrorLine = (not gok and string.match(gmsg, ":(%d+):") == "4")
+
+        local p = [[
+function g() f() end
+function f(x) error('a', X) end
+g()
+]]
+        local function lineerror(s)
+            local ok, msg = pcall(assert(loadstring(s)))
+            local line = type(msg) == "string" and string.match(msg, ":(%d+):")
+            return line and line + 0
+        end
+        X = 3; gErrorLevel3Line = (lineerror(p) == 3)
+        X = 0; gErrorLevel0Raw = (lineerror(p) == nil)
+        X = 1; gErrorLevel1Line = (lineerror(p) == 2)
+        X = 2; gErrorLevel2Line = (lineerror(p) == 1)
+    )lua");
+
+    ASSERT_TRUE(suite, ok, "runtime error line chunk runs");
+    Value result = L->getGlobal("gRuntimeErrorLine");
+    ASSERT_TRUE(suite, result.isBoolean() && result.asBoolean(), "runtime error includes failing source line");
+    Value genericResult = L->getGlobal("gGenericForRuntimeErrorLine");
+    ASSERT_TRUE(suite, genericResult.isBoolean() && genericResult.asBoolean(),
+                "generic for runtime error includes iterator source line");
+    ASSERT_TRUE(suite, L->getGlobal("gErrorLevel3Line").asBoolean(), "error level 3 reports main chunk line");
+    ASSERT_TRUE(suite, L->getGlobal("gErrorLevel0Raw").asBoolean(), "error level 0 keeps raw message");
+    ASSERT_TRUE(suite, L->getGlobal("gErrorLevel1Line").asBoolean(), "error level 1 reports throwing function line");
+    ASSERT_TRUE(suite, L->getGlobal("gErrorLevel2Line").asBoolean(), "error level 2 reports caller line");
+}
+
 void testXpcallWrapper(TestSuite& suite) {
     LuaStdLibTestContext ctx(openBaseLib);
     if (!ctx.ensureGlobalFunction("xpcall", suite, "xpcall function exists")) {
@@ -555,6 +692,45 @@ void testXpcallWrapper(TestSuite& suite) {
     ASSERT_EQ(suite, ret, 2, "xpcall returns 2 values on error");
     ASSERT_TRUE(suite, L->at(-2).isBoolean(), "first return is boolean");
     ASSERT_FALSE(suite, L->at(-2).asBoolean(), "first return is false");
+    ASSERT_TRUE(suite, L->at(-1).isString(), "xpcall error handler result is returned");
+    if (L->at(-1).isString()) {
+        ASSERT_EQ(suite, std::string("error handled"), std::string(L->at(-1).asString()->c_str()),
+                  "xpcall calls error handler");
+    }
+
+    LuaState* fullState = createFullState();
+    bool ok = runLua(fullState, R"lua(
+        local ok1, msg1 = xpcall(function() error("boom") end,
+            function(err) return "handled:" .. type(err) end)
+        gXpcallStringHandler = (not ok1 and msg1 == "handled:string")
+
+        local ok2, msg2 = xpcall(function() error({msg = "x"}) end,
+            function(err) return {msg = err.msg .. "y"} end)
+        gXpcallObjectHandler = (not ok2 and type(msg2) == "table" and msg2.msg == "xy")
+
+        local ok3, trace = xpcall(function()
+            local function inner() error("trace") end
+            inner()
+        end, debug.traceback)
+        gXpcallTraceback = (not ok3 and type(trace) == "string" and
+            string.find(trace, "stack traceback:", 1, true) ~= nil and
+            string.find(trace, "trace", 1, true) ~= nil)
+
+        local marker
+        local ok4 = xpcall(function() marker = 42; error("boom") end,
+            function(err) return err end)
+        gXpcallPreservesOuterMutation = (not ok4 and marker == 42)
+    )lua");
+
+    ASSERT_TRUE(suite, ok, "xpcall handler chunk runs");
+    ASSERT_TRUE(suite, fullState->getGlobal("gXpcallStringHandler").asBoolean(),
+                "xpcall transforms string errors");
+    ASSERT_TRUE(suite, fullState->getGlobal("gXpcallObjectHandler").asBoolean(),
+                "xpcall transforms object errors");
+    ASSERT_TRUE(suite, fullState->getGlobal("gXpcallTraceback").asBoolean(),
+                "xpcall invokes traceback handler before unwinding");
+    ASSERT_TRUE(suite, fullState->getGlobal("gXpcallPreservesOuterMutation").asBoolean(),
+                "xpcall preserves outer-frame mutations made before the error");
 }
 
 void testLoadstringWrapper(TestSuite& suite) {
@@ -591,6 +767,21 @@ void testLoadstringWrapper(TestSuite& suite) {
     ASSERT_EQ(suite, ret, 2, "loadstring returns 2 values on error");
     ASSERT_TRUE(suite, L->at(-2).isNil(), "first return is nil on error");
     ASSERT_TRUE(suite, L->at(-1).isString(), "second return is error message");
+
+    ret = ctx.invoke("loadstring", [&](LuaState* s) {
+        s->pushString(pool.intern("break label"));
+    });
+
+    ASSERT_EQ(suite, ret, 2, "loadstring returns 2 values for official syntax format");
+    ASSERT_TRUE(suite, L->at(-2).isNil(), "official syntax first return is nil");
+    ASSERT_TRUE(suite, L->at(-1).isString(), "official syntax second return is error message");
+    if (L->at(-1).isString()) {
+        std::string message = L->at(-1).asString()->c_str();
+        ASSERT_TRUE(suite, message.find("[string \"break label\"]:1:") != std::string::npos,
+                    "loadstring syntax error includes chunk id and line");
+        ASSERT_TRUE(suite, message.find("near 'label'") != std::string::npos,
+                    "loadstring syntax error includes near token");
+    }
 
     ret = ctx.invoke("loadstring", [&](LuaState* s) {
         s->pushString(pool.intern("return 4.5."));
@@ -1017,6 +1208,9 @@ void registerBaselibTests() {
     registry.registerTest(kSuiteName, "setfenv thread env", testSetfenvThreadEnvironmentWrapper);
     registry.registerTest(kSuiteName, "select", testSelectWrapper);
     registry.registerTest(kSuiteName, "pcall", testPcallWrapper);
+    registry.registerTest(kSuiteName, "error object", testErrorPreservesLuaObject);
+    registry.registerTest(kSuiteName, "call error naming", testCallErrorNamesOffendingValue);
+    registry.registerTest(kSuiteName, "runtime error line", testRuntimeErrorMessageCarriesLine);
     registry.registerTest(kSuiteName, "xpcall", testXpcallWrapper);
     registry.registerTest(kSuiteName, "loadstring", testLoadstringWrapper);
     registry.registerTest(kSuiteName, "loadfile", testLoadfileWrapper);

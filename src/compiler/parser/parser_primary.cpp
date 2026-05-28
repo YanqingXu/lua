@@ -84,10 +84,12 @@ ExprPtr Parser::Impl::parsePrimaryExpr() {
     }
 
     if (current().isName()) {
+        Token nameToken = current();
         NameExpr nameExpr;
-        nameExpr.name = Str(ParserUtils::tokenString(current()));
+        nameExpr.name = Str(ParserUtils::tokenString(nameToken));
         nameExpr.line = line;
         nameExpr.column = column;
+        noteNameUse(nameExpr.name, nameToken);
         advance();
         return parsePostfixExpr(makeExpr<NameExpr>(std::move(nameExpr)));
     }
@@ -101,7 +103,17 @@ ExprPtr Parser::Impl::parsePostfixExpr(ExprPtr base) {
         i32 line = current().line;
         i32 column = current().column;
 
-        if (match(static_cast<TokenType>('('))) {
+        auto rejectAmbiguousNewlineCall = [&]() {
+            if (base && current().line > previous().line) {
+                errorAt(current(), "ambiguous syntax (function call x new statement)");
+            }
+        };
+
+        if (check(static_cast<TokenType>('('))) {
+            rejectAmbiguousNewlineCall();
+            advance();
+            RecursionGuard argumentGuard(*this, MAX_BLOCK_RECURSION_DEPTH);
+
             CallExpr callExpr;
             callExpr.func = std::move(base);
             callExpr.line = line;
@@ -158,13 +170,23 @@ ExprPtr Parser::Impl::parsePostfixExpr(ExprPtr base) {
             callExpr.line = line;
             callExpr.column = column;
 
-            if (match(static_cast<TokenType>('('))) {
+            if (check(static_cast<TokenType>('('))) {
+                if (current().line > line) {
+                    errorAt(current(), "ambiguous syntax (function call x new statement)");
+                }
+                advance();
+                RecursionGuard argumentGuard(*this, MAX_BLOCK_RECURSION_DEPTH);
+
                 if (!check(static_cast<TokenType>(')'))) {
                     callExpr.args = parseExprList();
                 }
 
                 expect(static_cast<TokenType>(')'), "Expected ')' after arguments");
             } else if (current().isString()) {
+                if (current().line > line) {
+                    errorAt(current(), "ambiguous syntax (function call x new statement)");
+                }
+
                 StringExpr strExpr;
                 strExpr.value = Str(ParserUtils::tokenString(current()));
                 strExpr.line = current().line;
@@ -173,6 +195,10 @@ ExprPtr Parser::Impl::parsePostfixExpr(ExprPtr base) {
 
                 callExpr.args.push_back(makeExpr<StringExpr>(std::move(strExpr)));
             } else if (check(static_cast<TokenType>('{'))) {
+                if (current().line > line) {
+                    errorAt(current(), "ambiguous syntax (function call x new statement)");
+                }
+
                 callExpr.args.push_back(parseTableConstructor());
             } else {
                 error("Expected function arguments after method name");
@@ -181,6 +207,8 @@ ExprPtr Parser::Impl::parsePostfixExpr(ExprPtr base) {
             base = makeExpr<CallExpr>(std::move(callExpr));
         }
         else if (current().isString()) {
+            rejectAmbiguousNewlineCall();
+
             CallExpr callExpr;
             callExpr.func = std::move(base);
             callExpr.line = line;
@@ -196,6 +224,8 @@ ExprPtr Parser::Impl::parsePostfixExpr(ExprPtr base) {
             base = makeExpr<CallExpr>(std::move(callExpr));
         }
         else if (check(static_cast<TokenType>('{'))) {
+            rejectAmbiguousNewlineCall();
+
             CallExpr callExpr;
             callExpr.func = std::move(base);
             callExpr.line = line;

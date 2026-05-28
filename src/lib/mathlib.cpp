@@ -42,7 +42,7 @@ namespace Lua {
 static inline f64 getNumberArg(LuaState* L, i32 idx, const char* argName) {
     if (!L->isNumber(idx)) {
         char buffer[128];
-        std::snprintf(buffer, sizeof(buffer), "bad argument #%d to 'math.%s' (number expected)", idx, argName);
+        std::snprintf(buffer, sizeof(buffer), "bad argument #%d to '%s' (number expected)", idx, argName);
         L->error(buffer);
     }
     return L->toNumber(idx);

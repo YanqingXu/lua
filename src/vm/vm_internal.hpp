@@ -67,6 +67,8 @@ void length(LuaState* L, Value& result, const Value& val);
 void concat(RuntimeServices& services, LuaState* L, Value* base, i32 a, i32 b, i32 c);
 
 bool precall(LuaState* L, i32 funcIndex, i32 nArgs, i32 nResults);
+bool precallWithName(LuaState* L, i32 funcIndex, i32 nArgs, i32 nResults,
+                     const Str& callTargetName);
 void postcall(LuaState* L, i32 funcPos, i32 wantedResults, usize firstResult = 0);
 void reuseCurrentFrameForTailCall(LuaState* L, usize callerIndex, usize callerFunc, i32 callerTailcalls);
 

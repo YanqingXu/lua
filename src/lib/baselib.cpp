@@ -17,6 +17,7 @@
 #include "core/function.hpp"
 #include "core/upvalue.hpp"
 #include "vm/state/global_state.hpp"
+#include "vm/state/call_info.hpp"
 #include "vm/vm.hpp"
 #include "compiler/parser/parser.hpp"
 #include "compiler/codegen/codegen.hpp"
@@ -29,6 +30,8 @@
 #include <limits>
 
 namespace Lua {
+
+static Str makeLuaChunkId(StrView chunkName);
 
 // =====================================================================
 // print(...) - 打印任意数量的参数到标准输出
@@ -273,9 +276,67 @@ i32 luaB_tonumber(LuaState* L) {
 // error(message [, level]) - 抛出错误
 // =====================================================================
 
+static Str sourceLocationForErrorLevel(LuaState* L, i32 level) {
+    if (L == nullptr || level <= 0) {
+        return Str();
+    }
+
+    usize currentIndex = L->getCurrentCI();
+    if (static_cast<usize>(level) > currentIndex) {
+        return Str();
+    }
+
+    usize targetIndex = currentIndex - static_cast<usize>(level);
+    Vec<CallInfo>& frames = L->getCallStack();
+    if (targetIndex >= frames.size()) {
+        return Str();
+    }
+
+    const CallInfo& ci = frames[targetIndex];
+    Stack& stack = L->getStack();
+    if (ci.func >= stack.size()) {
+        return Str();
+    }
+
+    const Value& funcValue = stack[ci.func];
+    if (!funcValue.isFunction()) {
+        return Str();
+    }
+
+    Function* func = funcValue.asFunction();
+    if (func == nullptr || func->isCFunction()) {
+        return Str();
+    }
+
+    Proto* proto = func->getProto();
+    if (proto == nullptr) {
+        return Str();
+    }
+
+    usize pc = 0;
+    const auto code = proto->getInstructionSpan();
+    if (!code.empty() && ci.savedpc != nullptr) {
+        pc = static_cast<usize>(ci.savedpc - code.data());
+        if (pc > 0) {
+            --pc;
+        }
+        if (pc >= code.size()) {
+            pc = code.size() - 1;
+        }
+    }
+
+    i32 line = proto->getLine(pc);
+    if (line <= 0) {
+        return Str();
+    }
+
+    StrView source = proto->getSource() ? proto->getSource()->view() : StrView("=?");
+    return makeLuaChunkId(source) + ":" + std::to_string(line) + ": ";
+}
+
 i32 luaB_error(LuaState* L) {
     if (L->getTop() < 1) {
-        L->error("error: missing argument");
+        L->pushNil();
     }
 
     i32 level = 1;
@@ -283,8 +344,20 @@ i32 luaB_error(LuaState* L) {
         level = static_cast<i32>(L->toNumber(2));
     }
 
-    // 简化实现：直接抛出错误
-    // TODO: 添加位置信息（根据level参数）
+    if (level > 0) {
+        const char* message = L->toString(1);
+        if (message != nullptr) {
+            Str location = sourceLocationForErrorLevel(L, level);
+            if (!location.empty()) {
+                Str fullMessage = location + message;
+                GCString* str = L->getGlobalState().getStringPool().intern(fullMessage.c_str());
+                L->setTop(0);
+                L->pushString(str);
+                return L->error();
+            }
+        }
+    }
+
     L->setTop(1);  // 只保留错误消息
     return L->error();
 }
@@ -899,6 +972,50 @@ static Function* loadBinaryChunk(LuaState* L, StrView source) {
     return createLuaFunctionFromProto(L, proto);
 }
 
+static Str makeStringChunkSnippet(StrView source) {
+    constexpr usize kChunkSnippetLimit = 60;
+    Str snippet;
+    bool truncated = false;
+
+    for (char ch : source) {
+        if (ch == '\n' || ch == '\r') {
+            truncated = true;
+            break;
+        }
+        if (snippet.size() >= kChunkSnippetLimit) {
+            truncated = true;
+            break;
+        }
+
+        if (ch == '"' || ch == '\\') {
+            snippet.push_back('\\');
+        }
+        snippet.push_back(ch);
+    }
+
+    if (truncated) {
+        snippet += "...";
+    }
+    return snippet;
+}
+
+static Str makeLuaChunkId(StrView chunkName) {
+    if (!chunkName.empty()) {
+        if (chunkName.front() == '=') {
+            return Str(chunkName.substr(1));
+        }
+        if (chunkName.front() == '@') {
+            return Str(chunkName.substr(1));
+        }
+    }
+
+    return Str("[string \"") + makeStringChunkSnippet(chunkName) + "\"]";
+}
+
+static Str formatLoadSyntaxError(StrView chunkName, const ParseError& error) {
+    return makeLuaChunkId(chunkName) + ":" + std::to_string(error.getLine()) + ": " + error.what();
+}
+
 static bool stopOnDefinitiveReaderSyntaxError(LuaState* L, StringPool& pool, const Str& source) {
     if (source.size() < 2 || static_cast<u8>(source[0]) == 0x1b) {
         return false;
@@ -950,8 +1067,8 @@ i32 luaB_loadstring(LuaState* L) {
 
     Str code = codeVal.asString()->getData();
     Str chunkname = (nargs >= 2 && L->at(2).isString())
-        ? L->at(2).asString()->c_str()
-        : "=(loadstring)";
+        ? L->at(2).asString()->getData()
+        : code;
 
     try {
         if (isProjectBinaryChunk(StrView(code.data(), code.size()))) {
@@ -991,7 +1108,7 @@ i32 luaB_loadstring(LuaState* L) {
     } catch (const ParseError& e) {
         L->setTop(0);
         L->pushNil();
-        Str errorMsg = Str("loadstring: ") + e.what();
+        Str errorMsg = formatLoadSyntaxError(StrView(chunkname.data(), chunkname.size()), e);
         L->pushString(pool.intern(errorMsg.c_str()));
         return 2;
     } catch (const std::exception& e) {

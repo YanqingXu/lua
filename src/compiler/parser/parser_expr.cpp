@@ -88,6 +88,7 @@ ExprPtr Parser::Impl::parseConcatExpr() {
         Token opToken = current();
         advance();
 
+        RecursionGuard guard(*this);
         ExprPtr right = parseConcatExpr();
         left = makeBinaryExpr(BinaryExpr::Op::Concat, opToken, std::move(left), std::move(right));
     }
@@ -167,6 +168,7 @@ ExprPtr Parser::Impl::parsePowerExpr() {
         Token opToken = current();
         advance();
 
+        RecursionGuard guard(*this);
         ExprPtr right = parseUnaryExpr();
         left = makeBinaryExpr(BinaryExpr::Op::Pow, opToken, std::move(left), std::move(right));
     }

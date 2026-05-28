@@ -378,6 +378,17 @@ void testIOLibFileMetatableHooks(TestSuite& suite) {
         i32 status = L->pcall(1, 1, 0);
         ASSERT_TRUE(suite, status == LUA_OK || (L->getTop() >= 1 && L->top().isString()), "__tostring hook callable");
         ASSERT_TRUE(suite, L->getTop() >= 1 && L->top().isString(), "__tostring returns string");
+
+        L->setTop(0);
+        L->pushValue(gcMethod);
+        status = L->pcall(0, 1, 0);
+        ASSERT_EQ(suite, LUA_ERRRUN, status, "__gc without file handle errors");
+        ASSERT_TRUE(suite, L->getTop() >= 1 && L->top().isString(), "__gc error is a string");
+        if (L->getTop() >= 1 && L->top().isString()) {
+            std::string message = L->top().asString()->c_str();
+            ASSERT_TRUE(suite, message.find("no value") != std::string::npos,
+                        "__gc without self reports no value");
+        }
     }
 
     delete L;

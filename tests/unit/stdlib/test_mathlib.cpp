@@ -1,4 +1,5 @@
 #include "../framework/test_framework.hpp"
+#include "common/lua_error.hpp"
 #include "lib/mathlib.hpp"
 #include "vm/state/lua_state.hpp"
 #include "core/string_pool.hpp"
@@ -144,10 +145,30 @@ void testMathModAlias(TestSuite& suite) {
                 "math.mod should use Lua floor remainder for negative divisors");
 }
 
+void testMathArgumentErrorUsesFunctionName(TestSuite& suite) {
+    LuaStdLibTestContext ctx(openMathLib);
+    LuaState* L = ctx.getState();
+    auto& pool = L->getGlobalState().getStringPool();
+
+    try {
+        (void)callMathFunc(L, "sin", [&](LuaState* s) {
+            s->pushString(pool.intern("a"));
+        });
+        ASSERT_TRUE(suite, false, "math.sin rejects non-number argument");
+    } catch (const LuaError& error) {
+        std::string message = error.what();
+        ASSERT_TRUE(suite, message.find("to 'sin'") != std::string::npos,
+                    "math argument error names bare function");
+        ASSERT_TRUE(suite, message.find("math.sin") == std::string::npos,
+                    "math argument error omits table prefix");
+    }
+}
+
 void registerMathLibTests() {
     auto& registry = TestRegistry::getInstance();
 
     registry.registerTest(kSuiteName, "constants", testMathConstants);
     registry.registerTest(kSuiteName, "hyperbolic functions", testMathHyperbolicFunctions);
     registry.registerTest(kSuiteName, "mod alias", testMathModAlias);
+    registry.registerTest(kSuiteName, "argument error names", testMathArgumentErrorUsesFunctionName);
 }

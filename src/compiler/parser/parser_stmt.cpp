@@ -16,6 +16,7 @@ Vec<StmtPtr> Parser::Impl::parseBlock() {
     RecursionGuard guard(*this, MAX_BLOCK_RECURSION_DEPTH);
 
     Vec<StmtPtr> statements;
+    bool mayConsumeSeparator = false;
 
     while (!check(TokenType::Eos) &&
            !check(TokenType::End) &&
@@ -23,7 +24,12 @@ Vec<StmtPtr> Parser::Impl::parseBlock() {
            !check(TokenType::Elseif) &&
            !check(TokenType::Until)) {
         try {
-            if (match(static_cast<TokenType>(';'))) {
+            if (check(static_cast<TokenType>(';'))) {
+                if (!mayConsumeSeparator) {
+                    errorAt(current(), "unexpected symbol");
+                }
+                advance();
+                mayConsumeSeparator = false;
                 continue;
             }
 
@@ -38,6 +44,7 @@ Vec<StmtPtr> Parser::Impl::parseBlock() {
             StmtPtr stmt = parseStatement();
             if (stmt) {
                 statements.push_back(std::move(stmt));
+                mayConsumeSeparator = true;
             }
         } catch (const ParseError& error) {
             if (!canRecoverFrom(error)) {
@@ -255,6 +262,7 @@ StmtPtr Parser::Impl::parseLocalStmt() {
             error("Expected function name after 'local function'");
         }
         funcStmt.name = Str(ParserUtils::tokenString(current()));
+        declareLocalName(funcStmt.name, current());
         advance();
 
         expect(static_cast<TokenType>('('), "Expected '(' after function name");
@@ -267,7 +275,9 @@ StmtPtr Parser::Impl::parseLocalStmt() {
             funcStmt.params.pop_back();
         }
 
+        enterFunctionSyntaxScope(line, funcStmt.params);
         funcStmt.body = parseBlock();
+        leaveFunctionSyntaxScope();
         expect(TokenType::End, "Expected 'end' to close function");
 
         return makeStmt<FunctionStmt>(std::move(funcStmt));
@@ -281,7 +291,9 @@ StmtPtr Parser::Impl::parseLocalStmt() {
         if (!current().isName()) {
             error("Expected variable name in local statement");
         }
-        localStmt.names.emplace_back(ParserUtils::tokenString(current()));
+        Str name(ParserUtils::tokenString(current()));
+        declareLocalName(name, current());
+        localStmt.names.push_back(std::move(name));
         advance();
     } while (match(static_cast<TokenType>(',')));
 
@@ -358,7 +370,8 @@ StmtPtr Parser::Impl::parseExprStmt() {
         return makeStmt<AssignStmt>(std::move(assignStmt));
     } else {
         if (!std::holds_alternative<CallExpr>(expr->variant)) {
-            errorAt(firstToken, "unexpected symbol");
+            const Token& errorToken = check(TokenType::Eos) ? firstToken : current();
+            errorAt(errorToken, "unexpected symbol");
             return nullptr;
         }
 

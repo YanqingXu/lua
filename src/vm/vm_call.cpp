@@ -19,6 +19,36 @@
 
 namespace Lua::VM::detail {
 
+namespace {
+
+const char* luaTypeName(const Value& value) {
+    switch (value.getType()) {
+        case ValueType::Nil: return "nil";
+        case ValueType::Boolean: return "boolean";
+        case ValueType::LightUserdata: return "userdata";
+        case ValueType::Number: return "number";
+        case ValueType::String: return "string";
+        case ValueType::Table: return "table";
+        case ValueType::Function: return "function";
+        case ValueType::Userdata: return "userdata";
+        case ValueType::Thread: return "thread";
+    }
+    return "value";
+}
+
+Str formatCallTypeError(const Value& value, const Str& callTargetName) {
+    const char* typeName = luaTypeName(value);
+    if (!callTargetName.empty()) {
+        return Str("attempt to call ") + callTargetName + " (a " + typeName + " value)";
+    }
+    return Str("attempt to call a ") + typeName + " value";
+}
+
+bool precallImpl(LuaState* L, i32 funcIndex, i32 nArgs, i32 nResults,
+                 const Str& callTargetName);
+
+} // namespace
+
 void postcall(LuaState* L, i32 funcPos, i32 wantedResults, usize firstResult) {
     Stack& stack = L->getStack();
     usize res = static_cast<usize>(funcPos);
@@ -62,6 +92,18 @@ void postcall(LuaState* L, i32 funcPos, i32 wantedResults, usize firstResult) {
 }
 
 bool precall(LuaState* L, i32 funcIndex, i32 nArgs, i32 nResults) {
+    return precallImpl(L, funcIndex, nArgs, nResults, Str());
+}
+
+bool precallWithName(LuaState* L, i32 funcIndex, i32 nArgs, i32 nResults,
+                     const Str& callTargetName) {
+    return precallImpl(L, funcIndex, nArgs, nResults, callTargetName);
+}
+
+namespace {
+
+bool precallImpl(LuaState* L, i32 funcIndex, i32 nArgs, i32 nResults,
+                 const Str& callTargetName) {
     Stack& stack = L->getStack();
     CallInfo& currentCI = L->getCurrentCallInfo();
     usize funcPos = currentCI.base + funcIndex;
@@ -70,10 +112,7 @@ bool precall(LuaState* L, i32 funcIndex, i32 nArgs, i32 nResults) {
     if (!funcVal.isFunction()) {
         Value tm = getMetamethodByObject(L, funcVal, TMS::TM_CALL);
         if (tm.isNil() || !tm.isFunction()) {
-            throw RuntimeError(
-                "VM::precall: attempt to call non-function value without __call metamethod at R("
-                + std::to_string(funcIndex) + "), abs="
-                + std::to_string(funcPos) + ", value=" + funcVal.toString());
+            throw RuntimeError(formatCallTypeError(funcVal, callTargetName));
         }
 
         Value originalFunc = funcVal;
@@ -209,6 +248,8 @@ bool precall(LuaState* L, i32 funcIndex, i32 nArgs, i32 nResults) {
 
     return true;
 }
+
+} // namespace
 
 void reuseCurrentFrameForTailCall(LuaState* L, usize callerIndex,
                                   usize callerFunc, i32 callerTailcalls) {

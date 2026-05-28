@@ -4,6 +4,10 @@
  */
 
 #include "vm/vm_handlers/vm_handler_utils.hpp"
+#include "common/lua_error.hpp"
+#include "vm/vm_handlers/vm_diagnostics.hpp"
+
+#include <string>
 
 namespace Lua::VM::handlers {
 
@@ -17,7 +21,16 @@ HandlerStatus handleUnaryMinus(OpExecutionContext& context, Instruction inst) {
 
     Value val = context.base[b];
     Value result;
-    detail::unaryMinus(state, result, val);
+    try {
+        detail::unaryMinus(state, result, val);
+    } catch (const RuntimeError& error) {
+        if (std::string(error.what()).find("attempt to perform arithmetic on a non-number value") ==
+            std::string::npos) {
+            throw;
+        }
+        Str sourceName = diagnostics::describeRegister(context.proto, b, context.instructionPc).value_or(Str());
+        throw RuntimeError(diagnostics::formatTypeActionError("perform arithmetic on", val, sourceName));
+    }
     context.base = refreshBase(state);
     context.base[a] = result;
     return HandlerStatus::Continue;

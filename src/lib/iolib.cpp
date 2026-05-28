@@ -890,6 +890,13 @@ i32 f_lines(LuaState* L) {
 
 i32 io_gc(LuaState* L) {
     FileHandleData* handle = toFileHandle(L, 1);
+    if (!handle) {
+        char buffer[128];
+        std::snprintf(buffer, sizeof(buffer),
+                      "bad argument #1 to '__gc' (FILE* expected, got %s)",
+                      L->typeName(L->type(1)));
+        L->error(buffer);
+    }
     if (handle && handle->fp) {
         closeFileHandle(handle);
     }

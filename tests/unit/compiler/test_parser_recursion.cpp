@@ -176,6 +176,90 @@ void testNestedIfStatements(TestSuite& suite) {
     }
 }
 
+void testRightAssociativeExpressionLimit(TestSuite& suite) {
+    std::string code = "local a; a=a";
+    for (int i = 0; i < 400; ++i) {
+        code += "..a";
+    }
+
+    try {
+        Parser parser(code);
+        auto parsed = parser.parse();
+        if (!parsed) {
+            throw parsed.error();
+        }
+        ASSERT_TRUE(suite, false, "Deep concat chain should throw syntax level error");
+    } catch (const ParseError& e) {
+        std::string errorMsg = e.what();
+        bool hasCorrectMessage = errorMsg.find("too many syntax levels") != std::string::npos;
+        ASSERT_TRUE(suite, hasCorrectMessage, "Deep concat chain throws correct error");
+    }
+}
+
+void testNestedCallArgumentLimit(TestSuite& suite) {
+    std::string code = "local a; ";
+    for (int i = 0; i < 400; ++i) {
+        code += "a(";
+    }
+
+    try {
+        Parser parser(code);
+        auto parsed = parser.parse();
+        if (!parsed) {
+            throw parsed.error();
+        }
+        ASSERT_TRUE(suite, false, "Deep call-argument chain should throw syntax level error");
+    } catch (const ParseError& e) {
+        std::string errorMsg = e.what();
+        bool hasCorrectMessage = errorMsg.find("too many syntax levels") != std::string::npos;
+        ASSERT_TRUE(suite, hasCorrectMessage, "Deep call-argument chain throws correct error");
+    }
+}
+
+void testLua51FunctionVariableLimits(TestSuite& suite) {
+    std::string upvalueSource = "function foo ()\n  local ";
+    for (int j = 1; j <= 70; ++j) {
+        upvalueSource += "a" + std::to_string(j) + ", ";
+    }
+    upvalueSource += "b\n";
+    for (int j = 1; j <= 70; ++j) {
+        upvalueSource += "function foo" + std::to_string(j) + " ()\n a" +
+                         std::to_string(j) + "=3\n";
+    }
+
+    try {
+        Parser parser(upvalueSource);
+        auto parsed = parser.parse();
+        if (!parsed) {
+            throw parsed.error();
+        }
+        ASSERT_TRUE(suite, false, "Too many upvalues should throw");
+    } catch (const ParseError& e) {
+        std::string errorMsg = e.what();
+        ASSERT_TRUE(suite, errorMsg.find("line 3") != std::string::npos,
+                    "Too many upvalues reports first nested function line");
+    }
+
+    std::string localSource = "\nfunction foo ()\n  local ";
+    for (int j = 1; j <= 300; ++j) {
+        localSource += "a" + std::to_string(j) + ", ";
+    }
+    localSource += "b\n";
+
+    try {
+        Parser parser(localSource);
+        auto parsed = parser.parse();
+        if (!parsed) {
+            throw parsed.error();
+        }
+        ASSERT_TRUE(suite, false, "Too many locals should throw");
+    } catch (const ParseError& e) {
+        std::string errorMsg = e.what();
+        ASSERT_TRUE(suite, errorMsg.find("line 2") != std::string::npos,
+                    "Too many locals reports function line");
+    }
+}
+
 } // namespace
 
 /**
@@ -188,5 +272,8 @@ void registerParserRecursionTests() {
     registry.registerTest(kSuiteName, "near limit depth nesting", testNearLimitDepthNesting);
     registry.registerTest(kSuiteName, "exceed limit depth nesting", testExceedLimitDepthNesting);
     registry.registerTest(kSuiteName, "nested if statements", testNestedIfStatements);
+    registry.registerTest(kSuiteName, "right associative expression limit", testRightAssociativeExpressionLimit);
+    registry.registerTest(kSuiteName, "nested call argument limit", testNestedCallArgumentLimit);
+    registry.registerTest(kSuiteName, "lua51 function variable limits", testLua51FunctionVariableLimits);
 }
 
