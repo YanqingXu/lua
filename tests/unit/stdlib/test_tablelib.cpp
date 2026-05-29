@@ -371,6 +371,58 @@ void testTableSortWithComparatorUsingDerivedKey(TestSuite& suite) {
     delete L;
 }
 
+void testTableSortComparatorDoesNotUseQuadraticComparisons(TestSuite& suite) {
+    LuaState* L = createFullState();
+
+    bool ok = runLua(L, R"(
+        local values = {}
+        for i = 1, 512 do
+            values[i] = 513 - i
+        end
+
+        local comparisons = 0
+        table.sort(values, function(a, b)
+            comparisons = comparisons + 1
+            return a < b
+        end)
+
+        gSortFirst = values[1]
+        gSortLast = values[512]
+        gSortComparisons = comparisons
+    )");
+
+    ASSERT_TRUE(suite, ok, "table.sort large comparator chunk runs");
+    ASSERT_EQ(suite, 1.0, getGlobalNumber(L, "gSortFirst"), "large comparator sort first element");
+    ASSERT_EQ(suite, 512.0, getGlobalNumber(L, "gSortLast"), "large comparator sort last element");
+    ASSERT_TRUE(suite, getGlobalNumber(L, "gSortComparisons") < 20000.0,
+                "large comparator sort avoids quadratic comparison count");
+
+    delete L;
+}
+
+void testTableSortUsesLtMetamethodByDefault(TestSuite& suite) {
+    LuaState* L = createFullState();
+
+    bool ok = runLua(L, R"(
+        local mt = {__lt = function(a, b) return a.val < b.val end}
+        local values = {}
+        for i = 1, 5 do
+            values[i] = setmetatable({val = 6 - i}, mt)
+        end
+
+        table.sort(values)
+
+        gMetaSortFirst = values[1].val
+        gMetaSortLast = values[5].val
+    )");
+
+    ASSERT_TRUE(suite, ok, "table.sort default comparator uses __lt");
+    ASSERT_EQ(suite, 1.0, getGlobalNumber(L, "gMetaSortFirst"), "metamethod sort first element");
+    ASSERT_EQ(suite, 5.0, getGlobalNumber(L, "gMetaSortLast"), "metamethod sort last element");
+
+    delete L;
+}
+
 // =====================================================================
 // table.maxn 测试
 // =====================================================================
@@ -648,6 +700,9 @@ void registerTableLibTests() {
     registry.registerTest(kSuiteName, "table.sort", testTableSort);
     registry.registerTest(kSuiteName, "table.sort comparator descending", testTableSortWithLuaComparator);
     registry.registerTest(kSuiteName, "table.sort comparator derived key", testTableSortWithComparatorUsingDerivedKey);
+    registry.registerTest(kSuiteName, "table.sort comparator complexity",
+                          testTableSortComparatorDoesNotUseQuadraticComparisons);
+    registry.registerTest(kSuiteName, "table.sort default __lt", testTableSortUsesLtMetamethodByDefault);
     registry.registerTest(kSuiteName, "table.maxn", testTableMaxn);
     registry.registerTest(kSuiteName, "table.getn compatibility", testTableGetnCompatibility);
     registry.registerTest(kSuiteName, "table.pack", testTablePack);

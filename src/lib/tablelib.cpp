@@ -15,6 +15,7 @@
 #include "lib/lib_registry.hpp"
 #include "vm/vm.hpp"
 #include "vm/vm_constants.hpp"
+#include "vm/vm_internal.hpp"
 
 #include <string>
 #include <sstream>
@@ -76,15 +77,7 @@ static i32 getTableLength(Table* table) {
 }
 
 static bool defaultSortLess(LuaState* L, const Value& left, const Value& right) {
-    if (left.isNumber() && right.isNumber()) {
-        return left.asNumber() < right.asNumber();
-    }
-
-    if (left.isString() && right.isString()) {
-        return std::strcmp(left.asString()->c_str(), right.asString()->c_str()) < 0;
-    }
-
-    L->error("table.sort: invalid order function for sorting");
+    return VM::detail::lessThan(L, left, right);
 }
 
 static bool callSortComparator(LuaState* L, Function* comparator, const Value& left, const Value& right) {
@@ -356,21 +349,11 @@ i32 table_sort(LuaState* L) {
         arr.push_back(table->get(Value(static_cast<f64>(i))));
     }
 
-    // 使用稳定的冒泡排序，便于通过用户比较器维持可预测行为。
-    for (i32 i = 0; i < len - 1; i++) {
-        for (i32 j = 0; j < len - i - 1; j++) {
-            Value& a = arr[j];
-            Value& b = arr[j + 1];
-
-            bool shouldSwap = comparator != nullptr
-                ? callSortComparator(L, comparator, b, a)
-                : defaultSortLess(L, b, a);
-
-            if (shouldSwap) {
-                std::swap(arr[j], arr[j + 1]);
-            }
-        }
-    }
+    std::sort(arr.begin(), arr.end(), [&](const Value& left, const Value& right) {
+        return comparator != nullptr
+            ? callSortComparator(L, comparator, left, right)
+            : defaultSortLess(L, left, right);
+    });
 
     // 将排序后的值写回表
     for (i32 i = 0; i < len; i++) {
