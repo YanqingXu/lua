@@ -39,6 +39,11 @@ GarbageCollector::GarbageCollector()
     , globalState_(nullptr)
     , stringPool_(nullptr)
     , strategy_(&markSweepGCStrategy())
+    , automaticStopped_(false)
+    , automaticCollectionRunning_(false)
+    , preciseStackRoots_(true)
+    , automaticThresholdBytes_(64 * 1024)
+    , stepCountdown_(0)
     , objectCount_(0)
     , totalMemory_(0)
 {
@@ -194,7 +199,66 @@ usize GarbageCollector::collectAutomatic(LuaState* currentState) {
 }
 
 usize GarbageCollector::collectAutomatic(StringPool& stringPool, LuaState* currentState) {
-    return collectMarkSweep(stringPool, currentState, false);
+    if (automaticStopped_ || automaticCollectionRunning_) {
+        return 0;
+    }
+
+    automaticCollectionRunning_ = true;
+    bool previousPreciseStackRoots = preciseStackRoots_;
+    preciseStackRoots_ = false;
+    usize collected = collectMarkSweep(stringPool, currentState, false);
+    preciseStackRoots_ = previousPreciseStackRoots;
+    automaticCollectionRunning_ = false;
+    automaticThresholdBytes_ = std::max<usize>(64 * 1024, getTotalMemory() * 2 + 32 * 1024);
+    return collected;
+}
+
+usize GarbageCollector::maybeCollectAutomatic(LuaState* currentState) {
+    if (automaticStopped_ || automaticCollectionRunning_) {
+        return 0;
+    }
+
+    if (getTotalMemory() < automaticThresholdBytes_) {
+        return 0;
+    }
+
+    return collectAutomatic(currentState);
+}
+
+void GarbageCollector::stopAutomatic() noexcept {
+    automaticStopped_ = true;
+}
+
+void GarbageCollector::restartAutomatic() noexcept {
+    automaticStopped_ = false;
+    stepCountdown_ = 0;
+}
+
+bool GarbageCollector::isAutomaticStopped() const noexcept {
+    return automaticStopped_;
+}
+
+bool GarbageCollector::step(LuaState* currentState, i32 size) {
+    const i32 normalizedSize = std::max(0, size);
+    if (stepCountdown_ <= 0) {
+        if (normalizedSize >= 10000) {
+            stepCountdown_ = 1;
+        } else {
+            stepCountdown_ = std::max(1, 12 / (normalizedSize + 1));
+        }
+    }
+
+    --stepCountdown_;
+    if (stepCountdown_ > 0) {
+        return false;
+    }
+
+    bool wasStopped = automaticStopped_;
+    automaticStopped_ = false;
+    (void)collect(currentState);
+    automaticStopped_ = wasStopped;
+    stepCountdown_ = 0;
+    return true;
 }
 
 const GCStrategy& GarbageCollector::getStrategy() const noexcept {

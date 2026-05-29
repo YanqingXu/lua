@@ -47,6 +47,8 @@ HandlerStatus handleSetGlobal(OpExecutionContext& context, Instruction inst) {
     Value val = context.base[a];
     detail::settable(state, Value(env), key, val);
     context.base = refreshBase(state);
+    (void)state->getGlobalState().getGC().maybeCollectAutomatic(state);
+    context.base = refreshBase(state);
     return HandlerStatus::Continue;
 }
 

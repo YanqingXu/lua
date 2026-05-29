@@ -226,14 +226,20 @@ void Table::markContents(GarbageCollector& gc, bool weakKeys, bool weakValues) {
         for (const Value& val : array_) {
             gc.markValue(val);
         }
+    } else {
+        for (const Value& val : array_) {
+            if (val.isString()) {
+                gc.markValue(val);
+            }
+        }
     }
 
     // 标记哈希部分中的GC对象
     for (const auto& [key, val] : hash_) {
-        if (!weakKeys) {
+        if (!weakKeys || key.isString()) {
             gc.markValue(key);
         }
-        if (!weakValues) {
+        if (!weakValues || val.isString()) {
             gc.markValue(val);
         }
     }
@@ -249,7 +255,7 @@ void Table::removeWeakEntries(const GarbageCollector& gc, bool weakKeys, bool we
 
     if (weakValues) {
         for (Value& val : array_) {
-            if (gc.isValueDead(val)) {
+            if (gc.isWeakValueDead(val)) {
                 val = Value();
             }
         }
@@ -260,7 +266,7 @@ void Table::removeWeakEntries(const GarbageCollector& gc, bool weakKeys, bool we
         if (weakKeys && gc.isValueDead(it->first)) {
             removeEntry = true;
         }
-        if (weakValues && gc.isValueDead(it->second)) {
+        if (weakValues && gc.isWeakValueDead(it->second)) {
             removeEntry = true;
         }
 

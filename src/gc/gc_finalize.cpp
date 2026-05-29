@@ -12,6 +12,7 @@
 #include "vm/state/lua_state.hpp"
 #include "vm/state/stack.hpp"
 #include "vm/vm.hpp"
+#include <exception>
 
 namespace Lua {
 
@@ -54,7 +55,8 @@ void GarbageCollector::runFinalizers(LuaState* state) {
     finalizers.swap(pendingFinalizers_);
 
     Stack& stack = state->getStack();
-    for (Userdata* userdata : finalizers) {
+    for (usize i = 0; i < finalizers.size(); i++) {
+        Userdata* userdata = finalizers[i];
         Value finalizer = getFinalizer(userdata);
         if (finalizer.isNil()) {
             continue;
@@ -63,6 +65,7 @@ void GarbageCollector::runFinalizers(LuaState* state) {
         usize savedTop = state->getAbsoluteTop();
         usize savedStackTop = stack.size();
         usize savedCI = state->getCurrentCI();
+        std::exception_ptr finalizerError;
 
         try {
             stack.setTop(savedTop);
@@ -71,7 +74,7 @@ void GarbageCollector::runFinalizers(LuaState* state) {
             state->pushUserdata(userdata);
             VM::call(state, 1, 0);
         } catch (...) {
-            // Lua 5.1 的 GC 终结流程不应让单个 finalizer 错误打断整轮回收。
+            finalizerError = std::current_exception();
         }
 
         while (state->getCurrentCI() > savedCI) {
@@ -79,6 +82,14 @@ void GarbageCollector::runFinalizers(LuaState* state) {
         }
         stack.setTop(savedStackTop);
         state->setAbsoluteTop(savedTop);
+
+        if (finalizerError) {
+            for (usize j = i + 1; j < finalizers.size(); j++) {
+                pendingFinalizers_.push_back(finalizers[j]);
+            }
+            finalizersRunning_ = false;
+            std::rethrow_exception(finalizerError);
+        }
     }
 
     finalizersRunning_ = false;

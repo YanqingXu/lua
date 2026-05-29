@@ -8,6 +8,7 @@
 #include "core/table.hpp"
 #include "core/value.hpp"
 #include "vm/state/global_state.hpp"
+#include <algorithm>
 
 namespace Lua {
 
@@ -57,10 +58,30 @@ bool GarbageCollector::isObjectDead(GCObject* obj) const {
 }
 
 bool GarbageCollector::isValueDead(const Value& value) const {
+    if (value.isString()) {
+        return false;
+    }
     if (!valueContainsObject(value)) {
         return false;
     }
     return isObjectDead(objectFromValue(value));
+}
+
+bool GarbageCollector::isWeakValueDead(const Value& value) const {
+    if (value.isString()) {
+        return false;
+    }
+    if (value.isUserdata()) {
+        auto* userdata = value.asUserdata();
+        if (std::find(pendingFinalizers_.begin(), pendingFinalizers_.end(), userdata) !=
+            pendingFinalizers_.end()) {
+            return true;
+        }
+    }
+    if (!valueContainsObject(value)) {
+        return false;
+    }
+    return isValueDead(value);
 }
 
 void GarbageCollector::clearWeakTableEntries() {

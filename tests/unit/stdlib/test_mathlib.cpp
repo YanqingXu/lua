@@ -164,6 +164,22 @@ void testMathArgumentErrorUsesFunctionName(TestSuite& suite) {
     }
 }
 
+void testMathFunctionsAcceptNumericStrings(TestSuite& suite) {
+    LuaStdLibTestContext ctx(openMathLib);
+    LuaState* L = ctx.getState();
+    auto& pool = L->getGlobalState().getStringPool();
+
+    i32 ret = callMathFunc(L, "sin", [&](LuaState* s) {
+        s->pushString(pool.intern(" 1.5707963267948966 "));
+    });
+
+    ASSERT_EQ(suite, ret, 1, "math.sin accepts numeric strings");
+    ASSERT_TRUE(suite, L->top().isNumber(), "math.sin numeric string result is number");
+    if (L->top().isNumber()) {
+        ASSERT_TRUE(suite, nearlyEqual(L->top().asNumber(), 1.0), "math.sin converts numeric string argument");
+    }
+}
+
 void registerMathLibTests() {
     auto& registry = TestRegistry::getInstance();
 
@@ -171,4 +187,5 @@ void registerMathLibTests() {
     registry.registerTest(kSuiteName, "hyperbolic functions", testMathHyperbolicFunctions);
     registry.registerTest(kSuiteName, "mod alias", testMathModAlias);
     registry.registerTest(kSuiteName, "argument error names", testMathArgumentErrorUsesFunctionName);
+    registry.registerTest(kSuiteName, "numeric string arguments", testMathFunctionsAcceptNumericStrings);
 }

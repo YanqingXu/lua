@@ -19,6 +19,8 @@
 #include <algorithm>
 #include <limits>
 #include <cstdlib>
+#include <cerrno>
+#include <cctype>
 #include <ctime>
 
 // 确保 M_PI 定义存在
@@ -40,12 +42,36 @@ namespace Lua {
  * @return 数字值
  */
 static inline f64 getNumberArg(LuaState* L, i32 idx, const char* argName) {
-    if (!L->isNumber(idx)) {
+    if (L->isNumber(idx)) {
+        return L->toNumber(idx);
+    }
+
+    if (L->isString(idx)) {
+        const char* text = L->toString(idx);
+        if (text != nullptr) {
+            while (std::isspace(static_cast<unsigned char>(*text))) {
+                ++text;
+            }
+
+            errno = 0;
+            char* end = nullptr;
+            f64 value = std::strtod(text, &end);
+            if (end != text) {
+                while (end != nullptr && std::isspace(static_cast<unsigned char>(*end))) {
+                    ++end;
+                }
+                if (end != nullptr && *end == '\0' && errno != ERANGE) {
+                    return value;
+                }
+            }
+        }
+    }
+
+    {
         char buffer[128];
         std::snprintf(buffer, sizeof(buffer), "bad argument #%d to '%s' (number expected)", idx, argName);
         L->error(buffer);
     }
-    return L->toNumber(idx);
 }
 
 /**

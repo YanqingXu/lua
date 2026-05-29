@@ -204,6 +204,16 @@ public:
     [[nodiscard]] usize collectAutomatic(StringPool& stringPool, LuaState* currentState);
 
     /**
+     * @brief Allocation/write barrier entry used by the VM's coarse automatic GC.
+     */
+    [[nodiscard]] usize maybeCollectAutomatic(LuaState* currentState);
+
+    void stopAutomatic() noexcept;
+    void restartAutomatic() noexcept;
+    [[nodiscard]] bool isAutomaticStopped() const noexcept;
+    [[nodiscard]] bool step(LuaState* currentState, i32 size);
+
+    /**
      * @brief 获取当前 GC 策略对象
      */
     [[nodiscard]] const GCStrategy& getStrategy() const noexcept;
@@ -271,6 +281,11 @@ public:
      * @brief 检查 Value 中的可回收对象是否会在当前 sweep 中被回收
      */
     bool isValueDead(const Value& value) const;
+
+    /**
+     * @brief 检查弱值槽位是否应被清理
+     */
+    bool isWeakValueDead(const Value& value) const;
     
     // =====================================================================
     // 统计信息
@@ -421,6 +436,12 @@ private:
 
     /// 当前 GC 策略；默认指向 mark-sweep，策略对象本身为静态共享实例
     const GCStrategy* strategy_;
+
+    bool automaticStopped_;
+    bool automaticCollectionRunning_;
+    bool preciseStackRoots_;
+    usize automaticThresholdBytes_;
+    i32 stepCountdown_;
     
     /// 统计信息：对象总数
     usize objectCount_;

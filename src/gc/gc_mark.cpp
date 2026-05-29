@@ -17,6 +17,120 @@
 
 namespace Lua {
 
+namespace {
+
+void markWideStackRoots(GarbageCollector& gc, LuaState* state) {
+    Stack& stack = state->getStack();
+    usize scanTop = std::min(state->getAbsoluteTop(), stack.size());
+
+    Vec<CallInfo>& callStack = state->getCallStack();
+    usize callStackSize = state->getCallStackSize();
+    for (usize i = 0; i < callStackSize && i < callStack.size(); i++) {
+        scanTop = std::max(scanTop, std::min(callStack[i].top, stack.size()));
+        if (callStack[i].func < stack.size()) {
+            gc.markValue(stack.at(callStack[i].func));
+        }
+    }
+
+    for (usize i = 0; i < scanTop; i++) {
+        gc.markValue(stack.at(i));
+    }
+}
+
+Function* frameFunction(Stack& stack, const CallInfo& ci) {
+    if (ci.func >= stack.size()) {
+        return nullptr;
+    }
+
+    Value& functionValue = stack.at(ci.func);
+    return functionValue.isFunction() ? functionValue.asFunction() : nullptr;
+}
+
+usize frameCurrentPc(const CallInfo& ci, Proto* proto) {
+    if (proto == nullptr || ci.savedpc == nullptr) {
+        return 0;
+    }
+
+    const auto code = proto->getInstructionSpan();
+    if (code.empty()) {
+        return 0;
+    }
+
+    const Instruction* begin = code.data();
+    const Instruction* end = begin + code.size();
+    if (ci.savedpc <= begin) {
+        return 0;
+    }
+    if (ci.savedpc > end) {
+        return code.size() - 1;
+    }
+
+    return static_cast<usize>((ci.savedpc - begin) - 1);
+}
+
+void markLuaFrameLocals(GarbageCollector& gc, LuaState* state, const CallInfo& ci, Proto* proto) {
+    Stack& stack = state->getStack();
+    usize pc = frameCurrentPc(ci, proto);
+
+    for (usize i = 0; i < proto->getLocVarCount(); i++) {
+        const LocVar& local = proto->getLocVar(i);
+        if (local.reg < 0) {
+            continue;
+        }
+
+        usize slot = ci.base + static_cast<usize>(local.reg);
+        if (slot >= stack.size()) {
+            continue;
+        }
+
+        if (local.startpc <= static_cast<i32>(pc) &&
+            static_cast<i32>(pc) < local.endpc) {
+            gc.markValue(stack.at(slot));
+        }
+    }
+}
+
+void markCFrameStackWindow(GarbageCollector& gc, LuaState* state, const CallInfo& ci) {
+    Stack& stack = state->getStack();
+    usize absTop = std::min(state->getAbsoluteTop(), stack.size());
+    usize top = std::min({ci.top, absTop, stack.size()});
+
+    for (usize i = ci.base; i < top; i++) {
+        gc.markValue(stack.at(i));
+    }
+}
+
+void markPreciseStackRoots(GarbageCollector& gc, LuaState* state) {
+    Stack& stack = state->getStack();
+    Vec<CallInfo>& callStack = state->getCallStack();
+    usize callStackSize = state->getCallStackSize();
+
+    if (callStackSize == 0 || callStack.empty()) {
+        usize scanTop = std::min(state->getAbsoluteTop(), stack.size());
+        for (usize i = 0; i < scanTop; i++) {
+            gc.markValue(stack.at(i));
+        }
+        return;
+    }
+
+    for (usize i = 0; i < callStackSize && i < callStack.size(); i++) {
+        const CallInfo& ci = callStack[i];
+        if (ci.func < stack.size()) {
+            gc.markValue(stack.at(ci.func));
+        }
+
+        Function* function = frameFunction(stack, ci);
+        Proto* proto = function != nullptr ? function->getProto() : nullptr;
+        if (proto != nullptr) {
+            markLuaFrameLocals(gc, state, ci, proto);
+        } else {
+            markCFrameStackWindow(gc, state, ci);
+        }
+    }
+}
+
+} // namespace
+
 bool GarbageCollector::valueContainsObject(const Value& value) {
     return value.isString() || value.isTable() || value.isFunction() ||
            value.isUserdata() || value.isThread();
@@ -128,20 +242,10 @@ void GarbageCollector::markState(LuaState* state) {
         return;
     }
 
-    Stack& stack = state->getStack();
-    usize scanTop = std::min(state->getAbsoluteTop(), stack.size());
-
-    Vec<CallInfo>& callStack = state->getCallStack();
-    usize callStackSize = state->getCallStackSize();
-    for (usize i = 0; i < callStackSize && i < callStack.size(); i++) {
-        scanTop = std::max(scanTop, std::min(callStack[i].top, stack.size()));
-        if (callStack[i].func < stack.size()) {
-            markValue(stack.at(callStack[i].func));
-        }
-    }
-
-    for (usize i = 0; i < scanTop; i++) {
-        markValue(stack.at(i));
+    if (preciseStackRoots_) {
+        markPreciseStackRoots(*this, state);
+    } else {
+        markWideStackRoots(*this, state);
     }
 
     Upvalue* uv = state->getOpenUpvalues();

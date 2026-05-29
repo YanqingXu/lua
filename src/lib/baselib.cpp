@@ -16,6 +16,7 @@
 #include "core/table.hpp"
 #include "core/function.hpp"
 #include "core/upvalue.hpp"
+#include "core/userdata.hpp"
 #include "vm/state/global_state.hpp"
 #include "vm/state/call_info.hpp"
 #include "vm/vm.hpp"
@@ -453,6 +454,35 @@ i32 luaB_getmetatable(LuaState* L) {
         }
     }
 
+    return 1;
+}
+
+// =====================================================================
+// newproxy([boolean|proxy]) - Lua 5.1 compatibility userdata factory
+// =====================================================================
+
+static i32 luaB_newproxy(LuaState* L) {
+    auto& gc = L->getGlobalState().getGC();
+    Table* metatable = nullptr;
+
+    if (L->getTop() >= 1) {
+        const Value& arg = L->at(1);
+        if (arg.isBoolean()) {
+            if (arg.asBoolean()) {
+                metatable = new Table();
+                gc.registerObject(metatable);
+            }
+        } else if (arg.isUserdata()) {
+            metatable = arg.asUserdata()->getMetatable();
+        } else if (!arg.isNil()) {
+            L->error("bad argument #1 to 'newproxy' (boolean or proxy expected)");
+        }
+    }
+
+    Userdata* userdata = Userdata::createFull(1);
+    gc.registerObject(userdata);
+    userdata->setMetatable(metatable);
+    L->pushUserdata(userdata);
     return 1;
 }
 
@@ -1533,13 +1563,12 @@ i32 luaB_collectgarbage(LuaState* L) {
     }
     else if (firstChar == 's') {
         if (strcmp(opt, "stop") == 0) {
-            // 简化实现：停止GC（暂不支持，返回0）
+            gc.stopAutomatic();
             L->pushNumber(0);
             return 1;
         }
         else if (strcmp(opt, "step") == 0) {
-            // 简化实现：执行一步GC（暂不支持，返回false）
-            L->pushBoolean(false);
+            L->pushBoolean(gc.step(L, arg));
             return 1;
         }
         else if (strcmp(opt, "strategy") == 0) {
@@ -1567,7 +1596,7 @@ i32 luaB_collectgarbage(LuaState* L) {
     }
     else if (firstChar == 'r') {
         if (strcmp(opt, "restart") == 0) {
-            // 简化实现：重启GC（暂不支持，返回0）
+            gc.restartAutomatic();
             L->pushNumber(0);
             return 1;
         }
@@ -1747,6 +1776,7 @@ void BaseLibModule::registerFunctions(LuaState* L) {
         .addGlobal("assert", luaB_assert)
         .addGlobal("setmetatable", luaB_setmetatable)
         .addGlobal("getmetatable", luaB_getmetatable)
+        .addGlobal("newproxy", luaB_newproxy)
         .addGlobal("next", luaB_next)
         .addGlobal("pairs", luaB_pairs)
         .addGlobal("ipairs", luaB_ipairs)

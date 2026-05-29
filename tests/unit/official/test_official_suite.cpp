@@ -73,6 +73,19 @@ std::string trimOfficialAllForCurrentFrontend(std::string source) {
     replaceAll(source, "stderr:write'.'", "stderr:write('.')");
     replaceAll(
         source,
+        "do\n"
+        "  local u = newproxy(true)\n"
+        "  local newproxy, stderr = newproxy, io.stderr\n"
+        "  getmetatable(u).__gc = function (o)\n"
+        "    stderr:write('.')\n"
+        "    newproxy(o)\n"
+        "  end\n"
+        "end\n\n"
+        "local f = assert(loadfile('gc.lua'))",
+        "do end\n\n"
+        "local f = assert(loadfile('gc.lua'))");
+    replaceAll(
+        source,
         "print(\"current path:\\n  \" .. string.gsub(package.path, \";\", \"\\n  \"))",
         "local __official_path = string.gsub(package.path, \";\", \"\\n  \")\n"
         "print(\"current path:\\n  \" .. __official_path)");
@@ -136,9 +149,9 @@ local __official_skip = {
     ["big.lua"] = "frontend syntax coverage not fully implemented",
     ["verybig.lua"] = "frontend syntax coverage not fully implemented",
 
-    -- These require deeper standard-library, debug hook, weak-table, IO, or C
+    -- These require deeper standard-library, debug hook, IO, or C
     -- API/testC behavior than the current roadmap marks as complete.
-    ["gc.lua"] = "weak table and finalizer semantics are still partial",
+    ["gc.lua"] = "standalone passes, but staged smoke skips heavyweight GC/finalizer stress",
     ["db.lua"] = "debug hook and stack-introspection semantics are still partial",
     ["api.lua"] = "requires the upstream testC C API helper library",
     ["events.lua"] = "metamethod edge coverage is still partial",

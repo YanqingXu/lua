@@ -51,6 +51,8 @@ HandlerStatus handleSetTable(OpExecutionContext& context, Instruction inst) {
     Value val = getRK(context, c);
     detail::settable(state, table, key, val);
     context.base = refreshBase(state);
+    (void)state->getGlobalState().getGC().maybeCollectAutomatic(state);
+    context.base = refreshBase(state);
     return HandlerStatus::Continue;
 }
 
@@ -62,6 +64,8 @@ HandlerStatus handleNewTable(OpExecutionContext& context, Instruction inst) {
     Table* table = new Table();
     state->getGlobalState().getGC().registerObject(table);
     context.base[a] = Value(table);
+    (void)state->getGlobalState().getGC().maybeCollectAutomatic(state);
+    context.base = refreshBase(state);
     return HandlerStatus::Continue;
 }
 
