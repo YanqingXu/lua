@@ -26,7 +26,7 @@ namespace {
 
 constexpr const char* kSuiteName = "Lua 5.1 Official Suite";
 constexpr const char* kOfficialAllLua = "tests/lua/official/all.lua";
-constexpr LuaNumber kExpectedSkippedScripts = 10.0;
+constexpr LuaNumber kExpectedSkippedScripts = 9.0;
 
 struct RunResult {
     bool ok = false;
@@ -124,16 +124,6 @@ gcinfo = gcinfo or function()
     return collectgarbage("count")
 end
 
--- Keep the staged in-process smoke focused on frontend/runtime compatibility;
--- standalone official scripts still exercise the real collector path.
-local __official_collectgarbage = collectgarbage
-collectgarbage = function(opt, ...)
-    if opt == nil or opt == "collect" then
-        return 0
-    end
-    return __official_collectgarbage(opt, ...)
-end
-
 local __official_loadfile = loadfile
 local __official_skip = {
     -- CLI process spawning, shebang handling, and arg[-n] behavior are not in
@@ -144,7 +134,6 @@ local __official_skip = {
     -- still need staged compatibility work.
     ["code.lua"] = "frontend syntax coverage not fully implemented",
     ["big.lua"] = "frontend syntax coverage not fully implemented",
-    ["closure.lua"] = "frontend syntax coverage not fully implemented",
     ["verybig.lua"] = "frontend syntax coverage not fully implemented",
 
     -- These require deeper standard-library, debug hook, weak-table, IO, or C
@@ -244,6 +233,10 @@ RunResult runOfficialSuiteAllLua() {
     if (!std::filesystem::exists(suiteDir / "all.lua")) {
         return {false, "missing tests/lua/official/all.lua"};
     }
+
+    GlobalState& global = GlobalState::getInstance();
+    global.getGC().clearAll();
+    global.getGC().useStrategy("mark-sweep");
 
     std::unique_ptr<LuaState> L(LuaState::newState());
     if (!L) {

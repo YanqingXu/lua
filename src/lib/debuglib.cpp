@@ -947,10 +947,27 @@ i32 luaDebug_setmetatable(LuaState* L) {
 // =====================================================================
 
 i32 luaDebug_getfenv(LuaState* L) {
+    if (L->getTop() >= 1 && L->at(1).isThread()) {
+        LuaState* threadL = L->at(1).asThread()->getLuaState();
+        L->pushTable(threadL->getGlobalTable());
+        return 1;
+    }
+
     return luaB_getfenv(L);
 }
 
 i32 luaDebug_setfenv(LuaState* L) {
+    if (L->getTop() >= 1 && L->at(1).isThread()) {
+        if (L->getTop() < 2 || !L->at(2).isTable()) {
+            L->error("debug.setfenv: 'table' expected");
+        }
+
+        LuaState* threadL = L->at(1).asThread()->getLuaState();
+        threadL->setGlobalTable(L->at(2).asTable());
+        L->pushValue(1);
+        return 1;
+    }
+
     return luaB_setfenv(L);
 }
 

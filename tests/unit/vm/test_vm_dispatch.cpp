@@ -610,7 +610,6 @@ void testUnaryHandlersExecuteDirectly(TestSuite& suite) {
     Proto proto;
     GCString* hello = services.strings.intern("hello");
     GCString* spaceWorld = services.strings.intern(" world");
-    GCString* empty = services.strings.intern("");
 
     Stack& stack = L->getStack();
     usize frameBase = L->getCurrentCallInfo().base;
@@ -678,7 +677,7 @@ void testUnaryHandlersExecuteDirectly(TestSuite& suite) {
                 "CONCAT handler should stringify numbers without fixed decimals");
 
     base[1] = Value(12.0);
-    base[2] = Value(empty);
+    base[2] = Value(services.strings.intern(""));
     VM::runHandler(context, CREATE_ABC(OpCode::CONCAT, 0, 1, 2));
     base = context.base;
     ASSERT_TRUE(suite, base[0].isString() && std::string(base[0].asString()->c_str()) == "12",

@@ -111,6 +111,15 @@ public:
      * 由完整 GC 在 collectgarbage("collect") 路径调用。
      */
     void markRoots(GarbageCollector& gc, LuaState* currentState) const;
+
+    /**
+     * @brief Reset raw runtime references before GarbageCollector::clearAll().
+     *
+     * clearAll() is used by tests and shutdown paths to delete non-fixed GC
+     * objects without a mark phase. GlobalState stores a few raw pointers to
+     * those objects, so they must be cleared before the objects are freed.
+     */
+    void resetRuntimeReferencesForClearAll() noexcept;
     
     // =====================================================================
     // 注册表管理

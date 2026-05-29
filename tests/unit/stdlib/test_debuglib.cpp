@@ -628,6 +628,18 @@ void testDebugFenvWrappers(TestSuite& suite) {
 
         local cfunc_ok = pcall(function() debug.setfenv(print, {}) end)
         g_rejects_cfunc = not cfunc_ok
+
+        local co = coroutine.create(function()
+            coroutine.yield(getfenv(0))
+            return loadstring("return answer")()
+        end)
+        local threadReturned = debug.setfenv(co, env)
+        g_thread_setfenv_return = threadReturned == co
+        g_thread_getfenv_matches = debug.getfenv(co) == env
+        local ok1, yieldedEnv = coroutine.resume(co)
+        local ok2, loadedAnswer = coroutine.resume(co)
+        g_thread_env_yield = ok1 and yieldedEnv == env
+        g_thread_env_loadstring = ok2 and loadedAnswer == 123
     )", "test_debuglib_fenv.lua");
     ASSERT_TRUE(suite, ok, "debug fenv chunk runs");
 
@@ -635,6 +647,10 @@ void testDebugFenvWrappers(TestSuite& suite) {
     Value getEnvMatches = L->getGlobal("g_getfenv_matches");
     Value envValue = L->getGlobal("g_env_value");
     Value rejectsCFunc = L->getGlobal("g_rejects_cfunc");
+    Value threadSetReturn = L->getGlobal("g_thread_setfenv_return");
+    Value threadGetEnvMatches = L->getGlobal("g_thread_getfenv_matches");
+    Value threadEnvYield = L->getGlobal("g_thread_env_yield");
+    Value threadEnvLoadstring = L->getGlobal("g_thread_env_loadstring");
 
     ASSERT_TRUE(suite, setReturn.isBoolean() && setReturn.asBoolean(), "debug.setfenv returns function");
     ASSERT_TRUE(suite, getEnvMatches.isBoolean() && getEnvMatches.asBoolean(), "debug.getfenv returns assigned env");
@@ -643,6 +659,14 @@ void testDebugFenvWrappers(TestSuite& suite) {
         ASSERT_EQ(suite, 123.0, envValue.asNumber(), "function env lookup returns expected value");
     }
     ASSERT_TRUE(suite, rejectsCFunc.isBoolean() && rejectsCFunc.asBoolean(), "debug.setfenv rejects C functions");
+    ASSERT_TRUE(suite, threadSetReturn.isBoolean() && threadSetReturn.asBoolean(),
+                "debug.setfenv returns thread objects");
+    ASSERT_TRUE(suite, threadGetEnvMatches.isBoolean() && threadGetEnvMatches.asBoolean(),
+                "debug.getfenv reads thread env");
+    ASSERT_TRUE(suite, threadEnvYield.isBoolean() && threadEnvYield.asBoolean(),
+                "thread getfenv(0) sees debug.setfenv env");
+    ASSERT_TRUE(suite, threadEnvLoadstring.isBoolean() && threadEnvLoadstring.asBoolean(),
+                "thread loadstring uses debug.setfenv env");
 
     delete L;
 }

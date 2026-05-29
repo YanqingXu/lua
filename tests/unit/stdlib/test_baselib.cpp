@@ -420,6 +420,26 @@ void testSetfenvThreadEnvironmentWrapper(TestSuite& suite) {
     delete L;
 }
 
+void testClosureKeepsFunctionEnvironmentAfterSetfenvZero(TestSuite& suite) {
+    LuaState* L = createFullState();
+    bool ok = runLua(L, R"lua(
+        local function probe(env)
+            setfenv(0, env)
+            local foundCoroutine = coroutine ~= nil
+            local stillOriginal = getfenv(1) == _G
+            setfenv(0, _G)
+            return foundCoroutine and stillOriginal
+        end
+
+        gClosureEnvAfterSetfenvZero = probe({})
+    )lua");
+    ASSERT_TRUE(suite, ok, "closure env after setfenv(0) chunk runs");
+    Value result = L->getGlobal("gClosureEnvAfterSetfenvZero");
+    ASSERT_TRUE(suite, result.isBoolean() && result.asBoolean(),
+                "closures should keep their function env after thread env changes");
+    delete L;
+}
+
 void testSelectWrapper(TestSuite& suite) {
     LuaStdLibTestContext ctx(openBaseLib);
     if (!ctx.ensureGlobalFunction("select", suite, "select exists")) {
@@ -1191,6 +1211,30 @@ void testPairsAllowsDeletingCurrentHashKey(TestSuite& suite) {
     delete L;
 }
 
+void testAutomaticGCReachesWeakValuesDuringAllocation(TestSuite& suite) {
+    LuaState* L = createFullState();
+    bool ok = runLua(L, R"lua(
+        local x = {[1] = {}}
+        setmetatable(x, {__mode = "kv"})
+
+        local i = 0
+        while x[1] and i < 200 do
+            local a = i .. i .. i .. i
+            i = i + 1
+        end
+
+        gAutoWeakValueCleared = (x[1] == nil)
+        gAutoWeakValueIterations = i
+    )lua");
+
+    ASSERT_TRUE(suite, ok, "automatic GC weak value chunk runs");
+    ASSERT_TRUE(suite, L->getGlobal("gAutoWeakValueCleared").asBoolean(),
+                "automatic GC clears weak values during allocation");
+    ASSERT_TRUE(suite, getGlobalNumber(L, "gAutoWeakValueIterations") < 200.0,
+                "automatic GC clears weak value before bounded loop expires");
+    delete L;
+}
+
 void registerBaselibTests() {
     auto& registry = TestRegistry::getInstance();
 
@@ -1206,6 +1250,8 @@ void registerBaselibTests() {
     registry.registerTest(kSuiteName, "rawequal", testRawequalWrapper);
     registry.registerTest(kSuiteName, "setfenv stack level", testSetfenvStackLevelWrapper);
     registry.registerTest(kSuiteName, "setfenv thread env", testSetfenvThreadEnvironmentWrapper);
+    registry.registerTest(kSuiteName, "closure env survives setfenv zero",
+                          testClosureKeepsFunctionEnvironmentAfterSetfenvZero);
     registry.registerTest(kSuiteName, "select", testSelectWrapper);
     registry.registerTest(kSuiteName, "pcall", testPcallWrapper);
     registry.registerTest(kSuiteName, "error object", testErrorPreservesLuaObject);
@@ -1220,5 +1266,7 @@ void registerBaselibTests() {
     registry.registerTest(kSuiteName, "unpack nil upper bound", testUnpackNilUpperBoundUsesLength);
     registry.registerTest(kSuiteName, "load", testLoadWrapper);
     registry.registerTest(kSuiteName, "pairs deleting current key", testPairsAllowsDeletingCurrentHashKey);
+    registry.registerTest(kSuiteName, "automatic GC clears weak values",
+                          testAutomaticGCReachesWeakValuesDuringAllocation);
 }
 

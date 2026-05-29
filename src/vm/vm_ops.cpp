@@ -319,6 +319,7 @@ void concat(RuntimeServices& services, LuaState* L, Value* base, i32 a, i32 b, i
 
         Str result = str2 + str1;
         base[last - 1] = Value(pool.intern(result));
+        (void)services.gc.collectAutomatic(L);
         total--;
         last--;
     }

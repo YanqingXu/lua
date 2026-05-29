@@ -622,6 +622,14 @@ i32 LuaState::pcall(i32 nargs, i32 nresults, i32 errfunc) {
         currentCI_ = savedCurrentCI;
     };
 
+    auto closeUnwoundUpvalues = [&]() noexcept {
+        usize frame = currentCI_;
+        while (frame > savedCurrentCI && frame < callStack_.size()) {
+            closeUpvalues(callStack_[frame].base);
+            --frame;
+        }
+    };
+
     auto makeStringValue = [&](const Str& message) -> Value {
         return Value(pool.intern(message.c_str()));
     };
@@ -678,6 +686,7 @@ i32 LuaState::pcall(i32 nargs, i32 nresults, i32 errfunc) {
         Value errorValue = e.hasErrorObject()
                          ? e.getErrorObject()
                          : makeStringValue(runtimeErrorWithLocation(this, e.what()));
+        closeUnwoundUpvalues();
         errorValue = invokeErrorHandler(errorValue);
 
         restoreCallFrames();
@@ -688,6 +697,7 @@ i32 LuaState::pcall(i32 nargs, i32 nresults, i32 errfunc) {
 
     } catch (const std::exception& e) {
         Value errorValue = makeStringValue(runtimeErrorWithLocation(this, e.what()));
+        closeUnwoundUpvalues();
         errorValue = invokeErrorHandler(errorValue);
 
         restoreCallFrames();

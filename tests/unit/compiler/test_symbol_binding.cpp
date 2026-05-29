@@ -328,6 +328,39 @@ void testPcallPreservesOpenUpvalues(TestSuite& suite) {
     delete L;
 }
 
+void testPcallClosesUpvaluesOnError(TestSuite& suite) {
+    LuaState* L = createFullState();
+    bool ok = runLua(L, R"lua(
+        local b
+        local function f(x)
+            local a = "xuxu"
+            b = function(op, y)
+                if op == "set" then
+                    a = x + y
+                else
+                    return a
+                end
+            end
+            error("boom")
+        end
+
+        pcall(f, 4)
+        _result1 = b("get")
+        b("set", 10)
+        _result2 = b("get")
+    )lua");
+    ASSERT_TRUE(suite, ok, "pcall error upvalue chunk should run");
+    if (!ok) {
+        delete L;
+        return;
+    }
+    ASSERT_TRUE(suite, getGlobalString(L, "_result1") == "xuxu",
+                "pcall should close errored frame local upvalue");
+    ASSERT_EQ(suite, 14.0, getGlobalNumber(L, "_result2"),
+              "pcall should close errored frame parameter upvalue");
+    delete L;
+}
+
 void testNestedUpvalueChain(TestSuite& suite) {
     LuaState* L = createFullState();
     bool ok = runLua(L,
@@ -408,6 +441,91 @@ void testCloseUsesCurrentFrameBase(TestSuite& suite) {
     delete L;
 }
 
+void testNumericForControlVariableClosurePerIteration(TestSuite& suite) {
+    LuaState* L = createFullState();
+    bool ok = runLua(L, R"lua(
+        local a = {}
+        for i = 1, 3 do
+            a[i] = {
+                set = function(x) i = x end,
+                get = function() return i end,
+            }
+        end
+
+        a[1].set(10)
+        _result1 = a[1].get()
+        _result2 = a[2].get()
+        a[2].set(20)
+        _result3 = a[3].get()
+    )lua");
+    ASSERT_TRUE(suite, ok, "numeric for captured control chunk should run");
+    ASSERT_EQ(suite, 10.0, getGlobalNumber(L, "_result1"),
+              "numeric for first closure can mutate its own iteration variable");
+    ASSERT_EQ(suite, 2.0, getGlobalNumber(L, "_result2"),
+              "numeric for second closure keeps its own iteration variable");
+    ASSERT_EQ(suite, 3.0, getGlobalNumber(L, "_result3"),
+              "numeric for third closure is isolated from earlier writes");
+    delete L;
+}
+
+void testGenericForControlVariablesClosurePerIteration(TestSuite& suite) {
+    LuaState* L = createFullState();
+    bool ok = runLua(L, R"lua(
+        local a = {}
+        for i, k in pairs({"a", "b"}) do
+            a[i] = {
+                set = function(x, y) i = x; k = y end,
+                get = function() return i, k end,
+            }
+        end
+
+        a[1].set(10, 20)
+        _result1, _result2 = a[2].get()
+        a[2].set(30, 40)
+        _result3, _result4 = a[1].get()
+    )lua");
+    ASSERT_TRUE(suite, ok, "generic for captured control chunk should run");
+    ASSERT_EQ(suite, 2.0, getGlobalNumber(L, "_result1"),
+              "generic for second key keeps its own iteration variable");
+    ASSERT_TRUE(suite, getGlobalString(L, "_result2") == "b",
+                "generic for second value keeps its own iteration variable");
+    ASSERT_EQ(suite, 10.0, getGlobalNumber(L, "_result3"),
+              "generic for first key keeps its mutation");
+    ASSERT_EQ(suite, 20.0, getGlobalNumber(L, "_result4"),
+              "generic for first value keeps its mutation");
+    delete L;
+}
+
+void testRepeatUntilClosesBodyLocalsPerIteration(TestSuite& suite) {
+    LuaState* L = createFullState();
+    bool ok = runLua(L, R"lua(
+        local a = {}
+        local i = 1
+        repeat
+            local x = i
+            a[i] = function()
+                i = x + 1
+                return x
+            end
+        until i > 3 or a[i]() ~= x
+
+        _result1 = i
+        _result2 = a[1]()
+        _result3 = a[3]()
+        _result4 = i
+    )lua");
+    ASSERT_TRUE(suite, ok, "repeat-until captured local chunk should run");
+    ASSERT_EQ(suite, 4.0, getGlobalNumber(L, "_result1"),
+              "repeat-until loop should finish after condition sees body local");
+    ASSERT_EQ(suite, 1.0, getGlobalNumber(L, "_result2"),
+              "repeat-until first iteration closure keeps its body local");
+    ASSERT_EQ(suite, 3.0, getGlobalNumber(L, "_result3"),
+              "repeat-until third iteration closure keeps its body local");
+    ASSERT_EQ(suite, 4.0, getGlobalNumber(L, "_result4"),
+              "repeat-until later closure mutation should use closed body local");
+    delete L;
+}
+
 // =============================================================================
 // FunctionStmt 表路径加载 — 通过 resolve() 收敛
 // =============================================================================
@@ -485,11 +603,19 @@ void registerSymbolBindingTests() {
     registry.registerTest("Symbol Binding (PR-8)", "upvalue capture runtime", testUpvalueCaptureRuntime);
     registry.registerTest("Symbol Binding (PR-8)", "upvalue writeback runtime", testUpvalueWritebackRuntime);
     registry.registerTest("Symbol Binding (PR-8)", "pcall preserves open upvalues", testPcallPreservesOpenUpvalues);
+    registry.registerTest("Symbol Binding (PR-8)", "pcall closes upvalues on error",
+                          testPcallClosesUpvaluesOnError);
     registry.registerTest("Symbol Binding (PR-8)", "nested upvalue chain", testNestedUpvalueChain);
     registry.registerTest("Symbol Binding (PR-8)", "block exit emits CLOSE", testBlockExitEmitsClose);
     registry.registerTest("Symbol Binding (PR-8)", "block exit closes upvalue", testUpvalueClosedOnBlockExitRuntime);
     registry.registerTest("Symbol Binding (PR-8)", "break closes upvalue", testUpvalueClosedOnBreakRuntime);
     registry.registerTest("Symbol Binding (PR-8)", "CLOSE uses current frame base", testCloseUsesCurrentFrameBase);
+    registry.registerTest("Symbol Binding (PR-8)", "numeric for control closure per iteration",
+                          testNumericForControlVariableClosurePerIteration);
+    registry.registerTest("Symbol Binding (PR-8)", "generic for control closure per iteration",
+                          testGenericForControlVariablesClosurePerIteration);
+    registry.registerTest("Symbol Binding (PR-8)", "repeat-until body local closure per iteration",
+                          testRepeatUntilClosesBodyLocalsPerIteration);
 
     registry.registerTest("Symbol Binding (PR-8)", "function table path resolve", testFunctionTablePathResolve);
     registry.registerTest("Symbol Binding (PR-8)", "global function definition", testGlobalFunctionDefinition);

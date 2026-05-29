@@ -54,14 +54,27 @@ Thread* Thread::create(LuaState* parentL, Function* func) {
 // =====================================================================
 
 bool Thread::resume(LuaState* callerL, i32 nargs) {
+    auto discardCallerArgs = [&]() {
+        if (nargs <= 0) {
+            return;
+        }
+        usize top = callerL->getAbsoluteTop();
+        usize argCount = static_cast<usize>(nargs);
+        if (argCount <= top) {
+            callerL->setAbsoluteTop(top - argCount);
+        }
+    };
+
     // ──── 前置检查 ────
     if (coStatus_ == CoroutineStatus::Dead) {
+        discardCallerArgs();
         callerL->pushBoolean(false);
         auto& pool = callerL->getGlobalState().getStringPool();
         callerL->pushString(pool.intern("cannot resume dead coroutine"));
         return false;
     }
     if (coStatus_ == CoroutineStatus::Running) {
+        discardCallerArgs();
         callerL->pushBoolean(false);
         auto& pool = callerL->getGlobalState().getStringPool();
         callerL->pushString(pool.intern("cannot resume running coroutine"));
@@ -142,7 +155,8 @@ bool Thread::resume(LuaState* callerL, i32 nargs) {
                 stack.at(argStart + static_cast<usize>(i));
         }
 
-        if (wantedResults >= 0) {
+        bool fixedResults = wantedResults >= 0;
+        if (fixedResults) {
             for (i32 i = nargs; i < wantedResults; i++) {
                 stack.at(funcPos + static_cast<usize>(i)) = Value();
             }
@@ -155,7 +169,9 @@ bool Thread::resume(LuaState* callerL, i32 nargs) {
         // 获取当前 Lua 帧的 proto（reentry 会用到）
         // 恢复调用帧的栈窗口（模拟 CALL handler 的 post-processing）
         CallInfo& ci = state_->getCurrentCallInfo();
-        state_->setAbsoluteTop(ci.top);
+        if (fixedResults) {
+            state_->setAbsoluteTop(ci.top);
+        }
         Function* func = state_->getStack().at(ci.func).asFunction();
         proto = func->getProto();
     }

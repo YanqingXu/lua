@@ -189,6 +189,14 @@ usize GarbageCollector::collect(StringPool& stringPool, LuaState* currentState) 
     return strategy_->collect(context);
 }
 
+usize GarbageCollector::collectAutomatic(LuaState* currentState) {
+    return collectAutomatic(stringPoolForCollection(currentState), currentState);
+}
+
+usize GarbageCollector::collectAutomatic(StringPool& stringPool, LuaState* currentState) {
+    return collectMarkSweep(stringPool, currentState, false);
+}
+
 const GCStrategy& GarbageCollector::getStrategy() const noexcept {
     return *strategy_;
 }
@@ -208,6 +216,11 @@ bool GarbageCollector::useStrategy(StrView name) noexcept {
 }
 
 usize GarbageCollector::collectMarkSweep(StringPool& stringPool, LuaState* currentState) {
+    return collectMarkSweep(stringPool, currentState, true);
+}
+
+usize GarbageCollector::collectMarkSweep(StringPool& stringPool, LuaState* currentState,
+                                         bool runFinalizersNow) {
     // 1. 标记阶段
     mark(currentState);
 
@@ -225,7 +238,7 @@ usize GarbageCollector::collectMarkSweep(StringPool& stringPool, LuaState* curre
     weakTables_.clear();
 
     // 5. 在对象已被复活且本轮垃圾已释放后运行终结器。
-    if (currentState != nullptr) {
+    if (currentState != nullptr && runFinalizersNow) {
         runFinalizers(currentState);
     }
     
@@ -285,42 +298,52 @@ void GarbageCollector::clearAll(StringPool& stringPool) {
     grayList_.clear();
     weakTables_.clear();
     pendingFinalizers_.clear();
-
-    // 删除所有非固定对象
-    GCObject* prev = nullptr;
-    GCObject* obj = allObjects_;
-    while (obj != nullptr) {
-        GCObject* next = obj->getNext();
-
-        // 检查是否为固定对象
-        bool isFixed = (obj->getMarked() & GCBits::FIXED) != 0;
-
-        if (!isFixed) {
-            // 非固定对象，删除它
-            if (prev == nullptr) {
-                allObjects_ = next;
-            } else {
-                prev->setNext(next);
-            }
-
-            // 更新统计信息
-            usize objSize = obj->getSize();
-            totalMemory_ = totalMemory_ >= objSize ? totalMemory_ - objSize : 0;
-            --objectCount_;
-            obj->setOwnerCollector(nullptr);
-
-            if (obj->getType() == GCObjectType::String) {
-                stringPool.remove(static_cast<GCString*>(obj));
-            }
-
-            delete obj;
-        } else {
-            // 固定对象，保留它
-            prev = obj;
-        }
-
-        obj = next;
+    if (globalState_ != nullptr) {
+        globalState_->resetRuntimeReferencesForClearAll();
     }
+
+    auto deleteMatching = [&](auto shouldDelete) {
+        GCObject* prev = nullptr;
+        GCObject* obj = allObjects_;
+        while (obj != nullptr) {
+            GCObject* next = obj->getNext();
+
+            bool isFixed = (obj->getMarked() & GCBits::FIXED) != 0;
+
+            if (!isFixed && shouldDelete(obj)) {
+                if (prev == nullptr) {
+                    allObjects_ = next;
+                } else {
+                    prev->setNext(next);
+                }
+
+                usize objSize = obj->getSize();
+                totalMemory_ = totalMemory_ >= objSize ? totalMemory_ - objSize : 0;
+                --objectCount_;
+                obj->setOwnerCollector(nullptr);
+
+                if (obj->getType() == GCObjectType::String) {
+                    stringPool.remove(static_cast<GCString*>(obj));
+                }
+
+                delete obj;
+            } else {
+                prev = obj;
+            }
+
+            obj = next;
+        }
+    };
+
+    // Threads own LuaState instances that may still reference open upvalues.
+    // Destroy them before the generic object pass so LuaState::~LuaState can
+    // close those upvalues while the Upvalue objects are still alive.
+    deleteMatching([](GCObject* obj) {
+        return obj->getType() == GCObjectType::Thread;
+    });
+    deleteMatching([](GCObject*) {
+        return true;
+    });
 
     // 清空临时列表
     grayList_.clear();

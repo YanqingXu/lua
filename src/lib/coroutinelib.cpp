@@ -162,11 +162,8 @@ static i32 wrap_iterator(LuaState* L) {
             errMsg = L->getStack().at(resultBase + 1);
         }
         // 抛出 Lua 错误
-        if (errMsg.isString()) {
-            L->error(errMsg.asString()->c_str());
-        } else {
-            L->error("cannot resume dead coroutine");
-        }
+        L->pushValue(errMsg);
+        return L->error();
     }
 
     // 成功：把 bool 之后的结果值搬到栈帧起点

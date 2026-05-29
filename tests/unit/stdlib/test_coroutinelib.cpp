@@ -204,6 +204,27 @@ void testDeadCoroutineResume(TestSuite& suite) {
     delete L;
 }
 
+void testDeadCoroutineResumeDiscardsArguments(TestSuite& suite) {
+    LuaState* L = createState();
+    bool ok = runLua(L, R"(
+        local co = coroutine.create(function() return 1 end)
+        coroutine.resume(co)
+        local ok2, err, extra = coroutine.resume(co, "resume-arg")
+        r_dead_ok_is_false = (ok2 == false)
+        r_dead_err_mentions_dead = (type(err) == "string" and string.find(err, "dead") ~= nil)
+        r_dead_extra_is_nil = (extra == nil)
+    )");
+
+    ASSERT_TRUE(suite, ok, "dead coroutine with args chunk runs");
+    ASSERT_TRUE(suite, getGlobalBool(L, "r_dead_ok_is_false"),
+                "dead coroutine resume returns false first even with arguments");
+    ASSERT_TRUE(suite, getGlobalBool(L, "r_dead_err_mentions_dead"),
+                "dead coroutine resume returns the error message second");
+    ASSERT_TRUE(suite, getGlobalBool(L, "r_dead_extra_is_nil"),
+                "dead coroutine resume discards supplied arguments");
+    delete L;
+}
+
 // ==================================================================
 // Test: coroutine.status
 // ==================================================================
@@ -265,6 +286,39 @@ void testMultipleYieldValues(TestSuite& suite) {
     ASSERT_EQ(suite, getGlobalNumber(L, "r_a"), 1.0, "first yield value");
     ASSERT_EQ(suite, getGlobalNumber(L, "r_b"), 2.0, "second yield value");
     ASSERT_EQ(suite, getGlobalNumber(L, "r_c"), 3.0, "third yield value");
+    delete L;
+}
+
+void testYieldReturnValuesInOpenTableConstructor(TestSuite& suite) {
+    LuaState* L = createState();
+    bool ok = runLua(L, R"(
+        local co = coroutine.create(function()
+            local empty = {coroutine.yield()}
+            r_empty_len = table.getn(empty)
+            r_empty_first_is_nil = (empty[1] == nil)
+
+            local values = {coroutine.yield()}
+            r_values_len = table.getn(values)
+            r_values_first = values[1]
+            r_values_second = values[2]
+        end)
+
+        coroutine.resume(co)
+        coroutine.resume(co)
+        coroutine.resume(co, "a", "b")
+    )");
+
+    ASSERT_TRUE(suite, ok, "yield open table constructor chunk runs");
+    ASSERT_EQ(suite, getGlobalNumber(L, "r_empty_len"), 0.0,
+              "yield with no resume values creates an empty table");
+    ASSERT_TRUE(suite, getGlobalBool(L, "r_empty_first_is_nil"),
+                "empty yield result table has no first element");
+    ASSERT_EQ(suite, getGlobalNumber(L, "r_values_len"), 2.0,
+              "yield resume values define the open table length");
+    ASSERT_TRUE(suite, getGlobalString(L, "r_values_first") == "a",
+                "first resume value is preserved");
+    ASSERT_TRUE(suite, getGlobalString(L, "r_values_second") == "b",
+                "second resume value is preserved");
     delete L;
 }
 
@@ -401,6 +455,29 @@ void testWrapResumeArgs(TestSuite& suite) {
     delete L;
 }
 
+void testWrapTailCallYield(TestSuite& suite) {
+    LuaState* L = createState();
+    bool ok = runLua(L, R"(
+        local function tail_yield(v)
+            return coroutine.yield(v)
+        end
+
+        local gen = coroutine.wrap(function()
+            return tail_yield(1)
+        end)
+
+        r_tail_first = gen()
+        r_tail_second = gen(20)
+    )");
+
+    ASSERT_TRUE(suite, ok, "wrap tail-call yield chunk runs");
+    ASSERT_EQ(suite, getGlobalNumber(L, "r_tail_first"), 1.0,
+              "tail-called yield returns its yielded value to wrap");
+    ASSERT_EQ(suite, getGlobalNumber(L, "r_tail_second"), 20.0,
+              "resume arguments become the tail-called yield return values");
+    delete L;
+}
+
 // ==================================================================
 // Test: coroutine.wrap error propagation
 // ==================================================================
@@ -422,6 +499,26 @@ void testWrapError(TestSuite& suite) {
     ASSERT_EQ(suite, getGlobalNumber(L, "r_v1"), 42.0, "wrap return 42");
     ASSERT_TRUE(suite, !getGlobalBool(L, "r_ok2"), "wrap dead raises error");
     ASSERT_TRUE(suite, getGlobalBool(L, "r_has_err"), "wrap error has message");
+    delete L;
+}
+
+void testWrapPreservesErrorObject(TestSuite& suite) {
+    LuaState* L = createState();
+    bool ok = runLua(L, R"(
+        local marker = function() end
+        local gen = coroutine.wrap(function()
+            coroutine.yield()
+            error(marker)
+        end)
+
+        gen()
+        local ok2, err = pcall(gen)
+        r_wrap_error_object = (not ok2 and err == marker)
+    )");
+
+    ASSERT_TRUE(suite, ok, "wrap error object chunk runs");
+    ASSERT_TRUE(suite, getGlobalBool(L, "r_wrap_error_object"),
+                "wrap preserves non-string coroutine error objects");
     delete L;
 }
 
@@ -476,16 +573,22 @@ void registerCoroutineLibTests() {
     registry.registerTest(kSuiteName, "resume args to yield returns", testResumeArgsToYieldReturns);
     registry.registerTest(kSuiteName, "generator pattern", testGeneratorPattern);
     registry.registerTest(kSuiteName, "dead coroutine resume", testDeadCoroutineResume);
+    registry.registerTest(kSuiteName, "dead coroutine resume discards args",
+                          testDeadCoroutineResumeDiscardsArguments);
     registry.registerTest(kSuiteName, "coroutine.status", testCoroutineStatus);
     registry.registerTest(kSuiteName, "coroutine.running", testCoroutineRunning);
     registry.registerTest(kSuiteName, "multiple yield values", testMultipleYieldValues);
+    registry.registerTest(kSuiteName, "yield open table constructor",
+                          testYieldReturnValuesInOpenTableConstructor);
     registry.registerTest(kSuiteName, "coroutine error", testCoroutineError);
     registry.registerTest(kSuiteName, "coroutine no yield", testCoroutineNoYield);
     registry.registerTest(kSuiteName, "wrap basic", testWrapBasic);
     registry.registerTest(kSuiteName, "wrap generator", testWrapGenerator);
     registry.registerTest(kSuiteName, "wrap args", testWrapArgs);
     registry.registerTest(kSuiteName, "wrap resume args", testWrapResumeArgs);
+    registry.registerTest(kSuiteName, "wrap tail-call yield", testWrapTailCallYield);
     registry.registerTest(kSuiteName, "wrap error", testWrapError);
+    registry.registerTest(kSuiteName, "wrap preserves error object", testWrapPreservesErrorObject);
     registry.registerTest(kSuiteName, "wrap multiple values", testWrapMultipleValues);
     registry.registerTest(kSuiteName, "wrap no yield", testWrapNoYield);
 }

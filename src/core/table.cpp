@@ -158,6 +158,13 @@ void Table::remove(const Value& key) {
     hash_.erase(key);
 }
 
+void Table::clear() {
+    array_.clear();
+    hash_.clear();
+    metatable_ = nullptr;
+    flags_ = 0;
+}
+
 // =====================================================================
 // 数组操作
 // =====================================================================

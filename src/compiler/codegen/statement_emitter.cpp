@@ -544,11 +544,14 @@ void StatementEmitter::emitStmt(const RepeatStmt& s) {
         statement(*stmt);
     }
 
-    CondResult cond = emitCondResult(*s.condition);
+    ValueResult cond = emitValue(*s.condition);
+    cond = forceSingleValue(cond);
+    i32 condReg = valueToAnyReg(cond);
 
     removeLocalVars(bodyActiveVarCount);
 
-    patchList(cond.falseList, repeat_init);
+    codeABC(OpCode::TEST, condReg, 0, 0);
+    patchList(jump(), repeat_init);
 
     leaveBlock();
 }
@@ -658,6 +661,7 @@ void StatementEmitter::emitStmt(const ForNumStmt& s) {
     i32 bodyStart = getLabel();
     block(s.body);
 
+    codeABC(OpCode::CLOSE, base + 3, 0, 0);
     i32 loop = codeAsBx(OpCode::FORLOOP, base, bodyStart - getLabel() - 1);
 
     fixjump(prep, loop);
@@ -739,6 +743,10 @@ void StatementEmitter::emitStmt(const ForInStmt& s) {
 
     i32 loopStart = getLabel();
     block(s.body);
+
+    if (nvars > 0) {
+        codeABC(OpCode::CLOSE, base + 3, 0, 0);
+    }
 
     patchtohere(jmpToTfor);
 

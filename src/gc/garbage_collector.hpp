@@ -191,6 +191,19 @@ public:
     [[nodiscard]] usize collect(StringPool& stringPool, LuaState* currentState);
 
     /**
+     * @brief VM 分配路径使用的自动回收入口
+     *
+     * 自动回收会执行标记、弱表清理和清扫，但会延后运行 userdata
+     * `__gc` 终结器，避免在任意字节码指令中重入 Lua 调用栈。
+     */
+    [[nodiscard]] usize collectAutomatic(LuaState* currentState);
+
+    /**
+     * @brief 使用显式字符串池执行自动回收
+     */
+    [[nodiscard]] usize collectAutomatic(StringPool& stringPool, LuaState* currentState);
+
+    /**
      * @brief 获取当前 GC 策略对象
      */
     [[nodiscard]] const GCStrategy& getStrategy() const noexcept;
@@ -347,6 +360,8 @@ private:
 
     StringPool& stringPoolForCollection(LuaState* currentState) const;
     [[nodiscard]] usize collectMarkSweep(StringPool& stringPool, LuaState* currentState);
+    [[nodiscard]] usize collectMarkSweep(StringPool& stringPool, LuaState* currentState,
+                                         bool runFinalizersNow);
     
     /**
      * @brief 传播标记

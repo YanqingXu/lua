@@ -117,6 +117,11 @@ HandlerStatus handleTailCall(OpExecutionContext& context, Instruction inst) {
         return HandlerStatus::Reenter;
     }
 
+    if (state->getStatus() == ThreadStatus::Yield) {
+        state->setSavedNexeccalls(context.nexeccalls);
+        return HandlerStatus::Yielded;
+    }
+
     context.base = refreshBase(state);
     return HandlerStatus::Continue;
 }

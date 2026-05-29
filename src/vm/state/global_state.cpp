@@ -115,6 +115,15 @@ void GlobalState::markRoots(GarbageCollector& gc, LuaState* currentState) const 
     gc.markObject(runningThread_);
 }
 
+void GlobalState::resetRuntimeReferencesForClearAll() noexcept {
+    mainThread_ = nullptr;
+    runningThread_ = nullptr;
+    std::memset(metatables_, 0, sizeof(metatables_));
+    if (registry_ != nullptr) {
+        registry_->clear();
+    }
+}
+
 // =====================================================================
 // 元方法名称管理
 // =====================================================================
