@@ -68,81 +68,108 @@ inline Opt<Str> describeRegister(Proto* proto, i32 reg, usize pc, i32 depth = 0)
         return std::nullopt;
     }
 
-    if (Opt<Str> local = localNameForRegister(proto, reg, pc)) {
-        return Str("local '") + *local + "'";
-    }
-
     const auto code = proto->getInstructionSpan();
-    usize scanPc = pc;
-    while (scanPc > 0) {
-        --scanPc;
-        Instruction inst = code[scanPc];
-        OpCode op = GET_OPCODE(inst);
-        i32 a = GETARG_A(inst);
-        if (a != reg) {
-            continue;
+    i32 currentReg = reg;
+    usize currentPc = pc;
+
+    for (i32 remainingDepth = 4 - depth; remainingDepth >= 0; --remainingDepth) {
+        if (Opt<Str> local = localNameForRegister(proto, currentReg, currentPc)) {
+            return Str("local '") + *local + "'";
         }
 
-        switch (op) {
-            case OpCode::GETGLOBAL:
-                if (Opt<Str> name = constantString(proto, GETARG_Bx(inst))) {
-                    return Str("global '") + *name + "'";
-                }
-                return std::nullopt;
-            case OpCode::GETUPVAL: {
-                GCString* name = proto->getUpvalueName(static_cast<usize>(GETARG_B(inst)));
-                if (name) {
-                    return Str("upvalue '") + name->getData() + "'";
-                }
-                return std::nullopt;
-            }
-            case OpCode::GETTABLE:
-                if (Opt<Str> key = rkString(proto, GETARG_C(inst))) {
-                    return Str("field '") + *key + "'";
-                }
-                return std::nullopt;
-            case OpCode::SELF:
-                if (Opt<Str> key = rkString(proto, GETARG_C(inst))) {
-                    return Str("method '") + *key + "'";
-                }
-                return std::nullopt;
-            case OpCode::MOVE: {
-                i32 sourceReg = GETARG_B(inst);
-                if (Opt<Str> local = localNameForRegister(proto, GETARG_B(inst), scanPc)) {
-                    return Str("local '") + *local + "'";
-                }
+        usize scanPc = currentPc;
+        bool followMove = false;
 
-                usize previousPc = scanPc;
-                while (previousPc > 0) {
-                    --previousPc;
-                    Instruction previous = code[previousPc];
-                    OpCode previousOp = GET_OPCODE(previous);
-                    if (GETARG_A(previous) == sourceReg &&
-                        (previousOp == OpCode::GETGLOBAL ||
-                         previousOp == OpCode::GETUPVAL ||
-                         previousOp == OpCode::GETTABLE ||
-                         previousOp == OpCode::SELF)) {
-                        usize guardPc = previousPc;
-                        usize guardLimit = previousPc > 4 ? previousPc - 4 : 0;
-                        while (guardPc > guardLimit) {
-                            --guardPc;
-                            Instruction guard = code[guardPc];
-                            OpCode guardOp = GET_OPCODE(guard);
-                            if ((guardOp == OpCode::TEST || guardOp == OpCode::TESTSET) &&
-                                GETARG_A(guard) == sourceReg) {
-                                return std::nullopt;
-                            }
-                        }
-                        return describeRegister(proto, sourceReg, scanPc, depth + 1);
+        while (scanPc > 0) {
+            --scanPc;
+            Instruction inst = code[scanPc];
+            OpCode op = GET_OPCODE(inst);
+            i32 a = GETARG_A(inst);
+            if (a != currentReg) {
+                continue;
+            }
+
+            switch (op) {
+                case OpCode::GETGLOBAL:
+                    if (Opt<Str> name = constantString(proto, GETARG_Bx(inst))) {
+                        return Str("global '") + *name + "'";
                     }
-                    if (previousOp != OpCode::MOVE) {
+                    return std::nullopt;
+                case OpCode::GETUPVAL: {
+                    GCString* name = proto->getUpvalueName(static_cast<usize>(GETARG_B(inst)));
+                    if (name) {
+                        return Str("upvalue '") + name->getData() + "'";
+                    }
+                    return std::nullopt;
+                }
+                case OpCode::GETTABLE:
+                    if (Opt<Str> key = rkString(proto, GETARG_C(inst))) {
+                        return Str("field '") + *key + "'";
+                    }
+                    return std::nullopt;
+                case OpCode::SELF:
+                    if (Opt<Str> key = rkString(proto, GETARG_C(inst))) {
+                        return Str("method '") + *key + "'";
+                    }
+                    return std::nullopt;
+                case OpCode::MOVE: {
+                    i32 sourceReg = GETARG_B(inst);
+                    if (Opt<Str> local = localNameForRegister(proto, sourceReg, scanPc)) {
+                        return Str("local '") + *local + "'";
+                    }
+
+                    usize previousPc = scanPc;
+                    while (previousPc > 0) {
+                        --previousPc;
+                        Instruction previous = code[previousPc];
+                        OpCode previousOp = GET_OPCODE(previous);
+                        if (GETARG_A(previous) == sourceReg &&
+                            (previousOp == OpCode::GETGLOBAL ||
+                             previousOp == OpCode::GETUPVAL ||
+                             previousOp == OpCode::GETTABLE ||
+                             previousOp == OpCode::SELF)) {
+                            usize guardPc = previousPc;
+                            usize guardLimit = previousPc > 4 ? previousPc - 4 : 0;
+                            while (guardPc > guardLimit) {
+                                --guardPc;
+                                Instruction guard = code[guardPc];
+                                OpCode guardOp = GET_OPCODE(guard);
+                                if ((guardOp == OpCode::TEST || guardOp == OpCode::TESTSET) &&
+                                    GETARG_A(guard) == sourceReg) {
+                                    return std::nullopt;
+                                }
+                            }
+
+                            currentReg = sourceReg;
+                            currentPc = scanPc;
+                            followMove = true;
+                            break;
+                        }
+                        if (previousOp != OpCode::MOVE) {
+                            break;
+                        }
+                    }
+
+                    if (followMove) {
                         break;
                     }
+                    return std::nullopt;
                 }
-                return std::nullopt;
+                default:
+                    return std::nullopt;
             }
-            default:
-                return std::nullopt;
+
+            if (followMove) {
+                break;
+            }
+        }
+
+        if (!followMove) {
+            return std::nullopt;
+        }
+
+        if (currentPc == 0) {
+            return std::nullopt;
         }
     }
 

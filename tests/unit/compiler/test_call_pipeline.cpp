@@ -575,7 +575,7 @@ void testTailRecursiveLuaCallReusesFrame(TestSuite& suite) {
             return loop(n - 1)
         end
 
-        depth_after_tail_recursion = loop(200)
+        depth_after_tail_recursion = loop(20000)
     )lua");
 
     ASSERT_TRUE(suite, ok, "tail recursive chunk runs");
@@ -585,6 +585,29 @@ void testTailRecursiveLuaCallReusesFrame(TestSuite& suite) {
         ASSERT_TRUE(suite, depth.asNumber() <= 5.0,
                     "tail recursion reuses Lua call frames");
     }
+
+    delete L;
+}
+
+void testDeepTailCallErrorDiagnosticsAreBounded(TestSuite& suite) {
+    LuaState* L = createFullState();
+
+    bool ok = runLua(L, R"lua(
+        local function loop(n)
+            if n == 0 then
+                return missing_tail_target()
+            end
+            return loop(n - 1)
+        end
+
+        local ok, msg = pcall(loop, 20000)
+        deep_tail_error_named =
+            (not ok and string.find(msg, "global 'missing_tail_target'", 1, true) ~= nil)
+    )lua");
+
+    ASSERT_TRUE(suite, ok, "deep tail call error diagnostic chunk runs");
+    ASSERT_TRUE(suite, L->getGlobal("deep_tail_error_named").asBoolean(),
+                "deep tail call error diagnostic remains bounded and names global");
 
     delete L;
 }
@@ -624,4 +647,6 @@ void registerCallPipelineTests() {
                           testOfficialLineEndingRewriteLoop);
     registry.registerTest(kSuiteName, "return f() emits TAILCALL", testTailReturnCallEmitsTailcall);
     registry.registerTest(kSuiteName, "tail recursion reuses frames", testTailRecursiveLuaCallReusesFrame);
+    registry.registerTest(kSuiteName, "deep tail call error diagnostics are bounded",
+                          testDeepTailCallErrorDiagnosticsAreBounded);
 }

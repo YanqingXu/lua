@@ -45,7 +45,9 @@ Str formatCallTypeError(const Value& value, const Str& callTargetName) {
 }
 
 bool precallImpl(LuaState* L, i32 funcIndex, i32 nArgs, i32 nResults,
-                 const Str& callTargetName);
+                 const Str& callTargetName,
+                 CallTargetNameResolver resolver = nullptr,
+                 void* resolverContext = nullptr);
 
 } // namespace
 
@@ -100,10 +102,17 @@ bool precallWithName(LuaState* L, i32 funcIndex, i32 nArgs, i32 nResults,
     return precallImpl(L, funcIndex, nArgs, nResults, callTargetName);
 }
 
+bool precallWithNameResolver(LuaState* L, i32 funcIndex, i32 nArgs, i32 nResults,
+                             CallTargetNameResolver resolver, void* resolverContext) {
+    return precallImpl(L, funcIndex, nArgs, nResults, Str(), resolver, resolverContext);
+}
+
 namespace {
 
 bool precallImpl(LuaState* L, i32 funcIndex, i32 nArgs, i32 nResults,
-                 const Str& callTargetName) {
+                 const Str& callTargetName,
+                 CallTargetNameResolver resolver,
+                 void* resolverContext) {
     Stack& stack = L->getStack();
     CallInfo& currentCI = L->getCurrentCallInfo();
     usize funcPos = currentCI.base + funcIndex;
@@ -112,7 +121,11 @@ bool precallImpl(LuaState* L, i32 funcIndex, i32 nArgs, i32 nResults,
     if (!funcVal.isFunction()) {
         Value tm = getMetamethodByObject(L, funcVal, TMS::TM_CALL);
         if (tm.isNil() || !tm.isFunction()) {
-            throw RuntimeError(formatCallTypeError(funcVal, callTargetName));
+            Str resolvedName = callTargetName;
+            if (resolvedName.empty() && resolver) {
+                resolvedName = resolver(resolverContext);
+            }
+            throw RuntimeError(formatCallTypeError(funcVal, resolvedName));
         }
 
         Value originalFunc = funcVal;

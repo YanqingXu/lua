@@ -69,6 +69,9 @@ void concat(RuntimeServices& services, LuaState* L, Value* base, i32 a, i32 b, i
 bool precall(LuaState* L, i32 funcIndex, i32 nArgs, i32 nResults);
 bool precallWithName(LuaState* L, i32 funcIndex, i32 nArgs, i32 nResults,
                      const Str& callTargetName);
+using CallTargetNameResolver = Str (*)(void* context);
+bool precallWithNameResolver(LuaState* L, i32 funcIndex, i32 nArgs, i32 nResults,
+                             CallTargetNameResolver resolver, void* resolverContext);
 void postcall(LuaState* L, i32 funcPos, i32 wantedResults, usize firstResult = 0);
 void reuseCurrentFrameForTailCall(LuaState* L, usize callerIndex, usize callerFunc, i32 callerTailcalls);
 

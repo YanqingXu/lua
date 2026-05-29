@@ -15,12 +15,39 @@
 
 namespace Lua::VM {
 
+namespace {
+
+class HostCallGuard {
+public:
+    explicit HostCallGuard(LuaState* L) : state_(L) {
+        if (state_) {
+            state_->enterHostCall();
+        }
+    }
+
+    ~HostCallGuard() {
+        if (state_) {
+            state_->leaveHostCall();
+        }
+    }
+
+    HostCallGuard(const HostCallGuard&) = delete;
+    HostCallGuard& operator=(const HostCallGuard&) = delete;
+
+private:
+    LuaState* state_;
+};
+
+} // namespace
+
 void call(LuaState* L, i32 nargs, i32 nresults) {
     RuntimeServices services = RuntimeServices::fromSingletons();
     call(services, L, nargs, nresults);
 }
 
 void call(RuntimeServices& services, LuaState* L, i32 nargs, i32 nresults) {
+    HostCallGuard hostCall(L);
+
     usize absTop = L->getAbsoluteTop();
     usize funcPos = absTop - static_cast<usize>(nargs) - 1;
 

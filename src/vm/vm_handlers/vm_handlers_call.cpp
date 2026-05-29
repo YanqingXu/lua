@@ -14,6 +14,24 @@ namespace Lua::VM::handlers {
 
 namespace {
 
+struct CallTargetDiagnosticContext {
+    Proto* proto = nullptr;
+    i32 reg = 0;
+    usize pc = 0;
+};
+
+Str resolveCallTargetName(void* context) {
+    auto* callContext = static_cast<CallTargetDiagnosticContext*>(context);
+    if (!callContext) {
+        return Str();
+    }
+
+    return diagnostics::describeRegister(
+        callContext->proto,
+        callContext->reg,
+        callContext->pc).value_or(Str());
+}
+
 HandlerStatus handleCall(OpExecutionContext& context, Instruction inst) {
     LuaState* state = requireState(context);
     Proto* proto = requireProto(context);
@@ -48,8 +66,9 @@ HandlerStatus handleCall(OpExecutionContext& context, Instruction inst) {
     const auto code = proto->getInstructionSpan();
     state->getCurrentCallInfo().savedpc = code.data() + context.pc;
 
-    Str callTargetName = diagnostics::describeRegister(proto, a, context.instructionPc).value_or(Str());
-    bool isLua = detail::precallWithName(state, a, nArgs, nResults, callTargetName);
+    CallTargetDiagnosticContext diagnosticContext{proto, a, context.instructionPc};
+    bool isLua = detail::precallWithNameResolver(
+        state, a, nArgs, nResults, resolveCallTargetName, &diagnosticContext);
 
     if (isLua) {
         context.nexeccalls++;
@@ -89,8 +108,9 @@ HandlerStatus handleTailCall(OpExecutionContext& context, Instruction inst) {
     const auto code = proto->getInstructionSpan();
     currentCI.savedpc = code.data() + context.pc;
 
-    Str callTargetName = diagnostics::describeRegister(proto, a, context.instructionPc).value_or(Str());
-    bool isLua = detail::precallWithName(state, a, nArgs, -1, callTargetName);
+    CallTargetDiagnosticContext diagnosticContext{proto, a, context.instructionPc};
+    bool isLua = detail::precallWithNameResolver(
+        state, a, nArgs, -1, resolveCallTargetName, &diagnosticContext);
 
     if (isLua) {
         detail::reuseCurrentFrameForTailCall(state, callerIndex, callerFunc, callerTailcalls);

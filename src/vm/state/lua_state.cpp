@@ -419,6 +419,19 @@ void LuaState::popCallInfo() {
     currentCI_--;
 }
 
+void LuaState::enterHostCall() {
+    if (hostCallDepth_ >= MAX_CALLS) {
+        throw MemoryError("VM: stack overflow (too many nested C/Lua calls)");
+    }
+    ++hostCallDepth_;
+}
+
+void LuaState::leaveHostCall() noexcept {
+    if (hostCallDepth_ > 0) {
+        --hostCallDepth_;
+    }
+}
+
 // =====================================================================
 // ✅ 改进：调试支持
 // =====================================================================

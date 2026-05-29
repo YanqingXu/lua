@@ -592,6 +592,7 @@ void testStringGmatchBasic(TestSuite& suite) {
 
     // Test 1: Collect all words with %a+
     bool ok = runLua(L, R"(
+        gAlias = (string.gfind == string.gmatch)
         local result = ""
         local count = 0
         for w in string.gmatch("hello world foo", "%a+") do
@@ -602,6 +603,7 @@ void testStringGmatchBasic(TestSuite& suite) {
         gCount = count
     )");
     ASSERT_TRUE(suite, ok, "gmatch basic word iteration runs");
+    ASSERT_TRUE(suite, L->getGlobal("gAlias").asBoolean(), "gfind aliases gmatch");
     ASSERT_EQ(suite, std::string("hello,world,foo,"), getGlobalStr(L, "gResult"),
               "gmatch(%a+) collects all words");
     ASSERT_EQ(suite, 3.0, getGlobalNumber(L, "gCount"),
@@ -872,6 +874,28 @@ void testStringGsubTableReplacement(TestSuite& suite) {
     ASSERT_EQ(suite, std::string("%17"), getGlobalStr(L, "gResult3"),
               "gsub table replacement values are raw and numbers stringify");
 
+    ok = runLua(L, R"lua(
+        local repl = setmetatable({}, {__index = function(_, key) return string.upper(key) end})
+        local r = string.gsub("a alo b hi", "%w%w+", repl)
+        gResult4 = r
+    )lua");
+    ASSERT_TRUE(suite, ok, "gsub table replacement __index runs");
+    ASSERT_EQ(suite, std::string("a ALO b HI"), getGlobalStr(L, "gResult4"),
+              "gsub table replacement uses __index metamethod");
+
+    ok = runLua(L, R"lua(
+        gBadCloseCapture = not pcall(string.gsub, "alo", ".)", {})
+        gBadBackrefZero = not pcall(string.gsub, "alo", "(%0)", "a")
+        gBadBackrefOne = not pcall(string.gsub, "alo", "(%1)", "a")
+    )lua");
+    ASSERT_TRUE(suite, ok, "gsub malformed pattern checks run");
+    ASSERT_TRUE(suite, L->getGlobal("gBadCloseCapture").asBoolean(),
+                "gsub rejects unmatched close capture");
+    ASSERT_TRUE(suite, L->getGlobal("gBadBackrefZero").asBoolean(),
+                "gsub rejects invalid %0 pattern capture");
+    ASSERT_TRUE(suite, L->getGlobal("gBadBackrefOne").asBoolean(),
+                "gsub rejects invalid %1 pattern capture");
+
     delete L;
 }
 
@@ -913,6 +937,39 @@ void testStringGsubFunctionReplacement(TestSuite& suite) {
     ASSERT_EQ(suite, std::string("%1%1"), getGlobalStr(L, "gResult3"),
               "gsub function replacement strings are not capture-expanded again");
 
+    ok = runLua(L, R"lua(
+        local r = string.gsub("abc", "%w", "%1%0")
+        gResult4 = r
+    )lua");
+    ASSERT_TRUE(suite, ok, "gsub replacement whole match capture without explicit captures runs");
+    ASSERT_EQ(suite, std::string("aabbcc"), getGlobalStr(L, "gResult4"),
+              "gsub replacement %1 falls back to whole match when there are no explicit captures");
+
+    ok = runLua(L, R"lua(
+        local function rev(s)
+            return string.gsub(s, "(.)(.+)", function(c, s1) return rev(s1) .. c end)
+        end
+
+        local x = string.rep("012345", 10)
+        gDeepResult = (rev(rev(x)) == x)
+    )lua");
+    ASSERT_TRUE(suite, ok, "recursive gsub function replacement runs");
+    ASSERT_TRUE(suite, L->getGlobal("gDeepResult").asBoolean(),
+                "recursive gsub function replacement preserves result");
+
+    ok = runLua(L, R"lua(
+        local function rev(s)
+            return string.gsub(s, "(.)(.+)", function(c, s1) return rev(s1) .. c end)
+        end
+
+        local ok, msg = pcall(rev, string.rep("012345", 40))
+        gDeepErrorBounded =
+            (not ok and string.find(tostring(msg), "stack overflow", 1, true) ~= nil)
+    )lua");
+    ASSERT_TRUE(suite, ok, "over-deep recursive gsub replacement chunk runs");
+    ASSERT_TRUE(suite, L->getGlobal("gDeepErrorBounded").asBoolean(),
+                "over-deep recursive gsub replacement is caught by VM call-depth guard");
+
     delete L;
 }
 
@@ -929,6 +986,9 @@ void testStringBinarySafety(TestSuite& suite) {
         local fs, fe = string.find(s, string.char(0, 66), 1, true)
         gFindStart = fs
         gFindEnd = fe
+        local ps, pe = string.find("a\0o a\0o a\0o", "a\0o", 2)
+        gPatternFindStart = ps
+        gPatternFindEnd = pe
     )lua");
     ASSERT_TRUE(suite, ok, "binary-safe string operations run");
     ASSERT_EQ(suite, 5.0, getGlobalNumber(L, "gLen"),
@@ -943,6 +1003,10 @@ void testStringBinarySafety(TestSuite& suite) {
               "plain string.find can locate embedded NUL sequence start");
     ASSERT_EQ(suite, 3.0, getGlobalNumber(L, "gFindEnd"),
               "plain string.find can locate embedded NUL sequence end");
+    ASSERT_EQ(suite, 5.0, getGlobalNumber(L, "gPatternFindStart"),
+              "pattern string.find can locate embedded NUL sequence start");
+    ASSERT_EQ(suite, 7.0, getGlobalNumber(L, "gPatternFindEnd"),
+              "pattern string.find can locate embedded NUL sequence end");
 
     delete L;
 }

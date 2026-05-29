@@ -184,6 +184,15 @@ endif()
 
 lua_configure_target_warnings(lua_core)
 
+function(lua_configure_runtime_stack target_name)
+    if(MSVC)
+        # Debug builds keep larger VM dispatch frames; Lua callbacks from C
+        # library functions can recurse through the VM before Lua's own stack
+        # guard is reached.
+        target_link_options(${target_name} PRIVATE "/STACK:16777216")
+    endif()
+endfunction()
+
 if(LUA_CPP_BUILD_TOOLS)
     add_executable(lua_app
         src/app/app_options.cpp
@@ -207,6 +216,8 @@ if(LUA_CPP_BUILD_TOOLS)
 
     lua_configure_target_warnings(lua_app)
     lua_configure_target_warnings(lua_bytecode)
+    lua_configure_runtime_stack(lua_app)
+    lua_configure_runtime_stack(lua_bytecode)
 endif()
 
 include(CTest)
@@ -221,6 +232,7 @@ if(BUILD_TESTING AND LUA_CPP_BUILD_TESTS)
     )
 
     lua_configure_target_warnings(lua_test)
+    lua_configure_runtime_stack(lua_test)
     if(UNIX AND NOT MSVC)
         target_link_options(lua_test PRIVATE -rdynamic)
     endif()

@@ -584,6 +584,11 @@ public:
     void setSavedNexeccalls(i32 n) noexcept { savedNexeccalls_ = n; }
     i32  getSavedNexeccalls() const noexcept { return savedNexeccalls_; }
 
+    /// C/C++ host frames that re-enter Lua through VM::call.
+    void enterHostCall();
+    void leaveHostCall() noexcept;
+    i32 getHostCallDepth() const noexcept { return hostCallDepth_; }
+
     /// 当前 LuaState 对应的 Thread 对象（主线程为 nullptr）
     Thread* getThread() const noexcept { return thread_; }
     void setThread(Thread* t) noexcept { thread_ = t; }
@@ -699,6 +704,9 @@ private:
 
     /// 保存的执行深度（yield 时写入，resume 时恢复）
     i32 savedNexeccalls_ = 1;
+
+    /// 嵌套 C/C++ -> Lua 调用深度，用于在宿主栈耗尽前报 Lua stack overflow。
+    i32 hostCallDepth_ = 0;
 
     /// 所属 Thread 对象（主线程为 nullptr）
     Thread* thread_ = nullptr;

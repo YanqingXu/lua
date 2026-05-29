@@ -18,6 +18,7 @@
 #include "core/function.hpp"
 #include "vm/state/global_state.hpp"
 #include "vm/vm.hpp"
+#include "vm/vm_internal.hpp"
 #include "gc/garbage_collector.hpp"
 #include <algorithm>
 #include <cctype>
@@ -431,22 +432,24 @@ static i32 matchclass(i32 c, i32 cl) {
     return res ? 1 : 0;
 }
 
-static const char* classend(const char* p) {
+static const char* classend(const char* p, const char* p_end) {
+    if (p >= p_end) {
+        return p;
+    }
+
     switch (*p++) {
-        case '\0':
-            return p - 1;
         case L_ESC:
-            if (*p == '\0')
+            if (p >= p_end)
                 return p;
             return p + 1;
         case '[':
-            if (*p == '^') p++;
+            if (p < p_end && *p == '^') p++;
             do {
-                if (*p == '\0') return p;
-                if (*p == L_ESC && *(p + 1) != '\0') p++;
+                if (p >= p_end) return p;
+                if (*p == L_ESC && p + 1 < p_end) p++;
                 p++;
-            } while (*p != ']');
-            return p + 1;
+            } while (p < p_end && *p != ']');
+            return (p < p_end) ? p + 1 : p;
         default:
             return p;
     }
@@ -503,8 +506,9 @@ static const char* matchbalance(MatchState* ms, const char* s, const char* p) {
 
 static i32 check_capture(MatchState* ms, i32 l) {
     l -= '1';
-    if (l < 0 || l >= ms->level || ms->capture[l].len == CAP_UNFINISHED)
-        return -1;
+    if (l < 0 || l >= ms->level || ms->capture[l].len == CAP_UNFINISHED) {
+        ms->L->error("invalid capture index");
+    }
     return l;
 }
 
@@ -564,7 +568,7 @@ static const char* end_capture(MatchState* ms, const char* s, const char* p) {
             return res;
         }
     }
-    return nullptr;
+    ms->L->error("invalid pattern capture");
 }
 
 static const char* lmatch(MatchState* ms, const char* s, const char* p) {
@@ -592,13 +596,14 @@ init:
                 }
                 case 'f': {
                     const char* ep2;
-                    char previous;
+                    i32 previous;
+                    i32 current;
                     p += 2;
                     if (*p != '[') return nullptr;
-                    ep2 = classend(p);
-                    previous = (s == ms->src_init) ? '\0' : *(s - 1);
-                    if (singlematch(static_cast<unsigned char>(previous), p, ep2) ||
-                        !singlematch(static_cast<unsigned char>(*s), p, ep2))
+                    ep2 = classend(p, ms->p_end);
+                    previous = (s == ms->src_init) ? '\0' : static_cast<unsigned char>(*(s - 1));
+                    current = (s < ms->src_end) ? static_cast<unsigned char>(*s) : '\0';
+                    if (singlematch(previous, p, ep2) || !singlematch(current, p, ep2))
                         return nullptr;
                     p = ep2;
                     goto init;
@@ -614,7 +619,7 @@ init:
             }
         }
         default: dflt: {
-            const char* ep = classend(p);
+            const char* ep = classend(p, ms->p_end);
             i32 m = (s < ms->src_end) &&
                     singlematch(static_cast<unsigned char>(*s), p, ep);
             if (ep < ms->p_end) {
@@ -831,14 +836,22 @@ static void addStringReplacement(MatchState* ms, Str& result,
                 result.append(s, static_cast<usize>(e - s));
             } else {
                 i32 ci = repl[i] - '1';
-                if (ci < ms->level && ms->capture[ci].len == CAP_POSITION) {
+                if (ci >= ms->level) {
+                    if (ci == 0) {
+                        result.append(s, static_cast<usize>(e - s));
+                    } else {
+                        ms->L->error("invalid capture index");
+                    }
+                } else if (ms->capture[ci].len == CAP_POSITION) {
                     char buffer[32];
                     std::snprintf(buffer, sizeof(buffer), "%.14g",
                                   static_cast<f64>(ms->capture[ci].init - ms->src_init + 1));
                     result.append(buffer);
-                } else if (ci < ms->level && ms->capture[ci].len >= 0) {
+                } else if (ms->capture[ci].len >= 0) {
                     result.append(ms->capture[ci].init,
                                   static_cast<usize>(ms->capture[ci].len));
+                } else {
+                    ms->L->error("unfinished capture");
                 }
             }
         }
@@ -869,7 +882,9 @@ static bool addValueReplacement(LuaState* L, Str& result, const Value& value) {
 static Value getTableReplacement(MatchState* ms, Table* table,
                                  const char* s, const char* e, LuaState* L) {
     Value key = captureToValue(ms, 0, s, e, L);
-    return table->get(key);
+    Value result;
+    VM::detail::gettable(L, Value(table), key, result);
+    return result;
 }
 
 static Value getFunctionReplacement(MatchState* ms, const Value& func,
@@ -1401,8 +1416,12 @@ void StringLibModule::registerFunctions(LuaState* L) {
         .addGlobal("dump", str_dump)
         .commitToTable(stringTable);
 
-    // Lua 5.1 exposes string methods through the shared string metatable.
     auto& gs = L->getGlobalState();
+    GCString* gmatchKey = gs.getStringPool().intern("gmatch");
+    GCString* gfindKey = gs.getStringPool().intern("gfind");
+    stringTable->set(Value(gfindKey), stringTable->get(Value(gmatchKey)));
+
+    // Lua 5.1 exposes string methods through the shared string metatable.
     Table* stringMT = gs.getMetatable(ValueType::String);
     if (stringMT == nullptr) {
         stringMT = new Table();
