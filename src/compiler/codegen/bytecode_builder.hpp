@@ -68,6 +68,10 @@ public:
         return emit(line, CREATE_AsBx(op, a, sbx));
     }
 
+    i32 emitRaw(i32 line, Instruction inst) {
+        return emit(line, inst);
+    }
+
     Instruction instruction(i32 pc) const {
         if (pc < 0) {
             throw std::out_of_range("Instruction index out of range");

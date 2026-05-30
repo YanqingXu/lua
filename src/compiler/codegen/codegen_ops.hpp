@@ -39,6 +39,11 @@ public:
         return state_.bytecode.emitAsBx(state_.currentLine, op, a, sbx);
     }
 
+    [[nodiscard]] i32 codeRaw(Instruction inst) {
+        jumps_.flushPendingJumps();
+        return state_.bytecode.emitRaw(state_.currentLine, inst);
+    }
+
     [[nodiscard]] i32 allocReg() {
         return state_.registers.alloc();
     }

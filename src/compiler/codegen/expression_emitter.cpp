@@ -734,6 +734,16 @@ ValueResult ExpressionEmitter::emitValueTable(const TableExpr& table) {
     CallResultInfo lastCallResult;
     bool hasLastCallResult = false;
 
+    auto emitSetList = [&](i32 count, i32 block) {
+        if (block <= MAXARG_C) {
+            codeABC(OpCode::SETLIST, tableReg, count, block);
+            return;
+        }
+
+        codeABC(OpCode::SETLIST, tableReg, count, 0);
+        (void)ops_.codeRaw(static_cast<Instruction>(block));
+    };
+
     for (usize i = 0; i < table.fields.size(); i++) {
         const auto& field = table.fields[i];
         bool isLastField = (i == table.fields.size() - 1);
@@ -780,7 +790,7 @@ ValueResult ExpressionEmitter::emitValueTable(const TableExpr& table) {
 
             if (!hasLastCallResult && tostore == LFIELDS_PER_FLUSH) {
                 i32 c = (na - 1) / LFIELDS_PER_FLUSH + 1;
-                codeABC(OpCode::SETLIST, tableReg, LFIELDS_PER_FLUSH, c);
+                emitSetList(LFIELDS_PER_FLUSH, c);
                 ops_.setFreeRegAndCheck(tableReg + 1);
                 tostore = 0;
             }
@@ -803,12 +813,12 @@ ValueResult ExpressionEmitter::emitValueTable(const TableExpr& table) {
                 setOpenMultiRet(lastCallResult);
             }
             i32 c = (na - 1) / LFIELDS_PER_FLUSH + 1;
-            codeABC(OpCode::SETLIST, tableReg, 0, c);
+            emitSetList(0, c);
             ops_.setFreeRegAndCheck(tableReg + 1);
             na--;
         } else {
             i32 c = (na - 1) / LFIELDS_PER_FLUSH + 1;
-            codeABC(OpCode::SETLIST, tableReg, tostore, c);
+            emitSetList(tostore, c);
             ops_.setFreeRegAndCheck(tableReg + 1);
         }
     }

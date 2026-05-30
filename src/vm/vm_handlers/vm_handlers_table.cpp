@@ -100,6 +100,16 @@ HandlerStatus handleSetList(OpExecutionContext& context, Instruction inst) {
     i32 a = GETARG_A(inst);
     i32 b = GETARG_B(inst);
     i32 c = GETARG_C(inst);
+    if (c == 0) {
+        Proto* proto = requireProto(context);
+        const auto code = proto->getInstructionSpan();
+        if (context.pc >= code.size()) {
+            throw RuntimeError("VM: SETLIST missing extended block operand");
+        }
+
+        c = static_cast<i32>(code[context.pc++]);
+        state->getCurrentCallInfo().savedpc = code.data() + context.pc;
+    }
 
     detail::setList(state, context.base, a, b, c);
     return HandlerStatus::Continue;

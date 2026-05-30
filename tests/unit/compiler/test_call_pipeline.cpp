@@ -18,6 +18,8 @@
 #include "vm/state/lua_state.hpp"
 #include "vm/vm.hpp"
 
+#include <string>
+
 using namespace Lua;
 using namespace LuaTest;
 
@@ -612,6 +614,28 @@ void testDeepTailCallErrorDiagnosticsAreBounded(TestSuite& suite) {
     delete L;
 }
 
+void testLargeTableConstructorUsesExtendedSetList(TestSuite& suite) {
+    LuaState* L = createFullState();
+
+    std::string code;
+    code.reserve(180000);
+    code += "local t = {\n";
+    for (i32 i = 1; i <= 25551; ++i) {
+        code += std::to_string(i);
+        code += ",\n";
+    }
+    code += R"lua(
+}
+assert(t[1] == 1)
+assert(t[25550] == 25550)
+assert(t[25551] == 25551)
+)lua";
+
+    bool ok = runLua(L, code.c_str());
+    ASSERT_TRUE(suite, ok, "large table constructor crosses SETLIST extended block boundary");
+    delete L;
+}
+
 void registerCallPipelineTests() {
     auto& registry = TestRegistry::getInstance();
     registry.registerTest(kSuiteName, "return f() multret", testReturnCallMultret);
@@ -649,4 +673,6 @@ void registerCallPipelineTests() {
     registry.registerTest(kSuiteName, "tail recursion reuses frames", testTailRecursiveLuaCallReusesFrame);
     registry.registerTest(kSuiteName, "deep tail call error diagnostics are bounded",
                           testDeepTailCallErrorDiagnosticsAreBounded);
+    registry.registerTest(kSuiteName, "large table constructor uses extended SETLIST",
+                          testLargeTableConstructorUsesExtendedSetList);
 }
