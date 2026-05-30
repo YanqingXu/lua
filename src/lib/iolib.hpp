@@ -240,7 +240,20 @@ i32 f_lines(LuaState* L);
  * @param fp 文件指针
  * @return 创建的userdata
  */
-Userdata* createFileHandle(LuaState* L, FILE* fp, bool isPipe = false);
+Userdata* createFileHandle(
+    LuaState* L,
+    FILE* fp,
+    bool isPipe = false,
+    const char* path = nullptr
+);
+
+/**
+ * @brief Close open file handles that reference the given path.
+ *
+ * This is used by Windows rename/remove compatibility paths where the CRT
+ * refuses to rename or remove a file that remains open.
+ */
+bool releaseFileHandlesForPath(LuaState* L, const char* path);
 
 /**
  * @brief 检查并获取文件指针

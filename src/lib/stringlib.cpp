@@ -22,6 +22,7 @@
 #include "gc/garbage_collector.hpp"
 #include <algorithm>
 #include <cctype>
+#include <cerrno>
 #include <cstring>
 #include <cstdio>
 #include <cstdlib>
@@ -62,12 +63,31 @@ static inline const char* getStringArg(LuaState* L, i32 idx, const char* funcNam
  * @return Number value
  */
 static inline f64 getNumberArg(LuaState* L, i32 idx, const char* funcName) {
-    if (!L->isNumber(idx)) {
+    const Value& value = L->at(idx);
+    if (value.isNumber()) {
+        return value.asNumber();
+    }
+
+    if (value.isString()) {
+        GCString* str = value.asString();
+        Str text(str->c_str(), str->getLength());
+        char* end = nullptr;
+        errno = 0;
+        f64 number = std::strtod(text.c_str(), &end);
+        while (end != nullptr && *end != '\0' &&
+               std::isspace(static_cast<unsigned char>(*end)) != 0) {
+            ++end;
+        }
+        if (end != text.c_str() && end != nullptr && *end == '\0' && errno != ERANGE) {
+            return number;
+        }
+    }
+
+    {
         char buffer[128];
         std::snprintf(buffer, sizeof(buffer), "bad argument #%d to 'string.%s' (number expected)", idx, funcName);
         L->error(buffer);
     }
-    return L->toNumber(idx);
 }
 
 static inline const char* getStringLikeArg(LuaState* L, i32 idx, const char* funcName, usize* len = nullptr) {

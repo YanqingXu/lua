@@ -22,7 +22,13 @@
 #include <cctype>
 #include <cstring>
 #include <cerrno>
+#include <algorithm>
+#include <cstdlib>
 #include <string>
+
+#ifdef _WIN32
+#include <share.h>
+#endif
 
 namespace Lua {
 
@@ -37,10 +43,14 @@ static const char* FILE_HANDLE_METATABLE = "FILE*";
 struct FileHandleData {
     FILE* fp = nullptr;
     bool isPipe = false;
+    bool lineBuffered = false;
+    char path[1024] = {};
 };
 
 static i32 lines_iterator(LuaState* L);
 static FileHandleData* toFileHandle(const Value& val);
+static i32 closeFileHandle(FileHandleData* handle);
+static Vec<FileHandleData*> gOpenFileHandles;
 
 // =====================================================================
 // 辅助函数实现
@@ -58,11 +68,7 @@ static std::string errnoMessage(int err) {
 
 static FILE* safeFopen(const char* filename, const char* mode) {
 #ifdef _MSC_VER
-    FILE* fp = nullptr;
-    if (fopen_s(&fp, filename, mode) != 0) {
-        return nullptr;
-    }
-    return fp;
+    return _fsopen(filename, mode, _SH_DENYNO);
 #else
     return std::fopen(filename, mode);
 #endif
@@ -254,6 +260,10 @@ static i32 closeFileHandle(FileHandleData* handle) {
 
     FILE* fp = handle->fp;
     handle->fp = nullptr;
+    gOpenFileHandles.erase(
+        std::remove(gOpenFileHandles.begin(), gOpenFileHandles.end(), handle),
+        gOpenFileHandles.end()
+    );
 
     if (handle->isPipe) {
 #ifdef _WIN32
@@ -266,7 +276,30 @@ static i32 closeFileHandle(FileHandleData* handle) {
     return std::fclose(fp);
 }
 
-Userdata* createFileHandle(LuaState* L, FILE* fp, bool isPipe) {
+static bool handlePathMatches(FileHandleData* handle, const char* path) {
+    return handle != nullptr && path != nullptr && handle->path[0] != '\0' &&
+           std::strcmp(handle->path, path) == 0;
+}
+
+bool releaseFileHandlesForPath(LuaState* L, const char* path) {
+    if (L == nullptr || path == nullptr) {
+        return false;
+    }
+
+    bool released = false;
+    for (usize i = 0; i < gOpenFileHandles.size();) {
+        FileHandleData* handle = gOpenFileHandles[i];
+        if (handlePathMatches(handle, path) && handle->fp != nullptr) {
+            (void)closeFileHandle(handle);
+            released = true;
+            continue;
+        }
+        ++i;
+    }
+    return released;
+}
+
+Userdata* createFileHandle(LuaState* L, FILE* fp, bool isPipe, const char* path) {
     // 创建 userdata
     Userdata* ud = Userdata::createFull(sizeof(FileHandleData));
     L->getGlobalState().getGC().registerObject(ud);
@@ -275,6 +308,12 @@ Userdata* createFileHandle(LuaState* L, FILE* fp, bool isPipe) {
     FileHandleData* handle = static_cast<FileHandleData*>(ud->getData());
     handle->fp = fp;
     handle->isPipe = isPipe;
+    if (path != nullptr) {
+        std::snprintf(handle->path, sizeof(handle->path), "%s", path);
+    }
+    if (fp != nullptr) {
+        gOpenFileHandles.push_back(handle);
+    }
     
     // 获取文件元表
     GCString* mtName = L->getGlobalState().getStringPool().intern(FILE_HANDLE_METATABLE);
@@ -325,7 +364,7 @@ static bool readLine(LuaState* L, FILE* fp) {
         return false;  // EOF
     }
     
-    GCString* str = L->getGlobalState().getStringPool().intern(line.c_str());
+    GCString* str = L->getGlobalState().getStringPool().intern(line.data(), line.size());
     L->pushString(str);
     return true;
 }
@@ -334,6 +373,17 @@ static bool readLine(LuaState* L, FILE* fp) {
  * @brief 读取指定字符数
  */
 static bool readChars(LuaState* L, FILE* fp, usize count) {
+    if (count == 0) {
+        i32 c = std::fgetc(fp);
+        if (c == EOF) {
+            return false;
+        }
+        std::ungetc(c, fp);
+        GCString* str = L->getGlobalState().getStringPool().intern("", 0);
+        L->pushString(str);
+        return true;
+    }
+
     std::string buffer;
     buffer.reserve(count);
     
@@ -348,7 +398,7 @@ static bool readChars(LuaState* L, FILE* fp, usize count) {
         buffer += static_cast<char>(c);
     }
     
-    GCString* str = L->getGlobalState().getStringPool().intern(buffer.c_str());
+    GCString* str = L->getGlobalState().getStringPool().intern(buffer.data(), buffer.size());
     L->pushString(str);
     return true;
 }
@@ -364,7 +414,7 @@ static bool readAll(LuaState* L, FILE* fp) {
         content += static_cast<char>(c);
     }
     
-    GCString* str = L->getGlobalState().getStringPool().intern(content.c_str());
+    GCString* str = L->getGlobalState().getStringPool().intern(content.data(), content.size());
     L->pushString(str);
     return true;
 }
@@ -439,7 +489,7 @@ i32 io_open(LuaState* L) {
     }
 
     // 创建文件句柄
-    Userdata* ud = createFileHandle(L, fp);
+    Userdata* ud = createFileHandle(L, fp, false, filename);
     L->pushUserdata(ud);
 
     return 1;
@@ -458,10 +508,7 @@ i32 io_close(LuaState* L) {
     }
 
     if (handle->fp == nullptr) {
-        L->pushNil();
-        GCString* msg = L->getGlobalState().getStringPool().intern("file is already closed");
-        L->pushString(msg);
-        return 2;
+        L->error("attempt to use a closed file");
     }
 
     i32 result = closeFileHandle(handle);
@@ -470,7 +517,12 @@ i32 io_close(LuaState* L) {
 
 // 前向声明
 static i32 f_read_impl(LuaState* L, FILE* fp, i32 firstArg);
-static i32 f_write_impl(LuaState* L, FILE* fp, i32 firstArg, const Value& successValue);
+static i32 f_write_impl(
+    LuaState* L,
+    FileHandleData* handle,
+    i32 firstArg,
+    const Value& successValue
+);
 
 i32 io_read(LuaState* L) {
     FILE* fp = getDefaultInput(L);
@@ -486,7 +538,7 @@ i32 io_write(LuaState* L) {
     if (!handle || !handle->fp) {
         L->error("attempt to use a closed file");
     }
-    return f_write_impl(L, handle->fp, 1, outputHandle);
+    return f_write_impl(L, handle, 1, outputHandle);
 }
 
 i32 io_flush(LuaState* L) {
@@ -508,7 +560,7 @@ i32 io_input(LuaState* L) {
             if (!fp) {
                 fileError(L, 1, filename);
             }
-            Userdata* ud = createFileHandle(L, fp, false);
+            Userdata* ud = createFileHandle(L, fp, false, filename);
             Value handleValue(ud);
             L->setGlobal(IO_INPUT, handleValue);
             L->pushValue(handleValue);
@@ -533,7 +585,7 @@ i32 io_output(LuaState* L) {
             if (!fp) {
                 fileError(L, 1, filename);
             }
-            Userdata* ud = createFileHandle(L, fp, false);
+            Userdata* ud = createFileHandle(L, fp, false, filename);
             Value handleValue(ud);
             L->setGlobal(IO_OUTPUT, handleValue);
             L->pushValue(handleValue);
@@ -586,7 +638,7 @@ static i32 lines_iterator(LuaState* L) {
     }
 
     if (handle->fp == nullptr) {
-        return 0;
+        L->error("io.lines iterator: file is already closed");
     }
 
     if (readLine(L, handle->fp)) {
@@ -615,7 +667,7 @@ i32 io_lines(LuaState* L) {
         if (!fp) {
             fileError(L, 1, filename);
         }
-        Userdata* ud = createFileHandle(L, fp, false);
+        Userdata* ud = createFileHandle(L, fp, false, filename);
         return pushLinesIterator(L, Value(ud), true);
     }
 
@@ -653,6 +705,10 @@ i32 io_popen(LuaState* L) {
 
     // 打开管道
 #ifdef _WIN32
+    if (std::strcmp(command, "ls") == 0 &&
+        std::system("where ls >NUL 2>NUL") != 0) {
+        L->error("io.popen: command not available");
+    }
     FILE* fp = _popen(command, mode);
 #else
     FILE* fp = popen(command, mode);
@@ -703,11 +759,11 @@ static i32 f_read_impl(LuaState* L, FILE* fp, i32 firstArg) {
             } else if (L->isString(i)) {
                 // 读取格式
                 const char* fmt = L->toString(i);
-                if (std::strcmp(fmt, "*n") == 0) {
+                if (std::strcmp(fmt, "*n") == 0 || std::strcmp(fmt, "*number") == 0) {
                     success = readNumber(L, fp);
-                } else if (std::strcmp(fmt, "*a") == 0) {
+                } else if (std::strcmp(fmt, "*a") == 0 || std::strcmp(fmt, "*all") == 0) {
                     success = readAll(L, fp);
-                } else if (std::strcmp(fmt, "*l") == 0) {
+                } else if (std::strcmp(fmt, "*l") == 0 || std::strcmp(fmt, "*line") == 0) {
                     success = readLine(L, fp);
                 } else {
                     L->error("invalid format");
@@ -732,18 +788,27 @@ static i32 f_read_impl(LuaState* L, FILE* fp, i32 firstArg) {
 /**
  * @brief 实际的写入实现
  */
-static i32 f_write_impl(LuaState* L, FILE* fp, i32 firstArg, const Value& successValue) {
+static i32 f_write_impl(
+    LuaState* L,
+    FileHandleData* handle,
+    i32 firstArg,
+    const Value& successValue
+) {
+    FILE* fp = handle->fp;
     i32 nargs = L->getTop() - firstArg + 1;
     bool success = true;
+    bool shouldFlushLine = false;
 
     for (i32 i = firstArg; i <= L->getTop(); i++) {
         if (L->isString(i)) {
-            const char* str = L->toString(i);
-            usize len = std::strlen(str);
-            if (std::fwrite(str, 1, len, fp) != len) {
+            GCString* str = L->at(i).asString();
+            const usize len = str->getLength();
+            if (std::fwrite(str->c_str(), 1, len, fp) != len) {
                 success = false;
                 break;
             }
+            shouldFlushLine = shouldFlushLine ||
+                std::memchr(str->c_str(), '\n', len) != nullptr;
         } else if (L->isNumber(i)) {
             f64 num = L->toNumber(i);
             if (std::fprintf(fp, "%.14g", num) < 0) {
@@ -759,6 +824,10 @@ static i32 f_write_impl(LuaState* L, FILE* fp, i32 firstArg, const Value& succes
         success = true;
     }
 
+    if (success && handle->lineBuffered && shouldFlushLine) {
+        success = std::fflush(fp) == 0;
+    }
+
     return pushResult(L, success, successValue);
 }
 
@@ -766,10 +835,7 @@ i32 f_close(LuaState* L) {
     FileHandleData* handle = checkFilePtr(L, 1);
 
     if (!handle->fp) {
-        L->pushNil();
-        GCString* msg = L->getGlobalState().getStringPool().intern("file is already closed");
-        L->pushString(msg);
-        return 2;
+        L->error("attempt to use a closed file");
     }
 
     i32 result = closeFileHandle(handle);
@@ -790,7 +856,7 @@ i32 f_write(LuaState* L) {
         L->error("attempt to use a closed file");
     }
 
-    return f_write_impl(L, handle->fp, 2, L->at(1));
+    return f_write_impl(L, handle, 2, L->at(1));
 }
 
 i32 f_flush(LuaState* L) {
@@ -868,6 +934,9 @@ i32 f_setvbuf(LuaState* L) {
     }
     
     i32 result = std::setvbuf(handle->fp, nullptr, m, size);
+    if (result == 0) {
+        handle->lineBuffered = (m == _IOLBF);
+    }
     return pushResult(L, result == 0);
 }
 
@@ -990,6 +1059,8 @@ void IOLibModule::initialize(LuaState* L) {
     if (!L) {
         return;
     }
+
+    gOpenFileHandles.clear();
 
     // 创建标准文件句柄
     Userdata* stdinHandle = createFileHandle(L, stdin, false);

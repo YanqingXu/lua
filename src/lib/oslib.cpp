@@ -1,4 +1,5 @@
 #include "lib/oslib.hpp"
+#include "lib/iolib.hpp"
 #include "lib/lib_registry.hpp"
 #include "core/table.hpp"
 #include "core/gc_string.hpp"
@@ -173,6 +174,12 @@ i32 luaOS_remove(LuaState* L) {
     if (std::remove(filename) == 0) {
         L->pushBoolean(true);
     } else {
+#ifdef _WIN32
+        if (releaseFileHandlesForPath(L, filename) && std::remove(filename) == 0) {
+            L->pushBoolean(true);
+            return 1;
+        }
+#endif
         L->pushNil();
     }
     return 1;
@@ -192,6 +199,13 @@ i32 luaOS_rename(LuaState* L) {
     if (std::rename(oldName, newName) == 0) {
         L->pushBoolean(true);
     } else {
+#ifdef _WIN32
+        if (releaseFileHandlesForPath(L, oldName) &&
+            std::rename(oldName, newName) == 0) {
+            L->pushBoolean(true);
+            return 1;
+        }
+#endif
         L->pushNil();
     }
     return 1;

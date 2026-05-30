@@ -559,6 +559,19 @@ void testStringFormat(TestSuite& suite) {
     }
 
     // Test 13: Not enough arguments throws
+    ret = callStringFunc(L, "format", [&](LuaState* s) {
+        auto& pool = s->getGlobalState().getStringPool();
+        s->pushString(pool.intern("%02d/%d"));
+        s->pushString(pool.intern("7"));
+        s->pushString(pool.intern("2026"));
+    });
+    result = L->top();
+    if (result.isString()) {
+        std::string str = result.asString()->c_str();
+        ASSERT_TRUE(suite, str == "07/2026", "format numeric specifiers accept numeric strings");
+    }
+
+    // Test 14: Not enough arguments throws
     bool notEnoughArgs = false;
     try {
         callStringFunc(L, "format", [&](LuaState* s) {
@@ -570,7 +583,7 @@ void testStringFormat(TestSuite& suite) {
     }
     ASSERT_TRUE(suite, notEnoughArgs, "format throws when arguments are missing");
 
-    // Test 14: Invalid format option throws
+    // Test 15: Invalid format option throws
     bool invalidOption = false;
     try {
         callStringFunc(L, "format", [&](LuaState* s) {

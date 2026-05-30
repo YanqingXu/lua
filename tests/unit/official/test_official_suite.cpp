@@ -26,7 +26,7 @@ namespace {
 
 constexpr const char* kSuiteName = "Lua 5.1 Official Suite";
 constexpr const char* kOfficialAllLua = "tests/lua/official/all.lua";
-constexpr LuaNumber kExpectedSkippedScripts = 6.0;
+constexpr LuaNumber kExpectedSkippedScripts = 5.0;
 
 struct RunResult {
     bool ok = false;
@@ -147,12 +147,11 @@ local __official_skip = {
     -- still need staged compatibility work.
     ["code.lua"] = "frontend syntax coverage not fully implemented",
 
-    -- These require deeper standard-library, debug hook, IO, or C
-    -- API/testC behavior than the current roadmap marks as complete.
+    -- These require deeper standard-library, debug hook, or C API/testC
+    -- behavior than the current roadmap marks as complete.
     ["gc.lua"] = "standalone passes, but staged smoke skips heavyweight GC/finalizer stress",
     ["db.lua"] = "debug hook and stack-introspection semantics are still partial",
     ["api.lua"] = "requires the upstream testC C API helper library",
-    ["files.lua"] = "system-dependent IO and tmpfile behavior is still partial",
 }
 
 local function __official_quote(value)
