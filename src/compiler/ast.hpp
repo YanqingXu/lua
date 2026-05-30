@@ -184,6 +184,7 @@ struct FunctionExpr : SourceLocation {
     Vec<Str> params;
     bool isVararg;
     Vec<StmtPtr> body;
+    i32 endLine = 0;
 };
 
 /**
@@ -273,6 +274,7 @@ struct IfStmt : SourceLocation {
 
     Vec<Branch> branches;  // if和elseif分支
     Vec<StmtPtr> elseBranch;  // else分支
+    i32 endLine = 0;
 };
 
 /**
@@ -281,6 +283,7 @@ struct IfStmt : SourceLocation {
 struct WhileStmt : SourceLocation {
     ExprPtr condition;
     Vec<StmtPtr> body;
+    i32 endLine = 0;
 };
 
 /**
@@ -289,6 +292,7 @@ struct WhileStmt : SourceLocation {
 struct RepeatStmt : SourceLocation {
     Vec<StmtPtr> body;
     ExprPtr condition;
+    i32 endLine = 0;
 };
 
 /**
@@ -300,6 +304,7 @@ struct ForNumStmt : SourceLocation {
     ExprPtr limit;
     ExprPtr step;  // 可选，默认为1
     Vec<StmtPtr> body;
+    i32 endLine = 0;
 };
 
 /**
@@ -309,6 +314,7 @@ struct ForInStmt : SourceLocation {
     Vec<Str> vars;
     Vec<ExprPtr> iterators;
     Vec<StmtPtr> body;
+    i32 endLine = 0;
 };
 
 /**
@@ -327,6 +333,7 @@ struct FunctionStmt : SourceLocation {
     bool isVararg;
     Vec<StmtPtr> body;
     bool isLocal;
+    i32 endLine = 0;
 };
 
 /**
@@ -347,6 +354,7 @@ struct BreakStmt : SourceLocation {
  */
 struct DoStmt : SourceLocation {
     Vec<StmtPtr> body;
+    i32 endLine = 0;
 };
 
 /**
@@ -379,6 +387,7 @@ struct Stmt {
 
     i32 getLine() const;
     i32 getColumn() const;
+    i32 getEndLine() const;
 };
 
 /**

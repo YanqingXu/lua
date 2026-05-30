@@ -19,9 +19,10 @@ struct LocalVar {
     i32 reg;
     i32 startpc;
     i32 endpc;
+    bool captured;
 
     LocalVar(const Str& n, i32 r, i32 start)
-        : name(n), reg(r), startpc(start), endpc(-1) {}
+        : name(n), reg(r), startpc(start), endpc(-1), captured(false) {}
 };
 
 // =============================================================================
@@ -47,6 +48,24 @@ public:
             }
         }
         return -1;
+    }
+
+    void markCaptured(i32 reg) {
+        for (i32 i = static_cast<i32>(localVars_.size()) - 1; i >= 0; --i) {
+            if (localVars_[i].reg == reg && localVars_[i].endpc == -1) {
+                localVars_[i].captured = true;
+                return;
+            }
+        }
+    }
+
+    bool hasCapturedLocalsFrom(i32 level) const {
+        for (const LocalVar& local : localVars_) {
+            if (local.endpc == -1 && local.reg >= level && local.captured) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /// 关闭离开作用域的局部变量（设置 endpc）

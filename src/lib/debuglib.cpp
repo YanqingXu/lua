@@ -66,15 +66,49 @@ void setNumberField(Table* table, LuaState* L, const char* key, i32 value) {
 
 Str makeShortSource(StrView source) {
     if (source.empty()) {
-        return "?";
+        return "[string \"\"]";
     }
 
-    if (source.size() <= SHORT_SRC_LIMIT) {
-        return Str(source);
+    if (source.front() == '=') {
+        StrView literal = source.substr(1);
+        if (literal.size() <= SHORT_SRC_LIMIT) {
+            return Str(literal);
+        }
+        return Str(literal.substr(0, SHORT_SRC_LIMIT));
     }
 
-    constexpr usize prefix = 3;
-    return "..." + Str(source.substr(source.size() - (SHORT_SRC_LIMIT - prefix)));
+    if (source.front() == '@') {
+        StrView filename = source.substr(1);
+        if (filename.size() <= SHORT_SRC_LIMIT) {
+            return Str(filename);
+        }
+        constexpr usize prefix = 3;
+        return "..." + Str(filename.substr(filename.size() - (SHORT_SRC_LIMIT - prefix)));
+    }
+
+    constexpr StrView open = "[string \"";
+    constexpr StrView close = "\"]";
+    constexpr StrView ellipsis = "...";
+    const usize newline = source.find_first_of("\r\n");
+    const bool hasNewline = newline != StrView::npos;
+    StrView body = source.substr(0, hasNewline ? newline : source.size());
+
+    const usize overhead = open.size() + close.size();
+    const usize maxBody = SHORT_SRC_LIMIT > overhead ? SHORT_SRC_LIMIT - overhead : 0;
+    bool truncated = hasNewline || body.size() > maxBody;
+    if (truncated && maxBody > ellipsis.size()) {
+        body = body.substr(0, maxBody - ellipsis.size());
+    } else if (body.size() > maxBody) {
+        body = body.substr(0, maxBody);
+    }
+
+    Str result(open);
+    result.append(body);
+    if (truncated) {
+        result.append(ellipsis);
+    }
+    result.append(close);
+    return result;
 }
 
 LuaState* getThreadArgument(LuaState* L, i32& argBase) {
@@ -106,27 +140,52 @@ struct DebugFrameRef {
     usize stackIndex = 0;
 };
 
-bool resolveStackLevel(LuaState* ownerL, i32 level, DebugFrameRef& outFrame) {
+enum class StackLevelKind {
+    Invalid,
+    Physical,
+    Tail,
+};
+
+StackLevelKind resolveStackLevelKind(LuaState* ownerL, i32 level, DebugFrameRef& outFrame) {
     if (level < 0) {
-        return false;
+        return StackLevelKind::Invalid;
     }
 
     usize currentIndex = ownerL->getCurrentCI();
-    if (static_cast<usize>(level) > currentIndex) {
-        return false;
+    Vec<CallInfo>& frames = ownerL->getCallStack();
+    if (currentIndex >= frames.size()) {
+        return StackLevelKind::Invalid;
     }
 
-    usize targetIndex = currentIndex - static_cast<usize>(level);
-    const CallInfo& ci = ownerL->getCallStack()[targetIndex];
+    usize targetIndex = currentIndex;
+    while (level > 0 && targetIndex > 0) {
+        const CallInfo& ci = frames[targetIndex];
+        --level;
+        level -= ci.tailcalls;
+        --targetIndex;
+    }
+
+    if (level < 0) {
+        return StackLevelKind::Tail;
+    }
+    if (level > 0) {
+        return StackLevelKind::Invalid;
+    }
+
+    const CallInfo& ci = frames[targetIndex];
     Function* func = functionFromCallInfo(ownerL, ci);
     if (func == nullptr) {
-        return false;
+        return StackLevelKind::Invalid;
     }
 
     outFrame.func = func;
     outFrame.ci = &ci;
     outFrame.stackIndex = targetIndex;
-    return true;
+    return StackLevelKind::Physical;
+}
+
+bool resolveStackLevel(LuaState* ownerL, i32 level, DebugFrameRef& outFrame) {
+    return resolveStackLevelKind(ownerL, level, outFrame) == StackLevelKind::Physical;
 }
 
 i32 currentPcForFrame(Function* func, const CallInfo* ci) {
@@ -182,6 +241,46 @@ const LocVar* resolveLocalInfo(Function* func, const CallInfo* ci, i32 localNumb
     return proto->getLocalVarInfo(localNumber, pc);
 }
 
+bool getTemporaryLocalSlot(LuaState* ownerL, const DebugFrameRef& frame, i32 localNumber, usize& outSlot) {
+    if (ownerL == nullptr || frame.ci == nullptr || localNumber <= 0) {
+        return false;
+    }
+
+    usize absSlot = frame.ci->base + static_cast<usize>(localNumber - 1);
+    usize limit = ownerL->getStack().size();
+    if (frame.stackIndex == ownerL->getCurrentCI()) {
+        limit = std::min(limit, ownerL->getAbsoluteTop());
+    } else {
+        limit = std::min(limit, frame.ci->top);
+    }
+
+    if (frame.func != nullptr && frame.func->isLuaFunction()) {
+        Proto* proto = frame.func->getProto();
+        if (proto != nullptr && frame.ci->savedpc != nullptr) {
+            i32 pc = currentPcForFrame(frame.func, frame.ci);
+            if (pc >= 0 && pc < static_cast<i32>(proto->getInstructionCount())) {
+                Instruction inst = proto->getInstruction(static_cast<usize>(pc));
+                OpCode op = GET_OPCODE(inst);
+                if (op == OpCode::CALL || op == OpCode::TAILCALL) {
+                    limit = std::min(limit, frame.ci->base + static_cast<usize>(GETARG_A(inst)));
+                }
+            }
+        }
+    }
+
+    if (absSlot >= limit) {
+        return false;
+    }
+
+    const Value& value = ownerL->getStack().at(absSlot);
+    if (value.isNil()) {
+        return false;
+    }
+
+    outSlot = absSlot;
+    return true;
+}
+
 GCString* upvalueNameOrEmpty(LuaState* L, Function* func, usize index) {
     if (func == nullptr) {
         return nullptr;
@@ -234,6 +333,15 @@ void populateInfoS(Table* info, LuaState* L, Function* func, const CallInfo* ci)
     setNumberField(info, L, "linedefined", proto ? proto->getLineDefined() : -1);
     setNumberField(info, L, "lastlinedefined", proto ? proto->getLastLineDefined() : -1);
     setNumberField(info, L, "currentline", currentLineForFrame(func, ci));
+}
+
+void populateTailInfoS(Table* info, LuaState* L) {
+    setStringField(info, L, "source", "=(tail call)");
+    setStringField(info, L, "short_src", "(tail call)");
+    setStringField(info, L, "what", "tail");
+    setNumberField(info, L, "linedefined", -1);
+    setNumberField(info, L, "lastlinedefined", -1);
+    setNumberField(info, L, "currentline", -1);
 }
 
 void populateInfoU(Table* info, LuaState* L, Function* func) {
@@ -494,9 +602,12 @@ void populateInfoL(Table* info, LuaState* L, Function* func) {
 
     Table* lines = createGCManagedTable(L);
     for (i32 line : proto->getLineInfo()) {
-        if (line > 0) {
+        if (line > 0 && line != proto->getLineDefined()) {
             lines->set(Value(static_cast<LuaNumber>(line)), Value(true));
         }
+    }
+    if (proto->getLastLineDefined() > 0) {
+        lines->set(Value(static_cast<LuaNumber>(proto->getLastLineDefined())), Value(true));
     }
 
     setField(info, L, "activelines", Value(lines));
@@ -524,14 +635,75 @@ Str describeFunction(Function* func) {
     return std::format("function <{}:{}>", source, proto->getLineDefined());
 }
 
-Str formatFrameLine(LuaState* ownerL, const CallInfo& ci) {
+bool inferFrameCallName(
+    LuaState* ownerL,
+    usize stackIndex,
+    const char*& outNameWhat,
+    GCString*& outName
+) {
+    Vec<CallInfo>& frames = ownerL->getCallStack();
+    if (stackIndex == 0 || stackIndex >= frames.size()) {
+        return false;
+    }
+
+    const CallInfo& callerCi = frames[stackIndex - 1];
+    Function* callerFunc = functionFromCallInfo(ownerL, callerCi);
+    if (callerFunc == nullptr || callerFunc->isCFunction()) {
+        return false;
+    }
+
+    Proto* callerProto = callerFunc->getProto();
+    i32 callerPc = currentPcForFrame(callerFunc, &callerCi);
+    if (callerProto == nullptr || callerPc < 0 ||
+        static_cast<usize>(callerPc) >= callerProto->getInstructionCount()) {
+        return false;
+    }
+
+    Instruction instruction = callerProto->getInstruction(static_cast<usize>(callerPc));
+    OpCode op = GET_OPCODE(instruction);
+
+    i32 targetReg = -1;
+    if (op == OpCode::CALL || op == OpCode::TAILCALL || op == OpCode::TFORLOOP) {
+        targetReg = GETARG_A(instruction);
+    }
+    if (targetReg < 0) {
+        return false;
+    }
+
+    outNameWhat = inferObjectName(ownerL, callerProto, callerPc, targetReg, outName);
+    return outNameWhat != nullptr && outName != nullptr;
+}
+
+Str describeNamedCall(const char* nameWhat, GCString* name) {
+    if (nameWhat == nullptr || name == nullptr) {
+        return "";
+    }
+
+    if (std::strcmp(nameWhat, "method") == 0) {
+        return std::format("method '{}'", name->c_str());
+    }
+    return std::format("function '{}'", name->c_str());
+}
+
+Str describeCFunctionAtFrame(LuaState* ownerL, usize stackIndex) {
+    const char* nameWhat = nullptr;
+    GCString* name = nullptr;
+    if (!inferFrameCallName(ownerL, stackIndex, nameWhat, name)) {
+        return "C function";
+    }
+
+    Str namedCall = describeNamedCall(nameWhat, name);
+    return namedCall.empty() ? "C function" : namedCall;
+}
+
+Str formatFrameLine(LuaState* ownerL, const CallInfo& ci, usize stackIndex) {
     Function* func = functionFromCallInfo(ownerL, ci);
     if (func == nullptr) {
         return "\t?";
     }
 
     if (func->isCFunction()) {
-        return "\t[C]: in " + describeFunction(func);
+        return "\t[C]: in " + describeCFunctionAtFrame(ownerL, stackIndex);
     }
 
     Proto* proto = func->getProto();
@@ -541,10 +713,24 @@ Str formatFrameLine(LuaState* ownerL, const CallInfo& ci) {
         line = proto->getLineDefined();
     }
 
-    if (line > 0) {
-        return std::format("\t{}:{}: in {}", source, line, describeFunction(func));
+    Str description = describeFunction(func);
+    const char* nameWhat = nullptr;
+    GCString* name = nullptr;
+    if (inferFrameCallName(ownerL, stackIndex, nameWhat, name)) {
+        Str namedCall = describeNamedCall(nameWhat, name);
+        if (!namedCall.empty()) {
+            description = namedCall;
+        }
     }
-    return std::format("\t{}: in {}", source, describeFunction(func));
+
+    if (line > 0) {
+        return std::format("\t{}:{}: in {}", source, line, description);
+    }
+    return std::format("\t{}: in {}", source, description);
+}
+
+Str formatTailCallLine() {
+    return "\t(tail call): ?";
 }
 
 Function* checkFunctionArg(LuaState* L, i32 idx, const char* message) {
@@ -668,11 +854,14 @@ i32 luaDebug_getupvalue(LuaState* L) {
         1,
         "bad argument #1 to 'getupvalue' (function expected)"
     );
-    i32 upIndex = checkPositiveIndex(
-        L,
-        2,
-        "bad argument #2 to 'getupvalue' (positive index expected)"
-    );
+    if (!L->isNumber(2)) {
+        L->error("bad argument #2 to 'getupvalue' (number expected)");
+    }
+    i32 upIndex = static_cast<i32>(L->toNumber(2));
+    if (upIndex <= 0) {
+        L->pushNil();
+        return 1;
+    }
 
     Upvalue* upvalue = func->getUpvalue(static_cast<usize>(upIndex - 1));
     if (upvalue == nullptr) {
@@ -696,11 +885,14 @@ i32 luaDebug_setupvalue(LuaState* L) {
         1,
         "bad argument #1 to 'setupvalue' (function expected)"
     );
-    i32 upIndex = checkPositiveIndex(
-        L,
-        2,
-        "bad argument #2 to 'setupvalue' (positive index expected)"
-    );
+    if (!L->isNumber(2)) {
+        L->error("bad argument #2 to 'setupvalue' (number expected)");
+    }
+    i32 upIndex = static_cast<i32>(L->toNumber(2));
+    if (upIndex <= 0) {
+        L->pushNil();
+        return 1;
+    }
 
     Upvalue* upvalue = func->getUpvalue(static_cast<usize>(upIndex - 1));
     if (upvalue == nullptr) {
@@ -741,6 +933,7 @@ i32 luaDebug_getinfo(LuaState* L) {
 
     DebugFrameRef frame;
     Function* func = nullptr;
+    bool isTailFrame = false;
 
     if (L->isFunction(argBase)) {
         func = L->at(argBase).asFunction();
@@ -750,11 +943,16 @@ i32 luaDebug_getinfo(LuaState* L) {
             argBase,
             "bad argument to 'getinfo' (stack level expected)"
         );
-        if (!resolveStackLevel(ownerL, level, frame)) {
+        StackLevelKind kind = resolveStackLevelKind(ownerL, level, frame);
+        if (kind == StackLevelKind::Invalid) {
             L->pushNil();
             return 1;
         }
-        func = frame.func;
+        if (kind == StackLevelKind::Tail) {
+            isTailFrame = true;
+        } else {
+            func = frame.func;
+        }
     } else {
         L->error("bad argument to 'getinfo' (function or level expected)");
     }
@@ -763,22 +961,36 @@ i32 luaDebug_getinfo(LuaState* L) {
     for (char option : options) {
         switch (option) {
             case 'S':
-                populateInfoS(info, L, func, frame.ci);
+                if (isTailFrame) {
+                    populateTailInfoS(info, L);
+                } else {
+                    populateInfoS(info, L, func, frame.ci);
+                }
                 break;
             case 'u':
-                populateInfoU(info, L, func);
+                if (isTailFrame) {
+                    setNumberField(info, L, "nups", 0);
+                } else {
+                    populateInfoU(info, L, func);
+                }
                 break;
             case 'f':
-                setField(info, L, "func", Value(func));
+                setField(info, L, "func", isTailFrame ? Value() : Value(func));
                 break;
             case 'l':
-                setNumberField(info, L, "currentline", currentLineForFrame(func, frame.ci));
+                setNumberField(info, L, "currentline", isTailFrame ? -1 : currentLineForFrame(func, frame.ci));
                 break;
             case 'L':
-                populateInfoL(info, L, func);
+                if (!isTailFrame) {
+                    populateInfoL(info, L, func);
+                }
                 break;
             case 'n':
-                populateInfoN(info, L, ownerL, frame);
+                if (!isTailFrame) {
+                    populateInfoN(info, L, ownerL, frame);
+                } else {
+                    setStringField(info, L, "namewhat", "");
+                }
                 break;
             default:
                 break;
@@ -801,11 +1013,14 @@ i32 luaDebug_getlocal(LuaState* L) {
         L->error("bad argument to 'getlocal' (value and local index expected)");
     }
 
-    i32 localIndex = checkPositiveIndex(
-        L,
-        argBase + 1,
-        "bad argument to 'getlocal' (positive local index expected)"
-    );
+    if (!L->isNumber(argBase + 1)) {
+        L->error("bad argument to 'getlocal' (local index expected)");
+    }
+    i32 localIndex = static_cast<i32>(L->toNumber(argBase + 1));
+    if (localIndex <= 0) {
+        L->pushNil();
+        return 1;
+    }
 
     if (L->isFunction(argBase)) {
         Function* func = L->at(argBase).asFunction();
@@ -833,6 +1048,13 @@ i32 luaDebug_getlocal(LuaState* L) {
 
     const LocVar* localInfo = resolveLocalInfo(frame.func, frame.ci, localIndex, true);
     if (localInfo == nullptr || localInfo->varname == nullptr) {
+        usize tempSlot = 0;
+        if (getTemporaryLocalSlot(ownerL, frame, localIndex, tempSlot)) {
+            L->pushString(internString(L, "(*temporary)"));
+            L->pushValue(ownerL->getStack().at(tempSlot));
+            return 2;
+        }
+
         L->pushNil();
         return 1;
     }
@@ -879,6 +1101,13 @@ i32 luaDebug_setlocal(LuaState* L) {
 
     const LocVar* localInfo = resolveLocalInfo(frame.func, frame.ci, localIndex, true);
     if (localInfo == nullptr || localInfo->varname == nullptr) {
+        usize tempSlot = 0;
+        if (getTemporaryLocalSlot(ownerL, frame, localIndex, tempSlot)) {
+            ownerL->getStack().at(tempSlot) = L->at(argBase + 2);
+            L->pushString(internString(L, "(*temporary)"));
+            return 1;
+        }
+
         L->pushNil();
         return 1;
     }
@@ -1011,7 +1240,10 @@ i32 luaDebug_traceback(LuaState* L) {
             continue;
         }
 
-        traceback += std::format("\n{}", formatFrameLine(ownerL, ci));
+        traceback += std::format("\n{}", formatFrameLine(ownerL, ci, static_cast<usize>(index)));
+        for (i32 tail = 0; tail < ci.tailcalls; ++tail) {
+            traceback += std::format("\n{}", formatTailCallLine());
+        }
     }
 
     L->pushString(internString(L, traceback));
@@ -1027,7 +1259,8 @@ i32 luaDebug_sethook(LuaState* L) {
     LuaState* ownerL = getThreadArgument(L, argBase);
 
     if (L->getTop() < argBase) {
-        L->error("bad argument to 'sethook' (function or nil expected)");
+        ownerL->setDebugHook(nullptr, 0, 0);
+        return 0;
     }
 
     Function* hook = nullptr;
@@ -1059,6 +1292,17 @@ i32 luaDebug_sethook(LuaState* L) {
     }
 
     ownerL->setDebugHook(hook, mask, count);
+    if (hook != nullptr && (mask & HookMaskLine) != 0) {
+        Vec<CallInfo>& frames = ownerL->getCallStack();
+        for (usize i = 0; i <= ownerL->getCurrentCI() && i < frames.size(); ++i) {
+            CallInfo& ci = frames[i];
+            Function* currentFunc = functionFromCallInfo(ownerL, ci);
+            if (currentFunc != nullptr && currentFunc->isLuaFunction()) {
+                ci.hookLine = currentLineForFrame(currentFunc, &ci);
+                ci.hookPc = currentPcForFrame(currentFunc, &ci);
+            }
+        }
+    }
     return 0;
 }
 

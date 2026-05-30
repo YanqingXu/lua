@@ -225,7 +225,8 @@ int executeScript(LuaState* L, const char* filename) {
 
         // 步骤3：生成字节码
         CodeGenerator codegen(services);
-        Proto* proto = codegen.generate(chunk, filename);
+        Str sourceName = Str("@") + filename;
+        Proto* proto = codegen.generate(chunk, sourceName);
 
         if (!proto) {
             const Str message = std::format("{}: code generation failed", filename);

@@ -70,6 +70,7 @@ StmtPtr Parser::Impl::parseFunctionStmt() {
     enterFunctionSyntaxScope(line, funcStmt.params);
     funcStmt.body = parseBlock();
     leaveFunctionSyntaxScope();
+    funcStmt.endLine = current().line;
     expect(TokenType::End, "Expected 'end' to close function");
 
     return makeStmt<FunctionStmt>(std::move(funcStmt));
@@ -100,6 +101,7 @@ ExprPtr Parser::Impl::parseFunctionExpr() {
     enterFunctionSyntaxScope(line, funcExpr.params);
     funcExpr.body = parseBlock();
     leaveFunctionSyntaxScope();
+    funcExpr.endLine = current().line;
     expect(TokenType::End, "Expected 'end' to close function");
 
     return makeExpr<FunctionExpr>(std::move(funcExpr));

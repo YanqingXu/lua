@@ -69,10 +69,43 @@ inline Opt<Str> describeRegister(Proto* proto, i32 reg, usize pc, i32 depth = 0)
     }
 
     const auto code = proto->getInstructionSpan();
+    auto hasRecentGuardForUse = [&](i32 guardedReg, usize usePc) {
+        usize scanPc = std::min(usePc, code.size());
+        i32 inspected = 0;
+        while (scanPc > 0 && inspected < 8) {
+            --scanPc;
+            ++inspected;
+            Instruction inst = code[scanPc];
+            OpCode op = GET_OPCODE(inst);
+            if ((op == OpCode::TEST || op == OpCode::TESTSET) &&
+                GETARG_A(inst) == guardedReg) {
+                return true;
+            }
+        }
+        return false;
+    };
+
+    auto hasGuardAfterSetter = [&](usize setterPc, i32 guardedReg, usize usePc) {
+        usize guardEnd = std::min(usePc, code.size());
+        for (usize guardPc = setterPc + 1; guardPc < guardEnd; ++guardPc) {
+            Instruction guard = code[guardPc];
+            OpCode guardOp = GET_OPCODE(guard);
+            if ((guardOp == OpCode::TEST || guardOp == OpCode::TESTSET) &&
+                GETARG_A(guard) == guardedReg) {
+                return true;
+            }
+        }
+        return false;
+    };
+
     i32 currentReg = reg;
     usize currentPc = pc;
 
     for (i32 remainingDepth = 4 - depth; remainingDepth >= 0; --remainingDepth) {
+        if (hasRecentGuardForUse(currentReg, currentPc)) {
+            return std::nullopt;
+        }
+
         if (Opt<Str> local = localNameForRegister(proto, currentReg, currentPc)) {
             return Str("local '") + *local + "'";
         }
@@ -91,11 +124,17 @@ inline Opt<Str> describeRegister(Proto* proto, i32 reg, usize pc, i32 depth = 0)
 
             switch (op) {
                 case OpCode::GETGLOBAL:
+                    if (hasGuardAfterSetter(scanPc, currentReg, currentPc)) {
+                        return std::nullopt;
+                    }
                     if (Opt<Str> name = constantString(proto, GETARG_Bx(inst))) {
                         return Str("global '") + *name + "'";
                     }
                     return std::nullopt;
                 case OpCode::GETUPVAL: {
+                    if (hasGuardAfterSetter(scanPc, currentReg, currentPc)) {
+                        return std::nullopt;
+                    }
                     GCString* name = proto->getUpvalueName(static_cast<usize>(GETARG_B(inst)));
                     if (name) {
                         return Str("upvalue '") + name->getData() + "'";
@@ -103,11 +142,17 @@ inline Opt<Str> describeRegister(Proto* proto, i32 reg, usize pc, i32 depth = 0)
                     return std::nullopt;
                 }
                 case OpCode::GETTABLE:
+                    if (hasGuardAfterSetter(scanPc, currentReg, currentPc)) {
+                        return std::nullopt;
+                    }
                     if (Opt<Str> key = rkString(proto, GETARG_C(inst))) {
                         return Str("field '") + *key + "'";
                     }
                     return std::nullopt;
                 case OpCode::SELF:
+                    if (hasGuardAfterSetter(scanPc, currentReg, currentPc)) {
+                        return std::nullopt;
+                    }
                     if (Opt<Str> key = rkString(proto, GETARG_C(inst))) {
                         return Str("method '") + *key + "'";
                     }

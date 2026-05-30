@@ -108,6 +108,7 @@ StmtPtr Parser::Impl::parseIfStmt() {
         ifStmt.elseBranch = parseBlock();
     }
 
+    ifStmt.endLine = current().line;
     expect(TokenType::End, "Expected 'end' to close if statement");
 
     return makeStmt<IfStmt>(std::move(ifStmt));
@@ -126,6 +127,7 @@ StmtPtr Parser::Impl::parseWhileStmt() {
 
     expect(TokenType::Do, "Expected 'do' after while condition");
     whileStmt.body = parseBlock();
+    whileStmt.endLine = current().line;
     expect(TokenType::End, "Expected 'end' to close while loop");
 
     return makeStmt<WhileStmt>(std::move(whileStmt));
@@ -142,6 +144,7 @@ StmtPtr Parser::Impl::parseDoStmt() {
     doStmt.column = column;
     doStmt.body = parseBlock();
 
+    doStmt.endLine = current().line;
     expect(TokenType::End, "Expected 'end' to close do block");
 
     return makeStmt<DoStmt>(std::move(doStmt));
@@ -158,6 +161,7 @@ StmtPtr Parser::Impl::parseRepeatStmt() {
     repeatStmt.column = column;
     repeatStmt.body = parseBlock();
 
+    repeatStmt.endLine = current().line;
     expect(TokenType::Until, "Expected 'until' to close repeat loop");
     repeatStmt.condition = parseExpression();
 
@@ -198,6 +202,7 @@ StmtPtr Parser::Impl::parseForStmt() {
 
         expect(TokenType::Do, "Expected 'do' after for header");
         forStmt.body = parseBlock();
+        forStmt.endLine = current().line;
         expect(TokenType::End, "Expected 'end' to close for loop");
 
         return makeStmt<ForNumStmt>(std::move(forStmt));
@@ -220,6 +225,7 @@ StmtPtr Parser::Impl::parseForStmt() {
 
         expect(TokenType::Do, "Expected 'do' after for-in header");
         forStmt.body = parseBlock();
+        forStmt.endLine = current().line;
         expect(TokenType::End, "Expected 'end' to close for-in loop");
 
         return makeStmt<ForInStmt>(std::move(forStmt));
@@ -234,6 +240,7 @@ StmtPtr Parser::Impl::parseForStmt() {
 
         expect(TokenType::Do, "Expected 'do' after for-in header");
         forStmt.body = parseBlock();
+        forStmt.endLine = current().line;
         expect(TokenType::End, "Expected 'end' to close for-in loop");
 
         return makeStmt<ForInStmt>(std::move(forStmt));
@@ -278,6 +285,7 @@ StmtPtr Parser::Impl::parseLocalStmt() {
         enterFunctionSyntaxScope(line, funcStmt.params);
         funcStmt.body = parseBlock();
         leaveFunctionSyntaxScope();
+        funcStmt.endLine = current().line;
         expect(TokenType::End, "Expected 'end' to close function");
 
         return makeStmt<FunctionStmt>(std::move(funcStmt));

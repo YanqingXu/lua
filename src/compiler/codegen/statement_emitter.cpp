@@ -391,7 +391,14 @@ void StatementEmitter::emitStmt(const LocalStmt& s) {
     }
 
     if (nexps < nvars && !allVarsInitialized) {
-        codeABC(OpCode::LOADNIL, base + nexps, base + nvars - 1, 0);
+        if (nexps == 0) {
+            i32 savedLine = state_.currentLine;
+            state_.currentLine = 0;
+            codeABC(OpCode::LOADNIL, base, base + nvars - 1, 0);
+            state_.currentLine = savedLine;
+        } else {
+            codeABC(OpCode::LOADNIL, base + nexps, base + nvars - 1, 0);
+        }
     }
 
     ops_.setFreeReg(base);
@@ -468,7 +475,10 @@ void StatementEmitter::emitStmt(const IfStmt& s) {
     }
 
     for (size_t i = 1; i < s.branches.size(); i++) {
-        escapelist.append(jump());
+        {
+            LineGuard endLine(state_, s.endLine);
+            escapelist.append(jump());
+        }
         patchtohere(flist);
 
         const auto& branch = s.branches[i];
@@ -478,7 +488,10 @@ void StatementEmitter::emitStmt(const IfStmt& s) {
     }
 
     if (!s.elseBranch.empty()) {
-        escapelist.append(jump());
+        {
+            LineGuard endLine(state_, s.endLine);
+            escapelist.append(jump());
+        }
         patchtohere(flist);
         block(s.elseBranch);
     } else {
@@ -497,7 +510,10 @@ void StatementEmitter::emitStmt(const WhileStmt& s) {
 
     block(s.body);
 
+    i32 savedLine = state_.currentLine;
+    state_.currentLine = 0;
     patchList(jump(), whileinit);
+    state_.currentLine = savedLine;
 
     leaveBlock();
 
@@ -550,15 +566,18 @@ void StatementEmitter::emitStmt(const RepeatStmt& s) {
 
     removeLocalVars(bodyActiveVarCount);
 
-    codeABC(OpCode::TEST, condReg, 0, 0);
-    patchList(jump(), repeat_init);
+    {
+        LineGuard conditionLine(state_, s.condition->getLine());
+        codeABC(OpCode::TEST, condReg, 0, 0);
+        patchList(jump(), repeat_init);
+    }
 
     leaveBlock();
 }
 
 void StatementEmitter::emitStmt(const FunctionStmt& s) {
     i32 linedefined = s.line;
-    i32 lastlinedefined = getLastLineOfBlock(s.body);
+    i32 lastlinedefined = s.endLine > 0 ? s.endLine : getLastLineOfBlock(s.body);
     if (lastlinedefined < linedefined) {
         lastlinedefined = linedefined;
     }
@@ -661,7 +680,9 @@ void StatementEmitter::emitStmt(const ForNumStmt& s) {
     i32 bodyStart = getLabel();
     block(s.body);
 
-    codeABC(OpCode::CLOSE, base + 3, 0, 0);
+    if (!s.body.empty()) {
+        codeABC(OpCode::CLOSE, base + 3, 0, 0);
+    }
     i32 loop = codeAsBx(OpCode::FORLOOP, base, bodyStart - getLabel() - 1);
 
     fixjump(prep, loop);

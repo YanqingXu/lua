@@ -172,6 +172,7 @@ i32 ExpressionEmitter::emitCond(const Expr& e) {
 }
 
 CondResult ExpressionEmitter::emitCondResult(const Expr& e) {
+    LineGuard line(state_, e.getLine());
     CondResult result;
 
     if (const auto* binary = std::get_if<BinaryExpr>(&e.variant)) {
@@ -239,6 +240,7 @@ CondResult ExpressionEmitter::emitCondResult(const Expr& e) {
 }
 
 CondResult ExpressionEmitter::emitCondResultTrue(const Expr& e) {
+    LineGuard line(state_, e.getLine());
     CondResult result;
 
     if (const auto* binary = std::get_if<BinaryExpr>(&e.variant)) {
@@ -370,7 +372,7 @@ ValueResult ExpressionEmitter::visitNode(const MemberExpr& e) {
 
 ValueResult ExpressionEmitter::visitNode(const FunctionExpr& e) {
     i32 linedefined = e.line;
-    i32 lastlinedefined = getLastLineOfBlock(e.body);
+    i32 lastlinedefined = e.endLine > 0 ? e.endLine : getLastLineOfBlock(e.body);
     if (lastlinedefined < linedefined) {
         lastlinedefined = linedefined;
     }
@@ -595,8 +597,13 @@ ValueResult ExpressionEmitter::emitValueBinary(const BinaryExpr& e) {
     if (op == BinaryExpr::Op::And || op == BinaryExpr::Op::Or) {
         ValueResult left = emitValue(*e.left);
         left = forceSingleValue(left);
-        i32 resultReg = allocReg();
-        materializeValue(left, resultReg);
+        i32 resultReg = -1;
+        if (Opt<i32> reg = ownedRegister(left); reg.has_value()) {
+            resultReg = *reg;
+        } else {
+            resultReg = allocReg();
+            materializeValue(left, resultReg);
+        }
 
         i32 testCond = (op == BinaryExpr::Op::And) ? 0 : 1;
         codeABC(OpCode::TEST, resultReg, 0, testCond);
@@ -821,6 +828,7 @@ CallResultInfo ExpressionEmitter::emitCallExpr(const CallExpr& e, i32 targetBase
     i32 base;  // 函数所在的寄存器（调用帧的基址）
     i32 explicitArgCount = static_cast<i32>(e.args.size());
     bool hasImplicitSelf = false;
+    bool funcBaseIsDisposable = false;
 
     // 检查是否为方法调用（obj:method(args)）
     if (e.isMethodCall) {
@@ -850,7 +858,16 @@ CallResultInfo ExpressionEmitter::emitCallExpr(const CallExpr& e, i32 targetBase
     }
     else {
         ValueResult funcVal = emitValue(*e.func);
+        funcBaseIsDisposable = funcVal.visit(ValueResultVisitor{
+            [](const ValueResult::RegisterRef& reg) {
+                return reg.ownsRegister;
+            },
+            [](const auto&) {
+                return true;
+            },
+        });
         base = valueToAnyReg(funcVal);
+        funcBaseIsDisposable = funcBaseIsDisposable && base == ops_.currentReg() - 1;
     }
 
     i32 savedFreeReg = ops_.currentReg();
@@ -871,7 +888,7 @@ CallResultInfo ExpressionEmitter::emitCallExpr(const CallExpr& e, i32 targetBase
         moveRegRange(targetBase, base, hasImplicitSelf ? 2 : 1);
         base = targetBase;
     }
-    else if (base < savedFreeReg) {
+    else if (base < savedFreeReg && !(!hasImplicitSelf && funcBaseIsDisposable)) {
         i32 newBase = savedFreeReg;
         moveRegRange(newBase, base, hasImplicitSelf ? 2 : 1);
         base = newBase;

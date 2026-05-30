@@ -29,6 +29,8 @@ const char* hookEventName(DebugHookEvent event) {
             return "call";
         case DebugHookEvent::Return:
             return "return";
+        case DebugHookEvent::TailReturn:
+            return "tail return";
         case DebugHookEvent::Line:
             return "line";
         case DebugHookEvent::Count:

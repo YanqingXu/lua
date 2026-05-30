@@ -296,6 +296,7 @@ void reuseCurrentFrameForTailCall(LuaState* L, usize callerIndex,
     callee.savedpc = nullptr;
     callee.tailcalls = callerTailcalls + 1;
     callee.hookLine = -1;
+    callee.hookPc = -1;
 
     L->popCallInfo();
     L->getCallStack()[callerIndex] = callee;

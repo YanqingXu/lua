@@ -1217,7 +1217,8 @@ i32 luaB_loadfile(LuaState* L) {
 
         // 生成字节码
         CodeGenerator codegen(&pool);
-        Proto* proto = codegen.generate(chunk, filename);
+        Str sourceName = Str("@") + filename;
+        Proto* proto = codegen.generate(chunk, sourceName);
 
         if (!proto) {
             L->setTop(0);
@@ -1327,13 +1328,24 @@ i32 luaB_gcinfo(LuaState* L) {
 // =====================================================================
 
 static Function* functionAtStackLevel(LuaState* L, i32 level) {
-    if (level < 0 || static_cast<usize>(level) > L->getCurrentCI()) {
+    if (level < 0) {
         return nullptr;
     }
 
-    usize targetIndex = L->getCurrentCI() - static_cast<usize>(level);
     Vec<CallInfo>& frames = L->getCallStack();
+    usize targetIndex = L->getCurrentCI();
     if (targetIndex >= frames.size()) {
+        return nullptr;
+    }
+
+    while (level > 0 && targetIndex > 0) {
+        const CallInfo& ci = frames[targetIndex];
+        --level;
+        level -= ci.tailcalls;
+        --targetIndex;
+    }
+
+    if (level != 0) {
         return nullptr;
     }
 

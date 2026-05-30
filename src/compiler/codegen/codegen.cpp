@@ -83,13 +83,18 @@ Proto* CodeGenerator::generateUnchecked(const Chunk& chunk, StrView sourceName) 
     // 创建新的Proto对象
     state_.proto = new Proto();
     state_.services.gc.registerObject(state_.proto);
-    state_.resetForProto(*state_.proto, true, sourceName);
+    state_.resetForProto(*state_.proto, true);
+    state_.bytecode.setSource(sourceName);
 
     // 生成语句块
     statements_.block(chunk.statements);
 
     // 保留一个兜底 RETURN，覆盖条件分支 return 后仍可落出的路径。
-    codeABC(OpCode::RETURN, 0, 1, 0);  // return (no values)
+    i32 finalLine = chunk.statements.empty() ? state_.currentLine : chunk.statements.back()->getEndLine();
+    {
+        LineGuard line(state_, finalLine);
+        codeABC(OpCode::RETURN, 0, 1, 0);  // return (no values)
+    }
 
     attachDebugMetadata();
 

@@ -80,6 +80,7 @@ public:
         , nresults(0)
         , tailcalls(0)
         , hookLine(-1)
+        , hookPc(-1)
     {}
     
     // =====================================================================
@@ -142,6 +143,14 @@ public:
      * -1 means no line hook has fired for this frame yet.
      */
     i32 hookLine;
+
+    /**
+     * @brief The last bytecode PC considered by the debug line hook.
+     *
+     * Used to fire same-line hooks again after backward jumps, matching Lua's
+     * loop line-hook behavior.
+     */
+    i32 hookPc;
     
     // =====================================================================
     // 辅助方法
@@ -158,6 +167,7 @@ public:
         nresults = 0;
         tailcalls = 0;
         hookLine = -1;
+        hookPc = -1;
     }
 
     // =====================================================================
@@ -191,6 +201,7 @@ public:
             << ", nresults=" << nresults
             << ", tailcalls=" << tailcalls
             << ", hookLine=" << hookLine
+            << ", hookPc=" << hookPc
             << ", savedpc=" << (savedpc ? "set" : "null")
             << "}";
         return oss.str();

@@ -65,6 +65,7 @@ enum DebugHookMask : u8 {
 enum class DebugHookEvent : u8 {
     Call,
     Return,
+    TailReturn,
     Line,
     Count
 };

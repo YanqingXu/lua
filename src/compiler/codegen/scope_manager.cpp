@@ -26,6 +26,10 @@ i32 ScopeManager::findLocalVar(const Str& name) const {
     return state_.localScope.findLocal(name);
 }
 
+void ScopeManager::markLocalCaptured(i32 reg) {
+    state_.localScope.markCaptured(reg);
+}
+
 void ScopeManager::adjustLocalVars(i32 count) {
     state_.localScope.activeVarCount_ += count;
     state_.registers.resetToLocals(state_.localScope.activeVarCount_);
@@ -42,6 +46,10 @@ void ScopeManager::removeLocalVars(i32 toLevel) {
 
 void ScopeManager::closeScopeUpvalues(i32 level) {
     if (state_.localScope.activeVarCount_ <= level) {
+        return;
+    }
+
+    if (!state_.localScope.hasCapturedLocalsFrom(level)) {
         return;
     }
 
@@ -75,6 +83,7 @@ i32 ScopeManager::resolveUpvalue(const Str& name) {
 
     i32 local = state_.parent->scopes_.findLocalVar(name);
     if (local >= 0) {
+        state_.parent->scopes_.markLocalCaptured(local);
         return addUpvalue(name, true, local);
     }
 

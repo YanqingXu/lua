@@ -131,7 +131,14 @@ void dispatchCallHook(LuaState* L) {
 
 void dispatchReturnHook(LuaState* L) {
     if (L->hasDebugHookMask(HookMaskReturn)) {
+        i32 tailcalls = 0;
+        if (L->getCurrentCI() < L->getCallStack().size()) {
+            tailcalls = L->getCurrentCallInfo().tailcalls;
+        }
         L->callDebugHook(DebugHookEvent::Return);
+        while (tailcalls-- > 0) {
+            L->callDebugHook(DebugHookEvent::TailReturn);
+        }
     }
 }
 
@@ -151,12 +158,16 @@ void dispatchLineHook(LuaState* L, Proto* proto, usize pc) {
         return;
     }
 
+    i32 currentPc = static_cast<i32>(pc);
+
     CallInfo& ci = L->getCurrentCallInfo();
-    if (ci.hookLine == line) {
+    if (ci.hookLine == line && ci.hookPc >= 0 && currentPc > ci.hookPc) {
+        ci.hookPc = currentPc;
         return;
     }
 
     ci.hookLine = line;
+    ci.hookPc = currentPc;
     L->callDebugHook(DebugHookEvent::Line, line);
 }
 

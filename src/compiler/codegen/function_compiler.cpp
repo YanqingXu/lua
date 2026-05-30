@@ -171,7 +171,12 @@ Proto* FunctionCompiler::compile(const Vec<Str>& params, bool isVararg, const Ve
 
     child.statements_.block(body);
 
-    child.codeABC(OpCode::RETURN, 0, 1, 0);
+    {
+        i32 savedLine = child.state_.currentLine;
+        child.state_.currentLine = lastlinedefined > 0 ? lastlinedefined : linedefined;
+        child.codeABC(OpCode::RETURN, 0, 1, 0);
+        child.state_.currentLine = savedLine;
+    }
 
     newProto->setNumUpvalues(static_cast<u8>(child.scopes_.upvalues().size()));
     for (const UpvalueCapture& uv : child.scopes_.upvalues()) {

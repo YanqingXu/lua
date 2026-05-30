@@ -66,6 +66,23 @@ struct GetStmtLine {
     i32 operator()(const DoStmt& s) const { return s.line; }
 };
 
+// 获取语句覆盖的最后一行
+struct GetStmtEndLine {
+    i32 operator()(const EmptyStmt& s) const { return s.line; }
+    i32 operator()(const AssignStmt& s) const { return s.line; }
+    i32 operator()(const LocalStmt& s) const { return s.line; }
+    i32 operator()(const CallStmt& s) const { return s.line; }
+    i32 operator()(const IfStmt& s) const { return s.endLine > 0 ? s.endLine : s.line; }
+    i32 operator()(const WhileStmt& s) const { return s.endLine > 0 ? s.endLine : s.line; }
+    i32 operator()(const RepeatStmt& s) const { return s.endLine > 0 ? s.endLine : s.line; }
+    i32 operator()(const ForNumStmt& s) const { return s.endLine > 0 ? s.endLine : s.line; }
+    i32 operator()(const ForInStmt& s) const { return s.endLine > 0 ? s.endLine : s.line; }
+    i32 operator()(const FunctionStmt& s) const { return s.endLine > 0 ? s.endLine : s.line; }
+    i32 operator()(const ReturnStmt& s) const { return s.line; }
+    i32 operator()(const BreakStmt& s) const { return s.line; }
+    i32 operator()(const DoStmt& s) const { return s.endLine > 0 ? s.endLine : s.line; }
+};
+
 // 获取语句的列号
 struct GetStmtColumn {
     i32 operator()(const EmptyStmt& s) const { return s.column; }
@@ -107,6 +124,10 @@ i32 Stmt::getLine() const {
 
 i32 Stmt::getColumn() const {
     return std::visit(GetStmtColumn{}, variant);
+}
+
+i32 Stmt::getEndLine() const {
+    return std::visit(GetStmtEndLine{}, variant);
 }
 
 } // namespace Lua
