@@ -1132,17 +1132,7 @@ i32 luaDebug_getmetatable(LuaState* L) {
         L->error("debug.getmetatable: missing argument");
     }
 
-    const Value& value = L->at(1);
-    Table* metatable = nullptr;
-    if (value.isTable()) {
-        metatable = value.asTable()->getMetatable();
-    } else if (value.isUserdata()) {
-        metatable = value.asUserdata()->getMetatable();
-    }
-
-    if (metatable != nullptr) {
-        L->pushTable(metatable);
-    } else {
+    if (!L->getMetatable(1)) {
         L->pushNil();
     }
     return 1;
@@ -1151,11 +1141,6 @@ i32 luaDebug_getmetatable(LuaState* L) {
 i32 luaDebug_setmetatable(LuaState* L) {
     if (L->getTop() < 2) {
         L->error("debug.setmetatable: expected 2 arguments");
-    }
-
-    const Value& value = L->at(1);
-    if (!value.isTable() && !value.isUserdata()) {
-        L->error("debug.setmetatable: table or userdata expected");
     }
 
     if (!L->at(2).isNil() && !L->at(2).isTable()) {

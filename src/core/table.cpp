@@ -111,6 +111,8 @@ void Table::set(const Value& key, const Value& value) {
     if (key.isNumber() && std::isnan(key.asNumber())) {
         throw RuntimeError("table index is NaN");
     }
+
+    flags_ = 0;
     
     // 如果value是nil，表示删除该键
     if (value.isNil()) {
@@ -145,6 +147,8 @@ bool Table::has(const Value& key) const {
 }
 
 void Table::remove(const Value& key) {
+    flags_ = 0;
+
     // 检查是否是数组索引
     i32 index;
     if (isArrayIndex(key, index)) {
@@ -190,6 +194,8 @@ void Table::setArray(i32 index, const Value& value) {
         // TODO: 应该抛出错误，当前简单忽略
         return;
     }
+
+    flags_ = 0;
 
     usize arrayIndex = static_cast<usize>(index - 1);
 

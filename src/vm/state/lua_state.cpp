@@ -950,25 +950,22 @@ bool LuaState::getMetatable(i32 idx) {
 bool LuaState::setMetatable(i32 idx) {
     try {
         Value& v = at(idx);
-        if (!v.isTable() && !v.isUserdata()) {
-            return false;  // 只能为表设置元表
-        }
-
         Value& mt = top();
+        Table* newMetatable = nullptr;
         if (mt.isNil()) {
-            if (v.isTable()) {
-                v.asTable()->setMetatable(nullptr);
-            } else {
-                v.asUserdata()->setMetatable(nullptr);
-            }
+            newMetatable = nullptr;
         } else if (mt.isTable()) {
-            if (v.isTable()) {
-                v.asTable()->setMetatable(mt.asTable());
-            } else {
-                v.asUserdata()->setMetatable(mt.asTable());
-            }
+            newMetatable = mt.asTable();
         } else {
             return false;  // 元表必须是表或nil
+        }
+
+        if (v.isTable()) {
+            v.asTable()->setMetatable(newMetatable);
+        } else if (v.isUserdata()) {
+            v.asUserdata()->setMetatable(newMetatable);
+        } else {
+            globalState_.setMetatable(v.getType(), newMetatable);
         }
 
         pop();  // 弹出元表

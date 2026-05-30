@@ -116,7 +116,7 @@ bool precallImpl(LuaState* L, i32 funcIndex, i32 nArgs, i32 nResults,
     Stack& stack = L->getStack();
     CallInfo& currentCI = L->getCurrentCallInfo();
     usize funcPos = currentCI.base + funcIndex;
-    Value& funcVal = stack.at(funcPos);
+    Value funcVal = stack.at(funcPos);
 
     if (!funcVal.isFunction()) {
         Value tm = getMetamethodByObject(L, funcVal, TMS::TM_CALL);
@@ -129,13 +129,26 @@ bool precallImpl(LuaState* L, i32 funcIndex, i32 nArgs, i32 nResults,
         }
 
         Value originalFunc = funcVal;
-        Vec<Value> args;
-        for (i32 i = 1; i <= nArgs; i++) args.push_back(stack.at(funcPos + i));
+        i32 actualCallArgs = nArgs;
+        const bool variableArgCall = actualCallArgs < 0;
+        if (variableArgCall) {
+            actualCallArgs = static_cast<i32>(L->getAbsoluteTop())
+                           - static_cast<i32>(funcPos + 1);
+        }
 
+        Vec<Value> args;
+        for (i32 i = 1; i <= actualCallArgs; i++) args.push_back(stack.at(funcPos + i));
+
+        while (stack.size() < funcPos + 2 + args.size()) {
+            stack.push(Value());
+        }
         stack.at(funcPos) = tm;
         stack.at(funcPos + 1) = originalFunc;
         for (usize i = 0; i < args.size(); i++) stack.at(funcPos + 2 + i) = args[i];
-        nArgs++;
+        nArgs = actualCallArgs + 1;
+        if (variableArgCall) {
+            L->setAbsoluteTop(funcPos + 1 + static_cast<usize>(nArgs));
+        }
 
         funcVal = stack.at(funcPos);
         if (!funcVal.isFunction()) {

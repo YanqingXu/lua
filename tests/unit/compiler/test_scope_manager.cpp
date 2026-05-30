@@ -36,6 +36,7 @@ void testLocalLifecycleClosesScopeAndResetsRegisters(TestSuite& suite) {
 
     i32 reg = fixture.scopes.addLocalVar("captured");
     fixture.scopes.adjustLocalVars(1);
+    fixture.scopes.markLocalCaptured(reg);
     fixture.scopes.removeLocalVars(0);
 
     ASSERT_EQ(suite, 0, reg, "first local should use register zero");

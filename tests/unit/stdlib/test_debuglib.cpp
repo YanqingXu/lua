@@ -461,7 +461,7 @@ void testTracebackFromLua(TestSuite& suite) {
             );
             ASSERT_TRUE(
                 suite,
-                text.find(": in function <test_debuglib_trace.lua:1>") != std::string::npos,
+                text.find(": in function 'level2'") != std::string::npos,
                 "traceback includes Lua function frame"
             );
         }
@@ -592,8 +592,12 @@ void testDebugMetatableWrappers(TestSuite& suite) {
         debug.setmetatable(t, nil)
         g_cleared_mt = debug.getmetatable(t) == nil
 
-        local unsupported_ok = pcall(function() debug.setmetatable(1, {}) end)
-        g_rejects_unsupported = not unsupported_ok
+        local number_mt = {marker = 33}
+        local number_returned = debug.setmetatable(1, number_mt)
+        g_number_return = number_returned == 1
+        g_number_mt = debug.getmetatable(2) == number_mt
+        debug.setmetatable(1, nil)
+        g_number_mt_cleared = debug.getmetatable(2) == nil
     )", "test_debuglib_metatable.lua");
     ASSERT_TRUE(suite, ok, "debug metatable chunk runs");
 
@@ -606,7 +610,9 @@ void testDebugMetatableWrappers(TestSuite& suite) {
     assertGlobalTrue("g_set_return", "debug.setmetatable returns original object");
     assertGlobalTrue("g_new_raw_mt", "debug.setmetatable replaces protected metatable");
     assertGlobalTrue("g_cleared_mt", "debug.setmetatable accepts nil");
-    assertGlobalTrue("g_rejects_unsupported", "debug.setmetatable rejects unsupported primitive metatables");
+    assertGlobalTrue("g_number_return", "debug.setmetatable returns primitive object");
+    assertGlobalTrue("g_number_mt", "debug.setmetatable supports primitive metatables");
+    assertGlobalTrue("g_number_mt_cleared", "debug.setmetatable clears primitive metatables");
 
     delete L;
 }

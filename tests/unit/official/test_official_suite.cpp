@@ -26,7 +26,7 @@ namespace {
 
 constexpr const char* kSuiteName = "Lua 5.1 Official Suite";
 constexpr const char* kOfficialAllLua = "tests/lua/official/all.lua";
-constexpr LuaNumber kExpectedSkippedScripts = 9.0;
+constexpr LuaNumber kExpectedSkippedScripts = 8.0;
 
 struct RunResult {
     bool ok = false;
@@ -154,7 +154,6 @@ local __official_skip = {
     ["gc.lua"] = "standalone passes, but staged smoke skips heavyweight GC/finalizer stress",
     ["db.lua"] = "debug hook and stack-introspection semantics are still partial",
     ["api.lua"] = "requires the upstream testC C API helper library",
-    ["events.lua"] = "metamethod edge coverage is still partial",
     ["files.lua"] = "system-dependent IO and tmpfile behavior is still partial",
 }
 

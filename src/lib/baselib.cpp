@@ -122,10 +122,7 @@ i32 luaB_tostring(LuaState* L) {
                 L->pushValue(original);
 
                 if (L->pcall(1, 1, 0) == LUA_OK && L->getTop() >= 1) {
-                    const char* metaResult = L->toString(-1);
-                    if (metaResult != nullptr) {
-                        return 1;
-                    }
+                    return 1;
                 }
 
                 L->setAbsoluteTop(savedTop);
