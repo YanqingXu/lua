@@ -610,6 +610,11 @@ void StatementEmitter::emitStmt(const FunctionStmt& s) {
                 emitClosureUpvalues(childUpvalues);
                 emitStore(target, ValueResult::makeRegister(reg, false));
             } else {
+                auto stringKeyToRK = [this](const Str& key) -> i32 {
+                    i32 constIdx = stringConstant(key);
+                    return expressions_.valueToRK(ValueResult::makeConstant(constIdx));
+                };
+
                 auto loadNameToReg = [this](const Str& name) -> i32 {
                     SymbolRef sym = resolve(name);
                     if (sym.kind == SymbolRef::Kind::Local) {
@@ -625,8 +630,11 @@ void StatementEmitter::emitStmt(const FunctionStmt& s) {
 
                 for (usize i = 1; i < s.tablePath.size(); i++) {
                     i32 nextReg = allocReg();
-                    i32 k = stringConstant(s.tablePath[i]);
-                    codeABC(OpCode::GETTABLE, nextReg, tableReg, RKASK(k));
+                    i32 rkKey = stringKeyToRK(s.tablePath[i]);
+                    codeABC(OpCode::GETTABLE, nextReg, tableReg, rkKey);
+                    if (!ISK(rkKey)) {
+                        freeReg(rkKey);
+                    }
                     tableReg = nextReg;
                 }
 
@@ -634,8 +642,11 @@ void StatementEmitter::emitStmt(const FunctionStmt& s) {
                 codeABx(OpCode::CLOSURE, reg, protoIdx);
                 emitClosureUpvalues(childUpvalues);
 
-                i32 rkKey = RKASK(stringConstant(s.name));
+                i32 rkKey = stringKeyToRK(s.name);
                 codeABC(OpCode::SETTABLE, tableReg, rkKey, reg);
+                if (!ISK(rkKey)) {
+                    freeReg(rkKey);
+                }
             }
         }
         checkStack(0);

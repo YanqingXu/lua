@@ -842,10 +842,16 @@ CallResultInfo ExpressionEmitter::emitCallExpr(const CallExpr& e, i32 targetBase
         i32 objReg = valueToAnyReg(obj);
 
         i32 methodKey = stringConstant(memberExpr->member);
-        i32 rkKey = RKASK(methodKey);
+        i32 rkKey;
+        if (methodKey <= MAXINDEXRK) {
+            rkKey = RKASK(methodKey);
 
-        // 释放 obj 寄存器（SELF 会将其复制到 base+1）
-        freeReg(objReg);
+            // 释放 obj 寄存器（SELF 会将其复制到 base+1）
+            freeReg(objReg);
+        } else {
+            ValueResult keyVal = ValueResult::makeConstant(methodKey);
+            rkKey = valueToAnyReg(keyVal);
+        }
 
         // 分配 2 个连续寄存器：func 和 self
         base = ops_.currentReg();

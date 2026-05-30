@@ -240,6 +240,7 @@ private:
 private:
     static constexpr i32 MAX_RECURSION_DEPTH = 92;
     static constexpr i32 MAX_BLOCK_RECURSION_DEPTH = 80;
+    static constexpr i32 MAX_RIGHT_ASSOC_RECURSION_DEPTH = 200;
     static constexpr usize MAX_LOCAL_VARIABLES = 200;
     static constexpr usize MAX_UPVALUES_PER_FUNCTION = 60;
 

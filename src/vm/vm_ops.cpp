@@ -6,6 +6,7 @@
 #include "vm/vm_internal.hpp"
 
 #include "common/lua_error.hpp"
+#include "common/config.hpp"
 #include "core/gc_string.hpp"
 #include "core/metatable.hpp"
 #include "core/table.hpp"
@@ -56,6 +57,14 @@ Str numberToLuaString(f64 value) {
 
 f64 luaModulo(f64 left, f64 right) {
     return left - std::floor(left / right) * right;
+}
+
+void checkStringConcatLength(usize left, usize right) {
+    if (left > LUA_MAX_STRING_LENGTH ||
+        right > LUA_MAX_STRING_LENGTH ||
+        left > LUA_MAX_STRING_LENGTH - right) {
+        throw RuntimeError("string length overflow");
+    }
 }
 
 int luaStringCompare(const GCString* left, const GCString* right) {
@@ -317,7 +326,11 @@ void concat(RuntimeServices& services, LuaState* L, Value* base, i32 a, i32 b, i
             continue;
         }
 
-        Str result = str2 + str1;
+        checkStringConcatLength(str2.size(), str1.size());
+        Str result;
+        result.reserve(str2.size() + str1.size());
+        result.append(str2);
+        result.append(str1);
         base[last - 1] = Value(pool.intern(result));
         (void)services.gc.collectAutomatic(L);
         total--;

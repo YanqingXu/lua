@@ -11,9 +11,11 @@
 #include "compiler/parser/parser.hpp"
 #include "compiler/codegen/codegen.hpp"
 #include "compiler/opcode.hpp"
+#include "core/gc_string.hpp"
 #include "core/string_pool.hpp"
 #include "core/function.hpp"
 #include <iostream>
+#include <string>
 
 using namespace Lua;
 using namespace LuaTest;
@@ -315,6 +317,135 @@ void testMethodCallMultipleArgs(TestSuite& suite) {
 }
 
 /**
+ * @brief 测试方法名常量超过 RK 直接编码范围时会先落到寄存器
+ */
+void testWideMethodNameConstantUsesRegister(TestSuite& suite) {
+    StringPool& pool = StringPool::getInstance();
+
+    std::string code = "local obj = {}\nlocal sink = {\n";
+    for (int i = 0; i < 270; ++i) {
+        code += "\"k" + std::to_string(i) + "\",\n";
+    }
+    code += "}\nlocal result = obj:target()\n";
+
+    Parser parser(code);
+    auto parsed = parser.parse();
+    if (!parsed) {
+        throw parsed.error();
+    }
+    Chunk chunk = std::move(*parsed);
+
+    CodeGenerator codegen(&pool);
+    Proto* proto = codegen.generate(chunk);
+
+    ASSERT_TRUE(suite, proto != nullptr, "Proto generated");
+
+    int targetConst = -1;
+    for (size_t i = 0; i < proto->getConstantCount(); i++) {
+        Value constant = proto->getConstant(i);
+        if (constant.isString() && constant.asString()->getData() == "target") {
+            targetConst = static_cast<int>(i);
+            break;
+        }
+    }
+
+    ASSERT_TRUE(suite, targetConst > MAXINDEXRK, "Method name constant exceeds RK range");
+
+    int selfIdx = -1;
+    for (size_t i = 0; i < proto->getInstructionCount(); i++) {
+        if (GET_OPCODE(proto->getInstruction(i)) == OpCode::SELF) {
+            selfIdx = static_cast<int>(i);
+            break;
+        }
+    }
+
+    ASSERT_TRUE(suite, selfIdx >= 0, "Found SELF instruction");
+
+    if (selfIdx >= 0 && targetConst >= 0) {
+        Instruction selfInst = proto->getInstruction(static_cast<usize>(selfIdx));
+        int keyReg = GETARG_C(selfInst);
+        ASSERT_TRUE(suite, !ISK(keyReg), "SELF uses register operand for wide method name");
+
+        bool loadedTargetKey = false;
+        for (int i = 0; i < selfIdx; ++i) {
+            Instruction inst = proto->getInstruction(static_cast<usize>(i));
+            if (GET_OPCODE(inst) == OpCode::LOADK &&
+                GETARG_A(inst) == keyReg &&
+                GETARG_Bx(inst) == targetConst) {
+                loadedTargetKey = true;
+                break;
+            }
+        }
+        ASSERT_TRUE(suite, loadedTargetKey, "Method name is loaded before SELF");
+    }
+
+    delete proto;
+}
+
+/**
+ * @brief 测试方法定义写回字段超过 RK 范围时会先落到寄存器
+ */
+void testWideMethodDefinitionKeyUsesRegister(TestSuite& suite) {
+    StringPool& pool = StringPool::getInstance();
+
+    std::string code = "local obj = {}\nlocal sink = {\n";
+    for (int i = 0; i < 270; ++i) {
+        code += "\"k" + std::to_string(i) + "\",\n";
+    }
+    code += "}\nfunction obj:target() return self end\n";
+
+    Parser parser(code);
+    auto parsed = parser.parse();
+    if (!parsed) {
+        throw parsed.error();
+    }
+    Chunk chunk = std::move(*parsed);
+
+    CodeGenerator codegen(&pool);
+    Proto* proto = codegen.generate(chunk);
+
+    ASSERT_TRUE(suite, proto != nullptr, "Proto generated");
+
+    int targetConst = -1;
+    for (size_t i = 0; i < proto->getConstantCount(); i++) {
+        Value constant = proto->getConstant(i);
+        if (constant.isString() && constant.asString()->getData() == "target") {
+            targetConst = static_cast<int>(i);
+            break;
+        }
+    }
+
+    ASSERT_TRUE(suite, targetConst > MAXINDEXRK, "Method definition key exceeds RK range");
+
+    bool storesWithLoadedKey = false;
+    for (size_t i = 0; i < proto->getInstructionCount(); i++) {
+        Instruction inst = proto->getInstruction(i);
+        if (GET_OPCODE(inst) != OpCode::SETTABLE) {
+            continue;
+        }
+
+        int keyReg = GETARG_B(inst);
+        if (ISK(keyReg)) {
+            continue;
+        }
+
+        for (size_t j = 0; j < i; ++j) {
+            Instruction before = proto->getInstruction(j);
+            if (GET_OPCODE(before) == OpCode::LOADK &&
+                GETARG_A(before) == keyReg &&
+                GETARG_Bx(before) == targetConst) {
+                storesWithLoadedKey = true;
+                break;
+            }
+        }
+    }
+
+    ASSERT_TRUE(suite, storesWithLoadedKey, "Method definition key is loaded before SETTABLE");
+
+    delete proto;
+}
+
+/**
  * @brief 注册所有方法调用测试
  */
 void registerMethodCallTests() {
@@ -327,5 +458,7 @@ void registerMethodCallTests() {
     registry.registerTest("Method Call", "SELF Instruction Format", testSelfInstructionFormat);
     registry.registerTest("Method Call", "Method Name In Constants", testMethodNameInConstants);
     registry.registerTest("Method Call", "Multiple Args", testMethodCallMultipleArgs);
+    registry.registerTest("Method Call", "Wide Method Name Constant Uses Register", testWideMethodNameConstantUsesRegister);
+    registry.registerTest("Method Call", "Wide Method Definition Key Uses Register", testWideMethodDefinitionKeyUsesRegister);
 }
 

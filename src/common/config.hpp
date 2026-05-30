@@ -144,6 +144,9 @@ constexpr usize STRING_SHORT_MAX_LENGTH = 40;
 /// 字符串哈希种子（用于哈希计算）
 constexpr u32 STRING_HASH_SEED = 0x9e3779b9u;
 
+/// Lua 字符串最大字节长度（当前运行时防护上限）
+constexpr usize LUA_MAX_STRING_LENGTH = static_cast<usize>(64) * 1024 * 1024;
+
 /** @} */
 
 // =====================================================================

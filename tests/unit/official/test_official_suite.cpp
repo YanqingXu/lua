@@ -26,7 +26,7 @@ namespace {
 
 constexpr const char* kSuiteName = "Lua 5.1 Official Suite";
 constexpr const char* kOfficialAllLua = "tests/lua/official/all.lua";
-constexpr LuaNumber kExpectedSkippedScripts = 8.0;
+constexpr LuaNumber kExpectedSkippedScripts = 7.0;
 
 struct RunResult {
     bool ok = false;
@@ -146,7 +146,6 @@ local __official_skip = {
     -- These scripts currently rely on remaining frontend/runtime forms that
     -- still need staged compatibility work.
     ["code.lua"] = "frontend syntax coverage not fully implemented",
-    ["big.lua"] = "frontend syntax coverage not fully implemented",
     ["verybig.lua"] = "frontend syntax coverage not fully implemented",
 
     -- These require deeper standard-library, debug hook, IO, or C
@@ -172,8 +171,6 @@ local function __official_skip_source(name, reason)
         source = source .. "return 12\n"
     elseif name == "verybig.lua" then
         source = source .. "return 10\n"
-    elseif name == "big.lua" then
-        source = source .. "coroutine.yield(\"b\")\nreturn \"a\"\n"
     end
 
     return source
