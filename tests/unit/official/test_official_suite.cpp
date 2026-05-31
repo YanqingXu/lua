@@ -26,7 +26,7 @@ namespace {
 
 constexpr const char* kSuiteName = "Lua 5.1 Official Suite";
 constexpr const char* kOfficialAllLua = "tests/lua/official/all.lua";
-constexpr LuaNumber kExpectedSkippedScripts = 5.0;
+constexpr LuaNumber kExpectedSkippedScripts = 4.0;
 
 struct RunResult {
     bool ok = false;
@@ -142,10 +142,6 @@ local __official_skip = {
     -- CLI process spawning, shebang handling, and arg[-n] behavior are not in
     -- the in-process unit runner yet.
     ["main.lua"] = "standalone lua executable and os.execute coverage",
-
-    -- These scripts currently rely on remaining frontend/runtime forms that
-    -- still need staged compatibility work.
-    ["code.lua"] = "frontend syntax coverage not fully implemented",
 
     -- These require deeper standard-library, debug hook, or C API/testC
     -- behavior than the current roadmap marks as complete.
