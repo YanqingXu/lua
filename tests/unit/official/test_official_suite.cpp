@@ -26,7 +26,7 @@ namespace {
 
 constexpr const char* kSuiteName = "Lua 5.1 Official Suite";
 constexpr const char* kOfficialAllLua = "tests/lua/official/all.lua";
-constexpr LuaNumber kExpectedSkippedScripts = 4.0;
+constexpr LuaNumber kExpectedSkippedScripts = 3.0;
 
 struct RunResult {
     bool ok = false;
@@ -84,6 +84,18 @@ std::string trimOfficialAllForCurrentFrontend(std::string source) {
         "local f = assert(loadfile('gc.lua'))",
         "do end\n\n"
         "local f = assert(loadfile('gc.lua'))");
+    // gc.lua intentionally leaves collection stopped; restart it so the
+    // remaining staged smoke scripts keep bounded runtime and memory pressure.
+    replaceAll(
+        source,
+        "local f = assert(loadfile('gc.lua'))\n"
+        "f()\n"
+        "dofile('db.lua')",
+        "local f = assert(loadfile('gc.lua'))\n"
+        "f()\n"
+        "collectgarbage(\"restart\")\n"
+        "collectgarbage()\n"
+        "dofile('db.lua')");
     replaceAll(
         source,
         "print(\"current path:\\n  \" .. string.gsub(package.path, \";\", \"\\n  \"))",
@@ -145,7 +157,6 @@ local __official_skip = {
 
     -- These require deeper standard-library, debug hook, or C API/testC
     -- behavior than the current roadmap marks as complete.
-    ["gc.lua"] = "standalone passes, but staged smoke skips heavyweight GC/finalizer stress",
     ["db.lua"] = "debug hook and stack-introspection semantics are still partial",
     ["api.lua"] = "requires the upstream testC C API helper library",
 }

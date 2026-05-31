@@ -111,7 +111,7 @@ applies_to: repository overview and current build workflows
 补充验证：
 - `lua_test.vcxproj`：MSBuild Debug|x64 通过
 - `bin/lua_test.exe`：622 个注册测试，3079 个结果，0 失败（0 failures）
-- `tests/lua/official/all.lua`：Lua 5.1 官方测试套件已接入 staged smoke；当前通过 skip 表记录并跳过 4 个已知未兼容/重压脚本；`constructs.lua` 的 16k 次动态编译压力循环在单元测试入口中裁剪为小样本；`gc.lua` 已可完整 standalone 通过，但 staged smoke 仍跳过其 heavyweight GC/finalizer 压力段以控制单元测试耗时；`big.lua`、`verybig.lua`、`files.lua` 与 `code.lua` 已纳入 staged smoke
+- `tests/lua/official/all.lua`：Lua 5.1 官方测试套件已接入 staged smoke；当前通过 skip 表记录并跳过 3 个已知未兼容/重压脚本；`constructs.lua` 的 16k 次动态编译压力循环在单元测试入口中裁剪为小样本；`gc.lua`、`big.lua`、`verybig.lua`、`files.lua` 与 `code.lua` 已纳入 staged smoke
 - `bin/lua_app.exe tests/lua/official/literals.lua`：通过
 - `bin/lua_app.exe tests/lua/official/calls.lua`：通过
 - `bin/lua_app.exe tests/lua/official/attrib.lua`：通过
@@ -138,7 +138,7 @@ applies_to: repository overview and current build workflows
 
 ### 距离完整 Lua 5.1.5 仍缺失的功能
 
-> **兼容性审计记录（2026-05-29）**：已对 README、本地 `src/lib/` 标准库实现、`src/vm/` 指令执行逻辑、GC/元方法相关核心代码进行核对。`bin/lua_test.exe` 当前为 622 个注册测试、3079 个结果、0 失败；这说明项目内测试覆盖的路径稳定，但不等价于 Lua 5.1.5 官方语义已经达到 95% 兼容。Lua 5.1 官方测试套件已以 staged smoke 形式接入，当前 skip 表仍标记了 4 个官方子脚本，`literals.lua`、`calls.lua`、`attrib.lua`、`locals.lua`、`constructs.lua`、`vararg.lua`、`strings.lua`、`math.lua`、`nextvar.lua`、`errors.lua`、`sort.lua`、`pm.lua`、`closure.lua`、`events.lua`、`big.lua`、`verybig.lua`、`files.lua` 与 `code.lua` 已从 skip 表移除；`gc.lua` 与 `db.lua` 可由 `bin/lua_app.exe` 完整单独执行通过，但 staged smoke 仍保留跳过对应重压/调试集成段。
+> **兼容性审计记录（2026-05-29）**：已对 README、本地 `src/lib/` 标准库实现、`src/vm/` 指令执行逻辑、GC/元方法相关核心代码进行核对。`bin/lua_test.exe` 当前为 622 个注册测试、3079 个结果、0 失败；这说明项目内测试覆盖的路径稳定，但不等价于 Lua 5.1.5 官方语义已经达到 95% 兼容。Lua 5.1 官方测试套件已以 staged smoke 形式接入，当前 skip 表仍标记了 3 个官方子脚本，`literals.lua`、`calls.lua`、`attrib.lua`、`locals.lua`、`constructs.lua`、`vararg.lua`、`strings.lua`、`math.lua`、`nextvar.lua`、`errors.lua`、`sort.lua`、`pm.lua`、`closure.lua`、`gc.lua`、`events.lua`、`big.lua`、`verybig.lua`、`files.lua` 与 `code.lua` 已从 skip 表移除；`db.lua` 可由 `bin/lua_app.exe` 完整单独执行通过，但 staged smoke 仍保留跳过其调试集成段。
 
 > **最新补齐**：Lua 5.1 scanner/literals 路径已补齐 shebang、长字符串/长注释分隔符回退、`1.`/`1.e2`/`.4` 数字形式、`4.5.` malformed number 诊断、短字符串换行边界、`;` 空语句/`return` 终止、关系链表达式、`2^-2` 幂运算右侧一元表达式、方法调用字符串/表构造器实参糖；`calls.lua` 覆盖的调用边界已补齐左调用比较寄存器保护、IIFE 换行解析边界、表构造器非末位多返回折叠、`table.getn` 兼容入口、`load(reader)` 空串 EOF/reader error/二进制 dump 读入、dump/undump upvalue 元数据恢复、赋值目标 upvalue 捕获顺序以及 `table.sort` Lua comparator 栈帧保护；`attrib.lua` 覆盖的属性/赋值边界已补齐 `require` false 缓存重载、默认 `package.path/cpath` 中 `!` 可执行目录展开、`setfenv/getfenv` 栈层级、跨嵌套块 local 关闭、table-field 混合多重赋值先求值后写回、LHS table/index 引用冻结以及全局字段 `..` 拼接寄存器连续性；`locals.lua` 覆盖的局部作用域边界已补齐 `function f` 对已有 local/upvalue/global 绑定的赋值规则，以及 `setfenv(0, env)` 对后续 `loadstring` 默认环境的切换；`constructs.lua` 覆盖的控制流/表达式边界已补齐嵌套 numeric `for` 控制寄存器物化、`break` 跳出复杂 `while/repeat` 后续跳转语句的补丁目标，以及 Lua 5.1 `math.mod` 兼容别名；`vararg.lua` 覆盖的变长参数边界已补齐旧式局部 `arg` 表生成、新式 `...` 与 `arg` 隔离、变长调用固定参数帧槽布局，以及 `unpack(t, i, nil)` 默认上界语义；`strings.lua` 覆盖的字符串与 locale 边界已补齐 `string.sub/string.byte` 位置规范化、`%q` Lua 5.1 quoting、`tostring`/`table.concat` 二进制安全、数字与空串 `..` 拼接写回、`LC_COLLATE` 字符串比较和 `os.setlocale` 查询语义；`math.lua` 覆盖的数值边界已补齐字符串参与算术的一致转换、`tonumber` 符号/空白解析、Lua floor-mod 取模、NaN table key 拒绝，以及 `pcall` 保护调用保留 open upvalue 栈槽；`nextvar.lua` 覆盖的表迭代边界已补齐 `table.foreach/foreachi`、删除当前 hash key 后的 `next/pairs` 继续遍历、numeric `for` 字符串边界转换，以及全局 `package` 被清理后 `require` 仍从 registry 中访问 package 表的路径；局部声明初始化已按 Lua 5.1 先求 RHS 后引入新 local，并保护多值初始化的已写结果槽；`local function` 已支持自递归捕获；语句级临时寄存器会回收到活动 locals 边界；`loadstring` 已支持含 `\0` 源码；数字参与 `..` 拼接时按 Lua 风格格式化。Lua 函数元方法调用链已打通，`callTMWithResult/callTM` 统一走 `VM::call`，C Closure 与 Lua Closure 共用同一调用入口；`getMetamethodByObject()` 已接入基础类型元表，string 类型已安装 `__index = string`；GC 已支持弱表 `__mode = "k"/"v"/"kv"` 清理、userdata `__gc` 两阶段终结和 `GCStrategy` 教学策略边界；尾调用优化已覆盖单值 `return f()` 的 `TAILCALL` 生成和 Lua 函数调用帧复用；泛型 `for` 已支持显式 iterator 三元组、函数/vararg 三值调整和 Lua 函数迭代器；string 库已补齐 `gsub` 表/函数替换、`string.dump` Proto/字节码序列化输出和含 `\0` 字符串的长度安全处理；`module()` 已补齐 `_PACKAGE`、复合模块名全局路径、调用方环境切换和 Lua option 函数语义；package 已补齐 `package.loadlib`、C loader、all-in-one C loader 和 registry 保活边界。
 
@@ -146,7 +146,7 @@ applies_to: repository overview and current build workflows
 
 > **本轮补齐**：`closure.lua` 已从 skip 表移除并通过 standalone 执行；本轮补齐闭包环境继承、numeric/generic `for` 与 `repeat-until` 中闭包捕获的 per-iteration 关闭、`pcall` 错误展开时关闭 open upvalue、自动 GC 清理弱值、coroutine 多返回/yield 边界、尾调用 yield 暂停、`coroutine.wrap` 错误对象透传、`debug.getfenv/setfenv` 线程环境，以及 pending coroutine shutdown 时 Thread 先于 Upvalue 清理的生命周期顺序。
 
-> **本轮补齐**：`gc.lua` 已通过完整 standalone 执行；本轮补齐 `newproxy()` 兼容入口、math 库数字字符串参数转换、显式 GC 的精确栈根扫描、粗粒度自动 GC stop/restart/step 路径、userdata `__gc` 错误传播、finalizer 前弱值清理和弱键保留，以及弱表字符串键/值保活语义。staged `all.lua` 仍跳过 `gc.lua` 的 heavyweight GC/finalizer 压力段以控制常规单元测试耗时。
+> **本轮补齐**：`gc.lua` 已通过完整 standalone 与 staged smoke 执行；本轮补齐 `newproxy()` 兼容入口、math 库数字字符串参数转换、显式 GC 的精确栈根扫描、粗粒度自动 GC stop/restart/step 路径、userdata `__gc` 错误传播、finalizer 前弱值清理和弱键保留，以及弱表字符串键/值保活语义。
 
 > **本轮补齐**：`events.lua` 已从 skip 表移除并通过 standalone 与 staged smoke 执行；本轮补齐 `tostring` 对 `__tostring` 返回值的直接透传、表变更后的元方法缺失缓存失效、动态实参 `__call` 参数插入，以及 `debug.getmetatable/setmetatable` 对基础类型全局元表的操作路径。
 
