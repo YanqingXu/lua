@@ -979,6 +979,23 @@ static bool isProjectBinaryChunk(StrView source) {
     return source.size() >= 4 && source.substr(0, 4) == StrView("\x1bLua", 4);
 }
 
+static StrView skipInitialHashCommentLine(StrView source) {
+    if (source.empty() || source.front() != '#') {
+        return source;
+    }
+
+    usize newline = source.find_first_of("\r\n");
+    if (newline == StrView::npos) {
+        return StrView();
+    }
+
+    usize next = newline + 1;
+    while (next < source.size() && (source[next] == '\r' || source[next] == '\n')) {
+        next++;
+    }
+    return source.substr(next);
+}
+
 static Function* createLuaFunctionFromProto(LuaState* L, Proto* proto) {
     Function* func = new Function(proto);
     L->getGlobalState().getGC().registerObject(func);
@@ -1197,8 +1214,10 @@ i32 luaB_loadfile(LuaState* L) {
             return 2;
         }
 
-        if (isProjectBinaryChunk(StrView(source.data(), source.size()))) {
-            Function* func = loadBinaryChunk(L, StrView(source.data(), source.size()));
+        StrView loadSource(source.data(), source.size());
+        StrView binarySource = skipInitialHashCommentLine(loadSource);
+        if (isProjectBinaryChunk(binarySource)) {
+            Function* func = loadBinaryChunk(L, binarySource);
             L->setTop(0);
             L->pushValue(Value(func));
             return 1;

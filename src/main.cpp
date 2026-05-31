@@ -33,17 +33,25 @@
 #include "bytecode/bytecode_printer.hpp"
 #include "core/string_pool.hpp"
 #include "core/function.hpp"
+#include "core/value.hpp"
 #include "io/file_loader.hpp"
 #include "io/input_stream.hpp"
 #include "runtime/runtime_services.hpp"
 #include "debug/json_trace_sink.hpp"
 #include "common/lua_error.hpp"
 #include "repl.hpp"
+#include "repl/repl_ctx.hpp"
+#include "repl/repl_exe.hpp"
+#include "repl/repl_prompt.hpp"
+#include "vm/vm_constants.hpp"
 
 #include <filesystem>
 #include <format>
+#include <cctype>
+#include <cstring>
 #include <iostream>
 #include <memory>
+#include <sstream>
 #include <windows.h>
 
 // 默认测试脚本路径。
@@ -85,11 +93,13 @@ void printUsage(const char* progname) {
     std::cout << "Usage: " << progname << " [options] [script [args]]" << std::endl;
     std::cout << "Available options are:" << std::endl;
     std::cout << "  -v       show version information" << std::endl;
-    std::cout << "  -h       show this help message" << std::endl;
+    std::cout << "  -e stat  execute string 'stat'" << std::endl;
+    std::cout << "  -l name  require library 'name'" << std::endl;
     std::cout << "  -i       enter interactive mode" << std::endl;
     std::cout << "  --trace <file>  write execution trace to JSONL file" << std::endl;
     std::cout << "  --trace-diff <file>  write execution trace with changedRegisters" << std::endl;
-    std::cout << "  -        execute stdin (not implemented)" << std::endl;
+    std::cout << "  --       stop handling options" << std::endl;
+    std::cout << "  -        execute stdin" << std::endl;
 }
 
 // ============================================================================
@@ -181,7 +191,22 @@ void setupArgTable(LuaState* L, i32 argc, char* argv[], i32 scriptIndex) {
     // Index formula: i - scriptIndex (matches official Lua implementation)
     // This creates: arg[-scriptIndex] ... arg[0] ... arg[narg-1]
     for (i32 i = 0; i < argc; i++) {
-        GCString* argStr = L->getGlobalState().getStringPool().intern(argv[i]);
+        const char* argText = argv[i];
+        Str adjustedArg;
+        if (i == 0 && argText != nullptr) {
+            adjustedArg = argText;
+            for (char& ch : adjustedArg) {
+                if (ch == '\\') {
+                    ch = '/';
+                }
+            }
+            argText = adjustedArg.c_str();
+        } else if (i + 1 < scriptIndex && argv[i] != nullptr && argv[i + 1] != nullptr &&
+            std::strcmp(argv[i], "-e") == 0 && std::strcmp(argv[i + 1], "--") == 0) {
+            adjustedArg = "-e ";
+            argText = adjustedArg.c_str();
+        }
+        GCString* argStr = L->getGlobalState().getStringPool().intern(argText ? argText : "");
         i32 index = i - scriptIndex;  // Key calculation: same as official Lua
         argTable->set(Value(static_cast<LuaNumber>(index)), Value(argStr));
     }
@@ -194,81 +219,281 @@ void setupArgTable(LuaState* L, i32 argc, char* argv[], i32 scriptIndex) {
 // 解释器模式
 // ============================================================================
 
-/**
- * @brief 执行Lua脚本文件
- *
- * 执行流程：
- * 1. 读取文件内容
- * 2. 解析源码生成AST (Parser)
- * 3. 生成字节码 (CodeGenerator)
- * 4. 创建函数对象并注册到GC
- * 5. 执行字节码 (VM)
- *
- * @param L Lua状态
- * @param filename 脚本文件名
- * @return 执行状态码（0=成功，非0=失败）
- */
-int executeScript(LuaState* L, const char* filename) {
-    try {
-        // 步骤1：读取文件内容
-        Str source = readWholeFile(filename);
+namespace {
 
-        // 步骤2：解析源码生成AST
-        RuntimeServices services(L->getGlobalState());
+bool isProjectBinaryChunk(StrView source) {
+    return source.size() >= 4 && source.substr(0, 4) == StrView("\x1bLua", 4);
+}
 
-        Parser parser(source, services);
-        auto parsed = parser.parse();
-        if (!parsed) {
-            throw parsed.error();
+StrView skipInitialHashCommentLine(StrView source) {
+    if (source.empty() || source.front() != '#') {
+        return source;
+    }
+
+    usize newline = source.find_first_of("\r\n");
+    if (newline == StrView::npos) {
+        return source;
+    }
+
+    usize next = newline + 1;
+    while (next < source.size() && (source[next] == '\r' || source[next] == '\n')) {
+        next++;
+    }
+    return source.substr(next);
+}
+
+Str valueToString(const Value& value) {
+    if (value.isString()) {
+        return value.asString()->getData();
+    }
+    if (value.isNil()) {
+        return "nil";
+    }
+    if (value.isBoolean()) {
+        return value.asBoolean() ? "true" : "false";
+    }
+    if (value.isNumber()) {
+        return std::format("{}", value.asNumber());
+    }
+    return value.toString();
+}
+
+Str makeLuaStringLiteral(StrView text) {
+    Str result = "\"";
+    for (char ch : text) {
+        switch (ch) {
+            case '\\': result += "\\\\"; break;
+            case '"': result += "\\\""; break;
+            case '\n': result += "\\n"; break;
+            case '\r': result += "\\r"; break;
+            case '\t': result += "\\t"; break;
+            default: result.push_back(ch); break;
         }
-        Chunk chunk = std::move(*parsed);
+    }
+    result += "\"";
+    return result;
+}
 
-        // 步骤3：生成字节码
-        CodeGenerator codegen(services);
-        Str sourceName = Str("@") + filename;
-        Proto* proto = codegen.generate(chunk, sourceName);
+Str readAllStdin() {
+    std::ostringstream buffer;
+    buffer << std::cin.rdbuf();
+    return buffer.str();
+}
 
-        if (!proto) {
-            const Str message = std::format("{}: code generation failed", filename);
-            REPL::reportError(message.c_str());
+bool isPendingAssignmentName(StrView source) {
+    usize first = 0;
+    while (first < source.size() &&
+           std::isspace(static_cast<unsigned char>(source[first])) != 0) {
+        first++;
+    }
+
+    usize last = source.size();
+    while (last > first &&
+           std::isspace(static_cast<unsigned char>(source[last - 1])) != 0) {
+        last--;
+    }
+
+    if (first >= last) {
+        return false;
+    }
+    char head = source[first];
+    if (!(std::isalpha(static_cast<unsigned char>(head)) != 0 || head == '_')) {
+        return false;
+    }
+    for (usize i = first + 1; i < last; ++i) {
+        char ch = source[i];
+        if (!(std::isalnum(static_cast<unsigned char>(ch)) != 0 || ch == '_')) {
+            return false;
+        }
+    }
+    return true;
+}
+
+Vec<Str> collectScriptArgs(const AppOptions& opt) {
+    Vec<Str> args;
+    if (opt.scriptIndex < 0 || opt.argv == nullptr) {
+        return args;
+    }
+
+    for (i32 i = opt.scriptIndex + 1; i < opt.argc; ++i) {
+        args.emplace_back(opt.argv[i] ? opt.argv[i] : "");
+    }
+    return args;
+}
+
+Function* loadChunkFromSource(LuaState* L, StrView source, StrView chunkName, Str& errorMessage) {
+    auto& pool = L->getGlobalState().getStringPool();
+    StrView loadSource = source;
+    StrView binarySource = skipInitialHashCommentLine(source);
+    if (isProjectBinaryChunk(binarySource)) {
+        loadSource = binarySource;
+    }
+
+    L->setTop(0);
+    L->pushString(pool.intern(loadSource.data(), loadSource.size()));
+    L->pushString(pool.intern(chunkName.data(), chunkName.size()));
+
+    const i32 nresults = luaB_loadstring(L);
+    if (nresults == 1 && L->getTop() >= 1 && L->at(1).isFunction()) {
+        Function* func = L->at(1).asFunction();
+        L->setTop(0);
+        return func;
+    }
+
+    if (L->getTop() >= 2) {
+        errorMessage = valueToString(L->at(2));
+    } else {
+        errorMessage = "cannot load chunk";
+    }
+    L->setTop(0);
+    return nullptr;
+}
+
+int executeFunction(LuaState* L, Function* func, const Vec<Str>& args) {
+    auto& pool = L->getGlobalState().getStringPool();
+
+    L->setTop(0);
+    L->pushFunction(func);
+    for (const Str& arg : args) {
+        L->pushString(pool.intern(arg.data(), arg.size()));
+    }
+
+    const i32 status = L->pcall(static_cast<i32>(args.size()), MULTRET, 0);
+    if (status != LUA_OK) {
+        Str message = L->getTop() >= 1 ? valueToString(L->at(1)) : "runtime error";
+        REPL::reportError(message.c_str());
+        L->setTop(0);
+        return 1;
+    }
+
+    L->setTop(0);
+    return 0;
+}
+
+int executeSource(LuaState* L, StrView source, StrView chunkName, const Vec<Str>& args = {}) {
+    try {
+        Str errorMessage;
+        Function* func = loadChunkFromSource(L, source, chunkName, errorMessage);
+        if (func == nullptr) {
+            REPL::reportError(errorMessage.c_str());
             return 1;
         }
 
-        // 步骤4：创建函数对象并注册到GC
-        Function* func = new Function(proto);
-        L->getGlobalState().getGC().registerObject(func);
-
-        // 设置函数环境为全局表（确保能访问全局函数）
-        func->setEnv(L->getGlobalTable());
-
-        // 步骤5：执行字节码
-        VM::execute(services, L, func);
-
-        // Proto由GC管理，并通过Function的标记路径保持可达。
-
-        return 0;
-
-    } catch (const ParseError& e) {
-        // 语法错误 - 使用官方 Lua 风格：progname: source:line: message
-        REPL::reportError(filename, e.getLine(), e.what());
-        return 1;
-
-    } catch (const LuaError& e) {
-        // VM / runtime 层错误
-        REPL::reportError(e.what());
-        return 1;
-
-    } catch (const std::runtime_error& e) {
-        // 运行时错误或文件错误
-        REPL::reportError(e.what());
-        return 1;
-
+        return executeFunction(L, func, args);
     } catch (const std::exception& e) {
-        // 其他异常
+        REPL::reportError(e.what());
+        L->setTop(0);
+        return 1;
+    }
+}
+
+int executeScript(LuaState* L, const char* filename, const Vec<Str>& args = {}) {
+    try {
+        Str source = readWholeFile(filename);
+        Str chunkName = Str("@") + filename;
+        return executeSource(L, StrView(source.data(), source.size()),
+                             StrView(chunkName.data(), chunkName.size()), args);
+    } catch (const std::exception& e) {
         REPL::reportError(e.what());
         return 1;
     }
 }
+
+int executeStdinScript(LuaState* L, const Vec<Str>& args) {
+    Str source = readAllStdin();
+    constexpr StrView chunkName("=stdin");
+    return executeSource(L, StrView(source.data(), source.size()), chunkName, args);
+}
+
+int executeStartupAction(LuaState* L, const StartupAction& action) {
+    const Str argument = action.argument ? action.argument : "";
+
+    if (action.kind == StartupActionKind::ExecuteChunk) {
+        constexpr StrView chunkName("=(command line)");
+        return executeSource(L, StrView(argument.data(), argument.size()), chunkName);
+    }
+
+    if (std::filesystem::exists(argument)) {
+        return executeScript(L, argument.c_str());
+    }
+
+    const Str source = "require(" + makeLuaStringLiteral(argument) + ")";
+    constexpr StrView chunkName("=(command line)");
+    return executeSource(L, StrView(source.data(), source.size()), chunkName);
+}
+
+int executeStartupActions(LuaState* L, const AppOptions& opt) {
+    for (const StartupAction& action : opt.startupActions) {
+        int status = executeStartupAction(L, action);
+        if (status != 0) {
+            return status;
+        }
+    }
+    return 0;
+}
+
+int runQuietInteractive(LuaState* L) {
+    REPL::detail::ReplContext& context = REPL::detail::globalContext();
+    REPL::detail::ErrorColorContextGuard colorGuard(context);
+
+    Str inputBuffer;
+    bool bufferIsExpression = false;
+    bool isFirstLine = true;
+    usize currentLine = 1;
+
+    auto resetInput = [&]() {
+        inputBuffer.clear();
+        bufferIsExpression = false;
+        isFirstLine = true;
+        currentLine = 1;
+    };
+
+    while (true) {
+        std::cout << REPL::detail::getPrompt(L, isFirstLine, currentLine) << std::flush;
+
+        Str line;
+        if (!std::getline(std::cin, line)) {
+            std::cout << std::endl;
+            return 0;
+        }
+        if (!line.empty() && line.back() == '\r') {
+            line.pop_back();
+        }
+
+        if (isFirstLine && line.empty()) {
+            continue;
+        }
+
+        if (isFirstLine) {
+            bool wasExplicitReturn = false;
+            inputBuffer = REPL::detail::tryAsExpression(line, wasExplicitReturn);
+            bufferIsExpression = wasExplicitReturn;
+        } else {
+            inputBuffer += "\n" + line;
+        }
+
+        auto prepared =
+            REPL::detail::prepareInputForExecution(L, inputBuffer, bufferIsExpression);
+        if (!prepared) {
+            const ParseError& error = prepared.error();
+            if (REPL::detail::isIncompleteInput(error.what()) ||
+                (isFirstLine && isPendingAssignmentName(inputBuffer))) {
+                isFirstLine = false;
+                currentLine += 1;
+                continue;
+            }
+
+            REPL::detail::reportError(context, std::cerr, "stdin", error.getLine(), error.what(), false);
+            resetInput();
+            continue;
+        }
+
+        REPL::detail::executePreparedInput(context, L, std::move(*prepared), std::cout, std::cerr);
+        resetInput();
+    }
+}
+
+} // namespace
 
 int Lua::runApp(const AppOptions& opt) {
     const char* programName = opt.programName ? opt.programName : "lua";
@@ -280,9 +505,13 @@ int Lua::runApp(const AppOptions& opt) {
         printVersion();
         return 0;
 
+    case RunMode::Error:
+        REPL::reportError(opt.errorMessage ? opt.errorMessage : "invalid command line");
+        return 1;
+
     case RunMode::ShowHelp:
         printUsage(programName);
-        return 0;
+        return 1;
 
     case RunMode::Script:
     case RunMode::Repl:
@@ -294,6 +523,10 @@ int Lua::runApp(const AppOptions& opt) {
     if (!L) {
         REPL::reportError("cannot create state: not enough memory");
         return 1;
+    }
+
+    if (opt.interactive) {
+        REPL::initialize(L.get());
     }
 
     i32 status = 0;
@@ -317,15 +550,33 @@ int Lua::runApp(const AppOptions& opt) {
     }
 
     switch (opt.mode) {
-    case RunMode::Script:
-        setupArgTable(L.get(), static_cast<i32>(opt.argc), opt.argv, opt.scriptIndex);
-        status = executeScript(L.get(), opt.scriptFile);
+    case RunMode::Script: {
+        status = executeStartupActions(L.get(), opt);
+        if (status != 0) {
+            break;
+        }
+
+        if (opt.scriptFile != nullptr) {
+            setupArgTable(L.get(), static_cast<i32>(opt.argc), opt.argv, opt.scriptIndex);
+            Vec<Str> scriptArgs = collectScriptArgs(opt);
+            if (std::strcmp(opt.scriptFile, "-") == 0) {
+                status = executeStdinScript(L.get(), scriptArgs);
+            } else {
+                status = executeScript(L.get(), opt.scriptFile, scriptArgs);
+            }
+        }
+
+        if (status == 0 && opt.interactive) {
+            status = runQuietInteractive(L.get());
+        }
         break;
+    }
 
     case RunMode::Repl:
-        std::cout << "[INFO] 进入 REPL 模式。" << std::endl;
-        REPL::initialize(L.get());
-        status = REPL::run(L.get());
+        status = executeStartupActions(L.get(), opt);
+        if (status == 0) {
+            status = runQuietInteractive(L.get());
+        }
         break;
 
     case RunMode::DefaultBehavior: {
@@ -369,6 +620,7 @@ int Lua::runApp(const AppOptions& opt) {
 
     case RunMode::ShowVersion:
     case RunMode::ShowHelp:
+    case RunMode::Error:
         break;
     }
 

@@ -26,7 +26,7 @@ namespace {
 
 constexpr const char* kSuiteName = "Lua 5.1 Official Suite";
 constexpr const char* kOfficialAllLua = "tests/lua/official/all.lua";
-constexpr LuaNumber kExpectedSkippedScripts = 3.0;
+constexpr LuaNumber kExpectedSkippedScripts = 0.0;
 
 struct RunResult {
     bool ok = false;
@@ -149,16 +149,13 @@ gcinfo = gcinfo or function()
     return collectgarbage("count")
 end
 
+arg = arg or {
+    [-1] = "../../../bin/lua_app.exe",
+    [0] = "all.lua",
+}
+
 local __official_loadfile = loadfile
 local __official_skip = {
-    -- CLI process spawning, shebang handling, and arg[-n] behavior are not in
-    -- the in-process unit runner yet.
-    ["main.lua"] = "standalone lua executable and os.execute coverage",
-
-    -- These require deeper standard-library, debug hook, or C API/testC
-    -- behavior than the current roadmap marks as complete.
-    ["db.lua"] = "debug hook and stack-introspection semantics are still partial",
-    ["api.lua"] = "requires the upstream testC C API helper library",
 }
 
 local function __official_quote(value)

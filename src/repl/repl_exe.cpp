@@ -73,7 +73,10 @@ Str tryAsExpression(const Str& source, bool& wasExplicitReturn) {
 
 bool isIncompleteInput(const Str& errorMessage) {
     return errorMessage.find("<eof>") != Str::npos ||
-           errorMessage.find("unexpected end of input") != Str::npos;
+           errorMessage.find("unexpected end of input") != Str::npos ||
+           errorMessage.find("Unterminated string") != Str::npos ||
+           errorMessage.find("Unterminated long string") != Str::npos ||
+           errorMessage.find("Unterminated long comment") != Str::npos;
 }
 
 std::expected<PreparedInput, ParseError> prepareInputForExecution(LuaState* L, const Str& source,

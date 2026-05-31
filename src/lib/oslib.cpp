@@ -101,8 +101,7 @@ i32 luaOS_difftime(LuaState* L) {
 
 i32 luaOS_execute(LuaState* L) {
     if (L->getTop() < 1) {
-        // 无命令，返回0
-        L->pushNumber(0.0);
+        L->pushNumber(static_cast<f64>(std::system(nullptr)));
         return 1;
     }
     
@@ -111,6 +110,13 @@ i32 luaOS_execute(LuaState* L) {
     }
     
     const char* command = L->toString(1);
+#ifdef _WIN32
+    Str wrappedCommand;
+    if (command != nullptr && command[0] == '"') {
+        wrappedCommand = Str("\"") + command + "\"";
+        command = wrappedCommand.c_str();
+    }
+#endif
     i32 result = std::system(command);
     
     if (result == -1) {
