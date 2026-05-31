@@ -254,6 +254,59 @@ void testLuaFunctionMetamethodsAndBasicTypeMetatable(TestSuite& suite) {
               "string metatable __index enables method syntax");
 }
 
+void testRuntimeMetamethodOpcodeExecution(TestSuite& suite) {
+    LuaState* L = LuaState::newState();
+    StandardLibrary::openAll(L);
+
+    bool ok = runLua(L, R"lua(
+        local mt = {
+            __unm = function(a)
+                return -a.value * 2
+            end,
+            __mod = function(a, b)
+                return a.value - b.value
+            end,
+            __pow = function(a, b)
+                return a.value * 10 + b.value
+            end,
+            __concat = function(a, b)
+                return "cat:" .. a.value .. ":" .. b.value
+            end
+        }
+
+        local a = setmetatable({ value = 5 }, mt)
+        local b = setmetatable({ value = 3 }, mt)
+
+        _runtime_unm = -a
+        _runtime_mod = a % b
+        _runtime_pow = a ^ b
+        _runtime_concat = a .. b
+
+        local callable = setmetatable({ base = 40 }, {
+            __call = function(self, value)
+                return self.base + value
+            end
+        })
+
+        local function tail_call_target(obj)
+            return obj(2)
+        end
+
+        _runtime_tailcall_call = tail_call_target(callable)
+    )lua");
+
+    ASSERT_TRUE(suite, ok, "runtime metamethod opcode script should execute");
+    ASSERT_EQ(suite, -10.0, L->getGlobal("_runtime_unm").asNumber(), "runtime __unm opcode result");
+    ASSERT_EQ(suite, 2.0, L->getGlobal("_runtime_mod").asNumber(), "runtime __mod opcode result");
+    ASSERT_EQ(suite, 53.0, L->getGlobal("_runtime_pow").asNumber(), "runtime __pow opcode result");
+    ASSERT_TRUE(suite, L->getGlobal("_runtime_concat").isString(), "runtime __concat result should be string");
+    ASSERT_EQ(suite, std::string("cat:5:3"),
+              std::string(L->getGlobal("_runtime_concat").asString()->c_str()),
+              "runtime __concat opcode result");
+    ASSERT_EQ(suite, 42.0, L->getGlobal("_runtime_tailcall_call").asNumber(),
+              "tailcall through __call metamethod should return the metamethod result");
+}
+
 /**
  * @brief 注册所有元方法算术测试
  */
@@ -265,5 +318,7 @@ void registerMetamethodArithTests() {
     registry.registerTest("Metamethod", "Fallback", testMetamethodFallback);
     registry.registerTest("Metamethod", "Lua function metamethods and basic type metatable",
                           testLuaFunctionMetamethodsAndBasicTypeMetatable);
+    registry.registerTest("Metamethod", "Runtime metamethod opcode execution",
+                          testRuntimeMetamethodOpcodeExecution);
 }
 

@@ -7,6 +7,7 @@
 
 #include "compiler/opcode.hpp"
 #include "core/function.hpp"
+#include "runtime/runtime_services.hpp"
 #include "vm/state/call_info.hpp"
 #include "vm/state/lua_state.hpp"
 #include "vm/state/stack.hpp"
@@ -46,7 +47,8 @@ void tforLoop(LuaState* L, Value*& base, Proto* proto, usize& pc, i32 a, i32 c) 
     stack.setTop(callTop);
     L->setAbsoluteTop(callTop);
 
-    VM::call(L, 2, c);
+    RuntimeServices services(L->getGlobalState());
+    VM::call(services, L, 2, c);
 
     CallInfo& callerCI = L->getCurrentCallInfo();
     stack.setTop(callerCI.top);

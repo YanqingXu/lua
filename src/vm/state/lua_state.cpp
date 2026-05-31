@@ -8,6 +8,7 @@
 
 #include "vm/state/lua_state.hpp"
 #include "common/lua_error.hpp"
+#include "common/number_conversion.hpp"
 #include "core/gc_string.hpp"
 #include "core/userdata.hpp"
 #include "core/function.hpp"
@@ -131,6 +132,11 @@ LuaState* LuaState::newState(RuntimeServices& services) {
     LuaState* L = new LuaState(services.globalState);
     L->initialize();
     return L;
+}
+
+LuaState* LuaState::newState(EngineContext& context) {
+    RuntimeServices services = context.services();
+    return newState(services);
 }
 
 LuaState* LuaState::newThread(LuaState* parentL) {
@@ -367,7 +373,8 @@ void LuaState::callDebugHook(DebugHookEvent event, i32 line) {
             pushNil();
         }
 
-        VM::call(this, 2, 0);
+        RuntimeServices services(globalState_);
+        VM::call(services, this, 2, 0);
         getStack().setTop(restoreStackTop);
         setAbsoluteTop(savedTop);
         hookActive_ = false;
@@ -649,7 +656,8 @@ i32 LuaState::pcall(i32 nargs, i32 nresults, i32 errfunc) {
         try {
             pushValue(errorHandler);
             pushValue(errorValue);
-            VM::call(this, 1, 1);
+            RuntimeServices services(globalState_);
+            VM::call(services, this, 1, 1);
             Value handled = top();
             currentCI_ = handlerSavedCI;
             return handled;
@@ -680,7 +688,8 @@ i32 LuaState::pcall(i32 nargs, i32 nresults, i32 errfunc) {
     }
 
     try {
-        VM::call(this, nargs, nresults);
+        RuntimeServices services(globalState_);
+        VM::call(services, this, nargs, nresults);
         setStatus(ThreadStatus::OK);
         return LUA_OK;
 
@@ -784,7 +793,15 @@ Value LuaState::getGlobal(const Str& name) {
 
 bool LuaState::isNumber(i32 idx) const {
     try {
-        return at(idx).isNumber();
+        const Value& v = at(idx);
+        if (v.isNumber()) {
+            return true;
+        }
+        if (v.isString()) {
+            LuaNumber number = 0.0;
+            return luaStringToNumber(v.asString()->view(), number);
+        }
+        return false;
     } catch (...) {
         return false;
     }
@@ -876,7 +893,12 @@ LuaNumber LuaState::toNumber(i32 idx) const {
         if (v.isNumber()) {
             return v.asNumber();
         }
-        // TODO: 字符串到数字的转换
+        if (v.isString()) {
+            LuaNumber number = 0.0;
+            if (luaStringToNumber(v.asString()->view(), number)) {
+                return number;
+            }
+        }
         return 0.0;
     } catch (...) {
         return 0.0;

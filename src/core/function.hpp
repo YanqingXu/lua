@@ -752,9 +752,7 @@ public:
      * 设置函数的环境表后，该函数的GETGLOBAL/SETGLOBAL指令将使用
      * 此环境表而非全局表。这是实现setfenv/getfenv的基础。
      */
-    void setEnv(Table* env) noexcept {
-        env_ = env;
-    }
+    void setEnv(Table* env) noexcept;
 
     // =====================================================================
     // ClosureHeader 字段访问（Lua C兼容）

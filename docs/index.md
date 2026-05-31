@@ -1,7 +1,7 @@
 ---
 status: current
-verified_against: docs/status/project-status.md; docs/guides/development.md; docs/architecture/patterns.md; docs/walkthroughs/index.md; docs/walkthroughs/gc-cycle.md; docs/glossary.md; examples/README.md
-last_checked: 2026-05-23
+verified_against: docs/status/project-status.md; docs/guides/development.md; docs/architecture/patterns.md; docs/walkthroughs/index.md; docs/walkthroughs/gc-cycle.md; docs/glossary.md; docs/compatibility/lua51.md; docs/roadmap/lua51-compatibility-next-stage.md; examples/README.md
+last_checked: 2026-05-31
 applies_to: first-read learning path for contributors and readers
 ---
 
@@ -52,6 +52,11 @@ bin\lua_test.exe --filter "Symbol Binding"
 5. `docs/vm/instruction-set.md`：理解 VM 指令集。
 6. `docs/walkthroughs/index.md`：从测试反推实现。
 7. `examples/README.md`：运行小脚本，观察解释器行为。
+
+## 下一阶段计划
+
+- `docs/compatibility/lua51.md`：按 Lua 5.1 手册章节记录当前兼容状态、测试证据和已知 partial/deferred 边界。
+- `docs/roadmap/lua51-compatibility-next-stage.md`：官方 Lua 5.1 staged smoke 全绿之后的兼容性补完记录，按 P0/P1/P2/P3 分阶段追踪标准库、VM、GC、C API helper 和运行时隔离任务。
 
 对应的实现主线是：
 

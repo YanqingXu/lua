@@ -275,13 +275,27 @@ void Function::setUpvalue(usize index, Upvalue* upvalue) {
     if (index >= upvalues_.size()) {
         throw std::out_of_range("Upvalue index out of range");
     }
+    if (GarbageCollector* gc = getOwnerCollector()) {
+        gc->writeBarrier(this, upvalue);
+    }
     upvalues_[index] = upvalue;
 }
 
 void Function::addUpvalue(Upvalue* upvalue) {
+    if (GarbageCollector* gc = getOwnerCollector()) {
+        gc->writeBarrier(this, upvalue);
+    }
     upvalues_.push_back(upvalue);
     // 同步nupvalues_字段（ClosureHeader字段）
     nupvalues_ = static_cast<u8>(upvalues_.size());
+}
+
+void Function::setEnv(Table* env) noexcept {
+    if (GarbageCollector* gc = getOwnerCollector()) {
+        gc->writeBarrier(this, env);
+    }
+
+    env_ = env;
 }
 
 // =====================================================================

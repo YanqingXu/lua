@@ -10,12 +10,14 @@
  */
 
 #include "lib/stringlib.hpp"
+#include "common/number_conversion.hpp"
 #include "lib/lib_registry.hpp"
 #include "lib/lib_manager.hpp"
 #include "core/gc_string.hpp"
 #include "core/table.hpp"
 #include "core/upvalue.hpp"
 #include "core/function.hpp"
+#include "runtime/runtime_services.hpp"
 #include "vm/state/global_state.hpp"
 #include "vm/vm.hpp"
 #include "vm/vm_internal.hpp"
@@ -70,15 +72,8 @@ static inline f64 getNumberArg(LuaState* L, i32 idx, const char* funcName) {
 
     if (value.isString()) {
         GCString* str = value.asString();
-        Str text(str->c_str(), str->getLength());
-        char* end = nullptr;
-        errno = 0;
-        f64 number = std::strtod(text.c_str(), &end);
-        while (end != nullptr && *end != '\0' &&
-               std::isspace(static_cast<unsigned char>(*end)) != 0) {
-            ++end;
-        }
-        if (end != text.c_str() && end != nullptr && *end == '\0' && errno != ERANGE) {
+        LuaNumber number = 0.0;
+        if (luaStringToNumber(str->view(), number)) {
             return number;
         }
     }
@@ -913,7 +908,8 @@ static Value getFunctionReplacement(MatchState* ms, const Value& func,
     try {
         L->pushValue(func);
         i32 nargs = push_captures(ms, s, e);
-        VM::call(L, nargs, 1);
+        RuntimeServices services(L->getGlobalState());
+        VM::call(services, L, nargs, 1);
         Value value = L->top();
         L->getStack().setTop(savedTop);
         L->setAbsoluteTop(savedTop);

@@ -1,13 +1,13 @@
 ---
 status: current
-verified_against: src/gc/garbage_collector.hpp; src/gc/garbage_collector.cpp; src/gc/gc_strategy.hpp; src/gc/gc_strategy.cpp; src/gc/gc_sweep.cpp; src/core/string_pool.cpp; src/core/gc_object.hpp; src/core/table.cpp; src/core/function.cpp; src/core/upvalue.cpp; src/core/thread.cpp; src/vm/state/global_state.cpp; tests/unit/gc/test_gc.cpp
-last_checked: 2026-05-23
+verified_against: src/gc/garbage_collector.hpp; src/gc/garbage_collector.cpp; src/gc/gc_strategy.hpp; src/gc/gc_strategy.cpp; src/gc/gc_mark.cpp; src/gc/gc_sweep.cpp; src/gc/gc_finalize.cpp; src/core/string_pool.cpp; src/core/gc_object.hpp; src/core/table.cpp; src/core/function.cpp; src/core/upvalue.cpp; src/core/userdata.cpp; src/core/thread.cpp; src/vm/state/global_state.cpp; tests/unit/gc/test_gc.cpp
+last_checked: 2026-05-31
 applies_to: current garbage collector implementation
 ---
 
 # Garbage Collection
 
-The current collector is a GlobalState-backed collector exposed through `RuntimeServices::gc` and `GlobalState::getGC()`. Collection now runs through a `GCStrategy` boundary. The default `MarkSweepGC` strategy owns the real stop-the-world mark-sweep algorithm; `IncrementalGC` is a teaching placeholder that delegates to the same phases until write barriers and scheduling exist. The legacy `GarbageCollector::getInstance()` still exists as a deprecated compatibility shim.
+The current collector is a GlobalState-backed collector exposed through `RuntimeServices::gc`, `EngineContext::gc()`, and `GlobalState::getGC()`. Collection runs through a `GCStrategy` boundary. The default `MarkSweepGC` strategy owns the real stop-the-world mark-sweep algorithm; `collectgarbage("step")` uses an internal phased scheduler, while `IncrementalGC` is still a teaching placeholder for full `collect()` calls. The legacy `GarbageCollector::getInstance()` still exists as a deprecated compatibility shim.
 
 ## Managed Objects
 
@@ -41,11 +41,53 @@ Objects are linked through the collector's `allObjects_` list. Most object const
 - `GCContext`: the collector, explicit `StringPool&`, and optional current `LuaState`
 - `GCStrategy`: the abstract collection strategy interface
 - `MarkSweepGC`: the default implementation
-- `IncrementalGC`: a placeholder strategy with equivalent reachability behavior
+- `IncrementalGC`: a placeholder strategy with equivalent reachability behavior for full `collect()` calls
 
 The active strategy can be queried through `GarbageCollector::getStrategyName()`.
 `collectgarbage("strategy")` returns the current strategy name, and `collectgarbage("strategy", "mark-sweep" | "incremental")` switches the active boundary.
-The incremental strategy is intentionally conservative today: it reuses mark-sweep collection to keep correctness stable while making the future incremental algorithm visible in code and tests.
+The incremental strategy is intentionally conservative today: it reuses mark-sweep collection for full `collect()` calls while `collectgarbage("step")` exercises the collector's phased pause/propagate/atomic/sweep/finalize path.
+
+`collectgarbage("setpause", n)` and `collectgarbage("setstepmul", n)` now store real collector parameters and return the previous values. `pause` influences the automatic-GC threshold after an automatic collection; `stepmul` scales the `step` work budget. These controls are compatibility surfaces for the current collector, though the work accounting is still a project-local approximation rather than Lua 5.1's byte-for-byte debt model.
+
+## Incremental Step Flow
+
+`collectgarbage("step")` drives these states:
+
+1. `pause`: wait until allocation debt reaches the next threshold.
+2. `propagate`: scan a bounded number of gray objects per step.
+3. `atomic`: rescan roots, process weak tables, prepare finalizers, and close marking.
+4. `sweep`: sweep the object list in bounded slices and remove dead interned strings from the owning `StringPool`.
+5. `finalize`: run queued userdata finalizers outside arbitrary VM allocation sites.
+
+Key invariants:
+
+- no black object may point to a white object that can be swept in the same cycle
+- weak keys and weak values are cleared after marking and before object deletion
+- finalizable userdata are revived for one cycle, marked again, and finalized at most once
+- resurrected userdata and objects reachable from finalizers survive the current cycle
+- roots include registry, primitive metatables, metamethod names, memory error string, current/main thread stacks, running coroutine, debug hook, open upvalues, and pending finalizers
+
+Current implementation status:
+
+- `collect()` remains a complete mark-sweep cycle through the active `GCStrategy`
+- `step()` starts marking, propagates gray objects by budget, performs atomic weak/finalizer preparation, sweeps by cursor, and runs finalizers at cycle end
+- conservative write barriers preserve the tricolor invariant for current mutation points
+- `setpause` / `setstepmul` are stateful and affect automatic thresholds / step budget
+- debug-hook-triggered manual collection preserves interrupted Lua register windows without keeping ordinary dead temporaries alive
+
+## Write Barriers
+
+`GarbageCollector::writeBarrier(owner, child)` and its `Value` overload implement a conservative forward barrier. When a black owner receives a white child owned by the same collector, the child is marked and its graph is immediately propagated. This is more eager than Lua 5.1's incremental collector, but it protects the same correctness invariant while phase cursors are still pending.
+
+Covered mutation sites:
+
+- `Table::set`, `Table::setArray`, and `Table::setMetatable`
+- `Userdata::setMetatable`
+- `Function::setEnv`, `Function::setUpvalue`, and `Function::addUpvalue`
+- `Upvalue::setValue` and `Upvalue::close`
+- `GlobalState::setMetatable` and `GlobalState::setRunningThread` through a root barrier
+
+`tests/unit/gc/test_gc.cpp` has regression probes that make owners black, attach white child graphs through these paths, then sweep to ensure the new references are preserved.
 
 ## Roots
 
@@ -86,10 +128,10 @@ Current behavior:
 
 ## Known Limits
 
-- `collectgarbage("stop")`, `"restart"`, `"step"`, `"setpause"`, and `"setstepmul"` are compatibility surfaces, not a real incremental-control implementation.
-- The main collector is still GlobalState-backed; the deprecated legacy collector singleton remains for compatibility.
-- `IncrementalGC` does not yet perform incremental scheduling; it preserves mark-sweep behavior behind a strategy boundary.
-- Write barriers are not a current feature because real incremental collection is not implemented yet.
+- `IncrementalGC` does not change full `collect()` behavior; it preserves mark-sweep semantics behind a strategy boundary.
+- `collectgarbage("step")` has bounded phases, but its work units are a project-local approximation rather than Lua 5.1's exact debt accounting.
+- The deprecated legacy collector singleton remains for compatibility.
+- Fixed objects are preserved by `clearAll()`; this matches current test/shutdown behavior but is not a general-purpose heap teardown API.
 
 ## Verification
 

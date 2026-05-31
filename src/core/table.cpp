@@ -9,6 +9,7 @@
 #include "core/function.hpp"
 #include "gc/garbage_collector.hpp"
 #include <cmath>
+#include <limits>
 
 namespace Lua {
 
@@ -105,8 +106,7 @@ Value Table::get(const Value& key) const {
 void Table::set(const Value& key, const Value& value) {
     // Lua语义：nil键不允许
     if (key.isNil()) {
-        // TODO: 应该抛出错误，当前简单忽略
-        return;
+        throw RuntimeError("table index is nil");
     }
     if (key.isNumber() && std::isnan(key.asNumber())) {
         throw RuntimeError("table index is NaN");
@@ -125,6 +125,11 @@ void Table::set(const Value& key, const Value& value) {
     if (isArrayIndex(key, index)) {
         setArray(index, value);
         return;
+    }
+
+    if (GarbageCollector* gc = getOwnerCollector()) {
+        gc->writeBarrier(this, key);
+        gc->writeBarrier(this, value);
     }
     
     // 存储到哈希部分
@@ -205,17 +210,80 @@ void Table::setArray(i32 index, const Value& value) {
         array_.resize(arrayIndex + 1, Value());  // 默认构造函数创建nil
     }
 
+    if (GarbageCollector* gc = getOwnerCollector()) {
+        gc->writeBarrier(this, value);
+    }
+
     array_[arrayIndex] = value;
 }
 
+void Table::setMetatable(Table* mt) noexcept {
+    if (GarbageCollector* gc = getOwnerCollector()) {
+        gc->writeBarrier(this, mt);
+    }
+
+    metatable_ = mt;
+}
+
 usize Table::length() const {
-    // 简化实现：返回数组部分中最后一个非nil值的索引
-    for (usize i = array_.size(); i > 0; --i) {
-        if (!array_[i - 1].isNil()) {
-            return i;
+    auto hasIntegerKey = [this](usize index) -> bool {
+        if (index == 0 ||
+            index > static_cast<usize>(std::numeric_limits<i32>::max())) {
+            return false;
+        }
+
+        Value key(static_cast<f64>(index));
+        i32 arrayIndex = 0;
+        if (isArrayIndex(key, arrayIndex)) {
+            return static_cast<usize>(arrayIndex) <= array_.size() &&
+                   !array_[static_cast<usize>(arrayIndex - 1)].isNil();
+        }
+
+        auto it = hash_.find(key);
+        return it != hash_.end() && !it->second.isNil();
+    };
+
+    usize arraySize = array_.size();
+    if (arraySize > 0) {
+        if (array_[arraySize - 1].isNil()) {
+            usize low = 0;
+            usize high = arraySize;
+            while (high - low > 1) {
+                usize mid = low + (high - low) / 2;
+                if (array_[mid - 1].isNil()) {
+                    high = mid;
+                } else {
+                    low = mid;
+                }
+            }
+            return low;
+        }
+
+        if (!hasIntegerKey(arraySize + 1)) {
+            return arraySize;
         }
     }
-    return 0;
+
+    usize low = arraySize;
+    usize high = arraySize == 0 ? 1 : arraySize * 2;
+    while (hasIntegerKey(high)) {
+        low = high;
+        if (high > static_cast<usize>(std::numeric_limits<i32>::max()) / 2) {
+            return high;
+        }
+        high *= 2;
+    }
+
+    while (high - low > 1) {
+        usize mid = low + (high - low) / 2;
+        if (hasIntegerKey(mid)) {
+            low = mid;
+        } else {
+            high = mid;
+        }
+    }
+
+    return low;
 }
 
 // =====================================================================
@@ -397,14 +465,14 @@ bool Table::isArrayIndex(const Value& key, i32& outIndex) const {
         return false;
     }
     
-    // 转换为整数
-    i32 index = static_cast<i32>(num);
-    
     // 检查范围（避免过大的索引）
     // 这里设置一个合理的上限，比如1000000
-    if (index < 1 || index > 1000000) {
+    if (num < 1 || num > 1000000) {
         return false;
     }
+
+    // 转换为整数
+    i32 index = static_cast<i32>(num);
     
     outIndex = index;
     return true;

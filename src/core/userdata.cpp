@@ -71,6 +71,14 @@ Userdata::~Userdata() {
     }
 }
 
+void Userdata::setMetatable(Table* mt) noexcept {
+    if (GarbageCollector* gc = getOwnerCollector()) {
+        gc->writeBarrier(this, mt);
+    }
+
+    metatable_ = mt;
+}
+
 // =====================================================================
 // GCObject接口实现
 // =====================================================================

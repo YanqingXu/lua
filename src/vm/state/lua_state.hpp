@@ -36,6 +36,7 @@ namespace Lua {
 class Upvalue;
 class Userdata;
 class Thread;
+class EngineContext;
 struct RuntimeServices;
 
 /**
@@ -108,6 +109,11 @@ public:
      * @brief 使用显式运行时服务创建新的Lua状态（主线程）
      */
     static LuaState* newState(RuntimeServices& services);
+
+    /**
+     * @brief 使用拥有资源的运行时上下文创建新的Lua状态（主线程）
+     */
+    static LuaState* newState(EngineContext& context);
     
     /**
      * @brief 析构函数

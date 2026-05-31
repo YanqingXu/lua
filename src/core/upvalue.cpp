@@ -81,6 +81,10 @@ const Value& Upvalue::getValue(const Stack&) const noexcept {
 }
 
 void Upvalue::setValue(Stack&, const Value& value) {
+    if (GarbageCollector* gc = getOwnerCollector()) {
+        gc->writeBarrier(this, value);
+    }
+
     if (isOpen_) {
         // Open状态：使用ownerStack_设置正确的栈上的值
         (*ownerStack_)[stackIndex_] = value;
@@ -100,6 +104,9 @@ void Upvalue::close(Stack&) {
 
     // 1. 将栈上的值复制到closedValue_（使用ownerStack_确保正确性）
     closedValue_ = (*ownerStack_)[stackIndex_];
+    if (GarbageCollector* gc = getOwnerCollector()) {
+        gc->writeBarrier(this, closedValue_);
+    }
 
     // 2. 标记为Closed状态
     isOpen_ = false;

@@ -29,6 +29,7 @@ Function* FunctionRegistrar::createClosure(LuaState* L, LibCFunction func) {
     }
     Function* closure = new Function(func);
     L->getGlobalState().getGC().registerObject(closure);
+    closure->setEnv(L->getGlobalTable());
     return closure;
 }
 

@@ -13,6 +13,8 @@ namespace VM {
 class DispatchStrategy;
 }
 
+class EngineContext;
+
 /**
  * @brief Runtime services passed across compiler/VM boundaries.
  *
@@ -42,6 +44,46 @@ struct RuntimeServices {
     static RuntimeServices fromSingletons() {
         return RuntimeServices(GlobalState::getInstance());
     }
+};
+
+/**
+ * @brief Owning runtime context for isolated Lua states.
+ *
+ * This is the next step beyond RuntimeServices' non-owning compatibility
+ * bundle: each EngineContext owns its string pool and GlobalState, which in
+ * turn owns the collector, registry, primitive metatables, reserved strings,
+ * and current-thread bookkeeping.
+ */
+class EngineContext {
+public:
+    EngineContext()
+        : strings_()
+        , globalState_(strings_) {}
+
+    EngineContext(const EngineContext&) = delete;
+    EngineContext& operator=(const EngineContext&) = delete;
+    EngineContext(EngineContext&&) = delete;
+    EngineContext& operator=(EngineContext&&) = delete;
+
+    [[nodiscard]] RuntimeServices services(VM::DispatchStrategy* dispatch = nullptr) noexcept {
+        return RuntimeServices(globalState_, strings_, globalState_.getGC(), dispatch);
+    }
+
+    [[nodiscard]] GlobalState& globalState() noexcept {
+        return globalState_;
+    }
+
+    [[nodiscard]] StringPool& strings() noexcept {
+        return strings_;
+    }
+
+    [[nodiscard]] GarbageCollector& gc() noexcept {
+        return globalState_.getGC();
+    }
+
+private:
+    StringPool strings_;
+    GlobalState globalState_;
 };
 
 }  // namespace Lua

@@ -27,9 +27,9 @@ GlobalState& GlobalState::getInstance() {
 // 构造函数和析构函数
 // =====================================================================
 
-GlobalState::GlobalState()
+GlobalState::GlobalState(StringPool& stringPool)
     : gc_()
-    , stringPool_(StringPool::getInstance())
+    , stringPool_(stringPool)
     , registry_(nullptr)
     , mainThread_(nullptr)
     , memerrmsg_(nullptr)
@@ -88,8 +88,18 @@ Table* GlobalState::getMetatable(ValueType type) const noexcept {
 void GlobalState::setMetatable(ValueType type, Table* metatable) noexcept {
     usize index = static_cast<usize>(type);
     if (index < 9) {
+        gc_.writeRootBarrier(metatable);
         metatables_[index] = metatable;
     }
+}
+
+void GlobalState::setMainThread(LuaState* mainThread) noexcept {
+    mainThread_ = mainThread;
+}
+
+void GlobalState::setRunningThread(Thread* t) noexcept {
+    gc_.writeRootBarrier(t);
+    runningThread_ = t;
 }
 
 void GlobalState::markRoots(GarbageCollector& gc, LuaState* currentState) const {

@@ -23,6 +23,7 @@
 #include "core/gc_string.hpp"
 #include "core/table.hpp"
 #include "core/function.hpp"
+#include "runtime/runtime_services.hpp"
 #include "vm/state/global_state.hpp"
 #include "vm/vm.hpp"
 #include "compiler/parser/parser.hpp"
@@ -391,9 +392,10 @@ static void callModuleOption(LuaState* L, const Value& option, Table* modTable) 
 
     usize savedTop = L->getAbsoluteTop();
     try {
+        RuntimeServices services(L->getGlobalState());
         L->pushValue(option);
         L->pushValue(Value(modTable));
-        VM::call(L, 1, 0);
+        VM::call(services, L, 1, 0);
         L->getStack().setTop(savedTop);
         L->setAbsoluteTop(savedTop);
     } catch (...) {
@@ -446,8 +448,6 @@ static Str searchPath(const Str& name, const Str& pathStr, Str& errorBuf) {
 // =====================================================================
 
 static Function* loadLuaFile(LuaState* L, const Str& filename) {
-    auto& pool = L->getGlobalState().getStringPool();
-
     std::ifstream file(filename, std::ios::binary | std::ios::ate);
     if (!file.is_open()) {
         return nullptr;
@@ -463,14 +463,15 @@ static Function* loadLuaFile(LuaState* L, const Str& filename) {
     }
 
     try {
-        Parser parser(source);
+        RuntimeServices services(L->getGlobalState());
+        Parser parser(source, services);
         auto parsed = parser.parse();
         if (!parsed) {
             throw parsed.error();
         }
         Chunk chunk = std::move(*parsed);
 
-        CodeGenerator codegen(&pool);
+        CodeGenerator codegen(services);
         Str chunkName = "@" + filename;
         Proto* proto = codegen.generate(chunk, chunkName);
         if (!proto) {
@@ -906,7 +907,8 @@ i32 luaP_require(LuaState* L) {
         L->setTop(0);
         L->pushValue(Value(searcherFunc));
         L->pushString(modKey);
-        VM::call(L, 1, 1);  // 1 arg (modname), 1 result
+        RuntimeServices services(L->getGlobalState());
+        VM::call(services, L, 1, 1);  // 1 arg (modname), 1 result
 
         // After VM::call, result is on the stack
         if (L->getTop() >= 1) {
@@ -923,7 +925,7 @@ i32 luaP_require(LuaState* L) {
                 Value moduleResult;
 
                 try {
-                    VM::call(L, 1, 1);  // 1 arg (modname), 1 result
+                    VM::call(services, L, 1, 1);  // 1 arg (modname), 1 result
 
                     if (L->getTop() >= 1) {
                         moduleResult = L->at(1);

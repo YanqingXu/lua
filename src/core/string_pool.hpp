@@ -74,6 +74,19 @@ public:
     StringPool& operator=(const StringPool&) = delete;
     StringPool& operator=(StringPool&&) = delete;
 
+    /**
+     * @brief 构造独立字符串池
+     *
+     * `getInstance()` 仍提供 legacy singleton；EngineContext 使用公开构造
+     * 函数创建可隔离的运行时字符串池。
+     */
+    StringPool() = default;
+
+    /**
+     * @brief 析构函数
+     */
+    ~StringPool() = default;
+
     // =====================================================================
     // 字符串驻留接口
     // =====================================================================
@@ -200,16 +213,6 @@ public:
     void resize(usize newSize);
 
 private:
-    /**
-     * @brief 私有构造函数（单例模式）
-     */
-    StringPool() = default;
-    
-    /**
-     * @brief 析构函数
-     */
-    ~StringPool() = default;
-
     // =====================================================================
     // 内部数据结构
     // =====================================================================

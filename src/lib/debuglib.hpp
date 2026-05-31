@@ -118,8 +118,7 @@ i32 luaDebug_setmetatable(LuaState* L);
  * @brief debug.getfenv(f) - Get a function environment
  *
  * Compatibility boundary: delegates to the base getfenv implementation, which
- * currently supports function objects and the global fallback. Stack-level and
- * thread environment queries are not implemented yet.
+ * supports Lua/C function objects, stack levels, and the global fallback.
  *
  * @param L Lua state pointer
  * @return Number of return values (1: environment table)
@@ -130,8 +129,8 @@ i32 luaDebug_getfenv(LuaState* L);
  * @brief debug.setfenv(f, table) - Set a function environment
  *
  * Compatibility boundary: delegates to the base setfenv implementation, which
- * currently supports Lua function objects. Stack-level/thread environment
- * mutation and C-function environments are not implemented yet.
+ * supports Lua/C function objects and stack levels. Thread environment mutation
+ * remains handled by the coroutine/thread path.
  *
  * @param L Lua state pointer
  * @return Number of return values (1: function)

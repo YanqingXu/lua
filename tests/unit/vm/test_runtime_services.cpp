@@ -101,6 +101,55 @@ void testRuntimeServicesExposeSingletonCompatibilityLayer(TestSuite& suite) {
     ASSERT_TRUE(suite, &services.gc != &legacyGarbageCollectorForRuntimeServicesTest(), "legacy GC shim is distinct");
 }
 
+void testEngineContextOwnsIsolatedRuntimeServices(TestSuite& suite) {
+    EngineContext first;
+    EngineContext second;
+
+    RuntimeServices firstServices = first.services();
+    RuntimeServices secondServices = second.services();
+
+    ASSERT_TRUE(suite, &first.globalState() != &GlobalState::getInstance(),
+                "engine context global state is not the singleton");
+    ASSERT_TRUE(suite, &first.globalState() != &second.globalState(),
+                "engine contexts own distinct global states");
+    ASSERT_TRUE(suite, &first.strings() != &second.strings(),
+                "engine contexts own distinct string pools");
+    ASSERT_TRUE(suite, &first.gc() != &second.gc(), "engine contexts own distinct collectors");
+    ASSERT_TRUE(suite, &firstServices.globalState == &first.globalState(),
+                "services expose context global state");
+    ASSERT_TRUE(suite, &firstServices.strings == &first.strings(),
+                "services expose context string pool");
+    ASSERT_TRUE(suite, &firstServices.gc == &first.gc(), "services expose context collector");
+    ASSERT_TRUE(suite, &secondServices.globalState == &second.globalState(),
+                "second services expose second context");
+
+    GCString* firstString = first.strings().intern("isolated");
+    GCString* secondString = second.strings().intern("isolated");
+
+    ASSERT_TRUE(suite, firstString != secondString,
+                "same text interns to distinct objects in isolated contexts");
+    ASSERT_TRUE(suite, firstString->getOwnerCollector() == &first.gc(),
+                "first context string belongs to first collector");
+    ASSERT_TRUE(suite, secondString->getOwnerCollector() == &second.gc(),
+                "second context string belongs to second collector");
+}
+
+void testLuaStateNewStateAcceptsEngineContext(TestSuite& suite) {
+    EngineContext context;
+    LuaState* L = LuaState::newState(context);
+
+    ASSERT_TRUE(suite, &L->getGlobalState() == &context.globalState(),
+                "newState(context) uses context global state");
+    ASSERT_TRUE(suite, context.globalState().getMainThread() == L,
+                "newState(context) registers the main thread in the context");
+    ASSERT_TRUE(suite, L->getGlobalTable() != nullptr, "newState(context) creates a global table");
+    ASSERT_TRUE(suite, L->getGlobalTable()->getOwnerCollector() == &context.gc(),
+                "newState(context) global table belongs to context collector");
+
+    delete L;
+    context.gc().clearAll(context.strings());
+}
+
 void testCompilerAcceptsRuntimeServices(TestSuite& suite) {
     RuntimeServices services = RuntimeServices::fromSingletons();
 
@@ -124,6 +173,26 @@ void testLuaStateAndVmAcceptRuntimeServices(TestSuite& suite) {
     ASSERT_EQ(suite, std::string("runtime"), std::string(L->top().asString()->c_str()), "context-aware vm executes concat");
 
     delete L;
+}
+
+void testNestedFunctionsUseContextStringPool(TestSuite& suite) {
+    EngineContext context;
+    RuntimeServices services = context.services();
+    Proto* proto = compileChunk(
+        services,
+        "limit = 7\nfunction nested() return limit <= 8 end\nreturn nested()",
+        "=(runtime_services_nested)");
+
+    LuaState* L = LuaState::newState(context);
+    Function* func = createFunction(services, L, proto);
+
+    VM::execute(services, L, func);
+
+    ASSERT_TRUE(suite, L->top().isBoolean(), "nested function should return a boolean");
+    ASSERT_TRUE(suite, L->top().asBoolean(), "nested function sees globals through context string pool");
+
+    delete L;
+    context.gc().clearAll(context.strings());
 }
 
 void testVmTryExecuteProtoReturnsExpectedType(TestSuite& suite) {
@@ -245,8 +314,14 @@ void registerRuntimeServicesTests() {
 
     registry.registerTest(kSuiteName, "Expose Singleton Compatibility Layer",
                           testRuntimeServicesExposeSingletonCompatibilityLayer);
+    registry.registerTest(kSuiteName, "EngineContext owns isolated runtime services",
+                          testEngineContextOwnsIsolatedRuntimeServices);
+    registry.registerTest(kSuiteName, "LuaState newState accepts EngineContext",
+                          testLuaStateNewStateAcceptsEngineContext);
     registry.registerTest(kSuiteName, "Compiler Accepts Runtime Services", testCompilerAcceptsRuntimeServices);
     registry.registerTest(kSuiteName, "LuaState And VM Accept Runtime Services", testLuaStateAndVmAcceptRuntimeServices);
+    registry.registerTest(kSuiteName, "Nested functions use context string pool",
+                          testNestedFunctionsUseContextStringPool);
     registry.registerTest(kSuiteName, "tryExecuteProto returns expected type",
                           testVmTryExecuteProtoReturnsExpectedType);
     registry.registerTest(kSuiteName, "tryExecuteProto returns exec result on success",

@@ -632,8 +632,13 @@ void testDebugFenvWrappers(TestSuite& suite) {
         g_getfenv_matches = debug.getfenv(f) == env
         g_env_value = f()
 
-        local cfunc_ok = pcall(function() debug.setfenv(print, {}) end)
-        g_rejects_cfunc = not cfunc_ok
+        local oldPrintEnv = debug.getfenv(print)
+        local cfuncEnv = {marker = 456}
+        local cfunc_ok, cfunc_return = pcall(function()
+            return debug.setfenv(print, cfuncEnv)
+        end)
+        g_accepts_cfunc = cfunc_ok and cfunc_return == print and debug.getfenv(print) == cfuncEnv
+        debug.setfenv(print, oldPrintEnv)
 
         local co = coroutine.create(function()
             coroutine.yield(getfenv(0))
@@ -652,7 +657,7 @@ void testDebugFenvWrappers(TestSuite& suite) {
     Value setReturn = L->getGlobal("g_setfenv_return");
     Value getEnvMatches = L->getGlobal("g_getfenv_matches");
     Value envValue = L->getGlobal("g_env_value");
-    Value rejectsCFunc = L->getGlobal("g_rejects_cfunc");
+    Value acceptsCFunc = L->getGlobal("g_accepts_cfunc");
     Value threadSetReturn = L->getGlobal("g_thread_setfenv_return");
     Value threadGetEnvMatches = L->getGlobal("g_thread_getfenv_matches");
     Value threadEnvYield = L->getGlobal("g_thread_env_yield");
@@ -664,7 +669,7 @@ void testDebugFenvWrappers(TestSuite& suite) {
     if (envValue.isNumber()) {
         ASSERT_EQ(suite, 123.0, envValue.asNumber(), "function env lookup returns expected value");
     }
-    ASSERT_TRUE(suite, rejectsCFunc.isBoolean() && rejectsCFunc.asBoolean(), "debug.setfenv rejects C functions");
+    ASSERT_TRUE(suite, acceptsCFunc.isBoolean() && acceptsCFunc.asBoolean(), "debug.setfenv accepts C functions");
     ASSERT_TRUE(suite, threadSetReturn.isBoolean() && threadSetReturn.asBoolean(),
                 "debug.setfenv returns thread objects");
     ASSERT_TRUE(suite, threadGetEnvMatches.isBoolean() && threadGetEnvMatches.asBoolean(),

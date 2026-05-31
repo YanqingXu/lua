@@ -90,6 +90,16 @@ void markLuaFrameLocals(GarbageCollector& gc, LuaState* state, const CallInfo& c
     }
 }
 
+void markLuaFrameStackWindow(GarbageCollector& gc, LuaState* state, const CallInfo& ci) {
+    Stack& stack = state->getStack();
+    usize top = std::min(ci.top, stack.size());
+    usize base = std::min(ci.base, top);
+
+    for (usize i = base; i < top; i++) {
+        gc.markValue(stack.at(i));
+    }
+}
+
 void markCFrameStackWindow(GarbageCollector& gc, LuaState* state, const CallInfo& ci) {
     Stack& stack = state->getStack();
     usize absTop = std::min(state->getAbsoluteTop(), stack.size());
@@ -122,6 +132,11 @@ void markPreciseStackRoots(GarbageCollector& gc, LuaState* state) {
         Function* function = frameFunction(stack, ci);
         Proto* proto = function != nullptr ? function->getProto() : nullptr;
         if (proto != nullptr) {
+            // Debug locals are not a liveness map. Hooks may run collection
+            // while the interrupted Lua frame still has live register values.
+            if (state->isDebugHookActive()) {
+                markLuaFrameStackWindow(gc, state, ci);
+            }
             markLuaFrameLocals(gc, state, ci, proto);
         } else {
             markCFrameStackWindow(gc, state, ci);
@@ -175,6 +190,7 @@ void GarbageCollector::mark(LuaState* currentState) {
     // 2. 清空本轮临时列表
     grayList_.clear();
     weakTables_.clear();
+    externalMarked_.clear();
 
     // 3. 标记所有根对象为灰色
     for (GCObject* root : roots_) {
@@ -200,8 +216,14 @@ void GarbageCollector::mark(LuaState* currentState) {
 }
 
 void GarbageCollector::propagateMarks() {
+    (void)propagateMarks(static_cast<usize>(-1));
+}
+
+usize GarbageCollector::propagateMarks(usize budget) {
+    usize processed = 0;
+
     // 处理所有灰色对象
-    while (!grayList_.empty()) {
+    while (!grayList_.empty() && processed < budget) {
         // 取出一个灰色对象
         GCObject* obj = grayList_.back();
         grayList_.pop_back();
@@ -211,11 +233,24 @@ void GarbageCollector::propagateMarks() {
         
         // 调用对象的mark方法，由对象通过gc.markObject/markValue报告引用关系。
         obj->mark(*this);
+        ++processed;
     }
+
+    return processed;
 }
 
 void GarbageCollector::markObject(GCObject* obj) {
     if (obj == nullptr) {
+        return;
+    }
+
+    GarbageCollector* owner = obj->getOwnerCollector();
+    if (owner != nullptr && owner != this) {
+        if (std::find(externalMarked_.begin(), externalMarked_.end(), obj) != externalMarked_.end()) {
+            return;
+        }
+        externalMarked_.push_back(obj);
+        obj->mark(*this);
         return;
     }
     
@@ -235,6 +270,40 @@ void GarbageCollector::markValue(const Value& value) {
     if (valueContainsObject(value)) {
         markObject(objectFromValue(value));
     }
+}
+
+void GarbageCollector::writeBarrier(GCObject* owner, GCObject* child) {
+    if (owner == nullptr || child == nullptr) {
+        return;
+    }
+
+    if (owner->getOwnerCollector() != this || child->getOwnerCollector() != this) {
+        return;
+    }
+
+    if (!owner->isBlack() || !child->isWhite()) {
+        return;
+    }
+
+    markObject(child);
+    propagateMarks();
+}
+
+void GarbageCollector::writeBarrier(GCObject* owner, const Value& value) {
+    if (!valueContainsObject(value)) {
+        return;
+    }
+
+    writeBarrier(owner, objectFromValue(value));
+}
+
+void GarbageCollector::writeRootBarrier(GCObject* child) {
+    if (child == nullptr || child->getOwnerCollector() != this || !child->isWhite()) {
+        return;
+    }
+
+    markObject(child);
+    propagateMarks();
 }
 
 void GarbageCollector::markState(LuaState* state) {

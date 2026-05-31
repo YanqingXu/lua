@@ -20,6 +20,7 @@
 #include "gc/gc_strategy.hpp"
 #include "lib/baselib.hpp"
 #include "vm/state/lua_state.hpp"
+#include "vm/state/stack.hpp"
 
 #include <type_traits>
 #include <utility>
@@ -317,6 +318,189 @@ void testCollectGarbageStrategyCommand(TestSuite& suite) {
     gc.clearAll();
 }
 
+void testCollectGarbageControlParameters(TestSuite& suite) {
+    GarbageCollector& gc = GlobalState::getInstance().getGC();
+    gc.clearAll();
+    (void)gc.setPause(200);
+    (void)gc.setStepMultiplier(200);
+
+    LuaState* L = LuaState::newState();
+    openBaseLib(L);
+    StringPool& pool = L->getGlobalState().getStringPool();
+
+    L->setTop(0);
+    L->pushString(pool.intern("setpause"));
+    L->pushNumber(150.0);
+    i32 nresults = luaB_collectgarbage(L);
+    ASSERT_EQ(suite, 1, nresults, "collectgarbage('setpause') returns one value");
+    ASSERT_TRUE(suite, L->top().isNumber() && L->top().asNumber() == 200.0,
+                "setpause returns the previous pause value");
+    ASSERT_EQ(suite, 150, gc.getPause(), "setpause stores the new pause value");
+
+    L->setTop(0);
+    L->pushString(pool.intern("setpause"));
+    L->pushString(pool.intern("250"));
+    nresults = luaB_collectgarbage(L);
+    ASSERT_EQ(suite, 1, nresults, "collectgarbage('setpause', numeric_string) returns one value");
+    ASSERT_TRUE(suite, L->top().isNumber() && L->top().asNumber() == 150.0,
+                "setpause accepts numeric strings and returns the old value");
+    ASSERT_EQ(suite, 250, gc.getPause(), "setpause stores numeric string arguments");
+
+    L->setTop(0);
+    L->pushString(pool.intern("setstepmul"));
+    L->pushNumber(400.0);
+    nresults = luaB_collectgarbage(L);
+    ASSERT_EQ(suite, 1, nresults, "collectgarbage('setstepmul') returns one value");
+    ASSERT_TRUE(suite, L->top().isNumber() && L->top().asNumber() == 200.0,
+                "setstepmul returns the previous step multiplier");
+    ASSERT_EQ(suite, 400, gc.getStepMultiplier(), "setstepmul stores the new step multiplier");
+
+    (void)gc.setPause(200);
+    (void)gc.setStepMultiplier(200);
+    delete L;
+    gc.clearAll();
+}
+
+void testCollectGarbageStepRunsIncrementalCycle(TestSuite& suite) {
+    GarbageCollector gc;
+    StringPool& pool = StringPool::getInstance();
+    gc.setStringPool(&pool);
+    (void)gc.setStepMultiplier(200);
+
+    Table* root = new Table();
+    Table* child = new Table();
+    gc.registerObject(root);
+    gc.registerObject(child);
+    gc.addRoot(root);
+    root->setArray(1, Value(child));
+
+    for (i32 i = 0; i < 24; i++) {
+        Table* garbage = new Table();
+        gc.registerObject(garbage);
+        garbage->setArray(1, Value(static_cast<f64>(i)));
+    }
+
+    bool firstFinished = gc.step(nullptr, 0);
+    ASSERT_TRUE(suite, !firstFinished, "A tiny GC step should not finish a fresh cycle");
+
+    i32 steps = 1;
+    bool finished = false;
+    while (steps < 128) {
+        ++steps;
+        if (gc.step(nullptr, 0)) {
+            finished = true;
+            break;
+        }
+    }
+
+    ASSERT_TRUE(suite, finished, "Repeated tiny steps should eventually finish the cycle");
+    ASSERT_TRUE(suite, steps > 2, "Tiny steps should expose phased incremental progress");
+    ASSERT_EQ(suite, static_cast<usize>(2), gc.getObjectCount(),
+              "Incremental cycle keeps the reachable root graph only");
+
+    Table* moreGarbage = new Table();
+    gc.registerObject(moreGarbage);
+    ASSERT_TRUE(suite, gc.step(nullptr, 10000), "Large GC step should complete a cycle");
+    ASSERT_EQ(suite, static_cast<usize>(2), gc.getObjectCount(),
+              "Large step reclaims newly unreachable object");
+
+    gc.removeRoot(root);
+    gc.clearAll();
+}
+
+void testWriteBarrierPreservesTableReferenceGraph(TestSuite& suite) {
+    GarbageCollector gc;
+    StringPool& pool = StringPool::getInstance();
+
+    Table* root = new Table();
+    Table* child = new Table();
+    Table* grandchild = new Table();
+
+    gc.registerObject(root);
+    gc.registerObject(child);
+    gc.registerObject(grandchild);
+    gc.addRoot(root);
+
+    child->setArray(1, Value(grandchild));
+    gc.mark();
+
+    ASSERT_TRUE(suite, root->isBlack(), "Root table is black after marking");
+    ASSERT_TRUE(suite, child->isWhite(), "Unlinked child remains white before barriered write");
+
+    root->setArray(1, Value(child));
+
+    ASSERT_TRUE(suite, child->isBlack(), "Table write barrier marks newly linked child");
+    ASSERT_TRUE(suite, grandchild->isBlack(), "Table write barrier propagates child graph");
+    ASSERT_EQ(suite, static_cast<usize>(0), gc.sweep(pool),
+              "Barriered table graph survives sweep");
+
+    gc.removeRoot(root);
+    gc.clearAll();
+}
+
+void testWriteBarrierPreservesMetatableFunctionAndUpvalueRefs(TestSuite& suite) {
+    GarbageCollector gc;
+    StringPool& pool = StringPool::getInstance();
+    Stack dummyStack;
+
+    Userdata* userdata = Userdata::createFull(sizeof(i32));
+    Table* userdataMetatable = new Table();
+    Table* userdataMetatableChild = new Table();
+    Function* function = new Function(gcDummyCFunction);
+    Table* env = new Table();
+    Table* envChild = new Table();
+    Table* closureUpvalueChild = new Table();
+    Upvalue* closureUpvalue = Upvalue::createClosed(Value(closureUpvalueChild));
+    Upvalue* rootUpvalue = Upvalue::createClosed(Value());
+    Table* rootUpvalueChild = new Table();
+
+    gc.registerObject(userdata);
+    gc.registerObject(userdataMetatable);
+    gc.registerObject(userdataMetatableChild);
+    gc.registerObject(function);
+    gc.registerObject(env);
+    gc.registerObject(envChild);
+    gc.registerObject(closureUpvalueChild);
+    gc.registerObject(closureUpvalue);
+    gc.registerObject(rootUpvalue);
+    gc.registerObject(rootUpvalueChild);
+
+    gc.addRoot(userdata);
+    gc.addRoot(function);
+    gc.addRoot(rootUpvalue);
+
+    userdataMetatable->setArray(1, Value(userdataMetatableChild));
+    env->setArray(1, Value(envChild));
+    gc.mark();
+
+    ASSERT_TRUE(suite, userdata->isBlack(), "Root userdata is black after marking");
+    ASSERT_TRUE(suite, function->isBlack(), "Root function is black after marking");
+    ASSERT_TRUE(suite, rootUpvalue->isBlack(), "Root upvalue is black after marking");
+
+    userdata->setMetatable(userdataMetatable);
+    function->setEnv(env);
+    function->addUpvalue(closureUpvalue);
+    rootUpvalue->setValue(dummyStack, Value(rootUpvalueChild));
+
+    ASSERT_TRUE(suite, userdataMetatable->isBlack(), "Userdata metatable barrier marks metatable");
+    ASSERT_TRUE(suite, userdataMetatableChild->isBlack(),
+                "Userdata metatable barrier propagates metatable graph");
+    ASSERT_TRUE(suite, env->isBlack(), "Function environment barrier marks env table");
+    ASSERT_TRUE(suite, envChild->isBlack(), "Function environment barrier propagates env graph");
+    ASSERT_TRUE(suite, closureUpvalue->isBlack(),
+                "Function upvalue barrier marks newly associated upvalue");
+    ASSERT_TRUE(suite, closureUpvalueChild->isBlack(),
+                "Function upvalue barrier propagates closed upvalue value");
+    ASSERT_TRUE(suite, rootUpvalueChild->isBlack(), "Upvalue write barrier marks new value");
+    ASSERT_EQ(suite, static_cast<usize>(0), gc.sweep(pool),
+              "Barriered metatable/function/upvalue graph survives sweep");
+
+    gc.removeRoot(userdata);
+    gc.removeRoot(function);
+    gc.removeRoot(rootUpvalue);
+    gc.clearAll();
+}
+
 void testGarbageCollectorMarksCompositeObjects(TestSuite& suite) {
     GarbageCollector& gc = GlobalState::getInstance().getGC();
     gc.clearAll();
@@ -551,6 +735,10 @@ void registerGCTests() {
     registry.registerTest("GC", "GC Strategy Selection", testGarbageCollectorStrategySelection);
     registry.registerTest("GC", "GC Strategy Equivalence", testGCStrategiesHaveEquivalentReachability);
     registry.registerTest("GC", "collectgarbage Strategy", testCollectGarbageStrategyCommand);
+    registry.registerTest("GC", "collectgarbage Control Parameters", testCollectGarbageControlParameters);
+    registry.registerTest("GC", "collectgarbage Incremental Step", testCollectGarbageStepRunsIncrementalCycle);
+    registry.registerTest("GC", "Write Barrier Table Graph", testWriteBarrierPreservesTableReferenceGraph);
+    registry.registerTest("GC", "Write Barrier Object References", testWriteBarrierPreservesMetatableFunctionAndUpvalueRefs);
     registry.registerTest("GC", "Composite Marking", testGarbageCollectorMarksCompositeObjects);
     registry.registerTest("GC", "collectgarbage Collect", testCollectGarbageCollectReclaimsMemory);
     registry.registerTest("GC", "Weak Table Values", testWeakTableValuesAreCleared);

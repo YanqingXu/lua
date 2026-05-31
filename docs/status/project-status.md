@@ -47,8 +47,8 @@ applies_to: 当前仓库事实与面向贡献者的工作流
 ## 测试状态
 
 - 测试框架：自定义轻量级 C++ 测试框架，vendored 在 `lua_test/include/test_framework`，由 `tests/unit/framework` 适配。
-- 最近验证的测试计数：622 个 registered tests，3079 个 assertion results，0 failures。
-- Lua 5.1 官方测试套件已放入 `tests/lua/official/`，并通过 `Lua 5.1 Official Suite` 单元测试以 staged smoke 形式运行 `all.lua`；当前官方子脚本 skip 表为 0，`main.lua`、`gc.lua`、`db.lua`、`api.lua`、`big.lua`、`verybig.lua`、`files.lua` 与 `code.lua` 已纳入 staged smoke。
+- 最近验证的测试计数：639 个 registered tests，3188 个 assertion results，0 failures。
+- Lua 5.1 官方测试套件已放入 `tests/lua/official/`，并通过 `Lua 5.1 Official Suite` 单元测试以 staged smoke 形式运行 `all.lua`；当前官方子脚本 skip 表为 0，`_soft=true` 用于保持官方 semantic smoke 在单元测试中可控，`main.lua`、`gc.lua`、`db.lua`、`api.lua`、`big.lua`、`verybig.lua`、`files.lua` 与 `code.lua` 已纳入 staged smoke。
 - `bin\lua_test.exe` 支持 `--list`、`--filter <suite-or-name>` 和 `--report=junit`。
 - 这些数字描述的是项目测试运行器结果，不是 Lua 5.1.5 兼容率百分比。
 
@@ -68,9 +68,11 @@ applies_to: 当前仓库事实与面向贡献者的工作流
 ## GC 策略状态
 
 - `src/gc/gc_strategy.hpp` 定义 `GCStrategy`、`MarkSweepGC` 和 `IncrementalGC` 策略边界。
-- 当前默认策略是 `mark-sweep`；`incremental` 是教学占位策略，现阶段委托同一套 mark-sweep 阶段以保持对象存活语义等价。
-- `collectgarbage("strategy")` 可查询当前策略，`collectgarbage("strategy", "mark-sweep" | "incremental")` 可切换策略边界；真正的 incremental 写屏障和调度仍是未来工作。
-- `GC` 测试套件已覆盖策略选择、未知策略拒绝和 mark-sweep / incremental 占位策略的同根集等价性。
+- 当前默认策略是 `mark-sweep`；`incremental` 是教学占位策略，完整 `collect()` 仍委托同一套 mark-sweep 阶段以保持对象存活语义等价。
+- `collectgarbage("strategy")` 可查询当前策略，`collectgarbage("strategy", "mark-sweep" | "incremental")` 可切换策略边界。
+- `collectgarbage("setpause")` 和 `"setstepmul"` 已保存并返回控制参数；pause 影响自动 GC 阈值，step multiplier 影响 `collectgarbage("step", size)` 的工作预算。
+- `collectgarbage("step")` 已按 pause/propagate/atomic/sweep/finalize 分阶段推进；保守写屏障已覆盖 table 写入、table/userdata metatable、function env/upvalue、closed/open upvalue value 和 GlobalState root 引用。
+- `GC` 测试套件已覆盖策略选择、未知策略拒绝、mark-sweep / incremental 占位策略的同根集等价性、控制参数、分阶段 step 和写屏障三色不变式。
 
 ## 编译器管线状态
 
@@ -100,11 +102,11 @@ rg "ExprDesc|ExprKind|expdesc" src/compiler
 
 ## 运行时边界状态
 
-- `src/runtime/runtime_services.hpp` 定义了 `RuntimeServices`，它是当前对 `GlobalState`、`StringPool`、`GarbageCollector` 以及可选 `VM::DispatchStrategy* dispatchStrategy` 的显式兼容层。
-- `CodeGenerator`、`Parser`、`LuaState` 和 `VM` 都暴露了 context-aware 的构造 / 执行重载，同时保留基于单例的兼容重载。
+- `src/runtime/runtime_services.hpp` 定义了 `RuntimeServices`，它是当前对 `GlobalState`、`StringPool`、`GarbageCollector` 以及可选 `VM::DispatchStrategy* dispatchStrategy` 的显式兼容层；同文件也定义 `EngineContext`，用于拥有独立 `StringPool`、`GlobalState` 和 GC 的嵌入式运行时上下文。
+- `CodeGenerator`、`Parser`、`LuaState` 和 `VM` 都暴露了 context-aware 的构造 / 执行重载，同时保留基于单例的兼容重载；`LuaState::newState(EngineContext&)` 已可从 owning context 创建主线程。
 - `GarbageCollector::sweep(StringPool&)` 和 `clearAll(StringPool&)` 已显式接收字符串池，用于在删除 `GCString` 时同步摘除驻留表；旧 `GarbageCollector::getInstance()` 已标记为 `[[deprecated]]` 兼容 shim。
 - `src/compiler/parser/parser.cpp` 现在保留 Parser 构造、token / error 处理、同步恢复和顶层 parse 入口；`src/compiler/parser/parser_utils.hpp` 提供无状态的 `ParserUtils::tokenString()` 借用 helper；`src/compiler/parser/parser_stmt.cpp`、`src/compiler/parser/parser_expr.cpp`、`src/compiler/parser/parser_primary.cpp`、`src/compiler/parser/parser_func.cpp` 和 `src/compiler/parser/parser_table.cpp` 承载具体语法产生式分片，并由 `Parser Boundary Sentinels` 覆盖。
-- `src/main.cpp`、`src/repl.cpp` / `src/repl/repl_*` 和 `src/bytecode/bytecode_main.cpp` 已在第一批编译器 / VM 入口分片中使用 `RuntimeServices`。
+- `src/main.cpp` 和 `src/bytecode/bytecode_main.cpp` 已创建 owning `EngineContext`，再通过其 `RuntimeServices` 编译/执行；`src/repl.cpp` / `src/repl/repl_*` 继续使用传入 `LuaState` 的 `GlobalState` 生成显式服务束。
 - `src/vm/vm_entry.cpp` 现在承载 `VM::call()` 和 `VM::execute()` 入口点；`src/vm/vm.cpp` 保留主字节码 dispatch 循环。
 - VM 状态和栈帧存储类型位于 `src/vm/state/`：`lua_state.*`、`global_state.*`、`stack.*` 和 `call_info.hpp`。
 - `src/vm/vm_dispatch.hpp` 对 opcode 家族和可触发元方法的 opcode 做分类，是第一层 VM dispatch 拆分边界。

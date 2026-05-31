@@ -22,6 +22,7 @@
 #include "lib/baselib.hpp"
 #include "lib/lib_manager.hpp"
 #include "lib/lib_registry.hpp"
+#include "runtime/runtime_services.hpp"
 #include "vm/state/call_info.hpp"
 #include "vm/vm.hpp"
 
@@ -801,16 +802,16 @@ Str hookMaskToString(u8 mask) {
 }
 
 void runDebugCommand(LuaState* L, const Str& source) {
-    auto& pool = L->getGlobalState().getStringPool();
+    RuntimeServices services(L->getGlobalState());
 
-    Parser parser(source);
+    Parser parser(source, services);
     auto parsed = parser.parse();
     if (!parsed) {
         throw parsed.error();
     }
     Chunk chunk = std::move(*parsed);
 
-    CodeGenerator codegen(&pool);
+    CodeGenerator codegen(services);
     Proto* proto = codegen.generate(chunk, "=(debug command)");
     if (proto == nullptr) {
         throw std::runtime_error("debug.debug: compilation failed");
@@ -823,7 +824,7 @@ void runDebugCommand(LuaState* L, const Str& source) {
     usize savedTop = L->getAbsoluteTop();
     try {
         L->pushFunction(func);
-        VM::call(L, 0, 0);
+        VM::call(services, L, 0, 0);
         L->getStack().setTop(savedTop);
         L->setAbsoluteTop(savedTop);
     } catch (...) {

@@ -25,7 +25,7 @@ const char* IncrementalGC::name() const noexcept {
 }
 
 const char* IncrementalGC::summary() const noexcept {
-    return "teaching placeholder; currently preserves mark-sweep behavior";
+    return "collect() remains full mark-sweep; collectgarbage('step') uses phased incremental work";
 }
 
 const GCStrategy& markSweepGCStrategy() noexcept {

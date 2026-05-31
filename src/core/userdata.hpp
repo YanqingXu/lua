@@ -124,9 +124,7 @@ public:
      * @brief 设置元表
      * @param mt 元表指针
      */
-    void setMetatable(Table* mt) noexcept {
-        metatable_ = mt;
-    }
+    void setMetatable(Table* mt) noexcept;
     
     /**
      * @brief 检查是否有元表

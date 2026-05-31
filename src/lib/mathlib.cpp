@@ -10,6 +10,7 @@
  */
 
 #include "lib/mathlib.hpp"
+#include "common/number_conversion.hpp"
 #include "lib/lib_registry.hpp"
 #include "lib/lib_manager.hpp"
 #include "core/gc_string.hpp"
@@ -47,22 +48,11 @@ static inline f64 getNumberArg(LuaState* L, i32 idx, const char* argName) {
     }
 
     if (L->isString(idx)) {
-        const char* text = L->toString(idx);
-        if (text != nullptr) {
-            while (std::isspace(static_cast<unsigned char>(*text))) {
-                ++text;
-            }
-
-            errno = 0;
-            char* end = nullptr;
-            f64 value = std::strtod(text, &end);
-            if (end != text) {
-                while (end != nullptr && std::isspace(static_cast<unsigned char>(*end))) {
-                    ++end;
-                }
-                if (end != nullptr && *end == '\0' && errno != ERANGE) {
-                    return value;
-                }
+        const Value& value = L->at(idx);
+        if (value.isString()) {
+            LuaNumber number = 0.0;
+            if (luaStringToNumber(value.asString()->view(), number)) {
+                return number;
             }
         }
     }

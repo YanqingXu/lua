@@ -20,6 +20,7 @@
 #include "vm/state/global_state.hpp"
 #include "vm/state/call_info.hpp"
 #include "vm/vm.hpp"
+#include "runtime/runtime_services.hpp"
 #include "compiler/parser/parser.hpp"
 #include "compiler/codegen/codegen.hpp"
 #include <iostream>
@@ -30,9 +31,28 @@
 #include <cctype>
 #include <limits>
 
+#ifdef _WIN32
+#include <io.h>
+#else
+#include <unistd.h>
+#endif
+
 namespace Lua {
 
 static Str makeLuaChunkId(StrView chunkName);
+
+static bool shouldReadStdinChunk() {
+    std::streamsize available = std::cin.rdbuf()->in_avail();
+    if (available > 0) {
+        return true;
+    }
+
+#ifdef _WIN32
+    return _isatty(_fileno(stdin)) == 0;
+#else
+    return isatty(fileno(stdin)) == 0;
+#endif
+}
 
 // =====================================================================
 // print(...) - 打印任意数量的参数到标准输出
@@ -171,8 +191,9 @@ i32 luaB_tonumber(LuaState* L) {
         L->error("tonumber: missing argument");
     }
     
+    bool hasBase = L->getTop() >= 2 && !L->isNil(2);
     i32 base = 10;
-    if (L->getTop() >= 2) {
+    if (hasBase) {
         if (!L->isNumber(2)) {
             L->error("tonumber: base must be a number");
         }
@@ -183,13 +204,13 @@ i32 luaB_tonumber(LuaState* L) {
     }
     
     // 如果已经是数字，直接返回
-    if (L->isNumber(1)) {
+    if (!hasBase && L->isNumber(1)) {
         L->pushNumber(L->toNumber(1));
         return 1;
     }
     
     // 尝试从字符串转换
-    if (L->isString(1)) {
+    if (L->isString(1) || (hasBase && L->isNumber(1))) {
         const char* s = L->toString(1);
         if (!s || *s == '\0') {
             L->pushNil();
@@ -1060,7 +1081,8 @@ static Str formatLoadSyntaxError(StrView chunkName, const ParseError& error) {
     return makeLuaChunkId(chunkName) + ":" + std::to_string(error.getLine()) + ": " + error.what();
 }
 
-static bool stopOnDefinitiveReaderSyntaxError(LuaState* L, StringPool& pool, const Str& source) {
+static bool stopOnDefinitiveReaderSyntaxError(LuaState* L, StringPool& pool, RuntimeServices& services,
+                                              const Str& source) {
     if (source.size() < 2 || static_cast<u8>(source[0]) == 0x1b) {
         return false;
     }
@@ -1074,7 +1096,7 @@ static bool stopOnDefinitiveReaderSyntaxError(LuaState* L, StringPool& pool, con
         return false;
     }
 
-    Parser parser(source);
+    Parser parser(source, services);
     auto parsed = parser.parse();
     if (parsed) {
         return false;
@@ -1122,8 +1144,10 @@ i32 luaB_loadstring(LuaState* L) {
             return 1;
         }
 
+        RuntimeServices services(L->getGlobalState());
+
         // 解析代码
-        Parser parser(code);
+        Parser parser(code, services);
         auto parsed = parser.parse();
         if (!parsed) {
             throw parsed.error();
@@ -1131,7 +1155,7 @@ i32 luaB_loadstring(LuaState* L) {
         Chunk chunk = std::move(*parsed);
 
         // 生成字节码
-        CodeGenerator codegen(&pool);
+        CodeGenerator codegen(services);
         Proto* proto = codegen.generate(chunk, chunkname);
 
         if (!proto) {
@@ -1171,47 +1195,57 @@ i32 luaB_loadstring(LuaState* L) {
 i32 luaB_loadfile(LuaState* L) {
     auto& pool = L->getGlobalState().getStringPool();
     i32 nargs = L->getTop();
-
-    // 如果没有参数，从标准输入读取（简化实现：返回错误）
-    if (nargs < 1) {
-        L->setTop(0);
-        L->pushNil();
-        L->pushString(pool.intern("loadfile: reading from stdin not supported"));
-        return 2;
-    }
-
-    Value filenameVal = L->at(1);
-    if (!filenameVal.isString()) {
-        L->setTop(0);
-        L->pushNil();
-        L->pushString(pool.intern("loadfile: filename must be a string"));
-        return 2;
-    }
-
-    Str filename = filenameVal.asString()->c_str();
+    Str displayName = (nargs < 1 || L->isNil(1)) ? Str("stdin") : Str();
 
     try {
-        // 读取文件
-        std::ifstream file(filename, std::ios::binary | std::ios::ate);
-        if (!file.is_open()) {
-            L->setTop(0);
-            L->pushNil();
-            Str errorMsg = Str("loadfile: cannot open ") + filename + ": No such file or directory";
-            L->pushString(pool.intern(errorMsg.c_str()));
-            return 2;
-        }
-
-        std::streamsize size = file.tellg();
-        file.seekg(0, std::ios::beg);
-
         Str source;
-        source.resize(static_cast<usize>(size));
-        if (!file.read(&source[0], size)) {
-            L->setTop(0);
-            L->pushNil();
-            Str errorMsg = Str("loadfile: cannot read ") + filename;
-            L->pushString(pool.intern(errorMsg.c_str()));
-            return 2;
+        Str sourceName;
+
+        if (nargs < 1 || L->isNil(1)) {
+            if (!shouldReadStdinChunk()) {
+                L->setTop(0);
+                L->pushNil();
+                L->pushString(pool.intern("loadfile: stdin is interactive"));
+                return 2;
+            }
+            std::ostringstream input;
+            input << std::cin.rdbuf();
+            source = input.str();
+            sourceName = "=stdin";
+            displayName = "stdin";
+        } else {
+            Value filenameVal = L->at(1);
+            if (!filenameVal.isString()) {
+                L->setTop(0);
+                L->pushNil();
+                L->pushString(pool.intern("loadfile: filename must be a string"));
+                return 2;
+            }
+
+            Str filename = filenameVal.asString()->c_str();
+            displayName = filename;
+            sourceName = Str("@") + filename;
+
+            std::ifstream file(filename, std::ios::binary | std::ios::ate);
+            if (!file.is_open()) {
+                L->setTop(0);
+                L->pushNil();
+                Str errorMsg = Str("loadfile: cannot open ") + filename + ": No such file or directory";
+                L->pushString(pool.intern(errorMsg.c_str()));
+                return 2;
+            }
+
+            std::streamsize size = file.tellg();
+            file.seekg(0, std::ios::beg);
+
+            source.resize(static_cast<usize>(size));
+            if (size > 0 && !file.read(&source[0], size)) {
+                L->setTop(0);
+                L->pushNil();
+                Str errorMsg = Str("loadfile: cannot read ") + filename;
+                L->pushString(pool.intern(errorMsg.c_str()));
+                return 2;
+            }
         }
 
         StrView loadSource(source.data(), source.size());
@@ -1223,8 +1257,10 @@ i32 luaB_loadfile(LuaState* L) {
             return 1;
         }
 
+        RuntimeServices services(L->getGlobalState());
+
         // 解析代码
-        Parser parser(source);
+        Parser parser(source, services);
         auto parsed = parser.parse();
         if (!parsed) {
             throw parsed.error();
@@ -1232,14 +1268,13 @@ i32 luaB_loadfile(LuaState* L) {
         Chunk chunk = std::move(*parsed);
 
         // 生成字节码
-        CodeGenerator codegen(&pool);
-        Str sourceName = Str("@") + filename;
+        CodeGenerator codegen(services);
         Proto* proto = codegen.generate(chunk, sourceName);
 
         if (!proto) {
             L->setTop(0);
             L->pushNil();
-            Str errorMsg = Str("loadfile: compilation failed for ") + filename;
+            Str errorMsg = Str("loadfile: compilation failed for ") + displayName;
             L->pushString(pool.intern(errorMsg.c_str()));
             return 2;
         }
@@ -1255,13 +1290,17 @@ i32 luaB_loadfile(LuaState* L) {
     } catch (const ParseError& e) {
         L->setTop(0);
         L->pushNil();
-        Str errorMsg = Str("loadfile: ") + filename + ": " + e.what();
+        Str errorMsg = Str("loadfile: ") +
+                       (displayName.empty() ? Str() : displayName + ": ") +
+                       e.what();
         L->pushString(pool.intern(errorMsg.c_str()));
         return 2;
     } catch (const std::exception& e) {
         L->setTop(0);
         L->pushNil();
-        Str errorMsg = Str("loadfile: ") + filename + ": " + e.what();
+        Str errorMsg = Str("loadfile: ") +
+                       (displayName.empty() ? Str() : displayName + ": ") +
+                       e.what();
         L->pushString(pool.intern(errorMsg.c_str()));
         return 2;
     }
@@ -1300,7 +1339,8 @@ i32 luaB_dofile(LuaState* L) {
         // 清空栈并压入函数
         L->setTop(0);
         L->getStack().push(Value(function));
-        VM::execute(L, function);
+        RuntimeServices services(L->getGlobalState());
+        VM::execute(services, L, function);
 
         // 获取返回值数量
         usize stackAfter = L->getStack().size();
@@ -1381,16 +1421,15 @@ static Function* functionAtStackLevel(LuaState* L, i32 level) {
 /**
  * @brief getfenv(f)
  *
- * 获取指定函数的环境表。对于C函数，返回全局环境；
- * 对于Lua函数，返回其特定的环境表。
+ * 获取指定函数的环境表。C函数和Lua函数都可拥有独立环境；
+ * 未设置时回退到全局环境表。
  * @param L Lua状态机指针
  * @return 返回值数量（1个：环境表）
  *
  * 参数说明：
  * - 参数1：函数对象或调用栈级别（可选，默认为1）
  *
- * @note C函数使用全局环境
- * @note Lua函数可以有独立的环境
+ * @note C函数和Lua函数都可以有独立的环境
  */
 i32 luaB_getfenv(LuaState* L) {
     // 获取参数（函数对象或栈级别）
@@ -1425,19 +1464,11 @@ i32 luaB_getfenv(LuaState* L) {
         return 1;
     }
 
-    // 检查是否为C函数
-    if (func->isCFunction()) {
-        // C函数返回全局环境
-        L->pushTable(L->getGlobalTable());
+    Table* env = func->getEnv();
+    if (env) {
+        L->pushTable(env);
     } else {
-        // Lua函数返回其环境表
-        Table* env = func->getEnv();
-        if (env) {
-            L->pushTable(env);
-        } else {
-            // 如果函数没有设置环境表，返回全局表
-            L->pushTable(L->getGlobalTable());
-        }
+        L->pushTable(L->getGlobalTable());
     }
 
     return 1;
@@ -1450,8 +1481,7 @@ i32 luaB_getfenv(LuaState* L) {
 /**
  * @brief setfenv(f, table)
  *
- * 为指定函数设置新的环境表。只能为Lua函数设置环境，
- * C函数的环境无法修改。
+ * 为指定函数设置新的环境表。Lua函数和C函数都支持环境表。
  * @param L Lua状态机指针
  * @return 返回值数量（1个：被修改的函数对象）
  *
@@ -1459,8 +1489,6 @@ i32 luaB_getfenv(LuaState* L) {
  * - 参数1：函数对象或调用栈级别
  * - 参数2：新的环境表（必须是table类型）
  *
- * @note 只能为Lua函数设置环境
- * @note C函数的环境无法修改
  * @note 简化实现：暂不支持线程环境设置
  */
 i32 luaB_setfenv(LuaState* L) {
@@ -1500,11 +1528,6 @@ i32 luaB_setfenv(LuaState* L) {
         L->error("setfenv: invalid function");
     }
 
-    // 检查是否为C函数（C函数不能修改环境）
-    if (func->isCFunction()) {
-        L->error("setfenv: cannot change environment of given object");
-    }
-
     // 获取新的环境表
     Value tableVal = L->at(2);
     Table* newEnv = tableVal.asTable();
@@ -1539,15 +1562,12 @@ i32 luaB_setfenv(LuaState* L) {
  * 支持的操作：
  * - "collect"：执行完整的垃圾回收（完整实现）
  * - "count"：返回内存使用量（KB，包含小数）（完整实现）
- * - "stop"：停止垃圾回收器（简化实现：返回0）
- * - "restart"：重启垃圾回收器（简化实现：返回0）
- * - "step"：执行一步增量垃圾回收（简化实现：返回false）
+ * - "stop"：停止自动垃圾回收
+ * - "restart"：重启自动垃圾回收
+ * - "step"：推进一段有界 GC 工作，完成一轮收集时返回 true
  * - "strategy"：查询或切换教学用GC策略（mark-sweep / incremental placeholder）
- * - "setpause"：设置垃圾回收暂停参数（简化实现：返回0）
- * - "setstepmul"：设置垃圾回收步长倍数（简化实现：返回0）
- *
- * @note 简化实现：只有"collect"和"count"是完整实现
- * @note 其他操作返回占位值，不影响GC行为
+ * - "setpause"：设置自动 GC 暂停参数，返回旧值
+ * - "setstepmul"：设置 step 工作量倍数，返回旧值
  */
 i32 luaB_collectgarbage(LuaState* L) {
     // 获取GC引用
@@ -1566,8 +1586,8 @@ i32 luaB_collectgarbage(LuaState* L) {
     i32 arg = 0;
     if (L->getTop() >= 2) {
         Value v = L->at(2);
-        if (v.isNumber()) {
-            arg = static_cast<i32>(v.asNumber());
+        if (v.isNumber() || v.isString()) {
+            arg = static_cast<i32>(L->toNumber(2));
         }
     }
 
@@ -1612,13 +1632,11 @@ i32 luaB_collectgarbage(LuaState* L) {
             return 1;
         }
         else if (strcmp(opt, "setpause") == 0) {
-            // 简化实现：设置暂停参数（暂不支持，返回0）
-            L->pushNumber(0);
+            L->pushNumber(static_cast<LuaNumber>(gc.setPause(arg)));
             return 1;
         }
         else if (strcmp(opt, "setstepmul") == 0) {
-            // 简化实现：设置步长倍数（暂不支持，返回0）
-            L->pushNumber(0);
+            L->pushNumber(static_cast<LuaNumber>(gc.setStepMultiplier(arg)));
             return 1;
         }
     }
@@ -1680,6 +1698,7 @@ static i32 luaB_load(LuaState* L) {
 
     // Collect source pieces by calling the loader function repeatedly
     // Use VM::call instead of L->pcall to preserve the stack (keeps upvalues valid)
+    RuntimeServices services(L->getGlobalState());
     Str source;
     for (;;) {
         // Push the loader and call it
@@ -1693,7 +1712,7 @@ static i32 luaB_load(LuaState* L) {
 
         try {
             L->pushValue(loaderFunc);
-            VM::call(L, 0, 1);
+            VM::call(services, L, 0, 1);
         } catch (const std::exception& e) {
             while (L->getCurrentCI() > savedCI) {
                 L->popCallInfo();
@@ -1733,7 +1752,7 @@ static i32 luaB_load(LuaState* L) {
         source.append(piece->c_str(), piece->getLength());
         L->pop();
 
-        if (stopOnDefinitiveReaderSyntaxError(L, pool, source)) {
+        if (stopOnDefinitiveReaderSyntaxError(L, pool, services, source)) {
             return 2;
         }
     }
@@ -1747,14 +1766,14 @@ static i32 luaB_load(LuaState* L) {
         }
 
         // Compile the collected source
-        Parser parser(source);
+        Parser parser(source, services);
         auto parsed = parser.parse();
         if (!parsed) {
             throw parsed.error();
         }
         Chunk chunk = std::move(*parsed);
 
-        CodeGenerator codegen(&pool);
+        CodeGenerator codegen(services);
         Proto* proto = codegen.generate(chunk, chunkname);
 
         if (!proto) {

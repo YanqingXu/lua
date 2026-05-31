@@ -11,6 +11,7 @@
 #include "vm/state/global_state.hpp"
 #include "vm/state/lua_state.hpp"
 #include "vm/state/stack.hpp"
+#include "runtime/runtime_services.hpp"
 #include "vm/vm.hpp"
 #include <exception>
 
@@ -72,7 +73,8 @@ void GarbageCollector::runFinalizers(LuaState* state) {
             state->setAbsoluteTop(savedTop);
             state->pushValue(finalizer);
             state->pushUserdata(userdata);
-            VM::call(state, 1, 0);
+            RuntimeServices services(state->getGlobalState());
+            VM::call(services, state, 1, 0);
         } catch (...) {
             finalizerError = std::current_exception();
         }

@@ -1,7 +1,7 @@
 ---
 status: current
-verified_against: src/lib/lib_catalog.cpp; src/lib/lib_manager.cpp; src/lib/lib_registry.hpp; src/lib/baselib.cpp; src/gc/gc_strategy.hpp; src/lib/mathlib.cpp; src/lib/iolib.cpp; src/lib/stringlib.cpp; src/lib/tablelib.cpp; src/lib/oslib.cpp; src/lib/coroutinelib.cpp; src/lib/debuglib.cpp; src/lib/packagelib.cpp; tests/unit/stdlib/test_lib_catalog.cpp; tests/unit/stdlib/; tests/unit/gc/test_gc.cpp
-last_checked: 2026-05-23
+verified_against: src/lib/lib_catalog.cpp; src/lib/lib_manager.cpp; src/lib/lib_registry.hpp; src/lib/baselib.cpp; src/gc/gc_strategy.hpp; src/lib/mathlib.cpp; src/lib/iolib.cpp; src/lib/stringlib.cpp; src/lib/tablelib.cpp; src/lib/oslib.cpp; src/lib/coroutinelib.cpp; src/lib/debuglib.cpp; src/lib/packagelib.cpp; tests/unit/stdlib/test_lib_catalog.cpp; tests/unit/stdlib/test_baselib.cpp; tests/unit/stdlib/; tests/unit/gc/test_gc.cpp
+last_checked: 2026-05-31
 applies_to: current standard library implementation overview
 ---
 
@@ -43,9 +43,9 @@ public:
 
 | Library | Files | Notes |
 |---|---|---|
-| base | `baselib.hpp/.cpp` | Global functions, `_G`, `_VERSION`, `pcall`, `xpcall`, loading helpers, environment helpers, GC facade including `collectgarbage("strategy")` |
+| base | `baselib.hpp/.cpp` | Global functions, `_G`, `_VERSION`, `pcall`, `xpcall`, loading helpers including stdin `loadfile/dofile`, environment helpers, GC facade including `collectgarbage("strategy")` and stateful `setpause` / `setstepmul` controls |
 | math | `mathlib.hpp/.cpp` | Math functions and constants |
-| io | `iolib.hpp/.cpp` | File userdata, `io` table, file methods |
+| io | `iolib.hpp/.cpp` | File userdata, `io` table, file methods, `io.lines/file:lines` read formats |
 | string | `stringlib.hpp/.cpp` | String operations, pattern functions, `string.dump` |
 | table | `tablelib.hpp/.cpp` | Insert/remove/sort/concat plus 5.2-style convenience helpers |
 | os | `oslib.hpp/.cpp` | Date/time, environment, command, remove/rename/tmpname |
@@ -57,16 +57,12 @@ public:
 
 The current project tests are green, but this does not mean full official Lua 5.1.5 compatibility. Known high-value gaps include:
 
-- `error(level)` source location formatting and arbitrary error object behavior
-- `xpcall` error handler semantics
-- `newproxy`
-- stdin behavior for no-argument `loadfile()` / `dofile()`
-- `debug.getfenv` / `setfenv` stack-level and thread environment details
-- debug library operations for primitive type metatables
-- `io.lines` and `file:lines` format arguments
-- `os.remove` / `os.rename` failure return details
-- `table.concat` strict element type behavior
-- real incremental `collectgarbage` scheduling and write barriers; `collectgarbage("strategy", "incremental")` currently selects an equivalent teaching placeholder
+- official `testC` / `ltests.c` helper coverage for `api.lua` and `code.lua`
+- official Lua 5.1 binary chunk compatibility; current dump/load is project-local
+- byte-for-byte error/traceback text compatibility in uncommon paths
+- debug library extreme stack-level and traceback formatting details
+- exact Lua 5.1 GC work accounting and `IncrementalGC` strategy semantics; `collectgarbage("step")` has phased work, but `collectgarbage("strategy", "incremental")` still selects an equivalent teaching placeholder for full `collect()`
+- more entry-point migration to owning `EngineContext`; the owning context exists, but singleton compatibility entry points remain
 
 ## Verification
 

@@ -7,6 +7,7 @@
 
 #include "common/lua_error.hpp"
 #include "common/config.hpp"
+#include "common/number_conversion.hpp"
 #include "core/gc_string.hpp"
 #include "core/metatable.hpp"
 #include "core/table.hpp"
@@ -31,20 +32,7 @@ bool tryToNumber(const Value& val, f64& result) {
     }
     if (val.isString()) {
         GCString* str = val.asString();
-        const char* s = str->c_str();
-        char* endptr = nullptr;
-        f64 num = std::strtod(s, &endptr);
-        if (endptr == s) {
-            return false;
-        }
-        while (std::isspace(static_cast<unsigned char>(*endptr))) {
-            endptr++;
-        }
-        if (*endptr != '\0') {
-            return false;
-        }
-        result = num;
-        return true;
+        return luaStringToNumber(str->view(), result);
     }
     return false;
 }
@@ -159,10 +147,7 @@ void arith(LuaState* L, Value& result, const Value& left, const Value& right, Op
             case OpCode::ADD: res = lval + rval; break;
             case OpCode::SUB: res = lval - rval; break;
             case OpCode::MUL: res = lval * rval; break;
-            case OpCode::DIV:
-                if (rval == 0.0) throw RuntimeError("VM: division by zero");
-                res = lval / rval;
-                break;
+            case OpCode::DIV: res = lval / rval; break;
             case OpCode::MOD: res = luaModulo(lval, rval); break;
             case OpCode::POW: res = std::pow(lval, rval); break;
             default: throw RuntimeError("VM::arith: invalid opcode");
@@ -273,13 +258,6 @@ void length(LuaState* L, Value& result, const Value& val) {
         return;
     }
     if (val.isTable()) {
-        Value tm = getMetamethodByObject(L, val, TMS::TM_LEN);
-        if (!tm.isNil() && tm.isFunction()) {
-            Value r;
-            callTMWithResult(L, r, tm, val, Value());
-            if (r.isNumber()) { result = r; return; }
-            throw RuntimeError("VM: __len metamethod must return a number");
-        }
         result = Value(static_cast<f64>(val.asTable()->length()));
         return;
     }

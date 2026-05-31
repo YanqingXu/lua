@@ -213,6 +213,11 @@ public:
     [[nodiscard]] bool isAutomaticStopped() const noexcept;
     [[nodiscard]] bool step(LuaState* currentState, i32 size);
 
+    [[nodiscard]] i32 getPause() const noexcept;
+    [[nodiscard]] i32 setPause(i32 pause) noexcept;
+    [[nodiscard]] i32 getStepMultiplier() const noexcept;
+    [[nodiscard]] i32 setStepMultiplier(i32 stepMultiplier) noexcept;
+
     /**
      * @brief 获取当前 GC 策略对象
      */
@@ -261,6 +266,25 @@ public:
      * @brief 标记一个 Lua Value 中包含的 GCObject
      */
     void markValue(const Value& value);
+
+    /**
+     * @brief Conservative incremental-GC write barrier.
+     *
+     * If a black owner starts referencing a white child, immediately mark and
+     * propagate the child graph so a later sweep in the same cycle cannot
+     * reclaim newly reachable objects.
+     */
+    void writeBarrier(GCObject* owner, GCObject* child);
+
+    /**
+     * @brief Value overload for writeBarrier().
+     */
+    void writeBarrier(GCObject* owner, const Value& value);
+
+    /**
+     * @brief Barrier for non-GC roots such as GlobalState side tables.
+     */
+    void writeRootBarrier(GCObject* child);
 
     /**
      * @brief 标记 LuaState 中的活动栈、调用帧窗口和 open upvalue
@@ -365,6 +389,14 @@ private:
     friend class MarkSweepGC;
     friend class IncrementalGC;
 
+    enum class IncrementalPhase : u8 {
+        Pause,
+        Propagate,
+        Atomic,
+        Sweep,
+        Finalize
+    };
+
     // =====================================================================
     // 内部辅助方法
     // =====================================================================
@@ -377,6 +409,12 @@ private:
     [[nodiscard]] usize collectMarkSweep(StringPool& stringPool, LuaState* currentState);
     [[nodiscard]] usize collectMarkSweep(StringPool& stringPool, LuaState* currentState,
                                          bool runFinalizersNow);
+    void resetIncrementalCycle() noexcept;
+    void beginIncrementalMark(LuaState* currentState);
+    [[nodiscard]] usize propagateMarks(usize budget);
+    void performIncrementalAtomic(LuaState* currentState);
+    [[nodiscard]] usize sweepStep(StringPool& stringPool, usize budget);
+    [[nodiscard]] bool incrementalStep(StringPool& stringPool, LuaState* currentState, usize budget);
     
     /**
      * @brief 传播标记
@@ -425,6 +463,9 @@ private:
     /// 等待执行 __gc 的 userdata
     Vec<Userdata*> pendingFinalizers_;
 
+    /// 本轮标记中已遍历的外部 collector 对象
+    Vec<GCObject*> externalMarked_;
+
     /// 防止终结器递归执行
     bool finalizersRunning_;
 
@@ -442,6 +483,12 @@ private:
     bool preciseStackRoots_;
     usize automaticThresholdBytes_;
     i32 stepCountdown_;
+    i32 pause_;
+    i32 stepMultiplier_;
+    IncrementalPhase incrementalPhase_;
+    GCObject* incrementalSweepCurrent_;
+    GCObject* incrementalSweepPrevious_;
+    usize incrementalCollected_;
     
     /// 统计信息：对象总数
     usize objectCount_;

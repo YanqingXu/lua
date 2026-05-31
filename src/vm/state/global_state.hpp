@@ -75,6 +75,15 @@ public:
     // 禁止拷贝和赋值
     GlobalState(const GlobalState&) = delete;
     GlobalState& operator=(const GlobalState&) = delete;
+
+    /**
+     * @brief Create a runtime global state backed by the supplied string pool.
+     *
+     * The default argument preserves the historical singleton-backed
+     * construction path. EngineContext passes its owned StringPool here to
+     * create an isolated runtime context.
+     */
+    explicit GlobalState(StringPool& stringPool = StringPool::getInstance());
     
     /**
      * @brief 析构函数
@@ -144,9 +153,7 @@ public:
      * @brief 设置主线程
      * @param mainThread 主线程指针
      */
-    void setMainThread(LuaState* mainThread) noexcept {
-        mainThread_ = mainThread;
-    }
+    void setMainThread(LuaState* mainThread) noexcept;
     
     /**
      * @brief 获取主线程
@@ -190,14 +197,9 @@ public:
     // =====================================================================
 
     Thread* getRunningThread() const noexcept { return runningThread_; }
-    void setRunningThread(Thread* t) noexcept { runningThread_ = t; }
+    void setRunningThread(Thread* t) noexcept;
 
 private:
-    /**
-     * @brief 私有构造函数（单例模式）
-     */
-    GlobalState();
-
     /**
      * @brief 初始化元方法名称
      *

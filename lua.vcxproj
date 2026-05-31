@@ -139,6 +139,7 @@
     <ClInclude Include="src\common\config.hpp" />
     <ClInclude Include="src\common\lua_error.hpp" />
     <ClInclude Include="src\common\macros.hpp" />
+    <ClInclude Include="src\common\number_conversion.hpp" />
     <ClInclude Include="src\common\types.hpp" />
     <ClInclude Include="src\compiler\ast.hpp" />
     <ClInclude Include="src\compiler\ast_visitor.hpp" />

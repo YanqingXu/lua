@@ -13,6 +13,7 @@
 #include "core/string_pool.hpp"
 #include "core/function.hpp"
 #include "lib/lib_registry.hpp"
+#include "runtime/runtime_services.hpp"
 #include "vm/vm.hpp"
 #include "vm/vm_constants.hpp"
 #include "vm/vm_internal.hpp"
@@ -94,7 +95,8 @@ static bool callSortComparator(LuaState* L, Function* comparator, const Value& l
         L->pushFunction(comparator);
         L->pushValue(left);
         L->pushValue(right);
-        VM::call(L, 2, 1);
+        RuntimeServices services(L->getGlobalState());
+        VM::call(services, L, 2, 1);
     } catch (const std::exception& e) {
         while (L->getCurrentCI() > savedCI) {
             L->popCallInfo();
@@ -125,7 +127,8 @@ static Value callForeachCallback(LuaState* L, Function* callback, const Value& k
         L->pushFunction(callback);
         L->pushValue(key);
         L->pushValue(value);
-        VM::call(L, 2, 1);
+        RuntimeServices services(L->getGlobalState());
+        VM::call(services, L, 2, 1);
         Value result = L->top();
 
         L->getStack().setTop(0);

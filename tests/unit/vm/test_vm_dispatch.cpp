@@ -21,6 +21,7 @@
 
 #include <array>
 #include <clocale>
+#include <cmath>
 #include <string>
 #include <utility>
 
@@ -336,6 +337,10 @@ void testDataMoveHandlersExecuteDirectly(TestSuite& suite) {
     RuntimeServices services = RuntimeServices::fromSingletons();
     Proto proto;
     usize constantIndex = proto.addConstant(Value(42.0));
+    while (proto.getConstantCount() < static_cast<usize>(MAXARG_Bx)) {
+        proto.addConstant(Value(static_cast<LuaNumber>(proto.getConstantCount()) + 1000.0));
+    }
+    usize highestConstantIndex = proto.addConstant(Value(987654.0));
 
     std::array<Value, 4> registers{};
     registers[1] = Value(7.0);
@@ -360,9 +365,19 @@ void testDataMoveHandlersExecuteDirectly(TestSuite& suite) {
     ASSERT_TRUE(suite, registers[0].isNumber() && registers[0].asNumber() == 7.0,
                 "MOVE handler should copy source register");
 
+    VM::runHandler(context, CREATE_ABC(OpCode::MOVE, 1, 1, 0));
+    ASSERT_TRUE(suite, registers[1].isNumber() && registers[1].asNumber() == 7.0,
+                "MOVE handler should tolerate alias copy when A equals B");
+
     VM::runHandler(context, CREATE_ABx(OpCode::LOADK, 2, static_cast<i32>(constantIndex)));
     ASSERT_TRUE(suite, registers[2].isNumber() && registers[2].asNumber() == 42.0,
                 "LOADK handler should load a constant");
+
+    ASSERT_EQ(suite, MAXARG_Bx, static_cast<i32>(highestConstantIndex),
+              "test setup should place a constant at the highest LOADK Bx index");
+    VM::runHandler(context, CREATE_ABx(OpCode::LOADK, 3, static_cast<i32>(highestConstantIndex)));
+    ASSERT_TRUE(suite, registers[3].isNumber() && registers[3].asNumber() == 987654.0,
+                "LOADK handler should load the highest valid Bx constant index");
 
     pc = 5;
     VM::runHandler(context, CREATE_ABC(OpCode::LOADBOOL, 0, 1, 1));
@@ -383,6 +398,8 @@ void testGlobalAndUpvalueHandlersExecuteDirectly(TestSuite& suite) {
     Proto proto;
     GCString* globalName = services.strings.intern("pr12_global");
     usize globalNameIndex = proto.addConstant(Value(globalName));
+    GCString* missingGlobalName = services.strings.intern("pr12_missing_global");
+    usize missingGlobalNameIndex = proto.addConstant(Value(missingGlobalName));
 
     Function func(&proto);
     func.setEnv(L->getGlobalTable());
@@ -390,13 +407,16 @@ void testGlobalAndUpvalueHandlersExecuteDirectly(TestSuite& suite) {
     Upvalue* upvalue = Upvalue::createClosed(Value(12.0));
     services.gc.registerObject(upvalue);
     func.addUpvalue(upvalue);
+    Upvalue* secondUpvalue = Upvalue::createClosed(Value(18.0));
+    services.gc.registerObject(secondUpvalue);
+    func.addUpvalue(secondUpvalue);
 
     Stack& stack = L->getStack();
     usize frameBase = L->getCurrentCallInfo().base;
-    while (stack.size() < frameBase + 4) {
+    while (stack.size() < frameBase + 5) {
         stack.push(Value());
     }
-    L->setAbsoluteTop(frameBase + 4);
+    L->setAbsoluteTop(frameBase + 5);
 
     Value* base = &stack[frameBase];
     usize pc = 0;
@@ -417,6 +437,11 @@ void testGlobalAndUpvalueHandlersExecuteDirectly(TestSuite& suite) {
     ASSERT_TRUE(suite, base[0].isNumber() && base[0].asNumber() == 24.0,
                 "GETGLOBAL handler should read from the function environment");
 
+    VM::runHandler(context, CREATE_ABx(OpCode::GETGLOBAL, 4, static_cast<i32>(missingGlobalNameIndex)));
+    base = context.base;
+    ASSERT_TRUE(suite, base[4].isNil(),
+                "GETGLOBAL handler should return nil for missing globals");
+
     base[1] = Value(36.0);
     VM::runHandler(context, CREATE_ABx(OpCode::SETGLOBAL, 1, static_cast<i32>(globalNameIndex)));
     Value storedGlobal = L->getGlobalTable()->get(Value(globalName));
@@ -428,11 +453,22 @@ void testGlobalAndUpvalueHandlersExecuteDirectly(TestSuite& suite) {
     ASSERT_TRUE(suite, base[2].isNumber() && base[2].asNumber() == 12.0,
                 "GETUPVAL handler should read the selected upvalue");
 
+    VM::runHandler(context, CREATE_ABC(OpCode::GETUPVAL, 4, 1, 0));
+    base = context.base;
+    ASSERT_TRUE(suite, base[4].isNumber() && base[4].asNumber() == 18.0,
+                "GETUPVAL handler should read the highest configured upvalue slot");
+
     base[3] = Value(48.0);
     VM::runHandler(context, CREATE_ABC(OpCode::SETUPVAL, 3, 0, 0));
     Value storedUpvalue = upvalue->getValue(L->getStack());
     ASSERT_TRUE(suite, storedUpvalue.isNumber() && storedUpvalue.asNumber() == 48.0,
                 "SETUPVAL handler should write the selected upvalue");
+
+    base[3] = Value(64.0);
+    VM::runHandler(context, CREATE_ABC(OpCode::SETUPVAL, 3, 0, 0));
+    storedUpvalue = upvalue->getValue(L->getStack());
+    ASSERT_TRUE(suite, storedUpvalue.isNumber() && storedUpvalue.asNumber() == 64.0,
+                "SETUPVAL handler should overwrite a closed upvalue after multiple writes");
 
     delete L;
     services.gc.clearAll();
@@ -445,16 +481,18 @@ void testTableHandlersExecuteDirectly(TestSuite& suite) {
     Proto proto;
     GCString* fieldName = services.strings.intern("pr13_field");
     usize fieldNameIndex = proto.addConstant(Value(fieldName));
+    GCString* missingFieldName = services.strings.intern("pr13_missing_field");
+    usize missingFieldNameIndex = proto.addConstant(Value(missingFieldName));
 
     Table* table = new Table();
     services.gc.registerObject(table);
 
     Stack& stack = L->getStack();
     usize frameBase = L->getCurrentCallInfo().base;
-    while (stack.size() < frameBase + 8) {
+    while (stack.size() < frameBase + 10) {
         stack.push(Value());
     }
-    L->setAbsoluteTop(frameBase + 8);
+    L->setAbsoluteTop(frameBase + 10);
 
     Value* base = &stack[frameBase];
     usize pc = 0;
@@ -476,6 +514,11 @@ void testTableHandlersExecuteDirectly(TestSuite& suite) {
     ASSERT_TRUE(suite, base[0].isNumber() && base[0].asNumber() == 55.0,
                 "GETTABLE handler should read table fields through RK keys");
 
+    VM::runHandler(context, CREATE_ABC(OpCode::GETTABLE, 9, 1, RKASK(static_cast<i32>(missingFieldNameIndex))));
+    base = context.base;
+    ASSERT_TRUE(suite, base[9].isNil(),
+                "GETTABLE handler should return nil for absent direct table keys");
+
     base[2] = Value(table);
     base[3] = Value(fieldName);
     base[4] = Value(66.0);
@@ -484,9 +527,20 @@ void testTableHandlersExecuteDirectly(TestSuite& suite) {
     ASSERT_TRUE(suite, storedField.isNumber() && storedField.asNumber() == 66.0,
                 "SETTABLE handler should write table fields through register keys");
 
+    base[4] = Value();
+    VM::runHandler(context, CREATE_ABC(OpCode::SETTABLE, 2, 3, 4));
+    storedField = table->get(Value(fieldName));
+    ASSERT_TRUE(suite, storedField.isNil(),
+                "SETTABLE handler should delete table fields when assigning nil");
+
     VM::runHandler(context, CREATE_ABC(OpCode::NEWTABLE, 5, 0, 0));
     base = context.base;
     ASSERT_TRUE(suite, base[5].isTable(), "NEWTABLE handler should create a table");
+
+    VM::runHandler(context, CREATE_ABC(OpCode::NEWTABLE, 8, 4, 2));
+    base = context.base;
+    ASSERT_TRUE(suite, base[8].isTable(),
+                "NEWTABLE handler should accept non-zero array and hash size operands");
 
     table->set(Value(fieldName), Value(77.0));
     base[6] = Value(table);
@@ -556,15 +610,32 @@ void testArithmeticHandlersExecuteDirectly(TestSuite& suite) {
     ASSERT_TRUE(suite, base[0].isNumber() && base[0].asNumber() == 20.0,
                 "MUL handler should multiply register operands");
 
+    VM::runHandler(context, CREATE_ABC(OpCode::MUL, 0, 1, RKASK(static_cast<i32>(constantIndex))));
+    base = context.base;
+    ASSERT_TRUE(suite, base[0].isNumber() && base[0].asNumber() == 30.0,
+                "MUL handler should support mixed register/RK constant operands");
+
     VM::runHandler(context, CREATE_ABC(OpCode::DIV, 0, 1, 2));
     base = context.base;
     ASSERT_TRUE(suite, base[0].isNumber() && base[0].asNumber() == 5.0,
                 "DIV handler should divide register operands");
 
+    base[2] = Value(0.0);
+    VM::runHandler(context, CREATE_ABC(OpCode::DIV, 0, 1, 2));
+    base = context.base;
+    ASSERT_TRUE(suite, base[0].isNumber() && std::isinf(base[0].asNumber()) && base[0].asNumber() > 0.0,
+                "DIV handler should preserve Lua 5.1 double positive division-by-zero behavior");
+
     VM::runHandler(context, CREATE_ABC(OpCode::MOD, 0, 1, RKASK(static_cast<i32>(constantIndex))));
     base = context.base;
     ASSERT_TRUE(suite, base[0].isNumber() && base[0].asNumber() == 1.0,
                 "MOD handler should support RK constants");
+
+    base[2] = Value(0.0);
+    VM::runHandler(context, CREATE_ABC(OpCode::MOD, 0, 1, 2));
+    base = context.base;
+    ASSERT_TRUE(suite, base[0].isNumber() && std::isnan(base[0].asNumber()),
+                "MOD handler should preserve Lua 5.1 double modulo-by-zero NaN behavior");
 
     base[1] = Value(-4.0);
     base[2] = Value(3.0);
@@ -593,11 +664,38 @@ void testArithmeticHandlersExecuteDirectly(TestSuite& suite) {
                 stringArithmeticOk && base[0].isNumber() && base[0].asNumber() == 5.0,
                 "ADD handler should coerce numeric strings with surrounding whitespace");
 
+    Table* nonNumber = new Table();
+    services.gc.registerObject(nonNumber);
+    bool subError = false;
+    try {
+        base[1] = Value(nonNumber);
+        base[2] = Value(1.0);
+        VM::runHandler(context, CREATE_ABC(OpCode::SUB, 0, 1, 2));
+    } catch (...) {
+        subError = true;
+    }
+    ASSERT_TRUE(suite, subError,
+                "SUB handler should reject non-number operands without metamethods");
+
     base[1] = Value(2.0);
     VM::runHandler(context, CREATE_ABC(OpCode::POW, 0, 1, RKASK(static_cast<i32>(constantIndex))));
     base = context.base;
     ASSERT_TRUE(suite, base[0].isNumber() && base[0].asNumber() == 8.0,
                 "POW handler should support RK constants");
+
+    base[1] = Value(4.0);
+    base[2] = Value(0.5);
+    VM::runHandler(context, CREATE_ABC(OpCode::POW, 0, 1, 2));
+    base = context.base;
+    ASSERT_TRUE(suite, base[0].isNumber() && base[0].asNumber() == 2.0,
+                "POW handler should support fractional exponents");
+
+    base[1] = Value(2.0);
+    base[2] = Value(-2.0);
+    VM::runHandler(context, CREATE_ABC(OpCode::POW, 0, 1, 2));
+    base = context.base;
+    ASSERT_TRUE(suite, base[0].isNumber() && base[0].asNumber() == 0.25,
+                "POW handler should support negative exponents");
 
     delete L;
     services.gc.clearAll();
@@ -649,11 +747,41 @@ void testUnaryHandlersExecuteDirectly(TestSuite& suite) {
                 stringUnaryOk && base[0].isNumber() && base[0].asNumber() == -10.0,
                 "UNM handler should coerce numeric strings with surrounding whitespace");
 
+    Table* nonNumber = new Table();
+    services.gc.registerObject(nonNumber);
+    bool unaryError = false;
+    try {
+        base[1] = Value(nonNumber);
+        VM::runHandler(context, CREATE_ABC(OpCode::UNM, 0, 1, 0));
+    } catch (...) {
+        unaryError = true;
+    }
+    ASSERT_TRUE(suite, unaryError,
+                "UNM handler should reject non-number operands without metamethods");
+
+    base[1] = Value();
+    VM::runHandler(context, CREATE_ABC(OpCode::NOT, 0, 1, 0));
+    base = context.base;
+    ASSERT_TRUE(suite, base[0].isBoolean() && base[0].asBoolean(),
+                "NOT handler should treat nil as falsey");
+
     base[1] = Value(false);
     VM::runHandler(context, CREATE_ABC(OpCode::NOT, 0, 1, 0));
     base = context.base;
     ASSERT_TRUE(suite, base[0].isBoolean() && base[0].asBoolean(),
                 "NOT handler should invert Lua truthiness");
+
+    base[1] = Value(true);
+    VM::runHandler(context, CREATE_ABC(OpCode::NOT, 0, 1, 0));
+    base = context.base;
+    ASSERT_TRUE(suite, base[0].isBoolean() && !base[0].asBoolean(),
+                "NOT handler should treat true as truthy");
+
+    base[1] = Value(0.0);
+    VM::runHandler(context, CREATE_ABC(OpCode::NOT, 0, 1, 0));
+    base = context.base;
+    ASSERT_TRUE(suite, base[0].isBoolean() && !base[0].asBoolean(),
+                "NOT handler should treat zero as truthy");
 
     base[1] = Value(hello);
     VM::runHandler(context, CREATE_ABC(OpCode::LEN, 0, 1, 0));

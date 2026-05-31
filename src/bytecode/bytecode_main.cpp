@@ -101,7 +101,8 @@ int main(int argc, char** argv) {
     }
 
     try {
-        RuntimeServices services = RuntimeServices::fromSingletons();
+        EngineContext engine;
+        RuntimeServices services = engine.services();
 
         if (options.diff) {
             Proto* left = compileScript(services, options.scripts[0]);

@@ -131,6 +131,7 @@ std::string trimOfficialAllForCurrentFrontend(std::string source) {
 const char* officialSuitePrelude() {
     return R"lua(
 _U = true
+_soft = true
 __official_skipped_count = 0
 
 if newproxy == nil then

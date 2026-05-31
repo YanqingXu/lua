@@ -125,10 +125,10 @@ void printUsage(const char* progname) {
  *
  * @return 初始化完成的LuaState指针，失败返回nullptr
  */
-UPtr<LuaState> createLuaState() {
+UPtr<LuaState> createLuaState(EngineContext& context) {
     try {
         // 步骤1-4：LuaState::newState内部完成状态、栈和全局环境初始化
-        UPtr<LuaState> L(LuaState::newState());
+        UPtr<LuaState> L(LuaState::newState(context));
 
         if (!L) {
             std::cerr << "[ERROR] Failed to create Lua state: not enough memory" << std::endl;
@@ -519,7 +519,8 @@ int Lua::runApp(const AppOptions& opt) {
         break;
     }
 
-    auto L = createLuaState();
+    EngineContext engine;
+    auto L = createLuaState(engine);
     if (!L) {
         REPL::reportError("cannot create state: not enough memory");
         return 1;

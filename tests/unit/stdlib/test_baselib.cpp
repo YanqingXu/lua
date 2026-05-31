@@ -16,6 +16,8 @@
 #include "compiler/parser/parser.hpp"
 #include "compiler/codegen/codegen.hpp"
 
+#include <iostream>
+#include <sstream>
 #include <string>
 
 using namespace Lua;
@@ -24,6 +26,7 @@ using namespace LuaTest;
 namespace {
 
 constexpr const char* kSuiteName = "Base Library";
+constexpr const char* kCompatibilitySuiteName = "Lua 5.1 Compatibility";
 
 /// Helper: compile and execute Lua code with all standard libs
 bool runLua(LuaState* L, const char* code) {
@@ -61,6 +64,25 @@ std::string getGlobalStr(LuaState* L, const char* name) {
     Value v = L->getGlobal(name);
     return v.isString() ? std::string(v.asString()->c_str()) : "";
 }
+
+bool getGlobalBool(LuaState* L, const char* name) {
+    Value v = L->getGlobal(name);
+    return v.isBoolean() && v.asBoolean();
+}
+
+class ScopedCinRedirect {
+public:
+    explicit ScopedCinRedirect(std::istream& input)
+        : old_(std::cin.rdbuf(input.rdbuf())) {}
+
+    ~ScopedCinRedirect() {
+        std::cin.rdbuf(old_);
+        std::cin.clear();
+    }
+
+private:
+    std::streambuf* old_;
+};
 
 /// Helper: create state with all standard libraries
 LuaState* createFullState() {
@@ -1235,6 +1257,255 @@ void testAutomaticGCReachesWeakValuesDuringAllocation(TestSuite& suite) {
     delete L;
 }
 
+void testCompatibilityNilTableKey(TestSuite& suite) {
+    LuaState* L = createFullState();
+    bool ok = runLua(L, R"lua(
+        local okSet, errSet = pcall(function()
+            local t = {}
+            t[nil] = 1
+        end)
+        gNilTableKeyRejected = (not okSet) and type(errSet) == "string" and
+                               string.find(errSet, "nil", 1, true) ~= nil
+
+        local t = { value = 1 }
+        t.value = nil
+        gNilAssignmentStillDeletes = next(t) == nil
+
+        local okRaw = pcall(function()
+            rawset({}, nil, 1)
+        end)
+        gRawsetNilKeyRejected = not okRaw
+    )lua");
+
+    ASSERT_TRUE(suite, ok, "nil table key compatibility chunk runs");
+    ASSERT_TRUE(suite, getGlobalBool(L, "gNilTableKeyRejected"),
+                "t[nil] assignment raises an error");
+    ASSERT_TRUE(suite, getGlobalBool(L, "gNilAssignmentStillDeletes"),
+                "assigning nil to an existing key still deletes it");
+    ASSERT_TRUE(suite, getGlobalBool(L, "gRawsetNilKeyRejected"),
+                "rawset rejects nil keys");
+    delete L;
+}
+
+void testCompatibilityNumericStringConversions(TestSuite& suite) {
+    LuaState* L = createFullState();
+    bool ok = runLua(L, R"lua(
+        local t = {"a", "b"}
+        table.insert(t, "1", "x")
+        gTableInsertNumericString = t[1] == "x" and t[2] == "a" and t[3] == "b"
+
+        local removed = table.remove(t, "1")
+        gTableRemoveNumericString = removed == "x" and t[1] == "a" and t[2] == "b"
+
+        gTableConcatNumericString = table.concat({"a", "b"}, "", "1", "2") == "ab"
+
+        local u1, u2 = unpack({"p", "q"}, "1", "2")
+        gUnpackNumericString = u1 == "p" and u2 == "q"
+
+        local badOk = pcall(function()
+            table.remove({}, "not a number")
+        end)
+        gBadNumericStringRejected = not badOk
+    )lua");
+
+    ASSERT_TRUE(suite, ok, "numeric string conversion compatibility chunk runs");
+    ASSERT_TRUE(suite, getGlobalBool(L, "gTableInsertNumericString"),
+                "table.insert accepts numeric string positions");
+    ASSERT_TRUE(suite, getGlobalBool(L, "gTableRemoveNumericString"),
+                "table.remove accepts numeric string positions");
+    ASSERT_TRUE(suite, getGlobalBool(L, "gTableConcatNumericString"),
+                "table.concat accepts numeric string range bounds");
+    ASSERT_TRUE(suite, getGlobalBool(L, "gUnpackNumericString"),
+                "unpack accepts numeric string range bounds");
+    ASSERT_TRUE(suite, getGlobalBool(L, "gBadNumericStringRejected"),
+                "non-numeric strings remain invalid numeric arguments");
+    delete L;
+}
+
+void testCompatibilityDivisionModuloZero(TestSuite& suite) {
+    LuaState* L = createFullState();
+    bool ok = runLua(L, R"lua(
+        local z = 0
+        local okDivPos = pcall(function() return 1 / z end)
+        local okDivNeg = pcall(function() return -1 / z end)
+        local okDivNan = pcall(function() return 0 / z end)
+        local okMod, modResult = pcall(function() return 1 % z end)
+
+        gDivisionByZeroDoesNotThrow = okDivPos and okDivNeg and okDivNan
+        gModuloByZeroDoesNotThrow = okMod
+        gModuloByZeroProducesNaN = okMod and modResult ~= modResult
+    )lua");
+
+    ASSERT_TRUE(suite, ok, "division/modulo zero compatibility chunk runs");
+    ASSERT_TRUE(suite, getGlobalBool(L, "gDivisionByZeroDoesNotThrow"),
+                "floating-point division by zero follows Lua 5.1 double behavior");
+    ASSERT_TRUE(suite, getGlobalBool(L, "gModuloByZeroDoesNotThrow"),
+                "modulo by zero does not raise a VM-only error");
+    ASSERT_TRUE(suite, getGlobalBool(L, "gModuloByZeroProducesNaN"),
+                "modulo by zero produces NaN under the double-number policy");
+    delete L;
+}
+
+void testCompatibilityTableLength(TestSuite& suite) {
+    LuaState* L = createFullState();
+    bool ok = runLua(L, R"lua(
+        local withLen = setmetatable({1, 2, 3}, {
+            __len = function() return 99 end
+        })
+        gTableLenIgnoresLenMetamethod = #withLen == 3
+
+        local sparse = {}
+        sparse[1] = true
+        sparse[3] = true
+        local sparseLen = #sparse
+        gSparseBoundaryLength = sparse[sparseLen] ~= nil and sparse[sparseLen + 1] == nil
+
+        local huge = {}
+        huge[1] = true
+        huge[2] = true
+        huge[1000001] = true
+        gHugeIntegerKeyLength = #huge == 2
+    )lua");
+
+    ASSERT_TRUE(suite, ok, "table length compatibility chunk runs");
+    ASSERT_TRUE(suite, getGlobalBool(L, "gTableLenIgnoresLenMetamethod"),
+                "table __len metamethod is ignored in strict Lua 5.1 mode");
+    ASSERT_TRUE(suite, getGlobalBool(L, "gSparseBoundaryLength"),
+                "sparse table length returns a valid Lua boundary");
+    ASSERT_TRUE(suite, getGlobalBool(L, "gHugeIntegerKeyLength"),
+                "large positive integer hash keys do not inflate contiguous length");
+    delete L;
+}
+
+void testCompatibilityLoadfileStdin(TestSuite& suite) {
+    LuaState* L = createFullState();
+
+    std::istringstream loadInput("return 321\n");
+    {
+        ScopedCinRedirect redirect(loadInput);
+        i32 ret = luaB_loadfile(L);
+        ASSERT_EQ(suite, ret, 1, "loadfile() from stdin returns one value");
+        ASSERT_TRUE(suite, L->top().isFunction(), "loadfile() from stdin returns a function");
+    }
+
+    L->setTop(0);
+    std::istringstream doInput("return 654\n");
+    {
+        ScopedCinRedirect redirect(doInput);
+        i32 ret = luaB_dofile(L);
+        ASSERT_EQ(suite, ret, 1, "dofile() from stdin returns chunk results");
+        ASSERT_TRUE(suite, L->top().isNumber() && L->top().asNumber() == 654.0,
+                    "dofile() executes stdin chunk");
+    }
+
+    delete L;
+}
+
+void testCompatibilityOsFailureTriples(TestSuite& suite) {
+    LuaState* L = createFullState();
+    bool ok = runLua(L, R"lua(
+        local r1, m1, e1 = os.remove("__lua51_compat_missing_dir__/missing.file")
+        gRemoveFailureTriple = r1 == nil and type(m1) == "string" and type(e1) == "number"
+
+        local r2, m2, e2 = os.rename("__lua51_compat_missing_dir__/missing.file",
+                                     "__lua51_compat_missing_dir__/renamed.file")
+        gRenameFailureTriple = r2 == nil and type(m2) == "string" and type(e2) == "number"
+    )lua");
+
+    ASSERT_TRUE(suite, ok, "os failure triple compatibility chunk runs");
+    ASSERT_TRUE(suite, getGlobalBool(L, "gRemoveFailureTriple"),
+                "os.remove failure returns nil, message, errno");
+    ASSERT_TRUE(suite, getGlobalBool(L, "gRenameFailureTriple"),
+                "os.rename failure returns nil, message, errno");
+    delete L;
+}
+
+void testCompatibilityIoLinesFormats(TestSuite& suite) {
+    LuaState* L = createFullState();
+    bool ok = runLua(L, R"lua(
+        local path = "__lua51_compat_lines.tmp"
+        local f = assert(io.open(path, "w"))
+        f:write("10\n20\n")
+        f:close()
+
+        local sum = 0
+        for n in io.lines(path, "*n") do
+            sum = sum + n
+        end
+
+        local f2 = assert(io.open(path, "r"))
+        local iter = f2:lines("*l", "*n")
+        local firstLine, secondNumber = iter()
+        f2:close()
+        os.remove(path)
+
+        gIoLinesFormatArgs = sum == 30
+        gFileLinesMultiResults = firstLine == "10" and secondNumber == 20
+    )lua");
+
+    ASSERT_TRUE(suite, ok, "io.lines format compatibility chunk runs");
+    ASSERT_TRUE(suite, getGlobalBool(L, "gIoLinesFormatArgs"),
+                "io.lines(filename, format) accepts read formats");
+    ASSERT_TRUE(suite, getGlobalBool(L, "gFileLinesMultiResults"),
+                "file:lines(format, ...) returns multiple read results per iteration");
+    delete L;
+}
+
+void testCompatibilityCFunctionEnvironment(TestSuite& suite) {
+    LuaState* L = createFullState();
+    bool ok = runLua(L, R"lua(
+        local old = getfenv(print)
+        local env = { marker = 77 }
+        local ret = setfenv(print, env)
+        gSetfenvCFunctionReturnsFunction = ret == print
+        gGetfenvCFunctionUsesAssignedEnv = getfenv(print) == env
+        setfenv(print, old)
+    )lua");
+
+    ASSERT_TRUE(suite, ok, "C function environment compatibility chunk runs");
+    ASSERT_TRUE(suite, getGlobalBool(L, "gSetfenvCFunctionReturnsFunction"),
+                "setfenv accepts C functions");
+    ASSERT_TRUE(suite, getGlobalBool(L, "gGetfenvCFunctionUsesAssignedEnv"),
+                "getfenv returns a C function's assigned environment");
+    delete L;
+}
+
+void testCompatibilityErrorAndXpcall(TestSuite& suite) {
+    LuaState* L = createFullState();
+    bool ok = runLua(L, R"lua(
+        local payload = { x = 1 }
+        local okObj, errObj = pcall(function()
+            error(payload, 0)
+        end)
+        gErrorPreservesTableObject = not okObj and errObj == payload
+
+        local function handler(e)
+            return { handled = e }
+        end
+        local okX, result = xpcall(function()
+            error("boom", 0)
+        end, handler)
+        gXpcallHandlerResult = not okX and type(result) == "table" and result.handled == "boom"
+
+        local okFallback, fallback = xpcall(function()
+            error("boom", 0)
+        end, function()
+            error("handler failed", 0)
+        end)
+        gXpcallHandlerFailureFallback = not okFallback and type(fallback) == "string" and
+                                        string.find(fallback, "error in error handling", 1, true) ~= nil
+    )lua");
+
+    ASSERT_TRUE(suite, ok, "error/xpcall compatibility chunk runs");
+    ASSERT_TRUE(suite, getGlobalBool(L, "gErrorPreservesTableObject"),
+                "error(table, 0) preserves the error object");
+    ASSERT_TRUE(suite, getGlobalBool(L, "gXpcallHandlerResult"),
+                "xpcall returns the handler result");
+    ASSERT_TRUE(suite, getGlobalBool(L, "gXpcallHandlerFailureFallback"),
+                "xpcall reports handler failures using the fallback message");
+    delete L;
+}
+
 void registerBaselibTests() {
     auto& registry = TestRegistry::getInstance();
 
@@ -1268,5 +1539,21 @@ void registerBaselibTests() {
     registry.registerTest(kSuiteName, "pairs deleting current key", testPairsAllowsDeletingCurrentHashKey);
     registry.registerTest(kSuiteName, "automatic GC clears weak values",
                           testAutomaticGCReachesWeakValuesDuringAllocation);
+
+    registry.registerTest(kCompatibilitySuiteName, "nil table key", testCompatibilityNilTableKey);
+    registry.registerTest(kCompatibilitySuiteName, "numeric string conversions",
+                          testCompatibilityNumericStringConversions);
+    registry.registerTest(kCompatibilitySuiteName, "division and modulo by zero",
+                          testCompatibilityDivisionModuloZero);
+    registry.registerTest(kCompatibilitySuiteName, "table length", testCompatibilityTableLength);
+    registry.registerTest(kCompatibilitySuiteName, "loadfile stdin", testCompatibilityLoadfileStdin);
+    registry.registerTest(kCompatibilitySuiteName, "os failure triples",
+                          testCompatibilityOsFailureTriples);
+    registry.registerTest(kCompatibilitySuiteName, "io.lines formats",
+                          testCompatibilityIoLinesFormats);
+    registry.registerTest(kCompatibilitySuiteName, "C function environment",
+                          testCompatibilityCFunctionEnvironment);
+    registry.registerTest(kCompatibilitySuiteName, "error and xpcall",
+                          testCompatibilityErrorAndXpcall);
 }
 

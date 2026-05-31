@@ -222,10 +222,18 @@ static Value getDefaultOutputHandleValue(LuaState* L) {
     return Value(ud);
 }
 
-static i32 pushLinesIterator(LuaState* L, const Value& fileHandle, bool autoClose) {
+static i32 pushLinesIterator(
+    LuaState* L,
+    const Value& fileHandle,
+    bool autoClose,
+    i32 firstFormatArg = 0
+) {
     Vec<Value> upvalues;
     upvalues.push_back(fileHandle);
     upvalues.push_back(Value(autoClose));
+    for (i32 i = firstFormatArg; i > 0 && i <= L->getTop(); ++i) {
+        upvalues.push_back(L->at(i));
+    }
 
     Function* iter = createCClosureWithClosedUpvalues(L, lines_iterator, upvalues);
     L->pushFunction(iter);
@@ -629,6 +637,7 @@ i32 io_type(LuaState* L) {
  * 使用upvalue存储文件句柄。
  */
 static i32 lines_iterator(LuaState* L) {
+    Function* closure = getCurrentClosure(L);
     Value fileHandle = getClosureUpvalueValue(L, 0);
     Value autoCloseVal = getClosureUpvalueValue(L, 1);
 
@@ -641,24 +650,46 @@ static i32 lines_iterator(LuaState* L) {
         L->error("io.lines iterator: file is already closed");
     }
 
-    if (readLine(L, handle->fp)) {
-        return 1;
+    usize formatCount = closure->getUpvalueCount() > 2
+                      ? closure->getUpvalueCount() - 2
+                      : 0;
+
+    if (formatCount == 0) {
+        if (readLine(L, handle->fp)) {
+            return 1;
+        }
+
+        if (autoCloseVal.isBoolean() && autoCloseVal.asBoolean()) {
+            closeFileHandle(handle);
+        }
+
+        return 0;
     }
 
-    if (autoCloseVal.isBoolean() && autoCloseVal.asBoolean()) {
-        closeFileHandle(handle);
+    L->setTop(0);
+    for (usize i = 0; i < formatCount; ++i) {
+        Upvalue* uv = closure->getUpvalue(i + 2);
+        if (uv == nullptr) {
+            L->error("io iterator: missing format upvalue");
+        }
+        L->pushValue(uv->getValue(L->getStack()));
     }
 
-    return 0;
+    i32 nresults = f_read_impl(L, handle->fp, 1);
+    if (nresults <= 0 || (L->getTop() >= 1 && L->at(-nresults).isNil())) {
+        if (autoCloseVal.isBoolean() && autoCloseVal.asBoolean()) {
+            closeFileHandle(handle);
+        }
+        L->setTop(0);
+        return 0;
+    }
+
+    return nresults;
 }
 
 i32 io_lines(LuaState* L) {
     if (L->getTop() == 0) {
         return pushLinesIterator(L, getDefaultInputHandleValue(L), false);
-    }
-
-    if (L->getTop() > 1) {
-        L->error("io.lines: format arguments are not yet supported");
     }
 
     if (L->isString(1)) {
@@ -668,7 +699,7 @@ i32 io_lines(LuaState* L) {
             fileError(L, 1, filename);
         }
         Userdata* ud = createFileHandle(L, fp, false, filename);
-        return pushLinesIterator(L, Value(ud), true);
+        return pushLinesIterator(L, Value(ud), true, 2);
     }
 
     L->error("io.lines: string expected");
@@ -946,11 +977,7 @@ i32 f_lines(LuaState* L) {
         L->error("attempt to use a closed file");
     }
 
-    if (L->getTop() > 1) {
-        L->error("file:lines: format arguments are not yet supported");
-    }
-
-    return pushLinesIterator(L, L->at(1), false);
+    return pushLinesIterator(L, L->at(1), false, 2);
 }
 
 // =====================================================================

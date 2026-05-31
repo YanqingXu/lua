@@ -10,6 +10,7 @@
 #include <cerrno>
 #include <cstdio>
 #include <clocale>
+#include <string>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -23,6 +24,37 @@ namespace Lua {
 // ===================================================================
 // Helper Functions
 // ===================================================================
+
+static std::string errnoMessage(int err) {
+#ifdef _MSC_VER
+    char buf[256] = {};
+    strerror_s(buf, sizeof(buf), err);
+    return std::string(buf);
+#else
+    return std::string(std::strerror(err));
+#endif
+}
+
+static i32 pushFileErrorResult(LuaState* L, const char* filename, int err) {
+    if (err == 0) {
+        err = errno;
+    }
+    if (err == 0) {
+        err = EINVAL;
+    }
+
+    std::string message;
+    if (filename != nullptr && filename[0] != '\0') {
+        message = std::string(filename) + ": " + errnoMessage(err);
+    } else {
+        message = errnoMessage(err);
+    }
+
+    L->pushNil();
+    L->pushString(L->getGlobalState().getStringPool().intern(message.c_str()));
+    L->pushNumber(static_cast<f64>(err));
+    return 3;
+}
 
 /**
  * @brief 设置日期表的整数字段
@@ -177,16 +209,22 @@ i32 luaOS_remove(LuaState* L) {
     }
 
     const char* filename = L->toString(1);
+    errno = 0;
     if (std::remove(filename) == 0) {
         L->pushBoolean(true);
     } else {
+        int err = errno;
 #ifdef _WIN32
+        errno = 0;
         if (releaseFileHandlesForPath(L, filename) && std::remove(filename) == 0) {
             L->pushBoolean(true);
             return 1;
         }
+        if (errno != 0) {
+            err = errno;
+        }
 #endif
-        L->pushNil();
+        return pushFileErrorResult(L, filename, err);
     }
     return 1;
 }
@@ -202,17 +240,23 @@ i32 luaOS_rename(LuaState* L) {
     const char* oldName = L->toString(1);
     const char* newName = L->toString(2);
 
+    errno = 0;
     if (std::rename(oldName, newName) == 0) {
         L->pushBoolean(true);
     } else {
+        int err = errno;
 #ifdef _WIN32
+        errno = 0;
         if (releaseFileHandlesForPath(L, oldName) &&
             std::rename(oldName, newName) == 0) {
             L->pushBoolean(true);
             return 1;
         }
+        if (errno != 0) {
+            err = errno;
+        }
 #endif
-        L->pushNil();
+        return pushFileErrorResult(L, oldName, err);
     }
     return 1;
 }
