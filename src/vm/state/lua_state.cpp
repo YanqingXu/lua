@@ -16,6 +16,7 @@
 #include "vm/vm.hpp"
 #include "core/upvalue.hpp"
 #include <algorithm>
+#include <array>
 #ifdef DEBUG
 #include <cassert>
 #endif
@@ -210,9 +211,7 @@ LuaState::~LuaState() {
 
 void LuaState::initialize() {
     // 创建全局表
-    globalTable_ = new Table();
-    globalState_.getGC().registerObject(globalTable_);
-    globalState_.getGC().addRoot(globalTable_);
+    globalTable_ = globalState_.getGC().createRoot<Table>();
 
     // 初始化第一个调用信息（虚拟的主函数）
     CallInfo& ci = callStack_[0];
@@ -271,7 +270,7 @@ Upvalue* LuaState::findOrCreateUpvalue(usize stackIndex) {
 
     // 3. 没找到，创建新的upvalue
     // ✅ 改进：只传递索引，不传递指针
-    Upvalue* newUpval = Upvalue::createOpen(stackIndex, stack_);
+    Upvalue* newUpval = globalState_.getGC().create<Upvalue>(stackIndex, stack_);
 
     // 4. 插入链表（保持降序）
     newUpval->setNext(curr);
@@ -282,9 +281,6 @@ Upvalue* LuaState::findOrCreateUpvalue(usize stackIndex) {
         // 插入到prev之后
         prev->setNext(newUpval);
     }
-
-    // 5. 注册到GC
-    globalState_.getGC().registerObject(newUpval);
 
     return newUpval;
 }
@@ -719,6 +715,22 @@ i32 LuaState::pcall(i32 nargs, i32 nresults, i32 errfunc) {
     }
 }
 
+std::expected<i32, RuntimeError> LuaState::tryPCall(i32 nargs, i32 nresults, i32 errfunc) {
+    const i32 status = pcall(nargs, nresults, errfunc);
+    if (status == LUA_OK) {
+        return status;
+    }
+
+    try {
+        if (getTop() > 0) {
+            return std::unexpected(RuntimeError(top()));
+        }
+    } catch (...) {
+    }
+
+    return std::unexpected(RuntimeError("pcall failed"));
+}
+
 i32 LuaState::getTop() const {
     // 返回值 = top - base
     if (currentCI_ > 0) {
@@ -873,12 +885,12 @@ i32 LuaState::type(i32 idx) const {
 }
 
 const char* LuaState::typeName(i32 tp) const {
-    static const char* typeNames[] = {
+    static constexpr std::array<StrView, 9> typeNames{{
         "nil", "boolean", "lightuserdata", "number",
         "string", "table", "function", "userdata", "thread"
-    };
-    if (tp >= 0 && tp < 9) {
-        return typeNames[tp];
+    }};
+    if (tp >= 0 && static_cast<usize>(tp) < typeNames.size()) {
+        return typeNames[static_cast<usize>(tp)].data();
     }
     return "no value";
 }
@@ -905,21 +917,33 @@ LuaNumber LuaState::toNumber(i32 idx) const {
     }
 }
 
-const char* LuaState::toString(i32 idx) {
+Opt<StrView> LuaState::tryToString(i32 idx) {
     try {
         Value& v = at(idx);
         if (v.isString()) {
-            return v.asString()->c_str();
+            return v.asString()->view();
         }
         if (v.isNumber()) {
             // 将数字转换为字符串并替换栈上的值
-            char buffer[64];
-            std::snprintf(buffer, sizeof(buffer), "%.14g", v.asNumber());
-            GCString* str = globalState_.getStringPool().intern(buffer);
+            Str text = luaNumberToString(v.asNumber());
+            GCString* str = globalState_.getStringPool().intern(text);
             v = Value(str);
-            return str->c_str();
+            return str->view();
         }
+        return std::nullopt;
+    } catch (...) {
+        return std::nullopt;
+    }
+}
+
+const char* LuaState::toString(i32 idx) {
+    if (!tryToString(idx).has_value()) {
         return nullptr;
+    }
+
+    try {
+        Value& v = at(idx);
+        return v.isString() ? v.asString()->c_str() : nullptr;
     } catch (...) {
         return nullptr;
     }

@@ -23,6 +23,7 @@
 #include "runtime/runtime_services.hpp"
 #include "compiler/parser/parser.hpp"
 #include "compiler/codegen/codegen.hpp"
+#include <format>
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -63,6 +64,7 @@ i32 luaB_print(LuaState* L) {
     
     for (i32 i = 1; i <= n; i++) {
         const char* s = nullptr;
+        Str formatted;
         
         // 尝试将值转换为字符串
         if (L->isString(i)) {
@@ -75,14 +77,12 @@ i32 luaB_print(LuaState* L) {
             s = "nil";
         } else if (L->isTable(i)) {
             // 表类型显示地址
-            char buffer[64];
-            std::snprintf(buffer, sizeof(buffer), "table: %p", static_cast<void*>(L->at(i).asTable()));
-            s = buffer;
+            formatted = std::format("table: {}", static_cast<void*>(L->at(i).asTable()));
+            s = formatted.c_str();
         } else if (L->isFunction(i)) {
             // 函数类型显示地址
-            char buffer[64];
-            std::snprintf(buffer, sizeof(buffer), "function: %p", static_cast<void*>(L->at(i).asFunction()));
-            s = buffer;
+            formatted = std::format("function: {}", static_cast<void*>(L->at(i).asFunction()));
+            s = formatted.c_str();
         } else {
             s = "unknown";
         }
@@ -127,7 +127,7 @@ i32 luaB_tostring(LuaState* L) {
     }
 
     const char* s = nullptr;
-    char buffer[128];
+    Str formatted;
     Value original = L->at(1);
 
     if (L->getMetatable(1)) {
@@ -166,14 +166,14 @@ i32 luaB_tostring(LuaState* L) {
     } else if (L->isNil(1)) {
         s = "nil";
     } else if (L->isTable(1)) {
-        std::snprintf(buffer, sizeof(buffer), "table: %p", static_cast<void*>(L->at(1).asTable()));
-        s = buffer;
+        formatted = std::format("table: {}", static_cast<void*>(L->at(1).asTable()));
+        s = formatted.c_str();
     } else if (L->isFunction(1)) {
-        std::snprintf(buffer, sizeof(buffer), "function: %p", static_cast<void*>(L->at(1).asFunction()));
-        s = buffer;
+        formatted = std::format("function: {}", static_cast<void*>(L->at(1).asFunction()));
+        s = formatted.c_str();
     } else {
-        std::snprintf(buffer, sizeof(buffer), "%s: %p", L->typeName(L->type(1)), static_cast<void*>(&L->at(1)));
-        s = buffer;
+        formatted = std::format("{}: {}", L->typeName(L->type(1)), static_cast<void*>(&L->at(1)));
+        s = formatted.c_str();
     }
 
     GCString* str = L->getGlobalState().getStringPool().intern(s);
@@ -487,8 +487,7 @@ static i32 luaB_newproxy(LuaState* L) {
         const Value& arg = L->at(1);
         if (arg.isBoolean()) {
             if (arg.asBoolean()) {
-                metatable = new Table();
-                gc.registerObject(metatable);
+                metatable = gc.create<Table>();
             }
         } else if (arg.isUserdata()) {
             metatable = arg.asUserdata()->getMetatable();
@@ -497,8 +496,7 @@ static i32 luaB_newproxy(LuaState* L) {
         }
     }
 
-    Userdata* userdata = Userdata::createFull(1);
-    gc.registerObject(userdata);
+    Userdata* userdata = gc.create<Userdata>(1);
     userdata->setMetatable(metatable);
     L->pushUserdata(userdata);
     return 1;
@@ -560,8 +558,7 @@ static i32 luaB_pairs(LuaState* L) {
     GlobalState& gs = L->getGlobalState();
 
     // 创建next函数对象
-    Function* nextFunc = new Function(luaB_next);
-    gs.getGC().registerObject(nextFunc);
+    Function* nextFunc = gs.getGC().create<Function>(luaB_next);
 
     L->pushFunction(nextFunc);
     L->pushValue(tableVal);
@@ -621,8 +618,7 @@ static i32 luaB_ipairs(LuaState* L) {
     // 创建ipairs迭代器函数
     GlobalState& gs = L->getGlobalState();
 
-    Function* iterFunc = new Function(ipairsIter);
-    gs.getGC().registerObject(iterFunc);
+    Function* iterFunc = gs.getGC().create<Function>(ipairsIter);
 
     L->pushFunction(iterFunc);
     L->pushValue(tableVal);
@@ -948,8 +944,7 @@ private:
     }
 
     Proto* readProto() {
-        Proto* proto = new Proto();
-        gc_.registerObject(proto);
+        Proto* proto = gc_.create<Proto>();
         proto->setSource(readMaybeString());
         proto->setLineDefined(readI32());
         proto->setLastLineDefined(readI32());
@@ -1018,13 +1013,11 @@ static StrView skipInitialHashCommentLine(StrView source) {
 }
 
 static Function* createLuaFunctionFromProto(LuaState* L, Proto* proto) {
-    Function* func = new Function(proto);
-    L->getGlobalState().getGC().registerObject(func);
+    Function* func = L->getGlobalState().getGC().create<Function>(proto);
     func->setEnv(L->getGlobalTable());
 
     for (u8 i = 0; i < proto->getNumUpvalues(); ++i) {
-        Upvalue* upvalue = Upvalue::createClosed(Value());
-        L->getGlobalState().getGC().registerObject(upvalue);
+        Upvalue* upvalue = L->getGlobalState().getGC().create<Upvalue>(Value());
         func->addUpvalue(upvalue);
     }
 

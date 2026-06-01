@@ -51,7 +51,7 @@ struct HandlerEntry {
 using HandlerTable = std::array<HandlerEntry, static_cast<usize>(NUM_OPCODES)>;
 
 const HandlerTable& handlerTable() noexcept;
-OpHandler handlerFor(OpCode op) noexcept;
+Opt<OpHandler> handlerFor(OpCode op) noexcept;
 bool hasHandler(OpCode op) noexcept;
 HandlerStatus runHandler(OpExecutionContext& context, Instruction inst);
 

@@ -99,9 +99,8 @@ private:
     void patchtohere(const PatchList& list);
     void fixjump(i32 pc, i32 dest);
 
-    Proto* compileFunction(const Vec<Str>& params, bool isVararg, const Vec<StmtPtr>& body,
-                           i32 linedefined, i32 lastlinedefined,
-                           Vec<UpvalueCapture>* outUpvalues);
+    CompiledFunction compileFunction(const Vec<Str>& params, bool isVararg, const Vec<StmtPtr>& body,
+                                     i32 linedefined, i32 lastlinedefined);
     void emitClosureUpvalues(const Vec<UpvalueCapture>& upvalues);
 
     CodeGenerator& owner_;

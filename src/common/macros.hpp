@@ -40,14 +40,14 @@ namespace Lua {
 
 /// 标准断言（仅在调试模式下有效）
 #ifdef NDEBUG
-    #define LUA_ASSERT(condition) ((void)0)
+    #define LUA_ASSERT(condition) do { } while (false)
 #else
     #define LUA_ASSERT(condition) assert(condition)
 #endif
 
 /// 带消息的断言
 #ifdef NDEBUG
-    #define LUA_ASSERT_MSG(condition, message) ((void)0)
+    #define LUA_ASSERT_MSG(condition, message) do { } while (false)
 #else
     #define LUA_ASSERT_MSG(condition, message) \
         do { \
@@ -92,7 +92,7 @@ namespace Lua {
                       << __FILE__ << ":" << __LINE__ << ")" << std::endl; \
         } while (0)
 #else
-    #define LUA_LOG_DEBUG(message) ((void)0)
+    #define LUA_LOG_DEBUG(message) do { } while (false)
 #endif
 
 /// 信息日志
@@ -122,7 +122,7 @@ namespace Lua {
             std::cout << "[VERBOSE] " << message << std::endl; \
         } while (0)
 #else
-    #define LUA_LOG_VERBOSE(message) ((void)0)
+    #define LUA_LOG_VERBOSE(message) do { } while (false)
 #endif
 
 /// GC日志（仅在启用GC日志时输出）
@@ -132,27 +132,24 @@ namespace Lua {
             std::cout << "[GC] " << message << std::endl; \
         } while (0)
 #else
-    #define LUA_LOG_GC(message) ((void)0)
+    #define LUA_LOG_GC(message) do { } while (false)
 #endif
 
 /** @} */
 
 // =====================================================================
-// 未使用参数宏
+// 未使用参数辅助函数
 // =====================================================================
 
 /**
- * @name 未使用参数宏
+ * @name 未使用参数辅助函数
  * @brief 标记未使用的参数，避免编译器警告
  * @{
  */
 
 /// 标记未使用的参数
-#define LUA_UNUSED(x) ((void)(x))
-
-/// 标记未使用的多个参数
-#define LUA_UNUSED2(x, y) ((void)(x), (void)(y))
-#define LUA_UNUSED3(x, y, z) ((void)(x), (void)(y), (void)(z))
+template<typename... Args>
+constexpr void luaUnused(const Args&...) noexcept {}
 
 /** @} */
 
@@ -238,30 +235,6 @@ namespace Lua {
 /** @} */
 
 // =====================================================================
-// 类型转换宏
-// =====================================================================
-
-/**
- * @name 类型转换宏
- * @brief 安全的类型转换宏
- * @{
- */
-
-/// 静态类型转换（编译期检查）
-#define LUA_STATIC_CAST(type, value) static_cast<type>(value)
-
-/// 动态类型转换（运行期检查）
-#define LUA_DYNAMIC_CAST(type, value) dynamic_cast<type>(value)
-
-/// 常量转换
-#define LUA_CONST_CAST(type, value) const_cast<type>(value)
-
-/// 重新解释转换（谨慎使用）
-#define LUA_REINTERPRET_CAST(type, value) reinterpret_cast<type>(value)
-
-/** @} */
-
-// =====================================================================
 // 性能统计宏
 // =====================================================================
 
@@ -287,8 +260,8 @@ namespace Lua {
             std::cout << "[PERF] " << #name << ": " << __perf_duration_##name << " us" << std::endl; \
         } while (0)
 #else
-    #define LUA_PERF_START(name) ((void)0)
-    #define LUA_PERF_END(name) ((void)0)
+    #define LUA_PERF_START(name) do { } while (false)
+    #define LUA_PERF_END(name) do { } while (false)
 #endif
 
 /** @} */
@@ -309,7 +282,7 @@ namespace Lua {
         std::cout << "[DEBUG] " << #var << " = " << (var) << " (" \
                   << __FILE__ << ":" << __LINE__ << ")" << std::endl
 #else
-    #define LUA_DEBUG_PRINT(var) ((void)0)
+    #define LUA_DEBUG_PRINT(var) do { } while (false)
 #endif
 
 /// 标记未实现的功能
@@ -326,50 +299,68 @@ namespace Lua {
 /** @} */
 
 // =====================================================================
-// 位操作宏
+// 位操作辅助函数
 // =====================================================================
 
 /**
- * @name 位操作宏
- * @brief 常用的位操作宏
+ * @name 位操作辅助函数
+ * @brief 常用的位操作辅助函数
  * @{
  */
 
 /// 设置位
-#define LUA_BIT_SET(value, bit) ((value) |= (1u << (bit)))
+template<typename T, typename Bit>
+constexpr void luaBitSet(T& value, Bit bit) noexcept {
+    value = static_cast<T>(value | (T{1} << bit));
+}
 
 /// 清除位
-#define LUA_BIT_CLEAR(value, bit) ((value) &= ~(1u << (bit)))
+template<typename T, typename Bit>
+constexpr void luaBitClear(T& value, Bit bit) noexcept {
+    value = static_cast<T>(value & ~(T{1} << bit));
+}
 
 /// 切换位
-#define LUA_BIT_TOGGLE(value, bit) ((value) ^= (1u << (bit)))
+template<typename T, typename Bit>
+constexpr void luaBitToggle(T& value, Bit bit) noexcept {
+    value = static_cast<T>(value ^ (T{1} << bit));
+}
 
 /// 检查位
-#define LUA_BIT_CHECK(value, bit) (((value) & (1u << (bit))) != 0)
+template<typename T, typename Bit>
+constexpr bool luaBitCheck(T value, Bit bit) noexcept {
+    return (value & (T{1} << bit)) != 0;
+}
 
 /** @} */
 
 // =====================================================================
-// 对齐宏
+// 对齐辅助函数
 // =====================================================================
 
 /**
- * @name 对齐宏
- * @brief 内存对齐相关的宏
+ * @name 对齐辅助函数
+ * @brief 内存对齐相关的辅助函数
  * @{
  */
 
 /// 向上对齐到指定边界
-#define LUA_ALIGN_UP(value, alignment) \
-    (((value) + (alignment) - 1) & ~((alignment) - 1))
+template<typename T>
+constexpr T luaAlignUp(T value, T alignment) noexcept {
+    return (value + alignment - 1) & ~(alignment - 1);
+}
 
 /// 向下对齐到指定边界
-#define LUA_ALIGN_DOWN(value, alignment) \
-    ((value) & ~((alignment) - 1))
+template<typename T>
+constexpr T luaAlignDown(T value, T alignment) noexcept {
+    return value & ~(alignment - 1);
+}
 
 /// 检查是否对齐
-#define LUA_IS_ALIGNED(value, alignment) \
-    (((value) & ((alignment) - 1)) == 0)
+template<typename T>
+constexpr bool luaIsAligned(T value, T alignment) noexcept {
+    return (value & (alignment - 1)) == 0;
+}
 
 /** @} */
 

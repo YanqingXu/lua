@@ -29,6 +29,7 @@
 #include "vm/state/stack.hpp"
 #include "vm/state/call_info.hpp"
 #include "vm/vm_constants.hpp"
+#include <expected>
 
 namespace Lua {
 
@@ -276,6 +277,11 @@ public:
     i32 pcall(i32 nargs, i32 nresults, i32 errfunc);
 
     /**
+     * @brief Modern protected-call facade; preserves pcall stack effects.
+     */
+    [[nodiscard]] std::expected<i32, RuntimeError> tryPCall(i32 nargs, i32 nresults, i32 errfunc);
+
+    /**
      * @brief 获取绝对栈顶索引
      *
      * 返回栈顶的绝对索引（用于 VM 内部）
@@ -413,6 +419,7 @@ public:
     /**
      * @brief 将栈索引处的值转换为字符串
      */
+    Opt<StrView> tryToString(i32 idx);
     const char* toString(i32 idx);
 
     /**

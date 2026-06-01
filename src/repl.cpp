@@ -271,8 +271,7 @@ void initialize(LuaState* L) {
     GCString* prompt2Val = pool.intern(DEFAULT_PROMPT2);
     L->setGlobal("_PROMPT2", Value(prompt2Val));
 
-    Function* exitFunc = new Function(luaB_exit);
-    L->getGlobalState().getGC().registerObject(exitFunc);
+    Function* exitFunc = L->getGlobalState().getGC().create<Function>(luaB_exit);
     L->setGlobal("exit", Value(exitFunc));
 }
 

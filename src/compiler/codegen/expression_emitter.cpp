@@ -153,10 +153,10 @@ void ExpressionEmitter::fixjump(i32 pc, i32 dest) {
     jumps_.fixJump(pc, dest);
 }
 
-Proto* ExpressionEmitter::compileFunction(const Vec<Str>& params, bool isVararg, const Vec<StmtPtr>& body,
-                                          i32 linedefined, i32 lastlinedefined,
-                                          Vec<UpvalueCapture>* outUpvalues) {
-    return owner_.compileFunction(params, isVararg, body, linedefined, lastlinedefined, outUpvalues);
+CompiledFunction ExpressionEmitter::compileFunction(const Vec<Str>& params, bool isVararg,
+                                                    const Vec<StmtPtr>& body,
+                                                    i32 linedefined, i32 lastlinedefined) {
+    return owner_.compileFunction(params, isVararg, body, linedefined, lastlinedefined);
 }
 
 void ExpressionEmitter::emitClosureUpvalues(const Vec<UpvalueCapture>& upvalues) {
@@ -377,14 +377,10 @@ ValueResult ExpressionEmitter::visitNode(const FunctionExpr& e) {
         lastlinedefined = linedefined;
     }
 
-    Vec<UpvalueCapture> childUpvalues;
-    Proto* funcProto = compileFunction(e.params, e.isVararg,
-                                       e.body, linedefined, lastlinedefined,
-                                       &childUpvalues);
-    i32 protoIdx = state_.bytecode.addSubProto(funcProto);
+    CompiledFunction function = compileFunction(e.params, e.isVararg, e.body, linedefined, lastlinedefined);
     i32 reg = allocReg();
-    codeABx(OpCode::CLOSURE, reg, protoIdx);
-    emitClosureUpvalues(childUpvalues);
+    codeABx(OpCode::CLOSURE, reg, function.protoIndex);
+    emitClosureUpvalues(function.upvalues);
 
     return ValueResult::makeRegister(reg, true);
 }
@@ -741,7 +737,7 @@ ValueResult ExpressionEmitter::emitValueTable(const TableExpr& table) {
         }
 
         codeABC(OpCode::SETLIST, tableReg, count, 0);
-        (void)ops_.codeRaw(static_cast<Instruction>(block));
+        [[maybe_unused]] const i32 blockPc = ops_.codeRaw(static_cast<Instruction>(block));
     };
 
     for (usize i = 0; i < table.fields.size(); i++) {

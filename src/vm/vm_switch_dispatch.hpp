@@ -163,7 +163,7 @@ inline HandlerStatus execOpVararg(OpExecutionContext& context, Instruction inst)
     return runHandler(context, inst);
 }
 
-inline SwitchOpHandler switchHandlerFor(OpCode op) noexcept {
+inline Opt<SwitchOpHandler> switchHandlerFor(OpCode op) noexcept {
     switch (op) {
         case OpCode::MOVE: return execOpMove;
         case OpCode::LOADK: return execOpLoadK;
@@ -204,7 +204,7 @@ inline SwitchOpHandler switchHandlerFor(OpCode op) noexcept {
         case OpCode::CLOSURE: return execOpClosure;
         case OpCode::VARARG: return execOpVararg;
     }
-    return nullptr;
+    return std::nullopt;
 }
 
 }  // namespace Lua::VM::detail

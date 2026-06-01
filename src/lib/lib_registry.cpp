@@ -27,8 +27,7 @@ Function* FunctionRegistrar::createClosure(LuaState* L, LibCFunction func) {
     if (!L || !func) {
         return nullptr;
     }
-    Function* closure = new Function(func);
-    L->getGlobalState().getGC().registerObject(closure);
+    Function* closure = L->getGlobalState().getGC().create<Function>(func);
     closure->setEnv(L->getGlobalTable());
     return closure;
 }
@@ -73,8 +72,7 @@ Table* FunctionRegistrar::createLibTable(LuaState* L, const char* libName) {
         return nullptr;
     }
 
-    Table* table = new Table();
-    L->getGlobalState().getGC().registerObject(table);
+    Table* table = L->getGlobalState().getGC().create<Table>();
     L->setGlobal(libName, Value(table));
     return table;
 }

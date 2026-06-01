@@ -7,6 +7,8 @@
 
 namespace Lua {
 
+class Proto;
+
 // 前向声明
 class GCString;
 
@@ -153,12 +155,23 @@ public:
  */
 struct BlockInfo {
     BlockInfo* previous;
+    UPtr<BlockInfo> previousOwner;
     i32 breaklist;
     i32 activeVarCount;
     bool isbreakable;
 
-    BlockInfo(BlockInfo* prev, i32 activeCount, bool breakable)
-        : previous(prev), breaklist(NO_JUMP), activeVarCount(activeCount), isbreakable(breakable) {}
+    BlockInfo(UPtr<BlockInfo> prev, i32 activeCount, bool breakable)
+        : previous(prev.get())
+        , previousOwner(std::move(prev))
+        , breaklist(NO_JUMP)
+        , activeVarCount(activeCount)
+        , isbreakable(breakable) {}
+};
+
+struct CompiledFunction {
+    Proto* proto = nullptr;
+    i32 protoIndex = -1;
+    Vec<UpvalueCapture> upvalues;
 };
 
 /**
@@ -175,8 +188,21 @@ public:
     BlockManager() = default;
 
     void enterBlock(bool isBreakable, i32 activeVarCount) {
-        BlockInfo* newBlock = new BlockInfo(currentBlock_, activeVarCount, isBreakable);
-        currentBlock_ = newBlock;
+        currentBlockOwner_ = std::make_unique<BlockInfo>(
+            std::move(currentBlockOwner_), activeVarCount, isBreakable);
+        currentBlock_ = currentBlockOwner_.get();
+    }
+
+    [[nodiscard]] UPtr<BlockInfo> takeCurrentBlock() {
+        if (currentBlock_ == nullptr) {
+            throw std::runtime_error("No block to leave");
+        }
+
+        UPtr<BlockInfo> block = std::move(currentBlockOwner_);
+        currentBlockOwner_ = std::move(block->previousOwner);
+        currentBlock_ = currentBlockOwner_.get();
+        block->previous = nullptr;
+        return block;
     }
 
     /// 离开当前代码块，移除局部变量，修复 break 跳转
@@ -186,34 +212,27 @@ public:
     /// @param patchToHere 修补跳转到当前位置的回调
     void leaveBlock(LocalVarScope& localScope, RegisterAllocator& registers,
                     i32 currentPc, const std::function<void(i32)>& patchToHere) {
-        if (currentBlock_ == nullptr) {
-            throw std::runtime_error("No block to leave");
-        }
-
-        BlockInfo* bl = currentBlock_;
-        currentBlock_ = bl->previous;
+        UPtr<BlockInfo> bl = takeCurrentBlock();
 
         localScope.closeLocals(bl->activeVarCount, currentPc);
         registers.resetToLocals(localScope.activeVarCount_);
         registers.checkStack(0);
 
         patchToHere(bl->breaklist);
-
-        delete bl;
     }
 
     void reset() {
-        while (currentBlock_) {
-            BlockInfo* prev = currentBlock_->previous;
-            delete currentBlock_;
-            currentBlock_ = prev;
-        }
+        currentBlockOwner_.reset();
+        currentBlock_ = nullptr;
         jpc_ = NO_JUMP;
     }
 
     // === 公开字段（兼容旧代码的直接读写） ===
     BlockInfo* currentBlock_ = nullptr;
     i32 jpc_ = NO_JUMP;
+
+private:
+    UPtr<BlockInfo> currentBlockOwner_;
 };
 
 }  // namespace Lua

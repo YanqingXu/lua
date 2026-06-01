@@ -35,13 +35,12 @@ void closure(LuaState* L, Value* base, Proto* currentProto, Function* currentFun
     }
 
     Proto* childProto = currentProto->getSubProto(bx);
-    Function* closure = new Function(childProto);
+    Function* closure = L->getGlobalState().getGC().create<Function>(childProto);
     Table* env = currentFunc ? currentFunc->getEnv() : nullptr;
     if (!env) {
         env = L->getGlobalTable();
     }
     closure->setEnv(env);
-    L->getGlobalState().getGC().registerObject(closure);
 
     i32 nups = childProto->getNumUpvalues();
     if (nups > 0) {

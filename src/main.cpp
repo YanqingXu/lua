@@ -51,6 +51,7 @@
 #include <cstring>
 #include <iostream>
 #include <memory>
+#include <span>
 #include <sstream>
 #include <windows.h>
 
@@ -180,20 +181,20 @@ UPtr<LuaState> createLuaState(EngineContext& context) {
  * @param argv Command-line argument array
  * @param scriptIndex Index of script file name in argv
  */
-void setupArgTable(LuaState* L, i32 argc, char* argv[], i32 scriptIndex) {
+void setupArgTable(LuaState* L, std::span<const Str> args, i32 scriptIndex) {
     // Create arg table and register to GC
     // Note: In official Lua, table is pre-allocated with lua_createtable(L, narg, n+1)
     // where narg = argc - (scriptIndex + 1) is the script argument count
-    Table* argTable = new Table();
-    L->getGlobalState().getGC().registerObject(argTable);
+    Table* argTable = L->getGlobalState().getGC().create<Table>();
 
     // Populate arg table with all arguments
     // Index formula: i - scriptIndex (matches official Lua implementation)
     // This creates: arg[-scriptIndex] ... arg[0] ... arg[narg-1]
-    for (i32 i = 0; i < argc; i++) {
-        const char* argText = argv[i];
+    for (i32 i = 0; i < static_cast<i32>(args.size()); i++) {
+        const Str& arg = args[static_cast<usize>(i)];
+        const char* argText = arg.c_str();
         Str adjustedArg;
-        if (i == 0 && argText != nullptr) {
+        if (i == 0) {
             adjustedArg = argText;
             for (char& ch : adjustedArg) {
                 if (ch == '\\') {
@@ -201,8 +202,9 @@ void setupArgTable(LuaState* L, i32 argc, char* argv[], i32 scriptIndex) {
                 }
             }
             argText = adjustedArg.c_str();
-        } else if (i + 1 < scriptIndex && argv[i] != nullptr && argv[i + 1] != nullptr &&
-            std::strcmp(argv[i], "-e") == 0 && std::strcmp(argv[i + 1], "--") == 0) {
+        } else if (i + 1 < scriptIndex &&
+            args[static_cast<usize>(i)] == "-e" &&
+            args[static_cast<usize>(i + 1)] == "--") {
             adjustedArg = "-e ";
             argText = adjustedArg.c_str();
         }
@@ -311,12 +313,12 @@ bool isPendingAssignmentName(StrView source) {
 
 Vec<Str> collectScriptArgs(const AppOptions& opt) {
     Vec<Str> args;
-    if (opt.scriptIndex < 0 || opt.argv == nullptr) {
+    if (opt.scriptIndex < 0) {
         return args;
     }
 
-    for (i32 i = opt.scriptIndex + 1; i < opt.argc; ++i) {
-        args.emplace_back(opt.argv[i] ? opt.argv[i] : "");
+    for (i32 i = opt.scriptIndex + 1; i < static_cast<i32>(opt.arguments.size()); ++i) {
+        args.push_back(opt.arguments[static_cast<usize>(i)]);
     }
     return args;
 }
@@ -406,7 +408,7 @@ int executeStdinScript(LuaState* L, const Vec<Str>& args) {
 }
 
 int executeStartupAction(LuaState* L, const StartupAction& action) {
-    const Str argument = action.argument ? action.argument : "";
+    const Str& argument = action.argument;
 
     if (action.kind == StartupActionKind::ExecuteChunk) {
         constexpr StrView chunkName("=(command line)");
@@ -496,7 +498,7 @@ int runQuietInteractive(LuaState* L) {
 } // namespace
 
 int Lua::runApp(const AppOptions& opt) {
-    const char* programName = opt.programName ? opt.programName : "lua";
+    const char* programName = !opt.programName.empty() ? opt.programName.c_str() : "lua";
 
     REPL::setProgName(programName);
 
@@ -506,7 +508,7 @@ int Lua::runApp(const AppOptions& opt) {
         return 0;
 
     case RunMode::Error:
-        REPL::reportError(opt.errorMessage ? opt.errorMessage : "invalid command line");
+        REPL::reportError(opt.errorMessage ? opt.errorMessage->c_str() : "invalid command line");
         return 1;
 
     case RunMode::ShowHelp:
@@ -536,13 +538,13 @@ int Lua::runApp(const AppOptions& opt) {
     VM::setTraceDiffEnabled(false);
 
     UPtr<JsonTraceSink> traceSink;
-    if (opt.traceFile) {
-        traceSink = makeUnique<JsonTraceSink>(opt.traceFile);
+    if (opt.traceFile.has_value()) {
+        traceSink = makeUnique<JsonTraceSink>(opt.traceFile->c_str());
         if (traceSink->isOpen()) {
             VM::setTraceDiffEnabled(opt.traceDiff);
             VM::setTraceSink(traceSink.get());
             std::cout << (opt.traceDiff ? "[TRACE] Trace diff enabled → " : "[TRACE] Trace enabled → ")
-                      << opt.traceFile << std::endl;
+                      << *opt.traceFile << std::endl;
         } else {
             std::cerr << "[TRACE] Warning: cannot open trace file, trace disabled." << std::endl;
             VM::setTraceDiffEnabled(false);
@@ -557,13 +559,13 @@ int Lua::runApp(const AppOptions& opt) {
             break;
         }
 
-        if (opt.scriptFile != nullptr) {
-            setupArgTable(L.get(), static_cast<i32>(opt.argc), opt.argv, opt.scriptIndex);
+        if (opt.scriptFile.has_value()) {
+            setupArgTable(L.get(), std::span<const Str>(opt.arguments.data(), opt.arguments.size()), opt.scriptIndex);
             Vec<Str> scriptArgs = collectScriptArgs(opt);
-            if (std::strcmp(opt.scriptFile, "-") == 0) {
+            if (*opt.scriptFile == "-") {
                 status = executeStdinScript(L.get(), scriptArgs);
             } else {
-                status = executeScript(L.get(), opt.scriptFile, scriptArgs);
+                status = executeScript(L.get(), opt.scriptFile->c_str(), scriptArgs);
             }
         }
 

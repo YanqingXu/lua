@@ -216,7 +216,7 @@ void GarbageCollector::mark(LuaState* currentState) {
 }
 
 void GarbageCollector::propagateMarks() {
-    (void)propagateMarks(static_cast<usize>(-1));
+    [[maybe_unused]] const usize propagated = propagateMarks(static_cast<usize>(-1));
 }
 
 usize GarbageCollector::propagateMarks(usize budget) {

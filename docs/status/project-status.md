@@ -47,8 +47,8 @@ applies_to: 当前仓库事实与面向贡献者的工作流
 ## 测试状态
 
 - 测试框架：自定义轻量级 C++ 测试框架，vendored 在 `lua_test/include/test_framework`，由 `tests/unit/framework` 适配。
-- 最近验证的测试计数：639 个 registered tests，3188 个 assertion results，0 failures。
-- Lua 5.1 官方测试套件已放入 `tests/lua/official/`，并通过 `Lua 5.1 Official Suite` 单元测试以 staged smoke 形式运行 `all.lua`；当前官方子脚本 skip 表为 0，`_soft=true` 用于保持官方 semantic smoke 在单元测试中可控，`main.lua`、`gc.lua`、`db.lua`、`api.lua`、`big.lua`、`verybig.lua`、`files.lua` 与 `code.lua` 已纳入 staged smoke。
+- 最近验证的测试计数：640 个 registered tests，3234 个 assertion results，0 failures。
+- Lua 5.1 官方测试套件已放入 `tests/lua/official/`，并通过 `Lua 5.1 Official Suite` 单元测试以 staged smoke 形式运行 `all.lua`；当前官方子脚本 skip 表为 0，`_soft=true` 用于保持官方 semantic smoke 在单元测试中可控，当前 bounded smoke 覆盖到 `vararg.lua`，后续 closure/error/math tail 仍作为兼容性深度工作保留。
 - `bin\lua_test.exe` 支持 `--list`、`--filter <suite-or-name>` 和 `--report=junit`。
 - 这些数字描述的是项目测试运行器结果，不是 Lua 5.1.5 兼容率百分比。
 

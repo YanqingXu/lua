@@ -24,6 +24,9 @@
 
 #include "common/types.hpp"
 #include "core/gc_object.hpp"
+#include <memory>
+#include <type_traits>
+#include <utility>
 #include <vector>
 
 namespace Lua {
@@ -118,9 +121,24 @@ public:
     /**
      * @brief 从GC管理链表中摘除对象
      *
-     * 主要用于兼容仍然手动 delete 的旧代码路径。该函数不释放对象本身。
+     * 主要用于尚未 commit 的 RAII guard 放弃 GC 托管。该函数不释放对象本身。
      */
     void unregisterObject(GCObject* obj) noexcept;
+
+    template<typename T, typename... Args>
+    [[nodiscard]] T* create(Args&&... args) {
+        return createManaged<T>(false, false, std::forward<Args>(args)...);
+    }
+
+    template<typename T, typename... Args>
+    [[nodiscard]] T* createRoot(Args&&... args) {
+        return createManaged<T>(true, false, std::forward<Args>(args)...);
+    }
+
+    template<typename T, typename... Args>
+    [[nodiscard]] T* createFixedRoot(Args&&... args) {
+        return createManaged<T>(true, true, std::forward<Args>(args)...);
+    }
     
     /**
      * @brief 添加根对象
@@ -389,6 +407,30 @@ private:
     friend class MarkSweepGC;
     friend class IncrementalGC;
 
+    template<typename T, typename... Args>
+    [[nodiscard]] T* createManaged(bool root, bool fixed, Args&&... args) {
+        static_assert(std::is_base_of_v<GCObject, T>, "GarbageCollector::create<T> requires a GCObject type");
+
+        auto object = std::make_unique<T>(std::forward<Args>(args)...);
+        T* raw = object.get();
+        registerObject(raw);
+
+        try {
+            if (fixed) {
+                raw->setMarked(raw->getMarked() | GCBits::FIXED);
+            }
+            if (root) {
+                addRoot(raw);
+            }
+        } catch (...) {
+            unregisterObject(raw);
+            throw;
+        }
+
+        object.release();
+        return raw;
+    }
+
     enum class IncrementalPhase : u8 {
         Pause,
         Propagate,
@@ -406,6 +448,7 @@ private:
     static GarbageCollector& legacyInstance();
 
     StringPool& stringPoolForCollection(LuaState* currentState) const;
+    void destroyObject(GCObject* obj, StringPool& stringPool);
     [[nodiscard]] usize collectMarkSweep(StringPool& stringPool, LuaState* currentState);
     [[nodiscard]] usize collectMarkSweep(StringPool& stringPool, LuaState* currentState,
                                          bool runFinalizersNow);

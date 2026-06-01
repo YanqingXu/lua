@@ -9,7 +9,7 @@
 #include "vm/state/global_state.hpp"
 #include "core/thread.hpp"
 #include "vm/state/lua_state.hpp"
-#include <cstring>  // for memset
+#include <array>
 #include <iostream> // for debug output
 
 namespace Lua {
@@ -37,12 +37,6 @@ GlobalState::GlobalState(StringPool& stringPool)
     gc_.setGlobalState(this);
     stringPool_.setGarbageCollector(&gc_);
 
-    // 初始化元表数组为nullptr
-    std::memset(metatables_, 0, sizeof(metatables_));
-
-    // 初始化元方法名称数组为nullptr
-    std::memset(tmname_, 0, sizeof(tmname_));
-
     // 子任务1.1：调整字符串池大小到初始值
     stringPool_.resize(32);
 
@@ -58,10 +52,7 @@ GlobalState::GlobalState(StringPool& stringPool)
     memerrmsg_->markFixed();  // 标记为固定，防止在内存不足时被GC回收
 
     // 创建注册表
-    registry_ = new Table();
-    gc_.registerObject(registry_);
-    registry_->setMarked(registry_->getMarked() | GCBits::FIXED);
-    gc_.addRoot(registry_);  // 注册表永远不被回收
+    registry_ = gc_.createFixedRoot<Table>();  // 注册表永远不被回收
 }
 
 GlobalState::~GlobalState() {
@@ -79,7 +70,7 @@ GlobalState::~GlobalState() {
 
 Table* GlobalState::getMetatable(ValueType type) const noexcept {
     usize index = static_cast<usize>(type);
-    if (index < 9) {
+    if (index < metatables_.size()) {
         return metatables_[index];
     }
     return nullptr;
@@ -87,7 +78,7 @@ Table* GlobalState::getMetatable(ValueType type) const noexcept {
 
 void GlobalState::setMetatable(ValueType type, Table* metatable) noexcept {
     usize index = static_cast<usize>(type);
-    if (index < 9) {
+    if (index < metatables_.size()) {
         gc_.writeRootBarrier(metatable);
         metatables_[index] = metatable;
     }
@@ -128,7 +119,7 @@ void GlobalState::markRoots(GarbageCollector& gc, LuaState* currentState) const 
 void GlobalState::resetRuntimeReferencesForClearAll() noexcept {
     mainThread_ = nullptr;
     runningThread_ = nullptr;
-    std::memset(metatables_, 0, sizeof(metatables_));
+    metatables_.fill(nullptr);
     if (registry_ != nullptr) {
         registry_->clear();
     }
@@ -145,16 +136,16 @@ void GlobalState::resetRuntimeReferencesForClearAll() noexcept {
  */
 void GlobalState::initMetamethodNames() {
     // 元方法名称数组（与TMS枚举顺序一致）
-    static const char* const metamethodNames[] = {
+    static constexpr std::array<StrView, static_cast<usize>(TMS::TM_N)> metamethodNames{{
         "__index", "__newindex",
         "__gc", "__mode", "__eq",
         "__add", "__sub", "__mul", "__div", "__mod",
         "__pow", "__unm", "__len", "__lt", "__le",
         "__concat", "__call"
-    };
+    }};
 
     // 创建并固定所有元方法名称字符串
-    for (usize i = 0; i < static_cast<usize>(TMS::TM_N); i++) {
+    for (usize i = 0; i < metamethodNames.size(); i++) {
         tmname_[i] = stringPool_.intern(metamethodNames[i]);
         gc_.registerObject(tmname_[i]);
         tmname_[i]->markFixed();  // 标记为固定，防止GC回收
@@ -166,7 +157,7 @@ void GlobalState::initMetamethodNames() {
  */
 GCString* GlobalState::getMetamethodName(TMS event) const noexcept {
     usize index = static_cast<usize>(event);
-    if (index < static_cast<usize>(TMS::TM_N)) {
+    if (index < tmname_.size()) {
         return tmname_[index];
     }
     return nullptr;
@@ -179,16 +170,16 @@ GCString* GlobalState::getMetamethodName(TMS event) const noexcept {
  */
 void GlobalState::initReservedWords() {
     // Lua 5.1的21个保留字（按字母顺序）
-    static const char* const reservedWords[] = {
+    static constexpr std::array<StrView, 21> reservedWords{{
         "and", "break", "do", "else", "elseif",
         "end", "false", "for", "function", "if",
         "in", "local", "nil", "not", "or",
         "repeat", "return", "then", "true", "until",
         "while"
-    };
+    }};
 
     // 创建并固定所有保留字字符串
-    for (const char* word : reservedWords) {
+    for (StrView word : reservedWords) {
         GCString* str = stringPool_.intern(word);
         gc_.registerObject(str);
         str->markFixed();  // 标记为固定，防止GC回收

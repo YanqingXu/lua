@@ -300,9 +300,7 @@ GCString* upvalueNameOrEmpty(LuaState* L, Function* func, usize index) {
 }
 
 Table* createGCManagedTable(LuaState* L) {
-    Table* table = new Table();
-    L->getGlobalState().getGC().registerObject(table);
-    return table;
+    return L->getGlobalState().getGC().create<Table>();
 }
 
 void populateInfoS(Table* info, LuaState* L, Function* func, const CallInfo* ci) {
@@ -817,8 +815,7 @@ void runDebugCommand(LuaState* L, const Str& source) {
         throw std::runtime_error("debug.debug: compilation failed");
     }
 
-    Function* func = new Function(proto);
-    L->getGlobalState().getGC().registerObject(func);
+    Function* func = L->getGlobalState().getGC().create<Function>(proto);
     func->setEnv(L->getGlobalTable());
 
     usize savedTop = L->getAbsoluteTop();

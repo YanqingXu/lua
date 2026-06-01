@@ -10,6 +10,9 @@
 #include <cerrno>
 #include <cstdio>
 #include <clocale>
+#include <array>
+#include <format>
+#include <memory>
 #include <string>
 
 #ifdef _WIN32
@@ -83,9 +86,7 @@ static i32 getfield(LuaState* L, Table* t, const char* key, i32 defaultValue) {
         return static_cast<i32>(v.asNumber());
     }
     if (defaultValue < 0) {
-        char errMsg[128];
-        snprintf(errMsg, sizeof(errMsg), "field '%s' missing in date table", key);
-        L->error(errMsg);
+        L->error(std::format("field '{}' missing in date table", key).c_str());
     }
     return defaultValue;
 }
@@ -178,13 +179,13 @@ i32 luaOS_getenv(LuaState* L) {
     const char* varName = L->toString(1);
 
 #ifdef _WIN32
-    char* value = nullptr;
+    char* rawValue = nullptr;
     size_t len = 0;
-    errno_t err = _dupenv_s(&value, &len, varName);
+    errno_t err = _dupenv_s(&rawValue, &len, varName);
+    std::unique_ptr<char, decltype(&std::free)> value(rawValue, &std::free);
     if (err == 0 && value != nullptr) {
-        GCString* str = L->getGlobalState().getStringPool().intern(value);
+        GCString* str = L->getGlobalState().getStringPool().intern(value.get());
         L->pushString(str);
-        std::free(value);
     } else {
         L->pushNil();
     }
@@ -298,18 +299,18 @@ i32 luaOS_setlocale(LuaState* L) {
 
 i32 luaOS_tmpname(LuaState* L) {
 #ifdef _WIN32
-    char tmpBuffer[L_tmpnam];
-    errno_t err = tmpnam_s(tmpBuffer, L_tmpnam);
+    std::array<char, L_tmpnam> tmpBuffer{};
+    errno_t err = tmpnam_s(tmpBuffer.data(), tmpBuffer.size());
     if (err == 0) {
-        GCString* str = L->getGlobalState().getStringPool().intern(tmpBuffer);
+        GCString* str = L->getGlobalState().getStringPool().intern(tmpBuffer.data());
         L->pushString(str);
     } else {
         L->error("tmpname: unable to generate a unique filename");
     }
 #else
-    char tmpBuffer[L_tmpnam];
-    if (std::tmpnam(tmpBuffer)) {
-        GCString* str = L->getGlobalState().getStringPool().intern(tmpBuffer);
+    std::array<char, L_tmpnam> tmpBuffer{};
+    if (std::tmpnam(tmpBuffer.data())) {
+        GCString* str = L->getGlobalState().getStringPool().intern(tmpBuffer.data());
         L->pushString(str);
     } else {
         L->error("tmpname: unable to generate a unique filename");
@@ -399,8 +400,7 @@ i32 luaOS_date(LuaState* L) {
 
     // 检查是否返回日期表
     if (std::strcmp(format, "*t") == 0) {
-        Table* table = new Table();
-        L->getGlobalState().getGC().registerObject(table);
+        Table* table = L->getGlobalState().getGC().create<Table>();
 
         setfield(L, table, "sec", stm->tm_sec);
         setfield(L, table, "min", stm->tm_min);
@@ -415,14 +415,14 @@ i32 luaOS_date(LuaState* L) {
         L->pushTable(table);
     } else {
         // 使用strftime格式化
-        char buffer[256];
-        std::size_t result = std::strftime(buffer, sizeof(buffer), format, stm);
+        std::array<char, 256> buffer{};
+        std::size_t result = std::strftime(buffer.data(), buffer.size(), format, stm);
 
         if (result == 0) {
             GCString* str = L->getGlobalState().getStringPool().intern("");
             L->pushString(str);
         } else {
-            GCString* str = L->getGlobalState().getStringPool().intern(buffer);
+            GCString* str = L->getGlobalState().getStringPool().intern(buffer.data());
             L->pushString(str);
         }
     }

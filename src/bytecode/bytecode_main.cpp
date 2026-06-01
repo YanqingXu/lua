@@ -4,8 +4,10 @@
 #include "io/file_loader.hpp"
 #include "runtime/runtime_services.hpp"
 
+#include <expected>
 #include <format>
 #include <iostream>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -30,12 +32,26 @@ void printUsage(std::ostream& err) {
     err << std::format("  {} <left.lua> <right.lua> --diff [full|--full]\n", kToolName);
 }
 
-bool parseOptions(int argc, char** argv, BytecodeToolOptions& options, std::ostream& err) {
+Str usageText() {
+    std::ostringstream out;
+    printUsage(out);
+    return out.str();
+}
+
+std::unexpected<Str> optionError(Str message) {
+    if (!message.empty() && message.back() != '\n') {
+        message.push_back('\n');
+    }
+    message += usageText();
+    return std::unexpected(std::move(message));
+}
+
+std::expected<BytecodeToolOptions, Str> parseOptions(int argc, char** argv) {
     if (argc < 2) {
-        printUsage(err);
-        return false;
+        return std::unexpected(usageText());
     }
 
+    BytecodeToolOptions options;
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
         if (arg == "--diff") {
@@ -45,32 +61,26 @@ bool parseOptions(int argc, char** argv, BytecodeToolOptions& options, std::ostr
         } else if (arg == "full" || arg == "--full") {
             options.full = true;
         } else if (!arg.empty() && arg[0] == '-') {
-            err << std::format("[ERROR] Unknown option: {}\n", arg);
-            printUsage(err);
-            return false;
+            return optionError(std::format("[ERROR] Unknown option: {}", arg));
         } else {
             options.scripts.push_back(std::move(arg));
         }
     }
 
     if (options.diff && options.cfg) {
-        err << "[ERROR] --cfg cannot be combined with --diff\n";
-        printUsage(err);
-        return false;
+        return optionError("[ERROR] --cfg cannot be combined with --diff");
     }
 
     const usize expectedScripts = options.diff ? 2 : 1;
     if (options.scripts.size() != expectedScripts) {
-        err << std::format("[ERROR] Expected {} script path{} for {} mode, got {}\n",
-                           expectedScripts,
-                           expectedScripts == 1 ? "" : "s",
-                           options.diff ? "diff" : (options.cfg ? "cfg" : "print"),
-                           options.scripts.size());
-        printUsage(err);
-        return false;
+        return optionError(std::format("[ERROR] Expected {} script path{} for {} mode, got {}",
+                                       expectedScripts,
+                                       expectedScripts == 1 ? "" : "s",
+                                       options.diff ? "diff" : (options.cfg ? "cfg" : "print"),
+                                       options.scripts.size()));
     }
 
-    return true;
+    return options;
 }
 
 Proto* compileScript(RuntimeServices& services, const std::string& scriptPath) {
@@ -84,21 +94,23 @@ Proto* compileScript(RuntimeServices& services, const std::string& scriptPath) {
     Chunk chunk = std::move(*parsed);
 
     CodeGenerator codegen(services);
-    Proto* proto = codegen.generate(chunk, scriptPath);
-    if (!proto) {
-        throw std::runtime_error(std::format("Failed to generate Proto for {}", scriptPath));
+    auto generated = codegen.tryGenerate(chunk, scriptPath);
+    if (!generated) {
+        throw generated.error();
     }
 
-    return proto;
+    return *generated;
 }
 
 } // namespace
 
 int main(int argc, char** argv) {
-    BytecodeToolOptions options;
-    if (!parseOptions(argc, argv, options, std::cerr)) {
+    auto parsedOptions = parseOptions(argc, argv);
+    if (!parsedOptions) {
+        std::cerr << parsedOptions.error();
         return 1;
     }
+    BytecodeToolOptions options = std::move(*parsedOptions);
 
     try {
         EngineContext engine;

@@ -221,8 +221,7 @@ bool precallImpl(LuaState* L, i32 funcIndex, i32 nArgs, i32 nResults,
         }
         i32 nVarargs = actualArgs - numParams;
         if ((proto->getVarargFlags() & VARARG_NEEDSARG) != 0) {
-            compatArgTable = new Table();
-            L->getGlobalState().getGC().registerObject(compatArgTable);
+            compatArgTable = L->getGlobalState().getGC().create<Table>();
 
             for (i32 i = 0; i < nVarargs; i++) {
                 compatArgTable->set(

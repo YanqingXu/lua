@@ -187,11 +187,9 @@ static i32 coroutine_wrap(LuaState* L) {
     Thread* thread = Thread::create(L, func);
 
     // 创建 C 闭包，将 thread 作为 closed upvalue
-    Function* closure = new Function(wrap_iterator);
-    L->getGlobalState().getGC().registerObject(closure);
+    Function* closure = L->getGlobalState().getGC().create<Function>(wrap_iterator);
 
-    Upvalue* uv = Upvalue::createClosed(Value(thread));
-    L->getGlobalState().getGC().registerObject(uv);
+    Upvalue* uv = L->getGlobalState().getGC().create<Upvalue>(Value(thread));
     closure->addUpvalue(uv);
 
     L->pushFunction(closure);

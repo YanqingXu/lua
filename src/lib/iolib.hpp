@@ -244,7 +244,8 @@ Userdata* createFileHandle(
     LuaState* L,
     FILE* fp,
     bool isPipe = false,
-    const char* path = nullptr
+    const char* path = nullptr,
+    bool ownsFile = true
 );
 
 /**

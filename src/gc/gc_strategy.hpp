@@ -1,6 +1,7 @@
 #pragma once
 
 #include "common/types.hpp"
+#include <functional>
 
 namespace Lua {
 
@@ -39,6 +40,6 @@ public:
 
 [[nodiscard]] const GCStrategy& markSweepGCStrategy() noexcept;
 [[nodiscard]] const GCStrategy& incrementalGCStrategy() noexcept;
-[[nodiscard]] const GCStrategy* findGCStrategy(StrView name) noexcept;
+[[nodiscard]] Opt<std::reference_wrapper<const GCStrategy>> findGCStrategy(StrView name) noexcept;
 
 }  // namespace Lua

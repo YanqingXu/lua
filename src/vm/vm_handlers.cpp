@@ -44,26 +44,29 @@ const HandlerTable& handlerTable() noexcept {
     return table;
 }
 
-OpHandler handlerFor(OpCode op) noexcept {
+Opt<OpHandler> handlerFor(OpCode op) noexcept {
     usize index = handlers::opcodeIndex(op);
     const HandlerTable& table = handlerTable();
     if (index >= table.size()) {
-        return nullptr;
+        return std::nullopt;
+    }
+    if (table[index].handler == nullptr) {
+        return std::nullopt;
     }
     return table[index].handler;
 }
 
 bool hasHandler(OpCode op) noexcept {
-    return handlerFor(op) != nullptr;
+    return handlerFor(op).has_value();
 }
 
 HandlerStatus runHandler(OpExecutionContext& context, Instruction inst) {
     OpCode op = GET_OPCODE(inst);
-    OpHandler handler = handlerFor(op);
-    if (!handler) {
+    Opt<OpHandler> handler = handlerFor(op);
+    if (!handler.has_value()) {
         throw RuntimeError("VM: no handler registered for opcode: " + Str(getOpName(op)));
     }
-    return handler(context, inst);
+    return handler.value()(context, inst);
 }
 
 }  // namespace Lua::VM

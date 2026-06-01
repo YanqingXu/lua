@@ -6,6 +6,7 @@
 #include "compiler/codegen/function_compiler.hpp"
 #include "compiler/codegen/codegen.hpp"
 #include "compiler/codegen/codegen_types.hpp"
+#include "compiler/codegen/gc_allocation_guard.hpp"
 
 namespace Lua {
 
@@ -130,9 +131,8 @@ bool stmtUsesDirectVararg(const Stmt& stmt) {
 
 }  // namespace
 
-Proto* FunctionCompiler::compile(const Vec<Str>& params, bool isVararg, const Vec<StmtPtr>& body,
-                                 i32 linedefined, i32 lastlinedefined,
-                                 Vec<UpvalueCapture>* outUpvalues) {
+CompiledFunction FunctionCompiler::compile(const Vec<Str>& params, bool isVararg, const Vec<StmtPtr>& body,
+                                           i32 linedefined, i32 lastlinedefined) {
     CodeGenerator child(owner_.state_.services);
     child.state_.parent = &owner_;
 
@@ -145,8 +145,8 @@ Proto* FunctionCompiler::compile(const Vec<Str>& params, bool isVararg, const Ve
         }
     }
 
-    Proto* newProto = new Proto();
-    owner_.state_.services.gc.registerObject(newProto);
+    GCAllocationGuard<Proto> protoGuard(owner_.state_.services.gc);
+    Proto* newProto = protoGuard.get();
     newProto->setNumParams(static_cast<u8>(params.size()));
     newProto->setLineDefined(linedefined);
     newProto->setLastLineDefined(lastlinedefined);
@@ -189,11 +189,11 @@ Proto* FunctionCompiler::compile(const Vec<Str>& params, bool isVararg, const Ve
         newProto->setMaxStackSize(static_cast<u8>(child.state_.registers.current()));
     }
 
-    if (outUpvalues != nullptr) {
-        *outUpvalues = child.scopes_.upvalues();
-    }
-
-    return newProto;
+    CompiledFunction compiled;
+    compiled.upvalues = child.scopes_.upvalues();
+    compiled.protoIndex = owner_.state_.bytecode.addSubProto(newProto);
+    compiled.proto = protoGuard.commit();
+    return compiled;
 }
 
 void FunctionCompiler::emitClosureUpvalues(const Vec<UpvalueCapture>& upvalues) {

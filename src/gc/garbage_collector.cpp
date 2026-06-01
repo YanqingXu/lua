@@ -306,12 +306,12 @@ const char* GarbageCollector::getStrategyName() const noexcept {
 }
 
 bool GarbageCollector::useStrategy(StrView name) noexcept {
-    const GCStrategy* strategy = findGCStrategy(name);
-    if (strategy == nullptr) {
+    Opt<std::reference_wrapper<const GCStrategy>> strategy = findGCStrategy(name);
+    if (!strategy.has_value()) {
         return false;
     }
 
-    strategy_ = strategy;
+    strategy_ = &strategy->get();
     return true;
 }
 
@@ -419,16 +419,7 @@ usize GarbageCollector::sweepStep(StringPool& stringPool, usize budget) {
                 incrementalSweepPrevious_->setNext(next);
             }
 
-            usize objSize = obj->getSize();
-            totalMemory_ = totalMemory_ >= objSize ? totalMemory_ - objSize : 0;
-            --objectCount_;
-            obj->setOwnerCollector(nullptr);
-
-            if (obj->getType() == GCObjectType::String) {
-                stringPool.remove(static_cast<GCString*>(obj));
-            }
-
-            delete obj;
+            destroyObject(obj, stringPool);
             ++collected;
         } else {
             obj->setColor(GCColor::White);
@@ -456,20 +447,22 @@ bool GarbageCollector::incrementalStep(StringPool& stringPool, LuaState* current
             beginIncrementalMark(currentState);
             return false;
 
-        case IncrementalPhase::Propagate:
-            (void)propagateMarks(budget);
+        case IncrementalPhase::Propagate: {
+            [[maybe_unused]] const usize propagated = propagateMarks(budget);
             if (grayList_.empty()) {
                 incrementalPhase_ = IncrementalPhase::Atomic;
             }
             return false;
+        }
 
         case IncrementalPhase::Atomic:
             performIncrementalAtomic(currentState);
             return false;
 
-        case IncrementalPhase::Sweep:
-            (void)sweepStep(stringPool, budget);
+        case IncrementalPhase::Sweep: {
+            [[maybe_unused]] const usize swept = sweepStep(stringPool, budget);
             return false;
+        }
 
         case IncrementalPhase::Finalize:
             if (currentState != nullptr) {
@@ -494,6 +487,27 @@ StringPool& GarbageCollector::stringPoolForCollection(LuaState* currentState) co
         return globalState_->getStringPool();
     }
     return StringPool::getInstance();
+}
+
+void GarbageCollector::destroyObject(GCObject* obj, StringPool& stringPool) {
+    if (obj == nullptr) {
+        return;
+    }
+
+    const usize objSize = obj->getSize();
+    totalMemory_ = totalMemory_ >= objSize ? totalMemory_ - objSize : 0;
+    if (objectCount_ > 0) {
+        --objectCount_;
+    }
+
+    obj->setNext(nullptr);
+    obj->setOwnerCollector(nullptr);
+
+    if (obj->getType() == GCObjectType::String) {
+        stringPool.remove(static_cast<GCString*>(obj));
+    }
+
+    delete obj;
 }
 
 // =====================================================================
@@ -558,16 +572,7 @@ void GarbageCollector::clearAll(StringPool& stringPool) {
                     prev->setNext(next);
                 }
 
-                usize objSize = obj->getSize();
-                totalMemory_ = totalMemory_ >= objSize ? totalMemory_ - objSize : 0;
-                --objectCount_;
-                obj->setOwnerCollector(nullptr);
-
-                if (obj->getType() == GCObjectType::String) {
-                    stringPool.remove(static_cast<GCString*>(obj));
-                }
-
-                delete obj;
+                destroyObject(obj, stringPool);
             } else {
                 prev = obj;
             }

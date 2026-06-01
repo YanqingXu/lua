@@ -6,6 +6,9 @@
 #include "userdata.hpp"
 #include "table.hpp"
 #include "gc/garbage_collector.hpp"
+#include <cstdlib>
+#include <cstring>
+#include <new>
 #include <stdexcept>
 
 // MSVC特定的对齐内存分配函数
@@ -14,6 +17,43 @@
 #endif
 
 namespace Lua {
+
+namespace {
+
+constexpr usize kUserdataAlignment = 8;
+
+usize alignedAllocationSize(usize size) noexcept {
+    const usize remainder = size % kUserdataAlignment;
+    return remainder == 0 ? size : size + (kUserdataAlignment - remainder);
+}
+
+std::byte* allocateUserdataBuffer(usize size) {
+#ifdef _MSC_VER
+    void* data = _aligned_malloc(size, kUserdataAlignment);
+#else
+    void* data = std::aligned_alloc(kUserdataAlignment, alignedAllocationSize(size));
+#endif
+
+    if (data == nullptr) {
+        throw std::bad_alloc();
+    }
+
+    return static_cast<std::byte*>(data);
+}
+
+} // namespace
+
+void UserdataBufferDeleter::operator()(std::byte* data) const noexcept {
+    if (data == nullptr) {
+        return;
+    }
+
+#ifdef _MSC_VER
+    _aligned_free(data);
+#else
+    std::free(data);
+#endif
+}
 
 // =====================================================================
 // 静态工厂方法
@@ -30,7 +70,7 @@ Userdata* Userdata::createFull(usize size) {
         throw std::bad_alloc();
     }
     
-    return new Userdata(size);
+    return std::make_unique<Userdata>(size).release();
 }
 
 // =====================================================================
@@ -40,34 +80,17 @@ Userdata* Userdata::createFull(usize size) {
 Userdata::Userdata(usize size)
     : GCObject(GCObjectType::Userdata)
     , size_(size)
-    , data_(nullptr)
+    , data_(allocateUserdataBuffer(size))
     , metatable_(nullptr)
+    , dataDestructor_(nullptr)
 {
-    // 分配用户数据内存(8字节对齐)
-    // 注意: MSVC使用_aligned_malloc而不是std::aligned_alloc
-    #ifdef _MSC_VER
-        data_ = _aligned_malloc(size, 8);
-    #else
-        data_ = std::aligned_alloc(8, size);
-    #endif
-
-    if (!data_) {
-        throw std::bad_alloc();
-    }
-
     // 零初始化用户数据
-    std::memset(data_, 0, size);
+    std::memset(data_.get(), 0, size);
 }
 
 Userdata::~Userdata() {
-    // 释放用户数据内存
-    if (data_) {
-        #ifdef _MSC_VER
-            _aligned_free(data_);
-        #else
-            std::free(data_);
-        #endif
-        data_ = nullptr;
+    if (dataDestructor_ != nullptr) {
+        dataDestructor_(data_.get());
     }
 }
 

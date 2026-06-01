@@ -268,7 +268,9 @@ void testSwitchDispatchHelpersCoverOpcodeSpace(TestSuite& suite) {
     for (usize i = 0; i < expected.size(); ++i) {
         const OpCode opcode = expected[i].first;
         ASSERT_TRUE(suite, expected[i].second != nullptr, "switch helper should be callable");
-        ASSERT_TRUE(suite, VM::detail::switchHandlerFor(opcode) == expected[i].second,
+        Opt<VM::detail::SwitchOpHandler> handler = VM::detail::switchHandlerFor(opcode);
+        ASSERT_TRUE(suite, handler.has_value(), "switch handler lookup should return a helper");
+        ASSERT_TRUE(suite, handler.value() == expected[i].second,
                     "switch handler lookup should return the opcode-specific helper");
     }
 }

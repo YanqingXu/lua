@@ -51,7 +51,8 @@ HandlerStatus handleSetTable(OpExecutionContext& context, Instruction inst) {
     Value val = getRK(context, c);
     detail::settable(state, table, key, val);
     context.base = refreshBase(state);
-    (void)state->getGlobalState().getGC().maybeCollectAutomatic(state);
+    [[maybe_unused]] const usize preCreateCollected =
+        state->getGlobalState().getGC().maybeCollectAutomatic(state);
     context.base = refreshBase(state);
     return HandlerStatus::Continue;
 }
@@ -61,10 +62,10 @@ HandlerStatus handleNewTable(OpExecutionContext& context, Instruction inst) {
 
     i32 a = GETARG_A(inst);
 
-    Table* table = new Table();
-    state->getGlobalState().getGC().registerObject(table);
+    Table* table = state->getGlobalState().getGC().create<Table>();
     context.base[a] = Value(table);
-    (void)state->getGlobalState().getGC().maybeCollectAutomatic(state);
+    [[maybe_unused]] const usize postCreateCollected =
+        state->getGlobalState().getGC().maybeCollectAutomatic(state);
     context.base = refreshBase(state);
     return HandlerStatus::Continue;
 }

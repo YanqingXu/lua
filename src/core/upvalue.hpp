@@ -194,9 +194,8 @@ public:
      */
     usize getSize() const override;
 
-private:
     /**
-     * @brief 私有构造函数（Open状态）
+     * @brief GC factory constructor（Open状态）
      * @param stackIndex 栈索引位置
      *
      * ✅ 改进：只接受索引参数
@@ -204,10 +203,12 @@ private:
     Upvalue(usize stackIndex, Stack& ownerStack);
 
     /**
-     * @brief 私有构造函数（Closed状态）
+     * @brief GC factory constructor（Closed状态）
      * @param value 要存储的值
      */
     explicit Upvalue(const Value& value);
+
+private:
 
     // ========== 成员变量（✅ 改进版） ==========
 

@@ -19,21 +19,24 @@
 #include <cmath>
 #include <algorithm>
 #include <limits>
+#include <numbers>
+#include <format>
 #include <cstdlib>
 #include <cerrno>
 #include <cctype>
 #include <ctime>
-
-// 确保 M_PI 定义存在
-#ifndef M_PI
-#define M_PI 3.14159265358979323846
-#endif
 
 namespace Lua {
 
 // =====================================================================
 // 辅助函数
 // =====================================================================
+
+namespace {
+
+constexpr f64 kPi = std::numbers::pi_v<f64>;
+
+} // namespace
 
 /**
  * @brief 从栈中获取数字参数
@@ -58,9 +61,7 @@ static inline f64 getNumberArg(LuaState* L, i32 idx, const char* argName) {
     }
 
     {
-        char buffer[128];
-        std::snprintf(buffer, sizeof(buffer), "bad argument #%d to '%s' (number expected)", idx, argName);
-        L->error(buffer);
+        L->error(std::format("bad argument #{} to '{}' (number expected)", idx, argName).c_str());
     }
 }
 
@@ -73,10 +74,8 @@ static inline f64 getNumberArg(LuaState* L, i32 idx, const char* argName) {
 static inline void checkArgCount(LuaState* L, i32 expected, const char* funcName) {
     i32 actual = L->getTop();
     if (actual < expected) {
-        char buffer[128];
-        std::snprintf(buffer, sizeof(buffer), "math.%s: expected %d argument(s), got %d", 
-                     funcName, expected, actual);
-        L->error(buffer);
+        L->error(std::format("math.{}: expected {} argument(s), got {}",
+                             funcName, expected, actual).c_str());
     }
 }
 
@@ -363,14 +362,14 @@ i32 math_randomseed(LuaState* L) {
 i32 math_deg(LuaState* L) {
     checkArgCount(L, 1, "deg");
     f64 x = getNumberArg(L, 1, "deg");
-    L->pushNumber(x * 180.0 / M_PI);
+    L->pushNumber(x * 180.0 / kPi);
     return 1;
 }
 
 i32 math_rad(LuaState* L) {
     checkArgCount(L, 1, "rad");
     f64 x = getNumberArg(L, 1, "rad");
-    L->pushNumber(x * M_PI / 180.0);
+    L->pushNumber(x * kPi / 180.0);
     return 1;
 }
 
@@ -445,7 +444,7 @@ void MathLibModule::initialize(LuaState* L) {
         
         // 设置 math.pi
         GCString* piKey = gs.getStringPool().intern("pi");
-        mathTable->set(Value(piKey), Value(M_PI));
+        mathTable->set(Value(piKey), Value(kPi));
         
         // 设置 math.huge
         GCString* hugeKey = gs.getStringPool().intern("huge");

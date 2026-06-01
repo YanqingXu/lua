@@ -78,14 +78,14 @@ public:
     /**
      * @brief 生成字节码
      * @param chunk AST根节点
-     * @return 生成的函数原型
+     * @return GC 托管的 non-owning 函数原型指针
      */
     [[nodiscard]] Proto* generate(const Chunk& chunk, StrView sourceName = {});
 
     /**
      * @brief 生成字节码，以 expected 形式返回入口错误
      * @param chunk AST根节点
-     * @return 生成的函数原型，或 CodegenError
+     * @return GC 托管的 non-owning 函数原型指针，或 CodegenError
      */
     [[nodiscard]] std::expected<Proto*, CodegenError> tryGenerate(const Chunk& chunk, StrView sourceName = {});
 
@@ -124,9 +124,8 @@ private:
     // =====================================================================
 
     // 编译函数体，返回新的Proto
-    Proto* compileFunction(const Vec<Str>& params, bool isVararg, const Vec<StmtPtr>& body,
-                          i32 linedefined = 0, i32 lastlinedefined = 0,
-                          Vec<UpvalueCapture>* outUpvalues = nullptr);
+    CompiledFunction compileFunction(const Vec<Str>& params, bool isVararg, const Vec<StmtPtr>& body,
+                                     i32 linedefined = 0, i32 lastlinedefined = 0);
 
     void emitClosureUpvalues(const Vec<UpvalueCapture>& upvalues);
     void attachDebugMetadata();

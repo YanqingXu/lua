@@ -10,6 +10,7 @@
 #include "core/function.hpp"
 #include "core/userdata.hpp"
 #include "gc/garbage_collector.hpp"
+#include <memory>
 #include <stdexcept>
 
 namespace Lua {
@@ -17,11 +18,11 @@ namespace Lua {
 // ========== 静态工厂方法 ==========
 
 Upvalue* Upvalue::createOpen(usize stackIndex, Stack& ownerStack) {
-    return new Upvalue(stackIndex, ownerStack);
+    return std::make_unique<Upvalue>(stackIndex, ownerStack).release();
 }
 
 Upvalue* Upvalue::createClosed(const Value& value) {
-    return new Upvalue(value);
+    return std::make_unique<Upvalue>(value).release();
 }
 
 // ========== 构造函数 ==========

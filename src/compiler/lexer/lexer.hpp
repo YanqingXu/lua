@@ -220,9 +220,9 @@ private:
     
     /**
      * @brief 跳过长字符串/注释的分隔符 [=*[
-     * @return 等号数量，如果不是有效分隔符返回-1
+     * @return 等号数量，如果不是有效分隔符返回 std::nullopt
      */
-    i32 readLongBracketDelimiter();
+    Opt<i32> readLongBracketDelimiter();
 
 private:
     /**

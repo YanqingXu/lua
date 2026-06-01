@@ -174,8 +174,8 @@ private:
     bool match(TokenType type);
     void expect(TokenType type, const Str& message);
 
-    void error(const Str& message);
-    void errorAt(const Token& token, const Str& message);
+    [[noreturn]] void error(const Str& message);
+    [[noreturn]] void errorAt(const Token& token, const Str& message);
     void reportError(const Str& message);
     void reportErrorAt(const Token& token, const Str& message);
     void publishDiagnostic(const ParseError& error);

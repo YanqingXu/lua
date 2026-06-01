@@ -95,7 +95,6 @@ ExprPtr Parser::Impl::parsePrimaryExpr() {
     }
 
     error("unexpected symbol");
-	return nullptr;
 }
 
 ExprPtr Parser::Impl::parsePostfixExpr(ExprPtr base) {

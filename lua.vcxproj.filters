@@ -444,6 +444,9 @@
     <ClInclude Include="src\compiler\codegen\function_compiler.hpp">
       <Filter>src\compiler\codegen</Filter>
     </ClInclude>
+    <ClInclude Include="src\compiler\codegen\gc_allocation_guard.hpp">
+      <Filter>src\compiler\codegen</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="src">

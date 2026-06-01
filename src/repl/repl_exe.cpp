@@ -54,8 +54,7 @@ void printExpressionResults(LuaState* L, usize stackSizeBefore, std::ostream& ou
 }
 
 Function* createFunction(LuaState* L, Proto* proto) {
-    Function* func = new Function(proto);
-    L->getGlobalState().getGC().registerObject(func);
+    Function* func = L->getGlobalState().getGC().create<Function>(proto);
     func->setEnv(L->getGlobalTable());
     return func;
 }

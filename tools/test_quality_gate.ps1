@@ -43,6 +43,7 @@ Assert-FileContains ".clang-tidy" @(
 Assert-FileContains "tools/run_quality_gate.ps1" @(
     "check_opcode_coverage_matrix\.ps1",
     "check_value_result_variant_only\.ps1",
+    "check_c_style_patterns\.ps1",
     "check_doc_drift\.ps1",
     "clang-format",
     "clang-tidy",
@@ -71,6 +72,13 @@ Assert-FileContains "tools/check_value_result_variant_only.ps1" @(
     "variant-only",
     "forbiddenPatterns",
     "setPayload"
+)
+
+Assert-FileContains "tools/check_c_style_patterns.ps1" @(
+    "C-style pattern guard",
+    "forbiddenPatterns",
+    "return nullptr",
+    "AllowedCount"
 )
 
 Assert-FileContains "src/compiler/codegen/codegen_types.hpp" @(

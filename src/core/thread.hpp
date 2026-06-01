@@ -39,6 +39,9 @@ public:
     /// @param func 协程要执行的 Lua 函数
     static Thread* create(LuaState* parentL, Function* func);
 
+    /// GC factory constructor; prefer Thread::create() at call sites.
+    explicit Thread(UPtr<LuaState> state);
+
     ~Thread();
 
     // === 核心操作 ===
@@ -54,7 +57,7 @@ public:
     // === 状态查询 ===
 
     CoroutineStatus getCoroutineStatus() const noexcept { return coStatus_; }
-    LuaState* getLuaState() const noexcept { return state_; }
+    LuaState* getLuaState() const noexcept { return state_.get(); }
     bool isDead() const noexcept { return coStatus_ == CoroutineStatus::Dead; }
     bool isSuspended() const noexcept { return coStatus_ == CoroutineStatus::Suspended; }
 
@@ -69,9 +72,7 @@ public:
     usize getSize() const override;
 
 private:
-    explicit Thread(LuaState* state);
-
-    LuaState*       state_;
+    UPtr<LuaState>  state_;
     CoroutineStatus coStatus_;
     Thread*         caller_ = nullptr;
     bool            firstResume_ = true;

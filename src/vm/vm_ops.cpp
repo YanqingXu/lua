@@ -17,7 +17,6 @@
 
 #include <cctype>
 #include <cmath>
-#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <string>
@@ -38,9 +37,7 @@ bool tryToNumber(const Value& val, f64& result) {
 }
 
 Str numberToLuaString(f64 value) {
-    char buffer[64];
-    std::snprintf(buffer, sizeof(buffer), "%.14g", value);
-    return Str(buffer);
+    return luaNumberToString(value);
 }
 
 f64 luaModulo(f64 left, f64 right) {
@@ -310,7 +307,7 @@ void concat(RuntimeServices& services, LuaState* L, Value* base, i32 a, i32 b, i
         result.append(str2);
         result.append(str1);
         base[last - 1] = Value(pool.intern(result));
-        (void)services.gc.collectAutomatic(L);
+        [[maybe_unused]] const usize collected = services.gc.collectAutomatic(L);
         total--;
         last--;
     }

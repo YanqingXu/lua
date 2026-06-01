@@ -160,7 +160,7 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
         {
             const auto dcode = proto->getInstructionSpan();
             std::fprintf(stderr, "[BCDUMP] proto(%p) %zu instructions, pc=%zu\n",
-                (void*)proto, dcode.size(), pc);
+                static_cast<const void*>(proto), dcode.size(), pc);
             for (usize di = 0; di < dcode.size(); di++) {
                 Instruction dinst = dcode[di];
                 std::fprintf(stderr, "  [%zu] op=%d A=%d B=%d C=%d Bx=%d sBx=%d\n",
@@ -240,148 +240,127 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
                 }
             }
 
-#define LUA_VM_RUN_SWITCH_OP(handlerName)                                      \
-    do {                                                                       \
-        OpExecutionContext opContext{                                          \
-            services, L, func, proto, base, pc, instructionPc, nexeccalls      \
-        };                                                                     \
-        HandlerStatus status = VM::detail::handlerName(opContext, inst);       \
-        base = opContext.base;                                                 \
-        nexeccalls = opContext.nexeccalls;                                     \
-        if (traceDiff) {                                                       \
-            VM::detail::emitInstructionTraceDiff(                              \
-                proto, L, traceFrameBase, instructionPc, inst,                 \
-                traceCallDepth, traceBefore);                                  \
-        }                                                                      \
-        switch (status) {                                                      \
-            case HandlerStatus::Continue:                                      \
-                continue;                                                      \
-            case HandlerStatus::Reenter:                                       \
-                goto reentry;                                                  \
-            case HandlerStatus::Yielded:                                       \
-                return ExecResult::Yielded;                                    \
-            case HandlerStatus::Returned:                                      \
-                return ExecResult::Returned;                                   \
-        }                                                                      \
-    } while (false)
+            OpExecutionContext opContext{
+                services, L, func, proto, base, pc, instructionPc, nexeccalls
+            };
+            HandlerStatus status = HandlerStatus::Continue;
 
             switch (op) {
 
             case OpCode::MOVE:
-                LUA_VM_RUN_SWITCH_OP(execOpMove);
+                status = VM::detail::execOpMove(opContext, inst);
                 break;
             case OpCode::LOADK:
-                LUA_VM_RUN_SWITCH_OP(execOpLoadK);
+                status = VM::detail::execOpLoadK(opContext, inst);
                 break;
             case OpCode::LOADBOOL:
-                LUA_VM_RUN_SWITCH_OP(execOpLoadBool);
+                status = VM::detail::execOpLoadBool(opContext, inst);
                 break;
             case OpCode::LOADNIL:
-                LUA_VM_RUN_SWITCH_OP(execOpLoadNil);
+                status = VM::detail::execOpLoadNil(opContext, inst);
                 break;
             case OpCode::GETGLOBAL:
-                LUA_VM_RUN_SWITCH_OP(execOpGetGlobal);
+                status = VM::detail::execOpGetGlobal(opContext, inst);
                 break;
             case OpCode::SETGLOBAL:
-                LUA_VM_RUN_SWITCH_OP(execOpSetGlobal);
+                status = VM::detail::execOpSetGlobal(opContext, inst);
                 break;
             case OpCode::GETUPVAL:
-                LUA_VM_RUN_SWITCH_OP(execOpGetUpval);
+                status = VM::detail::execOpGetUpval(opContext, inst);
                 break;
             case OpCode::SETUPVAL:
-                LUA_VM_RUN_SWITCH_OP(execOpSetUpval);
+                status = VM::detail::execOpSetUpval(opContext, inst);
                 break;
             case OpCode::GETTABLE:
-                LUA_VM_RUN_SWITCH_OP(execOpGetTable);
+                status = VM::detail::execOpGetTable(opContext, inst);
                 break;
             case OpCode::SETTABLE:
-                LUA_VM_RUN_SWITCH_OP(execOpSetTable);
+                status = VM::detail::execOpSetTable(opContext, inst);
                 break;
             case OpCode::NEWTABLE:
-                LUA_VM_RUN_SWITCH_OP(execOpNewTable);
+                status = VM::detail::execOpNewTable(opContext, inst);
                 break;
             case OpCode::SELF:
-                LUA_VM_RUN_SWITCH_OP(execOpSelf);
+                status = VM::detail::execOpSelf(opContext, inst);
                 break;
             case OpCode::SETLIST:
-                LUA_VM_RUN_SWITCH_OP(execOpSetList);
+                status = VM::detail::execOpSetList(opContext, inst);
                 break;
             case OpCode::ADD:
-                LUA_VM_RUN_SWITCH_OP(execOpAdd);
+                status = VM::detail::execOpAdd(opContext, inst);
                 break;
             case OpCode::SUB:
-                LUA_VM_RUN_SWITCH_OP(execOpSub);
+                status = VM::detail::execOpSub(opContext, inst);
                 break;
             case OpCode::MUL:
-                LUA_VM_RUN_SWITCH_OP(execOpMul);
+                status = VM::detail::execOpMul(opContext, inst);
                 break;
             case OpCode::DIV:
-                LUA_VM_RUN_SWITCH_OP(execOpDiv);
+                status = VM::detail::execOpDiv(opContext, inst);
                 break;
             case OpCode::MOD:
-                LUA_VM_RUN_SWITCH_OP(execOpMod);
+                status = VM::detail::execOpMod(opContext, inst);
                 break;
             case OpCode::POW:
-                LUA_VM_RUN_SWITCH_OP(execOpPow);
+                status = VM::detail::execOpPow(opContext, inst);
                 break;
             case OpCode::UNM:
-                LUA_VM_RUN_SWITCH_OP(execOpUnm);
+                status = VM::detail::execOpUnm(opContext, inst);
                 break;
             case OpCode::NOT:
-                LUA_VM_RUN_SWITCH_OP(execOpNot);
+                status = VM::detail::execOpNot(opContext, inst);
                 break;
             case OpCode::LEN:
-                LUA_VM_RUN_SWITCH_OP(execOpLen);
+                status = VM::detail::execOpLen(opContext, inst);
                 break;
             case OpCode::CONCAT:
-                LUA_VM_RUN_SWITCH_OP(execOpConcat);
+                status = VM::detail::execOpConcat(opContext, inst);
                 break;
             case OpCode::JMP:
-                LUA_VM_RUN_SWITCH_OP(execOpJmp);
+                status = VM::detail::execOpJmp(opContext, inst);
                 break;
             case OpCode::EQ:
-                LUA_VM_RUN_SWITCH_OP(execOpEq);
+                status = VM::detail::execOpEq(opContext, inst);
                 break;
             case OpCode::LT:
-                LUA_VM_RUN_SWITCH_OP(execOpLt);
+                status = VM::detail::execOpLt(opContext, inst);
                 break;
             case OpCode::LE:
-                LUA_VM_RUN_SWITCH_OP(execOpLe);
+                status = VM::detail::execOpLe(opContext, inst);
                 break;
             case OpCode::TEST:
-                LUA_VM_RUN_SWITCH_OP(execOpTest);
+                status = VM::detail::execOpTest(opContext, inst);
                 break;
             case OpCode::TESTSET:
-                LUA_VM_RUN_SWITCH_OP(execOpTestSet);
+                status = VM::detail::execOpTestSet(opContext, inst);
                 break;
             case OpCode::CALL:
-                LUA_VM_RUN_SWITCH_OP(execOpCall);
+                status = VM::detail::execOpCall(opContext, inst);
                 break;
             case OpCode::TAILCALL:
-                LUA_VM_RUN_SWITCH_OP(execOpTailCall);
+                status = VM::detail::execOpTailCall(opContext, inst);
                 break;
             case OpCode::RETURN:
-                LUA_VM_RUN_SWITCH_OP(execOpReturn);
+                status = VM::detail::execOpReturn(opContext, inst);
                 break;
             case OpCode::CLOSE:
-                LUA_VM_RUN_SWITCH_OP(execOpClose);
+                status = VM::detail::execOpClose(opContext, inst);
                 break;
             case OpCode::FORLOOP:
-                LUA_VM_RUN_SWITCH_OP(execOpForLoop);
+                status = VM::detail::execOpForLoop(opContext, inst);
                 break;
             case OpCode::FORPREP:
-                LUA_VM_RUN_SWITCH_OP(execOpForPrep);
+                status = VM::detail::execOpForPrep(opContext, inst);
                 break;
             case OpCode::TFORLOOP:
-                LUA_VM_RUN_SWITCH_OP(execOpTForLoop);
+                status = VM::detail::execOpTForLoop(opContext, inst);
                 break;
             case OpCode::CLOSURE:
-                LUA_VM_RUN_SWITCH_OP(execOpClosure);
+                status = VM::detail::execOpClosure(opContext, inst);
                 break;
-            case OpCode::VARARG: {
-                LUA_VM_RUN_SWITCH_OP(execOpVararg);
+            case OpCode::VARARG:
+                status = VM::detail::execOpVararg(opContext, inst);
                 break;
-            }
 
             // ============== 未知指令 ==============
 
@@ -391,7 +370,23 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
 
             } // switch
 
-#undef LUA_VM_RUN_SWITCH_OP
+            base = opContext.base;
+            nexeccalls = opContext.nexeccalls;
+            if (traceDiff) {
+                VM::detail::emitInstructionTraceDiff(
+                    proto, L, traceFrameBase, instructionPc, inst,
+                    traceCallDepth, traceBefore);
+            }
+            switch (status) {
+                case HandlerStatus::Continue:
+                    continue;
+                case HandlerStatus::Reenter:
+                    goto reentry;
+                case HandlerStatus::Yielded:
+                    return ExecResult::Yielded;
+                case HandlerStatus::Returned:
+                    return ExecResult::Returned;
+            }
         } // while
     } // scope for code reference
 

@@ -2,9 +2,12 @@
 
 #include "common/types.hpp"
 
+#include <array>
 #include <cerrno>
 #include <cctype>
+#include <charconv>
 #include <cstdlib>
+#include <system_error>
 
 namespace Lua {
 
@@ -30,6 +33,22 @@ inline bool luaStringToNumber(StrView text, LuaNumber& out) {
 
     out = value;
     return true;
+}
+
+inline Str luaNumberToString(LuaNumber value) {
+    std::array<char, 64> buffer{};
+    const auto result = std::to_chars(
+        buffer.data(),
+        buffer.data() + buffer.size(),
+        value,
+        std::chars_format::general,
+        14);
+
+    if (result.ec != std::errc{}) {
+        throw std::runtime_error("failed to format Lua number");
+    }
+
+    return Str(buffer.data(), result.ptr);
 }
 
 } // namespace Lua

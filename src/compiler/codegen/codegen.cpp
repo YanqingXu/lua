@@ -4,11 +4,13 @@
  */
 
 #include "compiler/codegen/codegen.hpp"
+#include "compiler/codegen/gc_allocation_guard.hpp"
 #include "core/gc_string.hpp"
 #include "core/string_pool.hpp"
 #include "core/value.hpp"
 #include "gc/garbage_collector.hpp"
 #include <expected>
+#include <memory>
 #include <new>
 #include <stdexcept>
 
@@ -81,8 +83,7 @@ std::expected<Proto*, CodegenError> CodeGenerator::tryGenerate(const Chunk& chun
 
 Proto* CodeGenerator::generateUnchecked(const Chunk& chunk, StrView sourceName) {
     // 创建新的Proto对象
-    state_.proto = new Proto();
-    state_.services.gc.registerObject(state_.proto);
+    GCAllocationGuard<Proto> protoGuard(state_.services.gc, state_.proto);
     state_.resetForProto(*state_.proto, true);
     state_.bytecode.setSource(sourceName);
 
@@ -98,7 +99,7 @@ Proto* CodeGenerator::generateUnchecked(const Chunk& chunk, StrView sourceName) 
 
     attachDebugMetadata();
 
-    return state_.proto;
+    return protoGuard.commit();
 }
 
 void CodeGenerator::discardCurrentProto() noexcept {
@@ -111,8 +112,8 @@ void CodeGenerator::discardCurrentProto() noexcept {
         return;
     }
 
-    state_.services.gc.unregisterObject(failedProto);
-    delete failedProto;
+    std::unique_ptr<Proto> reclaimed(failedProto);
+    state_.services.gc.unregisterObject(reclaimed.get());
 }
 
 // =====================================================================

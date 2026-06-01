@@ -38,14 +38,14 @@ const GCStrategy& incrementalGCStrategy() noexcept {
     return strategy;
 }
 
-const GCStrategy* findGCStrategy(StrView name) noexcept {
+Opt<std::reference_wrapper<const GCStrategy>> findGCStrategy(StrView name) noexcept {
     if (name == markSweepGCStrategy().name()) {
-        return &markSweepGCStrategy();
+        return std::cref(markSweepGCStrategy());
     }
     if (name == incrementalGCStrategy().name()) {
-        return &incrementalGCStrategy();
+        return std::cref(incrementalGCStrategy());
     }
-    return nullptr;
+    return std::nullopt;
 }
 
 }  // namespace Lua

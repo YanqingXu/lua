@@ -19,16 +19,16 @@ class Proto;
  *
  * CodeGenerator remains the public facade. FunctionCompiler centralizes child
  * prototype creation, parameter binding, upvalue metadata, closure upvalue
- * instructions, and local debug metadata attachment.
+ * instructions, and local debug metadata attachment. Returned Proto pointers
+ * are GC-managed non-owning observers.
  */
 class FunctionCompiler {
 public:
     explicit FunctionCompiler(CodeGenerator& owner) noexcept
         : owner_(owner) {}
 
-    [[nodiscard]] Proto* compile(const Vec<Str>& params, bool isVararg, const Vec<StmtPtr>& body,
-                                 i32 linedefined = 0, i32 lastlinedefined = 0,
-                                 Vec<UpvalueCapture>* outUpvalues = nullptr);
+    [[nodiscard]] CompiledFunction compile(const Vec<Str>& params, bool isVararg, const Vec<StmtPtr>& body,
+                                           i32 linedefined = 0, i32 lastlinedefined = 0);
 
     void emitClosureUpvalues(const Vec<UpvalueCapture>& upvalues);
     void attachDebugMetadata();

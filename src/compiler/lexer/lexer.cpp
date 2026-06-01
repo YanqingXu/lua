@@ -4,9 +4,9 @@
  */
 
 #include "lexer.hpp"
+#include <array>
 #include <cctype>
 #include <cstdlib>
-#include <cstring>
 #include <locale>
 #include <unordered_map>
 
@@ -47,7 +47,7 @@ struct SimpleEscape {
     char value;
 };
 
-constexpr SimpleEscape kSimpleEscapes[] = {
+constexpr std::array<SimpleEscape, 10> kSimpleEscapes{{
     {'a', '\a'},
     {'b', '\b'},
     {'f', '\f'},
@@ -58,7 +58,7 @@ constexpr SimpleEscape kSimpleEscapes[] = {
     {'\\', '\\'},
     {'"', '"'},
     {'\'', '\''}
-};
+}};
 
 Opt<char> decodeSimpleEscape(char c) noexcept {
     for (const SimpleEscape& escape : kSimpleEscapes) {
@@ -75,8 +75,8 @@ bool isSingleCharToken(char c) noexcept {
         return false;
     }
 
-    constexpr const char* kSingleCharTokens = "+-*/%^#(){}];,:";
-    return std::strchr(kSingleCharTokens, c) != nullptr;
+    constexpr StrView kSingleCharTokens = "+-*/%^#(){}];,:";
+    return kSingleCharTokens.find(c) != StrView::npos;
 }
 
 } // namespace
@@ -265,9 +265,9 @@ Opt<Token> Lexer::skipComment() {
     }
 
     // 可能是长注释
-    i32 level = readLongBracketDelimiter();
-    if (level >= 0) {
-        return skipLongComment(level);
+    Opt<i32> level = readLongBracketDelimiter();
+    if (level.has_value()) {
+        return skipLongComment(level.value());
     } else {
         skipLineComment();
     }
@@ -327,8 +327,8 @@ Opt<Token> Lexer::skipLongComment(i32 level) {
     while (!isAtEnd()) {
         if (peek() == ']') {
             LexerState savedState = saveState();
-            i32 endLevel = readLongBracketDelimiter();
-            if (endLevel == level) {
+            Opt<i32> endLevel = readLongBracketDelimiter();
+            if (endLevel.has_value() && endLevel.value() == level) {
                 return std::nullopt;
             }
             restoreState(savedState);
@@ -340,9 +340,9 @@ Opt<Token> Lexer::skipLongComment(i32 level) {
     return errorToken("Unterminated long comment");
 }
 
-i32 Lexer::readLongBracketDelimiter() {
+Opt<i32> Lexer::readLongBracketDelimiter() {
     // 跳过 [=*[ 或 ]=*] 形式的分隔符
-    // 返回等号的数量，如果不是有效分隔符返回-1
+    // 返回等号的数量，如果不是有效分隔符返回 std::nullopt
     // 注意：调用此函数时，peek()应该指向第一个'['或']'
 
     // 保存状态以便回退
@@ -353,7 +353,7 @@ i32 Lexer::readLongBracketDelimiter() {
 
     // 必须是'['或']'
     if (s != '[' && s != ']') {
-        return -1;
+        return std::nullopt;
     }
 
     advance(); // 跳过第一个'['或']'
@@ -373,7 +373,7 @@ i32 Lexer::readLongBracketDelimiter() {
     // 不是有效分隔符，回退状态
     restoreState(savedState);
 
-    return -1;
+    return std::nullopt;
 }
 
 // =====================================================================
@@ -613,8 +613,8 @@ Token Lexer::longString(i32 level) {
     while (!isAtEnd()) {
         if (peek() == ']') {
             LexerState savedState = saveState();
-            i32 endLevel = readLongBracketDelimiter();
-            if (endLevel == level) {
+            Opt<i32> endLevel = readLongBracketDelimiter();
+            if (endLevel.has_value() && endLevel.value() == level) {
                 Token token = makeToken(TokenType::String);
                 token.value = result;
                 return token;

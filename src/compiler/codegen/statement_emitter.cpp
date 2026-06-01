@@ -159,10 +159,10 @@ void StatementEmitter::closeScopeUpvalues(i32 level) {
     scopes_.closeScopeUpvalues(level);
 }
 
-Proto* StatementEmitter::compileFunction(const Vec<Str>& params, bool isVararg, const Vec<StmtPtr>& body,
-                                         i32 linedefined, i32 lastlinedefined,
-                                         Vec<UpvalueCapture>* outUpvalues) {
-    return owner_.compileFunction(params, isVararg, body, linedefined, lastlinedefined, outUpvalues);
+CompiledFunction StatementEmitter::compileFunction(const Vec<Str>& params, bool isVararg,
+                                                   const Vec<StmtPtr>& body,
+                                                   i32 linedefined, i32 lastlinedefined) {
+    return owner_.compileFunction(params, isVararg, body, linedefined, lastlinedefined);
 }
 
 void StatementEmitter::emitClosureUpvalues(const Vec<UpvalueCapture>& upvalues) {
@@ -587,14 +587,11 @@ void StatementEmitter::emitStmt(const FunctionStmt& s) {
         localReg = addLocalVar(s.name);
     }
 
-    Vec<UpvalueCapture> childUpvalues;
-    Proto* funcProto = compileFunction(s.params, s.isVararg, s.body, linedefined, lastlinedefined, &childUpvalues);
-
-    i32 protoIdx = state_.bytecode.addSubProto(funcProto);
+    CompiledFunction function = compileFunction(s.params, s.isVararg, s.body, linedefined, lastlinedefined);
 
     if (s.isLocal) {
-        codeABx(OpCode::CLOSURE, localReg, protoIdx);
-        emitClosureUpvalues(childUpvalues);
+        codeABx(OpCode::CLOSURE, localReg, function.protoIndex);
+        emitClosureUpvalues(function.upvalues);
 
         adjustLocalVars(1);
     } else {
@@ -606,8 +603,8 @@ void StatementEmitter::emitStmt(const FunctionStmt& s) {
                 LValueRef target = binder_.symbolToLValue(sym);
 
                 i32 reg = allocReg();
-                codeABx(OpCode::CLOSURE, reg, protoIdx);
-                emitClosureUpvalues(childUpvalues);
+                codeABx(OpCode::CLOSURE, reg, function.protoIndex);
+                emitClosureUpvalues(function.upvalues);
                 emitStore(target, ValueResult::makeRegister(reg, false));
             } else {
                 auto stringKeyToRK = [this](const Str& key) -> i32 {
@@ -639,8 +636,8 @@ void StatementEmitter::emitStmt(const FunctionStmt& s) {
                 }
 
                 i32 reg = allocReg();
-                codeABx(OpCode::CLOSURE, reg, protoIdx);
-                emitClosureUpvalues(childUpvalues);
+                codeABx(OpCode::CLOSURE, reg, function.protoIndex);
+                emitClosureUpvalues(function.upvalues);
 
                 i32 rkKey = stringKeyToRK(s.name);
                 codeABC(OpCode::SETTABLE, tableReg, rkKey, reg);

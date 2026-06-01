@@ -14,6 +14,7 @@
 #include "vm/state/global_state.hpp"
 #include "gc/garbage_collector.hpp"
 #include "common/lua_error.hpp"
+#include <utility>
 
 namespace Lua {
 
@@ -21,32 +22,27 @@ namespace Lua {
 // 构造/析构
 // =====================================================================
 
-Thread::Thread(LuaState* state)
+Thread::Thread(UPtr<LuaState> state)
     : GCObject(GCObjectType::Thread)
-    , state_(state)
+    , state_(std::move(state))
     , coStatus_(CoroutineStatus::Suspended)
 {
     state_->setThread(this);
 }
 
-Thread::~Thread() {
-    delete state_;
-    state_ = nullptr;
-}
+Thread::~Thread() = default;
 
 // =====================================================================
 // 工厂方法
 // =====================================================================
 
 Thread* Thread::create(LuaState* parentL, Function* func) {
-    LuaState* coState = LuaState::newThread(parentL);
+    UPtr<LuaState> coState(LuaState::newThread(parentL));
 
     // Stack: [nil(0), func(1)]
     coState->pushValue(Value(func));
 
-    Thread* thread = new Thread(coState);
-    parentL->getGlobalState().getGC().registerObject(thread);
-    return thread;
+    return parentL->getGlobalState().getGC().create<Thread>(std::move(coState));
 }
 
 // =====================================================================
@@ -192,7 +188,7 @@ bool Thread::resume(LuaState* callerL, i32 nargs) {
     // ──── 调用 VM ────
     ExecResult result;
     try {
-        result = VM::executeProto(state_, proto, savedNexeccalls_);
+        result = VM::executeProto(state_.get(), proto, savedNexeccalls_);
     } catch (const LuaError& e) {
         state_->decAllowYield();
         coStatus_ = CoroutineStatus::Dead;
@@ -260,7 +256,7 @@ bool Thread::resume(LuaState* callerL, i32 nargs) {
 // =====================================================================
 
 void Thread::mark(GarbageCollector& gc) {
-    gc.markState(state_);
+    gc.markState(state_.get());
     gc.markObject(caller_);
 }
 

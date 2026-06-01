@@ -179,6 +179,10 @@ try {
         & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root "tools\check_value_result_variant_only.ps1")
     }
 
+    Invoke-Step "C-style pattern guard" {
+        & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root "tools\check_c_style_patterns.ps1")
+    }
+
     Invoke-Step "MSBuild lua_test" {
         if ($SkipBuild) {
             Write-Host "[SKIP] MSBuild skipped by flag"

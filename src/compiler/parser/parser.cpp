@@ -104,11 +104,11 @@ void Parser::Impl::expect(TokenType type, const Str& message) {
     }
 }
 
-void Parser::Impl::error(const Str& message) {
+[[noreturn]] void Parser::Impl::error(const Str& message) {
     errorAt(current(), message);
 }
 
-void Parser::Impl::errorAt(const Token& token, const Str& message) {
+[[noreturn]] void Parser::Impl::errorAt(const Token& token, const Str& message) {
     Str fullMessage = errorWithNear(message, token);
     ParseError parseError(fullMessage, token.line, token.column);
     publishDiagnostic(parseError);

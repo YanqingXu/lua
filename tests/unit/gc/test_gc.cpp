@@ -23,6 +23,7 @@
 #include "vm/state/stack.hpp"
 
 #include <type_traits>
+#include <stdexcept>
 #include <utility>
 
 using namespace Lua;
@@ -34,6 +35,16 @@ public:
     TestGCObject() : GCObject(GCObjectType::String) {}
     void mark(GarbageCollector& /*gc*/) override {}
     usize getSize() const override { return sizeof(TestGCObject); }
+};
+
+class ThrowingGCObject : public GCObject {
+public:
+    ThrowingGCObject() : GCObject(GCObjectType::String) {
+        throw std::runtime_error("factory construction failure");
+    }
+
+    void mark(GarbageCollector& /*gc*/) override {}
+    usize getSize() const override { return sizeof(ThrowingGCObject); }
 };
 
 static i32 gcDummyCFunction(LuaState*) {
@@ -200,6 +211,39 @@ void testGarbageCollectorRegister(TestSuite& suite) {
     ASSERT_EQ(suite, initialCount + 3, objCount, "Register objects");
 
     // Cleanup
+    gc.clearAll();
+}
+
+void testGarbageCollectorCreateFactories(TestSuite& suite) {
+    GarbageCollector gc;
+
+    const usize initialCount = gc.getObjectCount();
+    Table* table = gc.create<Table>();
+
+    ASSERT_TRUE(suite, table != nullptr, "create<T> returns object");
+    ASSERT_TRUE(suite, table->getOwnerCollector() == &gc, "create<T> registers object owner");
+    ASSERT_EQ(suite, initialCount + 1, gc.getObjectCount(), "create<T> increments object count");
+
+    const usize beforeThrowCount = gc.getObjectCount();
+    bool threw = false;
+    try {
+        [[maybe_unused]] ThrowingGCObject* ignored = gc.create<ThrowingGCObject>();
+    } catch (const std::runtime_error&) {
+        threw = true;
+    }
+
+    ASSERT_TRUE(suite, threw, "create<T> propagates construction exceptions");
+    ASSERT_EQ(suite, beforeThrowCount, gc.getObjectCount(), "create<T> leaves count unchanged on construction failure");
+
+    Table* root = gc.createRoot<Table>();
+    ASSERT_TRUE(suite, gc.isRoot(root), "createRoot<T> registers root");
+
+    Table* fixedRoot = gc.createFixedRoot<Table>();
+    ASSERT_TRUE(suite, gc.isRoot(fixedRoot), "createFixedRoot<T> registers root");
+    ASSERT_TRUE(suite, (fixedRoot->getMarked() & GCBits::FIXED) != 0, "createFixedRoot<T> marks object fixed");
+
+    gc.removeRoot(root);
+    gc.removeRoot(fixedRoot);
     gc.clearAll();
 }
 
@@ -730,6 +774,7 @@ void registerGCTests() {
     registry.registerTest("GC", "Independent Instances", testGarbageCollectorInstancesAreIndependent);
     registry.registerTest("GC", "Explicit StringPool Sweep", testGarbageCollectorSweepUsesExplicitStringPool);
     registry.registerTest("GC", "GC Register", testGarbageCollectorRegister);
+    registry.registerTest("GC", "GC Create Factories", testGarbageCollectorCreateFactories);
     registry.registerTest("GC", "GC Roots", testGarbageCollectorRoots);
     registry.registerTest("GC", "GC Collect", testGarbageCollectorCollect);
     registry.registerTest("GC", "GC Strategy Selection", testGarbageCollectorStrategySelection);

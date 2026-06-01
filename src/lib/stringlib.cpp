@@ -28,6 +28,7 @@
 #include <cstring>
 #include <cstdio>
 #include <cstdlib>
+#include <format>
 #include <limits>
 
 namespace Lua {
@@ -46,9 +47,7 @@ namespace Lua {
 static inline const char* getStringArg(LuaState* L, i32 idx, const char* funcName, usize* len = nullptr) {
     const char* str = L->toString(idx);
     if (str == nullptr) {
-        char buffer[128];
-        std::snprintf(buffer, sizeof(buffer), "bad argument #%d to 'string.%s' (string expected)", idx, funcName);
-        L->error(buffer);
+        L->error(std::format("bad argument #{} to 'string.{}' (string expected)", idx, funcName).c_str());
     }
     if (len) {
         const Value& v = L->at(idx);
@@ -79,18 +78,14 @@ static inline f64 getNumberArg(LuaState* L, i32 idx, const char* funcName) {
     }
 
     {
-        char buffer[128];
-        std::snprintf(buffer, sizeof(buffer), "bad argument #%d to 'string.%s' (number expected)", idx, funcName);
-        L->error(buffer);
+        L->error(std::format("bad argument #{} to 'string.{}' (number expected)", idx, funcName).c_str());
     }
 }
 
 static inline const char* getStringLikeArg(LuaState* L, i32 idx, const char* funcName, usize* len = nullptr) {
     const char* str = L->toString(idx);
     if (str == nullptr) {
-        char buffer[128];
-        std::snprintf(buffer, sizeof(buffer), "bad argument #%d to 'string.%s' (string expected)", idx, funcName);
-        L->error(buffer);
+        L->error(std::format("bad argument #{} to 'string.{}' (string expected)", idx, funcName).c_str());
     }
     if (len) {
         const Value& v = L->at(idx);
@@ -126,19 +121,12 @@ static inline bool isSupportedFormatSpecifier(char ch) {
 }
 
 [[noreturn]] static void formatError(LuaState* L, const char* message) {
-    char buffer[160];
-    std::snprintf(buffer, sizeof(buffer), "invalid option '%%%s' to 'format'", message);
-    L->error(buffer);
+    L->error(std::format("invalid option '%{}' to 'format'", message).c_str());
 }
 
 [[noreturn]] static void formatError(LuaState* L, char specifier) {
-    char buffer[8];
-    if (specifier == '\0') {
-        std::snprintf(buffer, sizeof(buffer), "%%");
-    } else {
-        std::snprintf(buffer, sizeof(buffer), "%c", specifier);
-    }
-    formatError(L, buffer);
+    const Str message = specifier == '\0' ? "%" : Str(1, specifier);
+    formatError(L, message.c_str());
 }
 
 template <typename T>
@@ -377,9 +365,7 @@ i32 str_char(LuaState* L) {
         i32 c = static_cast<i32>(val);
 
         if (c < 0 || c > 255) {
-            char buffer[128];
-            std::snprintf(buffer, sizeof(buffer), "bad argument #%d to 'string.char' (value out of range)", i);
-            L->error(buffer);
+            L->error(std::format("bad argument #{} to 'string.char' (value out of range)", i).c_str());
         }
 
         result.push_back(static_cast<char>(c));
@@ -424,8 +410,26 @@ struct MatchState {
     MatchCapture capture[LUA_MAXCAPTURES];
 };
 
+struct PatternCursor {
+    const char* current = nullptr;
+    const char* end = nullptr;
+};
+
+using MatchResult = Opt<const char*>;
+
 // Forward declarations
 static const char* lmatch(MatchState* ms, const char* s, const char* p);
+
+static MatchResult tryMatch(MatchState* ms, PatternCursor source, const char* pattern) {
+    if (source.current == nullptr || source.current > source.end) {
+        return std::nullopt;
+    }
+
+    if (const char* result = lmatch(ms, source.current, pattern)) {
+        return result;
+    }
+    return std::nullopt;
+}
 
 static i32 matchclass(i32 c, i32 cl) {
     i32 res;
@@ -749,13 +753,13 @@ i32 str_find(LuaState* L) {
 
     for (usize i = initPos; i <= slen; i++) {
         ms.level = 0;
-        const char* res = lmatch(&ms, s + i, p);
-        if (res) {
+        MatchResult res = tryMatch(&ms, PatternCursor{s + i, s + slen}, p);
+        if (res.has_value()) {
             L->pushNumber(static_cast<f64>(i + 1));
-            L->pushNumber(static_cast<f64>(res - s));
+            L->pushNumber(static_cast<f64>(res.value() - s));
             // Push captures after start/end
             for (i32 c = 0; c < ms.level; c++)
-                push_onecapture(&ms, c, s + i, res);
+                push_onecapture(&ms, c, s + i, res.value());
             return 2 + ms.level;
         }
         if (anchor) break;
@@ -795,9 +799,9 @@ i32 str_match(LuaState* L) {
 
     for (usize i = initPos; i <= slen; i++) {
         ms.level = 0;
-        const char* res = lmatch(&ms, s + i, p);
-        if (res) {
-            return push_captures(&ms, s + i, res);
+        MatchResult res = tryMatch(&ms, PatternCursor{s + i, s + slen}, p);
+        if (res.has_value()) {
+            return push_captures(&ms, s + i, res.value());
         }
         if (anchor) break;
     }
@@ -858,10 +862,7 @@ static void addStringReplacement(MatchState* ms, Str& result,
                         ms->L->error("invalid capture index");
                     }
                 } else if (ms->capture[ci].len == CAP_POSITION) {
-                    char buffer[32];
-                    std::snprintf(buffer, sizeof(buffer), "%.14g",
-                                  static_cast<f64>(ms->capture[ci].init - ms->src_init + 1));
-                    result.append(buffer);
+                    result.append(luaNumberToString(static_cast<f64>(ms->capture[ci].init - ms->src_init + 1)));
                 } else if (ms->capture[ci].len >= 0) {
                     result.append(ms->capture[ci].init,
                                   static_cast<usize>(ms->capture[ci].len));
@@ -885,9 +886,7 @@ static bool addValueReplacement(LuaState* L, Str& result, const Value& value) {
     }
 
     if (value.isNumber()) {
-        char buffer[64];
-        std::snprintf(buffer, sizeof(buffer), "%.14g", value.asNumber());
-        result.append(buffer);
+        result.append(luaNumberToString(value.asNumber()));
         return true;
     }
 
@@ -964,28 +963,29 @@ i32 str_gsub(LuaState* L) {
 
     while (count < maxn) {
         ms.level = 0;
-        const char* e = lmatch(&ms, s + srcPos, p);
-        if (e) {
+        MatchResult e = tryMatch(&ms, PatternCursor{s + srcPos, s + slen}, p);
+        if (e.has_value()) {
+            const char* matchEnd = e.value();
             count++;
             bool replaced = true;
             switch (replKind) {
                 case GsubReplacementKind::String:
-                    addStringReplacement(&ms, result, s + srcPos, e, repl, rlen);
+                    addStringReplacement(&ms, result, s + srcPos, matchEnd, repl, rlen);
                     break;
                 case GsubReplacementKind::Table:
                     replaced = addValueReplacement(
-                        L, result, getTableReplacement(&ms, replValue.asTable(), s + srcPos, e, L));
+                        L, result, getTableReplacement(&ms, replValue.asTable(), s + srcPos, matchEnd, L));
                     break;
                 case GsubReplacementKind::Function:
                     replaced = addValueReplacement(
-                        L, result, getFunctionReplacement(&ms, replValue, s + srcPos, e, L));
+                        L, result, getFunctionReplacement(&ms, replValue, s + srcPos, matchEnd, L));
                     break;
             }
             if (!replaced) {
-                result.append(s + srcPos, static_cast<usize>(e - (s + srcPos)));
+                result.append(s + srcPos, static_cast<usize>(matchEnd - (s + srcPos)));
             }
             // If empty match, advance by one
-            if (e == s + srcPos) {
+            if (matchEnd == s + srcPos) {
                 if (srcPos < slen) {
                     result.push_back(s[srcPos]);
                     srcPos++;
@@ -993,7 +993,7 @@ i32 str_gsub(LuaState* L) {
                     break;
                 }
             } else {
-                srcPos = static_cast<usize>(e - s);
+                srcPos = static_cast<usize>(matchEnd - s);
             }
         } else {
             if (srcPos < slen) {
@@ -1067,12 +1067,13 @@ static i32 gmatch_aux(LuaState* L) {
 
     for (usize i = pos; i <= slen; i++) {
         ms.level = 0;
-        const char* e = lmatch(&ms, s + i, pattern);
-        if (e) {
+        MatchResult e = tryMatch(&ms, PatternCursor{s + i, s + slen}, pattern);
+        if (e.has_value()) {
+            const char* matchEnd = e.value();
             // Advance position: if empty match, move forward by 1
-            usize newpos = (e == s + i) ? i + 1 : static_cast<usize>(e - s);
+            usize newpos = (matchEnd == s + i) ? i + 1 : static_cast<usize>(matchEnd - s);
             setUpval(L, 2, Value(static_cast<f64>(newpos)));
-            return push_captures(&ms, s + i, e);
+            return push_captures(&ms, s + i, matchEnd);
         }
     }
     return 0;
@@ -1081,11 +1082,9 @@ static i32 gmatch_aux(LuaState* L) {
 /// Helper: create C closure with closed upvalues (same pattern as iolib)
 static Function* createClosureWithUpvalues(
     LuaState* L, CFunction func, const Vec<Value>& upvalues) {
-    Function* closure = new Function(func);
-    L->getGlobalState().getGC().registerObject(closure);
+    Function* closure = L->getGlobalState().getGC().create<Function>(func);
     for (const Value& v : upvalues) {
-        Upvalue* uv = Upvalue::createClosed(v);
-        L->getGlobalState().getGC().registerObject(uv);
+        Upvalue* uv = L->getGlobalState().getGC().create<Upvalue>(v);
         closure->addUpvalue(uv);
     }
     return closure;
@@ -1440,8 +1439,7 @@ void StringLibModule::registerFunctions(LuaState* L) {
     // Lua 5.1 exposes string methods through the shared string metatable.
     Table* stringMT = gs.getMetatable(ValueType::String);
     if (stringMT == nullptr) {
-        stringMT = new Table();
-        gs.getGC().registerObject(stringMT);
+        stringMT = gs.getGC().create<Table>();
         gs.setMetatable(ValueType::String, stringMT);
     }
 

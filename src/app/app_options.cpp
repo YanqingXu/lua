@@ -1,86 +1,89 @@
 #include "app_options.hpp"
 
 #include <cstring>
+#include <utility>
 
 namespace Lua {
 
-AppOptions parseArgs(int argc, char** argv) {
+AppOptions parseArgs(std::span<char* const> argv) {
     AppOptions opt;
-    opt.argc = argc;
-    opt.argv = argv;
-    opt.programName = (argc > 0 && argv != nullptr) ? argv[0] : nullptr;
+    opt.arguments.reserve(argv.size());
+    for (char* arg : argv) {
+        opt.arguments.emplace_back(arg != nullptr ? arg : "");
+    }
+    opt.programName = !opt.arguments.empty() ? opt.arguments.front() : "";
 
     bool showVersion = false;
     bool showHelp = false;
     bool interactiveMode = false;
     bool hasError = false;
 
-    auto fail = [&](const char* message) {
+    auto fail = [&](Str message) {
         if (!hasError) {
-            opt.errorMessage = message;
+            opt.errorMessage = std::move(message);
             hasError = true;
         }
     };
 
-    auto addAction = [&](StartupActionKind kind, const char* argument) {
-        opt.startupActions.push_back(StartupAction{kind, argument});
+    auto addAction = [&](StartupActionKind kind, Str argument) {
+        opt.startupActions.push_back(StartupAction{kind, std::move(argument)});
     };
 
-    for (i32 i = 1; i < argc; ++i) {
-        const char* arg = argv[i];
-        if (arg == nullptr) {
-            continue;
-        }
+    for (i32 i = 1; i < static_cast<i32>(opt.arguments.size()); ++i) {
+        const Str& arg = opt.arguments[static_cast<usize>(i)];
 
-        if (std::strcmp(arg, "-v") == 0) {
+        if (arg == "-v") {
             showVersion = true;
-        } else if (std::strcmp(arg, "-h") == 0) {
+        } else if (arg == "-h") {
             showHelp = true;
-        } else if (std::strcmp(arg, "-i") == 0) {
+        } else if (arg == "-i") {
             interactiveMode = true;
-        } else if (std::strcmp(arg, "--") == 0) {
-            if (i + 1 < argc) {
-                opt.scriptFile = argv[i + 1];
+        } else if (arg == "--") {
+            if (i + 1 < static_cast<i32>(opt.arguments.size())) {
+                opt.scriptFile = opt.arguments[static_cast<usize>(i + 1)];
                 opt.scriptIndex = i + 1;
             }
             break;
-        } else if (std::strcmp(arg, "-") == 0) {
+        } else if (arg == "-") {
             opt.scriptFile = arg;
             opt.scriptIndex = i;
             break;
-        } else if (std::strcmp(arg, "-e") == 0) {
-            if (i + 1 >= argc) {
+        } else if (arg == "-e") {
+            if (i + 1 >= static_cast<i32>(opt.arguments.size())) {
                 fail("'-e' needs argument");
                 break;
             }
-            if (std::strcmp(argv[i + 1], "--") == 0) {
+            if (opt.arguments[static_cast<usize>(i + 1)] == "--") {
                 addAction(StartupActionKind::ExecuteChunk, " ");
             } else {
-                addAction(StartupActionKind::ExecuteChunk, argv[++i]);
+                ++i;
+                addAction(StartupActionKind::ExecuteChunk, opt.arguments[static_cast<usize>(i)]);
             }
-        } else if (std::strncmp(arg, "-e", 2) == 0) {
-            const char* chunk = arg + 2;
-            addAction(StartupActionKind::ExecuteChunk, chunk);
-        } else if (std::strncmp(arg, "-l", 2) == 0) {
-            const char* module = arg + 2;
-            if (*module == '\0') {
-                if (i + 1 >= argc) {
+        } else if (arg.starts_with("-e")) {
+            addAction(StartupActionKind::ExecuteChunk, arg.substr(2));
+        } else if (arg.starts_with("-l")) {
+            Str module = arg.substr(2);
+            if (module.empty()) {
+                if (i + 1 >= static_cast<i32>(opt.arguments.size())) {
                     fail("'-l' needs argument");
                     break;
                 }
-                module = argv[++i];
+                ++i;
+                module = opt.arguments[static_cast<usize>(i)];
             }
-            addAction(StartupActionKind::RequireModule, module);
-        } else if (std::strcmp(arg, "--trace") == 0 && i + 1 < argc) {
-            opt.traceFile = argv[++i];
+            addAction(StartupActionKind::RequireModule, std::move(module));
+        } else if (arg == "--trace" && i + 1 < static_cast<i32>(opt.arguments.size())) {
+            ++i;
+            opt.traceFile = opt.arguments[static_cast<usize>(i)];
             opt.traceDiff = false;
-        } else if (std::strcmp(arg, "--trace-diff") == 0 && i + 1 < argc) {
-            opt.traceFile = argv[++i];
+        } else if (arg == "--trace-diff" && i + 1 < static_cast<i32>(opt.arguments.size())) {
+            ++i;
+            opt.traceFile = opt.arguments[static_cast<usize>(i)];
             opt.traceDiff = true;
-        } else if (std::strcmp(arg, "--trace") == 0 || std::strcmp(arg, "--trace-diff") == 0) {
+        } else if (arg == "--trace" || arg == "--trace-diff") {
             fail("trace option needs file argument");
             break;
-        } else if (arg[0] != '-') {
+        } else if (!arg.empty() && arg[0] != '-') {
             opt.scriptFile = arg;
             opt.scriptIndex = i;
             break;
@@ -98,7 +101,7 @@ AppOptions parseArgs(int argc, char** argv) {
         opt.mode = RunMode::Error;
     } else if (showHelp) {
         opt.mode = RunMode::ShowHelp;
-    } else if (opt.scriptFile != nullptr) {
+    } else if (opt.scriptFile.has_value()) {
         opt.mode = RunMode::Script;
     } else if (interactiveMode) {
         opt.mode = RunMode::Repl;
@@ -107,6 +110,14 @@ AppOptions parseArgs(int argc, char** argv) {
     }
 
     return opt;
+}
+
+AppOptions parseArgs(int argc, char** argv) {
+    if (argc <= 0 || argv == nullptr) {
+        return parseArgs(std::span<char* const>());
+    }
+
+    return parseArgs(std::span<char* const>(argv, static_cast<usize>(argc)));
 }
 
 } // namespace Lua

@@ -29,18 +29,7 @@ usize GarbageCollector::sweep(StringPool& stringPool) {
                 prev->setNext(next);
             }
 
-            // 更新统计信息
-            usize objSize = obj->getSize();
-            totalMemory_ = totalMemory_ >= objSize ? totalMemory_ - objSize : 0;
-            --objectCount_;
-            obj->setOwnerCollector(nullptr);
-
-            if (obj->getType() == GCObjectType::String) {
-                stringPool.remove(static_cast<GCString*>(obj));
-            }
-            
-            // 删除对象
-            delete obj;
+            destroyObject(obj, stringPool);
             ++collected;
             
             // prev不变，因为当前对象已删除

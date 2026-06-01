@@ -19,11 +19,13 @@
 #include "core/userdata.hpp"
 #include "vm/state/global_state.hpp"
 #include <cstdio>
+#include <format>
 #include <cctype>
 #include <cstring>
 #include <cerrno>
 #include <algorithm>
 #include <cstdlib>
+#include <memory>
 #include <string>
 
 #ifdef _WIN32
@@ -36,15 +38,62 @@ namespace Lua {
 // 常量定义
 // =====================================================================
 
-static const char* IO_INPUT = "io.input";
-static const char* IO_OUTPUT = "io.output";
-static const char* FILE_HANDLE_METATABLE = "FILE*";
+static constexpr StrView IO_INPUT = "io.input";
+static constexpr StrView IO_OUTPUT = "io.output";
+static constexpr StrView FILE_HANDLE_METATABLE = "FILE*";
+
+struct FileCloser {
+    bool isPipe = false;
+    bool ownsFile = true;
+
+    static i32 close(FILE* fp, bool pipe) noexcept {
+        if (fp == nullptr) {
+            return 0;
+        }
+
+        if (pipe) {
+#ifdef _WIN32
+            return _pclose(fp);
+#else
+            return pclose(fp);
+#endif
+        }
+
+        return std::fclose(fp);
+    }
+
+    void operator()(FILE* fp) const noexcept {
+        if (!ownsFile) {
+            return;
+        }
+
+        [[maybe_unused]] const i32 result = close(fp, isPipe);
+    }
+};
 
 struct FileHandleData {
-    FILE* fp = nullptr;
-    bool isPipe = false;
+    using FilePtr = std::unique_ptr<FILE, FileCloser>;
+
+    FilePtr file{nullptr, FileCloser{}};
     bool lineBuffered = false;
-    char path[1024] = {};
+    Str path;
+
+    FILE* get() const noexcept {
+        return file.get();
+    }
+
+    void reset(FILE* fp, bool pipe, bool ownsFile) noexcept {
+        file = FilePtr(fp, FileCloser{pipe, ownsFile});
+    }
+
+    i32 close() noexcept {
+        const FileCloser closer = file.get_deleter();
+        FILE* fp = file.release();
+        if (!closer.ownsFile) {
+            return 0;
+        }
+        return FileCloser::close(fp, closer.isPipe);
+    }
 };
 
 static i32 lines_iterator(LuaState* L);
@@ -154,12 +203,10 @@ static Function* createCClosureWithClosedUpvalues(
     CFunction func,
     const Vec<Value>& upvalues
 ) {
-    Function* closure = new Function(func);
-    L->getGlobalState().getGC().registerObject(closure);
+    Function* closure = L->getGlobalState().getGC().create<Function>(func);
 
     for (const Value& value : upvalues) {
-        Upvalue* uv = Upvalue::createClosed(value);
-        L->getGlobalState().getGC().registerObject(uv);
+        Upvalue* uv = L->getGlobalState().getGC().create<Upvalue>(value);
         closure->addUpvalue(uv);
     }
 
@@ -185,7 +232,7 @@ static Value getClosureUpvalueValue(LuaState* L, usize index) {
 }
 
 static Value getDefaultInputHandleValue(LuaState* L) {
-    Value val = L->getGlobal(IO_INPUT);
+    Value val = L->getGlobal(IO_INPUT.data());
     if (toFileHandle(val) != nullptr) {
         return val;
     }
@@ -199,12 +246,12 @@ static Value getDefaultInputHandleValue(LuaState* L) {
         }
     }
 
-    Userdata* ud = createFileHandle(L, stdin, false);
+    Userdata* ud = createFileHandle(L, stdin, false, nullptr, false);
     return Value(ud);
 }
 
 static Value getDefaultOutputHandleValue(LuaState* L) {
-    Value val = L->getGlobal(IO_OUTPUT);
+    Value val = L->getGlobal(IO_OUTPUT.data());
     if (toFileHandle(val) != nullptr) {
         return val;
     }
@@ -218,7 +265,7 @@ static Value getDefaultOutputHandleValue(LuaState* L) {
         }
     }
 
-    Userdata* ud = createFileHandle(L, stdout, false);
+    Userdata* ud = createFileHandle(L, stdout, false, nullptr, false);
     return Value(ud);
 }
 
@@ -262,31 +309,20 @@ FileHandleData* checkFilePtr(LuaState* L, i32 idx) {
 }
 
 static i32 closeFileHandle(FileHandleData* handle) {
-    if (!handle || handle->fp == nullptr) {
+    if (!handle || handle->get() == nullptr) {
         return 0;
     }
 
-    FILE* fp = handle->fp;
-    handle->fp = nullptr;
     gOpenFileHandles.erase(
         std::remove(gOpenFileHandles.begin(), gOpenFileHandles.end(), handle),
         gOpenFileHandles.end()
     );
-
-    if (handle->isPipe) {
-#ifdef _WIN32
-        return _pclose(fp);
-#else
-        return pclose(fp);
-#endif
-    }
-
-    return std::fclose(fp);
+    return handle->close();
 }
 
 static bool handlePathMatches(FileHandleData* handle, const char* path) {
-    return handle != nullptr && path != nullptr && handle->path[0] != '\0' &&
-           std::strcmp(handle->path, path) == 0;
+    return handle != nullptr && path != nullptr && !handle->path.empty() &&
+           handle->path == path;
 }
 
 bool releaseFileHandlesForPath(LuaState* L, const char* path) {
@@ -297,7 +333,7 @@ bool releaseFileHandlesForPath(LuaState* L, const char* path) {
     bool released = false;
     for (usize i = 0; i < gOpenFileHandles.size();) {
         FileHandleData* handle = gOpenFileHandles[i];
-        if (handlePathMatches(handle, path) && handle->fp != nullptr) {
+        if (handlePathMatches(handle, path) && handle->get() != nullptr) {
             (void)closeFileHandle(handle);
             released = true;
             continue;
@@ -307,17 +343,21 @@ bool releaseFileHandlesForPath(LuaState* L, const char* path) {
     return released;
 }
 
-Userdata* createFileHandle(LuaState* L, FILE* fp, bool isPipe, const char* path) {
+Userdata* createFileHandle(
+    LuaState* L,
+    FILE* fp,
+    bool isPipe,
+    const char* path,
+    bool ownsFile
+) {
     // 创建 userdata
-    Userdata* ud = Userdata::createFull(sizeof(FileHandleData));
-    L->getGlobalState().getGC().registerObject(ud);
+    Userdata* ud = L->getGlobalState().getGC().create<Userdata>(sizeof(FileHandleData));
 
     // 设置文件句柄元数据
-    FileHandleData* handle = static_cast<FileHandleData*>(ud->getData());
-    handle->fp = fp;
-    handle->isPipe = isPipe;
+    FileHandleData* handle = ud->constructData<FileHandleData>();
+    handle->reset(fp, isPipe, ownsFile);
     if (path != nullptr) {
-        std::snprintf(handle->path, sizeof(handle->path), "%s", path);
+        handle->path = path;
     }
     if (fp != nullptr) {
         gOpenFileHandles.push_back(handle);
@@ -335,22 +375,22 @@ Userdata* createFileHandle(LuaState* L, FILE* fp, bool isPipe, const char* path)
 
 FILE* getDefaultInput(LuaState* L) {
     FileHandleData* handle = toFileHandle(getDefaultInputHandleValue(L));
-    return handle ? handle->fp : nullptr;
+    return handle ? handle->get() : nullptr;
 }
 
 FILE* getDefaultOutput(LuaState* L) {
     FileHandleData* handle = toFileHandle(getDefaultOutputHandleValue(L));
-    return handle ? handle->fp : nullptr;
+    return handle ? handle->get() : nullptr;
 }
 
 void setDefaultInput(LuaState* L, FILE* fp) {
-    Userdata* ud = createFileHandle(L, fp, false);
-    L->setGlobal(IO_INPUT, Value(ud));
+    Userdata* ud = createFileHandle(L, fp, false, nullptr, false);
+    L->setGlobal(IO_INPUT.data(), Value(ud));
 }
 
 void setDefaultOutput(LuaState* L, FILE* fp) {
-    Userdata* ud = createFileHandle(L, fp, false);
-    L->setGlobal(IO_OUTPUT, Value(ud));
+    Userdata* ud = createFileHandle(L, fp, false, nullptr, false);
+    L->setGlobal(IO_OUTPUT.data(), Value(ud));
 }
 
 // =====================================================================
@@ -515,7 +555,7 @@ i32 io_close(LuaState* L) {
         handle = checkFilePtr(L, 1);
     }
 
-    if (handle->fp == nullptr) {
+    if (handle->get() == nullptr) {
         L->error("attempt to use a closed file");
     }
 
@@ -543,7 +583,7 @@ i32 io_read(LuaState* L) {
 i32 io_write(LuaState* L) {
     Value outputHandle = getDefaultOutputHandleValue(L);
     FileHandleData* handle = toFileHandle(outputHandle);
-    if (!handle || !handle->fp) {
+    if (!handle || !handle->get()) {
         L->error("attempt to use a closed file");
     }
     return f_write_impl(L, handle, 1, outputHandle);
@@ -570,12 +610,12 @@ i32 io_input(LuaState* L) {
             }
             Userdata* ud = createFileHandle(L, fp, false, filename);
             Value handleValue(ud);
-            L->setGlobal(IO_INPUT, handleValue);
+            L->setGlobal(IO_INPUT.data(), handleValue);
             L->pushValue(handleValue);
             return 1;
         } else {
             checkFilePtr(L, 1);
-            L->setGlobal(IO_INPUT, L->at(1));
+            L->setGlobal(IO_INPUT.data(), L->at(1));
         }
         L->pushValue(1);
         return 1;
@@ -595,12 +635,12 @@ i32 io_output(LuaState* L) {
             }
             Userdata* ud = createFileHandle(L, fp, false, filename);
             Value handleValue(ud);
-            L->setGlobal(IO_OUTPUT, handleValue);
+            L->setGlobal(IO_OUTPUT.data(), handleValue);
             L->pushValue(handleValue);
             return 1;
         } else {
             checkFilePtr(L, 1);
-            L->setGlobal(IO_OUTPUT, L->at(1));
+            L->setGlobal(IO_OUTPUT.data(), L->at(1));
         }
         L->pushValue(1);
         return 1;
@@ -620,7 +660,7 @@ i32 io_type(LuaState* L) {
     }
     
     GCString* typeStr;
-    if (handle->fp) {
+    if (handle->get()) {
         typeStr = L->getGlobalState().getStringPool().intern("file");
     } else {
         typeStr = L->getGlobalState().getStringPool().intern("closed file");
@@ -646,7 +686,7 @@ static i32 lines_iterator(LuaState* L) {
         L->error("io.lines iterator: invalid file handle");
     }
 
-    if (handle->fp == nullptr) {
+    if (handle->get() == nullptr) {
         L->error("io.lines iterator: file is already closed");
     }
 
@@ -655,7 +695,7 @@ static i32 lines_iterator(LuaState* L) {
                       : 0;
 
     if (formatCount == 0) {
-        if (readLine(L, handle->fp)) {
+        if (readLine(L, handle->get())) {
             return 1;
         }
 
@@ -675,7 +715,7 @@ static i32 lines_iterator(LuaState* L) {
         L->pushValue(uv->getValue(L->getStack()));
     }
 
-    i32 nresults = f_read_impl(L, handle->fp, 1);
+    i32 nresults = f_read_impl(L, handle->get(), 1);
     if (nresults <= 0 || (L->getTop() >= 1 && L->at(-nresults).isNil())) {
         if (autoCloseVal.isBoolean() && autoCloseVal.asBoolean()) {
             closeFileHandle(handle);
@@ -825,7 +865,7 @@ static i32 f_write_impl(
     i32 firstArg,
     const Value& successValue
 ) {
-    FILE* fp = handle->fp;
+    FILE* fp = handle->get();
     i32 nargs = L->getTop() - firstArg + 1;
     bool success = true;
     bool shouldFlushLine = false;
@@ -865,7 +905,7 @@ static i32 f_write_impl(
 i32 f_close(LuaState* L) {
     FileHandleData* handle = checkFilePtr(L, 1);
 
-    if (!handle->fp) {
+    if (!handle->get()) {
         L->error("attempt to use a closed file");
     }
 
@@ -875,15 +915,15 @@ i32 f_close(LuaState* L) {
 
 i32 f_read(LuaState* L) {
     FileHandleData* handle = checkFilePtr(L, 1);
-    if (!handle->fp) {
+    if (!handle->get()) {
         L->error("attempt to use a closed file");
     }
-    return f_read_impl(L, handle->fp, 2);
+    return f_read_impl(L, handle->get(), 2);
 }
 
 i32 f_write(LuaState* L) {
     FileHandleData* handle = checkFilePtr(L, 1);
-    if (!handle->fp) {
+    if (!handle->get()) {
         L->error("attempt to use a closed file");
     }
 
@@ -892,15 +932,15 @@ i32 f_write(LuaState* L) {
 
 i32 f_flush(LuaState* L) {
     FileHandleData* handle = checkFilePtr(L, 1);
-    if (!handle->fp) {
+    if (!handle->get()) {
         L->error("attempt to use a closed file");
     }
-    return pushResult(L, std::fflush(handle->fp) == 0);
+    return pushResult(L, std::fflush(handle->get()) == 0);
 }
 
 i32 f_seek(LuaState* L) {
     FileHandleData* handle = checkFilePtr(L, 1);
-    if (!handle->fp) {
+    if (!handle->get()) {
         L->error("attempt to use a closed file");
     }
     
@@ -926,19 +966,19 @@ i32 f_seek(LuaState* L) {
     }
     
     // 执行 seek
-    if (std::fseek(handle->fp, offset, whence) != 0) {
+    if (std::fseek(handle->get(), offset, whence) != 0) {
         return pushResult(L, false, Value(true));
     }
     
     // 返回新位置
-    long pos = std::ftell(handle->fp);
+    long pos = std::ftell(handle->get());
     L->pushNumber(static_cast<f64>(pos));
     return 1;
 }
 
 i32 f_setvbuf(LuaState* L) {
     FileHandleData* handle = checkFilePtr(L, 1);
-    if (!handle->fp) {
+    if (!handle->get()) {
         L->error("attempt to use a closed file");
     }
     
@@ -964,7 +1004,7 @@ i32 f_setvbuf(LuaState* L) {
         size = static_cast<usize>(L->toNumber(3));
     }
     
-    i32 result = std::setvbuf(handle->fp, nullptr, m, size);
+    i32 result = std::setvbuf(handle->get(), nullptr, m, size);
     if (result == 0) {
         handle->lineBuffered = (m == _IOLBF);
     }
@@ -973,7 +1013,7 @@ i32 f_setvbuf(LuaState* L) {
 
 i32 f_lines(LuaState* L) {
     FileHandleData* handle = checkFilePtr(L, 1);
-    if (!handle->fp) {
+    if (!handle->get()) {
         L->error("attempt to use a closed file");
     }
 
@@ -987,13 +1027,11 @@ i32 f_lines(LuaState* L) {
 i32 io_gc(LuaState* L) {
     FileHandleData* handle = toFileHandle(L, 1);
     if (!handle) {
-        char buffer[128];
-        std::snprintf(buffer, sizeof(buffer),
-                      "bad argument #1 to '__gc' (FILE* expected, got %s)",
-                      L->typeName(L->type(1)));
-        L->error(buffer);
+        L->error(std::format(
+            "bad argument #1 to '__gc' (FILE* expected, got {})",
+            L->typeName(L->type(1))).c_str());
     }
-    if (handle && handle->fp) {
+    if (handle && handle->get()) {
         closeFileHandle(handle);
     }
     return 0;
@@ -1007,10 +1045,8 @@ i32 io_tostring(LuaState* L) {
     }
     
     std::string str;
-    if (handle->fp) {
-        char buffer[64];
-        std::snprintf(buffer, sizeof(buffer), "file (%p)", static_cast<void*>(handle->fp));
-        str = buffer;
+    if (handle->get()) {
+        str = std::format("file ({})", static_cast<void*>(handle->get()));
     } else {
         str = "file (closed)";
     }
@@ -1052,8 +1088,7 @@ void IOLibModule::registerFunctions(LuaState* L) {
         .commitToTable(ioTable);
     
     // 创建文件句柄元表
-    Table* fileMT = new Table();
-    L->getGlobalState().getGC().registerObject(fileMT);
+    Table* fileMT = L->getGlobalState().getGC().create<Table>();
     
     // 注册文件方法
     FunctionRegistrar(L)
@@ -1090,9 +1125,9 @@ void IOLibModule::initialize(LuaState* L) {
     gOpenFileHandles.clear();
 
     // 创建标准文件句柄
-    Userdata* stdinHandle = createFileHandle(L, stdin, false);
-    Userdata* stdoutHandle = createFileHandle(L, stdout, false);
-    Userdata* stderrHandle = createFileHandle(L, stderr, false);
+    Userdata* stdinHandle = createFileHandle(L, stdin, false, nullptr, false);
+    Userdata* stdoutHandle = createFileHandle(L, stdout, false, nullptr, false);
+    Userdata* stderrHandle = createFileHandle(L, stderr, false, nullptr, false);
     
     // 设置到 io 表中
     auto& gs = L->getGlobalState();
@@ -1112,8 +1147,8 @@ void IOLibModule::initialize(LuaState* L) {
     }
     
     // 设置默认输入输出
-    L->setGlobal(IO_INPUT, Value(stdinHandle));
-    L->setGlobal(IO_OUTPUT, Value(stdoutHandle));
+    L->setGlobal(IO_INPUT.data(), Value(stdinHandle));
+    L->setGlobal(IO_OUTPUT.data(), Value(stdoutHandle));
 }
 
 void openIOLib(LuaState* L) {

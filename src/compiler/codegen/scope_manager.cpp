@@ -108,13 +108,10 @@ void ScopeManager::leaveBlock() {
         throw std::runtime_error("No block to leave");
     }
 
-    BlockInfo* block = state_.blockManager.currentBlock_;
-    state_.blockManager.currentBlock_ = block->previous;
+    UPtr<BlockInfo> block = state_.blockManager.takeCurrentBlock();
 
     removeLocalVars(block->activeVarCount);
     jumps_.patchList(block->breaklist, jumps_.getLabel());
-
-    delete block;
 }
 
 BlockInfo* ScopeManager::currentBlock() const noexcept {

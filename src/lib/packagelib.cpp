@@ -28,6 +28,7 @@
 #include "vm/vm.hpp"
 #include "compiler/parser/parser.hpp"
 #include "compiler/codegen/codegen.hpp"
+#include <array>
 #include <fstream>
 #include <sstream>
 #include <cstring>
@@ -51,45 +52,45 @@ namespace Lua {
 // or global "package" table.
 // =====================================================================
 
-static const char* const PACKAGE_TABLE_NAME = "package";
-static const char* const PACKAGE_REGISTRY_KEY = "_PACKAGE_TABLE";
+static constexpr StrView PACKAGE_TABLE_NAME = "package";
+static constexpr StrView PACKAGE_REGISTRY_KEY = "_PACKAGE_TABLE";
 
 // Default paths
 #ifdef _WIN32
-static const char* const LUA_DEFAULT_PATH =
+static constexpr StrView LUA_DEFAULT_PATH =
     ".\\?.lua;"
     ".\\?\\init.lua;"
     "!\\lua\\?.lua;"
     "!\\lua\\?\\init.lua";
-static const char* const LUA_DEFAULT_CPATH =
+static constexpr StrView LUA_DEFAULT_CPATH =
     ".\\?.dll;"
     "!\\?.dll;"
     "!\\loadall.dll";
-static const char* const LUA_PATH_SEP  = ";";
-static const char* const LUA_PATH_MARK = "?";
-static const char* const LUA_DIR_SEP   = "\\";
-static const char* const LUA_EXEC_DIR  = "!";
-static const char* const LUA_IGMARK    = "-";
-static const char* const LUA_OFSEP     = "_";
+static constexpr StrView LUA_PATH_SEP  = ";";
+static constexpr StrView LUA_PATH_MARK = "?";
+static constexpr StrView LUA_DIR_SEP   = "\\";
+static constexpr StrView LUA_EXEC_DIR  = "!";
+static constexpr StrView LUA_IGMARK    = "-";
+static constexpr StrView LUA_OFSEP     = "_";
 #else
-static const char* const LUA_DEFAULT_PATH =
+static constexpr StrView LUA_DEFAULT_PATH =
     "./?.lua;"
     "./?/init.lua;"
     "/usr/local/share/lua/5.1/?.lua;"
     "/usr/local/share/lua/5.1/?/init.lua";
-static const char* const LUA_DEFAULT_CPATH =
+static constexpr StrView LUA_DEFAULT_CPATH =
     "./?.so;"
     "/usr/local/lib/lua/5.1/?.so";
-static const char* const LUA_PATH_SEP  = ";";
-static const char* const LUA_PATH_MARK = "?";
-static const char* const LUA_DIR_SEP   = "/";
-static const char* const LUA_EXEC_DIR  = "!";
-static const char* const LUA_IGMARK    = "-";
-static const char* const LUA_OFSEP     = "_";
+static constexpr StrView LUA_PATH_SEP  = ";";
+static constexpr StrView LUA_PATH_MARK = "?";
+static constexpr StrView LUA_DIR_SEP   = "/";
+static constexpr StrView LUA_EXEC_DIR  = "!";
+static constexpr StrView LUA_IGMARK    = "-";
+static constexpr StrView LUA_OFSEP     = "_";
 #endif
 
 // Config string: sep \n dirsep \n mark \n execdir \n igmark
-static const char* const LUA_CONFIG_STRING =
+static constexpr StrView LUA_CONFIG_STRING =
 #ifdef _WIN32
     "\\\n;\n?\n!\n-";
 #else
@@ -101,7 +102,7 @@ static const char* const LUA_CONFIG_STRING =
 // =====================================================================
 
 static Table* getPackageTable(LuaState* L) {
-    Value pkgVal = L->getGlobal(PACKAGE_TABLE_NAME);
+    Value pkgVal = L->getGlobal(PACKAGE_TABLE_NAME.data());
     if (pkgVal.isTable()) {
         return pkgVal.asTable();
     }
@@ -151,7 +152,7 @@ static Str getPackageStringField(LuaState* L, const char* fieldName) {
 // =====================================================================
 
 /// Replace all occurrences of `pattern` with `replacement` in `str`
-static Str replaceAll(const Str& str, const Str& pattern, const Str& replacement) {
+static Str replaceAll(StrView str, StrView pattern, StrView replacement) {
     Str result;
     result.reserve(str.size());
     usize pos = 0;
@@ -159,10 +160,10 @@ static Str replaceAll(const Str& str, const Str& pattern, const Str& replacement
     while (pos < str.size()) {
         usize found = str.find(pattern, pos);
         if (found == Str::npos) {
-            result.append(str, pos, str.size() - pos);
+            result.append(str.substr(pos));
             break;
         }
-        result.append(str, pos, found - pos);
+        result.append(str.substr(pos, found - pos));
         result.append(replacement);
         pos = found + patLen;
     }
@@ -176,20 +177,19 @@ static Str moduleNameToPath(const Str& modname) {
 
 static Str executablePath() {
 #ifdef _WIN32
-    char buffer[MAX_PATH];
-    DWORD len = GetModuleFileNameA(nullptr, buffer, static_cast<DWORD>(sizeof(buffer)));
-    if (len == 0 || len >= sizeof(buffer)) {
+    std::array<char, MAX_PATH> buffer{};
+    DWORD len = GetModuleFileNameA(nullptr, buffer.data(), static_cast<DWORD>(buffer.size()));
+    if (len == 0 || len >= buffer.size()) {
         return "";
     }
-    return Str(buffer, len);
+    return Str(buffer.data(), len);
 #else
-    char buffer[PATH_MAX];
-    ssize_t len = readlink("/proc/self/exe", buffer, sizeof(buffer) - 1);
+    std::array<char, PATH_MAX> buffer{};
+    ssize_t len = readlink("/proc/self/exe", buffer.data(), buffer.size() - 1);
     if (len <= 0) {
         return "";
     }
-    buffer[len] = '\0';
-    return Str(buffer);
+    return Str(buffer.data(), static_cast<usize>(len));
 #endif
 }
 
@@ -236,11 +236,11 @@ static bool isCurrentExecutablePath(const Str& path) {
 }
 #else
 static Str fullPath(const Str& path) {
-    char buffer[PATH_MAX];
-    if (realpath(path.c_str(), buffer) == nullptr) {
+    std::array<char, PATH_MAX> buffer{};
+    if (realpath(path.c_str(), buffer.data()) == nullptr) {
         return path;
     }
-    return Str(buffer);
+    return Str(buffer.data());
 }
 
 static bool isCurrentExecutablePath(const Str& path) {
@@ -252,14 +252,12 @@ static bool isCurrentExecutablePath(const Str& path) {
 }
 #endif
 
-static Str applyExecutableDirectory(const Str& pathTemplate) {
+static Str applyExecutableDirectory(StrView pathTemplate) {
     return replaceAll(pathTemplate, LUA_EXEC_DIR, executableDirectory());
 }
 
 static Table* createPackageTableObject(LuaState* L) {
-    Table* table = new Table();
-    L->getGlobalState().getGC().registerObject(table);
-    return table;
+    return L->getGlobalState().getGC().create<Table>();
 }
 
 [[noreturn]] static void moduleNameConflict(LuaState* L, const Str& modname) {
@@ -478,8 +476,7 @@ static Function* loadLuaFile(LuaState* L, const Str& filename) {
             return nullptr;
         }
 
-        Function* func = new Function(proto);
-        L->getGlobalState().getGC().registerObject(func);
+        Function* func = L->getGlobalState().getGC().create<Function>(proto);
         func->setEnv(L->getGlobalTable());
         return func;
 
@@ -620,8 +617,7 @@ static void* loadDynamicSymbol(DynamicLibraryHandle handle,
 
 static Function* createDynamicCFunction(LuaState* L, void* symbol) {
     CFunction cfunc = reinterpret_cast<CFunction>(symbol);
-    Function* func = new Function(cfunc);
-    L->getGlobalState().getGC().registerObject(func);
+    Function* func = L->getGlobalState().getGC().create<Function>(cfunc);
     return func;
 }
 
@@ -655,7 +651,7 @@ static Str moduleNameToOpenFunction(const Str& modname) {
     Str name = modname;
     usize mark = name.find(LUA_IGMARK);
     if (mark != Str::npos) {
-        name = name.substr(mark + std::strlen(LUA_IGMARK));
+        name = name.substr(mark + LUA_IGMARK.size());
     }
 
     return "luaopen_" + replaceAll(name, ".", LUA_OFSEP);
@@ -1096,8 +1092,7 @@ i32 luaP_seeall(LuaState* L) {
     // If the module table has no metatable, create one
     Table* mt = modTable->getMetatable();
     if (!mt) {
-        mt = new Table();
-        L->getGlobalState().getGC().registerObject(mt);
+        mt = L->getGlobalState().getGC().create<Table>();
         modTable->setMetatable(mt);
     }
 
@@ -1125,7 +1120,7 @@ void PackageLibModule::registerFunctions(LuaState* L) {
     auto& gc = L->getGlobalState().getGC();
 
     // ---- Create the package table ----
-    Table* pkgTable = FunctionRegistrar::createLibTable(L, PACKAGE_TABLE_NAME);
+    Table* pkgTable = FunctionRegistrar::createLibTable(L, PACKAGE_TABLE_NAME.data());
     if (!pkgTable) {
         L->error("Failed to create package library table");
         return;
@@ -1147,8 +1142,7 @@ void PackageLibModule::registerFunctions(LuaState* L) {
         .commit();
 
     // ---- package.loaded ----
-    Table* loadedTable = new Table();
-    gc.registerObject(loadedTable);
+    Table* loadedTable = gc.create<Table>();
     GCString* loadedKey = pool.intern("loaded");
     pkgTable->set(Value(loadedKey), Value(loadedTable));
 
@@ -1158,8 +1152,7 @@ void PackageLibModule::registerFunctions(LuaState* L) {
     // we just leave loaded empty — modules register on first require().
 
     // ---- package.preload ----
-    Table* preloadTable = new Table();
-    gc.registerObject(preloadTable);
+    Table* preloadTable = gc.create<Table>();
     GCString* preloadKey = pool.intern("preload");
     pkgTable->set(Value(preloadKey), Value(preloadTable));
 
@@ -1181,29 +1174,24 @@ void PackageLibModule::registerFunctions(LuaState* L) {
     pkgTable->set(Value(configKey), Value(configVal));
 
     // ---- package.loaders ----
-    Table* loadersTable = new Table();
-    gc.registerObject(loadersTable);
+    Table* loadersTable = gc.create<Table>();
     GCString* loadersKey = pool.intern("loaders");
     pkgTable->set(Value(loadersKey), Value(loadersTable));
 
     // loader[1] = preload searcher
-    Function* preloadSearcher = new Function(loader_preload);
-    gc.registerObject(preloadSearcher);
+    Function* preloadSearcher = gc.create<Function>(loader_preload);
     loadersTable->set(Value(1.0), Value(preloadSearcher));
 
     // loader[2] = Lua file searcher
-    Function* luaSearcher = new Function(loader_lua);
-    gc.registerObject(luaSearcher);
+    Function* luaSearcher = gc.create<Function>(loader_lua);
     loadersTable->set(Value(2.0), Value(luaSearcher));
 
     // loader[3] = C library searcher
-    Function* clibSearcher = new Function(loader_clib);
-    gc.registerObject(clibSearcher);
+    Function* clibSearcher = gc.create<Function>(loader_clib);
     loadersTable->set(Value(3.0), Value(clibSearcher));
 
     // loader[4] = all-in-one C library searcher
-    Function* allInOneSearcher = new Function(loader_clib_allinone);
-    gc.registerObject(allInOneSearcher);
+    Function* allInOneSearcher = gc.create<Function>(loader_clib_allinone);
     loadersTable->set(Value(4.0), Value(allInOneSearcher));
 }
 
@@ -1220,16 +1208,15 @@ void PackageLibModule::initialize(LuaState* L) {
     auto& pool = L->getGlobalState().getStringPool();
 
     // Map library names to their global table entries
-    static const char* stdlibs[] = {
+    static constexpr std::array<StrView, 8> stdlibs = {
         "math", "io", "os", "string", "table",
-        "coroutine", "debug", "package",
-        nullptr
+        "coroutine", "debug", "package"
     };
 
-    for (const char** p = stdlibs; *p; ++p) {
-        Value libVal = L->getGlobal(*p);
+    for (StrView name : stdlibs) {
+        Value libVal = L->getGlobal(name.data());
         if (!libVal.isNil()) {
-            GCString* key = pool.intern(*p);
+            GCString* key = pool.intern(name);
             loaded->set(Value(key), libVal);
         }
     }

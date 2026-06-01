@@ -246,7 +246,6 @@ StmtPtr Parser::Impl::parseForStmt() {
         return makeStmt<ForInStmt>(std::move(forStmt));
     } else {
         error("Expected '=' or 'in' after for variable");
-		return nullptr;
     }
 }
 
@@ -380,7 +379,6 @@ StmtPtr Parser::Impl::parseExprStmt() {
         if (!std::holds_alternative<CallExpr>(expr->variant)) {
             const Token& errorToken = check(TokenType::Eos) ? firstToken : current();
             errorAt(errorToken, "unexpected symbol");
-            return nullptr;
         }
 
         CallStmt callStmt;

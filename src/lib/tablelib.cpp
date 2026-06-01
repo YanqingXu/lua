@@ -17,12 +17,13 @@
 #include "vm/vm.hpp"
 #include "vm/vm_constants.hpp"
 #include "vm/vm_internal.hpp"
+#include "common/number_conversion.hpp"
 
+#include <format>
 #include <string>
 #include <sstream>
 #include <algorithm>
 #include <vector>
-#include <cstdio>
 #include <cstring>
 
 namespace Lua {
@@ -36,9 +37,7 @@ namespace Lua {
  */
 static Table* getTableArg(LuaState* L, i32 idx, const char* funcName) {
     if (!L->isTable(idx)) {
-        char buffer[128];
-        std::snprintf(buffer, sizeof(buffer), "bad argument #%d to 'table.%s' (table expected)", idx, funcName);
-        L->error(buffer);
+        L->error(std::format("bad argument #{} to 'table.{}' (table expected)", idx, funcName).c_str());
     }
     return L->at(idx).asTable();
 }
@@ -48,26 +47,20 @@ static Table* getTableArg(LuaState* L, i32 idx, const char* funcName) {
  */
 static f64 getNumberArg(LuaState* L, i32 idx, const char* funcName) {
     if (!L->isNumber(idx)) {
-        char buffer[128];
-        std::snprintf(buffer, sizeof(buffer), "bad argument #%d to 'table.%s' (number expected)", idx, funcName);
-        L->error(buffer);
+        L->error(std::format("bad argument #{} to 'table.{}' (number expected)", idx, funcName).c_str());
     }
     return L->toNumber(idx);
 }
 
 static Function* getFunctionArg(LuaState* L, i32 idx, const char* funcName) {
     if (!L->isFunction(idx)) {
-        char buffer[128];
-        std::snprintf(buffer, sizeof(buffer), "bad argument #%d to 'table.%s' (function expected)", idx, funcName);
-        L->error(buffer);
+        L->error(std::format("bad argument #{} to 'table.{}' (function expected)", idx, funcName).c_str());
     }
     return L->at(idx).asFunction();
 }
 
 static Str tableNumberToLuaString(f64 value) {
-    char buffer[64];
-    std::snprintf(buffer, sizeof(buffer), "%.14g", value);
-    return Str(buffer);
+    return luaNumberToString(value);
 }
 
 /**
@@ -417,8 +410,7 @@ i32 table_pack(LuaState* L) {
     i32 nargs = L->getTop();
 
     // 创建新表
-    Table* result = new Table();
-    L->getGlobalState().getGC().registerObject(result);
+    Table* result = L->getGlobalState().getGC().create<Table>();
 
     // 将所有参数打包到表中
     for (i32 i = 1; i <= nargs; i++) {

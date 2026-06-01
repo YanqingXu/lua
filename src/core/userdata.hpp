@@ -19,14 +19,20 @@
 
 #include "common/types.hpp"
 #include "gc_object.hpp"
-#include <cstring>
-#include <cstdlib>
+#include <cstddef>
+#include <memory>
+#include <stdexcept>
+#include <utility>
 
 namespace Lua {
 
 // 前向声明
 class Table;
 class GarbageCollector;
+
+struct UserdataBufferDeleter {
+    void operator()(std::byte* data) const noexcept;
+};
 
 /**
  * @brief Userdata类 - Lua用户数据对象
@@ -62,7 +68,7 @@ public:
     template<typename T>
     static Userdata* create(const T& value) {
         Userdata* ud = createFull(sizeof(T));
-        *static_cast<T*>(ud->getData()) = value;
+        ud->constructData<T>(value);
         return ud;
     }
     
@@ -84,7 +90,7 @@ public:
      * @return void* 指向用户数据的指针
      */
     void* getData() const noexcept {
-        return data_;
+        return data_.get();
     }
     
     /**
@@ -97,7 +103,32 @@ public:
         if (sizeof(T) > size_) {
             return nullptr;
         }
-        return static_cast<T*>(data_);
+        return static_cast<T*>(getData());
+    }
+
+    /**
+     * @brief 在用户数据缓冲区内构造一个C++对象
+     *
+     * Userdata拥有的是原始字节缓冲区。对非平凡类型必须用placement
+     * construction，并在Userdata析构时显式调用析构函数。
+     */
+    template<typename T, typename... Args>
+    T* constructData(Args&&... args) {
+        if (sizeof(T) > size_) {
+            throw std::invalid_argument("Userdata buffer is too small for requested type");
+        }
+        if (dataDestructor_ != nullptr) {
+            throw std::logic_error("Userdata already contains constructed data");
+        }
+
+        T* object = std::construct_at(
+            reinterpret_cast<T*>(getData()),
+            std::forward<Args>(args)...
+        );
+        dataDestructor_ = [](std::byte* data) noexcept {
+            std::destroy_at(reinterpret_cast<T*>(data));
+        };
+        return object;
     }
     
     /**
@@ -152,9 +183,9 @@ public:
      */
     usize getSize() const override;
 
-private:
+public:
     // =====================================================================
-    // 私有构造函数
+    // 构造函数
     // =====================================================================
     
     /**
@@ -162,6 +193,8 @@ private:
      * @param size 用户数据大小
      */
     explicit Userdata(usize size);
+
+private:
     
     // 禁止拷贝和移动
     Userdata(const Userdata&) = delete;
@@ -173,9 +206,13 @@ private:
     // 成员变量
     // =====================================================================
     
+    using BufferPtr = std::unique_ptr<std::byte, UserdataBufferDeleter>;
+    using DataDestructor = void (*)(std::byte*) noexcept;
+
     usize size_;        ///< 用户数据大小(字节)
-    void* data_;        ///< 用户数据指针
+    BufferPtr data_;    ///< 用户数据指针
     Table* metatable_;  ///< 元表指针
+    DataDestructor dataDestructor_;
 };
 
 } // namespace Lua

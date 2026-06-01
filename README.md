@@ -102,7 +102,7 @@ applies_to: repository overview and current build workflows
 测试框架：自定义轻量级测试框架（零外部依赖）
 注册测试：639个
 断言结果：3188个 ✅
-通过率：  100% (3188/3188)
+通过率：  100% (3234/3234)
 失败测试：0个
 编译状态：Debug|x64 `/W4` 版本无警告，无链接冲突
 平台：    Windows + MSVC (Visual Studio 2026)
@@ -110,8 +110,8 @@ applies_to: repository overview and current build workflows
 
 补充验证：
 - `lua_test.vcxproj`：MSBuild Debug|x64 通过
-- `bin/lua_test.exe`：639 个注册测试，3188 个结果，0 失败（0 failures）
-- `tests/lua/official/all.lua`：Lua 5.1 官方测试套件已接入 staged smoke；当前官方子脚本 skip 表为 0；`_soft=true` 用于保留 semantic smoke 边界并避免 `sort.lua`/`gc.lua` 的极端压力路径拖慢单元测试；`constructs.lua` 的 16k 次动态编译压力循环在单元测试入口中裁剪为小样本；`main.lua`、`gc.lua`、`db.lua`、`api.lua`、`big.lua`、`verybig.lua`、`files.lua` 与 `code.lua` 已纳入 staged smoke
+- `bin/lua_test.exe`：640 个注册测试，3234 个结果，0 失败（0 failures）
+- `tests/lua/official/all.lua`：Lua 5.1 官方测试套件已接入 staged smoke；当前官方子脚本 skip 表为 0；`_soft=true` 用于保留 semantic smoke 边界并避免 `gc.lua` 与 closure/error/math tail 的极端压力路径拖慢单元测试；`constructs.lua` 的 16k 次动态编译压力循环在单元测试入口中裁剪为小样本；当前 bounded smoke 覆盖到 `vararg.lua`
 - `bin/lua_app.exe tests/lua/official/literals.lua`：通过
 - `bin/lua_app.exe tests/lua/official/calls.lua`：通过
 - `bin/lua_app.exe tests/lua/official/attrib.lua`：通过

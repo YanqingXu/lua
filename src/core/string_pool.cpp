@@ -36,10 +36,9 @@ GCString* StringPool::intern(StrView str) {
     }
 
     // 不存在，创建新的字符串对象
-    GCString* newString = new GCString(str);
     GarbageCollector& gc = collector_ != nullptr ? *collector_ : GarbageCollector::legacyInstance();
     gc.setStringPool(this);
-    gc.registerObject(newString);
+    GCString* newString = gc.create<GCString>(str);
 
     // 加入池中
     // 使用GCString内部的data_作为key，确保与find()和remove()一致

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "common/types.hpp"
+#include <span>
 
 namespace Lua {
 
@@ -20,23 +21,23 @@ enum class StartupActionKind {
 
 struct StartupAction {
     StartupActionKind kind = StartupActionKind::ExecuteChunk;
-    const char* argument = nullptr;
+    Str argument;
 };
 
 struct AppOptions {
     RunMode mode = RunMode::DefaultBehavior;
-    const char* programName = nullptr;
-    int argc = 0;
-    char** argv = nullptr;
-    const char* scriptFile = nullptr;
-    const char* traceFile = nullptr;
-    const char* errorMessage = nullptr;
+    Str programName;
+    Vec<Str> arguments;
+    Opt<Str> scriptFile;
+    Opt<Str> traceFile;
+    Opt<Str> errorMessage;
     bool traceDiff = false;
     bool interactive = false;
     i32 scriptIndex = -1;
     Vec<StartupAction> startupActions;
 };
 
+AppOptions parseArgs(std::span<char* const> argv);
 AppOptions parseArgs(int argc, char** argv);
 int runApp(const AppOptions& opt);
 

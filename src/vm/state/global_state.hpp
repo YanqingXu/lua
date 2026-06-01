@@ -28,6 +28,8 @@
 #include "core/metatable.hpp"
 #include "gc/garbage_collector.hpp"
 
+#include <array>
+
 namespace Lua {
 
 // 前向声明
@@ -200,6 +202,8 @@ public:
     void setRunningThread(Thread* t) noexcept;
 
 private:
+    static constexpr usize kMetatableCount = static_cast<usize>(ValueType::Thread) + 1;
+
     /**
      * @brief 初始化元方法名称
      *
@@ -234,10 +238,10 @@ private:
     Thread* runningThread_ = nullptr;
 
     /// 基础类型的元表数组（索引对应ValueType枚举值）
-    Table* metatables_[9];  // 9种基础类型
+    std::array<Table*, kMetatableCount> metatables_{};  // 9种基础类型
 
     /// 元方法名称数组（17个元方法）
-    GCString* tmname_[static_cast<usize>(TMS::TM_N)];
+    std::array<GCString*, static_cast<usize>(TMS::TM_N)> tmname_{};
 
     /// 内存错误消息（固定字符串，防止在内存不足时被GC回收）
     GCString* memerrmsg_;
