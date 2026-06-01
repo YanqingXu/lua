@@ -2,6 +2,7 @@
 
 #include "common/types.hpp"
 
+#include <functional>
 #include <span>
 
 namespace Lua {
@@ -11,13 +12,13 @@ class LuaState;
 using LibOpenFunction = void (*)(LuaState*);
 
 struct LibCatalogEntry {
-    const char* id;
-    const char* name;
+    StrView id;
+    StrView name;
     LibOpenFunction open;
 };
 
 std::span<const LibCatalogEntry> getStandardLibraryCatalog();
 
-const LibCatalogEntry* findStandardLibrary(StrView id);
+Opt<std::reference_wrapper<const LibCatalogEntry>> findStandardLibrary(StrView id);
 
 } // namespace Lua

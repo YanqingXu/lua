@@ -27,12 +27,12 @@ void StandardLibrary::openModule(LuaState* L, LibModule& module) {
 }
 
 void StandardLibrary::openCatalogLibrary(LuaState* L, StrView id) {
-    const LibCatalogEntry* entry = findStandardLibrary(id);
+    auto entry = findStandardLibrary(id);
     if (!entry) {
         return;
     }
 
-    openCatalogEntry(L, *entry);
+    openCatalogEntry(L, entry->get());
 }
 
 void StandardLibrary::openBase(LuaState* L) {

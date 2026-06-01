@@ -59,15 +59,34 @@ struct AstNameVisitor : AstVisitor<AstNameVisitor, const char*> {
     }
 };
 
+struct ConstExprNameVisitor : ExprVisitor<ConstExprNameVisitor, const char*> {
+    template <typename Node>
+    const char* visitNode(const Node&) const {
+        return "node";
+    }
+};
+
+struct VoidExprVisitor : ExprVisitor<VoidExprVisitor> {
+    template <typename Node>
+    void visitNode(const Node&) {}
+};
+
 struct PartialExprVisitor {
     const char* visitNode(const NumberExpr&) { return "number"; }
 };
 
+static_assert(kExprNodeCount == 14);
+static_assert(kStmtNodeCount == 13);
+static_assert(std::variant_size_v<ExprVariant> == kExprNodeCount);
+static_assert(std::variant_size_v<StmtVariant> == kStmtNodeCount);
 static_assert(VisitsNode<ExprNameVisitor, NumberExpr>);
 static_assert(!VisitsNode<PartialExprVisitor, NilExpr>);
 static_assert(VisitsNodeAs<ExprNameVisitor, NumberExpr, const char*>);
 static_assert(!VisitsNodeAs<ExprNameVisitor, NumberExpr, int>);
 static_assert(VisitsExprNodes<ExprNameVisitor, const char*>);
+static_assert(VisitsExprNodes<ConstExprNameVisitor, const char*>);
+static_assert(VisitsExprNodes<VoidExprVisitor>);
+static_assert(!VisitsExprNodes<VoidExprVisitor, const char*>);
 static_assert(!VisitsExprNodes<PartialExprVisitor, const char*>);
 static_assert(VisitsStmtNodes<StmtNameVisitor, const char*>);
 static_assert(VisitsAstNodes<AstNameVisitor, const char*>);

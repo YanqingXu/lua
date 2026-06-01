@@ -80,7 +80,7 @@ enum class DebugHookEvent : u8 {
  * 使用示例：
  * @code
  * // 创建主线程
- * LuaState* L = LuaState::newState();
+ * UPtr<LuaState> L = LuaState::create();
  * 
  * // 压入值到栈
  * L->pushNumber(42.0);
@@ -90,19 +90,47 @@ enum class DebugHookEvent : u8 {
  * Value v = L->getStack().top();
  * 
  * // 清理
- * delete L;
+ * // L 自动释放
  * @endcode
  */
 class LuaState {
 public:
+    struct CtorToken {
+    private:
+        constexpr CtorToken() = default;
+        friend class LuaState;
+    };
 
     // =====================================================================
     // 构造函数和析构函数
     // =====================================================================
+
+    /**
+     * @brief 构造低层状态对象；普通调用者应使用 create()/newState() 工厂。
+     *
+     * CtorToken 只能由 LuaState 工厂构造，用于让 makeUnique 在不暴露裸 new 的情况下访问构造路径。
+     */
+    LuaState(CtorToken, GlobalState& globalState);
+
+    /**
+     * @brief 创建拥有型Lua状态（主线程）
+     * @return unique_ptr 承载所有权
+     */
+    [[nodiscard]] static UPtr<LuaState> create();
+
+    /**
+     * @brief 使用显式运行时服务创建拥有型Lua状态（主线程）
+     */
+    [[nodiscard]] static UPtr<LuaState> create(RuntimeServices& services);
+
+    /**
+     * @brief 使用拥有资源的运行时上下文创建拥有型Lua状态（主线程）
+     */
+    [[nodiscard]] static UPtr<LuaState> create(EngineContext& context);
     
     /**
-     * @brief 创建新的Lua状态（主线程）
-     * @return 新创建的LuaState指针
+     * @brief 创建新的Lua状态（主线程），兼容旧 C API 风格所有权
+     * @return 调用者负责 delete 的 LuaState 指针
      */
     static LuaState* newState();
 

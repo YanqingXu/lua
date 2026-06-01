@@ -222,55 +222,18 @@ void testTableDispatchExecutesCompiledChunk(TestSuite& suite) {
 }
 
 void testSwitchDispatchHelpersCoverOpcodeSpace(TestSuite& suite) {
-    using SwitchOpHandler = VM::detail::SwitchOpHandler;
-
-    const std::array<std::pair<OpCode, SwitchOpHandler>, static_cast<usize>(NUM_OPCODES)> expected = {{
-        {OpCode::MOVE, VM::detail::execOpMove},
-        {OpCode::LOADK, VM::detail::execOpLoadK},
-        {OpCode::LOADBOOL, VM::detail::execOpLoadBool},
-        {OpCode::LOADNIL, VM::detail::execOpLoadNil},
-        {OpCode::GETGLOBAL, VM::detail::execOpGetGlobal},
-        {OpCode::SETGLOBAL, VM::detail::execOpSetGlobal},
-        {OpCode::GETUPVAL, VM::detail::execOpGetUpval},
-        {OpCode::SETUPVAL, VM::detail::execOpSetUpval},
-        {OpCode::GETTABLE, VM::detail::execOpGetTable},
-        {OpCode::SETTABLE, VM::detail::execOpSetTable},
-        {OpCode::NEWTABLE, VM::detail::execOpNewTable},
-        {OpCode::SELF, VM::detail::execOpSelf},
-        {OpCode::ADD, VM::detail::execOpAdd},
-        {OpCode::SUB, VM::detail::execOpSub},
-        {OpCode::MUL, VM::detail::execOpMul},
-        {OpCode::DIV, VM::detail::execOpDiv},
-        {OpCode::MOD, VM::detail::execOpMod},
-        {OpCode::POW, VM::detail::execOpPow},
-        {OpCode::UNM, VM::detail::execOpUnm},
-        {OpCode::NOT, VM::detail::execOpNot},
-        {OpCode::LEN, VM::detail::execOpLen},
-        {OpCode::CONCAT, VM::detail::execOpConcat},
-        {OpCode::JMP, VM::detail::execOpJmp},
-        {OpCode::EQ, VM::detail::execOpEq},
-        {OpCode::LT, VM::detail::execOpLt},
-        {OpCode::LE, VM::detail::execOpLe},
-        {OpCode::TEST, VM::detail::execOpTest},
-        {OpCode::TESTSET, VM::detail::execOpTestSet},
-        {OpCode::CALL, VM::detail::execOpCall},
-        {OpCode::TAILCALL, VM::detail::execOpTailCall},
-        {OpCode::RETURN, VM::detail::execOpReturn},
-        {OpCode::FORLOOP, VM::detail::execOpForLoop},
-        {OpCode::FORPREP, VM::detail::execOpForPrep},
-        {OpCode::TFORLOOP, VM::detail::execOpTForLoop},
-        {OpCode::SETLIST, VM::detail::execOpSetList},
-        {OpCode::CLOSE, VM::detail::execOpClose},
-        {OpCode::CLOSURE, VM::detail::execOpClosure},
-        {OpCode::VARARG, VM::detail::execOpVararg},
-    }};
+    const auto& expected = VM::detail::kSwitchHandlers;
+    ASSERT_EQ(suite, NUM_OPCODES, static_cast<int>(expected.size()),
+              "switch helper table should have one entry per opcode");
 
     for (usize i = 0; i < expected.size(); ++i) {
-        const OpCode opcode = expected[i].first;
-        ASSERT_TRUE(suite, expected[i].second != nullptr, "switch helper should be callable");
+        const OpCode opcode = expected[i].opcode;
+        ASSERT_EQ(suite, static_cast<int>(i), static_cast<int>(opcode),
+                  "switch helper table should follow OpCode order");
+        ASSERT_TRUE(suite, expected[i].handler != nullptr, "switch helper should be callable");
         Opt<VM::detail::SwitchOpHandler> handler = VM::detail::switchHandlerFor(opcode);
         ASSERT_TRUE(suite, handler.has_value(), "switch handler lookup should return a helper");
-        ASSERT_TRUE(suite, handler.value() == expected[i].second,
+        ASSERT_TRUE(suite, handler.value() == expected[i].handler,
                     "switch handler lookup should return the opcode-specific helper");
     }
 }

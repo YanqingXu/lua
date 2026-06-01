@@ -614,11 +614,11 @@ std::string cfgBlockPcRange(const CfgBlock& block) {
 
 std::string cfgBlockOpcodeSummary(const Proto* proto, const CfgBlock& block) {
     const auto code = proto->getInstructionSpan();
-    const char* first = opcodeMetadata(GET_OPCODE(code[block.startPc])).name;
-    const char* last = opcodeMetadata(GET_OPCODE(code[block.endPc])).name;
+    StrView first = opcodeMetadata(GET_OPCODE(code[block.startPc])).name;
+    StrView last = opcodeMetadata(GET_OPCODE(code[block.endPc])).name;
 
     if (block.startPc == block.endPc) {
-        return first;
+        return std::string(first);
     }
 
     return std::format("{} -> {}", first, last);

@@ -8,7 +8,7 @@
  * 2. 解释器模式：作为完整的Lua解释器运行（未来扩展）
  *
  * 初始化流程：
- * 1. 创建Lua状态机（LuaState::newState）
+ * 1. 创建Lua状态机（LuaState::create）
  * 2. 初始化全局状态（GlobalState单例）
  * 3. 加载标准库（StandardLibrary::openAll）
  * 4. 执行用户代码或测试
@@ -128,8 +128,8 @@ void printUsage(const char* progname) {
  */
 UPtr<LuaState> createLuaState(EngineContext& context) {
     try {
-        // 步骤1-4：LuaState::newState内部完成状态、栈和全局环境初始化
-        UPtr<LuaState> L(LuaState::newState(context));
+        // 步骤1-4：LuaState::create内部完成状态、栈和全局环境初始化
+        UPtr<LuaState> L = LuaState::create(context);
 
         if (!L) {
             std::cerr << "[ERROR] Failed to create Lua state: not enough memory" << std::endl;

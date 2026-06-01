@@ -214,6 +214,17 @@ void testGarbageCollectorRegister(TestSuite& suite) {
     gc.clearAll();
 }
 
+void testUserdataOwnedFactory(TestSuite& suite) {
+    UPtr<Userdata> userdata = Userdata::createFullOwned(sizeof(i32));
+
+    ASSERT_TRUE(suite, userdata != nullptr, "createFullOwned returns unique ownership");
+    ASSERT_TRUE(suite, userdata->getData() != nullptr, "owned userdata has a backing buffer");
+    ASSERT_EQ(suite, sizeof(i32), userdata->getDataSize(), "owned userdata preserves requested size");
+
+    *userdata->getTypedData<i32>() = 2026;
+    ASSERT_EQ(suite, 2026, *userdata->getTypedData<i32>(), "owned userdata exposes typed payload");
+}
+
 void testGarbageCollectorCreateFactories(TestSuite& suite) {
     GarbageCollector gc;
 
@@ -774,6 +785,7 @@ void registerGCTests() {
     registry.registerTest("GC", "Independent Instances", testGarbageCollectorInstancesAreIndependent);
     registry.registerTest("GC", "Explicit StringPool Sweep", testGarbageCollectorSweepUsesExplicitStringPool);
     registry.registerTest("GC", "GC Register", testGarbageCollectorRegister);
+    registry.registerTest("GC", "Userdata Owned Factory", testUserdataOwnedFactory);
     registry.registerTest("GC", "GC Create Factories", testGarbageCollectorCreateFactories);
     registry.registerTest("GC", "GC Roots", testGarbageCollectorRoots);
     registry.registerTest("GC", "GC Collect", testGarbageCollectorCollect);

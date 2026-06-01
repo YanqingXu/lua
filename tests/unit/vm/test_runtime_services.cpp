@@ -150,6 +150,24 @@ void testLuaStateNewStateAcceptsEngineContext(TestSuite& suite) {
     context.gc().clearAll(context.strings());
 }
 
+void testLuaStateCreateReturnsOwningState(TestSuite& suite) {
+    using CreateResult = decltype(LuaState::create(std::declval<EngineContext&>()));
+    static_assert(std::is_same_v<CreateResult, UPtr<LuaState>>,
+                  "LuaState::create should make ownership explicit for modern C++ callers");
+
+    EngineContext context;
+    UPtr<LuaState> L = LuaState::create(context);
+
+    ASSERT_TRUE(suite, L != nullptr, "create(context) returns an owning state");
+    ASSERT_TRUE(suite, &L->getGlobalState() == &context.globalState(),
+                "create(context) uses context global state");
+    ASSERT_TRUE(suite, context.globalState().getMainThread() == L.get(),
+                "create(context) registers the main thread in the context");
+
+    L.reset();
+    context.gc().clearAll(context.strings());
+}
+
 void testCompilerAcceptsRuntimeServices(TestSuite& suite) {
     RuntimeServices services = RuntimeServices::fromSingletons();
 
@@ -318,6 +336,8 @@ void registerRuntimeServicesTests() {
                           testEngineContextOwnsIsolatedRuntimeServices);
     registry.registerTest(kSuiteName, "LuaState newState accepts EngineContext",
                           testLuaStateNewStateAcceptsEngineContext);
+    registry.registerTest(kSuiteName, "LuaState create returns owning state",
+                          testLuaStateCreateReturnsOwningState);
     registry.registerTest(kSuiteName, "Compiler Accepts Runtime Services", testCompilerAcceptsRuntimeServices);
     registry.registerTest(kSuiteName, "LuaState And VM Accept Runtime Services", testLuaStateAndVmAcceptRuntimeServices);
     registry.registerTest(kSuiteName, "Nested functions use context string pool",

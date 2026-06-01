@@ -54,8 +54,15 @@ public:
     /**
      * @brief 创建完整用户数据
      * @param size 用户数据大小(字节)
-     * @return 新创建的Userdata对象指针
+     * @return 独占拥有的新Userdata对象
      * @throws std::bad_alloc 如果内存分配失败
+     */
+    [[nodiscard]] static UPtr<Userdata> createFullOwned(usize size);
+
+    /**
+     * @brief 创建完整用户数据的兼容旧接口
+     * @param size 用户数据大小(字节)
+     * @return 调用者负责注册到GC或 delete 的Userdata对象指针
      */
     static Userdata* createFull(usize size);
     

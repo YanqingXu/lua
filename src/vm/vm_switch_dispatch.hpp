@@ -7,6 +7,8 @@
 
 #include "vm/vm_handlers.hpp"
 
+#include <utility>
+
 namespace Lua::VM::detail {
 
 using SwitchOpHandler = HandlerStatus (*)(OpExecutionContext& context, Instruction inst);
@@ -163,48 +165,81 @@ inline HandlerStatus execOpVararg(OpExecutionContext& context, Instruction inst)
     return runHandler(context, inst);
 }
 
-inline Opt<SwitchOpHandler> switchHandlerFor(OpCode op) noexcept {
-    switch (op) {
-        case OpCode::MOVE: return execOpMove;
-        case OpCode::LOADK: return execOpLoadK;
-        case OpCode::LOADBOOL: return execOpLoadBool;
-        case OpCode::LOADNIL: return execOpLoadNil;
-        case OpCode::GETUPVAL: return execOpGetUpval;
-        case OpCode::GETGLOBAL: return execOpGetGlobal;
-        case OpCode::GETTABLE: return execOpGetTable;
-        case OpCode::SETGLOBAL: return execOpSetGlobal;
-        case OpCode::SETUPVAL: return execOpSetUpval;
-        case OpCode::SETTABLE: return execOpSetTable;
-        case OpCode::NEWTABLE: return execOpNewTable;
-        case OpCode::SELF: return execOpSelf;
-        case OpCode::ADD: return execOpAdd;
-        case OpCode::SUB: return execOpSub;
-        case OpCode::MUL: return execOpMul;
-        case OpCode::DIV: return execOpDiv;
-        case OpCode::MOD: return execOpMod;
-        case OpCode::POW: return execOpPow;
-        case OpCode::UNM: return execOpUnm;
-        case OpCode::NOT: return execOpNot;
-        case OpCode::LEN: return execOpLen;
-        case OpCode::CONCAT: return execOpConcat;
-        case OpCode::JMP: return execOpJmp;
-        case OpCode::EQ: return execOpEq;
-        case OpCode::LT: return execOpLt;
-        case OpCode::LE: return execOpLe;
-        case OpCode::TEST: return execOpTest;
-        case OpCode::TESTSET: return execOpTestSet;
-        case OpCode::CALL: return execOpCall;
-        case OpCode::TAILCALL: return execOpTailCall;
-        case OpCode::RETURN: return execOpReturn;
-        case OpCode::FORLOOP: return execOpForLoop;
-        case OpCode::FORPREP: return execOpForPrep;
-        case OpCode::TFORLOOP: return execOpTForLoop;
-        case OpCode::SETLIST: return execOpSetList;
-        case OpCode::CLOSE: return execOpClose;
-        case OpCode::CLOSURE: return execOpClosure;
-        case OpCode::VARARG: return execOpVararg;
+struct SwitchHandlerEntry {
+    OpCode opcode;
+    SwitchOpHandler handler;
+};
+
+inline constexpr std::array<SwitchHandlerEntry, static_cast<usize>(NUM_OPCODES)> kSwitchHandlers = {{
+    {OpCode::MOVE, execOpMove},
+    {OpCode::LOADK, execOpLoadK},
+    {OpCode::LOADBOOL, execOpLoadBool},
+    {OpCode::LOADNIL, execOpLoadNil},
+    {OpCode::GETUPVAL, execOpGetUpval},
+    {OpCode::GETGLOBAL, execOpGetGlobal},
+    {OpCode::GETTABLE, execOpGetTable},
+    {OpCode::SETGLOBAL, execOpSetGlobal},
+    {OpCode::SETUPVAL, execOpSetUpval},
+    {OpCode::SETTABLE, execOpSetTable},
+    {OpCode::NEWTABLE, execOpNewTable},
+    {OpCode::SELF, execOpSelf},
+    {OpCode::ADD, execOpAdd},
+    {OpCode::SUB, execOpSub},
+    {OpCode::MUL, execOpMul},
+    {OpCode::DIV, execOpDiv},
+    {OpCode::MOD, execOpMod},
+    {OpCode::POW, execOpPow},
+    {OpCode::UNM, execOpUnm},
+    {OpCode::NOT, execOpNot},
+    {OpCode::LEN, execOpLen},
+    {OpCode::CONCAT, execOpConcat},
+    {OpCode::JMP, execOpJmp},
+    {OpCode::EQ, execOpEq},
+    {OpCode::LT, execOpLt},
+    {OpCode::LE, execOpLe},
+    {OpCode::TEST, execOpTest},
+    {OpCode::TESTSET, execOpTestSet},
+    {OpCode::CALL, execOpCall},
+    {OpCode::TAILCALL, execOpTailCall},
+    {OpCode::RETURN, execOpReturn},
+    {OpCode::FORLOOP, execOpForLoop},
+    {OpCode::FORPREP, execOpForPrep},
+    {OpCode::TFORLOOP, execOpTForLoop},
+    {OpCode::SETLIST, execOpSetList},
+    {OpCode::CLOSE, execOpClose},
+    {OpCode::CLOSURE, execOpClosure},
+    {OpCode::VARARG, execOpVararg},
+}};
+
+static_assert(kSwitchHandlers.size() == static_cast<usize>(NUM_OPCODES),
+              "switch dispatch handler table must cover every opcode");
+
+consteval bool switchHandlersMatchOpcodeOrder() {
+    for (usize index = 0; index < kSwitchHandlers.size(); ++index) {
+        if (kSwitchHandlers[index].opcode != static_cast<OpCode>(index)) {
+            return false;
+        }
+        if (kSwitchHandlers[index].handler == nullptr) {
+            return false;
+        }
     }
-    return std::nullopt;
+    return true;
+}
+
+static_assert(switchHandlersMatchOpcodeOrder(),
+              "kSwitchHandlers must stay in exact OpCode order and contain non-null handlers");
+
+inline Opt<SwitchOpHandler> switchHandlerFor(OpCode op) noexcept {
+    const usize index = static_cast<usize>(op);
+    if (index >= kSwitchHandlers.size()) {
+        return std::nullopt;
+    }
+
+    const SwitchHandlerEntry& entry = kSwitchHandlers[index];
+    if (entry.opcode != op) {
+        return std::nullopt;
+    }
+    return entry.handler;
 }
 
 }  // namespace Lua::VM::detail

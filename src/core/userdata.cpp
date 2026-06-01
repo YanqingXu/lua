@@ -59,7 +59,7 @@ void UserdataBufferDeleter::operator()(std::byte* data) const noexcept {
 // 静态工厂方法
 // =====================================================================
 
-Userdata* Userdata::createFull(usize size) {
+UPtr<Userdata> Userdata::createFullOwned(usize size) {
     if (size == 0) {
         throw std::invalid_argument("Userdata size cannot be zero");
     }
@@ -70,7 +70,11 @@ Userdata* Userdata::createFull(usize size) {
         throw std::bad_alloc();
     }
     
-    return std::make_unique<Userdata>(size).release();
+    return makeUnique<Userdata>(size);
+}
+
+Userdata* Userdata::createFull(usize size) {
+    return createFullOwned(size).release();
 }
 
 // =====================================================================

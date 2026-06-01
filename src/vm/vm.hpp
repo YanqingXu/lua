@@ -46,9 +46,9 @@ enum class ExecResult : u8 {
  * 
  * 使用示例：
  * @code
- * LuaState* L = LuaState::newState();
+ * UPtr<LuaState> L = LuaState::create();
  * Function* func = ...;  // 从CodeGenerator获取
- * VM::execute(L, func);
+ * VM::execute(L.get(), func);
  * Value result = L->getStack().top();
  * @endcode
  */

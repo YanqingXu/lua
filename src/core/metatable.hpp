@@ -29,6 +29,8 @@
 #include "core/value.hpp"
 #include "vm/vm_constants.hpp"
 
+#include <array>
+
 namespace Lua {
 
 // 前向声明
@@ -42,7 +44,7 @@ class GlobalState;
  * 定义所有支持的元方法类型。枚举顺序与Lua 5.1.5保持一致，
  * 前5个（TM_INDEX到TM_EQ）是"快速"元方法，有特殊优化。
  * 
- * 注意：修改此枚举的顺序需要同步更新 kMetamethodNames 数组
+ * 注意：修改此枚举的顺序需要同步更新 kMetamethodNames 表，static_assert 会阻止静默漂移。
  */
 enum class TMS : u8 {
     // ===== 快速访问元方法（有缓存优化） =====
@@ -111,7 +113,30 @@ enum class TMS : u8 {
  * 
  * 按照TMS枚举顺序定义的元方法名称，用于元表查找。
  */
-extern const char* const kMetamethodNames[static_cast<usize>(TMS::TM_N)];
+inline constexpr std::array<StrView, static_cast<usize>(TMS::TM_N)> kMetamethodNames = {{
+    "__index",     // TM_INDEX
+    "__newindex",  // TM_NEWINDEX
+    "__gc",        // TM_GC
+    "__mode",      // TM_MODE
+    "__eq",        // TM_EQ
+    "__add",       // TM_ADD
+    "__sub",       // TM_SUB
+    "__mul",       // TM_MUL
+    "__div",       // TM_DIV
+    "__mod",       // TM_MOD
+    "__pow",       // TM_POW
+    "__unm",       // TM_UNM
+    "__len",       // TM_LEN
+    "__lt",        // TM_LT
+    "__le",        // TM_LE
+    "__concat",    // TM_CONCAT
+    "__call"       // TM_CALL
+}};
+
+static_assert(kMetamethodNames.size() == static_cast<usize>(TMS::TM_N),
+              "TMS and kMetamethodNames must grow together");
+static_assert(kMetamethodNames[static_cast<usize>(TMS::TM_INDEX)] == "__index");
+static_assert(kMetamethodNames[static_cast<usize>(TMS::TM_CALL)] == "__call");
 
 // =====================================================================
 // 元方法查找函数
@@ -298,7 +323,7 @@ Value fastMetamethod(GlobalState& globalState, Table* metatable, TMS event);
  * @return 元方法名称字符串（如"__add"）
  */
 inline const char* getMetamethodName(TMS event) {
-    return kMetamethodNames[static_cast<usize>(event)];
+    return kMetamethodNames[static_cast<usize>(event)].data();
 }
 
 } // namespace Lua

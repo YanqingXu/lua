@@ -21,6 +21,7 @@
 #include <variant>
 #include <optional>
 #include <string>
+#include <type_traits>
 
 namespace Lua {
 
@@ -416,5 +417,35 @@ private:
     ValueVariant value_;  ///< 值的内部存储
 };
 
-} // namespace Lua
+namespace detail {
 
+template <ValueType Type, typename Alternative>
+inline constexpr bool kValueAlternativeMatches =
+    std::is_same_v<
+        std::variant_alternative_t<static_cast<usize>(Type), Value::ValueVariant>,
+        Alternative>;
+
+}  // namespace detail
+
+static_assert(std::variant_size_v<Value::ValueVariant> == 9,
+              "ValueVariant must stay aligned with ValueType and Lua 5.1 visible value tags");
+static_assert(detail::kValueAlternativeMatches<ValueType::Nil, std::monostate>,
+              "ValueType::Nil must map to ValueVariant alternative 0");
+static_assert(detail::kValueAlternativeMatches<ValueType::Boolean, bool>,
+              "ValueType::Boolean must map to ValueVariant alternative 1");
+static_assert(detail::kValueAlternativeMatches<ValueType::LightUserdata, void*>,
+              "ValueType::LightUserdata must map to ValueVariant alternative 2");
+static_assert(detail::kValueAlternativeMatches<ValueType::Number, LuaNumber>,
+              "ValueType::Number must map to ValueVariant alternative 3");
+static_assert(detail::kValueAlternativeMatches<ValueType::String, GCString*>,
+              "ValueType::String must map to ValueVariant alternative 4");
+static_assert(detail::kValueAlternativeMatches<ValueType::Table, Table*>,
+              "ValueType::Table must map to ValueVariant alternative 5");
+static_assert(detail::kValueAlternativeMatches<ValueType::Function, Function*>,
+              "ValueType::Function must map to ValueVariant alternative 6");
+static_assert(detail::kValueAlternativeMatches<ValueType::Userdata, Userdata*>,
+              "ValueType::Userdata must map to ValueVariant alternative 7");
+static_assert(detail::kValueAlternativeMatches<ValueType::Thread, Thread*>,
+              "ValueType::Thread must map to ValueVariant alternative 8");
+
+} // namespace Lua

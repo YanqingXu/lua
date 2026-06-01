@@ -17,19 +17,42 @@
 #include "vm/state/global_state.hpp"
 #include "vm/state/lua_state.hpp"
 
+#include <expected>
+
 namespace Lua {
+
+namespace {
+
+std::unexpected<LibRegistrationError> registrationError(
+    LibRegistrationErrorCode code,
+    StrView operation
+) {
+    return std::unexpected(LibRegistrationError{code, operation});
+}
+
+}  // namespace
 
 // =====================================================================
 // 私有辅助函数
 // =====================================================================
 
-Function* FunctionRegistrar::createClosure(LuaState* L, LibCFunction func) {
-    if (!L || !func) {
-        return nullptr;
+std::expected<Function*, LibRegistrationError>
+FunctionRegistrar::tryCreateClosure(LuaState* L, LibCFunction func) {
+    if (!L) {
+        return registrationError(LibRegistrationErrorCode::NullState, "createClosure");
     }
+    if (!func) {
+        return registrationError(LibRegistrationErrorCode::NullFunction, "createClosure");
+    }
+
     Function* closure = L->getGlobalState().getGC().create<Function>(func);
     closure->setEnv(L->getGlobalTable());
     return closure;
+}
+
+Function* FunctionRegistrar::createClosure(LuaState* L, LibCFunction func) {
+    auto created = tryCreateClosure(L, func);
+    return created ? *created : nullptr;
 }
 
 // =====================================================================
@@ -68,12 +91,22 @@ void FunctionRegistrar::registerToTable(LuaState* L, Table* table, const char* n
 // =====================================================================
 
 Table* FunctionRegistrar::createLibTable(LuaState* L, const char* libName) {
-    if (!L || !libName) {
-        return nullptr;
+    auto created = tryCreateLibTable(L, libName != nullptr ? StrView(libName) : StrView{});
+    return created ? *created : nullptr;
+}
+
+std::expected<Table*, LibRegistrationError>
+FunctionRegistrar::tryCreateLibTable(LuaState* L, StrView libName) {
+    if (!L) {
+        return registrationError(LibRegistrationErrorCode::NullState, "createLibTable");
+    }
+    if (libName.empty()) {
+        return registrationError(LibRegistrationErrorCode::NullName, "createLibTable");
     }
 
+    Str ownedName(libName);
     Table* table = L->getGlobalState().getGC().create<Table>();
-    L->setGlobal(libName, Value(table));
+    L->setGlobal(ownedName.c_str(), Value(table));
     return table;
 }
 

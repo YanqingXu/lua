@@ -29,7 +29,7 @@ function Read-Text {
 
 function Test-FrontMatter {
     param([string]$Text)
-    return $Text -match "(?ms)^---\r?\n.*?^status:\s*(current|historical|planned)\s*$.*?^verified_against:\s*.+$.*?^last_checked:\s*\d{4}-\d{2}-\d{2}\s*$.*?^applies_to:\s*.+$.*?^---\s*$"
+    return $Text -match "(?ms)^---\r?\n.*?^status:\s*(current|historical|planned|active)\s*$.*?^verified_against:\s*.+$.*?^last_checked:\s*\d{4}-\d{2}-\d{2}\s*$.*?^applies_to:\s*.+$.*?^---\s*$"
 }
 
 function Get-RepoRelativePath {
@@ -55,6 +55,32 @@ function Resolve-TestExecutablePath {
     }
 
     return Join-Path $Root $Path
+}
+
+function Get-VerifiedAgainstPaths {
+    param([string]$Text)
+
+    $match = [regex]::Match($Text, "(?m)^verified_against:\s*(.+?)\s*$")
+    if (-not $match.Success) {
+        return @()
+    }
+
+    return @($match.Groups[1].Value -split ";" | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+}
+
+function Assert-VerifiedAgainstPathsExist {
+    param(
+        [System.Collections.Generic.List[string]]$Failures,
+        [string]$DocPath,
+        [string]$Text
+    )
+
+    foreach ($relativePath in Get-VerifiedAgainstPaths $Text) {
+        $path = Join-RepoPath $relativePath
+        if (-not (Test-Path -LiteralPath $path)) {
+            Add-Failure $Failures "$DocPath verified_against references missing path: $relativePath"
+        }
+    }
 }
 
 function Convert-CommandOutputToText {
@@ -143,10 +169,17 @@ function Assert-DocHasCurrentTestCounts {
 
 $failures = [System.Collections.Generic.List[string]]::new()
 
+$strictVerifiedAgainstDocs = @(
+    "docs/roadmap/c-style-refactoring-roadmap.md",
+    "docs/roadmap/modern-cpp-teaching-audit-report.md"
+)
+
 $coreDocs = @(
     "README.md",
     "docs/index.md",
     "docs/roadmap/current.md",
+    "docs/roadmap/c-style-refactoring-roadmap.md",
+    "docs/roadmap/modern-cpp-teaching-audit-report.md",
     "docs/status/project-status.md",
     "docs/guides/development.md",
     "docs/guides/repl-cli.md",
@@ -190,6 +223,11 @@ foreach ($doc in $coreDocs) {
     $text = Get-Content -LiteralPath $path -Raw
     if (-not (Test-FrontMatter $text)) {
         Add-Failure $failures "Missing or invalid fact header: $doc"
+        continue
+    }
+
+    if ($strictVerifiedAgainstDocs -contains $doc) {
+        Assert-VerifiedAgainstPathsExist -Failures $failures -DocPath $doc -Text $text
     }
 }
 

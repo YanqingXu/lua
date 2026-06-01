@@ -217,6 +217,10 @@ using ExprVariant = std::variant<
     ParenExpr
 >;
 
+inline constexpr usize kExprNodeCount = 14;
+static_assert(std::variant_size_v<ExprVariant> == kExprNodeCount,
+              "Add the new Expr node to visitors, tests, AST docs, and codegen.");
+
 /**
  * @brief 表达式基类
  */
@@ -375,6 +379,10 @@ using StmtVariant = std::variant<
     BreakStmt,
     DoStmt
 >;
+
+inline constexpr usize kStmtNodeCount = 13;
+static_assert(std::variant_size_v<StmtVariant> == kStmtNodeCount,
+              "Add the new Stmt node to visitors, tests, AST docs, and codegen.");
 
 /**
  * @brief 语句基类

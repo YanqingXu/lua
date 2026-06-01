@@ -10,8 +10,9 @@
 #include "lib/stringlib.hpp"
 #include "lib/tablelib.hpp"
 
-#include <algorithm>
 #include <array>
+#include <functional>
+#include <ranges>
 
 namespace Lua {
 
@@ -37,13 +38,16 @@ std::span<const LibCatalogEntry> getStandardLibraryCatalog() {
     return std::span<const LibCatalogEntry>(kStandardLibraryCatalog.data(), kStandardLibraryCatalog.size());
 }
 
-const LibCatalogEntry* findStandardLibrary(StrView id) {
+Opt<std::reference_wrapper<const LibCatalogEntry>> findStandardLibrary(StrView id) {
     const auto catalog = getStandardLibraryCatalog();
-    const auto iter = std::find_if(catalog.begin(), catalog.end(), [id](const LibCatalogEntry& entry) {
-        return StrView(entry.id) == id;
+    const auto iter = std::ranges::find_if(catalog, [id](const LibCatalogEntry& entry) {
+        return entry.id == id;
     });
 
-    return iter == catalog.end() ? nullptr : &(*iter);
+    if (iter == catalog.end()) {
+        return std::nullopt;
+    }
+    return std::cref(*iter);
 }
 
 } // namespace Lua

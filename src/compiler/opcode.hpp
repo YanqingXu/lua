@@ -321,7 +321,7 @@ enum class OpcodeGroup : u8 {
 
 struct OpcodeMetadata {
     OpCode opcode;
-    const char* name;
+    StrView name;
     OpMode mode;
     OpArgMask bMode;
     OpArgMask cMode;
@@ -333,7 +333,7 @@ struct OpcodeMetadata {
 
 namespace detail {
 
-constexpr OpcodeMetadata makeOpcodeMetadata(OpCode opcode, const char* name, OpMode mode,
+constexpr OpcodeMetadata makeOpcodeMetadata(OpCode opcode, StrView name, OpMode mode,
                                             OpArgMask bMode, OpArgMask cMode, bool setsA,
                                             bool isTest, VM::OpcodeGroup group,
                                             bool mayInvokeMetamethod) noexcept {
@@ -435,6 +435,29 @@ inline constexpr OpcodeMetadata kUnknownOpcodeMetadata = {
 
 static_assert(kOpcodeMetadata.size() == static_cast<usize>(NUM_OPCODES),
               "opcode metadata must cover every opcode");
+
+namespace detail {
+
+consteval bool opcodeMetadataMatchesEnumOrder() {
+    for (usize index = 0; index < kOpcodeMetadata.size(); ++index) {
+        const auto expected = static_cast<OpCode>(index);
+        if (kOpcodeMetadata[index].opcode != expected) {
+            return false;
+        }
+        if (kOpcodeMetadata[index].name.empty()) {
+            return false;
+        }
+        if (kOpcodeMetadata[index].group == VM::OpcodeGroup::Unknown) {
+            return false;
+        }
+    }
+    return true;
+}
+
+}  // namespace detail
+
+static_assert(detail::opcodeMetadataMatchesEnumOrder(),
+              "kOpcodeMetadata must stay in exact OpCode enum order and contain complete teaching metadata");
 
 constexpr bool isValidOpcode(OpCode op) noexcept {
     return static_cast<usize>(op) < kOpcodeMetadata.size();

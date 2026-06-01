@@ -23,35 +23,6 @@
 namespace Lua {
 
 // =====================================================================
-// 元方法名称数组（按TMS枚举顺序）
-// =====================================================================
-
-/**
- * @brief 元方法名称字符串数组
- * 
- * 顺序必须与TMS枚举完全一致。
- */
-const char* const kMetamethodNames[static_cast<usize>(TMS::TM_N)] = {
-    "__index",      // TM_INDEX
-    "__newindex",   // TM_NEWINDEX
-    "__gc",         // TM_GC
-    "__mode",       // TM_MODE
-    "__eq",         // TM_EQ
-    "__add",        // TM_ADD
-    "__sub",        // TM_SUB
-    "__mul",        // TM_MUL
-    "__div",        // TM_DIV
-    "__mod",        // TM_MOD
-    "__pow",        // TM_POW
-    "__unm",        // TM_UNM
-    "__len",        // TM_LEN
-    "__lt",         // TM_LT
-    "__le",         // TM_LE
-    "__concat",     // TM_CONCAT
-    "__call"        // TM_CALL
-};
-
-// =====================================================================
 // 元方法查找函数实现
 // =====================================================================
 
@@ -80,7 +51,7 @@ Value getMetamethod(GlobalState& globalState, Table* metatable, TMS event) {
     }
 
     // 3. 在元表中查找元方法名称对应的值
-    const char* name = kMetamethodNames[static_cast<usize>(event)];
+    StrView name = kMetamethodNames[static_cast<usize>(event)];
 
     // 使用StringPool获取内部化字符串，确保相同内容的字符串有相同的指针
     StringPool& pool = globalState.getStringPool();

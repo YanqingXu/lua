@@ -31,6 +31,7 @@
 #include <array>
 #include <fstream>
 #include <sstream>
+#include <expected>
 #include <cstring>
 #include <algorithm>
 #include <cctype>
@@ -508,6 +509,11 @@ struct DynamicLookupResult {
     bool linkedOnly;
 };
 
+struct DynamicLookupError {
+    DynamicLookupStatus status;
+    Str message;
+};
+
 static std::unordered_map<Str, DynamicLibraryHandle>& loadedDynamicLibraries() {
     static std::unordered_map<Str, DynamicLibraryHandle> libraries;
     return libraries;
@@ -553,22 +559,22 @@ static Str lastDynamicLibraryError() {
 }
 #endif
 
-static bool loadDynamicLibrary(const Str& filename,
-                               DynamicLibraryHandle& handle,
-                               Str& errorMessage) {
+static std::expected<DynamicLibraryHandle, DynamicLookupError> tryLoadDynamicLibrary(const Str& filename) {
     if (filename.empty()) {
-        errorMessage = "empty dynamic library path";
-        return false;
+        return std::unexpected(DynamicLookupError{
+            DynamicLookupStatus::OpenFailure,
+            "empty dynamic library path",
+        });
     }
 
     Str key = fullPath(filename);
     auto& libraries = loadedDynamicLibraries();
     auto existing = libraries.find(key);
     if (existing != libraries.end()) {
-        handle = existing->second;
-        return true;
+        return existing->second;
     }
 
+    DynamicLibraryHandle handle = nullptr;
 #ifdef _WIN32
     if (isCurrentExecutablePath(filename)) {
         handle = GetModuleHandleA(nullptr);
@@ -585,22 +591,27 @@ static bool loadDynamicLibrary(const Str& filename,
 #endif
 
     if (!handle) {
-        errorMessage = lastDynamicLibraryError();
-        return false;
+        return std::unexpected(DynamicLookupError{
+            DynamicLookupStatus::OpenFailure,
+            lastDynamicLibraryError(),
+        });
     }
 
     libraries.emplace(key, handle);
-    return true;
+    return handle;
 }
 
-static void* loadDynamicSymbol(DynamicLibraryHandle handle,
-                               const Str& symbolName,
-                               Str& errorMessage) {
+static std::expected<void*, DynamicLookupError> tryLoadDynamicSymbol(
+    DynamicLibraryHandle handle,
+    const Str& symbolName
+) {
 #ifdef _WIN32
     FARPROC proc = GetProcAddress(handle, symbolName.c_str());
     if (!proc) {
-        errorMessage = lastDynamicLibraryError();
-        return nullptr;
+        return std::unexpected(DynamicLookupError{
+            DynamicLookupStatus::InitFailure,
+            lastDynamicLibraryError(),
+        });
     }
     return reinterpret_cast<void*>(proc);
 #else
@@ -608,8 +619,10 @@ static void* loadDynamicSymbol(DynamicLibraryHandle handle,
     void* symbol = dlsym(handle, symbolName.c_str());
     const char* err = dlerror();
     if (err != nullptr) {
-        errorMessage = err;
-        return nullptr;
+        return std::unexpected(DynamicLookupError{
+            DynamicLookupStatus::InitFailure,
+            err,
+        });
     }
     return symbol;
 #endif
@@ -624,24 +637,23 @@ static Function* createDynamicCFunction(LuaState* L, void* symbol) {
 static DynamicLookupResult lookForDynamicFunction(LuaState* L,
                                                   const Str& filename,
                                                   const Str& functionName) {
-    DynamicLibraryHandle handle = nullptr;
-    Str errorMessage;
-    if (!loadDynamicLibrary(filename, handle, errorMessage)) {
-        return { DynamicLookupStatus::OpenFailure, nullptr, errorMessage, false };
+    auto handle = tryLoadDynamicLibrary(filename);
+    if (!handle) {
+        return { handle.error().status, nullptr, handle.error().message, false };
     }
 
     if (functionName == "*") {
         return { DynamicLookupStatus::Success, nullptr, Str(), true };
     }
 
-    void* symbol = loadDynamicSymbol(handle, functionName, errorMessage);
+    auto symbol = tryLoadDynamicSymbol(*handle, functionName);
     if (!symbol) {
-        return { DynamicLookupStatus::InitFailure, nullptr, errorMessage, false };
+        return { symbol.error().status, nullptr, symbol.error().message, false };
     }
 
     return {
         DynamicLookupStatus::Success,
-        createDynamicCFunction(L, symbol),
+        createDynamicCFunction(L, *symbol),
         Str(),
         false
     };

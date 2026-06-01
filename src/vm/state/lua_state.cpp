@@ -125,23 +125,36 @@ Str runtimeErrorWithLocation(LuaState* L, const Str& message) {
 // =====================================================================
 
 LuaState* LuaState::newState() {
+    return create().release();
+}
+
+UPtr<LuaState> LuaState::create() {
     RuntimeServices services = RuntimeServices::fromSingletons();
-    return newState(services);
+    return create(services);
 }
 
 LuaState* LuaState::newState(RuntimeServices& services) {
-    LuaState* L = new LuaState(services.globalState);
+    return create(services).release();
+}
+
+UPtr<LuaState> LuaState::create(RuntimeServices& services) {
+    UPtr<LuaState> L = makeUnique<LuaState>(CtorToken{}, services.globalState);
     L->initialize();
     return L;
 }
 
 LuaState* LuaState::newState(EngineContext& context) {
+    return create(context).release();
+}
+
+UPtr<LuaState> LuaState::create(EngineContext& context) {
     RuntimeServices services = context.services();
-    return newState(services);
+    return create(services);
 }
 
 LuaState* LuaState::newThread(LuaState* parentL) {
-    LuaState* L = new LuaState(parentL->getGlobalState());
+    UPtr<LuaState> threadState = makeUnique<LuaState>(CtorToken{}, parentL->getGlobalState());
+    LuaState* L = threadState.get();
 
     // 共享全局表（不创建新的，不注册为 GC root）
     L->globalTable_ = parentL->globalTable_;
@@ -162,7 +175,7 @@ LuaState* LuaState::newThread(LuaState* parentL) {
 
     L->status_ = ThreadStatus::OK;
 
-    return L;
+    return threadState.release();
 }
 
 // =====================================================================
@@ -171,6 +184,11 @@ LuaState* LuaState::newThread(LuaState* parentL) {
 
 LuaState::LuaState()
     : LuaState(GlobalState::getInstance())
+{
+}
+
+LuaState::LuaState(CtorToken, GlobalState& globalState)
+    : LuaState(globalState)
 {
 }
 

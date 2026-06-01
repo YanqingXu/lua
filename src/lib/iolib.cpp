@@ -19,6 +19,7 @@
 #include "core/userdata.hpp"
 #include "vm/state/global_state.hpp"
 #include <cstdio>
+#include <expected>
 #include <format>
 #include <cctype>
 #include <cstring>
@@ -115,12 +116,38 @@ static std::string errnoMessage(int err) {
 #endif
 }
 
-static FILE* safeFopen(const char* filename, const char* mode) {
+struct FileOpenError {
+    Str filename;
+    Str mode;
+    int code = 0;
+    Str message;
+};
+
+static FILE* rawFopen(const char* filename, const char* mode) {
 #ifdef _MSC_VER
     return _fsopen(filename, mode, _SH_DENYNO);
 #else
     return std::fopen(filename, mode);
 #endif
+}
+
+static std::expected<FILE*, FileOpenError> tryFopen(StrView filename, StrView mode) {
+    Str ownedFilename(filename);
+    Str ownedMode(mode);
+
+    errno = 0;
+    FILE* fp = rawFopen(ownedFilename.c_str(), ownedMode.c_str());
+    if (fp == nullptr) {
+        const int errorCode = errno;
+        return std::unexpected(FileOpenError{
+            ownedFilename,
+            ownedMode,
+            errorCode,
+            errnoMessage(errorCode),
+        });
+    }
+
+    return fp;
 }
 
 static FILE* safeTmpfile() {
@@ -531,10 +558,11 @@ i32 io_open(LuaState* L) {
     const char* mode = L->getTop() >= 2 && L->isString(2) ? L->toString(2) : "r";
 
     // 打开文件
-    FILE* fp = safeFopen(filename, mode);
-    if (!fp) {
+    auto opened = tryFopen(filename, mode);
+    if (!opened) {
         return pushResult(L, false, Value(true), filename);
     }
+    FILE* fp = *opened;
 
     // 创建文件句柄
     Userdata* ud = createFileHandle(L, fp, false, filename);
@@ -604,10 +632,11 @@ i32 io_input(LuaState* L) {
     } else {
         if (L->isString(1)) {
             const char* filename = L->toString(1);
-            FILE* fp = safeFopen(filename, "r");
-            if (!fp) {
+            auto opened = tryFopen(filename, "r");
+            if (!opened) {
                 fileError(L, 1, filename);
             }
+            FILE* fp = *opened;
             Userdata* ud = createFileHandle(L, fp, false, filename);
             Value handleValue(ud);
             L->setGlobal(IO_INPUT.data(), handleValue);
@@ -629,10 +658,11 @@ i32 io_output(LuaState* L) {
     } else {
         if (L->isString(1)) {
             const char* filename = L->toString(1);
-            FILE* fp = safeFopen(filename, "w");
-            if (!fp) {
+            auto opened = tryFopen(filename, "w");
+            if (!opened) {
                 fileError(L, 1, filename);
             }
+            FILE* fp = *opened;
             Userdata* ud = createFileHandle(L, fp, false, filename);
             Value handleValue(ud);
             L->setGlobal(IO_OUTPUT.data(), handleValue);
@@ -734,10 +764,11 @@ i32 io_lines(LuaState* L) {
 
     if (L->isString(1)) {
         const char* filename = L->toString(1);
-        FILE* fp = safeFopen(filename, "r");
-        if (!fp) {
+        auto opened = tryFopen(filename, "r");
+        if (!opened) {
             fileError(L, 1, filename);
         }
+        FILE* fp = *opened;
         Userdata* ud = createFileHandle(L, fp, false, filename);
         return pushLinesIterator(L, Value(ud), true, 2);
     }

@@ -3,10 +3,24 @@
 #include "lib/lib_module.hpp"
 #include "common/types.hpp"
 
+#include <expected>
+
 namespace Lua {
 
 class Table;
 class Function;
+
+enum class LibRegistrationErrorCode : u8 {
+    NullState,
+    NullTable,
+    NullName,
+    NullFunction,
+};
+
+struct LibRegistrationError {
+    LibRegistrationErrorCode code;
+    StrView operation;
+};
 
 /**
  * @brief Lua函数注册工具（现代C++风格）
@@ -78,6 +92,18 @@ public:
      * @return 创建的表指针
      */
     static Table* createLibTable(LuaState* L, const char* libName);
+
+    /**
+     * @brief 以 expected 表达创建闭包时的参数错误
+     */
+    [[nodiscard]] static std::expected<Function*, LibRegistrationError>
+    tryCreateClosure(LuaState* L, LibCFunction func);
+
+    /**
+     * @brief 以 expected 表达库表创建/注册时的参数错误
+     */
+    [[nodiscard]] static std::expected<Table*, LibRegistrationError>
+    tryCreateLibTable(LuaState* L, StrView libName);
 
     // =====================================================================
     // 实例方法：流式接口（批量注册）

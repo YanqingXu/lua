@@ -62,6 +62,8 @@ Assert-FileContains "tools/add_source.ps1" @(
 
 Assert-FileContains "tools/check_opcode_coverage_matrix.ps1" @(
     "enum\\s\+class\\s\+OpCode",
+    "OpcodeMetadata",
+    "mayInvokeMetamethod",
     "opcode_coverage_matrix\.md",
     "Duplicate matrix row",
     "Opcode matrix order mismatch"
@@ -77,6 +79,9 @@ Assert-FileContains "tools/check_value_result_variant_only.ps1" @(
 Assert-FileContains "tools/check_c_style_patterns.ps1" @(
     "C-style pattern guard",
     "forbiddenPatterns",
+    "AllowedMatches",
+    "WarningOnly",
+    "TestScope",
     "return nullptr",
     "AllowedCount"
 )
@@ -98,7 +103,9 @@ Assert-FileContains "tools/check_doc_drift.ps1" @(
     "Get-TestRunSummary",
     "Registered Tests:\s*",
     "Total Results:\s*",
-    "Assert-DocHasCurrentTestCounts"
+    "Assert-DocHasCurrentTestCounts",
+    "verified_against",
+    "modern-cpp-teaching-audit-report"
 )
 
 $docDriftScript = Get-Content -LiteralPath (Join-RepoPath "tools/check_doc_drift.ps1") -Raw

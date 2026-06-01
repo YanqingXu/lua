@@ -32,7 +32,7 @@ bool testTMode(OpCode op) {
 }
 
 const char* getOpName(OpCode op) {
-    return opcodeMetadata(op).name;
+    return opcodeMetadata(op).name.data();
 }
 
 }  // namespace Lua
