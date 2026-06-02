@@ -126,12 +126,12 @@ LOADBOOL reg, 1, 0
 
 - 比较表达式走 Condition Channel，再 `materializeCondResult()` 为 boolean 寄存器。
 - `and` / `or` 在 Value Channel 中实现短路，先把左值物化到结果寄存器，发射 `TEST` 和待回填 `JMP`，必要时再物化右值覆盖同一结果寄存器。
-- `Concat` 将左右值物化到连续寄存器，发射 `CONCAT` 并返回 `Relocatable`。
+- `Concat` 将值物化到连续 scratch 寄存器后发射 `CONCAT`；三段及以上链式 concat 会合并为单条 `CONCAT`，避免当前 VM 在归并时改写 active source registers。
 - 算术 `Add/Sub/Mul/Div/Mod/Pow` 使用 `valueToRK()`，发射对应算术 opcode，并返回 A 参数待定的 `Relocatable`。
 
 `emitValueUnary()` 处理一元表达式：
 
-- `not` 走条件通道再物化为 boolean。
+- `not` 走条件通道再物化为 boolean；`not not nil/false/true/number/string` 这类字面量双重否定会直接折叠为 boolean immediate。
 - `-x` 对 immediate number 做常量折叠，否则发射 `UNM`。
 - `#x` 发射 `LEN`。
 

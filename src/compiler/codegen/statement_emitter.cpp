@@ -7,8 +7,135 @@
 #include "compiler/codegen/codegen.hpp"
 
 #include <stdexcept>
+#include <type_traits>
 
 namespace Lua {
+
+namespace {
+
+bool allInitializersAreNilLiterals(const LocalStmt& stmt) {
+    if (stmt.values.empty()) {
+        return false;
+    }
+
+    for (const auto& value : stmt.values) {
+        if (!std::holds_alternative<NilExpr>(value->variant)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+void collectStmtReads(const Stmt& stmt, HashSet<Str>& reads);
+
+void collectStmtListReads(const Vec<StmtPtr>& stmts, HashSet<Str>& reads) {
+    for (const auto& stmt : stmts) {
+        collectStmtReads(*stmt, reads);
+    }
+}
+
+void collectExprReads(const Expr& expr, HashSet<Str>& reads) {
+    std::visit([&](const auto& node) {
+        using Node = std::decay_t<decltype(node)>;
+        if constexpr (std::is_same_v<Node, NameExpr>) {
+            reads.insert(node.name);
+        } else if constexpr (std::is_same_v<Node, BinaryExpr>) {
+            collectExprReads(*node.left, reads);
+            collectExprReads(*node.right, reads);
+        } else if constexpr (std::is_same_v<Node, UnaryExpr>) {
+            collectExprReads(*node.operand, reads);
+        } else if constexpr (std::is_same_v<Node, TableExpr>) {
+            for (const TableField& field : node.fields) {
+                if (field.key != nullptr) {
+                    collectExprReads(*field.key, reads);
+                }
+                collectExprReads(*field.value, reads);
+            }
+        } else if constexpr (std::is_same_v<Node, CallExpr>) {
+            collectExprReads(*node.func, reads);
+            for (const auto& arg : node.args) {
+                collectExprReads(*arg, reads);
+            }
+        } else if constexpr (std::is_same_v<Node, IndexExpr>) {
+            collectExprReads(*node.table, reads);
+            collectExprReads(*node.index, reads);
+        } else if constexpr (std::is_same_v<Node, MemberExpr>) {
+            collectExprReads(*node.table, reads);
+        } else if constexpr (std::is_same_v<Node, FunctionExpr>) {
+            collectStmtListReads(node.body, reads);
+        } else if constexpr (std::is_same_v<Node, ParenExpr>) {
+            collectExprReads(*node.expression, reads);
+        }
+    }, expr.variant);
+}
+
+void collectAssignTargetReads(const Expr& target, HashSet<Str>& reads) {
+    if (std::holds_alternative<NameExpr>(target.variant)) {
+        return;
+    }
+    collectExprReads(target, reads);
+}
+
+void collectStmtReads(const Stmt& stmt, HashSet<Str>& reads) {
+    std::visit([&](const auto& node) {
+        using Node = std::decay_t<decltype(node)>;
+        if constexpr (std::is_same_v<Node, AssignStmt>) {
+            for (const auto& target : node.targets) {
+                collectAssignTargetReads(*target, reads);
+            }
+            for (const auto& value : node.values) {
+                collectExprReads(*value, reads);
+            }
+        } else if constexpr (std::is_same_v<Node, LocalStmt>) {
+            for (const auto& value : node.values) {
+                collectExprReads(*value, reads);
+            }
+        } else if constexpr (std::is_same_v<Node, CallStmt>) {
+            collectExprReads(*node.call, reads);
+        } else if constexpr (std::is_same_v<Node, IfStmt>) {
+            for (const auto& branch : node.branches) {
+                collectExprReads(*branch.condition, reads);
+                collectStmtListReads(branch.body, reads);
+            }
+            collectStmtListReads(node.elseBranch, reads);
+        } else if constexpr (std::is_same_v<Node, WhileStmt>) {
+            collectExprReads(*node.condition, reads);
+            collectStmtListReads(node.body, reads);
+        } else if constexpr (std::is_same_v<Node, RepeatStmt>) {
+            collectStmtListReads(node.body, reads);
+            collectExprReads(*node.condition, reads);
+        } else if constexpr (std::is_same_v<Node, ForNumStmt>) {
+            collectExprReads(*node.init, reads);
+            collectExprReads(*node.limit, reads);
+            if (node.step != nullptr) {
+                collectExprReads(*node.step, reads);
+            }
+            collectStmtListReads(node.body, reads);
+        } else if constexpr (std::is_same_v<Node, ForInStmt>) {
+            for (const auto& iterator : node.iterators) {
+                collectExprReads(*iterator, reads);
+            }
+            collectStmtListReads(node.body, reads);
+        } else if constexpr (std::is_same_v<Node, FunctionStmt>) {
+            if (!node.isLocal) {
+                reads.insert(node.name);
+            }
+            collectStmtListReads(node.body, reads);
+        } else if constexpr (std::is_same_v<Node, ReturnStmt>) {
+            for (const auto& value : node.values) {
+                collectExprReads(*value, reads);
+            }
+        } else if constexpr (std::is_same_v<Node, DoStmt>) {
+            collectStmtListReads(node.body, reads);
+        }
+    }, stmt.variant);
+}
+
+bool isFutureRead(const HashSet<Str>* reads, const Str& name) {
+    return reads != nullptr && reads->find(name) != reads->end();
+}
+
+}  // namespace
 
 StatementEmitter::StatementEmitter(CodeGenerator& owner) noexcept
     : owner_(owner)
@@ -242,6 +369,15 @@ void StatementEmitter::emitStmt(const AssignStmt& s) {
     i32 nvars = static_cast<i32>(s.targets.size());
     i32 nexps = static_cast<i32>(s.values.size());
 
+    if (nvars == 1 && nexps == 1) {
+        const auto* targetName = std::get_if<NameExpr>(&s.targets[0]->variant);
+        const auto* valueName = std::get_if<NameExpr>(&s.values[0]->variant);
+        if (targetName != nullptr && valueName != nullptr && targetName->name == valueName->name &&
+            scopes_.findLocalVar(targetName->name) >= 0) {
+            return;
+        }
+    }
+
     auto freezeRegister = [&](i32 reg) -> i32 {
         i32 stableReg = ops_.currentReg();
         ops_.reserveRegsAndCheck(1);
@@ -345,47 +481,65 @@ void StatementEmitter::emitStmt(const LocalStmt& s) {
     ops_.setFreeReg(base);
 
     bool allVarsInitialized = false;
-    if (nexps > 0) {
-        for (i32 i = 0; i < nexps - 1 && i < nvars; i++) {
-            ValueResult val = emitValue(*s.values[i]);
-            val = forceSingleValue(val);
-            materializeValue(val, base + i);
-            ops_.setFreeRegAndCheck(base + i + 1);
+    if (futureReads_ != nullptr && nexps == 0 && nvars > 0) {
+        allVarsInitialized = true;
+        for (const Str& name : s.names) {
+            if (isFutureRead(futureReads_, name)) {
+                allVarsInitialized = false;
+                break;
+            }
         }
+    }
 
-        if (nexps <= nvars) {
-            const Expr& lastExpr = *s.values[nexps - 1];
-            i32 wanted = nvars - (nexps - 1);
-            i32 targetReg = base + (nexps - 1);
+    if (nexps > 0) {
+        if (allInitializersAreNilLiterals(s)) {
+            if (nvars > 0) {
+                codeABC(OpCode::LOADNIL, base, base + nvars - 1, 0);
+            }
+            ops_.setFreeRegAndCheck(base + nvars);
+            allVarsInitialized = true;
+        } else {
+            for (i32 i = 0; i < nexps - 1 && i < nvars; i++) {
+                ValueResult val = emitValue(*s.values[i]);
+                val = forceSingleValue(val);
+                materializeValue(val, base + i);
+                ops_.setFreeRegAndCheck(base + i + 1);
+            }
 
-            if (auto* callExpr = std::get_if<CallExpr>(&lastExpr.variant)) {
-                CallResultInfo callResult = emitCallExpr(*callExpr);
-                setWantedResults(callResult, wanted);
+            if (nexps <= nvars) {
+                const Expr& lastExpr = *s.values[nexps - 1];
+                i32 wanted = nvars - (nexps - 1);
+                i32 targetReg = base + (nexps - 1);
 
-                i32 callBase = callResult.baseReg;
-                if (targetReg != callBase) {
-                    if (targetReg > callBase) {
-                        for (i32 j = wanted - 1; j >= 0; --j) {
-                            codeABC(OpCode::MOVE, targetReg + j, callBase + j, 0);
-                        }
-                    } else {
-                        for (i32 j = 0; j < wanted; ++j) {
-                            codeABC(OpCode::MOVE, targetReg + j, callBase + j, 0);
+                if (auto* callExpr = std::get_if<CallExpr>(&lastExpr.variant)) {
+                    CallResultInfo callResult = emitCallExpr(*callExpr);
+                    setWantedResults(callResult, wanted);
+
+                    i32 callBase = callResult.baseReg;
+                    if (targetReg != callBase) {
+                        if (targetReg > callBase) {
+                            for (i32 j = wanted - 1; j >= 0; --j) {
+                                codeABC(OpCode::MOVE, targetReg + j, callBase + j, 0);
+                            }
+                        } else {
+                            for (i32 j = 0; j < wanted; ++j) {
+                                codeABC(OpCode::MOVE, targetReg + j, callBase + j, 0);
+                            }
                         }
                     }
+                    ops_.setFreeRegAndCheck(base + nvars);
+                    allVarsInitialized = true;
+                } else if (std::holds_alternative<VarargExpr>(lastExpr.variant)) {
+                    CallResultInfo callResult = emitVarargExpr();
+                    ops_.patchArgsAB(callResult.instructionPc, targetReg, wanted + 1);
+                    ops_.setFreeRegAndCheck(base + nvars);
+                    allVarsInitialized = true;
+                } else {
+                    ValueResult val = emitValue(lastExpr);
+                    val = forceSingleValue(val);
+                    materializeValue(val, base + (nexps - 1));
+                    ops_.setFreeRegAndCheck(base + nexps);
                 }
-                ops_.setFreeRegAndCheck(base + nvars);
-                allVarsInitialized = true;
-            } else if (std::holds_alternative<VarargExpr>(lastExpr.variant)) {
-                CallResultInfo callResult = emitVarargExpr();
-                ops_.patchArgsAB(callResult.instructionPc, targetReg, wanted + 1);
-                ops_.setFreeRegAndCheck(base + nvars);
-                allVarsInitialized = true;
-            } else {
-                ValueResult val = emitValue(lastExpr);
-                val = forceSingleValue(val);
-                materializeValue(val, base + (nexps - 1));
-                ops_.setFreeRegAndCheck(base + nexps);
             }
         }
     }
@@ -415,6 +569,33 @@ void StatementEmitter::emitStmt(const ReturnStmt& s) {
     if (nret == 0) {
         codeABC(OpCode::RETURN, 0, 1, 0);
     } else {
+        auto directLocalReturnBase = [&]() -> i32 {
+            i32 base = -1;
+            for (i32 i = 0; i < nret; i++) {
+                const auto* name = std::get_if<NameExpr>(&s.values[static_cast<usize>(i)]->variant);
+                if (name == nullptr) {
+                    return -1;
+                }
+
+                i32 reg = scopes_.findLocalVar(name->name);
+                if (reg < 0) {
+                    return -1;
+                }
+
+                if (i == 0) {
+                    base = reg;
+                } else if (reg != base + i) {
+                    return -1;
+                }
+            }
+            return base;
+        };
+
+        if (i32 directBase = directLocalReturnBase(); directBase >= 0) {
+            codeABC(OpCode::RETURN, directBase, nret + 1, 0);
+            return;
+        }
+
         i32 base = state_.localScope.activeVarCount_;
         RegisterGuard registers(state_);
         ops_.setFreeReg(base);
@@ -792,9 +973,18 @@ void StatementEmitter::emitStmt(const ForInStmt& s) {
 void StatementEmitter::block(const Vec<StmtPtr>& stmts) {
     i32 oldActiveVarCount = scopes_.activeLocalCount();
 
-    for (const auto& stmt : stmts) {
-        statement(*stmt);
+    Vec<HashSet<Str>> readsAfter(stmts.size() + 1);
+    for (usize i = stmts.size(); i > 0; --i) {
+        readsAfter[i - 1] = readsAfter[i];
+        collectStmtReads(*stmts[i - 1], readsAfter[i - 1]);
     }
+
+    const HashSet<Str>* previousFutureReads = futureReads_;
+    for (usize i = 0; i < stmts.size(); ++i) {
+        futureReads_ = &readsAfter[i + 1];
+        statement(*stmts[i]);
+    }
+    futureReads_ = previousFutureReads;
 
     removeLocalVars(oldActiveVarCount);
 }

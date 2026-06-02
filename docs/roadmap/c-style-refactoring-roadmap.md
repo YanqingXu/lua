@@ -15,7 +15,7 @@ applies_to: src/ C-style pattern audit and C++23 refactoring roadmap
 
 **技术栈：** C++23-preview/MSVC `/W4`、`std::expected`、`std::optional`、`std::array`、`std::span`、`std::string_view`、RAII guard、PowerShell 质量门、`bin\lua_test.exe`。
 
-**完成状态（2026-06-01）：** 阶段 0-6 已实施完成，并追加现代教学审计落地项。当前 C-style 护栏剩余登记值为 `NULL=0`、裸 `new=0`、裸 `delete=1`、`std::free/free=1`、简单 `#define=51`、`(void*)=0`、`return nullptr=60`；裸 `delete` 与 `std::free` 已改为位置 allowlist，raw array / `char* end` / 测试目录手动所有权进入 warning 规则。最终验证通过 `tools\run_quality_gate.ps1`、`bin\lua_test.exe` 全量 `644 registered / 3290 results / 0 failures`、`lua_app.vcxproj` Debug|x64 构建和 `git diff --check`。
+**完成状态（2026-06-01）：** 阶段 0-6 已实施完成，并追加现代教学审计落地项。当前 C-style 护栏剩余登记值为 `NULL=0`、裸 `new=0`、裸 `delete=1`、`std::free/free=1`、简单 `#define=51`、`(void*)=0`、`return nullptr=60`；裸 `delete` 与 `std::free` 已改为位置 allowlist，raw array / `char* end` / 测试目录手动所有权进入 warning 规则。最终验证通过 `tools\run_quality_gate.ps1`、`bin\lua_test.exe` 全量 `654 registered / 3340 results / 0 failures`、`lua_app.vcxproj` Release|x64 构建和 `git diff --check`。
 
 ---
 

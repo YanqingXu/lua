@@ -111,6 +111,7 @@ void Upvalue::close(Stack&) {
 
     // 2. 标记为Closed状态
     isOpen_ = false;
+    ownerStack_ = nullptr;
 
     // 3. stackIndex_保持不变（用于调试）
 }

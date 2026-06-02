@@ -300,6 +300,17 @@ public:
      * @return 常量在常量表中的索引
      */
     usize addConstant(const Value& value);
+
+    /**
+     * @brief 按原始槽位追加常量
+     *
+     * binary chunk 反序列化必须保留 dump 时的常量表索引，不能像编译期
+     * addConstant() 一样对常量去重。
+     *
+     * @param value 常量值
+     * @return 常量在常量表中的索引
+     */
+    usize appendConstantSlot(const Value& value);
     
     /**
      * @brief 获取常量

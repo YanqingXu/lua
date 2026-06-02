@@ -76,6 +76,18 @@ usize Proto::addConstant(const Value& value) {
     return index;
 }
 
+usize Proto::appendConstantSlot(const Value& value) {
+    usize index = constants_.size();
+    constants_.push_back(value);
+
+    if (value.isNil() || value.isBoolean() || value.isNumber() || value.isString()) {
+        ConstantKey key = ConstantKey::fromValue(value);
+        constantMap_.emplace(key, index);
+    }
+
+    return index;
+}
+
 Value Proto::getConstant(usize index) const {
     if (index >= constants_.size()) {
         throw std::out_of_range("Constant index out of range");

@@ -7,6 +7,7 @@
 #include "core/gc_string.hpp"
 #include "core/string_pool.hpp"
 #include "core/table.hpp"
+#include "core/upvalue.hpp"
 #include "core/userdata.hpp"
 #include "gc/gc_strategy.hpp"
 #include "vm/state/global_state.hpp"
@@ -413,6 +414,14 @@ usize GarbageCollector::sweepStep(StringPool& stringPool, usize budget) {
         bool isFixed = (obj->getMarked() & GCBits::FIXED) != 0;
 
         if (obj->getColor() == GCColor::White && !isFixed) {
+            if (obj->getType() == GCObjectType::Upval
+                && static_cast<Upvalue*>(obj)->isOpen()) {
+                incrementalSweepPrevious_ = obj;
+                incrementalSweepCurrent_ = next;
+                ++processed;
+                continue;
+            }
+
             if (incrementalSweepPrevious_ == nullptr) {
                 allObjects_ = next;
             } else {

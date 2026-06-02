@@ -1,6 +1,6 @@
 ---
 status: current
-verified_against: README.md; lua.slnx; lua.vcxproj; lua_app.vcxproj; lua_test.vcxproj; lua_bytecode.vcxproj; CMakeLists.txt; tools/run_cmake_smoke.ps1; tools/add_source.ps1; tools/check_doc_drift.ps1; tools/check_value_result_variant_only.ps1; tools/test_quality_gate.ps1; tools/run_quality_gate.ps1; .github/workflows/ci.yml; tests/lua/official/all.lua; tests/unit/official/test_official_suite.cpp; tests/unit/framework/test_runner.cpp; tests/unit/app/test_repl_commands.cpp; tests/unit/bytecode/test_bytecode_printer.cpp; tests/unit/compiler/test_ast_visitor.cpp; tests/unit/compiler/test_parser_boundaries.cpp; tests/unit/compiler/test_codegen_characterization.cpp; tests/unit/compiler/test_codegen_result_types.cpp; tests/unit/compiler/test_jump_patcher.cpp; tests/unit/compiler/test_scope_manager.cpp; tests/unit/compiler/test_expression_emitter.cpp; tests/unit/compiler/test_statement_emitter.cpp; tests/unit/compiler/test_symbol_binding.cpp; tests/unit/compiler/test_codegen_state.cpp; tests/unit/compiler/test_bytecode_builder.cpp; tests/unit/stdlib/test_lib_catalog.cpp; tests/unit/vm/test_runtime_services.cpp; tests/unit/vm/test_vm_dispatch.cpp; tests/unit/vm/test_vm_internal_boundaries.cpp; tests/unit/vm/test_vm_trace_debug.cpp; tests/unit/gc/test_gc.cpp; docs/index.md; docs/glossary.md; docs/walkthroughs/index.md; docs/walkthroughs/gc-cycle.md; docs/compiler/codegen-responsibility-map.md; examples/README.md; src/runtime/runtime_services.hpp; src/gc/gc_strategy.hpp; src/gc/gc_strategy.cpp; src/gc/garbage_collector.hpp; src/gc/garbage_collector.cpp; src/compiler/ast_visitor.hpp; src/compiler/parser/parser_utils.hpp; src/compiler/parser/parser.hpp; src/compiler/parser/parser.cpp; src/compiler/parser/parser_stmt.cpp; src/compiler/parser/parser_expr.cpp; src/compiler/parser/parser_primary.cpp; src/compiler/parser/parser_func.cpp; src/compiler/parser/parser_table.cpp; src/compiler/codegen/codegen.cpp; src/compiler/codegen/codegen_binding.cpp; src/compiler/codegen/name_binder.hpp; src/compiler/codegen/name_binder.cpp; src/compiler/codegen/codegen_ops.hpp; src/compiler/codegen/function_compiler.hpp; src/compiler/codegen/function_compiler.cpp; src/compiler/codegen/codegen_types.hpp; src/compiler/codegen/expression_emitter.hpp; src/compiler/codegen/expression_emitter.cpp; src/compiler/codegen/codegen_stmt.cpp; src/compiler/codegen/statement_emitter.hpp; src/compiler/codegen/statement_emitter.cpp; src/compiler/codegen/codegen_state.hpp; src/compiler/codegen/jump_patcher.hpp; src/compiler/codegen/jump_patcher.cpp; src/compiler/codegen/scope_manager.hpp; src/compiler/codegen/scope_manager.cpp; src/compiler/codegen/bytecode_builder.hpp; src/lib/lib_catalog.hpp; src/lib/lib_catalog.cpp; src/lib/lib_manager.hpp; src/bytecode/bytecode_main.cpp; src/bytecode/bytecode_printer.hpp; src/bytecode/bytecode_printer.cpp; src/repl/repl_exe.cpp; src/repl/repl_meta.cpp; src/vm/state/lua_state.hpp; src/vm/state/global_state.hpp; src/vm/state/stack.hpp; src/vm/state/call_info.hpp; src/vm/vm.cpp; src/vm/vm_entry.cpp; src/vm/vm_dispatch.hpp; src/vm/vm_switch_dispatch.hpp; src/vm/vm_dispatch_strategy.hpp; src/vm/vm_internal.hpp; src/vm/vm_ops.cpp; src/vm/vm_call.cpp; src/vm/vm_table.cpp; src/vm/vm_frame.cpp; src/vm/vm_loop.cpp; src/vm/vm_trace.cpp
+verified_against: README.md; docs/compatibility/lua51.md; docs/compatibility/lua51-full-compatibility-audit.md; docs/roadmap/lua51-compatibility-next-stage.md; lua.slnx; lua.vcxproj; lua_app.vcxproj; lua_test.vcxproj; lua_bytecode.vcxproj; CMakeLists.txt; tools/run_cmake_smoke.ps1; tools/add_source.ps1; tools/check_doc_drift.ps1; tools/check_value_result_variant_only.ps1; tools/test_quality_gate.ps1; tools/run_quality_gate.ps1; .github/workflows/ci.yml; tests/lua/official/all.lua; tests/unit/official/test_official_suite.cpp; tests/unit/framework/test_runner.cpp; tests/unit/app/test_repl_commands.cpp; tests/unit/bytecode/test_bytecode_printer.cpp; tests/unit/compiler/test_ast_visitor.cpp; tests/unit/compiler/test_parser_boundaries.cpp; tests/unit/compiler/test_codegen_characterization.cpp; tests/unit/compiler/test_codegen_result_types.cpp; tests/unit/compiler/test_jump_patcher.cpp; tests/unit/compiler/test_scope_manager.cpp; tests/unit/compiler/test_expression_emitter.cpp; tests/unit/compiler/test_statement_emitter.cpp; tests/unit/compiler/test_symbol_binding.cpp; tests/unit/compiler/test_codegen_state.cpp; tests/unit/compiler/test_bytecode_builder.cpp; tests/unit/stdlib/test_lib_catalog.cpp; tests/unit/vm/test_runtime_services.cpp; tests/unit/vm/test_vm_dispatch.cpp; tests/unit/vm/test_vm_internal_boundaries.cpp; tests/unit/vm/test_vm_trace_debug.cpp; tests/unit/gc/test_gc.cpp; docs/index.md; docs/glossary.md; docs/walkthroughs/index.md; docs/walkthroughs/gc-cycle.md; docs/compiler/codegen-responsibility-map.md; examples/README.md; src/runtime/runtime_services.hpp; src/gc/gc_strategy.hpp; src/gc/gc_strategy.cpp; src/gc/garbage_collector.hpp; src/gc/garbage_collector.cpp; src/compiler/ast_visitor.hpp; src/compiler/parser/parser_utils.hpp; src/compiler/parser/parser.hpp; src/compiler/parser/parser.cpp; src/compiler/parser/parser_stmt.cpp; src/compiler/parser/parser_expr.cpp; src/compiler/parser/parser_primary.cpp; src/compiler/parser/parser_func.cpp; src/compiler/parser/parser_table.cpp; src/compiler/codegen/codegen.cpp; src/compiler/codegen/codegen_binding.cpp; src/compiler/codegen/name_binder.hpp; src/compiler/codegen/name_binder.cpp; src/compiler/codegen/codegen_ops.hpp; src/compiler/codegen/function_compiler.hpp; src/compiler/codegen/function_compiler.cpp; src/compiler/codegen/codegen_types.hpp; src/compiler/codegen/expression_emitter.hpp; src/compiler/codegen/expression_emitter.cpp; src/compiler/codegen/codegen_stmt.cpp; src/compiler/codegen/statement_emitter.hpp; src/compiler/codegen/statement_emitter.cpp; src/compiler/codegen/codegen_state.hpp; src/compiler/codegen/jump_patcher.hpp; src/compiler/codegen/jump_patcher.cpp; src/compiler/codegen/scope_manager.hpp; src/compiler/codegen/scope_manager.cpp; src/compiler/codegen/bytecode_builder.hpp; src/lib/lib_catalog.hpp; src/lib/lib_catalog.cpp; src/lib/lib_manager.hpp; src/bytecode/bytecode_main.cpp; src/bytecode/bytecode_printer.hpp; src/bytecode/bytecode_printer.cpp; src/repl/repl_exe.cpp; src/repl/repl_meta.cpp; src/vm/state/lua_state.hpp; src/vm/state/global_state.hpp; src/vm/state/stack.hpp; src/vm/state/call_info.hpp; src/vm/vm.cpp; src/vm/vm_entry.cpp; src/vm/vm_dispatch.hpp; src/vm/vm_switch_dispatch.hpp; src/vm/vm_dispatch_strategy.hpp; src/vm/vm_internal.hpp; src/vm/vm_ops.cpp; src/vm/vm_call.cpp; src/vm/vm_table.cpp; src/vm/vm_frame.cpp; src/vm/vm_loop.cpp; src/vm/vm_trace.cpp
 last_checked: 2026-06-01
 applies_to: 当前仓库事实与面向贡献者的工作流
 ---
@@ -21,7 +21,7 @@ applies_to: 当前仓库事实与面向贡献者的工作流
   - `lua_bytecode.vcxproj`：字节码查看工具可执行程序。
 - 项目文件中记录的 MSVC platform toolset：`v145`。
 - 项目文件中的 C++ 标准设置统一为 `stdcpp23`。
-- 项目文件中的 warning level 统一为 `Level4`；当前 x64 Debug MSBuild 验证路径已保持 0 warnings / 0 errors。
+- 项目文件中的 warning level 统一为 `Level4`；当前 x64 Release MSBuild 验证路径已保持 0 warnings / 0 errors。
 
 ## 辅助构建路径
 
@@ -34,6 +34,11 @@ applies_to: 当前仓库事实与面向贡献者的工作流
 
 ## 项目目标状态
 
+- 长期兼容目标：最大化兼容 Lua 5.1.5。项目实现、测试和文档应优先向官方 Lua 5.1.5
+  的运行时语义、标准库行为、C API、binary chunk、VM opcode 形状、GC 调度和嵌入式隔离靠拢。
+- 当前声明边界：项目内测试和官方 staged smoke 全绿不等于完整 Lua 5.1.5 等价；完整差距和行动
+  计划分别记录在 `docs/compatibility/lua51-full-compatibility-audit.md` 与
+  `docs/roadmap/lua51-compatibility-next-stage.md`。
 - `lua.vcxproj` / `lua_core`：当前核心库目标。
 - `lua_app.vcxproj` / `lua_app`：当前脚本执行和 REPL 可执行目标；REPL 支持 `.help`、`.bytecode <expr|chunk>`、`.ast <expr|chunk>`、`.gc [stats|collect|strategy|help]`、Tab 补全、REPL 终端彩色错误、行号 prompt、历史记录、EOF 驱动的增量解析和 `=expr` 快速求值；实现已拆分为 `src/repl.cpp` 会话入口和 `src/repl/repl_*` 子模块。
 - `lua_test.vcxproj` / `lua_test`：当前单元测试可执行目标。
@@ -47,8 +52,14 @@ applies_to: 当前仓库事实与面向贡献者的工作流
 ## 测试状态
 
 - 测试框架：自定义轻量级 C++ 测试框架，vendored 在 `lua_test/include/test_framework`，由 `tests/unit/framework` 适配。
-- 最近验证的测试计数：644 个 registered tests，3290 个 assertion results，0 failures。
-- Lua 5.1 官方测试套件已放入 `tests/lua/official/`，并通过 `Lua 5.1 Official Suite` 单元测试以 staged smoke 形式运行 `all.lua`；当前官方子脚本 skip 表为 0，`_soft=true` 用于保持官方 semantic smoke 在单元测试中可控，当前 bounded smoke 覆盖到 `vararg.lua`，后续 closure/error/math tail 仍作为兼容性深度工作保留。
+- 最近一次完整绿跑测试计数：654 个 registered tests，3340 个 assertion results，0 failures。
+- 当前 `bin\lua_test.exe` 启动时默认安装 512 MB 进程内存硬上限，防止官方压力脚本或回归测试无界占用整机内存；可用
+  `--max-memory-mb <mb>` 调整，只有在外层 runner 已有等价内存隔离时才使用 `--no-memory-limit`。
+  2026-06-02 已验证轻量入口会在真实测试执行前打印 `Process memory limit: 512 MB`。
+- Lua 5.1 官方测试套件已放入 `tests/lua/official/`，并通过 `Lua 5.1 Official Suite` 单元测试以 staged smoke 形式运行 `all.lua`；当前官方子脚本 skip 表为 0，`_soft=true` 用于保持官方 semantic smoke 在单元测试中可控，当前 bounded smoke 覆盖到 `vararg.lua`。官方 suite 当前 10 个注册门禁在默认 512 MB cap 下通过。post-vararg tail 已拆成单脚本门禁：`closure.lua`、`errors.lua`、`math.lua`、`files.lua` 在 128 MB cap 下通过；closure 后 global cleanup tail 当前隔离为 known gap guard。`sort.lua` / `verybig.lua` 的完整 dump/undump 压力路径由 `tools/run_lua51_official_slow.ps1` 作为 opt-in slow gate 覆盖。
+- `Codegen Characterization` 已新增 Lua 5.1 `T.listcode` parity 护栏，覆盖显式 nil local 的 `LOADNIL` range merge、arithmetic constant folding、direct contiguous local return、`a = a` 自赋值消除、concat chain merge 和常量 `not not` LOADBOOL 规约目标；动态 `not not` 规约、`LOADNIL` elide 和 direct local/table assignment register reuse 仍是剩余缺口。
+- 最大兼容路线已将无 `testC` helper、`T.listcode` opcode parity 优化、官方 binary chunk、未裁剪 all.lua
+  tail、精确 GC 调度和 singleton fallback 收口列为后续 P0-P3 工作流。
 - `bin\lua_test.exe` 支持 `--list`、`--filter <suite-or-name>` 和 `--report=junit`。
 - 这些数字描述的是项目测试运行器结果，不是 Lua 5.1.5 兼容率百分比。
 
@@ -57,6 +68,7 @@ applies_to: 当前仓库事实与面向贡献者的工作流
 - 格式化配置：`.clang-format`，基于 LLVM，并带有仓库自己的宽度和 include 排序选择。
 - 静态分析配置：`.clang-tidy`，当前限制在保守的 `bugprone-*`、`performance-*`、`portability-*` 和部分 `readability-*` 检查。
 - 本地质量门入口：`tools/run_quality_gate.ps1`，包括 clang-format、clang-tidy smoke、opcode coverage matrix、ValueResult variant-only boundary、MSBuild、documentation drift 和 unit tests。
+- Lua 5.1 官方慢路径入口：`tools/run_lua51_official_slow.ps1`，显式覆盖 `sort.lua` / `verybig.lua` 的 dump/undump 压力门禁。
 - 质量门自检入口：`tools/test_quality_gate.ps1`。
 - 文档漂移守卫：`tools/check_doc_drift.ps1`，会从 `bin\lua_test.exe` 汇总输出动态解析当前测试计数，并检查 README / status 文档没有落后；同时守卫 `.vcxproj` `Level4` 和 CMake warning policy 不回退。
 - 源码清单同步脚本：`tools/add_source.ps1`，支持 `Core`、`Repl`、`App`、`Bytecode`、`Test` 目标，并由 `tools/test_quality_gate.ps1` 做临时项目烟测。

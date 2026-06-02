@@ -6,6 +6,7 @@
 #include "compiler/codegen/expression_emitter.hpp"
 #include "compiler/codegen/codegen.hpp"
 
+#include <cmath>
 #include <stdexcept>
 #include <utility>
 
@@ -43,6 +44,23 @@ PayloadTruthiness constantTruthiness(const ValueResult& value) {
     });
 }
 
+Opt<bool> literalTruthiness(const Expr& expr) {
+    if (std::holds_alternative<NilExpr>(expr.variant)) {
+        return false;
+    }
+    if (const auto* boolean = std::get_if<BoolExpr>(&expr.variant)) {
+        return boolean->value;
+    }
+    if (std::holds_alternative<NumberExpr>(expr.variant) ||
+        std::holds_alternative<StringExpr>(expr.variant)) {
+        return true;
+    }
+    if (const auto* paren = std::get_if<ParenExpr>(&expr.variant)) {
+        return literalTruthiness(*paren->expression);
+    }
+    return std::nullopt;
+}
+
 Opt<f64> immediateNumber(const ValueResult& value) {
     return value.visit(ValueResultVisitor{
         [](const ValueResult::Immediate& immediate) -> Opt<f64> {
@@ -55,6 +73,54 @@ Opt<f64> immediateNumber(const ValueResult& value) {
             return std::nullopt;
         },
     });
+}
+
+Opt<f64> foldArithmetic(BinaryExpr::Op op, f64 left, f64 right) {
+    f64 result = 0.0;
+    switch (op) {
+        case BinaryExpr::Op::Add:
+            result = left + right;
+            break;
+        case BinaryExpr::Op::Sub:
+            result = left - right;
+            break;
+        case BinaryExpr::Op::Mul:
+            result = left * right;
+            break;
+        case BinaryExpr::Op::Div:
+            if (right == 0.0) {
+                return std::nullopt;
+            }
+            result = left / right;
+            break;
+        case BinaryExpr::Op::Mod:
+            if (right == 0.0) {
+                return std::nullopt;
+            }
+            result = left - std::floor(left / right) * right;
+            break;
+        case BinaryExpr::Op::Pow:
+            result = std::pow(left, right);
+            break;
+        default:
+            return std::nullopt;
+    }
+
+    if (std::isnan(result)) {
+        return std::nullopt;
+    }
+    return result;
+}
+
+void collectConcatOperands(const Expr& expr, Vec<const Expr*>& operands) {
+    const auto* binary = std::get_if<BinaryExpr>(&expr.variant);
+    if (binary != nullptr && binary->op == BinaryExpr::Op::Concat) {
+        collectConcatOperands(*binary->left, operands);
+        collectConcatOperands(*binary->right, operands);
+        return;
+    }
+
+    operands.push_back(&expr);
 }
 
 Opt<i32> ownedRegister(const ValueResult& value) {
@@ -616,6 +682,24 @@ ValueResult ExpressionEmitter::emitValueBinary(const BinaryExpr& e) {
 
     // === Concat ===
     if (op == BinaryExpr::Op::Concat) {
+        Vec<const Expr*> operands;
+        collectConcatOperands(*e.left, operands);
+        collectConcatOperands(*e.right, operands);
+        if (operands.size() > 2) {
+            i32 target = ops_.currentReg();
+            i32 operandCount = static_cast<i32>(operands.size());
+            ops_.reserveRegsAndCheck(operandCount);
+            for (usize i = 0; i < operands.size(); i++) {
+                ValueResult value = emitValue(*operands[i]);
+                value = forceSingleValue(value);
+                materializeValue(value, target + static_cast<i32>(i));
+            }
+
+            codeABC(OpCode::CONCAT, target, target, target + operandCount - 1);
+            ops_.setFreeRegAndCheck(target + 1);
+            return ValueResult::makeRegister(target, true);
+        }
+
         ValueResult left = emitValue(*e.left);
         left = forceSingleValue(left);
         i32 leftReg = valueToAnyReg(left);
@@ -648,8 +732,27 @@ ValueResult ExpressionEmitter::emitValueBinary(const BinaryExpr& e) {
     }
 
     ValueResult left = emitValue(*e.left);
-    i32 rkLeft = valueToRK(left);
+    Opt<f64> leftNumber = immediateNumber(left);
+
+    i32 rkLeft = 0;
+    bool leftFixed = false;
+    if (!leftNumber.has_value()) {
+        rkLeft = valueToRK(left);
+        leftFixed = true;
+    }
+
     ValueResult right = emitValue(*e.right);
+    Opt<f64> rightNumber = immediateNumber(right);
+    if (leftNumber.has_value() && rightNumber.has_value()) {
+        Opt<f64> folded = foldArithmetic(op, *leftNumber, *rightNumber);
+        if (folded.has_value()) {
+            return ValueResult::makeNumber(*folded);
+        }
+    }
+
+    if (!leftFixed) {
+        rkLeft = valueToRK(left);
+    }
     i32 rkRight = valueToRK(right);
 
     if (rkLeft > rkRight) { freeReg(rkLeft); freeReg(rkRight); }
@@ -662,6 +765,13 @@ ValueResult ExpressionEmitter::emitValueBinary(const BinaryExpr& e) {
 ValueResult ExpressionEmitter::emitValueUnary(const UnaryExpr& e) {
     // === Not: 条件通道 + 物化 ===
     if (e.op == UnaryExpr::Op::Not) {
+        const auto* innerNot = std::get_if<UnaryExpr>(&e.operand->variant);
+        if (innerNot != nullptr && innerNot->op == UnaryExpr::Op::Not) {
+            if (Opt<bool> folded = literalTruthiness(*innerNot->operand); folded.has_value()) {
+                return ValueResult::makeBoolean(*folded);
+            }
+        }
+
         CondResult cond;
         cond.trueList = emitCondResult(*e.operand).falseList;
         i32 resultReg = allocReg();

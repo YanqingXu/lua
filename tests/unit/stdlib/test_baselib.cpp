@@ -19,6 +19,8 @@
 #include <iostream>
 #include <sstream>
 #include <string>
+#include <cstring>
+#include <limits>
 
 using namespace Lua;
 using namespace LuaTest;
@@ -89,6 +91,91 @@ LuaState* createFullState() {
     LuaState* L = LuaState::newState();
     StandardLibrary::openAll(L);
     return L;
+}
+
+void appendDumpByte(std::string& out, u8 value) {
+    out.push_back(static_cast<char>(value));
+}
+
+void appendDumpU32(std::string& out, u32 value) {
+    for (i32 i = 0; i < 4; ++i) {
+        out.push_back(static_cast<char>((value >> (i * 8)) & 0xffu));
+    }
+}
+
+void appendDumpI32(std::string& out, i32 value) {
+    appendDumpU32(out, static_cast<u32>(value));
+}
+
+void appendDumpU64(std::string& out, u64 value) {
+    for (i32 i = 0; i < 8; ++i) {
+        out.push_back(static_cast<char>((value >> (i * 8)) & 0xffu));
+    }
+}
+
+void appendDumpNumber(std::string& out, LuaNumber value) {
+    u64 bits = 0;
+    std::memcpy(&bits, &value, sizeof(value));
+    appendDumpU64(out, bits);
+}
+
+void appendDumpSize(std::string& out, usize value) {
+    appendDumpU32(out, static_cast<u32>(value));
+}
+
+void appendDumpString(std::string& out, const char* value) {
+    if (value == nullptr) {
+        appendDumpU32(out, std::numeric_limits<u32>::max());
+        return;
+    }
+
+    const usize len = std::strlen(value);
+    appendDumpSize(out, len);
+    out.append(value, len);
+}
+
+std::string makeDuplicateConstantBinaryChunk() {
+    std::string chunk;
+    chunk.append("\x1bLua", 4);
+    appendDumpByte(chunk, 0x51);
+    appendDumpByte(chunk, 0);
+    appendDumpByte(chunk, 1);
+    appendDumpByte(chunk, static_cast<u8>(sizeof(i32)));
+    appendDumpByte(chunk, static_cast<u8>(sizeof(usize)));
+    appendDumpByte(chunk, static_cast<u8>(sizeof(Instruction)));
+    appendDumpByte(chunk, static_cast<u8>(sizeof(LuaNumber)));
+    appendDumpByte(chunk, 0);
+    chunk.append("LC++", 4);
+
+    appendDumpString(chunk, "@duplicate-constant-binary");
+    appendDumpI32(chunk, 0);
+    appendDumpI32(chunk, 0);
+    appendDumpByte(chunk, 0);
+    appendDumpByte(chunk, 0);
+    appendDumpByte(chunk, 2);
+    appendDumpByte(chunk, 0);
+
+    appendDumpSize(chunk, 2);
+    appendDumpU32(chunk, CREATE_ABx(OpCode::LOADK, 0, 2));
+    appendDumpU32(chunk, CREATE_ABC(OpCode::RETURN, 0, 2, 0));
+
+    appendDumpSize(chunk, 3);
+    appendDumpByte(chunk, 4);
+    appendDumpString(chunk, "dup");
+    appendDumpByte(chunk, 4);
+    appendDumpString(chunk, "dup");
+    appendDumpByte(chunk, 3);
+    appendDumpNumber(chunk, 42.0);
+
+    appendDumpSize(chunk, 0);
+
+    appendDumpSize(chunk, 2);
+    appendDumpI32(chunk, 1);
+    appendDumpI32(chunk, 1);
+
+    appendDumpSize(chunk, 0);
+    appendDumpSize(chunk, 0);
+    return chunk;
 }
 
 } // namespace
@@ -848,6 +935,32 @@ void testLoadstringWrapper(TestSuite& suite) {
     ASSERT_TRUE(suite, L->at(-1).isString(), "second return is error message");
 }
 
+void testLoadstringBinaryChunkPreservesConstantSlots(TestSuite& suite) {
+    LuaStdLibTestContext ctx(openBaseLib);
+    if (!ctx.ensureGlobalFunction("loadstring", suite, "loadstring function exists")) {
+        return;
+    }
+
+    const std::string chunk = makeDuplicateConstantBinaryChunk();
+    const i32 ret = ctx.invoke("loadstring", [&](LuaState* s) {
+        s->pushString(s->getGlobalState().getStringPool().intern(chunk.data(), chunk.size()));
+    });
+
+    LuaState* L = ctx.getState();
+    ASSERT_EQ(suite, ret, 1, "loadstring accepts manual binary chunk with duplicate constants");
+    ASSERT_TRUE(suite, L->getTop() == 1 && L->top().isFunction(), "loadstring returns binary chunk function");
+    if (ret != 1 || L->getTop() != 1 || !L->top().isFunction()) {
+        return;
+    }
+
+    const i32 status = L->pcall(0, 1, 0);
+    ASSERT_EQ(suite, status, LUA_OK, "binary chunk with duplicate constants executes");
+    ASSERT_TRUE(suite, L->getTop() == 1 && L->top().isNumber(), "binary chunk returns selected constant");
+    if (L->getTop() == 1 && L->top().isNumber()) {
+        ASSERT_EQ(suite, L->top().asNumber(), 42.0, "binary chunk preserves constant indexes after duplicates");
+    }
+}
+
 void testLoadfileWrapper(TestSuite& suite) {
     LuaStdLibTestContext ctx(openBaseLib);
     if (!ctx.ensureGlobalFunction("loadfile", suite, "loadfile function exists")) {
@@ -1530,6 +1643,8 @@ void registerBaselibTests() {
     registry.registerTest(kSuiteName, "runtime error line", testRuntimeErrorMessageCarriesLine);
     registry.registerTest(kSuiteName, "xpcall", testXpcallWrapper);
     registry.registerTest(kSuiteName, "loadstring", testLoadstringWrapper);
+    registry.registerTest(kSuiteName, "loadstring binary chunk constant slots",
+                          testLoadstringBinaryChunkPreservesConstantSlots);
     registry.registerTest(kSuiteName, "loadfile", testLoadfileWrapper);
     registry.registerTest(kSuiteName, "dofile", testDofileWrapper);
     registry.registerTest(kSuiteName, "unpack", testUnpackWrapper);

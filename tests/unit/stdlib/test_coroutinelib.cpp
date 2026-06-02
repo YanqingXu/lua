@@ -522,6 +522,31 @@ void testWrapPreservesErrorObject(TestSuite& suite) {
     delete L;
 }
 
+void testPendingCoroutineWithOpenUpvalueCanBeCollected(TestSuite& suite) {
+    LuaState* L = createState();
+    bool ok = runLua(L, R"(
+        local co = coroutine.wrap(function()
+            local a = 10
+            local captured = function()
+                a = a + 1
+                return a
+            end
+            coroutine.yield()
+        end)
+
+        co()
+        co = nil
+        collectgarbage()
+        collectgarbage()
+        r_pending_open_upvalue_collected = true
+    )");
+
+    ASSERT_TRUE(suite, ok, "pending coroutine with open upvalue GC chunk runs");
+    ASSERT_TRUE(suite, getGlobalBool(L, "r_pending_open_upvalue_collected"),
+                "pending coroutine with open upvalue survives full GC");
+    delete L;
+}
+
 // ==================================================================
 // Test: coroutine.wrap with multiple return values
 // ==================================================================
@@ -589,6 +614,8 @@ void registerCoroutineLibTests() {
     registry.registerTest(kSuiteName, "wrap tail-call yield", testWrapTailCallYield);
     registry.registerTest(kSuiteName, "wrap error", testWrapError);
     registry.registerTest(kSuiteName, "wrap preserves error object", testWrapPreservesErrorObject);
+    registry.registerTest(kSuiteName, "pending coroutine open upvalue GC",
+                          testPendingCoroutineWithOpenUpvalueCanBeCollected);
     registry.registerTest(kSuiteName, "wrap multiple values", testWrapMultipleValues);
     registry.registerTest(kSuiteName, "wrap no yield", testWrapNoYield);
 }

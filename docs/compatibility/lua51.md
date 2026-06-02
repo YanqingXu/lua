@@ -1,7 +1,7 @@
 ---
 status: current
-verified_against: README.md; docs/status/project-status.md; docs/roadmap/lua51-compatibility-next-stage.md; tests/lua/official/all.lua; tests/unit/official/test_official_suite.cpp; tests/unit/stdlib/test_baselib.cpp; tests/unit/vm/test_vm_dispatch.cpp; src/lib; src/vm; src/gc; src/core; src/runtime
-last_checked: 2026-05-31
+verified_against: README.md; docs/status/project-status.md; docs/roadmap/lua51-compatibility-next-stage.md; docs/compatibility/lua51-full-compatibility-audit.md; tests/lua/official/all.lua; tests/unit/official/test_official_suite.cpp; tests/unit/stdlib/test_baselib.cpp; tests/unit/vm/test_vm_dispatch.cpp; src/lib; src/vm; src/gc; src/core; src/runtime
+last_checked: 2026-06-02
 applies_to: Lua 5.1.5 compatibility status after staged official smoke reached zero script skips
 ---
 
@@ -11,9 +11,31 @@ applies_to: Lua 5.1.5 compatibility status after staged official smoke reached z
 
 当前验证基线：
 
-- `bin\lua_test.exe`：639 registered tests，3188 assertion results，0 failures。
-- `Lua 5.1 Official Suite`：`tests/lua/official/all.lua` staged smoke 通过，官方子脚本 skip 表为 0。
-- 重要限制：官方 `api.lua` / `code.lua` 的 `testC` helper 路径未执行；staged smoke 使用 `_soft=true`，并保留少量压力路径裁剪。
+- 最近一次完整绿跑：`bin\lua_test.exe` 为 654 registered tests，3340 assertion results，0 failures。
+- 当前测试 runner 默认启用 512 MB 进程内存硬上限；新增 `closure.lua weak GC loop cap`
+  和 `post-vararg tail split guard` 后，官方压力路径需要先在该 cap 下分段验证，不能再无保护运行全量 `lua_test`。
+- `Lua 5.1 Official Suite`：`tests/lua/official/all.lua` staged smoke 和 global cleanup tail 已接入；
+  post-vararg tail 已拆为单脚本门禁，`closure.lua`、`errors.lua`、`math.lua`、`files.lua` 在 128 MB cap 下通过；
+  closure 后 global cleanup tail 当前作为 known gap guard 隔离；官方 suite
+  当前 10 个注册门禁在默认 512 MB cap 下通过，官方子脚本 skip 表为 0。
+- 重要限制：官方 `api.lua` / `code.lua` 的 `testC` helper 路径未执行；staged smoke 使用 `_soft=true`，并保留少量压力路径裁剪。`sort.lua` / `verybig.lua` dump/undump 压力路径已由 opt-in slow gate 覆盖。
+
+## 项目兼容目标
+
+2026-06-01 起，本项目的长期 Lua 目标明确为：**最大化兼容 Lua 5.1.5**。
+
+这意味着兼容性决策默认优先选择 Lua 5.1.5 官方行为；项目扩展和教学型实现可以保留，但不能被用来
+替代 strict Lua 5.1.5 兼容声明。除非以下边界均有实现和测试证据，否则项目不声明完整等价：
+
+- 官方 `testC` / `ltests.c` helper 路径。
+- `code.lua` 的 `T.listcode` 精确 opcode 检查。
+- 官方 Lua 5.1 binary chunk dump/load 互通。
+- 未裁剪官方 all.lua 路径和 `_soft=false` 压力路径。
+- 更精确的 GC phase/debt 调度。
+- 生产路径 runtime singleton fallback 收口。
+
+完整差距审计见 `docs/compatibility/lua51-full-compatibility-audit.md`；行动计划见
+`docs/roadmap/lua51-compatibility-next-stage.md`。
 
 ## 状态标记
 
@@ -57,6 +79,7 @@ applies_to: Lua 5.1.5 compatibility status after staged official smoke reached z
 |---|---|---|
 | Lua 5.1 opcode execution | Complete | 38 条 opcode 均有执行分支；官方脚本覆盖主路径；`VM Dispatch` 单测通过 |
 | Opcode matrix edge rows | Complete | `tests/unit/vm/opcode_coverage_matrix.md` 已清掉可执行 TODO；`VM Dispatch` 覆盖 handler 边界，`Metamethod` 覆盖运行时元方法 opcode 路径 |
+| `T.listcode` / codegen parity characterization | Complete | `Codegen Characterization` 已覆盖显式 nil local 的 `LOADNIL` range merge、arithmetic constant folding、direct contiguous local return、`a = a` self-assignment elision、concat chain merge 和常量 `not not` LOADBOOL 规约目标，以及动态 `not not`、direct local/table assignment 当前字节码形状；这些测试记录已知差异，不代表 `lcode.c` parity 已完成 |
 | `VM::call()` C/Lua function path | Complete | C/Lua 函数和元方法调用主路径已统一 |
 | `VM::execute()` C function policy | Deferred | `execute()` 仍作为 Lua function / Proto 执行入口；C function 通过 `VM::call()` 执行 |
 | Binary chunks | Deferred | `string.dump` / `loadstring` 使用项目本地格式；不声明官方 Lua 5.1 binary chunk 兼容 |
@@ -79,6 +102,11 @@ applies_to: Lua 5.1.5 compatibility status after staged official smoke reached z
 
 ## Recommended Next Work
 
-1. 选择 `testC` 策略：移植 `ltests.c`、实现项目内 `T` 模块，或继续明确为非目标。
-2. 明确 `IncrementalGC` 策略入口的长期目标：保持教学占位，或让完整 `collect()` 也采用分阶段调度。
-3. 将更多兼容重载和测试夹具迁移到 `EngineContext`，逐步减少 singleton fallback。
+1. 解锁官方观测能力：实现 Lua 5.1 C API shim，接入 `ltests.c` 风格 `T` 模块，并让 `api.lua`
+   不再走 `T == nil` 跳过分支。
+2. 实现 codegen parity：基于现有 `Codegen Characterization` 已知差异护栏，暴露 `T.listcode`，
+   继续对齐 `lcode.c` 的 `LOADNIL` elide、boolean/jump 和 assignment register reuse 形状。
+3. 撤销 staged harness 裁剪：逐步恢复 `_soft=false`、all.lua 后段脚本、newproxy/finalizer 和
+   GC/constructs 压力路径。
+4. 实现官方 Lua 5.1 binary chunk 互通，或在 strict/extension 模式中明确双格式策略。
+5. 对齐 GC phase/debt 调度，并继续把生产路径迁移到 owning `EngineContext`，减少 singleton fallback。

@@ -1,7 +1,7 @@
 ---
 status: current
 verified_against: tests/unit/framework/test_runner.cpp; tests/unit/framework/test_framework.hpp; lua_test.vcxproj; CMakeLists.txt; tools/add_source.ps1; docs/status/project-status.md
-last_checked: 2026-05-23
+last_checked: 2026-06-02
 applies_to: lua_test executable usage and extension
 ---
 
@@ -18,6 +18,7 @@ bin\lua_test.exe --filter "Symbol Binding"
 bin\lua_test.exe --filter=Runtime
 bin\lua_test.exe --report=junit
 bin\lua_test.exe --report=junit:bin\lua_test_junit.xml
+bin\lua_test.exe --filter "Lua 5.1 Official Suite"
 ```
 
 ## Options
@@ -30,6 +31,27 @@ bin\lua_test.exe --report=junit:bin\lua_test_junit.xml
 | `--filter=<text>` | Same as above |
 | `--report=junit` | Write `lua_test_junit.xml` |
 | `--report=junit:<path>` | Write JUnit XML to a specific path |
+| `--max-memory-mb <mb>` | Override the process memory cap for this run |
+| `--max-memory-mb=<mb>` | Same as above |
+| `--no-memory-limit` | Disable the runner cap; use only inside another memory-capped harness |
+
+## Memory Safety
+
+`lua_test.exe` installs a process memory cap before registering or running tests. The default cap is 512 MB.
+If the cap cannot be installed, the runner exits before executing tests instead of running unprotected.
+
+This is the default safety boundary for official Lua 5.1 pressure paths. Prefer focused filters and explicit caps while
+working on those paths:
+
+```powershell
+bin\lua_test.exe --max-memory-mb 128 --filter "post-vararg"
+bin\lua_test.exe --max-memory-mb 128 --filter "closure.lua weak GC loop cap"
+```
+
+Environment overrides:
+
+- `LUA_TEST_MAX_MEMORY_MB=<mb>` changes the default cap.
+- `LUA_TEST_DISABLE_MEMORY_LIMIT=1` disables the cap for externally isolated runners.
 
 ## Adding A Test
 
@@ -50,6 +72,8 @@ Then run the full runner before treating the change as verified:
 ```powershell
 bin\lua_test.exe
 ```
+
+The full runner still uses the default memory cap.
 
 ## Current Areas
 

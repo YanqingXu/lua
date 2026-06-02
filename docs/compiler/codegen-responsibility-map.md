@@ -61,6 +61,7 @@ PR-41 新增 `tests/unit/compiler/test_codegen_characterization.cpp`，测试套
 | `Statement Lowering Runtime Keeps Loop And Scope Semantics` | numeric for + break、while + break、do block、repeat body local 在 until 条件中可见 | PR-43 / PR-45 |
 | `Structured Statements Leave No Pending Jumps` | if/elseif/else、while、repeat、numeric for 的 `JMP` 全部回填；同时保留前跳/后跳和 `FORPREP` / `FORLOOP` | PR-42 / PR-45 |
 | `Generic For Bytecode Shape Is Stable` | generic for 保留 `TFORLOOP` 和回到 loop body 的后跳，且没有 pending `JMP` | PR-42 / PR-43 |
+| Lua 5.1 parity characterization | 锁住 `T.listcode` 关心的当前形状：显式 nil local 已合并为 `LOADNIL` 区间指令，数值字面量算术已常量折叠，连续局部变量 return 已直接复用原寄存器，单局部 `a = a` 自赋值已消除，三段及以上 concat chain 已合并为单条 `CONCAT` 并使用 scratch operand range 保护源寄存器，常量 `not not` 已规约为单条 `LOADBOOL`；动态 boolean 和 local/table assignment 临时寄存器仍记录为后续差异 | L51-0405 / L51-0406 |
 | `Jump Patcher` | 直接锁住 pending `jpc_` flush、旧式链表头尾方向、`PatchList` 显式回填、`TESTSET + NO_REG -> TEST` 和过长跳转错误 | PR-42 / PR-43 |
 | `Scope Manager` | 直接锁住 local 生命周期、`RETURN` 后冗余 `CLOSE` 抑制、breaklist 延迟进入 pending `jpc_`、upvalue 去重与查找 | PR-43 / PR-45 |
 | `Expression Emitter` | 直接锁住 `ExpressionEmitter` facade 构造、`emitValue` / `emitCondResult` / `emitLValue` 返回契约、immediate literal lowering，以及 `materializeValue()` 按 payload 发射 | PR-44 / PR-45 / PR-72 / PR-74 / PR-75 / PR-76 / PR-77 / PR-78 |

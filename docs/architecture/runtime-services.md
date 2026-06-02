@@ -1,7 +1,7 @@
 ---
 status: current
 verified_against: src/runtime/runtime_services.hpp; src/core/string_pool.hpp; src/vm/state/global_state.hpp; src/vm/state/global_state.cpp; src/vm/state/lua_state.hpp; src/vm/state/lua_state.cpp; src/gc/garbage_collector.hpp; src/gc/gc_strategy.hpp; src/gc/gc_sweep.cpp; src/vm/vm_dispatch_strategy.hpp; src/vm/vm.cpp; src/main.cpp; src/repl.cpp; src/bytecode/bytecode_main.cpp; src/compiler/parser/parser.hpp; src/compiler/codegen/codegen.hpp; src/vm/vm.hpp; tests/unit/vm/test_runtime_services.cpp; tests/unit/vm/test_vm_dispatch.cpp; tests/unit/gc/test_gc.cpp
-last_checked: 2026-05-31
+last_checked: 2026-06-01
 applies_to: current RuntimeServices boundary
 ---
 
@@ -79,3 +79,20 @@ Each context owns:
 ## Future Direction
 
 `EngineContext` is now used by the `lua_app` and `lua_bytecode` executable entry points. Several VM/compiler compatibility overloads and older tests still intentionally use `RuntimeServices::fromSingletons()`. Prefer `EngineContext` for new isolation tests and new embedding surfaces; keep `fromSingletons()` only where preserving legacy behavior is part of the caller's contract.
+
+## Documented Singleton Exceptions
+
+The current `src/` singleton references are intentional compatibility or null-context fallbacks:
+
+| Path | Exception |
+|---|---|
+| `src/runtime/runtime_services.hpp` | Defines `RuntimeServices::fromSingletons()` as the legacy constructor. |
+| `src/vm/state/global_state.*` | Owns the deprecated singleton accessor and default constructor shim. |
+| `src/gc/garbage_collector.cpp` | Owns the deprecated legacy GC accessor and standalone string-pool fallback for collector-only tests. |
+| `src/vm/state/lua_state.cpp` | No-argument `LuaState::create()` / `newState()` remain legacy singleton shims; `newState(EngineContext&)` is the isolated path. |
+| `src/vm/vm*.cpp` | Service-less VM overloads preserve older call sites; service-taking overloads are the modern path. |
+| `src/compiler/codegen/codegen.cpp` | The `StringPool*` constructor keeps old tests and tools source-compatible; service-taking constructors are preferred. |
+| `src/core/metatable.cpp` | Overloads without `LuaState*` fall back to singleton global metatables for legacy helpers. |
+| `src/gc/gc_finalize.cpp`, `src/gc/gc_weak.cpp` | Collector instances without an owning `GlobalState` use the singleton only for legacy/test collectors. |
+
+New production or integration harnesses should avoid this list. As of 2026-06-01, the Lua 5.1 official-suite C++ harness also creates a fresh `EngineContext` per gate, so staged official tests do not rely on `GlobalState::getInstance()` cleanup between cases.

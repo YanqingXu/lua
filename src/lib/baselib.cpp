@@ -960,7 +960,7 @@ private:
 
         usize constantCount = readSize();
         for (usize i = 0; i < constantCount; ++i) {
-            proto->addConstant(readConstant());
+            proto->appendConstantSlot(readConstant());
         }
 
         usize subProtoCount = readSize();

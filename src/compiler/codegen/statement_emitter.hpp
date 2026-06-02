@@ -123,6 +123,7 @@ private:
     ScopeManager& scopes_;
     NameBinder& binder_;
     ExpressionEmitter& expressions_;
+    const HashSet<Str>* futureReads_ = nullptr;
 };
 
 }  // namespace Lua

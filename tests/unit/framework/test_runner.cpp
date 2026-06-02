@@ -12,9 +12,22 @@
 #include "test_framework.hpp"
 
 #include <algorithm>
+#include <cerrno>
 #include <cctype>
+#include <cstdlib>
 #include <iostream>
+#include <limits>
 #include <string>
+
+#ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#else
+#include <cstring>
+#include <sys/resource.h>
+#endif
 
 // 声明所有测试注册函数
 extern void registerValueTests();
@@ -81,6 +94,8 @@ extern void registerOfficialSuiteTests();
 namespace {
 
 constexpr const char* kDefaultJunitReportPath = "lua_test_junit.xml";
+constexpr std::size_t kDefaultMemoryLimitMb = 512;
+constexpr std::size_t kMinMemoryLimitMb = 64;
 
 struct RunnerOptions {
     bool list = false;
@@ -88,7 +103,13 @@ struct RunnerOptions {
     std::string filter;
     bool writeJunit = false;
     std::string junitPath = kDefaultJunitReportPath;
+    bool memoryLimitEnabled = true;
+    std::size_t memoryLimitMb = kDefaultMemoryLimitMb;
 };
+
+#ifdef _WIN32
+HANDLE gMemoryLimitJob = nullptr;
+#endif
 
 bool startsWith(const std::string& text, const std::string& prefix) {
     return text.rfind(prefix, 0) == 0;
@@ -105,6 +126,118 @@ bool containsCaseInsensitive(const std::string& haystack, const std::string& nee
     return needle.empty() || toLower(haystack).find(toLower(needle)) != std::string::npos;
 }
 
+bool parseMemoryLimitMb(const std::string& text, std::size_t& value) {
+    if (text.empty()) {
+        return false;
+    }
+
+    errno = 0;
+    char* end = nullptr;
+    unsigned long long parsed = std::strtoull(text.c_str(), &end, 10);
+    if (errno != 0 || end == text.c_str() || *end != '\0' || parsed < kMinMemoryLimitMb ||
+        parsed > (std::numeric_limits<std::size_t>::max() / (1024ull * 1024ull))) {
+        return false;
+    }
+
+    value = static_cast<std::size_t>(parsed);
+    return true;
+}
+
+std::string readEnvironmentVariable(const char* name) {
+#ifdef _WIN32
+    char* value = nullptr;
+    std::size_t length = 0;
+    if (_dupenv_s(&value, &length, name) != 0 || value == nullptr) {
+        return "";
+    }
+
+    std::string result(value);
+    std::free(value);
+    return result;
+#else
+    const char* value = std::getenv(name);
+    return value == nullptr ? "" : value;
+#endif
+}
+
+bool envVarIsTruthy(const std::string& value) {
+    if (value.empty()) {
+        return false;
+    }
+
+    std::string normalized = toLower(value);
+    return normalized == "1" || normalized == "true" || normalized == "yes" || normalized == "on";
+}
+
+bool loadMemoryLimitFromEnvironment(RunnerOptions& options) {
+    if (envVarIsTruthy(readEnvironmentVariable("LUA_TEST_DISABLE_MEMORY_LIMIT"))) {
+        options.memoryLimitEnabled = false;
+        return true;
+    }
+
+    const std::string envLimit = readEnvironmentVariable("LUA_TEST_MAX_MEMORY_MB");
+    if (envLimit.empty()) {
+        return true;
+    }
+
+    std::size_t parsed = 0;
+    if (!parseMemoryLimitMb(envLimit, parsed)) {
+        std::cerr << "error: LUA_TEST_MAX_MEMORY_MB must be an integer >= " << kMinMemoryLimitMb
+                  << std::endl;
+        return false;
+    }
+
+    options.memoryLimitMb = parsed;
+    return true;
+}
+
+bool installProcessMemoryLimit(std::size_t limitMb, std::string& message) {
+    const std::size_t limitBytes = limitMb * 1024ull * 1024ull;
+
+#ifdef _WIN32
+    HANDLE job = CreateJobObjectW(nullptr, nullptr);
+    if (job == nullptr) {
+        message = "CreateJobObject failed: " + std::to_string(GetLastError());
+        return false;
+    }
+
+    JOBOBJECT_EXTENDED_LIMIT_INFORMATION limits = {};
+    limits.BasicLimitInformation.LimitFlags =
+        JOB_OBJECT_LIMIT_PROCESS_MEMORY | JOB_OBJECT_LIMIT_JOB_MEMORY;
+    limits.ProcessMemoryLimit = static_cast<SIZE_T>(limitBytes);
+    limits.JobMemoryLimit = static_cast<SIZE_T>(limitBytes);
+
+    if (!SetInformationJobObject(job, JobObjectExtendedLimitInformation, &limits, sizeof(limits))) {
+        message = "SetInformationJobObject failed: " + std::to_string(GetLastError());
+        CloseHandle(job);
+        return false;
+    }
+
+    if (!AssignProcessToJobObject(job, GetCurrentProcess())) {
+        message = "AssignProcessToJobObject failed: " + std::to_string(GetLastError()) +
+                  " (use --no-memory-limit only inside an already memory-capped runner)";
+        CloseHandle(job);
+        return false;
+    }
+
+    gMemoryLimitJob = job;
+    message = "Process memory limit: " + std::to_string(limitMb) + " MB";
+    return true;
+#else
+    struct rlimit limit {};
+    limit.rlim_cur = static_cast<rlim_t>(limitBytes);
+    limit.rlim_max = static_cast<rlim_t>(limitBytes);
+
+    if (setrlimit(RLIMIT_AS, &limit) != 0) {
+        message = std::string("setrlimit(RLIMIT_AS) failed: ") + std::strerror(errno);
+        return false;
+    }
+
+    message = "Process memory limit: " + std::to_string(limitMb) + " MB";
+    return true;
+#endif
+}
+
 bool testMatchesFilter(const LuaTest::TestRegistry::TestEntry& test, const std::string& filter) {
     if (filter.empty()) {
         return true;
@@ -117,6 +250,10 @@ bool testMatchesFilter(const LuaTest::TestRegistry::TestEntry& test, const std::
 }
 
 bool parseArgs(int argc, char** argv, RunnerOptions& options) {
+    if (!loadMemoryLimitFromEnvironment(options)) {
+        return false;
+    }
+
     for (int index = 1; index < argc; ++index) {
         const std::string arg = argv[index] ? argv[index] : "";
 
@@ -144,6 +281,34 @@ bool parseArgs(int argc, char** argv, RunnerOptions& options) {
             std::cerr << "error: unsupported report format: " << arg.substr(std::string("--report=").size())
                       << std::endl;
             return false;
+        } else if (arg == "--max-memory-mb") {
+            if (index + 1 >= argc) {
+                std::cerr << "error: --max-memory-mb requires an integer >= " << kMinMemoryLimitMb
+                          << std::endl;
+                return false;
+            }
+
+            std::size_t parsed = 0;
+            if (!parseMemoryLimitMb(argv[++index] ? argv[index] : "", parsed)) {
+                std::cerr << "error: --max-memory-mb requires an integer >= " << kMinMemoryLimitMb
+                          << std::endl;
+                return false;
+            }
+
+            options.memoryLimitEnabled = true;
+            options.memoryLimitMb = parsed;
+        } else if (startsWith(arg, "--max-memory-mb=")) {
+            std::size_t parsed = 0;
+            if (!parseMemoryLimitMb(arg.substr(std::string("--max-memory-mb=").size()), parsed)) {
+                std::cerr << "error: --max-memory-mb requires an integer >= " << kMinMemoryLimitMb
+                          << std::endl;
+                return false;
+            }
+
+            options.memoryLimitEnabled = true;
+            options.memoryLimitMb = parsed;
+        } else if (arg == "--no-memory-limit") {
+            options.memoryLimitEnabled = false;
         } else {
             std::cerr << "error: unknown option: " << arg << std::endl;
             return false;
@@ -156,6 +321,9 @@ bool parseArgs(int argc, char** argv, RunnerOptions& options) {
 void printUsage() {
     std::cout << "Usage: lua_test.exe [--list] [--filter <suite-or-name>] [--report=junit]" << std::endl;
     std::cout << "       lua_test.exe --report=junit:<path>" << std::endl;
+    std::cout << "       lua_test.exe [--max-memory-mb <mb>|--no-memory-limit]" << std::endl;
+    std::cout << "Default memory cap: " << kDefaultMemoryLimitMb
+              << " MB (env: LUA_TEST_MAX_MEMORY_MB, LUA_TEST_DISABLE_MEMORY_LIMIT=1)" << std::endl;
 }
 
 void registerAllTests() {
@@ -290,6 +458,17 @@ int main(int argc, char** argv) {
         return 0;
     }
 
+    std::string memoryLimitMessage;
+    if (options.memoryLimitEnabled) {
+        if (!installProcessMemoryLimit(options.memoryLimitMb, memoryLimitMessage)) {
+            std::cerr << "error: failed to install lua_test memory cap: " << memoryLimitMessage
+                      << std::endl;
+            return 2;
+        }
+    } else {
+        memoryLimitMessage = "Process memory limit: disabled";
+    }
+
     registerAllTests();
 
     LuaTest::TestRegistry& registry = LuaTest::TestRegistry::getInstance();
@@ -302,6 +481,7 @@ int main(int argc, char** argv) {
 
     // 注册所有测试
     std::cout << "[INFO] All tests registered." << std::endl;
+    std::cout << "[INFO] " << memoryLimitMessage << std::endl;
     if (!options.filter.empty()) {
         std::cout << "[INFO] Filter: " << options.filter << std::endl;
     }
