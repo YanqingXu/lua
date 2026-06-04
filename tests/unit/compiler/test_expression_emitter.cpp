@@ -115,7 +115,6 @@ void testExpressionEmitterMaterializesNumberPayload(TestSuite& suite) {
     ASSERT_TRUE(suite, constant.isNumber(), "payload number materializes as a numeric constant");
     ASSERT_EQ(suite, 21.0, constant.asNumber(), "payload number value is preserved");
 
-    delete proto;
 }
 
 void registerExpressionEmitterTests() {
@@ -126,3 +125,4 @@ void registerExpressionEmitterTests() {
     registry.registerTest(kSuiteName, "Materializes Number Payload",
                           testExpressionEmitterMaterializesNumberPayload);
 }
+

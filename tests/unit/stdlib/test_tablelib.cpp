@@ -49,7 +49,6 @@ bool runLua(LuaState* L, const char* code) {
         L->getGlobalState().getGC().registerObject(func);
         func->setEnv(L->getGlobalTable());
         VM::execute(L, func);
-        delete proto;
         return true;
     } catch (...) {
         return false;
@@ -711,6 +710,7 @@ void registerTableLibTests() {
     registry.registerTest(kSuiteName, "table.foreach compatibility", testTableForeachCompatibility);
     registry.registerTest(kSuiteName, "table.foreachi compatibility", testTableForeachiCompatibility);
 }
+
 
 
 

@@ -44,7 +44,6 @@ void testSimpleFunctionDef(TestSuite& suite) {
     ASSERT_TRUE(suite, subProto != nullptr, "Sub-proto exists");
     ASSERT_EQ(suite, (int)subProto->getNumParams(), 2, "Sub-proto has 2 params");
 
-    delete proto;
 }
 
 void testLocalFunctionDef(TestSuite& suite) {
@@ -66,7 +65,6 @@ void testLocalFunctionDef(TestSuite& suite) {
     ASSERT_TRUE(suite, proto != nullptr, "Proto generated");
     ASSERT_EQ(suite, proto->getSubProtoCount(), 1, "Has one sub-function");
 
-    delete proto;
 }
 
 void testFunctionExpr(TestSuite& suite) {
@@ -91,7 +89,6 @@ void testFunctionExpr(TestSuite& suite) {
     Proto* subProto = proto->getSubProto(0);
     ASSERT_EQ(suite, (int)subProto->getNumParams(), 1, "Sub-proto has 1 param");
 
-    delete proto;
 }
 
 void testFunctionCall(TestSuite& suite) {
@@ -124,7 +121,6 @@ void testFunctionCall(TestSuite& suite) {
     }
     ASSERT_TRUE(suite, hasCall, "Has CALL instruction");
 
-    delete proto;
 }
 
 void testVarargFunction(TestSuite& suite) {
@@ -149,7 +145,6 @@ void testVarargFunction(TestSuite& suite) {
     Proto* subProto = proto->getSubProto(0);
     ASSERT_TRUE(suite, subProto->isVararg(), "Sub-proto is vararg");
 
-    delete proto;
 }
 
 void testDebugMetadata(TestSuite& suite) {
@@ -179,7 +174,6 @@ void testDebugMetadata(TestSuite& suite) {
         ASSERT_TRUE(suite, std::string(proto->getLocVar(0).varname->c_str()) == "x", "Local variable name recorded");
     }
 
-    delete proto;
 }
 
 void testAssignMultiReturnCall(TestSuite& suite) {
@@ -217,7 +211,6 @@ void testAssignMultiReturnCall(TestSuite& suite) {
     ASSERT_TRUE(suite, sawPcallCall, "Found CALL used by assignment");
     ASSERT_FALSE(suite, sawErrLoadNil, "Multi-return assignment no longer nils second target");
 
-    delete proto;
 }
 
 void registerFunctionCodegenTests() {
@@ -231,4 +224,5 @@ void registerFunctionCodegenTests() {
     registry.registerTest("Function Codegen", "Debug Metadata", testDebugMetadata);
     registry.registerTest("Function Codegen", "Assign Multi Return Call", testAssignMultiReturnCall);
 }
+
 

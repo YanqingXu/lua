@@ -180,6 +180,7 @@ bool Thread::resume(LuaState* callerL, i32 nargs) {
         callerThread->coStatus_ = CoroutineStatus::Normal;
     }
     caller_ = callerThread;
+    callerState_ = callerL;
     coStatus_ = CoroutineStatus::Running;
     state_->setStatus(ThreadStatus::OK);
     state_->incAllowYield();
@@ -194,6 +195,7 @@ bool Thread::resume(LuaState* callerL, i32 nargs) {
         coStatus_ = CoroutineStatus::Dead;
         if (callerThread) callerThread->coStatus_ = prevCallerStatus;
         callerL->getGlobalState().setRunningThread(callerThread);
+        callerState_ = nullptr;
         callerL->pushBoolean(false);
         if (e.hasErrorObject()) {
             callerL->pushValue(e.getErrorObject());
@@ -207,6 +209,7 @@ bool Thread::resume(LuaState* callerL, i32 nargs) {
         coStatus_ = CoroutineStatus::Dead;
         if (callerThread) callerThread->coStatus_ = prevCallerStatus;
         callerL->getGlobalState().setRunningThread(callerThread);
+        callerState_ = nullptr;
         callerL->pushBoolean(false);
         auto& pool = callerL->getGlobalState().getStringPool();
         callerL->pushString(pool.intern(e.what()));
@@ -222,6 +225,7 @@ bool Thread::resume(LuaState* callerL, i32 nargs) {
         coStatus_ = CoroutineStatus::Suspended;
         if (callerThread) callerThread->coStatus_ = prevCallerStatus;
         callerL->getGlobalState().setRunningThread(callerThread);
+        callerState_ = nullptr;
 
         // yield 值在 yield C 函数的 CallInfo 参数区
         callerL->pushBoolean(true);
@@ -237,6 +241,7 @@ bool Thread::resume(LuaState* callerL, i32 nargs) {
         coStatus_ = CoroutineStatus::Dead;
         if (callerThread) callerThread->coStatus_ = prevCallerStatus;
         callerL->getGlobalState().setRunningThread(callerThread);
+        callerState_ = nullptr;
 
         // 返回值由 RETURN 指令放在 ci.func 位置
         callerL->pushBoolean(true);
@@ -257,6 +262,7 @@ bool Thread::resume(LuaState* callerL, i32 nargs) {
 
 void Thread::mark(GarbageCollector& gc) {
     gc.markState(state_.get());
+    gc.markState(callerState_);
     gc.markObject(caller_);
 }
 

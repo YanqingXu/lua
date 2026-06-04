@@ -75,7 +75,6 @@ bool runLua(LuaState* L, const char* code) {
         L->getGlobalState().getGC().registerObject(func);
         func->setEnv(L->getGlobalTable());
         VM::execute(L, func);
-        delete proto;
         return true;
     } catch (...) {
         return false;
@@ -100,7 +99,6 @@ int countOpcode(const char* code, OpCode op) {
             count++;
         }
     }
-    delete proto;
     return count;
 }
 
@@ -622,3 +620,4 @@ void registerSymbolBindingTests() {
     registry.registerTest("Symbol Binding (PR-8)", "local function definition", testLocalFunctionDefinition);
     registry.registerTest("Symbol Binding (PR-8)", "local function self recursion", testLocalFunctionSelfRecursion);
 }
+

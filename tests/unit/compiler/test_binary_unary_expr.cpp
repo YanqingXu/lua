@@ -127,7 +127,6 @@ void testBinaryArithmetic(TestSuite& suite) {
     ASSERT_TRUE(suite, proto != nullptr, "Proto generated");
     ASSERT_TRUE(suite, proto->getInstructionCount() > 0, "Has instructions");
 
-    delete proto;
 }
 
 void testBinaryComparison(TestSuite& suite) {
@@ -141,7 +140,6 @@ void testBinaryComparison(TestSuite& suite) {
     ASSERT_TRUE(suite, hasComparisonMaterializationPattern(proto, OpCode::LT), "Comparison materializes to booleans");
     ASSERT_FALSE(suite, hasSelfLoopJump(proto), "Comparison has no self-loop JMP");
 
-    delete proto;
 }
 
 void testComparisonOperatorsMaterializeToBoolean(TestSuite& suite) {
@@ -168,7 +166,6 @@ void testComparisonOperatorsMaterializeToBoolean(TestSuite& suite) {
         ASSERT_TRUE(suite, hasComparisonMaterializationPattern(proto, testCase.compareOp), testCase.patternMessage);
         ASSERT_FALSE(suite, hasSelfLoopJump(proto), testCase.jumpMessage);
 
-        delete proto;
     }
 }
 
@@ -181,7 +178,6 @@ void testGreaterComparisonsMaterializeToBoolean(TestSuite& suite) {
         ASSERT_TRUE(suite, matchesExactComparisonBooleanSequence(proto, OpCode::LT), "> lowers to LT + boolean materialization");
         ASSERT_FALSE(suite, hasSelfLoopJump(proto), "> has no self-loop JMP");
 
-        delete proto;
     }
 
     {
@@ -192,7 +188,6 @@ void testGreaterComparisonsMaterializeToBoolean(TestSuite& suite) {
         ASSERT_TRUE(suite, matchesExactComparisonBooleanSequence(proto, OpCode::LE), ">= lowers to LE + boolean materialization");
         ASSERT_FALSE(suite, hasSelfLoopJump(proto), ">= has no self-loop JMP");
 
-        delete proto;
     }
 }
 
@@ -212,7 +207,6 @@ void testBinaryLogical(TestSuite& suite) {
     ASSERT_FALSE(suite, hasOpcode(proto, OpCode::NOT), "Logical not now avoids OP_NOT");
     ASSERT_FALSE(suite, hasSelfLoopJump(proto), "Logical expressions have no self-loop JMP");
 
-    delete proto;
 }
 
 void testLogicalValueExpressions(TestSuite& suite) {
@@ -225,7 +219,6 @@ void testLogicalValueExpressions(TestSuite& suite) {
         ASSERT_TRUE(suite, hasResolvedTestJumpPattern(proto), "and expression TEST/JMP pattern is resolved");
         ASSERT_FALSE(suite, hasSelfLoopJump(proto), "and expression has no self-loop JMP");
 
-        delete proto;
     }
 
     {
@@ -237,7 +230,6 @@ void testLogicalValueExpressions(TestSuite& suite) {
         ASSERT_TRUE(suite, hasResolvedTestJumpPattern(proto), "or expression TEST/JMP pattern is resolved");
         ASSERT_FALSE(suite, hasSelfLoopJump(proto), "or expression has no self-loop JMP");
 
-        delete proto;
     }
 
     {
@@ -249,7 +241,6 @@ void testLogicalValueExpressions(TestSuite& suite) {
         ASSERT_FALSE(suite, hasOpcode(proto, OpCode::NOT), "not expression avoids OP_NOT");
         ASSERT_FALSE(suite, hasSelfLoopJump(proto), "not expression has no self-loop JMP");
 
-        delete proto;
     }
 }
 
@@ -261,7 +252,6 @@ void testUnaryExpressions(TestSuite& suite) {
     ASSERT_TRUE(suite, proto != nullptr, "Proto generated");
     ASSERT_TRUE(suite, proto->getInstructionCount() > 0, "Has instructions");
 
-    delete proto;
 }
 
 void testComplexExpression(TestSuite& suite) {
@@ -272,7 +262,6 @@ void testComplexExpression(TestSuite& suite) {
     ASSERT_TRUE(suite, proto != nullptr, "Proto generated");
     ASSERT_TRUE(suite, proto->getInstructionCount() > 0, "Has instructions");
 
-    delete proto;
 }
 
 void registerBinaryUnaryExprTests() {
@@ -287,4 +276,5 @@ void registerBinaryUnaryExprTests() {
     registry.registerTest("Binary/Unary Expressions", "Unary Expressions", testUnaryExpressions);
     registry.registerTest("Binary/Unary Expressions", "Complex Expression", testComplexExpression);
 }
+
 

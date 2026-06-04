@@ -290,7 +290,6 @@ void testSelfDispatchOnUserdata(TestSuite& suite) {
         }
 
         delete L;
-        delete proto;
     } catch (const std::exception& e) {
         std::cout << "  [ERROR] Exception: " << e.what() << std::endl;
         ASSERT_TRUE(suite, false, "userdata SELF dispatch should not throw");
@@ -334,7 +333,6 @@ void testTailReturnFromCFunctionKeepsLogicalTop(TestSuite& suite) {
         }
 
         delete L;
-        delete proto;
     } catch (const std::exception& e) {
         std::cout << "  [ERROR] Exception: " << e.what() << std::endl;
         ASSERT_TRUE(suite, false, "tail C return should not throw");
@@ -491,7 +489,6 @@ void testComparisonExpressionProducesBoolean(TestSuite& suite) {
         }
 
         delete L;
-        delete proto;
     } catch (const std::exception& e) {
         std::cout << "  [ERROR] Exception: " << e.what() << std::endl;
         ASSERT_TRUE(suite, false, "comparison expression should execute without hanging");
@@ -550,7 +547,6 @@ void testLogicalExpressionsProduceRuntimeValues(TestSuite& suite) {
         }
 
         delete L;
-        delete proto;
     } catch (const std::exception& e) {
         std::cout << "  [ERROR] Exception: " << e.what() << std::endl;
         ASSERT_TRUE(suite, false, "logical expressions should execute without throwing");
@@ -590,7 +586,6 @@ void testLogicalShortCircuitEvaluatesRightHandSideOnlyWhenNeeded(TestSuite& suit
         }
 
         delete L;
-        delete proto;
     } catch (const std::exception& e) {
         std::cout << "  [ERROR] Exception: " << e.what() << std::endl;
         ASSERT_TRUE(suite, false, "logical short-circuit runtime should not throw");
@@ -614,7 +609,7 @@ void testRepeatUntilBasic(TestSuite& suite) {
         Proto* proto = nullptr;
         LuaState* L = executeChunk(code, "=(repeat_basic)", proto);
         ASSERT_EQ(suite, 5.0, L->top().asNumber(), "repeat-until basic: x == 5");
-        delete L; delete proto;
+        delete L;
     } catch (const std::exception& e) {
         std::cout << "  [ERROR] Exception: " << e.what() << std::endl;
         ASSERT_TRUE(suite, false, "repeat-until basic should not throw");
@@ -634,7 +629,7 @@ void testRepeatUntilSingleIteration(TestSuite& suite) {
         Proto* proto = nullptr;
         LuaState* L = executeChunk(code, "=(repeat_single)", proto);
         ASSERT_EQ(suite, 10.0, L->top().asNumber(), "repeat-until single iteration: x == 10");
-        delete L; delete proto;
+        delete L;
     } catch (const std::exception& e) {
         std::cout << "  [ERROR] Exception: " << e.what() << std::endl;
         ASSERT_TRUE(suite, false, "repeat-until single should not throw");
@@ -655,7 +650,7 @@ void testRepeatUntilWithBreak(TestSuite& suite) {
         Proto* proto = nullptr;
         LuaState* L = executeChunk(code, "=(repeat_break)", proto);
         ASSERT_EQ(suite, 3.0, L->top().asNumber(), "repeat-until with break: x == 3");
-        delete L; delete proto;
+        delete L;
     } catch (const std::exception& e) {
         std::cout << "  [ERROR] Exception: " << e.what() << std::endl;
         ASSERT_TRUE(suite, false, "repeat-until with break should not throw");
@@ -675,7 +670,7 @@ void testRepeatUntilComparisonCondition(TestSuite& suite) {
         Proto* proto = nullptr;
         LuaState* L = executeChunk(code, "=(repeat_cmp)", proto);
         ASSERT_EQ(suite, 128.0, L->top().asNumber(), "repeat-until > condition: a == 128");
-        delete L; delete proto;
+        delete L;
     } catch (const std::exception& e) {
         std::cout << "  [ERROR] Exception: " << e.what() << std::endl;
         ASSERT_TRUE(suite, false, "repeat-until comparison should not throw");
@@ -698,7 +693,7 @@ void testRepeatUntilLogicalCondition(TestSuite& suite) {
         LuaState* L = executeChunk(code, "=(repeat_logical)", proto);
         ASSERT_EQ(suite, 3.0, L->at(-2).asNumber(), "repeat-until or: x == 3");
         ASSERT_EQ(suite, 7.0, L->at(-1).asNumber(), "repeat-until or: y == 7");
-        delete L; delete proto;
+        delete L;
     } catch (const std::exception& e) {
         std::cout << "  [ERROR] Exception: " << e.what() << std::endl;
         ASSERT_TRUE(suite, false, "repeat-until logical should not throw");
@@ -725,7 +720,7 @@ void testRepeatUntilNested(TestSuite& suite) {
         LuaState* L = executeChunk(code, "=(repeat_nested)", proto);
         ASSERT_EQ(suite, 12.0, L->at(-2).asNumber(), "nested repeat-until: sum == 12");
         ASSERT_EQ(suite, 4.0, L->at(-1).asNumber(), "nested repeat-until: i == 4");
-        delete L; delete proto;
+        delete L;
     } catch (const std::exception& e) {
         std::cout << "  [ERROR] Exception: " << e.what() << std::endl;
         ASSERT_TRUE(suite, false, "repeat-until nested should not throw");
@@ -746,7 +741,7 @@ void testRepeatUntilLocalVisibleInCondition(TestSuite& suite) {
         Proto* proto = nullptr;
         LuaState* L = executeChunk(code, "=(repeat_local_in_cond)", proto);
         ASSERT_EQ(suite, 5.0, L->top().asNumber(), "repeat-until local in condition: count == 5");
-        delete L; delete proto;
+        delete L;
     } catch (const std::exception& e) {
         std::cout << "  [ERROR] Exception: " << e.what() << std::endl;
         ASSERT_TRUE(suite, false, "repeat-until local in condition should not throw");
@@ -778,4 +773,5 @@ void registerVMCoreTests() {
     registry.registerTest("VM Core", "Repeat-Until Nested", testRepeatUntilNested);
     registry.registerTest("VM Core", "Repeat-Until Local Visible In Condition", testRepeatUntilLocalVisibleInCondition);
 }
+
 

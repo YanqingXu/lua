@@ -52,7 +52,6 @@ void testLuaFunctionFile(TestSuite& suite) {
         ASSERT_TRUE(suite, proto->getConstantCount() >= 0, "Has constants");
         ASSERT_TRUE(suite, proto->getSubProtoCount() >= 0, "Has sub-functions");
 
-        delete proto;
     } catch (const std::exception& e) {
         // 文件不存在时跳过测试
         std::cout << "  [SKIP] Lua file test (file not found: " << e.what() << ")" << std::endl;
@@ -65,4 +64,5 @@ void registerLuaFunctionTests() {
 
     registry.registerTest("Lua File Compilation", "test_functions.lua", testLuaFunctionFile);
 }
+
 

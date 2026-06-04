@@ -75,6 +75,7 @@ private:
     UPtr<LuaState>  state_;
     CoroutineStatus coStatus_;
     Thread*         caller_ = nullptr;
+    LuaState*       callerState_ = nullptr;
     bool            firstResume_ = true;
     i32             savedNexeccalls_ = 1;
 };

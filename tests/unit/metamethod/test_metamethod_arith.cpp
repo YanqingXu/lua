@@ -46,7 +46,6 @@ bool runLua(LuaState* L, const char* code) {
         L->getGlobalState().getGC().registerObject(func);
         func->setEnv(L->getGlobalTable());
         VM::execute(L, func);
-        delete proto;
         return true;
     } catch (...) {
         return false;
@@ -321,4 +320,5 @@ void registerMetamethodArithTests() {
     registry.registerTest("Metamethod", "Runtime metamethod opcode execution",
                           testRuntimeMetamethodOpcodeExecution);
 }
+
 

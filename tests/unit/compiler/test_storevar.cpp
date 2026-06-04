@@ -42,7 +42,6 @@ bool runLua(LuaState* L, const char* code) {
         L->getGlobalState().getGC().registerObject(func);
         func->setEnv(L->getGlobalTable());
         VM::execute(L, func);
-        delete proto;
         return true;
     } catch (...) {
         return false;
@@ -88,7 +87,6 @@ void testLocalVarAssignment(TestSuite& suite) {
     }
     ASSERT_TRUE(suite, hasLoadK, "Generated LOADK instruction");
     
-    delete proto;
 }
 
 /**
@@ -121,7 +119,6 @@ void testGlobalVarAssignment(TestSuite& suite) {
     }
     ASSERT_TRUE(suite, hasSetGlobal, "Generated SETGLOBAL instruction");
     
-    delete proto;
 }
 
 /**
@@ -154,7 +151,6 @@ void testTableIndexAssignment(TestSuite& suite) {
     }
     ASSERT_TRUE(suite, hasSetTable, "Generated SETTABLE instruction");
     
-    delete proto;
 }
 
 /**
@@ -187,7 +183,6 @@ void testTableMemberAssignment(TestSuite& suite) {
     }
     ASSERT_TRUE(suite, hasSetTable, "Generated SETTABLE instruction");
     
-    delete proto;
 }
 
 /**
@@ -219,7 +214,6 @@ void testMultipleAssignment(TestSuite& suite) {
     }
     ASSERT_TRUE(suite, setGlobalCount >= 2, "Generated two SETGLOBAL instructions");
     
-    delete proto;
 }
 
 /**
@@ -313,4 +307,5 @@ void registerStorevarTests() {
     registry.registerTest("Variable Storage", "Nested Table Store Runtime", testNestedTableStoreRuntime);
     registry.registerTest("Variable Storage", "Multi Return Mixed Targets Runtime", testMultiReturnMixedTargetsRuntime);
 }
+
 

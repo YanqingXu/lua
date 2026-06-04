@@ -247,6 +247,8 @@ collectgarbage()
 
     if name == "gc.lua" then
         local source = __official_read_source(name)
+        source = string.gsub(source, "\r\n", "\n")
+        source = string.gsub(source, "\r", "\n")
         source = string.gsub(source, [[
 local bytes = gcinfo()
 while 1 do
@@ -265,6 +267,40 @@ for __soft_gc_probe = 1, 64 do
 end
 collectgarbage()
 ]], 1)
+        source, trimmed = __official_replace_literal_once(source, [[
+do
+  local x = gcinfo()
+  collectgarbage()
+  collectgarbage"stop"
+  repeat
+    local a = {}
+  until gcinfo() > 1000
+  collectgarbage"restart"
+  repeat
+    local a = {}
+  until gcinfo() < 1000
+end
+]], [[
+do
+  local x = gcinfo()
+  collectgarbage()
+  collectgarbage"stop"
+  for __soft_gc_growth_probe = 1, 2048 do
+    local a = {}
+    if gcinfo() > 1000 then break end
+  end
+  collectgarbage"restart"
+  for __soft_gc_restart_probe = 1, 512 do
+    local a = {}
+    if gcinfo() < 1000 then break end
+    if math.mod(__soft_gc_restart_probe, 16) == 0 then
+      collectgarbage("step", 10000)
+    end
+  end
+  collectgarbage()
+end
+]])
+        if trimmed ~= 1 then error("__gc_restart_probe_trim_missing") end
         return assert(loadstring(source, "@gc.lua"))
     end
 
@@ -400,7 +436,11 @@ RunResult runLuaChunk(LuaState* L, const std::string& source, const char* chunkN
         if (status != 0) {
             std::string message = std::string(chunkName) + ": runtime error";
             if (L->getTop() >= 1) {
-                message = std::string(chunkName) + ": " + L->at(1).toString();
+                if (const char* text = L->toString(1)) {
+                    message = std::string(chunkName) + ": " + text;
+                } else {
+                    message = std::string(chunkName) + ": " + L->at(1).toString();
+                }
             }
             L->setTop(0);
             return {false, message};
@@ -563,6 +603,16 @@ void testOfficialSuitePreludeCapsClosureWeakGcLoop(TestSuite& suite) {
         "official staged suite caps closure.lua weak-table GC wait loop and factory size");
 }
 
+void testOfficialSuitePreludeCapsGcRestartLoop(TestSuite& suite) {
+    const std::string prelude = officialSuitePrelude();
+    ASSERT_TRUE(
+        suite,
+        prelude.find("gc.lua") != std::string::npos &&
+            prelude.find("__soft_gc_probe") != std::string::npos &&
+            prelude.find("__soft_gc_restart_probe") != std::string::npos,
+        "official staged suite caps gc.lua automatic-GC wait loops");
+}
+
 void testOfficialSuitePostVarargTailIsSplit(TestSuite& suite) {
     const std::string tail = officialFastPostVarargTailSource();
     ASSERT_FALSE(
@@ -613,6 +663,7 @@ void registerOfficialSuiteTests() {
     registry.registerTest(kSuiteName, "all.lua staged compatibility run", testOfficialSuiteAllLua);
     registry.registerTest(kSuiteName, "constructs.lua stress loop cap", testOfficialSuitePreludeCapsConstructsStressLoop);
     registry.registerTest(kSuiteName, "closure.lua weak GC loop cap", testOfficialSuitePreludeCapsClosureWeakGcLoop);
+    registry.registerTest(kSuiteName, "gc.lua restart loop cap", testOfficialSuitePreludeCapsGcRestartLoop);
     registry.registerTest(kSuiteName, "post-vararg tail split guard", testOfficialSuitePostVarargTailIsSplit);
     registry.registerTest(kSuiteName, "post-vararg closure.lua tail", testOfficialSuitePostVarargClosureTail);
     registry.registerTest(kSuiteName, "post-vararg errors.lua tail", testOfficialSuitePostVarargErrorsTail);

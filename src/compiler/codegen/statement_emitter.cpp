@@ -34,6 +34,69 @@ void collectStmtListReads(const Vec<StmtPtr>& stmts, HashSet<Str>& reads) {
     }
 }
 
+bool expressionHasCall(const Expr& e) {
+    return std::visit(
+        [&](const auto& node) {
+            using Node = std::decay_t<decltype(node)>;
+            if constexpr (std::is_same_v<Node, NameExpr> || std::is_same_v<Node, NilExpr> ||
+                          std::is_same_v<Node, BoolExpr> || std::is_same_v<Node, NumberExpr> ||
+                          std::is_same_v<Node, StringExpr> || std::is_same_v<Node, VarargExpr>) {
+                return false;
+            } else if constexpr (std::is_same_v<Node, BinaryExpr>) {
+                return expressionHasCall(*node.left) || expressionHasCall(*node.right);
+            } else if constexpr (std::is_same_v<Node, UnaryExpr>) {
+                return expressionHasCall(*node.operand);
+            } else if constexpr (std::is_same_v<Node, CallExpr>) {
+                if (expressionHasCall(*node.func)) {
+                    return true;
+                }
+                for (const auto& arg : node.args) {
+                    if (expressionHasCall(*arg)) {
+                        return true;
+                    }
+                }
+                return true;
+            } else if constexpr (std::is_same_v<Node, TableExpr>) {
+                for (const TableField& field : node.fields) {
+                    if (field.key != nullptr && expressionHasCall(*field.key)) {
+                        return true;
+                    }
+                    if (expressionHasCall(*field.value)) {
+                        return true;
+                    }
+                }
+                return false;
+            } else if constexpr (std::is_same_v<Node, IndexExpr>) {
+                return expressionHasCall(*node.table) || expressionHasCall(*node.index);
+            } else if constexpr (std::is_same_v<Node, MemberExpr>) {
+                return expressionHasCall(*node.table);
+            } else if constexpr (std::is_same_v<Node, FunctionExpr>) {
+                return false;
+            } else if constexpr (std::is_same_v<Node, ParenExpr>) {
+                return expressionHasCall(*node.expression);
+            } else {
+                return false;
+            }
+        },
+        e.variant);
+}
+
+bool receiverTableName(const Expr& targetExpr, const Str*& name) {
+    if (const auto* idx = std::get_if<IndexExpr>(&targetExpr.variant)) {
+        if (const auto* tableName = std::get_if<NameExpr>(&idx->table->variant)) {
+            name = &tableName->name;
+            return true;
+        }
+    }
+    if (const auto* mem = std::get_if<MemberExpr>(&targetExpr.variant)) {
+        if (const auto* tableName = std::get_if<NameExpr>(&mem->table->variant)) {
+            name = &tableName->name;
+            return true;
+        }
+    }
+    return false;
+}
+
 void collectExprReads(const Expr& expr, HashSet<Str>& reads) {
     std::visit([&](const auto& node) {
         using Node = std::decay_t<decltype(node)>;
@@ -378,6 +441,73 @@ void StatementEmitter::emitStmt(const AssignStmt& s) {
         }
     }
 
+    auto tryEmitLocalNameAssignment = [&]() -> bool {
+        if (nvars == 0 || nvars != nexps) {
+            return false;
+        }
+
+        Vec<i32> targetRegs;
+        Vec<i32> sourceRegs;
+        targetRegs.reserve(static_cast<usize>(nvars));
+        sourceRegs.reserve(static_cast<usize>(nvars));
+
+        for (i32 i = 0; i < nvars; ++i) {
+            const auto* targetName = std::get_if<NameExpr>(&s.targets[static_cast<usize>(i)]->variant);
+            const auto* valueName = std::get_if<NameExpr>(&s.values[static_cast<usize>(i)]->variant);
+            if (targetName == nullptr || valueName == nullptr) {
+                return false;
+            }
+
+            i32 targetReg = scopes_.findLocalVar(targetName->name);
+            i32 sourceReg = scopes_.findLocalVar(valueName->name);
+            if (targetReg < 0 || sourceReg < 0) {
+                return false;
+            }
+
+            targetRegs.push_back(targetReg);
+            sourceRegs.push_back(sourceReg);
+        }
+
+        bool changed = false;
+        for (i32 i = 0; i < nvars; ++i) {
+            changed = changed || targetRegs[static_cast<usize>(i)] != sourceRegs[static_cast<usize>(i)];
+        }
+        if (!changed) {
+            return true;
+        }
+
+        if (nvars == 2 && targetRegs[0] == sourceRegs[1] && targetRegs[1] == sourceRegs[0]) {
+            i32 tempReg = ops_.currentReg();
+            ops_.reserveRegsAndCheck(1);
+            codeABC(OpCode::MOVE, tempReg, sourceRegs[0], 0);
+            codeABC(OpCode::MOVE, targetRegs[0], sourceRegs[1], 0);
+            codeABC(OpCode::MOVE, targetRegs[1], tempReg, 0);
+            ops_.setFreeRegAndCheck(tempReg);
+            return true;
+        }
+
+        for (i32 i = 0; i < nvars; ++i) {
+            for (i32 j = i + 1; j < nvars; ++j) {
+                if (targetRegs[static_cast<usize>(i)] == sourceRegs[static_cast<usize>(j)]) {
+                    return false;
+                }
+            }
+        }
+
+        for (i32 i = 0; i < nvars; ++i) {
+            i32 targetReg = targetRegs[static_cast<usize>(i)];
+            i32 sourceReg = sourceRegs[static_cast<usize>(i)];
+            if (targetReg != sourceReg) {
+                codeABC(OpCode::MOVE, targetReg, sourceReg, 0);
+            }
+        }
+        return true;
+    };
+
+    if (tryEmitLocalNameAssignment()) {
+        return;
+    }
+
     auto freezeRegister = [&](i32 reg) -> i32 {
         i32 stableReg = ops_.currentReg();
         ops_.reserveRegsAndCheck(1);
@@ -387,11 +517,25 @@ void StatementEmitter::emitStmt(const AssignStmt& s) {
         return stableReg;
     };
 
+    bool rhsHasCall = false;
+    for (const auto& value : s.values) {
+        if (expressionHasCall(*value)) {
+            rhsHasCall = true;
+            break;
+        }
+    }
+
     auto freezeLValue = [&](const Expr& targetExpr) -> LValueRef {
         LValueRef target = emitLValue(targetExpr);
         if (target.kind == LValueRef::Kind::Indexed) {
-            target.tableReg = freezeRegister(target.tableReg);
-            if (!ISK(target.key)) {
+            const Str* receiverName = nullptr;
+            const bool simpleReceiver = receiverTableName(targetExpr, receiverName);
+            (void)receiverName;
+            const bool multiAssignNeedsFrozenTarget = nvars > 1;
+            if (multiAssignNeedsFrozenTarget || rhsHasCall || !simpleReceiver) {
+                target.tableReg = freezeRegister(target.tableReg);
+            }
+            if ((multiAssignNeedsFrozenTarget || rhsHasCall) && !ISK(target.key)) {
                 target.key = freezeRegister(target.key);
             }
         }
@@ -406,6 +550,8 @@ void StatementEmitter::emitStmt(const AssignStmt& s) {
 
     i32 valueBase = ops_.currentReg();
     i32 assignedValues = 0;
+    Vec<ValueResult> valuesForStore;
+    valuesForStore.reserve(static_cast<usize>(nvars));
 
     auto discardExpression = [&](const Expr& expr) {
         i32 scratchReg = valueBase + nvars;
@@ -427,6 +573,7 @@ void StatementEmitter::emitStmt(const AssignStmt& s) {
     };
 
     i32 directValues = nvars < nexps ? nvars : nexps;
+    const bool assignmentNeedsFrozenValues = nvars > 1 || nexps > 1;
     for (i32 i = 0; i < directValues; i++) {
         const Expr& expr = *s.values[i];
         bool isLastExpr = (i == nexps - 1);
@@ -453,7 +600,12 @@ void StatementEmitter::emitStmt(const AssignStmt& s) {
         ops_.setFreeRegAndCheck(targetReg);
         ValueResult val = emitValue(expr);
         val = forceSingleValue(val);
-        materializeValue(val, targetReg);
+        if (assignmentNeedsFrozenValues) {
+            materializeValue(val, targetReg);
+            valuesForStore.push_back(ValueResult::makeRegister(targetReg, false));
+        } else {
+            valuesForStore.push_back(val);
+        }
         ops_.setFreeRegAndCheck(targetReg + 1);
         assignedValues = i + 1;
     }
@@ -464,7 +616,11 @@ void StatementEmitter::emitStmt(const AssignStmt& s) {
 
     for (i32 i = 0; i < nvars; i++) {
         if (i < assignedValues) {
-            emitStore(targets[i], ValueResult::makeRegister(valueBase + i, false));
+            if (static_cast<usize>(i) < valuesForStore.size()) {
+                emitStore(targets[i], valuesForStore[static_cast<usize>(i)]);
+            } else {
+                emitStore(targets[i], ValueResult::makeRegister(valueBase + i, false));
+            }
         } else {
             emitStore(targets[i], ValueResult::makeNil());
         }

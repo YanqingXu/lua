@@ -17,7 +17,7 @@ const char* MarkSweepGC::summary() const noexcept {
 }
 
 usize IncrementalGC::collect(GCContext& context) const {
-    return context.collector.collectMarkSweep(context.stringPool, context.currentState);
+    return context.collector.collectIncrementalCycle(context.stringPool, context.currentState);
 }
 
 const char* IncrementalGC::name() const noexcept {
@@ -25,7 +25,7 @@ const char* IncrementalGC::name() const noexcept {
 }
 
 const char* IncrementalGC::summary() const noexcept {
-    return "collect() remains full mark-sweep; collectgarbage('step') uses phased incremental work";
+    return "phased mark/atomic/sweep/finalize collection driven by GC debt and step budget";
 }
 
 const GCStrategy& markSweepGCStrategy() noexcept {

@@ -49,7 +49,6 @@ bool runLua(LuaState* L, const char* code) {
         L->getGlobalState().getGC().registerObject(func);
         func->setEnv(L->getGlobalTable());
         VM::execute(L, func);
-        delete proto;
         return true;
     } catch (...) {
         return false;
@@ -1032,6 +1031,14 @@ void testStringDump(TestSuite& suite) {
         gDumpType = type(dumped)
         gDumpLen = string.len(dumped)
         gDumpPrefix = string.sub(dumped, 1, 4)
+        gDumpVersion = string.byte(dumped, 5)
+        gDumpFormat = string.byte(dumped, 6)
+        gDumpIntSize = string.byte(dumped, 8)
+        gDumpSizeTSize = string.byte(dumped, 9)
+        gDumpInstructionSize = string.byte(dumped, 10)
+        gDumpNumberSize = string.byte(dumped, 11)
+        gDumpNumberIntegral = string.byte(dumped, 12)
+        gDumpPrivateMarker = string.sub(dumped, 13, 16)
     )lua");
     ASSERT_TRUE(suite, ok, "string.dump returns for Lua function");
     ASSERT_EQ(suite, std::string("string"), getGlobalStr(L, "gDumpType"),
@@ -1040,6 +1047,21 @@ void testStringDump(TestSuite& suite) {
                 "string.dump returns a non-trivial binary chunk");
     ASSERT_EQ(suite, std::string("\x1bLua", 4), getGlobalBytes(L, "gDumpPrefix"),
               "string.dump chunk starts with Lua signature");
+    ASSERT_EQ(suite, 81.0, getGlobalNumber(L, "gDumpVersion"),
+              "string.dump writes Lua 5.1 chunk version");
+    ASSERT_EQ(suite, 0.0, getGlobalNumber(L, "gDumpFormat"), "string.dump writes official format 0");
+    ASSERT_EQ(suite, 4.0, getGlobalNumber(L, "gDumpIntSize"), "string.dump writes 4-byte int size");
+    ASSERT_TRUE(suite, getGlobalNumber(L, "gDumpSizeTSize") == 4.0 ||
+                           getGlobalNumber(L, "gDumpSizeTSize") == 8.0,
+                "string.dump writes a platform size_t size");
+    ASSERT_EQ(suite, 4.0, getGlobalNumber(L, "gDumpInstructionSize"),
+              "string.dump writes 4-byte instruction size");
+    ASSERT_EQ(suite, 8.0, getGlobalNumber(L, "gDumpNumberSize"),
+              "string.dump writes 8-byte lua_Number size");
+    ASSERT_EQ(suite, 0.0, getGlobalNumber(L, "gDumpNumberIntegral"),
+              "string.dump writes floating-point lua_Number flag");
+    ASSERT_EQ(suite, std::string("LC++", 4), getGlobalBytes(L, "gDumpPrivateMarker"),
+              "string.dump writes the project-local LC++ marker for locvar register metadata");
 
     ok = runLua(L, R"lua(
         local ok = pcall(function() return string.dump(print) end)
@@ -1080,4 +1102,5 @@ void registerStringLibTests() {
     registry.registerTest(kSuiteName, "string binary safety", testStringBinarySafety);
     registry.registerTest(kSuiteName, "string.dump", testStringDump);
 }
+
 

@@ -62,7 +62,6 @@ void testSimpleMethodCall(TestSuite& suite) {
     }
     ASSERT_TRUE(suite, hasCall, "Generated CALL instruction");
 
-    delete proto;
 }
 
 /**
@@ -106,7 +105,6 @@ void testMethodCallWithArgs(TestSuite& suite) {
     }
     ASSERT_TRUE(suite, hasCall, "Generated CALL instruction");
 
-    delete proto;
 }
 
 /**
@@ -148,7 +146,6 @@ void testChainedMethodCall(TestSuite& suite) {
     }
     ASSERT_TRUE(suite, callCount >= 2, "Generated two CALL instructions");
 
-    delete proto;
 }
 
 /**
@@ -191,7 +188,6 @@ void testMethodCallWithFunctionArg(TestSuite& suite) {
     }
     ASSERT_TRUE(suite, callCount >= 2, "Generated two CALL instructions");
 
-    delete proto;
 }
 
 /**
@@ -243,7 +239,6 @@ void testSelfInstructionFormat(TestSuite& suite) {
         ASSERT_TRUE(suite, C >= 0, "SELF C operand is valid");
     }
 
-    delete proto;
 }
 
 /**
@@ -279,7 +274,6 @@ void testMethodNameInConstants(TestSuite& suite) {
     }
     ASSERT_TRUE(suite, hasStringConstant, "Constants include string");
 
-    delete proto;
 }
 
 /**
@@ -313,7 +307,6 @@ void testMethodCallMultipleArgs(TestSuite& suite) {
     }
     ASSERT_TRUE(suite, hasSelf, "Generated SELF instruction");
 
-    delete proto;
 }
 
 /**
@@ -379,7 +372,6 @@ void testWideMethodNameConstantUsesRegister(TestSuite& suite) {
         ASSERT_TRUE(suite, loadedTargetKey, "Method name is loaded before SELF");
     }
 
-    delete proto;
 }
 
 /**
@@ -442,7 +434,6 @@ void testWideMethodDefinitionKeyUsesRegister(TestSuite& suite) {
 
     ASSERT_TRUE(suite, storesWithLoadedKey, "Method definition key is loaded before SETTABLE");
 
-    delete proto;
 }
 
 /**
@@ -461,4 +452,5 @@ void registerMethodCallTests() {
     registry.registerTest("Method Call", "Wide Method Name Constant Uses Register", testWideMethodNameConstantUsesRegister);
     registry.registerTest("Method Call", "Wide Method Definition Key Uses Register", testWideMethodDefinitionKeyUsesRegister);
 }
+
 

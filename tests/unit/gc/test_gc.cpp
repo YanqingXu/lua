@@ -463,6 +463,35 @@ void testCollectGarbageStepRunsIncrementalCycle(TestSuite& suite) {
     gc.clearAll();
 }
 
+void testIncrementalGCDebtTracksAllocationAndCycleCompletion(TestSuite& suite) {
+    GarbageCollector gc;
+    StringPool& pool = StringPool::getInstance();
+    gc.setStringPool(&pool);
+    (void)gc.setPause(200);
+    (void)gc.setStepMultiplier(200);
+
+    const isize initialDebt = gc.getDebtBytes();
+    const usize initialThreshold = gc.getAutomaticThresholdBytes();
+
+    Table* garbage = new Table();
+    gc.registerObject(garbage);
+
+    ASSERT_TRUE(suite, gc.getDebtBytes() > initialDebt,
+                "Registering an object increases GC debt like Lua 5.1 totalbytes debt");
+    ASSERT_TRUE(suite, gc.getAutomaticThresholdBytes() >= initialThreshold,
+                "GC keeps an automatic collection threshold while tracking debt");
+
+    ASSERT_TRUE(suite, gc.step(nullptr, 10000), "Large incremental step completes the current cycle");
+    ASSERT_TRUE(suite, gc.getDebtBytes() <= 0,
+                "Completed incremental cycle clears positive allocation debt");
+    ASSERT_TRUE(suite, gc.getAutomaticThresholdBytes() >= 64 * 1024,
+                "Completed incremental cycle refreshes the automatic threshold floor");
+    ASSERT_EQ(suite, static_cast<usize>(0), gc.getObjectCount(),
+              "Unreachable allocation is reclaimed by the debt-driven cycle");
+
+    gc.clearAll();
+}
+
 void testWriteBarrierPreservesTableReferenceGraph(TestSuite& suite) {
     GarbageCollector gc;
     StringPool& pool = StringPool::getInstance();
@@ -794,6 +823,8 @@ void registerGCTests() {
     registry.registerTest("GC", "collectgarbage Strategy", testCollectGarbageStrategyCommand);
     registry.registerTest("GC", "collectgarbage Control Parameters", testCollectGarbageControlParameters);
     registry.registerTest("GC", "collectgarbage Incremental Step", testCollectGarbageStepRunsIncrementalCycle);
+    registry.registerTest("GC", "Incremental GC Debt Tracks Allocation And Cycle Completion",
+                          testIncrementalGCDebtTracksAllocationAndCycleCompletion);
     registry.registerTest("GC", "Write Barrier Table Graph", testWriteBarrierPreservesTableReferenceGraph);
     registry.registerTest("GC", "Write Barrier Object References", testWriteBarrierPreservesMetatableFunctionAndUpvalueRefs);
     registry.registerTest("GC", "Composite Marking", testGarbageCollectorMarksCompositeObjects);

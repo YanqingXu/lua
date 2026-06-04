@@ -235,6 +235,8 @@ public:
     [[nodiscard]] i32 setPause(i32 pause) noexcept;
     [[nodiscard]] i32 getStepMultiplier() const noexcept;
     [[nodiscard]] i32 setStepMultiplier(i32 stepMultiplier) noexcept;
+    [[nodiscard]] isize getDebtBytes() const noexcept;
+    [[nodiscard]] usize getAutomaticThresholdBytes() const noexcept;
 
     /**
      * @brief 获取当前 GC 策略对象
@@ -452,7 +454,9 @@ private:
     [[nodiscard]] usize collectMarkSweep(StringPool& stringPool, LuaState* currentState);
     [[nodiscard]] usize collectMarkSweep(StringPool& stringPool, LuaState* currentState,
                                          bool runFinalizersNow);
+    [[nodiscard]] usize collectIncrementalCycle(StringPool& stringPool, LuaState* currentState);
     void resetIncrementalCycle() noexcept;
+    void updateAutomaticThresholdAfterCycle() noexcept;
     void beginIncrementalMark(LuaState* currentState);
     [[nodiscard]] usize propagateMarks(usize budget);
     void performIncrementalAtomic(LuaState* currentState);
@@ -525,6 +529,7 @@ private:
     bool automaticCollectionRunning_;
     bool preciseStackRoots_;
     usize automaticThresholdBytes_;
+    isize gcDebtBytes_;
     i32 stepCountdown_;
     i32 pause_;
     i32 stepMultiplier_;

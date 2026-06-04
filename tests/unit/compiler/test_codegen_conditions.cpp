@@ -52,7 +52,6 @@ bool runLua(LuaState* L, const char* code) {
         L->getGlobalState().getGC().registerObject(func);
         func->setEnv(L->getGlobalTable());
         VM::execute(L, func);
-        delete proto;
         return true;
     } catch (...) {
         return false;
@@ -208,7 +207,6 @@ void testConditionBytecodeHasResolvedJumps(TestSuite& suite) {
     ASSERT_TRUE(suite, hasResolvedTestJumpPattern(proto), "Condition TEST/JMP pattern is resolved");
     ASSERT_FALSE(suite, hasPendingJump(proto), "Condition bytecode has no pending JMP");
 
-    delete proto;
 }
 
 void testNestedNotConditionUsesCondPipeline(TestSuite& suite) {
@@ -226,7 +224,6 @@ void testNestedNotConditionUsesCondPipeline(TestSuite& suite) {
     ASSERT_FALSE(suite, hasOpcode(proto, OpCode::NOT), "Nested not condition avoids OP_NOT");
     ASSERT_FALSE(suite, hasPendingJump(proto), "Nested not condition has no pending JMP");
 
-    delete proto;
 }
 
 void registerCodegenConditionTests() {
@@ -237,3 +234,4 @@ void registerCodegenConditionTests() {
     registry.registerTest(kSuiteName, "Condition Bytecode Has Resolved Jumps", testConditionBytecodeHasResolvedJumps);
     registry.registerTest(kSuiteName, "Nested Not Condition Uses Cond Pipeline", testNestedNotConditionUsesCondPipeline);
 }
+

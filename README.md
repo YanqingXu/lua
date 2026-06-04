@@ -9,7 +9,7 @@ applies_to: repository overview and current build workflows
 
 > **从零开始用 C++17/20/23 实现并最大化兼容 Lua 5.1.5 的解释器**
 
-[![Tests](https://img.shields.io/badge/tests-3340%2F3340-brightgreen)]()
+[![Tests](https://img.shields.io/badge/tests-3404%2F3404-brightgreen)]()
 [![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen)]()
 [![C++](https://img.shields.io/badge/C%2B%2B-17%2F23-blue)]()
 [![Platform](https://img.shields.io/badge/platform-Windows-blue)]()
@@ -99,13 +99,13 @@ applies_to: repository overview and current build workflows
 | **包/模块库（Package Library）** | `src/lib/packagelib.hpp/cpp` | ~830 | require、module、package.loaded/preload/loaders/path/cpath/loadlib/seeall；module 复合名/环境语义与 C loader/all-in-one loader 已补齐 | ✅ 98% |
 | **库管理系统** | `src/lib/lib_manager.hpp/cpp` | ~130 | catalog 驱动的标准库注册和单库加载 | ✅ 100% |
 
-### 测试统计（2026-06-01 更新）✅
+### 测试统计（2026-06-04 更新）✅
 
 ```
 测试框架：自定义轻量级测试框架（零外部依赖）
-注册测试：654个
-断言结果：3340个 ✅
-通过率：  100% (3340/3340)
+注册测试：668个
+断言结果：3404个 ✅
+通过率：  100% (3404/3404)
 失败测试：0个
 编译状态：Release|x64 `/W4` 版本无警告，无链接冲突
 平台：    Windows + MSVC (Visual Studio 2026)
@@ -113,7 +113,7 @@ applies_to: repository overview and current build workflows
 
 补充验证：
 - `lua_test.vcxproj`：MSBuild Release|x64 通过
-- `bin/lua_test.exe`：最近一次完整绿跑为 654 个注册测试、3340 个结果、0 失败；当前 runner 已注册 659 个测试并默认启用 512 MB 进程内存硬上限
+- `bin/lua_test.exe`：最近一次完整绿跑为 668 个注册测试、3404 个结果、0 failures；当前 runner 默认启用 512 MB 进程内存硬上限
 - `tests/lua/official/all.lua`：Lua 5.1 官方测试套件已接入 staged smoke；当前官方子脚本 skip 表为 0；`_soft=true` 用于保留 semantic smoke 边界并避免极端压力路径拖慢单元测试；`constructs.lua` 的 16k 次动态编译压力循环在单元测试入口中裁剪为小样本；当前 bounded smoke 覆盖到 `vararg.lua`，post-vararg tail 已拆成单脚本门禁，`errors.lua`、`math.lua`、`files.lua` 在 128 MB cap 下通过，`closure.lua` dump/load tail 与 closure 后 global cleanup tail 当前作为 known gap 隔离
 - `bin/lua_app.exe tests/lua/official/literals.lua`：通过
 - `bin/lua_app.exe tests/lua/official/calls.lua`：通过
@@ -144,7 +144,7 @@ applies_to: repository overview and current build workflows
 
 ### 距离完整 Lua 5.1.5 仍缺失的功能
 
-> **兼容性审计记录（2026-06-01）**：已对 README、本地 `src/lib/` 标准库实现、`src/vm/` 指令执行逻辑、GC/元方法相关核心代码进行核对。`bin/lua_test.exe` 最近一次完整绿跑为 654 个注册测试、3340 个结果、0 失败；这说明项目内测试覆盖的路径稳定，但不等价于 Lua 5.1.5 官方语义已经达到 95% 精确兼容。Lua 5.1 官方测试套件已以 staged smoke 形式接入，当前官方子脚本 skip 表为 0，`literals.lua`、`calls.lua`、`attrib.lua`、`locals.lua`、`constructs.lua`、`vararg.lua`、`strings.lua`、`math.lua`、`nextvar.lua`、`errors.lua`、`sort.lua`、`pm.lua`、`closure.lua`、`gc.lua`、`db.lua`、`api.lua`、`events.lua`、`big.lua`、`verybig.lua`、`files.lua`、`code.lua` 与 `main.lua` 已从 skip 表移除。`Codegen Characterization` 已新增 `T.listcode`/Lua 5.1 codegen parity 护栏，覆盖显式 nil local 的 `LOADNIL` range merge、arithmetic constant folding、direct contiguous local return、`a = a` 自赋值消除、concat chain merge 和常量 `not not` LOADBOOL 规约目标，以及动态 `not not`、局部/表赋值寄存器复用等剩余字节码形状。
+> **兼容性审计记录（2026-06-01，测试计数 2026-06-04 同步）**：已对 README、本地 `src/lib/` 标准库实现、`src/vm/` 指令执行逻辑、GC/元方法相关核心代码进行核对。`bin/lua_test.exe` 最近一次完整绿跑为 668 个注册测试、3404 个结果、0 失败；这说明项目内测试覆盖的路径稳定，但不等价于 Lua 5.1.5 官方语义已经达到 95% 精确兼容。Lua 5.1 官方测试套件已以 staged smoke 形式接入，当前官方子脚本 skip 表为 0，`literals.lua`、`calls.lua`、`attrib.lua`、`locals.lua`、`constructs.lua`、`vararg.lua`、`strings.lua`、`math.lua`、`nextvar.lua`、`errors.lua`、`sort.lua`、`pm.lua`、`closure.lua`、`gc.lua`、`db.lua`、`api.lua`、`events.lua`、`big.lua`、`verybig.lua`、`files.lua`、`code.lua` 与 `main.lua` 已从 skip 表移除。`Codegen Characterization` 已新增 `T.listcode`/Lua 5.1 codegen parity 护栏，覆盖显式 nil local 的 `LOADNIL` range merge、arithmetic constant folding、direct contiguous local return、`a = a` 自赋值消除、concat chain merge 和常量 `not not` LOADBOOL 规约目标，以及动态 `not not`、局部/表赋值寄存器复用等剩余字节码形状。
 
 > **最新补齐**：Lua 5.1 scanner/literals 路径已补齐 shebang、长字符串/长注释分隔符回退、`1.`/`1.e2`/`.4` 数字形式、`4.5.` malformed number 诊断、短字符串换行边界、`;` 空语句/`return` 终止、关系链表达式、`2^-2` 幂运算右侧一元表达式、方法调用字符串/表构造器实参糖；`calls.lua` 覆盖的调用边界已补齐左调用比较寄存器保护、IIFE 换行解析边界、表构造器非末位多返回折叠、`table.getn` 兼容入口、`load(reader)` 空串 EOF/reader error/二进制 dump 读入、dump/undump upvalue 元数据恢复、赋值目标 upvalue 捕获顺序以及 `table.sort` Lua comparator 栈帧保护；`attrib.lua` 覆盖的属性/赋值边界已补齐 `require` false 缓存重载、默认 `package.path/cpath` 中 `!` 可执行目录展开、`setfenv/getfenv` 栈层级、跨嵌套块 local 关闭、table-field 混合多重赋值先求值后写回、LHS table/index 引用冻结以及全局字段 `..` 拼接寄存器连续性；`locals.lua` 覆盖的局部作用域边界已补齐 `function f` 对已有 local/upvalue/global 绑定的赋值规则，以及 `setfenv(0, env)` 对后续 `loadstring` 默认环境的切换；`constructs.lua` 覆盖的控制流/表达式边界已补齐嵌套 numeric `for` 控制寄存器物化、`break` 跳出复杂 `while/repeat` 后续跳转语句的补丁目标，以及 Lua 5.1 `math.mod` 兼容别名；`vararg.lua` 覆盖的变长参数边界已补齐旧式局部 `arg` 表生成、新式 `...` 与 `arg` 隔离、变长调用固定参数帧槽布局，以及 `unpack(t, i, nil)` 默认上界语义；`strings.lua` 覆盖的字符串与 locale 边界已补齐 `string.sub/string.byte` 位置规范化、`%q` Lua 5.1 quoting、`tostring`/`table.concat` 二进制安全、数字与空串 `..` 拼接写回、`LC_COLLATE` 字符串比较和 `os.setlocale` 查询语义；`math.lua` 覆盖的数值边界已补齐字符串参与算术的一致转换、`tonumber` 符号/空白解析、Lua floor-mod 取模、NaN table key 拒绝，以及 `pcall` 保护调用保留 open upvalue 栈槽；`nextvar.lua` 覆盖的表迭代边界已补齐 `table.foreach/foreachi`、删除当前 hash key 后的 `next/pairs` 继续遍历、numeric `for` 字符串边界转换，以及全局 `package` 被清理后 `require` 仍从 registry 中访问 package 表的路径；局部声明初始化已按 Lua 5.1 先求 RHS 后引入新 local，并保护多值初始化的已写结果槽；`local function` 已支持自递归捕获；语句级临时寄存器会回收到活动 locals 边界；`loadstring` 已支持含 `\0` 源码；数字参与 `..` 拼接时按 Lua 风格格式化。Lua 函数元方法调用链已打通，`callTMWithResult/callTM` 统一走 `VM::call`，C Closure 与 Lua Closure 共用同一调用入口；`getMetamethodByObject()` 已接入基础类型元表，string 类型已安装 `__index = string`；GC 已支持弱表 `__mode = "k"/"v"/"kv"` 清理、userdata `__gc` 两阶段终结和 `GCStrategy` 教学策略边界；尾调用优化已覆盖单值 `return f()` 的 `TAILCALL` 生成和 Lua 函数调用帧复用；泛型 `for` 已支持显式 iterator 三元组、函数/vararg 三值调整和 Lua 函数迭代器；string 库已补齐 `gsub` 表/函数替换、`string.dump` Proto/字节码序列化输出和含 `\0` 字符串的长度安全处理；`module()` 已补齐 `_PACKAGE`、复合模块名全局路径、调用方环境切换和 Lua option 函数语义；package 已补齐 `package.loadlib`、C loader、all-in-one C loader 和 registry 保活边界。
 
@@ -1095,7 +1095,7 @@ tests/unit/
 └── vm/                         # VM Core、LuaState 初始化、函数调用
 ```
 
-当前测试入口会输出真实注册测试数和断言结果数；最近一次完整绿跑验证为 654 个注册测试、3340 个结果、0 失败。
+当前测试入口会输出真实注册测试数和断言结果数；最近一次完整绿跑验证为 668 个注册测试、3404 个结果、0 失败。
 `bin/lua_test.exe` 默认安装 512 MB 进程内存硬上限，避免官方压力脚本或回归测试无界占用整机内存；
 可通过 `--max-memory-mb <mb>` 调整，只有在外层 runner 已提供等价隔离时才使用 `--no-memory-limit`。
 

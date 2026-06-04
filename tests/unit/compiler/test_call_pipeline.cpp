@@ -46,7 +46,6 @@ bool runLua(LuaState* L, const char* code) {
         L->getGlobalState().getGC().registerObject(func);
         func->setEnv(L->getGlobalTable());
         VM::execute(L, func);
-        delete proto;
         return true;
     } catch (const std::exception& e) {
         std::cout << "  [ERROR] Call pipeline chunk exception: " << e.what() << std::endl;
@@ -556,7 +555,6 @@ void testTailReturnCallEmitsTailcall(TestSuite& suite) {
         ASSERT_TRUE(suite, protoContainsOp(proto, OpCode::TAILCALL),
                     "return f() emits TAILCALL");
 
-        delete proto;
     } catch (const std::exception& e) {
         std::cout << "  [ERROR] Exception: " << e.what() << std::endl;
         ASSERT_TRUE(suite, false, "tail call codegen should not throw");
@@ -676,3 +674,4 @@ void registerCallPipelineTests() {
     registry.registerTest(kSuiteName, "large table constructor uses extended SETLIST",
                           testLargeTableConstructorUsesExtendedSetList);
 }
+

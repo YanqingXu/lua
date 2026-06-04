@@ -38,7 +38,6 @@ bool runLua(LuaState* L, const char* code) {
         L->getGlobalState().getGC().registerObject(func);
         func->setEnv(L->getGlobalTable());
         VM::execute(L, func);
-        delete proto;
         return true;
     } catch (...) {
         return false;
@@ -132,3 +131,4 @@ void registerCodegenMultiRetTests() {
     registry.registerTest(kSuiteName, "Open MultiRet Propagation", testOpenMultretPropagation);
     registry.registerTest(kSuiteName, "Table Constructor Last Field MultiRet", testTableConstructorLastFieldMultret);
 }
+

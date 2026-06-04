@@ -1386,8 +1386,8 @@ i32 str_dump(LuaState* L) {
     Str chunk;
     chunk.reserve(128 + proto->getInstructionCount() * sizeof(Instruction));
     chunk.append("\x1bLua", 4);
-    dumpByte(chunk, 0x51); // Lua 5.1-style version marker.
-    dumpByte(chunk, 0);    // Project-local dump format revision.
+    dumpByte(chunk, 0x51); // Lua 5.1 version marker.
+    dumpByte(chunk, 0);    // Project-local Lua 5.1 payload.
     dumpByte(chunk, 1);    // Little-endian payload.
     dumpByte(chunk, static_cast<u8>(sizeof(i32)));
     dumpByte(chunk, static_cast<u8>(sizeof(usize)));

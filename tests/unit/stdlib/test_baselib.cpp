@@ -48,7 +48,6 @@ bool runLua(LuaState* L, const char* code) {
         L->getGlobalState().getGC().registerObject(func);
         func->setEnv(L->getGlobalTable());
         VM::execute(L, func);
-        delete proto;
         return true;
     } catch (...) {
         return false;
@@ -1320,6 +1319,39 @@ void testLoadWrapper(TestSuite& suite) {
     }
 }
 
+void testBinaryChunkTailcallKeepsLiveRegistersAcrossLoadGC(TestSuite& suite) {
+    LuaState* L = createFullState();
+    bool ok = runLua(L, R"lua(
+        local payload = assert(loadstring([[
+            local helper = function(s)
+                gBinaryTailcallLiveRegister = string.len(s)
+            end
+
+            gBinaryTailcallWeak = setmetatable({ helper }, { __mode = "v" })
+            local loaded = assert(loadstring("print(1)"))
+            local dumped = string.dump(loaded)
+            collectgarbage()
+            local still_live = gBinaryTailcallWeak[1]
+            if still_live then
+                local binaryPayload = "#comment with a binary file\n" .. dumped
+                gBinaryTailcallExpectedLength = string.len(binaryPayload)
+                still_live(binaryPayload)
+            else
+                gBinaryTailcallLiveRegister = -1
+            end
+        ]]))
+
+        local dumped = string.dump(payload)
+        local f = assert(loadstring(dumped))
+        return f()
+    )lua");
+    ASSERT_TRUE(suite, ok, "binary chunk tailcall keeps live registers across loadstring GC");
+    ASSERT_EQ(suite, getGlobalNumber(L, "gBinaryTailcallExpectedLength"),
+              getGlobalNumber(L, "gBinaryTailcallLiveRegister"),
+              "binary-loaded frame keeps local functions live after loadstring GC");
+    delete L;
+}
+
 void testPairsAllowsDeletingCurrentHashKey(TestSuite& suite) {
     LuaState* L = createFullState();
     bool ok = runLua(L, R"lua(
@@ -1367,6 +1399,47 @@ void testAutomaticGCReachesWeakValuesDuringAllocation(TestSuite& suite) {
                 "automatic GC clears weak values during allocation");
     ASSERT_TRUE(suite, getGlobalNumber(L, "gAutoWeakValueIterations") < 200.0,
                 "automatic GC clears weak value before bounded loop expires");
+    delete L;
+}
+
+void testWeakKeyValueTableDropsExpiredLoopLocals(TestSuite& suite) {
+    LuaState* L = createFullState();
+    bool ok = runLua(L, R"lua(
+        local limit = 16
+        local weak = {}
+        setmetatable(weak, {__mode = "kv"})
+
+        local x, y, z = {}, {}, {}
+        weak[1], weak[2], weak[3] = x, y, z
+        weak[string.rep("$", 11)] = string.rep("$", 11)
+
+        for i = 4, limit do weak[i] = {} end
+        for i = 1, limit do weak[{}] = i end
+        for i = 1, limit do local t = {}; weak[t] = t end
+
+        collectgarbage()
+
+        local count = 0
+        local shapeOk = true
+        for k, v in pairs(weak) do
+            shapeOk = shapeOk and (
+                (k == 1 and v == x) or
+                (k == 2 and v == y) or
+                (k == 3 and v == z) or
+                (k == v)
+            )
+            count = count + 1
+        end
+
+        gWeakKeyValueShapeOk = shapeOk
+        gWeakKeyValueCount = count
+    )lua");
+
+    ASSERT_TRUE(suite, ok, "weak key-value table loop-local chunk runs");
+    ASSERT_TRUE(suite, getGlobalBool(L, "gWeakKeyValueShapeOk"),
+                "weak key-value table preserves only expected entries");
+    ASSERT_EQ(suite, 4.0, getGlobalNumber(L, "gWeakKeyValueCount"),
+              "weak key-value table drops expired loop locals");
     delete L;
 }
 
@@ -1651,9 +1724,13 @@ void registerBaselibTests() {
     registry.registerTest(kSuiteName, "unpack lua", testUnpackLua);
     registry.registerTest(kSuiteName, "unpack nil upper bound", testUnpackNilUpperBoundUsesLength);
     registry.registerTest(kSuiteName, "load", testLoadWrapper);
+    registry.registerTest(kSuiteName, "binary chunk tailcall live registers",
+                          testBinaryChunkTailcallKeepsLiveRegistersAcrossLoadGC);
     registry.registerTest(kSuiteName, "pairs deleting current key", testPairsAllowsDeletingCurrentHashKey);
     registry.registerTest(kSuiteName, "automatic GC clears weak values",
                           testAutomaticGCReachesWeakValuesDuringAllocation);
+    registry.registerTest(kSuiteName, "weak kv drops expired loop locals",
+                          testWeakKeyValueTableDropsExpiredLoopLocals);
 
     registry.registerTest(kCompatibilitySuiteName, "nil table key", testCompatibilityNilTableKey);
     registry.registerTest(kCompatibilitySuiteName, "numeric string conversions",
@@ -1671,4 +1748,5 @@ void registerBaselibTests() {
     registry.registerTest(kCompatibilitySuiteName, "error and xpcall",
                           testCompatibilityErrorAndXpcall);
 }
+
 

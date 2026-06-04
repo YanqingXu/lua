@@ -102,6 +102,7 @@ public:
     struct RunOptions {
         std::string filter;
         bool printReports = true;
+        bool captureSuites = false;
     };
     
     static TestRegistry& getInstance() {
@@ -138,13 +139,15 @@ public:
                     }
                     totalFail += suite->getFailCount();
                     totalPass += suite->getPassCount();
-                    lastSuites_.push_back(*suite);
+                    if (options.captureSuites) {
+                        lastSuites_.push_back(*suite);
+                    }
                     delete suite;
                 }
                 currentSuite = test.suiteName;
                 suite = new TestSuite(currentSuite);
             }
-            
+
             lastRunTestCount_++;
             try {
                 test.func(*suite);
@@ -159,7 +162,9 @@ public:
             }
             totalFail += suite->getFailCount();
             totalPass += suite->getPassCount();
-            lastSuites_.push_back(*suite);
+            if (options.captureSuites) {
+                lastSuites_.push_back(*suite);
+            }
             delete suite;
         }
         

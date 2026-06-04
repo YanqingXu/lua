@@ -64,7 +64,6 @@ bool runLuaChunk(LuaState* L, const char* source, const char* chunkName) {
         L->getGlobalState().getGC().registerObject(func);
         func->setEnv(L->getGlobalTable());
         VM::execute(L, func);
-        delete proto;
         return true;
     } catch (...) {
         return false;
@@ -875,3 +874,4 @@ void registerDebugLibTests() {
     registry.registerTest(kSuiteName, "hook lifecycle", testHookLifecycle);
     registry.registerTest(kSuiteName, "thread hook", testThreadHookAndTraceback);
 }
+

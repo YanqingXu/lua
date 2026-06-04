@@ -132,8 +132,9 @@ void markPreciseStackRoots(GarbageCollector& gc, LuaState* state) {
         Function* function = frameFunction(stack, ci);
         Proto* proto = function != nullptr ? function->getProto() : nullptr;
         if (proto != nullptr) {
-            // Debug locals are not a liveness map. Hooks may run collection
-            // while the interrupted Lua frame still has live register values.
+            // Hooks can run between VM instructions while unnamed temporaries
+            // are still live in registers. Normal GC uses LocVar ranges so
+            // expired loop locals do not keep weak-table entries alive.
             if (state->isDebugHookActive()) {
                 markLuaFrameStackWindow(gc, state, ci);
             }
@@ -310,6 +311,8 @@ void GarbageCollector::markState(LuaState* state) {
     if (state == nullptr) {
         return;
     }
+
+    markObject(state->getGlobalTable());
 
     if (preciseStackRoots_) {
         markPreciseStackRoots(*this, state);

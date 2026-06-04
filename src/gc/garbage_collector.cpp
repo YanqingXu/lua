@@ -46,6 +46,7 @@ GarbageCollector::GarbageCollector()
     , automaticCollectionRunning_(false)
     , preciseStackRoots_(true)
     , automaticThresholdBytes_(64 * 1024)
+    , gcDebtBytes_(-static_cast<isize>(64 * 1024))
     , stepCountdown_(0)
     , pause_(200)
     , stepMultiplier_(200)
@@ -86,7 +87,9 @@ void GarbageCollector::registerObject(GCObject* obj) {
     
     // 更新统计信息
     ++objectCount_;
-    totalMemory_ += obj->getSize();
+    const usize objectSize = obj->getSize();
+    totalMemory_ += objectSize;
+    gcDebtBytes_ += static_cast<isize>(objectSize);
 }
 
 void GarbageCollector::unregisterObject(GCObject* obj) noexcept {
@@ -221,6 +224,7 @@ usize GarbageCollector::collectAutomatic(StringPool& stringPool, LuaState* curre
     automaticThresholdBytes_ = std::max<usize>(
         64 * 1024,
         (liveBytes * pausePercent) / 100 + 32 * 1024);
+    gcDebtBytes_ = static_cast<isize>(liveBytes) - static_cast<isize>(automaticThresholdBytes_);
     return collected;
 }
 
@@ -229,11 +233,12 @@ usize GarbageCollector::maybeCollectAutomatic(LuaState* currentState) {
         return 0;
     }
 
-    if (getTotalMemory() < automaticThresholdBytes_) {
+    if (getTotalMemory() < automaticThresholdBytes_ && gcDebtBytes_ <= 0) {
         return 0;
     }
 
-    return collectAutomatic(currentState);
+    bool finished = step(currentState, 0);
+    return finished ? incrementalCollected_ : 0;
 }
 
 void GarbageCollector::stopAutomatic() noexcept {
@@ -251,12 +256,11 @@ bool GarbageCollector::isAutomaticStopped() const noexcept {
 
 bool GarbageCollector::step(LuaState* currentState, i32 size) {
     const i32 normalizedSize = std::max(0, size);
-    i32 effectiveSize = normalizedSize;
-    if (normalizedSize > 0) {
-        const i32 multiplier = std::max(1, stepMultiplier_);
-        const i64 scaled = (static_cast<i64>(normalizedSize) * static_cast<i64>(multiplier)) / 200;
-        effectiveSize = static_cast<i32>(std::min<i64>(std::max<i64>(1, scaled), std::numeric_limits<i32>::max()));
-    }
+    const i64 requestedBytes = static_cast<i64>(normalizedSize + 1) * 1024;
+    const i64 scaledBytes =
+        (requestedBytes * static_cast<i64>(std::max(1, stepMultiplier_))) / 100;
+    const usize budget = static_cast<usize>(
+        std::min<i64>(std::max<i64>(1, scaledBytes / 1024), std::numeric_limits<i32>::max()));
 
     bool wasStopped = automaticStopped_;
     automaticStopped_ = false;
@@ -269,8 +273,12 @@ bool GarbageCollector::step(LuaState* currentState, i32 size) {
             finished = incrementalStep(stringPool, currentState, largeBudget);
         } while (!finished);
     } else {
-        const usize budget = static_cast<usize>(std::max(1, effectiveSize));
         finished = incrementalStep(stringPool, currentState, budget);
+    }
+
+    gcDebtBytes_ -= static_cast<isize>(scaledBytes);
+    if (finished) {
+        updateAutomaticThresholdAfterCycle();
     }
 
     automaticStopped_ = wasStopped;
@@ -296,6 +304,14 @@ i32 GarbageCollector::setStepMultiplier(i32 stepMultiplier) noexcept {
     stepMultiplier_ = std::max(0, stepMultiplier);
     stepCountdown_ = 0;
     return previous;
+}
+
+isize GarbageCollector::getDebtBytes() const noexcept {
+    return gcDebtBytes_;
+}
+
+usize GarbageCollector::getAutomaticThresholdBytes() const noexcept {
+    return automaticThresholdBytes_;
 }
 
 const GCStrategy& GarbageCollector::getStrategy() const noexcept {
@@ -347,6 +363,20 @@ usize GarbageCollector::collectMarkSweep(StringPool& stringPool, LuaState* curre
 
     resetIncrementalCycle();
     
+    updateAutomaticThresholdAfterCycle();
+    return collected;
+}
+
+usize GarbageCollector::collectIncrementalCycle(StringPool& stringPool, LuaState* currentState) {
+    usize objectsBefore = getObjectCount();
+    usize budget = std::max<usize>(getObjectCount() + grayList_.size() + 16, 1024);
+    bool finished = false;
+    do {
+        finished = incrementalStep(stringPool, currentState, budget);
+    } while (!finished);
+    usize objectsAfter = getObjectCount();
+    usize collected = objectsBefore >= objectsAfter ? objectsBefore - objectsAfter : 0;
+    updateAutomaticThresholdAfterCycle();
     return collected;
 }
 
@@ -356,7 +386,18 @@ void GarbageCollector::resetIncrementalCycle() noexcept {
     incrementalSweepPrevious_ = nullptr;
     incrementalCollected_ = 0;
     stepCountdown_ = 0;
+    grayList_.clear();
+    weakTables_.clear();
     externalMarked_.clear();
+}
+
+void GarbageCollector::updateAutomaticThresholdAfterCycle() noexcept {
+    const usize liveBytes = getTotalMemory();
+    const usize pausePercent = static_cast<usize>(std::max(100, pause_));
+    automaticThresholdBytes_ = std::max<usize>(
+        64 * 1024,
+        (liveBytes * pausePercent) / 100 + 32 * 1024);
+    gcDebtBytes_ = static_cast<isize>(liveBytes) - static_cast<isize>(automaticThresholdBytes_);
 }
 
 void GarbageCollector::beginIncrementalMark(LuaState* currentState) {
@@ -503,6 +544,19 @@ void GarbageCollector::destroyObject(GCObject* obj, StringPool& stringPool) {
         return;
     }
 
+    roots_.erase(std::remove(roots_.begin(), roots_.end(), obj), roots_.end());
+    grayList_.erase(std::remove(grayList_.begin(), grayList_.end(), obj), grayList_.end());
+    externalMarked_.erase(std::remove(externalMarked_.begin(), externalMarked_.end(), obj), externalMarked_.end());
+    if (obj->getType() == GCObjectType::Table) {
+        auto* table = static_cast<Table*>(obj);
+        weakTables_.erase(std::remove(weakTables_.begin(), weakTables_.end(), table), weakTables_.end());
+    } else if (obj->getType() == GCObjectType::Userdata) {
+        auto* userdata = static_cast<Userdata*>(obj);
+        pendingFinalizers_.erase(
+            std::remove(pendingFinalizers_.begin(), pendingFinalizers_.end(), userdata),
+            pendingFinalizers_.end());
+    }
+
     const usize objSize = obj->getSize();
     totalMemory_ = totalMemory_ >= objSize ? totalMemory_ - objSize : 0;
     if (objectCount_ > 0) {
@@ -604,6 +658,7 @@ void GarbageCollector::clearAll(StringPool& stringPool) {
     grayList_.clear();
     weakTables_.clear();
     pendingFinalizers_.clear();
+    updateAutomaticThresholdAfterCycle();
 }
 
 void GarbageCollector::printStatistics() const {

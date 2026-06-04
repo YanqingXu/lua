@@ -85,7 +85,6 @@ void testSimpleIndexAccessStringKey(TestSuite& suite) {
     }
     ASSERT_TRUE(suite, hasGetTable, "Generated GETTABLE instruction");
 
-    delete proto;
 }
 
 /**
@@ -119,7 +118,6 @@ void testMemberAccess(TestSuite& suite) {
     }
     ASSERT_TRUE(suite, hasGetTable, "Member access generates GETTABLE");
 
-    delete proto;
 }
 
 /**
@@ -152,7 +150,6 @@ void testIndexAccessNumberKey(TestSuite& suite) {
     }
     ASSERT_TRUE(suite, hasGetTable, "Number index generates GETTABLE");
 
-    delete proto;
 }
 
 /**
@@ -185,7 +182,6 @@ void testNestedMemberAccess(TestSuite& suite) {
     }
     ASSERT_TRUE(suite, getTableCount >= 2, "Nested access generates multiple GETTABLE");
 
-    delete proto;
 }
 
 /**
@@ -218,7 +214,6 @@ void testGlobalVariableAccess(TestSuite& suite) {
     }
     ASSERT_TRUE(suite, hasGetGlobal, "Global variable generates GETGLOBAL");
 
-    delete proto;
 }
 
 /**
@@ -251,7 +246,6 @@ void testDynamicIndex(TestSuite& suite) {
     }
     ASSERT_TRUE(suite, hasGetTable, "Dynamic index generates GETTABLE");
 
-    delete proto;
 }
 
 /**
@@ -284,7 +278,6 @@ void testMixedAccess(TestSuite& suite) {
     }
     ASSERT_TRUE(suite, getTableCount >= 3, "Mixed access generates multiple GETTABLE");
 
-    delete proto;
 }
 
 /**
@@ -319,7 +312,6 @@ void testLocalTableAccess(TestSuite& suite) {
     ASSERT_TRUE(suite, hasGetGlobal, "Global variable generates GETGLOBAL");
     ASSERT_TRUE(suite, hasGetTable, "Table access generates GETTABLE");
 
-    delete proto;
 }
 
 /**
@@ -337,4 +329,5 @@ void registerIndexedAccessTests() {
     registry.registerTest("Table Indexed Access", "Mixed Access", testMixedAccess);
     registry.registerTest("Table Indexed Access", "Local Table Access", testLocalTableAccess);
 }
+
 

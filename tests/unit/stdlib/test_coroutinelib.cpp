@@ -44,7 +44,6 @@ bool runLua(LuaState* L, const char* code) {
         L->getGlobalState().getGC().registerObject(func);
         func->setEnv(L->getGlobalTable());
         VM::execute(L, func);
-        delete proto;
         return true;
     } catch (...) {
         return false;
@@ -619,3 +618,4 @@ void registerCoroutineLibTests() {
     registry.registerTest(kSuiteName, "wrap multiple values", testWrapMultipleValues);
     registry.registerTest(kSuiteName, "wrap no yield", testWrapNoYield);
 }
+

@@ -46,6 +46,7 @@ set(LUA_CORE_SOURCES
     src/core/userdata.cpp
     src/core/value.cpp
     src/core/thread.cpp
+    src/api/lapi.cpp
     src/gc/garbage_collector.cpp
     src/gc/gc_strategy.cpp
     src/gc/gc_mark.cpp
@@ -67,6 +68,7 @@ set(LUA_CORE_SOURCES
     src/lib/oslib.cpp
     src/lib/stringlib.cpp
     src/lib/tablelib.cpp
+    src/lib/testlib.cpp
     src/vm/state/global_state.cpp
     src/vm/state/lua_state.cpp
     src/vm/state/stack.cpp

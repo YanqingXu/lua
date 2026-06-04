@@ -144,6 +144,9 @@
     <ClInclude Include="src\common\macros.hpp" />
     <ClInclude Include="src\common\number_conversion.hpp" />
     <ClInclude Include="src\common\types.hpp" />
+    <ClInclude Include="src\lua.h" />
+    <ClInclude Include="src\lauxlib.h" />
+    <ClInclude Include="src\lualib.h" />
     <ClInclude Include="src\compiler\ast.hpp" />
     <ClInclude Include="src\compiler\ast_visitor.hpp" />
     <ClInclude Include="src\compiler\codegen\bytecode_builder.hpp" />
@@ -192,6 +195,7 @@
     <ClInclude Include="src\lib\oslib.hpp" />
     <ClInclude Include="src\lib\stringlib.hpp" />
     <ClInclude Include="src\lib\tablelib.hpp" />
+    <ClInclude Include="src\lib\testlib.hpp" />
     <ClInclude Include="src\runtime\runtime_services.hpp" />
     <ClInclude Include="src\vm\state\call_info.hpp" />
     <ClInclude Include="src\vm\state\global_state.hpp" />
@@ -242,6 +246,7 @@
     <ClCompile Include="src\core\userdata.cpp" />
     <ClCompile Include="src\core\value.cpp" />
     <ClCompile Include="src\core\thread.cpp" />
+    <ClCompile Include="src\api\lapi.cpp" />
     <ClCompile Include="src\gc\garbage_collector.cpp" />
     <ClCompile Include="src\gc\gc_strategy.cpp" />
     <ClCompile Include="src\gc\gc_mark.cpp" />
@@ -263,6 +268,7 @@
     <ClCompile Include="src\lib\oslib.cpp" />
     <ClCompile Include="src\lib\stringlib.cpp" />
     <ClCompile Include="src\lib\tablelib.cpp" />
+    <ClCompile Include="src\lib\testlib.cpp" />
     <ClCompile Include="src\vm\state\global_state.cpp" />
     <ClCompile Include="src\vm\state\lua_state.cpp" />
     <ClCompile Include="src\vm\state\stack.cpp" />

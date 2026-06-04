@@ -226,7 +226,6 @@ void testStructuredStatementsLeaveNoPendingJumps(TestSuite& suite) {
     ASSERT_TRUE(suite, countOpcode(proto, OpCode::FORPREP) == 1, "Numeric for emits FORPREP");
     ASSERT_TRUE(suite, countOpcode(proto, OpCode::FORLOOP) == 1, "Numeric for emits FORLOOP");
 
-    delete proto;
 }
 
 void testGenericForBytecodeShapeIsStable(TestSuite& suite) {
@@ -246,7 +245,6 @@ void testGenericForBytecodeShapeIsStable(TestSuite& suite) {
     ASSERT_TRUE(suite, countOpcode(proto, OpCode::TFORLOOP) == 1, "Generic for emits one TFORLOOP");
     ASSERT_TRUE(suite, hasTForLoopBackEdge(proto), "Generic for keeps TFORLOOP back edge");
 
-    delete proto;
 }
 
 void testLua51LoadNilMergeAndDirectReturnParityGapIsCharacterized(TestSuite& suite) {
@@ -263,7 +261,6 @@ void testLua51LoadNilMergeAndDirectReturnParityGapIsCharacterized(TestSuite& sui
     ASSERT_TRUE(suite, hasReturn(proto, 0, 4),
                 "Lua 5.1-style direct local multi-return starts at register 0");
 
-    delete proto;
 
     Proto* elided = generateProto(R"lua(
         local a,b,c
@@ -372,7 +369,6 @@ void testLua51ConcatMergeParityGapIsCharacterized(TestSuite& suite) {
     ASSERT_TRUE(suite, countOpcode(proto, OpCode::MOVE) == 3,
                 "Merged concat copies active locals before VM CONCAT mutates the operand range");
 
-    delete proto;
 }
 
 void testLua51NotNotBooleanNormalizationShapeIsCharacterized(TestSuite& suite) {
@@ -428,15 +424,14 @@ void testLua51NotNotBooleanNormalizationShapeIsCharacterized(TestSuite& suite) {
     ASSERT_TRUE(suite, countOpcode(proto, OpCode::NOT) == 0,
                 "Current not-not lowering avoids direct NOT opcodes");
 
-    delete proto;
 }
 
 void testLua51AssignmentRegisterReuseGapsAreCharacterized(TestSuite& suite) {
     Proto* localSwap = generateProto("local a,b = 1,2; a,b = b,a; return a,b");
 
     ASSERT_TRUE(suite, localSwap != nullptr, "Local swap proto generated");
-    ASSERT_TRUE(suite, countOpcode(localSwap, OpCode::MOVE) >= 4,
-                "Current local swap assignment still emits temporary MOVE instructions");
+    ASSERT_TRUE(suite, countOpcode(localSwap, OpCode::MOVE) <= 3,
+                "Lua 5.1-style local swap assignment reuses one scratch register");
     ASSERT_TRUE(suite, hasReturn(localSwap, 0, 3),
                 "Direct local swap return reuses contiguous registers after assignment");
 
@@ -449,12 +444,8 @@ void testLua51AssignmentRegisterReuseGapsAreCharacterized(TestSuite& suite) {
                 "Table assignment still emits one SETTABLE instruction");
     ASSERT_TRUE(suite, countOpcode(tableAssign, OpCode::GETTABLE) == 1,
                 "Table field return still emits one GETTABLE instruction");
-    ASSERT_TRUE(suite, hasABC(tableAssign, OpCode::MOVE, 2, 0, 0),
-                "Current table assignment copies table receiver to a temporary register");
-    ASSERT_TRUE(suite, hasABC(tableAssign, OpCode::MOVE, 3, 1, 0),
-                "Current table assignment copies value to a temporary register");
-    ASSERT_FALSE(suite, hasSetTableFromValueRegister(tableAssign, 0, 1),
-                 "Lua 5.1-style SETTABLE using original table/value registers is absent");
+    ASSERT_TRUE(suite, hasSetTableFromValueRegister(tableAssign, 0, 1),
+                "Table assignment now uses original local table/value registers (no reuse gap)");
 
     delete tableAssign;
 }
@@ -479,7 +470,6 @@ void testLua51ArithmeticConstantFoldingIsCharacterized(TestSuite& suite) {
     ASSERT_TRUE(suite, countOpcode(proto, OpCode::LOADK) == 1,
                 "Folded constant expression materializes with one LOADK");
 
-    delete proto;
 }
 
 void testLua51SelfAssignmentElisionGapIsCharacterized(TestSuite& suite) {
@@ -495,7 +485,6 @@ void testLua51SelfAssignmentElisionGapIsCharacterized(TestSuite& suite) {
     ASSERT_TRUE(suite, hasReturn(proto, 0, 2),
                 "Self-assignment chunk returns directly from local register 0");
 
-    delete proto;
 }
 
 void registerCodegenCharacterizationTests() {
@@ -522,3 +511,4 @@ void registerCodegenCharacterizationTests() {
     registry.registerTest(kSuiteName, "Lua51 Self Assignment Elision Gap Is Characterized",
                           testLua51SelfAssignmentElisionGapIsCharacterized);
 }
+

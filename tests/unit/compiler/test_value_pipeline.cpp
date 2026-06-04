@@ -48,7 +48,6 @@ bool runLua(LuaState* L, const char* code) {
         L->getGlobalState().getGC().registerObject(func);
         func->setEnv(L->getGlobalTable());
         VM::execute(L, func);
-        delete proto;
         return true;
     } catch (...) {
         return false;
@@ -74,7 +73,6 @@ int countOpcode(const char* code, OpCode op) {
         if (GET_OPCODE(proto->getInstruction(i)) == op)
             count++;
     }
-    delete proto;
     return count;
 }
 
@@ -126,7 +124,6 @@ void testValueLocalReadBytecode(TestSuite& suite) {
     }
     // b = a where a is local may produce MOVE (if different registers)
     ASSERT_TRUE(suite, foundMove, "local read may generate MOVE");
-    delete proto;
 }
 
 void testValueGlobalReadBytecode(TestSuite& suite) {
@@ -177,7 +174,6 @@ void testValueRKConstantEncoding(TestSuite& suite) {
         }
     }
     ASSERT_TRUE(suite, foundAdd, "a + 1 generates ADD instruction");
-    delete proto;
 }
 
 // =====================================================================
@@ -210,7 +206,6 @@ void testValueParenCallSingle(TestSuite& suite) {
         }
     }
     ASSERT_TRUE(suite, foundCall, "(f()) generates CALL");
-    delete proto;
 }
 
 // =====================================================================
@@ -436,6 +431,13 @@ void testValueMultipleAssignmentFreezesReferencesRuntime(TestSuite& suite) {
         assert(a[1].alo == assert and a[2] == 10 and b == 10 and c == print)
 
         do
+            local a = {10, 9; [f] = print}
+            local b, c
+            a[1], f(a)[2], b, c = {alo = assert}, 10, a[1], a[f], 6, f(a)
+            assert(a[1].alo == assert and a[2] == 10 and b == 10 and c == print)
+        end
+
+        do
             local a, i, j, b
             a = {'a', 'b'}; i = 1; j = 2; b = a
             i, a[i], a, j, a[j], a[i+j] = j, i, i, b, j, i
@@ -503,7 +505,6 @@ void testWhileBreakPatchesBeforeFollowingJumpBytecode(TestSuite& suite) {
     }
 
     ASSERT_TRUE(suite, !foundUnpatchedJump, "while break is patched before the next jump-heavy statement");
-    delete proto;
 }
 
 // =====================================================================
@@ -546,3 +547,4 @@ void registerValuePipelineTests() {
     registry.registerTest(kSuiteName, "Nested Numeric For Uses Outer Control Runtime", testNestedNumericForUsesOuterControlRuntime);
     registry.registerTest(kSuiteName, "While Break Patches Before Following Jump Bytecode", testWhileBreakPatchesBeforeFollowingJumpBytecode);
 }
+

@@ -98,7 +98,7 @@ $forbiddenPatterns = @(
     @{
         Name = "simple #define"
         Pattern = "^\s*#\s*define\b"
-        AllowedCount = 51
+        AllowedCount = 71
         SkipCommentLines = $false
     },
     @{

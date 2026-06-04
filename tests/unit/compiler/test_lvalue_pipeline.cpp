@@ -49,7 +49,6 @@ bool runLua(LuaState* L, const char* code) {
         L->getGlobalState().getGC().registerObject(func);
         func->setEnv(L->getGlobalTable());
         VM::execute(L, func);
-        delete proto;
         return true;
     } catch (...) {
         return false;
@@ -72,7 +71,6 @@ int countOpcode(const char* code, OpCode op) {
         if (GET_OPCODE(proto->getInstruction(i)) == op)
             count++;
     }
-    delete proto;
     return count;
 }
 
@@ -304,3 +302,4 @@ void registerLValuePipelineTests() {
     registry.registerTest("LValue Pipeline", "Table Multi-Index Runtime", testLValueTableMultiIndexRuntime);
     registry.registerTest("LValue Pipeline", "Mixed Table+Global MultiRet", testLValueMixedTableAndGlobalMultiReturn);
 }
+

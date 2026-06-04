@@ -490,6 +490,7 @@ int main(int argc, char** argv) {
     // 运行所有测试
     LuaTest::TestRegistry::RunOptions runOptions;
     runOptions.filter = options.filter;
+    runOptions.captureSuites = options.writeJunit;
     int failedTests = registry.runTests(runOptions);
     
     // 打印总结

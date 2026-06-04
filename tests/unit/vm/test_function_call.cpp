@@ -64,7 +64,6 @@ void testSimpleFunctionCall(TestSuite& suite) {
         ASSERT_EQ(suite, static_cast<i32>(retval.asNumber()), 7, "add(3, 4) == 7");
 
         delete L;
-        delete proto;
     } catch (const std::exception& e) {
         std::cout << "  [ERROR] Exception: " << e.what() << std::endl;
         ASSERT_TRUE(suite, false, "No exception should be thrown");
@@ -116,7 +115,6 @@ void testFactorialRecursion(TestSuite& suite) {
         ASSERT_EQ(suite, static_cast<i32>(retval.asNumber()), 120, "factorial(5) == 120");
         
         delete L;
-        delete proto;
     } catch (const std::exception& e) {
         std::cout << "  [ERROR] Exception: " << e.what() << std::endl;
         ASSERT_TRUE(suite, false, "No exception should be thrown");
@@ -163,7 +161,6 @@ void testMultipleReturnValues(TestSuite& suite) {
         ASSERT_TRUE(suite, L->getTop() >= 3, "Has at least 3 return values");
         
         delete L;
-        delete proto;
     } catch (const std::exception& e) {
         std::cout << "  [ERROR] Exception: " << e.what() << std::endl;
         ASSERT_TRUE(suite, false, "No exception should be thrown");
@@ -220,7 +217,6 @@ void testNestedFunctionCalls(TestSuite& suite) {
         ASSERT_EQ(suite, static_cast<i32>(retval.asNumber()), 21, "compute() == 21");
         
         delete L;
-        delete proto;
     } catch (const std::exception& e) {
         std::cout << "  [ERROR] Exception: " << e.what() << std::endl;
         ASSERT_TRUE(suite, false, "No exception should be thrown");
@@ -237,4 +233,5 @@ void registerFunctionCallTests() {
     // registry.registerTest(kSuiteName, "Multiple Return Values", testMultipleReturnValues);
     // registry.registerTest(kSuiteName, "Nested Function Calls", testNestedFunctionCalls);
 }
+
 
