@@ -45,6 +45,7 @@
 #include "repl/repl_prompt.hpp"
 #include "vm/vm_constants.hpp"
 
+#include <array>
 #include <filesystem>
 #include <format>
 #include <cctype>
@@ -59,7 +60,7 @@
 // - 为空串：未指定命令行脚本时进入 REPL
 // - 非空串：未指定命令行脚本时优先执行该 Lua 脚本
 #ifndef LUA_TEST_SCRIPT_PATH
-#define LUA_TEST_SCRIPT_PATH ""
+#define LUA_TEST_SCRIPT_PATH "E:\\Programming2\\lua_in_cpp\\lua\\tests\\lua\\alien_signals\\example.lua"
 #endif
 
 // 测试脚本 Trace 输出路径（配合 LUA_TEST_SCRIPT_PATH 使用）。
@@ -67,7 +68,7 @@
 // - 非空串：执行 LUA_TEST_SCRIPT_PATH 时自动启用 Trace，输出到此路径
 //   可在此处直接改为目标路径，或通过编译器定义 /DLUA_TRACE_TEST_SCRIPT_OUTPUT=\"out.jsonl\"
 #ifndef LUA_TRACE_TEST_SCRIPT_OUTPUT
-#define LUA_TRACE_TEST_SCRIPT_OUTPUT "bin/out.jsonl"
+#define LUA_TRACE_TEST_SCRIPT_OUTPUT "out.jsonl"
 #endif
 
 
@@ -280,6 +281,37 @@ Str readAllStdin() {
     std::ostringstream buffer;
     buffer << std::cin.rdbuf();
     return buffer.str();
+}
+
+Str executableDirectory() {
+    std::array<char, MAX_PATH> buffer{};
+    DWORD len = GetModuleFileNameA(nullptr, buffer.data(), static_cast<DWORD>(buffer.size()));
+    if (len == 0 || len >= buffer.size()) {
+        return ".";
+    }
+
+    Str path(buffer.data(), static_cast<usize>(len));
+    const usize pos = path.find_last_of("/\\");
+    if (pos == Str::npos) {
+        return ".";
+    }
+    return path.substr(0, pos);
+}
+
+Str resolveExecutableRelativePath(StrView pathText) {
+    const std::filesystem::path path{Str(pathText)};
+    if (path.is_absolute()) {
+        return path.lexically_normal().string();
+    }
+    return (std::filesystem::path(executableDirectory()) / path).lexically_normal().string();
+}
+
+void ensureParentDirectory(const Str& filePath) {
+    std::error_code ec;
+    const std::filesystem::path parent = std::filesystem::path(filePath).parent_path();
+    if (!parent.empty()) {
+        std::filesystem::create_directories(parent, ec);
+    }
 }
 
 bool isPendingAssignmentName(StrView source) {
@@ -593,17 +625,21 @@ int Lua::runApp(const AppOptions& opt) {
             constexpr const char* kTestTraceOutput = LUA_TRACE_TEST_SCRIPT_OUTPUT;
             UPtr<JsonTraceSink> testTraceSink;
             if (kTestTraceOutput[0] != '\0' && !traceSink) {
-                testTraceSink = makeUnique<JsonTraceSink>(kTestTraceOutput);
+                const Str resolvedTraceOutput = resolveExecutableRelativePath(kTestTraceOutput);
+                ensureParentDirectory(resolvedTraceOutput);
+                testTraceSink = makeUnique<JsonTraceSink>(resolvedTraceOutput);
                 if (testTraceSink->isOpen()) {
                     VM::setTraceDiffEnabled(false);
                     VM::setTraceSink(testTraceSink.get());
-                    std::cout << "[TRACE] Test trace enabled \u2192 " << kTestTraceOutput << std::endl;
+                    std::cout << "[TRACE] Test trace enabled \u2192 " << resolvedTraceOutput << std::endl;
                 } else {
                     testTraceSink.reset();
                 }
             }
 
             std::cout << "[INFO] 执行测试脚本: " << kTestScriptPath << std::endl;
+            const Vec<Str> testArguments{programName, kTestScriptPath};
+            setupArgTable(L.get(), std::span<const Str>(testArguments.data(), testArguments.size()), 1);
             status = executeScript(L.get(), kTestScriptPath);
 
             if (testTraceSink) {
