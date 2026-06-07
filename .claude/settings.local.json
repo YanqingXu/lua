@@ -9,7 +9,10 @@
       "Bash(\"D:\\\\VS2026\\\\2026\\\\MSBuild\\\\Current\\\\Bin\\\\MSBuild.exe\" lua.vcxproj /t:Build /p:Configuration=Debug /p:Platform=x64 /m /v:q)",
       "Bash(cmd.exe /c \"D:\\\\VS2026\\\\2026\\\\MSBuild\\\\Current\\\\Bin\\\\MSBuild.exe\" lua.vcxproj /t:Build /p:Configuration=Debug /p:Platform=x64 /m /v:q)",
       "Bash(./bin/build_lua.bat)",
-      "Bash(./bin/build_test.bat)"
+      "Bash(./bin/build_test.bat)",
+      "Bash(Get-ChildItem -Recurse -Name -Depth 2)",
+      "Bash(Select-Object -First 200)",
+      "Bash(find e:/Programming2/lua_in_cpp/lua -maxdepth 4 -not -path '*/\\\\.*' -not -path '*/build/*' -not -path '*/node_modules/*')"
     ]
   }
 }
