@@ -104,10 +104,10 @@ void testLinePromptDefaultsAndCustomPrompts(TestSuite& suite) {
     LuaState* L = LuaState::newState();
     REPL::initialize(L);
 
-    ASSERT_EQ(suite, Str("lua:1> "), REPL::detail::getPrompt(L, true, 1),
-              "default first-line prompt should include the REPL line number");
-    ASSERT_EQ(suite, Str("lua:2>> "), REPL::detail::getPrompt(L, false, 2),
-              "default continuation prompt should include the REPL line number");
+    ASSERT_EQ(suite, Str("> "), REPL::detail::getPrompt(L, true, 1),
+              "default first-line prompt should match Lua 5.1");
+    ASSERT_EQ(suite, Str(">> "), REPL::detail::getPrompt(L, false, 2),
+              "default continuation prompt should match Lua 5.1");
 
     StringPool& pool = L->getGlobalState().getStringPool();
     L->setGlobal("_PROMPT", Value(pool.intern("custom> ")));

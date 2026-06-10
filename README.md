@@ -1,7 +1,7 @@
 ---
 status: current
 verified_against: docs/status/project-status.md; lua.slnx; lua.vcxproj; lua_app.vcxproj; lua_test.vcxproj; lua_bytecode.vcxproj; CMakeLists.txt; tools/run_cmake_smoke.ps1
-last_checked: 2026-06-01
+last_checked: 2026-06-09
 applies_to: repository overview and current build workflows
 ---
 
@@ -15,7 +15,7 @@ applies_to: repository overview and current build workflows
 [![Platform](https://img.shields.io/badge/platform-Windows-blue)]()
 [![Progress](https://img.shields.io/badge/progress-95%25-yellow)]()
 [![Code](https://img.shields.io/badge/code-19k%20lines-blue)]()
-[![Last Updated](https://img.shields.io/badge/updated-2026--06--01-blue)]()
+[![Last Updated](https://img.shields.io/badge/updated-2026--06--09-blue)]()
 
 ---
 
@@ -245,6 +245,18 @@ applies_to: repository overview and current build workflows
 ✅ **Stack**：动态值栈，自动扩展，O(1)压栈/弹栈操作
 ✅ **CallInfo**：轻量级调用上下文，支持函数调用链管理
 ✅ **LuaState**：完整的线程执行环境，整合栈、调用信息和Upvalue链表，扩展了30+个API方法支持基础库
+✅ **第三方库兼容性**：已成功加载并运行 `alien-signals-in-lua`（响应式信号/计算/副作用库，含 2,400+ 行 Lua 逻辑），覆盖 require 多模块依赖链、闭包捕获、元表、协程、debug 库等组合路径，验证了解释器核心链路在真实第三方库场景下的稳定性
+
+> **第三方库兼容性里程碑（2026-06-07）**：本项目已成功加载并完整运行第三方 Lua 库 `alien-signals-in-lua`。该库是一个完整的响应式编程框架，实现了信号（signal）、计算值（computed）和副作用（effect）等响应式原语，内部依赖图（graph）、调度器（scheduler）、追踪器（tracer）等多个子系统，总计约 2,400 行 Lua 代码。作为非平凡的第三方库，它深度使用了 Lua 的闭包上值捕获、元表/元方法、协程 yield/resume、`require` 多模块依赖链、`package.preload` 自定义加载器、debug 库反射以及复杂的嵌套表操作。
+>
+> 这一里程碑为以下主张提供了**实弹级证据**（而非仅依赖人工构造的单元测试）：
+> - **词法/语法分析器**已能正确处理真实世界复杂源码的边界组合
+> - **CodeGen / VM 指令集执行**链路在上值捕获、闭包生命周期、嵌套函数调用和尾调用优化等高级路径上已达到高度可靠
+> - **闭包捕获语义**（Open/Closed 状态转换、多重嵌套共享 Upvalue、`OP_CLOSE` 作用域退出关闭）已在复杂数据流图场景中得到验证
+> - **元表机制**（`__index`、`__call`、`__newindex` 等）在库内部的对象代理和操作符重载中持续正确工作
+> - **标准库**（`package`、`debug`、`string`、`table`、`io`、`coroutine` 等）在真实模块加载、运行时反射和 I/O 交互中表现稳定
+>
+> 结合此前官方 Lua 5.1 测试套件全部子脚本（`literals` 到 `main`）均已从 skip 表移除并全绿通过的事实，alien-signals 的成功运行进一步验证了项目"最大化兼容 Lua 5.1.5"的目标在**处理真实世界复杂逻辑**（而非仅是覆盖语法角落的单元测试）时的可行性。该库的测试脚本（`tests/lua/alien_signals/`）已纳入项目回归集，作为第三方库级兼容性的持续哨兵。
 
 ### 虚拟机核心模块详解
 

@@ -5,11 +5,11 @@ last_checked: 2026-05-31
 applies_to: current standard library implementation overview
 ---
 
-# Standard Library Overview
+# 标准库总览
 
-Standard libraries are registered through `StandardLibrary` and the catalog in `src/lib/lib_catalog.cpp`.
+标准库通过 `StandardLibrary` 和 `src/lib/lib_catalog.cpp` 中的目录进行注册。
 
-Current catalog order:
+当前目录加载顺序：
 
 1. `base`
 2. `math`
@@ -21,13 +21,13 @@ Current catalog order:
 8. `debug`
 9. `package`
 
-`StandardLibrary::openAll()` iterates this catalog. Single-library loading should use `StandardLibrary::openCatalogLibrary(L, "<id>")`; the older `openMath()` / `openPackage()` convenience wrappers are deprecated compatibility shims over the same path.
+`StandardLibrary::openAll()` 遍历此目录。单库加载应使用 `StandardLibrary::openCatalogLibrary(L, "<id>")`；旧有的 `openMath()` / `openPackage()` 等便捷包装函数是同一路径上已弃用的兼容垫片。
 
-PR-73 evaluated but intentionally rejected a `LibRegistrar` self-registration layer. The current explicit `constexpr` catalog stays as the only standard-library assembly source of truth because it makes load order visible, keeps tests direct, and avoids static-initialization / MSVC linker keep-alive surprises.
+PR-73 评估了但有意拒绝了 `LibRegistrar` 自注册层。当前显式的 `constexpr` 目录是标准库装配的唯一权威来源，因为它使加载顺序可见、保持测试直接，并避免了静态初始化 / MSVC 链接器保活的意外。
 
-## Registration Model
+## 注册模型
 
-Each library generally follows this shape:
+每个库通常遵循以下形态：
 
 ```cpp
 class XxxLibModule : public LibModule {
@@ -37,34 +37,34 @@ public:
 };
 ```
 
-`FunctionRegistrar` provides fluent helpers for global functions and table functions.
+`FunctionRegistrar` 为全局函数和表函数提供了流畅的辅助方法。
 
-## Library Files
+## 库文件
 
-| Library | Files | Notes |
+| 库 | 文件 | 备注 |
 |---|---|---|
-| base | `baselib.hpp/.cpp` | Global functions, `_G`, `_VERSION`, `pcall`, `xpcall`, loading helpers including stdin `loadfile/dofile`, environment helpers, GC facade including `collectgarbage("strategy")` and stateful `setpause` / `setstepmul` controls |
-| math | `mathlib.hpp/.cpp` | Math functions and constants |
-| io | `iolib.hpp/.cpp` | File userdata, `io` table, file methods, `io.lines/file:lines` read formats |
-| string | `stringlib.hpp/.cpp` | String operations, pattern functions, `string.dump` |
-| table | `tablelib.hpp/.cpp` | Insert/remove/sort/concat plus 5.2-style convenience helpers |
-| os | `oslib.hpp/.cpp` | Date/time, environment, command, remove/rename/tmpname |
-| coroutine | `coroutinelib.hpp/.cpp` | `create`, `resume`, `yield`, `status`, `running`, `wrap` |
-| debug | `debuglib.hpp/.cpp` | Stack/upvalue/debug hook/traceback surface |
-| package | `packagelib.hpp/.cpp` | `require`, `module`, `package.*`, Lua and C loader paths |
+| base | `baselib.hpp/.cpp` | 全局函数，`_G`，`_VERSION`，`pcall`，`xpcall`，加载辅助函数（包括 stdin `loadfile/dofile`），环境辅助函数，GC 门面（包括 `collectgarbage("strategy")` 和有状态的 `setpause` / `setstepmul` 控制） |
+| math | `mathlib.hpp/.cpp` | 数学函数和常量 |
+| io | `iolib.hpp/.cpp` | 文件 userdata，`io` 表，文件方法，`io.lines/file:lines` 读取格式 |
+| string | `stringlib.hpp/.cpp` | 字符串操作，模式匹配函数，`string.dump` |
+| table | `tablelib.hpp/.cpp` | insert/remove/sort/concat 及 5.2 风格便捷辅助函数 |
+| os | `oslib.hpp/.cpp` | 日期/时间、环境变量、命令执行、remove/rename/tmpname |
+| coroutine | `coroutinelib.hpp/.cpp` | `create`、`resume`、`yield`、`status`、`running`、`wrap` |
+| debug | `debuglib.hpp/.cpp` | 栈/上值/调试 hook/traceback 功能面 |
+| package | `packagelib.hpp/.cpp` | `require`、`module`、`package.*`、Lua 和 C 加载器路径 |
 
-## Known Compatibility Gaps
+## 已知兼容性缺口
 
-The current project tests are green, but this does not mean full official Lua 5.1.5 compatibility. Known high-value gaps include:
+当前项目测试全绿，但这并不意味着完全与官方 Lua 5.1.5 兼容。已知的高价值缺口包括：
 
-- official `testC` / `ltests.c` helper coverage for `api.lua` and `code.lua`
-- official Lua 5.1 binary chunk compatibility; current dump/load is project-local
-- byte-for-byte error/traceback text compatibility in uncommon paths
-- debug library extreme stack-level and traceback formatting details
-- exact Lua 5.1 GC work accounting and `IncrementalGC` strategy semantics; `collectgarbage("step")` has phased work, but `collectgarbage("strategy", "incremental")` still selects an equivalent teaching placeholder for full `collect()`
-- more entry-point migration to owning `EngineContext`; the owning context exists, but singleton compatibility entry points remain
+- 官方 `testC` / `ltests.c` 辅助库对 `api.lua` 和 `code.lua` 的覆盖
+- 官方 Lua 5.1 二进制 chunk 兼容性；当前 dump/load 为项目本地格式
+- 非主流路径中逐字节级别的错误/traceback 文本兼容性
+- debug 库中极端栈层级和 traceback 格式化细节
+- 精确的 Lua 5.1 GC 工作量核算和 `IncrementalGC` 策略语义；`collectgarbage("step")` 已有分阶段推进，但 `collectgarbage("strategy", "incremental")` 仍选择等价的教学占位实现来替代完整的 `collect()`
+- 更多入口点迁移到 owning `EngineContext`；owning context 已存在，但单例兼容入口点仍保留
 
-## Verification
+## 验证
 
 ```powershell
 bin\lua_test.exe --filter "Standard Library Catalog"

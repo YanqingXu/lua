@@ -60,7 +60,8 @@
 // - 为空串：未指定命令行脚本时进入 REPL
 // - 非空串：未指定命令行脚本时优先执行该 Lua 脚本
 #ifndef LUA_TEST_SCRIPT_PATH
-#define LUA_TEST_SCRIPT_PATH "E:\\Programming2\\lua_in_cpp\\lua\\tests\\lua\\alien_signals\\example.lua"
+//#define LUA_TEST_SCRIPT_PATH "G:\\github\\lua\\tests\\lua\\alien_signals\\example.lua"
+#define LUA_TEST_SCRIPT_PATH ""
 #endif
 
 // 测试脚本 Trace 输出路径（配合 LUA_TEST_SCRIPT_PATH 使用）。
@@ -618,7 +619,6 @@ int Lua::runApp(const AppOptions& opt) {
         constexpr const char* kTestScriptPath = LUA_TEST_SCRIPT_PATH;
 
         if (kTestScriptPath[0] == '\0') {
-            std::cout << "[INFO] 未指定脚本，进入 REPL 模式。" << std::endl;
             REPL::initialize(L.get());
             status = REPL::run(L.get());
         } else if (std::filesystem::exists(kTestScriptPath)) {

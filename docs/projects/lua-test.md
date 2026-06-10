@@ -7,26 +7,26 @@ applies_to: lua_test unit test executable
 
 # lua_test
 
-`lua_test.vcxproj` builds the custom C++ unit test executable. In CMake, the target is `lua_test`.
+`lua_test.vcxproj` 构建自定义 C++ 单元测试可执行文件。在 CMake 中，目标名为 `lua_test`。
 
-## Responsibilities
+## 职责
 
-- register all unit tests
-- run full or filtered test sets
-- report pass/fail counts
-- optionally write JUnit XML
+- 注册所有单元测试
+- 运行完整或筛选后的测试集
+- 报告通过/失败计数
+- 可选输出 JUnit XML
 
-The latest recorded project status is tracked in `docs/status/project-status.md`.
+最新记录的项目状态追踪在 `docs/status/project-status.md`。
 
-## Test Areas
+## 测试领域
 
-- app options
-- compiler
-- core runtime objects
+- app 选项
+- 编译器
+- 核心运行时对象
 - GC
-- IO helpers
-- metamethods
-- standard library
+- I/O 辅助
+- 元方法
+- 标准库
 - VM
 
-See `docs/guides/test-runner.md`.
+参见 `docs/guides/test-runner.md`。

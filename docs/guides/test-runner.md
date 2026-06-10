@@ -5,11 +5,11 @@ last_checked: 2026-06-02
 applies_to: lua_test executable usage and extension
 ---
 
-# Test Runner Guide
+# 测试运行器指南
 
-`lua_test.exe` is the repository's custom unit test runner. It registers all C++ unit tests from `tests/unit/**` and can list, filter, run, and export JUnit XML.
+`lua_test.exe` 是仓库的自定义单元测试运行器。它注册 `tests/unit/**` 下的所有 C++ 单元测试，可以列出、筛选、运行和导出 JUnit XML。
 
-## Commands
+## 命令
 
 ```powershell
 bin\lua_test.exe
@@ -21,63 +21,61 @@ bin\lua_test.exe --report=junit:bin\lua_test_junit.xml
 bin\lua_test.exe --filter "Lua 5.1 Official Suite"
 ```
 
-## Options
+## 选项
 
-| Option | Behavior |
+| 选项 | 行为 |
 |---|---|
-| `--help`, `-h` | Print usage |
-| `--list` | Print registered tests without running them |
-| `--filter <text>` | Run tests whose suite, name, or `Suite::Name` contains text, case-insensitive |
-| `--filter=<text>` | Same as above |
-| `--report=junit` | Write `lua_test_junit.xml` |
-| `--report=junit:<path>` | Write JUnit XML to a specific path |
-| `--max-memory-mb <mb>` | Override the process memory cap for this run |
-| `--max-memory-mb=<mb>` | Same as above |
-| `--no-memory-limit` | Disable the runner cap; use only inside another memory-capped harness |
+| `--help`, `-h` | 打印用法 |
+| `--list` | 打印已注册的测试而不运行它们 |
+| `--filter <text>` | 运行套件、名称或 `Suite::Name` 包含文本的测试（大小写不敏感） |
+| `--filter=<text>` | 同上 |
+| `--report=junit` | 写入 `lua_test_junit.xml` |
+| `--report=junit:<path>` | 将 JUnit XML 写入指定路径 |
+| `--max-memory-mb <mb>` | 为本次运行覆盖进程内存上限 |
+| `--max-memory-mb=<mb>` | 同上 |
+| `--no-memory-limit` | 禁用运行器上限；仅在另一个内存上限保护的脚手架内使用 |
 
-## Memory Safety
+## 内存安全
 
-`lua_test.exe` installs a process memory cap before registering or running tests. The default cap is 512 MB.
-If the cap cannot be installed, the runner exits before executing tests instead of running unprotected.
+`lua_test.exe` 在注册或运行测试之前安装进程内存上限。默认上限为 512 MB。如果无法安装上限，运行器在测试执行前退出而非无保护运行。
 
-This is the default safety boundary for official Lua 5.1 pressure paths. Prefer focused filters and explicit caps while
-working on those paths:
+这是官方 Lua 5.1 压力路径的默认安全边界。在这些路径上工作时优先使用聚焦的筛选器和显式上限：
 
 ```powershell
 bin\lua_test.exe --max-memory-mb 128 --filter "post-vararg"
 bin\lua_test.exe --max-memory-mb 128 --filter "closure.lua weak GC loop cap"
 ```
 
-Environment overrides:
+环境变量覆盖：
 
-- `LUA_TEST_MAX_MEMORY_MB=<mb>` changes the default cap.
-- `LUA_TEST_DISABLE_MEMORY_LIMIT=1` disables the cap for externally isolated runners.
+- `LUA_TEST_MAX_MEMORY_MB=<mb>` 更改默认上限。
+- `LUA_TEST_DISABLE_MEMORY_LIMIT=1` 为外部隔离运行器禁用上限。
 
-## Adding A Test
+## 添加测试
 
-1. Add or edit a file under `tests/unit/<area>/`.
-2. Define a `registerXTests()` function.
-3. Register individual tests through `TestRegistry::getInstance().registerTest(...)`.
-4. Add the declaration and call in `tests/unit/framework/test_runner.cpp`.
-5. Add the new file to `lua_test.vcxproj`, filters, and `CMakeLists.txt` with `tools\add_source.ps1 -SourcePath tests\unit\<area>\test_name.cpp -Target Test`.
+1. 在 `tests/unit/<area>/` 下添加或编辑文件。
+2. 定义一个 `registerXTests()` 函数。
+3. 通过 `TestRegistry::getInstance().registerTest(...)` 注册各个测试。
+4. 在 `tests/unit/framework/test_runner.cpp` 中添加声明和调用。
+5. 使用 `tools\add_source.ps1 -SourcePath tests\unit\<area>\test_name.cpp -Target Test` 将新文件添加到 `lua_test.vcxproj`、filters 和 `CMakeLists.txt`。
 
-Use focused filters while developing:
+开发时使用聚焦的筛选器：
 
 ```powershell
 bin\lua_test.exe --filter "Your Suite"
 ```
 
-Then run the full runner before treating the change as verified:
+然后将变更视为已验证前运行完整的运行器：
 
 ```powershell
 bin\lua_test.exe
 ```
 
-The full runner still uses the default memory cap.
+完整运行器仍使用默认内存上限。
 
-## Current Areas
+## 当前测试领域
 
-The repository currently groups C++ tests under:
+仓库当前将 C++ 测试分组在以下目录：
 
 - `app`
 - `compiler`
@@ -90,4 +88,4 @@ The repository currently groups C++ tests under:
 
 ## CTest
 
-CMake registers the same `lua_test` executable as a CTest test. CTest is a secondary path, not the primary Windows/MSBuild workflow.
+CMake 将相同的 `lua_test` 可执行文件注册为 CTest 测试。CTest 是辅助路径，非主要的 Windows/MSBuild 工作流。

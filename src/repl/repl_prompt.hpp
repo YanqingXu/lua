@@ -5,7 +5,6 @@
 
 namespace Lua::REPL::detail {
 
-Str formatLinePrompt(usize lineNumber, bool firstLine);
 Str getPrompt(LuaState* L, bool firstLine, usize lineNumber);
 
 }  // namespace Lua::REPL::detail

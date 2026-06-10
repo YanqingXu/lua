@@ -5,11 +5,11 @@ last_checked: 2026-05-22
 applies_to: current CodeGenerator register allocation model
 ---
 
-# Register Allocation
+# 寄存器分配
 
-Lua 5.1 bytecode is register-based. Each `Proto` records a `maxStackSize`, and each instruction reads or writes numbered virtual registers within the active call frame. The C++ compiler therefore has to decide where locals, temporaries, call arguments, and return values live before VM execution begins.
+Lua 5.1 字节码是基于寄存器的。每个 `Proto` 记录一个 `maxStackSize`，每条指令在活跃调用帧内读取或写入编号的虚拟寄存器。因此 C++ 编译器必须在 VM 执行开始前决定局部变量、临时值、调用参数和返回值的位置。
 
-The current implementation uses `RegisterAllocator` as the register cursor owner:
+当前实现使用 `RegisterAllocator` 作为寄存器游标的所有者：
 
 ```cpp
 class RegisterAllocator {
@@ -29,113 +29,113 @@ public:
 };
 ```
 
-`freereg_` is private. Code generation code reaches it through the semantic methods above. Emitter code uses `CodegenOps::currentReg()` / `setFreeRegAndCheck()` / `reserveRegsAndCheck()` and the small `RegisterFrame` helper for repeated frame-shaped cursor updates.
+`freereg_` 是私有的。代码生成代码通过上述语义方法访问它。发射器代码使用 `CodegenOps::currentReg()` / `setFreeRegAndCheck()` / `reserveRegsAndCheck()` 以及轻量的 `RegisterFrame` 辅助类来进行重复的帧状游标更新。
 
-## Register Regions
+## 寄存器区域
 
-At any point in a function body, registers are organized like this:
+在函数体的任何时刻，寄存器的组织方式如下：
 
 ```text
-R(0) ... R(activeVarCount-1)     active locals
-R(activeVarCount) ... R(free-1)  temporary values, call frames, table fields
-R(free) ...               available registers
+R(0) ... R(activeVarCount-1)     活跃的局部变量
+R(activeVarCount) ... R(free-1)  临时值、调用帧、表字段
+R(free) ...                      可用寄存器
 ```
 
-`LocalVarScope::activeVarCount_` is the number of active local variables. `RegisterAllocator::current()` points at the next available temporary slot.
+`LocalVarScope::activeVarCount_` 是活跃局部变量的数量。`RegisterAllocator::current()` 指向下一个可用临时槽位。
 
-## Main Rules
+## 主要规则
 
-- Local variables occupy fixed registers for the lifetime of their lexical scope.
-- Temporaries are allocated from `current()` and freed only when they are the most recent temporary.
-- Statement boundaries usually reset temporaries back to active locals.
-- Function calls require contiguous registers: function at `base`, arguments after it, results beginning at `base`.
-- Multi-return values are represented by `CallResultInfo` until the surrounding context decides how many results are wanted.
-- Table array fields are accumulated after the table register until `SETLIST` flushes them.
-- `FORPREP`, `FORLOOP`, and `TFORLOOP` use fixed register layouts defined by Lua 5.1.
+- 局部变量在其词法作用域的生命周期内占用固定寄存器。
+- 临时值从 `current()` 分配，只有作为最新的临时值时才能释放。
+- 语句边界通常将临时值重置回活跃局部变量。
+- 函数调用需要连续寄存器：函数在 `base`，参数在其后，结果从 `base` 开始。
+- 多返回值由 `CallResultInfo` 表示，直到外层上下文决定需要多少个结果。
+- 表数组字段在表寄存器之后累积，直到 `SETLIST` 刷新它们。
+- `FORPREP`、`FORLOOP` 和 `TFORLOOP` 使用 Lua 5.1 定义的固定寄存器布局。
 
-## Value Lowering Helpers
+## 值下降辅助函数
 
-The old `ExprDesc` / `exp2*` model is no longer part of production compiler sources. The current helpers operate on `ValueResult`:
+旧 `ExprDesc` / `exp2*` 模型已不再是生产编译器源码的一部分。当前辅助函数操作 `ValueResult`：
 
-| Current helper | Purpose |
+| 当前辅助函数 | 用途 |
 |---|---|
-| `emitValue(const Expr&)` | Lower an expression into a `ValueResult` |
-| `materializeValue(const ValueResult&, i32 reg)` | Force a value into a specific register |
-| `valueToRK(const ValueResult&)` | Use RK encoding when possible, otherwise materialize |
-| `valueToAnyReg(const ValueResult&)` | Return a register containing the value |
-| `valueToNextReg(const ValueResult&)` | Materialize at the current free register and advance |
-| `forceSingleValue(const ValueResult&)` | Convert call/vararg multi-return to one value |
+| `emitValue(const Expr&)` | 将表达式下降为 `ValueResult` |
+| `materializeValue(const ValueResult&, i32 reg)` | 将值强制放入特定寄存器 |
+| `valueToRK(const ValueResult&)` | 可能时使用 RK 编码，否则物化 |
+| `valueToAnyReg(const ValueResult&)` | 返回包含该值的寄存器 |
+| `valueToNextReg(const ValueResult&)` | 在当前空闲寄存器处物化并推进 |
+| `forceSingleValue(const ValueResult&)` | 将 call/vararg 多返回值转换为单值 |
 
-## Common Flows
+## 常见流程
 
-### Local Declaration
+### 局部变量声明
 
-For `local a, b = f()`:
+对于 `local a, b = f()`：
 
-1. Save the current free register.
-2. Reserve local slots starting at `activeVarCount_`.
-3. Generate initializer values into the local base.
-4. If the final initializer is a call or vararg, set its wanted result count.
-5. Fill missing locals with `LOADNIL`.
-6. Activate locals with `adjustLocalVars`.
+1. 保存当前空闲寄存器。
+2. 从 `activeVarCount_` 开始预留局部变量槽位。
+3. 生成初始化值到局部变量基址。
+4. 如果最后一个初始化器是调用或 vararg，设置其期望的结果数量。
+5. 用 `LOADNIL` 填充缺失的局部变量。
+6. 用 `adjustLocalVars` 激活局部变量。
 
-The important invariant is that local slots and initializer result slots line up before locals become active.
+重要不变式是：局部变量槽位和初始化结果槽位在局部变量变为活跃之前必须对齐。
 
-### Function Call Expression
+### 函数调用表达式
 
-For `print(type(x))`:
+对于 `print(type(x))`：
 
-1. Lower the callee to a register.
-2. Place each argument contiguously after the callee.
-3. If the final argument is a call or vararg, decide whether it should be open-ended.
-4. Emit `CALL`.
-5. Return `CallResultInfo` so the parent context can decide whether to keep one result or many.
+1. 将被调用者下降到寄存器。
+2. 将每个参数连续放置在被调用者之后。
+3. 如果最后一个参数是调用或 vararg，决定是否应为开放式。
+4. 发射 `CALL`。
+5. 返回 `CallResultInfo`，让父上下文决定保留一个结果还是多个结果。
 
-### Return Statement
+### 返回语句
 
-For `return f()`:
+对于 `return f()`：
 
-- If the returned expression is a single call in tail position, code generation may emit `TAILCALL`.
-- If the last returned expression is call/vararg and multiple values are wanted, emit `RETURN` with `B = 0`.
-- Otherwise materialize each result into contiguous registers and emit a fixed-count `RETURN`.
+- 如果返回的表达式是尾位置的单个调用，代码生成可发射 `TAILCALL`。
+- 如果最后一个返回表达式是 call/vararg 且需要多个值，发射 `RETURN` 并设置 `B = 0`。
+- 否则将每个结果物化到连续寄存器中并发射固定计数的 `RETURN`。
 
-### Numeric For
+### 数值 For 循环
 
-The numeric for loop uses:
-
-```text
-R(base)     internal index
-R(base + 1) limit
-R(base + 2) step
-R(base + 3) visible loop variable
-```
-
-The compiler emits `FORPREP` before the body and `FORLOOP` after the body. The register allocator keeps the loop control range reserved while the loop body is generated.
-
-### Generic For
-
-The generic for loop uses:
+数值 for 循环使用：
 
 ```text
-R(base)     generator function
-R(base + 1) state
-R(base + 2) control variable
-R(base + 3) first visible loop variable
+R(base)     内部索引
+R(base + 1) 上界
+R(base + 2) 步长
+R(base + 3) 可见循环变量
 ```
 
-`TFORLOOP` writes iterator results beginning at `base + 3`.
+编译器在循环体之前发射 `FORPREP`，在循环体之后发射 `FORLOOP`。寄存器分配器在生成循环体期间保持循环控制范围被预留。
 
-## Debugging Register Bugs
+### 泛型 For 循环
 
-Most register bugs fall into one of these categories:
+泛型 for 循环使用：
 
-- A temporary was not freed and later locals shifted upward.
-- A saved free register was restored too early or too late.
-- A call argument region was not kept contiguous.
-- A multi-return call was accidentally forced to one value.
-- A loop layout reused one of Lua's reserved control registers.
+```text
+R(base)     生成器函数
+R(base + 1) 状态
+R(base + 2) 控制变量
+R(base + 3) 第一个可见循环变量
+```
 
-Useful tests:
+`TFORLOOP` 从 `base + 3` 开始写入迭代器结果。
+
+## 调试寄存器问题
+
+大多数寄存器问题属于以下类别之一：
+
+- 临时值未被释放，后续局部变量向上偏移。
+- 保存的空闲寄存器恢复过早或过晚。
+- 调用参数区域未保持连续。
+- 多返回值调用被意外强制为单值。
+- 循环布局复用了 Lua 的保留控制寄存器。
+
+实用测试：
 
 ```powershell
 bin\lua_test.exe --filter "Value Pipeline"
