@@ -1,3 +1,10 @@
+---
+status: current
+verified_against: docs/status/project-status.md; docs/index.md; docs/guides/development.md; docs/vm/instruction-set.md; docs/knowledge/README.md; docs/ai/rag-knowledge-base.md; CMakeLists.txt; lua.slnx; lua.vcxproj; lua_app.vcxproj; lua_test.vcxproj; lua_bytecode.vcxproj
+last_checked: 2026-06-13
+applies_to: repository overview and contributor entry points
+---
+
 # 现代 C++ Lua 5.1.5 解释器
 
 本项目是一个使用现代 C++ 实现的 Lua 5.1.5 解释器，覆盖从源码解析到字节码生成、虚拟机执行、垃圾回收和标准库加载的完整运行链路。它不仅关注 Lua 5.1.5 的兼容实现，也定位为展示 C++17/23 工程实践、可读架构拆分和解释器内部机制的教学示范项目。
@@ -126,7 +133,7 @@ bin\lua_test.exe --filter "Symbol Binding"
 bin\lua_test.exe --report=junit
 ```
 
-测试运行器会在输出中报告真实测试数量和断言结果。动态测试统计和质量门状态请查看 [docs/status/project-status.md](docs/status/project-status.md)。
+测试运行器会在输出中报告真实测试数量和断言结果。最近一次完整绿跑为 668 registered tests / 3404 assertion results / 0 failures。动态测试统计和质量门状态请查看 [docs/status/project-status.md](docs/status/project-status.md)。
 
 ### CMake / CTest 辅助路径
 

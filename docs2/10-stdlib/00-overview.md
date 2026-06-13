@@ -1,3 +1,10 @@
+---
+status: current
+verified_against: docs/stdlib/overview.md; docs/status/project-status.md; src/lib/; tests/unit/stdlib/
+last_checked: 2026-06-13
+applies_to: Chinese standard-library overview
+---
+
 # Standard Library Overview — 标准库概览
 
 ## 1. 标准库清单

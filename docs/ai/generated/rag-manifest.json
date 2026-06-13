@@ -1,0 +1,2564 @@
+{
+    "generated_at":  "2026-06-13T12:59:29+08:00",
+    "generator":  "tools/build_rag_index.ps1",
+    "vector_model":  "local-sparse-token-cjk-bigram-v1",
+    "root":  "E:\\Programming2\\lua_in_cpp\\lua",
+    "output_index":  "docs/ai/generated/rag-index.jsonl",
+    "output_manifest":  "docs/ai/generated/rag-manifest.json",
+    "source_roots":  [
+                         "src",
+                         "docs",
+                         "docs2"
+                     ],
+    "included_tools":  [
+                           "tools/check_doc_drift.ps1",
+                           "tools/run_quality_gate.ps1",
+                           "tools/test_quality_gate.ps1",
+                           "tools/check_opcode_coverage_matrix.ps1",
+                           "tools/check_value_result_variant_only.ps1",
+                           "tools/add_source.ps1"
+                       ],
+    "chunk_line_count":  80,
+    "overlap_line_count":  12,
+    "max_terms":  200,
+    "file_count":  417,
+    "chunk_count":  1336,
+    "high_weight_files":  [
+                              {
+                                  "path":  "docs/architecture/gc.md",
+                                  "boost":  2
+                              },
+                              {
+                                  "path":  "docs/architecture/runtime-services.md",
+                                  "boost":  2
+                              },
+                              {
+                                  "path":  "docs/compiler/codegen-responsibility-map.md",
+                                  "boost":  2
+                              },
+                              {
+                                  "path":  "docs/guides/development.md",
+                                  "boost":  2.5
+                              },
+                              {
+                                  "path":  "docs/roadmap/current.md",
+                                  "boost":  4
+                              },
+                              {
+                                  "path":  "docs/status/project-status.md",
+                                  "boost":  3
+                              },
+                              {
+                                  "path":  "docs/vm/instruction-set.md",
+                                  "boost":  4
+                              },
+                              {
+                                  "path":  "tools/check_doc_drift.ps1",
+                                  "boost":  5
+                              }
+                          ],
+    "files":  [
+                  {
+                      "path":  "docs/agents/senior-lua-architect.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/ai/rag-knowledge-base.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/architecture/coroutine.md",
+                      "chunks":  20,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/architecture/gc.md",
+                      "chunks":  3,
+                      "boost":  2,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/architecture/overview.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/architecture/patterns.md",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/architecture/runtime-services.md",
+                      "chunks":  2,
+                      "boost":  2,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/archive/coroutine/design-analysis.md",
+                      "chunks":  8,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/archive/debug/debug-notes.md",
+                      "chunks":  6,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/archive/history/exprdesc.md",
+                      "chunks":  19,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/archive/refactors/refactor-expdesc-plan.md",
+                      "chunks":  15,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/archive/refactors/refactor-expdesc-pr-checklist.md",
+                      "chunks":  12,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/archive/refactors/refactor-singlepass-cleanup-plan.md",
+                      "chunks":  9,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/archive/research/deep-research-report.md",
+                      "chunks":  7,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/compatibility/lua51.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/compatibility/lua51-full-compatibility-audit.md",
+                      "chunks":  6,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/compiler/bytecode-generation.md",
+                      "chunks":  4,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/compiler/codegen/binding.md",
+                      "chunks":  3,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/compiler/codegen/expressions.md",
+                      "chunks":  3,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/compiler/codegen/facade.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/compiler/codegen/infrastructure.md",
+                      "chunks":  4,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/compiler/codegen/jumps.md",
+                      "chunks":  3,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/compiler/codegen/statements.md",
+                      "chunks":  4,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/compiler/codegen-responsibility-map.md",
+                      "chunks":  2,
+                      "boost":  2,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/compiler/lexer.md",
+                      "chunks":  7,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/compiler/parser.md",
+                      "chunks":  7,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/compiler/register-allocation.md",
+                      "chunks":  3,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/glossary.md",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/guides/bytecode-tool.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/guides/development.md",
+                      "chunks":  11,
+                      "boost":  2.5,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/guides/repl-cli.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/guides/test-runner.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/index.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/knowledge/README.md",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/knowledge/source-document-map.md",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/learning-roadmap.md",
+                      "chunks":  4,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/projects/lua-app.md",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/projects/lua-bytecode.md",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/projects/lua-lib.md",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/projects/lua-test.md",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/roadmap/c-style-refactoring-roadmap.md",
+                      "chunks":  11,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/roadmap/current.md",
+                      "chunks":  28,
+                      "boost":  4,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/roadmap/future-architecture.md",
+                      "chunks":  32,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/roadmap/lua51-compatibility-next-stage.md",
+                      "chunks":  6,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/roadmap/modern-cpp-teaching-audit-report.md",
+                      "chunks":  6,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/roadmap/optimization_and_refactoring.md",
+                      "chunks":  10,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/status/project-status.md",
+                      "chunks":  3,
+                      "boost":  3,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/stdlib/overview.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/superpowers/plans/2026-05-20-pr-01-gc-split.md",
+                      "chunks":  9,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/superpowers/plans/2026-05-20-pr-02-vm-arith-split.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/superpowers/plans/2026-05-20-pr-03-error-hierarchy.md",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/superpowers/plans/2026-05-20-pr-04-ast-visitor.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/superpowers/plans/2026-05-20-pr-05-parser-expected.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/superpowers/plans/2026-05-20-pr-06-bytecode-output.md",
+                      "chunks":  3,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/superpowers/plans/2026-05-20-pr-07-repl-history-bytecode.md",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/superpowers/plans/2026-05-20-pr-08-gc-de-singleton.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/superpowers/plans/2026-05-20-pr-09-dispatch-strategy.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/superpowers/plans/2026-05-20-pr-10-hello-world-walkthrough.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/superpowers/plans/2026-05-20-pr-11-vm-handler-table.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/superpowers/plans/2026-05-20-pr-12-vm-global-upvalue-handlers.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/superpowers/plans/2026-05-20-pr-13-vm-table-handlers.md",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/superpowers/plans/2026-05-20-pr-14-vm-arithmetic-handlers.md",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/superpowers/plans/2026-05-20-pr-15-vm-unary-handlers.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/superpowers/plans/2026-05-20-pr-16-vm-comparison-branch-handlers.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/superpowers/plans/2026-05-20-pr-17-vm-loop-close-handlers.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/superpowers/plans/2026-05-20-pr-18-vm-closure-vararg-handlers.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/superpowers/plans/2026-05-21-pr-19-vm-call-return-handlers.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/superpowers/plans/2026-05-21-pr-20-vm-table-dispatch.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/superpowers/plans/2026-05-21-pr-21-vm-handlers-split.md",
+                      "chunks":  3,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/superpowers/plans/2026-05-21-pr-22-patterns-doc.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/superpowers/plans/2026-05-21-pr-23-codegen-expected.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/superpowers/plans/2026-05-21-pr-24-vm-expected.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/superpowers/plans/2026-05-21-pr-25-ast-visitor-concepts.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/superpowers/plans/2026-05-21-pr-26-bytecode-printer-format.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/superpowers/plans/2026-05-21-pr-27-debuglib-format.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/superpowers/plans/2026-05-21-pr-28-trace-json-format.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/superpowers/plans/2026-05-21-pr-29-repl-cli-format.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/superpowers/plans/2026-05-21-pr-30-bytecode-tool-format.md",
+                      "chunks":  3,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/superpowers/plans/2026-05-21-pr-31-nodiscard-boundaries.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/superpowers/plans/2026-05-21-pr-32-vm-instruction-span.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/superpowers/plans/2026-05-21-pr-33-opcode-metadata.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/superpowers/plans/2026-05-21-pr-34-parser-token-string-view.md",
+                      "chunks":  3,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/superpowers/plans/2026-05-21-pr-35-vm-loop-comments.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/superpowers/plans/2026-05-21-pr-36-gc-finalizer-comments.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/superpowers/plans/2026-05-21-pr-37-codegen-jump-comments.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/superpowers/plans/2026-05-21-pr-38-stage4-comment-placement.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/vm/instruction-set.md",
+                      "chunks":  2,
+                      "boost":  4,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/vm/trace-system.md",
+                      "chunks":  3,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/walkthroughs/closure-and-upvalue.md",
+                      "chunks":  5,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/walkthroughs/gc-cycle.md",
+                      "chunks":  4,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/walkthroughs/hello-world.md",
+                      "chunks":  3,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/walkthroughs/index.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/00-project-overview/00-architecture.md",
+                      "chunks":  3,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/00-project-overview/01-design-goals.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/00-project-overview/02-current-status.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/00-project-overview/03-key-concepts.md",
+                      "chunks":  3,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/00-project-overview/04-ai-generated-code-takeover-plan.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/01-execution-pipeline/00-overview.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/01-execution-pipeline/01-load-source.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/01-execution-pipeline/02-tokenize.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/01-execution-pipeline/03-parse.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/01-execution-pipeline/04-compile.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/01-execution-pipeline/05-create-runtime-function.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/01-execution-pipeline/06-vm-execute.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/01-execution-pipeline/07-return-result.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/01-execution-pipeline/08-full-trace-example.md",
+                      "chunks":  6,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/02-source-code-map/00-directory-map.md",
+                      "chunks":  3,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/02-source-code-map/01-core-files.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/02-source-code-map/02-build-files.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/02-source-code-map/03-entry-points.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/02-source-code-map/04-dependency-map.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/02-source-code-map/05-change-location-guide.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/03-lexer-parser/00-overview.md",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/03-lexer-parser/01-token-system.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/03-lexer-parser/02-lexer-state-machine.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/03-lexer-parser/03-expression-parser.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/03-lexer-parser/04-statement-parser.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/03-lexer-parser/05-scope-resolution.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/03-lexer-parser/06-function-definition.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/03-lexer-parser/07-table-constructor.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/03-lexer-parser/08-error-handling.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/03-lexer-parser/09-parser-test-cases.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/04-bytecode-compiler/00-overview.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/04-bytecode-compiler/01-opcode-reference.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/04-bytecode-compiler/02-instruction-format.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/04-bytecode-compiler/03-register-allocation.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/04-bytecode-compiler/04-constant-pool.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/04-bytecode-compiler/05-proto-structure.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/04-bytecode-compiler/06-expression-emission.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/04-bytecode-compiler/07-statement-emission.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/04-bytecode-compiler/08-jump-backpatch.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/04-bytecode-compiler/09-function-proto-generation.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/04-bytecode-compiler/10-disassembler.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/05-vm-runtime/00-overview.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/05-vm-runtime/01-vm-main-loop.md",
+                      "chunks":  3,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/05-vm-runtime/02-register-model.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/05-vm-runtime/03-call-frame.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/05-vm-runtime/04-stack-layout.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/05-vm-runtime/05-instruction-dispatch.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/05-vm-runtime/06-function-call.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/05-vm-runtime/07-native-call.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/05-vm-runtime/08-return-values.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/05-vm-runtime/09-vm-trace.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/05-vm-runtime/10-debugging-vm.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/06-value-object-system/00-overview.md",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/06-value-object-system/01-value-type.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/06-value-object-system/02-nil-boolean-number-string.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/06-value-object-system/03-object-reference-model.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/06-value-object-system/04-string-interning.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/06-value-object-system/05-equality.md",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/06-value-object-system/06-type-conversion.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/06-value-object-system/07-native-object.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/06-value-object-system/08-value-debug-print.md",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/07-table-metatable/00-overview.md",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/07-table-metatable/01-table-structure.md",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/07-table-metatable/02-array-hash-part.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/07-table-metatable/03-table-get-set.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/07-table-metatable/04-next-pairs-ipairs.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/07-table-metatable/05-metatable-overview.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/07-table-metatable/06-index-newindex.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/07-table-metatable/07-arithmetic-metamethod.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/07-table-metatable/08-comparison-metamethod.md",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/07-table-metatable/09-call-len-concat.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/07-table-metatable/10-table-test-cases.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/08-function-call-closure/00-overview.md",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/08-function-call-closure/01-proto.md",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/08-function-call-closure/02-closure.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/08-function-call-closure/03-call-frame.md",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/08-function-call-closure/04-upvalue-model.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/08-function-call-closure/05-open-upvalue.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/08-function-call-closure/06-close-upvalue.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/08-function-call-closure/07-vararg.md",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/08-function-call-closure/08-multiple-return-values.md",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/08-function-call-closure/09-tail-call.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/08-function-call-closure/10-closure-test-cases.md",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/09-control-flow/00-overview.md",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/09-control-flow/01-if-else.md",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/09-control-flow/02-while.md",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/09-control-flow/03-repeat-until.md",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/09-control-flow/04-numeric-for.md",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/09-control-flow/05-generic-for.md",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/09-control-flow/06-break.md",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/09-control-flow/07-return.md",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/09-control-flow/08-control-flow-test-cases.md",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/10-stdlib/00-overview.md",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/10-stdlib/01-base-lib.md",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/10-stdlib/02-table-lib.md",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/10-stdlib/03-string-lib.md",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/10-stdlib/04-math-lib.md",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/10-stdlib/05-coroutine-lib.md",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/10-stdlib/06-package-require.md",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/10-stdlib/07-debug-lib.md",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/10-stdlib/08-os-io-lib.md",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/10-stdlib/09-stdlib-compatibility.md",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/11-error-debug-trace/00-overview.md",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/11-error-debug-trace/01-compile-error.md",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/11-error-debug-trace/02-runtime-error.md",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/11-error-debug-trace/03-source-location.md",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/11-error-debug-trace/04-call-stack-dump.md",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/11-error-debug-trace/05-bytecode-disassembler.md",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/11-error-debug-trace/06-vm-trace-mode.md",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/11-error-debug-trace/07-debug-log-format.md",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/11-error-debug-trace/08-troubleshooting-guide.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/12-gc-memory/00-overview.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/12-gc-memory/01-object-lifetime.md",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/12-gc-memory/02-allocation-path.md",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/12-gc-memory/03-reference-graph.md",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/12-gc-memory/04-mark-sweep.md",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/12-gc-memory/05-weak-table.md",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/12-gc-memory/06-string-pool.md",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/12-gc-memory/07-memory-debugging.md",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/12-gc-memory/08-known-limitations.md",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/13-compatibility/00-lua51-compatibility-goal.md",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/13-compatibility/01-language-feature-matrix.md",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/13-compatibility/03-behavior-differences.md",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/13-compatibility/04-known-incompatibilities.md",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/13-compatibility/05-compatibility-test-suite.md",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/13-compatibility/06-compare-with-official-lua.md",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/14-testing/00-testing-strategy.md",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/14-testing/02-golden-tests.md",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/14-testing/04-regression-tests.md",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/14-testing/08-how-to-add-test.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/15-engineering-guide/00-build-and-run.md",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/15-engineering-guide/03-how-to-add-opcode.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/15-engineering-guide/04-how-to-add-stdlib-function.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/15-engineering-guide/05-how-to-add-syntax-feature.md",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/15-engineering-guide/06-how-to-debug-a-bug.md",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/15-engineering-guide/08-roadmap.md",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/16-learning-notes/00-my-mental-model.md",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/16-learning-notes/02-things-i-do-not-understand-yet.md",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/16-learning-notes/03-important-debugging-experiences.md",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/16-learning-notes/05-design-decisions-i-made.md",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs2/README.md",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "src/api/lapi.cpp",
+                      "chunks":  5,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/app/app_options.cpp",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/app/app_options.hpp",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/bytecode/bytecode_main.cpp",
+                      "chunks":  3,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/bytecode/bytecode_printer.cpp",
+                      "chunks":  12,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/bytecode/bytecode_printer.hpp",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/common/config.hpp",
+                      "chunks":  6,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/common/lua_error.hpp",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/common/macros.hpp",
+                      "chunks":  6,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/common/number_conversion.hpp",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/common/types.hpp",
+                      "chunks":  6,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/compiler/ast.cpp",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/compiler/ast.hpp",
+                      "chunks":  6,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/compiler/ast_visitor.hpp",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/compiler/codegen/bytecode_builder.hpp",
+                      "chunks":  3,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/compiler/codegen/codegen.cpp",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/compiler/codegen/codegen.hpp",
+                      "chunks":  3,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/compiler/codegen/codegen_binding.cpp",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/compiler/codegen/codegen_context.hpp",
+                      "chunks":  4,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/compiler/codegen/codegen_ops.hpp",
+                      "chunks":  4,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/compiler/codegen/codegen_state.hpp",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/compiler/codegen/codegen_stmt.cpp",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/compiler/codegen/codegen_types.hpp",
+                      "chunks":  4,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/compiler/codegen/expression_emitter.cpp",
+                      "chunks":  19,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/compiler/codegen/expression_emitter.hpp",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/compiler/codegen/function_compiler.cpp",
+                      "chunks":  4,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/compiler/codegen/function_compiler.hpp",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/compiler/codegen/gc_allocation_guard.hpp",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/compiler/codegen/jump_patcher.cpp",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/compiler/codegen/jump_patcher.hpp",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/compiler/codegen/name_binder.cpp",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/compiler/codegen/name_binder.hpp",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/compiler/codegen/scope_manager.cpp",
+                      "chunks":  3,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/compiler/codegen/scope_manager.hpp",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/compiler/codegen/statement_emitter.cpp",
+                      "chunks":  17,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/compiler/codegen/statement_emitter.hpp",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/compiler/lexer/lexer.cpp",
+                      "chunks":  13,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/compiler/lexer/lexer.hpp",
+                      "chunks":  6,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/compiler/lexer/lexer_cursor.cpp",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/compiler/lexer/lexer_cursor.hpp",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/compiler/opcode.cpp",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/compiler/opcode.hpp",
+                      "chunks":  8,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/compiler/parser/parser.cpp",
+                      "chunks":  4,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/compiler/parser/parser.hpp",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/compiler/parser/parser_expr.cpp",
+                      "chunks":  3,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/compiler/parser/parser_func.cpp",
+                      "chunks":  3,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/compiler/parser/parser_impl.hpp",
+                      "chunks":  5,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/compiler/parser/parser_primary.cpp",
+                      "chunks":  4,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/compiler/parser/parser_stmt.cpp",
+                      "chunks":  6,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/compiler/parser/parser_table.cpp",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/compiler/parser/parser_utils.hpp",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/compiler/parser/token.hpp",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/compiler/register_allocator.hpp",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/core/function.cpp",
+                      "chunks":  5,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/core/function.hpp",
+                      "chunks":  13,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/core/gc_object.cpp",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/core/gc_object.hpp",
+                      "chunks":  5,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/core/gc_string.cpp",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/core/gc_string.hpp",
+                      "chunks":  4,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/core/metatable.cpp",
+                      "chunks":  5,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/core/metatable.hpp",
+                      "chunks":  5,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/core/string_pool.cpp",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/core/string_pool.hpp",
+                      "chunks":  4,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/core/table.cpp",
+                      "chunks":  8,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/core/table.hpp",
+                      "chunks":  6,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/core/thread.cpp",
+                      "chunks":  5,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/core/thread.hpp",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/core/upvalue.cpp",
+                      "chunks":  3,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/core/upvalue.hpp",
+                      "chunks":  4,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/core/userdata.cpp",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/core/userdata.hpp",
+                      "chunks":  4,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/core/value.cpp",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/core/value.hpp",
+                      "chunks":  7,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/debug/json_trace_sink.cpp",
+                      "chunks":  3,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/debug/json_trace_sink.hpp",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/debug/trace_sink.hpp",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/debug/trace_types.hpp",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/debug/value_serializer.cpp",
+                      "chunks":  3,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/debug/value_serializer.hpp",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/gc/garbage_collector.cpp",
+                      "chunks":  10,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/gc/garbage_collector.hpp",
+                      "chunks":  9,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/gc/gc_finalize.cpp",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/gc/gc_mark.cpp",
+                      "chunks":  5,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/gc/gc_strategy.cpp",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/gc/gc_strategy.hpp",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/gc/gc_sweep.cpp",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/gc/gc_weak.cpp",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/io/dynamic_buffer.cpp",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/io/dynamic_buffer.hpp",
+                      "chunks":  3,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/io/file_loader.cpp",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/io/file_loader.hpp",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/io/input_stream.cpp",
+                      "chunks":  4,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/io/input_stream.hpp",
+                      "chunks":  4,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/lauxlib.h",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/lib/baselib.cpp",
+                      "chunks":  30,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/lib/baselib.hpp",
+                      "chunks":  3,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/lib/coroutinelib.cpp",
+                      "chunks":  4,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/lib/coroutinelib.hpp",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/lib/debuglib.cpp",
+                      "chunks":  21,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/lib/debuglib.hpp",
+                      "chunks":  3,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/lib/iolib.cpp",
+                      "chunks":  18,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/lib/iolib.hpp",
+                      "chunks":  5,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/lib/lib_catalog.cpp",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/lib/lib_catalog.hpp",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/lib/lib_manager.cpp",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/lib/lib_manager.hpp",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/lib/lib_module.hpp",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/lib/lib_registry.cpp",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/lib/lib_registry.hpp",
+                      "chunks":  3,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/lib/mathlib.cpp",
+                      "chunks":  7,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/lib/mathlib.hpp",
+                      "chunks":  4,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/lib/oslib.cpp",
+                      "chunks":  7,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/lib/oslib.hpp",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/lib/packagelib.cpp",
+                      "chunks":  19,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/lib/packagelib.hpp",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/lib/stringlib.cpp",
+                      "chunks":  22,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/lib/stringlib.hpp",
+                      "chunks":  3,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/lib/tablelib.cpp",
+                      "chunks":  8,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/lib/tablelib.hpp",
+                      "chunks":  3,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/lib/testlib.cpp",
+                      "chunks":  6,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/lib/testlib.hpp",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/lua.h",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/lualib.h",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/main.cpp",
+                      "chunks":  11,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/repl.cpp",
+                      "chunks":  5,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/repl.hpp",
+                      "chunks":  4,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/repl/repl_comp.cpp",
+                      "chunks":  5,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/repl/repl_comp.hpp",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/repl/repl_ctx.cpp",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/repl/repl_ctx.hpp",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/repl/repl_exe.cpp",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/repl/repl_exe.hpp",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/repl/repl_hist.cpp",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/repl/repl_hist.hpp",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/repl/repl_meta.cpp",
+                      "chunks":  11,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/repl/repl_meta.hpp",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/repl/repl_prompt.cpp",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/repl/repl_prompt.hpp",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/repl/repl_sig.cpp",
+                      "chunks":  3,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/repl/repl_sig.hpp",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/repl/repl_txt.hpp",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/runtime/runtime_services.hpp",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/vm/state/call_info.hpp",
+                      "chunks":  4,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/vm/state/global_state.cpp",
+                      "chunks":  3,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/vm/state/global_state.hpp",
+                      "chunks":  4,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/vm/state/lua_state.cpp",
+                      "chunks":  16,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/vm/state/lua_state.hpp",
+                      "chunks":  12,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/vm/state/stack.cpp",
+                      "chunks":  3,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/vm/state/stack.hpp",
+                      "chunks":  4,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/vm/vm.cpp",
+                      "chunks":  6,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/vm/vm.hpp",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/vm/vm_arith.cpp",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/vm/vm_call.cpp",
+                      "chunks":  5,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/vm/vm_constants.hpp",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/vm/vm_dispatch.hpp",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/vm/vm_dispatch_strategy.cpp",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/vm/vm_dispatch_strategy.hpp",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/vm/vm_entry.cpp",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/vm/vm_frame.cpp",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/vm/vm_handlers.cpp",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/vm/vm_handlers.hpp",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/vm/vm_handlers/vm_diagnostics.hpp",
+                      "chunks":  4,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/vm/vm_handlers/vm_handler_utils.hpp",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/vm/vm_handlers/vm_handlers_arith.cpp",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/vm/vm_handlers/vm_handlers_branch.cpp",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/vm/vm_handlers/vm_handlers_call.cpp",
+                      "chunks":  3,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/vm/vm_handlers/vm_handlers_closure.cpp",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/vm/vm_handlers/vm_handlers_data.cpp",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/vm/vm_handlers/vm_handlers_global_upvalue.cpp",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/vm/vm_handlers/vm_handlers_loop.cpp",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/vm/vm_handlers/vm_handlers_table.cpp",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/vm/vm_handlers/vm_handlers_unary.cpp",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/vm/vm_internal.hpp",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/vm/vm_loop.cpp",
+                      "chunks":  2,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/vm/vm_ops.cpp",
+                      "chunks":  5,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/vm/vm_switch_dispatch.hpp",
+                      "chunks":  4,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/vm/vm_table.cpp",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "src/vm/vm_trace.cpp",
+                      "chunks":  5,
+                      "boost":  1,
+                      "kind":  "source"
+                  },
+                  {
+                      "path":  "tools/add_source.ps1",
+                      "chunks":  7,
+                      "boost":  1,
+                      "kind":  "tool"
+                  },
+                  {
+                      "path":  "tools/check_doc_drift.ps1",
+                      "chunks":  7,
+                      "boost":  5,
+                      "kind":  "tool"
+                  },
+                  {
+                      "path":  "tools/check_opcode_coverage_matrix.ps1",
+                      "chunks":  4,
+                      "boost":  1,
+                      "kind":  "tool"
+                  },
+                  {
+                      "path":  "tools/check_value_result_variant_only.ps1",
+                      "chunks":  1,
+                      "boost":  1,
+                      "kind":  "tool"
+                  },
+                  {
+                      "path":  "tools/run_quality_gate.ps1",
+                      "chunks":  4,
+                      "boost":  1,
+                      "kind":  "tool"
+                  },
+                  {
+                      "path":  "tools/test_quality_gate.ps1",
+                      "chunks":  4,
+                      "boost":  1,
+                      "kind":  "tool"
+                  }
+              ]
+}

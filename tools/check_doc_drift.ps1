@@ -24,7 +24,7 @@ function Read-Text {
     if (-not (Test-Path -LiteralPath $path)) {
         throw "Missing required file: $RelativePath"
     }
-    return Get-Content -LiteralPath $path -Raw
+    return [System.IO.File]::ReadAllText($path, [System.Text.Encoding]::UTF8)
 }
 
 function Test-FrontMatter {
@@ -185,6 +185,10 @@ $coreDocs = @(
     "docs/guides/repl-cli.md",
     "docs/guides/test-runner.md",
     "docs/guides/bytecode-tool.md",
+    "docs/knowledge/README.md",
+    "docs/knowledge/source-document-map.md",
+    "docs/ai/rag-knowledge-base.md",
+    "docs/agents/senior-lua-architect.md",
     "docs/glossary.md",
     "docs/walkthroughs/index.md",
     "docs/projects/lua-lib.md",
@@ -210,7 +214,24 @@ $coreDocs = @(
     "docs/archive/refactors/refactor-expdesc-pr-checklist.md",
     "docs/archive/refactors/refactor-singlepass-cleanup-plan.md",
     "docs/archive/history/exprdesc.md",
-    "examples/README.md"
+    "examples/README.md",
+    "docs2/README.md",
+    "docs2/00-project-overview/00-architecture.md",
+    "docs2/00-project-overview/02-current-status.md",
+    "docs2/02-source-code-map/00-directory-map.md",
+    "docs2/02-source-code-map/01-core-files.md",
+    "docs2/02-source-code-map/05-change-location-guide.md",
+    "docs2/03-lexer-parser/00-overview.md",
+    "docs2/04-bytecode-compiler/00-overview.md",
+    "docs2/05-vm-runtime/00-overview.md",
+    "docs2/06-value-object-system/00-overview.md",
+    "docs2/07-table-metatable/00-overview.md",
+    "docs2/08-function-call-closure/00-overview.md",
+    "docs2/10-stdlib/00-overview.md",
+    "docs2/12-gc-memory/00-overview.md",
+    "docs2/13-compatibility/00-lua51-compatibility-goal.md",
+    "docs2/14-testing/00-testing-strategy.md",
+    "docs2/15-engineering-guide/00-build-and-run.md"
 )
 
 foreach ($doc in $coreDocs) {
@@ -220,7 +241,7 @@ foreach ($doc in $coreDocs) {
         continue
     }
 
-    $text = Get-Content -LiteralPath $path -Raw
+    $text = Read-Text $doc
     if (-not (Test-FrontMatter $text)) {
         Add-Failure $failures "Missing or invalid fact header: $doc"
         continue
@@ -231,7 +252,7 @@ foreach ($doc in $coreDocs) {
     }
 }
 
-foreach ($requiredFile in @("CMakeLists.txt", "tools/run_cmake_smoke.ps1", "tools/add_source.ps1")) {
+foreach ($requiredFile in @("CMakeLists.txt", "tools/run_cmake_smoke.ps1", "tools/add_source.ps1", "tools/build_rag_index.ps1", "tools/search_rag_index.ps1")) {
     $path = Join-RepoPath $requiredFile
     if (-not (Test-Path -LiteralPath $path)) {
         Add-Failure $failures "Missing build support file: $requiredFile"
@@ -296,6 +317,8 @@ $testSummary = Get-TestRunSummary -Failures $failures -ExecutablePath (Resolve-T
 if ($null -ne $testSummary) {
     Assert-DocHasCurrentTestCounts -Failures $failures -RelativePath "README.md" -Summary $testSummary
     Assert-DocHasCurrentTestCounts -Failures $failures -RelativePath "docs/status/project-status.md" -Summary $testSummary
+    Assert-DocHasCurrentTestCounts -Failures $failures -RelativePath "docs2/00-project-overview/02-current-status.md" -Summary $testSummary
+    Assert-DocHasCurrentTestCounts -Failures $failures -RelativePath "docs2/14-testing/00-testing-strategy.md" -Summary $testSummary
 }
 
 $runtimeServicesDoc = Read-Text "docs/architecture/runtime-services.md"
@@ -347,6 +370,27 @@ $examplesDoc = Read-Text "examples/README.md"
 foreach ($required in @("bin\lua_app.exe", "hello.lua", "control_flow.lua", "tables_and_methods.lua", "metamethods.lua")) {
     if ($examplesDoc -notmatch [regex]::Escape($required)) {
         Add-Failure $failures "examples/README.md is missing example reference: $required"
+    }
+}
+
+$sourceMapDoc = Read-Text "docs/knowledge/source-document-map.md"
+foreach ($required in @("Compiler", "VM", "Runtime", "GC", "docs/roadmap/current.md", "docs/vm/instruction-set.md", "tools/check_doc_drift.ps1")) {
+    if ($sourceMapDoc -notmatch [regex]::Escape($required)) {
+        Add-Failure $failures "docs/knowledge/source-document-map.md is missing source/document map fact: $required"
+    }
+}
+
+$ragDoc = Read-Text "docs/ai/rag-knowledge-base.md"
+foreach ($required in @("tools/build_rag_index.ps1", "tools/search_rag_index.ps1", "docs/roadmap/current.md", "docs/vm/instruction-set.md", "tools/check_doc_drift.ps1", "4.0")) {
+    if ($ragDoc -notmatch [regex]::Escape($required)) {
+        Add-Failure $failures "docs/ai/rag-knowledge-base.md is missing RAG fact: $required"
+    }
+}
+
+$agentDoc = Read-Text "docs/agents/senior-lua-architect.md"
+foreach ($required in @("docs/roadmap/current.md", "docs/guides/development.md", "tools/check_doc_drift.ps1", "RAII", "std::variant", "tools/run_quality_gate.ps1")) {
+    if ($agentDoc -notmatch [regex]::Escape($required)) {
+        Add-Failure $failures "docs/agents/senior-lua-architect.md is missing agent workflow fact: $required"
     }
 }
 

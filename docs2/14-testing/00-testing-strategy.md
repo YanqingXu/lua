@@ -1,3 +1,10 @@
+---
+status: current
+verified_against: docs/status/project-status.md; docs/guides/test-runner.md; tests/unit/framework/test_runner.cpp; tools/run_quality_gate.ps1; tools/check_doc_drift.ps1
+last_checked: 2026-06-13
+applies_to: Chinese testing strategy overview
+---
+
 # Testing Strategy — 测试策略
 
 ## 1. 测试层次
@@ -30,7 +37,7 @@
 注册测试: 668
 断言结果: 3404
 通过率:   100% (3404/3404)
-失败测试: 0
+失败测试: 0 (0 failures)
 
 编译: Release|x64 /W4 无警告
 平台: Windows + MSVC

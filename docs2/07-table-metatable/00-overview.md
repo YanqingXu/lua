@@ -1,3 +1,10 @@
+---
+status: current
+verified_against: docs/architecture/overview.md; src/core/table.hpp; src/core/table.cpp; src/core/metatable.hpp; src/core/metatable.cpp; tests/unit/core/test_table.cpp; tests/unit/metamethod/
+last_checked: 2026-06-13
+applies_to: Chinese table and metatable overview
+---
+
 # Table & Metatable Overview
 
 ## 1. 这个模块解决什么问题？

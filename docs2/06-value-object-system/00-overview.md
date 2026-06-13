@@ -1,3 +1,10 @@
+---
+status: current
+verified_against: docs/architecture/overview.md; docs/architecture/runtime-services.md; src/core/value.hpp; src/core/value.cpp; src/core/gc_object.hpp; src/core/string_pool.hpp
+last_checked: 2026-06-13
+applies_to: Chinese runtime value and object-system overview
+---
+
 # Value & Object System Overview — 值对象系统概览
 
 ## 1. 这个模块解决什么问题？

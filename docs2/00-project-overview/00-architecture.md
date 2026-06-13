@@ -1,3 +1,10 @@
+---
+status: current
+verified_against: docs/architecture/overview.md; docs/status/project-status.md; docs/vm/instruction-set.md; docs/architecture/runtime-services.md; docs/architecture/gc.md; docs2/02-source-code-map/00-directory-map.md
+last_checked: 2026-06-13
+applies_to: Chinese high-level architecture overview
+---
+
 # 整体架构
 
 ## 1. 这个模块解决什么问题？

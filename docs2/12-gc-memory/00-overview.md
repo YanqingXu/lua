@@ -1,3 +1,10 @@
+---
+status: current
+verified_against: docs/architecture/gc.md; docs/walkthroughs/gc-cycle.md; src/gc/; src/core/gc_object.hpp; src/core/string_pool.hpp; tests/unit/gc/test_gc.cpp
+last_checked: 2026-06-13
+applies_to: Chinese garbage-collector and memory overview
+---
+
 # GC & Memory Overview — 垃圾回收与内存
 
 ## 1. GC 架构

@@ -67,13 +67,13 @@ REPL 初始化：
 - `exit()` 通过注册的函数退出
 - Ctrl+D / EOF 退出
 - Ctrl+C 在支持时取消当前输入
-- 默认 prompt 带行号，首行显示 `lua:1>`，续行显示 `lua:2>>`
+- 默认 prompt 带行号（line-numbered），首行显示 `lua:1>`，续行显示 `lua:2>>`
 - 自定义多行 prompt 原样使用 `_PROMPT2`
 - 以 `<eof>` 结尾的 parser 错误保持缓冲区开放以继续输入；确定的语法错误立即报告
 - `=expr` 被转换为 `return expr` 并打印返回值
 - 普通输入作为语句解析，不自动打印表达式值
-- Tab 补全覆盖元命令、全局变量和已加载库字段（如 `string.sub`）
-- 彩色错误输出仅在终端 REPL 会话中启用；重定向输出保持纯文本
+- Tab 补全（Tab completion）覆盖元命令、全局变量和已加载库字段（如 `string.sub`）
+- 彩色错误输出（colorized error output）仅在终端 REPL 会话中启用；重定向输出保持纯文本
 
 支持的元命令：
 

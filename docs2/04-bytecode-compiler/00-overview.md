@@ -1,3 +1,10 @@
+---
+status: current
+verified_against: docs/compiler/bytecode-generation.md; docs/compiler/codegen-responsibility-map.md; docs/vm/instruction-set.md; src/compiler/opcode.hpp; src/compiler/codegen/
+last_checked: 2026-06-13
+applies_to: Chinese bytecode compiler overview
+---
+
 # Bytecode Compiler Overview — 字节码编译概览
 
 ## 1. 这个模块解决什么问题？

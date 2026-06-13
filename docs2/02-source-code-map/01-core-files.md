@@ -1,3 +1,10 @@
+---
+status: current
+verified_against: docs/architecture/overview.md; src/compiler/; src/core/; src/vm/; src/gc/
+last_checked: 2026-06-13
+applies_to: Chinese core-file responsibility notes
+---
+
 # Core Files — 核心文件说明
 
 ## 1. 这个模块解决什么问题？

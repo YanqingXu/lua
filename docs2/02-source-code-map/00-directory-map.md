@@ -1,3 +1,10 @@
+---
+status: current
+verified_against: docs/architecture/overview.md; src/compiler/; src/core/; src/vm/; src/gc/; src/lib/; src/runtime/runtime_services.hpp
+last_checked: 2026-06-13
+applies_to: Chinese source directory map and module locator
+---
+
 # Directory Map — 源码目录地图
 
 ## 1. 这个模块解决什么问题？

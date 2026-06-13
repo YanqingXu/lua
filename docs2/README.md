@@ -1,3 +1,10 @@
+---
+status: current
+verified_against: docs/index.md; docs/status/project-status.md; docs/knowledge/README.md; docs/knowledge/source-document-map.md; docs2/00-project-overview/00-architecture.md; docs2/02-source-code-map/00-directory-map.md
+last_checked: 2026-06-13
+applies_to: Chinese architecture-understanding documentation entry point
+---
+
 # Lua Interpreter Documentation
 
 > **从 Lua 源码输入 → 编译/解释 → VM 执行 → 运行时对象 → 标准库/工程化 → 测试验证**
@@ -67,3 +74,5 @@
 - **想改代码不知道在哪** → [02-source-code-map/05-change-location-guide.md](02-source-code-map/05-change-location-guide.md)
 - **遇到 Bug 不知道怎么排查** → [11-error-debug-trace/08-troubleshooting-guide.md](11-error-debug-trace/08-troubleshooting-guide.md)
 - **想了解当前能力边界** → [13-compatibility/01-language-feature-matrix.md](13-compatibility/01-language-feature-matrix.md)
+- **想让 AI 续接任务** → [../docs/agents/senior-lua-architect.md](../docs/agents/senior-lua-architect.md)
+- **想查源码和文档映射** → [../docs/knowledge/source-document-map.md](../docs/knowledge/source-document-map.md)

@@ -1,3 +1,10 @@
+---
+status: current
+verified_against: docs/guides/development.md; docs2/02-source-code-map/00-directory-map.md; src/compiler/; src/core/; src/vm/; src/gc/; src/lib/
+last_checked: 2026-06-13
+applies_to: Chinese change-location guide for common interpreter tasks
+---
+
 # Change Location Guide — 改动位置指南
 
 ## 1. 这个模块解决什么问题？

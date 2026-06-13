@@ -1,3 +1,10 @@
+---
+status: current
+verified_against: docs/compatibility/lua51.md; docs/compatibility/lua51-full-compatibility-audit.md; docs/roadmap/lua51-compatibility-next-stage.md; tests/lua/official/
+last_checked: 2026-06-13
+applies_to: Chinese Lua 5.1 compatibility goal summary
+---
+
 # Lua 5.1 Compatibility Goal — 兼容性目标
 
 ## 1. 兼容性策略

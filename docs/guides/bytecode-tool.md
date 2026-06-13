@@ -12,9 +12,9 @@ applies_to: lua_bytecode command-line tool status
 当前状态适用于字节码检查、轻量级字节码比较和控制流可视化：
 
 - `src/bytecode/bytecode_main.cpp` 为 print / `--cfg` 模式读取一个脚本，或为 `--diff` 读取两个脚本，解析它们，生成 `Proto` 对象，并调用打印器 API。
-- `src/bytecode/bytecode_printer.cpp` 打印 Proto 头、解码后的指令、常量引用、常量表，以及在完整模式下递归打印子 proto。
-- `printProtoBytecodeDiff()` 渲染两侧，忽略 source-path 元数据噪声，并仅在并排差异表中打印发生变化的行。
-- `printProtoBytecodeCfg()` 渲染 Mermaid `flowchart TD`，包含基本块、跳转边、TEST / TFORLOOP companion-jump 边、FORLOOP 回边和返回出口。
+- `src/bytecode/bytecode_printer.cpp` 打印 Proto 头、解码后的指令（decoded instructions）、常量引用（constant references）、常量表（constant table），以及在完整模式下递归打印子 proto（recursive child protos in full mode）。
+- `printProtoBytecodeDiff()` 渲染两侧，忽略 source-path 元数据噪声，并仅在并排差异表（side-by-side）中打印发生变化的行（changed lines）。
+- `printProtoBytecodeCfg()` 渲染 Mermaid `flowchart TD`，包含基本块（basic blocks）、跳转边、TEST / TFORLOOP companion-jump 边、FORLOOP 回边和返回出口等控制流边（control-flow edges）。
 
 因此该工具适用于跨闭包的字节码检查、比较两个生成的字节码列表，以及将控制流图粘贴到支持 Mermaid 的文档中。
 

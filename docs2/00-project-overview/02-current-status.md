@@ -1,3 +1,10 @@
+---
+status: current
+verified_against: docs/status/project-status.md; docs/roadmap/current.md; docs/compatibility/lua51.md; docs/compatibility/lua51-full-compatibility-audit.md
+last_checked: 2026-06-13
+applies_to: Chinese current-status summary, with docs/status/project-status.md as source of truth
+---
+
 # Current Status — 当前状态
 
 ## 1. 这个模块解决什么问题？
@@ -46,7 +53,7 @@
 - ✅ 分阶段 step 推进
 
 ### 测试
-- ✅ 668 个注册测试，3404 个断言，0 失败
+- ✅ 668 个注册测试，3404 个断言，0 失败（0 failures）
 - ✅ Lua 5.1 官方测试套件 staged smoke 接入
 - ✅ 多类别单元测试（compiler/core/vm/gc/stdlib/metamethod）
 

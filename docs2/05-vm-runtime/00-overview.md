@@ -1,3 +1,10 @@
+---
+status: current
+verified_against: docs/vm/instruction-set.md; docs/vm/trace-system.md; docs/architecture/runtime-services.md; src/vm/; src/runtime/runtime_services.hpp
+last_checked: 2026-06-13
+applies_to: Chinese VM runtime overview
+---
+
 # VM Runtime Overview — 虚拟机运行概览
 
 ## 1. 这个模块解决什么问题？

@@ -1,3 +1,10 @@
+---
+status: current
+verified_against: docs/walkthroughs/closure-and-upvalue.md; docs/compiler/bytecode-generation.md; src/core/function.hpp; src/core/upvalue.hpp; src/vm/vm_call.cpp; src/vm/vm_frame.cpp
+last_checked: 2026-06-13
+applies_to: Chinese function, closure, and upvalue overview
+---
+
 # Function & Closure Overview
 
 ## 1. 这个模块解决什么问题？

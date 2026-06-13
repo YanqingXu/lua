@@ -1,6 +1,6 @@
 ---
 status: current
-verified_against: docs/status/project-status.md; docs/guides/development.md; docs/architecture/patterns.md; docs/walkthroughs/index.md; docs/walkthroughs/gc-cycle.md; docs/glossary.md; docs/compatibility/lua51.md; docs/roadmap/lua51-compatibility-next-stage.md; examples/README.md
+verified_against: docs/status/project-status.md; docs/guides/development.md; docs/architecture/patterns.md; docs/walkthroughs/index.md; docs/walkthroughs/gc-cycle.md; docs/glossary.md; docs/compatibility/lua51.md; docs/roadmap/lua51-compatibility-next-stage.md; docs/knowledge/README.md; docs/knowledge/source-document-map.md; docs/ai/rag-knowledge-base.md; docs/agents/senior-lua-architect.md; examples/README.md
 last_checked: 2026-05-31
 applies_to: first-read learning path for contributors and readers
 ---
@@ -101,6 +101,13 @@ source text
 | 解释器 / REPL `lua_app` | `docs/projects/lua-app.md`, `docs/guides/repl-cli.md` |
 | 测试入口 `lua_test` | `docs/projects/lua-test.md`, `docs/guides/test-runner.md` |
 | 字节码工具 `lua_bytecode` | `docs/projects/lua-bytecode.md`, `docs/guides/bytecode-tool.md` |
+
+## AI 协作入口
+
+- `docs/knowledge/README.md`：说明 `docs/`、`docs2/`、RAG 和 Agent 文档之间的分工。
+- `docs/knowledge/source-document-map.md`：把 Compiler、VM、Runtime、GC 的源码、测试和深度文档映射到一起。
+- `docs/ai/rag-knowledge-base.md`：说明本地 RAG 索引、boost 策略和检索命令。
+- `docs/agents/senior-lua-architect.md`：定义“高级 Lua 解释器架构师”Agent 的续接、审查和文档同步流程。
 
 ## 示例脚本
 

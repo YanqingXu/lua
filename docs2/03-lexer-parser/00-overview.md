@@ -1,3 +1,10 @@
+---
+status: current
+verified_against: docs/compiler/lexer.md; docs/compiler/parser.md; docs/compiler/bytecode-generation.md; src/compiler/lexer/; src/compiler/parser/; src/compiler/ast.hpp
+last_checked: 2026-06-13
+applies_to: Chinese lexer and parser overview
+---
+
 # Lexer & Parser Overview
 
 ## 1. 这个模块解决什么问题？
