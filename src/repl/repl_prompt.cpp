@@ -2,8 +2,6 @@
 
 #include "core/gc_string.hpp"
 
-#include <format>
-
 namespace Lua::REPL::detail {
 namespace {
 
@@ -30,24 +28,11 @@ Str getConfiguredPrompt(LuaState* L, bool firstLine) {
     return defaultPrompt;
 }
 
-bool isDefaultPrompt(const Str& prompt, bool firstLine) {
-    return prompt == (firstLine ? DEFAULT_PROMPT1 : DEFAULT_PROMPT2);
-}
-
 }  // namespace
 
-Str formatLinePrompt(usize lineNumber, bool firstLine) {
-    const usize visibleLine = lineNumber == 0 ? 1 : lineNumber;
-    return std::format("lua:{}{} ", visibleLine, firstLine ? ">" : ">>");
-}
-
 Str getPrompt(LuaState* L, bool firstLine, usize lineNumber) {
-    const Str configuredPrompt = getConfiguredPrompt(L, firstLine);
-    if (isDefaultPrompt(configuredPrompt, firstLine)) {
-        return formatLinePrompt(lineNumber, firstLine);
-    }
-
-    return configuredPrompt;
+    (void)lineNumber;
+    return getConfiguredPrompt(L, firstLine);
 }
 
 }  // namespace Lua::REPL::detail

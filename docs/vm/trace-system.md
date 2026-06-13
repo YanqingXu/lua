@@ -5,147 +5,147 @@ last_checked: 2026-05-23
 applies_to: current JSONL VM trace system
 ---
 
-# VM Trace System
+# VM Trace 系统
 
-The VM trace system records execution events from the bytecode interpreter and writes them as JSONL. It is intentionally off by default and is enabled by installing an `ITraceSink`.
+VM trace 系统从字节码解释器记录执行事件并以 JSONL 格式写入。它默认关闭，通过安装 `ITraceSink` 来启用。
 
-Current user-facing entry:
+当前面向用户的入口：
 
 ```powershell
 bin\lua_app.exe --trace trace.jsonl examples\hello.lua
 bin\lua_app.exe --trace-diff trace-diff.jsonl examples\hello.lua
 ```
 
-There is no checked-in HTML trace viewer yet. Earlier viewer ideas are historical; the current implemented surface is JSONL output.
+尚无提交的 HTML trace 查看器。早期的查看器设想是历史性的；当前已实现的输出面是 JSONL。
 
-## Components
+## 组件
 
-| Component | File | Responsibility |
+| 组件 | 文件 | 职责 |
 |---|---|---|
-| `TraceEventKind` / `TraceEvent` | `src/debug/trace_types.hpp` | Shared event shape |
-| `ITraceSink` | `src/debug/trace_sink.hpp` | Trace sink interface |
-| `NullTraceSink` | `src/debug/trace_sink.hpp` | No-op sink |
-| `JsonTraceSink` | `src/debug/json_trace_sink.*` | JSONL writer |
-| Value serialization | `src/debug/value_serializer.*` | Convert `Value` and registers to JSON-compatible text |
-| VM trace hooks | `src/vm/vm_trace.cpp` | Build and emit instruction/call/return events |
-| CLI wiring | `src/app/app_options.cpp`, `src/main.cpp` | Parse `--trace <file>` / `--trace-diff <file>` and install sink |
+| `TraceEventKind` / `TraceEvent` | `src/debug/trace_types.hpp` | 共享事件形态 |
+| `ITraceSink` | `src/debug/trace_sink.hpp` | Trace sink 接口 |
+| `NullTraceSink` | `src/debug/trace_sink.hpp` | 空操作 sink |
+| `JsonTraceSink` | `src/debug/json_trace_sink.*` | JSONL 写入器 |
+| 值序列化 | `src/debug/value_serializer.*` | 将 `Value` 和寄存器转换为 JSON 兼容文本 |
+| VM trace hook | `src/vm/vm_trace.cpp` | 构建和发射 instruction/call/return 事件 |
+| CLI 装配 | `src/app/app_options.cpp`, `src/main.cpp` | 解析 `--trace <file>` / `--trace-diff <file>` 并安装 sink |
 
-## Event Types
+## 事件类型
 
-`TraceEventKind` currently defines:
+`TraceEventKind` 当前定义：
 
 - `Instruction`
 - `Call`
 - `Return`
 - `Error`
 
-`JsonTraceSink` implements `onError`, but the current VM path does not yet emit runtime error trace events. Treat error events as reserved schema support.
+`JsonTraceSink` 实现了 `onError`，但当前 VM 路径尚未发射运行时错误 trace 事件。将 error 事件视为保留的 schema 支持。
 
-`VM Trace Debug` includes two exact JSONL golden tests for a tiny script:
+`VM Trace Debug` 为一个微型脚本包含两个精确 JSONL golden 测试：
 
-- `Trace JSONL Plain Golden` locks the plain trace sequence with full `registers` snapshots.
-- `Trace JSONL Diff Golden` locks the `--trace-diff` sequence with `changedRegisters` and no full `registers` snapshots.
+- `Trace JSONL Plain Golden` 锁定带完整 `registers` 快照的普通 trace 序列。
+- `Trace JSONL Diff Golden` 锁定带 `changedRegisters` 且无完整 `registers` 快照的 `--trace-diff` 序列。
 
-The golden script intentionally uses only numbers and locals so the output does not contain pointer-shaped function, table, userdata, or thread values.
+Golden 脚本有意仅使用数字和局部变量，使输出不包含指针形式的 function、table、userdata 或 thread 值。
 
-## Instruction Event
+## Instruction 事件
 
-Instruction events include decoded operands, source location, and the current function label. Plain `--trace` also includes a full frame register snapshot when the VM can provide one:
+Instruction 事件包含解码后的操作数、源码位置和当前函数标签。Plain `--trace` 在 VM 可提供时还包含完整帧寄存器快照：
 
 ```json
 {"seq":0,"kind":"instruction","funcName":"examples/hello.lua","pc":0,"op":"LOADK","a":0,"b":0,"c":0,"bx":0,"sbx":0,"line":1,"source":"examples/hello.lua","callDepth":1,"registers":[]}
 ```
 
-Fields:
+字段：
 
-| Field | Meaning |
+| 字段 | 含义 |
 |---|---|
-| `seq` | Monotonic event sequence number |
+| `seq` | 单调递增的事件序列号 |
 | `kind` | `"instruction"` |
-| `funcName` | Readable current function label, normally `source` or `source:linedefined` |
-| `pc` | Program counter within the current `Proto` |
-| `op` | Opcode name |
-| `a`, `b`, `c`, `bx`, `sbx` | Decoded instruction operands |
-| `line` | Source line from `Proto` line info |
-| `source` | Source name from the active `Proto` |
-| `callDepth` | Current logical VM call depth |
-| `registers` | Serialized frame register snapshot in plain trace mode |
-| `changedRegisters` | Register changes in diff trace mode |
+| `funcName` | 可读的当前函数标签，通常为 `source` 或 `source:linedefined` |
+| `pc` | 当前 `Proto` 内的程序计数器 |
+| `op` | 操作码名称 |
+| `a`、`b`、`c`、`bx`、`sbx` | 解码后的指令操作数 |
+| `line` | `Proto` 行信息的源码行号 |
+| `source` | 活跃 `Proto` 的源码名称 |
+| `callDepth` | 当前逻辑 VM 调用深度 |
+| `registers` | Plain trace 模式下的序列化帧寄存器快照 |
+| `changedRegisters` | Diff trace 模式下的寄存器变更 |
 
-## Call And Return Events
+## Call 和 Return 事件
 
-Call events are emitted around visible VM call points:
+Call 事件在可见 VM 调用点周围发射：
 
 ```json
 {"seq":3,"kind":"call","funcName":"examples/hello.lua:1","source":"examples/hello.lua","line":1,"callDepth":2}
 ```
 
-For call events, `funcName` names the callee when it is known. For instruction and return events, it names the active or returning `Proto`.
+对于 call 事件，`funcName` 在已知时命名被调用者。对于 instruction 和 return 事件，它命名活跃或正在返回的 `Proto`。
 
-Return events include the same function label and source location:
+Return 事件包含相同的函数标签和源码位置：
 
 ```json
 {"seq":8,"kind":"return","funcName":"examples/hello.lua:1","source":"examples/hello.lua","line":2,"callDepth":1}
 ```
 
-## Register Snapshots
+## 寄存器快照
 
-Instruction events may include `registers`. Each element includes:
+Instruction 事件可包含 `registers`。每个元素包含：
 
-| Field | Meaning |
+| 字段 | 含义 |
 |---|---|
-| `slot` | Register index relative to the current frame |
-| `name` | Local variable name when debug info can resolve it |
-| `type` | Lua value type string |
-| `value` | Serialized value |
+| `slot` | 相对于当前帧的寄存器索引 |
+| `name` | debug info 可解析时的局部变量名 |
+| `type` | Lua 值类型字符串 |
+| `value` | 序列化的值 |
 
-The serializer is observational only: it reads VM values and does not mutate stack state.
+序列化器是仅观察的：它读取 VM 值，不修改栈状态。
 
-## Trace Diff Mode
+## Trace Diff 模式
 
-`--trace-diff <file>` captures the frame before each instruction, executes the handler, and then writes only the slots whose value changed. Diff instruction events omit the full `registers` snapshot and add `changedRegisters`:
+`--trace-diff <file>` 在每条指令前捕获帧，执行处理器，然后仅写入值发生变化的槽位。Diff instruction 事件省略完整 `registers` 快照并添加 `changedRegisters`：
 
 ```json
 {"seq":1,"kind":"instruction","funcName":"examples/math.lua","pc":1,"op":"ADD","a":0,"b":0,"c":1,"bx":1,"sbx":-131070,"line":2,"source":"examples/math.lua","callDepth":1,"changedRegisters":[{"slot":0,"name":"x","old":1,"new":3,"oldType":"number","newType":"number"}]}
 ```
 
-Each changed register entry includes:
+每个 changed register 条目包含：
 
-| Field | Meaning |
+| 字段 | 含义 |
 |---|---|
-| `slot` | Register index relative to the captured frame |
-| `name` | Local variable name when debug info can resolve it, otherwise `null` |
-| `old` | Serialized value before the instruction |
-| `new` | Serialized value after the instruction |
-| `oldType` | Lua value type before the instruction |
-| `newType` | Lua value type after the instruction |
+| `slot` | 相对于捕获帧的寄存器索引 |
+| `name` | debug info 可解析时的局部变量名，否则为 `null` |
+| `old` | 指令前的序列化值 |
+| `new` | 指令后的序列化值 |
+| `oldType` | 指令前的 Lua 值类型 |
+| `newType` | 指令后的 Lua 值类型 |
 
-## Control Flow
+## 控制流
 
 ```text
 main.cpp
-  -> parse --trace <file> or --trace-diff <file>
-  -> create JsonTraceSink
-  -> optionally enable VM::setTraceDiffEnabled(true)
+  -> 解析 --trace <file> 或 --trace-diff <file>
+  -> 创建 JsonTraceSink
+  -> 可选启用 VM::setTraceDiffEnabled(true)
   -> VM::setTraceSink(...)
   -> VM::executeProto(...)
-  -> vm_trace.cpp emits events
-  -> JsonTraceSink writes JSONL
+  -> vm_trace.cpp 发射事件
+  -> JsonTraceSink 写入 JSONL
 ```
 
-`VM::setTraceSink(nullptr)` disables trace output.
+`VM::setTraceSink(nullptr)` 禁用 trace 输出。
 
-## Known Gaps
+## 已知缺口
 
-- No committed HTML or browser viewer.
-- No opcode/function-level trace filtering yet.
-- Error events are represented in the schema but are not yet emitted by the VM error paths.
-- C function call events use the generic `C function` label because C closures do not currently carry debug names.
-- Trace sink state is global, matching the current VM entry-point shape.
+- 无提交的 HTML 或浏览器查看器。
+- 尚无操作码/函数级 trace 过滤。
+- Error 事件在 schema 中有表示但尚未由 VM 错误路径发射。
+- C 函数调用事件使用通用 `C function` 标签，因为 C 闭包当前不携带调试名称。
+- Trace sink 状态是全局的，匹配当前 VM 入口点形态。
 
-## Verification
+## 验证
 
-Relevant checks:
+相关检查：
 
 ```powershell
 bin\lua_test.exe --filter "VM Trace Debug"

@@ -7,9 +7,9 @@ applies_to: lua_app interpreter executable
 
 # lua_app
 
-`lua_app.vcxproj` builds the interpreter executable. In CMake, the target is `lua_app`.
+`lua_app.vcxproj` 构建解释器可执行文件。在 CMake 中，目标名为 `lua_app`。
 
-## Source Files
+## 源文件
 
 - `src/app/app_options.cpp`
 - `src/app/app_options.hpp`
@@ -18,21 +18,21 @@ applies_to: lua_app interpreter executable
 - `src/repl/repl_*.cpp`
 - `src/repl.hpp`
 
-## Modes
+## 运行模式
 
-The executable supports:
+可执行文件支持：
 
-- version mode
-- help mode
-- script mode
-- REPL mode
-- default behavior mode
-- optional JSONL VM trace output
+- 版本模式
+- 帮助模式
+- 脚本模式
+- REPL 模式
+- 默认行为模式
+- 可选 JSONL VM trace 输出
 
-The REPL includes `.help`, `.bytecode <expr|chunk>`, `.ast <expr|chunk>`, and `.gc [stats|collect|strategy|help]` meta commands for inspecting parser, bytecode, and the active `GCStrategy` state without leaving the interactive session. Tab completion covers meta commands, global names, and loaded library table fields such as `string.sub`; default prompts show line numbers, and terminal REPL errors are colorized while redirected output stays plain.
+REPL 包含 `.help`、`.bytecode <expr|chunk>`、`.ast <expr|chunk>` 和 `.gc [stats|collect|strategy|help]` 元命令，用于在不离开交互会话的情况下检查 parser、字节码和活跃 `GCStrategy` 状态。Tab 补全覆盖元命令、全局名称和已加载库表字段（如 `string.sub`）；默认 prompt 显示行号，终端 REPL 错误会彩色显示，而重定向输出保持纯文本。
 
-See `docs/guides/repl-cli.md` for user-facing behavior.
+面向用户的行为参见 `docs/guides/repl-cli.md`。
 
-## Runtime Setup
+## 运行时设置
 
-`main.cpp` creates a `LuaState`, opens standard libraries, optionally installs a `JsonTraceSink`, then either runs a script or enters the REPL.
+`main.cpp` 创建 `LuaState`，加载标准库，可选安装 `JsonTraceSink`，然后运行脚本或进入 REPL。

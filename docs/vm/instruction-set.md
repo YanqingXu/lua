@@ -5,82 +5,82 @@ last_checked: 2026-05-19
 applies_to: current Lua 5.1-style VM opcode set
 ---
 
-# VM Instruction Set
+# VM 指令集
 
-The VM uses Lua 5.1-style register bytecode. Instructions are encoded in `src/compiler/opcode.hpp` and executed by the VM dispatch loop plus helper files under `src/vm/`.
+VM 使用 Lua 5.1 风格的寄存器字节码。指令在 `src/compiler/opcode.hpp` 中编码，由 VM 分发循环和 `src/vm/` 下的辅助文件执行。
 
-`NUM_OPCODES` is currently 38.
+`NUM_OPCODES` 当前为 38。
 
-## Encoding
+## 编码
 
-| Encoding | Meaning |
+| 编码 | 含义 |
 |---|---|
-| iABC | opcode + A + B + C |
-| iABx | opcode + A + Bx |
-| iAsBx | opcode + A + signed Bx |
+| iABC | 操作码 + A + B + C |
+| iABx | 操作码 + A + Bx |
+| iAsBx | 操作码 + A + 有符号 Bx |
 
-`RK` operands can refer to either a register or a constant table slot. `BITRK` marks constants; `ISK()` and `INDEXK()` decode the value.
+`RK` 操作数可指向寄存器或常量表槽位。`BITRK` 标记常量；`ISK()` 和 `INDEXK()` 解码值。
 
-## Opcode Groups
+## 操作码分组
 
-| Group | Opcodes |
+| 分组 | 操作码 |
 |---|---|
-| Data movement | `MOVE`, `LOADK`, `LOADBOOL`, `LOADNIL` |
-| Variable access | `GETUPVAL`, `GETGLOBAL`, `GETTABLE` |
-| Variable writes | `SETGLOBAL`, `SETUPVAL`, `SETTABLE` |
-| Table setup | `NEWTABLE`, `SELF`, `SETLIST` |
-| Arithmetic/unary | `ADD`, `SUB`, `MUL`, `DIV`, `MOD`, `POW`, `UNM`, `NOT`, `LEN` |
-| String | `CONCAT` |
-| Branching | `JMP`, `EQ`, `LT`, `LE`, `TEST`, `TESTSET` |
-| Calls | `CALL`, `TAILCALL`, `RETURN` |
-| Loops | `FORLOOP`, `FORPREP`, `TFORLOOP` |
-| Closures/upvalues | `CLOSE`, `CLOSURE` |
-| Vararg | `VARARG` |
+| 数据移动 | `MOVE`、`LOADK`、`LOADBOOL`、`LOADNIL` |
+| 变量读取 | `GETUPVAL`、`GETGLOBAL`、`GETTABLE` |
+| 变量写入 | `SETGLOBAL`、`SETUPVAL`、`SETTABLE` |
+| 表构建 | `NEWTABLE`、`SELF`、`SETLIST` |
+| 算术/一元 | `ADD`、`SUB`、`MUL`、`DIV`、`MOD`、`POW`、`UNM`、`NOT`、`LEN` |
+| 字符串 | `CONCAT` |
+| 分支 | `JMP`、`EQ`、`LT`、`LE`、`TEST`、`TESTSET` |
+| 调用 | `CALL`、`TAILCALL`、`RETURN` |
+| 循环 | `FORLOOP`、`FORPREP`、`TFORLOOP` |
+| 闭包/上值 | `CLOSE`、`CLOSURE` |
+| 变长参数 | `VARARG` |
 
-## Semantics Summary
+## 语义摘要
 
-| Opcode | Short behavior |
+| 操作码 | 简要行为 |
 |---|---|
 | `MOVE` | `R(A) := R(B)` |
 | `LOADK` | `R(A) := K(Bx)` |
-| `LOADBOOL` | `R(A) := bool(B)`; skip next instruction if `C != 0` |
-| `LOADNIL` | Set `R(A)` through `R(B)` to nil |
-| `GETUPVAL` | Load upvalue `B` into `R(A)` |
-| `GETGLOBAL` | Load global `K(Bx)` into `R(A)` |
-| `GETTABLE` | Load `R(B)[RK(C)]` into `R(A)` |
-| `SETGLOBAL` | Store `R(A)` into global `K(Bx)` |
-| `SETUPVAL` | Store `R(A)` into upvalue `B` |
-| `SETTABLE` | Store `RK(C)` into `R(A)[RK(B)]` |
-| `NEWTABLE` | Create a table in `R(A)` |
-| `SELF` | Prepare method call receiver and method function |
-| `ADD`..`POW` | Arithmetic over `RK(B)` and `RK(C)` with metamethod fallbacks where applicable |
-| `UNM`, `LEN` | Unary minus and length with metamethod support where applicable |
-| `NOT` | Lua truthiness negation |
-| `CONCAT` | Concatenate registers `R(B)` through `R(C)` |
-| `JMP` | Add signed offset `sBx` to PC |
-| `EQ`, `LT`, `LE` | Conditional comparison and skip |
-| `TEST`, `TESTSET` | Truthiness tests used by conditions and short-circuit expressions |
-| `CALL` | Call function in `R(A)` with encoded arg/result counts |
-| `TAILCALL` | Tail-call function in `R(A)` and reuse the current frame where possible |
-| `RETURN` | Return fixed or open-ended values from a frame |
-| `FORPREP`, `FORLOOP` | Numeric for-loop setup and iteration |
-| `TFORLOOP` | Generic for-loop iterator call |
-| `SETLIST` | Bulk write array fields into a table |
-| `CLOSE` | Close open upvalues at or above `R(A)` |
-| `CLOSURE` | Create a closure from child proto `Bx` and capture upvalues |
-| `VARARG` | Load vararg values into registers |
+| `LOADBOOL` | `R(A) := bool(B)`；若 `C != 0` 则跳过下一条指令 |
+| `LOADNIL` | 将 `R(A)` 到 `R(B)` 置为 nil |
+| `GETUPVAL` | 将上值 `B` 加载到 `R(A)` |
+| `GETGLOBAL` | 将全局变量 `K(Bx)` 加载到 `R(A)` |
+| `GETTABLE` | 将 `R(B)[RK(C)]` 加载到 `R(A)` |
+| `SETGLOBAL` | 将 `R(A)` 存储到全局变量 `K(Bx)` |
+| `SETUPVAL` | 将 `R(A)` 存储到上值 `B` |
+| `SETTABLE` | 将 `RK(C)` 存储到 `R(A)[RK(B)]` |
+| `NEWTABLE` | 在 `R(A)` 中创建表 |
+| `SELF` | 准备方法调用接收者和方法函数 |
+| `ADD`..`POW` | 对 `RK(B)` 和 `RK(C)` 执行算术运算，在适用时使用元方法回退 |
+| `UNM`、`LEN` | 一元取负和长度，在适用时支持元方法 |
+| `NOT` | Lua 真值取反 |
+| `CONCAT` | 拼接寄存器 `R(B)` 到 `R(C)` |
+| `JMP` | 将有符号偏移 `sBx` 加到 PC |
+| `EQ`、`LT`、`LE` | 条件比较和跳过 |
+| `TEST`、`TESTSET` | 用于条件和短路表达式的真值测试 |
+| `CALL` | 调用 `R(A)` 中的函数，使用编码的 arg/result 计数 |
+| `TAILCALL` | 尾调用 `R(A)` 中的函数并在可能时复用当前帧 |
+| `RETURN` | 从帧返回固定或开放值 |
+| `FORPREP`、`FORLOOP` | 数值 for 循环设置和迭代 |
+| `TFORLOOP` | 泛型 for 循环迭代器调用 |
+| `SETLIST` | 批量写入数组字段到表 |
+| `CLOSE` | 关闭 `R(A)` 及以上位置的 open upvalue |
+| `CLOSURE` | 从子 proto `Bx` 创建闭包并捕获上值 |
+| `VARARG` | 将变长参数值加载到寄存器 |
 
-## Where To Read
+## 阅读指引
 
-- Encoding helpers: `src/compiler/opcode.hpp`
-- Main dispatch: `src/vm/vm.cpp`
-- Arithmetic, comparison, metamethod helpers: `src/vm/vm_ops.cpp`
-- Calls and tail calls: `src/vm/vm_call.cpp`
-- Closures and vararg: `src/vm/vm_frame.cpp`
-- Generic for: `src/vm/vm_loop.cpp`
-- SETLIST: `src/vm/vm_table.cpp`
+- 编码辅助：`src/compiler/opcode.hpp`
+- 主分发：`src/vm/vm.cpp`
+- 算术、比较、元方法辅助：`src/vm/vm_ops.cpp`
+- 调用和尾调用：`src/vm/vm_call.cpp`
+- 闭包和 vararg：`src/vm/vm_frame.cpp`
+- 泛型 for：`src/vm/vm_loop.cpp`
+- SETLIST：`src/vm/vm_table.cpp`
 
-Useful tests:
+实用测试：
 
 ```powershell
 bin\lua_test.exe --filter "VM Dispatch"

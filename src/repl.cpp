@@ -88,7 +88,6 @@ public:
 private:
     void printBanner() {
         output_ << VERSION << "  " << COPYRIGHT << std::endl;
-        output_ << "Type '.help' for commands, 'exit' or press Ctrl+D to quit." << std::endl;
     }
 
     bool consumeLoopInterrupt() {

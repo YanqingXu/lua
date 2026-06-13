@@ -5,59 +5,59 @@ last_checked: 2026-05-23
 applies_to: architecture pattern registry and implementation boundaries
 ---
 
-# Architecture Patterns
+# 架构模式
 
-This file records the design patterns that are intentionally present in the current codebase. It is a registry, not a mandate: new code should prefer the simplest local shape that keeps the interpreter readable, maintainable, and useful for teaching.
+本文档记录了当前代码库中有意采用的设计模式。它是模式注册表，而非强制规范：新增代码应优先选择能保持解释器可读、可维护且适合教学的最简局部形态。
 
-## Current Registry
+## 当前注册表
 
-| Pattern | Status | Primary files | Current role |
+| 模式 | 状态 | 主要文件 | 当前角色 |
 |---|---|---|---|
-| Visitor | Implemented | `src/compiler/ast_visitor.hpp`, `src/compiler/codegen/expression_emitter.hpp`, `src/compiler/codegen/statement_emitter.hpp`, `src/repl/repl_meta.cpp` | CRTP visitors wrap AST `std::variant` dispatch. `ExprVisitor` and `StmtVisitor` cover expression-only and statement-only consumers; `AstVisitor` combines both for full-tree tools such as the REPL AST printer. |
-| Command | Implemented | `src/vm/vm_handlers.hpp`, `src/vm/vm_handlers.cpp`, `src/vm/vm_handlers/` | VM opcode behavior is represented by free-function handlers registered into `HandlerTable`. Table dispatch calls `runHandler()` instead of switching directly on every opcode. |
-| Strategy | Implemented | `src/vm/vm_dispatch_strategy.hpp`, `src/vm/vm_dispatch_strategy.cpp`, `src/gc/gc_strategy.hpp`, `src/gc/gc_strategy.cpp`, `src/runtime/runtime_services.hpp`, `src/vm/vm.cpp` | `DispatchStrategy` selects the VM execution algorithm; `GCStrategy` selects the collector algorithm boundary. `SwitchDispatch` and `MarkSweepGC` are the defaults. |
-| Singleton | Compatibility boundary | `src/vm/state/global_state.hpp`, `src/runtime/runtime_services.hpp`, `src/gc/garbage_collector.hpp` | `GlobalState` remains singleton-backed for process-wide runtime services. New compiler, VM, and GC paths should prefer explicit service wiring. `GarbageCollector::getInstance()` remains only as a deprecated compatibility shim. |
-| Builder | Implemented | `src/compiler/codegen/bytecode_builder.hpp`, `src/compiler/codegen/codegen_ops.hpp`, `src/compiler/codegen/codegen_state.hpp` | `BytecodeBuilder` is the narrow write boundary for mutating the active `Proto`; `CodegenOps` centralizes repeated emission, patching, and guard mechanics around that builder. |
-| Catalog | Implemented | `src/lib/lib_catalog.hpp`, `src/lib/lib_catalog.cpp`, `src/lib/lib_manager.hpp` | Standard-library load order and single-library lookup are data-driven through an explicit `constexpr` table; `openCatalogLibrary()` is the named single-library entry point. |
+| Visitor（访问者） | 已实现 | `src/compiler/ast_visitor.hpp`, `src/compiler/codegen/expression_emitter.hpp`, `src/compiler/codegen/statement_emitter.hpp`, `src/repl/repl_meta.cpp` | CRTP 访问者封装 AST `std::variant` 分发。`ExprVisitor` 和 `StmtVisitor` 分别覆盖仅表达式和仅语句的消费者；`AstVisitor` 将两者组合，供 REPL AST 打印器等全树工具使用。 |
+| Command（命令） | 已实现 | `src/vm/vm_handlers.hpp`, `src/vm/vm_handlers.cpp`, `src/vm/vm_handlers/` | VM 操作码行为由注册到 `HandlerTable` 中的自由函数处理器表示。表分发调用 `runHandler()` 而非对每条操作码直接 switch。 |
+| Strategy（策略） | 已实现 | `src/vm/vm_dispatch_strategy.hpp`, `src/vm/vm_dispatch_strategy.cpp`, `src/gc/gc_strategy.hpp`, `src/gc/gc_strategy.cpp`, `src/runtime/runtime_services.hpp`, `src/vm/vm.cpp` | `DispatchStrategy` 选择 VM 执行算法；`GCStrategy` 选择回收器算法边界。`SwitchDispatch` 和 `MarkSweepGC` 为默认策略。 |
+| Singleton（单例） | 兼容边界 | `src/vm/state/global_state.hpp`, `src/runtime/runtime_services.hpp`, `src/gc/garbage_collector.hpp` | `GlobalState` 仍保留单例支持以提供进程级运行时服务。新增的编译器、VM 和 GC 路径应优先使用显式服务传递。`GarbageCollector::getInstance()` 仅保留为已弃用的兼容垫片。 |
+| Builder（构建器） | 已实现 | `src/compiler/codegen/bytecode_builder.hpp`, `src/compiler/codegen/codegen_ops.hpp`, `src/compiler/codegen/codegen_state.hpp` | `BytecodeBuilder` 是对活跃 `Proto` 进行变更的窄写入边界；`CodegenOps` 围绕该构建器集中管理重复发射、回填和保护机制。 |
+| Catalog（目录） | 已实现 | `src/lib/lib_catalog.hpp`, `src/lib/lib_catalog.cpp`, `src/lib/lib_manager.hpp` | 标准库加载顺序和单库查找通过显式 `constexpr` 表以数据驱动方式实现；`openCatalogLibrary()` 是具名单库入口点。 |
 
-## Boundaries
+## 模式边界
 
-### Visitor
+### Visitor（访问者）
 
-The AST visitor layer intentionally stays small. `ExprVisitor`, `StmtVisitor`, and the combined `AstVisitor` only centralize variant dispatch; their coverage checks share `detail::canVisitNode()` and `detail::visitsVariantNodes()`. They do not own traversal policy, scope state, bytecode emission, or diagnostics. Those responsibilities remain in users such as `CodeGenerator` and the REPL AST printer.
+AST 访问者层刻意保持精简。`ExprVisitor`、`StmtVisitor` 和组合的 `AstVisitor` 仅集中管理 variant 分发；其覆盖检查共享 `detail::canVisitNode()` 和 `detail::visitsVariantNodes()`。它们不拥有遍历策略、作用域状态、字节码发射或诊断逻辑。这些职责仍由 `CodeGenerator` 和 REPL AST 打印器等使用方持有。
 
-When adding a new AST consumer, prefer a concrete visitor type over adding more branching to `CodeGenerator`. When changing code generation itself, keep the current `CodeGenerator` public API stable.
+新增 AST 消费者时，优先使用具体访问者类型，而非在 `CodeGenerator` 中添加更多分支。修改代码生成本身时，保持当前 `CodeGenerator` 的公开 API 稳定。
 
-### Command
+### Command（命令）
 
-The VM command pattern is implemented as a function pointer table, not a virtual class hierarchy. This keeps opcode handlers easy to inspect and avoids per-opcode heap ownership or inheritance plumbing.
+VM 命令模式通过函数指针表而非虚类层次实现。这使得操作码处理器易于审查，并避免了每个操作码的堆分配或继承管道。
 
-The registry file `src/vm/vm_handlers.cpp` owns metadata initialization and family registration. The files under `src/vm/vm_handlers/` own opcode behavior by group. A handler shard should register only its own opcode family.
+注册文件 `src/vm/vm_handlers.cpp` 负责元数据初始化和处理器族注册。`src/vm/vm_handlers/` 下的文件按分组管理操作码行为。每个处理器分片应仅注册自己所属的操作码族。
 
-### Strategy
+### Strategy（策略）
 
-`SwitchDispatch` remains the default VM dispatch path because it is easiest to debug and matches the interpreter's historical control flow. `TableDispatch` is opt-in and uses the same handler table as the command layer.
+`SwitchDispatch` 仍是默认的 VM 分发路径，因为它最易于调试且与解释器的历史控制流一致。`TableDispatch` 为可选路径，使用与命令层相同的处理器表。
 
-Do not add computed-goto or threaded-code dispatch paths. They trade away readability and portability, which conflicts with the roadmap's project goals.
+不要添加计算 goto 或线程化代码分发路径。它们会牺牲可读性和可移植性，与路线图中的项目目标相冲突。
 
-`MarkSweepGC` remains the default GC strategy. `IncrementalGC` exists as a teaching placeholder that delegates to the same mark-sweep phases, so tests can prove reachability equivalence before future write barriers and scheduling are introduced.
+`MarkSweepGC` 仍是默认的 GC 策略。`IncrementalGC` 以教学占位形式存在，委托给相同的标记-清除阶段，以便在未来的写屏障和调度引入之前，测试可以证明可达性等价。
 
-### Singleton
+### Singleton（单例）
 
-`GlobalState` is still the compatibility anchor for shared runtime services. The migration direction is explicit dependency passing through `RuntimeServices`, especially at compiler, VM, REPL, bytecode-tool, and test entry points.
+`GlobalState` 仍然作为共享运行时服务的兼容锚点。迁移方向是通过 `RuntimeServices` 进行显式依赖传递，尤其是在编译器、VM、REPL、字节码工具和测试入口点。
 
-New code should not reach for `GlobalState::getInstance()` when a `RuntimeServices&`, `LuaState*`, or `GlobalState&` is already available.
+当已有 `RuntimeServices&`、`LuaState*` 或 `GlobalState&` 可用时，新代码不应再调用 `GlobalState::getInstance()`。
 
-### Builder
+### Builder（构建器）
 
-`BytecodeBuilder` narrows direct writes to `Proto`, but it is not a full compiler facade. Lowering decisions still belong in `CodeGenerator`; the builder should remain focused on emission mechanics and bounds checks.
+`BytecodeBuilder` 限制了对 `Proto` 的直接写入，但它不是完整的编译器门面。下降决策仍属于 `CodeGenerator`；构建器应专注于发射机制和边界检查。
 
-### Catalog
+### Catalog（目录）
 
-The standard-library catalog is the readable source of truth for default library order and library identifiers. Use `StandardLibrary::openAll()` for the full set and `StandardLibrary::openCatalogLibrary(L, "<id>")` for one library. The older `openBase()` / `openMath()` / ... wrappers are retained only as deprecated compatibility shims.
+标准库目录是默认库加载顺序和库标识符的可读权威来源。使用 `StandardLibrary::openAll()` 加载全部库，使用 `StandardLibrary::openCatalogLibrary(L, "<id>")` 加载单个库。旧有的 `openBase()` / `openMath()` / ... 包装函数仅保留为已弃用的兼容垫片。
 
-PR-73 evaluated a `LibRegistrar` self-registration design and rejected it for now. A static registrar would reduce one edit to `lib_catalog.cpp`, but it would also hide load order behind dynamic initialization and require linker keep-alive rules on MSVC. For this teaching-oriented codebase, the explicit catalog is easier to read, test, and audit.
+PR-73 评估了 `LibRegistrar` 自注册设计并暂时拒绝。静态注册器可以减少对 `lib_catalog.cpp` 的一次编辑，但它会将加载顺序隐藏在动态初始化之后，并需要 MSVC 的链接器保活规则。对于这个教学导向的代码库，显式目录更易于阅读、测试和审计。
 
-## Updating This File
+## 更新本文档
 
-Update this registry when a pattern is introduced, removed, or moved to a different source boundary. Keep planned items separate from implemented items so readers can distinguish current architecture from roadmap intent.
+当模式被引入、移除或迁移到不同的源边界时，请更新此注册表。将计划项与已实现项分开，以便读者能够区分当前架构和路线图意图。
