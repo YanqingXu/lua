@@ -53,6 +53,8 @@ void lua_close(lua_State* L);
 
 int lua_gettop(lua_State* L);
 void lua_settop(lua_State* L, int idx);
+int lua_checkstack(lua_State* L, int extra);
+void lua_xmove(lua_State* from, lua_State* to, int n);
 void lua_pushvalue(lua_State* L, int idx);
 void lua_remove(lua_State* L, int idx);
 void lua_insert(lua_State* L, int idx);
@@ -67,6 +69,8 @@ int lua_isuserdata(lua_State* L, int idx);
 int lua_toboolean(lua_State* L, int idx);
 lua_Number lua_tonumber(lua_State* L, int idx);
 const char* lua_tolstring(lua_State* L, int idx, size_t* len);
+void* lua_touserdata(lua_State* L, int idx);
+size_t lua_objlen(lua_State* L, int idx);
 
 void lua_pushnil(lua_State* L);
 void lua_pushnumber(lua_State* L, lua_Number n);
@@ -74,15 +78,22 @@ void lua_pushinteger(lua_State* L, lua_Integer n);
 void lua_pushboolean(lua_State* L, int b);
 void lua_pushlstring(lua_State* L, const char* s, size_t len);
 void lua_pushstring(lua_State* L, const char* s);
+void lua_pushlightuserdata(lua_State* L, void* p);
 void lua_pushcclosure(lua_State* L, lua_CFunction fn, int n);
 
+const char* lua_getupvalue(lua_State* L, int funcindex, int n);
+const char* lua_setupvalue(lua_State* L, int funcindex, int n);
+
 void lua_createtable(lua_State* L, int narr, int nrec);
+void* lua_newuserdata(lua_State* L, size_t size);
 void lua_gettable(lua_State* L, int idx);
 void lua_settable(lua_State* L, int idx);
 void lua_rawgeti(lua_State* L, int idx, int n);
 void lua_rawseti(lua_State* L, int idx, int n);
 void lua_getglobal(lua_State* L, const char* name);
 void lua_setglobal(lua_State* L, const char* name);
+int lua_getmetatable(lua_State* L, int objindex);
+int lua_setmetatable(lua_State* L, int objindex);
 
 void lua_call(lua_State* L, int nargs, int nresults);
 int lua_pcall(lua_State* L, int nargs, int nresults, int errfunc);

@@ -5,6 +5,7 @@
 #include "core/gc_string.hpp"
 #include "core/table.hpp"
 #include "core/upvalue.hpp"
+#include "core/userdata.hpp"
 #include "core/value.hpp"
 #include "lib/lib_manager.hpp"
 #include "runtime/runtime_services.hpp"
@@ -12,9 +13,11 @@
 #include "vm/vm.hpp"
 #include "vm/vm_internal.hpp"
 
+#include <algorithm>
 #include <cstdarg>
 #include <cstdio>
 #include <cstring>
+#include <new>
 #include <optional>
 #include <string>
 
@@ -188,12 +191,42 @@ int valueType(const Lua::Value& value) {
     return static_cast<int>(value.getType());
 }
 
+const char* upvalueName(const Lua::Function* closure, Lua::usize index) {
+    if (closure->isCFunction()) {
+        return "";
+    }
+
+    Lua::Proto* proto = closure->getProto();
+    Lua::GCString* name = proto != nullptr ? proto->getUpvalueName(index) : nullptr;
+    return name != nullptr ? name->c_str() : "";
+}
+
+Lua::Table* valueMetatable(Lua::LuaState* state, const Lua::Value& value) {
+    if (value.isTable()) {
+        return value.asTable()->getMetatable();
+    }
+    if (value.isUserdata()) {
+        return value.asUserdata()->getMetatable();
+    }
+    return state->getGlobalState().getMetatable(value.getType());
+}
+
+void setValueMetatable(Lua::LuaState* state, const Lua::Value& value, Lua::Table* metatable) {
+    if (value.isTable()) {
+        value.asTable()->setMetatable(metatable);
+    } else if (value.isUserdata()) {
+        value.asUserdata()->setMetatable(metatable);
+    } else {
+        state->getGlobalState().setMetatable(value.getType(), metatable);
+    }
+}
+
 }  // namespace
 
 extern "C" {
 
 lua_State* lua_newstate(lua_Alloc, void*) {
-    return toC(Lua::LuaState::newState());
+    return toC(Lua::LuaState::newIsolatedState());
 }
 
 lua_State* lua_open(void) {
@@ -210,6 +243,63 @@ int lua_gettop(lua_State* L) {
 
 void lua_settop(lua_State* L, int idx) {
     setApiTop(fromC(L), idx);
+}
+
+int lua_checkstack(lua_State* L, int extra) {
+    Lua::LuaState* state = fromC(L);
+    if (extra < 0) {
+        return 0;
+    }
+
+    const Lua::usize top = state->getAbsoluteTop();
+    const Lua::usize additional = static_cast<Lua::usize>(extra);
+    if (top > Lua::MAX_STACK_SIZE || additional > Lua::MAX_STACK_SIZE - top) {
+        return 0;
+    }
+
+    const Lua::usize desired = top + additional;
+    try {
+        Lua::Stack& stack = state->getStack();
+        if (stack.capacity() < desired) {
+            stack.ensureSpace(desired - stack.size());
+        }
+        state->getCurrentCallInfo().top =
+            std::max(state->getCurrentCallInfo().top, desired);
+        return 1;
+    } catch (const Lua::MemoryError&) {
+        return 0;
+    } catch (const std::bad_alloc&) {
+        return 0;
+    }
+}
+
+void lua_xmove(lua_State* from, lua_State* to, int n) {
+    if (from == to) {
+        return;
+    }
+
+    Lua::LuaState* source = fromC(from);
+    Lua::LuaState* destination = fromC(to);
+    if (n < 0 || n > apiTop(source)) {
+        source->error("invalid value count for lua_xmove");
+    }
+    if (&source->getGlobalState() != &destination->getGlobalState() ||
+        source->getGlobalTable() != destination->getGlobalTable()) {
+        source->error("cannot move values between independent states");
+    }
+    if (lua_checkstack(to, n) == 0) {
+        destination->error("stack overflow in lua_xmove");
+    }
+
+    Lua::Vec<Lua::Value> values;
+    values.reserve(static_cast<Lua::usize>(n));
+    for (int i = n; i > 0; --i) {
+        values.push_back(source->at(-i));
+    }
+    setApiTop(source, apiTop(source) - n);
+    for (const Lua::Value& value : values) {
+        destination->pushValue(value);
+    }
 }
 
 void lua_pushvalue(lua_State* L, int idx) {
@@ -354,6 +444,34 @@ const char* lua_tolstring(lua_State* L, int idx, size_t* len) {
     return text;
 }
 
+void* lua_touserdata(lua_State* L, int idx) {
+    const auto value = readIndex(fromC(L), idx);
+    if (!value.has_value()) {
+        return {};
+    }
+    if (value->isLightUserdata()) {
+        return value->asLightUserdata();
+    }
+    return value->isUserdata() ? value->asUserdata()->getData() : nullptr;
+}
+
+size_t lua_objlen(lua_State* L, int idx) {
+    const auto value = readIndex(fromC(L), idx);
+    if (!value.has_value()) {
+        return 0;
+    }
+    if (value->isString()) {
+        return value->asString()->getLength();
+    }
+    if (value->isTable()) {
+        return value->asTable()->length();
+    }
+    if (value->isUserdata()) {
+        return value->asUserdata()->getDataSize();
+    }
+    return 0;
+}
+
 void lua_pushnil(lua_State* L) {
     fromC(L)->pushNil();
 }
@@ -401,6 +519,50 @@ void lua_pushcclosure(lua_State* L, lua_CFunction fn, int n) {
     state->pushFunction(closure);
 }
 
+void lua_pushlightuserdata(lua_State* L, void* p) {
+    fromC(L)->pushValue(Lua::Value(p));
+}
+
+const char* lua_getupvalue(lua_State* L, int funcindex, int n) {
+    Lua::LuaState* state = fromC(L);
+    const auto value = readIndex(state, funcindex);
+    if (!value.has_value() || !value->isFunction() || n <= 0) {
+        return {};
+    }
+
+    Lua::Function* closure = value->asFunction();
+    const Lua::usize index = static_cast<Lua::usize>(n - 1);
+    Lua::Upvalue* upvalue = closure->getUpvalue(index);
+    if (upvalue == nullptr) {
+        return {};
+    }
+
+    state->pushValue(upvalue->getValue(state->getStack()));
+    return upvalueName(closure, index);
+}
+
+const char* lua_setupvalue(lua_State* L, int funcindex, int n) {
+    Lua::LuaState* state = fromC(L);
+    const auto value = readIndex(state, funcindex);
+    if (!value.has_value() || !value->isFunction() || n <= 0) {
+        return {};
+    }
+
+    Lua::Function* closure = value->asFunction();
+    const Lua::usize index = static_cast<Lua::usize>(n - 1);
+    Lua::Upvalue* upvalue = closure->getUpvalue(index);
+    if (upvalue == nullptr) {
+        return {};
+    }
+    if (apiTop(state) == 0) {
+        state->error("lua_setupvalue requires a value");
+    }
+
+    const Lua::Value replacement = state->pop();
+    upvalue->setValue(state->getStack(), replacement);
+    return upvalueName(closure, index);
+}
+
 void lua_createtable(lua_State* L, int, int) {
     Lua::LuaState* state = fromC(L);
     state->pushTable(state->getGlobalState().getGC().create<Lua::Table>());
@@ -417,6 +579,14 @@ void lua_gettable(lua_State* L, int idx) {
     }
     Lua::VM::detail::gettable(state, *table, key, result);
     state->pushValue(result);
+}
+
+void* lua_newuserdata(lua_State* L, size_t size) {
+    Lua::LuaState* state = fromC(L);
+    Lua::Userdata* userdata =
+        state->getGlobalState().getGC().create<Lua::Userdata>(static_cast<Lua::usize>(size));
+    state->pushUserdata(userdata);
+    return userdata->getData();
 }
 
 void lua_settable(lua_State* L, int idx) {
@@ -456,6 +626,38 @@ void lua_setglobal(lua_State* L, const char* name) {
     Lua::LuaState* state = fromC(L);
     Lua::Value value = state->pop();
     state->setGlobal(name ? name : "", value);
+}
+
+int lua_getmetatable(lua_State* L, int objindex) {
+    Lua::LuaState* state = fromC(L);
+    const auto value = readIndex(state, objindex);
+    if (!value.has_value()) {
+        return 0;
+    }
+
+    Lua::Table* metatable = valueMetatable(state, *value);
+    if (metatable == nullptr) {
+        return 0;
+    }
+    state->pushTable(metatable);
+    return 1;
+}
+
+int lua_setmetatable(lua_State* L, int objindex) {
+    Lua::LuaState* state = fromC(L);
+    const auto value = readIndex(state, objindex);
+    if (!value.has_value() || apiTop(state) == 0) {
+        return 0;
+    }
+
+    const Lua::Value candidate = state->at(-1);
+    if (!candidate.isNil() && !candidate.isTable()) {
+        state->error("table or nil expected for metatable");
+    }
+    Lua::Table* metatable = candidate.isTable() ? candidate.asTable() : nullptr;
+    setValueMetatable(state, *value, metatable);
+    state->pop();
+    return 1;
 }
 
 void lua_call(lua_State* L, int nargs, int nresults) {

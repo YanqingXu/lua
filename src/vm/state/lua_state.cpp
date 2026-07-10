@@ -152,6 +152,17 @@ UPtr<LuaState> LuaState::create(EngineContext& context) {
     return create(services);
 }
 
+UPtr<LuaState> LuaState::createIsolated() {
+    UPtr<EngineContext> context = makeUnique<EngineContext>();
+    UPtr<LuaState> L = makeUnique<LuaState>(CtorToken{}, std::move(context));
+    L->initialize();
+    return L;
+}
+
+LuaState* LuaState::newIsolatedState() {
+    return createIsolated().release();
+}
+
 LuaState* LuaState::newThread(LuaState* parentL) {
     UPtr<LuaState> threadState = makeUnique<LuaState>(CtorToken{}, parentL->getGlobalState());
     LuaState* L = threadState.get();
@@ -192,8 +203,22 @@ LuaState::LuaState(CtorToken, GlobalState& globalState)
 {
 }
 
+LuaState::LuaState(CtorToken, UPtr<EngineContext> ownedContext)
+    : ownedContext_(std::move(ownedContext))
+    , globalState_(ownedContext_->globalState())
+    , stack_(INITIAL_STACK_SIZE)
+    , top_(0)
+    , callStack_(INITIAL_CI_SIZE)
+    , currentCI_(0)
+    , globalTable_(nullptr)
+    , status_(ThreadStatus::OK)
+    , openUpvalues_(nullptr)
+{
+}
+
 LuaState::LuaState(GlobalState& globalState)
-    : globalState_(globalState)
+    : ownedContext_()
+    , globalState_(globalState)
     , stack_(INITIAL_STACK_SIZE)
     , top_(0)
     , callStack_(INITIAL_CI_SIZE)

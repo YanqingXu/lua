@@ -6,6 +6,7 @@
 #include "userdata.hpp"
 #include "table.hpp"
 #include "gc/garbage_collector.hpp"
+#include <algorithm>
 #include <cstdlib>
 #include <cstring>
 #include <new>
@@ -28,10 +29,11 @@ usize alignedAllocationSize(usize size) noexcept {
 }
 
 std::byte* allocateUserdataBuffer(usize size) {
+    const usize allocationSize = std::max(size, kUserdataAlignment);
 #ifdef _MSC_VER
-    void* data = _aligned_malloc(size, kUserdataAlignment);
+    void* data = _aligned_malloc(allocationSize, kUserdataAlignment);
 #else
-    void* data = std::aligned_alloc(kUserdataAlignment, alignedAllocationSize(size));
+    void* data = std::aligned_alloc(kUserdataAlignment, alignedAllocationSize(allocationSize));
 #endif
 
     if (data == nullptr) {
@@ -60,10 +62,6 @@ void UserdataBufferDeleter::operator()(std::byte* data) const noexcept {
 // =====================================================================
 
 UPtr<Userdata> Userdata::createFullOwned(usize size) {
-    if (size == 0) {
-        throw std::invalid_argument("Userdata size cannot be zero");
-    }
-    
     // 检查大小溢出
     constexpr usize MAX_SIZE = static_cast<usize>(-1) - sizeof(Userdata);
     if (size > MAX_SIZE) {

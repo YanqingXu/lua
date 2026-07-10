@@ -113,6 +113,14 @@ public:
     LuaState(CtorToken, GlobalState& globalState);
 
     /**
+     * @brief Construct a state that owns an isolated runtime context.
+     *
+     * The token keeps construction behind the factories while allowing the
+     * owning context to outlive every state member that refers into it.
+     */
+    LuaState(CtorToken, UPtr<EngineContext> ownedContext);
+
+    /**
      * @brief 创建拥有型Lua状态（主线程）
      * @return unique_ptr 承载所有权
      */
@@ -127,6 +135,11 @@ public:
      * @brief 使用拥有资源的运行时上下文创建拥有型Lua状态（主线程）
      */
     [[nodiscard]] static UPtr<LuaState> create(EngineContext& context);
+
+    /**
+     * @brief Create a state that owns an isolated EngineContext.
+     */
+    [[nodiscard]] static UPtr<LuaState> createIsolated();
     
     /**
      * @brief 创建新的Lua状态（主线程），兼容旧 C API 风格所有权
@@ -143,6 +156,11 @@ public:
      * @brief 使用拥有资源的运行时上下文创建新的Lua状态（主线程）
      */
     static LuaState* newState(EngineContext& context);
+
+    /**
+     * @brief Create a caller-owned state with its own isolated EngineContext.
+     */
+    static LuaState* newIsolatedState();
     
     /**
      * @brief 析构函数
@@ -708,6 +726,9 @@ private:
     // =====================================================================
     // 成员变量
     // =====================================================================
+
+    /// Optional owning context for independently created public C API states.
+    UPtr<EngineContext> ownedContext_;
 
     /// 全局状态引用
     GlobalState& globalState_;
