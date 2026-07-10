@@ -50,6 +50,8 @@ typedef void* (*lua_Alloc)(void* ud, void* ptr, size_t osize, size_t nsize);
 lua_State* lua_newstate(lua_Alloc f, void* ud);
 lua_State* lua_open(void);
 void lua_close(lua_State* L);
+lua_Alloc lua_getallocf(lua_State* L, void** ud);
+void lua_setallocf(lua_State* L, lua_Alloc f, void* ud);
 
 int lua_gettop(lua_State* L);
 void lua_settop(lua_State* L, int idx);
@@ -97,6 +99,11 @@ int lua_setmetatable(lua_State* L, int objindex);
 
 void lua_call(lua_State* L, int nargs, int nresults);
 int lua_pcall(lua_State* L, int nargs, int nresults, int errfunc);
+int lua_error(lua_State* L);
+lua_State* lua_newthread(lua_State* L);
+int lua_resume(lua_State* L, int nargs);
+int lua_yield(lua_State* L, int nresults);
+int lua_status(lua_State* L);
 
 #define lua_pop(L,n) lua_settop((L), -(n)-1)
 #define lua_newtable(L) lua_createtable((L), 0, 0)
@@ -105,6 +112,7 @@ int lua_pcall(lua_State* L, int nargs, int nresults, int errfunc);
 #define lua_istable(L,n) (lua_type((L), (n)) == LUA_TTABLE)
 #define lua_isnil(L,n) (lua_type((L), (n)) == LUA_TNIL)
 #define lua_isboolean(L,n) (lua_type((L), (n)) == LUA_TBOOLEAN)
+#define lua_isthread(L,n) (lua_type((L), (n)) == LUA_TTHREAD)
 #define lua_isnone(L,n) (lua_type((L), (n)) == LUA_TNONE)
 #define lua_isnoneornil(L,n) (lua_type((L), (n)) <= 0)
 

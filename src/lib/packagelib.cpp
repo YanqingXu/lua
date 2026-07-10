@@ -360,7 +360,7 @@ static void setCallingLuaFunctionEnv(LuaState* L, Table* env) {
         L->error("module: no calling Lua function");
     }
 
-    Vec<CallInfo>& frames = L->getCallStack();
+    LuaVector<CallInfo>& frames = L->getCallStack();
     Stack& stack = L->getStack();
 
     for (usize i = L->getCurrentCI(); i > 0; --i) {

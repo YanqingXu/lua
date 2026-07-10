@@ -90,4 +90,16 @@ public:
     using RuntimeError::RuntimeError;
 };
 
+/**
+ * @brief Lua stack/call-depth exhaustion, reported as a runtime error.
+ *
+ * Lua 5.1 distinguishes its logical stack overflow from allocator failure:
+ * protected calls must preserve the "stack overflow" message and return
+ * LUA_ERRRUN rather than replacing it with the fixed LUA_ERRMEM object.
+ */
+class StackOverflowError : public RuntimeError {
+public:
+    using RuntimeError::RuntimeError;
+};
+
 } // namespace Lua

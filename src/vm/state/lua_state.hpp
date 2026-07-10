@@ -25,6 +25,7 @@
 #include "common/lua_error.hpp"
 #include "core/value.hpp"
 #include "core/table.hpp"
+#include "runtime/lua_allocator.hpp"
 #include "vm/state/global_state.hpp"
 #include "vm/state/stack.hpp"
 #include "vm/state/call_info.hpp"
@@ -39,6 +40,11 @@ class Userdata;
 class Thread;
 class EngineContext;
 struct RuntimeServices;
+
+struct EngineContextDeleter {
+    bool allocatorBacked = false;
+    void operator()(EngineContext* context) const noexcept;
+};
 
 /**
  * @brief Lua线程状态枚举
@@ -111,6 +117,7 @@ public:
      * CtorToken 只能由 LuaState 工厂构造，用于让 makeUnique 在不暴露裸 new 的情况下访问构造路径。
      */
     LuaState(CtorToken, GlobalState& globalState);
+    LuaState(CtorToken, GlobalState& globalState, bool allocatorOwnedSelf);
 
     /**
      * @brief Construct a state that owns an isolated runtime context.
@@ -118,7 +125,8 @@ public:
      * The token keeps construction behind the factories while allowing the
      * owning context to outlive every state member that refers into it.
      */
-    LuaState(CtorToken, UPtr<EngineContext> ownedContext);
+    LuaState(CtorToken, EngineContext* ownedContext,
+             bool allocatorOwnedContext, bool allocatorOwnedSelf);
 
     /**
      * @brief 创建拥有型Lua状态（主线程）
@@ -161,6 +169,16 @@ public:
      * @brief Create a caller-owned state with its own isolated EngineContext.
      */
     static LuaState* newIsolatedState();
+
+    /**
+     * @brief Create a C API state whose context and state blocks use lua_Alloc.
+     */
+    static LuaState* newAllocatedState(LuaAllocatorFunction allocator, void* userData);
+
+    /**
+     * @brief Destroy either a normal or allocator-backed state correctly.
+     */
+    static void destroyState(LuaState* state) noexcept;
     
     /**
      * @brief 析构函数
@@ -654,7 +672,7 @@ public:
     void setThread(Thread* t) noexcept { thread_ = t; }
 
     /// 调用栈访问（供 Thread GC marking 使用）
-    Vec<CallInfo>& getCallStack() noexcept { return callStack_; }
+    LuaVector<CallInfo>& getCallStack() noexcept { return callStack_; }
 
     /// Open Upvalue 链表头访问
     Upvalue* getOpenUpvalues() const noexcept { return openUpvalues_; }
@@ -728,7 +746,8 @@ private:
     // =====================================================================
 
     /// Optional owning context for independently created public C API states.
-    UPtr<EngineContext> ownedContext_;
+    std::unique_ptr<EngineContext, EngineContextDeleter> ownedContext_;
+    bool allocatorOwnedSelf_;
 
     /// 全局状态引用
     GlobalState& globalState_;
@@ -740,7 +759,7 @@ private:
     usize top_;
 
     /// 调用信息栈
-    Vec<CallInfo> callStack_;
+    LuaVector<CallInfo> callStack_;
 
     /// 当前调用信息索引
     usize currentCI_;

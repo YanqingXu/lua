@@ -8,6 +8,11 @@
 
 namespace Lua {
 
+StringPool::StringPool(LuaAllocator* allocator)
+    : pool_(0, std::hash<Str>{}, std::equal_to<Str>{}, PoolAllocator(allocator))
+{
+}
+
 void StringPool::setGarbageCollector(GarbageCollector* collector) {
     collector_ = collector;
     if (collector_ == nullptr) {

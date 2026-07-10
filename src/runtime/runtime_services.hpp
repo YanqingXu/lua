@@ -5,6 +5,7 @@
  * @brief Explicit bundle of runtime-wide services used by compiler and VM entry points.
  */
 
+#include "runtime/lua_allocator.hpp"
 #include "vm/state/global_state.hpp"
 
 namespace Lua {
@@ -56,9 +57,11 @@ struct RuntimeServices {
  */
 class EngineContext {
 public:
-    EngineContext()
-        : strings_()
-        , globalState_(strings_) {}
+    explicit EngineContext(LuaAllocatorFunction allocator = nullptr,
+                           void* allocatorUserData = nullptr)
+        : allocator_(allocator, allocatorUserData)
+        , strings_(&allocator_)
+        , globalState_(strings_, &allocator_) {}
 
     EngineContext(const EngineContext&) = delete;
     EngineContext& operator=(const EngineContext&) = delete;
@@ -81,7 +84,16 @@ public:
         return globalState_.getGC();
     }
 
+    [[nodiscard]] LuaAllocator& allocator() noexcept {
+        return allocator_;
+    }
+
+    [[nodiscard]] const LuaAllocator& allocator() const noexcept {
+        return allocator_;
+    }
+
 private:
+    LuaAllocator allocator_;
     StringPool strings_;
     GlobalState globalState_;
 };

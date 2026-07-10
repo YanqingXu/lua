@@ -153,7 +153,7 @@ StackLevelKind resolveStackLevelKind(LuaState* ownerL, i32 level, DebugFrameRef&
     }
 
     usize currentIndex = ownerL->getCurrentCI();
-    Vec<CallInfo>& frames = ownerL->getCallStack();
+    LuaVector<CallInfo>& frames = ownerL->getCallStack();
     if (currentIndex >= frames.size()) {
         return StackLevelKind::Invalid;
     }
@@ -199,7 +199,7 @@ i32 currentPcForFrame(Function* func, const CallInfo* ci) {
         return 0;
     }
 
-    const Vec<Instruction>& code = proto->getCode();
+    const LuaVector<Instruction>& code = proto->getCode();
     if (code.empty() || ci->savedpc == nullptr) {
         return 0;
     }
@@ -470,7 +470,7 @@ bool findRegisterSetter(Proto* proto, i32 pc, i32 reg, i32& setterPc, Instructio
         return false;
     }
 
-    const Vec<Instruction>& code = proto->getCode();
+    const LuaVector<Instruction>& code = proto->getCode();
     i32 upperBound = std::min(pc - 1, static_cast<i32>(code.size()) - 1);
     for (i32 i = upperBound; i >= 0; i--) {
         Instruction instruction = code[static_cast<usize>(i)];
@@ -640,7 +640,7 @@ bool inferFrameCallName(
     const char*& outNameWhat,
     GCString*& outName
 ) {
-    Vec<CallInfo>& frames = ownerL->getCallStack();
+    LuaVector<CallInfo>& frames = ownerL->getCallStack();
     if (stackIndex == 0 || stackIndex >= frames.size()) {
         return false;
     }
@@ -1276,7 +1276,7 @@ i32 luaDebug_sethook(LuaState* L) {
 
     ownerL->setDebugHook(hook, mask, count);
     if (hook != nullptr && (mask & HookMaskLine) != 0) {
-        Vec<CallInfo>& frames = ownerL->getCallStack();
+        LuaVector<CallInfo>& frames = ownerL->getCallStack();
         for (usize i = 0; i <= ownerL->getCurrentCI() && i < frames.size(); ++i) {
             CallInfo& ci = frames[i];
             Function* currentFunc = functionFromCallInfo(ownerL, ci);

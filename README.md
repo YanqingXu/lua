@@ -54,7 +54,7 @@ applies_to: 项目入口、稳定能力概览与文档导航
 - 核心运行时对象包括 `Table`、`Function`、`Proto`、`GCString`、`Userdata`、`Thread` 和 `Upvalue`。
 - 项目统一使用 `src/common/types.hpp` 中的类型别名，如 `Vec<T>`、`HashMap<K, V>`、`Str`、`StrView`、`usize`、`i32`、`u32` 和 `f64`。
 - `RuntimeServices` 和 `EngineContext` 为嵌入式运行时隔离、测试夹具和多上下文执行提供清晰边界。
-- `src/api/lapi.cpp` 已进入 Lua 5.1 C API 原型验证阶段：栈/索引、registry/global pseudo-index、C closure upvalue、light/full userdata、userdata metatable/终结器与独立 State 所有权已由独立 API suite 覆盖；allocator、refs、完整 protected-call/`testC` 与官方模块 ABI 仍在推进。
+- `src/api/lapi.cpp` 已进入 Lua 5.1 C API 原型验证阶段：栈/索引、closure/userdata、独立 State、protected-call/yield、公开 `lua_newthread/lua_resume`，以及自定义 allocator 的主/协程 State、GC 对象、userdata payload、主要运行时容器、失败回滚和关闭释放已由独立 API suite 覆盖；C 函数作为 coroutine 入口、真实 realloc、GCString/StringPool key 的字符串内容容量、refs、完整 `testC` 与官方模块 ABI 仍在推进。
 
 ### 内存管理与 GC
 
@@ -134,7 +134,7 @@ bin\lua_test.exe --filter "Symbol Binding"
 bin\lua_test.exe --report=junit
 ```
 
-测试运行器会在输出中报告真实测试数量和断言结果。最近一次完整绿跑为 681 registered tests / 3493 assertion results / 0 failures；其中 `Lua C API` suite 为 11 个测试、87 个断言。
+测试运行器会在输出中报告真实测试数量和断言结果。最近一次完整绿跑为 692 registered tests / 3624 assertion results / 0 failures；其中 `Lua C API` suite 为 22 个测试、218 个断言。
 
 ### CMake / CTest 辅助路径
 

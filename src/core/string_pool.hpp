@@ -18,6 +18,7 @@
  */
 
 #include "core/gc_string.hpp"
+#include "runtime/lua_allocator.hpp"
 #include <unordered_map>
 #include <string_view>
 #include <memory>
@@ -80,7 +81,7 @@ public:
      * `getInstance()` 仍提供 legacy singleton；EngineContext 使用公开构造
      * 函数创建可隔离的运行时字符串池。
      */
-    StringPool() = default;
+    explicit StringPool(LuaAllocator* allocator = nullptr);
 
     /**
      * @brief 析构函数
@@ -227,7 +228,12 @@ private:
      * 注意：我们使用Str作为key而不是StrView，
      * 因为StrView不拥有数据，可能导致悬空引用。
      */
-    HashMap<Str, GCString*> pool_;
+    using PoolValue = std::pair<const Str, GCString*>;
+    using PoolAllocator = LuaStdAllocator<PoolValue>;
+    using PoolMap = std::unordered_map<Str, GCString*, std::hash<Str>,
+                                       std::equal_to<Str>, PoolAllocator>;
+
+    PoolMap pool_;
     GarbageCollector* collector_ = nullptr;
 };
 

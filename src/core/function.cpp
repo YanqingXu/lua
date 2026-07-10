@@ -18,14 +18,20 @@ namespace Lua {
 // =====================================================================
 
 Proto::Proto()
+    : Proto(nullptr)
+{
+}
+
+Proto::Proto(LuaAllocator* allocator)
     : GCObject(GCObjectType::Proto)
-    , constants_()
-    , constantMap_()
-    , code_()
-    , subProtos_()
-    , lineInfo_()
-    , locvars_()
-    , upvalueNames_()
+    , constants_(LuaStdAllocator<Value>(allocator))
+    , constantMap_(0, ConstantKeyHash{}, std::equal_to<ConstantKey>{},
+                   ConstantMapAllocator(allocator))
+    , code_(LuaStdAllocator<Instruction>(allocator))
+    , subProtos_(LuaStdAllocator<Proto*>(allocator))
+    , lineInfo_(LuaStdAllocator<i32>(allocator))
+    , locvars_(LuaStdAllocator<LocVar>(allocator))
+    , upvalueNames_(LuaStdAllocator<GCString*>(allocator))
     , source_(nullptr)
     , linedefined_(0)
     , lastlinedefined_(0)
@@ -241,6 +247,11 @@ usize Proto::getSize() const {
 // =====================================================================
 
 Function::Function(CFunction func)
+    : Function(nullptr, func)
+{
+}
+
+Function::Function(LuaAllocator* allocator, CFunction func)
     : GCObject(GCObjectType::Function)
     , isC_(true)
     , nupvalues_(0)      // 初始化上值数量为0
@@ -248,6 +259,7 @@ Function::Function(CFunction func)
     , env_(nullptr)      // 初始化环境表为nullptr
     , cFunction_(func)
     , proto_(nullptr)
+    , upvalues_(LuaStdAllocator<Upvalue*>(allocator))
 {
     if (func == nullptr) {
         throw std::invalid_argument("C function pointer cannot be null");
@@ -255,6 +267,11 @@ Function::Function(CFunction func)
 }
 
 Function::Function(Proto* proto)
+    : Function(nullptr, proto)
+{
+}
+
+Function::Function(LuaAllocator* allocator, Proto* proto)
     : GCObject(GCObjectType::Function)
     , isC_(false)
     , nupvalues_(0)      // 初始化上值数量为0
@@ -262,6 +279,7 @@ Function::Function(Proto* proto)
     , env_(nullptr)      // 初始化环境表为nullptr
     , cFunction_(nullptr)
     , proto_(proto)
+    , upvalues_(LuaStdAllocator<Upvalue*>(allocator))
 {
     if (proto == nullptr) {
         throw std::invalid_argument("Proto pointer cannot be null");

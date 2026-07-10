@@ -112,8 +112,7 @@ void CodeGenerator::discardCurrentProto() noexcept {
         return;
     }
 
-    std::unique_ptr<Proto> reclaimed(failedProto);
-    state_.services.gc.unregisterObject(reclaimed.get());
+    state_.services.gc.destroyManagedObject(failedProto);
 }
 
 // =====================================================================

@@ -52,7 +52,7 @@ void GarbageCollector::runFinalizers(LuaState* state) {
     }
 
     finalizersRunning_ = true;
-    Vec<Userdata*> finalizers;
+    LuaVector<Userdata*> finalizers(pendingFinalizers_.get_allocator());
     finalizers.swap(pendingFinalizers_);
 
     Stack& stack = state->getStack();

@@ -31,16 +31,17 @@ GarbageCollector& GarbageCollector::getInstance() {
     return legacyInstance();
 }
 
-GarbageCollector::GarbageCollector()
+GarbageCollector::GarbageCollector(LuaAllocator* allocator)
     : allObjects_(nullptr)
-    , roots_()
-    , grayList_()
-    , weakTables_()
-    , pendingFinalizers_()
-    , externalMarked_()
+    , roots_(LuaStdAllocator<GCObject*>(allocator))
+    , grayList_(LuaStdAllocator<GCObject*>(allocator))
+    , weakTables_(LuaStdAllocator<Table*>(allocator))
+    , pendingFinalizers_(LuaStdAllocator<Userdata*>(allocator))
+    , externalMarked_(LuaStdAllocator<GCObject*>(allocator))
     , finalizersRunning_(false)
     , globalState_(nullptr)
     , stringPool_(nullptr)
+    , allocator_(allocator)
     , strategy_(&markSweepGCStrategy())
     , automaticStopped_(false)
     , automaticCollectionRunning_(false)
@@ -61,6 +62,17 @@ GarbageCollector::GarbageCollector()
 
 GarbageCollector::~GarbageCollector() {
     clearAll();
+
+    // clearAll() intentionally preserves fixed roots for tests. Runtime
+    // destruction must release them as well so lua_close balances every
+    // allocator-backed object, including reserved strings and the registry.
+    StringPool& stringPool = stringPoolForCollection(nullptr);
+    while (allObjects_ != nullptr) {
+        GCObject* object = allObjects_;
+        allObjects_ = object->getNext();
+        object->setNext(nullptr);
+        destroyObject(object, stringPool);
+    }
 }
 
 // =====================================================================
@@ -226,6 +238,20 @@ usize GarbageCollector::collectAutomatic(StringPool& stringPool, LuaState* curre
         (liveBytes * pausePercent) / 100 + 32 * 1024);
     gcDebtBytes_ = static_cast<isize>(liveBytes) - static_cast<isize>(automaticThresholdBytes_);
     return collected;
+}
+
+void GarbageCollector::destroyManagedObject(GCObject* obj) noexcept {
+    if (obj == nullptr) {
+        return;
+    }
+
+    if (obj->getOwnerCollector() == this) {
+        unregisterObject(obj);
+    }
+    if (obj->getType() == GCObjectType::String && stringPool_ != nullptr) {
+        stringPool_->remove(static_cast<GCString*>(obj));
+    }
+    releaseObjectMemory(obj);
 }
 
 usize GarbageCollector::maybeCollectAutomatic(LuaState* currentState) {
@@ -570,7 +596,19 @@ void GarbageCollector::destroyObject(GCObject* obj, StringPool& stringPool) {
         stringPool.remove(static_cast<GCString*>(obj));
     }
 
-    delete obj;
+    releaseObjectMemory(obj);
+}
+
+void GarbageCollector::releaseObjectMemory(GCObject* obj) noexcept {
+    LuaAllocator* allocationAllocator = obj->getAllocationAllocator();
+    const usize allocationSize = obj->getAllocationSize();
+    GCObject::AllocationDestructor allocationDestructor = obj->getAllocationDestructor();
+    if (allocationAllocator != nullptr && allocationDestructor != nullptr) {
+        allocationDestructor(obj);
+        allocationAllocator->deallocate(obj, allocationSize);
+    } else {
+        delete obj;
+    }
 }
 
 // =====================================================================

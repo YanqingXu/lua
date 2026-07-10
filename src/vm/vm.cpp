@@ -70,7 +70,7 @@ ExecResult executeProtoUnchecked(RuntimeServices& services, LuaState* L, Proto* 
     if (!proto)
         throw RuntimeError("VM::executeProto: null proto");
     if (nexeccalls >= MAX_CALLS)
-        throw MemoryError("VM: stack overflow (too many nested calls)");
+        throw StackOverflowError("VM: stack overflow (too many nested calls)");
 
     VMContext context{services, L, proto, nexeccalls};
     DispatchStrategy& strategy = services.dispatchStrategy != nullptr
@@ -129,7 +129,7 @@ ExecResult runDispatchBackend(VMContext& context, DispatchBackend backend) {
     if (!proto)
         throw RuntimeError("VM::executeProto: null proto");
     if (nexeccalls >= MAX_CALLS)
-        throw MemoryError("VM: stack overflow (too many nested calls)");
+        throw StackOverflowError("VM: stack overflow (too many nested calls)");
 
     // ---- 局部执行状态 ----
     Function* func  = nullptr;

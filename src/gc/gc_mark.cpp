@@ -23,7 +23,7 @@ void markWideStackRoots(GarbageCollector& gc, LuaState* state) {
     Stack& stack = state->getStack();
     usize scanTop = std::min(state->getAbsoluteTop(), stack.size());
 
-    Vec<CallInfo>& callStack = state->getCallStack();
+    LuaVector<CallInfo>& callStack = state->getCallStack();
     usize callStackSize = state->getCallStackSize();
     for (usize i = 0; i < callStackSize && i < callStack.size(); i++) {
         scanTop = std::max(scanTop, std::min(callStack[i].top, stack.size()));
@@ -112,7 +112,7 @@ void markCFrameStackWindow(GarbageCollector& gc, LuaState* state, const CallInfo
 
 void markPreciseStackRoots(GarbageCollector& gc, LuaState* state) {
     Stack& stack = state->getStack();
-    Vec<CallInfo>& callStack = state->getCallStack();
+    LuaVector<CallInfo>& callStack = state->getCallStack();
     usize callStackSize = state->getCallStackSize();
 
     if (callStackSize == 0 || callStack.empty()) {

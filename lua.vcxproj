@@ -218,6 +218,7 @@
     <ClInclude Include="src\compiler\parser\parser_utils.hpp" />
     <ClInclude Include="src\compiler\codegen\function_compiler.hpp" />
     <ClInclude Include="src\compiler\codegen\gc_allocation_guard.hpp" />
+    <ClInclude Include="src\runtime\lua_allocator.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\compiler\ast.cpp" />

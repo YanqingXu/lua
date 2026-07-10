@@ -24,6 +24,7 @@
 
 #include "common/types.hpp"
 #include "core/gc_object.hpp"
+#include "runtime/lua_allocator.hpp"
 #include <memory>
 #include <type_traits>
 #include <utility>
@@ -84,7 +85,7 @@ public:
     /**
      * @brief 构造独立的GC实例
      */
-    GarbageCollector();
+    explicit GarbageCollector(LuaAllocator* allocator = nullptr);
     
     /**
      * @brief 获取旧的兼容GC实例
@@ -124,6 +125,14 @@ public:
      * 主要用于尚未 commit 的 RAII guard 放弃 GC 托管。该函数不释放对象本身。
      */
     void unregisterObject(GCObject* obj) noexcept;
+
+    /**
+     * @brief Destroy a registered object through its original allocation path.
+     *
+     * Used by rollback guards that abandon an object before it becomes part of
+     * a completed Proto/object graph.
+     */
+    void destroyManagedObject(GCObject* obj) noexcept;
 
     template<typename T, typename... Args>
     [[nodiscard]] T* create(Args&&... args) {
@@ -404,6 +413,14 @@ public:
         return stringPool_;
     }
 
+    LuaAllocator* getAllocator() noexcept {
+        return allocator_;
+    }
+
+    const LuaAllocator* getAllocator() const noexcept {
+        return allocator_;
+    }
+
 private:
     friend class StringPool;
     friend class MarkSweepGC;
@@ -412,6 +429,50 @@ private:
     template<typename T, typename... Args>
     [[nodiscard]] T* createManaged(bool root, bool fixed, Args&&... args) {
         static_assert(std::is_base_of_v<GCObject, T>, "GarbageCollector::create<T> requires a GCObject type");
+
+        if (allocator_ != nullptr && allocator_->isConfigured()) {
+            void* memory = allocator_->allocate(sizeof(T));
+            if (memory == nullptr) {
+                throw std::bad_alloc();
+            }
+
+            T* raw = nullptr;
+            try {
+                if constexpr (std::is_constructible_v<T, LuaAllocator*, Args...>) {
+                    raw = std::construct_at(static_cast<T*>(memory), allocator_,
+                                            std::forward<Args>(args)...);
+                } else {
+                    raw = std::construct_at(static_cast<T*>(memory),
+                                            std::forward<Args>(args)...);
+                }
+            } catch (...) {
+                allocator_->deallocate(memory, sizeof(T));
+                throw;
+            }
+
+            raw->setAllocatorAllocation(
+                allocator_, sizeof(T),
+                [](GCObject* object) noexcept {
+                    std::destroy_at(static_cast<T*>(object));
+                });
+            registerObject(raw);
+
+            try {
+                if (fixed) {
+                    raw->setMarked(raw->getMarked() | GCBits::FIXED);
+                }
+                if (root) {
+                    addRoot(raw);
+                }
+            } catch (...) {
+                unregisterObject(raw);
+                std::destroy_at(raw);
+                allocator_->deallocate(raw, sizeof(T));
+                throw;
+            }
+
+            return raw;
+        }
 
         auto object = std::make_unique<T>(std::forward<Args>(args)...);
         T* raw = object.get();
@@ -451,6 +512,7 @@ private:
 
     StringPool& stringPoolForCollection(LuaState* currentState) const;
     void destroyObject(GCObject* obj, StringPool& stringPool);
+    void releaseObjectMemory(GCObject* obj) noexcept;
     [[nodiscard]] usize collectMarkSweep(StringPool& stringPool, LuaState* currentState);
     [[nodiscard]] usize collectMarkSweep(StringPool& stringPool, LuaState* currentState,
                                          bool runFinalizersNow);
@@ -499,19 +561,19 @@ private:
     GCObject* allObjects_;
     
     /// 根对象集合（使用vector存储，简单实现）
-    Vec<GCObject*> roots_;
+    LuaVector<GCObject*> roots_;
     
     /// 灰色对象列表（待处理）
-    Vec<GCObject*> grayList_;
+    LuaVector<GCObject*> grayList_;
 
     /// 本轮标记中发现的弱表
-    Vec<Table*> weakTables_;
+    LuaVector<Table*> weakTables_;
 
     /// 等待执行 __gc 的 userdata
-    Vec<Userdata*> pendingFinalizers_;
+    LuaVector<Userdata*> pendingFinalizers_;
 
     /// 本轮标记中已遍历的外部 collector 对象
-    Vec<GCObject*> externalMarked_;
+    LuaVector<GCObject*> externalMarked_;
 
     /// 防止终结器递归执行
     bool finalizersRunning_;
@@ -521,6 +583,9 @@ private:
 
     /// 字符串驻留池；用于 sweep/clearAll 删除字符串时同步摘除池条目
     StringPool* stringPool_;
+
+    /// Mutable Lua allocator shared by the owning EngineContext.
+    LuaAllocator* allocator_;
 
     /// 当前 GC 策略；默认指向 mark-sweep，策略对象本身为静态共享实例
     const GCStrategy* strategy_;

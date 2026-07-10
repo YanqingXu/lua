@@ -308,7 +308,7 @@ static Str sourceLocationForErrorLevel(LuaState* L, i32 level) {
     }
 
     usize targetIndex = currentIndex - static_cast<usize>(level);
-    Vec<CallInfo>& frames = L->getCallStack();
+    LuaVector<CallInfo>& frames = L->getCallStack();
     if (targetIndex >= frames.size()) {
         return Str();
     }
@@ -1490,7 +1490,7 @@ static Function* functionAtStackLevel(LuaState* L, i32 level) {
         return nullptr;
     }
 
-    Vec<CallInfo>& frames = L->getCallStack();
+        LuaVector<CallInfo>& frames = L->getCallStack();
     usize targetIndex = L->getCurrentCI();
     if (targetIndex >= frames.size()) {
         return nullptr;

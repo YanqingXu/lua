@@ -15,12 +15,19 @@
 
 #include "core/gc_object.hpp"
 #include "common/types.hpp"
+#include <memory>
 
 namespace Lua {
 
 class LuaState;
 class Function;
 class GarbageCollector;
+
+struct LuaStateOwnerDeleter {
+    void operator()(LuaState* state) const noexcept;
+};
+
+using LuaStateOwner = std::unique_ptr<LuaState, LuaStateOwnerDeleter>;
 
 /// Lua 协程状态（与 ThreadStatus 不同，这是 Lua 层面语义）
 enum class CoroutineStatus : u8 {
@@ -39,8 +46,11 @@ public:
     /// @param func 协程要执行的 Lua 函数
     static Thread* create(LuaState* parentL, Function* func);
 
+    /// 创建由 C API 填充入口函数和参数的空协程。
+    static Thread* create(LuaState* parentL);
+
     /// GC factory constructor; prefer Thread::create() at call sites.
-    explicit Thread(UPtr<LuaState> state);
+    explicit Thread(LuaStateOwner state);
 
     ~Thread();
 
@@ -72,7 +82,7 @@ public:
     usize getSize() const override;
 
 private:
-    UPtr<LuaState>  state_;
+    LuaStateOwner   state_;
     CoroutineStatus coStatus_;
     Thread*         caller_ = nullptr;
     LuaState*       callerState_ = nullptr;

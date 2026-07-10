@@ -22,6 +22,7 @@
 namespace Lua {
 
 class GarbageCollector;
+class LuaAllocator;
 
 /**
  * @brief GCObject抽象基类 - 所有可回收对象的基类
@@ -198,6 +199,9 @@ protected:
     explicit GCObject(GCObjectType type) noexcept
         : next_(nullptr)
         , ownerCollector_(nullptr)
+        , allocationAllocator_(nullptr)
+        , allocationSize_(0)
+        , allocationDestructor_(nullptr)
         , type_(type)
         , marked_(0)
     {
@@ -210,8 +214,32 @@ private:
         ownerCollector_ = collector;
     }
 
+    using AllocationDestructor = void (*)(GCObject*) noexcept;
+
+    void setAllocatorAllocation(LuaAllocator* allocator, usize size,
+                                AllocationDestructor destructor) noexcept {
+        allocationAllocator_ = allocator;
+        allocationSize_ = size;
+        allocationDestructor_ = destructor;
+    }
+
+    LuaAllocator* getAllocationAllocator() const noexcept {
+        return allocationAllocator_;
+    }
+
+    usize getAllocationSize() const noexcept {
+        return allocationSize_;
+    }
+
+    AllocationDestructor getAllocationDestructor() const noexcept {
+        return allocationDestructor_;
+    }
+
     GCObject* next_;        ///< GC链表指针
     GarbageCollector* ownerCollector_; ///< 当前管理此对象的GC实例
+    LuaAllocator* allocationAllocator_; ///< Allocator that owns this object block
+    usize allocationSize_; ///< Exact object-block size supplied to lua_Alloc
+    AllocationDestructor allocationDestructor_; ///< Concrete placement destructor
     GCObjectType type_;     ///< 对象类型
     u8 marked_;             ///< GC标记位
 };

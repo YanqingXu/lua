@@ -4,6 +4,7 @@
 #include "core/function.hpp"
 #include "core/gc_string.hpp"
 #include "core/table.hpp"
+#include "core/thread.hpp"
 #include "core/upvalue.hpp"
 #include "core/userdata.hpp"
 #include "core/value.hpp"
@@ -14,6 +15,7 @@
 #include "vm/vm_internal.hpp"
 
 #include <algorithm>
+#include <cstdlib>
 #include <cstdarg>
 #include <cstdio>
 #include <cstring>
@@ -30,6 +32,14 @@ static lua_State* toC(Lua::LuaState* L) {
 }
 
 namespace {
+
+void* defaultLuaAllocator(void*, void* pointer, size_t, size_t newSize) {
+    if (newSize == 0) {
+        std::free(pointer);
+        return {};
+    }
+    return std::realloc(pointer, newSize);
+}
 
 enum class ApiIndexKind {
     Stack,
@@ -225,8 +235,9 @@ void setValueMetatable(Lua::LuaState* state, const Lua::Value& value, Lua::Table
 
 extern "C" {
 
-lua_State* lua_newstate(lua_Alloc, void*) {
-    return toC(Lua::LuaState::newIsolatedState());
+lua_State* lua_newstate(lua_Alloc allocator, void* userData) {
+    lua_Alloc effectiveAllocator = allocator != nullptr ? allocator : defaultLuaAllocator;
+    return toC(Lua::LuaState::newAllocatedState(effectiveAllocator, userData));
 }
 
 lua_State* lua_open(void) {
@@ -234,7 +245,22 @@ lua_State* lua_open(void) {
 }
 
 void lua_close(lua_State* L) {
-    delete fromC(L);
+    Lua::LuaState::destroyState(fromC(L));
+}
+
+lua_Alloc lua_getallocf(lua_State* L, void** userData) {
+    Lua::LuaAllocator* allocator = fromC(L)->getGlobalState().getAllocator();
+    if (userData != nullptr) {
+        *userData = allocator != nullptr ? allocator->getUserData() : nullptr;
+    }
+    return allocator != nullptr ? allocator->getFunction() : nullptr;
+}
+
+void lua_setallocf(lua_State* L, lua_Alloc allocatorFunction, void* userData) {
+    Lua::LuaAllocator* allocator = fromC(L)->getGlobalState().getAllocator();
+    if (allocator != nullptr && allocatorFunction != nullptr) {
+        allocator->set(allocatorFunction, userData);
+    }
 }
 
 int lua_gettop(lua_State* L) {
@@ -667,7 +693,155 @@ void lua_call(lua_State* L, int nargs, int nresults) {
 }
 
 int lua_pcall(lua_State* L, int nargs, int nresults, int errfunc) {
-    return fromC(L)->pcall(nargs, nresults, errfunc);
+    Lua::LuaState* state = fromC(L);
+    int internalErrorFunction = errfunc;
+    if (errfunc > 0 && state->getCurrentCI() == 0) {
+        internalErrorFunction += static_cast<int>(currentFrameBase(state));
+    }
+    return state->pcall(nargs, nresults, internalErrorFunction);
+}
+
+lua_State* lua_newthread(lua_State* L) {
+    Lua::LuaState* parent = fromC(L);
+    const Lua::usize savedTop = parent->getAbsoluteTop();
+    try {
+        Lua::Thread* thread = Lua::Thread::create(parent);
+        parent->pushValue(Lua::Value(thread));
+        return toC(thread->getLuaState());
+    } catch (...) {
+        parent->setAbsoluteTop(savedTop);
+        return nullptr;
+    }
+}
+
+int lua_resume(lua_State* L, int nargs) {
+    Lua::LuaState* state = fromC(L);
+    Lua::Thread* thread = state->getThread();
+
+    auto fail = [&](const Lua::Value& errorValue, int status) {
+        setApiTop(state, 0);
+        state->pushValue(errorValue);
+        state->setStatus(static_cast<Lua::ThreadStatus>(status));
+        return status;
+    };
+    auto runtimeError = [&](const char* message) {
+        auto& pool = state->getGlobalState().getStringPool();
+        return fail(Lua::Value(pool.intern(message)), LUA_ERRRUN);
+    };
+
+    if (thread == nullptr) {
+        return runtimeError("cannot resume main state");
+    }
+    if (nargs < 0 || nargs > apiTop(state)) {
+        return runtimeError("invalid resume argument count");
+    }
+
+    Lua::GlobalState& globalState = state->getGlobalState();
+    Lua::LuaState* bridge = globalState.getMainThread();
+    Lua::Thread* running = globalState.getRunningThread();
+    if (running != nullptr && running != thread) {
+        bridge = running->getLuaState();
+    }
+    if (bridge == nullptr || bridge == state) {
+        return runtimeError("cannot find resume caller state");
+    }
+
+    const Lua::usize bridgeTop = bridge->getAbsoluteTop();
+    const int stateTop = apiTop(state);
+    try {
+        // Thread::resume owns the VM transition and expects resume arguments
+        // on its caller stack. Keep the bridge's existing prefix untouched.
+        for (int i = nargs; i > 0; --i) {
+            bridge->pushValue(state->at(-i));
+        }
+        setApiTop(state, stateTop - nargs);
+
+        const bool resumed = thread->resume(bridge, nargs);
+        const Lua::usize outputTop = bridge->getAbsoluteTop();
+        const Lua::usize outputCount = outputTop >= bridgeTop ? outputTop - bridgeTop : 0;
+        Lua::LuaVector<Lua::Value> outputValues(
+            Lua::LuaStdAllocator<Lua::Value>(globalState.getAllocator()));
+        if (outputCount > 1) {
+            outputValues.reserve(outputCount - 1);
+            for (Lua::usize i = 1; i < outputCount; ++i) {
+                outputValues.push_back(bridge->getStack().at(bridgeTop + i));
+            }
+        }
+        Lua::Value errorValue;
+        if (!resumed && !outputValues.empty()) {
+            errorValue = outputValues.front();
+        }
+        bridge->setAbsoluteTop(bridgeTop);
+
+        if (!resumed) {
+            int status = static_cast<int>(state->getStatus());
+            if (status == LUA_OK || status == LUA_YIELD) {
+                status = LUA_ERRRUN;
+            }
+            if (outputCount < 2) {
+                auto& pool = globalState.getStringPool();
+                errorValue = Lua::Value(pool.intern("coroutine resume failed"));
+            }
+            return fail(errorValue, status);
+        }
+
+        if (thread->isSuspended()) {
+            return LUA_YIELD;
+        }
+
+        // The internal coroutine runner copies results to its caller. A public
+        // lua_resume must additionally leave those results on the resumed
+        // state's own API stack.
+        setApiTop(state, 0);
+        for (const Lua::Value& value : outputValues) {
+            state->pushValue(value);
+        }
+        return LUA_OK;
+    } catch (const Lua::MemoryError&) {
+        bridge->setAbsoluteTop(bridgeTop);
+        return fail(Lua::Value(globalState.getMemoryErrorMessage()), LUA_ERRMEM);
+    } catch (const std::bad_alloc&) {
+        bridge->setAbsoluteTop(bridgeTop);
+        return fail(Lua::Value(globalState.getMemoryErrorMessage()), LUA_ERRMEM);
+    } catch (const Lua::LuaError& error) {
+        bridge->setAbsoluteTop(bridgeTop);
+        if (error.hasErrorObject()) {
+            return fail(error.getErrorObject(), LUA_ERRRUN);
+        }
+        return runtimeError(error.what());
+    } catch (const std::exception& error) {
+        bridge->setAbsoluteTop(bridgeTop);
+        return runtimeError(error.what());
+    } catch (...) {
+        bridge->setAbsoluteTop(bridgeTop);
+        return runtimeError("unknown C++ exception");
+    }
+}
+
+int lua_error(lua_State* L) {
+    Lua::LuaState* state = fromC(L);
+    if (apiTop(state) == 0) {
+        state->error("lua_error requires an error object");
+    }
+    return state->error();
+}
+
+int lua_yield(lua_State* L, int nresults) {
+    Lua::LuaState* state = fromC(L);
+    if (nresults < 0 || nresults > apiTop(state)) {
+        state->error("invalid yield result count");
+    }
+    if (!state->canYield()) {
+        state->error("cannot yield across non-resumable call boundaries");
+    }
+
+    state->setStatus(Lua::ThreadStatus::Yield);
+    state->setYieldResults(nresults);
+    return 0;
+}
+
+int lua_status(lua_State* L) {
+    return static_cast<int>(fromC(L)->getStatus());
 }
 
 void luaL_openlibs(lua_State* L) {

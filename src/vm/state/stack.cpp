@@ -17,10 +17,11 @@ namespace Lua {
 // 构造函数
 // =====================================================================
 
-Stack::Stack(usize initialSize)
-    : stack_(initialSize)
+Stack::Stack(usize initialSize, LuaAllocator* allocator)
+    : stack_(LuaStdAllocator<Value>(allocator))
     , top_(0)
 {
+    stack_.resize(initialSize);
     // 确保初始大小至少为MIN_STACK_SIZE
     if (initialSize < MIN_STACK_SIZE) {
         stack_.resize(MIN_STACK_SIZE);
@@ -109,7 +110,7 @@ void Stack::ensureSpace(usize needed) {
         if (newCapacity > MAX_STACK_SIZE) {
             // 如果确实需要超过限制，抛出异常
             if (top_ + needed > MAX_STACK_SIZE) {
-                throw MemoryError("stack overflow: maximum stack size exceeded");
+                throw StackOverflowError("stack overflow: maximum stack size exceeded");
             }
             // 否则，限制在最大值
             newCapacity = MAX_STACK_SIZE;
@@ -124,7 +125,7 @@ void Stack::setTop(usize newTop) {
         usize newCapacity = newTop + EXTRA_STACK;
         if (newCapacity > MAX_STACK_SIZE) {
             if (newTop > MAX_STACK_SIZE) {
-                throw MemoryError("stack overflow: maximum stack size exceeded");
+                throw StackOverflowError("stack overflow: maximum stack size exceeded");
             }
             newCapacity = MAX_STACK_SIZE;
         }

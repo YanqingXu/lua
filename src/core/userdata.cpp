@@ -6,6 +6,7 @@
 #include "userdata.hpp"
 #include "table.hpp"
 #include "gc/garbage_collector.hpp"
+#include "runtime/lua_allocator.hpp"
 #include <algorithm>
 #include <cstdlib>
 #include <cstring>
@@ -28,8 +29,16 @@ usize alignedAllocationSize(usize size) noexcept {
     return remainder == 0 ? size : size + (kUserdataAlignment - remainder);
 }
 
-std::byte* allocateUserdataBuffer(usize size) {
+std::byte* allocateUserdataBuffer(LuaAllocator* allocator, usize size) {
     const usize allocationSize = std::max(size, kUserdataAlignment);
+    if (allocator != nullptr && allocator->isConfigured()) {
+        void* data = allocator->allocate(allocationSize);
+        if (data == nullptr) {
+            throw std::bad_alloc();
+        }
+        return static_cast<std::byte*>(data);
+    }
+
 #ifdef _MSC_VER
     void* data = _aligned_malloc(allocationSize, kUserdataAlignment);
 #else
@@ -47,6 +56,11 @@ std::byte* allocateUserdataBuffer(usize size) {
 
 void UserdataBufferDeleter::operator()(std::byte* data) const noexcept {
     if (data == nullptr) {
+        return;
+    }
+
+    if (allocator != nullptr && allocator->isConfigured()) {
+        allocator->deallocate(data, allocationSize);
         return;
     }
 
@@ -80,9 +94,15 @@ Userdata* Userdata::createFull(usize size) {
 // =====================================================================
 
 Userdata::Userdata(usize size)
+    : Userdata(nullptr, size)
+{
+}
+
+Userdata::Userdata(LuaAllocator* allocator, usize size)
     : GCObject(GCObjectType::Userdata)
     , size_(size)
-    , data_(allocateUserdataBuffer(size))
+    , data_(allocateUserdataBuffer(allocator, size),
+            UserdataBufferDeleter{allocator, std::max(size, kUserdataAlignment)})
     , metatable_(nullptr)
     , dataDestructor_(nullptr)
 {

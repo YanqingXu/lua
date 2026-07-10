@@ -29,8 +29,12 @@ namespace Lua {
 // 前向声明
 class Table;
 class GarbageCollector;
+class LuaAllocator;
 
 struct UserdataBufferDeleter {
+    LuaAllocator* allocator = nullptr;
+    usize allocationSize = 0;
+
     void operator()(std::byte* data) const noexcept;
 };
 
@@ -200,6 +204,7 @@ public:
      * @param size 用户数据大小
      */
     explicit Userdata(usize size);
+    Userdata(LuaAllocator* allocator, usize size);
 
 private:
     

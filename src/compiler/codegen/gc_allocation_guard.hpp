@@ -8,7 +8,6 @@
 #include "common/types.hpp"
 #include "gc/garbage_collector.hpp"
 
-#include <memory>
 #include <utility>
 
 namespace Lua {
@@ -19,17 +18,14 @@ public:
     template<typename... Args>
     explicit GCAllocationGuard(GarbageCollector& gc, Args&&... args)
         : gc_(gc)
-        , object_(std::make_unique<T>(std::forward<Args>(args)...)) {
-        gc_.registerObject(object_.get());
-    }
+        , object_(gc_.create<T>(std::forward<Args>(args)...)) {}
 
     template<typename... Args>
     GCAllocationGuard(GarbageCollector& gc, T*& observer, Args&&... args)
         : gc_(gc)
-        , object_(std::make_unique<T>(std::forward<Args>(args)...)) {
-        gc_.registerObject(object_.get());
+        , object_(gc_.create<T>(std::forward<Args>(args)...)) {
         observer_ = &observer;
-        observer = object_.get();
+        observer = object_;
     }
 
     ~GCAllocationGuard() {
@@ -40,7 +36,7 @@ public:
     GCAllocationGuard& operator=(const GCAllocationGuard&) = delete;
 
     T* get() const noexcept {
-        return object_.get();
+        return object_;
     }
 
     T& operator*() const noexcept {
@@ -48,12 +44,14 @@ public:
     }
 
     T* operator->() const noexcept {
-        return object_.get();
+        return object_;
     }
 
     [[nodiscard]] T* commit() noexcept {
         observer_ = nullptr;
-        return object_.release();
+        T* committed = object_;
+        object_ = nullptr;
+        return committed;
     }
 
 private:
@@ -62,15 +60,15 @@ private:
             return;
         }
 
-        if (observer_ != nullptr && *observer_ == object_.get()) {
+        if (observer_ != nullptr && *observer_ == object_) {
             *observer_ = nullptr;
         }
-        gc_.unregisterObject(object_.get());
-        object_.reset();
+        gc_.destroyManagedObject(object_);
+        object_ = nullptr;
     }
 
     GarbageCollector& gc_;
-    UPtr<T> object_;
+    T* object_ = nullptr;
     T** observer_ = nullptr;
 };
 

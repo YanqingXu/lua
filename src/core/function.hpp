@@ -25,6 +25,7 @@
 #include "common/types.hpp"
 #include "core/gc_object.hpp"
 #include "core/value.hpp"
+#include "runtime/lua_allocator.hpp"
 #include <vector>
 #include <unordered_map>
 #include <variant>
@@ -214,6 +215,7 @@ public:
      * @brief 构造函数
      */
     Proto();
+    explicit Proto(LuaAllocator* allocator);
     
     /**
      * @brief 析构函数
@@ -360,7 +362,7 @@ public:
      * @brief 获取代码数组（只读）
      * @return 代码数组引用
      */
-    const Vec<Instruction>& getCode() const noexcept { return code_; }
+    const LuaVector<Instruction>& getCode() const noexcept { return code_; }
 
     /**
      * @brief 获取只读指令视图
@@ -374,7 +376,7 @@ public:
      * @brief 获取代码数组（可写）
      * @return 代码数组引用
      */
-    Vec<Instruction>& getCode() noexcept { return code_; }
+    LuaVector<Instruction>& getCode() noexcept { return code_; }
 
     // =====================================================================
     // 行号信息
@@ -397,13 +399,13 @@ public:
      * @brief 获取行号信息数组（只读）
      * @return 行号信息数组引用
      */
-    const Vec<i32>& getLineInfo() const noexcept { return lineInfo_; }
+    const LuaVector<i32>& getLineInfo() const noexcept { return lineInfo_; }
 
     /**
      * @brief 获取行号信息数组（可写）
      * @return 行号信息数组引用
      */
-    Vec<i32>& getLineInfo() noexcept { return lineInfo_; }
+    LuaVector<i32>& getLineInfo() noexcept { return lineInfo_; }
 
     // =====================================================================
     // 子函数原型管理
@@ -570,26 +572,30 @@ private:
     // =====================================================================
 
     /// 常量表：函数使用的常量值数组
-    Vec<Value> constants_;
+    LuaVector<Value> constants_;
 
     /// 常量去重缓存：从常量键到常量表索引的映射
     /// 参考Lua 5.1中addk()使用的哈希表（fs->h）
-    std::unordered_map<ConstantKey, usize, ConstantKeyHash> constantMap_;
+    using ConstantMapValue = std::pair<const ConstantKey, usize>;
+    using ConstantMapAllocator = LuaStdAllocator<ConstantMapValue>;
+    using ConstantMap = std::unordered_map<ConstantKey, usize, ConstantKeyHash,
+                                           std::equal_to<ConstantKey>, ConstantMapAllocator>;
+    ConstantMap constantMap_;
 
     /// 字节码数组：函数的指令序列
-    Vec<Instruction> code_;
+    LuaVector<Instruction> code_;
 
     /// 子函数原型数组：函数内定义的嵌套函数
-    Vec<Proto*> subProtos_;
+    LuaVector<Proto*> subProtos_;
 
     /// 行号信息：字节码到源码行号的映射（每条指令对应一个行号）
-    Vec<i32> lineInfo_;
+    LuaVector<i32> lineInfo_;
 
     /// 局部变量信息：调试用的局部变量描述
-    Vec<LocVar> locvars_;
+    LuaVector<LocVar> locvars_;
 
     /// 上值名称数组：闭包变量的名称（用于调试）
-    Vec<GCString*> upvalueNames_;
+    LuaVector<GCString*> upvalueNames_;
 
     // =====================================================================
     // 元数据字段
@@ -653,12 +659,14 @@ public:
      * @param func C函数指针
      */
     explicit Function(CFunction func);
+    Function(LuaAllocator* allocator, CFunction func);
 
     /**
      * @brief 创建Lua函数闭包
      * @param proto 函数原型
      */
     explicit Function(Proto* proto);
+    Function(LuaAllocator* allocator, Proto* proto);
 
     /**
      * @brief 析构函数
@@ -849,7 +857,7 @@ private:
     /// - 对于Lua函数（LClosure），存储Upvalue*指针（对应UpVal *upvals[1]）
     /// - 当前实现统一使用Upvalue*，这与C实现略有不同
     /// - Upvalue由GC管理，这里只持有指针
-    Vec<Upvalue*> upvalues_;
+    LuaVector<Upvalue*> upvalues_;
 };
 
 } // namespace Lua

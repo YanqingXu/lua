@@ -86,7 +86,7 @@ Str runtimeErrorWithLocation(LuaState* L, const Str& message) {
         return message;
     }
 
-    Vec<CallInfo>& frames = L->getCallStack();
+    LuaVector<CallInfo>& frames = L->getCallStack();
     usize frameIndex = L->getCurrentCI();
     while (true) {
         if (frameIndex < frames.size()) {
@@ -119,6 +119,20 @@ Str runtimeErrorWithLocation(LuaState* L, const Str& message) {
 }
 
 } // namespace
+
+void EngineContextDeleter::operator()(EngineContext* context) const noexcept {
+    if (context == nullptr) {
+        return;
+    }
+
+    LuaAllocator allocatorSnapshot = context->allocator();
+    if (allocatorBacked) {
+        std::destroy_at(context);
+        allocatorSnapshot.deallocate(context, sizeof(EngineContext));
+    } else {
+        std::default_delete<EngineContext>{}(context);
+    }
+}
 
 // =====================================================================
 // 静态工厂方法
@@ -154,7 +168,8 @@ UPtr<LuaState> LuaState::create(EngineContext& context) {
 
 UPtr<LuaState> LuaState::createIsolated() {
     UPtr<EngineContext> context = makeUnique<EngineContext>();
-    UPtr<LuaState> L = makeUnique<LuaState>(CtorToken{}, std::move(context));
+    UPtr<LuaState> L = makeUnique<LuaState>(CtorToken{}, context.get(), false, false);
+    context.release();
     L->initialize();
     return L;
 }
@@ -163,30 +178,131 @@ LuaState* LuaState::newIsolatedState() {
     return createIsolated().release();
 }
 
+LuaState* LuaState::newAllocatedState(LuaAllocatorFunction allocatorFunction, void* userData) {
+    if (allocatorFunction == nullptr) {
+        return {};
+    }
+
+    LuaAllocator bootstrapAllocator(allocatorFunction, userData);
+    void* contextMemory = bootstrapAllocator.allocate(sizeof(EngineContext));
+    if (contextMemory == nullptr) {
+        return {};
+    }
+
+    EngineContext* context = nullptr;
+    try {
+        context = std::construct_at(static_cast<EngineContext*>(contextMemory),
+                                    allocatorFunction, userData);
+    } catch (...) {
+        bootstrapAllocator.deallocate(contextMemory, sizeof(EngineContext));
+        return {};
+    }
+
+    LuaAllocator& allocator = context->allocator();
+    LuaAllocator allocatorSnapshot = allocator;
+    void* stateMemory = allocator.allocate(sizeof(LuaState));
+    if (stateMemory == nullptr) {
+        LuaAllocator snapshot = allocator;
+        std::destroy_at(context);
+        snapshot.deallocate(contextMemory, sizeof(EngineContext));
+        return {};
+    }
+
+    LuaState* state = nullptr;
+    bool stateOwnsContext = false;
+    try {
+        // ownedContext_ is the first LuaState member and its construction is
+        // non-throwing. From this point, a later member-construction failure
+        // destroys the context during constructor unwinding.
+        stateOwnsContext = true;
+        state = std::construct_at(static_cast<LuaState*>(stateMemory), CtorToken{},
+                                  context, true, true);
+        state->initialize();
+        return state;
+    } catch (...) {
+        if (state != nullptr) {
+            destroyState(state);
+        } else {
+            allocatorSnapshot.deallocate(stateMemory, sizeof(LuaState));
+            if (!stateOwnsContext) {
+                std::destroy_at(context);
+                allocatorSnapshot.deallocate(contextMemory, sizeof(EngineContext));
+            }
+        }
+        return {};
+    }
+}
+
+void LuaState::destroyState(LuaState* state) noexcept {
+    if (state == nullptr) {
+        return;
+    }
+
+    if (!state->allocatorOwnedSelf_) {
+        UPtr<LuaState> owner(state);
+        return;
+    }
+
+    LuaAllocator* currentAllocator = state->globalState_.getAllocator();
+    LuaAllocator snapshot = currentAllocator != nullptr ? *currentAllocator : LuaAllocator{};
+    std::destroy_at(state);
+    snapshot.deallocate(state, sizeof(LuaState));
+}
+
 LuaState* LuaState::newThread(LuaState* parentL) {
-    UPtr<LuaState> threadState = makeUnique<LuaState>(CtorToken{}, parentL->getGlobalState());
-    LuaState* L = threadState.get();
+    if (parentL == nullptr) {
+        return nullptr;
+    }
 
-    // 共享全局表（不创建新的，不注册为 GC root）
-    L->globalTable_ = parentL->globalTable_;
-    L->isChildThread_ = true;
+    GlobalState& globalState = parentL->getGlobalState();
+    LuaAllocator* allocator = globalState.getAllocator();
+    LuaState* L = nullptr;
 
-    // 初始化调用栈（虚拟主函数帧）
-    CallInfo& ci = L->callStack_[0];
-    ci.func = 0;
-    ci.base = 1;
-    ci.top = MIN_STACK_SIZE;
-    ci.savedpc = nullptr;
-    ci.nresults = MULTRET;
-    ci.tailcalls = 0;
+    if (allocator != nullptr && allocator->isConfigured()) {
+        void* memory = allocator->allocate(sizeof(LuaState));
+        if (memory == nullptr) {
+            return nullptr;
+        }
+        try {
+            L = std::construct_at(static_cast<LuaState*>(memory), CtorToken{},
+                                  globalState, true);
+        } catch (...) {
+            allocator->deallocate(memory, sizeof(LuaState));
+            return nullptr;
+        }
+    } else {
+        try {
+            UPtr<LuaState> state = makeUnique<LuaState>(CtorToken{}, globalState, false);
+            L = state.release();
+        } catch (...) {
+            return nullptr;
+        }
+    }
 
-    // 虚拟主函数位
-    L->stack_.push(Value());  // nil
-    L->top_ = 1;
+    try {
+        // 共享全局表（不创建新的，不注册为 GC root）
+        L->globalTable_ = parentL->globalTable_;
+        L->isChildThread_ = true;
 
-    L->status_ = ThreadStatus::OK;
+        // 初始化调用栈（虚拟主函数帧）
+        CallInfo& ci = L->callStack_[0];
+        ci.func = 0;
+        ci.base = 1;
+        ci.top = MIN_STACK_SIZE;
+        ci.savedpc = nullptr;
+        ci.nresults = MULTRET;
+        ci.tailcalls = 0;
 
-    return threadState.release();
+        // 虚拟主函数位
+        L->stack_.push(Value());  // nil
+        L->top_ = 1;
+        L->status_ = ThreadStatus::OK;
+    } catch (...) {
+        destroyState(L);
+        return nullptr;
+    }
+
+    return L;
 }
 
 // =====================================================================
@@ -203,12 +319,20 @@ LuaState::LuaState(CtorToken, GlobalState& globalState)
 {
 }
 
-LuaState::LuaState(CtorToken, UPtr<EngineContext> ownedContext)
-    : ownedContext_(std::move(ownedContext))
+LuaState::LuaState(CtorToken, GlobalState& globalState, bool allocatorOwnedSelf)
+    : LuaState(globalState)
+{
+    allocatorOwnedSelf_ = allocatorOwnedSelf;
+}
+
+LuaState::LuaState(CtorToken, EngineContext* ownedContext,
+                   bool allocatorOwnedContext, bool allocatorOwnedSelf)
+    : ownedContext_(ownedContext, EngineContextDeleter{allocatorOwnedContext})
+    , allocatorOwnedSelf_(allocatorOwnedSelf)
     , globalState_(ownedContext_->globalState())
-    , stack_(INITIAL_STACK_SIZE)
+    , stack_(INITIAL_STACK_SIZE, globalState_.getAllocator())
     , top_(0)
-    , callStack_(INITIAL_CI_SIZE)
+    , callStack_(INITIAL_CI_SIZE, LuaStdAllocator<CallInfo>(globalState_.getAllocator()))
     , currentCI_(0)
     , globalTable_(nullptr)
     , status_(ThreadStatus::OK)
@@ -217,11 +341,12 @@ LuaState::LuaState(CtorToken, UPtr<EngineContext> ownedContext)
 }
 
 LuaState::LuaState(GlobalState& globalState)
-    : ownedContext_()
+    : ownedContext_(nullptr, EngineContextDeleter{})
+    , allocatorOwnedSelf_(false)
     , globalState_(globalState)
-    , stack_(INITIAL_STACK_SIZE)
+    , stack_(INITIAL_STACK_SIZE, globalState_.getAllocator())
     , top_(0)
-    , callStack_(INITIAL_CI_SIZE)
+    , callStack_(INITIAL_CI_SIZE, LuaStdAllocator<CallInfo>(globalState_.getAllocator()))
     , currentCI_(0)
     , globalTable_(nullptr)
     , status_(ThreadStatus::OK)
@@ -246,6 +371,7 @@ LuaState::~LuaState() {
     if (globalTable_ && !isChildThread_) {
         globalState_.getGC().removeRoot(globalTable_);
     }
+
 }
 
 // =====================================================================
@@ -432,7 +558,7 @@ void LuaState::callDebugHook(DebugHookEvent event, i32 line) {
 CallInfo& LuaState::pushCallInfo() {
     // ✅ 改进：检查最大调用深度
     if (currentCI_ + 1 >= MAX_CALL_DEPTH) {
-        throw MemoryError(
+        throw StackOverflowError(
             "stack overflow: maximum call depth exceeded (limit: " +
             std::to_string(MAX_CALL_DEPTH) + ")"
         );
@@ -469,7 +595,7 @@ void LuaState::popCallInfo() {
 
 void LuaState::enterHostCall() {
     if (hostCallDepth_ >= MAX_CALLS) {
-        throw MemoryError("VM: stack overflow (too many nested C/Lua calls)");
+        throw StackOverflowError("VM: stack overflow (too many nested C/Lua calls)");
     }
     ++hostCallDepth_;
 }
@@ -646,18 +772,43 @@ i32 LuaState::pcall(i32 nargs, i32 nresults, i32 errfunc) {
     // 被保护函数在抛错前可能已经写入了外层 local/upvalue。
     usize savedPrefixTop = static_cast<usize>(funcIdx);
 
-    Vec<CallInfo> savedCallStack = callStack_;
+    const usize savedCallFrameCount = currentCI_ + 1;
+    LuaStdAllocator<CallInfo> snapshotAllocator(callStack_.get_allocator());
+    struct SnapshotDeleter {
+        LuaStdAllocator<CallInfo> allocator;
+        usize count;
+
+        void operator()(CallInfo* frames) noexcept {
+            if (frames == nullptr) {
+                return;
+            }
+            std::destroy_n(frames, count);
+            allocator.deallocate(frames, count);
+        }
+    };
+    std::unique_ptr<CallInfo[], SnapshotDeleter> savedCallStack(
+        nullptr, SnapshotDeleter{snapshotAllocator, savedCallFrameCount});
+    try {
+        static_assert(std::is_nothrow_copy_constructible_v<CallInfo>);
+        CallInfo* frames = snapshotAllocator.allocate(savedCallFrameCount);
+        std::uninitialized_copy_n(callStack_.begin(), savedCallFrameCount, frames);
+        savedCallStack.reset(frames);
+    } catch (const std::bad_alloc&) {
+        top_ = savedPrefixTop;
+        pushValue(Value(globalState_.getMemoryErrorMessage()));
+        setStatus(ThreadStatus::OK);
+        return LUA_ERRMEM;
+    }
     usize savedCurrentCI = currentCI_;
     auto& pool = getGlobalState().getStringPool();
 
     Value errorHandler;
-    bool hasErrorHandler = false;
+    const bool hasErrorHandler = errfunc != 0;
     if (errfunc != 0) {
         try {
             errorHandler = at(errfunc);
-            hasErrorHandler = errorHandler.isFunction();
         } catch (...) {
-            hasErrorHandler = false;
+            errorHandler = Value();
         }
     }
 
@@ -666,7 +817,7 @@ i32 LuaState::pcall(i32 nargs, i32 nresults, i32 errfunc) {
     };
 
     auto restoreCallFrames = [&]() {
-        callStack_ = savedCallStack;
+        std::copy_n(savedCallStack.get(), savedCallFrameCount, callStack_.begin());
         currentCI_ = savedCurrentCI;
     };
 
@@ -682,13 +833,21 @@ i32 LuaState::pcall(i32 nargs, i32 nresults, i32 errfunc) {
         return Value(pool.intern(message.c_str()));
     };
 
-    auto invokeErrorHandler = [&](const Value& errorValue) -> Value {
+    struct HandlerResult {
+        Value value;
+        bool failed = false;
+    };
+
+    auto invokeErrorHandler = [&](const Value& errorValue) -> HandlerResult {
         if (!hasErrorHandler) {
-            return errorValue;
+            return {errorValue, false};
         }
 
-        usize handlerSavedCI = currentCI_;
-        if (currentCI_ + 1 >= MAX_CALL_DEPTH && currentCI_ > 0) {
+        const usize handlerSavedCI = currentCI_;
+        if (currentCI_ + 1 >= MAX_CALL_DEPTH && currentCI_ > savedCurrentCI) {
+            // Keep one emergency CallInfo slot for the message handler after
+            // logical stack overflow. The faulting frame remains stored and
+            // is restored after the handler has produced the error object.
             --currentCI_;
         }
 
@@ -699,31 +858,32 @@ i32 LuaState::pcall(i32 nargs, i32 nresults, i32 errfunc) {
             VM::call(services, this, 1, 1);
             Value handled = top();
             currentCI_ = handlerSavedCI;
-            return handled;
+            return {handled, false};
         } catch (...) {
+            closeUnwoundUpvalues();
             currentCI_ = handlerSavedCI;
-            return makeStringValue("error in error handling");
+            return {makeStringValue("error in error handling"), true};
         }
+    };
+
+    auto finishError = [&](Value errorValue, i32 status) -> i32 {
+        HandlerResult handled = invokeErrorHandler(errorValue);
+        closeUnwoundUpvalues();
+        restoreCallFrames();
+        restoreStackPrefix();
+        pushValue(handled.value);
+        setStatus(ThreadStatus::OK);
+        return handled.failed ? LUA_ERRERR : status;
     };
 
     Value& funcVal = stack_.at(funcIdx);
     if (!funcVal.isFunction()) {
-        Value errorValue = invokeErrorHandler(makeStringValue("attempt to call a non-function value"));
-        restoreCallFrames();
-        restoreStackPrefix();
-        pushValue(errorValue);
-        setStatus(ThreadStatus::OK);
-        return LUA_ERRRUN;
+        return finishError(makeStringValue("attempt to call a non-function value"), LUA_ERRRUN);
     }
 
     Function* func = funcVal.asFunction();
     if (!func) {
-        Value errorValue = invokeErrorHandler(makeStringValue("invalid function"));
-        restoreCallFrames();
-        restoreStackPrefix();
-        pushValue(errorValue);
-        setStatus(ThreadStatus::OK);
-        return LUA_ERRRUN;
+        return finishError(makeStringValue("invalid function"), LUA_ERRRUN);
     }
 
     try {
@@ -732,29 +892,24 @@ i32 LuaState::pcall(i32 nargs, i32 nresults, i32 errfunc) {
         setStatus(ThreadStatus::OK);
         return LUA_OK;
 
+    } catch (const MemoryError&) {
+        return finishError(Value(globalState_.getMemoryErrorMessage()), LUA_ERRMEM);
+
+    } catch (const std::bad_alloc&) {
+        return finishError(Value(globalState_.getMemoryErrorMessage()), LUA_ERRMEM);
+
     } catch (const LuaError& e) {
         Value errorValue = e.hasErrorObject()
                          ? e.getErrorObject()
                          : makeStringValue(runtimeErrorWithLocation(this, e.what()));
-        closeUnwoundUpvalues();
-        errorValue = invokeErrorHandler(errorValue);
-
-        restoreCallFrames();
-        restoreStackPrefix();
-        pushValue(errorValue);
-        setStatus(ThreadStatus::OK);
-        return LUA_ERRRUN;
+        return finishError(errorValue, LUA_ERRRUN);
 
     } catch (const std::exception& e) {
         Value errorValue = makeStringValue(runtimeErrorWithLocation(this, e.what()));
-        closeUnwoundUpvalues();
-        errorValue = invokeErrorHandler(errorValue);
+        return finishError(errorValue, LUA_ERRRUN);
 
-        restoreCallFrames();
-        restoreStackPrefix();
-        pushValue(errorValue);
-        setStatus(ThreadStatus::OK);
-        return LUA_ERRRUN;
+    } catch (...) {
+        return finishError(makeStringValue("unknown C++ exception"), LUA_ERRRUN);
     }
 }
 

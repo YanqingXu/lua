@@ -27,14 +27,13 @@ GlobalState& GlobalState::getInstance() {
 // 构造函数和析构函数
 // =====================================================================
 
-GlobalState::GlobalState(StringPool& stringPool)
-    : gc_()
+GlobalState::GlobalState(StringPool& stringPool, LuaAllocator* allocator)
+    : gc_(allocator)
     , stringPool_(stringPool)
     , registry_(nullptr)
     , mainThread_(nullptr)
     , memerrmsg_(nullptr)
 {
-    gc_.setGlobalState(this);
     stringPool_.setGarbageCollector(&gc_);
 
     // 子任务1.1：调整字符串池大小到初始值
@@ -53,6 +52,11 @@ GlobalState::GlobalState(StringPool& stringPool)
 
     // 创建注册表
     registry_ = gc_.createFixedRoot<Table>();  // 注册表永远不被回收
+
+    // Publish the back-reference only after construction succeeds. This keeps
+    // allocator-failure unwinding from calling into a partially constructed
+    // GlobalState while GarbageCollector members are being destroyed.
+    gc_.setGlobalState(this);
 }
 
 GlobalState::~GlobalState() {

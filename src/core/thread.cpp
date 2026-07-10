@@ -18,11 +18,15 @@
 
 namespace Lua {
 
+void LuaStateOwnerDeleter::operator()(LuaState* state) const noexcept {
+    LuaState::destroyState(state);
+}
+
 // =====================================================================
 // 构造/析构
 // =====================================================================
 
-Thread::Thread(UPtr<LuaState> state)
+Thread::Thread(LuaStateOwner state)
     : GCObject(GCObjectType::Thread)
     , state_(std::move(state))
     , coStatus_(CoroutineStatus::Suspended)
@@ -37,11 +41,30 @@ Thread::~Thread() = default;
 // =====================================================================
 
 Thread* Thread::create(LuaState* parentL, Function* func) {
-    UPtr<LuaState> coState(LuaState::newThread(parentL));
+    if (parentL == nullptr || func == nullptr) {
+        throw std::invalid_argument("Thread::create requires parent state and function");
+    }
+
+    LuaStateOwner coState(LuaState::newThread(parentL));
+    if (coState == nullptr) {
+        throw std::bad_alloc();
+    }
 
     // Stack: [nil(0), func(1)]
     coState->pushValue(Value(func));
 
+    return parentL->getGlobalState().getGC().create<Thread>(std::move(coState));
+}
+
+Thread* Thread::create(LuaState* parentL) {
+    if (parentL == nullptr) {
+        throw std::invalid_argument("Thread::create requires parent state");
+    }
+
+    LuaStateOwner coState(LuaState::newThread(parentL));
+    if (coState == nullptr) {
+        throw std::bad_alloc();
+    }
     return parentL->getGlobalState().getGC().create<Thread>(std::move(coState));
 }
 
@@ -61,20 +84,34 @@ bool Thread::resume(LuaState* callerL, i32 nargs) {
         }
     };
 
+    auto rejectResume = [&](const char* message, bool markDead) {
+        discardCallerArgs();
+        if (markDead) {
+            coStatus_ = CoroutineStatus::Dead;
+        }
+        state_->setStatus(ThreadStatus::ErrRun);
+        callerL->pushBoolean(false);
+        auto& pool = callerL->getGlobalState().getStringPool();
+        callerL->pushString(pool.intern(message));
+        return false;
+    };
+
     // ──── 前置检查 ────
     if (coStatus_ == CoroutineStatus::Dead) {
-        discardCallerArgs();
-        callerL->pushBoolean(false);
-        auto& pool = callerL->getGlobalState().getStringPool();
-        callerL->pushString(pool.intern("cannot resume dead coroutine"));
-        return false;
+        return rejectResume("cannot resume dead coroutine", false);
     }
     if (coStatus_ == CoroutineStatus::Running) {
-        discardCallerArgs();
-        callerL->pushBoolean(false);
-        auto& pool = callerL->getGlobalState().getStringPool();
-        callerL->pushString(pool.intern("cannot resume running coroutine"));
-        return false;
+        return rejectResume("cannot resume running coroutine", false);
+    }
+    if (firstResume_) {
+        Stack& stack = state_->getStack();
+        if (state_->getAbsoluteTop() <= 1 || !stack.at(1).isFunction()) {
+            return rejectResume("cannot resume coroutine without an entry function", true);
+        }
+        Function* entry = stack.at(1).asFunction();
+        if (entry == nullptr || entry->isCFunction()) {
+            return rejectResume("cannot resume a C function as coroutine entry", true);
+        }
     }
 
     // ──── 值传递：callerL → coState ────
@@ -186,34 +223,43 @@ bool Thread::resume(LuaState* callerL, i32 nargs) {
     state_->incAllowYield();
     callerL->getGlobalState().setRunningThread(this);
 
+    auto finishFailure = [&](const Value& errorValue, ThreadStatus status) {
+        state_->decAllowYield();
+        state_->setStatus(status);
+        coStatus_ = CoroutineStatus::Dead;
+        if (callerThread) {
+            callerThread->coStatus_ = prevCallerStatus;
+        }
+        callerL->getGlobalState().setRunningThread(callerThread);
+        callerState_ = nullptr;
+        callerL->pushBoolean(false);
+        callerL->pushValue(errorValue);
+        return false;
+    };
+
     // ──── 调用 VM ────
     ExecResult result;
     try {
         result = VM::executeProto(state_.get(), proto, savedNexeccalls_);
+    } catch (const MemoryError&) {
+        return finishFailure(Value(state_->getGlobalState().getMemoryErrorMessage()),
+                             ThreadStatus::ErrMem);
+    } catch (const std::bad_alloc&) {
+        return finishFailure(Value(state_->getGlobalState().getMemoryErrorMessage()),
+                             ThreadStatus::ErrMem);
     } catch (const LuaError& e) {
-        state_->decAllowYield();
-        coStatus_ = CoroutineStatus::Dead;
-        if (callerThread) callerThread->coStatus_ = prevCallerStatus;
-        callerL->getGlobalState().setRunningThread(callerThread);
-        callerState_ = nullptr;
-        callerL->pushBoolean(false);
         if (e.hasErrorObject()) {
-            callerL->pushValue(e.getErrorObject());
-        } else {
-            auto& pool = callerL->getGlobalState().getStringPool();
-            callerL->pushString(pool.intern(e.what()));
+            return finishFailure(e.getErrorObject(), ThreadStatus::ErrRun);
         }
-        return false;
-    } catch (const std::exception& e) {
-        state_->decAllowYield();
-        coStatus_ = CoroutineStatus::Dead;
-        if (callerThread) callerThread->coStatus_ = prevCallerStatus;
-        callerL->getGlobalState().setRunningThread(callerThread);
-        callerState_ = nullptr;
-        callerL->pushBoolean(false);
         auto& pool = callerL->getGlobalState().getStringPool();
-        callerL->pushString(pool.intern(e.what()));
-        return false;
+        return finishFailure(Value(pool.intern(e.what())), ThreadStatus::ErrRun);
+    } catch (const std::exception& e) {
+        auto& pool = callerL->getGlobalState().getStringPool();
+        return finishFailure(Value(pool.intern(e.what())), ThreadStatus::ErrRun);
+    } catch (...) {
+        auto& pool = callerL->getGlobalState().getStringPool();
+        return finishFailure(Value(pool.intern("unknown C++ exception")),
+                             ThreadStatus::ErrRun);
     }
 
     state_->decAllowYield();
@@ -238,6 +284,7 @@ bool Thread::resume(LuaState* callerL, i32 nargs) {
         return true;
     } else {
         // 正常返回：协程结束
+        state_->setStatus(ThreadStatus::OK);
         coStatus_ = CoroutineStatus::Dead;
         if (callerThread) callerThread->coStatus_ = prevCallerStatus;
         callerL->getGlobalState().setRunningThread(callerThread);

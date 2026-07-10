@@ -35,6 +35,7 @@ namespace Lua {
 // 前向声明
 class LuaState;
 class Thread;
+class LuaAllocator;
 
 /**
  * @brief 全局状态类
@@ -85,7 +86,8 @@ public:
      * construction path. EngineContext passes its owned StringPool here to
      * create an isolated runtime context.
      */
-    explicit GlobalState(StringPool& stringPool = StringPool::getInstance());
+    explicit GlobalState(StringPool& stringPool = StringPool::getInstance(),
+                         LuaAllocator* allocator = nullptr);
     
     /**
      * @brief 析构函数
@@ -114,6 +116,14 @@ public:
      */
     GarbageCollector& getGC() noexcept {
         return gc_;
+    }
+
+    LuaAllocator* getAllocator() noexcept {
+        return gc_.getAllocator();
+    }
+
+    const LuaAllocator* getAllocator() const noexcept {
+        return gc_.getAllocator();
     }
 
     /**
@@ -145,6 +155,13 @@ public:
      */
     Table* getRegistry() noexcept {
         return registry_;
+    }
+
+    /**
+     * @brief Return the fixed error string used when allocation fails.
+     */
+    GCString* getMemoryErrorMessage() const noexcept {
+        return memerrmsg_;
     }
     
     // =====================================================================

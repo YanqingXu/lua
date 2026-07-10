@@ -32,6 +32,7 @@
 
 #include "common/types.hpp"
 #include "core/value.hpp"
+#include "runtime/lua_allocator.hpp"
 #include "vm/vm_constants.hpp"
 
 namespace Lua {
@@ -70,7 +71,8 @@ public:
      * @brief 构造函数
      * @param initialSize 初始栈大小（默认为INITIAL_STACK_SIZE）
      */
-    explicit Stack(usize initialSize = INITIAL_STACK_SIZE);
+    explicit Stack(usize initialSize = INITIAL_STACK_SIZE,
+                   LuaAllocator* allocator = nullptr);
     
     /**
      * @brief 析构函数
@@ -217,7 +219,7 @@ public:
 
 private:
     /// 值栈（使用Vec自动管理内存）
-    Vec<Value> stack_;
+    LuaVector<Value> stack_;
 
     /// 栈顶位置（指向下一个可用位置）
     usize top_;

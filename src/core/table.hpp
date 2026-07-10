@@ -28,6 +28,7 @@
 #include "common/types.hpp"
 #include "core/gc_object.hpp"
 #include "core/value.hpp"
+#include "runtime/lua_allocator.hpp"
 
 namespace Lua {
 
@@ -96,6 +97,7 @@ public:
      * 创建一个空表，数组部分和哈希部分都为空。
      */
     Table();
+    explicit Table(LuaAllocator* allocator);
     
     /**
      * @brief 析构函数
@@ -336,11 +338,14 @@ private:
     // =====================================================================
     
     /// 数组部分：存储连续的正整数键（索引从1开始）
-    Vec<Value> array_;
+    LuaVector<Value> array_;
 
     /// 哈希部分：存储其他类型的键或非连续的整数键
     /// 注意：std::unordered_map需要4个模板参数：Key, Value, Hash, KeyEqual
-    std::unordered_map<Value, Value, ValueHash, ValueEqual> hash_;
+    using HashValue = std::pair<const Value, Value>;
+    using HashAllocator = LuaStdAllocator<HashValue>;
+    using HashPart = std::unordered_map<Value, Value, ValueHash, ValueEqual, HashAllocator>;
+    HashPart hash_;
 
     /// 元表指针：用于元编程
     Table* metatable_;
