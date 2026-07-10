@@ -10,6 +10,9 @@
     <Filter Include="tests\app">
       <UniqueIdentifier>{D1000001-000B-000B-000B-00000000000B}</UniqueIdentifier>
     </Filter>
+    <Filter Include="tests\api">
+      <UniqueIdentifier>{D1000001-0010-0010-0010-000000000010}</UniqueIdentifier>
+    </Filter>
     <Filter Include="tests\bytecode">
       <UniqueIdentifier>{D1000001-000C-000C-000C-00000000000C}</UniqueIdentifier>
     </Filter>
@@ -121,6 +124,9 @@
     </ClCompile>
     <ClCompile Include="tests\unit\app\test_repl_commands.cpp">
       <Filter>tests\app</Filter>
+    </ClCompile>
+    <ClCompile Include="tests\unit\api\test_lua_c_api.cpp">
+      <Filter>tests\api</Filter>
     </ClCompile>
     <ClCompile Include="tests\unit\bytecode\test_bytecode_printer.cpp">
       <Filter>tests\bytecode</Filter>

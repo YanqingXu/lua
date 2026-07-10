@@ -1,8 +1,8 @@
 ---
 status: current
-verified_against: docs/index.md; docs/vm/instruction-set.md; CMakeLists.txt; lua.slnx; lua.vcxproj; lua_app.vcxproj; lua_test.vcxproj; lua_bytecode.vcxproj
-last_checked: 2026-06-13
-applies_to: repository overview and contributor entry points
+verified_against: docs/index.md; docs/vm/instruction-set.md; docs/compatibility/lua-c-api-coverage.md; CMakeLists.txt; lua.slnx; lua.vcxproj; lua_app.vcxproj; lua_test.vcxproj; lua_bytecode.vcxproj
+last_checked: 2026-07-10
+applies_to: 项目入口、稳定能力概览与文档导航
 ---
 
 # 现代 C++ Lua 5.1.5 解释器
@@ -54,6 +54,7 @@ applies_to: repository overview and contributor entry points
 - 核心运行时对象包括 `Table`、`Function`、`Proto`、`GCString`、`Userdata`、`Thread` 和 `Upvalue`。
 - 项目统一使用 `src/common/types.hpp` 中的类型别名，如 `Vec<T>`、`HashMap<K, V>`、`Str`、`StrView`、`usize`、`i32`、`u32` 和 `f64`。
 - `RuntimeServices` 和 `EngineContext` 为嵌入式运行时隔离、测试夹具和多上下文执行提供清晰边界。
+- `src/api/lapi.cpp` 已进入 Lua 5.1 C API 原型验证阶段：第一批栈索引、registry/global pseudo-index 与 C closure upvalue 已由独立 API suite 覆盖；allocator、userdata、完整 `testC` 与官方模块 ABI 仍在推进。
 
 ### 内存管理与 GC
 
@@ -133,7 +134,7 @@ bin\lua_test.exe --filter "Symbol Binding"
 bin\lua_test.exe --report=junit
 ```
 
-测试运行器会在输出中报告真实测试数量和断言结果。最近一次完整绿跑为 670 registered tests / 3406 assertion results / 0 failures。
+测试运行器会在输出中报告真实测试数量和断言结果。最近一次完整绿跑为 675 registered tests / 3436 assertion results / 0 failures；其中 `Lua C API` suite 为 5 个测试、30 个断言。
 
 ### CMake / CTest 辅助路径
 
@@ -161,6 +162,7 @@ ctest --test-dir build\cmake -C Debug --output-on-failure
 │   ├── bytecode/                  # 字节码工具入口与打印器
 │   ├── common/                    # 基础类型、配置、宏
 │   ├── compiler/                  # Lexer / Parser / AST / CodeGen
+│   ├── api/                       # Lua 5.1 C API compatibility shim
 │   ├── core/                      # Value / Table / Function / String / Metatable 等核心对象
 │   ├── gc/                        # 垃圾回收器与 GCStrategy 策略边界
 │   ├── io/                        # 输入流、文件加载、动态缓冲区
@@ -175,6 +177,7 @@ ctest --test-dir build\cmake -C Debug --output-on-failure
 │   │   └── official/              # Lua 5.1 官方测试套件 staged smoke 输入
 │   └── unit/                      # C++ 单元测试
 │       ├── app/                   # CLI / REPL 行为测试
+│       ├── api/                   # Lua 5.1 C API 栈、索引与闭包测试
 │       ├── bytecode/              # 字节码工具测试
 │       ├── compiler/              # 编译器相关测试
 │       ├── core/                  # 核心对象测试
@@ -226,6 +229,7 @@ ctest --test-dir build\cmake -C Debug --output-on-failure
 | [docs/gc/implementation.md](docs/gc/implementation.md) | GC 对象模型、根集和标记清除实现 |
 | [docs/stdlib/overview.md](docs/stdlib/overview.md) | 标准库 catalog 和注册架构 |
 | [docs/compatibility/lua51/overview.md](docs/compatibility/lua51/overview.md) | Lua 5.1 技术兼容边界与实现策略对比 |
+| [docs/compatibility/lua-c-api-coverage.md](docs/compatibility/lua-c-api-coverage.md) | Lua 5.1 C API 实现、直接测试与官方覆盖矩阵 |
 | [docs/testing/testing-strategy.md](docs/testing/testing-strategy.md) | 测试层次与验证方法 |
 | [docs/knowledge/source-document-map.md](docs/knowledge/source-document-map.md) | 源码、技术文档和测试映射 |
 

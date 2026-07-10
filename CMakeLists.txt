@@ -131,6 +131,7 @@ set(LUA_TEST_SOURCES
     tests/unit/framework/test_runner.cpp
     tests/unit/app/test_app_options.cpp
     tests/unit/app/test_repl_commands.cpp
+    tests/unit/api/test_lua_c_api.cpp
     tests/unit/bytecode/test_bytecode_printer.cpp
     tests/unit/compiler/test_ast_visitor.cpp
     tests/unit/compiler/test_indexed_access.cpp
