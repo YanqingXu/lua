@@ -1,3 +1,10 @@
+---
+status: current
+verified_against: src/compiler/; tests/unit/compiler/; tests/lua/bytecode/; tests/lua/control_flow/
+last_checked: 2026-07-11
+applies_to: Instruction Format — 指令格式详解
+---
+
 # Instruction Format — 指令格式详解
 
 ## 1. 这个模块解决什么问题？

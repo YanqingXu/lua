@@ -1,7 +1,7 @@
 ---
 status: current
-verified_against: src/compiler/ast_visitor.hpp; src/compiler/codegen/codegen.hpp; src/compiler/codegen/expression_emitter.hpp; src/compiler/codegen/statement_emitter.hpp; src/compiler/codegen/function_compiler.hpp; src/vm/vm_handlers.hpp; src/vm/vm_handlers.cpp; src/vm/vm_handlers/; src/vm/vm_dispatch_strategy.hpp; src/vm/vm_dispatch_strategy.cpp; src/runtime/runtime_services.hpp; src/vm/state/global_state.hpp; src/gc/garbage_collector.hpp; src/gc/gc_strategy.hpp; src/gc/gc_strategy.cpp; src/compiler/codegen/bytecode_builder.hpp; src/compiler/codegen/codegen_ops.hpp; src/compiler/codegen/codegen_state.hpp; src/lib/lib_catalog.hpp; src/lib/lib_catalog.cpp; src/lib/lib_manager.hpp
-last_checked: 2026-05-23
+verified_against: src/compiler/ast_visitor.hpp; src/compiler/codegen/codegen.hpp; src/compiler/codegen/expression_emitter.hpp; src/compiler/codegen/statement_emitter.hpp; src/compiler/codegen/function_compiler.hpp; src/vm/vm_handlers.hpp; src/vm/vm_handlers.cpp; src/vm/vm_handlers/; src/vm/vm_dispatch_strategy.hpp; src/vm/vm_dispatch_strategy.cpp; src/runtime/runtime_services.hpp; src/vm/state/global_state.hpp; src/gc/garbage_collector.hpp; src/gc/gc_strategy.hpp; src/gc/gc_strategy.cpp; src/compiler/codegen/bytecode_builder.hpp; src/compiler/codegen/codegen_ops.hpp; src/compiler/codegen/codegen_state.hpp; src/lib/lib_catalog.hpp; src/lib/lib_catalog.cpp; src/lib/lib_manager.hpp; src/compiler/; src/vm/; src/runtime/; src/core/; src/gc/; tests/lua/regressions/; tests/lua/integration/
+last_checked: 2026-07-11
 applies_to: architecture pattern registry and implementation boundaries
 ---
 
@@ -57,7 +57,3 @@ VM 命令模式通过函数指针表而非虚类层次实现。这使得操作�
 标准库目录是默认库加载顺序和库标识符的可读权威来源。使用 `StandardLibrary::openAll()` 加载全部库，使用 `StandardLibrary::openCatalogLibrary(L, "<id>")` 加载单个库。旧有的 `openBase()` / `openMath()` / ... 包装函数仅保留为已弃用的兼容垫片。
 
 没有采用 `LibRegistrar` 静态自注册设计。静态注册器可以减少对 `lib_catalog.cpp` 的一次编辑，但会将加载顺序隐藏在动态初始化之后，并需要 MSVC 的链接器保活规则。对于教学导向的代码库，显式目录更易于阅读、测试和审计。
-
-## 更新本文档
-
-当模式被引入、移除或迁移到不同的源边界时，请按源码事实更新此注册表。

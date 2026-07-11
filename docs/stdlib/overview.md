@@ -1,7 +1,7 @@
 ---
 status: current
-verified_against: src/lib/lib_catalog.cpp; src/lib/lib_manager.cpp; src/lib/lib_registry.hpp; src/lib/baselib.cpp; src/gc/gc_strategy.hpp; src/lib/mathlib.cpp; src/lib/iolib.cpp; src/lib/stringlib.cpp; src/lib/tablelib.cpp; src/lib/oslib.cpp; src/lib/coroutinelib.cpp; src/lib/debuglib.cpp; src/lib/packagelib.cpp; tests/unit/stdlib/test_lib_catalog.cpp; tests/unit/stdlib/test_baselib.cpp; tests/unit/stdlib/; tests/unit/gc/test_gc.cpp
-last_checked: 2026-05-31
+verified_against: src/lib/lib_catalog.cpp; src/lib/lib_manager.cpp; src/lib/lib_registry.hpp; src/lib/baselib.cpp; src/gc/gc_strategy.hpp; src/lib/mathlib.cpp; src/lib/iolib.cpp; src/lib/stringlib.cpp; src/lib/tablelib.cpp; src/lib/oslib.cpp; src/lib/coroutinelib.cpp; src/lib/debuglib.cpp; src/lib/packagelib.cpp; tests/unit/stdlib/test_lib_catalog.cpp; tests/unit/stdlib/test_baselib.cpp; tests/unit/stdlib/; tests/unit/gc/test_gc.cpp; src/lib/; src/api/; tests/lua/stdlib/
+last_checked: 2026-07-11
 applies_to: current standard library implementation overview
 ---
 
@@ -53,21 +53,6 @@ public:
 | debug | `debuglib.hpp/.cpp` | 栈/上值/调试 hook/traceback 功能面 |
 | package | `packagelib.hpp/.cpp` | `require`、`module`、`package.*`、Lua 和 C 加载器路径 |
 
-## 已知兼容性缺口
+## 兼容与验证边界
 
-当前项目测试全绿，但这并不意味着完全与官方 Lua 5.1.5 兼容。已知的高价值缺口包括：
-
-- 官方 `testC` / `ltests.c` 辅助库对 `api.lua` 和 `code.lua` 的覆盖
-- 官方 Lua 5.1 二进制 chunk 兼容性；当前 dump/load 为项目本地格式
-- 非主流路径中逐字节级别的错误/traceback 文本兼容性
-- debug 库中极端栈层级和 traceback 格式化细节
-- 精确的 Lua 5.1 GC 工作量核算和 `IncrementalGC` 策略语义；`collectgarbage("step")` 已有分阶段推进，但 `collectgarbage("strategy", "incremental")` 仍选择等价的教学占位实现来替代完整的 `collect()`
-- 更多入口点迁移到 owning `EngineContext`；owning context 已存在，但单例兼容入口点仍保留
-
-## 验证
-
-```powershell
-bin\lua_test.exe --filter "Standard Library Catalog"
-bin\lua_test.exe --filter "Base Library"
-bin\lua_test.exe --filter "Package Library"
-```
+库注册、栈 delta 和参数错误由 `tests/unit/stdlib/` 锁定，语言组合行为由 `tests/lua/stdlib/` 与 official scripts 验证。兼容性差异只在 [Lua 5.1 兼容边界](../compatibility/lua51/overview.md) 维护，本页不复制项目状态或缺口清单。

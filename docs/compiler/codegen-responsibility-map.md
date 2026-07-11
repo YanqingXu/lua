@@ -1,6 +1,6 @@
 ---
 status: current
-verified_against: src/compiler/codegen/codegen.hpp; src/compiler/codegen/codegen.cpp; src/compiler/codegen/codegen_binding.cpp; src/compiler/codegen/name_binder.hpp; src/compiler/codegen/codegen_ops.hpp; src/compiler/codegen/function_compiler.hpp; src/compiler/codegen/expression_emitter.hpp; src/compiler/codegen/statement_emitter.hpp; src/compiler/codegen/codegen_types.hpp; src/compiler/codegen/codegen_state.hpp; src/compiler/codegen/jump_patcher.hpp; src/compiler/codegen/scope_manager.hpp; src/compiler/codegen/bytecode_builder.hpp; tests/unit/compiler/test_codegen_characterization.cpp
+verified_against: src/compiler/codegen/codegen.hpp; src/compiler/codegen/codegen.cpp; src/compiler/codegen/codegen_binding.cpp; src/compiler/codegen/name_binder.hpp; src/compiler/codegen/codegen_ops.hpp; src/compiler/codegen/function_compiler.hpp; src/compiler/codegen/expression_emitter.hpp; src/compiler/codegen/statement_emitter.hpp; src/compiler/codegen/codegen_types.hpp; src/compiler/codegen/codegen_state.hpp; src/compiler/codegen/jump_patcher.hpp; src/compiler/codegen/scope_manager.hpp; src/compiler/codegen/bytecode_builder.hpp; tests/unit/compiler/test_codegen_characterization.cpp; src/compiler/; tests/unit/compiler/; tests/lua/bytecode/; tests/lua/control_flow/
 last_checked: 2026-07-11
 applies_to: CodeGenerator responsibility boundaries and characterization guardrails
 ---

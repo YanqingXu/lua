@@ -1,44 +1,44 @@
 ---
 status: current
-verified_against: docs/architecture/overview.md; docs/compiler/bytecode-generation.md; docs/vm/instruction-set.md; docs/runtime/services.md; docs/gc/implementation.md; docs/stdlib/overview.md; docs/compatibility/lua51/compare-with-official-lua.md; docs/testing/testing-strategy.md; docs/knowledge/source-document-map.md
+verified_against: docs/architecture/overview.md; docs/architecture/execution-pipeline/overview.md; docs/compiler/lexer.md; docs/compiler/parser.md; docs/compiler/bytecode-generation.md; docs/vm/runtime/overview.md; docs/runtime/value/overview.md; docs/runtime/table/overview.md; docs/runtime/functions/overview.md; docs/gc/implementation.md; docs/knowledge/source-document-map.md; src/compiler/; src/vm/; src/core/; src/gc/; tests/lua/official/
 last_checked: 2026-07-11
 applies_to: technical documentation entry point
 ---
 
 # Lua 解释器技术实现百科
 
-`docs/` 是项目唯一的文档根目录，只收录解释器架构、算法、运行时语义、兼容性边界、测试方法和源码定位资料。项目状态、路线图、协作流程、AI 指令以及单纯的工具操作说明不属于本知识库。
+`docs/` 只收录架构、算法、运行时语义、兼容性边界、验证方法和源码映射。每个主题保留一个权威入口；项目状态、路线图、AI 指令、命令清单和按用例拆分的短页不进入百科。
 
 ## 技术模块
 
-| 模块 | 内容 | 推荐入口 |
+| 数据流阶段 | 内容 | 权威入口 |
 |---|---|---|
-| Architecture | 整体分层、执行流水线、关键概念和设计模式 | [architecture/overview.md](architecture/overview.md)、[architecture/execution-pipeline/overview.md](architecture/execution-pipeline/overview.md) |
-| Compiler | Lexer、Parser、AST、作用域、CodeGen、寄存器、控制流和字节码格式 | [compiler/frontend/overview.md](compiler/frontend/overview.md)、[compiler/bytecode-generation.md](compiler/bytecode-generation.md) |
-| VM | 指令集、分发循环、寄存器模型、调用帧、native call 和 trace | [vm/instruction-set.md](vm/instruction-set.md)、[vm/runtime/overview.md](vm/runtime/overview.md) |
-| Runtime | `Value`、Table、Metatable、Function、Closure、Upvalue 和运行时服务 | [runtime/value/overview.md](runtime/value/overview.md)、[runtime/table/overview.md](runtime/table/overview.md)、[runtime/functions/overview.md](runtime/functions/overview.md) |
-| GC | 对象生命周期、分配、引用图、标记清除、弱表、字符串池和回收周期 | [gc/overview.md](gc/overview.md)、[gc/implementation.md](gc/implementation.md) |
-| Standard Library | 库注册架构和各标准库的实现边界 | [stdlib/overview.md](stdlib/overview.md)、[stdlib/library-reference/overview.md](stdlib/library-reference/overview.md) |
-| Compatibility | 与 Lua 5.1 的语言、运行时、库和实现策略差异 | [compatibility/lua51/overview.md](compatibility/lua51/overview.md) |
-| Testing | 单元、Golden、回归和兼容性测试方法 | [testing/testing-strategy.md](testing/testing-strategy.md) |
-| Debugging | 编译错误、运行时错误、源码位置、调用栈、字节码和 VM trace | [debugging/overview.md](debugging/overview.md)、[debugging/diagnostic-workflow.md](debugging/diagnostic-workflow.md) |
-| Reference | 术语以及源码、文档和测试的映射 | [glossary.md](glossary.md)、[knowledge/source-document-map.md](knowledge/source-document-map.md) |
+| Architecture | 分层、端到端数据流、跨模块不变量和完整 walkthrough | [架构总览](architecture/overview.md)、[执行流水线](architecture/execution-pipeline/overview.md) |
+| Compiler | Lexer、Parser、AST、binding、CodeGen、控制流、寄存器与字节码格式 | [Lexer](compiler/lexer.md)、[Parser](compiler/parser.md)、[字节码生成](compiler/bytecode-generation.md) |
+| VM | opcode 语义、dispatch、寄存器窗口、调用/返回、native call 和 trace | [指令集](vm/instruction-set.md)、[VM Runtime](vm/runtime/overview.md)、[Trace](vm/trace-system.md) |
+| Runtime | Value、Table、Metatable、Function、Closure、Upvalue 和 RuntimeServices | [Value](runtime/value/overview.md)、[Table](runtime/table/overview.md)、[Function](runtime/functions/overview.md)、[Services](runtime/services.md) |
+| GC | root/object graph、mark/sweep、barrier、weak table、finalizer 和 StringPool | [GC 总览](gc/overview.md)、[GC 实现](gc/implementation.md)、[周期 walkthrough](gc/cycle-walkthrough.md) |
+| Standard Library | native function 注册、公共栈协议和 Lua 5.1 库语义 | [注册架构](stdlib/overview.md)、[库实现边界](stdlib/library-reference/overview.md) |
+| Compatibility | Lua 5.1 支持面、实现自由度、高风险差异和验证门槛 | [兼容性边界](compatibility/lua51/overview.md) |
+| Diagnostics | 错误分类、阶段二分、trace、source/line 和 traceback | [诊断指南](debugging/overview.md) |
+| Testing | unit、Lua behavior、official、regression 与 golden 的证据分工 | [测试策略](testing/testing-strategy.md) |
+| Source Map | 源码、文档与测试责任区 | [源码映射](knowledge/source-document-map.md)、[目录地图](knowledge/source-map/directory-map.md) |
 
 ## 建议阅读顺序
 
-理解一次 Lua 源码执行：
+先读 [执行流水线](architecture/execution-pipeline/overview.md)，再沿真实数据流推进：
 
-1. [执行流水线总览](architecture/execution-pipeline/overview.md)
-2. [Lexer 与 Parser](compiler/frontend/overview.md)
-3. [字节码生成](compiler/bytecode-generation.md)
-4. [VM 运行时](vm/runtime/overview.md)
-5. [值与对象系统](runtime/value/overview.md)
+1. **Compiler**： [Lexer](compiler/lexer.md) → [Parser](compiler/parser.md) → [字节码生成](compiler/bytecode-generation.md) → [控制流 lowering](compiler/control-flow/overview.md)
+2. **VM**： [指令编码](compiler/bytecode/instruction-format.md) → [指令集](vm/instruction-set.md) → [VM Runtime](vm/runtime/overview.md)
+3. **Runtime**： [Value](runtime/value/overview.md) → [Table/Metatable](runtime/table/overview.md) → [Function/Upvalue](runtime/functions/overview.md)
+4. **GC**： [对象图与阶段](gc/overview.md) → [算法实现](gc/implementation.md) → [完整周期](gc/cycle-walkthrough.md)
 
-深入某个子系统时，先读该模块的 `overview.md`，再按数据结构、控制流和测试证据进入专题文档。跨模块定位使用 [源码与文档映射](knowledge/source-document-map.md)。
+需要观察动态行为时再读 [Trace 系统](vm/trace-system.md) 和 [诊断指南](debugging/overview.md)。需要定位改动责任区时使用 [源码映射](knowledge/source-document-map.md)。
 
-## 收录边界
+## 质量边界
 
-- 文档必须解释源码结构、数据模型、算法、语义或验证方法。
-- 易变化的测试数量、完成百分比和阶段计划不在 `docs/` 中维护。
-- 命令行参数清单、构建步骤和脚本使用方式由可执行程序的 `--help`、根 README 或脚本自身负责。
-- 同一技术主题优先在所属模块维护，避免按语言、作者或生成来源建立第二套文档树。
+- 事实必须由 `verified_against` 中仍存在的源码或测试支撑。
+- 文档描述不变量和责任边界，不复制完整 API、命令帮助或测试清单。
+- 同一事实只在一个主题页展开；其他页面使用链接，不维护第二份正文。
+- 易变化的数量和进度只由自动化产生，不手工散落在技术页。
+- C++ 示例区分 owning、root、GC edge 和 observer，不用“现代化”名义改变 Lua 对象语义。

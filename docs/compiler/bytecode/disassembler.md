@@ -1,85 +1,59 @@
-# Disassembler — 字节码反汇编器
+---
+status: current
+verified_against: src/bytecode/bytecode_printer.hpp; src/bytecode/bytecode_printer.cpp; src/bytecode/bytecode_main.cpp; src/core/function.hpp; src/compiler/opcode.hpp; tests/unit/bytecode/
+last_checked: 2026-07-11
+applies_to: Proto disassembly and control-flow rendering
+---
 
-## 1. 这个模块解决什么问题？
+# Proto 反汇编与控制流展示
 
-如何查看和调试编译产生的字节码。
+反汇编器把 `Proto` 的编码状态转换成可审查证据，用于区分 CodeGen 错误与 VM 执行错误。它只读访问 Proto，不改变指令、常量或 GC 关系。
 
-## 2. 核心文件
+## 输出层次
 
-| 文件 | 作用 |
-|------|------|
-| `src/bytecode/bytecode_printer.hpp/cpp` | 字节码打印工具 |
-| `src/bytecode/bytecode_main.cpp` | lua_bytecode 入口 |
+| 视图 | 稳定信息 | 用途 |
+|---|---|---|
+| compact | PC、opcode、A/B/C/Bx/sBx | 快速比较指令序列 |
+| full | Proto 属性、常量、局部范围、upvalue、行号和注释 | 诊断寄存器、binding 与 multret |
+| diff | 两个规范化 Proto 视图的结构差异 | 评估 CodeGen 变更 |
+| CFG | basic block 与 jump edge | 审查分支、循环和不可达代码 |
 
-## 3. 使用方式
+具体命令参数由 `bytecode_main.cpp` 的帮助入口维护，技术百科只定义输出应表达的语义。
 
-### 命令行工具
-```bash
-# 基础输出
-lua_bytecode hello.lua
+## 指令注释
 
-# 紧凑输出
-lua_bytecode --format compact hello.lua
+printer 通过 `src/compiler/opcode.hpp` 解码字段，并结合常量池/Proto 信息显示：
 
-# 完整输出（含常量表、局部变量）
-lua_bytecode --format full hello.lua
-
-# 对比两个文件的字节码
-lua_bytecode --diff file1.lua file2.lua
-
-# 输出 Mermaid 控制流图
-lua_bytecode --cfg hello.lua
+```text
+pc | source line | opcode | raw operands | resolved meaning
 ```
 
-### REPL 中
-```
-> local x = 1
-> .bytecode
-;; 显示当前会话的编译结果
+RK operand 应区分 `R(n)` 与 `K(n)`；ABx 指令解析常量或子 Proto；AsBx 指令显示相对偏移和绝对目标。注释是派生信息，原始字段仍必须保留，避免 printer 的解释错误掩盖编码事实。
 
-> .ast
-;; 显示 AST
-```
+## Proto 信息
 
-## 4. 输出格式
+full view 至少关联以下数据：
 
-### Compact
-```
-main <hello.lua:0,0> (4 instructions, 3 locals)
-  [0] LOADK     0 0       ; R0 = K0(1)
-  [1] GETGLOBAL 1 1       ; R1 = Gbl["print"]
-  [2] MOVE      2 0       ; R2 = R0
-  [3] CALL      1 1 1     ; R1(R2)
-```
+- source、line defined、parameters、vararg flags、maxStackSize；
+- code 与逐 PC lineInfo；
+- constants 及其 Value 类型；
+- local variable 的 start/end PC 与 register；
+- upvalue descriptor 与 nested Proto。
 
-### Full
-```
-main <hello.lua:0,0> (4 instructions)
-  maxStackSize: 3
-  params: 0, isVararg: true
-  constants (2):
-    K0: 1
-    K1: "print"
-  locals (1):
-    0: "x" [0, 4]
+对象地址和 unordered 容器顺序不属于稳定输出。字符串和 table-like debug 值需要转义、深度限制与确定性排序策略。
 
-  code:
-  [0] LOADK     0 0       ; R0 = K0(1)
-  [1] GETGLOBAL 1 1       ; R1 = Gbl["print"]
-  [2] MOVE      2 0       ; R2 = R0
-  [3] CALL      1 1 1     ; R1(R2)
-```
+## CFG
 
-## 5. Mermaid CFG 输出
+basic block 边界来自入口、jump target、条件跳过后的 fallthrough 和终止指令之后。edge 应区分 unconditional、true/false、loop backedge 和 fallthrough。CALL 通常不是 CFG 终点；RETURN/TAILCALL 是。
 
-```
---cfg 参数输出 Mermaid 格式的控制流图:
+CFG 是控制流近似，不执行 metamethod、异常或 coroutine 转移。它用于验证 patch 后目标与结构，不应被描述为完整动态调用图。
 
-graph TD
-    B0["Block 0 (pc 0-2)"]
-    B1["Block 1 (pc 3-5)"]
-    B2["Block 2 (pc 6)"]
-    B0 -->|"JMP if true"| B1
-    B0 -->|"JMP if false"| B2
-    B1 --> B2
-```
+## 验证不变量
+
+- 所有 PC 只访问 Proto code/lineInfo 的合法范围。
+- 解码与 `opcode.hpp` 使用同一位宽、偏置和 RK 规则。
+- diff 忽略地址/路径等非语义噪声，但保留 opcode、operand、constant 和 debug range 差异。
+- CFG 的每个 jump target 都是合法指令边界；fallthrough 不越过 code 末尾。
+- printer 不触发 Lua metamethod，不改变栈、GC roots 或 Proto。
+
+字节码生成模型见 [字节码生成](../bytecode-generation.md)，opcode 语义见 [VM 指令集](../../vm/instruction-set.md)。

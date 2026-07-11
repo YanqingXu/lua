@@ -1,7 +1,7 @@
 ---
 status: current
-verified_against: docs/compiler/bytecode-generation.md; src/runtime/runtime_services.hpp; src/gc/gc_strategy.hpp; src/vm/vm_dispatch_strategy.hpp; src/compiler/codegen/codegen_types.hpp; src/vm/vm.hpp
-last_checked: 2026-05-23
+verified_against: docs/compiler/bytecode-generation.md; src/runtime/runtime_services.hpp; src/gc/gc_strategy.hpp; src/vm/vm_dispatch_strategy.hpp; src/compiler/codegen/codegen_types.hpp; src/vm/vm.hpp; src/core/; src/compiler/; src/vm/; src/gc/
+last_checked: 2026-07-11
 applies_to: Lua terminology mapped to current repository code
 ---
 

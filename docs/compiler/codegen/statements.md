@@ -1,7 +1,7 @@
 ---
 status: current
-verified_against: docs/compiler/codegen-responsibility-map.md; src/compiler/codegen/statement_emitter.hpp; src/compiler/codegen/statement_emitter.cpp; src/compiler/codegen/codegen_stmt.cpp; src/compiler/codegen/function_compiler.hpp; src/compiler/codegen/function_compiler.cpp; src/compiler/codegen/scope_manager.hpp; src/compiler/codegen/scope_manager.cpp; src/compiler/codegen/expression_emitter.hpp; src/compiler/codegen/expression_emitter.cpp; src/compiler/codegen/codegen_ops.hpp; tests/unit/compiler/test_statement_emitter.cpp; tests/unit/compiler/test_codegen_characterization.cpp
-last_checked: 2026-05-24
+verified_against: docs/compiler/codegen-responsibility-map.md; src/compiler/codegen/statement_emitter.hpp; src/compiler/codegen/statement_emitter.cpp; src/compiler/codegen/codegen_stmt.cpp; src/compiler/codegen/function_compiler.hpp; src/compiler/codegen/function_compiler.cpp; src/compiler/codegen/scope_manager.hpp; src/compiler/codegen/scope_manager.cpp; src/compiler/codegen/expression_emitter.hpp; src/compiler/codegen/expression_emitter.cpp; src/compiler/codegen/codegen_ops.hpp; tests/unit/compiler/test_statement_emitter.cpp; tests/unit/compiler/test_codegen_characterization.cpp; src/compiler/; tests/unit/compiler/; tests/lua/bytecode/; tests/lua/control_flow/
+last_checked: 2026-07-11
 applies_to: current StatementEmitter lowering and FunctionCompiler lifecycle boundary
 ---
 

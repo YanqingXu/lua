@@ -1,3 +1,10 @@
+---
+status: current
+verified_against: src/gc/; src/core/gc_object.hpp; src/core/string_pool.hpp; tests/unit/gc/
+last_checked: 2026-07-11
+applies_to: Weak Table — 弱表
+---
+
 # Weak Table — 弱表
 
 ## 1. __mode 元方法

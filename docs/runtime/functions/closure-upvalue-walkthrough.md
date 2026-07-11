@@ -1,7 +1,7 @@
 ---
 status: current
-verified_against: bin/lua_bytecode.exe; bin/lua_app.exe; src/compiler/parser/parser_func.cpp; src/compiler/parser/parser_stmt.cpp; src/compiler/codegen/codegen_binding.cpp; src/compiler/codegen/expression_emitter.cpp; src/compiler/codegen/statement_emitter.cpp; src/compiler/codegen/codegen_stmt.cpp; src/compiler/codegen/scope_manager.cpp; src/vm/vm_frame.cpp; src/vm/vm_handlers/vm_handlers_closure.cpp; src/vm/vm_handlers/vm_handlers_global_upvalue.cpp; src/vm/vm_handlers/vm_handlers_call.cpp; src/vm/state/lua_state.cpp; src/core/upvalue.cpp
-last_checked: 2026-05-23
+verified_against: src/compiler/parser/parser_func.cpp; src/compiler/parser/parser_stmt.cpp; src/compiler/codegen/codegen_binding.cpp; src/compiler/codegen/expression_emitter.cpp; src/compiler/codegen/statement_emitter.cpp; src/compiler/codegen/codegen_stmt.cpp; src/compiler/codegen/scope_manager.cpp; src/vm/vm_frame.cpp; src/vm/vm_handlers/vm_handlers_closure.cpp; src/vm/vm_handlers/vm_handlers_global_upvalue.cpp; src/vm/vm_handlers/vm_handlers_call.cpp; src/vm/state/lua_state.cpp; src/core/upvalue.cpp; src/core/function.hpp; src/core/upvalue.hpp; src/core/thread.hpp; src/vm/; tests/unit/vm/test_function_call.cpp; tests/lua/functions/; src/core/; src/runtime/; tests/unit/core/; tests/unit/vm/; tests/lua/runtime/
+last_checked: 2026-07-11
 applies_to: closure creation, upvalue capture, and open-to-closed upvalue lifetime
 ---
 
@@ -24,25 +24,9 @@ print(c(2), c(3))
 
 它的关键行为是：`makeCounter()` 返回内部函数后，外层局部变量 `count` 仍然活着；两次调用 `c` 共享同一个 upvalue，所以输出是 `2` 和 `5`。
 
-## 可复现命令
+## 观察基线
 
-```powershell
-$tmp = Join-Path $env:TEMP 'closure_upvalue_walkthrough.lua'
-@'
-local function makeCounter()
-    local count = 0
-    return function(step)
-        count = count + step
-        return count
-    end
-end
-
-local c = makeCounter()
-print(c(2), c(3))
-'@ | Set-Content -LiteralPath $tmp -NoNewline -Encoding UTF8
-.\bin\lua_bytecode.exe $tmp full
-.\bin\lua_app.exe $tmp
-```
+对上述最小 chunk，运行结果和反汇编中与 closure/upvalue 有关的稳定证据如下；临时文件与命令行步骤不属于技术百科。
 
 `lua_app` 输出：
 
@@ -115,7 +99,7 @@ child protos (1)
 
 ## 1. Parser：函数语法变成 AST
 
-`local function makeCounter() ... end` 在 `Parser::parseLocalStmt()` 里走 local-function 分支，见 `src/compiler/parser/parser_stmt.cpp:235`。内部匿名函数 `function(step) ... end` 是表达式，入口是 `Parser::parseFunctionExpr()`，见 `src/compiler/parser/parser_func.cpp:83`。
+`local function makeCounter() ... end` 在 `Parser::parseLocalStmt()` 里走 local-function 分支，见 `src/compiler/parser/parser_stmt.cpp`。内部匿名函数 `function(step) ... end` 是表达式，入口是 `Parser::parseFunctionExpr()`，见 `src/compiler/parser/parser_func.cpp`。
 
 简化后的 AST 形状是：
 
@@ -140,9 +124,9 @@ AST 本身还不决定 `count` 是 local 还是 upvalue。这个判定发生在 
 
 ## 2. CodeGen：名字绑定到 upvalue
 
-`CodeGenerator::resolve()` 的查找顺序是 local -> upvalue -> global，见 `src/compiler/codegen/codegen_binding.cpp:26`。当内部函数体里遇到 `count` 时，它不是内部函数的参数或局部变量，于是 `resolveUpvalue()` 会问父 `CodeGenerator` 是否有同名 local。
+`CodeGenerator::resolve()` 的查找顺序是 local -> upvalue -> global，见 `src/compiler/codegen/codegen_binding.cpp`。当内部函数体里遇到 `count` 时，它不是内部函数的参数或局部变量，于是 `resolveUpvalue()` 会问父 `CodeGenerator` 是否有同名 local。
 
-这条路径在 `ScopeManager::resolveUpvalue()` 中很清楚，见 `src/compiler/codegen/scope_manager.cpp:71`：
+这条路径在 `ScopeManager::resolveUpvalue()` 中很清楚，见 `src/compiler/codegen/scope_manager.cpp`：
 
 ```text
 inner function asks for "count"
@@ -157,7 +141,7 @@ inner function asks for "count"
 | 父函数栈上的 local | `inStack=true, index=<local reg>` | `MOVE 0 <local reg>` |
 | 父函数已有 upvalue | `inStack=false, index=<upvalue slot>` | `GETUPVAL 0 <slot>` |
 
-这些伪指令由 `CodeGenerator::emitClosureUpvalues()` 发出，见 `src/compiler/codegen/codegen_stmt.cpp:125`。它们紧跟在 `CLOSURE` 后面，不是普通运行指令，而是给 VM 创建 closure 时消费的捕获描述。
+这些伪指令由 `CodeGenerator::emitClosureUpvalues()` 发出，见 `src/compiler/codegen/codegen_stmt.cpp`。它们紧跟在 `CLOSURE` 后面，不是普通运行指令，而是给 VM 创建 closure 时消费的捕获描述。
 
 ## 3. CodeGen：读写 upvalue
 
@@ -168,9 +152,9 @@ count = count + step
 return count
 ```
 
-读 `count` 时，`SymbolRef::Kind::Upvalue` 会变成 `ValueResult::AccessKind::Upvalue`，见 `src/compiler/codegen/codegen_binding.cpp:57`。真正需要把值放进寄存器时，`ExpressionEmitter::materializeValue()` 发出 `GETUPVAL`，见 `src/compiler/codegen/expression_emitter.cpp:381`。
+读 `count` 时，`SymbolRef::Kind::Upvalue` 会变成 `ValueResult::AccessKind::Upvalue`，见 `src/compiler/codegen/codegen_binding.cpp`。真正需要把值放进寄存器时，`ExpressionEmitter::materializeValue()` 发出 `GETUPVAL`，见 `src/compiler/codegen/expression_emitter.cpp`。
 
-写 `count` 时，赋值左侧会变成 `LValueRef::Kind::Upvalue`，见 `src/compiler/codegen/codegen_binding.cpp:81`。`ExpressionEmitter::storeVar()` 最终发出 `SETUPVAL`，见 `src/compiler/codegen/expression_emitter.cpp:1052`。
+写 `count` 时，赋值左侧会变成 `LValueRef::Kind::Upvalue`，见 `src/compiler/codegen/codegen_binding.cpp`。`ExpressionEmitter::storeVar()` 最终发出 `SETUPVAL`，见 `src/compiler/codegen/expression_emitter.cpp`。
 
 所以内部闭包的核心形状可以理解为：
 
@@ -187,7 +171,7 @@ RETURN   result, 2
 
 ## 4. CodeGen：函数变成子 Proto
 
-函数编译由 `CodeGenerator::compileFunction()` 负责，见 `src/compiler/codegen/codegen_stmt.cpp:78`。它会创建一个子 `CodeGenerator`，把 `child.state_.parent` 指向当前函数，然后：
+函数编译由 `CodeGenerator::compileFunction()` 负责，见 `src/compiler/codegen/codegen_stmt.cpp`。它会创建一个子 `CodeGenerator`，把 `child.state_.parent` 指向当前函数，然后：
 
 1. 为子函数创建新的 `Proto`。
 2. 把形参注册为子函数 local。
@@ -212,7 +196,7 @@ RETURN   result, 2
 
 ## 5. VM：`CLOSURE` 消费伪指令
 
-VM 的 `CLOSURE` handler 在 `src/vm/vm_handlers/vm_handlers_closure.cpp:12`，它委托给 `VM::detail::closure()`。真正的捕获逻辑在 `src/vm/vm_frame.cpp:45`：
+VM 的 `CLOSURE` handler 在 `src/vm/vm_handlers/vm_handlers_closure.cpp`，它委托给 `VM::detail::closure()`。真正的捕获逻辑在 `src/vm/vm_frame.cpp`：
 
 ```text
 for each child upvalue:
@@ -225,11 +209,11 @@ for each child upvalue:
 
 这就是为什么 CodeGen 发出的 `MOVE 0 0` 不是普通赋值。它告诉 VM：新 closure 的第 0 个 upvalue 要指向父函数当前栈帧里的 `R0`，也就是 `count`。
 
-`LuaState::findOrCreateUpvalue()` 会复用同一栈槽已经存在的 open upvalue，见 `src/vm/state/lua_state.cpp:156`。这保证了多个闭包捕获同一个 local 时，它们共享同一个 `Upvalue` 对象，而不是各自复制一份值。
+`LuaState::findOrCreateUpvalue()` 会复用同一栈槽已经存在的 open upvalue，见 `src/vm/state/lua_state.cpp`。这保证了多个闭包捕获同一个 local 时，它们共享同一个 `Upvalue` 对象，而不是各自复制一份值。
 
 ## 6. Open Upvalue：闭包仍指向栈
 
-`Upvalue::createOpen()` 创建的是 open upvalue，见 `src/core/upvalue.cpp:19`。open 状态下，`Upvalue::getValue()` 和 `setValue()` 通过 `stackIndex_` 访问所属栈上的值，见 `src/core/upvalue.cpp:63` 和 `src/core/upvalue.cpp:83`。
+`Upvalue::createOpen()` 创建的是 open upvalue，见 `src/core/upvalue.cpp`。open 状态下，`Upvalue::getValue()` 和 `setValue()` 通过 `stackIndex_` 访问所属栈上的值，见 `src/core/upvalue.cpp` 和 `src/core/upvalue.cpp`。
 
 在 `makeCounter` 正在执行时，`count` 还在 `makeCounter` 的调用帧里：
 
@@ -247,9 +231,9 @@ returned inner closure
 
 `makeCounter` 返回内部 closure 时，父函数栈帧即将消失。VM 必须在栈槽失效前把 open upvalue 关闭。
 
-返回指令 handler 在 `src/vm/vm_handlers/vm_handlers_call.cpp:101`，其中 `state->closeUpvalues(ci.base)` 位于 `src/vm/vm_handlers/vm_handlers_call.cpp:114`。`LuaState::closeUpvalues()` 会关闭所有栈索引大于等于该层级的 open upvalue，见 `src/vm/state/lua_state.cpp:191`。
+返回指令 handler 在 `src/vm/vm_handlers/vm_handlers_call.cpp`，其中 `state->closeUpvalues(ci.base)` 位于 `src/vm/vm_handlers/vm_handlers_call.cpp`。`LuaState::closeUpvalues()` 会关闭所有栈索引大于等于该层级的 open upvalue，见 `src/vm/state/lua_state.cpp`。
 
-关闭动作在 `Upvalue::close()` 中完成，见 `src/core/upvalue.cpp:95`：
+关闭动作在 `Upvalue::close()` 中完成，见 `src/core/upvalue.cpp`：
 
 ```text
 closedValue_ = stack[stackIndex_]
@@ -265,7 +249,7 @@ c closure
   upvalue[0] -> closedValue_ = 0
 ```
 
-随后 `c(2)` 调用内部函数，`GETUPVAL` 读到 `0`，`SETUPVAL` 写回 `2`。第二次 `c(3)` 读到同一个 closed upvalue 中的 `2`，写回 `5`。`GETUPVAL` 和 `SETUPVAL` 的 VM handler 分别在 `src/vm/vm_handlers/vm_handlers_global_upvalue.cpp:53` 和 `src/vm/vm_handlers/vm_handlers_global_upvalue.cpp:68`。
+随后 `c(2)` 调用内部函数，`GETUPVAL` 读到 `0`，`SETUPVAL` 写回 `2`。第二次 `c(3)` 读到同一个 closed upvalue 中的 `2`，写回 `5`。`GETUPVAL` 和 `SETUPVAL` 的 VM handler 分别在 `src/vm/vm_handlers/vm_handlers_global_upvalue.cpp` 和 `src/vm/vm_handlers/vm_handlers_global_upvalue.cpp`。
 
 ## 8. 顶层 `CLOSE` 为什么出现
 
@@ -276,7 +260,7 @@ c closure
 0013 | line 0 | RETURN | A=0 B=1 C=0
 ```
 
-这个 `CLOSE` 来自作用域离开时的保守收口：`ScopeManager::removeLocalVars()` 会先调用 `closeScopeUpvalues()`，见 `src/compiler/codegen/scope_manager.cpp:35`；如果当前作用域还有 active locals，它会发出 `CLOSE`，见 `src/compiler/codegen/scope_manager.cpp:43`。运行时 `CLOSE` handler 会调用 `LuaState::closeUpvalues(ci.base + A)`，见 `src/vm/vm_handlers/vm_handlers_loop.cpp:13`。
+这个 `CLOSE` 来自作用域离开时的保守收口：`ScopeManager::removeLocalVars()` 会先调用 `closeScopeUpvalues()`，见 `src/compiler/codegen/scope_manager.cpp`；如果当前作用域还有 active locals，它会发出 `CLOSE`，见 `src/compiler/codegen/scope_manager.cpp`。运行时 `CLOSE` handler 会调用 `LuaState::closeUpvalues(ci.base + A)`，见 `src/vm/vm_handlers/vm_handlers_loop.cpp`。
 
 在这个具体脚本里，真正必须关闭的是 `makeCounter` 返回时的 `count`；顶层 `CLOSE A=0` 是安全的收尾指令，用同一机制处理可能存在的 open upvalue。
 

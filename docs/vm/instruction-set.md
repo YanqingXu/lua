@@ -1,7 +1,7 @@
 ---
 status: current
-verified_against: src/compiler/opcode.hpp; src/compiler/opcode.cpp; src/vm/vm.cpp; src/vm/vm_ops.cpp; src/vm/vm_call.cpp; src/vm/vm_table.cpp; src/vm/vm_frame.cpp; src/vm/vm_loop.cpp
-last_checked: 2026-05-19
+verified_against: src/compiler/opcode.hpp; src/compiler/opcode.cpp; src/vm/vm.cpp; src/vm/vm_ops.cpp; src/vm/vm_call.cpp; src/vm/vm_table.cpp; src/vm/vm_frame.cpp; src/vm/vm_loop.cpp; src/vm/; src/vm/vm_handlers/; tests/unit/vm/; tests/unit/vm/opcode_coverage_matrix.md
+last_checked: 2026-07-11
 applies_to: current Lua 5.1-style VM opcode set
 ---
 
@@ -74,16 +74,15 @@ VM 使用 Lua 5.1 风格的寄存器字节码。指令在 `src/compiler/opcode.h
 
 - 编码辅助：`src/compiler/opcode.hpp`
 - 主分发：`src/vm/vm.cpp`
-- 算术、比较、元方法辅助：`src/vm/vm_ops.cpp`
-- 调用和尾调用：`src/vm/vm_call.cpp`
-- 闭包和 vararg：`src/vm/vm_frame.cpp`
-- 泛型 for：`src/vm/vm_loop.cpp`
-- SETLIST：`src/vm/vm_table.cpp`
+- 位布局与 RK 编码：[Compiler 指令格式](../compiler/bytecode/instruction-format.md)
+- 数据移动：`src/vm/vm_handlers/vm_handlers_data.cpp`
+- 全局与 upvalue：`src/vm/vm_handlers/vm_handlers_global_upvalue.cpp`
+- table 与 `SETLIST`：`src/vm/vm_handlers/vm_handlers_table.cpp`
+- 算术与元方法：`src/vm/vm_handlers/vm_handlers_arith.cpp`
+- 一元与拼接：`src/vm/vm_handlers/vm_handlers_unary.cpp`
+- 分支与比较：`src/vm/vm_handlers/vm_handlers_branch.cpp`
+- 调用、返回与 vararg：`src/vm/vm_handlers/vm_handlers_call.cpp`
+- 数值与泛型循环：`src/vm/vm_handlers/vm_handlers_loop.cpp`
+- 闭包与 upvalue 关闭：`src/vm/vm_handlers/vm_handlers_closure.cpp`
 
-实用测试：
-
-```powershell
-bin\lua_test.exe --filter "VM Dispatch"
-bin\lua_test.exe --filter "VM Internal"
-bin\lua_test.exe --filter "Function Call"
-```
+这张映射是 opcode 语义到实现责任区的稳定入口。验证应以 `tests/unit/vm/opcode_coverage_matrix.md` 的 codegen/handler 双向覆盖契约和 `tests/unit/vm/` 的行为测试为准，而不是在文档中复制易漂移的命令清单。

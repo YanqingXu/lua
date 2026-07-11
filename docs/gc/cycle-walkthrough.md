@@ -1,7 +1,7 @@
 ---
 status: current
-verified_against: bin/lua_app.exe; bin/lua_bytecode.exe; src/lib/baselib.cpp; src/lib/iolib.cpp; src/gc/garbage_collector.cpp; src/gc/gc_mark.cpp; src/gc/gc_weak.cpp; src/gc/gc_finalize.cpp; src/gc/gc_sweep.cpp; src/core/table.cpp; src/core/userdata.cpp; src/vm/state/global_state.cpp; tests/unit/gc/test_gc.cpp
-last_checked: 2026-05-23
+verified_against: src/lib/baselib.cpp; src/lib/iolib.cpp; src/gc/garbage_collector.cpp; src/gc/gc_mark.cpp; src/gc/gc_weak.cpp; src/gc/gc_finalize.cpp; src/gc/gc_sweep.cpp; src/core/table.cpp; src/core/userdata.cpp; src/vm/state/global_state.cpp; tests/unit/gc/test_gc.cpp; src/gc/; src/core/gc_object.hpp; src/core/string_pool.hpp; tests/unit/gc/
+last_checked: 2026-07-11
 applies_to: full mark-sweep collection, weak tables, userdata finalizers, and collectgarbage("collect")
 ---
 
@@ -23,24 +23,9 @@ print("after second", weak.handle == nil)
 
 它的关键现象是：第一次 `collectgarbage("collect")` 会发现 `io.tmpfile()` 返回的 file userdata 已经不可达，但因为它有 `__gc`，GC 会先把它复活一轮并运行 finalizer；弱表里的值因此还没有被清掉。第二次完整 GC 时，这个 userdata 已经带着 `FINALIZED` 标记，不会再排队终结，于是 weak value 被移除，sweep 真正释放对象。
 
-## 可复现命令
+## 观察基线
 
-```powershell
-$tmp = Join-Path $env:TEMP 'gc_cycle_walkthrough.lua'
-@'
-local weak = setmetatable({}, { __mode = "v" })
-local f = io.tmpfile()
-weak.handle = f
-print("before", weak.handle ~= nil)
-f = nil
-collectgarbage("collect")
-print("after first", weak.handle ~= nil)
-collectgarbage("collect")
-print("after second", weak.handle == nil)
-'@ | Set-Content -LiteralPath $tmp -NoNewline -Encoding UTF8
-.\bin\lua_bytecode.exe $tmp full
-.\bin\lua_app.exe $tmp
-```
+对上述最小 chunk，以下输出和关键字节码构成稳定的语义证据；命令行与临时文件操作由可执行程序帮助维护。
 
 `lua_app` 输出：
 
@@ -84,13 +69,13 @@ after second	true
 
 ## 1. 标准库入口：`collectgarbage("collect")`
 
-`collectgarbage` 在基础库中注册，执行入口是 `luaB_collectgarbage()`，见 `src/lib/baselib.cpp:1158`。当参数是 `"collect"` 时，它调用：
+`collectgarbage` 在基础库中注册，执行入口是 `luaB_collectgarbage()`，见 `src/lib/baselib.cpp`。当参数是 `"collect"` 时，它调用：
 
 ```text
 gc.collect(L)
 ```
 
-这里的 `L` 很重要。带 `LuaState*` 的入口会把当前线程栈、主线程栈、registry、基础类型元表、元方法名称和 running thread 都纳入根集；这条路径由 `GarbageCollector::collect(LuaState*)` 转到 `collect(StringPool&, LuaState*)`，见 `src/gc/garbage_collector.cpp:181` 和 `src/gc/garbage_collector.cpp:185`。
+这里的 `L` 很重要。带 `LuaState*` 的入口会把当前线程栈、主线程栈、registry、基础类型元表、元方法名称和 running thread 都纳入根集；这条路径由 `GarbageCollector::collect(LuaState*)` 转到 `collect(StringPool&, LuaState*)`，见 `src/gc/garbage_collector.cpp` 和 `src/gc/garbage_collector.cpp`。
 
 当前完整 GC 的顺序是：
 
@@ -103,7 +88,7 @@ sweep(stringPool)
 runFinalizers(currentState)
 ```
 
-这个顺序在 `src/gc/garbage_collector.cpp:185` 的实现里直接展开。
+这个顺序在 `src/gc/garbage_collector.cpp` 的实现里直接展开。
 
 ## 2. 例子里的对象图
 
@@ -121,22 +106,22 @@ file userdata
   metatable.__gc = io_gc
 ```
 
-`io.tmpfile()` 返回的 file userdata 来自 `createFileHandle()`，见 `src/lib/iolib.cpp:269`。文件元表的 `__gc` 在 `IOLibModule::registerFunctions()` 中注册，见 `src/lib/iolib.cpp:969` 和 `src/lib/iolib.cpp:973`；实际 finalizer 是 `io_gc()`，见 `src/lib/iolib.cpp:894`，它会关闭还没关闭的文件句柄。
+`io.tmpfile()` 返回的 file userdata 来自 `createFileHandle()`，见 `src/lib/iolib.cpp`。文件元表的 `__gc` 在 `IOLibModule::registerFunctions()` 中注册，见 `src/lib/iolib.cpp` 和 `src/lib/iolib.cpp`；实际 finalizer 是 `io_gc()`，见 `src/lib/iolib.cpp`，它会关闭还没关闭的文件句柄。
 
 所以这不是普通 table 或 string，而是“可终结的 userdata”。这就是为什么第一次完整 GC 不能直接 sweep 掉它。
 
 ## 3. Mark：根集和弱表
 
-`GarbageCollector::mark(LuaState*)` 从 `src/gc/gc_mark.cpp:41` 开始。它先把所有对象重新设为白色，清空灰色列表和本轮 weak table 列表，然后标记根：
+`GarbageCollector::mark(LuaState*)` 从 `src/gc/gc_mark.cpp` 开始。它先把所有对象重新设为白色，清空灰色列表和本轮 weak table 列表，然后标记根：
 
 | 根来源 | 相关实现 |
 |---|---|
-| 显式 `roots_` | `src/gc/gc_mark.cpp:63` |
-| registry、memerrmsg、元方法名称、基础类型元表 | `src/vm/state/global_state.cpp:95` |
-| 当前 LuaState 栈、CallInfo 范围、open upvalue、debug hook | `src/gc/gc_mark.cpp:127` |
-| main thread / running thread | `src/vm/state/global_state.cpp:108` |
+| 显式 `roots_` | `src/gc/gc_mark.cpp` |
+| registry、memerrmsg、元方法名称、基础类型元表 | `src/vm/state/global_state.cpp` |
+| 当前 LuaState 栈、CallInfo 范围、open upvalue、debug hook | `src/gc/gc_mark.cpp` |
+| main thread / running thread | `src/vm/state/global_state.cpp` |
 
-当标记传播遇到 `weak` 表时，会调用 `Table::mark()`，见 `src/core/table.cpp:209`，再进入 `GarbageCollector::markTable()`，见 `src/gc/gc_weak.cpp:14`。`markTable()` 读取元表中的 `__mode`：
+当标记传播遇到 `weak` 表时，会调用 `Table::mark()`，见 `src/core/table.cpp`，再进入 `GarbageCollector::markTable()`，见 `src/gc/gc_weak.cpp`。`markTable()` 读取元表中的 `__mode`：
 
 ```text
 __mode contains "v"
@@ -145,11 +130,11 @@ __mode contains "v"
   -> table recorded in weakTables_
 ```
 
-接着 `Table::markContents()` 会跳过弱值，见 `src/core/table.cpp:212`。这意味着 `weak.handle` 指向的 file userdata 不会因为弱表而变黑。到第一次 mark 结束时，它仍然是白色。
+接着 `Table::markContents()` 会跳过弱值，见 `src/core/table.cpp`。这意味着 `weak.handle` 指向的 file userdata 不会因为弱表而变黑。到第一次 mark 结束时，它仍然是白色。
 
 ## 4. Prepare Finalizers：第一次回收为什么还没清 weak value
 
-普通白色对象会在 sweep 阶段被释放，但带 `__gc` 的 userdata 先走 `prepareFinalizers()`，见 `src/gc/gc_finalize.cpp:28`。
+普通白色对象会在 sweep 阶段被释放，但带 `__gc` 的 userdata 先走 `prepareFinalizers()`，见 `src/gc/gc_finalize.cpp`。
 
 这个函数扫描 `allObjects_`，寻找满足这些条件的对象：
 
@@ -169,7 +154,7 @@ push userdata into pendingFinalizers_
 markObject(userdata)
 ```
 
-随后 `collect()` 再调用一次 `propagateMarks()`，见 `src/gc/garbage_collector.cpp:191`。这一步把刚刚复活的 userdata 和它的元表引用图标成存活。结果是：第一次 `clearWeakTableEntries()` 执行时，`weak.handle` 的值已经不是“dead value”了，所以弱表条目仍然保留。
+随后 `collect()` 再调用一次 `propagateMarks()`，见 `src/gc/garbage_collector.cpp`。这一步把刚刚复活的 userdata 和它的元表引用图标成存活。结果是：第一次 `clearWeakTableEntries()` 执行时，`weak.handle` 的值已经不是“dead value”了，所以弱表条目仍然保留。
 
 这解释了脚本里的第二行输出：
 
@@ -181,7 +166,7 @@ after first	true
 
 ## 5. Weak Cleanup：第二次才清掉条目
 
-弱表清理由 `clearWeakTableEntries()` 完成，见 `src/gc/gc_weak.cpp:66`。它遍历本轮 `markTable()` 收集到的 `weakTables_`，再调用 `Table::removeWeakEntries()`，见 `src/core/table.cpp:234`。
+弱表清理由 `clearWeakTableEntries()` 完成，见 `src/gc/gc_weak.cpp`。它遍历本轮 `markTable()` 收集到的 `weakTables_`，再调用 `Table::removeWeakEntries()`，见 `src/core/table.cpp`。
 
 第一次完整 GC 中，file userdata 被 `prepareFinalizers()` 复活，所以不会被移除。第一次 `runFinalizers()` 执行后，它带着 `FINALIZED` 标记留在对象链表里。
 
@@ -203,7 +188,7 @@ after second	true
 
 ## 6. Sweep：真正释放白色对象
 
-清扫阶段在 `GarbageCollector::sweep(StringPool&)`，见 `src/gc/gc_sweep.cpp:12`。它遍历 `allObjects_` 的侵入式链表：
+清扫阶段在 `GarbageCollector::sweep(StringPool&)`，见 `src/gc/gc_sweep.cpp`。它遍历 `allObjects_` 的侵入式链表：
 
 ```text
 if object is White and not FIXED:
@@ -221,7 +206,7 @@ else:
 
 ## 7. Run Finalizers：为什么放在 sweep 后
 
-终结器执行在 `runFinalizers()`，见 `src/gc/gc_finalize.cpp:47`。它把 `pendingFinalizers_` 交换到局部列表，然后对每个 userdata：
+终结器执行在 `runFinalizers()`，见 `src/gc/gc_finalize.cpp`。它把 `pendingFinalizers_` 交换到局部列表，然后对每个 userdata：
 
 ```text
 save stack / call info
@@ -231,7 +216,7 @@ VM::call(state, 1, 0)
 restore stack / call info
 ```
 
-当前实现会吞掉单个 finalizer 抛出的异常，避免一个失败的 `__gc` 打断整轮收集，见 `src/gc/gc_finalize.cpp:74`。
+当前实现会吞掉单个 finalizer 抛出的异常，避免一个失败的 `__gc` 打断整轮收集，见 `src/gc/gc_finalize.cpp`。
 
 把 finalizer 放在 sweep 之后有两个好处：
 

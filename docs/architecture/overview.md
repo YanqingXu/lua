@@ -1,7 +1,7 @@
 ---
 status: current
-verified_against: README.md; docs/architecture/patterns.md; src/common/; src/core/; src/compiler/; src/vm/; src/gc/; src/lib/; src/runtime/runtime_services.hpp
-last_checked: 2026-05-23
+verified_against: docs/architecture/patterns.md; src/common/; src/core/; src/compiler/; src/vm/; src/gc/; src/lib/; src/runtime/runtime_services.hpp; src/runtime/; tests/lua/regressions/; tests/lua/integration/
+last_checked: 2026-07-11
 applies_to: current high-level architecture and source layout
 ---
 

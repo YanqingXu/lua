@@ -1,7 +1,7 @@
 ---
 status: current
-verified_against: src/gc/garbage_collector.hpp; src/gc/garbage_collector.cpp; src/gc/gc_strategy.hpp; src/gc/gc_strategy.cpp; src/gc/gc_mark.cpp; src/gc/gc_sweep.cpp; src/gc/gc_finalize.cpp; src/core/string_pool.cpp; src/core/gc_object.hpp; src/core/table.cpp; src/core/function.cpp; src/core/upvalue.cpp; src/core/userdata.cpp; src/core/thread.cpp; src/vm/state/global_state.cpp; tests/unit/gc/test_gc.cpp
-last_checked: 2026-05-31
+verified_against: src/gc/garbage_collector.hpp; src/gc/garbage_collector.cpp; src/gc/gc_strategy.hpp; src/gc/gc_strategy.cpp; src/gc/gc_mark.cpp; src/gc/gc_sweep.cpp; src/gc/gc_finalize.cpp; src/core/string_pool.cpp; src/core/gc_object.hpp; src/core/table.cpp; src/core/function.cpp; src/core/upvalue.cpp; src/core/userdata.cpp; src/core/thread.cpp; src/vm/state/global_state.cpp; tests/unit/gc/test_gc.cpp; src/gc/; src/core/string_pool.hpp; tests/unit/gc/
+last_checked: 2026-07-11
 applies_to: current garbage collector implementation
 ---
 
@@ -133,7 +133,4 @@ applies_to: current garbage collector implementation
 
 ## 验证
 
-```powershell
-bin\lua_test.exe --filter "GC"
-bin\lua_test.exe --filter "collectgarbage"
-```
+内部状态机、写屏障、弱表与 finalizer 契约由 `tests/unit/gc/test_gc.cpp` 验证；语言可观察行为由 `tests/lua/official/` 和 GC regressions 验证。测试应断言跨阶段结果，不绑定 step 的近似工作单位。

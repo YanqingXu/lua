@@ -1,7 +1,7 @@
 ---
 status: current
-verified_against: src/runtime/runtime_services.hpp; src/core/string_pool.hpp; src/vm/state/global_state.hpp; src/vm/state/global_state.cpp; src/vm/state/lua_state.hpp; src/vm/state/lua_state.cpp; src/gc/garbage_collector.hpp; src/gc/gc_strategy.hpp; src/gc/gc_sweep.cpp; src/vm/vm_dispatch_strategy.hpp; src/vm/vm.cpp; src/main.cpp; src/repl.cpp; src/bytecode/bytecode_main.cpp; src/compiler/parser/parser.hpp; src/compiler/codegen/codegen.hpp; src/vm/vm.hpp; tests/unit/vm/test_runtime_services.cpp; tests/unit/vm/test_vm_dispatch.cpp; tests/unit/gc/test_gc.cpp
-last_checked: 2026-06-01
+verified_against: src/runtime/runtime_services.hpp; src/core/string_pool.hpp; src/vm/state/global_state.hpp; src/vm/state/global_state.cpp; src/vm/state/lua_state.hpp; src/vm/state/lua_state.cpp; src/gc/garbage_collector.hpp; src/gc/gc_strategy.hpp; src/gc/gc_sweep.cpp; src/vm/vm_dispatch_strategy.hpp; src/vm/vm.cpp; src/main.cpp; src/repl.cpp; src/bytecode/bytecode_main.cpp; src/compiler/parser/parser.hpp; src/compiler/codegen/codegen.hpp; src/vm/vm.hpp; tests/unit/vm/test_runtime_services.cpp; tests/unit/vm/test_vm_dispatch.cpp; tests/unit/gc/test_gc.cpp; src/runtime/; src/core/; src/vm/; tests/lua/runtime/; tests/unit/core/; tests/unit/vm/
+last_checked: 2026-07-11
 applies_to: current RuntimeServices boundary
 ---
 
@@ -76,7 +76,7 @@ public:
 
 `LuaState::newState(EngineContext&)` 在该上下文内创建主状态。测试断言两个上下文将相同文本驻留为不同的 `GCString` 对象，且这些字符串属于不同的回收器。
 
-## 未来方向
+## 隔离与兼容边界
 
 `EngineContext` 现已被 `lua_app` 和 `lua_bytecode` 可执行入口点使用。一些 VM/编译器兼容重载和旧测试仍有意使用 `RuntimeServices::fromSingletons()`。对于新的隔离测试和新的嵌入面，优先使用 `EngineContext`；仅在调用者契约要求保留旧行为时才使用 `fromSingletons()`。
 
@@ -95,4 +95,4 @@ public:
 | `src/core/metatable.cpp` | 无 `LuaState*` 的重载回退到单例全局元表用于旧式辅助函数。 |
 | `src/gc/gc_finalize.cpp`, `src/gc/gc_weak.cpp` | 没有 owning `GlobalState` 的回收器实例仅在旧式/测试回收器中使用单例。 |
 
-新的生产或集成脚手架应避免此列表。截至 2026-06-01，Lua 5.1 官方套件 C++ 脚手架也在每个门禁中创建新的 `EngineContext`，因此分阶段的官方测试在用例之间不依赖 `GlobalState::getInstance()` 清理。
+新的生产或隔离测试应优先使用 `EngineContext`，避免扩大兼容单例的依赖面。official suite 的 C++ 脚手架为每个门禁创建独立上下文，因此用例隔离不依赖清理全局 singleton。

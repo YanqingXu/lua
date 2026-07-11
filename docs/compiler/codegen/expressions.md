@@ -1,7 +1,7 @@
 ---
 status: current
-verified_against: docs/compiler/codegen-responsibility-map.md; src/compiler/codegen/expression_emitter.hpp; src/compiler/codegen/expression_emitter.cpp; src/compiler/codegen/codegen_types.hpp; src/compiler/codegen/name_binder.hpp; src/compiler/codegen/name_binder.cpp; src/compiler/codegen/jump_patcher.hpp; src/compiler/codegen/jump_patcher.cpp; src/compiler/codegen/codegen_ops.hpp; src/compiler/codegen/function_compiler.hpp; src/compiler/codegen/function_compiler.cpp; tests/unit/compiler/test_expression_emitter.cpp; tests/unit/compiler/test_value_pipeline.cpp; tests/unit/compiler/test_call_pipeline.cpp; tests/unit/compiler/test_lvalue_pipeline.cpp; tests/unit/compiler/test_codegen_conditions.cpp
-last_checked: 2026-05-24
+verified_against: docs/compiler/codegen-responsibility-map.md; src/compiler/codegen/expression_emitter.hpp; src/compiler/codegen/expression_emitter.cpp; src/compiler/codegen/codegen_types.hpp; src/compiler/codegen/name_binder.hpp; src/compiler/codegen/name_binder.cpp; src/compiler/codegen/jump_patcher.hpp; src/compiler/codegen/jump_patcher.cpp; src/compiler/codegen/codegen_ops.hpp; src/compiler/codegen/function_compiler.hpp; src/compiler/codegen/function_compiler.cpp; tests/unit/compiler/test_expression_emitter.cpp; tests/unit/compiler/test_value_pipeline.cpp; tests/unit/compiler/test_call_pipeline.cpp; tests/unit/compiler/test_lvalue_pipeline.cpp; tests/unit/compiler/test_codegen_conditions.cpp; src/compiler/; tests/unit/compiler/; tests/lua/bytecode/; tests/lua/control_flow/
+last_checked: 2026-07-11
 applies_to: current ExpressionEmitter value, condition, call, vararg, and lvalue lowering boundary
 ---
 

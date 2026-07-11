@@ -1,7 +1,7 @@
 ---
 status: current
-verified_against: src/debug/trace_types.hpp; src/debug/trace_sink.hpp; src/debug/json_trace_sink.cpp; src/debug/value_serializer.cpp; src/vm/vm_trace.cpp; src/vm/vm.cpp; src/main.cpp; src/app/app_options.cpp; tests/unit/vm/test_vm_trace_debug.cpp
-last_checked: 2026-05-23
+verified_against: src/debug/trace_types.hpp; src/debug/trace_sink.hpp; src/debug/json_trace_sink.cpp; src/debug/value_serializer.cpp; src/vm/vm_trace.cpp; src/vm/vm.cpp; src/main.cpp; src/app/app_options.cpp; tests/unit/vm/test_vm_trace_debug.cpp; src/compiler/opcode.hpp; src/vm/; src/vm/vm_handlers/; tests/unit/vm/; tests/unit/vm/opcode_coverage_matrix.md
+last_checked: 2026-07-11
 applies_to: current JSONL VM trace system
 ---
 
@@ -9,12 +9,7 @@ applies_to: current JSONL VM trace system
 
 VM trace 系统从字节码解释器记录执行事件并以 JSONL 格式写入。它默认关闭，通过安装 `ITraceSink` 来启用。
 
-当前面向用户的入口：
-
-```powershell
-bin\lua_app.exe --trace trace.jsonl examples\hello.lua
-bin\lua_app.exe --trace-diff trace-diff.jsonl examples\hello.lua
-```
+应用入口提供 full trace 与 diff trace 两种 JSONL 模式：前者记录完整寄存器状态，后者主要记录变化字段。具体参数由可执行程序帮助维护。
 
 尚无提交的 HTML trace 查看器。早期的查看器设想是历史性的；当前已实现的输出面是 JSONL。
 
@@ -135,20 +130,14 @@ main.cpp
 
 `VM::setTraceSink(nullptr)` 禁用 trace 输出。
 
-## 已知缺口
+## Schema 与实现边界
 
-- 无提交的 HTML 或浏览器查看器。
-- 尚无操作码/函数级 trace 过滤。
 - Error 事件在 schema 中有表示但尚未由 VM 错误路径发射。
 - C 函数调用事件使用通用 `C function` 标签，因为 C 闭包当前不携带调试名称。
 - Trace sink 状态是全局的，匹配当前 VM 入口点形态。
 
+这些是读取现有 trace 时必须遵守的事实边界；消费者不能假设每种 schema event 都一定出现，也不能把通用 C function 标签当作稳定函数身份。
+
 ## 验证
 
-相关检查：
-
-```powershell
-bin\lua_test.exe --filter "VM Trace Debug"
-bin\lua_app.exe --trace bin\trace-example.jsonl examples\hello.lua
-bin\lua_app.exe --trace-diff bin\trace-diff-example.jsonl examples\hello.lua
-```
+`tests/unit/vm/test_vm_trace_debug.cpp` 锁定 plain/diff JSONL schema、寄存器变化、函数名与事件顺序。测试断言结构化字段，不依赖输出文件位置或命令行文本。

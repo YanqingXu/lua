@@ -1,7 +1,7 @@
 ---
 status: current
-verified_against: src/compiler/lexer/lexer.hpp; src/compiler/lexer/lexer.cpp; src/compiler/lexer/lexer_cursor.hpp; src/compiler/lexer/lexer_cursor.cpp; src/compiler/parser/token.hpp; src/common/types.hpp; tests/unit/compiler/test_lexer_number.cpp; tests/unit/compiler/test_lexer_lookahead.cpp; tests/unit/io/test_input_stream_string.cpp; tests/unit/io/test_input_stream_stream.cpp; tests/unit/io/test_input_stream_file.cpp; https://www.lua.org/source/5.1/llex.c.html
-last_checked: 2026-05-24
+verified_against: src/compiler/lexer/lexer.hpp; src/compiler/lexer/lexer.cpp; src/compiler/lexer/lexer_cursor.hpp; src/compiler/lexer/lexer_cursor.cpp; src/compiler/parser/token.hpp; src/common/types.hpp; tests/unit/compiler/test_lexer_number.cpp; tests/unit/compiler/test_lexer_lookahead.cpp; tests/unit/io/test_input_stream_string.cpp; tests/unit/io/test_input_stream_stream.cpp; tests/unit/io/test_input_stream_file.cpp; src/compiler/lexer/; src/compiler/parser/; src/compiler/ast.hpp; tests/unit/compiler/; src/compiler/; tests/lua/bytecode/; tests/lua/control_flow/
+last_checked: 2026-07-11
 applies_to: current Lua 5.1 lexer and InputCursor implementation
 ---
 
@@ -426,10 +426,4 @@ Lua 5.1 的 `llex.c` 以 `LexState` 为中心，里面集中保存当前字符�
 5. 修改长字符串或长注释时，同时覆盖 level 匹配、失败恢复、首换行丢弃和 CRLF / LFCR 规范化。
 6. 修改 token 预读时，同时跑 `Lexer Lookahead` 测试，确认重复 `peekToken()` 和 EOF 预读仍稳定。
 
-常用验证命令：
-
-```powershell
-cmake --build build/cmake --config Debug --target lua_test
-.\build\cmake\Debug\lua_test.exe --filter "Lexer"
-.\build\cmake\Debug\lua_test.exe
-```
+验证由 `tests/unit/compiler/test_lexer_*` 覆盖 cursor、lookahead、number、长字符串和错误 token；Lua 脚本补充 parser 组合行为。命令行入口由测试运行器帮助维护。

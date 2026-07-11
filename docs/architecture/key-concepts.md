@@ -1,3 +1,10 @@
+---
+status: current
+verified_against: src/compiler/; src/vm/; src/runtime/; src/core/; src/gc/; tests/lua/regressions/; tests/lua/integration/
+last_checked: 2026-07-11
+applies_to: Key Concepts — 核心概念
+---
+
 # Key Concepts — 核心概念
 
 ## 1. 这个模块解决什么问题？

@@ -1,7 +1,7 @@
 ---
 status: current
-verified_against: docs/compiler/codegen-responsibility-map.md; src/common/lua_error.hpp; src/compiler/codegen/codegen.hpp; src/compiler/codegen/codegen.cpp; src/compiler/codegen/codegen_binding.cpp; src/compiler/codegen/name_binder.hpp; src/compiler/codegen/name_binder.cpp; src/compiler/codegen/codegen_ops.hpp; src/compiler/codegen/function_compiler.hpp; src/compiler/codegen/function_compiler.cpp; src/compiler/codegen/expression_emitter.hpp; src/compiler/codegen/expression_emitter.cpp; src/compiler/codegen/statement_emitter.hpp; src/compiler/codegen/statement_emitter.cpp; src/compiler/codegen/codegen_stmt.cpp; src/compiler/codegen/codegen_types.hpp; src/compiler/codegen/codegen_context.hpp; src/compiler/codegen/codegen_state.hpp; src/compiler/codegen/jump_patcher.hpp; src/compiler/codegen/jump_patcher.cpp; src/compiler/codegen/scope_manager.hpp; src/compiler/codegen/scope_manager.cpp; src/compiler/codegen/bytecode_builder.hpp; src/compiler/register_allocator.hpp; tests/unit/compiler/test_codegen_result_types.cpp; tests/unit/compiler/test_codegen_state.cpp; tests/unit/compiler/test_codegen_characterization.cpp; tests/unit/compiler/test_jump_patcher.cpp; tests/unit/compiler/test_scope_manager.cpp; tests/unit/compiler/test_expression_emitter.cpp; tests/unit/compiler/test_statement_emitter.cpp; tests/unit/compiler/test_symbol_binding.cpp; tools/check_value_result_variant_only.ps1
-last_checked: 2026-05-24
+verified_against: docs/compiler/codegen-responsibility-map.md; src/common/lua_error.hpp; src/compiler/codegen/codegen.hpp; src/compiler/codegen/codegen.cpp; src/compiler/codegen/codegen_binding.cpp; src/compiler/codegen/name_binder.hpp; src/compiler/codegen/name_binder.cpp; src/compiler/codegen/codegen_ops.hpp; src/compiler/codegen/function_compiler.hpp; src/compiler/codegen/function_compiler.cpp; src/compiler/codegen/expression_emitter.hpp; src/compiler/codegen/expression_emitter.cpp; src/compiler/codegen/statement_emitter.hpp; src/compiler/codegen/statement_emitter.cpp; src/compiler/codegen/codegen_stmt.cpp; src/compiler/codegen/codegen_types.hpp; src/compiler/codegen/codegen_context.hpp; src/compiler/codegen/codegen_state.hpp; src/compiler/codegen/jump_patcher.hpp; src/compiler/codegen/jump_patcher.cpp; src/compiler/codegen/scope_manager.hpp; src/compiler/codegen/scope_manager.cpp; src/compiler/codegen/bytecode_builder.hpp; src/compiler/register_allocator.hpp; tests/unit/compiler/test_codegen_result_types.cpp; tests/unit/compiler/test_codegen_state.cpp; tests/unit/compiler/test_codegen_characterization.cpp; tests/unit/compiler/test_jump_patcher.cpp; tests/unit/compiler/test_scope_manager.cpp; tests/unit/compiler/test_expression_emitter.cpp; tests/unit/compiler/test_statement_emitter.cpp; tests/unit/compiler/test_symbol_binding.cpp; tools/check_value_result_variant_only.ps1; src/compiler/; tests/unit/compiler/; tests/lua/bytecode/; tests/lua/control_flow/
+last_checked: 2026-07-11
 applies_to: current AST-to-Proto bytecode generator
 ---
 
@@ -175,7 +175,7 @@ emitStore(target, value)
 - `ForNumStmt` / `ForInStmt`：按 Lua 5.1 寄存器布局发出循环控制指令。
 - `FunctionStmt`：编译子 `Proto`，发出 `CLOSURE`，再发出 upvalue 捕获伪指令。
 
-## 7. 已落地边界与后续拆分方向
+## 7. 物理组件边界
 
 `CodeGenerator` 是编译总控类，其物理边界如下：
 
@@ -190,15 +190,7 @@ emitStore(target, value)
 - `jump_patcher.hpp/.cpp`：jump-list、`PatchList`、pending `jpc_` 和 `fixJump/getJump` 回填操作。
 - `bytecode_builder.hpp`：当前 `Proto` 写入边界。
 
-后续建议按以下顺序继续拆分，避免一次性重写：
-
-1. `NameBinder`：已拥有 `resolve()`、`symbolToValue()`、`symbolToLValue()`。
-2. `ExpressionEmitter`：已拥有 `emitValue()`、`emitCondResult()`、`emitLValue()`、调用与 vararg lowering。
-3. `StatementEmitter`：已拥有语句、block、循环、return、break 生成。
-4. `CodegenOps`：已拥有低层指令发射、参数回填和 guard。
-5. `FunctionCompiler`：已拥有子函数编译、closure 和 upvalue 捕获装配。
-
-拆分时每一步都应保持 `Proto` 字节码输出不变，并优先复用现有 `test_symbol_binding`、`test_value_pipeline`、`test_codegen_conditions`、`test_lvalue_pipeline`、`test_call_pipeline` 和 `test_codegen_multret`。
+这些组件共享 `CodegenState`，但 ownership 和写入边界保持显式。任何组件迁移都必须保持 Proto 输出与 result-type 契约不变，并由 symbol/value/condition/lvalue/call/multret 测试证明。
 
 ## 8. 阅读顺序
 

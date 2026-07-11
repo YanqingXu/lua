@@ -1,42 +1,65 @@
 ---
 status: current
-verified_against: tests/unit/framework/test_runner.cpp; tools/run_quality_gate.ps1; tools/check_doc_drift.ps1
-last_checked: 2026-06-13
-applies_to: Chinese testing strategy overview
+verified_against: tests/unit/; tests/unit/framework/; tests/lua/; tests/lua/official/; tests/lua/regressions/; tests/unit/vm/test_vm_trace_debug.cpp; tools/check_doc_drift.ps1; tools/test_quality_gate.ps1
+last_checked: 2026-07-11
+applies_to: 解释器测试分层、Golden 与回归证据
 ---
 
-# Testing Strategy — 测试策略
+# 解释器测试分层、Golden 与回归证据
 
-## 1. 测试层次
+测试文档只解释验证模型，不复制命令清单或易漂移的用例数量。测试数量由运行器动态报告，文档漂移脚本只验证公开基线与真实执行一致。
 
-```
-测试金字塔:
+## 测试金字塔
 
-        ╱ 集成测试 ╲         Lua 5.1 官方测试套件
-       ╱ regression ╲        Lua 脚本回归测试
-      ╱ Golden Tests ╲       vs 官方 Lua 输出对比
-     ╱───────────────╲
-    ╱  Unit Tests     ╲      C++ 单元测试
-   ╱───────────────────╲
-  ╱   Static Checks     ╲    编译器警告 /W4, static_assert
-```
+| 层次 | 目的 | 典型目录 |
+|---|---|---|
+| C++ unit | 数据结构、状态机、错误类型和边界 API | `tests/unit/` |
+| Lua behavior | 语言可观察语义和跨模块组合 | `tests/lua/basic/`、`functions/`、`tables/`、`runtime/` |
+| Official compatibility | 不经实现定制的 Lua 5.1 行为参照 | `tests/lua/official/`、`tests/unit/official/` |
+| Regression | 每个已修缺陷的最小稳定复现 | `tests/lua/regressions/` |
+| Golden | 结构化且有意稳定的复杂输出 | `test_vm_trace_debug.cpp` 中的 trace golden cases |
 
-## 2. 测试框架
+## 单元与行为测试的分工
 
-```
-自定义轻量级测试框架 (零外部依赖):
-  - TestSuite 类
-  - ASSERT_TRUE / ASSERT_FALSE / ASSERT_EQ 宏
-  - TestRegistry 单例 (自动注册)
-  - 清晰的通过/失败报告
-```
+单元测试锁定内部不变量，例如寄存器释放、jump patch、open upvalue 唯一性和 GC phase 转移。Lua behavior test 锁定最终值、错误对象、副作用和库行为，不应引用 C++ 类名或内部 PC。
 
-## 3. 证据设计
+一个跨层修复通常需要两种证据：内部测试证明修复发生在正确机制，Lua regression 证明用户可观察行为不再回退。
 
-- Unit tests 锁定单个类型、算法和组件契约。
-- Characterization tests 锁定重构前后的可观察语义与字节码形状。
-- Golden tests 对比结构化输出，适合 trace、错误和字节码渲染。
-- Lua regression scripts 复现跨 compiler、VM、runtime 的行为缺陷。
-- 官方 Lua 5.1 脚本用于兼容性证据，但实现差异必须在 `docs/compatibility/lua51/` 中单独解释。
+## Golden 测试
 
-测试数量属于运行时统计，不写入技术文档；技术文档只描述测试层次、覆盖意图和证据位置。
+Golden 适合结构复杂但本身应稳定的结果，例如反汇编或规范化 JSONL trace。使用条件：
+
+- 输出已有明确 schema；
+- 排除地址、unordered 顺序、计时和环境路径；
+- diff 能定位语义字段，而不是整页格式噪声；
+- 更新 golden 必须审阅变化原因，不能把“测试通过”当作批准。
+
+普通错误文案、调试展示和对象地址通常不适合逐字 golden。优先断言错误类别、source/line、opcode、changed registers 等字段。
+
+## Regression 设计
+
+每个 regression 应最小化为一个主要语义点，并记录预期结果。命名描述行为而不是 issue 编号。若故障横跨 Compiler 与 VM，可以同时保存 Proto/trace 单元证据，但 Lua 脚本仍是最终合同。
+
+高价值边界包括：
+
+- lexer lookahead 与 parser error recovery；
+- short-circuit、jump backpatch 和 scope close；
+- CALL/RETURN/VARARG 的 fixed/open 数量；
+- closure 在正常 return、break、tailcall 和异常路径关闭；
+- metamethod 链、循环保护与错误对象；
+- weak table/finalizer 跨多个 GC cycle；
+- official Lua 脚本中的组合语义。
+
+## 确定性与隔离
+
+- 每个测试拥有独立 LuaState 或明确重置全局状态。
+- 不依赖 unordered 遍历、地址、线程调度或宿主 locale。
+- GC 测试显式触发阶段并观察语义，不断言脆弱的分配次数。
+- trace/golden 对输出排序和对象 ID 做规范化。
+- 测试失败必须返回非零状态，脚本不能只扫描“看起来成功”的文本。
+
+## 覆盖闭环
+
+opcode matrix 是一种结构覆盖合同：每个 opcode 必须有 CodeGen 生产证据和 VM handler 消费证据。它不能替代行为测试，但能发现“有 handler 从不生成”或“生成了却没有 handler”的静态断裂。
+
+Documentation Drift Check 进一步验证核心技术页存在、全部 Markdown 有事实头部、`verified_against` 路径仍存在，并通过真实测试输出校验 README 基线。这样文档证据和代码证据使用同一质量门。

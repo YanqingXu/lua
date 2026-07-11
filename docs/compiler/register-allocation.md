@@ -1,7 +1,7 @@
 ---
 status: current
-verified_against: src/compiler/register_allocator.hpp; src/compiler/codegen/codegen.hpp; src/compiler/codegen/codegen.cpp; src/compiler/codegen/codegen_ops.hpp; src/compiler/codegen/function_compiler.hpp; src/compiler/codegen/function_compiler.cpp; src/compiler/codegen/expression_emitter.cpp; src/compiler/codegen/statement_emitter.cpp; src/compiler/codegen/codegen_stmt.cpp; src/compiler/codegen/codegen_state.hpp
-last_checked: 2026-05-22
+verified_against: src/compiler/register_allocator.hpp; src/compiler/codegen/codegen.hpp; src/compiler/codegen/codegen.cpp; src/compiler/codegen/codegen_ops.hpp; src/compiler/codegen/function_compiler.hpp; src/compiler/codegen/function_compiler.cpp; src/compiler/codegen/expression_emitter.cpp; src/compiler/codegen/statement_emitter.cpp; src/compiler/codegen/codegen_stmt.cpp; src/compiler/codegen/codegen_state.hpp; src/compiler/; tests/unit/compiler/; tests/lua/bytecode/; tests/lua/control_flow/
+last_checked: 2026-07-11
 applies_to: current CodeGenerator register allocation model
 ---
 
@@ -135,11 +135,4 @@ R(base + 3) 第一个可见循环变量
 - 多返回值调用被意外强制为单值。
 - 循环布局复用了 Lua 的保留控制寄存器。
 
-实用测试：
-
-```powershell
-bin\lua_test.exe --filter "Value Pipeline"
-bin\lua_test.exe --filter "Call Pipeline"
-bin\lua_test.exe --filter "Codegen MultiRet"
-bin\lua_test.exe --filter "Function Codegen"
-```
+验证由 value/call pipeline、Codegen MultiRet 和 Function Codegen 单元测试共同完成；重点断言寄存器生命周期、连续参数窗口和 fixed/open 结果模式。

@@ -175,33 +175,33 @@ $failures = [System.Collections.Generic.List[string]]::new()
 $coreDocs = @(
     "README.md",
     "docs/index.md",
-    "docs/knowledge/source-document-map.md",
-    "docs/glossary.md",
-    "docs/gc/implementation.md",
-    "docs/gc/overview.md",
-    "docs/compiler/bytecode-generation.md",
-    "docs/compiler/frontend/overview.md",
-    "docs/compiler/bytecode/overview.md",
     "docs/architecture/overview.md",
-    "docs/architecture/patterns.md",
-    "docs/runtime/services.md",
-    "docs/runtime/value/overview.md",
-    "docs/runtime/table/overview.md",
-    "docs/runtime/functions/overview.md",
+    "docs/architecture/execution-pipeline/overview.md",
+    "docs/compiler/lexer.md",
     "docs/compiler/parser.md",
-    "docs/compiler/register-allocation.md",
-    "docs/compiler/codegen-responsibility-map.md",
+    "docs/compiler/bytecode-generation.md",
+    "docs/compiler/control-flow/overview.md",
     "docs/vm/instruction-set.md",
     "docs/vm/runtime/overview.md",
     "docs/vm/trace-system.md",
+    "docs/runtime/value/overview.md",
+    "docs/runtime/table/overview.md",
+    "docs/runtime/functions/overview.md",
+    "docs/runtime/services.md",
+    "docs/gc/overview.md",
+    "docs/gc/implementation.md",
+    "docs/knowledge/source-document-map.md",
+    "docs/glossary.md",
+    "docs/architecture/patterns.md",
+    "docs/compiler/parser.md",
+    "docs/compiler/register-allocation.md",
+    "docs/compiler/codegen-responsibility-map.md",
     "docs/stdlib/overview.md",
     "docs/stdlib/library-reference/overview.md",
     "docs/compatibility/lua51/overview.md",
     "docs/testing/testing-strategy.md",
-    "docs/knowledge/source-map/directory-map.md",
-    "docs/knowledge/source-map/core-files.md",
-    "docs/knowledge/source-map/entry-points.md",
-    "docs/knowledge/source-map/dependency-map.md"
+    "docs/debugging/overview.md",
+    "docs/knowledge/source-map/directory-map.md"
 )
 
 foreach ($doc in $coreDocs) {
@@ -212,6 +212,22 @@ foreach ($doc in $coreDocs) {
     }
 
     $text = Read-Text $doc
+    if (-not (Test-FrontMatter $text)) {
+        Add-Failure $failures "Missing or invalid fact header: $doc"
+        continue
+    }
+
+    Assert-VerifiedAgainstPathsExist -Failures $failures -DocPath $doc -Text $text
+}
+
+# Every encyclopedia page is a maintained technical artifact, not only the
+# high-traffic pages in $coreDocs.  Requiring fact headers and live anchors for
+# the complete tree prevents migrated or newly added pages from becoming
+# unverified documentation islands.
+$technicalDocs = Get-ChildItem -LiteralPath (Join-RepoPath "docs") -Recurse -File -Filter "*.md"
+foreach ($file in $technicalDocs) {
+    $doc = (Get-RepoRelativePath $file.FullName).Replace('\', '/')
+    $text = [System.IO.File]::ReadAllText($file.FullName, [System.Text.Encoding]::UTF8)
     if (-not (Test-FrontMatter $text)) {
         Add-Failure $failures "Missing or invalid fact header: $doc"
         continue
@@ -277,7 +293,7 @@ foreach ($required in @("GlobalState& globalState", "StringPool& strings", "Garb
 }
 
 $startHereDoc = Read-Text "docs/index.md"
-foreach ($required in @("architecture/overview.md", "compiler/frontend/overview.md", "vm/instruction-set.md", "runtime/value/overview.md", "gc/implementation.md", "stdlib/overview.md", "compatibility/lua51/overview.md", "testing/testing-strategy.md", "debugging/overview.md", "knowledge/source-document-map.md")) {
+foreach ($required in @("architecture/overview.md", "compiler/lexer.md", "compiler/parser.md", "compiler/bytecode-generation.md", "vm/instruction-set.md", "vm/runtime/overview.md", "runtime/value/overview.md", "gc/implementation.md", "stdlib/overview.md", "compatibility/lua51/overview.md", "testing/testing-strategy.md", "debugging/overview.md", "knowledge/source-document-map.md")) {
     if ($startHereDoc -notmatch [regex]::Escape($required)) {
         Add-Failure $failures "docs/index.md is missing technical module reference: $required"
     }
@@ -291,7 +307,7 @@ foreach ($required in @("RuntimeServices", "GCStrategy", "GlobalState", "LuaStat
 }
 
 $sourceMapDoc = Read-Text "docs/knowledge/source-document-map.md"
-foreach ($required in @("Architecture", "Compiler frontend", "Bytecode compiler", "VM", "Runtime values", "GC", "Standard library", "Compatibility", "Diagnostics", "docs/vm/instruction-set.md")) {
+foreach ($required in @("Lexer", "Parser/AST", "CodeGen", "Opcode ABI", "VM call/dispatch", "Value/object", "GC", "Standard library", "Compatibility", "Diagnostics", "instruction-set.md")) {
     if ($sourceMapDoc -notmatch [regex]::Escape($required)) {
         Add-Failure $failures "docs/knowledge/source-document-map.md is missing source/document map fact: $required"
     }

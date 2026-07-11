@@ -1,7 +1,7 @@
 ---
 status: current
-verified_against: docs/compiler/codegen-responsibility-map.md; src/compiler/codegen/codegen_binding.cpp; src/compiler/codegen/name_binder.hpp; src/compiler/codegen/name_binder.cpp; src/compiler/codegen/codegen_types.hpp; src/compiler/codegen/scope_manager.hpp; src/compiler/codegen/scope_manager.cpp; src/compiler/codegen/function_compiler.hpp; src/compiler/codegen/function_compiler.cpp; tests/unit/compiler/test_symbol_binding.cpp
-last_checked: 2026-05-24
+verified_against: docs/compiler/codegen-responsibility-map.md; src/compiler/codegen/codegen_binding.cpp; src/compiler/codegen/name_binder.hpp; src/compiler/codegen/name_binder.cpp; src/compiler/codegen/codegen_types.hpp; src/compiler/codegen/scope_manager.hpp; src/compiler/codegen/scope_manager.cpp; src/compiler/codegen/function_compiler.hpp; src/compiler/codegen/function_compiler.cpp; tests/unit/compiler/test_symbol_binding.cpp; src/compiler/; tests/unit/compiler/; tests/lua/bytecode/; tests/lua/control_flow/
+last_checked: 2026-07-11
 applies_to: current NameBinder symbol resolution and SymbolRef conversion pipeline
 ---
 

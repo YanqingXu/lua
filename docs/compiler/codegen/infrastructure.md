@@ -1,7 +1,7 @@
 ---
 status: current
-verified_against: docs/compiler/codegen-responsibility-map.md; src/compiler/codegen/codegen_state.hpp; src/compiler/codegen/codegen_context.hpp; src/compiler/codegen/codegen_ops.hpp; src/compiler/codegen/bytecode_builder.hpp; src/compiler/register_allocator.hpp; src/compiler/codegen/jump_patcher.hpp; src/compiler/codegen/scope_manager.hpp; src/compiler/codegen/expression_emitter.cpp; src/compiler/codegen/statement_emitter.cpp; docs/compiler/register-allocation.md
-last_checked: 2026-05-24
+verified_against: docs/compiler/codegen-responsibility-map.md; src/compiler/codegen/codegen_state.hpp; src/compiler/codegen/codegen_context.hpp; src/compiler/codegen/codegen_ops.hpp; src/compiler/codegen/bytecode_builder.hpp; src/compiler/register_allocator.hpp; src/compiler/codegen/jump_patcher.hpp; src/compiler/codegen/scope_manager.hpp; src/compiler/codegen/expression_emitter.cpp; src/compiler/codegen/statement_emitter.cpp; docs/compiler/register-allocation.md; src/compiler/; tests/unit/compiler/; tests/lua/bytecode/; tests/lua/control_flow/
+last_checked: 2026-07-11
 applies_to: current shared codegen state, low-level emission helpers, and Proto write boundary
 ---
 
