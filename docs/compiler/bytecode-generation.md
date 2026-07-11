@@ -1,13 +1,13 @@
 ---
 status: current
-verified_against: docs/status/project-status.md; docs/compiler/codegen-responsibility-map.md; src/common/lua_error.hpp; src/compiler/codegen/codegen.hpp; src/compiler/codegen/codegen.cpp; src/compiler/codegen/codegen_binding.cpp; src/compiler/codegen/name_binder.hpp; src/compiler/codegen/name_binder.cpp; src/compiler/codegen/codegen_ops.hpp; src/compiler/codegen/function_compiler.hpp; src/compiler/codegen/function_compiler.cpp; src/compiler/codegen/expression_emitter.hpp; src/compiler/codegen/expression_emitter.cpp; src/compiler/codegen/statement_emitter.hpp; src/compiler/codegen/statement_emitter.cpp; src/compiler/codegen/codegen_stmt.cpp; src/compiler/codegen/codegen_types.hpp; src/compiler/codegen/codegen_context.hpp; src/compiler/codegen/codegen_state.hpp; src/compiler/codegen/jump_patcher.hpp; src/compiler/codegen/jump_patcher.cpp; src/compiler/codegen/scope_manager.hpp; src/compiler/codegen/scope_manager.cpp; src/compiler/codegen/bytecode_builder.hpp; src/compiler/register_allocator.hpp; tests/unit/compiler/test_codegen_result_types.cpp; tests/unit/compiler/test_codegen_state.cpp; tests/unit/compiler/test_codegen_characterization.cpp; tests/unit/compiler/test_jump_patcher.cpp; tests/unit/compiler/test_scope_manager.cpp; tests/unit/compiler/test_expression_emitter.cpp; tests/unit/compiler/test_statement_emitter.cpp; tests/unit/compiler/test_symbol_binding.cpp; tools/check_value_result_variant_only.ps1
+verified_against: docs/compiler/codegen-responsibility-map.md; src/common/lua_error.hpp; src/compiler/codegen/codegen.hpp; src/compiler/codegen/codegen.cpp; src/compiler/codegen/codegen_binding.cpp; src/compiler/codegen/name_binder.hpp; src/compiler/codegen/name_binder.cpp; src/compiler/codegen/codegen_ops.hpp; src/compiler/codegen/function_compiler.hpp; src/compiler/codegen/function_compiler.cpp; src/compiler/codegen/expression_emitter.hpp; src/compiler/codegen/expression_emitter.cpp; src/compiler/codegen/statement_emitter.hpp; src/compiler/codegen/statement_emitter.cpp; src/compiler/codegen/codegen_stmt.cpp; src/compiler/codegen/codegen_types.hpp; src/compiler/codegen/codegen_context.hpp; src/compiler/codegen/codegen_state.hpp; src/compiler/codegen/jump_patcher.hpp; src/compiler/codegen/jump_patcher.cpp; src/compiler/codegen/scope_manager.hpp; src/compiler/codegen/scope_manager.cpp; src/compiler/codegen/bytecode_builder.hpp; src/compiler/register_allocator.hpp; tests/unit/compiler/test_codegen_result_types.cpp; tests/unit/compiler/test_codegen_state.cpp; tests/unit/compiler/test_codegen_characterization.cpp; tests/unit/compiler/test_jump_patcher.cpp; tests/unit/compiler/test_scope_manager.cpp; tests/unit/compiler/test_expression_emitter.cpp; tests/unit/compiler/test_statement_emitter.cpp; tests/unit/compiler/test_symbol_binding.cpp; tools/check_value_result_variant_only.ps1
 last_checked: 2026-05-24
 applies_to: current AST-to-Proto bytecode generator
 ---
 
 # Lua 字节码生成设计说明
 
-本文描述当前产品代码中的字节码生成主线。旧版表达式描述器状态机已经完成迁移，相关历史说明已移动到 `docs/archive/history/exprdesc.md`。
+本文描述产品代码中的字节码生成主线。编译器使用显式的 `SymbolRef`、`ValueResult`、`CondResult`、`LValueRef` 和 `CallResultInfo` 建模不同 lowering 通道。
 
 ## 1. 当前主线
 
@@ -46,7 +46,7 @@ source
 
 `src/compiler/ast.hpp/.cpp` 保留在 compiler 根目录，因为 AST 是 parser 输出、codegen 输入的共享模型。`src/compiler/opcode.hpp/.cpp` 也保留在 compiler 根目录，因为它是 codegen、bytecode printer 和 VM 共同使用的字节码契约。
 
-更细的拆分边界见 `docs/compiler/codegen-responsibility-map.md`。该文档记录 PR-45 后的 `CodeGenerator` 职责地图和 characterization 测试护栏。
+更细的拆分边界见 `docs/compiler/codegen-responsibility-map.md`。该文档记录 `CodeGenerator` 职责地图和 characterization 测试护栏。
 
 ## 2. 生成结果：Proto
 
@@ -177,7 +177,7 @@ emitStore(target, value)
 
 ## 7. 已落地边界与后续拆分方向
 
-当前 `CodeGenerator` 仍是编译总控类，但已经完成以下物理边界：
+`CodeGenerator` 是编译总控类，其物理边界如下：
 
 - `name_binder.hpp/.cpp`：名字解析与 `SymbolRef` 转换。
 - `codegen_binding.cpp`：保留 `CodeGenerator` public binding API 的稳定 wrapper。

@@ -1,6 +1,6 @@
 ---
 status: current
-verified_against: docs/status/project-status.md; docs/index.md; docs/guides/development.md; docs/vm/instruction-set.md; docs/knowledge/README.md; docs/ai/rag-knowledge-base.md; CMakeLists.txt; lua.slnx; lua.vcxproj; lua_app.vcxproj; lua_test.vcxproj; lua_bytecode.vcxproj
+verified_against: docs/index.md; docs/vm/instruction-set.md; CMakeLists.txt; lua.slnx; lua.vcxproj; lua_app.vcxproj; lua_test.vcxproj; lua_bytecode.vcxproj
 last_checked: 2026-06-13
 applies_to: repository overview and contributor entry points
 ---
@@ -9,7 +9,7 @@ applies_to: repository overview and contributor entry points
 
 本项目是一个使用现代 C++ 实现的 Lua 5.1.5 解释器，覆盖从源码解析到字节码生成、虚拟机执行、垃圾回收和标准库加载的完整运行链路。它不仅关注 Lua 5.1.5 的兼容实现，也定位为展示 C++17/23 工程实践、可读架构拆分和解释器内部机制的教学示范项目。
 
-项目面向希望研究 Lua 解释器内部机制、嵌入式语言运行时、现代 C++ 类型建模和虚拟机实现的开发者。工程持续以代码可读性、清晰边界和教学价值为核心质量目标，README 只保留稳定的用户入口和技术概览；构建状态、测试数字、兼容性差距和工程状态请以 [docs/status/project-status.md](docs/status/project-status.md) 为准。
+项目面向希望研究 Lua 解释器内部机制、嵌入式语言运行时、现代 C++ 类型建模和虚拟机实现的开发者。工程持续以代码可读性、清晰边界和教学价值为核心质量目标；完整的技术实现百科统一收录在 [docs/index.md](docs/index.md)。
 
 [![C++](https://img.shields.io/badge/C%2B%2B-17%2F23-blue)]()[![Lua](https://img.shields.io/badge/Lua-5.1.5-blue)]()[![Platform](https://img.shields.io/badge/platform-Windows%20%2F%20MSVC-blue)]()[![License](https://img.shields.io/badge/license-MIT-green)]()
 
@@ -30,7 +30,7 @@ applies_to: repository overview and contributor entry points
 - **边界清晰**：编译器前端、字节码生成、VM 执行、标准库和垃圾回收器分别拥有独立模块，读者可以按链路分段学习，也可以单独研究某个子系统。
 - **类型表达语义**：编译管线使用 `ValueResult`、`CondResult`、`LValueRef`、`CallResultInfo` 等显式中间结果类型，让表达式值、条件跳转、左值引用和调用结果在类型层面可区分。
 - **现代 C++ 建模**：`Value` 和编译中间结果使用 `std::variant` 表达受约束的动态状态，`std::expected` 用于 parser、codegen 和 VM 边界的错误返回，使控制流和失败路径更直接。
-- **教学工具闭环**：源码实现、`docs/walkthroughs/` 引导文档、REPL 元命令和 `lua_bytecode` 工具共同构成“源码 + 文档 + 字节码工具”的学习路径。
+- **教学工具闭环**：源码实现、模块化技术文档、REPL 元命令和 `lua_bytecode` 工具共同构成“源码 + 文档 + 字节码工具”的学习路径。
 
 ## 核心特性
 
@@ -133,7 +133,7 @@ bin\lua_test.exe --filter "Symbol Binding"
 bin\lua_test.exe --report=junit
 ```
 
-测试运行器会在输出中报告真实测试数量和断言结果。最近一次完整绿跑为 668 registered tests / 3404 assertion results / 0 failures。动态测试统计和质量门状态请查看 [docs/status/project-status.md](docs/status/project-status.md)。
+测试运行器会在输出中报告真实测试数量和断言结果。最近一次完整绿跑为 668 registered tests / 3406 assertion results / 0 failures。
 
 ### CMake / CTest 辅助路径
 
@@ -208,62 +208,28 @@ ctest --test-dir build\cmake -C Debug --output-on-failure
 | `src/bytecode/bytecode_printer.cpp` | 字节码、常量表、diff 和 CFG 输出层 |
 | `tests/unit/` | C++ 单元测试 |
 | `tests/lua/` | Lua 脚本级样例、回归测试和官方测试输入 |
-| `docs/` | 架构、指南、兼容性和路线图文档 |
+| `docs/` | 唯一技术文档根目录，按解释器模块组织 |
 | `lua.slnx` | Visual Studio 解决方案入口 |
 
-## 重要文档索引
+## 技术文档索引
 
-README 是项目入口，不承载动态进度。深入理解学习路线、架构、开发规范、兼容性和路线图时，请按下表进入对应文档。
-
-### 教学 walkthrough
-
-`docs/walkthroughs/` 是项目教学价值的核心入口，建议配合源码和 `lua_bytecode` 一起阅读：
-
-| 文档 | 学习目标 |
-|------|----------|
-| [docs/walkthroughs/hello-world.md](docs/walkthroughs/hello-world.md) | 从 `print("hello")` 追踪 Lexer、Parser、AST、CodeGen、字节码、VM dispatch 和标准库调用 |
-| [docs/walkthroughs/closure-and-upvalue.md](docs/walkthroughs/closure-and-upvalue.md) | 理解闭包、upvalue 捕获、open/closed 生命周期和函数调用栈 |
-| [docs/walkthroughs/gc-cycle.md](docs/walkthroughs/gc-cycle.md) | 观察 GC 根集、标记、扫描、清扫、弱表和终结器相关路径 |
-
-推荐方式是先运行示例脚本，再用 `lua_bytecode` 查看 Proto 和指令，最后回到对应源码文件阅读实现。这样可以把 Lua 源码、字节码形状和 C++ 实现联系起来。
-
-### 文档入口
+`docs/` 是唯一的技术文档根目录，按解释器模块组织：
 
 | 文档 | 内容 |
 |------|------|
-| [docs/status/project-status.md](docs/status/project-status.md) | 构建入口、测试状态、兼容性边界和质量门事实源 |
-| [docs/index.md](docs/index.md) | 新读者的推荐阅读顺序 |
-| [docs/learning-roadmap.md](docs/learning-roadmap.md) | 面向新开发者的学习路线图，串联 walkthrough、教学脚本、`lua_app` / `lua_bytecode` 工具和源码阅读入口 |
-| [docs/architecture/overview.md](docs/architecture/overview.md) | 架构分层、模块关系和执行链路总览 |
-| [docs/architecture/gc.md](docs/architecture/gc.md) | GC 对象模型、根集、标记清除和策略边界 |
-| [docs/architecture/runtime-services.md](docs/architecture/runtime-services.md) | RuntimeServices、EngineContext 和嵌入式上下文隔离 |
-| [docs/guides/development.md](docs/guides/development.md) | 开发环境、编码约定、构建和测试流程 |
-| [docs/guides/repl-cli.md](docs/guides/repl-cli.md) | `lua_app` 命令行和 REPL 使用说明 |
-| [docs/guides/test-runner.md](docs/guides/test-runner.md) | `lua_test` 参数、过滤和报告输出 |
-| [docs/guides/bytecode-tool.md](docs/guides/bytecode-tool.md) | `lua_bytecode` 用法、diff 和 CFG 输出 |
+| [docs/index.md](docs/index.md) | 技术百科入口和模块阅读顺序 |
+| [docs/architecture/execution-pipeline/overview.md](docs/architecture/execution-pipeline/overview.md) | Lua 源码从加载到返回结果的完整流水线 |
 | [docs/compiler/bytecode-generation.md](docs/compiler/bytecode-generation.md) | AST 到 Proto 的字节码生成主线 |
-| [docs/compiler/codegen-responsibility-map.md](docs/compiler/codegen-responsibility-map.md) | CodeGenerator 物理拆分和职责边界 |
 | [docs/vm/instruction-set.md](docs/vm/instruction-set.md) | Lua 5.1 风格 VM 指令说明 |
-| [docs/vm/trace-system.md](docs/vm/trace-system.md) | VM trace 和 trace diff 机制 |
-| [docs/stdlib/overview.md](docs/stdlib/overview.md) | 标准库 catalog、注册方式和兼容性说明 |
-| [docs/compatibility/lua51.md](docs/compatibility/lua51.md) | Lua 5.1 兼容性分章节记录 |
-| [docs/compatibility/lua51-full-compatibility-audit.md](docs/compatibility/lua51-full-compatibility-audit.md) | 完整兼容性审计 |
-| [docs/roadmap/lua51-compatibility-next-stage.md](docs/roadmap/lua51-compatibility-next-stage.md) | 后续兼容性工作入口 |
-| [docs/roadmap/optimization_and_refactoring.md](docs/roadmap/optimization_and_refactoring.md) | 可读性、现代 C++ 应用和教学价值的工程质量路线 |
-| [examples/README.md](examples/README.md) | 示例脚本运行说明 |
+| [docs/runtime/value/overview.md](docs/runtime/value/overview.md) | Value 与运行时对象模型 |
+| [docs/runtime/functions/overview.md](docs/runtime/functions/overview.md) | 函数、闭包、upvalue 和调用帧 |
+| [docs/gc/implementation.md](docs/gc/implementation.md) | GC 对象模型、根集和标记清除实现 |
+| [docs/stdlib/overview.md](docs/stdlib/overview.md) | 标准库 catalog 和注册架构 |
+| [docs/compatibility/lua51/overview.md](docs/compatibility/lua51/overview.md) | Lua 5.1 技术兼容边界与实现策略对比 |
+| [docs/testing/testing-strategy.md](docs/testing/testing-strategy.md) | 测试层次与验证方法 |
+| [docs/knowledge/source-document-map.md](docs/knowledge/source-document-map.md) | 源码、技术文档和测试映射 |
 
-推荐阅读路径：
-
-```text
-README
-  -> docs/status/project-status.md
-  -> docs/index.md
-  -> docs/learning-roadmap.md
-  -> docs/architecture/overview.md
-  -> docs/walkthroughs/hello-world.md
-  -> docs/guides/development.md
-  -> docs/compatibility/lua51.md
-```
+技术 walkthrough 已归入所属模块，例如 [Hello World 执行追踪](docs/architecture/execution-pipeline/hello-world-walkthrough.md)、[闭包与 Upvalue](docs/runtime/functions/closure-upvalue-walkthrough.md) 和 [GC 周期](docs/gc/cycle-walkthrough.md)。
 
 ## 子项目说明
 
@@ -331,11 +297,13 @@ using ValueData = std::variant<
 - CRTP visitor 和 concepts 用于 AST 访问覆盖检查，使新增节点时的遗漏更早暴露在编译期。
 - `RuntimeServices` / `EngineContext` 显式传递运行时依赖，降低全局单例对阅读、测试和嵌入式场景的干扰。
 
-这些约定与 [docs/roadmap/optimization_and_refactoring.md](docs/roadmap/optimization_and_refactoring.md) 中“可读性、现代 C++ 应用、教学价值”的质量目标保持一致：代码应尽量让读者看见边界、看见数据流，也看见失败路径。
+这些约定服务于代码可读性、现代 C++ 应用和教学价值：代码应尽量让读者看见边界、看见数据流，也看见失败路径。
 
 ### 质量门
 
 常用验证入口：
+
+质量门统一编排 `clang-format`、`clang-tidy`、文档漂移检查和测试执行，并由 GitHub Actions 在持续集成中复用；`tools/run_quality_gate.ps1` 是本地与 CI 的共同入口。
 
 ```powershell
 bin\lua_test.exe
@@ -350,7 +318,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\add_source.ps1 `
   -Target Core
 ```
 
-更多规范见 [docs/guides/development.md](docs/guides/development.md)。
+实现细节和模块边界见 [docs/index.md](docs/index.md)。
 
 ## 参考资源
 

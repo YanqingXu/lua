@@ -1,6 +1,6 @@
 ---
 status: current
-verified_against: docs/status/project-status.md; src/compiler/parser/parser.hpp; src/compiler/parser/parser_impl.hpp; src/compiler/parser/parser.cpp; src/compiler/parser/parser_stmt.cpp; src/compiler/parser/parser_expr.cpp; src/compiler/parser/parser_primary.cpp; src/compiler/parser/parser_func.cpp; src/compiler/parser/parser_table.cpp; src/compiler/parser/parser_utils.hpp; src/compiler/parser/token.hpp; src/compiler/ast.hpp; tests/unit/compiler/test_parser_boundaries.cpp; tests/unit/compiler/test_parser_error_recovery.cpp
+verified_against: src/compiler/parser/parser.hpp; src/compiler/parser/parser_impl.hpp; src/compiler/parser/parser.cpp; src/compiler/parser/parser_stmt.cpp; src/compiler/parser/parser_expr.cpp; src/compiler/parser/parser_primary.cpp; src/compiler/parser/parser_func.cpp; src/compiler/parser/parser_table.cpp; src/compiler/parser/parser_utils.hpp; src/compiler/parser/token.hpp; src/compiler/ast.hpp; tests/unit/compiler/test_parser_boundaries.cpp; tests/unit/compiler/test_parser_error_recovery.cpp
 last_checked: 2026-05-24
 applies_to: current Parser implementation under src/compiler/parser
 ---

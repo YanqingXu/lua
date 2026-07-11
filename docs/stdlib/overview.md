@@ -23,7 +23,7 @@ applies_to: current standard library implementation overview
 
 `StandardLibrary::openAll()` 遍历此目录。单库加载应使用 `StandardLibrary::openCatalogLibrary(L, "<id>")`；旧有的 `openMath()` / `openPackage()` 等便捷包装函数是同一路径上已弃用的兼容垫片。
 
-PR-73 评估了但有意拒绝了 `LibRegistrar` 自注册层。当前显式的 `constexpr` 目录是标准库装配的唯一权威来源，因为它使加载顺序可见、保持测试直接，并避免了静态初始化 / MSVC 链接器保活的意外。
+没有采用 `LibRegistrar` 自注册层。显式的 `constexpr` 目录是标准库装配的权威来源，因为它使加载顺序可见、保持测试直接，并避免静态初始化和 MSVC 链接器保活带来的隐式行为。
 
 ## 注册模型
 

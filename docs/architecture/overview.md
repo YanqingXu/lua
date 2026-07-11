@@ -1,6 +1,6 @@
 ---
 status: current
-verified_against: docs/status/project-status.md; README.md; docs/architecture/patterns.md; src/common/; src/core/; src/compiler/; src/vm/; src/gc/; src/lib/; src/runtime/runtime_services.hpp
+verified_against: README.md; docs/architecture/patterns.md; src/common/; src/core/; src/compiler/; src/vm/; src/gc/; src/lib/; src/runtime/runtime_services.hpp
 last_checked: 2026-05-23
 applies_to: current high-level architecture and source layout
 ---
@@ -85,7 +85,7 @@ Parser -> Chunk AST -> CodeGenerator -> Proto
 - `codegen_stmt.cpp`：函数级辅助函数的兼容转发
 - `codegen.cpp`：构造函数、顶层生成、字节码发射包装器
 
-当前表达式流水线使用 `SymbolRef`、`ValueResult`、`CondResult`、`LValueRef` 和 `CallResultInfo`。历史的 `ExprDesc` 材料归档在 `docs/archive/history/exprdesc.md`。
+表达式流水线使用 `SymbolRef`、`ValueResult`、`CondResult`、`LValueRef` 和 `CallResultInfo`，分别表达绑定结果、右值、条件跳转、左值和多返回值调用。
 
 ## VM 形态
 
@@ -112,10 +112,10 @@ CMake/CTest 作为辅助验证路径存在，构建 `lua_core`、`lua_app`、`lu
 
 ## 阅读地图
 
-- 当前事实：`docs/status/project-status.md`
-- 首次阅读路径：`docs/index.md`
+- 技术百科入口：`docs/index.md`
 - 编译器详情：`docs/compiler/bytecode-generation.md`
 - 架构模式：`docs/architecture/patterns.md`
 - VM 操作码：`docs/vm/instruction-set.md`
-- GC 详情：`docs/architecture/gc.md`
+- GC 详情：`docs/gc/implementation.md`
+- 运行时服务：`docs/runtime/services.md`
 - 标准库总览：`docs/stdlib/overview.md`

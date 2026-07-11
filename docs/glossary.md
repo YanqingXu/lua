@@ -1,6 +1,6 @@
 ---
 status: current
-verified_against: docs/status/project-status.md; docs/compiler/bytecode-generation.md; src/runtime/runtime_services.hpp; src/gc/gc_strategy.hpp; src/vm/vm_dispatch_strategy.hpp; src/compiler/codegen/codegen_types.hpp; src/vm/vm.hpp
+verified_against: docs/compiler/bytecode-generation.md; src/runtime/runtime_services.hpp; src/gc/gc_strategy.hpp; src/vm/vm_dispatch_strategy.hpp; src/compiler/codegen/codegen_types.hpp; src/vm/vm.hpp
 last_checked: 2026-05-23
 applies_to: Lua terminology mapped to current repository code
 ---
@@ -46,6 +46,7 @@ applies_to: Lua terminology mapped to current repository code
 ## 推荐交叉阅读
 
 - 编译管线：`docs/compiler/bytecode-generation.md`
-- 测试学习路径：`docs/walkthroughs/index.md`
-- 当前事实：`docs/status/project-status.md`
-- 后续任务：`docs/roadmap/current.md`
+- VM 指令：`docs/vm/instruction-set.md`
+- 运行时对象：`docs/runtime/value/overview.md`
+- GC：`docs/gc/implementation.md`
+- 源码地图：`docs/knowledge/source-document-map.md`

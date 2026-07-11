@@ -1,123 +1,44 @@
 ---
 status: current
-verified_against: docs/status/project-status.md; docs/guides/development.md; docs/architecture/patterns.md; docs/walkthroughs/index.md; docs/walkthroughs/gc-cycle.md; docs/glossary.md; docs/compatibility/lua51.md; docs/roadmap/lua51-compatibility-next-stage.md; docs/knowledge/README.md; docs/knowledge/source-document-map.md; docs/ai/rag-knowledge-base.md; docs/agents/senior-lua-architect.md; examples/README.md
-last_checked: 2026-05-31
-applies_to: first-read learning path for contributors and readers
+verified_against: docs/architecture/overview.md; docs/compiler/bytecode-generation.md; docs/vm/instruction-set.md; docs/runtime/services.md; docs/gc/implementation.md; docs/stdlib/overview.md; docs/compatibility/lua51/compare-with-official-lua.md; docs/testing/testing-strategy.md; docs/knowledge/source-document-map.md
+last_checked: 2026-07-11
+applies_to: technical documentation entry point
 ---
 
-# Start Here
+# Lua 解释器技术实现百科
 
-这份文档回答一个问题：第一次打开这个仓库，应该先读哪里。
+`docs/` 是项目唯一的文档根目录，只收录解释器架构、算法、运行时语义、兼容性边界、测试方法和源码定位资料。项目状态、路线图、协作流程、AI 指令以及单纯的工具操作说明不属于本知识库。
 
-本项目是一个教学取向很强的 Lua 解释器实现。最有效的阅读方式不是从最大文件开始啃，而是先确认仓库事实，再用测试和示例建立一条从源码到 VM 的路径。
+## 技术模块
 
-## 10 分钟了解现状
+| 模块 | 内容 | 推荐入口 |
+|---|---|---|
+| Architecture | 整体分层、执行流水线、关键概念和设计模式 | [architecture/overview.md](architecture/overview.md)、[architecture/execution-pipeline/overview.md](architecture/execution-pipeline/overview.md) |
+| Compiler | Lexer、Parser、AST、作用域、CodeGen、寄存器、控制流和字节码格式 | [compiler/frontend/overview.md](compiler/frontend/overview.md)、[compiler/bytecode-generation.md](compiler/bytecode-generation.md) |
+| VM | 指令集、分发循环、寄存器模型、调用帧、native call 和 trace | [vm/instruction-set.md](vm/instruction-set.md)、[vm/runtime/overview.md](vm/runtime/overview.md) |
+| Runtime | `Value`、Table、Metatable、Function、Closure、Upvalue 和运行时服务 | [runtime/value/overview.md](runtime/value/overview.md)、[runtime/table/overview.md](runtime/table/overview.md)、[runtime/functions/overview.md](runtime/functions/overview.md) |
+| GC | 对象生命周期、分配、引用图、标记清除、弱表、字符串池和回收周期 | [gc/overview.md](gc/overview.md)、[gc/implementation.md](gc/implementation.md) |
+| Standard Library | 库注册架构和各标准库的实现边界 | [stdlib/overview.md](stdlib/overview.md)、[stdlib/library-reference/overview.md](stdlib/library-reference/overview.md) |
+| Compatibility | 与 Lua 5.1 的语言、运行时、库和实现策略差异 | [compatibility/lua51/overview.md](compatibility/lua51/overview.md) |
+| Testing | 单元、Golden、回归和兼容性测试方法 | [testing/testing-strategy.md](testing/testing-strategy.md) |
+| Debugging | 编译错误、运行时错误、源码位置、调用栈、字节码和 VM trace | [debugging/overview.md](debugging/overview.md)、[debugging/diagnostic-workflow.md](debugging/diagnostic-workflow.md) |
+| Reference | 术语以及源码、文档和测试的映射 | [glossary.md](glossary.md)、[knowledge/source-document-map.md](knowledge/source-document-map.md) |
 
-1. 读 `docs/status/project-status.md`，确认当前构建入口、测试数量和已实现的运行时边界。
-2. 读 README 的项目概览，不要把旧的规划项当作当前事实。
-3. 读 `docs/guides/development.md`，按 Windows / MSBuild 路径构建和验证。
+## 建议阅读顺序
 
-常用命令：
+理解一次 Lua 源码执行：
 
-```powershell
-bin\lua_test.exe --list
-bin\lua_test.exe --filter "Runtime Services"
-powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_quality_gate.ps1
-```
+1. [执行流水线总览](architecture/execution-pipeline/overview.md)
+2. [Lexer 与 Parser](compiler/frontend/overview.md)
+3. [字节码生成](compiler/bytecode-generation.md)
+4. [VM 运行时](vm/runtime/overview.md)
+5. [值与对象系统](runtime/value/overview.md)
 
-## 30 分钟跑起来
+深入某个子系统时，先读该模块的 `overview.md`，再按数据结构、控制流和测试证据进入专题文档。跨模块定位使用 [源码与文档映射](knowledge/source-document-map.md)。
 
-1. 先运行完整测试，确认本机状态：
+## 收录边界
 
-```powershell
-bin\lua_test.exe
-```
-
-2. 再运行一个小范围测试，观察测试输出如何描述功能：
-
-```powershell
-bin\lua_test.exe --filter "Symbol Binding"
-```
-
-3. 打开 `docs/walkthroughs/index.md`，按主题选择一个测试切片继续读。
-
-## 2 小时理解主线
-
-建议按这条顺序读：
-
-1. `docs/glossary.md`：把 Lua 术语和仓库类名对齐。
-2. `docs/architecture/overview.md`：确认源码分层和四个构建目标。
-3. `docs/architecture/patterns.md`：确认哪些设计模式已经落地，哪些仍只是路线图目标。
-4. `docs/compiler/bytecode-generation.md`：理解当前编译管线。
-5. `docs/vm/instruction-set.md`：理解 VM 指令集。
-6. `docs/walkthroughs/index.md`：从测试反推实现。
-7. `examples/README.md`：运行小脚本，观察解释器行为。
-
-## 下一阶段计划
-
-- `docs/compatibility/lua51.md`：按 Lua 5.1 手册章节记录当前兼容状态、测试证据和已知 partial/deferred 边界。
-- `docs/roadmap/lua51-compatibility-next-stage.md`：官方 Lua 5.1 staged smoke 全绿之后的兼容性补完记录，按 P0/P1/P2/P3 分阶段追踪标准库、VM、GC、C API helper 和运行时隔离任务。
-
-对应的实现主线是：
-
-```text
-source text
-  -> Lexer / Parser
-  -> AST
-  -> SymbolRef
-  -> ValueResult / CondResult / LValueRef / CallResultInfo
-  -> Proto
-  -> VM
-```
-
-## 深入源码路线
-
-如果你想理解编译器：
-
-- 从 `tests/unit/compiler/test_symbol_binding.cpp` 开始。
-- 接着看 `test_value_pipeline.cpp`、`test_lvalue_pipeline.cpp`、`test_codegen_conditions.cpp`。
-- 最后看 `test_call_pipeline.cpp` 和 `test_codegen_multret.cpp`。
-
-如果你想理解运行时：
-
-- 从 `tests/unit/vm/test_vm_core.cpp` 和 `tests/unit/vm/test_runtime_services.cpp` 开始。
-- 接着看 `src/vm/state/lua_state.hpp`、`src/vm/vm.hpp`、`src/runtime/runtime_services.hpp`。
-- 元方法慢路径从 `tests/unit/metamethod/` 和 `src/core/metatable.cpp` 开始。
-- GC 路径先看 `docs/walkthroughs/gc-cycle.md`，再看 `docs/architecture/gc.md`。
-- Trace 路径看 `docs/vm/trace-system.md`。
-
-如果你想理解标准库：
-
-- 从 `tests/unit/stdlib/test_lib_catalog.cpp` 开始。
-- 再看 `src/lib/lib_catalog.hpp` 和 `src/lib/lib_manager.cpp`。
-- `package` 行为从 `tests/unit/stdlib/test_packagelib.cpp` 开始。
-- 总览看 `docs/stdlib/overview.md`。
-
-## 按子项目阅读
-
-| 子项目 | 文档 |
-|---|---|
-| 核心静态库 `lua.lib` / `lua_core` | `docs/projects/lua-lib.md` |
-| 解释器 / REPL `lua_app` | `docs/projects/lua-app.md`, `docs/guides/repl-cli.md` |
-| 测试入口 `lua_test` | `docs/projects/lua-test.md`, `docs/guides/test-runner.md` |
-| 字节码工具 `lua_bytecode` | `docs/projects/lua-bytecode.md`, `docs/guides/bytecode-tool.md` |
-
-## AI 协作入口
-
-- `docs/knowledge/README.md`：说明 `docs/`、`docs2/`、RAG 和 Agent 文档之间的分工。
-- `docs/knowledge/source-document-map.md`：把 Compiler、VM、Runtime、GC 的源码、测试和深度文档映射到一起。
-- `docs/ai/rag-knowledge-base.md`：说明本地 RAG 索引、boost 策略和检索命令。
-- `docs/agents/senior-lua-architect.md`：定义“高级 Lua 解释器架构师”Agent 的续接、审查和文档同步流程。
-
-## 示例脚本
-
-`examples/` 目录提供可以直接运行的小脚本：
-
-```powershell
-bin\lua_app.exe examples\hello.lua
-bin\lua_app.exe examples\control_flow.lua
-bin\lua_app.exe examples\tables_and_methods.lua
-bin\lua_app.exe examples\metamethods.lua
-```
-
-示例只覆盖当前解释器稳定支持的路径。想确认更细的语义时，以 `bin\lua_test.exe --filter <topic>` 的测试输出为准。
+- 文档必须解释源码结构、数据模型、算法、语义或验证方法。
+- 易变化的测试数量、完成百分比和阶段计划不在 `docs/` 中维护。
+- 命令行参数清单、构建步骤和脚本使用方式由可执行程序的 `--help`、根 README 或脚本自身负责。
+- 同一技术主题优先在所属模块维护，避免按语言、作者或生成来源建立第二套文档树。

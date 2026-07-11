@@ -76,6 +76,9 @@ function Assert-VerifiedAgainstPathsExist {
     )
 
     foreach ($relativePath in Get-VerifiedAgainstPaths $Text) {
+        if ($relativePath -match "^https?://") {
+            continue
+        }
         $path = Join-RepoPath $relativePath
         if (-not (Test-Path -LiteralPath $path)) {
             Add-Failure $Failures "$DocPath verified_against references missing path: $relativePath"
@@ -169,69 +172,36 @@ function Assert-DocHasCurrentTestCounts {
 
 $failures = [System.Collections.Generic.List[string]]::new()
 
-$strictVerifiedAgainstDocs = @(
-    "docs/roadmap/c-style-refactoring-roadmap.md",
-    "docs/roadmap/modern-cpp-teaching-audit-report.md"
-)
-
 $coreDocs = @(
     "README.md",
     "docs/index.md",
-    "docs/roadmap/current.md",
-    "docs/roadmap/c-style-refactoring-roadmap.md",
-    "docs/roadmap/modern-cpp-teaching-audit-report.md",
-    "docs/status/project-status.md",
-    "docs/guides/development.md",
-    "docs/guides/repl-cli.md",
-    "docs/guides/test-runner.md",
-    "docs/guides/bytecode-tool.md",
-    "docs/knowledge/README.md",
     "docs/knowledge/source-document-map.md",
-    "docs/ai/rag-knowledge-base.md",
-    "docs/agents/senior-lua-architect.md",
     "docs/glossary.md",
-    "docs/walkthroughs/index.md",
-    "docs/projects/lua-lib.md",
-    "docs/projects/lua-app.md",
-    "docs/projects/lua-test.md",
-    "docs/projects/lua-bytecode.md",
-    "docs/architecture/gc.md",
+    "docs/gc/implementation.md",
+    "docs/gc/overview.md",
     "docs/compiler/bytecode-generation.md",
+    "docs/compiler/frontend/overview.md",
+    "docs/compiler/bytecode/overview.md",
     "docs/architecture/overview.md",
-    "docs/architecture/runtime-services.md",
+    "docs/architecture/patterns.md",
+    "docs/runtime/services.md",
+    "docs/runtime/value/overview.md",
+    "docs/runtime/table/overview.md",
+    "docs/runtime/functions/overview.md",
     "docs/compiler/parser.md",
     "docs/compiler/register-allocation.md",
     "docs/compiler/codegen-responsibility-map.md",
     "docs/vm/instruction-set.md",
+    "docs/vm/runtime/overview.md",
     "docs/vm/trace-system.md",
     "docs/stdlib/overview.md",
-    "docs/archive/research/deep-research-report.md",
-    "docs/archive/coroutine/design-analysis.md",
-    "docs/architecture/coroutine.md",
-    "docs/archive/debug/debug-notes.md",
-    "docs/roadmap/future-architecture.md",
-    "docs/archive/refactors/refactor-expdesc-plan.md",
-    "docs/archive/refactors/refactor-expdesc-pr-checklist.md",
-    "docs/archive/refactors/refactor-singlepass-cleanup-plan.md",
-    "docs/archive/history/exprdesc.md",
-    "examples/README.md",
-    "docs2/README.md",
-    "docs2/00-project-overview/00-architecture.md",
-    "docs2/00-project-overview/02-current-status.md",
-    "docs2/02-source-code-map/00-directory-map.md",
-    "docs2/02-source-code-map/01-core-files.md",
-    "docs2/02-source-code-map/05-change-location-guide.md",
-    "docs2/03-lexer-parser/00-overview.md",
-    "docs2/04-bytecode-compiler/00-overview.md",
-    "docs2/05-vm-runtime/00-overview.md",
-    "docs2/06-value-object-system/00-overview.md",
-    "docs2/07-table-metatable/00-overview.md",
-    "docs2/08-function-call-closure/00-overview.md",
-    "docs2/10-stdlib/00-overview.md",
-    "docs2/12-gc-memory/00-overview.md",
-    "docs2/13-compatibility/00-lua51-compatibility-goal.md",
-    "docs2/14-testing/00-testing-strategy.md",
-    "docs2/15-engineering-guide/00-build-and-run.md"
+    "docs/stdlib/library-reference/overview.md",
+    "docs/compatibility/lua51/overview.md",
+    "docs/testing/testing-strategy.md",
+    "docs/knowledge/source-map/directory-map.md",
+    "docs/knowledge/source-map/core-files.md",
+    "docs/knowledge/source-map/entry-points.md",
+    "docs/knowledge/source-map/dependency-map.md"
 )
 
 foreach ($doc in $coreDocs) {
@@ -247,12 +217,10 @@ foreach ($doc in $coreDocs) {
         continue
     }
 
-    if ($strictVerifiedAgainstDocs -contains $doc) {
-        Assert-VerifiedAgainstPathsExist -Failures $failures -DocPath $doc -Text $text
-    }
+    Assert-VerifiedAgainstPathsExist -Failures $failures -DocPath $doc -Text $text
 }
 
-foreach ($requiredFile in @("CMakeLists.txt", "tools/run_cmake_smoke.ps1", "tools/add_source.ps1", "tools/build_rag_index.ps1", "tools/search_rag_index.ps1")) {
+foreach ($requiredFile in @("CMakeLists.txt", "tools/run_cmake_smoke.ps1", "tools/add_source.ps1")) {
     $path = Join-RepoPath $requiredFile
     if (-not (Test-Path -LiteralPath $path)) {
         Add-Failure $failures "Missing build support file: $requiredFile"
@@ -290,72 +258,28 @@ if (Test-Path -LiteralPath $compilerDir) {
 }
 
 $readme = Read-Text "README.md"
-if ($readme -notmatch "docs/status/project-status\.md") {
-    Add-Failure $failures "README.md must point readers to docs/status/project-status.md"
-}
-
-$guide = Read-Text "docs/guides/development.md"
-if ($guide -notmatch "MSBuild" -or $guide -notmatch "\.vcxproj" -or $guide -notmatch "docs/status/project-status\.md") {
-    Add-Failure $failures "docs/guides/development.md must name the current MSBuild/.vcxproj path and reference docs/status/project-status.md"
-}
-
-foreach ($required in @("CMakeLists.txt", "tools\run_cmake_smoke.ps1", "tools\add_source.ps1", "CMake", "CTest", "secondary")) {
-    if ($guide -notmatch [regex]::Escape($required)) {
-        Add-Failure $failures "docs/guides/development.md is missing CMake/CTest support fact: $required"
-    }
-}
-
-$statusDoc = Read-Text "docs/status/project-status.md"
-$statusDocPath = Join-RepoPath "docs/status/project-status.md"
-foreach ($required in @("Visual Studio", "MSBuild", ".vcxproj", "CMake", "CTest", "secondary", "CMakeLists.txt", "tools/run_cmake_smoke.ps1", "tools/add_source.ps1", "--report=junit", "RuntimeServices", "GCStrategy", "Learning Path", "lua_bytecode", "decoded instructions", "constant table", "--cfg", "Mermaid")) {
-    if (-not (Select-String -LiteralPath $statusDocPath -SimpleMatch -Pattern $required -Quiet)) {
-        Add-Failure $failures "docs/status/project-status.md is missing required fact: $required"
+foreach ($required in @("docs/index.md", "docs/compiler/bytecode-generation.md", "docs/vm/instruction-set.md", "docs/runtime/value/overview.md", "docs/gc/implementation.md", "docs/compatibility/lua51/overview.md")) {
+    if ($readme -notmatch [regex]::Escape($required)) {
+        Add-Failure $failures "README.md is missing technical documentation entry: $required"
     }
 }
 
 $testSummary = Get-TestRunSummary -Failures $failures -ExecutablePath (Resolve-TestExecutablePath $TestExecutable)
 if ($null -ne $testSummary) {
     Assert-DocHasCurrentTestCounts -Failures $failures -RelativePath "README.md" -Summary $testSummary
-    Assert-DocHasCurrentTestCounts -Failures $failures -RelativePath "docs/status/project-status.md" -Summary $testSummary
-    Assert-DocHasCurrentTestCounts -Failures $failures -RelativePath "docs2/00-project-overview/02-current-status.md" -Summary $testSummary
-    Assert-DocHasCurrentTestCounts -Failures $failures -RelativePath "docs2/14-testing/00-testing-strategy.md" -Summary $testSummary
 }
 
-$runtimeServicesDoc = Read-Text "docs/architecture/runtime-services.md"
+$runtimeServicesDoc = Read-Text "docs/runtime/services.md"
 foreach ($required in @("GlobalState& globalState", "StringPool& strings", "GarbageCollector& gc", "VM::DispatchStrategy* dispatchStrategy")) {
     if ($runtimeServicesDoc -notmatch [regex]::Escape($required)) {
-        Add-Failure $failures "docs/architecture/runtime-services.md is missing RuntimeServices field: $required"
+        Add-Failure $failures "docs/runtime/services.md is missing RuntimeServices field: $required"
     }
 }
 
 $startHereDoc = Read-Text "docs/index.md"
-foreach ($required in @("docs/status/project-status.md", "docs/guides/development.md", "docs/guides/repl-cli.md", "docs/guides/test-runner.md", "docs/guides/bytecode-tool.md", "docs/projects/lua-lib.md", "docs/projects/lua-app.md", "docs/projects/lua-test.md", "docs/projects/lua-bytecode.md", "docs/vm/instruction-set.md", "walkthroughs/index.md", "glossary.md", "examples/README.md", "bin\lua_test.exe --list")) {
+foreach ($required in @("architecture/overview.md", "compiler/frontend/overview.md", "vm/instruction-set.md", "runtime/value/overview.md", "gc/implementation.md", "stdlib/overview.md", "compatibility/lua51/overview.md", "testing/testing-strategy.md", "debugging/overview.md", "knowledge/source-document-map.md")) {
     if ($startHereDoc -notmatch [regex]::Escape($required)) {
-        Add-Failure $failures "docs/index.md is missing learning path reference: $required"
-    }
-}
-
-$replGuideDoc = Read-Text "docs/guides/repl-cli.md"
-$replGuideFacts = @(
-    ".help",
-    ".bytecode <expr|chunk>",
-    ".ast <expr|chunk>",
-    ".gc [stats|collect|strategy|help]",
-    "Tab completion",
-    "line-numbered",
-    "lua:1>",
-    "GCStrategy",
-    "collectgarbage(`"strategy`")",
-    "colorized error output",
-    "ErrorColorMode::Auto",
-    "mode: expression",
-    "RuntimeServices.gc",
-    "string.sub",
-    "REPL Commands"
-)
-foreach ($required in $replGuideFacts) {
-    if ($replGuideDoc -notmatch [regex]::Escape($required)) {
-        Add-Failure $failures "docs/guides/repl-cli.md is missing current REPL command fact: $required"
+        Add-Failure $failures "docs/index.md is missing technical module reference: $required"
     }
 }
 
@@ -366,31 +290,10 @@ foreach ($required in @("RuntimeServices", "GCStrategy", "GlobalState", "LuaStat
     }
 }
 
-$examplesDoc = Read-Text "examples/README.md"
-foreach ($required in @("bin\lua_app.exe", "hello.lua", "control_flow.lua", "tables_and_methods.lua", "metamethods.lua")) {
-    if ($examplesDoc -notmatch [regex]::Escape($required)) {
-        Add-Failure $failures "examples/README.md is missing example reference: $required"
-    }
-}
-
 $sourceMapDoc = Read-Text "docs/knowledge/source-document-map.md"
-foreach ($required in @("Compiler", "VM", "Runtime", "GC", "docs/roadmap/current.md", "docs/vm/instruction-set.md", "tools/check_doc_drift.ps1")) {
+foreach ($required in @("Architecture", "Compiler frontend", "Bytecode compiler", "VM", "Runtime values", "GC", "Standard library", "Compatibility", "Diagnostics", "docs/vm/instruction-set.md")) {
     if ($sourceMapDoc -notmatch [regex]::Escape($required)) {
         Add-Failure $failures "docs/knowledge/source-document-map.md is missing source/document map fact: $required"
-    }
-}
-
-$ragDoc = Read-Text "docs/ai/rag-knowledge-base.md"
-foreach ($required in @("tools/build_rag_index.ps1", "tools/search_rag_index.ps1", "docs/roadmap/current.md", "docs/vm/instruction-set.md", "tools/check_doc_drift.ps1", "4.0")) {
-    if ($ragDoc -notmatch [regex]::Escape($required)) {
-        Add-Failure $failures "docs/ai/rag-knowledge-base.md is missing RAG fact: $required"
-    }
-}
-
-$agentDoc = Read-Text "docs/agents/senior-lua-architect.md"
-foreach ($required in @("docs/roadmap/current.md", "docs/guides/development.md", "tools/check_doc_drift.ps1", "RAII", "std::variant", "tools/run_quality_gate.ps1")) {
-    if ($agentDoc -notmatch [regex]::Escape($required)) {
-        Add-Failure $failures "docs/agents/senior-lua-architect.md is missing agent workflow fact: $required"
     }
 }
 
@@ -401,13 +304,6 @@ foreach ($required in @("AST", "SymbolRef", "ValueResult", "CondResult", "LValue
     }
 }
 
-$bytecodeToolDoc = Read-Text "docs/guides/bytecode-tool.md"
-foreach ($required in @("decoded instructions", "constant references", "constant table", "recursive child protos in full mode", "--diff", "side-by-side", "changed lines", "--cfg", "Mermaid", "basic blocks", "control-flow edges")) {
-    if ($bytecodeToolDoc -notmatch [regex]::Escape($required)) {
-        Add-Failure $failures "docs/guides/bytecode-tool.md is missing current bytecode printer fact: $required"
-    }
-}
-
 $traceSystemDoc = Read-Text "docs/vm/trace-system.md"
 foreach ($required in @("Trace JSONL Plain Golden", "Trace JSONL Diff Golden", "changedRegisters", "funcName", "registers", "VM Trace Debug")) {
     if ($traceSystemDoc -notmatch [regex]::Escape($required)) {
@@ -415,9 +311,10 @@ foreach ($required in @("Trace JSONL Plain Golden", "Trace JSONL Diff Golden", "
     }
 }
 
-$historyDoc = Read-Text "docs/archive/history/exprdesc.md"
-if ($historyDoc -notmatch "status:\s*historical") {
-    Add-Failure $failures "docs/archive/history/exprdesc.md must be marked historical"
+foreach ($forbiddenPath in @("docs2", "docs/roadmap", "docs/status", "docs/agents", "docs/ai", "docs/guides", "docs/projects", "docs/superpowers")) {
+    if (Test-Path -LiteralPath (Join-RepoPath $forbiddenPath)) {
+        Add-Failure $failures "Non-technical documentation path must not exist: $forbiddenPath"
+    }
 }
 
 if ($failures.Count -gt 0) {

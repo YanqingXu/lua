@@ -1,6 +1,6 @@
 ---
 status: current
-verified_against: src/compiler/ast_visitor.hpp; src/compiler/codegen/codegen.hpp; src/compiler/codegen/expression_emitter.hpp; src/compiler/codegen/statement_emitter.hpp; src/compiler/codegen/function_compiler.hpp; src/vm/vm_handlers.hpp; src/vm/vm_handlers.cpp; src/vm/vm_handlers/; src/vm/vm_dispatch_strategy.hpp; src/vm/vm_dispatch_strategy.cpp; src/runtime/runtime_services.hpp; src/vm/state/global_state.hpp; src/gc/garbage_collector.hpp; src/gc/gc_strategy.hpp; src/gc/gc_strategy.cpp; src/compiler/codegen/bytecode_builder.hpp; src/compiler/codegen/codegen_ops.hpp; src/compiler/codegen/codegen_state.hpp; src/lib/lib_catalog.hpp; src/lib/lib_catalog.cpp; src/lib/lib_manager.hpp; docs/roadmap/optimization_and_refactoring.md
+verified_against: src/compiler/ast_visitor.hpp; src/compiler/codegen/codegen.hpp; src/compiler/codegen/expression_emitter.hpp; src/compiler/codegen/statement_emitter.hpp; src/compiler/codegen/function_compiler.hpp; src/vm/vm_handlers.hpp; src/vm/vm_handlers.cpp; src/vm/vm_handlers/; src/vm/vm_dispatch_strategy.hpp; src/vm/vm_dispatch_strategy.cpp; src/runtime/runtime_services.hpp; src/vm/state/global_state.hpp; src/gc/garbage_collector.hpp; src/gc/gc_strategy.hpp; src/gc/gc_strategy.cpp; src/compiler/codegen/bytecode_builder.hpp; src/compiler/codegen/codegen_ops.hpp; src/compiler/codegen/codegen_state.hpp; src/lib/lib_catalog.hpp; src/lib/lib_catalog.cpp; src/lib/lib_manager.hpp
 last_checked: 2026-05-23
 applies_to: architecture pattern registry and implementation boundaries
 ---
@@ -38,7 +38,7 @@ VM 命令模式通过函数指针表而非虚类层次实现。这使得操作�
 
 `SwitchDispatch` 仍是默认的 VM 分发路径，因为它最易于调试且与解释器的历史控制流一致。`TableDispatch` 为可选路径，使用与命令层相同的处理器表。
 
-不要添加计算 goto 或线程化代码分发路径。它们会牺牲可读性和可移植性，与路线图中的项目目标相冲突。
+不要添加计算 goto 或线程化代码分发路径。它们会牺牲可读性、可移植性和教学透明度。
 
 `MarkSweepGC` 仍是默认的 GC 策略。`IncrementalGC` 以教学占位形式存在，委托给相同的标记-清除阶段，以便在未来的写屏障和调度引入之前，测试可以证明可达性等价。
 
@@ -56,8 +56,8 @@ VM 命令模式通过函数指针表而非虚类层次实现。这使得操作�
 
 标准库目录是默认库加载顺序和库标识符的可读权威来源。使用 `StandardLibrary::openAll()` 加载全部库，使用 `StandardLibrary::openCatalogLibrary(L, "<id>")` 加载单个库。旧有的 `openBase()` / `openMath()` / ... 包装函数仅保留为已弃用的兼容垫片。
 
-PR-73 评估了 `LibRegistrar` 自注册设计并暂时拒绝。静态注册器可以减少对 `lib_catalog.cpp` 的一次编辑，但它会将加载顺序隐藏在动态初始化之后，并需要 MSVC 的链接器保活规则。对于这个教学导向的代码库，显式目录更易于阅读、测试和审计。
+没有采用 `LibRegistrar` 静态自注册设计。静态注册器可以减少对 `lib_catalog.cpp` 的一次编辑，但会将加载顺序隐藏在动态初始化之后，并需要 MSVC 的链接器保活规则。对于教学导向的代码库，显式目录更易于阅读、测试和审计。
 
 ## 更新本文档
 
-当模式被引入、移除或迁移到不同的源边界时，请更新此注册表。将计划项与已实现项分开，以便读者能够区分当前架构和路线图意图。
+当模式被引入、移除或迁移到不同的源边界时，请按源码事实更新此注册表。

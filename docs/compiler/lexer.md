@@ -1,6 +1,6 @@
 ---
 status: current
-verified_against: docs/status/project-status.md; src/compiler/lexer/lexer.hpp; src/compiler/lexer/lexer.cpp; src/compiler/lexer/lexer_cursor.hpp; src/compiler/lexer/lexer_cursor.cpp; src/compiler/parser/token.hpp; src/common/types.hpp; tests/unit/compiler/test_lexer_number.cpp; tests/unit/compiler/test_lexer_lookahead.cpp; tests/unit/io/test_input_stream_string.cpp; tests/unit/io/test_input_stream_stream.cpp; tests/unit/io/test_input_stream_file.cpp; https://www.lua.org/source/5.1/llex.c.html
+verified_against: src/compiler/lexer/lexer.hpp; src/compiler/lexer/lexer.cpp; src/compiler/lexer/lexer_cursor.hpp; src/compiler/lexer/lexer_cursor.cpp; src/compiler/parser/token.hpp; src/common/types.hpp; tests/unit/compiler/test_lexer_number.cpp; tests/unit/compiler/test_lexer_lookahead.cpp; tests/unit/io/test_input_stream_string.cpp; tests/unit/io/test_input_stream_stream.cpp; tests/unit/io/test_input_stream_file.cpp; https://www.lua.org/source/5.1/llex.c.html
 last_checked: 2026-05-24
 applies_to: current Lua 5.1 lexer and InputCursor implementation
 ---
