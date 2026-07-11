@@ -1,7 +1,7 @@
 ---
 status: current
 verified_against: docs/status/project-status.md; docs/roadmap/current.md; docs/compatibility/lua51.md; docs/compatibility/lua51-full-compatibility-audit.md
-last_checked: 2026-06-13
+last_checked: 2026-07-11
 applies_to: Chinese current-status summary, with docs/status/project-status.md as source of truth
 ---
 
@@ -53,7 +53,7 @@ applies_to: Chinese current-status summary, with docs/status/project-status.md a
 - ✅ 分阶段 step 推进
 
 ### 测试
-- ✅ 668 个注册测试，3404 个断言，0 失败（0 failures）
+- ✅ 668 个注册测试，3406 个断言，0 失败（0 failures）
 - ✅ Lua 5.1 官方测试套件 staged smoke 接入
 - ✅ 多类别单元测试（compiler/core/vm/gc/stdlib/metamethod）
 
@@ -82,7 +82,7 @@ applies_to: Chinese current-status summary, with docs/status/project-status.md a
 | **代码行数** | 约 19k |
 | **源文件数** | 约 89 |
 | **注册测试** | 668 |
-| **断言结果** | 3404 |
+| **断言结果** | 3406 |
 | **通过率** | 100% |
 | **编译状态** | Release\|x64 /W4 无警告 |
 | **C++ 标准** | C++17/23 |

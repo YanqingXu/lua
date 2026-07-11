@@ -277,19 +277,25 @@ void testLua51LoadNilMergeAndDirectReturnParityGapIsCharacterized(TestSuite& sui
 
     delete elided;
 
-    Proto* preserved = generateProto(R"lua(
+    Proto* deadAssignments = generateProto(R"lua(
         local a,b,c
         local d; local e
         a = nil; d = nil
     )lua");
 
-    ASSERT_TRUE(suite, preserved != nullptr, "Nil assignment proto generated");
-    ASSERT_TRUE(suite, countOpcode(preserved, OpCode::LOADNIL) >= 1,
-                "Ordinary nil assignments are preserved instead of path-insensitive dead-store elided");
-    ASSERT_TRUE(suite, countOpcode(preserved, OpCode::RETURN) == 1,
-                "Nil assignment chunk still has one final RETURN");
+    ASSERT_TRUE(suite, deadAssignments != nullptr, "Dead nil assignment proto generated");
+    ASSERT_TRUE(suite, countOpcode(deadAssignments, OpCode::LOADNIL) == 0,
+                "Lua 5.1-style dead local nil assignments emit no LOADNIL");
+    ASSERT_TRUE(suite, countOpcode(deadAssignments, OpCode::RETURN) == 1,
+                "Dead nil assignment chunk lowers to the final RETURN only");
 
-    delete preserved;
+    delete deadAssignments;
+
+    UPtr<Proto> observedAssignment(generateProto("local a = 1; a = nil; return a"));
+
+    ASSERT_TRUE(suite, observedAssignment != nullptr, "Observed nil assignment proto generated");
+    ASSERT_TRUE(suite, countOpcode(observedAssignment.get(), OpCode::LOADNIL) == 1,
+                "A later local read keeps the nil assignment observable");
 
     LuaState* captured = nullptr;
     try {

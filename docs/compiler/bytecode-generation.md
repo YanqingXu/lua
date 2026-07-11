@@ -1,7 +1,7 @@
 ---
 status: current
 verified_against: docs/status/project-status.md; docs/compiler/codegen-responsibility-map.md; src/common/lua_error.hpp; src/compiler/codegen/codegen.hpp; src/compiler/codegen/codegen.cpp; src/compiler/codegen/codegen_binding.cpp; src/compiler/codegen/name_binder.hpp; src/compiler/codegen/name_binder.cpp; src/compiler/codegen/codegen_ops.hpp; src/compiler/codegen/function_compiler.hpp; src/compiler/codegen/function_compiler.cpp; src/compiler/codegen/expression_emitter.hpp; src/compiler/codegen/expression_emitter.cpp; src/compiler/codegen/statement_emitter.hpp; src/compiler/codegen/statement_emitter.cpp; src/compiler/codegen/codegen_stmt.cpp; src/compiler/codegen/codegen_types.hpp; src/compiler/codegen/codegen_context.hpp; src/compiler/codegen/codegen_state.hpp; src/compiler/codegen/jump_patcher.hpp; src/compiler/codegen/jump_patcher.cpp; src/compiler/codegen/scope_manager.hpp; src/compiler/codegen/scope_manager.cpp; src/compiler/codegen/bytecode_builder.hpp; src/compiler/register_allocator.hpp; tests/unit/compiler/test_codegen_result_types.cpp; tests/unit/compiler/test_codegen_state.cpp; tests/unit/compiler/test_codegen_characterization.cpp; tests/unit/compiler/test_jump_patcher.cpp; tests/unit/compiler/test_scope_manager.cpp; tests/unit/compiler/test_expression_emitter.cpp; tests/unit/compiler/test_statement_emitter.cpp; tests/unit/compiler/test_symbol_binding.cpp; tools/check_value_result_variant_only.ps1
-last_checked: 2026-05-24
+last_checked: 2026-07-11
 applies_to: current AST-to-Proto bytecode generator
 ---
 
@@ -168,8 +168,11 @@ emitStore(target, value)
 
 ## 6. 语句生成概览
 
-- `LocalStmt`：先分配局部槽位，再生成初始化表达式；最后补 nil 或展开多返回值。
-- `AssignStmt`：先收集所有左值位置，再按 Lua 多赋值规则生成右值并存储。
+- `LocalStmt`：先分配局部槽位，再生成初始化表达式；最后补 nil 或展开多返回值。后续不可读的
+  无初始化局部槽位不发出无效 `LOADNIL`。
+- `AssignStmt`：先收集所有左值位置，再按 Lua 多赋值规则生成右值并存储。为对齐 Lua 5.1
+  `code.lua`，顶层、未捕获、后续不可读且不处于控制块中的 local nil dead store 会被消除；
+  future read、captured local、loop/branch 嵌套路径保持发射，避免 path-insensitive 优化改变语义。
 - `ReturnStmt`：根据最后一个表达式是否可展开决定返回值数量；单值 `return f()` 可生成 `TAILCALL`。
 - `IfStmt` / `WhileStmt` / `RepeatStmt`：通过 `CondResult` 和 patch list 回填跳转。
 - `ForNumStmt` / `ForInStmt`：按 Lua 5.1 寄存器布局发出循环控制指令。

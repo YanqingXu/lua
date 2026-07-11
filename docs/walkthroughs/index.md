@@ -1,7 +1,7 @@
 ---
 status: current
-verified_against: docs/roadmap/current.md; docs/index.md; docs/glossary.md; docs/walkthroughs/hello-world.md; docs/walkthroughs/closure-and-upvalue.md; docs/walkthroughs/gc-cycle.md; examples/README.md; tests/unit/framework/test_runner.cpp; bin/lua_test.exe --list
-last_checked: 2026-05-23
+verified_against: docs/roadmap/current.md; docs/index.md; docs/glossary.md; docs/walkthroughs/hello-world.md; docs/walkthroughs/closure-and-upvalue.md; docs/walkthroughs/gc-cycle.md; examples/README.md; tests/unit/framework/test_runner.cpp; bin/lua_test.exe
+last_checked: 2026-07-11
 applies_to: test-based learning path for compiler, VM, runtime, and standard library behavior
 ---
 

@@ -439,6 +439,16 @@ void StatementEmitter::emitStmt(const AssignStmt& s) {
             scopes_.findLocalVar(targetName->name) >= 0) {
             return;
         }
+
+        const bool assignsNil = std::holds_alternative<NilExpr>(s.values[0]->variant);
+        if (targetName != nullptr && assignsNil && scopes_.currentBlock() == nullptr) {
+            const i32 targetReg = scopes_.findLocalVar(targetName->name);
+            const bool valueCanBeObserved = isFutureRead(futureReads_, targetName->name) ||
+                                            (targetReg >= 0 && scopes_.isLocalCaptured(targetReg));
+            if (targetReg >= 0 && !valueCanBeObserved) {
+                return;
+            }
+        }
     }
 
     auto tryEmitLocalNameAssignment = [&]() -> bool {

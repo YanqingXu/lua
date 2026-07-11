@@ -26,6 +26,15 @@ i32 ScopeManager::findLocalVar(const Str& name) const {
     return state_.localScope.findLocal(name);
 }
 
+bool ScopeManager::isLocalCaptured(i32 reg) const noexcept {
+    for (auto iter = state_.localScope.localVars_.rbegin(); iter != state_.localScope.localVars_.rend(); ++iter) {
+        if (iter->reg == reg && iter->endpc == -1) {
+            return iter->captured;
+        }
+    }
+    return false;
+}
+
 void ScopeManager::markLocalCaptured(i32 reg) {
     state_.localScope.markCaptured(reg);
 }

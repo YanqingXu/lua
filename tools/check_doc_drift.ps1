@@ -43,6 +43,41 @@ function Get-RepoRelativePath {
     return $fullPath
 }
 
+function Get-FactHeaderStatus {
+    param([string]$Text)
+
+    $header = [regex]::Match($Text, "(?ms)\A---\r?\n.*?^status:\s*(current|historical|planned|active)\s*$.*?^---\s*$")
+    if (-not $header.Success) {
+        return ""
+    }
+    return [regex]::Match($header.Value, "(?m)^status:\s*(\w+)\s*$").Groups[1].Value
+}
+
+function Get-CurrentDocumentationPaths {
+    $candidates = [System.Collections.Generic.List[object]]::new()
+    $readmePath = Join-RepoPath "README.md"
+    if (Test-Path -LiteralPath $readmePath) {
+        $candidates.Add((Get-Item -LiteralPath $readmePath)) | Out-Null
+    }
+
+    foreach ($relativeRoot in @("docs", "docs2", "examples")) {
+        $path = Join-RepoPath $relativeRoot
+        if (-not (Test-Path -LiteralPath $path)) {
+            continue
+        }
+        foreach ($file in Get-ChildItem -LiteralPath $path -Recurse -File -Filter "*.md") {
+            $candidates.Add($file) | Out-Null
+        }
+    }
+
+    foreach ($file in $candidates) {
+        $text = [System.IO.File]::ReadAllText($file.FullName, [System.Text.Encoding]::UTF8)
+        if ((Get-FactHeaderStatus $text) -eq "current") {
+            Get-RepoRelativePath $file.FullName
+        }
+    }
+}
+
 function Resolve-TestExecutablePath {
     param([string]$Path)
 
@@ -76,6 +111,9 @@ function Assert-VerifiedAgainstPathsExist {
     )
 
     foreach ($relativePath in Get-VerifiedAgainstPaths $Text) {
+        if ($relativePath -match "^[a-z][a-z0-9+.-]*://") {
+            continue
+        }
         $path = Join-RepoPath $relativePath
         if (-not (Test-Path -LiteralPath $path)) {
             Add-Failure $Failures "$DocPath verified_against references missing path: $relativePath"
@@ -252,6 +290,65 @@ foreach ($doc in $coreDocs) {
     }
 }
 
+function Assert-LiveFactsVerificationFreshness {
+    param(
+        [System.Collections.Generic.List[string]]$Failures,
+        [string]$DocPath,
+        [string]$Text
+    )
+
+    if ($Text -notmatch "<!--\s*live-facts:start\s*-->") {
+        return
+    }
+
+    $lastCheckedMatch = [regex]::Match($Text, "(?m)^last_checked:\s*(\d{4}-\d{2}-\d{2})\s*$")
+    if (-not $lastCheckedMatch.Success) {
+        Add-Failure $Failures "$DocPath live facts require a parseable last_checked date"
+        return
+    }
+    $lastChecked = [datetime]::ParseExact(
+        $lastCheckedMatch.Groups[1].Value,
+        "yyyy-MM-dd",
+        [System.Globalization.CultureInfo]::InvariantCulture
+    )
+
+    $git = Get-Command git -ErrorAction SilentlyContinue
+    if ($null -eq $git) {
+        Add-Failure $Failures "$DocPath live facts require git to verify dependency freshness"
+        return
+    }
+
+    foreach ($relativePath in Get-VerifiedAgainstPaths $Text) {
+        if ($relativePath -match "^[a-z][a-z0-9+.-]*://") {
+            continue
+        }
+
+        $commitDateText = (& $git.Source -C $Root log -1 --format=%cs -- $relativePath).Trim()
+        if ([string]::IsNullOrWhiteSpace($commitDateText)) {
+            continue
+        }
+        $commitDate = [datetime]::ParseExact(
+            $commitDateText,
+            "yyyy-MM-dd",
+            [System.Globalization.CultureInfo]::InvariantCulture
+        )
+        if ($commitDate -gt $lastChecked) {
+            Add-Failure $Failures "$DocPath live facts were checked $($lastChecked.ToString('yyyy-MM-dd')) but dependency changed later: $relativePath ($commitDateText)"
+        }
+    }
+}
+
+$currentDocs = @(Get-CurrentDocumentationPaths | Sort-Object -Unique)
+foreach ($doc in $currentDocs) {
+    $text = Read-Text $doc
+    if (-not (Test-FrontMatter $text)) {
+        Add-Failure $failures "Missing or invalid fact header: $doc"
+        continue
+    }
+    Assert-VerifiedAgainstPathsExist -Failures $failures -DocPath $doc -Text $text
+    Assert-LiveFactsVerificationFreshness -Failures $failures -DocPath $doc -Text $text
+}
+
 foreach ($requiredFile in @("CMakeLists.txt", "tools/run_cmake_smoke.ps1", "tools/add_source.ps1", "tools/build_rag_index.ps1", "tools/search_rag_index.ps1")) {
     $path = Join-RepoPath $requiredFile
     if (-not (Test-Path -LiteralPath $path)) {
@@ -319,6 +416,38 @@ if ($null -ne $testSummary) {
     Assert-DocHasCurrentTestCounts -Failures $failures -RelativePath "docs/status/project-status.md" -Summary $testSummary
     Assert-DocHasCurrentTestCounts -Failures $failures -RelativePath "docs2/00-project-overview/02-current-status.md" -Summary $testSummary
     Assert-DocHasCurrentTestCounts -Failures $failures -RelativePath "docs2/14-testing/00-testing-strategy.md" -Summary $testSummary
+
+    foreach ($doc in $currentDocs) {
+        $text = Read-Text $doc
+        $blocks = [regex]::Matches(
+            $text,
+            "(?ms)<!--\s*live-facts:start\s*-->(?<body>.*?)<!--\s*live-facts:end\s*-->"
+        )
+        foreach ($block in $blocks) {
+            $body = $block.Groups["body"].Value
+            if ($body -match "registered tests") {
+                foreach ($required in @(
+                    $testSummary.RegisteredTests.ToString(),
+                    $testSummary.TotalResults.ToString(),
+                    "$($testSummary.Failed) failures"
+                )) {
+                    if ($body -notmatch [regex]::Escape($required)) {
+                        Add-Failure $failures "$doc live-facts block is missing current test summary value: $required"
+                    }
+                }
+            }
+
+            foreach ($removedClaim in @(
+                "LUA_VALUE_RESULT_PRIVATE_LEGACY_FIELDS\s*(?:=|打开|ON|选项)",
+                "legacyFields\(\).*?(?:主入口|访问器|保留|读取)",
+                "ValueResultLegacyMirrorProbe.*?(?:使用|新增|保留)"
+            )) {
+                if ($body -match $removedClaim) {
+                    Add-Failure $failures "$doc live-facts block presents a removed ValueResult compatibility surface as current: $($Matches[0])"
+                }
+            }
+        }
+    }
 }
 
 $runtimeServicesDoc = Read-Text "docs/architecture/runtime-services.md"

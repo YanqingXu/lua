@@ -1,7 +1,7 @@
 ---
 status: current
-verified_against: docs/status/project-status.md; lua.slnx; lua.vcxproj; lua_app.vcxproj; lua_bytecode.vcxproj; lua_test.vcxproj; CMakeLists.txt; tools/run_cmake_smoke.ps1; tools/add_source.ps1; tools/check_doc_drift.ps1; tests/unit/framework/test_runner.cpp
-last_checked: 2026-05-23
+verified_against: docs/status/project-status.md; docs/roadmap/current.md; lua.slnx; lua.vcxproj; lua_app.vcxproj; lua_bytecode.vcxproj; lua_test.vcxproj; CMakeLists.txt; tools/run_cmake_smoke.ps1; tools/add_source.ps1; tools/check_doc_drift.ps1; tools/test_quality_gate.ps1; tools/run_quality_gate.ps1; tests/unit/framework/test_runner.cpp
+last_checked: 2026-07-11
 applies_to: current contributor workflow and coding conventions
 ---
 
@@ -681,5 +681,5 @@ gdb ./build/tests/test_value
 
 ---
 
-**下一步**: 开始实现第一个模块 - 基础类型系统
+**下一步**：执行 `docs/roadmap/current.md` 的续接检查清单，并从其中第一个未完成任务继续。
 

@@ -1,7 +1,7 @@
 ---
 status: current
-verified_against: docs2/02-source-code-map/00-directory-map.md; docs2/02-source-code-map/01-core-files.md; docs/architecture/overview.md; docs/compiler/bytecode-generation.md; docs/compiler/codegen-responsibility-map.md; docs/vm/instruction-set.md; docs/architecture/runtime-services.md; docs/architecture/gc.md; src/compiler/; src/core/; src/vm/; src/gc/; src/runtime/runtime_services.hpp
-last_checked: 2026-06-13
+verified_against: docs2/02-source-code-map/00-directory-map.md; docs2/02-source-code-map/01-core-files.md; docs/architecture/overview.md; docs/compiler/bytecode-generation.md; docs/compiler/codegen-responsibility-map.md; docs/vm/instruction-set.md; docs/architecture/runtime-services.md; docs/architecture/gc.md; src/compiler/; src/core/; src/vm/; src/gc/; src/runtime/runtime_services.hpp; tests/unit/vm/opcode_coverage_contract.json; tools/check_c_style_patterns.ps1; tools/check_opcode_coverage_matrix.ps1; tools/check_doc_drift.ps1
+last_checked: 2026-07-11
 applies_to: source-to-document mapping for core interpreter modules
 ---
 
@@ -25,13 +25,14 @@ Each row above has at least one deep technical document and one Chinese orientat
 | Change intent | Start in source | Read first | Verify with |
 |---|---|---|---|
 | Add or change syntax | `src/compiler/parser/`, `src/compiler/ast.hpp` | `docs/compiler/parser.md`, `docs2/03-lexer-parser/00-overview.md`, `docs2/02-source-code-map/05-change-location-guide.md` | Parser/compiler unit tests and relevant Lua script tests |
-| Change bytecode emission | `src/compiler/codegen/` | `docs/compiler/bytecode-generation.md`, `docs/compiler/codegen-responsibility-map.md`, `docs/vm/instruction-set.md` | `Codegen Characterization`, `Expression Emitter`, `Statement Emitter` |
-| Change opcode semantics | `src/vm/vm_handlers/`, `src/vm/vm_*.cpp`, `src/compiler/opcode.*` | `docs/vm/instruction-set.md`, `tests/unit/vm/opcode_coverage_matrix.md`, `docs2/05-vm-runtime/00-overview.md` | `tools/check_opcode_coverage_matrix.ps1`, VM unit tests |
+| Change bytecode emission | `src/compiler/codegen/` | `docs/compiler/bytecode-generation.md`, `docs/compiler/codegen-responsibility-map.md`, `docs/vm/instruction-set.md` | `Codegen Characterization`, `Expression Emitter`, `Statement Emitter`, `Scope Manager` |
+| Change opcode semantics | `src/vm/vm_handlers/`, `src/vm/vm_*.cpp`, `src/compiler/opcode.*` | `docs/vm/instruction-set.md`, `tests/unit/vm/opcode_coverage_matrix.md`, `tests/unit/vm/opcode_coverage_contract.json`, `docs2/05-vm-runtime/00-overview.md` | `tools/check_opcode_coverage_matrix.ps1`, exact `bin/lua_test.exe --list` IDs, VM unit tests |
 | Change values, tables, closures, or upvalues | `src/core/`, `src/vm/vm_call.cpp`, `src/vm/vm_frame.cpp` | `docs/architecture/overview.md`, `docs/architecture/runtime-services.md`, `docs2/06-value-object-system/00-overview.md`, `docs2/08-function-call-closure/00-overview.md` | Core, metamethod, function-call, and regression tests |
 | Change standard library behavior | `src/lib/`, `src/api/lapi.cpp` | `docs/stdlib/overview.md`, `docs/guides/development.md`, `docs2/10-stdlib/00-overview.md` | `tests/unit/stdlib/`, `tests/lua/stdlib/`, official suite slice |
 | Change GC behavior | `src/gc/`, `src/core/gc_object.*`, `src/core/string_pool.*` | `docs/architecture/gc.md`, `docs/walkthroughs/gc-cycle.md`, `docs2/12-gc-memory/00-overview.md` | `tests/unit/gc/test_gc.cpp`, GC stdlib tests, official `gc.lua` |
 | Change build or source lists | `CMakeLists.txt`, `*.vcxproj`, `*.vcxproj.filters` | `docs/guides/development.md`, `docs/status/project-status.md` | `tools/add_source.ps1`, `tools/test_quality_gate.ps1` |
 | Change docs or status | `docs/`, `docs2/`, `README.md` | `docs/knowledge/README.md`, `docs/roadmap/current.md`, `tools/check_doc_drift.ps1` | `tools/check_doc_drift.ps1` |
+| Change C-style compatibility boundaries | `src/`, `tests/` | `docs/roadmap/modern-cpp-teaching-audit-report.md`, `tools/c_style_allowlist.json` | `tools/check_c_style_patterns.ps1 -TestScope All` |
 
 ## Retrieval Priority
 

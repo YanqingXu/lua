@@ -20,7 +20,12 @@ function Invoke-Step {
 
     Write-Host ""
     Write-Host "==> $Name"
+    $global:LASTEXITCODE = 0
     & $Body
+    $stepExitCode = $global:LASTEXITCODE
+    if ($stepExitCode -ne 0) {
+        throw "$Name failed with exit code $stepExitCode"
+    }
 }
 
 function Get-CommandOrNull {
@@ -171,10 +176,6 @@ try {
         }
     }
 
-    Invoke-Step "opcode coverage matrix" {
-        & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root "tools\check_opcode_coverage_matrix.ps1")
-    }
-
     Invoke-Step "ValueResult variant-only boundary" {
         & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root "tools\check_value_result_variant_only.ps1")
     }
@@ -196,6 +197,10 @@ try {
         }
 
         & $msbuild (Join-Path $root "lua_test.vcxproj") /m "/p:Configuration=$Configuration" "/p:Platform=$Platform"
+    }
+
+    Invoke-Step "opcode coverage matrix and registered test contract" {
+        & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root "tools\check_opcode_coverage_matrix.ps1")
     }
 
     Invoke-Step "documentation drift" {

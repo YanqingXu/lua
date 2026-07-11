@@ -1,5 +1,7 @@
 param(
-    [string]$Root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+    [string]$Root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path,
+    [string]$CoverageContract = "tests\unit\vm\opcode_coverage_contract.json",
+    [string]$TestExecutable = "bin\lua_test.exe"
 )
 
 $ErrorActionPreference = "Stop"
@@ -15,6 +17,52 @@ function Add-Failure {
         [string]$Message
     )
     $Failures.Add($Message) | Out-Null
+}
+
+function Resolve-RepoOrAbsolutePath {
+    param([string]$Path)
+
+    if ([System.IO.Path]::IsPathRooted($Path)) {
+        return $Path
+    }
+    return Join-RepoPath $Path
+}
+
+function Get-RegisteredTestIds {
+    param(
+        [string]$ExecutablePath,
+        [System.Collections.Generic.List[string]]$Failures
+    )
+
+    $ids = @{}
+    if (-not (Test-Path -LiteralPath $ExecutablePath)) {
+        Add-Failure $Failures "Missing test executable for opcode coverage contract: $TestExecutable. Build lua_test.vcxproj first."
+        return $ids
+    }
+
+    $previousErrorActionPreference = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = "Continue"
+        $output = & $ExecutablePath --list 2>&1
+        $exitCode = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
+    if ($exitCode -ne 0) {
+        Add-Failure $Failures "Test registry listing failed: $TestExecutable --list exited with code $exitCode"
+        return $ids
+    }
+
+    foreach ($line in @($output)) {
+        $id = $line.ToString().Trim()
+        if ($id -match "^.+::.+$") {
+            $ids[$id] = $true
+        }
+    }
+    if ($ids.Count -eq 0) {
+        Add-Failure $Failures "No Suite::Test identifiers were parsed from $TestExecutable --list"
+    }
+    return $ids
 }
 
 function Get-OpcodeNames {
@@ -109,6 +157,8 @@ function Get-MatrixRows {
         $row = [pscustomobject]@{
             Opcode = $opcode
             Group = if ($cells.Count -gt 1) { $cells[1] } else { "" }
+            PositivePath = if ($cells.Count -gt 2) { $cells[2] } else { "" }
+            BoundaryPath = if ($cells.Count -gt 3) { $cells[3] } else { "" }
             MetamethodPath = if ($cells.Count -gt 4) { $cells[4] } else { "" }
             Line = $lineNumber
         }
@@ -132,6 +182,8 @@ function Get-MatrixRows {
 $failures = [System.Collections.Generic.List[string]]::new()
 $opcodePath = Join-RepoPath "src\compiler\opcode.hpp"
 $matrixPath = Join-RepoPath "tests\unit\vm\opcode_coverage_matrix.md"
+$contractPath = Resolve-RepoOrAbsolutePath $CoverageContract
+$testExecutablePath = Resolve-RepoOrAbsolutePath $TestExecutable
 
 $expected = @(Get-OpcodeNames -Path $opcodePath)
 if ($expected.Count -eq 0) {
@@ -212,6 +264,115 @@ foreach ($row in $rows) {
     }
 }
 
+$contract = $null
+if (-not (Test-Path -LiteralPath $contractPath)) {
+    Add-Failure $failures "Missing opcode coverage contract: $CoverageContract"
+} else {
+    try {
+        $contract = Get-Content -LiteralPath $contractPath -Raw | ConvertFrom-Json
+    } catch {
+        Add-Failure $failures "Invalid opcode coverage contract JSON: $($_.Exception.Message)"
+    }
+}
+
+$registeredTestIds = Get-RegisteredTestIds -ExecutablePath $testExecutablePath -Failures $failures
+if ($null -ne $contract) {
+    if ($contract.schemaVersion -ne 1) {
+        Add-Failure $failures "Unsupported opcode coverage contract schemaVersion: $($contract.schemaVersion)"
+    }
+
+    $catalogByKey = @{}
+    foreach ($test in @($contract.tests)) {
+        if ([string]::IsNullOrWhiteSpace($test.key) -or [string]::IsNullOrWhiteSpace($test.source) -or
+            [string]::IsNullOrWhiteSpace($test.id)) {
+            Add-Failure $failures "Opcode coverage test catalog entries require key/source/id"
+            continue
+        }
+        if ($catalogByKey.ContainsKey($test.key)) {
+            Add-Failure $failures "Duplicate opcode coverage test key: $($test.key)"
+            continue
+        }
+        $catalogByKey[$test.key] = $test
+
+        if (-not (Test-Path -LiteralPath (Join-RepoPath $test.source))) {
+            Add-Failure $failures "Opcode coverage test source does not exist: $($test.source)"
+        }
+        if (-not $registeredTestIds.ContainsKey($test.id)) {
+            Add-Failure $failures "Opcode coverage test is not registered: $($test.id)"
+        }
+    }
+
+    $coverageEntries = @($contract.coverage)
+    if ($coverageEntries.Count -ne $expected.Count) {
+        Add-Failure $failures "Opcode coverage contract has $($coverageEntries.Count) rows, expected $($expected.Count)"
+    }
+
+    $usedTestKeys = @{}
+    for ($index = 0; $index -lt $coverageEntries.Count; $index += 1) {
+        $coverage = $coverageEntries[$index]
+        if ($index -lt $expected.Count -and $coverage.opcode -ne $expected[$index]) {
+            Add-Failure $failures "Opcode coverage contract order mismatch at row $($index + 1): found $($coverage.opcode), expected $($expected[$index])"
+        }
+        if (-not $metadataByOpcode.ContainsKey($coverage.opcode)) {
+            Add-Failure $failures "Opcode coverage contract references unknown opcode $($coverage.opcode)"
+            continue
+        }
+
+        $positive = @($coverage.positive | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+        $boundary = @($coverage.boundary | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+        $metamethod = @($coverage.metamethod | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+        if ($positive.Count -eq 0) {
+            Add-Failure $failures "Opcode $($coverage.opcode) has no executable positive-path test reference"
+        }
+        if ($boundary.Count -eq 0) {
+            Add-Failure $failures "Opcode $($coverage.opcode) has no executable boundary-path test reference"
+        }
+
+        $expectsMetamethod = [bool]$metadataByOpcode[$coverage.opcode].MayInvokeMetamethod
+        if ($expectsMetamethod -and $metamethod.Count -eq 0) {
+            Add-Failure $failures "Opcode $($coverage.opcode) may invoke metamethods but has no executable metamethod test reference"
+        }
+        if (-not $expectsMetamethod -and $metamethod.Count -ne 0) {
+            Add-Failure $failures "Opcode $($coverage.opcode) cannot invoke metamethods but lists metamethod test references"
+        }
+
+        foreach ($key in @($positive + $boundary + $metamethod)) {
+            $usedTestKeys[$key] = $true
+            if (-not $catalogByKey.ContainsKey($key)) {
+                Add-Failure $failures "Opcode $($coverage.opcode) references unknown coverage test key: $key"
+            }
+        }
+
+        $matrixRow = @($rows | Where-Object { $_.Opcode -eq $coverage.opcode } | Select-Object -First 1)
+        if ($matrixRow.Count -eq 1) {
+            foreach ($key in $positive) {
+                if (-not $catalogByKey.ContainsKey($key)) { continue }
+                $test = $catalogByKey[$key]
+                $displayId = $test.id.Replace("::", "/")
+                if ($matrixRow[0].PositivePath -notmatch [regex]::Escape($test.source) -or
+                    $matrixRow[0].PositivePath -notmatch [regex]::Escape($displayId)) {
+                    Add-Failure $failures "Matrix positive path for $($coverage.opcode) does not display contract test $($test.id) from $($test.source)"
+                }
+            }
+            foreach ($key in $metamethod) {
+                if (-not $catalogByKey.ContainsKey($key)) { continue }
+                $test = $catalogByKey[$key]
+                $displayId = $test.id.Replace("::", "/")
+                if ($matrixRow[0].MetamethodPath -notmatch [regex]::Escape($test.source) -or
+                    $matrixRow[0].MetamethodPath -notmatch [regex]::Escape($displayId)) {
+                    Add-Failure $failures "Matrix metamethod path for $($coverage.opcode) does not display contract test $($test.id) from $($test.source)"
+                }
+            }
+        }
+    }
+
+    foreach ($key in $catalogByKey.Keys) {
+        if (-not $usedTestKeys.ContainsKey($key)) {
+            Add-Failure $failures "Opcode coverage test catalog entry is unused: $key"
+        }
+    }
+}
+
 if ($failures.Count -gt 0) {
     Write-Host "[FAIL] Opcode coverage matrix check failed:"
     foreach ($failure in $failures) {
@@ -220,4 +381,4 @@ if ($failures.Count -gt 0) {
     exit 1
 }
 
-Write-Host "[OK] Opcode coverage matrix covers $($expected.Count) opcodes"
+Write-Host "[OK] Opcode coverage matrix covers $($expected.Count) opcodes and all referenced tests are registered"

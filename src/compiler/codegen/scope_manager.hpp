@@ -23,6 +23,7 @@ public:
 
     i32 addLocalVar(const Str& name);
     [[nodiscard]] i32 findLocalVar(const Str& name) const;
+    [[nodiscard]] bool isLocalCaptured(i32 reg) const noexcept;
     void markLocalCaptured(i32 reg);
     void adjustLocalVars(i32 count);
     void removeLocalVars(i32 toLevel);

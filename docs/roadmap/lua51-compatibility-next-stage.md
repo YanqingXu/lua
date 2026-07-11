@@ -1,7 +1,7 @@
 ---
 status: current
 verified_against: README.md; docs/status/project-status.md; docs/compatibility/lua51.md; docs/compatibility/lua51-full-compatibility-audit.md; docs/roadmap/current.md; src/lib; src/vm; src/gc; src/core; src/runtime; tests/lua/official/all.lua; tests/unit/vm/opcode_coverage_matrix.md; tools/run_lua51_official_slow.ps1
-last_checked: 2026-06-02
+last_checked: 2026-07-11
 applies_to: Lua 5.1.5 官方 staged smoke skip 表清零后的最大兼容性补完
 ---
 
@@ -16,14 +16,18 @@ C API、binary chunk、VM opcode 形状、GC 调度和嵌入式隔离都应优�
 
 当前基线：
 
-- 最近一次完整绿跑基线：`bin\lua_test.exe` 为 654 个 registered tests，3340 个 assertion results，0 failures。
+<!-- live-facts:start -->
+
+- 最近一次完整绿跑基线：`bin\lua_test.exe` 为 668 个 registered tests，3406 个 assertion results，0 failures。
 - 当前 runner 安全基线：`bin\lua_test.exe` 默认安装 512 MB 进程内存硬上限，支持
-  `--max-memory-mb <mb>` 覆盖和 `--no-memory-limit` 显式关闭；当前已注册 659 个测试，
+  `--max-memory-mb <mb>` 覆盖和 `--no-memory-limit` 显式关闭；当前已注册 668 个测试，
   其中新增 `closure.lua weak GC loop cap` 与 `post-vararg tail split guard`，用于阻止 official tail
   在弱表 GC 等待循环或四脚本串联路径中无界造垃圾。
 - `tests/lua/official/all.lua`：已接入 `Lua 5.1 Official Suite` staged smoke。
 - 官方子脚本 skip 表：0。
 - 重要限制：`api.lua` / `code.lua` 仍在无上游 `testC` helper 模块时运行可选跳过分支；官方 staged smoke 使用 `_soft=true`，并保留 `constructs.lua` 等压力路径的 harness 裁剪。
+
+<!-- live-facts:end -->
 
 2026-06-01 目标修订：
 
@@ -210,7 +214,9 @@ roadmap：
   - 目标：逐项补齐 `LOADNIL` merge/elide、constant folding、concat merge、boolean/jump normalization 和 register reuse。
   - 验收：`code.lua` 的 `T.listcode` 精确 opcode 检查进入默认 official suite 并通过。
   - 2026-06-01 进展：显式 nil local 初始化（如 `local a,b,c = nil,nil,nil`）已合并为单条 `LOADNIL A=0 B=2` 区间指令；数值字面量算术常量折叠已接入，并保留 Lua 5.1 `lcode.c` 风格的 div/mod by zero 与 NaN 不折叠边界；连续局部变量 return 已直接复用原寄存器；单局部 `a = a` 自赋值已消除无效 MOVE；三段及以上 concat chain 已合并为单条 `CONCAT`，并先把 active locals/upvalues/params 复制到 scratch operand range，避免 VM `CONCAT` 改写源寄存器；常量 `not not nil/false/true/1` 已折叠为单条 `LOADBOOL`，对应官方 `code.lua` 明确列出的 `T.listcode` 断言。
-  - 剩余：`LOADNIL` elide、动态 boolean/jump normalization、table/local assignment register reuse，以及 broader `T.listcode` fixture parity 仍未完成。
+  - 剩余：动态 boolean/jump normalization、table/local assignment register reuse，以及 broader
+    `T.listcode` fixture parity 仍未完成。无初始化且不可观察的局部变量已经不再发出 `LOADNIL`；
+    普通赋 nil、闭包捕获和循环可观察路径仍由 characterization 测试守卫。
 
 - [ ] **L51-0407：实现官方 Lua 5.1 binary chunk 互通策略。**
   - 来源：L51-AUDIT-009、L51-AUDIT-010。
@@ -318,9 +324,10 @@ roadmap：
   - 已落地源码修复：完整 sweep 先回收 unreachable `Thread`，再回收非线程对象；增量 sweep 遇到仍 open 的 `Upvalue` 时延后一轮；
     `Upvalue::close()` 在转入 closed 状态后清空 `ownerStack_`。
   - 已新增回归：`Coroutine Library / pending coroutine open upvalue GC` 覆盖官方 `closure.lua` “leaving a pending coroutine open” 形态。
-  - 验证：2026-06-01 使用 `D:\VS2026\MSBuild\Current\Bin\MSBuild.exe` 重建 `lua_test.vcxproj`
-    Release|x64，0 warnings / 0 errors；完整 `bin\lua_test.exe` 为 654 registered tests /
-    3340 assertion results / 0 failures。2026-06-02 安全复核后，closure 合并 tail 不再作为默认真实执行门禁。
+  - 历史验证：2026-06-01 使用 `D:\VS2026\MSBuild\Current\Bin\MSBuild.exe` 重建 `lua_test.vcxproj`
+    Release|x64，0 warnings / 0 errors；当时完整 `bin\lua_test.exe` 为 654 registered tests /
+    3340 assertion results / 0 failures。当前动态测试基线见本文开头和
+    `docs/status/project-status.md`。2026-06-02 安全复核后，closure 合并 tail 不再作为默认真实执行门禁。
 
 - [x] **L51-0804：为 `sort.lua` 与 `verybig.lua` 建立 slow official gate。**
   - 当前结果：默认 smoke 保持快速，`sort.lua` 与 `verybig.lua` 的 dump/undump 压力路径由显式 slow gate 承担。

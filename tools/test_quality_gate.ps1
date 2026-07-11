@@ -27,6 +27,24 @@ function Assert-FileContains {
     }
 }
 
+function Assert-FileNotContains {
+    param(
+        [string]$RelativePath,
+        [string[]]$Patterns
+    )
+
+    $path = Join-RepoPath $RelativePath
+    if (-not (Test-Path -LiteralPath $path)) {
+        throw "Missing required quality gate file: $RelativePath"
+    }
+
+    foreach ($pattern in $Patterns) {
+        if (Select-String -LiteralPath $path -Pattern $pattern -Quiet) {
+            throw "$RelativePath contains forbidden pattern: $pattern"
+        }
+    }
+}
+
 Assert-FileContains ".clang-format" @(
     "BasedOnStyle:\s*LLVM",
     "ColumnLimit:\s*120",
@@ -47,7 +65,8 @@ Assert-FileContains "tools/run_quality_gate.ps1" @(
     "check_doc_drift\.ps1",
     "clang-format",
     "clang-tidy",
-    "MSBuild"
+    "MSBuild",
+    "failed with exit code"
 )
 
 Assert-FileContains "tools/add_source.ps1" @(
@@ -66,7 +85,20 @@ Assert-FileContains "tools/check_opcode_coverage_matrix.ps1" @(
     "mayInvokeMetamethod",
     "opcode_coverage_matrix\.md",
     "Duplicate matrix row",
-    "Opcode matrix order mismatch"
+    "Opcode matrix order mismatch",
+    "CoverageContract",
+    "--list",
+    "not registered"
+)
+
+Assert-FileContains "tests/unit/vm/opcode_coverage_contract.json" @(
+    '"schemaVersion":\s*1',
+    '"tests":',
+    '"coverage":',
+    '"positive":',
+    '"boundary":',
+    '"metamethod":',
+    'VM Dispatch::Data Move Handlers Execute Directly'
 )
 
 Assert-FileContains "tools/check_value_result_variant_only.ps1" @(
@@ -79,11 +111,27 @@ Assert-FileContains "tools/check_value_result_variant_only.ps1" @(
 Assert-FileContains "tools/check_c_style_patterns.ps1" @(
     "C-style pattern guard",
     "forbiddenPatterns",
-    "AllowedMatches",
     "WarningOnly",
     "TestScope",
     "return nullptr",
-    "AllowedCount"
+    "BaselinePath",
+    "UpdateBaseline",
+    "textHash",
+    "rationale"
+)
+
+Assert-FileNotContains "tools/check_c_style_patterns.ps1" @(
+    "AllowedCount",
+    "AllowedMatches"
+)
+
+Assert-FileContains "tools/c_style_allowlist.json" @(
+    '"schemaVersion":\s+1',
+    '"rule":',
+    '"path":',
+    '"line":',
+    '"textHash":',
+    '"rationale":'
 )
 
 Assert-FileContains "src/compiler/codegen/codegen_types.hpp" @(
@@ -96,7 +144,9 @@ Assert-FileContains "tests/unit/vm/opcode_coverage_matrix.md" @(
     "VM Opcode Coverage Matrix",
     "\| MOVE \|",
     "\| VARARG \|",
-    "PR-54 Verification Standard"
+    "PR-54 Verification Standard",
+    "opcode_coverage_contract.json",
+    "Suite::Test"
 )
 
 Assert-FileContains "tools/check_doc_drift.ps1" @(
@@ -104,6 +154,11 @@ Assert-FileContains "tools/check_doc_drift.ps1" @(
     "Registered Tests:\s*",
     "Total Results:\s*",
     "Assert-DocHasCurrentTestCounts",
+    "Get-CurrentDocumentationPaths",
+    "live-facts:start",
+    "Assert-VerifiedAgainstPathsExist",
+    "Assert-LiveFactsVerificationFreshness",
+    "git.Source -C",
     "verified_against",
     "modern-cpp-teaching-audit-report"
 )
@@ -120,6 +175,68 @@ foreach ($staleCount in @($testCountMatch.Groups[1].Value, $testCountMatch.Group
         throw "tools/check_doc_drift.ps1 must parse test counts dynamically instead of hard-coding $staleCount"
     }
 }
+
+function Invoke-CStylePositionBaselineSmokeTest {
+    $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("lua_c_style_quality_" + [guid]::NewGuid().ToString("N"))
+    New-Item -ItemType Directory -Path (Join-Path $tempRoot "src") -Force | Out-Null
+    New-Item -ItemType Directory -Path (Join-Path $tempRoot "tests") -Force | Out-Null
+    New-Item -ItemType Directory -Path (Join-Path $tempRoot "tools") -Force | Out-Null
+
+    try {
+        $probePath = Join-Path $tempRoot "src\probe.cpp"
+        [System.IO.File]::WriteAllText($probePath, @"
+void* findProbe(bool missing) {
+    if (missing) {
+        return nullptr;
+    }
+    return reinterpret_cast<void*>(1);
+}
+"@)
+
+        $guard = Join-RepoPath "tools/check_c_style_patterns.ps1"
+        & powershell -NoProfile -ExecutionPolicy Bypass -File $guard -Root $tempRoot -TestScope All -UpdateBaseline
+        if ($LASTEXITCODE -ne 0) {
+            throw "C-style baseline smoke could not generate its initial baseline"
+        }
+
+        [System.IO.File]::WriteAllText($probePath, @"
+void* findProbe(bool missing) {
+    if (!missing) {
+        return reinterpret_cast<void*>(1);
+    }
+
+    return nullptr;
+}
+"@)
+
+        $previousErrorActionPreference = $ErrorActionPreference
+        try {
+            $ErrorActionPreference = "Continue"
+            & powershell -NoProfile -ExecutionPolicy Bypass -File $guard -Root $tempRoot -TestScope Product *> $null
+            $movedMatchExitCode = $LASTEXITCODE
+        } finally {
+            $ErrorActionPreference = $previousErrorActionPreference
+        }
+        if ($movedMatchExitCode -eq 0) {
+            throw "C-style position baseline must reject moving a match while preserving its count"
+        }
+
+        & powershell -NoProfile -ExecutionPolicy Bypass -File $guard -Root $tempRoot -TestScope All -UpdateBaseline
+        if ($LASTEXITCODE -ne 0) {
+            throw "C-style baseline smoke could not accept an intentional baseline update"
+        }
+        & powershell -NoProfile -ExecutionPolicy Bypass -File $guard -Root $tempRoot -TestScope Product | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            throw "C-style position baseline did not pass after the intentional update"
+        }
+    } finally {
+        if (Test-Path -LiteralPath $tempRoot) {
+            Remove-Item -LiteralPath $tempRoot -Recurse -Force
+        }
+    }
+}
+
+Invoke-CStylePositionBaselineSmokeTest
 
 function Invoke-AddSourceSmokeTest {
     $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("lua_add_source_quality_" + [guid]::NewGuid().ToString("N"))

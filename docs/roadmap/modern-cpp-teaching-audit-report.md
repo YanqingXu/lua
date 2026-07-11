@@ -1,7 +1,7 @@
 ---
 status: current
 verified_against: docs/roadmap/c-style-refactoring-roadmap.md; src/compiler/ast_visitor.hpp; src/compiler/codegen/codegen_types.hpp; src/compiler/codegen/gc_allocation_guard.hpp; src/compiler/lexer/lexer.cpp; src/compiler/opcode.hpp; src/vm/vm.cpp; src/vm/vm_handlers.cpp; src/vm/vm_switch_dispatch.hpp; src/runtime/runtime_services.hpp; src/gc/garbage_collector.hpp; src/gc/garbage_collector.cpp; src/core/value.hpp; src/core/metatable.cpp; src/core/userdata.cpp; src/lib/lib_catalog.cpp; src/lib/lib_registry.cpp; src/lib/iolib.cpp; src/lib/packagelib.cpp; src/lib/stringlib.cpp; tools/run_quality_gate.ps1; tools/check_doc_drift.ps1; tools/check_c_style_patterns.ps1; tools/check_opcode_coverage_matrix.ps1
-last_checked: 2026-06-01
+last_checked: 2026-07-11
 applies_to: modern C++ teaching audit for src/ compiler, VM, runtime, and standard library modules
 ---
 
@@ -287,9 +287,10 @@ struct MatchState {
 
 ### 已做得好的部分
 
-- `tools/run_quality_gate.ps1` 顺序合理：format/tidy smoke、opcode matrix、ValueResult variant-only、C-style guard、MSBuild、doc drift、unit tests。
+- `tools/run_quality_gate.ps1` 顺序合理：format/tidy smoke、ValueResult variant-only、C-style guard、
+  MSBuild、opcode executable contract、doc drift、unit tests。
 - `check_doc_drift.ps1` 动态运行 `bin/lua_test.exe` 解析测试数量，避免 README/status 文档硬编码测试数漂移。
-- `check_opcode_coverage_matrix.ps1` 能捕获 opcode 增删、重排和 matrix 行缺失。
+- `check_opcode_coverage_matrix.ps1` 能捕获 opcode 增删、重排、matrix 行缺失和测试注册名漂移。
 - `check_value_result_variant_only.ps1` 能防止旧 `ValueResult` mirror 字段回流。
 - `.github/workflows/ci.yml` 在 PR/push 上运行 MSBuild、doc drift、quality gate smoke 和单元测试。
 
@@ -297,12 +298,10 @@ struct MatchState {
 
 | 等级 | 风险 | 说明 | 建议 |
 |---|---|---|---|
-| P1 | C-style guard 是数量门，不是位置门 | 当前 `AllowedCount` 只限制总数；移动或替换同数量违规不会失败。 | 使用 JSON allowlist 记录 `rule/path/line/text hash`，并提供 `-UpdateBaseline`；每次减少存量后自动 ratchet。 |
-| P1 | C-style guard 只扫 `src/` | 用户要求重点是 `src/`，但教学示范项目的 tests 也大量 `new/delete`。初学者经常从 tests 学写法。 | 新增 `-Scope Product|Tests|All`，默认 Product 严格，CI 额外对 Tests 做 warning 或逐步 ratchet。 |
-| P1 | opcode matrix 只证明“有一行” | 不证明 Positive path 里的测试名存在，不证明 metamethod path 与 `mayInvokeMetamethod` 一致。 | 给 matrix 增加机器可读 sidecar，或脚本解析 `tests/unit/*` 的注册测试名和 `opcodeMetadata()`。 |
+| 已收口 | C-style 位置漂移 | `tools/c_style_allowlist.json` 记录 `rule/path/line/textHash/rationale`，产品严格规则不再使用数量门；同数量换位置由配置烟测锁住。 | tests/advisory 已建立显式存量；后续按目录递减 495 个手工所有权位置。 |
+| 已收口 | opcode 测试引用漂移 | `opcode_coverage_contract.json` 为 38 条 opcode 记录 Positive / Boundary / Metamethod 测试 key，脚本通过 `lua_test.exe --list` 验证精确 ID 和源码路径。 | 若需要证明测试执行时真实命中对应 opcode，可再增加 handler hit bitmap；当前已证明测试注册和 metadata 契约。 |
 | P2 | clang-tidy smoke 覆盖面窄 | 当前只跑少量 preferred files，且 CI 中 `run_quality_gate.ps1 -SkipClangTidy`。 | 增加 nightly/all scope；PR 中至少对 changed source 执行 clang-tidy，MSVC 环境不具备时明确降级。 |
-| P2 | doc drift 核心文档列表硬编码 | `docs/roadmap/c-style-refactoring-roadmap.md` 和 `docs/compiler/codegen/*.md` 不在当前 core docs 列表中。 | 从 front matter 自动发现 `status: current` 文档并执行统一 header/verified_against 检查。 |
-| P2 | 文档 `verified_against` 只检查字段存在 | 不检查路径是否存在、日期是否过期、被验证文件是否改动后文档未更新。 | 增加 `verified_against` path existence 和 last commit timestamp 对比；允许 archived/historical 文档豁免。 |
+| 已收口 | current 文档发现与活动事实 | doc drift 会从 front matter 自动发现 `status: current` 文档，检查全部本地 `verified_against` 路径；`live-facts` 区块校验动态测试摘要、已删除兼容面和依赖提交日期。 | 历史完成记录保持 `status: historical`，避免历史数字被误当活动事实。 |
 | P3 | 质量门与覆盖率缺少量化覆盖 | README 有 coverage badge，但当前门禁没有 gcov/llvm-cov/OpenCppCoverage 产物。 | Windows 可接 OpenCppCoverage 或 VS coverage；先对 compiler/vm/lib 分模块输出函数/行覆盖趋势。 |
 
 ## 优先级路线图
@@ -310,12 +309,12 @@ struct MatchState {
 1. **P1-A：位置化 C-style baseline**
    - 把 `tools/check_c_style_patterns.ps1` 从 count gate 升级为 location-aware baseline。
    - 增加 raw array、`char* end`、`const char* const[]`、测试目录裸 `new/delete` 的 warning 规则。
-   - **完成记录：** 已加入 `AllowedMatches`、`WarningOnly` 和 `-TestScope Product|Tests|All`，产品裸 `new` 清零。
+   - **完成记录：** 已迁移到 JSON 位置基线和显式更新命令；产品裸 `new` 清零，GC delete / userdata free 的 owner 边界有专门 rationale，tests/advisory 可递减。
 
 2. **P1-B：VM opcode 单一事实源**
    - 让 opcode enum、metadata、handler table、switch dispatch、coverage matrix 共享同一 machine-readable contract。
    - 至少增加 `static_assert` 和脚本校验：metadata name/order/group/metamethod 与 matrix 一致。
-   - **完成记录：** `kOpcodeMetadata`、`kSwitchHandlers`、handler table 和 matrix 已分别受 compile-time/test/script 契约约束。
+   - **完成记录：** `kOpcodeMetadata`、`kSwitchHandlers`、handler table 和 matrix 已受 compile-time/test/script 契约约束；机器可读 sidecar 进一步锁住精确测试注册 ID、源码路径和 metamethod 适用性。
 
 3. **P1-C：Runtime 所有权收口**
    - 将 `LuaState::newState()` 的裸 `new` 包装到 `create()` / `UPtr` 入口。

@@ -1,7 +1,7 @@
 ---
 status: current
 verified_against: tools/build_rag_index.ps1; tools/search_rag_index.ps1; docs/knowledge/source-document-map.md; docs/roadmap/current.md; docs/vm/instruction-set.md; tools/check_doc_drift.ps1
-last_checked: 2026-06-13
+last_checked: 2026-07-11
 applies_to: local sparse-vector RAG knowledge base for this repository
 ---
 

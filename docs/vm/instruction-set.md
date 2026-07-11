@@ -1,7 +1,7 @@
 ---
 status: current
-verified_against: src/compiler/opcode.hpp; src/compiler/opcode.cpp; src/vm/vm.cpp; src/vm/vm_ops.cpp; src/vm/vm_call.cpp; src/vm/vm_table.cpp; src/vm/vm_frame.cpp; src/vm/vm_loop.cpp
-last_checked: 2026-05-19
+verified_against: src/compiler/opcode.hpp; src/compiler/opcode.cpp; src/vm/vm.cpp; src/vm/vm_dispatch.hpp; src/vm/vm_switch_dispatch.hpp; src/vm/vm_handlers.cpp; src/vm/vm_ops.cpp; src/vm/vm_call.cpp; src/vm/vm_table.cpp; src/vm/vm_frame.cpp; src/vm/vm_loop.cpp; tests/unit/vm/opcode_coverage_matrix.md; tools/check_opcode_coverage_matrix.ps1
+last_checked: 2026-07-11
 applies_to: current Lua 5.1-style VM opcode set
 ---
 

@@ -1,5 +1,5 @@
 {
-    "generated_at":  "2026-06-13T12:59:29+08:00",
+    "generated_at":  "2026-07-11T15:46:12+08:00",
     "generator":  "tools/build_rag_index.ps1",
     "vector_model":  "local-sparse-token-cjk-bigram-v1",
     "root":  "E:\\Programming2\\lua_in_cpp\\lua",
@@ -21,8 +21,8 @@
     "chunk_line_count":  80,
     "overlap_line_count":  12,
     "max_terms":  200,
-    "file_count":  417,
-    "chunk_count":  1336,
+    "file_count":  418,
+    "chunk_count":  1344,
     "high_weight_files":  [
                               {
                                   "path":  "docs/architecture/gc.md",
@@ -139,6 +139,12 @@
                   {
                       "path":  "docs/archive/research/deep-research-report.md",
                       "chunks":  7,
+                      "boost":  1,
+                      "kind":  "doc"
+                  },
+                  {
+                      "path":  "docs/archive/roadmap/optimization-history-through-pr78.md",
+                      "chunks":  28,
                       "boost":  1,
                       "kind":  "doc"
                   },
@@ -306,7 +312,7 @@
                   },
                   {
                       "path":  "docs/roadmap/current.md",
-                      "chunks":  28,
+                      "chunks":  2,
                       "boost":  4,
                       "kind":  "doc"
                   },
@@ -1662,7 +1668,7 @@
                   },
                   {
                       "path":  "src/compiler/codegen/statement_emitter.cpp",
-                      "chunks":  17,
+                      "chunks":  18,
                       "boost":  1,
                       "kind":  "source"
                   },
@@ -2532,13 +2538,13 @@
                   },
                   {
                       "path":  "tools/check_doc_drift.ps1",
-                      "chunks":  7,
+                      "chunks":  9,
                       "boost":  5,
                       "kind":  "tool"
                   },
                   {
                       "path":  "tools/check_opcode_coverage_matrix.ps1",
-                      "chunks":  4,
+                      "chunks":  6,
                       "boost":  1,
                       "kind":  "tool"
                   },
@@ -2556,7 +2562,7 @@
                   },
                   {
                       "path":  "tools/test_quality_gate.ps1",
-                      "chunks":  4,
+                      "chunks":  5,
                       "boost":  1,
                       "kind":  "tool"
                   }

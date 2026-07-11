@@ -1,7 +1,7 @@
 ---
 status: current
 verified_against: docs/status/project-status.md; docs/index.md; docs/guides/development.md; docs/vm/instruction-set.md; docs/knowledge/README.md; docs/ai/rag-knowledge-base.md; CMakeLists.txt; lua.slnx; lua.vcxproj; lua_app.vcxproj; lua_test.vcxproj; lua_bytecode.vcxproj
-last_checked: 2026-06-13
+last_checked: 2026-07-11
 applies_to: repository overview and contributor entry points
 ---
 
@@ -133,7 +133,7 @@ bin\lua_test.exe --filter "Symbol Binding"
 bin\lua_test.exe --report=junit
 ```
 
-测试运行器会在输出中报告真实测试数量和断言结果。最近一次完整绿跑为 668 registered tests / 3404 assertion results / 0 failures。动态测试统计和质量门状态请查看 [docs/status/project-status.md](docs/status/project-status.md)。
+测试运行器会在输出中报告真实测试数量和断言结果。最近一次完整绿跑为 668 registered tests / 3406 assertion results / 0 failures。动态测试统计和质量门状态请查看 [docs/status/project-status.md](docs/status/project-status.md)。
 
 ### CMake / CTest 辅助路径
 
