@@ -1,6 +1,6 @@
 ---
 status: current
-verified_against: docs/status/project-status.md; docs/guides/test-runner.md; tests/unit/framework/test_runner.cpp; tools/run_quality_gate.ps1; tools/check_doc_drift.ps1
+verified_against: docs/guides/test-runner.md; tests/unit/framework/test_runner.cpp; tools/run_quality_gate.ps1; tools/check_doc_drift.ps1; README.md
 last_checked: 2026-07-11
 applies_to: Chinese testing strategy overview
 ---
@@ -16,7 +16,7 @@ applies_to: Chinese testing strategy overview
        ╱ regression ╲        Lua 脚本回归测试
       ╱ Golden Tests ╲       vs 官方 Lua 输出对比
      ╱───────────────╲
-    ╱  Unit Tests     ╲      C++ 单元测试 (668 tests)
+    ╱  Unit Tests     ╲      C++ 单元测试
    ╱───────────────────╲
   ╱   Static Checks     ╲    编译器警告 /W4, static_assert
 ```
@@ -31,19 +31,9 @@ applies_to: Chinese testing strategy overview
   - 清晰的通过/失败报告
 ```
 
-## 3. 测试统计
+测试总数、断言总数和最近绿跑只在根目录 `README.md` 维护。
 
-```
-注册测试: 668
-断言结果: 3406
-通过率:   100% (3406/3406)
-失败测试: 0 (0 failures)
-
-编译: Release|x64 /W4 无警告
-平台: Windows + MSVC
-```
-
-## 4. 运行测试
+## 3. 运行测试
 
 ```bash
 # 编译

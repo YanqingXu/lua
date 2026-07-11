@@ -2,14 +2,14 @@
 status: current
 verified_against: src/bytecode/bytecode_main.cpp; src/bytecode/bytecode_printer.cpp; src/bytecode/bytecode_printer.hpp; lua_bytecode.vcxproj; CMakeLists.txt
 last_checked: 2026-05-23
-applies_to: lua_bytecode command-line tool status
+applies_to: lua_bytecode command-line interface and data flow
 ---
 
 # 字节码工具指南
 
 `lua_bytecode.exe` 编译 Lua 脚本并打印生成的 `Proto` 字节码。
 
-当前状态适用于字节码检查、轻量级字节码比较和控制流可视化：
+该工具适用于字节码检查、轻量级字节码比较和控制流可视化：
 
 - `src/bytecode/bytecode_main.cpp` 为 print / `--cfg` 模式读取一个脚本，或为 `--diff` 读取两个脚本，解析它们，生成 `Proto` 对象，并调用打印器 API。
 - `src/bytecode/bytecode_printer.cpp` 打印 Proto 头、解码后的指令（decoded instructions）、常量引用（constant references）、常量表（constant table），以及在完整模式下递归打印子 proto（recursive child protos in full mode）。
@@ -35,7 +35,7 @@ bin\lua_bytecode.exe examples\before.lua examples\after.lua --diff full
 
 `--cfg` 编译一个脚本并直接输出 Mermaid 语法。Plain `--cfg` 打印顶层 Proto CFG；`--cfg full` 也为子 Proto 输出兄弟子图。该图每个基本块使用一个节点，并标注边如 `fallthrough`、`jump`、`test jump`、`test fallthrough`、`prepare`、`loop`、`exit` 和 `return`。
 
-## 当前数据流
+## 数据流
 
 ```text
 脚本路径

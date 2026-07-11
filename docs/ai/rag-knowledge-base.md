@@ -1,6 +1,6 @@
 ---
 status: current
-verified_against: tools/build_rag_index.ps1; tools/search_rag_index.ps1; docs/knowledge/source-document-map.md; docs/roadmap/current.md; docs/vm/instruction-set.md; tools/check_doc_drift.ps1
+verified_against: tools/build_rag_index.ps1; tools/search_rag_index.ps1; docs/knowledge/source-document-map.md; docs/vm/instruction-set.md; tools/check_doc_drift.ps1; README.md
 last_checked: 2026-07-11
 applies_to: local sparse-vector RAG knowledge base for this repository
 ---
@@ -32,7 +32,7 @@ Generated files:
 ## Search
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File tools\search_rag_index.ps1 -Query "下次续接检查清单 文档漂移" -TopK 5
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\search_rag_index.ps1 -Query "README current facts 文档漂移" -TopK 5
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\search_rag_index.ps1 -Query "38 opcode instruction semantics" -TopK 5
 ```
 
@@ -44,10 +44,9 @@ The builder assigns higher retrieval weights to volatile coordination facts:
 
 | Boost | Path |
 |---|---|
-| 4.0 | `docs/roadmap/current.md` |
+| 4.0 | `README.md` |
 | 4.0 | `docs/vm/instruction-set.md` |
 | 5.0 | `tools/check_doc_drift.ps1` |
-| 3.0 | `docs/status/project-status.md` |
 | 2.5 | `docs/guides/development.md` |
 | 2.0 | `docs/compiler/codegen-responsibility-map.md` |
 | 2.0 | `docs/architecture/runtime-services.md` |
@@ -82,6 +81,6 @@ The vector is a normalized sparse term-weight map. English/code identifiers are 
 Before a code change, retrieve with two queries:
 
 1. A task query, such as `table metamethod __newindex VM handler`.
-2. A coordination query, such as `当前状态 下次续接检查清单 文档漂移`.
+2. A coordination query, such as `README 当前事实 文档漂移 质量门`.
 
 Then read the top source files and docs directly. After behavior changes, update docs and run `tools/check_doc_drift.ps1`.

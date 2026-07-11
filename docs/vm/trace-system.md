@@ -1,6 +1,6 @@
 ---
 status: current
-verified_against: docs/status/project-status.md; src/debug/trace_types.hpp; src/debug/trace_sink.hpp; src/debug/json_trace_sink.cpp; src/debug/value_serializer.cpp; src/vm/vm_trace.cpp; src/vm/vm.cpp; src/main.cpp; src/app/app_options.cpp; tests/unit/vm/test_vm_trace_debug.cpp
+verified_against: src/debug/trace_types.hpp; src/debug/trace_sink.hpp; src/debug/json_trace_sink.cpp; src/debug/value_serializer.cpp; src/vm/vm_trace.cpp; src/vm/vm.cpp; src/main.cpp; src/app/app_options.cpp; tests/unit/vm/test_vm_trace_debug.cpp; README.md
 last_checked: 2026-05-23
 applies_to: current JSONL VM trace system
 ---

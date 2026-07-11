@@ -1,6 +1,6 @@
 ---
 status: current
-verified_against: docs/status/project-status.md; README.md; docs/architecture/patterns.md; src/common/; src/core/; src/compiler/; src/vm/; src/gc/; src/lib/; src/runtime/runtime_services.hpp
+verified_against: README.md; docs/architecture/patterns.md; src/common/; src/core/; src/compiler/; src/vm/; src/gc/; src/lib/; src/runtime/runtime_services.hpp
 last_checked: 2026-05-23
 applies_to: current high-level architecture and source layout
 ---
@@ -112,7 +112,7 @@ CMake/CTest 作为辅助验证路径存在，构建 `lua_core`、`lua_app`、`lu
 
 ## 阅读地图
 
-- 当前事实：`docs/status/project-status.md`
+- 当前构建、测试和兼容性事实：`README.md`
 - 首次阅读路径：`docs/index.md`
 - 编译器详情：`docs/compiler/bytecode-generation.md`
 - 架构模式：`docs/architecture/patterns.md`

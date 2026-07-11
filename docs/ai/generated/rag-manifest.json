@@ -1,5 +1,5 @@
 {
-    "generated_at":  "2026-07-11T15:46:12+08:00",
+    "generated_at":  "2026-07-11T18:58:29+08:00",
     "generator":  "tools/build_rag_index.ps1",
     "vector_model":  "local-sparse-token-cjk-bigram-v1",
     "root":  "E:\\Programming2\\lua_in_cpp\\lua",
@@ -21,8 +21,8 @@
     "chunk_line_count":  80,
     "overlap_line_count":  12,
     "max_terms":  200,
-    "file_count":  418,
-    "chunk_count":  1344,
+    "file_count":  354,
+    "chunk_count":  1078,
     "high_weight_files":  [
                               {
                                   "path":  "docs/architecture/gc.md",
@@ -41,15 +41,11 @@
                                   "boost":  2.5
                               },
                               {
-                                  "path":  "docs/roadmap/current.md",
+                                  "path":  "docs/vm/instruction-set.md",
                                   "boost":  4
                               },
                               {
-                                  "path":  "docs/status/project-status.md",
-                                  "boost":  3
-                              },
-                              {
-                                  "path":  "docs/vm/instruction-set.md",
+                                  "path":  "README.md",
                                   "boost":  4
                               },
                               {
@@ -67,12 +63,6 @@
                   {
                       "path":  "docs/ai/rag-knowledge-base.md",
                       "chunks":  2,
-                      "boost":  1,
-                      "kind":  "doc"
-                  },
-                  {
-                      "path":  "docs/architecture/coroutine.md",
-                      "chunks":  20,
                       "boost":  1,
                       "kind":  "doc"
                   },
@@ -115,48 +105,6 @@
                   {
                       "path":  "docs/archive/history/exprdesc.md",
                       "chunks":  19,
-                      "boost":  1,
-                      "kind":  "doc"
-                  },
-                  {
-                      "path":  "docs/archive/refactors/refactor-expdesc-plan.md",
-                      "chunks":  15,
-                      "boost":  1,
-                      "kind":  "doc"
-                  },
-                  {
-                      "path":  "docs/archive/refactors/refactor-expdesc-pr-checklist.md",
-                      "chunks":  12,
-                      "boost":  1,
-                      "kind":  "doc"
-                  },
-                  {
-                      "path":  "docs/archive/refactors/refactor-singlepass-cleanup-plan.md",
-                      "chunks":  9,
-                      "boost":  1,
-                      "kind":  "doc"
-                  },
-                  {
-                      "path":  "docs/archive/research/deep-research-report.md",
-                      "chunks":  7,
-                      "boost":  1,
-                      "kind":  "doc"
-                  },
-                  {
-                      "path":  "docs/archive/roadmap/optimization-history-through-pr78.md",
-                      "chunks":  28,
-                      "boost":  1,
-                      "kind":  "doc"
-                  },
-                  {
-                      "path":  "docs/compatibility/lua51.md",
-                      "chunks":  2,
-                      "boost":  1,
-                      "kind":  "doc"
-                  },
-                  {
-                      "path":  "docs/compatibility/lua51-full-compatibility-audit.md",
-                      "chunks":  6,
                       "boost":  1,
                       "kind":  "doc"
                   },
@@ -305,277 +253,7 @@
                       "kind":  "doc"
                   },
                   {
-                      "path":  "docs/roadmap/c-style-refactoring-roadmap.md",
-                      "chunks":  11,
-                      "boost":  1,
-                      "kind":  "doc"
-                  },
-                  {
-                      "path":  "docs/roadmap/current.md",
-                      "chunks":  2,
-                      "boost":  4,
-                      "kind":  "doc"
-                  },
-                  {
-                      "path":  "docs/roadmap/future-architecture.md",
-                      "chunks":  32,
-                      "boost":  1,
-                      "kind":  "doc"
-                  },
-                  {
-                      "path":  "docs/roadmap/lua51-compatibility-next-stage.md",
-                      "chunks":  6,
-                      "boost":  1,
-                      "kind":  "doc"
-                  },
-                  {
-                      "path":  "docs/roadmap/modern-cpp-teaching-audit-report.md",
-                      "chunks":  6,
-                      "boost":  1,
-                      "kind":  "doc"
-                  },
-                  {
-                      "path":  "docs/roadmap/optimization_and_refactoring.md",
-                      "chunks":  10,
-                      "boost":  1,
-                      "kind":  "doc"
-                  },
-                  {
-                      "path":  "docs/status/project-status.md",
-                      "chunks":  3,
-                      "boost":  3,
-                      "kind":  "doc"
-                  },
-                  {
                       "path":  "docs/stdlib/overview.md",
-                      "chunks":  2,
-                      "boost":  1,
-                      "kind":  "doc"
-                  },
-                  {
-                      "path":  "docs/superpowers/plans/2026-05-20-pr-01-gc-split.md",
-                      "chunks":  9,
-                      "boost":  1,
-                      "kind":  "doc"
-                  },
-                  {
-                      "path":  "docs/superpowers/plans/2026-05-20-pr-02-vm-arith-split.md",
-                      "chunks":  2,
-                      "boost":  1,
-                      "kind":  "doc"
-                  },
-                  {
-                      "path":  "docs/superpowers/plans/2026-05-20-pr-03-error-hierarchy.md",
-                      "chunks":  1,
-                      "boost":  1,
-                      "kind":  "doc"
-                  },
-                  {
-                      "path":  "docs/superpowers/plans/2026-05-20-pr-04-ast-visitor.md",
-                      "chunks":  2,
-                      "boost":  1,
-                      "kind":  "doc"
-                  },
-                  {
-                      "path":  "docs/superpowers/plans/2026-05-20-pr-05-parser-expected.md",
-                      "chunks":  2,
-                      "boost":  1,
-                      "kind":  "doc"
-                  },
-                  {
-                      "path":  "docs/superpowers/plans/2026-05-20-pr-06-bytecode-output.md",
-                      "chunks":  3,
-                      "boost":  1,
-                      "kind":  "doc"
-                  },
-                  {
-                      "path":  "docs/superpowers/plans/2026-05-20-pr-07-repl-history-bytecode.md",
-                      "chunks":  1,
-                      "boost":  1,
-                      "kind":  "doc"
-                  },
-                  {
-                      "path":  "docs/superpowers/plans/2026-05-20-pr-08-gc-de-singleton.md",
-                      "chunks":  2,
-                      "boost":  1,
-                      "kind":  "doc"
-                  },
-                  {
-                      "path":  "docs/superpowers/plans/2026-05-20-pr-09-dispatch-strategy.md",
-                      "chunks":  2,
-                      "boost":  1,
-                      "kind":  "doc"
-                  },
-                  {
-                      "path":  "docs/superpowers/plans/2026-05-20-pr-10-hello-world-walkthrough.md",
-                      "chunks":  2,
-                      "boost":  1,
-                      "kind":  "doc"
-                  },
-                  {
-                      "path":  "docs/superpowers/plans/2026-05-20-pr-11-vm-handler-table.md",
-                      "chunks":  2,
-                      "boost":  1,
-                      "kind":  "doc"
-                  },
-                  {
-                      "path":  "docs/superpowers/plans/2026-05-20-pr-12-vm-global-upvalue-handlers.md",
-                      "chunks":  2,
-                      "boost":  1,
-                      "kind":  "doc"
-                  },
-                  {
-                      "path":  "docs/superpowers/plans/2026-05-20-pr-13-vm-table-handlers.md",
-                      "chunks":  1,
-                      "boost":  1,
-                      "kind":  "doc"
-                  },
-                  {
-                      "path":  "docs/superpowers/plans/2026-05-20-pr-14-vm-arithmetic-handlers.md",
-                      "chunks":  1,
-                      "boost":  1,
-                      "kind":  "doc"
-                  },
-                  {
-                      "path":  "docs/superpowers/plans/2026-05-20-pr-15-vm-unary-handlers.md",
-                      "chunks":  2,
-                      "boost":  1,
-                      "kind":  "doc"
-                  },
-                  {
-                      "path":  "docs/superpowers/plans/2026-05-20-pr-16-vm-comparison-branch-handlers.md",
-                      "chunks":  2,
-                      "boost":  1,
-                      "kind":  "doc"
-                  },
-                  {
-                      "path":  "docs/superpowers/plans/2026-05-20-pr-17-vm-loop-close-handlers.md",
-                      "chunks":  2,
-                      "boost":  1,
-                      "kind":  "doc"
-                  },
-                  {
-                      "path":  "docs/superpowers/plans/2026-05-20-pr-18-vm-closure-vararg-handlers.md",
-                      "chunks":  2,
-                      "boost":  1,
-                      "kind":  "doc"
-                  },
-                  {
-                      "path":  "docs/superpowers/plans/2026-05-21-pr-19-vm-call-return-handlers.md",
-                      "chunks":  2,
-                      "boost":  1,
-                      "kind":  "doc"
-                  },
-                  {
-                      "path":  "docs/superpowers/plans/2026-05-21-pr-20-vm-table-dispatch.md",
-                      "chunks":  2,
-                      "boost":  1,
-                      "kind":  "doc"
-                  },
-                  {
-                      "path":  "docs/superpowers/plans/2026-05-21-pr-21-vm-handlers-split.md",
-                      "chunks":  3,
-                      "boost":  1,
-                      "kind":  "doc"
-                  },
-                  {
-                      "path":  "docs/superpowers/plans/2026-05-21-pr-22-patterns-doc.md",
-                      "chunks":  2,
-                      "boost":  1,
-                      "kind":  "doc"
-                  },
-                  {
-                      "path":  "docs/superpowers/plans/2026-05-21-pr-23-codegen-expected.md",
-                      "chunks":  2,
-                      "boost":  1,
-                      "kind":  "doc"
-                  },
-                  {
-                      "path":  "docs/superpowers/plans/2026-05-21-pr-24-vm-expected.md",
-                      "chunks":  2,
-                      "boost":  1,
-                      "kind":  "doc"
-                  },
-                  {
-                      "path":  "docs/superpowers/plans/2026-05-21-pr-25-ast-visitor-concepts.md",
-                      "chunks":  2,
-                      "boost":  1,
-                      "kind":  "doc"
-                  },
-                  {
-                      "path":  "docs/superpowers/plans/2026-05-21-pr-26-bytecode-printer-format.md",
-                      "chunks":  2,
-                      "boost":  1,
-                      "kind":  "doc"
-                  },
-                  {
-                      "path":  "docs/superpowers/plans/2026-05-21-pr-27-debuglib-format.md",
-                      "chunks":  2,
-                      "boost":  1,
-                      "kind":  "doc"
-                  },
-                  {
-                      "path":  "docs/superpowers/plans/2026-05-21-pr-28-trace-json-format.md",
-                      "chunks":  2,
-                      "boost":  1,
-                      "kind":  "doc"
-                  },
-                  {
-                      "path":  "docs/superpowers/plans/2026-05-21-pr-29-repl-cli-format.md",
-                      "chunks":  2,
-                      "boost":  1,
-                      "kind":  "doc"
-                  },
-                  {
-                      "path":  "docs/superpowers/plans/2026-05-21-pr-30-bytecode-tool-format.md",
-                      "chunks":  3,
-                      "boost":  1,
-                      "kind":  "doc"
-                  },
-                  {
-                      "path":  "docs/superpowers/plans/2026-05-21-pr-31-nodiscard-boundaries.md",
-                      "chunks":  2,
-                      "boost":  1,
-                      "kind":  "doc"
-                  },
-                  {
-                      "path":  "docs/superpowers/plans/2026-05-21-pr-32-vm-instruction-span.md",
-                      "chunks":  2,
-                      "boost":  1,
-                      "kind":  "doc"
-                  },
-                  {
-                      "path":  "docs/superpowers/plans/2026-05-21-pr-33-opcode-metadata.md",
-                      "chunks":  2,
-                      "boost":  1,
-                      "kind":  "doc"
-                  },
-                  {
-                      "path":  "docs/superpowers/plans/2026-05-21-pr-34-parser-token-string-view.md",
-                      "chunks":  3,
-                      "boost":  1,
-                      "kind":  "doc"
-                  },
-                  {
-                      "path":  "docs/superpowers/plans/2026-05-21-pr-35-vm-loop-comments.md",
-                      "chunks":  2,
-                      "boost":  1,
-                      "kind":  "doc"
-                  },
-                  {
-                      "path":  "docs/superpowers/plans/2026-05-21-pr-36-gc-finalizer-comments.md",
-                      "chunks":  2,
-                      "boost":  1,
-                      "kind":  "doc"
-                  },
-                  {
-                      "path":  "docs/superpowers/plans/2026-05-21-pr-37-codegen-jump-comments.md",
-                      "chunks":  2,
-                      "boost":  1,
-                      "kind":  "doc"
-                  },
-                  {
-                      "path":  "docs/superpowers/plans/2026-05-21-pr-38-stage4-comment-placement.md",
                       "chunks":  2,
                       "boost":  1,
                       "kind":  "doc"
@@ -629,20 +307,8 @@
                       "kind":  "doc"
                   },
                   {
-                      "path":  "docs2/00-project-overview/02-current-status.md",
-                      "chunks":  2,
-                      "boost":  1,
-                      "kind":  "doc"
-                  },
-                  {
                       "path":  "docs2/00-project-overview/03-key-concepts.md",
                       "chunks":  3,
-                      "boost":  1,
-                      "kind":  "doc"
-                  },
-                  {
-                      "path":  "docs2/00-project-overview/04-ai-generated-code-takeover-plan.md",
-                      "chunks":  2,
                       "boost":  1,
                       "kind":  "doc"
                   },
@@ -1223,12 +889,6 @@
                       "kind":  "doc"
                   },
                   {
-                      "path":  "docs2/10-stdlib/09-stdlib-compatibility.md",
-                      "chunks":  1,
-                      "boost":  1,
-                      "kind":  "doc"
-                  },
-                  {
                       "path":  "docs2/11-error-debug-trace/00-overview.md",
                       "chunks":  1,
                       "boost":  1,
@@ -1337,42 +997,6 @@
                       "kind":  "doc"
                   },
                   {
-                      "path":  "docs2/13-compatibility/00-lua51-compatibility-goal.md",
-                      "chunks":  1,
-                      "boost":  1,
-                      "kind":  "doc"
-                  },
-                  {
-                      "path":  "docs2/13-compatibility/01-language-feature-matrix.md",
-                      "chunks":  1,
-                      "boost":  1,
-                      "kind":  "doc"
-                  },
-                  {
-                      "path":  "docs2/13-compatibility/03-behavior-differences.md",
-                      "chunks":  1,
-                      "boost":  1,
-                      "kind":  "doc"
-                  },
-                  {
-                      "path":  "docs2/13-compatibility/04-known-incompatibilities.md",
-                      "chunks":  1,
-                      "boost":  1,
-                      "kind":  "doc"
-                  },
-                  {
-                      "path":  "docs2/13-compatibility/05-compatibility-test-suite.md",
-                      "chunks":  1,
-                      "boost":  1,
-                      "kind":  "doc"
-                  },
-                  {
-                      "path":  "docs2/13-compatibility/06-compare-with-official-lua.md",
-                      "chunks":  1,
-                      "boost":  1,
-                      "kind":  "doc"
-                  },
-                  {
                       "path":  "docs2/14-testing/00-testing-strategy.md",
                       "chunks":  1,
                       "boost":  1,
@@ -1427,19 +1051,7 @@
                       "kind":  "doc"
                   },
                   {
-                      "path":  "docs2/15-engineering-guide/08-roadmap.md",
-                      "chunks":  1,
-                      "boost":  1,
-                      "kind":  "doc"
-                  },
-                  {
                       "path":  "docs2/16-learning-notes/00-my-mental-model.md",
-                      "chunks":  1,
-                      "boost":  1,
-                      "kind":  "doc"
-                  },
-                  {
-                      "path":  "docs2/16-learning-notes/02-things-i-do-not-understand-yet.md",
                       "chunks":  1,
                       "boost":  1,
                       "kind":  "doc"
@@ -2538,7 +2150,7 @@
                   },
                   {
                       "path":  "tools/check_doc_drift.ps1",
-                      "chunks":  9,
+                      "chunks":  8,
                       "boost":  5,
                       "kind":  "tool"
                   },

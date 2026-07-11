@@ -1,6 +1,6 @@
 ---
 status: historical
-verified_against: docs/status/project-status.md; docs/vm/trace-system.md; src/debug/; src/vm/vm.cpp
+verified_against: docs/vm/trace-system.md; src/debug/; src/vm/vm.cpp; README.md
 last_checked: 2026-05-18
 applies_to: archived VM trace brainstorming notes superseded by docs/vm/trace-system.md
 ---

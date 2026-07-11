@@ -48,10 +48,9 @@ function Normalize-RepoPath {
 }
 
 $HighWeightFiles = @{
-    "docs/roadmap/current.md" = 4.0
+    "README.md" = 4.0
     "docs/vm/instruction-set.md" = 4.0
     "tools/check_doc_drift.ps1" = 5.0
-    "docs/status/project-status.md" = 3.0
     "docs/guides/development.md" = 2.5
     "docs/compiler/codegen-responsibility-map.md" = 2.0
     "docs/architecture/runtime-services.md" = 2.0
@@ -84,17 +83,14 @@ function Get-RetrievalHints {
 
     $normalized = Normalize-RepoPath $RelativePath
     switch ($normalized) {
-        "docs/roadmap/current.md" {
-            return "roadmap current next checklist continuation resume handoff document drift quality gate check_doc_drift"
+        "README.md" {
+            return "current project facts build tests compatibility quality gate check_doc_drift"
         }
         "docs/vm/instruction-set.md" {
             return "vm instruction set opcode opcodes 38 semantics dispatch bytecode"
         }
         "tools/check_doc_drift.ps1" {
             return "document drift docs drift test counts front matter yaml status last_checked applies_to"
-        }
-        "docs/status/project-status.md" {
-            return "project status current facts test counts quality gate"
         }
         "docs/guides/development.md" {
             return "development guide code review cpp23 c++23 RAII variant quality gate"

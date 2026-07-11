@@ -16,7 +16,7 @@ applies_to: lua_test unit test executable
 - 报告通过/失败计数
 - 可选输出 JUnit XML
 
-最新记录的项目状态追踪在 `docs/status/project-status.md`。
+当前测试总数与质量门事实只在根目录 `README.md` 维护。
 
 ## 测试领域
 

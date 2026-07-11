@@ -1,6 +1,6 @@
 ---
 status: current
-verified_against: docs/status/project-status.md; docs/roadmap/current.md; lua.slnx; lua.vcxproj; lua_app.vcxproj; lua_bytecode.vcxproj; lua_test.vcxproj; CMakeLists.txt; tools/run_cmake_smoke.ps1; tools/add_source.ps1; tools/check_doc_drift.ps1; tools/test_quality_gate.ps1; tools/run_quality_gate.ps1; tests/unit/framework/test_runner.cpp
+verified_against: lua.slnx; lua.vcxproj; lua_app.vcxproj; lua_bytecode.vcxproj; lua_test.vcxproj; CMakeLists.txt; tools/run_cmake_smoke.ps1; tools/add_source.ps1; tools/check_doc_drift.ps1; tools/test_quality_gate.ps1; tools/run_quality_gate.ps1; tests/unit/framework/test_runner.cpp; README.md
 last_checked: 2026-07-11
 applies_to: current contributor workflow and coding conventions
 ---
@@ -26,7 +26,7 @@ applies_to: current contributor workflow and coding conventions
 
 ## 🛠️ 开发环境设置
 
-当前可复现主路径仍是 Windows + Visual Studio/MSBuild + `.vcxproj`。仓库根目录现在维护 `CMakeLists.txt`，CMake/CTest 是 secondary 辅助构建与测试路径，用于提前稳定未来跨平台入口；当前事实源见 `docs/status/project-status.md`。
+当前可复现主路径仍是 Windows + Visual Studio/MSBuild + `.vcxproj`。仓库根目录维护 `CMakeLists.txt`，CMake/CTest 是 secondary 辅助构建与测试路径；易变的构建和测试事实只在根目录 `README.md` 维护。
 
 ### 必需工具
 
@@ -681,5 +681,5 @@ gdb ./build/tests/test_value
 
 ---
 
-**下一步**：执行 `docs/roadmap/current.md` 的续接检查清单，并从其中第一个未完成任务继续。
+**维护入口**：先核对 `README.md`、`git status --short` 和质量门输出，再按涉及模块阅读对应技术文档。
 

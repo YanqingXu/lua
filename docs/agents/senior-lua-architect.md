@@ -1,7 +1,7 @@
 ---
 status: current
-verified_against: docs/roadmap/current.md; docs/guides/development.md; docs/knowledge/source-document-map.md; docs/ai/rag-knowledge-base.md; tools/check_doc_drift.ps1; tools/run_quality_gate.ps1
-last_checked: 2026-06-13
+verified_against: docs/guides/development.md; docs/knowledge/source-document-map.md; docs/ai/rag-knowledge-base.md; tools/check_doc_drift.ps1; tools/run_quality_gate.ps1; README.md
+last_checked: 2026-07-11
 applies_to: AI agent workflow for senior Lua interpreter architecture tasks
 ---
 
@@ -25,11 +25,10 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\test_quality_gate.ps1
 
 Then read:
 
-1. `docs/roadmap/current.md`
-2. `docs/status/project-status.md`
-3. `docs/guides/development.md`
-4. `docs/knowledge/source-document-map.md`
-5. `docs/vm/instruction-set.md` when VM or bytecode behavior is involved
+1. `README.md` for current project facts and compatibility boundaries
+2. `docs/guides/development.md`
+3. `docs/knowledge/source-document-map.md`
+4. `docs/vm/instruction-set.md` when VM or bytecode behavior is involved
 
 If `bin\lua_test.exe` is missing, build `lua_test.vcxproj` before treating doc drift as meaningful.
 
@@ -45,17 +44,16 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\search_rag_index.ps1 -
 Always include one coordination query:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File tools\search_rag_index.ps1 -Query "docs roadmap current next checklist document drift instruction set 38 opcodes" -TopK 8
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\search_rag_index.ps1 -Query "README current facts document drift instruction set 38 opcodes" -TopK 8
 ```
 
 Treat retrieved chunks as pointers. Open the source files and docs before editing.
 
 ## Task Continuation
 
-When continuing roadmap work:
+When continuing repository work:
 
-- Read the "下次续接检查清单" section in `docs/roadmap/current.md`.
-- Compare the checklist to `git status --short` and the current test/drift output.
+- Compare `README.md` current facts to `git status --short` and the current test/drift output.
 - Identify whether the next task changes behavior, docs only, tests only, or build metadata.
 - For behavior changes, choose a narrow validation set first, then the wider quality gate if the change touches shared contracts.
 
@@ -79,7 +77,7 @@ After any behavior-changing code edit:
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\check_doc_drift.ps1
 ```
 
-If the script reports stale test counts, update `README.md`, `docs/status/project-status.md`, and any affected docs2 status summaries. If behavior or module ownership changed, update `docs/knowledge/source-document-map.md` and regenerate the RAG index:
+If the script reports stale test counts, update `README.md`; other documents must not duplicate volatile test totals. If behavior or module ownership changed, update `docs/knowledge/source-document-map.md` and regenerate the RAG index:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\build_rag_index.ps1
@@ -99,4 +97,4 @@ When reporting results, lead with:
 2. What was validated.
 3. What remains risky or unverified.
 
-Avoid presenting staged official Lua smoke success as full Lua 5.1.5 equivalence. The compatibility boundary lives in `docs/compatibility/lua51-full-compatibility-audit.md` and `docs/roadmap/lua51-compatibility-next-stage.md`.
+Avoid presenting staged official Lua smoke success as full Lua 5.1.5 equivalence. The current compatibility boundary lives in `README.md`.

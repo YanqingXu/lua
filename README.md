@@ -1,15 +1,15 @@
 ---
 status: current
-verified_against: docs/status/project-status.md; docs/index.md; docs/guides/development.md; docs/vm/instruction-set.md; docs/knowledge/README.md; docs/ai/rag-knowledge-base.md; CMakeLists.txt; lua.slnx; lua.vcxproj; lua_app.vcxproj; lua_test.vcxproj; lua_bytecode.vcxproj
+verified_against: docs/index.md; docs/guides/development.md; docs/vm/instruction-set.md; docs/knowledge/README.md; docs/ai/rag-knowledge-base.md; CMakeLists.txt; lua.slnx; lua.vcxproj; lua_app.vcxproj; lua_test.vcxproj; lua_bytecode.vcxproj; tools/check_doc_drift.ps1; tools/run_quality_gate.ps1
 last_checked: 2026-07-11
-applies_to: repository overview and contributor entry points
+applies_to: repository overview, current project facts, and contributor entry points
 ---
 
 # 现代 C++ Lua 5.1.5 解释器
 
 本项目是一个使用现代 C++ 实现的 Lua 5.1.5 解释器，覆盖从源码解析到字节码生成、虚拟机执行、垃圾回收和标准库加载的完整运行链路。它不仅关注 Lua 5.1.5 的兼容实现，也定位为展示 C++17/23 工程实践、可读架构拆分和解释器内部机制的教学示范项目。
 
-项目面向希望研究 Lua 解释器内部机制、嵌入式语言运行时、现代 C++ 类型建模和虚拟机实现的开发者。工程持续以代码可读性、清晰边界和教学价值为核心质量目标，README 只保留稳定的用户入口和技术概览；构建状态、测试数字、兼容性差距和工程状态请以 [docs/status/project-status.md](docs/status/project-status.md) 为准。
+项目面向希望研究 Lua 解释器内部机制、嵌入式语言运行时、现代 C++ 类型建模和虚拟机实现的开发者。工程持续以代码可读性、清晰边界和教学价值为核心质量目标。为避免多份状态文档漂移，构建路径、测试数字、兼容性边界和质量门事实只在本 README 维护。
 
 [![C++](https://img.shields.io/badge/C%2B%2B-17%2F23-blue)]()[![Lua](https://img.shields.io/badge/Lua-5.1.5-blue)]()[![Platform](https://img.shields.io/badge/platform-Windows%20%2F%20MSVC-blue)]()[![License](https://img.shields.io/badge/license-MIT-green)]()
 
@@ -68,6 +68,13 @@ applies_to: repository overview and contributor entry points
 - 兼容性验证包含 Lua 5.1 官方测试套件的 staged smoke、项目内 Lua 回归脚本和 C++ 单元测试。
 - 项目包含复杂第三方 Lua 库 `alien-signals-in-lua` 的运行验证，用于检验闭包、元表、协程、模块加载、debug 反射和嵌套表操作等组合场景。
 
+当前兼容性边界：
+
+- 官方 Lua 5.1 suite 以 staged smoke 运行；通过不等于完整 Lua 5.1.5 等价。
+- `api.lua` / `code.lua` 仍缺少上游 `testC` helper 的完整覆盖。
+- binary chunk 当前使用项目本地格式，不声明与官方 Lua 5.1 chunk 双向互通。
+- `IncrementalGC` 和部分 singleton fallback 仍保留教学/兼容边界。
+
 ## 快速开始
 
 ### 环境要求
@@ -124,6 +131,14 @@ bin\lua_app.exe examples\metamethods.lua
 bin\lua_app.exe
 ```
 
+### 检查字节码
+
+```powershell
+bin\lua_bytecode.exe examples\control_flow.lua --cfg
+```
+
+更多打印、diff 和 Mermaid CFG 用法见 [字节码工具指南](docs/guides/bytecode-tool.md)。
+
 ### 运行测试
 
 ```powershell
@@ -133,11 +148,11 @@ bin\lua_test.exe --filter "Symbol Binding"
 bin\lua_test.exe --report=junit
 ```
 
-测试运行器会在输出中报告真实测试数量和断言结果。最近一次完整绿跑为 668 registered tests / 3406 assertion results / 0 failures。动态测试统计和质量门状态请查看 [docs/status/project-status.md](docs/status/project-status.md)。
+测试运行器会在输出中报告真实测试数量和断言结果。最近一次完整绿跑为 668 registered tests / 3406 assertion results / 0 failures；`tools/check_doc_drift.ps1` 会动态校验这组 README 数字。
 
 ### CMake / CTest 辅助路径
 
-CMake 是辅助构建路径，不替代主要的 Visual Studio/MSBuild 工作流：
+CMake 是 secondary（辅助）构建路径，不替代主要的 Visual Studio/MSBuild 工作流。相关维护脚本为 `tools/run_cmake_smoke.ps1` 和 `tools/add_source.ps1`：
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_cmake_smoke.ps1
@@ -231,7 +246,6 @@ README 是项目入口，不承载动态进度。深入理解学习路线、架�
 
 | 文档 | 内容 |
 |------|------|
-| [docs/status/project-status.md](docs/status/project-status.md) | 构建入口、测试状态、兼容性边界和质量门事实源 |
 | [docs/index.md](docs/index.md) | 新读者的推荐阅读顺序 |
 | [docs/learning-roadmap.md](docs/learning-roadmap.md) | 面向新开发者的学习路线图，串联 walkthrough、教学脚本、`lua_app` / `lua_bytecode` 工具和源码阅读入口 |
 | [docs/architecture/overview.md](docs/architecture/overview.md) | 架构分层、模块关系和执行链路总览 |
@@ -246,23 +260,17 @@ README 是项目入口，不承载动态进度。深入理解学习路线、架�
 | [docs/vm/instruction-set.md](docs/vm/instruction-set.md) | Lua 5.1 风格 VM 指令说明 |
 | [docs/vm/trace-system.md](docs/vm/trace-system.md) | VM trace 和 trace diff 机制 |
 | [docs/stdlib/overview.md](docs/stdlib/overview.md) | 标准库 catalog、注册方式和兼容性说明 |
-| [docs/compatibility/lua51.md](docs/compatibility/lua51.md) | Lua 5.1 兼容性分章节记录 |
-| [docs/compatibility/lua51-full-compatibility-audit.md](docs/compatibility/lua51-full-compatibility-audit.md) | 完整兼容性审计 |
-| [docs/roadmap/lua51-compatibility-next-stage.md](docs/roadmap/lua51-compatibility-next-stage.md) | 后续兼容性工作入口 |
-| [docs/roadmap/optimization_and_refactoring.md](docs/roadmap/optimization_and_refactoring.md) | 可读性、现代 C++ 应用和教学价值的工程质量路线 |
 | [examples/README.md](examples/README.md) | 示例脚本运行说明 |
 
 推荐阅读路径：
 
 ```text
 README
-  -> docs/status/project-status.md
   -> docs/index.md
   -> docs/learning-roadmap.md
   -> docs/architecture/overview.md
   -> docs/walkthroughs/hello-world.md
   -> docs/guides/development.md
-  -> docs/compatibility/lua51.md
 ```
 
 ## 子项目说明
@@ -331,11 +339,13 @@ using ValueData = std::variant<
 - CRTP visitor 和 concepts 用于 AST 访问覆盖检查，使新增节点时的遗漏更早暴露在编译期。
 - `RuntimeServices` / `EngineContext` 显式传递运行时依赖，降低全局单例对阅读、测试和嵌入式场景的干扰。
 
-这些约定与 [docs/roadmap/optimization_and_refactoring.md](docs/roadmap/optimization_and_refactoring.md) 中“可读性、现代 C++ 应用、教学价值”的质量目标保持一致：代码应尽量让读者看见边界、看见数据流，也看见失败路径。
+这些约定服务于仓库“可读性、现代 C++ 应用、教学价值”的目标：代码应尽量让读者看见边界、看见数据流，也看见失败路径。
 
 ### 质量门
 
 常用验证入口：
+
+质量门统一编排 `clang-format`、`clang-tidy`、文档漂移检查和测试执行，并由 GitHub Actions 在持续集成中复用；`tools/run_quality_gate.ps1` 是本地与 CI 的共同入口。
 
 ```powershell
 bin\lua_test.exe

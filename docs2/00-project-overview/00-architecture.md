@@ -1,6 +1,6 @@
 ---
 status: current
-verified_against: docs/architecture/overview.md; docs/status/project-status.md; docs/vm/instruction-set.md; docs/architecture/runtime-services.md; docs/architecture/gc.md; docs2/02-source-code-map/00-directory-map.md
+verified_against: docs/architecture/overview.md; docs/vm/instruction-set.md; docs/architecture/runtime-services.md; docs/architecture/gc.md; docs2/02-source-code-map/00-directory-map.md; README.md
 last_checked: 2026-06-13
 applies_to: Chinese high-level architecture overview
 ---
@@ -103,8 +103,8 @@ VM::executeProto()        — Proto → 执行
 - **兼容目标**：Lua 5.1.5 语法和核心语义
 - **技术路线**：现代 C++ (C++17/23)，MSVC + CMake
 - **设计理念**：可读性 > 极限性能
-- **当前进度**：约 95% 核心功能完成，668 个测试全绿
-- **代码规模**：约 19k 行有效代码，89 个源文件
+
+构建、测试与兼容性边界等会变化的项目事实统一由根目录 `README.md` 维护。
 
 ## 7. 三层架构
 

@@ -1,6 +1,6 @@
 ---
 status: current
-verified_against: docs/index.md; docs/status/project-status.md; docs/knowledge/README.md; docs/knowledge/source-document-map.md; docs2/00-project-overview/00-architecture.md; docs2/02-source-code-map/00-directory-map.md
+verified_against: docs/index.md; docs/knowledge/README.md; docs/knowledge/source-document-map.md; docs2/00-project-overview/00-architecture.md; docs2/02-source-code-map/00-directory-map.md; README.md
 last_checked: 2026-06-13
 applies_to: Chinese architecture-understanding documentation entry point
 ---
@@ -26,10 +26,9 @@ applies_to: Chinese architecture-understanding documentation entry point
 11. [10-stdlib/00-overview.md](10-stdlib/00-overview.md) — 标准库
 12. [11-error-debug-trace/00-overview.md](11-error-debug-trace/00-overview.md) — 错误处理与调试
 13. [12-gc-memory/00-overview.md](12-gc-memory/00-overview.md) — GC 与内存管理
-14. [13-compatibility/00-lua51-compatibility-goal.md](13-compatibility/00-lua51-compatibility-goal.md) — Lua 5.1 兼容性
-15. [14-testing/00-testing-strategy.md](14-testing/00-testing-strategy.md) — 测试体系
-16. [15-engineering-guide/00-build-and-run.md](15-engineering-guide/00-build-and-run.md) — 工程开发指南
-17. [16-learning-notes/00-my-mental-model.md](16-learning-notes/00-my-mental-model.md) — 个人学习笔记
+14. [14-testing/00-testing-strategy.md](14-testing/00-testing-strategy.md) — 测试体系
+15. [15-engineering-guide/00-build-and-run.md](15-engineering-guide/00-build-and-run.md) — 工程开发指南
+16. [16-learning-notes/00-my-mental-model.md](16-learning-notes/00-my-mental-model.md) — 个人学习笔记
 
 ## 文档目标
 
@@ -45,7 +44,7 @@ applies_to: Chinese architecture-understanding documentation entry point
 
 | 目录 | 说明 |
 |------|------|
-| [00-project-overview/](00-project-overview/) | 架构总览、设计目标、当前状态 |
+| [00-project-overview/](00-project-overview/) | 架构总览与设计目标 |
 | [01-execution-pipeline/](01-execution-pipeline/) | 完整执行链路追踪 |
 | [02-source-code-map/](02-source-code-map/) | 源码目录地图与定位指南 |
 | [06-value-object-system/](06-value-object-system/) | Value/Table/Function 对象系统 |
@@ -64,7 +63,6 @@ applies_to: Chinese architecture-understanding documentation entry point
 
 | 目录 | 说明 |
 |------|------|
-| [13-compatibility/](13-compatibility/) | Lua 5.1 兼容性矩阵 |
 | [14-testing/](14-testing/) | Golden Test、回归测试策略 |
 | [12-gc-memory/](12-gc-memory/) | 已知限制 |
 
@@ -73,6 +71,6 @@ applies_to: Chinese architecture-understanding documentation entry point
 - **新人第一份文档** → [01-execution-pipeline/08-full-trace-example.md](01-execution-pipeline/08-full-trace-example.md)
 - **想改代码不知道在哪** → [02-source-code-map/05-change-location-guide.md](02-source-code-map/05-change-location-guide.md)
 - **遇到 Bug 不知道怎么排查** → [11-error-debug-trace/08-troubleshooting-guide.md](11-error-debug-trace/08-troubleshooting-guide.md)
-- **想了解当前能力边界** → [13-compatibility/01-language-feature-matrix.md](13-compatibility/01-language-feature-matrix.md)
+- **想了解当前能力边界** → [../README.md](../README.md)
 - **想让 AI 续接任务** → [../docs/agents/senior-lua-architect.md](../docs/agents/senior-lua-architect.md)
 - **想查源码和文档映射** → [../docs/knowledge/source-document-map.md](../docs/knowledge/source-document-map.md)

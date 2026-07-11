@@ -1,7 +1,7 @@
 ---
 status: current
-verified_against: docs/status/project-status.md; docs/guides/development.md; docs/architecture/patterns.md; docs/walkthroughs/index.md; docs/walkthroughs/gc-cycle.md; docs/glossary.md; docs/compatibility/lua51.md; docs/roadmap/lua51-compatibility-next-stage.md; docs/knowledge/README.md; docs/knowledge/source-document-map.md; docs/ai/rag-knowledge-base.md; docs/agents/senior-lua-architect.md; examples/README.md
-last_checked: 2026-05-31
+verified_against: docs/guides/development.md; docs/architecture/patterns.md; docs/walkthroughs/index.md; docs/walkthroughs/gc-cycle.md; docs/glossary.md; docs/knowledge/README.md; docs/knowledge/source-document-map.md; docs/ai/rag-knowledge-base.md; docs/agents/senior-lua-architect.md; examples/README.md; README.md
+last_checked: 2026-07-11
 applies_to: first-read learning path for contributors and readers
 ---
 
@@ -13,9 +13,8 @@ applies_to: first-read learning path for contributors and readers
 
 ## 10 分钟了解现状
 
-1. 读 `docs/status/project-status.md`，确认当前构建入口、测试数量和已实现的运行时边界。
-2. 读 README 的项目概览，不要把旧的规划项当作当前事实。
-3. 读 `docs/guides/development.md`，按 Windows / MSBuild 路径构建和验证。
+1. 读根目录 `README.md`，确认当前构建入口、测试数量、兼容性边界和质量门事实。
+2. 读 `docs/guides/development.md`，按 Windows / MSBuild 路径构建和验证。
 
 常用命令：
 
@@ -47,18 +46,13 @@ bin\lua_test.exe --filter "Symbol Binding"
 
 1. `docs/glossary.md`：把 Lua 术语和仓库类名对齐。
 2. `docs/architecture/overview.md`：确认源码分层和四个构建目标。
-3. `docs/architecture/patterns.md`：确认哪些设计模式已经落地，哪些仍只是路线图目标。
+3. `docs/architecture/patterns.md`：理解当前设计模式和适用边界。
 4. `docs/compiler/bytecode-generation.md`：理解当前编译管线。
 5. `docs/vm/instruction-set.md`：理解 VM 指令集。
 6. `docs/walkthroughs/index.md`：从测试反推实现。
 7. `examples/README.md`：运行小脚本，观察解释器行为。
 
-## 下一阶段计划
-
-- `docs/compatibility/lua51.md`：按 Lua 5.1 手册章节记录当前兼容状态、测试证据和已知 partial/deferred 边界。
-- `docs/roadmap/lua51-compatibility-next-stage.md`：官方 Lua 5.1 staged smoke 全绿之后的兼容性补完记录，按 P0/P1/P2/P3 分阶段追踪标准库、VM、GC、C API helper 和运行时隔离任务。
-
-对应的实现主线是：
+解释器实现主线是：
 
 ```text
 source text

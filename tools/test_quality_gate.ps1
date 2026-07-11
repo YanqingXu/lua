@@ -160,14 +160,14 @@ Assert-FileContains "tools/check_doc_drift.ps1" @(
     "Assert-LiveFactsVerificationFreshness",
     "git.Source -C",
     "verified_against",
-    "modern-cpp-teaching-audit-report"
+    "README\.md"
 )
 
 $docDriftScript = Get-Content -LiteralPath (Join-RepoPath "tools/check_doc_drift.ps1") -Raw
-$statusDoc = Get-Content -LiteralPath (Join-RepoPath "docs/status/project-status.md") -Raw
-$testCountMatch = [regex]::Match($statusDoc, "(\d+)\D+registered tests\D+(\d+)\D+assertion results")
+$currentFactsDoc = Get-Content -LiteralPath (Join-RepoPath "README.md") -Raw
+$testCountMatch = [regex]::Match($currentFactsDoc, "(\d+)\D+registered tests\D+(\d+)\D+assertion results")
 if (-not $testCountMatch.Success) {
-    throw "docs/status/project-status.md is missing parseable test count facts"
+    throw "README.md is missing parseable test count facts"
 }
 
 foreach ($staleCount in @($testCountMatch.Groups[1].Value, $testCountMatch.Groups[2].Value)) {
@@ -323,7 +323,7 @@ Assert-FileContains ".github/workflows/ci.yml" @(
     "bin\\lua_test\.exe"
 )
 
-Assert-FileContains "docs/status/project-status.md" @(
+Assert-FileContains "README.md" @(
     "clang-format",
     "clang-tidy",
     "GitHub Actions",

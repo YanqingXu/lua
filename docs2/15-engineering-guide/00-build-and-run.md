@@ -1,6 +1,6 @@
 ---
 status: current
-verified_against: docs/guides/development.md; docs/status/project-status.md; CMakeLists.txt; lua.slnx; lua.vcxproj; lua_app.vcxproj; lua_test.vcxproj; lua_bytecode.vcxproj
+verified_against: docs/guides/development.md; CMakeLists.txt; lua.slnx; lua.vcxproj; lua_app.vcxproj; lua_test.vcxproj; lua_bytecode.vcxproj; README.md
 last_checked: 2026-06-13
 applies_to: Chinese build and run guide
 ---

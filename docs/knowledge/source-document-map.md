@@ -30,9 +30,9 @@ Each row above has at least one deep technical document and one Chinese orientat
 | Change values, tables, closures, or upvalues | `src/core/`, `src/vm/vm_call.cpp`, `src/vm/vm_frame.cpp` | `docs/architecture/overview.md`, `docs/architecture/runtime-services.md`, `docs2/06-value-object-system/00-overview.md`, `docs2/08-function-call-closure/00-overview.md` | Core, metamethod, function-call, and regression tests |
 | Change standard library behavior | `src/lib/`, `src/api/lapi.cpp` | `docs/stdlib/overview.md`, `docs/guides/development.md`, `docs2/10-stdlib/00-overview.md` | `tests/unit/stdlib/`, `tests/lua/stdlib/`, official suite slice |
 | Change GC behavior | `src/gc/`, `src/core/gc_object.*`, `src/core/string_pool.*` | `docs/architecture/gc.md`, `docs/walkthroughs/gc-cycle.md`, `docs2/12-gc-memory/00-overview.md` | `tests/unit/gc/test_gc.cpp`, GC stdlib tests, official `gc.lua` |
-| Change build or source lists | `CMakeLists.txt`, `*.vcxproj`, `*.vcxproj.filters` | `docs/guides/development.md`, `docs/status/project-status.md` | `tools/add_source.ps1`, `tools/test_quality_gate.ps1` |
-| Change docs or status | `docs/`, `docs2/`, `README.md` | `docs/knowledge/README.md`, `docs/roadmap/current.md`, `tools/check_doc_drift.ps1` | `tools/check_doc_drift.ps1` |
-| Change C-style compatibility boundaries | `src/`, `tests/` | `docs/roadmap/modern-cpp-teaching-audit-report.md`, `tools/c_style_allowlist.json` | `tools/check_c_style_patterns.ps1 -TestScope All` |
+| Change build or source lists | `CMakeLists.txt`, `*.vcxproj`, `*.vcxproj.filters` | `README.md`, `docs/guides/development.md` | `tools/add_source.ps1`, `tools/test_quality_gate.ps1` |
+| Change current facts | `README.md` | `docs/knowledge/README.md`, `tools/check_doc_drift.ps1` | `tools/check_doc_drift.ps1` |
+| Change C-style compatibility boundaries | `src/`, `tests/` | `tools/c_style_allowlist.json` | `tools/check_c_style_patterns.ps1 -TestScope All` |
 
 ## Retrieval Priority
 
@@ -40,10 +40,9 @@ Agents should boost these documents above ordinary chunks because they encode vo
 
 | Priority | Path | Why |
 |---|---|---|
-| Critical | `docs/roadmap/current.md` | Continuation checklist, current roadmap state, required validation commands |
+| Critical | `README.md` | Current build, test, compatibility, and quality-gate facts |
 | Critical | `docs/vm/instruction-set.md` | Current 38-opcode VM contract and instruction semantics |
 | Critical | `tools/check_doc_drift.ps1` | Executable definition of documentation drift rules |
-| High | `docs/status/project-status.md` | Current build/test/quality state and source-of-truth facts |
 | High | `docs/guides/development.md` | Coding, build, and validation workflow |
 | High | `docs/compiler/codegen-responsibility-map.md` | Current compiler split and characterization guardrails |
 | High | `docs/architecture/runtime-services.md` | Explicit runtime-service boundary and singleton exceptions |

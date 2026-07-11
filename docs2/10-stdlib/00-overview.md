@@ -1,6 +1,6 @@
 ---
 status: current
-verified_against: docs/stdlib/overview.md; docs/status/project-status.md; src/lib/; tests/unit/stdlib/
+verified_against: docs/stdlib/overview.md; src/lib/; tests/unit/stdlib/; README.md
 last_checked: 2026-06-13
 applies_to: Chinese standard-library overview
 ---
@@ -9,17 +9,17 @@ applies_to: Chinese standard-library overview
 
 ## 1. 标准库清单
 
-| 库 | 文件 | 函数数 | 完成度 |
-|----|------|--------|--------|
-| **Base** | `baselib.cpp` | ~30 | ✅ 97% |
-| **Math** | `mathlib.cpp` | 28/28 | ✅ 100% |
-| **String** | `stringlib.cpp` | 14/14 | ✅ 95% |
-| **Table** | `tablelib.cpp` | ~10 | ✅ 97% |
-| **I/O** | `iolib.cpp` | 11+7方法 | ✅ 97% |
-| **OS** | `oslib.cpp` | 11/11 | ✅ 97% |
-| **Coroutine** | `coroutinelib.cpp` | 6/6 | ✅ 100% |
-| **Debug** | `debuglib.cpp` | 14/14 | 🔄 94% |
-| **Package** | `packagelib.cpp` | require/module | ✅ 98% |
+| 库 | 文件 | 主要入口 |
+|----|------|----------|
+| **Base** | `baselib.cpp` | 全局基础函数 |
+| **Math** | `mathlib.cpp` | `math` 表 |
+| **String** | `stringlib.cpp` | `string` 表与字符串元方法 |
+| **Table** | `tablelib.cpp` | `table` 表 |
+| **I/O** | `iolib.cpp` | `io` 表与文件方法 |
+| **OS** | `oslib.cpp` | `os` 表 |
+| **Coroutine** | `coroutinelib.cpp` | `coroutine` 表 |
+| **Debug** | `debuglib.cpp` | `debug` 表 |
+| **Package** | `packagelib.cpp` | `require` / `module` / loader |
 
 ## 2. C 函数注册模式
 

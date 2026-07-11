@@ -231,7 +231,7 @@ bin\lua_test.exe
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\check_doc_drift.ps1
 ```
 
-这个脚本用于检查文档中的关键事实是否与当前工程入口、测试统计和构建配置保持一致。修改 README、状态文档、路线图或项目文件后，建议运行一次。
+这个脚本用于检查文档中的关键事实是否与当前工程入口、测试统计和构建配置保持一致。修改 README、技术文档或项目文件后，建议运行一次。
 
 ### 推荐的日常学习循环
 

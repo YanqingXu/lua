@@ -1,6 +1,6 @@
 ---
 status: current
-verified_against: tests/unit/framework/test_runner.cpp; tests/unit/framework/test_framework.hpp; lua_test.vcxproj; CMakeLists.txt; tools/add_source.ps1; docs/status/project-status.md
+verified_against: tests/unit/framework/test_runner.cpp; tests/unit/framework/test_framework.hpp; lua_test.vcxproj; CMakeLists.txt; tools/add_source.ps1; README.md
 last_checked: 2026-06-02
 applies_to: lua_test executable usage and extension
 ---

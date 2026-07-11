@@ -1,6 +1,6 @@
 ---
 status: historical
-verified_against: docs/archive/refactors/refactor-expdesc-pr-checklist.md; src/compiler/codegen_types.hpp; src/compiler/codegen.hpp
+verified_against: src/compiler/codegen_types.hpp; src/compiler/codegen.hpp; README.md
 last_checked: 2026-05-18
 applies_to: removed legacy ExprDesc/ExprKind bytecode-generation design
 ---
