@@ -227,6 +227,10 @@ if(LUA_CPP_BUILD_TOOLS)
         src/bytecode/bytecode_main.cpp
         src/bytecode/bytecode_printer.cpp
     )
+
+    add_executable(lua_embedding_example examples/embedding.cpp)
+    target_link_libraries(lua_embedding_example PRIVATE lua_core)
+    target_include_directories(lua_embedding_example PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
     target_link_libraries(lua_bytecode PRIVATE lua_core)
     target_include_directories(lua_bytecode PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
@@ -234,8 +238,10 @@ if(LUA_CPP_BUILD_TOOLS)
 
     lua_configure_target_warnings(lua_app)
     lua_configure_target_warnings(lua_bytecode)
+    lua_configure_target_warnings(lua_embedding_example)
     lua_configure_runtime_stack(lua_app)
     lua_configure_runtime_stack(lua_bytecode)
+    lua_configure_runtime_stack(lua_embedding_example)
 endif()
 
 include(CTest)
@@ -289,11 +295,13 @@ if(BUILD_TESTING AND LUA_CPP_BUILD_TESTS)
         add_test(NAME example_control_flow COMMAND $<TARGET_FILE:lua_app> ${CMAKE_CURRENT_SOURCE_DIR}/examples/control_flow.lua)
         add_test(NAME example_tables_and_methods COMMAND $<TARGET_FILE:lua_app> ${CMAKE_CURRENT_SOURCE_DIR}/examples/tables_and_methods.lua)
         add_test(NAME example_metamethods COMMAND $<TARGET_FILE:lua_app> ${CMAKE_CURRENT_SOURCE_DIR}/examples/metamethods.lua)
+        add_test(NAME example_embedding COMMAND $<TARGET_FILE:lua_embedding_example>)
         set_tests_properties(
             example_hello
             example_control_flow
             example_tables_and_methods
             example_metamethods
+            example_embedding
             PROPERTIES
                 LABELS examples
                 WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}

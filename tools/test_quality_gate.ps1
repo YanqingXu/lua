@@ -364,7 +364,16 @@ Assert-FileContains ".github/workflows/ci.yml" @(
 Assert-FileContains "CMakeLists.txt" @(
     "LUA_CPP_SANITIZER",
     "-fsanitize=\$\{LUA_CPP_SANITIZER\}",
-    "-fno-omit-frame-pointer"
+    "-fno-omit-frame-pointer",
+    "lua_embedding_example",
+    "example_embedding"
+)
+
+Assert-FileContains "examples/embedding.cpp" @(
+    "luaL_loadbuffer",
+    "lua_pcall",
+    "host_double",
+    "embedding result: 42"
 )
 
 Assert-FileContains "tools/check_lua51_official_sources.ps1" @(

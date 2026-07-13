@@ -7,13 +7,18 @@
 #include "core/thread.hpp"
 #include "core/upvalue.hpp"
 #include "lua.h"
+#include "lauxlib.h"
 #include "lualib.h"
 #include "runtime/runtime_services.hpp"
 #include "vm/state/lua_state.hpp"
 
 #include <cstdint>
 #include <cstdlib>
+#include <cstring>
+#include <filesystem>
+#include <fstream>
 #include <stdexcept>
+#include <string>
 #include <unordered_map>
 
 using namespace LuaTest;
@@ -205,6 +210,28 @@ int allocateApiUserdata(lua_State* L) {
     }
     lua_newuserdata(L, 48);
     return 1;
+}
+
+int appendDumpChunk(lua_State*, const void* bytes, size_t size, void* userData) {
+    auto* output = static_cast<std::string*>(userData);
+    output->append(static_cast<const char*>(bytes), size);
+    return 0;
+}
+
+struct ReaderProbe {
+    const char* pieces[3] = {"return ", "6 * ", "7"};
+    size_t index = 0;
+};
+
+const char* readProbeChunk(lua_State*, void* userData, size_t* size) {
+    auto* probe = static_cast<ReaderProbe*>(userData);
+    if (probe->index >= 3) {
+        *size = 0;
+        return nullptr;
+    }
+    const char* piece = probe->pieces[probe->index++];
+    *size = std::strlen(piece);
+    return piece;
 }
 
 void testStackAndInvalidIndexes(TestSuite& suite) {
@@ -809,6 +836,83 @@ void testCustomAllocatorLifecycle(TestSuite& suite) {
               "custom allocator allocations and frees balance");
 }
 
+void testLoadDumpAndAuxiliaryLoaders(TestSuite& suite) {
+    lua_State* L = lua_open();
+
+    constexpr const char* source = "return 40 + 2";
+    ASSERT_EQ(suite, LUA_OK, luaL_loadbuffer(L, source, std::strlen(source), "=loadbuffer"),
+              "luaL_loadbuffer compiles source without opening libraries");
+    ASSERT_TRUE(suite, lua_isfunction(L, -1) != 0, "luaL_loadbuffer pushes a Lua function");
+
+    std::string binary;
+    ASSERT_EQ(suite, 0, lua_dump(L, appendDumpChunk, &binary), "lua_dump writes the project-local binary chunk");
+    ASSERT_EQ(suite, 1, lua_gettop(L), "lua_dump preserves the source function on the stack");
+    ASSERT_TRUE(suite, binary.size() > 12, "lua_dump emits a non-empty chunk payload");
+
+    ASSERT_EQ(suite, LUA_OK, lua_pcall(L, 0, 1, 0), "loaded source function executes");
+    ASSERT_EQ(suite, 42.0, lua_tonumber(L, -1), "loaded source function returns expected value");
+    lua_settop(L, 0);
+
+    ASSERT_EQ(suite, LUA_OK, luaL_loadbuffer(L, binary.data(), binary.size(), "=binary"),
+              "luaL_loadbuffer accepts lua_dump output");
+    ASSERT_EQ(suite, LUA_OK, lua_pcall(L, 0, 1, 0), "binary chunk executes");
+    ASSERT_EQ(suite, 42.0, lua_tonumber(L, -1), "binary chunk preserves return value");
+    lua_settop(L, 0);
+
+    ReaderProbe reader;
+    ASSERT_EQ(suite, LUA_OK, lua_load(L, readProbeChunk, &reader, "=reader"), "lua_load concatenates reader chunks");
+    ASSERT_EQ(suite, LUA_OK, lua_pcall(L, 0, 1, 0), "reader-loaded function executes");
+    ASSERT_EQ(suite, 42.0, lua_tonumber(L, -1), "reader-loaded function returns expected value");
+    lua_settop(L, 0);
+
+    const std::filesystem::path filePath = std::filesystem::temp_directory_path() / "lua_cpp_c_api_loadfile.lua";
+    {
+        std::ofstream file(filePath, std::ios::binary | std::ios::trunc);
+        file << "return 42";
+    }
+    ASSERT_EQ(suite, LUA_OK, luaL_loadfile(L, filePath.string().c_str()), "luaL_loadfile compiles a script file");
+    ASSERT_EQ(suite, LUA_OK, lua_pcall(L, 0, 1, 0), "file-loaded function executes");
+    ASSERT_EQ(suite, 42.0, lua_tonumber(L, -1), "file-loaded function returns expected value");
+    std::filesystem::remove(filePath);
+    lua_settop(L, 0);
+
+    ASSERT_EQ(suite, LUA_ERRSYNTAX, luaL_loadstring(L, "return +"),
+              "luaL_loadstring returns syntax status for invalid source");
+    ASSERT_TRUE(suite, lua_isstring(L, -1) != 0, "syntax failure leaves one error object");
+    lua_settop(L, 0);
+
+    ASSERT_EQ(suite, LUA_ERRFILE, luaL_loadfile(L, "missing-c-api-load-file.lua"),
+              "luaL_loadfile distinguishes file errors");
+    ASSERT_TRUE(suite, lua_isstring(L, -1) != 0, "file failure leaves one error object");
+
+    lua_close(L);
+}
+
+void testRegistryReferences(TestSuite& suite) {
+    lua_State* L = lua_open();
+
+    lua_pushnil(L);
+    ASSERT_EQ(suite, LUA_REFNIL, luaL_ref(L, LUA_REGISTRYINDEX), "luaL_ref maps nil to LUA_REFNIL");
+    ASSERT_EQ(suite, 0, lua_gettop(L), "luaL_ref consumes a nil value");
+
+    lua_pushstring(L, "first");
+    const int first = luaL_ref(L, LUA_REGISTRYINDEX);
+    ASSERT_TRUE(suite, first > 0, "luaL_ref allocates a positive registry reference");
+    luaL_getref(L, first);
+    ASSERT_EQ(suite, std::string("first"), std::string(lua_tostring(L, -1)), "luaL_getref retrieves stored value");
+    lua_pop(L, 1);
+
+    luaL_unref(L, LUA_REGISTRYINDEX, first);
+    lua_pushstring(L, "second");
+    const int second = luaL_ref(L, LUA_REGISTRYINDEX);
+    ASSERT_EQ(suite, first, second, "luaL_ref reuses a released registry reference");
+    luaL_getref(L, second);
+    ASSERT_EQ(suite, std::string("second"), std::string(lua_tostring(L, -1)),
+              "reused registry reference stores the replacement value");
+
+    lua_close(L);
+}
+
 void testAllocatorCanBeReplaced(TestSuite& suite) {
     AllocatorLedger ledger;
     AllocatorProbe first{&ledger};
@@ -908,4 +1012,6 @@ void registerLuaCApiTests() {
     registry.registerTest(kSuiteName, "custom allocator lifecycle", testCustomAllocatorLifecycle);
     registry.registerTest(kSuiteName, "allocator replacement", testAllocatorCanBeReplaced);
     registry.registerTest(kSuiteName, "allocator failure paths", testAllocatorFailurePaths);
+    registry.registerTest(kSuiteName, "load dump and auxiliary loaders", testLoadDumpAndAuxiliaryLoaders);
+    registry.registerTest(kSuiteName, "registry references", testRegistryReferences);
 }

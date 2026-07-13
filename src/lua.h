@@ -39,6 +39,8 @@ typedef double lua_Number;
 typedef ptrdiff_t lua_Integer;
 typedef int (*lua_CFunction)(lua_State* L);
 typedef void* (*lua_Alloc)(void* ud, void* ptr, size_t osize, size_t nsize);
+typedef const char* (*lua_Reader)(lua_State* L, void* data, size_t* size);
+typedef int (*lua_Writer)(lua_State* L, const void* data, size_t size, void* userData);
 
 lua_State* lua_newstate(lua_Alloc f, void* ud);
 lua_State* lua_open(void);
@@ -97,6 +99,8 @@ lua_State* lua_newthread(lua_State* L);
 int lua_resume(lua_State* L, int nargs);
 int lua_yield(lua_State* L, int nresults);
 int lua_status(lua_State* L);
+int lua_load(lua_State* L, lua_Reader reader, void* data, const char* chunkname);
+int lua_dump(lua_State* L, lua_Writer writer, void* data);
 
 #define lua_pop(L, n) lua_settop((L), -(n) - 1)
 #define lua_newtable(L) lua_createtable((L), 0, 0)

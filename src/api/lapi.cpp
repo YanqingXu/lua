@@ -9,6 +9,8 @@
 #include "core/userdata.hpp"
 #include "core/value.hpp"
 #include "lib/lib_manager.hpp"
+#include "lib/baselib.hpp"
+#include "lib/stringlib.hpp"
 #include "runtime/runtime_services.hpp"
 #include "vm/state/lua_state.hpp"
 #include "vm/vm.hpp"
@@ -187,6 +189,32 @@ bool writeIndex(Lua::LuaState* L, const ApiIndex& index, const Lua::Value& value
         return false;
     }
     return false;
+}
+
+void pushInternalCFunction(Lua::LuaState* state, Lua::CFunction callback) {
+    Lua::Function* function = state->getGlobalState().getGC().create<Lua::Function>(callback);
+    function->setEnv(state->getGlobalTable());
+    state->pushFunction(function);
+}
+
+int normalizeLoadResult(lua_State* L, int base, int callStatus, int failureStatus) {
+    if (callStatus != LUA_OK) {
+        return callStatus;
+    }
+
+    const int top = lua_gettop(L);
+    if (top == base + 1 && lua_isfunction(L, -1)) {
+        return LUA_OK;
+    }
+    if (top >= base + 2 && lua_isnil(L, base + 1)) {
+        lua_remove(L, base + 1);
+        lua_settop(L, base + 1);
+        return failureStatus;
+    }
+
+    lua_settop(L, base);
+    lua_pushstring(L, "loader returned an invalid result shape");
+    return LUA_ERRRUN;
 }
 
 int valueType(const Lua::Value& value) {
@@ -831,6 +859,154 @@ int lua_yield(lua_State* L, int nresults) {
 
 int lua_status(lua_State* L) {
     return static_cast<int>(fromC(L)->getStatus());
+}
+
+int luaL_loadbuffer(lua_State* L, const char* buffer, size_t size, const char* name) {
+    if (L == nullptr || (buffer == nullptr && size != 0)) {
+        return LUA_ERRSYNTAX;
+    }
+
+    const int base = lua_gettop(L);
+    Lua::LuaState* state = fromC(L);
+    try {
+        pushInternalCFunction(state, Lua::luaB_loadstring);
+        lua_pushlstring(L, buffer != nullptr ? buffer : "", size);
+        lua_pushstring(L, name != nullptr ? name : "=(loadbuffer)");
+        return normalizeLoadResult(L, base, lua_pcall(L, 2, LUA_MULTRET, 0), LUA_ERRSYNTAX);
+    } catch (const Lua::MemoryError&) {
+        lua_settop(L, base);
+        state->pushString(state->getGlobalState().getMemoryErrorMessage());
+        return LUA_ERRMEM;
+    } catch (const std::bad_alloc&) {
+        lua_settop(L, base);
+        state->pushString(state->getGlobalState().getMemoryErrorMessage());
+        return LUA_ERRMEM;
+    }
+}
+
+int luaL_loadstring(lua_State* L, const char* source) {
+    return luaL_loadbuffer(L, source != nullptr ? source : "", source != nullptr ? std::strlen(source) : 0,
+                           source != nullptr ? source : "");
+}
+
+int luaL_loadfile(lua_State* L, const char* filename) {
+    if (L == nullptr) {
+        return LUA_ERRFILE;
+    }
+
+    const int base = lua_gettop(L);
+    Lua::LuaState* state = fromC(L);
+    try {
+        pushInternalCFunction(state, Lua::luaB_loadfile);
+        if (filename == nullptr) {
+            lua_pushnil(L);
+        } else {
+            lua_pushstring(L, filename);
+        }
+        const int callStatus = lua_pcall(L, 1, LUA_MULTRET, 0);
+        int failureStatus = LUA_ERRSYNTAX;
+        if (callStatus == LUA_OK && lua_gettop(L) >= base + 2 && lua_isnil(L, base + 1)) {
+            const char* message = lua_tostring(L, base + 2);
+            if (message != nullptr &&
+                (std::strstr(message, "cannot open") != nullptr || std::strstr(message, "cannot read") != nullptr)) {
+                failureStatus = LUA_ERRFILE;
+            }
+        }
+        return normalizeLoadResult(L, base, callStatus, failureStatus);
+    } catch (const Lua::MemoryError&) {
+        lua_settop(L, base);
+        state->pushString(state->getGlobalState().getMemoryErrorMessage());
+        return LUA_ERRMEM;
+    } catch (const std::bad_alloc&) {
+        lua_settop(L, base);
+        state->pushString(state->getGlobalState().getMemoryErrorMessage());
+        return LUA_ERRMEM;
+    }
+}
+
+int lua_load(lua_State* L, lua_Reader reader, void* data, const char* chunkname) {
+    if (L == nullptr || reader == nullptr) {
+        return LUA_ERRSYNTAX;
+    }
+
+    std::string source;
+    try {
+        for (;;) {
+            size_t size = 0;
+            const char* piece = reader(L, data, &size);
+            if (piece == nullptr || size == 0) {
+                break;
+            }
+            source.append(piece, size);
+        }
+    } catch (const std::bad_alloc&) {
+        Lua::LuaState* state = fromC(L);
+        state->pushString(state->getGlobalState().getMemoryErrorMessage());
+        return LUA_ERRMEM;
+    }
+    return luaL_loadbuffer(L, source.data(), source.size(), chunkname != nullptr ? chunkname : "=(load)");
+}
+
+int lua_dump(lua_State* L, lua_Writer writer, void* data) {
+    if (L == nullptr || writer == nullptr || !lua_isfunction(L, -1) || lua_iscfunction(L, -1)) {
+        return 1;
+    }
+
+    const int base = lua_gettop(L);
+    Lua::LuaState* state = fromC(L);
+    try {
+        pushInternalCFunction(state, Lua::str_dump);
+        lua_pushvalue(L, base);
+        const int status = lua_pcall(L, 1, 1, 0);
+        if (status != LUA_OK) {
+            lua_settop(L, base);
+            return status;
+        }
+
+        size_t size = 0;
+        const char* bytes = lua_tolstring(L, -1, &size);
+        const int writerStatus = bytes != nullptr ? writer(L, bytes, size, data) : 1;
+        lua_settop(L, base);
+        return writerStatus;
+    } catch (...) {
+        lua_settop(L, base);
+        return 1;
+    }
+}
+
+int luaL_ref(lua_State* L, int tableIndex) {
+    if (lua_isnil(L, -1)) {
+        lua_pop(L, 1);
+        return LUA_REFNIL;
+    }
+
+    const int absoluteTable =
+        tableIndex < 0 && tableIndex > LUA_REGISTRYINDEX ? lua_gettop(L) + tableIndex + 1 : tableIndex;
+    lua_rawgeti(L, absoluteTable, 0);
+    int reference = static_cast<int>(lua_tonumber(L, -1));
+    lua_pop(L, 1);
+
+    if (reference != 0) {
+        lua_rawgeti(L, absoluteTable, reference);
+        lua_rawseti(L, absoluteTable, 0);
+    } else {
+        reference = static_cast<int>(lua_objlen(L, absoluteTable)) + 1;
+    }
+    lua_rawseti(L, absoluteTable, reference);
+    return reference;
+}
+
+void luaL_unref(lua_State* L, int tableIndex, int reference) {
+    if (reference < 0) {
+        return;
+    }
+
+    const int absoluteTable =
+        tableIndex < 0 && tableIndex > LUA_REGISTRYINDEX ? lua_gettop(L) + tableIndex + 1 : tableIndex;
+    lua_rawgeti(L, absoluteTable, 0);
+    lua_rawseti(L, absoluteTable, reference);
+    lua_pushinteger(L, reference);
+    lua_rawseti(L, absoluteTable, 0);
 }
 
 void luaL_openlibs(lua_State* L) {
