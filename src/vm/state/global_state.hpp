@@ -1,7 +1,7 @@
 /**
  * @file global_state.hpp
  * @brief Lua全局状态管理：所有线程共享的系统级资源
- * 
+ *
  * 详细说明：
  * GlobalState类管理Lua虚拟机中所有线程共享的全局资源，包括：
  * - 字符串池（StringPool）
@@ -9,7 +9,7 @@
  * - 元表（metatable）
  * - 注册表（registry）
  * - 主线程引用
- * 
+ *
  * 设计特点：
  * - 单例模式：全局唯一的GlobalState实例
  * - 资源共享：所有LuaState共享同一个GlobalState
@@ -39,26 +39,26 @@ class LuaAllocator;
 
 /**
  * @brief 全局状态类
- * 
+ *
  * 管理所有线程共享的全局资源和配置信息。
- * 
+ *
  * 核心职责：
  * 1. 字符串管理：通过StringPool实现字符串驻留
  * 2. 垃圾回收：管理GC状态和配置
  * 3. 元表管理：为基础类型提供元表支持
  * 4. 注册表：提供C代码专用的全局存储
  * 5. 主线程：维护主线程的引用
- * 
+ *
  * 使用示例：
  * @code
  * GlobalState& gs = GlobalState::getInstance();
- * 
+ *
  * // 访问字符串池
  * StringPool& pool = gs.getStringPool();
- * 
+ *
  * // 访问垃圾回收器
  * GarbageCollector& gc = gs.getGC();
- * 
+ *
  * // 访问注册表
  * Table* registry = gs.getRegistry();
  * @endcode
@@ -68,13 +68,13 @@ public:
     // =====================================================================
     // 单例模式
     // =====================================================================
-    
+
     /**
      * @brief 获取全局状态单例实例
      * @return GlobalState实例的引用
      */
     static GlobalState& getInstance();
-    
+
     // 禁止拷贝和赋值
     GlobalState(const GlobalState&) = delete;
     GlobalState& operator=(const GlobalState&) = delete;
@@ -86,18 +86,17 @@ public:
      * construction path. EngineContext passes its owned StringPool here to
      * create an isolated runtime context.
      */
-    explicit GlobalState(StringPool& stringPool = StringPool::getInstance(),
-                         LuaAllocator* allocator = nullptr);
-    
+    explicit GlobalState(StringPool& stringPool = StringPool::getInstance(), LuaAllocator* allocator = nullptr);
+
     /**
      * @brief 析构函数
      */
     ~GlobalState();
-    
+
     // =====================================================================
     // 字符串管理
     // =====================================================================
-    
+
     /**
      * @brief 获取字符串池
      * @return 字符串池的引用
@@ -105,11 +104,11 @@ public:
     StringPool& getStringPool() noexcept {
         return stringPool_;
     }
-    
+
     // =====================================================================
     // 垃圾回收管理
     // =====================================================================
-    
+
     /**
      * @brief 获取垃圾回收器
      * @return 垃圾回收器的引用
@@ -141,16 +140,16 @@ public:
      * those objects, so they must be cleared before the objects are freed.
      */
     void resetRuntimeReferencesForClearAll() noexcept;
-    
+
     // =====================================================================
     // 注册表管理
     // =====================================================================
-    
+
     /**
      * @brief 获取注册表
-     * 
+     *
      * 注册表是一个全局表，只能从C代码访问，用于存储C扩展的私有数据。
-     * 
+     *
      * @return 注册表指针
      */
     Table* getRegistry() noexcept {
@@ -163,17 +162,17 @@ public:
     GCString* getMemoryErrorMessage() const noexcept {
         return memerrmsg_;
     }
-    
+
     // =====================================================================
     // 主线程管理
     // =====================================================================
-    
+
     /**
      * @brief 设置主线程
      * @param mainThread 主线程指针
      */
     void setMainThread(LuaState* mainThread) noexcept;
-    
+
     /**
      * @brief 获取主线程
      * @return 主线程指针
@@ -181,18 +180,18 @@ public:
     LuaState* getMainThread() const noexcept {
         return mainThread_;
     }
-    
+
     // =====================================================================
     // 元表管理
     // =====================================================================
-    
+
     /**
      * @brief 获取基础类型的元表
      * @param type 值类型
      * @return 元表指针（如果没有设置则返回nullptr）
      */
     Table* getMetatable(ValueType type) const noexcept;
-    
+
     /**
      * @brief 设置基础类型的元表
      * @param type 值类型
@@ -215,7 +214,9 @@ public:
     // 当前运行协程追踪
     // =====================================================================
 
-    Thread* getRunningThread() const noexcept { return runningThread_; }
+    Thread* getRunningThread() const noexcept {
+        return runningThread_;
+    }
     void setRunningThread(Thread* t) noexcept;
 
 private:
@@ -255,7 +256,7 @@ private:
     Thread* runningThread_ = nullptr;
 
     /// 基础类型的元表数组（索引对应ValueType枚举值）
-    std::array<Table*, kMetatableCount> metatables_{};  // 9种基础类型
+    std::array<Table*, kMetatableCount> metatables_{}; // 9种基础类型
 
     /// 元方法名称数组（17个元方法）
     std::array<GCString*, static_cast<usize>(TMS::TM_N)> tmname_{};
@@ -265,4 +266,3 @@ private:
 };
 
 } // namespace Lua
-

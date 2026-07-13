@@ -323,12 +323,7 @@ void populateInfoS(Table* info, LuaState* L, Function* func, const CallInfo* ci)
 
     setStringField(info, L, "source", source);
     setStringField(info, L, "short_src", makeShortSource(source));
-    setStringField(
-        info,
-        L,
-        "what",
-        (proto && proto->getLineDefined() == 0) ? StrView("main") : StrView("Lua")
-    );
+    setStringField(info, L, "what", (proto && proto->getLineDefined() == 0) ? StrView("main") : StrView("Lua"));
     setNumberField(info, L, "linedefined", proto ? proto->getLineDefined() : -1);
     setNumberField(info, L, "lastlinedefined", proto ? proto->getLastLineDefined() : -1);
     setNumberField(info, L, "currentline", currentLineForFrame(func, ci));
@@ -353,15 +348,15 @@ void populateInfoU(Table* info, LuaState* L, Function* func) {
 
 bool isValidGetInfoOption(char option) {
     switch (option) {
-        case 'S':
-        case 'l':
-        case 'u':
-        case 'n':
-        case 'L':
-        case 'f':
-            return true;
-        default:
-            return false;
+    case 'S':
+    case 'l':
+    case 'u':
+    case 'n':
+    case 'L':
+    case 'f':
+        return true;
+    default:
+        return false;
     }
 }
 
@@ -410,58 +405,58 @@ bool instructionWritesRegister(Instruction instruction, i32 reg) {
     i32 a = GETARG_A(instruction);
 
     switch (op) {
-        case OpCode::MOVE:
-        case OpCode::LOADK:
-        case OpCode::LOADBOOL:
-        case OpCode::GETUPVAL:
-        case OpCode::GETGLOBAL:
-        case OpCode::GETTABLE:
-        case OpCode::NEWTABLE:
-        case OpCode::ADD:
-        case OpCode::SUB:
-        case OpCode::MUL:
-        case OpCode::DIV:
-        case OpCode::MOD:
-        case OpCode::POW:
-        case OpCode::UNM:
-        case OpCode::NOT:
-        case OpCode::LEN:
-        case OpCode::CONCAT:
-        case OpCode::TESTSET:
-        case OpCode::CLOSURE:
-            return reg == a;
+    case OpCode::MOVE:
+    case OpCode::LOADK:
+    case OpCode::LOADBOOL:
+    case OpCode::GETUPVAL:
+    case OpCode::GETGLOBAL:
+    case OpCode::GETTABLE:
+    case OpCode::NEWTABLE:
+    case OpCode::ADD:
+    case OpCode::SUB:
+    case OpCode::MUL:
+    case OpCode::DIV:
+    case OpCode::MOD:
+    case OpCode::POW:
+    case OpCode::UNM:
+    case OpCode::NOT:
+    case OpCode::LEN:
+    case OpCode::CONCAT:
+    case OpCode::TESTSET:
+    case OpCode::CLOSURE:
+        return reg == a;
 
-        case OpCode::LOADNIL:
-            return a <= reg && reg <= GETARG_B(instruction);
+    case OpCode::LOADNIL:
+        return a <= reg && reg <= GETARG_B(instruction);
 
-        case OpCode::SELF:
-            return reg == a || reg == (a + 1);
+    case OpCode::SELF:
+        return reg == a || reg == (a + 1);
 
-        case OpCode::CALL:
-        case OpCode::TAILCALL: {
-            i32 results = GETARG_C(instruction) - 1;
-            if (results == MULTRET) {
-                return reg >= a;
-            }
-            return results > 0 && a <= reg && reg < (a + results);
+    case OpCode::CALL:
+    case OpCode::TAILCALL: {
+        i32 results = GETARG_C(instruction) - 1;
+        if (results == MULTRET) {
+            return reg >= a;
         }
+        return results > 0 && a <= reg && reg < (a + results);
+    }
 
-        case OpCode::VARARG: {
-            i32 results = GETARG_B(instruction) - 1;
-            if (results == MULTRET) {
-                return reg >= a;
-            }
-            return results >= 0 && a <= reg && reg < (a + results);
+    case OpCode::VARARG: {
+        i32 results = GETARG_B(instruction) - 1;
+        if (results == MULTRET) {
+            return reg >= a;
         }
+        return results >= 0 && a <= reg && reg < (a + results);
+    }
 
-        case OpCode::TFORLOOP:
-            return reg >= (a + 3) && reg <= (a + 2 + GETARG_C(instruction));
+    case OpCode::TFORLOOP:
+        return reg >= (a + 3) && reg <= (a + 2 + GETARG_C(instruction));
 
-        case OpCode::FORLOOP:
-            return reg == a || reg == (a + 3);
+    case OpCode::FORLOOP:
+        return reg == a || reg == (a + 3);
 
-        default:
-            return false;
+    default:
+        return false;
     }
 }
 
@@ -484,14 +479,7 @@ bool findRegisterSetter(Proto* proto, i32 pc, i32 reg, i32& setterPc, Instructio
     return false;
 }
 
-const char* inferObjectName(
-    LuaState* L,
-    Proto* proto,
-    i32 pc,
-    i32 reg,
-    GCString*& outName,
-    i32 depth = 0
-) {
+const char* inferObjectName(LuaState* L, Proto* proto, i32 pc, i32 reg, GCString*& outName, i32 depth = 0) {
     if (proto == nullptr || reg < 0 || pc < 0 || depth > 16) {
         return nullptr;
     }
@@ -508,35 +496,35 @@ const char* inferObjectName(
     }
 
     switch (GET_OPCODE(setter)) {
-        case OpCode::GETGLOBAL:
-            outName = stringConstantOrQuestion(L, proto, GETARG_Bx(setter));
-            return "global";
+    case OpCode::GETGLOBAL:
+        outName = stringConstantOrQuestion(L, proto, GETARG_Bx(setter));
+        return "global";
 
-        case OpCode::MOVE: {
-            i32 a = GETARG_A(setter);
-            i32 b = GETARG_B(setter);
-            if (b < a) {
-                return inferObjectName(L, proto, setterPc, b, outName, depth + 1);
-            }
-            break;
+    case OpCode::MOVE: {
+        i32 a = GETARG_A(setter);
+        i32 b = GETARG_B(setter);
+        if (b < a) {
+            return inferObjectName(L, proto, setterPc, b, outName, depth + 1);
         }
+        break;
+    }
 
-        case OpCode::GETTABLE:
-            outName = rkNameOrQuestion(L, proto, GETARG_C(setter));
-            return "field";
+    case OpCode::GETTABLE:
+        outName = rkNameOrQuestion(L, proto, GETARG_C(setter));
+        return "field";
 
-        case OpCode::GETUPVAL: {
-            GCString* upvalueName = proto->getUpvalueName(static_cast<usize>(GETARG_B(setter)));
-            outName = upvalueName ? upvalueName : internString(L, "?");
-            return "upvalue";
-        }
+    case OpCode::GETUPVAL: {
+        GCString* upvalueName = proto->getUpvalueName(static_cast<usize>(GETARG_B(setter)));
+        outName = upvalueName ? upvalueName : internString(L, "?");
+        return "upvalue";
+    }
 
-        case OpCode::SELF:
-            outName = rkNameOrQuestion(L, proto, GETARG_C(setter));
-            return "method";
+    case OpCode::SELF:
+        outName = rkNameOrQuestion(L, proto, GETARG_C(setter));
+        return "method";
 
-        default:
-            break;
+    default:
+        break;
     }
 
     return nullptr;
@@ -561,8 +549,7 @@ void populateInfoN(Table* info, LuaState* L, LuaState* ownerL, const DebugFrameR
 
     Proto* callerProto = callerFunc->getProto();
     i32 callerPc = currentPcForFrame(callerFunc, &callerCi);
-    if (callerProto == nullptr || callerPc < 0 ||
-        static_cast<usize>(callerPc) >= callerProto->getInstructionCount()) {
+    if (callerProto == nullptr || callerPc < 0 || static_cast<usize>(callerPc) >= callerProto->getInstructionCount()) {
         return;
     }
 
@@ -634,12 +621,7 @@ Str describeFunction(Function* func) {
     return std::format("function <{}:{}>", source, proto->getLineDefined());
 }
 
-bool inferFrameCallName(
-    LuaState* ownerL,
-    usize stackIndex,
-    const char*& outNameWhat,
-    GCString*& outName
-) {
+bool inferFrameCallName(LuaState* ownerL, usize stackIndex, const char*& outNameWhat, GCString*& outName) {
     LuaVector<CallInfo>& frames = ownerL->getCallStack();
     if (stackIndex == 0 || stackIndex >= frames.size()) {
         return false;
@@ -653,8 +635,7 @@ bool inferFrameCallName(
 
     Proto* callerProto = callerFunc->getProto();
     i32 callerPc = currentPcForFrame(callerFunc, &callerCi);
-    if (callerProto == nullptr || callerPc < 0 ||
-        static_cast<usize>(callerPc) >= callerProto->getInstructionCount()) {
+    if (callerProto == nullptr || callerPc < 0 || static_cast<usize>(callerPc) >= callerProto->getInstructionCount()) {
         return false;
     }
 
@@ -768,17 +749,17 @@ bool parseHookMask(StrView mask, u8& outMask) {
 
     for (char ch : mask) {
         switch (ch) {
-            case 'c':
-                outMask |= HookMaskCall;
-                break;
-            case 'r':
-                outMask |= HookMaskReturn;
-                break;
-            case 'l':
-                outMask |= HookMaskLine;
-                break;
-            default:
-                return false;
+        case 'c':
+            outMask |= HookMaskCall;
+            break;
+        case 'r':
+            outMask |= HookMaskReturn;
+            break;
+        case 'l':
+            outMask |= HookMaskLine;
+            break;
+        default:
+            return false;
         }
     }
 
@@ -847,11 +828,7 @@ i32 luaDebug_getregistry(LuaState* L) {
 // =====================================================================
 
 i32 luaDebug_getupvalue(LuaState* L) {
-    Function* func = checkFunctionArg(
-        L,
-        1,
-        "bad argument #1 to 'getupvalue' (function expected)"
-    );
+    Function* func = checkFunctionArg(L, 1, "bad argument #1 to 'getupvalue' (function expected)");
     if (!L->isNumber(2)) {
         L->error("bad argument #2 to 'getupvalue' (number expected)");
     }
@@ -878,11 +855,7 @@ i32 luaDebug_getupvalue(LuaState* L) {
 // =====================================================================
 
 i32 luaDebug_setupvalue(LuaState* L) {
-    Function* func = checkFunctionArg(
-        L,
-        1,
-        "bad argument #1 to 'setupvalue' (function expected)"
-    );
+    Function* func = checkFunctionArg(L, 1, "bad argument #1 to 'setupvalue' (function expected)");
     if (!L->isNumber(2)) {
         L->error("bad argument #2 to 'setupvalue' (number expected)");
     }
@@ -936,11 +909,7 @@ i32 luaDebug_getinfo(LuaState* L) {
     if (L->isFunction(argBase)) {
         func = L->at(argBase).asFunction();
     } else if (L->isNumber(argBase)) {
-        i32 level = checkNonNegativeLevel(
-            L,
-            argBase,
-            "bad argument to 'getinfo' (stack level expected)"
-        );
+        i32 level = checkNonNegativeLevel(L, argBase, "bad argument to 'getinfo' (stack level expected)");
         StackLevelKind kind = resolveStackLevelKind(ownerL, level, frame);
         if (kind == StackLevelKind::Invalid) {
             L->pushNil();
@@ -958,40 +927,40 @@ i32 luaDebug_getinfo(LuaState* L) {
     Table* info = createGCManagedTable(L);
     for (char option : options) {
         switch (option) {
-            case 'S':
-                if (isTailFrame) {
-                    populateTailInfoS(info, L);
-                } else {
-                    populateInfoS(info, L, func, frame.ci);
-                }
-                break;
-            case 'u':
-                if (isTailFrame) {
-                    setNumberField(info, L, "nups", 0);
-                } else {
-                    populateInfoU(info, L, func);
-                }
-                break;
-            case 'f':
-                setField(info, L, "func", isTailFrame ? Value() : Value(func));
-                break;
-            case 'l':
-                setNumberField(info, L, "currentline", isTailFrame ? -1 : currentLineForFrame(func, frame.ci));
-                break;
-            case 'L':
-                if (!isTailFrame) {
-                    populateInfoL(info, L, func);
-                }
-                break;
-            case 'n':
-                if (!isTailFrame) {
-                    populateInfoN(info, L, ownerL, frame);
-                } else {
-                    setStringField(info, L, "namewhat", "");
-                }
-                break;
-            default:
-                break;
+        case 'S':
+            if (isTailFrame) {
+                populateTailInfoS(info, L);
+            } else {
+                populateInfoS(info, L, func, frame.ci);
+            }
+            break;
+        case 'u':
+            if (isTailFrame) {
+                setNumberField(info, L, "nups", 0);
+            } else {
+                populateInfoU(info, L, func);
+            }
+            break;
+        case 'f':
+            setField(info, L, "func", isTailFrame ? Value() : Value(func));
+            break;
+        case 'l':
+            setNumberField(info, L, "currentline", isTailFrame ? -1 : currentLineForFrame(func, frame.ci));
+            break;
+        case 'L':
+            if (!isTailFrame) {
+                populateInfoL(info, L, func);
+            }
+            break;
+        case 'n':
+            if (!isTailFrame) {
+                populateInfoN(info, L, ownerL, frame);
+            } else {
+                setStringField(info, L, "namewhat", "");
+            }
+            break;
+        default:
+            break;
         }
     }
 
@@ -1032,11 +1001,7 @@ i32 luaDebug_getlocal(LuaState* L) {
         return 1;
     }
 
-    i32 level = checkNonNegativeLevel(
-        L,
-        argBase,
-        "bad argument to 'getlocal' (stack level expected)"
-    );
+    i32 level = checkNonNegativeLevel(L, argBase, "bad argument to 'getlocal' (stack level expected)");
 
     DebugFrameRef frame;
     if (!resolveStackLevel(ownerL, level, frame)) {
@@ -1080,16 +1045,8 @@ i32 luaDebug_setlocal(LuaState* L) {
         L->error("bad argument to 'setlocal' (stack level, local index and value expected)");
     }
 
-    i32 level = checkNonNegativeLevel(
-        L,
-        argBase,
-        "bad argument to 'setlocal' (stack level expected)"
-    );
-    i32 localIndex = checkPositiveIndex(
-        L,
-        argBase + 1,
-        "bad argument to 'setlocal' (positive local index expected)"
-    );
+    i32 level = checkNonNegativeLevel(L, argBase, "bad argument to 'setlocal' (stack level expected)");
+    i32 localIndex = checkPositiveIndex(L, argBase + 1, "bad argument to 'setlocal' (positive local index expected)");
 
     DebugFrameRef frame;
     if (!resolveStackLevel(ownerL, level, frame)) {
@@ -1248,11 +1205,7 @@ i32 luaDebug_sethook(LuaState* L) {
 
     Function* hook = nullptr;
     if (!L->isNil(argBase)) {
-        hook = checkFunctionArg(
-            L,
-            argBase,
-            "bad argument to 'sethook' (function or nil expected)"
-        );
+        hook = checkFunctionArg(L, argBase, "bad argument to 'sethook' (function or nil expected)");
     }
 
     u8 mask = 0;

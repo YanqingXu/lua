@@ -1,15 +1,15 @@
 ﻿/**
  * @file table.hpp
  * @brief Lua表系统：混合数组/哈希表实现
- * 
+ *
  * 详细说明：
  * 这个文件实现了Lua最重要的数据结构——表（Table）。Lua的表是一种独特的
  * 数据结构，同时具备数组和哈希表的特性。设计采用混合存储策略：
  * - 数组部分：用于存储连续的正整数键（1, 2, 3, ...），使用Vec实现O(1)访问
  * - 哈希部分：用于存储其他类型的键或非连续的整数键，使用HashMap实现
- * 
+ *
  * 这种设计使得Lua表既能高效处理数组操作，又能灵活支持关联数组的需求。
- * 
+ *
  * 技术特点：
  * - 混合存储：数组部分和哈希部分的智能分配
  * - 动态调整：根据使用模式自动调整内存布局（当前版本简化实现）
@@ -17,7 +17,7 @@
  * - GC集成：继承自GCObject，支持垃圾回收
  *
  * 相关文档：lua/docs/architecture/overview.md
- * 
+ *
  * @author YanqingXu
  * @date 2025-11-12
  * @version 1.0
@@ -37,7 +37,7 @@ class Table;
 
 /**
  * @brief Value类型的哈希函数对象
- * 
+ *
  * 为Value类型提供哈希函数，使其可以作为HashMap的键。
  * 不同类型的Value使用不同的哈希策略：
  * - Nil: 固定哈希值0
@@ -52,7 +52,7 @@ struct ValueHash {
 
 /**
  * @brief Value类型的相等比较函数对象
- * 
+ *
  * 为Value类型提供相等比较，使其可以作为HashMap的键。
  * 直接使用Value类的operator==实现。
  */
@@ -64,26 +64,26 @@ struct ValueEqual {
 
 /**
  * @brief Table类 - Lua表对象
- * 
+ *
  * 实现Lua的表数据结构，继承自GCObject以支持垃圾回收。
- * 
+ *
  * 内部结构：
  * - array_: 数组部分，存储连续的正整数键（索引从1开始）
  * - hash_: 哈希部分，存储其他类型的键或非连续的整数键
  * - metatable_: 元表指针，用于元编程
- * 
+ *
  * 使用示例：
  * @code
  * Table* t = new Table();
- * 
+ *
  * // 数组操作（1-based索引）
  * t->setArray(1, Value::makeNumber(42.0));
  * Value v1 = t->getArray(1);  // 42.0
- * 
+ *
  * // 哈希操作
  * t->set(Value::makeString(str), Value::makeBoolean(true));
  * Value v2 = t->get(Value::makeString(str));  // true
- * 
+ *
  * // 元表操作
  * Table* mt = new Table();
  * t->setMetatable(mt);
@@ -93,66 +93,66 @@ class Table : public GCObject {
 public:
     /**
      * @brief 默认构造函数
-     * 
+     *
      * 创建一个空表，数组部分和哈希部分都为空。
      */
     Table();
     explicit Table(LuaAllocator* allocator);
-    
+
     /**
      * @brief 析构函数
-     * 
+     *
      * 释放表占用的内存。注意：表中引用的GC对象由GC系统管理，
      * 这里不需要手动释放。
      */
     ~Table() override;
-    
+
     // =====================================================================
     // 基本操作
     // =====================================================================
-    
+
     /**
      * @brief 获取键对应的值
-     * 
+     *
      * 查找策略：
      * 1. 如果key是正整数且在数组范围内，从数组部分获取
      * 2. 否则从哈希部分获取
      * 3. 如果键不存在，返回nil
-     * 
+     *
      * @param key 要查找的键
      * @return 键对应的值，如果不存在返回nil
      */
     Value get(const Value& key) const;
-    
+
     /**
      * @brief 设置键值对
-     * 
+     *
      * 设置策略：
      * 1. 如果value是nil，表示删除该键
      * 2. 如果key是正整数且较小，存储到数组部分
      * 3. 否则存储到哈希部分
-     * 
+     *
      * @param key 要设置的键（不能是nil）
      * @param value 要设置的值（nil表示删除）
-     * 
+     *
      * @note Lua语义：nil键不允许，nil值表示删除
      * @warning 如果key是nil，行为未定义（应该抛出错误）
      */
     void set(const Value& key, const Value& value);
-    
+
     /**
      * @brief 检查键是否存在
-     * 
+     *
      * @param key 要检查的键
      * @return true 如果键存在且值不为nil
      */
     bool has(const Value& key) const;
-    
+
     /**
      * @brief 删除键值对
-     * 
+     *
      * 等价于 set(key, Value::makeNil())
-     * 
+     *
      * @param key 要删除的键
      */
     void remove(const Value& key);
@@ -164,41 +164,41 @@ public:
      * 已被 GC clearAll 删除的对象指针。
      */
     void clear();
-    
+
     // =====================================================================
     // 数组操作
     // =====================================================================
-    
+
     /**
      * @brief 获取数组元素
-     * 
+     *
      * Lua数组使用1-based索引，即第一个元素的索引是1。
-     * 
+     *
      * @param index 数组索引（1-based，必须 >= 1）
      * @return 索引对应的值，如果索引超出范围返回nil
      */
     Value getArray(i32 index) const;
-    
+
     /**
      * @brief 设置数组元素
-     * 
+     *
      * Lua数组使用1-based索引。如果索引超出当前数组大小，
      * 会自动扩展数组（中间的空位填充nil）。
-     * 
+     *
      * @param index 数组索引（1-based，必须 >= 1）
      * @param value 要设置的值
      */
     void setArray(i32 index, const Value& value);
-    
+
     /**
      * @brief 获取数组部分的大小
-     * 
+     *
      * @return 数组部分的元素数量
      */
     usize getArraySize() const noexcept {
         return array_.size();
     }
-    
+
     /**
      * @brief 获取表的长度（Lua的#运算符）
      *
@@ -231,16 +231,16 @@ public:
     // =====================================================================
     // 元表操作
     // =====================================================================
-    
+
     /**
      * @brief 获取元表
-     * 
+     *
      * @return 元表指针，如果没有元表返回nullptr
      */
     Table* getMetatable() const noexcept {
         return metatable_;
     }
-    
+
     /**
      * @brief 设置元表
      *
@@ -269,10 +269,10 @@ public:
     // =====================================================================
     // GCObject接口实现
     // =====================================================================
-    
+
     /**
      * @brief 标记表中引用的所有GC对象
-     * 
+     *
      * 遍历数组部分和哈希部分，标记所有引用的GC对象：
      * - 字符串对象
      * - 表对象
@@ -297,35 +297,35 @@ public:
      * 该方法必须在 sweep 删除白色对象之前调用，确保仍可安全检查键和值的颜色。
      */
     void removeWeakEntries(const GarbageCollector& gc, bool weakKeys, bool weakValues);
-    
+
     /**
      * @brief 获取表占用的内存大小
-     * 
+     *
      * 包括：
      * - Table对象本身的大小
      * - 数组部分的容量
      * - 哈希部分的容量（估算）
-     * 
+     *
      * @return 表占用的字节数
      */
     usize getSize() const override;
-    
+
     // =====================================================================
     // 调试和统计
     // =====================================================================
-    
+
     /**
      * @brief 获取哈希部分的大小
-     * 
+     *
      * @return 哈希部分的元素数量
      */
     usize getHashSize() const noexcept {
         return hash_.size();
     }
-    
+
     /**
      * @brief 获取表的总元素数量
-     * 
+     *
      * @return 数组部分 + 哈希部分的元素总数
      */
     usize getTotalSize() const noexcept {
@@ -336,7 +336,7 @@ private:
     // =====================================================================
     // 内部数据成员
     // =====================================================================
-    
+
     /// 数组部分：存储连续的正整数键（索引从1开始）
     LuaVector<Value> array_;
 
@@ -358,15 +358,15 @@ private:
     // =====================================================================
     // 内部辅助方法
     // =====================================================================
-    
+
     /**
      * @brief 检查键是否是有效的数组索引
-     * 
+     *
      * 有效的数组索引必须满足：
      * 1. 是数字类型
      * 2. 是正整数
      * 3. 在合理的范围内（避免过大的索引导致内存问题）
-     * 
+     *
      * @param key 要检查的键
      * @param outIndex 输出参数，如果是有效索引则存储索引值
      * @return true 如果是有效的数组索引
@@ -375,4 +375,3 @@ private:
 };
 
 } // namespace Lua
-

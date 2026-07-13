@@ -1,9 +1,9 @@
 /**
  * @file baselib.cpp
  * @brief Lua基础库实现
- * 
+ *
  * 使用现代C++流式API进行函数注册（方案二）
- * 
+ *
  * @author Lua C++ Project
  * @date 2025-11-13
  * @updated 2025-12-18 - 采用流式API改进注册方式
@@ -62,12 +62,12 @@ static bool shouldReadStdinChunk() {
 // =====================================================================
 
 i32 luaB_print(LuaState* L) {
-    i32 n = L->getTop();  // 参数数量
-    
+    i32 n = L->getTop(); // 参数数量
+
     for (i32 i = 1; i <= n; i++) {
         const char* s = nullptr;
         Str formatted;
-        
+
         // 尝试将值转换为字符串
         if (L->isString(i)) {
             s = L->toString(i);
@@ -88,7 +88,7 @@ i32 luaB_print(LuaState* L) {
         } else {
             s = "unknown";
         }
-        
+
         if (i > 1) {
             std::fputs("\t", stdout);
         }
@@ -96,8 +96,8 @@ i32 luaB_print(LuaState* L) {
     }
     std::fputs("\n", stdout);
     std::fflush(stdout);
-    
-    return 0;  // 不返回值
+
+    return 0; // 不返回值
 }
 
 // =====================================================================
@@ -108,14 +108,14 @@ i32 luaB_type(LuaState* L) {
     if (L->getTop() < 1) {
         L->error("type: missing argument");
     }
-    
+
     i32 t = L->type(1);
     const char* typeName = L->typeName(t);
-    
+
     // 创建字符串并压入栈
     GCString* str = L->getGlobalState().getStringPool().intern(typeName);
     L->pushString(str);
-    
+
     return 1;
 }
 
@@ -192,7 +192,7 @@ i32 luaB_tonumber(LuaState* L) {
     if (L->getTop() < 1) {
         L->error("tonumber: missing argument");
     }
-    
+
     bool hasBase = L->getTop() >= 2 && !L->isNil(2);
     i32 base = 10;
     if (hasBase) {
@@ -204,13 +204,13 @@ i32 luaB_tonumber(LuaState* L) {
             L->error("tonumber: base out of range");
         }
     }
-    
+
     // 如果已经是数字，直接返回
     if (!hasBase && L->isNumber(1)) {
         L->pushNumber(L->toNumber(1));
         return 1;
     }
-    
+
     // 尝试从字符串转换
     if (L->isString(1) || (hasBase && L->isNumber(1))) {
         const char* s = L->toString(1);
@@ -218,14 +218,15 @@ i32 luaB_tonumber(LuaState* L) {
             L->pushNil();
             return 1;
         }
-        
+
         // 跳过前导空白
-        while (std::isspace(*s)) s++;
-        
+        while (std::isspace(*s))
+            s++;
+
         // 转换数字
         f64 result = 0.0;
         bool hasDigit = false;
-        
+
         if (base == 10) {
             // 十进制：支持小数点和科学计数法
             char* endptr = nullptr;
@@ -235,7 +236,8 @@ i32 luaB_tonumber(LuaState* L) {
                 return 1;
             }
             // 检查是否有非数字字符（跳过尾部空白）
-            while (std::isspace(*endptr)) endptr++;
+            while (std::isspace(*endptr))
+                endptr++;
             if (*endptr != '\0') {
                 L->pushNil();
                 return 1;
@@ -263,18 +265,19 @@ i32 luaB_tonumber(LuaState* L) {
                 } else {
                     break;
                 }
-                
+
                 if (digit >= base) {
                     break;
                 }
-                
+
                 result = result * base + digit;
                 hasDigit = true;
                 s++;
             }
-            
+
             // 检查是否有非数字字符
-            while (std::isspace(*s)) s++;
+            while (std::isspace(*s))
+                s++;
             if (*s != '\0') {
                 hasDigit = false;
             }
@@ -282,7 +285,7 @@ i32 luaB_tonumber(LuaState* L) {
                 result = -result;
             }
         }
-        
+
         if (hasDigit) {
             L->pushNumber(result);
             return 1;
@@ -379,7 +382,7 @@ i32 luaB_error(LuaState* L) {
         }
     }
 
-    L->setTop(1);  // 只保留错误消息
+    L->setTop(1); // 只保留错误消息
     return L->error();
 }
 
@@ -422,7 +425,7 @@ i32 luaB_setmetatable(LuaState* L) {
     }
 
     i32 t = L->type(2);
-    if (t != 0 && t != 5) {  // 不是nil也不是table
+    if (t != 0 && t != 5) { // 不是nil也不是table
         L->error("setmetatable: second argument must be nil or table");
     }
 
@@ -444,7 +447,7 @@ i32 luaB_setmetatable(LuaState* L) {
         L->error("setmetatable: cannot set metatable");
     }
 
-    L->setTop(1);  // 只保留表
+    L->setTop(1); // 只保留表
     return 1;
 }
 
@@ -525,7 +528,7 @@ static i32 luaB_next(LuaState* L) {
     }
 
     Table* table = tableVal.asTable();
-    Value key = L->getTop() > 1 ? L->at(2) : Value();  // nil if not provided
+    Value key = L->getTop() > 1 ? L->at(2) : Value(); // nil if not provided
 
     // 获取下一个键值对
     Value nextKey, nextValue;
@@ -571,7 +574,7 @@ static i32 luaB_pairs(LuaState* L) {
 
 /**
  * @brief ipairs迭代器辅助函数
- * 
+ *
  * 接收(table, index)，返回(index+1, value)
  */
 static i32 ipairsIter(LuaState* L) {
@@ -593,7 +596,7 @@ static i32 ipairsIter(LuaState* L) {
     // 获取下一个元素
     Value nextValue = table->getArray(nextIndex);
     if (nextValue.isNil()) {
-        return 0;  // 结束迭代
+        return 0; // 结束迭代
     }
 
     L->pushNumber(static_cast<f64>(nextIndex));
@@ -624,7 +627,7 @@ static i32 luaB_ipairs(LuaState* L) {
 
     L->pushFunction(iterFunc);
     L->pushValue(tableVal);
-    L->pushNumber(0.0);  // 初始索引0
+    L->pushNumber(0.0); // 初始索引0
 
     return 3;
 }
@@ -684,7 +687,7 @@ i32 luaB_rawset(LuaState* L) {
     // 检查 NaN（如果是数字）
     if (index.isNumber()) {
         f64 num = index.asNumber();
-        if (num != num) {  // NaN check
+        if (num != num) { // NaN check
             L->error("rawset: table index is NaN");
         }
     }
@@ -693,7 +696,7 @@ i32 luaB_rawset(LuaState* L) {
     Value value = L->at(3);
     table->set(index, value);
 
-    L->pushValue(L->at(1));  // 返回表本身
+    L->pushValue(L->at(1)); // 返回表本身
     return 1;
 }
 
@@ -835,10 +838,7 @@ i32 luaB_xpcall(LuaState* L) {
 
 class DumpReader {
 public:
-    DumpReader(StrView data, StringPool& pool, GarbageCollector& gc)
-        : data_(data)
-        , pool_(pool)
-        , gc_(gc) {}
+    DumpReader(StrView data, StringPool& pool, GarbageCollector& gc) : data_(data), pool_(pool), gc_(gc) {}
 
     Proto* readChunk() {
         readHeader();
@@ -929,9 +929,8 @@ private:
         u8 instructionSize = readByte();
         u8 numberSize = readByte();
         u8 integralFlag = readByte();
-        if (version != 0x51 || format != 0 || endian != 1 ||
-            intSize != sizeof(i32) || instructionSize != sizeof(Instruction) ||
-            numberSize != sizeof(LuaNumber) || integralFlag != 0) {
+        if (version != 0x51 || format != 0 || endian != 1 || intSize != sizeof(i32) ||
+            instructionSize != sizeof(Instruction) || numberSize != sizeof(LuaNumber) || integralFlag != 0) {
             throw std::runtime_error("unsupported binary chunk format");
         }
         if (pos_ + 4 <= data_.size() && data_.substr(pos_, 4) == StrView("LC++", 4)) {
@@ -972,16 +971,16 @@ private:
     Value readConstant() {
         u8 tag = readByte();
         switch (tag) {
-            case 0:
-                return Value();
-            case 1:
-                return Value(readByte() != 0);
-            case 3:
-                return Value(readNumber());
-            case 4:
-                return Value(readMaybeString());
-            default:
-                throw std::runtime_error("unsupported constant in binary chunk");
+        case 0:
+            return Value();
+        case 1:
+            return Value(readByte() != 0);
+        case 3:
+            return Value(readNumber());
+        case 4:
+            return Value(readMaybeString());
+        default:
+            throw std::runtime_error("unsupported constant in binary chunk");
         }
     }
 
@@ -1094,8 +1093,7 @@ static GCObject* loadGCObjectFromValue(const Value& value) {
 
 class ScopedLoadResultRoots {
 public:
-    explicit ScopedLoadResultRoots(LuaState* L)
-        : gc_(L->getGlobalState().getGC()) {
+    explicit ScopedLoadResultRoots(LuaState* L) : gc_(L->getGlobalState().getGC()) {
         for (i32 i = 1; i <= L->getTop(); ++i) {
             GCObject* obj = loadGCObjectFromValue(L->at(i));
             if (obj == nullptr) {
@@ -1185,8 +1183,7 @@ static bool stopOnDefinitiveReaderSyntaxError(LuaState* L, StringPool& pool, Run
     }
 
     usize first = 0;
-    while (first < source.size() &&
-           std::isspace(static_cast<unsigned char>(source[first])) != 0) {
+    while (first < source.size() && std::isspace(static_cast<unsigned char>(source[first])) != 0) {
         first++;
     }
     if (first >= source.size() || source[first] != '*') {
@@ -1229,9 +1226,7 @@ i32 luaB_loadstring(LuaState* L) {
     }
 
     Str code = codeVal.asString()->getData();
-    Str chunkname = (nargs >= 2 && L->at(2).isString())
-        ? L->at(2).asString()->getData()
-        : code;
+    Str chunkname = (nargs >= 2 && L->at(2).isString()) ? L->at(2).asString()->getData() : code;
 
     try {
         if (isProjectBinaryChunk(StrView(code.data(), code.size()))) {
@@ -1392,17 +1387,13 @@ i32 luaB_loadfile(LuaState* L) {
     } catch (const ParseError& e) {
         L->setTop(0);
         L->pushNil();
-        Str errorMsg = Str("loadfile: ") +
-                       (displayName.empty() ? Str() : displayName + ": ") +
-                       e.what();
+        Str errorMsg = Str("loadfile: ") + (displayName.empty() ? Str() : displayName + ": ") + e.what();
         L->pushString(pool.intern(errorMsg.c_str()));
         return 2;
     } catch (const std::exception& e) {
         L->setTop(0);
         L->pushNil();
-        Str errorMsg = Str("loadfile: ") +
-                       (displayName.empty() ? Str() : displayName + ": ") +
-                       e.what();
+        Str errorMsg = Str("loadfile: ") + (displayName.empty() ? Str() : displayName + ": ") + e.what();
         L->pushString(pool.intern(errorMsg.c_str()));
         return 2;
     }
@@ -1490,7 +1481,7 @@ static Function* functionAtStackLevel(LuaState* L, i32 level) {
         return nullptr;
     }
 
-        LuaVector<CallInfo>& frames = L->getCallStack();
+    LuaVector<CallInfo>& frames = L->getCallStack();
     usize targetIndex = L->getCurrentCI();
     if (targetIndex >= frames.size()) {
         return nullptr;
@@ -1702,26 +1693,22 @@ i32 luaB_collectgarbage(LuaState* L) {
             (void)gc.collect(L);
             L->pushNumber(0);
             return 1;
-        }
-        else if (strcmp(opt, "count") == 0) {
+        } else if (strcmp(opt, "count") == 0) {
             // 返回内存使用量（KB，包含小数）
             usize totalBytes = gc.getTotalMemory();
             LuaNumber memoryKB = static_cast<LuaNumber>(totalBytes) / 1024.0;
             L->pushNumber(memoryKB);
             return 1;
         }
-    }
-    else if (firstChar == 's') {
+    } else if (firstChar == 's') {
         if (strcmp(opt, "stop") == 0) {
             gc.stopAutomatic();
             L->pushNumber(0);
             return 1;
-        }
-        else if (strcmp(opt, "step") == 0) {
+        } else if (strcmp(opt, "step") == 0) {
             L->pushBoolean(gc.step(L, arg));
             return 1;
-        }
-        else if (strcmp(opt, "strategy") == 0) {
+        } else if (strcmp(opt, "strategy") == 0) {
             if (L->getTop() >= 2) {
                 Value strategy = L->at(2);
                 if (!strategy.isString() || !gc.useStrategy(strategy.asString()->c_str())) {
@@ -1732,17 +1719,14 @@ i32 luaB_collectgarbage(LuaState* L) {
             GCString* name = L->getGlobalState().getStringPool().intern(gc.getStrategyName());
             L->pushString(name);
             return 1;
-        }
-        else if (strcmp(opt, "setpause") == 0) {
+        } else if (strcmp(opt, "setpause") == 0) {
             L->pushNumber(static_cast<LuaNumber>(gc.setPause(arg)));
             return 1;
-        }
-        else if (strcmp(opt, "setstepmul") == 0) {
+        } else if (strcmp(opt, "setstepmul") == 0) {
             L->pushNumber(static_cast<LuaNumber>(gc.setStepMultiplier(arg)));
             return 1;
         }
-    }
-    else if (firstChar == 'r') {
+    } else if (firstChar == 'r') {
         if (strcmp(opt, "restart") == 0) {
             gc.restartAutomatic();
             L->pushNumber(0);
@@ -1765,11 +1749,11 @@ static i32 luaB_unpack(LuaState* L) {
 
     Table* table = L->at(1).asTable();
     i32 i = (L->getTop() >= 2 && !L->at(2).isNil()) ? static_cast<i32>(L->toNumber(2)) : 1;
-    i32 j = (L->getTop() >= 3 && !L->at(3).isNil())
-        ? static_cast<i32>(L->toNumber(3))
-        : static_cast<i32>(table->length());
+    i32 j =
+        (L->getTop() >= 3 && !L->at(3).isNil()) ? static_cast<i32>(L->toNumber(3)) : static_cast<i32>(table->length());
 
-    if (i > j) return 0;  // empty range
+    if (i > j)
+        return 0; // empty range
 
     i32 n = j - i + 1;
     for (i32 k = i; k <= j; k++) {
@@ -1785,9 +1769,7 @@ static i32 luaB_unpack(LuaState* L) {
 
 class ScopedAutomaticGCStop {
 public:
-    explicit ScopedAutomaticGCStop(GarbageCollector& gc)
-        : gc_(gc)
-        , wasStopped_(gc.isAutomaticStopped()) {
+    explicit ScopedAutomaticGCStop(GarbageCollector& gc) : gc_(gc), wasStopped_(gc.isAutomaticStopped()) {
         gc_.stopAutomatic();
     }
 
@@ -1817,9 +1799,7 @@ static i32 luaB_load(LuaState* L) {
     }
 
     Value loaderFunc = L->at(1);
-    Str chunkname = (L->getTop() >= 2 && L->at(2).isString())
-        ? L->at(2).asString()->c_str()
-        : "=(load)";
+    Str chunkname = (L->getTop() >= 2 && L->at(2).isString()) ? L->at(2).asString()->c_str() : "=(load)";
 
     // Collect source pieces by calling the loader function repeatedly
     // Use VM::call instead of L->pcall to preserve the stack (keeps upvalues valid)
@@ -1990,4 +1970,3 @@ void openBaseLib(LuaState* L) {
 }
 
 } // namespace Lua
-

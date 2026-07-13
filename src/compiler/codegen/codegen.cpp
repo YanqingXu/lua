@@ -21,31 +21,16 @@ namespace Lua {
 // =====================================================================
 
 CodeGenerator::CodeGenerator(StringPool* pool)
-    : state_(RuntimeServices::fromSingletons(), pool)
-    , jumps_(state_)
-    , ops_(state_, jumps_)
-    , scopes_(state_, jumps_)
-    , binder_(state_, scopes_)
-    , expressions_(*this)
-    , statements_(*this)
-    , functions_(*this)
-{
+    : state_(RuntimeServices::fromSingletons(), pool), jumps_(state_), ops_(state_, jumps_), scopes_(state_, jumps_),
+      binder_(state_, scopes_), expressions_(*this), statements_(*this), functions_(*this) {
     if (pool == nullptr) {
         throw std::invalid_argument("StringPool cannot be null");
     }
 }
 
 CodeGenerator::CodeGenerator(RuntimeServices& services)
-    : state_(services)
-    , jumps_(state_)
-    , ops_(state_, jumps_)
-    , scopes_(state_, jumps_)
-    , binder_(state_, scopes_)
-    , expressions_(*this)
-    , statements_(*this)
-    , functions_(*this)
-{
-}
+    : state_(services), jumps_(state_), ops_(state_, jumps_), scopes_(state_, jumps_), binder_(state_, scopes_),
+      expressions_(*this), statements_(*this), functions_(*this) {}
 
 CodeGenerator::~CodeGenerator() {
     // Proto由GC管理
@@ -94,7 +79,7 @@ Proto* CodeGenerator::generateUnchecked(const Chunk& chunk, StrView sourceName) 
     i32 finalLine = chunk.statements.empty() ? state_.currentLine : chunk.statements.back()->getEndLine();
     {
         LineGuard line(state_, finalLine);
-        codeABC(OpCode::RETURN, 0, 1, 0);  // return (no values)
+        codeABC(OpCode::RETURN, 0, 1, 0); // return (no values)
     }
 
     attachDebugMetadata();
@@ -131,4 +116,4 @@ i32 CodeGenerator::codeAsBx(OpCode op, i32 a, i32 sbx) {
     return ops_.codeAsBx(op, a, sbx);
 }
 
-}  // namespace Lua
+} // namespace Lua

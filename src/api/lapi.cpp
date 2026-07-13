@@ -67,9 +67,8 @@ int apiTop(const Lua::LuaState* L) {
 
 void setApiTop(Lua::LuaState* L, int idx) {
     const Lua::usize base = currentFrameBase(L);
-    const auto newTop = idx >= 0
-                            ? static_cast<Lua::isize>(base) + idx
-                            : static_cast<Lua::isize>(L->getAbsoluteTop()) + idx + 1;
+    const auto newTop =
+        idx >= 0 ? static_cast<Lua::isize>(base) + idx : static_cast<Lua::isize>(L->getAbsoluteTop()) + idx + 1;
     if (newTop < static_cast<Lua::isize>(base)) {
         L->error("invalid stack index");
     }
@@ -100,8 +99,7 @@ ApiIndex resolveStackIndex(Lua::LuaState* L, int idx) {
 
     if (idx > 0) {
         const Lua::usize absolute = base + static_cast<Lua::usize>(idx - 1);
-        return absolute < top ? ApiIndex{ApiIndexKind::Stack, absolute}
-                              : ApiIndex{};
+        return absolute < top ? ApiIndex{ApiIndexKind::Stack, absolute} : ApiIndex{};
     }
 
     if (idx < 0 && idx > LUA_REGISTRYINDEX) {
@@ -119,17 +117,13 @@ ApiIndex resolveStackIndex(Lua::LuaState* L, int idx) {
     }
     if (idx == LUA_ENVIRONINDEX) {
         Lua::Function* closure = currentClosure(L);
-        return closure != nullptr
-                   ? ApiIndex{ApiIndexKind::Environment, 0, closure}
-                   : ApiIndex{};
+        return closure != nullptr ? ApiIndex{ApiIndexKind::Environment, 0, closure} : ApiIndex{};
     }
     if (idx < LUA_GLOBALSINDEX) {
         Lua::Function* closure = currentClosure(L);
         const int number = LUA_GLOBALSINDEX - idx;
-        if (closure != nullptr && number > 0 &&
-            static_cast<Lua::usize>(number) <= closure->getUpvalueCount()) {
-            return ApiIndex{ApiIndexKind::Upvalue, 0, closure,
-                            static_cast<Lua::usize>(number - 1)};
+        if (closure != nullptr && number > 0 && static_cast<Lua::usize>(number) <= closure->getUpvalueCount()) {
+            return ApiIndex{ApiIndexKind::Upvalue, 0, closure, static_cast<Lua::usize>(number - 1)};
         }
     }
 
@@ -138,25 +132,23 @@ ApiIndex resolveStackIndex(Lua::LuaState* L, int idx) {
 
 std::optional<Lua::Value> readIndex(Lua::LuaState* L, const ApiIndex& index) {
     switch (index.kind) {
-        case ApiIndexKind::Stack:
-            return L->getStack().at(index.stackIndex);
-        case ApiIndexKind::Registry:
-            return Lua::Value(L->getGlobalState().getRegistry());
-        case ApiIndexKind::Globals:
-            return Lua::Value(L->getGlobalTable());
-        case ApiIndexKind::Environment:
-            return Lua::Value(index.closure->getEnv() != nullptr
-                                  ? index.closure->getEnv()
-                                  : L->getGlobalTable());
-        case ApiIndexKind::Upvalue: {
-            Lua::Upvalue* upvalue = index.closure->getUpvalue(index.upvalueIndex);
-            if (upvalue != nullptr) {
-                return upvalue->getValue(L->getStack());
-            }
-            break;
+    case ApiIndexKind::Stack:
+        return L->getStack().at(index.stackIndex);
+    case ApiIndexKind::Registry:
+        return Lua::Value(L->getGlobalState().getRegistry());
+    case ApiIndexKind::Globals:
+        return Lua::Value(L->getGlobalTable());
+    case ApiIndexKind::Environment:
+        return Lua::Value(index.closure->getEnv() != nullptr ? index.closure->getEnv() : L->getGlobalTable());
+    case ApiIndexKind::Upvalue: {
+        Lua::Upvalue* upvalue = index.closure->getUpvalue(index.upvalueIndex);
+        if (upvalue != nullptr) {
+            return upvalue->getValue(L->getStack());
         }
-        case ApiIndexKind::Invalid:
-            break;
+        break;
+    }
+    case ApiIndexKind::Invalid:
+        break;
     }
     return std::nullopt;
 }
@@ -167,32 +159,32 @@ std::optional<Lua::Value> readIndex(Lua::LuaState* L, int idx) {
 
 bool writeIndex(Lua::LuaState* L, const ApiIndex& index, const Lua::Value& value) {
     switch (index.kind) {
-        case ApiIndexKind::Stack:
-            L->getStack().at(index.stackIndex) = value;
+    case ApiIndexKind::Stack:
+        L->getStack().at(index.stackIndex) = value;
+        return true;
+    case ApiIndexKind::Globals:
+        if (value.isTable()) {
+            L->setGlobalTable(value.asTable());
             return true;
-        case ApiIndexKind::Globals:
-            if (value.isTable()) {
-                L->setGlobalTable(value.asTable());
-                return true;
-            }
-            return false;
-        case ApiIndexKind::Environment:
-            if (value.isTable()) {
-                index.closure->setEnv(value.asTable());
-                return true;
-            }
-            return false;
-        case ApiIndexKind::Upvalue: {
-            Lua::Upvalue* upvalue = index.closure->getUpvalue(index.upvalueIndex);
-            if (upvalue != nullptr) {
-                upvalue->setValue(L->getStack(), value);
-                return true;
-            }
-            return false;
         }
-        case ApiIndexKind::Registry:
-        case ApiIndexKind::Invalid:
-            return false;
+        return false;
+    case ApiIndexKind::Environment:
+        if (value.isTable()) {
+            index.closure->setEnv(value.asTable());
+            return true;
+        }
+        return false;
+    case ApiIndexKind::Upvalue: {
+        Lua::Upvalue* upvalue = index.closure->getUpvalue(index.upvalueIndex);
+        if (upvalue != nullptr) {
+            upvalue->setValue(L->getStack(), value);
+            return true;
+        }
+        return false;
+    }
+    case ApiIndexKind::Registry:
+    case ApiIndexKind::Invalid:
+        return false;
     }
     return false;
 }
@@ -231,7 +223,7 @@ void setValueMetatable(Lua::LuaState* state, const Lua::Value& value, Lua::Table
     }
 }
 
-}  // namespace
+} // namespace
 
 extern "C" {
 
@@ -289,8 +281,7 @@ int lua_checkstack(lua_State* L, int extra) {
         if (stack.capacity() < desired) {
             stack.ensureSpace(desired - stack.size());
         }
-        state->getCurrentCallInfo().top =
-            std::max(state->getCurrentCallInfo().top, desired);
+        state->getCurrentCallInfo().top = std::max(state->getCurrentCallInfo().top, desired);
         return 1;
     } catch (const Lua::MemoryError&) {
         return 0;
@@ -609,8 +600,7 @@ void lua_gettable(lua_State* L, int idx) {
 
 void* lua_newuserdata(lua_State* L, size_t size) {
     Lua::LuaState* state = fromC(L);
-    Lua::Userdata* userdata =
-        state->getGlobalState().getGC().create<Lua::Userdata>(static_cast<Lua::usize>(size));
+    Lua::Userdata* userdata = state->getGlobalState().getGC().create<Lua::Userdata>(static_cast<Lua::usize>(size));
     state->pushUserdata(userdata);
     return userdata->getData();
 }
@@ -759,8 +749,7 @@ int lua_resume(lua_State* L, int nargs) {
         const bool resumed = thread->resume(bridge, nargs);
         const Lua::usize outputTop = bridge->getAbsoluteTop();
         const Lua::usize outputCount = outputTop >= bridgeTop ? outputTop - bridgeTop : 0;
-        Lua::LuaVector<Lua::Value> outputValues(
-            Lua::LuaStdAllocator<Lua::Value>(globalState.getAllocator()));
+        Lua::LuaVector<Lua::Value> outputValues(Lua::LuaStdAllocator<Lua::Value>(globalState.getAllocator()));
         if (outputCount > 1) {
             outputValues.reserve(outputCount - 1);
             for (Lua::usize i = 1; i < outputCount; ++i) {
@@ -890,5 +879,4 @@ const char* luaL_checklstring(lua_State* L, int narg, size_t* len) {
 const char* luaL_checkstring(lua_State* L, int narg) {
     return luaL_checklstring(L, narg, nullptr);
 }
-
 }

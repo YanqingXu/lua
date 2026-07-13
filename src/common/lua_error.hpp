@@ -20,21 +20,19 @@ namespace Lua {
 
 class LuaError : public std::runtime_error {
 public:
-    explicit LuaError(const Str& message)
-        : std::runtime_error(message)
-        , errorObj_()
-        , hasErrorObject_(false) {}
+    explicit LuaError(const Str& message) : std::runtime_error(message), errorObj_(), hasErrorObject_(false) {}
 
-    explicit LuaError(const char* message)
-        : LuaError(Str(message ? message : "")) {}
+    explicit LuaError(const char* message) : LuaError(Str(message ? message : "")) {}
 
     explicit LuaError(Value errorObj)
-        : std::runtime_error(messageFromValue(errorObj))
-        , errorObj_(std::move(errorObj))
-        , hasErrorObject_(true) {}
+        : std::runtime_error(messageFromValue(errorObj)), errorObj_(std::move(errorObj)), hasErrorObject_(true) {}
 
-    const Value& getErrorObject() const noexcept { return errorObj_; }
-    bool hasErrorObject() const noexcept { return hasErrorObject_; }
+    const Value& getErrorObject() const noexcept {
+        return errorObj_;
+    }
+    bool hasErrorObject() const noexcept {
+        return hasErrorObject_;
+    }
 
 private:
     static Str messageFromValue(const Value& errorObj) {
@@ -53,13 +51,14 @@ private:
  */
 class ParseError : public LuaError {
 public:
-    ParseError(const Str& message, i32 line, i32 column)
-        : LuaError(message)
-        , line_(line)
-        , column_(column) {}
+    ParseError(const Str& message, i32 line, i32 column) : LuaError(message), line_(line), column_(column) {}
 
-    i32 getLine() const { return line_; }
-    i32 getColumn() const { return column_; }
+    i32 getLine() const {
+        return line_;
+    }
+    i32 getColumn() const {
+        return column_;
+    }
 
 private:
     i32 line_;

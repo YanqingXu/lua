@@ -58,36 +58,32 @@ static constexpr StrView PACKAGE_REGISTRY_KEY = "_PACKAGE_TABLE";
 
 // Default paths
 #ifdef _WIN32
-static constexpr StrView LUA_DEFAULT_PATH =
-    ".\\?.lua;"
-    ".\\?\\init.lua;"
-    "!\\lua\\?.lua;"
-    "!\\lua\\?\\init.lua";
-static constexpr StrView LUA_DEFAULT_CPATH =
-    ".\\?.dll;"
-    "!\\?.dll;"
-    "!\\loadall.dll";
-static constexpr StrView LUA_PATH_SEP  = ";";
+static constexpr StrView LUA_DEFAULT_PATH = ".\\?.lua;"
+                                            ".\\?\\init.lua;"
+                                            "!\\lua\\?.lua;"
+                                            "!\\lua\\?\\init.lua";
+static constexpr StrView LUA_DEFAULT_CPATH = ".\\?.dll;"
+                                             "!\\?.dll;"
+                                             "!\\loadall.dll";
+static constexpr StrView LUA_PATH_SEP = ";";
 static constexpr StrView LUA_PATH_MARK = "?";
-static constexpr StrView LUA_DIR_SEP   = "\\";
-static constexpr StrView LUA_EXEC_DIR  = "!";
-static constexpr StrView LUA_IGMARK    = "-";
-static constexpr StrView LUA_OFSEP     = "_";
+static constexpr StrView LUA_DIR_SEP = "\\";
+static constexpr StrView LUA_EXEC_DIR = "!";
+static constexpr StrView LUA_IGMARK = "-";
+static constexpr StrView LUA_OFSEP = "_";
 #else
-static constexpr StrView LUA_DEFAULT_PATH =
-    "./?.lua;"
-    "./?/init.lua;"
-    "/usr/local/share/lua/5.1/?.lua;"
-    "/usr/local/share/lua/5.1/?/init.lua";
-static constexpr StrView LUA_DEFAULT_CPATH =
-    "./?.so;"
-    "/usr/local/lib/lua/5.1/?.so";
-static constexpr StrView LUA_PATH_SEP  = ";";
+static constexpr StrView LUA_DEFAULT_PATH = "./?.lua;"
+                                            "./?/init.lua;"
+                                            "/usr/local/share/lua/5.1/?.lua;"
+                                            "/usr/local/share/lua/5.1/?/init.lua";
+static constexpr StrView LUA_DEFAULT_CPATH = "./?.so;"
+                                             "/usr/local/lib/lua/5.1/?.so";
+static constexpr StrView LUA_PATH_SEP = ";";
 static constexpr StrView LUA_PATH_MARK = "?";
-static constexpr StrView LUA_DIR_SEP   = "/";
-static constexpr StrView LUA_EXEC_DIR  = "!";
-static constexpr StrView LUA_IGMARK    = "-";
-static constexpr StrView LUA_OFSEP     = "_";
+static constexpr StrView LUA_DIR_SEP = "/";
+static constexpr StrView LUA_EXEC_DIR = "!";
+static constexpr StrView LUA_IGMARK = "-";
+static constexpr StrView LUA_OFSEP = "_";
 #endif
 
 // Config string: sep \n dirsep \n mark \n execdir \n igmark
@@ -122,7 +118,8 @@ static Table* getPackageTable(LuaState* L) {
 
 static Table* getPackageSubTable(LuaState* L, const char* fieldName) {
     Table* pkg = getPackageTable(L);
-    if (!pkg) return nullptr;
+    if (!pkg)
+        return nullptr;
 
     GCString* key = L->getGlobalState().getStringPool().intern(fieldName);
     Value val = pkg->get(Value(key));
@@ -138,7 +135,8 @@ static Table* getPackageSubTable(LuaState* L, const char* fieldName) {
 
 static Str getPackageStringField(LuaState* L, const char* fieldName) {
     Table* pkg = getPackageTable(L);
-    if (!pkg) return "";
+    if (!pkg)
+        return "";
 
     GCString* key = L->getGlobalState().getStringPool().intern(fieldName);
     Value val = pkg->get(Value(key));
@@ -271,8 +269,7 @@ static Str modulePackagePrefix(const Str& modname) {
     return pos == Str::npos ? Str() : modname.substr(0, pos + 1);
 }
 
-static Table* ensureChildTable(LuaState* L, Table* parent,
-                               const Str& field, const Str& modname) {
+static Table* ensureChildTable(LuaState* L, Table* parent, const Str& field, const Str& modname) {
     auto& pool = L->getGlobalState().getStringPool();
     GCString* key = pool.intern(field.c_str());
     Value existing = parent->get(Value(key));
@@ -346,9 +343,7 @@ static void setGlobalModulePath(LuaState* L, const Str& modname, Table* modTable
         if (!existing.isNil() && !existing.isTable()) {
             moduleNameConflict(L, modname);
         }
-        parent = existing.isTable()
-            ? existing.asTable()
-            : ensureChildTable(L, parent, field, modname);
+        parent = existing.isTable() ? existing.asTable() : ensureChildTable(L, parent, field, modname);
         start = dot + 1;
     }
 
@@ -414,12 +409,14 @@ static Str searchPath(const Str& name, const Str& pathStr, Str& errorBuf) {
     usize pos = 0;
     while (pos <= pathStr.size()) {
         usize sep = pathStr.find(LUA_PATH_SEP, pos);
-        if (sep == Str::npos) sep = pathStr.size();
+        if (sep == Str::npos)
+            sep = pathStr.size();
 
         Str tmpl = pathStr.substr(pos, sep - pos);
         pos = sep + 1;
 
-        if (tmpl.empty()) continue;
+        if (tmpl.empty())
+            continue;
 
         tmpl = applyExecutableDirectory(tmpl);
 
@@ -496,11 +493,7 @@ using DynamicLibraryHandle = HMODULE;
 using DynamicLibraryHandle = void*;
 #endif
 
-enum class DynamicLookupStatus {
-    Success,
-    OpenFailure,
-    InitFailure
-};
+enum class DynamicLookupStatus { Success, OpenFailure, InitFailure };
 
 struct DynamicLookupResult {
     DynamicLookupStatus status;
@@ -528,26 +521,17 @@ static Str lastDynamicLibraryError() {
 
     LPSTR buffer = nullptr;
     DWORD len = FormatMessageA(
-        FORMAT_MESSAGE_ALLOCATE_BUFFER |
-        FORMAT_MESSAGE_FROM_SYSTEM |
-        FORMAT_MESSAGE_IGNORE_INSERTS,
-        nullptr,
-        err,
-        MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-        reinterpret_cast<LPSTR>(&buffer),
-        0,
-        nullptr);
+        FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, nullptr, err,
+        MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), reinterpret_cast<LPSTR>(&buffer), 0, nullptr);
 
-    Str message = (len != 0 && buffer != nullptr)
-        ? Str(buffer, static_cast<usize>(len))
-        : ("Windows error " + std::to_string(err));
+    Str message = (len != 0 && buffer != nullptr) ? Str(buffer, static_cast<usize>(len))
+                                                  : ("Windows error " + std::to_string(err));
 
     if (buffer) {
         LocalFree(buffer);
     }
 
-    while (!message.empty() &&
-           (message.back() == '\r' || message.back() == '\n')) {
+    while (!message.empty() && (message.back() == '\r' || message.back() == '\n')) {
         message.pop_back();
     }
     return message;
@@ -601,10 +585,8 @@ static std::expected<DynamicLibraryHandle, DynamicLookupError> tryLoadDynamicLib
     return handle;
 }
 
-static std::expected<void*, DynamicLookupError> tryLoadDynamicSymbol(
-    DynamicLibraryHandle handle,
-    const Str& symbolName
-) {
+static std::expected<void*, DynamicLookupError> tryLoadDynamicSymbol(DynamicLibraryHandle handle,
+                                                                     const Str& symbolName) {
 #ifdef _WIN32
     FARPROC proc = GetProcAddress(handle, symbolName.c_str());
     if (!proc) {
@@ -634,29 +616,22 @@ static Function* createDynamicCFunction(LuaState* L, void* symbol) {
     return func;
 }
 
-static DynamicLookupResult lookForDynamicFunction(LuaState* L,
-                                                  const Str& filename,
-                                                  const Str& functionName) {
+static DynamicLookupResult lookForDynamicFunction(LuaState* L, const Str& filename, const Str& functionName) {
     auto handle = tryLoadDynamicLibrary(filename);
     if (!handle) {
-        return { handle.error().status, nullptr, handle.error().message, false };
+        return {handle.error().status, nullptr, handle.error().message, false};
     }
 
     if (functionName == "*") {
-        return { DynamicLookupStatus::Success, nullptr, Str(), true };
+        return {DynamicLookupStatus::Success, nullptr, Str(), true};
     }
 
     auto symbol = tryLoadDynamicSymbol(*handle, functionName);
     if (!symbol) {
-        return { symbol.error().status, nullptr, symbol.error().message, false };
+        return {symbol.error().status, nullptr, symbol.error().message, false};
     }
 
-    return {
-        DynamicLookupStatus::Success,
-        createDynamicCFunction(L, *symbol),
-        Str(),
-        false
-    };
+    return {DynamicLookupStatus::Success, createDynamicCFunction(L, *symbol), Str(), false};
 }
 
 static Str moduleNameToOpenFunction(const Str& modname) {
@@ -669,12 +644,8 @@ static Str moduleNameToOpenFunction(const Str& modname) {
     return "luaopen_" + replaceAll(name, ".", LUA_OFSEP);
 }
 
-[[noreturn]] static void dynamicLoadError(LuaState* L,
-                                          const Str& modname,
-                                          const Str& filename,
-                                          const Str& message) {
-    Str error = "error loading module '" + modname + "' from file '" +
-                filename + "':\n\t" + message;
+[[noreturn]] static void dynamicLoadError(LuaState* L, const Str& modname, const Str& filename, const Str& message) {
+    Str error = "error loading module '" + modname + "' from file '" + filename + "':\n\t" + message;
     L->error(error.c_str());
 }
 
@@ -691,8 +662,7 @@ i32 loader_preload(LuaState* L) {
     i32 nargs = L->getTop();
     if (nargs < 1 || !L->at(1).isString()) {
         L->setTop(0);
-        L->pushString(L->getGlobalState().getStringPool().intern(
-            "\n\tno field package.preload"));
+        L->pushString(L->getGlobalState().getStringPool().intern("\n\tno field package.preload"));
         return 1;
     }
 
@@ -731,8 +701,7 @@ i32 loader_lua(LuaState* L) {
     i32 nargs = L->getTop();
     if (nargs < 1 || !L->at(1).isString()) {
         L->setTop(0);
-        L->pushString(L->getGlobalState().getStringPool().intern(
-            "\n\tno field package.path"));
+        L->pushString(L->getGlobalState().getStringPool().intern("\n\tno field package.path"));
         return 1;
     }
 
@@ -898,14 +867,14 @@ i32 luaP_require(LuaState* L) {
     Str errorAccum = "module '" + modname + "' not found:";
 
     // Iterate loaders[1], loaders[2], ...
-    for (i32 i = 1; ; i++) {
+    for (i32 i = 1;; i++) {
         Value loaderEntry = loaders->get(Value(static_cast<f64>(i)));
         if (loaderEntry.isNil()) {
-            break;  // No more loaders
+            break; // No more loaders
         }
 
         if (!loaderEntry.isFunction()) {
-            continue;  // Skip non-function entries
+            continue; // Skip non-function entries
         }
 
         Function* searcherFunc = loaderEntry.asFunction();
@@ -916,7 +885,7 @@ i32 luaP_require(LuaState* L) {
         L->pushValue(Value(searcherFunc));
         L->pushString(modKey);
         RuntimeServices services(L->getGlobalState());
-        VM::call(services, L, 1, 1);  // 1 arg (modname), 1 result
+        VM::call(services, L, 1, 1); // 1 arg (modname), 1 result
 
         // After VM::call, result is on the stack
         if (L->getTop() >= 1) {
@@ -933,7 +902,7 @@ i32 luaP_require(LuaState* L) {
                 Value moduleResult;
 
                 try {
-                    VM::call(services, L, 1, 1);  // 1 arg (modname), 1 result
+                    VM::call(services, L, 1, 1); // 1 arg (modname), 1 result
 
                     if (L->getTop() >= 1) {
                         moduleResult = L->at(1);
@@ -972,7 +941,7 @@ i32 luaP_require(LuaState* L) {
 
     // No loader succeeded
     L->error(errorAccum.c_str());
-    return 0;  // unreachable
+    return 0; // unreachable
 }
 
 // =====================================================================
@@ -1078,8 +1047,7 @@ i32 luaP_loadlib(LuaState* L) {
     L->setTop(0);
     L->pushNil();
     L->pushString(pool.intern(lookup.message.c_str()));
-    L->pushString(pool.intern(
-        lookup.status == DynamicLookupStatus::OpenFailure ? "open" : "init"));
+    L->pushString(pool.intern(lookup.status == DynamicLookupStatus::OpenFailure ? "open" : "init"));
     return 3;
 }
 
@@ -1142,16 +1110,10 @@ void PackageLibModule::registerFunctions(LuaState* L) {
     L->getGlobalState().getRegistry()->set(Value(registryKey), Value(pkgTable));
 
     // ---- Register functions into the package table ----
-    FunctionRegistrar(L)
-        .addGlobal("loadlib", luaP_loadlib)
-        .addGlobal("seeall", luaP_seeall)
-        .commitToTable(pkgTable);
+    FunctionRegistrar(L).addGlobal("loadlib", luaP_loadlib).addGlobal("seeall", luaP_seeall).commitToTable(pkgTable);
 
     // ---- Register global functions: require, module ----
-    FunctionRegistrar(L)
-        .addGlobal("require", luaP_require)
-        .addGlobal("module", luaP_module)
-        .commit();
+    FunctionRegistrar(L).addGlobal("require", luaP_require).addGlobal("module", luaP_module).commit();
 
     // ---- package.loaded ----
     Table* loadedTable = gc.create<Table>();
@@ -1215,15 +1177,14 @@ void PackageLibModule::initialize(LuaState* L) {
     // Pre-populate package.loaded with standard libraries that are
     // already open. This allows  require("math")  etc. to work.
     Table* loaded = getPackageSubTable(L, "loaded");
-    if (!loaded) return;
+    if (!loaded)
+        return;
 
     auto& pool = L->getGlobalState().getStringPool();
 
     // Map library names to their global table entries
-    static constexpr std::array<StrView, 8> stdlibs = {
-        "math", "io", "os", "string", "table",
-        "coroutine", "debug", "package"
-    };
+    static constexpr std::array<StrView, 8> stdlibs = {"math",  "io",        "os",    "string",
+                                                       "table", "coroutine", "debug", "package"};
 
     for (StrView name : stdlibs) {
         Value libVal = L->getGlobal(name.data());

@@ -31,10 +31,10 @@ using LuaStateOwner = std::unique_ptr<LuaState, LuaStateOwnerDeleter>;
 
 /// Lua 协程状态（与 ThreadStatus 不同，这是 Lua 层面语义）
 enum class CoroutineStatus : u8 {
-    Suspended,  // 创建后 / yield 后
-    Running,    // 正在执行
-    Normal,     // resume 了其他协程，自身暂停
-    Dead        // 函数返回或出错
+    Suspended, // 创建后 / yield 后
+    Running,   // 正在执行
+    Normal,    // resume 了其他协程，自身暂停
+    Dead       // 函数返回或出错
 };
 
 class Thread : public GCObject {
@@ -66,15 +66,27 @@ public:
 
     // === 状态查询 ===
 
-    CoroutineStatus getCoroutineStatus() const noexcept { return coStatus_; }
-    LuaState* getLuaState() const noexcept { return state_.get(); }
-    bool isDead() const noexcept { return coStatus_ == CoroutineStatus::Dead; }
-    bool isSuspended() const noexcept { return coStatus_ == CoroutineStatus::Suspended; }
+    CoroutineStatus getCoroutineStatus() const noexcept {
+        return coStatus_;
+    }
+    LuaState* getLuaState() const noexcept {
+        return state_.get();
+    }
+    bool isDead() const noexcept {
+        return coStatus_ == CoroutineStatus::Dead;
+    }
+    bool isSuspended() const noexcept {
+        return coStatus_ == CoroutineStatus::Suspended;
+    }
 
     // === resume 链管理 ===
 
-    Thread* getCaller() const noexcept { return caller_; }
-    void setCaller(Thread* t) noexcept { caller_ = t; }
+    Thread* getCaller() const noexcept {
+        return caller_;
+    }
+    void setCaller(Thread* t) noexcept {
+        caller_ = t;
+    }
 
     // === GCObject 接口 ===
 
@@ -82,12 +94,12 @@ public:
     usize getSize() const override;
 
 private:
-    LuaStateOwner   state_;
+    LuaStateOwner state_;
     CoroutineStatus coStatus_;
-    Thread*         caller_ = nullptr;
-    LuaState*       callerState_ = nullptr;
-    bool            firstResume_ = true;
-    i32             savedNexeccalls_ = 1;
+    Thread* caller_ = nullptr;
+    LuaState* callerState_ = nullptr;
+    bool firstResume_ = true;
+    i32 savedNexeccalls_ = 1;
 };
 
 } // namespace Lua

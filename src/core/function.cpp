@@ -17,31 +17,15 @@ namespace Lua {
 // Proto类实现
 // =====================================================================
 
-Proto::Proto()
-    : Proto(nullptr)
-{
-}
+Proto::Proto() : Proto(nullptr) {}
 
 Proto::Proto(LuaAllocator* allocator)
-    : GCObject(GCObjectType::Proto)
-    , constants_(LuaStdAllocator<Value>(allocator))
-    , constantMap_(0, ConstantKeyHash{}, std::equal_to<ConstantKey>{},
-                   ConstantMapAllocator(allocator))
-    , code_(LuaStdAllocator<Instruction>(allocator))
-    , subProtos_(LuaStdAllocator<Proto*>(allocator))
-    , lineInfo_(LuaStdAllocator<i32>(allocator))
-    , locvars_(LuaStdAllocator<LocVar>(allocator))
-    , upvalueNames_(LuaStdAllocator<GCString*>(allocator))
-    , source_(nullptr)
-    , linedefined_(0)
-    , lastlinedefined_(0)
-    , gclist_(nullptr)
-    , nups_(0)
-    , numParams_(0)
-    , isVararg_(0)
-    , maxStackSize_(0)
-{
-}
+    : GCObject(GCObjectType::Proto), constants_(LuaStdAllocator<Value>(allocator)),
+      constantMap_(0, ConstantKeyHash{}, std::equal_to<ConstantKey>{}, ConstantMapAllocator(allocator)),
+      code_(LuaStdAllocator<Instruction>(allocator)), subProtos_(LuaStdAllocator<Proto*>(allocator)),
+      lineInfo_(LuaStdAllocator<i32>(allocator)), locvars_(LuaStdAllocator<LocVar>(allocator)),
+      upvalueNames_(LuaStdAllocator<GCString*>(allocator)), source_(nullptr), linedefined_(0), lastlinedefined_(0),
+      gclist_(nullptr), nups_(0), numParams_(0), isVararg_(0), maxStackSize_(0) {}
 
 Proto::~Proto() {
     // 常量表中的GC对象由GC系统管理，这里不需要手动删除
@@ -134,7 +118,7 @@ void Proto::addLineInfo(i32 line) {
 
 i32 Proto::getLine(usize pc) const {
     if (pc >= lineInfo_.size()) {
-        return 0;  // 未知行号
+        return 0; // 未知行号
     }
     return lineInfo_[pc];
 }
@@ -178,7 +162,7 @@ const LocVar* Proto::getLocalVarInfo(i32 localNumber, i32 pc) const {
             }
         }
     }
-    return nullptr;  // 未找到对应的局部变量
+    return nullptr; // 未找到对应的局部变量
 }
 
 const char* Proto::getLocalName(i32 localNumber, i32 pc) const {
@@ -233,54 +217,40 @@ void Proto::mark(GarbageCollector& gc) {
 
 usize Proto::getSize() const {
     // 基础大小 + 所有动态数组的容量
-    return sizeof(Proto)
-         + constants_.capacity() * sizeof(Value)
-         + code_.capacity() * sizeof(Instruction)
-         + lineInfo_.capacity() * sizeof(i32)
-         + subProtos_.capacity() * sizeof(Proto*)
-         + locvars_.capacity() * sizeof(LocVar)
-         + upvalueNames_.capacity() * sizeof(GCString*);
+    return sizeof(Proto) + constants_.capacity() * sizeof(Value) + code_.capacity() * sizeof(Instruction) +
+           lineInfo_.capacity() * sizeof(i32) + subProtos_.capacity() * sizeof(Proto*) +
+           locvars_.capacity() * sizeof(LocVar) + upvalueNames_.capacity() * sizeof(GCString*);
 }
 
 // =====================================================================
 // Function类实现
 // =====================================================================
 
-Function::Function(CFunction func)
-    : Function(nullptr, func)
-{
-}
+Function::Function(CFunction func) : Function(nullptr, func) {}
 
 Function::Function(LuaAllocator* allocator, CFunction func)
-    : GCObject(GCObjectType::Function)
-    , isC_(true)
-    , nupvalues_(0)      // 初始化上值数量为0
-    , gclist_(nullptr)   // 初始化GC链表指针为nullptr
-    , env_(nullptr)      // 初始化环境表为nullptr
-    , cFunction_(func)
-    , proto_(nullptr)
-    , upvalues_(LuaStdAllocator<Upvalue*>(allocator))
-{
+    : GCObject(GCObjectType::Function), isC_(true), nupvalues_(0) // 初始化上值数量为0
+      ,
+      gclist_(nullptr) // 初始化GC链表指针为nullptr
+      ,
+      env_(nullptr) // 初始化环境表为nullptr
+      ,
+      cFunction_(func), proto_(nullptr), upvalues_(LuaStdAllocator<Upvalue*>(allocator)) {
     if (func == nullptr) {
         throw std::invalid_argument("C function pointer cannot be null");
     }
 }
 
-Function::Function(Proto* proto)
-    : Function(nullptr, proto)
-{
-}
+Function::Function(Proto* proto) : Function(nullptr, proto) {}
 
 Function::Function(LuaAllocator* allocator, Proto* proto)
-    : GCObject(GCObjectType::Function)
-    , isC_(false)
-    , nupvalues_(0)      // 初始化上值数量为0
-    , gclist_(nullptr)   // 初始化GC链表指针为nullptr
-    , env_(nullptr)      // 初始化环境表为nullptr
-    , cFunction_(nullptr)
-    , proto_(proto)
-    , upvalues_(LuaStdAllocator<Upvalue*>(allocator))
-{
+    : GCObject(GCObjectType::Function), isC_(false), nupvalues_(0) // 初始化上值数量为0
+      ,
+      gclist_(nullptr) // 初始化GC链表指针为nullptr
+      ,
+      env_(nullptr) // 初始化环境表为nullptr
+      ,
+      cFunction_(nullptr), proto_(proto), upvalues_(LuaStdAllocator<Upvalue*>(allocator)) {
     if (proto == nullptr) {
         throw std::invalid_argument("Proto pointer cannot be null");
     }
@@ -353,4 +323,3 @@ usize Function::getSize() const {
 }
 
 } // namespace Lua
-

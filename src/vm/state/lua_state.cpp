@@ -27,16 +27,16 @@ namespace {
 
 const char* hookEventName(DebugHookEvent event) {
     switch (event) {
-        case DebugHookEvent::Call:
-            return "call";
-        case DebugHookEvent::Return:
-            return "return";
-        case DebugHookEvent::TailReturn:
-            return "tail return";
-        case DebugHookEvent::Line:
-            return "line";
-        case DebugHookEvent::Count:
-            return "count";
+    case DebugHookEvent::Call:
+        return "call";
+    case DebugHookEvent::Return:
+        return "return";
+    case DebugHookEvent::TailReturn:
+        return "tail return";
+    case DebugHookEvent::Line:
+        return "line";
+    case DebugHookEvent::Count:
+        return "count";
     }
 
     return "unknown";
@@ -191,8 +191,7 @@ LuaState* LuaState::newAllocatedState(LuaAllocatorFunction allocatorFunction, vo
 
     EngineContext* context = nullptr;
     try {
-        context = std::construct_at(static_cast<EngineContext*>(contextMemory),
-                                    allocatorFunction, userData);
+        context = std::construct_at(static_cast<EngineContext*>(contextMemory), allocatorFunction, userData);
     } catch (...) {
         bootstrapAllocator.deallocate(contextMemory, sizeof(EngineContext));
         return {};
@@ -215,8 +214,7 @@ LuaState* LuaState::newAllocatedState(LuaAllocatorFunction allocatorFunction, vo
         // non-throwing. From this point, a later member-construction failure
         // destroys the context during constructor unwinding.
         stateOwnsContext = true;
-        state = std::construct_at(static_cast<LuaState*>(stateMemory), CtorToken{},
-                                  context, true, true);
+        state = std::construct_at(static_cast<LuaState*>(stateMemory), CtorToken{}, context, true, true);
         state->initialize();
         return state;
     } catch (...) {
@@ -264,8 +262,7 @@ LuaState* LuaState::newThread(LuaState* parentL) {
             return nullptr;
         }
         try {
-            L = std::construct_at(static_cast<LuaState*>(memory), CtorToken{},
-                                  globalState, true);
+            L = std::construct_at(static_cast<LuaState*>(memory), CtorToken{}, globalState, true);
         } catch (...) {
             allocator->deallocate(memory, sizeof(LuaState));
             return nullptr;
@@ -294,7 +291,7 @@ LuaState* LuaState::newThread(LuaState* parentL) {
         ci.tailcalls = 0;
 
         // 虚拟主函数位
-        L->stack_.push(Value());  // nil
+        L->stack_.push(Value()); // nil
         L->top_ = 1;
         L->status_ = ThreadStatus::OK;
     } catch (...) {
@@ -309,50 +306,25 @@ LuaState* LuaState::newThread(LuaState* parentL) {
 // 构造函数和析构函数
 // =====================================================================
 
-LuaState::LuaState()
-    : LuaState(GlobalState::getInstance())
-{
-}
+LuaState::LuaState() : LuaState(GlobalState::getInstance()) {}
 
-LuaState::LuaState(CtorToken, GlobalState& globalState)
-    : LuaState(globalState)
-{
-}
+LuaState::LuaState(CtorToken, GlobalState& globalState) : LuaState(globalState) {}
 
-LuaState::LuaState(CtorToken, GlobalState& globalState, bool allocatorOwnedSelf)
-    : LuaState(globalState)
-{
+LuaState::LuaState(CtorToken, GlobalState& globalState, bool allocatorOwnedSelf) : LuaState(globalState) {
     allocatorOwnedSelf_ = allocatorOwnedSelf;
 }
 
-LuaState::LuaState(CtorToken, EngineContext* ownedContext,
-                   bool allocatorOwnedContext, bool allocatorOwnedSelf)
-    : ownedContext_(ownedContext, EngineContextDeleter{allocatorOwnedContext})
-    , allocatorOwnedSelf_(allocatorOwnedSelf)
-    , globalState_(ownedContext_->globalState())
-    , stack_(INITIAL_STACK_SIZE, globalState_.getAllocator())
-    , top_(0)
-    , callStack_(INITIAL_CI_SIZE, LuaStdAllocator<CallInfo>(globalState_.getAllocator()))
-    , currentCI_(0)
-    , globalTable_(nullptr)
-    , status_(ThreadStatus::OK)
-    , openUpvalues_(nullptr)
-{
-}
+LuaState::LuaState(CtorToken, EngineContext* ownedContext, bool allocatorOwnedContext, bool allocatorOwnedSelf)
+    : ownedContext_(ownedContext, EngineContextDeleter{allocatorOwnedContext}), allocatorOwnedSelf_(allocatorOwnedSelf),
+      globalState_(ownedContext_->globalState()), stack_(INITIAL_STACK_SIZE, globalState_.getAllocator()), top_(0),
+      callStack_(INITIAL_CI_SIZE, LuaStdAllocator<CallInfo>(globalState_.getAllocator())), currentCI_(0),
+      globalTable_(nullptr), status_(ThreadStatus::OK), openUpvalues_(nullptr) {}
 
 LuaState::LuaState(GlobalState& globalState)
-    : ownedContext_(nullptr, EngineContextDeleter{})
-    , allocatorOwnedSelf_(false)
-    , globalState_(globalState)
-    , stack_(INITIAL_STACK_SIZE, globalState_.getAllocator())
-    , top_(0)
-    , callStack_(INITIAL_CI_SIZE, LuaStdAllocator<CallInfo>(globalState_.getAllocator()))
-    , currentCI_(0)
-    , globalTable_(nullptr)
-    , status_(ThreadStatus::OK)
-    , openUpvalues_(nullptr)
-{
-}
+    : ownedContext_(nullptr, EngineContextDeleter{}), allocatorOwnedSelf_(false), globalState_(globalState),
+      stack_(INITIAL_STACK_SIZE, globalState_.getAllocator()), top_(0),
+      callStack_(INITIAL_CI_SIZE, LuaStdAllocator<CallInfo>(globalState_.getAllocator())), currentCI_(0),
+      globalTable_(nullptr), status_(ThreadStatus::OK), openUpvalues_(nullptr) {}
 
 LuaState::~LuaState() {
     // 关闭所有open upvalue
@@ -371,7 +343,6 @@ LuaState::~LuaState() {
     if (globalTable_ && !isChildThread_) {
         globalState_.getGC().removeRoot(globalTable_);
     }
-
 }
 
 // =====================================================================
@@ -385,15 +356,15 @@ void LuaState::initialize() {
     // 初始化第一个调用信息（虚拟的主函数）
     CallInfo& ci = callStack_[0];
     ci.func = 0;
-    ci.base = 1;  // func 在位置 0，局部变量从 1 开始
+    ci.base = 1; // func 在位置 0，局部变量从 1 开始
     ci.top = MIN_STACK_SIZE;
     ci.savedpc = nullptr;
     ci.nresults = MULTRET;
     ci.tailcalls = 0;
 
     // 在栈上放置一个nil值作为虚拟函数
-    stack_.push(Value());  // nil
-    top_ = 1;  // 栈顶指向下一个可用位置
+    stack_.push(Value()); // nil
+    top_ = 1;             // 栈顶指向下一个可用位置
 
     // 如果这是第一个LuaState，设置为主线程
     if (globalState_.getMainThread() == nullptr) {
@@ -456,12 +427,11 @@ Upvalue* LuaState::findOrCreateUpvalue(usize stackIndex) {
 
 void LuaState::closeUpvalues(usize level) {
     // 关闭所有栈索引 >= level 的upvalue
-    while (openUpvalues_ != nullptr &&
-           openUpvalues_->getStackIndex() >= level) {
+    while (openUpvalues_ != nullptr && openUpvalues_->getStackIndex() >= level) {
         Upvalue* uv = openUpvalues_;
-        openUpvalues_ = uv->getNext();  // 从链表移除
-        uv->close(stack_);               // ✅ 改进：传入stack_引用
-        uv->setNext(nullptr);            // 清除链表指针
+        openUpvalues_ = uv->getNext(); // 从链表移除
+        uv->close(stack_);             // ✅ 改进：传入stack_引用
+        uv->setNext(nullptr);          // 清除链表指针
     }
 }
 
@@ -559,9 +529,7 @@ CallInfo& LuaState::pushCallInfo() {
     // ✅ 改进：检查最大调用深度
     if (currentCI_ + 1 >= MAX_CALL_DEPTH) {
         throw StackOverflowError(
-            "stack overflow: maximum call depth exceeded (limit: " +
-            std::to_string(MAX_CALL_DEPTH) + ")"
-        );
+            "stack overflow: maximum call depth exceeded (limit: " + std::to_string(MAX_CALL_DEPTH) + ")");
     }
 
     // 检查是否需要扩展调用栈
@@ -585,10 +553,10 @@ void LuaState::popCallInfo() {
         throw RuntimeError("LuaState::popCallInfo: cannot pop base CallInfo");
     }
 
-    // ✅ 改进：清理当前CallInfo（调试模式）
-    #ifdef DEBUG
+// ✅ 改进：清理当前CallInfo（调试模式）
+#ifdef DEBUG
     callStack_[currentCI_].reset();
-    #endif
+#endif
 
     currentCI_--;
 }
@@ -662,7 +630,7 @@ void LuaState::setTop(i32 idx) {
 
     // 填充nil值或收缩栈
     while (static_cast<i32>(stack_.size()) < newTop) {
-        stack_.push(Value());  // nil
+        stack_.push(Value()); // nil
     }
     while (static_cast<i32>(stack_.size()) > newTop) {
         stack_.pop();
@@ -698,7 +666,7 @@ void LuaState::insert(i32 idx) {
         if (currentCI_ > 0) {
             base = callStack_[currentCI_].base;
         }
-        absIdx = static_cast<i32>(base) + idx - 1;  // 转换为0-based
+        absIdx = static_cast<i32>(base) + idx - 1; // 转换为0-based
     }
 
     if (absIdx < 0 || absIdx >= static_cast<i32>(top_)) {
@@ -733,13 +701,13 @@ void LuaState::replace(i32 idx) {
     // 计算绝对索引
     i32 absIdx = idx;
     if (idx < 0) {
-        absIdx = static_cast<i32>(top_) + idx;  // 注意：replace 不加 1
+        absIdx = static_cast<i32>(top_) + idx; // 注意：replace 不加 1
     } else {
         usize base = 0;
         if (currentCI_ > 0) {
             base = callStack_[currentCI_].base;
         }
-        absIdx = static_cast<i32>(base) + idx - 1;  // 转换为0-based
+        absIdx = static_cast<i32>(base) + idx - 1; // 转换为0-based
     }
 
     if (absIdx < 0 || absIdx >= static_cast<i32>(top_)) {
@@ -812,9 +780,7 @@ i32 LuaState::pcall(i32 nargs, i32 nresults, i32 errfunc) {
         }
     }
 
-    auto restoreStackPrefix = [&]() {
-        top_ = savedPrefixTop;
-    };
+    auto restoreStackPrefix = [&]() { top_ = savedPrefixTop; };
 
     auto restoreCallFrames = [&]() {
         std::copy_n(savedCallStack.get(), savedCallFrameCount, callStack_.begin());
@@ -829,9 +795,7 @@ i32 LuaState::pcall(i32 nargs, i32 nresults, i32 errfunc) {
         }
     };
 
-    auto makeStringValue = [&](const Str& message) -> Value {
-        return Value(pool.intern(message.c_str()));
-    };
+    auto makeStringValue = [&](const Str& message) -> Value { return Value(pool.intern(message.c_str())); };
 
     struct HandlerResult {
         Value value;
@@ -899,9 +863,8 @@ i32 LuaState::pcall(i32 nargs, i32 nresults, i32 errfunc) {
         return finishError(Value(globalState_.getMemoryErrorMessage()), LUA_ERRMEM);
 
     } catch (const LuaError& e) {
-        Value errorValue = e.hasErrorObject()
-                         ? e.getErrorObject()
-                         : makeStringValue(runtimeErrorWithLocation(this, e.what()));
+        Value errorValue =
+            e.hasErrorObject() ? e.getErrorObject() : makeStringValue(runtimeErrorWithLocation(this, e.what()));
         return finishError(errorValue, LUA_ERRRUN);
 
     } catch (const std::exception& e) {
@@ -1045,7 +1008,7 @@ bool LuaState::isNil(i32 idx) const {
     try {
         return at(idx).isNil();
     } catch (...) {
-        return true;  // 无效索引视为nil
+        return true; // 无效索引视为nil
     }
 }
 
@@ -1068,25 +1031,31 @@ bool LuaState::isUserdata(i32 idx) const {
 i32 LuaState::type(i32 idx) const {
     try {
         const Value& v = at(idx);
-        if (v.isNil()) return 0;        // LUA_TNIL
-        if (v.isBoolean()) return 1;    // LUA_TBOOLEAN
-        if (v.isNumber()) return 3;     // LUA_TNUMBER
-        if (v.isString()) return 4;     // LUA_TSTRING
-        if (v.isTable()) return 5;      // LUA_TTABLE
-        if (v.isFunction()) return 6;   // LUA_TFUNCTION
-        if (v.isUserdata()) return 7;   // LUA_TUSERDATA
-        if (v.isThread()) return 8;     // LUA_TTHREAD
-        return -1;  // LUA_TNONE
+        if (v.isNil())
+            return 0; // LUA_TNIL
+        if (v.isBoolean())
+            return 1; // LUA_TBOOLEAN
+        if (v.isNumber())
+            return 3; // LUA_TNUMBER
+        if (v.isString())
+            return 4; // LUA_TSTRING
+        if (v.isTable())
+            return 5; // LUA_TTABLE
+        if (v.isFunction())
+            return 6; // LUA_TFUNCTION
+        if (v.isUserdata())
+            return 7; // LUA_TUSERDATA
+        if (v.isThread())
+            return 8; // LUA_TTHREAD
+        return -1;    // LUA_TNONE
     } catch (...) {
-        return -1;  // LUA_TNONE
+        return -1; // LUA_TNONE
     }
 }
 
 const char* LuaState::typeName(i32 tp) const {
-    static constexpr std::array<StrView, 9> typeNames{{
-        "nil", "boolean", "lightuserdata", "number",
-        "string", "table", "function", "userdata", "thread"
-    }};
+    static constexpr std::array<StrView, 9> typeNames{
+        {"nil", "boolean", "lightuserdata", "number", "string", "table", "function", "userdata", "thread"}};
     if (tp >= 0 && static_cast<usize>(tp) < typeNames.size()) {
         return typeNames[static_cast<usize>(tp)].data();
     }
@@ -1151,9 +1120,11 @@ bool LuaState::toBoolean(i32 idx) const {
     try {
         const Value& v = at(idx);
         // Lua中只有nil和false是假值
-        if (v.isNil()) return false;
-        if (v.isBoolean()) return v.asBoolean();
-        return true;  // 其他所有值都是真值
+        if (v.isNil())
+            return false;
+        if (v.isBoolean())
+            return v.asBoolean();
+        return true; // 其他所有值都是真值
     } catch (...) {
         return false;
     }
@@ -1201,7 +1172,7 @@ bool LuaState::setMetatable(i32 idx) {
         } else if (mt.isTable()) {
             newMetatable = mt.asTable();
         } else {
-            return false;  // 元表必须是表或nil
+            return false; // 元表必须是表或nil
         }
 
         if (v.isTable()) {
@@ -1212,7 +1183,7 @@ bool LuaState::setMetatable(i32 idx) {
             globalState_.setMetatable(v.getType(), newMetatable);
         }
 
-        pop();  // 弹出元表
+        pop(); // 弹出元表
         return true;
     } catch (...) {
         return false;
@@ -1234,4 +1205,3 @@ i32 LuaState::error() {
 }
 
 } // namespace Lua
-

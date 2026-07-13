@@ -3,13 +3,13 @@
 /**
  * @file userdata.hpp
  * @brief Lua用户数据类型实现
- * 
+ *
  * 设计说明:
  * Userdata类实现了Lua 5.1中的用户数据类型,允许将任意C++数据包装成Lua对象。
  * Lua支持两种用户数据:
  * 1. 轻量级用户数据(Light Userdata): 简单的void*指针,不受GC管理
  * 2. 完整用户数据(Full Userdata): GC管理的内存块,支持元表和终结器
- * 
+ *
  * 核心特性:
  * - 内存管理: 完整用户数据由GC自动管理
  * - 元表支持: 完整用户数据可以设置元表实现自定义行为
@@ -40,13 +40,13 @@ struct UserdataBufferDeleter {
 
 /**
  * @brief Userdata类 - Lua用户数据对象
- * 
+ *
  * 详细说明:
  * Userdata允许将C++数据结构包装成Lua对象,是Lua与C++交互的核心机制。
- * 
+ *
  * 内存布局(完整用户数据):
  * [Userdata对象头部][用户数据块]
- * 
+ *
  * 用户数据块紧跟在Userdata对象之后,保证8字节对齐。
  */
 class Userdata : public GCObject {
@@ -54,7 +54,7 @@ public:
     // =====================================================================
     // 静态工厂方法
     // =====================================================================
-    
+
     /**
      * @brief 创建完整用户数据
      * @param size 用户数据大小(字节)
@@ -69,33 +69,32 @@ public:
      * @return 调用者负责注册到GC或 delete 的Userdata对象指针
      */
     static Userdata* createFull(usize size);
-    
+
     /**
      * @brief 创建完整用户数据并初始化为指定值
      * @tparam T 数据类型
      * @param value 初始值
      * @return 新创建的Userdata对象指针
      */
-    template<typename T>
-    static Userdata* create(const T& value) {
+    template <typename T> static Userdata* create(const T& value) {
         Userdata* ud = createFull(sizeof(T));
         ud->constructData<T>(value);
         return ud;
     }
-    
+
     // =====================================================================
     // 析构函数
     // =====================================================================
-    
+
     /**
      * @brief 析构函数 - 释放用户数据内存
      */
     ~Userdata();
-    
+
     // =====================================================================
     // 数据访问
     // =====================================================================
-    
+
     /**
      * @brief 获取用户数据指针
      * @return void* 指向用户数据的指针
@@ -103,14 +102,13 @@ public:
     void* getData() const noexcept {
         return data_.get();
     }
-    
+
     /**
      * @brief 获取类型化的用户数据指针
      * @tparam T 数据类型
      * @return T* 类型化指针,如果大小不匹配返回nullptr
      */
-    template<typename T>
-    T* getTypedData() const noexcept {
+    template <typename T> T* getTypedData() const noexcept {
         if (sizeof(T) > size_) {
             return nullptr;
         }
@@ -123,8 +121,7 @@ public:
      * Userdata拥有的是原始字节缓冲区。对非平凡类型必须用placement
      * construction，并在Userdata析构时显式调用析构函数。
      */
-    template<typename T, typename... Args>
-    T* constructData(Args&&... args) {
+    template <typename T, typename... Args> T* constructData(Args&&... args) {
         if (sizeof(T) > size_) {
             throw std::invalid_argument("Userdata buffer is too small for requested type");
         }
@@ -132,16 +129,11 @@ public:
             throw std::logic_error("Userdata already contains constructed data");
         }
 
-        T* object = std::construct_at(
-            reinterpret_cast<T*>(getData()),
-            std::forward<Args>(args)...
-        );
-        dataDestructor_ = [](std::byte* data) noexcept {
-            std::destroy_at(reinterpret_cast<T*>(data));
-        };
+        T* object = std::construct_at(reinterpret_cast<T*>(getData()), std::forward<Args>(args)...);
+        dataDestructor_ = [](std::byte* data) noexcept { std::destroy_at(reinterpret_cast<T*>(data)); };
         return object;
     }
-    
+
     /**
      * @brief 获取用户数据大小
      * @return usize 用户数据大小(字节)
@@ -149,11 +141,11 @@ public:
     usize getDataSize() const noexcept {
         return size_;
     }
-    
+
     // =====================================================================
     // 元表操作
     // =====================================================================
-    
+
     /**
      * @brief 获取元表
      * @return Table* 元表指针,如果没有元表返回nullptr
@@ -161,13 +153,13 @@ public:
     Table* getMetatable() const noexcept {
         return metatable_;
     }
-    
+
     /**
      * @brief 设置元表
      * @param mt 元表指针
      */
     void setMetatable(Table* mt) noexcept;
-    
+
     /**
      * @brief 检查是否有元表
      * @return bool 如果有元表返回true
@@ -175,7 +167,7 @@ public:
     bool hasMetatable() const noexcept {
         return metatable_ != nullptr;
     }
-    
+
     // =====================================================================
     // GCObject接口实现
     // =====================================================================
@@ -198,7 +190,7 @@ public:
     // =====================================================================
     // 构造函数
     // =====================================================================
-    
+
     /**
      * @brief 私有构造函数 - 创建完整用户数据
      * @param size 用户数据大小
@@ -207,25 +199,23 @@ public:
     Userdata(LuaAllocator* allocator, usize size);
 
 private:
-    
     // 禁止拷贝和移动
     Userdata(const Userdata&) = delete;
     Userdata& operator=(const Userdata&) = delete;
     Userdata(Userdata&&) = delete;
     Userdata& operator=(Userdata&&) = delete;
-    
+
     // =====================================================================
     // 成员变量
     // =====================================================================
-    
+
     using BufferPtr = std::unique_ptr<std::byte, UserdataBufferDeleter>;
     using DataDestructor = void (*)(std::byte*) noexcept;
 
-    usize size_;        ///< 用户数据大小(字节)
-    BufferPtr data_;    ///< 用户数据指针
-    Table* metatable_;  ///< 元表指针
+    usize size_;       ///< 用户数据大小(字节)
+    BufferPtr data_;   ///< 用户数据指针
+    Table* metatable_; ///< 元表指针
     DataDestructor dataDestructor_;
 };
 
 } // namespace Lua
-

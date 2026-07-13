@@ -83,8 +83,7 @@ void markLuaFrameLocals(GarbageCollector& gc, LuaState* state, const CallInfo& c
             continue;
         }
 
-        if (local.startpc <= static_cast<i32>(pc) &&
-            static_cast<i32>(pc) < local.endpc) {
+        if (local.startpc <= static_cast<i32>(pc) && static_cast<i32>(pc) < local.endpc) {
             gc.markValue(stack.at(slot));
         }
     }
@@ -148,8 +147,7 @@ void markPreciseStackRoots(GarbageCollector& gc, LuaState* state) {
 } // namespace
 
 bool GarbageCollector::valueContainsObject(const Value& value) {
-    return value.isString() || value.isTable() || value.isFunction() ||
-           value.isUserdata() || value.isThread();
+    return value.isString() || value.isTable() || value.isFunction() || value.isUserdata() || value.isThread();
 }
 
 GCObject* GarbageCollector::objectFromValue(const Value& value) {
@@ -228,10 +226,10 @@ usize GarbageCollector::propagateMarks(usize budget) {
         // 取出一个灰色对象
         GCObject* obj = grayList_.back();
         grayList_.pop_back();
-        
+
         // 标记为黑色
         obj->setColor(GCColor::Black);
-        
+
         // 调用对象的mark方法，由对象通过gc.markObject/markValue报告引用关系。
         obj->mark(*this);
         ++processed;
@@ -254,15 +252,15 @@ void GarbageCollector::markObject(GCObject* obj) {
         obj->mark(*this);
         return;
     }
-    
+
     // 如果已经是灰色或黑色，不需要重复标记
     if (obj->getColor() != GCColor::White) {
         return;
     }
-    
+
     // 标记为灰色
     obj->setColor(GCColor::Gray);
-    
+
     // 添加到灰色列表
     grayList_.push_back(obj);
 }

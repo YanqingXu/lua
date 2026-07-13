@@ -28,12 +28,7 @@ GlobalState& GlobalState::getInstance() {
 // =====================================================================
 
 GlobalState::GlobalState(StringPool& stringPool, LuaAllocator* allocator)
-    : gc_(allocator)
-    , stringPool_(stringPool)
-    , registry_(nullptr)
-    , mainThread_(nullptr)
-    , memerrmsg_(nullptr)
-{
+    : gc_(allocator), stringPool_(stringPool), registry_(nullptr), mainThread_(nullptr), memerrmsg_(nullptr) {
     stringPool_.setGarbageCollector(&gc_);
 
     // 子任务1.1：调整字符串池大小到初始值
@@ -48,10 +43,10 @@ GlobalState::GlobalState(StringPool& stringPool, LuaAllocator* allocator)
     // 子任务1.4：固定内存错误消息
     memerrmsg_ = stringPool_.intern("not enough memory");
     gc_.registerObject(memerrmsg_);
-    memerrmsg_->markFixed();  // 标记为固定，防止在内存不足时被GC回收
+    memerrmsg_->markFixed(); // 标记为固定，防止在内存不足时被GC回收
 
     // 创建注册表
-    registry_ = gc_.createFixedRoot<Table>();  // 注册表永远不被回收
+    registry_ = gc_.createFixedRoot<Table>(); // 注册表永远不被回收
 
     // Publish the back-reference only after construction succeeds. This keeps
     // allocator-failure unwinding from calling into a partially constructed
@@ -140,19 +135,15 @@ void GlobalState::resetRuntimeReferencesForClearAll() noexcept {
  */
 void GlobalState::initMetamethodNames() {
     // 元方法名称数组（与TMS枚举顺序一致）
-    static constexpr std::array<StrView, static_cast<usize>(TMS::TM_N)> metamethodNames{{
-        "__index", "__newindex",
-        "__gc", "__mode", "__eq",
-        "__add", "__sub", "__mul", "__div", "__mod",
-        "__pow", "__unm", "__len", "__lt", "__le",
-        "__concat", "__call"
-    }};
+    static constexpr std::array<StrView, static_cast<usize>(TMS::TM_N)> metamethodNames{
+        {"__index", "__newindex", "__gc", "__mode", "__eq", "__add", "__sub", "__mul", "__div", "__mod", "__pow",
+         "__unm", "__len", "__lt", "__le", "__concat", "__call"}};
 
     // 创建并固定所有元方法名称字符串
     for (usize i = 0; i < metamethodNames.size(); i++) {
         tmname_[i] = stringPool_.intern(metamethodNames[i]);
         gc_.registerObject(tmname_[i]);
-        tmname_[i]->markFixed();  // 标记为固定，防止GC回收
+        tmname_[i]->markFixed(); // 标记为固定，防止GC回收
     }
 }
 
@@ -174,21 +165,16 @@ GCString* GlobalState::getMetamethodName(TMS event) const noexcept {
  */
 void GlobalState::initReservedWords() {
     // Lua 5.1的21个保留字（按字母顺序）
-    static constexpr std::array<StrView, 21> reservedWords{{
-        "and", "break", "do", "else", "elseif",
-        "end", "false", "for", "function", "if",
-        "in", "local", "nil", "not", "or",
-        "repeat", "return", "then", "true", "until",
-        "while"
-    }};
+    static constexpr std::array<StrView, 21> reservedWords{
+        {"and",   "break", "do",  "else", "elseif", "end",    "false", "for",  "function", "if",   "in",
+         "local", "nil",   "not", "or",   "repeat", "return", "then",  "true", "until",    "while"}};
 
     // 创建并固定所有保留字字符串
     for (StrView word : reservedWords) {
         GCString* str = stringPool_.intern(word);
         gc_.registerObject(str);
-        str->markFixed();  // 标记为固定，防止GC回收
+        str->markFixed(); // 标记为固定，防止GC回收
     }
 }
 
 } // namespace Lua
-

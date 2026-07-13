@@ -30,17 +30,11 @@ struct RuntimeServices {
     VM::DispatchStrategy* dispatchStrategy;
 
     explicit RuntimeServices(GlobalState& global, VM::DispatchStrategy* dispatch = nullptr)
-        : globalState(global)
-        , strings(global.getStringPool())
-        , gc(global.getGC())
-        , dispatchStrategy(dispatch) {}
+        : globalState(global), strings(global.getStringPool()), gc(global.getGC()), dispatchStrategy(dispatch) {}
 
     RuntimeServices(GlobalState& global, StringPool& stringPool, GarbageCollector& collector,
                     VM::DispatchStrategy* dispatch = nullptr)
-        : globalState(global)
-        , strings(stringPool)
-        , gc(collector)
-        , dispatchStrategy(dispatch) {}
+        : globalState(global), strings(stringPool), gc(collector), dispatchStrategy(dispatch) {}
 
     static RuntimeServices fromSingletons() {
         return RuntimeServices(GlobalState::getInstance());
@@ -57,11 +51,8 @@ struct RuntimeServices {
  */
 class EngineContext {
 public:
-    explicit EngineContext(LuaAllocatorFunction allocator = nullptr,
-                           void* allocatorUserData = nullptr)
-        : allocator_(allocator, allocatorUserData)
-        , strings_(&allocator_)
-        , globalState_(strings_, &allocator_) {}
+    explicit EngineContext(LuaAllocatorFunction allocator = nullptr, void* allocatorUserData = nullptr)
+        : allocator_(allocator, allocatorUserData), strings_(&allocator_), globalState_(strings_, &allocator_) {}
 
     EngineContext(const EngineContext&) = delete;
     EngineContext& operator=(const EngineContext&) = delete;
@@ -98,4 +89,4 @@ private:
     GlobalState globalState_;
 };
 
-}  // namespace Lua
+} // namespace Lua

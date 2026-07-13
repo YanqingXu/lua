@@ -30,8 +30,7 @@ Value GarbageCollector::getFinalizer(Userdata* userdata) const {
 void GarbageCollector::prepareFinalizers() {
     GCObject* obj = allObjects_;
     while (obj != nullptr) {
-        if (obj->getType() == GCObjectType::Userdata &&
-            obj->getColor() == GCColor::White &&
+        if (obj->getType() == GCObjectType::Userdata && obj->getColor() == GCColor::White &&
             (obj->getMarked() & (GCBits::FIXED | GCBits::FINALIZED)) == 0) {
             auto* userdata = static_cast<Userdata*>(obj);
             Value finalizer = getFinalizer(userdata);

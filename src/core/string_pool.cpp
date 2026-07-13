@@ -9,9 +9,7 @@
 namespace Lua {
 
 StringPool::StringPool(LuaAllocator* allocator)
-    : pool_(0, std::hash<Str>{}, std::equal_to<Str>{}, PoolAllocator(allocator))
-{
-}
+    : pool_(0, std::hash<Str>{}, std::equal_to<Str>{}, PoolAllocator(allocator)) {}
 
 void StringPool::setGarbageCollector(GarbageCollector* collector) {
     collector_ = collector;
@@ -73,7 +71,7 @@ void StringPool::remove(GCString* str) {
     if (str == nullptr) {
         return;
     }
-    
+
     // 使用字符串内容作为key查找并移除
     pool_.erase(str->getData());
 }
@@ -102,4 +100,3 @@ void StringPool::resize(usize newSize) {
 }
 
 } // namespace Lua
-

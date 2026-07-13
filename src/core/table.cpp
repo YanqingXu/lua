@@ -19,50 +19,50 @@ namespace Lua {
 
 usize ValueHash::operator()(const Value& val) const noexcept {
     switch (val.getType()) {
-        case ValueType::Nil:
-            return 0;
-            
-        case ValueType::Boolean:
-            return val.asBoolean() ? 1 : 0;
-            
-        case ValueType::Number: {
-            f64 num = val.asNumber();
-            // 使用std::hash<f64>计算浮点数的哈希值
-            return std::hash<f64>{}(num);
+    case ValueType::Nil:
+        return 0;
+
+    case ValueType::Boolean:
+        return val.asBoolean() ? 1 : 0;
+
+    case ValueType::Number: {
+        f64 num = val.asNumber();
+        // 使用std::hash<f64>计算浮点数的哈希值
+        return std::hash<f64>{}(num);
+    }
+
+    case ValueType::LightUserdata: {
+        void* ptr = val.asLightUserdata();
+        // 使用指针值的哈希
+        return std::hash<void*>{}(ptr);
+    }
+
+    case ValueType::String: {
+        GCString* str = val.asString();
+        // 使用字符串对象的预计算哈希值
+        return str->getHash();
+    }
+
+    case ValueType::Table:
+    case ValueType::Function:
+    case ValueType::Userdata:
+    case ValueType::Thread: {
+        // GC对象使用指针值的哈希
+        void* ptr = nullptr;
+        if (val.getType() == ValueType::Table) {
+            ptr = val.asTable();
+        } else if (val.getType() == ValueType::Function) {
+            ptr = val.asFunction();
+        } else if (val.getType() == ValueType::Userdata) {
+            ptr = val.asUserdata();
+        } else if (val.getType() == ValueType::Thread) {
+            ptr = val.asThread();
         }
-        
-        case ValueType::LightUserdata: {
-            void* ptr = val.asLightUserdata();
-            // 使用指针值的哈希
-            return std::hash<void*>{}(ptr);
-        }
-        
-        case ValueType::String: {
-            GCString* str = val.asString();
-            // 使用字符串对象的预计算哈希值
-            return str->getHash();
-        }
-        
-        case ValueType::Table:
-        case ValueType::Function:
-        case ValueType::Userdata:
-        case ValueType::Thread: {
-            // GC对象使用指针值的哈希
-            void* ptr = nullptr;
-            if (val.getType() == ValueType::Table) {
-                ptr = val.asTable();
-            } else if (val.getType() == ValueType::Function) {
-                ptr = val.asFunction();
-            } else if (val.getType() == ValueType::Userdata) {
-                ptr = val.asUserdata();
-            } else if (val.getType() == ValueType::Thread) {
-                ptr = val.asThread();
-            }
-            return std::hash<void*>{}(ptr);
-        }
-        
-        default:
-            return 0;
+        return std::hash<void*>{}(ptr);
+    }
+
+    default:
+        return 0;
     }
 }
 
@@ -70,19 +70,13 @@ usize ValueHash::operator()(const Value& val) const noexcept {
 // Table 实现
 // =====================================================================
 
-Table::Table()
-    : Table(nullptr)
-{
-}
+Table::Table() : Table(nullptr) {}
 
 Table::Table(LuaAllocator* allocator)
-    : GCObject(GCObjectType::Table)
-    , array_(LuaStdAllocator<Value>(allocator))
-    , hash_(0, ValueHash{}, ValueEqual{}, HashAllocator(allocator))
-    , metatable_(nullptr)
-    , flags_(0)  // 初始化标志位为0（所有元方法都可能存在）
-{
-}
+    : GCObject(GCObjectType::Table), array_(LuaStdAllocator<Value>(allocator)),
+      hash_(0, ValueHash{}, ValueEqual{}, HashAllocator(allocator)), metatable_(nullptr),
+      flags_(0) // 初始化标志位为0（所有元方法都可能存在）
+{}
 
 Table::~Table() {
     // 数组和哈希部分会自动释放
@@ -107,7 +101,7 @@ Value Table::get(const Value& key) const {
     }
 
     // 键不存在，返回nil
-    return Value();  // 默认构造函数创建nil
+    return Value(); // 默认构造函数创建nil
 }
 
 void Table::set(const Value& key, const Value& value) {
@@ -120,13 +114,13 @@ void Table::set(const Value& key, const Value& value) {
     }
 
     flags_ = 0;
-    
+
     // 如果value是nil，表示删除该键
     if (value.isNil()) {
         remove(key);
         return;
     }
-    
+
     // 检查是否是数组索引
     i32 index;
     if (isArrayIndex(key, index)) {
@@ -138,7 +132,7 @@ void Table::set(const Value& key, const Value& value) {
         gc->writeBarrier(this, key);
         gc->writeBarrier(this, value);
     }
-    
+
     // 存储到哈希部分
     hash_[key] = value;
 }
@@ -165,7 +159,7 @@ void Table::remove(const Value& key) {
     i32 index;
     if (isArrayIndex(key, index)) {
         if (index >= 1 && static_cast<usize>(index) <= array_.size()) {
-            array_[index - 1] = Value();  // 默认构造函数创建nil
+            array_[index - 1] = Value(); // 默认构造函数创建nil
         }
         return;
     }
@@ -188,7 +182,7 @@ void Table::clear() {
 Value Table::getArray(i32 index) const {
     // Lua数组是1-based
     if (index < 1) {
-        return Value();  // 默认构造函数创建nil
+        return Value(); // 默认构造函数创建nil
     }
 
     usize arrayIndex = static_cast<usize>(index - 1);
@@ -197,7 +191,7 @@ Value Table::getArray(i32 index) const {
     }
 
     // 索引超出范围，返回nil
-    return Value();  // 默认构造函数创建nil
+    return Value(); // 默认构造函数创建nil
 }
 
 void Table::setArray(i32 index, const Value& value) {
@@ -214,7 +208,7 @@ void Table::setArray(i32 index, const Value& value) {
     // 如果索引超出当前大小，扩展数组
     if (arrayIndex >= array_.size()) {
         // 扩展数组，中间的空位填充nil
-        array_.resize(arrayIndex + 1, Value());  // 默认构造函数创建nil
+        array_.resize(arrayIndex + 1, Value()); // 默认构造函数创建nil
     }
 
     if (GarbageCollector* gc = getOwnerCollector()) {
@@ -234,8 +228,7 @@ void Table::setMetatable(Table* mt) noexcept {
 
 usize Table::length() const {
     auto hasIntegerKey = [this](usize index) -> bool {
-        if (index == 0 ||
-            index > static_cast<usize>(std::numeric_limits<i32>::max())) {
+        if (index == 0 || index > static_cast<usize>(std::numeric_limits<i32>::max())) {
             return false;
         }
 
@@ -342,7 +335,7 @@ void Table::removeWeakEntries(const GarbageCollector& gc, bool weakKeys, bool we
         }
     }
 
-    for (auto it = hash_.begin(); it != hash_.end(); ) {
+    for (auto it = hash_.begin(); it != hash_.end();) {
         bool removeEntry = false;
         if (weakKeys && gc.isValueDead(it->first)) {
             removeEntry = true;
@@ -362,14 +355,14 @@ void Table::removeWeakEntries(const GarbageCollector& gc, bool weakKeys, bool we
 usize Table::getSize() const {
     // Table对象本身的大小
     usize size = sizeof(Table);
-    
+
     // 数组部分的容量
     size += array_.capacity() * sizeof(Value);
-    
+
     // 哈希部分的容量（估算）
     // unordered_map的内存布局比较复杂，这里简化估算
     size += hash_.size() * (sizeof(Value) * 2 + sizeof(void*));
-    
+
     return size;
 }
 
@@ -385,7 +378,7 @@ bool Table::next(const Value& key, Value& nextKey, Value& nextValue) const {
             // 返回第一个非nil的数组元素
             for (usize i = 0; i < array_.size(); i++) {
                 if (!array_[i].isNil()) {
-                    nextKey = Value(static_cast<f64>(i + 1));  // Lua索引从1开始
+                    nextKey = Value(static_cast<f64>(i + 1)); // Lua索引从1开始
                     nextValue = array_[i];
                     return true;
                 }
@@ -464,14 +457,14 @@ bool Table::isArrayIndex(const Value& key, i32& outIndex) const {
     if (!key.isNumber()) {
         return false;
     }
-    
+
     f64 num = key.asNumber();
-    
+
     // 必须是正整数
     if (num <= 0 || num != std::floor(num)) {
         return false;
     }
-    
+
     // 检查范围（避免过大的索引）
     // 这里设置一个合理的上限，比如1000000
     if (num < 1 || num > 1000000) {
@@ -480,10 +473,9 @@ bool Table::isArrayIndex(const Value& key, i32& outIndex) const {
 
     // 转换为整数
     i32 index = static_cast<i32>(num);
-    
+
     outIndex = index;
     return true;
 }
 
 } // namespace Lua
-

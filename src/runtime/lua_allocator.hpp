@@ -44,18 +44,15 @@ inline bool releaseImplementationAllocation(void* pointer) noexcept {
     return false;
 }
 
-}  // namespace AllocatorDetail
+} // namespace AllocatorDetail
 
-using LuaAllocatorFunction = void* (*)(void* userData, void* pointer,
-                                       std::size_t oldSize, std::size_t newSize);
+using LuaAllocatorFunction = void* (*)(void* userData, void* pointer, std::size_t oldSize, std::size_t newSize);
 
 class LuaAllocator {
 public:
     LuaAllocator() = default;
 
-    LuaAllocator(LuaAllocatorFunction function, void* userData) noexcept
-        : function_(function)
-        , userData_(userData) {}
+    LuaAllocator(LuaAllocatorFunction function, void* userData) noexcept : function_(function), userData_(userData) {}
 
     [[nodiscard]] bool isConfigured() const noexcept {
         return function_ != nullptr;
@@ -65,11 +62,8 @@ public:
         return function_ != nullptr ? function_(userData_, nullptr, 0, size) : nullptr;
     }
 
-    [[nodiscard]] void* reallocate(void* pointer, std::size_t oldSize,
-                                   std::size_t newSize) const noexcept {
-        return function_ != nullptr
-                   ? function_(userData_, pointer, oldSize, newSize)
-                   : nullptr;
+    [[nodiscard]] void* reallocate(void* pointer, std::size_t oldSize, std::size_t newSize) const noexcept {
+        return function_ != nullptr ? function_(userData_, pointer, oldSize, newSize) : nullptr;
     }
 
     void deallocate(void* pointer, std::size_t oldSize) const noexcept {
@@ -100,20 +94,17 @@ private:
     void* userData_ = nullptr;
 };
 
-template<typename T>
-class LuaStdAllocator {
+template <typename T> class LuaStdAllocator {
 public:
     using value_type = T;
     using propagate_on_container_move_assignment = std::true_type;
     using is_always_equal = std::false_type;
 
     LuaStdAllocator() noexcept = default;
-    explicit LuaStdAllocator(LuaAllocator* allocator) noexcept
-        : allocator_(allocator) {}
+    explicit LuaStdAllocator(LuaAllocator* allocator) noexcept : allocator_(allocator) {}
 
-    template<typename U>
-    LuaStdAllocator(const LuaStdAllocator<U>& other) noexcept
-        : allocator_(other.getLuaAllocator()) {}
+    template <typename U>
+    LuaStdAllocator(const LuaStdAllocator<U>& other) noexcept : allocator_(other.getLuaAllocator()) {}
 
     [[nodiscard]] T* allocate(std::size_t count) {
         if (count > std::numeric_limits<std::size_t>::max() / sizeof(T)) {
@@ -156,8 +147,7 @@ public:
         if (pointer == nullptr) {
             return;
         }
-        const bool implementationAllocation =
-            AllocatorDetail::releaseImplementationAllocation(pointer);
+        const bool implementationAllocation = AllocatorDetail::releaseImplementationAllocation(pointer);
         if (implementationAllocation) {
             ::operator delete(pointer);
             return;
@@ -177,13 +167,11 @@ public:
         return allocator_;
     }
 
-    template<typename U>
-    bool operator==(const LuaStdAllocator<U>& other) const noexcept {
+    template <typename U> bool operator==(const LuaStdAllocator<U>& other) const noexcept {
         return allocator_ == other.getLuaAllocator();
     }
 
-    template<typename U>
-    bool operator!=(const LuaStdAllocator<U>& other) const noexcept {
+    template <typename U> bool operator!=(const LuaStdAllocator<U>& other) const noexcept {
         return !(*this == other);
     }
 
@@ -199,7 +187,6 @@ private:
     LuaAllocator* allocator_ = nullptr;
 };
 
-template<typename T>
-using LuaVector = std::vector<T, LuaStdAllocator<T>>;
+template <typename T> using LuaVector = std::vector<T, LuaStdAllocator<T>>;
 
-}  // namespace Lua
+} // namespace Lua

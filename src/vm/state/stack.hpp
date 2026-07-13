@@ -1,17 +1,17 @@
 ﻿/**
  * @file stack.hpp
  * @brief Lua栈管理：动态扩展的值栈实现
- * 
+ *
  * 详细说明：
  * Stack类管理Lua虚拟机的值栈，用于存储函数参数、局部变量和临时值。
  * 栈采用连续内存布局，支持高效的随机访问和动态扩展。
- * 
+ *
  * 核心特性：
  * - 动态扩展：栈空间不足时自动扩展
  * - 边界检查：防止栈溢出和下溢
  * - 高效访问：O(1)的push/pop操作
  * - 内存安全：使用Vec管理内存，自动释放
- * 
+ *
  * 栈布局：
  * ```
  * 高地址 ┌─────────────┐ ← capacity (栈容量)
@@ -39,52 +39,50 @@ namespace Lua {
 
 /**
  * @brief 栈类
- * 
+ *
  * 管理Lua值的动态栈，支持push/pop操作和自动扩展。
- * 
+ *
  * 使用示例：
  * @code
  * Stack stack;
- * 
+ *
  * // 压入值
  * stack.push(Value(42.0));
  * stack.push(Value(true));
- * 
+ *
  * // 访问栈顶
  * Value top = stack.top();
- * 
+ *
  * // 弹出值
  * Value val = stack.pop();
- * 
+ *
  * // 通过索引访问
  * Value v = stack.at(0);  // 访问栈底
  * @endcode
  */
 class Stack {
 public:
-    
     // =====================================================================
     // 构造函数和析构函数
     // =====================================================================
-    
+
     /**
      * @brief 构造函数
      * @param initialSize 初始栈大小（默认为INITIAL_STACK_SIZE）
      */
-    explicit Stack(usize initialSize = INITIAL_STACK_SIZE,
-                   LuaAllocator* allocator = nullptr);
-    
+    explicit Stack(usize initialSize = INITIAL_STACK_SIZE, LuaAllocator* allocator = nullptr);
+
     /**
      * @brief 析构函数
      */
     ~Stack() = default;
-    
+
     // 禁止拷贝，允许移动
     Stack(const Stack&) = delete;
     Stack& operator=(const Stack&) = delete;
     Stack(Stack&&) noexcept = default;
     Stack& operator=(Stack&&) noexcept = default;
-    
+
     // =====================================================================
     // 栈操作（✅ 改进版 - 添加预检查和快速push）
     // =====================================================================
@@ -135,7 +133,7 @@ public:
      * @throws RuntimeError 如果栈为空
      */
     Value pop();
-    
+
     /**
      * @brief 获取栈顶值（不弹出）
      * @return 栈顶值的引用
@@ -143,7 +141,7 @@ public:
      */
     Value& top();
     const Value& top() const;
-    
+
     /**
      * @brief 通过索引访问栈元素
      * @param index 索引（0为栈底，size()-1为栈顶）
@@ -152,7 +150,7 @@ public:
      */
     Value& at(usize index);
     const Value& at(usize index) const;
-    
+
     /**
      * @brief 通过索引访问栈元素（不检查边界）
      * @param index 索引
@@ -161,15 +159,15 @@ public:
     Value& operator[](usize index) noexcept {
         return stack_[index];
     }
-    
+
     const Value& operator[](usize index) const noexcept {
         return stack_[index];
     }
-    
+
     // =====================================================================
     // 栈状态查询
     // =====================================================================
-    
+
     /**
      * @brief 获取栈中元素数量
      * @return 栈大小
@@ -177,7 +175,7 @@ public:
     usize size() const noexcept {
         return top_;
     }
-    
+
     /**
      * @brief 获取栈容量
      * @return 栈容量
@@ -185,7 +183,7 @@ public:
     usize capacity() const noexcept {
         return stack_.size();
     }
-    
+
     /**
      * @brief 检查栈是否为空
      * @return 如果栈为空返回true
@@ -193,24 +191,24 @@ public:
     bool empty() const noexcept {
         return top_ == 0;
     }
-    
+
     /**
      * @brief 清空栈
      */
     void clear() noexcept {
         top_ = 0;
     }
-    
+
     // =====================================================================
     // 栈空间管理
     // =====================================================================
-    
+
     /**
      * @brief 确保栈有足够的空间
      * @param needed 需要的额外空间
      */
     void ensureSpace(usize needed);
-    
+
     /**
      * @brief 设置栈顶位置
      * @param newTop 新的栈顶位置
@@ -226,4 +224,3 @@ private:
 };
 
 } // namespace Lua
-

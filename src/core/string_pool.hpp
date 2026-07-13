@@ -3,11 +3,11 @@
 /**
  * @file string_pool.hpp
  * @brief 字符串池 - 字符串驻留管理
- * 
+ *
  * 设计说明：
  * StringPool实现了字符串驻留（string interning）机制，确保相同内容的
  * 字符串在内存中只存储一份。这是Lua字符串系统的核心组件。
- * 
+ *
  * 核心特性：
  * - 字符串驻留：相同内容的字符串返回相同指针
  * - 哈希表管理：使用哈希表快速查找字符串
@@ -29,26 +29,26 @@ class GarbageCollector;
 
 /**
  * @brief StringPool类 - 字符串池管理器
- * 
+ *
  * 详细说明：
  * StringPool管理所有GCString对象的创建和查找，实现字符串驻留机制。
  * 它使用哈希表存储所有字符串，确保相同内容的字符串只有一个实例。
- * 
+ *
  * 字符串驻留流程：
  * 1. 调用intern()方法请求创建字符串
  * 2. 计算字符串的哈希值
  * 3. 在哈希表中查找是否已存在
  * 4. 如果存在，返回已有的GCString指针
  * 5. 如果不存在，创建新的GCString并加入哈希表
- * 
+ *
  * 内存管理：
  * - StringPool持有所有GCString对象的原始指针
  * - GCString对象由StringPool创建，由GC系统回收
  * - 当GC回收字符串时，需要从StringPool中移除
- * 
+ *
  * 线程安全：
  * 当前实现不考虑多线程，单线程使用。
- * 
+ *
  * 性能特点：
  * - 查找：平均O(1)时间复杂度
  * - 插入：平均O(1)时间复杂度
@@ -59,7 +59,7 @@ public:
     // =====================================================================
     // 单例模式
     // =====================================================================
-    
+
     /**
      * @brief 获取StringPool的单例实例
      * @return StringPool的引用
@@ -68,7 +68,7 @@ public:
         static StringPool instance;
         return instance;
     }
-    
+
     // 禁止拷贝和移动
     StringPool(const StringPool&) = delete;
     StringPool(StringPool&&) = delete;
@@ -91,7 +91,7 @@ public:
     // =====================================================================
     // 字符串驻留接口
     // =====================================================================
-    
+
     /**
      * @brief 驻留字符串 - 获取或创建字符串对象
      *
@@ -136,7 +136,7 @@ public:
     // =====================================================================
     // 查找接口
     // =====================================================================
-    
+
     /**
      * @brief 查找字符串 - 不创建新对象
      *
@@ -169,24 +169,24 @@ public:
     // =====================================================================
     // GC相关接口
     // =====================================================================
-    
+
     /**
      * @brief 从池中移除字符串
-     * 
+     *
      * 当GC回收字符串对象时调用，从池中移除对应的条目。
-     * 
+     *
      * @param str 要移除的字符串指针
      */
     void remove(GCString* str);
-    
+
     /**
      * @brief 清空字符串池
-     * 
+     *
      * 移除所有字符串（不释放内存，由GC负责）。
      * 主要用于测试和调试。
      */
     void clear();
-    
+
     /**
      * @brief 获取池中字符串的数量
      * @return 字符串数量
@@ -194,7 +194,7 @@ public:
     usize size() const {
         return pool_.size();
     }
-    
+
     /**
      * @brief 检查池是否为空
      * @return true 如果池为空
@@ -217,7 +217,7 @@ private:
     // =====================================================================
     // 内部数据结构
     // =====================================================================
-    
+
     /**
      * @brief 字符串哈希表
      *
@@ -230,12 +230,10 @@ private:
      */
     using PoolValue = std::pair<const Str, GCString*>;
     using PoolAllocator = LuaStdAllocator<PoolValue>;
-    using PoolMap = std::unordered_map<Str, GCString*, std::hash<Str>,
-                                       std::equal_to<Str>, PoolAllocator>;
+    using PoolMap = std::unordered_map<Str, GCString*, std::hash<Str>, std::equal_to<Str>, PoolAllocator>;
 
     PoolMap pool_;
     GarbageCollector* collector_ = nullptr;
 };
 
 } // namespace Lua
-

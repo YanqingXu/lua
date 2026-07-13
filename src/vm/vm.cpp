@@ -73,13 +73,12 @@ ExecResult executeProtoUnchecked(RuntimeServices& services, LuaState* L, Proto* 
         throw StackOverflowError("VM: stack overflow (too many nested calls)");
 
     VMContext context{services, L, proto, nexeccalls};
-    DispatchStrategy& strategy = services.dispatchStrategy != nullptr
-                               ? *services.dispatchStrategy
-                               : defaultDispatchStrategy();
+    DispatchStrategy& strategy =
+        services.dispatchStrategy != nullptr ? *services.dispatchStrategy : defaultDispatchStrategy();
     return strategy.run(context);
 }
 
-}  // namespace
+} // namespace
 
 ExecResult executeProto(LuaState* L, Proto* proto, i32 nexeccalls) {
     RuntimeServices services = RuntimeServices::fromSingletons();
@@ -95,11 +94,10 @@ std::expected<ExecResult, RuntimeError> tryExecuteProto(LuaState* L, Proto* prot
     return tryExecuteProto(services, L, proto, nexeccalls);
 }
 
-std::expected<ExecResult, RuntimeError> tryExecuteProto(
-    RuntimeServices& services, LuaState* L, Proto* proto, i32 nexeccalls) {
-    return VM::detail::captureRuntimeErrors<ExecResult>([&]() {
-        return executeProtoUnchecked(services, L, proto, nexeccalls);
-    });
+std::expected<ExecResult, RuntimeError> tryExecuteProto(RuntimeServices& services, LuaState* L, Proto* proto,
+                                                        i32 nexeccalls) {
+    return VM::detail::captureRuntimeErrors<ExecResult>(
+        [&]() { return executeProtoUnchecked(services, L, proto, nexeccalls); });
 }
 
 namespace {
@@ -132,55 +130,49 @@ ExecResult runDispatchBackend(VMContext& context, DispatchBackend backend) {
         throw StackOverflowError("VM: stack overflow (too many nested calls)");
 
     // ---- 局部执行状态 ----
-    Function* func  = nullptr;
-    Value*    base  = nullptr;
-    usize     pc    = 0;
+    Function* func = nullptr;
+    Value* base = nullptr;
+    usize pc = 0;
 
 reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
-    {
-        CallInfo& ci = L->getCurrentCallInfo();
-        Stack& stack = L->getStack();
+{
+    CallInfo& ci = L->getCurrentCallInfo();
+    Stack& stack = L->getStack();
 
-        // 恢复 func
-        if (ci.func >= stack.capacity())
-            throw RuntimeError("VM::executeProto: CallInfo.func out of range");
-        Value& funcVal = stack[ci.func];
-        if (!funcVal.isFunction())
-            throw RuntimeError("VM::executeProto: CallInfo.func is not a function");
-        func = funcVal.asFunction();
+    // 恢复 func
+    if (ci.func >= stack.capacity())
+        throw RuntimeError("VM::executeProto: CallInfo.func out of range");
+    Value& funcVal = stack[ci.func];
+    if (!funcVal.isFunction())
+        throw RuntimeError("VM::executeProto: CallInfo.func is not a function");
+    func = funcVal.asFunction();
 
-        proto = func->getProto();
-        const auto entryCode = proto->getInstructionSpan();
-        pc = ci.savedpc
-           ? static_cast<usize>(ci.savedpc - entryCode.data())
-           : 0;
+    proto = func->getProto();
+    const auto entryCode = proto->getInstructionSpan();
+    pc = ci.savedpc ? static_cast<usize>(ci.savedpc - entryCode.data()) : 0;
 
-        // dump bytecode at entry
-        if (VM::detail::shouldDumpBytecode())
-        {
-            const auto dcode = proto->getInstructionSpan();
-            std::fprintf(stderr, "[BCDUMP] proto(%p) %zu instructions, pc=%zu\n",
-                static_cast<const void*>(proto), dcode.size(), pc);
-            for (usize di = 0; di < dcode.size(); di++) {
-                Instruction dinst = dcode[di];
-                std::fprintf(stderr, "  [%zu] op=%d A=%d B=%d C=%d Bx=%d sBx=%d\n",
-                    di, static_cast<int>(GET_OPCODE(dinst)),
-                    GETARG_A(dinst), GETARG_B(dinst), GETARG_C(dinst),
-                    GETARG_Bx(dinst), GETARG_sBx(dinst));
-            }
+    // dump bytecode at entry
+    if (VM::detail::shouldDumpBytecode()) {
+        const auto dcode = proto->getInstructionSpan();
+        std::fprintf(stderr, "[BCDUMP] proto(%p) %zu instructions, pc=%zu\n", static_cast<const void*>(proto),
+                     dcode.size(), pc);
+        for (usize di = 0; di < dcode.size(); di++) {
+            Instruction dinst = dcode[di];
+            std::fprintf(stderr, "  [%zu] op=%d A=%d B=%d C=%d Bx=%d sBx=%d\n", di, static_cast<int>(GET_OPCODE(dinst)),
+                         GETARG_A(dinst), GETARG_B(dinst), GETARG_C(dinst), GETARG_Bx(dinst), GETARG_sBx(dinst));
         }
-
-
-        // 确保栈空间
-        usize requiredTop = ci.base + proto->getMaxStackSize();
-        if (stack.capacity() < requiredTop)
-            stack.checkSpace(requiredTop - stack.size());
-        while (stack.size() < requiredTop)
-            stack.push(Value());
-
-        // 刷新 base
-        base = &stack[ci.base];
     }
+
+    // 确保栈空间
+    usize requiredTop = ci.base + proto->getMaxStackSize();
+    if (stack.capacity() < requiredTop)
+        stack.checkSpace(requiredTop - stack.size());
+    while (stack.size() < requiredTop)
+        stack.push(Value());
+
+    // 刷新 base
+    base = &stack[ci.base];
+}
 
     // ---- 主执行循环 ----
     {
@@ -189,7 +181,7 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
         while (pc < code.size()) {
             usize instructionPc = pc;
             Instruction inst = code[pc];
-            OpCode op  = GET_OPCODE(inst);
+            OpCode op = GET_OPCODE(inst);
             pc++;
 
             CallInfo& currentCI = L->getCurrentCallInfo();
@@ -211,38 +203,27 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
             }
 
             if (backend == DispatchBackend::Table) {
-                OpExecutionContext opContext{
-                    services,
-                    L,
-                    func,
-                    proto,
-                    base,
-                    pc,
-                    instructionPc,
-                    nexeccalls
-                };
+                OpExecutionContext opContext{services, L, func, proto, base, pc, instructionPc, nexeccalls};
                 HandlerStatus status = VM::runHandler(opContext, inst);
                 base = opContext.base;
                 nexeccalls = opContext.nexeccalls;
                 if (traceDiff) {
-                    VM::detail::emitInstructionTraceDiff(
-                        proto, L, traceFrameBase, instructionPc, inst, traceCallDepth, traceBefore);
+                    VM::detail::emitInstructionTraceDiff(proto, L, traceFrameBase, instructionPc, inst, traceCallDepth,
+                                                         traceBefore);
                 }
                 switch (status) {
-                    case HandlerStatus::Continue:
-                        continue;
-                    case HandlerStatus::Reenter:
-                        goto reentry;
-                    case HandlerStatus::Yielded:
-                        return ExecResult::Yielded;
-                    case HandlerStatus::Returned:
-                        return ExecResult::Returned;
+                case HandlerStatus::Continue:
+                    continue;
+                case HandlerStatus::Reenter:
+                    goto reentry;
+                case HandlerStatus::Yielded:
+                    return ExecResult::Yielded;
+                case HandlerStatus::Returned:
+                    return ExecResult::Returned;
                 }
             }
 
-            OpExecutionContext opContext{
-                services, L, func, proto, base, pc, instructionPc, nexeccalls
-            };
+            OpExecutionContext opContext{services, L, func, proto, base, pc, instructionPc, nexeccalls};
             HandlerStatus status = HandlerStatus::Continue;
 
             switch (op) {
@@ -362,30 +343,28 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
                 status = VM::detail::execOpVararg(opContext, inst);
                 break;
 
-            // ============== 未知指令 ==============
+                // ============== 未知指令 ==============
 
             default:
-                throw RuntimeError("VM: unsupported opcode: "
-                                   + Str(getOpName(op)));
+                throw RuntimeError("VM: unsupported opcode: " + Str(getOpName(op)));
 
             } // switch
 
             base = opContext.base;
             nexeccalls = opContext.nexeccalls;
             if (traceDiff) {
-                VM::detail::emitInstructionTraceDiff(
-                    proto, L, traceFrameBase, instructionPc, inst,
-                    traceCallDepth, traceBefore);
+                VM::detail::emitInstructionTraceDiff(proto, L, traceFrameBase, instructionPc, inst, traceCallDepth,
+                                                     traceBefore);
             }
             switch (status) {
-                case HandlerStatus::Continue:
-                    continue;
-                case HandlerStatus::Reenter:
-                    goto reentry;
-                case HandlerStatus::Yielded:
-                    return ExecResult::Yielded;
-                case HandlerStatus::Returned:
-                    return ExecResult::Returned;
+            case HandlerStatus::Continue:
+                continue;
+            case HandlerStatus::Reenter:
+                goto reentry;
+            case HandlerStatus::Yielded:
+                return ExecResult::Yielded;
+            case HandlerStatus::Returned:
+                return ExecResult::Returned;
             }
         } // while
     } // scope for code reference
@@ -393,7 +372,7 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
     return ExecResult::Returned;
 }
 
-}  // namespace
+} // namespace
 
 ExecResult SwitchDispatch::run(VMContext& context) {
     return runDispatchBackend(context, DispatchBackend::Switch);

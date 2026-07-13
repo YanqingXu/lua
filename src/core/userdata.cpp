@@ -15,7 +15,7 @@
 
 // MSVC特定的对齐内存分配函数
 #ifdef _MSC_VER
-    #include <malloc.h>  // _aligned_malloc, _aligned_free
+#include <malloc.h> // _aligned_malloc, _aligned_free
 #endif
 
 namespace Lua {
@@ -81,7 +81,7 @@ UPtr<Userdata> Userdata::createFullOwned(usize size) {
     if (size > MAX_SIZE) {
         throw std::bad_alloc();
     }
-    
+
     return makeUnique<Userdata>(size);
 }
 
@@ -93,19 +93,13 @@ Userdata* Userdata::createFull(usize size) {
 // 构造函数和析构函数
 // =====================================================================
 
-Userdata::Userdata(usize size)
-    : Userdata(nullptr, size)
-{
-}
+Userdata::Userdata(usize size) : Userdata(nullptr, size) {}
 
 Userdata::Userdata(LuaAllocator* allocator, usize size)
-    : GCObject(GCObjectType::Userdata)
-    , size_(size)
-    , data_(allocateUserdataBuffer(allocator, size),
-            UserdataBufferDeleter{allocator, std::max(size, kUserdataAlignment)})
-    , metatable_(nullptr)
-    , dataDestructor_(nullptr)
-{
+    : GCObject(GCObjectType::Userdata), size_(size),
+      data_(allocateUserdataBuffer(allocator, size),
+            UserdataBufferDeleter{allocator, std::max(size, kUserdataAlignment)}),
+      metatable_(nullptr), dataDestructor_(nullptr) {
     // 零初始化用户数据
     std::memset(data_.get(), 0, size);
 }
@@ -142,4 +136,3 @@ usize Userdata::getSize() const {
 }
 
 } // namespace Lua
-

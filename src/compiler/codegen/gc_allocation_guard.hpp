@@ -12,18 +12,15 @@
 
 namespace Lua {
 
-template<typename T>
-class GCAllocationGuard {
+template <typename T> class GCAllocationGuard {
 public:
-    template<typename... Args>
+    template <typename... Args>
     explicit GCAllocationGuard(GarbageCollector& gc, Args&&... args)
-        : gc_(gc)
-        , object_(gc_.create<T>(std::forward<Args>(args)...)) {}
+        : gc_(gc), object_(gc_.create<T>(std::forward<Args>(args)...)) {}
 
-    template<typename... Args>
+    template <typename... Args>
     GCAllocationGuard(GarbageCollector& gc, T*& observer, Args&&... args)
-        : gc_(gc)
-        , object_(gc_.create<T>(std::forward<Args>(args)...)) {
+        : gc_(gc), object_(gc_.create<T>(std::forward<Args>(args)...)) {
         observer_ = &observer;
         observer = object_;
     }

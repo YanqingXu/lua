@@ -32,33 +32,15 @@ GarbageCollector& GarbageCollector::getInstance() {
 }
 
 GarbageCollector::GarbageCollector(LuaAllocator* allocator)
-    : allObjects_(nullptr)
-    , roots_(LuaStdAllocator<GCObject*>(allocator))
-    , grayList_(LuaStdAllocator<GCObject*>(allocator))
-    , weakTables_(LuaStdAllocator<Table*>(allocator))
-    , pendingFinalizers_(LuaStdAllocator<Userdata*>(allocator))
-    , externalMarked_(LuaStdAllocator<GCObject*>(allocator))
-    , finalizersRunning_(false)
-    , globalState_(nullptr)
-    , stringPool_(nullptr)
-    , allocator_(allocator)
-    , strategy_(&markSweepGCStrategy())
-    , automaticStopped_(false)
-    , automaticCollectionRunning_(false)
-    , preciseStackRoots_(true)
-    , automaticThresholdBytes_(64 * 1024)
-    , gcDebtBytes_(-static_cast<isize>(64 * 1024))
-    , stepCountdown_(0)
-    , pause_(200)
-    , stepMultiplier_(200)
-    , incrementalPhase_(IncrementalPhase::Pause)
-    , incrementalSweepCurrent_(nullptr)
-    , incrementalSweepPrevious_(nullptr)
-    , incrementalCollected_(0)
-    , objectCount_(0)
-    , totalMemory_(0)
-{
-}
+    : allObjects_(nullptr), roots_(LuaStdAllocator<GCObject*>(allocator)),
+      grayList_(LuaStdAllocator<GCObject*>(allocator)), weakTables_(LuaStdAllocator<Table*>(allocator)),
+      pendingFinalizers_(LuaStdAllocator<Userdata*>(allocator)), externalMarked_(LuaStdAllocator<GCObject*>(allocator)),
+      finalizersRunning_(false), globalState_(nullptr), stringPool_(nullptr), allocator_(allocator),
+      strategy_(&markSweepGCStrategy()), automaticStopped_(false), automaticCollectionRunning_(false),
+      preciseStackRoots_(true), automaticThresholdBytes_(64 * 1024), gcDebtBytes_(-static_cast<isize>(64 * 1024)),
+      stepCountdown_(0), pause_(200), stepMultiplier_(200), incrementalPhase_(IncrementalPhase::Pause),
+      incrementalSweepCurrent_(nullptr), incrementalSweepPrevious_(nullptr), incrementalCollected_(0), objectCount_(0),
+      totalMemory_(0) {}
 
 GarbageCollector::~GarbageCollector() {
     clearAll();
@@ -89,14 +71,14 @@ void GarbageCollector::registerObject(GCObject* obj) {
     } else if (owner != nullptr) {
         owner->unregisterObject(obj);
     }
-    
+
     obj->setColor(incrementalPhase_ == IncrementalPhase::Pause ? GCColor::White : GCColor::Black);
     obj->setOwnerCollector(this);
 
     // 将对象添加到链表头部
     obj->setNext(allObjects_);
     allObjects_ = obj;
-    
+
     // 更新统计信息
     ++objectCount_;
     const usize objectSize = obj->getSize();
@@ -141,9 +123,8 @@ void GarbageCollector::unregisterObject(GCObject* obj) noexcept {
             weakTables_.erase(std::remove(weakTables_.begin(), weakTables_.end(), table), weakTables_.end());
         } else if (obj->getType() == GCObjectType::Userdata) {
             auto* userdata = static_cast<Userdata*>(obj);
-            pendingFinalizers_.erase(
-                std::remove(pendingFinalizers_.begin(), pendingFinalizers_.end(), userdata),
-                pendingFinalizers_.end());
+            pendingFinalizers_.erase(std::remove(pendingFinalizers_.begin(), pendingFinalizers_.end(), userdata),
+                                     pendingFinalizers_.end());
         }
     }
 }
@@ -152,12 +133,12 @@ void GarbageCollector::addRoot(GCObject* obj) {
     if (obj == nullptr) {
         return;
     }
-    
+
     // 检查是否已经是根对象
     if (isRoot(obj)) {
         return;
     }
-    
+
     roots_.push_back(obj);
 
     if (incrementalPhase_ != IncrementalPhase::Pause) {
@@ -169,7 +150,7 @@ void GarbageCollector::removeRoot(GCObject* obj) {
     if (obj == nullptr) {
         return;
     }
-    
+
     // 从根对象列表中移除
     auto it = std::find(roots_.begin(), roots_.end(), obj);
     if (it != roots_.end()) {
@@ -181,7 +162,7 @@ bool GarbageCollector::isRoot(GCObject* obj) const {
     if (obj == nullptr) {
         return false;
     }
-    
+
     return std::find(roots_.begin(), roots_.end(), obj) != roots_.end();
 }
 
@@ -233,9 +214,7 @@ usize GarbageCollector::collectAutomatic(StringPool& stringPool, LuaState* curre
     automaticCollectionRunning_ = false;
     const usize liveBytes = getTotalMemory();
     const usize pausePercent = static_cast<usize>(std::max(100, pause_));
-    automaticThresholdBytes_ = std::max<usize>(
-        64 * 1024,
-        (liveBytes * pausePercent) / 100 + 32 * 1024);
+    automaticThresholdBytes_ = std::max<usize>(64 * 1024, (liveBytes * pausePercent) / 100 + 32 * 1024);
     gcDebtBytes_ = static_cast<isize>(liveBytes) - static_cast<isize>(automaticThresholdBytes_);
     return collected;
 }
@@ -283,10 +262,9 @@ bool GarbageCollector::isAutomaticStopped() const noexcept {
 bool GarbageCollector::step(LuaState* currentState, i32 size) {
     const i32 normalizedSize = std::max(0, size);
     const i64 requestedBytes = static_cast<i64>(normalizedSize + 1) * 1024;
-    const i64 scaledBytes =
-        (requestedBytes * static_cast<i64>(std::max(1, stepMultiplier_))) / 100;
-    const usize budget = static_cast<usize>(
-        std::min<i64>(std::max<i64>(1, scaledBytes / 1024), std::numeric_limits<i32>::max()));
+    const i64 scaledBytes = (requestedBytes * static_cast<i64>(std::max(1, stepMultiplier_))) / 100;
+    const usize budget =
+        static_cast<usize>(std::min<i64>(std::max<i64>(1, scaledBytes / 1024), std::numeric_limits<i32>::max()));
 
     bool wasStopped = automaticStopped_;
     automaticStopped_ = false;
@@ -362,8 +340,7 @@ usize GarbageCollector::collectMarkSweep(StringPool& stringPool, LuaState* curre
     return collectMarkSweep(stringPool, currentState, true);
 }
 
-usize GarbageCollector::collectMarkSweep(StringPool& stringPool, LuaState* currentState,
-                                         bool runFinalizersNow) {
+usize GarbageCollector::collectMarkSweep(StringPool& stringPool, LuaState* currentState, bool runFinalizersNow) {
     resetIncrementalCycle();
 
     // 1. 标记阶段
@@ -377,7 +354,7 @@ usize GarbageCollector::collectMarkSweep(StringPool& stringPool, LuaState* curre
 
     // 3. 清理弱表条目。必须在 sweep 删除白色对象之前执行。
     clearWeakTableEntries();
-    
+
     // 4. 清除阶段
     usize collected = sweep(stringPool);
     weakTables_.clear();
@@ -388,7 +365,7 @@ usize GarbageCollector::collectMarkSweep(StringPool& stringPool, LuaState* curre
     }
 
     resetIncrementalCycle();
-    
+
     updateAutomaticThresholdAfterCycle();
     return collected;
 }
@@ -420,9 +397,7 @@ void GarbageCollector::resetIncrementalCycle() noexcept {
 void GarbageCollector::updateAutomaticThresholdAfterCycle() noexcept {
     const usize liveBytes = getTotalMemory();
     const usize pausePercent = static_cast<usize>(std::max(100, pause_));
-    automaticThresholdBytes_ = std::max<usize>(
-        64 * 1024,
-        (liveBytes * pausePercent) / 100 + 32 * 1024);
+    automaticThresholdBytes_ = std::max<usize>(64 * 1024, (liveBytes * pausePercent) / 100 + 32 * 1024);
     gcDebtBytes_ = static_cast<isize>(liveBytes) - static_cast<isize>(automaticThresholdBytes_);
 }
 
@@ -481,8 +456,7 @@ usize GarbageCollector::sweepStep(StringPool& stringPool, usize budget) {
         bool isFixed = (obj->getMarked() & GCBits::FIXED) != 0;
 
         if (obj->getColor() == GCColor::White && !isFixed) {
-            if (obj->getType() == GCObjectType::Upval
-                && static_cast<Upvalue*>(obj)->isOpen()) {
+            if (obj->getType() == GCObjectType::Upval && static_cast<Upvalue*>(obj)->isOpen()) {
                 incrementalSweepPrevious_ = obj;
                 incrementalSweepCurrent_ = next;
                 ++processed;
@@ -519,33 +493,33 @@ bool GarbageCollector::incrementalStep(StringPool& stringPool, LuaState* current
     budget = std::max<usize>(1, budget);
 
     switch (incrementalPhase_) {
-        case IncrementalPhase::Pause:
-            beginIncrementalMark(currentState);
-            return false;
+    case IncrementalPhase::Pause:
+        beginIncrementalMark(currentState);
+        return false;
 
-        case IncrementalPhase::Propagate: {
-            [[maybe_unused]] const usize propagated = propagateMarks(budget);
-            if (grayList_.empty()) {
-                incrementalPhase_ = IncrementalPhase::Atomic;
-            }
-            return false;
+    case IncrementalPhase::Propagate: {
+        [[maybe_unused]] const usize propagated = propagateMarks(budget);
+        if (grayList_.empty()) {
+            incrementalPhase_ = IncrementalPhase::Atomic;
         }
+        return false;
+    }
 
-        case IncrementalPhase::Atomic:
-            performIncrementalAtomic(currentState);
-            return false;
+    case IncrementalPhase::Atomic:
+        performIncrementalAtomic(currentState);
+        return false;
 
-        case IncrementalPhase::Sweep: {
-            [[maybe_unused]] const usize swept = sweepStep(stringPool, budget);
-            return false;
+    case IncrementalPhase::Sweep: {
+        [[maybe_unused]] const usize swept = sweepStep(stringPool, budget);
+        return false;
+    }
+
+    case IncrementalPhase::Finalize:
+        if (currentState != nullptr) {
+            runFinalizers(currentState);
         }
-
-        case IncrementalPhase::Finalize:
-            if (currentState != nullptr) {
-                runFinalizers(currentState);
-            }
-            resetIncrementalCycle();
-            return true;
+        resetIncrementalCycle();
+        return true;
     }
 
     resetIncrementalCycle();
@@ -578,9 +552,8 @@ void GarbageCollector::destroyObject(GCObject* obj, StringPool& stringPool) {
         weakTables_.erase(std::remove(weakTables_.begin(), weakTables_.end(), table), weakTables_.end());
     } else if (obj->getType() == GCObjectType::Userdata) {
         auto* userdata = static_cast<Userdata*>(obj);
-        pendingFinalizers_.erase(
-            std::remove(pendingFinalizers_.begin(), pendingFinalizers_.end(), userdata),
-            pendingFinalizers_.end());
+        pendingFinalizers_.erase(std::remove(pendingFinalizers_.begin(), pendingFinalizers_.end(), userdata),
+                                 pendingFinalizers_.end());
     }
 
     const usize objSize = obj->getSize();
@@ -685,12 +658,8 @@ void GarbageCollector::clearAll(StringPool& stringPool) {
     // Threads own LuaState instances that may still reference open upvalues.
     // Destroy them before the generic object pass so LuaState::~LuaState can
     // close those upvalues while the Upvalue objects are still alive.
-    deleteMatching([](GCObject* obj) {
-        return obj->getType() == GCObjectType::Thread;
-    });
-    deleteMatching([](GCObject*) {
-        return true;
-    });
+    deleteMatching([](GCObject* obj) { return obj->getType() == GCObjectType::Thread; });
+    deleteMatching([](GCObject*) { return true; });
 
     // 清空临时列表
     grayList_.clear();

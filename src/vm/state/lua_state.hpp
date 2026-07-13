@@ -1,7 +1,7 @@
 /**
  * @file lua_state.hpp
  * @brief Lua状态管理：每个线程的独立执行环境
- * 
+ *
  * 详细说明：
  * LuaState类表示一个Lua线程（协程）的完整执行状态，包括：
  * - 值栈（Stack）：存储函数参数、局部变量和临时值
@@ -9,7 +9,7 @@
  * - 全局状态引用：访问共享资源
  * - 全局表：线程的全局变量表
  * - 执行状态：正常、挂起、错误等
- * 
+ *
  * 核心特性：
  * - 独立执行：每个LuaState有独立的栈和调用信息
  * - 资源共享：通过GlobalState共享字符串池、GC等资源
@@ -50,51 +50,41 @@ struct EngineContextDeleter {
  * @brief Lua线程状态枚举
  */
 enum class ThreadStatus : u8 {
-    OK = 0,         ///< 正常执行状态
-    Yield = 1,      ///< 协程挂起状态
-    ErrRun = 2,     ///< 运行时错误
-    ErrSyntax = 3,  ///< 语法错误
-    ErrMem = 4,     ///< 内存错误
-    ErrErr = 5      ///< 错误处理函数错误
+    OK = 0,        ///< 正常执行状态
+    Yield = 1,     ///< 协程挂起状态
+    ErrRun = 2,    ///< 运行时错误
+    ErrSyntax = 3, ///< 语法错误
+    ErrMem = 4,    ///< 内存错误
+    ErrErr = 5     ///< 错误处理函数错误
 };
 
 /**
  * @brief Debug hook mask bits
  */
-enum DebugHookMask : u8 {
-    HookMaskCall = 1 << 0,
-    HookMaskReturn = 1 << 1,
-    HookMaskLine = 1 << 2
-};
+enum DebugHookMask : u8 { HookMaskCall = 1 << 0, HookMaskReturn = 1 << 1, HookMaskLine = 1 << 2 };
 
 /**
  * @brief Debug hook event kinds
  */
-enum class DebugHookEvent : u8 {
-    Call,
-    Return,
-    TailReturn,
-    Line,
-    Count
-};
+enum class DebugHookEvent : u8 { Call, Return, TailReturn, Line, Count };
 
 /**
  * @brief Lua状态类
- * 
+ *
  * 管理单个Lua线程的完整执行状态。
- * 
+ *
  * 使用示例：
  * @code
  * // 创建主线程
  * UPtr<LuaState> L = LuaState::create();
- * 
+ *
  * // 压入值到栈
  * L->pushNumber(42.0);
  * L->pushBoolean(true);
- * 
+ *
  * // 访问栈
  * Value v = L->getStack().top();
- * 
+ *
  * // 清理
  * // L 自动释放
  * @endcode
@@ -125,8 +115,7 @@ public:
      * The token keeps construction behind the factories while allowing the
      * owning context to outlive every state member that refers into it.
      */
-    LuaState(CtorToken, EngineContext* ownedContext,
-             bool allocatorOwnedContext, bool allocatorOwnedSelf);
+    LuaState(CtorToken, EngineContext* ownedContext, bool allocatorOwnedContext, bool allocatorOwnedSelf);
 
     /**
      * @brief 创建拥有型Lua状态（主线程）
@@ -148,7 +137,7 @@ public:
      * @brief Create a state that owns an isolated EngineContext.
      */
     [[nodiscard]] static UPtr<LuaState> createIsolated();
-    
+
     /**
      * @brief 创建新的Lua状态（主线程），兼容旧 C API 风格所有权
      * @return 调用者负责 delete 的 LuaState 指针
@@ -179,20 +168,20 @@ public:
      * @brief Destroy either a normal or allocator-backed state correctly.
      */
     static void destroyState(LuaState* state) noexcept;
-    
+
     /**
      * @brief 析构函数
      */
     ~LuaState();
-    
+
     // 禁止拷贝和赋值
     LuaState(const LuaState&) = delete;
     LuaState& operator=(const LuaState&) = delete;
-    
+
     // =====================================================================
     // 栈访问
     // =====================================================================
-    
+
     /**
      * @brief 获取值栈
      * @return 栈的引用
@@ -200,15 +189,15 @@ public:
     Stack& getStack() noexcept {
         return stack_;
     }
-    
+
     const Stack& getStack() const noexcept {
         return stack_;
     }
-    
+
     // =====================================================================
     // 栈操作（便捷方法）
     // =====================================================================
-    
+
     /**
      * @brief 压入nil值
      */
@@ -391,14 +380,14 @@ public:
     // =====================================================================
     // 全局状态访问
     // =====================================================================
-    
+
     /**
      * @brief 获取全局状态
      */
     GlobalState& getGlobalState() noexcept {
         return globalState_;
     }
-    
+
     /**
      * @brief 获取全局表
      */
@@ -572,18 +561,18 @@ public:
     usize getCurrentCI() const noexcept {
         return currentCI_;
     }
-    
+
     // =====================================================================
     // 线程状态管理
     // =====================================================================
-    
+
     /**
      * @brief 获取线程状态
      */
     ThreadStatus getStatus() const noexcept {
         return status_;
     }
-    
+
     /**
      * @brief 设置线程状态
      */
@@ -650,32 +639,57 @@ public:
     static LuaState* newThread(LuaState* parentL);
 
     /// yield 许可计数器
-    void incAllowYield() noexcept { allowYield_++; }
-    void decAllowYield() noexcept { if (allowYield_ > 0) allowYield_--; }
-    bool canYield() const noexcept { return allowYield_ > 0; }
+    void incAllowYield() noexcept {
+        allowYield_++;
+    }
+    void decAllowYield() noexcept {
+        if (allowYield_ > 0)
+            allowYield_--;
+    }
+    bool canYield() const noexcept {
+        return allowYield_ > 0;
+    }
 
     /// yield 值数量
-    void setYieldResults(i32 n) noexcept { yieldResults_ = n; }
-    i32  getYieldResults() const noexcept { return yieldResults_; }
+    void setYieldResults(i32 n) noexcept {
+        yieldResults_ = n;
+    }
+    i32 getYieldResults() const noexcept {
+        return yieldResults_;
+    }
 
     /// nexeccalls 保存/恢复
-    void setSavedNexeccalls(i32 n) noexcept { savedNexeccalls_ = n; }
-    i32  getSavedNexeccalls() const noexcept { return savedNexeccalls_; }
+    void setSavedNexeccalls(i32 n) noexcept {
+        savedNexeccalls_ = n;
+    }
+    i32 getSavedNexeccalls() const noexcept {
+        return savedNexeccalls_;
+    }
 
     /// C/C++ host frames that re-enter Lua through VM::call.
     void enterHostCall();
     void leaveHostCall() noexcept;
-    i32 getHostCallDepth() const noexcept { return hostCallDepth_; }
+    i32 getHostCallDepth() const noexcept {
+        return hostCallDepth_;
+    }
 
     /// 当前 LuaState 对应的 Thread 对象（主线程为 nullptr）
-    Thread* getThread() const noexcept { return thread_; }
-    void setThread(Thread* t) noexcept { thread_ = t; }
+    Thread* getThread() const noexcept {
+        return thread_;
+    }
+    void setThread(Thread* t) noexcept {
+        thread_ = t;
+    }
 
     /// 调用栈访问（供 Thread GC marking 使用）
-    LuaVector<CallInfo>& getCallStack() noexcept { return callStack_; }
+    LuaVector<CallInfo>& getCallStack() noexcept {
+        return callStack_;
+    }
 
     /// Open Upvalue 链表头访问
-    Upvalue* getOpenUpvalues() const noexcept { return openUpvalues_; }
+    Upvalue* getOpenUpvalues() const noexcept {
+        return openUpvalues_;
+    }
 
     // =====================================================================
     // Debug hook support
@@ -692,22 +706,30 @@ public:
     /**
      * @brief Get the installed debug hook function
      */
-    Function* getDebugHook() const noexcept { return hookFunc_; }
+    Function* getDebugHook() const noexcept {
+        return hookFunc_;
+    }
 
     /**
      * @brief Get the debug hook mask bits
      */
-    u8 getDebugHookMask() const noexcept { return hookMask_; }
+    u8 getDebugHookMask() const noexcept {
+        return hookMask_;
+    }
 
     /**
      * @brief Get the count-hook interval
      */
-    i32 getDebugHookCount() const noexcept { return hookCount_; }
+    i32 getDebugHookCount() const noexcept {
+        return hookCount_;
+    }
 
     /**
      * @brief Check whether the debug hook is currently running
      */
-    bool isDebugHookActive() const noexcept { return hookActive_; }
+    bool isDebugHookActive() const noexcept {
+        return hookActive_;
+    }
 
     /**
      * @brief Check whether the given hook mask bit is enabled
@@ -735,12 +757,12 @@ private:
      */
     LuaState();
     explicit LuaState(GlobalState& globalState);
-    
+
     /**
      * @brief 初始化状态
      */
     void initialize();
-    
+
     // =====================================================================
     // 成员变量
     // =====================================================================
@@ -816,7 +838,7 @@ public:
     // ✅ 改进：调试支持
     // =====================================================================
 
-    #ifdef DEBUG
+#ifdef DEBUG
     /**
      * @brief 打印调用栈（用于调试）
      */
@@ -826,8 +848,7 @@ public:
      * @brief 验证调用栈状态
      */
     void validateCallStack() const;
-    #endif
+#endif
 };
 
 } // namespace Lua
-

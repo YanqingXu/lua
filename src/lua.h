@@ -19,14 +19,7 @@ extern "C" {
 
 #define lua_upvalueindex(i) (LUA_GLOBALSINDEX - (i))
 
-enum {
-    LUA_OK = 0,
-    LUA_YIELD = 1,
-    LUA_ERRRUN = 2,
-    LUA_ERRSYNTAX = 3,
-    LUA_ERRMEM = 4,
-    LUA_ERRERR = 5
-};
+enum { LUA_OK = 0, LUA_YIELD = 1, LUA_ERRRUN = 2, LUA_ERRSYNTAX = 3, LUA_ERRMEM = 4, LUA_ERRERR = 5 };
 
 enum {
     LUA_TNONE = -1,
@@ -105,16 +98,16 @@ int lua_resume(lua_State* L, int nargs);
 int lua_yield(lua_State* L, int nresults);
 int lua_status(lua_State* L);
 
-#define lua_pop(L,n) lua_settop((L), -(n)-1)
+#define lua_pop(L, n) lua_settop((L), -(n) - 1)
 #define lua_newtable(L) lua_createtable((L), 0, 0)
-#define lua_tostring(L,i) lua_tolstring((L), (i), 0)
-#define lua_isfunction(L,n) (lua_type((L), (n)) == LUA_TFUNCTION)
-#define lua_istable(L,n) (lua_type((L), (n)) == LUA_TTABLE)
-#define lua_isnil(L,n) (lua_type((L), (n)) == LUA_TNIL)
-#define lua_isboolean(L,n) (lua_type((L), (n)) == LUA_TBOOLEAN)
-#define lua_isthread(L,n) (lua_type((L), (n)) == LUA_TTHREAD)
-#define lua_isnone(L,n) (lua_type((L), (n)) == LUA_TNONE)
-#define lua_isnoneornil(L,n) (lua_type((L), (n)) <= 0)
+#define lua_tostring(L, i) lua_tolstring((L), (i), 0)
+#define lua_isfunction(L, n) (lua_type((L), (n)) == LUA_TFUNCTION)
+#define lua_istable(L, n) (lua_type((L), (n)) == LUA_TTABLE)
+#define lua_isnil(L, n) (lua_type((L), (n)) == LUA_TNIL)
+#define lua_isboolean(L, n) (lua_type((L), (n)) == LUA_TBOOLEAN)
+#define lua_isthread(L, n) (lua_type((L), (n)) == LUA_TTHREAD)
+#define lua_isnone(L, n) (lua_type((L), (n)) == LUA_TNONE)
+#define lua_isnoneornil(L, n) (lua_type((L), (n)) <= 0)
 
 #ifdef __cplusplus
 }

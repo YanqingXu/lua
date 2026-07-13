@@ -71,8 +71,7 @@ void* trackingLuaAllocator(void* userData, void* pointer, size_t oldSize, size_t
     }
 
     ++probe->allocationAttempts;
-    if (probe->failOnAllocation != 0 &&
-        probe->allocationAttempts == probe->failOnAllocation) {
+    if (probe->failOnAllocation != 0 && probe->allocationAttempts == probe->failOnAllocation) {
         return nullptr;
     }
 
@@ -118,8 +117,7 @@ void pushLuaChunk(lua_State* L, const char* source) {
         throw std::runtime_error("API test chunk code generation failed");
     }
 
-    Lua::Function* closure =
-        state->getGlobalState().getGC().create<Lua::Function>(proto);
+    Lua::Function* closure = state->getGlobalState().getGC().create<Lua::Function>(proto);
     closure->setEnv(state->getGlobalTable());
     state->pushFunction(closure);
 }
@@ -203,8 +201,7 @@ int doubleApiArgument(lua_State* L) {
 
 int allocateApiUserdata(lua_State* L) {
     if (gAllocatorFailureProbe != nullptr && gAllocatorFailureOffset != 0) {
-        gAllocatorFailureProbe->failOnCall =
-            gAllocatorFailureProbe->calls + gAllocatorFailureOffset;
+        gAllocatorFailureProbe->failOnCall = gAllocatorFailureProbe->calls + gAllocatorFailureOffset;
     }
     lua_newuserdata(L, 48);
     return 1;
@@ -254,10 +251,8 @@ void testStackAndInvalidIndexes(TestSuite& suite) {
 void testRegistryAndGlobalsPseudoIndexes(TestSuite& suite) {
     lua_State* L = lua_open();
 
-    ASSERT_EQ(suite, LUA_TTABLE, lua_type(L, LUA_REGISTRYINDEX),
-              "registry pseudo-index exposes table");
-    ASSERT_EQ(suite, LUA_TTABLE, lua_type(L, LUA_GLOBALSINDEX),
-              "globals pseudo-index exposes table");
+    ASSERT_EQ(suite, LUA_TTABLE, lua_type(L, LUA_REGISTRYINDEX), "registry pseudo-index exposes table");
+    ASSERT_EQ(suite, LUA_TTABLE, lua_type(L, LUA_GLOBALSINDEX), "globals pseudo-index exposes table");
 
     lua_pushstring(L, "registry-value");
     lua_rawseti(L, LUA_REGISTRYINDEX, 37);
@@ -270,8 +265,7 @@ void testRegistryAndGlobalsPseudoIndexes(TestSuite& suite) {
     lua_pushnumber(L, 73);
     lua_settable(L, LUA_GLOBALSINDEX);
     lua_getglobal(L, "api_pseudo_global");
-    ASSERT_EQ(suite, 73.0, lua_tonumber(L, -1),
-              "globals pseudo-index shares the state global table");
+    ASSERT_EQ(suite, 73.0, lua_tonumber(L, -1), "globals pseudo-index shares the state global table");
 
     lua_close(L);
 }
@@ -283,22 +277,19 @@ void testIndependentStateIsolation(TestSuite& suite) {
     lua_pushnumber(first, 17);
     lua_setglobal(first, "isolated_global");
     lua_getglobal(second, "isolated_global");
-    ASSERT_EQ(suite, LUA_TNIL, lua_type(second, -1),
-              "independent states do not share globals");
+    ASSERT_EQ(suite, LUA_TNIL, lua_type(second, -1), "independent states do not share globals");
     lua_pop(second, 1);
 
     lua_pushstring(first, "first-registry");
     lua_rawseti(first, LUA_REGISTRYINDEX, 91);
     lua_rawgeti(second, LUA_REGISTRYINDEX, 91);
-    ASSERT_EQ(suite, LUA_TNIL, lua_type(second, -1),
-              "independent states do not share registries");
+    ASSERT_EQ(suite, LUA_TNIL, lua_type(second, -1), "independent states do not share registries");
 
     auto* firstState = reinterpret_cast<Lua::LuaState*>(first);
     auto* secondState = reinterpret_cast<Lua::LuaState*>(second);
     ASSERT_TRUE(suite, &firstState->getGlobalState() != &secondState->getGlobalState(),
                 "independent states own distinct global states");
-    ASSERT_TRUE(suite, &firstState->getGlobalState().getStringPool() !=
-                           &secondState->getGlobalState().getStringPool(),
+    ASSERT_TRUE(suite, &firstState->getGlobalState().getStringPool() != &secondState->getGlobalState().getStringPool(),
                 "independent states own distinct string pools");
 
     lua_close(second);
@@ -363,8 +354,7 @@ void testCheckStackAndXMove(TestSuite& suite) {
 
     ASSERT_EQ(suite, 1, lua_checkstack(parent, 128), "checkstack accepts bounded growth");
     ASSERT_EQ(suite, 0, lua_checkstack(parent, -1), "checkstack rejects negative growth");
-    ASSERT_EQ(suite, 0, lua_checkstack(parent, 1000000),
-              "checkstack rejects growth beyond VM maximum");
+    ASSERT_EQ(suite, 0, lua_checkstack(parent, 1000000), "checkstack rejects growth beyond VM maximum");
 
     lua_pushnumber(parent, 10);
     lua_pushnumber(parent, 20);
@@ -401,27 +391,22 @@ void testCClosureUpvalueIntrospection(TestSuite& suite) {
 
     const char* getName = lua_getupvalue(L, 1, 1);
     ASSERT_TRUE(suite, getName != nullptr, "getupvalue finds C closure upvalue");
-    ASSERT_EQ(suite, std::string(""), std::string(getName),
-              "C closure upvalue name is empty");
+    ASSERT_EQ(suite, std::string(""), std::string(getName), "C closure upvalue name is empty");
     ASSERT_EQ(suite, 41.0, lua_tonumber(L, -1), "getupvalue pushes captured value");
     lua_pop(L, 1);
 
     const int beforeInvalidGet = lua_gettop(L);
-    ASSERT_TRUE(suite, lua_getupvalue(L, 1, 2) == nullptr,
-                "getupvalue rejects invalid ordinal");
-    ASSERT_EQ(suite, beforeInvalidGet, lua_gettop(L),
-              "invalid getupvalue leaves stack unchanged");
+    ASSERT_TRUE(suite, lua_getupvalue(L, 1, 2) == nullptr, "getupvalue rejects invalid ordinal");
+    ASSERT_EQ(suite, beforeInvalidGet, lua_gettop(L), "invalid getupvalue leaves stack unchanged");
 
     lua_pushnumber(L, 99);
     const char* setName = lua_setupvalue(L, 1, 1);
     ASSERT_TRUE(suite, setName != nullptr, "setupvalue finds C closure upvalue");
-    ASSERT_EQ(suite, std::string(""), std::string(setName),
-              "setupvalue reports empty C closure name");
+    ASSERT_EQ(suite, std::string(""), std::string(setName), "setupvalue reports empty C closure name");
     ASSERT_EQ(suite, 1, lua_gettop(L), "setupvalue consumes replacement value");
 
     lua_pushnumber(L, 123);
-    ASSERT_TRUE(suite, lua_setupvalue(L, 1, 2) == nullptr,
-                "setupvalue rejects invalid ordinal");
+    ASSERT_TRUE(suite, lua_setupvalue(L, 1, 2) == nullptr, "setupvalue rejects invalid ordinal");
     ASSERT_EQ(suite, 2, lua_gettop(L), "invalid setupvalue keeps replacement value");
     lua_pop(L, 1);
 
@@ -445,16 +430,14 @@ void testLuaClosureUpvalueIntrospection(TestSuite& suite) {
 
     const char* getName = lua_getupvalue(L, -1, 1);
     ASSERT_TRUE(suite, getName != nullptr, "getupvalue finds Lua closure upvalue");
-    ASSERT_EQ(suite, std::string("captured"), std::string(getName),
-              "getupvalue returns Lua closure debug name");
+    ASSERT_EQ(suite, std::string("captured"), std::string(getName), "getupvalue returns Lua closure debug name");
     ASSERT_EQ(suite, 7.0, lua_tonumber(L, -1), "getupvalue pushes Lua closure value");
     lua_pop(L, 1);
 
     lua_pushnumber(L, 8);
     const char* setName = lua_setupvalue(L, 1, 1);
     ASSERT_TRUE(suite, setName != nullptr, "setupvalue finds Lua closure upvalue");
-    ASSERT_EQ(suite, std::string("captured"), std::string(setName),
-              "setupvalue returns Lua closure debug name");
+    ASSERT_EQ(suite, std::string("captured"), std::string(setName), "setupvalue returns Lua closure debug name");
     ASSERT_EQ(suite, 1, lua_gettop(L), "Lua setupvalue consumes replacement value");
 
     lua_getupvalue(L, 1, 1);
@@ -468,38 +451,28 @@ void testLightAndFullUserdata(TestSuite& suite) {
 
     int lightPayload = 17;
     lua_pushlightuserdata(L, &lightPayload);
-    ASSERT_EQ(suite, LUA_TLIGHTUSERDATA, lua_type(L, -1),
-              "pushlightuserdata preserves Lua type");
-    ASSERT_TRUE(suite, lua_isuserdata(L, -1) != 0,
-                "isuserdata accepts light userdata");
-    ASSERT_TRUE(suite, lua_touserdata(L, -1) == &lightPayload,
-                "touserdata returns light pointer");
-    ASSERT_EQ(suite, static_cast<size_t>(0), lua_objlen(L, -1),
-              "light userdata has zero object length");
+    ASSERT_EQ(suite, LUA_TLIGHTUSERDATA, lua_type(L, -1), "pushlightuserdata preserves Lua type");
+    ASSERT_TRUE(suite, lua_isuserdata(L, -1) != 0, "isuserdata accepts light userdata");
+    ASSERT_TRUE(suite, lua_touserdata(L, -1) == &lightPayload, "touserdata returns light pointer");
+    ASSERT_EQ(suite, static_cast<size_t>(0), lua_objlen(L, -1), "light userdata has zero object length");
     lua_pop(L, 1);
 
     void* empty = lua_newuserdata(L, 0);
     ASSERT_TRUE(suite, empty != nullptr, "zero-size full userdata has stable address");
-    ASSERT_EQ(suite, LUA_TUSERDATA, lua_type(L, -1),
-              "newuserdata pushes full userdata");
-    ASSERT_EQ(suite, static_cast<size_t>(0), lua_objlen(L, -1),
-              "zero-size userdata reports requested size");
+    ASSERT_EQ(suite, LUA_TUSERDATA, lua_type(L, -1), "newuserdata pushes full userdata");
+    ASSERT_EQ(suite, static_cast<size_t>(0), lua_objlen(L, -1), "zero-size userdata reports requested size");
     void* secondEmpty = lua_newuserdata(L, 0);
     ASSERT_TRUE(suite, secondEmpty != empty, "zero-size userdata addresses stay distinct");
     lua_pop(L, 2);
 
     void* full = lua_newuserdata(L, sizeof(int));
     ASSERT_TRUE(suite, full != nullptr, "full userdata exposes payload buffer");
-    ASSERT_TRUE(suite, reinterpret_cast<std::uintptr_t>(full) % 8 == 0,
-                "full userdata payload is eight-byte aligned");
-    ASSERT_TRUE(suite, lua_touserdata(L, -1) == full,
-                "touserdata returns full payload pointer");
-    ASSERT_EQ(suite, sizeof(int), lua_objlen(L, -1),
-              "full userdata reports payload size");
+    ASSERT_TRUE(suite, reinterpret_cast<std::uintptr_t>(full) % 8 == 0, "full userdata payload is eight-byte aligned");
+    ASSERT_TRUE(suite, lua_touserdata(L, -1) == full, "touserdata returns full payload pointer");
+    ASSERT_EQ(suite, sizeof(int), lua_objlen(L, -1), "full userdata reports payload size");
     ASSERT_EQ(suite, 0, *static_cast<int*>(full), "full userdata starts zero initialized");
     *static_cast<int*>(full) = 73;
-    ASSERT_EQ(suite, 73, *static_cast<int*>(lua_touserdata(L, -1)),
-              "full userdata payload mutation persists");
+    ASSERT_EQ(suite, 73, *static_cast<int*>(lua_touserdata(L, -1)), "full userdata payload mutation persists");
 
     lua_newtable(L);
     lua_pushstring(L, "metatable-marker");
@@ -518,8 +491,7 @@ void testLightAndFullUserdata(TestSuite& suite) {
 
     const char embedded[] = {'a', '\0', 'b'};
     lua_pushlstring(L, embedded, sizeof(embedded));
-    ASSERT_EQ(suite, sizeof(embedded), lua_objlen(L, -1),
-              "objlen preserves embedded string bytes");
+    ASSERT_EQ(suite, sizeof(embedded), lua_objlen(L, -1), "objlen preserves embedded string bytes");
     lua_pop(L, 1);
 
     lua_newtable(L);
@@ -527,8 +499,7 @@ void testLightAndFullUserdata(TestSuite& suite) {
     lua_rawseti(L, -2, 1);
     lua_pushnumber(L, 2);
     lua_rawseti(L, -2, 2);
-    ASSERT_EQ(suite, static_cast<size_t>(2), lua_objlen(L, -1),
-              "objlen reports table sequence length");
+    ASSERT_EQ(suite, static_cast<size_t>(2), lua_objlen(L, -1), "objlen reports table sequence length");
 
     lua_close(L);
 }
@@ -545,16 +516,14 @@ void testUserdataFinalizerThroughCApi(TestSuite& suite) {
     lua_pushstring(L, "__gc");
     lua_pushcclosure(L, recordUserdataFinalizer, 0);
     lua_settable(L, -3);
-    ASSERT_EQ(suite, 1, lua_setmetatable(L, -2),
-              "C API assigns userdata finalizer metatable");
+    ASSERT_EQ(suite, 1, lua_setmetatable(L, -2), "C API assigns userdata finalizer metatable");
     lua_pop(L, 1);
 
     lua_getglobal(L, "collectgarbage");
     lua_pushstring(L, "collect");
     lua_call(L, 1, 0);
     ASSERT_EQ(suite, 1, gApiFinalizerCalls, "C API userdata finalizer runs once");
-    ASSERT_EQ(suite, 2468, gApiFinalizerPayload,
-              "userdata finalizer receives payload pointer");
+    ASSERT_EQ(suite, 2468, gApiFinalizerPayload, "userdata finalizer receives payload pointer");
 
     lua_getglobal(L, "collectgarbage");
     lua_pushstring(L, "collect");
@@ -574,18 +543,14 @@ void testProtectedCallRestoresStackAndPreservesErrorObject(TestSuite& suite) {
     ASSERT_EQ(suite, LUA_ERRRUN, directStatus, "pcall reports Lua error status");
     ASSERT_EQ(suite, 2, lua_gettop(L), "pcall replaces function and arguments with one error");
     ASSERT_EQ(suite, 17.0, lua_tonumber(L, 1), "pcall preserves stack prefix");
-    ASSERT_TRUE(suite, lua_touserdata(L, 2) == &gApiErrorToken,
-                "pcall preserves non-string Lua error object identity");
+    ASSERT_TRUE(suite, lua_touserdata(L, 2) == &gApiErrorToken, "pcall preserves non-string Lua error object identity");
     lua_pop(L, 1);
 
     lua_pushcclosure(L, callFailingCFunction, 0);
     const int nestedCallStatus = lua_pcall(L, 0, 0, 0);
-    ASSERT_EQ(suite, LUA_ERRRUN, nestedCallStatus,
-              "lua_call error propagates to enclosing protected call");
-    ASSERT_EQ(suite, 2, lua_gettop(L),
-              "enclosing pcall restores stack after nested lua_call failure");
-    ASSERT_TRUE(suite, lua_touserdata(L, -1) == &gApiErrorToken,
-                "nested lua_call preserves Lua error object identity");
+    ASSERT_EQ(suite, LUA_ERRRUN, nestedCallStatus, "lua_call error propagates to enclosing protected call");
+    ASSERT_EQ(suite, 2, lua_gettop(L), "enclosing pcall restores stack after nested lua_call failure");
+    ASSERT_TRUE(suite, lua_touserdata(L, -1) == &gApiErrorToken, "nested lua_call preserves Lua error object identity");
 
     lua_close(L);
 }
@@ -598,20 +563,17 @@ void testProtectedCallErrorHandlers(TestSuite& suite) {
     lua_pushcclosure(L, transformApiError, 0);
     lua_pushcclosure(L, raiseLightUserdataError, 0);
     const int handledStatus = lua_pcall(L, 0, 1, 1);
-    ASSERT_EQ(suite, LUA_ERRRUN, handledStatus,
-              "successful error handler preserves original error status");
+    ASSERT_EQ(suite, LUA_ERRRUN, handledStatus, "successful error handler preserves original error status");
     ASSERT_EQ(suite, 2, lua_gettop(L), "pcall leaves handler below transformed error");
     ASSERT_EQ(suite, 1, gApiHandlerCalls, "pcall invokes error handler exactly once");
-    ASSERT_TRUE(suite, gApiHandlerErrorObject == &gApiErrorToken,
-                "error handler receives original Lua error object");
+    ASSERT_TRUE(suite, gApiHandlerErrorObject == &gApiErrorToken, "error handler receives original Lua error object");
     ASSERT_EQ(suite, std::string("handled-error"), std::string(lua_tostring(L, -1)),
               "pcall returns transformed error handler result");
 
     lua_settop(L, 0);
     lua_pushcclosure(L, transformApiError, 0);
     lua_pushcclosure(L, raiseLightUserdataError, 0);
-    ASSERT_EQ(suite, LUA_ERRRUN, lua_pcall(L, 0, 1, -2),
-              "pcall accepts negative error-handler index");
+    ASSERT_EQ(suite, LUA_ERRRUN, lua_pcall(L, 0, 1, -2), "pcall accepts negative error-handler index");
     ASSERT_EQ(suite, std::string("handled-error"), std::string(lua_tostring(L, -1)),
               "negative error-handler index transforms error");
 
@@ -620,8 +582,7 @@ void testProtectedCallErrorHandlers(TestSuite& suite) {
     lua_call(L, 0, 1);
     lua_pushcclosure(L, raiseLightUserdataError, 0);
     const int luaHandlerStatus = lua_pcall(L, 0, 1, 1);
-    ASSERT_EQ(suite, LUA_ERRRUN, luaHandlerStatus,
-              "Lua closure can serve as pcall error handler");
+    ASSERT_EQ(suite, LUA_ERRRUN, luaHandlerStatus, "Lua closure can serve as pcall error handler");
     ASSERT_TRUE(suite, lua_touserdata(L, -1) == &gApiErrorToken,
                 "Lua error handler returns original object without coercion");
 
@@ -629,19 +590,15 @@ void testProtectedCallErrorHandlers(TestSuite& suite) {
     lua_pushcclosure(L, failWhileHandlingApiError, 0);
     lua_pushcclosure(L, raiseLightUserdataError, 0);
     const int failedHandlerStatus = lua_pcall(L, 0, 1, 1);
-    ASSERT_EQ(suite, LUA_ERRERR, failedHandlerStatus,
-              "pcall distinguishes error-handler failure");
-    ASSERT_EQ(suite, 2, lua_gettop(L),
-              "failed handler still leaves one canonical error result");
-    ASSERT_EQ(suite, std::string("error in error handling"),
-              std::string(lua_tostring(L, -1)),
+    ASSERT_EQ(suite, LUA_ERRERR, failedHandlerStatus, "pcall distinguishes error-handler failure");
+    ASSERT_EQ(suite, 2, lua_gettop(L), "failed handler still leaves one canonical error result");
+    ASSERT_EQ(suite, std::string("error in error handling"), std::string(lua_tostring(L, -1)),
               "failed handler returns canonical error text");
 
     lua_settop(L, 0);
     lua_pushnumber(L, 99);
     lua_pushcclosure(L, raiseLightUserdataError, 0);
-    ASSERT_EQ(suite, LUA_ERRERR, lua_pcall(L, 0, 1, 1),
-              "non-function error handler reports LUA_ERRERR");
+    ASSERT_EQ(suite, LUA_ERRERR, lua_pcall(L, 0, 1, 1), "non-function error handler reports LUA_ERRERR");
 
     lua_close(L);
 }
@@ -662,8 +619,7 @@ void testCApiYieldInsideCoroutine(TestSuite& suite) {
 
     ASSERT_TRUE(suite, resumed, "lua_yield succeeds inside resumable coroutine");
     ASSERT_TRUE(suite, thread->isSuspended(), "C API yield suspends coroutine");
-    ASSERT_EQ(suite, LUA_YIELD,
-              lua_status(reinterpret_cast<lua_State*>(thread->getLuaState())),
+    ASSERT_EQ(suite, LUA_YIELD, lua_status(reinterpret_cast<lua_State*>(thread->getLuaState())),
               "yielded coroutine exposes LUA_YIELD status");
     ASSERT_EQ(suite, 3, lua_gettop(L), "resume returns thread, success flag, and yield value");
     ASSERT_TRUE(suite, lua_toboolean(L, 2) != 0, "resume reports successful yield");
@@ -689,8 +645,7 @@ void testPublicThreadResumeApi(TestSuite& suite) {
     ASSERT_EQ(suite, LUA_OK, lua_status(co), "completed child reports LUA_OK");
     ASSERT_EQ(suite, 2, lua_gettop(co), "completed child exposes return values");
     ASSERT_EQ(suite, 21.0, lua_tonumber(co, 1), "lua_resume preserves numeric result");
-    ASSERT_EQ(suite, std::string("done"), std::string(lua_tostring(co, 2)),
-              "lua_resume preserves string result");
+    ASSERT_EQ(suite, std::string("done"), std::string(lua_tostring(co, 2)), "lua_resume preserves string result");
     ASSERT_EQ(suite, 2, lua_gettop(L), "lua_resume preserves caller stack prefix");
 
     ASSERT_EQ(suite, LUA_ERRRUN, lua_resume(co, 0), "resuming a dead child returns LUA_ERRRUN");
@@ -710,27 +665,23 @@ void testPublicThreadYieldAndErrorApi(TestSuite& suite) {
     pushLuaChunk(L, "local value = api_yield_leaf(55); return value + 1");
     lua_xmove(L, yielded, 1);
 
-    ASSERT_EQ(suite, LUA_YIELD, lua_resume(yielded, 0),
-              "public lua_resume exposes coroutine yield status");
+    ASSERT_EQ(suite, LUA_YIELD, lua_resume(yielded, 0), "public lua_resume exposes coroutine yield status");
     ASSERT_EQ(suite, LUA_YIELD, lua_status(yielded), "yielded child reports LUA_YIELD");
     ASSERT_EQ(suite, 1, lua_gettop(yielded), "yielded values remain on child stack");
     ASSERT_EQ(suite, 55.0, lua_tonumber(yielded, 1), "yielded value is API-visible");
 
     lua_settop(yielded, 0);
     lua_pushnumber(yielded, 9);
-    ASSERT_EQ(suite, LUA_OK, lua_resume(yielded, 1),
-              "public lua_resume accepts values after yield");
+    ASSERT_EQ(suite, LUA_OK, lua_resume(yielded, 1), "public lua_resume accepts values after yield");
     ASSERT_EQ(suite, 1, lua_gettop(yielded), "finished child exposes final return value");
-    ASSERT_EQ(suite, 10.0, lua_tonumber(yielded, 1),
-              "resume argument becomes yield return value");
+    ASSERT_EQ(suite, 10.0, lua_tonumber(yielded, 1), "resume argument becomes yield return value");
 
     lua_pushcclosure(L, raiseLightUserdataError, 0);
     lua_setglobal(L, "api_resume_error");
     lua_State* failed = lua_newthread(L);
     pushLuaChunk(L, "return api_resume_error()");
     lua_xmove(L, failed, 1);
-    ASSERT_EQ(suite, LUA_ERRRUN, lua_resume(failed, 0),
-              "public lua_resume returns runtime error status");
+    ASSERT_EQ(suite, LUA_ERRRUN, lua_resume(failed, 0), "public lua_resume returns runtime error status");
     ASSERT_EQ(suite, 1, lua_gettop(failed), "failed child exposes one error object");
     ASSERT_TRUE(suite, lua_touserdata(failed, -1) == &gApiErrorToken,
                 "public lua_resume preserves non-string error object identity");
@@ -755,15 +706,13 @@ void testPublicThreadAllocatorLifecycle(TestSuite& suite) {
     void* childAllocatorData = nullptr;
     ASSERT_TRUE(suite, lua_getallocf(co, &childAllocatorData) == trackingLuaAllocator,
                 "child state shares current allocator callback");
-    ASSERT_TRUE(suite, childAllocatorData == &probe,
-                "child state shares allocator userdata");
+    ASSERT_TRUE(suite, childAllocatorData == &probe, "child state shares allocator userdata");
 
     lua_close(L);
     ASSERT_TRUE(suite, ledger.blocks.empty(), "closing parent releases child state allocation");
     ASSERT_EQ(suite, static_cast<size_t>(0), ledger.sizeMismatches,
               "child state frees preserve allocator old-size contract");
-    ASSERT_EQ(suite, static_cast<size_t>(0), ledger.unknownFrees,
-              "child state allocations are each released once");
+    ASSERT_EQ(suite, static_cast<size_t>(0), ledger.unknownFrees, "child state allocations are each released once");
 
     for (size_t failureOffset = 1; failureOffset <= childAllocationAttempts; ++failureOffset) {
         AllocatorLedger failedLedger;
@@ -774,12 +723,10 @@ void testPublicThreadAllocatorLifecycle(TestSuite& suite) {
         failedProbe.failOnAllocation = failedProbe.allocationAttempts + failureOffset;
         ASSERT_TRUE(suite, lua_newthread(failureParent) == nullptr,
                     "each child construction allocation failure returns null");
-        ASSERT_EQ(suite, parentTop, lua_gettop(failureParent),
-                  "failed lua_newthread preserves parent stack");
+        ASSERT_EQ(suite, parentTop, lua_gettop(failureParent), "failed lua_newthread preserves parent stack");
         failedProbe.failOnAllocation = 0;
         lua_close(failureParent);
-        ASSERT_TRUE(suite, failedLedger.blocks.empty(),
-                    "failed child creation and parent close remain leak free");
+        ASSERT_TRUE(suite, failedLedger.blocks.empty(), "failed child creation and parent close remain leak free");
         ASSERT_EQ(suite, static_cast<size_t>(0), failedLedger.sizeMismatches,
                   "child creation rollback preserves old-size contract");
         ASSERT_EQ(suite, static_cast<size_t>(0), failedLedger.unknownFrees,
@@ -791,25 +738,21 @@ void testProtectedCallNormalizesCppExceptionsAndYield(TestSuite& suite) {
     lua_State* L = lua_open();
 
     lua_pushcclosure(L, throwMemoryErrorFromC, 0);
-    ASSERT_EQ(suite, LUA_ERRMEM, lua_pcall(L, 0, 1, 0),
-              "pcall maps MemoryError to LUA_ERRMEM");
+    ASSERT_EQ(suite, LUA_ERRMEM, lua_pcall(L, 0, 1, 0), "pcall maps MemoryError to LUA_ERRMEM");
     ASSERT_EQ(suite, std::string("not enough memory"), std::string(lua_tostring(L, -1)),
               "memory failure uses fixed Lua memory error object");
     ASSERT_EQ(suite, LUA_OK, lua_status(L), "pcall restores state status after memory error");
 
     lua_settop(L, 0);
     lua_pushcclosure(L, throwUnknownCppException, 0);
-    ASSERT_EQ(suite, LUA_ERRRUN, lua_pcall(L, 0, 1, 0),
-              "pcall contains non-standard C++ exceptions");
+    ASSERT_EQ(suite, LUA_ERRRUN, lua_pcall(L, 0, 1, 0), "pcall contains non-standard C++ exceptions");
     ASSERT_EQ(suite, std::string("unknown C++ exception"), std::string(lua_tostring(L, -1)),
               "unknown C++ exception is converted to Lua error text");
 
     lua_settop(L, 0);
     lua_pushcclosure(L, attemptYieldFromMainState, 0);
-    ASSERT_EQ(suite, LUA_ERRRUN, lua_pcall(L, 0, 1, 0),
-              "pcall rejects yield across main-state host boundary");
-    ASSERT_TRUE(suite, std::string(lua_tostring(L, -1)).find("cannot yield") !=
-                           std::string::npos,
+    ASSERT_EQ(suite, LUA_ERRRUN, lua_pcall(L, 0, 1, 0), "pcall rejects yield across main-state host boundary");
+    ASSERT_TRUE(suite, std::string(lua_tostring(L, -1)).find("cannot yield") != std::string::npos,
                 "yield boundary reports a stable Lua runtime error");
     ASSERT_EQ(suite, LUA_OK, lua_status(L), "failed yield leaves protected state usable");
 
@@ -822,24 +765,18 @@ void testNestedCToLuaToCProtectedCalls(TestSuite& suite) {
     lua_pushcclosure(L, doubleApiArgument, 0);
     lua_setglobal(L, "api_nested_leaf");
     pushLuaChunk(L, "return api_nested_leaf(21)");
-    ASSERT_EQ(suite, LUA_OK, lua_pcall(L, 0, 1, 0),
-              "pcall executes nested C to Lua to C success path");
-    ASSERT_EQ(suite, 42.0, lua_tonumber(L, -1),
-              "nested C to Lua to C call returns result");
+    ASSERT_EQ(suite, LUA_OK, lua_pcall(L, 0, 1, 0), "pcall executes nested C to Lua to C success path");
+    ASSERT_EQ(suite, 42.0, lua_tonumber(L, -1), "nested C to Lua to C call returns result");
 
     lua_settop(L, 0);
     lua_pushcclosure(L, raiseLightUserdataError, 0);
     lua_setglobal(L, "api_nested_error");
     lua_pushnumber(L, 73);
     pushLuaChunk(L, "return api_nested_error()");
-    ASSERT_EQ(suite, LUA_ERRRUN, lua_pcall(L, 0, 1, 0),
-              "pcall catches nested C to Lua to C error path");
-    ASSERT_EQ(suite, 2, lua_gettop(L),
-              "nested error restores host stack prefix");
-    ASSERT_EQ(suite, 73.0, lua_tonumber(L, 1),
-              "nested error preserves prefix value");
-    ASSERT_TRUE(suite, lua_touserdata(L, -1) == &gApiErrorToken,
-                "nested error preserves original object identity");
+    ASSERT_EQ(suite, LUA_ERRRUN, lua_pcall(L, 0, 1, 0), "pcall catches nested C to Lua to C error path");
+    ASSERT_EQ(suite, 2, lua_gettop(L), "nested error restores host stack prefix");
+    ASSERT_EQ(suite, 73.0, lua_tonumber(L, 1), "nested error preserves prefix value");
+    ASSERT_TRUE(suite, lua_touserdata(L, -1) == &gApiErrorToken, "nested error preserves original object identity");
 
     lua_close(L);
 }
@@ -850,14 +787,12 @@ void testCustomAllocatorLifecycle(TestSuite& suite) {
     lua_State* L = lua_newstate(trackingLuaAllocator, &probe);
 
     ASSERT_TRUE(suite, L != nullptr, "lua_newstate creates state through custom allocator");
-    ASSERT_TRUE(suite, probe.allocations > 20,
-                "state initialization routes fixed runtime objects through allocator");
+    ASSERT_TRUE(suite, probe.allocations > 20, "state initialization routes fixed runtime objects through allocator");
 
     void* observedUserData = nullptr;
     ASSERT_TRUE(suite, lua_getallocf(L, &observedUserData) == trackingLuaAllocator,
                 "getallocf returns configured callback");
-    ASSERT_TRUE(suite, observedUserData == &probe,
-                "getallocf returns configured allocator userdata");
+    ASSERT_TRUE(suite, observedUserData == &probe, "getallocf returns configured allocator userdata");
 
     const size_t blocksBeforeObjects = ledger.blocks.size();
     lua_newuserdata(L, 64);
@@ -867,12 +802,9 @@ void testCustomAllocatorLifecycle(TestSuite& suite) {
                 "userdata payload and GC object blocks use allocator");
 
     lua_close(L);
-    ASSERT_TRUE(suite, ledger.blocks.empty(),
-                "lua_close releases state, context, fixed roots, objects, and payloads");
-    ASSERT_EQ(suite, static_cast<size_t>(0), ledger.sizeMismatches,
-              "allocator frees receive original object sizes");
-    ASSERT_EQ(suite, static_cast<size_t>(0), ledger.unknownFrees,
-              "allocator close path only frees tracked blocks");
+    ASSERT_TRUE(suite, ledger.blocks.empty(), "lua_close releases state, context, fixed roots, objects, and payloads");
+    ASSERT_EQ(suite, static_cast<size_t>(0), ledger.sizeMismatches, "allocator frees receive original object sizes");
+    ASSERT_EQ(suite, static_cast<size_t>(0), ledger.unknownFrees, "allocator close path only frees tracked blocks");
     ASSERT_EQ(suite, probe.allocations + probe.reallocations, probe.frees,
               "custom allocator allocations and frees balance");
 }
@@ -888,8 +820,7 @@ void testAllocatorCanBeReplaced(TestSuite& suite) {
     void* observedUserData = nullptr;
     ASSERT_TRUE(suite, lua_getallocf(L, &observedUserData) == trackingLuaAllocator,
                 "setallocf preserves replacement callback");
-    ASSERT_TRUE(suite, observedUserData == &second,
-                "setallocf replaces allocator userdata");
+    ASSERT_TRUE(suite, observedUserData == &second, "setallocf replaces allocator userdata");
 
     const size_t secondAllocationsBefore = second.allocations;
     lua_newuserdata(L, 32);
@@ -897,10 +828,8 @@ void testAllocatorCanBeReplaced(TestSuite& suite) {
                 "future object and payload allocations use replacement allocator");
 
     lua_close(L);
-    ASSERT_TRUE(suite, second.frees > 0,
-                "existing runtime blocks are released through current allocator");
-    ASSERT_TRUE(suite, ledger.blocks.empty(),
-                "allocator replacement keeps close path leak free");
+    ASSERT_TRUE(suite, second.frees > 0, "existing runtime blocks are released through current allocator");
+    ASSERT_TRUE(suite, ledger.blocks.empty(), "allocator replacement keeps close path leak free");
     ASSERT_EQ(suite, static_cast<size_t>(0), ledger.sizeMismatches,
               "allocator replacement preserves old-size contract");
     ASSERT_EQ(suite, static_cast<size_t>(0), ledger.unknownFrees,
@@ -908,18 +837,15 @@ void testAllocatorCanBeReplaced(TestSuite& suite) {
 }
 
 void testAllocatorFailurePaths(TestSuite& suite) {
-    for (size_t failOnCall : {static_cast<size_t>(1), static_cast<size_t>(2),
-                              static_cast<size_t>(5), static_cast<size_t>(20)}) {
+    for (size_t failOnCall :
+         {static_cast<size_t>(1), static_cast<size_t>(2), static_cast<size_t>(5), static_cast<size_t>(20)}) {
         AllocatorLedger ledger;
         AllocatorProbe probe{&ledger};
         probe.failOnAllocation = failOnCall;
         lua_State* failed = lua_newstate(trackingLuaAllocator, &probe);
-        ASSERT_TRUE(suite, failed == nullptr,
-                    "lua_newstate returns null when allocator rejects construction");
-        ASSERT_TRUE(suite, ledger.blocks.empty(),
-                    "failed state construction releases partial allocator blocks");
-        ASSERT_EQ(suite, static_cast<size_t>(0), ledger.unknownFrees,
-                  "failed state construction does not double free");
+        ASSERT_TRUE(suite, failed == nullptr, "lua_newstate returns null when allocator rejects construction");
+        ASSERT_TRUE(suite, ledger.blocks.empty(), "failed state construction releases partial allocator blocks");
+        ASSERT_EQ(suite, static_cast<size_t>(0), ledger.unknownFrees, "failed state construction does not double free");
     }
 
     AllocatorLedger ledger;
@@ -929,76 +855,57 @@ void testAllocatorFailurePaths(TestSuite& suite) {
 
     lua_pushcclosure(L, allocateApiUserdata, 0);
     probe.failOnCall = probe.calls + 1;
-    ASSERT_EQ(suite, LUA_ERRMEM, lua_pcall(L, 0, 1, 0),
-              "pcall protection setup failure becomes LUA_ERRMEM");
+    ASSERT_EQ(suite, LUA_ERRMEM, lua_pcall(L, 0, 1, 0), "pcall protection setup failure becomes LUA_ERRMEM");
 
     lua_settop(L, 0);
     probe.failOnCall = 0;
     lua_pushcclosure(L, allocateApiUserdata, 0);
     gAllocatorFailureProbe = &probe;
     gAllocatorFailureOffset = 1;
-    ASSERT_EQ(suite, LUA_ERRMEM, lua_pcall(L, 0, 1, 0),
-              "GC object allocation failure becomes LUA_ERRMEM");
+    ASSERT_EQ(suite, LUA_ERRMEM, lua_pcall(L, 0, 1, 0), "GC object allocation failure becomes LUA_ERRMEM");
 
     lua_settop(L, 0);
     probe.failOnCall = 0;
     lua_pushcclosure(L, allocateApiUserdata, 0);
     gAllocatorFailureOffset = 2;
-    ASSERT_EQ(suite, LUA_ERRMEM, lua_pcall(L, 0, 1, 0),
-              "userdata payload allocation failure becomes LUA_ERRMEM");
+    ASSERT_EQ(suite, LUA_ERRMEM, lua_pcall(L, 0, 1, 0), "userdata payload allocation failure becomes LUA_ERRMEM");
     gAllocatorFailureProbe = nullptr;
     gAllocatorFailureOffset = 0;
     probe.failOnCall = 0;
 
     lua_close(L);
-    ASSERT_TRUE(suite, ledger.blocks.empty(),
-                "runtime allocation failures leave close path leak free");
+    ASSERT_TRUE(suite, ledger.blocks.empty(), "runtime allocation failures leave close path leak free");
     ASSERT_EQ(suite, static_cast<size_t>(0), ledger.sizeMismatches,
               "failure rollback preserves allocator size contract");
-    ASSERT_EQ(suite, static_cast<size_t>(0), ledger.unknownFrees,
-              "failure rollback frees each allocator block once");
+    ASSERT_EQ(suite, static_cast<size_t>(0), ledger.unknownFrees, "failure rollback frees each allocator block once");
 }
 
-}  // namespace
+} // namespace
 
 void registerLuaCApiTests() {
     auto& registry = TestRegistry::getInstance();
     registry.registerTest(kSuiteName, "stack and invalid indexes", testStackAndInvalidIndexes);
-    registry.registerTest(kSuiteName, "registry and globals pseudo-indexes",
-                          testRegistryAndGlobalsPseudoIndexes);
-    registry.registerTest(kSuiteName, "independent state isolation",
-                          testIndependentStateIsolation);
+    registry.registerTest(kSuiteName, "registry and globals pseudo-indexes", testRegistryAndGlobalsPseudoIndexes);
+    registry.registerTest(kSuiteName, "independent state isolation", testIndependentStateIsolation);
     registry.registerTest(kSuiteName, "C closure captures upvalues", testCClosureCapturesUpvalues);
-    registry.registerTest(kSuiteName, "C closure upvalue mutation",
-                          testCClosureUpvalueMutationPersists);
+    registry.registerTest(kSuiteName, "C closure upvalue mutation", testCClosureUpvalueMutationPersists);
     registry.registerTest(kSuiteName, "stack removal inside C frame", testStackRemovalInsideCFrame);
     registry.registerTest(kSuiteName, "checkstack and xmove", testCheckStackAndXMove);
-    registry.registerTest(kSuiteName, "C closure upvalue introspection",
-                          testCClosureUpvalueIntrospection);
-    registry.registerTest(kSuiteName, "Lua closure upvalue introspection",
-                          testLuaClosureUpvalueIntrospection);
+    registry.registerTest(kSuiteName, "C closure upvalue introspection", testCClosureUpvalueIntrospection);
+    registry.registerTest(kSuiteName, "Lua closure upvalue introspection", testLuaClosureUpvalueIntrospection);
     registry.registerTest(kSuiteName, "light and full userdata", testLightAndFullUserdata);
-    registry.registerTest(kSuiteName, "userdata finalizer through C API",
-                          testUserdataFinalizerThroughCApi);
+    registry.registerTest(kSuiteName, "userdata finalizer through C API", testUserdataFinalizerThroughCApi);
     registry.registerTest(kSuiteName, "protected call stack and error object",
                           testProtectedCallRestoresStackAndPreservesErrorObject);
-    registry.registerTest(kSuiteName, "protected call error handlers",
-                          testProtectedCallErrorHandlers);
+    registry.registerTest(kSuiteName, "protected call error handlers", testProtectedCallErrorHandlers);
     registry.registerTest(kSuiteName, "protected call C++ and yield boundaries",
                           testProtectedCallNormalizesCppExceptionsAndYield);
-    registry.registerTest(kSuiteName, "C API yield inside coroutine",
-                           testCApiYieldInsideCoroutine);
+    registry.registerTest(kSuiteName, "C API yield inside coroutine", testCApiYieldInsideCoroutine);
     registry.registerTest(kSuiteName, "public thread resume API", testPublicThreadResumeApi);
-    registry.registerTest(kSuiteName, "public thread yield and error API",
-                          testPublicThreadYieldAndErrorApi);
-    registry.registerTest(kSuiteName, "public thread allocator lifecycle",
-                          testPublicThreadAllocatorLifecycle);
-    registry.registerTest(kSuiteName, "nested C to Lua to C protected calls",
-                          testNestedCToLuaToCProtectedCalls);
-    registry.registerTest(kSuiteName, "custom allocator lifecycle",
-                          testCustomAllocatorLifecycle);
-    registry.registerTest(kSuiteName, "allocator replacement",
-                          testAllocatorCanBeReplaced);
-    registry.registerTest(kSuiteName, "allocator failure paths",
-                          testAllocatorFailurePaths);
+    registry.registerTest(kSuiteName, "public thread yield and error API", testPublicThreadYieldAndErrorApi);
+    registry.registerTest(kSuiteName, "public thread allocator lifecycle", testPublicThreadAllocatorLifecycle);
+    registry.registerTest(kSuiteName, "nested C to Lua to C protected calls", testNestedCToLuaToCProtectedCalls);
+    registry.registerTest(kSuiteName, "custom allocator lifecycle", testCustomAllocatorLifecycle);
+    registry.registerTest(kSuiteName, "allocator replacement", testAllocatorCanBeReplaced);
+    registry.registerTest(kSuiteName, "allocator failure paths", testAllocatorFailurePaths);
 }

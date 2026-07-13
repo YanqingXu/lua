@@ -27,10 +27,7 @@ void LuaStateOwnerDeleter::operator()(LuaState* state) const noexcept {
 // =====================================================================
 
 Thread::Thread(LuaStateOwner state)
-    : GCObject(GCObjectType::Thread)
-    , state_(std::move(state))
-    , coStatus_(CoroutineStatus::Suspended)
-{
+    : GCObject(GCObjectType::Thread), state_(std::move(state)), coStatus_(CoroutineStatus::Suspended) {
     state_->setThread(this);
 }
 
@@ -140,7 +137,10 @@ bool Thread::resume(LuaState* callerL, i32 nargs) {
         if (proto->isVararg()) {
             i32 actualArgs = nargs;
             usize oldBase = funcPos + 1;
-            while (actualArgs < numParams) { stack.push(Value()); actualArgs++; }
+            while (actualArgs < numParams) {
+                stack.push(Value());
+                actualArgs++;
+            }
             base = oldBase + static_cast<usize>(actualArgs);
             stack.checkSpace(static_cast<usize>(numParams) + 1);
             for (i32 i = 0; i < numParams; i++) {
@@ -150,7 +150,10 @@ bool Thread::resume(LuaState* callerL, i32 nargs) {
         } else {
             base = funcPos + 1;
             i32 actualArgs = nargs;
-            while (actualArgs < numParams) { stack.push(Value()); actualArgs++; }
+            while (actualArgs < numParams) {
+                stack.push(Value());
+                actualArgs++;
+            }
         }
 
         CallInfo& ci = state_->pushCallInfo();
@@ -161,7 +164,8 @@ bool Thread::resume(LuaState* callerL, i32 nargs) {
         ci.savedpc = nullptr;
         ci.tailcalls = 0;
 
-        while (stack.size() < ci.top) stack.push(Value());
+        while (stack.size() < ci.top)
+            stack.push(Value());
         state_->setAbsoluteTop(ci.top);
 
         if (state_->hasDebugHookMask(HookMaskCall)) {
@@ -184,8 +188,7 @@ bool Thread::resume(LuaState* callerL, i32 nargs) {
 
         // 将 resume 参数放到 funcPos（模拟 vmPostcall）
         for (i32 i = 0; i < nargs; i++) {
-            stack.at(funcPos + static_cast<usize>(i)) =
-                stack.at(argStart + static_cast<usize>(i));
+            stack.at(funcPos + static_cast<usize>(i)) = stack.at(argStart + static_cast<usize>(i));
         }
 
         bool fixedResults = wantedResults >= 0;
@@ -242,11 +245,9 @@ bool Thread::resume(LuaState* callerL, i32 nargs) {
     try {
         result = VM::executeProto(state_.get(), proto, savedNexeccalls_);
     } catch (const MemoryError&) {
-        return finishFailure(Value(state_->getGlobalState().getMemoryErrorMessage()),
-                             ThreadStatus::ErrMem);
+        return finishFailure(Value(state_->getGlobalState().getMemoryErrorMessage()), ThreadStatus::ErrMem);
     } catch (const std::bad_alloc&) {
-        return finishFailure(Value(state_->getGlobalState().getMemoryErrorMessage()),
-                             ThreadStatus::ErrMem);
+        return finishFailure(Value(state_->getGlobalState().getMemoryErrorMessage()), ThreadStatus::ErrMem);
     } catch (const LuaError& e) {
         if (e.hasErrorObject()) {
             return finishFailure(e.getErrorObject(), ThreadStatus::ErrRun);
@@ -258,8 +259,7 @@ bool Thread::resume(LuaState* callerL, i32 nargs) {
         return finishFailure(Value(pool.intern(e.what())), ThreadStatus::ErrRun);
     } catch (...) {
         auto& pool = callerL->getGlobalState().getStringPool();
-        return finishFailure(Value(pool.intern("unknown C++ exception")),
-                             ThreadStatus::ErrRun);
+        return finishFailure(Value(pool.intern("unknown C++ exception")), ThreadStatus::ErrRun);
     }
 
     state_->decAllowYield();
@@ -269,7 +269,8 @@ bool Thread::resume(LuaState* callerL, i32 nargs) {
         // yield：保存执行深度
         savedNexeccalls_ = state_->getSavedNexeccalls();
         coStatus_ = CoroutineStatus::Suspended;
-        if (callerThread) callerThread->coStatus_ = prevCallerStatus;
+        if (callerThread)
+            callerThread->coStatus_ = prevCallerStatus;
         callerL->getGlobalState().setRunningThread(callerThread);
         callerState_ = nullptr;
 
@@ -286,7 +287,8 @@ bool Thread::resume(LuaState* callerL, i32 nargs) {
         // 正常返回：协程结束
         state_->setStatus(ThreadStatus::OK);
         coStatus_ = CoroutineStatus::Dead;
-        if (callerThread) callerThread->coStatus_ = prevCallerStatus;
+        if (callerThread)
+            callerThread->coStatus_ = prevCallerStatus;
         callerL->getGlobalState().setRunningThread(callerThread);
         callerState_ = nullptr;
 
@@ -314,9 +316,8 @@ void Thread::mark(GarbageCollector& gc) {
 }
 
 usize Thread::getSize() const {
-    return sizeof(Thread) + sizeof(LuaState)
-        + state_->getStack().capacity() * sizeof(Value)
-        + state_->getCallStack().capacity() * sizeof(CallInfo);
+    return sizeof(Thread) + sizeof(LuaState) + state_->getStack().capacity() * sizeof(Value) +
+           state_->getCallStack().capacity() * sizeof(CallInfo);
 }
 
 } // namespace Lua

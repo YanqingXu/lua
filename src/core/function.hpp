@@ -1,15 +1,15 @@
 ﻿/**
  * @file function.hpp
  * @brief Lua函数对象：函数原型和闭包实现
- * 
+ *
  * 本文件实现了Lua的函数对象系统，包括函数原型（Proto）和闭包（Closure）。
- * 
+ *
  * 核心概念：
  * - Proto：函数原型，包含字节码、常量表等编译时信息
  * - Closure：闭包对象，包装函数原型和上值（upvalues）
  * - C函数：用C++实现的函数，可以被Lua调用
  * - Lua函数：用Lua编写的函数，由虚拟机执行
- * 
+ *
  * 设计特点：
  * - 简化实现：当前版本不包含完整的字节码系统
  * - 支持C函数：可以注册C++函数供Lua调用
@@ -83,22 +83,24 @@ struct ConstantKey {
 /// ConstantKey的哈希函数
 struct ConstantKeyHash {
     std::size_t operator()(const ConstantKey& ck) const noexcept {
-        return std::visit([](const auto& val) -> std::size_t {
-            using T = std::decay_t<decltype(val)>;
-            if constexpr (std::is_same_v<T, std::monostate>) {
-                // nil的哈希值使用固定值
-                return std::hash<int>{}(0);
-            } else if constexpr (std::is_same_v<T, bool>) {
-                return std::hash<bool>{}(val);
-            } else if constexpr (std::is_same_v<T, f64>) {
-                return std::hash<f64>{}(val);
-            } else if constexpr (std::is_same_v<T, GCString*>) {
-                // 字符串使用GCString的预计算哈希值
-                return val ? val->getHash() : 0;
-            } else {
-                return 0;
-            }
-        }, ck.key);
+        return std::visit(
+            [](const auto& val) -> std::size_t {
+                using T = std::decay_t<decltype(val)>;
+                if constexpr (std::is_same_v<T, std::monostate>) {
+                    // nil的哈希值使用固定值
+                    return std::hash<int>{}(0);
+                } else if constexpr (std::is_same_v<T, bool>) {
+                    return std::hash<bool>{}(val);
+                } else if constexpr (std::is_same_v<T, f64>) {
+                    return std::hash<f64>{}(val);
+                } else if constexpr (std::is_same_v<T, GCString*>) {
+                    // 字符串使用GCString的预计算哈希值
+                    return val ? val->getHash() : 0;
+                } else {
+                    return 0;
+                }
+            },
+            ck.key);
     }
 };
 
@@ -155,10 +157,10 @@ constexpr u8 VARARG_NEEDSARG = 4;
  * - endpc: 变量失效的字节码位置（不包含）
  */
 struct LocVar {
-    GCString* varname;      ///< 变量名称
-    i32 startpc;            ///< 起始PC：变量开始有效的字节码位置
-    i32 endpc;              ///< 结束PC：变量失效的字节码位置（不包含）
-    i32 reg;                ///< 对应的寄存器槽位（相对于当前栈帧base）
+    GCString* varname; ///< 变量名称
+    i32 startpc;       ///< 起始PC：变量开始有效的字节码位置
+    i32 endpc;         ///< 结束PC：变量失效的字节码位置（不包含）
+    i32 reg;           ///< 对应的寄存器槽位（相对于当前栈帧base）
 
     /**
      * @brief 默认构造函数
@@ -172,8 +174,7 @@ struct LocVar {
      * @param end 结束PC
      * @param slot 寄存器槽位
      */
-    LocVar(GCString* name, i32 start, i32 end, i32 slot)
-        : varname(name), startpc(start), endpc(end), reg(slot) {}
+    LocVar(GCString* name, i32 start, i32 end, i32 slot) : varname(name), startpc(start), endpc(end), reg(slot) {}
 };
 
 /**
@@ -216,28 +217,32 @@ public:
      */
     Proto();
     explicit Proto(LuaAllocator* allocator);
-    
+
     /**
      * @brief 析构函数
      */
     ~Proto() override;
-    
+
     // =====================================================================
     // 基本属性访问
     // =====================================================================
-    
+
     /**
      * @brief 获取参数数量
      * @return 固定参数个数
      */
-    u8 getNumParams() const noexcept { return numParams_; }
-    
+    u8 getNumParams() const noexcept {
+        return numParams_;
+    }
+
     /**
      * @brief 设置参数数量
      * @param n 参数个数
      */
-    void setNumParams(u8 n) noexcept { numParams_ = n; }
-    
+    void setNumParams(u8 n) noexcept {
+        numParams_ = n;
+    }
+
     /**
      * @brief 是否为可变参数函数
      * @return 如果接受可变参数返回true
@@ -246,56 +251,70 @@ public:
      * - VARARG_HASARG (1): 函数有实际的可变参数
      * - VARARG_ISVARARG (2): 函数声明时使用了...语法
      */
-    bool isVararg() const noexcept { return isVararg_ != 0; }
+    bool isVararg() const noexcept {
+        return isVararg_ != 0;
+    }
 
     /**
      * @brief 获取可变参数标志（原始值）
      * @return 可变参数标志位
      */
-    u8 getVarargFlags() const noexcept { return isVararg_; }
+    u8 getVarargFlags() const noexcept {
+        return isVararg_;
+    }
 
     /**
      * @brief 设置可变参数标志
      * @param vararg 是否为可变参数
      */
     void setVararg(bool vararg) noexcept {
-        isVararg_ = vararg ? 2 : 0;  // VARARG_ISVARARG = 2
+        isVararg_ = vararg ? 2 : 0; // VARARG_ISVARARG = 2
     }
 
     /**
      * @brief 设置可变参数标志（原始值）
      * @param flags 可变参数标志位
      */
-    void setVarargFlags(u8 flags) noexcept { isVararg_ = flags; }
-    
+    void setVarargFlags(u8 flags) noexcept {
+        isVararg_ = flags;
+    }
+
     /**
      * @brief 获取最大栈大小
      * @return 函数执行需要的最大栈空间
      */
-    u8 getMaxStackSize() const noexcept { return maxStackSize_; }
-    
+    u8 getMaxStackSize() const noexcept {
+        return maxStackSize_;
+    }
+
     /**
      * @brief 设置最大栈大小
      * @param size 栈大小
      */
-    void setMaxStackSize(u8 size) noexcept { maxStackSize_ = size; }
-    
+    void setMaxStackSize(u8 size) noexcept {
+        maxStackSize_ = size;
+    }
+
     /**
      * @brief 获取源文件名
      * @return 源文件名字符串
      */
-    GCString* getSource() const noexcept { return source_; }
-    
+    GCString* getSource() const noexcept {
+        return source_;
+    }
+
     /**
      * @brief 设置源文件名
      * @param src 源文件名
      */
-    void setSource(GCString* src) noexcept { source_ = src; }
-    
+    void setSource(GCString* src) noexcept {
+        source_ = src;
+    }
+
     // =====================================================================
     // 常量表操作（简化版）
     // =====================================================================
-    
+
     /**
      * @brief 添加常量
      * @param value 常量值
@@ -313,19 +332,21 @@ public:
      * @return 常量在常量表中的索引
      */
     usize appendConstantSlot(const Value& value);
-    
+
     /**
      * @brief 获取常量
      * @param index 常量索引
      * @return 常量值
      */
     Value getConstant(usize index) const;
-    
+
     /**
      * @brief 获取常量数量
      * @return 常量表大小
      */
-    usize getConstantCount() const noexcept { return constants_.size(); }
+    usize getConstantCount() const noexcept {
+        return constants_.size();
+    }
 
     // =====================================================================
     // 字节码操作
@@ -356,13 +377,17 @@ public:
      * @brief 获取指令数量
      * @return 代码数组大小
      */
-    usize getInstructionCount() const noexcept { return code_.size(); }
+    usize getInstructionCount() const noexcept {
+        return code_.size();
+    }
 
     /**
      * @brief 获取代码数组（只读）
      * @return 代码数组引用
      */
-    const LuaVector<Instruction>& getCode() const noexcept { return code_; }
+    const LuaVector<Instruction>& getCode() const noexcept {
+        return code_;
+    }
 
     /**
      * @brief 获取只读指令视图
@@ -376,7 +401,9 @@ public:
      * @brief 获取代码数组（可写）
      * @return 代码数组引用
      */
-    LuaVector<Instruction>& getCode() noexcept { return code_; }
+    LuaVector<Instruction>& getCode() noexcept {
+        return code_;
+    }
 
     // =====================================================================
     // 行号信息
@@ -399,13 +426,17 @@ public:
      * @brief 获取行号信息数组（只读）
      * @return 行号信息数组引用
      */
-    const LuaVector<i32>& getLineInfo() const noexcept { return lineInfo_; }
+    const LuaVector<i32>& getLineInfo() const noexcept {
+        return lineInfo_;
+    }
 
     /**
      * @brief 获取行号信息数组（可写）
      * @return 行号信息数组引用
      */
-    LuaVector<i32>& getLineInfo() noexcept { return lineInfo_; }
+    LuaVector<i32>& getLineInfo() noexcept {
+        return lineInfo_;
+    }
 
     // =====================================================================
     // 子函数原型管理
@@ -429,7 +460,9 @@ public:
      * @brief 获取子函数数量
      * @return 子函数数量
      */
-    usize getSubProtoCount() const noexcept { return subProtos_.size(); }
+    usize getSubProtoCount() const noexcept {
+        return subProtos_.size();
+    }
 
     // =====================================================================
     // 局部变量信息管理（调试支持）
@@ -455,7 +488,9 @@ public:
      * @brief 获取局部变量数量
      * @return 局部变量数量
      */
-    usize getLocVarCount() const noexcept { return locvars_.size(); }
+    usize getLocVarCount() const noexcept {
+        return locvars_.size();
+    }
 
     /**
      * @brief 获取指定PC位置的局部变量名称
@@ -497,7 +532,9 @@ public:
      * @brief 获取上值名称数量
      * @return 上值名称数量
      */
-    usize getUpvalueNameCount() const noexcept { return upvalueNames_.size(); }
+    usize getUpvalueNameCount() const noexcept {
+        return upvalueNames_.size();
+    }
 
     // =====================================================================
     // 函数定义位置信息
@@ -507,25 +544,33 @@ public:
      * @brief 获取函数定义开始行号
      * @return 开始行号
      */
-    i32 getLineDefined() const noexcept { return linedefined_; }
+    i32 getLineDefined() const noexcept {
+        return linedefined_;
+    }
 
     /**
      * @brief 设置函数定义开始行号
      * @param line 行号
      */
-    void setLineDefined(i32 line) noexcept { linedefined_ = line; }
+    void setLineDefined(i32 line) noexcept {
+        linedefined_ = line;
+    }
 
     /**
      * @brief 获取函数定义结束行号
      * @return 结束行号
      */
-    i32 getLastLineDefined() const noexcept { return lastlinedefined_; }
+    i32 getLastLineDefined() const noexcept {
+        return lastlinedefined_;
+    }
 
     /**
      * @brief 设置函数定义结束行号
      * @param line 行号
      */
-    void setLastLineDefined(i32 line) noexcept { lastlinedefined_ = line; }
+    void setLastLineDefined(i32 line) noexcept {
+        lastlinedefined_ = line;
+    }
 
     // =====================================================================
     // 上值数量管理
@@ -535,13 +580,17 @@ public:
      * @brief 获取上值数量
      * @return 上值数量
      */
-    u8 getNumUpvalues() const noexcept { return nups_; }
+    u8 getNumUpvalues() const noexcept {
+        return nups_;
+    }
 
     /**
      * @brief 设置上值数量
      * @param n 上值数量
      */
-    void setNumUpvalues(u8 n) noexcept { nups_ = n; }
+    void setNumUpvalues(u8 n) noexcept {
+        nups_ = n;
+    }
 
     // =====================================================================
     // GC链表管理
@@ -551,13 +600,17 @@ public:
      * @brief 获取GC链表指针
      * @return GC链表指针
      */
-    GCObject* getGCList() const noexcept { return gclist_; }
+    GCObject* getGCList() const noexcept {
+        return gclist_;
+    }
 
     /**
      * @brief 设置GC链表指针
      * @param list GC链表指针
      */
-    void setGCList(GCObject* list) noexcept { gclist_ = list; }
+    void setGCList(GCObject* list) noexcept {
+        gclist_ = list;
+    }
 
     // =====================================================================
     // GCObject接口实现
@@ -578,8 +631,8 @@ private:
     /// 参考Lua 5.1中addk()使用的哈希表（fs->h）
     using ConstantMapValue = std::pair<const ConstantKey, usize>;
     using ConstantMapAllocator = LuaStdAllocator<ConstantMapValue>;
-    using ConstantMap = std::unordered_map<ConstantKey, usize, ConstantKeyHash,
-                                           std::equal_to<ConstantKey>, ConstantMapAllocator>;
+    using ConstantMap =
+        std::unordered_map<ConstantKey, usize, ConstantKeyHash, std::equal_to<ConstantKey>, ConstantMapAllocator>;
     ConstantMap constantMap_;
 
     /// 字节码数组：函数的指令序列
@@ -672,27 +725,31 @@ public:
      * @brief 析构函数
      */
     ~Function() override;
-    
+
     // =====================================================================
     // 类型检查
     // =====================================================================
-    
+
     /**
      * @brief 是否为C函数
      * @return 如果是C函数返回true
      */
-    bool isCFunction() const noexcept { return isC_; }
-    
+    bool isCFunction() const noexcept {
+        return isC_;
+    }
+
     /**
      * @brief 是否为Lua函数
      * @return 如果是Lua函数返回true
      */
-    bool isLuaFunction() const noexcept { return !isC_; }
-    
+    bool isLuaFunction() const noexcept {
+        return !isC_;
+    }
+
     // =====================================================================
     // C函数访问
     // =====================================================================
-    
+
     /**
      * @brief 获取C函数指针
      * @return C函数指针（如果不是C函数返回nullptr）
@@ -700,11 +757,11 @@ public:
     CFunction getCFunction() const noexcept {
         return isC_ ? cFunction_ : nullptr;
     }
-    
+
     // =====================================================================
     // Lua函数访问
     // =====================================================================
-    
+
     /**
      * @brief 获取函数原型
      * @return 函数原型指针（如果不是Lua函数返回nullptr）
@@ -784,7 +841,9 @@ public:
      * 对应Lua C实现中的nupvalues字段。
      * 注意：这与upvalues_.size()可能不同，需要保持同步。
      */
-    u8 getNumUpvalues() const noexcept { return nupvalues_; }
+    u8 getNumUpvalues() const noexcept {
+        return nupvalues_;
+    }
 
     /**
      * @brief 设置上值数量（ClosureHeader字段）
@@ -793,7 +852,9 @@ public:
      * 对应Lua C实现中的nupvalues字段。
      * 注意：调用此方法时应确保与upvalues_数组大小保持一致。
      */
-    void setNumUpvalues(u8 n) noexcept { nupvalues_ = n; }
+    void setNumUpvalues(u8 n) noexcept {
+        nupvalues_ = n;
+    }
 
     /**
      * @brief 获取GC链表指针（ClosureHeader字段）
@@ -801,7 +862,9 @@ public:
      *
      * 对应Lua C实现中的gclist字段，用于增量GC和分代GC。
      */
-    GCObject* getGCList() const noexcept { return gclist_; }
+    GCObject* getGCList() const noexcept {
+        return gclist_;
+    }
 
     /**
      * @brief 设置GC链表指针（ClosureHeader字段）
@@ -809,7 +872,9 @@ public:
      *
      * 对应Lua C实现中的gclist字段，用于增量GC和分代GC。
      */
-    void setGCList(GCObject* list) noexcept { gclist_ = list; }
+    void setGCList(GCObject* list) noexcept {
+        gclist_ = list;
+    }
 
     // =====================================================================
     // GCObject接口实现
@@ -863,4 +928,3 @@ private:
 } // namespace Lua
 
 #endif // LUA_CORE_FUNCTION_HPP
-
