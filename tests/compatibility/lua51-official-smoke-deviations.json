@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "channel": "official-smoke",
+  "strictChannelAllowsSourceRewrites": false,
+  "deviations": [
+    {
+      "id": "all-frontend-normalization",
+      "sources": ["all.lua"],
+      "kind": "syntax normalization",
+      "reason": "Normalize legacy call syntax and selected expressions for the staged frontend path."
+    },
+    {
+      "id": "all-finalizer-isolation",
+      "sources": ["all.lua"],
+      "kind": "semantic isolation",
+      "reason": "Remove the recursive newproxy finalizer block from the bounded smoke path."
+    },
+    {
+      "id": "all-gc-restart",
+      "sources": ["all.lua"],
+      "kind": "runtime stabilization",
+      "reason": "Restart and collect GC after gc.lua so later staged scripts remain bounded."
+    },
+    {
+      "id": "all-staged-tail",
+      "sources": ["all.lua"],
+      "kind": "suite partition",
+      "reason": "Stop the main smoke sequence after vararg.lua; post-vararg scripts run as separate gates."
+    },
+    {
+      "id": "constructs-stress-cap",
+      "sources": ["constructs.lua"],
+      "kind": "pressure reduction",
+      "reason": "Cap the dynamic compilation stress loop at 32 iterations."
+    },
+    {
+      "id": "closure-pressure-cap",
+      "sources": ["closure.lua"],
+      "kind": "pressure reduction",
+      "reason": "Reduce closure factory size and bound the weak-table GC wait loop."
+    },
+    {
+      "id": "gc-wait-caps",
+      "sources": ["gc.lua"],
+      "kind": "pressure reduction",
+      "reason": "Bound automatic-GC growth and restart wait loops and add explicit collection steps."
+    },
+    {
+      "id": "post-vararg-single-script-gates",
+      "sources": ["closure.lua", "errors.lua", "math.lua", "files.lua"],
+      "kind": "suite partition",
+      "reason": "Execute each post-vararg script in an isolated runtime instead of the upstream shared sequence."
+    }
+  ]
+}

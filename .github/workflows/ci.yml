@@ -9,8 +9,12 @@ on:
 
 jobs:
   windows-msbuild:
-    name: Windows MSBuild
+    name: Windows MSBuild (${{ matrix.configuration }})
     runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        configuration: [Debug, Release]
 
     steps:
       - name: Checkout
@@ -23,7 +27,7 @@ jobs:
 
       - name: Build tests
         shell: powershell
-        run: MSBuild.exe lua_test.vcxproj /m /p:Configuration=Debug /p:Platform=x64
+        run: MSBuild.exe lua_test.vcxproj /m /p:Configuration=${{ matrix.configuration }} /p:Platform=x64
 
       - name: Documentation drift
         shell: powershell
@@ -31,8 +35,185 @@ jobs:
 
       - name: Quality gate smoke
         shell: powershell
-        run: powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_quality_gate.ps1 -SkipBuild -SkipClangTidy
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_quality_gate.ps1 -SkipBuild -SkipClangTidy -FormatScope Off
+
+      - name: Quality gate contract tests
+        shell: powershell
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File tools\test_quality_gate.ps1
 
       - name: Run tests
         shell: powershell
         run: bin\lua_test.exe
+
+  linux-cmake:
+    name: Linux ${{ matrix.compiler }} (${{ matrix.build_type }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - compiler: GCC
+            cc: gcc
+            cxx: g++
+            build_type: Debug
+          - compiler: GCC
+            cc: gcc
+            cxx: g++
+            build_type: Release
+          - compiler: Clang
+            cc: clang
+            cxx: clang++
+            build_type: Debug
+          - compiler: Clang
+            cc: clang
+            cxx: clang++
+            build_type: Release
+    env:
+      CC: ${{ matrix.cc }}
+      CXX: ${{ matrix.cxx }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+
+      - name: Build
+        run: cmake --build build --parallel 2
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure --timeout 300
+
+      - name: Install Lua 5.1 reference
+        if: matrix.compiler == 'Clang' && matrix.build_type == 'Debug'
+        run: sudo apt-get update && sudo apt-get install --yes lua5.1
+
+      - name: Lua 5.1 differential evidence
+        if: matrix.compiler == 'Clang' && matrix.build_type == 'Debug'
+        shell: pwsh
+        run: >-
+          ./tools/run_lua51_differential.ps1
+          -ReferenceLua /usr/bin/lua5.1
+          -CandidateLua build/lua_app
+          -ResultPath build/lua51-differential.json
+
+      - name: Upload differential evidence
+        if: always() && matrix.compiler == 'Clang' && matrix.build_type == 'Debug'
+        uses: actions/upload-artifact@v4
+        with:
+          name: lua51-differential-evidence
+          path: build/lua51-differential.json
+
+      - name: Official slow sort gate
+        if: matrix.compiler == 'Clang' && matrix.build_type == 'Debug'
+        shell: pwsh
+        run: >-
+          ./tools/run_lua51_official_slow.ps1
+          -LuaApp build/lua_app
+          -Case sort
+          -TimeoutSeconds 120
+
+      - name: Official slow verybig XFAIL
+        if: matrix.compiler == 'Clang' && matrix.build_type == 'Debug'
+        shell: pwsh
+        run: >-
+          ./tools/run_lua51_official_slow.ps1
+          -LuaApp build/lua_app
+          -Case verybig
+          -TimeoutSeconds 300
+          -ExpectVerybigTimeout
+
+      - name: Official strict evidence
+        if: matrix.compiler == 'Clang' && matrix.build_type == 'Debug'
+        shell: pwsh
+        run: >-
+          ./tools/run_lua51_official_strict.ps1
+          -Executable build/lua_app
+          -TimeoutSeconds 120
+          -ExpectFailure
+          -ResultPath build/official-strict.json
+
+      - name: Upload official strict evidence
+        if: always() && matrix.compiler == 'Clang' && matrix.build_type == 'Debug'
+        uses: actions/upload-artifact@v4
+        with:
+          name: official-strict-evidence
+          path: build/official-strict.json
+
+  linux-sanitizers:
+    name: Linux Clang (${{ matrix.sanitizer }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        sanitizer: [address, undefined]
+    env:
+      CC: clang
+      CXX: clang++
+      ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+      UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure sanitizer
+        run: >-
+          cmake -S . -B build
+          -DCMAKE_BUILD_TYPE=Debug
+          -DLUA_CPP_SANITIZER=${{ matrix.sanitizer }}
+
+      - name: Build sanitizer
+        run: cmake --build build --parallel 2
+
+      - name: Test sanitizer
+        run: ctest --test-dir build --output-on-failure --timeout 600
+
+  linux-lint:
+    name: Linux clang-format / clang-tidy
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install LLVM tools
+        run: sudo apt-get update && sudo apt-get install --yes clang-format clang-tidy
+
+      - name: clang-format
+        shell: bash
+        run: |
+          files=(
+            src/debug/trace_sink.hpp
+            src/io/file_loader.cpp
+            tests/unit/io/test_file_loader.cpp
+          )
+          if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
+            diff_base="origin/$GITHUB_BASE_REF"
+            diff_range="$diff_base...HEAD"
+          else
+            diff_range="HEAD^..HEAD"
+          fi
+          while IFS= read -r file; do
+            if [[ "$file" =~ ^(src|tests/unit)/.*\.(cpp|hpp|h)$ ]]; then
+              files+=("$file")
+            fi
+          done < <(git diff --name-only --diff-filter=ACMRT "$diff_range")
+          mapfile -t files < <(printf '%s\n' "${files[@]}" | sort -u)
+          clang-format --dry-run --Werror --style=file "${files[@]}"
+
+      - name: Configure compile database
+        env:
+          CC: clang
+          CXX: clang++
+        run: cmake -S . -B build/lint -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+
+      - name: clang-tidy
+        run: >-
+          clang-tidy -p build/lint
+          src/io/input_stream.cpp
+          src/debug/value_serializer.cpp
+          tests/unit/framework/test_runner.cpp

@@ -1,0 +1,139 @@
+{
+    "schemaVersion":  1,
+    "upstream":  "Lua 5.1 official test suite",
+    "sourcePolicy":  "Strict runs execute an exact temporary copy; repository sources are never rewritten.",
+    "entries":  [
+                    {
+                        "path":  "all.lua",
+                        "sha256":  "8a48d4939b8ad28910887b34bdb8d9ae98dc11b87c9c5caac55179bb6255a2f2"
+                    },
+                    {
+                        "path":  "api.lua",
+                        "sha256":  "963b81e66b1c1d6187b436fcc53dd95cb6b912351e4f4b9103579f783afcf170"
+                    },
+                    {
+                        "path":  "attrib.lua",
+                        "sha256":  "9179619690b3a74f81a6e629e3d5adc5bbd9089f18df64ba40f180fdb54cff36"
+                    },
+                    {
+                        "path":  "big.lua",
+                        "sha256":  "679d9982ad59857dd4cffc3a151c938da30c63bddb70f797c704155e76887227"
+                    },
+                    {
+                        "path":  "calls.lua",
+                        "sha256":  "3e86e765ea7c8dc85ebc9795333de6755b5b113458d3d164ed8827b273e98eb0"
+                    },
+                    {
+                        "path":  "checktable.lua",
+                        "sha256":  "cee0a8f64d4bd1e9ebfc39db87a22f802b578b048628f4fd830fb1ad0d51a14d"
+                    },
+                    {
+                        "path":  "closure.lua",
+                        "sha256":  "5f1b6c3a63842ebc0a6a276bc0291d08396be24d2c221d1962d33484d93e2651"
+                    },
+                    {
+                        "path":  "code.lua",
+                        "sha256":  "2fc8571b4556163ead88e57c44fb9cf97c11585cb42aa34cdb3ed86ada833099"
+                    },
+                    {
+                        "path":  "constructs.lua",
+                        "sha256":  "a8d360746c67263428f40b2114f23ab1273d29df52962735056c8e18e0446644"
+                    },
+                    {
+                        "path":  "db.lua",
+                        "sha256":  "2d080d8fdc27f9c6b3e7afd6dfd2e252119f26772c0918ac549f77e5a61c3a20"
+                    },
+                    {
+                        "path":  "errors.lua",
+                        "sha256":  "693c7cbbf85480791279b39cd19eb6b5259f15d552c304f8fe921fff96ed6e2c"
+                    },
+                    {
+                        "path":  "etc/ltests.c",
+                        "sha256":  "614d3134677a3aee3e696f6c5a61db683b1f6750cd123ef6f7ff9d637e070fef"
+                    },
+                    {
+                        "path":  "etc/ltests.h",
+                        "sha256":  "95a05634cb9bb4515e637cc4a5a6004dbe52f046be08d29a711f1af798198a48"
+                    },
+                    {
+                        "path":  "events.lua",
+                        "sha256":  "1ec56e711c07e2d8992dd471addbfd9ab6c1ae1c808eba61958a8ff9fca24eeb"
+                    },
+                    {
+                        "path":  "files.lua",
+                        "sha256":  "82f795430972fafef5317cd551cd089dd05ca47a2c5348215515888146222496"
+                    },
+                    {
+                        "path":  "gc.lua",
+                        "sha256":  "97abb2aaaeb85f9be06f66a3afcbb8d9639c6bb70e9cbb664713edbb4f49b88f"
+                    },
+                    {
+                        "path":  "libs/lib1.c",
+                        "sha256":  "bd914a73028be682428ebdf086d30c72850a573e1b03598be1f1fc993a95f4ef"
+                    },
+                    {
+                        "path":  "libs/lib11.c",
+                        "sha256":  "05f5904d83338cb2b3f76b728dbb8f59be664574f2da9f5d77e481d14d4ca155"
+                    },
+                    {
+                        "path":  "libs/lib2.c",
+                        "sha256":  "461f04e99a5e94cff5b2d65e206e00d3a6511cbbb89d9ce0b27d148f4bdc162a"
+                    },
+                    {
+                        "path":  "libs/lib21.c",
+                        "sha256":  "aff72b00dbd6250f9d5515e5bd37375335d0c9c618fae70b199d99e6fc73c1db"
+                    },
+                    {
+                        "path":  "libs/makefile",
+                        "sha256":  "2584ec5dab10323b5d3115548da5f5ce20b9b4d61f82a46253e2d97cb0e70fce"
+                    },
+                    {
+                        "path":  "libs/P1/.gitkeep",
+                        "sha256":  "66b1f703c219eb8d5bb1b420517e53b61ba0f0496ec075f8966e27113319e6f5"
+                    },
+                    {
+                        "path":  "literals.lua",
+                        "sha256":  "08358c533d8dacfa3a6cb9d6f27e57001b0e8f45751b8b3255812628498ebe3c"
+                    },
+                    {
+                        "path":  "locals.lua",
+                        "sha256":  "c589b2d053447891c5cf64c2ca9bfb04579cd7fa337077f900aacf69744778ac"
+                    },
+                    {
+                        "path":  "main.lua",
+                        "sha256":  "8adef99f981fc692f213b0dd2e86d2c057eec2e7d116163fc80528fb4611caf1"
+                    },
+                    {
+                        "path":  "math.lua",
+                        "sha256":  "c84f994ae7987e669b1b140421ab112af4e39f7b9ae9e937881bb05311bf74d9"
+                    },
+                    {
+                        "path":  "nextvar.lua",
+                        "sha256":  "b2b80ddb40b17b8000550cad8155d704a837daed0983cfa918c047ef99354f02"
+                    },
+                    {
+                        "path":  "pm.lua",
+                        "sha256":  "751c8cb8c661639617a0c9b2350d15c05fbed285cf5f11418d46459e33501227"
+                    },
+                    {
+                        "path":  "README",
+                        "sha256":  "9627ad484a53d438e46a1344472e5cf8712e7261de2ab9db4ee9113779f62399"
+                    },
+                    {
+                        "path":  "sort.lua",
+                        "sha256":  "8856f6e4a31c5a87842a15ad22de62245165de0bde10078008fce0973431e219"
+                    },
+                    {
+                        "path":  "strings.lua",
+                        "sha256":  "51b97a0e68e31d104cba68f4eee214e9c38e6c1ec6e43ad5291656cbc35d073a"
+                    },
+                    {
+                        "path":  "vararg.lua",
+                        "sha256":  "01cfcf69b7ed395453e55a2426c124b050cbe2f778ddeb783093bf252bb04c23"
+                    },
+                    {
+                        "path":  "verybig.lua",
+                        "sha256":  "7a203083799fbfd300b93b21215edb89e1f153e898621a32d9e4b2323bd6d2eb"
+                    }
+                ]
+}

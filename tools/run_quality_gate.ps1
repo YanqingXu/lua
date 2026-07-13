@@ -20,7 +20,12 @@ function Invoke-Step {
 
     Write-Host ""
     Write-Host "==> $Name"
+    $global:LASTEXITCODE = 0
     & $Body
+    $stepExitCode = $global:LASTEXITCODE
+    if ($stepExitCode -ne 0) {
+        throw "$Name failed with exit code $stepExitCode"
+    }
 }
 
 function Get-CommandOrNull {
@@ -56,10 +61,22 @@ function Get-ChangedSourceFiles {
     if ($env:GITHUB_BASE_REF) {
         $baseRef = "origin/$($env:GITHUB_BASE_REF)"
         & $git.Source fetch origin $env:GITHUB_BASE_REF --depth=1 | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            throw "git fetch failed with exit code $LASTEXITCODE"
+        }
         $names = & $git.Source diff --name-only --diff-filter=ACMRT "$baseRef...HEAD" -- src tests
+        if ($LASTEXITCODE -ne 0) {
+            throw "git diff failed with exit code $LASTEXITCODE"
+        }
     } else {
         $names = & $git.Source diff --name-only --diff-filter=ACMRT HEAD -- src tests
+        if ($LASTEXITCODE -ne 0) {
+            throw "git diff failed with exit code $LASTEXITCODE"
+        }
         $staged = & $git.Source diff --cached --name-only --diff-filter=ACMRT -- src tests
+        if ($LASTEXITCODE -ne 0) {
+            throw "git diff --cached failed with exit code $LASTEXITCODE"
+        }
         $names = @($names) + @($staged)
     }
 
@@ -168,11 +185,10 @@ try {
 
         foreach ($file in $files) {
             & $clangTidy.Source $file.FullName -- -std=c++20 "-I$root\src" "-I$root\tests\unit\framework" "-I$root\lua_test\include"
+            if ($LASTEXITCODE -ne 0) {
+                throw "clang-tidy failed for $($file.FullName) with exit code $LASTEXITCODE"
+            }
         }
-    }
-
-    Invoke-Step "opcode coverage matrix" {
-        & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root "tools\check_opcode_coverage_matrix.ps1")
     }
 
     Invoke-Step "ValueResult variant-only boundary" {
@@ -196,6 +212,14 @@ try {
         }
 
         & $msbuild (Join-Path $root "lua_test.vcxproj") /m "/p:Configuration=$Configuration" "/p:Platform=$Platform"
+    }
+
+    Invoke-Step "opcode coverage matrix and registered test contract" {
+        & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root "tools\check_opcode_coverage_matrix.ps1")
+    }
+
+    Invoke-Step "Lua 5.1 official source integrity" {
+        & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root "tools\check_lua51_official_sources.ps1")
     }
 
     Invoke-Step "documentation drift" {

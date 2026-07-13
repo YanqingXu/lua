@@ -133,7 +133,7 @@ bin\lua_test.exe --filter "Symbol Binding"
 bin\lua_test.exe --report=junit
 ```
 
-测试运行器会在输出中报告真实测试数量和断言结果。最近一次完整绿跑为 668 registered tests / 3406 assertion results / 0 failures。
+测试运行器会在输出中报告真实测试数量和断言结果。最近一次完整绿跑为 670 registered tests / 3406 assertion results / 0 failures。
 
 ### CMake / CTest 辅助路径
 

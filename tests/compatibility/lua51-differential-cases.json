@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    {
+      "id": "value-types",
+      "script": "tests/lua/differential/value-types.lua",
+      "evidence": ["stdout", "stderr", "exitStatus", "returnValueTypes"]
+    },
+    {
+      "id": "error-category",
+      "script": "tests/lua/differential/error-category.lua",
+      "evidence": ["stdout", "stderr", "exitStatus", "errorCategory"]
+    },
+    {
+      "id": "gc-weak-value",
+      "script": "tests/lua/differential/gc-weak-value.lua",
+      "evidence": ["stdout", "stderr", "exitStatus", "gcObservableSideEffect"]
+    },
+    {
+      "id": "stderr",
+      "script": "tests/lua/differential/stderr.lua",
+      "evidence": ["stdout", "stderr", "exitStatus"]
+    }
+  ]
+}

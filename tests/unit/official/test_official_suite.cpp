@@ -10,6 +10,7 @@
 #include "core/value.hpp"
 #include "io/file_loader.hpp"
 #include "lib/lib_manager.hpp"
+#include "lib/testlib.hpp"
 #include "runtime/runtime_services.hpp"
 #include "vm/state/lua_state.hpp"
 #include "vm/vm.hpp"
@@ -24,7 +25,7 @@ using namespace LuaTest;
 
 namespace {
 
-constexpr const char* kSuiteName = "Lua 5.1 Official Suite";
+constexpr const char* kSuiteName = "Lua 5.1 Official Smoke";
 constexpr const char* kOfficialAllLua = "tests/lua/official/all.lua";
 constexpr LuaNumber kExpectedSkippedScripts = 0.0;
 
@@ -71,44 +72,38 @@ std::string trimOfficialAllForCurrentFrontend(std::string source) {
 
     replaceAll(source, "assert(os.setlocale\"C\")", "assert(os.setlocale(\"C\"))");
     replaceAll(source, "stderr:write'.'", "stderr:write('.')");
-    replaceAll(
-        source,
-        "do\n"
-        "  local u = newproxy(true)\n"
-        "  local newproxy, stderr = newproxy, io.stderr\n"
-        "  getmetatable(u).__gc = function (o)\n"
-        "    stderr:write('.')\n"
-        "    newproxy(o)\n"
-        "  end\n"
-        "end\n\n"
-        "local f = assert(loadfile('gc.lua'))",
-        "do end\n\n"
-        "local f = assert(loadfile('gc.lua'))");
+    replaceAll(source,
+               "do\n"
+               "  local u = newproxy(true)\n"
+               "  local newproxy, stderr = newproxy, io.stderr\n"
+               "  getmetatable(u).__gc = function (o)\n"
+               "    stderr:write('.')\n"
+               "    newproxy(o)\n"
+               "  end\n"
+               "end\n\n"
+               "local f = assert(loadfile('gc.lua'))",
+               "do end\n\n"
+               "local f = assert(loadfile('gc.lua'))");
     // gc.lua intentionally leaves collection stopped; restart it so the
     // remaining staged smoke scripts keep bounded runtime and memory pressure.
-    replaceAll(
-        source,
-        "local f = assert(loadfile('gc.lua'))\n"
-        "f()\n"
-        "dofile('db.lua')",
-        "local f = assert(loadfile('gc.lua'))\n"
-        "f()\n"
-        "collectgarbage(\"restart\")\n"
-        "collectgarbage()\n"
-        "dofile('db.lua')");
-    replaceAll(
-        source,
-        "print(\"current path:\\n  \" .. string.gsub(package.path, \";\", \"\\n  \"))",
-        "local __official_path = string.gsub(package.path, \";\", \"\\n  \")\n"
-        "print(\"current path:\\n  \" .. __official_path)");
-    replaceAll(
-        source,
-        "assert(dofile('verybig.lua') == 10); collectgarbage()",
-        "assert((function()\n"
-        "  local f = assert(loadfile('verybig.lua'))\n"
-        "  return f()\n"
-        "end)() == 10)\n"
-        "collectgarbage()");
+    replaceAll(source,
+               "local f = assert(loadfile('gc.lua'))\n"
+               "f()\n"
+               "dofile('db.lua')",
+               "local f = assert(loadfile('gc.lua'))\n"
+               "f()\n"
+               "collectgarbage(\"restart\")\n"
+               "collectgarbage()\n"
+               "dofile('db.lua')");
+    replaceAll(source, "print(\"current path:\\n  \" .. string.gsub(package.path, \";\", \"\\n  \"))",
+               "local __official_path = string.gsub(package.path, \";\", \"\\n  \")\n"
+               "print(\"current path:\\n  \" .. __official_path)");
+    replaceAll(source, "assert(dofile('verybig.lua') == 10); collectgarbage()",
+               "assert((function()\n"
+               "  local f = assert(loadfile('verybig.lua'))\n"
+               "  return f()\n"
+               "end)() == 10)\n"
+               "collectgarbage()");
     replaceAll(source, "collectgarbage();showmem()", "collectgarbage()\nshowmem()");
     replaceAll(source, "showmem()", "do end");
 
@@ -514,10 +509,7 @@ RunResult runOfficialSuitePostVarargTailScript(const char* scriptName) {
     }
 
     const std::string chunkName = std::string("official_suite_post_vararg_") + scriptName + "_tail";
-    RunResult tail = runLuaChunk(
-        L.get(),
-        officialPostVarargTailSource(scriptName),
-        chunkName.c_str());
+    RunResult tail = runLuaChunk(L.get(), officialPostVarargTailSource(scriptName), chunkName.c_str());
     if (!tail.ok) {
         return tail;
     }
@@ -535,10 +527,7 @@ RunResult runOfficialSuiteGlobalCleanupTail() {
     }
     StandardLibrary::openAll(L.get());
 
-    RunResult cleanup = runLuaChunk(
-        L.get(),
-        officialGlobalCleanupTailSource(),
-        "official_suite_global_cleanup_tail");
+    RunResult cleanup = runLuaChunk(L.get(), officialGlobalCleanupTailSource(), "official_suite_global_cleanup_tail");
     if (!cleanup.ok) {
         return cleanup;
     }
@@ -568,15 +557,40 @@ RunResult runOfficialSuiteClosureThenGlobalCleanupTail() {
         return prelude;
     }
 
-    RunResult tail = runLuaChunk(
-        L.get(),
-        officialClosureThenGlobalCleanupTailSource(),
-        "official_suite_closure_then_global_cleanup_tail");
+    RunResult tail = runLuaChunk(L.get(), officialClosureThenGlobalCleanupTailSource(),
+                                 "official_suite_closure_then_global_cleanup_tail");
     if (!tail.ok) {
         return tail;
     }
 
     return {true, "Lua 5.1 official closure then global cleanup tail executed"};
+}
+
+RunResult runOfficialTestCScript(const char* scriptName) {
+    const std::filesystem::path suiteDir = std::filesystem::path("tests") / "lua" / "official";
+    if (!std::filesystem::exists(suiteDir / scriptName)) {
+        return {false, std::string("missing tests/lua/official/") + scriptName};
+    }
+
+    EngineContext context;
+    context.gc().useStrategy("mark-sweep");
+
+    std::unique_ptr<LuaState> L(LuaState::newState(context));
+    if (!L) {
+        return {false, "LuaState::newState returned null"};
+    }
+    StandardLibrary::openAll(L.get());
+    openTestLib(L.get());
+
+    CurrentPathGuard cwd(suiteDir);
+    RunResult prelude = runLuaChunk(L.get(), officialSuitePrelude(), "official_testc_prelude");
+    if (!prelude.ok) {
+        return prelude;
+    }
+
+    const std::string source = readWholeFile(scriptName);
+    const std::string chunkName = std::string("official_testc_") + scriptName;
+    return runLuaChunk(L.get(), source, chunkName.c_str());
 }
 
 void testOfficialSuiteAllLua(TestSuite& suite) {
@@ -586,40 +600,35 @@ void testOfficialSuiteAllLua(TestSuite& suite) {
 
 void testOfficialSuitePreludeCapsConstructsStressLoop(TestSuite& suite) {
     const std::string prelude = officialSuitePrelude();
-    ASSERT_TRUE(
-        suite,
-        prelude.find("constructs.lua") != std::string::npos &&
-            prelude.find("until i==c or i==32") != std::string::npos,
-        "official staged suite caps constructs.lua dynamic compile stress loop");
+    ASSERT_TRUE(suite,
+                prelude.find("constructs.lua") != std::string::npos &&
+                    prelude.find("until i==c or i==32") != std::string::npos,
+                "official staged suite caps constructs.lua dynamic compile stress loop");
 }
 
 void testOfficialSuitePreludeCapsClosureWeakGcLoop(TestSuite& suite) {
     const std::string prelude = officialSuitePrelude();
-    ASSERT_TRUE(
-        suite,
-        prelude.find("closure.lua") != std::string::npos &&
-            prelude.find("__soft_closure_gc_probe") != std::string::npos &&
-            prelude.find("__soft_closure_factory_limit") != std::string::npos,
-        "official staged suite caps closure.lua weak-table GC wait loop and factory size");
+    ASSERT_TRUE(suite,
+                prelude.find("closure.lua") != std::string::npos &&
+                    prelude.find("__soft_closure_gc_probe") != std::string::npos &&
+                    prelude.find("__soft_closure_factory_limit") != std::string::npos,
+                "official staged suite caps closure.lua weak-table GC wait loop and factory size");
 }
 
 void testOfficialSuitePreludeCapsGcRestartLoop(TestSuite& suite) {
     const std::string prelude = officialSuitePrelude();
-    ASSERT_TRUE(
-        suite,
-        prelude.find("gc.lua") != std::string::npos &&
-            prelude.find("__soft_gc_probe") != std::string::npos &&
-            prelude.find("__soft_gc_restart_probe") != std::string::npos,
-        "official staged suite caps gc.lua automatic-GC wait loops");
+    ASSERT_TRUE(suite,
+                prelude.find("gc.lua") != std::string::npos && prelude.find("__soft_gc_probe") != std::string::npos &&
+                    prelude.find("__soft_gc_restart_probe") != std::string::npos,
+                "official staged suite caps gc.lua automatic-GC wait loops");
 }
 
 void testOfficialSuitePostVarargTailIsSplit(TestSuite& suite) {
     const std::string tail = officialFastPostVarargTailSource();
-    ASSERT_FALSE(
-        suite,
-        tail.find("dofile('closure.lua')\ndofile('errors.lua')\ndofile('math.lua')\ndofile('files.lua')") !=
-            std::string::npos,
-        "official post-vararg tail is split into single-script gates");
+    ASSERT_FALSE(suite,
+                 tail.find("dofile('closure.lua')\ndofile('errors.lua')\ndofile('math.lua')\ndofile('files.lua')") !=
+                     std::string::npos,
+                 "official post-vararg tail is split into single-script gates");
 }
 
 void testOfficialSuitePostVarargClosureTail(TestSuite& suite) {
@@ -648,12 +657,20 @@ void testOfficialSuiteGlobalCleanupTail(TestSuite& suite) {
 }
 
 void testOfficialSuiteClosureThenGlobalCleanupTail(TestSuite& suite) {
-    const std::string source = officialClosureThenGlobalCleanupTailSource();
-    ASSERT_TRUE(
-        suite,
-        source.find("dofile('closure.lua')") != std::string::npos &&
-            source.find("debug.sethook") != std::string::npos,
-        "Lua 5.1 official closure then global cleanup tail remains isolated as a known gap");
+    const RunResult result = runOfficialSuiteClosureThenGlobalCleanupTail();
+    ASSERT_TRUE(suite, result.ok, result.message);
+}
+
+void testOfficialTestCCodeLua(TestSuite& suite) {
+    const RunResult result = runOfficialTestCScript("code.lua");
+    const bool expectedFailure = !result.ok && result.message.find(":21: assertion failed") != std::string::npos;
+    ASSERT_TRUE(suite, expectedFailure, "code.lua T path executes to registered XFAIL at line 21");
+}
+
+void testOfficialTestCApiLua(TestSuite& suite) {
+    const RunResult result = runOfficialTestCScript("api.lua");
+    const bool expectedFailure = !result.ok && result.message.find(":11: assertion failed") != std::string::npos;
+    ASSERT_TRUE(suite, expectedFailure, "api.lua T path executes to registered XFAIL at line 11");
 }
 
 } // namespace
@@ -661,7 +678,8 @@ void testOfficialSuiteClosureThenGlobalCleanupTail(TestSuite& suite) {
 void registerOfficialSuiteTests() {
     auto& registry = TestRegistry::getInstance();
     registry.registerTest(kSuiteName, "all.lua staged compatibility run", testOfficialSuiteAllLua);
-    registry.registerTest(kSuiteName, "constructs.lua stress loop cap", testOfficialSuitePreludeCapsConstructsStressLoop);
+    registry.registerTest(kSuiteName, "constructs.lua stress loop cap",
+                          testOfficialSuitePreludeCapsConstructsStressLoop);
     registry.registerTest(kSuiteName, "closure.lua weak GC loop cap", testOfficialSuitePreludeCapsClosureWeakGcLoop);
     registry.registerTest(kSuiteName, "gc.lua restart loop cap", testOfficialSuitePreludeCapsGcRestartLoop);
     registry.registerTest(kSuiteName, "post-vararg tail split guard", testOfficialSuitePostVarargTailIsSplit);
@@ -670,6 +688,8 @@ void registerOfficialSuiteTests() {
     registry.registerTest(kSuiteName, "post-vararg math.lua tail", testOfficialSuitePostVarargMathTail);
     registry.registerTest(kSuiteName, "post-vararg files.lua tail", testOfficialSuitePostVarargFilesTail);
     registry.registerTest(kSuiteName, "global cleanup tail", testOfficialSuiteGlobalCleanupTail);
-    registry.registerTest(kSuiteName, "closure then global cleanup tail known gap",
+    registry.registerTest(kSuiteName, "closure then global cleanup tail execution",
                           testOfficialSuiteClosureThenGlobalCleanupTail);
+    registry.registerTest("Lua 5.1 Official TestC", "code.lua with T module XFAIL", testOfficialTestCCodeLua);
+    registry.registerTest("Lua 5.1 Official TestC", "api.lua with T module XFAIL", testOfficialTestCApiLua);
 }

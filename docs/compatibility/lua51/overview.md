@@ -1,7 +1,7 @@
 ---
 status: current
-verified_against: src/compiler/; src/vm/; src/core/; src/lib/; src/gc/; tests/lua/official/; tests/unit/official/; tests/lua/regressions/
-last_checked: 2026-07-11
+verified_against: src/compiler/; src/vm/; src/core/; src/lib/; src/gc/; tests/lua/official/; tests/unit/official/; tests/compatibility/; tools/check_lua51_official_sources.ps1; tools/run_lua51_official_strict.ps1; tests/lua/regressions/
+last_checked: 2026-07-13
 applies_to: Lua 5.1 兼容性边界与验证矩阵
 ---
 
@@ -61,7 +61,17 @@ finalizer 的队列与执行时机、弱表清理顺序和字符串驻留都可�
 
 ## 验证方法
 
-1. official Lua 脚本验证规范行为；不修改预期来迎合实现。
+官方套件分为两个不能混称的通道：
+
+- `official-smoke` 通过 `lua_test --filter "Lua 5.1 Official Smoke"` 执行受控、分阶段的快速验证。它会缩减压力并拆分脚本，全部改写登记在 `tests/compatibility/lua51-official-smoke-deviations.json`；“外部 skip 表为 0”不代表 upstream 原样全量通过。
+- `official-strict` 通过 `tools/run_lua51_official_strict.ps1` 在临时目录执行 SHA-256 清单锁定的原样 `all.lua`。该通道禁止源码改写；当前结果是明确 XFAIL，记录在 `tests/compatibility/lua51-official-strict-xfails.json`。
+- `official-testc` 显式打开项目内部 `T` 模块并实际运行原始 `code.lua`、`api.lua`。两条路径不再自跳过；当前首个差异分别登记在 `lua51-official-testc-xfails.json`。
+- `official-slow` 单独运行 `sort.lua` 与 `verybig.lua`：前者通过，后者以独立超时记录在 `lua51-official-slow-xfails.json`。
+- `lua51-differential` 使用官方 Lua 5.1 和本解释器运行同一批探针，比较 stdout、stderr、退出码，并在 stdout 中编码返回类型、错误类别与 GC 弱引用副作用。
+
+因此当前准确结论是：Lua 5.1 官方套件 staged smoke 在受控改写和压力缩减条件下通过；尚未达到 upstream 原样全量执行。
+
+1. strict official Lua 脚本验证规范行为，不修改预期来迎合实现；smoke 的任何改写必须登记 deviation。
 2. unit tests 锁定 C++ 内部不变量，如 opcode 双向覆盖、frame 窗口与错误对象保留。
 3. regressions 为每个修复保存最小 Lua 输入与可观察结果。
 4. 差异探针在官方 Lua 5.1 与本解释器上运行，比较类型、值、错误类别和副作用；只在稳定时比较文本。

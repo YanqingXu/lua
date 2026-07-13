@@ -8,6 +8,21 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 option(LUA_CPP_BUILD_TOOLS "Build the interpreter and bytecode tools" ON)
 option(LUA_CPP_BUILD_TESTS "Build the unit test runner" ON)
+set(LUA_CPP_SANITIZER "" CACHE STRING "Enable a runtime sanitizer: address or undefined")
+set_property(CACHE LUA_CPP_SANITIZER PROPERTY STRINGS "" address undefined)
+
+if(LUA_CPP_SANITIZER)
+    if(MSVC)
+        message(FATAL_ERROR "LUA_CPP_SANITIZER is supported only by GCC and Clang builds")
+    elseif(NOT CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+        message(FATAL_ERROR "Unsupported compiler for LUA_CPP_SANITIZER: ${CMAKE_CXX_COMPILER_ID}")
+    elseif(NOT LUA_CPP_SANITIZER MATCHES "^(address|undefined)$")
+        message(FATAL_ERROR "LUA_CPP_SANITIZER must be 'address' or 'undefined'")
+    endif()
+
+    add_compile_options(-fsanitize=${LUA_CPP_SANITIZER} -fno-omit-frame-pointer)
+    add_link_options(-fsanitize=${LUA_CPP_SANITIZER} -fno-omit-frame-pointer)
+endif()
 
 function(lua_configure_target_warnings target_name)
     if(MSVC)
@@ -239,10 +254,33 @@ if(BUILD_TESTING AND LUA_CPP_BUILD_TESTS)
         target_link_options(lua_test PRIVATE -rdynamic)
     endif()
 
-    add_test(NAME lua_test COMMAND $<TARGET_FILE:lua_test>)
+    add_test(
+        NAME lua_test
+        COMMAND $<TARGET_FILE:lua_test> --exclude-filter "Lua 5.1 Official"
+    )
     set_tests_properties(lua_test PROPERTIES
         LABELS unit
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    )
+
+    add_test(
+        NAME official_smoke
+        COMMAND $<TARGET_FILE:lua_test> --filter "Lua 5.1 Official Smoke"
+    )
+    set_tests_properties(official_smoke PROPERTIES
+        LABELS official-smoke
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        TIMEOUT 180
+    )
+
+    add_test(
+        NAME official_testc
+        COMMAND $<TARGET_FILE:lua_test> --filter "Lua 5.1 Official TestC"
+    )
+    set_tests_properties(official_testc PROPERTIES
+        LABELS official-testc
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        TIMEOUT 180
     )
 
     if(LUA_CPP_BUILD_TOOLS)

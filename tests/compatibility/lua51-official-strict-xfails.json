@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "channel": "official-strict",
+  "xfails": [
+    {
+      "id": "all.lua-unmodified",
+      "expectedOutcome": "timeout-or-nonzero",
+      "trackingIssue": "P1-strict-all-lua",
+      "responsibleModule": "runtime/gc/official-suite integration",
+      "minimalReproduction": "tools/run_lua51_official_strict.ps1 -TimeoutSeconds 120",
+      "reason": "The unmodified upstream all.lua does not complete within the current strict budget; smoke-only source rewrites are forbidden in this channel."
+    }
+  ]
+}

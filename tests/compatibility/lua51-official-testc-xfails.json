@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "channel": "official-testc",
+  "xfails": [
+    {
+      "id": "code.lua-opcode-sequence",
+      "expectedDiagnostic": ":21: assertion failed",
+      "trackingIssue": "P1-testc-codegen-parity",
+      "responsibleModule": "compiler/codegen and T.listcode",
+      "minimalReproduction": "bin/lua_test.exe --filter \"code.lua with T module XFAIL\"",
+      "reason": "T is active and code.lua executes, but the first expected Lua 5.1 opcode sequence differs."
+    },
+    {
+      "id": "api.lua-stack-shape",
+      "expectedDiagnostic": ":11: assertion failed",
+      "trackingIssue": "P1-testc-api-stack-shape",
+      "responsibleModule": "lib/testlib T.testC stack protocol",
+      "minimalReproduction": "bin/lua_test.exe --filter \"api.lua with T module XFAIL\"",
+      "reason": "T is active and api.lua executes, but the first table-length comparison exposes a stack-shape difference."
+    }
+  ]
+}

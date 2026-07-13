@@ -1,10 +1,10 @@
 ﻿/**
  * @file test_runner.cpp
  * @brief 测试运行器 - 统一的测试入口
- * 
+ *
  * 这个文件包含所有单元测试的主入口。
  * 它会自动运行所有注册的测试并生成报告。
- * 
+ *
  * @author Lua C++ Project
  * @date 2025-11-14
  */
@@ -101,6 +101,7 @@ struct RunnerOptions {
     bool list = false;
     bool showHelp = false;
     std::string filter;
+    std::string excludeFilter;
     bool writeJunit = false;
     std::string junitPath = kDefaultJunitReportPath;
     bool memoryLimitEnabled = true;
@@ -116,9 +117,8 @@ bool startsWith(const std::string& text, const std::string& prefix) {
 }
 
 std::string toLower(std::string text) {
-    std::transform(text.begin(), text.end(), text.begin(), [](unsigned char ch) {
-        return static_cast<char>(std::tolower(ch));
-    });
+    std::transform(text.begin(), text.end(), text.begin(),
+                   [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
     return text;
 }
 
@@ -182,8 +182,7 @@ bool loadMemoryLimitFromEnvironment(RunnerOptions& options) {
 
     std::size_t parsed = 0;
     if (!parseMemoryLimitMb(envLimit, parsed)) {
-        std::cerr << "error: LUA_TEST_MAX_MEMORY_MB must be an integer >= " << kMinMemoryLimitMb
-                  << std::endl;
+        std::cerr << "error: LUA_TEST_MAX_MEMORY_MB must be an integer >= " << kMinMemoryLimitMb << std::endl;
         return false;
     }
 
@@ -202,8 +201,7 @@ bool installProcessMemoryLimit(std::size_t limitMb, std::string& message) {
     }
 
     JOBOBJECT_EXTENDED_LIMIT_INFORMATION limits = {};
-    limits.BasicLimitInformation.LimitFlags =
-        JOB_OBJECT_LIMIT_PROCESS_MEMORY | JOB_OBJECT_LIMIT_JOB_MEMORY;
+    limits.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_PROCESS_MEMORY | JOB_OBJECT_LIMIT_JOB_MEMORY;
     limits.ProcessMemoryLimit = static_cast<SIZE_T>(limitBytes);
     limits.JobMemoryLimit = static_cast<SIZE_T>(limitBytes);
 
@@ -224,7 +222,7 @@ bool installProcessMemoryLimit(std::size_t limitMb, std::string& message) {
     message = "Process memory limit: " + std::to_string(limitMb) + " MB";
     return true;
 #else
-    struct rlimit limit {};
+    struct rlimit limit{};
     limit.rlim_cur = static_cast<rlim_t>(limitBytes);
     limit.rlim_max = static_cast<rlim_t>(limitBytes);
 
@@ -244,8 +242,7 @@ bool testMatchesFilter(const LuaTest::TestRegistry::TestEntry& test, const std::
     }
 
     const std::string fullName = test.suiteName + "::" + test.testName;
-    return containsCaseInsensitive(test.suiteName, filter) ||
-           containsCaseInsensitive(test.testName, filter) ||
+    return containsCaseInsensitive(test.suiteName, filter) || containsCaseInsensitive(test.testName, filter) ||
            containsCaseInsensitive(fullName, filter);
 }
 
@@ -269,6 +266,14 @@ bool parseArgs(int argc, char** argv, RunnerOptions& options) {
             options.filter = argv[++index] ? argv[index] : "";
         } else if (startsWith(arg, "--filter=")) {
             options.filter = arg.substr(std::string("--filter=").size());
+        } else if (arg == "--exclude-filter") {
+            if (index + 1 >= argc) {
+                std::cerr << "error: --exclude-filter requires a suite or test name" << std::endl;
+                return false;
+            }
+            options.excludeFilter = argv[++index] ? argv[index] : "";
+        } else if (startsWith(arg, "--exclude-filter=")) {
+            options.excludeFilter = arg.substr(std::string("--exclude-filter=").size());
         } else if (arg == "--report=junit") {
             options.writeJunit = true;
         } else if (startsWith(arg, "--report=junit:")) {
@@ -283,15 +288,13 @@ bool parseArgs(int argc, char** argv, RunnerOptions& options) {
             return false;
         } else if (arg == "--max-memory-mb") {
             if (index + 1 >= argc) {
-                std::cerr << "error: --max-memory-mb requires an integer >= " << kMinMemoryLimitMb
-                          << std::endl;
+                std::cerr << "error: --max-memory-mb requires an integer >= " << kMinMemoryLimitMb << std::endl;
                 return false;
             }
 
             std::size_t parsed = 0;
             if (!parseMemoryLimitMb(argv[++index] ? argv[index] : "", parsed)) {
-                std::cerr << "error: --max-memory-mb requires an integer >= " << kMinMemoryLimitMb
-                          << std::endl;
+                std::cerr << "error: --max-memory-mb requires an integer >= " << kMinMemoryLimitMb << std::endl;
                 return false;
             }
 
@@ -300,8 +303,7 @@ bool parseArgs(int argc, char** argv, RunnerOptions& options) {
         } else if (startsWith(arg, "--max-memory-mb=")) {
             std::size_t parsed = 0;
             if (!parseMemoryLimitMb(arg.substr(std::string("--max-memory-mb=").size()), parsed)) {
-                std::cerr << "error: --max-memory-mb requires an integer >= " << kMinMemoryLimitMb
-                          << std::endl;
+                std::cerr << "error: --max-memory-mb requires an integer >= " << kMinMemoryLimitMb << std::endl;
                 return false;
             }
 
@@ -319,7 +321,9 @@ bool parseArgs(int argc, char** argv, RunnerOptions& options) {
 }
 
 void printUsage() {
-    std::cout << "Usage: lua_test.exe [--list] [--filter <suite-or-name>] [--report=junit]" << std::endl;
+    std::cout << "Usage: lua_test.exe [--list] [--filter <suite-or-name>] "
+                 "[--exclude-filter <suite-or-name>] [--report=junit]"
+              << std::endl;
     std::cout << "       lua_test.exe --report=junit:<path>" << std::endl;
     std::cout << "       lua_test.exe [--max-memory-mb <mb>|--no-memory-limit]" << std::endl;
     std::cout << "Default memory cap: " << kDefaultMemoryLimitMb
@@ -461,8 +465,7 @@ int main(int argc, char** argv) {
     std::string memoryLimitMessage;
     if (options.memoryLimitEnabled) {
         if (!installProcessMemoryLimit(options.memoryLimitMb, memoryLimitMessage)) {
-            std::cerr << "error: failed to install lua_test memory cap: " << memoryLimitMessage
-                      << std::endl;
+            std::cerr << "error: failed to install lua_test memory cap: " << memoryLimitMessage << std::endl;
             return 2;
         }
     } else {
@@ -485,16 +488,21 @@ int main(int argc, char** argv) {
     if (!options.filter.empty()) {
         std::cout << "[INFO] Filter: " << options.filter << std::endl;
     }
+    if (!options.excludeFilter.empty()) {
+        std::cout << "[INFO] Exclude filter: " << options.excludeFilter << std::endl;
+    }
     std::cout << "[INFO] Starting test execution...\n" << std::endl;
 
     // 运行所有测试
     LuaTest::TestRegistry::RunOptions runOptions;
     runOptions.filter = options.filter;
+    runOptions.excludeFilter = options.excludeFilter;
     runOptions.captureSuites = options.writeJunit;
     int failedTests = registry.runTests(runOptions);
-    
+
     // 打印总结
-    printSummary(registry.getRegisteredTestCount(), registry.getLastRunTestCount(), registry.getLastTotalCount(), failedTests);
+    printSummary(registry.getRegisteredTestCount(), registry.getLastRunTestCount(), registry.getLastTotalCount(),
+                 failedTests);
 
     if (options.writeJunit) {
         if (!registry.writeJUnitReport(options.junitPath)) {
@@ -503,8 +511,7 @@ int main(int argc, char** argv) {
         }
         std::cout << "[INFO] JUnit report written: " << options.junitPath << std::endl;
     }
-    
+
     // 返回失败测试数量作为退出码
     return failedTests > 0 ? 1 : 0;
 }
-

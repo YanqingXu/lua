@@ -1,7 +1,8 @@
 # VM Opcode Coverage Matrix
 
-> PR-54 / task 5.1.1. This matrix is a readable checklist, not a test runner.
-> The quality gate verifies that every opcode in `src/compiler/opcode.hpp` has exactly one row here.
+> PR-54 / task 5.1.1. This matrix is the readable view of the executable coverage contract in
+> `tests/unit/vm/opcode_coverage_contract.json`. The quality gate verifies that every opcode has exactly
+> one row and that every referenced `Suite::Test` ID is present in `bin/lua_test.exe --list`.
 
 Legend:
 
@@ -25,19 +26,19 @@ Legend:
 | NEWTABLE | Table | `tests/unit/vm/test_vm_dispatch.cpp` - VM Dispatch/Table Handlers Execute Directly | Covered: non-zero array/hash size operands | N/A - opcode metadata marks `mayInvokeMetamethod=false` | Good for Phase 4 |
 | SELF | Table | `tests/unit/vm/test_vm_dispatch.cpp` - VM Dispatch/Table Handlers Execute Directly | Covered: receiver copy into R(A+1) | `tests/unit/metamethod/test_metamethod_arith.cpp` - Metamethod/Lua function metamethods and basic type metatable covers method lookup via string metatable `__index` | Good for PR-54 |
 | ADD | Arithmetic | `tests/unit/vm/test_vm_dispatch.cpp` - VM Dispatch/Arithmetic Handlers Execute Directly | `tests/unit/metamethod/test_metamethod_arith.cpp` - Metamethod/Fallback covers left operand fallback | `tests/unit/metamethod/test_metamethod_arith.cpp` - Metamethod/Add and Lua function metamethods cover `__add` | Good for PR-54 |
-| SUB | Arithmetic | `tests/unit/vm/test_vm_dispatch.cpp` - VM Dispatch/Arithmetic Handlers Execute Directly | Covered: non-number error path through VM handler | `tests/unit/metamethod/test_metamethod_complete.cpp` - Complete Metamethods/Arithmetic metamethods covers `__sub` | Good for Phase 4 |
-| MUL | Arithmetic | `tests/unit/vm/test_vm_dispatch.cpp` - VM Dispatch/Arithmetic Handlers Execute Directly | Covered: RK constant/register mixed operand edge | `tests/unit/metamethod/test_metamethod_complete.cpp` - Complete Metamethods/Arithmetic metamethods covers `__mul` | Good for Phase 4 |
-| DIV | Arithmetic | `tests/unit/vm/test_vm_dispatch.cpp` - VM Dispatch/Arithmetic Handlers Execute Directly | Covered: Lua 5.1 double division-by-zero behavior lock | `tests/unit/metamethod/test_metamethod_complete.cpp` - Complete Metamethods/Arithmetic metamethods covers `__div` | Good for Phase 4 |
+| SUB | Arithmetic | `tests/unit/vm/test_vm_dispatch.cpp` - VM Dispatch/Arithmetic Handlers Execute Directly | Covered: non-number error path through VM handler | `tests/unit/metamethod/test_metamethod_complete.cpp` - Complete Metamethods/Arithmetic metamethods (__sub, __mul, __div) covers `__sub` | Good for Phase 4 |
+| MUL | Arithmetic | `tests/unit/vm/test_vm_dispatch.cpp` - VM Dispatch/Arithmetic Handlers Execute Directly | Covered: RK constant/register mixed operand edge | `tests/unit/metamethod/test_metamethod_complete.cpp` - Complete Metamethods/Arithmetic metamethods (__sub, __mul, __div) covers `__mul` | Good for Phase 4 |
+| DIV | Arithmetic | `tests/unit/vm/test_vm_dispatch.cpp` - VM Dispatch/Arithmetic Handlers Execute Directly | Covered: Lua 5.1 double division-by-zero behavior lock | `tests/unit/metamethod/test_metamethod_complete.cpp` - Complete Metamethods/Arithmetic metamethods (__sub, __mul, __div) covers `__div` | Good for Phase 4 |
 | MOD | Arithmetic | `tests/unit/vm/test_vm_dispatch.cpp` - VM Dispatch/Arithmetic Handlers Execute Directly | Covered: modulo-by-zero NaN behavior lock | `tests/unit/metamethod/test_metamethod_arith.cpp` - Metamethod/Runtime metamethod opcode execution covers runtime `__mod` | Good for Phase 4 |
 | POW | Arithmetic | `tests/unit/vm/test_vm_dispatch.cpp` - VM Dispatch/Arithmetic Handlers Execute Directly | Covered: fractional and negative exponent edges | `tests/unit/metamethod/test_metamethod_arith.cpp` - Metamethod/Runtime metamethod opcode execution covers runtime `__pow` | Good for Phase 4 |
 | UNM | Unary | `tests/unit/vm/test_vm_dispatch.cpp` - VM Dispatch/Unary Handlers Execute Directly | Covered: non-number error path through VM handler | `tests/unit/metamethod/test_metamethod_arith.cpp` - Metamethod/Runtime metamethod opcode execution covers runtime `__unm` | Good for Phase 4 |
 | NOT | Unary | `tests/unit/vm/test_vm_dispatch.cpp` - VM Dispatch/Unary Handlers Execute Directly | Covered: nil, false, true, and zero truthiness split | N/A - opcode metadata marks `mayInvokeMetamethod=false` | Good for Phase 4 |
-| LEN | Unary | `tests/unit/vm/test_vm_dispatch.cpp` - VM Dispatch/Unary Handlers Execute Directly | Covered: string length path | `tests/unit/metamethod/test_metamethod_complete.cpp` - Complete Metamethods/Other metamethods covers `__len` | Good for PR-54 |
+| LEN | Unary | `tests/unit/vm/test_vm_dispatch.cpp` - VM Dispatch/Unary Handlers Execute Directly | Covered: string length path | `tests/unit/metamethod/test_metamethod_complete.cpp` - Complete Metamethods/Other metamethods (__len, __concat, __call) covers `__len` | Good for PR-54 |
 | CONCAT | Unary | `tests/unit/vm/test_vm_dispatch.cpp` - VM Dispatch/Unary Handlers Execute Directly | Covered: multi-register concat range | `tests/unit/metamethod/test_metamethod_arith.cpp` - Metamethod/Runtime metamethod opcode execution covers runtime `__concat` | Good for Phase 4 |
 | JMP | Branch | `tests/unit/vm/test_vm_dispatch.cpp` - VM Dispatch/Branch And Comparison Handlers Execute Directly | Covered: signed sBx pc adjustment | N/A - opcode metadata marks `mayInvokeMetamethod=false` | Good for PR-54 |
-| EQ | Comparison | `tests/unit/vm/test_vm_dispatch.cpp` - VM Dispatch/Branch And Comparison Handlers Execute Directly | Covered: skip when comparison result differs from A | `tests/unit/metamethod/test_metamethod_complete.cpp` - Complete Metamethods/Comparison metamethods covers `__eq` | Good for PR-54 |
-| LT | Comparison | `tests/unit/vm/test_vm_dispatch.cpp` - VM Dispatch/Branch And Comparison Handlers Execute Directly | Covered: skip when comparison result differs from A | `tests/unit/metamethod/test_metamethod_complete.cpp` - Complete Metamethods/Comparison metamethods covers `__lt` | Good for PR-54 |
-| LE | Comparison | `tests/unit/vm/test_vm_dispatch.cpp` - VM Dispatch/Branch And Comparison Handlers Execute Directly | Covered: keep pc when comparison result matches A | `tests/unit/metamethod/test_metamethod_complete.cpp` - Complete Metamethods/Comparison metamethods covers `__le` | Good for PR-54 |
+| EQ | Comparison | `tests/unit/vm/test_vm_dispatch.cpp` - VM Dispatch/Branch And Comparison Handlers Execute Directly | Covered: skip when comparison result differs from A | `tests/unit/metamethod/test_metamethod_complete.cpp` - Complete Metamethods/Comparison metamethods (__eq, __lt, __le) covers `__eq` | Good for PR-54 |
+| LT | Comparison | `tests/unit/vm/test_vm_dispatch.cpp` - VM Dispatch/Branch And Comparison Handlers Execute Directly | Covered: skip when comparison result differs from A | `tests/unit/metamethod/test_metamethod_complete.cpp` - Complete Metamethods/Comparison metamethods (__eq, __lt, __le) covers `__lt` | Good for PR-54 |
+| LE | Comparison | `tests/unit/vm/test_vm_dispatch.cpp` - VM Dispatch/Branch And Comparison Handlers Execute Directly | Covered: keep pc when comparison result matches A | `tests/unit/metamethod/test_metamethod_complete.cpp` - Complete Metamethods/Comparison metamethods (__eq, __lt, __le) covers `__le` | Good for PR-54 |
 | TEST | Branch | `tests/unit/vm/test_vm_dispatch.cpp` - VM Dispatch/Branch And Comparison Handlers Execute Directly | Covered: match applies following JMP and miss advances once | N/A - opcode metadata marks `mayInvokeMetamethod=false` | Good for PR-54 |
 | TESTSET | Branch | `tests/unit/vm/test_vm_dispatch.cpp` - VM Dispatch/Branch And Comparison Handlers Execute Directly | Covered: match copies value and miss leaves destination unchanged | N/A - opcode metadata marks `mayInvokeMetamethod=false` | Good for PR-54 |
 | CALL | Call | `tests/unit/vm/test_vm_dispatch.cpp` - VM Dispatch/Call And Return Handlers Execute Directly | Covered: C call, Lua call reentry, and yielded C call | `tests/unit/metamethod/test_metamethod_arith.cpp` - Metamethod/Lua function metamethods and basic type metatable covers `__call` | Good for PR-54 |
@@ -54,6 +55,11 @@ Legend:
 ## PR-54 Verification Standard
 
 - `tools/check_opcode_coverage_matrix.ps1` must pass and report all 38 opcodes.
-- `tools/run_quality_gate.ps1` must include the opcode coverage matrix step before build/test work.
+- `tests/unit/vm/opcode_coverage_contract.json` must provide non-empty Positive and Boundary test keys for
+  every opcode and a Metamethod key exactly when metadata marks `mayInvokeMetamethod=true`.
+- Every test catalog source path must exist, and every exact `Suite::Test` ID must appear in
+  `bin\lua_test.exe --list`.
+- `tools/run_quality_gate.ps1` must run the opcode coverage contract after the test binary is available and
+  before the full unit-test execution.
 - Adding, removing, or renaming an opcode in `src/compiler/opcode.hpp` must fail the matrix check until this file is updated.
 - Open gaps should be tracked by adding a clear Current gaps entry and a roadmap task; removing a gap requires adding or identifying the corresponding test first.

@@ -1,7 +1,7 @@
 ---
 status: current
-verified_against: tests/unit/; tests/unit/framework/; tests/lua/; tests/lua/official/; tests/lua/regressions/; tests/unit/vm/test_vm_trace_debug.cpp; tools/check_doc_drift.ps1; tools/test_quality_gate.ps1
-last_checked: 2026-07-11
+verified_against: tests/unit/; tests/unit/framework/; tests/lua/; tests/lua/official/; tests/compatibility/; tests/lua/regressions/; tests/unit/vm/test_vm_trace_debug.cpp; tools/check_doc_drift.ps1; tools/check_lua51_official_sources.ps1; tools/run_lua51_official_strict.ps1; tools/test_quality_gate.ps1
+last_checked: 2026-07-13
 applies_to: 解释器测试分层、Golden 与回归证据
 ---
 
@@ -15,7 +15,10 @@ applies_to: 解释器测试分层、Golden 与回归证据
 |---|---|---|
 | C++ unit | 数据结构、状态机、错误类型和边界 API | `tests/unit/` |
 | Lua behavior | 语言可观察语义和跨模块组合 | `tests/lua/basic/`、`functions/`、`tables/`、`runtime/` |
-| Official compatibility | 不经实现定制的 Lua 5.1 行为参照 | `tests/lua/official/`、`tests/unit/official/` |
+| Official smoke | 受控改写、压力缩减和分阶段执行的快速回归 | `tests/unit/official/`、`tests/compatibility/lua51-official-smoke-deviations.json` |
+| Official strict | SHA-256 锁定、临时副本中原样执行的 Lua 5.1 参照 | `tests/lua/official/`、`tools/run_lua51_official_strict.ps1` |
+| Official TestC | 打开内部 `T` 模块后实际执行 `code.lua` / `api.lua` | `tests/unit/official/`、`lua51-official-testc-xfails.json` |
+| Differential | 同一探针在官方 Lua 5.1 与本解释器上的可观察行为对比 | `tests/lua/differential/`、`tools/run_lua51_differential.ps1` |
 | Regression | 每个已修缺陷的最小稳定复现 | `tests/lua/regressions/` |
 | Golden | 结构化且有意稳定的复杂输出 | `test_vm_trace_debug.cpp` 中的 trace golden cases |
 

@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "channel": "official-slow",
+  "xfails": [
+    {
+      "id": "verybig.lua-slow-gate",
+      "expectedOutcome": "timeout",
+      "trackingIssue": "P1-verybig-runtime-budget",
+      "responsibleModule": "compiler/codegen/runtime performance",
+      "minimalReproduction": "tools/run_lua51_official_slow.ps1 -Case verybig -TimeoutSeconds 300",
+      "reason": "The unmodified verybig.lua dump/undump path exceeds the current 300-second slow-lane budget."
+    }
+  ]
+}
