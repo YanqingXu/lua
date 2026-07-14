@@ -611,7 +611,7 @@ static std::expected<void*, DynamicLookupError> tryLoadDynamicSymbol(DynamicLibr
 }
 
 static Function* createDynamicCFunction(LuaState* L, void* symbol) {
-    CFunction cfunc = reinterpret_cast<CFunction>(symbol);
+    ApiCFunction cfunc = reinterpret_cast<ApiCFunction>(symbol);
     Function* func = L->getGlobalState().getGC().create<Function>(cfunc);
     return func;
 }

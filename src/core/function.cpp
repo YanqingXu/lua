@@ -284,9 +284,19 @@ Function::Function(LuaAllocator* allocator, CFunction func)
       ,
       env_(nullptr) // 初始化环境表为nullptr
       ,
-      cFunction_(func), proto_(nullptr), upvalues_(LuaStdAllocator<Upvalue*>(allocator)) {
+      cFunction_(func), apiCFunction_(nullptr), proto_(nullptr), upvalues_(LuaStdAllocator<Upvalue*>(allocator)) {
     if (func == nullptr) {
         throw std::invalid_argument("C function pointer cannot be null");
+    }
+}
+
+Function::Function(ApiCFunction func) : Function(nullptr, func) {}
+
+Function::Function(LuaAllocator* allocator, ApiCFunction func)
+    : GCObject(GCObjectType::Function), isC_(true), nupvalues_(0), gclist_(nullptr), env_(nullptr), cFunction_(nullptr),
+      apiCFunction_(func), proto_(nullptr), upvalues_(LuaStdAllocator<Upvalue*>(allocator)) {
+    if (func == nullptr) {
+        throw std::invalid_argument("Lua C API function pointer cannot be null");
     }
 }
 
@@ -299,7 +309,7 @@ Function::Function(LuaAllocator* allocator, Proto* proto)
       ,
       env_(nullptr) // 初始化环境表为nullptr
       ,
-      cFunction_(nullptr), proto_(proto), upvalues_(LuaStdAllocator<Upvalue*>(allocator)) {
+      cFunction_(nullptr), apiCFunction_(nullptr), proto_(proto), upvalues_(LuaStdAllocator<Upvalue*>(allocator)) {
     if (proto == nullptr) {
         throw std::invalid_argument("Proto pointer cannot be null");
     }
@@ -307,6 +317,16 @@ Function::Function(LuaAllocator* allocator, Proto* proto)
 
 Function::~Function() {
     // Proto和Upvalue由GC系统管理，这里不需要手动删除
+}
+
+i32 Function::callCFunction(LuaState* state) const {
+    if (apiCFunction_ != nullptr) {
+        return apiCFunction_(reinterpret_cast<lua_State*>(state));
+    }
+    if (cFunction_ != nullptr) {
+        return cFunction_(state);
+    }
+    throw std::logic_error("Function does not contain a C callback");
 }
 
 // =====================================================================

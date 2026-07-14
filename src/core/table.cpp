@@ -79,6 +79,9 @@ Table::Table(LuaAllocator* allocator)
 {}
 
 Table::~Table() {
+    if (GarbageCollector* owner = getOwnerCollector()) {
+        owner->unregisterObject(this);
+    }
     // 数组和哈希部分会自动释放
     // GC对象由GC系统管理，不需要手动释放
 }

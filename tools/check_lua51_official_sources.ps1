@@ -19,7 +19,7 @@ $suiteRoot = (Resolve-Path -LiteralPath (Resolve-RootedPath $SuitePath)).Path
 $manifestFile = Resolve-RootedPath $ManifestPath
 $suitePrefix = $suiteRoot.TrimEnd("\", "/") + [System.IO.Path]::DirectorySeparatorChar
 
-$actualEntries = @(Get-ChildItem -LiteralPath $suiteRoot -Recurse -File | Sort-Object FullName | ForEach-Object {
+$actualEntries = @(Get-ChildItem -LiteralPath $suiteRoot -Recurse -Force -File | Sort-Object FullName | ForEach-Object {
     [ordered]@{
         path = $_.FullName.Substring($suitePrefix.Length).Replace("\", "/")
         sha256 = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()

@@ -5,135 +5,135 @@
     "entries":  [
                     {
                         "path":  "all.lua",
-                        "sha256":  "8a48d4939b8ad28910887b34bdb8d9ae98dc11b87c9c5caac55179bb6255a2f2"
+                        "sha256":  "cae825d59d32e9a3c94f6a01b1cf292aeb229b351a55c5f3a810a9cd08d98eab"
                     },
                     {
                         "path":  "api.lua",
-                        "sha256":  "963b81e66b1c1d6187b436fcc53dd95cb6b912351e4f4b9103579f783afcf170"
+                        "sha256":  "68994a85415486217e6852ad30245a4987cbf14cc60381be9c66f886e4af7123"
                     },
                     {
                         "path":  "attrib.lua",
-                        "sha256":  "9179619690b3a74f81a6e629e3d5adc5bbd9089f18df64ba40f180fdb54cff36"
+                        "sha256":  "c8c7db0c5b7439139a767075102100717890c6004c7c6a3931bba16d99af6eba"
                     },
                     {
                         "path":  "big.lua",
-                        "sha256":  "679d9982ad59857dd4cffc3a151c938da30c63bddb70f797c704155e76887227"
+                        "sha256":  "44ef5a981a6b885573d4ed3b0cd19b5ea452c6f16d3eabed02927593d53b34c4"
                     },
                     {
                         "path":  "calls.lua",
-                        "sha256":  "3e86e765ea7c8dc85ebc9795333de6755b5b113458d3d164ed8827b273e98eb0"
+                        "sha256":  "343fc099d121f0bdc068bd7293a52fd5f32c2f3eff6f1e823c41471bdf7c4639"
                     },
                     {
                         "path":  "checktable.lua",
-                        "sha256":  "cee0a8f64d4bd1e9ebfc39db87a22f802b578b048628f4fd830fb1ad0d51a14d"
+                        "sha256":  "2f905e55f23b8db43b0c118460ffaa0d0517584c415e84c0e84298b8a0760cf0"
                     },
                     {
                         "path":  "closure.lua",
-                        "sha256":  "5f1b6c3a63842ebc0a6a276bc0291d08396be24d2c221d1962d33484d93e2651"
+                        "sha256":  "9496056e3b89461e06391a565e2c7e8935abbf8f92fbb658c7714985fbbfb830"
                     },
                     {
                         "path":  "code.lua",
-                        "sha256":  "2fc8571b4556163ead88e57c44fb9cf97c11585cb42aa34cdb3ed86ada833099"
+                        "sha256":  "25265ced9789e6a4d6d996093d3aa2645765ae026149eba8f2620ad12b8926bb"
                     },
                     {
                         "path":  "constructs.lua",
-                        "sha256":  "a8d360746c67263428f40b2114f23ab1273d29df52962735056c8e18e0446644"
+                        "sha256":  "da83de439859ca44d6450d9bd76e4abfa9891624207491238b2227683fdfde5f"
                     },
                     {
                         "path":  "db.lua",
-                        "sha256":  "2d080d8fdc27f9c6b3e7afd6dfd2e252119f26772c0918ac549f77e5a61c3a20"
+                        "sha256":  "45bee0f25a06a9b058f3d746c794488ffbf95ab591c5360a477eca5b226b1bc4"
                     },
                     {
                         "path":  "errors.lua",
-                        "sha256":  "693c7cbbf85480791279b39cd19eb6b5259f15d552c304f8fe921fff96ed6e2c"
+                        "sha256":  "9d23589cae9ed6bdfa3386fc4c3b474274ae469120a56664e935886c031bbbe5"
                     },
                     {
                         "path":  "etc/ltests.c",
-                        "sha256":  "614d3134677a3aee3e696f6c5a61db683b1f6750cd123ef6f7ff9d637e070fef"
+                        "sha256":  "45f0dfcb17d8930785a1e8a18e0afe209f4be0dba4e6e1df68a4663aaeecb54e"
                     },
                     {
                         "path":  "etc/ltests.h",
-                        "sha256":  "95a05634cb9bb4515e637cc4a5a6004dbe52f046be08d29a711f1af798198a48"
+                        "sha256":  "d12b37b364fa2d7321f2657267b3ddb7cbdf2c2da7e7e4049c962455540ca9b5"
                     },
                     {
                         "path":  "events.lua",
-                        "sha256":  "1ec56e711c07e2d8992dd471addbfd9ab6c1ae1c808eba61958a8ff9fca24eeb"
+                        "sha256":  "6dd484a0c6f17be699e0fdc577ad0341b60784f3f69666956b8af7d6b778d73c"
                     },
                     {
                         "path":  "files.lua",
-                        "sha256":  "82f795430972fafef5317cd551cd089dd05ca47a2c5348215515888146222496"
+                        "sha256":  "d9f714f374fba9b9ed8db8aea88d538f04fb3e9aff689bd6cc3d4036926e8dc7"
                     },
                     {
                         "path":  "gc.lua",
-                        "sha256":  "97abb2aaaeb85f9be06f66a3afcbb8d9639c6bb70e9cbb664713edbb4f49b88f"
+                        "sha256":  "f3cc02f690371fa0cc2ddced1c2378d36a0e1025a7359044a80d42b1e06efe23"
                     },
                     {
                         "path":  "libs/lib1.c",
-                        "sha256":  "bd914a73028be682428ebdf086d30c72850a573e1b03598be1f1fc993a95f4ef"
+                        "sha256":  "f4485757e24896d82147b282b1979ce3dea9418da00c8a94bc559ce15d559dbb"
                     },
                     {
                         "path":  "libs/lib11.c",
-                        "sha256":  "05f5904d83338cb2b3f76b728dbb8f59be664574f2da9f5d77e481d14d4ca155"
+                        "sha256":  "00b82132e55c675e3035a5a8ef4c16b83c471d6d8b9e0cb633c98885e52d5895"
                     },
                     {
                         "path":  "libs/lib2.c",
-                        "sha256":  "461f04e99a5e94cff5b2d65e206e00d3a6511cbbb89d9ce0b27d148f4bdc162a"
+                        "sha256":  "c9010467eb88b084cfaff902fb21cf6e5bb7701cf4c9905deab8e17eb57dc8ba"
                     },
                     {
                         "path":  "libs/lib21.c",
-                        "sha256":  "aff72b00dbd6250f9d5515e5bd37375335d0c9c618fae70b199d99e6fc73c1db"
+                        "sha256":  "a4373e51c578ecd3f79759d57be0349a66287980d5352baf150d84e43e9cfc39"
                     },
                     {
                         "path":  "libs/makefile",
-                        "sha256":  "2584ec5dab10323b5d3115548da5f5ce20b9b4d61f82a46253e2d97cb0e70fce"
+                        "sha256":  "b1e39b71cc100dffa516eb12819344c28fa709aa246234c9bc92ea6f983565ec"
                     },
                     {
                         "path":  "libs/P1/.gitkeep",
-                        "sha256":  "66b1f703c219eb8d5bb1b420517e53b61ba0f0496ec075f8966e27113319e6f5"
+                        "sha256":  "04ba7c6efa8ef641dc582317953ee21948185a4de7362d0aceaf3ebfec9b7377"
                     },
                     {
                         "path":  "literals.lua",
-                        "sha256":  "08358c533d8dacfa3a6cb9d6f27e57001b0e8f45751b8b3255812628498ebe3c"
+                        "sha256":  "633b3cb94fe7652c1a1ea99425f161a6df0b64e572d8354739cc9e4e9a0b0f8b"
                     },
                     {
                         "path":  "locals.lua",
-                        "sha256":  "c589b2d053447891c5cf64c2ca9bfb04579cd7fa337077f900aacf69744778ac"
+                        "sha256":  "7ee8a582fef614fa367852d4426b28485fd4dbeded3fa29bf03890a179792ff0"
                     },
                     {
                         "path":  "main.lua",
-                        "sha256":  "8adef99f981fc692f213b0dd2e86d2c057eec2e7d116163fc80528fb4611caf1"
+                        "sha256":  "d0b7b2e5bb806973fc5c853702f346258669cf4bc708f9fb292edfe1d4d4ec65"
                     },
                     {
                         "path":  "math.lua",
-                        "sha256":  "c84f994ae7987e669b1b140421ab112af4e39f7b9ae9e937881bb05311bf74d9"
+                        "sha256":  "24a862ff81b7099eaa08170d317a5d75a6f7a9debe4328108cc248517f6696ca"
                     },
                     {
                         "path":  "nextvar.lua",
-                        "sha256":  "b2b80ddb40b17b8000550cad8155d704a837daed0983cfa918c047ef99354f02"
+                        "sha256":  "3e81e2ecf908f5576081a691a954b11acaa15dc9eaa6e4c9cd4f53e40baf07b6"
                     },
                     {
                         "path":  "pm.lua",
-                        "sha256":  "751c8cb8c661639617a0c9b2350d15c05fbed285cf5f11418d46459e33501227"
+                        "sha256":  "f7888930a69457635a606fe0597be1dc69114602eaf61293ca510eed9d1971d6"
                     },
                     {
                         "path":  "README",
-                        "sha256":  "9627ad484a53d438e46a1344472e5cf8712e7261de2ab9db4ee9113779f62399"
+                        "sha256":  "17e90e1e3342ddba253719f3863d51c58a3a1e472460f653a35d66b22ab23a9d"
                     },
                     {
                         "path":  "sort.lua",
-                        "sha256":  "8856f6e4a31c5a87842a15ad22de62245165de0bde10078008fce0973431e219"
+                        "sha256":  "b8f6fefe976dd484a86b0c0d4989af70421005abbb6005567886fb9a40181cb2"
                     },
                     {
                         "path":  "strings.lua",
-                        "sha256":  "51b97a0e68e31d104cba68f4eee214e9c38e6c1ec6e43ad5291656cbc35d073a"
+                        "sha256":  "c97c706a6120847472aff5020bedaf29411b5177f4cf98d059bfd41eada730f8"
                     },
                     {
                         "path":  "vararg.lua",
-                        "sha256":  "01cfcf69b7ed395453e55a2426c124b050cbe2f778ddeb783093bf252bb04c23"
+                        "sha256":  "afa3796df77bf56574c2e71f8e4f219a6c4b4ba08d914b8110ea60e363a7d9ff"
                     },
                     {
                         "path":  "verybig.lua",
-                        "sha256":  "7a203083799fbfd300b93b21215edb89e1f153e898621a32d9e4b2323bd6d2eb"
+                        "sha256":  "2e647a4285ac2c09be7e9cb10ce83e19a359a2b3c630cb6e62962319c8caec1e"
                     }
                 ]
 }

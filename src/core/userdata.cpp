@@ -117,6 +117,9 @@ Userdata::Userdata(LuaAllocator* allocator, usize size)
 }
 
 Userdata::~Userdata() {
+    if (GarbageCollector* owner = getOwnerCollector()) {
+        owner->unregisterObject(this);
+    }
     if (dataDestructor_ != nullptr) {
         dataDestructor_(data_.get());
     }

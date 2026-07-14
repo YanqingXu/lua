@@ -160,7 +160,9 @@ jobs:
       CC: clang-18
       CXX: clang++-18
       CXXFLAGS: -stdlib=libc++
-      ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+      # Ubuntu's shared libc++abi exception strings cross an interposed
+      # operator-new/free boundary. Keep every other ASan/LSan check enabled.
+      ASAN_OPTIONS: detect_leaks=1:halt_on_error=1:alloc_dealloc_mismatch=0
       UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
       LUA_TEST_DISABLE_MEMORY_LIMIT: 1
 

@@ -1,14 +1,14 @@
 ﻿/**
  * @file test_input_stream_stream.cpp
  * @brief InputStream 类（流模式）单元测试
- * 
+ *
  * 测试 InputStream 使用 std::istream 的流模式功能：
  * - 流模式构造函数
  * - 缓冲区管理和重新填充
  * - 跨缓冲区边界的读取
  * - 不同流类型的兼容性
  * - 大数据流处理
- * 
+ *
  * @author Lua C++ Implementation Team
  * @version 0.1.0
  * @date 2025-12-08
@@ -17,10 +17,12 @@
 #include "../framework/test_framework.hpp"
 #include "common/types.hpp"
 #include "io/input_stream.hpp"
-#include <sstream>
-#include <fstream>
-#include <string>
+#include "test_file_fixture.hpp"
+
 #include <cstring>
+#include <fstream>
+#include <sstream>
+#include <string>
 
 using namespace Lua;
 using namespace Lua::IO;
@@ -36,7 +38,7 @@ using namespace LuaTest;
 static void testStreamModeConstruction(TestSuite& suite) {
     std::istringstream iss("hello");
     InputStream input(iss);
-    
+
     ASSERT_FALSE(suite, input.isEof(), "Should not be EOF initially");
     ASSERT_EQ(suite, 0u, input.getPosition(), "Initial position should be 0");
     ASSERT_EQ(suite, "stream", input.getSourceName(), "Default source name should be 'stream'");
@@ -48,7 +50,7 @@ static void testStreamModeConstruction(TestSuite& suite) {
 static void testEmptyStreamConstruction(TestSuite& suite) {
     std::istringstream iss("");
     InputStream input(iss);
-    
+
     // 空流在构造时会调用 fillBuffer()，发现没有数据后设置 eof_
     ASSERT_TRUE(suite, input.isEof(), "Empty stream should be EOF immediately");
     ASSERT_EQ(suite, 0u, input.getPosition(), "Position should be 0");
@@ -59,10 +61,10 @@ static void testEmptyStreamConstruction(TestSuite& suite) {
  */
 static void testCustomBufferSize(TestSuite& suite) {
     std::istringstream iss("test data");
-    InputStream input(iss, 4);  // 4 字节缓冲区
-    
+    InputStream input(iss, 4); // 4 字节缓冲区
+
     ASSERT_FALSE(suite, input.isEof(), "Should not be EOF initially");
-    
+
     // 读取应该正常工作，即使缓冲区很小
     i32 ch = input.getChar();
     ASSERT_EQ(suite, 't', ch, "First char should be 't'");
@@ -78,19 +80,19 @@ static void testCustomBufferSize(TestSuite& suite) {
 static void testGetCharFromStream(TestSuite& suite) {
     std::istringstream iss("abc");
     InputStream input(iss);
-    
+
     i32 ch1 = input.getChar();
     ASSERT_EQ(suite, 'a', ch1, "First char should be 'a'");
     ASSERT_EQ(suite, 1u, input.getPosition(), "Position should be 1");
-    
+
     i32 ch2 = input.getChar();
     ASSERT_EQ(suite, 'b', ch2, "Second char should be 'b'");
     ASSERT_EQ(suite, 2u, input.getPosition(), "Position should be 2");
-    
+
     i32 ch3 = input.getChar();
     ASSERT_EQ(suite, 'c', ch3, "Third char should be 'c'");
     ASSERT_EQ(suite, 3u, input.getPosition(), "Position should be 3");
-    
+
     i32 ch4 = input.getChar();
     ASSERT_EQ(suite, -1, ch4, "Should return -1 at EOF");
     ASSERT_TRUE(suite, input.isEof(), "Should be EOF after reading all chars");
@@ -102,19 +104,19 @@ static void testGetCharFromStream(TestSuite& suite) {
 static void testPeekCharFromStream(TestSuite& suite) {
     std::istringstream iss("xy");
     InputStream input(iss);
-    
+
     i32 peek1 = input.peekChar();
     ASSERT_EQ(suite, 'x', peek1, "Peek should return 'x'");
     ASSERT_EQ(suite, 0u, input.getPosition(), "Peek should not advance position");
-    
+
     i32 peek2 = input.peekChar();
     ASSERT_EQ(suite, 'x', peek2, "Multiple peeks should return same char");
     ASSERT_EQ(suite, 0u, input.getPosition(), "Position should still be 0");
-    
+
     i32 ch = input.getChar();
     ASSERT_EQ(suite, 'x', ch, "getChar should return peeked char");
     ASSERT_EQ(suite, 1u, input.getPosition(), "Position should advance after getChar");
-    
+
     i32 peek3 = input.peekChar();
     ASSERT_EQ(suite, 'y', peek3, "Peek should now return 'y'");
 }
@@ -125,9 +127,9 @@ static void testPeekCharFromStream(TestSuite& suite) {
 static void testPeekCharAtEofFromStream(TestSuite& suite) {
     std::istringstream iss("a");
     InputStream input(iss);
-    
-    input.getChar();  // 读取 'a'
-    
+
+    input.getChar(); // 读取 'a'
+
     i32 peek = input.peekChar();
     ASSERT_EQ(suite, -1, peek, "Peek at EOF should return -1");
     ASSERT_TRUE(suite, input.isEof(), "Should be EOF");
@@ -139,12 +141,12 @@ static void testPeekCharAtEofFromStream(TestSuite& suite) {
 static void testMultipleGetCharAtEof(TestSuite& suite) {
     std::istringstream iss("x");
     InputStream input(iss);
-    
-    input.getChar();  // 读取 'x'
-    
+
+    input.getChar(); // 读取 'x'
+
     i32 ch1 = input.getChar();
     ASSERT_EQ(suite, -1, ch1, "getChar at EOF should return -1");
-    
+
     i32 ch2 = input.getChar();
     ASSERT_EQ(suite, -1, ch2, "Multiple getChar at EOF should return -1");
 }
@@ -215,7 +217,7 @@ static void testReadAtEof(TestSuite& suite) {
     InputStream input(iss);
 
     char buffer[1];
-    input.read(buffer, 1);  // 读取所有数据
+    input.read(buffer, 1); // 读取所有数据
 
     char buffer2[10];
     usize bytesRead = input.read(buffer2, 10);
@@ -231,8 +233,8 @@ static void testReadAtEof(TestSuite& suite) {
  * @brief 测试小缓冲区读取大数据
  */
 static void testSmallBufferLargeData(TestSuite& suite) {
-    std::istringstream iss("0123456789ABCDEF");  // 16 字节
-    InputStream input(iss, 4);  // 4 字节缓冲区
+    std::istringstream iss("0123456789ABCDEF"); // 16 字节
+    InputStream input(iss, 4);                  // 4 字节缓冲区
 
     // 逐字符读取，应该触发多次 fillBuffer()
     Str data = "";
@@ -257,7 +259,7 @@ static void testSmallBufferLargeData(TestSuite& suite) {
  */
 static void testLargeBufferSmallData(TestSuite& suite) {
     std::istringstream iss("tiny");
-    InputStream input(iss, 4096);  // 4KB 缓冲区
+    InputStream input(iss, 4096); // 4KB 缓冲区
 
     char buffer[10];
     usize bytesRead = input.read(buffer, 10);
@@ -271,8 +273,8 @@ static void testLargeBufferSmallData(TestSuite& suite) {
  * @brief 测试跨缓冲区边界的连续读取
  */
 static void testCrossBoundaryRead(TestSuite& suite) {
-    std::istringstream iss("ABCDEFGHIJ");  // 10 字节
-    InputStream input(iss, 4);  // 4 字节缓冲区
+    std::istringstream iss("ABCDEFGHIJ"); // 10 字节
+    InputStream input(iss, 4);            // 4 字节缓冲区
 
     // 第一次 fillBuffer: "ABCD"
     ASSERT_EQ(suite, 'A', input.getChar(), "Char 1");
@@ -297,11 +299,11 @@ static void testCrossBoundaryRead(TestSuite& suite) {
  * @brief 测试批量读取跨越缓冲区边界
  */
 static void testBatchReadCrossBoundary(TestSuite& suite) {
-    std::istringstream iss("123456789012345");  // 15 字节
-    InputStream input(iss, 5);  // 5 字节缓冲区
+    std::istringstream iss("123456789012345"); // 15 字节
+    InputStream input(iss, 5);                 // 5 字节缓冲区
 
     char buffer[12];
-    usize bytesRead = input.read(buffer, 12);  // 读取 12 字节，需要跨越多个缓冲区
+    usize bytesRead = input.read(buffer, 12); // 读取 12 字节，需要跨越多个缓冲区
 
     ASSERT_EQ(suite, 12u, bytesRead, "Should read 12 bytes");
     ASSERT_EQ(suite, "123456789012", Str(buffer, 12), "Content should match");
@@ -317,19 +319,19 @@ static void testBatchReadCrossBoundary(TestSuite& suite) {
  */
 static void testPositionTracking(TestSuite& suite) {
     std::istringstream iss("0123456789");
-    InputStream input(iss, 3);  // 3 字节缓冲区
+    InputStream input(iss, 3); // 3 字节缓冲区
 
     ASSERT_FALSE(suite, input.isEof(), "Should not be EOF initially");
     ASSERT_EQ(suite, 0u, input.getPosition(), "Initial position should be 0");
 
-    input.getChar();  // '0'
+    input.getChar(); // '0'
     ASSERT_EQ(suite, 1u, input.getPosition(), "Position should be 1");
 
-    input.getChar();  // '1'
+    input.getChar(); // '1'
     ASSERT_EQ(suite, 2u, input.getPosition(), "Position should be 2");
 
     char buffer[4];
-    input.read(buffer, 4);  // "2345"
+    input.read(buffer, 4); // "2345"
     ASSERT_EQ(suite, 6u, input.getPosition(), "Position should be 6 after read");
 }
 
@@ -342,14 +344,14 @@ static void testEofState(TestSuite& suite) {
 
     ASSERT_FALSE(suite, input.isEof(), "Should not be EOF initially");
 
-    input.getChar();  // 'a'
+    input.getChar(); // 'a'
     ASSERT_FALSE(suite, input.isEof(), "Should not be EOF after first char");
 
-    input.getChar();  // 'b'
-    input.getChar();  // 'c'
+    input.getChar(); // 'b'
+    input.getChar(); // 'c'
     ASSERT_FALSE(suite, input.isEof(), "Should not be EOF after last char");
 
-    input.getChar();  // EOF
+    input.getChar(); // EOF
     ASSERT_TRUE(suite, input.isEof(), "Should be EOF after reading all");
 
     ASSERT_TRUE(suite, input.isEof(), "Should still be EOF");
@@ -419,12 +421,12 @@ static void testNullCharacterInStream(TestSuite& suite) {
  * @brief 测试 UTF-8 字节序列
  */
 static void testUtf8BytesInStream(TestSuite& suite) {
-    //std::istringstream iss("中");  // UTF-8: 3 字节
-    //InputStream input(iss);
+    // std::istringstream iss("中");  // UTF-8: 3 字节
+    // InputStream input(iss);
 
-    const char utf8Bytes[] = { static_cast<char>(0xE4), static_cast<char>(0xB8), static_cast<char>(0xAD) }; 
-    Str s(utf8Bytes, 3); 
-    std::istringstream iss(s); 
+    const char utf8Bytes[] = {static_cast<char>(0xE4), static_cast<char>(0xB8), static_cast<char>(0xAD)};
+    Str s(utf8Bytes, 3);
+    std::istringstream iss(s);
     InputStream input(iss);
 
     char buffer[3];
@@ -446,7 +448,7 @@ static void testLargeStreamData(TestSuite& suite) {
     // 创建 10000 字节的数据
     Str largeData(10000, 'x');
     std::istringstream iss(largeData);
-    InputStream input(iss, 512);  // 512 字节缓冲区
+    InputStream input(iss, 512); // 512 字节缓冲区
 
     // 逐字符读取前 100 个字符
     for (int i = 0; i < 100; ++i) {
@@ -510,12 +512,9 @@ static void testFileStreamIntegration(TestSuite& suite) {
     // 创建临时测试文件（以二进制模式，避免换行符转换）
     const char* tempFilePath = "build/test_temp_stream_data.txt";
     const char* testContent = "File stream content\nLine 2\nLine 3";
-    usize contentLength = std::strlen(testContent);  // 33 字节
+    usize contentLength = std::strlen(testContent); // 33 字节
 
-    {
-        std::ofstream ofs(tempFilePath, std::ios::binary);
-        ofs << testContent;
-    }
+    TemporaryTestFile testFile(tempFilePath, testContent);
 
     // 使用 InputStream 读取文件（以二进制模式）
     std::ifstream ifs(tempFilePath, std::ios::binary);
@@ -530,11 +529,6 @@ static void testFileStreamIntegration(TestSuite& suite) {
     ASSERT_EQ(suite, contentLength, bytesRead, "Should read all bytes");
     ASSERT_EQ(suite, testContent, Str(buffer, contentLength), "Content should match");
     ASSERT_EQ(suite, tempFilePath, input.getSourceName(), "Source name should be preserved");
-
-    ifs.close();
-
-    // 清理临时文件
-    std::remove(tempFilePath);
 }
 
 /**
@@ -543,18 +537,13 @@ static void testFileStreamIntegration(TestSuite& suite) {
 static void testLargeFileStream(TestSuite& suite) {
     const char* tempFilePath = "build/test_temp_large_stream.txt";
 
-    // 创建大文件（5000 字节）
-    {
-        std::ofstream ofs(tempFilePath);
-        for (int i = 0; i < 5000; ++i) {
-            ofs << 'A';
-        }
-    }
+    const Str content(5000, 'A');
+    TemporaryTestFile testFile(tempFilePath, content);
 
     std::ifstream ifs(tempFilePath);
     ASSERT_TRUE(suite, ifs.is_open(), "File should be opened");
 
-    InputStream input(ifs, 256);  // 256 字节缓冲区
+    InputStream input(ifs, 256); // 256 字节缓冲区
 
     // 逐字符读取前 1000 个字符
     for (int i = 0; i < 1000; ++i) {
@@ -569,9 +558,6 @@ static void testLargeFileStream(TestSuite& suite) {
     ASSERT_EQ(suite, 4000u, bytesRead, "Should read remaining 4000 bytes");
 
     ASSERT_EQ(suite, 5000u, input.getPosition(), "Position should be 5000");
-
-    ifs.close();
-    std::remove(tempFilePath);
 }
 
 // =====================================================================
@@ -650,7 +636,7 @@ static void testLexerStringLiteralScenario(TestSuite& suite) {
  */
 static void testMixedOperations(TestSuite& suite) {
     std::istringstream iss("abcdefghij");
-    InputStream input(iss, 4);  // 4 字节缓冲区
+    InputStream input(iss, 4); // 4 字节缓冲区
 
     // peek
     ASSERT_EQ(suite, 'a', input.peekChar(), "Should peek 'a'");
@@ -696,13 +682,13 @@ static void testCompleteSourceRead(TestSuite& suite) {
  * @brief 测试缓冲区边界处的 peek
  */
 static void testPeekAtBufferBoundary(TestSuite& suite) {
-    std::istringstream iss("ABCDEFGH");  // 8 字节
-    InputStream input(iss, 4);  // 4 字节缓冲区
+    std::istringstream iss("ABCDEFGH"); // 8 字节
+    InputStream input(iss, 4);          // 4 字节缓冲区
 
     // 读取前 3 个字符
-    input.getChar();  // 'A'
-    input.getChar();  // 'B'
-    input.getChar();  // 'C'
+    input.getChar(); // 'A'
+    input.getChar(); // 'B'
+    input.getChar(); // 'C'
 
     // 现在在缓冲区边界前
     ASSERT_EQ(suite, 'D', input.peekChar(), "Should peek 'D'");
@@ -768,6 +754,3 @@ void registerInputStreamStreamTests() {
     registry.registerTest("InputStream (Stream Mode)", "Complete source read", testCompleteSourceRead);
     registry.registerTest("InputStream (Stream Mode)", "Peek at buffer boundary", testPeekAtBufferBoundary);
 }
-
-
-

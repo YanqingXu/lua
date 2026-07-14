@@ -441,7 +441,9 @@ i32 t_testC(LuaState* L) {
             const i32 idx = readNumber(L, command.args.at(0));
             if (L->type(idx) == 6 && L->at(idx).asFunction()->isCFunction()) {
                 Function* source = L->at(idx).asFunction();
-                Function* copy = L->getGlobalState().getGC().create<Function>(source->getCFunction());
+                Function* copy = source->isApiCFunction()
+                                     ? L->getGlobalState().getGC().create<Function>(source->getApiCFunction())
+                                     : L->getGlobalState().getGC().create<Function>(source->getCFunction());
                 copy->setEnv(source->getEnv());
                 L->pushFunction(copy);
             } else {

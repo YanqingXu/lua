@@ -33,6 +33,8 @@
 #include <functional>
 #include <span>
 
+struct lua_State;
+
 namespace Lua {
 
 // =====================================================================
@@ -122,6 +124,7 @@ using Instruction = u32;
  * @return 返回值数量
  */
 using CFunction = i32 (*)(LuaState* L);
+using ApiCFunction = int (*)(::lua_State* L);
 
 // =====================================================================
 // 可变参数标志常量（Lua 5.1兼容）
@@ -713,6 +716,10 @@ public:
     explicit Function(CFunction func);
     Function(LuaAllocator* allocator, CFunction func);
 
+    // Public C API callbacks retain their exact lua_State* signature.
+    explicit Function(ApiCFunction func);
+    Function(LuaAllocator* allocator, ApiCFunction func);
+
     /**
      * @brief 创建Lua函数闭包
      * @param proto 函数原型
@@ -756,6 +763,16 @@ public:
     CFunction getCFunction() const noexcept {
         return isC_ ? cFunction_ : nullptr;
     }
+
+    ApiCFunction getApiCFunction() const noexcept {
+        return isC_ ? apiCFunction_ : nullptr;
+    }
+
+    bool isApiCFunction() const noexcept {
+        return isC_ && apiCFunction_ != nullptr;
+    }
+
+    i32 callCFunction(LuaState* state) const;
 
     // =====================================================================
     // Lua函数访问
@@ -910,6 +927,9 @@ private:
     /// C函数指针（仅当isC_为true时有效）
     /// 对应CClosure的lua_CFunction f字段
     CFunction cFunction_;
+
+    /// 公共 C API 回调；与内部 LuaState* 回调保持独立的函数指针类型
+    ApiCFunction apiCFunction_;
 
     /// 函数原型（仅当isC_为false时有效）
     /// 对应LClosure的struct Proto *p字段

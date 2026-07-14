@@ -3680,7 +3680,7 @@
                     {
                         "rule":  "native fixed-size array declaration",
                         "path":  "src\\api\\lapi.cpp",
-                        "line":  1111,
+                        "line":  1110,
                         "textHash":  "cef6fa25f51879a25240edf01d33ef5c6c7f2b7a0227ef539861f4f0b1407dd5",
                         "rationale":  "Existing product advisory; modernize when the surrounding compatibility boundary is touched."
                     },
@@ -3708,119 +3708,119 @@
                     {
                         "rule":  "native fixed-size array declaration",
                         "path":  "tests\\unit\\io\\test_input_stream_stream.cpp",
-                        "line":  163,
+                        "line":  165,
                         "textHash":  "7744324dabafd27abcf884f34c875ebd78183c435c6a0fbb31be754a2ca131b5",
                         "rationale":  "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
                     },
                     {
                         "rule":  "native fixed-size array declaration",
                         "path":  "tests\\unit\\io\\test_input_stream_stream.cpp",
-                        "line":  178,
+                        "line":  180,
                         "textHash":  "5644422dfd651ad6bb822873b07049509427bbbf62762ef766aa7d640384d930",
                         "rationale":  "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
                     },
                     {
                         "rule":  "native fixed-size array declaration",
                         "path":  "tests\\unit\\io\\test_input_stream_stream.cpp",
-                        "line":  193,
+                        "line":  195,
                         "textHash":  "adc96593089293d5276f784969c3ad5f5a41f3b18cef3358093ae6ab608feef7",
                         "rationale":  "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
                     },
                     {
                         "rule":  "native fixed-size array declaration",
                         "path":  "tests\\unit\\io\\test_input_stream_stream.cpp",
-                        "line":  197,
+                        "line":  199,
                         "textHash":  "2f44f39a81b5d73d1a12fa41f96439779d0422c2df5af0289ec68421df908e7a",
                         "rationale":  "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
                     },
                     {
                         "rule":  "native fixed-size array declaration",
                         "path":  "tests\\unit\\io\\test_input_stream_stream.cpp",
-                        "line":  204,
+                        "line":  206,
                         "textHash":  "78a89e757d1a94cabd44d8f51b8269a07b584916b43ea4131fd730d3f2953e6d",
                         "rationale":  "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
                     },
                     {
                         "rule":  "native fixed-size array declaration",
                         "path":  "tests\\unit\\io\\test_input_stream_stream.cpp",
-                        "line":  217,
+                        "line":  219,
                         "textHash":  "35bbd0480954d043e462f3d661656c53892151d87d7b1a73b0459fbf23b10268",
                         "rationale":  "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
                     },
                     {
                         "rule":  "native fixed-size array declaration",
                         "path":  "tests\\unit\\io\\test_input_stream_stream.cpp",
-                        "line":  220,
+                        "line":  222,
                         "textHash":  "b9e2137f33272d45f8e6760ffa70dd9ffbd54c0ee60ce478134415ca27255df3",
                         "rationale":  "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
                     },
                     {
                         "rule":  "native fixed-size array declaration",
                         "path":  "tests\\unit\\io\\test_input_stream_stream.cpp",
-                        "line":  262,
+                        "line":  264,
                         "textHash":  "c5748bf7f3dab336ad90d5885cdcab0861a3c047a8d9693edf61b871ebe7cba3",
                         "rationale":  "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
                     },
                     {
                         "rule":  "native fixed-size array declaration",
                         "path":  "tests\\unit\\io\\test_input_stream_stream.cpp",
-                        "line":  303,
+                        "line":  305,
                         "textHash":  "524a93ccfeb3723e4090bb111a61fb73867d0ee7574bd7e62e73519d644dae74",
                         "rationale":  "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
                     },
                     {
                         "rule":  "native fixed-size array declaration",
                         "path":  "tests\\unit\\io\\test_input_stream_stream.cpp",
-                        "line":  331,
+                        "line":  333,
                         "textHash":  "9f38b5e15e18cd08aab3e62600e6182572602ba42e11b0e5abcc15fcc9621599",
                         "rationale":  "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
                     },
                     {
                         "rule":  "native fixed-size array declaration",
                         "path":  "tests\\unit\\io\\test_input_stream_stream.cpp",
-                        "line":  430,
+                        "line":  432,
                         "textHash":  "cbc76ce663b71f252abdad028e18121873ea0deb4bd85547ac746afff0ade845",
                         "rationale":  "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
                     },
                     {
                         "rule":  "native fixed-size array declaration",
                         "path":  "tests\\unit\\io\\test_input_stream_stream.cpp",
-                        "line":  462,
+                        "line":  464,
                         "textHash":  "7de2b39891a6587ec6f6cce44bcf7efcc0c1e1bed93e59cff99796130e427242",
                         "rationale":  "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
                     },
                     {
                         "rule":  "native fixed-size array declaration",
                         "path":  "tests\\unit\\io\\test_input_stream_stream.cpp",
-                        "line":  499,
+                        "line":  501,
                         "textHash":  "08eab8bb307ddf658e7f3a87cc52aeeaee9fb5cf755ad4008df5fdad05bad880",
                         "rationale":  "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
                     },
                     {
                         "rule":  "native fixed-size array declaration",
                         "path":  "tests\\unit\\io\\test_input_stream_stream.cpp",
-                        "line":  527,
+                        "line":  526,
                         "textHash":  "568fa09edaffe8dcda17e6f3b7297c795a99eb09e89f92ffac0b1839a8378751",
                         "rationale":  "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
                     },
                     {
                         "rule":  "native fixed-size array declaration",
                         "path":  "tests\\unit\\io\\test_input_stream_stream.cpp",
-                        "line":  567,
+                        "line":  556,
                         "textHash":  "74bd1b2a3c8a30fb368f7b91f11868c770ef69ef61ac01dd600002a8281ff3e7",
                         "rationale":  "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
                     },
                     {
                         "rule":  "native fixed-size array declaration",
                         "path":  "tests\\unit\\io\\test_input_stream_stream.cpp",
-                        "line":  662,
+                        "line":  648,
                         "textHash":  "cbc76ce663b71f252abdad028e18121873ea0deb4bd85547ac746afff0ade845",
                         "rationale":  "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
                     },
                     {
                         "rule":  "native fixed-size array declaration",
                         "path":  "tests\\unit\\io\\test_input_stream_stream.cpp",
-                        "line":  685,
+                        "line":  671,
                         "textHash":  "c80c613791cd8e9bda4caac52096450bc6ca1137a8d3ad3997ca3ad2d654bed8",
                         "rationale":  "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
                     },
@@ -3939,7 +3939,7 @@
                     {
                         "rule":  "return nullptr",
                         "path":  "src\\api\\lapi.cpp",
-                        "line":  813,
+                        "line":  812,
                         "textHash":  "0e4bce8ffb90a54f87dd1e313212d256102e9e3c73e8525feeb9faddd27faf05",
                         "rationale":  "Existing product compatibility baseline; remove or modernize when the location is touched."
                     },
@@ -3967,7 +3967,7 @@
                     {
                         "rule":  "return nullptr",
                         "path":  "src\\core\\function.cpp",
-                        "line":  318,
+                        "line":  338,
                         "textHash":  "0e4bce8ffb90a54f87dd1e313212d256102e9e3c73e8525feeb9faddd27faf05",
                         "rationale":  "Existing product compatibility baseline; remove or modernize when the location is touched."
                     },

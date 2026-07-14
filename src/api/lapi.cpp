@@ -633,8 +633,7 @@ void lua_pushcclosure(lua_State* L, lua_CFunction fn, int n) LUA_CXX_MAY_THROW {
         upvalues.push_back(state->at(-i));
     }
 
-    auto internal = reinterpret_cast<Lua::CFunction>(fn);
-    Lua::Function* closure = state->getGlobalState().getGC().create<Lua::Function>(internal);
+    Lua::Function* closure = state->getGlobalState().getGC().create<Lua::Function>(fn);
     closure->setEnv(state->getGlobalTable());
     for (const Lua::Value& value : upvalues) {
         closure->addUpvalue(state->getGlobalState().getGC().create<Lua::Upvalue>(value));

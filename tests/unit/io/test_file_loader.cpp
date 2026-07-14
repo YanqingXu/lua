@@ -1,22 +1,12 @@
 #include "../framework/test_framework.hpp"
 #include "common/types.hpp"
 #include "io/file_loader.hpp"
+#include "test_file_fixture.hpp"
 
 #include <cstdio>
-#include <fstream>
-#include <stdexcept>
 
 using namespace Lua;
 using namespace LuaTest;
-
-static void writeTestFile(const Str& path, const Str& content) {
-    std::ofstream file(path, std::ios::binary);
-    if (!file) {
-        throw std::runtime_error("failed to create test file: " + path);
-    }
-
-    file.write(content.data(), static_cast<std::streamsize>(content.size()));
-}
 
 static void removeTestFile(const Str& path) {
     std::remove(path.c_str());
@@ -26,31 +16,17 @@ static void testReadTextFile(TestSuite& suite) {
     const Str path = "build/test_file_loader_text.lua";
     const Str content = "print('hello')\nreturn 42\n";
 
-    writeTestFile(path, content);
-
-    try {
-        const Str result = readWholeFile(path);
-        ASSERT_EQ(suite, content, result, "Text file content should match");
-        removeTestFile(path);
-    } catch (...) {
-        removeTestFile(path);
-        throw;
-    }
+    TemporaryTestFile testFile(path, content);
+    const Str result = readWholeFile(path);
+    ASSERT_EQ(suite, content, result, "Text file content should match");
 }
 
 static void testReadEmptyFile(TestSuite& suite) {
     const Str path = "build/test_file_loader_empty.lua";
 
-    writeTestFile(path, "");
-
-    try {
-        const Str result = readWholeFile(path);
-        ASSERT_TRUE(suite, result.empty(), "Empty file should produce empty string");
-        removeTestFile(path);
-    } catch (...) {
-        removeTestFile(path);
-        throw;
-    }
+    TemporaryTestFile testFile(path, "");
+    const Str result = readWholeFile(path);
+    ASSERT_TRUE(suite, result.empty(), "Empty file should produce empty string");
 }
 
 static void testReadBinaryFile(TestSuite& suite) {
@@ -63,17 +39,10 @@ static void testReadBinaryFile(TestSuite& suite) {
     content.push_back('\0');
     content.push_back('C');
 
-    writeTestFile(path, content);
-
-    try {
-        const Str result = readWholeFile(path);
-        ASSERT_EQ(suite, content.size(), result.size(), "Binary file size should match");
-        ASSERT_EQ(suite, content, result, "Binary file content should preserve null bytes");
-        removeTestFile(path);
-    } catch (...) {
-        removeTestFile(path);
-        throw;
-    }
+    TemporaryTestFile testFile(path, content);
+    const Str result = readWholeFile(path);
+    ASSERT_EQ(suite, content.size(), result.size(), "Binary file size should match");
+    ASSERT_EQ(suite, content, result, "Binary file content should preserve null bytes");
 }
 
 static void testMissingFileThrows(TestSuite& suite) {

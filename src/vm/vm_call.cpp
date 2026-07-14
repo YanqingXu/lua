@@ -212,8 +212,6 @@ bool precallImpl(LuaState* L, i32 funcIndex, i32 nArgs, i32 nResults, const Str&
     Function* func = funcVal.asFunction();
 
     if (func->isCFunction()) {
-        CFunction cfunc = func->getCFunction();
-
         i32 actualNArgs = nArgs;
         if (nArgs < 0) {
             actualNArgs = static_cast<i32>(L->getAbsoluteTop()) - static_cast<i32>(funcPos + 1);
@@ -241,7 +239,7 @@ bool precallImpl(LuaState* L, i32 funcIndex, i32 nArgs, i32 nResults, const Str&
 
         dispatchCallHook(L);
 
-        i32 nReturnValues = cfunc(L);
+        i32 nReturnValues = func->callCFunction(L);
 
         if (L->getStatus() == ThreadStatus::Yield) {
             return false;
