@@ -114,7 +114,17 @@ function Get-TestRunSummary {
     $text = Convert-CommandOutputToText $output
 
     if ($exitCode -ne 0) {
-        Add-Failure $Failures "Dynamic test count check failed: $(Get-RepoRelativePath $ExecutablePath) exited with code $exitCode"
+        $diagnosticLines = @($text -split "\r?\n" | Where-Object {
+            $_ -match "\[FAIL\]" -or $_ -match "\[FAILED\]" -or $_ -match "^Failed:\s*\d+"
+        } | Select-Object -First 40)
+        if ($diagnosticLines.Count -eq 0) {
+            $diagnosticLines = @($text -split "\r?\n" | Select-Object -Last 20)
+        }
+        $diagnosticSuffix = ""
+        if ($diagnosticLines.Count -gt 0) {
+            $diagnosticSuffix = "`n   " + ($diagnosticLines -join "`n   ")
+        }
+        Add-Failure $Failures "Dynamic test count check failed: $(Get-RepoRelativePath $ExecutablePath) exited with code $exitCode$diagnosticSuffix"
         return $null
     }
 

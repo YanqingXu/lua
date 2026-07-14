@@ -1345,6 +1345,15 @@ i32 luaB_loadfile(LuaState* L) {
             displayName = filename;
             sourceName = Str("@") + filename;
 
+            std::error_code directoryError;
+            if (std::filesystem::is_directory(std::filesystem::path(filename), directoryError) && !directoryError) {
+                L->setTop(0);
+                L->pushNil();
+                Str errorMsg = Str("loadfile: cannot read ") + filename;
+                L->pushString(pool.intern(errorMsg.c_str()));
+                return 2;
+            }
+
             std::ifstream file(filename, std::ios::binary | std::ios::ate);
             if (!file.is_open()) {
                 L->setTop(0);

@@ -313,6 +313,12 @@ if(BUILD_TESTING AND LUA_CPP_BUILD_TESTS)
     )
 
     if(LUA_CPP_BUILD_TOOLS)
+        set_tests_properties(official_smoke official_testc PROPERTIES
+            ENVIRONMENT "LUA_TEST_APP_PATH=$<TARGET_FILE:lua_app>"
+        )
+    endif()
+
+    if(LUA_CPP_BUILD_TOOLS)
         add_test(NAME example_hello COMMAND $<TARGET_FILE:lua_app> ${CMAKE_CURRENT_SOURCE_DIR}/examples/hello.lua)
         add_test(NAME example_control_flow COMMAND $<TARGET_FILE:lua_app> ${CMAKE_CURRENT_SOURCE_DIR}/examples/control_flow.lua)
         add_test(NAME example_tables_and_methods COMMAND $<TARGET_FILE:lua_app> ${CMAKE_CURRENT_SOURCE_DIR}/examples/tables_and_methods.lua)

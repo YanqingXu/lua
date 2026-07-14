@@ -65,7 +65,7 @@
 // - 为空串：未指定命令行脚本时进入 REPL
 // - 非空串：未指定命令行脚本时优先执行该 Lua 脚本
 #ifndef LUA_TEST_SCRIPT_PATH
-//#define LUA_TEST_SCRIPT_PATH "G:\\github\\lua\\tests\\lua\\alien_signals\\example.lua"
+// #define LUA_TEST_SCRIPT_PATH "G:\\github\\lua\\tests\\lua\\alien_signals\\example.lua"
 #define LUA_TEST_SCRIPT_PATH ""
 #endif
 
@@ -76,8 +76,6 @@
 #ifndef LUA_TRACE_TEST_SCRIPT_OUTPUT
 #define LUA_TRACE_TEST_SCRIPT_OUTPUT "out.jsonl"
 #endif
-
-
 
 using namespace Lua;
 
@@ -157,8 +155,6 @@ UPtr<LuaState> createLuaState(EngineContext& context) {
     }
 }
 
-
-
 // ============================================================================
 // 命令行参数支持
 // ============================================================================
@@ -209,14 +205,13 @@ void setupArgTable(LuaState* L, std::span<const Str> args, i32 scriptIndex) {
                 }
             }
             argText = adjustedArg.c_str();
-        } else if (i + 1 < scriptIndex &&
-            args[static_cast<usize>(i)] == "-e" &&
-            args[static_cast<usize>(i + 1)] == "--") {
+        } else if (i + 1 < scriptIndex && args[static_cast<usize>(i)] == "-e" &&
+                   args[static_cast<usize>(i + 1)] == "--") {
             adjustedArg = "-e ";
             argText = adjustedArg.c_str();
         }
         GCString* argStr = L->getGlobalState().getStringPool().intern(argText ? argText : "");
-        i32 index = i - scriptIndex;  // Key calculation: same as official Lua
+        i32 index = i - scriptIndex; // Key calculation: same as official Lua
         argTable->set(Value(static_cast<LuaNumber>(index)), Value(argStr));
     }
 
@@ -271,12 +266,24 @@ Str makeLuaStringLiteral(StrView text) {
     Str result = "\"";
     for (char ch : text) {
         switch (ch) {
-            case '\\': result += "\\\\"; break;
-            case '"': result += "\\\""; break;
-            case '\n': result += "\\n"; break;
-            case '\r': result += "\\r"; break;
-            case '\t': result += "\\t"; break;
-            default: result.push_back(ch); break;
+        case '\\':
+            result += "\\\\";
+            break;
+        case '"':
+            result += "\\\"";
+            break;
+        case '\n':
+            result += "\\n";
+            break;
+        case '\r':
+            result += "\\r";
+            break;
+        case '\t':
+            result += "\\t";
+            break;
+        default:
+            result.push_back(ch);
+            break;
         }
     }
     result += "\"";
@@ -332,14 +339,12 @@ void ensureParentDirectory(const Str& filePath) {
 
 bool isPendingAssignmentName(StrView source) {
     usize first = 0;
-    while (first < source.size() &&
-           std::isspace(static_cast<unsigned char>(source[first])) != 0) {
+    while (first < source.size() && std::isspace(static_cast<unsigned char>(source[first])) != 0) {
         first++;
     }
 
     usize last = source.size();
-    while (last > first &&
-           std::isspace(static_cast<unsigned char>(source[last - 1])) != 0) {
+    while (last > first && std::isspace(static_cast<unsigned char>(source[last - 1])) != 0) {
         last--;
     }
 
@@ -441,8 +446,8 @@ int executeScript(LuaState* L, const char* filename, const Vec<Str>& args = {}) 
     try {
         Str source = readWholeFile(filename);
         Str chunkName = Str("@") + filename;
-        return executeSource(L, StrView(source.data(), source.size()),
-                             StrView(chunkName.data(), chunkName.size()), args);
+        return executeSource(L, StrView(source.data(), source.size()), StrView(chunkName.data(), chunkName.size()),
+                             args);
     } catch (const std::exception& e) {
         REPL::reportError(e.what());
         return 1;
@@ -522,8 +527,7 @@ int runQuietInteractive(LuaState* L) {
             inputBuffer += "\n" + line;
         }
 
-        auto prepared =
-            REPL::detail::prepareInputForExecution(L, inputBuffer, bufferIsExpression);
+        auto prepared = REPL::detail::prepareInputForExecution(L, inputBuffer, bufferIsExpression);
         if (!prepared) {
             const ParseError& error = prepared.error();
             if (REPL::detail::isIncompleteInput(error.what()) ||
@@ -722,7 +726,6 @@ int main(int argc, char** argv) {
     SetConsoleOutputCP(CP_UTF8);
     SetConsoleCP(CP_UTF8);
 #endif
-	
 
     try {
         return runApp(parseArgs(argc, argv));

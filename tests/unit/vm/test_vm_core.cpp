@@ -550,11 +550,11 @@ void testIOLibFileRegistryConcurrentOwners(TestSuite& suite) {
         }
     }
 
-    std::array<std::jthread, ownerCount> workers;
+    std::array<std::thread, ownerCount> workers;
     for (usize i = 0; i < ownerCount; ++i) {
-        workers[i] = std::jthread([&, i]() { released[i] = releaseFileHandlesForPath(states[i], paths[i].c_str()); });
+        workers[i] = std::thread([&, i]() { released[i] = releaseFileHandlesForPath(states[i], paths[i].c_str()); });
     }
-    for (std::jthread& worker : workers) {
+    for (std::thread& worker : workers) {
         worker.join();
     }
 

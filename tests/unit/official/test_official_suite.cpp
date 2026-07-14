@@ -174,7 +174,7 @@ gcinfo = gcinfo or function()
 end
 
 arg = arg or {
-    [-1] = "../../../bin/lua_app.exe",
+    [-1] = os.getenv("LUA_TEST_APP_PATH") or "../../../bin/lua_app.exe",
     [0] = "all.lua",
 }
 
