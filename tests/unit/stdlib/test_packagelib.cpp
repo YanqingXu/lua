@@ -45,11 +45,10 @@ using namespace LuaTest;
 
 namespace {
 
-Table* createNativeModuleTable(LuaState* L, const char* kind, f64 value) {
+Table* createNativeModuleTable(ScopedGCRoots& roots, LuaState* L, const char* kind, f64 value) {
     auto& pool = L->getGlobalState().getStringPool();
 
-    Table* table = new Table();
-    L->getGlobalState().getGC().registerObject(table);
+    Table* table = roots.create<Table>();
 
     table->set(Value(pool.intern("kind")), Value(pool.intern(kind)));
     table->set(Value(pool.intern("value")), Value(value));
@@ -64,21 +63,27 @@ Table* createNativeModuleTable(LuaState* L, const char* kind, f64 value) {
 #define LUA_PACKAGE_TEST_EXPORT extern "C" __attribute__((visibility("default")))
 #endif
 
-LUA_PACKAGE_TEST_EXPORT int luaopen_loadlibfixture(LuaState* L) {
+LUA_PACKAGE_TEST_EXPORT int luaopen_loadlibfixture(lua_State* apiState) {
+    auto* L = reinterpret_cast<LuaState*>(apiState);
+    ScopedGCRoots roots(L);
     L->setTop(0);
-    L->pushValue(Value(createNativeModuleTable(L, "loadlib", 701.0)));
+    L->pushValue(Value(createNativeModuleTable(roots, L, "loadlib", 701.0)));
     return 1;
 }
 
-LUA_PACKAGE_TEST_EXPORT int luaopen_pkgdirect(LuaState* L) {
+LUA_PACKAGE_TEST_EXPORT int luaopen_pkgdirect(lua_State* apiState) {
+    auto* L = reinterpret_cast<LuaState*>(apiState);
+    ScopedGCRoots roots(L);
     L->setTop(0);
-    L->pushValue(Value(createNativeModuleTable(L, "direct", 702.0)));
+    L->pushValue(Value(createNativeModuleTable(roots, L, "direct", 702.0)));
     return 1;
 }
 
-LUA_PACKAGE_TEST_EXPORT int luaopen_pkgroot_child(LuaState* L) {
+LUA_PACKAGE_TEST_EXPORT int luaopen_pkgroot_child(lua_State* apiState) {
+    auto* L = reinterpret_cast<LuaState*>(apiState);
+    ScopedGCRoots roots(L);
     L->setTop(0);
-    L->pushValue(Value(createNativeModuleTable(L, "allinone", 703.0)));
+    L->pushValue(Value(createNativeModuleTable(roots, L, "allinone", 703.0)));
     return 1;
 }
 

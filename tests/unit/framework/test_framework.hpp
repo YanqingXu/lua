@@ -16,6 +16,9 @@
 #include "test_framework/test_framework.hpp"
 
 #include "core/value.hpp"
+#include "gc/garbage_collector.hpp"
+#include <utility>
+#include <vector>
 
 namespace Lua {
 class LuaState;
@@ -38,6 +41,38 @@ using TestRegistry = TestFramework::TestRegistry;
 
 using StdLibOpenFunction = void (*)(Lua::LuaState*);
 
+class ScopedGCRoots {
+public:
+    explicit ScopedGCRoots(Lua::LuaState* state);
+    ~ScopedGCRoots();
+
+    ScopedGCRoots(const ScopedGCRoots&) = delete;
+    ScopedGCRoots& operator=(const ScopedGCRoots&) = delete;
+    ScopedGCRoots(ScopedGCRoots&&) = delete;
+    ScopedGCRoots& operator=(ScopedGCRoots&&) = delete;
+
+    template <typename T, typename... Args> T* create(Args&&... args) {
+        T* object = gc_.createRoot<T>(std::forward<Args>(args)...);
+        try {
+            roots_.push_back(object);
+        } catch (...) {
+            gc_.removeRoot(object);
+            gc_.destroyManagedObject(object);
+            throw;
+        }
+        return object;
+    }
+
+    // Acquire a root only for an unrooted object owned by this scope's
+    // collector. An already-rooted object's existing owner remains
+    // responsible for keeping that root alive.
+    void protect(Lua::GCObject* object);
+
+private:
+    Lua::GarbageCollector& gc_;
+    std::vector<Lua::GCObject*> roots_;
+};
+
 class LuaStdLibTestContext {
 public:
     explicit LuaStdLibTestContext(StdLibOpenFunction openFunc = nullptr);
@@ -48,7 +83,9 @@ public:
     LuaStdLibTestContext(LuaStdLibTestContext&&) = delete;
     LuaStdLibTestContext& operator=(LuaStdLibTestContext&&) = delete;
 
-    Lua::LuaState* getState() const { return state_; }
+    Lua::LuaState* getState() const {
+        return state_;
+    }
 
     void clearStack() const;
 
@@ -63,25 +100,24 @@ private:
 };
 
 // 兼容性断言宏 - 委托到通用框架的宏
-#define ASSERT_TRUE(suite, condition, testName) \
-    do { \
-        bool bool_result = (condition); \
-        suite.addResult(LuaTest::TestResult(testName, bool_result, bool_result ? "" : "Expected true")); \
-    } while(0)
+#define ASSERT_TRUE(suite, condition, testName)                                                                        \
+    do {                                                                                                               \
+        bool bool_result = (condition);                                                                                \
+        suite.addResult(LuaTest::TestResult(testName, bool_result, bool_result ? "" : "Expected true"));               \
+    } while (0)
 
-#define ASSERT_FALSE(suite, condition, testName) \
-    do { \
-        bool bool_result = !(condition); \
-        suite.addResult(LuaTest::TestResult(testName, bool_result, bool_result ? "" : "Expected false")); \
-    } while(0)
+#define ASSERT_FALSE(suite, condition, testName)                                                                       \
+    do {                                                                                                               \
+        bool bool_result = !(condition);                                                                               \
+        suite.addResult(LuaTest::TestResult(testName, bool_result, bool_result ? "" : "Expected false"));              \
+    } while (0)
 
-#define ASSERT_EQ(suite, expected, actual, testName) \
-    do { \
-        bool bool_result = ((expected) == (actual)); \
-        suite.addResult(LuaTest::TestResult(testName, bool_result, bool_result ? "" : "Values not equal")); \
-    } while(0)
+#define ASSERT_EQ(suite, expected, actual, testName)                                                                   \
+    do {                                                                                                               \
+        bool bool_result = ((expected) == (actual));                                                                   \
+        suite.addResult(LuaTest::TestResult(testName, bool_result, bool_result ? "" : "Values not equal"));            \
+    } while (0)
 
 } // namespace LuaTest
 
 #endif // LUA_TEST_FRAMEWORK_HPP
-

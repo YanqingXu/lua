@@ -29,6 +29,14 @@ using namespace LuaTest;
 
 namespace {
 
+Table* createTestTable(ScopedGCRoots& roots) {
+    return roots.create<Table>();
+}
+
+Function* createTestFunction(ScopedGCRoots& roots, CFunction function) {
+    return roots.create<Function>(function);
+}
+
 bool runLua(LuaState* L, const char* code) {
     try {
         Parser parser(code);
@@ -40,10 +48,12 @@ bool runLua(LuaState* L, const char* code) {
         StringPool& pool = StringPool::getInstance();
         CodeGenerator codegen(&pool);
         Proto* proto = codegen.generate(chunk, "metamethod_test");
-        if (!proto) return false;
+        if (!proto)
+            return false;
 
-        Function* func = new Function(proto);
-        L->getGlobalState().getGC().registerObject(func);
+        ScopedGCRoots roots(L);
+        roots.protect(proto);
+        Function* func = roots.create<Function>(proto);
         func->setEnv(L->getGlobalTable());
         VM::execute(L, func);
         return true;
@@ -62,7 +72,7 @@ bool runLua(LuaState* L, const char* code) {
  * @brief __add元方法的C函数实现
  *
  * 实现向量加法：{x1, y1} + {x2, y2} = {x1+x2, y1+y2}
- * 
+ *
  * 注意：在当前实现中，callTMWithResult会推入[func][arg1][arg2]到栈
  * 所以参数实际在savedTop+1和savedTop+2位置
  * 但由于我们不知道savedTop，需要从栈顶往回找参数
@@ -89,15 +99,15 @@ static i32 vector_add(LuaState* L) {
     f64 y2 = t2->getArray(2).asNumber();
 
     // 创建结果表
-    Table* result = new Table();
-    L->getGlobalState().getGC().registerObject(result);
+    ScopedGCRoots roots(L);
+    Table* result = createTestTable(roots);
     result->setArray(1, Value(x1 + x2));
     result->setArray(2, Value(y1 + y2));
 
     // 推入返回值
     L->pushTable(result);
 
-    return 1;  // 返回1个值
+    return 1; // 返回1个值
 }
 
 // =====================================================================
@@ -108,18 +118,22 @@ static i32 vector_add(LuaState* L) {
  * @brief 测试元方法查找机制
  */
 void testMetamethodLookup(TestSuite& suite) {
+    UPtr<LuaState> state = LuaState::create();
+    LuaState* L = state.get();
+    ScopedGCRoots roots(L);
+
     // 创建元表
-    Table* metatable = new Table();
+    Table* metatable = createTestTable(roots);
 
     // 设置__add元方法
     // 使用StringPool获取内部化字符串，确保与 getMetamethod 中的查找使用相同的指针
     StringPool& pool = GlobalState::getInstance().getStringPool();
     GCString* addName = pool.intern("__add");
-    Function* addFunc = new Function(vector_add);
+    Function* addFunc = createTestFunction(roots, vector_add);
     metatable->set(Value(addName), Value(addFunc));
 
     // 创建表并设置元表
-    Table* t = new Table();
+    Table* t = createTestTable(roots);
     t->setMetatable(metatable);
 
     // 测试元方法查找
@@ -136,33 +150,36 @@ void testMetamethodLookup(TestSuite& suite) {
  */
 void testAddMetamethod(TestSuite& suite) {
     // 创建Lua状态
-    LuaState* L = LuaState::newState();
+    UPtr<LuaState> state = LuaState::create();
+    LuaState* L = state.get();
+    ScopedGCRoots roots(L);
 
     // 创建元表
-    Table* metatable = new Table();
+    Table* metatable = createTestTable(roots);
 
     // 设置__add元方法
     // 使用StringPool获取内部化字符串
     StringPool& pool = GlobalState::getInstance().getStringPool();
     GCString* addName = pool.intern("__add");
-    Function* addFunc = new Function(vector_add);
+    Function* addFunc = createTestFunction(roots, vector_add);
     metatable->set(Value(addName), Value(addFunc));
 
     // 创建两个向量表
-    Table* v1 = new Table();
+    Table* v1 = createTestTable(roots);
     v1->setArray(1, Value(1.0));
     v1->setArray(2, Value(2.0));
     v1->setMetatable(metatable);
 
-    Table* v2 = new Table();
+    Table* v2 = createTestTable(roots);
     v2->setArray(1, Value(3.0));
     v2->setArray(2, Value(4.0));
     v2->setMetatable(metatable);
 
+    (void)L->getGlobalState().getGC().collect(L);
+
     // 测试元方法调用
     Value addResult;
-    bool success = callBinaryTM(L, Value(v1), Value(v2),
-                               addResult, TMS::TM_ADD);
+    bool success = callBinaryTM(L, Value(v1), Value(v2), addResult, TMS::TM_ADD);
 
     ASSERT_TRUE(suite, success, "__add metamethod should be called");
     ASSERT_TRUE(suite, addResult.isTable(), "Result should be a table");
@@ -179,38 +196,40 @@ void testAddMetamethod(TestSuite& suite) {
  */
 void testMetamethodFallback(TestSuite& suite) {
     // 创建Lua状态
-    LuaState* L = LuaState::newState();
+    UPtr<LuaState> state = LuaState::create();
+    LuaState* L = state.get();
+    ScopedGCRoots roots(L);
 
     // 创建元表（只有左操作数有元方法）
-    Table* leftMT = new Table();
+    Table* leftMT = createTestTable(roots);
     // 使用StringPool获取内部化字符串
     StringPool& pool = GlobalState::getInstance().getStringPool();
     GCString* addName = pool.intern("__add");
-    Function* addFunc = new Function(vector_add);
+    Function* addFunc = createTestFunction(roots, vector_add);
     leftMT->set(Value(addName), Value(addFunc));
 
     // 创建左操作数（有元表）
-    Table* left = new Table();
+    Table* left = createTestTable(roots);
     left->setArray(1, Value(1.0));
     left->setArray(2, Value(2.0));
     left->setMetatable(leftMT);
 
     // 创建右操作数（无元表）
-    Table* right = new Table();
+    Table* right = createTestTable(roots);
     right->setArray(1, Value(3.0));
     right->setArray(2, Value(4.0));
 
     // 测试：应该使用左操作数的元方法
     Value fallbackResult;
-    bool success = callBinaryTM(L, Value(left), Value(right),
-                               fallbackResult, TMS::TM_ADD);
+    bool success = callBinaryTM(L, Value(left), Value(right), fallbackResult, TMS::TM_ADD);
 
     ASSERT_TRUE(suite, success, "Should use left operand's metamethod");
     ASSERT_TRUE(suite, fallbackResult.isTable(), "Result should be a table");
 }
 
 void testLuaFunctionMetamethodsAndBasicTypeMetatable(TestSuite& suite) {
-    LuaState* L = LuaState::newState();
+    UPtr<LuaState> state = LuaState::create();
+    LuaState* L = state.get();
     StandardLibrary::openAll(L);
 
     bool ok = runLua(L, R"lua(
@@ -243,18 +262,17 @@ void testLuaFunctionMetamethodsAndBasicTypeMetatable(TestSuite& suite) {
     ASSERT_TRUE(suite, ok, "Lua function metamethods should execute");
     ASSERT_EQ(suite, 42.0, L->getGlobal("_sum").asNumber(), "Lua __add result");
     ASSERT_TRUE(suite, L->getGlobal("_indexed").isString(), "Lua __index result is string");
-    ASSERT_EQ(suite, std::string("fallback:missing"),
-              std::string(L->getGlobal("_indexed").asString()->c_str()),
+    ASSERT_EQ(suite, std::string("fallback:missing"), std::string(L->getGlobal("_indexed").asString()->c_str()),
               "Lua __index fallback result");
     ASSERT_EQ(suite, 42.0, L->getGlobal("_newindex").asNumber(), "Lua __newindex side effect");
     ASSERT_EQ(suite, 15.0, L->getGlobal("_call").asNumber(), "Lua __call result");
-    ASSERT_EQ(suite, std::string("bcd"),
-              std::string(L->getGlobal("_string_method").asString()->c_str()),
+    ASSERT_EQ(suite, std::string("bcd"), std::string(L->getGlobal("_string_method").asString()->c_str()),
               "string metatable __index enables method syntax");
 }
 
 void testRuntimeMetamethodOpcodeExecution(TestSuite& suite) {
-    LuaState* L = LuaState::newState();
+    UPtr<LuaState> state = LuaState::create();
+    LuaState* L = state.get();
     StandardLibrary::openAll(L);
 
     bool ok = runLua(L, R"lua(
@@ -299,8 +317,7 @@ void testRuntimeMetamethodOpcodeExecution(TestSuite& suite) {
     ASSERT_EQ(suite, 2.0, L->getGlobal("_runtime_mod").asNumber(), "runtime __mod opcode result");
     ASSERT_EQ(suite, 53.0, L->getGlobal("_runtime_pow").asNumber(), "runtime __pow opcode result");
     ASSERT_TRUE(suite, L->getGlobal("_runtime_concat").isString(), "runtime __concat result should be string");
-    ASSERT_EQ(suite, std::string("cat:5:3"),
-              std::string(L->getGlobal("_runtime_concat").asString()->c_str()),
+    ASSERT_EQ(suite, std::string("cat:5:3"), std::string(L->getGlobal("_runtime_concat").asString()->c_str()),
               "runtime __concat opcode result");
     ASSERT_EQ(suite, 42.0, L->getGlobal("_runtime_tailcall_call").asNumber(),
               "tailcall through __call metamethod should return the metamethod result");
@@ -317,8 +334,5 @@ void registerMetamethodArithTests() {
     registry.registerTest("Metamethod", "Fallback", testMetamethodFallback);
     registry.registerTest("Metamethod", "Lua function metamethods and basic type metatable",
                           testLuaFunctionMetamethodsAndBasicTypeMetatable);
-    registry.registerTest("Metamethod", "Runtime metamethod opcode execution",
-                          testRuntimeMetamethodOpcodeExecution);
+    registry.registerTest("Metamethod", "Runtime metamethod opcode execution", testRuntimeMetamethodOpcodeExecution);
 }
-
-

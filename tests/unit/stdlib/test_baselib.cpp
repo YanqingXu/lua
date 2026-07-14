@@ -598,7 +598,8 @@ void testPcallWrapper(TestSuite& suite) {
 
     // 测试成功调用
     // 创建一个简单的函数：function() return 42 end
-    Proto* proto = new Proto();
+    ScopedGCRoots roots(L);
+    Proto* proto = roots.create<Proto>();
     proto->setMaxStackSize(2);
 
     // LOADK R(0) 42
@@ -606,9 +607,10 @@ void testPcallWrapper(TestSuite& suite) {
     // RETURN R(0) 2 (返回1个值)
     proto->addInstruction(CREATE_ABC(OpCode::RETURN, 0, 2, 0));
 
-    Function* testFunc = new Function(proto);
-    L->getGlobalState().getGC().registerObject(testFunc);
+    Function* testFunc = roots.create<Function>(proto);
     testFunc->setEnv(L->getGlobalTable());
+
+    (void)L->getGlobalState().getGC().collect(L);
 
     i32 ret = ctx.invoke("pcall", [&](LuaState* s) { s->pushValue(Value(testFunc)); });
 
@@ -773,25 +775,24 @@ void testXpcallWrapper(TestSuite& suite) {
     LuaState* L = ctx.getState();
 
     // 创建测试函数
-    Proto* proto = new Proto();
+    ScopedGCRoots roots(L);
+    Proto* proto = roots.create<Proto>();
     proto->setMaxStackSize(2);
     proto->addInstruction(CREATE_ABx(OpCode::LOADK, 0, static_cast<i32>(proto->addConstant(Value(100.0)))));
     proto->addInstruction(CREATE_ABC(OpCode::RETURN, 0, 2, 0));
 
-    Function* testFunc = new Function(proto);
-    L->getGlobalState().getGC().registerObject(testFunc);
+    Function* testFunc = roots.create<Function>(proto);
     testFunc->setEnv(L->getGlobalTable());
 
     // 创建错误处理器（返回固定字符串）
-    Proto* errProto = new Proto();
+    Proto* errProto = roots.create<Proto>();
     errProto->setMaxStackSize(2);
     auto& pool = L->getGlobalState().getStringPool();
     errProto->addInstruction(
         CREATE_ABx(OpCode::LOADK, 0, static_cast<i32>(errProto->addConstant(Value(pool.intern("error handled"))))));
     errProto->addInstruction(CREATE_ABC(OpCode::RETURN, 0, 2, 0));
 
-    Function* errFunc = new Function(errProto);
-    L->getGlobalState().getGC().registerObject(errFunc);
+    Function* errFunc = roots.create<Function>(errProto);
     errFunc->setEnv(L->getGlobalTable());
 
     // 测试成功调用

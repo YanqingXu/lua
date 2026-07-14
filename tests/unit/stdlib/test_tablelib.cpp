@@ -1,10 +1,10 @@
 /**
  * @file test_tablelib.cpp
  * @brief Table Library Function Tests - 表库函数测试
- * 
+ *
  * 全面测试 Lua table 库的实现。
  * 测试覆盖正常情况、边界情况和错误条件。
- * 
+ *
  * @author Lua C++ Project
  * @date 2026-01-23
  */
@@ -45,8 +45,9 @@ bool runLua(LuaState* L, const char* code) {
             return false;
         }
 
-        Function* func = new Function(proto);
-        L->getGlobalState().getGC().registerObject(func);
+        ScopedGCRoots roots(L);
+        roots.protect(proto);
+        Function* func = roots.create<Function>(proto);
         func->setEnv(L->getGlobalTable());
         VM::execute(L, func);
         return true;
@@ -73,30 +74,30 @@ i32 callTableFunc(LuaState* L, const char* funcName, const std::function<void(Lu
     if (!tableTable.isTable()) {
         return -1;
     }
-    
+
     // 从表中获取函数
     Table* tblTable = tableTable.asTable();
     GCString* key = L->getGlobalState().getStringPool().intern(funcName);
     Value func = tblTable->get(Value(key));
-    
+
     if (!func.isFunction()) {
         return -1;
     }
-    
+
     // 清空栈并压入参数
     L->getStack().clear();
     L->setAbsoluteTop(0);
-    
+
     if (pushArgs) {
         pushArgs(L);
     }
-    
+
     // 调用 C 函数
     Function* f = func.asFunction();
     if (f->isCFunction()) {
         return f->getCFunction()(L);
     }
-    
+
     return -1;
 }
 
@@ -109,32 +110,33 @@ i32 callTableFunc(LuaState* L, const char* funcName, const std::function<void(Lu
 void testTableInsert(TestSuite& suite) {
     LuaStdLibTestContext ctx(openTableLib);
     LuaState* L = ctx.getState();
-    
+    ScopedGCRoots roots(L);
+
     // 检查 table 表是否存在
     Value tableTable = ctx.getGlobal("table");
     if (!tableTable.isTable()) {
         ASSERT_TRUE(suite, false, "table table exists");
         return;
     }
-    
+
     // 测试 1: 在末尾插入
-    Table* t1 = new Table();
+    Table* t1 = roots.create<Table>();
     t1->set(Value(1.0), Value(10.0));
     t1->set(Value(2.0), Value(20.0));
-    
+
     i32 ret = callTableFunc(L, "insert", [&](LuaState* s) {
         s->pushValue(Value(t1));
         s->pushNumber(30.0);
     });
     ASSERT_EQ(suite, ret, 0, "insert returns 0");
     ASSERT_EQ(suite, 30.0, t1->get(Value(3.0)).asNumber(), "insert at end");
-    
+
     // 测试 2: 在指定位置插入
-    Table* t2 = new Table();
+    Table* t2 = roots.create<Table>();
     t2->set(Value(1.0), Value(10.0));
     t2->set(Value(2.0), Value(20.0));
     t2->set(Value(3.0), Value(30.0));
-    
+
     ret = callTableFunc(L, "insert", [&](LuaState* s) {
         s->pushValue(Value(t2));
         s->pushNumber(2.0);  // position
@@ -152,26 +154,25 @@ void testTableInsert(TestSuite& suite) {
 void testTableRemove(TestSuite& suite) {
     LuaStdLibTestContext ctx(openTableLib);
     LuaState* L = ctx.getState();
-    
+    ScopedGCRoots roots(L);
+
     // 测试 1: 移除末尾元素
-    Table* t1 = new Table();
+    Table* t1 = roots.create<Table>();
     t1->set(Value(1.0), Value(10.0));
     t1->set(Value(2.0), Value(20.0));
     t1->set(Value(3.0), Value(30.0));
-    
-    i32 ret = callTableFunc(L, "remove", [&](LuaState* s) {
-        s->pushValue(Value(t1));
-    });
+
+    i32 ret = callTableFunc(L, "remove", [&](LuaState* s) { s->pushValue(Value(t1)); });
     ASSERT_EQ(suite, ret, 1, "remove returns 1");
     ASSERT_EQ(suite, 30.0, L->top().asNumber(), "removed value is 30");
     ASSERT_TRUE(suite, t1->get(Value(3.0)).isNil(), "element removed");
-    
+
     // 测试 2: 移除指定位置元素
-    Table* t2 = new Table();
+    Table* t2 = roots.create<Table>();
     t2->set(Value(1.0), Value(10.0));
     t2->set(Value(2.0), Value(20.0));
     t2->set(Value(3.0), Value(30.0));
-    
+
     ret = callTableFunc(L, "remove", [&](LuaState* s) {
         s->pushValue(Value(t2));
         s->pushNumber(2.0);
@@ -187,21 +188,23 @@ void testTableRemove(TestSuite& suite) {
 void testTableConcat(TestSuite& suite) {
     LuaStdLibTestContext ctx(openTableLib);
     LuaState* L = ctx.getState();
+    ScopedGCRoots roots(L);
 
     // 测试 1: 基本连接
-    Table* t1 = new Table();
+    Table* t1 = roots.create<Table>();
     t1->set(Value(1.0), Value(L->getGlobalState().getStringPool().intern("hello")));
     t1->set(Value(2.0), Value(L->getGlobalState().getStringPool().intern("world")));
 
-    i32 ret = callTableFunc(L, "concat", [&](LuaState* s) {
-        s->pushValue(Value(t1));
-    });
+    i32 ret = callTableFunc(L, "concat", [&](LuaState* s) { s->pushValue(Value(t1)); });
     ASSERT_EQ(suite, ret, 1, "concat returns 1");
     Value result = L->top();
     if (result.isString()) {
         std::string str = result.asString()->c_str();
         ASSERT_TRUE(suite, str == "helloworld", "concat without separator");
     }
+
+    ctx.clearStack();
+    (void)L->getGlobalState().getGC().collect(L);
 
     // 测试 2: 带分隔符连接
     ret = callTableFunc(L, "concat", [&](LuaState* s) {
@@ -215,7 +218,7 @@ void testTableConcat(TestSuite& suite) {
     }
 
     // 测试 3: 数字连接
-    Table* t2 = new Table();
+    Table* t2 = roots.create<Table>();
     t2->set(Value(1.0), Value(1.0));
     t2->set(Value(2.0), Value(2.0));
     t2->set(Value(3.0), Value(3.0));
@@ -231,7 +234,7 @@ void testTableConcat(TestSuite& suite) {
     }
 
     // 测试 4: 保留字符串和分隔符中的内嵌 NUL
-    Table* t3 = new Table();
+    Table* t3 = roots.create<Table>();
     auto& pool = L->getGlobalState().getStringPool();
     const char s1[] = {'\0'};
     const char s2[] = {'\0', '\1'};
@@ -264,30 +267,27 @@ void testTableConcat(TestSuite& suite) {
 void testTableSort(TestSuite& suite) {
     LuaStdLibTestContext ctx(openTableLib);
     LuaState* L = ctx.getState();
+    ScopedGCRoots roots(L);
 
     // 测试 1: 数字排序
-    Table* t1 = new Table();
+    Table* t1 = roots.create<Table>();
     t1->set(Value(1.0), Value(3.0));
     t1->set(Value(2.0), Value(1.0));
     t1->set(Value(3.0), Value(2.0));
 
-    i32 ret = callTableFunc(L, "sort", [&](LuaState* s) {
-        s->pushValue(Value(t1));
-    });
+    i32 ret = callTableFunc(L, "sort", [&](LuaState* s) { s->pushValue(Value(t1)); });
     ASSERT_EQ(suite, ret, 0, "sort returns 0");
     ASSERT_EQ(suite, 1.0, t1->get(Value(1.0)).asNumber(), "sorted[1] = 1");
     ASSERT_EQ(suite, 2.0, t1->get(Value(2.0)).asNumber(), "sorted[2] = 2");
     ASSERT_EQ(suite, 3.0, t1->get(Value(3.0)).asNumber(), "sorted[3] = 3");
 
     // 测试 2: 字符串排序
-    Table* t2 = new Table();
+    Table* t2 = roots.create<Table>();
     t2->set(Value(1.0), Value(L->getGlobalState().getStringPool().intern("c")));
     t2->set(Value(2.0), Value(L->getGlobalState().getStringPool().intern("a")));
     t2->set(Value(3.0), Value(L->getGlobalState().getStringPool().intern("b")));
 
-    ret = callTableFunc(L, "sort", [&](LuaState* s) {
-        s->pushValue(Value(t2));
-    });
+    ret = callTableFunc(L, "sort", [&](LuaState* s) { s->pushValue(Value(t2)); });
     Value v1 = t2->get(Value(1.0));
     Value v2 = t2->get(Value(2.0));
     Value v3 = t2->get(Value(3.0));
@@ -429,6 +429,7 @@ void testTableSortUsesLtMetamethodByDefault(TestSuite& suite) {
 void testTableMaxn(TestSuite& suite) {
     LuaStdLibTestContext ctx(openTableLib);
     LuaState* L = ctx.getState();
+    ScopedGCRoots roots(L);
 
     Value tableValue = ctx.getGlobal("table");
     ASSERT_TRUE(suite, tableValue.isTable(), "table table exists");
@@ -437,26 +438,22 @@ void testTableMaxn(TestSuite& suite) {
         ASSERT_TRUE(suite, tableValue.asTable()->get(Value(key)).isFunction(), "table.maxn exists");
     }
 
-    Table* t = new Table();
+    Table* t = roots.create<Table>();
     t->set(Value(1.0), Value(10.0));
     t->set(Value(5.0), Value(50.0));
     t->set(Value(12.0), Value(120.0));
     t->set(Value(-3.0), Value(300.0));
     t->set(Value(10.5), Value(105.0));
 
-    i32 ret = callTableFunc(L, "maxn", [&](LuaState* s) {
-        s->pushValue(Value(t));
-    });
+    i32 ret = callTableFunc(L, "maxn", [&](LuaState* s) { s->pushValue(Value(t)); });
     ASSERT_EQ(suite, 1, ret, "maxn returns one value");
     ASSERT_TRUE(suite, L->top().isNumber(), "maxn returns number");
     if (L->top().isNumber()) {
         ASSERT_EQ(suite, 12.0, L->top().asNumber(), "maxn returns largest positive numeric index");
     }
 
-    Table* empty = new Table();
-    ret = callTableFunc(L, "maxn", [&](LuaState* s) {
-        s->pushValue(Value(empty));
-    });
+    Table* empty = roots.create<Table>();
+    ret = callTableFunc(L, "maxn", [&](LuaState* s) { s->pushValue(Value(empty)); });
     ASSERT_EQ(suite, 1, ret, "maxn empty returns one value");
     ASSERT_TRUE(suite, L->top().isNumber(), "maxn empty returns number");
     if (L->top().isNumber()) {
@@ -467,6 +464,7 @@ void testTableMaxn(TestSuite& suite) {
 void testTableGetnCompatibility(TestSuite& suite) {
     LuaStdLibTestContext ctx(openTableLib);
     LuaState* L = ctx.getState();
+    ScopedGCRoots roots(L);
 
     Value tableValue = ctx.getGlobal("table");
     ASSERT_TRUE(suite, tableValue.isTable(), "table table exists for getn");
@@ -475,14 +473,12 @@ void testTableGetnCompatibility(TestSuite& suite) {
         ASSERT_TRUE(suite, tableValue.asTable()->get(Value(key)).isFunction(), "table.getn exists");
     }
 
-    Table* t = new Table();
+    Table* t = roots.create<Table>();
     t->set(Value(1.0), Value(10.0));
     t->set(Value(2.0), Value(20.0));
     t->set(Value(3.0), Value(30.0));
 
-    i32 ret = callTableFunc(L, "getn", [&](LuaState* s) {
-        s->pushValue(Value(t));
-    });
+    i32 ret = callTableFunc(L, "getn", [&](LuaState* s) { s->pushValue(Value(t)); });
     ASSERT_EQ(suite, 1, ret, "getn returns one value");
     ASSERT_TRUE(suite, L->top().isNumber(), "getn returns number");
     if (L->top().isNumber()) {
@@ -528,16 +524,15 @@ void testTablePack(TestSuite& suite) {
 void testTableUnpack(TestSuite& suite) {
     LuaStdLibTestContext ctx(openTableLib);
     LuaState* L = ctx.getState();
+    ScopedGCRoots roots(L);
 
     // 测试 1: 解包整个表
-    Table* t1 = new Table();
+    Table* t1 = roots.create<Table>();
     t1->set(Value(1.0), Value(10.0));
     t1->set(Value(2.0), Value(20.0));
     t1->set(Value(3.0), Value(30.0));
 
-    i32 ret = callTableFunc(L, "unpack", [&](LuaState* s) {
-        s->pushValue(Value(t1));
-    });
+    i32 ret = callTableFunc(L, "unpack", [&](LuaState* s) { s->pushValue(Value(t1)); });
     ASSERT_EQ(suite, ret, 3, "unpack returns 3 values");
     ASSERT_EQ(suite, 30.0, L->at(-1).asNumber(), "unpack[3] = 30");
     ASSERT_EQ(suite, 20.0, L->at(-2).asNumber(), "unpack[2] = 20");
@@ -546,8 +541,8 @@ void testTableUnpack(TestSuite& suite) {
     // 测试 2: 解包指定范围
     ret = callTableFunc(L, "unpack", [&](LuaState* s) {
         s->pushValue(Value(t1));
-        s->pushNumber(2.0);  // start
-        s->pushNumber(3.0);  // end
+        s->pushNumber(2.0); // start
+        s->pushNumber(3.0); // end
     });
     ASSERT_EQ(suite, ret, 2, "unpack returns 2 values");
     ASSERT_EQ(suite, 30.0, L->at(-1).asNumber(), "unpack[2] = 30");
@@ -561,25 +556,26 @@ void testTableUnpack(TestSuite& suite) {
 void testTableMove(TestSuite& suite) {
     LuaStdLibTestContext ctx(openTableLib);
     LuaState* L = ctx.getState();
+    ScopedGCRoots roots(L);
 
     // 测试 1: 在同一个表内向前移动
-    Table* t1 = new Table();
+    Table* t1 = roots.create<Table>();
     t1->set(Value(1.0), Value(10.0));
     t1->set(Value(2.0), Value(20.0));
     t1->set(Value(3.0), Value(30.0));
 
     i32 ret = callTableFunc(L, "move", [&](LuaState* s) {
         s->pushValue(Value(t1));
-        s->pushNumber(1.0);  // from
-        s->pushNumber(2.0);  // to
-        s->pushNumber(3.0);  // target position
+        s->pushNumber(1.0); // from
+        s->pushNumber(2.0); // to
+        s->pushNumber(3.0); // target position
     });
     ASSERT_EQ(suite, ret, 1, "move returns 1");
     ASSERT_EQ(suite, 10.0, t1->get(Value(3.0)).asNumber(), "move[3] = 10");
     ASSERT_EQ(suite, 20.0, t1->get(Value(4.0)).asNumber(), "move[4] = 20");
 
     // 测试 2: 在同一个表内向后移动
-    Table* t2 = new Table();
+    Table* t2 = roots.create<Table>();
     t2->set(Value(1.0), Value(10.0));
     t2->set(Value(2.0), Value(20.0));
     t2->set(Value(3.0), Value(30.0));
@@ -587,26 +583,26 @@ void testTableMove(TestSuite& suite) {
 
     ret = callTableFunc(L, "move", [&](LuaState* s) {
         s->pushValue(Value(t2));
-        s->pushNumber(3.0);  // from
-        s->pushNumber(4.0);  // to
-        s->pushNumber(1.0);  // target position
+        s->pushNumber(3.0); // from
+        s->pushNumber(4.0); // to
+        s->pushNumber(1.0); // target position
     });
     ASSERT_EQ(suite, 30.0, t2->get(Value(1.0)).asNumber(), "move backward[1] = 30");
     ASSERT_EQ(suite, 40.0, t2->get(Value(2.0)).asNumber(), "move backward[2] = 40");
 
     // 测试 3: 移动到不同的表
-    Table* t3 = new Table();
+    Table* t3 = roots.create<Table>();
     t3->set(Value(1.0), Value(100.0));
     t3->set(Value(2.0), Value(200.0));
 
-    Table* t4 = new Table();
+    Table* t4 = roots.create<Table>();
 
     ret = callTableFunc(L, "move", [&](LuaState* s) {
         s->pushValue(Value(t3));
-        s->pushNumber(1.0);  // from
-        s->pushNumber(2.0);  // to
-        s->pushNumber(1.0);  // target position
-        s->pushValue(Value(t4));  // target table
+        s->pushNumber(1.0);      // from
+        s->pushNumber(2.0);      // to
+        s->pushNumber(1.0);      // target position
+        s->pushValue(Value(t4)); // target table
     });
     ASSERT_EQ(suite, 100.0, t4->get(Value(1.0)).asNumber(), "move to different table[1] = 100");
     ASSERT_EQ(suite, 200.0, t4->get(Value(2.0)).asNumber(), "move to different table[2] = 200");
@@ -640,8 +636,7 @@ void testTableForeachCompatibility(TestSuite& suite) {
     ASSERT_TRUE(suite, ok, "table.foreach Lua callback compatibility runs");
     ASSERT_EQ(suite, 90.0, getGlobalNumber(L, "foreach_value"), "foreach returns first callback value");
     ASSERT_TRUE(suite, L->getGlobal("foreach_nil").isNil(), "foreach returns nil when callback never returns");
-    ASSERT_TRUE(suite, L->getGlobal("foreach_empty_ok").isBoolean()
-                       && L->getGlobal("foreach_empty_ok").asBoolean(),
+    ASSERT_TRUE(suite, L->getGlobal("foreach_empty_ok").isBoolean() && L->getGlobal("foreach_empty_ok").asBoolean(),
                 "foreach does not call callback for empty table");
     delete L;
 }
@@ -671,14 +666,14 @@ void testTableForeachiCompatibility(TestSuite& suite) {
     )lua");
 
     ASSERT_TRUE(suite, ok, "table.foreachi Lua callback compatibility runs");
-    ASSERT_TRUE(suite, L->getGlobal("foreachi_hash_only_ok").isBoolean()
-                       && L->getGlobal("foreachi_hash_only_ok").asBoolean(),
+    ASSERT_TRUE(suite,
+                L->getGlobal("foreachi_hash_only_ok").isBoolean() && L->getGlobal("foreachi_hash_only_ok").asBoolean(),
                 "foreachi ignores hash-only fields");
     ASSERT_EQ(suite, 10.0, getGlobalNumber(L, "foreachi_seen_1"), "foreachi visits index 1");
     ASSERT_EQ(suite, 30.0, getGlobalNumber(L, "foreachi_seen_3"), "foreachi visits index 3");
-    ASSERT_TRUE(suite, L->getGlobal("foreachi_seen_4_is_nil").isBoolean()
-                       && L->getGlobal("foreachi_seen_4_is_nil").asBoolean(),
-                "foreachi passes nil array slots through the callback");
+    ASSERT_TRUE(
+        suite, L->getGlobal("foreachi_seen_4_is_nil").isBoolean() && L->getGlobal("foreachi_seen_4_is_nil").asBoolean(),
+        "foreachi passes nil array slots through the callback");
     ASSERT_EQ(suite, 50.0, getGlobalNumber(L, "foreachi_seen_5"), "foreachi visits final array index");
     Value returned = L->getGlobal("foreachi_value");
     ASSERT_TRUE(suite, returned.isString() && std::string(returned.asString()->c_str()) == "b",
@@ -710,7 +705,3 @@ void registerTableLibTests() {
     registry.registerTest(kSuiteName, "table.foreach compatibility", testTableForeachCompatibility);
     registry.registerTest(kSuiteName, "table.foreachi compatibility", testTableForeachiCompatibility);
 }
-
-
-
-
