@@ -54,7 +54,12 @@
 #include <memory>
 #include <span>
 #include <sstream>
+#ifdef _WIN32
 #include <windows.h>
+#else
+#include <limits.h>
+#include <unistd.h>
+#endif
 
 // 默认测试脚本路径。
 // - 为空串：未指定命令行脚本时进入 REPL
@@ -285,6 +290,7 @@ Str readAllStdin() {
 }
 
 Str executableDirectory() {
+#ifdef _WIN32
     std::array<char, MAX_PATH> buffer{};
     DWORD len = GetModuleFileNameA(nullptr, buffer.data(), static_cast<DWORD>(buffer.size()));
     if (len == 0 || len >= buffer.size()) {
@@ -292,6 +298,15 @@ Str executableDirectory() {
     }
 
     Str path(buffer.data(), static_cast<usize>(len));
+#else
+    std::array<char, PATH_MAX> buffer{};
+    ssize_t len = readlink("/proc/self/exe", buffer.data(), buffer.size() - 1);
+    if (len <= 0) {
+        return ".";
+    }
+
+    Str path(buffer.data(), static_cast<usize>(len));
+#endif
     const usize pos = path.find_last_of("/\\");
     if (pos == Str::npos) {
         return ".";

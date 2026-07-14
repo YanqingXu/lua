@@ -11,6 +11,8 @@ jobs:
   windows-msbuild:
     name: Windows MSBuild (${{ matrix.configuration }})
     runs-on: windows-latest
+    env:
+      LUA_TEST_DISABLE_MEMORY_LIMIT: 1
     strategy:
       fail-fast: false
       matrix:
@@ -61,20 +63,27 @@ jobs:
             cxx: g++
             build_type: Release
           - compiler: Clang
-            cc: clang
-            cxx: clang++
+            cc: clang-18
+            cxx: clang++-18
+            cxxflags: -stdlib=libc++
             build_type: Debug
           - compiler: Clang
-            cc: clang
-            cxx: clang++
+            cc: clang-18
+            cxx: clang++-18
+            cxxflags: -stdlib=libc++
             build_type: Release
     env:
       CC: ${{ matrix.cc }}
       CXX: ${{ matrix.cxx }}
+      CXXFLAGS: ${{ matrix.cxxflags }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Install Clang C++ standard library
+        if: matrix.compiler == 'Clang'
+        run: sudo apt-get update && sudo apt-get install --yes libc++-18-dev libc++abi-18-dev
 
       - name: Configure
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
@@ -148,8 +157,9 @@ jobs:
       matrix:
         sanitizer: [address, undefined]
     env:
-      CC: clang
-      CXX: clang++
+      CC: clang-18
+      CXX: clang++-18
+      CXXFLAGS: -stdlib=libc++
       ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
       UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
       LUA_TEST_DISABLE_MEMORY_LIMIT: 1
@@ -157,6 +167,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Install Clang C++ standard library
+        run: sudo apt-get update && sudo apt-get install --yes libc++-18-dev libc++abi-18-dev
 
       - name: Configure sanitizer
         run: >-
@@ -221,7 +234,9 @@ jobs:
           fetch-depth: 0
 
       - name: Install LLVM tools
-        run: sudo apt-get update && sudo apt-get install --yes clang-format clang-tidy
+        run: >-
+          sudo apt-get update && sudo apt-get install --yes
+          clang-format clang-tidy libc++-18-dev libc++abi-18-dev
 
       - name: clang-format
         shell: bash
@@ -262,8 +277,9 @@ jobs:
 
       - name: Configure compile database
         env:
-          CC: clang
-          CXX: clang++
+          CC: clang-18
+          CXX: clang++-18
+          CXXFLAGS: -stdlib=libc++
         run: >-
           cmake -S . -B build/lint
           -DCMAKE_BUILD_TYPE=Debug

@@ -4331,28 +4331,28 @@
                     {
                         "rule":  "return nullptr",
                         "path":  "src\\main.cpp",
-                        "line":  138,
+                        "line":  143,
                         "textHash":  "0e4bce8ffb90a54f87dd1e313212d256102e9e3c73e8525feeb9faddd27faf05",
                         "rationale":  "Existing product compatibility baseline; remove or modernize when the location is touched."
                     },
                     {
                         "rule":  "return nullptr",
                         "path":  "src\\main.cpp",
-                        "line":  148,
+                        "line":  153,
                         "textHash":  "0e4bce8ffb90a54f87dd1e313212d256102e9e3c73e8525feeb9faddd27faf05",
                         "rationale":  "Existing product compatibility baseline; remove or modernize when the location is touched."
                     },
                     {
                         "rule":  "return nullptr",
                         "path":  "src\\main.cpp",
-                        "line":  151,
+                        "line":  156,
                         "textHash":  "0e4bce8ffb90a54f87dd1e313212d256102e9e3c73e8525feeb9faddd27faf05",
                         "rationale":  "Existing product compatibility baseline; remove or modernize when the location is touched."
                     },
                     {
                         "rule":  "return nullptr",
                         "path":  "src\\main.cpp",
-                        "line":  384,
+                        "line":  399,
                         "textHash":  "0e4bce8ffb90a54f87dd1e313212d256102e9e3c73e8525feeb9faddd27faf05",
                         "rationale":  "Existing product compatibility baseline; remove or modernize when the location is touched."
                     },
@@ -4989,14 +4989,14 @@
                     {
                         "rule":  "simple #define",
                         "path":  "src\\main.cpp",
-                        "line":  64,
+                        "line":  69,
                         "textHash":  "870c5d504742d1ef4c5d4e0de843f2fc6999c801b6679c1f27642c5132e45401",
                         "rationale":  "Existing product compatibility baseline; remove or modernize when the location is touched."
                     },
                     {
                         "rule":  "simple #define",
                         "path":  "src\\main.cpp",
-                        "line":  72,
+                        "line":  77,
                         "textHash":  "49ab12a51399f8eae6ca00cd8787841f6ef04aa08e7dd59149b6eb84bcc7c0d8",
                         "rationale":  "Existing product compatibility baseline; remove or modernize when the location is touched."
                     },
