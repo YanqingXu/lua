@@ -12,39 +12,83 @@
 
 namespace Lua {
 
+namespace {
+
+struct WeakMode {
+    bool keys = false;
+    bool values = false;
+};
+
+WeakMode readWeakMode(Table* table, GlobalState* globalState) {
+    WeakMode result;
+    if (table == nullptr) {
+        return result;
+    }
+
+    Table* mt = table->getMetatable();
+    if (mt == nullptr) {
+        return result;
+    }
+
+    GlobalState& state = globalState != nullptr ? *globalState : GlobalState::getInstance();
+    GCString* modeName = state.getMetamethodName(TMS::TM_MODE);
+    Value mode = mt->get(Value(modeName));
+    if (mode.isString()) {
+        const Str& modeText = mode.asString()->getData();
+        result.keys = modeText.find('k') != Str::npos;
+        result.values = modeText.find('v') != Str::npos;
+    }
+    return result;
+}
+
+void setWeakBits(Table* table, const WeakMode& mode) {
+    u8 marked = table->getMarked() & ~GCBits::WEAKBITS;
+    if (mode.keys) {
+        marked |= GCBits::WEAKKEY;
+    }
+    if (mode.values) {
+        marked |= GCBits::WEAKVALUE;
+    }
+    table->setMarked(marked);
+}
+
+} // namespace
+
 void GarbageCollector::markTable(Table* table) {
     if (table == nullptr) {
         return;
     }
 
-    bool weakKeys = false;
-    bool weakValues = false;
-    Table* mt = table->getMetatable();
-    if (mt != nullptr) {
-        GlobalState& state = globalState_ != nullptr ? *globalState_ : GlobalState::getInstance();
-        GCString* modeName = state.getMetamethodName(TMS::TM_MODE);
-        Value mode = mt->get(Value(modeName));
-        if (mode.isString()) {
-            const Str& modeText = mode.asString()->getData();
-            weakKeys = modeText.find('k') != Str::npos;
-            weakValues = modeText.find('v') != Str::npos;
-        }
-    }
+    const WeakMode mode = readWeakMode(table, globalState_);
+    setWeakBits(table, mode);
 
-    u8 marked = table->getMarked() & ~GCBits::WEAKBITS;
-    if (weakKeys) {
-        marked |= GCBits::WEAKKEY;
-    }
-    if (weakValues) {
-        marked |= GCBits::WEAKVALUE;
-    }
-    table->setMarked(marked);
-
-    if (weakKeys || weakValues) {
+    if (mode.keys || mode.values) {
         weakTables_.push_back(table);
     }
 
-    table->markContents(*this, weakKeys, weakValues);
+    table->markContents(*this, mode.keys, mode.values);
+}
+
+void GarbageCollector::reconcileWeakTableModes() {
+    usize writeIndex = 0;
+    const usize originalSize = weakTables_.size();
+    for (usize readIndex = 0; readIndex < originalSize; ++readIndex) {
+        Table* table = weakTables_[readIndex];
+        if (table == nullptr || isObjectDead(table)) {
+            continue;
+        }
+
+        const WeakMode mode = readWeakMode(table, globalState_);
+        setWeakBits(table, mode);
+
+        // Re-scan using the current mode.  This is essential when an edge that
+        // was weak during propagation became strong before atomic.
+        table->markContents(*this, mode.keys, mode.values);
+        if (mode.keys || mode.values) {
+            weakTables_[writeIndex++] = table;
+        }
+    }
+    weakTables_.resize(writeIndex);
 }
 
 bool GarbageCollector::isObjectDead(GCObject* obj) const {
@@ -73,8 +117,7 @@ bool GarbageCollector::isWeakValueDead(const Value& value) const {
     }
     if (value.isUserdata()) {
         auto* userdata = value.asUserdata();
-        if (std::find(pendingFinalizers_.begin(), pendingFinalizers_.end(), userdata) !=
-            pendingFinalizers_.end()) {
+        if (std::find(pendingFinalizers_.begin(), pendingFinalizers_.end(), userdata) != pendingFinalizers_.end()) {
             return true;
         }
     }

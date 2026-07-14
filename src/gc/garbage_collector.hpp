@@ -127,6 +127,11 @@ public:
     void unregisterObject(GCObject* obj) noexcept;
 
     /**
+     * @brief Reconcile dynamic object storage with the fast-path memory total.
+     */
+    void accountObjectSizeChange(GCObject* obj) noexcept;
+
+    /**
      * @brief Destroy a registered object through its original allocation path.
      *
      * Used by rollback guards that abandon an object before it becomes part of
@@ -243,6 +248,9 @@ public:
     [[nodiscard]] i32 setStepMultiplier(i32 stepMultiplier) noexcept;
     [[nodiscard]] isize getDebtBytes() const noexcept;
     [[nodiscard]] usize getAutomaticThresholdBytes() const noexcept;
+    [[nodiscard]] usize getMemoryLimitBytes() const noexcept;
+    usize setMemoryLimitBytes(usize limit) noexcept;
+    [[nodiscard]] bool canAllocate(usize additionalBytes = 0) const noexcept;
 
     /**
      * @brief 获取当前 GC 策略对象
@@ -308,6 +316,19 @@ public:
     void writeBarrier(GCObject* owner, const Value& value);
 
     /**
+     * @brief Allocation-free barrier for noexcept state transitions.
+     *
+     * Upvalue closing can run
+     * while unwinding or destroying a state.  Queue
+     * the white child for later propagation without allocating; if
+     * the
+     * incremental queue invariant is unexpectedly unavailable, abandon that
+     * cycle before it reaches
+     * sweep.
+     */
+    void writeBarrierDeferredNoexcept(GCObject* owner, const Value& value) noexcept;
+
+    /**
      * @brief Barrier for non-GC roots such as GlobalState side tables.
      */
     void writeRootBarrier(GCObject* child);
@@ -358,6 +379,17 @@ public:
      * @return 内存字节数
      */
     usize getTotalMemory() const noexcept;
+
+    /**
+     * @brief O(1) memory total used by automatic-GC pacing.
+     *
+     * getTotalMemory() remains an exact
+     * diagnostic traversal; this accessor
+     * exposes the independently maintained fast-path ledger for tests and
+
+     * * runtime telemetry.
+     */
+    usize getAccountedMemory() const noexcept;
 
     /**
      * @brief 获取GC统计信息
@@ -426,6 +458,15 @@ private:
     template <typename T, typename... Args> [[nodiscard]] T* createManaged(bool root, bool fixed, Args&&... args) {
         static_assert(std::is_base_of_v<GCObject, T>, "GarbageCollector::create<T> requires a GCObject type");
 
+        usize requestedSize = sizeof(T);
+        if constexpr (requires { T::getGCAllocationSize(args...); }) {
+            requestedSize = static_cast<usize>(T::getGCAllocationSize(args...));
+        }
+
+        if (!canAllocate(requestedSize)) {
+            throw std::bad_alloc();
+        }
+
         if (allocator_ != nullptr && allocator_->isConfigured()) {
             void* memory = allocator_->allocate(sizeof(T));
             if (memory == nullptr) {
@@ -446,9 +487,9 @@ private:
 
             raw->setAllocatorAllocation(allocator_, sizeof(T),
                                         [](GCObject* object) noexcept { std::destroy_at(static_cast<T*>(object)); });
-            registerObject(raw);
 
             try {
+                registerObject(raw);
                 if (fixed) {
                     raw->setMarked(raw->getMarked() | GCBits::FIXED);
                 }
@@ -502,10 +543,12 @@ private:
     [[nodiscard]] usize collectMarkSweep(StringPool& stringPool, LuaState* currentState, bool runFinalizersNow);
     [[nodiscard]] usize collectIncrementalCycle(StringPool& stringPool, LuaState* currentState);
     void resetIncrementalCycle() noexcept;
+    usize refreshMemoryAccounting() noexcept;
     void updateAutomaticThresholdAfterCycle() noexcept;
     void beginIncrementalMark(LuaState* currentState);
     [[nodiscard]] usize propagateMarks(usize budget);
     void performIncrementalAtomic(LuaState* currentState);
+    void reconcileWeakTableModes();
     [[nodiscard]] usize sweepStep(StringPool& stringPool, usize budget);
     [[nodiscard]] bool incrementalStep(StringPool& stringPool, LuaState* currentState, usize budget);
 
@@ -578,6 +621,7 @@ private:
     bool automaticCollectionRunning_;
     bool preciseStackRoots_;
     usize automaticThresholdBytes_;
+    usize memoryLimitBytes_;
     isize gcDebtBytes_;
     i32 stepCountdown_;
     i32 pause_;
@@ -586,6 +630,7 @@ private:
     GCObject* incrementalSweepCurrent_;
     GCObject* incrementalSweepPrevious_;
     usize incrementalCollected_;
+    usize lastCompletedCollected_;
 
     /// 统计信息：对象总数
     usize objectCount_;

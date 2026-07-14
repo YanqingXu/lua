@@ -1,7 +1,7 @@
 /**
  * @file test_vm_core.cpp
  * @brief VM核心类单元测试 (GlobalState, Stack, CallInfo, LuaState)
- * 
+ *
  * @author Lua C++ Project
  * @date 2025-11-14
  */
@@ -19,12 +19,23 @@
 #include "compiler/parser/parser.hpp"
 #include "compiler/codegen/codegen.hpp"
 #include "lib/iolib.hpp"
+#include <array>
 #include <cstdio>
+#include <thread>
 
 using namespace Lua;
 using namespace LuaTest;
 
 namespace {
+
+FILE* openTrackedTestFile(const char* path) {
+#ifdef _WIN32
+    FILE* file = nullptr;
+    return fopen_s(&file, path, "w+") == 0 ? file : nullptr;
+#else
+    return std::fopen(path, "w+");
+#endif
+}
 
 LuaState* executeChunk(const char* code, const char* chunkName, Proto*& outProto) {
     StringPool& pool = StringPool::getInstance();
@@ -59,7 +70,7 @@ Function* getTableFunction(Table* table, StringPool& pool, const char* name) {
 GarbageCollector& legacyGarbageCollectorForVMCoreTest() {
 #if defined(_MSC_VER)
 #pragma warning(push)
-#pragma warning(disable: 4996)
+#pragma warning(disable : 4996)
 #elif defined(__clang__) || defined(__GNUC__)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
@@ -77,18 +88,18 @@ GarbageCollector& legacyGarbageCollectorForVMCoreTest() {
 
 void testGlobalState(TestSuite& suite) {
     GlobalState& gs = GlobalState::getInstance();
-    
+
     // Test 1: Singleton
     ASSERT_TRUE(suite, &gs == &GlobalState::getInstance(), "GlobalState singleton");
-    
+
     // Test 2: getStringPool
     StringPool& pool = gs.getStringPool();
     ASSERT_TRUE(suite, &pool == &StringPool::getInstance(), "getStringPool");
-    
+
     // Test 3: getGC
     GarbageCollector& gc = gs.getGC();
     ASSERT_TRUE(suite, &gc != &legacyGarbageCollectorForVMCoreTest(), "getGC is owned by GlobalState");
-    
+
     // Test 4: getRegistry
     Table* registry = gs.getRegistry();
     ASSERT_TRUE(suite, registry != nullptr, "getRegistry");
@@ -96,28 +107,28 @@ void testGlobalState(TestSuite& suite) {
 
 void testStackOperations(TestSuite& suite) {
     Stack stack;
-    
+
     // Test 1: Stack creation
     ASSERT_TRUE(suite, stack.empty(), "Stack creation");
-    
+
     // Test 2: Push operations
     stack.push(Value(1.0));
     stack.push(Value(2.0));
     stack.push(Value(true));
     ASSERT_EQ(suite, (usize)3, stack.size(), "Push operations");
-    
+
     // Test 3: Top value
     Value topVal = stack.top();
     ASSERT_TRUE(suite, topVal.isBoolean(), "Top value");
-    
+
     // Test 4: Pop operation
     Value popped = stack.pop();
     ASSERT_EQ(suite, (usize)2, stack.size(), "Pop operation");
-    
+
     // Test 5: At operation
     Value val = stack.at(0);
     ASSERT_TRUE(suite, val.asNumber() == 1.0, "At operation");
-    
+
     // Test 6: Clear
     stack.clear();
     ASSERT_TRUE(suite, stack.empty(), "Clear");
@@ -125,17 +136,17 @@ void testStackOperations(TestSuite& suite) {
 
 void testCallInfo(TestSuite& suite) {
     CallInfo ci;
-    
+
     // Test 1: CallInfo creation
     ASSERT_TRUE(suite, ci.func == 0, "CallInfo creation");
-    
+
     // Test 2: Set values
     ci.func = 10;
     ci.base = 11;
     ci.top = 20;
     ci.nresults = 2;
     ASSERT_TRUE(suite, ci.func == 10 && ci.base == 11, "Set values");
-    
+
     // Test 3: Reset
     ci.reset();
     ASSERT_TRUE(suite, ci.func == 0 && ci.base == 0, "Reset");
@@ -143,17 +154,17 @@ void testCallInfo(TestSuite& suite) {
 
 void testLuaStateCreation(TestSuite& suite) {
     LuaState* L = LuaState::newState();
-    
+
     // Test 1: LuaState creation
     ASSERT_TRUE(suite, L != nullptr, "LuaState creation");
-    
+
     // Test 2: Initial status
     ASSERT_EQ(suite, ThreadStatus::OK, L->getStatus(), "Initial status");
-    
+
     // Test 3: Global table
     Table* globalTable = L->getGlobalTable();
     ASSERT_TRUE(suite, globalTable != nullptr, "Global table");
-    
+
     delete L;
 }
 
@@ -194,14 +205,14 @@ void testLuaStateStackOperations(TestSuite& suite) {
 
 void testLuaStateGlobalVariables(TestSuite& suite) {
     LuaState* L = LuaState::newState();
-    
+
     // Test 1: Set global
     L->setGlobal("testVar", Value(123.0));
-    
+
     // Test 2: Get global
     Value val = L->getGlobal("testVar");
     ASSERT_TRUE(suite, val.isNumber() && val.asNumber() == 123.0, "Global variable set/get");
-    
+
     delete L;
 }
 
@@ -384,8 +395,7 @@ void testIOLibFileMetatableHooks(TestSuite& suite) {
         ASSERT_TRUE(suite, L->getTop() >= 1 && L->top().isString(), "__gc error is a string");
         if (L->getTop() >= 1 && L->top().isString()) {
             std::string message = L->top().asString()->c_str();
-            ASSERT_TRUE(suite, message.find("no value") != std::string::npos,
-                        "__gc without self reports no value");
+            ASSERT_TRUE(suite, message.find("no value") != std::string::npos, "__gc without self reports no value");
         }
     }
 
@@ -411,8 +421,7 @@ void testIOLibDefaultInputOutput(TestSuite& suite) {
     Function* ioInput = getTableFunction(ioTable, pool, "input");
     Function* ioRead = getTableFunction(ioTable, pool, "read");
 
-    ASSERT_TRUE(suite, ioOutput && ioWrite && ioClose && ioInput && ioRead,
-        "default I/O functions are registered");
+    ASSERT_TRUE(suite, ioOutput && ioWrite && ioClose && ioInput && ioRead, "default I/O functions are registered");
     if (!(ioOutput && ioWrite && ioClose && ioInput && ioRead)) {
         delete L;
         return;
@@ -455,8 +464,7 @@ void testIOLibDefaultInputOutput(TestSuite& suite) {
     ASSERT_EQ(suite, ret, 1, "io.read(count) returns one value");
     ASSERT_TRUE(suite, L->top().isString(), "io.read(count) returns string");
     if (L->top().isString()) {
-        ASSERT_TRUE(suite, std::string(L->top().asString()->c_str()) == "abc",
-            "io.read(3) reads written prefix");
+        ASSERT_TRUE(suite, std::string(L->top().asString()->c_str()) == "abc", "io.read(3) reads written prefix");
     }
 
     L->getStack().clear();
@@ -471,6 +479,92 @@ void testIOLibDefaultInputOutput(TestSuite& suite) {
 
     std::remove(path);
     delete L;
+}
+
+void testIOLibFileRegistryIsStateIsolated(TestSuite& suite) {
+    const char* firstPath = "test_vm_core_iolib_state_one.txt";
+    const char* secondPath = "test_vm_core_iolib_state_two.txt";
+    std::remove(firstPath);
+    std::remove(secondPath);
+
+    LuaState* first = LuaState::newIsolatedState();
+    openIOLib(first);
+    FILE* firstFile = openTrackedTestFile(firstPath);
+    ASSERT_TRUE(suite, firstFile != nullptr, "first isolated state opens a tracked file");
+    if (firstFile == nullptr) {
+        delete first;
+        return;
+    }
+    Userdata* firstHandle = createFileHandle(first, firstFile, false, firstPath, true);
+    first->setGlobal("__io_state_handle", Value(firstHandle));
+
+    // Reopening the module replaces its standard handles, but must not drop
+    // tracking for other live handles owned by the same runtime.
+    openIOLib(first);
+
+    // Initializing another state's I/O library must not clear registrations
+    // that belong to the first state.
+    LuaState* second = LuaState::newIsolatedState();
+    openIOLib(second);
+    FILE* secondFile = openTrackedTestFile(secondPath);
+    ASSERT_TRUE(suite, secondFile != nullptr, "second isolated state opens a tracked file");
+    if (secondFile == nullptr) {
+        (void)releaseFileHandlesForPath(first, firstPath);
+        delete second;
+        delete first;
+        std::remove(firstPath);
+        return;
+    }
+    Userdata* secondHandle = createFileHandle(second, secondFile, false, secondPath, true);
+    second->setGlobal("__io_state_handle", Value(secondHandle));
+
+    ASSERT_TRUE(suite, releaseFileHandlesForPath(first, firstPath),
+                "second-state initialization preserves the first state's registration");
+    ASSERT_TRUE(suite, !releaseFileHandlesForPath(first, secondPath),
+                "one state cannot close another state's tracked file");
+    ASSERT_TRUE(suite, releaseFileHandlesForPath(second, secondPath), "the owning state can close its tracked file");
+
+    delete second;
+    delete first;
+    std::remove(firstPath);
+    std::remove(secondPath);
+}
+
+void testIOLibFileRegistryConcurrentOwners(TestSuite& suite) {
+    constexpr usize ownerCount = 4;
+    std::array<LuaState*, ownerCount> states{};
+    std::array<Str, ownerCount> paths{};
+    std::array<bool, ownerCount> released{};
+
+    for (usize i = 0; i < ownerCount; ++i) {
+        paths[i] = "test_vm_core_iolib_concurrent_" + std::to_string(i) + ".txt";
+        std::remove(paths[i].c_str());
+        states[i] = LuaState::newIsolatedState();
+        openIOLib(states[i]);
+
+        FILE* file = openTrackedTestFile(paths[i].c_str());
+        ASSERT_TRUE(suite, file != nullptr, "isolated owner opens a tracked file");
+        if (file != nullptr) {
+            Userdata* handle = createFileHandle(states[i], file, false, paths[i].c_str(), true);
+            states[i]->setGlobal("__io_concurrent_handle", Value(handle));
+        }
+    }
+
+    std::array<std::jthread, ownerCount> workers;
+    for (usize i = 0; i < ownerCount; ++i) {
+        workers[i] = std::jthread([&, i]() { released[i] = releaseFileHandlesForPath(states[i], paths[i].c_str()); });
+    }
+    for (std::jthread& worker : workers) {
+        worker.join();
+    }
+
+    for (usize i = 0; i < ownerCount; ++i) {
+        ASSERT_TRUE(suite, released[i], "each concurrent owner releases its own tracked file");
+        ASSERT_TRUE(suite, !releaseFileHandlesForPath(states[i], paths[i].c_str()),
+                    "released handle is removed from the registry exactly once");
+        delete states[i];
+        std::remove(paths[i].c_str());
+    }
 }
 
 void testComparisonExpressionProducesBoolean(TestSuite& suite) {
@@ -527,7 +621,7 @@ void testLogicalExpressionsProduceRuntimeValues(TestSuite& suite) {
             ASSERT_TRUE(suite, L->at(-6).isString(), "false or 'fallback' returns string");
             if (L->at(-6).isString()) {
                 ASSERT_TRUE(suite, std::string(L->at(-6).asString()->c_str()) == "fallback",
-                    "false or 'fallback' == 'fallback'");
+                            "false or 'fallback' == 'fallback'");
             }
 
             ASSERT_TRUE(suite, L->at(-5).isBoolean(), "not false returns boolean");
@@ -750,7 +844,7 @@ void testRepeatUntilLocalVisibleInCondition(TestSuite& suite) {
 
 void registerVMCoreTests() {
     auto& registry = TestRegistry::getInstance();
-    
+
     registry.registerTest("VM Core", "GlobalState", testGlobalState);
     registry.registerTest("VM Core", "Stack Operations", testStackOperations);
     registry.registerTest("VM Core", "CallInfo", testCallInfo);
@@ -759,12 +853,17 @@ void registerVMCoreTests() {
     registry.registerTest("VM Core", "LuaState Globals", testLuaStateGlobalVariables);
     registry.registerTest("VM Core", "LuaState Userdata Metatable", testLuaStateUserdataMetatable);
     registry.registerTest("VM Core", "SELF Dispatch On Userdata", testSelfDispatchOnUserdata);
-    registry.registerTest("VM Core", "Tail Return From C Function Keeps Logical Top", testTailReturnFromCFunctionKeepsLogicalTop);
+    registry.registerTest("VM Core", "Tail Return From C Function Keeps Logical Top",
+                          testTailReturnFromCFunctionKeepsLogicalTop);
     registry.registerTest("VM Core", "IOLib File Metatable Hooks", testIOLibFileMetatableHooks);
     registry.registerTest("VM Core", "IOLib Default Input Output", testIOLibDefaultInputOutput);
+    registry.registerTest("VM Core", "IOLib File Registry State Isolation", testIOLibFileRegistryIsStateIsolated);
+    registry.registerTest("VM Core", "IOLib File Registry Concurrent Owners", testIOLibFileRegistryConcurrentOwners);
     registry.registerTest("VM Core", "Comparison Expression Produces Boolean", testComparisonExpressionProducesBoolean);
-    registry.registerTest("VM Core", "Logical Expressions Produce Runtime Values", testLogicalExpressionsProduceRuntimeValues);
-    registry.registerTest("VM Core", "Logical Short Circuit Runtime", testLogicalShortCircuitEvaluatesRightHandSideOnlyWhenNeeded);
+    registry.registerTest("VM Core", "Logical Expressions Produce Runtime Values",
+                          testLogicalExpressionsProduceRuntimeValues);
+    registry.registerTest("VM Core", "Logical Short Circuit Runtime",
+                          testLogicalShortCircuitEvaluatesRightHandSideOnlyWhenNeeded);
     registry.registerTest("VM Core", "Repeat-Until Basic", testRepeatUntilBasic);
     registry.registerTest("VM Core", "Repeat-Until Single Iteration", testRepeatUntilSingleIteration);
     registry.registerTest("VM Core", "Repeat-Until With Break", testRepeatUntilWithBreak);
@@ -773,5 +872,3 @@ void registerVMCoreTests() {
     registry.registerTest("VM Core", "Repeat-Until Nested", testRepeatUntilNested);
     registry.registerTest("VM Core", "Repeat-Until Local Visible In Condition", testRepeatUntilLocalVisibleInCondition);
 }
-
-

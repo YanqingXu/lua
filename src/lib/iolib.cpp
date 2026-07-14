@@ -1,10 +1,10 @@
 /**
  * @file iolib.cpp
  * @brief Lua I/O库实现
- * 
+ *
  * 使用现代C++流式API进行函数注册
  * 遵循Lua 5.1.5标准I/O库规范
- * 
+ *
  * @author Lua C++ Project
  * @date 2025-12-19
  */
@@ -27,6 +27,7 @@
 #include <algorithm>
 #include <cstdlib>
 #include <memory>
+#include <mutex>
 #include <string>
 
 #ifdef _WIN32
@@ -39,8 +40,8 @@ namespace Lua {
 // 常量定义
 // =====================================================================
 
-static constexpr StrView IO_INPUT = "io.input";
-static constexpr StrView IO_OUTPUT = "io.output";
+static constexpr const char* IO_INPUT = "io.input";
+static constexpr const char* IO_OUTPUT = "io.output";
 static constexpr StrView FILE_HANDLE_METATABLE = "FILE*";
 
 struct FileCloser {
@@ -72,12 +73,20 @@ struct FileCloser {
     }
 };
 
+struct FileHandleData;
+static void unregisterFileHandle(FileHandleData* handle) noexcept;
+
 struct FileHandleData {
     using FilePtr = std::unique_ptr<FILE, FileCloser>;
 
     FilePtr file{nullptr, FileCloser{}};
     bool lineBuffered = false;
     Str path;
+    GlobalState* owner = nullptr;
+
+    ~FileHandleData() {
+        unregisterFileHandle(this);
+    }
 
     FILE* get() const noexcept {
         return file.get();
@@ -100,7 +109,35 @@ struct FileHandleData {
 static i32 lines_iterator(LuaState* L);
 static FileHandleData* toFileHandle(const Value& val);
 static i32 closeFileHandle(FileHandleData* handle);
-static Vec<FileHandleData*> gOpenFileHandles;
+struct OpenFileHandle {
+    GlobalState* owner = nullptr;
+    FileHandleData* handle = nullptr;
+};
+
+struct OpenFileRegistry {
+    std::mutex mutex;
+    Vec<OpenFileHandle> handles;
+};
+
+static OpenFileRegistry& openFileRegistry() {
+    // Runtime states are process-lifetime singletons in some embedding paths;
+    // keep the registry alive through static teardown.
+    static auto* registry = new OpenFileRegistry();
+    return *registry;
+}
+
+static void unregisterFileHandle(FileHandleData* handle) noexcept {
+    try {
+        OpenFileRegistry& registry = openFileRegistry();
+        std::lock_guard lock(registry.mutex);
+        registry.handles.erase(std::remove_if(registry.handles.begin(), registry.handles.end(),
+                                              [handle](const OpenFileHandle& entry) { return entry.handle == handle; }),
+                               registry.handles.end());
+    } catch (...) {
+        // Userdata destruction is noexcept. A mutex failure cannot be
+        // recovered here, but must not terminate state teardown.
+    }
+}
 
 // =====================================================================
 // 辅助函数实现
@@ -164,22 +201,18 @@ static FILE* safeTmpfile() {
 
 /**
  * @brief 推送操作结果到栈
- * 
+ *
  * 成功时推送 true，失败时推送 nil、错误消息、错误码
  */
-static i32 pushResult(
-    LuaState* L,
-    bool success,
-    const Value& successValue = Value(true),
-    const char* filename = nullptr
-) {
+static i32 pushResult(LuaState* L, bool success, const Value& successValue = Value(true),
+                      const char* filename = nullptr) {
     if (success) {
         L->pushValue(successValue);
         return 1;
     } else {
         i32 err = errno;
         L->pushNil();
-        
+
         // 构造错误消息
         std::string msg;
         if (filename) {
@@ -187,7 +220,7 @@ static i32 pushResult(
         } else {
             msg = errnoMessage(err);
         }
-        
+
         GCString* errMsg = L->getGlobalState().getStringPool().intern(msg.c_str());
         L->pushString(errMsg);
         L->pushNumber(static_cast<f64>(err));
@@ -211,12 +244,12 @@ static FileHandleData* toFileHandle(LuaState* L, i32 idx) {
     if (!L->isUserdata(idx)) {
         return nullptr;
     }
-    
+
     Value val = L->at(idx);
     if (!val.isUserdata()) {
         return nullptr;
     }
-    
+
     Userdata* ud = val.asUserdata();
     if (ud->getDataSize() != sizeof(FileHandleData)) {
         return nullptr;
@@ -225,11 +258,7 @@ static FileHandleData* toFileHandle(LuaState* L, i32 idx) {
     return static_cast<FileHandleData*>(ud->getData());
 }
 
-static Function* createCClosureWithClosedUpvalues(
-    LuaState* L,
-    CFunction func,
-    const Vec<Value>& upvalues
-) {
+static Function* createCClosureWithClosedUpvalues(LuaState* L, CFunction func, const Vec<Value>& upvalues) {
     Function* closure = L->getGlobalState().getGC().create<Function>(func);
 
     for (const Value& value : upvalues) {
@@ -259,7 +288,7 @@ static Value getClosureUpvalueValue(LuaState* L, usize index) {
 }
 
 static Value getDefaultInputHandleValue(LuaState* L) {
-    Value val = L->getGlobal(IO_INPUT.data());
+    Value val = L->getGlobal(IO_INPUT);
     if (toFileHandle(val) != nullptr) {
         return val;
     }
@@ -278,7 +307,7 @@ static Value getDefaultInputHandleValue(LuaState* L) {
 }
 
 static Value getDefaultOutputHandleValue(LuaState* L) {
-    Value val = L->getGlobal(IO_OUTPUT.data());
+    Value val = L->getGlobal(IO_OUTPUT);
     if (toFileHandle(val) != nullptr) {
         return val;
     }
@@ -296,12 +325,7 @@ static Value getDefaultOutputHandleValue(LuaState* L) {
     return Value(ud);
 }
 
-static i32 pushLinesIterator(
-    LuaState* L,
-    const Value& fileHandle,
-    bool autoClose,
-    i32 firstFormatArg = 0
-) {
+static i32 pushLinesIterator(LuaState* L, const Value& fileHandle, bool autoClose, i32 firstFormatArg = 0) {
     Vec<Value> upvalues;
     upvalues.push_back(fileHandle);
     upvalues.push_back(Value(autoClose));
@@ -336,20 +360,23 @@ FileHandleData* checkFilePtr(LuaState* L, i32 idx) {
 }
 
 static i32 closeFileHandle(FileHandleData* handle) {
-    if (!handle || handle->get() == nullptr) {
+    if (handle == nullptr) {
         return 0;
     }
 
-    gOpenFileHandles.erase(
-        std::remove(gOpenFileHandles.begin(), gOpenFileHandles.end(), handle),
-        gOpenFileHandles.end()
-    );
+    OpenFileRegistry& registry = openFileRegistry();
+    std::lock_guard lock(registry.mutex);
+    if (handle->get() == nullptr) {
+        return 0;
+    }
+    registry.handles.erase(std::remove_if(registry.handles.begin(), registry.handles.end(),
+                                          [handle](const OpenFileHandle& entry) { return entry.handle == handle; }),
+                           registry.handles.end());
     return handle->close();
 }
 
 static bool handlePathMatches(FileHandleData* handle, const char* path) {
-    return handle != nullptr && path != nullptr && !handle->path.empty() &&
-           handle->path == path;
+    return handle != nullptr && path != nullptr && !handle->path.empty() && handle->path == path;
 }
 
 bool releaseFileHandlesForPath(LuaState* L, const char* path) {
@@ -358,10 +385,18 @@ bool releaseFileHandlesForPath(LuaState* L, const char* path) {
     }
 
     bool released = false;
-    for (usize i = 0; i < gOpenFileHandles.size();) {
-        FileHandleData* handle = gOpenFileHandles[i];
+    OpenFileRegistry& registry = openFileRegistry();
+    std::lock_guard lock(registry.mutex);
+    for (usize i = 0; i < registry.handles.size();) {
+        const OpenFileHandle& entry = registry.handles[i];
+        if (entry.owner != &L->getGlobalState()) {
+            ++i;
+            continue;
+        }
+        FileHandleData* handle = entry.handle;
         if (handlePathMatches(handle, path) && handle->get() != nullptr) {
-            (void)closeFileHandle(handle);
+            registry.handles.erase(registry.handles.begin() + static_cast<std::ptrdiff_t>(i));
+            (void)handle->close();
             released = true;
             continue;
         }
@@ -370,33 +405,47 @@ bool releaseFileHandlesForPath(LuaState* L, const char* path) {
     return released;
 }
 
-Userdata* createFileHandle(
-    LuaState* L,
-    FILE* fp,
-    bool isPipe,
-    const char* path,
-    bool ownsFile
-) {
+Userdata* createFileHandle(LuaState* L, FILE* fp, bool isPipe, const char* path, bool ownsFile) {
+    FileHandleData::FilePtr pendingFile(fp, FileCloser{isPipe, ownsFile});
+
     // 创建 userdata
     Userdata* ud = L->getGlobalState().getGC().create<Userdata>(sizeof(FileHandleData));
+    Table* environment = L->getGlobalTable();
+    if (L->getCurrentCI() != 0) {
+        const CallInfo& ci = L->getCurrentCallInfo();
+        if (ci.func < L->getStack().size() && L->getStack().at(ci.func).isFunction()) {
+            Function* closure = L->getStack().at(ci.func).asFunction();
+            if (closure != nullptr && closure->getEnv() != nullptr) {
+                environment = closure->getEnv();
+            }
+        }
+    }
+    ud->setEnvironment(environment);
 
     // 设置文件句柄元数据
     FileHandleData* handle = ud->constructData<FileHandleData>();
-    handle->reset(fp, isPipe, ownsFile);
+    handle->owner = &L->getGlobalState();
+    handle->reset(pendingFile.release(), isPipe, ownsFile);
     if (path != nullptr) {
         handle->path = path;
     }
-    if (fp != nullptr) {
-        gOpenFileHandles.push_back(handle);
-    }
-    
+
     // 获取文件元表
     GCString* mtName = L->getGlobalState().getStringPool().intern(FILE_HANDLE_METATABLE);
     Value mtVal = L->getGlobal(mtName->getData());
     if (mtVal.isTable()) {
         ud->setMetatable(mtVal.asTable());
     }
-    
+
+    // Publish only after every operation that can allocate or throw. This
+    // keeps the process-wide handle registry free of dangling pointers when
+    // memory-limit injection aborts userdata construction.
+    if (handle->get() != nullptr) {
+        OpenFileRegistry& registry = openFileRegistry();
+        std::lock_guard lock(registry.mutex);
+        registry.handles.push_back(OpenFileHandle{&L->getGlobalState(), handle});
+    }
+
     return ud;
 }
 
@@ -412,12 +461,12 @@ FILE* getDefaultOutput(LuaState* L) {
 
 void setDefaultInput(LuaState* L, FILE* fp) {
     Userdata* ud = createFileHandle(L, fp, false, nullptr, false);
-    L->setGlobal(IO_INPUT.data(), Value(ud));
+    L->setGlobal(IO_INPUT, Value(ud));
 }
 
 void setDefaultOutput(LuaState* L, FILE* fp) {
     Userdata* ud = createFileHandle(L, fp, false, nullptr, false);
-    L->setGlobal(IO_OUTPUT.data(), Value(ud));
+    L->setGlobal(IO_OUTPUT, Value(ud));
 }
 
 // =====================================================================
@@ -430,15 +479,15 @@ void setDefaultOutput(LuaState* L, FILE* fp) {
 static bool readLine(LuaState* L, FILE* fp) {
     std::string line;
     i32 c;
-    
+
     while ((c = std::fgetc(fp)) != EOF && c != '\n') {
         line += static_cast<char>(c);
     }
-    
+
     if (line.empty() && c == EOF) {
-        return false;  // EOF
+        return false; // EOF
     }
-    
+
     GCString* str = L->getGlobalState().getStringPool().intern(line.data(), line.size());
     L->pushString(str);
     return true;
@@ -461,18 +510,18 @@ static bool readChars(LuaState* L, FILE* fp, usize count) {
 
     std::string buffer;
     buffer.reserve(count);
-    
+
     for (usize i = 0; i < count; i++) {
         i32 c = std::fgetc(fp);
         if (c == EOF) {
             if (i == 0) {
-                return false;  // EOF at start
+                return false; // EOF at start
             }
             break;
         }
         buffer += static_cast<char>(c);
     }
-    
+
     GCString* str = L->getGlobalState().getStringPool().intern(buffer.data(), buffer.size());
     L->pushString(str);
     return true;
@@ -484,11 +533,11 @@ static bool readChars(LuaState* L, FILE* fp, usize count) {
 static bool readAll(LuaState* L, FILE* fp) {
     std::string content;
     i32 c;
-    
+
     while ((c = std::fgetc(fp)) != EOF) {
         content += static_cast<char>(c);
     }
-    
+
     GCString* str = L->getGlobalState().getStringPool().intern(content.data(), content.size());
     L->pushString(str);
     return true;
@@ -511,10 +560,8 @@ static bool readNumber(LuaState* L, FILE* fp) {
 
     while (c != EOF) {
         char ch = static_cast<char>(c);
-        bool isNumericChar =
-            std::isdigit(static_cast<unsigned char>(ch)) ||
-            ch == '+' || ch == '-' || ch == '.' ||
-            ch == 'e' || ch == 'E';
+        bool isNumericChar = std::isdigit(static_cast<unsigned char>(ch)) || ch == '+' || ch == '-' || ch == '.' ||
+                             ch == 'e' || ch == 'E';
 
         if (!isNumericChar) {
             std::ungetc(c, fp);
@@ -593,12 +640,7 @@ i32 io_close(LuaState* L) {
 
 // 前向声明
 static i32 f_read_impl(LuaState* L, FILE* fp, i32 firstArg);
-static i32 f_write_impl(
-    LuaState* L,
-    FileHandleData* handle,
-    i32 firstArg,
-    const Value& successValue
-);
+static i32 f_write_impl(LuaState* L, FileHandleData* handle, i32 firstArg, const Value& successValue);
 
 i32 io_read(LuaState* L) {
     FILE* fp = getDefaultInput(L);
@@ -639,12 +681,12 @@ i32 io_input(LuaState* L) {
             FILE* fp = *opened;
             Userdata* ud = createFileHandle(L, fp, false, filename);
             Value handleValue(ud);
-            L->setGlobal(IO_INPUT.data(), handleValue);
+            L->setGlobal(IO_INPUT, handleValue);
             L->pushValue(handleValue);
             return 1;
         } else {
             checkFilePtr(L, 1);
-            L->setGlobal(IO_INPUT.data(), L->at(1));
+            L->setGlobal(IO_INPUT, L->at(1));
         }
         L->pushValue(1);
         return 1;
@@ -665,12 +707,12 @@ i32 io_output(LuaState* L) {
             FILE* fp = *opened;
             Userdata* ud = createFileHandle(L, fp, false, filename);
             Value handleValue(ud);
-            L->setGlobal(IO_OUTPUT.data(), handleValue);
+            L->setGlobal(IO_OUTPUT, handleValue);
             L->pushValue(handleValue);
             return 1;
         } else {
             checkFilePtr(L, 1);
-            L->setGlobal(IO_OUTPUT.data(), L->at(1));
+            L->setGlobal(IO_OUTPUT, L->at(1));
         }
         L->pushValue(1);
         return 1;
@@ -682,20 +724,20 @@ i32 io_type(LuaState* L) {
         L->pushNil();
         return 1;
     }
-    
+
     FileHandleData* handle = toFileHandle(L, 1);
     if (!handle) {
         L->pushNil();
         return 1;
     }
-    
+
     GCString* typeStr;
     if (handle->get()) {
         typeStr = L->getGlobalState().getStringPool().intern("file");
     } else {
         typeStr = L->getGlobalState().getStringPool().intern("closed file");
     }
-    
+
     L->pushString(typeStr);
     return 1;
 }
@@ -720,9 +762,7 @@ static i32 lines_iterator(LuaState* L) {
         L->error("io.lines iterator: file is already closed");
     }
 
-    usize formatCount = closure->getUpvalueCount() > 2
-                      ? closure->getUpvalueCount() - 2
-                      : 0;
+    usize formatCount = closure->getUpvalueCount() > 2 ? closure->getUpvalueCount() - 2 : 0;
 
     if (formatCount == 0) {
         if (readLine(L, handle->get())) {
@@ -807,8 +847,7 @@ i32 io_popen(LuaState* L) {
 
     // 打开管道
 #ifdef _WIN32
-    if (std::strcmp(command, "ls") == 0 &&
-        std::system("where ls >NUL 2>NUL") != 0) {
+    if (std::strcmp(command, "ls") == 0 && std::system("where ls >NUL 2>NUL") != 0) {
         L->error("io.popen: command not available");
     }
     FILE* fp = _popen(command, mode);
@@ -838,7 +877,7 @@ static i32 f_read_impl(LuaState* L, FILE* fp, i32 firstArg) {
     i32 nargs = lastArg - firstArg + 1;
     i32 n = 0;
     bool success = true;
-    
+
     if (nargs == 0) {
         // 默认读取一行
         success = readLine(L, fp);
@@ -873,7 +912,7 @@ static i32 f_read_impl(LuaState* L, FILE* fp, i32 firstArg) {
             } else {
                 L->error("invalid argument to read");
             }
-            
+
             if (success) {
                 n++;
             } else {
@@ -883,19 +922,14 @@ static i32 f_read_impl(LuaState* L, FILE* fp, i32 firstArg) {
             }
         }
     }
-    
+
     return n;
 }
 
 /**
  * @brief 实际的写入实现
  */
-static i32 f_write_impl(
-    LuaState* L,
-    FileHandleData* handle,
-    i32 firstArg,
-    const Value& successValue
-) {
+static i32 f_write_impl(LuaState* L, FileHandleData* handle, i32 firstArg, const Value& successValue) {
     FILE* fp = handle->get();
     i32 nargs = L->getTop() - firstArg + 1;
     bool success = true;
@@ -909,8 +943,7 @@ static i32 f_write_impl(
                 success = false;
                 break;
             }
-            shouldFlushLine = shouldFlushLine ||
-                std::memchr(str->c_str(), '\n', len) != nullptr;
+            shouldFlushLine = shouldFlushLine || std::memchr(str->c_str(), '\n', len) != nullptr;
         } else if (L->isNumber(i)) {
             f64 num = L->toNumber(i);
             if (std::fprintf(fp, "%.14g", num) < 0) {
@@ -974,9 +1007,9 @@ i32 f_seek(LuaState* L) {
     if (!handle->get()) {
         L->error("attempt to use a closed file");
     }
-    
+
     // 获取 whence 参数
-    i32 whence = SEEK_CUR;  // 默认
+    i32 whence = SEEK_CUR; // 默认
     if (L->getTop() >= 2 && L->isString(2)) {
         const char* w = L->toString(2);
         if (std::strcmp(w, "set") == 0) {
@@ -989,18 +1022,18 @@ i32 f_seek(LuaState* L) {
             L->error("invalid seek mode");
         }
     }
-    
+
     // 获取 offset 参数
     long offset = 0;
     if (L->getTop() >= 3 && L->isNumber(3)) {
         offset = static_cast<long>(L->toNumber(3));
     }
-    
+
     // 执行 seek
     if (std::fseek(handle->get(), offset, whence) != 0) {
         return pushResult(L, false, Value(true));
     }
-    
+
     // 返回新位置
     long pos = std::ftell(handle->get());
     L->pushNumber(static_cast<f64>(pos));
@@ -1012,14 +1045,14 @@ i32 f_setvbuf(LuaState* L) {
     if (!handle->get()) {
         L->error("attempt to use a closed file");
     }
-    
+
     if (L->getTop() < 2 || !L->isString(2)) {
         L->error("string expected");
     }
-    
+
     const char* mode = L->toString(2);
     i32 m;
-    
+
     if (std::strcmp(mode, "no") == 0) {
         m = _IONBF;
     } else if (std::strcmp(mode, "full") == 0) {
@@ -1029,12 +1062,12 @@ i32 f_setvbuf(LuaState* L) {
     } else {
         L->error("invalid buffer mode");
     }
-    
+
     usize size = BUFSIZ;
     if (L->getTop() >= 3 && L->isNumber(3)) {
         size = static_cast<usize>(L->toNumber(3));
     }
-    
+
     i32 result = std::setvbuf(handle->get(), nullptr, m, size);
     if (result == 0) {
         handle->lineBuffered = (m == _IOLBF);
@@ -1058,9 +1091,7 @@ i32 f_lines(LuaState* L) {
 i32 io_gc(LuaState* L) {
     FileHandleData* handle = toFileHandle(L, 1);
     if (!handle) {
-        L->error(std::format(
-            "bad argument #1 to '__gc' (FILE* expected, got {})",
-            L->typeName(L->type(1))).c_str());
+        L->error(std::format("bad argument #1 to '__gc' (FILE* expected, got {})", L->typeName(L->type(1))).c_str());
     }
     if (handle && handle->get()) {
         closeFileHandle(handle);
@@ -1074,14 +1105,14 @@ i32 io_tostring(LuaState* L) {
         L->pushString(L->getGlobalState().getStringPool().intern("not a file"));
         return 1;
     }
-    
+
     std::string str;
     if (handle->get()) {
         str = std::format("file ({})", static_cast<void*>(handle->get()));
     } else {
         str = "file (closed)";
     }
-    
+
     GCString* result = L->getGlobalState().getStringPool().intern(str.c_str());
     L->pushString(result);
     return 1;
@@ -1117,10 +1148,10 @@ void IOLibModule::registerFunctions(LuaState* L) {
         .addGlobal("tmpfile", io_tmpfile)
         .addGlobal("popen", io_popen)
         .commitToTable(ioTable);
-    
+
     // 创建文件句柄元表
     Table* fileMT = L->getGlobalState().getGC().create<Table>();
-    
+
     // 注册文件方法
     FunctionRegistrar(L)
         .addGlobal("close", f_close)
@@ -1131,7 +1162,7 @@ void IOLibModule::registerFunctions(LuaState* L) {
         .addGlobal("setvbuf", f_setvbuf)
         .addGlobal("lines", f_lines)
         .commitToTable(fileMT);
-    
+
     // 设置元方法
     GCString* gcKey = L->getGlobalState().getStringPool().intern("__gc");
     GCString* tostringKey = L->getGlobalState().getStringPool().intern("__tostring");
@@ -1142,7 +1173,7 @@ void IOLibModule::registerFunctions(LuaState* L) {
 
     // __index 指向自身
     fileMT->set(Value(indexKey), Value(fileMT));
-    
+
     // 保存文件元表到全局
     GCString* mtName = L->getGlobalState().getStringPool().intern(FILE_HANDLE_METATABLE);
     L->setGlobal(mtName->getData(), Value(fileMT));
@@ -1153,33 +1184,31 @@ void IOLibModule::initialize(LuaState* L) {
         return;
     }
 
-    gOpenFileHandles.clear();
-
     // 创建标准文件句柄
     Userdata* stdinHandle = createFileHandle(L, stdin, false, nullptr, false);
     Userdata* stdoutHandle = createFileHandle(L, stdout, false, nullptr, false);
     Userdata* stderrHandle = createFileHandle(L, stderr, false, nullptr, false);
-    
+
     // 设置到 io 表中
     auto& gs = L->getGlobalState();
     GCString* ioKey = gs.getStringPool().intern("io");
     Value ioTableVal = L->getGlobal(ioKey->getData());
-    
+
     if (ioTableVal.isTable()) {
         Table* ioTable = ioTableVal.asTable();
-        
+
         GCString* stdinKey = gs.getStringPool().intern("stdin");
         GCString* stdoutKey = gs.getStringPool().intern("stdout");
         GCString* stderrKey = gs.getStringPool().intern("stderr");
-        
+
         ioTable->set(Value(stdinKey), Value(stdinHandle));
         ioTable->set(Value(stdoutKey), Value(stdoutHandle));
         ioTable->set(Value(stderrKey), Value(stderrHandle));
     }
-    
+
     // 设置默认输入输出
-    L->setGlobal(IO_INPUT.data(), Value(stdinHandle));
-    L->setGlobal(IO_OUTPUT.data(), Value(stdoutHandle));
+    L->setGlobal(IO_INPUT, Value(stdinHandle));
+    L->setGlobal(IO_OUTPUT, Value(stdoutHandle));
 }
 
 void openIOLib(LuaState* L) {

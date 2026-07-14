@@ -2,7 +2,8 @@
 
 > PR-54 / task 5.1.1. This matrix is the readable view of the executable coverage contract in
 > `tests/unit/vm/opcode_coverage_contract.json`. The quality gate verifies that every opcode has exactly
-> one row and that every referenced `Suite::Test` ID is present in `bin/lua_test.exe --list`.
+> one row, an actual CodeGen producer status, exactly one VM handler registration, and that every referenced
+> `Suite::Test` ID is present in `bin/lua_test.exe --list`.
 
 Legend:
 
@@ -10,6 +11,14 @@ Legend:
 - **Boundary path**: an existing edge/branch test. New gaps should be added here only with a follow-up task.
 - **Metamethod path**: an existing runtime metamethod test when the opcode can invoke one; otherwise `N/A`.
 - **Current gaps**: follow-up work made visible by this checklist.
+
+The JSON contract additionally records the producer status and the VM handler source/registrar/symbol for
+every opcode. The checker extracts C++ function bodies, follows selected opcode variables into the emitter
+call, and derives handler assignments from the real handler sources. There are 36 frontend-produced opcodes.
+`NOT` and `TESTSET` are explicitly `intentionally-not-produced`: the checker scans the complete CodeGen source
+tree and binds executable negative tests instead of treating the generic bytecode builder as a frontend
+producer. `NOT` must have zero CodeGen references. `TESTSET` may occur only in the named NO_REG-to-`TEST`
+normalization guard, and that guard must have no production caller.
 
 | Opcode | Group | Positive path | Boundary path | Metamethod path | Current gaps |
 |---|---|---|---|---|---|
@@ -32,7 +41,7 @@ Legend:
 | MOD | Arithmetic | `tests/unit/vm/test_vm_dispatch.cpp` - VM Dispatch/Arithmetic Handlers Execute Directly | Covered: modulo-by-zero NaN behavior lock | `tests/unit/metamethod/test_metamethod_arith.cpp` - Metamethod/Runtime metamethod opcode execution covers runtime `__mod` | Good for Phase 4 |
 | POW | Arithmetic | `tests/unit/vm/test_vm_dispatch.cpp` - VM Dispatch/Arithmetic Handlers Execute Directly | Covered: fractional and negative exponent edges | `tests/unit/metamethod/test_metamethod_arith.cpp` - Metamethod/Runtime metamethod opcode execution covers runtime `__pow` | Good for Phase 4 |
 | UNM | Unary | `tests/unit/vm/test_vm_dispatch.cpp` - VM Dispatch/Unary Handlers Execute Directly | Covered: non-number error path through VM handler | `tests/unit/metamethod/test_metamethod_arith.cpp` - Metamethod/Runtime metamethod opcode execution covers runtime `__unm` | Good for Phase 4 |
-| NOT | Unary | `tests/unit/vm/test_vm_dispatch.cpp` - VM Dispatch/Unary Handlers Execute Directly | Covered: nil, false, true, and zero truthiness split | N/A - opcode metadata marks `mayInvokeMetamethod=false` | Good for Phase 4 |
+| NOT | Unary | `tests/unit/vm/test_vm_dispatch.cpp` - VM Dispatch/Unary Handlers Execute Directly | Covered: nil, false, true, and zero truthiness split | N/A - opcode metadata marks `mayInvokeMetamethod=false` | Intentionally not frontend-produced; `Codegen Conditions/Nested Not Condition Uses Cond Pipeline` proves TEST/JMP lowering without OP_NOT |
 | LEN | Unary | `tests/unit/vm/test_vm_dispatch.cpp` - VM Dispatch/Unary Handlers Execute Directly | Covered: string length path | `tests/unit/metamethod/test_metamethod_complete.cpp` - Complete Metamethods/Other metamethods (__len, __concat, __call) covers `__len` | Good for PR-54 |
 | CONCAT | Unary | `tests/unit/vm/test_vm_dispatch.cpp` - VM Dispatch/Unary Handlers Execute Directly | Covered: multi-register concat range | `tests/unit/metamethod/test_metamethod_arith.cpp` - Metamethod/Runtime metamethod opcode execution covers runtime `__concat` | Good for Phase 4 |
 | JMP | Branch | `tests/unit/vm/test_vm_dispatch.cpp` - VM Dispatch/Branch And Comparison Handlers Execute Directly | Covered: signed sBx pc adjustment | N/A - opcode metadata marks `mayInvokeMetamethod=false` | Good for PR-54 |
@@ -40,7 +49,7 @@ Legend:
 | LT | Comparison | `tests/unit/vm/test_vm_dispatch.cpp` - VM Dispatch/Branch And Comparison Handlers Execute Directly | Covered: skip when comparison result differs from A | `tests/unit/metamethod/test_metamethod_complete.cpp` - Complete Metamethods/Comparison metamethods (__eq, __lt, __le) covers `__lt` | Good for PR-54 |
 | LE | Comparison | `tests/unit/vm/test_vm_dispatch.cpp` - VM Dispatch/Branch And Comparison Handlers Execute Directly | Covered: keep pc when comparison result matches A | `tests/unit/metamethod/test_metamethod_complete.cpp` - Complete Metamethods/Comparison metamethods (__eq, __lt, __le) covers `__le` | Good for PR-54 |
 | TEST | Branch | `tests/unit/vm/test_vm_dispatch.cpp` - VM Dispatch/Branch And Comparison Handlers Execute Directly | Covered: match applies following JMP and miss advances once | N/A - opcode metadata marks `mayInvokeMetamethod=false` | Good for PR-54 |
-| TESTSET | Branch | `tests/unit/vm/test_vm_dispatch.cpp` - VM Dispatch/Branch And Comparison Handlers Execute Directly | Covered: match copies value and miss leaves destination unchanged | N/A - opcode metadata marks `mayInvokeMetamethod=false` | Good for PR-54 |
+| TESTSET | Branch | `tests/unit/vm/test_vm_dispatch.cpp` - VM Dispatch/Branch And Comparison Handlers Execute Directly | Covered: match copies value and miss leaves destination unchanged | N/A - opcode metadata marks `mayInvokeMetamethod=false` | Intentionally not frontend-produced; `Jump Patcher/Conditional Jump Lowers NoReg TestSet To Test` proves the sole normalization path |
 | CALL | Call | `tests/unit/vm/test_vm_dispatch.cpp` - VM Dispatch/Call And Return Handlers Execute Directly | Covered: C call, Lua call reentry, and yielded C call | `tests/unit/metamethod/test_metamethod_arith.cpp` - Metamethod/Lua function metamethods and basic type metatable covers `__call` | Good for PR-54 |
 | TAILCALL | Call | `tests/unit/vm/test_vm_dispatch.cpp` - VM Dispatch/Call And Return Handlers Execute Directly | Covered: Lua tailcall reuses current CallInfo and increments tailcall count | `tests/unit/metamethod/test_metamethod_arith.cpp` - Metamethod/Runtime metamethod opcode execution covers tailcall through `__call` | Good for Phase 4 |
 | RETURN | Call | `tests/unit/vm/test_vm_dispatch.cpp` - VM Dispatch/Call And Return Handlers Execute Directly | Covered: outermost frame completion moves values to `ci.func` and shrinks top | N/A - opcode metadata marks `mayInvokeMetamethod=false` | Good for PR-54 |
@@ -55,8 +64,14 @@ Legend:
 ## PR-54 Verification Standard
 
 - `tools/check_opcode_coverage_matrix.ps1` must pass and report all 38 opcodes.
-- `tests/unit/vm/opcode_coverage_contract.json` must provide non-empty Positive and Boundary test keys for
-  every opcode and a Metamethod key exactly when metadata marks `mayInvokeMetamethod=true`.
+- `tests/unit/vm/opcode_coverage_contract.json` must provide machine-readable producer and handler evidence,
+  non-empty Positive and Boundary test keys for every opcode, and a Metamethod key exactly when metadata
+  marks `mayInvokeMetamethod=true`.
+- Produced-opcode evidence must resolve to one CodeGen function body and prove the exact opcode reaches the
+  named emitter. An `intentionally-not-produced` entry must exhaustively scan the CodeGen tree, allow only
+  declared normalization references, and bind an executable negative lowering test.
+- Handler evidence must match exactly one parsed `opcodeIndex(OpCode::X).handler = symbol` assignment, the
+  symbol definition, and a registrar invoked by `makeHandlerTable`.
 - Every test catalog source path must exist, and every exact `Suite::Test` ID must appear in
   `bin\lua_test.exe --list`.
 - `tools/run_quality_gate.ps1` must run the opcode coverage contract after the test binary is available and

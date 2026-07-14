@@ -7,15 +7,14 @@
 #include "lib/lib_manager.hpp"
 #include "lib/coroutinelib.hpp"
 #include "vm/state/lua_state.hpp"
-#include "vm/vm.hpp"
 #include "core/function.hpp"
 #include "core/gc_string.hpp"
-#include "core/string_pool.hpp"
 #include "core/table.hpp"
 #include "core/thread.hpp"
 #include "gc/garbage_collector.hpp"
 #include "compiler/parser/parser.hpp"
 #include "compiler/codegen/codegen.hpp"
+#include "runtime/runtime_services.hpp"
 
 #include <string>
 
@@ -29,22 +28,23 @@ constexpr const char* kSuiteName = "Coroutine Library";
 /// Helper: compile and execute Lua code, return true on success
 bool runLua(LuaState* L, const char* code) {
     try {
-        Parser parser(code);
+        RuntimeServices services(L->getGlobalState());
+        Parser parser(code, services);
         auto parsed = parser.parse();
         if (!parsed) {
             throw parsed.error();
         }
         Chunk chunk = std::move(*parsed);
-        StringPool& pool = StringPool::getInstance();
-        CodeGenerator codegen(&pool);
+        CodeGenerator codegen(services);
         Proto* proto = codegen.generate(chunk, "test");
-        if (!proto) return false;
+        if (!proto)
+            return false;
 
         Function* func = new Function(proto);
         L->getGlobalState().getGC().registerObject(func);
         func->setEnv(L->getGlobalTable());
-        VM::execute(L, func);
-        return true;
+        L->pushFunction(func);
+        return L->pcall(0, 0, 0) == LUA_OK;
     } catch (...) {
         return false;
     }
@@ -70,7 +70,7 @@ bool getGlobalBool(LuaState* L, const char* name) {
 
 /// Helper: create state with all libs
 LuaState* createState() {
-    LuaState* L = LuaState::newState();
+    LuaState* L = LuaState::newIsolatedState();
     StandardLibrary::openAll(L);
     return L;
 }
@@ -198,8 +198,7 @@ void testDeadCoroutineResume(TestSuite& suite) {
     )");
     ASSERT_TRUE(suite, ok, "dead coroutine test runs");
     ASSERT_FALSE(suite, getGlobalBool(L, "r_ok2"), "resume dead coroutine fails");
-    ASSERT_TRUE(suite, getGlobalString(L, "r_err").find("dead") != std::string::npos,
-        "error message mentions dead");
+    ASSERT_TRUE(suite, getGlobalString(L, "r_err").find("dead") != std::string::npos, "error message mentions dead");
     delete L;
 }
 
@@ -219,8 +218,7 @@ void testDeadCoroutineResumeDiscardsArguments(TestSuite& suite) {
                 "dead coroutine resume returns false first even with arguments");
     ASSERT_TRUE(suite, getGlobalBool(L, "r_dead_err_mentions_dead"),
                 "dead coroutine resume returns the error message second");
-    ASSERT_TRUE(suite, getGlobalBool(L, "r_dead_extra_is_nil"),
-                "dead coroutine resume discards supplied arguments");
+    ASSERT_TRUE(suite, getGlobalBool(L, "r_dead_extra_is_nil"), "dead coroutine resume discards supplied arguments");
     delete L;
 }
 
@@ -308,16 +306,11 @@ void testYieldReturnValuesInOpenTableConstructor(TestSuite& suite) {
     )");
 
     ASSERT_TRUE(suite, ok, "yield open table constructor chunk runs");
-    ASSERT_EQ(suite, getGlobalNumber(L, "r_empty_len"), 0.0,
-              "yield with no resume values creates an empty table");
-    ASSERT_TRUE(suite, getGlobalBool(L, "r_empty_first_is_nil"),
-                "empty yield result table has no first element");
-    ASSERT_EQ(suite, getGlobalNumber(L, "r_values_len"), 2.0,
-              "yield resume values define the open table length");
-    ASSERT_TRUE(suite, getGlobalString(L, "r_values_first") == "a",
-                "first resume value is preserved");
-    ASSERT_TRUE(suite, getGlobalString(L, "r_values_second") == "b",
-                "second resume value is preserved");
+    ASSERT_EQ(suite, getGlobalNumber(L, "r_empty_len"), 0.0, "yield with no resume values creates an empty table");
+    ASSERT_TRUE(suite, getGlobalBool(L, "r_empty_first_is_nil"), "empty yield result table has no first element");
+    ASSERT_EQ(suite, getGlobalNumber(L, "r_values_len"), 2.0, "yield resume values define the open table length");
+    ASSERT_TRUE(suite, getGlobalString(L, "r_values_first") == "a", "first resume value is preserved");
+    ASSERT_TRUE(suite, getGlobalString(L, "r_values_second") == "b", "second resume value is preserved");
     delete L;
 }
 
@@ -470,8 +463,7 @@ void testWrapTailCallYield(TestSuite& suite) {
     )");
 
     ASSERT_TRUE(suite, ok, "wrap tail-call yield chunk runs");
-    ASSERT_EQ(suite, getGlobalNumber(L, "r_tail_first"), 1.0,
-              "tail-called yield returns its yielded value to wrap");
+    ASSERT_EQ(suite, getGlobalNumber(L, "r_tail_first"), 1.0, "tail-called yield returns its yielded value to wrap");
     ASSERT_EQ(suite, getGlobalNumber(L, "r_tail_second"), 20.0,
               "resume arguments become the tail-called yield return values");
     delete L;
@@ -516,8 +508,7 @@ void testWrapPreservesErrorObject(TestSuite& suite) {
     )");
 
     ASSERT_TRUE(suite, ok, "wrap error object chunk runs");
-    ASSERT_TRUE(suite, getGlobalBool(L, "r_wrap_error_object"),
-                "wrap preserves non-string coroutine error objects");
+    ASSERT_TRUE(suite, getGlobalBool(L, "r_wrap_error_object"), "wrap preserves non-string coroutine error objects");
     delete L;
 }
 
@@ -543,6 +534,55 @@ void testPendingCoroutineWithOpenUpvalueCanBeCollected(TestSuite& suite) {
     ASSERT_TRUE(suite, ok, "pending coroutine with open upvalue GC chunk runs");
     ASSERT_TRUE(suite, getGlobalBool(L, "r_pending_open_upvalue_collected"),
                 "pending coroutine with open upvalue survives full GC");
+    delete L;
+}
+
+// ==================================================================
+// Test: resume/wrap transfers do not leave duplicate GC roots
+// ==================================================================
+
+void testCoroutineTransfersReleaseDuplicateRoots(TestSuite& suite) {
+    LuaState* L = createState();
+    bool ok = runLua(L, R"(
+        local weak = setmetatable({}, { __mode = "v" })
+
+        do
+            local dead = coroutine.create(function() end)
+            coroutine.resume(dead)
+            local first, second, trailing = {}, {}, {}
+            weak[1] = trailing
+            coroutine.resume(dead, first, second, trailing)
+            first, second, trailing = nil, nil, nil
+        end
+        collectgarbage()
+        r_failed_resume_arg_collected = weak[1] == nil
+
+        do
+            local co = coroutine.create(function() return {} end)
+            local resume_ok, value = coroutine.resume(co)
+            weak[2] = value
+            value, resume_ok = nil, nil
+            collectgarbage()
+            r_resume_result_collected = weak[2] == nil
+        end
+
+        do
+            local wrapped = coroutine.wrap(function() return {} end)
+            local value = wrapped()
+            weak[3] = value
+            value = nil
+            collectgarbage()
+            r_wrap_result_collected = weak[3] == nil
+        end
+    )");
+
+    ASSERT_TRUE(suite, ok, "coroutine stale-root GC chunk runs");
+    ASSERT_TRUE(suite, getGlobalBool(L, "r_failed_resume_arg_collected"),
+                "failed resume clears arguments beyond its false/error pair");
+    ASSERT_TRUE(suite, getGlobalBool(L, "r_resume_result_collected"),
+                "dead coroutine does not retain a result copied to its caller");
+    ASSERT_TRUE(suite, getGlobalBool(L, "r_wrap_result_collected"),
+                "coroutine.wrap clears the slot removed with its leading success boolean");
     delete L;
 }
 
@@ -597,13 +637,11 @@ void registerCoroutineLibTests() {
     registry.registerTest(kSuiteName, "resume args to yield returns", testResumeArgsToYieldReturns);
     registry.registerTest(kSuiteName, "generator pattern", testGeneratorPattern);
     registry.registerTest(kSuiteName, "dead coroutine resume", testDeadCoroutineResume);
-    registry.registerTest(kSuiteName, "dead coroutine resume discards args",
-                          testDeadCoroutineResumeDiscardsArguments);
+    registry.registerTest(kSuiteName, "dead coroutine resume discards args", testDeadCoroutineResumeDiscardsArguments);
     registry.registerTest(kSuiteName, "coroutine.status", testCoroutineStatus);
     registry.registerTest(kSuiteName, "coroutine.running", testCoroutineRunning);
     registry.registerTest(kSuiteName, "multiple yield values", testMultipleYieldValues);
-    registry.registerTest(kSuiteName, "yield open table constructor",
-                          testYieldReturnValuesInOpenTableConstructor);
+    registry.registerTest(kSuiteName, "yield open table constructor", testYieldReturnValuesInOpenTableConstructor);
     registry.registerTest(kSuiteName, "coroutine error", testCoroutineError);
     registry.registerTest(kSuiteName, "coroutine no yield", testCoroutineNoYield);
     registry.registerTest(kSuiteName, "wrap basic", testWrapBasic);
@@ -615,7 +653,8 @@ void registerCoroutineLibTests() {
     registry.registerTest(kSuiteName, "wrap preserves error object", testWrapPreservesErrorObject);
     registry.registerTest(kSuiteName, "pending coroutine open upvalue GC",
                           testPendingCoroutineWithOpenUpvalueCanBeCollected);
+    registry.registerTest(kSuiteName, "coroutine transfers release duplicate roots",
+                          testCoroutineTransfersReleaseDuplicateRoots);
     registry.registerTest(kSuiteName, "wrap multiple values", testWrapMultipleValues);
     registry.registerTest(kSuiteName, "wrap no yield", testWrapNoYield);
 }
-

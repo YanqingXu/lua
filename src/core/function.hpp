@@ -24,6 +24,7 @@
 
 #include "common/types.hpp"
 #include "core/gc_object.hpp"
+#include "core/gc_string.hpp"
 #include "core/value.hpp"
 #include "runtime/lua_allocator.hpp"
 #include <vector>
@@ -307,9 +308,7 @@ public:
      * @brief 设置源文件名
      * @param src 源文件名
      */
-    void setSource(GCString* src) noexcept {
-        source_ = src;
-    }
+    void setSource(GCString* src);
 
     // =====================================================================
     // 常量表操作（简化版）
@@ -828,7 +827,7 @@ public:
      * 设置函数的环境表后，该函数的GETGLOBAL/SETGLOBAL指令将使用
      * 此环境表而非全局表。这是实现setfenv/getfenv的基础。
      */
-    void setEnv(Table* env) noexcept;
+    void setEnv(Table* env);
 
     // =====================================================================
     // ClosureHeader 字段访问（Lua C兼容）

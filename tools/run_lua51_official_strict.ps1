@@ -1,8 +1,9 @@
 param(
     [string]$Root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path,
     [string]$Executable = "bin\lua_app.exe",
-    [int]$TimeoutSeconds = 120,
+    [int]$TimeoutSeconds = 300,
     [switch]$ExpectFailure,
+    [string]$XfailManifest = "tests/compatibility/lua51-official-strict-xfails.json",
     [string]$ResultPath = ""
 )
 
@@ -20,6 +21,27 @@ $integrityScript = Join-Path $Root "tools/check_lua51_official_sources.ps1"
 $manifestPath = Join-Path $Root "tests/compatibility/lua51-official-sources.json"
 $suitePath = Join-Path $Root "tests/lua/official"
 $executablePath = (Resolve-Path -LiteralPath (Resolve-RootedPath $Executable)).Path
+
+if ($ExpectFailure) {
+    $xfailManifestPath = Resolve-RootedPath $XfailManifest
+    if (-not (Test-Path -LiteralPath $xfailManifestPath)) {
+        throw "Missing official-strict XFAIL manifest: $xfailManifestPath"
+    }
+
+    $xfailManifestData = Get-Content -LiteralPath $xfailManifestPath -Raw | ConvertFrom-Json
+    $xfailEntries = @($xfailManifestData.xfails)
+    if ($xfailManifestData.schemaVersion -ne 1 -or
+        $xfailManifestData.channel -ne "official-strict" -or
+        $xfailEntries.Count -ne 1 -or
+        $xfailEntries[0].id -ne "all.lua-unmodified" -or
+        $xfailEntries[0].expectedOutcome -ne "timeout") {
+        throw "official-strict requires exactly one timeout-only all.lua XFAIL"
+    }
+    if ([int]$xfailEntries[0].timeoutSeconds -ne $TimeoutSeconds) {
+        throw ("official-strict timeout {0}s does not match the registered XFAIL budget {1}s" -f `
+                $TimeoutSeconds, $xfailEntries[0].timeoutSeconds)
+    }
+}
 
 & $integrityScript -Root $Root
 
@@ -108,11 +130,14 @@ if ($result.stderrTail) {
 }
 
 if ($ExpectFailure) {
+    if ($outcome -eq "timeout") {
+        Write-Host "[XFAIL] official-strict reached the registered timeout compatibility gap"
+        exit 0
+    }
     if ($outcome -eq "passed") {
         throw "official-strict unexpectedly passed; remove the XFAIL and promote this lane to required"
     }
-    Write-Host "[XFAIL] official-strict remains a known compatibility gap"
-    exit 0
+    throw "official-strict expected the registered timeout XFAIL but ended with $outcome (exit $exitCode)"
 }
 
 if ($outcome -ne "passed") {

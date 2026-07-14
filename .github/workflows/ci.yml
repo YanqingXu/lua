@@ -114,7 +114,7 @@ jobs:
           -Case sort
           -TimeoutSeconds 120
 
-      - name: Official slow verybig XFAIL
+      - name: Official slow verybig gate
         if: matrix.compiler == 'Clang' && matrix.build_type == 'Debug'
         shell: pwsh
         run: >-
@@ -122,7 +122,6 @@ jobs:
           -LuaApp build/lua_app
           -Case verybig
           -TimeoutSeconds 300
-          -ExpectVerybigTimeout
 
       - name: Official strict evidence
         if: matrix.compiler == 'Clang' && matrix.build_type == 'Debug'
@@ -130,7 +129,7 @@ jobs:
         run: >-
           ./tools/run_lua51_official_strict.ps1
           -Executable build/lua_app
-          -TimeoutSeconds 120
+          -TimeoutSeconds 300
           -ExpectFailure
           -ResultPath build/official-strict.json
 
@@ -153,6 +152,7 @@ jobs:
       CXX: clang++
       ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
       UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+      LUA_TEST_DISABLE_MEMORY_LIMIT: 1
 
     steps:
       - name: Checkout
@@ -169,6 +169,46 @@ jobs:
 
       - name: Test sanitizer
         run: ctest --test-dir build --output-on-failure --timeout 600
+
+  linux-runtime-benchmark:
+    name: Linux runtime benchmark contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure Release benchmark
+        run: >-
+          cmake -S . -B build/benchmark
+          -DCMAKE_BUILD_TYPE=Release
+          -DLUA_CPP_BUILD_BENCHMARKS=ON
+          -DLUA_CPP_BUILD_TESTS=OFF
+          -DLUA_CPP_BUILD_TOOLS=OFF
+
+      - name: Build benchmark
+        run: cmake --build build/benchmark --parallel 2 --target lua_runtime_bench
+
+      - name: Run benchmark contract
+        timeout-minutes: 10
+        run: >-
+          ./build/benchmark/lua_runtime_bench
+          --profile ci
+          --json build/benchmark/runtime-bench.json
+
+      - name: Validate benchmark evidence
+        shell: pwsh
+        run: >-
+          ./tools/check_runtime_bench.ps1
+          -ResultPath build/benchmark/runtime-bench.json
+
+      - name: Upload benchmark evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: runtime-benchmark-evidence
+          path: build/benchmark/runtime-bench.json
 
   linux-lint:
     name: Linux clang-format / clang-tidy
@@ -194,14 +234,29 @@ jobs:
           if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
             diff_base="origin/$GITHUB_BASE_REF"
             diff_range="$diff_base...HEAD"
+            list_changed_files() {
+              git diff --name-only --diff-filter=ACMRT "$diff_range"
+            }
           else
-            diff_range="HEAD^..HEAD"
+            event_before="${{ github.event.before }}"
+            zero_sha="0000000000000000000000000000000000000000"
+            if [[ -n "$event_before" && "$event_before" != "$zero_sha" ]] &&
+               git cat-file -e "$event_before^{commit}" 2>/dev/null; then
+              diff_range="$event_before..HEAD"
+              list_changed_files() {
+                git diff --name-only --diff-filter=ACMRT "$diff_range"
+              }
+            else
+              list_changed_files() {
+                git ls-files
+              }
+            fi
           fi
           while IFS= read -r file; do
-            if [[ "$file" =~ ^(src|tests/unit)/.*\.(cpp|hpp|h)$ ]]; then
+            if [[ "$file" =~ ^(src|tests/unit|benchmarks)/.*\.(cpp|hpp|h)$ ]]; then
               files+=("$file")
             fi
-          done < <(git diff --name-only --diff-filter=ACMRT "$diff_range")
+          done < <(list_changed_files)
           mapfile -t files < <(printf '%s\n' "${files[@]}" | sort -u)
           clang-format --dry-run --Werror --style=file "${files[@]}"
 
@@ -209,11 +264,11 @@ jobs:
         env:
           CC: clang
           CXX: clang++
-        run: cmake -S . -B build/lint -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+        run: >-
+          cmake -S . -B build/lint
+          -DCMAKE_BUILD_TYPE=Debug
+          -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+          -DLUA_CPP_BUILD_BENCHMARKS=ON
 
       - name: clang-tidy
-        run: >-
-          clang-tidy -p build/lint
-          src/io/input_stream.cpp
-          src/debug/value_serializer.cpp
-          tests/unit/framework/test_runner.cpp
+        run: python3 tools/run_clang_tidy.py --build-dir build/lint

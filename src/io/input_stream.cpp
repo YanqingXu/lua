@@ -6,6 +6,7 @@
 #include "input_stream.hpp"
 #include <algorithm>
 #include <cstring>
+#include <limits>
 #include <stdexcept>
 
 namespace Lua {
@@ -16,26 +17,13 @@ namespace IO {
 // =====================================================================
 
 InputStream::InputStream(StrView source)
-    : stream_(nullptr)
-    , stringView_(source)
-    , bufferPos_(0)
-    , bufferSize_(0)
-    , eof_(source.empty())
-    , position_(0)
-    , useStringView_(true)
-    , sourceName_("string") {
-}
+    : stream_(nullptr), stringView_(source), bufferPos_(0), bufferSize_(0), eof_(source.empty()), position_(0),
+      useStringView_(true), sourceName_("string") {}
 
 InputStream::InputStream(std::istream& stream, usize bufferSize)
-    : stream_(&stream)
-    , buffer_(bufferSize)
-    , bufferPos_(0)
-    , bufferSize_(0)
-    , eof_(false)
-    , position_(0)
-    , useStringView_(false)
-    , sourceName_("stream") {
-    fillBuffer();  // 预填充缓冲区
+    : stream_(&stream), buffer_(bufferSize), bufferPos_(0), bufferSize_(0), eof_(false), position_(0),
+      useStringView_(false), sourceName_("stream") {
+    fillBuffer(); // 预填充缓冲区
     // 如果流是空的（构造时就没有数据），设置 EOF
     if (bufferSize_ == 0) {
         eof_ = true;
@@ -43,26 +31,19 @@ InputStream::InputStream(std::istream& stream, usize bufferSize)
 }
 
 InputStream::InputStream(FromFile /* tag */, const Str& filePath, usize bufferSize)
-    : stream_(nullptr)
-    , ownedFileStream_(std::ifstream(filePath, std::ios::binary))
-    , buffer_(bufferSize)
-    , bufferPos_(0)
-    , bufferSize_(0)
-    , eof_(false)
-    , position_(0)
-    , useStringView_(false)
-    , sourceName_(filePath) {
+    : stream_(nullptr), ownedFileStream_(std::ifstream(filePath, std::ios::binary)), buffer_(bufferSize), bufferPos_(0),
+      bufferSize_(0), eof_(false), position_(0), useStringView_(false), sourceName_(filePath) {
     // 检查文件是否成功打开
     if (!ownedFileStream_->is_open()) {
         throw std::runtime_error("Failed to open file: " + filePath);
     }
-    
+
     // 设置 stream_ 指向拥有的文件流
     stream_ = &(*ownedFileStream_);
-    
+
     // 预填充缓冲区
     fillBuffer();
-    
+
     // 如果文件是空的，设置 EOF
     if (bufferSize_ == 0) {
         eof_ = true;
@@ -87,7 +68,7 @@ i32 InputStream::getChar() {
         }
         return ch;
     }
-    
+
     // 流模式
     if (bufferPos_ >= bufferSize_) {
         fillBuffer();
@@ -111,7 +92,7 @@ i32 InputStream::peekChar() {
         }
         return static_cast<u8>(stringView_[position_]);
     }
-    
+
     // 流模式
     if (bufferPos_ >= bufferSize_) {
         fillBuffer();
@@ -141,7 +122,7 @@ usize InputStream::read(void* buffer, usize size) {
         }
         return toRead;
     }
-    
+
     // 流模式的批量读取
     usize totalRead = 0;
     char* dest = static_cast<char*>(buffer);
@@ -194,12 +175,17 @@ void InputStream::setSourceName(const Str& name) {
 // =====================================================================
 
 void InputStream::fillBuffer() {
-    if (!stream_) {
+    if (stream_ == nullptr) {
         bufferSize_ = 0;
         return;
     }
 
-    stream_->read(buffer_.data(), buffer_.size());
+    if (buffer_.size() > static_cast<usize>(std::numeric_limits<std::streamsize>::max())) {
+        throw std::length_error("Input stream buffer is too large");
+    }
+
+    const std::streamsize readSize = static_cast<std::streamsize>(buffer_.size());
+    stream_->read(buffer_.data(), readSize);
     bufferSize_ = static_cast<usize>(stream_->gcount());
     bufferPos_ = 0;
 
@@ -214,5 +200,3 @@ void InputStream::fillBuffer() {
 
 } // namespace IO
 } // namespace Lua
-
-

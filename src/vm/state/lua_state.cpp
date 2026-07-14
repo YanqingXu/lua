@@ -169,7 +169,7 @@ UPtr<LuaState> LuaState::create(EngineContext& context) {
 UPtr<LuaState> LuaState::createIsolated() {
     UPtr<EngineContext> context = makeUnique<EngineContext>();
     UPtr<LuaState> L = makeUnique<LuaState>(CtorToken{}, context.get(), false, false);
-    context.release();
+    [[maybe_unused]] EngineContext* releasedContext = context.release();
     L->initialize();
     return L;
 }
@@ -628,12 +628,23 @@ void LuaState::setTop(i32 idx) {
         throw RuntimeError("invalid stack index");
     }
 
-    // 填充nil值或收缩栈
+    const usize oldTop = top_;
+
+    // Fill every newly exposed logical slot with nil. The backing Stack can
+    // already contain reserved frame registers beyond top_, so merely growing
+    // its physical size would leak stale register values through lua_settop.
     while (static_cast<i32>(stack_.size()) < newTop) {
         stack_.push(Value()); // nil
     }
-    while (static_cast<i32>(stack_.size()) > newTop) {
-        stack_.pop();
+    for (usize i = oldTop; i < static_cast<usize>(newTop); ++i) {
+        stack_[i] = Value();
+    }
+
+    // Shrinking the logical top must not discard a VM frame's reserved
+    // register area. Clear the removed logical values so they neither retain
+    // GC objects nor reappear if the C API grows the top again.
+    for (usize i = static_cast<usize>(newTop); i < oldTop && i < stack_.size(); ++i) {
+        stack_[i] = Value();
     }
 
     // 关键：同步 top_ 变量
@@ -731,9 +742,14 @@ i32 LuaState::pcall(i32 nargs, i32 nresults, i32 errfunc) {
         // 栈索引无效
         // 移除 func 和 args，压入错误消息
         top_ = funcIdx > 0 ? static_cast<usize>(funcIdx) : 0;
-        auto& pool = getGlobalState().getStringPool();
-        pushString(pool.intern("pcall: invalid function index"));
-        return LUA_ERRRUN;
+        try {
+            auto& pool = getGlobalState().getStringPool();
+            pushString(pool.intern("pcall: invalid function index"));
+            return LUA_ERRRUN;
+        } catch (...) {
+            pushValue(Value(globalState_.getMemoryErrorMessage()));
+            return LUA_ERRMEM;
+        }
     }
 
     // 保护调用结束后只回收 func/args 之上的逻辑栈顶，不能覆盖外层帧槽位：
@@ -800,11 +816,21 @@ i32 LuaState::pcall(i32 nargs, i32 nresults, i32 errfunc) {
     struct HandlerResult {
         Value value;
         bool failed = false;
+        bool memoryFailure = false;
+    };
+
+    auto finishMemoryError = [&]() -> i32 {
+        closeUnwoundUpvalues();
+        restoreCallFrames();
+        restoreStackPrefix();
+        pushValue(Value(globalState_.getMemoryErrorMessage()));
+        setStatus(ThreadStatus::OK);
+        return LUA_ERRMEM;
     };
 
     auto invokeErrorHandler = [&](const Value& errorValue) -> HandlerResult {
         if (!hasErrorHandler) {
-            return {errorValue, false};
+            return {errorValue, false, false};
         }
 
         const usize handlerSavedCI = currentCI_;
@@ -822,11 +848,15 @@ i32 LuaState::pcall(i32 nargs, i32 nresults, i32 errfunc) {
             VM::call(services, this, 1, 1);
             Value handled = top();
             currentCI_ = handlerSavedCI;
-            return {handled, false};
+            return {handled, false, false};
         } catch (...) {
             closeUnwoundUpvalues();
             currentCI_ = handlerSavedCI;
-            return {makeStringValue("error in error handling"), true};
+            try {
+                return {makeStringValue("error in error handling"), true, false};
+            } catch (...) {
+                return {Value(globalState_.getMemoryErrorMessage()), true, true};
+            }
         }
     };
 
@@ -837,17 +867,25 @@ i32 LuaState::pcall(i32 nargs, i32 nresults, i32 errfunc) {
         restoreStackPrefix();
         pushValue(handled.value);
         setStatus(ThreadStatus::OK);
-        return handled.failed ? LUA_ERRERR : status;
+        return handled.memoryFailure ? LUA_ERRMEM : (handled.failed ? LUA_ERRERR : status);
     };
 
     Value& funcVal = stack_.at(funcIdx);
     if (!funcVal.isFunction()) {
-        return finishError(makeStringValue("attempt to call a non-function value"), LUA_ERRRUN);
+        try {
+            return finishError(makeStringValue("attempt to call a non-function value"), LUA_ERRRUN);
+        } catch (...) {
+            return finishMemoryError();
+        }
     }
 
     Function* func = funcVal.asFunction();
     if (!func) {
-        return finishError(makeStringValue("invalid function"), LUA_ERRRUN);
+        try {
+            return finishError(makeStringValue("invalid function"), LUA_ERRRUN);
+        } catch (...) {
+            return finishMemoryError();
+        }
     }
 
     try {
@@ -857,22 +895,34 @@ i32 LuaState::pcall(i32 nargs, i32 nresults, i32 errfunc) {
         return LUA_OK;
 
     } catch (const MemoryError&) {
-        return finishError(Value(globalState_.getMemoryErrorMessage()), LUA_ERRMEM);
+        return finishMemoryError();
 
     } catch (const std::bad_alloc&) {
-        return finishError(Value(globalState_.getMemoryErrorMessage()), LUA_ERRMEM);
+        return finishMemoryError();
 
     } catch (const LuaError& e) {
-        Value errorValue =
-            e.hasErrorObject() ? e.getErrorObject() : makeStringValue(runtimeErrorWithLocation(this, e.what()));
-        return finishError(errorValue, LUA_ERRRUN);
+        try {
+            Value errorValue =
+                e.hasErrorObject() ? e.getErrorObject() : makeStringValue(runtimeErrorWithLocation(this, e.what()));
+            return finishError(errorValue, LUA_ERRRUN);
+        } catch (...) {
+            return finishMemoryError();
+        }
 
     } catch (const std::exception& e) {
-        Value errorValue = makeStringValue(runtimeErrorWithLocation(this, e.what()));
-        return finishError(errorValue, LUA_ERRRUN);
+        try {
+            Value errorValue = makeStringValue(runtimeErrorWithLocation(this, e.what()));
+            return finishError(errorValue, LUA_ERRRUN);
+        } catch (...) {
+            return finishMemoryError();
+        }
 
     } catch (...) {
-        return finishError(makeStringValue("unknown C++ exception"), LUA_ERRRUN);
+        try {
+            return finishError(makeStringValue("unknown C++ exception"), LUA_ERRRUN);
+        } catch (...) {
+            return finishMemoryError();
+        }
     }
 }
 

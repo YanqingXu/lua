@@ -198,7 +198,7 @@ protected:
      */
     explicit GCObject(GCObjectType type) noexcept
         : next_(nullptr), ownerCollector_(nullptr), allocationAllocator_(nullptr), allocationSize_(0),
-          allocationDestructor_(nullptr), type_(type), marked_(0) {}
+          allocationDestructor_(nullptr), accountedSize_(0), type_(type), marked_(0) {}
 
 private:
     friend class GarbageCollector;
@@ -227,11 +227,20 @@ private:
         return allocationDestructor_;
     }
 
+    void setAccountedSize(usize size) noexcept {
+        accountedSize_ = size;
+    }
+
+    usize getAccountedSize() const noexcept {
+        return accountedSize_;
+    }
+
     GCObject* next_;                            ///< GC链表指针
     GarbageCollector* ownerCollector_;          ///< 当前管理此对象的GC实例
     LuaAllocator* allocationAllocator_;         ///< Allocator that owns this object block
     usize allocationSize_;                      ///< Exact object-block size supplied to lua_Alloc
     AllocationDestructor allocationDestructor_; ///< Concrete placement destructor
+    usize accountedSize_;                       ///< Last size included in the collector's fast-path total
     GCObjectType type_;                         ///< 对象类型
     u8 marked_;                                 ///< GC标记位
 };

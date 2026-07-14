@@ -14,6 +14,7 @@
 #include "vm/state/lua_state.hpp"
 #include "vm/state/stack.hpp"
 
+#include <algorithm>
 #include <cstdio>
 #include <string>
 
@@ -23,15 +24,24 @@ namespace {
 
 const char* luaTypeName(const Value& value) {
     switch (value.getType()) {
-        case ValueType::Nil: return "nil";
-        case ValueType::Boolean: return "boolean";
-        case ValueType::LightUserdata: return "userdata";
-        case ValueType::Number: return "number";
-        case ValueType::String: return "string";
-        case ValueType::Table: return "table";
-        case ValueType::Function: return "function";
-        case ValueType::Userdata: return "userdata";
-        case ValueType::Thread: return "thread";
+    case ValueType::Nil:
+        return "nil";
+    case ValueType::Boolean:
+        return "boolean";
+    case ValueType::LightUserdata:
+        return "userdata";
+    case ValueType::Number:
+        return "number";
+    case ValueType::String:
+        return "string";
+    case ValueType::Table:
+        return "table";
+    case ValueType::Function:
+        return "function";
+    case ValueType::Userdata:
+        return "userdata";
+    case ValueType::Thread:
+        return "thread";
     }
     return "value";
 }
@@ -44,52 +54,97 @@ Str formatCallTypeError(const Value& value, const Str& callTargetName) {
     return Str("attempt to call a ") + typeName + " value";
 }
 
-bool precallImpl(LuaState* L, i32 funcIndex, i32 nArgs, i32 nResults,
-                 const Str& callTargetName,
-                 CallTargetNameResolver resolver = nullptr,
-                 void* resolverContext = nullptr);
+bool precallImpl(LuaState* L, i32 funcIndex, i32 nArgs, i32 nResults, const Str& callTargetName,
+                 CallTargetNameResolver resolver = nullptr, void* resolverContext = nullptr);
 
 } // namespace
 
 void postcall(LuaState* L, i32 funcPos, i32 wantedResults, usize firstResult) {
     Stack& stack = L->getStack();
-    usize res = static_cast<usize>(funcPos);
-    usize currentTop = L->getAbsoluteTop();
+    const usize resultDestination = static_cast<usize>(funcPos);
+    const usize oldTop = L->getAbsoluteTop();
+    usize newTop = resultDestination;
 
     if (firstResult == 0) {
-        i32 actualResults = static_cast<i32>(currentTop) - funcPos;
+        i32 actualResults = static_cast<i32>(oldTop) - funcPos;
         if (wantedResults >= 0) {
             if (actualResults < wantedResults) {
                 while (actualResults < wantedResults) {
-                    if (currentTop >= stack.size()) stack.push(Value());
-                    else stack.at(currentTop) = Value();
-                    currentTop++;
+                    if (newTop + static_cast<usize>(actualResults) >= stack.size())
+                        stack.push(Value());
+                    else
+                        stack.at(newTop + static_cast<usize>(actualResults)) = Value();
                     actualResults++;
                 }
-            } else if (actualResults > wantedResults) {
-                currentTop -= (actualResults - wantedResults);
-                actualResults = wantedResults;
             }
+            actualResults = wantedResults;
         }
-        L->setAbsoluteTop(funcPos + actualResults);
+        newTop = resultDestination + static_cast<usize>(actualResults);
     } else {
-        i32 availableResults = static_cast<i32>(currentTop - firstResult);
-        i32 i = (wantedResults < 0) ? availableResults : wantedResults;
-        usize src = firstResult;
-        while (i != 0 && src < currentTop) {
-            if (shouldDumpBytecode()) {
-                std::fprintf(stderr, "[POSTCALL] copy stack[%zu] -> stack[%zu] val=", src, res);
-                if (stack[src].isNumber()) std::fprintf(stderr, "%g", stack[src].asNumber());
-                else if (stack[src].isNil()) std::fprintf(stderr, "nil");
-                else std::fprintf(stderr, "other");
-                std::fprintf(stderr, "\n");
-            }
+        const i32 availableResults = static_cast<i32>(oldTop - firstResult);
+        const i32 resultCount = (wantedResults < 0) ? availableResults : wantedResults;
+        const i32 copyCount = std::min(availableResults, resultCount);
 
-            stack[res++] = stack[src++];
-            i--;
+        // Lua results usually move down over the consumed function and
+        // arguments. Keep the helper correct for either overlap direction so
+        // no retained result is overwritten before it is copied.
+        if (resultDestination > firstResult && resultDestination < firstResult + static_cast<usize>(copyCount)) {
+            for (i32 i = copyCount; i > 0; --i) {
+                stack[resultDestination + static_cast<usize>(i - 1)] = stack[firstResult + static_cast<usize>(i - 1)];
+            }
+        } else {
+            for (i32 i = 0; i < copyCount; ++i) {
+                const usize src = firstResult + static_cast<usize>(i);
+                const usize dst = resultDestination + static_cast<usize>(i);
+                if (shouldDumpBytecode()) {
+                    std::fprintf(stderr, "[POSTCALL] copy stack[%zu] -> stack[%zu] val=", src, dst);
+                    if (stack[src].isNumber())
+                        std::fprintf(stderr, "%g", stack[src].asNumber());
+                    else if (stack[src].isNil())
+                        std::fprintf(stderr, "nil");
+                    else
+                        std::fprintf(stderr, "other");
+                    std::fprintf(stderr, "\n");
+                }
+
+                stack[dst] = stack[src];
+            }
         }
-        while (i-- > 0) stack[res++] = Value();
-        L->setAbsoluteTop(res);
+
+        for (i32 i = copyCount; i < resultCount; ++i) {
+            const usize slot = resultDestination + static_cast<usize>(i);
+            if (slot >= stack.size()) {
+                stack.push(Value());
+            } else {
+                stack[slot] = Value();
+            }
+        }
+        newTop = resultDestination + static_cast<usize>(resultCount);
+    }
+
+    // Results are now stable at their destination. Clear consumed function,
+    // argument, and surplus-result slots that remain inside a caller's wide
+    // GC scan window before lowering the logical top.
+    const usize clearEnd = std::min(oldTop, stack.size());
+    for (usize slot = newTop; slot < clearEnd; ++slot) {
+        stack[slot] = Value();
+    }
+
+    L->setAbsoluteTop(newTop);
+
+    // A C frame may reserve physical slots above its caller. Drop only that
+    // tail: never grow a returned Lua frame here, and never shrink below the
+    // active caller's register window or an open MULTRET result range.
+    usize callerFrameTop = newTop;
+    const usize currentFrame = L->getCurrentCI();
+    LuaVector<CallInfo>& callStack = L->getCallStack();
+    if (currentFrame < callStack.size()) {
+        const bool calleeStillActive = currentFrame > 0 && callStack[currentFrame].func == resultDestination;
+        const usize callerFrame = calleeStillActive ? currentFrame - 1 : currentFrame;
+        callerFrameTop = std::max(callerFrameTop, callStack[callerFrame].top);
+    }
+    if (stack.size() > callerFrameTop) {
+        stack.setTop(callerFrameTop);
     }
 }
 
@@ -97,22 +152,19 @@ bool precall(LuaState* L, i32 funcIndex, i32 nArgs, i32 nResults) {
     return precallImpl(L, funcIndex, nArgs, nResults, Str());
 }
 
-bool precallWithName(LuaState* L, i32 funcIndex, i32 nArgs, i32 nResults,
-                     const Str& callTargetName) {
+bool precallWithName(LuaState* L, i32 funcIndex, i32 nArgs, i32 nResults, const Str& callTargetName) {
     return precallImpl(L, funcIndex, nArgs, nResults, callTargetName);
 }
 
-bool precallWithNameResolver(LuaState* L, i32 funcIndex, i32 nArgs, i32 nResults,
-                             CallTargetNameResolver resolver, void* resolverContext) {
+bool precallWithNameResolver(LuaState* L, i32 funcIndex, i32 nArgs, i32 nResults, CallTargetNameResolver resolver,
+                             void* resolverContext) {
     return precallImpl(L, funcIndex, nArgs, nResults, Str(), resolver, resolverContext);
 }
 
 namespace {
 
-bool precallImpl(LuaState* L, i32 funcIndex, i32 nArgs, i32 nResults,
-                 const Str& callTargetName,
-                 CallTargetNameResolver resolver,
-                 void* resolverContext) {
+bool precallImpl(LuaState* L, i32 funcIndex, i32 nArgs, i32 nResults, const Str& callTargetName,
+                 CallTargetNameResolver resolver, void* resolverContext) {
     Stack& stack = L->getStack();
     CallInfo& currentCI = L->getCurrentCallInfo();
     usize funcPos = currentCI.base + funcIndex;
@@ -132,19 +184,20 @@ bool precallImpl(LuaState* L, i32 funcIndex, i32 nArgs, i32 nResults,
         i32 actualCallArgs = nArgs;
         const bool variableArgCall = actualCallArgs < 0;
         if (variableArgCall) {
-            actualCallArgs = static_cast<i32>(L->getAbsoluteTop())
-                           - static_cast<i32>(funcPos + 1);
+            actualCallArgs = static_cast<i32>(L->getAbsoluteTop()) - static_cast<i32>(funcPos + 1);
         }
 
         Vec<Value> args;
-        for (i32 i = 1; i <= actualCallArgs; i++) args.push_back(stack.at(funcPos + i));
+        for (i32 i = 1; i <= actualCallArgs; i++)
+            args.push_back(stack.at(funcPos + i));
 
         while (stack.size() < funcPos + 2 + args.size()) {
             stack.push(Value());
         }
         stack.at(funcPos) = tm;
         stack.at(funcPos + 1) = originalFunc;
-        for (usize i = 0; i < args.size(); i++) stack.at(funcPos + 2 + i) = args[i];
+        for (usize i = 0; i < args.size(); i++)
+            stack.at(funcPos + 2 + i) = args[i];
         nArgs = actualCallArgs + 1;
         if (variableArgCall) {
             L->setAbsoluteTop(funcPos + 1 + static_cast<usize>(nArgs));
@@ -163,8 +216,7 @@ bool precallImpl(LuaState* L, i32 funcIndex, i32 nArgs, i32 nResults,
 
         i32 actualNArgs = nArgs;
         if (nArgs < 0) {
-            actualNArgs = static_cast<i32>(L->getAbsoluteTop())
-                        - static_cast<i32>(funcPos + 1);
+            actualNArgs = static_cast<i32>(L->getAbsoluteTop()) - static_cast<i32>(funcPos + 1);
         }
 
         CallInfo& ci = L->pushCallInfo();
@@ -175,7 +227,16 @@ bool precallImpl(LuaState* L, i32 funcIndex, i32 nArgs, i32 nResults,
         ci.savedpc = nullptr;
         ci.tailcalls = 0;
 
-        while (stack.size() < ci.top) stack.push(Value());
+        while (stack.size() < ci.top)
+            stack.push(Value());
+        // A Stack keeps spare physical slots after a call returns. Reusing
+        // those slots for a wider C frame must clear the non-argument window;
+        // conservative GC scans ci.top and must never see pointers left by an
+        // older frame whose objects may already have been reclaimed.
+        const usize argumentTop = funcPos + 1 + static_cast<usize>(actualNArgs);
+        for (usize slot = argumentTop; slot < ci.top; ++slot) {
+            stack[slot] = Value();
+        }
         L->setAbsoluteTop(funcPos + 1 + actualNArgs);
 
         dispatchCallHook(L);
@@ -199,8 +260,7 @@ bool precallImpl(LuaState* L, i32 funcIndex, i32 nArgs, i32 nResults,
     Proto* proto = func->getProto();
     i32 actualArgs = nArgs;
     if (nArgs < 0) {
-        actualArgs = static_cast<i32>(L->getAbsoluteTop())
-                   - static_cast<i32>(funcPos + 1);
+        actualArgs = static_cast<i32>(L->getAbsoluteTop()) - static_cast<i32>(funcPos + 1);
     }
 
     i32 numParams = proto->getNumParams();
@@ -224,9 +284,8 @@ bool precallImpl(LuaState* L, i32 funcIndex, i32 nArgs, i32 nResults,
             compatArgTable = L->getGlobalState().getGC().create<Table>();
 
             for (i32 i = 0; i < nVarargs; i++) {
-                compatArgTable->set(
-                    Value(static_cast<LuaNumber>(i + 1)),
-                    stack[oldBase + static_cast<usize>(numParams + i)]);
+                compatArgTable->set(Value(static_cast<LuaNumber>(i + 1)),
+                                    stack[oldBase + static_cast<usize>(numParams + i)]);
             }
 
             GCString* nKey = L->getGlobalState().getStringPool().intern("n");
@@ -263,7 +322,16 @@ bool precallImpl(LuaState* L, i32 funcIndex, i32 nArgs, i32 nResults,
     ci.savedpc = nullptr;
     ci.tailcalls = 0;
 
-    while (stack.size() < ci.top) stack.push(Value());
+    while (stack.size() < ci.top)
+        stack.push(Value());
+    // Initialize every non-parameter register even when the backing Stack is
+    // already large enough from a previous frame. Wide GC rooting scans the
+    // whole Lua register window, so stale values here would be interpreted as
+    // live GC pointers after their original objects have been swept.
+    const usize firstLocal = base + static_cast<usize>(numParams);
+    for (usize slot = firstLocal; slot < ci.top; ++slot) {
+        stack[slot] = Value();
+    }
     if (compatArgTable != nullptr) {
         stack[base + static_cast<usize>(numParams)] = Value(compatArgTable);
     }
@@ -276,8 +344,7 @@ bool precallImpl(LuaState* L, i32 funcIndex, i32 nArgs, i32 nResults,
 
 } // namespace
 
-void reuseCurrentFrameForTailCall(LuaState* L, usize callerIndex,
-                                  usize callerFunc, i32 callerTailcalls) {
+void reuseCurrentFrameForTailCall(LuaState* L, usize callerIndex, usize callerFunc, i32 callerTailcalls) {
     Stack& stack = L->getStack();
     CallInfo callee = L->getCurrentCallInfo();
 
@@ -298,9 +365,7 @@ void reuseCurrentFrameForTailCall(LuaState* L, usize callerIndex,
     }
 
     i64 offset = static_cast<i64>(dst) - static_cast<i64>(src);
-    auto adjustIndex = [offset](usize index) -> usize {
-        return static_cast<usize>(static_cast<i64>(index) + offset);
-    };
+    auto adjustIndex = [offset](usize index) -> usize { return static_cast<usize>(static_cast<i64>(index) + offset); };
 
     callee.func = adjustIndex(callee.func);
     callee.base = adjustIndex(callee.base);
@@ -316,4 +381,4 @@ void reuseCurrentFrameForTailCall(LuaState* L, usize callerIndex,
     L->setAbsoluteTop(callee.top);
 }
 
-}  // namespace Lua::VM::detail
+} // namespace Lua::VM::detail

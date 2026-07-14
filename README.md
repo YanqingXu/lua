@@ -1,7 +1,7 @@
 ---
 status: current
 verified_against: docs/index.md; docs/vm/instruction-set.md; docs/compatibility/lua-c-api-coverage.md; CMakeLists.txt; lua.slnx; lua.vcxproj; lua_app.vcxproj; lua_test.vcxproj; lua_bytecode.vcxproj
-last_checked: 2026-07-10
+last_checked: 2026-07-14
 applies_to: 项目入口、稳定能力概览与文档导航
 ---
 
@@ -54,7 +54,7 @@ applies_to: 项目入口、稳定能力概览与文档导航
 - 核心运行时对象包括 `Table`、`Function`、`Proto`、`GCString`、`Userdata`、`Thread` 和 `Upvalue`。
 - 项目统一使用 `src/common/types.hpp` 中的类型别名，如 `Vec<T>`、`HashMap<K, V>`、`Str`、`StrView`、`usize`、`i32`、`u32` 和 `f64`。
 - `RuntimeServices` 和 `EngineContext` 为嵌入式运行时隔离、测试夹具和多上下文执行提供清晰边界。
-- `src/api/lapi.cpp` 已进入 Lua 5.1 C API 原型验证阶段：栈/索引、closure/userdata、独立 State、protected-call/yield、公开 `lua_newthread/lua_resume`，以及自定义 allocator 的主/协程 State、GC 对象、userdata payload、主要运行时容器、失败回滚和关闭释放已由独立 API suite 覆盖；C 函数作为 coroutine 入口、真实 realloc、GCString/StringPool key 的字符串内容容量、refs、完整 `testC` 与官方模块 ABI 仍在推进。
+- `src/api/lapi.cpp` 已形成 Lua 5.1 C API 嵌入 MVP：栈/索引、closure/userdata、registry refs、独立 State、load/dump、protected-call/yield、Lua/C function coroutine 入口，以及自定义 allocator 的主/协程 State、GC 对象、userdata payload、主要运行时容器、失败回滚和关闭释放已有直接 API suite 证据。原始 TestC `api.lua` 已 exact PASS；真实 realloc、GCString/StringPool key 字符串内容容量、尚未声明的 Lua 5.1 API 符号和官方模块二进制 ABI 仍不宣称完成。
 
 ### 内存管理与 GC
 
@@ -66,7 +66,7 @@ applies_to: 项目入口、稳定能力概览与文档导航
 
 - 标准库按 catalog 方式注册，覆盖 base、math、string、table、io、os、coroutine、debug 和 package 等 Lua 5.1 常用库。
 - REPL 支持元命令、历史记录、增量解析、Tab 补全、字节码查看、AST 查看和 GC 信息查询。
-- 兼容性验证包含 Lua 5.1 官方测试套件的 staged smoke、项目内 Lua 回归脚本和 C++ 单元测试。
+- 兼容性验证包含 Lua 5.1 官方测试套件的 staged smoke、原始 TestC 脚本、项目内 Lua 回归脚本和 C++ 单元测试；当前 `api.lua` exact PASS，`code.lua` 保留一条字节码期望版本差异 XFAIL。
 - 项目包含复杂第三方 Lua 库 `alien-signals-in-lua` 的运行验证，用于检验闭包、元表、协程、模块加载、debug 反射和嵌套表操作等组合场景。
 
 ## 快速开始
@@ -134,7 +134,7 @@ bin\lua_test.exe --filter "Symbol Binding"
 bin\lua_test.exe --report=junit
 ```
 
-测试运行器会在输出中报告真实测试数量和断言结果。最近一次完整绿跑为 694 registered tests / 3650 assertion results / 0 failures；其中 `Lua C API` suite 为 24 个测试、244 个断言。
+测试运行器会在输出中报告实时测试数量和断言结果。2026-07-14 的完整 Debug 绿跑基线为 **726 registered tests, 4353 assertion results, 0 failures**；其中 `Lua C API` suite 为 33 个测试、805 个断言、0 failures，原始 `api.lua with T module` 也完整运行到 `OK`。新增回归后需用文档漂移门禁同步这一基线。
 
 ### CMake / CTest 辅助路径
 
@@ -308,6 +308,7 @@ using ValueData = std::variant<
 常用验证入口：
 
 质量门统一编排 `clang-format`、`clang-tidy`、文档漂移检查和测试执行，并由 GitHub Actions 在持续集成中复用；`tools/run_quality_gate.ps1` 是本地与 CI 的共同入口。
+仓库已定义 Windows Debug/Release、Linux GCC/Clang Debug/Release、ASan/UBSan、严格兼容性和 Release benchmark 检查；私有仓库当前套餐无法启用 required-check 分支保护，该平台限制由 [#6](https://github.com/YanqingXu/lua/issues/6) 跟踪。
 
 ```powershell
 bin\lua_test.exe

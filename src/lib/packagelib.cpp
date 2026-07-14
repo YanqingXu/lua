@@ -53,7 +53,7 @@ namespace Lua {
 // or global "package" table.
 // =====================================================================
 
-static constexpr StrView PACKAGE_TABLE_NAME = "package";
+static constexpr const char* PACKAGE_TABLE_NAME = "package";
 static constexpr StrView PACKAGE_REGISTRY_KEY = "_PACKAGE_TABLE";
 
 // Default paths
@@ -99,7 +99,7 @@ static constexpr StrView LUA_CONFIG_STRING =
 // =====================================================================
 
 static Table* getPackageTable(LuaState* L) {
-    Value pkgVal = L->getGlobal(PACKAGE_TABLE_NAME.data());
+    Value pkgVal = L->getGlobal(PACKAGE_TABLE_NAME);
     if (pkgVal.isTable()) {
         return pkgVal.asTable();
     }
@@ -1100,7 +1100,7 @@ void PackageLibModule::registerFunctions(LuaState* L) {
     auto& gc = L->getGlobalState().getGC();
 
     // ---- Create the package table ----
-    Table* pkgTable = FunctionRegistrar::createLibTable(L, PACKAGE_TABLE_NAME.data());
+    Table* pkgTable = FunctionRegistrar::createLibTable(L, PACKAGE_TABLE_NAME);
     if (!pkgTable) {
         L->error("Failed to create package library table");
         return;
@@ -1183,11 +1183,11 @@ void PackageLibModule::initialize(LuaState* L) {
     auto& pool = L->getGlobalState().getStringPool();
 
     // Map library names to their global table entries
-    static constexpr std::array<StrView, 8> stdlibs = {"math",  "io",        "os",    "string",
+    static constexpr std::array<StrView, 9> stdlibs = {"_G",    "math",      "io",    "os",     "string",
                                                        "table", "coroutine", "debug", "package"};
 
     for (StrView name : stdlibs) {
-        Value libVal = L->getGlobal(name.data());
+        Value libVal = L->getGlobal(Str(name));
         if (!libVal.isNil()) {
             GCString* key = pool.intern(name);
             loaded->set(Value(key), libVal);

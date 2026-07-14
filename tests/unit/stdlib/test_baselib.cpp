@@ -6,8 +6,8 @@
 #include "../framework/test_framework.hpp"
 #include "lib/baselib.hpp"
 #include "lib/lib_manager.hpp"
+#include "runtime/runtime_services.hpp"
 #include "vm/state/lua_state.hpp"
-#include "vm/vm.hpp"
 #include "core/string_pool.hpp"
 #include "core/function.hpp"
 #include "core/table.hpp"
@@ -17,6 +17,8 @@
 #include "compiler/codegen/codegen.hpp"
 
 #include <iostream>
+#include <filesystem>
+#include <fstream>
 #include <sstream>
 #include <string>
 #include <cstring>
@@ -33,22 +35,23 @@ constexpr const char* kCompatibilitySuiteName = "Lua 5.1 Compatibility";
 /// Helper: compile and execute Lua code with all standard libs
 bool runLua(LuaState* L, const char* code) {
     try {
-        Parser parser(code);
+        RuntimeServices services(L->getGlobalState());
+        Parser parser(code, services);
         auto parsed = parser.parse();
         if (!parsed) {
             throw parsed.error();
         }
         Chunk chunk = std::move(*parsed);
-        StringPool& pool = StringPool::getInstance();
-        CodeGenerator codegen(&pool);
+        CodeGenerator codegen(services);
         Proto* proto = codegen.generate(chunk, "test");
-        if (!proto) return false;
+        if (!proto)
+            return false;
 
         Function* func = new Function(proto);
         L->getGlobalState().getGC().registerObject(func);
         func->setEnv(L->getGlobalTable());
-        VM::execute(L, func);
-        return true;
+        L->pushFunction(func);
+        return L->pcall(0, 0, 0) == LUA_OK;
     } catch (...) {
         return false;
     }
@@ -73,8 +76,7 @@ bool getGlobalBool(LuaState* L, const char* name) {
 
 class ScopedCinRedirect {
 public:
-    explicit ScopedCinRedirect(std::istream& input)
-        : old_(std::cin.rdbuf(input.rdbuf())) {}
+    explicit ScopedCinRedirect(std::istream& input) : old_(std::cin.rdbuf(input.rdbuf())) {}
 
     ~ScopedCinRedirect() {
         std::cin.rdbuf(old_);
@@ -87,7 +89,7 @@ private:
 
 /// Helper: create state with all standard libraries
 LuaState* createFullState() {
-    LuaState* L = LuaState::newState();
+    LuaState* L = LuaState::newIsolatedState();
     StandardLibrary::openAll(L);
     return L;
 }
@@ -199,9 +201,8 @@ void testPrintWrapper(TestSuite& suite) {
         return;
     }
 
-    i32 ret = ctx.invoke("print", [](LuaState* L) {
-        L->pushString(L->getGlobalState().getStringPool().intern("Test output"));
-    });
+    i32 ret = ctx.invoke("print",
+                         [](LuaState* L) { L->pushString(L->getGlobalState().getStringPool().intern("Test output")); });
     ASSERT_EQ(suite, ret, 0, "print returns 0");
 }
 
@@ -226,7 +227,8 @@ void testTypeWrapper(TestSuite& suite) {
     };
 
     checkType([](LuaState* s) { s->pushNumber(42.0); }, "number", "type(42) == 'number'");
-    checkType([](LuaState* s) { s->pushString(s->getGlobalState().getStringPool().intern("hello")); }, "string", "type('hello') == 'string'");
+    checkType([](LuaState* s) { s->pushString(s->getGlobalState().getStringPool().intern("hello")); }, "string",
+              "type('hello') == 'string'");
     checkType([](LuaState* s) { s->pushNil(); }, "nil", "type(nil) == 'nil'");
 }
 
@@ -254,9 +256,8 @@ void testTostringWrapper(TestSuite& suite) {
     checkTostring([](LuaState* s) { s->pushBoolean(true); }, "true", "tostring(true) == 'true'");
     checkTostring([](LuaState* s) { s->pushBoolean(false); }, "false", "tostring(false) == 'false'");
 
-    i32 ret = ctx.invoke("tostring", [](LuaState* s) {
-        s->pushString(s->getGlobalState().getStringPool().intern("\0", 1));
-    });
+    i32 ret =
+        ctx.invoke("tostring", [](LuaState* s) { s->pushString(s->getGlobalState().getStringPool().intern("\0", 1)); });
     ASSERT_EQ(suite, ret, 1, "tostring binary string returns 1 value");
     Value binary = L->top();
     ASSERT_TRUE(suite, binary.isString() && binary.asString()->getLength() == 1,
@@ -279,22 +280,23 @@ void testTonumberWrapper(TestSuite& suite) {
         ASSERT_TRUE(suite, validator(val), msg);
     };
 
-    checkTonumber([](LuaState* s) { s->pushNumber(456.0); }, [](const Value& v) { return v.isNumber() && v.asNumber() == 456.0; }, "tonumber(456) == 456.0");
-    checkTonumber([&](LuaState* s) { s->pushString(pool.intern("123")); }, [](const Value& v) { return v.isNumber() && v.asNumber() == 123.0; }, "tonumber('123') == 123.0");
-    checkTonumber([&](LuaState* s) {
-        s->pushString(pool.intern("1A"));
-        s->pushNumber(16.0);
-    }, [](const Value& v) { return v.isNumber() && v.asNumber() == 26.0; }, "tonumber('1A', 16) == 26.0");
-    checkTonumber([&](LuaState* s) {
-        s->pushString(pool.intern(" +1.23E2 "));
-    }, [](const Value& v) { return v.isNumber() && v.asNumber() == 123.0; }, "tonumber accepts signed decimal strings with surrounding whitespace");
-    checkTonumber([&](LuaState* s) {
-        s->pushString(pool.intern("+ 0.01"));
-    }, [](const Value& v) { return v.isNil(); }, "tonumber rejects whitespace between sign and digits");
+    checkTonumber([](LuaState* s) { s->pushNumber(456.0); },
+                  [](const Value& v) { return v.isNumber() && v.asNumber() == 456.0; }, "tonumber(456) == 456.0");
+    checkTonumber([&](LuaState* s) { s->pushString(pool.intern("123")); },
+                  [](const Value& v) { return v.isNumber() && v.asNumber() == 123.0; }, "tonumber('123') == 123.0");
+    checkTonumber(
+        [&](LuaState* s) {
+            s->pushString(pool.intern("1A"));
+            s->pushNumber(16.0);
+        },
+        [](const Value& v) { return v.isNumber() && v.asNumber() == 26.0; }, "tonumber('1A', 16) == 26.0");
+    checkTonumber([&](LuaState* s) { s->pushString(pool.intern(" +1.23E2 ")); },
+                  [](const Value& v) { return v.isNumber() && v.asNumber() == 123.0; },
+                  "tonumber accepts signed decimal strings with surrounding whitespace");
+    checkTonumber([&](LuaState* s) { s->pushString(pool.intern("+ 0.01")); }, [](const Value& v) { return v.isNil(); },
+                  "tonumber rejects whitespace between sign and digits");
 
-    i32 ret = ctx.invoke("tonumber", [&](LuaState* s) {
-        s->pushString(pool.intern("xyz"));
-    });
+    i32 ret = ctx.invoke("tonumber", [&](LuaState* s) { s->pushString(pool.intern("xyz")); });
     ASSERT_EQ(suite, ret, 1, "tonumber invalid returns 1 value");
     Value invalidResult = L->top();
     ASSERT_TRUE(suite, invalidResult.isNil(), "tonumber('xyz') returns nil");
@@ -315,10 +317,12 @@ void testAssertWrapper(TestSuite& suite) {
 
     expectReturn([](LuaState* s) { s->pushBoolean(true); }, 1, "assert(true) returns 1 value");
     expectReturn([](LuaState* s) { s->pushNumber(1.0); }, 1, "assert(1) returns 1 value");
-    expectReturn([&](LuaState* s) {
-        s->pushBoolean(true);
-        s->pushString(pool.intern("test message"));
-    }, 2, "assert(true, msg) returns all arguments");
+    expectReturn(
+        [&](LuaState* s) {
+            s->pushBoolean(true);
+            s->pushString(pool.intern("test message"));
+        },
+        2, "assert(true, msg) returns all arguments");
 }
 
 void testMetatableWrapper(TestSuite& suite) {
@@ -341,9 +345,7 @@ void testMetatableWrapper(TestSuite& suite) {
     });
     ASSERT_EQ(suite, ret, 1, "setmetatable returns 1 value");
 
-    ret = ctx.invoke("getmetatable", [t](LuaState* s) {
-        s->pushTable(t);
-    });
+    ret = ctx.invoke("getmetatable", [t](LuaState* s) { s->pushTable(t); });
     ASSERT_EQ(suite, ret, 1, "getmetatable returns 1 value");
     Value mtResult = L->top();
     ASSERT_TRUE(suite, mtResult.isTable(), "getmetatable returns table");
@@ -364,18 +366,13 @@ void testMetatableWrapper(TestSuite& suite) {
     });
     ASSERT_EQ(suite, ret, 1, "setmetatable protected returns 1 value");
 
-    ret = ctx.invoke("getmetatable", [protectedTable](LuaState* s) {
-        s->pushTable(protectedTable);
-    });
+    ret = ctx.invoke("getmetatable", [protectedTable](LuaState* s) { s->pushTable(protectedTable); });
     ASSERT_EQ(suite, ret, 1, "protected getmetatable returns 1 value");
     Value protectedResult = L->top();
     ASSERT_TRUE(suite, protectedResult.isString(), "protected getmetatable returns __metatable value");
     if (protectedResult.isString()) {
-        ASSERT_TRUE(
-            suite,
-            std::string(protectedResult.asString()->c_str()) == "locked",
-            "protected getmetatable returns locked marker"
-        );
+        ASSERT_TRUE(suite, std::string(protectedResult.asString()->c_str()) == "locked",
+                    "protected getmetatable returns locked marker");
     }
 }
 
@@ -613,9 +610,7 @@ void testPcallWrapper(TestSuite& suite) {
     L->getGlobalState().getGC().registerObject(testFunc);
     testFunc->setEnv(L->getGlobalTable());
 
-    i32 ret = ctx.invoke("pcall", [&](LuaState* s) {
-        s->pushValue(Value(testFunc));
-    });
+    i32 ret = ctx.invoke("pcall", [&](LuaState* s) { s->pushValue(Value(testFunc)); });
 
     ASSERT_EQ(suite, ret, 2, "pcall returns 2 values on success");
     ASSERT_TRUE(suite, L->at(-2).isBoolean(), "first return is boolean");
@@ -624,9 +619,7 @@ void testPcallWrapper(TestSuite& suite) {
     ASSERT_EQ(suite, 42.0, L->at(-1).asNumber(), "second return is 42");
 
     // 测试调用非函数值
-    ret = ctx.invoke("pcall", [](LuaState* s) {
-        s->pushNumber(123.0);
-    });
+    ret = ctx.invoke("pcall", [](LuaState* s) { s->pushNumber(123.0); });
 
     ASSERT_EQ(suite, ret, 2, "pcall returns 2 values on error");
     ASSERT_TRUE(suite, L->at(-2).isBoolean(), "first return is boolean");
@@ -793,7 +786,8 @@ void testXpcallWrapper(TestSuite& suite) {
     Proto* errProto = new Proto();
     errProto->setMaxStackSize(2);
     auto& pool = L->getGlobalState().getStringPool();
-    errProto->addInstruction(CREATE_ABx(OpCode::LOADK, 0, static_cast<i32>(errProto->addConstant(Value(pool.intern("error handled"))))));
+    errProto->addInstruction(
+        CREATE_ABx(OpCode::LOADK, 0, static_cast<i32>(errProto->addConstant(Value(pool.intern("error handled"))))));
     errProto->addInstruction(CREATE_ABC(OpCode::RETURN, 0, 2, 0));
 
     Function* errFunc = new Function(errProto);
@@ -851,10 +845,8 @@ void testXpcallWrapper(TestSuite& suite) {
     )lua");
 
     ASSERT_TRUE(suite, ok, "xpcall handler chunk runs");
-    ASSERT_TRUE(suite, fullState->getGlobal("gXpcallStringHandler").asBoolean(),
-                "xpcall transforms string errors");
-    ASSERT_TRUE(suite, fullState->getGlobal("gXpcallObjectHandler").asBoolean(),
-                "xpcall transforms object errors");
+    ASSERT_TRUE(suite, fullState->getGlobal("gXpcallStringHandler").asBoolean(), "xpcall transforms string errors");
+    ASSERT_TRUE(suite, fullState->getGlobal("gXpcallObjectHandler").asBoolean(), "xpcall transforms object errors");
     ASSERT_TRUE(suite, fullState->getGlobal("gXpcallTraceback").asBoolean(),
                 "xpcall invokes traceback handler before unwinding");
     ASSERT_TRUE(suite, fullState->getGlobal("gXpcallPreservesOuterMutation").asBoolean(),
@@ -871,9 +863,7 @@ void testLoadstringWrapper(TestSuite& suite) {
     auto& pool = L->getGlobalState().getStringPool();
 
     // 测试成功编译
-    i32 ret = ctx.invoke("loadstring", [&](LuaState* s) {
-        s->pushString(pool.intern("return 42"));
-    });
+    i32 ret = ctx.invoke("loadstring", [&](LuaState* s) { s->pushString(pool.intern("return 42")); });
 
     ASSERT_EQ(suite, ret, 1, "loadstring returns 1 value on success");
     ASSERT_TRUE(suite, L->top().isFunction(), "loadstring returns function");
@@ -888,17 +878,13 @@ void testLoadstringWrapper(TestSuite& suite) {
     ASSERT_TRUE(suite, L->top().isFunction(), "embedded NUL loadstring returns function");
 
     // 测试语法错误
-    ret = ctx.invoke("loadstring", [&](LuaState* s) {
-        s->pushString(pool.intern("return return"));
-    });
+    ret = ctx.invoke("loadstring", [&](LuaState* s) { s->pushString(pool.intern("return return")); });
 
     ASSERT_EQ(suite, ret, 2, "loadstring returns 2 values on error");
     ASSERT_TRUE(suite, L->at(-2).isNil(), "first return is nil on error");
     ASSERT_TRUE(suite, L->at(-1).isString(), "second return is error message");
 
-    ret = ctx.invoke("loadstring", [&](LuaState* s) {
-        s->pushString(pool.intern("break label"));
-    });
+    ret = ctx.invoke("loadstring", [&](LuaState* s) { s->pushString(pool.intern("break label")); });
 
     ASSERT_EQ(suite, ret, 2, "loadstring returns 2 values for official syntax format");
     ASSERT_TRUE(suite, L->at(-2).isNil(), "official syntax first return is nil");
@@ -911,9 +897,7 @@ void testLoadstringWrapper(TestSuite& suite) {
                     "loadstring syntax error includes near token");
     }
 
-    ret = ctx.invoke("loadstring", [&](LuaState* s) {
-        s->pushString(pool.intern("return 4.5."));
-    });
+    ret = ctx.invoke("loadstring", [&](LuaState* s) { s->pushString(pool.intern("return 4.5.")); });
 
     ASSERT_EQ(suite, ret, 2, "loadstring returns 2 values on malformed number");
     ASSERT_TRUE(suite, L->at(-2).isNil(), "malformed number first return is nil");
@@ -925,9 +909,7 @@ void testLoadstringWrapper(TestSuite& suite) {
     }
 
     // 测试非字符串参数
-    ret = ctx.invoke("loadstring", [](LuaState* s) {
-        s->pushNumber(123.0);
-    });
+    ret = ctx.invoke("loadstring", [](LuaState* s) { s->pushNumber(123.0); });
 
     ASSERT_EQ(suite, ret, 2, "loadstring returns 2 values on type error");
     ASSERT_TRUE(suite, L->at(-2).isNil(), "first return is nil");
@@ -970,18 +952,14 @@ void testLoadfileWrapper(TestSuite& suite) {
     auto& pool = L->getGlobalState().getStringPool();
 
     // 测试文件不存在
-    i32 ret = ctx.invoke("loadfile", [&](LuaState* s) {
-        s->pushString(pool.intern("nonexistent_file.lua"));
-    });
+    i32 ret = ctx.invoke("loadfile", [&](LuaState* s) { s->pushString(pool.intern("nonexistent_file.lua")); });
 
     ASSERT_EQ(suite, ret, 2, "loadfile returns 2 values on file not found");
     ASSERT_TRUE(suite, L->at(-2).isNil(), "first return is nil");
     ASSERT_TRUE(suite, L->at(-1).isString(), "second return is error message");
 
     // 测试非字符串参数
-    ret = ctx.invoke("loadfile", [](LuaState* s) {
-        s->pushNumber(456.0);
-    });
+    ret = ctx.invoke("loadfile", [](LuaState* s) { s->pushNumber(456.0); });
 
     ASSERT_EQ(suite, ret, 2, "loadfile returns 2 values on type error");
     ASSERT_TRUE(suite, L->at(-2).isNil(), "first return is nil");
@@ -989,14 +967,58 @@ void testLoadfileWrapper(TestSuite& suite) {
 }
 
 void testDofileWrapper(TestSuite& suite) {
-    LuaStdLibTestContext ctx(openBaseLib);
-    if (!ctx.ensureGlobalFunction("dofile", suite, "dofile function exists")) {
+    LuaState* L = createFullState();
+    Value dofile = L->getGlobal("dofile");
+    ASSERT_TRUE(suite, dofile.isFunction(), "dofile function exists");
+    if (!dofile.isFunction()) {
+        delete L;
         return;
     }
 
-    // 注意：dofile 是 legacy 函数，测试其存在性即可
-    // 实际文件执行测试需要创建临时文件，这里简化处理
-    ASSERT_TRUE(suite, true, "dofile function registered");
+    auto& pool = L->getGlobalState().getStringPool();
+    const std::filesystem::path path = std::filesystem::temp_directory_path() / "lua_cpp_dofile_contract.lua";
+    std::error_code removeError;
+    std::filesystem::remove(path, removeError);
+
+    auto invoke = [&](const std::filesystem::path& script) {
+        L->setTop(0);
+        L->pushValue(dofile);
+        const std::string text = script.string();
+        L->pushString(pool.intern(text.data(), text.size()));
+        return L->pcall(1, MULTRET, 0);
+    };
+
+    i32 status = invoke(path);
+    ASSERT_EQ(suite, LUA_ERRRUN, status, "dofile raises a missing-file loader error");
+    ASSERT_EQ(suite, 1, L->getTop(), "missing-file dofile leaves one canonical error object");
+    ASSERT_TRUE(suite, L->top().isString(), "missing-file dofile exposes the loader message");
+
+    {
+        std::ofstream file(path, std::ios::binary | std::ios::trunc);
+        file << "return 11, nil, 'ok'\n";
+    }
+    status = invoke(path);
+    ASSERT_EQ(suite, LUA_OK, status, "dofile executes a readable chunk");
+    ASSERT_EQ(suite, 3, L->getTop(), "dofile preserves every chunk return value");
+    ASSERT_TRUE(suite, L->at(1).isNumber() && L->at(1).asNumber() == 11.0, "dofile preserves the first return value");
+    ASSERT_TRUE(suite, L->at(2).isNil(), "dofile preserves a nil middle return value");
+    ASSERT_TRUE(suite, L->at(3).isString() && L->at(3).asString()->getData() == "ok",
+                "dofile preserves the final return value");
+
+    Table* marker = L->getGlobalState().getGC().create<Table>();
+    L->setGlobal("__dofile_error_marker", Value(marker));
+    {
+        std::ofstream file(path, std::ios::binary | std::ios::trunc);
+        file << "error(__dofile_error_marker)\n";
+    }
+    status = invoke(path);
+    ASSERT_EQ(suite, LUA_ERRRUN, status, "dofile propagates a chunk runtime error");
+    ASSERT_EQ(suite, 1, L->getTop(), "failed dofile leaves one canonical error object");
+    ASSERT_TRUE(suite, L->top().isTable() && L->top().asTable() == marker,
+                "dofile preserves non-string error object identity");
+
+    std::filesystem::remove(path, removeError);
+    delete L;
 }
 
 // =====================================================================
@@ -1015,9 +1037,7 @@ void testUnpackWrapper(TestSuite& suite) {
         t->setArray(2, Value(20.0));
         t->setArray(3, Value(30.0));
 
-        i32 ret = ctx.invoke("unpack", [&](LuaState* s) {
-            s->pushTable(t);
-        });
+        i32 ret = ctx.invoke("unpack", [&](LuaState* s) { s->pushTable(t); });
         ASSERT_EQ(suite, ret, 3, "unpack({10,20,30}) returns 3 values");
         // Values are on the stack: at(-3)=10, at(-2)=20, at(-1)=30
         ASSERT_EQ(suite, 10.0, L->at(-3).asNumber(), "unpack first = 10");
@@ -1049,9 +1069,7 @@ void testUnpackWrapper(TestSuite& suite) {
         Table* t = new Table();
         L->getGlobalState().getGC().registerObject(t);
 
-        i32 ret = ctx.invoke("unpack", [&](LuaState* s) {
-            s->pushTable(t);
-        });
+        i32 ret = ctx.invoke("unpack", [&](LuaState* s) { s->pushTable(t); });
         ASSERT_EQ(suite, ret, 0, "unpack({}) returns 0 values");
     }
 
@@ -1061,9 +1079,7 @@ void testUnpackWrapper(TestSuite& suite) {
         L->getGlobalState().getGC().registerObject(t);
         t->setArray(1, Value(42.0));
 
-        i32 ret = ctx.invoke("unpack", [&](LuaState* s) {
-            s->pushTable(t);
-        });
+        i32 ret = ctx.invoke("unpack", [&](LuaState* s) { s->pushTable(t); });
         ASSERT_EQ(suite, ret, 1, "unpack({42}) returns 1 value");
         ASSERT_EQ(suite, 42.0, L->top().asNumber(), "unpack({42}) = 42");
     }
@@ -1141,8 +1157,7 @@ void testUnpackNilUpperBoundUsesLength(TestSuite& suite) {
         gUnpackNilUpperBound = 1
     )lua");
     ASSERT_TRUE(suite, ok, "unpack nil upper bound defaults to table length");
-    ASSERT_EQ(suite, 1.0, getGlobalNumber(L, "gUnpackNilUpperBound"),
-              "unpack nil upper bound completed");
+    ASSERT_EQ(suite, 1.0, getGlobalNumber(L, "gUnpackNilUpperBound"), "unpack nil upper bound completed");
 
     delete L;
 }
@@ -1237,8 +1252,7 @@ void testLoadWrapper(TestSuite& suite) {
             f()
         )lua");
         ASSERT_TRUE(suite, ok, "load empty string EOF runs");
-        ASSERT_EQ(suite, 77.0, getGlobalNumber(L, "gLoadEmptyStringEOF"),
-                  "load stops reading after empty string");
+        ASSERT_EQ(suite, 77.0, getGlobalNumber(L, "gLoadEmptyStringEOF"), "load stops reading after empty string");
         delete L;
     }
 
@@ -1255,8 +1269,7 @@ void testLoadWrapper(TestSuite& suite) {
             assert(f() == 1 and gDumpLoaded == 1)
         )lua");
         ASSERT_TRUE(suite, ok, "load reads dumped binary chunk");
-        ASSERT_EQ(suite, 1.0, getGlobalNumber(L, "gDumpLoaded"),
-                  "loaded binary chunk executes");
+        ASSERT_EQ(suite, 1.0, getGlobalNumber(L, "gDumpLoaded"), "loaded binary chunk executes");
         delete L;
     }
 
@@ -1313,8 +1326,7 @@ void testLoadWrapper(TestSuite& suite) {
             gLoadReaderError = 1
         )lua");
         ASSERT_TRUE(suite, ok, "load reader error returns nil and message");
-        ASSERT_EQ(suite, 1.0, getGlobalNumber(L, "gLoadReaderError"),
-                  "load reader error does not escape");
+        ASSERT_EQ(suite, 1.0, getGlobalNumber(L, "gLoadReaderError"), "load reader error does not escape");
         delete L;
     }
 }
@@ -1438,8 +1450,7 @@ void testWeakKeyValueTableDropsExpiredLoopLocals(TestSuite& suite) {
     ASSERT_TRUE(suite, ok, "weak key-value table loop-local chunk runs");
     ASSERT_TRUE(suite, getGlobalBool(L, "gWeakKeyValueShapeOk"),
                 "weak key-value table preserves only expected entries");
-    ASSERT_EQ(suite, 4.0, getGlobalNumber(L, "gWeakKeyValueCount"),
-              "weak key-value table drops expired loop locals");
+    ASSERT_EQ(suite, 4.0, getGlobalNumber(L, "gWeakKeyValueCount"), "weak key-value table drops expired loop locals");
     delete L;
 }
 
@@ -1464,12 +1475,10 @@ void testCompatibilityNilTableKey(TestSuite& suite) {
     )lua");
 
     ASSERT_TRUE(suite, ok, "nil table key compatibility chunk runs");
-    ASSERT_TRUE(suite, getGlobalBool(L, "gNilTableKeyRejected"),
-                "t[nil] assignment raises an error");
+    ASSERT_TRUE(suite, getGlobalBool(L, "gNilTableKeyRejected"), "t[nil] assignment raises an error");
     ASSERT_TRUE(suite, getGlobalBool(L, "gNilAssignmentStillDeletes"),
                 "assigning nil to an existing key still deletes it");
-    ASSERT_TRUE(suite, getGlobalBool(L, "gRawsetNilKeyRejected"),
-                "rawset rejects nil keys");
+    ASSERT_TRUE(suite, getGlobalBool(L, "gRawsetNilKeyRejected"), "rawset rejects nil keys");
     delete L;
 }
 
@@ -1495,14 +1504,11 @@ void testCompatibilityNumericStringConversions(TestSuite& suite) {
     )lua");
 
     ASSERT_TRUE(suite, ok, "numeric string conversion compatibility chunk runs");
-    ASSERT_TRUE(suite, getGlobalBool(L, "gTableInsertNumericString"),
-                "table.insert accepts numeric string positions");
-    ASSERT_TRUE(suite, getGlobalBool(L, "gTableRemoveNumericString"),
-                "table.remove accepts numeric string positions");
+    ASSERT_TRUE(suite, getGlobalBool(L, "gTableInsertNumericString"), "table.insert accepts numeric string positions");
+    ASSERT_TRUE(suite, getGlobalBool(L, "gTableRemoveNumericString"), "table.remove accepts numeric string positions");
     ASSERT_TRUE(suite, getGlobalBool(L, "gTableConcatNumericString"),
                 "table.concat accepts numeric string range bounds");
-    ASSERT_TRUE(suite, getGlobalBool(L, "gUnpackNumericString"),
-                "unpack accepts numeric string range bounds");
+    ASSERT_TRUE(suite, getGlobalBool(L, "gUnpackNumericString"), "unpack accepts numeric string range bounds");
     ASSERT_TRUE(suite, getGlobalBool(L, "gBadNumericStringRejected"),
                 "non-numeric strings remain invalid numeric arguments");
     delete L;
@@ -1525,8 +1531,7 @@ void testCompatibilityDivisionModuloZero(TestSuite& suite) {
     ASSERT_TRUE(suite, ok, "division/modulo zero compatibility chunk runs");
     ASSERT_TRUE(suite, getGlobalBool(L, "gDivisionByZeroDoesNotThrow"),
                 "floating-point division by zero follows Lua 5.1 double behavior");
-    ASSERT_TRUE(suite, getGlobalBool(L, "gModuloByZeroDoesNotThrow"),
-                "modulo by zero does not raise a VM-only error");
+    ASSERT_TRUE(suite, getGlobalBool(L, "gModuloByZeroDoesNotThrow"), "modulo by zero does not raise a VM-only error");
     ASSERT_TRUE(suite, getGlobalBool(L, "gModuloByZeroProducesNaN"),
                 "modulo by zero produces NaN under the double-number policy");
     delete L;
@@ -1556,8 +1561,7 @@ void testCompatibilityTableLength(TestSuite& suite) {
     ASSERT_TRUE(suite, ok, "table length compatibility chunk runs");
     ASSERT_TRUE(suite, getGlobalBool(L, "gTableLenIgnoresLenMetamethod"),
                 "table __len metamethod is ignored in strict Lua 5.1 mode");
-    ASSERT_TRUE(suite, getGlobalBool(L, "gSparseBoundaryLength"),
-                "sparse table length returns a valid Lua boundary");
+    ASSERT_TRUE(suite, getGlobalBool(L, "gSparseBoundaryLength"), "sparse table length returns a valid Lua boundary");
     ASSERT_TRUE(suite, getGlobalBool(L, "gHugeIntegerKeyLength"),
                 "large positive integer hash keys do not inflate contiguous length");
     delete L;
@@ -1580,8 +1584,7 @@ void testCompatibilityLoadfileStdin(TestSuite& suite) {
         ScopedCinRedirect redirect(doInput);
         i32 ret = luaB_dofile(L);
         ASSERT_EQ(suite, ret, 1, "dofile() from stdin returns chunk results");
-        ASSERT_TRUE(suite, L->top().isNumber() && L->top().asNumber() == 654.0,
-                    "dofile() executes stdin chunk");
+        ASSERT_TRUE(suite, L->top().isNumber() && L->top().asNumber() == 654.0, "dofile() executes stdin chunk");
     }
 
     delete L;
@@ -1599,10 +1602,8 @@ void testCompatibilityOsFailureTriples(TestSuite& suite) {
     )lua");
 
     ASSERT_TRUE(suite, ok, "os failure triple compatibility chunk runs");
-    ASSERT_TRUE(suite, getGlobalBool(L, "gRemoveFailureTriple"),
-                "os.remove failure returns nil, message, errno");
-    ASSERT_TRUE(suite, getGlobalBool(L, "gRenameFailureTriple"),
-                "os.rename failure returns nil, message, errno");
+    ASSERT_TRUE(suite, getGlobalBool(L, "gRemoveFailureTriple"), "os.remove failure returns nil, message, errno");
+    ASSERT_TRUE(suite, getGlobalBool(L, "gRenameFailureTriple"), "os.rename failure returns nil, message, errno");
     delete L;
 }
 
@@ -1630,8 +1631,7 @@ void testCompatibilityIoLinesFormats(TestSuite& suite) {
     )lua");
 
     ASSERT_TRUE(suite, ok, "io.lines format compatibility chunk runs");
-    ASSERT_TRUE(suite, getGlobalBool(L, "gIoLinesFormatArgs"),
-                "io.lines(filename, format) accepts read formats");
+    ASSERT_TRUE(suite, getGlobalBool(L, "gIoLinesFormatArgs"), "io.lines(filename, format) accepts read formats");
     ASSERT_TRUE(suite, getGlobalBool(L, "gFileLinesMultiResults"),
                 "file:lines(format, ...) returns multiple read results per iteration");
     delete L;
@@ -1649,8 +1649,7 @@ void testCompatibilityCFunctionEnvironment(TestSuite& suite) {
     )lua");
 
     ASSERT_TRUE(suite, ok, "C function environment compatibility chunk runs");
-    ASSERT_TRUE(suite, getGlobalBool(L, "gSetfenvCFunctionReturnsFunction"),
-                "setfenv accepts C functions");
+    ASSERT_TRUE(suite, getGlobalBool(L, "gSetfenvCFunctionReturnsFunction"), "setfenv accepts C functions");
     ASSERT_TRUE(suite, getGlobalBool(L, "gGetfenvCFunctionUsesAssignedEnv"),
                 "getfenv returns a C function's assigned environment");
     delete L;
@@ -1683,12 +1682,43 @@ void testCompatibilityErrorAndXpcall(TestSuite& suite) {
     )lua");
 
     ASSERT_TRUE(suite, ok, "error/xpcall compatibility chunk runs");
-    ASSERT_TRUE(suite, getGlobalBool(L, "gErrorPreservesTableObject"),
-                "error(table, 0) preserves the error object");
-    ASSERT_TRUE(suite, getGlobalBool(L, "gXpcallHandlerResult"),
-                "xpcall returns the handler result");
+    ASSERT_TRUE(suite, getGlobalBool(L, "gErrorPreservesTableObject"), "error(table, 0) preserves the error object");
+    ASSERT_TRUE(suite, getGlobalBool(L, "gXpcallHandlerResult"), "xpcall returns the handler result");
     ASSERT_TRUE(suite, getGlobalBool(L, "gXpcallHandlerFailureFallback"),
                 "xpcall reports handler failures using the fallback message");
+    delete L;
+}
+
+void testCollectGarbageNumericBoundaries(TestSuite& suite) {
+    LuaState* L = createFullState();
+    GarbageCollector& gc = L->getGlobalState().getGC();
+
+    const i32 previousMultiplier = gc.setStepMultiplier(std::numeric_limits<i32>::max());
+    bool extremeStepCompleted = false;
+    try {
+        extremeStepCompleted = gc.step(L, std::numeric_limits<i32>::max());
+    } catch (...) {
+        extremeStepCompleted = false;
+    }
+    (void)gc.setStepMultiplier(previousMultiplier);
+    ASSERT_TRUE(suite, extremeStepCompleted, "INT_MAX GC step and stepmul complete without arithmetic overflow");
+
+    const bool ok = runLua(L, R"lua(
+        local nan = 0 / 0
+        local inf = 1 / 0
+        gGcRejectsNan = not pcall(collectgarbage, "step", nan)
+        gGcRejectsInf = not pcall(collectgarbage, "setstepmul", inf)
+        gGcRejectsPositiveOverflow = not pcall(collectgarbage, "setpause", 1e300)
+        gGcRejectsNegativeOverflow = not pcall(collectgarbage, "step", -1e300)
+        gGcAcceptsI32Max = pcall(collectgarbage, "step", 2147483647)
+    )lua");
+
+    ASSERT_TRUE(suite, ok, "collectgarbage numeric-boundary chunk runs");
+    ASSERT_TRUE(suite, getGlobalBool(L, "gGcRejectsNan"), "collectgarbage rejects NaN control arguments");
+    ASSERT_TRUE(suite, getGlobalBool(L, "gGcRejectsInf"), "collectgarbage rejects infinite control arguments");
+    ASSERT_TRUE(suite, getGlobalBool(L, "gGcRejectsPositiveOverflow"), "collectgarbage rejects positive i32 overflow");
+    ASSERT_TRUE(suite, getGlobalBool(L, "gGcRejectsNegativeOverflow"), "collectgarbage rejects negative i32 overflow");
+    ASSERT_TRUE(suite, getGlobalBool(L, "gGcAcceptsI32Max"), "collectgarbage accepts the i32 upper boundary");
     delete L;
 }
 
@@ -1729,24 +1759,17 @@ void registerBaselibTests() {
     registry.registerTest(kSuiteName, "pairs deleting current key", testPairsAllowsDeletingCurrentHashKey);
     registry.registerTest(kSuiteName, "automatic GC clears weak values",
                           testAutomaticGCReachesWeakValuesDuringAllocation);
-    registry.registerTest(kSuiteName, "weak kv drops expired loop locals",
-                          testWeakKeyValueTableDropsExpiredLoopLocals);
+    registry.registerTest(kSuiteName, "weak kv drops expired loop locals", testWeakKeyValueTableDropsExpiredLoopLocals);
+    registry.registerTest(kSuiteName, "collectgarbage numeric boundaries", testCollectGarbageNumericBoundaries);
 
     registry.registerTest(kCompatibilitySuiteName, "nil table key", testCompatibilityNilTableKey);
     registry.registerTest(kCompatibilitySuiteName, "numeric string conversions",
                           testCompatibilityNumericStringConversions);
-    registry.registerTest(kCompatibilitySuiteName, "division and modulo by zero",
-                          testCompatibilityDivisionModuloZero);
+    registry.registerTest(kCompatibilitySuiteName, "division and modulo by zero", testCompatibilityDivisionModuloZero);
     registry.registerTest(kCompatibilitySuiteName, "table length", testCompatibilityTableLength);
     registry.registerTest(kCompatibilitySuiteName, "loadfile stdin", testCompatibilityLoadfileStdin);
-    registry.registerTest(kCompatibilitySuiteName, "os failure triples",
-                          testCompatibilityOsFailureTriples);
-    registry.registerTest(kCompatibilitySuiteName, "io.lines formats",
-                          testCompatibilityIoLinesFormats);
-    registry.registerTest(kCompatibilitySuiteName, "C function environment",
-                          testCompatibilityCFunctionEnvironment);
-    registry.registerTest(kCompatibilitySuiteName, "error and xpcall",
-                          testCompatibilityErrorAndXpcall);
+    registry.registerTest(kCompatibilitySuiteName, "os failure triples", testCompatibilityOsFailureTriples);
+    registry.registerTest(kCompatibilitySuiteName, "io.lines formats", testCompatibilityIoLinesFormats);
+    registry.registerTest(kCompatibilitySuiteName, "C function environment", testCompatibilityCFunctionEnvironment);
+    registry.registerTest(kCompatibilitySuiteName, "error and xpcall", testCompatibilityErrorAndXpcall);
 }
-
-

@@ -65,10 +65,10 @@ static i32 coroutine_yield(LuaState* L) {
         L->error("cannot yield across non-resumable call boundaries");
     }
 
-    i32 nresults = L->getTop();  // 所有参数即 yield 值
+    i32 nresults = L->getTop(); // 所有参数即 yield 值
     L->setStatus(ThreadStatus::Yield);
     L->setYieldResults(nresults);
-    return 0;  // C 函数返回 0 — vmPrecall 会检测 Yield 状态
+    return 0; // C 函数返回 0 — vmPrecall 会检测 Yield 状态
 }
 
 // =====================================================================
@@ -84,10 +84,18 @@ static i32 coroutine_status(LuaState* L) {
     const char* statusStr = nullptr;
 
     switch (thread->getCoroutineStatus()) {
-        case CoroutineStatus::Suspended: statusStr = "suspended"; break;
-        case CoroutineStatus::Running:   statusStr = "running";   break;
-        case CoroutineStatus::Normal:    statusStr = "normal";    break;
-        case CoroutineStatus::Dead:      statusStr = "dead";      break;
+    case CoroutineStatus::Suspended:
+        statusStr = "suspended";
+        break;
+    case CoroutineStatus::Running:
+        statusStr = "running";
+        break;
+    case CoroutineStatus::Normal:
+        statusStr = "normal";
+        break;
+    case CoroutineStatus::Dead:
+        statusStr = "dead";
+        break;
     }
 
     auto& pool = L->getGlobalState().getStringPool();
@@ -167,13 +175,16 @@ static i32 wrap_iterator(LuaState* L) {
     }
 
     // 成功：把 bool 之后的结果值搬到栈帧起点
-    i32 nresults = static_cast<i32>(pushed) - 1;  // 减去 bool
+    i32 nresults = static_cast<i32>(pushed) - 1; // 减去 bool
     usize dst = resultBase;
     for (i32 i = 0; i < nresults; i++) {
-        L->getStack().at(dst + static_cast<usize>(i)) =
-            L->getStack().at(resultBase + 1 + static_cast<usize>(i));
+        L->getStack().at(dst + static_cast<usize>(i)) = L->getStack().at(resultBase + 1 + static_cast<usize>(i));
     }
-    L->setAbsoluteTop(dst + static_cast<usize>(nresults));
+    const usize resultTop = dst + static_cast<usize>(nresults);
+    for (usize slot = resultTop; slot < afterTop; ++slot) {
+        L->getStack()[slot] = Value();
+    }
+    L->setAbsoluteTop(resultTop);
 
     return nresults;
 }
@@ -201,7 +212,8 @@ static i32 coroutine_wrap(LuaState* L) {
 // =====================================================================
 
 void CoroutineLibModule::registerFunctions(LuaState* L) {
-    if (!L) return;
+    if (!L)
+        return;
 
     Table* coTable = FunctionRegistrar::createLibTable(L, "coroutine");
     if (!coTable) {
@@ -210,17 +222,18 @@ void CoroutineLibModule::registerFunctions(LuaState* L) {
     }
 
     FunctionRegistrar(L)
-        .addGlobal("create",  coroutine_create)
-        .addGlobal("resume",  coroutine_resume)
-        .addGlobal("yield",   coroutine_yield)
-        .addGlobal("status",  coroutine_status)
+        .addGlobal("create", coroutine_create)
+        .addGlobal("resume", coroutine_resume)
+        .addGlobal("yield", coroutine_yield)
+        .addGlobal("status", coroutine_status)
         .addGlobal("running", coroutine_running)
-        .addGlobal("wrap",    coroutine_wrap)
+        .addGlobal("wrap", coroutine_wrap)
         .commitToTable(coTable);
 }
 
 void openCoroutineLib(LuaState* L) {
-    if (!L) return;
+    if (!L)
+        return;
     CoroutineLibModule module;
     StandardLibrary::openModule(L, module);
 }

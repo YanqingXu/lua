@@ -13,6 +13,7 @@
 #include "vm/state/stack.hpp"
 #include "runtime/runtime_services.hpp"
 #include "vm/vm.hpp"
+#include <algorithm>
 #include <exception>
 
 namespace Lua {
@@ -35,8 +36,10 @@ void GarbageCollector::prepareFinalizers() {
             auto* userdata = static_cast<Userdata*>(obj);
             Value finalizer = getFinalizer(userdata);
             if (!finalizer.isNil()) {
-                obj->setMarked(obj->getMarked() | GCBits::FINALIZED);
                 pendingFinalizers_.push_back(userdata);
+                // Queue publication can allocate. Mark FINALIZED only after
+                // it succeeds so OOM cannot silently discard __gc forever.
+                obj->setMarked(obj->getMarked() | GCBits::FINALIZED);
                 markObject(obj);
             }
         }
@@ -50,15 +53,24 @@ void GarbageCollector::runFinalizers(LuaState* state) {
         return;
     }
 
+    // Keep the scheduled userdata in pendingFinalizers_ while callbacks run.
+    // A __gc callback may invoke collectgarbage recursively; the mark phase
+    // treats this member queue as roots. Moving the queue into a local vector
+    // made the remaining callbacks invisible to a nested collection and left
+    // dangling pointers in the outer finalizer loop.
+    LuaVector<Userdata*> finalizers(pendingFinalizers_.begin(), pendingFinalizers_.end(),
+                                    pendingFinalizers_.get_allocator());
+    // Copying can allocate. Do not publish the reentrancy guard until that
+    // succeeds, otherwise an OOM would permanently suppress finalizers.
     finalizersRunning_ = true;
-    LuaVector<Userdata*> finalizers(pendingFinalizers_.get_allocator());
-    finalizers.swap(pendingFinalizers_);
 
     Stack& stack = state->getStack();
     for (usize i = 0; i < finalizers.size(); i++) {
         Userdata* userdata = finalizers[i];
         Value finalizer = getFinalizer(userdata);
         if (finalizer.isNil()) {
+            pendingFinalizers_.erase(std::remove(pendingFinalizers_.begin(), pendingFinalizers_.end(), userdata),
+                                     pendingFinalizers_.end());
             continue;
         }
 
@@ -81,13 +93,21 @@ void GarbageCollector::runFinalizers(LuaState* state) {
         while (state->getCurrentCI() > savedCI) {
             state->popCallInfo();
         }
+        // The physical stack can reserve a wider helper window than the
+        // state's logical top.  The finalizer function and userdata argument
+        // were written into that window; merely lowering the logical top
+        // leaves them visible to the next wide root scan.  Clear every slot
+        // that belonged to the saved helper window before restoring it.
+        for (usize slot = savedTop; slot < savedStackTop; ++slot) {
+            stack[slot] = Value();
+        }
         stack.setTop(savedStackTop);
         state->setAbsoluteTop(savedTop);
 
+        pendingFinalizers_.erase(std::remove(pendingFinalizers_.begin(), pendingFinalizers_.end(), userdata),
+                                 pendingFinalizers_.end());
+
         if (finalizerError) {
-            for (usize j = i + 1; j < finalizers.size(); j++) {
-                pendingFinalizers_.push_back(finalizers[j]);
-            }
             finalizersRunning_ = false;
             std::rethrow_exception(finalizerError);
         }

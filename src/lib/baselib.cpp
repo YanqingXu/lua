@@ -12,6 +12,8 @@
 #include "lib/baselib.hpp"
 #include "lib/lib_registry.hpp"
 #include "lib/lib_manager.hpp"
+#include "common/lua_error.hpp"
+#include "common/number_conversion.hpp"
 #include "core/gc_string.hpp"
 #include "core/table.hpp"
 #include "core/function.hpp"
@@ -26,12 +28,14 @@
 #include "compiler/parser/parser.hpp"
 #include "compiler/codegen/codegen.hpp"
 #include <format>
+#include <filesystem>
 #include <iostream>
 #include <fstream>
 #include <sstream>
 #include <cstdio>
 #include <cstring>
 #include <cctype>
+#include <cmath>
 #include <limits>
 
 #ifdef _WIN32
@@ -484,6 +488,19 @@ i32 luaB_getmetatable(LuaState* L) {
 // newproxy([boolean|proxy]) - Lua 5.1 compatibility userdata factory
 // =====================================================================
 
+static Table* currentFunctionEnvironment(LuaState* L) {
+    if (L->getCurrentCI() == 0) {
+        return L->getGlobalTable();
+    }
+
+    const usize functionIndex = L->getCurrentCallInfo().func;
+    if (functionIndex >= L->getStack().size() || !L->getStack().at(functionIndex).isFunction()) {
+        return L->getGlobalTable();
+    }
+    Function* closure = L->getStack().at(functionIndex).asFunction();
+    return closure != nullptr && closure->getEnv() != nullptr ? closure->getEnv() : L->getGlobalTable();
+}
+
 static i32 luaB_newproxy(LuaState* L) {
     auto& gc = L->getGlobalState().getGC();
     Table* metatable = nullptr;
@@ -502,6 +519,7 @@ static i32 luaB_newproxy(LuaState* L) {
     }
 
     Userdata* userdata = gc.create<Userdata>(1);
+    userdata->setEnvironment(currentFunctionEnvironment(L));
     userdata->setMetatable(metatable);
     L->pushUserdata(userdata);
     return 1;
@@ -1268,6 +1286,10 @@ i32 luaB_loadstring(LuaState* L) {
         settleLoadGC(L);
         return 1;
 
+    } catch (const MemoryError&) {
+        throw;
+    } catch (const std::bad_alloc&) {
+        throw;
     } catch (const ParseError& e) {
         L->setTop(0);
         L->pushNil();
@@ -1327,13 +1349,31 @@ i32 luaB_loadfile(LuaState* L) {
             if (!file.is_open()) {
                 L->setTop(0);
                 L->pushNil();
-                Str errorMsg = Str("loadfile: cannot open ") + filename + ": No such file or directory";
+                std::error_code pathError;
+                const bool pathExists = std::filesystem::exists(std::filesystem::path(filename), pathError);
+                Str errorMsg = pathExists && !pathError
+                                   ? Str("loadfile: cannot read ") + filename
+                                   : Str("loadfile: cannot open ") + filename + ": No such file or directory";
                 L->pushString(pool.intern(errorMsg.c_str()));
                 return 2;
             }
 
             std::streamsize size = file.tellg();
+            if (size < 0) {
+                L->setTop(0);
+                L->pushNil();
+                Str errorMsg = Str("loadfile: cannot read ") + filename;
+                L->pushString(pool.intern(errorMsg.c_str()));
+                return 2;
+            }
             file.seekg(0, std::ios::beg);
+            if (!file) {
+                L->setTop(0);
+                L->pushNil();
+                Str errorMsg = Str("loadfile: cannot read ") + filename;
+                L->pushString(pool.intern(errorMsg.c_str()));
+                return 2;
+            }
 
             source.resize(static_cast<usize>(size));
             if (size > 0 && !file.read(&source[0], size)) {
@@ -1384,6 +1424,10 @@ i32 luaB_loadfile(LuaState* L) {
         L->pushValue(Value(func));
         return 1;
 
+    } catch (const MemoryError&) {
+        throw;
+    } catch (const std::bad_alloc&) {
+        throw;
     } catch (const ParseError& e) {
         L->setTop(0);
         L->pushNil();
@@ -1404,13 +1448,17 @@ i32 luaB_loadfile(LuaState* L) {
 // =====================================================================
 
 i32 luaB_dofile(LuaState* L) {
+    auto& pool = L->getGlobalState().getStringPool();
     // 使用 loadfile 加载文件
     i32 loadResult = luaB_loadfile(L);
 
     if (loadResult != 1) {
-        // loadfile 返回了错误 (nil, error_message)
-        // 直接返回这两个值
-        return loadResult;
+        // Lua 5.1 dofile raises the loader error; it does not return the
+        // loadfile-style (nil, message) pair.
+        Value errorValue = L->getTop() > 0 ? L->top() : Value(pool.intern("dofile: load failed"));
+        L->setTop(0);
+        L->pushValue(errorValue);
+        return L->error();
     }
 
     // 获取加载的函数
@@ -1419,33 +1467,18 @@ i32 luaB_dofile(LuaState* L) {
         L->error("dofile: loadfile did not return a function");
     }
 
-    Function* function = func.asFunction();
-    if (!function) {
+    if (func.asFunction() == nullptr) {
         L->error("dofile: invalid function");
     }
 
-    // 执行函数
-    try {
-        // 保存当前栈大小
-        usize stackBefore = L->getStack().size();
-
-        // 清空栈并压入函数
-        L->setTop(0);
-        L->getStack().push(Value(function));
-        RuntimeServices services(L->getGlobalState());
-        VM::execute(services, L, function);
-
-        // 获取返回值数量
-        usize stackAfter = L->getStack().size();
-        i32 nresults = static_cast<i32>(stackAfter - stackBefore);
-
-        // 返回结果数量（结果已经在栈上）
-        return nresults > 0 ? nresults : 0;
-
-    } catch (const std::exception& e) {
-        Str errorMsg = Str("dofile: ") + e.what();
-        L->error(errorMsg.c_str());
-    }
+    // Execute the function already returned at the top of this C frame.
+    // VM::call replaces it with the chunk results and preserves the frame's
+    // logical stack. Using Stack::size()/push() here mixed reserved physical
+    // register capacity with Lua-visible values and could return the loaded
+    // function itself instead of the chunk's result.
+    RuntimeServices services(L->getGlobalState());
+    VM::call(services, L, 0, MULTRET);
+    return L->getTop();
 }
 
 // =====================================================================
@@ -1530,6 +1563,11 @@ i32 luaB_getfenv(LuaState* L) {
 
     Function* func = nullptr;
 
+    if (nargs >= 1 && L->isUserdata(1)) {
+        Table* environment = L->at(1).asUserdata()->getEnvironment();
+        L->pushTable(environment != nullptr ? environment : L->getGlobalTable());
+        return 1;
+    }
     if (nargs >= 1 && L->isFunction(1)) {
         // 参数是函数对象
         Value v = L->at(1);
@@ -1598,6 +1636,11 @@ i32 luaB_setfenv(LuaState* L) {
     }
 
     Function* func = nullptr;
+    if (L->isUserdata(1)) {
+        L->at(1).asUserdata()->setEnvironment(L->at(2).asTable());
+        L->pushValue(1);
+        return 1;
+    }
     if (L->isFunction(1)) {
         Value funcVal = L->at(1);
         func = funcVal.asFunction();
@@ -1641,6 +1684,31 @@ i32 luaB_setfenv(LuaState* L) {
 // collectgarbage(opt [, arg]) - 垃圾回收控制
 // =====================================================================
 
+static i32 collectGarbageControlArgument(LuaState* L) {
+    if (L->getTop() < 2 || L->at(2).isNil()) {
+        return 0;
+    }
+
+    const Value value = L->at(2);
+    LuaNumber number = 0.0;
+    if (value.isNumber()) {
+        number = value.asNumber();
+    } else if (!value.isString() || !luaStringToNumber(value.asString()->view(), number)) {
+        L->error("bad argument #2 to 'collectgarbage' (number expected)");
+    }
+
+    if (!std::isfinite(number)) {
+        L->error("bad argument #2 to 'collectgarbage' (finite number expected)");
+    }
+
+    const LuaNumber truncated = std::trunc(number);
+    if (truncated < static_cast<LuaNumber>(std::numeric_limits<i32>::min()) ||
+        truncated > static_cast<LuaNumber>(std::numeric_limits<i32>::max())) {
+        L->error("bad argument #2 to 'collectgarbage' (number out of range)");
+    }
+    return static_cast<i32>(truncated);
+}
+
 /**
  * @brief collectgarbage(opt [, arg])
  *
@@ -1675,15 +1743,6 @@ i32 luaB_collectgarbage(LuaState* L) {
         }
     }
 
-    // 获取可选参数（默认为0）
-    i32 arg = 0;
-    if (L->getTop() >= 2) {
-        Value v = L->at(2);
-        if (v.isNumber() || v.isString()) {
-            arg = static_cast<i32>(L->toNumber(2));
-        }
-    }
-
     // 根据操作类型执行相应操作
     // 使用字符串的第一个字符来快速判断（优化）
     char firstChar = opt[0];
@@ -1706,7 +1765,7 @@ i32 luaB_collectgarbage(LuaState* L) {
             L->pushNumber(0);
             return 1;
         } else if (strcmp(opt, "step") == 0) {
-            L->pushBoolean(gc.step(L, arg));
+            L->pushBoolean(gc.step(L, collectGarbageControlArgument(L)));
             return 1;
         } else if (strcmp(opt, "strategy") == 0) {
             if (L->getTop() >= 2) {
@@ -1720,10 +1779,10 @@ i32 luaB_collectgarbage(LuaState* L) {
             L->pushString(name);
             return 1;
         } else if (strcmp(opt, "setpause") == 0) {
-            L->pushNumber(static_cast<LuaNumber>(gc.setPause(arg)));
+            L->pushNumber(static_cast<LuaNumber>(gc.setPause(collectGarbageControlArgument(L))));
             return 1;
         } else if (strcmp(opt, "setstepmul") == 0) {
-            L->pushNumber(static_cast<LuaNumber>(gc.setStepMultiplier(arg)));
+            L->pushNumber(static_cast<LuaNumber>(gc.setStepMultiplier(collectGarbageControlArgument(L))));
             return 1;
         }
     } else if (firstChar == 'r') {
@@ -1890,6 +1949,10 @@ static i32 luaB_load(LuaState* L) {
         settleLoadGC(L);
         return 1;
 
+    } catch (const MemoryError&) {
+        throw;
+    } catch (const std::bad_alloc&) {
+        throw;
     } catch (const ParseError& e) {
         L->setTop(0);
         L->pushNil();

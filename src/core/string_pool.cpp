@@ -43,9 +43,20 @@ GCString* StringPool::intern(StrView str) {
     gc.setStringPool(this);
     GCString* newString = gc.create<GCString>(str);
 
-    // 加入池中
-    // 使用GCString内部的data_作为key，确保与find()和remove()一致
-    pool_[newString->getData()] = newString;
+    try {
+        // Use the GCString-owned contents as the key so find() and remove()
+        // share the same canonical value. The object is already registered
+        // with the collector at this point, so insertion failure must roll it
+        // back instead of leaving an uninterned GCString in the object list.
+        auto [entry, inserted] = pool_.emplace(newString->getData(), newString);
+        if (!inserted) {
+            gc.destroyManagedObject(newString);
+            return entry->second;
+        }
+    } catch (...) {
+        gc.destroyManagedObject(newString);
+        throw;
+    }
 
     return newString;
 }
@@ -72,8 +83,13 @@ void StringPool::remove(GCString* str) {
         return;
     }
 
-    // 使用字符串内容作为key查找并移除
-    pool_.erase(str->getData());
+    // A collector can transiently own another GCString with equal contents
+    // (for example while rolling back a failed insertion). Only erase the
+    // entry when it still names the exact object being destroyed.
+    auto it = pool_.find(str->getData());
+    if (it != pool_.end() && it->second == str) {
+        pool_.erase(it);
+    }
 }
 
 /**

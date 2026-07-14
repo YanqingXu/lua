@@ -196,7 +196,8 @@ try {
     }
 
     Invoke-Step "C-style pattern guard" {
-        & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root "tools\check_c_style_patterns.ps1")
+        & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root "tools\check_c_style_patterns.ps1") `
+            -TestScope All
     }
 
     Invoke-Step "MSBuild lua_test" {

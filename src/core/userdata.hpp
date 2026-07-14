@@ -64,6 +64,13 @@ public:
     [[nodiscard]] static UPtr<Userdata> createFullOwned(usize size);
 
     /**
+     * @brief Validate and return the GC-visible object plus payload size.
+     * @throws std::bad_alloc if the
+     * requested payload cannot be represented safely.
+     */
+    [[nodiscard]] static usize getGCAllocationSize(usize size);
+
+    /**
      * @brief 创建完整用户数据的兼容旧接口
      * @param size 用户数据大小(字节)
      * @return 调用者负责注册到GC或 delete 的Userdata对象指针
@@ -158,7 +165,13 @@ public:
      * @brief 设置元表
      * @param mt 元表指针
      */
-    void setMetatable(Table* mt) noexcept;
+    void setMetatable(Table* mt);
+
+    Table* getEnvironment() const noexcept {
+        return environment_;
+    }
+
+    void setEnvironment(Table* environment);
 
     /**
      * @brief 检查是否有元表
@@ -212,9 +225,10 @@ private:
     using BufferPtr = std::unique_ptr<std::byte, UserdataBufferDeleter>;
     using DataDestructor = void (*)(std::byte*) noexcept;
 
-    usize size_;       ///< 用户数据大小(字节)
-    BufferPtr data_;   ///< 用户数据指针
-    Table* metatable_; ///< 元表指针
+    usize size_;         ///< 用户数据大小(字节)
+    BufferPtr data_;     ///< 用户数据指针
+    Table* metatable_;   ///< 元表指针
+    Table* environment_; ///< Lua 5.1 userdata environment
     DataDestructor dataDestructor_;
 };
 

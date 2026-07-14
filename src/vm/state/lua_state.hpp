@@ -254,8 +254,12 @@ public:
      * 这可能与 Stack::top_ 不同（当使用 setAbsoluteTop 调整栈顶后）。
      */
     void pushValue(const Value& v) {
-        if (top_ >= stack_.capacity()) {
-            stack_.ensureSpace(top_ - stack_.capacity() + STACK_GROW_MARGIN);
+        // Keep one already-allocated slot out of the ordinary push path.  A
+        // protected C API boundary can then publish the fixed memory-error
+        // object even when growing the stack is the allocation that failed.
+        if (stack_.capacity() == 0 || top_ >= stack_.capacity() - 1) {
+            const usize available = stack_.capacity() - stack_.size();
+            stack_.ensureSpace(available + STACK_GROW_MARGIN);
         }
 
         while (stack_.size() <= top_) {
@@ -263,6 +267,28 @@ public:
         }
 
         stack_[top_++] = v;
+    }
+
+    /**
+     * @brief Publish a value using only storage already owned by this state.
+     * @return false only when the
+     * emergency stack slot invariant was broken.
+     *
+     * This is reserved for exception-to-status translation at
+     * C API
+     * boundaries.  Unlike pushValue(), it never asks the Lua allocator to
+     * grow the stack.
+     */
+    [[nodiscard]] bool tryPushValueNoAlloc(const Value& v) noexcept {
+        if (top_ >= stack_.capacity()) {
+            return false;
+        }
+
+        while (stack_.size() <= top_) {
+            stack_.pushUnchecked(Value());
+        }
+        stack_[top_++] = v;
+        return true;
     }
 
     /**

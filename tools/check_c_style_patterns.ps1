@@ -23,7 +23,9 @@ function Get-SourceFiles {
     foreach ($dir in $roots) {
         $sourceRoot = Join-Path $Root $dir
         if (Test-Path -LiteralPath $sourceRoot) {
-            Get-ChildItem -LiteralPath $sourceRoot -Recurse -File -Include "*.cpp", "*.hpp", "*.h"
+            Get-ChildItem -LiteralPath $sourceRoot -Recurse -File | Where-Object {
+                $_.Extension -in @(".cpp", ".hpp", ".h")
+            }
         }
     }
 }
@@ -270,22 +272,8 @@ foreach ($rule in $rules) {
     }
 
     $matches = @($matchesByRule[$rule.Name])
-    $ruleWarningOnly = $rule.ContainsKey("WarningOnly") -and [bool]$rule.WarningOnly
     $strictMatches = @($matches)
     $advisoryMatches = @()
-
-    if (-not $ruleWarningOnly) {
-        if ($TestScope -eq "Tests") {
-            $strictMatches = @()
-            $advisoryMatches = @($matches)
-        } elseif ($TestScope -eq "All") {
-            $strictMatches = @($matches | Where-Object { $_.Path.StartsWith("src\", [System.StringComparison]::OrdinalIgnoreCase) })
-            $advisoryMatches = @($matches | Where-Object { $_.Path.StartsWith("tests\", [System.StringComparison]::OrdinalIgnoreCase) })
-        }
-    } else {
-        $strictMatches = @()
-        $advisoryMatches = @($matches)
-    }
 
     $strictKeys = @{}
     $unknownStrict = @()
@@ -298,8 +286,7 @@ foreach ($rule in $rules) {
     }
 
     $expectedStrictEntries = @($baselineEntries | Where-Object {
-        $_.rule -eq $rule.Name -and (Test-PathInScope $_.path) -and
-        $_.path.StartsWith("src\", [System.StringComparison]::OrdinalIgnoreCase)
+        $_.rule -eq $rule.Name -and (Test-PathInScope $_.path)
     })
     $staleStrict = @($expectedStrictEntries | Where-Object {
         $key = Get-MatchKey $_.rule $_.path ([int]$_.line) $_.textHash
@@ -315,24 +302,13 @@ foreach ($rule in $rules) {
             $unknownAdvisory += $match
         }
     }
-    $expectedAdvisoryEntries = if ($ruleWarningOnly) {
-        @($baselineEntries | Where-Object { $_.rule -eq $rule.Name -and (Test-PathInScope $_.path) })
-    } elseif ($TestScope -eq "Tests" -or $TestScope -eq "All") {
-        @($baselineEntries | Where-Object {
-            $_.rule -eq $rule.Name -and $_.path.StartsWith("tests\", [System.StringComparison]::OrdinalIgnoreCase)
-        })
-    } else {
-        @()
-    }
+    $expectedAdvisoryEntries = @()
     $staleAdvisory = @($expectedAdvisoryEntries | Where-Object {
         $key = Get-MatchKey $_.rule $_.path ([int]$_.line) $_.textHash
         -not $advisoryKeys.ContainsKey($key)
     })
 
-    if ($strictMatches.Count -eq 0 -and $advisoryMatches.Count -ge 0 -and ($ruleWarningOnly -or $TestScope -eq "Tests")) {
-        $label = if ($unknownAdvisory.Count -eq 0) { "OK" } else { "WARN" }
-        Write-Host ("[{0}] {1}: {2} advisory matches, {3} new" -f $label, $rule.Name, $advisoryMatches.Count, $unknownAdvisory.Count)
-    } elseif ($unknownStrict.Count -eq 0 -and $staleStrict.Count -eq 0) {
+    if ($unknownStrict.Count -eq 0 -and $staleStrict.Count -eq 0) {
         $suffix = if ($advisoryMatches.Count -gt 0) { "; $($advisoryMatches.Count) advisory, $($unknownAdvisory.Count) new" } else { "" }
         Write-Host ("[OK] {0}: {1} position-baselined{2}" -f $rule.Name, $strictMatches.Count, $suffix)
     } else {

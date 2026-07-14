@@ -7,7 +7,7 @@
 extern "C" {
 #endif
 
-void luaL_openlibs(lua_State* L);
+void luaL_openlibs(lua_State* L) LUA_CXX_MAY_THROW;
 
 #ifdef __cplusplus
 }

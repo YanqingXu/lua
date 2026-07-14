@@ -1,34 +1,34 @@
 ﻿/**
  * @file upvalue.hpp
  * @brief Upvalue类：实现闭包的上值（捕获的外部变量）
- * 
+ *
  * 详细说明：
  * Upvalue是Lua实现闭包的关键数据结构。当内部函数引用外部函数的局部变量时，
  * 这些变量会被"提升"为上值，从而在外部函数返回后仍然保持可访问性。
- * 
+ *
  * 核心概念：
  * 1. **Open状态**：上值指向栈上的活跃变量
  *    - v_指针指向栈上的Value
  *    - stackIndex_记录栈索引位置
  *    - 在LuaState的openUpvalues_链表中
- * 
+ *
  * 2. **Closed状态**：上值拥有变量的独立副本
  *    - v_指针指向closedValue_
  *    - 变量已从栈中移除
  *    - 不在openUpvalues_链表中
- * 
+ *
  * 状态转换：
  * Open → Closed：当外部函数返回，栈上的变量被销毁时
- * 
+ *
  * 共享机制：
  * 多个闭包可以共享同一个Upvalue，确保变量修改的一致性
- * 
+ *
  * 设计特点：
  * - 继承GCObject：完全集成到垃圾回收系统
  * - 使用指针v_：统一处理open和closed状态
  * - 链表管理：支持高效的查找和批量关闭
  * - RAII资源管理：自动处理状态转换
- * 
+ *
  * @author Lua C++ Implementation
  * @date 2025-01-12
  */
@@ -70,39 +70,39 @@ public:
      * - LuaState::findOrCreateUpvalue()中
      */
     static Upvalue* createOpen(usize stackIndex, Stack& ownerStack);
-    
+
     /**
      * @brief 创建Closed状态的Upvalue（独立存储值）
      * @param value 要存储的值
      * @return 新创建的Upvalue指针
-     * 
+     *
      * 使用场景：
      * - 测试代码
      * - 特殊情况下的upvalue创建
      */
     static Upvalue* createClosed(const Value& value);
-    
+
     /**
      * @brief 析构函数
-     * 
+     *
      * 注意：Upvalue由GC管理，不要手动delete
      */
     ~Upvalue() override = default;
-    
+
     // ========== 状态查询 ==========
-    
+
     /**
      * @brief 检查是否为Open状态
      * @return true表示指向栈上的值，false表示已关闭
      */
     bool isOpen() const noexcept;
-    
+
     /**
      * @brief 检查是否为Closed状态
      * @return true表示已关闭，false表示指向栈上的值
      */
     bool isClosed() const noexcept;
-    
+
     // ========== 值访问（✅ 改进版 - 需要传入Stack引用） ==========
 
     /**
@@ -151,26 +151,26 @@ public:
      * - 函数返回时（LuaState::closeUpvalues）
      * - 栈收缩时
      */
-    void close(Stack& stack);
-    
+    void close(Stack& stack) noexcept;
+
     // ========== 栈索引管理 ==========
-    
+
     /**
      * @brief 获取栈索引（仅Open状态有效）
      * @return 栈索引位置
-     * 
+     *
      * 注意：Closed状态下返回值无意义
      */
     usize getStackIndex() const noexcept;
-    
+
     // ========== 链表管理 ==========
-    
+
     /**
      * @brief 获取链表中的下一个Upvalue
      * @return 下一个Upvalue指针，nullptr表示链表末尾
      */
     Upvalue* getNext() const noexcept;
-    
+
     /**
      * @brief 设置链表中的下一个Upvalue
      * @param next 下一个Upvalue指针
@@ -198,7 +198,8 @@ public:
      * @brief GC factory constructor（Open状态）
      * @param stackIndex 栈索引位置
      *
-     * ✅ 改进：只接受索引参数
+     * ✅
+     * 改进：只接受索引参数
      */
     Upvalue(usize stackIndex, Stack& ownerStack);
 
@@ -209,7 +210,6 @@ public:
     explicit Upvalue(const Value& value);
 
 private:
-
     // ========== 成员变量（✅ 改进版） ==========
 
     /**
@@ -263,4 +263,3 @@ private:
 };
 
 } // namespace Lua
-

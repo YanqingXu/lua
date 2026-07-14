@@ -8,6 +8,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 option(LUA_CPP_BUILD_TOOLS "Build the interpreter and bytecode tools" ON)
 option(LUA_CPP_BUILD_TESTS "Build the unit test runner" ON)
+option(LUA_CPP_BUILD_BENCHMARKS "Build the runtime benchmark driver" OFF)
 set(LUA_CPP_SANITIZER "" CACHE STRING "Enable a runtime sanitizer: address or undefined")
 set_property(CACHE LUA_CPP_SANITIZER PROPERTY STRINGS "" address undefined)
 
@@ -202,6 +203,13 @@ endif()
 
 lua_configure_target_warnings(lua_core)
 
+if(LUA_CPP_BUILD_BENCHMARKS)
+    add_executable(lua_runtime_bench benchmarks/runtime_bench.cpp)
+    target_link_libraries(lua_runtime_bench PRIVATE lua_core)
+    target_include_directories(lua_runtime_bench PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    lua_configure_target_warnings(lua_runtime_bench)
+endif()
+
 function(lua_configure_runtime_stack target_name)
     if(MSVC)
         # Debug builds keep larger VM dispatch frames; Lua callbacks from C
@@ -245,6 +253,20 @@ if(LUA_CPP_BUILD_TOOLS)
 endif()
 
 include(CTest)
+
+if(BUILD_TESTING AND LUA_CPP_BUILD_BENCHMARKS)
+    add_test(
+        NAME runtime_benchmark_contract
+        COMMAND $<TARGET_FILE:lua_runtime_bench>
+            --profile ci
+            --json ${CMAKE_CURRENT_BINARY_DIR}/runtime-bench-ci.json
+    )
+    set_tests_properties(runtime_benchmark_contract PROPERTIES
+        LABELS benchmark
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        TIMEOUT 900
+    )
+endif()
 
 if(BUILD_TESTING AND LUA_CPP_BUILD_TESTS)
     add_executable(lua_test ${LUA_TEST_SOURCES})

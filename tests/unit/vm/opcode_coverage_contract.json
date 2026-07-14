@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "tests": [
     { "key": "vm-data", "source": "tests/unit/vm/test_vm_dispatch.cpp", "id": "VM Dispatch::Data Move Handlers Execute Directly" },
     { "key": "vm-global-upvalue", "source": "tests/unit/vm/test_vm_dispatch.cpp", "id": "VM Dispatch::Global And Upvalue Handlers Execute Directly" },
@@ -16,46 +16,264 @@
     { "key": "meta-runtime", "source": "tests/unit/metamethod/test_metamethod_arith.cpp", "id": "Metamethod::Runtime metamethod opcode execution" },
     { "key": "complete-arithmetic", "source": "tests/unit/metamethod/test_metamethod_complete.cpp", "id": "Complete Metamethods::Arithmetic metamethods (__sub, __mul, __div)" },
     { "key": "complete-comparison", "source": "tests/unit/metamethod/test_metamethod_complete.cpp", "id": "Complete Metamethods::Comparison metamethods (__eq, __lt, __le)" },
-    { "key": "complete-other", "source": "tests/unit/metamethod/test_metamethod_complete.cpp", "id": "Complete Metamethods::Other metamethods (__len, __concat, __call)" }
+    { "key": "complete-other", "source": "tests/unit/metamethod/test_metamethod_complete.cpp", "id": "Complete Metamethods::Other metamethods (__len, __concat, __call)" },
+    { "key": "codegen-not-lowering", "source": "tests/unit/compiler/test_codegen_conditions.cpp", "id": "Codegen Conditions::Nested Not Condition Uses Cond Pipeline" },
+    { "key": "codegen-testset-lowering", "source": "tests/unit/compiler/test_jump_patcher.cpp", "id": "Jump Patcher::Conditional Jump Lowers NoReg TestSet To Test" }
   ],
   "coverage": [
-    { "opcode": "MOVE", "positive": ["vm-data"], "boundary": ["vm-data"], "metamethod": [] },
-    { "opcode": "LOADK", "positive": ["vm-data"], "boundary": ["vm-data"], "metamethod": [] },
-    { "opcode": "LOADBOOL", "positive": ["vm-data"], "boundary": ["vm-data"], "metamethod": [] },
-    { "opcode": "LOADNIL", "positive": ["vm-data"], "boundary": ["vm-data"], "metamethod": [] },
-    { "opcode": "GETUPVAL", "positive": ["vm-global-upvalue"], "boundary": ["vm-global-upvalue"], "metamethod": [] },
-    { "opcode": "GETGLOBAL", "positive": ["vm-global-upvalue"], "boundary": ["vm-global-upvalue"], "metamethod": [] },
-    { "opcode": "GETTABLE", "positive": ["vm-table"], "boundary": ["vm-table"], "metamethod": ["meta-lua-function"] },
-    { "opcode": "SETGLOBAL", "positive": ["vm-global-upvalue"], "boundary": ["vm-global-upvalue"], "metamethod": [] },
-    { "opcode": "SETUPVAL", "positive": ["vm-global-upvalue"], "boundary": ["vm-global-upvalue"], "metamethod": [] },
-    { "opcode": "SETTABLE", "positive": ["vm-table"], "boundary": ["vm-table"], "metamethod": ["meta-lua-function"] },
-    { "opcode": "NEWTABLE", "positive": ["vm-table"], "boundary": ["vm-table"], "metamethod": [] },
-    { "opcode": "SELF", "positive": ["vm-table"], "boundary": ["vm-table"], "metamethod": ["meta-lua-function"] },
-    { "opcode": "ADD", "positive": ["vm-arithmetic"], "boundary": ["meta-fallback"], "metamethod": ["meta-add"] },
-    { "opcode": "SUB", "positive": ["vm-arithmetic"], "boundary": ["vm-arithmetic"], "metamethod": ["complete-arithmetic"] },
-    { "opcode": "MUL", "positive": ["vm-arithmetic"], "boundary": ["vm-arithmetic"], "metamethod": ["complete-arithmetic"] },
-    { "opcode": "DIV", "positive": ["vm-arithmetic"], "boundary": ["vm-arithmetic"], "metamethod": ["complete-arithmetic"] },
-    { "opcode": "MOD", "positive": ["vm-arithmetic"], "boundary": ["vm-arithmetic"], "metamethod": ["meta-runtime"] },
-    { "opcode": "POW", "positive": ["vm-arithmetic"], "boundary": ["vm-arithmetic"], "metamethod": ["meta-runtime"] },
-    { "opcode": "UNM", "positive": ["vm-unary"], "boundary": ["vm-unary"], "metamethod": ["meta-runtime"] },
-    { "opcode": "NOT", "positive": ["vm-unary"], "boundary": ["vm-unary"], "metamethod": [] },
-    { "opcode": "LEN", "positive": ["vm-unary"], "boundary": ["vm-unary"], "metamethod": ["complete-other"] },
-    { "opcode": "CONCAT", "positive": ["vm-unary"], "boundary": ["vm-unary"], "metamethod": ["meta-runtime"] },
-    { "opcode": "JMP", "positive": ["vm-branch-comparison"], "boundary": ["vm-branch-comparison"], "metamethod": [] },
-    { "opcode": "EQ", "positive": ["vm-branch-comparison"], "boundary": ["vm-branch-comparison"], "metamethod": ["complete-comparison"] },
-    { "opcode": "LT", "positive": ["vm-branch-comparison"], "boundary": ["vm-branch-comparison"], "metamethod": ["complete-comparison"] },
-    { "opcode": "LE", "positive": ["vm-branch-comparison"], "boundary": ["vm-branch-comparison"], "metamethod": ["complete-comparison"] },
-    { "opcode": "TEST", "positive": ["vm-branch-comparison"], "boundary": ["vm-branch-comparison"], "metamethod": [] },
-    { "opcode": "TESTSET", "positive": ["vm-branch-comparison"], "boundary": ["vm-branch-comparison"], "metamethod": [] },
-    { "opcode": "CALL", "positive": ["vm-call-return"], "boundary": ["vm-call-return"], "metamethod": ["meta-lua-function"] },
-    { "opcode": "TAILCALL", "positive": ["vm-call-return"], "boundary": ["vm-call-return"], "metamethod": ["meta-runtime"] },
-    { "opcode": "RETURN", "positive": ["vm-call-return"], "boundary": ["vm-call-return"], "metamethod": [] },
-    { "opcode": "FORLOOP", "positive": ["vm-loop-close"], "boundary": ["vm-loop-close"], "metamethod": [] },
-    { "opcode": "FORPREP", "positive": ["vm-loop-close"], "boundary": ["vm-loop-close"], "metamethod": [] },
-    { "opcode": "TFORLOOP", "positive": ["vm-loop-close"], "boundary": ["vm-loop-close"], "metamethod": [] },
-    { "opcode": "SETLIST", "positive": ["vm-table"], "boundary": ["vm-table"], "metamethod": [] },
-    { "opcode": "CLOSE", "positive": ["vm-loop-close"], "boundary": ["vm-loop-close"], "metamethod": [] },
-    { "opcode": "CLOSURE", "positive": ["vm-closure-vararg"], "boundary": ["vm-closure-vararg"], "metamethod": [] },
-    { "opcode": "VARARG", "positive": ["vm-closure-vararg"], "boundary": ["vm-closure-vararg"], "metamethod": [] }
+    {
+      "opcode": "MOVE",
+      "producer": { "kind": "direct", "source": "src/compiler/codegen/expression_emitter.cpp", "function": "ExpressionEmitter::materializeValue", "emitter": "codeABC" },
+      "handler": { "source": "src/vm/vm_handlers/vm_handlers_data.cpp", "registrar": "registerDataHandlers", "symbol": "handleMove" },
+      "positive": ["vm-data"], "boundary": ["vm-data"], "metamethod": []
+    },
+    {
+      "opcode": "LOADK",
+      "producer": { "kind": "direct", "source": "src/compiler/codegen/expression_emitter.cpp", "function": "ExpressionEmitter::materializeValue", "emitter": "codeABx" },
+      "handler": { "source": "src/vm/vm_handlers/vm_handlers_data.cpp", "registrar": "registerDataHandlers", "symbol": "handleLoadK" },
+      "positive": ["vm-data"], "boundary": ["vm-data"], "metamethod": []
+    },
+    {
+      "opcode": "LOADBOOL",
+      "producer": { "kind": "direct", "source": "src/compiler/codegen/expression_emitter.cpp", "function": "ExpressionEmitter::materializeValue", "emitter": "codeABC" },
+      "handler": { "source": "src/vm/vm_handlers/vm_handlers_data.cpp", "registrar": "registerDataHandlers", "symbol": "handleLoadBool" },
+      "positive": ["vm-data"], "boundary": ["vm-data"], "metamethod": []
+    },
+    {
+      "opcode": "LOADNIL",
+      "producer": { "kind": "direct", "source": "src/compiler/codegen/expression_emitter.cpp", "function": "ExpressionEmitter::materializeValue", "emitter": "codeABC" },
+      "handler": { "source": "src/vm/vm_handlers/vm_handlers_data.cpp", "registrar": "registerDataHandlers", "symbol": "handleLoadNil" },
+      "positive": ["vm-data"], "boundary": ["vm-data"], "metamethod": []
+    },
+    {
+      "opcode": "GETUPVAL",
+      "producer": { "kind": "direct", "source": "src/compiler/codegen/expression_emitter.cpp", "function": "ExpressionEmitter::materializeValue", "emitter": "codeABC" },
+      "handler": { "source": "src/vm/vm_handlers/vm_handlers_global_upvalue.cpp", "registrar": "registerGlobalUpvalueHandlers", "symbol": "handleGetUpval" },
+      "positive": ["vm-global-upvalue"], "boundary": ["vm-global-upvalue"], "metamethod": []
+    },
+    {
+      "opcode": "GETGLOBAL",
+      "producer": { "kind": "direct", "source": "src/compiler/codegen/expression_emitter.cpp", "function": "ExpressionEmitter::materializeValue", "emitter": "codeABx" },
+      "handler": { "source": "src/vm/vm_handlers/vm_handlers_global_upvalue.cpp", "registrar": "registerGlobalUpvalueHandlers", "symbol": "handleGetGlobal" },
+      "positive": ["vm-global-upvalue"], "boundary": ["vm-global-upvalue"], "metamethod": []
+    },
+    {
+      "opcode": "GETTABLE",
+      "producer": { "kind": "direct", "source": "src/compiler/codegen/expression_emitter.cpp", "function": "ExpressionEmitter::materializeValue", "emitter": "codeABC" },
+      "handler": { "source": "src/vm/vm_handlers/vm_handlers_table.cpp", "registrar": "registerTableHandlers", "symbol": "handleGetTable" },
+      "positive": ["vm-table"], "boundary": ["vm-table"], "metamethod": ["meta-lua-function"]
+    },
+    {
+      "opcode": "SETGLOBAL",
+      "producer": { "kind": "direct", "source": "src/compiler/codegen/expression_emitter.cpp", "function": "ExpressionEmitter::emitStore", "emitter": "codeABx" },
+      "handler": { "source": "src/vm/vm_handlers/vm_handlers_global_upvalue.cpp", "registrar": "registerGlobalUpvalueHandlers", "symbol": "handleSetGlobal" },
+      "positive": ["vm-global-upvalue"], "boundary": ["vm-global-upvalue"], "metamethod": []
+    },
+    {
+      "opcode": "SETUPVAL",
+      "producer": { "kind": "direct", "source": "src/compiler/codegen/expression_emitter.cpp", "function": "ExpressionEmitter::emitStore", "emitter": "codeABC" },
+      "handler": { "source": "src/vm/vm_handlers/vm_handlers_global_upvalue.cpp", "registrar": "registerGlobalUpvalueHandlers", "symbol": "handleSetUpval" },
+      "positive": ["vm-global-upvalue"], "boundary": ["vm-global-upvalue"], "metamethod": []
+    },
+    {
+      "opcode": "SETTABLE",
+      "producer": { "kind": "direct", "source": "src/compiler/codegen/expression_emitter.cpp", "function": "ExpressionEmitter::emitStore", "emitter": "codeABC" },
+      "handler": { "source": "src/vm/vm_handlers/vm_handlers_table.cpp", "registrar": "registerTableHandlers", "symbol": "handleSetTable" },
+      "positive": ["vm-table"], "boundary": ["vm-table"], "metamethod": ["meta-lua-function"]
+    },
+    {
+      "opcode": "NEWTABLE",
+      "producer": { "kind": "direct", "source": "src/compiler/codegen/expression_emitter.cpp", "function": "ExpressionEmitter::emitValueTable", "emitter": "codeABC" },
+      "handler": { "source": "src/vm/vm_handlers/vm_handlers_table.cpp", "registrar": "registerTableHandlers", "symbol": "handleNewTable" },
+      "positive": ["vm-table"], "boundary": ["vm-table"], "metamethod": []
+    },
+    {
+      "opcode": "SELF",
+      "producer": { "kind": "direct", "source": "src/compiler/codegen/expression_emitter.cpp", "function": "ExpressionEmitter::emitCallExpr", "emitter": "codeABC" },
+      "handler": { "source": "src/vm/vm_handlers/vm_handlers_table.cpp", "registrar": "registerTableHandlers", "symbol": "handleSelf" },
+      "positive": ["vm-table"], "boundary": ["vm-table"], "metamethod": ["meta-lua-function"]
+    },
+    {
+      "opcode": "ADD",
+      "producer": { "kind": "selected", "source": "src/compiler/codegen/expression_emitter.cpp", "function": "ExpressionEmitter::emitValueBinary", "emitter": "codeABC", "variable": "arithOp" },
+      "handler": { "source": "src/vm/vm_handlers/vm_handlers_arith.cpp", "registrar": "registerArithmeticHandlers", "symbol": "handleArithmetic" },
+      "positive": ["vm-arithmetic"], "boundary": ["meta-fallback"], "metamethod": ["meta-add"]
+    },
+    {
+      "opcode": "SUB",
+      "producer": { "kind": "selected", "source": "src/compiler/codegen/expression_emitter.cpp", "function": "ExpressionEmitter::emitValueBinary", "emitter": "codeABC", "variable": "arithOp" },
+      "handler": { "source": "src/vm/vm_handlers/vm_handlers_arith.cpp", "registrar": "registerArithmeticHandlers", "symbol": "handleArithmetic" },
+      "positive": ["vm-arithmetic"], "boundary": ["vm-arithmetic"], "metamethod": ["complete-arithmetic"]
+    },
+    {
+      "opcode": "MUL",
+      "producer": { "kind": "selected", "source": "src/compiler/codegen/expression_emitter.cpp", "function": "ExpressionEmitter::emitValueBinary", "emitter": "codeABC", "variable": "arithOp" },
+      "handler": { "source": "src/vm/vm_handlers/vm_handlers_arith.cpp", "registrar": "registerArithmeticHandlers", "symbol": "handleArithmetic" },
+      "positive": ["vm-arithmetic"], "boundary": ["vm-arithmetic"], "metamethod": ["complete-arithmetic"]
+    },
+    {
+      "opcode": "DIV",
+      "producer": { "kind": "selected", "source": "src/compiler/codegen/expression_emitter.cpp", "function": "ExpressionEmitter::emitValueBinary", "emitter": "codeABC", "variable": "arithOp" },
+      "handler": { "source": "src/vm/vm_handlers/vm_handlers_arith.cpp", "registrar": "registerArithmeticHandlers", "symbol": "handleArithmetic" },
+      "positive": ["vm-arithmetic"], "boundary": ["vm-arithmetic"], "metamethod": ["complete-arithmetic"]
+    },
+    {
+      "opcode": "MOD",
+      "producer": { "kind": "selected", "source": "src/compiler/codegen/expression_emitter.cpp", "function": "ExpressionEmitter::emitValueBinary", "emitter": "codeABC", "variable": "arithOp" },
+      "handler": { "source": "src/vm/vm_handlers/vm_handlers_arith.cpp", "registrar": "registerArithmeticHandlers", "symbol": "handleArithmetic" },
+      "positive": ["vm-arithmetic"], "boundary": ["vm-arithmetic"], "metamethod": ["meta-runtime"]
+    },
+    {
+      "opcode": "POW",
+      "producer": { "kind": "selected", "source": "src/compiler/codegen/expression_emitter.cpp", "function": "ExpressionEmitter::emitValueBinary", "emitter": "codeABC", "variable": "arithOp" },
+      "handler": { "source": "src/vm/vm_handlers/vm_handlers_arith.cpp", "registrar": "registerArithmeticHandlers", "symbol": "handleArithmetic" },
+      "positive": ["vm-arithmetic"], "boundary": ["vm-arithmetic"], "metamethod": ["meta-runtime"]
+    },
+    {
+      "opcode": "UNM",
+      "producer": { "kind": "direct", "source": "src/compiler/codegen/expression_emitter.cpp", "function": "ExpressionEmitter::emitValueUnary", "emitter": "codeABC" },
+      "handler": { "source": "src/vm/vm_handlers/vm_handlers_unary.cpp", "registrar": "registerUnaryHandlers", "symbol": "handleUnaryMinus" },
+      "positive": ["vm-unary"], "boundary": ["vm-unary"], "metamethod": ["meta-runtime"]
+    },
+    {
+      "opcode": "NOT",
+      "producer": {
+        "kind": "intentionally-not-produced",
+        "scanRoot": "src/compiler/codegen",
+        "reason": "The frontend lowers logical not through the condition pipeline and LOADBOOL materialization instead of emitting OP_NOT.",
+        "test": "codegen-not-lowering",
+        "testFunction": "testNestedNotConditionUsesCondPipeline",
+        "allowedReferences": []
+      },
+      "handler": { "source": "src/vm/vm_handlers/vm_handlers_unary.cpp", "registrar": "registerUnaryHandlers", "symbol": "handleNot" },
+      "positive": ["vm-unary"], "boundary": ["vm-unary"], "metamethod": []
+    },
+    {
+      "opcode": "LEN",
+      "producer": { "kind": "direct", "source": "src/compiler/codegen/expression_emitter.cpp", "function": "ExpressionEmitter::emitValueUnary", "emitter": "codeABC" },
+      "handler": { "source": "src/vm/vm_handlers/vm_handlers_unary.cpp", "registrar": "registerUnaryHandlers", "symbol": "handleLength" },
+      "positive": ["vm-unary"], "boundary": ["vm-unary"], "metamethod": ["complete-other"]
+    },
+    {
+      "opcode": "CONCAT",
+      "producer": { "kind": "direct", "source": "src/compiler/codegen/expression_emitter.cpp", "function": "ExpressionEmitter::emitValueBinary", "emitter": "codeABC" },
+      "handler": { "source": "src/vm/vm_handlers/vm_handlers_unary.cpp", "registrar": "registerUnaryHandlers", "symbol": "handleConcat" },
+      "positive": ["vm-unary"], "boundary": ["vm-unary"], "metamethod": ["meta-runtime"]
+    },
+    {
+      "opcode": "JMP",
+      "producer": { "kind": "direct", "source": "src/compiler/codegen/jump_patcher.cpp", "function": "JumpPatcher::emitJump", "emitter": "state_.bytecode.emitAsBx" },
+      "handler": { "source": "src/vm/vm_handlers/vm_handlers_branch.cpp", "registrar": "registerBranchHandlers", "symbol": "handleJump" },
+      "positive": ["vm-branch-comparison"], "boundary": ["vm-branch-comparison"], "metamethod": []
+    },
+    {
+      "opcode": "EQ",
+      "producer": { "kind": "selected", "source": "src/compiler/codegen/expression_emitter.cpp", "function": "ExpressionEmitter::emitComparisonJump", "emitter": "codeABC", "variable": "op" },
+      "handler": { "source": "src/vm/vm_handlers/vm_handlers_branch.cpp", "registrar": "registerBranchHandlers", "symbol": "handleComparison" },
+      "positive": ["vm-branch-comparison"], "boundary": ["vm-branch-comparison"], "metamethod": ["complete-comparison"]
+    },
+    {
+      "opcode": "LT",
+      "producer": { "kind": "selected", "source": "src/compiler/codegen/expression_emitter.cpp", "function": "ExpressionEmitter::emitComparisonJump", "emitter": "codeABC", "variable": "op" },
+      "handler": { "source": "src/vm/vm_handlers/vm_handlers_branch.cpp", "registrar": "registerBranchHandlers", "symbol": "handleComparison" },
+      "positive": ["vm-branch-comparison"], "boundary": ["vm-branch-comparison"], "metamethod": ["complete-comparison"]
+    },
+    {
+      "opcode": "LE",
+      "producer": { "kind": "selected", "source": "src/compiler/codegen/expression_emitter.cpp", "function": "ExpressionEmitter::emitComparisonJump", "emitter": "codeABC", "variable": "op" },
+      "handler": { "source": "src/vm/vm_handlers/vm_handlers_branch.cpp", "registrar": "registerBranchHandlers", "symbol": "handleComparison" },
+      "positive": ["vm-branch-comparison"], "boundary": ["vm-branch-comparison"], "metamethod": ["complete-comparison"]
+    },
+    {
+      "opcode": "TEST",
+      "producer": { "kind": "direct", "source": "src/compiler/codegen/expression_emitter.cpp", "function": "ExpressionEmitter::emitValueBinary", "emitter": "codeABC" },
+      "handler": { "source": "src/vm/vm_handlers/vm_handlers_branch.cpp", "registrar": "registerBranchHandlers", "symbol": "handleTest" },
+      "positive": ["vm-branch-comparison"], "boundary": ["vm-branch-comparison"], "metamethod": []
+    },
+    {
+      "opcode": "TESTSET",
+      "producer": {
+        "kind": "intentionally-not-produced",
+        "scanRoot": "src/compiler/codegen",
+        "reason": "The frontend emits TEST; the sole TESTSET reference is a normalization guard that rewrites the NO_REG form to TEST, and it has no production callers.",
+        "test": "codegen-testset-lowering",
+        "testFunction": "testConditionalJumpLowersNoRegTestSetToTest",
+        "allowedReferences": [
+          {
+            "source": "src/compiler/codegen/jump_patcher.cpp",
+            "function": "JumpPatcher::emitConditionalJump",
+            "count": 1,
+            "normalizesTo": "TEST"
+          }
+        ],
+        "noProductionCalls": {
+          "function": "emitConditionalJump",
+          "definitionSource": "src/compiler/codegen/jump_patcher.cpp",
+          "expectedCalls": 0
+        }
+      },
+      "handler": { "source": "src/vm/vm_handlers/vm_handlers_branch.cpp", "registrar": "registerBranchHandlers", "symbol": "handleTestSet" },
+      "positive": ["vm-branch-comparison"], "boundary": ["vm-branch-comparison"], "metamethod": []
+    },
+    {
+      "opcode": "CALL",
+      "producer": { "kind": "direct", "source": "src/compiler/codegen/expression_emitter.cpp", "function": "ExpressionEmitter::emitCallExpr", "emitter": "codeABC" },
+      "handler": { "source": "src/vm/vm_handlers/vm_handlers_call.cpp", "registrar": "registerCallHandlers", "symbol": "handleCall" },
+      "positive": ["vm-call-return"], "boundary": ["vm-call-return"], "metamethod": ["meta-lua-function"]
+    },
+    {
+      "opcode": "TAILCALL",
+      "producer": { "kind": "direct", "source": "src/compiler/codegen/statement_emitter.cpp", "function": "StatementEmitter::emitStmt", "signatureContains": "ReturnStmt", "emitter": "ops_.patchToABC" },
+      "handler": { "source": "src/vm/vm_handlers/vm_handlers_call.cpp", "registrar": "registerCallHandlers", "symbol": "handleTailCall" },
+      "positive": ["vm-call-return"], "boundary": ["vm-call-return"], "metamethod": ["meta-runtime"]
+    },
+    {
+      "opcode": "RETURN",
+      "producer": { "kind": "direct", "source": "src/compiler/codegen/statement_emitter.cpp", "function": "StatementEmitter::emitStmt", "signatureContains": "ReturnStmt", "emitter": "codeABC" },
+      "handler": { "source": "src/vm/vm_handlers/vm_handlers_call.cpp", "registrar": "registerCallHandlers", "symbol": "handleReturn" },
+      "positive": ["vm-call-return"], "boundary": ["vm-call-return"], "metamethod": []
+    },
+    {
+      "opcode": "FORLOOP",
+      "producer": { "kind": "direct", "source": "src/compiler/codegen/statement_emitter.cpp", "function": "StatementEmitter::emitStmt", "signatureContains": "ForNumStmt", "emitter": "codeAsBx" },
+      "handler": { "source": "src/vm/vm_handlers/vm_handlers_loop.cpp", "registrar": "registerLoopHandlers", "symbol": "handleForLoop" },
+      "positive": ["vm-loop-close"], "boundary": ["vm-loop-close"], "metamethod": []
+    },
+    {
+      "opcode": "FORPREP",
+      "producer": { "kind": "direct", "source": "src/compiler/codegen/statement_emitter.cpp", "function": "StatementEmitter::emitStmt", "signatureContains": "ForNumStmt", "emitter": "codeAsBx" },
+      "handler": { "source": "src/vm/vm_handlers/vm_handlers_loop.cpp", "registrar": "registerLoopHandlers", "symbol": "handleForPrep" },
+      "positive": ["vm-loop-close"], "boundary": ["vm-loop-close"], "metamethod": []
+    },
+    {
+      "opcode": "TFORLOOP",
+      "producer": { "kind": "direct", "source": "src/compiler/codegen/statement_emitter.cpp", "function": "StatementEmitter::emitStmt", "signatureContains": "ForInStmt", "emitter": "codeABC" },
+      "handler": { "source": "src/vm/vm_handlers/vm_handlers_loop.cpp", "registrar": "registerLoopHandlers", "symbol": "handleTForLoop" },
+      "positive": ["vm-loop-close"], "boundary": ["vm-loop-close"], "metamethod": []
+    },
+    {
+      "opcode": "SETLIST",
+      "producer": { "kind": "direct", "source": "src/compiler/codegen/expression_emitter.cpp", "function": "ExpressionEmitter::emitValueTable", "emitter": "codeABC" },
+      "handler": { "source": "src/vm/vm_handlers/vm_handlers_table.cpp", "registrar": "registerTableHandlers", "symbol": "handleSetList" },
+      "positive": ["vm-table"], "boundary": ["vm-table"], "metamethod": []
+    },
+    {
+      "opcode": "CLOSE",
+      "producer": { "kind": "direct", "source": "src/compiler/codegen/scope_manager.cpp", "function": "ScopeManager::emitClose", "emitter": "state_.bytecode.emitABC" },
+      "handler": { "source": "src/vm/vm_handlers/vm_handlers_loop.cpp", "registrar": "registerLoopHandlers", "symbol": "handleClose" },
+      "positive": ["vm-loop-close"], "boundary": ["vm-loop-close"], "metamethod": []
+    },
+    {
+      "opcode": "CLOSURE",
+      "producer": { "kind": "direct", "source": "src/compiler/codegen/expression_emitter.cpp", "function": "ExpressionEmitter::visitNode", "signatureContains": "FunctionExpr", "emitter": "codeABx" },
+      "handler": { "source": "src/vm/vm_handlers/vm_handlers_closure.cpp", "registrar": "registerClosureHandlers", "symbol": "handleClosure" },
+      "positive": ["vm-closure-vararg"], "boundary": ["vm-closure-vararg"], "metamethod": []
+    },
+    {
+      "opcode": "VARARG",
+      "producer": { "kind": "direct", "source": "src/compiler/codegen/expression_emitter.cpp", "function": "ExpressionEmitter::emitVarargExpr", "emitter": "codeABC" },
+      "handler": { "source": "src/vm/vm_handlers/vm_handlers_closure.cpp", "registrar": "registerClosureHandlers", "symbol": "handleVararg" },
+      "positive": ["vm-closure-vararg"], "boundary": ["vm-closure-vararg"], "metamethod": []
+    }
   ]
 }

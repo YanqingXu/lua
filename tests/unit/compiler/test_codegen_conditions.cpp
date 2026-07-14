@@ -191,13 +191,12 @@ void testConditionContextsRuntime(TestSuite& suite) {
 }
 
 void testConditionBytecodeHasResolvedJumps(TestSuite& suite) {
-    const char* code =
-        "local a = ...\n"
-        "local b = ...\n"
-        "if a and b then return 1 end\n"
-        "while a or b do break end\n"
-        "repeat a = false until not a\n"
-        "return 0\n";
+    const char* code = "local a = ...\n"
+                       "local b = ...\n"
+                       "if a and b then return 1 end\n"
+                       "while a or b do break end\n"
+                       "repeat a = false until not a\n"
+                       "return 0\n";
 
     Proto* proto = generateProto(code);
 
@@ -206,24 +205,23 @@ void testConditionBytecodeHasResolvedJumps(TestSuite& suite) {
     ASSERT_TRUE(suite, hasOpcode(proto, OpCode::TEST), "Condition bytecode uses TEST");
     ASSERT_TRUE(suite, hasResolvedTestJumpPattern(proto), "Condition TEST/JMP pattern is resolved");
     ASSERT_FALSE(suite, hasPendingJump(proto), "Condition bytecode has no pending JMP");
-
 }
 
 void testNestedNotConditionUsesCondPipeline(TestSuite& suite) {
-    const char* code =
-        "local a = ...\n"
-        "local b = ...\n"
-        "if not (a and b) then return 1 end\n"
-        "return 0\n";
+    const char* code = "local a = ...\n"
+                       "local b = ...\n"
+                       "local valueNot = not a\n"
+                       "if valueNot then return 1 end\n"
+                       "if not (a and b) then return 2 end\n"
+                       "return 0\n";
 
     Proto* proto = generateProto(code);
 
     ASSERT_TRUE(suite, proto != nullptr, "Nested not condition proto generated");
     ASSERT_TRUE(suite, proto->getInstructionCount() > 0, "Nested not condition has instructions");
-    ASSERT_TRUE(suite, hasOpcode(proto, OpCode::TEST), "Nested not condition uses TEST");
-    ASSERT_FALSE(suite, hasOpcode(proto, OpCode::NOT), "Nested not condition avoids OP_NOT");
-    ASSERT_FALSE(suite, hasPendingJump(proto), "Nested not condition has no pending JMP");
-
+    ASSERT_TRUE(suite, hasOpcode(proto, OpCode::TEST), "Value and nested not expressions use TEST");
+    ASSERT_FALSE(suite, hasOpcode(proto, OpCode::NOT), "Value and nested not expressions avoid OP_NOT");
+    ASSERT_FALSE(suite, hasPendingJump(proto), "Value and nested not expressions have no pending JMP");
 }
 
 void registerCodegenConditionTests() {
@@ -232,6 +230,6 @@ void registerCodegenConditionTests() {
     registry.registerTest(kSuiteName, "Short Circuit Runtime", testShortCircuitRuntime);
     registry.registerTest(kSuiteName, "Condition Contexts Runtime", testConditionContextsRuntime);
     registry.registerTest(kSuiteName, "Condition Bytecode Has Resolved Jumps", testConditionBytecodeHasResolvedJumps);
-    registry.registerTest(kSuiteName, "Nested Not Condition Uses Cond Pipeline", testNestedNotConditionUsesCondPipeline);
+    registry.registerTest(kSuiteName, "Nested Not Condition Uses Cond Pipeline",
+                          testNestedNotConditionUsesCondPipeline);
 }
-

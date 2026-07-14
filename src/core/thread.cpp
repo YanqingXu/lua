@@ -12,8 +12,10 @@
 #include "core/gc_string.hpp"
 #include "core/userdata.hpp"
 #include "vm/state/global_state.hpp"
+#include "runtime/runtime_services.hpp"
 #include "gc/garbage_collector.hpp"
 #include "common/lua_error.hpp"
+#include <algorithm>
 #include <utility>
 
 namespace Lua {
@@ -70,239 +72,387 @@ Thread* Thread::create(LuaState* parentL) {
 // =====================================================================
 
 bool Thread::resume(LuaState* callerL, i32 nargs) {
-    auto discardCallerArgs = [&]() {
-        if (nargs <= 0) {
-            return;
-        }
-        usize top = callerL->getAbsoluteTop();
-        usize argCount = static_cast<usize>(nargs);
-        if (argCount <= top) {
-            callerL->setAbsoluteTop(top - argCount);
+    if (callerL == nullptr) {
+        return false;
+    }
+
+    const usize callerTop = callerL->getAbsoluteTop();
+    const bool validArgumentCount = nargs >= 0 && static_cast<usize>(nargs) <= callerTop;
+    const usize callerResultBase = validArgumentCount ? callerTop - static_cast<usize>(nargs) : callerTop;
+    GlobalState& globalState = callerL->getGlobalState();
+    Thread* callerThread = callerL->getThread();
+    Thread* previousRunningThread = globalState.getRunningThread();
+    const CoroutineStatus previousCallerStatus =
+        callerThread != nullptr ? callerThread->coStatus_ : CoroutineStatus::Dead;
+    bool callerStatusChanged = false;
+    bool callerLinksChanged = false;
+    bool yieldPermissionAdded = false;
+    Stack& callerStack = callerL->getStack();
+
+    auto clearCallerSlots = [&](usize begin, usize end) noexcept {
+        const usize clearEnd = std::min(end, callerStack.size());
+        for (usize slot = begin; slot < clearEnd; ++slot) {
+            callerStack[slot] = Value();
         }
     };
 
-    auto rejectResume = [&](const char* message, bool markDead) {
-        discardCallerArgs();
-        if (markDead) {
-            coStatus_ = CoroutineStatus::Dead;
+    // A failure response must still be publishable while the configured Lua
+    // allocator rejects every request. In the normal case the caller's frame
+    // already owns these slots, so write them without invoking the allocator.
+    auto publishPairNoThrow = [&](bool success, const Value& value) noexcept {
+        callerL->setAbsoluteTop(callerResultBase);
+        if (callerResultBase <= callerStack.size() && callerStack.size() - callerResultBase >= 2) {
+            callerStack[callerResultBase] = Value(success);
+            callerStack[callerResultBase + 1] = value;
+            const usize publishedTop = callerResultBase + 2;
+            clearCallerSlots(publishedTop, callerTop);
+            callerL->setAbsoluteTop(publishedTop);
+            return true;
         }
-        state_->setStatus(ThreadStatus::ErrRun);
-        callerL->pushBoolean(false);
-        auto& pool = callerL->getGlobalState().getStringPool();
-        callerL->pushString(pool.intern(message));
+
+        const usize previousStackTop = callerStack.size();
+        try {
+            callerL->pushBoolean(success);
+            callerL->pushValue(value);
+        } catch (...) {
+            try {
+                callerStack.setTop(previousStackTop);
+            } catch (...) {
+                // Shrinking to the saved physical top is allocation-free.
+            }
+            clearCallerSlots(callerResultBase, std::max(callerTop, callerResultBase + 2));
+            callerL->setAbsoluteTop(callerResultBase);
+            return false;
+        }
+
+        const usize publishedTop = callerResultBase + 2;
+        clearCallerSlots(publishedTop, callerTop);
+        callerL->setAbsoluteTop(publishedTop);
+        return true;
+    };
+
+    auto restoreCallerContext = [&]() noexcept {
+        if (yieldPermissionAdded) {
+            state_->decAllowYield();
+            yieldPermissionAdded = false;
+        }
+        if (callerStatusChanged && callerThread != nullptr) {
+            callerThread->coStatus_ = previousCallerStatus;
+            callerStatusChanged = false;
+        }
+        globalState.setRunningThread(previousRunningThread);
+        if (callerLinksChanged) {
+            caller_ = nullptr;
+            callerState_ = nullptr;
+            callerLinksChanged = false;
+        }
+    };
+
+    auto failResume = [&](const Value& errorValue, ThreadStatus status, bool canonicalizeCoroutine) noexcept {
+        restoreCallerContext();
+        if (canonicalizeCoroutine) {
+            abortResume(status);
+        } else {
+            state_->setStatus(status);
+        }
+
+        if (!publishPairNoThrow(false, errorValue)) {
+            // There is no representable Lua result when even the caller's two
+            // reserved result slots are unavailable. Keep every runtime state
+            // canonical and contain the C++ allocation failure regardless.
+            callerL->setAbsoluteTop(callerResultBase);
+        }
         return false;
     };
 
-    // ──── 前置检查 ────
+    auto failMemory = [&]() noexcept {
+        return failResume(Value(globalState.getMemoryErrorMessage()), ThreadStatus::ErrMem, true);
+    };
+
+    auto failRuntimeValue = [&](const Value& errorValue) noexcept {
+        restoreCallerContext();
+        state_->setStatus(ThreadStatus::ErrRun);
+        coStatus_ = CoroutineStatus::Dead;
+        if (!publishPairNoThrow(false, errorValue)) {
+            callerL->setAbsoluteTop(callerResultBase);
+        }
+        return false;
+    };
+
+    auto failRuntimeMessage = [&](const char* message) noexcept {
+        try {
+            return failRuntimeValue(Value(globalState.getStringPool().intern(message)));
+        } catch (...) {
+            // Formatting a runtime error can itself allocate. An OOM at this
+            // point needs the stronger canonical rollback because the
+            // suspended frame may be only partially updated.
+            return failMemory();
+        }
+    };
+
+    auto failMessage = [&](const char* message, bool canonicalizeCoroutine) noexcept {
+        try {
+            Value errorValue(globalState.getStringPool().intern(message));
+            return failResume(errorValue, ThreadStatus::ErrRun, canonicalizeCoroutine);
+        } catch (...) {
+            return failResume(Value(globalState.getMemoryErrorMessage()), ThreadStatus::ErrMem, canonicalizeCoroutine);
+        }
+    };
+
+    if (!validArgumentCount) {
+        return failMessage("invalid resume argument count", false);
+    }
     if (coStatus_ == CoroutineStatus::Dead) {
-        return rejectResume("cannot resume dead coroutine", false);
+        return failMessage("cannot resume dead coroutine", false);
     }
     if (coStatus_ == CoroutineStatus::Running) {
-        return rejectResume("cannot resume running coroutine", false);
+        return failMessage("cannot resume running coroutine", false);
     }
     if (firstResume_) {
         Stack& stack = state_->getStack();
         if (state_->getAbsoluteTop() <= 1 || !stack.at(1).isFunction()) {
-            return rejectResume("cannot resume coroutine without an entry function", true);
+            return failMessage("cannot resume coroutine without an entry function", true);
         }
         Function* entry = stack.at(1).asFunction();
         if (entry == nullptr || entry->isCFunction()) {
-            return rejectResume("cannot resume a C function as coroutine entry", true);
+            return failMessage("cannot resume a C function as coroutine entry", true);
         }
     }
 
-    // ──── 值传递：callerL → coState ────
-    if (nargs > 0) {
-        Stack& srcStack = callerL->getStack();
-        usize srcTop = callerL->getAbsoluteTop();
-        usize start = srcTop - static_cast<usize>(nargs);
-        for (usize i = start; i < srcTop; i++) {
-            state_->pushValue(srcStack.at(i));
-        }
-        callerL->setAbsoluteTop(start);
-    }
-
-    // ──── 设置调用帧 / 调整 yield 返回值 ────
-    Proto* proto = nullptr;
-
-    if (firstResume_) {
-        // 首次 resume：在协程栈上创建函数的调用帧
-        Stack& stack = state_->getStack();
-        usize funcPos = 1;
-        Function* func = stack.at(funcPos).asFunction();
-        proto = func->getProto();
-        i32 numParams = proto->getNumParams();
-
-        usize base;
-        if (proto->isVararg()) {
-            i32 actualArgs = nargs;
-            usize oldBase = funcPos + 1;
-            while (actualArgs < numParams) {
-                stack.push(Value());
-                actualArgs++;
-            }
-            base = oldBase + static_cast<usize>(actualArgs);
-            stack.checkSpace(static_cast<usize>(numParams) + 1);
-            for (i32 i = 0; i < numParams; i++) {
-                stack.push(stack[oldBase + i]);
-                stack[oldBase + i] = Value();
-            }
-        } else {
-            base = funcPos + 1;
-            i32 actualArgs = nargs;
-            while (actualArgs < numParams) {
-                stack.push(Value());
-                actualArgs++;
-            }
-        }
-
-        CallInfo& ci = state_->pushCallInfo();
-        ci.func = funcPos;
-        ci.base = base;
-        ci.top = base + proto->getMaxStackSize();
-        ci.nresults = MULTRET;
-        ci.savedpc = nullptr;
-        ci.tailcalls = 0;
-
-        while (stack.size() < ci.top)
-            stack.push(Value());
-        state_->setAbsoluteTop(ci.top);
-
-        if (state_->hasDebugHookMask(HookMaskCall)) {
-            state_->callDebugHook(DebugHookEvent::Call);
-        }
-
-        firstResume_ = false;
-        savedNexeccalls_ = 1;
-    } else {
-        // 后续 resume：resume 参数成为上次 yield 的返回值
-        // yield C 函数的 CallInfo 仍在调用栈顶
-        CallInfo& yieldCI = state_->getCurrentCallInfo();
-        usize funcPos = yieldCI.func;
-        i32 wantedResults = yieldCI.nresults;
-        state_->popCallInfo();
-
-        Stack& stack = state_->getStack();
-        usize srcTop = state_->getAbsoluteTop();
-        usize argStart = srcTop - static_cast<usize>(nargs);
-
-        // 将 resume 参数放到 funcPos（模拟 vmPostcall）
-        for (i32 i = 0; i < nargs; i++) {
-            stack.at(funcPos + static_cast<usize>(i)) = stack.at(argStart + static_cast<usize>(i));
-        }
-
-        bool fixedResults = wantedResults >= 0;
-        if (fixedResults) {
-            for (i32 i = nargs; i < wantedResults; i++) {
-                stack.at(funcPos + static_cast<usize>(i)) = Value();
-            }
-            state_->setAbsoluteTop(funcPos + static_cast<usize>(wantedResults));
-        } else {
-            // MULTRET
-            state_->setAbsoluteTop(funcPos + static_cast<usize>(nargs));
-        }
-
-        // 获取当前 Lua 帧的 proto（reentry 会用到）
-        // 恢复调用帧的栈窗口（模拟 CALL handler 的 post-processing）
-        CallInfo& ci = state_->getCurrentCallInfo();
-        if (fixedResults) {
-            state_->setAbsoluteTop(ci.top);
-        }
-        Function* func = state_->getStack().at(ci.func).asFunction();
-        proto = func->getProto();
-    }
-
-    // ──── 状态切换 ────
-    Thread* callerThread = callerL->getThread();
-    CoroutineStatus prevCallerStatus = CoroutineStatus::Dead;
-    if (callerThread) {
-        prevCallerStatus = callerThread->coStatus_;
-        callerThread->coStatus_ = CoroutineStatus::Normal;
-    }
-    caller_ = callerThread;
-    callerState_ = callerL;
-    coStatus_ = CoroutineStatus::Running;
-    state_->setStatus(ThreadStatus::OK);
-    state_->incAllowYield();
-    callerL->getGlobalState().setRunningThread(this);
-
-    auto finishFailure = [&](const Value& errorValue, ThreadStatus status) {
-        state_->decAllowYield();
-        state_->setStatus(status);
-        coStatus_ = CoroutineStatus::Dead;
-        if (callerThread) {
-            callerThread->coStatus_ = prevCallerStatus;
-        }
-        callerL->getGlobalState().setRunningThread(callerThread);
-        callerState_ = nullptr;
-        callerL->pushBoolean(false);
-        callerL->pushValue(errorValue);
-        return false;
-    };
-
-    // ──── 调用 VM ────
-    ExecResult result;
     try {
-        result = VM::executeProto(state_.get(), proto, savedNexeccalls_);
-    } catch (const MemoryError&) {
-        return finishFailure(Value(state_->getGlobalState().getMemoryErrorMessage()), ThreadStatus::ErrMem);
-    } catch (const std::bad_alloc&) {
-        return finishFailure(Value(state_->getGlobalState().getMemoryErrorMessage()), ThreadStatus::ErrMem);
-    } catch (const LuaError& e) {
-        if (e.hasErrorObject()) {
-            return finishFailure(e.getErrorObject(), ThreadStatus::ErrRun);
+        // callerL -> coroutine. Do not consume the caller's arguments until
+        // every copy succeeds; the failure path then has one stable base.
+        if (nargs > 0) {
+            Stack& sourceStack = callerL->getStack();
+            for (usize i = callerResultBase; i < callerTop; ++i) {
+                state_->pushValue(sourceStack.at(i));
+            }
         }
-        auto& pool = callerL->getGlobalState().getStringPool();
-        return finishFailure(Value(pool.intern(e.what())), ThreadStatus::ErrRun);
-    } catch (const std::exception& e) {
-        auto& pool = callerL->getGlobalState().getStringPool();
-        return finishFailure(Value(pool.intern(e.what())), ThreadStatus::ErrRun);
-    } catch (...) {
-        auto& pool = callerL->getGlobalState().getStringPool();
-        return finishFailure(Value(pool.intern("unknown C++ exception")), ThreadStatus::ErrRun);
-    }
+        clearCallerSlots(callerResultBase, callerTop);
+        callerL->setAbsoluteTop(callerResultBase);
 
-    state_->decAllowYield();
+        Proto* proto = nullptr;
+        if (firstResume_) {
+            Stack& stack = state_->getStack();
+            constexpr usize functionPosition = 1;
+            Function* function = stack.at(functionPosition).asFunction();
+            proto = function->getProto();
+            if (proto == nullptr) {
+                throw RuntimeError("coroutine entry has no prototype");
+            }
+            const i32 parameterCount = proto->getNumParams();
 
-    // ──── 处理结果 ────
-    if (result == ExecResult::Yielded) {
-        // yield：保存执行深度
-        savedNexeccalls_ = state_->getSavedNexeccalls();
-        coStatus_ = CoroutineStatus::Suspended;
-        if (callerThread)
-            callerThread->coStatus_ = prevCallerStatus;
-        callerL->getGlobalState().setRunningThread(callerThread);
-        callerState_ = nullptr;
+            usize base = functionPosition + 1;
+            if (proto->isVararg()) {
+                i32 actualArguments = nargs;
+                const usize oldBase = functionPosition + 1;
+                while (actualArguments < parameterCount) {
+                    stack.push(Value());
+                    ++actualArguments;
+                }
+                base = oldBase + static_cast<usize>(actualArguments);
+                stack.checkSpace(static_cast<usize>(parameterCount) + 1);
+                for (i32 i = 0; i < parameterCount; ++i) {
+                    stack.push(stack[oldBase + static_cast<usize>(i)]);
+                    stack[oldBase + static_cast<usize>(i)] = Value();
+                }
+            } else {
+                i32 actualArguments = nargs;
+                while (actualArguments < parameterCount) {
+                    stack.push(Value());
+                    ++actualArguments;
+                }
+            }
 
-        // yield 值在 yield C 函数的 CallInfo 参数区
-        callerL->pushBoolean(true);
-        i32 nYieldResults = state_->getYieldResults();
-        CallInfo& yieldCI = state_->getCurrentCallInfo();
-        Stack& coStack = state_->getStack();
-        for (i32 i = 0; i < nYieldResults; i++) {
-            callerL->pushValue(coStack.at(yieldCI.base + static_cast<usize>(i)));
+            CallInfo& callInfo = state_->pushCallInfo();
+            callInfo.func = functionPosition;
+            callInfo.base = base;
+            callInfo.top = base + proto->getMaxStackSize();
+            callInfo.nresults = MULTRET;
+            callInfo.savedpc = nullptr;
+            callInfo.tailcalls = 0;
+
+            while (stack.size() < callInfo.top) {
+                stack.push(Value());
+            }
+            const usize registerClearEnd =
+                proto->isVararg() ? callInfo.top : std::max(callInfo.top, base + static_cast<usize>(nargs));
+            for (usize slot = base + static_cast<usize>(parameterCount); slot < registerClearEnd; ++slot) {
+                stack[slot] = Value();
+            }
+            if (stack.size() > callInfo.top) {
+                stack.setTop(callInfo.top);
+            }
+            state_->setAbsoluteTop(callInfo.top);
+
+            if (state_->hasDebugHookMask(HookMaskCall)) {
+                state_->callDebugHook(DebugHookEvent::Call);
+            }
+
+            firstResume_ = false;
+            savedNexeccalls_ = 1;
+        } else {
+            // Resume arguments replace the suspended yield call's results.
+            CallInfo& yieldCallInfo = state_->getCurrentCallInfo();
+            const usize functionPosition = yieldCallInfo.func;
+            const i32 wantedResults = yieldCallInfo.nresults;
+            state_->popCallInfo();
+
+            Stack& stack = state_->getStack();
+            const usize sourceTop = state_->getAbsoluteTop();
+            const usize argumentStart = sourceTop - static_cast<usize>(nargs);
+            const usize argumentCount = static_cast<usize>(nargs);
+            if (functionPosition > argumentStart && functionPosition < sourceTop) {
+                for (usize i = argumentCount; i > 0; --i) {
+                    stack.at(functionPosition + i - 1) = stack.at(argumentStart + i - 1);
+                }
+            } else {
+                for (usize i = 0; i < argumentCount; ++i) {
+                    stack.at(functionPosition + i) = stack.at(argumentStart + i);
+                }
+            }
+
+            const bool fixedResults = wantedResults >= 0;
+            if (fixedResults) {
+                for (usize i = argumentCount; i < static_cast<usize>(wantedResults); ++i) {
+                    stack.at(functionPosition + i) = Value();
+                }
+            }
+
+            const usize logicalResultTop =
+                functionPosition + (fixedResults ? static_cast<usize>(wantedResults) : argumentCount);
+            const usize copiedResultTop = functionPosition + argumentCount;
+            for (usize slot = logicalResultTop; slot < copiedResultTop; ++slot) {
+                stack[slot] = Value();
+            }
+            for (usize slot = argumentStart; slot < sourceTop; ++slot) {
+                if (slot < functionPosition || slot >= logicalResultTop) {
+                    stack[slot] = Value();
+                }
+            }
+            state_->setAbsoluteTop(logicalResultTop);
+
+            CallInfo& callInfo = state_->getCurrentCallInfo();
+            const usize physicalTop = std::max(callInfo.top, logicalResultTop);
+            if (stack.size() > physicalTop) {
+                stack.setTop(physicalTop);
+            }
+            if (fixedResults) {
+                state_->setAbsoluteTop(callInfo.top);
+            }
+            Function* function = state_->getStack().at(callInfo.func).asFunction();
+            proto = function != nullptr ? function->getProto() : nullptr;
+            if (proto == nullptr) {
+                throw RuntimeError("suspended coroutine has no Lua frame");
+            }
         }
-        return true;
-    } else {
-        // 正常返回：协程结束
+
+        if (callerThread != nullptr) {
+            callerThread->coStatus_ = CoroutineStatus::Normal;
+            callerStatusChanged = true;
+        }
+        caller_ = callerThread;
+        callerState_ = callerL;
+        callerLinksChanged = true;
+        coStatus_ = CoroutineStatus::Running;
         state_->setStatus(ThreadStatus::OK);
-        coStatus_ = CoroutineStatus::Dead;
-        if (callerThread)
-            callerThread->coStatus_ = prevCallerStatus;
-        callerL->getGlobalState().setRunningThread(callerThread);
-        callerState_ = nullptr;
+        state_->incAllowYield();
+        yieldPermissionAdded = true;
+        globalState.setRunningThread(this);
 
-        // 返回值由 RETURN 指令放在 ci.func 位置
+        RuntimeServices services(state_->getGlobalState());
+        const ExecResult result = VM::executeProto(services, state_.get(), proto, savedNexeccalls_);
+        restoreCallerContext();
+
+        Stack& coroutineStack = state_->getStack();
+        usize resultStart = 0;
+        usize resultCount = 0;
+        if (result == ExecResult::Yielded) {
+            savedNexeccalls_ = state_->getSavedNexeccalls();
+            coStatus_ = CoroutineStatus::Suspended;
+            const i32 yieldResults = state_->getYieldResults();
+            if (yieldResults < 0 || static_cast<usize>(yieldResults) > state_->getAbsoluteTop()) {
+                throw RuntimeError("coroutine yielded an invalid result count");
+            }
+            resultCount = static_cast<usize>(yieldResults);
+            resultStart = state_->getAbsoluteTop() - resultCount;
+        } else {
+            state_->setStatus(ThreadStatus::OK);
+            coStatus_ = CoroutineStatus::Dead;
+            const CallInfo& callInfo = state_->getCurrentCallInfo();
+            resultStart = callInfo.func;
+            const usize resultTop = state_->getAbsoluteTop();
+            if (resultStart > resultTop) {
+                throw RuntimeError("coroutine returned an invalid result range");
+            }
+            resultCount = resultTop - resultStart;
+        }
+
+        callerL->setAbsoluteTop(callerResultBase);
         callerL->pushBoolean(true);
-        CallInfo& ci = state_->getCurrentCallInfo();
-        Stack& coStack = state_->getStack();
-        usize funcPos = ci.func;
-        usize top = state_->getAbsoluteTop();
-        for (usize i = funcPos; i < top; i++) {
-            callerL->pushValue(coStack.at(i));
+        for (usize i = 0; i < resultCount; ++i) {
+            callerL->pushValue(coroutineStack.at(resultStart + i));
+        }
+        const usize publishedTop = callerL->getAbsoluteTop();
+        clearCallerSlots(publishedTop, callerTop);
+        for (usize i = 0; i < resultCount; ++i) {
+            coroutineStack[resultStart + i] = Value();
         }
         return true;
+    } catch (const MemoryError&) {
+        return failMemory();
+    } catch (const std::bad_alloc&) {
+        return failMemory();
+    } catch (const LuaError& error) {
+        if (error.hasErrorObject()) {
+            return failRuntimeValue(error.getErrorObject());
+        }
+        return failRuntimeMessage(error.what());
+    } catch (const std::exception& error) {
+        return failRuntimeMessage(error.what());
+    } catch (...) {
+        return failRuntimeMessage("unknown C++ exception");
     }
+}
+
+void Thread::abortResume(ThreadStatus status) noexcept {
+    while (state_->getCurrentCI() > 0) {
+        const usize frameBase = state_->getCurrentCallInfo().base;
+        try {
+            state_->closeUpvalues(frameBase);
+        } catch (...) {
+            // A failed close must not leave a half-built CallInfo visible.
+        }
+        try {
+            state_->popCallInfo();
+        } catch (...) {
+            // popCallInfo only rejects the base frame. Stop defensively if a
+            // future implementation adds another throwing operation.
+            break;
+        }
+    }
+
+    Stack& stack = state_->getStack();
+    for (usize slot = 0; slot < stack.capacity(); ++slot) {
+        stack[slot] = Value();
+    }
+    stack.clear();
+    state_->setAbsoluteTop(0);
+    state_->setYieldResults(0);
+    state_->setSavedNexeccalls(1);
+    state_->setStatus(status);
+    coStatus_ = CoroutineStatus::Dead;
+    firstResume_ = false;
+    savedNexeccalls_ = 1;
+
+    if (state_->getGlobalState().getRunningThread() == this) {
+        state_->getGlobalState().setRunningThread(caller_);
+    }
+    if (caller_ != nullptr && caller_->coStatus_ == CoroutineStatus::Normal) {
+        caller_->coStatus_ = CoroutineStatus::Running;
+    }
+    caller_ = nullptr;
+    callerState_ = nullptr;
 }
 
 // =====================================================================

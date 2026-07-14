@@ -9,7 +9,9 @@
 #include "lib/lib_manager.hpp"
 #include "lib/lib_registry.hpp"
 #include "lib/testlib.hpp"
+#include "runtime/runtime_services.hpp"
 #include "vm/state/lua_state.hpp"
+#include "vm/vm.hpp"
 
 #include "lua.h"
 
@@ -18,6 +20,7 @@
 #include <cstring>
 #include <expected>
 #include <functional>
+#include <limits>
 #include <string>
 #include <type_traits>
 
@@ -28,10 +31,9 @@ namespace {
 
 constexpr const char* kSuiteName = "Standard Library Catalog";
 
-static_assert(std::is_same_v<
-                  decltype(findStandardLibrary(StrView{})),
-                  Opt<std::reference_wrapper<const LibCatalogEntry>>>,
-              "findStandardLibrary should expose absence as Opt<reference_wrapper<...>>, not a nullable pointer");
+static_assert(
+    std::is_same_v<decltype(findStandardLibrary(StrView{})), Opt<std::reference_wrapper<const LibCatalogEntry>>>,
+    "findStandardLibrary should expose absence as Opt<reference_wrapper<...>>, not a nullable pointer");
 
 Value getField(LuaState* L, Table* table, const char* key) {
     GCString* field = L->getGlobalState().getStringPool().intern(key);
@@ -68,15 +70,7 @@ static i32 catalogDummyFunction(LuaState*) {
 void testCatalogOrder(TestSuite& suite) {
     const auto catalog = getStandardLibraryCatalog();
     constexpr std::array<StrView, 9> expectedIds = {
-        "base",
-        "math",
-        "io",
-        "string",
-        "table",
-        "os",
-        "coroutine",
-        "debug",
-        "package",
+        "base", "math", "io", "string", "table", "os", "coroutine", "debug", "package",
     };
 
     ASSERT_EQ(suite, expectedIds.size(), catalog.size(), "catalog has expected library count");
@@ -116,9 +110,8 @@ void testFindStandardLibraryReturnsOptionalReference(TestSuite& suite) {
 }
 
 void testFunctionRegistrarExpectedErrors(TestSuite& suite) {
-    static_assert(std::is_same_v<
-                      decltype(FunctionRegistrar::tryCreateLibTable(nullptr, StrView{})),
-                      std::expected<Table*, LibRegistrationError>>,
+    static_assert(std::is_same_v<decltype(FunctionRegistrar::tryCreateLibTable(nullptr, StrView{})),
+                                 std::expected<Table*, LibRegistrationError>>,
                   "FunctionRegistrar tryCreateLibTable should return expected<Table*, LibRegistrationError>");
 
     auto missingState = FunctionRegistrar::tryCreateLibTable(nullptr, "math");
@@ -270,8 +263,7 @@ void testTestLibTestCFirstStageStackCommands(TestSuite& suite) {
 
     L->setTop(0);
 
-    L->pushString(L->getGlobalState().getStringPool().intern(
-        "pushnum 1; pushnum 2; pushnum 3; settop 3; return 2"));
+    L->pushString(L->getGlobalState().getStringPool().intern("pushnum 1; pushnum 2; pushnum 3; settop 3; return 2"));
     i32 results = testCValue.asFunction()->getCFunction()(L.get());
 
     ASSERT_EQ(suite, 2, results, "T.testC returns requested top values");
@@ -281,6 +273,48 @@ void testTestLibTestCFirstStageStackCommands(TestSuite& suite) {
         ASSERT_EQ(suite, 1.0, L->at(-2).asNumber(), "T.testC preserves Lua stack semantics before return");
         ASSERT_EQ(suite, 2.0, L->at(-1).asNumber(), "T.testC preserves Lua stack semantics at top");
     }
+
+    L->setTop(0);
+    L->pushString(L->getGlobalState().getStringPool().intern("settop 5; gettop; return ."));
+    L->pushNumber(2.0);
+    L->pushNumber(3.0);
+    results = testCValue.asFunction()->getCFunction()(L.get());
+
+    ASSERT_EQ(suite, 5, results, "T.testC dot parameter reads the result count from the stack top");
+    ASSERT_EQ(suite, 5, L->getTop(), "T.testC dot parameter consumes its stack-top operand");
+    ASSERT_TRUE(suite, L->at(4).isNil() && L->at(5).isNil(), "T.testC settop pads the stack before a dot-count return");
+
+    L->setTop(0);
+    L->pushValue(testCValue);
+    L->pushString(L->getGlobalState().getStringPool().intern("settop 5; gettop; return ."));
+    L->pushNumber(2.0);
+    L->pushNumber(3.0);
+    RuntimeServices services(L->getGlobalState());
+    VM::call(services, L.get(), 3, LUA_MULTRET);
+
+    ASSERT_EQ(suite, 5, L->getTop(), "T.testC dot-count result preserves the official five-value shape");
+    ASSERT_TRUE(suite, L->at(1).isString(), "T.testC returns its program string in the official stack shape");
+    ASSERT_EQ(suite, 2.0, L->at(2).asNumber(), "T.testC dot-count result preserves its first argument");
+    ASSERT_EQ(suite, 3.0, L->at(3).asNumber(), "T.testC dot-count result preserves its second argument");
+    ASSERT_TRUE(suite, L->at(4).isNil() && L->at(5).isNil(), "T.testC dot-count result preserves trailing nil values");
+
+    L->setTop(0);
+    L->pushNumber(10.0);
+    L->pushNumber(20.0);
+    L->pushNumber(30.0);
+    L->setAbsoluteTop(1);
+    L->setTop(3);
+    ASSERT_EQ(suite, 10.0, L->at(1).asNumber(), "setTop growth preserves the existing logical prefix");
+    ASSERT_TRUE(suite, L->at(2).isNil() && L->at(3).isNil(), "setTop growth clears stale reserved stack slots to nil");
+
+    L->setTop(0);
+    // Keep the probe beyond every result pushed by the program. Probing slot
+    // 2 twice would make the second probe observe the first command's result.
+    L->pushString(L->getGlobalState().getStringPool().intern("isnil 15; isnull 15; return 2"));
+    results = testCValue.asFunction()->getCFunction()(L.get());
+    ASSERT_EQ(suite, 2, results, "T.testC returns both nil and none probes");
+    ASSERT_EQ(suite, 0.0, L->at(-2).asNumber(), "T.testC isnil rejects a nonexistent stack index");
+    ASSERT_EQ(suite, 1.0, L->at(-1).asNumber(), "T.testC isnull accepts a nonexistent stack index");
 }
 
 void testLua51CAPIShimStackAndRawTableSmoke(TestSuite& suite) {
@@ -312,6 +346,47 @@ void testLua51CAPIShimStackAndRawTableSmoke(TestSuite& suite) {
     lua_close(C);
 }
 
+void testTestLibNumericBoundaries(TestSuite& suite) {
+    UPtr<LuaState> L(LuaState::newIsolatedState());
+    openTestLib(L.get());
+
+    Table* testTable = L->getGlobal("T").asTable();
+    const CFunction totalmem = getField(L.get(), testTable, "totalmem").asFunction()->getCFunction();
+    const CFunction newuserdata = getField(L.get(), testTable, "newuserdata").asFunction()->getCFunction();
+
+    auto rejects = [&](CFunction function, LuaNumber value) {
+        L->setTop(0);
+        L->pushNumber(value);
+        try {
+            (void)function(L.get());
+        } catch (...) {
+            return true;
+        }
+        return false;
+    };
+
+    ASSERT_TRUE(suite, rejects(totalmem, std::numeric_limits<LuaNumber>::quiet_NaN()),
+                "T.totalmem rejects NaN without converting it to size_t");
+
+    L->setTop(0);
+    L->pushNumber(std::numeric_limits<LuaNumber>::infinity());
+    bool infiniteLimitAccepted = true;
+    try {
+        (void)totalmem(L.get());
+    } catch (...) {
+        infiniteLimitAccepted = false;
+    }
+    ASSERT_TRUE(suite, infiniteLimitAccepted, "T.totalmem saturates a positive infinite limit");
+    ASSERT_EQ(suite, std::numeric_limits<usize>::max(), L->getGlobalState().getGC().getMemoryLimitBytes(),
+              "T.totalmem saturation installs the unlimited sentinel");
+
+    ASSERT_TRUE(suite, rejects(newuserdata, std::numeric_limits<LuaNumber>::quiet_NaN()),
+                "T.newuserdata rejects NaN size");
+    ASSERT_TRUE(suite, rejects(newuserdata, std::numeric_limits<LuaNumber>::infinity()),
+                "T.newuserdata rejects infinite size");
+    ASSERT_TRUE(suite, rejects(newuserdata, 1e300), "T.newuserdata rejects size_t overflow");
+}
+
 } // namespace
 
 void registerLibCatalogTests() {
@@ -319,12 +394,15 @@ void registerLibCatalogTests() {
 
     registry.registerTest(kSuiteName, "catalog order", testCatalogOrder);
     registry.registerTest(kSuiteName, "catalog ids are unique", testCatalogIdsAreUnique);
-    registry.registerTest(kSuiteName, "catalog lookup optional reference", testFindStandardLibraryReturnsOptionalReference);
+    registry.registerTest(kSuiteName, "catalog lookup optional reference",
+                          testFindStandardLibraryReturnsOptionalReference);
     registry.registerTest(kSuiteName, "function registrar expected errors", testFunctionRegistrarExpectedErrors);
-    registry.registerTest(kSuiteName, "openCatalogLibrary single library", testOpenCatalogLibraryRegistersSingleLibrary);
+    registry.registerTest(kSuiteName, "openCatalogLibrary single library",
+                          testOpenCatalogLibraryRegistersSingleLibrary);
     registry.registerTest(kSuiteName, "openAll registrations", testOpenAllRegistersCatalogLibraries);
     registry.registerTest(kSuiteName, "T.listcode official shape", testTestLibListcodeProvidesOfficialShape);
     registry.registerTest(kSuiteName, "T.testC first-stage stack commands", testTestLibTestCFirstStageStackCommands);
     registry.registerTest(kSuiteName, "Lua 5.1 C API shim stack and raw table smoke",
                           testLua51CAPIShimStackAndRawTableSmoke);
+    registry.registerTest(kSuiteName, "TestC numeric boundaries", testTestLibNumericBoundaries);
 }

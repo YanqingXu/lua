@@ -135,6 +135,9 @@ void Table::set(const Value& key, const Value& value) {
 
     // 存储到哈希部分
     hash_[key] = value;
+    if (GarbageCollector* gc = getOwnerCollector()) {
+        gc->accountObjectSizeChange(this);
+    }
 }
 
 bool Table::has(const Value& key) const {
@@ -166,6 +169,9 @@ void Table::remove(const Value& key) {
 
     // 从哈希部分删除
     hash_.erase(key);
+    if (GarbageCollector* gc = getOwnerCollector()) {
+        gc->accountObjectSizeChange(this);
+    }
 }
 
 void Table::clear() {
@@ -173,6 +179,9 @@ void Table::clear() {
     hash_.clear();
     metatable_ = nullptr;
     flags_ = 0;
+    if (GarbageCollector* gc = getOwnerCollector()) {
+        gc->accountObjectSizeChange(this);
+    }
 }
 
 // =====================================================================
@@ -216,9 +225,12 @@ void Table::setArray(i32 index, const Value& value) {
     }
 
     array_[arrayIndex] = value;
+    if (GarbageCollector* gc = getOwnerCollector()) {
+        gc->accountObjectSizeChange(this);
+    }
 }
 
-void Table::setMetatable(Table* mt) noexcept {
+void Table::setMetatable(Table* mt) {
     if (GarbageCollector* gc = getOwnerCollector()) {
         gc->writeBarrier(this, mt);
     }
@@ -349,6 +361,10 @@ void Table::removeWeakEntries(const GarbageCollector& gc, bool weakKeys, bool we
         } else {
             ++it;
         }
+    }
+
+    if (GarbageCollector* owner = getOwnerCollector()) {
+        owner->accountObjectSizeChange(this);
     }
 }
 

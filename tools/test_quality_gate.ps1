@@ -89,13 +89,22 @@ Assert-FileContains "tools/check_opcode_coverage_matrix.ps1" @(
     "Opcode matrix order mismatch",
     "CoverageContract",
     "--list",
-    "not registered"
+    "not registered",
+    "Get-CppFunctionEvidence",
+    "Test-ProducerEvidence",
+    "Test-HandlerEvidence",
+    "actualHandlerRegistrations",
+    "makeHandlerTable"
 )
 
 Assert-FileContains "tests/unit/vm/opcode_coverage_contract.json" @(
-    '"schemaVersion":\s*1',
+    '"schemaVersion":\s*2',
     '"tests":',
     '"coverage":',
+    '"producer":',
+    '"handler":',
+    '"registrar":',
+    '"symbol":',
     '"positive":',
     '"boundary":',
     '"metamethod":',
@@ -204,6 +213,62 @@ function Invoke-NativeFailurePropagationSmokeTest {
 }
 
 Invoke-NativeFailurePropagationSmokeTest
+
+function Invoke-OpcodeEvidenceContractSmokeTest {
+    $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("lua_opcode_evidence_" + [guid]::NewGuid().ToString("N"))
+    New-Item -ItemType Directory -Path $tempRoot | Out-Null
+
+    try {
+        $sourceContract = Join-RepoPath "tests/unit/vm/opcode_coverage_contract.json"
+        $probeContract = Join-Path $tempRoot "opcode_coverage_contract.json"
+        $checker = Join-RepoPath "tools/check_opcode_coverage_matrix.ps1"
+
+        $producerProbe = Get-Content -LiteralPath $sourceContract -Raw | ConvertFrom-Json
+        $producerProbe.coverage[0].producer.function = "MissingProducerForContractTest"
+        $producerJson = $producerProbe | ConvertTo-Json -Depth 20
+        [System.IO.File]::WriteAllText($probeContract, $producerJson + [Environment]::NewLine,
+            [System.Text.UTF8Encoding]::new($false))
+
+        $previousErrorActionPreference = $ErrorActionPreference
+        try {
+            $ErrorActionPreference = "Continue"
+            $producerOutput = & powershell -NoProfile -ExecutionPolicy Bypass -File $checker `
+                -CoverageContract $probeContract 2>&1
+            $producerExitCode = $LASTEXITCODE
+        } finally {
+            $ErrorActionPreference = $previousErrorActionPreference
+        }
+        if ($producerExitCode -eq 0 -or
+            ($producerOutput -join "`n") -notmatch "MissingProducerForContractTest") {
+            throw "Opcode checker did not reject a contract with a fabricated CodeGen producer"
+        }
+
+        $handlerProbe = Get-Content -LiteralPath $sourceContract -Raw | ConvertFrom-Json
+        $handlerProbe.coverage[0].handler.symbol = "missingHandlerForContractTest"
+        $handlerJson = $handlerProbe | ConvertTo-Json -Depth 20
+        [System.IO.File]::WriteAllText($probeContract, $handlerJson + [Environment]::NewLine,
+            [System.Text.UTF8Encoding]::new($false))
+
+        try {
+            $ErrorActionPreference = "Continue"
+            $handlerOutput = & powershell -NoProfile -ExecutionPolicy Bypass -File $checker `
+                -CoverageContract $probeContract 2>&1
+            $handlerExitCode = $LASTEXITCODE
+        } finally {
+            $ErrorActionPreference = $previousErrorActionPreference
+        }
+        if ($handlerExitCode -eq 0 -or
+            ($handlerOutput -join "`n") -notmatch "missingHandlerForContractTest") {
+            throw "Opcode checker did not reject a contract with a fabricated VM handler"
+        }
+    } finally {
+        if (Test-Path -LiteralPath $tempRoot) {
+            Remove-Item -LiteralPath $tempRoot -Recurse -Force
+        }
+    }
+}
+
+Invoke-OpcodeEvidenceContractSmokeTest
 
 function Invoke-CStylePositionBaselineSmokeTest {
     $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("lua_c_style_quality_" + [guid]::NewGuid().ToString("N"))
@@ -349,10 +414,25 @@ Assert-FileContains ".github/workflows/ci.yml" @(
     "windows-latest",
     "ubuntu-latest",
     "configuration: \[Debug, Release\]",
+    "compiler: GCC",
+    "compiler: Clang",
+    "cc: gcc",
+    "cxx: g\+\+",
+    "cc: clang",
+    "cxx: clang\+\+",
+    "build_type: Debug",
+    "build_type: Release",
+    "ctest --test-dir build --output-on-failure",
     "LUA_CPP_SANITIZER",
     "sanitizer: \[address, undefined\]",
+    "ASAN_OPTIONS: detect_leaks=1:halt_on_error=1",
+    "UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1",
     "clang-format --dry-run --Werror",
-    "clang-tidy -p build/lint",
+    "run_clang_tidy\.py --build-dir build/lint",
+    "Linux runtime benchmark contract",
+    "LUA_CPP_BUILD_BENCHMARKS=ON",
+    "lua_runtime_bench",
+    "check_runtime_bench\.ps1",
     "run_lua51_differential\.ps1",
     "run_lua51_official_slow\.ps1",
     "run_lua51_official_strict\.ps1",
@@ -361,12 +441,37 @@ Assert-FileContains ".github/workflows/ci.yml" @(
     "bin\\lua_test\.exe"
 )
 
+Assert-FileContains "tools/run_clang_tidy.py" @(
+    "compile_commands\.json",
+    "PROJECT_ROOTS",
+    "bugprone-implicit-widening-of-multiplication-result",
+    "bugprone-suspicious-stringview-data-usage",
+    "portability-\*",
+    "warnings-as-errors=\*"
+)
+
 Assert-FileContains "CMakeLists.txt" @(
     "LUA_CPP_SANITIZER",
     "-fsanitize=\$\{LUA_CPP_SANITIZER\}",
     "-fno-omit-frame-pointer",
+    "LUA_CPP_BUILD_BENCHMARKS",
+    "add_executable\(lua_runtime_bench",
+    "NAME runtime_benchmark_contract",
     "lua_embedding_example",
     "example_embedding"
+)
+
+Assert-FileContains "tools/check_runtime_bench.ps1" @(
+    'schema_version must be 1',
+    'numeric CI evidence must come from a Release build',
+    'closure_count must remain exactly 100000',
+    'gc_pause_sample_count',
+    'gc_pause_p50_us',
+    'gc_pause_p95_us',
+    'gc_pause_p99_us',
+    'gc_pause_max_us',
+    'heap_growth_bytes_per_million_frames',
+    'allocator_live_after_close'
 )
 
 Assert-FileContains "examples/embedding.cpp" @(
@@ -386,15 +491,28 @@ Assert-FileContains "tools/check_lua51_official_sources.ps1" @(
 Assert-FileContains "tools/run_lua51_official_strict.ps1" @(
     "unmodified temporary copy",
     "ExpectFailure",
+    "XfailManifest",
+    "timeoutSeconds",
     "official-strict unexpectedly passed",
+    'if \(\$outcome -eq "timeout"\)',
+    "expected the registered timeout XFAIL",
     "check_lua51_official_sources"
 )
 
 Assert-FileContains "tools/run_lua51_official_slow.ps1" @(
     "TimeoutSeconds",
-    "ExpectVerybigTimeout",
-    "verybig unexpectedly passed",
     "check_lua51_official_sources"
+)
+
+Assert-FileContains ".github/workflows/ci.yml" @(
+    "Official slow verybig gate",
+    "-Case verybig",
+    "-TimeoutSeconds 300"
+)
+
+Assert-FileNotContains ".github/workflows/ci.yml" @(
+    "Official slow verybig XFAIL",
+    "-ExpectVerybigTimeout"
 )
 
 Assert-FileContains "tools/run_lua51_differential.ps1" @(
@@ -413,21 +531,93 @@ Assert-FileContains "tests/compatibility/lua51-differential-cases.json" @(
 )
 
 Assert-FileContains "tests/compatibility/lua51-official-strict-xfails.json" @(
+    '"expectedOutcome":\s*"timeout"',
+    '"timeoutSeconds":\s*300',
     '"trackingIssue":',
+    '"trackingStatus":',
     '"responsibleModule":',
     '"minimalReproduction":'
 )
 
+$strictXfails = Get-Content -LiteralPath (Join-RepoPath "tests/compatibility/lua51-official-strict-xfails.json") `
+    -Raw | ConvertFrom-Json
+$strictXfailEntries = @($strictXfails.xfails)
+if ($strictXfailEntries.Count -ne 1 -or $strictXfailEntries[0].id -ne "all.lua-unmodified" -or
+    $strictXfailEntries[0].expectedOutcome -ne "timeout" -or
+    $strictXfailEntries[0].timeoutSeconds -ne 300) {
+    throw "official-strict must retain exactly one timeout-only all.lua XFAIL"
+}
+$strictTrackingIssue = $strictXfailEntries[0].trackingIssue
+if ($null -ne $strictTrackingIssue -and
+    [string]$strictTrackingIssue -notmatch '^https://github\.com/[^/]+/[^/]+/issues/\d+$') {
+    throw "official-strict trackingIssue must be null or a real GitHub issue URL"
+}
+if ($null -eq $strictTrackingIssue -and
+    [string]::IsNullOrWhiteSpace([string]$strictXfailEntries[0].trackingStatus)) {
+    throw "official-strict needs trackingStatus while trackingIssue is null"
+}
+
 Assert-FileContains "tests/compatibility/lua51-official-slow-xfails.json" @(
-    'verybig.lua-slow-gate',
-    'P1-verybig-runtime-budget'
+    '"schemaVersion":\s*1',
+    '"channel":\s*"official-slow"',
+    '"xfails":\s*\[\s*\]'
 )
+
+Assert-FileNotContains "tests/compatibility/lua51-official-slow-xfails.json" @(
+    'verybig\.lua-slow-gate',
+    'P1-verybig-runtime-budget',
+    '"expectedOutcome":\s*"timeout"'
+)
+
+$slowXfails = Get-Content -LiteralPath (Join-RepoPath "tests/compatibility/lua51-official-slow-xfails.json") `
+    -Raw | ConvertFrom-Json
+if (@($slowXfails.xfails).Count -ne 0) {
+    throw "official-slow must not retain XFAIL entries after sort.lua and verybig.lua pass the required gate"
+}
 
 Assert-FileContains "tests/compatibility/lua51-official-testc-xfails.json" @(
     'code.lua-opcode-sequence',
-    'api.lua-stack-shape',
+    'code.lua LOADNIL fixture/oracle mismatch: expected RETURN; actual 1 - LOADNIL 1',
     'responsibleModule',
     'minimalReproduction'
+)
+
+Assert-FileNotContains "tests/compatibility/lua51-official-testc-xfails.json" @(
+    'api.lua-stack-shape'
+)
+
+$testCXfails = Get-Content -LiteralPath (Join-RepoPath "tests/compatibility/lua51-official-testc-xfails.json") `
+    -Raw | ConvertFrom-Json
+$testCXfailEntries = @($testCXfails.xfails)
+if ($testCXfailEntries.Count -ne 1 -or $testCXfailEntries[0].id -ne "code.lua-opcode-sequence") {
+    throw "official-testc must retain only the code.lua opcode-sequence XFAIL"
+}
+$expectedCodeLuaDiagnostic = "code.lua LOADNIL fixture/oracle mismatch: expected RETURN; actual 1 - LOADNIL 1"
+if ($testCXfailEntries[0].expectedDiagnostic -ne $expectedCodeLuaDiagnostic) {
+    throw "official-testc code.lua XFAIL must lock the exact first LOADNIL fixture/oracle mismatch"
+}
+$testCTrackingIssue = $testCXfailEntries[0].trackingIssue
+if ($null -ne $testCTrackingIssue -and
+    [string]$testCTrackingIssue -notmatch '^https://github\.com/[^/]+/[^/]+/issues/\d+$') {
+    throw "official-testc trackingIssue must be null or a real GitHub issue URL"
+}
+if ($null -eq $testCTrackingIssue -and
+    [string]::IsNullOrWhiteSpace([string]$testCXfailEntries[0].trackingStatus)) {
+    throw "official-testc needs trackingStatus while trackingIssue is null"
+}
+
+Assert-FileContains "tests/unit/official/test_official_suite.cpp" @(
+    'runOfficialTestCScript\("code\.lua", kCodeLuaLoadNilProbe\)',
+    'opcodeComparison == 8',
+    'code.lua LOADNIL fixture/oracle mismatch: expected RETURN; actual',
+    'runOfficialTestCScript\("api\.lua"\)',
+    'ASSERT_TRUE\(suite, result\.ok, result\.message\)',
+    '"api\.lua with T module"'
+)
+
+Assert-FileNotContains "tests/unit/official/test_official_suite.cpp" @(
+    ':21: assertion failed',
+    '"api\.lua with T module XFAIL"'
 )
 
 Assert-FileContains "tests/compatibility/lua51-official-smoke-deviations.json" @(

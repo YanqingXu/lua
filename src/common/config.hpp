@@ -1,11 +1,11 @@
 ﻿/**
  * @file config.hpp
  * @brief Lua解释器配置选项
- * 
+ *
  * 详细说明：
  * 本文件定义了Lua解释器的各种配置选项和编译时常量。
  * 这些配置影响解释器的行为、性能和内存使用。
- * 
+ *
  * 设计理念：
  * - 可配置性：通过宏定义控制编译时行为
  * - 性能优化：提供性能相关的配置选项
@@ -118,7 +118,7 @@ constexpr usize TABLE_INITIAL_ARRAY_SIZE = 0;
 constexpr usize TABLE_INITIAL_HASH_SIZE = 0;
 
 /// 表的最大数组部分大小
-constexpr usize TABLE_MAX_ARRAY_SIZE = (1u << 26);  // 64M
+constexpr usize TABLE_MAX_ARRAY_SIZE = (1u << 26); // 64M
 
 /// 表的负载因子（用于哈希表扩容）
 constexpr f64 TABLE_LOAD_FACTOR = 0.75;
@@ -171,10 +171,10 @@ constexpr i32 GC_STEP_MUL = 200;
 constexpr usize GC_MIN_STEP = 1024;
 
 /// GC最大步长（字节）
-constexpr usize GC_MAX_STEP = 1024 * 1024;  // 1MB
+constexpr usize GC_MAX_STEP = usize{1024} * 1024; // 1MB
 
 /// 初始内存阈值（字节）
-constexpr usize GC_INITIAL_THRESHOLD = 1024 * 1024;  // 1MB
+constexpr usize GC_INITIAL_THRESHOLD = usize{1024} * 1024; // 1MB
 
 /** @} */
 
@@ -190,30 +190,30 @@ constexpr usize GC_INITIAL_THRESHOLD = 1024 * 1024;  // 1MB
 
 /// 是否启用调试模式
 #ifdef NDEBUG
-    constexpr bool DEBUG_MODE = false;
+constexpr bool DEBUG_MODE = false;
 #else
-    constexpr bool DEBUG_MODE = true;
+constexpr bool DEBUG_MODE = true;
 #endif
 
 /// 是否启用详细日志
 #ifdef LUA_VERBOSE_LOG
-    constexpr bool VERBOSE_LOG = true;
+constexpr bool VERBOSE_LOG = true;
 #else
-    constexpr bool VERBOSE_LOG = false;
+constexpr bool VERBOSE_LOG = false;
 #endif
 
 /// 是否启用GC日志
 #ifdef LUA_GC_LOG
-    constexpr bool GC_LOG = true;
+constexpr bool GC_LOG = true;
 #else
-    constexpr bool GC_LOG = false;
+constexpr bool GC_LOG = false;
 #endif
 
 /// 是否启用性能统计
 #ifdef LUA_PERF_STATS
-    constexpr bool PERF_STATS = true;
+constexpr bool PERF_STATS = true;
 #else
-    constexpr bool PERF_STATS = false;
+constexpr bool PERF_STATS = false;
 #endif
 
 /** @} */
@@ -236,9 +236,9 @@ constexpr usize MEMORY_ALIGNMENT = 8;
 
 /// 是否启用内存池
 #ifdef LUA_USE_MEMORY_POOL
-    constexpr bool USE_MEMORY_POOL = true;
+constexpr bool USE_MEMORY_POOL = true;
 #else
-    constexpr bool USE_MEMORY_POOL = false;
+constexpr bool USE_MEMORY_POOL = false;
 #endif
 
 /** @} */
@@ -260,10 +260,10 @@ constexpr i32 MAX_LOCAL_VARS = 200;
 constexpr i32 MAX_REGISTERS = 250;
 
 /// 最大常量数量
-constexpr i32 MAX_CONSTANTS = 262144;  // 2^18
+constexpr i32 MAX_CONSTANTS = 262144; // 2^18
 
 /// 最大代码长度
-constexpr i32 MAX_CODE_SIZE = 524288;  // 2^19
+constexpr i32 MAX_CODE_SIZE = 524288; // 2^19
 
 /** @} */
 
@@ -279,23 +279,23 @@ constexpr i32 MAX_CODE_SIZE = 524288;  // 2^19
 
 /// 是否启用尾调用优化
 #ifdef LUA_DISABLE_TAIL_CALL
-    constexpr bool ENABLE_TAIL_CALL = false;
+constexpr bool ENABLE_TAIL_CALL = false;
 #else
-    constexpr bool ENABLE_TAIL_CALL = true;
+constexpr bool ENABLE_TAIL_CALL = true;
 #endif
 
 /// 是否启用常量折叠
 #ifdef LUA_DISABLE_CONST_FOLDING
-    constexpr bool ENABLE_CONST_FOLDING = false;
+constexpr bool ENABLE_CONST_FOLDING = false;
 #else
-    constexpr bool ENABLE_CONST_FOLDING = true;
+constexpr bool ENABLE_CONST_FOLDING = true;
 #endif
 
 /// 是否启用内联缓存
 #ifdef LUA_ENABLE_INLINE_CACHE
-    constexpr bool ENABLE_INLINE_CACHE = true;
+constexpr bool ENABLE_INLINE_CACHE = true;
 #else
-    constexpr bool ENABLE_INLINE_CACHE = false;
+constexpr bool ENABLE_INLINE_CACHE = false;
 #endif
 
 /** @} */
@@ -312,30 +312,30 @@ constexpr i32 MAX_CODE_SIZE = 524288;  // 2^19
 
 /// 是否为Windows平台
 #ifdef _WIN32
-    constexpr bool IS_WINDOWS = true;
+constexpr bool IS_WINDOWS = true;
 #else
-    constexpr bool IS_WINDOWS = false;
+constexpr bool IS_WINDOWS = false;
 #endif
 
 /// 是否为Linux平台
 #ifdef __linux__
-    constexpr bool IS_LINUX = true;
+constexpr bool IS_LINUX = true;
 #else
-    constexpr bool IS_LINUX = false;
+constexpr bool IS_LINUX = false;
 #endif
 
 /// 是否为macOS平台
 #ifdef __APPLE__
-    constexpr bool IS_MACOS = true;
+constexpr bool IS_MACOS = true;
 #else
-    constexpr bool IS_MACOS = false;
+constexpr bool IS_MACOS = false;
 #endif
 
 /// 是否为64位平台
 #if defined(__x86_64__) || defined(_M_X64) || defined(__aarch64__) || defined(_M_ARM64)
-    constexpr bool IS_64BIT = true;
+constexpr bool IS_64BIT = true;
 #else
-    constexpr bool IS_64BIT = false;
+constexpr bool IS_64BIT = false;
 #endif
 
 /** @} */
@@ -352,26 +352,25 @@ constexpr i32 MAX_CODE_SIZE = 524288;  // 2^19
 
 /// 是否启用协程支持
 #ifdef LUA_DISABLE_COROUTINE
-    constexpr bool ENABLE_COROUTINE = false;
+constexpr bool ENABLE_COROUTINE = false;
 #else
-    constexpr bool ENABLE_COROUTINE = true;
+constexpr bool ENABLE_COROUTINE = true;
 #endif
 
 /// 是否启用调试钩子
 #ifdef LUA_DISABLE_DEBUG_HOOK
-    constexpr bool ENABLE_DEBUG_HOOK = false;
+constexpr bool ENABLE_DEBUG_HOOK = false;
 #else
-    constexpr bool ENABLE_DEBUG_HOOK = true;
+constexpr bool ENABLE_DEBUG_HOOK = true;
 #endif
 
 /// 是否启用弱引用表
 #ifdef LUA_DISABLE_WEAK_TABLE
-    constexpr bool ENABLE_WEAK_TABLE = false;
+constexpr bool ENABLE_WEAK_TABLE = false;
 #else
-    constexpr bool ENABLE_WEAK_TABLE = true;
+constexpr bool ENABLE_WEAK_TABLE = true;
 #endif
 
 /** @} */
 
 } // namespace Lua
-

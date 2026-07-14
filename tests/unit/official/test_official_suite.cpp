@@ -28,6 +28,27 @@ namespace {
 constexpr const char* kSuiteName = "Lua 5.1 Official Smoke";
 constexpr const char* kOfficialAllLua = "tests/lua/official/all.lua";
 constexpr LuaNumber kExpectedSkippedScripts = 0.0;
+constexpr const char* kCodeLuaLoadNilDiagnostic =
+    "code.lua LOADNIL fixture/oracle mismatch: expected RETURN; actual 1 - LOADNIL 1";
+constexpr const char* kCodeLuaLoadNilProbe = R"lua(
+do
+  local originalFind = string.find
+  local opcodeComparison = 0
+  string.find = function(subject, pattern, ...)
+    opcodeComparison = opcodeComparison + 1
+    local first, last = originalFind(subject, pattern, ...)
+    if first == nil then
+      if opcodeComparison == 8 and pattern == '- RETURN *%d' and
+         originalFind(subject, '- LOADNIL *%d') ~= nil then
+        error('code.lua LOADNIL fixture/oracle mismatch: expected RETURN; actual ' .. subject, 0)
+      end
+      error('code.lua unexpected opcode comparison failure #' .. opcodeComparison ..
+            ': expected ' .. pattern .. '; actual ' .. subject, 0)
+    end
+    return first, last
+  end
+end
+)lua";
 
 struct RunResult {
     bool ok = false;
@@ -566,7 +587,7 @@ RunResult runOfficialSuiteClosureThenGlobalCleanupTail() {
     return {true, "Lua 5.1 official closure then global cleanup tail executed"};
 }
 
-RunResult runOfficialTestCScript(const char* scriptName) {
+RunResult runOfficialTestCScript(const char* scriptName, const char* diagnosticProbe = nullptr) {
     const std::filesystem::path suiteDir = std::filesystem::path("tests") / "lua" / "official";
     if (!std::filesystem::exists(suiteDir / scriptName)) {
         return {false, std::string("missing tests/lua/official/") + scriptName};
@@ -586,6 +607,13 @@ RunResult runOfficialTestCScript(const char* scriptName) {
     RunResult prelude = runLuaChunk(L.get(), officialSuitePrelude(), "official_testc_prelude");
     if (!prelude.ok) {
         return prelude;
+    }
+
+    if (diagnosticProbe != nullptr) {
+        RunResult probe = runLuaChunk(L.get(), diagnosticProbe, "official_testc_diagnostic_probe");
+        if (!probe.ok) {
+            return probe;
+        }
     }
 
     const std::string source = readWholeFile(scriptName);
@@ -662,15 +690,14 @@ void testOfficialSuiteClosureThenGlobalCleanupTail(TestSuite& suite) {
 }
 
 void testOfficialTestCCodeLua(TestSuite& suite) {
-    const RunResult result = runOfficialTestCScript("code.lua");
-    const bool expectedFailure = !result.ok && result.message.find(":21: assertion failed") != std::string::npos;
-    ASSERT_TRUE(suite, expectedFailure, "code.lua T path executes to registered XFAIL at line 21");
+    const RunResult result = runOfficialTestCScript("code.lua", kCodeLuaLoadNilProbe);
+    const bool expectedFailure = !result.ok && result.message.find(kCodeLuaLoadNilDiagnostic) != std::string::npos;
+    ASSERT_TRUE(suite, expectedFailure, result.message);
 }
 
 void testOfficialTestCApiLua(TestSuite& suite) {
     const RunResult result = runOfficialTestCScript("api.lua");
-    const bool expectedFailure = !result.ok && result.message.find(":11: assertion failed") != std::string::npos;
-    ASSERT_TRUE(suite, expectedFailure, "api.lua T path executes to registered XFAIL at line 11");
+    ASSERT_TRUE(suite, result.ok, result.message);
 }
 
 } // namespace
@@ -691,5 +718,5 @@ void registerOfficialSuiteTests() {
     registry.registerTest(kSuiteName, "closure then global cleanup tail execution",
                           testOfficialSuiteClosureThenGlobalCleanupTail);
     registry.registerTest("Lua 5.1 Official TestC", "code.lua with T module XFAIL", testOfficialTestCCodeLua);
-    registry.registerTest("Lua 5.1 Official TestC", "api.lua with T module XFAIL", testOfficialTestCApiLua);
+    registry.registerTest("Lua 5.1 Official TestC", "api.lua with T module", testOfficialTestCApiLua);
 }

@@ -1,12 +1,15 @@
 /**
  * @file test_gc.cpp
  * @brief GC系统单元测试 (GCObject, GarbageCollector, Upvalue)
- * 
+ *
  * @author Lua C++ Project
  * @date 2025-11-14
  */
 
 #include "../framework/test_framework.hpp"
+#include "compiler/codegen/codegen.hpp"
+#include "compiler/opcode.hpp"
+#include "compiler/parser/parser.hpp"
 #include "core/gc_object.hpp"
 #include "core/gc_string.hpp"
 #include "core/function.hpp"
@@ -19,9 +22,14 @@
 #include "gc/garbage_collector.hpp"
 #include "gc/gc_strategy.hpp"
 #include "lib/baselib.hpp"
+#include "runtime/runtime_services.hpp"
 #include "vm/state/lua_state.hpp"
 #include "vm/state/stack.hpp"
 
+#include <algorithm>
+#include <cstring>
+#include <memory>
+#include <new>
 #include <type_traits>
 #include <stdexcept>
 #include <utility>
@@ -34,7 +42,9 @@ class TestGCObject : public GCObject {
 public:
     TestGCObject() : GCObject(GCObjectType::String) {}
     void mark(GarbageCollector& /*gc*/) override {}
-    usize getSize() const override { return sizeof(TestGCObject); }
+    usize getSize() const override {
+        return sizeof(TestGCObject);
+    }
 };
 
 class ThrowingGCObject : public GCObject {
@@ -44,8 +54,60 @@ public:
     }
 
     void mark(GarbageCollector& /*gc*/) override {}
-    usize getSize() const override { return sizeof(ThrowingGCObject); }
+    usize getSize() const override {
+        return sizeof(ThrowingGCObject);
+    }
 };
+
+class ThrowingMarkGCObject : public GCObject {
+public:
+    explicit ThrowingMarkGCObject(i32& destructorCalls)
+        : GCObject(GCObjectType::String), destructorCalls_(destructorCalls) {}
+
+    ~ThrowingMarkGCObject() override {
+        ++destructorCalls_;
+    }
+
+    void mark(GarbageCollector& /*gc*/) override {
+        throw std::runtime_error("registration mark failure");
+    }
+
+    usize getSize() const override {
+        return sizeof(ThrowingMarkGCObject);
+    }
+
+private:
+    i32& destructorCalls_;
+};
+
+struct GCAllocatorProbe {
+    usize allocations = 0;
+    usize deallocations = 0;
+};
+
+static void* gcTrackingAllocator(void* userData, void* pointer, std::size_t oldSize, std::size_t newSize) {
+    auto* probe = static_cast<GCAllocatorProbe*>(userData);
+    if (newSize == 0) {
+        if (pointer != nullptr) {
+            ++probe->deallocations;
+            ::operator delete(pointer);
+        }
+        return static_cast<void*>(nullptr);
+    }
+
+    void* replacement = ::operator new(newSize, std::nothrow);
+    if (replacement == nullptr) {
+        return replacement;
+    }
+
+    ++probe->allocations;
+    if (pointer != nullptr) {
+        std::memcpy(replacement, pointer, std::min(oldSize, newSize));
+        ++probe->deallocations;
+        ::operator delete(pointer);
+    }
+    return replacement;
+}
 
 static i32 gcDummyCFunction(LuaState*) {
     return 0;
@@ -53,6 +115,7 @@ static i32 gcDummyCFunction(LuaState*) {
 
 static i32 gFinalizerCalls = 0;
 static i32 gFinalizerPayload = 0;
+static i32 gReentrantFinalizerCalls = 0;
 
 static i32 gcRecordingFinalizer(LuaState* L) {
     gFinalizerCalls++;
@@ -100,7 +163,7 @@ static StrategyFixtureResult runStrategyFixture(StrView strategyName) {
 static GarbageCollector& legacyGarbageCollectorForTest() {
 #if defined(_MSC_VER)
 #pragma warning(push)
-#pragma warning(disable: 4996)
+#pragma warning(disable : 4996)
 #elif defined(__clang__) || defined(__GNUC__)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
@@ -116,39 +179,39 @@ static GarbageCollector& legacyGarbageCollectorForTest() {
 
 void testGCObjectBasics(TestSuite& suite) {
     TestGCObject* obj = new TestGCObject();
-    
+
     // Test 1: GCObject creation
     ASSERT_TRUE(suite, obj != nullptr, "GCObject creation");
-    
+
     // Test 2: Type checking
     ASSERT_EQ(suite, GCObjectType::String, obj->getType(), "Type checking");
-    
+
     // Test 3: Initial color (white)
     obj->setColor(GCColor::White);
     ASSERT_TRUE(suite, obj->isWhite(), "Initial color (white)");
-    
+
     // Test 4: Set to gray
     obj->setColor(GCColor::Gray);
     ASSERT_TRUE(suite, obj->isGray(), "Set to gray");
-    
+
     // Test 5: Set to black
     obj->setColor(GCColor::Black);
     ASSERT_TRUE(suite, obj->isBlack(), "Set to black");
-    
+
     // Test 6: isMarked (black is marked)
     ASSERT_TRUE(suite, obj->isMarked(), "isMarked (black)");
-    
+
     delete obj;
 }
 
 void testGCObjectChaining(TestSuite& suite) {
     TestGCObject* obj1 = new TestGCObject();
     TestGCObject* obj2 = new TestGCObject();
-    
+
     // Test 1: Chain objects
     obj1->setNext(obj2);
     ASSERT_TRUE(suite, obj1->getNext() == obj2, "Chain objects");
-    
+
     delete obj2;
     delete obj1;
 }
@@ -156,32 +219,35 @@ void testGCObjectChaining(TestSuite& suite) {
 void testGarbageCollectorInstancesAreIndependent(TestSuite& suite) {
     GarbageCollector localGC;
     GarbageCollector& shimGC = legacyGarbageCollectorForTest();
-    shimGC.clearAll();
+    GarbageCollector secondGC;
+
+    ASSERT_TRUE(suite, &shimGC != &GlobalState::getInstance().getGC(),
+                "Deprecated collector shim remains independent of the process GlobalState collector");
 
     GCString* localString = new GCString("local-gc");
-    GCString* shimString = new GCString("shim-gc");
+    GCString* secondString = new GCString("second-gc");
 
     localGC.registerObject(localString);
-    shimGC.registerObject(shimString);
+    secondGC.registerObject(secondString);
 
     ASSERT_EQ(suite, static_cast<usize>(1), localGC.getObjectCount(), "Local GC tracks its own object");
-    ASSERT_EQ(suite, static_cast<usize>(1), shimGC.getObjectCount(), "Shim GC tracks its own object");
+    ASSERT_EQ(suite, static_cast<usize>(1), secondGC.getObjectCount(), "Second GC tracks its own object");
 
     delete localString;
 
     ASSERT_EQ(suite, static_cast<usize>(0), localGC.getObjectCount(), "Deleting object unregisters from owner GC");
-    ASSERT_EQ(suite, static_cast<usize>(1), shimGC.getObjectCount(), "Deleting local object does not affect shim GC");
+    ASSERT_EQ(suite, static_cast<usize>(1), secondGC.getObjectCount(),
+              "Deleting a local object does not affect another collector");
 
-    shimGC.clearAll();
+    secondGC.clearAll();
 }
 
 void testGarbageCollectorSweepUsesExplicitStringPool(TestSuite& suite) {
-    using SweepResult =
-        decltype(std::declval<GarbageCollector&>().sweep(std::declval<StringPool&>()));
+    using SweepResult = decltype(std::declval<GarbageCollector&>().sweep(std::declval<StringPool&>()));
     constexpr bool sweepReturnsCount = std::is_same_v<SweepResult, usize>;
 
     GarbageCollector gc;
-    StringPool& pool = StringPool::getInstance();
+    StringPool pool;
     GCString* gcStr = new GCString("explicit-sweep-pool");
     gc.registerObject(gcStr);
 
@@ -212,6 +278,12 @@ void testGarbageCollectorRegister(TestSuite& suite) {
 
     // Cleanup
     gc.clearAll();
+}
+
+static i32 gcReentrantFinalizer(LuaState* L) {
+    ++gReentrantFinalizerCalls;
+    (void)L->getGlobalState().getGC().collect(L);
+    return 0;
 }
 
 void testUserdataOwnedFactory(TestSuite& suite) {
@@ -258,26 +330,53 @@ void testGarbageCollectorCreateFactories(TestSuite& suite) {
     gc.clearAll();
 }
 
+void testAllocatorFactoryCleansUpRegistrationFailure(TestSuite& suite) {
+    GCAllocatorProbe probe;
+    LuaAllocator allocator(gcTrackingAllocator, &probe);
+    GarbageCollector gc(&allocator);
+    (void)gc.createRoot<Table>();
+
+    // Registration scans constructor-owned edges during an active cycle.
+    // Inject a non-allocation mark failure after placement construction so
+    // the allocator-backed factory must roll back every ownership layer.
+    (void)gc.step(nullptr, 0);
+    const usize objectCountBefore = gc.getObjectCount();
+    const usize liveAllocationsBefore = probe.allocations - probe.deallocations;
+    i32 destructorCalls = 0;
+    bool threw = false;
+    try {
+        [[maybe_unused]] ThrowingMarkGCObject* ignored = gc.create<ThrowingMarkGCObject>(destructorCalls);
+    } catch (const std::runtime_error&) {
+        threw = true;
+    }
+
+    ASSERT_TRUE(suite, threw, "allocator-backed create<T> propagates registration mark failures");
+    ASSERT_EQ(suite, 1, destructorCalls, "registration failure destroys the placement-constructed object");
+    ASSERT_EQ(suite, objectCountBefore, gc.getObjectCount(), "registration failure restores the collector object list");
+    ASSERT_EQ(suite, liveAllocationsBefore, probe.allocations - probe.deallocations,
+              "registration failure returns the object block to the configured allocator");
+}
+
 void testGarbageCollectorRoots(TestSuite& suite) {
     GarbageCollector gc;
-    
+
     GCString* gcStr1 = new GCString("Root 1");
     GCString* gcStr2 = new GCString("Not Root");
-    
+
     gc.registerObject(gcStr1);
     gc.registerObject(gcStr2);
-    
+
     // Test 1: Add root objects
     gc.addRoot(gcStr1);
-    
+
     usize rootCount = gc.getRootCount();
     ASSERT_EQ(suite, (usize)1, rootCount, "Add root objects");
-    
+
     // Test 2: Check if root
     bool isRoot1 = gc.isRoot(gcStr1);
     bool isRoot2 = gc.isRoot(gcStr2);
     ASSERT_TRUE(suite, isRoot1 && !isRoot2, "isRoot check");
-    
+
     // Cleanup
     gc.clearAll();
 }
@@ -309,16 +408,13 @@ void testGarbageCollectorCollect(TestSuite& suite) {
 void testGarbageCollectorStrategySelection(TestSuite& suite) {
     GarbageCollector gc;
 
-    ASSERT_EQ(suite, Str("mark-sweep"), Str(gc.getStrategyName()),
-              "Default GC strategy should be mark-sweep");
-    ASSERT_EQ(suite, Str("mark-sweep"), Str(markSweepGCStrategy().name()),
-              "MarkSweepGC strategy exposes its name");
+    ASSERT_EQ(suite, Str("mark-sweep"), Str(gc.getStrategyName()), "Default GC strategy should be mark-sweep");
+    ASSERT_EQ(suite, Str("mark-sweep"), Str(markSweepGCStrategy().name()), "MarkSweepGC strategy exposes its name");
     ASSERT_EQ(suite, Str("incremental"), Str(incrementalGCStrategy().name()),
               "IncrementalGC strategy exposes its name");
 
     ASSERT_TRUE(suite, gc.useStrategy("incremental"), "Collector should accept incremental strategy");
-    ASSERT_EQ(suite, Str("incremental"), Str(gc.getStrategyName()),
-              "Collector should switch active strategy by name");
+    ASSERT_EQ(suite, Str("incremental"), Str(gc.getStrategyName()), "Collector should switch active strategy by name");
 
     ASSERT_TRUE(suite, !gc.useStrategy("generational"), "Unknown GC strategy should be rejected");
     ASSERT_EQ(suite, Str("incremental"), Str(gc.getStrategyName()),
@@ -340,11 +436,9 @@ void testGCStrategiesHaveEquivalentReachability(TestSuite& suite) {
 }
 
 void testCollectGarbageStrategyCommand(TestSuite& suite) {
-    GarbageCollector& gc = GlobalState::getInstance().getGC();
-    gc.clearAll();
+    LuaState* L = LuaState::newIsolatedState();
+    GarbageCollector& gc = L->getGlobalState().getGC();
     gc.useStrategy("mark-sweep");
-
-    LuaState* L = LuaState::newState();
     openBaseLib(L);
     StringPool& pool = L->getGlobalState().getStringPool();
 
@@ -360,26 +454,21 @@ void testCollectGarbageStrategyCommand(TestSuite& suite) {
     L->pushString(pool.intern("strategy"));
     L->pushString(pool.intern("incremental"));
     nresults = luaB_collectgarbage(L);
-    ASSERT_EQ(suite, 1, nresults,
-              "collectgarbage('strategy', 'incremental') returns one value");
-    ASSERT_EQ(suite, Str("incremental"), Str(gc.getStrategyName()),
-              "collectgarbage should switch the active strategy");
+    ASSERT_EQ(suite, 1, nresults, "collectgarbage('strategy', 'incremental') returns one value");
+    ASSERT_EQ(suite, Str("incremental"), Str(gc.getStrategyName()), "collectgarbage should switch the active strategy");
     ASSERT_TRUE(suite, L->top().isString(), "strategy switch returns the active strategy name");
-    ASSERT_EQ(suite, Str("incremental"), Str(L->top().asString()->c_str()),
-              "strategy switch returns incremental");
+    ASSERT_EQ(suite, Str("incremental"), Str(L->top().asString()->c_str()), "strategy switch returns incremental");
 
     gc.useStrategy("mark-sweep");
     delete L;
-    gc.clearAll();
 }
 
 void testCollectGarbageControlParameters(TestSuite& suite) {
-    GarbageCollector& gc = GlobalState::getInstance().getGC();
-    gc.clearAll();
+    LuaState* L = LuaState::newIsolatedState();
+    GarbageCollector& gc = L->getGlobalState().getGC();
     (void)gc.setPause(200);
     (void)gc.setStepMultiplier(200);
 
-    LuaState* L = LuaState::newState();
     openBaseLib(L);
     StringPool& pool = L->getGlobalState().getStringPool();
 
@@ -413,7 +502,6 @@ void testCollectGarbageControlParameters(TestSuite& suite) {
     (void)gc.setPause(200);
     (void)gc.setStepMultiplier(200);
     delete L;
-    gc.clearAll();
 }
 
 void testCollectGarbageStepRunsIncrementalCycle(TestSuite& suite) {
@@ -456,8 +544,7 @@ void testCollectGarbageStepRunsIncrementalCycle(TestSuite& suite) {
     Table* moreGarbage = new Table();
     gc.registerObject(moreGarbage);
     ASSERT_TRUE(suite, gc.step(nullptr, 10000), "Large GC step should complete a cycle");
-    ASSERT_EQ(suite, static_cast<usize>(2), gc.getObjectCount(),
-              "Large step reclaims newly unreachable object");
+    ASSERT_EQ(suite, static_cast<usize>(2), gc.getObjectCount(), "Large step reclaims newly unreachable object");
 
     gc.removeRoot(root);
     gc.clearAll();
@@ -482,9 +569,8 @@ void testIncrementalGCDebtTracksAllocationAndCycleCompletion(TestSuite& suite) {
                 "GC keeps an automatic collection threshold while tracking debt");
 
     ASSERT_TRUE(suite, gc.step(nullptr, 10000), "Large incremental step completes the current cycle");
-    ASSERT_TRUE(suite, gc.getDebtBytes() <= 0,
-                "Completed incremental cycle clears positive allocation debt");
-    ASSERT_TRUE(suite, gc.getAutomaticThresholdBytes() >= 64 * 1024,
+    ASSERT_TRUE(suite, gc.getDebtBytes() <= 0, "Completed incremental cycle clears positive allocation debt");
+    ASSERT_TRUE(suite, gc.getAutomaticThresholdBytes() >= usize{64} * 1024,
                 "Completed incremental cycle refreshes the automatic threshold floor");
     ASSERT_EQ(suite, static_cast<usize>(0), gc.getObjectCount(),
               "Unreachable allocation is reclaimed by the debt-driven cycle");
@@ -515,8 +601,7 @@ void testWriteBarrierPreservesTableReferenceGraph(TestSuite& suite) {
 
     ASSERT_TRUE(suite, child->isBlack(), "Table write barrier marks newly linked child");
     ASSERT_TRUE(suite, grandchild->isBlack(), "Table write barrier propagates child graph");
-    ASSERT_EQ(suite, static_cast<usize>(0), gc.sweep(pool),
-              "Barriered table graph survives sweep");
+    ASSERT_EQ(suite, static_cast<usize>(0), gc.sweep(pool), "Barriered table graph survives sweep");
 
     gc.removeRoot(root);
     gc.clearAll();
@@ -567,14 +652,11 @@ void testWriteBarrierPreservesMetatableFunctionAndUpvalueRefs(TestSuite& suite) 
     rootUpvalue->setValue(dummyStack, Value(rootUpvalueChild));
 
     ASSERT_TRUE(suite, userdataMetatable->isBlack(), "Userdata metatable barrier marks metatable");
-    ASSERT_TRUE(suite, userdataMetatableChild->isBlack(),
-                "Userdata metatable barrier propagates metatable graph");
+    ASSERT_TRUE(suite, userdataMetatableChild->isBlack(), "Userdata metatable barrier propagates metatable graph");
     ASSERT_TRUE(suite, env->isBlack(), "Function environment barrier marks env table");
     ASSERT_TRUE(suite, envChild->isBlack(), "Function environment barrier propagates env graph");
-    ASSERT_TRUE(suite, closureUpvalue->isBlack(),
-                "Function upvalue barrier marks newly associated upvalue");
-    ASSERT_TRUE(suite, closureUpvalueChild->isBlack(),
-                "Function upvalue barrier propagates closed upvalue value");
+    ASSERT_TRUE(suite, closureUpvalue->isBlack(), "Function upvalue barrier marks newly associated upvalue");
+    ASSERT_TRUE(suite, closureUpvalueChild->isBlack(), "Function upvalue barrier propagates closed upvalue value");
     ASSERT_TRUE(suite, rootUpvalueChild->isBlack(), "Upvalue write barrier marks new value");
     ASSERT_EQ(suite, static_cast<usize>(0), gc.sweep(pool),
               "Barriered metatable/function/upvalue graph survives sweep");
@@ -586,10 +668,8 @@ void testWriteBarrierPreservesMetatableFunctionAndUpvalueRefs(TestSuite& suite) 
 }
 
 void testGarbageCollectorMarksCompositeObjects(TestSuite& suite) {
-    GarbageCollector& gc = GlobalState::getInstance().getGC();
-    gc.clearAll();
-
-    LuaState* L = LuaState::newState();
+    LuaState* L = LuaState::newIsolatedState();
+    GarbageCollector& gc = L->getGlobalState().getGC();
     auto& pool = L->getGlobalState().getStringPool();
 
     Table* root = new Table();
@@ -622,14 +702,11 @@ void testGarbageCollectorMarksCompositeObjects(TestSuite& suite) {
 
     gc.removeRoot(root);
     delete L;
-    gc.clearAll();
 }
 
 void testCollectGarbageCollectReclaimsMemory(TestSuite& suite) {
-    GarbageCollector& gc = GlobalState::getInstance().getGC();
-    gc.clearAll();
-
-    LuaState* L = LuaState::newState();
+    LuaState* L = LuaState::newIsolatedState();
+    GarbageCollector& gc = L->getGlobalState().getGC();
     openBaseLib(L);
 
     usize beforeBytes = gc.getTotalMemory();
@@ -652,14 +729,274 @@ void testCollectGarbageCollectReclaimsMemory(TestSuite& suite) {
     ASSERT_TRUE(suite, afterBytes < midBytes, "collectgarbage('collect') reclaims memory");
 
     delete L;
+}
+
+void testFastMemoryAccountingTracksDynamicObjects(TestSuite& suite) {
+    GarbageCollector gc;
+
+    Table* growing = new Table();
+    Table* survivor = new Table();
+    Proto* proto = new Proto();
+    gc.registerObject(growing);
+    gc.registerObject(survivor);
+    gc.registerObject(proto);
+
+    for (i32 i = 1; i <= 512; ++i) {
+        growing->setArray(i, Value(static_cast<LuaNumber>(i)));
+        (void)proto->addInstruction(CREATE_ABC(OpCode::MOVE, 0, 0, 0));
+        (void)proto->addConstant(Value(static_cast<LuaNumber>(i)));
+    }
+
+    ASSERT_EQ(suite, gc.getTotalMemory(), gc.getAccountedMemory(),
+              "fast memory ledger tracks Table and Proto capacity growth");
+
+    delete growing;
+    ASSERT_TRUE(suite, gc.getAccountedMemory() > 0,
+                "unregistering one object does not clear the remaining memory ledger");
+    ASSERT_EQ(suite, gc.getTotalMemory(), gc.getAccountedMemory(),
+              "fast memory ledger remains exact after unregistering one object");
+
+    delete survivor;
+    delete proto;
+    ASSERT_EQ(suite, static_cast<usize>(0), gc.getAccountedMemory(),
+              "fast memory ledger returns to zero after all objects unregister");
+}
+
+void testIncrementalBarriersPublishConstructedAndProtoGraphs(TestSuite& suite) {
+    GarbageCollector gc;
+    StringPool pool;
+    pool.setGarbageCollector(&gc);
+
+    Proto* functionProto = gc.create<Proto>();
+    Table* closedValue = gc.create<Table>();
+    GCString* source = pool.intern("incremental-source");
+    Table* constant = gc.create<Table>();
+    GCString* slot = pool.intern("incremental-slot");
+    Proto* subProto = gc.create<Proto>();
+    GCString* localName = pool.intern("incremental-local");
+    GCString* upvalueName = pool.intern("incremental-upvalue");
+
+    // Start a cycle after every child exists. They are white, while objects
+    // allocated from this point onward are black and must publish both their
+    // constructor-owned edges and any later Proto mutations.
+    (void)gc.step(nullptr, 0);
+    ASSERT_TRUE(suite, functionProto->isWhite() && closedValue->isWhite() && source->isWhite(),
+                "pre-existing children begin the active cycle white");
+
+    Function* function = gc.createRoot<Function>(functionProto);
+    Upvalue* upvalue = gc.createRoot<Upvalue>(Value(closedValue));
+    Proto* owner = gc.createRoot<Proto>();
+
+    owner->setSource(source);
+    (void)owner->addConstant(Value(constant));
+    (void)owner->appendConstantSlot(Value(slot));
+    (void)owner->addProto(subProto);
+    (void)owner->addLocVar(localName, 0, 1, 0);
+    (void)owner->addUpvalueName(upvalueName);
+
+    ASSERT_TRUE(suite, functionProto->isBlack(), "registration scans Function constructor edges");
+    ASSERT_TRUE(suite, closedValue->isBlack(), "registration scans closed Upvalue constructor edges");
+    ASSERT_TRUE(suite,
+                source->isBlack() && constant->isBlack() && slot->isBlack() && subProto->isBlack() &&
+                    localName->isBlack() && upvalueName->isBlack(),
+                "Proto mutators barrier every GC-managed edge");
+
+    bool finished = false;
+    for (i32 i = 0; i < 32 && !finished; ++i) {
+        finished = gc.step(nullptr, 0);
+    }
+
+    Stack unusedStack;
+    ASSERT_TRUE(suite, finished, "incremental cycle with published graphs completes");
+    ASSERT_TRUE(suite, function->getProto() == functionProto,
+                "Function retains its constructor-owned Proto after incremental sweep");
+    ASSERT_TRUE(suite,
+                upvalue->getValue(unusedStack).isTable() && upvalue->getValue(unusedStack).asTable() == closedValue,
+                "closed Upvalue retains its constructor-owned value after incremental sweep");
+    ASSERT_TRUE(suite,
+                owner->getSource() == source && owner->getConstant(0).asTable() == constant &&
+                    owner->getConstant(1).asString() == slot && owner->getSubProto(0) == subProto &&
+                    owner->getLocVar(0).varname == localName && owner->getUpvalueName(0) == upvalueName,
+                "Proto retains all barriered edges after incremental sweep");
+    ASSERT_EQ(suite, static_cast<usize>(11), gc.getObjectCount(),
+              "incremental sweep keeps the complete rooted constructor and Proto graphs");
+
+    gc.removeRoot(function);
+    gc.removeRoot(upvalue);
+    gc.removeRoot(owner);
+    gc.clearAll(pool);
+}
+
+void testIncrementalSweepRegistrationPreservesCursor(TestSuite& suite) {
+    GarbageCollector gc;
+    (void)gc.create<Table>();
+
+    // Pause -> Propagate -> Atomic -> Sweep. The original head is white and
+    // is the next object the sweep cursor will remove.
+    (void)gc.step(nullptr, 0);
+    (void)gc.step(nullptr, 0);
+    (void)gc.step(nullptr, 0);
+
+    Table* fresh = gc.createRoot<Table>();
+    bool finished = false;
+    for (i32 i = 0; i < 16 && !finished; ++i) {
+        finished = gc.step(nullptr, 0);
+    }
+
+    ASSERT_TRUE(suite, finished, "sweep-time registration preserves the active cursor and completes the cycle");
+    ASSERT_EQ(suite, static_cast<usize>(1), gc.getObjectCount(),
+              "active sweep removes the old white object but keeps the new rooted allocation");
+    ASSERT_TRUE(suite, gc.getTotalMemory() >= fresh->getSize(),
+                "new allocation remains linked in the collector object list");
+    ASSERT_EQ(suite, gc.getTotalMemory(), gc.getAccountedMemory(),
+              "sweep-time insertion keeps exact and fast ledgers aligned");
+
+    gc.removeRoot(fresh);
+    (void)gc.collect(StringPool::getInstance());
+    ASSERT_EQ(suite, static_cast<usize>(0), gc.getObjectCount(),
+              "the preserved sweep-time allocation remains collectible later");
+}
+
+void testIncrementalSweepRegistrationCleansPrefilledWeakTable(TestSuite& suite) {
+    GarbageCollector gc;
+    GlobalState& global = GlobalState::getInstance();
+    Table* child = gc.create<Table>();
+    Table* metatable = gc.create<Table>();
+    metatable->set(Value(global.getMetamethodName(TMS::TM_MODE)), Value(global.getStringPool().intern("v")));
+
+    // Reach Sweep after Atomic has already completed weak-entry cleanup.
+    (void)gc.step(nullptr, 0);
+    (void)gc.step(nullptr, 0);
+    (void)gc.step(nullptr, 0);
+
+    auto weakOwner = std::make_unique<Table>();
+    Table* weak = weakOwner.get();
+    weak->setMetatable(metatable);
+    weak->setArray(1, Value(child));
+    gc.registerObject(weak);
+    [[maybe_unused]] const auto releasedWeak = weakOwner.release();
+    gc.addRoot(weak);
+
+    bool finished = false;
+    for (i32 i = 0; i < 16 && !finished; ++i) {
+        finished = gc.step(nullptr, 0);
+    }
+
+    ASSERT_TRUE(suite, finished, "pre-filled weak table registration restarts and completes a fresh cycle");
+    ASSERT_TRUE(suite, weak->getArray(1).isNil(),
+                "fresh atomic weak cleanup removes the value before its target is swept");
+    ASSERT_EQ(suite, static_cast<usize>(2), gc.getObjectCount(),
+              "restarted sweep keeps only the rooted weak table and its metatable");
+
+    gc.removeRoot(weak);
     gc.clearAll();
 }
 
-void testWeakTableValuesAreCleared(TestSuite& suite) {
-    GarbageCollector& gc = GlobalState::getInstance().getGC();
-    gc.clearAll();
+void testAutomaticCollectorFinishesCycleBelowStartThreshold(TestSuite& suite) {
+    GarbageCollector gc;
+    (void)gc.create<Table>();
+    (void)gc.create<Table>();
+    (void)gc.create<Table>();
 
-    LuaState* L = LuaState::newState();
+    // Enter Sweep explicitly while the heap and debt are still below the
+    // automatic start threshold.
+    (void)gc.step(nullptr, 0);
+    (void)gc.step(nullptr, 0);
+    (void)gc.step(nullptr, 0);
+
+    usize reportedCollected = 0;
+    for (i32 i = 0; i < 8; ++i) {
+        reportedCollected += gc.maybeCollectAutomatic(nullptr);
+    }
+
+    ASSERT_EQ(suite, static_cast<usize>(0), gc.getObjectCount(),
+              "automatic checkpoints finish an in-progress sweep below the start threshold");
+    ASSERT_EQ(suite, static_cast<usize>(3), reportedCollected,
+              "automatic checkpoint reports the objects collected by the completed cycle");
+}
+
+void testClosingUpvalueDuringIncrementalSweepRestartsMark(TestSuite& suite) {
+    GarbageCollector gc;
+    Stack stack;
+
+    Table* grandchild = gc.create<Table>();
+    Table* child = gc.create<Table>();
+    child->setArray(1, Value(grandchild));
+    stack.push(Value());
+    Upvalue* upvalue = gc.create<Upvalue>(0, stack);
+    gc.addRoot(upvalue);
+
+    // Pause -> Propagate -> Atomic -> Sweep.  An open upvalue does not mark
+    // its stack slot when no LuaState root is supplied, so child remains
+    // white while the rooted upvalue is black.
+    (void)gc.step(nullptr, 0);
+    (void)gc.step(nullptr, 0);
+    (void)gc.step(nullptr, 0);
+    ASSERT_TRUE(suite, upvalue->isBlack(), "root upvalue reaches incremental sweep as black");
+    ASSERT_TRUE(suite, child->isWhite(), "open upvalue stack value is white before close");
+
+    // Stack slots have no write barrier.  Install the white graph only after
+    // the open upvalue itself has been scanned.
+    stack[0] = Value(child);
+    upvalue->close(stack);
+    bool finished = false;
+    for (i32 i = 0; i < 16 && !finished; ++i) {
+        finished = gc.step(nullptr, 0);
+    }
+
+    ASSERT_TRUE(suite, finished, "closing during sweep restarts and completes a safe mark cycle");
+    ASSERT_EQ(suite, static_cast<usize>(3), gc.getObjectCount(),
+              "closed upvalue preserves its complete child graph across sweep restart");
+    ASSERT_TRUE(suite, upvalue->getValue(stack).isTable() && upvalue->getValue(stack).asTable() == child,
+                "closed upvalue keeps the original child value");
+    ASSERT_TRUE(suite, child->getArray(1).isTable() && child->getArray(1).asTable() == grandchild,
+                "closed upvalue child keeps its grandchild");
+
+    gc.removeRoot(upvalue);
+    gc.clearAll();
+}
+
+void testExplicitCollectionKeepsAnonymousTemporaries(TestSuite& suite) {
+    LuaState* L = LuaState::newIsolatedState();
+    GarbageCollector& gc = L->getGlobalState().getGC();
+    openBaseLib(L);
+
+    const Str source = R"(
+        local weak = setmetatable({}, {__mode = 'v'})
+        local function make()
+            local value = {}
+            weak[1] = value
+            return value
+        end
+        local result = {make(), collectgarbage('collect')}
+        assert(type(result[1]) == 'table' and weak[1] == result[1])
+    )";
+    RuntimeServices services(L->getGlobalState());
+    Parser parser(source, services);
+    auto parsed = parser.parse();
+    ASSERT_TRUE(suite, parsed.has_value(), "anonymous-temporary GC regression parses");
+    if (!parsed.has_value()) {
+        delete L;
+        return;
+    }
+
+    Chunk chunk = std::move(*parsed);
+    CodeGenerator codegen(services);
+    Proto* proto = codegen.generate(chunk, "gc_anonymous_temporary");
+    ASSERT_TRUE(suite, proto != nullptr, "anonymous-temporary GC regression compiles");
+    if (proto != nullptr) {
+        Function* function = gc.create<Function>(proto);
+        function->setEnv(L->getGlobalTable());
+        L->pushFunction(function);
+        ASSERT_EQ(suite, LUA_OK, L->pcall(0, 0, 0), "explicit collection keeps anonymous expression temporaries alive");
+    }
+
+    delete L;
+}
+
+void testWeakTableValuesAreCleared(TestSuite& suite) {
+    LuaState* L = LuaState::newIsolatedState();
+    GarbageCollector& gc = L->getGlobalState().getGC();
     auto& pool = L->getGlobalState().getStringPool();
 
     Table* weak = new Table();
@@ -683,14 +1020,11 @@ void testWeakTableValuesAreCleared(TestSuite& suite) {
 
     gc.removeRoot(weak);
     delete L;
-    gc.clearAll();
 }
 
 void testWeakTableKeysAreCleared(TestSuite& suite) {
-    GarbageCollector& gc = GlobalState::getInstance().getGC();
-    gc.clearAll();
-
-    LuaState* L = LuaState::newState();
+    LuaState* L = LuaState::newIsolatedState();
+    GarbageCollector& gc = L->getGlobalState().getGC();
     auto& pool = L->getGlobalState().getStringPool();
 
     Table* weak = new Table();
@@ -712,17 +1046,110 @@ void testWeakTableKeysAreCleared(TestSuite& suite) {
 
     gc.removeRoot(weak);
     delete L;
-    gc.clearAll();
 }
 
-void testCollectGarbageRunsUserdataFinalizer(TestSuite& suite) {
-    GarbageCollector& gc = GlobalState::getInstance().getGC();
-    gc.clearAll();
+void testIncrementalWeakToStrongModeTransition(TestSuite& suite) {
+    GarbageCollector gc;
+    GlobalState& global = GlobalState::getInstance();
+    StringPool& pool = global.getStringPool();
 
+    Table* weak = gc.create<Table>();
+    Table* metatable = gc.create<Table>();
+    Table* child = gc.create<Table>();
+    gc.addRoot(weak);
+
+    GCString* modeKey = global.getMetamethodName(TMS::TM_MODE);
+    metatable->set(Value(modeKey), Value(pool.intern("v")));
+    weak->setMetatable(metatable);
+    weak->setArray(1, Value(child));
+
+    // Scan the table while it is weak-valued, then make the same edge strong
+    // before the atomic phase clears weak entries.
+    (void)gc.step(nullptr, 0);
+    (void)gc.step(nullptr, 0);
+    ASSERT_TRUE(suite, weak->isBlack(), "weak table is scanned before mode mutation");
+    ASSERT_TRUE(suite, child->isWhite(), "weak value remains white before atomic reconciliation");
+    metatable->set(Value(modeKey), Value());
+    ASSERT_TRUE(suite, metatable->get(Value(modeKey)).isNil(), "weak mode key is removed before atomic");
+
+    (void)gc.step(nullptr, 0);
+    ASSERT_TRUE(suite, (weak->getMarked() & GCBits::WEAKVALUE) == 0,
+                "atomic reconciliation refreshes cached weak-mode bits");
+    ASSERT_TRUE(suite, child->isBlack(), "atomic mode reconciliation marks the newly strong value");
+    ASSERT_TRUE(suite, weak->getArray(1).isTable(), "atomic reconciliation leaves the strong entry intact");
+
+    bool finished = false;
+    for (i32 i = 0; i < 16 && !finished; ++i) {
+        finished = gc.step(nullptr, 0);
+    }
+
+    ASSERT_TRUE(suite, finished, "incremental cycle completes after weak mode mutation");
+    ASSERT_EQ(suite, static_cast<usize>(3), gc.getObjectCount(),
+              "weak-to-strong transition preserves the newly strong value");
+    ASSERT_TRUE(suite, weak->getArray(1).isTable() && weak->getArray(1).asTable() == child,
+                "atomic mode reconciliation retains the table entry");
+
+    gc.removeRoot(weak);
+}
+
+void testWeakToStrongUserdataIsNotFinalizedEarly(TestSuite& suite) {
     gFinalizerCalls = 0;
     gFinalizerPayload = 0;
 
-    LuaState* L = LuaState::newState();
+    LuaState* L = LuaState::newIsolatedState();
+    GarbageCollector& gc = L->getGlobalState().getGC();
+    StringPool& pool = L->getGlobalState().getStringPool();
+    (void)gc.step(L, 10000);
+
+    Table* weak = gc.createRoot<Table>();
+    Table* weakMetatable = gc.create<Table>();
+    Userdata* userdata = Userdata::createFull(sizeof(i32));
+    gc.registerObject(userdata);
+    *userdata->getTypedData<i32>() = 4321;
+    Table* userdataMetatable = gc.create<Table>();
+    Function* finalizer = gc.create<Function>(gcRecordingFinalizer);
+
+    GCString* modeKey = L->getGlobalState().getMetamethodName(TMS::TM_MODE);
+    GCString* gcKey = L->getGlobalState().getMetamethodName(TMS::TM_GC);
+    weakMetatable->set(Value(modeKey), Value(pool.intern("v")));
+    weak->setMetatable(weakMetatable);
+    weak->setArray(1, Value(userdata));
+    userdataMetatable->set(Value(gcKey), Value(finalizer));
+    userdata->setMetatable(userdataMetatable);
+
+    // Change the mode after this table's weak value was skipped but before
+    // the next Atomic step.  Runtime roots can add a few gray objects ahead
+    // of the fixture, so drive propagation until this table is black.
+    (void)gc.step(L, 0);
+    for (i32 i = 0; i < 64 && !weak->isBlack(); ++i) {
+        (void)gc.step(L, 0);
+    }
+    ASSERT_TRUE(suite, weak->isBlack(), "weak userdata table is scanned before mode mutation");
+    ASSERT_TRUE(suite, userdata->isWhite(), "weak userdata remains white before atomic reconciliation");
+    weakMetatable->set(Value(modeKey), Value());
+    (void)gc.step(L, 10000);
+
+    ASSERT_EQ(suite, 0, gFinalizerCalls, "newly strong userdata is not finalized in the current cycle");
+    ASSERT_TRUE(suite, (userdata->getMarked() & GCBits::FINALIZED) == 0,
+                "newly strong userdata is not marked finalized");
+    ASSERT_TRUE(suite, weak->getArray(1).isUserdata() && weak->getArray(1).asUserdata() == userdata,
+                "weak-to-strong transition retains userdata identity");
+
+    weak->setArray(1, Value());
+    (void)gc.step(L, 10000);
+    ASSERT_EQ(suite, 1, gFinalizerCalls, "userdata finalizer runs after the strong reference is removed");
+    ASSERT_EQ(suite, 4321, gFinalizerPayload, "deferred userdata finalizer receives the original payload");
+
+    gc.removeRoot(weak);
+    delete L;
+}
+
+void testCollectGarbageRunsUserdataFinalizer(TestSuite& suite) {
+    gFinalizerCalls = 0;
+    gFinalizerPayload = 0;
+
+    LuaState* L = LuaState::newIsolatedState();
+    GarbageCollector& gc = L->getGlobalState().getGC();
     openBaseLib(L);
 
     Userdata* userdata = Userdata::createFull(sizeof(i32));
@@ -753,14 +1180,100 @@ void testCollectGarbageRunsUserdataFinalizer(TestSuite& suite) {
     ASSERT_EQ(suite, 1, gFinalizerCalls, "__gc finalizer is not called twice");
 
     delete L;
-    gc.clearAll();
+}
+
+void testFinalizerCanReenterCollection(TestSuite& suite) {
+    gReentrantFinalizerCalls = 0;
+
+    LuaState* L = LuaState::newIsolatedState();
+    GarbageCollector& gc = L->getGlobalState().getGC();
+    Table* metatable = new Table();
+    Function* finalizer = new Function(gcReentrantFinalizer);
+    Userdata* first = Userdata::createFull(0);
+    Userdata* second = Userdata::createFull(0);
+
+    gc.registerObject(metatable);
+    gc.registerObject(finalizer);
+    gc.registerObject(first);
+    gc.registerObject(second);
+    metatable->set(Value(L->getGlobalState().getMetamethodName(TMS::TM_GC)), Value(finalizer));
+    first->setMetatable(metatable);
+    second->setMetatable(metatable);
+
+    (void)gc.collect(L);
+
+    ASSERT_EQ(suite, 2, gReentrantFinalizerCalls,
+              "nested collection keeps every outer pending userdata alive until its finalizer runs");
+
+    delete L;
+}
+
+void testFinalizerHelperSlotsDoNotRetainFinalizedUserdata(TestSuite& suite) {
+    gFinalizerCalls = 0;
+    gFinalizerPayload = 0;
+
+    LuaState* L = LuaState::newIsolatedState();
+    GarbageCollector& gc = L->getGlobalState().getGC();
+    Table* metatable = gc.create<Table>();
+    Function* finalizer = gc.create<Function>(gcRecordingFinalizer);
+    Userdata* userdata = Userdata::createFull(sizeof(i32));
+    *userdata->getTypedData<i32>() = 9753;
+    gc.registerObject(userdata);
+    metatable->set(Value(L->getGlobalState().getMetamethodName(TMS::TM_GC)), Value(finalizer));
+    userdata->setMetatable(metatable);
+
+    // Model a VM frame whose physical helper window is wider than the
+    // logical API top. runFinalizers writes its function and userdata into
+    // this interval, which the next collection scans conservatively.
+    L->getStack().setTop(8);
+    L->setAbsoluteTop(0);
+    (void)gc.collect(L);
+    const usize objectsAfterFinalization = gc.getObjectCount();
+    const usize secondCycleCollected = gc.collect(L);
+
+    ASSERT_EQ(suite, 1, gFinalizerCalls, "userdata finalizer runs once before reclamation");
+    ASSERT_EQ(suite, 9753, gFinalizerPayload, "finalizer receives the original userdata payload");
+    ASSERT_TRUE(suite, secondCycleCollected >= 3,
+                "next collection reclaims finalized userdata, metatable, and finalizer closure");
+    ASSERT_TRUE(suite, objectsAfterFinalization >= gc.getObjectCount() + 3,
+                "cleared finalizer helper slots do not retain the finalized object graph");
+
+    delete L;
+}
+
+void testAutomaticCollectionReportsOuterCountAcrossReentrantFinalizer(TestSuite& suite) {
+    gReentrantFinalizerCalls = 0;
+
+    LuaState* L = LuaState::newIsolatedState();
+    GarbageCollector& gc = L->getGlobalState().getGC();
+    Table* metatable = gc.create<Table>();
+    Function* finalizer = gc.create<Function>(gcReentrantFinalizer);
+    Userdata* userdata = Userdata::createFull(0);
+    gc.registerObject(userdata);
+    metatable->set(Value(L->getGlobalState().getMetamethodName(TMS::TM_GC)), Value(finalizer));
+    userdata->setMetatable(metatable);
+    (void)gc.create<Table>();
+
+    // Start an incremental cycle explicitly, then let automatic checkpoints
+    // finish it. The finalizer runs a nested full collection during Finalize.
+    (void)gc.step(L, 0);
+    usize reportedCollected = 0;
+    for (i32 i = 0; i < 128 && reportedCollected == 0; ++i) {
+        reportedCollected += gc.maybeCollectAutomatic(L);
+    }
+
+    ASSERT_EQ(suite, 1, gReentrantFinalizerCalls, "automatic incremental finalizer runs exactly once");
+    ASSERT_EQ(suite, static_cast<usize>(1), reportedCollected,
+              "automatic checkpoint preserves the outer sweep count across nested collection");
+
+    delete L;
 }
 
 void testUpvalueOpen(TestSuite& suite) {
-    LuaState* L = LuaState::newState();
+    LuaState* L = LuaState::newIsolatedState();
     L->pushNumber(42.0);
     L->pushNumber(100.0);
-    
+
     // Test 1: Create open upvalue
     Upvalue* uv1 = L->findOrCreateUpvalue(1);
     ASSERT_TRUE(suite, uv1 != nullptr && uv1->isOpen(), "Create open upvalue");
@@ -776,7 +1289,7 @@ void testUpvalueOpen(TestSuite& suite) {
 }
 
 void testUpvalueClosed(TestSuite& suite) {
-    LuaState* L = LuaState::newState();
+    LuaState* L = LuaState::newIsolatedState();
     L->pushNumber(42.0);
 
     Upvalue* uv1 = L->findOrCreateUpvalue(1);
@@ -792,23 +1305,23 @@ void testUpvalueClosed(TestSuite& suite) {
 }
 
 void testUpvalueCloseAll(TestSuite& suite) {
-    LuaState* L = LuaState::newState();
+    LuaState* L = LuaState::newIsolatedState();
     L->pushNumber(42.0);
     L->pushNumber(100.0);
-    
+
     Upvalue* uv1 = L->findOrCreateUpvalue(1);
     Upvalue* uv2 = L->findOrCreateUpvalue(2);
-    
+
     // Test 1: Close all upvalues
     L->closeUpvalues(1);
     ASSERT_TRUE(suite, uv1->isClosed() && uv2->isClosed(), "Close all upvalues");
-    
+
     delete L;
 }
 
 void registerGCTests() {
     auto& registry = TestRegistry::getInstance();
-    
+
     registry.registerTest("GC", "GCObject Basics", testGCObjectBasics);
     registry.registerTest("GC", "GCObject Chaining", testGCObjectChaining);
     registry.registerTest("GC", "Independent Instances", testGarbageCollectorInstancesAreIndependent);
@@ -816,6 +1329,8 @@ void registerGCTests() {
     registry.registerTest("GC", "GC Register", testGarbageCollectorRegister);
     registry.registerTest("GC", "Userdata Owned Factory", testUserdataOwnedFactory);
     registry.registerTest("GC", "GC Create Factories", testGarbageCollectorCreateFactories);
+    registry.registerTest("GC", "Allocator Factory Registration Rollback",
+                          testAllocatorFactoryCleansUpRegistrationFailure);
     registry.registerTest("GC", "GC Roots", testGarbageCollectorRoots);
     registry.registerTest("GC", "GC Collect", testGarbageCollectorCollect);
     registry.registerTest("GC", "GC Strategy Selection", testGarbageCollectorStrategySelection);
@@ -826,14 +1341,34 @@ void registerGCTests() {
     registry.registerTest("GC", "Incremental GC Debt Tracks Allocation And Cycle Completion",
                           testIncrementalGCDebtTracksAllocationAndCycleCompletion);
     registry.registerTest("GC", "Write Barrier Table Graph", testWriteBarrierPreservesTableReferenceGraph);
-    registry.registerTest("GC", "Write Barrier Object References", testWriteBarrierPreservesMetatableFunctionAndUpvalueRefs);
+    registry.registerTest("GC", "Write Barrier Object References",
+                          testWriteBarrierPreservesMetatableFunctionAndUpvalueRefs);
     registry.registerTest("GC", "Composite Marking", testGarbageCollectorMarksCompositeObjects);
     registry.registerTest("GC", "collectgarbage Collect", testCollectGarbageCollectReclaimsMemory);
+    registry.registerTest("GC", "Fast Memory Accounting", testFastMemoryAccountingTracksDynamicObjects);
+    registry.registerTest("GC", "Incremental Constructor And Proto Barriers",
+                          testIncrementalBarriersPublishConstructedAndProtoGraphs);
+    registry.registerTest("GC", "Incremental Sweep Registration Cursor",
+                          testIncrementalSweepRegistrationPreservesCursor);
+    registry.registerTest("GC", "Incremental Sweep Prefilled Weak Registration",
+                          testIncrementalSweepRegistrationCleansPrefilledWeakTable);
+    registry.registerTest("GC", "Automatic Cycle Completes Below Threshold",
+                          testAutomaticCollectorFinishesCycleBelowStartThreshold);
+    registry.registerTest("GC", "Incremental Sweep Upvalue Close",
+                          testClosingUpvalueDuringIncrementalSweepRestartsMark);
+    registry.registerTest("GC", "Explicit Collection Anonymous Temporaries",
+                          testExplicitCollectionKeepsAnonymousTemporaries);
     registry.registerTest("GC", "Weak Table Values", testWeakTableValuesAreCleared);
     registry.registerTest("GC", "Weak Table Keys", testWeakTableKeysAreCleared);
+    registry.registerTest("GC", "Incremental Weak Mode Mutation", testIncrementalWeakToStrongModeTransition);
+    registry.registerTest("GC", "Weak Mode Mutation Defers Finalizer", testWeakToStrongUserdataIsNotFinalizedEarly);
     registry.registerTest("GC", "Userdata Finalizer", testCollectGarbageRunsUserdataFinalizer);
+    registry.registerTest("GC", "Reentrant Userdata Finalizers", testFinalizerCanReenterCollection);
+    registry.registerTest("GC", "Finalizer Helper Slots Release Userdata",
+                          testFinalizerHelperSlotsDoNotRetainFinalizedUserdata);
+    registry.registerTest("GC", "Automatic Count Across Reentrant Finalizer",
+                          testAutomaticCollectionReportsOuterCountAcrossReentrantFinalizer);
     registry.registerTest("GC", "Upvalue Open", testUpvalueOpen);
     registry.registerTest("GC", "Upvalue Closed", testUpvalueClosed);
     registry.registerTest("GC", "Upvalue Close All", testUpvalueCloseAll);
 }
-

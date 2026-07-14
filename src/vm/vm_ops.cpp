@@ -45,9 +45,7 @@ f64 luaModulo(f64 left, f64 right) {
 }
 
 void checkStringConcatLength(usize left, usize right) {
-    if (left > LUA_MAX_STRING_LENGTH ||
-        right > LUA_MAX_STRING_LENGTH ||
-        left > LUA_MAX_STRING_LENGTH - right) {
+    if (left > LUA_MAX_STRING_LENGTH || right > LUA_MAX_STRING_LENGTH || left > LUA_MAX_STRING_LENGTH - right) {
         throw RuntimeError("string length overflow");
     }
 }
@@ -80,7 +78,7 @@ int luaStringCompare(const GCString* left, const GCString* right) {
     }
 }
 
-}  // namespace
+} // namespace
 
 namespace VM::detail {
 
@@ -89,10 +87,16 @@ void gettable(LuaState* L, Value t, const Value& key, Value& result) {
         if (t.isTable()) {
             Table* h = t.asTable();
             Value res = h->get(key);
-            if (!res.isNil()) { result = res; return; }
+            if (!res.isNil()) {
+                result = res;
+                return;
+            }
 
             Value tm = getMetamethodByObject(L, t, TMS::TM_INDEX);
-            if (tm.isNil()) { result = Value(); return; }
+            if (tm.isNil()) {
+                result = Value();
+                return;
+            }
             if (tm.isFunction()) {
                 callTMWithResult(L, result, tm, t, key);
                 return;
@@ -118,18 +122,30 @@ void settable(LuaState* L, Value t, const Value& key, const Value& val) {
         if (t.isTable()) {
             Table* h = t.asTable();
             Value oldval = h->get(key);
-            if (!oldval.isNil()) { h->set(key, val); return; }
+            if (!oldval.isNil()) {
+                h->set(key, val);
+                return;
+            }
 
             Value tm = getMetamethodByObject(L, t, TMS::TM_NEWINDEX);
-            if (tm.isNil()) { h->set(key, val); return; }
-            if (tm.isFunction()) { callTM(L, tm, t, key, val); return; }
+            if (tm.isNil()) {
+                h->set(key, val);
+                return;
+            }
+            if (tm.isFunction()) {
+                callTM(L, tm, t, key, val);
+                return;
+            }
             t = tm;
         } else {
             Value tm = getMetamethodByObject(L, t, TMS::TM_NEWINDEX);
             if (tm.isNil()) {
                 throw RuntimeError("VM: attempt to index a non-table value");
             }
-            if (tm.isFunction()) { callTM(L, tm, t, key, val); return; }
+            if (tm.isFunction()) {
+                callTM(L, tm, t, key, val);
+                return;
+            }
             t = tm;
         }
     }
@@ -141,13 +157,26 @@ void arith(LuaState* L, Value& result, const Value& left, const Value& right, Op
     if (tryToNumber(left, lval) && tryToNumber(right, rval)) {
         f64 res = 0.0;
         switch (op) {
-            case OpCode::ADD: res = lval + rval; break;
-            case OpCode::SUB: res = lval - rval; break;
-            case OpCode::MUL: res = lval * rval; break;
-            case OpCode::DIV: res = lval / rval; break;
-            case OpCode::MOD: res = luaModulo(lval, rval); break;
-            case OpCode::POW: res = std::pow(lval, rval); break;
-            default: throw RuntimeError("VM::arith: invalid opcode");
+        case OpCode::ADD:
+            res = lval + rval;
+            break;
+        case OpCode::SUB:
+            res = lval - rval;
+            break;
+        case OpCode::MUL:
+            res = lval * rval;
+            break;
+        case OpCode::DIV:
+            res = lval / rval;
+            break;
+        case OpCode::MOD:
+            res = luaModulo(lval, rval);
+            break;
+        case OpCode::POW:
+            res = std::pow(lval, rval);
+            break;
+        default:
+            throw RuntimeError("VM::arith: invalid opcode");
         }
         result = Value(res);
         return;
@@ -155,13 +184,26 @@ void arith(LuaState* L, Value& result, const Value& left, const Value& right, Op
 
     TMS tmEvent;
     switch (op) {
-        case OpCode::ADD: tmEvent = TMS::TM_ADD; break;
-        case OpCode::SUB: tmEvent = TMS::TM_SUB; break;
-        case OpCode::MUL: tmEvent = TMS::TM_MUL; break;
-        case OpCode::DIV: tmEvent = TMS::TM_DIV; break;
-        case OpCode::MOD: tmEvent = TMS::TM_MOD; break;
-        case OpCode::POW: tmEvent = TMS::TM_POW; break;
-        default: throw RuntimeError("VM::arith: invalid opcode for metamethod");
+    case OpCode::ADD:
+        tmEvent = TMS::TM_ADD;
+        break;
+    case OpCode::SUB:
+        tmEvent = TMS::TM_SUB;
+        break;
+    case OpCode::MUL:
+        tmEvent = TMS::TM_MUL;
+        break;
+    case OpCode::DIV:
+        tmEvent = TMS::TM_DIV;
+        break;
+    case OpCode::MOD:
+        tmEvent = TMS::TM_MOD;
+        break;
+    case OpCode::POW:
+        tmEvent = TMS::TM_POW;
+        break;
+    default:
+        throw RuntimeError("VM::arith: invalid opcode for metamethod");
     }
 
     Value tmResult;
@@ -173,14 +215,20 @@ void arith(LuaState* L, Value& result, const Value& left, const Value& right, Op
 }
 
 bool equal(LuaState* L, const Value& left, const Value& right) {
-    if (left.getType() != right.getType()) return false;
-    if (left.isNil()) return true;
-    if (left.isNumber()) return left.asNumber() == right.asNumber();
-    if (left.isBoolean()) return left.asBoolean() == right.asBoolean();
-    if (left.isString()) return left.asString()->getData() == right.asString()->getData();
+    if (left.getType() != right.getType())
+        return false;
+    if (left.isNil())
+        return true;
+    if (left.isNumber())
+        return left.asNumber() == right.asNumber();
+    if (left.isBoolean())
+        return left.asBoolean() == right.asBoolean();
+    if (left.isString())
+        return left.asString()->getData() == right.asString()->getData();
 
     if (left.isTable()) {
-        if (left.asTable() == right.asTable()) return true;
+        if (left.asTable() == right.asTable())
+            return true;
         Table* mt1 = left.asTable()->getMetatable();
         Table* mt2 = right.asTable()->getMetatable();
         Value tm = getComparisonTM(L, mt1, mt2, TMS::TM_EQ);
@@ -192,7 +240,8 @@ bool equal(LuaState* L, const Value& left, const Value& right) {
         return false;
     }
     if (left.isUserdata()) {
-        if (left.asUserdata() == right.asUserdata()) return true;
+        if (left.asUserdata() == right.asUserdata())
+            return true;
         Table* mt1 = left.asUserdata()->getMetatable();
         Table* mt2 = right.asUserdata()->getMetatable();
         Value tm = getComparisonTM(L, mt1, mt2, TMS::TM_EQ);
@@ -210,8 +259,10 @@ bool lessThan(LuaState* L, const Value& left, const Value& right) {
     if (left.getType() != right.getType()) {
         throw RuntimeError("VM: attempt to compare two different types");
     }
-    if (left.isNumber()) return left.asNumber() < right.asNumber();
-    if (left.isString()) return luaStringCompare(left.asString(), right.asString()) < 0;
+    if (left.isNumber())
+        return left.asNumber() < right.asNumber();
+    if (left.isString())
+        return luaStringCompare(left.asString(), right.asString()) < 0;
 
     i32 tmResult = callOrderTM(L, left, right, TMS::TM_LT);
     if (tmResult == -1) {
@@ -224,11 +275,14 @@ bool lessEqual(LuaState* L, const Value& left, const Value& right) {
     if (left.getType() != right.getType()) {
         throw RuntimeError("VM: attempt to compare two different types");
     }
-    if (left.isNumber()) return left.asNumber() <= right.asNumber();
-    if (left.isString()) return luaStringCompare(left.asString(), right.asString()) <= 0;
+    if (left.isNumber())
+        return left.asNumber() <= right.asNumber();
+    if (left.isString())
+        return luaStringCompare(left.asString(), right.asString()) <= 0;
 
     i32 tmResult = callOrderTM(L, left, right, TMS::TM_LE);
-    if (tmResult != -1) return tmResult != 0;
+    if (tmResult != -1)
+        return tmResult != 0;
 
     tmResult = callOrderTM(L, right, left, TMS::TM_LT);
     if (tmResult == -1) {
@@ -239,7 +293,10 @@ bool lessEqual(LuaState* L, const Value& left, const Value& right) {
 
 void unaryMinus(LuaState* L, Value& result, const Value& val) {
     f64 num;
-    if (tryToNumber(val, num)) { result = Value(-num); return; }
+    if (tryToNumber(val, num)) {
+        result = Value(-num);
+        return;
+    }
 
     Value tmResult;
     if (callBinaryTM(L, val, Value(), tmResult, TMS::TM_UNM)) {
@@ -263,7 +320,10 @@ void length(LuaState* L, Value& result, const Value& val) {
     if (!tm.isNil() && tm.isFunction()) {
         Value r;
         callTMWithResult(L, r, tm, val, Value());
-        if (r.isNumber()) { result = r; return; }
+        if (r.isNumber()) {
+            result = r;
+            return;
+        }
         throw RuntimeError("VM: __len metamethod must return a number");
     }
     throw RuntimeError("VM: attempt to get length of a value without __len metamethod");
@@ -281,13 +341,21 @@ void concat(RuntimeServices& services, LuaState* L, Value* base, i32 a, i32 b, i
         Str str1, str2;
         bool canConcat = false;
 
-        if (top2.isString())      { str2 = top2.asString()->getData(); canConcat = true; }
-        else if (top2.isNumber()) { str2 = numberToLuaString(top2.asNumber()); canConcat = true; }
+        if (top2.isString()) {
+            str2 = top2.asString()->getData();
+            canConcat = true;
+        } else if (top2.isNumber()) {
+            str2 = numberToLuaString(top2.asNumber());
+            canConcat = true;
+        }
 
         if (canConcat) {
-            if (top1.isString())      str1 = top1.asString()->getData();
-            else if (top1.isNumber()) str1 = numberToLuaString(top1.asNumber());
-            else canConcat = false;
+            if (top1.isString())
+                str1 = top1.asString()->getData();
+            else if (top1.isNumber())
+                str1 = numberToLuaString(top1.asNumber());
+            else
+                canConcat = false;
         }
 
         if (!canConcat) {
@@ -307,12 +375,12 @@ void concat(RuntimeServices& services, LuaState* L, Value* base, i32 a, i32 b, i
         result.append(str2);
         result.append(str1);
         base[last - 1] = Value(pool.intern(result));
-        [[maybe_unused]] const usize collected = services.gc.collectAutomatic(L);
+        [[maybe_unused]] const usize collected = services.gc.maybeCollectAutomatic(L);
         total--;
         last--;
     }
     base[a] = base[b];
 }
 
-}  // namespace VM::detail
-}  // namespace Lua
+} // namespace VM::detail
+} // namespace Lua

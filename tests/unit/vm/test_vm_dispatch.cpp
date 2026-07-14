@@ -88,6 +88,25 @@ i32 pr19YieldingFunction(LuaState* L) {
     return 0;
 }
 
+usize gPostcallObjectCount = 0;
+Table* gPostcallReturnedTable = nullptr;
+
+i32 createTransientAndReturnNothing(LuaState* L) {
+    GarbageCollector& gc = L->getGlobalState().getGC();
+    L->pushTable(gc.create<Table>());
+    gPostcallObjectCount = gc.getObjectCount();
+    return 0;
+}
+
+i32 createTwoTablesAndReturnLast(LuaState* L) {
+    GarbageCollector& gc = L->getGlobalState().getGC();
+    L->pushTable(gc.create<Table>());
+    gPostcallReturnedTable = gc.create<Table>();
+    L->pushTable(gPostcallReturnedTable);
+    gPostcallObjectCount = gc.getObjectCount();
+    return 1;
+}
+
 Proto* compileDispatchChunk(RuntimeServices& services, const char* source, const char* sourceName) {
     Parser parser(source, services);
     auto parsed = parser.parse();
@@ -177,8 +196,7 @@ void testRuntimeServicesCanInjectDispatchStrategy(TestSuite& suite) {
 void testTableDispatchStrategyIsAvailable(TestSuite& suite) {
     VM::DispatchStrategy& table = VM::tableDispatchStrategy();
 
-    ASSERT_TRUE(suite, std::string(table.name()) == "table",
-                "Table dispatch strategy should identify itself");
+    ASSERT_TRUE(suite, std::string(table.name()) == "table", "Table dispatch strategy should identify itself");
     ASSERT_TRUE(suite, &table != &VM::defaultDispatchStrategy(),
                 "Table dispatch strategy should be distinct from the default switch strategy");
 }
@@ -202,7 +220,8 @@ void testTableDispatchExecutesCompiledChunk(TestSuite& suite) {
 
         local x, y = pr20_relay()
         return x, y
-    )", "=(table_dispatch_chunk)");
+    )",
+                                        "=(table_dispatch_chunk)");
 
     LuaState* L = LuaState::newState(services);
     Function* func = new Function(proto);
@@ -241,15 +260,13 @@ void testSwitchDispatchHelpersCoverOpcodeSpace(TestSuite& suite) {
 void testHandlerTableCoversOpcodeSpace(TestSuite& suite) {
     const auto& table = VM::handlerTable();
 
-    ASSERT_EQ(suite, NUM_OPCODES, static_cast<int>(table.size()),
-              "Handler table should have one entry per opcode");
+    ASSERT_EQ(suite, NUM_OPCODES, static_cast<int>(table.size()), "Handler table should have one entry per opcode");
 
     for (i32 index = 0; index < NUM_OPCODES; ++index) {
         const VM::HandlerEntry& entry = table[static_cast<usize>(index)];
         OpCode expected = static_cast<OpCode>(index);
 
-        ASSERT_EQ(suite, index, static_cast<int>(entry.opcode),
-                  "Handler entry opcode should match table index");
+        ASSERT_EQ(suite, index, static_cast<int>(entry.opcode), "Handler entry opcode should match table index");
         ASSERT_TRUE(suite, std::string(entry.name) == getOpName(expected),
                     "Handler entry name should match opcode name");
         ASSERT_EQ(suite, static_cast<int>(opcodeMetadata(expected).group), static_cast<int>(entry.group),
@@ -313,16 +330,7 @@ void testDataMoveHandlersExecuteDirectly(TestSuite& suite) {
 
     Value* base = registers.data();
     usize pc = 10;
-    VM::OpExecutionContext context{
-        services,
-        nullptr,
-        nullptr,
-        &proto,
-        base,
-        pc,
-        0,
-        1
-    };
+    VM::OpExecutionContext context{services, nullptr, nullptr, &proto, base, pc, 0, 1};
 
     VM::HandlerStatus moveStatus = VM::runHandler(context, CREATE_ABC(OpCode::MOVE, 0, 1, 0));
     ASSERT_EQ(suite, static_cast<int>(VM::HandlerStatus::Continue), static_cast<int>(moveStatus),
@@ -346,8 +354,7 @@ void testDataMoveHandlersExecuteDirectly(TestSuite& suite) {
 
     pc = 5;
     VM::runHandler(context, CREATE_ABC(OpCode::LOADBOOL, 0, 1, 1));
-    ASSERT_TRUE(suite, registers[0].isBoolean() && registers[0].asBoolean(),
-                "LOADBOOL handler should write a boolean");
+    ASSERT_TRUE(suite, registers[0].isBoolean() && registers[0].asBoolean(), "LOADBOOL handler should write a boolean");
     ASSERT_EQ(suite, 6, static_cast<int>(pc), "LOADBOOL handler should skip the next instruction when C is set");
 
     VM::runHandler(context, CREATE_ABC(OpCode::LOADNIL, 1, 3, 0));
@@ -385,16 +392,7 @@ void testGlobalAndUpvalueHandlersExecuteDirectly(TestSuite& suite) {
 
     Value* base = &stack[frameBase];
     usize pc = 0;
-    VM::OpExecutionContext context{
-        services,
-        L,
-        &func,
-        &proto,
-        base,
-        pc,
-        0,
-        1
-    };
+    VM::OpExecutionContext context{services, L, &func, &proto, base, pc, 0, 1};
 
     L->getGlobalTable()->set(Value(globalName), Value(24.0));
     VM::runHandler(context, CREATE_ABx(OpCode::GETGLOBAL, 0, static_cast<i32>(globalNameIndex)));
@@ -404,8 +402,7 @@ void testGlobalAndUpvalueHandlersExecuteDirectly(TestSuite& suite) {
 
     VM::runHandler(context, CREATE_ABx(OpCode::GETGLOBAL, 4, static_cast<i32>(missingGlobalNameIndex)));
     base = context.base;
-    ASSERT_TRUE(suite, base[4].isNil(),
-                "GETGLOBAL handler should return nil for missing globals");
+    ASSERT_TRUE(suite, base[4].isNil(), "GETGLOBAL handler should return nil for missing globals");
 
     base[1] = Value(36.0);
     VM::runHandler(context, CREATE_ABx(OpCode::SETGLOBAL, 1, static_cast<i32>(globalNameIndex)));
@@ -461,16 +458,7 @@ void testTableHandlersExecuteDirectly(TestSuite& suite) {
 
     Value* base = &stack[frameBase];
     usize pc = 0;
-    VM::OpExecutionContext context{
-        services,
-        L,
-        nullptr,
-        &proto,
-        base,
-        pc,
-        0,
-        1
-    };
+    VM::OpExecutionContext context{services, L, nullptr, &proto, base, pc, 0, 1};
 
     table->set(Value(fieldName), Value(55.0));
     base[1] = Value(table);
@@ -481,8 +469,7 @@ void testTableHandlersExecuteDirectly(TestSuite& suite) {
 
     VM::runHandler(context, CREATE_ABC(OpCode::GETTABLE, 9, 1, RKASK(static_cast<i32>(missingFieldNameIndex))));
     base = context.base;
-    ASSERT_TRUE(suite, base[9].isNil(),
-                "GETTABLE handler should return nil for absent direct table keys");
+    ASSERT_TRUE(suite, base[9].isNil(), "GETTABLE handler should return nil for absent direct table keys");
 
     base[2] = Value(table);
     base[3] = Value(fieldName);
@@ -495,8 +482,7 @@ void testTableHandlersExecuteDirectly(TestSuite& suite) {
     base[4] = Value();
     VM::runHandler(context, CREATE_ABC(OpCode::SETTABLE, 2, 3, 4));
     storedField = table->get(Value(fieldName));
-    ASSERT_TRUE(suite, storedField.isNil(),
-                "SETTABLE handler should delete table fields when assigning nil");
+    ASSERT_TRUE(suite, storedField.isNil(), "SETTABLE handler should delete table fields when assigning nil");
 
     VM::runHandler(context, CREATE_ABC(OpCode::NEWTABLE, 5, 0, 0));
     base = context.base;
@@ -504,8 +490,7 @@ void testTableHandlersExecuteDirectly(TestSuite& suite) {
 
     VM::runHandler(context, CREATE_ABC(OpCode::NEWTABLE, 8, 4, 2));
     base = context.base;
-    ASSERT_TRUE(suite, base[8].isTable(),
-                "NEWTABLE handler should accept non-zero array and hash size operands");
+    ASSERT_TRUE(suite, base[8].isTable(), "NEWTABLE handler should accept non-zero array and hash size operands");
 
     table->set(Value(fieldName), Value(77.0));
     base[6] = Value(table);
@@ -513,8 +498,7 @@ void testTableHandlersExecuteDirectly(TestSuite& suite) {
     base = context.base;
     ASSERT_TRUE(suite, base[0].isNumber() && base[0].asNumber() == 77.0,
                 "SELF handler should load the selected method field");
-    ASSERT_TRUE(suite, base[1].isTable() && base[1].asTable() == table,
-                "SELF handler should copy the receiver to A+1");
+    ASSERT_TRUE(suite, base[1].isTable() && base[1].asTable() == table, "SELF handler should copy the receiver to A+1");
 
     Table* list = base[5].asTable();
     base[6] = Value(100.0);
@@ -547,23 +531,13 @@ void testArithmeticHandlersExecuteDirectly(TestSuite& suite) {
 
     Value* base = &stack[frameBase];
     usize pc = 0;
-    VM::OpExecutionContext context{
-        services,
-        L,
-        nullptr,
-        &proto,
-        base,
-        pc,
-        0,
-        1
-    };
+    VM::OpExecutionContext context{services, L, nullptr, &proto, base, pc, 0, 1};
 
     base[1] = Value(10.0);
     base[2] = Value(2.0);
     VM::runHandler(context, CREATE_ABC(OpCode::ADD, 0, 1, RKASK(static_cast<i32>(constantIndex))));
     base = context.base;
-    ASSERT_TRUE(suite, base[0].isNumber() && base[0].asNumber() == 13.0,
-                "ADD handler should support RK constants");
+    ASSERT_TRUE(suite, base[0].isNumber() && base[0].asNumber() == 13.0, "ADD handler should support RK constants");
 
     VM::runHandler(context, CREATE_ABC(OpCode::SUB, 0, 1, 2));
     base = context.base;
@@ -582,8 +556,7 @@ void testArithmeticHandlersExecuteDirectly(TestSuite& suite) {
 
     VM::runHandler(context, CREATE_ABC(OpCode::DIV, 0, 1, 2));
     base = context.base;
-    ASSERT_TRUE(suite, base[0].isNumber() && base[0].asNumber() == 5.0,
-                "DIV handler should divide register operands");
+    ASSERT_TRUE(suite, base[0].isNumber() && base[0].asNumber() == 5.0, "DIV handler should divide register operands");
 
     base[2] = Value(0.0);
     VM::runHandler(context, CREATE_ABC(OpCode::DIV, 0, 1, 2));
@@ -593,8 +566,7 @@ void testArithmeticHandlersExecuteDirectly(TestSuite& suite) {
 
     VM::runHandler(context, CREATE_ABC(OpCode::MOD, 0, 1, RKASK(static_cast<i32>(constantIndex))));
     base = context.base;
-    ASSERT_TRUE(suite, base[0].isNumber() && base[0].asNumber() == 1.0,
-                "MOD handler should support RK constants");
+    ASSERT_TRUE(suite, base[0].isNumber() && base[0].asNumber() == 1.0, "MOD handler should support RK constants");
 
     base[2] = Value(0.0);
     VM::runHandler(context, CREATE_ABC(OpCode::MOD, 0, 1, 2));
@@ -625,8 +597,7 @@ void testArithmeticHandlersExecuteDirectly(TestSuite& suite) {
     } catch (...) {
         stringArithmeticOk = false;
     }
-    ASSERT_TRUE(suite,
-                stringArithmeticOk && base[0].isNumber() && base[0].asNumber() == 5.0,
+    ASSERT_TRUE(suite, stringArithmeticOk && base[0].isNumber() && base[0].asNumber() == 5.0,
                 "ADD handler should coerce numeric strings with surrounding whitespace");
 
     Table* nonNumber = new Table();
@@ -639,14 +610,12 @@ void testArithmeticHandlersExecuteDirectly(TestSuite& suite) {
     } catch (...) {
         subError = true;
     }
-    ASSERT_TRUE(suite, subError,
-                "SUB handler should reject non-number operands without metamethods");
+    ASSERT_TRUE(suite, subError, "SUB handler should reject non-number operands without metamethods");
 
     base[1] = Value(2.0);
     VM::runHandler(context, CREATE_ABC(OpCode::POW, 0, 1, RKASK(static_cast<i32>(constantIndex))));
     base = context.base;
-    ASSERT_TRUE(suite, base[0].isNumber() && base[0].asNumber() == 8.0,
-                "POW handler should support RK constants");
+    ASSERT_TRUE(suite, base[0].isNumber() && base[0].asNumber() == 8.0, "POW handler should support RK constants");
 
     base[1] = Value(4.0);
     base[2] = Value(0.5);
@@ -683,22 +652,12 @@ void testUnaryHandlersExecuteDirectly(TestSuite& suite) {
 
     Value* base = &stack[frameBase];
     usize pc = 0;
-    VM::OpExecutionContext context{
-        services,
-        L,
-        nullptr,
-        &proto,
-        base,
-        pc,
-        0,
-        1
-    };
+    VM::OpExecutionContext context{services, L, nullptr, &proto, base, pc, 0, 1};
 
     base[1] = Value(7.0);
     VM::runHandler(context, CREATE_ABC(OpCode::UNM, 0, 1, 0));
     base = context.base;
-    ASSERT_TRUE(suite, base[0].isNumber() && base[0].asNumber() == -7.0,
-                "UNM handler should negate numeric operands");
+    ASSERT_TRUE(suite, base[0].isNumber() && base[0].asNumber() == -7.0, "UNM handler should negate numeric operands");
 
     bool stringUnaryOk = true;
     try {
@@ -708,8 +667,7 @@ void testUnaryHandlersExecuteDirectly(TestSuite& suite) {
     } catch (...) {
         stringUnaryOk = false;
     }
-    ASSERT_TRUE(suite,
-                stringUnaryOk && base[0].isNumber() && base[0].asNumber() == -10.0,
+    ASSERT_TRUE(suite, stringUnaryOk && base[0].isNumber() && base[0].asNumber() == -10.0,
                 "UNM handler should coerce numeric strings with surrounding whitespace");
 
     Table* nonNumber = new Table();
@@ -721,38 +679,32 @@ void testUnaryHandlersExecuteDirectly(TestSuite& suite) {
     } catch (...) {
         unaryError = true;
     }
-    ASSERT_TRUE(suite, unaryError,
-                "UNM handler should reject non-number operands without metamethods");
+    ASSERT_TRUE(suite, unaryError, "UNM handler should reject non-number operands without metamethods");
 
     base[1] = Value();
     VM::runHandler(context, CREATE_ABC(OpCode::NOT, 0, 1, 0));
     base = context.base;
-    ASSERT_TRUE(suite, base[0].isBoolean() && base[0].asBoolean(),
-                "NOT handler should treat nil as falsey");
+    ASSERT_TRUE(suite, base[0].isBoolean() && base[0].asBoolean(), "NOT handler should treat nil as falsey");
 
     base[1] = Value(false);
     VM::runHandler(context, CREATE_ABC(OpCode::NOT, 0, 1, 0));
     base = context.base;
-    ASSERT_TRUE(suite, base[0].isBoolean() && base[0].asBoolean(),
-                "NOT handler should invert Lua truthiness");
+    ASSERT_TRUE(suite, base[0].isBoolean() && base[0].asBoolean(), "NOT handler should invert Lua truthiness");
 
     base[1] = Value(true);
     VM::runHandler(context, CREATE_ABC(OpCode::NOT, 0, 1, 0));
     base = context.base;
-    ASSERT_TRUE(suite, base[0].isBoolean() && !base[0].asBoolean(),
-                "NOT handler should treat true as truthy");
+    ASSERT_TRUE(suite, base[0].isBoolean() && !base[0].asBoolean(), "NOT handler should treat true as truthy");
 
     base[1] = Value(0.0);
     VM::runHandler(context, CREATE_ABC(OpCode::NOT, 0, 1, 0));
     base = context.base;
-    ASSERT_TRUE(suite, base[0].isBoolean() && !base[0].asBoolean(),
-                "NOT handler should treat zero as truthy");
+    ASSERT_TRUE(suite, base[0].isBoolean() && !base[0].asBoolean(), "NOT handler should treat zero as truthy");
 
     base[1] = Value(hello);
     VM::runHandler(context, CREATE_ABC(OpCode::LEN, 0, 1, 0));
     base = context.base;
-    ASSERT_TRUE(suite, base[0].isNumber() && base[0].asNumber() == 5.0,
-                "LEN handler should measure strings");
+    ASSERT_TRUE(suite, base[0].isNumber() && base[0].asNumber() == 5.0, "LEN handler should measure strings");
 
     base[1] = Value(hello);
     base[2] = Value(spaceWorld);
@@ -798,16 +750,7 @@ void testBranchAndComparisonHandlersExecuteDirectly(TestSuite& suite) {
 
     Value* base = &stack[frameBase];
     usize pc = 0;
-    VM::OpExecutionContext context{
-        services,
-        L,
-        nullptr,
-        &proto,
-        base,
-        pc,
-        0,
-        1
-    };
+    VM::OpExecutionContext context{services, L, nullptr, &proto, base, pc, 0, 1};
 
     pc = 5;
     VM::runHandler(context, CREATE_AsBx(OpCode::JMP, 0, -2));
@@ -908,16 +851,7 @@ void testLoopAndCloseHandlersExecuteDirectly(TestSuite& suite) {
 
     Value* base = &stack[frameBase];
     usize pc = 0;
-    VM::OpExecutionContext context{
-        services,
-        L,
-        nullptr,
-        &proto,
-        base,
-        pc,
-        0,
-        1
-    };
+    VM::OpExecutionContext context{services, L, nullptr, &proto, base, pc, 0, 1};
 
     base[0] = Value(10.0);
     base[1] = Value(20.0);
@@ -950,9 +884,8 @@ void testLoopAndCloseHandlersExecuteDirectly(TestSuite& suite) {
         stringForPrepOk = false;
     }
     ASSERT_TRUE(suite,
-                stringForPrepOk && base[0].isNumber() && base[0].asNumber() == 12.0
-                && base[1].isNumber() && base[1].asNumber() == 1.0
-                && base[2].isNumber() && base[2].asNumber() == -2.0,
+                stringForPrepOk && base[0].isNumber() && base[0].asNumber() == 12.0 && base[1].isNumber() &&
+                    base[1].asNumber() == 1.0 && base[2].isNumber() && base[2].asNumber() == -2.0,
                 "FORPREP handler should coerce numeric string bounds");
 
     base[0] = Value(0.0);
@@ -1032,31 +965,20 @@ void testClosureAndVarargHandlersExecuteDirectly(TestSuite& suite) {
     Value* base = &stack[ci.base];
     base[2] = Value(123.0);
     usize pc = 0;
-    VM::OpExecutionContext context{
-        services,
-        L,
-        &parentFunc,
-        &parentProto,
-        base,
-        pc,
-        0,
-        1
-    };
+    VM::OpExecutionContext context{services, L, &parentFunc, &parentProto, base, pc, 0, 1};
 
     VM::runHandler(context, CREATE_ABx(OpCode::CLOSURE, 0, static_cast<i32>(childIndex)));
     base = context.base;
     ASSERT_TRUE(suite, base[0].isFunction(), "CLOSURE handler should create a function");
     Function* closure = base[0].asFunction();
     ASSERT_TRUE(suite, closure->getProto() == &childProto, "CLOSURE handler should use selected child proto");
-    ASSERT_EQ(suite, 2, static_cast<int>(closure->getUpvalueCount()),
-              "CLOSURE handler should attach child upvalues");
+    ASSERT_EQ(suite, 2, static_cast<int>(closure->getUpvalueCount()), "CLOSURE handler should attach child upvalues");
     ASSERT_EQ(suite, 2, static_cast<int>(pc), "CLOSURE handler should consume upvalue pseudo instructions");
 
     Upvalue* localCapture = closure->getUpvalue(0);
     ASSERT_TRUE(suite, localCapture != nullptr && localCapture->isOpen(),
                 "CLOSURE handler should capture MOVE upvalues as open locals");
-    ASSERT_TRUE(suite, localCapture->getValue(stack).isNumber() &&
-                       localCapture->getValue(stack).asNumber() == 123.0,
+    ASSERT_TRUE(suite, localCapture->getValue(stack).isNumber() && localCapture->getValue(stack).asNumber() == 123.0,
                 "CLOSURE handler should capture the frame-relative local value");
     ASSERT_TRUE(suite, closure->getUpvalue(1) == parentUpvalue,
                 "CLOSURE handler should reuse parent GETUPVAL captures");
@@ -1124,16 +1046,7 @@ void testCallAndReturnHandlersExecuteDirectly(TestSuite& suite) {
 
         Value* base = &stack[ci.base];
         usize pc = 1;
-        VM::OpExecutionContext context{
-            services,
-            L,
-            &callerFunc,
-            &callerProto,
-            base,
-            pc,
-            0,
-            1
-        };
+        VM::OpExecutionContext context{services, L, &callerFunc, &callerProto, base, pc, 0, 1};
 
         VM::HandlerStatus status = VM::runHandler(context, CREATE_ABC(OpCode::CALL, 0, 2, 2));
         ASSERT_EQ(suite, static_cast<int>(VM::HandlerStatus::Continue), static_cast<int>(status),
@@ -1179,23 +1092,13 @@ void testCallAndReturnHandlersExecuteDirectly(TestSuite& suite) {
 
         Value* base = &stack[callerCI.base];
         usize pc = 1;
-        VM::OpExecutionContext context{
-            services,
-            L,
-            &callerFunc,
-            &callerProto,
-            base,
-            pc,
-            0,
-            1
-        };
+        VM::OpExecutionContext context{services, L, &callerFunc, &callerProto, base, pc, 0, 1};
 
         VM::HandlerStatus status = VM::runHandler(context, CREATE_ABC(OpCode::CALL, 0, 1, 1));
         ASSERT_EQ(suite, static_cast<int>(VM::HandlerStatus::Reenter), static_cast<int>(status),
                   "CALL handler should request reentry after a Lua call");
         ASSERT_EQ(suite, 2, context.nexeccalls, "CALL handler should increment Lua call depth");
-        ASSERT_EQ(suite, 2, static_cast<int>(L->getCallStackSize()),
-                  "CALL handler should push a Lua CallInfo");
+        ASSERT_EQ(suite, 2, static_cast<int>(L->getCallStackSize()), "CALL handler should push a Lua CallInfo");
         ASSERT_TRUE(suite, L->getCallStack()[0].savedpc == callerProto.getCode().data() + pc,
                     "CALL handler should save the caller pc before entering Lua");
         const CallInfo& calleeCI = L->getCurrentCallInfo();
@@ -1232,22 +1135,12 @@ void testCallAndReturnHandlersExecuteDirectly(TestSuite& suite) {
 
         Value* base = &stack[ci.base];
         usize pc = 1;
-        VM::OpExecutionContext context{
-            services,
-            L,
-            &callerFunc,
-            &callerProto,
-            base,
-            pc,
-            0,
-            3
-        };
+        VM::OpExecutionContext context{services, L, &callerFunc, &callerProto, base, pc, 0, 3};
 
         VM::HandlerStatus status = VM::runHandler(context, CREATE_ABC(OpCode::CALL, 0, 1, 1));
         ASSERT_EQ(suite, static_cast<int>(VM::HandlerStatus::Yielded), static_cast<int>(status),
                   "CALL handler should surface yielded C calls");
-        ASSERT_EQ(suite, 3, L->getSavedNexeccalls(),
-                  "CALL handler should save call depth when yielding");
+        ASSERT_EQ(suite, 3, L->getSavedNexeccalls(), "CALL handler should save call depth when yielding");
 
         delete L;
     }
@@ -1282,16 +1175,7 @@ void testCallAndReturnHandlersExecuteDirectly(TestSuite& suite) {
 
         Value* base = &stack[ci.base];
         usize pc = 1;
-        VM::OpExecutionContext context{
-            services,
-            L,
-            &callerFunc,
-            &callerProto,
-            base,
-            pc,
-            0,
-            4
-        };
+        VM::OpExecutionContext context{services, L, &callerFunc, &callerProto, base, pc, 0, 4};
 
         VM::HandlerStatus status = VM::runHandler(context, CREATE_ABC(OpCode::TAILCALL, 0, 1, 0));
         ASSERT_EQ(suite, static_cast<int>(VM::HandlerStatus::Reenter), static_cast<int>(status),
@@ -1301,8 +1185,7 @@ void testCallAndReturnHandlersExecuteDirectly(TestSuite& suite) {
         const CallInfo& reusedCI = L->getCurrentCallInfo();
         ASSERT_EQ(suite, 0, static_cast<int>(reusedCI.func),
                   "TAILCALL handler should move the callee into the caller function slot");
-        ASSERT_EQ(suite, 3, reusedCI.tailcalls,
-                  "TAILCALL handler should increment the reused frame tailcall count");
+        ASSERT_EQ(suite, 3, reusedCI.tailcalls, "TAILCALL handler should increment the reused frame tailcall count");
         ASSERT_TRUE(suite, stack[reusedCI.func].isFunction() && stack[reusedCI.func].asFunction() == &calleeFunc,
                     "TAILCALL handler should preserve the callee function in the reused frame");
 
@@ -1333,16 +1216,7 @@ void testCallAndReturnHandlersExecuteDirectly(TestSuite& suite) {
 
         Value* base = &stack[ci.base];
         usize pc = 0;
-        VM::OpExecutionContext context{
-            services,
-            L,
-            &func,
-            &proto,
-            base,
-            pc,
-            0,
-            1
-        };
+        VM::OpExecutionContext context{services, L, &func, &proto, base, pc, 0, 1};
 
         VM::HandlerStatus status = VM::runHandler(context, CREATE_ABC(OpCode::RETURN, 0, 2, 0));
         ASSERT_EQ(suite, static_cast<int>(VM::HandlerStatus::Returned), static_cast<int>(status),
@@ -1359,7 +1233,50 @@ void testCallAndReturnHandlersExecuteDirectly(TestSuite& suite) {
     services.gc.clearAll();
 }
 
-}  // namespace
+void testPostcallReleasesConsumedGcRoots(TestSuite& suite) {
+    EngineContext context;
+    RuntimeServices services = context.services();
+    LuaState* L = LuaState::newState(context);
+    GarbageCollector& gc = context.gc();
+    const usize prefixTop = L->getAbsoluteTop();
+
+    Function* zeroResultFunction = gc.create<Function>(createTransientAndReturnNothing);
+    L->setGlobal("postcall_zero_result", Value(zeroResultFunction));
+    L->pushFunction(zeroResultFunction);
+    VM::call(services, L, 0, 0);
+
+    ASSERT_EQ(suite, prefixTop, L->getAbsoluteTop(), "zero-result C call consumes its function and temporaries");
+    const usize zeroResultCollected = gc.collect(L);
+    ASSERT_TRUE(suite, zeroResultCollected >= 1,
+                "wide GC reclaims a temporary table discarded by a zero-result C call");
+    ASSERT_TRUE(suite, gc.getObjectCount() < gPostcallObjectCount,
+                "discarded zero-result values do not remain stale stack roots");
+
+    Function* oneResultFunction = gc.create<Function>(createTwoTablesAndReturnLast);
+    L->setGlobal("postcall_one_result", Value(oneResultFunction));
+    L->pushFunction(oneResultFunction);
+    VM::call(services, L, 0, 1);
+
+    ASSERT_EQ(suite, prefixTop + 1, L->getAbsoluteTop(), "one-result C call publishes exactly one value");
+    ASSERT_TRUE(suite, L->top().isTable() && L->top().asTable() == gPostcallReturnedTable,
+                "postcall preserves the selected result while compacting overlapping slots");
+    const usize oneResultCollected = gc.collect(L);
+    ASSERT_TRUE(suite, oneResultCollected >= 1,
+                "wide GC reclaims the surplus table while the selected result remains rooted");
+    ASSERT_TRUE(suite, L->top().isTable() && L->top().asTable() == gPostcallReturnedTable,
+                "postcall cleanup does not clear the retained result");
+
+    L->getStack()[prefixTop] = Value();
+    L->setAbsoluteTop(prefixTop);
+    ASSERT_TRUE(suite, gc.collect(L) >= 1, "the retained result becomes collectible after its logical slot is cleared");
+
+    delete L;
+    context.gc().clearAll(context.strings());
+    gPostcallReturnedTable = nullptr;
+    gPostcallObjectCount = 0;
+}
+
+} // namespace
 
 void registerVMDispatchTests() {
     auto& registry = TestRegistry::getInstance();
@@ -1370,24 +1287,18 @@ void registerVMDispatchTests() {
     registry.registerTest(kSuiteName, "Default Dispatch Strategy Is Switch", testDefaultDispatchStrategyIsSwitch);
     registry.registerTest(kSuiteName, "RuntimeServices Can Inject Dispatch Strategy",
                           testRuntimeServicesCanInjectDispatchStrategy);
-    registry.registerTest(kSuiteName, "Table Dispatch Strategy Is Available",
-                          testTableDispatchStrategyIsAvailable);
-    registry.registerTest(kSuiteName, "Table Dispatch Executes Compiled Chunk",
-                          testTableDispatchExecutesCompiledChunk);
+    registry.registerTest(kSuiteName, "Table Dispatch Strategy Is Available", testTableDispatchStrategyIsAvailable);
+    registry.registerTest(kSuiteName, "Table Dispatch Executes Compiled Chunk", testTableDispatchExecutesCompiledChunk);
     registry.registerTest(kSuiteName, "Switch Dispatch Helpers Cover Opcode Space",
                           testSwitchDispatchHelpersCoverOpcodeSpace);
     registry.registerTest(kSuiteName, "Handler Table Covers Opcode Space", testHandlerTableCoversOpcodeSpace);
-    registry.registerTest(kSuiteName, "Handlers Cover Migrated Opcodes",
-                          testHandlersCoverMigratedOpcodes);
+    registry.registerTest(kSuiteName, "Handlers Cover Migrated Opcodes", testHandlersCoverMigratedOpcodes);
     registry.registerTest(kSuiteName, "Data Move Handlers Execute Directly", testDataMoveHandlersExecuteDirectly);
     registry.registerTest(kSuiteName, "Global And Upvalue Handlers Execute Directly",
                           testGlobalAndUpvalueHandlersExecuteDirectly);
-    registry.registerTest(kSuiteName, "Table Handlers Execute Directly",
-                          testTableHandlersExecuteDirectly);
-    registry.registerTest(kSuiteName, "Arithmetic Handlers Execute Directly",
-                          testArithmeticHandlersExecuteDirectly);
-    registry.registerTest(kSuiteName, "Unary Handlers Execute Directly",
-                          testUnaryHandlersExecuteDirectly);
+    registry.registerTest(kSuiteName, "Table Handlers Execute Directly", testTableHandlersExecuteDirectly);
+    registry.registerTest(kSuiteName, "Arithmetic Handlers Execute Directly", testArithmeticHandlersExecuteDirectly);
+    registry.registerTest(kSuiteName, "Unary Handlers Execute Directly", testUnaryHandlersExecuteDirectly);
     registry.registerTest(kSuiteName, "Branch And Comparison Handlers Execute Directly",
                           testBranchAndComparisonHandlersExecuteDirectly);
     registry.registerTest(kSuiteName, "Loop And Close Handlers Execute Directly",
@@ -1396,4 +1307,5 @@ void registerVMDispatchTests() {
                           testClosureAndVarargHandlersExecuteDirectly);
     registry.registerTest(kSuiteName, "Call And Return Handlers Execute Directly",
                           testCallAndReturnHandlersExecuteDirectly);
+    registry.registerTest(kSuiteName, "Postcall Releases Consumed GC Roots", testPostcallReleasesConsumedGcRoots);
 }

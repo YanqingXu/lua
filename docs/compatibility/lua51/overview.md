@@ -64,12 +64,18 @@ finalizer 的队列与执行时机、弱表清理顺序和字符串驻留都可�
 官方套件分为两个不能混称的通道：
 
 - `official-smoke` 通过 `lua_test --filter "Lua 5.1 Official Smoke"` 执行受控、分阶段的快速验证。它会缩减压力并拆分脚本，全部改写登记在 `tests/compatibility/lua51-official-smoke-deviations.json`；“外部 skip 表为 0”不代表 upstream 原样全量通过。
-- `official-strict` 通过 `tools/run_lua51_official_strict.ps1` 在临时目录执行 SHA-256 清单锁定的原样 `all.lua`。该通道禁止源码改写；当前结果是明确 XFAIL，记录在 `tests/compatibility/lua51-official-strict-xfails.json`。
-- `official-testc` 显式打开项目内部 `T` 模块并实际运行原始 `code.lua`、`api.lua`。两条路径不再自跳过；当前首个差异分别登记在 `lua51-official-testc-xfails.json`。
-- `official-slow` 单独运行 `sort.lua` 与 `verybig.lua`：前者通过，后者以独立超时记录在 `lua51-official-slow-xfails.json`。
+- `official-strict` 通过 `tools/run_lua51_official_strict.ps1` 在临时目录执行 SHA-256 清单锁定的原样 `all.lua`。该通道禁止源码改写；当前唯一接受的 XFAIL 是 300 秒 timeout，崩溃或任意非零退出都会让门禁失败，记录在 `tests/compatibility/lua51-official-strict-xfails.json`，并由 [#3](https://github.com/YanqingXu/lua/issues/3) 跟踪。
+- `official-testc` 显式打开项目内部 `T` 模块并实际运行原始 `code.lua`、`api.lua`，两条路径都不再自跳过。`api.lua` 已 exact PASS；`code.lua` 是该通道唯一 XFAIL，登记在 `lua51-official-testc-xfails.json`。
+- `official-slow` 单独运行未经改写的 `sort.lua` 与 `verybig.lua`，两者现在都是 CI required gate；`lua51-official-slow-xfails.json` 保留合法空清单，防止已修复的超时被重新接受为 XFAIL。
 - `lua51-differential` 使用官方 Lua 5.1 和本解释器运行同一批探针，比较 stdout、stderr、退出码，并在 stdout 中编码返回类型、错误类别与 GC 弱引用副作用。
 
-因此当前准确结论是：Lua 5.1 官方套件 staged smoke 在受控改写和压力缩减条件下通过；尚未达到 upstream 原样全量执行。
+因此当前准确结论是：Lua 5.1 官方套件 staged smoke 在受控改写和压力缩减条件下通过，原始 TestC `api.lua` 已完整执行到 `OK`，slow `sort.lua`/`verybig.lua` 均为必过门禁且没有 XFAIL；strict `all.lua` 仍有独立 XFAIL，所以尚未达到 upstream 原样全量执行。
+
+### TestC 当前差异
+
+TestC XFAIL 清单现在只有 `code.lua-opcode-sequence`。首个失败是锁定脚本的 “sequence of LOADNILs” 用例：fixture 只接受 `RETURN`，项目当前输出以及 Lua 5.1.5 `luac` 对照都是 `LOADNIL/LOADNIL/RETURN`。测试在原始脚本执行期间精确锁定第八次 opcode 比较及其 `expected RETURN / actual LOADNIL` 诊断；其他 `assert` 失败不能冒充这条 XFAIL。当前把它归类为测试源/字节码 oracle 的版本不一致，而不是已接受的运行时语义差异；应先确认 fixture 与 oracle 的适用版本，再决定调整测试来源还是实现。
+
+截至 2026-07-13，strict timeout 由 [#3](https://github.com/YanqingXu/lua/issues/3) 跟踪，TestC `code.lua` 的 fixture/oracle 差异由 [#4](https://github.com/YanqingXu/lua/issues/4) 跟踪；两个 manifest 都保存真实公开 URL。`api.lua` 过去的 stack-shape XFAIL 已因 exact PASS 从清单移除。
 
 1. strict official Lua 脚本验证规范行为，不修改预期来迎合实现；smoke 的任何改写必须登记 deviation。
 2. unit tests 锁定 C++ 内部不变量，如 opcode 双向覆盖、frame 窗口与错误对象保留。

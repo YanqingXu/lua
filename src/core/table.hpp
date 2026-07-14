@@ -246,7 +246,7 @@ public:
      *
      * @param mt 元表指针，可以为nullptr（表示移除元表）
      */
-    void setMetatable(Table* mt) noexcept;
+    void setMetatable(Table* mt);
 
     /**
      * @brief 获取元方法缓存标志位

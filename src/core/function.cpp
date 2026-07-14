@@ -31,6 +31,13 @@ Proto::~Proto() {
     // 常量表中的GC对象由GC系统管理，这里不需要手动删除
 }
 
+void Proto::setSource(GCString* src) {
+    if (GarbageCollector* gc = getOwnerCollector()) {
+        gc->writeBarrier(this, src);
+    }
+    source_ = src;
+}
+
 usize Proto::addConstant(const Value& value) {
     // =====================================================================
     // 常量去重逻辑（参考Lua 5.1的addk()函数）
@@ -55,20 +62,38 @@ usize Proto::addConstant(const Value& value) {
         }
         // 常量不存在，添加新条目
         usize index = constants_.size();
+        if (GarbageCollector* gc = getOwnerCollector()) {
+            gc->writeBarrier(this, value);
+        }
         constants_.push_back(value);
+        if (GarbageCollector* gc = getOwnerCollector()) {
+            gc->accountObjectSizeChange(this);
+        }
         constantMap_.emplace(key, index);
         return index;
     }
 
     // 非常量类型（table/function等）不参与去重，直接添加
     usize index = constants_.size();
+    if (GarbageCollector* gc = getOwnerCollector()) {
+        gc->writeBarrier(this, value);
+    }
     constants_.push_back(value);
+    if (GarbageCollector* gc = getOwnerCollector()) {
+        gc->accountObjectSizeChange(this);
+    }
     return index;
 }
 
 usize Proto::appendConstantSlot(const Value& value) {
     usize index = constants_.size();
+    if (GarbageCollector* gc = getOwnerCollector()) {
+        gc->writeBarrier(this, value);
+    }
     constants_.push_back(value);
+    if (GarbageCollector* gc = getOwnerCollector()) {
+        gc->accountObjectSizeChange(this);
+    }
 
     if (value.isNil() || value.isBoolean() || value.isNumber() || value.isString()) {
         ConstantKey key = ConstantKey::fromValue(value);
@@ -95,6 +120,9 @@ Value Proto::getConstant(usize index) const {
 
 usize Proto::addInstruction(Instruction inst) {
     code_.push_back(inst);
+    if (GarbageCollector* gc = getOwnerCollector()) {
+        gc->accountObjectSizeChange(this);
+    }
     return code_.size() - 1;
 }
 
@@ -114,6 +142,9 @@ void Proto::setInstruction(usize index, Instruction inst) {
 
 void Proto::addLineInfo(i32 line) {
     lineInfo_.push_back(line);
+    if (GarbageCollector* gc = getOwnerCollector()) {
+        gc->accountObjectSizeChange(this);
+    }
 }
 
 i32 Proto::getLine(usize pc) const {
@@ -124,7 +155,13 @@ i32 Proto::getLine(usize pc) const {
 }
 
 usize Proto::addProto(Proto* proto) {
+    if (GarbageCollector* gc = getOwnerCollector()) {
+        gc->writeBarrier(this, proto);
+    }
     subProtos_.push_back(proto);
+    if (GarbageCollector* gc = getOwnerCollector()) {
+        gc->accountObjectSizeChange(this);
+    }
     return subProtos_.size() - 1;
 }
 
@@ -140,7 +177,13 @@ Proto* Proto::getSubProto(usize index) const {
 // =====================================================================
 
 usize Proto::addLocVar(GCString* varname, i32 startpc, i32 endpc, i32 reg) {
+    if (GarbageCollector* gc = getOwnerCollector()) {
+        gc->writeBarrier(this, varname);
+    }
     locvars_.emplace_back(varname, startpc, endpc, reg);
+    if (GarbageCollector* gc = getOwnerCollector()) {
+        gc->accountObjectSizeChange(this);
+    }
     return locvars_.size() - 1;
 }
 
@@ -179,7 +222,13 @@ const char* Proto::getLocalName(i32 localNumber, i32 pc) const {
 // =====================================================================
 
 usize Proto::addUpvalueName(GCString* name) {
+    if (GarbageCollector* gc = getOwnerCollector()) {
+        gc->writeBarrier(this, name);
+    }
     upvalueNames_.push_back(name);
+    if (GarbageCollector* gc = getOwnerCollector()) {
+        gc->accountObjectSizeChange(this);
+    }
     return upvalueNames_.size() - 1;
 }
 
@@ -286,11 +335,14 @@ void Function::addUpvalue(Upvalue* upvalue) {
         gc->writeBarrier(this, upvalue);
     }
     upvalues_.push_back(upvalue);
+    if (GarbageCollector* gc = getOwnerCollector()) {
+        gc->accountObjectSizeChange(this);
+    }
     // 同步nupvalues_字段（ClosureHeader字段）
     nupvalues_ = static_cast<u8>(upvalues_.size());
 }
 
-void Function::setEnv(Table* env) noexcept {
+void Function::setEnv(Table* env) {
     if (GarbageCollector* gc = getOwnerCollector()) {
         gc->writeBarrier(this, env);
     }

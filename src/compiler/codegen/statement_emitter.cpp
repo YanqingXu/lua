@@ -98,38 +98,40 @@ bool receiverTableName(const Expr& targetExpr, const Str*& name) {
 }
 
 void collectExprReads(const Expr& expr, HashSet<Str>& reads) {
-    std::visit([&](const auto& node) {
-        using Node = std::decay_t<decltype(node)>;
-        if constexpr (std::is_same_v<Node, NameExpr>) {
-            reads.insert(node.name);
-        } else if constexpr (std::is_same_v<Node, BinaryExpr>) {
-            collectExprReads(*node.left, reads);
-            collectExprReads(*node.right, reads);
-        } else if constexpr (std::is_same_v<Node, UnaryExpr>) {
-            collectExprReads(*node.operand, reads);
-        } else if constexpr (std::is_same_v<Node, TableExpr>) {
-            for (const TableField& field : node.fields) {
-                if (field.key != nullptr) {
-                    collectExprReads(*field.key, reads);
+    std::visit(
+        [&](const auto& node) {
+            using Node = std::decay_t<decltype(node)>;
+            if constexpr (std::is_same_v<Node, NameExpr>) {
+                reads.insert(node.name);
+            } else if constexpr (std::is_same_v<Node, BinaryExpr>) {
+                collectExprReads(*node.left, reads);
+                collectExprReads(*node.right, reads);
+            } else if constexpr (std::is_same_v<Node, UnaryExpr>) {
+                collectExprReads(*node.operand, reads);
+            } else if constexpr (std::is_same_v<Node, TableExpr>) {
+                for (const TableField& field : node.fields) {
+                    if (field.key != nullptr) {
+                        collectExprReads(*field.key, reads);
+                    }
+                    collectExprReads(*field.value, reads);
                 }
-                collectExprReads(*field.value, reads);
+            } else if constexpr (std::is_same_v<Node, CallExpr>) {
+                collectExprReads(*node.func, reads);
+                for (const auto& arg : node.args) {
+                    collectExprReads(*arg, reads);
+                }
+            } else if constexpr (std::is_same_v<Node, IndexExpr>) {
+                collectExprReads(*node.table, reads);
+                collectExprReads(*node.index, reads);
+            } else if constexpr (std::is_same_v<Node, MemberExpr>) {
+                collectExprReads(*node.table, reads);
+            } else if constexpr (std::is_same_v<Node, FunctionExpr>) {
+                collectStmtListReads(node.body, reads);
+            } else if constexpr (std::is_same_v<Node, ParenExpr>) {
+                collectExprReads(*node.expression, reads);
             }
-        } else if constexpr (std::is_same_v<Node, CallExpr>) {
-            collectExprReads(*node.func, reads);
-            for (const auto& arg : node.args) {
-                collectExprReads(*arg, reads);
-            }
-        } else if constexpr (std::is_same_v<Node, IndexExpr>) {
-            collectExprReads(*node.table, reads);
-            collectExprReads(*node.index, reads);
-        } else if constexpr (std::is_same_v<Node, MemberExpr>) {
-            collectExprReads(*node.table, reads);
-        } else if constexpr (std::is_same_v<Node, FunctionExpr>) {
-            collectStmtListReads(node.body, reads);
-        } else if constexpr (std::is_same_v<Node, ParenExpr>) {
-            collectExprReads(*node.expression, reads);
-        }
-    }, expr.variant);
+        },
+        expr.variant);
 }
 
 void collectAssignTargetReads(const Expr& target, HashSet<Str>& reads) {
@@ -140,74 +142,71 @@ void collectAssignTargetReads(const Expr& target, HashSet<Str>& reads) {
 }
 
 void collectStmtReads(const Stmt& stmt, HashSet<Str>& reads) {
-    std::visit([&](const auto& node) {
-        using Node = std::decay_t<decltype(node)>;
-        if constexpr (std::is_same_v<Node, AssignStmt>) {
-            for (const auto& target : node.targets) {
-                collectAssignTargetReads(*target, reads);
+    std::visit(
+        [&](const auto& node) {
+            using Node = std::decay_t<decltype(node)>;
+            if constexpr (std::is_same_v<Node, AssignStmt>) {
+                for (const auto& target : node.targets) {
+                    collectAssignTargetReads(*target, reads);
+                }
+                for (const auto& value : node.values) {
+                    collectExprReads(*value, reads);
+                }
+            } else if constexpr (std::is_same_v<Node, LocalStmt>) {
+                for (const auto& value : node.values) {
+                    collectExprReads(*value, reads);
+                }
+            } else if constexpr (std::is_same_v<Node, CallStmt>) {
+                collectExprReads(*node.call, reads);
+            } else if constexpr (std::is_same_v<Node, IfStmt>) {
+                for (const auto& branch : node.branches) {
+                    collectExprReads(*branch.condition, reads);
+                    collectStmtListReads(branch.body, reads);
+                }
+                collectStmtListReads(node.elseBranch, reads);
+            } else if constexpr (std::is_same_v<Node, WhileStmt>) {
+                collectExprReads(*node.condition, reads);
+                collectStmtListReads(node.body, reads);
+            } else if constexpr (std::is_same_v<Node, RepeatStmt>) {
+                collectStmtListReads(node.body, reads);
+                collectExprReads(*node.condition, reads);
+            } else if constexpr (std::is_same_v<Node, ForNumStmt>) {
+                collectExprReads(*node.init, reads);
+                collectExprReads(*node.limit, reads);
+                if (node.step != nullptr) {
+                    collectExprReads(*node.step, reads);
+                }
+                collectStmtListReads(node.body, reads);
+            } else if constexpr (std::is_same_v<Node, ForInStmt>) {
+                for (const auto& iterator : node.iterators) {
+                    collectExprReads(*iterator, reads);
+                }
+                collectStmtListReads(node.body, reads);
+            } else if constexpr (std::is_same_v<Node, FunctionStmt>) {
+                if (!node.isLocal) {
+                    reads.insert(node.name);
+                }
+                collectStmtListReads(node.body, reads);
+            } else if constexpr (std::is_same_v<Node, ReturnStmt>) {
+                for (const auto& value : node.values) {
+                    collectExprReads(*value, reads);
+                }
+            } else if constexpr (std::is_same_v<Node, DoStmt>) {
+                collectStmtListReads(node.body, reads);
             }
-            for (const auto& value : node.values) {
-                collectExprReads(*value, reads);
-            }
-        } else if constexpr (std::is_same_v<Node, LocalStmt>) {
-            for (const auto& value : node.values) {
-                collectExprReads(*value, reads);
-            }
-        } else if constexpr (std::is_same_v<Node, CallStmt>) {
-            collectExprReads(*node.call, reads);
-        } else if constexpr (std::is_same_v<Node, IfStmt>) {
-            for (const auto& branch : node.branches) {
-                collectExprReads(*branch.condition, reads);
-                collectStmtListReads(branch.body, reads);
-            }
-            collectStmtListReads(node.elseBranch, reads);
-        } else if constexpr (std::is_same_v<Node, WhileStmt>) {
-            collectExprReads(*node.condition, reads);
-            collectStmtListReads(node.body, reads);
-        } else if constexpr (std::is_same_v<Node, RepeatStmt>) {
-            collectStmtListReads(node.body, reads);
-            collectExprReads(*node.condition, reads);
-        } else if constexpr (std::is_same_v<Node, ForNumStmt>) {
-            collectExprReads(*node.init, reads);
-            collectExprReads(*node.limit, reads);
-            if (node.step != nullptr) {
-                collectExprReads(*node.step, reads);
-            }
-            collectStmtListReads(node.body, reads);
-        } else if constexpr (std::is_same_v<Node, ForInStmt>) {
-            for (const auto& iterator : node.iterators) {
-                collectExprReads(*iterator, reads);
-            }
-            collectStmtListReads(node.body, reads);
-        } else if constexpr (std::is_same_v<Node, FunctionStmt>) {
-            if (!node.isLocal) {
-                reads.insert(node.name);
-            }
-            collectStmtListReads(node.body, reads);
-        } else if constexpr (std::is_same_v<Node, ReturnStmt>) {
-            for (const auto& value : node.values) {
-                collectExprReads(*value, reads);
-            }
-        } else if constexpr (std::is_same_v<Node, DoStmt>) {
-            collectStmtListReads(node.body, reads);
-        }
-    }, stmt.variant);
+        },
+        stmt.variant);
 }
 
 bool isFutureRead(const HashSet<Str>* reads, const Str& name) {
     return reads != nullptr && reads->find(name) != reads->end();
 }
 
-}  // namespace
+} // namespace
 
 StatementEmitter::StatementEmitter(CodeGenerator& owner) noexcept
-    : owner_(owner)
-    , state_(owner.state_)
-    , ops_(owner.ops_)
-    , jumps_(owner.jumps_)
-    , scopes_(owner.scopes_)
-    , binder_(owner.binder_)
-    , expressions_(owner.expressions_) {}
+    : owner_(owner), state_(owner.state_), ops_(owner.ops_), jumps_(owner.jumps_), scopes_(owner.scopes_),
+      binder_(owner.binder_), expressions_(owner.expressions_) {}
 
 i32 StatementEmitter::codeABC(OpCode op, i32 a, i32 b, i32 c) {
     return ops_.codeABC(op, a, b, c);
@@ -349,8 +348,7 @@ void StatementEmitter::closeScopeUpvalues(i32 level) {
     scopes_.closeScopeUpvalues(level);
 }
 
-CompiledFunction StatementEmitter::compileFunction(const Vec<Str>& params, bool isVararg,
-                                                   const Vec<StmtPtr>& body,
+CompiledFunction StatementEmitter::compileFunction(const Vec<Str>& params, bool isVararg, const Vec<StmtPtr>& body,
                                                    i32 linedefined, i32 lastlinedefined) {
     return owner_.compileFunction(params, isVararg, body, linedefined, lastlinedefined);
 }
@@ -761,6 +759,10 @@ void StatementEmitter::emitStmt(const ReturnStmt& s) {
             ValueResult val = emitValue(*s.values[i]);
             val = forceSingleValue(val);
             materializeValue(val, base + i);
+            // Keep each already-materialized return value below the next
+            // expression's scratch range. Calls may otherwise reuse `base`
+            // and overwrite earlier results before RETURN consumes them.
+            ops_.setFreeRegAndCheck(base + i + 1);
         }
 
         ops_.setFreeReg(base + (nret - 1));
@@ -1145,4 +1147,4 @@ void StatementEmitter::block(const Vec<StmtPtr>& stmts) {
     removeLocalVars(oldActiveVarCount);
 }
 
-}  // namespace Lua
+} // namespace Lua

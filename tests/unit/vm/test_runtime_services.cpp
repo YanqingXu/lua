@@ -8,6 +8,7 @@
 #include "compiler/codegen/codegen.hpp"
 #include "compiler/parser/parser.hpp"
 #include "core/function.hpp"
+#include "core/thread.hpp"
 #include "runtime/runtime_services.hpp"
 #include "vm/state/lua_state.hpp"
 #include "vm/vm_internal.hpp"
@@ -49,7 +50,7 @@ Function* createFunction(RuntimeServices& services, LuaState* L, Proto* proto) {
 GarbageCollector& legacyGarbageCollectorForRuntimeServicesTest() {
 #if defined(_MSC_VER)
 #pragma warning(push)
-#pragma warning(disable: 4996)
+#pragma warning(disable : 4996)
 #elif defined(__clang__) || defined(__GNUC__)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
@@ -90,7 +91,7 @@ void prepareLuaCallFrame(LuaState* L, Function* func) {
     L->setAbsoluteTop(requiredTop);
 }
 
-}  // namespace
+} // namespace
 
 void testRuntimeServicesExposeSingletonCompatibilityLayer(TestSuite& suite) {
     RuntimeServices services = RuntimeServices::fromSingletons();
@@ -110,24 +111,18 @@ void testEngineContextOwnsIsolatedRuntimeServices(TestSuite& suite) {
 
     ASSERT_TRUE(suite, &first.globalState() != &GlobalState::getInstance(),
                 "engine context global state is not the singleton");
-    ASSERT_TRUE(suite, &first.globalState() != &second.globalState(),
-                "engine contexts own distinct global states");
-    ASSERT_TRUE(suite, &first.strings() != &second.strings(),
-                "engine contexts own distinct string pools");
+    ASSERT_TRUE(suite, &first.globalState() != &second.globalState(), "engine contexts own distinct global states");
+    ASSERT_TRUE(suite, &first.strings() != &second.strings(), "engine contexts own distinct string pools");
     ASSERT_TRUE(suite, &first.gc() != &second.gc(), "engine contexts own distinct collectors");
-    ASSERT_TRUE(suite, &firstServices.globalState == &first.globalState(),
-                "services expose context global state");
-    ASSERT_TRUE(suite, &firstServices.strings == &first.strings(),
-                "services expose context string pool");
+    ASSERT_TRUE(suite, &firstServices.globalState == &first.globalState(), "services expose context global state");
+    ASSERT_TRUE(suite, &firstServices.strings == &first.strings(), "services expose context string pool");
     ASSERT_TRUE(suite, &firstServices.gc == &first.gc(), "services expose context collector");
-    ASSERT_TRUE(suite, &secondServices.globalState == &second.globalState(),
-                "second services expose second context");
+    ASSERT_TRUE(suite, &secondServices.globalState == &second.globalState(), "second services expose second context");
 
     GCString* firstString = first.strings().intern("isolated");
     GCString* secondString = second.strings().intern("isolated");
 
-    ASSERT_TRUE(suite, firstString != secondString,
-                "same text interns to distinct objects in isolated contexts");
+    ASSERT_TRUE(suite, firstString != secondString, "same text interns to distinct objects in isolated contexts");
     ASSERT_TRUE(suite, firstString->getOwnerCollector() == &first.gc(),
                 "first context string belongs to first collector");
     ASSERT_TRUE(suite, secondString->getOwnerCollector() == &second.gc(),
@@ -138,8 +133,7 @@ void testLuaStateNewStateAcceptsEngineContext(TestSuite& suite) {
     EngineContext context;
     LuaState* L = LuaState::newState(context);
 
-    ASSERT_TRUE(suite, &L->getGlobalState() == &context.globalState(),
-                "newState(context) uses context global state");
+    ASSERT_TRUE(suite, &L->getGlobalState() == &context.globalState(), "newState(context) uses context global state");
     ASSERT_TRUE(suite, context.globalState().getMainThread() == L,
                 "newState(context) registers the main thread in the context");
     ASSERT_TRUE(suite, L->getGlobalTable() != nullptr, "newState(context) creates a global table");
@@ -159,8 +153,7 @@ void testLuaStateCreateReturnsOwningState(TestSuite& suite) {
     UPtr<LuaState> L = LuaState::create(context);
 
     ASSERT_TRUE(suite, L != nullptr, "create(context) returns an owning state");
-    ASSERT_TRUE(suite, &L->getGlobalState() == &context.globalState(),
-                "create(context) uses context global state");
+    ASSERT_TRUE(suite, &L->getGlobalState() == &context.globalState(), "create(context) uses context global state");
     ASSERT_TRUE(suite, context.globalState().getMainThread() == L.get(),
                 "create(context) registers the main thread in the context");
 
@@ -188,7 +181,8 @@ void testLuaStateAndVmAcceptRuntimeServices(TestSuite& suite) {
     VM::execute(services, L, func);
 
     ASSERT_TRUE(suite, L->top().isString(), "context-aware vm leaves string result");
-    ASSERT_EQ(suite, std::string("runtime"), std::string(L->top().asString()->c_str()), "context-aware vm executes concat");
+    ASSERT_EQ(suite, std::string("runtime"), std::string(L->top().asString()->c_str()),
+              "context-aware vm executes concat");
 
     delete L;
 }
@@ -196,10 +190,8 @@ void testLuaStateAndVmAcceptRuntimeServices(TestSuite& suite) {
 void testNestedFunctionsUseContextStringPool(TestSuite& suite) {
     EngineContext context;
     RuntimeServices services = context.services();
-    Proto* proto = compileChunk(
-        services,
-        "limit = 7\nfunction nested() return limit <= 8 end\nreturn nested()",
-        "=(runtime_services_nested)");
+    Proto* proto = compileChunk(services, "limit = 7\nfunction nested() return limit <= 8 end\nreturn nested()",
+                                "=(runtime_services_nested)");
 
     LuaState* L = LuaState::newState(context);
     Function* func = createFunction(services, L, proto);
@@ -213,12 +205,36 @@ void testNestedFunctionsUseContextStringPool(TestSuite& suite) {
     context.gc().clearAll(context.strings());
 }
 
+void testCoroutineResumeUsesContextRuntimeServices(TestSuite& suite) {
+    EngineContext context;
+    RuntimeServices services = context.services();
+    Proto* proto = compileChunk(services, "return 'co' .. 'ntext'", "=(runtime_services_coroutine)");
+
+    LuaState* L = LuaState::newState(context);
+    Function* function = createFunction(services, L, proto);
+    Thread* thread = Thread::create(L, function);
+    L->pushValue(Value(thread));
+    const usize prefixTop = L->getAbsoluteTop();
+
+    const bool resumed = thread->resume(L, 0);
+
+    ASSERT_TRUE(suite, resumed, "isolated-context coroutine resumes successfully");
+    ASSERT_TRUE(suite, thread->isDead(), "isolated-context coroutine reaches its return");
+    ASSERT_EQ(suite, prefixTop + 2, L->getAbsoluteTop(),
+              "coroutine resume preserves its thread prefix and publishes two results");
+    ASSERT_TRUE(suite, L->top().isString(), "isolated-context coroutine returns a string");
+    ASSERT_EQ(suite, std::string("context"), std::string(L->top().asString()->c_str()),
+              "isolated-context coroutine executes string operations");
+    ASSERT_TRUE(suite, L->top().asString()->getOwnerCollector() == &context.gc(),
+                "coroutine result belongs to its context collector");
+
+    delete L;
+    context.gc().clearAll(context.strings());
+}
+
 void testVmTryExecuteProtoReturnsExpectedType(TestSuite& suite) {
-    using TryResult = decltype(VM::tryExecuteProto(
-        std::declval<RuntimeServices&>(),
-        std::declval<LuaState*>(),
-        std::declval<Proto*>(),
-        1));
+    using TryResult = decltype(VM::tryExecuteProto(std::declval<RuntimeServices&>(), std::declval<LuaState*>(),
+                                                   std::declval<Proto*>(), 1));
     bool hasExpectedSignature = std::is_same_v<TryResult, std::expected<ExecResult, RuntimeError>>;
     ASSERT_TRUE(suite, hasExpectedSignature, "tryExecuteProto returns expected exec result or runtime error");
 }
@@ -265,35 +281,29 @@ void testVmTryExecuteProtoReturnsRuntimeErrorOnFailure(TestSuite& suite) {
 }
 
 void testRuntimeErrorCaptureHelperMapsExpectedBoundary(TestSuite& suite) {
-    auto successful = VM::detail::captureRuntimeErrors<i32>([] {
-        return 42;
-    });
+    auto successful = VM::detail::captureRuntimeErrors<i32>([] { return 42; });
     ASSERT_TRUE(suite, successful.has_value(), "runtime capture should return successful values");
     if (successful) {
         ASSERT_EQ(suite, 42, *successful, "runtime capture should preserve successful values");
     }
 
-    auto runtimeFailure = VM::detail::captureRuntimeErrors<i32>([]() -> i32 {
-        throw RuntimeError("runtime boundary");
-    });
+    auto runtimeFailure =
+        VM::detail::captureRuntimeErrors<i32>([]() -> i32 { throw RuntimeError("runtime boundary"); });
     ASSERT_TRUE(suite, !runtimeFailure.has_value(), "runtime capture should map RuntimeError to unexpected");
     if (!runtimeFailure) {
         ASSERT_TRUE(suite, std::string(runtimeFailure.error().what()).find("runtime boundary") != std::string::npos,
                     "runtime capture should preserve RuntimeError messages");
     }
 
-    auto luaFailure = VM::detail::captureRuntimeErrors<i32>([]() -> i32 {
-        throw LuaError("lua boundary");
-    });
+    auto luaFailure = VM::detail::captureRuntimeErrors<i32>([]() -> i32 { throw LuaError("lua boundary"); });
     ASSERT_TRUE(suite, !luaFailure.has_value(), "runtime capture should map LuaError to RuntimeError");
     if (!luaFailure) {
         ASSERT_TRUE(suite, std::string(luaFailure.error().what()).find("lua boundary") != std::string::npos,
                     "runtime capture should preserve LuaError messages");
     }
 
-    auto stdFailure = VM::detail::captureRuntimeErrors<i32>([]() -> i32 {
-        throw std::logic_error("standard boundary");
-    });
+    auto stdFailure =
+        VM::detail::captureRuntimeErrors<i32>([]() -> i32 { throw std::logic_error("standard boundary"); });
     ASSERT_TRUE(suite, !stdFailure.has_value(), "runtime capture should map std::exception to RuntimeError");
     if (!stdFailure) {
         ASSERT_TRUE(suite, std::string(stdFailure.error().what()).find("standard boundary") != std::string::npos,
@@ -302,9 +312,7 @@ void testRuntimeErrorCaptureHelperMapsExpectedBoundary(TestSuite& suite) {
 
     bool rethrewBadAlloc = false;
     try {
-        (void)VM::detail::captureRuntimeErrors<i32>([]() -> i32 {
-            throw std::bad_alloc();
-        });
+        [[maybe_unused]] auto result = VM::detail::captureRuntimeErrors<i32>([]() -> i32 { throw std::bad_alloc(); });
     } catch (const std::bad_alloc&) {
         rethrewBadAlloc = true;
     }
@@ -336,12 +344,14 @@ void registerRuntimeServicesTests() {
                           testEngineContextOwnsIsolatedRuntimeServices);
     registry.registerTest(kSuiteName, "LuaState newState accepts EngineContext",
                           testLuaStateNewStateAcceptsEngineContext);
-    registry.registerTest(kSuiteName, "LuaState create returns owning state",
-                          testLuaStateCreateReturnsOwningState);
+    registry.registerTest(kSuiteName, "LuaState create returns owning state", testLuaStateCreateReturnsOwningState);
     registry.registerTest(kSuiteName, "Compiler Accepts Runtime Services", testCompilerAcceptsRuntimeServices);
-    registry.registerTest(kSuiteName, "LuaState And VM Accept Runtime Services", testLuaStateAndVmAcceptRuntimeServices);
+    registry.registerTest(kSuiteName, "LuaState And VM Accept Runtime Services",
+                          testLuaStateAndVmAcceptRuntimeServices);
     registry.registerTest(kSuiteName, "Nested functions use context string pool",
                           testNestedFunctionsUseContextStringPool);
+    registry.registerTest(kSuiteName, "Coroutine resume uses context runtime services",
+                          testCoroutineResumeUsesContextRuntimeServices);
     registry.registerTest(kSuiteName, "tryExecuteProto returns expected type",
                           testVmTryExecuteProtoReturnsExpectedType);
     registry.registerTest(kSuiteName, "tryExecuteProto returns exec result on success",

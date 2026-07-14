@@ -15,10 +15,48 @@
 #include "core/string_pool.hpp"
 #include "core/metatable.hpp"
 #include "gc/garbage_collector.hpp"
+#include <cstdlib>
 #include <iostream>
+#include <new>
 
 using namespace Lua;
 using namespace LuaTest;
+
+namespace {
+
+struct StringPoolAllocatorProbe {
+    usize allocationAttempts = 0;
+    usize liveAllocations = 0;
+    usize failOnAllocation = 0;
+};
+
+void* stringPoolTestAllocator(void* userData, void* pointer, std::size_t, std::size_t newSize) {
+    auto* probe = static_cast<StringPoolAllocatorProbe*>(userData);
+    if (newSize == 0) {
+        if (pointer != nullptr) {
+            std::free(pointer);
+            --probe->liveAllocations;
+        }
+        return nullptr;
+    }
+
+    ++probe->allocationAttempts;
+    if (probe->failOnAllocation != 0 && probe->allocationAttempts == probe->failOnAllocation) {
+        return nullptr;
+    }
+
+    if (pointer != nullptr) {
+        return std::realloc(pointer, newSize);
+    }
+
+    void* result = std::malloc(newSize);
+    if (result != nullptr) {
+        ++probe->liveAllocations;
+    }
+    return result;
+}
+
+} // namespace
 
 // =====================================================================
 // 子任务1.1：字符串表初始化测试
@@ -26,13 +64,82 @@ using namespace LuaTest;
 
 void testStringPoolResize(TestSuite& suite) {
     StringPool& pool = StringPool::getInstance();
-    
+
     // 字符串池应该已经被初始化（resize(32)在GlobalState构造函数中调用）
     // 我们只需要验证它可以正常工作
     GCString* str1 = pool.intern("test");
     GCString* str2 = pool.intern("test");
-    
+
     ASSERT_TRUE(suite, str1 == str2, "String pool should intern same strings");
+}
+
+void testStringPoolInsertionOomRollback(TestSuite& suite) {
+    StringPoolAllocatorProbe probe;
+    LuaAllocator allocator(stringPoolTestAllocator, &probe);
+
+    {
+        // Keep the pool alive while the collector releases its strings.
+        StringPool pool(&allocator);
+        GarbageCollector gc(&allocator);
+        pool.setGarbageCollector(&gc);
+        pool.resize(8);
+
+        const usize baselineLiveAllocations = probe.liveAllocations;
+        const usize baselineObjectCount = gc.getObjectCount();
+        const usize baselineMemory = gc.getAccountedMemory();
+
+        // The next allocator request creates GCString; the following request
+        // allocates the pre-reserved unordered_map node.
+        probe.failOnAllocation = probe.allocationAttempts + 2;
+        bool threwBadAlloc = false;
+        try {
+            (void)pool.intern("string-pool-insertion-oom");
+        } catch (const std::bad_alloc&) {
+            threwBadAlloc = true;
+        }
+        probe.failOnAllocation = 0;
+
+        ASSERT_TRUE(suite, threwBadAlloc, "String pool insertion should surface allocator OOM");
+        ASSERT_TRUE(suite, pool.find("string-pool-insertion-oom") == nullptr,
+                    "Failed insertion should not publish a pool entry");
+        ASSERT_EQ(suite, baselineObjectCount, gc.getObjectCount(),
+                  "Failed insertion should unregister the provisional GCString");
+        ASSERT_EQ(suite, baselineMemory, gc.getAccountedMemory(),
+                  "Failed insertion should restore GC memory accounting");
+        ASSERT_EQ(suite, baselineLiveAllocations, probe.liveAllocations,
+                  "Failed insertion should release the provisional GCString allocation");
+
+        GCString* recovered = pool.intern("string-pool-insertion-oom");
+        ASSERT_TRUE(suite, recovered == pool.intern("string-pool-insertion-oom"),
+                    "A retry after insertion OOM should preserve interning identity");
+    }
+
+    ASSERT_EQ(suite, static_cast<usize>(0), probe.liveAllocations,
+              "String pool and collector destruction should release allocator blocks");
+}
+
+void testStringPoolRemoveChecksObjectIdentity(TestSuite& suite) {
+    // Two independent pools legitimately own distinct objects with the same
+    // contents. Removing the foreign object must not erase the local entry.
+    StringPool primaryPool;
+    GarbageCollector primaryGc;
+    primaryPool.setGarbageCollector(&primaryGc);
+
+    StringPool foreignPool;
+    GarbageCollector foreignGc;
+    foreignPool.setGarbageCollector(&foreignGc);
+
+    GCString* canonical = primaryPool.intern("same-contents-different-owner");
+    GCString* foreign = foreignPool.intern("same-contents-different-owner");
+    ASSERT_TRUE(suite, canonical != foreign, "Independent pools should own distinct GCString objects");
+
+    primaryPool.remove(foreign);
+    ASSERT_TRUE(suite, primaryPool.find("same-contents-different-owner") == canonical,
+                "Removing an equal foreign GCString should preserve the canonical entry");
+
+    primaryPool.remove(canonical);
+    ASSERT_TRUE(suite, primaryPool.find("same-contents-different-owner") == nullptr,
+                "Removing the canonical GCString should erase its entry");
 }
 
 // =====================================================================
@@ -100,17 +207,17 @@ void testMemoryErrorMessageFixed(TestSuite& suite) {
 void testFixedStringsNotCollected(TestSuite& suite) {
     GarbageCollector& gc = GlobalState::getInstance().getGC();
     StringPool& pool = StringPool::getInstance();
-    
+
     // 获取固定字符串
     GCString* andStr = pool.find("and");
     GCString* indexName = GlobalState::getInstance().getMetamethodName(TMS::TM_INDEX);
-    
+
     // 执行GC
     (void)gc.collect();
-    
+
     // 固定字符串不应该被回收
     ASSERT_TRUE(suite, andStr == pool.find("and"), "Fixed string 'and' should not be collected");
-    ASSERT_TRUE(suite, indexName == GlobalState::getInstance().getMetamethodName(TMS::TM_INDEX), 
+    ASSERT_TRUE(suite, indexName == GlobalState::getInstance().getMetamethodName(TMS::TM_INDEX),
                 "Fixed metamethod name should not be collected");
 }
 
@@ -120,11 +227,12 @@ void testFixedStringsNotCollected(TestSuite& suite) {
 
 void registerLuaStateInitTests() {
     auto& registry = TestRegistry::getInstance();
-    
+
     registry.registerTest("LuaState Init", "String pool resize", testStringPoolResize);
+    registry.registerTest("LuaState Init", "String pool insertion OOM rollback", testStringPoolInsertionOomRollback);
+    registry.registerTest("LuaState Init", "String pool remove identity", testStringPoolRemoveChecksObjectIdentity);
     registry.registerTest("LuaState Init", "Metamethod names init", testMetamethodNamesInit);
     registry.registerTest("LuaState Init", "Reserved words init", testReservedWordsInit);
     registry.registerTest("LuaState Init", "Memory error message fixed", testMemoryErrorMessageFixed);
     registry.registerTest("LuaState Init", "Fixed strings not collected", testFixedStringsNotCollected);
 }
-

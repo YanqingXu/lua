@@ -4,19 +4,12 @@
   "xfails": [
     {
       "id": "code.lua-opcode-sequence",
-      "expectedDiagnostic": ":21: assertion failed",
-      "trackingIssue": "P1-testc-codegen-parity",
-      "responsibleModule": "compiler/codegen and T.listcode",
+      "expectedDiagnostic": "code.lua LOADNIL fixture/oracle mismatch: expected RETURN; actual 1 - LOADNIL 1",
+      "trackingIssue": "https://github.com/YanqingXu/lua/issues/4",
+      "trackingStatus": "open in v0.1-embedding-preview",
+      "responsibleModule": "compatibility fixture versioning and T.listcode bytecode oracle",
       "minimalReproduction": "bin/lua_test.exe --filter \"code.lua with T module XFAIL\"",
-      "reason": "T is active and code.lua executes, but the first expected Lua 5.1 opcode sequence differs."
-    },
-    {
-      "id": "api.lua-stack-shape",
-      "expectedDiagnostic": ":11: assertion failed",
-      "trackingIssue": "P1-testc-api-stack-shape",
-      "responsibleModule": "lib/testlib T.testC stack protocol",
-      "minimalReproduction": "bin/lua_test.exe --filter \"api.lua with T module XFAIL\"",
-      "reason": "T is active and api.lua executes, but the first table-length comparison exposes a stack-shape difference."
+      "reason": "The first failing opcode check is the locked sequence-of-LOADNILs fixture: code.lua expects RETURN only, while this project and a Lua 5.1.5 luac comparison emit LOADNIL/LOADNIL/RETURN. The test traps that exact eighth opcode comparison with a unique diagnostic, so an unrelated assertion cannot satisfy this XFAIL."
     }
   ]
 }

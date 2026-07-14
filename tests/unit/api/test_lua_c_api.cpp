@@ -17,6 +17,7 @@
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <limits>
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
@@ -27,6 +28,11 @@ namespace {
 
 constexpr const char* kSuiteName = "Lua C API";
 
+static_assert(!noexcept(lua_xmove(nullptr, nullptr, 0)));
+static_assert(!noexcept(lua_call(nullptr, 0, 0)));
+static_assert(!noexcept(lua_error(nullptr)));
+static_assert(!noexcept(luaL_error(nullptr, "%s", "error")));
+
 int gApiFinalizerCalls = 0;
 int gApiFinalizerPayload = 0;
 int gApiErrorToken = 0;
@@ -35,6 +41,8 @@ void* gApiHandlerErrorObject = nullptr;
 struct AllocatorProbe;
 AllocatorProbe* gAllocatorFailureProbe = nullptr;
 size_t gAllocatorFailureOffset = 0;
+size_t gOversizedUserdataSize = 0;
+size_t gArmedAllocatorFailureTarget = 0;
 
 struct AllocatorLedger {
     std::unordered_map<std::uintptr_t, size_t> blocks;
@@ -51,6 +59,7 @@ struct AllocatorProbe {
     size_t failOnCall = 0;
     size_t allocationAttempts = 0;
     size_t failOnAllocation = 0;
+    size_t failFromAllocation = 0;
 };
 
 void* trackingLuaAllocator(void* userData, void* pointer, size_t oldSize, size_t newSize) {
@@ -77,6 +86,9 @@ void* trackingLuaAllocator(void* userData, void* pointer, size_t oldSize, size_t
 
     ++probe->allocationAttempts;
     if (probe->failOnAllocation != 0 && probe->allocationAttempts == probe->failOnAllocation) {
+        return nullptr;
+    }
+    if (probe->failFromAllocation != 0 && probe->allocationAttempts >= probe->failFromAllocation) {
         return nullptr;
     }
 
@@ -199,6 +211,12 @@ int yieldApiArguments(lua_State* L) {
     return lua_yield(L, lua_gettop(L));
 }
 
+int yieldOnlyTopApiValue(lua_State* L) {
+    lua_pushnumber(L, 111);
+    lua_pushnumber(L, 222);
+    return lua_yield(L, 1);
+}
+
 int doubleApiArgument(lua_State* L) {
     lua_pushnumber(L, lua_tonumber(L, 1) * 2);
     return 1;
@@ -210,6 +228,23 @@ int allocateApiUserdata(lua_State* L) {
     }
     lua_newuserdata(L, 48);
     return 1;
+}
+
+int disarmAllocatorFailure(lua_State*) {
+    if (gAllocatorFailureProbe != nullptr) {
+        gAllocatorFailureProbe->failOnAllocation = 0;
+        gAllocatorFailureProbe->failFromAllocation = 0;
+        gAllocatorFailureProbe->failOnCall = 0;
+    }
+    return 0;
+}
+
+int throwRuntimeErrorDuringResume(lua_State*) {
+    if (gAllocatorFailureProbe != nullptr) {
+        gArmedAllocatorFailureTarget = gAllocatorFailureProbe->allocationAttempts + 1;
+        gAllocatorFailureProbe->failFromAllocation = gArmedAllocatorFailureTarget;
+    }
+    throw std::runtime_error("injected coroutine runtime failure");
 }
 
 int appendDumpChunk(lua_State*, const void* bytes, size_t size, void* userData) {
@@ -232,6 +267,12 @@ const char* readProbeChunk(lua_State*, void* userData, size_t* size) {
     const char* piece = probe->pieces[probe->index++];
     *size = std::strlen(piece);
     return piece;
+}
+
+const char* pushGcObjectsThenFailReader(lua_State* L, void*, size_t*) {
+    lua_createtable(L, 0, 0);
+    lua_createtable(L, 0, 0);
+    throw std::bad_alloc();
 }
 
 void testStackAndInvalidIndexes(TestSuite& suite) {
@@ -373,6 +414,73 @@ void testStackRemovalInsideCFrame(TestSuite& suite) {
     lua_close(L);
 }
 
+void testApiStackShrinkReleasesGcRoots(TestSuite& suite) {
+    lua_State* L = lua_open();
+    auto* state = reinterpret_cast<Lua::LuaState*>(L);
+    Lua::GarbageCollector& gc = state->getGlobalState().getGC();
+
+    const Lua::usize baseline = gc.getObjectCount();
+    lua_createtable(L, 0, 0);
+    const Lua::usize withTable = gc.getObjectCount();
+    ASSERT_TRUE(suite, withTable > baseline, "C API table creation adds a managed object");
+
+    lua_pop(L, 1);
+    ASSERT_EQ(suite, 0, lua_gettop(L), "C API pop shrinks the logical stack");
+    (void)gc.collect(state);
+    ASSERT_TRUE(suite, gc.getObjectCount() < withTable,
+                "C API stack shrink clears stale physical roots before a wide GC scan");
+
+    lua_close(L);
+}
+
+void testLoaderMemoryRollbackReleasesGcRoots(TestSuite& suite) {
+    lua_State* L = lua_open();
+    auto* state = reinterpret_cast<Lua::LuaState*>(L);
+    Lua::GarbageCollector& gc = state->getGlobalState().getGC();
+    const Lua::usize baseline = gc.getObjectCount();
+
+    ASSERT_EQ(suite, LUA_ERRMEM, lua_load(L, pushGcObjectsThenFailReader, nullptr, "=reader-oom-roots"),
+              "lua_load translates a reader allocation failure");
+    ASSERT_EQ(suite, 1, lua_gettop(L), "lua_load replaces reader temporaries with one memory error");
+
+    const Lua::usize afterFailure = gc.getObjectCount();
+    ASSERT_TRUE(suite, afterFailure >= baseline + 2, "reader failure allocates the temporary GC graph");
+    (void)gc.collect(state);
+    ASSERT_TRUE(suite, gc.getObjectCount() + 2 <= afterFailure,
+                "loader rollback clears every stale temporary stack root before GC");
+
+    lua_close(L);
+}
+
+void testResumeBridgeRollbackReleasesGcRoots(TestSuite& suite) {
+    lua_State* parent = lua_open();
+    auto* parentState = reinterpret_cast<Lua::LuaState*>(parent);
+    Lua::GarbageCollector& gc = parentState->getGlobalState().getGC();
+
+    lua_State* coroutine = lua_newthread(parent);
+    constexpr const char* source = R"lua(
+        local root = {}
+        for i = 1, 48 do
+            root[i] = { value = i }
+        end
+        return root
+    )lua";
+    ASSERT_EQ(suite, LUA_OK, luaL_loadbuffer(parent, source, std::strlen(source), "=resume-bridge-roots"),
+              "resume bridge root scenario compiles");
+    lua_xmove(parent, coroutine, 1);
+    ASSERT_EQ(suite, LUA_OK, lua_resume(coroutine, 0), "resume bridge returns its large result graph");
+    ASSERT_EQ(suite, LUA_TTABLE, lua_type(coroutine, 1), "resumed state exposes the result graph");
+
+    const Lua::usize afterResume = gc.getObjectCount();
+    lua_settop(coroutine, 0);
+    lua_settop(parent, 0);
+    (void)gc.collect(parentState);
+    ASSERT_TRUE(suite, gc.getObjectCount() + 32 <= afterResume,
+                "bridge rollback does not retain a discarded large result graph");
+
+    lua_close(parent);
+}
+
 void testCheckStackAndXMove(TestSuite& suite) {
     lua_State* parent = lua_open();
     auto* parentState = reinterpret_cast<Lua::LuaState*>(parent);
@@ -408,6 +516,40 @@ void testCheckStackAndXMove(TestSuite& suite) {
     lua_close(independent);
     Lua::LuaState::destroyState(childState);
     lua_close(parent);
+}
+
+void testCppApiExceptionContract(TestSuite& suite) {
+    lua_State* direct = lua_open();
+    lua_pushstring(direct, "direct-error");
+    bool directErrorCaught = false;
+    try {
+        (void)lua_error(direct);
+    } catch (const Lua::RuntimeError&) {
+        directErrorCaught = true;
+    }
+    ASSERT_TRUE(suite, directErrorCaught, "C++ caller catches lua_error across its C-linkage boundary");
+    lua_close(direct);
+
+    lua_State* called = lua_open();
+    lua_pushcclosure(called, raiseLightUserdataError, 0);
+    bool callErrorCaught = false;
+    try {
+        lua_call(called, 0, 0);
+    } catch (const Lua::RuntimeError&) {
+        callErrorCaught = true;
+    }
+    ASSERT_TRUE(suite, callErrorCaught, "C++ caller catches an unprotected lua_call error");
+    lua_close(called);
+
+    lua_State* auxiliary = lua_open();
+    bool auxiliaryErrorCaught = false;
+    try {
+        (void)luaL_error(auxiliary, "%s", "auxiliary-error");
+    } catch (const Lua::RuntimeError&) {
+        auxiliaryErrorCaught = true;
+    }
+    ASSERT_TRUE(suite, auxiliaryErrorCaught, "C++ caller catches luaL_error across its C-linkage boundary");
+    lua_close(auxiliary);
 }
 
 void testCClosureUpvalueIntrospection(TestSuite& suite) {
@@ -683,6 +825,57 @@ void testPublicThreadResumeApi(TestSuite& suite) {
     lua_close(L);
 }
 
+void testPublicThreadCFunctionEntry(TestSuite& suite) {
+    lua_State* L = lua_open();
+
+    lua_State* completed = lua_newthread(L);
+    lua_pushcclosure(L, doubleApiArgument, 0);
+    lua_xmove(L, completed, 1);
+    lua_pushnumber(completed, 21);
+
+    ASSERT_EQ(suite, LUA_OK, lua_resume(completed, 1), "lua_resume accepts a C function as coroutine entry");
+    ASSERT_EQ(suite, 1, lua_gettop(completed), "completed C entry exposes its return value");
+    ASSERT_EQ(suite, 42.0, lua_tonumber(completed, 1), "C entry receives resume arguments");
+
+    lua_State* yielded = lua_newthread(L);
+    lua_pushcclosure(L, yieldApiArguments, 0);
+    lua_xmove(L, yielded, 1);
+    lua_pushnumber(yielded, 55);
+
+    ASSERT_EQ(suite, LUA_YIELD, lua_resume(yielded, 1), "C coroutine entry can yield on its first resume");
+    ASSERT_EQ(suite, LUA_YIELD, lua_status(yielded), "yielding C entry reports LUA_YIELD");
+    ASSERT_EQ(suite, 1, lua_gettop(yielded), "yielding C entry exposes yielded values");
+    ASSERT_EQ(suite, 55.0, lua_tonumber(yielded, 1), "C entry transfers its argument through lua_yield");
+
+    lua_settop(yielded, 0);
+    lua_pushnumber(yielded, 9);
+    ASSERT_EQ(suite, LUA_OK, lua_resume(yielded, 1), "yielded C entry resumes to completion");
+    ASSERT_EQ(suite, 1, lua_gettop(yielded), "resumed C entry exposes its final result");
+    ASSERT_EQ(suite, 9.0, lua_tonumber(yielded, 1), "resume value becomes the C yield return value");
+
+    lua_State* topOnly = lua_newthread(L);
+    lua_pushcclosure(L, yieldOnlyTopApiValue, 0);
+    lua_xmove(L, topOnly, 1);
+    lua_pushnumber(topOnly, 55);
+
+    ASSERT_EQ(suite, LUA_YIELD, lua_resume(topOnly, 1), "lua_yield can select only the top result value");
+    ASSERT_EQ(suite, 1, lua_gettop(topOnly), "yield hides callback arguments and lower temporaries");
+    ASSERT_EQ(suite, 222.0, lua_tonumber(topOnly, 1), "yield exposes the selected top value");
+
+    lua_settop(topOnly, 0);
+    lua_pushnumber(topOnly, 9);
+    ASSERT_EQ(suite, LUA_OK, lua_resume(topOnly, 1), "top-only C yield resumes to completion");
+    ASSERT_EQ(suite, 1, lua_gettop(topOnly), "resumed top-only C entry exposes one final result");
+    ASSERT_EQ(suite, 9.0, lua_tonumber(topOnly, 1), "resume value becomes the yielded call result");
+
+    lua_close(L);
+}
+
+int allocateOversizedApiUserdata(lua_State* L) {
+    lua_newuserdata(L, gOversizedUserdataSize);
+    return 1;
+}
+
 void testPublicThreadYieldAndErrorApi(TestSuite& suite) {
     lua_State* L = lua_open();
     lua_pushcclosure(L, yieldApiArguments, 0);
@@ -884,6 +1077,14 @@ void testLoadDumpAndAuxiliaryLoaders(TestSuite& suite) {
     ASSERT_EQ(suite, LUA_ERRFILE, luaL_loadfile(L, "missing-c-api-load-file.lua"),
               "luaL_loadfile distinguishes file errors");
     ASSERT_TRUE(suite, lua_isstring(L, -1) != 0, "file failure leaves one error object");
+    lua_settop(L, 0);
+
+    const std::string directoryPath = std::filesystem::current_path().string();
+    ASSERT_EQ(suite, LUA_ERRFILE, luaL_loadfile(L, directoryPath.c_str()),
+              "luaL_loadfile rejects an existing directory as a file error");
+    const char* directoryError = lua_tostring(L, -1);
+    ASSERT_TRUE(suite, directoryError != nullptr && std::strstr(directoryError, "cannot read") != nullptr,
+                "luaL_loadfile distinguishes an unreadable directory from a missing path");
 
     lua_close(L);
 }
@@ -977,11 +1178,268 @@ void testAllocatorFailurePaths(TestSuite& suite) {
     gAllocatorFailureOffset = 0;
     probe.failOnCall = 0;
 
+    for (const size_t requested : {std::numeric_limits<size_t>::max(), std::numeric_limits<size_t>::max() - 1}) {
+        lua_settop(L, 0);
+        gOversizedUserdataSize = requested;
+        lua_pushcclosure(L, allocateOversizedApiUserdata, 0);
+        ASSERT_EQ(suite, LUA_ERRMEM, lua_pcall(L, 0, 1, 0),
+                  "oversized userdata is rejected as a memory error before allocation");
+        ASSERT_EQ(suite, 1, lua_gettop(L), "oversized userdata leaves one canonical error object");
+        ASSERT_EQ(suite, std::string("not enough memory"), std::string(lua_tostring(L, -1)),
+                  "oversized userdata uses the fixed memory error object");
+    }
+
     lua_close(L);
     ASSERT_TRUE(suite, ledger.blocks.empty(), "runtime allocation failures leave close path leak free");
     ASSERT_EQ(suite, static_cast<size_t>(0), ledger.sizeMismatches,
               "failure rollback preserves allocator size contract");
     ASSERT_EQ(suite, static_cast<size_t>(0), ledger.unknownFrees, "failure rollback frees each allocator block once");
+}
+
+void testPublicResumeAllocationRollback(TestSuite& suite) {
+    AllocatorLedger ledger;
+    AllocatorProbe probe{&ledger};
+    lua_State* L = lua_newstate(trackingLuaAllocator, &probe);
+    ASSERT_TRUE(suite, L != nullptr, "resume rollback test creates parent state");
+
+    lua_State* co = lua_newthread(L);
+    std::string source = "local ";
+    for (int i = 1; i <= 96; ++i) {
+        if (i > 1) {
+            source += ',';
+        }
+        source += "v" + std::to_string(i);
+    }
+    source += " = ";
+    for (int i = 1; i <= 96; ++i) {
+        if (i > 1) {
+            source += ',';
+        }
+        source += std::to_string(i);
+    }
+    source += "; return v96";
+
+    ASSERT_EQ(suite, LUA_OK, luaL_loadbuffer(L, source.data(), source.size(), "=resume-oom"),
+              "resume rollback test compiles a wide frame");
+    lua_xmove(L, co, 1);
+
+    probe.failFromAllocation = probe.allocationAttempts + 1;
+    ASSERT_EQ(suite, LUA_ERRMEM, lua_resume(co, 0), "resume frame allocation failure becomes LUA_ERRMEM");
+    ASSERT_EQ(suite, 1, lua_gettop(co), "failed resume exposes one canonical error object");
+    ASSERT_EQ(suite, std::string("not enough memory"), std::string(lua_tostring(co, -1)),
+              "failed resume uses the fixed memory error object");
+
+    probe.failFromAllocation = 0;
+    ASSERT_EQ(suite, LUA_ERRRUN, lua_resume(co, 0), "allocation-failed coroutine is canonical dead state");
+    ASSERT_EQ(suite, 1, lua_gettop(co), "dead retry keeps one stable error object");
+
+    lua_close(L);
+    ASSERT_TRUE(suite, ledger.blocks.empty(), "resume rollback and close remain leak free");
+    ASSERT_EQ(suite, static_cast<size_t>(0), ledger.sizeMismatches, "resume rollback preserves allocator old sizes");
+    ASSERT_EQ(suite, static_cast<size_t>(0), ledger.unknownFrees, "resume rollback frees each allocation once");
+}
+
+std::string makeLuaLevelResumeOomSource(bool wrapped) {
+    std::string source = "local function fail_inside_resume() return cpp_resume_failure() end\n";
+
+    if (wrapped) {
+        source += R"lua(
+            local generator = coroutine.wrap(fail_inside_resume)
+            local first_ok, first_error = pcall(generator)
+            disarm_allocator_failure()
+            local retry_ok, retry_error = pcall(generator)
+            return not first_ok,
+                   first_error == "not enough memory",
+                   not retry_ok and string.find(tostring(retry_error), "dead") ~= nil,
+                   coroutine.running() == nil
+        )lua";
+    } else {
+        source += R"lua(
+            local inner = coroutine.create(fail_inside_resume)
+            local outer
+            outer = coroutine.create(function()
+                local first_ok, first_error = coroutine.resume(inner)
+                disarm_allocator_failure()
+                local running_restored = coroutine.running() == outer
+                coroutine.yield(first_ok, first_error, coroutine.status(inner), running_restored)
+                return "outer-done"
+            end)
+
+            local outer_ok, first_ok, first_error, inner_status, running_restored = coroutine.resume(outer)
+            local retry_ok, retry_error = coroutine.resume(inner)
+            local outer_retry_ok, outer_result = coroutine.resume(outer)
+            return outer_ok,
+                   not first_ok,
+                   first_error == "not enough memory",
+                   inner_status == "dead",
+                   running_restored,
+                   not retry_ok and string.find(tostring(retry_error), "dead") ~= nil,
+                   outer_retry_ok and outer_result == "outer-done",
+                   coroutine.status(outer) == "dead",
+                   coroutine.running() == nil
+        )lua";
+    }
+    return source;
+}
+
+void testLuaLevelCoroutinePersistentAllocationRollback(TestSuite& suite) {
+    for (const bool wrapped : {false, true}) {
+        AllocatorLedger ledger;
+        AllocatorProbe probe{&ledger};
+        lua_State* L = lua_newstate(trackingLuaAllocator, &probe);
+        ASSERT_TRUE(suite, L != nullptr, "Lua-level resume OOM test creates state");
+        luaL_openlibs(L);
+
+        lua_pushcclosure(L, disarmAllocatorFailure, 0);
+        lua_setglobal(L, "disarm_allocator_failure");
+        lua_pushcclosure(L, throwRuntimeErrorDuringResume, 0);
+        lua_setglobal(L, "cpp_resume_failure");
+        gAllocatorFailureProbe = &probe;
+
+        const std::string source = makeLuaLevelResumeOomSource(wrapped);
+        ASSERT_EQ(suite, LUA_OK, luaL_loadbuffer(L, source.data(), source.size(), "=lua-level-resume-oom"),
+                  "Lua-level resume OOM scenario compiles");
+        const int expectedResults = wrapped ? 4 : 9;
+        const int status = lua_pcall(L, 0, expectedResults, 0);
+        const size_t persistentFailureTarget = gArmedAllocatorFailureTarget;
+        probe.failFromAllocation = 0;
+        probe.failOnAllocation = 0;
+        probe.failOnCall = 0;
+        gAllocatorFailureProbe = nullptr;
+        gArmedAllocatorFailureTarget = 0;
+
+        ASSERT_EQ(suite, LUA_OK, status, "persistent allocator failure does not escape Lua-level resume");
+        ASSERT_TRUE(suite, persistentFailureTarget != 0 && probe.allocationAttempts >= persistentFailureTarget,
+                    "Lua-level resume reaches the injected persistent allocator failure");
+        ASSERT_EQ(suite, expectedResults, lua_gettop(L), "Lua-level OOM scenario returns every invariant");
+        for (int result = 1; result <= expectedResults; ++result) {
+            ASSERT_TRUE(suite, lua_toboolean(L, result) != 0,
+                        "Lua-level OOM leaves coroutine and caller state canonical");
+        }
+
+        lua_close(L);
+        ASSERT_TRUE(suite, ledger.blocks.empty(), "Lua-level resume OOM rollback closes without leaks");
+        ASSERT_EQ(suite, static_cast<size_t>(0), ledger.sizeMismatches,
+                  "Lua-level resume OOM preserves allocator sizes");
+        ASSERT_EQ(suite, static_cast<size_t>(0), ledger.unknownFrees,
+                  "Lua-level resume OOM frees each allocator block once");
+    }
+}
+
+void testLoadBufferAllocatorFailures(TestSuite& suite) {
+    constexpr const char* source = "local t = {}; for i = 1, 8 do t[i] = i end; return t[8]";
+
+    AllocatorLedger baselineLedger;
+    AllocatorProbe baselineProbe{&baselineLedger};
+    lua_State* baseline = lua_newstate(trackingLuaAllocator, &baselineProbe);
+    ASSERT_TRUE(suite, baseline != nullptr, "loadbuffer failure scan creates baseline state");
+    const size_t attemptsBeforeLoad = baselineProbe.allocationAttempts;
+    ASSERT_EQ(suite, LUA_OK, luaL_loadbuffer(baseline, source, std::strlen(source), "=oom-loadbuffer"),
+              "baseline loadbuffer succeeds");
+    const size_t loadAllocationAttempts = baselineProbe.allocationAttempts - attemptsBeforeLoad;
+    ASSERT_TRUE(suite, loadAllocationAttempts > 0, "loadbuffer baseline observes allocator traffic");
+    lua_close(baseline);
+    ASSERT_TRUE(suite, baselineLedger.blocks.empty(), "baseline loadbuffer state closes without leaks");
+
+    for (size_t offset = 1; offset <= loadAllocationAttempts; ++offset) {
+        AllocatorLedger ledger;
+        AllocatorProbe probe{&ledger};
+        lua_State* L = lua_newstate(trackingLuaAllocator, &probe);
+        ASSERT_TRUE(suite, L != nullptr, "loadbuffer failure scan creates state");
+
+        probe.failOnAllocation = probe.allocationAttempts + offset;
+        const int status = luaL_loadbuffer(L, source, std::strlen(source), "=oom-loadbuffer");
+        ASSERT_EQ(suite, LUA_ERRMEM, status, "every injected loader allocation failure remains LUA_ERRMEM");
+        ASSERT_EQ(suite, 1, lua_gettop(L), "loader allocation failure leaves one error object");
+        ASSERT_EQ(suite, std::string("not enough memory"), std::string(lua_tostring(L, -1)),
+                  "loader allocation failure uses the fixed memory error object");
+
+        probe.failOnAllocation = 0;
+        lua_settop(L, 0);
+        ASSERT_EQ(suite, LUA_OK, luaL_loadbuffer(L, source, std::strlen(source), "=oom-loadbuffer"),
+                  "state remains usable after loader allocation failure");
+        ASSERT_EQ(suite, LUA_OK, lua_pcall(L, 0, 1, 0), "recovered loader result executes");
+        ASSERT_EQ(suite, 8.0, lua_tonumber(L, -1), "recovered loader result is correct");
+
+        lua_close(L);
+        ASSERT_TRUE(suite, ledger.blocks.empty(), "loader failure rollback and close remain leak free");
+        ASSERT_EQ(suite, static_cast<size_t>(0), ledger.sizeMismatches,
+                  "loader failure rollback preserves allocator old sizes");
+        ASSERT_EQ(suite, static_cast<size_t>(0), ledger.unknownFrees, "loader failure rollback frees each block once");
+    }
+}
+
+void testLoadersPublishMemoryErrorFromFullStack(TestSuite& suite) {
+    AllocatorLedger ledger;
+    AllocatorProbe probe{&ledger};
+    lua_State* L = lua_newstate(trackingLuaAllocator, &probe);
+    ASSERT_TRUE(suite, L != nullptr, "full-stack loader failure test creates state");
+
+    auto* state = reinterpret_cast<Lua::LuaState*>(L);
+    const Lua::usize frameBase = state->getCurrentCallInfo().base;
+    const int base = static_cast<int>(state->getStack().capacity() - frameBase - 1);
+    lua_settop(L, base - 1);
+    int prefixMarker = 0;
+    lua_pushlightuserdata(L, &prefixMarker);
+    ASSERT_EQ(suite, base, lua_gettop(L), "loader test fills every ordinary stack slot");
+
+    bool exceptionEscaped = false;
+    int status = -1;
+    probe.failFromAllocation = probe.allocationAttempts + 1;
+    try {
+        status = luaL_loadbuffer(L, "return 1", sizeof("return 1") - 1, "=full-stack-oom");
+    } catch (...) {
+        exceptionEscaped = true;
+    }
+    ASSERT_TRUE(suite, !exceptionEscaped, "luaL_loadbuffer contains persistent allocator failure");
+    ASSERT_EQ(suite, LUA_ERRMEM, status, "luaL_loadbuffer returns LUA_ERRMEM from a full stack");
+    ASSERT_EQ(suite, base + 1, lua_gettop(L), "luaL_loadbuffer preserves prefix and appends its error object");
+    ASSERT_TRUE(suite, lua_touserdata(L, -2) == &prefixMarker, "luaL_loadbuffer preserves the full stack prefix");
+    ASSERT_EQ(suite, std::string("not enough memory"), std::string(lua_tostring(L, -1)),
+              "luaL_loadbuffer publishes the fixed memory error without allocating");
+
+    probe.failFromAllocation = 0;
+    lua_settop(L, base);
+    probe.failFromAllocation = probe.allocationAttempts + 1;
+    exceptionEscaped = false;
+    status = -1;
+    try {
+        status = luaL_loadfile(L, "full-stack-oom.lua");
+    } catch (...) {
+        exceptionEscaped = true;
+    }
+    ASSERT_TRUE(suite, !exceptionEscaped, "luaL_loadfile contains persistent allocator failure");
+    ASSERT_EQ(suite, LUA_ERRMEM, status, "luaL_loadfile returns LUA_ERRMEM from a full stack");
+    ASSERT_EQ(suite, base + 1, lua_gettop(L), "luaL_loadfile preserves prefix and appends its error object");
+    ASSERT_TRUE(suite, lua_touserdata(L, -2) == &prefixMarker, "luaL_loadfile preserves the full stack prefix");
+    ASSERT_EQ(suite, std::string("not enough memory"), std::string(lua_tostring(L, -1)),
+              "luaL_loadfile publishes the fixed memory error without allocating");
+
+    probe.failFromAllocation = 0;
+    lua_settop(L, base);
+    ReaderProbe reader;
+    probe.failFromAllocation = probe.allocationAttempts + 1;
+    exceptionEscaped = false;
+    status = -1;
+    try {
+        status = lua_load(L, readProbeChunk, &reader, "=full-stack-reader-oom");
+    } catch (...) {
+        exceptionEscaped = true;
+    }
+    ASSERT_TRUE(suite, !exceptionEscaped, "lua_load contains persistent allocator failure");
+    ASSERT_EQ(suite, LUA_ERRMEM, status, "lua_load returns LUA_ERRMEM from a full stack");
+    ASSERT_EQ(suite, base + 1, lua_gettop(L), "lua_load preserves prefix and appends its error object");
+    ASSERT_TRUE(suite, lua_touserdata(L, -2) == &prefixMarker, "lua_load preserves the full stack prefix");
+    ASSERT_EQ(suite, std::string("not enough memory"), std::string(lua_tostring(L, -1)),
+              "lua_load publishes the fixed memory error without allocating");
+
+    probe.failFromAllocation = 0;
+    lua_close(L);
+    ASSERT_TRUE(suite, ledger.blocks.empty(), "full-stack loader failures remain leak free");
+    ASSERT_EQ(suite, static_cast<size_t>(0), ledger.sizeMismatches,
+              "full-stack loader rollback preserves allocator old sizes");
+    ASSERT_EQ(suite, static_cast<size_t>(0), ledger.unknownFrees,
+              "full-stack loader rollback frees each allocation once");
 }
 
 } // namespace
@@ -994,7 +1452,11 @@ void registerLuaCApiTests() {
     registry.registerTest(kSuiteName, "C closure captures upvalues", testCClosureCapturesUpvalues);
     registry.registerTest(kSuiteName, "C closure upvalue mutation", testCClosureUpvalueMutationPersists);
     registry.registerTest(kSuiteName, "stack removal inside C frame", testStackRemovalInsideCFrame);
+    registry.registerTest(kSuiteName, "stack shrink releases GC roots", testApiStackShrinkReleasesGcRoots);
+    registry.registerTest(kSuiteName, "loader rollback releases GC roots", testLoaderMemoryRollbackReleasesGcRoots);
+    registry.registerTest(kSuiteName, "resume bridge releases GC roots", testResumeBridgeRollbackReleasesGcRoots);
     registry.registerTest(kSuiteName, "checkstack and xmove", testCheckStackAndXMove);
+    registry.registerTest(kSuiteName, "C++ API exception contract", testCppApiExceptionContract);
     registry.registerTest(kSuiteName, "C closure upvalue introspection", testCClosureUpvalueIntrospection);
     registry.registerTest(kSuiteName, "Lua closure upvalue introspection", testLuaClosureUpvalueIntrospection);
     registry.registerTest(kSuiteName, "light and full userdata", testLightAndFullUserdata);
@@ -1006,12 +1468,18 @@ void registerLuaCApiTests() {
                           testProtectedCallNormalizesCppExceptionsAndYield);
     registry.registerTest(kSuiteName, "C API yield inside coroutine", testCApiYieldInsideCoroutine);
     registry.registerTest(kSuiteName, "public thread resume API", testPublicThreadResumeApi);
+    registry.registerTest(kSuiteName, "public thread C function entry", testPublicThreadCFunctionEntry);
     registry.registerTest(kSuiteName, "public thread yield and error API", testPublicThreadYieldAndErrorApi);
     registry.registerTest(kSuiteName, "public thread allocator lifecycle", testPublicThreadAllocatorLifecycle);
+    registry.registerTest(kSuiteName, "public resume allocation rollback", testPublicResumeAllocationRollback);
+    registry.registerTest(kSuiteName, "Lua-level coroutine persistent allocation rollback",
+                          testLuaLevelCoroutinePersistentAllocationRollback);
     registry.registerTest(kSuiteName, "nested C to Lua to C protected calls", testNestedCToLuaToCProtectedCalls);
     registry.registerTest(kSuiteName, "custom allocator lifecycle", testCustomAllocatorLifecycle);
     registry.registerTest(kSuiteName, "allocator replacement", testAllocatorCanBeReplaced);
     registry.registerTest(kSuiteName, "allocator failure paths", testAllocatorFailurePaths);
+    registry.registerTest(kSuiteName, "loadbuffer allocator failures", testLoadBufferAllocatorFailures);
+    registry.registerTest(kSuiteName, "full-stack loader memory errors", testLoadersPublishMemoryErrorFromFullStack);
     registry.registerTest(kSuiteName, "load dump and auxiliary loaders", testLoadDumpAndAuxiliaryLoaders);
     registry.registerTest(kSuiteName, "registry references", testRegistryReferences);
 }

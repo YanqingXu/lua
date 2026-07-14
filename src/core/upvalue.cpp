@@ -28,24 +28,16 @@ Upvalue* Upvalue::createClosed(const Value& value) {
 // ========== 构造函数 ==========
 
 Upvalue::Upvalue(usize stackIndex, Stack& ownerStack)
-    : GCObject(GCObjectType::Upval)
-    , isOpen_(true)
-    , stackIndex_(stackIndex)
-    , closedValue_()  // 默认构造为nil
-    , next_(nullptr)
-    , ownerStack_(&ownerStack)
-{
+    : GCObject(GCObjectType::Upval), isOpen_(true), stackIndex_(stackIndex), closedValue_() // 默认构造为nil
+      ,
+      next_(nullptr), ownerStack_(&ownerStack) {
     // Open状态：存储索引和所属栈指针
 }
 
 Upvalue::Upvalue(const Value& value)
-    : GCObject(GCObjectType::Upval)
-    , isOpen_(false)
-    , stackIndex_(0)  // Closed状态下无意义
-    , closedValue_(value)
-    , next_(nullptr)
-    , ownerStack_(nullptr)
-{
+    : GCObject(GCObjectType::Upval), isOpen_(false), stackIndex_(0) // Closed状态下无意义
+      ,
+      closedValue_(value), next_(nullptr), ownerStack_(nullptr) {
     // Closed状态：存储值
 }
 
@@ -97,17 +89,18 @@ void Upvalue::setValue(Stack&, const Value& value) {
 
 // ========== 状态转换 ==========
 
-void Upvalue::close(Stack&) {
+void Upvalue::close(Stack&) noexcept {
     if (isClosed()) {
         // 已经是Closed状态，无需操作
         return;
     }
 
-    // 1. 将栈上的值复制到closedValue_（使用ownerStack_确保正确性）
-    closedValue_ = (*ownerStack_)[stackIndex_];
+    // 1. 将栈上的值安全复制到closedValue_（使用ownerStack_确保正确性）
+    const Value value = (*ownerStack_)[stackIndex_];
     if (GarbageCollector* gc = getOwnerCollector()) {
-        gc->writeBarrier(this, closedValue_);
+        gc->writeBarrierDeferredNoexcept(this, value);
     }
+    closedValue_ = value;
 
     // 2. 标记为Closed状态
     isOpen_ = false;
@@ -147,4 +140,3 @@ usize Upvalue::getSize() const {
 }
 
 } // namespace Lua
-

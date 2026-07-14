@@ -8,8 +8,8 @@ Checks: >
   -readability-identifier-length,
   -readability-magic-numbers,
   -readability-named-parameter
-WarningsAsErrors: ''
-HeaderFilterRegex: '^(src|tests)[/\\].*'
+WarningsAsErrors: 'bugprone-implicit-widening-of-multiplication-result,bugprone-suspicious-stringview-data-usage,bugprone-unused-return-value,portability-*,-portability-template-virtual-member-function'
+HeaderFilterRegex: '(^|.*[/\\])(src|tests|benchmarks|examples)[/\\].*'
 FormatStyle: file
 CheckOptions:
   - key: readability-braces-around-statements.ShortStatementLines

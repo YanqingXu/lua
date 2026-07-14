@@ -103,6 +103,27 @@ void testReturnCallMultret(TestSuite& suite) {
     delete L;
 }
 
+void testReturnListKeepsValuesBeforeCalls(TestSuite& suite) {
+    LuaState* L = createFullState();
+    bool ok = runLua(L, R"lua(
+        local function make(value)
+            return function() return value end
+        end
+
+        local values = { make(1), make(2), make(3) }
+        local function report()
+            return values, values[1](), values[2](), values[3]()
+        end
+
+        local retained, first, second, third = report()
+        assert(type(retained) == "table")
+        assert(retained == values)
+        assert(first == 1 and second == 2 and third == 3)
+    )lua");
+    ASSERT_TRUE(suite, ok, "return list preserves fixed values before call expressions");
+    delete L;
+}
+
 // -- return ... multret propagation --
 void testReturnVarargMultret(TestSuite& suite) {
     LuaState* L = createFullState();
@@ -552,8 +573,7 @@ void testTailReturnCallEmitsTailcall(TestSuite& suite) {
         Proto* proto = codegen.generate(chunk, "test_tailcall_codegen");
 
         ASSERT_TRUE(suite, proto != nullptr, "tail call proto generated");
-        ASSERT_TRUE(suite, protoContainsOp(proto, OpCode::TAILCALL),
-                    "return f() emits TAILCALL");
+        ASSERT_TRUE(suite, protoContainsOp(proto, OpCode::TAILCALL), "return f() emits TAILCALL");
 
     } catch (const std::exception& e) {
         std::cout << "  [ERROR] Exception: " << e.what() << std::endl;
@@ -582,8 +602,7 @@ void testTailRecursiveLuaCallReusesFrame(TestSuite& suite) {
     Value depth = L->getGlobal("depth_after_tail_recursion");
     ASSERT_TRUE(suite, depth.isNumber(), "tail recursion records call depth");
     if (depth.isNumber()) {
-        ASSERT_TRUE(suite, depth.asNumber() <= 5.0,
-                    "tail recursion reuses Lua call frames");
+        ASSERT_TRUE(suite, depth.asNumber() <= 5.0, "tail recursion reuses Lua call frames");
     }
 
     delete L;
@@ -637,6 +656,7 @@ assert(t[25551] == 25551)
 void registerCallPipelineTests() {
     auto& registry = TestRegistry::getInstance();
     registry.registerTest(kSuiteName, "return f() multret", testReturnCallMultret);
+    registry.registerTest(kSuiteName, "return list keeps values before calls", testReturnListKeepsValuesBeforeCalls);
     registry.registerTest(kSuiteName, "return ... multret", testReturnVarargMultret);
     registry.registerTest(kSuiteName, "compat arg table for old-style vararg", testCompatArgTableForOldStyleVararg);
     registry.registerTest(kSuiteName, "g(f()) last-arg multret", testCallLastArgMultret);
@@ -657,16 +677,17 @@ void registerCallPipelineTests() {
     registry.registerTest(kSuiteName, "immediately invoked function expression",
                           testImmediatelyInvokedFunctionExpression);
     registry.registerTest(kSuiteName, "nested return f(g())", testNestedReturnCallChain);
-    registry.registerTest(kSuiteName, "generic for explicit Lua iterator triple", testGenericForExplicitLuaIteratorTriple);
-    registry.registerTest(kSuiteName, "generic for call returning Lua iterator", testGenericForCallReturningLuaIterator);
+    registry.registerTest(kSuiteName, "generic for explicit Lua iterator triple",
+                          testGenericForExplicitLuaIteratorTriple);
+    registry.registerTest(kSuiteName, "generic for call returning Lua iterator",
+                          testGenericForCallReturningLuaIterator);
     registry.registerTest(kSuiteName, "generic for loop var survives local call initializer",
                           testGenericForLoopVarSurvivesLocalCallInitializer);
     registry.registerTest(kSuiteName, "generic for local call initializer reads shadowed outer",
                           testGenericForLocalCallInitializerCanReadShadowedOuter);
     registry.registerTest(kSuiteName, "generic for after temporary-heavy assignments",
                           testGenericForAfterTemporaryHeavyAssignments);
-    registry.registerTest(kSuiteName, "official literals line-ending rewrite loop",
-                          testOfficialLineEndingRewriteLoop);
+    registry.registerTest(kSuiteName, "official literals line-ending rewrite loop", testOfficialLineEndingRewriteLoop);
     registry.registerTest(kSuiteName, "return f() emits TAILCALL", testTailReturnCallEmitsTailcall);
     registry.registerTest(kSuiteName, "tail recursion reuses frames", testTailRecursiveLuaCallReusesFrame);
     registry.registerTest(kSuiteName, "deep tail call error diagnostics are bounded",
@@ -674,4 +695,3 @@ void registerCallPipelineTests() {
     registry.registerTest(kSuiteName, "large table constructor uses extended SETLIST",
                           testLargeTableConstructorUsesExtendedSetList);
 }
-

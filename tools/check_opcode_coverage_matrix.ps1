@@ -65,6 +65,420 @@ function Get-RegisteredTestIds {
     return $ids
 }
 
+function Get-NormalizedRepoPath {
+    param([string]$Path)
+
+    $resolvedRoot = (Resolve-Path -LiteralPath $Root).Path.TrimEnd("\", "/")
+    $resolvedPath = (Resolve-Path -LiteralPath $Path).Path
+    $prefix = $resolvedRoot + [System.IO.Path]::DirectorySeparatorChar
+    if ($resolvedPath.StartsWith($prefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+        return $resolvedPath.Substring($prefix.Length).Replace("\", "/")
+    }
+    return $resolvedPath.Replace("\", "/")
+}
+
+function Find-CppClosingBrace {
+    param(
+        [string]$Text,
+        [int]$OpeningBrace
+    )
+
+    $depth = 0
+    $state = "code"
+    $escaped = $false
+    for ($index = $OpeningBrace; $index -lt $Text.Length; $index += 1) {
+        $character = $Text[$index]
+        $next = if ($index + 1 -lt $Text.Length) { $Text[$index + 1] } else { [char]0 }
+
+        if ($state -eq "line-comment") {
+            if ($character -eq "`n") { $state = "code" }
+            continue
+        }
+        if ($state -eq "block-comment") {
+            if ($character -eq "*" -and $next -eq "/") {
+                $state = "code"
+                $index += 1
+            }
+            continue
+        }
+        if ($state -eq "string" -or $state -eq "character") {
+            if ($escaped) {
+                $escaped = $false
+                continue
+            }
+            if ($character -eq "\") {
+                $escaped = $true
+                continue
+            }
+            if (($state -eq "string" -and $character -eq '"') -or
+                ($state -eq "character" -and $character -eq "'")) {
+                $state = "code"
+            }
+            continue
+        }
+
+        if ($character -eq "/" -and $next -eq "/") {
+            $state = "line-comment"
+            $index += 1
+            continue
+        }
+        if ($character -eq "/" -and $next -eq "*") {
+            $state = "block-comment"
+            $index += 1
+            continue
+        }
+        if ($character -eq '"') {
+            $state = "string"
+            continue
+        }
+        if ($character -eq "'") {
+            $state = "character"
+            continue
+        }
+        if ($character -eq "{") {
+            $depth += 1
+        } elseif ($character -eq "}") {
+            $depth -= 1
+            if ($depth -eq 0) {
+                return $index
+            }
+        }
+    }
+
+    return -1
+}
+
+function Get-CppFunctionEvidence {
+    param(
+        [string]$Path,
+        [string]$Function,
+        [string]$SignatureContains,
+        [System.Collections.Generic.List[string]]$Failures,
+        [string]$Context
+    )
+
+    if (-not (Test-Path -LiteralPath $Path)) {
+        Add-Failure $Failures "$Context source does not exist: $Path"
+        return $null
+    }
+
+    $text = Get-Content -LiteralPath $Path -Raw
+    $escapedFunction = [regex]::Escape($Function)
+    $pattern = "(?m)^[\t ]*[^\r\n;{}]*$escapedFunction\s*\([^\r\n;{}]*\)[^\r\n;{}]*\{"
+    $candidates = @([regex]::Matches($text, $pattern))
+    if (-not [string]::IsNullOrWhiteSpace($SignatureContains)) {
+        $candidates = @($candidates | Where-Object { $_.Value.Contains($SignatureContains) })
+    }
+
+    if ($candidates.Count -ne 1) {
+        $qualifier = if ([string]::IsNullOrWhiteSpace($SignatureContains)) { "" } else { " containing '$SignatureContains'" }
+        Add-Failure $Failures "$Context must resolve exactly one function '$Function'$qualifier in $Path; found $($candidates.Count)"
+        return $null
+    }
+
+    $match = $candidates[0]
+    $relativeOpening = $match.Value.LastIndexOf("{")
+    $opening = $match.Index + $relativeOpening
+    $closing = Find-CppClosingBrace -Text $text -OpeningBrace $opening
+    if ($closing -lt $opening) {
+        Add-Failure $Failures "$Context function '$Function' has no balanced body in $Path"
+        return $null
+    }
+
+    return [pscustomobject]@{
+        Signature = $match.Value.Substring(0, $relativeOpening).Trim()
+        Body = $text.Substring($opening, $closing - $opening + 1)
+    }
+}
+
+function Get-CodegenSourceFiles {
+    param(
+        [string]$ScanRoot,
+        [System.Collections.Generic.List[string]]$Failures,
+        [string]$Context
+    )
+
+    if ([string]::IsNullOrWhiteSpace($ScanRoot)) {
+        Add-Failure $Failures "$Context requires scanRoot"
+        return @()
+    }
+
+    $normalizedRoot = $ScanRoot.Replace("\", "/").TrimEnd("/")
+    if ($normalizedRoot -ne "src/compiler/codegen") {
+        Add-Failure $Failures "$Context must scan the complete src/compiler/codegen tree: $ScanRoot"
+        return @()
+    }
+
+    $rootPath = Join-RepoPath $ScanRoot
+    if (-not (Test-Path -LiteralPath $rootPath -PathType Container)) {
+        Add-Failure $Failures "$Context scanRoot does not exist: $ScanRoot"
+        return @()
+    }
+
+    return @(Get-ChildItem -LiteralPath $rootPath -Recurse -File | Where-Object {
+        $_.Extension -in @(".cpp", ".hpp", ".cc", ".hh")
+    })
+}
+
+function Get-PatternOccurrences {
+    param(
+        [System.IO.FileInfo[]]$Files,
+        [string]$Pattern
+    )
+
+    $occurrences = [System.Collections.Generic.List[object]]::new()
+    $regex = [regex]::new($Pattern)
+    foreach ($file in $Files) {
+        $text = Get-Content -LiteralPath $file.FullName -Raw
+        foreach ($match in $regex.Matches($text)) {
+            $occurrences.Add([pscustomobject]@{
+                Source = Get-NormalizedRepoPath $file.FullName
+                Index = $match.Index
+                Value = $match.Value
+            }) | Out-Null
+        }
+    }
+    return @($occurrences)
+}
+
+function Test-IntentionallyNotProducedEvidence {
+    param(
+        [string]$Opcode,
+        [pscustomobject]$Producer,
+        [hashtable]$CatalogByKey,
+        [hashtable]$UsedTestKeys,
+        [System.Collections.Generic.List[string]]$Failures
+    )
+
+    $context = "Opcode $Opcode intentionally-not-produced evidence"
+    if ([string]::IsNullOrWhiteSpace($Producer.reason) -or [string]::IsNullOrWhiteSpace($Producer.test) -or
+        [string]::IsNullOrWhiteSpace($Producer.testFunction)) {
+        Add-Failure $Failures "$context requires reason/test/testFunction"
+        return
+    }
+
+    $files = @(Get-CodegenSourceFiles -ScanRoot $Producer.scanRoot -Failures $Failures -Context $context)
+    if ($files.Count -eq 0) { return }
+
+    $opcodePattern = "\bOpCode::" + [regex]::Escape($Opcode) + "\b"
+    $actualReferences = @(Get-PatternOccurrences -Files $files -Pattern $opcodePattern)
+    $allowedReferences = @($Producer.allowedReferences)
+    $expectedReferenceCount = 0
+
+    foreach ($allowed in $allowedReferences) {
+        if ([string]::IsNullOrWhiteSpace($allowed.source) -or [string]::IsNullOrWhiteSpace($allowed.function) -or
+            [string]::IsNullOrWhiteSpace($allowed.normalizesTo) -or $null -eq $allowed.count -or
+            [int]$allowed.count -lt 1) {
+            Add-Failure $Failures "$context allowedReferences entries require source/function/count >= 1/normalizesTo"
+            continue
+        }
+
+        $normalizedSource = ([string]$allowed.source).Replace("\", "/")
+        $expectedReferenceCount += [int]$allowed.count
+        $sourceOccurrences = @($actualReferences | Where-Object { $_.Source -eq $normalizedSource })
+        if ($sourceOccurrences.Count -ne [int]$allowed.count) {
+            Add-Failure $Failures "$context expected $($allowed.count) OpCode::$Opcode reference(s) in $normalizedSource; found $($sourceOccurrences.Count)"
+        }
+
+        $functionEvidence = Get-CppFunctionEvidence -Path (Join-RepoPath $allowed.source) `
+            -Function $allowed.function -SignatureContains $allowed.signatureContains -Failures $Failures -Context $context
+        if ($null -eq $functionEvidence) { continue }
+        $functionReferenceCount = [regex]::Matches($functionEvidence.Body, $opcodePattern).Count
+        if ($functionReferenceCount -ne [int]$allowed.count) {
+            Add-Failure $Failures "$context expected all $($allowed.count) reference(s) inside $($allowed.function); found $functionReferenceCount"
+        }
+
+        $target = [regex]::Escape([string]$allowed.normalizesTo)
+        $normalizationPattern = "(?s)if\s*\([^)]*OpCode::$Opcode[^)]*\)\s*\{[^}]*\bop\s*=\s*OpCode::$target\b"
+        if ($functionEvidence.Body -notmatch $normalizationPattern) {
+            Add-Failure $Failures "$context function $($allowed.function) does not normalize OpCode::$Opcode to OpCode::$($allowed.normalizesTo)"
+        }
+    }
+
+    if ($actualReferences.Count -ne $expectedReferenceCount) {
+        $locations = @($actualReferences | ForEach-Object { $_.Source } | Sort-Object -Unique) -join ", "
+        Add-Failure $Failures "$context found $($actualReferences.Count) codegen reference(s), expected $expectedReferenceCount; locations: $locations"
+    }
+
+    if ($allowedReferences.Count -gt 0 -and $null -eq $Producer.noProductionCalls) {
+        Add-Failure $Failures "$context with allowed normalization references requires noProductionCalls proof"
+    } elseif ($null -ne $Producer.noProductionCalls) {
+        $callProof = $Producer.noProductionCalls
+        if ([string]::IsNullOrWhiteSpace($callProof.function) -or [string]::IsNullOrWhiteSpace($callProof.definitionSource)) {
+            Add-Failure $Failures "$context noProductionCalls requires function/definitionSource"
+        } elseif ($null -eq $callProof.expectedCalls -or [int]$callProof.expectedCalls -ne 0) {
+            Add-Failure $Failures "$context noProductionCalls expectedCalls must be exactly 0"
+        } else {
+            $cppFiles = @($files | Where-Object { $_.Extension -in @(".cpp", ".cc") })
+            $callPattern = "\b" + [regex]::Escape([string]$callProof.function) + "\s*\("
+            $callOccurrences = @(Get-PatternOccurrences -Files $cppFiles -Pattern $callPattern)
+            $definitionEvidence = Get-CppFunctionEvidence -Path (Join-RepoPath $callProof.definitionSource) `
+                -Function $callProof.function -SignatureContains $callProof.signatureContains -Failures $Failures -Context $context
+            $expectedMatches = 1
+            if ($null -ne $definitionEvidence -and $callOccurrences.Count -ne $expectedMatches) {
+                Add-Failure $Failures "$context expected $($callProof.expectedCalls) production call(s) to $($callProof.function); found $($callOccurrences.Count - 1)"
+            }
+        }
+    }
+
+    $testKey = [string]$Producer.test
+    $UsedTestKeys[$testKey] = $true
+    if (-not $CatalogByKey.ContainsKey($testKey)) {
+        Add-Failure $Failures "$context references unknown test key: $testKey"
+        return
+    }
+
+    $test = $CatalogByKey[$testKey]
+    $testEvidence = Get-CppFunctionEvidence -Path (Join-RepoPath $test.source) -Function $Producer.testFunction `
+        -SignatureContains "" -Failures $Failures -Context "$context test"
+    if ($null -eq $testEvidence) { return }
+
+    if ($expectedReferenceCount -eq 0) {
+        $absenceAssertion = "(?s)ASSERT_FALSE\s*\([^;]*hasOpcode\s*\([^;]*OpCode::$Opcode\b[^;]*\)"
+        if ($testEvidence.Body -notmatch $absenceAssertion) {
+            Add-Failure $Failures "$context test does not assert that generated bytecode omits OpCode::$Opcode"
+        }
+    } else {
+        $targets = @($allowedReferences | ForEach-Object { $_.normalizesTo } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Sort-Object -Unique)
+        if ($testEvidence.Body -notmatch $opcodePattern) {
+            Add-Failure $Failures "$context test does not exercise OpCode::$Opcode"
+        }
+        foreach ($targetOpcode in $targets) {
+            $target = [regex]::Escape([string]$targetOpcode)
+            $normalizationAssertion = "(?s)ASSERT_EQ\s*\([^;]*OpCode::$target\b[^;]*GET_OPCODE\s*\("
+            if ($testEvidence.Body -notmatch $normalizationAssertion) {
+                Add-Failure $Failures "$context test does not assert normalization to OpCode::$targetOpcode"
+            }
+        }
+    }
+}
+
+function Test-ProducerEvidence {
+    param(
+        [pscustomobject]$Coverage,
+        [hashtable]$CatalogByKey,
+        [hashtable]$UsedTestKeys,
+        [System.Collections.Generic.List[string]]$Failures
+    )
+
+    $opcode = [string]$Coverage.opcode
+    $producer = $Coverage.producer
+    if ($null -eq $producer -or [string]::IsNullOrWhiteSpace($producer.kind)) {
+        Add-Failure $Failures "Opcode $opcode requires producer kind evidence"
+        return
+    }
+
+    if ([string]$producer.kind -eq "intentionally-not-produced") {
+        Test-IntentionallyNotProducedEvidence -Opcode $opcode -Producer $producer -CatalogByKey $CatalogByKey `
+            -UsedTestKeys $UsedTestKeys -Failures $Failures
+        return
+    }
+
+    if ([string]::IsNullOrWhiteSpace($producer.source) -or [string]::IsNullOrWhiteSpace($producer.function) -or
+        [string]::IsNullOrWhiteSpace($producer.emitter)) {
+        Add-Failure $Failures "Opcode $opcode producer requires source/function/emitter evidence"
+        return
+    }
+    if (-not ([string]$producer.source).Replace("\", "/").StartsWith("src/compiler/codegen/")) {
+        Add-Failure $Failures "Opcode $opcode producer must be inside src/compiler/codegen: $($producer.source)"
+        return
+    }
+
+    $sourcePath = Join-RepoPath $producer.source
+    $evidence = Get-CppFunctionEvidence -Path $sourcePath -Function $producer.function `
+        -SignatureContains $producer.signatureContains -Failures $Failures -Context "Opcode $opcode producer"
+    if ($null -eq $evidence) { return }
+
+    $emitterPattern = [regex]::Escape([string]$producer.emitter) + "\s*\("
+    if ($evidence.Body -notmatch $emitterPattern) {
+        Add-Failure $Failures "Opcode $opcode producer function $($producer.function) does not invoke $($producer.emitter)"
+    }
+
+    $opcodePattern = "\bOpCode::" + [regex]::Escape($opcode) + "\b"
+    switch ([string]$producer.kind) {
+        "direct" {
+            $directEmissionPattern = $emitterPattern + "[^;]*" + $opcodePattern
+            if ($evidence.Body -notmatch $directEmissionPattern) {
+                Add-Failure $Failures "Opcode $opcode direct producer function $($producer.function) does not pass OpCode::$opcode to $($producer.emitter)"
+            }
+        }
+        "selected" {
+            if ([string]::IsNullOrWhiteSpace($producer.variable)) {
+                Add-Failure $Failures "Opcode $opcode selected producer requires a variable"
+                break
+            }
+            $variable = [regex]::Escape([string]$producer.variable)
+            $selectionPattern = "\b$variable\s*=\s*OpCode::$opcode\b"
+            if ($evidence.Body -notmatch $selectionPattern) {
+                Add-Failure $Failures "Opcode $opcode producer does not select OpCode::$opcode through $($producer.variable)"
+            }
+            $flowPattern = $emitterPattern + "[^;]*\b$variable\b"
+            if ($evidence.Body -notmatch $flowPattern) {
+                Add-Failure $Failures "Opcode $opcode selected producer does not pass $($producer.variable) to $($producer.emitter)"
+            }
+        }
+        default {
+            Add-Failure $Failures "Opcode $opcode has unsupported producer kind: $($producer.kind)"
+        }
+    }
+}
+
+function Test-HandlerEvidence {
+    param(
+        [pscustomobject]$Coverage,
+        [hashtable]$ActualRegistrations,
+        [pscustomobject]$CentralRegistry,
+        [System.Collections.Generic.List[string]]$Failures
+    )
+
+    $opcode = [string]$Coverage.opcode
+    $handler = $Coverage.handler
+    if ($null -eq $handler -or [string]::IsNullOrWhiteSpace($handler.source) -or
+        [string]::IsNullOrWhiteSpace($handler.registrar) -or [string]::IsNullOrWhiteSpace($handler.symbol)) {
+        Add-Failure $Failures "Opcode $opcode requires handler source/registrar/symbol evidence"
+        return
+    }
+
+    $normalizedSource = ([string]$handler.source).Replace("\", "/")
+    if (-not $normalizedSource.StartsWith("src/vm/vm_handlers/")) {
+        Add-Failure $Failures "Opcode $opcode handler must be inside src/vm/vm_handlers: $normalizedSource"
+        return
+    }
+    if (-not $ActualRegistrations.ContainsKey($opcode) -or @($ActualRegistrations[$opcode]).Count -ne 1) {
+        Add-Failure $Failures "Opcode $opcode must have exactly one actual VM handler registration"
+        return
+    }
+
+    $actual = @($ActualRegistrations[$opcode])[0]
+    if ($actual.Source -ne $normalizedSource -or $actual.Symbol -ne [string]$handler.symbol) {
+        Add-Failure $Failures "Opcode $opcode handler contract differs from actual registration: $($actual.Source) -> $($actual.Symbol)"
+    }
+
+    $sourcePath = Join-RepoPath $handler.source
+    $registrarEvidence = Get-CppFunctionEvidence -Path $sourcePath -Function $handler.registrar `
+        -SignatureContains "" -Failures $Failures -Context "Opcode $opcode handler registrar"
+    if ($null -ne $registrarEvidence) {
+        $assignmentPattern = "table\s*\[\s*opcodeIndex\s*\(\s*OpCode::$opcode\s*\)\s*\]\s*\.handler\s*=\s*" +
+            [regex]::Escape([string]$handler.symbol) + "\s*;"
+        if ($registrarEvidence.Body -notmatch $assignmentPattern) {
+            Add-Failure $Failures "Opcode $opcode is not assigned to $($handler.symbol) inside $($handler.registrar)"
+        }
+    }
+
+    $symbolEvidence = Get-CppFunctionEvidence -Path $sourcePath -Function $handler.symbol `
+        -SignatureContains "" -Failures $Failures -Context "Opcode $opcode handler symbol"
+    if ($null -ne $symbolEvidence -and $symbolEvidence.Signature -notmatch "\bHandlerStatus\b") {
+        Add-Failure $Failures "Opcode $opcode handler symbol $($handler.symbol) does not return HandlerStatus"
+    }
+
+    if ($null -ne $CentralRegistry) {
+        $registrarCall = "handlers::" + [regex]::Escape([string]$handler.registrar) + "\s*\(\s*table\s*\)"
+        if ($CentralRegistry.Body -notmatch $registrarCall) {
+            Add-Failure $Failures "Opcode $opcode registrar $($handler.registrar) is not called by makeHandlerTable"
+        }
+    }
+}
+
 function Get-OpcodeNames {
     param([string]$Path)
 
@@ -264,6 +678,41 @@ foreach ($row in $rows) {
     }
 }
 
+$actualHandlerRegistrations = @{}
+$handlerDirectory = Join-RepoPath "src\vm\vm_handlers"
+$handlerRegistrationPattern = [regex]::new(
+    'table\s*\[\s*opcodeIndex\s*\(\s*OpCode::(?<opcode>[A-Z][A-Z0-9_]*)\s*\)\s*\]\s*\.handler\s*=\s*(?<symbol>[A-Za-z_][A-Za-z0-9_]*)\s*;'
+)
+foreach ($file in @(Get-ChildItem -LiteralPath $handlerDirectory -File -Filter "vm_handlers_*.cpp")) {
+    $source = Get-Content -LiteralPath $file.FullName -Raw
+    $relativeSource = Get-NormalizedRepoPath $file.FullName
+    foreach ($match in $handlerRegistrationPattern.Matches($source)) {
+        $opcode = $match.Groups["opcode"].Value
+        if (-not $actualHandlerRegistrations.ContainsKey($opcode)) {
+            $actualHandlerRegistrations[$opcode] = [System.Collections.Generic.List[object]]::new()
+        }
+        $actualHandlerRegistrations[$opcode].Add([pscustomobject]@{
+            Source = $relativeSource
+            Symbol = $match.Groups["symbol"].Value
+        }) | Out-Null
+    }
+}
+foreach ($opcode in $expected) {
+    if (-not $actualHandlerRegistrations.ContainsKey($opcode)) {
+        Add-Failure $failures "No VM handler registration parsed for opcode $opcode"
+    } elseif (@($actualHandlerRegistrations[$opcode]).Count -ne 1) {
+        Add-Failure $failures "VM handler registration count for opcode $opcode is $(@($actualHandlerRegistrations[$opcode]).Count), expected 1"
+    }
+}
+foreach ($opcode in $actualHandlerRegistrations.Keys) {
+    if (-not $expectedSet.ContainsKey($opcode)) {
+        Add-Failure $failures "VM handler registry references unknown opcode $opcode"
+    }
+}
+
+$centralRegistry = Get-CppFunctionEvidence -Path (Join-RepoPath "src\vm\vm_handlers.cpp") `
+    -Function "makeHandlerTable" -SignatureContains "" -Failures $failures -Context "VM handler registry"
+
 $contract = $null
 if (-not (Test-Path -LiteralPath $contractPath)) {
     Add-Failure $failures "Missing opcode coverage contract: $CoverageContract"
@@ -277,7 +726,7 @@ if (-not (Test-Path -LiteralPath $contractPath)) {
 
 $registeredTestIds = Get-RegisteredTestIds -ExecutablePath $testExecutablePath -Failures $failures
 if ($null -ne $contract) {
-    if ($contract.schemaVersion -ne 1) {
+    if ($contract.schemaVersion -ne 2) {
         Add-Failure $failures "Unsupported opcode coverage contract schemaVersion: $($contract.schemaVersion)"
     }
 
@@ -343,6 +792,11 @@ if ($null -ne $contract) {
             }
         }
 
+        Test-ProducerEvidence -Coverage $coverage -CatalogByKey $catalogByKey -UsedTestKeys $usedTestKeys `
+            -Failures $failures
+        Test-HandlerEvidence -Coverage $coverage -ActualRegistrations $actualHandlerRegistrations `
+            -CentralRegistry $centralRegistry -Failures $failures
+
         $matrixRow = @($rows | Where-Object { $_.Opcode -eq $coverage.opcode } | Select-Object -First 1)
         if ($matrixRow.Count -eq 1) {
             foreach ($key in $positive) {
@@ -381,4 +835,9 @@ if ($failures.Count -gt 0) {
     exit 1
 }
 
-Write-Host "[OK] Opcode coverage matrix covers $($expected.Count) opcodes and all referenced tests are registered"
+$notProducedCount = @($contract.coverage | Where-Object { $_.producer.kind -eq "intentionally-not-produced" }).Count
+$producedCount = $expected.Count - $notProducedCount
+$successMessage = "[OK] Opcode coverage matrix covers $($expected.Count) opcodes: " +
+    "$producedCount verified CodeGen producers, $notProducedCount verified intentionally-not-produced entries, " +
+    "VM handler registrations, and registered tests"
+Write-Host $successMessage

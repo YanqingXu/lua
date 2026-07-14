@@ -22,6 +22,7 @@ namespace Lua {
 class LuaState;
 class Function;
 class GarbageCollector;
+enum class ThreadStatus : u8;
 
 struct LuaStateOwnerDeleter {
     void operator()(LuaState* state) const noexcept;
@@ -63,6 +64,17 @@ public:
     ///
     /// resume 内部会 push true/false + 结果值到 callerL 栈。
     bool resume(LuaState* callerL, i32 nargs);
+
+    /**
+     * @brief Put a coroutine in a canonical dead state after host/API failure.
+     *
+     * lua_resume can
+     * allocate while preparing frames or copying results.
+     * This rollback prevents a partially built CallInfo
+     * stack from being
+     * exposed through the public API after such an exception.
+     */
+    void abortResume(ThreadStatus status) noexcept;
 
     // === 状态查询 ===
 

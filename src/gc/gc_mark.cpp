@@ -174,6 +174,11 @@ void GarbageCollector::mark() {
 }
 
 void GarbageCollector::mark(LuaState* currentState) {
+    // Establish queue capacity before recolouring objects.  If allocation
+    // fails, the previously completed collector state remains intact.
+    grayList_.reserve(objectCount_);
+    weakTables_.reserve(objectCount_);
+
     // 1. 重置所有对象为白色（保留FIXED和FINALIZED，清除上一轮弱表模式）
     GCObject* obj = allObjects_;
     while (obj != nullptr) {
@@ -223,15 +228,27 @@ usize GarbageCollector::propagateMarks(usize budget) {
 
     // 处理所有灰色对象
     while (!grayList_.empty() && processed < budget) {
-        // 取出一个灰色对象
-        GCObject* obj = grayList_.back();
-        grayList_.pop_back();
+        // Keep the object published in the queue until its complete child
+        // graph has been scanned. A child push may exhaust spare capacity and
+        // throw; retaining this slot makes rollback allocation-free.
+        const usize objectIndex = grayList_.size() - 1;
+        GCObject* obj = grayList_[objectIndex];
 
-        // 标记为黑色
+        // 标记为黑色并扫描其子图。If a child queue allocation fails, the
+        // original queue slot remains present; changing the object back to
+        // gray is enough to make a later retry safe and idempotent.
         obj->setColor(GCColor::Black);
+        try {
+            obj->mark(*this);
+        } catch (...) {
+            obj->setColor(GCColor::Gray);
+            throw;
+        }
 
-        // 调用对象的mark方法，由对象通过gc.markObject/markValue报告引用关系。
-        obj->mark(*this);
+        // Children may have been appended (and the vector may have moved),
+        // so remove the original slot by index rather than by reference.
+        grayList_[objectIndex] = grayList_.back();
+        grayList_.pop_back();
         ++processed;
     }
 
@@ -258,11 +275,10 @@ void GarbageCollector::markObject(GCObject* obj) {
         return;
     }
 
-    // 标记为灰色
-    obj->setColor(GCColor::Gray);
-
-    // 添加到灰色列表
+    // Publish the queue entry before changing color. If allocation fails,
+    // the object remains white and a later collection can retry it.
     grayList_.push_back(obj);
+    obj->setColor(GCColor::Gray);
 }
 
 void GarbageCollector::markValue(const Value& value) {
@@ -294,6 +310,39 @@ void GarbageCollector::writeBarrier(GCObject* owner, const Value& value) {
     }
 
     writeBarrier(owner, objectFromValue(value));
+}
+
+void GarbageCollector::writeBarrierDeferredNoexcept(GCObject* owner, const Value& value) noexcept {
+    if (!valueContainsObject(value)) {
+        return;
+    }
+
+    GCObject* child = objectFromValue(value);
+    if (owner == nullptr || child == nullptr || owner->getOwnerCollector() != this ||
+        child->getOwnerCollector() != this || !owner->isBlack() || !child->isWhite()) {
+        return;
+    }
+
+    if (incrementalPhase_ == IncrementalPhase::Sweep) {
+        // Sweep never returns to propagation.  Abandon the remaining cursor
+        // so the newly closed upvalue and its complete child graph are marked
+        // together by the next cycle.
+        resetIncrementalCycle();
+        return;
+    }
+
+    if (grayList_.size() >= grayList_.capacity()) {
+        // Continuing toward sweep would violate the tri-colour invariant.
+        // Dropping the unfinished cycle is safe: no white object has been
+        // reclaimed yet, and the next step starts a fresh mark phase.
+        resetIncrementalCycle();
+        return;
+    }
+
+    // Capacity was reserved at the start of the mark phase.  Pointer moves
+    // and size growth are non-throwing when no reallocation is required.
+    grayList_.push_back(child);
+    child->setColor(GCColor::Gray);
 }
 
 void GarbageCollector::writeRootBarrier(GCObject* child) {
