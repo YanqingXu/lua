@@ -1457,6 +1457,7 @@ void openStringLib(LuaState* L) {
         return;
     }
 
+    L->requireStandardLibrary("string");
     StringLibModule module;
     module.registerFunctions(L);
     module.initialize(L);

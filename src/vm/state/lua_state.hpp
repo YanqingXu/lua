@@ -546,6 +546,16 @@ public:
     [[noreturn]] void error(const char* msg);
 
     /**
+     * @brief Reject a privileged Lua operation disabled by this context.
+     */
+    void requireSandboxCapability(SandboxCapability capability);
+
+    /**
+     * @brief Reject explicit opening of a disabled standard library.
+     */
+    void requireStandardLibrary(StrView id);
+
+    /**
      * @brief 抛出错误（使用栈顶的值作为错误消息）
      * @return 不返回
      */

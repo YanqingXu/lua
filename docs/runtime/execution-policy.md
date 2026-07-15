@@ -1,8 +1,8 @@
 ---
 status: current
-verified_against: src/runtime/execution_policy.hpp; src/runtime/runtime_services.hpp; src/vm/state/global_state.hpp; src/vm/state/global_state.cpp; src/vm/vm.cpp; src/vm/state/lua_state.cpp; src/core/thread.cpp; src/gc/gc_finalize.cpp; tests/unit/vm/test_runtime_services.cpp; tests/unit/gc/test_gc.cpp; tests/unit/api/test_lua_c_api.cpp; benchmarks/runtime_bench.cpp; tests/compatibility/runtime-benchmark-regression-policy.json
+verified_against: src/runtime/execution_policy.hpp; src/runtime/sandbox_policy.hpp; src/runtime/runtime_services.hpp; src/vm/state/global_state.hpp; src/vm/state/global_state.cpp; src/vm/vm.cpp; src/vm/state/lua_state.cpp; src/core/thread.cpp; src/gc/gc_finalize.cpp; tests/unit/vm/test_runtime_services.cpp; tests/unit/gc/test_gc.cpp; tests/unit/api/test_lua_c_api.cpp; benchmarks/runtime_bench.cpp; tests/compatibility/runtime-benchmark-regression-policy.json
 last_checked: 2026-07-15
-applies_to: owner-thread access, instruction budget, monotonic deadline, external cancellation, and per-drain finalizer budget
+applies_to: owner-thread access, instruction budget, monotonic deadline, external cancellation, per-drain finalizer budget, and context sandbox policy
 ---
 
 # ExecutionPolicy 执行治理合同
@@ -49,8 +49,12 @@ finalizer 预算按 drain 重新补充，不像 instruction budget 那样跨执�
 
 该字段限制的是回调进入次数，不是时间配额。Lua 实现的 `__gc` 同时受 instruction budget、deadline 和 cancellation 检查；长期不返回的原生 C/C++ finalizer 仍须由宿主实现协作式取消。
 
+## 脚本能力策略
+
+同一个 context 还拥有 `SandboxPolicy`。它在库打开时控制 base/math/io/string/table/os/coroutine/debug/package 的暴露，并在每次特权操作时控制文件系统、进程和原生模块能力。默认 unrestricted 保持 Lua 5.1 行为；game-server profile 只开放安全库和 preload-only package。详细能力矩阵、固定错误与信任边界见 [SandboxPolicy](sandbox-policy.md)。
+
 ## 性能与当前边界
 
 默认策略仍经过一个 relaxed atomic cancellation load 和快速未启用分支。Release `vm_instructions_per_second` 已纳入 base-vs-head 相对回归策略，允许的最大退化比例为 20%。deadline 只有启用时才读取 `steady_clock`。
 
-当前页闭环固定 owner-thread、instruction budget、monotonic deadline、atomic cancellation 与 finalizer 单轮预算。assessment 路线中的 sandbox/module policy 和原生 C 函数协作式取消继续由 [#10](https://github.com/YanqingXu/lua/issues/10) 跟踪；不得将本阶段解释为完整 server sandbox。
+当前页闭环固定 owner-thread、instruction budget、monotonic deadline、atomic cancellation、finalizer 单轮预算与 context sandbox/module policy。长期不返回的原生 C 函数仍不能被 VM 指令检查点抢占，协作式取消继续由 [#10](https://github.com/YanqingXu/lua/issues/10) 跟踪；不得把脚本能力策略解释为 OS 级隔离。

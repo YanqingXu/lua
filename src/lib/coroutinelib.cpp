@@ -234,6 +234,7 @@ void CoroutineLibModule::registerFunctions(LuaState* L) {
 void openCoroutineLib(LuaState* L) {
     if (!L)
         return;
+    L->requireStandardLibrary("coroutine");
     CoroutineLibModule module;
     StandardLibrary::openModule(L, module);
 }

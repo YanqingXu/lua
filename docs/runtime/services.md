@@ -1,6 +1,6 @@
 ---
 status: current
-verified_against: src/runtime/runtime_services.hpp; src/runtime/execution_policy.hpp; src/runtime/native_module_registry.hpp; src/runtime/native_module_registry.cpp; src/core/string_pool.hpp; src/vm/state/global_state.hpp; src/vm/state/global_state.cpp; src/vm/state/lua_state.hpp; src/vm/state/lua_state.cpp; src/gc/garbage_collector.hpp; src/gc/gc_strategy.hpp; src/gc/gc_sweep.cpp; src/vm/vm_dispatch_strategy.hpp; src/vm/vm.cpp; src/main.cpp; src/repl.cpp; src/bytecode/bytecode_main.cpp; src/compiler/parser/parser.hpp; src/compiler/codegen/codegen.hpp; src/vm/vm.hpp; tests/compatibility/public_native_module.c; tests/compatibility/public_native_module_host.cpp; tests/unit/vm/test_runtime_services.cpp; tests/unit/vm/test_vm_dispatch.cpp; tests/unit/gc/test_gc.cpp
+verified_against: src/runtime/runtime_services.hpp; src/runtime/execution_policy.hpp; src/runtime/sandbox_policy.hpp; src/runtime/native_module_registry.hpp; src/runtime/native_module_registry.cpp; src/core/string_pool.hpp; src/vm/state/global_state.hpp; src/vm/state/global_state.cpp; src/vm/state/lua_state.hpp; src/vm/state/lua_state.cpp; src/gc/garbage_collector.hpp; src/gc/gc_strategy.hpp; src/gc/gc_sweep.cpp; src/vm/vm_dispatch_strategy.hpp; src/vm/vm.cpp; src/main.cpp; src/repl.cpp; src/bytecode/bytecode_main.cpp; src/compiler/parser/parser.hpp; src/compiler/codegen/codegen.hpp; src/vm/vm.hpp; tests/compatibility/public_native_module.c; tests/compatibility/public_native_module_host.cpp; tests/unit/vm/test_runtime_services.cpp; tests/unit/vm/test_vm_dispatch.cpp; tests/unit/gc/test_gc.cpp
 last_checked: 2026-07-15
 applies_to: current RuntimeServices boundary
 ---
@@ -66,6 +66,7 @@ public:
     GarbageCollector& gc();
     NativeModuleRegistry& nativeModules();
     ExecutionPolicy& executionPolicy();
+    SandboxPolicy& sandboxPolicy();
     ExecutionCancellationHandle cancellationHandle();
 };
 ```
@@ -77,6 +78,7 @@ public:
 - 由该全局状态拥有的 `GarbageCollector`
 - 由该全局状态拥有的 `NativeModuleRegistry`
 - 由该全局状态拥有、供所有 LuaState/coroutine 共享的 `ExecutionPolicy`
+- 由该全局状态拥有、控制库暴露与文件/进程/原生模块能力的 `SandboxPolicy`
 - 在该全局状态内创建的注册表、基础类型元表、保留字符串、元方法名称和主线程簿记
 
 `LuaState::newState(EngineContext&)` 在该上下文内创建主状态。测试断言两个上下文将相同文本驻留为不同的 `GCString` 对象，且这些字符串属于不同的回收器。
@@ -87,13 +89,13 @@ public:
 
 关闭异常边界的 API 不传播该异常，也不改动栈：`lua_checkstack` 返回 `0`，`lua_pcall`/`lua_cpcall`/`lua_resume` 和 load API 返回 `LUA_ERRRUN`，`lua_trynewthread` 返回 `nullptr`，`lua_dump` 返回 `1`。foreign-thread `lua_close` 是无操作；宿主仍须回到 owner thread 关闭 State。若 owning `EngineContext`/`GlobalState` 最终在其他线程析构，运行时以 `std::terminate` fail-fast，避免在错误线程执行 GC、finalizer 或模块卸载。
 
-唯一支持的跨线程操作是 owner 预先取得 `ExecutionCancellationHandle`，并由外部线程调用其原子 `requestCancellation()`；handle 不能超过 context 生命周期。直接调用内部 `LuaState`/GC/编译器辅助函数不属于公开嵌入合同，也不提供绕过线程约束的兼容承诺。执行预算、单调 deadline 和取消的详细合同见 [ExecutionPolicy](execution-policy.md)。
+唯一支持的跨线程操作是 owner 预先取得 `ExecutionCancellationHandle`，并由外部线程调用其原子 `requestCancellation()`；handle 不能超过 context 生命周期。直接调用内部 `LuaState`/GC/编译器辅助函数不属于公开嵌入合同，也不提供绕过线程约束的兼容承诺。执行预算、单调 deadline 和取消的详细合同见 [ExecutionPolicy](execution-policy.md)，脚本能力边界见 [SandboxPolicy](sandbox-policy.md)。
 
 ## 原生模块生命周期
 
 `package.loadlib` 不再使用进程级静态 handle map，而是通过当前 `GlobalState::getNativeModules()` 获取 context-owned registry：
 
-- 同一 context 内按规范化完整路径只取得一个 OS lease；
+- 同一 context 内按规范化完整路径只取得一个 OS lease；sandbox 禁止原生模块时，新加载会在触碰 OS loader 前失败；
 - 不同 context 分别取得 lease，因此一个 context 关闭不会使另一个 context 的函数指针失效；
 - registry 在 `GlobalState` 中声明于 GC 之前，按 C++ 逆序析构规则晚于 GC 销毁，保证所有可能保存模块函数指针的 `Function` 先释放；
 - 最后一个 context 释放 lease 后才卸载模块；Windows 当前进程的 `GetModuleHandle` 是 borrowed handle，不调用 `FreeLibrary`；

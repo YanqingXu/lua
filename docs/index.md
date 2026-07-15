@@ -1,6 +1,6 @@
 ---
 status: current
-verified_against: docs/architecture/overview.md; docs/architecture/execution-pipeline/overview.md; docs/compiler/lexer.md; docs/compiler/parser.md; docs/compiler/bytecode-generation.md; docs/vm/runtime/overview.md; docs/runtime/value/overview.md; docs/runtime/table/overview.md; docs/runtime/functions/overview.md; docs/runtime/services.md; docs/runtime/execution-policy.md; docs/runtime/memory-contract.md; docs/gc/implementation.md; docs/knowledge/source-document-map.md; src/compiler/; src/vm/; src/core/; src/gc/; tests/lua/official/
+verified_against: docs/architecture/overview.md; docs/architecture/execution-pipeline/overview.md; docs/compiler/lexer.md; docs/compiler/parser.md; docs/compiler/bytecode-generation.md; docs/vm/runtime/overview.md; docs/runtime/value/overview.md; docs/runtime/table/overview.md; docs/runtime/functions/overview.md; docs/runtime/services.md; docs/runtime/execution-policy.md; docs/runtime/sandbox-policy.md; docs/runtime/memory-contract.md; docs/gc/implementation.md; docs/knowledge/source-document-map.md; src/compiler/; src/vm/; src/core/; src/gc/; tests/lua/official/
 last_checked: 2026-07-15
 applies_to: technical documentation entry point
 ---
@@ -16,7 +16,7 @@ applies_to: technical documentation entry point
 | Architecture | 分层、端到端数据流、跨模块不变量和完整 walkthrough | [架构总览](architecture/overview.md)、[执行流水线](architecture/execution-pipeline/overview.md) |
 | Compiler | Lexer、Parser、AST、binding、CodeGen、控制流、寄存器与字节码格式 | [Lexer](compiler/lexer.md)、[Parser](compiler/parser.md)、[字节码生成](compiler/bytecode-generation.md) |
 | VM | opcode 语义、dispatch、寄存器窗口、调用/返回、native call 和 trace | [指令集](vm/instruction-set.md)、[VM Runtime](vm/runtime/overview.md)、[Trace](vm/trace-system.md) |
-| Runtime | Value、Table、Metatable、Function、Closure、Upvalue、RuntimeServices、执行治理与内存合同 | [Value](runtime/value/overview.md)、[Table](runtime/table/overview.md)、[Function](runtime/functions/overview.md)、[Services](runtime/services.md)、[ExecutionPolicy](runtime/execution-policy.md)、[内存合同](runtime/memory-contract.md) |
+| Runtime | Value、Table、Metatable、Function、Closure、Upvalue、RuntimeServices、执行治理、脚本能力与内存合同 | [Value](runtime/value/overview.md)、[Table](runtime/table/overview.md)、[Function](runtime/functions/overview.md)、[Services](runtime/services.md)、[ExecutionPolicy](runtime/execution-policy.md)、[SandboxPolicy](runtime/sandbox-policy.md)、[内存合同](runtime/memory-contract.md) |
 | GC | root/object graph、mark/sweep、barrier、weak table、finalizer 和 StringPool | [GC 总览](gc/overview.md)、[GC 实现](gc/implementation.md)、[周期 walkthrough](gc/cycle-walkthrough.md) |
 | Standard Library | native function 注册、公共栈协议和 Lua 5.1 库语义 | [注册架构](stdlib/overview.md)、[库实现边界](stdlib/library-reference/overview.md) |
 | Compatibility | Lua 5.1 支持面、实现自由度、高风险差异和验证门槛 | [兼容性边界](compatibility/lua51/overview.md) |

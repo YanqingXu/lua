@@ -29,6 +29,7 @@
 #include "gc/garbage_collector.hpp"
 #include "runtime/native_module_registry.hpp"
 #include "runtime/execution_policy.hpp"
+#include "runtime/sandbox_policy.hpp"
 
 #include <array>
 #include <stdexcept>
@@ -167,6 +168,14 @@ public:
         return executionPolicy_;
     }
 
+    SandboxPolicy& getSandboxPolicy() noexcept {
+        return sandboxPolicy_;
+    }
+
+    const SandboxPolicy& getSandboxPolicy() const noexcept {
+        return sandboxPolicy_;
+    }
+
     NativeModuleRegistry& getNativeModules() noexcept {
         return nativeModules_;
     }
@@ -226,6 +235,18 @@ public:
      * @brief Return a fixed error object for an execution-policy stop reason.
      */
     GCString* getExecutionPolicyErrorMessage(ExecutionStopReason reason) const noexcept;
+
+    /**
+     * @brief Return the fixed Lua error object for a denied sandbox capability.
+     */
+    GCString* getSandboxCapabilityErrorMessage(SandboxCapability capability) const noexcept;
+
+    /**
+     * @brief Return the fixed Lua error object for disabled library exposure.
+     */
+    GCString* getSandboxLibraryErrorMessage() const noexcept {
+        return sandboxLibraryErrorMessage_;
+    }
 
     // =====================================================================
     // 主线程管理
@@ -317,6 +338,9 @@ private:
     /// Immutable construction thread for every non-cancellation operation.
     const std::thread::id ownerThread_;
 
+    /// Runtime-wide standard-library and privileged-operation policy.
+    SandboxPolicy sandboxPolicy_;
+
     /// Native modules outlive the collector so every C Function dies first.
     NativeModuleRegistry nativeModules_;
 
@@ -357,6 +381,12 @@ private:
     GCString* instructionBudgetErrorMessage_;
     GCString* deadlineErrorMessage_;
     GCString* cancellationErrorMessage_;
+
+    /// Fixed sandbox errors remain stable and allocation-free on denial.
+    GCString* sandboxLibraryErrorMessage_;
+    GCString* sandboxFilesystemErrorMessage_;
+    GCString* sandboxProcessErrorMessage_;
+    GCString* sandboxNativeModuleErrorMessage_;
 };
 
 } // namespace Lua

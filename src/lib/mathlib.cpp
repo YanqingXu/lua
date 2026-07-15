@@ -457,6 +457,7 @@ void openMathLib(LuaState* L) {
         return;
     }
 
+    L->requireStandardLibrary("math");
     MathLibModule module;
     StandardLibrary::openModule(L, module);
 }

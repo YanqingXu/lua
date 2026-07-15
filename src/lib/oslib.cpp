@@ -133,6 +133,7 @@ i32 luaOS_difftime(LuaState* L) {
 }
 
 i32 luaOS_execute(LuaState* L) {
+    L->requireSandboxCapability(SandboxCapability::Process);
     if (L->getTop() < 1) {
         L->pushNumber(static_cast<f64>(std::system(nullptr)));
         return 1;
@@ -161,6 +162,7 @@ i32 luaOS_execute(LuaState* L) {
 }
 
 i32 luaOS_exit(LuaState* L) {
+    L->requireSandboxCapability(SandboxCapability::Process);
     i32 exitCode = 0;
     if (L->getTop() >= 1 && L->isNumber(1)) {
         exitCode = static_cast<i32>(L->toNumber(1));
@@ -169,6 +171,7 @@ i32 luaOS_exit(LuaState* L) {
 }
 
 i32 luaOS_getenv(LuaState* L) {
+    L->requireSandboxCapability(SandboxCapability::Process);
     if (L->getTop() < 1) {
         L->error("getenv: missing argument");
     }
@@ -202,6 +205,7 @@ i32 luaOS_getenv(LuaState* L) {
 }
 
 i32 luaOS_remove(LuaState* L) {
+    L->requireSandboxCapability(SandboxCapability::Filesystem);
     if (L->getTop() < 1) {
         L->error("remove: missing argument");
     }
@@ -231,6 +235,7 @@ i32 luaOS_remove(LuaState* L) {
 }
 
 i32 luaOS_rename(LuaState* L) {
+    L->requireSandboxCapability(SandboxCapability::Filesystem);
     if (L->getTop() < 2) {
         L->error("rename: missing arguments");
     }
@@ -263,6 +268,7 @@ i32 luaOS_rename(LuaState* L) {
 }
 
 i32 luaOS_setlocale(LuaState* L) {
+    L->requireSandboxCapability(SandboxCapability::Process);
     i32 nargs = L->getTop();
     const char* locale = nullptr;
     if (nargs >= 1 && !L->isNil(1)) {
@@ -298,6 +304,7 @@ i32 luaOS_setlocale(LuaState* L) {
 }
 
 i32 luaOS_tmpname(LuaState* L) {
+    L->requireSandboxCapability(SandboxCapability::Filesystem);
 #ifdef _WIN32
     std::array<char, L_tmpnam> tmpBuffer{};
     errno_t err = tmpnam_s(tmpBuffer.data(), tmpBuffer.size());
@@ -437,23 +444,31 @@ i32 luaOS_date(LuaState* L) {
 void openOSLib(LuaState* L) {
     if (!L) return;
 
+    L->requireStandardLibrary("os");
+
     // 创建os表
     Table* osTable = FunctionRegistrar::createLibTable(L, "os");
 
     // 注册所有OS函数到os表
-    FunctionRegistrar(L)
-        .addGlobal("clock", luaOS_clock)
+    FunctionRegistrar registrar(L);
+    registrar.addGlobal("clock", luaOS_clock)
         .addGlobal("date", luaOS_date)
         .addGlobal("difftime", luaOS_difftime)
-        .addGlobal("execute", luaOS_execute)
-        .addGlobal("exit", luaOS_exit)
-        .addGlobal("getenv", luaOS_getenv)
-        .addGlobal("remove", luaOS_remove)
-        .addGlobal("rename", luaOS_rename)
-        .addGlobal("setlocale", luaOS_setlocale)
-        .addGlobal("time", luaOS_time)
-        .addGlobal("tmpname", luaOS_tmpname)
-        .commitToTable(osTable);
+        .addGlobal("time", luaOS_time);
+
+    const SandboxPolicy& policy = L->getGlobalState().getSandboxPolicy();
+    if (policy.allows(SandboxCapability::Process)) {
+        registrar.addGlobal("execute", luaOS_execute)
+            .addGlobal("exit", luaOS_exit)
+            .addGlobal("getenv", luaOS_getenv)
+            .addGlobal("setlocale", luaOS_setlocale);
+    }
+    if (policy.allows(SandboxCapability::Filesystem)) {
+        registrar.addGlobal("remove", luaOS_remove)
+            .addGlobal("rename", luaOS_rename)
+            .addGlobal("tmpname", luaOS_tmpname);
+    }
+    registrar.commitToTable(osTable);
 }
 
 } // namespace Lua

@@ -592,6 +592,7 @@ static bool readNumber(LuaState* L, FILE* fp) {
 // =====================================================================
 
 i32 io_open(LuaState* L) {
+    L->requireSandboxCapability(SandboxCapability::Filesystem);
     // 检查参数
     if (L->getTop() < 1) {
         L->error("io.open: filename expected");
@@ -643,6 +644,7 @@ static i32 f_read_impl(LuaState* L, FILE* fp, i32 firstArg);
 static i32 f_write_impl(LuaState* L, FileHandleData* handle, i32 firstArg, const Value& successValue);
 
 i32 io_read(LuaState* L) {
+    L->requireSandboxCapability(SandboxCapability::Filesystem);
     FILE* fp = getDefaultInput(L);
     if (!fp) {
         L->error("attempt to use a closed file");
@@ -651,6 +653,7 @@ i32 io_read(LuaState* L) {
 }
 
 i32 io_write(LuaState* L) {
+    L->requireSandboxCapability(SandboxCapability::Filesystem);
     Value outputHandle = getDefaultOutputHandleValue(L);
     FileHandleData* handle = toFileHandle(outputHandle);
     if (!handle || !handle->get()) {
@@ -660,6 +663,7 @@ i32 io_write(LuaState* L) {
 }
 
 i32 io_flush(LuaState* L) {
+    L->requireSandboxCapability(SandboxCapability::Filesystem);
     FILE* fp = getDefaultOutput(L);
     if (!fp) {
         L->error("attempt to use a closed file");
@@ -668,6 +672,7 @@ i32 io_flush(LuaState* L) {
 }
 
 i32 io_input(LuaState* L) {
+    L->requireSandboxCapability(SandboxCapability::Filesystem);
     if (L->getTop() == 0) {
         L->pushValue(getDefaultInputHandleValue(L));
         return 1;
@@ -694,6 +699,7 @@ i32 io_input(LuaState* L) {
 }
 
 i32 io_output(LuaState* L) {
+    L->requireSandboxCapability(SandboxCapability::Filesystem);
     if (L->getTop() == 0) {
         L->pushValue(getDefaultOutputHandleValue(L));
         return 1;
@@ -749,6 +755,7 @@ i32 io_type(LuaState* L) {
  * 使用upvalue存储文件句柄。
  */
 static i32 lines_iterator(LuaState* L) {
+    L->requireSandboxCapability(SandboxCapability::Filesystem);
     Function* closure = getCurrentClosure(L);
     Value fileHandle = getClosureUpvalueValue(L, 0);
     Value autoCloseVal = getClosureUpvalueValue(L, 1);
@@ -798,6 +805,7 @@ static i32 lines_iterator(LuaState* L) {
 }
 
 i32 io_lines(LuaState* L) {
+    L->requireSandboxCapability(SandboxCapability::Filesystem);
     if (L->getTop() == 0) {
         return pushLinesIterator(L, getDefaultInputHandleValue(L), false);
     }
@@ -817,6 +825,7 @@ i32 io_lines(LuaState* L) {
 }
 
 i32 io_tmpfile(LuaState* L) {
+    L->requireSandboxCapability(SandboxCapability::Filesystem);
     FILE* fp = safeTmpfile();
     if (!fp) {
         return pushResult(L, false);
@@ -828,6 +837,7 @@ i32 io_tmpfile(LuaState* L) {
 }
 
 i32 io_popen(LuaState* L) {
+    L->requireSandboxCapability(SandboxCapability::Process);
     // 检查参数
     if (L->getTop() < 1) {
         L->error("io.popen: command expected");
@@ -978,6 +988,7 @@ i32 f_close(LuaState* L) {
 }
 
 i32 f_read(LuaState* L) {
+    L->requireSandboxCapability(SandboxCapability::Filesystem);
     FileHandleData* handle = checkFilePtr(L, 1);
     if (!handle->get()) {
         L->error("attempt to use a closed file");
@@ -986,6 +997,7 @@ i32 f_read(LuaState* L) {
 }
 
 i32 f_write(LuaState* L) {
+    L->requireSandboxCapability(SandboxCapability::Filesystem);
     FileHandleData* handle = checkFilePtr(L, 1);
     if (!handle->get()) {
         L->error("attempt to use a closed file");
@@ -995,6 +1007,7 @@ i32 f_write(LuaState* L) {
 }
 
 i32 f_flush(LuaState* L) {
+    L->requireSandboxCapability(SandboxCapability::Filesystem);
     FileHandleData* handle = checkFilePtr(L, 1);
     if (!handle->get()) {
         L->error("attempt to use a closed file");
@@ -1003,6 +1016,7 @@ i32 f_flush(LuaState* L) {
 }
 
 i32 f_seek(LuaState* L) {
+    L->requireSandboxCapability(SandboxCapability::Filesystem);
     FileHandleData* handle = checkFilePtr(L, 1);
     if (!handle->get()) {
         L->error("attempt to use a closed file");
@@ -1041,6 +1055,7 @@ i32 f_seek(LuaState* L) {
 }
 
 i32 f_setvbuf(LuaState* L) {
+    L->requireSandboxCapability(SandboxCapability::Filesystem);
     FileHandleData* handle = checkFilePtr(L, 1);
     if (!handle->get()) {
         L->error("attempt to use a closed file");
@@ -1076,6 +1091,7 @@ i32 f_setvbuf(LuaState* L) {
 }
 
 i32 f_lines(LuaState* L) {
+    L->requireSandboxCapability(SandboxCapability::Filesystem);
     FileHandleData* handle = checkFilePtr(L, 1);
     if (!handle->get()) {
         L->error("attempt to use a closed file");
@@ -1134,34 +1150,42 @@ void IOLibModule::registerFunctions(LuaState* L) {
         return;
     }
 
-    // 注册 I/O 库函数
-    FunctionRegistrar(L)
-        .addGlobal("open", io_open)
-        .addGlobal("close", io_close)
-        .addGlobal("read", io_read)
-        .addGlobal("write", io_write)
-        .addGlobal("flush", io_flush)
-        .addGlobal("input", io_input)
-        .addGlobal("output", io_output)
-        .addGlobal("type", io_type)
-        .addGlobal("lines", io_lines)
-        .addGlobal("tmpfile", io_tmpfile)
-        .addGlobal("popen", io_popen)
-        .commitToTable(ioTable);
+    // Registration reflects the configured profile; operation-level checks
+    // still protect functions captured before a later restriction.
+    FunctionRegistrar registrar(L);
+    registrar.addGlobal("close", io_close).addGlobal("type", io_type);
+
+    const SandboxPolicy& policy = L->getGlobalState().getSandboxPolicy();
+    if (policy.allows(SandboxCapability::Filesystem)) {
+        registrar.addGlobal("open", io_open)
+            .addGlobal("read", io_read)
+            .addGlobal("write", io_write)
+            .addGlobal("flush", io_flush)
+            .addGlobal("input", io_input)
+            .addGlobal("output", io_output)
+            .addGlobal("lines", io_lines)
+            .addGlobal("tmpfile", io_tmpfile);
+    }
+    if (policy.allows(SandboxCapability::Process)) {
+        registrar.addGlobal("popen", io_popen);
+    }
+    registrar.commitToTable(ioTable);
 
     // 创建文件句柄元表
     Table* fileMT = L->getGlobalState().getGC().create<Table>();
 
     // 注册文件方法
-    FunctionRegistrar(L)
-        .addGlobal("close", f_close)
-        .addGlobal("read", f_read)
-        .addGlobal("write", f_write)
-        .addGlobal("flush", f_flush)
-        .addGlobal("seek", f_seek)
-        .addGlobal("setvbuf", f_setvbuf)
-        .addGlobal("lines", f_lines)
-        .commitToTable(fileMT);
+    FunctionRegistrar fileRegistrar(L);
+    fileRegistrar.addGlobal("close", f_close);
+    if (policy.allows(SandboxCapability::Filesystem)) {
+        fileRegistrar.addGlobal("read", f_read)
+            .addGlobal("write", f_write)
+            .addGlobal("flush", f_flush)
+            .addGlobal("seek", f_seek)
+            .addGlobal("setvbuf", f_setvbuf)
+            .addGlobal("lines", f_lines);
+    }
+    fileRegistrar.commitToTable(fileMT);
 
     // 设置元方法
     GCString* gcKey = L->getGlobalState().getStringPool().intern("__gc");
@@ -1216,6 +1240,7 @@ void openIOLib(LuaState* L) {
         return;
     }
 
+    L->requireStandardLibrary("io");
     IOLibModule module;
     StandardLibrary::openModule(L, module);
 }

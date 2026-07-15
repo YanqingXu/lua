@@ -1590,8 +1590,11 @@ void luaL_unref(lua_State* L, int tableIndex, int reference) LUA_CXX_MAY_THROW {
 }
 
 int luaopen_base(lua_State* L) LUA_CXX_MAY_THROW {
-    Lua::StandardLibrary::openCatalogLibrary(fromC(L), "base");
-    Lua::StandardLibrary::openCatalogLibrary(fromC(L), LUA_COLIBNAME);
+    Lua::LuaState* state = fromC(L);
+    state->requireStandardLibrary("base");
+    state->requireStandardLibrary(LUA_COLIBNAME);
+    Lua::StandardLibrary::openCatalogLibrary(state, "base");
+    Lua::StandardLibrary::openCatalogLibrary(state, LUA_COLIBNAME);
     lua_pushvalue(L, LUA_GLOBALSINDEX);
     lua_getglobal(L, LUA_COLIBNAME);
     return 2;

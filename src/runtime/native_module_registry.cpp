@@ -4,6 +4,7 @@
  */
 
 #include "runtime/native_module_registry.hpp"
+#include "runtime/sandbox_policy.hpp"
 
 #include <algorithm>
 #include <array>
@@ -129,6 +130,10 @@ NativeModuleRegistry::~NativeModuleRegistry() noexcept {
 }
 
 std::expected<NativeModuleRegistry::Handle, Str> NativeModuleRegistry::load(const Str& filename) {
+    if (sandboxPolicy_ != nullptr && !sandboxPolicy_->allows(SandboxCapability::NativeModules)) {
+        return std::unexpected(Str(SandboxPolicy::deniedMessage(SandboxCapability::NativeModules)));
+    }
+
     if (filename.empty()) {
         return std::unexpected(Str("empty dynamic library path"));
     }

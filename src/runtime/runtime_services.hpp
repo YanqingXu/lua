@@ -123,6 +123,19 @@ public:
     }
 
     /**
+     * @brief Owner-thread configuration for library and host-resource access.
+     */
+    [[nodiscard]] SandboxPolicy& sandboxPolicy() {
+        globalState_.requireOwnerThread();
+        return globalState_.getSandboxPolicy();
+    }
+
+    [[nodiscard]] const SandboxPolicy& sandboxPolicy() const {
+        globalState_.requireOwnerThread();
+        return globalState_.getSandboxPolicy();
+    }
+
+    /**
      * @brief Create a non-owning handle whose only cross-thread action is cancel.
      */
     [[nodiscard]] ExecutionCancellationHandle cancellationHandle() {

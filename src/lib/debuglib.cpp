@@ -1270,6 +1270,7 @@ i32 luaDebug_gethook(LuaState* L) {
 // =====================================================================
 
 i32 luaDebug_debug(LuaState* L) {
+    L->requireSandboxCapability(SandboxCapability::Process);
     Str line;
 
     for (;;) {
@@ -1311,8 +1312,8 @@ void DebugLibModule::registerFunctions(LuaState* L) {
         return;
     }
 
-    FunctionRegistrar(L)
-        .addGlobal("getregistry", luaDebug_getregistry)
+    FunctionRegistrar registrar(L);
+    registrar.addGlobal("getregistry", luaDebug_getregistry)
         .addGlobal("getupvalue", luaDebug_getupvalue)
         .addGlobal("setupvalue", luaDebug_setupvalue)
         .addGlobal("getinfo", luaDebug_getinfo)
@@ -1324,9 +1325,11 @@ void DebugLibModule::registerFunctions(LuaState* L) {
         .addGlobal("setfenv", luaDebug_setfenv)
         .addGlobal("traceback", luaDebug_traceback)
         .addGlobal("sethook", luaDebug_sethook)
-        .addGlobal("gethook", luaDebug_gethook)
-        .addGlobal("debug", luaDebug_debug)
-        .commitToTable(debugTable);
+        .addGlobal("gethook", luaDebug_gethook);
+    if (L->getGlobalState().getSandboxPolicy().allows(SandboxCapability::Process)) {
+        registrar.addGlobal("debug", luaDebug_debug);
+    }
+    registrar.commitToTable(debugTable);
 }
 
 void openDebugLib(LuaState* L) {
@@ -1334,6 +1337,7 @@ void openDebugLib(LuaState* L) {
         return;
     }
 
+    L->requireStandardLibrary("debug");
     DebugLibModule module;
     StandardLibrary::openModule(L, module);
 }

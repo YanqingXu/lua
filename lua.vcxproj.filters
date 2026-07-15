@@ -405,6 +405,9 @@
     <ClInclude Include="src\runtime\execution_policy.hpp">
       <Filter>src\runtime</Filter>
     </ClInclude>
+    <ClInclude Include="src\runtime\sandbox_policy.hpp">
+      <Filter>src\runtime</Filter>
+    </ClInclude>
     <ClInclude Include="src\runtime\runtime_services.hpp">
       <Filter>src\runtime</Filter>
     </ClInclude>

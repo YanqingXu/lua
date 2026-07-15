@@ -531,6 +531,7 @@ void openTableLib(LuaState* L) {
         return;
     }
 
+    L->requireStandardLibrary("table");
     TableLibModule module;
     module.registerFunctions(L);
     module.initialize(L);

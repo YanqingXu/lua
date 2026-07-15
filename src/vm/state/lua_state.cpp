@@ -1302,6 +1302,20 @@ void LuaState::error(const char* msg) {
     throw RuntimeError(msg);
 }
 
+void LuaState::requireSandboxCapability(SandboxCapability capability) {
+    if (!globalState_.getSandboxPolicy().allows(capability)) {
+        setStatus(ThreadStatus::ErrRun);
+        throw RuntimeError(Value(globalState_.getSandboxCapabilityErrorMessage(capability)));
+    }
+}
+
+void LuaState::requireStandardLibrary(StrView id) {
+    if (!globalState_.getSandboxPolicy().allowsStandardLibrary(id)) {
+        setStatus(ThreadStatus::ErrRun);
+        throw RuntimeError(Value(globalState_.getSandboxLibraryErrorMessage()));
+    }
+}
+
 i32 LuaState::error() {
     setStatus(ThreadStatus::ErrRun);
     throw RuntimeError(top());
