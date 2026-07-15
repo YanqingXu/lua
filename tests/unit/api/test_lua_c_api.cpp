@@ -24,6 +24,7 @@
 #include <limits>
 #include <stdexcept>
 #include <string>
+#include <thread>
 #include <unordered_map>
 
 using namespace LuaTest;
@@ -1243,6 +1244,33 @@ void testCloseFinalizerSemantics(TestSuite& suite) {
         ASSERT_EQ(suite, static_cast<size_t>(0), ledger.sizeMismatches,
                   "budgeted close preserves allocator old-size contracts");
         ASSERT_EQ(suite, static_cast<size_t>(0), ledger.unknownFrees, "budgeted close frees each allocator block once");
+    }
+
+    {
+        AllocatorLedger ledger;
+        AllocatorProbe probe{&ledger};
+        lua_State* L = lua_newstate(trackingLuaAllocator, &probe);
+        ASSERT_TRUE(suite, L != nullptr, "owner-thread close test creates allocator-backed state");
+
+        bool foreignCloseReturned = false;
+        std::thread foreign([&] {
+            lua_close(L);
+            foreignCloseReturned = true;
+        });
+        foreign.join();
+
+        ASSERT_TRUE(suite, foreignCloseReturned, "foreign lua_close is rejected without throwing");
+        ASSERT_TRUE(suite, !ledger.blocks.empty(), "foreign lua_close does not destroy owner-thread storage");
+        ASSERT_EQ(suite, 0, lua_gettop(L), "owner can still access the state after rejected foreign close");
+
+        lua_close(L);
+        ASSERT_TRUE(suite, ledger.blocks.empty(), "owner-thread lua_close releases every allocator block");
+        ASSERT_EQ(suite, static_cast<size_t>(0), ledger.liveBytes,
+                  "owner-thread close returns allocator live bytes to zero");
+        ASSERT_EQ(suite, static_cast<size_t>(0), ledger.sizeMismatches,
+                  "owner-thread close preserves allocator old-size contracts");
+        ASSERT_EQ(suite, static_cast<size_t>(0), ledger.unknownFrees,
+                  "owner-thread close frees each allocator block once");
     }
 }
 

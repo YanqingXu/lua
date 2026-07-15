@@ -53,7 +53,7 @@ applies_to: 项目入口、稳定能力概览与文档导航
 - `Value` 使用 `std::variant` 表示 Lua 的动态值类型，在 C++ 侧保持类型安全的访问边界。
 - 核心运行时对象包括 `Table`、`Function`、`Proto`、`GCString`、`Userdata`、`Thread` 和 `Upvalue`。
 - 项目统一使用 `src/common/types.hpp` 中的类型别名，如 `Vec<T>`、`HashMap<K, V>`、`Str`、`StrView`、`usize`、`i32`、`u32` 和 `f64`。
-- `RuntimeServices` 和 `EngineContext` 为嵌入式运行时隔离、测试夹具和多上下文执行提供清晰边界；原生模块 handle/cache 也已进入 context-owned 生命周期。
+- `RuntimeServices` 和 `EngineContext` 为嵌入式运行时隔离、测试夹具和多上下文执行提供清晰边界；每个 context 固定构造线程为 owner，跨线程只能使用预先取得的原子取消 handle；原生模块 handle/cache 也已进入 context-owned 生命周期。
 - `src/api/lapi.cpp`、`src/api/lauxlib.cpp` 与 `src/lib/debuglib.cpp` 已形成完整的 Lua 5.1 公共函数面：protected status API 不泄漏 C++ 异常，官方 123/123 个公共函数均为机器合同 `PASS`，纯 C consumer 与独立 `.dll/.so` 模块通过公开头文件编译/链接/加载。项目公开面为 130 个真实函数（含 7 个兼容/安全扩展）；核心表、遍历、比较、拼接、类型转换、线程身份、GC 控制、完整 auxlib、panic/格式化/环境/cpcall/setlevel、stack/info/local/hook 调试 API，以及 8 个 `luaopen_*` 标准库入口均由同一纯 C probe 对官方 Lua 5.1 做差分。allocator-backed hard limit 仍不宣称完成，边界见 [内存合同](docs/runtime/memory-contract.md)。
 
 ### 内存管理与 GC
@@ -134,7 +134,7 @@ bin\lua_test.exe --filter "Symbol Binding"
 bin\lua_test.exe --report=junit
 ```
 
-测试运行器会在输出中报告实时测试数量和断言结果。2026-07-15 的完整 Debug/Release strict 基线为 **751 registered tests, 4845 assertion results, 0 failures**；其中 `Lua C API` suite 为 49 个测试、1254 个断言、0 failures，原始 `api.lua with T module` 也完整运行到 `OK`。新增回归后需用文档漂移门禁同步这一基线。
+测试运行器会在输出中报告实时测试数量和断言结果。2026-07-15 的完整 Debug/Release strict 基线为 **752 registered tests, 4864 assertion results, 0 failures**；其中 `Lua C API` suite 为 49 个测试、1262 个断言、0 failures，原始 `api.lua with T module` 也完整运行到 `OK`。新增回归后需用文档漂移门禁同步这一基线。
 
 ### CMake / CTest 辅助路径
 
@@ -300,7 +300,7 @@ using ValueData = std::variant<
 - `std::variant` 用于 `Value` 和编译器中间结果，避免无约束字段组合，让状态空间在类型层面可见。
 - `std::expected` 用于 Parser、CodeGenerator 和 VM 的边界返回，调用方可以直接区分成功值和结构化错误，而不是依赖散落的异常捕获。
 - CRTP visitor 和 concepts 用于 AST 访问覆盖检查，使新增节点时的遗漏更早暴露在编译期。
-- `RuntimeServices` / `EngineContext` 显式传递运行时依赖，降低全局单例对阅读、测试和嵌入式场景的干扰；context-owned `ExecutionPolicy` 让主线程与 coroutine 共享指令预算、单调时限和单向原子取消，并以单轮 finalizer 预算限制一次 GC/关闭 drain 进入用户 `__gc` 的次数。
+- `RuntimeServices` / `EngineContext` 显式传递运行时依赖，降低全局单例对阅读、测试和嵌入式场景的干扰；固定 owner-thread 合同拒绝其他线程访问 State/VM，context-owned `ExecutionPolicy` 让主线程与 coroutine 共享指令预算、单调时限和单向原子取消，并以单轮 finalizer 预算限制一次 GC/关闭 drain 进入用户 `__gc` 的次数。
 
 这些约定服务于代码可读性、现代 C++ 应用和教学价值：代码应尽量让读者看见边界、看见数据流，也看见失败路径。
 

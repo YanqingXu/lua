@@ -31,6 +31,8 @@
 #include "runtime/execution_policy.hpp"
 
 #include <array>
+#include <stdexcept>
+#include <thread>
 
 struct lua_State;
 
@@ -40,6 +42,14 @@ namespace Lua {
 class LuaState;
 class Thread;
 class LuaAllocator;
+
+/**
+ * @brief Host logic error raised before a foreign thread touches runtime state.
+ */
+class RuntimeOwnerThreadError final : public std::logic_error {
+public:
+    RuntimeOwnerThreadError() : std::logic_error("Lua runtime accessed from non-owner thread") {}
+};
 
 /**
  * @brief 全局状态类
@@ -98,6 +108,24 @@ public:
      * @brief 析构函数
      */
     ~GlobalState();
+
+    /**
+     * @brief Whether the caller is the immutable runtime owner thread.
+     * @note This identity query is safe
+     * before any mutable runtime access.
+     */
+    [[nodiscard]] bool isOwnerThread() const noexcept {
+        return ownerThread_ == std::this_thread::get_id();
+    }
+
+    /**
+     * @brief Reject foreign-thread access before mutable runtime state is read.
+     */
+    void requireOwnerThread() const {
+        if (!isOwnerThread()) {
+            throw RuntimeOwnerThreadError();
+        }
+    }
 
     // =====================================================================
     // 字符串管理
@@ -285,6 +313,9 @@ private:
     // =====================================================================
     // 成员变量
     // =====================================================================
+
+    /// Immutable construction thread for every non-cancellation operation.
+    const std::thread::id ownerThread_;
 
     /// Native modules outlive the collector so every C Function dies first.
     NativeModuleRegistry nativeModules_;

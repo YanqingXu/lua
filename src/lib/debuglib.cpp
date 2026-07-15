@@ -1587,40 +1587,52 @@ int apiDebugSetHook(LuaState* L, lua_Hook hook, int mask, int count) {
 
 } // namespace Lua
 
+namespace {
+
+Lua::LuaState* debugApiState(lua_State* stateHandle) {
+    Lua::LuaState* state = reinterpret_cast<Lua::LuaState*>(stateHandle);
+    if (state != nullptr) {
+        state->getGlobalState().requireOwnerThread();
+    }
+    return state;
+}
+
+} // namespace
+
 extern "C" {
 
 int lua_getstack(lua_State* L, int level, lua_Debug* ar) LUA_CXX_MAY_THROW {
-    return Lua::apiDebugGetStack(reinterpret_cast<Lua::LuaState*>(L), level, ar);
+    return Lua::apiDebugGetStack(debugApiState(L), level, ar);
 }
 
 int lua_getinfo(lua_State* L, const char* what, lua_Debug* ar) LUA_CXX_MAY_THROW {
-    return Lua::apiDebugGetInfo(reinterpret_cast<Lua::LuaState*>(L), what, ar);
+    return Lua::apiDebugGetInfo(debugApiState(L), what, ar);
 }
 
 const char* lua_getlocal(lua_State* L, const lua_Debug* ar, int n) LUA_CXX_MAY_THROW {
-    return Lua::apiDebugGetLocal(reinterpret_cast<Lua::LuaState*>(L), ar, n);
+    return Lua::apiDebugGetLocal(debugApiState(L), ar, n);
 }
 
 const char* lua_setlocal(lua_State* L, const lua_Debug* ar, int n) LUA_CXX_MAY_THROW {
-    return Lua::apiDebugSetLocal(reinterpret_cast<Lua::LuaState*>(L), ar, n);
+    return Lua::apiDebugSetLocal(debugApiState(L), ar, n);
 }
 
 int lua_sethook(lua_State* L, lua_Hook func, int mask, int count) LUA_CXX_MAY_THROW {
-    return Lua::apiDebugSetHook(reinterpret_cast<Lua::LuaState*>(L), func, mask, count);
+    return Lua::apiDebugSetHook(debugApiState(L), func, mask, count);
 }
 
 lua_Hook lua_gethook(lua_State* L) LUA_CXX_MAY_THROW {
-    Lua::LuaState* state = reinterpret_cast<Lua::LuaState*>(L);
+    Lua::LuaState* state = debugApiState(L);
     return state != nullptr ? state->getApiDebugHook() : nullptr;
 }
 
 int lua_gethookmask(lua_State* L) LUA_CXX_MAY_THROW {
-    Lua::LuaState* state = reinterpret_cast<Lua::LuaState*>(L);
+    Lua::LuaState* state = debugApiState(L);
     return state != nullptr ? state->getDebugHookMask() : 0;
 }
 
 int lua_gethookcount(lua_State* L) LUA_CXX_MAY_THROW {
-    Lua::LuaState* state = reinterpret_cast<Lua::LuaState*>(L);
+    Lua::LuaState* state = debugApiState(L);
     return state != nullptr ? state->getDebugHookCount() : 0;
 }
 

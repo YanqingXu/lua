@@ -10,6 +10,7 @@
 #include "core/function.hpp"
 #include "core/thread.hpp"
 #include "lib/lib_manager.hpp"
+#include "lua.h"
 #include "runtime/runtime_services.hpp"
 #include "vm/state/lua_state.hpp"
 #include "vm/vm_internal.hpp"
@@ -59,7 +60,7 @@ i32 runProtectedChunk(RuntimeServices& services, LuaState* L, Proto* proto, i32 
 
 ExecutionPolicy::InstructionCount g_nestedBudgetBefore = ExecutionPolicy::UnlimitedInstructions;
 ExecutionPolicy::InstructionCount g_nestedBudgetAfter = ExecutionPolicy::UnlimitedInstructions;
-i32 g_nestedCallStatus = LUA_OK;
+i32 g_nestedCallStatus = Lua::LUA_OK;
 
 i32 callLuaFromPolicyProbe(LuaState* L) {
     ExecutionPolicy& policy = L->getGlobalState().getExecutionPolicy();
@@ -70,7 +71,7 @@ i32 callLuaFromPolicyProbe(LuaState* L) {
     g_nestedCallStatus = L->pcall(0, 0, 0);
     g_nestedBudgetAfter = policy.remainingInstructions();
 
-    L->pushBoolean(g_nestedCallStatus == LUA_ERRRUN);
+    L->pushBoolean(g_nestedCallStatus == Lua::LUA_ERRRUN);
     return 1;
 }
 
@@ -269,7 +270,7 @@ void testExecutionPolicyStopsInfiniteLoopAtInstructionBudget(TestSuite& suite) {
     context.executionPolicy().configure({kBudget, ExecutionPolicy::Clock::time_point::max()});
     const i32 status = runProtectedChunk(services, L.get(), proto);
 
-    ASSERT_EQ(suite, LUA_ERRRUN, status, "finite instruction budget stops an infinite loop");
+    ASSERT_EQ(suite, Lua::LUA_ERRRUN, status, "finite instruction budget stops an infinite loop");
     ASSERT_EQ(suite, static_cast<u64>(0), context.executionPolicy().remainingInstructions(),
               "instruction budget is exhausted exactly once");
     ASSERT_EQ(suite, kBudget, context.executionPolicy().consumedInstructions(),
@@ -297,7 +298,7 @@ void testExecutionPolicyUsesMonotonicDeadline(TestSuite& suite) {
     context.executionPolicy().configure(limits);
     const i32 status = runProtectedChunk(services, L.get(), proto);
 
-    ASSERT_EQ(suite, LUA_ERRRUN, status, "steady-clock deadline stops an infinite loop");
+    ASSERT_EQ(suite, Lua::LUA_ERRRUN, status, "steady-clock deadline stops an infinite loop");
     ASSERT_TRUE(suite, context.executionPolicy().remainingInstructions() > 0,
                 "deadline fires before the fallback instruction budget");
     ASSERT_TRUE(suite,
@@ -328,7 +329,7 @@ void testExecutionPolicyAllowsAtomicExternalCancellation(TestSuite& suite) {
     const i32 status = runProtectedChunk(services, L.get(), proto);
     canceller.join();
 
-    ASSERT_EQ(suite, LUA_ERRRUN, status, "external atomic cancellation stops an infinite loop");
+    ASSERT_EQ(suite, Lua::LUA_ERRRUN, status, "external atomic cancellation stops an infinite loop");
     ASSERT_TRUE(suite, context.executionPolicy().isCancellationRequested(),
                 "owner observes the one-way cancellation request");
     ASSERT_TRUE(suite, context.executionPolicy().remainingInstructions() > 0,
@@ -339,6 +340,78 @@ void testExecutionPolicyAllowsAtomicExternalCancellation(TestSuite& suite) {
                 "protected call returns the fixed cancellation error object");
 
     context.executionPolicy().reset();
+}
+
+void testRuntimeOwnerThreadRejectsForeignStateAccess(TestSuite& suite) {
+    EngineContext context;
+    RuntimeServices services = context.services();
+    GlobalState& global = context.globalState();
+    StringPool& strings = context.strings();
+    GarbageCollector& gc = context.gc();
+    UPtr<LuaState> state = LuaState::create(context);
+    lua_State* publicState = reinterpret_cast<lua_State*>(state.get());
+    const ExecutionCancellationHandle cancellation = context.cancellationHandle();
+
+    bool servicesRejected = false;
+    bool servicesConstructionRejected = false;
+    bool vmRejected = false;
+    bool publicApiRejected = false;
+    bool debugApiRejected = false;
+    int checkStackResult = -1;
+    int protectedCallResult = Lua::LUA_OK;
+    lua_State* child = publicState;
+
+    std::thread foreign([&] {
+        try {
+            (void)context.services();
+        } catch (const RuntimeOwnerThreadError& error) {
+            servicesRejected = std::string(error.what()) == "Lua runtime accessed from non-owner thread";
+        }
+
+        try {
+            (void)RuntimeServices(global, strings, gc);
+        } catch (const RuntimeOwnerThreadError& error) {
+            servicesConstructionRejected = std::string(error.what()) == "Lua runtime accessed from non-owner thread";
+        }
+
+        try {
+            (void)VM::executeProto(services, state.get(), nullptr, 1);
+        } catch (const RuntimeOwnerThreadError& error) {
+            vmRejected = std::string(error.what()) == "Lua runtime accessed from non-owner thread";
+        }
+
+        try {
+            (void)lua_gettop(publicState);
+        } catch (const RuntimeOwnerThreadError& error) {
+            publicApiRejected = std::string(error.what()) == "Lua runtime accessed from non-owner thread";
+        }
+
+        try {
+            (void)lua_gethook(publicState);
+        } catch (const RuntimeOwnerThreadError& error) {
+            debugApiRejected = std::string(error.what()) == "Lua runtime accessed from non-owner thread";
+        }
+
+        checkStackResult = lua_checkstack(publicState, 1);
+        protectedCallResult = lua_pcall(publicState, 0, 0, 0);
+        child = lua_trynewthread(publicState);
+        cancellation.requestCancellation();
+    });
+    foreign.join();
+
+    ASSERT_TRUE(suite, servicesRejected, "foreign thread cannot acquire mutable EngineContext services");
+    ASSERT_TRUE(suite, servicesConstructionRejected, "foreign thread cannot construct a runtime service bundle");
+    ASSERT_TRUE(suite, vmRejected, "foreign thread cannot enter the VM with pre-acquired services");
+    ASSERT_TRUE(suite, publicApiRejected, "may-throw C API rejects foreign thread before reading the stack");
+    ASSERT_TRUE(suite, debugApiRejected, "debug API rejects foreign thread before reading debug state");
+    ASSERT_EQ(suite, 0, checkStackResult, "noexcept stack API rejects foreign thread without mutation");
+    ASSERT_EQ(suite, Lua::LUA_ERRRUN, protectedCallResult, "protected API returns runtime failure on foreign thread");
+    ASSERT_TRUE(suite, child == nullptr, "transactional thread creation rejects a foreign owner");
+    ASSERT_TRUE(suite, context.executionPolicy().isCancellationRequested(),
+                "pre-acquired atomic cancellation remains the only foreign-thread control");
+    ASSERT_EQ(suite, 0, lua_gettop(publicState), "foreign-thread rejections preserve the owner stack");
+    lua_pushinteger(publicState, 7);
+    ASSERT_EQ(suite, 1, lua_gettop(publicState), "runtime remains usable on its owner thread");
 }
 
 void testExecutionPolicySurvivesCToLuaReentry(TestSuite& suite) {
@@ -353,17 +426,17 @@ void testExecutionPolicySurvivesCToLuaReentry(TestSuite& suite) {
 
     g_nestedBudgetBefore = ExecutionPolicy::UnlimitedInstructions;
     g_nestedBudgetAfter = ExecutionPolicy::UnlimitedInstructions;
-    g_nestedCallStatus = LUA_OK;
+    g_nestedCallStatus = Lua::LUA_OK;
     constexpr ExecutionPolicy::InstructionCount kBudget = 48;
     context.executionPolicy().configure({kBudget, ExecutionPolicy::Clock::time_point::max()});
     const i32 status = runProtectedChunk(services, L.get(), proto);
 
-    ASSERT_EQ(suite, LUA_ERRRUN, g_nestedCallStatus, "nested protected Lua call observes the shared budget stop");
+    ASSERT_EQ(suite, Lua::LUA_ERRRUN, g_nestedCallStatus, "nested protected Lua call observes the shared budget stop");
     ASSERT_TRUE(suite, g_nestedBudgetBefore < kBudget && g_nestedBudgetBefore > 0,
                 "outer Lua execution consumes budget before entering C");
     ASSERT_EQ(suite, static_cast<u64>(0), g_nestedBudgetAfter,
               "C-to-Lua re-entry consumes the outer execution budget without reset");
-    ASSERT_EQ(suite, LUA_ERRRUN, status, "outer protected boundary reports the exhausted shared budget");
+    ASSERT_EQ(suite, Lua::LUA_ERRRUN, status, "outer protected boundary reports the exhausted shared budget");
     ASSERT_TRUE(suite,
                 L->top().isString() && L->top().asString() == context.globalState().getExecutionPolicyErrorMessage(
                                                                   ExecutionStopReason::InstructionBudgetExceeded),
@@ -386,7 +459,7 @@ void testExecutionPolicyPersistsAcrossCoroutineYieldAndResume(TestSuite& suite) 
         end)
     )",
                                 "=(execution_coroutine_setup)");
-    ASSERT_EQ(suite, LUA_OK, runProtectedChunk(services, L.get(), setup),
+    ASSERT_EQ(suite, Lua::LUA_OK, runProtectedChunk(services, L.get(), setup),
               "coroutine policy fixture initializes without limits");
 
     const Value coroutineValue = L->getGlobal("policy_coroutine");
@@ -542,6 +615,8 @@ void registerRuntimeServicesTests() {
                           testExecutionPolicyUsesMonotonicDeadline);
     registry.registerTest(kSuiteName, "Execution policy allows atomic external cancellation",
                           testExecutionPolicyAllowsAtomicExternalCancellation);
+    registry.registerTest(kSuiteName, "Runtime owner thread rejects foreign state access",
+                          testRuntimeOwnerThreadRejectsForeignStateAccess);
     registry.registerTest(kSuiteName, "Execution policy survives C to Lua reentry",
                           testExecutionPolicySurvivesCToLuaReentry);
     registry.registerTest(kSuiteName, "Execution policy persists across coroutine yield and resume",

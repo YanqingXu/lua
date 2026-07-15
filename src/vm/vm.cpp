@@ -67,6 +67,7 @@ namespace VM {
 namespace {
 
 ExecResult executeProtoUnchecked(RuntimeServices& services, LuaState* L, Proto* proto, i32 nexeccalls) {
+    services.globalState.requireOwnerThread();
     if (!proto)
         throw RuntimeError("VM::executeProto: null proto");
     if (nexeccalls >= MAX_CALLS)

@@ -10,6 +10,7 @@
 #include "core/thread.hpp"
 #include "vm/state/lua_state.hpp"
 #include <array>
+#include <exception>
 #include <iostream> // for debug output
 
 namespace Lua {
@@ -28,9 +29,9 @@ GlobalState& GlobalState::getInstance() {
 // =====================================================================
 
 GlobalState::GlobalState(StringPool& stringPool, LuaAllocator* allocator)
-    : nativeModules_(), gc_(allocator), stringPool_(stringPool), registry_(nullptr), mainThread_(nullptr),
-      memerrmsg_(nullptr), apiExceptionMessage_(nullptr), instructionBudgetErrorMessage_(nullptr),
-      deadlineErrorMessage_(nullptr), cancellationErrorMessage_(nullptr) {
+    : ownerThread_(std::this_thread::get_id()), nativeModules_(), gc_(allocator), stringPool_(stringPool),
+      registry_(nullptr), mainThread_(nullptr), memerrmsg_(nullptr), apiExceptionMessage_(nullptr),
+      instructionBudgetErrorMessage_(nullptr), deadlineErrorMessage_(nullptr), cancellationErrorMessage_(nullptr) {
     stringPool_.setGarbageCollector(&gc_);
 
     // 子任务1.1：调整字符串池大小到初始值
@@ -73,6 +74,10 @@ GlobalState::GlobalState(StringPool& stringPool, LuaAllocator* allocator)
 }
 
 GlobalState::~GlobalState() {
+    if (!isOwnerThread()) {
+        std::terminate();
+    }
+
     // 注意：不需要手动删除registry_，因为GC会处理
     // 但需要从根对象中移除
     if (registry_) {

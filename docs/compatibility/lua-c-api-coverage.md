@@ -13,7 +13,7 @@ applies_to: Lua 5.1 C API 原型、项目内直接测试与官方 testC 覆盖�
 
 | 能力组 | 当前实现 | 项目内直接测试 | 官方测试覆盖 | 状态 |
 |---|---|---|---|---|
-| State 生命周期 | `lua_newstate`、`lua_open`、`lua_close`；每个公开主 State 拥有独立 `EngineContext`，自定义 allocator 分配 State/Context；`lua_close` 为 `noexcept` 并将 coroutine 归一到 main State | 双 State 隔离；创建中途失败回滚；close-time `__gc`、单个 finalizer 错误隔离、coroutine 关闭整个 Runtime、持续 OOM 关闭归零 | 原始 `api.lua` 通过 state/thread 创建、remote state 和低内存循环 | 已实现并形成直接 + TestC 证据 |
+| State 生命周期 | `lua_newstate`、`lua_open`、`lua_close`；每个公开主 State 拥有独立 `EngineContext` 并固定构造线程为 owner，自定义 allocator 分配 State/Context；`lua_close` 为 `noexcept` 并将 coroutine 归一到 main State | 双 State 隔离；创建中途失败回滚；close-time `__gc`、单个 finalizer 错误隔离、coroutine 关闭整个 Runtime、持续 OOM 关闭归零；foreign-thread C API/VM 拒绝且栈不变，`lua_close` 无操作后由 owner 完成释放 | 原始 `api.lua` 通过 state/thread 创建、remote state 和低内存循环 | 已实现并形成直接 + TestC 证据 |
 | 栈顶与容量 | `lua_gettop`、`lua_settop`、`lua_checkstack` | 正/负 `settop`、扩栈 nil 填充、主线程虚拟槽隔离、最大容量拒绝 | 原始 `api.lua` 的 `T.testC` 栈协议 exact PASS | 已实现并形成直接 + TestC 证据 |
 | 普通索引 | 正索引、负索引、invalid index、`lua_pushvalue` | 正/负/越界读取与复制 | 原始 `api.lua` 覆盖普通索引和栈顶相对参数 | 已实现并形成直接 + TestC 证据 |
 | 栈重排 | `lua_insert`、`lua_remove`、`lua_replace` | 正/负位置、C 回调帧内 remove | 原始 `api.lua` 覆盖 `insert/remove/replace` 命令 | 已实现并形成直接 + TestC 证据 |
@@ -45,7 +45,7 @@ applies_to: Lua 5.1 C API 原型、项目内直接测试与官方 testC 覆盖�
 bin\lua_test.exe --filter "Lua C API"
 ```
 
-结果为 49 个测试、1254 个断言、0 failures。机器合同包含 123 个官方公共函数：123 个 `PASS`、0 个 `XFAIL`、0 个 `UNSUPPORTED`。项目头文件的当前公开面另由 130 个真实函数、57 个宏、24 个枚举常量和 11 个 typedef 的穷尽式编译合同保护。完整 Debug/Release strict 套件为 751 个测试、4845 个断言、0 failures。原始 `api.lua` 另以以下 exact TestC 门禁通过：
+结果为 49 个测试、1262 个断言、0 failures。机器合同包含 123 个官方公共函数：123 个 `PASS`、0 个 `XFAIL`、0 个 `UNSUPPORTED`。项目头文件的当前公开面另由 130 个真实函数、57 个宏、24 个枚举常量和 11 个 typedef 的穷尽式编译合同保护。完整 Debug/Release strict 套件为 752 个测试、4864 个断言、0 failures。原始 `api.lua` 另以以下 exact TestC 门禁通过：
 
 ```powershell
 bin\lua_test.exe --filter "api.lua with T module"

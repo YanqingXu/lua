@@ -2,7 +2,7 @@
 status: current
 verified_against: src/runtime/execution_policy.hpp; src/runtime/runtime_services.hpp; src/vm/state/global_state.hpp; src/vm/state/global_state.cpp; src/vm/vm.cpp; src/vm/state/lua_state.cpp; src/core/thread.cpp; src/gc/gc_finalize.cpp; tests/unit/vm/test_runtime_services.cpp; tests/unit/gc/test_gc.cpp; tests/unit/api/test_lua_c_api.cpp; benchmarks/runtime_bench.cpp; tests/compatibility/runtime-benchmark-regression-policy.json
 last_checked: 2026-07-15
-applies_to: instruction budget, monotonic deadline, external cancellation, and per-drain finalizer budget
+applies_to: owner-thread access, instruction budget, monotonic deadline, external cancellation, and per-drain finalizer budget
 ---
 
 # ExecutionPolicy 执行治理合同
@@ -18,6 +18,10 @@ applies_to: instruction budget, monotonic deadline, external cancellation, and p
 - `finalizerBudgetPerDrain`：一次完整 GC、增量 finalize 阶段或 `lua_close` drain 最多进入的用户 `__gc` 回调数；默认 `UnlimitedFinalizers`，因此不改变 Lua 5.1 默认行为。值为 `0` 时该 drain 不进入任何用户 finalizer。
 
 `configure` 同时清除旧 cancellation；`reset` 恢复无限 instruction/finalizer 预算、无 deadline、未取消。配置字段不是并发可写的，宿主不得在 VM 正运行时调用这两个函数。
+
+## 固定 owner thread
+
+创建 `EngineContext`/`GlobalState` 的线程是不可变 owner；当前没有 transfer 或 rebind API。`EngineContext` 服务访问、`RuntimeServices` 构造、VM 入口及公开 C API 都在接触可变 runtime 状态前验证该身份。可抛入口以 `RuntimeOwnerThreadError` 报告宿主逻辑错误；protected/`noexcept` 入口返回各自失败值并保持栈不变。foreign-thread `lua_close` 不执行销毁，必须由 owner 重试；owning context 若在 foreign thread 析构则 `std::terminate`。
 
 ## 唯一跨线程入口
 
@@ -49,4 +53,4 @@ finalizer 预算按 drain 重新补充，不像 instruction budget 那样跨执�
 
 默认策略仍经过一个 relaxed atomic cancellation load 和快速未启用分支。Release `vm_instructions_per_second` 已纳入 base-vs-head 相对回归策略，允许的最大退化比例为 20%。deadline 只有启用时才读取 `steady_clock`。
 
-当前页闭环 instruction budget、monotonic deadline、atomic cancellation 与 finalizer 单轮预算。assessment 路线中的 sandbox/module policy、owner-thread 运行时断言和原生 C 函数协作式取消由 [#10](https://github.com/YanqingXu/lua/issues/10) 跟踪；不得将本阶段解释为完整 server sandbox。
+当前页闭环固定 owner-thread、instruction budget、monotonic deadline、atomic cancellation 与 finalizer 单轮预算。assessment 路线中的 sandbox/module policy 和原生 C 函数协作式取消继续由 [#10](https://github.com/YanqingXu/lua/issues/10) 跟踪；不得将本阶段解释为完整 server sandbox。

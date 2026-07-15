@@ -14,8 +14,12 @@
 
 namespace {
 
-Lua::LuaState* fromAuxState(lua_State* state) noexcept {
-    return reinterpret_cast<Lua::LuaState*>(state);
+Lua::LuaState* fromAuxState(lua_State* stateHandle) {
+    Lua::LuaState* state = reinterpret_cast<Lua::LuaState*>(stateHandle);
+    if (state != nullptr) {
+        state->getGlobalState().requireOwnerThread();
+    }
+    return state;
 }
 
 int absoluteIndex(lua_State* state, int index) {

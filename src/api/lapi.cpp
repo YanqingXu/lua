@@ -29,8 +29,21 @@
 #include <type_traits>
 #include <utility>
 
-static Lua::LuaState* fromC(lua_State* L) {
+static Lua::LuaState* fromCUnchecked(lua_State* L) noexcept {
     return reinterpret_cast<Lua::LuaState*>(L);
+}
+
+static Lua::LuaState* fromC(lua_State* L) {
+    Lua::LuaState* state = fromCUnchecked(L);
+    if (state != nullptr) {
+        state->getGlobalState().requireOwnerThread();
+    }
+    return state;
+}
+
+static Lua::LuaState* fromCNoexcept(lua_State* L) noexcept {
+    Lua::LuaState* state = fromCUnchecked(L);
+    return state != nullptr && state->getGlobalState().isOwnerThread() ? state : nullptr;
 }
 
 static lua_State* toC(Lua::LuaState* L) {
@@ -392,7 +405,7 @@ lua_State* lua_open(void) LUA_CXX_MAY_THROW {
 }
 
 void lua_close(lua_State* L) LUA_CXX_NOEXCEPT {
-    Lua::LuaState* state = fromC(L);
+    Lua::LuaState* state = fromCNoexcept(L);
     if (state == nullptr) {
         return;
     }
@@ -438,8 +451,8 @@ void lua_settop(lua_State* L, int idx) LUA_CXX_MAY_THROW {
 }
 
 int lua_checkstack(lua_State* L, int extra) LUA_CXX_NOEXCEPT {
-    Lua::LuaState* state = fromC(L);
-    if (extra < 0) {
+    Lua::LuaState* state = fromCNoexcept(L);
+    if (state == nullptr || extra < 0) {
         return 0;
     }
 
@@ -1136,7 +1149,10 @@ void lua_call(lua_State* L, int nargs, int nresults) LUA_CXX_MAY_THROW {
 }
 
 int lua_pcall(lua_State* L, int nargs, int nresults, int errfunc) LUA_CXX_NOEXCEPT {
-    Lua::LuaState* state = fromC(L);
+    Lua::LuaState* state = fromCNoexcept(L);
+    if (state == nullptr) {
+        return LUA_ERRRUN;
+    }
     const Lua::usize frameBase = currentFrameBase(state);
     const Lua::usize absoluteTop = state->getAbsoluteTop();
     const Lua::usize argumentCount = nargs >= 0 ? static_cast<Lua::usize>(nargs) : 0;
@@ -1161,7 +1177,10 @@ int lua_pcall(lua_State* L, int nargs, int nresults, int errfunc) LUA_CXX_NOEXCE
 }
 
 int lua_cpcall(lua_State* L, lua_CFunction function, void* userData) LUA_CXX_NOEXCEPT {
-    Lua::LuaState* state = fromC(L);
+    Lua::LuaState* state = fromCNoexcept(L);
+    if (state == nullptr) {
+        return LUA_ERRRUN;
+    }
     const Lua::usize savedTop = state->getAbsoluteTop();
     auto failure = [state, savedTop](const Lua::Value& errorValue, int status) noexcept {
         const int result = publishApiStatusError(state, savedTop, errorValue, status);
@@ -1183,7 +1202,7 @@ lua_State* lua_newthread(lua_State* L) LUA_CXX_MAY_THROW {
 }
 
 lua_State* lua_trynewthread(lua_State* L) LUA_CXX_NOEXCEPT {
-    if (L == nullptr) {
+    if (fromCNoexcept(L) == nullptr) {
         return nullptr;
     }
     try {
@@ -1194,7 +1213,10 @@ lua_State* lua_trynewthread(lua_State* L) LUA_CXX_NOEXCEPT {
 }
 
 int lua_resume(lua_State* L, int nargs) LUA_CXX_NOEXCEPT {
-    Lua::LuaState* state = fromC(L);
+    Lua::LuaState* state = fromCNoexcept(L);
+    if (state == nullptr) {
+        return LUA_ERRRUN;
+    }
     Lua::Thread* thread = state->getThread();
 
     auto fail = [&](const Lua::Value& errorValue, int status) noexcept {
@@ -1400,8 +1422,11 @@ int luaL_loadbuffer(lua_State* L, const char* buffer, size_t size, const char* n
         return LUA_ERRSYNTAX;
     }
 
-    const int base = lua_gettop(L);
-    Lua::LuaState* state = fromC(L);
+    Lua::LuaState* state = fromCNoexcept(L);
+    if (state == nullptr) {
+        return LUA_ERRRUN;
+    }
+    const int base = apiTop(state);
     const Lua::usize savedTop = state->getAbsoluteTop();
     auto failure = [state, savedTop](const Lua::Value& errorValue, int status) noexcept {
         return publishApiStatusError(state, savedTop, errorValue, status);
@@ -1427,8 +1452,11 @@ int luaL_loadfile(lua_State* L, const char* filename) LUA_CXX_NOEXCEPT {
         return LUA_ERRFILE;
     }
 
-    const int base = lua_gettop(L);
-    Lua::LuaState* state = fromC(L);
+    Lua::LuaState* state = fromCNoexcept(L);
+    if (state == nullptr) {
+        return LUA_ERRRUN;
+    }
+    const int base = apiTop(state);
     const Lua::usize savedTop = state->getAbsoluteTop();
     auto failure = [state, savedTop](const Lua::Value& errorValue, int status) noexcept {
         return publishApiStatusError(state, savedTop, errorValue, status);
@@ -1461,7 +1489,10 @@ int lua_load(lua_State* L, lua_Reader reader, void* data, const char* chunkname)
         return LUA_ERRSYNTAX;
     }
 
-    Lua::LuaState* state = fromC(L);
+    Lua::LuaState* state = fromCNoexcept(L);
+    if (state == nullptr) {
+        return LUA_ERRRUN;
+    }
     const Lua::usize savedTop = state->getAbsoluteTop();
     auto failure = [state, savedTop](const Lua::Value& errorValue, int status) noexcept {
         return publishApiStatusError(state, savedTop, errorValue, status);
@@ -1484,12 +1515,16 @@ int lua_load(lua_State* L, lua_Reader reader, void* data, const char* chunkname)
 }
 
 int lua_dump(lua_State* L, lua_Writer writer, void* data) LUA_CXX_NOEXCEPT {
-    if (L == nullptr || writer == nullptr || !lua_isfunction(L, -1) || lua_iscfunction(L, -1)) {
+    if (L == nullptr || writer == nullptr) {
         return 1;
     }
 
-    const int base = lua_gettop(L);
-    Lua::LuaState* state = fromC(L);
+    Lua::LuaState* state = fromCNoexcept(L);
+    if (state == nullptr || !lua_isfunction(L, -1) || lua_iscfunction(L, -1)) {
+        return 1;
+    }
+
+    const int base = apiTop(state);
     const Lua::usize savedTop = state->getAbsoluteTop();
     auto failure = [state, savedTop](const Lua::Value&, int status) noexcept {
         restoreAbsoluteTopClearingSlots(state, savedTop);

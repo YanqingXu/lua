@@ -60,13 +60,13 @@ struct RuntimeServices {
 ```cpp
 class EngineContext {
 public:
-    RuntimeServices services(VM::DispatchStrategy* dispatch = nullptr) noexcept;
-    GlobalState& globalState() noexcept;
-    StringPool& strings() noexcept;
-    GarbageCollector& gc() noexcept;
-    NativeModuleRegistry& nativeModules() noexcept;
-    ExecutionPolicy& executionPolicy() noexcept;
-    ExecutionCancellationHandle cancellationHandle() noexcept;
+    RuntimeServices services(VM::DispatchStrategy* dispatch = nullptr);
+    GlobalState& globalState();
+    StringPool& strings();
+    GarbageCollector& gc();
+    NativeModuleRegistry& nativeModules();
+    ExecutionPolicy& executionPolicy();
+    ExecutionCancellationHandle cancellationHandle();
 };
 ```
 
@@ -81,7 +81,13 @@ public:
 
 `LuaState::newState(EngineContext&)` 在该上下文内创建主状态。测试断言两个上下文将相同文本驻留为不同的 `GCString` 对象，且这些字符串属于不同的回收器。
 
-执行预算、单调 deadline 和跨线程取消的详细所有权与错误合同见 [ExecutionPolicy](execution-policy.md)。
+## Owner-thread 合同
+
+`GlobalState` 在构造时固定当前线程为 runtime owner，身份在整个生命周期内不可转移或重新绑定。`EngineContext` 的服务访问器、`RuntimeServices` 构造、VM 公开入口和 Lua C API 必须在该线程调用；可抛入口在读取或修改可变状态前抛出 `RuntimeOwnerThreadError`。预先取得的 `RuntimeServices` 只是非 owning 引用束，不能授权其他线程进入 VM。
+
+关闭异常边界的 API 不传播该异常，也不改动栈：`lua_checkstack` 返回 `0`，`lua_pcall`/`lua_cpcall`/`lua_resume` 和 load API 返回 `LUA_ERRRUN`，`lua_trynewthread` 返回 `nullptr`，`lua_dump` 返回 `1`。foreign-thread `lua_close` 是无操作；宿主仍须回到 owner thread 关闭 State。若 owning `EngineContext`/`GlobalState` 最终在其他线程析构，运行时以 `std::terminate` fail-fast，避免在错误线程执行 GC、finalizer 或模块卸载。
+
+唯一支持的跨线程操作是 owner 预先取得 `ExecutionCancellationHandle`，并由外部线程调用其原子 `requestCancellation()`；handle 不能超过 context 生命周期。直接调用内部 `LuaState`/GC/编译器辅助函数不属于公开嵌入合同，也不提供绕过线程约束的兼容承诺。执行预算、单调 deadline 和取消的详细合同见 [ExecutionPolicy](execution-policy.md)。
 
 ## 原生模块生命周期
 
