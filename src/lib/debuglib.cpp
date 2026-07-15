@@ -10,6 +10,8 @@
 
 #include "lib/debuglib.hpp"
 
+#include "lua.h"
+
 #include "compiler/codegen/codegen.hpp"
 #include "compiler/opcode.hpp"
 #include "compiler/parser/parser.hpp"
@@ -1336,4 +1338,290 @@ void openDebugLib(LuaState* L) {
     StandardLibrary::openModule(L, module);
 }
 
+namespace {
+
+void copyApiShortSource(lua_Debug* ar, StrView source) {
+    Str shortSource = makeShortSource(source);
+    const usize length = std::min(shortSource.size(), static_cast<usize>(LUA_IDSIZE - 1));
+    std::memcpy(ar->short_src, shortSource.data(), length);
+    ar->short_src[length] = '\0';
+}
+
+void populateApiInfoS(lua_Debug* ar, Function* func) {
+    if (func == nullptr) {
+        ar->source = "=(tail call)";
+        ar->what = "tail";
+        ar->linedefined = -1;
+        ar->lastlinedefined = -1;
+        copyApiShortSource(ar, ar->source);
+        return;
+    }
+
+    if (func->isCFunction()) {
+        ar->source = "=[C]";
+        ar->what = "C";
+        ar->linedefined = -1;
+        ar->lastlinedefined = -1;
+        copyApiShortSource(ar, ar->source);
+        return;
+    }
+
+    Proto* proto = func->getProto();
+    ar->source = proto != nullptr && proto->getSource() != nullptr ? proto->getSource()->c_str() : "=?";
+    ar->what = proto != nullptr && proto->getLineDefined() == 0 ? "main" : "Lua";
+    ar->linedefined = proto != nullptr ? proto->getLineDefined() : -1;
+    ar->lastlinedefined = proto != nullptr ? proto->getLastLineDefined() : -1;
+    copyApiShortSource(ar, ar->source);
+}
+
+bool resolveApiRecord(LuaState* L, const lua_Debug* ar, DebugFrameRef& frame) {
+    if (L == nullptr || ar == nullptr || ar->i_ci <= 0) {
+        return false;
+    }
+
+    const usize index = static_cast<usize>(ar->i_ci);
+    LuaVector<CallInfo>& frames = L->getCallStack();
+    if (index > L->getCurrentCI() || index >= frames.size()) {
+        return false;
+    }
+
+    Function* func = functionFromCallInfo(L, frames[index]);
+    if (func == nullptr) {
+        return false;
+    }
+
+    frame.func = func;
+    frame.ci = &frames[index];
+    frame.stackIndex = index;
+    return true;
+}
+
+Table* createApiActiveLines(LuaState* L, Function* func) {
+    if (func == nullptr || func->isCFunction() || func->getProto() == nullptr) {
+        return nullptr;
+    }
+
+    Table* lines = createGCManagedTable(L);
+    for (i32 line : func->getProto()->getLineInfo()) {
+        if (line > 0) {
+            lines->set(Value(static_cast<LuaNumber>(line)), Value(true));
+        }
+    }
+    return lines;
+}
+
+const char* findApiLocal(LuaState* L, const DebugFrameRef& frame, i32 localNumber, usize& slot) {
+    if (L == nullptr || frame.ci == nullptr || localNumber <= 0) {
+        return nullptr;
+    }
+
+    if (const LocVar* local = resolveLocalInfo(frame.func, frame.ci, localNumber, true)) {
+        if (local->varname == nullptr || local->reg < 0) {
+            return nullptr;
+        }
+        slot = frame.ci->base + static_cast<usize>(local->reg);
+        return slot < L->getStack().size() ? local->varname->c_str() : nullptr;
+    }
+
+    slot = frame.ci->base + static_cast<usize>(localNumber - 1);
+    usize limit = L->getAbsoluteTop();
+    LuaVector<CallInfo>& frames = L->getCallStack();
+    if (frame.stackIndex < L->getCurrentCI() && frame.stackIndex + 1 < frames.size()) {
+        limit = frames[frame.stackIndex + 1].func;
+    }
+    return slot < limit && slot < L->getStack().size() ? "(*temporary)" : nullptr;
+}
+
+} // namespace
+
+int apiDebugGetStack(LuaState* L, int level, lua_Debug* ar) {
+    if (L == nullptr || ar == nullptr) {
+        return 0;
+    }
+
+    if (level < 0) {
+        ar->i_ci = 0;
+        return 1;
+    }
+
+    DebugFrameRef frame;
+    StackLevelKind kind = resolveStackLevelKind(L, level, frame);
+    if (kind == StackLevelKind::Invalid) {
+        return 0;
+    }
+
+    ar->i_ci = kind == StackLevelKind::Tail ? 0 : static_cast<int>(frame.stackIndex);
+    return 1;
+}
+
+int apiDebugGetInfo(LuaState* L, const char* what, lua_Debug* ar) {
+    if (L == nullptr || what == nullptr || ar == nullptr) {
+        return 0;
+    }
+
+    Function* func = nullptr;
+    DebugFrameRef frame;
+    bool tailFrame = false;
+    if (*what == '>') {
+        ++what;
+        if (L->getAbsoluteTop() <= L->getCurrentCallInfo().base ||
+            !L->getStack().at(L->getAbsoluteTop() - 1).isFunction()) {
+            L->error("function expected by lua_getinfo");
+        }
+        func = L->getStack().at(L->getAbsoluteTop() - 1).asFunction();
+        L->getStack().at(L->getAbsoluteTop() - 1) = Value();
+        L->setAbsoluteTop(L->getAbsoluteTop() - 1);
+    } else if (ar->i_ci == 0) {
+        tailFrame = true;
+    } else if (resolveApiRecord(L, ar, frame)) {
+        func = frame.func;
+    } else {
+        return 0;
+    }
+
+    int status = 1;
+    for (const char* option = what; *option != '\0'; ++option) {
+        switch (*option) {
+        case 'S':
+            populateApiInfoS(ar, tailFrame ? nullptr : func);
+            break;
+        case 'l':
+            ar->currentline = tailFrame ? -1 : currentLineForFrame(func, frame.ci);
+            break;
+        case 'u':
+            ar->nups = tailFrame || func == nullptr ? 0 : static_cast<int>(func->getNumUpvalues());
+            break;
+        case 'n': {
+            ar->name = nullptr;
+            ar->namewhat = "";
+            if (!tailFrame && frame.ci != nullptr && !(func->isLuaFunction() && frame.ci->tailcalls > 0)) {
+                const char* nameWhat = nullptr;
+                GCString* name = nullptr;
+                if (inferFrameCallName(L, frame.stackIndex, nameWhat, name)) {
+                    ar->name = name->c_str();
+                    ar->namewhat = nameWhat;
+                }
+            }
+            break;
+        }
+        case 'f':
+        case 'L':
+            break;
+        default:
+            status = 0;
+            break;
+        }
+    }
+
+    if (std::strchr(what, 'f') != nullptr) {
+        if (tailFrame || func == nullptr) {
+            L->pushNil();
+        } else {
+            L->pushFunction(func);
+        }
+    }
+    if (std::strchr(what, 'L') != nullptr) {
+        if (Table* lines = createApiActiveLines(L, tailFrame ? nullptr : func)) {
+            L->pushTable(lines);
+        } else {
+            L->pushNil();
+        }
+    }
+    return status;
+}
+
+const char* apiDebugGetLocal(LuaState* L, const lua_Debug* ar, int n) {
+    DebugFrameRef frame;
+    if (!resolveApiRecord(L, ar, frame)) {
+        return nullptr;
+    }
+
+    usize slot = 0;
+    const char* name = findApiLocal(L, frame, n, slot);
+    if (name != nullptr) {
+        L->pushValue(L->getStack().at(slot));
+    }
+    return name;
+}
+
+const char* apiDebugSetLocal(LuaState* L, const lua_Debug* ar, int n) {
+    if (L == nullptr) {
+        return nullptr;
+    }
+
+    const usize top = L->getAbsoluteTop();
+    if (top <= L->getCurrentCallInfo().base) {
+        return nullptr;
+    }
+
+    Value replacement = L->getStack().at(top - 1);
+    DebugFrameRef frame;
+    usize slot = 0;
+    const char* name = resolveApiRecord(L, ar, frame) ? findApiLocal(L, frame, n, slot) : nullptr;
+    if (name != nullptr) {
+        L->getStack().at(slot) = replacement;
+    }
+    L->getStack().at(top - 1) = Value();
+    L->setAbsoluteTop(top - 1);
+    return name;
+}
+
+int apiDebugSetHook(LuaState* L, lua_Hook hook, int mask, int count) {
+    if (L == nullptr) {
+        return 0;
+    }
+
+    L->setApiDebugHook(hook, static_cast<u8>(mask), count);
+    if (hook != nullptr && (mask & LUA_MASKLINE) != 0) {
+        LuaVector<CallInfo>& frames = L->getCallStack();
+        for (usize index = 0; index <= L->getCurrentCI() && index < frames.size(); ++index) {
+            Function* func = functionFromCallInfo(L, frames[index]);
+            if (func != nullptr && func->isLuaFunction()) {
+                frames[index].hookLine = currentLineForFrame(func, &frames[index]);
+                frames[index].hookPc = currentPcForFrame(func, &frames[index]);
+            }
+        }
+    }
+    return 1;
+}
+
 } // namespace Lua
+
+extern "C" {
+
+int lua_getstack(lua_State* L, int level, lua_Debug* ar) LUA_CXX_MAY_THROW {
+    return Lua::apiDebugGetStack(reinterpret_cast<Lua::LuaState*>(L), level, ar);
+}
+
+int lua_getinfo(lua_State* L, const char* what, lua_Debug* ar) LUA_CXX_MAY_THROW {
+    return Lua::apiDebugGetInfo(reinterpret_cast<Lua::LuaState*>(L), what, ar);
+}
+
+const char* lua_getlocal(lua_State* L, const lua_Debug* ar, int n) LUA_CXX_MAY_THROW {
+    return Lua::apiDebugGetLocal(reinterpret_cast<Lua::LuaState*>(L), ar, n);
+}
+
+const char* lua_setlocal(lua_State* L, const lua_Debug* ar, int n) LUA_CXX_MAY_THROW {
+    return Lua::apiDebugSetLocal(reinterpret_cast<Lua::LuaState*>(L), ar, n);
+}
+
+int lua_sethook(lua_State* L, lua_Hook func, int mask, int count) LUA_CXX_MAY_THROW {
+    return Lua::apiDebugSetHook(reinterpret_cast<Lua::LuaState*>(L), func, mask, count);
+}
+
+lua_Hook lua_gethook(lua_State* L) LUA_CXX_MAY_THROW {
+    Lua::LuaState* state = reinterpret_cast<Lua::LuaState*>(L);
+    return state != nullptr ? state->getApiDebugHook() : nullptr;
+}
+
+int lua_gethookmask(lua_State* L) LUA_CXX_MAY_THROW {
+    Lua::LuaState* state = reinterpret_cast<Lua::LuaState*>(L);
+    return state != nullptr ? state->getDebugHookMask() : 0;
+}
+
+int lua_gethookcount(lua_State* L) LUA_CXX_MAY_THROW {
+    Lua::LuaState* state = reinterpret_cast<Lua::LuaState*>(L);
+    return state != nullptr ? state->getDebugHookCount() : 0;
+}
+
+} // extern "C"

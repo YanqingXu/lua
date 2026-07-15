@@ -89,6 +89,14 @@ REQUIRE_SIGNATURE(lua_status, int (*)(lua_State*) noexcept(false));
 REQUIRE_SIGNATURE(lua_gc, int (*)(lua_State*, int, int) noexcept(false));
 REQUIRE_SIGNATURE(lua_load, int (*)(lua_State*, lua_Reader, void*, const char*) noexcept);
 REQUIRE_SIGNATURE(lua_dump, int (*)(lua_State*, lua_Writer, void*) noexcept);
+REQUIRE_SIGNATURE(lua_getstack, int (*)(lua_State*, int, lua_Debug*) noexcept(false));
+REQUIRE_SIGNATURE(lua_getinfo, int (*)(lua_State*, const char*, lua_Debug*) noexcept(false));
+REQUIRE_SIGNATURE(lua_getlocal, const char* (*)(lua_State*, const lua_Debug*, int) noexcept(false));
+REQUIRE_SIGNATURE(lua_setlocal, const char* (*)(lua_State*, const lua_Debug*, int) noexcept(false));
+REQUIRE_SIGNATURE(lua_sethook, int (*)(lua_State*, lua_Hook, int, int) noexcept(false));
+REQUIRE_SIGNATURE(lua_gethook, lua_Hook (*)(lua_State*) noexcept(false));
+REQUIRE_SIGNATURE(lua_gethookmask, int (*)(lua_State*) noexcept(false));
+REQUIRE_SIGNATURE(lua_gethookcount, int (*)(lua_State*) noexcept(false));
 REQUIRE_SIGNATURE(luaL_openlibs, void (*)(lua_State*) noexcept(false));
 REQUIRE_SIGNATURE(luaL_openlib, void (*)(lua_State*, const char*, const luaL_Reg*, int) noexcept(false));
 REQUIRE_SIGNATURE(luaL_register, void (*)(lua_State*, const char*, const luaL_Reg*) noexcept(false));
@@ -133,6 +141,7 @@ REQUIRE_PUBLIC_MACRO(LUA_RELEASE);
 REQUIRE_PUBLIC_MACRO(LUA_VERSION_NUM);
 REQUIRE_PUBLIC_MACRO(LUA_MULTRET);
 REQUIRE_PUBLIC_MACRO(LUA_MINSTACK);
+REQUIRE_PUBLIC_MACRO(LUA_IDSIZE);
 REQUIRE_PUBLIC_MACRO(LUA_REGISTRYINDEX);
 REQUIRE_PUBLIC_MACRO(LUA_ENVIRONINDEX);
 REQUIRE_PUBLIC_MACRO(LUA_GLOBALSINDEX);
@@ -165,6 +174,15 @@ REQUIRE_PUBLIC_MACRO(luaL_putchar);
 REQUIRE_PUBLIC_MACRO(luaL_addsize);
 REQUIRE_PUBLIC_MACRO(luaL_getref);
 REQUIRE_PUBLIC_MACRO(luaL_reg);
+REQUIRE_PUBLIC_MACRO(LUA_HOOKCALL);
+REQUIRE_PUBLIC_MACRO(LUA_HOOKRET);
+REQUIRE_PUBLIC_MACRO(LUA_HOOKLINE);
+REQUIRE_PUBLIC_MACRO(LUA_HOOKCOUNT);
+REQUIRE_PUBLIC_MACRO(LUA_HOOKTAILRET);
+REQUIRE_PUBLIC_MACRO(LUA_MASKCALL);
+REQUIRE_PUBLIC_MACRO(LUA_MASKRET);
+REQUIRE_PUBLIC_MACRO(LUA_MASKLINE);
+REQUIRE_PUBLIC_MACRO(LUA_MASKCOUNT);
 
 REQUIRE_PUBLIC_CONSTANT(LUA_OK);
 REQUIRE_PUBLIC_CONSTANT(LUA_YIELD);
@@ -200,12 +218,15 @@ REQUIRE_PUBLIC_TYPE(lua_Reader);
 REQUIRE_PUBLIC_TYPE(lua_Writer);
 REQUIRE_PUBLIC_TYPE(luaL_Reg);
 REQUIRE_PUBLIC_TYPE(luaL_Buffer);
+REQUIRE_PUBLIC_TYPE(lua_Debug);
+REQUIRE_PUBLIC_TYPE(lua_Hook);
 
 static_assert(std::string_view(LUA_VERSION) == "Lua 5.1");
 static_assert(std::string_view(LUA_RELEASE) == "Lua 5.1.5");
 static_assert(LUA_VERSION_NUM == 501);
 static_assert(LUA_MULTRET == -1);
 static_assert(LUA_MINSTACK == 20);
+static_assert(LUA_IDSIZE == 60);
 static_assert(LUA_REGISTRYINDEX == -10000);
 static_assert(LUA_ENVIRONINDEX == -10001);
 static_assert(LUA_GLOBALSINDEX == -10002);
@@ -216,6 +237,8 @@ static_assert(LUA_TNONE == -1 && LUA_TNIL == 0 && LUA_TBOOLEAN == 1 && LUA_TLIGH
               LUA_TSTRING == 4 && LUA_TTABLE == 5 && LUA_TFUNCTION == 6 && LUA_TUSERDATA == 7 && LUA_TTHREAD == 8);
 static_assert(LUA_GCSTOP == 0 && LUA_GCRESTART == 1 && LUA_GCCOLLECT == 2 && LUA_GCCOUNT == 3 && LUA_GCCOUNTB == 4 &&
               LUA_GCSTEP == 5 && LUA_GCSETPAUSE == 6 && LUA_GCSETSTEPMUL == 7);
+static_assert(LUA_HOOKCALL == 0 && LUA_HOOKRET == 1 && LUA_HOOKLINE == 2 && LUA_HOOKCOUNT == 3 && LUA_HOOKTAILRET == 4);
+static_assert(LUA_MASKCALL == 1 && LUA_MASKRET == 2 && LUA_MASKLINE == 4 && LUA_MASKCOUNT == 8);
 static_assert(LUA_NOREF == -2 && LUA_REFNIL == -1);
 static_assert(LUAL_BUFFERSIZE == BUFSIZ);
 
@@ -225,6 +248,19 @@ static_assert(std::is_same_v<lua_CFunction, int (*)(lua_State*)>);
 static_assert(std::is_same_v<lua_Alloc, void* (*)(void*, void*, size_t, size_t)>);
 static_assert(std::is_same_v<lua_Reader, const char* (*)(lua_State*, void*, size_t*)>);
 static_assert(std::is_same_v<lua_Writer, int (*)(lua_State*, const void*, size_t, void*)>);
+static_assert(std::is_same_v<lua_Hook, void (*)(lua_State*, lua_Debug*)>);
+static_assert(std::is_standard_layout_v<lua_Debug>);
+static_assert(sizeof(lua_Debug::short_src) == LUA_IDSIZE);
+static_assert(offsetof(lua_Debug, name) > offsetof(lua_Debug, event));
+static_assert(offsetof(lua_Debug, namewhat) > offsetof(lua_Debug, name));
+static_assert(offsetof(lua_Debug, what) > offsetof(lua_Debug, namewhat));
+static_assert(offsetof(lua_Debug, source) > offsetof(lua_Debug, what));
+static_assert(offsetof(lua_Debug, currentline) > offsetof(lua_Debug, source));
+static_assert(offsetof(lua_Debug, nups) > offsetof(lua_Debug, currentline));
+static_assert(offsetof(lua_Debug, linedefined) > offsetof(lua_Debug, nups));
+static_assert(offsetof(lua_Debug, lastlinedefined) > offsetof(lua_Debug, linedefined));
+static_assert(offsetof(lua_Debug, short_src) > offsetof(lua_Debug, lastlinedefined));
+static_assert(offsetof(lua_Debug, i_ci) > offsetof(lua_Debug, short_src));
 static_assert(std::is_standard_layout_v<luaL_Reg>);
 static_assert(std::is_same_v<decltype(luaL_Reg::name), const char*>);
 static_assert(std::is_same_v<decltype(luaL_Reg::func), lua_CFunction>);
@@ -311,7 +347,7 @@ int main() {
     static_assert(!noexcept(lua_call(nullptr, 0, 0)));
     static_assert(!noexcept(lua_error(nullptr)));
 
-    if (lua_public_c_header_probe() != 107) {
+    if (lua_public_c_header_probe() != 115) {
         return 1;
     }
 

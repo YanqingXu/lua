@@ -401,7 +401,7 @@ def main() -> int:
                         + ", ".join(str(path) for path in locations)
                     )
 
-    if status_counts["PASS"] != 100 or status_counts["UNSUPPORTED"] != 23:
+    if status_counts["PASS"] != 108 or status_counts["UNSUPPORTED"] != 15:
         fail(f"unexpected status partition: {dict(status_counts)}")
 
     for path, text in c_probe_texts.items():

@@ -32,6 +32,9 @@
 #include "vm/vm_constants.hpp"
 #include <expected>
 
+struct lua_State;
+struct lua_Debug;
+
 namespace Lua {
 
 // 前向声明
@@ -61,7 +64,14 @@ enum class ThreadStatus : u8 {
 /**
  * @brief Debug hook mask bits
  */
-enum DebugHookMask : u8 { HookMaskCall = 1 << 0, HookMaskReturn = 1 << 1, HookMaskLine = 1 << 2 };
+enum DebugHookMask : u8 {
+    HookMaskCall = 1 << 0,
+    HookMaskReturn = 1 << 1,
+    HookMaskLine = 1 << 2,
+    HookMaskCount = 1 << 3
+};
+
+using ApiDebugHook = void (*)(::lua_State* L, ::lua_Debug* ar);
 
 /**
  * @brief Debug hook event kinds
@@ -737,10 +747,19 @@ public:
     void setDebugHook(Function* hook, u8 mask, i32 count);
 
     /**
+     * @brief Install or clear the public Lua 5.1 C debug hook
+     */
+    void setApiDebugHook(ApiDebugHook hook, u8 mask, i32 count);
+
+    /**
      * @brief Get the installed debug hook function
      */
     Function* getDebugHook() const noexcept {
         return hookFunc_;
+    }
+
+    ApiDebugHook getApiDebugHook() const noexcept {
+        return apiDebugHook_;
     }
 
     /**
@@ -768,7 +787,7 @@ public:
      * @brief Check whether the given hook mask bit is enabled
      */
     bool hasDebugHookMask(u8 mask) const noexcept {
-        return hookFunc_ != nullptr && (hookMask_ & mask) != 0;
+        return (hookFunc_ != nullptr || apiDebugHook_ != nullptr) && (hookMask_ & mask) != 0;
     }
 
     /**
@@ -855,7 +874,10 @@ private:
     /// Installed debug hook function.
     Function* hookFunc_ = nullptr;
 
-    /// Hook mask bits (call/return/line).
+    /// Installed public C debug hook callback.
+    ApiDebugHook apiDebugHook_ = nullptr;
+
+    /// Hook mask bits (call/return/line/count).
     u8 hookMask_ = 0;
 
     /// Instruction interval for count hooks.

@@ -7,6 +7,7 @@
  */
 
 #include "vm/state/lua_state.hpp"
+#include "lua.h"
 #include "common/lua_error.hpp"
 #include "common/number_conversion.hpp"
 #include "core/gc_string.hpp"
@@ -40,6 +41,23 @@ const char* hookEventName(DebugHookEvent event) {
     }
 
     return "unknown";
+}
+
+int hookEventCode(DebugHookEvent event) {
+    switch (event) {
+    case DebugHookEvent::Call:
+        return LUA_HOOKCALL;
+    case DebugHookEvent::Return:
+        return LUA_HOOKRET;
+    case DebugHookEvent::TailReturn:
+        return LUA_HOOKTAILRET;
+    case DebugHookEvent::Line:
+        return LUA_HOOKLINE;
+    case DebugHookEvent::Count:
+        return LUA_HOOKCOUNT;
+    }
+
+    return LUA_HOOKCOUNT;
 }
 
 Str makeStringChunkSnippet(StrView source) {
@@ -441,16 +459,15 @@ void LuaState::closeUpvalues(usize level) {
 
 void LuaState::setDebugHook(Function* hook, u8 mask, i32 count) {
     GarbageCollector& gc = globalState_.getGC();
+    Function* previousHook = hookFunc_;
 
-    if (hookFunc_ != nullptr && hookFunc_ != hook) {
-        gc.removeRoot(hookFunc_);
+    if (previousHook != nullptr && previousHook != hook) {
+        gc.removeRoot(previousHook);
     }
 
     if (hook == nullptr) {
-        if (hookFunc_ != nullptr) {
-            gc.removeRoot(hookFunc_);
-        }
         hookFunc_ = nullptr;
+        apiDebugHook_ = nullptr;
         hookMask_ = 0;
         hookCount_ = 0;
         hookCountdown_ = 0;
@@ -458,15 +475,31 @@ void LuaState::setDebugHook(Function* hook, u8 mask, i32 count) {
         return;
     }
 
-    gc.addRoot(hook);
+    if (previousHook != hook) {
+        gc.addRoot(hook);
+    }
     hookFunc_ = hook;
-    hookMask_ = mask;
+    apiDebugHook_ = nullptr;
+    hookMask_ = static_cast<u8>(mask | (count > 0 ? HookMaskCount : 0));
     hookCount_ = std::max(0, count);
     hookCountdown_ = hookCount_;
 }
 
+void LuaState::setApiDebugHook(ApiDebugHook hook, u8 mask, i32 count) {
+    if (hookFunc_ != nullptr) {
+        globalState_.getGC().removeRoot(hookFunc_);
+        hookFunc_ = nullptr;
+    }
+
+    apiDebugHook_ = (hook != nullptr && mask != 0) ? hook : nullptr;
+    hookMask_ = apiDebugHook_ != nullptr ? mask : 0;
+    hookCount_ = count;
+    hookCountdown_ = count;
+}
+
 bool LuaState::consumeDebugHookCount() {
-    if (hookFunc_ == nullptr || hookActive_ || hookCount_ <= 0) {
+    if ((hookFunc_ == nullptr && apiDebugHook_ == nullptr) || hookActive_ || (hookMask_ & HookMaskCount) == 0 ||
+        hookCount_ <= 0) {
         return false;
     }
 
@@ -480,7 +513,7 @@ bool LuaState::consumeDebugHookCount() {
 }
 
 void LuaState::callDebugHook(DebugHookEvent event, i32 line) {
-    if (hookFunc_ == nullptr || hookActive_) {
+    if ((hookFunc_ == nullptr && apiDebugHook_ == nullptr) || hookActive_) {
         return;
     }
 
@@ -493,6 +526,18 @@ void LuaState::callDebugHook(DebugHookEvent event, i32 line) {
     hookActive_ = true;
 
     try {
+        if (apiDebugHook_ != nullptr) {
+            lua_Debug activation{};
+            activation.event = hookEventCode(event);
+            activation.currentline = line;
+            activation.i_ci = event == DebugHookEvent::TailReturn ? 0 : static_cast<int>(currentCI_);
+            apiDebugHook_(reinterpret_cast<lua_State*>(this), &activation);
+            getStack().setTop(restoreStackTop);
+            setAbsoluteTop(savedTop);
+            hookActive_ = false;
+            return;
+        }
+
         usize hookTop = std::max(savedTop, savedSize);
         if (currentCI_ < callStack_.size()) {
             hookTop = std::max(hookTop, callStack_[currentCI_].top + EXTRA_STACK);

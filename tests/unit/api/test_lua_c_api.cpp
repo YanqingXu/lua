@@ -74,6 +74,14 @@ static_assert(!noexcept(luaL_addstring(nullptr, nullptr)));
 static_assert(!noexcept(luaL_addvalue(nullptr)));
 static_assert(!noexcept(luaL_pushresult(nullptr)));
 static_assert(!noexcept(luaL_error(nullptr, "%s", "error")));
+static_assert(!noexcept(lua_getstack(nullptr, 0, nullptr)));
+static_assert(!noexcept(lua_getinfo(nullptr, nullptr, nullptr)));
+static_assert(!noexcept(lua_getlocal(nullptr, nullptr, 0)));
+static_assert(!noexcept(lua_setlocal(nullptr, nullptr, 0)));
+static_assert(!noexcept(lua_sethook(nullptr, nullptr, 0, 0)));
+static_assert(!noexcept(lua_gethook(nullptr)));
+static_assert(!noexcept(lua_gethookmask(nullptr)));
+static_assert(!noexcept(lua_gethookcount(nullptr)));
 static_assert(noexcept(lua_close(nullptr)));
 static_assert(noexcept(lua_checkstack(nullptr, 0)));
 static_assert(noexcept(lua_pcall(nullptr, 0, 0, 0)));
@@ -85,6 +93,10 @@ static_assert(noexcept(lua_dump(nullptr, nullptr, nullptr)));
 static_assert(noexcept(luaL_loadbuffer(nullptr, nullptr, 0, nullptr)));
 static_assert(noexcept(luaL_loadstring(nullptr, nullptr)));
 static_assert(noexcept(luaL_loadfile(nullptr, nullptr)));
+static_assert(sizeof(((lua_Debug*)nullptr)->short_src) == LUA_IDSIZE);
+static_assert(offsetof(lua_Debug, name) > offsetof(lua_Debug, event));
+static_assert(offsetof(lua_Debug, currentline) > offsetof(lua_Debug, source));
+static_assert(offsetof(lua_Debug, i_ci) > offsetof(lua_Debug, short_src));
 
 constexpr const char* kProtectedApiExceptionMessage = "unhandled C++ exception in protected Lua API";
 
@@ -101,6 +113,18 @@ AllocatorProbe* gAllocatorFailureProbe = nullptr;
 size_t gAllocatorFailureOffset = 0;
 size_t gOversizedUserdataSize = 0;
 size_t gArmedAllocatorFailureTarget = 0;
+int gPublicHookCalls = 0;
+int gPublicHookReturns = 0;
+int gPublicHookLines = 0;
+int gPublicHookCounts = 0;
+bool gPublicHookLineInfo = false;
+bool gPublicHookTailInfo = false;
+bool gPublicDebugCurrentFrame = false;
+bool gPublicDebugCallerFrame = false;
+bool gPublicDebugCallerFunction = false;
+bool gPublicDebugCallerLines = false;
+std::string gPublicDebugLocalName;
+lua_Number gPublicDebugLocalValue = 0;
 
 struct AllocatorLedger {
     std::unordered_map<std::uintptr_t, size_t> blocks;
@@ -219,6 +243,61 @@ int returnCapturedUpvalues(lua_State* L) {
     lua_pushvalue(L, lua_upvalueindex(1));
     lua_pushvalue(L, lua_upvalueindex(2));
     return 2;
+}
+
+void capturePublicDebugHook(lua_State* L, lua_Debug* ar) {
+    if (ar == nullptr) {
+        return;
+    }
+
+    switch (ar->event) {
+    case LUA_HOOKCALL:
+        ++gPublicHookCalls;
+        break;
+    case LUA_HOOKRET:
+        ++gPublicHookReturns;
+        break;
+    case LUA_HOOKTAILRET:
+        ++gPublicHookReturns;
+        gPublicHookTailInfo = lua_getinfo(L, "S", ar) != 0 && std::strcmp(ar->what, "tail") == 0;
+        break;
+    case LUA_HOOKLINE:
+        ++gPublicHookLines;
+        gPublicHookLineInfo = lua_getinfo(L, "l", ar) != 0 && ar->currentline > 0;
+        break;
+    case LUA_HOOKCOUNT:
+        ++gPublicHookCounts;
+        break;
+    default:
+        break;
+    }
+}
+
+int inspectPublicDebugCaller(lua_State* L) {
+    lua_Debug current{};
+    gPublicDebugCurrentFrame = lua_getstack(L, 0, &current) != 0 && lua_getinfo(L, "Slu", &current) != 0 &&
+                               std::strcmp(current.what, "C") == 0 && current.currentline == -1;
+
+    lua_Debug caller{};
+    gPublicDebugCallerFrame = lua_getstack(L, 1, &caller) != 0 && lua_getinfo(L, "SlnufL", &caller) != 0 &&
+                              std::strcmp(caller.what, "main") == 0 && caller.currentline > 0;
+    gPublicDebugCallerFunction = lua_isfunction(L, -2) != 0;
+    gPublicDebugCallerLines = lua_istable(L, -1) != 0;
+    lua_pop(L, 2);
+
+    const char* localName = lua_getlocal(L, &caller, 1);
+    if (localName != nullptr) {
+        gPublicDebugLocalName = localName;
+        gPublicDebugLocalValue = lua_tonumber(L, -1);
+        lua_pop(L, 1);
+    }
+
+    lua_pushinteger(L, 19);
+    const char* setName = lua_setlocal(L, &caller, 1);
+    if (setName == nullptr || gPublicDebugLocalName != setName) {
+        gPublicDebugLocalName.clear();
+    }
+    return 0;
 }
 
 int incrementCapturedUpvalue(lua_State* L) {
@@ -2823,6 +2902,95 @@ void testPublicAuxiliaryRegistrationAndBuffer(TestSuite& suite) {
     lua_close(L);
 }
 
+void testPublicDebugStackInfoAndLocals(TestSuite& suite) {
+    lua_State* L = lua_open();
+
+    lua_Debug functionInfo{};
+    lua_pushcclosure(L, inspectPublicDebugCaller, 0);
+    const void* functionIdentity = lua_topointer(L, -1);
+    ASSERT_EQ(suite, 1, lua_getinfo(L, ">Suf", &functionInfo), "lua_getinfo accepts a function from the stack");
+    ASSERT_EQ(suite, std::string("C"), std::string(functionInfo.what),
+              "lua_getinfo reports C function source metadata");
+    ASSERT_EQ(suite, std::string("=[C]"), std::string(functionInfo.source),
+              "lua_getinfo reports the official C source marker");
+    ASSERT_EQ(suite, std::string("[C]"), std::string(functionInfo.short_src),
+              "lua_getinfo formats the official short C source marker");
+    ASSERT_EQ(suite, 0, functionInfo.nups, "lua_getinfo reports C closure upvalues");
+    ASSERT_TRUE(suite, lua_topointer(L, -1) == functionIdentity,
+                "lua_getinfo >f pops and then returns the queried function");
+    lua_pop(L, 1);
+
+    gPublicDebugCurrentFrame = false;
+    gPublicDebugCallerFrame = false;
+    gPublicDebugCallerFunction = false;
+    gPublicDebugCallerLines = false;
+    gPublicDebugLocalName.clear();
+    gPublicDebugLocalValue = 0;
+    lua_pushcclosure(L, inspectPublicDebugCaller, 0);
+    lua_setglobal(L, "inspect_debug_caller");
+    pushLuaChunk(L, "local value = 7\ninspect_debug_caller()\nreturn value");
+    ASSERT_EQ(suite, LUA_OK, lua_pcall(L, 0, 1, 0), "debug stack/local test chunk executes");
+    ASSERT_EQ(suite, 19.0, lua_tonumber(L, -1), "lua_setlocal mutates the live caller slot");
+    ASSERT_TRUE(suite, gPublicDebugCurrentFrame, "lua_getstack resolves the current C frame");
+    ASSERT_TRUE(suite, gPublicDebugCallerFrame, "lua_getstack and lua_getinfo resolve the Lua caller");
+    ASSERT_TRUE(suite, gPublicDebugCallerFunction, "lua_getinfo f pushes the active function");
+    ASSERT_TRUE(suite, gPublicDebugCallerLines, "lua_getinfo L pushes the active-line table");
+    ASSERT_EQ(suite, std::string("value"), gPublicDebugLocalName,
+              "lua_getlocal and lua_setlocal return the active local name");
+    ASSERT_EQ(suite, 7.0, gPublicDebugLocalValue, "lua_getlocal pushes the active local value");
+    lua_pop(L, 1);
+
+    lua_Debug missing{};
+    ASSERT_EQ(suite, 1, lua_getstack(L, -1, &missing), "lua_getstack represents a negative level as a lost tail call");
+    ASSERT_EQ(suite, 1, lua_getinfo(L, "Slu", &missing), "lost tail-call records remain queryable");
+    ASSERT_EQ(suite, std::string("tail"), std::string(missing.what),
+              "lost tail-call records use the official tail marker");
+    ASSERT_EQ(suite, -1, missing.currentline, "lost tail-call records have no current line");
+    ASSERT_EQ(suite, 0, lua_getstack(L, 99, &missing), "lua_getstack rejects missing levels");
+
+    lua_close(L);
+}
+
+void testPublicDebugHooks(TestSuite& suite) {
+    lua_State* L = lua_open();
+    gPublicHookCalls = 0;
+    gPublicHookReturns = 0;
+    gPublicHookLines = 0;
+    gPublicHookCounts = 0;
+    gPublicHookLineInfo = false;
+    gPublicHookTailInfo = false;
+
+    const int mask = LUA_MASKCALL | LUA_MASKRET | LUA_MASKLINE | LUA_MASKCOUNT;
+    ASSERT_EQ(suite, 1, lua_sethook(L, capturePublicDebugHook, mask, 2), "lua_sethook installs a C hook");
+    ASSERT_TRUE(suite, lua_gethook(L) == capturePublicDebugHook, "lua_gethook returns the installed callback");
+    ASSERT_EQ(suite, mask, lua_gethookmask(L), "lua_gethookmask preserves every requested event bit");
+    ASSERT_EQ(suite, 2, lua_gethookcount(L), "lua_gethookcount returns the count interval");
+
+    pushLuaChunk(L, "local total = 0\nfor i = 1, 3 do\n  total = total + i\nend\nreturn total");
+    ASSERT_EQ(suite, LUA_OK, lua_pcall(L, 0, 1, 0), "hooked Lua chunk executes");
+    ASSERT_EQ(suite, 6.0, lua_tonumber(L, -1), "hook callbacks preserve execution state");
+    ASSERT_TRUE(suite, gPublicHookCalls > 0, "C hook receives call events");
+    ASSERT_TRUE(suite, gPublicHookReturns > 0, "C hook receives return events");
+    ASSERT_TRUE(suite, gPublicHookLines > 0 && gPublicHookLineInfo,
+                "C hook receives line events with queryable activation records");
+    ASSERT_TRUE(suite, gPublicHookCounts > 0, "C hook receives count events");
+    lua_pop(L, 1);
+
+    pushLuaChunk(L, "local function tail(n)\n  if n == 0 then return 1 end\n  return tail(n - 1)\nend\nreturn tail(2)");
+    ASSERT_EQ(suite, LUA_OK, lua_pcall(L, 0, 1, 0), "tail-hook Lua chunk executes");
+    ASSERT_TRUE(suite, gPublicHookTailInfo, "tail-return hook records expose the official tail activation marker");
+    lua_pop(L, 1);
+
+    ASSERT_EQ(suite, 1, lua_sethook(L, capturePublicDebugHook, 0, 9), "a zero mask disables the callback");
+    ASSERT_TRUE(suite, lua_gethook(L) == nullptr, "zero-mask hook installation clears the callback");
+    ASSERT_EQ(suite, 0, lua_gethookmask(L), "zero-mask hook installation clears the mask");
+    ASSERT_EQ(suite, 9, lua_gethookcount(L), "disabled hooks preserve the official base count field");
+    ASSERT_EQ(suite, 1, lua_sethook(L, nullptr, 0, 0), "lua_sethook clears the hook");
+    ASSERT_EQ(suite, 0, lua_gethookcount(L), "clearing the hook resets the requested count");
+
+    lua_close(L);
+}
+
 } // namespace
 
 void registerLuaCApiTests() {
@@ -2879,4 +3047,6 @@ void registerLuaCApiTests() {
     registry.registerTest(kSuiteName, "public auxiliary checks and metatables", testPublicAuxiliaryChecksAndMetatables);
     registry.registerTest(kSuiteName, "public auxiliary registration and buffer",
                           testPublicAuxiliaryRegistrationAndBuffer);
+    registry.registerTest(kSuiteName, "public debug stack info and locals", testPublicDebugStackInfoAndLocals);
+    registry.registerTest(kSuiteName, "public debug hooks", testPublicDebugHooks);
 }

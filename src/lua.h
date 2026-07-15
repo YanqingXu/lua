@@ -18,6 +18,7 @@ extern "C" {
 
 #define LUA_MULTRET (-1)
 #define LUA_MINSTACK 20
+#define LUA_IDSIZE 60
 
 #define LUA_REGISTRYINDEX (-10000)
 #define LUA_ENVIRONINDEX (-10001)
@@ -58,6 +59,34 @@ typedef int (*lua_CFunction)(lua_State* L);
 typedef void* (*lua_Alloc)(void* ud, void* ptr, size_t osize, size_t nsize);
 typedef const char* (*lua_Reader)(lua_State* L, void* data, size_t* size);
 typedef int (*lua_Writer)(lua_State* L, const void* data, size_t size, void* userData);
+
+#define LUA_HOOKCALL 0
+#define LUA_HOOKRET 1
+#define LUA_HOOKLINE 2
+#define LUA_HOOKCOUNT 3
+#define LUA_HOOKTAILRET 4
+
+#define LUA_MASKCALL (1 << LUA_HOOKCALL)
+#define LUA_MASKRET (1 << LUA_HOOKRET)
+#define LUA_MASKLINE (1 << LUA_HOOKLINE)
+#define LUA_MASKCOUNT (1 << LUA_HOOKCOUNT)
+
+typedef struct lua_Debug lua_Debug;
+typedef void (*lua_Hook)(lua_State* L, lua_Debug* ar);
+
+struct lua_Debug {
+    int event;
+    const char* name;
+    const char* namewhat;
+    const char* what;
+    const char* source;
+    int currentline;
+    int nups;
+    int linedefined;
+    int lastlinedefined;
+    char short_src[LUA_IDSIZE];
+    int i_ci;
+};
 
 lua_State* lua_newstate(lua_Alloc f, void* ud) LUA_CXX_MAY_THROW;
 lua_State* lua_open(void) LUA_CXX_MAY_THROW;
@@ -135,6 +164,15 @@ int lua_status(lua_State* L) LUA_CXX_MAY_THROW;
 int lua_gc(lua_State* L, int what, int data) LUA_CXX_MAY_THROW;
 int lua_load(lua_State* L, lua_Reader reader, void* data, const char* chunkname) LUA_CXX_NOEXCEPT;
 int lua_dump(lua_State* L, lua_Writer writer, void* data) LUA_CXX_NOEXCEPT;
+
+int lua_getstack(lua_State* L, int level, lua_Debug* ar) LUA_CXX_MAY_THROW;
+int lua_getinfo(lua_State* L, const char* what, lua_Debug* ar) LUA_CXX_MAY_THROW;
+const char* lua_getlocal(lua_State* L, const lua_Debug* ar, int n) LUA_CXX_MAY_THROW;
+const char* lua_setlocal(lua_State* L, const lua_Debug* ar, int n) LUA_CXX_MAY_THROW;
+int lua_sethook(lua_State* L, lua_Hook func, int mask, int count) LUA_CXX_MAY_THROW;
+lua_Hook lua_gethook(lua_State* L) LUA_CXX_MAY_THROW;
+int lua_gethookmask(lua_State* L) LUA_CXX_MAY_THROW;
+int lua_gethookcount(lua_State* L) LUA_CXX_MAY_THROW;
 
 #define lua_pop(L, n) lua_settop((L), -(n) - 1)
 #define lua_newtable(L) lua_createtable((L), 0, 0)

@@ -88,6 +88,14 @@ int lua_public_c_header_probe(void) {
     REQUIRE_SYMBOL(lua_concat);
     REQUIRE_SYMBOL(lua_getallocf);
     REQUIRE_SYMBOL(lua_setallocf);
+    REQUIRE_SYMBOL(lua_getstack);
+    REQUIRE_SYMBOL(lua_getinfo);
+    REQUIRE_SYMBOL(lua_getlocal);
+    REQUIRE_SYMBOL(lua_setlocal);
+    REQUIRE_SYMBOL(lua_sethook);
+    REQUIRE_SYMBOL(lua_gethook);
+    REQUIRE_SYMBOL(lua_gethookmask);
+    REQUIRE_SYMBOL(lua_gethookcount);
     REQUIRE_SYMBOL(lua_getupvalue);
     REQUIRE_SYMBOL(lua_setupvalue);
     REQUIRE_SYMBOL(luaL_argcheck);

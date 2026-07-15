@@ -49,7 +49,13 @@ EXPORTS
     lua_getallocf
     lua_getfield
     lua_getglobal
+    lua_gethook
+    lua_gethookcount
+    lua_gethookmask
+    lua_getinfo
+    lua_getlocal
     lua_getmetatable
+    lua_getstack
     lua_gettable
     lua_gettop
     lua_getupvalue
@@ -88,6 +94,8 @@ EXPORTS
     lua_setallocf
     lua_setfield
     lua_setglobal
+    lua_sethook
+    lua_setlocal
     lua_setmetatable
     lua_settable
     lua_settop

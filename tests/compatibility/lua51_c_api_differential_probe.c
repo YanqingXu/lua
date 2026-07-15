@@ -74,6 +74,55 @@ static int reject_aux_userdata(lua_State* L) {
     return 0;
 }
 
+static int debug_stack_info;
+static int debug_hook_calls;
+static int debug_hook_returns;
+static int debug_hook_lines;
+static int debug_hook_counts;
+static int debug_hook_line_info;
+
+static int inspect_debug_caller(lua_State* L) {
+    lua_Debug current;
+    lua_Debug caller;
+    const char* local_name;
+    const char* set_name;
+    int current_ok;
+    int caller_ok;
+
+    memset(&current, 0, sizeof(current));
+    memset(&caller, 0, sizeof(caller));
+    current_ok = lua_getstack(L, 0, &current) != 0 && lua_getinfo(L, "Slu", &current) != 0;
+    current_ok = current_ok && strcmp(current.what, "C") == 0 && current.currentline == -1;
+    caller_ok = lua_getstack(L, 1, &caller) != 0 && lua_getinfo(L, "SlnufL", &caller) != 0;
+    caller_ok = caller_ok && strcmp(caller.what, "main") == 0 && caller.currentline > 0;
+    caller_ok = caller_ok && lua_isfunction(L, -2) && lua_istable(L, -1);
+    lua_pop(L, 2);
+
+    local_name = lua_getlocal(L, &caller, 1);
+    caller_ok = caller_ok && local_name != NULL && strcmp(local_name, "debug_value") == 0;
+    caller_ok = caller_ok && lua_tonumber(L, -1) == 7;
+    lua_pop(L, 1);
+    lua_pushinteger(L, 19);
+    set_name = lua_setlocal(L, &caller, 1);
+    caller_ok = caller_ok && set_name != NULL && strcmp(set_name, "debug_value") == 0;
+
+    debug_stack_info = current_ok && caller_ok;
+    return 0;
+}
+
+static void capture_debug_hook(lua_State* L, lua_Debug* ar) {
+    if (ar->event == LUA_HOOKCALL) {
+        ++debug_hook_calls;
+    } else if (ar->event == LUA_HOOKRET || ar->event == LUA_HOOKTAILRET) {
+        ++debug_hook_returns;
+    } else if (ar->event == LUA_HOOKLINE) {
+        ++debug_hook_lines;
+        debug_hook_line_info = lua_getinfo(L, "l", ar) != 0 && ar->currentline > 0;
+    } else if (ar->event == LUA_HOOKCOUNT) {
+        ++debug_hook_counts;
+    }
+}
+
 int main(void) {
     lua_State* L = lua_open();
     int set_top;
@@ -106,6 +155,15 @@ int main(void) {
     int aux_buffer;
     int aux_errors;
     int aux_newstate;
+    int debug_contract;
+    int debug_function;
+    int debug_stack;
+    int debug_mutation;
+    int debug_hook_config;
+    int debug_hook_run;
+    int debug_hook_events;
+    int debug_disable;
+    int debug_invalid;
     size_t length = 0;
 
     if (L == NULL) {
@@ -366,13 +424,67 @@ int main(void) {
         }
     }
 
+    lua_settop(L, 0);
+    {
+        lua_Debug function_info;
+        int function_query;
+        memset(&function_info, 0, sizeof(function_info));
+        lua_pushcclosure(L, inspect_debug_caller, 0);
+        function_query = lua_getinfo(L, ">Suf", &function_info) == 1;
+        function_query = function_query && strcmp(function_info.what, "C") == 0;
+        function_query = function_query && strcmp(function_info.source, "=[C]") == 0;
+        function_query = function_query && strcmp(function_info.short_src, "[C]") == 0;
+        function_query = function_query && function_info.nups == 0 && lua_isfunction(L, -1);
+        lua_pop(L, 1);
+
+        lua_pushcclosure(L, inspect_debug_caller, 0);
+        lua_setglobal(L, "inspect_debug");
+        luaL_loadstring(L, "local debug_value = 7\ninspect_debug()\nreturn debug_value");
+        debug_function = function_query;
+        debug_mutation = lua_pcall(L, 0, 1, 0) == 0 && lua_tonumber(L, -1) == 19;
+        debug_stack = debug_stack_info;
+        lua_pop(L, 1);
+
+        debug_hook_calls = 0;
+        debug_hook_returns = 0;
+        debug_hook_lines = 0;
+        debug_hook_counts = 0;
+        debug_hook_line_info = 0;
+        debug_hook_config =
+            lua_sethook(L, capture_debug_hook, LUA_MASKCALL | LUA_MASKRET | LUA_MASKLINE | LUA_MASKCOUNT, 2) == 1;
+        debug_hook_config = debug_hook_config && lua_gethook(L) == capture_debug_hook;
+        debug_hook_config =
+            debug_hook_config && lua_gethookmask(L) == (LUA_MASKCALL | LUA_MASKRET | LUA_MASKLINE | LUA_MASKCOUNT);
+        debug_hook_config = debug_hook_config && lua_gethookcount(L) == 2;
+        luaL_loadstring(L, "local total = 0\nfor i = 1, 3 do total = total + i end\nreturn total");
+        debug_hook_run = lua_pcall(L, 0, 1, 0) == 0 && lua_tonumber(L, -1) == 6;
+        lua_pop(L, 1);
+        debug_hook_events = debug_hook_calls > 0 && debug_hook_returns > 0;
+        debug_hook_events = debug_hook_events && debug_hook_lines > 0 && debug_hook_line_info && debug_hook_counts > 0;
+        debug_disable = lua_sethook(L, capture_debug_hook, 0, 9) == 1;
+        debug_disable = debug_disable && lua_gethook(L) == NULL && lua_gethookmask(L) == 0;
+        debug_disable = debug_disable && lua_gethookcount(L) == 9;
+        lua_sethook(L, NULL, 0, 0);
+        debug_disable = debug_disable && lua_gethookcount(L) == 0;
+
+        {
+            lua_Debug missing;
+            debug_invalid = lua_getstack(L, -1, &missing) == 1;
+            debug_invalid = debug_invalid && lua_getstack(L, 99, &missing) == 0;
+        }
+        debug_contract = debug_function && debug_stack && debug_mutation && debug_hook_config && debug_hook_run &&
+                         debug_hook_events && debug_disable && debug_invalid;
+    }
+
     printf("table=%d,%d,%d,%d,%d,%d;next=%d,%d;compare=%d,%d,%d;concat=%d,%d,%d,%d,%d;"
-           "convert=%d,%d,%d;pointer=%d;thread=%d,%d;gc=%d;aux=%d,%d,%d,%d,%d,%d,%d\n",
+           "convert=%d,%d,%d;pointer=%d;thread=%d,%d;gc=%d;aux=%d,%d,%d,%d,%d,%d,%d;"
+           "debug=%d,%d,%d,%d,%d,%d,%d,%d,%d\n",
            set_top, field_value, raw_value, meta_value, raw_missing, captured_value, iteration_count, iteration_sum,
            equal_with_meta, equal_without_meta, less_with_meta, concat_zero_length, concat_plain, concat_meta,
            concat_error_status, concat_error_top, integer_number, integer_string, cfunction_identity, pointer_identity,
            main_thread_identity, child_thread_identity, gc_contract, aux_checks, aux_meta, aux_register, aux_table,
-           aux_buffer, aux_errors, aux_newstate);
+           aux_buffer, aux_errors, aux_newstate, debug_contract, debug_function, debug_stack, debug_mutation,
+           debug_hook_config, debug_hook_run, debug_hook_events, debug_disable, debug_invalid);
 
     lua_close(L);
     return 0;
