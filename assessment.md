@@ -24,9 +24,9 @@
 * 本文件所在提交补齐 `lua_atpanic`、`lua_pushvfstring/lua_pushfstring`、`lua_getfenv/lua_setfenv`、`lua_cpcall` 与 `lua_setlevel`，使官方 Lua 5.1 公共函数合同达到 123/123 PASS；格式化、环境、错误对象和线程层级栈效应均进入同一纯 C 官方差分 probe。
 * 本文件所在提交新增 context-owned `ExecutionPolicy` 第一阶段：主 State 与 coroutine 共享指令预算、`steady_clock` deadline 和单向 atomic cancellation；预算跨 yield/resume 与 C→Lua→C 重入不重置，三类超限均通过预分配固定错误对象进入 protected API。默认关闭热路径的 VM 指令吞吐已纳入 base-vs-head 回归策略；finalizer budget、sandbox/module policy 与 owner-thread enforcement 由 [#10](https://github.com/YanqingXu/lua/issues/10) 继续跟踪。
 * 当前本地 Debug/Release strict 基线为 **749 tests / 4827 assertions / 0 failures**，C API 为 **49 tests / 1247 assertions / 0 failures**；官方函数合同为 123 PASS、0 XFAIL、0 UNSUPPORTED，项目实际公开面为 130 个函数。核心表/比较、类型/线程/GC、完整 auxlib、调试入口、标准库 opener 与最后 panic/格式化/环境/cpcall/setlevel 批次，均已具备精确签名、静态/共享导出、直接语义测试和官方 Lua 5.1 纯 C 差分证据。
-* **同 SHA 在线证据尚未完成。** 当前 CI 仅由 `main/master` push 或 pull request 触发；截至本次核查，当前修复分支的 `da3c81e` 没有 Actions run、check run 或 commit status，因此不能用本地绿跑替代在线验收。
+* [`7ed27b2`](https://github.com/YanqingXu/lua/commit/7ed27b22846c19f0f238279e13475d17eb41546e) 已在 [Actions run 29418126316](https://github.com/YanqingXu/lua/actions/runs/29418126316) 取得同 SHA 的 **10/10 jobs 全绿**：Windows MSBuild Debug/Release、Linux GCC/Clang Debug/Release、ASan/UBSan、clang-format/clang-tidy 与 base-vs-head benchmark 均成功。Windows 两配置各自通过 7/7 CMake API-contract、quality-gate smoke/contract tests 和 749 tests / 4827 assertions；`official-strict-evidence`、`lua51-differential-evidence`、`runtime-benchmark-evidence` 三个 artifact 均绑定该 run，strict 与 Lua/C API 差分通过，性能门 6/6 通过。
 
-剩余 P0 是为当前修复头提交触发并保留 Windows 2、Linux 4、ASan/UBSan、lint、strict、benchmark 的同 SHA Actions 与 artifact；P1 的 C API 扩面、ExecutionPolicy 和 allocator hard limit 仍按后文路线推进。
+审计建议中的最新快照稳定化、C API 生命周期、完整公共 C API/ABI 合同和首阶段 ExecutionPolicy 已闭环。剩余主线是 [#10](https://github.com/YanqingXu/lua/issues/10) 中的 finalizer budget、sandbox/module policy 与 owner-thread enforcement，以及 [#5](https://github.com/YanqingXu/lua/issues/5) 的 allocator hard limit；required-check 分支保护仍受私有仓库套餐限制并由 [#6](https://github.com/YanqingXu/lua/issues/6) 跟踪。
 
 ## 审计快照成熟度
 
