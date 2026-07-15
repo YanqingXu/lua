@@ -3225,7 +3225,7 @@
     {
       "rule": "char pointer parse cursor",
       "path": "src\\lib\\stringlib.cpp",
-      "line": 418,
+      "line": 416,
       "textHash": "c965e43aa6dc4c2f3cbcaaaf05e2abef836835e410b1d374186cb27a47a98581",
       "rationale": "Existing product advisory; modernize when the surrounding compatibility boundary is touched."
     },
@@ -3309,7 +3309,7 @@
     {
       "rule": "native fixed-size array declaration",
       "path": "src\\lib\\stringlib.cpp",
-      "line": 413,
+      "line": 411,
       "textHash": "f20cd85ba83999099984e2c1f695e625ad39e35917dc9fc6de00fd76a1c15a7a",
       "rationale": "Existing product advisory; modernize when the surrounding compatibility boundary is touched."
     },
@@ -3904,6 +3904,13 @@
     {
       "rule": "return nullptr",
       "path": "src\\lib\\stringlib.cpp",
+      "line": 538,
+      "textHash": "0e4bce8ffb90a54f87dd1e313212d256102e9e3c73e8525feeb9faddd27faf05",
+      "rationale": "Existing product compatibility baseline; remove or modernize when the location is touched."
+    },
+    {
+      "rule": "return nullptr",
+      "path": "src\\lib\\stringlib.cpp",
       "line": 540,
       "textHash": "0e4bce8ffb90a54f87dd1e313212d256102e9e3c73e8525feeb9faddd27faf05",
       "rationale": "Existing product compatibility baseline; remove or modernize when the location is touched."
@@ -3911,84 +3918,77 @@
     {
       "rule": "return nullptr",
       "path": "src\\lib\\stringlib.cpp",
-      "line": 542,
+      "line": 552,
       "textHash": "0e4bce8ffb90a54f87dd1e313212d256102e9e3c73e8525feeb9faddd27faf05",
       "rationale": "Existing product compatibility baseline; remove or modernize when the location is touched."
     },
     {
       "rule": "return nullptr",
       "path": "src\\lib\\stringlib.cpp",
-      "line": 554,
+      "line": 566,
       "textHash": "0e4bce8ffb90a54f87dd1e313212d256102e9e3c73e8525feeb9faddd27faf05",
       "rationale": "Existing product compatibility baseline; remove or modernize when the location is touched."
     },
     {
       "rule": "return nullptr",
       "path": "src\\lib\\stringlib.cpp",
-      "line": 568,
+      "line": 570,
       "textHash": "0e4bce8ffb90a54f87dd1e313212d256102e9e3c73e8525feeb9faddd27faf05",
       "rationale": "Existing product compatibility baseline; remove or modernize when the location is touched."
     },
     {
       "rule": "return nullptr",
       "path": "src\\lib\\stringlib.cpp",
-      "line": 572,
+      "line": 583,
       "textHash": "0e4bce8ffb90a54f87dd1e313212d256102e9e3c73e8525feeb9faddd27faf05",
       "rationale": "Existing product compatibility baseline; remove or modernize when the location is touched."
     },
     {
       "rule": "return nullptr",
       "path": "src\\lib\\stringlib.cpp",
-      "line": 585,
+      "line": 594,
       "textHash": "0e4bce8ffb90a54f87dd1e313212d256102e9e3c73e8525feeb9faddd27faf05",
       "rationale": "Existing product compatibility baseline; remove or modernize when the location is touched."
     },
     {
       "rule": "return nullptr",
       "path": "src\\lib\\stringlib.cpp",
-      "line": 596,
+      "line": 601,
       "textHash": "0e4bce8ffb90a54f87dd1e313212d256102e9e3c73e8525feeb9faddd27faf05",
       "rationale": "Existing product compatibility baseline; remove or modernize when the location is touched."
     },
     {
       "rule": "return nullptr",
       "path": "src\\lib\\stringlib.cpp",
-      "line": 603,
+      "line": 645,
       "textHash": "0e4bce8ffb90a54f87dd1e313212d256102e9e3c73e8525feeb9faddd27faf05",
       "rationale": "Existing product compatibility baseline; remove or modernize when the location is touched."
     },
     {
       "rule": "return nullptr",
       "path": "src\\lib\\stringlib.cpp",
-      "line": 647,
+      "line": 655,
       "textHash": "0e4bce8ffb90a54f87dd1e313212d256102e9e3c73e8525feeb9faddd27faf05",
       "rationale": "Existing product compatibility baseline; remove or modernize when the location is touched."
     },
     {
       "rule": "return nullptr",
       "path": "src\\lib\\stringlib.cpp",
-      "line": 657,
+      "line": 660,
       "textHash": "0e4bce8ffb90a54f87dd1e313212d256102e9e3c73e8525feeb9faddd27faf05",
       "rationale": "Existing product compatibility baseline; remove or modernize when the location is touched."
     },
     {
       "rule": "return nullptr",
       "path": "src\\lib\\stringlib.cpp",
-      "line": 662,
+      "line": 668,
       "textHash": "0e4bce8ffb90a54f87dd1e313212d256102e9e3c73e8525feeb9faddd27faf05",
       "rationale": "Existing product compatibility baseline; remove or modernize when the location is touched."
     },
     {
       "rule": "return nullptr",
       "path": "src\\lib\\stringlib.cpp",
-      "line": 670,
-      "textHash": "0e4bce8ffb90a54f87dd1e313212d256102e9e3c73e8525feeb9faddd27faf05",
-      "rationale": "Existing product compatibility baseline; remove or modernize when the location is touched."
-    },
-    {
-      "rule": "return nullptr",
-      "path": "src\\lib\\stringlib.cpp",
-      "line": 701,
+      "line": 699,
       "textHash": "0e4bce8ffb90a54f87dd1e313212d256102e9e3c73e8525feeb9faddd27faf05",
       "rationale": "Existing product compatibility baseline; remove or modernize when the location is touched."
     },

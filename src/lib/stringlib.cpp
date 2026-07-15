@@ -77,9 +77,7 @@ static inline f64 getNumberArg(LuaState* L, i32 idx, const char* funcName) {
         }
     }
 
-    {
-        L->error(std::format("bad argument #{} to 'string.{}' (number expected)", idx, funcName).c_str());
-    }
+    { L->error(std::format("bad argument #{} to 'string.{}' (number expected)", idx, funcName).c_str()); }
 }
 
 static inline const char* getStringLikeArg(LuaState* L, i32 idx, const char* funcName, usize* len = nullptr) {

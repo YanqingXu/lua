@@ -60,9 +60,7 @@ static inline f64 getNumberArg(LuaState* L, i32 idx, const char* argName) {
         }
     }
 
-    {
-        L->error(std::format("bad argument #{} to '{}' (number expected)", idx, argName).c_str());
-    }
+    { L->error(std::format("bad argument #{} to '{}' (number expected)", idx, argName).c_str()); }
 }
 
 /**
