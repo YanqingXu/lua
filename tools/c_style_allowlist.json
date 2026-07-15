@@ -1825,21 +1825,14 @@
     {
       "rule": "bare delete",
       "path": "tests\\unit\\vm\\test_runtime_services.cpp",
-      "line": 143,
+      "line": 170,
       "textHash": "1761a2490d6984a59ec46e270bfd37d4a0a95de2bc2806548e6708fe288c65db",
       "rationale": "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
     },
     {
       "rule": "bare delete",
       "path": "tests\\unit\\vm\\test_runtime_services.cpp",
-      "line": 187,
-      "textHash": "1761a2490d6984a59ec46e270bfd37d4a0a95de2bc2806548e6708fe288c65db",
-      "rationale": "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
-    },
-    {
-      "rule": "bare delete",
-      "path": "tests\\unit\\vm\\test_runtime_services.cpp",
-      "line": 204,
+      "line": 214,
       "textHash": "1761a2490d6984a59ec46e270bfd37d4a0a95de2bc2806548e6708fe288c65db",
       "rationale": "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
     },
@@ -1853,21 +1846,28 @@
     {
       "rule": "bare delete",
       "path": "tests\\unit\\vm\\test_runtime_services.cpp",
-      "line": 264,
+      "line": 258,
       "textHash": "1761a2490d6984a59ec46e270bfd37d4a0a95de2bc2806548e6708fe288c65db",
       "rationale": "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
     },
     {
       "rule": "bare delete",
       "path": "tests\\unit\\vm\\test_runtime_services.cpp",
-      "line": 280,
+      "line": 448,
       "textHash": "1761a2490d6984a59ec46e270bfd37d4a0a95de2bc2806548e6708fe288c65db",
       "rationale": "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
     },
     {
       "rule": "bare delete",
       "path": "tests\\unit\\vm\\test_runtime_services.cpp",
-      "line": 335,
+      "line": 464,
+      "textHash": "1761a2490d6984a59ec46e270bfd37d4a0a95de2bc2806548e6708fe288c65db",
+      "rationale": "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
+    },
+    {
+      "rule": "bare delete",
+      "path": "tests\\unit\\vm\\test_runtime_services.cpp",
+      "line": 519,
       "textHash": "1761a2490d6984a59ec46e270bfd37d4a0a95de2bc2806548e6708fe288c65db",
       "rationale": "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
     },
@@ -3015,7 +3015,7 @@
     {
       "rule": "bare new",
       "path": "tests\\unit\\vm\\test_runtime_services.cpp",
-      "line": 44,
+      "line": 48,
       "textHash": "76d2ddabacee36fe3775de33790ef603c6b8f7ade9d648c83d5fde9f6bae6c65",
       "rationale": "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
     },
@@ -4107,14 +4107,14 @@
     {
       "rule": "return nullptr",
       "path": "src\\vm\\state\\global_state.cpp",
-      "line": 80,
+      "line": 93,
       "textHash": "0e4bce8ffb90a54f87dd1e313212d256102e9e3c73e8525feeb9faddd27faf05",
       "rationale": "Existing product compatibility baseline; remove or modernize when the location is touched."
     },
     {
       "rule": "return nullptr",
       "path": "src\\vm\\state\\global_state.cpp",
-      "line": 164,
+      "line": 195,
       "textHash": "0e4bce8ffb90a54f87dd1e313212d256102e9e3c73e8525feeb9faddd27faf05",
       "rationale": "Existing product compatibility baseline; remove or modernize when the location is touched."
     },
@@ -7908,28 +7908,21 @@
     {
       "rule": "test manual ownership",
       "path": "tests\\unit\\vm\\test_runtime_services.cpp",
-      "line": 44,
+      "line": 48,
       "textHash": "76d2ddabacee36fe3775de33790ef603c6b8f7ade9d648c83d5fde9f6bae6c65",
       "rationale": "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
     },
     {
       "rule": "test manual ownership",
       "path": "tests\\unit\\vm\\test_runtime_services.cpp",
-      "line": 143,
+      "line": 170,
       "textHash": "1761a2490d6984a59ec46e270bfd37d4a0a95de2bc2806548e6708fe288c65db",
       "rationale": "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
     },
     {
       "rule": "test manual ownership",
       "path": "tests\\unit\\vm\\test_runtime_services.cpp",
-      "line": 187,
-      "textHash": "1761a2490d6984a59ec46e270bfd37d4a0a95de2bc2806548e6708fe288c65db",
-      "rationale": "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
-    },
-    {
-      "rule": "test manual ownership",
-      "path": "tests\\unit\\vm\\test_runtime_services.cpp",
-      "line": 204,
+      "line": 214,
       "textHash": "1761a2490d6984a59ec46e270bfd37d4a0a95de2bc2806548e6708fe288c65db",
       "rationale": "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
     },
@@ -7943,21 +7936,28 @@
     {
       "rule": "test manual ownership",
       "path": "tests\\unit\\vm\\test_runtime_services.cpp",
-      "line": 264,
+      "line": 258,
       "textHash": "1761a2490d6984a59ec46e270bfd37d4a0a95de2bc2806548e6708fe288c65db",
       "rationale": "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
     },
     {
       "rule": "test manual ownership",
       "path": "tests\\unit\\vm\\test_runtime_services.cpp",
-      "line": 280,
+      "line": 448,
       "textHash": "1761a2490d6984a59ec46e270bfd37d4a0a95de2bc2806548e6708fe288c65db",
       "rationale": "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
     },
     {
       "rule": "test manual ownership",
       "path": "tests\\unit\\vm\\test_runtime_services.cpp",
-      "line": 335,
+      "line": 464,
+      "textHash": "1761a2490d6984a59ec46e270bfd37d4a0a95de2bc2806548e6708fe288c65db",
+      "rationale": "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
+    },
+    {
+      "rule": "test manual ownership",
+      "path": "tests\\unit\\vm\\test_runtime_services.cpp",
+      "line": 519,
       "textHash": "1761a2490d6984a59ec46e270bfd37d4a0a95de2bc2806548e6708fe288c65db",
       "rationale": "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
     },

@@ -91,6 +91,24 @@ public:
         return allocator_;
     }
 
+    /**
+     * @brief Owner-thread access to runtime-wide execution limits.
+     */
+    [[nodiscard]] ExecutionPolicy& executionPolicy() noexcept {
+        return globalState_.getExecutionPolicy();
+    }
+
+    [[nodiscard]] const ExecutionPolicy& executionPolicy() const noexcept {
+        return globalState_.getExecutionPolicy();
+    }
+
+    /**
+     * @brief Create a non-owning handle whose only cross-thread action is cancel.
+     */
+    [[nodiscard]] ExecutionCancellationHandle cancellationHandle() noexcept {
+        return executionPolicy().cancellationHandle();
+    }
+
 private:
     LuaAllocator allocator_;
     StringPool strings_;

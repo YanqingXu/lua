@@ -29,7 +29,8 @@ GlobalState& GlobalState::getInstance() {
 
 GlobalState::GlobalState(StringPool& stringPool, LuaAllocator* allocator)
     : nativeModules_(), gc_(allocator), stringPool_(stringPool), registry_(nullptr), mainThread_(nullptr),
-      memerrmsg_(nullptr), apiExceptionMessage_(nullptr) {
+      memerrmsg_(nullptr), apiExceptionMessage_(nullptr), instructionBudgetErrorMessage_(nullptr),
+      deadlineErrorMessage_(nullptr), cancellationErrorMessage_(nullptr) {
     stringPool_.setGarbageCollector(&gc_);
 
     // 子任务1.1：调整字符串池大小到初始值
@@ -49,6 +50,18 @@ GlobalState::GlobalState(StringPool& stringPool, LuaAllocator* allocator)
     apiExceptionMessage_ = stringPool_.intern("unhandled C++ exception in protected Lua API");
     gc_.registerObject(apiExceptionMessage_);
     apiExceptionMessage_->markFixed();
+
+    instructionBudgetErrorMessage_ = stringPool_.intern("execution instruction budget exceeded");
+    gc_.registerObject(instructionBudgetErrorMessage_);
+    instructionBudgetErrorMessage_->markFixed();
+
+    deadlineErrorMessage_ = stringPool_.intern("execution deadline exceeded");
+    gc_.registerObject(deadlineErrorMessage_);
+    deadlineErrorMessage_->markFixed();
+
+    cancellationErrorMessage_ = stringPool_.intern("execution cancelled");
+    gc_.registerObject(cancellationErrorMessage_);
+    cancellationErrorMessage_->markFixed();
 
     // 创建注册表
     registry_ = gc_.createFixedRoot<Table>(); // 注册表永远不被回收
@@ -101,6 +114,9 @@ void GlobalState::markRoots(GarbageCollector& gc, LuaState* currentState) const 
     gc.markObject(registry_);
     gc.markObject(memerrmsg_);
     gc.markObject(apiExceptionMessage_);
+    gc.markObject(instructionBudgetErrorMessage_);
+    gc.markObject(deadlineErrorMessage_);
+    gc.markObject(cancellationErrorMessage_);
 
     for (GCString* name : tmname_) {
         gc.markObject(name);
@@ -119,6 +135,21 @@ void GlobalState::markRoots(GarbageCollector& gc, LuaState* currentState) const 
     }
 
     gc.markObject(runningThread_);
+}
+
+GCString* GlobalState::getExecutionPolicyErrorMessage(ExecutionStopReason reason) const noexcept {
+    switch (reason) {
+    case ExecutionStopReason::InstructionBudgetExceeded:
+        return instructionBudgetErrorMessage_;
+    case ExecutionStopReason::DeadlineExceeded:
+        return deadlineErrorMessage_;
+    case ExecutionStopReason::Cancelled:
+        return cancellationErrorMessage_;
+    case ExecutionStopReason::None:
+        return apiExceptionMessage_;
+    }
+
+    return apiExceptionMessage_;
 }
 
 void GlobalState::resetRuntimeReferencesForClearAll() noexcept {

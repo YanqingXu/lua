@@ -542,6 +542,7 @@ Assert-FileContains "tools/check_runtime_bench_comparison.ps1" @(
 
 Assert-FileContains "tests/compatibility/runtime-benchmark-regression-policy.json" @(
     '"minimumRunsPerRevision": 3',
+    '"vm_instructions_per_second"',
     '"cpp_to_lua_ns_per_call"',
     '"lua_to_cpp_ns_per_call"',
     '"coroutine_resume_yield_ns"',
@@ -571,6 +572,7 @@ function Invoke-RuntimeBenchmarkComparisonSmokeTest {
                 workload            = [ordered]@{ timing_samples = 3; closure_samples = 1 }
                 gc_pause_samples_us = @(1.0, 2.0, 3.0, 4.0, 5.0)
                 metrics             = @(
+                    [ordered]@{ name = "vm_instructions_per_second"; direction = "higher"; samples = @(100.0, 100.0, 100.0) },
                     [ordered]@{ name = "cpp_to_lua_ns_per_call"; direction = "lower"; samples = @($CppToLua, $CppToLua, $CppToLua) },
                     [ordered]@{ name = "lua_to_cpp_ns_per_call"; direction = "lower"; samples = @(100.0, 100.0, 100.0) },
                     [ordered]@{ name = "coroutine_resume_yield_ns"; direction = "lower"; samples = @(100.0, 100.0, 100.0) },
@@ -626,7 +628,7 @@ function Invoke-RuntimeBenchmarkComparisonSmokeTest {
             -PolicyPath (Join-RepoPath "tests/compatibility/runtime-benchmark-regression-policy.json") `
             -OutputPath $comparisonPath
         $comparison = Get-Content -Raw -LiteralPath $comparisonPath | ConvertFrom-Json
-        if ($comparison.success -ne $true -or $comparison.metrics.Count -ne 5) {
+        if ($comparison.success -ne $true -or $comparison.metrics.Count -ne 6) {
             throw "base-vs-head benchmark checker rejected stable synthetic evidence"
         }
 

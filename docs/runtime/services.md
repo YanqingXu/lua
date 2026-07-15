@@ -1,6 +1,6 @@
 ---
 status: current
-verified_against: src/runtime/runtime_services.hpp; src/runtime/native_module_registry.hpp; src/runtime/native_module_registry.cpp; src/core/string_pool.hpp; src/vm/state/global_state.hpp; src/vm/state/global_state.cpp; src/vm/state/lua_state.hpp; src/vm/state/lua_state.cpp; src/gc/garbage_collector.hpp; src/gc/gc_strategy.hpp; src/gc/gc_sweep.cpp; src/vm/vm_dispatch_strategy.hpp; src/vm/vm.cpp; src/main.cpp; src/repl.cpp; src/bytecode/bytecode_main.cpp; src/compiler/parser/parser.hpp; src/compiler/codegen/codegen.hpp; src/vm/vm.hpp; tests/compatibility/public_native_module.c; tests/compatibility/public_native_module_host.cpp; tests/unit/vm/test_runtime_services.cpp; tests/unit/vm/test_vm_dispatch.cpp; tests/unit/gc/test_gc.cpp
+verified_against: src/runtime/runtime_services.hpp; src/runtime/execution_policy.hpp; src/runtime/native_module_registry.hpp; src/runtime/native_module_registry.cpp; src/core/string_pool.hpp; src/vm/state/global_state.hpp; src/vm/state/global_state.cpp; src/vm/state/lua_state.hpp; src/vm/state/lua_state.cpp; src/gc/garbage_collector.hpp; src/gc/gc_strategy.hpp; src/gc/gc_sweep.cpp; src/vm/vm_dispatch_strategy.hpp; src/vm/vm.cpp; src/main.cpp; src/repl.cpp; src/bytecode/bytecode_main.cpp; src/compiler/parser/parser.hpp; src/compiler/codegen/codegen.hpp; src/vm/vm.hpp; tests/compatibility/public_native_module.c; tests/compatibility/public_native_module_host.cpp; tests/unit/vm/test_runtime_services.cpp; tests/unit/vm/test_vm_dispatch.cpp; tests/unit/gc/test_gc.cpp
 last_checked: 2026-07-15
 applies_to: current RuntimeServices boundary
 ---
@@ -65,6 +65,8 @@ public:
     StringPool& strings() noexcept;
     GarbageCollector& gc() noexcept;
     NativeModuleRegistry& nativeModules() noexcept;
+    ExecutionPolicy& executionPolicy() noexcept;
+    ExecutionCancellationHandle cancellationHandle() noexcept;
 };
 ```
 
@@ -74,9 +76,12 @@ public:
 - 独立的 `GlobalState`
 - 由该全局状态拥有的 `GarbageCollector`
 - 由该全局状态拥有的 `NativeModuleRegistry`
+- 由该全局状态拥有、供所有 LuaState/coroutine 共享的 `ExecutionPolicy`
 - 在该全局状态内创建的注册表、基础类型元表、保留字符串、元方法名称和主线程簿记
 
 `LuaState::newState(EngineContext&)` 在该上下文内创建主状态。测试断言两个上下文将相同文本驻留为不同的 `GCString` 对象，且这些字符串属于不同的回收器。
+
+执行预算、单调 deadline 和跨线程取消的详细所有权与错误合同见 [ExecutionPolicy](execution-policy.md)。
 
 ## 原生模块生命周期
 

@@ -28,6 +28,7 @@
 #include "core/metatable.hpp"
 #include "gc/garbage_collector.hpp"
 #include "runtime/native_module_registry.hpp"
+#include "runtime/execution_policy.hpp"
 
 #include <array>
 
@@ -130,6 +131,14 @@ public:
         return gc_.getAllocator();
     }
 
+    ExecutionPolicy& getExecutionPolicy() noexcept {
+        return executionPolicy_;
+    }
+
+    const ExecutionPolicy& getExecutionPolicy() const noexcept {
+        return executionPolicy_;
+    }
+
     NativeModuleRegistry& getNativeModules() noexcept {
         return nativeModules_;
     }
@@ -184,6 +193,11 @@ public:
     GCString* getApiExceptionMessage() const noexcept {
         return apiExceptionMessage_;
     }
+
+    /**
+     * @brief Return a fixed error object for an execution-policy stop reason.
+     */
+    GCString* getExecutionPolicyErrorMessage(ExecutionStopReason reason) const noexcept;
 
     // =====================================================================
     // 主线程管理
@@ -275,6 +289,9 @@ private:
     /// Native modules outlive the collector so every C Function dies first.
     NativeModuleRegistry nativeModules_;
 
+    /// Runtime-wide limits shared by the main state and all coroutines.
+    ExecutionPolicy executionPolicy_;
+
     /// 垃圾回收器（由GlobalState拥有）
     GarbageCollector gc_;
 
@@ -304,6 +321,11 @@ private:
 
     /// Protected-API emergency error text; allocated and fixed at state creation.
     GCString* apiExceptionMessage_;
+
+    /// Fixed execution-policy errors remain available during allocator failure.
+    GCString* instructionBudgetErrorMessage_;
+    GCString* deadlineErrorMessage_;
+    GCString* cancellationErrorMessage_;
 };
 
 } // namespace Lua

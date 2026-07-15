@@ -4,6 +4,11 @@
   "executionOrder": "alternating-base-head-on-the-same-runner",
   "metrics": [
     {
+      "name": "vm_instructions_per_second",
+      "direction": "higher",
+      "maximumRegressionRatio": 0.2
+    },
+    {
       "name": "cpp_to_lua_ns_per_call",
       "direction": "lower",
       "maximumRegressionRatio": 0.2

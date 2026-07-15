@@ -24,12 +24,18 @@ class Proto;
 
 namespace VM::detail {
 
+inline std::unexpected<RuntimeError> mapExceptionToUnexpected(const LuaError& error) {
+    if (error.hasErrorObject()) {
+        return std::unexpected(RuntimeError(error.getErrorObject()));
+    }
+    return std::unexpected(RuntimeError(error.what()));
+}
+
 inline std::unexpected<RuntimeError> mapExceptionToUnexpected(const std::exception& error) {
     return std::unexpected(RuntimeError(error.what()));
 }
 
-template <typename T, typename Fn>
-[[nodiscard]] std::expected<T, RuntimeError> captureRuntimeErrors(Fn&& fn) {
+template <typename T, typename Fn> [[nodiscard]] std::expected<T, RuntimeError> captureRuntimeErrors(Fn&& fn) {
     try {
         return std::forward<Fn>(fn)();
     } catch (const std::bad_alloc&) {
@@ -50,8 +56,8 @@ void dispatchLineHook(LuaState* L, Proto* proto, usize pc);
 bool shouldDumpBytecode();
 void emitInstructionTrace(Proto* proto, Value* base, usize instructionPc, Instruction inst, i32 callDepth);
 Vec<Value> captureTraceRegisters(LuaState* L, usize frameBase, i32 maxStack);
-void emitInstructionTraceDiff(Proto* proto, LuaState* L, usize frameBase, usize instructionPc,
-                              Instruction inst, i32 callDepth, const Vec<Value>& before);
+void emitInstructionTraceDiff(Proto* proto, LuaState* L, usize frameBase, usize instructionPc, Instruction inst,
+                              i32 callDepth, const Vec<Value>& before);
 void emitCallTrace(Proto* proto, Value* base, usize instructionPc, i32 registerIndex, i32 callDepth);
 void emitReturnTrace(Proto* proto, usize instructionPc, i32 callDepth);
 
@@ -67,20 +73,18 @@ void length(LuaState* L, Value& result, const Value& val);
 void concat(RuntimeServices& services, LuaState* L, Value* base, i32 a, i32 b, i32 c);
 
 bool precall(LuaState* L, i32 funcIndex, i32 nArgs, i32 nResults);
-bool precallWithName(LuaState* L, i32 funcIndex, i32 nArgs, i32 nResults,
-                     const Str& callTargetName);
+bool precallWithName(LuaState* L, i32 funcIndex, i32 nArgs, i32 nResults, const Str& callTargetName);
 using CallTargetNameResolver = Str (*)(void* context);
-bool precallWithNameResolver(LuaState* L, i32 funcIndex, i32 nArgs, i32 nResults,
-                             CallTargetNameResolver resolver, void* resolverContext);
+bool precallWithNameResolver(LuaState* L, i32 funcIndex, i32 nArgs, i32 nResults, CallTargetNameResolver resolver,
+                             void* resolverContext);
 void postcall(LuaState* L, i32 funcPos, i32 wantedResults, usize firstResult = 0);
 void reuseCurrentFrameForTailCall(LuaState* L, usize callerIndex, usize callerFunc, i32 callerTailcalls);
 
 void setList(LuaState* L, Value* base, i32 a, i32 b, i32 c);
-void closure(LuaState* L, Value* base, Proto* currentProto, Function* currentFunc,
-             usize& pc, i32 a, i32 bx);
+void closure(LuaState* L, Value* base, Proto* currentProto, Function* currentFunc, usize& pc, i32 a, i32 bx);
 void vararg(LuaState* L, Value*& base, Proto* proto, i32 a, i32 b);
 void tforLoop(LuaState* L, Value*& base, Proto* proto, usize& pc, i32 a, i32 c);
 
-}  // namespace VM::detail
+} // namespace VM::detail
 
-}  // namespace Lua
+} // namespace Lua

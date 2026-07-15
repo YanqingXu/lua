@@ -9,15 +9,19 @@
 #include "compiler/parser/parser.hpp"
 #include "core/function.hpp"
 #include "core/thread.hpp"
+#include "lib/lib_manager.hpp"
 #include "runtime/runtime_services.hpp"
 #include "vm/state/lua_state.hpp"
 #include "vm/vm_internal.hpp"
 #include "vm/vm.hpp"
 
+#include <atomic>
+#include <chrono>
 #include <expected>
 #include <new>
 #include <stdexcept>
 #include <string>
+#include <thread>
 #include <type_traits>
 #include <utility>
 
@@ -45,6 +49,29 @@ Function* createFunction(RuntimeServices& services, LuaState* L, Proto* proto) {
     func->setEnv(L->getGlobalTable());
     services.gc.registerObject(func);
     return func;
+}
+
+i32 runProtectedChunk(RuntimeServices& services, LuaState* L, Proto* proto, i32 nresults = 0) {
+    Function* func = createFunction(services, L, proto);
+    L->pushFunction(func);
+    return L->pcall(0, nresults, 0);
+}
+
+ExecutionPolicy::InstructionCount g_nestedBudgetBefore = ExecutionPolicy::UnlimitedInstructions;
+ExecutionPolicy::InstructionCount g_nestedBudgetAfter = ExecutionPolicy::UnlimitedInstructions;
+i32 g_nestedCallStatus = LUA_OK;
+
+i32 callLuaFromPolicyProbe(LuaState* L) {
+    ExecutionPolicy& policy = L->getGlobalState().getExecutionPolicy();
+    g_nestedBudgetBefore = policy.remainingInstructions();
+
+    const Value target = L->at(1);
+    L->pushValue(target);
+    g_nestedCallStatus = L->pcall(0, 0, 0);
+    g_nestedBudgetAfter = policy.remainingInstructions();
+
+    L->pushBoolean(g_nestedCallStatus == LUA_ERRRUN);
+    return 1;
 }
 
 GarbageCollector& legacyGarbageCollectorForRuntimeServicesTest() {
@@ -232,6 +259,163 @@ void testCoroutineResumeUsesContextRuntimeServices(TestSuite& suite) {
     context.gc().clearAll(context.strings());
 }
 
+void testExecutionPolicyStopsInfiniteLoopAtInstructionBudget(TestSuite& suite) {
+    EngineContext context;
+    RuntimeServices services = context.services();
+    UPtr<LuaState> L = LuaState::create(context);
+    Proto* proto = compileChunk(services, "while true do end", "=(execution_budget)");
+
+    constexpr ExecutionPolicy::InstructionCount kBudget = 64;
+    context.executionPolicy().configure({kBudget, ExecutionPolicy::Clock::time_point::max()});
+    const i32 status = runProtectedChunk(services, L.get(), proto);
+
+    ASSERT_EQ(suite, LUA_ERRRUN, status, "finite instruction budget stops an infinite loop");
+    ASSERT_EQ(suite, static_cast<u64>(0), context.executionPolicy().remainingInstructions(),
+              "instruction budget is exhausted exactly once");
+    ASSERT_EQ(suite, kBudget, context.executionPolicy().consumedInstructions(),
+              "configured budget permits exactly N instructions");
+    ASSERT_TRUE(suite, L->top().isString(), "budget stop leaves a Lua string error object");
+    ASSERT_TRUE(suite,
+                L->top().asString() == context.globalState().getExecutionPolicyErrorMessage(
+                                           ExecutionStopReason::InstructionBudgetExceeded),
+                "protected call returns the fixed instruction-budget error object");
+
+    context.executionPolicy().reset();
+}
+
+void testExecutionPolicyUsesMonotonicDeadline(TestSuite& suite) {
+    using namespace std::chrono_literals;
+
+    EngineContext context;
+    RuntimeServices services = context.services();
+    UPtr<LuaState> L = LuaState::create(context);
+    Proto* proto = compileChunk(services, "while true do end", "=(execution_deadline)");
+
+    ExecutionPolicy::Limits limits;
+    limits.instructionBudget = 10'000'000;
+    limits.deadline = ExecutionPolicy::Clock::now() + 2ms;
+    context.executionPolicy().configure(limits);
+    const i32 status = runProtectedChunk(services, L.get(), proto);
+
+    ASSERT_EQ(suite, LUA_ERRRUN, status, "steady-clock deadline stops an infinite loop");
+    ASSERT_TRUE(suite, context.executionPolicy().remainingInstructions() > 0,
+                "deadline fires before the fallback instruction budget");
+    ASSERT_TRUE(suite,
+                L->top().isString() && L->top().asString() == context.globalState().getExecutionPolicyErrorMessage(
+                                                                  ExecutionStopReason::DeadlineExceeded),
+                "protected call returns the fixed deadline error object");
+
+    context.executionPolicy().reset();
+}
+
+void testExecutionPolicyAllowsAtomicExternalCancellation(TestSuite& suite) {
+    using namespace std::chrono_literals;
+
+    EngineContext context;
+    RuntimeServices services = context.services();
+    UPtr<LuaState> L = LuaState::create(context);
+    Proto* proto = compileChunk(services, "while true do end", "=(execution_cancel)");
+
+    ExecutionPolicy::Limits limits;
+    limits.instructionBudget = 50'000'000;
+    context.executionPolicy().configure(limits);
+    const ExecutionCancellationHandle cancellation = context.cancellationHandle();
+
+    std::thread canceller([cancellation] {
+        std::this_thread::sleep_for(2ms);
+        cancellation.requestCancellation();
+    });
+    const i32 status = runProtectedChunk(services, L.get(), proto);
+    canceller.join();
+
+    ASSERT_EQ(suite, LUA_ERRRUN, status, "external atomic cancellation stops an infinite loop");
+    ASSERT_TRUE(suite, context.executionPolicy().isCancellationRequested(),
+                "owner observes the one-way cancellation request");
+    ASSERT_TRUE(suite, context.executionPolicy().remainingInstructions() > 0,
+                "cancellation fires before the fallback instruction budget");
+    ASSERT_TRUE(suite,
+                L->top().isString() && L->top().asString() == context.globalState().getExecutionPolicyErrorMessage(
+                                                                  ExecutionStopReason::Cancelled),
+                "protected call returns the fixed cancellation error object");
+
+    context.executionPolicy().reset();
+}
+
+void testExecutionPolicySurvivesCToLuaReentry(TestSuite& suite) {
+    EngineContext context;
+    RuntimeServices services = context.services();
+    UPtr<LuaState> L = LuaState::create(context);
+
+    Function* probe = services.gc.create<Function>(callLuaFromPolicyProbe);
+    L->setGlobal("policy_reentry", Value(probe));
+    Proto* proto =
+        compileChunk(services, "return policy_reentry(function() while true do end end)", "=(execution_reentry)");
+
+    g_nestedBudgetBefore = ExecutionPolicy::UnlimitedInstructions;
+    g_nestedBudgetAfter = ExecutionPolicy::UnlimitedInstructions;
+    g_nestedCallStatus = LUA_OK;
+    constexpr ExecutionPolicy::InstructionCount kBudget = 48;
+    context.executionPolicy().configure({kBudget, ExecutionPolicy::Clock::time_point::max()});
+    const i32 status = runProtectedChunk(services, L.get(), proto);
+
+    ASSERT_EQ(suite, LUA_ERRRUN, g_nestedCallStatus, "nested protected Lua call observes the shared budget stop");
+    ASSERT_TRUE(suite, g_nestedBudgetBefore < kBudget && g_nestedBudgetBefore > 0,
+                "outer Lua execution consumes budget before entering C");
+    ASSERT_EQ(suite, static_cast<u64>(0), g_nestedBudgetAfter,
+              "C-to-Lua re-entry consumes the outer execution budget without reset");
+    ASSERT_EQ(suite, LUA_ERRRUN, status, "outer protected boundary reports the exhausted shared budget");
+    ASSERT_TRUE(suite,
+                L->top().isString() && L->top().asString() == context.globalState().getExecutionPolicyErrorMessage(
+                                                                  ExecutionStopReason::InstructionBudgetExceeded),
+                "nested exhaustion preserves the fixed budget error at the outer boundary");
+
+    context.executionPolicy().reset();
+}
+
+void testExecutionPolicyPersistsAcrossCoroutineYieldAndResume(TestSuite& suite) {
+    EngineContext context;
+    RuntimeServices services = context.services();
+    UPtr<LuaState> L = LuaState::create(context);
+    StandardLibrary::openAll(L.get());
+
+    Proto* setup = compileChunk(services, R"(
+        policy_coroutine = coroutine.create(function()
+            local value = 1
+            coroutine.yield(value)
+            while true do value = value + 1 end
+        end)
+    )",
+                                "=(execution_coroutine_setup)");
+    ASSERT_EQ(suite, LUA_OK, runProtectedChunk(services, L.get(), setup),
+              "coroutine policy fixture initializes without limits");
+
+    const Value coroutineValue = L->getGlobal("policy_coroutine");
+    ASSERT_TRUE(suite, coroutineValue.isThread(), "policy fixture publishes a coroutine");
+    Thread* coroutine = coroutineValue.isThread() ? coroutineValue.asThread() : nullptr;
+
+    constexpr ExecutionPolicy::InstructionCount kBudget = 256;
+    context.executionPolicy().configure({kBudget, ExecutionPolicy::Clock::time_point::max()});
+    const usize callerBase = L->getAbsoluteTop();
+    const bool firstResume = coroutine != nullptr && coroutine->resume(L.get(), 0);
+    const ExecutionPolicy::InstructionCount afterYield = context.executionPolicy().remainingInstructions();
+
+    ASSERT_TRUE(suite, firstResume, "first coroutine resume reaches yield");
+    ASSERT_TRUE(suite, afterYield > 0 && afterYield < kBudget, "instructions before yield consume the shared budget");
+
+    L->setAbsoluteTop(callerBase);
+    const bool secondResume = coroutine != nullptr && coroutine->resume(L.get(), 0);
+
+    ASSERT_TRUE(suite, !secondResume, "resumed infinite coroutine stops when inherited budget is exhausted");
+    ASSERT_EQ(suite, static_cast<u64>(0), context.executionPolicy().remainingInstructions(),
+              "resume continues the pre-yield budget instead of resetting it");
+    ASSERT_TRUE(suite,
+                L->top().isString() && L->top().asString() == context.globalState().getExecutionPolicyErrorMessage(
+                                                                  ExecutionStopReason::InstructionBudgetExceeded),
+                "coroutine resume publishes the fixed shared-budget error object");
+
+    context.executionPolicy().reset();
+}
+
 void testVmTryExecuteProtoReturnsExpectedType(TestSuite& suite) {
     using TryResult = decltype(VM::tryExecuteProto(std::declval<RuntimeServices&>(), std::declval<LuaState*>(),
                                                    std::declval<Proto*>(), 1));
@@ -352,6 +536,16 @@ void registerRuntimeServicesTests() {
                           testNestedFunctionsUseContextStringPool);
     registry.registerTest(kSuiteName, "Coroutine resume uses context runtime services",
                           testCoroutineResumeUsesContextRuntimeServices);
+    registry.registerTest(kSuiteName, "Execution policy stops infinite loop at instruction budget",
+                          testExecutionPolicyStopsInfiniteLoopAtInstructionBudget);
+    registry.registerTest(kSuiteName, "Execution policy uses monotonic deadline",
+                          testExecutionPolicyUsesMonotonicDeadline);
+    registry.registerTest(kSuiteName, "Execution policy allows atomic external cancellation",
+                          testExecutionPolicyAllowsAtomicExternalCancellation);
+    registry.registerTest(kSuiteName, "Execution policy survives C to Lua reentry",
+                          testExecutionPolicySurvivesCToLuaReentry);
+    registry.registerTest(kSuiteName, "Execution policy persists across coroutine yield and resume",
+                          testExecutionPolicyPersistsAcrossCoroutineYieldAndResume);
     registry.registerTest(kSuiteName, "tryExecuteProto returns expected type",
                           testVmTryExecuteProtoReturnsExpectedType);
     registry.registerTest(kSuiteName, "tryExecuteProto returns exec result on success",
