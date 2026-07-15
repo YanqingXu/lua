@@ -1,13 +1,15 @@
 ---
 status: current
-verified_against: src/lua.h; src/lauxlib.h; src/lualib.h; src/api/lapi.cpp; src/runtime/lua_allocator.hpp; src/runtime/runtime_services.hpp; src/runtime/native_module_registry.hpp; src/common/lua_error.hpp; src/vm/state/global_state.cpp; src/vm/state/lua_state.cpp; src/gc/garbage_collector.hpp; src/gc/garbage_collector.cpp; src/core/userdata.cpp; src/lib/testlib.cpp; tests/compatibility/lua51-public-api-contract.json; tests/compatibility/public_api_c_compile.c; tests/compatibility/public_api_cpp_consumer.cpp; tests/compatibility/public_native_module.c; tests/unit/api/test_lua_c_api.cpp; tools/check_lua51_public_api_contract.py; tests/lua/official/api.lua; tests/lua/official/code.lua
-last_checked: 2026-07-15
+verified_against: CMakeLists.txt; src/lua.h; src/lauxlib.h; src/lualib.h; src/api/lapi.cpp; src/runtime/lua_allocator.hpp; src/runtime/runtime_services.hpp; src/runtime/native_module_registry.hpp; src/common/lua_error.hpp; src/vm/state/global_state.cpp; src/vm/state/lua_state.cpp; src/gc/garbage_collector.hpp; src/gc/garbage_collector.cpp; src/core/userdata.cpp; src/lib/testlib.cpp; tests/compatibility/lua51-public-api-contract.json; tests/compatibility/lua_public_api_exports.def; tests/compatibility/lua_public_api_exports.map; tests/compatibility/public_api_c_compile.c; tests/compatibility/public_api_cpp_consumer.cpp; tests/compatibility/public_native_module.c; tests/unit/api/test_lua_c_api.cpp; tools/check_lua51_public_api_contract.py; tests/lua/official/api.lua; tests/lua/official/code.lua
+last_checked: 2026-07-24
 applies_to: Lua 5.1 C API 原型、项目内直接测试与官方 testC 覆盖边界
 ---
 
 # Lua 5.1 C API 覆盖矩阵
 
 本表区分“已有公开入口”“项目内直接测试”和“原始官方 `api.lua` 经项目 `T` helper 验证”。机器合同 `tests/compatibility/lua51-public-api-contract.json` 以官方 5.1.5 头文件为全集，要求每个符号处于 `PASS / XFAIL / UNSUPPORTED` 三态之一，并为 PASS 记录 C compile、link 和直接公开调用证据。项目版 `T` 位于 C++ 测试库中，因此 TestC helper 不能替代同名公开 API 符号。
+
+函数兼容状态与项目实际导出面是两个独立集合：官方函数合同仍为 60 个 `PASS`，而项目公开头文件当前声明 66 个真实函数。合同检查器会从头文件自动枚举这 66 个函数，并要求 C 链接探针、C++ 精确签名断言、Windows `.def` 和 Linux version script 与之完全一致；项目额外入口 `lua_open`、global get/set 和三个 auxlib helper 因而也必须可从共享库链接。相同消费者分别链接 `lua_core` 静态库和 `lua_public_api_shared` 动态库，避免静态链接掩盖导出缺口。
 
 | 能力组 | 当前实现 | 项目内直接测试 | 官方测试覆盖 | 状态 |
 |---|---|---|---|---|
@@ -37,7 +39,7 @@ applies_to: Lua 5.1 C API 原型、项目内直接测试与官方 testC 覆盖�
 bin\lua_test.exe --filter "Lua C API"
 ```
 
-结果为 40 个测试、953 个断言、0 failures。机器合同另包含 123 个官方公共函数：60 个 `PASS`、0 个 `XFAIL`、63 个显式 `UNSUPPORTED`。原始 `api.lua` 另以以下 exact TestC 门禁通过：
+结果为 40 个测试、953 个断言、0 failures。机器合同另包含 123 个官方公共函数：60 个 `PASS`、0 个 `XFAIL`、63 个显式 `UNSUPPORTED`。项目头文件的当前公开面另由 66 个真实函数、22 个宏、16 个枚举常量和 8 个 typedef 的穷尽式编译合同保护。原始 `api.lua` 另以以下 exact TestC 门禁通过：
 
 ```powershell
 bin\lua_test.exe --filter "api.lua with T module"
@@ -51,6 +53,8 @@ bin\lua_test.exe --filter "api.lua with T module"
 ctest --test-dir build -C Debug -L api-contract --output-on-failure
 ctest --test-dir build -C Debug -L native-module --output-on-failure
 ```
+
+`api-contract` 标签同时运行静态消费者和独立共享库消费者；Windows DLL 的导出面必须与 `.def` 中的 66 个符号完全一致，Linux shared object 则由版本脚本只公开同一集合。
 
 ## 下一批失败驱动任务
 

@@ -1,7 +1,10 @@
 EXPORTS
+    luaL_argcheck
     luaL_argerror
     luaL_checklstring
+    luaL_checkint
     luaL_checknumber
+    luaL_checkstring
     luaL_error
     luaL_loadbuffer
     luaL_loadfile
@@ -16,6 +19,7 @@ EXPORTS
     lua_dump
     lua_error
     lua_getallocf
+    lua_getglobal
     lua_getmetatable
     lua_gettable
     lua_gettop
@@ -29,6 +33,7 @@ EXPORTS
     lua_newstate
     lua_newthread
     lua_newuserdata
+    lua_open
     lua_objlen
     lua_pcall
     lua_pushboolean
@@ -46,6 +51,7 @@ EXPORTS
     lua_replace
     lua_resume
     lua_setallocf
+    lua_setglobal
     lua_setmetatable
     lua_settable
     lua_settop

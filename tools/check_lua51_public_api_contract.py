@@ -13,8 +13,19 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 CONTRACT = ROOT / "tests" / "compatibility" / "lua51-public-api-contract.json"
 WINDOWS_EXPORTS = ROOT / "tests" / "compatibility" / "lua_public_api_exports.def"
+UNIX_EXPORTS = ROOT / "tests" / "compatibility" / "lua_public_api_exports.map"
+PUBLIC_C_PROBE = ROOT / "tests" / "compatibility" / "public_api_c_compile.c"
+PUBLIC_CPP_PROBE = ROOT / "tests" / "compatibility" / "public_api_cpp_consumer.cpp"
+BUILD_DEFINITION = ROOT / "CMakeLists.txt"
 ALLOWED_STATUSES = {"PASS", "XFAIL", "UNSUPPORTED"}
 ISSUE_URL = re.compile(r"https://github\.com/YanqingXu/lua/issues/[1-9][0-9]*$")
+PUBLIC_HEADER_INFRASTRUCTURE_MACROS = {
+    "LAUXLIB_H",
+    "LUALIB_H",
+    "LUA_CXX_MAY_THROW",
+    "LUA_CXX_NOEXCEPT",
+    "LUA_H",
+}
 OFFICIAL_FUNCTIONS_BY_HEADER = {
     "lua.h": frozenset(
         {
@@ -197,6 +208,68 @@ def read_windows_exports() -> set[str]:
     return exports
 
 
+def read_unix_exports() -> set[str]:
+    exports: set[str] = set()
+    for match in re.finditer(r"(?m)^\s*(lua[A-Za-z0-9_]*)\s*;\s*$", UNIX_EXPORTS.read_text(encoding="utf-8")):
+        symbol = match.group(1)
+        if symbol in exports:
+            fail(f"duplicate Unix export: {symbol}")
+        exports.add(symbol)
+    if not exports:
+        fail("Unix public API version script has no Lua exports")
+    return exports
+
+
+def project_public_functions(header_texts: dict[Path, str]) -> set[str]:
+    declarations: set[str] = set()
+    pattern = re.compile(
+        r"(?m)^[ \t]*(?!typedef\b)(?!#)[A-Za-z_][A-Za-z0-9_ \t*]*\b(lua[A-Za-z0-9_]*)"
+        r"\s*\([^;{}\n]*\)(?:\s+LUA_CXX_(?:MAY_THROW|NOEXCEPT))?\s*;"
+    )
+    for text in header_texts.values():
+        declarations.update(pattern.findall(text))
+    if not declarations:
+        fail("could not enumerate project public function declarations")
+    return declarations
+
+
+def project_public_macros(header_texts: dict[Path, str]) -> set[str]:
+    macros: set[str] = set()
+    for text in header_texts.values():
+        macros.update(re.findall(r"(?m)^#define\s+((?:LUA|lua)[A-Za-z0-9_]*)", text))
+    return macros - PUBLIC_HEADER_INFRASTRUCTURE_MACROS
+
+
+def project_public_constants(header_texts: dict[Path, str]) -> set[str]:
+    constants: set[str] = set()
+    for text in header_texts.values():
+        for enum_body in re.findall(r"\benum(?:\s+[A-Za-z_][A-Za-z0-9_]*)?\s*{([^}]*)}", text, re.DOTALL):
+            constants.update(re.findall(r"\b(LUA_[A-Z0-9_]+)\b", enum_body))
+    return constants
+
+
+def project_public_types(header_texts: dict[Path, str]) -> set[str]:
+    public_types: set[str] = set()
+    for text in header_texts.values():
+        public_types.update(re.findall(r"typedef\s+[^;{}()]*\b(lua[A-Za-z0-9_]*)\s*;", text))
+        public_types.update(re.findall(r"typedef\s+[^;{}]*\(\s*\*\s*(lua[A-Za-z0-9_]*)\s*\)", text))
+        public_types.update(re.findall(r"}\s*(lua[A-Za-z0-9_]*)\s*;", text))
+    if not public_types:
+        fail("could not enumerate project public typedefs")
+    return public_types
+
+
+def marker_symbols(text: str, marker: str) -> set[str]:
+    return set(re.findall(rf"\b{re.escape(marker)}\s*\(\s*(lua[A-Za-z0-9_]*|LUA_[A-Z0-9_]*)\s*[,)]", text))
+
+
+def require_exact_surface(label: str, actual: set[str], expected: set[str]) -> None:
+    if actual != expected:
+        missing = expected - actual
+        extra = actual - expected
+        fail(f"{label} drifted; missing [{format_symbols(missing)}], extra [{format_symbols(extra)}]")
+
+
 def main() -> int:
     data = json.loads(CONTRACT.read_text(encoding="utf-8"))
     if data.get("schemaVersion") != 1:
@@ -230,6 +303,38 @@ def main() -> int:
 
     public_header_texts = {path: path.read_text(encoding="utf-8") for path in PROJECT_PUBLIC_HEADERS}
     implementation_texts = {path: path.read_text(encoding="utf-8") for path in PROJECT_IMPLEMENTATION_SOURCES}
+    declared_functions = project_public_functions(public_header_texts)
+    declared_macros = project_public_macros(public_header_texts)
+    declared_constants = project_public_constants(public_header_texts)
+    declared_types = project_public_types(public_header_texts)
+    c_probe_text = PUBLIC_C_PROBE.read_text(encoding="utf-8")
+    cpp_probe_text = PUBLIC_CPP_PROBE.read_text(encoding="utf-8")
+
+    require_exact_surface(
+        "C link-probe function surface", marker_symbols(c_probe_text, "REQUIRE_SYMBOL"), declared_functions
+    )
+    require_exact_surface(
+        "C++ exact-signature surface", marker_symbols(cpp_probe_text, "REQUIRE_SIGNATURE"), declared_functions
+    )
+    require_exact_surface(
+        "C++ public-macro surface", marker_symbols(cpp_probe_text, "REQUIRE_PUBLIC_MACRO"), declared_macros
+    )
+    require_exact_surface(
+        "C++ public-constant surface",
+        marker_symbols(cpp_probe_text, "REQUIRE_PUBLIC_CONSTANT"),
+        declared_constants,
+    )
+    require_exact_surface(
+        "C++ public-type surface", marker_symbols(cpp_probe_text, "REQUIRE_PUBLIC_TYPE"), declared_types
+    )
+
+    missing_definitions = {
+        symbol
+        for symbol in declared_functions
+        if not any(contains_function_definition(text, symbol) for text in implementation_texts.values())
+    }
+    if missing_definitions:
+        fail(f"public declarations without definitions: [{format_symbols(missing_definitions)}]")
 
     status_counts: Counter[str] = Counter()
     c_probe_texts: dict[Path, str] = {}
@@ -304,19 +409,30 @@ def main() -> int:
             fail(f"{path.relative_to(ROOT)}: REQUIRE_SYMBOL does not create an evaluated link reference")
 
     pass_symbols = {entry["symbol"] for entry in entries if entry["status"] == "PASS"}
+    if not pass_symbols <= declared_functions:
+        fail(f"official PASS functions missing from public headers: [{format_symbols(pass_symbols - declared_functions)}]")
+
     windows_exports = read_windows_exports()
-    if windows_exports != pass_symbols:
-        missing = pass_symbols - windows_exports
-        extra = windows_exports - pass_symbols
-        fail(
-            "Windows public module exports drifted from PASS symbols; "
-            f"missing [{format_symbols(missing)}], extra [{format_symbols(extra)}]"
-        )
+    require_exact_surface("Windows public exports", windows_exports, declared_functions)
+    require_exact_surface("Unix public exports", read_unix_exports(), declared_functions)
+
+    build_text = BUILD_DEFINITION.read_text(encoding="utf-8")
+    for required_build_evidence in (
+        "add_library(lua_public_api_shared SHARED",
+        "lua_public_api_exports.def",
+        "lua_public_api_exports.map",
+        "add_executable(lua_public_api_shared_consumer",
+        "target_link_libraries(lua_public_api_shared_consumer PRIVATE lua_public_api_shared)",
+    ):
+        if required_build_evidence not in build_text:
+            fail(f"shared-library ABI evidence is missing from CMakeLists.txt: {required_build_evidence}")
 
     print(
         "Lua 5.1.5 public API contract OK: "
         f"{len(entries)} official functions, {status_counts['PASS']} PASS, "
-        f"{status_counts['XFAIL']} XFAIL, {status_counts['UNSUPPORTED']} UNSUPPORTED"
+        f"{status_counts['XFAIL']} XFAIL, {status_counts['UNSUPPORTED']} UNSUPPORTED; "
+        f"project surface {len(declared_functions)} functions, {len(declared_macros)} macros, "
+        f"{len(declared_constants)} enum constants, {len(declared_types)} typedefs"
     )
     return 0
 

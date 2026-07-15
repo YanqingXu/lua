@@ -3,10 +3,10 @@
 #include "lualib.h"
 
 /*
- * This translation unit is deliberately C, not C++.  Every PASS symbol in
- * lua51-public-api-contract.json must appear here. Each evaluated assignment
- * to the volatile function-pointer sink creates a real relocation, so the C
- * compiler and final linker both have to resolve all PASS symbols.
+ * This translation unit is deliberately C, not C++. Every real function in
+ * the project's public headers must appear here. Each evaluated assignment to
+ * the volatile function-pointer sink creates a real relocation, so both the C
+ * compiler and the static/shared final linker must resolve the full surface.
  */
 static volatile lua_CFunction lua_public_link_sink;
 
@@ -22,6 +22,7 @@ int lua_public_c_header_probe(void) {
     } while (0)
 
     REQUIRE_SYMBOL(lua_newstate);
+    REQUIRE_SYMBOL(lua_open);
     REQUIRE_SYMBOL(lua_close);
     REQUIRE_SYMBOL(lua_newthread);
     REQUIRE_SYMBOL(lua_gettop);
@@ -52,11 +53,13 @@ int lua_public_c_header_probe(void) {
     REQUIRE_SYMBOL(lua_pushboolean);
     REQUIRE_SYMBOL(lua_pushlightuserdata);
     REQUIRE_SYMBOL(lua_gettable);
+    REQUIRE_SYMBOL(lua_getglobal);
     REQUIRE_SYMBOL(lua_rawgeti);
     REQUIRE_SYMBOL(lua_createtable);
     REQUIRE_SYMBOL(lua_newuserdata);
     REQUIRE_SYMBOL(lua_getmetatable);
     REQUIRE_SYMBOL(lua_settable);
+    REQUIRE_SYMBOL(lua_setglobal);
     REQUIRE_SYMBOL(lua_rawseti);
     REQUIRE_SYMBOL(lua_setmetatable);
     REQUIRE_SYMBOL(lua_call);
@@ -72,8 +75,11 @@ int lua_public_c_header_probe(void) {
     REQUIRE_SYMBOL(lua_getupvalue);
     REQUIRE_SYMBOL(lua_setupvalue);
     REQUIRE_SYMBOL(luaL_argerror);
+    REQUIRE_SYMBOL(luaL_argcheck);
     REQUIRE_SYMBOL(luaL_checklstring);
     REQUIRE_SYMBOL(luaL_checknumber);
+    REQUIRE_SYMBOL(luaL_checkint);
+    REQUIRE_SYMBOL(luaL_checkstring);
     REQUIRE_SYMBOL(luaL_error);
     REQUIRE_SYMBOL(luaL_ref);
     REQUIRE_SYMBOL(luaL_unref);

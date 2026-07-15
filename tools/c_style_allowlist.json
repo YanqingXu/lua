@@ -4687,6 +4687,34 @@
     },
     {
       "rule": "simple #define",
+      "path": "tests\\compatibility\\public_api_cpp_consumer.cpp",
+      "line": 17,
+      "textHash": "4f3ad3b8388d72de4c29169d3e0c0d8a2587ee0c022f63eb5213c0dfacd40cfd",
+      "rationale": "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
+    },
+    {
+      "rule": "simple #define",
+      "path": "tests\\compatibility\\public_api_cpp_consumer.cpp",
+      "line": 19,
+      "textHash": "1a7cf83b4582074c099c1b10a53efa470df1bdf6ba3faa9354e8af72b1cb4fec",
+      "rationale": "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
+    },
+    {
+      "rule": "simple #define",
+      "path": "tests\\compatibility\\public_api_cpp_consumer.cpp",
+      "line": 20,
+      "textHash": "e6d17f04e02b14b0ac62dfb5674658c7dd13ed6afd982bfb6bd78abf02d9a145",
+      "rationale": "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
+    },
+    {
+      "rule": "simple #define",
+      "path": "tests\\compatibility\\public_api_cpp_consumer.cpp",
+      "line": 21,
+      "textHash": "94e2f442cad2091e4dc64d40a07d4f88d49179257922c61d2d00285da168be2d",
+      "rationale": "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
+    },
+    {
+      "rule": "simple #define",
       "path": "tests\\lua\\official\\etc\\ltests.h",
       "line": 8,
       "textHash": "82f56fddc198b5133ad4ed353f13128baa3057ecce297620ce2d3f854a3651aa",

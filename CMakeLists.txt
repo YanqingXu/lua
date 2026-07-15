@@ -293,6 +293,24 @@ if(BUILD_TESTING AND LUA_CPP_BUILD_TESTS)
         target_link_options(lua_test PRIVATE -rdynamic)
     endif()
 
+    # Build the public API as an actual shared library. The static consumer
+    # remains useful for embedding, while this target catches DLL/shared-object
+    # export omissions and import-library failures.
+    add_library(lua_public_api_shared SHARED ${LUA_CORE_SOURCES})
+    target_include_directories(lua_public_api_shared PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    if(CMAKE_DL_LIBS)
+        target_link_libraries(lua_public_api_shared PRIVATE ${CMAKE_DL_LIBS})
+    endif()
+    if(WIN32)
+        target_sources(lua_public_api_shared PRIVATE tests/compatibility/lua_public_api_exports.def)
+    elseif(UNIX AND NOT APPLE)
+        target_link_options(lua_public_api_shared PRIVATE
+            "SHELL:-Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/tests/compatibility/lua_public_api_exports.map"
+        )
+    endif()
+    set_target_properties(lua_public_api_shared PROPERTIES OUTPUT_NAME lua_public_api)
+    lua_configure_target_warnings(lua_public_api_shared)
+
     add_executable(lua_public_api_consumer
         tests/compatibility/public_api_c_compile.c
         tests/compatibility/public_api_cpp_consumer.cpp
@@ -324,6 +342,36 @@ if(BUILD_TESTING AND LUA_CPP_BUILD_TESTS)
         )
     endif()
     lua_configure_runtime_stack(lua_public_api_consumer)
+
+    add_executable(lua_public_api_shared_consumer
+        tests/compatibility/public_api_c_compile.c
+        tests/compatibility/public_api_cpp_consumer.cpp
+    )
+    target_link_libraries(lua_public_api_shared_consumer PRIVATE lua_public_api_shared)
+    target_include_directories(lua_public_api_shared_consumer PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    if(MSVC)
+        set_property(TARGET lua_public_api_shared_consumer PROPERTY MSVC_RUNTIME_CHECKS "")
+        target_compile_options(lua_public_api_shared_consumer PRIVATE
+            $<$<COMPILE_LANGUAGE:C>:/W4>
+            $<$<COMPILE_LANGUAGE:CXX>:/W4>
+            $<$<COMPILE_LANGUAGE:CXX>:/permissive->
+            $<$<COMPILE_LANGUAGE:CXX>:/utf-8>
+            $<$<COMPILE_LANGUAGE:CXX>:/O2>
+            $<$<COMPILE_LANGUAGE:CXX>:/EHsc>
+        )
+    else()
+        target_compile_options(lua_public_api_shared_consumer PRIVATE
+            $<$<COMPILE_LANGUAGE:C>:-Wall>
+            $<$<COMPILE_LANGUAGE:C>:-Wextra>
+            $<$<COMPILE_LANGUAGE:C>:-Wpedantic>
+            $<$<COMPILE_LANGUAGE:CXX>:-Wall>
+            $<$<COMPILE_LANGUAGE:CXX>:-Wextra>
+            $<$<COMPILE_LANGUAGE:CXX>:-Wpedantic>
+            $<$<COMPILE_LANGUAGE:CXX>:-Wconversion>
+            $<$<COMPILE_LANGUAGE:CXX>:-O2>
+        )
+    endif()
+    lua_configure_runtime_stack(lua_public_api_shared_consumer)
 
     add_executable(lua_public_module_host tests/compatibility/public_native_module_host.cpp)
     target_link_libraries(lua_public_module_host PRIVATE lua_core)
@@ -360,6 +408,12 @@ if(BUILD_TESTING AND LUA_CPP_BUILD_TESTS)
     add_test(NAME lua_public_api_consumer COMMAND $<TARGET_FILE:lua_public_api_consumer>)
     set_tests_properties(lua_public_api_consumer PROPERTIES
         LABELS api-contract
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    )
+
+    add_test(NAME lua_public_api_shared_consumer COMMAND $<TARGET_FILE:lua_public_api_shared_consumer>)
+    set_tests_properties(lua_public_api_shared_consumer PROPERTIES
+        LABELS "api-contract;shared-library"
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     )
 
