@@ -2,6 +2,7 @@
 #define LUA_H
 
 #include <stddef.h>
+#include <stdarg.h>
 
 #ifdef __cplusplus
 #define LUA_CXX_MAY_THROW noexcept(false)
@@ -91,6 +92,7 @@ struct lua_Debug {
 lua_State* lua_newstate(lua_Alloc f, void* ud) LUA_CXX_MAY_THROW;
 lua_State* lua_open(void) LUA_CXX_MAY_THROW;
 void lua_close(lua_State* L) LUA_CXX_NOEXCEPT;
+lua_CFunction lua_atpanic(lua_State* L, lua_CFunction panicf) LUA_CXX_MAY_THROW;
 lua_Alloc lua_getallocf(lua_State* L, void** ud) LUA_CXX_MAY_THROW;
 void lua_setallocf(lua_State* L, lua_Alloc f, void* ud) LUA_CXX_MAY_THROW;
 
@@ -128,6 +130,8 @@ void lua_pushinteger(lua_State* L, lua_Integer n) LUA_CXX_MAY_THROW;
 void lua_pushboolean(lua_State* L, int b) LUA_CXX_MAY_THROW;
 void lua_pushlstring(lua_State* L, const char* s, size_t len) LUA_CXX_MAY_THROW;
 void lua_pushstring(lua_State* L, const char* s) LUA_CXX_MAY_THROW;
+const char* lua_pushvfstring(lua_State* L, const char* fmt, va_list argp) LUA_CXX_MAY_THROW;
+const char* lua_pushfstring(lua_State* L, const char* fmt, ...) LUA_CXX_MAY_THROW;
 void lua_pushlightuserdata(lua_State* L, void* p) LUA_CXX_MAY_THROW;
 void lua_pushcclosure(lua_State* L, lua_CFunction fn, int n) LUA_CXX_MAY_THROW;
 int lua_pushthread(lua_State* L) LUA_CXX_MAY_THROW;
@@ -149,9 +153,12 @@ void lua_getglobal(lua_State* L, const char* name) LUA_CXX_MAY_THROW;
 void lua_setglobal(lua_State* L, const char* name) LUA_CXX_MAY_THROW;
 int lua_getmetatable(lua_State* L, int objindex) LUA_CXX_MAY_THROW;
 int lua_setmetatable(lua_State* L, int objindex) LUA_CXX_MAY_THROW;
+void lua_getfenv(lua_State* L, int idx) LUA_CXX_MAY_THROW;
+int lua_setfenv(lua_State* L, int idx) LUA_CXX_MAY_THROW;
 
 void lua_call(lua_State* L, int nargs, int nresults) LUA_CXX_MAY_THROW;
 int lua_pcall(lua_State* L, int nargs, int nresults, int errfunc) LUA_CXX_NOEXCEPT;
+int lua_cpcall(lua_State* L, lua_CFunction func, void* ud) LUA_CXX_NOEXCEPT;
 int lua_error(lua_State* L) LUA_CXX_MAY_THROW;
 int lua_next(lua_State* L, int idx) LUA_CXX_MAY_THROW;
 void lua_concat(lua_State* L, int n) LUA_CXX_MAY_THROW;
@@ -164,6 +171,7 @@ int lua_status(lua_State* L) LUA_CXX_MAY_THROW;
 int lua_gc(lua_State* L, int what, int data) LUA_CXX_MAY_THROW;
 int lua_load(lua_State* L, lua_Reader reader, void* data, const char* chunkname) LUA_CXX_NOEXCEPT;
 int lua_dump(lua_State* L, lua_Writer writer, void* data) LUA_CXX_NOEXCEPT;
+void lua_setlevel(lua_State* from, lua_State* to) LUA_CXX_MAY_THROW;
 
 int lua_getstack(lua_State* L, int level, lua_Debug* ar) LUA_CXX_MAY_THROW;
 int lua_getinfo(lua_State* L, const char* what, lua_Debug* ar) LUA_CXX_MAY_THROW;

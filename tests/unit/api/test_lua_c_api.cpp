@@ -15,6 +15,8 @@
 
 #include <cstdint>
 #include <array>
+#include <cstdarg>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
@@ -90,6 +92,13 @@ static_assert(!noexcept(luaopen_string(nullptr)));
 static_assert(!noexcept(luaopen_math(nullptr)));
 static_assert(!noexcept(luaopen_debug(nullptr)));
 static_assert(!noexcept(luaopen_package(nullptr)));
+static_assert(!noexcept(lua_atpanic(nullptr, nullptr)));
+static_assert(!noexcept(lua_pushvfstring(nullptr, nullptr, std::declval<va_list>())));
+static_assert(!noexcept(lua_pushfstring(nullptr, nullptr)));
+static_assert(!noexcept(lua_getfenv(nullptr, 0)));
+static_assert(!noexcept(lua_setfenv(nullptr, 0)));
+static_assert(noexcept(lua_cpcall(nullptr, nullptr, nullptr)));
+static_assert(!noexcept(lua_setlevel(nullptr, nullptr)));
 static_assert(noexcept(lua_close(nullptr)));
 static_assert(noexcept(lua_checkstack(nullptr, 0)));
 static_assert(noexcept(lua_pcall(nullptr, 0, 0, 0)));
@@ -133,6 +142,7 @@ bool gPublicDebugCallerFunction = false;
 bool gPublicDebugCallerLines = false;
 std::string gPublicDebugLocalName;
 lua_Number gPublicDebugLocalValue = 0;
+bool gPublicCpcallArgument = false;
 
 struct AllocatorLedger {
     std::unordered_map<std::uintptr_t, size_t> blocks;
@@ -251,6 +261,32 @@ int returnCapturedUpvalues(lua_State* L) {
     lua_pushvalue(L, lua_upvalueindex(1));
     lua_pushvalue(L, lua_upvalueindex(2));
     return 2;
+}
+
+int firstPublicPanic(lua_State*) {
+    return 0;
+}
+
+int secondPublicPanic(lua_State*) {
+    return 0;
+}
+
+const char* pushPublicVFormat(lua_State* L, const char* format, ...) {
+    va_list arguments;
+    va_start(arguments, format);
+    const char* result = lua_pushvfstring(L, format, arguments);
+    va_end(arguments);
+    return result;
+}
+
+int capturePublicCpcallArgument(lua_State* L) {
+    gPublicCpcallArgument = lua_gettop(L) == 1 && lua_touserdata(L, 1) == &gApiErrorToken;
+    return 0;
+}
+
+int failPublicCpcall(lua_State* L) {
+    lua_pushlightuserdata(L, &gApiErrorToken);
+    return lua_error(L);
 }
 
 int callLuaOpenBase(lua_State* L) {
@@ -2997,6 +3033,105 @@ void testPublicStandardLibraryOpeners(TestSuite& suite) {
     lua_close(L);
 }
 
+void testPublicPanicFormatEnvironmentAndCpcall(TestSuite& suite) {
+    lua_State* L = lua_open();
+    ASSERT_TRUE(suite, L != nullptr, "lua_open creates a state for the final core API batch");
+    if (L == nullptr) {
+        return;
+    }
+
+    ASSERT_TRUE(suite, lua_atpanic(L, firstPublicPanic) == nullptr, "lua_atpanic returns the initial null callback");
+    ASSERT_TRUE(suite, lua_atpanic(L, secondPublicPanic) == firstPublicPanic,
+                "lua_atpanic replaces and returns the previous callback");
+    lua_State* child = lua_newthread(L);
+    ASSERT_TRUE(suite, child != nullptr, "lua_newthread creates a state for shared panic and level checks");
+    ASSERT_TRUE(suite, lua_atpanic(child, firstPublicPanic) == secondPublicPanic,
+                "lua_atpanic is shared by every thread in one runtime");
+
+    auto* sourceState = reinterpret_cast<Lua::LuaState*>(L);
+    auto* targetState = reinterpret_cast<Lua::LuaState*>(child);
+    sourceState->setHostCallDepth(7);
+    targetState->setHostCallDepth(1);
+    lua_setlevel(L, child);
+    ASSERT_EQ(suite, 7, targetState->getHostCallDepth(),
+              "lua_setlevel copies the nested host-call level between threads");
+    sourceState->setHostCallDepth(0);
+    targetState->setHostCallDepth(0);
+    lua_settop(L, 0);
+
+    char pointerText[4 * sizeof(void*) + 8]{};
+    std::snprintf(pointerText, sizeof(pointerText), "%p", static_cast<void*>(&gApiErrorToken));
+    const std::string expected = std::string("text|Z|17|1.25|") + pointerText + "|%|%q|(null)";
+    const char* formatted = lua_pushfstring(L, "%s|%c|%d|%f|%p|%%|%q|%s", "text", 'Z', 17, 1.25,
+                                            static_cast<void*>(&gApiErrorToken), static_cast<const char*>(nullptr));
+    ASSERT_EQ(suite, expected, std::string(formatted), "lua_pushfstring implements the Lua 5.1 formatting vocabulary");
+    ASSERT_TRUE(suite, formatted == lua_tostring(L, -1), "lua_pushfstring returns the pushed string pointer");
+    const char* vformatted = pushPublicVFormat(L, "v=%d/%s", 29, "ok");
+    ASSERT_EQ(suite, std::string("v=29/ok"), std::string(vformatted),
+              "lua_pushvfstring consumes a caller-owned va_list");
+    lua_settop(L, 0);
+
+    pushLuaChunk(L, "return environment_value");
+    lua_newtable(L);
+    lua_pushinteger(L, 73);
+    lua_setfield(L, -2, "environment_value");
+    ASSERT_EQ(suite, 1, lua_setfenv(L, 1), "lua_setfenv assigns a Lua closure environment");
+    ASSERT_EQ(suite, 1, lua_gettop(L), "lua_setfenv consumes the environment table");
+    lua_getfenv(L, 1);
+    ASSERT_TRUE(suite, lua_istable(L, -1), "lua_getfenv pushes a function environment");
+    lua_getfield(L, -1, "environment_value");
+    ASSERT_EQ(suite, 73.0, lua_tonumber(L, -1), "lua_getfenv exposes the assigned function environment");
+    lua_pop(L, 2);
+    ASSERT_EQ(suite, LUA_OK, lua_pcall(L, 0, 1, 0), "a Lua closure executes with its assigned environment");
+    ASSERT_EQ(suite, 73.0, lua_tonumber(L, -1), "GETGLOBAL observes the lua_setfenv table");
+    lua_settop(L, 0);
+
+    (void)lua_newuserdata(L, sizeof(int));
+    lua_newtable(L);
+    lua_pushstring(L, "userdata-env");
+    lua_setfield(L, -2, "kind");
+    ASSERT_EQ(suite, 1, lua_setfenv(L, 1), "lua_setfenv assigns a full-userdata environment");
+    lua_getfenv(L, 1);
+    lua_getfield(L, -1, "kind");
+    ASSERT_EQ(suite, std::string("userdata-env"), std::string(lua_tostring(L, -1)),
+              "lua_getfenv returns the full-userdata environment");
+    lua_settop(L, 0);
+
+    child = lua_newthread(L);
+    lua_newtable(L);
+    lua_pushinteger(L, 91);
+    lua_setfield(L, -2, "thread_value");
+    ASSERT_EQ(suite, 1, lua_setfenv(L, 1), "lua_setfenv assigns a thread global table");
+    lua_getfenv(L, 1);
+    lua_getfield(L, -1, "thread_value");
+    ASSERT_EQ(suite, 91.0, lua_tonumber(L, -1), "lua_getfenv returns a thread global table");
+    lua_settop(L, 0);
+
+    lua_pushinteger(L, 5);
+    lua_newtable(L);
+    ASSERT_EQ(suite, 0, lua_setfenv(L, 1), "lua_setfenv rejects unsupported value kinds");
+    ASSERT_EQ(suite, 1, lua_gettop(L), "failed lua_setfenv still consumes the table");
+    lua_getfenv(L, 1);
+    ASSERT_TRUE(suite, lua_isnil(L, -1), "lua_getfenv pushes nil for unsupported value kinds");
+    lua_settop(L, 0);
+
+    lua_pushstring(L, "prefix");
+    gPublicCpcallArgument = false;
+    ASSERT_EQ(suite, LUA_OK, lua_cpcall(L, capturePublicCpcallArgument, &gApiErrorToken),
+              "lua_cpcall protects a successful C callback");
+    ASSERT_TRUE(suite, gPublicCpcallArgument, "lua_cpcall passes user data as one light-userdata argument");
+    ASSERT_EQ(suite, 1, lua_gettop(L), "successful lua_cpcall preserves the caller prefix and discards results");
+    ASSERT_EQ(suite, std::string("prefix"), std::string(lua_tostring(L, 1)),
+              "successful lua_cpcall preserves existing values");
+    ASSERT_EQ(suite, LUA_ERRRUN, lua_cpcall(L, failPublicCpcall, nullptr),
+              "lua_cpcall translates callback failure into a status");
+    ASSERT_EQ(suite, 2, lua_gettop(L), "failed lua_cpcall preserves the prefix and pushes one error object");
+    ASSERT_TRUE(suite, lua_touserdata(L, -1) == &gApiErrorToken,
+                "failed lua_cpcall preserves a non-string Lua error object");
+
+    lua_close(L);
+}
+
 void testPublicDebugStackInfoAndLocals(TestSuite& suite) {
     lua_State* L = lua_open();
 
@@ -3143,6 +3278,8 @@ void registerLuaCApiTests() {
     registry.registerTest(kSuiteName, "public auxiliary registration and buffer",
                           testPublicAuxiliaryRegistrationAndBuffer);
     registry.registerTest(kSuiteName, "public standard library openers", testPublicStandardLibraryOpeners);
+    registry.registerTest(kSuiteName, "public panic format environment cpcall and setlevel",
+                          testPublicPanicFormatEnvironmentAndCpcall);
     registry.registerTest(kSuiteName, "public debug stack info and locals", testPublicDebugStackInfoAndLocals);
     registry.registerTest(kSuiteName, "public debug hooks", testPublicDebugHooks);
 }

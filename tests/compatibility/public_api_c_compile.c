@@ -26,6 +26,7 @@ int lua_public_c_header_probe(void) {
     REQUIRE_SYMBOL(lua_close);
     REQUIRE_SYMBOL(lua_newthread);
     REQUIRE_SYMBOL(lua_trynewthread);
+    REQUIRE_SYMBOL(lua_atpanic);
     REQUIRE_SYMBOL(lua_gettop);
     REQUIRE_SYMBOL(lua_settop);
     REQUIRE_SYMBOL(lua_pushvalue);
@@ -57,6 +58,8 @@ int lua_public_c_header_probe(void) {
     REQUIRE_SYMBOL(lua_pushinteger);
     REQUIRE_SYMBOL(lua_pushlstring);
     REQUIRE_SYMBOL(lua_pushstring);
+    REQUIRE_SYMBOL(lua_pushvfstring);
+    REQUIRE_SYMBOL(lua_pushfstring);
     REQUIRE_SYMBOL(lua_pushcclosure);
     REQUIRE_SYMBOL(lua_pushboolean);
     REQUIRE_SYMBOL(lua_pushlightuserdata);
@@ -69,14 +72,17 @@ int lua_public_c_header_probe(void) {
     REQUIRE_SYMBOL(lua_createtable);
     REQUIRE_SYMBOL(lua_newuserdata);
     REQUIRE_SYMBOL(lua_getmetatable);
+    REQUIRE_SYMBOL(lua_getfenv);
     REQUIRE_SYMBOL(lua_settable);
     REQUIRE_SYMBOL(lua_setfield);
     REQUIRE_SYMBOL(lua_rawset);
     REQUIRE_SYMBOL(lua_setglobal);
     REQUIRE_SYMBOL(lua_rawseti);
     REQUIRE_SYMBOL(lua_setmetatable);
+    REQUIRE_SYMBOL(lua_setfenv);
     REQUIRE_SYMBOL(lua_call);
     REQUIRE_SYMBOL(lua_pcall);
+    REQUIRE_SYMBOL(lua_cpcall);
     REQUIRE_SYMBOL(lua_load);
     REQUIRE_SYMBOL(lua_dump);
     REQUIRE_SYMBOL(lua_yield);
@@ -88,6 +94,7 @@ int lua_public_c_header_probe(void) {
     REQUIRE_SYMBOL(lua_concat);
     REQUIRE_SYMBOL(lua_getallocf);
     REQUIRE_SYMBOL(lua_setallocf);
+    REQUIRE_SYMBOL(lua_setlevel);
     REQUIRE_SYMBOL(lua_getstack);
     REQUIRE_SYMBOL(lua_getinfo);
     REQUIRE_SYMBOL(lua_getlocal);

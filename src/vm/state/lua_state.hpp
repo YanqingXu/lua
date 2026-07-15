@@ -708,6 +708,9 @@ public:
     i32 getHostCallDepth() const noexcept {
         return hostCallDepth_;
     }
+    void setHostCallDepth(i32 depth) noexcept {
+        hostCallDepth_ = depth;
+    }
 
     /// 当前 LuaState 对应的 Thread 对象（主线程为 nullptr）
     Thread* getThread() const noexcept {

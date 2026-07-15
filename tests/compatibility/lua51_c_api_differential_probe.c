@@ -3,7 +3,40 @@
 #include "lualib.h"
 
 #include <stdio.h>
+#include <stdarg.h>
 #include <string.h>
+
+static int final_api_token;
+static int cpcall_argument_ok;
+
+static int first_panic(lua_State* L) {
+    (void)L;
+    return 0;
+}
+
+static int second_panic(lua_State* L) {
+    (void)L;
+    return 0;
+}
+
+static const char* push_vformat(lua_State* L, const char* format, ...) {
+    const char* result;
+    va_list arguments;
+    va_start(arguments, format);
+    result = lua_pushvfstring(L, format, arguments);
+    va_end(arguments);
+    return result;
+}
+
+static int capture_cpcall_argument(lua_State* L) {
+    cpcall_argument_ok = lua_gettop(L) == 1 && lua_touserdata(L, 1) == &final_api_token;
+    return 0;
+}
+
+static int fail_cpcall(lua_State* L) {
+    lua_pushlightuserdata(L, &final_api_token);
+    return lua_error(L);
+}
 
 static int return_fallback(lua_State* L) {
     lua_pushstring(L, "fallback");
@@ -206,6 +239,11 @@ int main(void) {
     int debug_disable;
     int debug_invalid;
     int standard_library_contract;
+    int panic_contract;
+    int format_contract;
+    int environment_contract;
+    int cpcall_contract;
+    int setlevel_contract;
     size_t length = 0;
 
     if (L == NULL) {
@@ -580,16 +618,87 @@ int main(void) {
         }
     }
 
+    lua_settop(L, 0);
+    (void)lua_atpanic(L, first_panic);
+    panic_contract = lua_atpanic(L, second_panic) == first_panic;
+    {
+        lua_State* child = lua_newthread(L);
+        panic_contract = panic_contract && child != NULL && lua_atpanic(child, first_panic) == second_panic;
+        lua_setlevel(L, child);
+        setlevel_contract = lua_gettop(L) == 1 && lua_gettop(child) == 0;
+    }
+
+    lua_settop(L, 0);
+    {
+        char pointer_text[4 * sizeof(void*) + 8];
+        char expected[160];
+        const char* formatted;
+        snprintf(pointer_text, sizeof(pointer_text), "%p", (void*)&final_api_token);
+        snprintf(expected, sizeof(expected), "text|Z|17|1.25|%s|%%|%%q|(null)", pointer_text);
+        formatted =
+            lua_pushfstring(L, "%s|%c|%d|%f|%p|%%|%q|%s", "text", 'Z', 17, 1.25, (void*)&final_api_token, (char*)NULL);
+        format_contract = strcmp(formatted, expected) == 0 && formatted == lua_tostring(L, -1);
+        format_contract = format_contract && strcmp(push_vformat(L, "v=%d/%s", 29, "ok"), "v=29/ok") == 0;
+    }
+
+    lua_settop(L, 0);
+    environment_contract = luaL_loadstring(L, "return environment_value") == 0;
+    lua_newtable(L);
+    lua_pushinteger(L, 73);
+    lua_setfield(L, -2, "environment_value");
+    environment_contract = environment_contract && lua_setfenv(L, 1) == 1 && lua_gettop(L) == 1;
+    lua_getfenv(L, 1);
+    lua_getfield(L, -1, "environment_value");
+    environment_contract = environment_contract && lua_tointeger(L, -1) == 73;
+    lua_pop(L, 2);
+    environment_contract = environment_contract && lua_pcall(L, 0, 1, 0) == 0 && lua_tointeger(L, -1) == 73;
+
+    lua_settop(L, 0);
+    (void)lua_newuserdata(L, sizeof(int));
+    lua_newtable(L);
+    lua_pushinteger(L, 81);
+    lua_setfield(L, -2, "userdata_value");
+    environment_contract = environment_contract && lua_setfenv(L, 1) == 1;
+    lua_getfenv(L, 1);
+    lua_getfield(L, -1, "userdata_value");
+    environment_contract = environment_contract && lua_tointeger(L, -1) == 81;
+
+    lua_settop(L, 0);
+    (void)lua_newthread(L);
+    lua_newtable(L);
+    lua_pushinteger(L, 91);
+    lua_setfield(L, -2, "thread_value");
+    environment_contract = environment_contract && lua_setfenv(L, 1) == 1;
+    lua_getfenv(L, 1);
+    lua_getfield(L, -1, "thread_value");
+    environment_contract = environment_contract && lua_tointeger(L, -1) == 91;
+
+    lua_settop(L, 0);
+    lua_pushinteger(L, 5);
+    lua_newtable(L);
+    environment_contract = environment_contract && lua_setfenv(L, 1) == 0 && lua_gettop(L) == 1;
+    lua_getfenv(L, 1);
+    environment_contract = environment_contract && lua_isnil(L, -1);
+
+    lua_settop(L, 0);
+    lua_pushstring(L, "prefix");
+    cpcall_argument_ok = 0;
+    cpcall_contract = lua_cpcall(L, capture_cpcall_argument, &final_api_token) == 0 && cpcall_argument_ok;
+    cpcall_contract = cpcall_contract && lua_gettop(L) == 1 && strcmp(lua_tostring(L, 1), "prefix") == 0;
+    cpcall_contract = cpcall_contract && lua_cpcall(L, fail_cpcall, NULL) == LUA_ERRRUN;
+    cpcall_contract = cpcall_contract && lua_gettop(L) == 2 && lua_touserdata(L, -1) == &final_api_token;
+
     printf("table=%d,%d,%d,%d,%d,%d;next=%d,%d;compare=%d,%d,%d;concat=%d,%d,%d,%d,%d;"
            "convert=%d,%d,%d;pointer=%d;thread=%d,%d;gc=%d;aux=%d,%d,%d,%d,%d,%d,%d;"
-           "debug=%d,%d,%d,%d,%d,%d,%d,%d,%d;open=%d\n",
+           "debug=%d,%d,%d,%d,%d,%d,%d,%d,%d;open=%d;final=%d,%d,%d,%d,%d\n",
            set_top, field_value, raw_value, meta_value, raw_missing, captured_value, iteration_count, iteration_sum,
            equal_with_meta, equal_without_meta, less_with_meta, concat_zero_length, concat_plain, concat_meta,
            concat_error_status, concat_error_top, integer_number, integer_string, cfunction_identity, pointer_identity,
            main_thread_identity, child_thread_identity, gc_contract, aux_checks, aux_meta, aux_register, aux_table,
            aux_buffer, aux_errors, aux_newstate, debug_contract, debug_function, debug_stack, debug_mutation,
            debug_hook_config, debug_hook_run, debug_hook_events, debug_disable, debug_invalid,
-           standard_library_contract);
+           standard_library_contract, panic_contract, format_contract, environment_contract, cpcall_contract,
+           setlevel_contract);
 
     lua_close(L);
     return 0;

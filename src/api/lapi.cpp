@@ -19,6 +19,8 @@
 #include "vm/vm_internal.hpp"
 
 #include <algorithm>
+#include <cstdarg>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <new>
@@ -408,6 +410,10 @@ void lua_close(lua_State* L) LUA_CXX_NOEXCEPT {
     Lua::LuaState::destroyState(mainState);
 }
 
+lua_CFunction lua_atpanic(lua_State* L, lua_CFunction panicFunction) LUA_CXX_MAY_THROW {
+    return fromC(L)->getGlobalState().setPanicFunction(panicFunction);
+}
+
 lua_Alloc lua_getallocf(lua_State* L, void** userData) LUA_CXX_MAY_THROW {
     Lua::LuaAllocator* allocator = fromC(L)->getGlobalState().getAllocator();
     if (userData != nullptr) {
@@ -773,6 +779,71 @@ void lua_pushstring(lua_State* L, const char* s) LUA_CXX_MAY_THROW {
     lua_pushlstring(L, s, std::strlen(s));
 }
 
+const char* lua_pushvfstring(lua_State* L, const char* format, va_list arguments) LUA_CXX_MAY_THROW {
+    const char* cursor = format != nullptr ? format : "";
+    int pieces = 1;
+    lua_pushlstring(L, "", 0);
+
+    while (const char* marker = std::strchr(cursor, '%')) {
+        lua_pushlstring(L, cursor, static_cast<size_t>(marker - cursor));
+        ++pieces;
+
+        const char option = marker[1];
+        switch (option) {
+        case 's': {
+            const char* value = va_arg(arguments, const char*);
+            lua_pushstring(L, value != nullptr ? value : "(null)");
+            break;
+        }
+        case 'c': {
+            const char value[] = {static_cast<char>(va_arg(arguments, int)), '\0'};
+            lua_pushstring(L, value);
+            break;
+        }
+        case 'd':
+            lua_pushinteger(L, static_cast<lua_Integer>(va_arg(arguments, int)));
+            break;
+        case 'f':
+            lua_pushnumber(L, static_cast<lua_Number>(va_arg(arguments, double)));
+            break;
+        case 'p': {
+            char buffer[4 * sizeof(void*) + 8]{};
+            std::snprintf(buffer, sizeof(buffer), "%p", va_arg(arguments, void*));
+            lua_pushstring(L, buffer);
+            break;
+        }
+        case '%':
+            lua_pushlstring(L, "%", 1);
+            break;
+        default: {
+            const char literal[] = {'%', option, '\0'};
+            lua_pushstring(L, literal);
+            break;
+        }
+        }
+        ++pieces;
+        cursor = option != '\0' ? marker + 2 : marker + 1;
+    }
+
+    lua_pushstring(L, cursor);
+    ++pieces;
+    lua_concat(L, pieces);
+    return lua_tostring(L, -1);
+}
+
+const char* lua_pushfstring(lua_State* L, const char* format, ...) LUA_CXX_MAY_THROW {
+    va_list arguments;
+    va_start(arguments, format);
+    try {
+        const char* result = lua_pushvfstring(L, format, arguments);
+        va_end(arguments);
+        return result;
+    } catch (...) {
+        va_end(arguments);
+        throw;
+    }
+}
+
 void lua_pushcclosure(lua_State* L, lua_CFunction fn, int n) LUA_CXX_MAY_THROW {
     Lua::LuaState* state = fromC(L);
     if (fn == nullptr || n < 0 || n > apiTop(state)) {
@@ -1015,6 +1086,49 @@ int lua_setmetatable(lua_State* L, int objindex) LUA_CXX_MAY_THROW {
     return 1;
 }
 
+void lua_getfenv(lua_State* L, int idx) LUA_CXX_MAY_THROW {
+    Lua::LuaState* state = fromC(L);
+    const auto value = readIndex(state, idx);
+    Lua::Table* environment = nullptr;
+
+    if (value.has_value() && value->isFunction()) {
+        environment = value->asFunction()->getEnv();
+    } else if (value.has_value() && value->isUserdata()) {
+        environment = value->asUserdata()->getEnvironment();
+    } else if (value.has_value() && value->isThread() && value->asThread() != nullptr) {
+        environment = value->asThread()->getLuaState()->getGlobalTable();
+    }
+
+    if (environment != nullptr) {
+        state->pushTable(environment);
+    } else {
+        state->pushNil();
+    }
+}
+
+int lua_setfenv(lua_State* L, int idx) LUA_CXX_MAY_THROW {
+    Lua::LuaState* state = fromC(L);
+    if (apiTop(state) == 0 || !state->at(-1).isTable()) {
+        state->error("lua_setfenv requires an environment table");
+    }
+
+    const auto value = readIndex(state, idx);
+    Lua::Table* environment = state->at(-1).asTable();
+    int changed = 0;
+    if (value.has_value() && value->isFunction()) {
+        value->asFunction()->setEnv(environment);
+        changed = 1;
+    } else if (value.has_value() && value->isUserdata()) {
+        value->asUserdata()->setEnvironment(environment);
+        changed = 1;
+    } else if (value.has_value() && value->isThread() && value->asThread() != nullptr) {
+        value->asThread()->getLuaState()->setGlobalTable(environment);
+        changed = 1;
+    }
+    state->pop();
+    return changed;
+}
+
 void lua_call(lua_State* L, int nargs, int nresults) LUA_CXX_MAY_THROW {
     Lua::LuaState* state = fromC(L);
     Lua::RuntimeServices services(state->getGlobalState());
@@ -1042,6 +1156,24 @@ int lua_pcall(lua_State* L, int nargs, int nresults, int errfunc) LUA_CXX_NOEXCE
                 internalErrorFunction += static_cast<int>(currentFrameBase(state));
             }
             return state->pcall(nargs, nresults, internalErrorFunction);
+        },
+        failure);
+}
+
+int lua_cpcall(lua_State* L, lua_CFunction function, void* userData) LUA_CXX_NOEXCEPT {
+    Lua::LuaState* state = fromC(L);
+    const Lua::usize savedTop = state->getAbsoluteTop();
+    auto failure = [state, savedTop](const Lua::Value& errorValue, int status) noexcept {
+        const int result = publishApiStatusError(state, savedTop, errorValue, status);
+        state->setStatus(Lua::ThreadStatus::OK);
+        return result;
+    };
+    return apiStatusBoundary(
+        state,
+        [&]() {
+            lua_pushcclosure(L, function, 0);
+            lua_pushlightuserdata(L, userData);
+            return lua_pcall(L, 1, 0, 0);
         },
         failure);
 }
@@ -1381,6 +1513,10 @@ int lua_dump(lua_State* L, lua_Writer writer, void* data) LUA_CXX_NOEXCEPT {
             return writerStatus;
         },
         failure);
+}
+
+void lua_setlevel(lua_State* from, lua_State* to) LUA_CXX_MAY_THROW {
+    fromC(to)->setHostCallDepth(fromC(from)->getHostCallDepth());
 }
 
 int luaL_ref(lua_State* L, int tableIndex) LUA_CXX_MAY_THROW {

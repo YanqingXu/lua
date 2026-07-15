@@ -31,6 +31,8 @@
 
 #include <array>
 
+struct lua_State;
+
 namespace Lua {
 
 // 前向声明
@@ -66,6 +68,8 @@ class LuaAllocator;
  */
 class GlobalState {
 public:
+    using PanicFunction = int (*)(::lua_State*);
+
     // =====================================================================
     // 单例模式
     // =====================================================================
@@ -199,6 +203,16 @@ public:
         return mainThread_;
     }
 
+    PanicFunction setPanicFunction(PanicFunction function) noexcept {
+        PanicFunction previous = panicFunction_;
+        panicFunction_ = function;
+        return previous;
+    }
+
+    PanicFunction getPanicFunction() const noexcept {
+        return panicFunction_;
+    }
+
     // =====================================================================
     // 元表管理
     // =====================================================================
@@ -272,6 +286,9 @@ private:
 
     /// 主线程指针
     LuaState* mainThread_;
+
+    /// Unprotected-error callback installed by lua_atpanic.
+    PanicFunction panicFunction_ = nullptr;
 
     /// 当前正在执行的协程（主线程时为 nullptr）
     Thread* runningThread_ = nullptr;

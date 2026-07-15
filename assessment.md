@@ -21,7 +21,8 @@
 * [`23e34c0`](https://github.com/YanqingXu/lua/commit/23e34c0) 已把公开合同扩展为头文件、C 链接探针、C++ 精确签名、Windows `.def`、Linux version script 和独立 shared consumer 的穷尽式一致性检查。
 * [`da3c81e`](https://github.com/YanqingXu/lua/commit/da3c81e) 已恢复官方 `lua_newthread` 的未保护传播语义，并新增事务式、`noexcept` 的项目扩展 `lua_trynewthread`。
 * 本文件所在提交新增本地质量门 `-Strict` 模式；缺少 `git`、clang-format、clang-tidy、MSBuild、配置的 smoke 输入或测试产物时不再静默成功。显式 `-SkipBuild`、`-SkipClangTidy`、`-FormatScope Off` 仍保留为可审计的调用者选择。
-* 当前本地 Debug/Release strict 基线为 **743 tests / 4774 assertions / 0 failures**，C API 为 **48 tests / 1218 assertions / 0 failures**；官方函数合同为 116 PASS、7 UNSUPPORTED，项目实际公开面为 123 个函数。核心表、遍历、比较和拼接的 9 个入口，类型、线程身份和 GC 控制的 6 个入口，auxlib 注册、参数检查、metatable 和 buffer 的 25 个入口，stack/info/local/hook 的 8 个调试入口，以及 8 个 `luaopen_*` 标准库入口，均已具备精确签名、静态/共享导出、直接语义测试，并由同一纯 C probe 对官方 Lua 5.1 做差分。
+* 本文件所在提交补齐 `lua_atpanic`、`lua_pushvfstring/lua_pushfstring`、`lua_getfenv/lua_setfenv`、`lua_cpcall` 与 `lua_setlevel`，使官方 Lua 5.1 公共函数合同达到 123/123 PASS；格式化、环境、错误对象和线程层级栈效应均进入同一纯 C 官方差分 probe。
+* 当前本地 Debug/Release strict 基线为 **744 tests / 4803 assertions / 0 failures**，C API 为 **49 tests / 1247 assertions / 0 failures**；官方函数合同为 123 PASS、0 XFAIL、0 UNSUPPORTED，项目实际公开面为 130 个函数。核心表/比较、类型/线程/GC、完整 auxlib、调试入口、标准库 opener 与最后 panic/格式化/环境/cpcall/setlevel 批次，均已具备精确签名、静态/共享导出、直接语义测试和官方 Lua 5.1 纯 C 差分证据。
 * **同 SHA 在线证据尚未完成。** 当前 CI 仅由 `main/master` push 或 pull request 触发；截至本次核查，当前修复分支的 `da3c81e` 没有 Actions run、check run 或 commit status，因此不能用本地绿跑替代在线验收。
 
 剩余 P0 是为当前修复头提交触发并保留 Windows 2、Linux 4、ASan/UBSan、lint、strict、benchmark 的同 SHA Actions 与 artifact；P1 的 C API 扩面、ExecutionPolicy 和 allocator hard limit 仍按后文路线推进。
