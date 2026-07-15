@@ -39,6 +39,17 @@ enum {
     LUA_TTHREAD = 8
 };
 
+enum {
+    LUA_GCSTOP = 0,
+    LUA_GCRESTART = 1,
+    LUA_GCCOLLECT = 2,
+    LUA_GCCOUNT = 3,
+    LUA_GCCOUNTB = 4,
+    LUA_GCSTEP = 5,
+    LUA_GCSETPAUSE = 6,
+    LUA_GCSETSTEPMUL = 7
+};
+
 typedef struct lua_State lua_State;
 typedef double lua_Number;
 typedef ptrdiff_t lua_Integer;
@@ -73,8 +84,12 @@ int lua_rawequal(lua_State* L, int idx1, int idx2) LUA_CXX_MAY_THROW;
 int lua_lessthan(lua_State* L, int idx1, int idx2) LUA_CXX_MAY_THROW;
 int lua_toboolean(lua_State* L, int idx) LUA_CXX_MAY_THROW;
 lua_Number lua_tonumber(lua_State* L, int idx) LUA_CXX_MAY_THROW;
+lua_Integer lua_tointeger(lua_State* L, int idx) LUA_CXX_MAY_THROW;
 const char* lua_tolstring(lua_State* L, int idx, size_t* len) LUA_CXX_MAY_THROW;
+lua_CFunction lua_tocfunction(lua_State* L, int idx) LUA_CXX_MAY_THROW;
 void* lua_touserdata(lua_State* L, int idx) LUA_CXX_MAY_THROW;
+lua_State* lua_tothread(lua_State* L, int idx) LUA_CXX_MAY_THROW;
+const void* lua_topointer(lua_State* L, int idx) LUA_CXX_MAY_THROW;
 size_t lua_objlen(lua_State* L, int idx) LUA_CXX_MAY_THROW;
 
 void lua_pushnil(lua_State* L) LUA_CXX_MAY_THROW;
@@ -85,6 +100,7 @@ void lua_pushlstring(lua_State* L, const char* s, size_t len) LUA_CXX_MAY_THROW;
 void lua_pushstring(lua_State* L, const char* s) LUA_CXX_MAY_THROW;
 void lua_pushlightuserdata(lua_State* L, void* p) LUA_CXX_MAY_THROW;
 void lua_pushcclosure(lua_State* L, lua_CFunction fn, int n) LUA_CXX_MAY_THROW;
+int lua_pushthread(lua_State* L) LUA_CXX_MAY_THROW;
 
 const char* lua_getupvalue(lua_State* L, int funcindex, int n) LUA_CXX_MAY_THROW;
 const char* lua_setupvalue(lua_State* L, int funcindex, int n) LUA_CXX_MAY_THROW;
@@ -115,6 +131,7 @@ lua_State* lua_trynewthread(lua_State* L) LUA_CXX_NOEXCEPT;
 int lua_resume(lua_State* L, int nargs) LUA_CXX_NOEXCEPT;
 int lua_yield(lua_State* L, int nresults) LUA_CXX_MAY_THROW;
 int lua_status(lua_State* L) LUA_CXX_MAY_THROW;
+int lua_gc(lua_State* L, int what, int data) LUA_CXX_MAY_THROW;
 int lua_load(lua_State* L, lua_Reader reader, void* data, const char* chunkname) LUA_CXX_NOEXCEPT;
 int lua_dump(lua_State* L, lua_Writer writer, void* data) LUA_CXX_NOEXCEPT;
 

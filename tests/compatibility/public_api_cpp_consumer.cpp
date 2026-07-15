@@ -44,8 +44,12 @@ REQUIRE_SIGNATURE(lua_rawequal, int (*)(lua_State*, int, int) noexcept(false));
 REQUIRE_SIGNATURE(lua_lessthan, int (*)(lua_State*, int, int) noexcept(false));
 REQUIRE_SIGNATURE(lua_toboolean, int (*)(lua_State*, int) noexcept(false));
 REQUIRE_SIGNATURE(lua_tonumber, lua_Number (*)(lua_State*, int) noexcept(false));
+REQUIRE_SIGNATURE(lua_tointeger, lua_Integer (*)(lua_State*, int) noexcept(false));
 REQUIRE_SIGNATURE(lua_tolstring, const char* (*)(lua_State*, int, size_t*) noexcept(false));
+REQUIRE_SIGNATURE(lua_tocfunction, lua_CFunction (*)(lua_State*, int) noexcept(false));
 REQUIRE_SIGNATURE(lua_touserdata, void* (*)(lua_State*, int) noexcept(false));
+REQUIRE_SIGNATURE(lua_tothread, lua_State* (*)(lua_State*, int) noexcept(false));
+REQUIRE_SIGNATURE(lua_topointer, const void* (*)(lua_State*, int) noexcept(false));
 REQUIRE_SIGNATURE(lua_objlen, size_t (*)(lua_State*, int) noexcept(false));
 REQUIRE_SIGNATURE(lua_pushnil, void (*)(lua_State*) noexcept(false));
 REQUIRE_SIGNATURE(lua_pushnumber, void (*)(lua_State*, lua_Number) noexcept(false));
@@ -55,6 +59,7 @@ REQUIRE_SIGNATURE(lua_pushlstring, void (*)(lua_State*, const char*, size_t) noe
 REQUIRE_SIGNATURE(lua_pushstring, void (*)(lua_State*, const char*) noexcept(false));
 REQUIRE_SIGNATURE(lua_pushlightuserdata, void (*)(lua_State*, void*) noexcept(false));
 REQUIRE_SIGNATURE(lua_pushcclosure, void (*)(lua_State*, lua_CFunction, int) noexcept(false));
+REQUIRE_SIGNATURE(lua_pushthread, int (*)(lua_State*) noexcept(false));
 REQUIRE_SIGNATURE(lua_getupvalue, const char* (*)(lua_State*, int, int) noexcept(false));
 REQUIRE_SIGNATURE(lua_setupvalue, const char* (*)(lua_State*, int, int) noexcept(false));
 REQUIRE_SIGNATURE(lua_createtable, void (*)(lua_State*, int, int) noexcept(false));
@@ -81,6 +86,7 @@ REQUIRE_SIGNATURE(lua_trynewthread, lua_State* (*)(lua_State*) noexcept);
 REQUIRE_SIGNATURE(lua_resume, int (*)(lua_State*, int) noexcept);
 REQUIRE_SIGNATURE(lua_yield, int (*)(lua_State*, int) noexcept(false));
 REQUIRE_SIGNATURE(lua_status, int (*)(lua_State*) noexcept(false));
+REQUIRE_SIGNATURE(lua_gc, int (*)(lua_State*, int, int) noexcept(false));
 REQUIRE_SIGNATURE(lua_load, int (*)(lua_State*, lua_Reader, void*, const char*) noexcept);
 REQUIRE_SIGNATURE(lua_dump, int (*)(lua_State*, lua_Writer, void*) noexcept);
 REQUIRE_SIGNATURE(luaL_openlibs, void (*)(lua_State*) noexcept(false));
@@ -136,6 +142,14 @@ REQUIRE_PUBLIC_CONSTANT(LUA_TTABLE);
 REQUIRE_PUBLIC_CONSTANT(LUA_TFUNCTION);
 REQUIRE_PUBLIC_CONSTANT(LUA_TUSERDATA);
 REQUIRE_PUBLIC_CONSTANT(LUA_TTHREAD);
+REQUIRE_PUBLIC_CONSTANT(LUA_GCSTOP);
+REQUIRE_PUBLIC_CONSTANT(LUA_GCRESTART);
+REQUIRE_PUBLIC_CONSTANT(LUA_GCCOLLECT);
+REQUIRE_PUBLIC_CONSTANT(LUA_GCCOUNT);
+REQUIRE_PUBLIC_CONSTANT(LUA_GCCOUNTB);
+REQUIRE_PUBLIC_CONSTANT(LUA_GCSTEP);
+REQUIRE_PUBLIC_CONSTANT(LUA_GCSETPAUSE);
+REQUIRE_PUBLIC_CONSTANT(LUA_GCSETSTEPMUL);
 
 REQUIRE_PUBLIC_TYPE(lua_State);
 REQUIRE_PUBLIC_TYPE(lua_Number);
@@ -158,6 +172,8 @@ static_assert(LUA_OK == 0 && LUA_YIELD == 1 && LUA_ERRRUN == 2 && LUA_ERRSYNTAX 
               LUA_ERRERR == 5 && LUA_ERRFILE == 6);
 static_assert(LUA_TNONE == -1 && LUA_TNIL == 0 && LUA_TBOOLEAN == 1 && LUA_TLIGHTUSERDATA == 2 && LUA_TNUMBER == 3 &&
               LUA_TSTRING == 4 && LUA_TTABLE == 5 && LUA_TFUNCTION == 6 && LUA_TUSERDATA == 7 && LUA_TTHREAD == 8);
+static_assert(LUA_GCSTOP == 0 && LUA_GCRESTART == 1 && LUA_GCCOLLECT == 2 && LUA_GCCOUNT == 3 && LUA_GCCOUNTB == 4 &&
+              LUA_GCSTEP == 5 && LUA_GCSETPAUSE == 6 && LUA_GCSETSTEPMUL == 7);
 static_assert(LUA_NOREF == -2 && LUA_REFNIL == -1);
 
 static_assert(std::is_same_v<lua_Number, double>);
@@ -247,7 +263,7 @@ int main() {
     static_assert(!noexcept(lua_call(nullptr, 0, 0)));
     static_assert(!noexcept(lua_error(nullptr)));
 
-    if (lua_public_c_header_probe() != 76) {
+    if (lua_public_c_header_probe() != 82) {
         return 1;
     }
 

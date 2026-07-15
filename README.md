@@ -54,7 +54,7 @@ applies_to: 项目入口、稳定能力概览与文档导航
 - 核心运行时对象包括 `Table`、`Function`、`Proto`、`GCString`、`Userdata`、`Thread` 和 `Upvalue`。
 - 项目统一使用 `src/common/types.hpp` 中的类型别名，如 `Vec<T>`、`HashMap<K, V>`、`Str`、`StrView`、`usize`、`i32`、`u32` 和 `f64`。
 - `RuntimeServices` 和 `EngineContext` 为嵌入式运行时隔离、测试夹具和多上下文执行提供清晰边界；原生模块 handle/cache 也已进入 context-owned 生命周期。
-- `src/api/lapi.cpp` 已形成 Lua 5.1 C API 嵌入 MVP：protected status API 不泄漏 C++ 异常，官方 123 个公共函数有机器可读三态合同，纯 C consumer 与独立 `.dll/.so` 模块通过公开头文件编译/链接/加载。当前 69 个函数为 PASS、54 个显式 UNSUPPORTED；核心表、遍历、比较和拼接 API 另由同一纯 C probe 对官方 Lua 5.1 做差分。allocator-backed hard limit 仍不宣称完成，边界见 [内存合同](docs/runtime/memory-contract.md)。
+- `src/api/lapi.cpp` 已形成 Lua 5.1 C API 嵌入 MVP：protected status API 不泄漏 C++ 异常，官方 123 个公共函数有机器可读三态合同，纯 C consumer 与独立 `.dll/.so` 模块通过公开头文件编译/链接/加载。当前 75 个函数为 PASS、48 个显式 UNSUPPORTED，项目公开面为 82 个真实函数；核心表、遍历、比较、拼接、类型转换、线程身份和 GC 控制 API 另由同一纯 C probe 对官方 Lua 5.1 做差分。allocator-backed hard limit 仍不宣称完成，边界见 [内存合同](docs/runtime/memory-contract.md)。
 
 ### 内存管理与 GC
 
@@ -134,7 +134,7 @@ bin\lua_test.exe --filter "Symbol Binding"
 bin\lua_test.exe --report=junit
 ```
 
-测试运行器会在输出中报告实时测试数量和断言结果。2026-07-15 的完整 Debug/Release strict 基线为 **737 registered tests, 4623 assertion results, 0 failures**；其中 `Lua C API` suite 为 42 个测试、1067 个断言、0 failures，原始 `api.lua with T module` 也完整运行到 `OK`。新增回归后需用文档漂移门禁同步这一基线。
+测试运行器会在输出中报告实时测试数量和断言结果。2026-07-15 的完整 Debug/Release strict 基线为 **738 registered tests, 4657 assertion results, 0 failures**；其中 `Lua C API` suite 为 43 个测试、1101 个断言、0 failures，原始 `api.lua with T module` 也完整运行到 `OK`。新增回归后需用文档漂移门禁同步这一基线。
 
 ### CMake / CTest 辅助路径
 

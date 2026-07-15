@@ -60,6 +60,13 @@ int main(void) {
     int concat_meta;
     int concat_error_status;
     int concat_error_top;
+    int integer_number;
+    int integer_string;
+    int cfunction_identity;
+    int pointer_identity;
+    int main_thread_identity;
+    int child_thread_identity;
+    int gc_contract;
     size_t length = 0;
 
     if (L == NULL) {
@@ -166,10 +173,49 @@ int main(void) {
     concat_error_status = lua_pcall(L, 0, 0, 0);
     concat_error_top = lua_gettop(L);
 
-    printf("table=%d,%d,%d,%d,%d,%d;next=%d,%d;compare=%d,%d,%d;concat=%d,%d,%d,%d,%d\n", set_top, field_value,
-           raw_value, meta_value, raw_missing, captured_value, iteration_count, iteration_sum, equal_with_meta,
-           equal_without_meta, less_with_meta, concat_zero_length, concat_plain, concat_meta, concat_error_status,
-           concat_error_top);
+    lua_settop(L, 0);
+    lua_pushnumber(L, 42.0);
+    lua_pushstring(L, "-17");
+    integer_number = (int)lua_tointeger(L, 1);
+    integer_string = (int)lua_tointeger(L, 2);
+    lua_pushcclosure(L, return_fallback, 0);
+    cfunction_identity = lua_tocfunction(L, 3) == return_fallback;
+
+    lua_settop(L, 0);
+    lua_newtable(L);
+    pointer_identity = lua_topointer(L, 1) != NULL;
+    lua_pushvalue(L, 1);
+    pointer_identity = pointer_identity && lua_topointer(L, 1) == lua_topointer(L, 2);
+
+    lua_settop(L, 0);
+    main_thread_identity = lua_pushthread(L) == 1 && lua_tothread(L, -1) == L && lua_topointer(L, -1) == L;
+    lua_settop(L, 0);
+    {
+        lua_State* child = lua_newthread(L);
+        child_thread_identity = child != NULL && lua_tothread(L, -1) == child && lua_topointer(L, -1) == child;
+        child_thread_identity = child_thread_identity && lua_pushthread(child) == 0 &&
+                                lua_tothread(child, -1) == child && lua_topointer(child, -1) == child;
+        lua_pop(child, 1);
+    }
+    lua_settop(L, 0);
+
+    gc_contract = lua_gc(L, LUA_GCSETPAUSE, 201) == 200;
+    gc_contract = gc_contract && lua_gc(L, LUA_GCSETPAUSE, 200) == 201;
+    gc_contract = gc_contract && lua_gc(L, LUA_GCSETSTEPMUL, 301) == 200;
+    gc_contract = gc_contract && lua_gc(L, LUA_GCSETSTEPMUL, 200) == 301;
+    gc_contract = gc_contract && lua_gc(L, LUA_GCSTOP, 0) == 0;
+    gc_contract = gc_contract && lua_gc(L, LUA_GCRESTART, 0) == 0;
+    gc_contract = gc_contract && lua_gc(L, LUA_GCCOLLECT, 0) == 0;
+    gc_contract = gc_contract && lua_gc(L, LUA_GCCOUNT, 0) >= 0;
+    gc_contract = gc_contract && lua_gc(L, LUA_GCCOUNTB, 0) >= 0 && lua_gc(L, LUA_GCCOUNTB, 0) < 1024;
+    gc_contract = gc_contract && lua_gc(L, 999, 0) == -1;
+
+    printf("table=%d,%d,%d,%d,%d,%d;next=%d,%d;compare=%d,%d,%d;concat=%d,%d,%d,%d,%d;"
+           "convert=%d,%d,%d;pointer=%d;thread=%d,%d;gc=%d\n",
+           set_top, field_value, raw_value, meta_value, raw_missing, captured_value, iteration_count, iteration_sum,
+           equal_with_meta, equal_without_meta, less_with_meta, concat_zero_length, concat_plain, concat_meta,
+           concat_error_status, concat_error_top, integer_number, integer_string, cfunction_identity, pointer_identity,
+           main_thread_identity, child_thread_identity, gc_contract);
 
     lua_close(L);
     return 0;

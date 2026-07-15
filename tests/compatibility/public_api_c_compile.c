@@ -44,8 +44,12 @@ int lua_public_c_header_probe(void) {
     REQUIRE_SYMBOL(lua_type);
     REQUIRE_SYMBOL(lua_typename);
     REQUIRE_SYMBOL(lua_tonumber);
+    REQUIRE_SYMBOL(lua_tointeger);
     REQUIRE_SYMBOL(lua_toboolean);
     REQUIRE_SYMBOL(lua_tolstring);
+    REQUIRE_SYMBOL(lua_tocfunction);
+    REQUIRE_SYMBOL(lua_tothread);
+    REQUIRE_SYMBOL(lua_topointer);
     REQUIRE_SYMBOL(lua_objlen);
     REQUIRE_SYMBOL(lua_touserdata);
     REQUIRE_SYMBOL(lua_pushnil);
@@ -56,6 +60,7 @@ int lua_public_c_header_probe(void) {
     REQUIRE_SYMBOL(lua_pushcclosure);
     REQUIRE_SYMBOL(lua_pushboolean);
     REQUIRE_SYMBOL(lua_pushlightuserdata);
+    REQUIRE_SYMBOL(lua_pushthread);
     REQUIRE_SYMBOL(lua_gettable);
     REQUIRE_SYMBOL(lua_getfield);
     REQUIRE_SYMBOL(lua_rawget);
@@ -78,6 +83,7 @@ int lua_public_c_header_probe(void) {
     REQUIRE_SYMBOL(lua_resume);
     REQUIRE_SYMBOL(lua_status);
     REQUIRE_SYMBOL(lua_error);
+    REQUIRE_SYMBOL(lua_gc);
     REQUIRE_SYMBOL(lua_next);
     REQUIRE_SYMBOL(lua_concat);
     REQUIRE_SYMBOL(lua_getallocf);

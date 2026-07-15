@@ -707,6 +707,13 @@ public:
         thread_ = t;
     }
 
+    Thread* getMainThreadFacade() const noexcept {
+        return mainThreadFacade_;
+    }
+    void setMainThreadFacade(Thread* thread) noexcept {
+        mainThreadFacade_ = thread;
+    }
+
     /// 调用栈访问（供 Thread GC marking 使用）
     LuaVector<CallInfo>& getCallStack() noexcept {
         return callStack_;
@@ -840,6 +847,7 @@ private:
 
     /// 所属 Thread 对象（主线程为 nullptr）
     Thread* thread_ = nullptr;
+    Thread* mainThreadFacade_ = nullptr;
 
     /// 是否由 newThread 创建（析构时不 removeRoot globalTable_）
     bool isChildThread_ = false;

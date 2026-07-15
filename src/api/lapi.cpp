@@ -628,6 +628,10 @@ lua_Number lua_tonumber(lua_State* L, int idx) LUA_CXX_MAY_THROW {
     return result;
 }
 
+lua_Integer lua_tointeger(lua_State* L, int idx) LUA_CXX_MAY_THROW {
+    return static_cast<lua_Integer>(lua_tonumber(L, idx));
+}
+
 const char* lua_tolstring(lua_State* L, int idx, size_t* len) LUA_CXX_MAY_THROW {
     Lua::LuaState* state = fromC(L);
     const ApiIndex index = resolveStackIndex(state, idx);
@@ -676,6 +680,47 @@ void* lua_touserdata(lua_State* L, int idx) LUA_CXX_MAY_THROW {
         return value->asLightUserdata();
     }
     return value->isUserdata() ? value->asUserdata()->getData() : nullptr;
+}
+
+lua_CFunction lua_tocfunction(lua_State* L, int idx) LUA_CXX_MAY_THROW {
+    const auto value = readIndex(fromC(L), idx);
+    if (!value.has_value() || !value->isFunction() || !value->asFunction()->isCFunction()) {
+        return nullptr;
+    }
+
+    Lua::Function* function = value->asFunction();
+    if (function->getApiCFunction() != nullptr) {
+        return function->getApiCFunction();
+    }
+    return reinterpret_cast<lua_CFunction>(function->getCFunction());
+}
+
+lua_State* lua_tothread(lua_State* L, int idx) LUA_CXX_MAY_THROW {
+    const auto value = readIndex(fromC(L), idx);
+    if (!value.has_value() || !value->isThread() || value->asThread() == nullptr) {
+        return nullptr;
+    }
+    return toC(value->asThread()->getLuaState());
+}
+
+const void* lua_topointer(lua_State* L, int idx) LUA_CXX_MAY_THROW {
+    const auto value = readIndex(fromC(L), idx);
+    if (!value.has_value()) {
+        return nullptr;
+    }
+    if (value->isTable()) {
+        return value->asTable();
+    }
+    if (value->isFunction()) {
+        return value->asFunction();
+    }
+    if (value->isThread()) {
+        return value->asThread() != nullptr ? value->asThread()->getLuaState() : nullptr;
+    }
+    if (value->isUserdata()) {
+        return value->asUserdata()->getData();
+    }
+    return value->isLightUserdata() ? value->asLightUserdata() : nullptr;
 }
 
 size_t lua_objlen(lua_State* L, int idx) LUA_CXX_MAY_THROW {
@@ -752,6 +797,21 @@ void lua_pushcclosure(lua_State* L, lua_CFunction fn, int n) LUA_CXX_MAY_THROW {
 
 void lua_pushlightuserdata(lua_State* L, void* p) LUA_CXX_MAY_THROW {
     fromC(L)->pushValue(Lua::Value(p));
+}
+
+int lua_pushthread(lua_State* L) LUA_CXX_MAY_THROW {
+    Lua::LuaState* state = fromC(L);
+    const bool isMainThread = state == state->getGlobalState().getMainThread();
+    Lua::Thread* thread = state->getThread();
+    if (thread == nullptr) {
+        thread = state->getMainThreadFacade();
+        if (thread == nullptr) {
+            thread = state->getGlobalState().getGC().createRoot<Lua::Thread>(state);
+            state->setMainThreadFacade(thread);
+        }
+    }
+    state->pushValue(Lua::Value(thread));
+    return isMainThread ? 1 : 0;
 }
 
 const char* lua_getupvalue(lua_State* L, int funcindex, int n) LUA_CXX_MAY_THROW {
@@ -1173,6 +1233,35 @@ int lua_yield(lua_State* L, int nresults) LUA_CXX_MAY_THROW {
 
 int lua_status(lua_State* L) LUA_CXX_MAY_THROW {
     return static_cast<int>(fromC(L)->getStatus());
+}
+
+int lua_gc(lua_State* L, int what, int data) LUA_CXX_MAY_THROW {
+    Lua::LuaState* state = fromC(L);
+    Lua::GarbageCollector& gc = state->getGlobalState().getGC();
+    switch (what) {
+    case LUA_GCSTOP:
+        gc.stopAutomatic();
+        return 0;
+    case LUA_GCRESTART:
+        gc.restartAutomatic();
+        return 0;
+    case LUA_GCCOLLECT:
+        (void)gc.collect(state);
+        gc.restartAutomatic();
+        return 0;
+    case LUA_GCCOUNT:
+        return static_cast<int>(gc.getTotalMemory() >> 10U);
+    case LUA_GCCOUNTB:
+        return static_cast<int>(gc.getTotalMemory() & 0x3ffU);
+    case LUA_GCSTEP:
+        return gc.step(state, data) ? 1 : 0;
+    case LUA_GCSETPAUSE:
+        return gc.setPause(data);
+    case LUA_GCSETSTEPMUL:
+        return gc.setStepMultiplier(data);
+    default:
+        return -1;
+    }
 }
 
 int luaL_loadbuffer(lua_State* L, const char* buffer, size_t size, const char* name) LUA_CXX_NOEXCEPT {

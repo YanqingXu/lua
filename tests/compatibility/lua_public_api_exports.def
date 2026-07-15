@@ -20,6 +20,7 @@ EXPORTS
     lua_dump
     lua_equal
     lua_error
+    lua_gc
     lua_getallocf
     lua_getfield
     lua_getglobal
@@ -49,6 +50,7 @@ EXPORTS
     lua_pushnil
     lua_pushnumber
     lua_pushstring
+    lua_pushthread
     lua_pushvalue
     lua_rawequal
     lua_rawget
@@ -67,8 +69,12 @@ EXPORTS
     lua_setupvalue
     lua_status
     lua_toboolean
+    lua_tocfunction
+    lua_tointeger
     lua_tolstring
     lua_tonumber
+    lua_topointer
+    lua_tothread
     lua_touserdata
     lua_trynewthread
     lua_type

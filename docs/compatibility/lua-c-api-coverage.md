@@ -9,7 +9,7 @@ applies_to: Lua 5.1 C API 原型、项目内直接测试与官方 testC 覆盖�
 
 本表区分“已有公开入口”“项目内直接测试”和“原始官方 `api.lua` 经项目 `T` helper 验证”。机器合同 `tests/compatibility/lua51-public-api-contract.json` 以官方 5.1.5 头文件为全集，要求每个符号处于 `PASS / XFAIL / UNSUPPORTED` 三态之一，并为 PASS 记录 C compile、link 和直接公开调用证据。项目版 `T` 位于 C++ 测试库中，因此 TestC helper 不能替代同名公开 API 符号。
 
-函数兼容状态与项目实际导出面是两个独立集合：官方函数合同当前为 69 个 `PASS`，而项目公开头文件声明 76 个真实函数。合同检查器会从头文件自动枚举这 76 个函数，并要求 C 链接探针、C++ 精确签名断言、Windows `.def` 和 Linux version script 与之完全一致；项目额外入口 `lua_open`、global get/set、三个 auxlib helper 和安全线程扩展 `lua_trynewthread` 因而也必须可从共享库链接。相同消费者分别链接 `lua_core` 静态库和 `lua_public_api_shared` 动态库，避免静态链接掩盖导出缺口。
+函数兼容状态与项目实际导出面是两个独立集合：官方函数合同当前为 75 个 `PASS`，而项目公开头文件声明 82 个真实函数。合同检查器会从头文件自动枚举这 82 个函数，并要求 C 链接探针、C++ 精确签名断言、Windows `.def` 和 Linux version script 与之完全一致；项目额外入口 `lua_open`、global get/set、三个 auxlib helper 和安全线程扩展 `lua_trynewthread` 因而也必须可从共享库链接。相同消费者分别链接 `lua_core` 静态库和 `lua_public_api_shared` 动态库，避免静态链接掩盖导出缺口。
 
 | 能力组 | 当前实现 | 项目内直接测试 | 官方测试覆盖 | 状态 |
 |---|---|---|---|---|
@@ -19,7 +19,8 @@ applies_to: Lua 5.1 C API 原型、项目内直接测试与官方 testC 覆盖�
 | 栈重排 | `lua_insert`、`lua_remove`、`lua_replace` | 正/负位置、C 回调帧内 remove | 原始 `api.lua` 覆盖 `insert/remove/replace` 命令 | 已实现并形成直接 + TestC 证据 |
 | pseudo-index 与环境 | `LUA_REGISTRYINDEX`、`LUA_GLOBALSINDEX`、`LUA_ENVIRONINDEX`、upvalue pseudo-index；userdata 保存并标记 environment | registry/global table 读写、closure upvalue；userdata environment 由库路径验证 | 原始 `api.lua` 的 `G/E/R/U<n>` 命令和 userdata environment 路径通过 | 当前已用路径通过；公开 `lua_getfenv/lua_setfenv` 尚未声明 |
 | C closure upvalue | `lua_upvalueindex(n)`、`lua_pushcclosure(fn,n)`、pseudo-index replace | 捕获顺序、消费栈值、回调读取、持久修改 | 原始 `api.lua` 的 closure/upvalue 命令通过 | 已实现并形成直接 + TestC 证据 |
-| 类型与转换 | `lua_type`、`lua_typename`、number/string/boolean/userdata 转换及部分 `is*` | 栈、registry、userdata 与 upvalue 用例覆盖 | 原始 `api.lua` 的 `is*`、`tobool`、`tonumber`、`tostring`、`objsize` 命令通过 | 当前公开子集已验证；未声明符号不算支持 |
+| 类型、转换与对象身份 | `lua_type`、`lua_typename`、number/integer/string/boolean/C function/thread/userdata 转换、`lua_topointer` 及部分 `is*` | 数值与字符串转 integer、C callback 身份、table/function/thread/userdata/light userdata 稳定身份及 primitive 拒绝 | 原始 `api.lua` 的 `is*`、`tobool`、`tonumber`、`tostring`、`objsize` 命令通过 | 当前公开子集已验证；新增入口另与官方 Lua 5.1 纯 C probe 做差分 |
+| 线程身份与 C GC 控制 | `lua_pushthread`；`lua_gc` 的 stop/restart/collect/count/countb/step/setpause/setstepmul | main/coroutine 自身 round-trip 与返回标志；内存计数、控制参数旧值、自动收集状态、step 与非法操作 | 纯 C probe 同时链接官方 Lua 5.1 和本项目并逐字节比较稳定输出 | 公开入口、直接测试和官方差分证据闭环 |
 | 表与全局 | `createtable`、`gettable/settable`、`getfield/setfield`、`rawget/rawset`、`rawgeti/rawseti`、`next`、global get/set | 精确栈效果、正负索引、registry/global pseudo-index、`__index/__newindex` 与 raw 绕过、数组/哈希遍历和终止弹栈 | 原始 `api.lua` 的 table/global/raw/next 语义通过项目 `T` helper | 公开入口、直接测试与 TestC 证据闭环 |
 | 比较与拼接 | `lua_equal`、`lua_rawequal`、`lua_lessthan`、`lua_concat` | primitive、invalid index、共享 `__eq/__lt`、raw identity、0/1/N 参数、数字转换、embedded NUL、`__concat` 与错误栈 | 原始 `api.lua` 的 equal/less/concat 命令通过项目 `T` helper | 公开入口、直接测试与 TestC 证据闭环 |
 | 调用、错误与 yield | `lua_call`、`lua_pcall`、`lua_error`、`lua_newthread`、`lua_trynewthread`、`lua_resume`、`lua_yield`、`lua_status`；官方 `lua_newthread` 是可抛的未保护入口，项目扩展 `lua_trynewthread` 才是 `noexcept` 安全入口 | 原始非字符串 error object、栈前缀恢复、正/负 handler 索引、C/Lua handler、`LUA_ERRERR`/`LUA_ERRMEM`、C→Lua→C、Lua/C function coroutine、thread 每个 allocator 失败点、父栈发布失败、reader/writer/C callback 的标准与非标准异常、持久 allocator failure、死协程 traceback | 官方 `errors.lua` tail、`db.lua` 和原始 `api.lua` exact PASS | `lua_newthread` 在分配失败时完成强回滚后传播错误，匹配 Lua 5.1 未保护语义；`lua_trynewthread` 复用同一事务并以 `nullptr` 包含异常。`lua_pcall`、`lua_resume`、`lua_checkstack` 继续保持关闭异常边界 |
@@ -40,7 +41,7 @@ applies_to: Lua 5.1 C API 原型、项目内直接测试与官方 testC 覆盖�
 bin\lua_test.exe --filter "Lua C API"
 ```
 
-结果为 42 个测试、1067 个断言、0 failures。机器合同另包含 123 个官方公共函数：69 个 `PASS`、0 个 `XFAIL`、54 个显式 `UNSUPPORTED`。项目头文件的当前公开面另由 76 个真实函数、22 个宏、16 个枚举常量和 8 个 typedef 的穷尽式编译合同保护。完整 Debug/Release strict 套件为 737 个测试、4623 个断言、0 failures。原始 `api.lua` 另以以下 exact TestC 门禁通过：
+结果为 43 个测试、1101 个断言、0 failures。机器合同另包含 123 个官方公共函数：75 个 `PASS`、0 个 `XFAIL`、48 个显式 `UNSUPPORTED`。项目头文件的当前公开面另由 82 个真实函数、22 个宏、24 个枚举常量和 8 个 typedef 的穷尽式编译合同保护。完整 Debug/Release strict 套件为 738 个测试、4657 个断言、0 failures。原始 `api.lua` 另以以下 exact TestC 门禁通过：
 
 ```powershell
 bin\lua_test.exe --filter "api.lua with T module"
@@ -55,11 +56,11 @@ ctest --test-dir build -C Debug -L api-contract --output-on-failure
 ctest --test-dir build -C Debug -L native-module --output-on-failure
 ```
 
-`api-contract` 标签同时运行静态消费者、独立共享库消费者和候选 C API probe；Windows DLL 的导出面必须与 `.def` 中的 76 个符号完全一致，Linux shared object 则由版本脚本只公开同一集合。Linux Clang Debug 另外将 `lua51_c_api_differential_probe.c` 分别链接官方 Lua 5.1 和本项目，逐字节比较退出码、stdout 与 stderr，并上传 JSON 证据。
+`api-contract` 标签同时运行静态消费者、独立共享库消费者和候选 C API probe；Windows DLL 的导出面必须与 `.def` 中的 82 个符号完全一致，Linux shared object 则由版本脚本只公开同一集合。Linux Clang Debug 另外将 `lua51_c_api_differential_probe.c` 分别链接官方 Lua 5.1 和本项目，逐字节比较退出码、stdout 与 stderr，并上传 JSON 证据。
 
 ## 下一批失败驱动任务
 
 1. 将已经闭环的长字符串、Table/SETLIST 与 Proto allocator 切片扩展到 parser/lexer/AST/codegen 临时容器、标准库临时对象和 GC worklist 全矩阵；在此之前保持全运行时 hard limit 为 `UNSUPPORTED`，由 [#5](https://github.com/YanqingXu/lua/issues/5) 跟踪。
-2. 继续补齐下一批类型、线程与 GC 入口：`tointeger/tocfunction/tothread/topointer/pushthread/lua_gc`；不能用内部 TestC 命令替代公开 API 证据。
+2. 继续补齐下一批 auxlib 注册、参数检查、metatable 与 buffer API；不能用内部 helper 或语言层标准库路径替代公开 API 证据。
 3. 扩展 coroutine 的嵌套 resume 与 Lua 5.1 不提供的 C yield continuation 边界，同时保持死协程 traceback 与关闭异常边界回归。
 4. 保持原始 `api.lua` exact 门禁；`code.lua` 保持 upstream 文件字节不变，运行时只应用清单登记的 5.1.5 oracle 校正，剩余 repeat-condition 编译器 parity gap 继续按精确诊断收敛。

@@ -42,6 +42,12 @@ static_assert(!noexcept(lua_rawget(nullptr, 0)));
 static_assert(!noexcept(lua_rawset(nullptr, 0)));
 static_assert(!noexcept(lua_next(nullptr, 0)));
 static_assert(!noexcept(lua_concat(nullptr, 0)));
+static_assert(!noexcept(lua_tointeger(nullptr, 0)));
+static_assert(!noexcept(lua_tocfunction(nullptr, 0)));
+static_assert(!noexcept(lua_tothread(nullptr, 0)));
+static_assert(!noexcept(lua_topointer(nullptr, 0)));
+static_assert(!noexcept(lua_pushthread(nullptr)));
+static_assert(!noexcept(lua_gc(nullptr, 0, 0)));
 static_assert(!noexcept(luaL_error(nullptr, "%s", "error")));
 static_assert(noexcept(lua_close(nullptr)));
 static_assert(noexcept(lua_checkstack(nullptr, 0)));
@@ -2506,6 +2512,92 @@ void testPublicComparisonAndConcatApi(TestSuite& suite) {
     lua_close(L);
 }
 
+void testPublicTypeThreadAndGcApi(TestSuite& suite) {
+    lua_State* L = lua_open();
+
+    lua_pushnumber(L, 42.0);
+    lua_pushstring(L, "-17");
+    lua_pushboolean(L, 1);
+    ASSERT_EQ(suite, static_cast<lua_Integer>(42), lua_tointeger(L, 1),
+              "lua_tointeger converts integral numeric values");
+    ASSERT_EQ(suite, static_cast<lua_Integer>(-17), lua_tointeger(L, 2), "lua_tointeger accepts numeric strings");
+    ASSERT_EQ(suite, static_cast<lua_Integer>(0), lua_tointeger(L, 3),
+              "lua_tointeger returns zero for non-numeric values");
+    lua_settop(L, 0);
+
+    lua_pushcclosure(L, returnFallbackField, 0);
+    ASSERT_TRUE(suite, lua_tocfunction(L, -1) == returnFallbackField,
+                "lua_tocfunction preserves a public C callback identity");
+    ASSERT_TRUE(suite, lua_topointer(L, -1) != nullptr, "lua_topointer exposes stable function identity");
+    const void* functionIdentity = lua_topointer(L, -1);
+    ASSERT_TRUE(suite, functionIdentity == lua_topointer(L, -1), "function pointer identity is stable");
+    lua_pop(L, 1);
+    luaL_openlibs(L);
+    lua_getglobal(L, "print");
+    ASSERT_TRUE(suite, lua_iscfunction(L, -1) != 0 && lua_tocfunction(L, -1) != nullptr,
+                "lua_tocfunction exposes registered standard-library C functions");
+    lua_pop(L, 1);
+
+    lua_newtable(L);
+    const void* tableIdentity = lua_topointer(L, -1);
+    ASSERT_TRUE(suite, tableIdentity != nullptr && tableIdentity == lua_topointer(L, -1),
+                "lua_topointer exposes stable table identity");
+    lua_pushvalue(L, -1);
+    ASSERT_TRUE(suite, tableIdentity == lua_topointer(L, -1), "copied table values retain pointer identity");
+    lua_pop(L, 2);
+    int light = 0;
+    lua_pushlightuserdata(L, &light);
+    ASSERT_TRUE(suite, lua_topointer(L, -1) == &light, "lua_topointer preserves light userdata pointers");
+    lua_pop(L, 1);
+    void* userdata = lua_newuserdata(L, sizeof(int));
+    ASSERT_TRUE(suite, lua_topointer(L, -1) == userdata, "lua_topointer returns full userdata payload identity");
+    lua_pop(L, 1);
+    lua_pushnumber(L, 1);
+    ASSERT_TRUE(suite, lua_topointer(L, -1) == nullptr, "lua_topointer rejects primitive values");
+    lua_pop(L, 1);
+
+    ASSERT_EQ(suite, 1, lua_pushthread(L), "lua_pushthread identifies the main state");
+    ASSERT_EQ(suite, LUA_TTHREAD, lua_type(L, -1), "lua_pushthread pushes a thread value for the main state");
+    ASSERT_TRUE(suite, lua_tothread(L, -1) == L, "lua_tothread round-trips the main state");
+    ASSERT_TRUE(suite, lua_topointer(L, -1) == L, "main thread pointer identity matches its state");
+    lua_pop(L, 1);
+
+    lua_State* child = lua_newthread(L);
+    ASSERT_TRUE(suite, child != nullptr && lua_tothread(L, -1) == child,
+                "lua_tothread returns the state published by lua_newthread");
+    ASSERT_TRUE(suite, lua_topointer(L, -1) == child, "coroutine pointer identity matches its state");
+    ASSERT_EQ(suite, 0, lua_pushthread(child), "lua_pushthread distinguishes a coroutine from the main state");
+    ASSERT_TRUE(suite, lua_tothread(child, -1) == child, "a coroutine pushes and round-trips itself");
+    lua_pop(child, 1);
+    lua_pop(L, 1);
+    ASSERT_TRUE(suite, lua_tothread(L, 1) == nullptr, "lua_tothread rejects missing indexes");
+
+    auto* state = reinterpret_cast<Lua::LuaState*>(L);
+    Lua::GarbageCollector& gc = state->getGlobalState().getGC();
+    const int countKilobytes = lua_gc(L, LUA_GCCOUNT, 0);
+    const int countRemainder = lua_gc(L, LUA_GCCOUNTB, 0);
+    ASSERT_EQ(suite, gc.getTotalMemory(),
+              static_cast<Lua::usize>(countKilobytes) * 1024U + static_cast<Lua::usize>(countRemainder),
+              "lua_gc count and countb reconstruct managed memory bytes");
+    ASSERT_EQ(suite, 200, lua_gc(L, LUA_GCSETPAUSE, 250), "lua_gc setpause returns the previous value");
+    ASSERT_EQ(suite, 250, gc.getPause(), "lua_gc setpause stores the requested value");
+    ASSERT_EQ(suite, 200, lua_gc(L, LUA_GCSETSTEPMUL, 350), "lua_gc setstepmul returns the previous value");
+    ASSERT_EQ(suite, 350, gc.getStepMultiplier(), "lua_gc setstepmul stores the requested value");
+    ASSERT_EQ(suite, 0, lua_gc(L, LUA_GCSTOP, 0), "lua_gc stop reports success");
+    ASSERT_TRUE(suite, gc.isAutomaticStopped(), "lua_gc stop disables automatic collection");
+    ASSERT_EQ(suite, 0, lua_gc(L, LUA_GCRESTART, 0), "lua_gc restart reports success");
+    ASSERT_TRUE(suite, !gc.isAutomaticStopped(), "lua_gc restart enables automatic collection");
+    const int stepResult = lua_gc(L, LUA_GCSTEP, 1);
+    ASSERT_TRUE(suite, stepResult == 0 || stepResult == 1, "lua_gc step reports an incomplete or completed cycle");
+    ASSERT_EQ(suite, 0, lua_gc(L, LUA_GCCOLLECT, 0), "lua_gc full collection reports success");
+    ASSERT_TRUE(suite, !gc.isAutomaticStopped(), "lua_gc full collection leaves automatic collection running");
+    ASSERT_EQ(suite, -1, lua_gc(L, 999, 0), "lua_gc rejects unknown operations");
+
+    (void)lua_gc(L, LUA_GCSETPAUSE, 200);
+    (void)lua_gc(L, LUA_GCSETSTEPMUL, 200);
+    lua_close(L);
+}
+
 } // namespace
 
 void registerLuaCApiTests() {
@@ -2558,4 +2650,5 @@ void registerLuaCApiTests() {
     registry.registerTest(kSuiteName, "registry references", testRegistryReferences);
     registry.registerTest(kSuiteName, "public table field raw and traversal APIs", testPublicTableTraversalApi);
     registry.registerTest(kSuiteName, "public comparison and concat APIs", testPublicComparisonAndConcatApi);
+    registry.registerTest(kSuiteName, "public type thread and GC APIs", testPublicTypeThreadAndGcApi);
 }
