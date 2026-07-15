@@ -82,6 +82,14 @@ static_assert(!noexcept(lua_sethook(nullptr, nullptr, 0, 0)));
 static_assert(!noexcept(lua_gethook(nullptr)));
 static_assert(!noexcept(lua_gethookmask(nullptr)));
 static_assert(!noexcept(lua_gethookcount(nullptr)));
+static_assert(!noexcept(luaopen_base(nullptr)));
+static_assert(!noexcept(luaopen_table(nullptr)));
+static_assert(!noexcept(luaopen_io(nullptr)));
+static_assert(!noexcept(luaopen_os(nullptr)));
+static_assert(!noexcept(luaopen_string(nullptr)));
+static_assert(!noexcept(luaopen_math(nullptr)));
+static_assert(!noexcept(luaopen_debug(nullptr)));
+static_assert(!noexcept(luaopen_package(nullptr)));
 static_assert(noexcept(lua_close(nullptr)));
 static_assert(noexcept(lua_checkstack(nullptr, 0)));
 static_assert(noexcept(lua_pcall(nullptr, 0, 0, 0)));
@@ -243,6 +251,38 @@ int returnCapturedUpvalues(lua_State* L) {
     lua_pushvalue(L, lua_upvalueindex(1));
     lua_pushvalue(L, lua_upvalueindex(2));
     return 2;
+}
+
+int callLuaOpenBase(lua_State* L) {
+    return luaopen_base(L);
+}
+
+int callLuaOpenTable(lua_State* L) {
+    return luaopen_table(L);
+}
+
+int callLuaOpenIO(lua_State* L) {
+    return luaopen_io(L);
+}
+
+int callLuaOpenOS(lua_State* L) {
+    return luaopen_os(L);
+}
+
+int callLuaOpenString(lua_State* L) {
+    return luaopen_string(L);
+}
+
+int callLuaOpenMath(lua_State* L) {
+    return luaopen_math(L);
+}
+
+int callLuaOpenDebug(lua_State* L) {
+    return luaopen_debug(L);
+}
+
+int callLuaOpenPackage(lua_State* L) {
+    return luaopen_package(L);
 }
 
 void capturePublicDebugHook(lua_State* L, lua_Debug* ar) {
@@ -2902,6 +2942,61 @@ void testPublicAuxiliaryRegistrationAndBuffer(TestSuite& suite) {
     lua_close(L);
 }
 
+void assertNamedLibraryOpen(TestSuite& suite, lua_State* L, lua_CFunction opener, const char* globalName) {
+    const int initialTop = lua_gettop(L);
+    lua_pushcclosure(L, opener, 0);
+    lua_pushstring(L, globalName);
+    lua_call(L, 1, LUA_MULTRET);
+    ASSERT_EQ(suite, initialTop + 1, lua_gettop(L), "named luaopen entry pushes exactly one result");
+    ASSERT_TRUE(suite, lua_istable(L, -1), "named luaopen entry returns a table");
+    lua_getglobal(L, globalName);
+    ASSERT_TRUE(suite, lua_rawequal(L, -1, -2), "named luaopen result matches the registered global table");
+    lua_settop(L, initialTop);
+}
+
+void testPublicStandardLibraryOpeners(TestSuite& suite) {
+    lua_State* L = lua_open();
+    ASSERT_TRUE(suite, L != nullptr, "lua_open creates a state for public standard-library openers");
+    if (L == nullptr) {
+        return;
+    }
+
+    lua_pushinteger(L, 73);
+    lua_pushcclosure(L, callLuaOpenBase, 0);
+    lua_pushstring(L, "");
+    lua_call(L, 1, LUA_MULTRET);
+    ASSERT_EQ(suite, 3, lua_gettop(L), "luaopen_base preserves arguments and pushes two results");
+    ASSERT_TRUE(suite, lua_istable(L, 2), "luaopen_base first result is the global table");
+    ASSERT_TRUE(suite, lua_istable(L, 3), "luaopen_base second result is the coroutine table");
+    lua_getglobal(L, "_G");
+    ASSERT_TRUE(suite, lua_rawequal(L, 2, -1), "luaopen_base returns the registered global table first");
+    lua_pop(L, 1);
+    lua_getglobal(L, LUA_COLIBNAME);
+    ASSERT_TRUE(suite, lua_rawequal(L, 3, -1), "luaopen_base returns the registered coroutine table second");
+    lua_settop(L, 0);
+
+    assertNamedLibraryOpen(suite, L, callLuaOpenTable, LUA_TABLIBNAME);
+    assertNamedLibraryOpen(suite, L, callLuaOpenIO, LUA_IOLIBNAME);
+    assertNamedLibraryOpen(suite, L, callLuaOpenOS, LUA_OSLIBNAME);
+    assertNamedLibraryOpen(suite, L, callLuaOpenString, LUA_STRLIBNAME);
+    assertNamedLibraryOpen(suite, L, callLuaOpenMath, LUA_MATHLIBNAME);
+    assertNamedLibraryOpen(suite, L, callLuaOpenDebug, LUA_DBLIBNAME);
+    assertNamedLibraryOpen(suite, L, callLuaOpenPackage, LUA_LOADLIBNAME);
+
+    lua_pushinteger(L, 41);
+    luaL_openlibs(L);
+    ASSERT_EQ(suite, 1, lua_gettop(L), "luaL_openlibs preserves the caller stack");
+    ASSERT_EQ(suite, 41.0, lua_tonumber(L, 1), "luaL_openlibs preserves existing stack values");
+    for (const char* name : {LUA_COLIBNAME, LUA_TABLIBNAME, LUA_IOLIBNAME, LUA_OSLIBNAME, LUA_STRLIBNAME,
+                             LUA_MATHLIBNAME, LUA_DBLIBNAME, LUA_LOADLIBNAME}) {
+        lua_getglobal(L, name);
+        ASSERT_TRUE(suite, lua_istable(L, -1), "luaL_openlibs registers every official standard-library table");
+        lua_pop(L, 1);
+    }
+
+    lua_close(L);
+}
+
 void testPublicDebugStackInfoAndLocals(TestSuite& suite) {
     lua_State* L = lua_open();
 
@@ -3047,6 +3142,7 @@ void registerLuaCApiTests() {
     registry.registerTest(kSuiteName, "public auxiliary checks and metatables", testPublicAuxiliaryChecksAndMetatables);
     registry.registerTest(kSuiteName, "public auxiliary registration and buffer",
                           testPublicAuxiliaryRegistrationAndBuffer);
+    registry.registerTest(kSuiteName, "public standard library openers", testPublicStandardLibraryOpeners);
     registry.registerTest(kSuiteName, "public debug stack info and locals", testPublicDebugStackInfoAndLocals);
     registry.registerTest(kSuiteName, "public debug hooks", testPublicDebugHooks);
 }

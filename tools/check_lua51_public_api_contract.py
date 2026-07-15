@@ -401,7 +401,7 @@ def main() -> int:
                         + ", ".join(str(path) for path in locations)
                     )
 
-    if status_counts["PASS"] != 108 or status_counts["UNSUPPORTED"] != 15:
+    if status_counts["PASS"] != 116 or status_counts["UNSUPPORTED"] != 7:
         fail(f"unexpected status partition: {dict(status_counts)}")
 
     for path, text in c_probe_texts.items():
@@ -477,6 +477,14 @@ def main() -> int:
         "lua_tointeger",
         "lua_topointer",
         "lua_tothread",
+        "luaopen_base",
+        "luaopen_debug",
+        "luaopen_io",
+        "luaopen_math",
+        "luaopen_os",
+        "luaopen_package",
+        "luaopen_string",
+        "luaopen_table",
     }:
         if not contains_function(differential_text, symbol):
             fail(f"{symbol}: C API differential probe does not call the public entry point")

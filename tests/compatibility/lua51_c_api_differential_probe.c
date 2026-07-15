@@ -1,5 +1,6 @@
 #include "lua.h"
 #include "lauxlib.h"
+#include "lualib.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -72,6 +73,46 @@ static int reject_aux_option(lua_State* L) {
 static int reject_aux_userdata(lua_State* L) {
     (void)luaL_checkudata(L, 1, "aux.widget");
     return 0;
+}
+
+static int call_luaopen_base(lua_State* L) {
+    return luaopen_base(L);
+}
+
+static int call_luaopen_table(lua_State* L) {
+    return luaopen_table(L);
+}
+
+static int call_luaopen_io(lua_State* L) {
+    return luaopen_io(L);
+}
+
+static int call_luaopen_os(lua_State* L) {
+    return luaopen_os(L);
+}
+
+static int call_luaopen_string(lua_State* L) {
+    return luaopen_string(L);
+}
+
+static int call_luaopen_math(lua_State* L) {
+    return luaopen_math(L);
+}
+
+static int call_luaopen_debug(lua_State* L) {
+    return luaopen_debug(L);
+}
+
+static int call_luaopen_package(lua_State* L) {
+    return luaopen_package(L);
+}
+
+static int run_library_opener(lua_State* L, lua_CFunction opener, const char* name) {
+    lua_settop(L, 0);
+    lua_pushcclosure(L, opener, 0);
+    lua_pushstring(L, name);
+    lua_call(L, 1, LUA_MULTRET);
+    return lua_gettop(L);
 }
 
 static int debug_stack_info;
@@ -164,6 +205,7 @@ int main(void) {
     int debug_hook_events;
     int debug_disable;
     int debug_invalid;
+    int standard_library_contract;
     size_t length = 0;
 
     if (L == NULL) {
@@ -476,15 +518,78 @@ int main(void) {
                          debug_hook_events && debug_disable && debug_invalid;
     }
 
+    {
+        lua_State* libraries = lua_open();
+        standard_library_contract = libraries != NULL;
+        if (libraries != NULL) {
+            int result_count;
+
+            result_count = run_library_opener(libraries, call_luaopen_base, "");
+            standard_library_contract = standard_library_contract && result_count == 2 && lua_gettop(libraries) == 2;
+            standard_library_contract =
+                standard_library_contract && lua_istable(libraries, 1) && lua_istable(libraries, 2);
+            lua_getglobal(libraries, "_G");
+            standard_library_contract = standard_library_contract && lua_rawequal(libraries, 1, -1);
+            lua_pop(libraries, 1);
+            lua_getglobal(libraries, LUA_COLIBNAME);
+            standard_library_contract = standard_library_contract && lua_rawequal(libraries, 2, -1);
+
+            result_count = run_library_opener(libraries, call_luaopen_table, LUA_TABLIBNAME);
+            standard_library_contract = standard_library_contract && result_count == 1 && lua_istable(libraries, -1);
+            lua_getglobal(libraries, LUA_TABLIBNAME);
+            standard_library_contract = standard_library_contract && lua_rawequal(libraries, -1, -2);
+
+            result_count = run_library_opener(libraries, call_luaopen_io, LUA_IOLIBNAME);
+            standard_library_contract = standard_library_contract && result_count == 1 && lua_istable(libraries, -1);
+            lua_getglobal(libraries, LUA_IOLIBNAME);
+            standard_library_contract = standard_library_contract && lua_rawequal(libraries, -1, -2);
+
+            result_count = run_library_opener(libraries, call_luaopen_os, LUA_OSLIBNAME);
+            standard_library_contract = standard_library_contract && result_count == 1 && lua_istable(libraries, -1);
+            lua_getglobal(libraries, LUA_OSLIBNAME);
+            standard_library_contract = standard_library_contract && lua_rawequal(libraries, -1, -2);
+
+            result_count = run_library_opener(libraries, call_luaopen_string, LUA_STRLIBNAME);
+            standard_library_contract = standard_library_contract && result_count == 1 && lua_istable(libraries, -1);
+            lua_getglobal(libraries, LUA_STRLIBNAME);
+            standard_library_contract = standard_library_contract && lua_rawequal(libraries, -1, -2);
+
+            result_count = run_library_opener(libraries, call_luaopen_math, LUA_MATHLIBNAME);
+            standard_library_contract = standard_library_contract && result_count == 1 && lua_istable(libraries, -1);
+            lua_getglobal(libraries, LUA_MATHLIBNAME);
+            standard_library_contract = standard_library_contract && lua_rawequal(libraries, -1, -2);
+
+            result_count = run_library_opener(libraries, call_luaopen_debug, LUA_DBLIBNAME);
+            standard_library_contract = standard_library_contract && result_count == 1 && lua_istable(libraries, -1);
+            lua_getglobal(libraries, LUA_DBLIBNAME);
+            standard_library_contract = standard_library_contract && lua_rawequal(libraries, -1, -2);
+
+            result_count = run_library_opener(libraries, call_luaopen_package, LUA_LOADLIBNAME);
+            standard_library_contract = standard_library_contract && result_count == 1 && lua_istable(libraries, -1);
+            lua_getglobal(libraries, LUA_LOADLIBNAME);
+            standard_library_contract = standard_library_contract && lua_rawequal(libraries, -1, -2);
+
+            lua_settop(libraries, 0);
+            lua_pushinteger(libraries, 29);
+            luaL_openlibs(libraries);
+            standard_library_contract = standard_library_contract && lua_gettop(libraries) == 1;
+            standard_library_contract = standard_library_contract && lua_tointeger(libraries, 1) == 29;
+            standard_library_contract = standard_library_contract && strcmp(LUA_FILEHANDLE, "FILE*") == 0;
+
+            lua_close(libraries);
+        }
+    }
+
     printf("table=%d,%d,%d,%d,%d,%d;next=%d,%d;compare=%d,%d,%d;concat=%d,%d,%d,%d,%d;"
            "convert=%d,%d,%d;pointer=%d;thread=%d,%d;gc=%d;aux=%d,%d,%d,%d,%d,%d,%d;"
-           "debug=%d,%d,%d,%d,%d,%d,%d,%d,%d\n",
+           "debug=%d,%d,%d,%d,%d,%d,%d,%d,%d;open=%d\n",
            set_top, field_value, raw_value, meta_value, raw_missing, captured_value, iteration_count, iteration_sum,
            equal_with_meta, equal_without_meta, less_with_meta, concat_zero_length, concat_plain, concat_meta,
            concat_error_status, concat_error_top, integer_number, integer_string, cfunction_identity, pointer_identity,
            main_thread_identity, child_thread_identity, gc_contract, aux_checks, aux_meta, aux_register, aux_table,
            aux_buffer, aux_errors, aux_newstate, debug_contract, debug_function, debug_stack, debug_mutation,
-           debug_hook_config, debug_hook_run, debug_hook_events, debug_disable, debug_invalid);
+           debug_hook_config, debug_hook_run, debug_hook_events, debug_disable, debug_invalid,
+           standard_library_contract);
 
     lua_close(L);
     return 0;

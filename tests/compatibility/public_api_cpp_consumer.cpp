@@ -1,5 +1,6 @@
 #include "lua.h"
 #include "lauxlib.h"
+#include "lualib.h"
 
 #include <cstddef>
 #include <stdexcept>
@@ -97,6 +98,14 @@ REQUIRE_SIGNATURE(lua_sethook, int (*)(lua_State*, lua_Hook, int, int) noexcept(
 REQUIRE_SIGNATURE(lua_gethook, lua_Hook (*)(lua_State*) noexcept(false));
 REQUIRE_SIGNATURE(lua_gethookmask, int (*)(lua_State*) noexcept(false));
 REQUIRE_SIGNATURE(lua_gethookcount, int (*)(lua_State*) noexcept(false));
+REQUIRE_SIGNATURE(luaopen_base, int (*)(lua_State*) noexcept(false));
+REQUIRE_SIGNATURE(luaopen_table, int (*)(lua_State*) noexcept(false));
+REQUIRE_SIGNATURE(luaopen_io, int (*)(lua_State*) noexcept(false));
+REQUIRE_SIGNATURE(luaopen_os, int (*)(lua_State*) noexcept(false));
+REQUIRE_SIGNATURE(luaopen_string, int (*)(lua_State*) noexcept(false));
+REQUIRE_SIGNATURE(luaopen_math, int (*)(lua_State*) noexcept(false));
+REQUIRE_SIGNATURE(luaopen_debug, int (*)(lua_State*) noexcept(false));
+REQUIRE_SIGNATURE(luaopen_package, int (*)(lua_State*) noexcept(false));
 REQUIRE_SIGNATURE(luaL_openlibs, void (*)(lua_State*) noexcept(false));
 REQUIRE_SIGNATURE(luaL_openlib, void (*)(lua_State*, const char*, const luaL_Reg*, int) noexcept(false));
 REQUIRE_SIGNATURE(luaL_register, void (*)(lua_State*, const char*, const luaL_Reg*) noexcept(false));
@@ -183,6 +192,16 @@ REQUIRE_PUBLIC_MACRO(LUA_MASKCALL);
 REQUIRE_PUBLIC_MACRO(LUA_MASKRET);
 REQUIRE_PUBLIC_MACRO(LUA_MASKLINE);
 REQUIRE_PUBLIC_MACRO(LUA_MASKCOUNT);
+REQUIRE_PUBLIC_MACRO(LUA_FILEHANDLE);
+REQUIRE_PUBLIC_MACRO(LUA_COLIBNAME);
+REQUIRE_PUBLIC_MACRO(LUA_TABLIBNAME);
+REQUIRE_PUBLIC_MACRO(LUA_IOLIBNAME);
+REQUIRE_PUBLIC_MACRO(LUA_OSLIBNAME);
+REQUIRE_PUBLIC_MACRO(LUA_STRLIBNAME);
+REQUIRE_PUBLIC_MACRO(LUA_MATHLIBNAME);
+REQUIRE_PUBLIC_MACRO(LUA_DBLIBNAME);
+REQUIRE_PUBLIC_MACRO(LUA_LOADLIBNAME);
+REQUIRE_PUBLIC_MACRO(lua_assert);
 
 REQUIRE_PUBLIC_CONSTANT(LUA_OK);
 REQUIRE_PUBLIC_CONSTANT(LUA_YIELD);
@@ -241,6 +260,15 @@ static_assert(LUA_HOOKCALL == 0 && LUA_HOOKRET == 1 && LUA_HOOKLINE == 2 && LUA_
 static_assert(LUA_MASKCALL == 1 && LUA_MASKRET == 2 && LUA_MASKLINE == 4 && LUA_MASKCOUNT == 8);
 static_assert(LUA_NOREF == -2 && LUA_REFNIL == -1);
 static_assert(LUAL_BUFFERSIZE == BUFSIZ);
+static_assert(std::string_view(LUA_FILEHANDLE) == "FILE*");
+static_assert(std::string_view(LUA_COLIBNAME) == "coroutine");
+static_assert(std::string_view(LUA_TABLIBNAME) == "table");
+static_assert(std::string_view(LUA_IOLIBNAME) == "io");
+static_assert(std::string_view(LUA_OSLIBNAME) == "os");
+static_assert(std::string_view(LUA_STRLIBNAME) == "string");
+static_assert(std::string_view(LUA_MATHLIBNAME) == "math");
+static_assert(std::string_view(LUA_DBLIBNAME) == "debug");
+static_assert(std::string_view(LUA_LOADLIBNAME) == "package");
 
 static_assert(std::is_same_v<lua_Number, double>);
 static_assert(std::is_same_v<lua_Integer, std::ptrdiff_t>);
@@ -347,7 +375,7 @@ int main() {
     static_assert(!noexcept(lua_call(nullptr, 0, 0)));
     static_assert(!noexcept(lua_error(nullptr)));
 
-    if (lua_public_c_header_probe() != 115) {
+    if (lua_public_c_header_probe() != 123) {
         return 1;
     }
 

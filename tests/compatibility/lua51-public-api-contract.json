@@ -1253,58 +1253,90 @@
     {
       "symbol": "luaopen_base",
       "header": "lualib.h",
-      "status": "UNSUPPORTED",
-      "reason": "The Lua 5.1.5 public entry point is not declared or implemented yet.",
-      "tracking": "https://github.com/YanqingXu/lua/issues/9"
+      "status": "PASS",
+      "declaredIn": "src/lualib.h",
+      "definedIn": "src/api/lapi.cpp",
+      "cCompileEvidence": "tests/compatibility/public_api_c_compile.c",
+      "linkEvidence": "tests/compatibility/public_api_cpp_consumer.cpp",
+      "runtimeEvidence": "tests/unit/api/test_lua_c_api.cpp",
+      "semanticStatus": "PASS"
     },
     {
       "symbol": "luaopen_table",
       "header": "lualib.h",
-      "status": "UNSUPPORTED",
-      "reason": "The Lua 5.1.5 public entry point is not declared or implemented yet.",
-      "tracking": "https://github.com/YanqingXu/lua/issues/9"
+      "status": "PASS",
+      "declaredIn": "src/lualib.h",
+      "definedIn": "src/api/lapi.cpp",
+      "cCompileEvidence": "tests/compatibility/public_api_c_compile.c",
+      "linkEvidence": "tests/compatibility/public_api_cpp_consumer.cpp",
+      "runtimeEvidence": "tests/unit/api/test_lua_c_api.cpp",
+      "semanticStatus": "PASS"
     },
     {
       "symbol": "luaopen_io",
       "header": "lualib.h",
-      "status": "UNSUPPORTED",
-      "reason": "The Lua 5.1.5 public entry point is not declared or implemented yet.",
-      "tracking": "https://github.com/YanqingXu/lua/issues/9"
+      "status": "PASS",
+      "declaredIn": "src/lualib.h",
+      "definedIn": "src/api/lapi.cpp",
+      "cCompileEvidence": "tests/compatibility/public_api_c_compile.c",
+      "linkEvidence": "tests/compatibility/public_api_cpp_consumer.cpp",
+      "runtimeEvidence": "tests/unit/api/test_lua_c_api.cpp",
+      "semanticStatus": "PASS"
     },
     {
       "symbol": "luaopen_os",
       "header": "lualib.h",
-      "status": "UNSUPPORTED",
-      "reason": "The Lua 5.1.5 public entry point is not declared or implemented yet.",
-      "tracking": "https://github.com/YanqingXu/lua/issues/9"
+      "status": "PASS",
+      "declaredIn": "src/lualib.h",
+      "definedIn": "src/api/lapi.cpp",
+      "cCompileEvidence": "tests/compatibility/public_api_c_compile.c",
+      "linkEvidence": "tests/compatibility/public_api_cpp_consumer.cpp",
+      "runtimeEvidence": "tests/unit/api/test_lua_c_api.cpp",
+      "semanticStatus": "PASS"
     },
     {
       "symbol": "luaopen_string",
       "header": "lualib.h",
-      "status": "UNSUPPORTED",
-      "reason": "The Lua 5.1.5 public entry point is not declared or implemented yet.",
-      "tracking": "https://github.com/YanqingXu/lua/issues/9"
+      "status": "PASS",
+      "declaredIn": "src/lualib.h",
+      "definedIn": "src/api/lapi.cpp",
+      "cCompileEvidence": "tests/compatibility/public_api_c_compile.c",
+      "linkEvidence": "tests/compatibility/public_api_cpp_consumer.cpp",
+      "runtimeEvidence": "tests/unit/api/test_lua_c_api.cpp",
+      "semanticStatus": "PASS"
     },
     {
       "symbol": "luaopen_math",
       "header": "lualib.h",
-      "status": "UNSUPPORTED",
-      "reason": "The Lua 5.1.5 public entry point is not declared or implemented yet.",
-      "tracking": "https://github.com/YanqingXu/lua/issues/9"
+      "status": "PASS",
+      "declaredIn": "src/lualib.h",
+      "definedIn": "src/api/lapi.cpp",
+      "cCompileEvidence": "tests/compatibility/public_api_c_compile.c",
+      "linkEvidence": "tests/compatibility/public_api_cpp_consumer.cpp",
+      "runtimeEvidence": "tests/unit/api/test_lua_c_api.cpp",
+      "semanticStatus": "PASS"
     },
     {
       "symbol": "luaopen_debug",
       "header": "lualib.h",
-      "status": "UNSUPPORTED",
-      "reason": "The Lua 5.1.5 public entry point is not declared or implemented yet.",
-      "tracking": "https://github.com/YanqingXu/lua/issues/9"
+      "status": "PASS",
+      "declaredIn": "src/lualib.h",
+      "definedIn": "src/api/lapi.cpp",
+      "cCompileEvidence": "tests/compatibility/public_api_c_compile.c",
+      "linkEvidence": "tests/compatibility/public_api_cpp_consumer.cpp",
+      "runtimeEvidence": "tests/unit/api/test_lua_c_api.cpp",
+      "semanticStatus": "PASS"
     },
     {
       "symbol": "luaopen_package",
       "header": "lualib.h",
-      "status": "UNSUPPORTED",
-      "reason": "The Lua 5.1.5 public entry point is not declared or implemented yet.",
-      "tracking": "https://github.com/YanqingXu/lua/issues/9"
+      "status": "PASS",
+      "declaredIn": "src/lualib.h",
+      "definedIn": "src/api/lapi.cpp",
+      "cCompileEvidence": "tests/compatibility/public_api_c_compile.c",
+      "linkEvidence": "tests/compatibility/public_api_cpp_consumer.cpp",
+      "runtimeEvidence": "tests/unit/api/test_lua_c_api.cpp",
+      "semanticStatus": "PASS"
     },
     {
       "symbol": "luaL_openlibs",

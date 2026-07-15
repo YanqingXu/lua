@@ -136,6 +136,14 @@ int lua_public_c_header_probe(void) {
     REQUIRE_SYMBOL(luaL_openlib);
     REQUIRE_SYMBOL(luaL_register);
     REQUIRE_SYMBOL(luaL_openlibs);
+    REQUIRE_SYMBOL(luaopen_base);
+    REQUIRE_SYMBOL(luaopen_table);
+    REQUIRE_SYMBOL(luaopen_io);
+    REQUIRE_SYMBOL(luaopen_os);
+    REQUIRE_SYMBOL(luaopen_string);
+    REQUIRE_SYMBOL(luaopen_math);
+    REQUIRE_SYMBOL(luaopen_debug);
+    REQUIRE_SYMBOL(luaopen_package);
 
 #undef REQUIRE_SYMBOL
     return declarations;

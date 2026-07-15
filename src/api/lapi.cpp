@@ -1,5 +1,6 @@
 #include "lua.h"
 #include "lauxlib.h"
+#include "lualib.h"
 
 #include "common/lua_error.hpp"
 #include "core/function.hpp"
@@ -1415,6 +1416,56 @@ void luaL_unref(lua_State* L, int tableIndex, int reference) LUA_CXX_MAY_THROW {
     lua_rawseti(L, absoluteTable, reference);
     lua_pushinteger(L, reference);
     lua_rawseti(L, absoluteTable, 0);
+}
+
+int luaopen_base(lua_State* L) LUA_CXX_MAY_THROW {
+    Lua::StandardLibrary::openCatalogLibrary(fromC(L), "base");
+    Lua::StandardLibrary::openCatalogLibrary(fromC(L), LUA_COLIBNAME);
+    lua_pushvalue(L, LUA_GLOBALSINDEX);
+    lua_getglobal(L, LUA_COLIBNAME);
+    return 2;
+}
+
+int luaopen_table(lua_State* L) LUA_CXX_MAY_THROW {
+    Lua::StandardLibrary::openCatalogLibrary(fromC(L), LUA_TABLIBNAME);
+    lua_getglobal(L, LUA_TABLIBNAME);
+    return 1;
+}
+
+int luaopen_io(lua_State* L) LUA_CXX_MAY_THROW {
+    Lua::StandardLibrary::openCatalogLibrary(fromC(L), LUA_IOLIBNAME);
+    lua_getglobal(L, LUA_IOLIBNAME);
+    return 1;
+}
+
+int luaopen_os(lua_State* L) LUA_CXX_MAY_THROW {
+    Lua::StandardLibrary::openCatalogLibrary(fromC(L), LUA_OSLIBNAME);
+    lua_getglobal(L, LUA_OSLIBNAME);
+    return 1;
+}
+
+int luaopen_string(lua_State* L) LUA_CXX_MAY_THROW {
+    Lua::StandardLibrary::openCatalogLibrary(fromC(L), LUA_STRLIBNAME);
+    lua_getglobal(L, LUA_STRLIBNAME);
+    return 1;
+}
+
+int luaopen_math(lua_State* L) LUA_CXX_MAY_THROW {
+    Lua::StandardLibrary::openCatalogLibrary(fromC(L), LUA_MATHLIBNAME);
+    lua_getglobal(L, LUA_MATHLIBNAME);
+    return 1;
+}
+
+int luaopen_debug(lua_State* L) LUA_CXX_MAY_THROW {
+    Lua::StandardLibrary::openCatalogLibrary(fromC(L), LUA_DBLIBNAME);
+    lua_getglobal(L, LUA_DBLIBNAME);
+    return 1;
+}
+
+int luaopen_package(lua_State* L) LUA_CXX_MAY_THROW {
+    Lua::StandardLibrary::openCatalogLibrary(fromC(L), LUA_LOADLIBNAME);
+    lua_getglobal(L, LUA_LOADLIBNAME);
+    return 1;
 }
 
 void luaL_openlibs(lua_State* L) LUA_CXX_MAY_THROW {
