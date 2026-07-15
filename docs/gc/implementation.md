@@ -123,6 +123,9 @@ applies_to: current garbage collector implementation
 - 终结器接收 userdata 作为参数
 - 同一终结器不应在同一 userdata 上调用两次
 - 终结器错误被包容，因此单个失败的终结器不会中断整个回收周期
+- context-owned `ExecutionPolicy::Limits::finalizerBudgetPerDrain` 限制一次完整 GC、增量 finalize 阶段或关闭 drain 进入的用户回调数；默认无限，保持 Lua 5.1 的默认行为
+- 普通 GC 达到有限上限后，剩余 userdata 继续由 pending finalizer queue 强引用，并在后续周期获得新的预算
+- `lua_close` 达到上限后跳过其余用户回调，但仍无异常销毁全部对象和 allocator-backed 存储；该计数预算不抢占长期运行的原生回调
 
 ## 已知限制
 

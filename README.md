@@ -134,7 +134,7 @@ bin\lua_test.exe --filter "Symbol Binding"
 bin\lua_test.exe --report=junit
 ```
 
-测试运行器会在输出中报告实时测试数量和断言结果。2026-07-15 的完整 Debug/Release strict 基线为 **749 registered tests, 4827 assertion results, 0 failures**；其中 `Lua C API` suite 为 49 个测试、1247 个断言、0 failures，原始 `api.lua with T module` 也完整运行到 `OK`。新增回归后需用文档漂移门禁同步这一基线。
+测试运行器会在输出中报告实时测试数量和断言结果。2026-07-15 的完整 Debug/Release strict 基线为 **751 registered tests, 4845 assertion results, 0 failures**；其中 `Lua C API` suite 为 49 个测试、1254 个断言、0 failures，原始 `api.lua with T module` 也完整运行到 `OK`。新增回归后需用文档漂移门禁同步这一基线。
 
 ### CMake / CTest 辅助路径
 
@@ -300,7 +300,7 @@ using ValueData = std::variant<
 - `std::variant` 用于 `Value` 和编译器中间结果，避免无约束字段组合，让状态空间在类型层面可见。
 - `std::expected` 用于 Parser、CodeGenerator 和 VM 的边界返回，调用方可以直接区分成功值和结构化错误，而不是依赖散落的异常捕获。
 - CRTP visitor 和 concepts 用于 AST 访问覆盖检查，使新增节点时的遗漏更早暴露在编译期。
-- `RuntimeServices` / `EngineContext` 显式传递运行时依赖，降低全局单例对阅读、测试和嵌入式场景的干扰；context-owned `ExecutionPolicy` 让主线程与 coroutine 共享指令预算、单调时限和单向原子取消。
+- `RuntimeServices` / `EngineContext` 显式传递运行时依赖，降低全局单例对阅读、测试和嵌入式场景的干扰；context-owned `ExecutionPolicy` 让主线程与 coroutine 共享指令预算、单调时限和单向原子取消，并以单轮 finalizer 预算限制一次 GC/关闭 drain 进入用户 `__gc` 的次数。
 
 这些约定服务于代码可读性、现代 C++ 应用和教学价值：代码应尽量让读者看见边界、看见数据流，也看见失败路径。
 

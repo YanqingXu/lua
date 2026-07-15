@@ -45,7 +45,7 @@ applies_to: Lua 5.1 C API 原型、项目内直接测试与官方 testC 覆盖�
 bin\lua_test.exe --filter "Lua C API"
 ```
 
-结果为 49 个测试、1247 个断言、0 failures。机器合同包含 123 个官方公共函数：123 个 `PASS`、0 个 `XFAIL`、0 个 `UNSUPPORTED`。项目头文件的当前公开面另由 130 个真实函数、57 个宏、24 个枚举常量和 11 个 typedef 的穷尽式编译合同保护。完整 Debug/Release strict 套件为 749 个测试、4827 个断言、0 failures。原始 `api.lua` 另以以下 exact TestC 门禁通过：
+结果为 49 个测试、1254 个断言、0 failures。机器合同包含 123 个官方公共函数：123 个 `PASS`、0 个 `XFAIL`、0 个 `UNSUPPORTED`。项目头文件的当前公开面另由 130 个真实函数、57 个宏、24 个枚举常量和 11 个 typedef 的穷尽式编译合同保护。完整 Debug/Release strict 套件为 751 个测试、4845 个断言、0 failures。原始 `api.lua` 另以以下 exact TestC 门禁通过：
 
 ```powershell
 bin\lua_test.exe --filter "api.lua with T module"

@@ -1212,6 +1212,38 @@ void testCloseFinalizerSemantics(TestSuite& suite) {
         ASSERT_EQ(suite, static_cast<size_t>(0), ledger.unknownFrees,
                   "persistent-OOM close frees each allocator block once");
     }
+
+    gCloseFinalizerCalls = 0;
+    gCloseFinalizerPayload = 0;
+    {
+        AllocatorLedger ledger;
+        AllocatorProbe probe{&ledger};
+        lua_State* L = lua_newstate(trackingLuaAllocator, &probe);
+        ASSERT_TRUE(suite, L != nullptr, "budgeted close test creates allocator-backed state");
+        auto* state = reinterpret_cast<Lua::LuaState*>(L);
+        Lua::ExecutionPolicy::Limits limits;
+        limits.finalizerBudgetPerDrain = 1;
+        state->getGlobalState().getExecutionPolicy().configure(limits);
+
+        pushCloseFinalizedUserdata(L, 501, recordCloseUserdataFinalizer);
+        pushCloseFinalizedUserdata(L, 502, recordCloseUserdataFinalizer);
+        pushCloseFinalizedUserdata(L, 503, recordCloseUserdataFinalizer);
+
+        bool closeThrew = false;
+        try {
+            lua_close(L);
+        } catch (...) {
+            closeThrew = true;
+        }
+        ASSERT_TRUE(suite, !closeThrew, "finite finalizer budget preserves lua_close noexcept cleanup");
+        ASSERT_EQ(suite, 1, gCloseFinalizerCalls, "lua_close enters no more than the configured finalizer budget");
+        ASSERT_TRUE(suite, ledger.blocks.empty(), "budgeted close still releases every allocator-backed block");
+        ASSERT_EQ(suite, static_cast<size_t>(0), ledger.liveBytes,
+                  "budgeted close returns allocator live bytes to zero");
+        ASSERT_EQ(suite, static_cast<size_t>(0), ledger.sizeMismatches,
+                  "budgeted close preserves allocator old-size contracts");
+        ASSERT_EQ(suite, static_cast<size_t>(0), ledger.unknownFrees, "budgeted close frees each allocator block once");
+    }
 }
 
 void testProtectedCallRestoresStackAndPreservesErrorObject(TestSuite& suite) {

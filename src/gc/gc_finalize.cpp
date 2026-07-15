@@ -15,6 +15,7 @@
 #include "vm/vm.hpp"
 #include <algorithm>
 #include <exception>
+#include <limits>
 
 namespace Lua {
 
@@ -48,8 +49,23 @@ void GarbageCollector::prepareFinalizers() {
     }
 }
 
+usize GarbageCollector::finalizerDrainLimit() const noexcept {
+    if (globalState_ == nullptr) {
+        return std::numeric_limits<usize>::max();
+    }
+
+    const ExecutionPolicy::FinalizerCount configured = globalState_->getExecutionPolicy().finalizerBudgetPerDrain();
+    const auto maximum = static_cast<ExecutionPolicy::FinalizerCount>(std::numeric_limits<usize>::max());
+    return configured >= maximum ? std::numeric_limits<usize>::max() : static_cast<usize>(configured);
+}
+
 void GarbageCollector::runFinalizers(LuaState* state) {
     if (state == nullptr || finalizersRunning_ || pendingFinalizers_.empty()) {
+        return;
+    }
+
+    const usize scheduledCount = std::min(pendingFinalizers_.size(), finalizerDrainLimit());
+    if (scheduledCount == 0) {
         return;
     }
 
@@ -58,7 +74,9 @@ void GarbageCollector::runFinalizers(LuaState* state) {
     // treats this member queue as roots. Moving the queue into a local vector
     // made the remaining callbacks invisible to a nested collection and left
     // dangling pointers in the outer finalizer loop.
-    LuaVector<Userdata*> finalizers(pendingFinalizers_.begin(), pendingFinalizers_.end(),
+    using Difference = LuaVector<Userdata*>::difference_type;
+    LuaVector<Userdata*> finalizers(pendingFinalizers_.begin(),
+                                    pendingFinalizers_.begin() + static_cast<Difference>(scheduledCount),
                                     pendingFinalizers_.get_allocator());
     // Copying can allocate. Do not publish the reentrancy guard until that
     // succeeds, otherwise an OOM would permanently suppress finalizers.
@@ -163,9 +181,11 @@ void GarbageCollector::finalizeAll(LuaState* state) noexcept {
     (void)state->tryPushValueNoAlloc(Value());
     state->setStatus(ThreadStatus::OK);
 
+    const usize callbackLimit = finalizerDrainLimit();
+    usize callbacksEntered = 0;
     finalizersRunning_ = true;
     try {
-        for (;;) {
+        while (callbacksEntered < callbackLimit) {
             Userdata* userdata = nullptr;
             if (!pendingFinalizers_.empty()) {
                 userdata = pendingFinalizers_.back();
@@ -189,6 +209,11 @@ void GarbageCollector::finalizeAll(LuaState* state) noexcept {
 
             pendingFinalizers_.erase(std::remove(pendingFinalizers_.begin(), pendingFinalizers_.end(), userdata),
                                      pendingFinalizers_.end());
+            if (getFinalizer(userdata).isNil()) {
+                continue;
+            }
+
+            ++callbacksEntered;
             try {
                 callFinalizer(state, userdata);
             } catch (...) {

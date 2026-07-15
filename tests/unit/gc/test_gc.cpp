@@ -1182,6 +1182,82 @@ void testCollectGarbageRunsUserdataFinalizer(TestSuite& suite) {
     delete L;
 }
 
+void testFinalizerBudgetSlicesFullCollections(TestSuite& suite) {
+    gFinalizerCalls = 0;
+
+    auto stateOwner = std::unique_ptr<LuaState>(LuaState::newIsolatedState());
+    LuaState* L = stateOwner.get();
+    GlobalState& globalState = L->getGlobalState();
+    GarbageCollector& gc = globalState.getGC();
+    ExecutionPolicy::Limits limits;
+    limits.finalizerBudgetPerDrain = 2;
+    globalState.getExecutionPolicy().configure(limits);
+
+    Table* metatable = gc.create<Table>();
+    Function* finalizer = gc.create<Function>(gcRecordingFinalizer);
+    metatable->set(Value(globalState.getMetamethodName(TMS::TM_GC)), Value(finalizer));
+    for (i32 payload = 1; payload <= 5; ++payload) {
+        Userdata* userdata = Userdata::createFull(sizeof(i32));
+        *userdata->getTypedData<i32>() = payload;
+        gc.registerObject(userdata);
+        userdata->setMetatable(metatable);
+    }
+
+    (void)gc.collect(L);
+    ASSERT_EQ(suite, 2, gFinalizerCalls, "one full collection enters at most two finalizer callbacks");
+    ASSERT_EQ(suite, static_cast<usize>(3), gc.getPendingFinalizerCount(),
+              "unspent finalizers remain rooted for a later collection");
+
+    (void)gc.collect(L);
+    ASSERT_EQ(suite, 4, gFinalizerCalls, "the next full collection receives a fresh finalizer slice");
+    ASSERT_EQ(suite, static_cast<usize>(1), gc.getPendingFinalizerCount(),
+              "only one finalizer remains after the second slice");
+
+    (void)gc.collect(L);
+    ASSERT_EQ(suite, 5, gFinalizerCalls, "the last slice drains the remaining finalizer exactly once");
+    ASSERT_EQ(suite, static_cast<usize>(0), gc.getPendingFinalizerCount(),
+              "all deferred finalizers leave the rooted pending queue");
+
+    (void)gc.collect(L);
+    ASSERT_EQ(suite, 5, gFinalizerCalls, "later collections never repeat a budgeted finalizer");
+
+    globalState.getExecutionPolicy().reset();
+}
+
+void testFinalizerBudgetSurvivesReentrantCollection(TestSuite& suite) {
+    gReentrantFinalizerCalls = 0;
+
+    auto stateOwner = std::unique_ptr<LuaState>(LuaState::newIsolatedState());
+    LuaState* L = stateOwner.get();
+    GlobalState& globalState = L->getGlobalState();
+    GarbageCollector& gc = globalState.getGC();
+    ExecutionPolicy::Limits limits;
+    limits.finalizerBudgetPerDrain = 1;
+    globalState.getExecutionPolicy().configure(limits);
+
+    Table* metatable = gc.create<Table>();
+    Function* finalizer = gc.create<Function>(gcReentrantFinalizer);
+    metatable->set(Value(globalState.getMetamethodName(TMS::TM_GC)), Value(finalizer));
+    for (i32 index = 0; index < 2; ++index) {
+        Userdata* userdata = Userdata::createFull(0);
+        gc.registerObject(userdata);
+        userdata->setMetatable(metatable);
+    }
+
+    (void)gc.collect(L);
+    ASSERT_EQ(suite, 1, gReentrantFinalizerCalls,
+              "nested collection cannot bypass the outer finalizer callback budget");
+    ASSERT_EQ(suite, static_cast<usize>(1), gc.getPendingFinalizerCount(),
+              "reentrant collection keeps the deferred userdata rooted");
+
+    (void)gc.collect(L);
+    ASSERT_EQ(suite, 2, gReentrantFinalizerCalls, "a later drain executes the deferred reentrant finalizer");
+    ASSERT_EQ(suite, static_cast<usize>(0), gc.getPendingFinalizerCount(),
+              "reentrant finalizer slices eventually drain the queue");
+
+    globalState.getExecutionPolicy().reset();
+}
+
 void testFinalizerCanReenterCollection(TestSuite& suite) {
     gReentrantFinalizerCalls = 0;
 
@@ -1363,6 +1439,9 @@ void registerGCTests() {
     registry.registerTest("GC", "Incremental Weak Mode Mutation", testIncrementalWeakToStrongModeTransition);
     registry.registerTest("GC", "Weak Mode Mutation Defers Finalizer", testWeakToStrongUserdataIsNotFinalizedEarly);
     registry.registerTest("GC", "Userdata Finalizer", testCollectGarbageRunsUserdataFinalizer);
+    registry.registerTest("GC", "Finalizer Budget Slices Full Collections", testFinalizerBudgetSlicesFullCollections);
+    registry.registerTest("GC", "Finalizer Budget Survives Reentrant Collection",
+                          testFinalizerBudgetSurvivesReentrantCollection);
     registry.registerTest("GC", "Reentrant Userdata Finalizers", testFinalizerCanReenterCollection);
     registry.registerTest("GC", "Finalizer Helper Slots Release Userdata",
                           testFinalizerHelperSlotsDoNotRetainFinalizedUserdata);

@@ -2,7 +2,7 @@
 
 /**
  * @file execution_policy.hpp
- * @brief Runtime-wide Lua instruction, deadline, and cancellation governance.
+ * @brief Runtime-wide Lua instruction, deadline, cancellation, and finalizer governance.
  */
 
 #include "common/types.hpp"
@@ -57,19 +57,24 @@ private:
  *
  * A finite instruction budget is consumed across Lua calls, C-to-Lua re-entry,
  * yields, and coroutine resumes. Deadlines use std::chrono::steady_clock so wall
- * clock adjustments cannot extend or shorten an armed run. Policy configuration
- * is owner-thread-only; cancellation is the sole cross-thread operation.
+ * clock adjustments cannot extend or shorten an armed run. A per-drain finalizer
+ * budget bounds entry into user __gc callbacks without changing the unlimited
+ * default. Policy configuration is owner-thread-only; cancellation is the sole
+ * cross-thread operation.
  */
 class ExecutionPolicy {
 public:
     using Clock = std::chrono::steady_clock;
     using InstructionCount = u64;
+    using FinalizerCount = u64;
 
     static constexpr InstructionCount UnlimitedInstructions = std::numeric_limits<InstructionCount>::max();
+    static constexpr FinalizerCount UnlimitedFinalizers = std::numeric_limits<FinalizerCount>::max();
 
     struct Limits {
         InstructionCount instructionBudget = UnlimitedInstructions;
         Clock::time_point deadline = Clock::time_point::max();
+        FinalizerCount finalizerBudgetPerDrain = UnlimitedFinalizers;
     };
 
     ExecutionPolicy() noexcept = default;
@@ -86,6 +91,7 @@ public:
         initialInstructions_ = limits.instructionBudget;
         remainingInstructions_ = limits.instructionBudget;
         deadline_ = limits.deadline;
+        finalizerBudgetPerDrain_ = limits.finalizerBudgetPerDrain;
         cancellationRequested_.store(false, std::memory_order_relaxed);
     }
 
@@ -136,6 +142,22 @@ public:
         return deadline_ != Clock::time_point::max();
     }
 
+    /**
+     * @brief Maximum __gc callbacks entered by one collector/finalize drain.
+     *
+     * This limit is replenished for each drain rather than consumed across the
+     * execution window. A finite value slices ordinary GC finalization and
+     * bounds close-time entry into user finalizers; zero suppresses callbacks
+     * for that drain while shutdown still destroys all owned storage.
+     */
+    [[nodiscard]] FinalizerCount finalizerBudgetPerDrain() const noexcept {
+        return finalizerBudgetPerDrain_;
+    }
+
+    [[nodiscard]] bool hasFinalizerBudget() const noexcept {
+        return finalizerBudgetPerDrain_ != UnlimitedFinalizers;
+    }
+
     [[nodiscard]] bool isCancellationRequested() const noexcept {
         return cancellationRequested_.load(std::memory_order_relaxed);
     }
@@ -170,6 +192,7 @@ private:
     InstructionCount initialInstructions_ = UnlimitedInstructions;
     InstructionCount remainingInstructions_ = UnlimitedInstructions;
     Clock::time_point deadline_ = Clock::time_point::max();
+    FinalizerCount finalizerBudgetPerDrain_ = UnlimitedFinalizers;
 };
 
 } // namespace Lua
