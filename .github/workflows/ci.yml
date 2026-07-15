@@ -43,6 +43,7 @@ jobs:
           --parallel 2
           --target
           lua_public_api_consumer
+          lua_public_api_shared_consumer
           lua51_c_api_differential_probe
           lua_public_native_module_host
           lua_public_native_module_app
