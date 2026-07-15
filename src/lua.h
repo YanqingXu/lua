@@ -17,6 +17,7 @@ extern "C" {
 #define LUA_VERSION_NUM 501
 
 #define LUA_MULTRET (-1)
+#define LUA_MINSTACK 20
 
 #define LUA_REGISTRYINDEX (-10000)
 #define LUA_ENVIRONINDEX (-10001)

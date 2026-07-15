@@ -262,7 +262,7 @@ def project_public_types(header_texts: dict[Path, str]) -> set[str]:
 
 
 def marker_symbols(text: str, marker: str) -> set[str]:
-    return set(re.findall(rf"\b{re.escape(marker)}\s*\(\s*(lua[A-Za-z0-9_]*|LUA_[A-Z0-9_]*)\s*[,)]", text))
+    return set(re.findall(rf"\b{re.escape(marker)}\s*\(\s*(lua[A-Za-z0-9_]*|LUA[A-Z0-9_]*)\s*[,)]", text))
 
 
 def require_exact_surface(label: str, actual: set[str], expected: set[str]) -> None:
@@ -401,7 +401,7 @@ def main() -> int:
                         + ", ".join(str(path) for path in locations)
                     )
 
-    if status_counts["PASS"] != 75 or status_counts["UNSUPPORTED"] != 48:
+    if status_counts["PASS"] != 100 or status_counts["UNSUPPORTED"] != 23:
         fail(f"unexpected status partition: {dict(status_counts)}")
 
     for path, text in c_probe_texts.items():
@@ -433,6 +433,35 @@ def main() -> int:
 
     differential_text = C_API_DIFFERENTIAL_PROBE.read_text(encoding="utf-8")
     for symbol in {
+        "luaL_addlstring",
+        "luaL_addstring",
+        "luaL_addvalue",
+        "luaL_argerror",
+        "luaL_buffinit",
+        "luaL_callmeta",
+        "luaL_checkany",
+        "luaL_checkinteger",
+        "luaL_checklstring",
+        "luaL_checknumber",
+        "luaL_checkoption",
+        "luaL_checkstack",
+        "luaL_checktype",
+        "luaL_checkudata",
+        "luaL_error",
+        "luaL_findtable",
+        "luaL_getmetafield",
+        "luaL_gsub",
+        "luaL_newmetatable",
+        "luaL_newstate",
+        "luaL_openlib",
+        "luaL_optinteger",
+        "luaL_optlstring",
+        "luaL_optnumber",
+        "luaL_prepbuffer",
+        "luaL_pushresult",
+        "luaL_register",
+        "luaL_typerror",
+        "luaL_where",
         "lua_concat",
         "lua_equal",
         "lua_getfield",

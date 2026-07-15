@@ -70,6 +70,7 @@ set(LUA_CORE_SOURCES
     src/core/value.cpp
     src/core/thread.cpp
     src/api/lapi.cpp
+    src/api/lauxlib.cpp
     src/gc/garbage_collector.cpp
     src/gc/gc_strategy.cpp
     src/gc/gc_mark.cpp

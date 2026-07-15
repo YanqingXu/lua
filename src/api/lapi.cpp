@@ -19,8 +19,6 @@
 
 #include <algorithm>
 #include <cstdlib>
-#include <cstdarg>
-#include <cstdio>
 #include <cstring>
 #include <new>
 #include <optional>
@@ -1421,47 +1419,5 @@ void luaL_unref(lua_State* L, int tableIndex, int reference) LUA_CXX_MAY_THROW {
 
 void luaL_openlibs(lua_State* L) LUA_CXX_MAY_THROW {
     Lua::StandardLibrary::openAll(fromC(L));
-}
-
-int luaL_error(lua_State* L, const char* fmt, ...) LUA_CXX_MAY_THROW {
-    char buffer[512];
-    va_list args;
-    va_start(args, fmt);
-    std::vsnprintf(buffer, sizeof(buffer), fmt ? fmt : "", args);
-    va_end(args);
-    fromC(L)->error(buffer);
-}
-
-int luaL_argerror(lua_State* L, int, const char* extramsg) LUA_CXX_MAY_THROW {
-    fromC(L)->error(extramsg ? extramsg : "bad argument");
-}
-
-void luaL_argcheck(lua_State* L, int cond, int narg, const char* extramsg) LUA_CXX_MAY_THROW {
-    if (!cond) {
-        luaL_argerror(L, narg, extramsg);
-    }
-}
-
-lua_Number luaL_checknumber(lua_State* L, int narg) LUA_CXX_MAY_THROW {
-    if (lua_isnumber(L, narg) == 0) {
-        luaL_argerror(L, narg, "number expected");
-    }
-    return lua_tonumber(L, narg);
-}
-
-int luaL_checkint(lua_State* L, int narg) LUA_CXX_MAY_THROW {
-    return static_cast<int>(luaL_checknumber(L, narg));
-}
-
-const char* luaL_checklstring(lua_State* L, int narg, size_t* len) LUA_CXX_MAY_THROW {
-    const char* text = lua_tolstring(L, narg, len);
-    if (text == nullptr) {
-        fromC(L)->error("string expected");
-    }
-    return text;
-}
-
-const char* luaL_checkstring(lua_State* L, int narg) LUA_CXX_MAY_THROW {
-    return luaL_checklstring(L, narg, nullptr);
 }
 }

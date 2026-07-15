@@ -48,6 +48,31 @@ static_assert(!noexcept(lua_tothread(nullptr, 0)));
 static_assert(!noexcept(lua_topointer(nullptr, 0)));
 static_assert(!noexcept(lua_pushthread(nullptr)));
 static_assert(!noexcept(lua_gc(nullptr, 0, 0)));
+static_assert(!noexcept(luaL_openlib(nullptr, nullptr, nullptr, 0)));
+static_assert(!noexcept(luaL_register(nullptr, nullptr, nullptr)));
+static_assert(!noexcept(luaL_getmetafield(nullptr, 0, nullptr)));
+static_assert(!noexcept(luaL_callmeta(nullptr, 0, nullptr)));
+static_assert(!noexcept(luaL_typerror(nullptr, 0, nullptr)));
+static_assert(!noexcept(luaL_optlstring(nullptr, 0, nullptr, nullptr)));
+static_assert(!noexcept(luaL_optnumber(nullptr, 0, 0)));
+static_assert(!noexcept(luaL_checkinteger(nullptr, 0)));
+static_assert(!noexcept(luaL_optinteger(nullptr, 0, 0)));
+static_assert(!noexcept(luaL_checkstack(nullptr, 0, nullptr)));
+static_assert(!noexcept(luaL_checktype(nullptr, 0, 0)));
+static_assert(!noexcept(luaL_checkany(nullptr, 0)));
+static_assert(!noexcept(luaL_newmetatable(nullptr, nullptr)));
+static_assert(!noexcept(luaL_checkudata(nullptr, 0, nullptr)));
+static_assert(!noexcept(luaL_where(nullptr, 0)));
+static_assert(!noexcept(luaL_checkoption(nullptr, 0, nullptr, nullptr)));
+static_assert(!noexcept(luaL_newstate()));
+static_assert(!noexcept(luaL_gsub(nullptr, nullptr, nullptr, nullptr)));
+static_assert(!noexcept(luaL_findtable(nullptr, 0, nullptr, 0)));
+static_assert(!noexcept(luaL_buffinit(nullptr, nullptr)));
+static_assert(!noexcept(luaL_prepbuffer(nullptr)));
+static_assert(!noexcept(luaL_addlstring(nullptr, nullptr, 0)));
+static_assert(!noexcept(luaL_addstring(nullptr, nullptr)));
+static_assert(!noexcept(luaL_addvalue(nullptr)));
+static_assert(!noexcept(luaL_pushresult(nullptr)));
 static_assert(!noexcept(luaL_error(nullptr, "%s", "error")));
 static_assert(noexcept(lua_close(nullptr)));
 static_assert(noexcept(lua_checkstack(nullptr, 0)));
@@ -304,6 +329,35 @@ int failWhileHandlingApiError(lua_State* L) {
 
 int raiseAuxiliaryArgumentError(lua_State* L) {
     return luaL_argerror(L, 1, "contract argument failure");
+}
+
+int raiseAuxiliaryFormattedError(lua_State* L) {
+    return luaL_error(L, "formatted failure %d", 7);
+}
+
+int returnAuxiliaryMetaValue(lua_State* L) {
+    lua_pushstring(L, "meta-value");
+    return 1;
+}
+
+int raiseAuxiliaryTypeError(lua_State* L) {
+    return luaL_typerror(L, 1, "widget");
+}
+
+int requireAuxiliaryValue(lua_State* L) {
+    luaL_checkany(L, 1);
+    return 0;
+}
+
+int requireAuxiliaryOption(lua_State* L) {
+    static const char* const options[] = {"alpha", "beta", nullptr};
+    lua_pushinteger(L, luaL_checkoption(L, 1, nullptr, options));
+    return 1;
+}
+
+int requireAuxiliaryUserdata(lua_State* L) {
+    (void)luaL_checkudata(L, 1, "aux.widget");
+    return 0;
 }
 
 int throwMemoryErrorFromC(lua_State*) {
@@ -2598,6 +2652,177 @@ void testPublicTypeThreadAndGcApi(TestSuite& suite) {
     lua_close(L);
 }
 
+void testPublicAuxiliaryChecksAndMetatables(TestSuite& suite) {
+    lua_State* freshState = luaL_newstate();
+    ASSERT_TRUE(suite, freshState != nullptr, "luaL_newstate creates an independent state");
+    lua_close(freshState);
+
+    lua_State* L = lua_open();
+    lua_pushnumber(L, 18.0);
+    lua_pushstring(L, "beta");
+    lua_pushnil(L);
+
+    size_t length = 0;
+    ASSERT_EQ(suite, static_cast<lua_Integer>(18), luaL_checkinteger(L, 1),
+              "luaL_checkinteger converts numeric arguments");
+    ASSERT_EQ(suite, static_cast<lua_Integer>(41), luaL_optinteger(L, 3, 41),
+              "luaL_optinteger uses its default for nil");
+    ASSERT_EQ(suite, 12.5, luaL_optnumber(L, 4, 12.5), "luaL_optnumber uses its default for missing arguments");
+    ASSERT_EQ(suite, std::string("fallback"), std::string(luaL_optlstring(L, 3, "fallback", &length)),
+              "luaL_optlstring uses its default for nil");
+    ASSERT_EQ(suite, static_cast<size_t>(8), length, "luaL_optlstring publishes the default byte length");
+    luaL_checktype(L, 2, LUA_TSTRING);
+    luaL_checkany(L, 3);
+    luaL_checkstack(L, 8, "auxiliary check");
+    ASSERT_TRUE(suite, true, "luaL_checktype, luaL_checkany, and luaL_checkstack accept valid inputs");
+
+    static const char* const options[] = {"alpha", "beta", nullptr};
+    ASSERT_EQ(suite, 1, luaL_checkoption(L, 2, nullptr, options), "luaL_checkoption returns the matching index");
+    ASSERT_EQ(suite, 0, luaL_checkoption(L, 4, "alpha", options),
+              "luaL_checkoption accepts a default for missing arguments");
+
+    luaL_where(L, 0);
+    ASSERT_EQ(suite, std::string(""), std::string(lua_tostring(L, -1)),
+              "luaL_where publishes an empty prefix when no source frame exists");
+    lua_pop(L, 1);
+
+    lua_pushcclosure(L, raiseAuxiliaryTypeError, 0);
+    ASSERT_EQ(suite, LUA_ERRRUN, lua_pcall(L, 0, 0, 0), "luaL_typerror raises a protected runtime error");
+    ASSERT_TRUE(suite, std::string(lua_tostring(L, -1)).find("widget expected") != std::string::npos,
+                "luaL_typerror describes the expected type");
+    lua_pop(L, 1);
+
+    lua_settop(L, 0);
+    lua_pushcclosure(L, raiseAuxiliaryArgumentError, 0);
+    lua_setglobal(L, "auxcheck");
+    pushLuaChunk(L, "return auxcheck()");
+    ASSERT_EQ(suite, LUA_ERRRUN, lua_pcall(L, 0, 0, 0), "luaL_argerror propagates through a Lua caller");
+    ASSERT_TRUE(suite, std::string(lua_tostring(L, -1)).find("to 'auxcheck'") != std::string::npos,
+                "luaL_argerror resolves the public function name from the caller");
+    lua_pop(L, 1);
+    lua_pushcclosure(L, raiseAuxiliaryFormattedError, 0);
+    lua_setglobal(L, "auxfail");
+    pushLuaChunk(L, "return auxfail()");
+    ASSERT_EQ(suite, LUA_ERRRUN, lua_pcall(L, 0, 0, 0), "luaL_error raises a formatted protected error");
+    const std::string formattedError = lua_tostring(L, -1);
+    ASSERT_TRUE(suite, formattedError.find(":1: formatted failure 7") != std::string::npos,
+                "luaL_error prefixes its message with the Lua caller source location");
+    lua_pop(L, 1);
+
+    lua_pushcclosure(L, requireAuxiliaryValue, 0);
+    ASSERT_EQ(suite, LUA_ERRRUN, lua_pcall(L, 0, 0, 0), "luaL_checkany rejects a missing argument");
+    lua_pop(L, 1);
+    lua_pushcclosure(L, requireAuxiliaryOption, 0);
+    lua_pushstring(L, "beta");
+    ASSERT_EQ(suite, LUA_OK, lua_pcall(L, 1, 1, 0), "luaL_checkoption accepts a listed option in a C callback");
+    ASSERT_EQ(suite, 1.0, lua_tonumber(L, -1), "luaL_checkoption callback returns the matching option index");
+    lua_pop(L, 1);
+    lua_pushcclosure(L, requireAuxiliaryOption, 0);
+    lua_pushstring(L, "gamma");
+    ASSERT_EQ(suite, LUA_ERRRUN, lua_pcall(L, 1, 0, 0), "luaL_checkoption rejects an unknown option");
+    lua_pop(L, 1);
+
+    ASSERT_EQ(suite, 1, luaL_newmetatable(L, "aux.widget"), "luaL_newmetatable creates a named metatable once");
+    lua_pushcclosure(L, returnAuxiliaryMetaValue, 0);
+    lua_setfield(L, -2, "__probe");
+    const void* metatableIdentity = lua_topointer(L, -1);
+    lua_pop(L, 1);
+    ASSERT_EQ(suite, 0, luaL_newmetatable(L, "aux.widget"), "luaL_newmetatable returns the existing named metatable");
+    ASSERT_TRUE(suite, lua_topointer(L, -1) == metatableIdentity,
+                "luaL_newmetatable leaves the registered metatable on the stack");
+    lua_pop(L, 1);
+
+    void* payload = lua_newuserdata(L, sizeof(int));
+    luaL_getmetatable(L, "aux.widget");
+    ASSERT_EQ(suite, 1, lua_setmetatable(L, -2), "luaL_getmetatable retrieves a metatable for userdata");
+    ASSERT_TRUE(suite, luaL_checkudata(L, -1, "aux.widget") == payload,
+                "luaL_checkudata returns a payload with the registered metatable");
+    ASSERT_EQ(suite, 1, luaL_getmetafield(L, -1, "__probe"), "luaL_getmetafield finds a raw metafield");
+    ASSERT_TRUE(suite, lua_tocfunction(L, -1) == returnAuxiliaryMetaValue,
+                "luaL_getmetafield leaves the matching function on the stack");
+    lua_pop(L, 1);
+    ASSERT_EQ(suite, 0, luaL_getmetafield(L, -1, "__missing"), "luaL_getmetafield removes missing lookup temporaries");
+    ASSERT_EQ(suite, 1, luaL_callmeta(L, -1, "__probe"), "luaL_callmeta invokes a matching metafield");
+    ASSERT_EQ(suite, std::string("meta-value"), std::string(lua_tostring(L, -1)), "luaL_callmeta leaves one result");
+    lua_pop(L, 2);
+
+    lua_pushcclosure(L, requireAuxiliaryUserdata, 0);
+    lua_pushnumber(L, 1);
+    ASSERT_EQ(suite, LUA_ERRRUN, lua_pcall(L, 1, 0, 0), "luaL_checkudata rejects mismatched values");
+    lua_pop(L, 1);
+
+    lua_close(L);
+}
+
+void testPublicAuxiliaryRegistrationAndBuffer(TestSuite& suite) {
+    lua_State* L = lua_open();
+    static const luaL_Reg capturedFunctions[] = {{"value", returnFirstUpvalue}, {nullptr, nullptr}};
+    lua_pushinteger(L, 73);
+    luaL_openlib(L, "aux.probe", capturedFunctions, 1);
+    ASSERT_EQ(suite, LUA_TTABLE, lua_type(L, 1), "luaL_openlib leaves the module table on the stack");
+    lua_getfield(L, 1, "value");
+    lua_call(L, 0, 1);
+    ASSERT_EQ(suite, 73.0, lua_tonumber(L, -1), "luaL_openlib registers closures with copied upvalues");
+    lua_pop(L, 1);
+
+    lua_getglobal(L, "aux");
+    lua_getfield(L, -1, "probe");
+    ASSERT_TRUE(suite, lua_rawequal(L, 1, -1) != 0, "luaL_openlib publishes a dotted global module name");
+    lua_pop(L, 2);
+    lua_getfield(L, LUA_REGISTRYINDEX, "_LOADED");
+    lua_getfield(L, -1, "aux.probe");
+    ASSERT_TRUE(suite, lua_rawequal(L, 1, -1) != 0, "luaL_openlib records the same module in registry _LOADED");
+    lua_settop(L, 0);
+
+    static const luaL_Reg plainFunctions[] = {{"probe", returnAuxiliaryMetaValue}, {nullptr, nullptr}};
+    lua_newtable(L);
+    luaL_register(L, nullptr, plainFunctions);
+    lua_getfield(L, -1, "probe");
+    lua_call(L, 0, 1);
+    ASSERT_EQ(suite, std::string("meta-value"), std::string(lua_tostring(L, -1)),
+              "luaL_register fills an existing table when the library name is null");
+    lua_settop(L, 0);
+
+    lua_newtable(L);
+    ASSERT_TRUE(suite, luaL_findtable(L, -1, "one.two", 2) == nullptr,
+                "luaL_findtable creates every missing dotted component");
+    ASSERT_EQ(suite, LUA_TTABLE, lua_type(L, -1), "luaL_findtable leaves the final table on the stack");
+    lua_pop(L, 1);
+    lua_pushnumber(L, 5);
+    lua_setfield(L, -2, "blocked");
+    const char* conflict = luaL_findtable(L, -1, "blocked.child", 1);
+    ASSERT_EQ(suite, std::string("blocked.child"), std::string(conflict),
+              "luaL_findtable identifies the conflicting path component");
+    lua_settop(L, 0);
+
+    const char* substituted = luaL_gsub(L, "a-b-a", "a", "xy");
+    ASSERT_EQ(suite, std::string("xy-b-xy"), std::string(substituted),
+              "luaL_gsub replaces every literal occurrence and pushes its result");
+    lua_pop(L, 1);
+
+    luaL_Buffer buffer;
+    luaL_buffinit(L, &buffer);
+    luaL_addstring(&buffer, "prefix");
+    const char embedded[] = {'\0', 'x'};
+    luaL_addlstring(&buffer, embedded, sizeof(embedded));
+    char* prepared = luaL_prepbuffer(&buffer);
+    ASSERT_TRUE(suite, prepared == buffer.buffer, "luaL_prepbuffer flushes and returns the inline buffer");
+    prepared[0] = 'A';
+    luaL_addsize(&buffer, 1);
+    lua_pushstring(L, "tail");
+    luaL_addvalue(&buffer);
+    luaL_addchar(&buffer, '!');
+    luaL_pushresult(&buffer);
+    size_t resultLength = 0;
+    const char* result = lua_tolstring(L, -1, &resultLength);
+    const std::string expected("prefix\0xAtail!", 14);
+    ASSERT_EQ(suite, expected, std::string(result, resultLength),
+              "luaL buffer APIs preserve flushed chunks, embedded NUL bytes, values, and characters");
+    ASSERT_EQ(suite, 1, buffer.lvl, "luaL_pushresult normalizes the buffer stack level");
+
+    lua_close(L);
+}
+
 } // namespace
 
 void registerLuaCApiTests() {
@@ -2651,4 +2876,7 @@ void registerLuaCApiTests() {
     registry.registerTest(kSuiteName, "public table field raw and traversal APIs", testPublicTableTraversalApi);
     registry.registerTest(kSuiteName, "public comparison and concat APIs", testPublicComparisonAndConcatApi);
     registry.registerTest(kSuiteName, "public type thread and GC APIs", testPublicTypeThreadAndGcApi);
+    registry.registerTest(kSuiteName, "public auxiliary checks and metatables", testPublicAuxiliaryChecksAndMetatables);
+    registry.registerTest(kSuiteName, "public auxiliary registration and buffer",
+                          testPublicAuxiliaryRegistrationAndBuffer);
 }
