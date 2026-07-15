@@ -1,7 +1,7 @@
 /**
  * @file tablelib.cpp
  * @brief Lua Table Library Implementation - 表操作库实现
- * 
+ *
  * @author Lua C++ Project
  * @date 2026-01-23
  */
@@ -154,7 +154,7 @@ i32 table_insert(LuaState* L) {
     }
 
     Table* table = getTableArg(L, 1, "insert");
-    
+
     if (nargs == 2) {
         // table.insert(table, value) - 在末尾插入
         i32 len = getTableLength(table);
@@ -165,17 +165,17 @@ i32 table_insert(LuaState* L) {
         i32 pos = static_cast<i32>(getNumberArg(L, 2, "insert"));
         Value value = L->at(3);
         i32 len = getTableLength(table);
-        
+
         // 将 pos 到 len 的元素后移
         for (i32 i = len; i >= pos; i--) {
             Value v = table->get(Value(static_cast<f64>(i)));
             table->set(Value(static_cast<f64>(i + 1)), v);
         }
-        
+
         // 插入新值
         table->set(Value(static_cast<f64>(pos)), value);
     }
-    
+
     return 0;
 }
 
@@ -242,26 +242,26 @@ i32 table_remove(LuaState* L) {
 
     Table* table = getTableArg(L, 1, "remove");
     i32 len = getTableLength(table);
-    
+
     i32 pos = (nargs >= 2) ? static_cast<i32>(getNumberArg(L, 2, "remove")) : len;
-    
+
     if (pos < 1 || pos > len) {
         L->pushNil();
         return 1;
     }
-    
+
     // 获取要移除的值
     Value removed = table->get(Value(static_cast<f64>(pos)));
-    
+
     // 将 pos+1 到 len 的元素前移
     for (i32 i = pos; i < len; i++) {
         Value v = table->get(Value(static_cast<f64>(i + 1)));
         table->set(Value(static_cast<f64>(i)), v);
     }
-    
+
     // 删除最后一个元素
     table->remove(Value(static_cast<f64>(len)));
-    
+
     // 返回被移除的值
     L->pushValue(removed);
     return 1;
@@ -278,7 +278,7 @@ i32 table_concat(LuaState* L) {
     }
 
     Table* table = getTableArg(L, 1, "concat");
-    
+
     // 获取分隔符（默认为空字符串）
     Str sep;
     if (nargs >= 2 && !L->isNil(2)) {
@@ -346,9 +346,7 @@ i32 table_sort(LuaState* L) {
     }
 
     std::sort(arr.begin(), arr.end(), [&](const Value& left, const Value& right) {
-        return comparator != nullptr
-            ? callSortComparator(L, comparator, left, right)
-            : defaultSortLess(L, left, right);
+        return comparator != nullptr ? callSortComparator(L, comparator, left, right) : defaultSortLess(L, left, right);
     });
 
     // 将排序后的值写回表
@@ -538,5 +536,3 @@ void openTableLib(LuaState* L) {
 }
 
 } // namespace Lua
-
-

@@ -71,7 +71,8 @@ static void setfield(LuaState* L, Table* t, const char* key, i32 value) {
  * @brief 设置日期表的布尔字段
  */
 static void setboolfield(LuaState* L, Table* t, const char* key, i32 value) {
-    if (value < 0) return; // 未定义，不设置
+    if (value < 0)
+        return; // 未定义，不设置
     GCString* keyStr = L->getGlobalState().getStringPool().intern(key);
     t->set(Value(keyStr), Value(value != 0));
 }
@@ -97,7 +98,8 @@ static i32 getfield(LuaState* L, Table* t, const char* key, i32 defaultValue) {
 static i32 getboolfield(LuaState* L, Table* t, const char* key) {
     GCString* keyStr = L->getGlobalState().getStringPool().intern(key);
     Value v = t->get(Value(keyStr));
-    if (v.isNil()) return -1;
+    if (v.isNil())
+        return -1;
     return v.asBoolean() ? 1 : 0;
 }
 
@@ -123,10 +125,10 @@ i32 luaOS_difftime(LuaState* L) {
     if (!L->isNumber(1) || !L->isNumber(2)) {
         L->error("difftime: arguments must be numbers");
     }
-    
+
     std::time_t t2 = static_cast<std::time_t>(L->toNumber(1));
     std::time_t t1 = static_cast<std::time_t>(L->toNumber(2));
-    
+
     f64 diff = std::difftime(t2, t1);
     L->pushNumber(diff);
     return 1;
@@ -138,11 +140,11 @@ i32 luaOS_execute(LuaState* L) {
         L->pushNumber(static_cast<f64>(std::system(nullptr)));
         return 1;
     }
-    
+
     if (!L->isString(1)) {
         L->error("execute: command must be a string");
     }
-    
+
     const char* command = L->toString(1);
 #ifdef _WIN32
     Str wrappedCommand;
@@ -152,7 +154,7 @@ i32 luaOS_execute(LuaState* L) {
     }
 #endif
     i32 result = std::system(command);
-    
+
     if (result == -1) {
         L->pushNil();
     } else {
@@ -253,8 +255,7 @@ i32 luaOS_rename(LuaState* L) {
         int err = errno;
 #ifdef _WIN32
         errno = 0;
-        if (releaseFileHandlesForPath(L, oldName) &&
-            std::rename(oldName, newName) == 0) {
+        if (releaseFileHandlesForPath(L, oldName) && std::rename(oldName, newName) == 0) {
             L->pushBoolean(true);
             return 1;
         }
@@ -284,13 +285,20 @@ i32 luaOS_setlocale(LuaState* L) {
             L->error("setlocale: category must be a string");
         }
         const char* catStr = L->toString(2);
-        if (std::strcmp(catStr, "all") == 0) category = LC_ALL;
-        else if (std::strcmp(catStr, "collate") == 0) category = LC_COLLATE;
-        else if (std::strcmp(catStr, "ctype") == 0) category = LC_CTYPE;
-        else if (std::strcmp(catStr, "monetary") == 0) category = LC_MONETARY;
-        else if (std::strcmp(catStr, "numeric") == 0) category = LC_NUMERIC;
-        else if (std::strcmp(catStr, "time") == 0) category = LC_TIME;
-        else L->error("setlocale: invalid category");
+        if (std::strcmp(catStr, "all") == 0)
+            category = LC_ALL;
+        else if (std::strcmp(catStr, "collate") == 0)
+            category = LC_COLLATE;
+        else if (std::strcmp(catStr, "ctype") == 0)
+            category = LC_CTYPE;
+        else if (std::strcmp(catStr, "monetary") == 0)
+            category = LC_MONETARY;
+        else if (std::strcmp(catStr, "numeric") == 0)
+            category = LC_NUMERIC;
+        else if (std::strcmp(catStr, "time") == 0)
+            category = LC_TIME;
+        else
+            L->error("setlocale: invalid category");
     }
 
     const char* result = std::setlocale(category, locale);
@@ -345,9 +353,9 @@ i32 luaOS_time(LuaState* L) {
         ts.tm_sec = getfield(L, table, "sec", 0);
         ts.tm_min = getfield(L, table, "min", 0);
         ts.tm_hour = getfield(L, table, "hour", 12);
-        ts.tm_mday = getfield(L, table, "day", -1);  // 必需字段
-        ts.tm_mon = getfield(L, table, "month", -1) - 1;  // 必需字段，Lua使用1-12，C使用0-11
-        ts.tm_year = getfield(L, table, "year", -1) - 1900;  // 必需字段，Lua使用实际年份，C使用1900年起
+        ts.tm_mday = getfield(L, table, "day", -1);         // 必需字段
+        ts.tm_mon = getfield(L, table, "month", -1) - 1;    // 必需字段，Lua使用1-12，C使用0-11
+        ts.tm_year = getfield(L, table, "year", -1) - 1900; // 必需字段，Lua使用实际年份，C使用1900年起
         ts.tm_isdst = getboolfield(L, table, "isdst");
 
         t = std::mktime(&ts);
@@ -413,10 +421,10 @@ i32 luaOS_date(LuaState* L) {
         setfield(L, table, "min", stm->tm_min);
         setfield(L, table, "hour", stm->tm_hour);
         setfield(L, table, "day", stm->tm_mday);
-        setfield(L, table, "month", stm->tm_mon + 1);  // C使用0-11，Lua使用1-12
-        setfield(L, table, "year", stm->tm_year + 1900);  // C使用1900年起，Lua使用实际年份
-        setfield(L, table, "wday", stm->tm_wday + 1);  // C使用0-6，Lua使用1-7
-        setfield(L, table, "yday", stm->tm_yday + 1);  // C使用0-365，Lua使用1-366
+        setfield(L, table, "month", stm->tm_mon + 1);    // C使用0-11，Lua使用1-12
+        setfield(L, table, "year", stm->tm_year + 1900); // C使用1900年起，Lua使用实际年份
+        setfield(L, table, "wday", stm->tm_wday + 1);    // C使用0-6，Lua使用1-7
+        setfield(L, table, "yday", stm->tm_yday + 1);    // C使用0-365，Lua使用1-366
         setboolfield(L, table, "isdst", stm->tm_isdst);
 
         L->pushTable(table);
@@ -442,7 +450,8 @@ i32 luaOS_date(LuaState* L) {
 // ===================================================================
 
 void openOSLib(LuaState* L) {
-    if (!L) return;
+    if (!L)
+        return;
 
     L->requireStandardLibrary("os");
 

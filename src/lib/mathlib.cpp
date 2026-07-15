@@ -1,10 +1,10 @@
 /**
  * @file mathlib.cpp
  * @brief Lua数学库实现
- * 
+ *
  * 使用现代C++流式API进行函数注册
  * 遵循Lua 5.1.5标准数学库规范
- * 
+ *
  * @author Lua C++ Project
  * @date 2025-12-19
  */
@@ -74,8 +74,7 @@ static inline f64 getNumberArg(LuaState* L, i32 idx, const char* argName) {
 static inline void checkArgCount(LuaState* L, i32 expected, const char* funcName) {
     i32 actual = L->getTop();
     if (actual < expected) {
-        L->error(std::format("math.{}: expected {} argument(s), got {}",
-                             funcName, expected, actual).c_str());
+        L->error(std::format("math.{}: expected {} argument(s), got {}", funcName, expected, actual).c_str());
     }
 }
 
@@ -317,7 +316,7 @@ i32 math_random(LuaState* L) {
     }
 
     i32 n = L->getTop();
-    
+
     if (n == 0) {
         // math.random() - 返回 [0, 1) 之间的浮点数
         f64 r = static_cast<f64>(std::rand()) / (static_cast<f64>(RAND_MAX) + 1.0);
@@ -438,14 +437,14 @@ void MathLibModule::initialize(LuaState* L) {
     auto& gs = L->getGlobalState();
     GCString* mathKey = gs.getStringPool().intern("math");
     Value mathTableVal = L->getGlobal(mathKey->getData());
-    
+
     if (mathTableVal.isTable()) {
         Table* mathTable = mathTableVal.asTable();
-        
+
         // 设置 math.pi
         GCString* piKey = gs.getStringPool().intern("pi");
         mathTable->set(Value(piKey), Value(kPi));
-        
+
         // 设置 math.huge
         GCString* hugeKey = gs.getStringPool().intern("huge");
         mathTable->set(Value(hugeKey), Value(std::numeric_limits<f64>::infinity()));
