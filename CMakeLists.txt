@@ -373,6 +373,17 @@ if(BUILD_TESTING AND LUA_CPP_BUILD_TESTS)
     endif()
     lua_configure_runtime_stack(lua_public_api_shared_consumer)
 
+    add_executable(lua51_c_api_differential_probe tests/compatibility/lua51_c_api_differential_probe.c)
+    target_link_libraries(lua51_c_api_differential_probe PRIVATE lua_core)
+    target_include_directories(lua51_c_api_differential_probe PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    set_target_properties(lua51_c_api_differential_probe PROPERTIES LINKER_LANGUAGE CXX)
+    if(MSVC)
+        target_compile_options(lua51_c_api_differential_probe PRIVATE /W4)
+    else()
+        target_compile_options(lua51_c_api_differential_probe PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+    lua_configure_runtime_stack(lua51_c_api_differential_probe)
+
     add_executable(lua_public_module_host tests/compatibility/public_native_module_host.cpp)
     target_link_libraries(lua_public_module_host PRIVATE lua_core)
     target_include_directories(lua_public_module_host PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
@@ -414,6 +425,12 @@ if(BUILD_TESTING AND LUA_CPP_BUILD_TESTS)
     add_test(NAME lua_public_api_shared_consumer COMMAND $<TARGET_FILE:lua_public_api_shared_consumer>)
     set_tests_properties(lua_public_api_shared_consumer PROPERTIES
         LABELS "api-contract;shared-library"
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    )
+
+    add_test(NAME lua51_c_api_differential_probe COMMAND $<TARGET_FILE:lua51_c_api_differential_probe>)
+    set_tests_properties(lua51_c_api_differential_probe PROPERTIES
+        LABELS "api-contract;c-api-differential"
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     )
 

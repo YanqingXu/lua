@@ -15,10 +15,13 @@ EXPORTS
     lua_call
     lua_checkstack
     lua_close
+    lua_concat
     lua_createtable
     lua_dump
+    lua_equal
     lua_error
     lua_getallocf
+    lua_getfield
     lua_getglobal
     lua_getmetatable
     lua_gettable
@@ -29,12 +32,14 @@ EXPORTS
     lua_isnumber
     lua_isstring
     lua_isuserdata
+    lua_lessthan
     lua_load
     lua_newstate
     lua_newthread
     lua_newuserdata
-    lua_open
+    lua_next
     lua_objlen
+    lua_open
     lua_pcall
     lua_pushboolean
     lua_pushcclosure
@@ -45,12 +50,16 @@ EXPORTS
     lua_pushnumber
     lua_pushstring
     lua_pushvalue
+    lua_rawequal
+    lua_rawget
     lua_rawgeti
+    lua_rawset
     lua_rawseti
     lua_remove
     lua_replace
     lua_resume
     lua_setallocf
+    lua_setfield
     lua_setglobal
     lua_setmetatable
     lua_settable

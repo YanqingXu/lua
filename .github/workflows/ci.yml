@@ -43,6 +43,7 @@ jobs:
           --parallel 2
           --target
           lua_public_api_consumer
+          lua51_c_api_differential_probe
           lua_public_native_module_host
           lua_public_native_module_app
           lua_public_native_module_embedding
@@ -120,7 +121,7 @@ jobs:
 
       - name: Install Lua 5.1 reference
         if: matrix.compiler == 'Clang' && matrix.build_type == 'Debug'
-        run: sudo apt-get update && sudo apt-get install --yes lua5.1
+        run: sudo apt-get update && sudo apt-get install --yes lua5.1 liblua5.1-0-dev
 
       - name: Lua 5.1 differential evidence
         if: matrix.compiler == 'Clang' && matrix.build_type == 'Debug'
@@ -131,12 +132,30 @@ jobs:
           -CandidateLua build/lua_app
           -ResultPath build/lua51-differential.json
 
+      - name: Build Lua 5.1 C API reference probe
+        if: matrix.compiler == 'Clang' && matrix.build_type == 'Debug'
+        run: >-
+          cc tests/compatibility/lua51_c_api_differential_probe.c
+          -o build/lua51-c-api-reference
+          $(pkg-config --cflags --libs lua5.1)
+
+      - name: Lua 5.1 C API differential evidence
+        if: matrix.compiler == 'Clang' && matrix.build_type == 'Debug'
+        shell: pwsh
+        run: >-
+          ./tools/run_lua51_c_api_differential.ps1
+          -ReferenceProbe build/lua51-c-api-reference
+          -CandidateProbe build/lua51_c_api_differential_probe
+          -ResultPath build/lua51-c-api-differential.json
+
       - name: Upload differential evidence
         if: always() && matrix.compiler == 'Clang' && matrix.build_type == 'Debug'
         uses: actions/upload-artifact@v4
         with:
           name: lua51-differential-evidence
-          path: build/lua51-differential.json
+          path: |
+            build/lua51-differential.json
+            build/lua51-c-api-differential.json
 
       - name: Official slow sort gate
         if: matrix.compiler == 'Clang' && matrix.build_type == 'Debug'

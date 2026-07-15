@@ -3155,14 +3155,14 @@
     {
       "rule": "C allocator free",
       "path": "tests\\unit\\api\\test_lua_c_api.cpp",
-      "line": 103,
+      "line": 112,
       "textHash": "c0812857a5efa003b7ee7efa98fa9355040bb5039f010b39fe415bdf8dc53696",
       "rationale": "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
     },
     {
       "rule": "C allocator free",
       "path": "tests\\unit\\api\\test_lua_c_api.cpp",
-      "line": 380,
+      "line": 420,
       "textHash": "c0812857a5efa003b7ee7efa98fa9355040bb5039f010b39fe415bdf8dc53696",
       "rationale": "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
     },
@@ -3246,7 +3246,7 @@
     {
       "rule": "native fixed-size array declaration",
       "path": "src\\api\\lapi.cpp",
-      "line": 1201,
+      "line": 1338,
       "textHash": "cef6fa25f51879a25240edf01d33ef5c6c7f2b7a0227ef539861f4f0b1407dd5",
       "rationale": "Existing product advisory; modernize when the surrounding compatibility boundary is touched."
     },
@@ -3498,21 +3498,21 @@
     {
       "rule": "return nullptr",
       "path": "src\\api\\lapi.cpp",
-      "line": 628,
+      "line": 659,
       "textHash": "0e4bce8ffb90a54f87dd1e313212d256102e9e3c73e8525feeb9faddd27faf05",
       "rationale": "Existing product compatibility baseline; remove or modernize when the location is touched."
     },
     {
       "rule": "return nullptr",
       "path": "src\\api\\lapi.cpp",
-      "line": 902,
+      "line": 996,
       "textHash": "0e4bce8ffb90a54f87dd1e313212d256102e9e3c73e8525feeb9faddd27faf05",
       "rationale": "Existing product compatibility baseline; remove or modernize when the location is touched."
     },
     {
       "rule": "return nullptr",
       "path": "src\\api\\lapi.cpp",
-      "line": 907,
+      "line": 1001,
       "textHash": "0e4bce8ffb90a54f87dd1e313212d256102e9e3c73e8525feeb9faddd27faf05",
       "rationale": "Existing product compatibility baseline; remove or modernize when the location is touched."
     },
@@ -4030,56 +4030,56 @@
     {
       "rule": "return nullptr",
       "path": "tests\\unit\\api\\test_lua_c_api.cpp",
-      "line": 106,
+      "line": 115,
       "textHash": "0e4bce8ffb90a54f87dd1e313212d256102e9e3c73e8525feeb9faddd27faf05",
       "rationale": "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
     },
     {
       "rule": "return nullptr",
       "path": "tests\\unit\\api\\test_lua_c_api.cpp",
-      "line": 111,
+      "line": 120,
       "textHash": "0e4bce8ffb90a54f87dd1e313212d256102e9e3c73e8525feeb9faddd27faf05",
       "rationale": "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
     },
     {
       "rule": "return nullptr",
       "path": "tests\\unit\\api\\test_lua_c_api.cpp",
-      "line": 114,
+      "line": 123,
       "textHash": "0e4bce8ffb90a54f87dd1e313212d256102e9e3c73e8525feeb9faddd27faf05",
       "rationale": "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
     },
     {
       "rule": "return nullptr",
       "path": "tests\\unit\\api\\test_lua_c_api.cpp",
-      "line": 118,
+      "line": 127,
       "textHash": "0e4bce8ffb90a54f87dd1e313212d256102e9e3c73e8525feeb9faddd27faf05",
       "rationale": "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
     },
     {
       "rule": "return nullptr",
       "path": "tests\\unit\\api\\test_lua_c_api.cpp",
-      "line": 134,
+      "line": 143,
       "textHash": "0e4bce8ffb90a54f87dd1e313212d256102e9e3c73e8525feeb9faddd27faf05",
       "rationale": "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
     },
     {
       "rule": "return nullptr",
       "path": "tests\\unit\\api\\test_lua_c_api.cpp",
-      "line": 139,
+      "line": 148,
       "textHash": "0e4bce8ffb90a54f87dd1e313212d256102e9e3c73e8525feeb9faddd27faf05",
       "rationale": "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
     },
     {
       "rule": "return nullptr",
       "path": "tests\\unit\\api\\test_lua_c_api.cpp",
-      "line": 338,
+      "line": 378,
       "textHash": "0e4bce8ffb90a54f87dd1e313212d256102e9e3c73e8525feeb9faddd27faf05",
       "rationale": "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
     },
     {
       "rule": "return nullptr",
       "path": "tests\\unit\\api\\test_lua_c_api.cpp",
-      "line": 381,
+      "line": 421,
       "textHash": "0e4bce8ffb90a54f87dd1e313212d256102e9e3c73e8525feeb9faddd27faf05",
       "rationale": "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
     },
@@ -4527,70 +4527,70 @@
     {
       "rule": "simple #define",
       "path": "src\\lua.h",
-      "line": 112,
+      "line": 121,
       "textHash": "e9ba683e351e0b34a381f26a1b5ce50410a170a576070e628092d5158f1d85fb",
       "rationale": "Existing product compatibility baseline; remove or modernize when the location is touched."
     },
     {
       "rule": "simple #define",
       "path": "src\\lua.h",
-      "line": 113,
+      "line": 122,
       "textHash": "e41c18c0920e313de83239b4c53941f3337482bb35683de3476bda78ff083467",
       "rationale": "Existing product compatibility baseline; remove or modernize when the location is touched."
     },
     {
       "rule": "simple #define",
       "path": "src\\lua.h",
-      "line": 114,
+      "line": 123,
       "textHash": "7ba6e6444536f2dae11b09d23b3e41fd836c963cb5ea764891eb6f7de6dd1ce9",
       "rationale": "Existing product compatibility baseline; remove or modernize when the location is touched."
     },
     {
       "rule": "simple #define",
       "path": "src\\lua.h",
-      "line": 115,
+      "line": 124,
       "textHash": "3ecd0cfb67a503929d1d9d9a0b68ea8e18770e590b75b9d9e2bdb52294c810d7",
       "rationale": "Existing product compatibility baseline; remove or modernize when the location is touched."
     },
     {
       "rule": "simple #define",
       "path": "src\\lua.h",
-      "line": 116,
+      "line": 125,
       "textHash": "44a2659b82b1855601421ce08dbaa28ac5aedf63d5c4d2edd47f27552d3b26b6",
       "rationale": "Existing product compatibility baseline; remove or modernize when the location is touched."
     },
     {
       "rule": "simple #define",
       "path": "src\\lua.h",
-      "line": 117,
+      "line": 126,
       "textHash": "e685fb48551ec9ef8404f1dc7ce8788a3b2f5456f5cfeb268fb85f69fb5f9107",
       "rationale": "Existing product compatibility baseline; remove or modernize when the location is touched."
     },
     {
       "rule": "simple #define",
       "path": "src\\lua.h",
-      "line": 118,
+      "line": 127,
       "textHash": "6e931bde509f6e94dc1c7a1b4312ad23f553980ae8163037c6636f6eb81fcc7c",
       "rationale": "Existing product compatibility baseline; remove or modernize when the location is touched."
     },
     {
       "rule": "simple #define",
       "path": "src\\lua.h",
-      "line": 119,
+      "line": 128,
       "textHash": "9bfb70f2770245307bdc27fb0c270524080c32f4c9614a2f5e80f7eab3174f28",
       "rationale": "Existing product compatibility baseline; remove or modernize when the location is touched."
     },
     {
       "rule": "simple #define",
       "path": "src\\lua.h",
-      "line": 120,
+      "line": 129,
       "textHash": "8299431d73092a3c667e85634931cbaf0e71f483940b25ee0b8ee7aa761a6ebc",
       "rationale": "Existing product compatibility baseline; remove or modernize when the location is touched."
     },
     {
       "rule": "simple #define",
       "path": "src\\lua.h",
-      "line": 121,
+      "line": 130,
       "textHash": "d4fe626e50518947174db8a90e39b9d7b80a059e29a5eab37da75884522f948c",
       "rationale": "Existing product compatibility baseline; remove or modernize when the location is touched."
     },

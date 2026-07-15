@@ -67,7 +67,7 @@ finalizer 的队列与执行时机、弱表清理顺序和字符串驻留都可�
 - `official-strict` 通过 `tools/run_lua51_official_strict.ps1` 在临时目录执行 SHA-256 清单锁定的原样 `all.lua`。该通道禁止源码改写，并已提升为 Linux Clang Release 的 required PASS；runner 在不改脚本的前提下把 stdout banner 记录为 `stageProfile`，保留每个官方脚本的开始时间和到下一阶段的耗时。`tests/compatibility/lua51-official-strict-xfails.json` 现在是合法空清单。
 - `official-testc` 显式打开项目内部 `T` 模块，`api.lua` 原样 exact PASS。仓库中的 `code.lua` 仍由 upstream SHA 清单逐字节锁定；执行前只在内存中应用三项由 Lua 5.1.5 `luac` 证明的 opcode oracle 校正，再评估项目编译器。校正后的首个项目 parity gap 是该通道唯一 XFAIL，登记在 `lua51-official-testc-xfails.json`。
 - `official-slow` 单独运行未经改写的 `sort.lua` 与 `verybig.lua`，两者现在都是 CI required gate；`lua51-official-slow-xfails.json` 保留合法空清单，防止已修复的超时被重新接受为 XFAIL。
-- `lua51-differential` 使用官方 Lua 5.1 和本解释器运行同一批探针，比较 stdout、stderr、退出码，并在 stdout 中编码返回类型、错误类别与 GC 弱引用副作用。
+- `lua51-differential` 使用官方 Lua 5.1 和本解释器运行同一批 Lua 探针，比较 stdout、stderr、退出码，并在 stdout 中编码返回类型、错误类别与 GC 弱引用副作用；`lua51-c-api-differential` 另将同一纯 C probe 分别链接两套 Runtime，覆盖核心表、遍历、比较和拼接入口。
 
 因此当前准确结论是：Lua 5.1 官方套件 staged smoke 在受控改写和压力缩减条件下通过，原始 TestC `api.lua` 已完整执行到 `OK`，slow `sort.lua`/`verybig.lua` 均为必过门禁且没有 XFAIL；Release strict `all.lua` 也已从 timeout XFAIL 提升为 upstream 原样全量 PASS。
 

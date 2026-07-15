@@ -307,6 +307,16 @@ int valueType(const Lua::Value& value) {
     return static_cast<int>(value.getType());
 }
 
+bool rawValueEqual(const Lua::Value& left, const Lua::Value& right) {
+    if (left.getType() != right.getType()) {
+        return false;
+    }
+    if (left.isString()) {
+        return left.asString()->getData() == right.asString()->getData();
+    }
+    return left == right;
+}
+
 const char* upvalueName(const Lua::Function* closure, Lua::usize index) {
     if (closure->isCFunction()) {
         return "";
@@ -576,6 +586,27 @@ int lua_isuserdata(lua_State* L, int idx) LUA_CXX_MAY_THROW {
     return (t == LUA_TUSERDATA || t == LUA_TLIGHTUSERDATA) ? 1 : 0;
 }
 
+int lua_equal(lua_State* L, int idx1, int idx2) LUA_CXX_MAY_THROW {
+    Lua::LuaState* state = fromC(L);
+    const auto left = readIndex(state, idx1);
+    const auto right = readIndex(state, idx2);
+    return left.has_value() && right.has_value() && Lua::VM::detail::equal(state, *left, *right) ? 1 : 0;
+}
+
+int lua_rawequal(lua_State* L, int idx1, int idx2) LUA_CXX_MAY_THROW {
+    Lua::LuaState* state = fromC(L);
+    const auto left = readIndex(state, idx1);
+    const auto right = readIndex(state, idx2);
+    return left.has_value() && right.has_value() && rawValueEqual(*left, *right) ? 1 : 0;
+}
+
+int lua_lessthan(lua_State* L, int idx1, int idx2) LUA_CXX_MAY_THROW {
+    Lua::LuaState* state = fromC(L);
+    const auto left = readIndex(state, idx1);
+    const auto right = readIndex(state, idx2);
+    return left.has_value() && right.has_value() && Lua::VM::detail::lessThan(state, *left, *right) ? 1 : 0;
+}
+
 int lua_toboolean(lua_State* L, int idx) LUA_CXX_MAY_THROW {
     const auto value = readIndex(fromC(L), idx);
     return value.has_value() && value->isTrue() ? 1 : 0;
@@ -770,15 +801,40 @@ void lua_createtable(lua_State* L, int, int) LUA_CXX_MAY_THROW {
 
 void lua_gettable(lua_State* L, int idx) LUA_CXX_MAY_THROW {
     Lua::LuaState* state = fromC(L);
-    const auto table = readIndex(state, idx);
-    Lua::Value key = state->pop();
-    Lua::Value result;
-    if (!table.has_value()) {
-        state->pushNil();
-        return;
+    if (apiTop(state) == 0) {
+        state->error("lua_gettable requires a key");
     }
-    Lua::VM::detail::gettable(state, *table, key, result);
+    const auto table = readIndex(state, idx);
+    const Lua::Value key = state->at(-1);
+    Lua::Value result;
+    if (table.has_value()) {
+        Lua::VM::detail::gettable(state, *table, key, result);
+    }
+    state->getStack().at(state->getAbsoluteTop() - 1) = result;
+}
+
+void lua_getfield(lua_State* L, int idx, const char* key) LUA_CXX_MAY_THROW {
+    Lua::LuaState* state = fromC(L);
+    const auto table = readIndex(state, idx);
+    Lua::Value result;
+    if (table.has_value()) {
+        const Lua::Value fieldKey(state->getGlobalState().getStringPool().intern(key != nullptr ? key : ""));
+        Lua::VM::detail::gettable(state, *table, fieldKey, result);
+    }
     state->pushValue(result);
+}
+
+void lua_rawget(lua_State* L, int idx) LUA_CXX_MAY_THROW {
+    Lua::LuaState* state = fromC(L);
+    if (apiTop(state) == 0) {
+        state->error("lua_rawget requires a key");
+    }
+    const auto table = readIndex(state, idx);
+    Lua::Value result;
+    if (table.has_value() && table->isTable()) {
+        result = table->asTable()->get(state->at(-1));
+    }
+    state->getStack().at(state->getAbsoluteTop() - 1) = result;
 }
 
 void* lua_newuserdata(lua_State* L, size_t size) LUA_CXX_MAY_THROW {
@@ -793,12 +849,47 @@ void* lua_newuserdata(lua_State* L, size_t size) LUA_CXX_MAY_THROW {
 
 void lua_settable(lua_State* L, int idx) LUA_CXX_MAY_THROW {
     Lua::LuaState* state = fromC(L);
+    if (apiTop(state) < 2) {
+        state->error("lua_settable requires a key and value");
+    }
+    const Lua::usize savedTop = state->getAbsoluteTop();
     const auto table = readIndex(state, idx);
-    Lua::Value value = state->pop();
-    Lua::Value key = state->pop();
+    const Lua::Value key = state->at(-2);
+    const Lua::Value value = state->at(-1);
     if (table.has_value()) {
         Lua::VM::detail::settable(state, *table, key, value);
     }
+    restoreAbsoluteTopClearingSlots(state, savedTop - 2);
+}
+
+void lua_setfield(lua_State* L, int idx, const char* key) LUA_CXX_MAY_THROW {
+    Lua::LuaState* state = fromC(L);
+    if (apiTop(state) == 0) {
+        state->error("lua_setfield requires a value");
+    }
+    const Lua::usize savedTop = state->getAbsoluteTop();
+    const auto table = readIndex(state, idx);
+    const Lua::Value fieldKey(state->getGlobalState().getStringPool().intern(key != nullptr ? key : ""));
+    const Lua::Value value = state->at(-1);
+    if (table.has_value()) {
+        Lua::VM::detail::settable(state, *table, fieldKey, value);
+    }
+    restoreAbsoluteTopClearingSlots(state, savedTop - 1);
+}
+
+void lua_rawset(lua_State* L, int idx) LUA_CXX_MAY_THROW {
+    Lua::LuaState* state = fromC(L);
+    if (apiTop(state) < 2) {
+        state->error("lua_rawset requires a key and value");
+    }
+    const Lua::usize savedTop = state->getAbsoluteTop();
+    const auto table = readIndex(state, idx);
+    const Lua::Value key = state->at(-2);
+    const Lua::Value value = state->at(-1);
+    if (table.has_value() && table->isTable()) {
+        table->asTable()->set(key, value);
+    }
+    restoreAbsoluteTopClearingSlots(state, savedTop - 2);
 }
 
 void lua_rawgeti(lua_State* L, int idx, int n) LUA_CXX_MAY_THROW {
@@ -808,26 +899,29 @@ void lua_rawgeti(lua_State* L, int idx, int n) LUA_CXX_MAY_THROW {
         state->pushNil();
         return;
     }
-    state->pushValue(table->asTable()->getArray(n));
+    state->pushValue(table->asTable()->get(Lua::Value(static_cast<Lua::LuaNumber>(n))));
 }
 
 void lua_rawseti(lua_State* L, int idx, int n) LUA_CXX_MAY_THROW {
     Lua::LuaState* state = fromC(L);
-    const auto table = readIndex(state, idx);
-    Lua::Value value = state->pop();
-    if (table.has_value() && table->isTable()) {
-        table->asTable()->setArray(n, value);
+    if (apiTop(state) == 0) {
+        state->error("lua_rawseti requires a value");
     }
+    const Lua::usize savedTop = state->getAbsoluteTop();
+    const auto table = readIndex(state, idx);
+    const Lua::Value value = state->at(-1);
+    if (table.has_value() && table->isTable()) {
+        table->asTable()->set(Lua::Value(static_cast<Lua::LuaNumber>(n)), value);
+    }
+    restoreAbsoluteTopClearingSlots(state, savedTop - 1);
 }
 
 void lua_getglobal(lua_State* L, const char* name) LUA_CXX_MAY_THROW {
-    fromC(L)->pushValue(fromC(L)->getGlobal(name ? name : ""));
+    lua_getfield(L, LUA_GLOBALSINDEX, name);
 }
 
 void lua_setglobal(lua_State* L, const char* name) LUA_CXX_MAY_THROW {
-    Lua::LuaState* state = fromC(L);
-    Lua::Value value = state->pop();
-    state->setGlobal(name ? name : "", value);
+    lua_setfield(L, LUA_GLOBALSINDEX, name);
 }
 
 int lua_getmetatable(lua_State* L, int objindex) LUA_CXX_MAY_THROW {
@@ -1018,6 +1112,49 @@ int lua_error(lua_State* L) LUA_CXX_MAY_THROW {
         state->error("lua_error requires an error object");
     }
     return state->error();
+}
+
+int lua_next(lua_State* L, int idx) LUA_CXX_MAY_THROW {
+    Lua::LuaState* state = fromC(L);
+    if (apiTop(state) == 0) {
+        state->error("lua_next requires a key");
+    }
+
+    const auto table = readIndex(state, idx);
+    if (!table.has_value() || !table->isTable()) {
+        state->error("lua_next expects a table");
+    }
+
+    const Lua::usize keySlot = state->getAbsoluteTop() - 1;
+    Lua::Value nextKey;
+    Lua::Value nextValue;
+    if (!table->asTable()->next(state->getStack().at(keySlot), nextKey, nextValue)) {
+        restoreAbsoluteTopClearingSlots(state, keySlot);
+        return 0;
+    }
+
+    state->pushValue(nextValue);
+    state->getStack().at(keySlot) = nextKey;
+    return 1;
+}
+
+void lua_concat(lua_State* L, int n) LUA_CXX_MAY_THROW {
+    Lua::LuaState* state = fromC(L);
+    if (n < 0 || n > apiTop(state)) {
+        state->error("invalid concat operand count");
+    }
+    if (n == 0) {
+        lua_pushlstring(L, "", 0);
+        return;
+    }
+    if (n == 1) {
+        return;
+    }
+
+    const Lua::usize first = state->getAbsoluteTop() - static_cast<Lua::usize>(n);
+    Lua::RuntimeServices services(state->getGlobalState());
+    Lua::VM::detail::concat(services, state, &state->getStack()[first], 0, 0, n - 1);
+    restoreAbsoluteTopClearingSlots(state, first + 1);
 }
 
 int lua_yield(lua_State* L, int nresults) LUA_CXX_MAY_THROW {

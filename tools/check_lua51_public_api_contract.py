@@ -16,6 +16,8 @@ WINDOWS_EXPORTS = ROOT / "tests" / "compatibility" / "lua_public_api_exports.def
 UNIX_EXPORTS = ROOT / "tests" / "compatibility" / "lua_public_api_exports.map"
 PUBLIC_C_PROBE = ROOT / "tests" / "compatibility" / "public_api_c_compile.c"
 PUBLIC_CPP_PROBE = ROOT / "tests" / "compatibility" / "public_api_cpp_consumer.cpp"
+C_API_DIFFERENTIAL_PROBE = ROOT / "tests" / "compatibility" / "lua51_c_api_differential_probe.c"
+C_API_DIFFERENTIAL_RUNNER = ROOT / "tools" / "run_lua51_c_api_differential.ps1"
 BUILD_DEFINITION = ROOT / "CMakeLists.txt"
 ALLOWED_STATUSES = {"PASS", "XFAIL", "UNSUPPORTED"}
 ISSUE_URL = re.compile(r"https://github\.com/YanqingXu/lua/issues/[1-9][0-9]*$")
@@ -399,7 +401,7 @@ def main() -> int:
                         + ", ".join(str(path) for path in locations)
                     )
 
-    if status_counts["PASS"] != 60 or status_counts["UNSUPPORTED"] != 63:
+    if status_counts["PASS"] != 69 or status_counts["UNSUPPORTED"] != 54:
         fail(f"unexpected status partition: {dict(status_counts)}")
 
     for path, text in c_probe_texts.items():
@@ -423,9 +425,28 @@ def main() -> int:
         "lua_public_api_exports.map",
         "add_executable(lua_public_api_shared_consumer",
         "target_link_libraries(lua_public_api_shared_consumer PRIVATE lua_public_api_shared)",
+        "add_executable(lua51_c_api_differential_probe",
+        "target_link_libraries(lua51_c_api_differential_probe PRIVATE lua_core)",
     ):
         if required_build_evidence not in build_text:
             fail(f"shared-library ABI evidence is missing from CMakeLists.txt: {required_build_evidence}")
+
+    differential_text = C_API_DIFFERENTIAL_PROBE.read_text(encoding="utf-8")
+    for symbol in {
+        "lua_concat",
+        "lua_equal",
+        "lua_getfield",
+        "lua_lessthan",
+        "lua_next",
+        "lua_rawequal",
+        "lua_rawget",
+        "lua_rawset",
+        "lua_setfield",
+    }:
+        if not contains_function(differential_text, symbol):
+            fail(f"{symbol}: C API differential probe does not call the public entry point")
+    if not C_API_DIFFERENTIAL_RUNNER.is_file():
+        fail("Lua 5.1 C API differential runner is missing")
 
     print(
         "Lua 5.1.5 public API contract OK: "

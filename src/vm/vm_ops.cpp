@@ -330,11 +330,14 @@ void length(LuaState* L, Value& result, const Value& val) {
 }
 
 void concat(RuntimeServices& services, LuaState* L, Value* base, i32 a, i32 b, i32 c) {
+    Stack& stack = L->getStack();
+    const usize baseIndex = static_cast<usize>(base - &stack[0]);
     i32 total = c - b + 1;
     i32 last = c;
     StringPool& pool = services.strings;
 
     while (total > 1) {
+        base = &stack[baseIndex];
         Value& top1 = base[last];
         Value& top2 = base[last - 1];
 
@@ -363,6 +366,7 @@ void concat(RuntimeServices& services, LuaState* L, Value* base, i32 a, i32 b, i
             if (!callBinaryTM(L, top2, top1, result, TMS::TM_CONCAT)) {
                 throw RuntimeError("VM: attempt to concatenate non-string/number values");
             }
+            base = &stack[baseIndex];
             base[last - 1] = result;
             total--;
             last--;
@@ -379,6 +383,7 @@ void concat(RuntimeServices& services, LuaState* L, Value* base, i32 a, i32 b, i
         total--;
         last--;
     }
+    base = &stack[baseIndex];
     base[a] = base[b];
 }
 

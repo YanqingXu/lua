@@ -33,6 +33,15 @@ constexpr const char* kSuiteName = "Lua C API";
 static_assert(!noexcept(lua_xmove(nullptr, nullptr, 0)));
 static_assert(!noexcept(lua_call(nullptr, 0, 0)));
 static_assert(!noexcept(lua_error(nullptr)));
+static_assert(!noexcept(lua_equal(nullptr, 0, 0)));
+static_assert(!noexcept(lua_rawequal(nullptr, 0, 0)));
+static_assert(!noexcept(lua_lessthan(nullptr, 0, 0)));
+static_assert(!noexcept(lua_getfield(nullptr, 0, nullptr)));
+static_assert(!noexcept(lua_setfield(nullptr, 0, nullptr)));
+static_assert(!noexcept(lua_rawget(nullptr, 0)));
+static_assert(!noexcept(lua_rawset(nullptr, 0)));
+static_assert(!noexcept(lua_next(nullptr, 0)));
+static_assert(!noexcept(lua_concat(nullptr, 0)));
 static_assert(!noexcept(luaL_error(nullptr, "%s", "error")));
 static_assert(noexcept(lua_close(nullptr)));
 static_assert(noexcept(lua_checkstack(nullptr, 0)));
@@ -196,6 +205,37 @@ int removeMiddleArgument(lua_State* L) {
 
 int returnFirstUpvalue(lua_State* L) {
     lua_pushvalue(L, lua_upvalueindex(1));
+    return 1;
+}
+
+int returnFallbackField(lua_State* L) {
+    lua_pushstring(L, "fallback");
+    return 1;
+}
+
+int captureNewField(lua_State* L) {
+    lua_pushvalue(L, 2);
+    lua_pushvalue(L, 3);
+    lua_rawset(L, lua_upvalueindex(1));
+    return 0;
+}
+
+int compareIdsEqual(lua_State* L) {
+    lua_getfield(L, 1, "id");
+    lua_getfield(L, 2, "id");
+    lua_pushboolean(L, lua_tonumber(L, -2) == lua_tonumber(L, -1));
+    return 1;
+}
+
+int compareIdsLess(lua_State* L) {
+    lua_getfield(L, 1, "id");
+    lua_getfield(L, 2, "id");
+    lua_pushboolean(L, lua_tonumber(L, -2) < lua_tonumber(L, -1));
+    return 1;
+}
+
+int returnConcatFallback(lua_State* L) {
+    lua_pushstring(L, "joined");
     return 1;
 }
 
@@ -2226,6 +2266,246 @@ void testLoadersPublishMemoryErrorFromFullStack(TestSuite& suite) {
               "full-stack loader rollback frees each allocation once");
 }
 
+void testPublicTableTraversalApi(TestSuite& suite) {
+    lua_State* L = lua_open();
+    lua_newtable(L);
+
+    lua_pushnumber(L, 7);
+    lua_setfield(L, 1, "answer");
+    ASSERT_EQ(suite, 1, lua_gettop(L), "setfield consumes exactly its value");
+    lua_getfield(L, 1, "answer");
+    ASSERT_EQ(suite, 7.0, lua_tonumber(L, -1), "getfield reads an existing field");
+    lua_pop(L, 1);
+
+    lua_pushstring(L, "raw");
+    lua_pushnumber(L, 8);
+    lua_rawset(L, 1);
+    ASSERT_EQ(suite, 1, lua_gettop(L), "rawset consumes its key and value");
+    lua_pushstring(L, "raw");
+    lua_rawget(L, 1);
+    ASSERT_EQ(suite, 8.0, lua_tonumber(L, -1), "rawget replaces its key with the raw value");
+    lua_pop(L, 1);
+
+    lua_pushnumber(L, 9);
+    lua_setfield(L, -2, "negative");
+    lua_getfield(L, -1, "negative");
+    ASSERT_EQ(suite, 9.0, lua_tonumber(L, -1), "field APIs resolve negative table indexes before stack changes");
+    lua_pop(L, 1);
+
+    lua_newtable(L);
+    lua_pushstring(L, "__index");
+    lua_pushcclosure(L, returnFallbackField, 0);
+    lua_rawset(L, -3);
+    ASSERT_EQ(suite, 1, lua_setmetatable(L, 1), "table accepts an index metatable");
+
+    lua_getfield(L, 1, "missing");
+    ASSERT_EQ(suite, std::string("fallback"), std::string(lua_tostring(L, -1)),
+              "getfield invokes the __index metamethod");
+    lua_pop(L, 1);
+    lua_pushstring(L, "missing");
+    lua_rawget(L, 1);
+    ASSERT_EQ(suite, LUA_TNIL, lua_type(L, -1), "rawget bypasses the __index metamethod");
+    lua_pop(L, 1);
+
+    lua_newtable(L);
+    ASSERT_EQ(suite, 1, lua_getmetatable(L, 1), "table retains its index metatable");
+    lua_pushstring(L, "__newindex");
+    lua_pushvalue(L, 2);
+    lua_pushcclosure(L, captureNewField, 1);
+    lua_rawset(L, -3);
+    lua_pop(L, 1);
+
+    lua_pushnumber(L, 12);
+    lua_setfield(L, 1, "captured");
+    ASSERT_EQ(suite, 2, lua_gettop(L), "setfield consumes its value after __newindex returns");
+    lua_getfield(L, 2, "captured");
+    ASSERT_EQ(suite, 12.0, lua_tonumber(L, -1), "setfield routes absent fields through __newindex");
+    lua_pop(L, 1);
+    lua_getfield(L, 1, "captured");
+    ASSERT_EQ(suite, std::string("fallback"), std::string(lua_tostring(L, -1)),
+              "__newindex capture leaves the original table field absent");
+    lua_pop(L, 1);
+
+    lua_pushstring(L, "direct");
+    lua_pushnumber(L, 13);
+    lua_rawset(L, 1);
+    lua_getfield(L, 1, "direct");
+    ASSERT_EQ(suite, 13.0, lua_tonumber(L, -1), "rawset bypasses the __newindex metamethod");
+    lua_pop(L, 1);
+    lua_getfield(L, 2, "direct");
+    ASSERT_EQ(suite, LUA_TNIL, lua_type(L, -1), "rawset does not write through the __newindex sink");
+    lua_pop(L, 1);
+
+    lua_pushnumber(L, 21);
+    lua_setfield(L, LUA_REGISTRYINDEX, "field-contract");
+    lua_getfield(L, LUA_REGISTRYINDEX, "field-contract");
+    ASSERT_EQ(suite, 21.0, lua_tonumber(L, -1), "field APIs support the registry pseudo-index");
+    lua_pop(L, 1);
+    lua_pushstring(L, "raw-contract");
+    lua_pushnumber(L, 22);
+    lua_rawset(L, LUA_GLOBALSINDEX);
+    lua_pushstring(L, "raw-contract");
+    lua_rawget(L, LUA_GLOBALSINDEX);
+    ASSERT_EQ(suite, 22.0, lua_tonumber(L, -1), "raw APIs support the globals pseudo-index");
+    lua_pop(L, 1);
+
+    lua_settop(L, 0);
+    lua_newtable(L);
+    lua_pushnumber(L, 22);
+    lua_rawseti(L, 1, 2);
+    lua_pushnumber(L, 11);
+    lua_setfield(L, 1, "alpha");
+    lua_pushnil(L);
+
+    bool sawArrayValue = false;
+    bool sawHashValue = false;
+    int entries = 0;
+    while (lua_next(L, 1) != 0) {
+        ++entries;
+        if (lua_type(L, -2) == LUA_TNUMBER && lua_tonumber(L, -2) == 2) {
+            sawArrayValue = lua_tonumber(L, -1) == 22;
+        }
+        if (lua_type(L, -2) == LUA_TSTRING && std::string(lua_tostring(L, -2)) == "alpha") {
+            sawHashValue = lua_tonumber(L, -1) == 11;
+        }
+        lua_pop(L, 1);
+        ASSERT_EQ(suite, 2, lua_gettop(L), "lua_next keeps only the table and current key between iterations");
+    }
+    ASSERT_EQ(suite, 2, entries, "lua_next visits every non-nil table entry exactly once");
+    ASSERT_TRUE(suite, sawArrayValue && sawHashValue, "lua_next returns both array and hash key/value pairs");
+    ASSERT_EQ(suite, 1, lua_gettop(L), "lua_next pops the final key at end of traversal");
+
+    lua_newtable(L);
+    lua_pushnil(L);
+    ASSERT_EQ(suite, 0, lua_next(L, 2), "lua_next reports the end of an empty table");
+    ASSERT_EQ(suite, 2, lua_gettop(L), "empty-table traversal pops its initial nil key");
+
+    lua_close(L);
+}
+
+void testPublicComparisonAndConcatApi(TestSuite& suite) {
+    lua_State* L = lua_open();
+
+    ASSERT_EQ(suite, 0, lua_equal(L, 1, 2), "lua_equal rejects missing indexes");
+    ASSERT_EQ(suite, 0, lua_rawequal(L, 1, 2), "lua_rawequal rejects missing indexes");
+    ASSERT_EQ(suite, 0, lua_lessthan(L, 1, 2), "lua_lessthan rejects missing indexes");
+
+    lua_pushnumber(L, 4);
+    lua_pushnumber(L, 4);
+    lua_pushnumber(L, 5);
+    ASSERT_EQ(suite, 1, lua_equal(L, 1, 2), "lua_equal compares primitive numbers");
+    ASSERT_EQ(suite, 1, lua_rawequal(L, 1, 2), "lua_rawequal compares primitive numbers");
+    ASSERT_EQ(suite, 1, lua_lessthan(L, 2, 3), "lua_lessthan compares primitive numbers");
+    lua_settop(L, 0);
+
+    lua_newtable(L);
+    lua_pushnumber(L, 1);
+    lua_setfield(L, 1, "id");
+    lua_newtable(L);
+    lua_pushnumber(L, 1);
+    lua_setfield(L, 2, "id");
+    lua_newtable(L);
+    lua_pushstring(L, "__eq");
+    lua_pushcclosure(L, compareIdsEqual, 0);
+    lua_rawset(L, 3);
+    lua_pushstring(L, "__lt");
+    lua_pushcclosure(L, compareIdsLess, 0);
+    lua_rawset(L, 3);
+    lua_pushvalue(L, 3);
+    ASSERT_EQ(suite, 1, lua_setmetatable(L, 1), "first comparison table accepts the shared metatable");
+    lua_pushvalue(L, 3);
+    ASSERT_EQ(suite, 1, lua_setmetatable(L, 2), "second comparison table accepts the shared metatable");
+
+    ASSERT_EQ(suite, 1, lua_equal(L, 1, 2), "lua_equal invokes the shared __eq metamethod");
+    ASSERT_EQ(suite, 0, lua_rawequal(L, 1, 2), "lua_rawequal bypasses the __eq metamethod");
+    ASSERT_EQ(suite, 1, lua_rawequal(L, 1, 1), "lua_rawequal recognizes identical table objects");
+    lua_pushnumber(L, 2);
+    lua_setfield(L, 2, "id");
+    ASSERT_EQ(suite, 1, lua_lessthan(L, 1, 2), "lua_lessthan invokes the shared __lt metamethod");
+
+    lua_settop(L, 0);
+    lua_concat(L, 0);
+    size_t length = 1;
+    const char* empty = lua_tolstring(L, -1, &length);
+    ASSERT_TRUE(suite, empty != nullptr && length == 0, "lua_concat with zero operands pushes an empty string");
+    lua_pop(L, 1);
+
+    lua_pushstring(L, "identity");
+    lua_concat(L, 1);
+    ASSERT_EQ(suite, 1, lua_gettop(L), "lua_concat with one operand leaves the stack unchanged");
+    ASSERT_EQ(suite, std::string("identity"), std::string(lua_tostring(L, -1)),
+              "lua_concat with one operand preserves its value");
+    lua_settop(L, 0);
+
+    lua_pushstring(L, "value=");
+    lua_pushnumber(L, 12);
+    lua_concat(L, 2);
+    ASSERT_EQ(suite, std::string("value=12"), std::string(lua_tostring(L, -1)),
+              "lua_concat converts numbers and reduces its operands to one value");
+    lua_settop(L, 0);
+
+    constexpr char left[] = {'a', '\0', 'b'};
+    constexpr char right[] = {'c', '\0', 'd'};
+    lua_pushlstring(L, left, sizeof(left));
+    lua_pushlstring(L, right, sizeof(right));
+    lua_concat(L, 2);
+    const char* joined = lua_tolstring(L, -1, &length);
+    ASSERT_EQ(suite, static_cast<size_t>(6), length, "lua_concat preserves embedded NUL byte lengths");
+    ASSERT_TRUE(suite, joined != nullptr && std::memcmp(joined, "a\0bc\0d", 6) == 0,
+                "lua_concat preserves embedded NUL byte contents");
+    lua_settop(L, 0);
+
+    lua_newtable(L);
+    lua_newtable(L);
+    lua_newtable(L);
+    lua_pushstring(L, "__concat");
+    lua_pushcclosure(L, returnConcatFallback, 0);
+    lua_rawset(L, 3);
+    lua_pushvalue(L, 3);
+    ASSERT_EQ(suite, 1, lua_setmetatable(L, 1), "left concat table accepts a metatable");
+    lua_pushvalue(L, 3);
+    ASSERT_EQ(suite, 1, lua_setmetatable(L, 2), "right concat table accepts a metatable");
+    lua_pushvalue(L, 1);
+    lua_setfield(L, LUA_REGISTRYINDEX, "concat-left");
+    lua_pushvalue(L, 2);
+    lua_setfield(L, LUA_REGISTRYINDEX, "concat-right");
+    lua_remove(L, 3);
+    lua_concat(L, 2);
+    ASSERT_EQ(suite, std::string("joined"), std::string(lua_tostring(L, -1)),
+              "lua_concat invokes the __concat metamethod");
+
+    lua_settop(L, 0);
+    auto* state = reinterpret_cast<Lua::LuaState*>(L);
+    const Lua::usize frameBase = state->getCurrentCallInfo().base;
+    const int prefixSize = static_cast<int>(state->getStack().capacity() - frameBase - 2);
+    lua_settop(L, prefixSize);
+    lua_getfield(L, LUA_REGISTRYINDEX, "concat-left");
+    lua_getfield(L, LUA_REGISTRYINDEX, "concat-right");
+    lua_concat(L, 2);
+    ASSERT_EQ(suite, prefixSize + 1, lua_gettop(L),
+              "metamethod concat survives stack storage growth and still reduces two operands");
+    ASSERT_EQ(suite, std::string("joined"), std::string(lua_tostring(L, -1)),
+              "metamethod concat refreshes operand storage after stack growth");
+
+    lua_settop(L, 0);
+    lua_pushnil(L);
+    lua_setfield(L, LUA_REGISTRYINDEX, "concat-left");
+    lua_pushnil(L);
+    lua_setfield(L, LUA_REGISTRYINDEX, "concat-right");
+    lua_pushboolean(L, 1);
+    lua_pushboolean(L, 0);
+    bool rejected = false;
+    try {
+        lua_concat(L, 2);
+    } catch (const Lua::RuntimeError&) {
+        rejected = true;
+    }
+    ASSERT_TRUE(suite, rejected, "lua_concat reports incompatible operands to an unprotected C++ caller");
+    ASSERT_EQ(suite, 2, lua_gettop(L), "failed lua_concat retains its operand stack");
+
+    lua_close(L);
+}
+
 } // namespace
 
 void registerLuaCApiTests() {
@@ -2276,4 +2556,6 @@ void registerLuaCApiTests() {
     registry.registerTest(kSuiteName, "protected status API exception boundaries",
                           testProtectedStatusApiExceptionBoundaries);
     registry.registerTest(kSuiteName, "registry references", testRegistryReferences);
+    registry.registerTest(kSuiteName, "public table field raw and traversal APIs", testPublicTableTraversalApi);
+    registry.registerTest(kSuiteName, "public comparison and concat APIs", testPublicComparisonAndConcatApi);
 }
