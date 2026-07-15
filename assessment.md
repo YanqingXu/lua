@@ -1,228 +1,245 @@
-截至 2026 年 7 月 12 日，我对 `main@794e480` 的判断是：
+# 评估结论
 
-> 仓库已经从“解释器功能实现期”进入“兼容性证据、嵌入能力与工程可信度建设期”。
-> 继续扩展普通语法或 VM 功能的边际收益已经很低，下一阶段应优先证明它、嵌入它、稳定它。
+截至 **2026 年 7 月 14 日**，`main` 最新提交为 `d956830`，近期提交集中在 sanitizer、跨平台 CI、Lua C API、allocator、协程和嵌入能力。这个仓库已经不再处于“把解释器主要功能做出来”的阶段，而是进入了：
 
-如果按不同定位评分：
+> **Lua 5.1 公共接口一致性、嵌入式运行时加固和生产级证据建设阶段。**
 
-| 定位                            |  当前成熟度 | 判断                  |
-| ----------------------------- | -----: | ------------------- |
-| 现代 C++ 解释器教学项目                | 8.5/10 | 已接近标杆级              |
-| Lua 5.1 语义研究平台                |   8/10 | 核心链路完整              |
-| 可嵌入游戏服务器的 Lua Runtime         |   6/10 | C API、GC 延迟和跨平台验证不足 |
-| Lua 5.1.5 drop-in replacement |   5/10 | 目前不应宣称完整兼容          |
+编译器、38 条 VM 指令、运行时对象、标准库、GC、REPL 和字节码工具的主链路已经完整；继续横向增加普通语法、REPL 命令或教学展示功能，边际收益已经很低。下一阶段主线应明确收敛为：
 
-## 一、仓库当前实际状态
+> **Lua 5.1 Public API Conformance & Game-Server Runtime Hardening**
 
-主分支最新提交是 [794e480：Streamline technical encyclopedia](https://github.com/YanqingXu/lua/commit/794e480eb73135f8e0e3f3a75f7b85fa7f7f1233)，最近两次提交主要是文档整理，没有解释器语义层的大规模变化。
+也就是：公共 C API 一致性、资源预算、异常边界、多 Runtime 隔离、原生模块生命周期和性能回归门禁。
 
-[PR #2](https://github.com/YanqingXu/lua/pull/2) 已合并，完成了非常有价值的文档治理：
+## 当前成熟度判断
 
-* 删除 `docs2` 和重复、过期、相互矛盾的文档。
-* `docs/` 只保留技术实现百科。
-* 建立 Compiler、VM、Runtime、GC、stdlib、compatibility、testing、source map 的唯一权威入口。
-* 最近记录的绿跑为 668 个测试、3406 个断言、0 失败。
+以下是工程定位评分，不是测试覆盖率：
 
-当前架构完整度已经比较高：
+| 定位                          |       当前评分 | 判断                                  |
+| --------------------------- | ---------: | ----------------------------------- |
+| 现代 C++ 解释器教学/源码研究项目         | **9.0/10** | 已接近标杆级                              |
+| Lua 5.1 语义研究与实验平台           | **8.5/10** | 核心语义和验证体系较完整                        |
+| 可嵌入 Runtime Preview         | **7.5/10** | 已有真正可用的 C API MVP                   |
+| 游戏服务器生产候选 Runtime           | **6.5/10** | 还缺资源治理、模块生命周期和长期稳定性证据               |
+| Lua 5.1 drop-in replacement | **5.5/10** | 公共 API、ABI、官方套件和 binary module 仍未闭环 |
 
-* Lexer、Parser、AST、CodeGen 链路完整。
-* 38 条 Lua 5.1 风格 opcode 均有实现。
-* `Value` 与 `ValueResult` 使用 `std::variant` 建模。
-* Parser、CodeGen、VM 边界已经应用 `std::expected`。
-* VM handler、调用栈、RuntimeServices、EngineContext 已经拆分。
-* 标准库覆盖 base、math、string、table、io、os、coroutine、debug、package。
-* GC 已覆盖三色标记、弱表、userdata finalizer、写屏障和分阶段 step。
-* `lua_bytecode`、REPL、trace、文档—源码—测试映射形成了完整教学闭环。
+相较仓库中 7 月 12 日的旧评估，提升最明显的是嵌入能力和工程证据：自定义 allocator、独立 `EngineContext`、userdata、registry、load/dump、protected call、coroutine、TestC、跨平台 CI、sanitizer 和 benchmark 都已经实质落地。
 
-这些结论可从 [README](https://github.com/YanqingXu/lua/blob/main/README.md)、[源码责任映射](https://github.com/YanqingXu/lua/blob/main/docs/knowledge/source-document-map.md) 和 [CMake 构建清单](https://github.com/YanqingXu/lua/blob/main/CMakeLists.txt) 交叉验证。
+# 已完成到什么程度
 
-## 二、当前最重要的几个问题
+## 1. 解释器主链路：基本完成
 
-### 1. “官方套件 skip=0”不等于严格 Lua 5.1 全兼容
+仓库已经覆盖 Lexer、Parser、AST、CodeGen、Lua 5.1 风格 38 条 opcode、寄存器 VM、标准库、弱表、userdata finalizer、增量 GC、REPL 和字节码分析工具。核心工作现在不再是补普通语言功能，而是验证边缘语义和宿主接口。
 
-这是目前最值得修正的项目表述。
+## 2. C API：已经达到可演示且可实际嵌入的 MVP
 
-[官方套件测试入口](https://github.com/YanqingXu/lua/blob/main/tests/unit/official/test_official_suite.cpp) 的确把 `kExpectedSkippedScripts` 设置为 0，skip 表也是空的，但测试 harness 同时做了这些处理：
+当前已经实现并直接测试了：
 
-* 修改 `constructs.lua` 的压力循环。
-* 缩小 `closure.lua` 的闭包和弱表压力规模。
-* 限制 `gc.lua` 的自动 GC 等待循环。
-* 主 `all.lua` 流程只执行到 `vararg.lua`。
-* 后续脚本拆成单独的 tail smoke。
-* “closure + global cleanup”已知缺口测试只检查测试源码是否包含标记，并没有真正执行该组合。
-* 没有注入官方 `testC` 的 `T` 模块，因此 `api.lua`、`code.lua` 中依赖 testC 的路径并没有形成严格验证证据。
+* 独立 State 和 `EngineContext`；
+* 栈、普通索引和 pseudo-index；
+* C closure upvalue；
+* userdata、metatable、environment、registry ref；
+* 自定义 allocator 与初始化失败回滚；
+* `lua_load`、`lua_dump` 和 `luaL_load*`；
+* `lua_call`、`lua_pcall`；
+* `lua_newthread`、`lua_resume`、`lua_yield`；
+* Lua/C function coroutine 入口；
+* 多 State 隔离和 `lua_xmove`。
 
-所以更准确的表达应该是：
+当前记录的 C API suite 为 **33 个测试、805 个断言、0 failures**；原始 `api.lua` 通过项目的 `T` helper 完整执行到 `OK`。不过仓库自己的文档也正确地强调：这不等于官方 `ltests.c` 二进制 ABI，也不等于所有 Lua 5.1 公共符号都已实现。
 
-> “Lua 5.1 官方套件 staged smoke 在受控改写和压力缩减条件下通过，外部 skip 表为 0；尚未达到 upstream 原样全量执行。”
+## 3. 测试和 CI：已经从弱项变成强项
 
-### 2. 质量门存在“子命令失败但总脚本仍可能成功”的风险
+当前 CI 设计已经包含：
 
-当前 [run_quality_gate.ps1](https://github.com/YanqingXu/lua/blob/main/tools/run_quality_gate.ps1) 调用 `powershell`、MSBuild、测试程序等 native/external command 后，没有统一检查 `$LASTEXITCODE`。
+* Windows MSVC Debug/Release；
+* Linux GCC/Clang Debug/Release；
+* CMake/CTest；
+* ASan 和 UBSan；
+* clang-format 和 clang-tidy；
+* 官方 smoke、TestC、slow suite；
+* Lua 5.1 differential evidence；
+* strict suite 的独立证据产物；
+* Release runtime benchmark。
 
-PowerShell 的 `$ErrorActionPreference = "Stop"` 并不能可靠地把所有 native 非零退出码转换成异常。
+README 记录的本地完整 Debug 基线是 **726 registered tests、4353 assertions、0 failures**。
 
-已经关闭但未合并的 [PR #1](https://github.com/YanqingXu/lua/pull/1) 实际上包含了正确修复：
+需要区分“workflow 已配置”和“最新 SHA 已在线绿跑”。当前连接器没有返回该最新提交对应的 PR-triggered workflow run，因此这里不能替仓库确认最新 Actions 全绿，只能确认门禁设计和仓库记录的本地绿跑。
 
-* 每个质量门步骤清零并检查 `$LASTEXITCODE`。
-* 将 opcode matrix 变成机器可验证的 coverage contract。
-* 将 C-style 数量白名单升级为“路径、行、文本 hash、理由”基线。
-* 验证 coverage contract 引用的测试 ID 是否真实注册。
+## 4. 性能证据：测量框架完整，但回归政策未完成
 
-建议把 PR #1 的工具链改动重新移植到最新主分支，但不要整体 cherry-pick，因为它的旧文档修改会和 PR #2 的新百科结构发生冲突。
+benchmark 已覆盖解析/编译吞吐、VM 指令吞吐、C++→Lua、Lua→C++、coroutine resume/yield、table 操作、10 万 closure 生命周期、allocator 吞吐、GC P50/P95/P99/max pause 和长期 heap slope。它已经是一个不错的游戏服务器场景基准框架。
 
-### 3. CI 覆盖面明显落后于代码成熟度
+当前缺的是 **base-vs-head 回归阈值**：现有门禁会验证证据格式、正确性和堆稳定性，但不会因吞吐下降或 P99 延迟恶化自动失败，这正由 issue #7 跟踪。
 
-当前 [GitHub Actions CI](https://github.com/YanqingXu/lua/blob/main/.github/workflows/ci.yml) 只有：
+# 当前最重要的未闭环问题
 
-* `windows-latest`
-* MSVC Debug x64
-* 文档漂移检查
-* 质量门 smoke
-* 单元测试
-* 显式 `-SkipClangTidy`
+## P0：公共 C API 还不是严格 Lua 5.1 一致实现
 
-缺少：
+这不只是“缺少一些函数”，当前已经能看到具体的公共语义差异：
 
-* Windows Release。
-* Ubuntu GCC/Clang + CMake/CTest。
-* ASan、UBSan。
-* 真正执行的 clang-format、clang-tidy。
-* Debug/Release 行为一致性验证。
-* 严格官方 Lua 5.1 compatibility lane。
+* 项目中的 `lua_pushstring(L, nullptr)` 会压入空字符串；官方 Lua 5.1.5 会压入 `nil`。
+* 项目中的 `lua_objlen` 对 number 返回 `0`；官方 Lua 5.1.5 会先将 number 转成字符串，然后返回字符串长度。  ([Lua][1])
 
-对于 VM、GC、裸 observer 指针较多的项目，ASan/UBSan 的优先级非常高。TSan 可以稍后再做，因为当前解释器核心并不是多线程共享执行模型。
+此外，当前公共头文件仍缺少 `lua_getfenv`、`lua_setfenv`、遍历、比较以及其他 Lua 5.1 API 符号；仓库文档对此已有明确记录。
 
-### 4. C API 仍然只是“可演示子集”
+这说明下一步不应该继续零散补 API，而应建立一份**机器可验证的官方 API 合同**：
 
-当前 [lua.h](https://github.com/YanqingXu/lua/blob/main/src/lua.h) 只声明约 34 个核心 API，[lauxlib.h](https://github.com/YanqingXu/lua/blob/main/src/lauxlib.h) 只有约 8 个辅助 API。
-
-更关键的是，[lapi.cpp](https://github.com/YanqingXu/lua/blob/main/src/api/lapi.cpp) 中存在明确语义缺口：
-
-* `lua_newstate(lua_Alloc, void*)` 当前忽略自定义 allocator 和 userdata。
-* `lua_pushcclosure(..., int n)` 忽略 `n`，没有真正捕获栈顶 C upvalue。
-* `lua_createtable(narr, nrec)` 忽略容量提示。
-* 缺少完整的 load/dump、userdata/metatable、registry、thread/coroutine 等接口族。
-* 尚不能作为已有 Lua 5.1 C/C++ 模块的直接替代运行时。
-
-对于你的游戏服务器研究方向，C API 的实际价值高于继续增加 REPL 展示功能。
-
-### 5. Incremental GC 仍带有教学近似性质
-
-[GC 实现文档](https://github.com/YanqingXu/lua/blob/main/docs/gc/implementation.md) 已经很诚实地说明：
-
-* `collectgarbage("step")` 有 pause/propagate/atomic/sweep/finalize 分阶段状态机。
-* 写屏障、弱表、终结器路径已经建立。
-* 但工作量和 debt 计算是项目本地近似。
-* `IncrementalGC` 对完整 `collect()` 仍保持完整 mark-sweep 语义。
-
-这已经是很好的教学实现，但如果目标是用于游戏服务器，需要增加“最大暂停时间、单步预算、分配吞吐、堆增长曲线”验证，不能只验证最终可达性正确。
-
-## 三、建议的下一阶段主方向
-
-我建议把下一阶段命名为：
-
-> **Lua 5.1 Compatibility Evidence & Embedding Milestone**
-
-不要再以“完成更多功能”为中心，而应形成以下闭环：
-
-```mermaid
-flowchart TD
-    A["可信质量门"] --> B["严格兼容测试"]
-    B --> C["完整嵌入 API"]
-    C --> D["GC 延迟与性能验证"]
-    D --> E["v0.1 教学/嵌入预览版"]
+```text
+官方符号
+→ 项目是否声明
+→ 是否实现
+→ 是否有纯 C 编译证据
+→ 是否有直接运行时测试
+→ 是否与官方可观察语义一致
+→ 未实现时对应哪个 XFAIL/issue
 ```
 
-### P0：修复工程证据链，预计 1～2 周
+## P0：protected C API 的异常边界仍不完整
+
+Issue #8 已经准确识别了问题：`lua_pcall`、`lua_resume`、`lua_load`、`lua_dump`、`lua_newthread` 等状态型 API 应成为关闭的 C++ 异常边界。
+
+例如当前 `lua_load` 调用宿主 reader 时只捕获 `std::bad_alloc`；reader 抛出普通 `std::exception` 或非标准异常时仍可能穿过 `extern "C"` 边界。
+
+建议不要逐函数继续堆 `try/catch`，而是引入统一边界模板，例如：
+
+```cpp
+apiStatusBoundary(L, fallbackStatus, [&] {
+    // implementation
+});
+```
+
+统一处理：
+
+* `MemoryError` / `std::bad_alloc` → `LUA_ERRMEM`；
+* `LuaError` → 保留原始 Lua error object；
+* `std::exception` → allocation-safe runtime error；
+* 非标准异常 → 固定 emergency error；
+* stack shape 回滚；
+* 不在 OOM 路径二次分配。
+
+## P0：内存预算的语义仍不明确
+
+当前 allocator 接入范围已经很大，但 issue #5 指出的核心问题仍成立：GC memory counter、allocator 实际 live bytes 和“宿主硬内存上限”是三种不同概念。字符串内容、部分动态容量和增长后的回滚仍未形成严格事务性证据。
+
+建议明确拆成两个合同：
+
+1. **GC debt / soft budget**：只负责何时推进 GC。
+2. **allocator live-byte hard limit**：任何失败操作之后都保证 `used <= limit`，且不留下部分提交的容器扩容。
+
+在第二个合同完成前，不应把当前机制命名为“硬内存限制”。
+
+## P0：原生 C 模块生命周期没有纳入 Runtime 隔离
+
+这是代码检查中最值得新增 issue 的地方。
+
+当前动态库句柄保存在进程级 `static std::unordered_map` 中，并按完整路径永久复用。该 registry 不属于 `EngineContext`，所以多个独立 Runtime 仍共享同一动态模块句柄生命周期。当前可见实现只展示了 `LoadLibrary`/`dlopen` 和缓存，没有与 State/Context 析构绑定的卸载路径。
+
+现有 C loader 测试也主要是从 `lua_test` 自身解析导出的 `luaopen_*`，而且 fixture 内部直接把 `lua_State*` 转成项目内部 `LuaState*`。这验证了 loader 搜索和调用流程，但没有证明“独立编译、只包含公开 `lua.h`、只调用 `lua_*` 符号”的第三方二进制模块可以直接加载。
+
+Unix 构建目前仅对 `lua_test` 设置了 `-rdynamic`，实际 `lua_app` 的公共符号导出链路也尚未形成同等测试证据。
+
+建议：
+
+* 将动态库 registry 移入 `EngineContext` 或专门的 `ModuleRuntime`；
+* 定义 context-close 时的引用计数和卸载策略；
+* 明确 hot reload 是“同句柄重执行入口”还是“真正卸载并重新装载”；
+* 构建一个独立 `.dll/.so` fixture，只依赖公共头文件；
+* 用 `lua_app` 和 embedding executable 同时加载；
+* 在 Windows 和 Linux 验证符号导出、错误路径和 State 关闭。
+
+## P1：严格官方 Lua 5.1 套件仍未完成
+
+当前 smoke、TestC、`sort.lua` 和 `verybig.lua` 的证据已经比较强；但 unmodified `all.lua` 在 300 秒预算内仍会在 closure/coroutine 阶段超时，所以 CI 仍以预期失败方式运行 strict lane。
+
+这里应先做性能定位，而不是直接扩大超时时间：
+
+* Release strict 是否能完成；
+* 每个官方脚本耗时；
+* GC cycle 数量和暂停；
+* closure/upvalue 创建、关闭和回收复杂度；
+* coroutine resume 路径是否存在重复复制；
+* stack slot 清理是否形成非必要的 O(n) 扫描。
+
+如果总套件确实不适合单 job，再拆成**未经修改的确定性 shards**，而不是改写官方源码。
+
+`code.lua` 的唯一 LOADNIL XFAIL 则应通过锁定测试源 SHA、官方 `luac` 版本和最小 chunk listing 来解决；现有证据更像 fixture/oracle 版本错配，而不是运行时语义缺陷。
+
+# 推荐开发路线
+
+## 第一阶段：公共 API 与边界闭环
 
 优先完成：
 
-1. 从 PR #1 移植 `$LASTEXITCODE` 传播修复。
-2. 引入机器可读的 opcode coverage contract。
-3. 将 C-style count 白名单改成位置基线。
-4. CI 增加 Ubuntu Clang/GCC、CMake/CTest。
-5. 增加 ASan、UBSan lane。
-6. CI 中真正执行 clang-format 和 clang-tidy。
-7. 为 `main` 设置必须通过的分支保护检查。
+1. 建立官方 `lua.h`、`lauxlib.h`、`lualib.h` 的机器可读符号清单。
+2. 修复 `lua_pushstring(nullptr)`、numeric `lua_objlen` 等已发现差异。
+3. 完成 issue #8 的统一异常边界。
+4. 增加纯 C header compile、C++ `/O2 /EHsc` consumer 和链接测试。
+5. 增加独立 `.dll/.so` 公共 API 模块 fixture。
+6. 将动态库句柄生命周期移入 `EngineContext`。
+7. 在合同建立后，再按 state/stack/value/table/call/load/auxlib 拆分当前集中式 `lapi.cpp`。
 
-验收标准：
+阶段验收标准应是：
 
-* 任意子脚本或测试返回非零，整个 CI 必须失败。
-* 38 个 opcode 的 producer、handler、测试 ID 都能机器校验。
-* 新增或移动裸指针/C 风格模式必须显式更新理由，而不是消耗数量额度。
+* status-returning API 不泄漏 C++ 异常；
+* 官方公共符号全部处于 `PASS / explicit XFAIL / unsupported` 三态之一；
+* Windows/Linux 都能加载只依赖公开头文件的独立模块；
+* 两个 EngineContext 的模块状态和关闭路径可验证隔离；
+* ASan/UBSan 全绿。
 
-### P1：建立严格兼容性双通道，预计 2～4 周
+## 第二阶段：严格兼容与内存合同
 
-把官方套件拆成两个明确通道：
+随后完成：
 
-* `official-smoke`：保留当前缩减压力、快速执行的 staged smoke。
-* `official-strict`：不修改 upstream Lua 文件，不截断 `all.lua`，不缩短循环。
+1. issue #5：硬内存限制和 GC soft budget 分离；
+2. allocator fail-on-N、realloc、字符串内容、table growth、Proto metadata 测试；
+3. strict suite Release profiling 和原样 shard；
+4. issue #4 的 fixture/oracle 来源锁定；
+5. 将 differential runner 扩展到公共 C API stack trace，而不仅是 Lua 脚本输出。
 
-然后：
+这里建议把每个 C API 探针规范化成：
 
-1. 将所有源代码改写记录成明确的 compatibility deviation。
-2. 接入 `testC`/`T` 模块，真正执行 `api.lua`、`code.lua` 的测试路径。
-3. 真正执行 closure + global cleanup 已知缺口。
-4. 单独运行 slow suite，如 `sort.lua`、`verybig.lua`。
-5. 建立官方 Lua 5.1 与本解释器的 differential runner：
+```text
+status
+stack top
+每个 slot 的 Lua type
+稳定值表示
+error object 类型
+allocator live bytes
+GC object count
+```
 
-   * stdout
-   * stderr
-   * exit status
-   * 返回值类型
-   * 错误类别
-   * GC 可观察副作用
+然后在官方 Lua 5.1.5 和当前实现之间比较。
 
-验收标准不是“0 skip”，而是：
+## 第三阶段：游戏服务器运行时能力
 
-* upstream 原样通过多少。
-* XFAIL 多少。
-* 每个 XFAIL 是否有 issue、最小复现和责任模块。
+完成兼容性合同后，再进入真正的服务器运行时建设：
 
-### P2：完成可嵌入 C API MVP，预计 4～6 周
+* 每 State 指令预算和 deadline；
+* 宿主主动取消；
+* 内存 hard limit；
+* finalizer 单轮执行预算；
+* 禁用或替换 `io`、`os`、`debug`、C loader 的 sandbox profile；
+* 模块热更新和旧 closure 生命周期；
+* 数千次 State 创建/销毁压力；
+* 长时间 coroutine/table/closure churn soak；
+* 多宿主线程、每线程独立 EngineContext 的并行压力；
+* base-vs-head benchmark，并对 C++↔Lua 调用、P99 GC pause、closure churn 和 coroutine resume 设置回归预算。
 
-建议优先级：
+性能门禁应采用同一 runner 上 base/head 交错运行，而不是把 GitHub Hosted Runner 的绝对数字固化为阈值，这也与当前 benchmark 文档和 issue #7 的方向一致。
 
-1. `lua_newstate` allocator 语义。
-2. C closure upvalue。
-3. userdata、metatable、registry。
-4. `lua_load`、`luaL_loadbuffer`、`luaL_loadfile`。
-5. `lua_dump` 与项目内部 chunk API。
-6. coroutine：`lua_newthread`、`lua_resume`、`lua_yield`、`lua_status`。
-7. C API 栈不变量和异常边界测试。
-8. 编写一个真实 C++ embedding example。
+# 建议的实际优先级
 
-对于游戏服务器用途，我建议：
+按开发价值和风险排序：
 
-> 先完成 C API 和多 Runtime 隔离，再考虑官方 `luac` binary chunk 字节级兼容。
+1. **Issue #8：protected C API exception boundary**
+2. **新增：Official Public C API Conformance Contract**
+3. **新增：EngineContext-owned Native Module Registry**
+4. **Issue #5：allocator-backed memory contract**
+5. **Issue #3：unmodified strict suite**
+6. **Issue #4：code.lua oracle provenance**
+7. **Issue #7：base-vs-head performance thresholds**
+8. **Issue #6：main required checks / branch protection**
 
-### P3：游戏服务器场景的运行时验证，预计 2～4 周
+最终判断是：**解释器本体已经足够完整，下一步的关键不是“做更多”，而是证明公共接口严格、资源可控、Runtime 可隔离、模块可管理、性能不会回退。** 当上述 P0/P1 闭环后，这个项目才会从“优秀的现代 C++ Lua 实现”迈入“可信的游戏服务器嵌入式 Runtime 候选”。
 
-增加专门 benchmark：
-
-* 脚本解析与编译吞吐。
-* 每秒 VM 指令数。
-* C++ → Lua、Lua → C++ 调用成本。
-* coroutine resume/yield 成本。
-* table 高频读写。
-* 10 万闭包/upvalue 生命周期。
-* 每帧固定 GC budget 下的 P50/P95/P99 pause。
-* 长时间运行后的堆稳定性。
-
-这会让项目从“解释器实现”真正向“游戏服务器脚本运行时实验平台”升级。
-
-## 四、我建议你现在立即做的第一批任务
-
-按执行顺序：
-
-1. 移植 PR #1 的质量门退出码修复。
-2. 移植 C-style 位置基线与 opcode contract。
-3. 创建 `official-smoke` / `official-strict` 两套测试入口。
-4. 禁止 strict lane 改写官方 Lua 源文件。
-5. 将 closure + global cleanup 变成真正执行的失败测试。
-6. 接入 `testC/T`，恢复 `api.lua`、`code.lua` 的完整路径。
-7. 增加 Linux + ASan/UBSan CI。
-8. 创建 `v0.1-embedding-preview` milestone，开始补 C API。
-
-最终建议是：保留“现代 C++ 教学标杆”作为项目核心特色，但下一阶段不要继续扩充百科或普通功能，而要把已有成果变成可验证、可嵌入、可发布的运行时。
+[1]: https://www.lua.org/source/5.1/lapi.c.html "Lua 5.1.5 source code - lapi.c"

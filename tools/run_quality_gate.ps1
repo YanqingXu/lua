@@ -34,8 +34,8 @@ function Get-CommandOrNull {
 }
 
 function Get-SourceFiles {
-    $roots = @("src", "tests")
-    $extensions = @("*.cpp", "*.hpp", "*.h")
+    $roots = @("src", "tests", "examples", "benchmarks")
+    $extensions = @("*.c", "*.cc", "*.cpp", "*.cxx", "*.hpp", "*.h")
 
     foreach ($dir in $roots) {
         $path = Join-Path $root $dir
@@ -55,7 +55,7 @@ function Get-ChangedSourceFiles {
         return @()
     }
 
-    $patterns = @("src/", "tests/")
+    $patterns = @("src/", "tests/", "examples/", "benchmarks/")
     $names = @()
 
     if ($env:GITHUB_BASE_REF) {
@@ -64,27 +64,33 @@ function Get-ChangedSourceFiles {
         if ($LASTEXITCODE -ne 0) {
             throw "git fetch failed with exit code $LASTEXITCODE"
         }
-        $names = & $git.Source diff --name-only --diff-filter=ACMRT "$baseRef...HEAD" -- src tests
+        $names = & $git.Source diff --name-only --diff-filter=ACMRT "$baseRef...HEAD" -- src tests examples benchmarks
         if ($LASTEXITCODE -ne 0) {
             throw "git diff failed with exit code $LASTEXITCODE"
         }
     } else {
-        $names = & $git.Source diff --name-only --diff-filter=ACMRT HEAD -- src tests
+        $names = & $git.Source diff --name-only --diff-filter=ACMRT HEAD -- src tests examples benchmarks
         if ($LASTEXITCODE -ne 0) {
             throw "git diff failed with exit code $LASTEXITCODE"
         }
-        $staged = & $git.Source diff --cached --name-only --diff-filter=ACMRT -- src tests
+        $staged = & $git.Source diff --cached --name-only --diff-filter=ACMRT -- src tests examples benchmarks
         if ($LASTEXITCODE -ne 0) {
             throw "git diff --cached failed with exit code $LASTEXITCODE"
         }
         $names = @($names) + @($staged)
+        $untracked = & $git.Source ls-files --others --exclude-standard -- src tests examples benchmarks
+        if ($LASTEXITCODE -ne 0) {
+            throw "git ls-files failed with exit code $LASTEXITCODE"
+        }
+        $names = @($names) + @($untracked)
     }
 
     $names |
         Where-Object {
             $name = $_
             ($patterns | Where-Object { $name.StartsWith($_) }).Count -gt 0 -and
-                ($name.EndsWith(".cpp") -or $name.EndsWith(".hpp") -or $name.EndsWith(".h"))
+                ($name.EndsWith(".c") -or $name.EndsWith(".cc") -or $name.EndsWith(".cpp") -or
+                    $name.EndsWith(".cxx") -or $name.EndsWith(".hpp") -or $name.EndsWith(".h"))
         } |
         Sort-Object -Unique |
         ForEach-Object {
@@ -221,6 +227,22 @@ try {
 
     Invoke-Step "Lua 5.1 official source integrity" {
         & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root "tools\check_lua51_official_sources.ps1")
+    }
+
+    Invoke-Step "Lua 5.1 public API contract" {
+        $python3 = Get-CommandOrNull "python3"
+        $py = Get-CommandOrNull "py"
+        $python = Get-CommandOrNull "python"
+        $checker = Join-Path $root "tools\check_lua51_public_api_contract.py"
+        if ($env:OS -eq "Windows_NT" -and $py) {
+            & $py.Source -3 $checker
+        } elseif ($python3) {
+            & $python3.Source $checker
+        } elseif ($python) {
+            & $python.Source $checker
+        } else {
+            throw "Python 3 is required for the Lua 5.1 public API contract"
+        }
     }
 
     Invoke-Step "documentation drift" {

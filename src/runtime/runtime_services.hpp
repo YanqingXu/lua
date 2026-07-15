@@ -75,6 +75,14 @@ public:
         return globalState_.getGC();
     }
 
+    [[nodiscard]] NativeModuleRegistry& nativeModules() noexcept {
+        return globalState_.getNativeModules();
+    }
+
+    [[nodiscard]] const NativeModuleRegistry& nativeModules() const noexcept {
+        return globalState_.getNativeModules();
+    }
+
     [[nodiscard]] LuaAllocator& allocator() noexcept {
         return allocator_;
     }

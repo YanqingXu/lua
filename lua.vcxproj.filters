@@ -226,6 +226,9 @@
     <ClCompile Include="src\compiler\codegen\function_compiler.cpp">
       <Filter>src\compiler\codegen</Filter>
     </ClCompile>
+    <ClCompile Include="src\runtime\native_module_registry.cpp">
+      <Filter>src\runtime</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\compiler\ast.hpp">
@@ -448,6 +451,9 @@
       <Filter>src\compiler\codegen</Filter>
     </ClInclude>
     <ClInclude Include="src\runtime\lua_allocator.hpp">
+      <Filter>src\runtime</Filter>
+    </ClInclude>
+    <ClInclude Include="src\runtime\native_module_registry.hpp">
       <Filter>src\runtime</Filter>
     </ClInclude>
   </ItemGroup>

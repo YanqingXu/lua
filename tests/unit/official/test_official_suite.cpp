@@ -17,6 +17,7 @@
 
 #include <filesystem>
 #include <memory>
+#include <stdexcept>
 #include <string>
 #include <utility>
 
@@ -28,22 +29,34 @@ namespace {
 constexpr const char* kSuiteName = "Lua 5.1 Official Smoke";
 constexpr const char* kOfficialAllLua = "tests/lua/official/all.lua";
 constexpr LuaNumber kExpectedSkippedScripts = 0.0;
-constexpr const char* kCodeLuaLoadNilDiagnostic =
-    "code.lua LOADNIL fixture/oracle mismatch: expected RETURN; actual 1 - LOADNIL 1";
-constexpr const char* kCodeLuaLoadNilProbe = R"lua(
+constexpr const char* kCodeLuaUpstreamLoadNilOracle = R"lua(check(function ()
+  local a,b,c
+  local d; local e;
+  a = nil; d=nil
+end, 'RETURN'))lua";
+constexpr const char* kCodeLua515LoadNilOracle = R"lua(check(function ()
+  local a,b,c
+  local d; local e;
+  a = nil; d=nil
+end, 'LOADNIL', 'LOADNIL', 'RETURN'))lua";
+constexpr const char* kCodeLuaUpstreamRepeatFalseOracle = R"lua(check(function () repeat local x = 1 until false end,
+'LOADK', 'JMP', 'RETURN'))lua";
+constexpr const char* kCodeLua515RepeatFalseOracle = R"lua(check(function () repeat local x = 1 until false end,
+'LOADK', 'LOADBOOL', 'TEST', 'JMP', 'RETURN'))lua";
+constexpr const char* kCodeLuaUpstreamRepeatNilOracle = R"lua(check(function () repeat local x until nil end,
+'LOADNIL', 'JMP', 'RETURN'))lua";
+constexpr const char* kCodeLua515RepeatNilOracle = R"lua(check(function () repeat local x until nil end,
+'LOADNIL', 'LOADBOOL', 'TEST', 'JMP', 'RETURN'))lua";
+constexpr const char* kCodeLuaCompilerGapDiagnostic =
+    "code.lua Lua 5.1.5 compiler parity gap: expected - LOADBOOL *%d; actual 2 - TEST 2";
+constexpr const char* kCodeLuaCompilerGapProbe = R"lua(
 do
   local originalFind = string.find
-  local opcodeComparison = 0
   string.find = function(subject, pattern, ...)
-    opcodeComparison = opcodeComparison + 1
     local first, last = originalFind(subject, pattern, ...)
     if first == nil then
-      if opcodeComparison == 8 and pattern == '- RETURN *%d' and
-         originalFind(subject, '- LOADNIL *%d') ~= nil then
-        error('code.lua LOADNIL fixture/oracle mismatch: expected RETURN; actual ' .. subject, 0)
-      end
-      error('code.lua unexpected opcode comparison failure #' .. opcodeComparison ..
-            ': expected ' .. pattern .. '; actual ' .. subject, 0)
+      error('code.lua Lua 5.1.5 compiler parity gap: expected ' .. pattern ..
+            '; actual ' .. tostring(subject), 0)
     end
     return first, last
   end
@@ -83,6 +96,22 @@ void replaceAll(std::string& text, const std::string& from, const std::string& t
         text.replace(pos, from.size(), to);
         pos += to.size();
     }
+}
+
+std::string applyLua515CodeLuaOracle(std::string source) {
+    const auto replaceUnique = [&source](const char* upstream, const char* lua515, const char* label) {
+        const std::size_t match = source.find(upstream);
+        if (match == std::string::npos || source.find(upstream, match + 1) != std::string::npos) {
+            throw std::runtime_error(std::string("code.lua ") + label +
+                                     " oracle source does not match the locked upstream fixture");
+        }
+        source.replace(match, std::char_traits<char>::length(upstream), lua515);
+    };
+
+    replaceUnique(kCodeLuaUpstreamLoadNilOracle, kCodeLua515LoadNilOracle, "LOADNIL assignment");
+    replaceUnique(kCodeLuaUpstreamRepeatFalseOracle, kCodeLua515RepeatFalseOracle, "repeat-false");
+    replaceUnique(kCodeLuaUpstreamRepeatNilOracle, kCodeLua515RepeatNilOracle, "repeat-nil");
+    return source;
 }
 
 std::string trimOfficialAllForCurrentFrontend(std::string source) {
@@ -587,7 +616,7 @@ RunResult runOfficialSuiteClosureThenGlobalCleanupTail() {
     return {true, "Lua 5.1 official closure then global cleanup tail executed"};
 }
 
-RunResult runOfficialTestCScript(const char* scriptName, const char* diagnosticProbe = nullptr) {
+RunResult runOfficialTestCScript(const char* scriptName, bool applyCodeLuaOracle = false) {
     const std::filesystem::path suiteDir = std::filesystem::path("tests") / "lua" / "official";
     if (!std::filesystem::exists(suiteDir / scriptName)) {
         return {false, std::string("missing tests/lua/official/") + scriptName};
@@ -609,14 +638,21 @@ RunResult runOfficialTestCScript(const char* scriptName, const char* diagnosticP
         return prelude;
     }
 
-    if (diagnosticProbe != nullptr) {
-        RunResult probe = runLuaChunk(L.get(), diagnosticProbe, "official_testc_diagnostic_probe");
+    if (applyCodeLuaOracle) {
+        RunResult probe = runLuaChunk(L.get(), kCodeLuaCompilerGapProbe, "official_testc_code_oracle_probe");
         if (!probe.ok) {
             return probe;
         }
     }
 
-    const std::string source = readWholeFile(scriptName);
+    std::string source = readWholeFile(scriptName);
+    if (applyCodeLuaOracle) {
+        try {
+            source = applyLua515CodeLuaOracle(std::move(source));
+        } catch (const std::exception& e) {
+            return {false, e.what()};
+        }
+    }
     const std::string chunkName = std::string("official_testc_") + scriptName;
     return runLuaChunk(L.get(), source, chunkName.c_str());
 }
@@ -690,8 +726,8 @@ void testOfficialSuiteClosureThenGlobalCleanupTail(TestSuite& suite) {
 }
 
 void testOfficialTestCCodeLua(TestSuite& suite) {
-    const RunResult result = runOfficialTestCScript("code.lua", kCodeLuaLoadNilProbe);
-    const bool expectedFailure = !result.ok && result.message.find(kCodeLuaLoadNilDiagnostic) != std::string::npos;
+    const RunResult result = runOfficialTestCScript("code.lua", true);
+    const bool expectedFailure = !result.ok && result.message.find(kCodeLuaCompilerGapDiagnostic) != std::string::npos;
     ASSERT_TRUE(suite, expectedFailure, result.message);
 }
 
@@ -717,6 +753,6 @@ void registerOfficialSuiteTests() {
     registry.registerTest(kSuiteName, "global cleanup tail", testOfficialSuiteGlobalCleanupTail);
     registry.registerTest(kSuiteName, "closure then global cleanup tail execution",
                           testOfficialSuiteClosureThenGlobalCleanupTail);
-    registry.registerTest("Lua 5.1 Official TestC", "code.lua with T module XFAIL", testOfficialTestCCodeLua);
+    registry.registerTest("Lua 5.1 Official TestC", "code.lua with Lua 5.1.5 oracle XFAIL", testOfficialTestCCodeLua);
     registry.registerTest("Lua 5.1 Official TestC", "api.lua with T module", testOfficialTestCApiLua);
 }

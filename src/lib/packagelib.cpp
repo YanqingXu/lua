@@ -23,6 +23,7 @@
 #include "core/gc_string.hpp"
 #include "core/table.hpp"
 #include "core/function.hpp"
+#include "runtime/native_module_registry.hpp"
 #include "runtime/runtime_services.hpp"
 #include "vm/state/global_state.hpp"
 #include "vm/vm.hpp"
@@ -31,17 +32,12 @@
 #include <array>
 #include <fstream>
 #include <sstream>
-#include <expected>
 #include <cstring>
-#include <algorithm>
-#include <cctype>
 #include <cstdlib>
-#include <unordered_map>
 
 #ifdef _WIN32
 #include <windows.h>
 #else
-#include <dlfcn.h>
 #include <limits.h>
 #include <unistd.h>
 #endif
@@ -204,52 +200,6 @@ static Str executableDirectory() {
     }
     return path.substr(0, pos);
 }
-
-#ifdef _WIN32
-static Str fullPath(const Str& path) {
-    DWORD needed = GetFullPathNameA(path.c_str(), 0, nullptr, nullptr);
-    if (needed == 0) {
-        return path;
-    }
-
-    Vec<char> buffer(static_cast<usize>(needed) + 1, '\0');
-    DWORD len = GetFullPathNameA(path.c_str(), needed + 1, buffer.data(), nullptr);
-    if (len == 0) {
-        return path;
-    }
-    return Str(buffer.data(), static_cast<usize>(len));
-}
-
-static Str lowerAscii(Str value) {
-    std::transform(value.begin(), value.end(), value.begin(),
-                   [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
-    return value;
-}
-
-static bool isCurrentExecutablePath(const Str& path) {
-    Str current = executablePath();
-    if (current.empty()) {
-        return false;
-    }
-    return lowerAscii(fullPath(path)) == lowerAscii(fullPath(current));
-}
-#else
-static Str fullPath(const Str& path) {
-    std::array<char, PATH_MAX> buffer{};
-    if (realpath(path.c_str(), buffer.data()) == nullptr) {
-        return path;
-    }
-    return Str(buffer.data());
-}
-
-static bool isCurrentExecutablePath(const Str& path) {
-    Str current = executablePath();
-    if (current.empty()) {
-        return false;
-    }
-    return fullPath(path) == fullPath(current);
-}
-#endif
 
 static Str applyExecutableDirectory(StrView pathTemplate) {
     return replaceAll(pathTemplate, LUA_EXEC_DIR, executableDirectory());
@@ -487,12 +437,6 @@ static Function* loadLuaFile(LuaState* L, const Str& filename) {
 // Dynamic C library support
 // =====================================================================
 
-#ifdef _WIN32
-using DynamicLibraryHandle = HMODULE;
-#else
-using DynamicLibraryHandle = void*;
-#endif
-
 enum class DynamicLookupStatus { Success, OpenFailure, InitFailure };
 
 struct DynamicLookupResult {
@@ -502,114 +446,6 @@ struct DynamicLookupResult {
     bool linkedOnly;
 };
 
-struct DynamicLookupError {
-    DynamicLookupStatus status;
-    Str message;
-};
-
-static std::unordered_map<Str, DynamicLibraryHandle>& loadedDynamicLibraries() {
-    static std::unordered_map<Str, DynamicLibraryHandle> libraries;
-    return libraries;
-}
-
-#ifdef _WIN32
-static Str lastDynamicLibraryError() {
-    DWORD err = GetLastError();
-    if (err == 0) {
-        return "unknown dynamic library error";
-    }
-
-    LPSTR buffer = nullptr;
-    DWORD len = FormatMessageA(
-        FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, nullptr, err,
-        MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), reinterpret_cast<LPSTR>(&buffer), 0, nullptr);
-
-    Str message = (len != 0 && buffer != nullptr) ? Str(buffer, static_cast<usize>(len))
-                                                  : ("Windows error " + std::to_string(err));
-
-    if (buffer) {
-        LocalFree(buffer);
-    }
-
-    while (!message.empty() && (message.back() == '\r' || message.back() == '\n')) {
-        message.pop_back();
-    }
-    return message;
-}
-#else
-static Str lastDynamicLibraryError() {
-    const char* err = dlerror();
-    return err ? Str(err) : Str("unknown dynamic library error");
-}
-#endif
-
-static std::expected<DynamicLibraryHandle, DynamicLookupError> tryLoadDynamicLibrary(const Str& filename) {
-    if (filename.empty()) {
-        return std::unexpected(DynamicLookupError{
-            DynamicLookupStatus::OpenFailure,
-            "empty dynamic library path",
-        });
-    }
-
-    Str key = fullPath(filename);
-    auto& libraries = loadedDynamicLibraries();
-    auto existing = libraries.find(key);
-    if (existing != libraries.end()) {
-        return existing->second;
-    }
-
-    DynamicLibraryHandle handle = nullptr;
-#ifdef _WIN32
-    if (isCurrentExecutablePath(filename)) {
-        handle = GetModuleHandleA(nullptr);
-    } else {
-        handle = LoadLibraryA(filename.c_str());
-    }
-#else
-    dlerror();
-    if (isCurrentExecutablePath(filename)) {
-        handle = dlopen(nullptr, RTLD_NOW | RTLD_GLOBAL);
-    } else {
-        handle = dlopen(filename.c_str(), RTLD_NOW | RTLD_GLOBAL);
-    }
-#endif
-
-    if (!handle) {
-        return std::unexpected(DynamicLookupError{
-            DynamicLookupStatus::OpenFailure,
-            lastDynamicLibraryError(),
-        });
-    }
-
-    libraries.emplace(key, handle);
-    return handle;
-}
-
-static std::expected<void*, DynamicLookupError> tryLoadDynamicSymbol(DynamicLibraryHandle handle,
-                                                                     const Str& symbolName) {
-#ifdef _WIN32
-    FARPROC proc = GetProcAddress(handle, symbolName.c_str());
-    if (!proc) {
-        return std::unexpected(DynamicLookupError{
-            DynamicLookupStatus::InitFailure,
-            lastDynamicLibraryError(),
-        });
-    }
-    return reinterpret_cast<void*>(proc);
-#else
-    dlerror();
-    void* symbol = dlsym(handle, symbolName.c_str());
-    const char* err = dlerror();
-    if (err != nullptr) {
-        return std::unexpected(DynamicLookupError{
-            DynamicLookupStatus::InitFailure,
-            err,
-        });
-    }
-    return symbol;
-#endif
-}
-
 static Function* createDynamicCFunction(LuaState* L, void* symbol) {
     ApiCFunction cfunc = reinterpret_cast<ApiCFunction>(symbol);
     Function* func = L->getGlobalState().getGC().create<Function>(cfunc);
@@ -617,18 +453,19 @@ static Function* createDynamicCFunction(LuaState* L, void* symbol) {
 }
 
 static DynamicLookupResult lookForDynamicFunction(LuaState* L, const Str& filename, const Str& functionName) {
-    auto handle = tryLoadDynamicLibrary(filename);
+    NativeModuleRegistry& modules = L->getGlobalState().getNativeModules();
+    auto handle = modules.load(filename);
     if (!handle) {
-        return {handle.error().status, nullptr, handle.error().message, false};
+        return {DynamicLookupStatus::OpenFailure, nullptr, handle.error(), false};
     }
 
     if (functionName == "*") {
         return {DynamicLookupStatus::Success, nullptr, Str(), true};
     }
 
-    auto symbol = tryLoadDynamicSymbol(*handle, functionName);
+    auto symbol = modules.findSymbol(*handle, functionName);
     if (!symbol) {
-        return {symbol.error().status, nullptr, symbol.error().message, false};
+        return {DynamicLookupStatus::InitFailure, nullptr, symbol.error(), false};
     }
 
     return {DynamicLookupStatus::Success, createDynamicCFunction(L, *symbol), Str(), false};

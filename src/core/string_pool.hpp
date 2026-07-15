@@ -218,19 +218,12 @@ private:
     // 内部数据结构
     // =====================================================================
 
-    /**
-     * @brief 字符串哈希表
-     *
-     * 使用HashMap存储字符串。
-     * Key: 字符串内容（Str）
-     * Value: GCString指针
-     *
-     * 注意：我们使用Str作为key而不是StrView，
-     * 因为StrView不拥有数据，可能导致悬空引用。
-     */
-    using PoolValue = std::pair<const Str, GCString*>;
+    // String-pool keys are views into immutable GCString storage. remove() erases
+    // each entry before GC frees its owner, preventing dangling keys and duplicate
+    // content storage.
+    using PoolValue = std::pair<const StrView, GCString*>;
     using PoolAllocator = LuaStdAllocator<PoolValue>;
-    using PoolMap = std::unordered_map<Str, GCString*, std::hash<Str>, std::equal_to<Str>, PoolAllocator>;
+    using PoolMap = std::unordered_map<StrView, GCString*, std::hash<StrView>, std::equal_to<StrView>, PoolAllocator>;
 
     PoolMap pool_;
     GarbageCollector* collector_ = nullptr;

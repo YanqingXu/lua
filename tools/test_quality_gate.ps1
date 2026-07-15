@@ -63,6 +63,7 @@ Assert-FileContains "tools/run_quality_gate.ps1" @(
     "check_value_result_variant_only\.ps1",
     "check_c_style_patterns\.ps1",
     "check_lua51_official_sources\.ps1",
+    "check_lua51_public_api_contract\.py",
     "check_doc_drift\.ps1",
     "clang-format",
     "clang-tidy",
@@ -423,6 +424,12 @@ Assert-FileContains ".github/workflows/ci.yml" @(
     "build_type: Debug",
     "build_type: Release",
     "ctest --test-dir build --output-on-failure",
+    "Configure CMake API and native-module evidence",
+    "lua_public_api_consumer",
+    "lua_public_native_module_host",
+    "lua_public_native_module_app",
+    "lua_public_native_module_embedding",
+    "-L api-contract",
     "LUA_CPP_SANITIZER",
     "sanitizer: \[address, undefined\]",
     "ASAN_OPTIONS: detect_leaks=1:halt_on_error=1",
@@ -432,7 +439,11 @@ Assert-FileContains ".github/workflows/ci.yml" @(
     "Linux runtime benchmark contract",
     "LUA_CPP_BUILD_BENCHMARKS=ON",
     "lua_runtime_bench",
-    "check_runtime_bench\.ps1",
+    "benchmark-base-source",
+    "benchmark-base",
+    "benchmark-head",
+    "run_runtime_bench_comparison\.ps1",
+    "steps\.revisions\.outputs\.base_sha",
     "run_lua51_differential\.ps1",
     "run_lua51_official_slow\.ps1",
     "run_lua51_official_strict\.ps1",
@@ -458,7 +469,11 @@ Assert-FileContains "CMakeLists.txt" @(
     "add_executable\(lua_runtime_bench",
     "NAME runtime_benchmark_contract",
     "lua_embedding_example",
-    "example_embedding"
+    "example_embedding",
+    "lua51_public_api_contract",
+    "lua_public_native_module_host",
+    "lua_public_native_module_app",
+    "lua_public_native_module_embedding"
 )
 
 Assert-FileContains "tools/check_runtime_bench.ps1" @(
@@ -474,6 +489,146 @@ Assert-FileContains "tools/check_runtime_bench.ps1" @(
     'allocator_live_after_close'
 )
 
+Assert-FileContains "tools/run_runtime_bench_comparison.ps1" @(
+    'minimumRunsPerRevision',
+    '@\("base", "head"\)',
+    '@\("head", "base"\)',
+    'check_runtime_bench\.ps1',
+    'check_runtime_bench_comparison\.ps1',
+    'run-order\.json',
+    'comparison\.json'
+)
+
+Assert-FileContains "tools/check_runtime_bench_comparison.ps1" @(
+    'alternating-base-head-on-the-same-runner',
+    'runnerPid',
+    'gc_pause_p99_us',
+    'maximumRegressionRatio',
+    'regressionRatio',
+    'success\s*=\s*\$failures\.Count -eq 0'
+)
+
+Assert-FileContains "tests/compatibility/runtime-benchmark-regression-policy.json" @(
+    '"minimumRunsPerRevision": 3',
+    '"cpp_to_lua_ns_per_call"',
+    '"lua_to_cpp_ns_per_call"',
+    '"coroutine_resume_yield_ns"',
+    '"closure_upvalue_lifecycle_per_second"',
+    '"gc_pause_p99_us"'
+)
+
+function Invoke-RuntimeBenchmarkComparisonSmokeTest {
+    $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) `
+        ("lua_runtime_benchmark_comparison_" + [guid]::NewGuid().ToString("N"))
+    New-Item -ItemType Directory -Force -Path $tempRoot | Out-Null
+    try {
+        function New-SyntheticBenchmarkReport {
+            param(
+                [string]$Sha,
+                [double]$CppToLua
+            )
+
+            return [ordered]@{
+                schema_version      = 1
+                success             = $true
+                profile             = "ci"
+                build_type          = "Release"
+                git_sha             = $Sha
+                compiler            = "synthetic-compiler"
+                os                  = "synthetic-os"
+                workload            = [ordered]@{ timing_samples = 3; closure_samples = 1 }
+                gc_pause_samples_us = @(1.0, 2.0, 3.0, 4.0, 5.0)
+                metrics             = @(
+                    [ordered]@{ name = "cpp_to_lua_ns_per_call"; direction = "lower"; samples = @($CppToLua, $CppToLua, $CppToLua) },
+                    [ordered]@{ name = "lua_to_cpp_ns_per_call"; direction = "lower"; samples = @(100.0, 100.0, 100.0) },
+                    [ordered]@{ name = "coroutine_resume_yield_ns"; direction = "lower"; samples = @(100.0, 100.0, 100.0) },
+                    [ordered]@{ name = "closure_upvalue_lifecycle_per_second"; direction = "higher"; samples = @(100.0) },
+                    [ordered]@{ name = "gc_pause_p99_us"; direction = "lower"; samples = @(5.0) }
+                )
+            }
+        }
+
+        $basePaths = @()
+        $headPaths = @()
+        for ($run = 1; $run -le 3; $run++) {
+            $basePath = Join-Path $tempRoot "base-$run.json"
+            $headPath = Join-Path $tempRoot "head-$run.json"
+            New-SyntheticBenchmarkReport -Sha "base-sha" -CppToLua 100.0 |
+                ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $basePath -Encoding utf8
+            New-SyntheticBenchmarkReport -Sha "head-sha" -CppToLua 100.0 |
+                ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $headPath -Encoding utf8
+            $basePaths += $basePath
+            $headPaths += $headPath
+        }
+
+        $runs = @()
+        for ($pair = 0; $pair -lt 3; $pair++) {
+            $order = if (($pair % 2) -eq 0) { @("base", "head") } else { @("head", "base") }
+            foreach ($revision in $order) {
+                $isBase = $revision -eq "base"
+                $startedAt = [DateTime]::UnixEpoch.AddSeconds(2 * $runs.Count)
+                $runs += [ordered]@{
+                    pair       = $pair
+                    revision   = $revision
+                    sha        = if ($isBase) { "base-sha" } else { "head-sha" }
+                    resultPath = if ($isBase) { $basePaths[$pair] } else { $headPaths[$pair] }
+                    startedAt  = $startedAt.ToString("o")
+                    endedAt    = $startedAt.AddSeconds(1).ToString("o")
+                }
+            }
+        }
+        $manifestPath = Join-Path $tempRoot "run-order.json"
+        [ordered]@{
+            schemaVersion = 1
+            runnerPid     = $PID
+            baseSha       = "base-sha"
+            headSha       = "head-sha"
+            runs          = $runs
+        } | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $manifestPath -Encoding utf8
+
+        $comparisonPath = Join-Path $tempRoot "comparison.json"
+        & (Join-RepoPath "tools/check_runtime_bench_comparison.ps1") `
+            -BaseResultPath $basePaths `
+            -HeadResultPath $headPaths `
+            -RunManifestPath $manifestPath `
+            -PolicyPath (Join-RepoPath "tests/compatibility/runtime-benchmark-regression-policy.json") `
+            -OutputPath $comparisonPath
+        $comparison = Get-Content -Raw -LiteralPath $comparisonPath | ConvertFrom-Json
+        if ($comparison.success -ne $true -or $comparison.metrics.Count -ne 5) {
+            throw "base-vs-head benchmark checker rejected stable synthetic evidence"
+        }
+
+        foreach ($headPath in $headPaths) {
+            New-SyntheticBenchmarkReport -Sha "head-sha" -CppToLua 130.0 |
+                ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $headPath -Encoding utf8
+        }
+        $rejected = $false
+        try {
+            & (Join-RepoPath "tools/check_runtime_bench_comparison.ps1") `
+                -BaseResultPath $basePaths `
+                -HeadResultPath $headPaths `
+                -RunManifestPath $manifestPath `
+                -PolicyPath (Join-RepoPath "tests/compatibility/runtime-benchmark-regression-policy.json") `
+                -OutputPath $comparisonPath
+        } catch {
+            $rejected = $_.Exception.Message -match "cpp_to_lua_ns_per_call"
+        }
+        if (-not $rejected) {
+            throw "base-vs-head benchmark checker accepted a 30% C++ to Lua regression"
+        }
+        $comparison = Get-Content -Raw -LiteralPath $comparisonPath | ConvertFrom-Json
+        if ($comparison.success -ne $false) {
+            throw "failed benchmark comparison did not emit success=false evidence"
+        }
+    } finally {
+        if (Test-Path -LiteralPath $tempRoot) {
+            Remove-Item -LiteralPath $tempRoot -Recurse -Force
+        }
+    }
+}
+
+Invoke-RuntimeBenchmarkComparisonSmokeTest
+
 Assert-FileContains "examples/embedding.cpp" @(
     "luaL_loadbuffer",
     "lua_pcall",
@@ -485,18 +640,29 @@ Assert-FileContains "tools/check_lua51_official_sources.ps1" @(
     "Get-FileHash",
     "SHA256",
     "hash mismatch",
-    "unexpected:"
+    "unexpected:",
+    "lua5.1-tests.tar.gz",
+    "lua-5.1.5.tar.gz",
+    "nestedPrototypeOpcodes",
+    "Lua 5.1.5 luac oracle verified"
 )
 
 Assert-FileContains "tools/run_lua51_official_strict.ps1" @(
     "unmodified temporary copy",
+    "timeoutSeconds",
+    "stageProfile",
+    "ReadLineAsync",
+    "processElapsedSeconds",
+    "completionSentinelPresent",
+    "final OK !!!",
+    "elapsedUntilNextStageSeconds",
+    "check_lua51_official_sources"
+)
+
+Assert-FileNotContains "tools/run_lua51_official_strict.ps1" @(
     "ExpectFailure",
     "XfailManifest",
-    "timeoutSeconds",
-    "official-strict unexpectedly passed",
-    'if \(\$outcome -eq "timeout"\)',
-    "expected the registered timeout XFAIL",
-    "check_lua51_official_sources"
+    "XFAIL"
 )
 
 Assert-FileContains "tools/run_lua51_official_slow.ps1" @(
@@ -507,12 +673,15 @@ Assert-FileContains "tools/run_lua51_official_slow.ps1" @(
 Assert-FileContains ".github/workflows/ci.yml" @(
     "Official slow verybig gate",
     "-Case verybig",
-    "-TimeoutSeconds 300"
+    "-TimeoutSeconds 300",
+    "Official strict evidence",
+    "matrix.build_type == 'Release'"
 )
 
 Assert-FileNotContains ".github/workflows/ci.yml" @(
     "Official slow verybig XFAIL",
-    "-ExpectVerybigTimeout"
+    "-ExpectVerybigTimeout",
+    "-ExpectFailure"
 )
 
 Assert-FileContains "tools/run_lua51_differential.ps1" @(
@@ -531,30 +700,16 @@ Assert-FileContains "tests/compatibility/lua51-differential-cases.json" @(
 )
 
 Assert-FileContains "tests/compatibility/lua51-official-strict-xfails.json" @(
-    '"expectedOutcome":\s*"timeout"',
-    '"timeoutSeconds":\s*300',
-    '"trackingIssue":',
-    '"trackingStatus":',
-    '"responsibleModule":',
-    '"minimalReproduction":'
+    '"schemaVersion":\s*1',
+    '"channel":\s*"official-strict"',
+    '"xfails":\s*\[\s*\]'
 )
 
 $strictXfails = Get-Content -LiteralPath (Join-RepoPath "tests/compatibility/lua51-official-strict-xfails.json") `
     -Raw | ConvertFrom-Json
 $strictXfailEntries = @($strictXfails.xfails)
-if ($strictXfailEntries.Count -ne 1 -or $strictXfailEntries[0].id -ne "all.lua-unmodified" -or
-    $strictXfailEntries[0].expectedOutcome -ne "timeout" -or
-    $strictXfailEntries[0].timeoutSeconds -ne 300) {
-    throw "official-strict must retain exactly one timeout-only all.lua XFAIL"
-}
-$strictTrackingIssue = $strictXfailEntries[0].trackingIssue
-if ($null -ne $strictTrackingIssue -and
-    [string]$strictTrackingIssue -notmatch '^https://github\.com/[^/]+/[^/]+/issues/\d+$') {
-    throw "official-strict trackingIssue must be null or a real GitHub issue URL"
-}
-if ($null -eq $strictTrackingIssue -and
-    [string]::IsNullOrWhiteSpace([string]$strictXfailEntries[0].trackingStatus)) {
-    throw "official-strict needs trackingStatus while trackingIssue is null"
+if ($strictXfailEntries.Count -ne 0) {
+    throw "official-strict must remain a required PASS with no accepted XFAIL entries"
 }
 
 Assert-FileContains "tests/compatibility/lua51-official-slow-xfails.json" @(
@@ -576,47 +731,42 @@ if (@($slowXfails.xfails).Count -ne 0) {
 }
 
 Assert-FileContains "tests/compatibility/lua51-official-testc-xfails.json" @(
-    'code.lua-opcode-sequence',
-    'code.lua LOADNIL fixture/oracle mismatch: expected RETURN; actual 1 - LOADNIL 1',
-    'responsibleModule',
-    'minimalReproduction'
+    '"schemaVersion":\s*1',
+    '"channel":\s*"official-testc"',
+    'code.lua-lua515-compiler-parity',
+    'code.lua Lua 5.1.5 compiler parity gap: expected - LOADBOOL \*%d; actual 2 - TEST 2',
+    'repeat-until-nil lowering'
 )
 
 Assert-FileNotContains "tests/compatibility/lua51-official-testc-xfails.json" @(
-    'api.lua-stack-shape'
+    'api.lua-stack-shape',
+    'code.lua-opcode-sequence'
 )
 
 $testCXfails = Get-Content -LiteralPath (Join-RepoPath "tests/compatibility/lua51-official-testc-xfails.json") `
     -Raw | ConvertFrom-Json
 $testCXfailEntries = @($testCXfails.xfails)
-if ($testCXfailEntries.Count -ne 1 -or $testCXfailEntries[0].id -ne "code.lua-opcode-sequence") {
-    throw "official-testc must retain only the code.lua opcode-sequence XFAIL"
+if ($testCXfailEntries.Count -ne 1 -or $testCXfailEntries[0].id -ne "code.lua-lua515-compiler-parity") {
+    throw "official-testc must retain only the post-oracle code.lua compiler parity XFAIL"
 }
-$expectedCodeLuaDiagnostic = "code.lua LOADNIL fixture/oracle mismatch: expected RETURN; actual 1 - LOADNIL 1"
+$expectedCodeLuaDiagnostic = "code.lua Lua 5.1.5 compiler parity gap: expected - LOADBOOL *%d; actual 2 - TEST 2"
 if ($testCXfailEntries[0].expectedDiagnostic -ne $expectedCodeLuaDiagnostic) {
-    throw "official-testc code.lua XFAIL must lock the exact first LOADNIL fixture/oracle mismatch"
-}
-$testCTrackingIssue = $testCXfailEntries[0].trackingIssue
-if ($null -ne $testCTrackingIssue -and
-    [string]$testCTrackingIssue -notmatch '^https://github\.com/[^/]+/[^/]+/issues/\d+$') {
-    throw "official-testc trackingIssue must be null or a real GitHub issue URL"
-}
-if ($null -eq $testCTrackingIssue -and
-    [string]::IsNullOrWhiteSpace([string]$testCXfailEntries[0].trackingStatus)) {
-    throw "official-testc needs trackingStatus while trackingIssue is null"
+    throw "official-testc code.lua XFAIL must lock the exact first project-only compiler parity gap"
 }
 
 Assert-FileContains "tests/unit/official/test_official_suite.cpp" @(
-    'runOfficialTestCScript\("code\.lua", kCodeLuaLoadNilProbe\)',
-    'opcodeComparison == 8',
-    'code.lua LOADNIL fixture/oracle mismatch: expected RETURN; actual',
+    'applyLua515CodeLuaOracle',
+    "end, 'LOADNIL', 'LOADNIL', 'RETURN'",
+    'runOfficialTestCScript\("code\.lua", true\)',
     'runOfficialTestCScript\("api\.lua"\)',
     'ASSERT_TRUE\(suite, result\.ok, result\.message\)',
+    '"code\.lua with Lua 5\.1\.5 oracle XFAIL"',
     '"api\.lua with T module"'
 )
 
 Assert-FileNotContains "tests/unit/official/test_official_suite.cpp" @(
     ':21: assertion failed',
+    'code.lua with T module XFAIL',
     '"api\.lua with T module XFAIL"'
 )
 

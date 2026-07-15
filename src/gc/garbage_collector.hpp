@@ -248,9 +248,12 @@ public:
     [[nodiscard]] i32 setStepMultiplier(i32 stepMultiplier) noexcept;
     [[nodiscard]] isize getDebtBytes() const noexcept;
     [[nodiscard]] usize getAutomaticThresholdBytes() const noexcept;
-    [[nodiscard]] usize getMemoryLimitBytes() const noexcept;
-    usize setMemoryLimitBytes(usize limit) noexcept;
-    [[nodiscard]] bool canAllocate(usize additionalBytes = 0) const noexcept;
+    /**
+     * @brief TestC managed-size budget, not allocator live bytes or a host hard limit.
+     */
+    [[nodiscard]] usize getManagedMemoryBudgetBytes() const noexcept;
+    usize setManagedMemoryBudgetBytes(usize limit) noexcept;
+    [[nodiscard]] bool canAccountManagedBytes(usize additionalBytes = 0) const noexcept;
 
     /**
      * @brief 获取当前 GC 策略对象
@@ -375,8 +378,11 @@ public:
     usize getRootCount() const noexcept;
 
     /**
-     * @brief 获取总内存使用量（估算）
-     * @return 内存字节数
+     * @brief Sum of GCObject-reported managed sizes.
+     *
+     * This is not the allocator's exact live-byte count:
+     * object payloads and
+     * implementation/container metadata may have different accounting.
      */
     usize getTotalMemory() const noexcept;
 
@@ -384,10 +390,10 @@ public:
      * @brief O(1) memory total used by automatic-GC pacing.
      *
      * getTotalMemory() remains an exact
-     * diagnostic traversal; this accessor
-     * exposes the independently maintained fast-path ledger for tests and
+     * traversal of object-reported sizes;
+     * this accessor exposes the independently maintained fast-path managed
 
-     * * runtime telemetry.
+     * * size ledger for tests and runtime telemetry.
      */
     usize getAccountedMemory() const noexcept;
 
@@ -463,7 +469,7 @@ private:
             requestedSize = static_cast<usize>(T::getGCAllocationSize(args...));
         }
 
-        if (!canAllocate(requestedSize)) {
+        if (!canAccountManagedBytes(requestedSize)) {
             throw std::bad_alloc();
         }
 
@@ -621,7 +627,8 @@ private:
     bool automaticCollectionRunning_;
     bool preciseStackRoots_;
     usize automaticThresholdBytes_;
-    usize memoryLimitBytes_;
+    /// TestC/diagnostic managed-size fault-injection budget; never a hard limit.
+    usize managedMemoryBudgetBytes_;
     isize gcDebtBytes_;
     i32 stepCountdown_;
     i32 pause_;

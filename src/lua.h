@@ -5,9 +5,11 @@
 
 #ifdef __cplusplus
 #define LUA_CXX_MAY_THROW noexcept(false)
+#define LUA_CXX_NOEXCEPT noexcept
 extern "C" {
 #else
 #define LUA_CXX_MAY_THROW
+#define LUA_CXX_NOEXCEPT
 #endif
 
 #define LUA_VERSION "Lua 5.1"
@@ -53,7 +55,7 @@ void lua_setallocf(lua_State* L, lua_Alloc f, void* ud) LUA_CXX_MAY_THROW;
 
 int lua_gettop(lua_State* L) LUA_CXX_MAY_THROW;
 void lua_settop(lua_State* L, int idx) LUA_CXX_MAY_THROW;
-int lua_checkstack(lua_State* L, int extra) LUA_CXX_MAY_THROW;
+int lua_checkstack(lua_State* L, int extra) LUA_CXX_NOEXCEPT;
 void lua_xmove(lua_State* from, lua_State* to, int n) LUA_CXX_MAY_THROW;
 void lua_pushvalue(lua_State* L, int idx) LUA_CXX_MAY_THROW;
 void lua_remove(lua_State* L, int idx) LUA_CXX_MAY_THROW;
@@ -96,14 +98,14 @@ int lua_getmetatable(lua_State* L, int objindex) LUA_CXX_MAY_THROW;
 int lua_setmetatable(lua_State* L, int objindex) LUA_CXX_MAY_THROW;
 
 void lua_call(lua_State* L, int nargs, int nresults) LUA_CXX_MAY_THROW;
-int lua_pcall(lua_State* L, int nargs, int nresults, int errfunc) LUA_CXX_MAY_THROW;
+int lua_pcall(lua_State* L, int nargs, int nresults, int errfunc) LUA_CXX_NOEXCEPT;
 int lua_error(lua_State* L) LUA_CXX_MAY_THROW;
-lua_State* lua_newthread(lua_State* L) LUA_CXX_MAY_THROW;
-int lua_resume(lua_State* L, int nargs) LUA_CXX_MAY_THROW;
+lua_State* lua_newthread(lua_State* L) LUA_CXX_NOEXCEPT;
+int lua_resume(lua_State* L, int nargs) LUA_CXX_NOEXCEPT;
 int lua_yield(lua_State* L, int nresults) LUA_CXX_MAY_THROW;
 int lua_status(lua_State* L) LUA_CXX_MAY_THROW;
-int lua_load(lua_State* L, lua_Reader reader, void* data, const char* chunkname) LUA_CXX_MAY_THROW;
-int lua_dump(lua_State* L, lua_Writer writer, void* data) LUA_CXX_MAY_THROW;
+int lua_load(lua_State* L, lua_Reader reader, void* data, const char* chunkname) LUA_CXX_NOEXCEPT;
+int lua_dump(lua_State* L, lua_Writer writer, void* data) LUA_CXX_NOEXCEPT;
 
 #define lua_pop(L, n) lua_settop((L), -(n) - 1)
 #define lua_newtable(L) lua_createtable((L), 0, 0)

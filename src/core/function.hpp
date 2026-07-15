@@ -387,7 +387,7 @@ public:
      * @brief 获取代码数组（只读）
      * @return 代码数组引用
      */
-    const LuaVector<Instruction>& getCode() const noexcept {
+    const LuaReallocVector<Instruction>& getCode() const noexcept {
         return code_;
     }
 
@@ -403,7 +403,7 @@ public:
      * @brief 获取代码数组（可写）
      * @return 代码数组引用
      */
-    LuaVector<Instruction>& getCode() noexcept {
+    LuaReallocVector<Instruction>& getCode() noexcept {
         return code_;
     }
 
@@ -428,7 +428,7 @@ public:
      * @brief 获取行号信息数组（只读）
      * @return 行号信息数组引用
      */
-    const LuaVector<i32>& getLineInfo() const noexcept {
+    const LuaReallocVector<i32>& getLineInfo() const noexcept {
         return lineInfo_;
     }
 
@@ -436,7 +436,7 @@ public:
      * @brief 获取行号信息数组（可写）
      * @return 行号信息数组引用
      */
-    LuaVector<i32>& getLineInfo() noexcept {
+    LuaReallocVector<i32>& getLineInfo() noexcept {
         return lineInfo_;
     }
 
@@ -627,7 +627,7 @@ private:
     // =====================================================================
 
     /// 常量表：函数使用的常量值数组
-    LuaVector<Value> constants_;
+    LuaReallocVector<Value> constants_;
 
     /// 常量去重缓存：从常量键到常量表索引的映射
     /// 参考Lua 5.1中addk()使用的哈希表（fs->h）
@@ -638,19 +638,19 @@ private:
     ConstantMap constantMap_;
 
     /// 字节码数组：函数的指令序列
-    LuaVector<Instruction> code_;
+    LuaReallocVector<Instruction> code_;
 
     /// 子函数原型数组：函数内定义的嵌套函数
-    LuaVector<Proto*> subProtos_;
+    LuaReallocVector<Proto*> subProtos_;
 
     /// 行号信息：字节码到源码行号的映射（每条指令对应一个行号）
-    LuaVector<i32> lineInfo_;
+    LuaReallocVector<i32> lineInfo_;
 
     /// 局部变量信息：调试用的局部变量描述
-    LuaVector<LocVar> locvars_;
+    LuaReallocVector<LocVar> locvars_;
 
     /// 上值名称数组：闭包变量的名称（用于调试）
-    LuaVector<GCString*> upvalueNames_;
+    LuaReallocVector<GCString*> upvalueNames_;
 
     // =====================================================================
     // 元数据字段

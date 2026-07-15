@@ -20,12 +20,11 @@ namespace Lua {
 Proto::Proto() : Proto(nullptr) {}
 
 Proto::Proto(LuaAllocator* allocator)
-    : GCObject(GCObjectType::Proto), constants_(LuaStdAllocator<Value>(allocator)),
+    : GCObject(GCObjectType::Proto), constants_(allocator),
       constantMap_(0, ConstantKeyHash{}, std::equal_to<ConstantKey>{}, ConstantMapAllocator(allocator)),
-      code_(LuaStdAllocator<Instruction>(allocator)), subProtos_(LuaStdAllocator<Proto*>(allocator)),
-      lineInfo_(LuaStdAllocator<i32>(allocator)), locvars_(LuaStdAllocator<LocVar>(allocator)),
-      upvalueNames_(LuaStdAllocator<GCString*>(allocator)), source_(nullptr), linedefined_(0), lastlinedefined_(0),
-      gclist_(nullptr), nups_(0), numParams_(0), isVararg_(0), maxStackSize_(0) {}
+      code_(allocator), subProtos_(allocator), lineInfo_(allocator), locvars_(allocator), upvalueNames_(allocator),
+      source_(nullptr), linedefined_(0), lastlinedefined_(0), gclist_(nullptr), nups_(0), numParams_(0), isVararg_(0),
+      maxStackSize_(0) {}
 
 Proto::~Proto() {
     // 常量表中的GC对象由GC系统管理，这里不需要手动删除
@@ -66,10 +65,25 @@ usize Proto::addConstant(const Value& value) {
             gc->writeBarrier(this, value);
         }
         constants_.push_back(value);
+        try {
+            auto [entry, inserted] = constantMap_.emplace(key, index);
+            if (!inserted) {
+                constants_.pop_back();
+                if (GarbageCollector* gc = getOwnerCollector()) {
+                    gc->accountObjectSizeChange(this);
+                }
+                return entry->second;
+            }
+        } catch (...) {
+            constants_.pop_back();
+            if (GarbageCollector* gc = getOwnerCollector()) {
+                gc->accountObjectSizeChange(this);
+            }
+            throw;
+        }
         if (GarbageCollector* gc = getOwnerCollector()) {
             gc->accountObjectSizeChange(this);
         }
-        constantMap_.emplace(key, index);
         return index;
     }
 
@@ -91,13 +105,20 @@ usize Proto::appendConstantSlot(const Value& value) {
         gc->writeBarrier(this, value);
     }
     constants_.push_back(value);
+    try {
+        if (value.isNil() || value.isBoolean() || value.isNumber() || value.isString()) {
+            ConstantKey key = ConstantKey::fromValue(value);
+            constantMap_.emplace(key, index);
+        }
+    } catch (...) {
+        constants_.pop_back();
+        if (GarbageCollector* gc = getOwnerCollector()) {
+            gc->accountObjectSizeChange(this);
+        }
+        throw;
+    }
     if (GarbageCollector* gc = getOwnerCollector()) {
         gc->accountObjectSizeChange(this);
-    }
-
-    if (value.isNil() || value.isBoolean() || value.isNumber() || value.isString()) {
-        ConstantKey key = ConstantKey::fromValue(value);
-        constantMap_.emplace(key, index);
     }
 
     return index;

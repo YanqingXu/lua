@@ -34,7 +34,7 @@ WeakMode readWeakMode(Table* table, GlobalState* globalState) {
     GCString* modeName = state.getMetamethodName(TMS::TM_MODE);
     Value mode = mt->get(Value(modeName));
     if (mode.isString()) {
-        const Str& modeText = mode.asString()->getData();
+        const StrView modeText = mode.asString()->getData();
         result.keys = modeText.find('k') != Str::npos;
         result.values = modeText.find('v') != Str::npos;
     }

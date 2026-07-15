@@ -1,7 +1,7 @@
 ---
 status: current
-verified_against: docs/index.md; docs/vm/instruction-set.md; docs/compatibility/lua-c-api-coverage.md; CMakeLists.txt; lua.slnx; lua.vcxproj; lua_app.vcxproj; lua_test.vcxproj; lua_bytecode.vcxproj
-last_checked: 2026-07-14
+verified_against: docs/index.md; docs/vm/instruction-set.md; docs/runtime/memory-contract.md; docs/compatibility/lua-c-api-coverage.md; CMakeLists.txt; lua.slnx; lua.vcxproj; lua_app.vcxproj; lua_test.vcxproj; lua_bytecode.vcxproj
+last_checked: 2026-07-15
 applies_to: 项目入口、稳定能力概览与文档导航
 ---
 
@@ -53,8 +53,8 @@ applies_to: 项目入口、稳定能力概览与文档导航
 - `Value` 使用 `std::variant` 表示 Lua 的动态值类型，在 C++ 侧保持类型安全的访问边界。
 - 核心运行时对象包括 `Table`、`Function`、`Proto`、`GCString`、`Userdata`、`Thread` 和 `Upvalue`。
 - 项目统一使用 `src/common/types.hpp` 中的类型别名，如 `Vec<T>`、`HashMap<K, V>`、`Str`、`StrView`、`usize`、`i32`、`u32` 和 `f64`。
-- `RuntimeServices` 和 `EngineContext` 为嵌入式运行时隔离、测试夹具和多上下文执行提供清晰边界。
-- `src/api/lapi.cpp` 已形成 Lua 5.1 C API 嵌入 MVP：栈/索引、closure/userdata、registry refs、独立 State、load/dump、protected-call/yield、Lua/C function coroutine 入口，以及自定义 allocator 的主/协程 State、GC 对象、userdata payload、主要运行时容器、失败回滚和关闭释放已有直接 API suite 证据。原始 TestC `api.lua` 已 exact PASS；真实 realloc、GCString/StringPool key 字符串内容容量、尚未声明的 Lua 5.1 API 符号和官方模块二进制 ABI 仍不宣称完成。
+- `RuntimeServices` 和 `EngineContext` 为嵌入式运行时隔离、测试夹具和多上下文执行提供清晰边界；原生模块 handle/cache 也已进入 context-owned 生命周期。
+- `src/api/lapi.cpp` 已形成 Lua 5.1 C API 嵌入 MVP：protected status API 不泄漏 C++ 异常，官方 123 个公共函数有机器可读三态合同，纯 C consumer 与独立 `.dll/.so` 模块通过公开头文件编译/链接/加载。当前 60 个函数为 PASS、63 个显式 UNSUPPORTED；allocator-backed hard limit 仍不宣称完成，边界见 [内存合同](docs/runtime/memory-contract.md)。
 
 ### 内存管理与 GC
 
@@ -66,7 +66,7 @@ applies_to: 项目入口、稳定能力概览与文档导航
 
 - 标准库按 catalog 方式注册，覆盖 base、math、string、table、io、os、coroutine、debug 和 package 等 Lua 5.1 常用库。
 - REPL 支持元命令、历史记录、增量解析、Tab 补全、字节码查看、AST 查看和 GC 信息查询。
-- 兼容性验证包含 Lua 5.1 官方测试套件的 staged smoke、原始 TestC 脚本、项目内 Lua 回归脚本和 C++ 单元测试；当前 `api.lua` exact PASS，`code.lua` 保留一条字节码期望版本差异 XFAIL。
+- 兼容性验证包含 Lua 5.1 官方测试套件的 staged smoke、Release 原样 strict `all.lua`、TestC 脚本、项目内 Lua 回归脚本和 C++ 单元测试；当前 strict `all.lua` 与 `api.lua` exact PASS。`code.lua` 的通用 5.1 fixture 已用 SHA 锁定的 5.1.5 `luac` oracle 校正，随后首个项目编译器 parity gap 仍登记为一条精确 XFAIL。
 - 项目包含复杂第三方 Lua 库 `alien-signals-in-lua` 的运行验证，用于检验闭包、元表、协程、模块加载、debug 反射和嵌套表操作等组合场景。
 
 ## 快速开始
@@ -134,7 +134,7 @@ bin\lua_test.exe --filter "Symbol Binding"
 bin\lua_test.exe --report=junit
 ```
 
-测试运行器会在输出中报告实时测试数量和断言结果。2026-07-14 的完整 Debug 绿跑基线为 **726 registered tests, 4353 assertion results, 0 failures**；其中 `Lua C API` suite 为 33 个测试、805 个断言、0 failures，原始 `api.lua with T module` 也完整运行到 `OK`。新增回归后需用文档漂移门禁同步这一基线。
+测试运行器会在输出中报告实时测试数量和断言结果。2026-07-15 的完整 Debug/Release 绿跑基线为 **734 registered tests, 4487 assertion results, 0 failures**；其中 `Lua C API` suite 为 39 个测试、931 个断言、0 failures，原始 `api.lua with T module` 也完整运行到 `OK`。新增回归后需用文档漂移门禁同步这一基线。
 
 ### CMake / CTest 辅助路径
 
@@ -226,6 +226,7 @@ ctest --test-dir build\cmake -C Debug --output-on-failure
 | [docs/vm/instruction-set.md](docs/vm/instruction-set.md) | Lua 5.1 风格 VM 指令说明 |
 | [docs/runtime/value/overview.md](docs/runtime/value/overview.md) | Value 与运行时对象模型 |
 | [docs/runtime/functions/overview.md](docs/runtime/functions/overview.md) | 函数、闭包、upvalue 和调用帧 |
+| [docs/runtime/memory-contract.md](docs/runtime/memory-contract.md) | GC managed budget、lua_Alloc 与 hard-limit 支持边界 |
 | [docs/gc/implementation.md](docs/gc/implementation.md) | GC 对象模型、根集和标记清除实现 |
 | [docs/stdlib/overview.md](docs/stdlib/overview.md) | 标准库 catalog 和注册架构 |
 | [docs/compatibility/lua51/overview.md](docs/compatibility/lua51/overview.md) | Lua 5.1 技术兼容边界与实现策略对比 |
@@ -308,7 +309,7 @@ using ValueData = std::variant<
 常用验证入口：
 
 质量门统一编排 `clang-format`、`clang-tidy`、文档漂移检查和测试执行，并由 GitHub Actions 在持续集成中复用；`tools/run_quality_gate.ps1` 是本地与 CI 的共同入口。
-仓库已定义 Windows Debug/Release、Linux GCC/Clang Debug/Release、ASan/UBSan、严格兼容性和 Release benchmark 检查；私有仓库当前套餐无法启用 required-check 分支保护，该平台限制由 [#6](https://github.com/YanqingXu/lua/issues/6) 跟踪。
+仓库已定义 Windows Debug/Release、Linux GCC/Clang Debug/Release、ASan/UBSan、严格兼容性和 Release benchmark 检查。性能门在同一 runner 上按 `base/head`、`head/base`、`base/head` 交错执行，针对 C++↔Lua、coroutine、closure/upvalue 和 GC P99 使用版本化相对回归预算，不依赖 Hosted Runner 的绝对数字。私有仓库当前套餐无法启用 required-check 分支保护；2026-07-15 通过 branch-protection 与 rulesets API 复核均返回需升级 GitHub Pro 或公开仓库，该平台限制由 [#6](https://github.com/YanqingXu/lua/issues/6) 跟踪。
 
 ```powershell
 bin\lua_test.exe

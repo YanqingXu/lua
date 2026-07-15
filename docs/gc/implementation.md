@@ -1,7 +1,7 @@
 ---
 status: current
-verified_against: src/gc/garbage_collector.hpp; src/gc/garbage_collector.cpp; src/gc/gc_strategy.hpp; src/gc/gc_strategy.cpp; src/gc/gc_mark.cpp; src/gc/gc_sweep.cpp; src/gc/gc_finalize.cpp; src/core/string_pool.cpp; src/core/gc_object.hpp; src/core/table.cpp; src/core/function.cpp; src/core/upvalue.cpp; src/core/userdata.cpp; src/core/thread.cpp; src/vm/state/global_state.cpp; tests/unit/gc/test_gc.cpp; src/gc/; src/core/string_pool.hpp; tests/unit/gc/
-last_checked: 2026-07-11
+verified_against: src/gc/garbage_collector.hpp; src/gc/garbage_collector.cpp; src/gc/gc_strategy.hpp; src/gc/gc_strategy.cpp; src/gc/gc_mark.cpp; src/gc/gc_sweep.cpp; src/gc/gc_finalize.cpp; src/core/string_pool.cpp; src/core/gc_object.hpp; src/core/table.cpp; src/core/function.cpp; src/core/upvalue.cpp; src/core/userdata.cpp; src/core/thread.cpp; src/vm/state/global_state.cpp; src/lib/baselib.cpp; tests/unit/gc/test_gc.cpp; tests/unit/stdlib/test_baselib.cpp; tests/lua/official/gc.lua; tests/lua/official/closure.lua; src/gc/; src/core/string_pool.hpp; tests/unit/gc/
+last_checked: 2026-07-15
 applies_to: current garbage collector implementation
 ---
 
@@ -32,7 +32,7 @@ applies_to: current garbage collector implementation
 6. 使用显式 `StringPool&` 清除不可达对象，以便从同一驻留表中移除已死的 `GCString` 条目。
 7. 在 `LuaState` 可用时运行排队的终结器。
 
-`collectgarbage("collect")` 通过基础库进入此路径。
+`collectgarbage("collect")` 通过基础库进入此路径。与 Lua 5.1 一致，完整收集成功后会重新启用自动 GC，即使调用前执行过 `collectgarbage("stop")`；否则 upstream `gc.lua` 留下的 stopped 状态会让后续 `closure.lua` 的弱表等待形成活锁。该跨脚本合同由 Base Library 定向单测与原样 strict `all.lua` 同时锁定。
 
 ## 策略边界
 

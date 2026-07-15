@@ -29,6 +29,7 @@
 #include "core/gc_object.hpp"
 #include "core/value.hpp"
 #include "runtime/lua_allocator.hpp"
+#include <span>
 
 namespace Lua {
 
@@ -191,6 +192,13 @@ public:
     void setArray(i32 index, const Value& value);
 
     /**
+     * Atomically grow and write a contiguous SETLIST-style range.
+     * Allocation/barrier failure leaves the
+     * table's logical array unchanged.
+     */
+    void setArrayRange(i32 firstIndex, std::span<const Value> values);
+
+    /**
      * @brief 获取数组部分的大小
      *
      * @return 数组部分的元素数量
@@ -338,7 +346,7 @@ private:
     // =====================================================================
 
     /// 数组部分：存储连续的正整数键（索引从1开始）
-    LuaVector<Value> array_;
+    LuaReallocVector<Value> array_;
 
     /// 哈希部分：存储其他类型的键或非连续的整数键
     /// 注意：std::unordered_map需要4个模板参数：Key, Value, Hash, KeyEqual

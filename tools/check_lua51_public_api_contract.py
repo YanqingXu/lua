@@ -1,0 +1,329 @@
+#!/usr/bin/env python3
+"""Validate the frozen Lua 5.1.5 public-function conformance contract."""
+
+from __future__ import annotations
+
+import json
+import re
+import sys
+from collections import Counter
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parents[1]
+CONTRACT = ROOT / "tests" / "compatibility" / "lua51-public-api-contract.json"
+WINDOWS_EXPORTS = ROOT / "tests" / "compatibility" / "lua_public_api_exports.def"
+ALLOWED_STATUSES = {"PASS", "XFAIL", "UNSUPPORTED"}
+ISSUE_URL = re.compile(r"https://github\.com/YanqingXu/lua/issues/[1-9][0-9]*$")
+OFFICIAL_FUNCTIONS_BY_HEADER = {
+    "lua.h": frozenset(
+        {
+            "lua_newstate",
+            "lua_close",
+            "lua_newthread",
+            "lua_atpanic",
+            "lua_gettop",
+            "lua_settop",
+            "lua_pushvalue",
+            "lua_remove",
+            "lua_insert",
+            "lua_replace",
+            "lua_checkstack",
+            "lua_xmove",
+            "lua_isnumber",
+            "lua_isstring",
+            "lua_iscfunction",
+            "lua_isuserdata",
+            "lua_type",
+            "lua_typename",
+            "lua_equal",
+            "lua_rawequal",
+            "lua_lessthan",
+            "lua_tonumber",
+            "lua_tointeger",
+            "lua_toboolean",
+            "lua_tolstring",
+            "lua_objlen",
+            "lua_tocfunction",
+            "lua_touserdata",
+            "lua_tothread",
+            "lua_topointer",
+            "lua_pushnil",
+            "lua_pushnumber",
+            "lua_pushinteger",
+            "lua_pushlstring",
+            "lua_pushstring",
+            "lua_pushvfstring",
+            "lua_pushfstring",
+            "lua_pushcclosure",
+            "lua_pushboolean",
+            "lua_pushlightuserdata",
+            "lua_pushthread",
+            "lua_gettable",
+            "lua_getfield",
+            "lua_rawget",
+            "lua_rawgeti",
+            "lua_createtable",
+            "lua_newuserdata",
+            "lua_getmetatable",
+            "lua_getfenv",
+            "lua_settable",
+            "lua_setfield",
+            "lua_rawset",
+            "lua_rawseti",
+            "lua_setmetatable",
+            "lua_setfenv",
+            "lua_call",
+            "lua_pcall",
+            "lua_cpcall",
+            "lua_load",
+            "lua_dump",
+            "lua_yield",
+            "lua_resume",
+            "lua_status",
+            "lua_gc",
+            "lua_error",
+            "lua_next",
+            "lua_concat",
+            "lua_getallocf",
+            "lua_setallocf",
+            "lua_setlevel",
+            "lua_getstack",
+            "lua_getinfo",
+            "lua_getlocal",
+            "lua_setlocal",
+            "lua_getupvalue",
+            "lua_setupvalue",
+            "lua_sethook",
+            "lua_gethook",
+            "lua_gethookmask",
+            "lua_gethookcount",
+        }
+    ),
+    "lauxlib.h": frozenset(
+        {
+            "luaL_openlib",
+            "luaL_register",
+            "luaL_getmetafield",
+            "luaL_callmeta",
+            "luaL_typerror",
+            "luaL_argerror",
+            "luaL_checklstring",
+            "luaL_optlstring",
+            "luaL_checknumber",
+            "luaL_optnumber",
+            "luaL_checkinteger",
+            "luaL_optinteger",
+            "luaL_checkstack",
+            "luaL_checktype",
+            "luaL_checkany",
+            "luaL_newmetatable",
+            "luaL_checkudata",
+            "luaL_where",
+            "luaL_error",
+            "luaL_checkoption",
+            "luaL_ref",
+            "luaL_unref",
+            "luaL_loadfile",
+            "luaL_loadbuffer",
+            "luaL_loadstring",
+            "luaL_newstate",
+            "luaL_gsub",
+            "luaL_findtable",
+            "luaL_buffinit",
+            "luaL_prepbuffer",
+            "luaL_addlstring",
+            "luaL_addstring",
+            "luaL_addvalue",
+            "luaL_pushresult",
+        }
+    ),
+    "lualib.h": frozenset(
+        {
+            "luaopen_base",
+            "luaopen_table",
+            "luaopen_io",
+            "luaopen_os",
+            "luaopen_string",
+            "luaopen_math",
+            "luaopen_debug",
+            "luaopen_package",
+            "luaL_openlibs",
+        }
+    ),
+}
+PROJECT_PUBLIC_HEADERS = tuple(ROOT / "src" / name for name in ("lua.h", "lauxlib.h", "lualib.h"))
+PROJECT_IMPLEMENTATION_SOURCES = tuple((ROOT / "src").rglob("*.cpp"))
+
+
+def fail(message: str) -> None:
+    raise RuntimeError(message)
+
+
+def contains_function(text: str, symbol: str) -> bool:
+    return re.search(rf"\b{re.escape(symbol)}\s*\(", text) is not None
+
+
+def contains_function_definition(text: str, symbol: str) -> bool:
+    return re.search(
+        rf"(?ms)^[ \t]*[A-Za-z_][^;{{}}\n]*\b{re.escape(symbol)}\s*\([^;{{}}]*\)"
+        rf"\s*(?:LUA_CXX_[A-Z_]+\s*)?\{{",
+        text,
+    ) is not None
+
+
+def format_symbols(symbols: set[str] | frozenset[str]) -> str:
+    return ", ".join(sorted(symbols)) or "<none>"
+
+
+def read_windows_exports() -> set[str]:
+    exports: set[str] = set()
+    saw_exports = False
+    for raw_line in WINDOWS_EXPORTS.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith(";"):
+            continue
+        if not saw_exports:
+            if line != "EXPORTS":
+                fail("Windows public API export definition must start with EXPORTS")
+            saw_exports = True
+            continue
+        symbol = line.split()[0]
+        if symbol in exports:
+            fail(f"duplicate Windows export: {symbol}")
+        exports.add(symbol)
+    if not saw_exports:
+        fail("Windows public API export definition has no EXPORTS section")
+    return exports
+
+
+def main() -> int:
+    data = json.loads(CONTRACT.read_text(encoding="utf-8"))
+    if data.get("schemaVersion") != 1:
+        fail("unsupported contract schemaVersion")
+
+    entries = data.get("entries")
+    if not isinstance(entries, list):
+        fail("entries must be a list")
+
+    frozen_counts = {header: len(symbols) for header, symbols in OFFICIAL_FUNCTIONS_BY_HEADER.items()}
+    expected_counts = data.get("expectedFunctionCounts")
+    if expected_counts != frozen_counts:
+        fail(f"expectedFunctionCounts drifted from the frozen Lua 5.1.5 set: {expected_counts!r}")
+    actual_counts = Counter(entry.get("header") for entry in entries)
+    if actual_counts != Counter(expected_counts):
+        fail(f"official header counts drifted: expected {expected_counts}, got {dict(actual_counts)}")
+
+    symbols = [entry.get("symbol") for entry in entries]
+    if len(symbols) != len(set(symbols)):
+        fail("contract contains duplicate symbols")
+
+    for header, official_symbols in OFFICIAL_FUNCTIONS_BY_HEADER.items():
+        contract_symbols = {entry.get("symbol") for entry in entries if entry.get("header") == header}
+        missing = official_symbols - contract_symbols
+        unexpected = contract_symbols - official_symbols
+        if missing or unexpected:
+            fail(
+                f"{header}: contract differs from the frozen Lua 5.1.5 function set; "
+                f"missing [{format_symbols(missing)}], unexpected [{format_symbols(unexpected)}]"
+            )
+
+    public_header_texts = {path: path.read_text(encoding="utf-8") for path in PROJECT_PUBLIC_HEADERS}
+    implementation_texts = {path: path.read_text(encoding="utf-8") for path in PROJECT_IMPLEMENTATION_SOURCES}
+
+    status_counts: Counter[str] = Counter()
+    c_probe_texts: dict[Path, str] = {}
+    link_texts: dict[Path, str] = {}
+    for entry in entries:
+        symbol = entry.get("symbol")
+        header = entry.get("header")
+        status = entry.get("status")
+        if not isinstance(symbol, str) or not symbol.startswith("lua"):
+            fail(f"invalid symbol entry: {entry!r}")
+        if status not in ALLOWED_STATUSES:
+            fail(f"{symbol}: invalid status {status!r}")
+        status_counts[status] += 1
+
+        if status in {"PASS", "XFAIL"}:
+            declaration_path = ROOT / entry["declaredIn"]
+            definition_path = ROOT / entry["definedIn"]
+            c_probe_path = ROOT / entry["cCompileEvidence"]
+            link_path = ROOT / entry["linkEvidence"]
+            runtime_path = ROOT / entry["runtimeEvidence"]
+            for evidence_path in (declaration_path, definition_path, c_probe_path, link_path, runtime_path):
+                if not evidence_path.is_file():
+                    fail(f"{symbol}: missing evidence file {evidence_path.relative_to(ROOT)}")
+
+            c_probe_text = c_probe_texts.setdefault(c_probe_path, c_probe_path.read_text(encoding="utf-8"))
+            link_text = link_texts.setdefault(link_path, link_path.read_text(encoding="utf-8"))
+
+            if not contains_function(declaration_path.read_text(encoding="utf-8"), symbol):
+                fail(f"{symbol}: PASS symbol is not declared in {entry['declaredIn']}")
+            if not contains_function_definition(definition_path.read_text(encoding="utf-8"), symbol):
+                fail(f"{symbol}: PASS symbol is not defined in {entry['definedIn']}")
+            if not re.search(rf"\bREQUIRE_SYMBOL\s*\(\s*{re.escape(symbol)}\s*\)", c_probe_text):
+                fail(f"{symbol}: C compile probe does not reference the symbol")
+            if "lua_public_c_header_probe()" not in link_text:
+                fail(f"{symbol}: optimized consumer does not invoke the C link probe")
+            if not contains_function(runtime_path.read_text(encoding="utf-8"), symbol):
+                fail(f"{symbol}: direct runtime evidence does not call the public entry point")
+            if entry.get("semanticStatus") != status:
+                fail(f"{symbol}: {status} entry must have semanticStatus={status}")
+            if status == "XFAIL":
+                mismatch_path = ROOT / entry["mismatchEvidence"]
+                if not mismatch_path.is_file():
+                    fail(f"{symbol}: XFAIL mismatch evidence is missing")
+                if not entry.get("reason") or not ISSUE_URL.fullmatch(entry.get("tracking", "")):
+                    fail(f"{symbol}: XFAIL needs an explicit reason and GitHub issue URL")
+        else:
+            if not entry.get("reason") or not ISSUE_URL.fullmatch(entry.get("tracking", "")):
+                fail(f"{symbol}: UNSUPPORTED needs an explicit reason and GitHub issue URL")
+            if status == "UNSUPPORTED":
+                declaring_headers = [
+                    path.relative_to(ROOT) for path, text in public_header_texts.items() if contains_function(text, symbol)
+                ]
+                defining_sources = [
+                    path.relative_to(ROOT)
+                    for path, text in implementation_texts.items()
+                    if contains_function_definition(text, symbol)
+                ]
+                if declaring_headers or defining_sources:
+                    locations = declaring_headers + defining_sources
+                    fail(
+                        f"{symbol}: UNSUPPORTED entry is present in project API code: "
+                        + ", ".join(str(path) for path in locations)
+                    )
+
+    if status_counts["PASS"] != 60 or status_counts["UNSUPPORTED"] != 63:
+        fail(f"unexpected status partition: {dict(status_counts)}")
+
+    for path, text in c_probe_texts.items():
+        if not re.search(r"volatile\s+lua_CFunction\s+lua_public_link_sink", text):
+            fail(f"{path.relative_to(ROOT)}: C link probe is missing its volatile function-pointer sink")
+        if not re.search(r"lua_public_link_sink\s*=\s*\(lua_CFunction\)\s*\(name\)", text):
+            fail(f"{path.relative_to(ROOT)}: REQUIRE_SYMBOL does not create an evaluated link reference")
+
+    pass_symbols = {entry["symbol"] for entry in entries if entry["status"] == "PASS"}
+    windows_exports = read_windows_exports()
+    if windows_exports != pass_symbols:
+        missing = pass_symbols - windows_exports
+        extra = windows_exports - pass_symbols
+        fail(
+            "Windows public module exports drifted from PASS symbols; "
+            f"missing [{format_symbols(missing)}], extra [{format_symbols(extra)}]"
+        )
+
+    print(
+        "Lua 5.1.5 public API contract OK: "
+        f"{len(entries)} official functions, {status_counts['PASS']} PASS, "
+        f"{status_counts['XFAIL']} XFAIL, {status_counts['UNSUPPORTED']} UNSUPPORTED"
+    )
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main())
+    except (KeyError, OSError, ValueError, RuntimeError) as error:
+        print(f"public API contract check failed: {error}", file=sys.stderr)
+        sys.exit(1)

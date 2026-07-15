@@ -64,11 +64,19 @@ evidence and are rejected by that gate.
 
 ## CI policy
 
-The required CI contract builds only the benchmark and core in Release, runs the `ci` profile, validates the JSON,
-and uploads it as an artifact. The validator binds the artifact to the exact `ci` workload and commit, verifies every
-metric's unit, direction, sample count, and recomputed median, then recomputes the raw GC nearest-rank quantiles and
-heap trend. Heap stability permits at most 64 KiB or 10% final growth (whichever is larger) and a positive trend of at
-most 256 KiB or one warmed heap per million frames (whichever is larger). Absolute throughput should not be compared
-to a committed threshold on a changing GitHub-hosted machine. Once the harness exists on the base branch, regression
-policy should compare base and head interleaved on the same runner; that follow-up is tracked in
-[#7](https://github.com/YanqingXu/lua/issues/7).
+The required CI job builds both the base revision and the proposed head on one runner. It runs three paired `ci`
+profiles in alternating order (`base/head`, `head/base`, `base/head`), validates every individual JSON contract, and
+then compares the combined samples. This avoids treating absolute numbers from changing GitHub-hosted machines as a
+stable baseline while balancing first-run and thermal-order bias.
+
+The versioned policy in `tests/compatibility/runtime-benchmark-regression-policy.json` currently rejects regressions
+larger than 20% for C++→Lua, Lua→C++, and coroutine resume/yield, 25% for closure/upvalue lifecycle throughput, and
+50% for raw-sample P99 GC pause. The wider GC threshold reflects timer granularity and hosted-runner noise, but it is
+still a real relative failure budget. `tools/check_runtime_bench_comparison.ps1` recomputes the aggregate medians and
+P99 rather than trusting reported summaries, checks that base/head used identical Release workloads and compilers,
+and records a machine-readable `comparison.json` even when a threshold fails.
+
+Each individual run still enforces the correctness and heap policy: exact workload/commit metadata, raw metric
+samples, nearest-rank GC quantiles, zero allocator bytes after close, and bounded heap growth/slope. The complete raw
+results, run-order manifest, and comparison evidence are uploaded together. This closes the regression gate tracked
+by [#7](https://github.com/YanqingXu/lua/issues/7).

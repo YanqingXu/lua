@@ -1243,8 +1243,8 @@ i32 luaB_loadstring(LuaState* L) {
         return 2;
     }
 
-    Str code = codeVal.asString()->getData();
-    Str chunkname = (nargs >= 2 && L->at(2).isString()) ? L->at(2).asString()->getData() : code;
+    Str code(codeVal.asString()->getData());
+    Str chunkname = (nargs >= 2 && L->at(2).isString()) ? Str(L->at(2).asString()->getData()) : code;
 
     try {
         if (isProjectBinaryChunk(StrView(code.data(), code.size()))) {
@@ -1759,6 +1759,12 @@ i32 luaB_collectgarbage(LuaState* L) {
     if (firstChar == 'c') {
         if (strcmp(opt, "collect") == 0) {
             (void)gc.collect(L);
+            // Lua 5.1's LUA_GCCOLLECT path installs a fresh threshold after
+            // the full cycle, even when LUA_GCSTOP was used beforehand.
+            // Keeping our separate stopped flag set here strands later weak
+            // tables indefinitely (the upstream gc.lua -> closure.lua
+            // sequence relies on a full collection resuming automatic GC).
+            gc.restartAutomatic();
             L->pushNumber(0);
             return 1;
         } else if (strcmp(opt, "count") == 0) {

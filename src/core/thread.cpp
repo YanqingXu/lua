@@ -169,7 +169,11 @@ bool Thread::resume(LuaState* callerL, i32 nargs) {
         return failResume(Value(globalState.getMemoryErrorMessage()), ThreadStatus::ErrMem, true);
     };
 
-    auto failRuntimeValue = [&](const Value& errorValue) noexcept {
+    auto failRuntimeValue = [&](const Value& errorValue, bool canonicalizeCoroutine) noexcept {
+        if (canonicalizeCoroutine) {
+            return failResume(errorValue, ThreadStatus::ErrRun, true);
+        }
+
         restoreCallerContext();
         state_->setStatus(ThreadStatus::ErrRun);
         coStatus_ = CoroutineStatus::Dead;
@@ -179,14 +183,11 @@ bool Thread::resume(LuaState* callerL, i32 nargs) {
         return false;
     };
 
-    auto failRuntimeMessage = [&](const char* message) noexcept {
+    auto failRuntimeMessage = [&](const char* message, bool canonicalizeCoroutine) noexcept {
         try {
-            return failRuntimeValue(Value(globalState.getStringPool().intern(message)));
+            return failRuntimeValue(Value(globalState.getStringPool().intern(message)), canonicalizeCoroutine);
         } catch (...) {
-            // Formatting a runtime error can itself allocate. An OOM at this
-            // point needs the stronger canonical rollback because the
-            // suspended frame may be only partially updated.
-            return failMemory();
+            return failRuntimeValue(Value(globalState.getApiExceptionMessage()), canonicalizeCoroutine);
         }
     };
 
@@ -195,7 +196,7 @@ bool Thread::resume(LuaState* callerL, i32 nargs) {
             Value errorValue(globalState.getStringPool().intern(message));
             return failResume(errorValue, ThreadStatus::ErrRun, canonicalizeCoroutine);
         } catch (...) {
-            return failResume(Value(globalState.getMemoryErrorMessage()), ThreadStatus::ErrMem, canonicalizeCoroutine);
+            return failResume(Value(globalState.getApiExceptionMessage()), ThreadStatus::ErrRun, canonicalizeCoroutine);
         }
     };
 
@@ -405,13 +406,17 @@ bool Thread::resume(LuaState* callerL, i32 nargs) {
         return failMemory();
     } catch (const LuaError& error) {
         if (error.hasErrorObject()) {
-            return failRuntimeValue(error.getErrorObject());
+            // Lua 5.1 keeps the failed coroutine's frames available to
+            // debug.traceback after resume reports the error.
+            return failRuntimeValue(error.getErrorObject(), false);
         }
-        return failRuntimeMessage(error.what());
+        return failRuntimeMessage(error.what(), false);
     } catch (const std::exception& error) {
-        return failRuntimeMessage(error.what());
+        // A foreign exception can interrupt a frame mutation at an arbitrary
+        // point, so use the stronger rollback while containing it.
+        return failRuntimeMessage(error.what(), true);
     } catch (...) {
-        return failRuntimeMessage("unknown C++ exception");
+        return failRuntimeValue(Value(globalState.getApiExceptionMessage()), true);
     }
 }
 

@@ -1,10 +1,17 @@
 cmake_minimum_required(VERSION 3.20)
 
-project(lua_cpp LANGUAGES CXX)
+if(POLICY CMP0184)
+    cmake_policy(SET CMP0184 NEW)
+endif()
+
+project(lua_cpp LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_C_STANDARD 99)
+set(CMAKE_C_STANDARD_REQUIRED ON)
+set(CMAKE_C_EXTENSIONS OFF)
 
 option(LUA_CPP_BUILD_TOOLS "Build the interpreter and bytecode tools" ON)
 option(LUA_CPP_BUILD_TESTS "Build the unit test runner" ON)
@@ -111,6 +118,7 @@ set(LUA_CORE_SOURCES
     src/debug/value_serializer.cpp
     src/debug/json_trace_sink.cpp
     src/compiler/codegen/function_compiler.cpp
+    src/runtime/native_module_registry.cpp
 )
 
 set(LUA_REPL_SOURCES
@@ -269,6 +277,8 @@ if(BUILD_TESTING AND LUA_CPP_BUILD_BENCHMARKS)
 endif()
 
 if(BUILD_TESTING AND LUA_CPP_BUILD_TESTS)
+    find_package(Python3 COMPONENTS Interpreter REQUIRED)
+
     add_executable(lua_test ${LUA_TEST_SOURCES})
     target_link_libraries(lua_test PRIVATE lua_core)
     target_include_directories(lua_test PRIVATE
@@ -281,6 +291,136 @@ if(BUILD_TESTING AND LUA_CPP_BUILD_TESTS)
     lua_configure_runtime_stack(lua_test)
     if(UNIX AND NOT MSVC)
         target_link_options(lua_test PRIVATE -rdynamic)
+    endif()
+
+    add_executable(lua_public_api_consumer
+        tests/compatibility/public_api_c_compile.c
+        tests/compatibility/public_api_cpp_consumer.cpp
+    )
+    target_link_libraries(lua_public_api_consumer PRIVATE lua_core)
+    target_include_directories(lua_public_api_consumer PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    if(MSVC)
+        # This consumer intentionally proves the optimized /EHsc ABI even
+        # when the surrounding test tree is configured as Debug.
+        set_property(TARGET lua_public_api_consumer PROPERTY MSVC_RUNTIME_CHECKS "")
+        target_compile_options(lua_public_api_consumer PRIVATE
+            $<$<COMPILE_LANGUAGE:C>:/W4>
+            $<$<COMPILE_LANGUAGE:CXX>:/W4>
+            $<$<COMPILE_LANGUAGE:CXX>:/permissive->
+            $<$<COMPILE_LANGUAGE:CXX>:/utf-8>
+            $<$<COMPILE_LANGUAGE:CXX>:/O2>
+            $<$<COMPILE_LANGUAGE:CXX>:/EHsc>
+        )
+    else()
+        target_compile_options(lua_public_api_consumer PRIVATE
+            $<$<COMPILE_LANGUAGE:C>:-Wall>
+            $<$<COMPILE_LANGUAGE:C>:-Wextra>
+            $<$<COMPILE_LANGUAGE:C>:-Wpedantic>
+            $<$<COMPILE_LANGUAGE:CXX>:-Wall>
+            $<$<COMPILE_LANGUAGE:CXX>:-Wextra>
+            $<$<COMPILE_LANGUAGE:CXX>:-Wpedantic>
+            $<$<COMPILE_LANGUAGE:CXX>:-Wconversion>
+            $<$<COMPILE_LANGUAGE:CXX>:-O2>
+        )
+    endif()
+    lua_configure_runtime_stack(lua_public_api_consumer)
+
+    add_executable(lua_public_module_host tests/compatibility/public_native_module_host.cpp)
+    target_link_libraries(lua_public_module_host PRIVATE lua_core)
+    target_include_directories(lua_public_module_host PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    set_target_properties(lua_public_module_host PROPERTIES ENABLE_EXPORTS ON)
+    # Let the lifecycle host exercise a loader search-name alias before the
+    # fixture's absolute path; the registry must collapse both OS handles.
+    if(APPLE)
+        set_property(TARGET lua_public_module_host PROPERTY BUILD_RPATH "@executable_path")
+    elseif(UNIX)
+        set_property(TARGET lua_public_module_host PROPERTY BUILD_RPATH "$ORIGIN")
+    endif()
+    if(MSVC)
+        target_sources(lua_public_module_host PRIVATE tests/compatibility/lua_public_api_exports.def)
+    endif()
+    lua_configure_target_warnings(lua_public_module_host)
+    lua_configure_runtime_stack(lua_public_module_host)
+
+    add_library(lua_public_native_module_host MODULE tests/compatibility/public_native_module.c)
+    target_link_libraries(lua_public_native_module_host PRIVATE lua_public_module_host)
+    target_include_directories(lua_public_native_module_host PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    set_target_properties(lua_public_native_module_host PROPERTIES PREFIX "" OUTPUT_NAME "publicfixture_host")
+    lua_configure_target_warnings(lua_public_native_module_host)
+
+    add_test(
+        NAME lua51_public_api_contract
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/check_lua51_public_api_contract.py
+    )
+    set_tests_properties(lua51_public_api_contract PROPERTIES
+        LABELS api-contract
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    )
+
+    add_test(NAME lua_public_api_consumer COMMAND $<TARGET_FILE:lua_public_api_consumer>)
+    set_tests_properties(lua_public_api_consumer PROPERTIES
+        LABELS api-contract
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    )
+
+    add_test(
+        NAME lua_public_native_module_host
+        COMMAND $<TARGET_FILE:lua_public_module_host> $<TARGET_FILE:lua_public_native_module_host>
+    )
+    set_tests_properties(lua_public_native_module_host PROPERTIES
+        LABELS "api-contract;native-module"
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    )
+
+    if(LUA_CPP_BUILD_TOOLS)
+        set_target_properties(lua_app PROPERTIES ENABLE_EXPORTS ON)
+        if(MSVC)
+            target_sources(lua_app PRIVATE tests/compatibility/lua_public_api_exports.def)
+        elseif(APPLE)
+            target_link_options(lua_app PRIVATE -Wl,-u,_lua_createtable)
+        else()
+            target_link_options(lua_app PRIVATE -Wl,--undefined=lua_createtable)
+        endif()
+
+        add_library(lua_public_native_module_app MODULE tests/compatibility/public_native_module.c)
+        target_link_libraries(lua_public_native_module_app PRIVATE lua_app)
+        target_include_directories(lua_public_native_module_app PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+        set_target_properties(lua_public_native_module_app PROPERTIES PREFIX "" OUTPUT_NAME "publicfixture_app")
+        lua_configure_target_warnings(lua_public_native_module_app)
+
+        add_test(
+            NAME lua_public_native_module_app
+            COMMAND $<TARGET_FILE:lua_app>
+                ${CMAKE_CURRENT_SOURCE_DIR}/tests/compatibility/public_native_module_app.lua
+                $<TARGET_FILE:lua_public_native_module_app>
+        )
+        set_tests_properties(lua_public_native_module_app PROPERTIES
+            LABELS "api-contract;native-module"
+            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        )
+
+        set_target_properties(lua_embedding_example PROPERTIES ENABLE_EXPORTS ON)
+        if(MSVC)
+            target_sources(lua_embedding_example PRIVATE tests/compatibility/lua_public_api_exports.def)
+        endif()
+
+        add_library(lua_public_native_module_embedding MODULE tests/compatibility/public_native_module.c)
+        target_link_libraries(lua_public_native_module_embedding PRIVATE lua_embedding_example)
+        target_include_directories(lua_public_native_module_embedding PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+        set_target_properties(lua_public_native_module_embedding PROPERTIES
+            PREFIX ""
+            OUTPUT_NAME "publicfixture_embedding"
+        )
+        lua_configure_target_warnings(lua_public_native_module_embedding)
+
+        add_test(
+            NAME lua_public_native_module_embedding
+            COMMAND $<TARGET_FILE:lua_embedding_example> $<TARGET_FILE:lua_public_native_module_embedding>
+        )
+        set_tests_properties(lua_public_native_module_embedding PROPERTIES
+            LABELS "api-contract;native-module"
+            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        )
     endif()
 
     add_test(

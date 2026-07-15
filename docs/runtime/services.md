@@ -1,7 +1,7 @@
 ---
 status: current
-verified_against: src/runtime/runtime_services.hpp; src/core/string_pool.hpp; src/vm/state/global_state.hpp; src/vm/state/global_state.cpp; src/vm/state/lua_state.hpp; src/vm/state/lua_state.cpp; src/gc/garbage_collector.hpp; src/gc/gc_strategy.hpp; src/gc/gc_sweep.cpp; src/vm/vm_dispatch_strategy.hpp; src/vm/vm.cpp; src/main.cpp; src/repl.cpp; src/bytecode/bytecode_main.cpp; src/compiler/parser/parser.hpp; src/compiler/codegen/codegen.hpp; src/vm/vm.hpp; tests/unit/vm/test_runtime_services.cpp; tests/unit/vm/test_vm_dispatch.cpp; tests/unit/gc/test_gc.cpp; src/runtime/; src/core/; src/vm/; tests/lua/runtime/; tests/unit/core/; tests/unit/vm/
-last_checked: 2026-07-11
+verified_against: src/runtime/runtime_services.hpp; src/runtime/native_module_registry.hpp; src/runtime/native_module_registry.cpp; src/core/string_pool.hpp; src/vm/state/global_state.hpp; src/vm/state/global_state.cpp; src/vm/state/lua_state.hpp; src/vm/state/lua_state.cpp; src/gc/garbage_collector.hpp; src/gc/gc_strategy.hpp; src/gc/gc_sweep.cpp; src/vm/vm_dispatch_strategy.hpp; src/vm/vm.cpp; src/main.cpp; src/repl.cpp; src/bytecode/bytecode_main.cpp; src/compiler/parser/parser.hpp; src/compiler/codegen/codegen.hpp; src/vm/vm.hpp; tests/compatibility/public_native_module.c; tests/compatibility/public_native_module_host.cpp; tests/unit/vm/test_runtime_services.cpp; tests/unit/vm/test_vm_dispatch.cpp; tests/unit/gc/test_gc.cpp
+last_checked: 2026-07-15
 applies_to: current RuntimeServices boundary
 ---
 
@@ -64,6 +64,7 @@ public:
     GlobalState& globalState() noexcept;
     StringPool& strings() noexcept;
     GarbageCollector& gc() noexcept;
+    NativeModuleRegistry& nativeModules() noexcept;
 };
 ```
 
@@ -72,9 +73,24 @@ public:
 - 独立的 `StringPool`
 - 独立的 `GlobalState`
 - 由该全局状态拥有的 `GarbageCollector`
+- 由该全局状态拥有的 `NativeModuleRegistry`
 - 在该全局状态内创建的注册表、基础类型元表、保留字符串、元方法名称和主线程簿记
 
 `LuaState::newState(EngineContext&)` 在该上下文内创建主状态。测试断言两个上下文将相同文本驻留为不同的 `GCString` 对象，且这些字符串属于不同的回收器。
+
+## 原生模块生命周期
+
+`package.loadlib` 不再使用进程级静态 handle map，而是通过当前 `GlobalState::getNativeModules()` 获取 context-owned registry：
+
+- 同一 context 内按规范化完整路径只取得一个 OS lease；
+- 不同 context 分别取得 lease，因此一个 context 关闭不会使另一个 context 的函数指针失效；
+- registry 在 `GlobalState` 中声明于 GC 之前，按 C++ 逆序析构规则晚于 GC 销毁，保证所有可能保存模块函数指针的 `Function` 先释放；
+- 最后一个 context 释放 lease 后才卸载模块；Windows 当前进程的 `GetModuleHandle` 是 borrowed handle，不调用 `FreeLibrary`；
+- POSIX 使用 `RTLD_LOCAL`，不把模块符号扩散到全局解析空间。
+
+当前策略没有 eager unload 或 hot reload：只要 context 存活，已取得的 handle 就保持有效。独立纯 C fixture 只包含公开 `lua.h`，分别由 `lua_app`、纯公开 API embedding executable 和双-context 生命周期 host 加载；测试覆盖 missing file/open、missing symbol/init、一个 context 关闭后另一个继续调用，以及最后一个关闭后的实际卸载/重新加载。
+
+隔离的是 registry cache、OS lease、Lua registry state 和关闭路径，不是动态库的 C static storage。两个并存 context 通常会由 OS loader 映射到同一模块实例，因此进程静态变量仍可共享；需要完全隔离的模块状态必须存入 `lua_State` registry 或宿主 context。模块 cache 元数据和 OS loader 分配也不计入 Lua heap hard-limit 声明，详见 [内存合同](memory-contract.md)。
 
 ## 隔离与兼容边界
 

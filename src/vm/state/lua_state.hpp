@@ -428,14 +428,14 @@ public:
      * @param name 变量名
      * @param value 值
      */
-    void setGlobal(const Str& name, const Value& value);
+    void setGlobal(StrView name, const Value& value);
 
     /**
      * @brief 获取全局变量
      * @param name 变量名
      * @return 值
      */
-    Value getGlobal(const Str& name);
+    Value getGlobal(StrView name);
 
     // =====================================================================
     // 类型检查和转换

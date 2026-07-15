@@ -62,7 +62,7 @@ void* remoteStateAllocator(void* userData, void* pointer, size_t oldSize, size_t
     }
 
     if (newSize != 0 && newSize > oldSize && context->parentGC != nullptr) {
-        const usize limit = context->parentGC->getMemoryLimitBytes();
+        const usize limit = context->parentGC->getManagedMemoryBudgetBytes();
         if (limit != std::numeric_limits<usize>::max()) {
             usize remoteBytes = context->liveBytes;
             for (const auto& [state, other] : gRemoteStateAllocators) {
@@ -611,14 +611,14 @@ i32 t_totalmem(LuaState* L) {
                         ? std::numeric_limits<usize>::max()
                         : static_cast<usize>(requested);
         }
-        gc.setMemoryLimitBytes(limit);
+        gc.setManagedMemoryBudgetBytes(limit);
         return 0;
     }
 
     LuaNumber bytes = static_cast<LuaNumber>(gc.getTotalMemory());
     L->pushNumber(bytes);
     L->pushNumber(static_cast<LuaNumber>(gc.getObjectCount()));
-    L->pushNumber(static_cast<LuaNumber>(gc.getMemoryLimitBytes()));
+    L->pushNumber(static_cast<LuaNumber>(gc.getManagedMemoryBudgetBytes()));
     return 3;
 }
 

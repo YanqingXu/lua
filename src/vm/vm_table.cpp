@@ -10,6 +10,7 @@
 #include "vm/state/call_info.hpp"
 #include "vm/state/lua_state.hpp"
 #include "vm/vm_constants.hpp"
+#include <span>
 
 namespace Lua::VM::detail {
 
@@ -29,9 +30,9 @@ void setList(LuaState* L, Value* base, i32 a, i32 b, i32 c) {
     }
 
     i32 baseIndex = (c - 1) * FIELDS_PER_FLUSH;
-    for (i32 i = 1; i <= n; i++) {
-        table->setArray(baseIndex + i, base[a + i]);
+    if (n > 0) {
+        table->setArrayRange(baseIndex + 1, std::span<const Value>(base + a + 1, static_cast<usize>(n)));
     }
 }
 
-}  // namespace Lua::VM::detail
+} // namespace Lua::VM::detail

@@ -73,9 +73,8 @@ usize ValueHash::operator()(const Value& val) const noexcept {
 Table::Table() : Table(nullptr) {}
 
 Table::Table(LuaAllocator* allocator)
-    : GCObject(GCObjectType::Table), array_(LuaStdAllocator<Value>(allocator)),
-      hash_(0, ValueHash{}, ValueEqual{}, HashAllocator(allocator)), metatable_(nullptr),
-      flags_(0) // 初始化标志位为0（所有元方法都可能存在）
+    : GCObject(GCObjectType::Table), array_(allocator), hash_(0, ValueHash{}, ValueEqual{}, HashAllocator(allocator)),
+      metatable_(nullptr), flags_(0) // 初始化标志位为0（所有元方法都可能存在）
 {}
 
 Table::~Table() {
@@ -131,13 +130,19 @@ void Table::set(const Value& key, const Value& value) {
         return;
     }
 
+    const Value stableKey = key;
+    const Value stableValue = value;
     if (GarbageCollector* gc = getOwnerCollector()) {
-        gc->writeBarrier(this, key);
-        gc->writeBarrier(this, value);
+        gc->writeBarrier(this, stableKey);
+        gc->writeBarrier(this, stableValue);
     }
 
-    // 存储到哈希部分
-    hash_[key] = value;
+    // try_emplace has a strong allocation guarantee; replacement assignment
+    // is non-throwing for Value's closed tagged-pointer/number alternatives.
+    auto [entry, inserted] = hash_.try_emplace(stableKey, stableValue);
+    if (!inserted) {
+        entry->second = stableValue;
+    }
     if (GarbageCollector* gc = getOwnerCollector()) {
         gc->accountObjectSizeChange(this);
     }
@@ -213,21 +218,36 @@ void Table::setArray(i32 index, const Value& value) {
         return;
     }
 
-    flags_ = 0;
+    const Value stableValue = value;
+    setArrayRange(index, std::span<const Value>(&stableValue, 1));
+}
 
-    usize arrayIndex = static_cast<usize>(index - 1);
-
-    // 如果索引超出当前大小，扩展数组
-    if (arrayIndex >= array_.size()) {
-        // 扩展数组，中间的空位填充nil
-        array_.resize(arrayIndex + 1, Value()); // 默认构造函数创建nil
+void Table::setArrayRange(i32 firstIndex, std::span<const Value> values) {
+    if (firstIndex < 1 || values.empty()) {
+        return;
+    }
+    const usize first = static_cast<usize>(firstIndex - 1);
+    if (values.size() > std::numeric_limits<usize>::max() - first) {
+        throw std::bad_array_new_length();
     }
 
     if (GarbageCollector* gc = getOwnerCollector()) {
-        gc->writeBarrier(this, value);
+        // Complete all potentially allocating barriers before changing the
+        // array. The subsequent realloc has a strong failure guarantee and
+        // Value assignment is non-throwing.
+        for (const Value& value : values) {
+            gc->writeBarrier(this, value);
+        }
     }
 
-    array_[arrayIndex] = value;
+    const usize requiredSize = first + values.size();
+    if (requiredSize > array_.size()) {
+        array_.resize(requiredSize, Value());
+    }
+    flags_ = 0;
+    for (usize offset = 0; offset < values.size(); ++offset) {
+        array_[first + offset] = values[offset];
+    }
     if (GarbageCollector* gc = getOwnerCollector()) {
         gc->accountObjectSizeChange(this);
     }

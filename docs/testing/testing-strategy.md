@@ -1,7 +1,7 @@
 ---
 status: current
 verified_against: tests/unit/; tests/unit/framework/; tests/lua/; tests/lua/official/; tests/compatibility/; tests/lua/regressions/; tests/unit/vm/test_vm_trace_debug.cpp; tools/check_doc_drift.ps1; tools/check_lua51_official_sources.ps1; tools/run_lua51_official_strict.ps1; tools/test_quality_gate.ps1
-last_checked: 2026-07-13
+last_checked: 2026-07-15
 applies_to: 解释器测试分层、Golden 与回归证据
 ---
 
@@ -16,8 +16,8 @@ applies_to: 解释器测试分层、Golden 与回归证据
 | C++ unit | 数据结构、状态机、错误类型和边界 API | `tests/unit/` |
 | Lua behavior | 语言可观察语义和跨模块组合 | `tests/lua/basic/`、`functions/`、`tables/`、`runtime/` |
 | Official smoke | 受控改写、压力缩减和分阶段执行的快速回归 | `tests/unit/official/`、`tests/compatibility/lua51-official-smoke-deviations.json` |
-| Official strict | SHA-256 锁定、临时副本中原样执行的 Lua 5.1 参照 | `tests/lua/official/`、`tools/run_lua51_official_strict.ps1` |
-| Official TestC | 打开内部 `T` 模块后实际执行 `code.lua` / `api.lua` | `tests/unit/official/`、`lua51-official-testc-xfails.json` |
+| Official strict | SHA-256 锁定、临时副本中原样执行的 Lua 5.1 Release required gate；同时输出逐脚本 `stageProfile` | `tests/lua/official/`、`tools/run_lua51_official_strict.ps1` |
+| Official TestC | 打开内部 `T` 模块后执行 `api.lua`，并在 SHA 锁定的 5.1.5 `luac` oracle 校正后执行 `code.lua` | `tests/unit/official/`、`lua51-official-sources.json`、`lua51-official-testc-xfails.json` |
 | Differential | 同一探针在官方 Lua 5.1 与本解释器上的可观察行为对比 | `tests/lua/differential/`、`tools/run_lua51_differential.ps1` |
 | Regression | 每个已修缺陷的最小稳定复现 | `tests/lua/regressions/` |
 | Golden | 结构化且有意稳定的复杂输出 | `test_vm_trace_debug.cpp` 中的 trace golden cases |
@@ -60,6 +60,8 @@ Golden 适合结构复杂但本身应稳定的结果，例如反汇编或规范�
 - GC 测试显式触发阶段并观察语义，不断言脆弱的分配次数。
 - trace/golden 对输出排序和对象 ID 做规范化。
 - 测试失败必须返回非零状态，脚本不能只扫描“看起来成功”的文本。
+
+Strict runner 对 stdout 的 SHA 锁定 banner 做实时计时，而不向官方脚本注入 hook 或改写源码。该 profile 用来区分真正的慢脚本与状态活锁；门禁仍以进程退出码和 `final OK` 所在的原样执行结果为准，计时本身不作为易抖动的绝对性能阈值。
 
 ## 覆盖闭环
 

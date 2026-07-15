@@ -219,6 +219,7 @@
     <ClInclude Include="src\compiler\codegen\function_compiler.hpp" />
     <ClInclude Include="src\compiler\codegen\gc_allocation_guard.hpp" />
     <ClInclude Include="src\runtime\lua_allocator.hpp" />
+    <ClInclude Include="src\runtime\native_module_registry.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\compiler\ast.cpp" />
@@ -298,6 +299,7 @@
     <ClCompile Include="src\debug\value_serializer.cpp" />
     <ClCompile Include="src\debug\json_trace_sink.cpp" />
     <ClCompile Include="src\compiler\codegen\function_compiler.cpp" />
+    <ClCompile Include="src\runtime\native_module_registry.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

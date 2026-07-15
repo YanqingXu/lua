@@ -1,6 +1,30 @@
 {
-    "schemaVersion":  1,
-    "upstream":  "Lua 5.1 official test suite",
+    "schemaVersion":  2,
+    "upstream":  "Lua 5.1 official test suite (lua5.1-tests)",
+    "archive":  {
+                    "url":  "https://www.lua.org/tests/lua5.1-tests.tar.gz",
+                    "published":  "2016-01-18",
+                    "sha256":  "49e4ca6561f82ea605908c5041ab5fad66ed9930fa0686675bd51b02767f18ad"
+                },
+    "referenceCompiler":  {
+                              "release":  "Lua 5.1.5",
+                              "sourceArchiveUrl":  "https://www.lua.org/ftp/lua-5.1.5.tar.gz",
+                              "sourceArchiveSha256":  "2640fc56a795f29d28ef15e13c34a47e223960b0240e8cb0a82d9b0738695333",
+                              "oracleFixture":  "tests/compatibility/lua51-loadnil-oracle.lua",
+                              "oracleFixtureSha256":  "e57b55964579706ff33bdb66ca6184b331bbd97216f084e76cd56228e4de94d9",
+                              "listingCommand":  "luac -l -p tests/compatibility/lua51-loadnil-oracle.lua",
+                              "nestedPrototypeOpcodeSequences":  [
+                                                                      "LOADNIL/LOADNIL/RETURN",
+                                                                      "LOADK/LOADBOOL/TEST/JMP/RETURN",
+                                                                      "LOADNIL/LOADBOOL/TEST/JMP/RETURN"
+                                                                  ],
+                              "upstreamCodeLuaExpectations":  [
+                                                                   "RETURN",
+                                                                   "LOADK/JMP/RETURN",
+                                                                   "LOADNIL/JMP/RETURN"
+                                                               ],
+                              "resolution":  "Keep upstream code.lua byte-for-byte; execute exact in-memory oracle corrections for the three release-5.1.5 fixture mismatches before evaluating project compiler parity."
+                          },
     "sourcePolicy":  "Strict runs execute an exact temporary copy; repository sources are never rewritten.",
     "entries":  [
                     {

@@ -3,13 +3,13 @@
   "channel": "official-testc",
   "xfails": [
     {
-      "id": "code.lua-opcode-sequence",
-      "expectedDiagnostic": "code.lua LOADNIL fixture/oracle mismatch: expected RETURN; actual 1 - LOADNIL 1",
+      "id": "code.lua-lua515-compiler-parity",
+      "expectedDiagnostic": "code.lua Lua 5.1.5 compiler parity gap: expected - LOADBOOL *%d; actual 2 - TEST 2",
       "trackingIssue": "https://github.com/YanqingXu/lua/issues/4",
-      "trackingStatus": "open in v0.1-embedding-preview",
-      "responsibleModule": "compatibility fixture versioning and T.listcode bytecode oracle",
-      "minimalReproduction": "bin/lua_test.exe --filter \"code.lua with T module XFAIL\"",
-      "reason": "The first failing opcode check is the locked sequence-of-LOADNILs fixture: code.lua expects RETURN only, while this project and a Lua 5.1.5 luac comparison emit LOADNIL/LOADNIL/RETURN. The test traps that exact eighth opcode comparison with a unique diagnostic, so an unrelated assertion cannot satisfy this XFAIL."
+      "trackingStatus": "open after fixture/oracle provenance closure",
+      "responsibleModule": "compiler repeat-condition constant lowering and Lua 5.1.5 bytecode parity",
+      "minimalReproduction": "bin/lua_test.exe --filter \"code.lua with Lua 5.1.5 oracle XFAIL\"",
+      "reason": "The generic lua5.1-tests archive has three opcode expectations that do not match released Lua 5.1.5; those are corrected in memory from a SHA-locked luac oracle while the upstream file stays byte-for-byte unchanged. After those corrections, the first project-only gap is repeat-until-nil lowering: Lua 5.1.5 emits LOADNIL/LOADBOOL/TEST/JMP/RETURN, while this compiler omits LOADBOOL and begins the condition with TEST."
     }
   ]
 }

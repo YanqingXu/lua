@@ -1,6 +1,7 @@
 #include "lua.h"
 #include "lauxlib.h"
 
+#include "common/lua_error.hpp"
 #include "core/function.hpp"
 #include "core/gc_string.hpp"
 #include "core/table.hpp"
@@ -24,6 +25,8 @@
 #include <new>
 #include <optional>
 #include <string>
+#include <type_traits>
+#include <utility>
 
 static Lua::LuaState* fromC(lua_State* L) {
     return reinterpret_cast<Lua::LuaState*>(L);
@@ -233,23 +236,55 @@ void restoreAbsoluteTopClearingSlots(Lua::LuaState* state, Lua::usize restoredTo
     state->setAbsoluteTop(restoredTop);
 }
 
-int finishLoadMemoryError(Lua::LuaState* state, int base) noexcept {
+int publishApiStatusError(Lua::LuaState* state, Lua::usize savedTop, const Lua::Value& errorValue,
+                          int status) noexcept {
     const Lua::usize frameBase = currentFrameBase(state);
-    const Lua::usize savedTop = frameBase + static_cast<Lua::usize>(std::max(base, 0));
-    restoreAbsoluteTopClearingSlots(state, savedTop);
+    const Lua::usize restoredTop = std::max(savedTop, frameBase);
+    restoreAbsoluteTopClearingSlots(state, restoredTop);
+    if (state->tryPushValueNoAlloc(errorValue)) {
+        return status;
+    }
 
     const Lua::Value memoryError(state->getGlobalState().getMemoryErrorMessage());
     if (state->tryPushValueNoAlloc(memoryError)) {
         return LUA_ERRMEM;
     }
 
-    // The ordinary API push path reserves an emergency slot, so this is only
-    // reachable for a state whose stack was manipulated by legacy/internal
-    // code.  Never allow a second allocation failure to cross extern "C".
-    if (savedTop > frameBase) {
-        state->getStack()[savedTop - 1] = memoryError;
-    }
+    // Ordinary API pushes reserve one physical stack slot. If legacy/internal
+    // code violated that invariant, preserve the caller's prefix rather than
+    // overwriting its final value merely to publish an error object.
     return LUA_ERRMEM;
+}
+
+template <typename Failure>
+int publishApiRuntimeException(Lua::LuaState* state, const char* message, Failure& failure) noexcept {
+    try {
+        Lua::GCString* text = state->getGlobalState().getStringPool().intern(message != nullptr ? message : "");
+        return failure(Lua::Value(text), LUA_ERRRUN);
+    } catch (...) {
+        return failure(Lua::Value(state->getGlobalState().getApiExceptionMessage()), LUA_ERRRUN);
+    }
+}
+
+template <typename Action, typename Failure>
+int apiStatusBoundary(Lua::LuaState* state, Action&& action, Failure&& failure) noexcept {
+    static_assert(std::is_nothrow_invocable_r_v<int, Failure&, const Lua::Value&, int>);
+    try {
+        return std::forward<Action>(action)();
+    } catch (const Lua::MemoryError&) {
+        return failure(Lua::Value(state->getGlobalState().getMemoryErrorMessage()), LUA_ERRMEM);
+    } catch (const std::bad_alloc&) {
+        return failure(Lua::Value(state->getGlobalState().getMemoryErrorMessage()), LUA_ERRMEM);
+    } catch (const Lua::LuaError& error) {
+        if (error.hasErrorObject()) {
+            return failure(error.getErrorObject(), LUA_ERRRUN);
+        }
+        return publishApiRuntimeException(state, error.what(), failure);
+    } catch (const std::exception& error) {
+        return publishApiRuntimeException(state, error.what(), failure);
+    } catch (...) {
+        return failure(Lua::Value(state->getGlobalState().getApiExceptionMessage()), LUA_ERRRUN);
+    }
 }
 
 int valueType(const Lua::Value& value) {
@@ -356,7 +391,7 @@ void lua_settop(lua_State* L, int idx) LUA_CXX_MAY_THROW {
     setApiTop(fromC(L), idx);
 }
 
-int lua_checkstack(lua_State* L, int extra) LUA_CXX_MAY_THROW {
+int lua_checkstack(lua_State* L, int extra) LUA_CXX_NOEXCEPT {
     Lua::LuaState* state = fromC(L);
     if (extra < 0) {
         return 0;
@@ -382,6 +417,8 @@ int lua_checkstack(lua_State* L, int extra) LUA_CXX_MAY_THROW {
     } catch (const Lua::MemoryError&) {
         return 0;
     } catch (const std::bad_alloc&) {
+        return 0;
+    } catch (...) {
         return 0;
     }
 }
@@ -593,6 +630,11 @@ size_t lua_objlen(lua_State* L, int idx) LUA_CXX_MAY_THROW {
     if (value->isUserdata()) {
         return value->asUserdata()->getDataSize();
     }
+    if (value->isNumber()) {
+        size_t length = 0;
+        (void)lua_tolstring(L, idx, &length);
+        return length;
+    }
     return 0;
 }
 
@@ -618,7 +660,11 @@ void lua_pushlstring(lua_State* L, const char* s, size_t len) LUA_CXX_MAY_THROW 
 }
 
 void lua_pushstring(lua_State* L, const char* s) LUA_CXX_MAY_THROW {
-    lua_pushlstring(L, s ? s : "", s ? std::strlen(s) : 0);
+    if (s == nullptr) {
+        lua_pushnil(L);
+        return;
+    }
+    lua_pushlstring(L, s, std::strlen(s));
 }
 
 void lua_pushcclosure(lua_State* L, lua_CFunction fn, int n) LUA_CXX_MAY_THROW {
@@ -791,16 +837,32 @@ void lua_call(lua_State* L, int nargs, int nresults) LUA_CXX_MAY_THROW {
     Lua::VM::call(services, state, nargs, nresults);
 }
 
-int lua_pcall(lua_State* L, int nargs, int nresults, int errfunc) LUA_CXX_MAY_THROW {
+int lua_pcall(lua_State* L, int nargs, int nresults, int errfunc) LUA_CXX_NOEXCEPT {
     Lua::LuaState* state = fromC(L);
-    int internalErrorFunction = errfunc;
-    if (errfunc > 0 && state->getCurrentCI() == 0) {
-        internalErrorFunction += static_cast<int>(currentFrameBase(state));
-    }
-    return state->pcall(nargs, nresults, internalErrorFunction);
+    const Lua::usize frameBase = currentFrameBase(state);
+    const Lua::usize absoluteTop = state->getAbsoluteTop();
+    const Lua::usize argumentCount = nargs >= 0 ? static_cast<Lua::usize>(nargs) : 0;
+    const Lua::usize savedPrefixTop =
+        nargs >= 0 && absoluteTop >= frameBase + argumentCount + 1 ? absoluteTop - argumentCount - 1 : frameBase;
+
+    auto failure = [state, savedPrefixTop](const Lua::Value& errorValue, int status) noexcept {
+        const int result = publishApiStatusError(state, savedPrefixTop, errorValue, status);
+        state->setStatus(Lua::ThreadStatus::OK);
+        return result;
+    };
+    return apiStatusBoundary(
+        state,
+        [&]() {
+            int internalErrorFunction = errfunc;
+            if (errfunc > 0 && state->getCurrentCI() == 0) {
+                internalErrorFunction += static_cast<int>(currentFrameBase(state));
+            }
+            return state->pcall(nargs, nresults, internalErrorFunction);
+        },
+        failure);
 }
 
-lua_State* lua_newthread(lua_State* L) LUA_CXX_MAY_THROW {
+lua_State* lua_newthread(lua_State* L) LUA_CXX_NOEXCEPT {
     Lua::LuaState* parent = fromC(L);
     const Lua::usize savedTop = parent->getAbsoluteTop();
     try {
@@ -808,29 +870,23 @@ lua_State* lua_newthread(lua_State* L) LUA_CXX_MAY_THROW {
         parent->pushValue(Lua::Value(thread));
         return toC(thread->getLuaState());
     } catch (...) {
-        parent->setAbsoluteTop(savedTop);
+        restoreAbsoluteTopClearingSlots(parent, savedTop);
         return nullptr;
     }
 }
 
-int lua_resume(lua_State* L, int nargs) LUA_CXX_MAY_THROW {
+int lua_resume(lua_State* L, int nargs) LUA_CXX_NOEXCEPT {
     Lua::LuaState* state = fromC(L);
     Lua::Thread* thread = state->getThread();
 
-    auto fail = [&](const Lua::Value& errorValue, int status) {
-        setApiTop(state, 0);
-        state->pushValue(errorValue);
-        state->setStatus(static_cast<Lua::ThreadStatus>(status));
-        return status;
+    auto fail = [&](const Lua::Value& errorValue, int status) noexcept {
+        // A strong rollback can remove the suspended frame. Compute the base
+        // after that rollback instead of publishing above a stale frame base.
+        const int result = publishApiStatusError(state, currentFrameBase(state), errorValue, status);
+        state->setStatus(static_cast<Lua::ThreadStatus>(result));
+        return result;
     };
-    auto runtimeError = [&](const char* message) {
-        try {
-            auto& pool = state->getGlobalState().getStringPool();
-            return fail(Lua::Value(pool.intern(message)), LUA_ERRRUN);
-        } catch (...) {
-            return fail(Lua::Value(state->getGlobalState().getMemoryErrorMessage()), LUA_ERRMEM);
-        }
-    };
+    auto runtimeError = [&](const char* message) noexcept { return publishApiRuntimeException(state, message, fail); };
 
     if (thread == nullptr) {
         return runtimeError("cannot resume main state");
@@ -850,90 +906,77 @@ int lua_resume(lua_State* L, int nargs) LUA_CXX_MAY_THROW {
     }
 
     const Lua::usize bridgeTop = bridge->getAbsoluteTop();
-    try {
-        const int preparationStatus = prepareCFunctionCoroutineEntry(L, nargs);
-        if (preparationStatus != LUA_OK) {
-            const Lua::Value errorValue = state->at(-1);
-            thread->abortResume(preparationStatus == LUA_ERRMEM ? Lua::ThreadStatus::ErrMem
-                                                                : Lua::ThreadStatus::ErrRun);
-            return fail(errorValue, preparationStatus);
-        }
-        const int stateTop = apiTop(state);
-        // Thread::resume owns the VM transition and expects resume arguments
-        // on its caller stack. Keep the bridge's existing prefix untouched.
-        for (int i = nargs; i > 0; --i) {
-            bridge->pushValue(state->at(-i));
-        }
-        setApiTop(state, stateTop - nargs);
-
-        const bool resumed = thread->resume(bridge, nargs);
-        const Lua::usize outputTop = bridge->getAbsoluteTop();
-        const Lua::usize outputCount = outputTop >= bridgeTop ? outputTop - bridgeTop : 0;
-        Lua::LuaVector<Lua::Value> outputValues(Lua::LuaStdAllocator<Lua::Value>(globalState.getAllocator()));
-        if (outputCount > 1) {
-            outputValues.reserve(outputCount - 1);
-            for (Lua::usize i = 1; i < outputCount; ++i) {
-                outputValues.push_back(bridge->getStack().at(bridgeTop + i));
-            }
-        }
-        Lua::Value errorValue;
-        if (!resumed && !outputValues.empty()) {
-            errorValue = outputValues.front();
-        }
+    auto failure = [&](const Lua::Value& errorValue, int status) noexcept {
         restoreAbsoluteTopClearingSlots(bridge, bridgeTop);
-
-        if (!resumed) {
-            int status = static_cast<int>(state->getStatus());
-            if (status == LUA_OK || status == LUA_YIELD) {
-                status = LUA_ERRRUN;
+        thread->abortResume(status == LUA_ERRMEM ? Lua::ThreadStatus::ErrMem : Lua::ThreadStatus::ErrRun);
+        return fail(errorValue, status);
+    };
+    return apiStatusBoundary(
+        state,
+        [&]() {
+            const int preparationStatus = prepareCFunctionCoroutineEntry(L, nargs);
+            if (preparationStatus != LUA_OK) {
+                const Lua::Value errorValue = state->at(-1);
+                thread->abortResume(preparationStatus == LUA_ERRMEM ? Lua::ThreadStatus::ErrMem
+                                                                    : Lua::ThreadStatus::ErrRun);
+                return fail(errorValue, preparationStatus);
             }
-            if (outputCount < 2) {
-                auto& pool = globalState.getStringPool();
-                errorValue = Lua::Value(pool.intern("coroutine resume failed"));
+            const int stateTop = apiTop(state);
+            // Thread::resume owns the VM transition and expects resume arguments
+            // on its caller stack. Keep the bridge's existing prefix untouched.
+            for (int i = nargs; i > 0; --i) {
+                bridge->pushValue(state->at(-i));
             }
-            return fail(errorValue, status);
-        }
+            setApiTop(state, stateTop - nargs);
 
-        if (thread->isSuspended()) {
+            const bool resumed = thread->resume(bridge, nargs);
+            const Lua::usize outputTop = bridge->getAbsoluteTop();
+            const Lua::usize outputCount = outputTop >= bridgeTop ? outputTop - bridgeTop : 0;
+            if (!resumed) {
+                Lua::Value errorValue;
+                if (outputCount >= 2) {
+                    errorValue = bridge->getStack().at(bridgeTop + 1);
+                }
+                restoreAbsoluteTopClearingSlots(bridge, bridgeTop);
+
+                int status = static_cast<int>(state->getStatus());
+                if (status == LUA_OK || status == LUA_YIELD) {
+                    status = LUA_ERRRUN;
+                }
+                if (outputCount < 2) {
+                    auto& pool = globalState.getStringPool();
+                    errorValue = Lua::Value(pool.intern("coroutine resume failed"));
+                }
+                return fail(errorValue, status);
+            }
+
+            Lua::LuaVector<Lua::Value> outputValues(Lua::LuaStdAllocator<Lua::Value>(globalState.getAllocator()));
+            if (outputCount > 1) {
+                outputValues.reserve(outputCount - 1);
+                for (Lua::usize i = 1; i < outputCount; ++i) {
+                    outputValues.push_back(bridge->getStack().at(bridgeTop + i));
+                }
+            }
+            restoreAbsoluteTopClearingSlots(bridge, bridgeTop);
+
+            if (thread->isSuspended()) {
+                setApiTop(state, 0);
+                for (const Lua::Value& value : outputValues) {
+                    state->pushValue(value);
+                }
+                return static_cast<int>(LUA_YIELD);
+            }
+
+            // The internal coroutine runner copies results to its caller. A public
+            // lua_resume must additionally leave those results on the resumed
+            // state's own API stack.
             setApiTop(state, 0);
             for (const Lua::Value& value : outputValues) {
                 state->pushValue(value);
             }
-            return LUA_YIELD;
-        }
-
-        // The internal coroutine runner copies results to its caller. A public
-        // lua_resume must additionally leave those results on the resumed
-        // state's own API stack.
-        setApiTop(state, 0);
-        for (const Lua::Value& value : outputValues) {
-            state->pushValue(value);
-        }
-        return LUA_OK;
-    } catch (const Lua::MemoryError&) {
-        restoreAbsoluteTopClearingSlots(bridge, bridgeTop);
-        thread->abortResume(Lua::ThreadStatus::ErrMem);
-        return fail(Lua::Value(globalState.getMemoryErrorMessage()), LUA_ERRMEM);
-    } catch (const std::bad_alloc&) {
-        restoreAbsoluteTopClearingSlots(bridge, bridgeTop);
-        thread->abortResume(Lua::ThreadStatus::ErrMem);
-        return fail(Lua::Value(globalState.getMemoryErrorMessage()), LUA_ERRMEM);
-    } catch (const Lua::LuaError& error) {
-        restoreAbsoluteTopClearingSlots(bridge, bridgeTop);
-        thread->abortResume(Lua::ThreadStatus::ErrRun);
-        if (error.hasErrorObject()) {
-            return fail(error.getErrorObject(), LUA_ERRRUN);
-        }
-        return runtimeError(error.what());
-    } catch (const std::exception& error) {
-        restoreAbsoluteTopClearingSlots(bridge, bridgeTop);
-        thread->abortResume(Lua::ThreadStatus::ErrRun);
-        return runtimeError(error.what());
-    } catch (...) {
-        restoreAbsoluteTopClearingSlots(bridge, bridgeTop);
-        thread->abortResume(Lua::ThreadStatus::ErrRun);
-        return runtimeError("unknown C++ exception");
-    }
+            return static_cast<int>(LUA_OK);
+        },
+        failure);
 }
 
 int lua_error(lua_State* L) LUA_CXX_MAY_THROW {
@@ -962,109 +1005,124 @@ int lua_status(lua_State* L) LUA_CXX_MAY_THROW {
     return static_cast<int>(fromC(L)->getStatus());
 }
 
-int luaL_loadbuffer(lua_State* L, const char* buffer, size_t size, const char* name) LUA_CXX_MAY_THROW {
+int luaL_loadbuffer(lua_State* L, const char* buffer, size_t size, const char* name) LUA_CXX_NOEXCEPT {
     if (L == nullptr || (buffer == nullptr && size != 0)) {
         return LUA_ERRSYNTAX;
     }
 
     const int base = lua_gettop(L);
     Lua::LuaState* state = fromC(L);
-    try {
-        pushInternalCFunction(state, Lua::luaB_loadstring);
-        lua_pushlstring(L, buffer != nullptr ? buffer : "", size);
-        lua_pushstring(L, name != nullptr ? name : "=(loadbuffer)");
-        return normalizeLoadResult(L, base, lua_pcall(L, 2, LUA_MULTRET, 0), LUA_ERRSYNTAX);
-    } catch (const Lua::MemoryError&) {
-        return finishLoadMemoryError(state, base);
-    } catch (const std::bad_alloc&) {
-        return finishLoadMemoryError(state, base);
-    }
+    const Lua::usize savedTop = state->getAbsoluteTop();
+    auto failure = [state, savedTop](const Lua::Value& errorValue, int status) noexcept {
+        return publishApiStatusError(state, savedTop, errorValue, status);
+    };
+    return apiStatusBoundary(
+        state,
+        [&]() {
+            pushInternalCFunction(state, Lua::luaB_loadstring);
+            lua_pushlstring(L, buffer != nullptr ? buffer : "", size);
+            lua_pushstring(L, name != nullptr ? name : "=(loadbuffer)");
+            return normalizeLoadResult(L, base, lua_pcall(L, 2, LUA_MULTRET, 0), LUA_ERRSYNTAX);
+        },
+        failure);
 }
 
-int luaL_loadstring(lua_State* L, const char* source) LUA_CXX_MAY_THROW {
+int luaL_loadstring(lua_State* L, const char* source) LUA_CXX_NOEXCEPT {
     return luaL_loadbuffer(L, source != nullptr ? source : "", source != nullptr ? std::strlen(source) : 0,
                            source != nullptr ? source : "");
 }
 
-int luaL_loadfile(lua_State* L, const char* filename) LUA_CXX_MAY_THROW {
+int luaL_loadfile(lua_State* L, const char* filename) LUA_CXX_NOEXCEPT {
     if (L == nullptr) {
         return LUA_ERRFILE;
     }
 
     const int base = lua_gettop(L);
     Lua::LuaState* state = fromC(L);
-    try {
-        pushInternalCFunction(state, Lua::luaB_loadfile);
-        if (filename == nullptr) {
-            lua_pushnil(L);
-        } else {
-            lua_pushstring(L, filename);
-        }
-        const int callStatus = lua_pcall(L, 1, LUA_MULTRET, 0);
-        int failureStatus = LUA_ERRSYNTAX;
-        if (callStatus == LUA_OK && lua_gettop(L) >= base + 2 && lua_isnil(L, base + 1)) {
-            const char* message = lua_tostring(L, base + 2);
-            if (message != nullptr &&
-                (std::strstr(message, "cannot open") != nullptr || std::strstr(message, "cannot read") != nullptr)) {
-                failureStatus = LUA_ERRFILE;
+    const Lua::usize savedTop = state->getAbsoluteTop();
+    auto failure = [state, savedTop](const Lua::Value& errorValue, int status) noexcept {
+        return publishApiStatusError(state, savedTop, errorValue, status);
+    };
+    return apiStatusBoundary(
+        state,
+        [&]() {
+            pushInternalCFunction(state, Lua::luaB_loadfile);
+            if (filename == nullptr) {
+                lua_pushnil(L);
+            } else {
+                lua_pushstring(L, filename);
             }
-        }
-        return normalizeLoadResult(L, base, callStatus, failureStatus);
-    } catch (const Lua::MemoryError&) {
-        return finishLoadMemoryError(state, base);
-    } catch (const std::bad_alloc&) {
-        return finishLoadMemoryError(state, base);
-    }
+            const int callStatus = lua_pcall(L, 1, LUA_MULTRET, 0);
+            int failureStatus = LUA_ERRSYNTAX;
+            if (callStatus == LUA_OK && lua_gettop(L) >= base + 2 && lua_isnil(L, base + 1)) {
+                const char* message = lua_tostring(L, base + 2);
+                if (message != nullptr && (std::strstr(message, "cannot open") != nullptr ||
+                                           std::strstr(message, "cannot read") != nullptr)) {
+                    failureStatus = LUA_ERRFILE;
+                }
+            }
+            return normalizeLoadResult(L, base, callStatus, failureStatus);
+        },
+        failure);
 }
 
-int lua_load(lua_State* L, lua_Reader reader, void* data, const char* chunkname) LUA_CXX_MAY_THROW {
+int lua_load(lua_State* L, lua_Reader reader, void* data, const char* chunkname) LUA_CXX_NOEXCEPT {
     if (L == nullptr || reader == nullptr) {
         return LUA_ERRSYNTAX;
     }
 
-    const int base = lua_gettop(L);
     Lua::LuaState* state = fromC(L);
-    std::string source;
-    try {
-        for (;;) {
-            size_t size = 0;
-            const char* piece = reader(L, data, &size);
-            if (piece == nullptr || size == 0) {
-                break;
+    const Lua::usize savedTop = state->getAbsoluteTop();
+    auto failure = [state, savedTop](const Lua::Value& errorValue, int status) noexcept {
+        return publishApiStatusError(state, savedTop, errorValue, status);
+    };
+    return apiStatusBoundary(
+        state,
+        [&]() {
+            std::string source;
+            for (;;) {
+                size_t size = 0;
+                const char* piece = reader(L, data, &size);
+                if (piece == nullptr || size == 0) {
+                    break;
+                }
+                source.append(piece, size);
             }
-            source.append(piece, size);
-        }
-    } catch (const std::bad_alloc&) {
-        return finishLoadMemoryError(state, base);
-    }
-    return luaL_loadbuffer(L, source.data(), source.size(), chunkname != nullptr ? chunkname : "=(load)");
+            return luaL_loadbuffer(L, source.data(), source.size(), chunkname != nullptr ? chunkname : "=(load)");
+        },
+        failure);
 }
 
-int lua_dump(lua_State* L, lua_Writer writer, void* data) LUA_CXX_MAY_THROW {
+int lua_dump(lua_State* L, lua_Writer writer, void* data) LUA_CXX_NOEXCEPT {
     if (L == nullptr || writer == nullptr || !lua_isfunction(L, -1) || lua_iscfunction(L, -1)) {
         return 1;
     }
 
     const int base = lua_gettop(L);
     Lua::LuaState* state = fromC(L);
-    try {
-        pushInternalCFunction(state, Lua::str_dump);
-        lua_pushvalue(L, base);
-        const int status = lua_pcall(L, 1, 1, 0);
-        if (status != LUA_OK) {
-            lua_settop(L, base);
-            return status;
-        }
+    const Lua::usize savedTop = state->getAbsoluteTop();
+    auto failure = [state, savedTop](const Lua::Value&, int status) noexcept {
+        restoreAbsoluteTopClearingSlots(state, savedTop);
+        return status == LUA_ERRMEM ? LUA_ERRMEM : 1;
+    };
+    return apiStatusBoundary(
+        state,
+        [&]() {
+            pushInternalCFunction(state, Lua::str_dump);
+            lua_pushvalue(L, base);
+            const int status = lua_pcall(L, 1, 1, 0);
+            if (status != LUA_OK) {
+                lua_settop(L, base);
+                return status;
+            }
 
-        size_t size = 0;
-        const char* bytes = lua_tolstring(L, -1, &size);
-        const int writerStatus = bytes != nullptr ? writer(L, bytes, size, data) : 1;
-        lua_settop(L, base);
-        return writerStatus;
-    } catch (...) {
-        lua_settop(L, base);
-        return 1;
-    }
+            size_t size = 0;
+            const char* bytes = lua_tolstring(L, -1, &size);
+            const int writerStatus = bytes != nullptr ? writer(L, bytes, size, data) : 1;
+            lua_settop(L, base);
+            return writerStatus;
+        },
+        failure);
 }
 
 int luaL_ref(lua_State* L, int tableIndex) LUA_CXX_MAY_THROW {
@@ -1126,11 +1184,10 @@ void luaL_argcheck(lua_State* L, int cond, int narg, const char* extramsg) LUA_C
 }
 
 lua_Number luaL_checknumber(lua_State* L, int narg) LUA_CXX_MAY_THROW {
-    Lua::LuaState* state = fromC(L);
-    if (!state->isNumber(narg)) {
-        state->error("number expected");
+    if (lua_isnumber(L, narg) == 0) {
+        luaL_argerror(L, narg, "number expected");
     }
-    return state->toNumber(narg);
+    return lua_tonumber(L, narg);
 }
 
 int luaL_checkint(lua_State* L, int narg) LUA_CXX_MAY_THROW {

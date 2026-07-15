@@ -248,7 +248,7 @@ StrView skipInitialHashCommentLine(StrView source) {
 
 Str valueToString(const Value& value) {
     if (value.isString()) {
-        return value.asString()->getData();
+        return Str(value.asString()->getData());
     }
     if (value.isNil()) {
         return "nil";

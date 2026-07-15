@@ -94,7 +94,7 @@ GarbageCollector::GarbageCollector(LuaAllocator* allocator)
       finalizersRunning_(false), globalState_(nullptr), stringPool_(nullptr), allocator_(allocator),
       strategy_(&markSweepGCStrategy()), automaticStopped_(false), automaticCollectionRunning_(false),
       preciseStackRoots_(true), automaticThresholdBytes_(usize{64} * 1024),
-      memoryLimitBytes_(std::numeric_limits<usize>::max()), gcDebtBytes_(-static_cast<isize>(64 * 1024)),
+      managedMemoryBudgetBytes_(std::numeric_limits<usize>::max()), gcDebtBytes_(-static_cast<isize>(64 * 1024)),
       stepCountdown_(0), pause_(200), stepMultiplier_(200), incrementalPhase_(IncrementalPhase::Pause),
       incrementalSweepCurrent_(nullptr), incrementalSweepPrevious_(nullptr), incrementalCollected_(0),
       lastCompletedCollected_(0), objectCount_(0), totalMemory_(0) {}
@@ -360,7 +360,7 @@ void GarbageCollector::destroyManagedObject(GCObject* obj) noexcept {
 }
 
 usize GarbageCollector::maybeCollectAutomatic(LuaState* currentState) {
-    if (!canAllocate()) {
+    if (!canAccountManagedBytes()) {
         throw MemoryError("not enough memory");
     }
     if (automaticStopped_ || automaticCollectionRunning_) {
@@ -481,18 +481,18 @@ usize GarbageCollector::getAutomaticThresholdBytes() const noexcept {
     return automaticThresholdBytes_;
 }
 
-usize GarbageCollector::getMemoryLimitBytes() const noexcept {
-    return memoryLimitBytes_;
+usize GarbageCollector::getManagedMemoryBudgetBytes() const noexcept {
+    return managedMemoryBudgetBytes_;
 }
 
-usize GarbageCollector::setMemoryLimitBytes(usize limit) noexcept {
-    const usize previous = memoryLimitBytes_;
-    memoryLimitBytes_ = limit;
+usize GarbageCollector::setManagedMemoryBudgetBytes(usize limit) noexcept {
+    const usize previous = managedMemoryBudgetBytes_;
+    managedMemoryBudgetBytes_ = limit;
     return previous;
 }
 
-bool GarbageCollector::canAllocate(usize additionalBytes) const noexcept {
-    if (memoryLimitBytes_ == std::numeric_limits<usize>::max()) {
+bool GarbageCollector::canAccountManagedBytes(usize additionalBytes) const noexcept {
+    if (managedMemoryBudgetBytes_ == std::numeric_limits<usize>::max()) {
         return true;
     }
     // Memory-limited TestC workloads exercise this on every VM write. The
@@ -500,7 +500,7 @@ bool GarbageCollector::canAllocate(usize additionalBytes) const noexcept {
     // cycle boundaries; an object-list traversal here makes those workloads
     // quadratic once a finite (but large) limit is installed.
     const usize liveBytes = totalMemory_;
-    return liveBytes <= memoryLimitBytes_ && additionalBytes <= memoryLimitBytes_ - liveBytes;
+    return liveBytes <= managedMemoryBudgetBytes_ && additionalBytes <= managedMemoryBudgetBytes_ - liveBytes;
 }
 
 const GCStrategy& GarbageCollector::getStrategy() const noexcept {

@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "minimumRunsPerRevision": 3,
+  "executionOrder": "alternating-base-head-on-the-same-runner",
+  "metrics": [
+    {
+      "name": "cpp_to_lua_ns_per_call",
+      "direction": "lower",
+      "maximumRegressionRatio": 0.2
+    },
+    {
+      "name": "lua_to_cpp_ns_per_call",
+      "direction": "lower",
+      "maximumRegressionRatio": 0.2
+    },
+    {
+      "name": "coroutine_resume_yield_ns",
+      "direction": "lower",
+      "maximumRegressionRatio": 0.2
+    },
+    {
+      "name": "closure_upvalue_lifecycle_per_second",
+      "direction": "higher",
+      "maximumRegressionRatio": 0.25
+    },
+    {
+      "name": "gc_pause_p99_us",
+      "direction": "lower",
+      "maximumRegressionRatio": 0.5
+    }
+  ]
+}

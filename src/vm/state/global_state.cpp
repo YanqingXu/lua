@@ -28,7 +28,8 @@ GlobalState& GlobalState::getInstance() {
 // =====================================================================
 
 GlobalState::GlobalState(StringPool& stringPool, LuaAllocator* allocator)
-    : gc_(allocator), stringPool_(stringPool), registry_(nullptr), mainThread_(nullptr), memerrmsg_(nullptr) {
+    : nativeModules_(), gc_(allocator), stringPool_(stringPool), registry_(nullptr), mainThread_(nullptr),
+      memerrmsg_(nullptr), apiExceptionMessage_(nullptr) {
     stringPool_.setGarbageCollector(&gc_);
 
     // 子任务1.1：调整字符串池大小到初始值
@@ -44,6 +45,10 @@ GlobalState::GlobalState(StringPool& stringPool, LuaAllocator* allocator)
     memerrmsg_ = stringPool_.intern("not enough memory");
     gc_.registerObject(memerrmsg_);
     memerrmsg_->markFixed(); // 标记为固定，防止在内存不足时被GC回收
+
+    apiExceptionMessage_ = stringPool_.intern("unhandled C++ exception in protected Lua API");
+    gc_.registerObject(apiExceptionMessage_);
+    apiExceptionMessage_->markFixed();
 
     // 创建注册表
     registry_ = gc_.createFixedRoot<Table>(); // 注册表永远不被回收
@@ -95,6 +100,7 @@ void GlobalState::setRunningThread(Thread* t) noexcept {
 void GlobalState::markRoots(GarbageCollector& gc, LuaState* currentState) const {
     gc.markObject(registry_);
     gc.markObject(memerrmsg_);
+    gc.markObject(apiExceptionMessage_);
 
     for (GCString* name : tmname_) {
         gc.markObject(name);

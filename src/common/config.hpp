@@ -228,8 +228,8 @@ constexpr bool PERF_STATS = false;
  * @{
  */
 
-/// 默认内存限制（字节，0表示无限制）
-constexpr usize DEFAULT_MEMORY_LIMIT = 0;
+/// Default GC managed-size fault-injection budget (unlimited sentinel).
+constexpr usize DEFAULT_MANAGED_MEMORY_BUDGET = static_cast<usize>(-1);
 
 /// 内存对齐大小
 constexpr usize MEMORY_ALIGNMENT = 8;

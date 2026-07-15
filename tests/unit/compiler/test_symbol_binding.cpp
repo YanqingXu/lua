@@ -43,12 +43,10 @@ ValuePayloadSnapshot snapshotValuePayload(const ValueResult& value) {
             return {ValueResult::Kind::Register, reg.access, reg.reg, -1, -1, reg.ownsRegister};
         },
         [](const ValueResult::PendingLoad& pending) -> ValuePayloadSnapshot {
-            return {ValueResult::Kind::PendingLoad, pending.access, pending.reg, pending.constIndex,
-                    pending.aux, false};
+            return {
+                ValueResult::Kind::PendingLoad, pending.access, pending.reg, pending.constIndex, pending.aux, false};
         },
-        [](const auto&) -> ValuePayloadSnapshot {
-            return {};
-        },
+        [](const auto&) -> ValuePayloadSnapshot { return {}; },
     });
 }
 
@@ -69,7 +67,8 @@ bool runLua(LuaState* L, const char* code) {
         StringPool& pool = StringPool::getInstance();
         CodeGenerator codegen(&pool);
         Proto* proto = codegen.generate(chunk, "test_symbol_binding");
-        if (proto == nullptr) return false;
+        if (proto == nullptr)
+            return false;
 
         Function* func = new Function(proto);
         L->getGlobalState().getGC().registerObject(func);
@@ -91,7 +90,8 @@ int countOpcode(const char* code, OpCode op) {
     Chunk chunk = std::move(*parsed);
     CodeGenerator codegen(&pool);
     Proto* proto = codegen.generate(chunk, "test_symbol_binding");
-    if (proto == nullptr) return 0;
+    if (proto == nullptr)
+        return 0;
 
     int count = 0;
     for (usize i = 0; i < proto->getInstructionCount(); i++) {
@@ -109,7 +109,7 @@ f64 getGlobalNumber(LuaState* L, const char* name) {
 
 Str getGlobalString(LuaState* L, const char* name) {
     Value v = L->getGlobal(name);
-    return v.asString()->getData();
+    return Str(v.asString()->getData());
 }
 
 } // anonymous namespace
@@ -304,10 +304,9 @@ void testUpvalueCaptureRuntime(TestSuite& suite) {
 
 void testUpvalueWritebackRuntime(TestSuite& suite) {
     LuaState* L = createFullState();
-    bool ok = runLua(L,
-        "local outer = 10\n"
-        "local f = function() outer = 20 end\n"
-        "f()\n_result = outer");
+    bool ok = runLua(L, "local outer = 10\n"
+                        "local f = function() outer = 20 end\n"
+                        "f()\n_result = outer");
     ASSERT_TRUE(suite, ok, "upvalue writeback should run");
     ASSERT_EQ(suite, 20.0, getGlobalNumber(L, "_result"), "result should be 20.0");
     delete L;
@@ -315,14 +314,12 @@ void testUpvalueWritebackRuntime(TestSuite& suite) {
 
 void testPcallPreservesOpenUpvalues(TestSuite& suite) {
     LuaState* L = createFullState();
-    bool ok = runLua(L,
-        "local marker = {}\n"
-        "local n = 37\n"
-        "local ok, gotMarker, gotN = pcall(function() return marker, n end)\n"
-        "_result = (ok and gotMarker == marker and gotN == 37) and 1 or 0");
+    bool ok = runLua(L, "local marker = {}\n"
+                        "local n = 37\n"
+                        "local ok, gotMarker, gotN = pcall(function() return marker, n end)\n"
+                        "_result = (ok and gotMarker == marker and gotN == 37) and 1 or 0");
     ASSERT_TRUE(suite, ok, "pcall open-upvalue chunk should run");
-    ASSERT_EQ(suite, 1.0, getGlobalNumber(L, "_result"),
-              "pcall should preserve open upvalue stack slots");
+    ASSERT_EQ(suite, 1.0, getGlobalNumber(L, "_result"), "pcall should preserve open upvalue stack slots");
     delete L;
 }
 
@@ -352,50 +349,45 @@ void testPcallClosesUpvaluesOnError(TestSuite& suite) {
         delete L;
         return;
     }
-    ASSERT_TRUE(suite, getGlobalString(L, "_result1") == "xuxu",
-                "pcall should close errored frame local upvalue");
-    ASSERT_EQ(suite, 14.0, getGlobalNumber(L, "_result2"),
-              "pcall should close errored frame parameter upvalue");
+    ASSERT_TRUE(suite, getGlobalString(L, "_result1") == "xuxu", "pcall should close errored frame local upvalue");
+    ASSERT_EQ(suite, 14.0, getGlobalNumber(L, "_result2"), "pcall should close errored frame parameter upvalue");
     delete L;
 }
 
 void testNestedUpvalueChain(TestSuite& suite) {
     LuaState* L = createFullState();
-    bool ok = runLua(L,
-        "local a = 1\n"
-        "local f1 = function()\n"
-        "  local f2 = function() _result = a end\n"
-        "  return f2\n"
-        "end\n"
-        "local f = f1()\nf()");
+    bool ok = runLua(L, "local a = 1\n"
+                        "local f1 = function()\n"
+                        "  local f2 = function() _result = a end\n"
+                        "  return f2\n"
+                        "end\n"
+                        "local f = f1()\nf()");
     ASSERT_TRUE(suite, ok, "nested upvalue chain should run");
     ASSERT_EQ(suite, 1.0, getGlobalNumber(L, "_result"), "result should be 1.0");
     delete L;
 }
 
 void testBlockExitEmitsClose(TestSuite& suite) {
-    int c = countOpcode(
-        "local f\n"
-        "do\n"
-        "  local x = 41\n"
-        "  f = function() return x end\n"
-        "end\n"
-        "local y = 99\n"
-        "_result = f()",
-        OpCode::CLOSE);
+    int c = countOpcode("local f\n"
+                        "do\n"
+                        "  local x = 41\n"
+                        "  f = function() return x end\n"
+                        "end\n"
+                        "local y = 99\n"
+                        "_result = f()",
+                        OpCode::CLOSE);
     ASSERT_TRUE(suite, c >= 1, "block exit with locals should emit CLOSE");
 }
 
 void testUpvalueClosedOnBlockExitRuntime(TestSuite& suite) {
     LuaState* L = createFullState();
-    bool ok = runLua(L,
-        "local f\n"
-        "do\n"
-        "  local x = 41\n"
-        "  f = function() return x end\n"
-        "end\n"
-        "local x = 99\n"
-        "_result = f()");
+    bool ok = runLua(L, "local f\n"
+                        "do\n"
+                        "  local x = 41\n"
+                        "  f = function() return x end\n"
+                        "end\n"
+                        "local x = 99\n"
+                        "_result = f()");
     ASSERT_TRUE(suite, ok, "block-exit upvalue close should run");
     ASSERT_EQ(suite, 41.0, getGlobalNumber(L, "_result"), "closed upvalue should keep pre-reuse value");
     delete L;
@@ -403,15 +395,14 @@ void testUpvalueClosedOnBlockExitRuntime(TestSuite& suite) {
 
 void testUpvalueClosedOnBreakRuntime(TestSuite& suite) {
     LuaState* L = createFullState();
-    bool ok = runLua(L,
-        "local f\n"
-        "while true do\n"
-        "  local x = 7\n"
-        "  f = function() return x end\n"
-        "  break\n"
-        "end\n"
-        "local x = 99\n"
-        "_result = f()");
+    bool ok = runLua(L, "local f\n"
+                        "while true do\n"
+                        "  local x = 7\n"
+                        "  f = function() return x end\n"
+                        "  break\n"
+                        "end\n"
+                        "local x = 99\n"
+                        "_result = f()");
     ASSERT_TRUE(suite, ok, "break upvalue close should run");
     ASSERT_EQ(suite, 7.0, getGlobalNumber(L, "_result"), "break should close loop-local upvalue");
     delete L;
@@ -419,20 +410,19 @@ void testUpvalueClosedOnBreakRuntime(TestSuite& suite) {
 
 void testCloseUsesCurrentFrameBase(TestSuite& suite) {
     LuaState* L = createFullState();
-    bool ok = runLua(L,
-        "local outer = 1\n"
-        "local readOuter = function() return outer end\n"
-        "local f\n"
-        "local function maker()\n"
-        "  do\n"
-        "    local x = 2\n"
-        "    f = function() return x end\n"
-        "  end\n"
-        "end\n"
-        "maker()\n"
-        "outer = 3\n"
-        "_result1 = readOuter()\n"
-        "_result2 = f()");
+    bool ok = runLua(L, "local outer = 1\n"
+                        "local readOuter = function() return outer end\n"
+                        "local f\n"
+                        "local function maker()\n"
+                        "  do\n"
+                        "    local x = 2\n"
+                        "    f = function() return x end\n"
+                        "  end\n"
+                        "end\n"
+                        "maker()\n"
+                        "outer = 3\n"
+                        "_result1 = readOuter()\n"
+                        "_result2 = f()");
     ASSERT_TRUE(suite, ok, "frame-relative CLOSE should run");
     ASSERT_EQ(suite, 3.0, getGlobalNumber(L, "_result1"), "inner CLOSE should not close outer frame upvalue");
     ASSERT_EQ(suite, 2.0, getGlobalNumber(L, "_result2"), "inner block upvalue should still close correctly");
@@ -461,8 +451,7 @@ void testNumericForControlVariableClosurePerIteration(TestSuite& suite) {
               "numeric for first closure can mutate its own iteration variable");
     ASSERT_EQ(suite, 2.0, getGlobalNumber(L, "_result2"),
               "numeric for second closure keeps its own iteration variable");
-    ASSERT_EQ(suite, 3.0, getGlobalNumber(L, "_result3"),
-              "numeric for third closure is isolated from earlier writes");
+    ASSERT_EQ(suite, 3.0, getGlobalNumber(L, "_result3"), "numeric for third closure is isolated from earlier writes");
     delete L;
 }
 
@@ -483,14 +472,11 @@ void testGenericForControlVariablesClosurePerIteration(TestSuite& suite) {
         _result3, _result4 = a[1].get()
     )lua");
     ASSERT_TRUE(suite, ok, "generic for captured control chunk should run");
-    ASSERT_EQ(suite, 2.0, getGlobalNumber(L, "_result1"),
-              "generic for second key keeps its own iteration variable");
+    ASSERT_EQ(suite, 2.0, getGlobalNumber(L, "_result1"), "generic for second key keeps its own iteration variable");
     ASSERT_TRUE(suite, getGlobalString(L, "_result2") == "b",
                 "generic for second value keeps its own iteration variable");
-    ASSERT_EQ(suite, 10.0, getGlobalNumber(L, "_result3"),
-              "generic for first key keeps its mutation");
-    ASSERT_EQ(suite, 20.0, getGlobalNumber(L, "_result4"),
-              "generic for first value keeps its mutation");
+    ASSERT_EQ(suite, 10.0, getGlobalNumber(L, "_result3"), "generic for first key keeps its mutation");
+    ASSERT_EQ(suite, 20.0, getGlobalNumber(L, "_result4"), "generic for first value keeps its mutation");
     delete L;
 }
 
@@ -515,10 +501,8 @@ void testRepeatUntilClosesBodyLocalsPerIteration(TestSuite& suite) {
     ASSERT_TRUE(suite, ok, "repeat-until captured local chunk should run");
     ASSERT_EQ(suite, 4.0, getGlobalNumber(L, "_result1"),
               "repeat-until loop should finish after condition sees body local");
-    ASSERT_EQ(suite, 1.0, getGlobalNumber(L, "_result2"),
-              "repeat-until first iteration closure keeps its body local");
-    ASSERT_EQ(suite, 3.0, getGlobalNumber(L, "_result3"),
-              "repeat-until third iteration closure keeps its body local");
+    ASSERT_EQ(suite, 1.0, getGlobalNumber(L, "_result2"), "repeat-until first iteration closure keeps its body local");
+    ASSERT_EQ(suite, 3.0, getGlobalNumber(L, "_result3"), "repeat-until third iteration closure keeps its body local");
     ASSERT_EQ(suite, 4.0, getGlobalNumber(L, "_result4"),
               "repeat-until later closure mutation should use closed body local");
     delete L;
@@ -530,10 +514,9 @@ void testRepeatUntilClosesBodyLocalsPerIteration(TestSuite& suite) {
 
 void testFunctionTablePathResolve(TestSuite& suite) {
     LuaState* L = createFullState();
-    bool ok = runLua(L,
-        "t = {}\nt.a = {}\nt.a.b = {}\n"
-        "function t.a.b:foo() _result = 1234 end\n"
-        "t.a.b:foo()");
+    bool ok = runLua(L, "t = {}\nt.a = {}\nt.a.b = {}\n"
+                        "function t.a.b:foo() _result = 1234 end\n"
+                        "t.a.b:foo()");
     ASSERT_TRUE(suite, ok, "table path function should run");
     ASSERT_EQ(suite, 1234.0, getGlobalNumber(L, "_result"), "result should be 1234.0");
     delete L;
@@ -557,19 +540,17 @@ void testLocalFunctionDefinition(TestSuite& suite) {
 
 void testLocalFunctionSelfRecursion(TestSuite& suite) {
     LuaState* L = createFullState();
-    bool ok = runLua(L,
-        "local function fact(n)\n"
-        "  if n == 0 then return 1 end\n"
-        "  return n * fact(n - 1)\n"
-        "end\n"
-        "_result = fact(5)");
+    bool ok = runLua(L, "local function fact(n)\n"
+                        "  if n == 0 then return 1 end\n"
+                        "  return n * fact(n - 1)\n"
+                        "end\n"
+                        "_result = fact(5)");
     ASSERT_TRUE(suite, ok, "local function self recursion should run");
     if (!ok) {
         delete L;
         return;
     }
-    ASSERT_EQ(suite, 120.0, getGlobalNumber(L, "_result"),
-              "local function body should capture its own binding");
+    ASSERT_EQ(suite, 120.0, getGlobalNumber(L, "_result"), "local function body should capture its own binding");
     delete L;
 }
 
@@ -596,13 +577,14 @@ void registerSymbolBindingTests() {
     registry.registerTest("Symbol Binding (PR-8)", "local read/write runtime", testLocalReadWriteRuntime);
     registry.registerTest("Symbol Binding (PR-8)", "global read/write runtime", testGlobalReadWriteRuntime);
     registry.registerTest("Symbol Binding (PR-8)", "local shadows global", testLocalShadowsGlobal);
-    registry.registerTest("Symbol Binding (PR-8)", "local initializer uses outer scope", testLocalInitializerUsesOuterScope);
-    registry.registerTest("Symbol Binding (PR-8)", "local initializer protects earlier results", testLocalInitializerProtectsEarlierResults);
+    registry.registerTest("Symbol Binding (PR-8)", "local initializer uses outer scope",
+                          testLocalInitializerUsesOuterScope);
+    registry.registerTest("Symbol Binding (PR-8)", "local initializer protects earlier results",
+                          testLocalInitializerProtectsEarlierResults);
     registry.registerTest("Symbol Binding (PR-8)", "upvalue capture runtime", testUpvalueCaptureRuntime);
     registry.registerTest("Symbol Binding (PR-8)", "upvalue writeback runtime", testUpvalueWritebackRuntime);
     registry.registerTest("Symbol Binding (PR-8)", "pcall preserves open upvalues", testPcallPreservesOpenUpvalues);
-    registry.registerTest("Symbol Binding (PR-8)", "pcall closes upvalues on error",
-                          testPcallClosesUpvaluesOnError);
+    registry.registerTest("Symbol Binding (PR-8)", "pcall closes upvalues on error", testPcallClosesUpvaluesOnError);
     registry.registerTest("Symbol Binding (PR-8)", "nested upvalue chain", testNestedUpvalueChain);
     registry.registerTest("Symbol Binding (PR-8)", "block exit emits CLOSE", testBlockExitEmitsClose);
     registry.registerTest("Symbol Binding (PR-8)", "block exit closes upvalue", testUpvalueClosedOnBlockExitRuntime);
@@ -620,4 +602,3 @@ void registerSymbolBindingTests() {
     registry.registerTest("Symbol Binding (PR-8)", "local function definition", testLocalFunctionDefinition);
     registry.registerTest("Symbol Binding (PR-8)", "local function self recursion", testLocalFunctionSelfRecursion);
 }
-

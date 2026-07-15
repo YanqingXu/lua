@@ -4,6 +4,7 @@
 #include "compiler/codegen/codegen.hpp"
 #include "compiler/parser/parser.hpp"
 #include "core/function.hpp"
+#include "core/table.hpp"
 #include "core/thread.hpp"
 #include "core/upvalue.hpp"
 #include "lua.h"
@@ -13,6 +14,7 @@
 #include "vm/state/lua_state.hpp"
 
 #include <cstdint>
+#include <array>
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
@@ -32,6 +34,17 @@ static_assert(!noexcept(lua_xmove(nullptr, nullptr, 0)));
 static_assert(!noexcept(lua_call(nullptr, 0, 0)));
 static_assert(!noexcept(lua_error(nullptr)));
 static_assert(!noexcept(luaL_error(nullptr, "%s", "error")));
+static_assert(noexcept(lua_checkstack(nullptr, 0)));
+static_assert(noexcept(lua_pcall(nullptr, 0, 0, 0)));
+static_assert(noexcept(lua_newthread(nullptr)));
+static_assert(noexcept(lua_resume(nullptr, 0)));
+static_assert(noexcept(lua_load(nullptr, nullptr, nullptr, nullptr)));
+static_assert(noexcept(lua_dump(nullptr, nullptr, nullptr)));
+static_assert(noexcept(luaL_loadbuffer(nullptr, nullptr, 0, nullptr)));
+static_assert(noexcept(luaL_loadstring(nullptr, nullptr)));
+static_assert(noexcept(luaL_loadfile(nullptr, nullptr)));
+
+constexpr const char* kProtectedApiExceptionMessage = "unhandled C++ exception in protected Lua API";
 
 int gApiFinalizerCalls = 0;
 int gApiFinalizerPayload = 0;
@@ -48,6 +61,9 @@ struct AllocatorLedger {
     std::unordered_map<std::uintptr_t, size_t> blocks;
     size_t sizeMismatches = 0;
     size_t unknownFrees = 0;
+    size_t liveBytes = 0;
+    size_t peakBytes = 0;
+    size_t hardLimit = std::numeric_limits<size_t>::max();
 };
 
 struct AllocatorProbe {
@@ -76,6 +92,7 @@ void* trackingLuaAllocator(void* userData, void* pointer, size_t oldSize, size_t
                 if (existing->second != oldSize) {
                     ++probe->ledger->sizeMismatches;
                 }
+                probe->ledger->liveBytes -= existing->second;
                 probe->ledger->blocks.erase(existing);
             }
             std::free(pointer);
@@ -96,11 +113,20 @@ void* trackingLuaAllocator(void* userData, void* pointer, size_t oldSize, size_t
         return nullptr;
     }
 
+    size_t trackedOldSize = 0;
     if (pointer != nullptr) {
         auto existing = probe->ledger->blocks.find(oldKey);
-        if (existing != probe->ledger->blocks.end() && existing->second != oldSize) {
-            ++probe->ledger->sizeMismatches;
+        if (existing != probe->ledger->blocks.end()) {
+            trackedOldSize = existing->second;
+            if (trackedOldSize != oldSize) {
+                ++probe->ledger->sizeMismatches;
+            }
         }
+    }
+
+    const size_t retainedLiveBytes = probe->ledger->liveBytes - trackedOldSize;
+    if (newSize > probe->ledger->hardLimit || retainedLiveBytes > probe->ledger->hardLimit - newSize) {
+        return nullptr;
     }
 
     void* result = std::realloc(pointer, newSize);
@@ -110,11 +136,16 @@ void* trackingLuaAllocator(void* userData, void* pointer, size_t oldSize, size_t
 
     if (pointer != nullptr) {
         probe->ledger->blocks.erase(oldKey);
+        probe->ledger->liveBytes -= trackedOldSize;
         ++probe->reallocations;
     } else {
         ++probe->allocations;
     }
     probe->ledger->blocks[reinterpret_cast<std::uintptr_t>(result)] = newSize;
+    probe->ledger->liveBytes += newSize;
+    if (probe->ledger->liveBytes > probe->ledger->peakBytes) {
+        probe->ledger->peakBytes = probe->ledger->liveBytes;
+    }
     return result;
 }
 
@@ -195,6 +226,10 @@ int failWhileHandlingApiError(lua_State* L) {
     return lua_error(L);
 }
 
+int raiseAuxiliaryArgumentError(lua_State* L) {
+    return luaL_argerror(L, 1, "contract argument failure");
+}
+
 int throwMemoryErrorFromC(lua_State*) {
     throw Lua::MemoryError("simulated allocation failure");
 }
@@ -247,6 +282,14 @@ int throwRuntimeErrorDuringResume(lua_State*) {
     throw std::runtime_error("injected coroutine runtime failure");
 }
 
+int throwUnknownExceptionWithAllocatorFailure(lua_State*) {
+    if (gAllocatorFailureProbe != nullptr) {
+        gArmedAllocatorFailureTarget = gAllocatorFailureProbe->allocationAttempts + 1;
+        gAllocatorFailureProbe->failFromAllocation = gArmedAllocatorFailureTarget;
+    }
+    throw 29;
+}
+
 int appendDumpChunk(lua_State*, const void* bytes, size_t size, void* userData) {
     auto* output = static_cast<std::string*>(userData);
     output->append(static_cast<const char*>(bytes), size);
@@ -273,6 +316,44 @@ const char* pushGcObjectsThenFailReader(lua_State* L, void*, size_t*) {
     lua_createtable(L, 0, 0);
     lua_createtable(L, 0, 0);
     throw std::bad_alloc();
+}
+
+const char* throwRuntimeErrorReader(lua_State* L, void*, size_t*) {
+    lua_createtable(L, 0, 0);
+    throw std::runtime_error("reader callback failed");
+}
+
+const char* throwUnknownExceptionReader(lua_State* L, void*, size_t*) {
+    lua_createtable(L, 0, 0);
+    throw 31;
+}
+
+int throwBadAllocWriter(lua_State*, const void*, size_t, void*) {
+    throw std::bad_alloc();
+}
+
+int throwRuntimeErrorWriter(lua_State*, const void*, size_t, void*) {
+    throw std::runtime_error("writer callback failed");
+}
+
+int throwUnknownExceptionWriter(lua_State*, const void*, size_t, void*) {
+    throw 37;
+}
+
+struct ThrowingAllocatorProbe {
+    bool armed = false;
+};
+
+void* throwingLuaAllocator(void* userData, void* pointer, size_t, size_t newSize) {
+    auto* probe = static_cast<ThrowingAllocatorProbe*>(userData);
+    if (newSize == 0) {
+        std::free(pointer);
+        return nullptr;
+    }
+    if (probe->armed) {
+        throw std::runtime_error("allocator callback failed");
+    }
+    return std::realloc(pointer, newSize);
 }
 
 void testStackAndInvalidIndexes(TestSuite& suite) {
@@ -673,6 +754,66 @@ void testLightAndFullUserdata(TestSuite& suite) {
     lua_close(L);
 }
 
+void testLua51KnownValueApiSemantics(TestSuite& suite) {
+    lua_State* L = lua_open();
+
+    lua_pushstring(L, nullptr);
+    ASSERT_EQ(suite, LUA_TNIL, lua_type(L, -1), "lua_pushstring(nullptr) pushes nil");
+    lua_pop(L, 1);
+
+    lua_pushnumber(L, 12345);
+    ASSERT_EQ(suite, static_cast<size_t>(5), lua_objlen(L, -1), "lua_objlen converts numbers to strings");
+    ASSERT_EQ(suite, LUA_TSTRING, lua_type(L, -1), "numeric lua_objlen preserves Lua 5.1 conversion side effect");
+    ASSERT_EQ(suite, std::string("12345"), std::string(lua_tostring(L, -1)),
+              "numeric lua_objlen uses the ordinary Lua number representation");
+
+    lua_close(L);
+}
+
+void testPreviouslyUnprobedPublicContractSymbols(TestSuite& suite) {
+    lua_State* L = lua_open();
+
+    lua_pushinteger(L, 42);
+    ASSERT_TRUE(suite, lua_isnumber(L, -1) != 0, "lua_isnumber accepts numeric values");
+    ASSERT_EQ(suite, std::string("number"), std::string(lua_typename(L, lua_type(L, -1))),
+              "lua_typename exposes the public number type name");
+    size_t length = 0;
+    ASSERT_EQ(suite, std::string("42"), std::string(lua_tolstring(L, -1, &length)),
+              "lua_tolstring converts a public numeric stack slot");
+    ASSERT_EQ(suite, static_cast<size_t>(2), length, "lua_tolstring publishes converted byte length");
+    lua_pop(L, 1);
+
+    lua_pushboolean(L, 1);
+    ASSERT_EQ(suite, LUA_TBOOLEAN, lua_type(L, -1), "lua_pushboolean publishes the boolean Lua type");
+    ASSERT_TRUE(suite, lua_toboolean(L, -1) != 0, "lua_pushboolean value round-trips through lua_toboolean");
+    lua_pop(L, 1);
+
+    lua_newtable(L);
+    lua_pushstring(L, "key");
+    lua_pushnumber(L, 17);
+    lua_settable(L, -3);
+    lua_pushstring(L, "key");
+    lua_gettable(L, -2);
+    ASSERT_EQ(suite, 17.0, lua_tonumber(L, -1), "lua_gettable reaches the public metamethod-aware table path");
+    lua_settop(L, 0);
+
+    lua_pushnumber(L, 12.5);
+    ASSERT_EQ(suite, 12.5, luaL_checknumber(L, 1), "luaL_checknumber accepts a public numeric argument");
+    lua_pushstring(L, "aux-value");
+    length = 0;
+    ASSERT_EQ(suite, std::string("aux-value"), std::string(luaL_checklstring(L, 2, &length)),
+              "luaL_checklstring returns the public string argument");
+    ASSERT_EQ(suite, static_cast<size_t>(9), length, "luaL_checklstring publishes byte length");
+    lua_settop(L, 0);
+
+    lua_pushcclosure(L, raiseAuxiliaryArgumentError, 0);
+    ASSERT_EQ(suite, LUA_ERRRUN, lua_pcall(L, 0, 1, 0), "luaL_argerror is contained by lua_pcall");
+    ASSERT_TRUE(suite, std::string(lua_tostring(L, -1)).find("contract argument failure") != std::string::npos,
+                "luaL_argerror preserves its diagnostic");
+
+    lua_close(L);
+}
+
 void testUserdataFinalizerThroughCApi(TestSuite& suite) {
     lua_State* L = lua_open();
     luaL_openlibs(L);
@@ -966,8 +1107,8 @@ void testProtectedCallNormalizesCppExceptionsAndYield(TestSuite& suite) {
     lua_settop(L, 0);
     lua_pushcclosure(L, throwUnknownCppException, 0);
     ASSERT_EQ(suite, LUA_ERRRUN, lua_pcall(L, 0, 1, 0), "pcall contains non-standard C++ exceptions");
-    ASSERT_EQ(suite, std::string("unknown C++ exception"), std::string(lua_tostring(L, -1)),
-              "unknown C++ exception is converted to Lua error text");
+    ASSERT_EQ(suite, std::string(kProtectedApiExceptionMessage), std::string(lua_tostring(L, -1)),
+              "non-standard C++ exception uses the fixed protected-API error");
 
     lua_settop(L, 0);
     lua_pushcclosure(L, attemptYieldFromMainState, 0);
@@ -1023,10 +1164,303 @@ void testCustomAllocatorLifecycle(TestSuite& suite) {
 
     lua_close(L);
     ASSERT_TRUE(suite, ledger.blocks.empty(), "lua_close releases state, context, fixed roots, objects, and payloads");
+    ASSERT_EQ(suite, static_cast<size_t>(0), ledger.liveBytes, "lua_close returns allocator live bytes to zero");
     ASSERT_EQ(suite, static_cast<size_t>(0), ledger.sizeMismatches, "allocator frees receive original object sizes");
     ASSERT_EQ(suite, static_cast<size_t>(0), ledger.unknownFrees, "allocator close path only frees tracked blocks");
     ASSERT_EQ(suite, probe.allocations + probe.reallocations, probe.frees,
               "custom allocator allocations and frees balance");
+}
+
+std::string makeAllocatorContractString() {
+    std::string text(4096, 'x');
+    for (size_t index = 0; index < text.size(); index += 127) {
+        text[index] = static_cast<char>('a' + (index / 127) % 26);
+    }
+    return text;
+}
+
+void testAllocatorBackedStringContentAndHardLimit(TestSuite& suite) {
+    const std::string text = makeAllocatorContractString();
+    size_t internAllocationAttempts = 0;
+
+    {
+        AllocatorLedger ledger;
+        AllocatorProbe probe{&ledger};
+        lua_State* L = lua_newstate(trackingLuaAllocator, &probe);
+        ASSERT_TRUE(suite, L != nullptr, "string allocator baseline creates state");
+        auto* state = reinterpret_cast<Lua::LuaState*>(L);
+        auto& pool = state->getGlobalState().getStringPool();
+
+        size_t contentSizedBlocksBefore = 0;
+        for (const auto& block : ledger.blocks) {
+            if (block.second >= text.size() + 1) {
+                ++contentSizedBlocksBefore;
+            }
+        }
+        const size_t attemptsBefore = probe.allocationAttempts;
+        Lua::GCString* interned = pool.intern(Lua::StrView(text.data(), text.size()));
+        internAllocationAttempts = probe.allocationAttempts - attemptsBefore;
+        ASSERT_TRUE(suite, interned != nullptr && interned->getData() == text,
+                    "long interned string preserves allocator-backed contents");
+        ASSERT_TRUE(suite, internAllocationAttempts >= 3,
+                    "long string routes object, contents, and pool node through lua_Alloc");
+
+        size_t contentSizedBlocksAfter = 0;
+        for (const auto& block : ledger.blocks) {
+            if (block.second >= text.size() + 1) {
+                ++contentSizedBlocksAfter;
+            }
+        }
+        ASSERT_TRUE(suite, contentSizedBlocksAfter > contentSizedBlocksBefore,
+                    "allocator ledger observes a new long-string content block");
+
+        lua_close(L);
+        ASSERT_TRUE(suite, ledger.blocks.empty(), "string allocator baseline closes without blocks");
+        ASSERT_EQ(suite, static_cast<size_t>(0), ledger.liveBytes,
+                  "string allocator baseline closes with zero live bytes");
+    }
+
+    for (size_t offset = 1; offset <= internAllocationAttempts; ++offset) {
+        AllocatorLedger ledger;
+        AllocatorProbe probe{&ledger};
+        lua_State* L = lua_newstate(trackingLuaAllocator, &probe);
+        ASSERT_TRUE(suite, L != nullptr, "string failure scan creates state");
+        auto* state = reinterpret_cast<Lua::LuaState*>(L);
+        auto& pool = state->getGlobalState().getStringPool();
+        const size_t poolSizeBefore = pool.size();
+        const size_t liveBefore = ledger.liveBytes;
+
+        probe.failOnAllocation = probe.allocationAttempts + offset;
+        bool allocationFailed = false;
+        try {
+            (void)pool.intern(Lua::StrView(text.data(), text.size()));
+        } catch (const std::bad_alloc&) {
+            allocationFailed = true;
+        }
+        ASSERT_TRUE(suite, allocationFailed, "every long-string allocation point propagates bad_alloc");
+        ASSERT_EQ(suite, poolSizeBefore, pool.size(), "failed string intern leaves pool size unchanged");
+        ASSERT_TRUE(suite, pool.find(Lua::StrView(text.data(), text.size())) == nullptr,
+                    "failed string intern leaves no dangling pool entry");
+        ASSERT_EQ(suite, liveBefore, ledger.liveBytes, "failed string intern releases object and content allocations");
+
+        probe.failOnAllocation = 0;
+        ASSERT_TRUE(suite, pool.intern(Lua::StrView(text.data(), text.size())) != nullptr,
+                    "string pool remains usable after injected failure");
+        lua_close(L);
+        ASSERT_TRUE(suite, ledger.blocks.empty(), "string failure scan closes without blocks");
+        ASSERT_EQ(suite, static_cast<size_t>(0), ledger.liveBytes, "string failure scan closes with zero live bytes");
+        ASSERT_EQ(suite, static_cast<size_t>(0), ledger.sizeMismatches,
+                  "string failure scan preserves allocator old sizes");
+        ASSERT_EQ(suite, static_cast<size_t>(0), ledger.unknownFrees, "string failure scan frees each block once");
+    }
+
+    AllocatorLedger ledger;
+    AllocatorProbe probe{&ledger};
+    lua_State* L = lua_newstate(trackingLuaAllocator, &probe);
+    ASSERT_TRUE(suite, L != nullptr, "string hard-limit test creates state");
+    auto* state = reinterpret_cast<Lua::LuaState*>(L);
+    auto& gc = state->getGlobalState().getGC();
+    auto& pool = state->getGlobalState().getStringPool();
+    const size_t liveBefore = ledger.liveBytes;
+    const size_t poolSizeBefore = pool.size();
+    const Lua::usize softBudget = gc.getManagedMemoryBudgetBytes();
+
+    ledger.hardLimit = liveBefore + sizeof(Lua::GCString);
+    ledger.peakBytes = liveBefore;
+    ASSERT_EQ(suite, softBudget, gc.getManagedMemoryBudgetBytes(),
+              "host hard limit does not mutate the GC managed-size budget");
+    const Lua::usize previousBudget = gc.setManagedMemoryBudgetBytes(0);
+    ASSERT_EQ(suite, ledger.hardLimit, liveBefore + sizeof(Lua::GCString),
+              "GC managed-size budget does not mutate the host hard limit");
+    gc.setManagedMemoryBudgetBytes(previousBudget);
+
+    bool allocationFailed = false;
+    try {
+        (void)pool.intern(Lua::StrView(text.data(), text.size()));
+    } catch (const std::bad_alloc&) {
+        allocationFailed = true;
+    }
+    ASSERT_TRUE(suite, allocationFailed, "hard limit rejects long string contents");
+    ASSERT_EQ(suite, ledger.hardLimit, ledger.peakBytes,
+              "hard-limit probe admits the GCString object before rejecting its contents");
+    ASSERT_TRUE(suite, ledger.peakBytes <= ledger.hardLimit, "allocator never exceeds its live-byte hard limit");
+    ASSERT_EQ(suite, liveBefore, ledger.liveBytes, "hard-limit failure restores prior live bytes");
+    ASSERT_EQ(suite, poolSizeBefore, pool.size(), "hard-limit failure leaves string pool unchanged");
+
+    ledger.hardLimit = std::numeric_limits<size_t>::max();
+    ASSERT_TRUE(suite, pool.intern(Lua::StrView(text.data(), text.size())) != nullptr,
+                "string allocation succeeds after lifting hard limit");
+    lua_close(L);
+    ASSERT_TRUE(suite, ledger.blocks.empty(), "string hard-limit state closes without blocks");
+    ASSERT_EQ(suite, static_cast<size_t>(0), ledger.liveBytes, "string hard-limit state closes with zero live bytes");
+}
+
+void testTableReallocHardLimitTransaction(TestSuite& suite) {
+    AllocatorLedger ledger;
+    AllocatorProbe probe{&ledger};
+    lua_State* L = lua_newstate(trackingLuaAllocator, &probe);
+    ASSERT_TRUE(suite, L != nullptr, "table realloc test creates state");
+    auto* state = reinterpret_cast<Lua::LuaState*>(L);
+    Lua::Table* table = state->getGlobalState().getGC().create<Lua::Table>();
+
+    table->setArray(1, Lua::Value(11.0));
+    const size_t liveBeforeGrowth = ledger.liveBytes;
+    const size_t reallocationsBeforeGrowth = probe.reallocations;
+    ledger.hardLimit = liveBeforeGrowth;
+    ledger.peakBytes = liveBeforeGrowth;
+
+    bool allocationFailed = false;
+    try {
+        table->setArray(64, Lua::Value(64.0));
+    } catch (const std::bad_alloc&) {
+        allocationFailed = true;
+    }
+    ASSERT_TRUE(suite, allocationFailed, "table growth is rejected by the allocator hard limit");
+    ASSERT_EQ(suite, static_cast<Lua::usize>(1), table->getArraySize(),
+              "failed table realloc preserves logical array size");
+    ASSERT_EQ(suite, 11.0, table->getArray(1).asNumber(), "failed table realloc retains old block contents");
+    ASSERT_TRUE(suite, table->getArray(64).isNil(), "failed table realloc commits no target value");
+    ASSERT_EQ(suite, liveBeforeGrowth, ledger.liveBytes, "failed table realloc preserves allocator live bytes");
+    ASSERT_EQ(suite, reallocationsBeforeGrowth, probe.reallocations,
+              "rejected realloc does not release or replace the old block");
+    ASSERT_TRUE(suite, ledger.peakBytes <= ledger.hardLimit, "table failure never exceeds hard limit");
+
+    ledger.hardLimit = std::numeric_limits<size_t>::max();
+    table->setArray(64, Lua::Value(64.0));
+    ASSERT_TRUE(suite, probe.reallocations > reallocationsBeforeGrowth,
+                "successful table growth uses lua_Alloc realloc form");
+    ASSERT_EQ(suite, 11.0, table->getArray(1).asNumber(), "successful realloc retains earlier table value");
+    ASSERT_EQ(suite, 64.0, table->getArray(64).asNumber(), "successful realloc commits target table value");
+
+    const std::array<Lua::Value, 3> values = {Lua::Value(65.0), Lua::Value(66.0), Lua::Value(67.0)};
+    const size_t liveBeforeRange = ledger.liveBytes;
+    ledger.hardLimit = liveBeforeRange;
+    ledger.peakBytes = liveBeforeRange;
+    allocationFailed = false;
+    try {
+        table->setArrayRange(65, values);
+    } catch (const std::bad_alloc&) {
+        allocationFailed = true;
+    }
+    ASSERT_TRUE(suite, allocationFailed, "SETLIST-style range growth is rejected atomically");
+    ASSERT_EQ(suite, static_cast<Lua::usize>(64), table->getArraySize(),
+              "failed range growth preserves logical table size");
+    ASSERT_TRUE(suite, table->getArray(65).isNil() && table->getArray(66).isNil() && table->getArray(67).isNil(),
+                "failed range growth commits none of its values");
+    ASSERT_EQ(suite, liveBeforeRange, ledger.liveBytes, "failed range growth retains its old allocation");
+    ASSERT_TRUE(suite, ledger.peakBytes <= ledger.hardLimit, "range failure never exceeds hard limit");
+
+    ledger.hardLimit = std::numeric_limits<size_t>::max();
+    table->setArrayRange(65, values);
+    ASSERT_EQ(suite, 65.0, table->getArray(65).asNumber(), "recovered range writes first value");
+    ASSERT_EQ(suite, 67.0, table->getArray(67).asNumber(), "recovered range writes last value");
+
+    lua_close(L);
+    ASSERT_TRUE(suite, ledger.blocks.empty(), "table realloc state closes without blocks");
+    ASSERT_EQ(suite, static_cast<size_t>(0), ledger.liveBytes, "table realloc state closes with zero live bytes");
+    ASSERT_EQ(suite, static_cast<size_t>(0), ledger.sizeMismatches, "table realloc preserves allocator old sizes");
+    ASSERT_EQ(suite, static_cast<size_t>(0), ledger.unknownFrees, "table realloc frees each block once");
+}
+
+void testProtoAllocatorTransactions(TestSuite& suite) {
+    size_t constantAllocationAttempts = 0;
+    {
+        AllocatorLedger ledger;
+        AllocatorProbe probe{&ledger};
+        lua_State* L = lua_newstate(trackingLuaAllocator, &probe);
+        ASSERT_TRUE(suite, L != nullptr, "Proto constant baseline creates state");
+        auto* state = reinterpret_cast<Lua::LuaState*>(L);
+        Lua::Proto* proto = state->getGlobalState().getGC().create<Lua::Proto>();
+        const size_t attemptsBefore = probe.allocationAttempts;
+        ASSERT_EQ(suite, static_cast<Lua::usize>(0), proto->addConstant(Lua::Value(42.0)),
+                  "Proto baseline adds first constant");
+        constantAllocationAttempts = probe.allocationAttempts - attemptsBefore;
+        ASSERT_TRUE(suite, constantAllocationAttempts >= 2,
+                    "Proto constant insertion routes vector and dedup metadata through lua_Alloc");
+        lua_close(L);
+        ASSERT_EQ(suite, static_cast<size_t>(0), ledger.liveBytes,
+                  "Proto constant baseline closes with zero live bytes");
+    }
+
+    for (size_t offset = 1; offset <= constantAllocationAttempts; ++offset) {
+        AllocatorLedger ledger;
+        AllocatorProbe probe{&ledger};
+        lua_State* L = lua_newstate(trackingLuaAllocator, &probe);
+        ASSERT_TRUE(suite, L != nullptr, "Proto constant failure scan creates state");
+        auto* state = reinterpret_cast<Lua::LuaState*>(L);
+        Lua::Proto* proto = state->getGlobalState().getGC().create<Lua::Proto>();
+
+        probe.failOnAllocation = probe.allocationAttempts + offset;
+        bool allocationFailed = false;
+        try {
+            (void)proto->addConstant(Lua::Value(42.0));
+        } catch (const std::bad_alloc&) {
+            allocationFailed = true;
+        }
+        ASSERT_TRUE(suite, allocationFailed, "every Proto constant allocation point propagates bad_alloc");
+        ASSERT_EQ(suite, static_cast<Lua::usize>(0), proto->getConstantCount(),
+                  "failed Proto constant insert rolls back logical contents");
+
+        probe.failOnAllocation = 0;
+        ASSERT_EQ(suite, static_cast<Lua::usize>(0), proto->addConstant(Lua::Value(42.0)),
+                  "Proto remains usable after constant insertion failure");
+        ASSERT_EQ(suite, static_cast<Lua::usize>(0), proto->addConstant(Lua::Value(42.0)),
+                  "recovered Proto constant deduplication returns original slot");
+        ASSERT_EQ(suite, static_cast<Lua::usize>(1), proto->getConstantCount(),
+                  "recovered Proto contains one deduplicated constant");
+
+        lua_close(L);
+        ASSERT_TRUE(suite, ledger.blocks.empty(), "Proto constant failure scan closes without blocks");
+        ASSERT_EQ(suite, static_cast<size_t>(0), ledger.liveBytes,
+                  "Proto constant failure scan closes with zero live bytes");
+        ASSERT_EQ(suite, static_cast<size_t>(0), ledger.sizeMismatches,
+                  "Proto constant failure scan preserves allocator old sizes");
+        ASSERT_EQ(suite, static_cast<size_t>(0), ledger.unknownFrees,
+                  "Proto constant failure scan frees each block once");
+    }
+
+    AllocatorLedger ledger;
+    AllocatorProbe probe{&ledger};
+    lua_State* L = lua_newstate(trackingLuaAllocator, &probe);
+    ASSERT_TRUE(suite, L != nullptr, "Proto realloc hard-limit test creates state");
+    auto* state = reinterpret_cast<Lua::LuaState*>(L);
+    Lua::Proto* proto = state->getGlobalState().getGC().create<Lua::Proto>();
+    proto->addInstruction(static_cast<Lua::Instruction>(0x11111111U));
+    const size_t liveBeforeGrowth = ledger.liveBytes;
+    const size_t reallocationsBeforeGrowth = probe.reallocations;
+    ledger.hardLimit = liveBeforeGrowth;
+    ledger.peakBytes = liveBeforeGrowth;
+
+    bool allocationFailed = false;
+    try {
+        (void)proto->addInstruction(static_cast<Lua::Instruction>(0x22222222U));
+    } catch (const std::bad_alloc&) {
+        allocationFailed = true;
+    }
+    ASSERT_TRUE(suite, allocationFailed, "Proto metadata realloc is rejected by hard limit");
+    ASSERT_EQ(suite, static_cast<Lua::usize>(1), proto->getInstructionCount(),
+              "failed Proto realloc preserves instruction count");
+    ASSERT_EQ(suite, static_cast<Lua::Instruction>(0x11111111U), proto->getInstruction(0),
+              "failed Proto realloc retains old instruction block");
+    ASSERT_EQ(suite, liveBeforeGrowth, ledger.liveBytes, "failed Proto realloc preserves live bytes");
+    ASSERT_EQ(suite, reallocationsBeforeGrowth, probe.reallocations,
+              "failed Proto realloc leaves old allocation registered");
+    ASSERT_TRUE(suite, ledger.peakBytes <= ledger.hardLimit, "Proto failure never exceeds hard limit");
+
+    ledger.hardLimit = std::numeric_limits<size_t>::max();
+    (void)proto->addInstruction(static_cast<Lua::Instruction>(0x22222222U));
+    ASSERT_TRUE(suite, probe.reallocations > reallocationsBeforeGrowth,
+                "successful Proto metadata growth uses lua_Alloc realloc form");
+    ASSERT_EQ(suite, static_cast<Lua::Instruction>(0x11111111U), proto->getInstruction(0),
+              "successful Proto realloc retains first instruction");
+    ASSERT_EQ(suite, static_cast<Lua::Instruction>(0x22222222U), proto->getInstruction(1),
+              "successful Proto realloc appends second instruction");
+
+    lua_close(L);
+    ASSERT_TRUE(suite, ledger.blocks.empty(), "Proto realloc state closes without blocks");
+    ASSERT_EQ(suite, static_cast<size_t>(0), ledger.liveBytes, "Proto realloc state closes with zero live bytes");
+    ASSERT_EQ(suite, static_cast<size_t>(0), ledger.sizeMismatches, "Proto realloc preserves allocator old sizes");
+    ASSERT_EQ(suite, static_cast<size_t>(0), ledger.unknownFrees, "Proto realloc frees each block once");
 }
 
 void testLoadDumpAndAuxiliaryLoaders(TestSuite& suite) {
@@ -1086,6 +1520,144 @@ void testLoadDumpAndAuxiliaryLoaders(TestSuite& suite) {
     ASSERT_TRUE(suite, directoryError != nullptr && std::strstr(directoryError, "cannot read") != nullptr,
                 "luaL_loadfile distinguishes an unreadable directory from a missing path");
 
+    lua_close(L);
+}
+
+void testProtectedStatusApiExceptionBoundaries(TestSuite& suite) {
+    lua_State* L = lua_open();
+    lua_pushnumber(L, 73);
+
+    ASSERT_EQ(suite, LUA_ERRRUN, lua_load(L, throwRuntimeErrorReader, nullptr, "=reader-runtime"),
+              "lua_load maps reader std::exception to LUA_ERRRUN");
+    ASSERT_EQ(suite, 2, lua_gettop(L), "reader exception preserves prefix and appends one error");
+    ASSERT_EQ(suite, 73.0, lua_tonumber(L, 1), "reader exception preserves prefix value");
+    ASSERT_EQ(suite, std::string("reader callback failed"), std::string(lua_tostring(L, -1)),
+              "reader std::exception preserves its message when allocation succeeds");
+
+    lua_settop(L, 1);
+    ASSERT_EQ(suite, LUA_ERRRUN, lua_load(L, throwUnknownExceptionReader, nullptr, "=reader-unknown"),
+              "lua_load maps non-standard reader exception to LUA_ERRRUN");
+    ASSERT_EQ(suite, 2, lua_gettop(L), "non-standard reader exception has canonical stack shape");
+    ASSERT_EQ(suite, std::string(kProtectedApiExceptionMessage), std::string(lua_tostring(L, -1)),
+              "non-standard reader exception uses fixed emergency text");
+
+    lua_settop(L, 0);
+    constexpr const char* source = "return 42";
+    ASSERT_EQ(suite, LUA_OK, luaL_loadbuffer(L, source, std::strlen(source), "=writer-boundary"),
+              "writer boundary fixture compiles");
+    auto* state = reinterpret_cast<Lua::LuaState*>(L);
+    Lua::Function* sourceFunction = state->at(-1).asFunction();
+
+    ASSERT_EQ(suite, 1, lua_dump(L, throwRuntimeErrorWriter, nullptr),
+              "lua_dump maps writer std::exception to its fallback status");
+    ASSERT_EQ(suite, 1, lua_gettop(L), "writer std::exception preserves source stack shape");
+    ASSERT_TRUE(suite, state->at(-1).asFunction() == sourceFunction,
+                "writer std::exception preserves source function identity");
+
+    ASSERT_EQ(suite, 1, lua_dump(L, throwUnknownExceptionWriter, nullptr),
+              "lua_dump maps non-standard writer exception to its fallback status");
+    ASSERT_EQ(suite, 1, lua_gettop(L), "non-standard writer exception preserves source function");
+    ASSERT_TRUE(suite, state->at(-1).asFunction() == sourceFunction,
+                "non-standard writer exception preserves source function identity");
+
+    ASSERT_EQ(suite, LUA_ERRMEM, lua_dump(L, throwBadAllocWriter, nullptr),
+              "lua_dump distinguishes writer allocation failure");
+    ASSERT_EQ(suite, 1, lua_gettop(L), "writer allocation failure preserves source function");
+    lua_close(L);
+
+    AllocatorLedger ledger;
+    AllocatorProbe probe{&ledger};
+    L = lua_newstate(trackingLuaAllocator, &probe);
+    ASSERT_TRUE(suite, L != nullptr, "persistent exception boundary state is created");
+
+    lua_pushcclosure(L, throwRuntimeErrorDuringResume, 0);
+    gAllocatorFailureProbe = &probe;
+    ASSERT_EQ(suite, LUA_ERRRUN, lua_pcall(L, 0, 1, 0),
+              "pcall keeps std::exception as runtime error under persistent allocator failure");
+    const size_t pcallFailureTarget = gArmedAllocatorFailureTarget;
+    probe.failFromAllocation = 0;
+    gAllocatorFailureProbe = nullptr;
+    gArmedAllocatorFailureTarget = 0;
+    ASSERT_TRUE(suite, pcallFailureTarget != 0 && probe.allocationAttempts >= pcallFailureTarget,
+                "pcall reaches the persistent allocator failure while formatting its error");
+    ASSERT_EQ(suite, std::string(kProtectedApiExceptionMessage), std::string(lua_tostring(L, -1)),
+              "pcall publishes fixed runtime text without a second allocation");
+
+    lua_settop(L, 0);
+    lua_pushcclosure(L, throwUnknownExceptionWithAllocatorFailure, 0);
+    gAllocatorFailureProbe = &probe;
+    ASSERT_EQ(suite, LUA_ERRRUN, lua_pcall(L, 0, 1, 0),
+              "pcall contains non-standard exception under persistent allocator failure");
+    probe.failFromAllocation = 0;
+    gAllocatorFailureProbe = nullptr;
+    gArmedAllocatorFailureTarget = 0;
+    ASSERT_EQ(suite, std::string(kProtectedApiExceptionMessage), std::string(lua_tostring(L, -1)),
+              "non-standard pcall exception publishes fixed runtime text");
+
+    lua_settop(L, 0);
+    lua_State* coroutine = lua_newthread(L);
+    ASSERT_TRUE(suite, coroutine != nullptr, "resume exception boundary creates coroutine");
+    lua_pushcclosure(L, throwRuntimeErrorDuringResume, 0);
+    lua_xmove(L, coroutine, 1);
+    gAllocatorFailureProbe = &probe;
+    ASSERT_EQ(suite, LUA_ERRRUN, lua_resume(coroutine, 0),
+              "resume keeps std::exception as runtime error under persistent allocator failure");
+    const size_t resumeFailureTarget = gArmedAllocatorFailureTarget;
+    probe.failFromAllocation = 0;
+    gAllocatorFailureProbe = nullptr;
+    gArmedAllocatorFailureTarget = 0;
+    ASSERT_TRUE(suite, resumeFailureTarget != 0 && probe.allocationAttempts >= resumeFailureTarget,
+                "resume reaches the persistent allocator failure while formatting its error");
+    ASSERT_EQ(suite, 1, lua_gettop(coroutine), "resume exception leaves one canonical error object");
+    ASSERT_EQ(suite, std::string(kProtectedApiExceptionMessage), std::string(lua_tostring(coroutine, -1)),
+              "resume publishes fixed runtime text without allocating");
+
+    lua_settop(L, 0);
+    lua_pushcclosure(L, yieldApiArguments, 0);
+    lua_setglobal(L, "api_yield_leaf");
+    lua_pushcclosure(L, throwRuntimeErrorDuringResume, 0);
+    lua_setglobal(L, "cpp_resume_failure");
+    lua_State* resumedAfterYield = lua_newthread(L);
+    ASSERT_TRUE(suite, resumedAfterYield != nullptr, "second-resume boundary creates coroutine");
+    constexpr const char* resumeAfterYieldSource = "api_yield_leaf(55); return cpp_resume_failure()";
+    ASSERT_EQ(suite, LUA_OK, luaL_loadstring(L, resumeAfterYieldSource),
+              "second-resume boundary compiles a yield then C++ failure");
+    lua_xmove(L, resumedAfterYield, 1);
+    ASSERT_EQ(suite, LUA_YIELD, lua_resume(resumedAfterYield, 0),
+              "second-resume boundary reaches a suspended Lua frame");
+    ASSERT_EQ(suite, 1, lua_gettop(resumedAfterYield), "yielded value is the only public result");
+    lua_settop(resumedAfterYield, 0);
+
+    gAllocatorFailureProbe = &probe;
+    ASSERT_EQ(suite, LUA_ERRRUN, lua_resume(resumedAfterYield, 0),
+              "second resume contains C++ exception under persistent allocator failure");
+    const size_t secondResumeFailureTarget = gArmedAllocatorFailureTarget;
+    probe.failFromAllocation = 0;
+    gAllocatorFailureProbe = nullptr;
+    gArmedAllocatorFailureTarget = 0;
+    ASSERT_TRUE(suite, secondResumeFailureTarget != 0 && probe.allocationAttempts >= secondResumeFailureTarget,
+                "second resume reaches the persistent allocator failure");
+    ASSERT_EQ(suite, 1, lua_gettop(resumedAfterYield),
+              "strong rollback publishes one error at the post-abort frame base");
+    ASSERT_EQ(suite, LUA_TSTRING, lua_type(resumedAfterYield, 1),
+              "second-resume error occupies the first public stack slot");
+    ASSERT_EQ(suite, std::string(kProtectedApiExceptionMessage), std::string(lua_tostring(resumedAfterYield, 1)),
+              "second resume uses the fixed protected-API error text");
+
+    lua_close(L);
+    ASSERT_TRUE(suite, ledger.blocks.empty(), "persistent exception boundary cases close without leaks");
+
+    ThrowingAllocatorProbe throwingProbe;
+    L = lua_newstate(throwingLuaAllocator, &throwingProbe);
+    ASSERT_TRUE(suite, L != nullptr, "throwing allocator boundary state is created");
+    lua_pushnumber(L, 91);
+    const int topBeforeFailure = lua_gettop(L);
+    throwingProbe.armed = true;
+    ASSERT_EQ(suite, 0, lua_checkstack(L, 1000), "lua_checkstack contains a throwing allocator callback");
+    ASSERT_EQ(suite, topBeforeFailure, lua_gettop(L), "failed lua_checkstack preserves logical stack");
+    ASSERT_TRUE(suite, lua_newthread(L) == nullptr, "lua_newthread contains a throwing allocator callback");
+    ASSERT_EQ(suite, topBeforeFailure, lua_gettop(L), "failed lua_newthread preserves parent stack");
+    throwingProbe.armed = false;
     lua_close(L);
 }
 
@@ -1249,7 +1821,7 @@ std::string makeLuaLevelResumeOomSource(bool wrapped) {
             disarm_allocator_failure()
             local retry_ok, retry_error = pcall(generator)
             return not first_ok,
-                   first_error == "not enough memory",
+                   first_error == "unhandled C++ exception in protected Lua API",
                    not retry_ok and string.find(tostring(retry_error), "dead") ~= nil,
                    coroutine.running() == nil
         )lua";
@@ -1270,7 +1842,7 @@ std::string makeLuaLevelResumeOomSource(bool wrapped) {
             local outer_retry_ok, outer_result = coroutine.resume(outer)
             return outer_ok,
                    not first_ok,
-                   first_error == "not enough memory",
+                   first_error == "unhandled C++ exception in protected Lua API",
                    inner_status == "dead",
                    running_restored,
                    not retry_ok and string.find(tostring(retry_error), "dead") ~= nil,
@@ -1460,6 +2032,9 @@ void registerLuaCApiTests() {
     registry.registerTest(kSuiteName, "C closure upvalue introspection", testCClosureUpvalueIntrospection);
     registry.registerTest(kSuiteName, "Lua closure upvalue introspection", testLuaClosureUpvalueIntrospection);
     registry.registerTest(kSuiteName, "light and full userdata", testLightAndFullUserdata);
+    registry.registerTest(kSuiteName, "Lua 5.1 known value API semantics", testLua51KnownValueApiSemantics);
+    registry.registerTest(kSuiteName, "previously unprobed public contract symbols",
+                          testPreviouslyUnprobedPublicContractSymbols);
     registry.registerTest(kSuiteName, "userdata finalizer through C API", testUserdataFinalizerThroughCApi);
     registry.registerTest(kSuiteName, "protected call stack and error object",
                           testProtectedCallRestoresStackAndPreservesErrorObject);
@@ -1476,10 +2051,16 @@ void registerLuaCApiTests() {
                           testLuaLevelCoroutinePersistentAllocationRollback);
     registry.registerTest(kSuiteName, "nested C to Lua to C protected calls", testNestedCToLuaToCProtectedCalls);
     registry.registerTest(kSuiteName, "custom allocator lifecycle", testCustomAllocatorLifecycle);
+    registry.registerTest(kSuiteName, "allocator-backed string content and hard limit",
+                          testAllocatorBackedStringContentAndHardLimit);
+    registry.registerTest(kSuiteName, "table realloc hard-limit transaction", testTableReallocHardLimitTransaction);
+    registry.registerTest(kSuiteName, "Proto allocator transactions", testProtoAllocatorTransactions);
     registry.registerTest(kSuiteName, "allocator replacement", testAllocatorCanBeReplaced);
     registry.registerTest(kSuiteName, "allocator failure paths", testAllocatorFailurePaths);
     registry.registerTest(kSuiteName, "loadbuffer allocator failures", testLoadBufferAllocatorFailures);
     registry.registerTest(kSuiteName, "full-stack loader memory errors", testLoadersPublishMemoryErrorFromFullStack);
     registry.registerTest(kSuiteName, "load dump and auxiliary loaders", testLoadDumpAndAuxiliaryLoaders);
+    registry.registerTest(kSuiteName, "protected status API exception boundaries",
+                          testProtectedStatusApiExceptionBoundaries);
     registry.registerTest(kSuiteName, "registry references", testRegistryReferences);
 }

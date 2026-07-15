@@ -377,7 +377,7 @@ void testTestLibNumericBoundaries(TestSuite& suite) {
         infiniteLimitAccepted = false;
     }
     ASSERT_TRUE(suite, infiniteLimitAccepted, "T.totalmem saturates a positive infinite limit");
-    ASSERT_EQ(suite, std::numeric_limits<usize>::max(), L->getGlobalState().getGC().getMemoryLimitBytes(),
+    ASSERT_EQ(suite, std::numeric_limits<usize>::max(), L->getGlobalState().getGC().getManagedMemoryBudgetBytes(),
               "T.totalmem saturation installs the unlimited sentinel");
 
     ASSERT_TRUE(suite, rejects(newuserdata, std::numeric_limits<LuaNumber>::quiet_NaN()),

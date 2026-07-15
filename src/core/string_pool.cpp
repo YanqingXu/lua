@@ -9,7 +9,7 @@
 namespace Lua {
 
 StringPool::StringPool(LuaAllocator* allocator)
-    : pool_(0, std::hash<Str>{}, std::equal_to<Str>{}, PoolAllocator(allocator)) {}
+    : pool_(0, std::hash<StrView>{}, std::equal_to<StrView>{}, PoolAllocator(allocator)) {}
 
 void StringPool::setGarbageCollector(GarbageCollector* collector) {
     collector_ = collector;
@@ -28,11 +28,8 @@ void StringPool::setGarbageCollector(GarbageCollector* collector) {
  * @brief 驻留字符串 - 获取或创建字符串对象
  */
 GCString* StringPool::intern(StrView str) {
-    // 将StrView转换为Str用于查找
-    Str key(str);
-
     // 在池中查找是否已存在
-    auto it = pool_.find(key);
+    auto it = pool_.find(str);
     if (it != pool_.end()) {
         // 已存在，返回已有的字符串对象
         return it->second;
@@ -48,7 +45,7 @@ GCString* StringPool::intern(StrView str) {
         // share the same canonical value. The object is already registered
         // with the collector at this point, so insertion failure must roll it
         // back instead of leaving an uninterned GCString in the object list.
-        auto [entry, inserted] = pool_.emplace(newString->getData(), newString);
+        auto [entry, inserted] = pool_.emplace(newString->view(), newString);
         if (!inserted) {
             gc.destroyManagedObject(newString);
             return entry->second;
@@ -65,9 +62,7 @@ GCString* StringPool::intern(StrView str) {
  * @brief 查找字符串 - 不创建新对象
  */
 GCString* StringPool::find(StrView str) const {
-    Str key(str);
-
-    auto it = pool_.find(key);
+    auto it = pool_.find(str);
     if (it != pool_.end()) {
         return it->second;
     }
@@ -86,7 +81,7 @@ void StringPool::remove(GCString* str) {
     // A collector can transiently own another GCString with equal contents
     // (for example while rolling back a failed insertion). Only erase the
     // entry when it still names the exact object being destroyed.
-    auto it = pool_.find(str->getData());
+    auto it = pool_.find(str->view());
     if (it != pool_.end() && it->second == str) {
         pool_.erase(it);
     }

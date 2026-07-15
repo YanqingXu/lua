@@ -199,7 +199,7 @@ i32 currentPcForFrame(Function* func, const CallInfo* ci) {
         return 0;
     }
 
-    const LuaVector<Instruction>& code = proto->getCode();
+    const LuaReallocVector<Instruction>& code = proto->getCode();
     if (code.empty() || ci->savedpc == nullptr) {
         return 0;
     }
@@ -465,7 +465,7 @@ bool findRegisterSetter(Proto* proto, i32 pc, i32 reg, i32& setterPc, Instructio
         return false;
     }
 
-    const LuaVector<Instruction>& code = proto->getCode();
+    const LuaReallocVector<Instruction>& code = proto->getCode();
     i32 upperBound = std::min(pc - 1, static_cast<i32>(code.size()) - 1);
     for (i32 i = upperBound; i >= 0; i--) {
         Instruction instruction = code[static_cast<usize>(i)];

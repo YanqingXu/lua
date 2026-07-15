@@ -31,6 +31,30 @@ jobs:
         shell: powershell
         run: MSBuild.exe lua_test.vcxproj /m /p:Configuration=${{ matrix.configuration }} /p:Platform=x64
 
+      - name: Configure CMake API and native-module evidence
+        shell: powershell
+        run: cmake -S . -B build/windows-cmake -A x64
+
+      - name: Build CMake API and native-module evidence
+        shell: powershell
+        run: >-
+          cmake --build build/windows-cmake
+          --config ${{ matrix.configuration }}
+          --parallel 2
+          --target
+          lua_public_api_consumer
+          lua_public_native_module_host
+          lua_public_native_module_app
+          lua_public_native_module_embedding
+
+      - name: Run CMake API and native-module evidence
+        shell: powershell
+        run: >-
+          ctest --test-dir build/windows-cmake
+          -C ${{ matrix.configuration }}
+          -L api-contract
+          --output-on-failure
+
       - name: Documentation drift
         shell: powershell
         run: powershell -NoProfile -ExecutionPolicy Bypass -File tools\check_doc_drift.ps1
@@ -133,17 +157,16 @@ jobs:
           -TimeoutSeconds 300
 
       - name: Official strict evidence
-        if: matrix.compiler == 'Clang' && matrix.build_type == 'Debug'
+        if: matrix.compiler == 'Clang' && matrix.build_type == 'Release'
         shell: pwsh
         run: >-
           ./tools/run_lua51_official_strict.ps1
           -Executable build/lua_app
           -TimeoutSeconds 300
-          -ExpectFailure
           -ResultPath build/official-strict.json
 
       - name: Upload official strict evidence
-        if: always() && matrix.compiler == 'Clang' && matrix.build_type == 'Debug'
+        if: always() && matrix.compiler == 'Clang' && matrix.build_type == 'Release'
         uses: actions/upload-artifact@v4
         with:
           name: official-strict-evidence
@@ -188,42 +211,69 @@ jobs:
   linux-runtime-benchmark:
     name: Linux runtime benchmark contract
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 40
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Configure Release benchmark
+      - name: Resolve benchmark revisions
+        id: revisions
+        shell: bash
+        env:
+          EVENT_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          zero_sha=0000000000000000000000000000000000000000
+          base_sha="$EVENT_BASE_SHA"
+          if [[ -z "$base_sha" || "$base_sha" == "$zero_sha" ]]; then
+            base_sha=$(git rev-parse HEAD^)
+          fi
+          git cat-file -e "$base_sha^{commit}"
+          echo "base_sha=$base_sha" >> "$GITHUB_OUTPUT"
+          echo "head_sha=$GITHUB_SHA" >> "$GITHUB_OUTPUT"
+          git worktree add --detach build/benchmark-base-source "$base_sha"
+
+      - name: Configure base Release benchmark
         run: >-
-          cmake -S . -B build/benchmark
+          cmake -S build/benchmark-base-source -B build/benchmark-base
           -DCMAKE_BUILD_TYPE=Release
           -DLUA_CPP_BUILD_BENCHMARKS=ON
           -DLUA_CPP_BUILD_TESTS=OFF
           -DLUA_CPP_BUILD_TOOLS=OFF
 
-      - name: Build benchmark
-        run: cmake --build build/benchmark --parallel 2 --target lua_runtime_bench
-
-      - name: Run benchmark contract
-        timeout-minutes: 10
+      - name: Configure head Release benchmark
         run: >-
-          ./build/benchmark/lua_runtime_bench
-          --profile ci
-          --json build/benchmark/runtime-bench.json
+          cmake -S . -B build/benchmark-head
+          -DCMAKE_BUILD_TYPE=Release
+          -DLUA_CPP_BUILD_BENCHMARKS=ON
+          -DLUA_CPP_BUILD_TESTS=OFF
+          -DLUA_CPP_BUILD_TOOLS=OFF
 
-      - name: Validate benchmark evidence
+      - name: Build base and head benchmarks
+        shell: bash
+        run: |
+          cmake --build build/benchmark-base --parallel 2 --target lua_runtime_bench
+          cmake --build build/benchmark-head --parallel 2 --target lua_runtime_bench
+
+      - name: Run interleaved base-vs-head benchmark gate
+        timeout-minutes: 25
         shell: pwsh
         run: >-
-          ./tools/check_runtime_bench.ps1
-          -ResultPath build/benchmark/runtime-bench.json
+          ./tools/run_runtime_bench_comparison.ps1
+          -BaseExecutable build/benchmark-base/lua_runtime_bench
+          -HeadExecutable build/benchmark-head/lua_runtime_bench
+          -BaseSha ${{ steps.revisions.outputs.base_sha }}
+          -HeadSha ${{ steps.revisions.outputs.head_sha }}
+          -OutputDirectory build/benchmark-comparison
 
       - name: Upload benchmark evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: runtime-benchmark-evidence
-          path: build/benchmark/runtime-bench.json
+          path: build/benchmark-comparison/
 
   linux-lint:
     name: Linux clang-format / clang-tidy
@@ -270,7 +320,7 @@ jobs:
             fi
           fi
           while IFS= read -r file; do
-            if [[ "$file" =~ ^(src|tests/unit|benchmarks)/.*\.(cpp|hpp|h)$ ]]; then
+            if [[ "$file" =~ ^(src|tests/unit|tests/compatibility|examples|benchmarks)/.*\.(c|cc|cpp|cxx|h|hpp)$ ]]; then
               files+=("$file")
             fi
           done < <(list_changed_files)

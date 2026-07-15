@@ -906,7 +906,11 @@ i32 LuaState::pcall(i32 nargs, i32 nresults, i32 errfunc) {
                 e.hasErrorObject() ? e.getErrorObject() : makeStringValue(runtimeErrorWithLocation(this, e.what()));
             return finishError(errorValue, LUA_ERRRUN);
         } catch (...) {
-            return finishMemoryError();
+            try {
+                return finishError(Value(globalState_.getApiExceptionMessage()), LUA_ERRRUN);
+            } catch (...) {
+                return finishMemoryError();
+            }
         }
 
     } catch (const std::exception& e) {
@@ -914,12 +918,16 @@ i32 LuaState::pcall(i32 nargs, i32 nresults, i32 errfunc) {
             Value errorValue = makeStringValue(runtimeErrorWithLocation(this, e.what()));
             return finishError(errorValue, LUA_ERRRUN);
         } catch (...) {
-            return finishMemoryError();
+            try {
+                return finishError(Value(globalState_.getApiExceptionMessage()), LUA_ERRRUN);
+            } catch (...) {
+                return finishMemoryError();
+            }
         }
 
     } catch (...) {
         try {
-            return finishError(makeStringValue("unknown C++ exception"), LUA_ERRRUN);
+            return finishError(Value(globalState_.getApiExceptionMessage()), LUA_ERRRUN);
         } catch (...) {
             return finishMemoryError();
         }
@@ -990,7 +998,7 @@ const Value& LuaState::at(i32 idx) const {
 // 全局变量操作
 // =====================================================================
 
-void LuaState::setGlobal(const Str& name, const Value& value) {
+void LuaState::setGlobal(StrView name, const Value& value) {
     if (!globalTable_) {
         throw RuntimeError("global table not initialized");
     }
@@ -1000,7 +1008,7 @@ void LuaState::setGlobal(const Str& name, const Value& value) {
     globalTable_->set(Value(key), value);
 }
 
-Value LuaState::getGlobal(const Str& name) {
+Value LuaState::getGlobal(StrView name) {
     if (!globalTable_) {
         throw RuntimeError("global table not initialized");
     }

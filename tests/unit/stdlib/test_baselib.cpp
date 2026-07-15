@@ -904,7 +904,7 @@ void testLoadstringWrapper(TestSuite& suite) {
     ASSERT_TRUE(suite, L->at(-2).isNil(), "malformed number first return is nil");
     ASSERT_TRUE(suite, L->at(-1).isString(), "malformed number second return is error message");
     if (L->at(-1).isString()) {
-        const Str message = L->at(-1).asString()->getData();
+        const Str message(L->at(-1).asString()->getData());
         ASSERT_TRUE(suite, message.find("'4.5.'") != Str::npos,
                     "malformed number error mentions the full numeric token");
     }
@@ -1415,6 +1415,31 @@ void testAutomaticGCReachesWeakValuesDuringAllocation(TestSuite& suite) {
     delete L;
 }
 
+void testFullCollectionRestartsAutomaticGC(TestSuite& suite) {
+    LuaState* L = createFullState();
+    GarbageCollector& gc = L->getGlobalState().getGC();
+
+    bool ok = runLua(L, R"lua(
+        collectgarbage("stop")
+        collectgarbage()
+
+        local weak = setmetatable({[1] = {}}, {__mode = "kv"})
+        local iterations = 0
+        while weak[1] and iterations < 1000 do
+            local garbage = iterations .. iterations .. iterations .. iterations
+            iterations = iterations + 1
+        end
+
+        gFullCollectionRestartedAutomaticGC = (weak[1] == nil)
+    )lua");
+
+    ASSERT_TRUE(suite, ok, "full collection automatic-GC restart chunk runs");
+    ASSERT_FALSE(suite, gc.isAutomaticStopped(), "full collection restarts automatic GC after stop");
+    ASSERT_TRUE(suite, getGlobalBool(L, "gFullCollectionRestartedAutomaticGC"),
+                "allocations after a full collection advance automatic GC");
+    delete L;
+}
+
 void testWeakKeyValueTableDropsExpiredLoopLocals(TestSuite& suite) {
     LuaState* L = createFullState();
     bool ok = runLua(L, R"lua(
@@ -1760,6 +1785,7 @@ void registerBaselibTests() {
     registry.registerTest(kSuiteName, "pairs deleting current key", testPairsAllowsDeletingCurrentHashKey);
     registry.registerTest(kSuiteName, "automatic GC clears weak values",
                           testAutomaticGCReachesWeakValuesDuringAllocation);
+    registry.registerTest(kSuiteName, "full collection restarts automatic GC", testFullCollectionRestartsAutomaticGC);
     registry.registerTest(kSuiteName, "weak kv drops expired loop locals", testWeakKeyValueTableDropsExpiredLoopLocals);
     registry.registerTest(kSuiteName, "collectgarbage numeric boundaries", testCollectGarbageNumericBoundaries);
 

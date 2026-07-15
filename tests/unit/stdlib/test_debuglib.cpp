@@ -127,11 +127,8 @@ void testGetRegistry(TestSuite& suite) {
     ASSERT_EQ(suite, 1, ret, "debug.getregistry returns one value");
     ASSERT_TRUE(suite, L->top().isTable(), "debug.getregistry returns table");
     if (L->top().isTable()) {
-        ASSERT_TRUE(
-            suite,
-            L->top().asTable() == L->getGlobalState().getRegistry(),
-            "debug.getregistry returns the registry table"
-        );
+        ASSERT_TRUE(suite, L->top().asTable() == L->getGlobalState().getRegistry(),
+                    "debug.getregistry returns the registry table");
     }
 }
 
@@ -152,13 +149,8 @@ static i32 captureHook(LuaState* L) {
 }
 
 bool hasHookEventPrefix(const std::string& prefix) {
-    return std::any_of(
-        g_hookEvents.begin(),
-        g_hookEvents.end(),
-        [&](const std::string& event) {
-            return event.rfind(prefix, 0) == 0;
-        }
-    );
+    return std::any_of(g_hookEvents.begin(), g_hookEvents.end(),
+                       [&](const std::string& event) { return event.rfind(prefix, 0) == 0; });
 }
 
 void testGetAndSetUpvalue(TestSuite& suite) {
@@ -204,14 +196,12 @@ void testGetInfoWithFunctionArg(TestSuite& suite) {
     LuaState* L = LuaState::newState();
     StandardLibrary::openAll(L);
 
-    bool ok = runLuaChunk(
-        L,
-        "function inspect_target(x)\n"
-        "    local y = x + 1\n"
-        "    return y\n"
-        "end\n",
-        "test_debuglib_info.lua"
-    );
+    bool ok = runLuaChunk(L,
+                          "function inspect_target(x)\n"
+                          "    local y = x + 1\n"
+                          "    return y\n"
+                          "end\n",
+                          "test_debuglib_info.lua");
     ASSERT_TRUE(suite, ok, "test chunk for getinfo runs");
     if (!ok) {
         delete L;
@@ -234,19 +224,13 @@ void testGetInfoWithFunctionArg(TestSuite& suite) {
     ASSERT_TRUE(suite, L->top().isTable(), "debug.getinfo(function) returns table");
     if (L->top().isTable()) {
         Table* info = L->top().asTable();
-        ASSERT_TRUE(
-            suite,
-            getStringField(L, info, "source") == "test_debuglib_info.lua",
-            "getinfo source matches chunk name"
-        );
+        ASSERT_TRUE(suite, getStringField(L, info, "source") == "test_debuglib_info.lua",
+                    "getinfo source matches chunk name");
         ASSERT_TRUE(suite, getStringField(L, info, "what") == "Lua", "getinfo what is Lua");
         ASSERT_EQ(suite, 0.0, getNumberField(L, info, "nups"), "getinfo reports nups");
         Value returnedFunc = getField(L, info, "func");
-        ASSERT_TRUE(
-            suite,
-            returnedFunc.isFunction() && returnedFunc.asFunction() == funcValue.asFunction(),
-            "getinfo returns original function"
-        );
+        ASSERT_TRUE(suite, returnedFunc.isFunction() && returnedFunc.asFunction() == funcValue.asFunction(),
+                    "getinfo returns original function");
     }
 
     delete L;
@@ -256,18 +240,16 @@ void testGetInfoFromLuaStack(TestSuite& suite) {
     LuaState* L = LuaState::newState();
     StandardLibrary::openAll(L);
 
-    bool ok = runLuaChunk(
-        L,
-        "function capture_info()\n"
-        "    local info = debug.getinfo(1, 'Slu')\n"
-        "    g_source = info.source\n"
-        "    g_what = info.what\n"
-        "    g_currentline = info.currentline\n"
-        "    g_nups = info.nups\n"
-        "end\n"
-        "capture_info()\n",
-        "test_debuglib_stack.lua"
-    );
+    bool ok = runLuaChunk(L,
+                          "function capture_info()\n"
+                          "    local info = debug.getinfo(1, 'Slu')\n"
+                          "    g_source = info.source\n"
+                          "    g_what = info.what\n"
+                          "    g_currentline = info.currentline\n"
+                          "    g_nups = info.nups\n"
+                          "end\n"
+                          "capture_info()\n",
+                          "test_debuglib_stack.lua");
     ASSERT_TRUE(suite, ok, "stack-level getinfo chunk runs");
     if (ok) {
         Value source = L->getGlobal("g_source");
@@ -281,11 +263,8 @@ void testGetInfoFromLuaStack(TestSuite& suite) {
         ASSERT_TRUE(suite, nups.isNumber(), "stack getinfo nups exported");
 
         if (source.isString()) {
-            ASSERT_TRUE(
-                suite,
-                std::string(source.asString()->c_str()) == "test_debuglib_stack.lua",
-                "stack getinfo source matches chunk name"
-            );
+            ASSERT_TRUE(suite, std::string(source.asString()->c_str()) == "test_debuglib_stack.lua",
+                        "stack getinfo source matches chunk name");
         }
         if (what.isString()) {
             ASSERT_TRUE(suite, std::string(what.asString()->c_str()) == "Lua", "stack getinfo what is Lua");
@@ -305,59 +284,54 @@ void testGetInfoNameInference(TestSuite& suite) {
     LuaState* L = LuaState::newState();
     StandardLibrary::openAll(L);
 
-    bool ok = runLuaChunk(
-        L,
-        "function named_global_target()\n"
-        "    local info = debug.getinfo(1, 'n')\n"
-        "    g_last_name = info.name\n"
-        "    g_last_namewhat = info.namewhat\n"
-        "end\n"
-        "holder = {}\n"
-        "function holder.field_target()\n"
-        "    local info = debug.getinfo(1, 'n')\n"
-        "    g_field_name = info.name\n"
-        "    g_field_namewhat = info.namewhat\n"
-        "end\n"
-        "function holder:method_target()\n"
-        "    local info = debug.getinfo(1, 'n')\n"
-        "    g_method_name = info.name\n"
-        "    g_method_namewhat = info.namewhat\n"
-        "end\n"
-        "function make_upvalue_wrapper(target)\n"
-        "    local upv = target\n"
-        "    return function()\n"
-        "        upv()\n"
-        "    end\n"
-        "end\n"
-        "local local_alias = named_global_target\n"
-        "local_alias()\n"
-        "g_local_name = g_last_name\n"
-        "g_local_namewhat = g_last_namewhat\n"
-        "named_global_target()\n"
-        "g_global_name = g_last_name\n"
-        "g_global_namewhat = g_last_namewhat\n"
-        "holder.field_target()\n"
-        "local wrapper = make_upvalue_wrapper(named_global_target)\n"
-        "wrapper()\n"
-        "g_upvalue_name = g_last_name\n"
-        "g_upvalue_namewhat = g_last_namewhat\n"
-        "holder:method_target()\n"
-        "g_invalid_ok, g_invalid_err = pcall(function()\n"
-        "    return debug.getinfo(1, 'z')\n"
-        "end)\n",
-        "test_debuglib_name.lua"
-    );
+    bool ok = runLuaChunk(L,
+                          "function named_global_target()\n"
+                          "    local info = debug.getinfo(1, 'n')\n"
+                          "    g_last_name = info.name\n"
+                          "    g_last_namewhat = info.namewhat\n"
+                          "end\n"
+                          "holder = {}\n"
+                          "function holder.field_target()\n"
+                          "    local info = debug.getinfo(1, 'n')\n"
+                          "    g_field_name = info.name\n"
+                          "    g_field_namewhat = info.namewhat\n"
+                          "end\n"
+                          "function holder:method_target()\n"
+                          "    local info = debug.getinfo(1, 'n')\n"
+                          "    g_method_name = info.name\n"
+                          "    g_method_namewhat = info.namewhat\n"
+                          "end\n"
+                          "function make_upvalue_wrapper(target)\n"
+                          "    local upv = target\n"
+                          "    return function()\n"
+                          "        upv()\n"
+                          "    end\n"
+                          "end\n"
+                          "local local_alias = named_global_target\n"
+                          "local_alias()\n"
+                          "g_local_name = g_last_name\n"
+                          "g_local_namewhat = g_last_namewhat\n"
+                          "named_global_target()\n"
+                          "g_global_name = g_last_name\n"
+                          "g_global_namewhat = g_last_namewhat\n"
+                          "holder.field_target()\n"
+                          "local wrapper = make_upvalue_wrapper(named_global_target)\n"
+                          "wrapper()\n"
+                          "g_upvalue_name = g_last_name\n"
+                          "g_upvalue_namewhat = g_last_namewhat\n"
+                          "holder:method_target()\n"
+                          "g_invalid_ok, g_invalid_err = pcall(function()\n"
+                          "    return debug.getinfo(1, 'z')\n"
+                          "end)\n",
+                          "test_debuglib_name.lua");
     ASSERT_TRUE(suite, ok, "name inference chunk runs");
     if (!ok) {
         delete L;
         return;
     }
 
-    auto assertNamedResult = [&](const char* nameKey,
-                                 const char* whatKey,
-                                 const char* expectedName,
-                                 const char* expectedWhat,
-                                 const char* label) {
+    auto assertNamedResult = [&](const char* nameKey, const char* whatKey, const char* expectedName,
+                                 const char* expectedWhat, const char* label) {
         Value nameValue = L->getGlobal(nameKey);
         Value whatValue = L->getGlobal(whatKey);
 
@@ -365,18 +339,12 @@ void testGetInfoNameInference(TestSuite& suite) {
         ASSERT_TRUE(suite, whatValue.isString(), std::string(label).append(" namewhat exported").c_str());
 
         if (nameValue.isString()) {
-            ASSERT_TRUE(
-                suite,
-                std::string(nameValue.asString()->c_str()) == expectedName,
-                std::string(label).append(" name matches").c_str()
-            );
+            ASSERT_TRUE(suite, std::string(nameValue.asString()->c_str()) == expectedName,
+                        std::string(label).append(" name matches").c_str());
         }
         if (whatValue.isString()) {
-            ASSERT_TRUE(
-                suite,
-                std::string(whatValue.asString()->c_str()) == expectedWhat,
-                std::string(label).append(" namewhat matches").c_str()
-            );
+            ASSERT_TRUE(suite, std::string(whatValue.asString()->c_str()) == expectedWhat,
+                        std::string(label).append(" namewhat matches").c_str());
         }
     };
 
@@ -394,11 +362,8 @@ void testGetInfoNameInference(TestSuite& suite) {
         ASSERT_TRUE(suite, !invalidOk.asBoolean(), "invalid option call fails");
     }
     if (invalidErr.isString()) {
-        ASSERT_TRUE(
-            suite,
-            std::string(invalidErr.asString()->c_str()).find("invalid option") != std::string::npos,
-            "invalid option message mentions invalid option"
-        );
+        ASSERT_TRUE(suite, std::string(invalidErr.asString()->c_str()).find("invalid option") != std::string::npos,
+                    "invalid option message mentions invalid option");
     }
 
     Value funcValue = L->getGlobal("named_global_target");
@@ -418,11 +383,8 @@ void testGetInfoNameInference(TestSuite& suite) {
             ASSERT_TRUE(suite, name.isNil(), "function getinfo('n') leaves name unset");
             ASSERT_TRUE(suite, namewhat.isString(), "function getinfo('n') exports namewhat");
             if (namewhat.isString()) {
-                ASSERT_TRUE(
-                    suite,
-                    std::string(namewhat.asString()->c_str()).empty(),
-                    "function getinfo('n') uses empty namewhat"
-                );
+                ASSERT_TRUE(suite, std::string(namewhat.asString()->c_str()).empty(),
+                            "function getinfo('n') uses empty namewhat");
             }
         }
     }
@@ -434,17 +396,15 @@ void testTracebackFromLua(TestSuite& suite) {
     LuaState* L = LuaState::newState();
     StandardLibrary::openAll(L);
 
-    bool ok = runLuaChunk(
-        L,
-        "function level2()\n"
-        "    g_trace = debug.traceback('trace message')\n"
-        "end\n"
-        "function level1()\n"
-        "    level2()\n"
-        "end\n"
-        "level1()\n",
-        "test_debuglib_trace.lua"
-    );
+    bool ok = runLuaChunk(L,
+                          "function level2()\n"
+                          "    g_trace = debug.traceback('trace message')\n"
+                          "end\n"
+                          "function level1()\n"
+                          "    level2()\n"
+                          "end\n"
+                          "level1()\n",
+                          "test_debuglib_trace.lua");
     ASSERT_TRUE(suite, ok, "traceback chunk runs");
     if (ok) {
         Value trace = L->getGlobal("g_trace");
@@ -453,16 +413,10 @@ void testTracebackFromLua(TestSuite& suite) {
             std::string text = trace.asString()->c_str();
             ASSERT_TRUE(suite, text.find("trace message") != std::string::npos, "traceback keeps message");
             ASSERT_TRUE(suite, text.find("stack traceback:") != std::string::npos, "traceback includes header");
-            ASSERT_TRUE(
-                suite,
-                text.find("test_debuglib_trace.lua") != std::string::npos,
-                "traceback includes chunk name"
-            );
-            ASSERT_TRUE(
-                suite,
-                text.find(": in function 'level2'") != std::string::npos,
-                "traceback includes Lua function frame"
-            );
+            ASSERT_TRUE(suite, text.find("test_debuglib_trace.lua") != std::string::npos,
+                        "traceback includes chunk name");
+            ASSERT_TRUE(suite, text.find(": in function 'level2'") != std::string::npos,
+                        "traceback includes Lua function frame");
         }
     }
 
@@ -473,19 +427,17 @@ void testGetLocalAndSetLocal(TestSuite& suite) {
     LuaState* L = LuaState::newState();
     StandardLibrary::openAll(L);
 
-    bool ok = runLuaChunk(
-        L,
-        "function local_target(a, b)\n"
-        "    local sum = a + b\n"
-        "    g_local_name1, g_local_value1 = debug.getlocal(1, 1)\n"
-        "    g_local_name2, g_local_value2 = debug.getlocal(1, 2)\n"
-        "    g_local_name3, g_local_value3 = debug.getlocal(1, 3)\n"
-        "    g_setlocal_name = debug.setlocal(1, 3, 99)\n"
-        "    return sum\n"
-        "end\n"
-        "g_local_result = local_target(7, 8)\n",
-        "test_debuglib_local.lua"
-    );
+    bool ok = runLuaChunk(L,
+                          "function local_target(a, b)\n"
+                          "    local sum = a + b\n"
+                          "    g_local_name1, g_local_value1 = debug.getlocal(1, 1)\n"
+                          "    g_local_name2, g_local_value2 = debug.getlocal(1, 2)\n"
+                          "    g_local_name3, g_local_value3 = debug.getlocal(1, 3)\n"
+                          "    g_setlocal_name = debug.setlocal(1, 3, 99)\n"
+                          "    return sum\n"
+                          "end\n"
+                          "g_local_result = local_target(7, 8)\n",
+                          "test_debuglib_local.lua");
     ASSERT_TRUE(suite, ok, "local get/set chunk runs");
     if (!ok) {
         delete L;
@@ -529,7 +481,8 @@ void testGetLocalAndSetLocal(TestSuite& suite) {
         ASSERT_EQ(suite, 15.0, localValue3.asNumber(), "local #3 value matches before mutation");
     }
     if (setlocalName.isString()) {
-        ASSERT_TRUE(suite, std::string(setlocalName.asString()->c_str()) == "sum", "setlocal returns mutated local name");
+        ASSERT_TRUE(suite, std::string(setlocalName.asString()->c_str()) == "sum",
+                    "setlocal returns mutated local name");
     }
     if (result.isNumber()) {
         ASSERT_EQ(suite, 99.0, result.asNumber(), "setlocal updates the live local slot");
@@ -546,7 +499,8 @@ void testGetLocalAndSetLocal(TestSuite& suite) {
         ASSERT_EQ(suite, 1, ret, "debug.getlocal(function) returns one value");
         ASSERT_TRUE(suite, L->top().isString(), "debug.getlocal(function) returns a name");
         if (L->top().isString()) {
-            ASSERT_TRUE(suite, std::string(L->top().asString()->c_str()) == "a", "function local metadata returns first parameter");
+            ASSERT_TRUE(suite, std::string(L->top().asString()->c_str()) == "a",
+                        "function local metadata returns first parameter");
         }
 
         ret = invokeDebug(L, "getlocal", [&](LuaState* s) {
@@ -597,7 +551,8 @@ void testDebugMetatableWrappers(TestSuite& suite) {
         g_number_mt = debug.getmetatable(2) == number_mt
         debug.setmetatable(1, nil)
         g_number_mt_cleared = debug.getmetatable(2) == nil
-    )", "test_debuglib_metatable.lua");
+    )",
+                          "test_debuglib_metatable.lua");
     ASSERT_TRUE(suite, ok, "debug metatable chunk runs");
 
     auto assertGlobalTrue = [&](const char* name, const char* message) {
@@ -650,7 +605,8 @@ void testDebugFenvWrappers(TestSuite& suite) {
         local ok2, loadedAnswer = coroutine.resume(co)
         g_thread_env_yield = ok1 and yieldedEnv == env
         g_thread_env_loadstring = ok2 and loadedAnswer == 123
-    )", "test_debuglib_fenv.lua");
+    )",
+                          "test_debuglib_fenv.lua");
     ASSERT_TRUE(suite, ok, "debug fenv chunk runs");
 
     Value setReturn = L->getGlobal("g_setfenv_return");
@@ -697,16 +653,14 @@ void testHookLifecycle(TestSuite& suite) {
     });
     ASSERT_EQ(suite, 0, ret, "debug.sethook returns no values");
 
-    bool ok = runLuaChunk(
-        L,
-        "function hook_target()\n"
-        "    local x = 1\n"
-        "    x = x + 1\n"
-        "    return x\n"
-        "end\n"
-        "g_hook_result = hook_target()\n",
-        "test_debuglib_hook.lua"
-    );
+    bool ok = runLuaChunk(L,
+                          "function hook_target()\n"
+                          "    local x = 1\n"
+                          "    x = x + 1\n"
+                          "    return x\n"
+                          "end\n"
+                          "g_hook_result = hook_target()\n",
+                          "test_debuglib_hook.lua");
     ASSERT_TRUE(suite, ok, "hook target chunk runs");
     if (ok) {
         Value hookResult = L->getGlobal("g_hook_result");
@@ -737,9 +691,7 @@ void testHookLifecycle(TestSuite& suite) {
         ASSERT_EQ(suite, 2.0, L->at(-1).asNumber(), "gethook returns installed count");
     }
 
-    ret = invokeDebug(L, "sethook", [&](LuaState* s) {
-        s->pushNil();
-    });
+    ret = invokeDebug(L, "sethook", [&](LuaState* s) { s->pushNil(); });
     ASSERT_EQ(suite, 0, ret, "debug.sethook(nil) clears hook");
 
     ret = invokeDebug(L, "gethook", nullptr);
@@ -761,18 +713,16 @@ void testThreadHookAndTraceback(TestSuite& suite) {
     LuaState* L = LuaState::newState();
     StandardLibrary::openAll(L);
 
-    bool ok = runLuaChunk(
-        L,
-        "function coroutine_target()\n"
-        "    local a = 10\n"
-        "    a = a + 1\n"
-        "    coroutine.yield(a)\n"
-        "    a = a + 1\n"
-        "    return a\n"
-        "end\n"
-        "co = coroutine.create(coroutine_target)\n",
-        "test_debuglib_thread.lua"
-    );
+    bool ok = runLuaChunk(L,
+                          "function coroutine_target()\n"
+                          "    local a = 10\n"
+                          "    a = a + 1\n"
+                          "    coroutine.yield(a)\n"
+                          "    a = a + 1\n"
+                          "    return a\n"
+                          "end\n"
+                          "co = coroutine.create(coroutine_target)\n",
+                          "test_debuglib_thread.lua");
     ASSERT_TRUE(suite, ok, "coroutine setup chunk runs");
     if (!ok) {
         delete L;
@@ -799,9 +749,7 @@ void testThreadHookAndTraceback(TestSuite& suite) {
     });
     ASSERT_EQ(suite, 0, ret, "debug.sethook(thread, ...) returns no values");
 
-    ret = invokeDebug(L, "gethook", [&](LuaState* s) {
-        s->pushValue(threadValue);
-    });
+    ret = invokeDebug(L, "gethook", [&](LuaState* s) { s->pushValue(threadValue); });
     ASSERT_EQ(suite, 3, ret, "debug.gethook(thread) returns hook triple");
     ASSERT_TRUE(suite, L->at(-3).isFunction(), "thread gethook returns function");
     ASSERT_TRUE(suite, L->at(-2).isString(), "thread gethook returns mask");
@@ -813,13 +761,11 @@ void testThreadHookAndTraceback(TestSuite& suite) {
         ASSERT_EQ(suite, 1.0, L->at(-1).asNumber(), "thread gethook count matches");
     }
 
-    ok = runLuaChunk(
-        L,
-        "g_resume_ok1, g_resume_value1 = coroutine.resume(co)\n"
-        "g_thread_trace = debug.traceback(co)\n"
-        "g_resume_ok2, g_resume_value2 = coroutine.resume(co)\n",
-        "test_debuglib_thread_resume.lua"
-    );
+    ok = runLuaChunk(L,
+                     "g_resume_ok1, g_resume_value1 = coroutine.resume(co)\n"
+                     "g_thread_trace = debug.traceback(co)\n"
+                     "g_resume_ok2, g_resume_value2 = coroutine.resume(co)\n",
+                     "test_debuglib_thread_resume.lua");
     ASSERT_TRUE(suite, ok, "coroutine resume chunk runs");
     if (ok) {
         Value resumeOk1 = L->getGlobal("g_resume_ok1");
@@ -842,16 +788,46 @@ void testThreadHookAndTraceback(TestSuite& suite) {
         }
         if (threadTrace.isString()) {
             std::string text = threadTrace.asString()->c_str();
-            ASSERT_TRUE(
-                suite,
-                text.find("test_debuglib_thread.lua") != std::string::npos,
-                "thread traceback includes coroutine chunk name"
-            );
+            ASSERT_TRUE(suite, text.find("test_debuglib_thread.lua") != std::string::npos,
+                        "thread traceback includes coroutine chunk name");
         }
     }
 
     ASSERT_TRUE(suite, hasHookEventPrefix("call"), "thread hook captured call event");
     ASSERT_TRUE(suite, hasHookEventPrefix("return"), "thread hook captured return event");
+
+    delete L;
+}
+
+void testFailedThreadTraceback(TestSuite& suite) {
+    LuaState* L = LuaState::newState();
+    StandardLibrary::openAll(L);
+
+    const bool ok = runLuaChunk(L,
+                                "function failed_trace_leaf() error('traceback boom') end\n"
+                                "function failed_trace_outer() failed_trace_leaf() end\n"
+                                "local co = coroutine.create(failed_trace_outer)\n"
+                                "g_failed_resume_ok = coroutine.resume(co)\n"
+                                "g_failed_thread_status = coroutine.status(co)\n"
+                                "g_failed_thread_trace = debug.traceback(co)\n",
+                                "test_debuglib_failed_thread.lua");
+    ASSERT_TRUE(suite, ok, "failed coroutine traceback chunk runs");
+
+    const Value resumeOk = L->getGlobal("g_failed_resume_ok");
+    const Value status = L->getGlobal("g_failed_thread_status");
+    const Value trace = L->getGlobal("g_failed_thread_trace");
+    ASSERT_TRUE(suite,
+                resumeOk.isBoolean() && !resumeOk.asBoolean() && status.isString() &&
+                    status.asString()->view() == "dead",
+                "failed coroutine resume reports false and leaves the coroutine dead");
+    ASSERT_TRUE(suite, trace.isString(), "failed coroutine traceback returns a string");
+    if (trace.isString()) {
+        const std::string text = trace.asString()->c_str();
+        ASSERT_TRUE(suite, text.find("stack traceback:") != std::string::npos,
+                    "failed coroutine traceback includes the traceback header");
+        ASSERT_TRUE(suite, text.find("failed_trace_leaf") != std::string::npos,
+                    "failed coroutine traceback retains the leaf frame");
+    }
 
     delete L;
 }
@@ -873,5 +849,5 @@ void registerDebugLibTests() {
     registry.registerTest(kSuiteName, "fenv wrappers", testDebugFenvWrappers);
     registry.registerTest(kSuiteName, "hook lifecycle", testHookLifecycle);
     registry.registerTest(kSuiteName, "thread hook", testThreadHookAndTraceback);
+    registry.registerTest(kSuiteName, "failed thread traceback", testFailedThreadTraceback);
 }
-

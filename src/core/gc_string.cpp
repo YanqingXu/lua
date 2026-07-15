@@ -10,13 +10,11 @@ namespace Lua {
 /**
  * @brief 构造函数 - 从字符串视图创建GCString
  */
-GCString::GCString(StrView str)
-    : GCObject(GCObjectType::String)
-    , hash_(computeHash(str))
-    , length_(str.length())
-    , data_(str)
-{
-}
+GCString::GCString(StrView str) : GCString(nullptr, str) {}
+
+GCString::GCString(LuaAllocator* allocator, StrView str)
+    : GCObject(GCObjectType::String), hash_(computeHash(str)), length_(str.length()),
+      data_(str.data(), str.size(), LuaStdAllocator<char>(allocator)) {}
 
 /**
  * @brief 获取对象占用的内存大小
@@ -41,20 +39,19 @@ usize GCString::getSize() const {
  */
 usize GCString::computeHash(StrView str) noexcept {
     usize len = str.length();
-    usize hash = len;  // 初始哈希值为字符串长度
-    
+    usize hash = len; // 初始哈希值为字符串长度
+
     // 采样步长：对于长字符串，不扫描所有字符
     // Lua 5.1使用 (len >> 5) + 1 作为步长
     usize step = (len >> 5) + 1;
-    
+
     // 采样计算哈希值
     for (usize i = 0; i < len; i += step) {
         // 使用简单但有效的哈希组合公式
         hash = hash ^ ((hash << 5) + (hash >> 2) + static_cast<unsigned char>(str[i]));
     }
-    
+
     return hash;
 }
 
 } // namespace Lua
-

@@ -27,6 +27,7 @@
 #include "core/string_pool.hpp"
 #include "core/metatable.hpp"
 #include "gc/garbage_collector.hpp"
+#include "runtime/native_module_registry.hpp"
 
 #include <array>
 
@@ -125,6 +126,14 @@ public:
         return gc_.getAllocator();
     }
 
+    NativeModuleRegistry& getNativeModules() noexcept {
+        return nativeModules_;
+    }
+
+    const NativeModuleRegistry& getNativeModules() const noexcept {
+        return nativeModules_;
+    }
+
     /**
      * @brief 标记全局状态持有的 GC 根
      *
@@ -161,6 +170,15 @@ public:
      */
     GCString* getMemoryErrorMessage() const noexcept {
         return memerrmsg_;
+    }
+
+    /**
+     * @brief Return the fixed fallback used when a protected API cannot
+     * allocate text for a C++
+     * exception.
+     */
+    GCString* getApiExceptionMessage() const noexcept {
+        return apiExceptionMessage_;
     }
 
     // =====================================================================
@@ -240,6 +258,9 @@ private:
     // 成员变量
     // =====================================================================
 
+    /// Native modules outlive the collector so every C Function dies first.
+    NativeModuleRegistry nativeModules_;
+
     /// 垃圾回收器（由GlobalState拥有）
     GarbageCollector gc_;
 
@@ -263,6 +284,9 @@ private:
 
     /// 内存错误消息（固定字符串，防止在内存不足时被GC回收）
     GCString* memerrmsg_;
+
+    /// Protected-API emergency error text; allocated and fixed at state creation.
+    GCString* apiExceptionMessage_;
 };
 
 } // namespace Lua
