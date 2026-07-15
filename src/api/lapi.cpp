@@ -236,6 +236,22 @@ void restoreAbsoluteTopClearingSlots(Lua::LuaState* state, Lua::usize restoredTo
     state->setAbsoluteTop(restoredTop);
 }
 
+lua_State* createPublicThreadTransactional(Lua::LuaState* parent) {
+    const Lua::usize savedTop = parent->getAbsoluteTop();
+    Lua::Thread* thread = nullptr;
+    try {
+        thread = Lua::Thread::create(parent);
+        parent->pushValue(Lua::Value(thread));
+        return toC(thread->getLuaState());
+    } catch (...) {
+        restoreAbsoluteTopClearingSlots(parent, savedTop);
+        if (thread != nullptr) {
+            parent->getGlobalState().getGC().destroyManagedObject(thread);
+        }
+        throw;
+    }
+}
+
 int publishApiStatusError(Lua::LuaState* state, Lua::usize savedTop, const Lua::Value& errorValue,
                           int status) noexcept {
     const Lua::usize frameBase = currentFrameBase(state);
@@ -877,15 +893,17 @@ int lua_pcall(lua_State* L, int nargs, int nresults, int errfunc) LUA_CXX_NOEXCE
         failure);
 }
 
-lua_State* lua_newthread(lua_State* L) LUA_CXX_NOEXCEPT {
-    Lua::LuaState* parent = fromC(L);
-    const Lua::usize savedTop = parent->getAbsoluteTop();
+lua_State* lua_newthread(lua_State* L) LUA_CXX_MAY_THROW {
+    return createPublicThreadTransactional(fromC(L));
+}
+
+lua_State* lua_trynewthread(lua_State* L) LUA_CXX_NOEXCEPT {
+    if (L == nullptr) {
+        return nullptr;
+    }
     try {
-        Lua::Thread* thread = Lua::Thread::create(parent);
-        parent->pushValue(Lua::Value(thread));
-        return toC(thread->getLuaState());
+        return createPublicThreadTransactional(fromC(L));
     } catch (...) {
-        restoreAbsoluteTopClearingSlots(parent, savedTop);
         return nullptr;
     }
 }

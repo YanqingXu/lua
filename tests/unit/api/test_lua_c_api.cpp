@@ -37,7 +37,8 @@ static_assert(!noexcept(luaL_error(nullptr, "%s", "error")));
 static_assert(noexcept(lua_close(nullptr)));
 static_assert(noexcept(lua_checkstack(nullptr, 0)));
 static_assert(noexcept(lua_pcall(nullptr, 0, 0, 0)));
-static_assert(noexcept(lua_newthread(nullptr)));
+static_assert(!noexcept(lua_newthread(nullptr)));
+static_assert(noexcept(lua_trynewthread(nullptr)));
 static_assert(noexcept(lua_resume(nullptr, 0)));
 static_assert(noexcept(lua_load(nullptr, nullptr, nullptr, nullptr)));
 static_assert(noexcept(lua_dump(nullptr, nullptr, nullptr)));
@@ -1166,6 +1167,8 @@ void testPublicThreadYieldAndErrorApi(TestSuite& suite) {
 }
 
 void testPublicThreadAllocatorLifecycle(TestSuite& suite) {
+    ASSERT_TRUE(suite, lua_trynewthread(nullptr) == nullptr, "lua_trynewthread safely rejects a null parent");
+
     AllocatorLedger ledger;
     AllocatorProbe probe{&ledger};
     lua_State* L = lua_newstate(trackingLuaAllocator, &probe);
@@ -1184,22 +1187,52 @@ void testPublicThreadAllocatorLifecycle(TestSuite& suite) {
                 "child state shares current allocator callback");
     ASSERT_TRUE(suite, childAllocatorData == &probe, "child state shares allocator userdata");
 
+    lua_State* safeCo = lua_trynewthread(L);
+    ASSERT_TRUE(suite, safeCo != nullptr, "lua_trynewthread creates a child when allocation succeeds");
+    ASSERT_TRUE(suite, lua_isthread(L, -1) != 0, "lua_trynewthread publishes its child on the parent stack");
+
     lua_close(L);
     ASSERT_TRUE(suite, ledger.blocks.empty(), "closing parent releases child state allocation");
     ASSERT_EQ(suite, static_cast<size_t>(0), ledger.sizeMismatches,
               "child state frees preserve allocator old-size contract");
     ASSERT_EQ(suite, static_cast<size_t>(0), ledger.unknownFrees, "child state allocations are each released once");
 
-    for (size_t failureOffset = 1; failureOffset <= childAllocationAttempts; ++failureOffset) {
+    auto runConstructionFailure = [&](size_t failureOffset, bool safeApi) {
         AllocatorLedger failedLedger;
         AllocatorProbe failedProbe{&failedLedger};
         lua_State* failureParent = lua_newstate(trackingLuaAllocator, &failedProbe);
         ASSERT_TRUE(suite, failureParent != nullptr, "thread failure test creates parent state");
         const int parentTop = lua_gettop(failureParent);
+        auto* parentState = reinterpret_cast<Lua::LuaState*>(failureParent);
+        const size_t objectCount = parentState->getGlobalState().getGC().getObjectCount();
+        const size_t blockCount = failedLedger.blocks.size();
         failedProbe.failOnAllocation = failedProbe.allocationAttempts + failureOffset;
-        ASSERT_TRUE(suite, lua_newthread(failureParent) == nullptr,
-                    "each child construction allocation failure returns null");
-        ASSERT_EQ(suite, parentTop, lua_gettop(failureParent), "failed lua_newthread preserves parent stack");
+
+        if (safeApi) {
+            bool exceptionEscaped = false;
+            lua_State* result = nullptr;
+            try {
+                result = lua_trynewthread(failureParent);
+            } catch (...) {
+                exceptionEscaped = true;
+            }
+            ASSERT_TRUE(suite, !exceptionEscaped, "lua_trynewthread contains each construction failure");
+            ASSERT_TRUE(suite, result == nullptr, "lua_trynewthread reports construction failure with null");
+        } else {
+            bool memoryErrorEscaped = false;
+            try {
+                (void)lua_newthread(failureParent);
+            } catch (const std::bad_alloc&) {
+                memoryErrorEscaped = true;
+            }
+            ASSERT_TRUE(suite, memoryErrorEscaped, "lua_newthread propagates each construction allocation failure");
+        }
+
+        ASSERT_EQ(suite, parentTop, lua_gettop(failureParent), "failed thread creation preserves parent stack");
+        ASSERT_EQ(suite, objectCount, parentState->getGlobalState().getGC().getObjectCount(),
+                  "failed thread creation removes partial GC objects immediately");
+        ASSERT_EQ(suite, blockCount, failedLedger.blocks.size(),
+                  "failed thread creation releases partial allocator blocks immediately");
         failedProbe.failOnAllocation = 0;
         lua_close(failureParent);
         ASSERT_TRUE(suite, failedLedger.blocks.empty(), "failed child creation and parent close remain leak free");
@@ -1207,7 +1240,54 @@ void testPublicThreadAllocatorLifecycle(TestSuite& suite) {
                   "child creation rollback preserves old-size contract");
         ASSERT_EQ(suite, static_cast<size_t>(0), failedLedger.unknownFrees,
                   "child creation rollback frees each block once");
+    };
+
+    for (size_t failureOffset = 1; failureOffset <= childAllocationAttempts; ++failureOffset) {
+        runConstructionFailure(failureOffset, false);
+        runConstructionFailure(failureOffset, true);
     }
+
+    auto runParentPushFailure = [&](bool safeApi) {
+        AllocatorLedger failedLedger;
+        AllocatorProbe failedProbe{&failedLedger};
+        lua_State* failureParent = lua_newstate(trackingLuaAllocator, &failedProbe);
+        ASSERT_TRUE(suite, failureParent != nullptr, "parent-push failure test creates parent state");
+        auto* parentState = reinterpret_cast<Lua::LuaState*>(failureParent);
+        const size_t parentPushGrowthTop = parentState->getStack().capacity() - 1;
+        while (parentState->getAbsoluteTop() < parentPushGrowthTop) {
+            lua_pushnil(failureParent);
+        }
+        const int parentTop = lua_gettop(failureParent);
+        const size_t objectCount = parentState->getGlobalState().getGC().getObjectCount();
+        const size_t blockCount = failedLedger.blocks.size();
+        failedProbe.failOnAllocation = failedProbe.allocationAttempts + childAllocationAttempts + 1;
+
+        bool strictErrorEscaped = false;
+        lua_State* result = nullptr;
+        try {
+            result = safeApi ? lua_trynewthread(failureParent) : lua_newthread(failureParent);
+        } catch (const std::bad_alloc&) {
+            strictErrorEscaped = true;
+        }
+        ASSERT_TRUE(suite, safeApi ? result == nullptr && !strictErrorEscaped : result == nullptr && strictErrorEscaped,
+                    "parent-stack growth failure follows the selected strict or safe contract");
+        ASSERT_EQ(suite, parentTop, lua_gettop(failureParent), "parent-stack growth failure restores the stack");
+        ASSERT_EQ(suite, objectCount, parentState->getGlobalState().getGC().getObjectCount(),
+                  "parent-stack growth failure destroys the completed but unpublished thread");
+        ASSERT_EQ(suite, blockCount, failedLedger.blocks.size(),
+                  "parent-stack growth failure releases the unpublished thread allocations");
+
+        failedProbe.failOnAllocation = 0;
+        lua_close(failureParent);
+        ASSERT_TRUE(suite, failedLedger.blocks.empty(), "parent-push failure and close remain leak free");
+        ASSERT_EQ(suite, static_cast<size_t>(0), failedLedger.sizeMismatches,
+                  "parent-push rollback preserves allocator old-size contracts");
+        ASSERT_EQ(suite, static_cast<size_t>(0), failedLedger.unknownFrees,
+                  "parent-push rollback frees each allocation once");
+    };
+
+    runParentPushFailure(false);
+    runParentPushFailure(true);
 }
 
 void testProtectedCallNormalizesCppExceptionsAndYield(TestSuite& suite) {
@@ -1770,8 +1850,25 @@ void testProtectedStatusApiExceptionBoundaries(TestSuite& suite) {
     throwingProbe.armed = true;
     ASSERT_EQ(suite, 0, lua_checkstack(L, 1000), "lua_checkstack contains a throwing allocator callback");
     ASSERT_EQ(suite, topBeforeFailure, lua_gettop(L), "failed lua_checkstack preserves logical stack");
-    ASSERT_TRUE(suite, lua_newthread(L) == nullptr, "lua_newthread contains a throwing allocator callback");
-    ASSERT_EQ(suite, topBeforeFailure, lua_gettop(L), "failed lua_newthread preserves parent stack");
+    bool strictThreadFailureEscaped = false;
+    try {
+        (void)lua_newthread(L);
+    } catch (const std::bad_alloc&) {
+        strictThreadFailureEscaped = true;
+    }
+    ASSERT_TRUE(suite, strictThreadFailureEscaped, "lua_newthread propagates a throwing allocator failure");
+    ASSERT_EQ(suite, topBeforeFailure, lua_gettop(L), "strict lua_newthread failure preserves parent stack");
+
+    bool safeThreadFailureEscaped = false;
+    lua_State* safeThread = nullptr;
+    try {
+        safeThread = lua_trynewthread(L);
+    } catch (...) {
+        safeThreadFailureEscaped = true;
+    }
+    ASSERT_TRUE(suite, !safeThreadFailureEscaped, "lua_trynewthread contains a throwing allocator callback");
+    ASSERT_TRUE(suite, safeThread == nullptr, "lua_trynewthread reports throwing allocator failure with null");
+    ASSERT_EQ(suite, topBeforeFailure, lua_gettop(L), "safe lua_trynewthread failure preserves parent stack");
     throwingProbe.armed = false;
     lua_close(L);
 }

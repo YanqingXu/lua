@@ -67,7 +67,8 @@ REQUIRE_SIGNATURE(lua_setmetatable, int (*)(lua_State*, int) noexcept(false));
 REQUIRE_SIGNATURE(lua_call, void (*)(lua_State*, int, int) noexcept(false));
 REQUIRE_SIGNATURE(lua_pcall, int (*)(lua_State*, int, int, int) noexcept);
 REQUIRE_SIGNATURE(lua_error, int (*)(lua_State*) noexcept(false));
-REQUIRE_SIGNATURE(lua_newthread, lua_State* (*)(lua_State*) noexcept);
+REQUIRE_SIGNATURE(lua_newthread, lua_State* (*)(lua_State*) noexcept(false));
+REQUIRE_SIGNATURE(lua_trynewthread, lua_State* (*)(lua_State*) noexcept);
 REQUIRE_SIGNATURE(lua_resume, int (*)(lua_State*, int) noexcept);
 REQUIRE_SIGNATURE(lua_yield, int (*)(lua_State*, int) noexcept(false));
 REQUIRE_SIGNATURE(lua_status, int (*)(lua_State*) noexcept(false));
@@ -204,6 +205,10 @@ bool exercisePublicMacros(lua_State* state) {
     valid = valid && thread != nullptr && lua_isthread(state, -1);
     lua_pop(state, 1);
 
+    lua_State* safeThread = lua_trynewthread(state);
+    valid = valid && safeThread != nullptr && lua_isthread(state, -1);
+    lua_pop(state, 1);
+
     lua_pushstring(state, "macro-ref");
     const int reference = luaL_ref(state, LUA_REGISTRYINDEX);
     luaL_getref(state, reference);
@@ -221,7 +226,8 @@ bool exercisePublicMacros(lua_State* state) {
 int main() {
     static_assert(noexcept(lua_checkstack(nullptr, 0)));
     static_assert(noexcept(lua_pcall(nullptr, 0, 0, 0)));
-    static_assert(noexcept(lua_newthread(nullptr)));
+    static_assert(!noexcept(lua_newthread(nullptr)));
+    static_assert(noexcept(lua_trynewthread(nullptr)));
     static_assert(noexcept(lua_close(nullptr)));
     static_assert(noexcept(lua_resume(nullptr, 0)));
     static_assert(noexcept(lua_load(nullptr, nullptr, nullptr, nullptr)));
@@ -232,7 +238,7 @@ int main() {
     static_assert(!noexcept(lua_call(nullptr, 0, 0)));
     static_assert(!noexcept(lua_error(nullptr)));
 
-    if (lua_public_c_header_probe() != 66) {
+    if (lua_public_c_header_probe() != 67) {
         return 1;
     }
 

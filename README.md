@@ -134,7 +134,7 @@ bin\lua_test.exe --filter "Symbol Binding"
 bin\lua_test.exe --report=junit
 ```
 
-测试运行器会在输出中报告实时测试数量和断言结果。2026-07-24 的完整 Debug/Release 绿跑基线为 **735 registered tests, 4509 assertion results, 0 failures**；其中 `Lua C API` suite 为 40 个测试、953 个断言、0 failures，原始 `api.lua with T module` 也完整运行到 `OK`。新增回归后需用文档漂移门禁同步这一基线。
+测试运行器会在输出中报告实时测试数量和断言结果。2026-07-24 的完整 Debug/Release 绿跑基线为 **735 registered tests, 4575 assertion results, 0 failures**；其中 `Lua C API` suite 为 40 个测试、1019 个断言、0 failures，原始 `api.lua with T module` 也完整运行到 `OK`。新增回归后需用文档漂移门禁同步这一基线。
 
 ### CMake / CTest 辅助路径
 

@@ -100,7 +100,9 @@ int lua_setmetatable(lua_State* L, int objindex) LUA_CXX_MAY_THROW;
 void lua_call(lua_State* L, int nargs, int nresults) LUA_CXX_MAY_THROW;
 int lua_pcall(lua_State* L, int nargs, int nresults, int errfunc) LUA_CXX_NOEXCEPT;
 int lua_error(lua_State* L) LUA_CXX_MAY_THROW;
-lua_State* lua_newthread(lua_State* L) LUA_CXX_NOEXCEPT;
+lua_State* lua_newthread(lua_State* L) LUA_CXX_MAY_THROW;
+/* Project extension: transactional thread creation without exception propagation. */
+lua_State* lua_trynewthread(lua_State* L) LUA_CXX_NOEXCEPT;
 int lua_resume(lua_State* L, int nargs) LUA_CXX_NOEXCEPT;
 int lua_yield(lua_State* L, int nresults) LUA_CXX_MAY_THROW;
 int lua_status(lua_State* L) LUA_CXX_MAY_THROW;

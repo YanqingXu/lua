@@ -61,6 +61,7 @@ EXPORTS
     lua_tolstring
     lua_tonumber
     lua_touserdata
+    lua_trynewthread
     lua_type
     lua_typename
     lua_xmove
