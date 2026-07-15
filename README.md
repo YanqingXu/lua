@@ -309,11 +309,12 @@ using ValueData = std::variant<
 常用验证入口：
 
 质量门统一编排 `clang-format`、`clang-tidy`、文档漂移检查和测试执行，并由 GitHub Actions 在持续集成中复用；`tools/run_quality_gate.ps1` 是本地与 CI 的共同入口。
+本地发布前应使用 `-Strict`：环境中缺少 `git`、格式/静态分析工具、MSBuild 或测试产物时会立即失败；`-SkipBuild`、`-SkipClangTidy` 和 `-FormatScope Off` 仍是调用者可见的显式裁剪，不会被误报为环境完整。
 仓库已定义 Windows Debug/Release、Linux GCC/Clang Debug/Release、ASan/UBSan、严格兼容性和 Release benchmark 检查。性能门在同一 runner 上按 `base/head`、`head/base`、`base/head` 交错执行，针对 C++↔Lua、coroutine、closure/upvalue 和 GC P99 使用版本化相对回归预算，不依赖 Hosted Runner 的绝对数字。私有仓库当前套餐无法启用 required-check 分支保护；2026-07-15 通过 branch-protection 与 rulesets API 复核均返回需升级 GitHub Pro 或公开仓库，该平台限制由 [#6](https://github.com/YanqingXu/lua/issues/6) 跟踪。
 
 ```powershell
 bin\lua_test.exe
-powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_quality_gate.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_quality_gate.ps1 -Strict
 ```
 
 新增 C++ 源文件时，优先使用 `tools\add_source.ps1` 同步 CMake、`.vcxproj` 和 `.vcxproj.filters` 清单：

@@ -59,6 +59,7 @@ Assert-FileContains ".clang-tidy" @(
 )
 
 Assert-FileContains "tools/run_quality_gate.ps1" @(
+    "\[switch\]\`$Strict",
     "check_opcode_coverage_matrix\.ps1",
     "check_value_result_variant_only\.ps1",
     "check_c_style_patterns\.ps1",
@@ -68,7 +69,11 @@ Assert-FileContains "tools/run_quality_gate.ps1" @(
     "clang-format",
     "clang-tidy",
     "MSBuild",
-    "failed with exit code"
+    "failed with exit code",
+    "Strict quality gate requires clang-format",
+    "Strict quality gate requires clang-tidy",
+    "Strict quality gate requires MSBuild\.exe",
+    "Strict quality gate requires bin\\lua_test\.exe"
 )
 
 Assert-FileContains "tools/add_source.ps1" @(
@@ -214,6 +219,33 @@ function Invoke-NativeFailurePropagationSmokeTest {
 }
 
 Invoke-NativeFailurePropagationSmokeTest
+
+function Invoke-StrictMissingToolSmokeTest {
+    $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("lua_quality_strict_" + [guid]::NewGuid().ToString("N"))
+    New-Item -ItemType Directory -Path $tempRoot | Out-Null
+    $previousPath = $env:PATH
+
+    try {
+        $env:PATH = $tempRoot
+        $failureMessage = $null
+        try {
+            & (Join-RepoPath "tools/run_quality_gate.ps1") -Strict -SkipBuild -SkipClangTidy -FormatScope Changed
+        } catch {
+            $failureMessage = $_.Exception.Message
+        }
+
+        if ($failureMessage -notmatch "Strict quality gate requires clang-format on PATH") {
+            throw "Strict quality gate silently skipped a missing required tool: $failureMessage"
+        }
+    } finally {
+        $env:PATH = $previousPath
+        if (Test-Path -LiteralPath $tempRoot) {
+            Remove-Item -LiteralPath $tempRoot -Recurse -Force
+        }
+    }
+}
+
+Invoke-StrictMissingToolSmokeTest
 
 function Invoke-OpcodeEvidenceContractSmokeTest {
     $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("lua_opcode_evidence_" + [guid]::NewGuid().ToString("N"))
@@ -566,7 +598,7 @@ function Invoke-RuntimeBenchmarkComparisonSmokeTest {
             $order = if (($pair % 2) -eq 0) { @("base", "head") } else { @("head", "base") }
             foreach ($revision in $order) {
                 $isBase = $revision -eq "base"
-                $startedAt = [DateTime]::UnixEpoch.AddSeconds(2 * $runs.Count)
+                $startedAt = [DateTimeOffset]::FromUnixTimeSeconds(2 * $runs.Count).UtcDateTime
                 $runs += [ordered]@{
                     pair       = $pair
                     revision   = $revision

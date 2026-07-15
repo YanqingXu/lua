@@ -1,4 +1,4 @@
-## 总体结论
+## 审计快照结论
 
 我把本次审计锁定在 `main` 最新提交 [`a9d4e4e`](https://github.com/YanqingXu/lua/commit/a9d4e4e2e3b3bf4b2ccb498010257ac9a41ffc3a)。
 
@@ -13,7 +13,20 @@
 3. 内存、执行时间和脚本权限真的可控；
 4. 每项结论都有对应 SHA 的在线验证证据。
 
-## 当前成熟度
+## 审计后执行状态
+
+以下状态记录审计建议在后续提交中的落实情况；下文“成熟度”和“深度审计发现”保留 `a9d4e4e` 快照判断，不再冒充当前实现状态。
+
+* [`aeced59`](https://github.com/YanqingXu/lua/commit/aeced59) 已修复 `lua_close` 的 main-state/coroutine、close-time `__gc`、finalizer 错误隔离、原生模块卸载顺序和持续 OOM 关闭语义。
+* [`23e34c0`](https://github.com/YanqingXu/lua/commit/23e34c0) 已把公开合同扩展为头文件、C 链接探针、C++ 精确签名、Windows `.def`、Linux version script 和独立 shared consumer 的穷尽式一致性检查。
+* [`da3c81e`](https://github.com/YanqingXu/lua/commit/da3c81e) 已恢复官方 `lua_newthread` 的未保护传播语义，并新增事务式、`noexcept` 的项目扩展 `lua_trynewthread`。
+* 本文件所在提交新增本地质量门 `-Strict` 模式；缺少 `git`、clang-format、clang-tidy、MSBuild、配置的 smoke 输入或测试产物时不再静默成功。显式 `-SkipBuild`、`-SkipClangTidy`、`-FormatScope Off` 仍保留为可审计的调用者选择。
+* 当前本地 Debug/Release 基线为 **735 tests / 4575 assertions / 0 failures**，C API 为 **40 tests / 1019 assertions / 0 failures**；官方函数合同仍为 60 PASS、63 UNSUPPORTED，项目实际公开面为 67 个函数。
+* **同 SHA 在线证据尚未完成。** 当前 CI 仅由 `main/master` push 或 pull request 触发；截至本次核查，当前修复分支的 `da3c81e` 没有 Actions run、check run 或 commit status，因此不能用本地绿跑替代在线验收。
+
+剩余 P0 是为当前修复头提交触发并保留 Windows 2、Linux 4、ASan/UBSan、lint、strict、benchmark 的同 SHA Actions 与 artifact；P1 的 C API 扩面、ExecutionPolicy 和 allocator hard limit 仍按后文路线推进。
+
+## 审计快照成熟度
 
 | 维度                          |        评价 | 判断                                                      |
 | --------------------------- | --------: | ------------------------------------------------------- |
@@ -26,7 +39,7 @@
 
 drop-in 评分较低不是项目倒退，而是最新机器合同终于把真实缺口量化出来了。
 
-## 已经取得的实质进展
+## `a9d4e4e` 已经取得的实质进展
 
 * Lexer、Parser、AST、CodeGen、38 条 Lua 5.1 opcode、VM、标准库、弱表、finalizer、增量 GC、REPL 和字节码工具主链路已经完整。
 * 仓库记录的本地基线为 **734 tests / 4487 assertions / 0 failures**；C API 为 **39 tests / 931 assertions**。[README](https://github.com/YanqingXu/lua/blob/a9d4e4e2e3b3bf4b2ccb498010257ac9a41ffc3a/README.md)
@@ -37,7 +50,7 @@ drop-in 评分较低不是项目倒退，而是最新机器合同终于把真实
 
 这些都不是“文档规划”，而是已经能在实现和测试入口中看到的工程化落地。
 
-## 深度审计发现的主要问题
+## `a9d4e4e` 深度审计发现的主要问题
 
 ### 1. 最新提交过大，且没有取得在线全绿证据
 

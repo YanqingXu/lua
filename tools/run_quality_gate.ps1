@@ -4,6 +4,7 @@ param(
     [string]$FormatScope = "Changed",
     [switch]$SkipClangTidy,
     [switch]$SkipBuild,
+    [switch]$Strict,
     [string]$Configuration = "Debug",
     [string]$Platform = "x64"
 )
@@ -33,6 +34,19 @@ function Get-CommandOrNull {
     return Get-Command $Name -ErrorAction SilentlyContinue
 }
 
+function Stop-OrSkipMissingRequirement {
+    param(
+        [string]$SkipMessage,
+        [string]$StrictMessage
+    )
+
+    if ($Strict) {
+        throw $StrictMessage
+    }
+
+    Write-Host "[SKIP] $SkipMessage"
+}
+
 function Get-SourceFiles {
     $roots = @("src", "tests", "examples", "benchmarks")
     $extensions = @("*.c", "*.cc", "*.cpp", "*.cxx", "*.hpp", "*.h")
@@ -52,6 +66,9 @@ function Get-SourceFiles {
 function Get-ChangedSourceFiles {
     $git = Get-CommandOrNull "git"
     if (-not $git) {
+        Stop-OrSkipMissingRequirement `
+            -SkipMessage "git was not found; changed clang-format scope cannot be resolved" `
+            -StrictMessage "Strict quality gate requires git to resolve changed source files"
         return @()
     }
 
@@ -142,14 +159,16 @@ function Find-MSBuild {
 Push-Location $root
 try {
     Invoke-Step "clang-format" {
-        $clangFormat = Get-CommandOrNull "clang-format"
-        if (-not $clangFormat) {
-            Write-Host "[SKIP] clang-format was not found on PATH"
+        if ($FormatScope -eq "Off") {
+            Write-Host "[SKIP] clang-format skipped by -FormatScope Off"
             return
         }
 
-        if ($FormatScope -eq "Off") {
-            Write-Host "[SKIP] clang-format skipped by -FormatScope Off"
+        $clangFormat = Get-CommandOrNull "clang-format"
+        if (-not $clangFormat) {
+            Stop-OrSkipMissingRequirement `
+                -SkipMessage "clang-format was not found on PATH" `
+                -StrictMessage "Strict quality gate requires clang-format on PATH"
             return
         }
 
@@ -179,13 +198,17 @@ try {
 
         $clangTidy = Get-CommandOrNull "clang-tidy"
         if (-not $clangTidy) {
-            Write-Host "[SKIP] clang-tidy was not found on PATH"
+            Stop-OrSkipMissingRequirement `
+                -SkipMessage "clang-tidy was not found on PATH" `
+                -StrictMessage "Strict quality gate requires clang-tidy on PATH"
             return
         }
 
         $files = @(Get-ClangTidyFiles)
         if ($files.Count -eq 0) {
-            Write-Host "[SKIP] no clang-tidy smoke files found"
+            Stop-OrSkipMissingRequirement `
+                -SkipMessage "no clang-tidy smoke files found" `
+                -StrictMessage "Strict quality gate requires the configured clang-tidy smoke files"
             return
         }
 
@@ -214,7 +237,9 @@ try {
 
         $msbuild = Find-MSBuild
         if (-not $msbuild) {
-            Write-Host "[SKIP] MSBuild.exe was not found"
+            Stop-OrSkipMissingRequirement `
+                -SkipMessage "MSBuild.exe was not found" `
+                -StrictMessage "Strict quality gate requires MSBuild.exe"
             return
         }
 
@@ -257,7 +282,9 @@ try {
 
         $testExe = Join-Path $root "bin\lua_test.exe"
         if (-not (Test-Path -LiteralPath $testExe)) {
-            Write-Host "[SKIP] bin\lua_test.exe was not found"
+            Stop-OrSkipMissingRequirement `
+                -SkipMessage "bin\lua_test.exe was not found" `
+                -StrictMessage "Strict quality gate requires bin\lua_test.exe; build lua_test.vcxproj first"
             return
         }
 
