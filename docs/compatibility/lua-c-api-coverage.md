@@ -25,7 +25,7 @@ applies_to: Lua 5.1 C API 原型、项目内直接测试与官方 testC 覆盖�
 | 比较与拼接 | `lua_equal`、`lua_rawequal`、`lua_lessthan`、`lua_concat` | primitive、invalid index、共享 `__eq/__lt`、raw identity、0/1/N 参数、数字转换、embedded NUL、`__concat` 与错误栈 | 原始 `api.lua` 的 equal/less/concat 命令通过项目 `T` helper | 公开入口、直接测试与 TestC 证据闭环 |
 | 调用、错误与 yield | `lua_call`、`lua_pcall`、`lua_cpcall`、`lua_error`、`lua_newthread`、`lua_trynewthread`、`lua_checkexecution`、`lua_resume`、`lua_yield`、`lua_status`；官方 `lua_newthread` 是可抛的未保护入口，项目扩展 `lua_trynewthread` 才是 `noexcept` 安全入口 | 原始非字符串 error object、栈前缀恢复、正/负 handler 索引、C/Lua handler、`LUA_ERRERR`/`LUA_ERRMEM`、C→Lua→C、`lua_cpcall` lightuserdata/零结果/错误对象、Lua/C function coroutine、thread 每个 allocator 失败点、父栈发布失败、reader/writer/C callback 的标准与非标准异常、持久 allocator failure、死协程 traceback；原生 callback 的 deadline/atomic cancellation、fixed error object、owner thread 与 instruction-budget 非消费 | 官方 `errors.lua` tail、`db.lua` 和原始 `api.lua` exact PASS；纯 C probe 验证 `lua_cpcall` | `lua_newthread` 在分配失败时完成强回滚后传播错误，匹配 Lua 5.1 未保护语义；`lua_trynewthread` 复用同一事务并以 `nullptr` 包含异常。`lua_checkexecution` 是可抛的 cooperative 项目扩展；`lua_pcall`、`lua_cpcall`、`lua_resume`、`lua_checkstack` 保持关闭异常边界 |
 | panic、格式化与调用层级 | `lua_atpanic` 保存 runtime 共享回调；`lua_pushvfstring/lua_pushfstring` 支持 `%s/%c/%d/%f/%p/%%` 与未知格式原样保留；`lua_setlevel` 复制 C/Lua 重入深度 | handler 替换/跨线程共享、va_list 与完整格式词法、返回字符串身份、host-call depth 复制 | 同一纯 C probe 分别链接官方 Lua 5.1 与项目实现，稳定结果逐字节一致 | 5/5 入口已形成声明、静态/共享导出、直接测试和官方差分闭环 |
-| load/dump | `lua_load`、`lua_dump`、`luaL_loadbuffer`、`luaL_loadstring`、`luaL_loadfile` 均为关闭异常边界 | reader 分片、源码/文件编译、语法/文件状态、binary chunk 往返、reader/writer 的 `std::exception`、非标准异常与 `bad_alloc`、满栈和持久 OOM | 原始 `api.lua` 的 loadstring/loadfile/dump/undump/低内存路径通过 | 项目本地 chunk 闭环已实现；不宣称官方 `luac` 字节兼容 |
+| load/dump | `lua_load`、`lua_dump`、`luaL_loadbuffer`、`luaL_loadstring`、`luaL_loadfile` 均为关闭异常边界 | reader 分片、source buffer 逐分配点与零余量 hard limit、源码/文件编译、语法/文件状态、binary chunk 往返、reader/writer 的 `std::exception`、非标准异常与 `bad_alloc`、满栈和持久 OOM | 原始 `api.lua` 的 loadstring/loadfile/dump/undump/低内存路径通过 | 项目本地 chunk 闭环已实现；不宣称官方 `luac` 字节兼容 |
 | closure introspection | `lua_getupvalue`、`lua_setupvalue` | C closure 空名称、Lua closure debug name、读写栈效应和持久修改 | 原始 `api.lua` 的 `T.upvalue` 路径通过 | 已实现并形成直接 + TestC 证据 |
 | userdata | `lua_pushlightuserdata`、`lua_newuserdata`、`lua_touserdata`、`lua_objlen`、metatable、environment、`__gc` | light/full/零长度 payload、8 字节对齐、metatable 往返/移除、字符串/表长度、普通 GC 与 close-time 终结器一次执行、payload 可见性及错误隔离 | 原始 `api.lua` 的 userdata 值、environment、GC 和低内存路径通过 | 已实现当前公开子集；finalizer 重入与 Runtime 关闭另有回归测试 |
 | registry refs | `luaL_ref/unref`、`luaL_getref` | nil reference、存取、释放后复用 | 原始 `api.lua` 的 `ref/getref/unref` 路径通过 | 已实现并形成直接 + TestC 证据 |
@@ -45,7 +45,7 @@ applies_to: Lua 5.1 C API 原型、项目内直接测试与官方 testC 覆盖�
 bin\lua_test.exe --filter "Lua C API"
 ```
 
-当前 Debug/Release strict 结果为 52 个测试、1343 个断言、0 failures。机器合同包含 123 个官方公共函数：123 个 `PASS`、0 个 `XFAIL`、0 个 `UNSUPPORTED`。项目头文件的当前公开面另由 131 个真实函数、57 个宏、24 个枚举常量和 11 个 typedef 的穷尽式编译合同保护。当前完整 Debug/Release strict 套件为 758 个测试、5024 个断言、0 failures；本提交的在线矩阵仍待取得同 SHA 证据。原始 `api.lua` 另以以下 exact TestC 门禁通过：
+当前 Debug/Release strict 结果为 53 个测试、1366 个断言、0 failures。机器合同包含 123 个官方公共函数：123 个 `PASS`、0 个 `XFAIL`、0 个 `UNSUPPORTED`。项目头文件的当前公开面另由 131 个真实函数、57 个宏、24 个枚举常量和 11 个 typedef 的穷尽式编译合同保护。当前完整 Debug/Release strict 套件为 759 个测试、5047 个断言、0 failures；本提交的在线矩阵仍待取得同 SHA 证据。原始 `api.lua` 另以以下 exact TestC 门禁通过：
 
 ```powershell
 bin\lua_test.exe --filter "api.lua with T module"

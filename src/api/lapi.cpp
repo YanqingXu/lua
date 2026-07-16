@@ -1509,7 +1509,8 @@ int lua_load(lua_State* L, lua_Reader reader, void* data, const char* chunkname)
     return apiStatusBoundary(
         state,
         [&]() {
-            std::string source;
+            using ReaderSource = std::basic_string<char, std::char_traits<char>, Lua::LuaStdAllocator<char>>;
+            ReaderSource source{Lua::LuaStdAllocator<char>(state->getGlobalState().getAllocator())};
             for (;;) {
                 size_t size = 0;
                 const char* piece = reader(L, data, &size);

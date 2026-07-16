@@ -25,6 +25,7 @@
 #include <limits>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <unordered_map>
 
@@ -159,6 +160,11 @@ size_t gTableHashAllocationStart = 0;
 size_t gTableHashHardLimit = 0;
 bool gTableHashUseHardLimit = false;
 int gTableHashLightKey = 0;
+size_t gFragmentedReaderFailureOffset = 0;
+size_t gFragmentedReaderAllocationStart = 0;
+size_t gFragmentedReaderBufferAttempts = 0;
+size_t gFragmentedReaderHardLimit = 0;
+bool gFragmentedReaderUseHardLimit = false;
 
 struct AllocatorLedger {
     std::unordered_map<std::uintptr_t, size_t> blocks;
@@ -764,6 +770,48 @@ const char* readProbeChunk(lua_State*, void* userData, size_t* size) {
     }
     const char* piece = probe->pieces[probe->index++];
     *size = std::strlen(piece);
+    return piece;
+}
+
+constexpr std::string_view kFragmentedAllocatorReaderSource =
+    "local values = {}; for i = 1, 32 do values[i] = i * 2 end; return values[32]";
+
+struct FragmentedAllocatorReader {
+    size_t position = 0;
+    bool armed = false;
+};
+
+const char* readFragmentedAllocatorChunk(lua_State*, void* userData, size_t* size) {
+    auto* reader = static_cast<FragmentedAllocatorReader*>(userData);
+    AllocatorProbe* probe = gAllocatorFailureProbe;
+    if (!reader->armed) {
+        reader->armed = true;
+        gFragmentedReaderAllocationStart = probe != nullptr ? probe->allocationAttempts : 0;
+        gFragmentedReaderBufferAttempts = 0;
+        if (probe != nullptr) {
+            probe->failOnAllocation =
+                gFragmentedReaderFailureOffset == 0 ? 0 : probe->allocationAttempts + gFragmentedReaderFailureOffset;
+            if (gFragmentedReaderUseHardLimit) {
+                probe->ledger->hardLimit = probe->ledger->liveBytes;
+                probe->ledger->peakBytes = probe->ledger->liveBytes;
+                gFragmentedReaderHardLimit = probe->ledger->hardLimit;
+            }
+        }
+    }
+
+    if (reader->position >= kFragmentedAllocatorReaderSource.size()) {
+        if (probe != nullptr) {
+            gFragmentedReaderBufferAttempts = probe->allocationAttempts - gFragmentedReaderAllocationStart;
+        }
+        *size = 0;
+        return {};
+    }
+
+    constexpr size_t kPieceSize = 7;
+    const size_t remaining = kFragmentedAllocatorReaderSource.size() - reader->position;
+    *size = remaining < kPieceSize ? remaining : kPieceSize;
+    const char* piece = kFragmentedAllocatorReaderSource.data() + reader->position;
+    reader->position += *size;
     return piece;
 }
 
@@ -3031,6 +3079,138 @@ void testLuaLevelCoroutinePersistentAllocationRollback(TestSuite& suite) {
     }
 }
 
+void testFragmentedReaderAllocatorTransactions(TestSuite& suite) {
+    size_t bufferAllocationAttempts = 0;
+    {
+        AllocatorLedger ledger;
+        AllocatorProbe probe{&ledger};
+        lua_State* L = lua_newstate(trackingLuaAllocator, &probe);
+        ASSERT_TRUE(suite, L != nullptr, "fragmented reader baseline creates state");
+        int prefixMarker = 0;
+        lua_pushlightuserdata(L, &prefixMarker);
+
+        FragmentedAllocatorReader reader;
+        gAllocatorFailureProbe = &probe;
+        gFragmentedReaderFailureOffset = 0;
+        gFragmentedReaderUseHardLimit = false;
+        const int status = lua_load(L, readFragmentedAllocatorChunk, &reader, "=fragmented-reader");
+        bufferAllocationAttempts = gFragmentedReaderBufferAttempts;
+        gAllocatorFailureProbe = nullptr;
+
+        ASSERT_EQ(suite, LUA_OK, status, "fragmented reader baseline compiles");
+        ASSERT_TRUE(suite, bufferAllocationAttempts > 0,
+                    "fragmented reader source buffer routes growth through lua_Alloc");
+        ASSERT_TRUE(suite, lua_gettop(L) == 2 && lua_touserdata(L, 1) == &prefixMarker,
+                    "fragmented reader baseline preserves its stack prefix");
+        ASSERT_EQ(suite, LUA_OK, lua_pcall(L, 0, 1, 0), "fragmented reader baseline executes");
+        ASSERT_EQ(suite, 64.0, lua_tonumber(L, -1), "fragmented reader baseline returns the expected value");
+
+        lua_close(L);
+        ASSERT_TRUE(suite, ledger.blocks.empty() && ledger.liveBytes == 0,
+                    "fragmented reader baseline closes with zero allocator ownership");
+        ASSERT_TRUE(suite, ledger.sizeMismatches == 0 && ledger.unknownFrees == 0,
+                    "fragmented reader baseline preserves allocator contracts");
+    }
+
+    bool statusesAreMemoryErrors = true;
+    bool targetsAreReached = true;
+    bool errorsAreFixed = true;
+    bool prefixesArePreserved = true;
+    bool retriesSucceed = true;
+    bool statesCloseCleanly = true;
+    for (size_t offset = 1; offset <= bufferAllocationAttempts; ++offset) {
+        AllocatorLedger ledger;
+        AllocatorProbe probe{&ledger};
+        lua_State* L = lua_newstate(trackingLuaAllocator, &probe);
+        if (L == nullptr) {
+            statusesAreMemoryErrors = false;
+            statesCloseCleanly = false;
+            continue;
+        }
+        int prefixMarker = 0;
+        lua_pushlightuserdata(L, &prefixMarker);
+
+        FragmentedAllocatorReader reader;
+        gAllocatorFailureProbe = &probe;
+        gFragmentedReaderFailureOffset = offset;
+        gFragmentedReaderUseHardLimit = false;
+        const int status = lua_load(L, readFragmentedAllocatorChunk, &reader, "=fragmented-reader-oom");
+        const size_t attempts = probe.allocationAttempts - gFragmentedReaderAllocationStart;
+        statusesAreMemoryErrors = statusesAreMemoryErrors && status == LUA_ERRMEM;
+        targetsAreReached = targetsAreReached && attempts == offset;
+        errorsAreFixed = errorsAreFixed && lua_gettop(L) == 2 && lua_isstring(L, -1) != 0 &&
+                         std::string(lua_tostring(L, -1)) == "not enough memory";
+        prefixesArePreserved = prefixesArePreserved && lua_gettop(L) == 2 && lua_touserdata(L, 1) == &prefixMarker;
+
+        probe.failOnAllocation = 0;
+        ledger.hardLimit = std::numeric_limits<size_t>::max();
+        gFragmentedReaderFailureOffset = 0;
+        lua_settop(L, 1);
+        FragmentedAllocatorReader retryReader;
+        const int retryLoadStatus = lua_load(L, readFragmentedAllocatorChunk, &retryReader, "=fragmented-reader-retry");
+        const int retryCallStatus = retryLoadStatus == LUA_OK ? lua_pcall(L, 0, 1, 0) : retryLoadStatus;
+        retriesSucceed = retriesSucceed && retryCallStatus == LUA_OK && lua_tonumber(L, -1) == 64;
+
+        gAllocatorFailureProbe = nullptr;
+        lua_close(L);
+        statesCloseCleanly = statesCloseCleanly && ledger.blocks.empty() && ledger.liveBytes == 0 &&
+                             ledger.sizeMismatches == 0 && ledger.unknownFrees == 0;
+    }
+
+    ASSERT_TRUE(suite, statusesAreMemoryErrors, "every fragmented reader buffer failure becomes LUA_ERRMEM");
+    ASSERT_TRUE(suite, targetsAreReached, "fragmented reader scan reaches every observed buffer allocation");
+    ASSERT_TRUE(suite, errorsAreFixed, "fragmented reader OOM publishes the fixed memory error object");
+    ASSERT_TRUE(suite, prefixesArePreserved, "fragmented reader OOM preserves the caller stack prefix");
+    ASSERT_TRUE(suite, retriesSucceed, "fragmented reader remains usable after every buffer allocation failure");
+    ASSERT_TRUE(suite, statesCloseCleanly, "fragmented reader failure scan closes without allocator leaks");
+
+    {
+        AllocatorLedger ledger;
+        AllocatorProbe probe{&ledger};
+        lua_State* L = lua_newstate(trackingLuaAllocator, &probe);
+        ASSERT_TRUE(suite, L != nullptr, "fragmented reader hard-limit test creates state");
+        int prefixMarker = 0;
+        lua_pushlightuserdata(L, &prefixMarker);
+
+        FragmentedAllocatorReader reader;
+        gAllocatorFailureProbe = &probe;
+        gFragmentedReaderFailureOffset = 0;
+        gFragmentedReaderUseHardLimit = true;
+        gFragmentedReaderHardLimit = 0;
+        const int status = lua_load(L, readFragmentedAllocatorChunk, &reader, "=fragmented-reader-limit");
+        ASSERT_EQ(suite, LUA_ERRMEM, status, "zero-headroom hard limit rejects fragmented reader growth");
+        ASSERT_TRUE(suite,
+                    gFragmentedReaderHardLimit != 0 && ledger.peakBytes <= gFragmentedReaderHardLimit &&
+                        ledger.liveBytes <= gFragmentedReaderHardLimit,
+                    "fragmented reader never exceeds the host hard limit");
+        ASSERT_TRUE(suite, lua_gettop(L) == 2 && lua_touserdata(L, 1) == &prefixMarker,
+                    "fragmented reader hard-limit failure preserves its stack prefix");
+
+        ledger.hardLimit = std::numeric_limits<size_t>::max();
+        probe.failOnAllocation = 0;
+        gFragmentedReaderUseHardLimit = false;
+        lua_settop(L, 1);
+        FragmentedAllocatorReader retryReader;
+        ASSERT_EQ(suite, LUA_OK, lua_load(L, readFragmentedAllocatorChunk, &retryReader, "=fragmented-reader-limit"),
+                  "fragmented reader compiles after lifting the hard limit");
+        ASSERT_EQ(suite, LUA_OK, lua_pcall(L, 0, 1, 0),
+                  "fragmented reader result executes after lifting the hard limit");
+        ASSERT_EQ(suite, 64.0, lua_tonumber(L, -1), "fragmented reader hard-limit retry returns the expected value");
+
+        gAllocatorFailureProbe = nullptr;
+        lua_close(L);
+        ASSERT_TRUE(suite, ledger.blocks.empty() && ledger.liveBytes == 0,
+                    "fragmented reader hard-limit state closes with zero allocator ownership");
+        ASSERT_TRUE(suite, ledger.sizeMismatches == 0 && ledger.unknownFrees == 0,
+                    "fragmented reader hard-limit path preserves allocator contracts");
+    }
+
+    gFragmentedReaderFailureOffset = 0;
+    gFragmentedReaderBufferAttempts = 0;
+    gFragmentedReaderHardLimit = 0;
+    gFragmentedReaderUseHardLimit = false;
+}
+
 void testLoadBufferAllocatorFailures(TestSuite& suite) {
     constexpr const char* source = "local t = {}; for i = 1, 8 do t[i] = i end; return t[8]";
 
@@ -3935,6 +4115,8 @@ void registerLuaCApiTests() {
     registry.registerTest(kSuiteName, "Proto allocator transactions", testProtoAllocatorTransactions);
     registry.registerTest(kSuiteName, "allocator replacement", testAllocatorCanBeReplaced);
     registry.registerTest(kSuiteName, "allocator failure paths", testAllocatorFailurePaths);
+    registry.registerTest(kSuiteName, "fragmented reader allocator transactions",
+                          testFragmentedReaderAllocatorTransactions);
     registry.registerTest(kSuiteName, "loadbuffer allocator failures", testLoadBufferAllocatorFailures);
     registry.registerTest(kSuiteName, "full-stack loader memory errors", testLoadersPublishMemoryErrorFromFullStack);
     registry.registerTest(kSuiteName, "load dump and auxiliary loaders", testLoadDumpAndAuxiliaryLoaders);
