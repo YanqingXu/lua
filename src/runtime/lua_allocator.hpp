@@ -202,8 +202,56 @@ private:
     LuaAllocator* allocator_ = nullptr;
 };
 
+/**
+ * Standard allocator that snapshots a callback/userdata pair by value.
+ *
+ * This is intended for compiler temporaries that may be copied or moved out
+ * of their producing object. Each rebound allocator remains able to release
+ * its storage without depending on a LuaAllocator object's lifetime.
+ */
+template <typename T> class LuaSnapshotStdAllocator {
+public:
+    using value_type = T;
+    using propagate_on_container_copy_assignment = std::true_type;
+    using propagate_on_container_move_assignment = std::true_type;
+    using propagate_on_container_swap = std::true_type;
+    using is_always_equal = std::false_type;
+
+    LuaSnapshotStdAllocator() noexcept = default;
+    explicit LuaSnapshotStdAllocator(const LuaAllocator* allocator) noexcept
+        : allocator_(allocator != nullptr ? *allocator : LuaAllocator{}) {}
+
+    template <typename U>
+    LuaSnapshotStdAllocator(const LuaSnapshotStdAllocator<U>& other) noexcept : allocator_(other.getLuaAllocator()) {}
+
+    [[nodiscard]] T* allocate(std::size_t count) {
+        return LuaStdAllocator<T>(&allocator_).allocate(count);
+    }
+
+    void deallocate(T* pointer, std::size_t count) noexcept {
+        LuaStdAllocator<T>(&allocator_).deallocate(pointer, count);
+    }
+
+    [[nodiscard]] const LuaAllocator& getLuaAllocator() const noexcept {
+        return allocator_;
+    }
+
+    template <typename U> bool operator==(const LuaSnapshotStdAllocator<U>& other) const noexcept {
+        const LuaAllocator& rhs = other.getLuaAllocator();
+        return allocator_.getFunction() == rhs.getFunction() && allocator_.getUserData() == rhs.getUserData();
+    }
+
+    template <typename U> bool operator!=(const LuaSnapshotStdAllocator<U>& other) const noexcept {
+        return !(*this == other);
+    }
+
+private:
+    LuaAllocator allocator_;
+};
+
 template <typename T> using LuaVector = std::vector<T, LuaStdAllocator<T>>;
 using LuaString = std::basic_string<char, std::char_traits<char>, LuaStdAllocator<char>>;
+using LuaOwnedString = std::basic_string<char, std::char_traits<char>, LuaSnapshotStdAllocator<char>>;
 
 /**
  * Contiguous storage for trivially copyable runtime records.

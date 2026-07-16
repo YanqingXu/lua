@@ -3148,7 +3148,7 @@
     {
       "rule": "C allocator free",
       "path": "src\\runtime\\lua_allocator.hpp",
-      "line": 382,
+      "line": 430,
       "textHash": "d7690a05ce7d7b2fd6880195c277c98936008b9c22524adc26e2053427993f21",
       "rationale": "Existing product compatibility baseline; remove or modernize when the location is touched."
     },
@@ -3197,14 +3197,14 @@
     {
       "rule": "char pointer parse cursor",
       "path": "src\\compiler\\lexer\\lexer.cpp",
-      "line": 453,
+      "line": 454,
       "textHash": "442f9576e3398ac9f40d9f930443affd17da2767790563b39cfd9c4b5e1fd76b",
       "rationale": "Existing product advisory; modernize when the surrounding compatibility boundary is touched."
     },
     {
       "rule": "char pointer parse cursor",
       "path": "src\\compiler\\lexer\\lexer.cpp",
-      "line": 502,
+      "line": 503,
       "textHash": "442f9576e3398ac9f40d9f930443affd17da2767790563b39cfd9c4b5e1fd76b",
       "rationale": "Existing product advisory; modernize when the surrounding compatibility boundary is touched."
     },
@@ -4233,22 +4233,22 @@
     {
       "rule": "return nullptr",
       "path": "tests\\unit\\compiler\\test_parser_boundaries.cpp",
-      "line": 47,
-      "textHash": "e1e19ddff4d65f35c07effb92f2897d484cdefb3aa1b6c2588a55bf7fe5d2c26",
+      "line": 79,
+      "textHash": "0e4bce8ffb90a54f87dd1e313212d256102e9e3c73e8525feeb9faddd27faf05",
       "rationale": "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
     },
     {
       "rule": "return nullptr",
       "path": "tests\\unit\\compiler\\test_parser_boundaries.cpp",
-      "line": 53,
-      "textHash": "cdc9189db5349bdc7e350090aa0df25ea3a2ff0f8bfb34264f9aff8fb963cdbf",
+      "line": 85,
+      "textHash": "0e4bce8ffb90a54f87dd1e313212d256102e9e3c73e8525feeb9faddd27faf05",
       "rationale": "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
     },
     {
       "rule": "return nullptr",
       "path": "tests\\unit\\compiler\\test_parser_boundaries.cpp",
-      "line": 63,
-      "textHash": "02dfea3b4f1986f3714c8884ed4297e61352f3b4bc03d649e5c4c93731d4581b",
+      "line": 93,
+      "textHash": "0e4bce8ffb90a54f87dd1e313212d256102e9e3c73e8525feeb9faddd27faf05",
       "rationale": "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
     },
     {

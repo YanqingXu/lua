@@ -17,16 +17,17 @@ static Str getTokenText(const Token& token) {
     }
 
     if (!token.lexeme.empty()) {
-        return token.lexeme;
+        return Str(token.lexeme.data(), token.lexeme.size());
     }
 
     return tokenTypeToString(token.type);
 }
 
 Str Parser::Impl::errorWithNear(const Str& message, const Token& token) {
-    const Str& diagnostic =
-        (token.type == TokenType::Error && !token.errorMessage.empty()) ? token.errorMessage : message;
-    return diagnostic + " near '" + getTokenText(token) + "'";
+    const StrView diagnostic = (token.type == TokenType::Error && !token.errorMessage.empty())
+                                   ? StrView(token.errorMessage.data(), token.errorMessage.size())
+                                   : StrView(message);
+    return Str(diagnostic) + " near '" + getTokenText(token) + "'";
 }
 
 Parser::Parser(const Str& source) : Parser(source, ParserOptions{}) {}

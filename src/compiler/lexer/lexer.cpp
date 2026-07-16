@@ -155,18 +155,18 @@ Lexer::Lexer(const Str& source) : Lexer(source, nullptr) {}
 
 Lexer::Lexer(const Str& source, LuaAllocator* allocator)
     : allocator_(allocator != nullptr ? *allocator : LuaAllocator{}),
-      sourceStorage_(source.begin(), source.end(), LuaStdAllocator<char>(&allocator_)),
+      sourceStorage_(source.begin(), source.end(), LuaSnapshotStdAllocator<char>(&allocator_)),
       ownedInput_(makeUnique<IO::InputStream>(StrView(sourceStorage_.data(), sourceStorage_.size()))),
-      inputCursor_(*ownedInput_, &allocator_), lexemeBuffer_(LuaStdAllocator<char>(&allocator_)), tokenStartLine_(1),
-      tokenStartColumn_(1), lookahead_(std::nullopt) {}
+      inputCursor_(*ownedInput_, &allocator_), lexemeBuffer_(LuaSnapshotStdAllocator<char>(&allocator_)),
+      tokenStartLine_(1), tokenStartColumn_(1), lookahead_(std::nullopt) {}
 
 Lexer::Lexer(IO::InputStream& input) : Lexer(input, nullptr) {}
 
 Lexer::Lexer(IO::InputStream& input, LuaAllocator* allocator)
     : allocator_(allocator != nullptr ? *allocator : LuaAllocator{}),
-      sourceStorage_(LuaStdAllocator<char>(&allocator_)), ownedInput_(nullptr), inputCursor_(input, &allocator_),
-      lexemeBuffer_(LuaStdAllocator<char>(&allocator_)), tokenStartLine_(1), tokenStartColumn_(1),
-      lookahead_(std::nullopt) {}
+      sourceStorage_(LuaSnapshotStdAllocator<char>(&allocator_)), ownedInput_(nullptr),
+      inputCursor_(input, &allocator_), lexemeBuffer_(LuaSnapshotStdAllocator<char>(&allocator_)), tokenStartLine_(1),
+      tokenStartColumn_(1), lookahead_(std::nullopt) {}
 
 // =====================================================================
 // 字符操作
@@ -248,15 +248,16 @@ void Lexer::consumeNewlinePairRemainder(char firstNewline) {
 // =====================================================================
 
 Token Lexer::makeToken(TokenType type) {
-    Token token(type, StrView(lexemeBuffer_.data(), lexemeBuffer_.size()), tokenStartLine_, tokenStartColumn_);
+    Token token(type, StrView(lexemeBuffer_.data(), lexemeBuffer_.size()), tokenStartLine_, tokenStartColumn_,
+                &allocator_);
     return token;
 }
 
 Token Lexer::errorToken(const Str& message) {
     // 使用累积的 lexeme 缓冲区，如果为空则使用错误消息
     Str lexeme = lexemeBuffer_.empty() ? message : Str(lexemeBuffer_.data(), lexemeBuffer_.size());
-    Token token(TokenType::Error, lexeme, tokenStartLine_, tokenStartColumn_);
-    token.errorMessage = message;
+    Token token(TokenType::Error, lexeme, tokenStartLine_, tokenStartColumn_, &allocator_);
+    token.setErrorMessage(message);
     return token;
 }
 
@@ -568,7 +569,7 @@ Token Lexer::shortString(char quote) {
     advance();
 
     Token token = makeToken(TokenType::String);
-    token.value = result;
+    token.setStringValue(StrView(result.data(), result.size()));
 
     return token;
 }
@@ -631,7 +632,7 @@ Token Lexer::longString(i32 level) {
             Opt<i32> endLevel = readLongBracketDelimiter();
             if (endLevel.has_value() && endLevel.value() == level) {
                 Token token = makeToken(TokenType::String);
-                token.value = result;
+                token.setStringValue(StrView(result.data(), result.size()));
                 return token;
             }
             restoreState(savedState);

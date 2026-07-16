@@ -340,12 +340,12 @@ private:
     // 输入流管理
     // =====================================================================
 
-    LuaAllocator allocator_; ///< 值快照；必须比下方 allocator-aware 字符串后析构
+    LuaAllocator allocator_; ///< 编译期 callback 快照；传给游标和 Token
 
     // 当从字符串构造 Lexer 时，保存一份源代码副本，
     // 以保证 InputStream 持有的 std::string_view 在整个 Lexer 生命周期内始终有效。
     // 注意：此成员不会再用于基于下标的字符访问，仅用于管理生命周期。
-    LuaString sourceStorage_;
+    LuaOwnedString sourceStorage_;
 
     UPtr<IO::InputStream> ownedInput_; ///< 拥有的输入流（用于字符串构造）
 
@@ -359,7 +359,7 @@ private:
     // Lexeme 累积缓冲区
     // =====================================================================
 
-    LuaString lexemeBuffer_; ///< 累积当前 token 的字符
+    LuaOwnedString lexemeBuffer_; ///< 累积当前 token 的字符
 
     // =====================================================================
     // 位置跟踪
