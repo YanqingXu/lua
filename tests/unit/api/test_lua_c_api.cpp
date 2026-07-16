@@ -165,6 +165,9 @@ size_t gFragmentedReaderAllocationStart = 0;
 size_t gFragmentedReaderBufferAttempts = 0;
 size_t gFragmentedReaderHardLimit = 0;
 bool gFragmentedReaderUseHardLimit = false;
+bool gCallInfoUseHardLimit = false;
+size_t gCallInfoAllocationStart = 0;
+size_t gCallInfoHardLimit = 0;
 
 struct AllocatorLedger {
     std::unordered_map<std::uintptr_t, size_t> blocks;
@@ -724,6 +727,28 @@ int allocateApiUserdata(lua_State* L) {
     }
     lua_newuserdata(L, 48);
     return 1;
+}
+
+int growCallInfoWithArmedAllocator(lua_State* L) {
+    auto* state = reinterpret_cast<Lua::LuaState*>(L);
+    while (state->getCurrentCI() + 1 < state->getCallStack().size()) {
+        (void)state->pushCallInfo();
+    }
+
+    AllocatorProbe* probe = gAllocatorFailureProbe;
+    if (probe != nullptr) {
+        gCallInfoAllocationStart = probe->allocationAttempts;
+        if (gCallInfoUseHardLimit) {
+            probe->ledger->hardLimit = probe->ledger->liveBytes;
+            probe->ledger->peakBytes = probe->ledger->liveBytes;
+            gCallInfoHardLimit = probe->ledger->hardLimit;
+        } else {
+            probe->failOnAllocation = probe->allocationAttempts + 1;
+        }
+    }
+
+    (void)state->pushCallInfo();
+    return 0;
 }
 
 int disarmAllocatorFailure(lua_State*) {
@@ -2949,6 +2974,88 @@ void testAllocatorFailurePaths(TestSuite& suite) {
     ASSERT_EQ(suite, static_cast<size_t>(0), ledger.unknownFrees, "failure rollback frees each allocator block once");
 }
 
+void testStateStackAndCallInfoAllocatorTransactions(TestSuite& suite) {
+    AllocatorLedger ledger;
+    AllocatorProbe probe{&ledger};
+    lua_State* L = lua_newstate(trackingLuaAllocator, &probe);
+    ASSERT_TRUE(suite, L != nullptr, "state stack allocator test creates a state");
+    auto* state = reinterpret_cast<Lua::LuaState*>(L);
+
+    const int topBeforeStackGrowth = lua_gettop(L);
+    const size_t liveBeforeStackGrowth = ledger.liveBytes;
+    const size_t blocksBeforeStackGrowth = ledger.blocks.size();
+    const size_t stackAllocationStart = probe.allocationAttempts;
+    probe.failOnAllocation = stackAllocationStart + 1;
+    ASSERT_EQ(suite, 0, lua_checkstack(L, 2048), "lua_checkstack contains an injected stack allocation failure");
+    ASSERT_EQ(suite, stackAllocationStart + 1, probe.allocationAttempts,
+              "lua_checkstack reaches the selected allocator attempt");
+    ASSERT_EQ(suite, topBeforeStackGrowth, lua_gettop(L), "failed stack growth preserves the logical top");
+    ASSERT_EQ(suite, liveBeforeStackGrowth, ledger.liveBytes, "failed stack growth preserves allocator live bytes");
+    ASSERT_EQ(suite, blocksBeforeStackGrowth, ledger.blocks.size(), "failed stack growth preserves owned blocks");
+
+    probe.failOnAllocation = 0;
+    ledger.hardLimit = ledger.liveBytes;
+    ledger.peakBytes = ledger.liveBytes;
+    const size_t stackHardLimit = ledger.hardLimit;
+    ASSERT_EQ(suite, 0, lua_checkstack(L, 2048), "zero-headroom hard limit rejects stack growth");
+    ASSERT_TRUE(suite, ledger.liveBytes <= stackHardLimit && ledger.peakBytes <= stackHardLimit,
+                "stack growth never exceeds the allocator hard limit");
+    ASSERT_EQ(suite, topBeforeStackGrowth, lua_gettop(L), "hard-limit stack failure preserves the logical top");
+
+    ledger.hardLimit = std::numeric_limits<size_t>::max();
+    ASSERT_EQ(suite, 1, lua_checkstack(L, 2048), "stack growth succeeds after lifting the allocator hard limit");
+    ASSERT_TRUE(suite, state->getStack().capacity() >= static_cast<Lua::usize>(2049),
+                "stack retry publishes the requested capacity and emergency slot");
+
+    gAllocatorFailureProbe = &probe;
+    gCallInfoUseHardLimit = false;
+    lua_pushcclosure(L, growCallInfoWithArmedAllocator, 0);
+    ASSERT_EQ(suite, LUA_ERRMEM, lua_pcall(L, 0, 0, 0),
+              "protected call maps CallInfo allocation failure to LUA_ERRMEM");
+    ASSERT_EQ(suite, gCallInfoAllocationStart + 1, probe.allocationAttempts,
+              "CallInfo failure reaches the selected allocator attempt");
+    ASSERT_EQ(suite, static_cast<Lua::usize>(1), state->getCallStackSize(),
+              "CallInfo allocation failure restores the base call depth");
+    ASSERT_TRUE(suite, lua_isstring(L, -1) != 0 && std::string(lua_tostring(L, -1)) == "not enough memory",
+                "CallInfo allocation failure publishes the fixed memory error");
+
+    probe.failOnAllocation = 0;
+    lua_settop(L, 0);
+    gCallInfoUseHardLimit = true;
+    lua_pushcclosure(L, growCallInfoWithArmedAllocator, 0);
+    ASSERT_EQ(suite, LUA_ERRMEM, lua_pcall(L, 0, 0, 0), "zero-headroom hard limit rejects CallInfo growth");
+    ASSERT_TRUE(suite, ledger.liveBytes <= gCallInfoHardLimit && ledger.peakBytes <= gCallInfoHardLimit,
+                "CallInfo growth never exceeds the allocator hard limit");
+    ASSERT_EQ(suite, static_cast<Lua::usize>(1), state->getCallStackSize(),
+              "hard-limit CallInfo failure restores the base call depth");
+
+    ledger.hardLimit = std::numeric_limits<size_t>::max();
+    gCallInfoUseHardLimit = false;
+    gAllocatorFailureProbe = nullptr;
+    lua_settop(L, 0);
+    const Lua::usize baseDepth = state->getCallStackSize();
+    while (state->getCurrentCI() + 1 < state->getCallStack().size()) {
+        (void)state->pushCallInfo();
+    }
+    (void)state->pushCallInfo();
+    ASSERT_TRUE(suite, state->getCallStack().size() > Lua::INITIAL_CI_SIZE,
+                "CallInfo growth succeeds after lifting the allocator hard limit");
+    while (state->getCallStackSize() > baseDepth) {
+        state->popCallInfo();
+    }
+
+    lua_pushcclosure(L, doubleApiArgument, 0);
+    lua_pushnumber(L, 21);
+    ASSERT_EQ(suite, LUA_OK, lua_pcall(L, 1, 1, 0), "state remains callable after CallInfo allocation rollback");
+    ASSERT_EQ(suite, 42.0, lua_tonumber(L, -1), "post-rollback call returns the expected result");
+
+    lua_close(L);
+    ASSERT_TRUE(suite, ledger.blocks.empty() && ledger.liveBytes == 0,
+                "stack and CallInfo transaction state closes with zero allocator ownership");
+    ASSERT_TRUE(suite, ledger.sizeMismatches == 0 && ledger.unknownFrees == 0,
+                "stack and CallInfo transactions preserve allocator contracts");
+}
+
 void testPublicResumeAllocationRollback(TestSuite& suite) {
     AllocatorLedger ledger;
     AllocatorProbe probe{&ledger};
@@ -4147,6 +4254,8 @@ void registerLuaCApiTests() {
     registry.registerTest(kSuiteName, "Proto allocator transactions", testProtoAllocatorTransactions);
     registry.registerTest(kSuiteName, "allocator replacement", testAllocatorCanBeReplaced);
     registry.registerTest(kSuiteName, "allocator failure paths", testAllocatorFailurePaths);
+    registry.registerTest(kSuiteName, "state stack and CallInfo allocator transactions",
+                          testStateStackAndCallInfoAllocatorTransactions);
     registry.registerTest(kSuiteName, "fragmented reader allocator transactions",
                           testFragmentedReaderAllocatorTransactions);
     registry.registerTest(kSuiteName, "loadbuffer allocator failures", testLoadBufferAllocatorFailures);
