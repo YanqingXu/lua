@@ -3262,10 +3262,6 @@ constexpr const char* kConcatAllocatorSource =
 
 void prepareConcatAllocatorFixture(lua_State* L) {
     lua_settop(L, 0);
-    // Collector worklists have their own fail-on-N matrix. Keep this fixture
-    // scoped to OP_CONCAT buffers so an automatic cycle cannot add unrelated
-    // implementation-specific deallocation traffic after a successful retry.
-    (void)lua_gc(L, LUA_GCSTOP, 0);
     lua_pushcclosure(L, armConcatAllocatorFailure, 0);
     lua_setglobal(L, "__arm_concat_allocator");
 
