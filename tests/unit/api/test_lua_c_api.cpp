@@ -3284,6 +3284,11 @@ bool concatAllocatorResultMatches(lua_State* L) {
            std::string_view(text + 96, 96) == std::string(96, 'R');
 }
 
+std::string concatAllocatorLedgerResult(const char* context, const AllocatorLedger& ledger) {
+    return std::format("{} [blocks={}, liveBytes={}, sizeMismatches={}, unknownFrees={}]", context,
+                       ledger.blocks.size(), ledger.liveBytes, ledger.sizeMismatches, ledger.unknownFrees);
+}
+
 void testConcatAllocatorTransactions(TestSuite& suite) {
     size_t concatAllocationAttempts = 0;
     {
@@ -3303,10 +3308,10 @@ void testConcatAllocatorTransactions(TestSuite& suite) {
 
         gAllocatorFailureProbe = nullptr;
         lua_close(L);
-        ASSERT_TRUE(suite,
-                    ledger.blocks.empty() && ledger.liveBytes == 0 && ledger.sizeMismatches == 0 &&
-                        ledger.unknownFrees == 0,
-                    "concat allocator baseline closes with valid allocator ownership");
+        ASSERT_TRUE(
+            suite,
+            ledger.blocks.empty() && ledger.liveBytes == 0 && ledger.sizeMismatches == 0 && ledger.unknownFrees == 0,
+            concatAllocatorLedgerResult("concat allocator baseline closes with valid allocator ownership", ledger));
     }
 
     for (size_t offset = 1; offset <= concatAllocationAttempts; ++offset) {
@@ -3336,10 +3341,10 @@ void testConcatAllocatorTransactions(TestSuite& suite) {
         ASSERT_TRUE(suite, concatAllocatorResultMatches(L), "concat retry preserves both long operands");
 
         lua_close(L);
-        ASSERT_TRUE(suite,
-                    ledger.blocks.empty() && ledger.liveBytes == 0 && ledger.sizeMismatches == 0 &&
-                        ledger.unknownFrees == 0,
-                    "concat fail-on-N rollback closes with valid allocator ownership");
+        ASSERT_TRUE(
+            suite,
+            ledger.blocks.empty() && ledger.liveBytes == 0 && ledger.sizeMismatches == 0 && ledger.unknownFrees == 0,
+            concatAllocatorLedgerResult("concat fail-on-N rollback closes with valid allocator ownership", ledger));
     }
 
     AllocatorLedger hardLimitLedger;
@@ -3373,7 +3378,8 @@ void testConcatAllocatorTransactions(TestSuite& suite) {
     ASSERT_TRUE(suite,
                 hardLimitLedger.blocks.empty() && hardLimitLedger.liveBytes == 0 &&
                     hardLimitLedger.sizeMismatches == 0 && hardLimitLedger.unknownFrees == 0,
-                "concat hard-limit rollback closes with valid allocator ownership");
+                concatAllocatorLedgerResult("concat hard-limit rollback closes with valid allocator ownership",
+                                            hardLimitLedger));
 }
 
 constexpr const char* kTableConcatAllocatorSource =
