@@ -27,13 +27,11 @@ public:
 private:
     class AstFactory {
     public:
-        template<typename T, typename... Args>
-        ExprPtr makeExpr(Args&&... args) {
+        template <typename T, typename... Args> ExprPtr makeExpr(Args&&... args) {
             return makeUnique<Expr>(T(std::forward<Args>(args)...));
         }
 
-        template<typename T, typename... Args>
-        StmtPtr makeStmt(Args&&... args) {
+        template <typename T, typename... Args> StmtPtr makeStmt(Args&&... args) {
             return makeUnique<Stmt>(T(std::forward<Args>(args)...));
         }
 
@@ -59,11 +57,8 @@ private:
 
     class TokenStream {
     public:
-        explicit TokenStream(const Str& source)
-            : lexer_(source)
-            , current_(lexer_.nextToken())
-            , previous_(current_) {
-        }
+        explicit TokenStream(const Str& source, LuaAllocator* allocator = nullptr)
+            : lexer_(source, allocator), current_(lexer_.nextToken()), previous_(current_) {}
 
         [[nodiscard]] const Token& current() const noexcept {
             return current_;
@@ -219,13 +214,11 @@ private:
     Vec<StmtPtr> parseBlock();
     Vec<ExprPtr> parseExprList();
 
-    template<typename T, typename... Args>
-    ExprPtr makeExpr(Args&&... args) {
+    template <typename T, typename... Args> ExprPtr makeExpr(Args&&... args) {
         return astFactory_.makeExpr<T>(std::forward<Args>(args)...);
     }
 
-    template<typename T, typename... Args>
-    StmtPtr makeStmt(Args&&... args) {
+    template <typename T, typename... Args> StmtPtr makeStmt(Args&&... args) {
         return astFactory_.makeStmt<T>(std::forward<Args>(args)...);
     }
 
@@ -257,8 +250,7 @@ private:
     class RecursionGuard {
     public:
         explicit RecursionGuard(Impl& parser, i32 maxDepth = MAX_RECURSION_DEPTH)
-            : parser_(parser)
-            , maxDepth_(maxDepth) {
+            : parser_(parser), maxDepth_(maxDepth) {
             entered_ = true;
             if (parser_.parseState_.enterSyntaxLevel() > maxDepth_) {
                 parser_.parseState_.leaveSyntaxLevel();
@@ -294,4 +286,4 @@ private:
     UPtr<ErrorRecoveryStrategy> recoveryStrategy_;
 };
 
-}
+} // namespace Lua

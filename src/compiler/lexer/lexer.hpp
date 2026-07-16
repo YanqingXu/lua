@@ -3,9 +3,9 @@
 /**
  * @file lexer.hpp
  * @brief Lua词法分析器
- * 
+ *
  * 实现Lua 5.1的词法分析器，将源代码文本转换为Token流。
- * 
+ *
  * 核心功能：
  * - 识别Lua 5.1的所有关键字、运算符和字面量
  * - 支持单行注释（--）和多行注释（--[[ ]]）
@@ -26,9 +26,9 @@ namespace Lua {
 
 /**
  * @brief Lua词法分析器类
- * 
+ *
  * 使用单遍扫描算法，从源代码字符串中提取Token。
- * 
+ *
  * 特性：
  * - 流式处理，支持大文件
  * - Token预读机制（peekToken），支持LL(1)语法分析
@@ -46,6 +46,7 @@ public:
      * 内部会创建 StringInputStream，保持向后兼容性。
      */
     explicit Lexer(const Str& source);
+    Lexer(const Str& source, LuaAllocator* allocator);
 
     /**
      * @brief 从 InputStream 构造 Lexer
@@ -54,65 +55,70 @@ public:
      * 注意：input 必须在 Lexer 生命周期内保持有效。
      */
     explicit Lexer(IO::InputStream& input);
+    Lexer(IO::InputStream& input, LuaAllocator* allocator);
 
     Lexer(const Lexer&) = delete;
     Lexer& operator=(const Lexer&) = delete;
     Lexer(Lexer&&) = delete;
     Lexer& operator=(Lexer&&) = delete;
-    
+
     /**
      * @brief 获取下一个Token
      * @return Token对象
-     * 
+     *
      * 如果存在预读Token，则返回并清除预读状态；
      * 否则从输入流中解析新Token。
      */
     Token nextToken();
-    
+
     /**
      * @brief 预读下一个Token而不消费当前Token
      * @return 预读的Token对象
-     * 
+     *
      * 支持LL(1)语法分析的前瞻功能。预读的Token会被缓存，
      * 下次调用nextToken()时会返回该Token。
      */
     Token peekToken();
-    
+
     /**
      * @brief 检查是否到达源代码末尾
      */
     bool isAtEnd() const noexcept;
-    
+
     /**
      * @brief 获取当前行号
      */
-    i32 getCurrentLine() const noexcept { return inputCursor_.line(); }
-    
+    i32 getCurrentLine() const noexcept {
+        return inputCursor_.line();
+    }
+
     /**
      * @brief 获取当前列号
      */
-    i32 getCurrentColumn() const noexcept { return inputCursor_.column(); }
+    i32 getCurrentColumn() const noexcept {
+        return inputCursor_.column();
+    }
 
 private:
     // =====================================================================
     // 字符操作
     // =====================================================================
-    
+
     /**
      * @brief 前进一个字符并返回
      */
     char advance();
-    
+
     /**
      * @brief 查看当前字符（不前进）
      */
     char peek() const noexcept;
-    
+
     /**
      * @brief 查看下一个字符（不前进）
      */
     char peekNext() const noexcept;
-    
+
     /**
      * @brief 如果当前字符匹配，则前进
      */
@@ -145,82 +151,84 @@ private:
      * @brief 若已消费换行序列首字符，则消费可选的第二个配对换行字符
      */
     void consumeNewlinePairRemainder(char firstNewline);
-    
+
     // =====================================================================
     // Token创建
     // =====================================================================
-    
+
     /**
      * @brief 创建Token
      */
     Token makeToken(TokenType type);
-    
+
     /**
      * @brief 创建错误Token
      */
     Token errorToken(const Str& message);
-    
+
     // =====================================================================
     // 跳过空白和注释
     // =====================================================================
-    
+
     /**
      * @brief 跳过空白字符和注释
      */
     Opt<Token> skipWhitespace();
-    
+
     /**
      * @brief 跳过注释（包括短注释和长注释）
-     * 
+     *
      * 当检测到 '--' 时调用此函数，自动识别是短注释还是长注释
      * 并调用相应的处理函数。
      */
     Opt<Token> skipComment();
-    
+
     /**
      * @brief 跳过单行注释
      */
     void skipLineComment();
-    
+
     /**
      * @brief 跳过多行注释
      * @param level 分隔符等级（=的数量）
      */
     Opt<Token> skipLongComment(i32 level);
-    
+
     // =====================================================================
     // 识别不同类型的Token
     // =====================================================================
-    
+
     /**
      * @brief 识别标识符或关键字
      */
     Token identifier();
-    
+
     /**
      * @brief 识别数字（十进制或十六进制）
      */
     Token decimalNumber();
-    
+
     /**
      * @brief 识别十六进制数字
      */
     Token hexadecimalNumber();
-    
+
     /**
      * @brief 识别字符串（单引号或双引号）
      */
     Token shortString(char quote);
-    
+
     /**
      * @brief 识别长字符串
      * @param level 分隔符等级（=的数量）
      */
     Token longString(i32 level);
-    
+
     /**
      * @brief 跳过长字符串/注释的分隔符 [=*[
-     * @return 等号数量，如果不是有效分隔符返回 std::nullopt
+     * @return 等号数；无效时返回
+     * std::nullopt
+
      */
     Opt<i32> readLongBracketDelimiter();
 
@@ -228,15 +236,15 @@ private:
     /**
      * @brief 内部Token解析函数
      * @return 解析的Token对象
-     * 
+     *
      * 实际执行词法分析的核心函数，被nextToken()和peekToken()调用。
      */
     Token scanToken();
-    
+
     /**
      * @brief 尝试扫描长字符串 [[ 或 [=[
      * @return 如果是长字符串，返回对应的Token；否则返回std::nullopt
-     * 
+     *
      * 当检测到'['字符时调用，用于判断是长字符串还是单字符标记。
      */
     Opt<Token> tryLongString();
@@ -276,12 +284,12 @@ private:
      * @brief 消费非法数字后缀（如 123abc 或 0x1G）以形成完整错误词素
      */
     void consumeMalformedNumberSuffix();
-    
+
     /**
      * @brief 处理运算符和分隔符
      * @param c 当前字符
      * @return Token对象
-     * 
+     *
      * 处理所有单字符和多字符运算符、分隔符。
      */
     Token handleOperator(char c);
@@ -300,14 +308,14 @@ private:
      * @brief 处理 '.'、'..'、'...' 或小数
      */
     Token handleDotOperator();
-    
+
     // =====================================================================
     // 词法分析器状态保存/恢复（用于回溯）
     // =====================================================================
-    
+
     /**
      * @brief 词法分析器状态快照
-     * 
+     *
      * 用于在解析失败时回退到之前的状态（如长字符串检测失败）。
      */
     struct LexerState {
@@ -316,12 +324,12 @@ private:
         i32 tokenStartLine;
         i32 tokenStartColumn;
     };
-    
+
     /**
      * @brief 保存当前词法分析器状态
      */
     LexerState saveState() const;
-    
+
     /**
      * @brief 恢复之前保存的词法分析器状态
      */
@@ -349,21 +357,20 @@ private:
     // Lexeme 累积缓冲区
     // =====================================================================
 
-    Str lexemeBuffer_;   ///< 累积当前 token 的字符
+    Str lexemeBuffer_; ///< 累积当前 token 的字符
 
     // =====================================================================
     // 位置跟踪
     // =====================================================================
 
-    i32 tokenStartLine_;     ///< 当前 Token 起始行号
-    i32 tokenStartColumn_;   ///< 当前 Token 起始列号
+    i32 tokenStartLine_;   ///< 当前 Token 起始行号
+    i32 tokenStartColumn_; ///< 当前 Token 起始列号
 
     // =====================================================================
     // Token 预读机制（支持 LL(1) 语法分析）
     // =====================================================================
 
-    Opt<Token> lookahead_;  ///< 预读 Token 缓存
+    Opt<Token> lookahead_; ///< 预读 Token 缓存
 };
 
 } // namespace Lua
-

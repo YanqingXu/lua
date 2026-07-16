@@ -11,22 +11,18 @@ namespace Lua {
 // InputCursor
 // =====================================================================
 
-InputCursor::InputCursor(IO::InputStream& input)
-    : input_(&input)
-    , buffer_()
-    , cursor_(0)
-    , reachedEof_(false)
-    , line_(1)
-    , column_(1)
-    , pendingNewlineChar_(-1)
-{
+InputCursor::InputCursor(IO::InputStream& input, LuaAllocator* allocator)
+    : input_(&input), allocator_(allocator != nullptr ? *allocator : LuaAllocator{}),
+      buffer_(LuaStdAllocator<i32>(&allocator_)), cursor_(0), reachedEof_(false), line_(1), column_(1),
+      pendingNewlineChar_(-1) {
     ensureLookahead();
 }
 
 char InputCursor::advance() {
     ensureBuffered(cursor_);
     i32 ch = buffer_[cursor_];
-    if (ch == -1) return '\0';
+    if (ch == -1)
+        return '\0';
 
     cursor_++;
 
@@ -62,12 +58,7 @@ bool InputCursor::isAtEnd() const noexcept {
 }
 
 InputCursor::State InputCursor::save() const noexcept {
-    return State{
-        cursor_,
-        line_,
-        column_,
-        pendingNewlineChar_
-    };
+    return State{cursor_, line_, column_, pendingNewlineChar_};
 }
 
 void InputCursor::restore(const State& state) {

@@ -3252,6 +3252,36 @@ void testLoadBufferAllocatorFailures(TestSuite& suite) {
                   "loader failure rollback preserves allocator old sizes");
         ASSERT_EQ(suite, static_cast<size_t>(0), ledger.unknownFrees, "loader failure rollback frees each block once");
     }
+
+    AllocatorLedger hardLimitLedger;
+    AllocatorProbe hardLimitProbe{&hardLimitLedger};
+    lua_State* hardLimitState = lua_newstate(trackingLuaAllocator, &hardLimitProbe);
+    ASSERT_TRUE(suite, hardLimitState != nullptr, "loadbuffer hard-limit test creates state");
+    hardLimitLedger.hardLimit = hardLimitLedger.liveBytes;
+    hardLimitLedger.peakBytes = hardLimitLedger.liveBytes;
+    const size_t hardLimit = hardLimitLedger.hardLimit;
+    ASSERT_EQ(suite, LUA_ERRMEM, luaL_loadbuffer(hardLimitState, source, std::strlen(source), "=hard-limit-loadbuffer"),
+              "zero-headroom hard limit rejects loadbuffer growth");
+    ASSERT_TRUE(suite, hardLimitLedger.peakBytes <= hardLimit && hardLimitLedger.liveBytes <= hardLimit,
+                "loadbuffer never exceeds the host hard limit");
+    ASSERT_TRUE(suite,
+                lua_gettop(hardLimitState) == 1 && lua_isstring(hardLimitState, -1) != 0 &&
+                    std::string(lua_tostring(hardLimitState, -1)) == "not enough memory",
+                "loadbuffer hard-limit failure publishes the fixed memory error");
+
+    hardLimitLedger.hardLimit = std::numeric_limits<size_t>::max();
+    hardLimitProbe.failOnAllocation = 0;
+    lua_settop(hardLimitState, 0);
+    ASSERT_EQ(suite, LUA_OK, luaL_loadbuffer(hardLimitState, source, std::strlen(source), "=hard-limit-loadbuffer"),
+              "loadbuffer compiles after lifting the hard limit");
+    ASSERT_EQ(suite, LUA_OK, lua_pcall(hardLimitState, 0, 1, 0), "loadbuffer hard-limit retry executes");
+    ASSERT_EQ(suite, 8.0, lua_tonumber(hardLimitState, -1), "loadbuffer hard-limit retry returns the expected value");
+
+    lua_close(hardLimitState);
+    ASSERT_TRUE(suite, hardLimitLedger.blocks.empty() && hardLimitLedger.liveBytes == 0,
+                "loadbuffer hard-limit state closes with zero allocator ownership");
+    ASSERT_TRUE(suite, hardLimitLedger.sizeMismatches == 0 && hardLimitLedger.unknownFrees == 0,
+                "loadbuffer hard-limit path preserves allocator contracts");
 }
 
 void testLoadersPublishMemoryErrorFromFullStack(TestSuite& suite) {
