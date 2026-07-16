@@ -3262,6 +3262,10 @@ constexpr const char* kConcatAllocatorSource =
 
 void prepareConcatAllocatorFixture(lua_State* L) {
     lua_settop(L, 0);
+    // Collector worklists have their own fail-on-N matrix. Keep this fixture
+    // scoped to OP_CONCAT buffers so an automatic cycle cannot add unrelated
+    // implementation-specific deallocation traffic after a successful retry.
+    (void)lua_gc(L, LUA_GCSTOP, 0);
     lua_pushcclosure(L, armConcatAllocatorFailure, 0);
     lua_setglobal(L, "__arm_concat_allocator");
 
@@ -3303,8 +3307,10 @@ void testConcatAllocatorTransactions(TestSuite& suite) {
 
         gAllocatorFailureProbe = nullptr;
         lua_close(L);
-        ASSERT_TRUE(suite, ledger.blocks.empty() && ledger.liveBytes == 0,
-                    "concat allocator baseline closes with zero ownership");
+        ASSERT_TRUE(suite,
+                    ledger.blocks.empty() && ledger.liveBytes == 0 && ledger.sizeMismatches == 0 &&
+                        ledger.unknownFrees == 0,
+                    "concat allocator baseline closes with valid allocator ownership");
     }
 
     for (size_t offset = 1; offset <= concatAllocationAttempts; ++offset) {
