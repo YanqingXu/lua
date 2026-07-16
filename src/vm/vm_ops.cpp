@@ -373,11 +373,12 @@ void concat(RuntimeServices& services, LuaState* L, Value* base, i32 a, i32 b, i
         }
 
         checkStringConcatLength(text2.view.size(), text1.view.size());
-        LuaString result(LuaStdAllocator<char>(services.globalState.getAllocator()));
+        LuaVector<char> result(LuaStdAllocator<char>(services.globalState.getAllocator()));
         result.reserve(text2.view.size() + text1.view.size());
-        result.append(text2.view.data(), text2.view.size());
-        result.append(text1.view.data(), text1.view.size());
-        base[last - 1] = Value(pool.intern(StrView(result.data(), result.size())));
+        result.insert(result.end(), text2.view.begin(), text2.view.end());
+        result.insert(result.end(), text1.view.begin(), text1.view.end());
+        const StrView resultView = result.empty() ? StrView("") : StrView(result.data(), result.size());
+        base[last - 1] = Value(pool.intern(resultView));
         [[maybe_unused]] const usize collected = services.gc.maybeCollectAutomatic(L);
         total--;
         last--;

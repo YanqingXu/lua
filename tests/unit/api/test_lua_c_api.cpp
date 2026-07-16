@@ -180,6 +180,10 @@ size_t gTableConcatFailureOffset = 0;
 size_t gTableConcatAllocationStart = 0;
 size_t gTableConcatHardLimit = 0;
 bool gTableConcatUseHardLimit = false;
+size_t gTableSortFailureOffset = 0;
+size_t gTableSortAllocationStart = 0;
+size_t gTableSortHardLimit = 0;
+bool gTableSortUseHardLimit = false;
 
 struct AllocatorLedger {
     std::unordered_map<std::uintptr_t, size_t> blocks;
@@ -809,6 +813,26 @@ int armTableConcatAllocatorFailure(lua_State*) {
         }
     }
     return 0;
+}
+
+int armTableSortAllocatorFailure(lua_State*) {
+    AllocatorProbe* probe = gAllocatorFailureProbe;
+    gTableSortAllocationStart = probe != nullptr ? probe->allocationAttempts : 0;
+    if (probe != nullptr) {
+        probe->failOnAllocation =
+            gTableSortFailureOffset == 0 ? 0 : probe->allocationAttempts + gTableSortFailureOffset;
+        if (gTableSortUseHardLimit) {
+            probe->ledger->hardLimit = probe->ledger->liveBytes;
+            probe->ledger->peakBytes = probe->ledger->liveBytes;
+            gTableSortHardLimit = probe->ledger->hardLimit;
+        }
+    }
+    return 0;
+}
+
+int compareTableSortNumbers(lua_State* L) {
+    lua_pushboolean(L, lua_tonumber(L, 1) < lua_tonumber(L, 2));
+    return 1;
 }
 
 int disarmAllocatorFailure(lua_State*) {
@@ -3479,6 +3503,160 @@ void testTableConcatAllocatorTransactions(TestSuite& suite) {
                 "table.concat hard-limit rollback closes with valid allocator ownership");
 }
 
+constexpr const char* kTableSortAllocatorSource =
+    "__arm_table_sort_allocator(); table.sort(__table_sort_allocator_values, __table_sort_allocator_less); "
+    "return __table_sort_allocator_values[1], __table_sort_allocator_values[16]";
+
+void prepareTableSortAllocatorFixture(lua_State* L) {
+    lua_settop(L, 0);
+    (void)luaopen_table(L);
+    lua_pop(L, 1);
+
+    lua_pushcclosure(L, armTableSortAllocatorFailure, 0);
+    lua_setglobal(L, "__arm_table_sort_allocator");
+    lua_pushcclosure(L, compareTableSortNumbers, 0);
+    lua_setglobal(L, "__table_sort_allocator_less");
+
+    lua_newtable(L);
+    for (int index = 1; index <= 16; ++index) {
+        lua_pushinteger(L, 17 - index);
+        lua_rawseti(L, -2, index);
+    }
+    lua_setglobal(L, "__table_sort_allocator_values");
+
+    if (luaL_loadstring(L, kTableSortAllocatorSource) != LUA_OK) {
+        throw std::runtime_error("failed to compile table.sort allocator fixture");
+    }
+}
+
+bool tableSortAllocatorValuesMatch(lua_State* L, bool ascending) {
+    lua_getglobal(L, "__table_sort_allocator_values");
+    bool matches = lua_istable(L, -1) != 0;
+    for (int index = 1; matches && index <= 16; ++index) {
+        lua_rawgeti(L, -1, index);
+        const lua_Number expected = ascending ? index : 17 - index;
+        matches = lua_isnumber(L, -1) != 0 && lua_tonumber(L, -1) == expected;
+        lua_pop(L, 1);
+    }
+    lua_pop(L, 1);
+    return matches;
+}
+
+void testTableSortAllocatorTransactions(TestSuite& suite) {
+    size_t allocationAttempts = 0;
+    {
+        AllocatorLedger ledger;
+        AllocatorProbe probe{&ledger};
+        lua_State* L = lua_newstate(trackingLuaAllocator, &probe);
+        ASSERT_TRUE(suite, L != nullptr, "table.sort allocator baseline creates a state");
+        prepareTableSortAllocatorFixture(L);
+        gAllocatorFailureProbe = &probe;
+        gTableSortFailureOffset = 0;
+        gTableSortUseHardLimit = false;
+
+        ASSERT_EQ(suite, LUA_OK, lua_pcall(L, 0, 2, 0), "table.sort allocator baseline executes");
+        allocationAttempts = probe.allocationAttempts - gTableSortAllocationStart;
+        ASSERT_TRUE(suite, allocationAttempts > 1,
+                    "table.sort observes result-copy and comparator-snapshot allocations");
+        ASSERT_TRUE(suite, tableSortAllocatorValuesMatch(L, true), "table.sort baseline publishes sorted values");
+
+        gAllocatorFailureProbe = nullptr;
+        lua_close(L);
+        ASSERT_TRUE(suite, ledger.blocks.empty() && ledger.liveBytes == 0,
+                    "table.sort allocator baseline closes with zero ownership");
+    }
+
+    bool statesCreated = true;
+    bool statusesAreMemoryErrors = true;
+    bool targetsAreReached = true;
+    bool errorsAreFixed = true;
+    bool tablesRemainUnchanged = true;
+    bool retriesSucceed = true;
+    bool retryResultsAreSorted = true;
+    bool statesCloseCleanly = true;
+    for (size_t offset = 1; offset <= allocationAttempts; ++offset) {
+        AllocatorLedger ledger;
+        AllocatorProbe probe{&ledger};
+        lua_State* L = lua_newstate(trackingLuaAllocator, &probe);
+        if (L == nullptr) {
+            statesCreated = false;
+            statesCloseCleanly = false;
+            continue;
+        }
+        prepareTableSortAllocatorFixture(L);
+        gAllocatorFailureProbe = &probe;
+        gTableSortFailureOffset = offset;
+        gTableSortUseHardLimit = false;
+
+        const int status = lua_pcall(L, 0, 2, 0);
+        statusesAreMemoryErrors = statusesAreMemoryErrors && status == LUA_ERRMEM;
+        targetsAreReached = targetsAreReached && probe.allocationAttempts == gTableSortAllocationStart + offset;
+        errorsAreFixed = errorsAreFixed && lua_gettop(L) == 1 && lua_isstring(L, -1) != 0 &&
+                         std::string(lua_tostring(L, -1)) == "not enough memory";
+        tablesRemainUnchanged = tablesRemainUnchanged && tableSortAllocatorValuesMatch(L, false);
+
+        probe.failOnAllocation = 0;
+        gTableSortFailureOffset = 0;
+        gAllocatorFailureProbe = nullptr;
+        lua_settop(L, 0);
+        prepareTableSortAllocatorFixture(L);
+        const int retryStatus = lua_pcall(L, 0, 2, 0);
+        retriesSucceed = retriesSucceed && retryStatus == LUA_OK;
+        retryResultsAreSorted =
+            retryResultsAreSorted && retryStatus == LUA_OK && tableSortAllocatorValuesMatch(L, true);
+
+        lua_close(L);
+        statesCloseCleanly = statesCloseCleanly && ledger.blocks.empty() && ledger.liveBytes == 0 &&
+                             ledger.sizeMismatches == 0 && ledger.unknownFrees == 0;
+    }
+
+    ASSERT_TRUE(suite, statesCreated, "table.sort fail-on-N scan creates every state");
+    ASSERT_TRUE(suite, statusesAreMemoryErrors, "every table.sort allocation failure becomes LUA_ERRMEM");
+    ASSERT_TRUE(suite, targetsAreReached, "table.sort scan reaches every observed allocator attempt");
+    ASSERT_TRUE(suite, errorsAreFixed, "table.sort allocation failures publish one fixed memory error");
+    ASSERT_TRUE(suite, tablesRemainUnchanged, "table.sort failures do not partially publish working copies");
+    ASSERT_TRUE(suite, retriesSucceed, "table.sort succeeds after every injected allocation failure");
+    ASSERT_TRUE(suite, retryResultsAreSorted, "every table.sort retry publishes sorted values");
+    ASSERT_TRUE(suite, statesCloseCleanly, "table.sort fail-on-N scan closes with valid allocator ownership");
+
+    AllocatorLedger hardLimitLedger;
+    AllocatorProbe hardLimitProbe{&hardLimitLedger};
+    lua_State* hardLimitState = lua_newstate(trackingLuaAllocator, &hardLimitProbe);
+    ASSERT_TRUE(suite, hardLimitState != nullptr, "table.sort hard-limit test creates a state");
+    prepareTableSortAllocatorFixture(hardLimitState);
+    gAllocatorFailureProbe = &hardLimitProbe;
+    gTableSortFailureOffset = 0;
+    gTableSortUseHardLimit = true;
+
+    ASSERT_EQ(suite, LUA_ERRMEM, lua_pcall(hardLimitState, 0, 2, 0),
+              "zero-headroom hard limit rejects table.sort growth");
+    ASSERT_TRUE(suite,
+                hardLimitLedger.liveBytes <= gTableSortHardLimit && hardLimitLedger.peakBytes <= gTableSortHardLimit,
+                "table.sort growth never exceeds the allocator hard limit");
+    ASSERT_TRUE(suite,
+                lua_gettop(hardLimitState) == 1 && lua_isstring(hardLimitState, -1) != 0 &&
+                    std::string(lua_tostring(hardLimitState, -1)) == "not enough memory",
+                "table.sort hard-limit failure preserves the protected stack contract");
+    ASSERT_TRUE(suite, tableSortAllocatorValuesMatch(hardLimitState, false),
+                "table.sort hard-limit failure leaves the target table unchanged");
+
+    hardLimitLedger.hardLimit = std::numeric_limits<size_t>::max();
+    gTableSortUseHardLimit = false;
+    gAllocatorFailureProbe = nullptr;
+    lua_settop(hardLimitState, 0);
+    prepareTableSortAllocatorFixture(hardLimitState);
+    ASSERT_EQ(suite, LUA_OK, lua_pcall(hardLimitState, 0, 2, 0),
+              "table.sort succeeds after lifting the allocator hard limit");
+    ASSERT_TRUE(suite, tableSortAllocatorValuesMatch(hardLimitState, true),
+                "table.sort hard-limit retry publishes sorted values");
+
+    lua_close(hardLimitState);
+    ASSERT_TRUE(suite,
+                hardLimitLedger.blocks.empty() && hardLimitLedger.liveBytes == 0 &&
+                    hardLimitLedger.sizeMismatches == 0 && hardLimitLedger.unknownFrees == 0,
+                "table.sort hard-limit rollback closes with valid allocator ownership");
+}
+
 void testPublicResumeAllocationRollback(TestSuite& suite) {
     AllocatorLedger ledger;
     AllocatorProbe probe{&ledger};
@@ -4683,6 +4861,7 @@ void registerLuaCApiTests() {
                           testMetacallArgumentAllocatorTransactions);
     registry.registerTest(kSuiteName, "concat allocator transactions", testConcatAllocatorTransactions);
     registry.registerTest(kSuiteName, "table.concat allocator transactions", testTableConcatAllocatorTransactions);
+    registry.registerTest(kSuiteName, "table.sort allocator transactions", testTableSortAllocatorTransactions);
     registry.registerTest(kSuiteName, "fragmented reader allocator transactions",
                           testFragmentedReaderAllocatorTransactions);
     registry.registerTest(kSuiteName, "loadbuffer allocator failures", testLoadBufferAllocatorFailures);

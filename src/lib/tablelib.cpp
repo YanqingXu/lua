@@ -22,9 +22,9 @@
 #include <format>
 #include <algorithm>
 #include <array>
+#include <new>
 #include <sstream>
 #include <string>
-#include <vector>
 
 namespace Lua {
 
@@ -92,19 +92,13 @@ static bool callSortComparator(LuaState* L, Function* comparator, const Value& l
     i32 originalTop = L->getTop();
     usize savedCI = L->getCurrentCI();
     usize savedTop = L->getAbsoluteTop();
-    Vec<Value> savedStack;
+    LuaVector<Value> savedStack(LuaStdAllocator<Value>(L->getGlobalState().getAllocator()));
     savedStack.reserve(savedTop);
     for (usize i = 0; i < savedTop; ++i) {
         savedStack.push_back(L->getStack().at(i));
     }
 
-    try {
-        L->pushFunction(comparator);
-        L->pushValue(left);
-        L->pushValue(right);
-        RuntimeServices services(L->getGlobalState());
-        VM::call(services, L, 2, 1);
-    } catch (const std::exception& e) {
+    const auto restoreStack = [&]() {
         while (L->getCurrentCI() > savedCI) {
             L->popCallInfo();
         }
@@ -113,6 +107,22 @@ static bool callSortComparator(LuaState* L, Function* comparator, const Value& l
         for (const Value& value : savedStack) {
             L->pushValue(value);
         }
+    };
+
+    try {
+        L->pushFunction(comparator);
+        L->pushValue(left);
+        L->pushValue(right);
+        RuntimeServices services(L->getGlobalState());
+        VM::call(services, L, 2, 1);
+    } catch (const MemoryError&) {
+        restoreStack();
+        throw;
+    } catch (const std::bad_alloc&) {
+        restoreStack();
+        throw;
+    } catch (const std::exception& e) {
+        restoreStack();
         L->error(e.what());
     }
 
@@ -306,10 +316,10 @@ i32 table_concat(LuaState* L) {
     i32 j = (nargs >= 4) ? static_cast<i32>(getNumberArg(L, 4, "concat")) : getTableLength(table);
 
     // 连接字符串
-    LuaString result(LuaStdAllocator<char>(L->getGlobalState().getAllocator()));
+    LuaVector<char> result(LuaStdAllocator<char>(L->getGlobalState().getAllocator()));
     for (i32 idx = i; idx <= j; idx++) {
         if (idx > i && !separator.view.empty()) {
-            result.append(separator.view.data(), separator.view.size());
+            result.insert(result.end(), separator.view.begin(), separator.view.end());
         }
 
         const Value value = table->get(Value(static_cast<f64>(idx)));
@@ -317,11 +327,12 @@ i32 table_concat(LuaState* L) {
         if (!tableConcatText(value, text)) {
             L->error("table.concat: invalid value (must be string or number)");
         }
-        result.append(text.view.data(), text.view.size());
+        result.insert(result.end(), text.view.begin(), text.view.end());
     }
 
     // 返回连接后的字符串
-    L->pushString(L->getGlobalState().getStringPool().intern(StrView(result.data(), result.size())));
+    const StrView resultView = result.empty() ? StrView("") : StrView(result.data(), result.size());
+    L->pushString(L->getGlobalState().getStringPool().intern(resultView));
     return 1;
 }
 
@@ -347,7 +358,7 @@ i32 table_sort(LuaState* L) {
     }
 
     // 提取数组部分到 vector
-    std::vector<Value> arr;
+    LuaVector<Value> arr(LuaStdAllocator<Value>(L->getGlobalState().getAllocator()));
     arr.reserve(len);
     for (i32 i = 1; i <= len; i++) {
         arr.push_back(table->get(Value(static_cast<f64>(i))));
