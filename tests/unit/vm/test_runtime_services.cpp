@@ -358,6 +358,7 @@ void testRuntimeOwnerThreadRejectsForeignStateAccess(TestSuite& suite) {
     bool servicesConstructionRejected = false;
     bool vmRejected = false;
     bool publicApiRejected = false;
+    bool executionPollRejected = false;
     bool debugApiRejected = false;
     int checkStackResult = -1;
     int protectedCallResult = Lua::LUA_OK;
@@ -389,6 +390,12 @@ void testRuntimeOwnerThreadRejectsForeignStateAccess(TestSuite& suite) {
         }
 
         try {
+            lua_checkexecution(publicState);
+        } catch (const RuntimeOwnerThreadError& error) {
+            executionPollRejected = std::string(error.what()) == "Lua runtime accessed from non-owner thread";
+        }
+
+        try {
             (void)lua_gethook(publicState);
         } catch (const RuntimeOwnerThreadError& error) {
             debugApiRejected = std::string(error.what()) == "Lua runtime accessed from non-owner thread";
@@ -405,6 +412,7 @@ void testRuntimeOwnerThreadRejectsForeignStateAccess(TestSuite& suite) {
     ASSERT_TRUE(suite, servicesConstructionRejected, "foreign thread cannot construct a runtime service bundle");
     ASSERT_TRUE(suite, vmRejected, "foreign thread cannot enter the VM with pre-acquired services");
     ASSERT_TRUE(suite, publicApiRejected, "may-throw C API rejects foreign thread before reading the stack");
+    ASSERT_TRUE(suite, executionPollRejected, "native execution poll remains an owner-thread C API");
     ASSERT_TRUE(suite, debugApiRejected, "debug API rejects foreign thread before reading debug state");
     ASSERT_EQ(suite, 0, checkStackResult, "noexcept stack API rejects foreign thread without mutation");
     ASSERT_EQ(suite, Lua::LUA_ERRRUN, protectedCallResult, "protected API returns runtime failure on foreign thread");

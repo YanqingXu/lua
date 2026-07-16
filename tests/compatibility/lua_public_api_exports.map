@@ -41,6 +41,7 @@ LUA_5_1 {
         lua_atpanic;
         lua_call;
         lua_cpcall;
+        lua_checkexecution;
         lua_checkstack;
         lua_close;
         lua_concat;

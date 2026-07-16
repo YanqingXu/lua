@@ -482,6 +482,15 @@ int lua_checkstack(lua_State* L, int extra) LUA_CXX_NOEXCEPT {
     }
 }
 
+void lua_checkexecution(lua_State* L) LUA_CXX_MAY_THROW {
+    Lua::LuaState* state = fromC(L);
+    const Lua::ExecutionStopReason reason = state->getGlobalState().getExecutionPolicy().pollStop();
+    if (reason != Lua::ExecutionStopReason::None) [[unlikely]] {
+        state->setStatus(Lua::ThreadStatus::ErrRun);
+        throw Lua::RuntimeError(Lua::Value(state->getGlobalState().getExecutionPolicyErrorMessage(reason)));
+    }
+}
+
 void lua_xmove(lua_State* from, lua_State* to, int n) LUA_CXX_MAY_THROW {
     if (from == to) {
         return;

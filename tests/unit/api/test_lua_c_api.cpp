@@ -13,8 +13,9 @@
 #include "runtime/runtime_services.hpp"
 #include "vm/state/lua_state.hpp"
 
-#include <cstdint>
+#include <atomic>
 #include <array>
+#include <cstdint>
 #include <cstdarg>
 #include <cstdio>
 #include <cstdlib>
@@ -102,6 +103,7 @@ static_assert(noexcept(lua_cpcall(nullptr, nullptr, nullptr)));
 static_assert(!noexcept(lua_setlevel(nullptr, nullptr)));
 static_assert(noexcept(lua_close(nullptr)));
 static_assert(noexcept(lua_checkstack(nullptr, 0)));
+static_assert(!noexcept(lua_checkexecution(nullptr)));
 static_assert(noexcept(lua_pcall(nullptr, 0, 0, 0)));
 static_assert(!noexcept(lua_newthread(nullptr)));
 static_assert(noexcept(lua_trynewthread(nullptr)));
@@ -144,6 +146,8 @@ bool gPublicDebugCallerLines = false;
 std::string gPublicDebugLocalName;
 lua_Number gPublicDebugLocalValue = 0;
 bool gPublicCpcallArgument = false;
+std::atomic<bool> gNativeExecutionPollEntered{false};
+std::atomic<Lua::u64> gNativeExecutionPollIterations{0};
 
 struct AllocatorLedger {
     std::unordered_map<std::uintptr_t, size_t> blocks;
@@ -262,6 +266,19 @@ int returnCapturedUpvalues(lua_State* L) {
     lua_pushvalue(L, lua_upvalueindex(1));
     lua_pushvalue(L, lua_upvalueindex(2));
     return 2;
+}
+
+int pollNativeExecutionOnce(lua_State* L) {
+    lua_checkexecution(L);
+    return 0;
+}
+
+int pollNativeExecutionUntilCancelled(lua_State* L) {
+    gNativeExecutionPollEntered.store(true, std::memory_order_release);
+    for (;;) {
+        gNativeExecutionPollIterations.fetch_add(1, std::memory_order_relaxed);
+        lua_checkexecution(L);
+    }
 }
 
 int firstPublicPanic(lua_State*) {
@@ -883,6 +900,69 @@ void testCheckStackAndXMove(TestSuite& suite) {
     lua_close(independent);
     Lua::LuaState::destroyState(childState);
     lua_close(parent);
+}
+
+void testNativeCallbackCooperativeExecutionPoll(TestSuite& suite) {
+    lua_State* L = lua_open();
+    auto* state = reinterpret_cast<Lua::LuaState*>(L);
+    Lua::ExecutionPolicy& policy = state->getGlobalState().getExecutionPolicy();
+
+    Lua::ExecutionPolicy::Limits limits;
+    limits.instructionBudget = 23;
+    policy.configure(limits);
+    lua_pushcclosure(L, pollNativeExecutionOnce, 0);
+    ASSERT_EQ(suite, LUA_OK, lua_pcall(L, 0, 0, 0),
+              "native callback execution poll permits an active execution window");
+    ASSERT_EQ(suite, 0, lua_gettop(L), "successful native execution poll does not mutate the caller stack");
+    ASSERT_EQ(suite, static_cast<Lua::u64>(23), policy.remainingInstructions(),
+              "native execution poll does not consume the Lua instruction budget");
+    ASSERT_EQ(suite, static_cast<Lua::u64>(0), policy.consumedInstructions(),
+              "native execution poll leaves opcode accounting unchanged");
+
+    limits.deadline = Lua::ExecutionPolicy::Clock::now();
+    policy.configure(limits);
+    Lua::GCString* deadlineError =
+        state->getGlobalState().getExecutionPolicyErrorMessage(Lua::ExecutionStopReason::DeadlineExceeded);
+    lua_pushcclosure(L, pollNativeExecutionOnce, 0);
+    ASSERT_EQ(suite, LUA_ERRRUN, lua_pcall(L, 0, 0, 0),
+              "native callback execution poll reports an expired monotonic deadline");
+    ASSERT_TRUE(suite, state->top().isString() && state->top().asString() == deadlineError,
+                "deadline poll publishes the fixed preallocated deadline error object");
+    ASSERT_EQ(suite, static_cast<Lua::u64>(23), policy.remainingInstructions(),
+              "deadline poll does not consume the Lua instruction budget");
+    ASSERT_EQ(suite, LUA_OK, lua_status(L), "protected deadline stop restores the public thread status");
+    lua_settop(L, 0);
+
+    limits.instructionBudget = 50'000'000;
+    limits.deadline = Lua::ExecutionPolicy::Clock::time_point::max();
+    policy.configure(limits);
+    const Lua::ExecutionCancellationHandle cancellation = policy.cancellationHandle();
+    Lua::GCString* cancellationError =
+        state->getGlobalState().getExecutionPolicyErrorMessage(Lua::ExecutionStopReason::Cancelled);
+    gNativeExecutionPollEntered.store(false, std::memory_order_relaxed);
+    gNativeExecutionPollIterations.store(0, std::memory_order_relaxed);
+
+    std::thread canceller([cancellation] {
+        while (!gNativeExecutionPollEntered.load(std::memory_order_acquire)) {
+            std::this_thread::yield();
+        }
+        cancellation.requestCancellation();
+    });
+    lua_pushcclosure(L, pollNativeExecutionUntilCancelled, 0);
+    const int status = lua_pcall(L, 0, 0, 0);
+    canceller.join();
+
+    ASSERT_EQ(suite, LUA_ERRRUN, status, "foreign atomic cancellation stops a cooperatively polling native callback");
+    ASSERT_TRUE(suite, policy.isCancellationRequested(), "owner observes the one-way foreign cancellation request");
+    ASSERT_TRUE(suite, gNativeExecutionPollIterations.load(std::memory_order_relaxed) > 0,
+                "native callback reaches at least one cooperative execution poll");
+    ASSERT_TRUE(suite, state->top().isString() && state->top().asString() == cancellationError,
+                "cancellation poll publishes the fixed preallocated cancellation error object");
+    ASSERT_TRUE(suite, policy.remainingInstructions() > 0,
+                "native cancellation polling does not spend the fallback Lua instruction budget");
+
+    policy.reset();
+    lua_close(L);
 }
 
 void testCppApiExceptionContract(TestSuite& suite) {
@@ -3295,6 +3375,8 @@ void registerLuaCApiTests() {
     registry.registerTest(kSuiteName, "loader rollback releases GC roots", testLoaderMemoryRollbackReleasesGcRoots);
     registry.registerTest(kSuiteName, "resume bridge releases GC roots", testResumeBridgeRollbackReleasesGcRoots);
     registry.registerTest(kSuiteName, "checkstack and xmove", testCheckStackAndXMove);
+    registry.registerTest(kSuiteName, "native callback cooperative execution poll",
+                          testNativeCallbackCooperativeExecutionPoll);
     registry.registerTest(kSuiteName, "C++ API exception contract", testCppApiExceptionContract);
     registry.registerTest(kSuiteName, "C closure upvalue introspection", testCClosureUpvalueIntrospection);
     registry.registerTest(kSuiteName, "Lua closure upvalue introspection", testLuaClosureUpvalueIntrospection);

@@ -1,7 +1,7 @@
 ---
 status: current
-verified_against: src/runtime/runtime_services.hpp; src/runtime/execution_policy.hpp; src/runtime/sandbox_policy.hpp; src/runtime/native_module_registry.hpp; src/runtime/native_module_registry.cpp; src/core/string_pool.hpp; src/vm/state/global_state.hpp; src/vm/state/global_state.cpp; src/vm/state/lua_state.hpp; src/vm/state/lua_state.cpp; src/gc/garbage_collector.hpp; src/gc/gc_strategy.hpp; src/gc/gc_sweep.cpp; src/vm/vm_dispatch_strategy.hpp; src/vm/vm.cpp; src/main.cpp; src/repl.cpp; src/bytecode/bytecode_main.cpp; src/compiler/parser/parser.hpp; src/compiler/codegen/codegen.hpp; src/vm/vm.hpp; tests/compatibility/public_native_module.c; tests/compatibility/public_native_module_host.cpp; tests/unit/vm/test_runtime_services.cpp; tests/unit/vm/test_vm_dispatch.cpp; tests/unit/gc/test_gc.cpp
-last_checked: 2026-07-15
+verified_against: src/lua.h; src/api/lapi.cpp; src/runtime/runtime_services.hpp; src/runtime/execution_policy.hpp; src/runtime/sandbox_policy.hpp; src/runtime/native_module_registry.hpp; src/runtime/native_module_registry.cpp; src/core/string_pool.hpp; src/vm/state/global_state.hpp; src/vm/state/global_state.cpp; src/vm/state/lua_state.hpp; src/vm/state/lua_state.cpp; src/gc/garbage_collector.hpp; src/gc/gc_strategy.hpp; src/gc/gc_sweep.cpp; src/vm/vm_dispatch_strategy.hpp; src/vm/vm.cpp; src/main.cpp; src/repl.cpp; src/bytecode/bytecode_main.cpp; src/compiler/parser/parser.hpp; src/compiler/codegen/codegen.hpp; src/vm/vm.hpp; tests/compatibility/public_native_module.c; tests/compatibility/public_native_module_host.cpp; tests/unit/vm/test_runtime_services.cpp; tests/unit/vm/test_vm_dispatch.cpp; tests/unit/gc/test_gc.cpp; tests/unit/api/test_lua_c_api.cpp
+last_checked: 2026-07-16
 applies_to: current RuntimeServices boundary
 ---
 
@@ -89,7 +89,7 @@ public:
 
 关闭异常边界的 API 不传播该异常，也不改动栈：`lua_checkstack` 返回 `0`，`lua_pcall`/`lua_cpcall`/`lua_resume` 和 load API 返回 `LUA_ERRRUN`，`lua_trynewthread` 返回 `nullptr`，`lua_dump` 返回 `1`。foreign-thread `lua_close` 是无操作；宿主仍须回到 owner thread 关闭 State。若 owning `EngineContext`/`GlobalState` 最终在其他线程析构，运行时以 `std::terminate` fail-fast，避免在错误线程执行 GC、finalizer 或模块卸载。
 
-唯一支持的跨线程操作是 owner 预先取得 `ExecutionCancellationHandle`，并由外部线程调用其原子 `requestCancellation()`；handle 不能超过 context 生命周期。直接调用内部 `LuaState`/GC/编译器辅助函数不属于公开嵌入合同，也不提供绕过线程约束的兼容承诺。执行预算、单调 deadline 和取消的详细合同见 [ExecutionPolicy](execution-policy.md)，脚本能力边界见 [SandboxPolicy](sandbox-policy.md)。
+唯一支持的跨线程操作是 owner 预先取得 `ExecutionCancellationHandle`，并由外部线程调用其原子 `requestCancellation()`；handle 不能超过 context 生命周期。长期运行的 owner-thread 原生 callback 在有界工作切片之间调用项目扩展 `lua_checkexecution`，以观察该请求和 monotonic deadline；该轮询不消费 Lua instruction budget，也不能替代阻塞调用自己的中断机制。直接调用内部 `LuaState`/GC/编译器辅助函数不属于公开嵌入合同，也不提供绕过线程约束的兼容承诺。完整合同见 [ExecutionPolicy](execution-policy.md)，脚本能力边界见 [SandboxPolicy](sandbox-policy.md)。
 
 ## 原生模块生命周期
 

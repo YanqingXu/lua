@@ -34,6 +34,7 @@ int lua_public_c_header_probe(void) {
     REQUIRE_SYMBOL(lua_insert);
     REQUIRE_SYMBOL(lua_replace);
     REQUIRE_SYMBOL(lua_checkstack);
+    REQUIRE_SYMBOL(lua_checkexecution);
     REQUIRE_SYMBOL(lua_xmove);
     REQUIRE_SYMBOL(lua_isnumber);
     REQUIRE_SYMBOL(lua_isstring);

@@ -30,6 +30,7 @@ REQUIRE_SIGNATURE(lua_setallocf, void (*)(lua_State*, lua_Alloc, void*) noexcept
 REQUIRE_SIGNATURE(lua_gettop, int (*)(lua_State*) noexcept(false));
 REQUIRE_SIGNATURE(lua_settop, void (*)(lua_State*, int) noexcept(false));
 REQUIRE_SIGNATURE(lua_checkstack, int (*)(lua_State*, int) noexcept);
+REQUIRE_SIGNATURE(lua_checkexecution, void (*)(lua_State*) noexcept(false));
 REQUIRE_SIGNATURE(lua_xmove, void (*)(lua_State*, lua_State*, int) noexcept(false));
 REQUIRE_SIGNATURE(lua_pushvalue, void (*)(lua_State*, int) noexcept(false));
 REQUIRE_SIGNATURE(lua_remove, void (*)(lua_State*, int) noexcept(false));
@@ -369,6 +370,7 @@ bool exercisePublicMacros(lua_State* state) {
 
 int main() {
     static_assert(noexcept(lua_checkstack(nullptr, 0)));
+    static_assert(!noexcept(lua_checkexecution(nullptr)));
     static_assert(noexcept(lua_pcall(nullptr, 0, 0, 0)));
     static_assert(!noexcept(lua_newthread(nullptr)));
     static_assert(noexcept(lua_trynewthread(nullptr)));
@@ -382,7 +384,7 @@ int main() {
     static_assert(!noexcept(lua_call(nullptr, 0, 0)));
     static_assert(!noexcept(lua_error(nullptr)));
 
-    if (lua_public_c_header_probe() != 130) {
+    if (lua_public_c_header_probe() != 131) {
         return 1;
     }
 
@@ -390,6 +392,8 @@ int main() {
     if (state == nullptr) {
         return 2;
     }
+
+    lua_checkexecution(state);
 
     if (!exercisePublicMacros(state)) {
         lua_close(state);

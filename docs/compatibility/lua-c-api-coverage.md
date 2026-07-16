@@ -1,7 +1,7 @@
 ---
 status: current
-verified_against: CMakeLists.txt; .github/workflows/ci.yml; src/lua.h; src/lauxlib.h; src/lualib.h; src/api/lapi.cpp; src/api/lauxlib.cpp; src/lib/debuglib.cpp; src/runtime/lua_allocator.hpp; src/runtime/runtime_services.hpp; src/runtime/native_module_registry.hpp; src/common/lua_error.hpp; src/vm/state/global_state.cpp; src/vm/state/lua_state.cpp; src/gc/garbage_collector.hpp; src/gc/garbage_collector.cpp; src/core/userdata.cpp; src/lib/testlib.cpp; tests/compatibility/lua51-public-api-contract.json; tests/compatibility/lua_public_api_exports.def; tests/compatibility/lua_public_api_exports.map; tests/compatibility/public_api_c_compile.c; tests/compatibility/public_api_cpp_consumer.cpp; tests/compatibility/lua51_c_api_differential_probe.c; tests/compatibility/public_native_module.c; tests/unit/api/test_lua_c_api.cpp; tools/check_lua51_public_api_contract.py; tools/run_lua51_c_api_differential.ps1; tests/lua/official/api.lua; tests/lua/official/code.lua
-last_checked: 2026-07-15
+verified_against: CMakeLists.txt; .github/workflows/ci.yml; src/lua.h; src/lauxlib.h; src/lualib.h; src/api/lapi.cpp; src/api/lauxlib.cpp; src/lib/debuglib.cpp; src/runtime/lua_allocator.hpp; src/runtime/runtime_services.hpp; src/runtime/execution_policy.hpp; src/runtime/native_module_registry.hpp; src/common/lua_error.hpp; src/vm/state/global_state.cpp; src/vm/state/lua_state.cpp; src/gc/garbage_collector.hpp; src/gc/garbage_collector.cpp; src/core/userdata.cpp; src/lib/testlib.cpp; tests/compatibility/lua51-public-api-contract.json; tests/compatibility/lua_public_api_exports.def; tests/compatibility/lua_public_api_exports.map; tests/compatibility/public_api_c_compile.c; tests/compatibility/public_api_cpp_consumer.cpp; tests/compatibility/lua51_c_api_differential_probe.c; tests/compatibility/public_native_module.c; tests/unit/api/test_lua_c_api.cpp; tools/check_lua51_public_api_contract.py; tools/run_lua51_c_api_differential.ps1; tests/lua/official/api.lua; tests/lua/official/code.lua
+last_checked: 2026-07-16
 applies_to: Lua 5.1 C API 原型、项目内直接测试与官方 testC 覆盖边界
 ---
 
@@ -9,7 +9,7 @@ applies_to: Lua 5.1 C API 原型、项目内直接测试与官方 testC 覆盖�
 
 本表区分“已有公开入口”“项目内直接测试”和“原始官方 `api.lua` 经项目 `T` helper 验证”。机器合同 `tests/compatibility/lua51-public-api-contract.json` 以官方 5.1.5 头文件为全集，要求每个符号处于 `PASS / XFAIL / UNSUPPORTED` 三态之一，并为 PASS 记录 C compile、link 和直接公开调用证据。项目版 `T` 位于 C++ 测试库中，因此 TestC helper 不能替代同名公开 API 符号。
 
-函数兼容状态与项目实际导出面是两个独立集合：官方函数合同当前为 123/123 个 `PASS`，而项目公开头文件声明 130 个真实函数。合同检查器会从头文件自动枚举这 130 个函数，并要求 C 链接探针、C++ 精确签名断言、Windows `.def` 和 Linux version script 与之完全一致；项目额外入口 `lua_open`、global get/set、三个 auxlib helper 和安全线程扩展 `lua_trynewthread` 因而也必须可从共享库链接。相同消费者分别链接 `lua_core` 静态库和 `lua_public_api_shared` 动态库，避免静态链接掩盖导出缺口。
+函数兼容状态与项目实际导出面是两个独立集合：官方函数合同当前为 123/123 个 `PASS`，而项目公开头文件声明 131 个真实函数。合同检查器会从头文件自动枚举这 131 个函数，并要求 C 链接探针、C++ 精确签名断言、Windows `.def` 和 Linux version script 与之完全一致；项目额外入口 `lua_open`、global get/set、三个 auxlib helper、安全线程扩展 `lua_trynewthread` 和原生回调执行检查 `lua_checkexecution` 因而也必须可从共享库链接。相同消费者分别链接 `lua_core` 静态库和 `lua_public_api_shared` 动态库，避免静态链接掩盖导出缺口。
 
 | 能力组 | 当前实现 | 项目内直接测试 | 官方测试覆盖 | 状态 |
 |---|---|---|---|---|
@@ -23,7 +23,7 @@ applies_to: Lua 5.1 C API 原型、项目内直接测试与官方 testC 覆盖�
 | 线程身份与 C GC 控制 | `lua_pushthread`；`lua_gc` 的 stop/restart/collect/count/countb/step/setpause/setstepmul | main/coroutine 自身 round-trip 与返回标志；内存计数、控制参数旧值、自动收集状态、step 与非法操作 | 纯 C probe 同时链接官方 Lua 5.1 和本项目并逐字节比较稳定输出 | 公开入口、直接测试和官方差分证据闭环 |
 | 表与全局 | `createtable`、`gettable/settable`、`getfield/setfield`、`rawget/rawset`、`rawgeti/rawseti`、`next`、global get/set | 精确栈效果、正负索引、registry/global pseudo-index、`__index/__newindex` 与 raw 绕过、数组/哈希遍历和终止弹栈 | 原始 `api.lua` 的 table/global/raw/next 语义通过项目 `T` helper | 公开入口、直接测试与 TestC 证据闭环 |
 | 比较与拼接 | `lua_equal`、`lua_rawequal`、`lua_lessthan`、`lua_concat` | primitive、invalid index、共享 `__eq/__lt`、raw identity、0/1/N 参数、数字转换、embedded NUL、`__concat` 与错误栈 | 原始 `api.lua` 的 equal/less/concat 命令通过项目 `T` helper | 公开入口、直接测试与 TestC 证据闭环 |
-| 调用、错误与 yield | `lua_call`、`lua_pcall`、`lua_cpcall`、`lua_error`、`lua_newthread`、`lua_trynewthread`、`lua_resume`、`lua_yield`、`lua_status`；官方 `lua_newthread` 是可抛的未保护入口，项目扩展 `lua_trynewthread` 才是 `noexcept` 安全入口 | 原始非字符串 error object、栈前缀恢复、正/负 handler 索引、C/Lua handler、`LUA_ERRERR`/`LUA_ERRMEM`、C→Lua→C、`lua_cpcall` lightuserdata/零结果/错误对象、Lua/C function coroutine、thread 每个 allocator 失败点、父栈发布失败、reader/writer/C callback 的标准与非标准异常、持久 allocator failure、死协程 traceback | 官方 `errors.lua` tail、`db.lua` 和原始 `api.lua` exact PASS；纯 C probe 验证 `lua_cpcall` | `lua_newthread` 在分配失败时完成强回滚后传播错误，匹配 Lua 5.1 未保护语义；`lua_trynewthread` 复用同一事务并以 `nullptr` 包含异常。`lua_pcall`、`lua_cpcall`、`lua_resume`、`lua_checkstack` 保持关闭异常边界 |
+| 调用、错误与 yield | `lua_call`、`lua_pcall`、`lua_cpcall`、`lua_error`、`lua_newthread`、`lua_trynewthread`、`lua_checkexecution`、`lua_resume`、`lua_yield`、`lua_status`；官方 `lua_newthread` 是可抛的未保护入口，项目扩展 `lua_trynewthread` 才是 `noexcept` 安全入口 | 原始非字符串 error object、栈前缀恢复、正/负 handler 索引、C/Lua handler、`LUA_ERRERR`/`LUA_ERRMEM`、C→Lua→C、`lua_cpcall` lightuserdata/零结果/错误对象、Lua/C function coroutine、thread 每个 allocator 失败点、父栈发布失败、reader/writer/C callback 的标准与非标准异常、持久 allocator failure、死协程 traceback；原生 callback 的 deadline/atomic cancellation、fixed error object、owner thread 与 instruction-budget 非消费 | 官方 `errors.lua` tail、`db.lua` 和原始 `api.lua` exact PASS；纯 C probe 验证 `lua_cpcall` | `lua_newthread` 在分配失败时完成强回滚后传播错误，匹配 Lua 5.1 未保护语义；`lua_trynewthread` 复用同一事务并以 `nullptr` 包含异常。`lua_checkexecution` 是可抛的 cooperative 项目扩展；`lua_pcall`、`lua_cpcall`、`lua_resume`、`lua_checkstack` 保持关闭异常边界 |
 | panic、格式化与调用层级 | `lua_atpanic` 保存 runtime 共享回调；`lua_pushvfstring/lua_pushfstring` 支持 `%s/%c/%d/%f/%p/%%` 与未知格式原样保留；`lua_setlevel` 复制 C/Lua 重入深度 | handler 替换/跨线程共享、va_list 与完整格式词法、返回字符串身份、host-call depth 复制 | 同一纯 C probe 分别链接官方 Lua 5.1 与项目实现，稳定结果逐字节一致 | 5/5 入口已形成声明、静态/共享导出、直接测试和官方差分闭环 |
 | load/dump | `lua_load`、`lua_dump`、`luaL_loadbuffer`、`luaL_loadstring`、`luaL_loadfile` 均为关闭异常边界 | reader 分片、源码/文件编译、语法/文件状态、binary chunk 往返、reader/writer 的 `std::exception`、非标准异常与 `bad_alloc`、满栈和持久 OOM | 原始 `api.lua` 的 loadstring/loadfile/dump/undump/低内存路径通过 | 项目本地 chunk 闭环已实现；不宣称官方 `luac` 字节兼容 |
 | closure introspection | `lua_getupvalue`、`lua_setupvalue` | C closure 空名称、Lua closure debug name、读写栈效应和持久修改 | 原始 `api.lua` 的 `T.upvalue` 路径通过 | 已实现并形成直接 + TestC 证据 |
@@ -45,7 +45,7 @@ applies_to: Lua 5.1 C API 原型、项目内直接测试与官方 testC 覆盖�
 bin\lua_test.exe --filter "Lua C API"
 ```
 
-结果为 49 个测试、1262 个断言、0 failures。机器合同包含 123 个官方公共函数：123 个 `PASS`、0 个 `XFAIL`、0 个 `UNSUPPORTED`。项目头文件的当前公开面另由 130 个真实函数、57 个宏、24 个枚举常量和 11 个 typedef 的穷尽式编译合同保护。完整 Debug/Release strict 套件为 754 个测试、4932 个断言、0 failures。原始 `api.lua` 另以以下 exact TestC 门禁通过：
+结果为 50 个测试、1275 个断言、0 failures。机器合同包含 123 个官方公共函数：123 个 `PASS`、0 个 `XFAIL`、0 个 `UNSUPPORTED`。项目头文件的当前公开面另由 131 个真实函数、57 个宏、24 个枚举常量和 11 个 typedef 的穷尽式编译合同保护。完整 Debug/Release strict 套件为 755 个测试、4946 个断言、0 failures。原始 `api.lua` 另以以下 exact TestC 门禁通过：
 
 ```powershell
 bin\lua_test.exe --filter "api.lua with T module"
@@ -60,7 +60,7 @@ ctest --test-dir build -C Debug -L api-contract --output-on-failure
 ctest --test-dir build -C Debug -L native-module --output-on-failure
 ```
 
-`api-contract` 标签同时运行静态消费者、独立共享库消费者和候选 C API probe；Windows DLL 的导出面必须与 `.def` 中的 130 个符号完全一致，Linux shared object 则由版本脚本只公开同一集合。Linux Clang Debug 另外将 `lua51_c_api_differential_probe.c` 分别链接官方 Lua 5.1 和本项目，逐字节比较退出码、stdout 与 stderr，并上传 JSON 证据。
+`api-contract` 标签同时运行静态消费者、独立共享库消费者和候选 C API probe；Windows DLL 的导出面必须与 `.def` 中的 131 个符号完全一致，Linux shared object 则由版本脚本只公开同一集合。Linux Clang Debug 另外将 `lua51_c_api_differential_probe.c` 分别链接官方 Lua 5.1 和本项目，逐字节比较退出码、stdout 与 stderr，并上传 JSON 证据。
 
 ## 下一批失败驱动任务
 

@@ -163,18 +163,34 @@ public:
     }
 
     /**
-     * @brief Consume permission for the next Lua VM instruction.
+     * @brief Poll stop conditions that also apply inside native callbacks.
      *
-     * Cancellation has priority over deadline, which has priority over budget.
-     * Exactly N instructions may execute for a configured budget of N.
+     * This checkpoint deliberately does not consume the Lua instruction
+     * budget. Native callbacks use it cooperatively between bounded work
+     * slices; only VM opcode dispatch accounts Lua instructions.
      */
-    [[nodiscard]] ExecutionStopReason consumeInstruction() noexcept {
+    [[nodiscard]] ExecutionStopReason pollStop() const noexcept {
         if (cancellationRequested_.load(std::memory_order_relaxed)) [[unlikely]] {
             return ExecutionStopReason::Cancelled;
         }
 
         if (deadline_ != Clock::time_point::max() && Clock::now() >= deadline_) [[unlikely]] {
             return ExecutionStopReason::DeadlineExceeded;
+        }
+
+        return ExecutionStopReason::None;
+    }
+
+    /**
+     * @brief Consume permission for the next Lua VM instruction.
+     *
+     * Cancellation has priority over deadline, which has priority over budget.
+     * Exactly N instructions may execute for a configured budget of N.
+     */
+    [[nodiscard]] ExecutionStopReason consumeInstruction() noexcept {
+        const ExecutionStopReason stop = pollStop();
+        if (stop != ExecutionStopReason::None) [[unlikely]] {
+            return stop;
         }
 
         if (remainingInstructions_ != UnlimitedInstructions) {

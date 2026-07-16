@@ -99,6 +99,8 @@ void lua_setallocf(lua_State* L, lua_Alloc f, void* ud) LUA_CXX_MAY_THROW;
 int lua_gettop(lua_State* L) LUA_CXX_MAY_THROW;
 void lua_settop(lua_State* L, int idx) LUA_CXX_MAY_THROW;
 int lua_checkstack(lua_State* L, int extra) LUA_CXX_NOEXCEPT;
+/* Project extension: cooperative cancellation/deadline poll for native callbacks. */
+void lua_checkexecution(lua_State* L) LUA_CXX_MAY_THROW;
 void lua_xmove(lua_State* from, lua_State* to, int n) LUA_CXX_MAY_THROW;
 void lua_pushvalue(lua_State* L, int idx) LUA_CXX_MAY_THROW;
 void lua_remove(lua_State* L, int idx) LUA_CXX_MAY_THROW;
