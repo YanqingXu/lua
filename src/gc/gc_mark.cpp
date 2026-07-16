@@ -265,8 +265,18 @@ void GarbageCollector::markObject(GCObject* obj) {
         if (std::find(externalMarked_.begin(), externalMarked_.end(), obj) != externalMarked_.end()) {
             return;
         }
+        const usize publishedIndex = externalMarked_.size();
         externalMarked_.push_back(obj);
-        obj->mark(*this);
+        try {
+            obj->mark(*this);
+        } catch (...) {
+            // A later gray/external queue growth may fail while scanning this
+            // graph. Remove only this incomplete publication so a retry scans
+            // it again; successfully completed nested entries remain valid.
+            using Difference = LuaVector<GCObject*>::difference_type;
+            externalMarked_.erase(externalMarked_.begin() + static_cast<Difference>(publishedIndex));
+            throw;
+        }
         return;
     }
 

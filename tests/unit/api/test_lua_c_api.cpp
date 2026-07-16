@@ -148,6 +148,12 @@ lua_Number gPublicDebugLocalValue = 0;
 bool gPublicCpcallArgument = false;
 std::atomic<bool> gNativeExecutionPollEntered{false};
 std::atomic<Lua::u64> gNativeExecutionPollIterations{0};
+size_t gGcWorklistFailureOffset = 0;
+size_t gGcWorklistAllocationStart = 0;
+size_t gGcWorklistAllocationAttempts = 0;
+size_t gGcWorklistHardLimit = 0;
+bool gGcWorklistUseHardLimit = false;
+int gGcWorklistFinalizerCalls = 0;
 
 struct AllocatorLedger {
     std::unordered_map<std::uintptr_t, size_t> blocks;
@@ -279,6 +285,70 @@ int pollNativeExecutionUntilCancelled(lua_State* L) {
         gNativeExecutionPollIterations.fetch_add(1, std::memory_order_relaxed);
         lua_checkexecution(L);
     }
+}
+
+int countGcWorklistFinalizer(lua_State*) {
+    ++gGcWorklistFinalizerCalls;
+    return 0;
+}
+
+int collectGcWorklists(lua_State* L) {
+    AllocatorProbe* probe = gAllocatorFailureProbe;
+    gGcWorklistAllocationStart = probe != nullptr ? probe->allocationAttempts : 0;
+    gGcWorklistAllocationAttempts = 0;
+    if (probe != nullptr) {
+        probe->failOnAllocation =
+            gGcWorklistFailureOffset == 0 ? 0 : probe->allocationAttempts + gGcWorklistFailureOffset;
+        if (gGcWorklistUseHardLimit) {
+            probe->ledger->hardLimit = probe->ledger->liveBytes;
+            probe->ledger->peakBytes = probe->ledger->liveBytes;
+            gGcWorklistHardLimit = probe->ledger->hardLimit;
+        }
+    }
+
+    (void)lua_gc(L, LUA_GCCOLLECT, 0);
+    if (probe != nullptr) {
+        gGcWorklistAllocationAttempts = probe->allocationAttempts - gGcWorklistAllocationStart;
+    }
+    return 0;
+}
+
+void prepareGcWorklistFixture(lua_State* L) {
+    lua_settop(L, 0);
+    (void)lua_gc(L, LUA_GCSTOP, 0);
+
+    // Keep a broad graph alive so the collector must populate both its gray
+    // queue and weak-table worklist during the explicit collection.
+    lua_newtable(L);
+    for (int index = 1; index <= 48; ++index) {
+        lua_newtable(L);
+        if (index == 1) {
+            lua_newtable(L);
+            lua_pushstring(L, "v");
+            lua_setfield(L, -2, "__mode");
+            (void)lua_setmetatable(L, -2);
+        }
+        lua_rawseti(L, 1, index);
+    }
+
+    // Leave one finalizable userdata unreachable. A successful cycle must
+    // allocate the pending-finalizer queue and its reentrancy-safe drain copy.
+    (void)lua_newuserdata(L, 0);
+    lua_newtable(L);
+    lua_pushcclosure(L, countGcWorklistFinalizer, 0);
+    lua_setfield(L, -2, "__gc");
+    (void)lua_setmetatable(L, -2);
+    lua_pop(L, 1);
+}
+
+bool gcWorklistFixtureRootIsUsable(lua_State* L) {
+    if (lua_gettop(L) < 1 || lua_istable(L, 1) == 0) {
+        return false;
+    }
+    lua_rawgeti(L, 1, 1);
+    const bool usable = lua_istable(L, -1) != 0;
+    lua_pop(L, 1);
+    return usable;
 }
 
 int firstPublicPanic(lua_State*) {
@@ -1885,6 +1955,139 @@ void testAllocatorBackedStringContentAndHardLimit(TestSuite& suite) {
     ASSERT_EQ(suite, static_cast<size_t>(0), ledger.liveBytes, "string hard-limit state closes with zero live bytes");
 }
 
+void testGcWorklistAllocatorTransactions(TestSuite& suite) {
+    size_t collectionAllocationAttempts = 0;
+
+    {
+        AllocatorLedger ledger;
+        AllocatorProbe probe{&ledger};
+        lua_State* L = lua_newstate(trackingLuaAllocator, &probe);
+        ASSERT_TRUE(suite, L != nullptr, "GC worklist baseline creates state");
+        prepareGcWorklistFixture(L);
+
+        gAllocatorFailureProbe = &probe;
+        gGcWorklistFailureOffset = 0;
+        gGcWorklistUseHardLimit = false;
+        gGcWorklistFinalizerCalls = 0;
+        lua_pushcclosure(L, collectGcWorklists, 0);
+        const int status = lua_pcall(L, 0, 0, 0);
+        collectionAllocationAttempts = gGcWorklistAllocationAttempts;
+        gAllocatorFailureProbe = nullptr;
+
+        ASSERT_EQ(suite, LUA_OK, status, "GC worklist baseline collection succeeds");
+        ASSERT_TRUE(suite, collectionAllocationAttempts >= 4,
+                    "GC collection routes gray, weak, pending-finalizer, and drain-copy storage through lua_Alloc");
+        ASSERT_EQ(suite, 1, gGcWorklistFinalizerCalls, "GC worklist baseline drains the finalizer once");
+        ASSERT_TRUE(suite, gcWorklistFixtureRootIsUsable(L), "GC worklist baseline preserves the rooted graph");
+
+        lua_close(L);
+        ASSERT_TRUE(suite, ledger.blocks.empty(), "GC worklist baseline closes without allocator blocks");
+        ASSERT_EQ(suite, static_cast<size_t>(0), ledger.liveBytes, "GC worklist baseline closes with zero live bytes");
+        ASSERT_EQ(suite, static_cast<size_t>(0), ledger.sizeMismatches,
+                  "GC worklist baseline preserves allocator old sizes");
+        ASSERT_EQ(suite, static_cast<size_t>(0), ledger.unknownFrees, "GC worklist baseline frees each block once");
+    }
+
+    bool allStatusesAreMemoryErrors = true;
+    bool allTargetsAreReached = true;
+    bool allErrorsAreFixed = true;
+    bool allRootsSurvive = true;
+    bool allRetriesSucceed = true;
+    bool allFinalizersRunOnce = true;
+    bool allStatesCloseCleanly = true;
+    for (size_t offset = 1; offset <= collectionAllocationAttempts; ++offset) {
+        AllocatorLedger ledger;
+        AllocatorProbe probe{&ledger};
+        lua_State* L = lua_newstate(trackingLuaAllocator, &probe);
+        if (L == nullptr) {
+            allStatusesAreMemoryErrors = false;
+            allStatesCloseCleanly = false;
+            continue;
+        }
+        prepareGcWorklistFixture(L);
+
+        gAllocatorFailureProbe = &probe;
+        gGcWorklistFailureOffset = offset;
+        gGcWorklistUseHardLimit = false;
+        gGcWorklistFinalizerCalls = 0;
+        lua_pushcclosure(L, collectGcWorklists, 0);
+        const int status = lua_pcall(L, 0, 0, 0);
+        const size_t attempts = probe.allocationAttempts - gGcWorklistAllocationStart;
+        allStatusesAreMemoryErrors = allStatusesAreMemoryErrors && status == LUA_ERRMEM;
+        allTargetsAreReached = allTargetsAreReached && attempts == offset;
+        allErrorsAreFixed = allErrorsAreFixed && lua_gettop(L) == 2 && lua_isstring(L, -1) != 0 &&
+                            std::string(lua_tostring(L, -1)) == "not enough memory";
+        allRootsSurvive = allRootsSurvive && gcWorklistFixtureRootIsUsable(L);
+
+        probe.failOnAllocation = 0;
+        ledger.hardLimit = std::numeric_limits<size_t>::max();
+        gGcWorklistFailureOffset = 0;
+        lua_settop(L, 1);
+        lua_pushcclosure(L, collectGcWorklists, 0);
+        const int retryStatus = lua_pcall(L, 0, 0, 0);
+        allRetriesSucceed = allRetriesSucceed && retryStatus == LUA_OK && gcWorklistFixtureRootIsUsable(L);
+        allFinalizersRunOnce = allFinalizersRunOnce && gGcWorklistFinalizerCalls == 1;
+
+        gAllocatorFailureProbe = nullptr;
+        lua_close(L);
+        allStatesCloseCleanly = allStatesCloseCleanly && ledger.blocks.empty() && ledger.liveBytes == 0 &&
+                                ledger.sizeMismatches == 0 && ledger.unknownFrees == 0;
+    }
+
+    ASSERT_TRUE(suite, allStatusesAreMemoryErrors,
+                "every GC worklist allocation failure becomes a protected LUA_ERRMEM");
+    ASSERT_TRUE(suite, allTargetsAreReached, "GC worklist fail-on-N scan reaches every observed allocation");
+    ASSERT_TRUE(suite, allErrorsAreFixed, "GC worklist OOM publishes the fixed memory error object");
+    ASSERT_TRUE(suite, allRootsSurvive, "GC worklist OOM preserves the rooted object graph");
+    ASSERT_TRUE(suite, allRetriesSucceed, "GC collection remains retryable after every worklist allocation failure");
+    ASSERT_TRUE(suite, allFinalizersRunOnce, "GC worklist rollback neither loses nor duplicates a finalizer");
+    ASSERT_TRUE(suite, allStatesCloseCleanly, "GC worklist failure scan closes without leaks or size mismatches");
+
+    AllocatorLedger ledger;
+    AllocatorProbe probe{&ledger};
+    lua_State* L = lua_newstate(trackingLuaAllocator, &probe);
+    ASSERT_TRUE(suite, L != nullptr, "GC worklist hard-limit test creates state");
+    prepareGcWorklistFixture(L);
+
+    gAllocatorFailureProbe = &probe;
+    gGcWorklistFailureOffset = 0;
+    gGcWorklistUseHardLimit = true;
+    gGcWorklistHardLimit = 0;
+    gGcWorklistFinalizerCalls = 0;
+    lua_pushcclosure(L, collectGcWorklists, 0);
+    const int hardLimitStatus = lua_pcall(L, 0, 0, 0);
+    ASSERT_EQ(suite, LUA_ERRMEM, hardLimitStatus, "allocator hard limit rejects GC worklist growth");
+    ASSERT_TRUE(suite, gGcWorklistHardLimit != 0 && ledger.peakBytes <= gGcWorklistHardLimit,
+                "GC worklist allocation never exceeds the host hard limit");
+    ASSERT_TRUE(suite, ledger.liveBytes <= gGcWorklistHardLimit,
+                "GC worklist hard-limit failure leaves used bytes within the limit");
+    ASSERT_EQ(suite, std::string("not enough memory"), std::string(lua_tostring(L, -1)),
+              "GC worklist hard-limit failure uses the fixed memory error object");
+    ASSERT_TRUE(suite, gcWorklistFixtureRootIsUsable(L), "GC worklist hard-limit failure preserves roots");
+
+    ledger.hardLimit = std::numeric_limits<size_t>::max();
+    probe.failOnAllocation = 0;
+    gGcWorklistUseHardLimit = false;
+    lua_settop(L, 1);
+    lua_pushcclosure(L, collectGcWorklists, 0);
+    ASSERT_EQ(suite, LUA_OK, lua_pcall(L, 0, 0, 0), "GC collection succeeds after lifting the allocator hard limit");
+    ASSERT_EQ(suite, 1, gGcWorklistFinalizerCalls,
+              "hard-limit rollback preserves the pending finalizer for a successful retry");
+
+    gAllocatorFailureProbe = nullptr;
+    lua_close(L);
+    ASSERT_TRUE(suite, ledger.blocks.empty(), "GC worklist hard-limit state closes without blocks");
+    ASSERT_EQ(suite, static_cast<size_t>(0), ledger.liveBytes,
+              "GC worklist hard-limit state closes with zero live bytes");
+    ASSERT_EQ(suite, static_cast<size_t>(0), ledger.sizeMismatches,
+              "GC worklist hard-limit path preserves allocator old sizes");
+    ASSERT_EQ(suite, static_cast<size_t>(0), ledger.unknownFrees, "GC worklist hard-limit path frees each block once");
+
+    gGcWorklistFailureOffset = 0;
+    gGcWorklistUseHardLimit = false;
+    gGcWorklistHardLimit = 0;
+}
+
 void testTableReallocHardLimitTransaction(TestSuite& suite) {
     AllocatorLedger ledger;
     AllocatorProbe probe{&ledger};
@@ -3403,6 +3606,7 @@ void registerLuaCApiTests() {
     registry.registerTest(kSuiteName, "custom allocator lifecycle", testCustomAllocatorLifecycle);
     registry.registerTest(kSuiteName, "allocator-backed string content and hard limit",
                           testAllocatorBackedStringContentAndHardLimit);
+    registry.registerTest(kSuiteName, "GC worklist allocator transactions", testGcWorklistAllocatorTransactions);
     registry.registerTest(kSuiteName, "table realloc hard-limit transaction", testTableReallocHardLimitTransaction);
     registry.registerTest(kSuiteName, "Proto allocator transactions", testProtoAllocatorTransactions);
     registry.registerTest(kSuiteName, "allocator replacement", testAllocatorCanBeReplaced);
