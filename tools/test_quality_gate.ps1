@@ -522,6 +522,7 @@ Assert-FileContains "tools/check_runtime_bench.ps1" @(
 )
 
 Assert-FileContains "tools/run_runtime_bench_comparison.ps1" @(
+    'schemaVersion -ne 2',
     'minimumRunsPerRevision',
     '@\("base", "head"\)',
     '@\("head", "base"\)',
@@ -536,6 +537,7 @@ Assert-FileContains "tools/check_runtime_bench_comparison.ps1" @(
     'runnerPid',
     'gc_pause_p99_us',
     'median-of-run-medians',
+    'median-of-paired-run-regressions',
     'pooled-nearest-rank-p99',
     'maximumRegressionRatio',
     'regressionRatio',
@@ -543,8 +545,10 @@ Assert-FileContains "tools/check_runtime_bench_comparison.ps1" @(
 )
 
 Assert-FileContains "tests/compatibility/runtime-benchmark-regression-policy.json" @(
+    '"schemaVersion": 2',
     '"minimumRunsPerRevision": 3',
     '"sampleAggregation": "median-of-run-medians"',
+    '"regressionAggregation": "median-of-paired-run-regressions"',
     '"gcPauseAggregation": "pooled-nearest-rank-p99"',
     '"vm_instructions_per_second"',
     '"cpp_to_lua_ns_per_call"',
@@ -632,15 +636,25 @@ function Invoke-RuntimeBenchmarkComparisonSmokeTest {
             -PolicyPath (Join-RepoPath "tests/compatibility/runtime-benchmark-regression-policy.json") `
             -OutputPath $comparisonPath
         $comparison = Get-Content -Raw -LiteralPath $comparisonPath | ConvertFrom-Json
-        if ($comparison.success -ne $true -or $comparison.metrics.Count -ne 6) {
+        if ($comparison.schemaVersion -ne 2 -or $comparison.success -ne $true -or
+            $comparison.regressionAggregation -ne "median-of-paired-run-regressions" -or
+            $comparison.metrics.Count -ne 6) {
             throw "base-vs-head benchmark checker rejected stable synthetic evidence"
         }
 
+        $baseMedians = @(100.0, 200.0, 300.0)
+        $headMedians = @(90.0, 300.0, 270.0)
         for ($run = 0; $run -lt $headPaths.Count; $run++) {
-            $report = New-SyntheticBenchmarkReport -Sha "head-sha" -CppToLua 100.0
-            $metric = $report.metrics | Where-Object { $_.name -eq "cpp_to_lua_ns_per_call" }
-            $metric.samples = if ($run -eq 1) { @(300.0, 300.0, 300.0) } else { @(160.0, 100.0, 100.0) }
-            $report | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $headPaths[$run] -Encoding utf8
+            foreach ($revision in @("base", "head")) {
+                $isBase = $revision -eq "base"
+                $value = if ($isBase) { $baseMedians[$run] } else { $headMedians[$run] }
+                $sha = if ($isBase) { "base-sha" } else { "head-sha" }
+                $report = New-SyntheticBenchmarkReport -Sha $sha -CppToLua $value
+                $metric = $report.metrics | Where-Object { $_.name -eq "cpp_to_lua_ns_per_call" }
+                $metric.samples = @((1.6 * $value), $value, $value)
+                $path = if ($isBase) { $basePaths[$run] } else { $headPaths[$run] }
+                $report | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $path -Encoding utf8
+            }
         }
         & (Join-RepoPath "tools/check_runtime_bench_comparison.ps1") `
             -BaseResultPath $basePaths `
@@ -650,10 +664,15 @@ function Invoke-RuntimeBenchmarkComparisonSmokeTest {
             -OutputPath $comparisonPath
         $comparison = Get-Content -Raw -LiteralPath $comparisonPath | ConvertFrom-Json
         $cppToLua = $comparison.metrics | Where-Object { $_.name -eq "cpp_to_lua_ns_per_call" }
-        if ($comparison.success -ne $true -or $cppToLua.head -ne 100.0 -or $cppToLua.headSampleCount -ne 3) {
-            throw "base-vs-head benchmark checker did not isolate one noisy run with a median of run medians"
+        if ($comparison.success -ne $true -or [Math]::Abs($cppToLua.regressionRatio + 0.1) -gt 0.000001 -or
+            $cppToLua.pairedRunCount -ne 3 -or $cppToLua.pairedRegressionRatios.Count -ne 3) {
+            throw "base-vs-head benchmark checker did not preserve paired comparison under runner drift"
         }
 
+        foreach ($basePath in $basePaths) {
+            New-SyntheticBenchmarkReport -Sha "base-sha" -CppToLua 100.0 |
+                ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $basePath -Encoding utf8
+        }
         foreach ($headPath in $headPaths) {
             New-SyntheticBenchmarkReport -Sha "head-sha" -CppToLua 130.0 |
                 ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $headPath -Encoding utf8

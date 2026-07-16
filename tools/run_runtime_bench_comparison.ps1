@@ -22,7 +22,7 @@ Set-StrictMode -Version Latest
 $baseProgram = (Resolve-Path -LiteralPath $BaseExecutable).Path
 $headProgram = (Resolve-Path -LiteralPath $HeadExecutable).Path
 $policy = Get-Content -Raw -LiteralPath (Resolve-Path -LiteralPath $PolicyPath).Path | ConvertFrom-Json
-if ($policy.schemaVersion -ne 1 -or $policy.minimumRunsPerRevision -lt 3) {
+if ($policy.schemaVersion -ne 2 -or $policy.minimumRunsPerRevision -lt 3) {
     throw "Invalid runtime benchmark regression policy"
 }
 
