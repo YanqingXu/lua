@@ -189,6 +189,9 @@ struct AllocatorLedger {
     std::unordered_map<std::uintptr_t, size_t> blocks;
     size_t sizeMismatches = 0;
     size_t unknownFrees = 0;
+    size_t expectedOldSize = 0;
+    size_t reportedOldSize = 0;
+    size_t unknownFreeOldSize = 0;
     size_t liveBytes = 0;
     size_t peakBytes = 0;
     size_t hardLimit = std::numeric_limits<size_t>::max();
@@ -216,9 +219,12 @@ void* trackingLuaAllocator(void* userData, void* pointer, size_t oldSize, size_t
             auto existing = probe->ledger->blocks.find(oldKey);
             if (existing == probe->ledger->blocks.end()) {
                 ++probe->ledger->unknownFrees;
+                probe->ledger->unknownFreeOldSize = oldSize;
             } else {
                 if (existing->second != oldSize) {
                     ++probe->ledger->sizeMismatches;
+                    probe->ledger->expectedOldSize = existing->second;
+                    probe->ledger->reportedOldSize = oldSize;
                 }
                 probe->ledger->liveBytes -= existing->second;
                 probe->ledger->blocks.erase(existing);
@@ -248,6 +254,8 @@ void* trackingLuaAllocator(void* userData, void* pointer, size_t oldSize, size_t
             trackedOldSize = existing->second;
             if (trackedOldSize != oldSize) {
                 ++probe->ledger->sizeMismatches;
+                probe->ledger->expectedOldSize = trackedOldSize;
+                probe->ledger->reportedOldSize = oldSize;
             }
         }
     }
@@ -3285,8 +3293,11 @@ bool concatAllocatorResultMatches(lua_State* L) {
 }
 
 std::string concatAllocatorLedgerResult(const char* context, const AllocatorLedger& ledger) {
-    return std::format("{} [blocks={}, liveBytes={}, sizeMismatches={}, unknownFrees={}]", context,
-                       ledger.blocks.size(), ledger.liveBytes, ledger.sizeMismatches, ledger.unknownFrees);
+    return std::format(
+        "{} [blocks={}, liveBytes={}, sizeMismatches={}, expectedOldSize={}, reportedOldSize={}, unknownFrees={}, "
+        "unknownFreeOldSize={}]",
+        context, ledger.blocks.size(), ledger.liveBytes, ledger.sizeMismatches, ledger.expectedOldSize,
+        ledger.reportedOldSize, ledger.unknownFrees, ledger.unknownFreeOldSize);
 }
 
 void testConcatAllocatorTransactions(TestSuite& suite) {
