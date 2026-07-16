@@ -168,6 +168,10 @@ bool gFragmentedReaderUseHardLimit = false;
 bool gCallInfoUseHardLimit = false;
 size_t gCallInfoAllocationStart = 0;
 size_t gCallInfoHardLimit = 0;
+size_t gMetacallFailureOffset = 0;
+size_t gMetacallAllocationStart = 0;
+size_t gMetacallHardLimit = 0;
+bool gMetacallUseHardLimit = false;
 
 struct AllocatorLedger {
     std::unordered_map<std::uintptr_t, size_t> blocks;
@@ -749,6 +753,25 @@ int growCallInfoWithArmedAllocator(lua_State* L) {
 
     (void)state->pushCallInfo();
     return 0;
+}
+
+int armMetacallAllocatorFailure(lua_State*) {
+    AllocatorProbe* probe = gAllocatorFailureProbe;
+    gMetacallAllocationStart = probe != nullptr ? probe->allocationAttempts : 0;
+    if (probe != nullptr) {
+        probe->failOnAllocation = gMetacallFailureOffset == 0 ? 0 : probe->allocationAttempts + gMetacallFailureOffset;
+        if (gMetacallUseHardLimit) {
+            probe->ledger->hardLimit = probe->ledger->liveBytes;
+            probe->ledger->peakBytes = probe->ledger->liveBytes;
+            gMetacallHardLimit = probe->ledger->hardLimit;
+        }
+    }
+    return 0;
+}
+
+int returnMetacallArgumentCount(lua_State* L) {
+    lua_pushinteger(L, lua_gettop(L));
+    return 1;
 }
 
 int disarmAllocatorFailure(lua_State*) {
@@ -3056,6 +3079,123 @@ void testStateStackAndCallInfoAllocatorTransactions(TestSuite& suite) {
                 "stack and CallInfo transactions preserve allocator contracts");
 }
 
+constexpr const char* kMetacallAllocatorSource = R"lua(
+    __arm_metacall_allocator()
+    return __allocator_callable(1, 2, 3, 4, 5, 6, 7, 8,
+                                9, 10, 11, 12, 13, 14, 15, 16,
+                                17, 18, 19, 20, 21, 22, 23, 24,
+                                25, 26, 27, 28, 29, 30, 31, 32)
+)lua";
+
+void prepareMetacallAllocatorFixture(lua_State* L) {
+    lua_settop(L, 0);
+    lua_pushcclosure(L, armMetacallAllocatorFailure, 0);
+    lua_setglobal(L, "__arm_metacall_allocator");
+
+    lua_newtable(L);
+    lua_newtable(L);
+    lua_pushcclosure(L, returnMetacallArgumentCount, 0);
+    lua_setfield(L, -2, "__call");
+    (void)lua_setmetatable(L, -2);
+    lua_setglobal(L, "__allocator_callable");
+
+    if (luaL_loadstring(L, kMetacallAllocatorSource) != LUA_OK) {
+        throw std::runtime_error("failed to compile __call allocator fixture");
+    }
+}
+
+void testMetacallArgumentAllocatorTransactions(TestSuite& suite) {
+    size_t metacallAllocationAttempts = 0;
+    {
+        AllocatorLedger ledger;
+        AllocatorProbe probe{&ledger};
+        lua_State* L = lua_newstate(trackingLuaAllocator, &probe);
+        ASSERT_TRUE(suite, L != nullptr, "__call allocator baseline creates a state");
+        prepareMetacallAllocatorFixture(L);
+        gAllocatorFailureProbe = &probe;
+        gMetacallFailureOffset = 0;
+        gMetacallUseHardLimit = false;
+
+        ASSERT_EQ(suite, LUA_OK, lua_pcall(L, 0, 1, 0), "__call allocator baseline executes");
+        metacallAllocationAttempts = probe.allocationAttempts - gMetacallAllocationStart;
+        ASSERT_TRUE(suite, metacallAllocationAttempts > 0,
+                    "__call argument staging observes callback-backed allocation attempts");
+        ASSERT_EQ(suite, 33.0, lua_tonumber(L, -1), "__call receives the callable object and all explicit arguments");
+
+        gAllocatorFailureProbe = nullptr;
+        lua_close(L);
+        ASSERT_TRUE(suite, ledger.blocks.empty() && ledger.liveBytes == 0,
+                    "__call allocator baseline closes with zero ownership");
+    }
+
+    for (size_t offset = 1; offset <= metacallAllocationAttempts; ++offset) {
+        AllocatorLedger ledger;
+        AllocatorProbe probe{&ledger};
+        lua_State* L = lua_newstate(trackingLuaAllocator, &probe);
+        ASSERT_TRUE(suite, L != nullptr, "__call fail-on-N test creates a state");
+        prepareMetacallAllocatorFixture(L);
+        gAllocatorFailureProbe = &probe;
+        gMetacallFailureOffset = offset;
+        gMetacallUseHardLimit = false;
+
+        ASSERT_EQ(suite, LUA_ERRMEM, lua_pcall(L, 0, 1, 0), "__call argument staging failure becomes LUA_ERRMEM");
+        ASSERT_EQ(suite, gMetacallAllocationStart + offset, probe.allocationAttempts,
+                  "__call fail-on-N reaches the selected allocator attempt");
+        ASSERT_TRUE(suite,
+                    lua_gettop(L) == 1 && lua_isstring(L, -1) != 0 &&
+                        std::string(lua_tostring(L, -1)) == "not enough memory",
+                    "__call argument staging failure publishes one fixed memory error");
+
+        probe.failOnAllocation = 0;
+        gMetacallFailureOffset = 0;
+        gAllocatorFailureProbe = nullptr;
+        lua_settop(L, 0);
+        prepareMetacallAllocatorFixture(L);
+        ASSERT_EQ(suite, LUA_OK, lua_pcall(L, 0, 1, 0), "__call succeeds after disarming fail-on-N");
+        ASSERT_EQ(suite, 33.0, lua_tonumber(L, -1), "__call retry preserves every argument");
+
+        lua_close(L);
+        ASSERT_TRUE(suite,
+                    ledger.blocks.empty() && ledger.liveBytes == 0 && ledger.sizeMismatches == 0 &&
+                        ledger.unknownFrees == 0,
+                    "__call fail-on-N rollback closes with valid allocator ownership");
+    }
+
+    AllocatorLedger hardLimitLedger;
+    AllocatorProbe hardLimitProbe{&hardLimitLedger};
+    lua_State* hardLimitState = lua_newstate(trackingLuaAllocator, &hardLimitProbe);
+    ASSERT_TRUE(suite, hardLimitState != nullptr, "__call hard-limit test creates a state");
+    prepareMetacallAllocatorFixture(hardLimitState);
+    gAllocatorFailureProbe = &hardLimitProbe;
+    gMetacallFailureOffset = 0;
+    gMetacallUseHardLimit = true;
+
+    ASSERT_EQ(suite, LUA_ERRMEM, lua_pcall(hardLimitState, 0, 1, 0),
+              "zero-headroom hard limit rejects __call argument staging");
+    ASSERT_TRUE(suite,
+                hardLimitLedger.liveBytes <= gMetacallHardLimit && hardLimitLedger.peakBytes <= gMetacallHardLimit,
+                "__call argument staging never exceeds the allocator hard limit");
+    ASSERT_TRUE(suite,
+                lua_gettop(hardLimitState) == 1 && lua_isstring(hardLimitState, -1) != 0 &&
+                    std::string(lua_tostring(hardLimitState, -1)) == "not enough memory",
+                "__call hard-limit failure preserves the protected stack contract");
+
+    hardLimitLedger.hardLimit = std::numeric_limits<size_t>::max();
+    gMetacallUseHardLimit = false;
+    gAllocatorFailureProbe = nullptr;
+    lua_settop(hardLimitState, 0);
+    prepareMetacallAllocatorFixture(hardLimitState);
+    ASSERT_EQ(suite, LUA_OK, lua_pcall(hardLimitState, 0, 1, 0),
+              "__call succeeds after lifting the allocator hard limit");
+    ASSERT_EQ(suite, 33.0, lua_tonumber(hardLimitState, -1), "hard-limit retry preserves every __call argument");
+
+    lua_close(hardLimitState);
+    ASSERT_TRUE(suite,
+                hardLimitLedger.blocks.empty() && hardLimitLedger.liveBytes == 0 &&
+                    hardLimitLedger.sizeMismatches == 0 && hardLimitLedger.unknownFrees == 0,
+                "__call hard-limit rollback closes with valid allocator ownership");
+}
+
 void testPublicResumeAllocationRollback(TestSuite& suite) {
     AllocatorLedger ledger;
     AllocatorProbe probe{&ledger};
@@ -4256,6 +4396,8 @@ void registerLuaCApiTests() {
     registry.registerTest(kSuiteName, "allocator failure paths", testAllocatorFailurePaths);
     registry.registerTest(kSuiteName, "state stack and CallInfo allocator transactions",
                           testStateStackAndCallInfoAllocatorTransactions);
+    registry.registerTest(kSuiteName, "__call argument allocator transactions",
+                          testMetacallArgumentAllocatorTransactions);
     registry.registerTest(kSuiteName, "fragmented reader allocator transactions",
                           testFragmentedReaderAllocatorTransactions);
     registry.registerTest(kSuiteName, "loadbuffer allocator failures", testLoadBufferAllocatorFailures);
