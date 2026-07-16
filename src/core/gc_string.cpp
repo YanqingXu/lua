@@ -5,6 +5,10 @@
 
 #include "core/gc_string.hpp"
 
+#include <cstring>
+#include <limits>
+#include <new>
+
 namespace Lua {
 
 /**
@@ -13,16 +17,47 @@ namespace Lua {
 GCString::GCString(StrView str) : GCString(nullptr, str) {}
 
 GCString::GCString(LuaAllocator* allocator, StrView str)
-    : GCObject(GCObjectType::String), hash_(computeHash(str)), length_(str.length()),
-      data_(str.data(), str.size(), LuaStdAllocator<char>(allocator)) {}
+    : GCObject(GCObjectType::String), hash_(computeHash(str)), length_(str.length()), allocator_(allocator) {
+    if (length_ == std::numeric_limits<usize>::max()) {
+        throw std::bad_array_new_length();
+    }
+    const usize storageBytes = length_ + 1;
+    char* destination = inlineData_.data();
+    if (storageBytes > inlineData_.size()) {
+        if (allocator_ != nullptr && allocator_->isConfigured()) {
+            externalData_ = static_cast<char*>(allocator_->allocate(storageBytes));
+            callbackOwned_ = true;
+        } else {
+            externalData_ = static_cast<char*>(::operator new(storageBytes));
+        }
+        if (externalData_ == nullptr) {
+            throw std::bad_alloc();
+        }
+        destination = externalData_;
+    }
+
+    if (length_ != 0) {
+        std::memcpy(destination, str.data(), length_);
+    }
+    destination[length_] = '\0';
+}
+
+GCString::~GCString() {
+    if (externalData_ == nullptr) {
+        return;
+    }
+    if (callbackOwned_) {
+        allocator_->deallocate(externalData_, length_ + 1);
+    } else {
+        ::operator delete(externalData_);
+    }
+}
 
 /**
  * @brief 获取对象占用的内存大小
  */
 usize GCString::getSize() const {
-    // GCString对象大小 = 基类大小 + 成员变量大小 + 字符串数据大小
-    // 注意：Str可能有SSO（小字符串优化），但我们按实际容量计算
-    return sizeof(GCString) + data_.capacity();
+    return sizeof(GCString) + (externalData_ != nullptr ? length_ + 1 : 0);
 }
 
 /**

@@ -2098,6 +2098,27 @@ void testAllocatorBackedStringContentAndHardLimit(TestSuite& suite) {
         auto* state = reinterpret_cast<Lua::LuaState*>(L);
         auto& pool = state->getGlobalState().getStringPool();
 
+        const std::string boundaryText(24, 'b');
+        size_t boundaryBlocksBefore = 0;
+        for (const auto& block : ledger.blocks) {
+            if (block.second == boundaryText.size() + 1) {
+                ++boundaryBlocksBefore;
+            }
+        }
+        Lua::GCString* boundaryString = pool.intern(Lua::StrView(boundaryText.data(), boundaryText.size()));
+        ASSERT_TRUE(suite,
+                    boundaryString != nullptr && boundaryString->getData() == boundaryText &&
+                        boundaryString->c_str()[boundaryText.size()] == '\0',
+                    "GCString boundary payload preserves content and terminator");
+        size_t boundaryBlocksAfter = 0;
+        for (const auto& block : ledger.blocks) {
+            if (block.second == boundaryText.size() + 1) {
+                ++boundaryBlocksAfter;
+            }
+        }
+        ASSERT_TRUE(suite, boundaryBlocksAfter > boundaryBlocksBefore,
+                    "GCString boundary payload uses one exact callback-sized block");
+
         size_t contentSizedBlocksBefore = 0;
         for (const auto& block : ledger.blocks) {
             if (block.second >= text.size() + 1) {
@@ -2122,7 +2143,8 @@ void testAllocatorBackedStringContentAndHardLimit(TestSuite& suite) {
                     "allocator ledger observes a new long-string content block");
 
         lua_close(L);
-        ASSERT_TRUE(suite, ledger.blocks.empty(), "string allocator baseline closes without blocks");
+        ASSERT_TRUE(suite, ledger.blocks.empty() && ledger.sizeMismatches == 0 && ledger.unknownFrees == 0,
+                    "string allocator baseline closes with exact allocator ownership");
         ASSERT_EQ(suite, static_cast<size_t>(0), ledger.liveBytes,
                   "string allocator baseline closes with zero live bytes");
     }

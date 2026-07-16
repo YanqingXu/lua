@@ -21,14 +21,14 @@ applies_to: GC managed-size accounting、lua_Alloc callback 与宿主内存上�
 
 自定义 `lua_Alloc` 已覆盖 State/Context、许多 GC object、userdata payload、Stack/CallInfo、collector-owned 工作列表，以及下面这个已经闭环的核心切片：
 
-- `GCString` 的对象与非 SSO 内容都走 callback；StringPool 节点走 callback，key 直接引用不可变 `GCString` 内容，不再保存第二份默认 allocator 字符串；
+- `GCString` 对象走 callback；最多 23 字节的内容与终止符内联在对象中，更长的不可变载荷使用精确 `length + 1` callback 块，析构回传同一 `osize`，不再依赖标准库 SSO/capacity；StringPool 节点走 callback，key 直接引用不可变 `GCString` 内容，不再保存第二份默认 allocator 字符串；
 - Table 数组和 Proto 的 constants/code/subProto/lineInfo/LocVar/upvalue-name 数组使用 `LuaReallocVector`，扩容发出真正的 `(ptr, osize, nsize)` realloc 请求；
 - Table 数组单值和 `SETLIST` 范围写入在 realloc 失败时不改变逻辑大小与旧值；Table hash 插入使用强保证的 `try_emplace`，raw C API 与 VM `SETTABLE` 都逐点证明失败时不发布目标 entry；
 - `lua_load` 用 `LuaStdAllocator<char>` 支撑的 source buffer 聚合 reader 分片，缓冲增长 OOM 会恢复调用者栈并发布 fixed memory error；
 - services-backed Parser 把同一 callback 的值快照传给 Lexer；Lexer 的整源副本与词素缓冲、Token 的 lexeme/decoded-value/error 字符串使用按值快照 callback 的 `LuaOwnedString`，`InputCursor` 源码重放缓存使用 `LuaVector<i32>`；这些缓存的 OOM 与 reader source buffer OOM 进入相同的 protected `LUA_ERRMEM` 回滚边界；
 - State value stack 与 CallInfo 数组使用同一 callback 的 `LuaVector`；`lua_checkstack` 分配失败不改变逻辑栈，protected CallInfo 扩容失败恢复原调用深度并发布 fixed `LUA_ERRMEM`；
 - VM 调用非函数值的 `__call` 元方法时，插入 callable self 前的宽实参暂存使用 State callback 支撑的 `LuaVector<Value>`，分配失败发生在参数搬移前；
-- VM `OP_CONCAT` 直接借用字符串操作数、在栈上格式化数字，并用 State callback 支撑且具有跨标准库精确 deallocation 计数的 `LuaVector<char>` 建立最终拼接缓冲，再以 view 交给 allocator-backed StringPool；
+- VM `OP_CONCAT` 直接借用字符串操作数、在栈上格式化数字，并用直接维护 callback 容量与精确 deallocation 字节数的 `LuaReallocVector<char>` 建立最终拼接缓冲，再以 view 交给 allocator-backed StringPool；
 - 标准库 `table.concat` 同样借用字符串元素和分隔符、在栈上格式化数字元素，并用 State callback 支撑的 `LuaVector<char>` 渐进建立最终结果；
 - 标准库 `table.sort` 的排序工作副本与每次 comparator 调用的完整栈快照使用 State callback 支撑的 `LuaVector<Value>`；工作副本成功排序后才写回目标表，比较器内存异常在恢复调用栈后保持 `LUA_ERRMEM` 分类；
 - Proto 常量数组与去重 map 的多步插入在 map 分配失败时回滚常量槽；

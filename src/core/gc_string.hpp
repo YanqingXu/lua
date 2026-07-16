@@ -20,11 +20,12 @@
 
 #include "core/gc_object.hpp"
 #include "runtime/lua_allocator.hpp"
-#include <string>
+#include <array>
 #include <string_view>
 
 namespace Lua {
 
+// clang-format off
 /**
  * @brief GCString类 - GC管理的字符串对象
  *
@@ -36,8 +37,9 @@ namespace Lua {
  * - GCObject基类：24字节（next, type, marked, vtable）
  * - hash_: 8字节（usize）
  * - length_: 8字节（usize）
- * - data_: 32字节（Str，包含SSO优化）
- * 总计：约72字节（基类部分）+ 字符串数据
+ * - inlineData_: 最多23字节内容及终止符
+ * - externalData_: 更长内容的精确 length + 1 字节 lua_Alloc 块
+ * 总大小由平台布局决定；getSize() 计入对象和实际外部载荷
  *
  * 字符串驻留：
  * 所有GCString对象通过StringPool创建和管理，确保相同内容的字符串
@@ -50,6 +52,7 @@ namespace Lua {
  * 不可变性：
  * 字符串一旦创建，内容不可修改。这是字符串驻留的前提条件。
  */
+// clang-format on
 class GCString : public GCObject {
 public:
     // =====================================================================
@@ -68,7 +71,7 @@ public:
     /**
      * @brief 析构函数
      */
-    ~GCString() override = default;
+    ~GCString() override;
 
     // 禁止拷贝和移动（字符串由StringPool管理）
     GCString(const GCString&) = delete;
@@ -101,7 +104,7 @@ public:
      * @return 字符串数据的常量引用
      */
     StrView getData() const noexcept {
-        return StrView(data_.data(), data_.size());
+        return StrView(storageData(), length_);
     }
 
     /**
@@ -109,7 +112,7 @@ public:
      * @return 指向以null结尾的字符串的指针
      */
     const char* c_str() const noexcept {
-        return data_.c_str();
+        return storageData();
     }
 
     /**
@@ -117,7 +120,7 @@ public:
      * @return 字符串视图
      */
     StrView view() const noexcept {
-        return StrView(data_.data(), data_.size());
+        return StrView(storageData(), length_);
     }
 
     // =====================================================================
@@ -203,10 +206,17 @@ public:
     static usize computeHash(StrView str) noexcept;
 
 private:
+    [[nodiscard]] const char* storageData() const noexcept {
+        return externalData_ != nullptr ? externalData_ : inlineData_.data();
+    }
+
+    static constexpr usize kInlineStorageBytes = 24;
     usize hash_;   ///< 预计算的哈希值
     usize length_; ///< 字符串长度（字节数）
-    using Storage = std::basic_string<char, std::char_traits<char>, LuaStdAllocator<char>>;
-    Storage data_; ///< 字符串数据；长内容由宿主 lua_Alloc 拥有
+    LuaAllocator* allocator_ = nullptr;
+    char* externalData_ = nullptr;
+    bool callbackOwned_ = false;
+    std::array<char, kInlineStorageBytes> inlineData_{};
 };
 
 } // namespace Lua
