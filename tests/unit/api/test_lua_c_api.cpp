@@ -172,6 +172,10 @@ size_t gMetacallFailureOffset = 0;
 size_t gMetacallAllocationStart = 0;
 size_t gMetacallHardLimit = 0;
 bool gMetacallUseHardLimit = false;
+size_t gConcatFailureOffset = 0;
+size_t gConcatAllocationStart = 0;
+size_t gConcatHardLimit = 0;
+bool gConcatUseHardLimit = false;
 
 struct AllocatorLedger {
     std::unordered_map<std::uintptr_t, size_t> blocks;
@@ -772,6 +776,20 @@ int armMetacallAllocatorFailure(lua_State*) {
 int returnMetacallArgumentCount(lua_State* L) {
     lua_pushinteger(L, lua_gettop(L));
     return 1;
+}
+
+int armConcatAllocatorFailure(lua_State*) {
+    AllocatorProbe* probe = gAllocatorFailureProbe;
+    gConcatAllocationStart = probe != nullptr ? probe->allocationAttempts : 0;
+    if (probe != nullptr) {
+        probe->failOnAllocation = gConcatFailureOffset == 0 ? 0 : probe->allocationAttempts + gConcatFailureOffset;
+        if (gConcatUseHardLimit) {
+            probe->ledger->hardLimit = probe->ledger->liveBytes;
+            probe->ledger->peakBytes = probe->ledger->liveBytes;
+            gConcatHardLimit = probe->ledger->hardLimit;
+        }
+    }
+    return 0;
 }
 
 int disarmAllocatorFailure(lua_State*) {
@@ -3196,6 +3214,123 @@ void testMetacallArgumentAllocatorTransactions(TestSuite& suite) {
                 "__call hard-limit rollback closes with valid allocator ownership");
 }
 
+constexpr const char* kConcatAllocatorSource =
+    "__arm_concat_allocator(); return __concat_allocator_left .. __concat_allocator_right";
+
+void prepareConcatAllocatorFixture(lua_State* L) {
+    lua_settop(L, 0);
+    lua_pushcclosure(L, armConcatAllocatorFailure, 0);
+    lua_setglobal(L, "__arm_concat_allocator");
+
+    const std::string left(96, 'L');
+    const std::string right(96, 'R');
+    lua_pushlstring(L, left.data(), left.size());
+    lua_setglobal(L, "__concat_allocator_left");
+    lua_pushlstring(L, right.data(), right.size());
+    lua_setglobal(L, "__concat_allocator_right");
+
+    if (luaL_loadstring(L, kConcatAllocatorSource) != LUA_OK) {
+        throw std::runtime_error("failed to compile concat allocator fixture");
+    }
+}
+
+bool concatAllocatorResultMatches(lua_State* L) {
+    size_t length = 0;
+    const char* text = lua_tolstring(L, -1, &length);
+    return text != nullptr && length == 192 && std::string_view(text, 96) == std::string(96, 'L') &&
+           std::string_view(text + 96, 96) == std::string(96, 'R');
+}
+
+void testConcatAllocatorTransactions(TestSuite& suite) {
+    size_t concatAllocationAttempts = 0;
+    {
+        AllocatorLedger ledger;
+        AllocatorProbe probe{&ledger};
+        lua_State* L = lua_newstate(trackingLuaAllocator, &probe);
+        ASSERT_TRUE(suite, L != nullptr, "concat allocator baseline creates a state");
+        prepareConcatAllocatorFixture(L);
+        gAllocatorFailureProbe = &probe;
+        gConcatFailureOffset = 0;
+        gConcatUseHardLimit = false;
+
+        ASSERT_EQ(suite, LUA_OK, lua_pcall(L, 0, 1, 0), "concat allocator baseline executes");
+        concatAllocationAttempts = probe.allocationAttempts - gConcatAllocationStart;
+        ASSERT_TRUE(suite, concatAllocationAttempts > 0, "concat path observes callback-backed allocation attempts");
+        ASSERT_TRUE(suite, concatAllocatorResultMatches(L), "concat baseline preserves both long operands");
+
+        gAllocatorFailureProbe = nullptr;
+        lua_close(L);
+        ASSERT_TRUE(suite, ledger.blocks.empty() && ledger.liveBytes == 0,
+                    "concat allocator baseline closes with zero ownership");
+    }
+
+    for (size_t offset = 1; offset <= concatAllocationAttempts; ++offset) {
+        AllocatorLedger ledger;
+        AllocatorProbe probe{&ledger};
+        lua_State* L = lua_newstate(trackingLuaAllocator, &probe);
+        ASSERT_TRUE(suite, L != nullptr, "concat fail-on-N test creates a state");
+        prepareConcatAllocatorFixture(L);
+        gAllocatorFailureProbe = &probe;
+        gConcatFailureOffset = offset;
+        gConcatUseHardLimit = false;
+
+        ASSERT_EQ(suite, LUA_ERRMEM, lua_pcall(L, 0, 1, 0), "concat allocation failure becomes LUA_ERRMEM");
+        ASSERT_EQ(suite, gConcatAllocationStart + offset, probe.allocationAttempts,
+                  "concat fail-on-N reaches the selected allocator attempt");
+        ASSERT_TRUE(suite,
+                    lua_gettop(L) == 1 && lua_isstring(L, -1) != 0 &&
+                        std::string(lua_tostring(L, -1)) == "not enough memory",
+                    "concat allocation failure publishes one fixed memory error");
+
+        probe.failOnAllocation = 0;
+        gConcatFailureOffset = 0;
+        gAllocatorFailureProbe = nullptr;
+        lua_settop(L, 0);
+        prepareConcatAllocatorFixture(L);
+        ASSERT_EQ(suite, LUA_OK, lua_pcall(L, 0, 1, 0), "concat succeeds after disarming fail-on-N");
+        ASSERT_TRUE(suite, concatAllocatorResultMatches(L), "concat retry preserves both long operands");
+
+        lua_close(L);
+        ASSERT_TRUE(suite,
+                    ledger.blocks.empty() && ledger.liveBytes == 0 && ledger.sizeMismatches == 0 &&
+                        ledger.unknownFrees == 0,
+                    "concat fail-on-N rollback closes with valid allocator ownership");
+    }
+
+    AllocatorLedger hardLimitLedger;
+    AllocatorProbe hardLimitProbe{&hardLimitLedger};
+    lua_State* hardLimitState = lua_newstate(trackingLuaAllocator, &hardLimitProbe);
+    ASSERT_TRUE(suite, hardLimitState != nullptr, "concat hard-limit test creates a state");
+    prepareConcatAllocatorFixture(hardLimitState);
+    gAllocatorFailureProbe = &hardLimitProbe;
+    gConcatFailureOffset = 0;
+    gConcatUseHardLimit = true;
+
+    ASSERT_EQ(suite, LUA_ERRMEM, lua_pcall(hardLimitState, 0, 1, 0), "zero-headroom hard limit rejects concat growth");
+    ASSERT_TRUE(suite, hardLimitLedger.liveBytes <= gConcatHardLimit && hardLimitLedger.peakBytes <= gConcatHardLimit,
+                "concat growth never exceeds the allocator hard limit");
+    ASSERT_TRUE(suite,
+                lua_gettop(hardLimitState) == 1 && lua_isstring(hardLimitState, -1) != 0 &&
+                    std::string(lua_tostring(hardLimitState, -1)) == "not enough memory",
+                "concat hard-limit failure preserves the protected stack contract");
+
+    hardLimitLedger.hardLimit = std::numeric_limits<size_t>::max();
+    gConcatUseHardLimit = false;
+    gAllocatorFailureProbe = nullptr;
+    lua_settop(hardLimitState, 0);
+    prepareConcatAllocatorFixture(hardLimitState);
+    ASSERT_EQ(suite, LUA_OK, lua_pcall(hardLimitState, 0, 1, 0),
+              "concat succeeds after lifting the allocator hard limit");
+    ASSERT_TRUE(suite, concatAllocatorResultMatches(hardLimitState),
+                "hard-limit retry preserves both long concat operands");
+
+    lua_close(hardLimitState);
+    ASSERT_TRUE(suite,
+                hardLimitLedger.blocks.empty() && hardLimitLedger.liveBytes == 0 &&
+                    hardLimitLedger.sizeMismatches == 0 && hardLimitLedger.unknownFrees == 0,
+                "concat hard-limit rollback closes with valid allocator ownership");
+}
+
 void testPublicResumeAllocationRollback(TestSuite& suite) {
     AllocatorLedger ledger;
     AllocatorProbe probe{&ledger};
@@ -4398,6 +4533,7 @@ void registerLuaCApiTests() {
                           testStateStackAndCallInfoAllocatorTransactions);
     registry.registerTest(kSuiteName, "__call argument allocator transactions",
                           testMetacallArgumentAllocatorTransactions);
+    registry.registerTest(kSuiteName, "concat allocator transactions", testConcatAllocatorTransactions);
     registry.registerTest(kSuiteName, "fragmented reader allocator transactions",
                           testFragmentedReaderAllocatorTransactions);
     registry.registerTest(kSuiteName, "loadbuffer allocator failures", testLoadBufferAllocatorFailures);

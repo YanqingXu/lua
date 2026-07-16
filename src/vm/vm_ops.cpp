@@ -15,11 +15,14 @@
 #include "vm/state/lua_state.hpp"
 #include "vm/vm_constants.hpp"
 
+#include <array>
 #include <cctype>
+#include <charconv>
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
 #include <string>
+#include <system_error>
 
 namespace Lua {
 namespace {
@@ -36,8 +39,27 @@ bool tryToNumber(const Value& val, f64& result) {
     return false;
 }
 
-Str numberToLuaString(f64 value) {
-    return luaNumberToString(value);
+struct ConcatOperandText {
+    std::array<char, 64> numberBuffer{};
+    StrView view;
+};
+
+bool concatOperandText(const Value& value, ConcatOperandText& text) {
+    if (value.isString()) {
+        text.view = value.asString()->view();
+        return true;
+    }
+    if (!value.isNumber()) {
+        return false;
+    }
+
+    const auto result = std::to_chars(text.numberBuffer.data(), text.numberBuffer.data() + text.numberBuffer.size(),
+                                      value.asNumber(), std::chars_format::general, 14);
+    if (result.ec != std::errc{}) {
+        throw RuntimeError("failed to format Lua number");
+    }
+    text.view = StrView(text.numberBuffer.data(), static_cast<usize>(result.ptr - text.numberBuffer.data()));
+    return true;
 }
 
 f64 luaModulo(f64 left, f64 right) {
@@ -341,25 +363,9 @@ void concat(RuntimeServices& services, LuaState* L, Value* base, i32 a, i32 b, i
         Value& top1 = base[last];
         Value& top2 = base[last - 1];
 
-        Str str1, str2;
-        bool canConcat = false;
-
-        if (top2.isString()) {
-            str2 = top2.asString()->getData();
-            canConcat = true;
-        } else if (top2.isNumber()) {
-            str2 = numberToLuaString(top2.asNumber());
-            canConcat = true;
-        }
-
-        if (canConcat) {
-            if (top1.isString())
-                str1 = top1.asString()->getData();
-            else if (top1.isNumber())
-                str1 = numberToLuaString(top1.asNumber());
-            else
-                canConcat = false;
-        }
+        ConcatOperandText text1;
+        ConcatOperandText text2;
+        const bool canConcat = concatOperandText(top2, text2) && concatOperandText(top1, text1);
 
         if (!canConcat) {
             Value result;
@@ -373,12 +379,12 @@ void concat(RuntimeServices& services, LuaState* L, Value* base, i32 a, i32 b, i
             continue;
         }
 
-        checkStringConcatLength(str2.size(), str1.size());
-        Str result;
-        result.reserve(str2.size() + str1.size());
-        result.append(str2);
-        result.append(str1);
-        base[last - 1] = Value(pool.intern(result));
+        checkStringConcatLength(text2.view.size(), text1.view.size());
+        LuaString result(LuaStdAllocator<char>(services.globalState.getAllocator()));
+        result.reserve(text2.view.size() + text1.view.size());
+        result.append(text2.view.data(), text2.view.size());
+        result.append(text1.view.data(), text1.view.size());
+        base[last - 1] = Value(pool.intern(StrView(result.data(), result.size())));
         [[maybe_unused]] const usize collected = services.gc.maybeCollectAutomatic(L);
         total--;
         last--;
