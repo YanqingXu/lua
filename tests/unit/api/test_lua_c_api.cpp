@@ -207,6 +207,8 @@ struct AllocatorProbe {
     size_t allocationAttempts = 0;
     size_t failOnAllocation = 0;
     size_t failFromAllocation = 0;
+    size_t observedAllocationSize = 0;
+    size_t observedAllocationAttempts = 0;
 };
 
 void* trackingLuaAllocator(void* userData, void* pointer, size_t oldSize, size_t newSize) {
@@ -236,6 +238,9 @@ void* trackingLuaAllocator(void* userData, void* pointer, size_t oldSize, size_t
     }
 
     ++probe->allocationAttempts;
+    if (probe->observedAllocationSize != 0 && newSize == probe->observedAllocationSize) {
+        ++probe->observedAllocationAttempts;
+    }
     if (probe->failOnAllocation != 0 && probe->allocationAttempts == probe->failOnAllocation) {
         return nullptr;
     }
@@ -3961,19 +3966,27 @@ void testFragmentedReaderAllocatorTransactions(TestSuite& suite) {
 }
 
 void testLoadBufferAllocatorFailures(TestSuite& suite) {
-    constexpr const char* source =
-        "local allocator_backed_identifier_name = {}; for i = 1, 8 do "
-        "allocator_backed_identifier_name[i] = i end; return allocator_backed_identifier_name[8]";
+    constexpr const char* source = "local allocator_backed_identifier_name = {}; "
+                                   "local function make_allocator_backed_closure() "
+                                   "local parser_scope_identifier_name = 40; "
+                                   "return function() return parser_scope_identifier_name + 2 end end; "
+                                   "local allocator_backed_closure = make_allocator_backed_closure(); "
+                                   "for i = 1, 8 do allocator_backed_identifier_name[i] = i end; "
+                                   "return allocator_backed_identifier_name[8] + allocator_backed_closure()";
 
     AllocatorLedger baselineLedger;
     AllocatorProbe baselineProbe{&baselineLedger};
     lua_State* baseline = lua_newstate(trackingLuaAllocator, &baselineProbe);
     ASSERT_TRUE(suite, baseline != nullptr, "loadbuffer failure scan creates baseline state");
+    baselineProbe.observedAllocationSize = sizeof("parser_scope_identifier_name");
     const size_t attemptsBeforeLoad = baselineProbe.allocationAttempts;
     ASSERT_EQ(suite, LUA_OK, luaL_loadbuffer(baseline, source, std::strlen(source), "=oom-loadbuffer"),
               "baseline loadbuffer succeeds");
     const size_t loadAllocationAttempts = baselineProbe.allocationAttempts - attemptsBeforeLoad;
     ASSERT_TRUE(suite, loadAllocationAttempts > 0, "loadbuffer baseline observes allocator traffic");
+    ASSERT_TRUE(suite, baselineProbe.observedAllocationAttempts >= 8,
+                "loadbuffer baseline routes parser scope names through lua_Alloc (" +
+                    std::to_string(baselineProbe.observedAllocationAttempts) + " exact-size allocations)");
     lua_close(baseline);
     ASSERT_TRUE(suite, baselineLedger.blocks.empty(), "baseline loadbuffer state closes without leaks");
 
@@ -3995,7 +4008,7 @@ void testLoadBufferAllocatorFailures(TestSuite& suite) {
         ASSERT_EQ(suite, LUA_OK, luaL_loadbuffer(L, source, std::strlen(source), "=oom-loadbuffer"),
                   "state remains usable after loader allocation failure");
         ASSERT_EQ(suite, LUA_OK, lua_pcall(L, 0, 1, 0), "recovered loader result executes");
-        ASSERT_EQ(suite, 8.0, lua_tonumber(L, -1), "recovered loader result is correct");
+        ASSERT_EQ(suite, 50.0, lua_tonumber(L, -1), "recovered loader result is correct");
 
         lua_close(L);
         ASSERT_TRUE(suite, ledger.blocks.empty(), "loader failure rollback and close remain leak free");
@@ -4026,7 +4039,7 @@ void testLoadBufferAllocatorFailures(TestSuite& suite) {
     ASSERT_EQ(suite, LUA_OK, luaL_loadbuffer(hardLimitState, source, std::strlen(source), "=hard-limit-loadbuffer"),
               "loadbuffer compiles after lifting the hard limit");
     ASSERT_EQ(suite, LUA_OK, lua_pcall(hardLimitState, 0, 1, 0), "loadbuffer hard-limit retry executes");
-    ASSERT_EQ(suite, 8.0, lua_tonumber(hardLimitState, -1), "loadbuffer hard-limit retry returns the expected value");
+    ASSERT_EQ(suite, 50.0, lua_tonumber(hardLimitState, -1), "loadbuffer hard-limit retry returns the expected value");
 
     lua_close(hardLimitState);
     ASSERT_TRUE(suite, hardLimitLedger.blocks.empty() && hardLimitLedger.liveBytes == 0,

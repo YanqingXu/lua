@@ -238,13 +238,23 @@ private:
     static constexpr usize MAX_UPVALUES_PER_FUNCTION = 60;
 
     struct FunctionSyntaxScope {
-        i32 line = 1;
-        Vec<Str> locals;
-        Vec<Str> upvalues;
+        FunctionSyntaxScope(i32 scopeLine, const LuaAllocator* allocator)
+            : line(scopeLine), locals(LuaSnapshotStdAllocator<LuaOwnedString>(allocator)),
+              upvalues(LuaSnapshotStdAllocator<LuaOwnedString>(allocator)) {}
+
+        i32 line;
+        LuaOwnedVector<LuaOwnedString> locals;
+        LuaOwnedVector<LuaOwnedString> upvalues;
     };
 
-    static bool containsName(const Vec<Str>& names, const Str& name) {
-        return std::find(names.begin(), names.end(), name) != names.end();
+    static bool containsName(const LuaOwnedVector<LuaOwnedString>& names, StrView name) {
+        return std::find_if(names.begin(), names.end(), [name](const LuaOwnedString& candidate) {
+                   return StrView(candidate.data(), candidate.size()) == name;
+               }) != names.end();
+    }
+
+    [[nodiscard]] LuaOwnedString makeSyntaxName(StrView name) const {
+        return LuaOwnedString(name.begin(), name.end(), LuaSnapshotStdAllocator<char>(&allocator_));
     }
 
     class RecursionGuard {
@@ -276,11 +286,12 @@ private:
     };
 
 private:
+    LuaAllocator allocator_;
     TokenStream tokenStream_;
     RuntimeServices* services_ = nullptr;
     ParseState parseState_;
     AstFactory astFactory_;
-    Vec<FunctionSyntaxScope> functionScopes_;
+    LuaOwnedVector<FunctionSyntaxScope> functionScopes_;
     ParseDiagnosticCollector diagnosticCollector_;
     Vec<ParseDiagnosticObserver*> diagnosticObservers_;
     UPtr<ErrorRecoveryStrategy> recoveryStrategy_;

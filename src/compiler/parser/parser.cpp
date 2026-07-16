@@ -52,12 +52,16 @@ const Vec<ParseError>& Parser::diagnostics() const noexcept {
 }
 
 Parser::Impl::Impl(const Str& source, ParserOptions options)
-    : tokenStream_(source), recoveryStrategy_(makeRecoveryStrategy(options.recoveryMode)) {
+    : tokenStream_(source), functionScopes_(LuaSnapshotStdAllocator<FunctionSyntaxScope>(&allocator_)),
+      recoveryStrategy_(makeRecoveryStrategy(options.recoveryMode)) {
     diagnosticObservers_.push_back(&diagnosticCollector_);
 }
 
 Parser::Impl::Impl(const Str& source, RuntimeServices& services, ParserOptions options)
-    : tokenStream_(source, services.globalState.getAllocator()), services_(&services),
+    : allocator_(services.globalState.getAllocator() != nullptr ? *services.globalState.getAllocator()
+                                                                : LuaAllocator{}),
+      tokenStream_(source, &allocator_), services_(&services),
+      functionScopes_(LuaSnapshotStdAllocator<FunctionSyntaxScope>(&allocator_)),
       recoveryStrategy_(makeRecoveryStrategy(options.recoveryMode)) {
     diagnosticObservers_.push_back(&diagnosticCollector_);
 }
@@ -150,11 +154,10 @@ void Parser::Impl::recoverAfterError() {
 }
 
 void Parser::Impl::enterFunctionSyntaxScope(i32 line, const Vec<Str>& params) {
-    FunctionSyntaxScope scope;
-    scope.line = line;
+    FunctionSyntaxScope scope(line, &allocator_);
     for (const Str& param : params) {
         if (param != "...") {
-            scope.locals.push_back(param);
+            scope.locals.push_back(makeSyntaxName(param));
         }
     }
     functionScopes_.push_back(std::move(scope));
@@ -167,7 +170,7 @@ void Parser::Impl::leaveFunctionSyntaxScope() {
 }
 
 void Parser::Impl::declareLocalName(const Str& name, const Token& token) {
-    if (functionScopes_.empty() || containsName(functionScopes_.back().locals, name)) {
+    if (functionScopes_.empty() || containsName(functionScopes_.back().locals, StrView(name))) {
         return;
     }
 
@@ -176,7 +179,7 @@ void Parser::Impl::declareLocalName(const Str& name, const Token& token) {
         throw ParseError("function at line " + std::to_string(scope.line) + " has more than 200 local variables",
                          token.line, token.column);
     }
-    scope.locals.push_back(name);
+    scope.locals.push_back(makeSyntaxName(name));
 }
 
 void Parser::Impl::noteNameUse(const Str& name, const Token& token) {
@@ -186,7 +189,7 @@ void Parser::Impl::noteNameUse(const Str& name, const Token& token) {
 
     i32 owner = -1;
     for (i32 i = static_cast<i32>(functionScopes_.size()) - 1; i >= 0; --i) {
-        if (containsName(functionScopes_[static_cast<usize>(i)].locals, name)) {
+        if (containsName(functionScopes_[static_cast<usize>(i)].locals, StrView(name))) {
             owner = i;
             break;
         }
@@ -197,14 +200,14 @@ void Parser::Impl::noteNameUse(const Str& name, const Token& token) {
 
     for (i32 i = static_cast<i32>(functionScopes_.size()) - 1; i > owner; --i) {
         FunctionSyntaxScope& scope = functionScopes_[static_cast<usize>(i)];
-        if (containsName(scope.upvalues, name)) {
+        if (containsName(scope.upvalues, StrView(name))) {
             continue;
         }
         if (scope.upvalues.size() >= MAX_UPVALUES_PER_FUNCTION) {
             throw ParseError("function at line " + std::to_string(scope.line) + " has more than 60 upvalues",
                              token.line, token.column);
         }
-        scope.upvalues.push_back(name);
+        scope.upvalues.push_back(makeSyntaxName(name));
     }
 }
 

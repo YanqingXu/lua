@@ -253,6 +253,7 @@ private:
 };
 
 template <typename T> using LuaVector = std::vector<T, LuaStdAllocator<T>>;
+template <typename T> using LuaOwnedVector = std::vector<T, LuaSnapshotStdAllocator<T>>;
 
 /**
  * Mutable string with a fixed inline buffer and exact allocator byte counts.

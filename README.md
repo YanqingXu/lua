@@ -1,7 +1,7 @@
 ---
 status: current
 verified_against: docs/index.md; docs/vm/instruction-set.md; docs/runtime/memory-contract.md; docs/runtime/sandbox-policy.md; docs/compatibility/lua-c-api-coverage.md; CMakeLists.txt; lua.slnx; lua.vcxproj; lua_app.vcxproj; lua_test.vcxproj; lua_bytecode.vcxproj
-last_checked: 2026-07-15
+last_checked: 2026-07-16
 applies_to: 项目入口、稳定能力概览与文档导航
 ---
 
@@ -135,7 +135,7 @@ bin\lua_test.exe --filter "Symbol Binding"
 bin\lua_test.exe --report=junit
 ```
 
-测试运行器会在输出中报告实时测试数量和断言结果。2026-07-16 的当前 Debug/Release strict 基线为 **765 registered tests, 5486 assertion results, 0 failures**；其中 `Lua C API` suite 为 58 个测试、1801 个断言、0 failures，原始 `api.lua with T module` 也完整运行到 `OK`。本提交的在线矩阵仍待验证；新增回归后需用文档漂移门禁同步这一基线。
+测试运行器会在输出中报告实时测试数量和断言结果。2026-07-16 的当前 Debug/Release strict 基线为 **765 registered tests, 6177 assertion results, 0 failures**；其中 `Lua C API` suite 为 58 个测试、2492 个断言、0 failures，原始 `api.lua with T module` 也完整运行到 `OK`。上一完整在线基线 [`599942b`](https://github.com/YanqingXu/lua/commit/599942bfecf292d539d831e0cab8450b2d6660e6) 已在 [Actions run 29495575432](https://github.com/YanqingXu/lua/actions/runs/29495575432) 取得 10/10 jobs 全绿，本提交的在线矩阵仍待验证；新增回归后需用文档漂移门禁同步这一基线。
 
 ### CMake / CTest 辅助路径
 
