@@ -154,6 +154,11 @@ size_t gGcWorklistAllocationAttempts = 0;
 size_t gGcWorklistHardLimit = 0;
 bool gGcWorklistUseHardLimit = false;
 int gGcWorklistFinalizerCalls = 0;
+size_t gTableHashFailureOffset = 0;
+size_t gTableHashAllocationStart = 0;
+size_t gTableHashHardLimit = 0;
+bool gTableHashUseHardLimit = false;
+int gTableHashLightKey = 0;
 
 struct AllocatorLedger {
     std::unordered_map<std::uintptr_t, size_t> blocks;
@@ -349,6 +354,83 @@ bool gcWorklistFixtureRootIsUsable(lua_State* L) {
     const bool usable = lua_istable(L, -1) != 0;
     lua_pop(L, 1);
     return usable;
+}
+
+void armTableHashAllocatorFailure() {
+    AllocatorProbe* probe = gAllocatorFailureProbe;
+    gTableHashAllocationStart = probe != nullptr ? probe->allocationAttempts : 0;
+    if (probe == nullptr) {
+        return;
+    }
+
+    probe->failOnAllocation = gTableHashFailureOffset == 0 ? 0 : probe->allocationAttempts + gTableHashFailureOffset;
+    if (gTableHashUseHardLimit) {
+        probe->ledger->hardLimit = probe->ledger->liveBytes;
+        probe->ledger->peakBytes = probe->ledger->liveBytes;
+        gTableHashHardLimit = probe->ledger->hardLimit;
+    }
+}
+
+int writeRawTableHash(lua_State* L) {
+    armTableHashAllocatorFailure();
+    lua_pushlightuserdata(L, &gTableHashLightKey);
+    lua_pushnumber(L, 73);
+    lua_rawset(L, 1);
+    return 0;
+}
+
+int armVmTableHashFailure(lua_State*) {
+    armTableHashAllocatorFailure();
+    return 0;
+}
+
+bool rawTableHashValueEquals(lua_State* L, int tableIndex, lua_Number expected) {
+    lua_pushlightuserdata(L, &gTableHashLightKey);
+    lua_rawget(L, tableIndex);
+    const bool matches = lua_isnumber(L, -1) != 0 && lua_tonumber(L, -1) == expected;
+    lua_pop(L, 1);
+    return matches;
+}
+
+bool rawTableHashValueIsNil(lua_State* L, int tableIndex) {
+    lua_pushlightuserdata(L, &gTableHashLightKey);
+    lua_rawget(L, tableIndex);
+    const bool isNil = lua_isnil(L, -1) != 0;
+    lua_pop(L, 1);
+    return isNil;
+}
+
+constexpr const char* kVmTableHashSource =
+    "__arm_table_hash(); __allocator_target['__vm_hash_key'] = 91; return __allocator_target['__vm_hash_key']";
+
+void prepareVmTableHashFixture(lua_State* L) {
+    lua_settop(L, 0);
+    (void)lua_gc(L, LUA_GCSTOP, 0);
+    lua_pushcclosure(L, armVmTableHashFailure, 0);
+    lua_setglobal(L, "__arm_table_hash");
+    lua_newtable(L);
+    lua_setglobal(L, "__allocator_target");
+    if (luaL_loadstring(L, kVmTableHashSource) != LUA_OK) {
+        throw std::runtime_error("failed to compile VM table-hash allocator fixture");
+    }
+}
+
+bool vmTableHashValueEquals(lua_State* L, lua_Number expected) {
+    lua_getglobal(L, "__allocator_target");
+    lua_pushstring(L, "__vm_hash_key");
+    lua_rawget(L, -2);
+    const bool matches = lua_isnumber(L, -1) != 0 && lua_tonumber(L, -1) == expected;
+    lua_pop(L, 2);
+    return matches;
+}
+
+bool vmTableHashValueIsNil(lua_State* L) {
+    lua_getglobal(L, "__allocator_target");
+    lua_pushstring(L, "__vm_hash_key");
+    lua_rawget(L, -2);
+    const bool isNil = lua_isnil(L, -1) != 0;
+    lua_pop(L, 2);
+    return isNil;
 }
 
 int firstPublicPanic(lua_State*) {
@@ -2088,6 +2170,247 @@ void testGcWorklistAllocatorTransactions(TestSuite& suite) {
     gGcWorklistHardLimit = 0;
 }
 
+void testTableHashAllocatorTransactions(TestSuite& suite) {
+    size_t rawAllocationAttempts = 0;
+    {
+        AllocatorLedger ledger;
+        AllocatorProbe probe{&ledger};
+        lua_State* L = lua_newstate(trackingLuaAllocator, &probe);
+        ASSERT_TRUE(suite, L != nullptr, "raw hash baseline creates state");
+        (void)lua_gc(L, LUA_GCSTOP, 0);
+        lua_newtable(L);
+
+        gAllocatorFailureProbe = &probe;
+        gTableHashFailureOffset = 0;
+        gTableHashUseHardLimit = false;
+        lua_pushcclosure(L, writeRawTableHash, 0);
+        lua_pushvalue(L, 1);
+        const int status = lua_pcall(L, 1, 0, 0);
+        rawAllocationAttempts = probe.allocationAttempts - gTableHashAllocationStart;
+        gAllocatorFailureProbe = nullptr;
+
+        ASSERT_EQ(suite, LUA_OK, status, "raw hash baseline insertion succeeds");
+        ASSERT_TRUE(suite, rawAllocationAttempts > 0, "raw hash insertion routes storage through lua_Alloc");
+        ASSERT_TRUE(suite, rawTableHashValueEquals(L, 1, 73), "raw hash baseline commits the target value");
+        lua_close(L);
+        ASSERT_TRUE(suite, ledger.blocks.empty() && ledger.liveBytes == 0,
+                    "raw hash baseline closes with zero allocator ownership");
+        ASSERT_TRUE(suite, ledger.sizeMismatches == 0 && ledger.unknownFrees == 0,
+                    "raw hash baseline preserves allocator size and ownership contracts");
+    }
+
+    bool rawStatusesAreMemoryErrors = true;
+    bool rawTargetsAreReached = true;
+    bool rawErrorsAreFixed = true;
+    bool rawTablesStayUnchanged = true;
+    bool rawRetriesSucceed = true;
+    bool rawStatesCloseCleanly = true;
+    for (size_t offset = 1; offset <= rawAllocationAttempts; ++offset) {
+        AllocatorLedger ledger;
+        AllocatorProbe probe{&ledger};
+        lua_State* L = lua_newstate(trackingLuaAllocator, &probe);
+        if (L == nullptr) {
+            rawStatusesAreMemoryErrors = false;
+            rawStatesCloseCleanly = false;
+            continue;
+        }
+        (void)lua_gc(L, LUA_GCSTOP, 0);
+        lua_newtable(L);
+
+        gAllocatorFailureProbe = &probe;
+        gTableHashFailureOffset = offset;
+        gTableHashUseHardLimit = false;
+        lua_pushcclosure(L, writeRawTableHash, 0);
+        lua_pushvalue(L, 1);
+        const int status = lua_pcall(L, 1, 0, 0);
+        const size_t attempts = probe.allocationAttempts - gTableHashAllocationStart;
+        rawStatusesAreMemoryErrors = rawStatusesAreMemoryErrors && status == LUA_ERRMEM;
+        rawTargetsAreReached = rawTargetsAreReached && attempts == offset;
+        rawErrorsAreFixed = rawErrorsAreFixed && lua_gettop(L) == 2 && lua_isstring(L, -1) != 0 &&
+                            std::string(lua_tostring(L, -1)) == "not enough memory";
+        rawTablesStayUnchanged = rawTablesStayUnchanged && rawTableHashValueIsNil(L, 1);
+
+        probe.failOnAllocation = 0;
+        ledger.hardLimit = std::numeric_limits<size_t>::max();
+        gTableHashFailureOffset = 0;
+        lua_settop(L, 1);
+        lua_pushcclosure(L, writeRawTableHash, 0);
+        lua_pushvalue(L, 1);
+        const int retryStatus = lua_pcall(L, 1, 0, 0);
+        rawRetriesSucceed = rawRetriesSucceed && retryStatus == LUA_OK && rawTableHashValueEquals(L, 1, 73);
+
+        gAllocatorFailureProbe = nullptr;
+        lua_close(L);
+        rawStatesCloseCleanly = rawStatesCloseCleanly && ledger.blocks.empty() && ledger.liveBytes == 0 &&
+                                ledger.sizeMismatches == 0 && ledger.unknownFrees == 0;
+    }
+
+    ASSERT_TRUE(suite, rawStatusesAreMemoryErrors, "every raw hash allocation failure becomes LUA_ERRMEM");
+    ASSERT_TRUE(suite, rawTargetsAreReached, "raw hash fail-on-N scan reaches every observed allocation");
+    ASSERT_TRUE(suite, rawErrorsAreFixed, "raw hash OOM publishes the fixed memory error object");
+    ASSERT_TRUE(suite, rawTablesStayUnchanged, "raw hash OOM commits no partial table entry");
+    ASSERT_TRUE(suite, rawRetriesSucceed, "raw hash insertion remains usable after every allocation failure");
+    ASSERT_TRUE(suite, rawStatesCloseCleanly, "raw hash failure scan closes without leaks or size mismatches");
+
+    {
+        AllocatorLedger ledger;
+        AllocatorProbe probe{&ledger};
+        lua_State* L = lua_newstate(trackingLuaAllocator, &probe);
+        ASSERT_TRUE(suite, L != nullptr, "raw hash hard-limit test creates state");
+        (void)lua_gc(L, LUA_GCSTOP, 0);
+        lua_newtable(L);
+
+        gAllocatorFailureProbe = &probe;
+        gTableHashFailureOffset = 0;
+        gTableHashUseHardLimit = true;
+        gTableHashHardLimit = 0;
+        lua_pushcclosure(L, writeRawTableHash, 0);
+        lua_pushvalue(L, 1);
+        const int status = lua_pcall(L, 1, 0, 0);
+        ASSERT_EQ(suite, LUA_ERRMEM, status, "hard limit rejects raw hash growth");
+        ASSERT_TRUE(suite,
+                    gTableHashHardLimit != 0 && ledger.peakBytes <= gTableHashHardLimit &&
+                        ledger.liveBytes <= gTableHashHardLimit,
+                    "raw hash allocation never exceeds the host hard limit");
+        ASSERT_TRUE(suite, rawTableHashValueIsNil(L, 1), "raw hash hard-limit failure commits no entry");
+
+        ledger.hardLimit = std::numeric_limits<size_t>::max();
+        probe.failOnAllocation = 0;
+        gTableHashUseHardLimit = false;
+        lua_settop(L, 1);
+        lua_pushcclosure(L, writeRawTableHash, 0);
+        lua_pushvalue(L, 1);
+        ASSERT_EQ(suite, LUA_OK, lua_pcall(L, 1, 0, 0), "raw hash insertion succeeds after lifting hard limit");
+        ASSERT_TRUE(suite, rawTableHashValueEquals(L, 1, 73), "raw hash hard-limit retry commits the value");
+
+        gAllocatorFailureProbe = nullptr;
+        lua_close(L);
+        ASSERT_TRUE(suite, ledger.blocks.empty() && ledger.liveBytes == 0,
+                    "raw hash hard-limit state closes with zero allocator ownership");
+        ASSERT_TRUE(suite, ledger.sizeMismatches == 0 && ledger.unknownFrees == 0,
+                    "raw hash hard-limit path preserves allocator contracts");
+    }
+
+    size_t vmAllocationAttempts = 0;
+    {
+        AllocatorLedger ledger;
+        AllocatorProbe probe{&ledger};
+        lua_State* L = lua_newstate(trackingLuaAllocator, &probe);
+        ASSERT_TRUE(suite, L != nullptr, "VM SETTABLE baseline creates state");
+        prepareVmTableHashFixture(L);
+
+        gAllocatorFailureProbe = &probe;
+        gTableHashFailureOffset = 0;
+        gTableHashUseHardLimit = false;
+        lua_pushvalue(L, 1);
+        const int status = lua_pcall(L, 0, 1, 0);
+        vmAllocationAttempts = probe.allocationAttempts - gTableHashAllocationStart;
+        gAllocatorFailureProbe = nullptr;
+
+        ASSERT_EQ(suite, LUA_OK, status, "VM SETTABLE baseline executes");
+        ASSERT_TRUE(suite, vmAllocationAttempts > 0, "VM SETTABLE routes hash storage through lua_Alloc");
+        ASSERT_TRUE(suite, lua_isnumber(L, -1) != 0 && lua_tonumber(L, -1) == 91 && vmTableHashValueEquals(L, 91),
+                    "VM SETTABLE baseline commits and reads the target value");
+        lua_close(L);
+        ASSERT_TRUE(suite, ledger.blocks.empty() && ledger.liveBytes == 0,
+                    "VM SETTABLE baseline closes with zero allocator ownership");
+        ASSERT_TRUE(suite, ledger.sizeMismatches == 0 && ledger.unknownFrees == 0,
+                    "VM SETTABLE baseline preserves allocator contracts");
+    }
+
+    bool vmStatusesAreMemoryErrors = true;
+    bool vmTargetsAreReached = true;
+    bool vmErrorsAreFixed = true;
+    bool vmTablesStayUnchanged = true;
+    bool vmRetriesSucceed = true;
+    bool vmStatesCloseCleanly = true;
+    for (size_t offset = 1; offset <= vmAllocationAttempts; ++offset) {
+        AllocatorLedger ledger;
+        AllocatorProbe probe{&ledger};
+        lua_State* L = lua_newstate(trackingLuaAllocator, &probe);
+        if (L == nullptr) {
+            vmStatusesAreMemoryErrors = false;
+            vmStatesCloseCleanly = false;
+            continue;
+        }
+        prepareVmTableHashFixture(L);
+
+        gAllocatorFailureProbe = &probe;
+        gTableHashFailureOffset = offset;
+        gTableHashUseHardLimit = false;
+        lua_pushvalue(L, 1);
+        const int status = lua_pcall(L, 0, 1, 0);
+        const size_t attempts = probe.allocationAttempts - gTableHashAllocationStart;
+        vmStatusesAreMemoryErrors = vmStatusesAreMemoryErrors && status == LUA_ERRMEM;
+        vmTargetsAreReached = vmTargetsAreReached && attempts == offset;
+        vmErrorsAreFixed = vmErrorsAreFixed && lua_gettop(L) == 2 && lua_isstring(L, -1) != 0 &&
+                           std::string(lua_tostring(L, -1)) == "not enough memory";
+        vmTablesStayUnchanged = vmTablesStayUnchanged && vmTableHashValueIsNil(L);
+
+        probe.failOnAllocation = 0;
+        ledger.hardLimit = std::numeric_limits<size_t>::max();
+        gTableHashFailureOffset = 0;
+        lua_settop(L, 1);
+        lua_pushvalue(L, 1);
+        const int retryStatus = lua_pcall(L, 0, 1, 0);
+        vmRetriesSucceed =
+            vmRetriesSucceed && retryStatus == LUA_OK && lua_tonumber(L, -1) == 91 && vmTableHashValueEquals(L, 91);
+
+        gAllocatorFailureProbe = nullptr;
+        lua_close(L);
+        vmStatesCloseCleanly = vmStatesCloseCleanly && ledger.blocks.empty() && ledger.liveBytes == 0 &&
+                               ledger.sizeMismatches == 0 && ledger.unknownFrees == 0;
+    }
+
+    ASSERT_TRUE(suite, vmStatusesAreMemoryErrors, "every VM SETTABLE allocation failure becomes LUA_ERRMEM");
+    ASSERT_TRUE(suite, vmTargetsAreReached, "VM SETTABLE fail-on-N scan reaches every observed allocation");
+    ASSERT_TRUE(suite, vmErrorsAreFixed, "VM SETTABLE OOM publishes the fixed memory error object");
+    ASSERT_TRUE(suite, vmTablesStayUnchanged, "VM SETTABLE OOM commits no partial hash entry");
+    ASSERT_TRUE(suite, vmRetriesSucceed, "VM SETTABLE remains executable after every allocation failure");
+    ASSERT_TRUE(suite, vmStatesCloseCleanly, "VM SETTABLE failure scan closes without allocator leaks");
+
+    {
+        AllocatorLedger ledger;
+        AllocatorProbe probe{&ledger};
+        lua_State* L = lua_newstate(trackingLuaAllocator, &probe);
+        ASSERT_TRUE(suite, L != nullptr, "VM SETTABLE hard-limit test creates state");
+        prepareVmTableHashFixture(L);
+
+        gAllocatorFailureProbe = &probe;
+        gTableHashFailureOffset = 0;
+        gTableHashUseHardLimit = true;
+        gTableHashHardLimit = 0;
+        lua_pushvalue(L, 1);
+        const int status = lua_pcall(L, 0, 1, 0);
+        ASSERT_EQ(suite, LUA_ERRMEM, status, "hard limit rejects VM SETTABLE hash growth");
+        ASSERT_TRUE(suite,
+                    gTableHashHardLimit != 0 && ledger.peakBytes <= gTableHashHardLimit &&
+                        ledger.liveBytes <= gTableHashHardLimit,
+                    "VM SETTABLE never exceeds the host hard limit");
+        ASSERT_TRUE(suite, vmTableHashValueIsNil(L), "VM SETTABLE hard-limit failure commits no entry");
+
+        ledger.hardLimit = std::numeric_limits<size_t>::max();
+        probe.failOnAllocation = 0;
+        gTableHashUseHardLimit = false;
+        lua_settop(L, 1);
+        lua_pushvalue(L, 1);
+        ASSERT_EQ(suite, LUA_OK, lua_pcall(L, 0, 1, 0), "VM SETTABLE succeeds after lifting hard limit");
+        ASSERT_TRUE(suite, lua_tonumber(L, -1) == 91 && vmTableHashValueEquals(L, 91),
+                    "VM SETTABLE hard-limit retry commits the value");
+
+        gAllocatorFailureProbe = nullptr;
+        lua_close(L);
+        ASSERT_TRUE(suite, ledger.blocks.empty() && ledger.liveBytes == 0,
+                    "VM SETTABLE hard-limit state closes with zero allocator ownership");
+        ASSERT_TRUE(suite, ledger.sizeMismatches == 0 && ledger.unknownFrees == 0,
+                    "VM SETTABLE hard-limit path preserves allocator contracts");
+    }
+
+    gTableHashFailureOffset = 0;
+    gTableHashUseHardLimit = false;
+    gTableHashHardLimit = 0;
+}
+
 void testTableReallocHardLimitTransaction(TestSuite& suite) {
     AllocatorLedger ledger;
     AllocatorProbe probe{&ledger};
@@ -3607,6 +3930,7 @@ void registerLuaCApiTests() {
     registry.registerTest(kSuiteName, "allocator-backed string content and hard limit",
                           testAllocatorBackedStringContentAndHardLimit);
     registry.registerTest(kSuiteName, "GC worklist allocator transactions", testGcWorklistAllocatorTransactions);
+    registry.registerTest(kSuiteName, "table hash allocator transactions", testTableHashAllocatorTransactions);
     registry.registerTest(kSuiteName, "table realloc hard-limit transaction", testTableReallocHardLimitTransaction);
     registry.registerTest(kSuiteName, "Proto allocator transactions", testProtoAllocatorTransactions);
     registry.registerTest(kSuiteName, "allocator replacement", testAllocatorCanBeReplaced);

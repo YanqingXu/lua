@@ -23,20 +23,20 @@ applies_to: GC managed-size accounting、lua_Alloc callback 与宿主内存上�
 
 - `GCString` 的对象与非 SSO 内容都走 callback；StringPool 节点走 callback，key 直接引用不可变 `GCString` 内容，不再保存第二份默认 allocator 字符串；
 - Table 数组和 Proto 的 constants/code/subProto/lineInfo/LocVar/upvalue-name 数组使用 `LuaReallocVector`，扩容发出真正的 `(ptr, osize, nsize)` realloc 请求；
-- Table 数组单值和 `SETLIST` 范围写入在 realloc 失败时不改变逻辑大小与旧值；Table hash 插入使用强保证的 `try_emplace`；
+- Table 数组单值和 `SETLIST` 范围写入在 realloc 失败时不改变逻辑大小与旧值；Table hash 插入使用强保证的 `try_emplace`，raw C API 与 VM `SETTABLE` 都逐点证明失败时不发布目标 entry；
 - Proto 常量数组与去重 map 的多步插入在 map 分配失败时回滚常量槽；
 - `roots_`、gray queue、weak-table queue、pending-finalizer queue 和 cross-collector `externalMarked_` 都使用同一个 `lua_Alloc`；完整收集的 finalizer drain copy 复用该 allocator；
 - 标记开始前先 reserve gray/weak 容量，单对象标记先发布 queue entry 再改颜色，终结器先入队再发布 `FINALIZED`，drain copy 成功后才设置 reentrancy guard，因此失败后可安全重试；
 - protected C API 会把 `MemoryError` / `std::bad_alloc` 转成 `LUA_ERRMEM`，并使用预先固定的错误对象避免 OOM 路径二次分配。
 
-`tests/unit/api/test_lua_c_api.cpp` 的 host ledger 记录 `liveBytes`、`peakBytes`、`hardLimit` 与每块 `osize`。定向测试逐点扫描长字符串、Proto 常量插入和一次同时经过 gray/weak/pending-finalizer/drain-copy 的完整收集，直接拒绝 Table/Proto/GC worklist 增长；`tests/unit/gc/test_gc.cpp` 另覆盖 root 与 cross-collector queue。测试证明已覆盖切片满足 `liveBytes <= hardLimit`、旧块保留、逻辑内容不部分提交、终结器不丢失也不重复、解除限制后可继续使用，以及 `lua_close` 后 `liveBytes == 0`。该组测试已在 Windows MSVC Debug/Release 运行；此前字符串/Table/Proto 切片另有 MSVC ASan 证据。它是切片证据，不是全运行时 hard-limit 声明。
+`tests/unit/api/test_lua_c_api.cpp` 的 host ledger 记录 `liveBytes`、`peakBytes`、`hardLimit` 与每块 `osize`。定向测试逐点扫描长字符串、Proto 常量插入、raw/VM Table hash 插入和一次同时经过 gray/weak/pending-finalizer/drain-copy 的完整收集，直接拒绝 Table/Proto/GC worklist 增长；`tests/unit/gc/test_gc.cpp` 另覆盖 root 与 cross-collector queue。测试证明已覆盖切片满足 `liveBytes <= hardLimit`、旧块保留、逻辑内容不部分提交、终结器不丢失也不重复、解除限制后可继续使用，以及 `lua_close` 后 `liveBytes == 0`。该组测试已在 Windows MSVC Debug/Release 运行；此前字符串/Table/Proto 切片另有 MSVC ASan 证据。它是切片证据，不是全运行时 hard-limit 声明。
 
 但以下容量仍可能绕过 callback，或尚无完整 fail-on-N/事务性证明：
 
 - reader/lexer/parser/AST/codegen 的临时 `Str` / `Vec`、智能指针控制块和诊断对象；
 - standard library、debug/trace、I/O、package 等执行路径中的临时 `Str` / `Vec` / `std::string`；
 - MSVC Debug 标准容器的 `_Container_proxy` 实现元数据（当前有意放在 callback 之外）；
-- Table hash `SETTABLE` 和分片 reader 的完整逐分配点矩阵；
+- 分片 reader 的完整逐分配点矩阵；
 - `NativeModuleRegistry` 的路径/cache 元数据与操作系统 loader 自身分配。
 
 因此当前支持状态是：`allocator-backed hard limit = unsupported`。宿主可以用 callback 限制已经路由到 `lua_Alloc` 的字节，但不能据此宣称限制了 Lua 执行期间的全部进程内存或单次编译峰值。模块 registry 与 OS loader 明确属于宿主/进程管理开销；若目标是进程级硬上限，还必须使用进程、job/cgroup 或等价的外部资源治理。
