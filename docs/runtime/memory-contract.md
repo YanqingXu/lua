@@ -29,17 +29,18 @@ applies_to: GC managed-size accounting、lua_Alloc callback 与宿主内存上�
 - State value stack 与 CallInfo 数组使用同一 callback 的 `LuaVector`；`lua_checkstack` 分配失败不改变逻辑栈，protected CallInfo 扩容失败恢复原调用深度并发布 fixed `LUA_ERRMEM`；
 - VM 调用非函数值的 `__call` 元方法时，插入 callable self 前的宽实参暂存使用 State callback 支撑的 `LuaVector<Value>`，分配失败发生在参数搬移前；
 - VM `OP_CONCAT` 直接借用字符串操作数、在栈上格式化数字，并用 State callback 支撑的 `LuaString` 建立最终拼接缓冲，再以 view 交给 allocator-backed StringPool；
+- 标准库 `table.concat` 同样借用字符串元素和分隔符、在栈上格式化数字元素，并用 State callback 支撑的 `LuaString` 渐进建立最终结果；
 - Proto 常量数组与去重 map 的多步插入在 map 分配失败时回滚常量槽；
 - `roots_`、gray queue、weak-table queue、pending-finalizer queue 和 cross-collector `externalMarked_` 都使用同一个 `lua_Alloc`；完整收集的 finalizer drain copy 复用该 allocator；
 - 标记开始前先 reserve gray/weak 容量，单对象标记先发布 queue entry 再改颜色，终结器先入队再发布 `FINALIZED`，drain copy 成功后才设置 reentrancy guard，因此失败后可安全重试；
 - protected C API 会把 `MemoryError` / `std::bad_alloc` 转成 `LUA_ERRMEM`，并使用预先固定的错误对象避免 OOM 路径二次分配。
 
-`tests/unit/api/test_lua_c_api.cpp` 的 host ledger 记录 `liveBytes`、`peakBytes`、`hardLimit` 与每块 `osize`。定向测试逐点扫描长字符串、Proto 常量插入、raw/VM Table hash 插入、State stack/CallInfo、宽 `__call` 实参暂存、长 `OP_CONCAT`、分片 reader source buffer、services-backed Lexer 整源/长词素/Token/`InputCursor` 缓存和一次同时经过 gray/weak/pending-finalizer/drain-copy 的完整收集，直接拒绝相应缓冲/Table/Proto/GC worklist 增长；`tests/unit/gc/test_gc.cpp` 另覆盖 root 与 cross-collector queue。`loadbuffer` 的长标识符矩阵另在零余量 hard limit 下覆盖 loader/compiler 缓存增长；State stack/CallInfo 门禁同时证明逻辑栈或调用深度不部分提交、解除限制可重试且随后仍可调用；宽 `__call` 门禁覆盖实参缓冲与 callable-self 插入所需栈扩容的全部实测 offset，并证明重试后参数完整；长 concat 门禁覆盖最终临时缓冲、GCString 与池增长的全部实测 offset，并证明重试内容完整；`tests/unit/compiler/test_parser_boundaries.cpp` 证明原 `LuaAllocator` 对象销毁后 Token 快照仍可读，Token 销毁后 callback live bytes 归零。测试证明已覆盖切片满足 `liveBytes <= hardLimit`、旧块保留、逻辑内容不部分提交、终结器不丢失也不重复、解除限制后可继续使用，以及 `lua_close` 后 `liveBytes == 0`。该组测试已在 Windows MSVC Debug/Release strict 运行，在线矩阵待本提交验证；此前字符串/Table/Proto 切片另有 MSVC ASan 证据。它是切片证据，不是全运行时 hard-limit 声明。
+`tests/unit/api/test_lua_c_api.cpp` 的 host ledger 记录 `liveBytes`、`peakBytes`、`hardLimit` 与每块 `osize`。定向测试逐点扫描长字符串、Proto 常量插入、raw/VM Table hash 插入、State stack/CallInfo、宽 `__call` 实参暂存、长 VM `OP_CONCAT`、标准库 `table.concat`、分片 reader source buffer、services-backed Lexer 整源/长词素/Token/`InputCursor` 缓存和一次同时经过 gray/weak/pending-finalizer/drain-copy 的完整收集，直接拒绝相应缓冲/Table/Proto/GC worklist 增长；`tests/unit/gc/test_gc.cpp` 另覆盖 root 与 cross-collector queue。`loadbuffer` 的长标识符矩阵另在零余量 hard limit 下覆盖 loader/compiler 缓存增长；State stack/CallInfo 门禁同时证明逻辑栈或调用深度不部分提交、解除限制可重试且随后仍可调用；宽 `__call` 门禁覆盖实参缓冲与 callable-self 插入所需栈扩容的全部实测 offset，并证明重试后参数完整；两条长 concat 门禁分别覆盖 VM 和 table library 的结果扩容、GCString 与池增长全部实测 offset，并证明重试内容完整；`tests/unit/compiler/test_parser_boundaries.cpp` 证明原 `LuaAllocator` 对象销毁后 Token 快照仍可读，Token 销毁后 callback live bytes 归零。测试证明已覆盖切片满足 `liveBytes <= hardLimit`、旧块保留、逻辑内容不部分提交、终结器不丢失也不重复、解除限制后可继续使用，以及 `lua_close` 后 `liveBytes == 0`。该组测试已在 Windows MSVC Debug/Release strict 运行，在线矩阵待本提交验证；此前字符串/Table/Proto 切片另有 MSVC ASan 证据。它是切片证据，不是全运行时 hard-limit 声明。
 
 但以下容量仍可能绕过 callback，或尚无完整 fail-on-N/事务性证明：
 
 - reader callback 自身的 host-owned storage，以及 Token 借用 view 被复制到 parser/AST/codegen 后的临时 `Str` / `Vec`、智能指针控制块和诊断对象；
-- standard library、debug/trace、I/O、package 等执行路径中的临时 `Str` / `Vec` / `std::string`；
+- standard library 的其余路径、debug/trace、I/O、package 等执行路径中的临时 `Str` / `Vec` / `std::string`；
 - MSVC Debug 标准容器的 `_Container_proxy` 实现元数据（当前有意放在 callback 之外）；
 - `NativeModuleRegistry` 的路径/cache 元数据与操作系统 loader 自身分配。
 

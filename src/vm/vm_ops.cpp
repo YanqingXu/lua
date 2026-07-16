@@ -17,12 +17,10 @@
 
 #include <array>
 #include <cctype>
-#include <charconv>
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
 #include <string>
-#include <system_error>
 
 namespace Lua {
 namespace {
@@ -53,12 +51,7 @@ bool concatOperandText(const Value& value, ConcatOperandText& text) {
         return false;
     }
 
-    const auto result = std::to_chars(text.numberBuffer.data(), text.numberBuffer.data() + text.numberBuffer.size(),
-                                      value.asNumber(), std::chars_format::general, 14);
-    if (result.ec != std::errc{}) {
-        throw RuntimeError("failed to format Lua number");
-    }
-    text.view = StrView(text.numberBuffer.data(), static_cast<usize>(result.ptr - text.numberBuffer.data()));
+    text.view = luaNumberToView(value.asNumber(), text.numberBuffer);
     return true;
 }
 

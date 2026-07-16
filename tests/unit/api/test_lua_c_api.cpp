@@ -176,6 +176,10 @@ size_t gConcatFailureOffset = 0;
 size_t gConcatAllocationStart = 0;
 size_t gConcatHardLimit = 0;
 bool gConcatUseHardLimit = false;
+size_t gTableConcatFailureOffset = 0;
+size_t gTableConcatAllocationStart = 0;
+size_t gTableConcatHardLimit = 0;
+bool gTableConcatUseHardLimit = false;
 
 struct AllocatorLedger {
     std::unordered_map<std::uintptr_t, size_t> blocks;
@@ -787,6 +791,21 @@ int armConcatAllocatorFailure(lua_State*) {
             probe->ledger->hardLimit = probe->ledger->liveBytes;
             probe->ledger->peakBytes = probe->ledger->liveBytes;
             gConcatHardLimit = probe->ledger->hardLimit;
+        }
+    }
+    return 0;
+}
+
+int armTableConcatAllocatorFailure(lua_State*) {
+    AllocatorProbe* probe = gAllocatorFailureProbe;
+    gTableConcatAllocationStart = probe != nullptr ? probe->allocationAttempts : 0;
+    if (probe != nullptr) {
+        probe->failOnAllocation =
+            gTableConcatFailureOffset == 0 ? 0 : probe->allocationAttempts + gTableConcatFailureOffset;
+        if (gTableConcatUseHardLimit) {
+            probe->ledger->hardLimit = probe->ledger->liveBytes;
+            probe->ledger->peakBytes = probe->ledger->liveBytes;
+            gTableConcatHardLimit = probe->ledger->hardLimit;
         }
     }
     return 0;
@@ -3331,6 +3350,135 @@ void testConcatAllocatorTransactions(TestSuite& suite) {
                 "concat hard-limit rollback closes with valid allocator ownership");
 }
 
+constexpr const char* kTableConcatAllocatorSource =
+    "__arm_table_concat_allocator(); return table.concat(__table_concat_allocator_values, "
+    "__table_concat_allocator_separator)";
+
+void prepareTableConcatAllocatorFixture(lua_State* L) {
+    lua_settop(L, 0);
+    (void)luaopen_table(L);
+    lua_pop(L, 1);
+
+    lua_pushcclosure(L, armTableConcatAllocatorFailure, 0);
+    lua_setglobal(L, "__arm_table_concat_allocator");
+
+    const std::string left(96, 'L');
+    const std::string right(96, 'R');
+    lua_newtable(L);
+    lua_pushlstring(L, left.data(), left.size());
+    lua_rawseti(L, -2, 1);
+    lua_pushnumber(L, 42.5);
+    lua_rawseti(L, -2, 2);
+    lua_pushlstring(L, right.data(), right.size());
+    lua_rawseti(L, -2, 3);
+    lua_setglobal(L, "__table_concat_allocator_values");
+    lua_pushlstring(L, "::", 2);
+    lua_setglobal(L, "__table_concat_allocator_separator");
+
+    if (luaL_loadstring(L, kTableConcatAllocatorSource) != LUA_OK) {
+        throw std::runtime_error("failed to compile table.concat allocator fixture");
+    }
+}
+
+bool tableConcatAllocatorResultMatches(lua_State* L) {
+    size_t length = 0;
+    const char* text = lua_tolstring(L, -1, &length);
+    const std::string expected = std::string(96, 'L') + "::42.5::" + std::string(96, 'R');
+    return text != nullptr && length == expected.size() && std::string_view(text, length) == expected;
+}
+
+void testTableConcatAllocatorTransactions(TestSuite& suite) {
+    size_t allocationAttempts = 0;
+    {
+        AllocatorLedger ledger;
+        AllocatorProbe probe{&ledger};
+        lua_State* L = lua_newstate(trackingLuaAllocator, &probe);
+        ASSERT_TRUE(suite, L != nullptr, "table.concat allocator baseline creates a state");
+        prepareTableConcatAllocatorFixture(L);
+        gAllocatorFailureProbe = &probe;
+        gTableConcatFailureOffset = 0;
+        gTableConcatUseHardLimit = false;
+
+        ASSERT_EQ(suite, LUA_OK, lua_pcall(L, 0, 1, 0), "table.concat allocator baseline executes");
+        allocationAttempts = probe.allocationAttempts - gTableConcatAllocationStart;
+        ASSERT_TRUE(suite, allocationAttempts > 0, "table.concat observes callback-backed allocation attempts");
+        ASSERT_TRUE(suite, tableConcatAllocatorResultMatches(L), "table.concat preserves strings and numbers");
+
+        gAllocatorFailureProbe = nullptr;
+        lua_close(L);
+        ASSERT_TRUE(suite, ledger.blocks.empty() && ledger.liveBytes == 0,
+                    "table.concat allocator baseline closes with zero ownership");
+    }
+
+    for (size_t offset = 1; offset <= allocationAttempts; ++offset) {
+        AllocatorLedger ledger;
+        AllocatorProbe probe{&ledger};
+        lua_State* L = lua_newstate(trackingLuaAllocator, &probe);
+        ASSERT_TRUE(suite, L != nullptr, "table.concat fail-on-N test creates a state");
+        prepareTableConcatAllocatorFixture(L);
+        gAllocatorFailureProbe = &probe;
+        gTableConcatFailureOffset = offset;
+        gTableConcatUseHardLimit = false;
+
+        ASSERT_EQ(suite, LUA_ERRMEM, lua_pcall(L, 0, 1, 0), "table.concat failure becomes LUA_ERRMEM");
+        ASSERT_EQ(suite, gTableConcatAllocationStart + offset, probe.allocationAttempts,
+                  "table.concat fail-on-N reaches the selected allocator attempt");
+        ASSERT_TRUE(suite,
+                    lua_gettop(L) == 1 && lua_isstring(L, -1) != 0 &&
+                        std::string(lua_tostring(L, -1)) == "not enough memory",
+                    "table.concat allocation failure publishes one fixed memory error");
+
+        probe.failOnAllocation = 0;
+        gTableConcatFailureOffset = 0;
+        gAllocatorFailureProbe = nullptr;
+        lua_settop(L, 0);
+        prepareTableConcatAllocatorFixture(L);
+        ASSERT_EQ(suite, LUA_OK, lua_pcall(L, 0, 1, 0), "table.concat succeeds after disarming fail-on-N");
+        ASSERT_TRUE(suite, tableConcatAllocatorResultMatches(L), "table.concat retry preserves exact content");
+
+        lua_close(L);
+        ASSERT_TRUE(suite,
+                    ledger.blocks.empty() && ledger.liveBytes == 0 && ledger.sizeMismatches == 0 &&
+                        ledger.unknownFrees == 0,
+                    "table.concat fail-on-N rollback closes with valid allocator ownership");
+    }
+
+    AllocatorLedger hardLimitLedger;
+    AllocatorProbe hardLimitProbe{&hardLimitLedger};
+    lua_State* hardLimitState = lua_newstate(trackingLuaAllocator, &hardLimitProbe);
+    ASSERT_TRUE(suite, hardLimitState != nullptr, "table.concat hard-limit test creates a state");
+    prepareTableConcatAllocatorFixture(hardLimitState);
+    gAllocatorFailureProbe = &hardLimitProbe;
+    gTableConcatFailureOffset = 0;
+    gTableConcatUseHardLimit = true;
+
+    ASSERT_EQ(suite, LUA_ERRMEM, lua_pcall(hardLimitState, 0, 1, 0),
+              "zero-headroom hard limit rejects table.concat growth");
+    ASSERT_TRUE(
+        suite, hardLimitLedger.liveBytes <= gTableConcatHardLimit && hardLimitLedger.peakBytes <= gTableConcatHardLimit,
+        "table.concat growth never exceeds the allocator hard limit");
+    ASSERT_TRUE(suite,
+                lua_gettop(hardLimitState) == 1 && lua_isstring(hardLimitState, -1) != 0 &&
+                    std::string(lua_tostring(hardLimitState, -1)) == "not enough memory",
+                "table.concat hard-limit failure preserves the protected stack contract");
+
+    hardLimitLedger.hardLimit = std::numeric_limits<size_t>::max();
+    gTableConcatUseHardLimit = false;
+    gAllocatorFailureProbe = nullptr;
+    lua_settop(hardLimitState, 0);
+    prepareTableConcatAllocatorFixture(hardLimitState);
+    ASSERT_EQ(suite, LUA_OK, lua_pcall(hardLimitState, 0, 1, 0),
+              "table.concat succeeds after lifting the allocator hard limit");
+    ASSERT_TRUE(suite, tableConcatAllocatorResultMatches(hardLimitState),
+                "table.concat hard-limit retry preserves exact content");
+
+    lua_close(hardLimitState);
+    ASSERT_TRUE(suite,
+                hardLimitLedger.blocks.empty() && hardLimitLedger.liveBytes == 0 &&
+                    hardLimitLedger.sizeMismatches == 0 && hardLimitLedger.unknownFrees == 0,
+                "table.concat hard-limit rollback closes with valid allocator ownership");
+}
+
 void testPublicResumeAllocationRollback(TestSuite& suite) {
     AllocatorLedger ledger;
     AllocatorProbe probe{&ledger};
@@ -4534,6 +4682,7 @@ void registerLuaCApiTests() {
     registry.registerTest(kSuiteName, "__call argument allocator transactions",
                           testMetacallArgumentAllocatorTransactions);
     registry.registerTest(kSuiteName, "concat allocator transactions", testConcatAllocatorTransactions);
+    registry.registerTest(kSuiteName, "table.concat allocator transactions", testTableConcatAllocatorTransactions);
     registry.registerTest(kSuiteName, "fragmented reader allocator transactions",
                           testFragmentedReaderAllocatorTransactions);
     registry.registerTest(kSuiteName, "loadbuffer allocator failures", testLoadBufferAllocatorFailures);

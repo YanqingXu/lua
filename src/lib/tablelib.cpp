@@ -20,11 +20,11 @@
 #include "common/number_conversion.hpp"
 
 #include <format>
-#include <string>
-#include <sstream>
 #include <algorithm>
+#include <array>
+#include <sstream>
+#include <string>
 #include <vector>
-#include <cstring>
 
 namespace Lua {
 
@@ -59,8 +59,22 @@ static Function* getFunctionArg(LuaState* L, i32 idx, const char* funcName) {
     return L->at(idx).asFunction();
 }
 
-static Str tableNumberToLuaString(f64 value) {
-    return luaNumberToString(value);
+struct TableConcatText {
+    std::array<char, 64> numberBuffer{};
+    StrView view;
+};
+
+static bool tableConcatText(const Value& value, TableConcatText& text) {
+    if (value.isString()) {
+        text.view = value.asString()->view();
+        return true;
+    }
+    if (!value.isNumber()) {
+        return false;
+    }
+
+    text.view = luaNumberToView(value.asNumber(), text.numberBuffer);
+    return true;
 }
 
 /**
@@ -280,15 +294,11 @@ i32 table_concat(LuaState* L) {
     Table* table = getTableArg(L, 1, "concat");
 
     // 获取分隔符（默认为空字符串）
-    Str sep;
+    TableConcatText separator;
     if (nargs >= 2 && !L->isNil(2)) {
-        const char* sepChars = L->toString(2);
-        if (sepChars == nullptr) {
+        if (!tableConcatText(L->at(2), separator)) {
             L->error("table.concat: separator must be a string or number");
         }
-        const Value& sepVal = L->at(2);
-        usize sepLen = sepVal.isString() ? sepVal.asString()->getLength() : std::strlen(sepChars);
-        sep.assign(sepChars, sepLen);
     }
 
     // 获取起始和结束索引
@@ -296,24 +306,22 @@ i32 table_concat(LuaState* L) {
     i32 j = (nargs >= 4) ? static_cast<i32>(getNumberArg(L, 4, "concat")) : getTableLength(table);
 
     // 连接字符串
-    Str result;
+    LuaString result(LuaStdAllocator<char>(L->getGlobalState().getAllocator()));
     for (i32 idx = i; idx <= j; idx++) {
-        if (idx > i) {
-            result.append(sep);
+        if (idx > i && !separator.view.empty()) {
+            result.append(separator.view.data(), separator.view.size());
         }
 
-        Value v = table->get(Value(static_cast<f64>(idx)));
-        if (v.isString()) {
-            result.append(v.asString()->getData());
-        } else if (v.isNumber()) {
-            result.append(tableNumberToLuaString(v.asNumber()));
-        } else {
+        const Value value = table->get(Value(static_cast<f64>(idx)));
+        TableConcatText text;
+        if (!tableConcatText(value, text)) {
             L->error("table.concat: invalid value (must be string or number)");
         }
+        result.append(text.view.data(), text.view.size());
     }
 
     // 返回连接后的字符串
-    L->pushString(L->getGlobalState().getStringPool().intern(result));
+    L->pushString(L->getGlobalState().getStringPool().intern(StrView(result.data(), result.size())));
     return 1;
 }
 
