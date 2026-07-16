@@ -11,6 +11,7 @@
 #include <memory>
 #include <mutex>
 #include <new>
+#include <string>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -202,6 +203,7 @@ private:
 };
 
 template <typename T> using LuaVector = std::vector<T, LuaStdAllocator<T>>;
+using LuaString = std::basic_string<char, std::char_traits<char>, LuaStdAllocator<char>>;
 
 /**
  * Contiguous storage for trivially copyable runtime records.

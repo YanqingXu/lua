@@ -3148,7 +3148,7 @@
     {
       "rule": "C allocator free",
       "path": "src\\runtime\\lua_allocator.hpp",
-      "line": 380,
+      "line": 382,
       "textHash": "d7690a05ce7d7b2fd6880195c277c98936008b9c22524adc26e2053427993f21",
       "rationale": "Existing product compatibility baseline; remove or modernize when the location is touched."
     },
@@ -3197,14 +3197,14 @@
     {
       "rule": "char pointer parse cursor",
       "path": "src\\compiler\\lexer\\lexer.cpp",
-      "line": 449,
+      "line": 453,
       "textHash": "442f9576e3398ac9f40d9f930443affd17da2767790563b39cfd9c4b5e1fd76b",
       "rationale": "Existing product advisory; modernize when the surrounding compatibility boundary is touched."
     },
     {
       "rule": "char pointer parse cursor",
       "path": "src\\compiler\\lexer\\lexer.cpp",
-      "line": 498,
+      "line": 502,
       "textHash": "442f9576e3398ac9f40d9f930443affd17da2767790563b39cfd9c4b5e1fd76b",
       "rationale": "Existing product advisory; modernize when the surrounding compatibility boundary is touched."
     },
@@ -3274,7 +3274,7 @@
     {
       "rule": "const char pointer array",
       "path": "tests\\unit\\api\\test_lua_c_api.cpp",
-      "line": 3710,
+      "line": 3712,
       "textHash": "ae85cdb09a60929c94237cbf8e6678457a605c166e1cb908f3ce11001e019616",
       "rationale": "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
     },
@@ -3323,7 +3323,7 @@
     {
       "rule": "native fixed-size array declaration",
       "path": "tests\\unit\\api\\test_lua_c_api.cpp",
-      "line": 3938,
+      "line": 3940,
       "textHash": "1ca46ca8e706b9f40dc178beb220357587a99ac848758e688a68b3e70c0d4dd8",
       "rationale": "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
     },
@@ -4093,14 +4093,14 @@
     {
       "rule": "return nullptr",
       "path": "src\\runtime\\lua_allocator.hpp",
-      "line": 67,
+      "line": 68,
       "textHash": "0e4bce8ffb90a54f87dd1e313212d256102e9e3c73e8525feeb9faddd27faf05",
       "rationale": "Existing product compatibility baseline; remove or modernize when the location is touched."
     },
     {
       "rule": "return nullptr",
       "path": "src\\runtime\\lua_allocator.hpp",
-      "line": 75,
+      "line": 76,
       "textHash": "0e4bce8ffb90a54f87dd1e313212d256102e9e3c73e8525feeb9faddd27faf05",
       "rationale": "Existing product compatibility baseline; remove or modernize when the location is touched."
     },

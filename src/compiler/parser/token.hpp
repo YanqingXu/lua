@@ -60,25 +60,10 @@ struct Token {
     i32 line;
     i32 column;
 
-    Token() noexcept
-        : type(TokenType::Eos)
-        , value(std::monostate{})
-        , lexeme()
-        , errorMessage()
-        , line(1)
-        , column(1)
-    {
-    }
+    Token() noexcept : type(TokenType::Eos), value(std::monostate{}), lexeme(), errorMessage(), line(1), column(1) {}
 
-    Token(TokenType t, const Str& lex, i32 ln, i32 col) noexcept
-        : type(t)
-        , value(std::monostate{})
-        , lexeme(lex)
-        , errorMessage()
-        , line(ln)
-        , column(col)
-    {
-    }
+    Token(TokenType t, StrView lex, i32 ln, i32 col)
+        : type(t), value(std::monostate{}), lexeme(lex), errorMessage(), line(ln), column(col) {}
 
     bool isNumber() const noexcept {
         return type == TokenType::Number;
@@ -99,4 +84,4 @@ struct Token {
 
 const char* tokenTypeToString(TokenType type);
 
-}
+} // namespace Lua

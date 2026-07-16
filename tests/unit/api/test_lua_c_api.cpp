@@ -3212,7 +3212,9 @@ void testFragmentedReaderAllocatorTransactions(TestSuite& suite) {
 }
 
 void testLoadBufferAllocatorFailures(TestSuite& suite) {
-    constexpr const char* source = "local t = {}; for i = 1, 8 do t[i] = i end; return t[8]";
+    constexpr const char* source =
+        "local allocator_backed_identifier_name = {}; for i = 1, 8 do "
+        "allocator_backed_identifier_name[i] = i end; return allocator_backed_identifier_name[8]";
 
     AllocatorLedger baselineLedger;
     AllocatorProbe baselineProbe{&baselineLedger};

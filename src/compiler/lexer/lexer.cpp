@@ -16,7 +16,7 @@ namespace Lua {
 // 关键字哈希表（静态初始化，O(1)查找）
 // =====================================================================
 
-static const HashMap<Str, TokenType> keywords = {
+static const HashMap<StrView, TokenType> keywords = {
     {"and", TokenType::And},       {"break", TokenType::Break},   {"do", TokenType::Do},
     {"else", TokenType::Else},     {"elseif", TokenType::Elseif}, {"end", TokenType::End},
     {"false", TokenType::False},   {"for", TokenType::For},       {"function", TokenType::Function},
@@ -154,14 +154,18 @@ const char* tokenTypeToString(TokenType type) {
 Lexer::Lexer(const Str& source) : Lexer(source, nullptr) {}
 
 Lexer::Lexer(const Str& source, LuaAllocator* allocator)
-    : sourceStorage_(source), ownedInput_(makeUnique<IO::InputStream>(StrView(sourceStorage_))),
-      inputCursor_(*ownedInput_, allocator), lexemeBuffer_(), tokenStartLine_(1), tokenStartColumn_(1),
-      lookahead_(std::nullopt) {}
+    : allocator_(allocator != nullptr ? *allocator : LuaAllocator{}),
+      sourceStorage_(source.begin(), source.end(), LuaStdAllocator<char>(&allocator_)),
+      ownedInput_(makeUnique<IO::InputStream>(StrView(sourceStorage_.data(), sourceStorage_.size()))),
+      inputCursor_(*ownedInput_, &allocator_), lexemeBuffer_(LuaStdAllocator<char>(&allocator_)), tokenStartLine_(1),
+      tokenStartColumn_(1), lookahead_(std::nullopt) {}
 
 Lexer::Lexer(IO::InputStream& input) : Lexer(input, nullptr) {}
 
 Lexer::Lexer(IO::InputStream& input, LuaAllocator* allocator)
-    : ownedInput_(nullptr), inputCursor_(input, allocator), lexemeBuffer_(), tokenStartLine_(1), tokenStartColumn_(1),
+    : allocator_(allocator != nullptr ? *allocator : LuaAllocator{}),
+      sourceStorage_(LuaStdAllocator<char>(&allocator_)), ownedInput_(nullptr), inputCursor_(input, &allocator_),
+      lexemeBuffer_(LuaStdAllocator<char>(&allocator_)), tokenStartLine_(1), tokenStartColumn_(1),
       lookahead_(std::nullopt) {}
 
 // =====================================================================
@@ -244,13 +248,13 @@ void Lexer::consumeNewlinePairRemainder(char firstNewline) {
 // =====================================================================
 
 Token Lexer::makeToken(TokenType type) {
-    Token token(type, lexemeBuffer_, tokenStartLine_, tokenStartColumn_);
+    Token token(type, StrView(lexemeBuffer_.data(), lexemeBuffer_.size()), tokenStartLine_, tokenStartColumn_);
     return token;
 }
 
 Token Lexer::errorToken(const Str& message) {
     // 使用累积的 lexeme 缓冲区，如果为空则使用错误消息
-    Str lexeme = lexemeBuffer_.empty() ? message : lexemeBuffer_;
+    Str lexeme = lexemeBuffer_.empty() ? message : Str(lexemeBuffer_.data(), lexemeBuffer_.size());
     Token token(TokenType::Error, lexeme, tokenStartLine_, tokenStartColumn_);
     token.errorMessage = message;
     return token;
@@ -397,7 +401,7 @@ Token Lexer::identifier() {
     }
 
     // 使用累积的 lexeme 缓冲区查找关键字（O(1)时间复杂度）
-    auto it = keywords.find(lexemeBuffer_);
+    auto it = keywords.find(StrView(lexemeBuffer_.data(), lexemeBuffer_.size()));
     TokenType type = (it != keywords.end()) ? it->second : TokenType::Name;
 
     return makeToken(type);
@@ -456,7 +460,7 @@ Token Lexer::decimalNumber() {
         std::lconv* lc = std::localeconv();
         char locPoint = (lc && lc->decimal_point && lc->decimal_point[0] != '\0') ? lc->decimal_point[0] : '.';
         if (locPoint != '.') {
-            Str localized = lexemeBuffer_;
+            Str localized(lexemeBuffer_.data(), lexemeBuffer_.size());
             for (char& ch : localized) {
                 if (ch == '.')
                     ch = locPoint;

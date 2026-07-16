@@ -1,6 +1,6 @@
 ---
 status: current
-verified_against: src/runtime/lua_allocator.hpp; src/gc/garbage_collector.hpp; src/gc/garbage_collector.cpp; src/gc/gc_mark.cpp; src/gc/gc_finalize.cpp; src/core/gc_string.hpp; src/core/string_pool.hpp; src/core/table.cpp; src/core/function.cpp; src/vm/vm_table.cpp; src/api/lapi.cpp; src/compiler/lexer/lexer_cursor.hpp; src/compiler/lexer/lexer_cursor.cpp; src/compiler/parser/parser.cpp; src/lib/testlib.cpp; src/runtime/native_module_registry.hpp; tests/unit/api/test_lua_c_api.cpp; tests/unit/gc/test_gc.cpp
+verified_against: src/runtime/lua_allocator.hpp; src/gc/garbage_collector.hpp; src/gc/garbage_collector.cpp; src/gc/gc_mark.cpp; src/gc/gc_finalize.cpp; src/core/gc_string.hpp; src/core/string_pool.hpp; src/core/table.cpp; src/core/function.cpp; src/vm/vm_table.cpp; src/api/lapi.cpp; src/compiler/lexer/lexer.hpp; src/compiler/lexer/lexer.cpp; src/compiler/lexer/lexer_cursor.hpp; src/compiler/lexer/lexer_cursor.cpp; src/compiler/parser/token.hpp; src/compiler/parser/parser.cpp; src/lib/testlib.cpp; src/runtime/native_module_registry.hpp; tests/unit/api/test_lua_c_api.cpp; tests/unit/gc/test_gc.cpp
 last_checked: 2026-07-16
 applies_to: GC managed-size accounting、lua_Alloc callback 与宿主内存上限声明
 ---
@@ -25,17 +25,17 @@ applies_to: GC managed-size accounting、lua_Alloc callback 与宿主内存上�
 - Table 数组和 Proto 的 constants/code/subProto/lineInfo/LocVar/upvalue-name 数组使用 `LuaReallocVector`，扩容发出真正的 `(ptr, osize, nsize)` realloc 请求；
 - Table 数组单值和 `SETLIST` 范围写入在 realloc 失败时不改变逻辑大小与旧值；Table hash 插入使用强保证的 `try_emplace`，raw C API 与 VM `SETTABLE` 都逐点证明失败时不发布目标 entry；
 - `lua_load` 用 `LuaStdAllocator<char>` 支撑的 source buffer 聚合 reader 分片，缓冲增长 OOM 会恢复调用者栈并发布 fixed memory error；
-- services-backed Parser 把同一 callback 的值快照传给 Lexer `InputCursor`，其源码重放缓存使用 `LuaVector<i32>`；缓存 OOM 与 source buffer OOM 进入相同的 protected `LUA_ERRMEM` 回滚边界；
+- services-backed Parser 把同一 callback 的值快照传给 Lexer；Lexer 的整源副本和词素累积缓冲使用 `LuaString`，`InputCursor` 源码重放缓存使用 `LuaVector<i32>`；这些缓存的 OOM 与 reader source buffer OOM 进入相同的 protected `LUA_ERRMEM` 回滚边界；
 - Proto 常量数组与去重 map 的多步插入在 map 分配失败时回滚常量槽；
 - `roots_`、gray queue、weak-table queue、pending-finalizer queue 和 cross-collector `externalMarked_` 都使用同一个 `lua_Alloc`；完整收集的 finalizer drain copy 复用该 allocator；
 - 标记开始前先 reserve gray/weak 容量，单对象标记先发布 queue entry 再改颜色，终结器先入队再发布 `FINALIZED`，drain copy 成功后才设置 reentrancy guard，因此失败后可安全重试；
 - protected C API 会把 `MemoryError` / `std::bad_alloc` 转成 `LUA_ERRMEM`，并使用预先固定的错误对象避免 OOM 路径二次分配。
 
-`tests/unit/api/test_lua_c_api.cpp` 的 host ledger 记录 `liveBytes`、`peakBytes`、`hardLimit` 与每块 `osize`。定向测试逐点扫描长字符串、Proto 常量插入、raw/VM Table hash 插入、分片 reader source buffer、services-backed Lexer `InputCursor` 重放缓存和一次同时经过 gray/weak/pending-finalizer/drain-copy 的完整收集，直接拒绝相应缓冲/Table/Proto/GC worklist 增长；`tests/unit/gc/test_gc.cpp` 另覆盖 root 与 cross-collector queue。`loadbuffer` 另在零余量 hard limit 下覆盖 source 聚合与游标缓存增长。测试证明已覆盖切片满足 `liveBytes <= hardLimit`、旧块保留、逻辑内容不部分提交、终结器不丢失也不重复、解除限制后可继续使用，以及 `lua_close` 后 `liveBytes == 0`。该组测试已在 Windows MSVC Debug/Release 运行，在线矩阵待本提交验证；此前字符串/Table/Proto 切片另有 MSVC ASan 证据。它是切片证据，不是全运行时 hard-limit 声明。
+`tests/unit/api/test_lua_c_api.cpp` 的 host ledger 记录 `liveBytes`、`peakBytes`、`hardLimit` 与每块 `osize`。定向测试逐点扫描长字符串、Proto 常量插入、raw/VM Table hash 插入、分片 reader source buffer、services-backed Lexer 整源/长词素/`InputCursor` 缓存和一次同时经过 gray/weak/pending-finalizer/drain-copy 的完整收集，直接拒绝相应缓冲/Table/Proto/GC worklist 增长；`tests/unit/gc/test_gc.cpp` 另覆盖 root 与 cross-collector queue。`loadbuffer` 的长标识符矩阵另在零余量 hard limit 下覆盖 loader/compiler 缓存增长。测试证明已覆盖切片满足 `liveBytes <= hardLimit`、旧块保留、逻辑内容不部分提交、终结器不丢失也不重复、解除限制后可继续使用，以及 `lua_close` 后 `liveBytes == 0`。该组测试已在 Windows MSVC Debug/Release 运行，在线矩阵待本提交验证；此前字符串/Table/Proto 切片另有 MSVC ASan 证据。它是切片证据，不是全运行时 hard-limit 声明。
 
 但以下容量仍可能绕过 callback，或尚无完整 fail-on-N/事务性证明：
 
-- reader callback 自身的 host-owned storage，以及除 services-backed `InputCursor` 重放缓存外的 lexer/parser/AST/codegen 临时 `Str` / `Vec`、智能指针控制块和诊断对象；
+- reader callback 自身的 host-owned storage，以及 Lexer 产出的 Token/value/error 字符串、parser/AST/codegen 临时 `Str` / `Vec`、智能指针控制块和诊断对象；
 - standard library、debug/trace、I/O、package 等执行路径中的临时 `Str` / `Vec` / `std::string`；
 - MSVC Debug 标准容器的 `_Container_proxy` 实现元数据（当前有意放在 callback 之外）；
 - `NativeModuleRegistry` 的路径/cache 元数据与操作系统 loader 自身分配。
