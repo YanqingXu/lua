@@ -21,7 +21,9 @@
 namespace Lua {
 
 void LuaStateOwnerDeleter::operator()(LuaState* state) const noexcept {
-    LuaState::destroyState(state);
+    if (ownsState) {
+        LuaState::destroyState(state);
+    }
 }
 
 // =====================================================================
@@ -31,6 +33,14 @@ void LuaStateOwnerDeleter::operator()(LuaState* state) const noexcept {
 Thread::Thread(LuaStateOwner state)
     : GCObject(GCObjectType::Thread), state_(std::move(state)), coStatus_(CoroutineStatus::Suspended) {
     state_->setThread(this);
+}
+
+Thread::Thread(LuaState* mainState)
+    : GCObject(GCObjectType::Thread), state_(mainState, LuaStateOwnerDeleter{false}),
+      coStatus_(CoroutineStatus::Running) {
+    if (mainState == nullptr) {
+        throw std::invalid_argument("main thread facade requires a state");
+    }
 }
 
 Thread::~Thread() = default;
@@ -471,6 +481,9 @@ void Thread::mark(GarbageCollector& gc) {
 }
 
 usize Thread::getSize() const {
+    if (!ownsLuaState()) {
+        return sizeof(Thread);
+    }
     return sizeof(Thread) + sizeof(LuaState) + state_->getStack().capacity() * sizeof(Value) +
            state_->getCallStack().capacity() * sizeof(CallInfo);
 }

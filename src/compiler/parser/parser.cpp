@@ -6,6 +6,7 @@
  */
 
 #include "parser_impl.hpp"
+#include "runtime/runtime_services.hpp"
 #include <sstream>
 
 namespace Lua {
@@ -16,34 +17,27 @@ static Str getTokenText(const Token& token) {
     }
 
     if (!token.lexeme.empty()) {
-        return token.lexeme;
+        return Str(token.lexeme.data(), token.lexeme.size());
     }
 
     return tokenTypeToString(token.type);
 }
 
 Str Parser::Impl::errorWithNear(const Str& message, const Token& token) {
-    const Str& diagnostic = (token.type == TokenType::Error && !token.errorMessage.empty())
-        ? token.errorMessage
-        : message;
-    return diagnostic + " near '" + getTokenText(token) + "'";
+    const StrView diagnostic = (token.type == TokenType::Error && !token.errorMessage.empty())
+                                   ? StrView(token.errorMessage.data(), token.errorMessage.size())
+                                   : StrView(message);
+    return Str(diagnostic) + " near '" + getTokenText(token) + "'";
 }
 
-Parser::Parser(const Str& source)
-    : Parser(source, ParserOptions{}) {
-}
+Parser::Parser(const Str& source) : Parser(source, ParserOptions{}) {}
 
-Parser::Parser(const Str& source, ParserOptions options)
-    : impl_(makeUnique<Impl>(source, options)) {
-}
+Parser::Parser(const Str& source, ParserOptions options) : impl_(makeUnique<Impl>(source, options)) {}
 
-Parser::Parser(const Str& source, RuntimeServices& services)
-    : Parser(source, services, ParserOptions{}) {
-}
+Parser::Parser(const Str& source, RuntimeServices& services) : Parser(source, services, ParserOptions{}) {}
 
 Parser::Parser(const Str& source, RuntimeServices& services, ParserOptions options)
-    : impl_(makeUnique<Impl>(source, services, options)) {
-}
+    : impl_(makeUnique<Impl>(source, services, options)) {}
 
 Parser::~Parser() = default;
 Parser::Parser(Parser&&) noexcept = default;
@@ -58,15 +52,18 @@ const Vec<ParseError>& Parser::diagnostics() const noexcept {
 }
 
 Parser::Impl::Impl(const Str& source, ParserOptions options)
-    : tokenStream_(source)
-    , recoveryStrategy_(makeRecoveryStrategy(options.recoveryMode)) {
+    : tokenStream_(source), astFactory_(&allocator_),
+      functionScopes_(LuaSnapshotStdAllocator<FunctionSyntaxScope>(&allocator_)),
+      recoveryStrategy_(makeRecoveryStrategy(options.recoveryMode)) {
     diagnosticObservers_.push_back(&diagnosticCollector_);
 }
 
 Parser::Impl::Impl(const Str& source, RuntimeServices& services, ParserOptions options)
-    : tokenStream_(source)
-    , services_(&services)
-    , recoveryStrategy_(makeRecoveryStrategy(options.recoveryMode)) {
+    : allocator_(services.globalState.getAllocator() != nullptr ? *services.globalState.getAllocator()
+                                                                : LuaAllocator{}),
+      tokenStream_(source, &allocator_), services_(&services), astFactory_(&allocator_),
+      functionScopes_(LuaSnapshotStdAllocator<FunctionSyntaxScope>(&allocator_)),
+      recoveryStrategy_(makeRecoveryStrategy(options.recoveryMode)) {
     diagnosticObservers_.push_back(&diagnosticCollector_);
 }
 
@@ -136,21 +133,12 @@ void Parser::Impl::synchronize() {
             return;
         }
 
-        if (check(TokenType::End) ||
-            check(TokenType::Else) ||
-            check(TokenType::Elseif) ||
-            check(TokenType::Until)) {
+        if (check(TokenType::End) || check(TokenType::Else) || check(TokenType::Elseif) || check(TokenType::Until)) {
             return;
         }
 
-        if (check(TokenType::Local) ||
-            check(TokenType::Function) ||
-            check(TokenType::If) ||
-            check(TokenType::While) ||
-            check(TokenType::For) ||
-            check(TokenType::Repeat) ||
-            check(TokenType::Return) ||
-            check(TokenType::Break)) {
+        if (check(TokenType::Local) || check(TokenType::Function) || check(TokenType::If) || check(TokenType::While) ||
+            check(TokenType::For) || check(TokenType::Repeat) || check(TokenType::Return) || check(TokenType::Break)) {
             return;
         }
 
@@ -167,11 +155,10 @@ void Parser::Impl::recoverAfterError() {
 }
 
 void Parser::Impl::enterFunctionSyntaxScope(i32 line, const Vec<Str>& params) {
-    FunctionSyntaxScope scope;
-    scope.line = line;
+    FunctionSyntaxScope scope(line, &allocator_);
     for (const Str& param : params) {
         if (param != "...") {
-            scope.locals.push_back(param);
+            scope.locals.push_back(makeSyntaxName(param));
         }
     }
     functionScopes_.push_back(std::move(scope));
@@ -184,19 +171,16 @@ void Parser::Impl::leaveFunctionSyntaxScope() {
 }
 
 void Parser::Impl::declareLocalName(const Str& name, const Token& token) {
-    if (functionScopes_.empty() || containsName(functionScopes_.back().locals, name)) {
+    if (functionScopes_.empty() || containsName(functionScopes_.back().locals, StrView(name))) {
         return;
     }
 
     FunctionSyntaxScope& scope = functionScopes_.back();
     if (scope.locals.size() >= MAX_LOCAL_VARIABLES) {
-        throw ParseError(
-            "function at line " + std::to_string(scope.line) + " has more than 200 local variables",
-            token.line,
-            token.column
-        );
+        throw ParseError("function at line " + std::to_string(scope.line) + " has more than 200 local variables",
+                         token.line, token.column);
     }
-    scope.locals.push_back(name);
+    scope.locals.push_back(makeSyntaxName(name));
 }
 
 void Parser::Impl::noteNameUse(const Str& name, const Token& token) {
@@ -206,7 +190,7 @@ void Parser::Impl::noteNameUse(const Str& name, const Token& token) {
 
     i32 owner = -1;
     for (i32 i = static_cast<i32>(functionScopes_.size()) - 1; i >= 0; --i) {
-        if (containsName(functionScopes_[static_cast<usize>(i)].locals, name)) {
+        if (containsName(functionScopes_[static_cast<usize>(i)].locals, StrView(name))) {
             owner = i;
             break;
         }
@@ -217,27 +201,24 @@ void Parser::Impl::noteNameUse(const Str& name, const Token& token) {
 
     for (i32 i = static_cast<i32>(functionScopes_.size()) - 1; i > owner; --i) {
         FunctionSyntaxScope& scope = functionScopes_[static_cast<usize>(i)];
-        if (containsName(scope.upvalues, name)) {
+        if (containsName(scope.upvalues, StrView(name))) {
             continue;
         }
         if (scope.upvalues.size() >= MAX_UPVALUES_PER_FUNCTION) {
-            throw ParseError(
-                "function at line " + std::to_string(scope.line) + " has more than 60 upvalues",
-                token.line,
-                token.column
-            );
+            throw ParseError("function at line " + std::to_string(scope.line) + " has more than 60 upvalues",
+                             token.line, token.column);
         }
-        scope.upvalues.push_back(name);
+        scope.upvalues.push_back(makeSyntaxName(name));
     }
 }
 
 UPtr<Parser::Impl::ErrorRecoveryStrategy> Parser::Impl::makeRecoveryStrategy(ParseRecoveryMode mode) {
     switch (mode) {
-        case ParseRecoveryMode::StatementBoundary:
-            return makeUnique<StatementBoundaryRecoveryStrategy>();
-        case ParseRecoveryMode::FailFast:
-        default:
-            return makeUnique<FailFastRecoveryStrategy>();
+    case ParseRecoveryMode::StatementBoundary:
+        return makeUnique<StatementBoundaryRecoveryStrategy>();
+    case ParseRecoveryMode::FailFast:
+    default:
+        return makeUnique<FailFastRecoveryStrategy>();
     }
 }
 
@@ -269,4 +250,4 @@ const Vec<ParseError>& Parser::Impl::diagnostics() const noexcept {
     return diagnosticCollector_.diagnostics();
 }
 
-}
+} // namespace Lua

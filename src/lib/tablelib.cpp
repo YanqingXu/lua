@@ -1,7 +1,7 @@
 /**
  * @file tablelib.cpp
  * @brief Lua Table Library Implementation - 表操作库实现
- * 
+ *
  * @author Lua C++ Project
  * @date 2026-01-23
  */
@@ -20,11 +20,11 @@
 #include "common/number_conversion.hpp"
 
 #include <format>
-#include <string>
-#include <sstream>
 #include <algorithm>
-#include <vector>
-#include <cstring>
+#include <array>
+#include <new>
+#include <sstream>
+#include <string>
 
 namespace Lua {
 
@@ -59,8 +59,22 @@ static Function* getFunctionArg(LuaState* L, i32 idx, const char* funcName) {
     return L->at(idx).asFunction();
 }
 
-static Str tableNumberToLuaString(f64 value) {
-    return luaNumberToString(value);
+struct TableConcatText {
+    std::array<char, 64> numberBuffer{};
+    StrView view;
+};
+
+static bool tableConcatText(const Value& value, TableConcatText& text) {
+    if (value.isString()) {
+        text.view = value.asString()->view();
+        return true;
+    }
+    if (!value.isNumber()) {
+        return false;
+    }
+
+    text.view = luaNumberToView(value.asNumber(), text.numberBuffer);
+    return true;
 }
 
 /**
@@ -78,19 +92,13 @@ static bool callSortComparator(LuaState* L, Function* comparator, const Value& l
     i32 originalTop = L->getTop();
     usize savedCI = L->getCurrentCI();
     usize savedTop = L->getAbsoluteTop();
-    Vec<Value> savedStack;
+    LuaVector<Value> savedStack(LuaStdAllocator<Value>(L->getGlobalState().getAllocator()));
     savedStack.reserve(savedTop);
     for (usize i = 0; i < savedTop; ++i) {
         savedStack.push_back(L->getStack().at(i));
     }
 
-    try {
-        L->pushFunction(comparator);
-        L->pushValue(left);
-        L->pushValue(right);
-        RuntimeServices services(L->getGlobalState());
-        VM::call(services, L, 2, 1);
-    } catch (const std::exception& e) {
+    const auto restoreStack = [&]() {
         while (L->getCurrentCI() > savedCI) {
             L->popCallInfo();
         }
@@ -99,6 +107,22 @@ static bool callSortComparator(LuaState* L, Function* comparator, const Value& l
         for (const Value& value : savedStack) {
             L->pushValue(value);
         }
+    };
+
+    try {
+        L->pushFunction(comparator);
+        L->pushValue(left);
+        L->pushValue(right);
+        RuntimeServices services(L->getGlobalState());
+        VM::call(services, L, 2, 1);
+    } catch (const MemoryError&) {
+        restoreStack();
+        throw;
+    } catch (const std::bad_alloc&) {
+        restoreStack();
+        throw;
+    } catch (const std::exception& e) {
+        restoreStack();
         L->error(e.what());
     }
 
@@ -154,7 +178,7 @@ i32 table_insert(LuaState* L) {
     }
 
     Table* table = getTableArg(L, 1, "insert");
-    
+
     if (nargs == 2) {
         // table.insert(table, value) - 在末尾插入
         i32 len = getTableLength(table);
@@ -165,17 +189,17 @@ i32 table_insert(LuaState* L) {
         i32 pos = static_cast<i32>(getNumberArg(L, 2, "insert"));
         Value value = L->at(3);
         i32 len = getTableLength(table);
-        
+
         // 将 pos 到 len 的元素后移
         for (i32 i = len; i >= pos; i--) {
             Value v = table->get(Value(static_cast<f64>(i)));
             table->set(Value(static_cast<f64>(i + 1)), v);
         }
-        
+
         // 插入新值
         table->set(Value(static_cast<f64>(pos)), value);
     }
-    
+
     return 0;
 }
 
@@ -242,26 +266,26 @@ i32 table_remove(LuaState* L) {
 
     Table* table = getTableArg(L, 1, "remove");
     i32 len = getTableLength(table);
-    
+
     i32 pos = (nargs >= 2) ? static_cast<i32>(getNumberArg(L, 2, "remove")) : len;
-    
+
     if (pos < 1 || pos > len) {
         L->pushNil();
         return 1;
     }
-    
+
     // 获取要移除的值
     Value removed = table->get(Value(static_cast<f64>(pos)));
-    
+
     // 将 pos+1 到 len 的元素前移
     for (i32 i = pos; i < len; i++) {
         Value v = table->get(Value(static_cast<f64>(i + 1)));
         table->set(Value(static_cast<f64>(i)), v);
     }
-    
+
     // 删除最后一个元素
     table->remove(Value(static_cast<f64>(len)));
-    
+
     // 返回被移除的值
     L->pushValue(removed);
     return 1;
@@ -278,17 +302,13 @@ i32 table_concat(LuaState* L) {
     }
 
     Table* table = getTableArg(L, 1, "concat");
-    
+
     // 获取分隔符（默认为空字符串）
-    Str sep;
+    TableConcatText separator;
     if (nargs >= 2 && !L->isNil(2)) {
-        const char* sepChars = L->toString(2);
-        if (sepChars == nullptr) {
+        if (!tableConcatText(L->at(2), separator)) {
             L->error("table.concat: separator must be a string or number");
         }
-        const Value& sepVal = L->at(2);
-        usize sepLen = sepVal.isString() ? sepVal.asString()->getLength() : std::strlen(sepChars);
-        sep.assign(sepChars, sepLen);
     }
 
     // 获取起始和结束索引
@@ -296,24 +316,23 @@ i32 table_concat(LuaState* L) {
     i32 j = (nargs >= 4) ? static_cast<i32>(getNumberArg(L, 4, "concat")) : getTableLength(table);
 
     // 连接字符串
-    Str result;
+    LuaVector<char> result(LuaStdAllocator<char>(L->getGlobalState().getAllocator()));
     for (i32 idx = i; idx <= j; idx++) {
-        if (idx > i) {
-            result.append(sep);
+        if (idx > i && !separator.view.empty()) {
+            result.insert(result.end(), separator.view.begin(), separator.view.end());
         }
 
-        Value v = table->get(Value(static_cast<f64>(idx)));
-        if (v.isString()) {
-            result.append(v.asString()->getData());
-        } else if (v.isNumber()) {
-            result.append(tableNumberToLuaString(v.asNumber()));
-        } else {
+        const Value value = table->get(Value(static_cast<f64>(idx)));
+        TableConcatText text;
+        if (!tableConcatText(value, text)) {
             L->error("table.concat: invalid value (must be string or number)");
         }
+        result.insert(result.end(), text.view.begin(), text.view.end());
     }
 
     // 返回连接后的字符串
-    L->pushString(L->getGlobalState().getStringPool().intern(result));
+    const StrView resultView = result.empty() ? StrView("") : StrView(result.data(), result.size());
+    L->pushString(L->getGlobalState().getStringPool().intern(resultView));
     return 1;
 }
 
@@ -339,16 +358,14 @@ i32 table_sort(LuaState* L) {
     }
 
     // 提取数组部分到 vector
-    std::vector<Value> arr;
+    LuaVector<Value> arr(LuaStdAllocator<Value>(L->getGlobalState().getAllocator()));
     arr.reserve(len);
     for (i32 i = 1; i <= len; i++) {
         arr.push_back(table->get(Value(static_cast<f64>(i))));
     }
 
     std::sort(arr.begin(), arr.end(), [&](const Value& left, const Value& right) {
-        return comparator != nullptr
-            ? callSortComparator(L, comparator, left, right)
-            : defaultSortLess(L, left, right);
+        return comparator != nullptr ? callSortComparator(L, comparator, left, right) : defaultSortLess(L, left, right);
     });
 
     // 将排序后的值写回表
@@ -531,11 +548,10 @@ void openTableLib(LuaState* L) {
         return;
     }
 
+    L->requireStandardLibrary("table");
     TableLibModule module;
     module.registerFunctions(L);
     module.initialize(L);
 }
 
 } // namespace Lua
-
-

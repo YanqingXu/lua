@@ -15,6 +15,7 @@
 #include "vm/state/lua_state.hpp"
 #include "vm/vm_constants.hpp"
 
+#include <array>
 #include <cctype>
 #include <cmath>
 #include <cstdlib>
@@ -36,8 +37,22 @@ bool tryToNumber(const Value& val, f64& result) {
     return false;
 }
 
-Str numberToLuaString(f64 value) {
-    return luaNumberToString(value);
+struct ConcatOperandText {
+    std::array<char, 64> numberBuffer{};
+    StrView view;
+};
+
+bool concatOperandText(const Value& value, ConcatOperandText& text) {
+    if (value.isString()) {
+        text.view = value.asString()->view();
+        return true;
+    }
+    if (!value.isNumber()) {
+        return false;
+    }
+
+    text.view = luaNumberToView(value.asNumber(), text.numberBuffer);
+    return true;
 }
 
 f64 luaModulo(f64 left, f64 right) {
@@ -330,55 +345,45 @@ void length(LuaState* L, Value& result, const Value& val) {
 }
 
 void concat(RuntimeServices& services, LuaState* L, Value* base, i32 a, i32 b, i32 c) {
+    Stack& stack = L->getStack();
+    const usize baseIndex = static_cast<usize>(base - &stack[0]);
     i32 total = c - b + 1;
     i32 last = c;
     StringPool& pool = services.strings;
 
     while (total > 1) {
+        base = &stack[baseIndex];
         Value& top1 = base[last];
         Value& top2 = base[last - 1];
 
-        Str str1, str2;
-        bool canConcat = false;
-
-        if (top2.isString()) {
-            str2 = top2.asString()->getData();
-            canConcat = true;
-        } else if (top2.isNumber()) {
-            str2 = numberToLuaString(top2.asNumber());
-            canConcat = true;
-        }
-
-        if (canConcat) {
-            if (top1.isString())
-                str1 = top1.asString()->getData();
-            else if (top1.isNumber())
-                str1 = numberToLuaString(top1.asNumber());
-            else
-                canConcat = false;
-        }
+        ConcatOperandText text1;
+        ConcatOperandText text2;
+        const bool canConcat = concatOperandText(top2, text2) && concatOperandText(top1, text1);
 
         if (!canConcat) {
             Value result;
             if (!callBinaryTM(L, top2, top1, result, TMS::TM_CONCAT)) {
                 throw RuntimeError("VM: attempt to concatenate non-string/number values");
             }
+            base = &stack[baseIndex];
             base[last - 1] = result;
             total--;
             last--;
             continue;
         }
 
-        checkStringConcatLength(str2.size(), str1.size());
-        Str result;
-        result.reserve(str2.size() + str1.size());
-        result.append(str2);
-        result.append(str1);
-        base[last - 1] = Value(pool.intern(result));
+        checkStringConcatLength(text2.view.size(), text1.view.size());
+        LuaReallocVector<char> result(services.globalState.getAllocator());
+        result.resize(text2.view.size() + text1.view.size());
+        std::memcpy(result.data(), text2.view.data(), text2.view.size());
+        std::memcpy(result.data() + text2.view.size(), text1.view.data(), text1.view.size());
+        const StrView resultView = result.empty() ? StrView("") : StrView(result.data(), result.size());
+        base[last - 1] = Value(pool.intern(resultView));
         [[maybe_unused]] const usize collected = services.gc.maybeCollectAutomatic(L);
         total--;
         last--;
     }
+    base = &stack[baseIndex];
     base[a] = base[b];
 }
 

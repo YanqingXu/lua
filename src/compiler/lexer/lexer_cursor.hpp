@@ -7,6 +7,7 @@
 
 #include "common/types.hpp"
 #include "io/input_stream.hpp"
+#include "runtime/lua_allocator.hpp"
 
 namespace Lua {
 
@@ -25,7 +26,11 @@ public:
         i32 pendingNewlineChar;
     };
 
-    explicit InputCursor(IO::InputStream& input);
+    explicit InputCursor(IO::InputStream& input, LuaAllocator* allocator = nullptr);
+    InputCursor(const InputCursor&) = delete;
+    InputCursor& operator=(const InputCursor&) = delete;
+    InputCursor(InputCursor&&) = delete;
+    InputCursor& operator=(InputCursor&&) = delete;
 
     char advance();
     char peek(usize offset = 0) const noexcept;
@@ -34,9 +39,15 @@ public:
     State save() const noexcept;
     void restore(const State& state);
 
-    i32 line() const noexcept { return line_; }
-    i32 column() const noexcept { return column_; }
-    usize offset() const noexcept { return cursor_; }
+    i32 line() const noexcept {
+        return line_;
+    }
+    i32 column() const noexcept {
+        return column_;
+    }
+    usize offset() const noexcept {
+        return cursor_;
+    }
 
 private:
     void ensureBuffered(usize absoluteIndex);
@@ -45,7 +56,8 @@ private:
 
 private:
     IO::InputStream* input_;
-    Vec<i32> buffer_;
+    LuaAllocator allocator_;
+    LuaVector<i32> buffer_;
     usize cursor_;
     bool reachedEof_;
     i32 line_;

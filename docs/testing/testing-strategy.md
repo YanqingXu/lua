@@ -1,6 +1,6 @@
 ---
 status: current
-verified_against: tests/unit/; tests/unit/framework/; tests/lua/; tests/lua/official/; tests/compatibility/; tests/lua/regressions/; tests/unit/vm/test_vm_trace_debug.cpp; tools/check_doc_drift.ps1; tools/check_lua51_official_sources.ps1; tools/run_lua51_official_strict.ps1; tools/test_quality_gate.ps1
+verified_against: tests/unit/; tests/unit/framework/; tests/lua/; tests/lua/official/; tests/compatibility/; tests/lua/regressions/; tests/unit/vm/test_vm_trace_debug.cpp; tools/run_quality_gate.ps1; tools/check_doc_drift.ps1; tools/check_lua51_official_sources.ps1; tools/run_lua51_official_strict.ps1; tools/test_quality_gate.ps1
 last_checked: 2026-07-15
 applies_to: 解释器测试分层、Golden 与回归证据
 ---
@@ -18,7 +18,7 @@ applies_to: 解释器测试分层、Golden 与回归证据
 | Official smoke | 受控改写、压力缩减和分阶段执行的快速回归 | `tests/unit/official/`、`tests/compatibility/lua51-official-smoke-deviations.json` |
 | Official strict | SHA-256 锁定、临时副本中原样执行的 Lua 5.1 Release required gate；同时输出逐脚本 `stageProfile` | `tests/lua/official/`、`tools/run_lua51_official_strict.ps1` |
 | Official TestC | 打开内部 `T` 模块后执行 `api.lua`，并在 SHA 锁定的 5.1.5 `luac` oracle 校正后执行 `code.lua` | `tests/unit/official/`、`lua51-official-sources.json`、`lua51-official-testc-xfails.json` |
-| Differential | 同一探针在官方 Lua 5.1 与本解释器上的可观察行为对比 | `tests/lua/differential/`、`tools/run_lua51_differential.ps1` |
+| Differential | 同一 Lua/C probe 在官方 Lua 5.1 与本解释器上的可观察行为对比 | `tests/lua/differential/`、`lua51_c_api_differential_probe.c`、`tools/run_lua51_*_differential.ps1` |
 | Regression | 每个已修缺陷的最小稳定复现 | `tests/lua/regressions/` |
 | Golden | 结构化且有意稳定的复杂输出 | `test_vm_trace_debug.cpp` 中的 trace golden cases |
 
@@ -68,3 +68,5 @@ Strict runner 对 stdout 的 SHA 锁定 banner 做实时计时，而不向官方
 opcode matrix 是一种结构覆盖合同：每个 opcode 必须有 CodeGen 生产证据和 VM handler 消费证据。它不能替代行为测试，但能发现“有 handler 从不生成”或“生成了却没有 handler”的静态断裂。
 
 Documentation Drift Check 进一步验证核心技术页存在、全部 Markdown 有事实头部、`verified_against` 路径仍存在，并通过真实测试输出校验 README 基线。这样文档证据和代码证据使用同一质量门。
+
+本地发布证据使用 `tools/run_quality_gate.ps1 -Strict`：环境依赖或预期测试产物缺失即失败。显式 skip 参数只用于调用者有意拆分门禁的场景，输出中必须保留对应 `[SKIP]`，不能把裁剪后的运行描述为完整质量门。

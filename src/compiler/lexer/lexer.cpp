@@ -16,29 +16,14 @@ namespace Lua {
 // 关键字哈希表（静态初始化，O(1)查找）
 // =====================================================================
 
-static const HashMap<Str, TokenType> keywords = {
-    {"and", TokenType::And},
-    {"break", TokenType::Break},
-    {"do", TokenType::Do},
-    {"else", TokenType::Else},
-    {"elseif", TokenType::Elseif},
-    {"end", TokenType::End},
-    {"false", TokenType::False},
-    {"for", TokenType::For},
-    {"function", TokenType::Function},
-    {"if", TokenType::If},
-    {"in", TokenType::In},
-    {"local", TokenType::Local},
-    {"nil", TokenType::Nil},
-    {"not", TokenType::Not},
-    {"or", TokenType::Or},
-    {"repeat", TokenType::Repeat},
-    {"return", TokenType::Return},
-    {"then", TokenType::Then},
-    {"true", TokenType::True},
-    {"until", TokenType::Until},
-    {"while", TokenType::While}
-};
+static const HashMap<StrView, TokenType> keywords = {
+    {"and", TokenType::And},       {"break", TokenType::Break},   {"do", TokenType::Do},
+    {"else", TokenType::Else},     {"elseif", TokenType::Elseif}, {"end", TokenType::End},
+    {"false", TokenType::False},   {"for", TokenType::For},       {"function", TokenType::Function},
+    {"if", TokenType::If},         {"in", TokenType::In},         {"local", TokenType::Local},
+    {"nil", TokenType::Nil},       {"not", TokenType::Not},       {"or", TokenType::Or},
+    {"repeat", TokenType::Repeat}, {"return", TokenType::Return}, {"then", TokenType::Then},
+    {"true", TokenType::True},     {"until", TokenType::Until},   {"while", TokenType::While}};
 
 namespace {
 
@@ -47,18 +32,16 @@ struct SimpleEscape {
     char value;
 };
 
-constexpr std::array<SimpleEscape, 10> kSimpleEscapes{{
-    {'a', '\a'},
-    {'b', '\b'},
-    {'f', '\f'},
-    {'n', '\n'},
-    {'r', '\r'},
-    {'t', '\t'},
-    {'v', '\v'},
-    {'\\', '\\'},
-    {'"', '"'},
-    {'\'', '\''}
-}};
+constexpr std::array<SimpleEscape, 10> kSimpleEscapes{{{'a', '\a'},
+                                                       {'b', '\b'},
+                                                       {'f', '\f'},
+                                                       {'n', '\n'},
+                                                       {'r', '\r'},
+                                                       {'t', '\t'},
+                                                       {'v', '\v'},
+                                                       {'\\', '\\'},
+                                                       {'"', '"'},
+                                                       {'\'', '\''}}};
 
 Opt<char> decodeSimpleEscape(char c) noexcept {
     for (const SimpleEscape& escape : kSimpleEscapes) {
@@ -87,47 +70,80 @@ bool isSingleCharToken(char c) noexcept {
 
 const char* tokenTypeToString(TokenType type) {
     switch (type) {
-        // 关键字
-        case TokenType::And: return "and";
-        case TokenType::Break: return "break";
-        case TokenType::Do: return "do";
-        case TokenType::Else: return "else";
-        case TokenType::Elseif: return "elseif";
-        case TokenType::End: return "end";
-        case TokenType::False: return "false";
-        case TokenType::For: return "for";
-        case TokenType::Function: return "function";
-        case TokenType::If: return "if";
-        case TokenType::In: return "in";
-        case TokenType::Local: return "local";
-        case TokenType::Nil: return "nil";
-        case TokenType::Not: return "not";
-        case TokenType::Or: return "or";
-        case TokenType::Repeat: return "repeat";
-        case TokenType::Return: return "return";
-        case TokenType::Then: return "then";
-        case TokenType::True: return "true";
-        case TokenType::Until: return "until";
-        case TokenType::While: return "while";
-        
-        // 多字符运算符
-        case TokenType::Concat: return "..";
-        case TokenType::Dots: return "...";
-        case TokenType::Eq: return "==";
-        case TokenType::Ge: return ">=";
-        case TokenType::Le: return "<=";
-        case TokenType::Ne: return "~=";
-        
-        // 字面量和标识符
-        case TokenType::Number: return "<number>";
-        case TokenType::String: return "<string>";
-        case TokenType::Name: return "<name>";
-        
-        // 特殊
-        case TokenType::Eos: return "<eof>";
-        case TokenType::Error: return "<error>";
-        
-        default: return "<unknown>";
+    // 关键字
+    case TokenType::And:
+        return "and";
+    case TokenType::Break:
+        return "break";
+    case TokenType::Do:
+        return "do";
+    case TokenType::Else:
+        return "else";
+    case TokenType::Elseif:
+        return "elseif";
+    case TokenType::End:
+        return "end";
+    case TokenType::False:
+        return "false";
+    case TokenType::For:
+        return "for";
+    case TokenType::Function:
+        return "function";
+    case TokenType::If:
+        return "if";
+    case TokenType::In:
+        return "in";
+    case TokenType::Local:
+        return "local";
+    case TokenType::Nil:
+        return "nil";
+    case TokenType::Not:
+        return "not";
+    case TokenType::Or:
+        return "or";
+    case TokenType::Repeat:
+        return "repeat";
+    case TokenType::Return:
+        return "return";
+    case TokenType::Then:
+        return "then";
+    case TokenType::True:
+        return "true";
+    case TokenType::Until:
+        return "until";
+    case TokenType::While:
+        return "while";
+
+    // 多字符运算符
+    case TokenType::Concat:
+        return "..";
+    case TokenType::Dots:
+        return "...";
+    case TokenType::Eq:
+        return "==";
+    case TokenType::Ge:
+        return ">=";
+    case TokenType::Le:
+        return "<=";
+    case TokenType::Ne:
+        return "~=";
+
+    // 字面量和标识符
+    case TokenType::Number:
+        return "<number>";
+    case TokenType::String:
+        return "<string>";
+    case TokenType::Name:
+        return "<name>";
+
+    // 特殊
+    case TokenType::Eos:
+        return "<eof>";
+    case TokenType::Error:
+        return "<error>";
+
+    default:
+        return "<unknown>";
     }
 }
 
@@ -135,26 +151,22 @@ const char* tokenTypeToString(TokenType type) {
 // Lexer构造函数
 // =====================================================================
 
-Lexer::Lexer(const Str& source)
-    : sourceStorage_(source)
-    , ownedInput_(makeUnique<IO::InputStream>(StrView(sourceStorage_)))
-    , inputCursor_(*ownedInput_)
-    , lexemeBuffer_()
-    , tokenStartLine_(1)
-    , tokenStartColumn_(1)
-    , lookahead_(std::nullopt)
-{
-}
+Lexer::Lexer(const Str& source) : Lexer(source, nullptr) {}
 
-Lexer::Lexer(IO::InputStream& input)
-    : ownedInput_(nullptr)
-    , inputCursor_(input)
-    , lexemeBuffer_()
-    , tokenStartLine_(1)
-    , tokenStartColumn_(1)
-    , lookahead_(std::nullopt)
-{
-}
+Lexer::Lexer(const Str& source, LuaAllocator* allocator)
+    : allocator_(allocator != nullptr ? *allocator : LuaAllocator{}),
+      sourceStorage_(source.begin(), source.end(), LuaSnapshotStdAllocator<char>(&allocator_)),
+      ownedInput_(makeUnique<IO::InputStream>(StrView(sourceStorage_.data(), sourceStorage_.size()))),
+      inputCursor_(*ownedInput_, &allocator_), lexemeBuffer_(LuaSnapshotStdAllocator<char>(&allocator_)),
+      tokenStartLine_(1), tokenStartColumn_(1), lookahead_(std::nullopt) {}
+
+Lexer::Lexer(IO::InputStream& input) : Lexer(input, nullptr) {}
+
+Lexer::Lexer(IO::InputStream& input, LuaAllocator* allocator)
+    : allocator_(allocator != nullptr ? *allocator : LuaAllocator{}),
+      sourceStorage_(LuaSnapshotStdAllocator<char>(&allocator_)), ownedInput_(nullptr),
+      inputCursor_(input, &allocator_), lexemeBuffer_(LuaSnapshotStdAllocator<char>(&allocator_)), tokenStartLine_(1),
+      tokenStartColumn_(1), lookahead_(std::nullopt) {}
 
 // =====================================================================
 // 字符操作
@@ -182,8 +194,10 @@ char Lexer::peekNext() const noexcept {
 }
 
 bool Lexer::match(char expected) {
-    if (isAtEnd()) return false;
-    if (peek() != expected) return false;
+    if (isAtEnd())
+        return false;
+    if (peek() != expected)
+        return false;
 
     advance();
     return true;
@@ -234,15 +248,16 @@ void Lexer::consumeNewlinePairRemainder(char firstNewline) {
 // =====================================================================
 
 Token Lexer::makeToken(TokenType type) {
-    Token token(type, lexemeBuffer_, tokenStartLine_, tokenStartColumn_);
+    Token token(type, StrView(lexemeBuffer_.data(), lexemeBuffer_.size()), tokenStartLine_, tokenStartColumn_,
+                &allocator_);
     return token;
 }
 
 Token Lexer::errorToken(const Str& message) {
     // 使用累积的 lexeme 缓冲区，如果为空则使用错误消息
-    Str lexeme = lexemeBuffer_.empty() ? message : lexemeBuffer_;
-    Token token(TokenType::Error, lexeme, tokenStartLine_, tokenStartColumn_);
-    token.errorMessage = message;
+    Str lexeme = lexemeBuffer_.empty() ? message : Str(lexemeBuffer_.data(), lexemeBuffer_.size());
+    Token token(TokenType::Error, lexeme, tokenStartLine_, tokenStartColumn_, &allocator_);
+    token.setErrorMessage(message);
     return token;
 }
 
@@ -280,34 +295,34 @@ Opt<Token> Lexer::skipWhitespace() {
         char c = peek();
 
         switch (c) {
-            case ' ':
-            case '\r':
-            case '\t':
-            case '\n':
-                advance();
-                break;
+        case ' ':
+        case '\r':
+        case '\t':
+        case '\n':
+            advance();
+            break;
 
-            case '-':
-                // 检查是否为注释
-                if (peekNext() == '-') {
-                    if (Opt<Token> error = skipComment()) {
-                        return error;
-                    }
-                } else {
-                    return std::nullopt;
+        case '-':
+            // 检查是否为注释
+            if (peekNext() == '-') {
+                if (Opt<Token> error = skipComment()) {
+                    return error;
                 }
-                break;
-
-            case '#':
-                if (inputCursor_.line() == 1 && inputCursor_.column() == 1) {
-                    skipLineComment();
-                } else {
-                    return std::nullopt;
-                }
-                break;
-
-            default:
+            } else {
                 return std::nullopt;
+            }
+            break;
+
+        case '#':
+            if (inputCursor_.line() == 1 && inputCursor_.column() == 1) {
+                skipLineComment();
+            } else {
+                return std::nullopt;
+            }
+            break;
+
+        default:
+            return std::nullopt;
         }
     }
 
@@ -387,7 +402,7 @@ Token Lexer::identifier() {
     }
 
     // 使用累积的 lexeme 缓冲区查找关键字（O(1)时间复杂度）
-    auto it = keywords.find(lexemeBuffer_);
+    auto it = keywords.find(StrView(lexemeBuffer_.data(), lexemeBuffer_.size()));
     TokenType type = (it != keywords.end()) ? it->second : TokenType::Name;
 
     return makeToken(type);
@@ -446,9 +461,10 @@ Token Lexer::decimalNumber() {
         std::lconv* lc = std::localeconv();
         char locPoint = (lc && lc->decimal_point && lc->decimal_point[0] != '\0') ? lc->decimal_point[0] : '.';
         if (locPoint != '.') {
-            Str localized = lexemeBuffer_;
+            Str localized(lexemeBuffer_.data(), lexemeBuffer_.size());
             for (char& ch : localized) {
-                if (ch == '.') ch = locPoint;
+                if (ch == '.')
+                    ch = locPoint;
             }
             end = nullptr;
             value = std::strtod(localized.c_str(), &end);
@@ -553,7 +569,7 @@ Token Lexer::shortString(char quote) {
     advance();
 
     Token token = makeToken(TokenType::String);
-    token.value = result;
+    token.setStringValue(StrView(result.data(), result.size()));
 
     return token;
 }
@@ -616,7 +632,7 @@ Token Lexer::longString(i32 level) {
             Opt<i32> endLevel = readLongBracketDelimiter();
             if (endLevel.has_value() && endLevel.value() == level) {
                 Token token = makeToken(TokenType::String);
-                token.value = result;
+                token.setStringValue(StrView(result.data(), result.size()));
                 return token;
             }
             restoreState(savedState);
@@ -649,12 +665,7 @@ void Lexer::appendLongStringChar(Str& result) {
 // =====================================================================
 
 Lexer::LexerState Lexer::saveState() const {
-    return LexerState{
-        lexemeBuffer_.size(),
-        inputCursor_.save(),
-        tokenStartLine_,
-        tokenStartColumn_
-    };
+    return LexerState{lexemeBuffer_.size(), inputCursor_.save(), tokenStartLine_, tokenStartColumn_};
 }
 
 void Lexer::restoreState(const LexerState& state) {
@@ -675,7 +686,7 @@ Token Lexer::nextToken() {
         lookahead_ = std::nullopt;
         return token;
     }
-    
+
     // 否则解析新Token
     return scanToken();
 }
@@ -685,7 +696,7 @@ Token Lexer::peekToken() {
     if (lookahead_.has_value()) {
         return lookahead_.value();
     }
-    
+
     // 否则解析并缓存预读Token
     lookahead_ = scanToken();
     return lookahead_.value();
@@ -706,20 +717,20 @@ Opt<Token> Lexer::tryLongString() {
 
 Opt<i32> Lexer::tryReadLongBracketStart() {
     LexerState savedState = saveState();
-    
+
     // 计算等号数量
     i32 level = 0;
     while (peek() == '=') {
         level++;
         advance();
     }
-    
+
     // 检查是否为长字符串开始符 [=*[
     if (peek() == '[') {
         advance();
         return level;
     }
-    
+
     // 不是长字符串，恢复状态
     restoreState(savedState);
     return std::nullopt;
@@ -761,11 +772,16 @@ Token Lexer::handleOperator(char c) {
         return makeToken(static_cast<TokenType>(c));
     }
 
-    if (c == '=') return handleEqualsSuffix(static_cast<TokenType>('='), TokenType::Eq);
-    if (c == '<') return handleEqualsSuffix(static_cast<TokenType>('<'), TokenType::Le);
-    if (c == '>') return handleEqualsSuffix(static_cast<TokenType>('>'), TokenType::Ge);
-    if (c == '~') return handleTildeOperator();
-    if (c == '.') return handleDotOperator();
+    if (c == '=')
+        return handleEqualsSuffix(static_cast<TokenType>('='), TokenType::Eq);
+    if (c == '<')
+        return handleEqualsSuffix(static_cast<TokenType>('<'), TokenType::Le);
+    if (c == '>')
+        return handleEqualsSuffix(static_cast<TokenType>('>'), TokenType::Ge);
+    if (c == '~')
+        return handleTildeOperator();
+    if (c == '.')
+        return handleDotOperator();
 
     return errorToken("Unexpected character");
 }
@@ -823,5 +839,3 @@ Token Lexer::scanToken() {
 }
 
 } // namespace Lua
-
-

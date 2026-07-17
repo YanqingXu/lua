@@ -1,8 +1,16 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "minimumRunsPerRevision": 3,
   "executionOrder": "alternating-base-head-on-the-same-runner",
+  "sampleAggregation": "median-of-run-medians",
+  "regressionAggregation": "median-of-paired-run-regressions",
+  "gcPauseAggregation": "pooled-nearest-rank-p99",
   "metrics": [
+    {
+      "name": "vm_instructions_per_second",
+      "direction": "higher",
+      "maximumRegressionRatio": 0.2
+    },
     {
       "name": "cpp_to_lua_ns_per_call",
       "direction": "lower",

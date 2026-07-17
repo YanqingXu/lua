@@ -1,1 +1,2 @@
 tests/lua/official/** text eol=lf
+tests/compatibility/lua51-loadnil-oracle.lua text eol=lf

@@ -59,6 +59,7 @@ Assert-FileContains ".clang-tidy" @(
 )
 
 Assert-FileContains "tools/run_quality_gate.ps1" @(
+    "\[switch\]\`$Strict",
     "check_opcode_coverage_matrix\.ps1",
     "check_value_result_variant_only\.ps1",
     "check_c_style_patterns\.ps1",
@@ -68,7 +69,11 @@ Assert-FileContains "tools/run_quality_gate.ps1" @(
     "clang-format",
     "clang-tidy",
     "MSBuild",
-    "failed with exit code"
+    "failed with exit code",
+    "Strict quality gate requires clang-format",
+    "Strict quality gate requires clang-tidy",
+    "Strict quality gate requires MSBuild\.exe",
+    "Strict quality gate requires bin\\lua_test\.exe"
 )
 
 Assert-FileContains "tools/add_source.ps1" @(
@@ -214,6 +219,33 @@ function Invoke-NativeFailurePropagationSmokeTest {
 }
 
 Invoke-NativeFailurePropagationSmokeTest
+
+function Invoke-StrictMissingToolSmokeTest {
+    $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("lua_quality_strict_" + [guid]::NewGuid().ToString("N"))
+    New-Item -ItemType Directory -Path $tempRoot | Out-Null
+    $previousPath = $env:PATH
+
+    try {
+        $env:PATH = $tempRoot
+        $failureMessage = $null
+        try {
+            & (Join-RepoPath "tools/run_quality_gate.ps1") -Strict -SkipBuild -SkipClangTidy -FormatScope Changed
+        } catch {
+            $failureMessage = $_.Exception.Message
+        }
+
+        if ($failureMessage -notmatch "Strict quality gate requires clang-format on PATH") {
+            throw "Strict quality gate silently skipped a missing required tool: $failureMessage"
+        }
+    } finally {
+        $env:PATH = $previousPath
+        if (Test-Path -LiteralPath $tempRoot) {
+            Remove-Item -LiteralPath $tempRoot -Recurse -Force
+        }
+    }
+}
+
+Invoke-StrictMissingToolSmokeTest
 
 function Invoke-OpcodeEvidenceContractSmokeTest {
     $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("lua_opcode_evidence_" + [guid]::NewGuid().ToString("N"))
@@ -490,6 +522,7 @@ Assert-FileContains "tools/check_runtime_bench.ps1" @(
 )
 
 Assert-FileContains "tools/run_runtime_bench_comparison.ps1" @(
+    'schemaVersion -ne 2',
     'minimumRunsPerRevision',
     '@\("base", "head"\)',
     '@\("head", "base"\)',
@@ -503,13 +536,21 @@ Assert-FileContains "tools/check_runtime_bench_comparison.ps1" @(
     'alternating-base-head-on-the-same-runner',
     'runnerPid',
     'gc_pause_p99_us',
+    'median-of-run-medians',
+    'median-of-paired-run-regressions',
+    'pooled-nearest-rank-p99',
     'maximumRegressionRatio',
     'regressionRatio',
     'success\s*=\s*\$failures\.Count -eq 0'
 )
 
 Assert-FileContains "tests/compatibility/runtime-benchmark-regression-policy.json" @(
+    '"schemaVersion": 2',
     '"minimumRunsPerRevision": 3',
+    '"sampleAggregation": "median-of-run-medians"',
+    '"regressionAggregation": "median-of-paired-run-regressions"',
+    '"gcPauseAggregation": "pooled-nearest-rank-p99"',
+    '"vm_instructions_per_second"',
     '"cpp_to_lua_ns_per_call"',
     '"lua_to_cpp_ns_per_call"',
     '"coroutine_resume_yield_ns"',
@@ -539,6 +580,7 @@ function Invoke-RuntimeBenchmarkComparisonSmokeTest {
                 workload            = [ordered]@{ timing_samples = 3; closure_samples = 1 }
                 gc_pause_samples_us = @(1.0, 2.0, 3.0, 4.0, 5.0)
                 metrics             = @(
+                    [ordered]@{ name = "vm_instructions_per_second"; direction = "higher"; samples = @(100.0, 100.0, 100.0) },
                     [ordered]@{ name = "cpp_to_lua_ns_per_call"; direction = "lower"; samples = @($CppToLua, $CppToLua, $CppToLua) },
                     [ordered]@{ name = "lua_to_cpp_ns_per_call"; direction = "lower"; samples = @(100.0, 100.0, 100.0) },
                     [ordered]@{ name = "coroutine_resume_yield_ns"; direction = "lower"; samples = @(100.0, 100.0, 100.0) },
@@ -566,7 +608,7 @@ function Invoke-RuntimeBenchmarkComparisonSmokeTest {
             $order = if (($pair % 2) -eq 0) { @("base", "head") } else { @("head", "base") }
             foreach ($revision in $order) {
                 $isBase = $revision -eq "base"
-                $startedAt = [DateTime]::UnixEpoch.AddSeconds(2 * $runs.Count)
+                $startedAt = [DateTimeOffset]::FromUnixTimeSeconds(2 * $runs.Count).UtcDateTime
                 $runs += [ordered]@{
                     pair       = $pair
                     revision   = $revision
@@ -594,10 +636,43 @@ function Invoke-RuntimeBenchmarkComparisonSmokeTest {
             -PolicyPath (Join-RepoPath "tests/compatibility/runtime-benchmark-regression-policy.json") `
             -OutputPath $comparisonPath
         $comparison = Get-Content -Raw -LiteralPath $comparisonPath | ConvertFrom-Json
-        if ($comparison.success -ne $true -or $comparison.metrics.Count -ne 5) {
+        if ($comparison.schemaVersion -ne 2 -or $comparison.success -ne $true -or
+            $comparison.regressionAggregation -ne "median-of-paired-run-regressions" -or
+            $comparison.metrics.Count -ne 6) {
             throw "base-vs-head benchmark checker rejected stable synthetic evidence"
         }
 
+        $baseMedians = @(100.0, 200.0, 300.0)
+        $headMedians = @(90.0, 300.0, 270.0)
+        for ($run = 0; $run -lt $headPaths.Count; $run++) {
+            foreach ($revision in @("base", "head")) {
+                $isBase = $revision -eq "base"
+                $value = if ($isBase) { $baseMedians[$run] } else { $headMedians[$run] }
+                $sha = if ($isBase) { "base-sha" } else { "head-sha" }
+                $report = New-SyntheticBenchmarkReport -Sha $sha -CppToLua $value
+                $metric = $report.metrics | Where-Object { $_.name -eq "cpp_to_lua_ns_per_call" }
+                $metric.samples = @((1.6 * $value), $value, $value)
+                $path = if ($isBase) { $basePaths[$run] } else { $headPaths[$run] }
+                $report | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $path -Encoding utf8
+            }
+        }
+        & (Join-RepoPath "tools/check_runtime_bench_comparison.ps1") `
+            -BaseResultPath $basePaths `
+            -HeadResultPath $headPaths `
+            -RunManifestPath $manifestPath `
+            -PolicyPath (Join-RepoPath "tests/compatibility/runtime-benchmark-regression-policy.json") `
+            -OutputPath $comparisonPath
+        $comparison = Get-Content -Raw -LiteralPath $comparisonPath | ConvertFrom-Json
+        $cppToLua = $comparison.metrics | Where-Object { $_.name -eq "cpp_to_lua_ns_per_call" }
+        if ($comparison.success -ne $true -or [Math]::Abs($cppToLua.regressionRatio + 0.1) -gt 0.000001 -or
+            $cppToLua.pairedRunCount -ne 3 -or $cppToLua.pairedRegressionRatios.Count -ne 3) {
+            throw "base-vs-head benchmark checker did not preserve paired comparison under runner drift"
+        }
+
+        foreach ($basePath in $basePaths) {
+            New-SyntheticBenchmarkReport -Sha "base-sha" -CppToLua 100.0 |
+                ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $basePath -Encoding utf8
+        }
         foreach ($headPath in $headPaths) {
             New-SyntheticBenchmarkReport -Sha "head-sha" -CppToLua 130.0 |
                 ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $headPath -Encoding utf8

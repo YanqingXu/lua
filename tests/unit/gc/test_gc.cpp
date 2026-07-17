@@ -83,6 +83,8 @@ private:
 struct GCAllocatorProbe {
     usize allocations = 0;
     usize deallocations = 0;
+    usize allocationAttempts = 0;
+    usize failOnAllocation = 0;
 };
 
 static void* gcTrackingAllocator(void* userData, void* pointer, std::size_t oldSize, std::size_t newSize) {
@@ -92,6 +94,11 @@ static void* gcTrackingAllocator(void* userData, void* pointer, std::size_t oldS
             ++probe->deallocations;
             ::operator delete(pointer);
         }
+        return static_cast<void*>(nullptr);
+    }
+
+    ++probe->allocationAttempts;
+    if (probe->failOnAllocation != 0 && probe->allocationAttempts == probe->failOnAllocation) {
         return static_cast<void*>(nullptr);
     }
 
@@ -355,6 +362,85 @@ void testAllocatorFactoryCleansUpRegistrationFailure(TestSuite& suite) {
     ASSERT_EQ(suite, objectCountBefore, gc.getObjectCount(), "registration failure restores the collector object list");
     ASSERT_EQ(suite, liveAllocationsBefore, probe.allocations - probe.deallocations,
               "registration failure returns the object block to the configured allocator");
+}
+
+void testAllocatorBackedRootAndExternalMarkQueuesRollback(TestSuite& suite) {
+    GCAllocatorProbe probe;
+    LuaAllocator allocator(gcTrackingAllocator, &probe);
+
+    bool rootFailurePropagated = false;
+    bool externalFailurePropagated = false;
+    bool externalScanFailurePropagated = false;
+    bool externalScanRetryReachedChild = false;
+    bool duplicateExternalMarkIsAllocationFree = false;
+    {
+        GarbageCollector externalCollector;
+        GarbageCollector collector(&allocator);
+        Table* rootCandidate = collector.create<Table>();
+        Table* externalCandidate = externalCollector.create<Table>();
+
+        const usize rootsBefore = collector.getRootCount();
+        probe.failOnAllocation = probe.allocationAttempts + 1;
+        try {
+            collector.addRoot(rootCandidate);
+        } catch (const std::bad_alloc&) {
+            rootFailurePropagated = true;
+        }
+        ASSERT_EQ(suite, rootsBefore, collector.getRootCount(),
+                  "failed root-list growth preserves the previous root set");
+        ASSERT_TRUE(suite, !collector.isRoot(rootCandidate),
+                    "failed root-list growth does not publish the candidate root");
+
+        probe.failOnAllocation = 0;
+        collector.addRoot(rootCandidate);
+        ASSERT_TRUE(suite, collector.isRoot(rootCandidate), "root-list growth remains retryable after OOM");
+
+        probe.failOnAllocation = probe.allocationAttempts + 1;
+        try {
+            collector.markObject(externalCandidate);
+        } catch (const std::bad_alloc&) {
+            externalFailurePropagated = true;
+        }
+
+        probe.failOnAllocation = 0;
+        collector.markObject(externalCandidate);
+        const usize attemptsAfterExternalMark = probe.allocationAttempts;
+        probe.failOnAllocation = attemptsAfterExternalMark + 1;
+        collector.markObject(externalCandidate);
+        duplicateExternalMarkIsAllocationFree = probe.allocationAttempts == attemptsAfterExternalMark;
+        probe.failOnAllocation = 0;
+
+        // The external queue publication can succeed before scanning the
+        // foreign object's local child needs a second worklist allocation.
+        // That later failure must remove the incomplete external entry so a
+        // retry does not mistake it for a fully scanned graph.
+        GarbageCollector scanningCollector(&allocator);
+        Table* localChild = scanningCollector.create<Table>();
+        Table* externalParent = externalCollector.create<Table>();
+        externalParent->setArray(1, Value(localChild));
+        probe.failOnAllocation = probe.allocationAttempts + 2;
+        try {
+            scanningCollector.markObject(externalParent);
+        } catch (const std::bad_alloc&) {
+            externalScanFailurePropagated = true;
+        }
+        ASSERT_TRUE(suite, localChild->isWhite(), "failed external graph scan leaves an unqueued child white");
+
+        probe.failOnAllocation = 0;
+        scanningCollector.markObject(externalParent);
+        externalScanRetryReachedChild = localChild->isGray();
+    }
+
+    ASSERT_TRUE(suite, rootFailurePropagated, "root-list allocation failure propagates bad_alloc");
+    ASSERT_TRUE(suite, externalFailurePropagated, "external-mark queue allocation failure propagates bad_alloc");
+    ASSERT_TRUE(suite, externalScanFailurePropagated,
+                "external graph scan propagates a later worklist allocation failure");
+    ASSERT_TRUE(suite, externalScanRetryReachedChild,
+                "external graph scan rollback lets a retry reach the previously unqueued child");
+    ASSERT_TRUE(suite, duplicateExternalMarkIsAllocationFree,
+                "successful external-mark retry publishes one deduplicated queue entry");
+    ASSERT_EQ(suite, probe.allocations, probe.deallocations,
+              "root and external-mark queue storage returns to the configured allocator");
 }
 
 void testGarbageCollectorRoots(TestSuite& suite) {
@@ -1182,6 +1268,82 @@ void testCollectGarbageRunsUserdataFinalizer(TestSuite& suite) {
     delete L;
 }
 
+void testFinalizerBudgetSlicesFullCollections(TestSuite& suite) {
+    gFinalizerCalls = 0;
+
+    auto stateOwner = std::unique_ptr<LuaState>(LuaState::newIsolatedState());
+    LuaState* L = stateOwner.get();
+    GlobalState& globalState = L->getGlobalState();
+    GarbageCollector& gc = globalState.getGC();
+    ExecutionPolicy::Limits limits;
+    limits.finalizerBudgetPerDrain = 2;
+    globalState.getExecutionPolicy().configure(limits);
+
+    Table* metatable = gc.create<Table>();
+    Function* finalizer = gc.create<Function>(gcRecordingFinalizer);
+    metatable->set(Value(globalState.getMetamethodName(TMS::TM_GC)), Value(finalizer));
+    for (i32 payload = 1; payload <= 5; ++payload) {
+        Userdata* userdata = Userdata::createFull(sizeof(i32));
+        *userdata->getTypedData<i32>() = payload;
+        gc.registerObject(userdata);
+        userdata->setMetatable(metatable);
+    }
+
+    (void)gc.collect(L);
+    ASSERT_EQ(suite, 2, gFinalizerCalls, "one full collection enters at most two finalizer callbacks");
+    ASSERT_EQ(suite, static_cast<usize>(3), gc.getPendingFinalizerCount(),
+              "unspent finalizers remain rooted for a later collection");
+
+    (void)gc.collect(L);
+    ASSERT_EQ(suite, 4, gFinalizerCalls, "the next full collection receives a fresh finalizer slice");
+    ASSERT_EQ(suite, static_cast<usize>(1), gc.getPendingFinalizerCount(),
+              "only one finalizer remains after the second slice");
+
+    (void)gc.collect(L);
+    ASSERT_EQ(suite, 5, gFinalizerCalls, "the last slice drains the remaining finalizer exactly once");
+    ASSERT_EQ(suite, static_cast<usize>(0), gc.getPendingFinalizerCount(),
+              "all deferred finalizers leave the rooted pending queue");
+
+    (void)gc.collect(L);
+    ASSERT_EQ(suite, 5, gFinalizerCalls, "later collections never repeat a budgeted finalizer");
+
+    globalState.getExecutionPolicy().reset();
+}
+
+void testFinalizerBudgetSurvivesReentrantCollection(TestSuite& suite) {
+    gReentrantFinalizerCalls = 0;
+
+    auto stateOwner = std::unique_ptr<LuaState>(LuaState::newIsolatedState());
+    LuaState* L = stateOwner.get();
+    GlobalState& globalState = L->getGlobalState();
+    GarbageCollector& gc = globalState.getGC();
+    ExecutionPolicy::Limits limits;
+    limits.finalizerBudgetPerDrain = 1;
+    globalState.getExecutionPolicy().configure(limits);
+
+    Table* metatable = gc.create<Table>();
+    Function* finalizer = gc.create<Function>(gcReentrantFinalizer);
+    metatable->set(Value(globalState.getMetamethodName(TMS::TM_GC)), Value(finalizer));
+    for (i32 index = 0; index < 2; ++index) {
+        Userdata* userdata = Userdata::createFull(0);
+        gc.registerObject(userdata);
+        userdata->setMetatable(metatable);
+    }
+
+    (void)gc.collect(L);
+    ASSERT_EQ(suite, 1, gReentrantFinalizerCalls,
+              "nested collection cannot bypass the outer finalizer callback budget");
+    ASSERT_EQ(suite, static_cast<usize>(1), gc.getPendingFinalizerCount(),
+              "reentrant collection keeps the deferred userdata rooted");
+
+    (void)gc.collect(L);
+    ASSERT_EQ(suite, 2, gReentrantFinalizerCalls, "a later drain executes the deferred reentrant finalizer");
+    ASSERT_EQ(suite, static_cast<usize>(0), gc.getPendingFinalizerCount(),
+              "reentrant finalizer slices eventually drain the queue");
+
+    globalState.getExecutionPolicy().reset();
+}
+
 void testFinalizerCanReenterCollection(TestSuite& suite) {
     gReentrantFinalizerCalls = 0;
 
@@ -1331,6 +1493,8 @@ void registerGCTests() {
     registry.registerTest("GC", "GC Create Factories", testGarbageCollectorCreateFactories);
     registry.registerTest("GC", "Allocator Factory Registration Rollback",
                           testAllocatorFactoryCleansUpRegistrationFailure);
+    registry.registerTest("GC", "Allocator Root And External Mark Queue Rollback",
+                          testAllocatorBackedRootAndExternalMarkQueuesRollback);
     registry.registerTest("GC", "GC Roots", testGarbageCollectorRoots);
     registry.registerTest("GC", "GC Collect", testGarbageCollectorCollect);
     registry.registerTest("GC", "GC Strategy Selection", testGarbageCollectorStrategySelection);
@@ -1363,6 +1527,9 @@ void registerGCTests() {
     registry.registerTest("GC", "Incremental Weak Mode Mutation", testIncrementalWeakToStrongModeTransition);
     registry.registerTest("GC", "Weak Mode Mutation Defers Finalizer", testWeakToStrongUserdataIsNotFinalizedEarly);
     registry.registerTest("GC", "Userdata Finalizer", testCollectGarbageRunsUserdataFinalizer);
+    registry.registerTest("GC", "Finalizer Budget Slices Full Collections", testFinalizerBudgetSlicesFullCollections);
+    registry.registerTest("GC", "Finalizer Budget Survives Reentrant Collection",
+                          testFinalizerBudgetSurvivesReentrantCollection);
     registry.registerTest("GC", "Reentrant Userdata Finalizers", testFinalizerCanReenterCollection);
     registry.registerTest("GC", "Finalizer Helper Slots Release Userdata",
                           testFinalizerHelperSlotsDoNotRetainFinalizedUserdata);

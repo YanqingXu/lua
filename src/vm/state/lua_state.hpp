@@ -32,6 +32,9 @@
 #include "vm/vm_constants.hpp"
 #include <expected>
 
+struct lua_State;
+struct lua_Debug;
+
 namespace Lua {
 
 // 前向声明
@@ -61,7 +64,14 @@ enum class ThreadStatus : u8 {
 /**
  * @brief Debug hook mask bits
  */
-enum DebugHookMask : u8 { HookMaskCall = 1 << 0, HookMaskReturn = 1 << 1, HookMaskLine = 1 << 2 };
+enum DebugHookMask : u8 {
+    HookMaskCall = 1 << 0,
+    HookMaskReturn = 1 << 1,
+    HookMaskLine = 1 << 2,
+    HookMaskCount = 1 << 3
+};
+
+using ApiDebugHook = void (*)(::lua_State* L, ::lua_Debug* ar);
 
 /**
  * @brief Debug hook event kinds
@@ -536,6 +546,16 @@ public:
     [[noreturn]] void error(const char* msg);
 
     /**
+     * @brief Reject a privileged Lua operation disabled by this context.
+     */
+    void requireSandboxCapability(SandboxCapability capability);
+
+    /**
+     * @brief Reject explicit opening of a disabled standard library.
+     */
+    void requireStandardLibrary(StrView id);
+
+    /**
      * @brief 抛出错误（使用栈顶的值作为错误消息）
      * @return 不返回
      */
@@ -698,6 +718,9 @@ public:
     i32 getHostCallDepth() const noexcept {
         return hostCallDepth_;
     }
+    void setHostCallDepth(i32 depth) noexcept {
+        hostCallDepth_ = depth;
+    }
 
     /// 当前 LuaState 对应的 Thread 对象（主线程为 nullptr）
     Thread* getThread() const noexcept {
@@ -705,6 +728,13 @@ public:
     }
     void setThread(Thread* t) noexcept {
         thread_ = t;
+    }
+
+    Thread* getMainThreadFacade() const noexcept {
+        return mainThreadFacade_;
+    }
+    void setMainThreadFacade(Thread* thread) noexcept {
+        mainThreadFacade_ = thread;
     }
 
     /// 调用栈访问（供 Thread GC marking 使用）
@@ -730,10 +760,19 @@ public:
     void setDebugHook(Function* hook, u8 mask, i32 count);
 
     /**
+     * @brief Install or clear the public Lua 5.1 C debug hook
+     */
+    void setApiDebugHook(ApiDebugHook hook, u8 mask, i32 count);
+
+    /**
      * @brief Get the installed debug hook function
      */
     Function* getDebugHook() const noexcept {
         return hookFunc_;
+    }
+
+    ApiDebugHook getApiDebugHook() const noexcept {
+        return apiDebugHook_;
     }
 
     /**
@@ -761,7 +800,7 @@ public:
      * @brief Check whether the given hook mask bit is enabled
      */
     bool hasDebugHookMask(u8 mask) const noexcept {
-        return hookFunc_ != nullptr && (hookMask_ & mask) != 0;
+        return (hookFunc_ != nullptr || apiDebugHook_ != nullptr) && (hookMask_ & mask) != 0;
     }
 
     /**
@@ -840,6 +879,7 @@ private:
 
     /// 所属 Thread 对象（主线程为 nullptr）
     Thread* thread_ = nullptr;
+    Thread* mainThreadFacade_ = nullptr;
 
     /// 是否由 newThread 创建（析构时不 removeRoot globalTable_）
     bool isChildThread_ = false;
@@ -847,7 +887,10 @@ private:
     /// Installed debug hook function.
     Function* hookFunc_ = nullptr;
 
-    /// Hook mask bits (call/return/line).
+    /// Installed public C debug hook callback.
+    ApiDebugHook apiDebugHook_ = nullptr;
+
+    /// Hook mask bits (call/return/line/count).
     u8 hookMask_ = 0;
 
     /// Instruction interval for count hooks.

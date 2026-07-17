@@ -27,11 +27,16 @@ void StandardLibrary::openModule(LuaState* L, LibModule& module) {
 }
 
 void StandardLibrary::openCatalogLibrary(LuaState* L, StrView id) {
+    if (!L) {
+        return;
+    }
+
     auto entry = findStandardLibrary(id);
     if (!entry) {
         return;
     }
 
+    L->requireStandardLibrary(entry->get().id);
     openCatalogEntry(L, entry->get());
 }
 
@@ -73,7 +78,9 @@ void StandardLibrary::openAll(LuaState* L) {
     }
 
     for (const LibCatalogEntry& entry : getStandardLibraryCatalog()) {
-        openCatalogEntry(L, entry);
+        if (L->getGlobalState().getSandboxPolicy().allowsStandardLibrary(entry.id)) {
+            openCatalogEntry(L, entry);
+        }
     }
 }
 

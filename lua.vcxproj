@@ -198,6 +198,8 @@
     <ClInclude Include="src\lib\stringlib.hpp" />
     <ClInclude Include="src\lib\tablelib.hpp" />
     <ClInclude Include="src\lib\testlib.hpp" />
+    <ClInclude Include="src\runtime\execution_policy.hpp" />
+    <ClInclude Include="src\runtime\sandbox_policy.hpp" />
     <ClInclude Include="src\runtime\runtime_services.hpp" />
     <ClInclude Include="src\vm\state\call_info.hpp" />
     <ClInclude Include="src\vm\state\global_state.hpp" />
@@ -251,6 +253,7 @@
     <ClCompile Include="src\core\value.cpp" />
     <ClCompile Include="src\core\thread.cpp" />
     <ClCompile Include="src\api\lapi.cpp" />
+    <ClCompile Include="src\api\lauxlib.cpp" />
     <ClCompile Include="src\gc\garbage_collector.cpp" />
     <ClCompile Include="src\gc\gc_strategy.cpp" />
     <ClCompile Include="src\gc\gc_mark.cpp" />

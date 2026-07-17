@@ -14,8 +14,12 @@
 #include "compiler/ast.hpp"
 #include "compiler/lexer/lexer.hpp"
 #include "compiler/parser/parser_utils.hpp"
+#include "runtime/runtime_services.hpp"
 
+#include <algorithm>
+#include <cstring>
 #include <expected>
+#include <memory>
 #include <string>
 #include <type_traits>
 #include <utility>
@@ -30,6 +34,35 @@ namespace {
 
 constexpr const char* kSuiteName = "Parser Boundary Sentinels";
 
+struct TokenAllocatorLedger {
+    usize liveBytes = 0;
+};
+
+void* tokenSnapshotAllocator(void* userData, void* pointer, usize oldSize, usize newSize) {
+    auto* ledger = static_cast<TokenAllocatorLedger*>(userData);
+    std::allocator<std::byte> allocator;
+    if (newSize == 0) {
+        if (pointer != nullptr) {
+            allocator.deallocate(static_cast<std::byte*>(pointer), oldSize);
+        }
+        ledger->liveBytes -= oldSize;
+        return {};
+    }
+
+    std::byte* resized = nullptr;
+    try {
+        resized = allocator.allocate(newSize);
+    } catch (...) {
+        return {};
+    }
+    if (pointer != nullptr) {
+        std::memcpy(resized, pointer, std::min(oldSize, newSize));
+        allocator.deallocate(static_cast<std::byte*>(pointer), oldSize);
+    }
+    ledger->liveBytes = ledger->liveBytes - oldSize + newSize;
+    return resized;
+}
+
 bool parseChunk(TestSuite& suite, const char* source, Chunk& out, const char* testName) {
     Parser parser(source);
     auto parsed = parser.parse();
@@ -42,45 +75,38 @@ bool parseChunk(TestSuite& suite, const char* source, Chunk& out, const char* te
     return true;
 }
 
-template<typename T>
-const T* asStmt(const StmtPtr& stmt) {
-    if (!stmt) return nullptr;
+template <typename T> const T* asStmt(const StmtPtr& stmt) {
+    if (!stmt)
+        return nullptr;
     return std::get_if<T>(&stmt->variant);
 }
 
-template<typename T>
-const T* asExpr(const ExprPtr& expr) {
-    if (!expr) return nullptr;
+template <typename T> const T* asExpr(const ExprPtr& expr) {
+    if (!expr)
+        return nullptr;
     return std::get_if<T>(&expr->variant);
 }
 
-const BinaryExpr* expectBinary(TestSuite& suite,
-                               const ExprPtr& expr,
-                               BinaryExpr::Op op,
-                               const char* testName) {
+const BinaryExpr* expectBinary(TestSuite& suite, const ExprPtr& expr, BinaryExpr::Op op, const char* testName) {
     const BinaryExpr* bin = asExpr<BinaryExpr>(expr);
     ASSERT_TRUE(suite, bin != nullptr, testName);
-    if (!bin) return nullptr;
+    if (!bin)
+        return nullptr;
 
     ASSERT_TRUE(suite, bin->op == op, testName);
     return bin;
 }
 
-void expectStringKey(TestSuite& suite,
-                     const TableField& field,
-                     const char* expected,
-                     const char* testName) {
+void expectStringKey(TestSuite& suite, const TableField& field, const char* expected, const char* testName) {
     const StringExpr* key = asExpr<StringExpr>(field.key);
     ASSERT_TRUE(suite, key != nullptr, testName);
-    if (!key) return;
+    if (!key)
+        return;
 
     ASSERT_TRUE(suite, key->value == expected, testName);
 }
 
-void expectParseError(TestSuite& suite,
-                      const char* source,
-                      const char* expectedText,
-                      const char* testName) {
+void expectParseError(TestSuite& suite, const char* source, const char* expectedText, const char* testName) {
     Parser parser(source);
     auto parsed = parser.parse();
     if (parsed) {
@@ -126,88 +152,86 @@ void testStatementBoundaryFamilies(TestSuite& suite) {
         do
             local scoped = total
         end
-    )lua", chunk, "statement families parse");
-    if (!ok) return;
+    )lua",
+                         chunk, "statement families parse");
+    if (!ok)
+        return;
 
     ASSERT_TRUE(suite, chunk.statements.size() == 7, "top-level statement count is stable");
 
     const LocalStmt* localStmt = asStmt<LocalStmt>(chunk.statements[0]);
-    ASSERT_TRUE(suite, localStmt != nullptr && localStmt->names.size() == 1 &&
-                localStmt->values.size() == 1, "local statement shape is stable");
+    ASSERT_TRUE(suite, localStmt != nullptr && localStmt->names.size() == 1 && localStmt->values.size() == 1,
+                "local statement shape is stable");
 
     const IfStmt* ifStmt = asStmt<IfStmt>(chunk.statements[1]);
-    ASSERT_TRUE(suite, ifStmt != nullptr && ifStmt->branches.size() == 2 &&
-                ifStmt->elseBranch.size() == 1, "if/elseif/else shape is stable");
+    ASSERT_TRUE(suite, ifStmt != nullptr && ifStmt->branches.size() == 2 && ifStmt->elseBranch.size() == 1,
+                "if/elseif/else shape is stable");
 
     const WhileStmt* whileStmt = asStmt<WhileStmt>(chunk.statements[2]);
-    ASSERT_TRUE(suite, whileStmt != nullptr && whileStmt->body.size() == 1,
-                "while statement shape is stable");
+    ASSERT_TRUE(suite, whileStmt != nullptr && whileStmt->body.size() == 1, "while statement shape is stable");
 
     const RepeatStmt* repeatStmt = asStmt<RepeatStmt>(chunk.statements[3]);
-    ASSERT_TRUE(suite, repeatStmt != nullptr && repeatStmt->body.size() == 1 &&
-                repeatStmt->condition != nullptr, "repeat statement shape is stable");
+    ASSERT_TRUE(suite, repeatStmt != nullptr && repeatStmt->body.size() == 1 && repeatStmt->condition != nullptr,
+                "repeat statement shape is stable");
 
     const ForNumStmt* forNum = asStmt<ForNumStmt>(chunk.statements[4]);
-    ASSERT_TRUE(suite, forNum != nullptr && forNum->var == "i" &&
-                forNum->init != nullptr && forNum->limit != nullptr &&
-                forNum->step != nullptr, "numeric for statement shape is stable");
+    ASSERT_TRUE(suite,
+                forNum != nullptr && forNum->var == "i" && forNum->init != nullptr && forNum->limit != nullptr &&
+                    forNum->step != nullptr,
+                "numeric for statement shape is stable");
 
     const ForInStmt* forIn = asStmt<ForInStmt>(chunk.statements[5]);
-    ASSERT_TRUE(suite, forIn != nullptr && forIn->vars.size() == 2 &&
-                forIn->vars[0] == "k" && forIn->vars[1] == "v" &&
-                forIn->iterators.size() == 1, "generic for statement shape is stable");
+    ASSERT_TRUE(suite,
+                forIn != nullptr && forIn->vars.size() == 2 && forIn->vars[0] == "k" && forIn->vars[1] == "v" &&
+                    forIn->iterators.size() == 1,
+                "generic for statement shape is stable");
 
     const DoStmt* doStmt = asStmt<DoStmt>(chunk.statements[6]);
-    ASSERT_TRUE(suite, doStmt != nullptr && doStmt->body.size() == 1,
-                "do block statement shape is stable");
+    ASSERT_TRUE(suite, doStmt != nullptr && doStmt->body.size() == 1, "do block statement shape is stable");
 }
 
 void testExpressionPrecedenceBoundary(TestSuite& suite) {
     Chunk chunk;
-    bool ok = parseChunk(suite,
-        "local result = a or b and c < d .. e + f * g ^ h",
-        chunk,
-        "complex expression parses");
-    if (!ok) return;
+    bool ok = parseChunk(suite, "local result = a or b and c < d .. e + f * g ^ h", chunk, "complex expression parses");
+    if (!ok)
+        return;
 
     ASSERT_TRUE(suite, chunk.statements.size() == 1, "expression sentinel has one statement");
     const LocalStmt* localStmt = asStmt<LocalStmt>(chunk.statements[0]);
-    ASSERT_TRUE(suite, localStmt != nullptr && localStmt->values.size() == 1,
-                "expression sentinel local value exists");
-    if (!localStmt || localStmt->values.empty()) return;
+    ASSERT_TRUE(suite, localStmt != nullptr && localStmt->values.size() == 1, "expression sentinel local value exists");
+    if (!localStmt || localStmt->values.empty())
+        return;
 
-    const BinaryExpr* orExpr = expectBinary(suite, localStmt->values[0],
-                                            BinaryExpr::Op::Or,
-                                            "or remains lowest precedence");
-    if (!orExpr) return;
+    const BinaryExpr* orExpr =
+        expectBinary(suite, localStmt->values[0], BinaryExpr::Op::Or, "or remains lowest precedence");
+    if (!orExpr)
+        return;
 
-    const BinaryExpr* andExpr = expectBinary(suite, orExpr->right,
-                                             BinaryExpr::Op::And,
-                                             "and binds tighter than or");
-    if (!andExpr) return;
+    const BinaryExpr* andExpr = expectBinary(suite, orExpr->right, BinaryExpr::Op::And, "and binds tighter than or");
+    if (!andExpr)
+        return;
 
-    const BinaryExpr* relExpr = expectBinary(suite, andExpr->right,
-                                             BinaryExpr::Op::Lt,
-                                             "relational expression boundary is stable");
-    if (!relExpr) return;
+    const BinaryExpr* relExpr =
+        expectBinary(suite, andExpr->right, BinaryExpr::Op::Lt, "relational expression boundary is stable");
+    if (!relExpr)
+        return;
 
-    const BinaryExpr* concatExpr = expectBinary(suite, relExpr->right,
-                                                BinaryExpr::Op::Concat,
-                                                "concat binds inside relational right operand");
-    if (!concatExpr) return;
+    const BinaryExpr* concatExpr =
+        expectBinary(suite, relExpr->right, BinaryExpr::Op::Concat, "concat binds inside relational right operand");
+    if (!concatExpr)
+        return;
 
-    const BinaryExpr* addExpr = expectBinary(suite, concatExpr->right,
-                                             BinaryExpr::Op::Add,
-                                             "additive expression nests under concat");
-    if (!addExpr) return;
+    const BinaryExpr* addExpr =
+        expectBinary(suite, concatExpr->right, BinaryExpr::Op::Add, "additive expression nests under concat");
+    if (!addExpr)
+        return;
 
-    const BinaryExpr* mulExpr = expectBinary(suite, addExpr->right,
-                                             BinaryExpr::Op::Mul,
-                                             "multiplicative expression nests under additive");
-    if (!mulExpr) return;
+    const BinaryExpr* mulExpr =
+        expectBinary(suite, addExpr->right, BinaryExpr::Op::Mul, "multiplicative expression nests under additive");
+    if (!mulExpr)
+        return;
 
-    expectBinary(suite, mulExpr->right, BinaryExpr::Op::Pow,
-                 "power expression remains right associative");
+    expectBinary(suite, mulExpr->right, BinaryExpr::Op::Pow, "power expression remains right associative");
 }
 
 void testLua51StatementSeparatorsAndRelationalChains(TestSuite& suite) {
@@ -216,35 +240,36 @@ void testLua51StatementSeparatorsAndRelationalChains(TestSuite& suite) {
         local a = 1; local b = 2;
         assert(a < b == true);
         do return a; end
-    )lua", chunk, "semicolon statements and relational chains parse");
-    if (!ok) return;
+    )lua",
+                         chunk, "semicolon statements and relational chains parse");
+    if (!ok)
+        return;
 
     ASSERT_TRUE(suite, chunk.statements.size() == 4, "semicolon sentinel top-level count");
 
     const CallStmt* callStmt = asStmt<CallStmt>(chunk.statements[2]);
     ASSERT_TRUE(suite, callStmt != nullptr, "relational chain call statement exists");
-    if (!callStmt) return;
+    if (!callStmt)
+        return;
 
     const CallExpr* assertCall = asExpr<CallExpr>(callStmt->call);
     ASSERT_TRUE(suite, assertCall != nullptr && assertCall->args.size() == 1,
                 "relational chain assert has one argument");
-    if (!assertCall || assertCall->args.empty()) return;
+    if (!assertCall || assertCall->args.empty())
+        return;
 
-    const BinaryExpr* eqExpr = expectBinary(suite, assertCall->args[0],
-                                            BinaryExpr::Op::Eq,
+    const BinaryExpr* eqExpr = expectBinary(suite, assertCall->args[0], BinaryExpr::Op::Eq,
                                             "relational chain parses as equality at the outside");
-    if (!eqExpr) return;
+    if (!eqExpr)
+        return;
 
-    expectBinary(suite, eqExpr->left, BinaryExpr::Op::Lt,
-                 "relational chain keeps the left comparison");
+    expectBinary(suite, eqExpr->left, BinaryExpr::Op::Lt, "relational chain keeps the left comparison");
 
     expectParseError(suite, ";", "near ';'", "standalone semicolon is rejected");
     expectParseError(suite, "local a = 1;;", "near ';'", "double semicolon is rejected");
     expectParseError(suite, "do return 1;; end", "near ';'", "double return semicolon is rejected");
-    expectParseError(suite, "a = math.sin\n(3)", "near '('",
-                     "newline before call arguments is rejected");
-    expectParseError(suite, "syntax error", "near 'error'",
-                     "statement parser reports the unexpected following token");
+    expectParseError(suite, "a = math.sin\n(3)", "near '('", "newline before call arguments is rejected");
+    expectParseError(suite, "syntax error", "near 'error'", "statement parser reports the unexpected following token");
 
     Chunk callChunk;
     ASSERT_TRUE(suite,
@@ -255,35 +280,31 @@ void testLua51StatementSeparatorsAndRelationalChains(TestSuite& suite) {
 
 void testLua51PowerAcceptsUnaryRightOperand(TestSuite& suite) {
     Chunk chunk;
-    bool ok = parseChunk(suite,
-        "local result = 2^-2 + -2^2",
-        chunk,
-        "power and unary precedence parses");
-    if (!ok) return;
+    bool ok = parseChunk(suite, "local result = 2^-2 + -2^2", chunk, "power and unary precedence parses");
+    if (!ok)
+        return;
 
     ASSERT_TRUE(suite, chunk.statements.size() == 1, "power sentinel has one statement");
     const LocalStmt* localStmt = asStmt<LocalStmt>(chunk.statements[0]);
-    ASSERT_TRUE(suite, localStmt != nullptr && localStmt->values.size() == 1,
-                "power sentinel local value exists");
-    if (!localStmt || localStmt->values.empty()) return;
+    ASSERT_TRUE(suite, localStmt != nullptr && localStmt->values.size() == 1, "power sentinel local value exists");
+    if (!localStmt || localStmt->values.empty())
+        return;
 
-    const BinaryExpr* addExpr = expectBinary(suite, localStmt->values[0],
-                                             BinaryExpr::Op::Add,
-                                             "power sentinel outer addition");
-    if (!addExpr) return;
+    const BinaryExpr* addExpr =
+        expectBinary(suite, localStmt->values[0], BinaryExpr::Op::Add, "power sentinel outer addition");
+    if (!addExpr)
+        return;
 
-    const BinaryExpr* leftPow = expectBinary(suite, addExpr->left,
-                                             BinaryExpr::Op::Pow,
-                                             "2^-2 parses as power");
+    const BinaryExpr* leftPow = expectBinary(suite, addExpr->left, BinaryExpr::Op::Pow, "2^-2 parses as power");
     ASSERT_TRUE(suite, leftPow != nullptr && asExpr<UnaryExpr>(leftPow->right) != nullptr,
                 "power right operand may be unary");
 
     const UnaryExpr* rightNeg = asExpr<UnaryExpr>(addExpr->right);
     ASSERT_TRUE(suite, rightNeg != nullptr, "-2^2 parses as outer unary negation");
-    if (!rightNeg) return;
+    if (!rightNeg)
+        return;
 
-    expectBinary(suite, rightNeg->operand, BinaryExpr::Op::Pow,
-                 "-2^2 unary operand is the power expression");
+    expectBinary(suite, rightNeg->operand, BinaryExpr::Op::Pow, "-2^2 unary operand is the power expression");
 }
 
 void testFunctionTableAndPostfixBoundaries(TestSuite& suite) {
@@ -298,66 +319,59 @@ void testFunctionTableAndPostfixBoundaries(TestSuite& suite) {
             }
             return self:finish(packed).value
         end
-    )lua", chunk, "function/table/postfix sentinel parses");
-    if (!ok) return;
+    )lua",
+                         chunk, "function/table/postfix sentinel parses");
+    if (!ok)
+        return;
 
     ASSERT_TRUE(suite, chunk.statements.size() == 1, "function sentinel has one statement");
     const FunctionStmt* func = asStmt<FunctionStmt>(chunk.statements[0]);
     ASSERT_TRUE(suite, func != nullptr, "function statement shape is stable");
-    if (!func) return;
+    if (!func)
+        return;
 
     ASSERT_TRUE(suite, func->name == "run", "method function name is stable");
-    ASSERT_TRUE(suite, func->tablePath.size() == 2 &&
-                func->tablePath[0] == "api" &&
-                func->tablePath[1] == "tools", "method table path is stable");
+    ASSERT_TRUE(suite, func->tablePath.size() == 2 && func->tablePath[0] == "api" && func->tablePath[1] == "tools",
+                "method table path is stable");
     ASSERT_TRUE(suite, func->isMethod, "method flag is stable");
     ASSERT_TRUE(suite, func->isVararg, "vararg method flag is stable");
-    ASSERT_TRUE(suite, func->params.size() == 2 &&
-                func->params[0] == "self" &&
-                func->params[1] == "a", "method params include self and fixed args");
+    ASSERT_TRUE(suite, func->params.size() == 2 && func->params[0] == "self" && func->params[1] == "a",
+                "method params include self and fixed args");
     ASSERT_TRUE(suite, func->body.size() == 2, "function body statement count is stable");
 
     const LocalStmt* localStmt = asStmt<LocalStmt>(func->body[0]);
-    ASSERT_TRUE(suite, localStmt != nullptr && localStmt->values.size() == 1,
-                "function body local table exists");
-    if (!localStmt || localStmt->values.empty()) return;
+    ASSERT_TRUE(suite, localStmt != nullptr && localStmt->values.size() == 1, "function body local table exists");
+    if (!localStmt || localStmt->values.empty())
+        return;
 
     const TableExpr* table = asExpr<TableExpr>(localStmt->values[0]);
-    ASSERT_TRUE(suite, table != nullptr && table->fields.size() == 4,
-                "table constructor field count is stable");
-    if (!table || table->fields.size() != 4) return;
+    ASSERT_TRUE(suite, table != nullptr && table->fields.size() == 4, "table constructor field count is stable");
+    if (!table || table->fields.size() != 4)
+        return;
 
-    ASSERT_TRUE(suite, asExpr<NameExpr>(table->fields[0].key) != nullptr,
-                "bracket table field key is an expression");
+    ASSERT_TRUE(suite, asExpr<NameExpr>(table->fields[0].key) != nullptr, "bracket table field key is an expression");
     ASSERT_TRUE(suite, asExpr<FunctionExpr>(table->fields[0].value) != nullptr,
                 "function expression table field is stable");
 
-    expectStringKey(suite, table->fields[1], "name",
-                    "name=value table field key is stable");
-    ASSERT_TRUE(suite, asExpr<StringExpr>(table->fields[1].value) != nullptr,
-                "name=value table field value is stable");
+    expectStringKey(suite, table->fields[1], "name", "name=value table field key is stable");
+    ASSERT_TRUE(suite, asExpr<StringExpr>(table->fields[1].value) != nullptr, "name=value table field value is stable");
 
-    ASSERT_TRUE(suite, table->fields[2].key == nullptr &&
-                asExpr<CallExpr>(table->fields[2].value) != nullptr,
+    ASSERT_TRUE(suite, table->fields[2].key == nullptr && asExpr<CallExpr>(table->fields[2].value) != nullptr,
                 "array table field can hold postfix call");
 
-    expectStringKey(suite, table->fields[3], "trailing",
-                    "trailing table field key is stable");
+    expectStringKey(suite, table->fields[3], "trailing", "trailing table field key is stable");
     const TableExpr* nested = asExpr<TableExpr>(table->fields[3].value);
     ASSERT_TRUE(suite, nested != nullptr && nested->fields.size() == 3,
                 "nested table constructor tolerates mixed separators and trailing separator");
 
     const ReturnStmt* ret = asStmt<ReturnStmt>(func->body[1]);
-    ASSERT_TRUE(suite, ret != nullptr && ret->values.size() == 1,
-                "function body return shape is stable");
-    ASSERT_TRUE(suite, ret != nullptr &&
-                asExpr<MemberExpr>(ret->values[0]) != nullptr,
+    ASSERT_TRUE(suite, ret != nullptr && ret->values.size() == 1, "function body return shape is stable");
+    ASSERT_TRUE(suite, ret != nullptr && asExpr<MemberExpr>(ret->values[0]) != nullptr,
                 "postfix member after method call remains stable");
 }
 
 void testParserErrorBoundaries(TestSuite& suite) {
-    expectParseError(suite, "1 + 2", "unexpected symbol",
-                     "standalone non-call expression remains invalid statement");
+    expectParseError(suite, "1 + 2", "unexpected symbol", "standalone non-call expression remains invalid statement");
     expectParseError(suite, "function missing(a)\n  return a\n", "Expected 'end'",
                      "missing function end reports expected end");
     expectParseError(suite, "local t = { name = }", "unexpected symbol",
@@ -374,12 +388,60 @@ void testTokenStringReturnsBorrowedView(TestSuite& suite) {
                 "name token string should borrow the token lexeme storage");
 
     Token stringToken(TokenType::String, "\"literal\"", 1, 1);
-    stringToken.value = Str("literal");
+    stringToken.setStringValue("literal");
     const Str& stringValue = std::get<Str>(stringToken.value);
     StrView stringView = ParserUtils::tokenString(stringToken);
     ASSERT_TRUE(suite, stringView == "literal", "string token string should expose decoded value");
     ASSERT_TRUE(suite, stringView.data() == stringValue.data(),
                 "string token string should borrow the token value storage");
+}
+
+void testTokenAllocatorSnapshotOutlivesSourceAllocator(TestSuite& suite) {
+    TokenAllocatorLedger ledger;
+    UPtr<Token> survivor;
+    const Str text(96, 'x');
+
+    {
+        LuaAllocator allocator(tokenSnapshotAllocator, &ledger);
+        survivor = makeUnique<Token>(TokenType::String, text, 1, 1, &allocator);
+        survivor->setStringValue(text);
+        survivor->setErrorMessage(text);
+    }
+
+    ASSERT_TRUE(suite, ledger.liveBytes > 0, "token strings remain owned after the source allocator object dies");
+    ASSERT_TRUE(suite, ParserUtils::tokenString(*survivor) == text,
+                "token value remains readable through its allocator snapshot");
+    ASSERT_TRUE(suite, survivor->lexeme.size() == text.size() && survivor->errorMessage.size() == text.size(),
+                "token lexeme and diagnostic remain readable through allocator snapshots");
+
+    survivor.reset();
+    ASSERT_EQ(suite, static_cast<usize>(0), ledger.liveBytes,
+              "token allocator snapshot releases every callback-owned byte");
+}
+
+void testAstAllocatorSnapshotOutlivesRuntimeContext(TestSuite& suite) {
+    TokenAllocatorLedger ledger;
+    Chunk survivor;
+
+    {
+        EngineContext context(tokenSnapshotAllocator, &ledger);
+        RuntimeServices services = context.services();
+        Parser parser("return 1 + 2", services);
+        auto parsed = parser.parse();
+        ASSERT_TRUE(suite, parsed.has_value(), "allocator-backed parser returns an AST chunk");
+        if (!parsed) {
+            return;
+        }
+        survivor = std::move(*parsed);
+    }
+
+    ASSERT_TRUE(suite, ledger.liveBytes > 0, "AST nodes retain callback ownership after the runtime context dies");
+    ASSERT_TRUE(suite, survivor.statements.size() == 1 && asStmt<ReturnStmt>(survivor.statements[0]) != nullptr,
+                "AST nodes remain readable through their allocator snapshots");
+
+    survivor.statements.clear();
+    ASSERT_EQ(suite, static_cast<usize>(0), ledger.liveBytes,
+              "AST allocator snapshots release every callback-owned node byte");
 }
 
 } // namespace
@@ -389,9 +451,15 @@ void registerParserBoundaryTests() {
 
     registry.registerTest(kSuiteName, "statement families", testStatementBoundaryFamilies);
     registry.registerTest(kSuiteName, "expression precedence", testExpressionPrecedenceBoundary);
-    registry.registerTest(kSuiteName, "lua51 statement separators and relational chains", testLua51StatementSeparatorsAndRelationalChains);
-    registry.registerTest(kSuiteName, "lua51 power accepts unary right operand", testLua51PowerAcceptsUnaryRightOperand);
+    registry.registerTest(kSuiteName, "lua51 statement separators and relational chains",
+                          testLua51StatementSeparatorsAndRelationalChains);
+    registry.registerTest(kSuiteName, "lua51 power accepts unary right operand",
+                          testLua51PowerAcceptsUnaryRightOperand);
     registry.registerTest(kSuiteName, "function table postfix", testFunctionTableAndPostfixBoundaries);
     registry.registerTest(kSuiteName, "error boundaries", testParserErrorBoundaries);
     registry.registerTest(kSuiteName, "tokenString returns borrowed view", testTokenStringReturnsBorrowedView);
+    registry.registerTest(kSuiteName, "token allocator snapshot lifetime",
+                          testTokenAllocatorSnapshotOutlivesSourceAllocator);
+    registry.registerTest(kSuiteName, "AST allocator snapshot lifetime",
+                          testAstAllocatorSnapshotOutlivesRuntimeContext);
 }

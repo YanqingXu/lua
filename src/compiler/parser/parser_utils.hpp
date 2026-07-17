@@ -14,10 +14,14 @@
 namespace Lua::ParserUtils {
 
 [[nodiscard]] inline StrView tokenString(const Token& token) noexcept {
+    if (std::holds_alternative<TokenString>(token.value)) {
+        const TokenString& value = std::get<TokenString>(token.value);
+        return StrView(value.data(), value.size());
+    }
     if (std::holds_alternative<Str>(token.value)) {
         return std::get<Str>(token.value);
     }
-    return token.lexeme;
+    return StrView(token.lexeme.data(), token.lexeme.size());
 }
 
-}
+} // namespace Lua::ParserUtils

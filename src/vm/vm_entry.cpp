@@ -46,6 +46,7 @@ void call(LuaState* L, i32 nargs, i32 nresults) {
 }
 
 void call(RuntimeServices& services, LuaState* L, i32 nargs, i32 nresults) {
+    services.globalState.requireOwnerThread();
     HostCallGuard hostCall(L);
 
     usize absTop = L->getAbsoluteTop();
@@ -74,6 +75,7 @@ void execute(LuaState* L, Function* func) {
 }
 
 void execute(RuntimeServices& services, LuaState* L, Function* func) {
+    services.globalState.requireOwnerThread();
     if (!func) {
         throw RuntimeError("VM::execute: null function");
     }
@@ -113,4 +115,4 @@ void execute(RuntimeServices& services, LuaState* L, Function* func) {
     L->popCallInfo();
 }
 
-}  // namespace Lua::VM
+} // namespace Lua::VM

@@ -11,6 +11,8 @@
 
 namespace Lua {
 
+class SandboxPolicy;
+
 /**
  * @brief Owns the operating-system leases for native modules used by one runtime.
  *
@@ -25,7 +27,8 @@ class NativeModuleRegistry {
 public:
     using Handle = void*;
 
-    NativeModuleRegistry() = default;
+    explicit NativeModuleRegistry(const SandboxPolicy* sandboxPolicy = nullptr) noexcept
+        : sandboxPolicy_(sandboxPolicy) {}
     ~NativeModuleRegistry() noexcept;
 
     NativeModuleRegistry(const NativeModuleRegistry&) = delete;
@@ -65,6 +68,7 @@ private:
     static void close(Handle handle, bool owned) noexcept;
 
     Vec<Entry> entries_;
+    const SandboxPolicy* sandboxPolicy_;
 };
 
 } // namespace Lua

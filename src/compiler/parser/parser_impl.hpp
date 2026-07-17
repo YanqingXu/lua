@@ -27,14 +27,15 @@ public:
 private:
     class AstFactory {
     public:
-        template<typename T, typename... Args>
-        ExprPtr makeExpr(Args&&... args) {
-            return makeUnique<Expr>(T(std::forward<Args>(args)...));
+        explicit AstFactory(const LuaAllocator* allocator) noexcept
+            : allocator_(allocator != nullptr ? *allocator : LuaAllocator{}) {}
+
+        template <typename T, typename... Args> ExprPtr makeExpr(Args&&... args) {
+            return makeLuaOwned<Expr>(&allocator_, T(std::forward<Args>(args)...));
         }
 
-        template<typename T, typename... Args>
-        StmtPtr makeStmt(Args&&... args) {
-            return makeUnique<Stmt>(T(std::forward<Args>(args)...));
+        template <typename T, typename... Args> StmtPtr makeStmt(Args&&... args) {
+            return makeLuaOwned<Stmt>(&allocator_, T(std::forward<Args>(args)...));
         }
 
         ExprPtr makeBinaryExpr(BinaryExpr::Op op, const Token& opToken, ExprPtr left, ExprPtr right) {
@@ -55,15 +56,15 @@ private:
             expr.column = opToken.column;
             return makeExpr<UnaryExpr>(std::move(expr));
         }
+
+    private:
+        LuaAllocator allocator_;
     };
 
     class TokenStream {
     public:
-        explicit TokenStream(const Str& source)
-            : lexer_(source)
-            , current_(lexer_.nextToken())
-            , previous_(current_) {
-        }
+        explicit TokenStream(const Str& source, LuaAllocator* allocator = nullptr)
+            : lexer_(source, allocator), current_(lexer_.nextToken()), previous_(current_) {}
 
         [[nodiscard]] const Token& current() const noexcept {
             return current_;
@@ -219,13 +220,11 @@ private:
     Vec<StmtPtr> parseBlock();
     Vec<ExprPtr> parseExprList();
 
-    template<typename T, typename... Args>
-    ExprPtr makeExpr(Args&&... args) {
+    template <typename T, typename... Args> ExprPtr makeExpr(Args&&... args) {
         return astFactory_.makeExpr<T>(std::forward<Args>(args)...);
     }
 
-    template<typename T, typename... Args>
-    StmtPtr makeStmt(Args&&... args) {
+    template <typename T, typename... Args> StmtPtr makeStmt(Args&&... args) {
         return astFactory_.makeStmt<T>(std::forward<Args>(args)...);
     }
 
@@ -245,20 +244,29 @@ private:
     static constexpr usize MAX_UPVALUES_PER_FUNCTION = 60;
 
     struct FunctionSyntaxScope {
-        i32 line = 1;
-        Vec<Str> locals;
-        Vec<Str> upvalues;
+        FunctionSyntaxScope(i32 scopeLine, const LuaAllocator* allocator)
+            : line(scopeLine), locals(LuaSnapshotStdAllocator<LuaOwnedString>(allocator)),
+              upvalues(LuaSnapshotStdAllocator<LuaOwnedString>(allocator)) {}
+
+        i32 line;
+        LuaOwnedVector<LuaOwnedString> locals;
+        LuaOwnedVector<LuaOwnedString> upvalues;
     };
 
-    static bool containsName(const Vec<Str>& names, const Str& name) {
-        return std::find(names.begin(), names.end(), name) != names.end();
+    static bool containsName(const LuaOwnedVector<LuaOwnedString>& names, StrView name) {
+        return std::find_if(names.begin(), names.end(), [name](const LuaOwnedString& candidate) {
+                   return StrView(candidate.data(), candidate.size()) == name;
+               }) != names.end();
+    }
+
+    [[nodiscard]] LuaOwnedString makeSyntaxName(StrView name) const {
+        return LuaOwnedString(name.begin(), name.end(), LuaSnapshotStdAllocator<char>(&allocator_));
     }
 
     class RecursionGuard {
     public:
         explicit RecursionGuard(Impl& parser, i32 maxDepth = MAX_RECURSION_DEPTH)
-            : parser_(parser)
-            , maxDepth_(maxDepth) {
+            : parser_(parser), maxDepth_(maxDepth) {
             entered_ = true;
             if (parser_.parseState_.enterSyntaxLevel() > maxDepth_) {
                 parser_.parseState_.leaveSyntaxLevel();
@@ -284,14 +292,15 @@ private:
     };
 
 private:
+    LuaAllocator allocator_;
     TokenStream tokenStream_;
     RuntimeServices* services_ = nullptr;
     ParseState parseState_;
     AstFactory astFactory_;
-    Vec<FunctionSyntaxScope> functionScopes_;
+    LuaOwnedVector<FunctionSyntaxScope> functionScopes_;
     ParseDiagnosticCollector diagnosticCollector_;
     Vec<ParseDiagnosticObserver*> diagnosticObservers_;
     UPtr<ErrorRecoveryStrategy> recoveryStrategy_;
 };
 
-}
+} // namespace Lua

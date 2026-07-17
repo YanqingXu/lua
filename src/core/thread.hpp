@@ -25,6 +25,7 @@ class GarbageCollector;
 enum class ThreadStatus : u8;
 
 struct LuaStateOwnerDeleter {
+    bool ownsState = true;
     void operator()(LuaState* state) const noexcept;
 };
 
@@ -52,6 +53,9 @@ public:
 
     /// GC factory constructor; prefer Thread::create() at call sites.
     explicit Thread(LuaStateOwner state);
+
+    /// Non-owning facade used to represent the main state as a Lua thread value.
+    explicit Thread(LuaState* mainState);
 
     ~Thread();
 
@@ -83,6 +87,9 @@ public:
     }
     LuaState* getLuaState() const noexcept {
         return state_.get();
+    }
+    bool ownsLuaState() const noexcept {
+        return state_.get_deleter().ownsState;
     }
     bool isDead() const noexcept {
         return coStatus_ == CoroutineStatus::Dead;

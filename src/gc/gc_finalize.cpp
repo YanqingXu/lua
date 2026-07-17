@@ -15,6 +15,7 @@
 #include "vm/vm.hpp"
 #include <algorithm>
 #include <exception>
+#include <limits>
 
 namespace Lua {
 
@@ -48,8 +49,23 @@ void GarbageCollector::prepareFinalizers() {
     }
 }
 
+usize GarbageCollector::finalizerDrainLimit() const noexcept {
+    if (globalState_ == nullptr) {
+        return std::numeric_limits<usize>::max();
+    }
+
+    const ExecutionPolicy::FinalizerCount configured = globalState_->getExecutionPolicy().finalizerBudgetPerDrain();
+    const auto maximum = static_cast<ExecutionPolicy::FinalizerCount>(std::numeric_limits<usize>::max());
+    return configured >= maximum ? std::numeric_limits<usize>::max() : static_cast<usize>(configured);
+}
+
 void GarbageCollector::runFinalizers(LuaState* state) {
     if (state == nullptr || finalizersRunning_ || pendingFinalizers_.empty()) {
+        return;
+    }
+
+    const usize scheduledCount = std::min(pendingFinalizers_.size(), finalizerDrainLimit());
+    if (scheduledCount == 0) {
         return;
     }
 
@@ -58,13 +74,14 @@ void GarbageCollector::runFinalizers(LuaState* state) {
     // treats this member queue as roots. Moving the queue into a local vector
     // made the remaining callbacks invisible to a nested collection and left
     // dangling pointers in the outer finalizer loop.
-    LuaVector<Userdata*> finalizers(pendingFinalizers_.begin(), pendingFinalizers_.end(),
+    using Difference = LuaVector<Userdata*>::difference_type;
+    LuaVector<Userdata*> finalizers(pendingFinalizers_.begin(),
+                                    pendingFinalizers_.begin() + static_cast<Difference>(scheduledCount),
                                     pendingFinalizers_.get_allocator());
     // Copying can allocate. Do not publish the reentrancy guard until that
     // succeeds, otherwise an OOM would permanently suppress finalizers.
     finalizersRunning_ = true;
 
-    Stack& stack = state->getStack();
     for (usize i = 0; i < finalizers.size(); i++) {
         Userdata* userdata = finalizers[i];
         Value finalizer = getFinalizer(userdata);
@@ -74,45 +91,140 @@ void GarbageCollector::runFinalizers(LuaState* state) {
             continue;
         }
 
-        usize savedTop = state->getAbsoluteTop();
-        usize savedStackTop = stack.size();
-        usize savedCI = state->getCurrentCI();
-        std::exception_ptr finalizerError;
-
         try {
-            stack.setTop(savedTop);
-            state->setAbsoluteTop(savedTop);
-            state->pushValue(finalizer);
-            state->pushUserdata(userdata);
-            RuntimeServices services(state->getGlobalState());
-            VM::call(services, state, 1, 0);
+            callFinalizer(state, userdata);
         } catch (...) {
-            finalizerError = std::current_exception();
+            pendingFinalizers_.erase(std::remove(pendingFinalizers_.begin(), pendingFinalizers_.end(), userdata),
+                                     pendingFinalizers_.end());
+            finalizersRunning_ = false;
+            throw;
         }
-
-        while (state->getCurrentCI() > savedCI) {
-            state->popCallInfo();
-        }
-        // The physical stack can reserve a wider helper window than the
-        // state's logical top.  The finalizer function and userdata argument
-        // were written into that window; merely lowering the logical top
-        // leaves them visible to the next wide root scan.  Clear every slot
-        // that belonged to the saved helper window before restoring it.
-        for (usize slot = savedTop; slot < savedStackTop; ++slot) {
-            stack[slot] = Value();
-        }
-        stack.setTop(savedStackTop);
-        state->setAbsoluteTop(savedTop);
 
         pendingFinalizers_.erase(std::remove(pendingFinalizers_.begin(), pendingFinalizers_.end(), userdata),
                                  pendingFinalizers_.end());
+    }
 
-        if (finalizerError) {
-            finalizersRunning_ = false;
-            std::rethrow_exception(finalizerError);
+    finalizersRunning_ = false;
+}
+
+void GarbageCollector::callFinalizer(LuaState* state, Userdata* userdata) {
+    Value finalizer = getFinalizer(userdata);
+    if (finalizer.isNil()) {
+        return;
+    }
+
+    Stack& stack = state->getStack();
+    const usize savedTop = state->getAbsoluteTop();
+    const usize savedStackTop = stack.size();
+    const usize savedCI = state->getCurrentCI();
+    std::exception_ptr finalizerError;
+
+    try {
+        stack.setTop(savedTop);
+        state->setAbsoluteTop(savedTop);
+        state->pushValue(finalizer);
+        state->pushUserdata(userdata);
+        RuntimeServices services(state->getGlobalState());
+        VM::call(services, state, 1, 0);
+    } catch (...) {
+        finalizerError = std::current_exception();
+    }
+
+    while (state->getCurrentCI() > savedCI) {
+        state->popCallInfo();
+    }
+    // The physical stack can reserve a wider helper window than the state's
+    // logical top.  Clear the callback window before restoring it so a later
+    // wide root scan cannot retain the finalizer or its userdata argument.
+    const usize clearTop = std::max(savedStackTop, stack.size());
+    for (usize slot = savedTop; slot < clearTop; ++slot) {
+        stack[slot] = Value();
+    }
+    stack.setTop(savedStackTop);
+    state->setAbsoluteTop(savedTop);
+
+    if (finalizerError) {
+        std::rethrow_exception(finalizerError);
+    }
+}
+
+void GarbageCollector::finalizeAll(LuaState* state) noexcept {
+    if (state == nullptr || finalizersRunning_) {
+        return;
+    }
+
+    resetIncrementalCycle();
+
+    // lua_close does not preserve an executing frame.  Closing open upvalues
+    // before clearing the stack matches Lua 5.1 and leaves the already-owned
+    // base-frame storage available even under persistent allocator failure.
+    try {
+        state->closeUpvalues(0);
+    } catch (...) {
+        // Shutdown must continue and release the runtime even if a damaged
+        // state cannot close one of its upvalues cleanly.
+    }
+    while (state->getCurrentCI() > 0) {
+        try {
+            state->popCallInfo();
+        } catch (...) {
+            break;
         }
     }
 
+    Stack& stack = state->getStack();
+    for (usize slot = 0; slot < stack.capacity(); ++slot) {
+        stack[slot] = Value();
+    }
+    stack.clear();
+    state->setAbsoluteTop(0);
+    (void)state->tryPushValueNoAlloc(Value());
+    state->setStatus(ThreadStatus::OK);
+
+    const usize callbackLimit = finalizerDrainLimit();
+    usize callbacksEntered = 0;
+    finalizersRunning_ = true;
+    try {
+        while (callbacksEntered < callbackLimit) {
+            Userdata* userdata = nullptr;
+            if (!pendingFinalizers_.empty()) {
+                userdata = pendingFinalizers_.back();
+                pendingFinalizers_.pop_back();
+            } else {
+                // Select only one object per pass.  A finalizer may run a
+                // nested collection and mutate the intrusive object list.
+                for (GCObject* object = allObjects_; object != nullptr; object = object->getNext()) {
+                    if (object->getType() != GCObjectType::Userdata || (object->getMarked() & GCBits::FINALIZED) != 0) {
+                        continue;
+                    }
+                    userdata = static_cast<Userdata*>(object);
+                    object->setMarked(object->getMarked() | GCBits::FINALIZED);
+                    break;
+                }
+            }
+
+            if (userdata == nullptr) {
+                break;
+            }
+
+            pendingFinalizers_.erase(std::remove(pendingFinalizers_.begin(), pendingFinalizers_.end(), userdata),
+                                     pendingFinalizers_.end());
+            if (getFinalizer(userdata).isNil()) {
+                continue;
+            }
+
+            ++callbacksEntered;
+            try {
+                callFinalizer(state, userdata);
+            } catch (...) {
+                // Lua 5.1 protects close-time finalizers.  Keep draining so a
+                // broken __gc cannot leak resources owned by later userdata.
+            }
+        }
+    } catch (...) {
+        // No exception may escape shutdown, including unexpected corruption
+        // in finalizer lookup or queue bookkeeping.
+    }
     finalizersRunning_ = false;
 }
 

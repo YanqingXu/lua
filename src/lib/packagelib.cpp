@@ -535,6 +535,7 @@ i32 loader_preload(LuaState* L) {
 // =====================================================================
 
 i32 loader_lua(LuaState* L) {
+    L->requireSandboxCapability(SandboxCapability::Filesystem);
     i32 nargs = L->getTop();
     if (nargs < 1 || !L->at(1).isString()) {
         L->setTop(0);
@@ -581,6 +582,7 @@ i32 loader_lua(LuaState* L) {
 // =====================================================================
 
 i32 loader_clib(LuaState* L) {
+    L->requireSandboxCapability(SandboxCapability::NativeModules);
     i32 nargs = L->getTop();
     if (nargs < 1 || !L->at(1).isString()) {
         pushSearchError(L, "\n\tno C module name");
@@ -618,6 +620,7 @@ i32 loader_clib(LuaState* L) {
 // =====================================================================
 
 i32 loader_clib_allinone(LuaState* L) {
+    L->requireSandboxCapability(SandboxCapability::NativeModules);
     i32 nargs = L->getTop();
     if (nargs < 1 || !L->at(1).isString()) {
         L->setTop(0);
@@ -851,6 +854,7 @@ i32 luaP_module(LuaState* L) {
 // =====================================================================
 
 i32 luaP_loadlib(LuaState* L) {
+    L->requireSandboxCapability(SandboxCapability::NativeModules);
     auto& pool = L->getGlobalState().getStringPool();
 
     i32 nargs = L->getTop();
@@ -947,7 +951,13 @@ void PackageLibModule::registerFunctions(LuaState* L) {
     L->getGlobalState().getRegistry()->set(Value(registryKey), Value(pkgTable));
 
     // ---- Register functions into the package table ----
-    FunctionRegistrar(L).addGlobal("loadlib", luaP_loadlib).addGlobal("seeall", luaP_seeall).commitToTable(pkgTable);
+    FunctionRegistrar packageRegistrar(L);
+    packageRegistrar.addGlobal("seeall", luaP_seeall);
+    const SandboxPolicy& policy = L->getGlobalState().getSandboxPolicy();
+    if (policy.allows(SandboxCapability::NativeModules)) {
+        packageRegistrar.addGlobal("loadlib", luaP_loadlib);
+    }
+    packageRegistrar.commitToTable(pkgTable);
 
     // ---- Register global functions: require, module ----
     FunctionRegistrar(L).addGlobal("require", luaP_require).addGlobal("module", luaP_module).commit();
@@ -969,13 +979,14 @@ void PackageLibModule::registerFunctions(LuaState* L) {
 
     // ---- package.path ----
     GCString* pathKey = pool.intern("path");
-    Str defaultPath = applyExecutableDirectory(LUA_DEFAULT_PATH);
+    Str defaultPath = policy.allows(SandboxCapability::Filesystem) ? applyExecutableDirectory(LUA_DEFAULT_PATH) : Str();
     GCString* pathVal = pool.intern(defaultPath.c_str());
     pkgTable->set(Value(pathKey), Value(pathVal));
 
     // ---- package.cpath ----
     GCString* cpathKey = pool.intern("cpath");
-    Str defaultCPath = applyExecutableDirectory(LUA_DEFAULT_CPATH);
+    Str defaultCPath =
+        policy.allows(SandboxCapability::NativeModules) ? applyExecutableDirectory(LUA_DEFAULT_CPATH) : Str();
     GCString* cpathVal = pool.intern(defaultCPath.c_str());
     pkgTable->set(Value(cpathKey), Value(cpathVal));
 
@@ -993,17 +1004,18 @@ void PackageLibModule::registerFunctions(LuaState* L) {
     Function* preloadSearcher = gc.create<Function>(loader_preload);
     loadersTable->set(Value(1.0), Value(preloadSearcher));
 
-    // loader[2] = Lua file searcher
-    Function* luaSearcher = gc.create<Function>(loader_lua);
-    loadersTable->set(Value(2.0), Value(luaSearcher));
+    i32 nextLoader = 2;
+    if (policy.allows(SandboxCapability::Filesystem)) {
+        Function* luaSearcher = gc.create<Function>(loader_lua);
+        loadersTable->set(Value(static_cast<f64>(nextLoader++)), Value(luaSearcher));
+    }
+    if (policy.allows(SandboxCapability::NativeModules)) {
+        Function* clibSearcher = gc.create<Function>(loader_clib);
+        loadersTable->set(Value(static_cast<f64>(nextLoader++)), Value(clibSearcher));
 
-    // loader[3] = C library searcher
-    Function* clibSearcher = gc.create<Function>(loader_clib);
-    loadersTable->set(Value(3.0), Value(clibSearcher));
-
-    // loader[4] = all-in-one C library searcher
-    Function* allInOneSearcher = gc.create<Function>(loader_clib_allinone);
-    loadersTable->set(Value(4.0), Value(allInOneSearcher));
+        Function* allInOneSearcher = gc.create<Function>(loader_clib_allinone);
+        loadersTable->set(Value(static_cast<f64>(nextLoader)), Value(allInOneSearcher));
+    }
 }
 
 void PackageLibModule::initialize(LuaState* L) {
@@ -1037,6 +1049,7 @@ void openPackageLib(LuaState* L) {
         return;
     }
 
+    L->requireStandardLibrary("package");
     PackageLibModule module;
     StandardLibrary::openModule(L, module);
 }

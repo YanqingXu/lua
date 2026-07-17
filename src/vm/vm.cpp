@@ -67,6 +67,7 @@ namespace VM {
 namespace {
 
 ExecResult executeProtoUnchecked(RuntimeServices& services, LuaState* L, Proto* proto, i32 nexeccalls) {
+    services.globalState.requireOwnerThread();
     if (!proto)
         throw RuntimeError("VM::executeProto: null proto");
     if (nexeccalls >= MAX_CALLS)
@@ -101,6 +102,13 @@ std::expected<ExecResult, RuntimeError> tryExecuteProto(RuntimeServices& service
 }
 
 namespace {
+
+void enforceExecutionPolicy(GlobalState& globalState) {
+    const ExecutionStopReason reason = globalState.getExecutionPolicy().consumeInstruction();
+    if (reason != ExecutionStopReason::None) [[unlikely]] {
+        throw RuntimeError(Value(globalState.getExecutionPolicyErrorMessage(reason)));
+    }
+}
 
 enum class DispatchBackend : u8 {
     Switch,
@@ -179,6 +187,8 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
         const auto code = proto->getInstructionSpan();
 
         while (pc < code.size()) {
+            enforceExecutionPolicy(services.globalState);
+
             usize instructionPc = pc;
             Instruction inst = code[pc];
             OpCode op = GET_OPCODE(inst);

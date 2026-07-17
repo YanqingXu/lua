@@ -7,10 +7,14 @@
 
 #include <cstddef>
 #include <cstdlib>
+#include <array>
+#include <cstring>
+#include <iterator>
 #include <limits>
 #include <memory>
 #include <mutex>
 #include <new>
+#include <string>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -201,7 +205,343 @@ private:
     LuaAllocator* allocator_ = nullptr;
 };
 
+/**
+ * Standard allocator that snapshots a callback/userdata pair by value.
+ *
+ * This is intended for compiler temporaries that may be copied or moved out
+ * of their producing object. Each rebound allocator remains able to release
+ * its storage without depending on a LuaAllocator object's lifetime.
+ */
+template <typename T> class LuaSnapshotStdAllocator {
+public:
+    using value_type = T;
+    using propagate_on_container_copy_assignment = std::true_type;
+    using propagate_on_container_move_assignment = std::true_type;
+    using propagate_on_container_swap = std::true_type;
+    using is_always_equal = std::false_type;
+
+    LuaSnapshotStdAllocator() noexcept = default;
+    explicit LuaSnapshotStdAllocator(const LuaAllocator* allocator) noexcept
+        : allocator_(allocator != nullptr ? *allocator : LuaAllocator{}) {}
+
+    template <typename U>
+    LuaSnapshotStdAllocator(const LuaSnapshotStdAllocator<U>& other) noexcept : allocator_(other.getLuaAllocator()) {}
+
+    [[nodiscard]] T* allocate(std::size_t count) {
+        return LuaStdAllocator<T>(&allocator_).allocate(count);
+    }
+
+    void deallocate(T* pointer, std::size_t count) noexcept {
+        LuaStdAllocator<T>(&allocator_).deallocate(pointer, count);
+    }
+
+    [[nodiscard]] const LuaAllocator& getLuaAllocator() const noexcept {
+        return allocator_;
+    }
+
+    template <typename U> bool operator==(const LuaSnapshotStdAllocator<U>& other) const noexcept {
+        const LuaAllocator& rhs = other.getLuaAllocator();
+        return allocator_.getFunction() == rhs.getFunction() && allocator_.getUserData() == rhs.getUserData();
+    }
+
+    template <typename U> bool operator!=(const LuaSnapshotStdAllocator<U>& other) const noexcept {
+        return !(*this == other);
+    }
+
+private:
+    LuaAllocator allocator_;
+};
+
 template <typename T> using LuaVector = std::vector<T, LuaStdAllocator<T>>;
+template <typename T> using LuaOwnedVector = std::vector<T, LuaSnapshotStdAllocator<T>>;
+
+template <typename T> class LuaOwnedObjectDeleter {
+public:
+    LuaOwnedObjectDeleter() noexcept = default;
+    explicit LuaOwnedObjectDeleter(const LuaAllocator* allocator) noexcept : allocator_(allocator) {}
+
+    void operator()(T* pointer) noexcept {
+        if (pointer == nullptr) {
+            return;
+        }
+        std::destroy_at(pointer);
+        allocator_.deallocate(pointer, 1);
+    }
+
+private:
+    LuaSnapshotStdAllocator<T> allocator_;
+};
+
+template <typename T> using LuaOwnedPtr = std::unique_ptr<T, LuaOwnedObjectDeleter<T>>;
+
+template <typename T, typename... Args>
+[[nodiscard]] LuaOwnedPtr<T> makeLuaOwned(const LuaAllocator* allocator, Args&&... args) {
+    LuaSnapshotStdAllocator<T> storage(allocator);
+    T* memory = storage.allocate(1);
+    try {
+        std::construct_at(memory, std::forward<Args>(args)...);
+    } catch (...) {
+        storage.deallocate(memory, 1);
+        throw;
+    }
+    return LuaOwnedPtr<T>(memory, LuaOwnedObjectDeleter<T>(allocator));
+}
+
+/**
+ * Mutable string with a fixed inline buffer and exact allocator byte counts.
+ *
+ * Some standard-library basic_string implementations can request N bytes from
+ * a user allocator and later deallocate the block with N-1. lua_Alloc requires
+ * the original block size, so runtime/compiler strings use this small wrapper
+ * instead of inheriting implementation-specific SSO/capacity bookkeeping.
+ */
+template <typename Allocator> class LuaBasicString {
+public:
+    using value_type = char;
+    using allocator_type = Allocator;
+    using size_type = std::size_t;
+    using iterator = char*;
+    using const_iterator = const char*;
+
+    LuaBasicString() noexcept(std::is_nothrow_default_constructible_v<allocator_type>) = default;
+
+    explicit LuaBasicString(const allocator_type& allocator) noexcept : allocator_(allocator) {}
+
+    template <typename InputIt>
+    LuaBasicString(InputIt first, InputIt last, const allocator_type& allocator = allocator_type())
+        : allocator_(allocator) {
+        assignRange(first, last);
+    }
+
+    LuaBasicString(const LuaBasicString& other) : allocator_(other.allocator_) {
+        assignRange(other.begin(), other.end());
+    }
+
+    LuaBasicString(LuaBasicString&& other) noexcept(std::is_nothrow_move_constructible_v<allocator_type>)
+        : allocator_(std::move(other.allocator_)) {
+        takeStorage(other);
+    }
+
+    LuaBasicString& operator=(const LuaBasicString& other) {
+        if (this != &other) {
+            LuaBasicString replacement(other);
+            *this = std::move(replacement);
+        }
+        return *this;
+    }
+
+    LuaBasicString& operator=(LuaBasicString&& other) noexcept(std::is_nothrow_move_assignable_v<allocator_type>) {
+        if (this != &other) {
+            releaseExternal();
+            allocator_ = std::move(other.allocator_);
+            resetInline();
+            takeStorage(other);
+        }
+        return *this;
+    }
+
+    ~LuaBasicString() {
+        releaseExternal();
+    }
+
+    [[nodiscard]] allocator_type get_allocator() const noexcept {
+        return allocator_;
+    }
+
+    [[nodiscard]] bool empty() const noexcept {
+        return size_ == 0;
+    }
+
+    [[nodiscard]] size_type size() const noexcept {
+        return size_;
+    }
+
+    [[nodiscard]] size_type capacity() const noexcept {
+        return capacity_;
+    }
+
+    [[nodiscard]] char* data() noexcept {
+        return data_;
+    }
+
+    [[nodiscard]] const char* data() const noexcept {
+        return data_;
+    }
+
+    [[nodiscard]] const char* c_str() const noexcept {
+        return data_;
+    }
+
+    [[nodiscard]] iterator begin() noexcept {
+        return data_;
+    }
+
+    [[nodiscard]] const_iterator begin() const noexcept {
+        return data_;
+    }
+
+    [[nodiscard]] iterator end() noexcept {
+        return data_ + size_;
+    }
+
+    [[nodiscard]] const_iterator end() const noexcept {
+        return data_ + size_;
+    }
+
+    char& operator[](size_type index) noexcept {
+        return data_[index];
+    }
+
+    const char& operator[](size_type index) const noexcept {
+        return data_[index];
+    }
+
+    void clear() noexcept {
+        size_ = 0;
+        data_[0] = '\0';
+    }
+
+    void reserve(size_type requestedCapacity) {
+        ensureCapacity(requestedCapacity);
+    }
+
+    void resize(size_type requestedSize, char fill = '\0') {
+        if (requestedSize <= size_) {
+            size_ = requestedSize;
+            data_[size_] = '\0';
+            return;
+        }
+        ensureCapacity(requestedSize);
+        std::memset(data_ + size_, static_cast<unsigned char>(fill), requestedSize - size_);
+        size_ = requestedSize;
+        data_[size_] = '\0';
+    }
+
+    void push_back(char value) {
+        ensureCapacity(size_ + 1);
+        data_[size_++] = value;
+        data_[size_] = '\0';
+    }
+
+    LuaBasicString& operator+=(char value) {
+        push_back(value);
+        return *this;
+    }
+
+    void append(const char* text, size_type count) {
+        if (count == 0) {
+            return;
+        }
+        if (text == nullptr || size_ > std::numeric_limits<size_type>::max() - count) {
+            throw std::bad_array_new_length();
+        }
+        ensureCapacity(size_ + count);
+        std::memcpy(data_ + size_, text, count);
+        size_ += count;
+        data_[size_] = '\0';
+    }
+
+    template <typename InputIt> void assign(InputIt first, InputIt last) {
+        LuaBasicString replacement(first, last, allocator_);
+        *this = std::move(replacement);
+    }
+
+    friend bool operator==(const LuaBasicString& lhs, const LuaBasicString& rhs) noexcept {
+        return lhs.size_ == rhs.size_ && (lhs.size_ == 0 || std::memcmp(lhs.data_, rhs.data_, lhs.size_) == 0);
+    }
+
+    friend bool operator!=(const LuaBasicString& lhs, const LuaBasicString& rhs) noexcept {
+        return !(lhs == rhs);
+    }
+
+private:
+    static constexpr size_type kInlineCapacity = 23;
+
+    [[nodiscard]] bool usesExternalStorage() const noexcept {
+        return data_ != inlineData_.data();
+    }
+
+    void ensureCapacity(size_type requestedCapacity) {
+        if (requestedCapacity <= capacity_) {
+            return;
+        }
+        size_type nextCapacity = capacity_;
+        while (nextCapacity < requestedCapacity) {
+            if (nextCapacity > (std::numeric_limits<size_type>::max() - 1) / 2) {
+                nextCapacity = requestedCapacity;
+                break;
+            }
+            nextCapacity *= 2;
+        }
+        replaceStorage(nextCapacity);
+    }
+
+    void replaceStorage(size_type requestedCapacity) {
+        if (requestedCapacity >= std::numeric_limits<size_type>::max()) {
+            throw std::bad_array_new_length();
+        }
+        char* replacement = allocator_.allocate(requestedCapacity + 1);
+        if (replacement == nullptr) {
+            throw std::bad_alloc();
+        }
+        std::memcpy(replacement, data_, size_ + 1);
+        releaseExternal();
+        data_ = replacement;
+        capacity_ = requestedCapacity;
+    }
+
+    template <typename InputIt> void assignRange(InputIt first, InputIt last) {
+        const auto distance = std::distance(first, last);
+        if (distance < 0) {
+            throw std::bad_array_new_length();
+        }
+        const size_type count = static_cast<size_type>(distance);
+        if (count > kInlineCapacity) {
+            replaceStorage(count);
+        }
+        for (; first != last; ++first) {
+            data_[size_++] = static_cast<char>(*first);
+        }
+        data_[size_] = '\0';
+    }
+
+    void releaseExternal() noexcept {
+        if (usesExternalStorage()) {
+            allocator_.deallocate(data_, capacity_ + 1);
+        }
+    }
+
+    void resetInline() noexcept {
+        data_ = inlineData_.data();
+        size_ = 0;
+        capacity_ = kInlineCapacity;
+        inlineData_[0] = '\0';
+    }
+
+    void takeStorage(LuaBasicString& other) noexcept {
+        if (other.usesExternalStorage()) {
+            data_ = other.data_;
+            size_ = other.size_;
+            capacity_ = other.capacity_;
+            other.resetInline();
+            return;
+        }
+        size_ = other.size_;
+        std::memcpy(inlineData_.data(), other.inlineData_.data(), size_ + 1);
+        data_ = inlineData_.data();
+        capacity_ = kInlineCapacity;
+        other.resetInline();
+    }
+
+    allocator_type allocator_{};
+    std::array<char, kInlineCapacity + 1> inlineData_{};
+    char* data_ = inlineData_.data();
+    size_type size_ = 0;
+    size_type capacity_ = kInlineCapacity;
+};
+
+using LuaString = LuaBasicString<LuaStdAllocator<char>>;
+using LuaOwnedString = LuaBasicString<LuaSnapshotStdAllocator<char>>;
 
 /**
  * Contiguous storage for trivially copyable runtime records.

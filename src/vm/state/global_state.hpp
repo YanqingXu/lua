@@ -28,8 +28,14 @@
 #include "core/metatable.hpp"
 #include "gc/garbage_collector.hpp"
 #include "runtime/native_module_registry.hpp"
+#include "runtime/execution_policy.hpp"
+#include "runtime/sandbox_policy.hpp"
 
 #include <array>
+#include <stdexcept>
+#include <thread>
+
+struct lua_State;
 
 namespace Lua {
 
@@ -37,6 +43,14 @@ namespace Lua {
 class LuaState;
 class Thread;
 class LuaAllocator;
+
+/**
+ * @brief Host logic error raised before a foreign thread touches runtime state.
+ */
+class RuntimeOwnerThreadError final : public std::logic_error {
+public:
+    RuntimeOwnerThreadError() : std::logic_error("Lua runtime accessed from non-owner thread") {}
+};
 
 /**
  * @brief 全局状态类
@@ -66,6 +80,8 @@ class LuaAllocator;
  */
 class GlobalState {
 public:
+    using PanicFunction = int (*)(::lua_State*);
+
     // =====================================================================
     // 单例模式
     // =====================================================================
@@ -93,6 +109,24 @@ public:
      * @brief 析构函数
      */
     ~GlobalState();
+
+    /**
+     * @brief Whether the caller is the immutable runtime owner thread.
+     * @note This identity query is safe
+     * before any mutable runtime access.
+     */
+    [[nodiscard]] bool isOwnerThread() const noexcept {
+        return ownerThread_ == std::this_thread::get_id();
+    }
+
+    /**
+     * @brief Reject foreign-thread access before mutable runtime state is read.
+     */
+    void requireOwnerThread() const {
+        if (!isOwnerThread()) {
+            throw RuntimeOwnerThreadError();
+        }
+    }
 
     // =====================================================================
     // 字符串管理
@@ -124,6 +158,22 @@ public:
 
     const LuaAllocator* getAllocator() const noexcept {
         return gc_.getAllocator();
+    }
+
+    ExecutionPolicy& getExecutionPolicy() noexcept {
+        return executionPolicy_;
+    }
+
+    const ExecutionPolicy& getExecutionPolicy() const noexcept {
+        return executionPolicy_;
+    }
+
+    SandboxPolicy& getSandboxPolicy() noexcept {
+        return sandboxPolicy_;
+    }
+
+    const SandboxPolicy& getSandboxPolicy() const noexcept {
+        return sandboxPolicy_;
     }
 
     NativeModuleRegistry& getNativeModules() noexcept {
@@ -181,6 +231,23 @@ public:
         return apiExceptionMessage_;
     }
 
+    /**
+     * @brief Return a fixed error object for an execution-policy stop reason.
+     */
+    GCString* getExecutionPolicyErrorMessage(ExecutionStopReason reason) const noexcept;
+
+    /**
+     * @brief Return the fixed Lua error object for a denied sandbox capability.
+     */
+    GCString* getSandboxCapabilityErrorMessage(SandboxCapability capability) const noexcept;
+
+    /**
+     * @brief Return the fixed Lua error object for disabled library exposure.
+     */
+    GCString* getSandboxLibraryErrorMessage() const noexcept {
+        return sandboxLibraryErrorMessage_;
+    }
+
     // =====================================================================
     // 主线程管理
     // =====================================================================
@@ -197,6 +264,16 @@ public:
      */
     LuaState* getMainThread() const noexcept {
         return mainThread_;
+    }
+
+    PanicFunction setPanicFunction(PanicFunction function) noexcept {
+        PanicFunction previous = panicFunction_;
+        panicFunction_ = function;
+        return previous;
+    }
+
+    PanicFunction getPanicFunction() const noexcept {
+        return panicFunction_;
     }
 
     // =====================================================================
@@ -258,8 +335,17 @@ private:
     // 成员变量
     // =====================================================================
 
+    /// Immutable construction thread for every non-cancellation operation.
+    const std::thread::id ownerThread_;
+
+    /// Runtime-wide standard-library and privileged-operation policy.
+    SandboxPolicy sandboxPolicy_;
+
     /// Native modules outlive the collector so every C Function dies first.
     NativeModuleRegistry nativeModules_;
+
+    /// Runtime-wide limits shared by the main state and all coroutines.
+    ExecutionPolicy executionPolicy_;
 
     /// 垃圾回收器（由GlobalState拥有）
     GarbageCollector gc_;
@@ -272,6 +358,9 @@ private:
 
     /// 主线程指针
     LuaState* mainThread_;
+
+    /// Unprotected-error callback installed by lua_atpanic.
+    PanicFunction panicFunction_ = nullptr;
 
     /// 当前正在执行的协程（主线程时为 nullptr）
     Thread* runningThread_ = nullptr;
@@ -287,6 +376,17 @@ private:
 
     /// Protected-API emergency error text; allocated and fixed at state creation.
     GCString* apiExceptionMessage_;
+
+    /// Fixed execution-policy errors remain available during allocator failure.
+    GCString* instructionBudgetErrorMessage_;
+    GCString* deadlineErrorMessage_;
+    GCString* cancellationErrorMessage_;
+
+    /// Fixed sandbox errors remain stable and allocation-free on denial.
+    GCString* sandboxLibraryErrorMessage_;
+    GCString* sandboxFilesystemErrorMessage_;
+    GCString* sandboxProcessErrorMessage_;
+    GCString* sandboxNativeModuleErrorMessage_;
 };
 
 } // namespace Lua

@@ -1312,6 +1312,7 @@ i32 luaB_loadstring(LuaState* L) {
 // =====================================================================
 
 i32 luaB_loadfile(LuaState* L) {
+    L->requireSandboxCapability(SandboxCapability::Filesystem);
     auto& pool = L->getGlobalState().getStringPool();
     i32 nargs = L->getTop();
     Str displayName = (nargs < 1 || L->isNil(1)) ? Str("stdin") : Str();
@@ -1457,6 +1458,7 @@ i32 luaB_loadfile(LuaState* L) {
 // =====================================================================
 
 i32 luaB_dofile(LuaState* L) {
+    L->requireSandboxCapability(SandboxCapability::Filesystem);
     auto& pool = L->getGlobalState().getStringPool();
     // 使用 loadfile 加载文件
     i32 loadResult = luaB_loadfile(L);
@@ -1995,8 +1997,8 @@ void BaseLibModule::registerFunctions(LuaState* L) {
     }
 
     // 使用流式API注册所有全局函数
-    FunctionRegistrar(L)
-        .addGlobal("print", luaB_print)
+    FunctionRegistrar registrar(L);
+    registrar.addGlobal("print", luaB_print)
         .addGlobal("type", luaB_type)
         .addGlobal("tostring", luaB_tostring)
         .addGlobal("tonumber", luaB_tonumber)
@@ -2014,10 +2016,13 @@ void BaseLibModule::registerFunctions(LuaState* L) {
         .addGlobal("select", luaB_select)
         .addGlobal("pcall", luaB_pcall)
         .addGlobal("xpcall", luaB_xpcall)
-        .addGlobal("loadstring", luaB_loadstring)
-        .addGlobal("loadfile", luaB_loadfile)
-        .addGlobal("dofile", luaB_dofile)
-        .addGlobal("gcinfo", luaB_gcinfo)
+        .addGlobal("loadstring", luaB_loadstring);
+
+    if (L->getGlobalState().getSandboxPolicy().allows(SandboxCapability::Filesystem)) {
+        registrar.addGlobal("loadfile", luaB_loadfile).addGlobal("dofile", luaB_dofile);
+    }
+
+    registrar.addGlobal("gcinfo", luaB_gcinfo)
         .addGlobal("getfenv", luaB_getfenv)
         .addGlobal("setfenv", luaB_setfenv)
         .addGlobal("collectgarbage", luaB_collectgarbage)
@@ -2043,6 +2048,7 @@ void openBaseLib(LuaState* L) {
         return;
     }
 
+    L->requireStandardLibrary("base");
     BaseLibModule module;
     StandardLibrary::openModule(L, module);
 }

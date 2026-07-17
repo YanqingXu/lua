@@ -10,6 +10,7 @@
 #include "core/thread.hpp"
 #include "vm/state/lua_state.hpp"
 #include <array>
+#include <exception>
 #include <iostream> // for debug output
 
 namespace Lua {
@@ -28,8 +29,11 @@ GlobalState& GlobalState::getInstance() {
 // =====================================================================
 
 GlobalState::GlobalState(StringPool& stringPool, LuaAllocator* allocator)
-    : nativeModules_(), gc_(allocator), stringPool_(stringPool), registry_(nullptr), mainThread_(nullptr),
-      memerrmsg_(nullptr), apiExceptionMessage_(nullptr) {
+    : ownerThread_(std::this_thread::get_id()), sandboxPolicy_(), nativeModules_(&sandboxPolicy_), gc_(allocator),
+      stringPool_(stringPool), registry_(nullptr), mainThread_(nullptr), memerrmsg_(nullptr),
+      apiExceptionMessage_(nullptr), instructionBudgetErrorMessage_(nullptr), deadlineErrorMessage_(nullptr),
+      cancellationErrorMessage_(nullptr), sandboxLibraryErrorMessage_(nullptr), sandboxFilesystemErrorMessage_(nullptr),
+      sandboxProcessErrorMessage_(nullptr), sandboxNativeModuleErrorMessage_(nullptr) {
     stringPool_.setGarbageCollector(&gc_);
 
     // 子任务1.1：调整字符串池大小到初始值
@@ -50,6 +54,35 @@ GlobalState::GlobalState(StringPool& stringPool, LuaAllocator* allocator)
     gc_.registerObject(apiExceptionMessage_);
     apiExceptionMessage_->markFixed();
 
+    instructionBudgetErrorMessage_ = stringPool_.intern("execution instruction budget exceeded");
+    gc_.registerObject(instructionBudgetErrorMessage_);
+    instructionBudgetErrorMessage_->markFixed();
+
+    deadlineErrorMessage_ = stringPool_.intern("execution deadline exceeded");
+    gc_.registerObject(deadlineErrorMessage_);
+    deadlineErrorMessage_->markFixed();
+
+    cancellationErrorMessage_ = stringPool_.intern("execution cancelled");
+    gc_.registerObject(cancellationErrorMessage_);
+    cancellationErrorMessage_->markFixed();
+
+    sandboxLibraryErrorMessage_ = stringPool_.intern(SandboxPolicy::libraryDeniedMessage());
+    gc_.registerObject(sandboxLibraryErrorMessage_);
+    sandboxLibraryErrorMessage_->markFixed();
+
+    sandboxFilesystemErrorMessage_ = stringPool_.intern(SandboxPolicy::deniedMessage(SandboxCapability::Filesystem));
+    gc_.registerObject(sandboxFilesystemErrorMessage_);
+    sandboxFilesystemErrorMessage_->markFixed();
+
+    sandboxProcessErrorMessage_ = stringPool_.intern(SandboxPolicy::deniedMessage(SandboxCapability::Process));
+    gc_.registerObject(sandboxProcessErrorMessage_);
+    sandboxProcessErrorMessage_->markFixed();
+
+    sandboxNativeModuleErrorMessage_ =
+        stringPool_.intern(SandboxPolicy::deniedMessage(SandboxCapability::NativeModules));
+    gc_.registerObject(sandboxNativeModuleErrorMessage_);
+    sandboxNativeModuleErrorMessage_->markFixed();
+
     // 创建注册表
     registry_ = gc_.createFixedRoot<Table>(); // 注册表永远不被回收
 
@@ -60,6 +93,10 @@ GlobalState::GlobalState(StringPool& stringPool, LuaAllocator* allocator)
 }
 
 GlobalState::~GlobalState() {
+    if (!isOwnerThread()) {
+        std::terminate();
+    }
+
     // 注意：不需要手动删除registry_，因为GC会处理
     // 但需要从根对象中移除
     if (registry_) {
@@ -101,6 +138,13 @@ void GlobalState::markRoots(GarbageCollector& gc, LuaState* currentState) const 
     gc.markObject(registry_);
     gc.markObject(memerrmsg_);
     gc.markObject(apiExceptionMessage_);
+    gc.markObject(instructionBudgetErrorMessage_);
+    gc.markObject(deadlineErrorMessage_);
+    gc.markObject(cancellationErrorMessage_);
+    gc.markObject(sandboxLibraryErrorMessage_);
+    gc.markObject(sandboxFilesystemErrorMessage_);
+    gc.markObject(sandboxProcessErrorMessage_);
+    gc.markObject(sandboxNativeModuleErrorMessage_);
 
     for (GCString* name : tmname_) {
         gc.markObject(name);
@@ -119,6 +163,33 @@ void GlobalState::markRoots(GarbageCollector& gc, LuaState* currentState) const 
     }
 
     gc.markObject(runningThread_);
+}
+
+GCString* GlobalState::getExecutionPolicyErrorMessage(ExecutionStopReason reason) const noexcept {
+    switch (reason) {
+    case ExecutionStopReason::InstructionBudgetExceeded:
+        return instructionBudgetErrorMessage_;
+    case ExecutionStopReason::DeadlineExceeded:
+        return deadlineErrorMessage_;
+    case ExecutionStopReason::Cancelled:
+        return cancellationErrorMessage_;
+    case ExecutionStopReason::None:
+        return apiExceptionMessage_;
+    }
+
+    return apiExceptionMessage_;
+}
+
+GCString* GlobalState::getSandboxCapabilityErrorMessage(SandboxCapability capability) const noexcept {
+    switch (capability) {
+    case SandboxCapability::Filesystem:
+        return sandboxFilesystemErrorMessage_;
+    case SandboxCapability::Process:
+        return sandboxProcessErrorMessage_;
+    case SandboxCapability::NativeModules:
+        return sandboxNativeModuleErrorMessage_;
+    }
+    return sandboxLibraryErrorMessage_;
 }
 
 void GlobalState::resetRuntimeReferencesForClearAll() noexcept {

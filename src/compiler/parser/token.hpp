@@ -8,6 +8,7 @@
  */
 
 #include "common/types.hpp"
+#include "runtime/lua_allocator.hpp"
 #include <variant>
 
 namespace Lua {
@@ -50,34 +51,50 @@ enum class TokenType : i32 {
     Error
 };
 
-using TokenValue = Var<std::monostate, f64, Str>;
+using TokenString = LuaOwnedString;
+using TokenValue = Var<std::monostate, f64, Str, TokenString>;
+
+inline bool operator==(const TokenString& lhs, const Str& rhs) noexcept {
+    return StrView(lhs.data(), lhs.size()) == StrView(rhs);
+}
+
+inline bool operator==(const Str& lhs, const TokenString& rhs) noexcept {
+    return StrView(lhs) == StrView(rhs.data(), rhs.size());
+}
+
+inline bool operator!=(const TokenString& lhs, const Str& rhs) noexcept {
+    return !(lhs == rhs);
+}
+
+inline bool operator!=(const Str& lhs, const TokenString& rhs) noexcept {
+    return !(lhs == rhs);
+}
 
 struct Token {
     TokenType type;
     TokenValue value;
-    Str lexeme;
-    Str errorMessage;
+    TokenString lexeme;
+    TokenString errorMessage;
     i32 line;
     i32 column;
 
-    Token() noexcept
-        : type(TokenType::Eos)
-        , value(std::monostate{})
-        , lexeme()
-        , errorMessage()
-        , line(1)
-        , column(1)
-    {
+    Token() : type(TokenType::Eos), value(std::monostate{}), lexeme(), errorMessage(), line(1), column(1) {}
+
+    Token(TokenType t, StrView lex, i32 ln, i32 col, const LuaAllocator* allocator = nullptr)
+        : type(t), value(std::monostate{}), lexeme(lex.begin(), lex.end(), LuaSnapshotStdAllocator<char>(allocator)),
+          errorMessage(LuaSnapshotStdAllocator<char>(allocator)), line(ln), column(col) {}
+
+    void setStringValue(StrView text) {
+        const auto allocator = lexeme.get_allocator();
+        if (allocator.getLuaAllocator().isConfigured()) {
+            value.emplace<TokenString>(text.begin(), text.end(), allocator);
+        } else {
+            value.emplace<Str>(text);
+        }
     }
 
-    Token(TokenType t, const Str& lex, i32 ln, i32 col) noexcept
-        : type(t)
-        , value(std::monostate{})
-        , lexeme(lex)
-        , errorMessage()
-        , line(ln)
-        , column(col)
-    {
+    void setErrorMessage(StrView text) {
+        errorMessage.assign(text.begin(), text.end());
     }
 
     bool isNumber() const noexcept {
@@ -99,4 +116,4 @@ struct Token {
 
 const char* tokenTypeToString(TokenType type);
 
-}
+} // namespace Lua

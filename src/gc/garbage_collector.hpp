@@ -424,6 +424,26 @@ public:
     void clearAll(StringPool& stringPool);
 
     /**
+     * @brief Run the permitted remaining userdata finalizers during shutdown.
+     *
+     * Shutdown also
+     * visits reachable userdata. Existing queues are consumed
+     * in place so lua_close stays noexcept under
+     * allocator failure. Finalizer
+     * errors are contained; a finite per-drain policy budget can intentionally
+
+     * * stop later callbacks.
+     */
+    void finalizeAll(LuaState* state) noexcept;
+
+    /**
+     * @brief Number of userdata objects still queued for a later __gc drain.
+     */
+    [[nodiscard]] usize getPendingFinalizerCount() const noexcept {
+        return pendingFinalizers_.size();
+    }
+
+    /**
      * @brief 打印GC统计信息（调试用）
      */
     void printStatistics() const;
@@ -577,6 +597,11 @@ private:
     void prepareFinalizers();
 
     /**
+     * @brief Resolve the current context's per-drain finalizer callback cap.
+     */
+    [[nodiscard]] usize finalizerDrainLimit() const noexcept;
+
+    /**
      * @brief 查询 userdata 的 __gc 元方法
      */
     Value getFinalizer(Userdata* userdata) const;
@@ -585,6 +610,11 @@ private:
      * @brief 运行本轮收集期间排队的终结器
      */
     void runFinalizers(LuaState* state);
+
+    /**
+     * @brief Invoke one userdata finalizer and restore the caller state.
+     */
+    void callFinalizer(LuaState* state, Userdata* userdata);
 
     // =====================================================================
     // 数据成员

@@ -99,16 +99,61 @@ function Get-AggregatedMetric {
         Assert-Comparison ($matches.Count -eq 1) "metric '$Name' must occur exactly once per result"
         Assert-Comparison ($matches[0].direction -eq $Direction) `
             "metric '$Name' direction differs from policy"
-        $samples += @($matches[0].samples | ForEach-Object { [double]$_ })
+        [double[]]$runSamples = @($matches[0].samples | ForEach-Object { [double]$_ })
+        Assert-Comparison ($runSamples.Count -gt 0) "metric '$Name' has no samples in one result"
+        $samples += Get-Median -Values $runSamples
     }
     $value = Get-Median -Values $samples
     return [pscustomobject]@{ Value = $value; SampleCount = $samples.Count }
 }
 
+function Get-RegressionRatio {
+    param(
+        [double]$Base,
+        [double]$Head,
+        [string]$Direction
+    )
+
+    if ($Direction -eq "higher") {
+        return ($Base - $Head) / $Base
+    }
+    return ($Head - $Base) / $Base
+}
+
+function Get-PairedRegression {
+    param(
+        [object[]]$BaseReports,
+        [object[]]$HeadReports,
+        [string]$Name,
+        [string]$Direction
+    )
+
+    Assert-Comparison ($BaseReports.Count -eq $HeadReports.Count) "paired report counts differ"
+    [double[]]$ratios = @()
+    for ($index = 0; $index -lt $BaseReports.Count; $index++) {
+        $base = Get-AggregatedMetric -Reports @($BaseReports[$index]) -Name $Name -Direction $Direction
+        $head = Get-AggregatedMetric -Reports @($HeadReports[$index]) -Name $Name -Direction $Direction
+        Assert-Comparison (($base.Value -gt 0.0) -and ($head.Value -gt 0.0)) `
+            "metric '$Name' must remain positive in every paired run"
+        $ratios += Get-RegressionRatio -Base $base.Value -Head $head.Value -Direction $Direction
+    }
+    return [pscustomobject]@{
+        Value       = Get-Median -Values $ratios
+        SampleCount = $ratios.Count
+        Ratios      = @($ratios)
+    }
+}
+
 $policy = Get-Content -Raw -LiteralPath (Resolve-Path -LiteralPath $PolicyPath).Path | ConvertFrom-Json
-Assert-Comparison ($policy.schemaVersion -eq 1) "policy schemaVersion must be 1"
+Assert-Comparison ($policy.schemaVersion -eq 2) "policy schemaVersion must be 2"
 Assert-Comparison ($policy.executionOrder -eq "alternating-base-head-on-the-same-runner") `
     "policy must require alternating execution on one runner"
+Assert-Comparison ($policy.sampleAggregation -eq "median-of-run-medians") `
+    "policy must require median-of-run-medians sample aggregation"
+Assert-Comparison ($policy.regressionAggregation -eq "median-of-paired-run-regressions") `
+    "policy must require median-of-paired-run-regressions"
+Assert-Comparison ($policy.gcPauseAggregation -eq "pooled-nearest-rank-p99") `
+    "policy must require pooled nearest-rank GC P99 aggregation"
 $minimumRuns = [int]$policy.minimumRunsPerRevision
 Assert-Comparison ($minimumRuns -ge 3) "policy must require at least three runs per revision"
 
@@ -198,10 +243,16 @@ foreach ($metricPolicy in @($policy.metrics)) {
     $head = Get-AggregatedMetric -Reports $headReports -Name $name -Direction $direction
     Assert-Comparison (($base.Value -gt 0.0) -and ($head.Value -gt 0.0)) `
         "metric '$name' must remain positive"
-    $regression = if ($direction -eq "higher") {
-        ($base.Value - $head.Value) / $base.Value
+    if ($name -eq "gc_pause_p99_us") {
+        $regression = Get-RegressionRatio -Base $base.Value -Head $head.Value -Direction $direction
+        $pairedRunCount = 0
+        $pairedRegressionRatios = @()
     } else {
-        ($head.Value - $base.Value) / $base.Value
+        $paired = Get-PairedRegression -BaseReports $baseReports -HeadReports $headReports -Name $name `
+            -Direction $direction
+        $regression = $paired.Value
+        $pairedRunCount = $paired.SampleCount
+        $pairedRegressionRatios = @($paired.Ratios)
     }
     $passed = $regression -le $limit
     if (-not $passed) {
@@ -215,22 +266,27 @@ foreach ($metricPolicy in @($policy.metrics)) {
         baseSampleCount         = $base.SampleCount
         headSampleCount         = $head.SampleCount
         regressionRatio         = $regression
+        pairedRunCount          = $pairedRunCount
+        pairedRegressionRatios  = $pairedRegressionRatios
         maximumRegressionRatio  = $limit
         passed                  = $passed
     }
 }
 
 $evidence = [ordered]@{
-    schemaVersion   = 1
-    success         = $failures.Count -eq 0
-    baseSha         = $baseSha
-    headSha         = $headSha
-    compiler        = $referenceCompiler
-    os              = $referenceOs
-    runsPerRevision = $baseReports.Count
-    executionOrder  = $policy.executionOrder
-    metrics         = $metricResults
-    failures        = $failures
+    schemaVersion          = 2
+    success                = $failures.Count -eq 0
+    baseSha                = $baseSha
+    headSha                = $headSha
+    compiler               = $referenceCompiler
+    os                     = $referenceOs
+    runsPerRevision        = $baseReports.Count
+    executionOrder         = $policy.executionOrder
+    sampleAggregation      = $policy.sampleAggregation
+    regressionAggregation = $policy.regressionAggregation
+    gcPauseAggregation     = $policy.gcPauseAggregation
+    metrics                = $metricResults
+    failures               = $failures
 }
 $outputParent = Split-Path -Parent $OutputPath
 if (-not [string]::IsNullOrWhiteSpace($outputParent)) {

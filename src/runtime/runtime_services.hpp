@@ -8,6 +8,8 @@
 #include "runtime/lua_allocator.hpp"
 #include "vm/state/global_state.hpp"
 
+#include <exception>
+
 namespace Lua {
 
 namespace VM {
@@ -30,11 +32,13 @@ struct RuntimeServices {
     VM::DispatchStrategy* dispatchStrategy;
 
     explicit RuntimeServices(GlobalState& global, VM::DispatchStrategy* dispatch = nullptr)
-        : globalState(global), strings(global.getStringPool()), gc(global.getGC()), dispatchStrategy(dispatch) {}
+        : globalState(global), strings((global.requireOwnerThread(), global.getStringPool())), gc(global.getGC()),
+          dispatchStrategy(dispatch) {}
 
     RuntimeServices(GlobalState& global, StringPool& stringPool, GarbageCollector& collector,
                     VM::DispatchStrategy* dispatch = nullptr)
-        : globalState(global), strings(stringPool), gc(collector), dispatchStrategy(dispatch) {}
+        : globalState(global), strings((global.requireOwnerThread(), stringPool)), gc(collector),
+          dispatchStrategy(dispatch) {}
 
     static RuntimeServices fromSingletons() {
         return RuntimeServices(GlobalState::getInstance());
@@ -59,36 +63,83 @@ public:
     EngineContext(EngineContext&&) = delete;
     EngineContext& operator=(EngineContext&&) = delete;
 
-    [[nodiscard]] RuntimeServices services(VM::DispatchStrategy* dispatch = nullptr) noexcept {
+    ~EngineContext() noexcept {
+        if (!globalState_.isOwnerThread()) {
+            std::terminate();
+        }
+    }
+
+    [[nodiscard]] RuntimeServices services(VM::DispatchStrategy* dispatch = nullptr) {
+        globalState_.requireOwnerThread();
         return RuntimeServices(globalState_, strings_, globalState_.getGC(), dispatch);
     }
 
-    [[nodiscard]] GlobalState& globalState() noexcept {
+    [[nodiscard]] GlobalState& globalState() {
+        globalState_.requireOwnerThread();
         return globalState_;
     }
 
-    [[nodiscard]] StringPool& strings() noexcept {
+    [[nodiscard]] StringPool& strings() {
+        globalState_.requireOwnerThread();
         return strings_;
     }
 
-    [[nodiscard]] GarbageCollector& gc() noexcept {
+    [[nodiscard]] GarbageCollector& gc() {
+        globalState_.requireOwnerThread();
         return globalState_.getGC();
     }
 
-    [[nodiscard]] NativeModuleRegistry& nativeModules() noexcept {
+    [[nodiscard]] NativeModuleRegistry& nativeModules() {
+        globalState_.requireOwnerThread();
         return globalState_.getNativeModules();
     }
 
-    [[nodiscard]] const NativeModuleRegistry& nativeModules() const noexcept {
+    [[nodiscard]] const NativeModuleRegistry& nativeModules() const {
+        globalState_.requireOwnerThread();
         return globalState_.getNativeModules();
     }
 
-    [[nodiscard]] LuaAllocator& allocator() noexcept {
+    [[nodiscard]] LuaAllocator& allocator() {
+        globalState_.requireOwnerThread();
         return allocator_;
     }
 
-    [[nodiscard]] const LuaAllocator& allocator() const noexcept {
+    [[nodiscard]] const LuaAllocator& allocator() const {
+        globalState_.requireOwnerThread();
         return allocator_;
+    }
+
+    /**
+     * @brief Owner-thread access to runtime-wide execution limits.
+     */
+    [[nodiscard]] ExecutionPolicy& executionPolicy() {
+        globalState_.requireOwnerThread();
+        return globalState_.getExecutionPolicy();
+    }
+
+    [[nodiscard]] const ExecutionPolicy& executionPolicy() const {
+        globalState_.requireOwnerThread();
+        return globalState_.getExecutionPolicy();
+    }
+
+    /**
+     * @brief Owner-thread configuration for library and host-resource access.
+     */
+    [[nodiscard]] SandboxPolicy& sandboxPolicy() {
+        globalState_.requireOwnerThread();
+        return globalState_.getSandboxPolicy();
+    }
+
+    [[nodiscard]] const SandboxPolicy& sandboxPolicy() const {
+        globalState_.requireOwnerThread();
+        return globalState_.getSandboxPolicy();
+    }
+
+    /**
+     * @brief Create a non-owning handle whose only cross-thread action is cancel.
+     */
+    [[nodiscard]] ExecutionCancellationHandle cancellationHandle() {
+        return executionPolicy().cancellationHandle();
     }
 
 private:

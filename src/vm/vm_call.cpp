@@ -187,7 +187,8 @@ bool precallImpl(LuaState* L, i32 funcIndex, i32 nArgs, i32 nResults, const Str&
             actualCallArgs = static_cast<i32>(L->getAbsoluteTop()) - static_cast<i32>(funcPos + 1);
         }
 
-        Vec<Value> args;
+        LuaVector<Value> args(LuaStdAllocator<Value>(L->getGlobalState().getAllocator()));
+        args.reserve(static_cast<usize>(actualCallArgs));
         for (i32 i = 1; i <= actualCallArgs; i++)
             args.push_back(stack.at(funcPos + i));
 

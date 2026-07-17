@@ -4,9 +4,16 @@
 #include "vm/state/lua_state.hpp"
 
 #include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <stdexcept>
 #include <string>
+
+#ifdef _WIN32
+#include <process.h>
+#else
+#include <unistd.h>
+#endif
 
 namespace {
 
@@ -76,12 +83,50 @@ FixtureResult callFixture(lua_State* state, const char* modulePath) {
     return {stateCalls, moduleCalls};
 }
 
+void installCloseFinalizer(lua_State* state, const char* modulePath, const std::filesystem::path& markerPath) {
+    lua_settop(state, 0);
+    lua_getglobal(state, "package");
+    lua_pushstring(state, "loadlib");
+    lua_gettable(state, -2);
+    lua_remove(state, -2);
+    lua_pushstring(state, modulePath);
+    lua_pushstring(state, "luaopen_publicfixture");
+    if (lua_pcall(state, 2, 1, 0) != LUA_OK) {
+        throw apiFailure(state, "package.loadlib for close finalizer");
+    }
+
+    lua_pushstring(state, "publicfixture");
+    if (lua_pcall(state, 1, 1, 0) != LUA_OK || !lua_istable(state, -1)) {
+        throw apiFailure(state, "luaopen_publicfixture for close finalizer");
+    }
+
+    lua_pushstring(state, "install_close_finalizer");
+    lua_gettable(state, -2);
+    if (!lua_isfunction(state, -1)) {
+        throw std::runtime_error("native module did not export install_close_finalizer");
+    }
+    const std::string marker = markerPath.string();
+    lua_pushlstring(state, marker.data(), marker.size());
+    if (lua_pcall(state, 1, 1, 0) != LUA_OK || !lua_isuserdata(state, -1)) {
+        throw apiFailure(state, "install_close_finalizer");
+    }
+    lua_settop(state, 0);
+}
+
 std::string moduleSearchName(const char* modulePath) {
     const std::string filename = std::filesystem::path(modulePath).filename().string();
 #ifdef __APPLE__
     return "@executable_path/" + filename;
 #else
     return filename;
+#endif
+}
+
+long currentProcessId() noexcept {
+#ifdef _WIN32
+    return static_cast<long>(_getpid());
+#else
+    return static_cast<long>(getpid());
 #endif
 }
 
@@ -131,13 +176,38 @@ int main(int argc, char** argv) {
             }
         }
 
-        Lua::EngineContext reloadedContext;
-        Lua::UPtr<Lua::LuaState> reloaded = Lua::LuaState::create(reloadedContext);
-        luaL_openlibs(apiState(reloaded.get()));
-        const FixtureResult afterLastClose = callFixture(apiState(reloaded.get()), argv[1]);
-        if (afterLastClose.stateCalls != 1 || afterLastClose.moduleCalls != 1 ||
-            reloadedContext.nativeModules().loadedCount() != 1) {
-            throw std::runtime_error("last EngineContext close did not unload and reset the native module");
+        {
+            Lua::EngineContext reloadedContext;
+            Lua::UPtr<Lua::LuaState> reloaded = Lua::LuaState::create(reloadedContext);
+            luaL_openlibs(apiState(reloaded.get()));
+            const FixtureResult afterLastClose = callFixture(apiState(reloaded.get()), argv[1]);
+            if (afterLastClose.stateCalls != 1 || afterLastClose.moduleCalls != 1 ||
+                reloadedContext.nativeModules().loadedCount() != 1) {
+                throw std::runtime_error("last EngineContext close did not unload and reset the native module");
+            }
+        }
+
+        const std::filesystem::path markerPath =
+            std::filesystem::temp_directory_path() /
+            ("lua_cpp_native_close_finalizer_" + std::to_string(currentProcessId()) + ".marker");
+        std::error_code removeError;
+        (void)std::filesystem::remove(markerPath, removeError);
+
+        lua_State* closeState = lua_open();
+        if (closeState == nullptr) {
+            throw std::runtime_error("failed to create native close-finalizer state");
+        }
+        luaL_openlibs(closeState);
+        installCloseFinalizer(closeState, argv[1], markerPath);
+        lua_close(closeState);
+
+        std::ifstream marker(markerPath, std::ios::binary);
+        std::string markerText;
+        marker >> markerText;
+        marker.close();
+        (void)std::filesystem::remove(markerPath, removeError);
+        if (markerText != "module-finalizer-ran") {
+            throw std::runtime_error("native __gc did not run before its module was unloaded");
         }
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';

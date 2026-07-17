@@ -3,10 +3,10 @@
 #include "lualib.h"
 
 /*
- * This translation unit is deliberately C, not C++.  Every PASS symbol in
- * lua51-public-api-contract.json must appear here. Each evaluated assignment
- * to the volatile function-pointer sink creates a real relocation, so the C
- * compiler and final linker both have to resolve all PASS symbols.
+ * This translation unit is deliberately C, not C++. Every real function in
+ * the project's public headers must appear here. Each evaluated assignment to
+ * the volatile function-pointer sink creates a real relocation, so both the C
+ * compiler and the static/shared final linker must resolve the full surface.
  */
 static volatile lua_CFunction lua_public_link_sink;
 
@@ -22,8 +22,11 @@ int lua_public_c_header_probe(void) {
     } while (0)
 
     REQUIRE_SYMBOL(lua_newstate);
+    REQUIRE_SYMBOL(lua_open);
     REQUIRE_SYMBOL(lua_close);
     REQUIRE_SYMBOL(lua_newthread);
+    REQUIRE_SYMBOL(lua_trynewthread);
+    REQUIRE_SYMBOL(lua_atpanic);
     REQUIRE_SYMBOL(lua_gettop);
     REQUIRE_SYMBOL(lua_settop);
     REQUIRE_SYMBOL(lua_pushvalue);
@@ -31,16 +34,24 @@ int lua_public_c_header_probe(void) {
     REQUIRE_SYMBOL(lua_insert);
     REQUIRE_SYMBOL(lua_replace);
     REQUIRE_SYMBOL(lua_checkstack);
+    REQUIRE_SYMBOL(lua_checkexecution);
     REQUIRE_SYMBOL(lua_xmove);
     REQUIRE_SYMBOL(lua_isnumber);
     REQUIRE_SYMBOL(lua_isstring);
     REQUIRE_SYMBOL(lua_iscfunction);
     REQUIRE_SYMBOL(lua_isuserdata);
+    REQUIRE_SYMBOL(lua_equal);
+    REQUIRE_SYMBOL(lua_rawequal);
+    REQUIRE_SYMBOL(lua_lessthan);
     REQUIRE_SYMBOL(lua_type);
     REQUIRE_SYMBOL(lua_typename);
     REQUIRE_SYMBOL(lua_tonumber);
+    REQUIRE_SYMBOL(lua_tointeger);
     REQUIRE_SYMBOL(lua_toboolean);
     REQUIRE_SYMBOL(lua_tolstring);
+    REQUIRE_SYMBOL(lua_tocfunction);
+    REQUIRE_SYMBOL(lua_tothread);
+    REQUIRE_SYMBOL(lua_topointer);
     REQUIRE_SYMBOL(lua_objlen);
     REQUIRE_SYMBOL(lua_touserdata);
     REQUIRE_SYMBOL(lua_pushnil);
@@ -48,39 +59,99 @@ int lua_public_c_header_probe(void) {
     REQUIRE_SYMBOL(lua_pushinteger);
     REQUIRE_SYMBOL(lua_pushlstring);
     REQUIRE_SYMBOL(lua_pushstring);
+    REQUIRE_SYMBOL(lua_pushvfstring);
+    REQUIRE_SYMBOL(lua_pushfstring);
     REQUIRE_SYMBOL(lua_pushcclosure);
     REQUIRE_SYMBOL(lua_pushboolean);
     REQUIRE_SYMBOL(lua_pushlightuserdata);
+    REQUIRE_SYMBOL(lua_pushthread);
     REQUIRE_SYMBOL(lua_gettable);
+    REQUIRE_SYMBOL(lua_getfield);
+    REQUIRE_SYMBOL(lua_rawget);
+    REQUIRE_SYMBOL(lua_getglobal);
     REQUIRE_SYMBOL(lua_rawgeti);
     REQUIRE_SYMBOL(lua_createtable);
     REQUIRE_SYMBOL(lua_newuserdata);
     REQUIRE_SYMBOL(lua_getmetatable);
+    REQUIRE_SYMBOL(lua_getfenv);
     REQUIRE_SYMBOL(lua_settable);
+    REQUIRE_SYMBOL(lua_setfield);
+    REQUIRE_SYMBOL(lua_rawset);
+    REQUIRE_SYMBOL(lua_setglobal);
     REQUIRE_SYMBOL(lua_rawseti);
     REQUIRE_SYMBOL(lua_setmetatable);
+    REQUIRE_SYMBOL(lua_setfenv);
     REQUIRE_SYMBOL(lua_call);
     REQUIRE_SYMBOL(lua_pcall);
+    REQUIRE_SYMBOL(lua_cpcall);
     REQUIRE_SYMBOL(lua_load);
     REQUIRE_SYMBOL(lua_dump);
     REQUIRE_SYMBOL(lua_yield);
     REQUIRE_SYMBOL(lua_resume);
     REQUIRE_SYMBOL(lua_status);
     REQUIRE_SYMBOL(lua_error);
+    REQUIRE_SYMBOL(lua_gc);
+    REQUIRE_SYMBOL(lua_next);
+    REQUIRE_SYMBOL(lua_concat);
     REQUIRE_SYMBOL(lua_getallocf);
     REQUIRE_SYMBOL(lua_setallocf);
+    REQUIRE_SYMBOL(lua_setlevel);
+    REQUIRE_SYMBOL(lua_getstack);
+    REQUIRE_SYMBOL(lua_getinfo);
+    REQUIRE_SYMBOL(lua_getlocal);
+    REQUIRE_SYMBOL(lua_setlocal);
+    REQUIRE_SYMBOL(lua_sethook);
+    REQUIRE_SYMBOL(lua_gethook);
+    REQUIRE_SYMBOL(lua_gethookmask);
+    REQUIRE_SYMBOL(lua_gethookcount);
     REQUIRE_SYMBOL(lua_getupvalue);
     REQUIRE_SYMBOL(lua_setupvalue);
+    REQUIRE_SYMBOL(luaL_argcheck);
     REQUIRE_SYMBOL(luaL_argerror);
+    REQUIRE_SYMBOL(luaL_typerror);
+    REQUIRE_SYMBOL(luaL_getmetafield);
+    REQUIRE_SYMBOL(luaL_callmeta);
     REQUIRE_SYMBOL(luaL_checklstring);
+    REQUIRE_SYMBOL(luaL_optlstring);
     REQUIRE_SYMBOL(luaL_checknumber);
+    REQUIRE_SYMBOL(luaL_optnumber);
+    REQUIRE_SYMBOL(luaL_checkinteger);
+    REQUIRE_SYMBOL(luaL_optinteger);
+    REQUIRE_SYMBOL(luaL_checkint);
+    REQUIRE_SYMBOL(luaL_checkstring);
+    REQUIRE_SYMBOL(luaL_checkstack);
+    REQUIRE_SYMBOL(luaL_checktype);
+    REQUIRE_SYMBOL(luaL_checkany);
+    REQUIRE_SYMBOL(luaL_newmetatable);
+    REQUIRE_SYMBOL(luaL_checkudata);
+    REQUIRE_SYMBOL(luaL_where);
+    REQUIRE_SYMBOL(luaL_checkoption);
     REQUIRE_SYMBOL(luaL_error);
     REQUIRE_SYMBOL(luaL_ref);
     REQUIRE_SYMBOL(luaL_unref);
     REQUIRE_SYMBOL(luaL_loadfile);
     REQUIRE_SYMBOL(luaL_loadbuffer);
     REQUIRE_SYMBOL(luaL_loadstring);
+    REQUIRE_SYMBOL(luaL_newstate);
+    REQUIRE_SYMBOL(luaL_gsub);
+    REQUIRE_SYMBOL(luaL_findtable);
+    REQUIRE_SYMBOL(luaL_buffinit);
+    REQUIRE_SYMBOL(luaL_prepbuffer);
+    REQUIRE_SYMBOL(luaL_addlstring);
+    REQUIRE_SYMBOL(luaL_addstring);
+    REQUIRE_SYMBOL(luaL_addvalue);
+    REQUIRE_SYMBOL(luaL_pushresult);
+    REQUIRE_SYMBOL(luaL_openlib);
+    REQUIRE_SYMBOL(luaL_register);
     REQUIRE_SYMBOL(luaL_openlibs);
+    REQUIRE_SYMBOL(luaopen_base);
+    REQUIRE_SYMBOL(luaopen_table);
+    REQUIRE_SYMBOL(luaopen_io);
+    REQUIRE_SYMBOL(luaopen_os);
+    REQUIRE_SYMBOL(luaopen_string);
+    REQUIRE_SYMBOL(luaopen_math);
+    REQUIRE_SYMBOL(luaopen_debug);
+    REQUIRE_SYMBOL(luaopen_package);
 
 #undef REQUIRE_SYMBOL
     return declarations;
