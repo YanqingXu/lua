@@ -27,12 +27,15 @@ public:
 private:
     class AstFactory {
     public:
+        explicit AstFactory(const LuaAllocator* allocator) noexcept
+            : allocator_(allocator != nullptr ? *allocator : LuaAllocator{}) {}
+
         template <typename T, typename... Args> ExprPtr makeExpr(Args&&... args) {
-            return makeUnique<Expr>(T(std::forward<Args>(args)...));
+            return makeLuaOwned<Expr>(&allocator_, T(std::forward<Args>(args)...));
         }
 
         template <typename T, typename... Args> StmtPtr makeStmt(Args&&... args) {
-            return makeUnique<Stmt>(T(std::forward<Args>(args)...));
+            return makeLuaOwned<Stmt>(&allocator_, T(std::forward<Args>(args)...));
         }
 
         ExprPtr makeBinaryExpr(BinaryExpr::Op op, const Token& opToken, ExprPtr left, ExprPtr right) {
@@ -53,6 +56,9 @@ private:
             expr.column = opToken.column;
             return makeExpr<UnaryExpr>(std::move(expr));
         }
+
+    private:
+        LuaAllocator allocator_;
     };
 
     class TokenStream {

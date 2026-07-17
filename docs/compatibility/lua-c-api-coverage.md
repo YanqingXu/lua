@@ -1,7 +1,7 @@
 ---
 status: current
-verified_against: CMakeLists.txt; .github/workflows/ci.yml; src/lua.h; src/lauxlib.h; src/lualib.h; src/api/lapi.cpp; src/api/lauxlib.cpp; src/lib/debuglib.cpp; src/runtime/lua_allocator.hpp; src/runtime/runtime_services.hpp; src/runtime/execution_policy.hpp; src/runtime/native_module_registry.hpp; src/common/lua_error.hpp; src/vm/state/global_state.cpp; src/vm/state/lua_state.cpp; src/gc/garbage_collector.hpp; src/gc/garbage_collector.cpp; src/core/userdata.cpp; src/lib/testlib.cpp; tests/compatibility/lua51-public-api-contract.json; tests/compatibility/lua_public_api_exports.def; tests/compatibility/lua_public_api_exports.map; tests/compatibility/public_api_c_compile.c; tests/compatibility/public_api_cpp_consumer.cpp; tests/compatibility/lua51_c_api_differential_probe.c; tests/compatibility/public_native_module.c; tests/unit/api/test_lua_c_api.cpp; tools/check_lua51_public_api_contract.py; tools/run_lua51_c_api_differential.ps1; tests/lua/official/api.lua; tests/lua/official/code.lua
-last_checked: 2026-07-16
+verified_against: CMakeLists.txt; .github/workflows/ci.yml; src/lua.h; src/lauxlib.h; src/lualib.h; src/api/lapi.cpp; src/api/lauxlib.cpp; src/lib/debuglib.cpp; src/runtime/lua_allocator.hpp; src/runtime/runtime_services.hpp; src/runtime/execution_policy.hpp; src/runtime/native_module_registry.hpp; src/common/lua_error.hpp; src/compiler/ast.hpp; src/compiler/parser/parser_impl.hpp; src/vm/state/global_state.cpp; src/vm/state/lua_state.cpp; src/gc/garbage_collector.hpp; src/gc/garbage_collector.cpp; src/core/userdata.cpp; src/lib/testlib.cpp; tests/compatibility/lua51-public-api-contract.json; tests/compatibility/lua_public_api_exports.def; tests/compatibility/lua_public_api_exports.map; tests/compatibility/public_api_c_compile.c; tests/compatibility/public_api_cpp_consumer.cpp; tests/compatibility/lua51_c_api_differential_probe.c; tests/compatibility/public_native_module.c; tests/unit/api/test_lua_c_api.cpp; tests/unit/compiler/test_parser_boundaries.cpp; tools/check_lua51_public_api_contract.py; tools/run_lua51_c_api_differential.ps1; tests/lua/official/api.lua; tests/lua/official/code.lua
+last_checked: 2026-07-17
 applies_to: Lua 5.1 C API 原型、项目内直接测试与官方 testC 覆盖边界
 ---
 
@@ -32,20 +32,20 @@ applies_to: Lua 5.1 C API 原型、项目内直接测试与官方 testC 覆盖�
 | auxlib 公共层 | 34 个 Lua 5.1 auxlib 函数全部公开；包含 openlib/register、类型与可选参数检查、命名 metatable/userdata 检查、错误位置、findtable/gsub 及通用 buffer | upvalue 注册、global/_LOADED 身份、函数名与源码行错误、默认参数、错误分支、metafield 调用、userdata 身份、dotted conflict、跨 flush embedded NUL buffer | 同一纯 C probe 分别链接官方 Lua 5.1 与项目实现，registration/metatable/check/buffer/error/newstate 结果逐字节一致 | 34/34 官方 auxlib 函数已形成声明、导出、直接测试和官方差分闭环 |
 | 调试 C API | `lua_Debug`/`lua_Hook` 精确公开布局；`lua_getstack/getinfo/getlocal/setlocal` 与四个 hook 管理入口；C hook 和语言层 hook 共用单槽、count mask 与重入保护 | `>SufL` 栈副作用、C/Lua/tail activation、活动 local 读写、active lines、call/return/line/count/tail-return 事件、zero-mask 禁用和 getter | 同一纯 C probe 在官方与项目 Runtime 上逐项比较 function/stack/local/hook/config/event/disable/invalid-level 结果 | 8/8 本批官方调试函数已形成声明、布局、导出、直接测试和官方差分闭环 |
 | 标准库公开入口 | `lualib.h` 的 8 个 `luaopen_*` 函数、官方库名/文件句柄宏；`luaopen_base` 同时打开 base/coroutine 并返回两个表，其余入口返回对应全局库表；默认 sandbox unrestricted，配置 profile 后 opener 在发布前执行库策略 | C activation 调用形态、精确返回栈、全局表身份、`luaL_openlibs` 栈保持与全库注册；禁用库 opener 栈不变且不发布全局，base/coroutine 成对预检 | 同一纯 C probe 分别链接官方 Lua 5.1 与项目实现，8 个 opener、宏与 openlibs 结果逐字节一致 | 默认行为保持 8/8 官方差分闭环；配置后的项目 sandbox 另有直接策略测试 |
-| allocator 与内存故障 | `lua_newstate` 保存/调用 callback；`lua_getallocf/setallocf`；主/协程 State、Context、GC object、userdata payload，以及 Stack/CallInfo、VM `__call` 实参暂存与 `OP_CONCAT` 结果、标准库 `table.concat` 结果及 `table.sort` 工作副本/比较器快照、GC 工作列表、StringPool 索引、Table、Proto/Function 容量、reader source buffer、services-backed Lexer/Token 缓存与 Parser 函数语法作用域/名称；当前 allocator 负责关闭释放 | callback/userdata 往返、allocator 替换、初始化分配失败、协程创建每一实际分配点、protected-call/GC object/payload 运行期失败、长字符串内容、Table/SETLIST 与 Proto 真实 realloc、Stack/CallInfo、宽 `__call`、VM concat、`table.concat` 与 `table.sort` 的 fail-on-N/零余量 hard limit、loader/compiler fail-on-N、Token allocator 对象外存活、old-size/关闭归零 | 原始 `api.lua` 的 `T.totalmem` 低内存循环 exact PASS | 长字符串、核心 Table/Proto、State stack/CallInfo、VM `__call`/concat、标准库 `table.concat`/`table.sort`、GC worklist、reader source buffer、Lexer/Token buffer 与 Parser syntax-scope 切片已形成 allocator hard-limit/事务证据；其余 AST/codegen、stdlib/I/O/package/debug 临时容器仍不支持全运行时 hard-limit 声明，详见内存合同 |
+| allocator 与内存故障 | `lua_newstate` 保存/调用 callback；`lua_getallocf/setallocf`；主/协程 State、Context、GC object、userdata payload，以及 Stack/CallInfo、VM `__call` 实参暂存与 `OP_CONCAT` 结果、标准库 `table.concat` 结果及 `table.sort` 工作副本/比较器快照、GC 工作列表、StringPool 索引、Table、Proto/Function 容量、reader source buffer、services-backed Lexer/Token 缓存、Parser 函数语法作用域/名称与 AST Expr/Stmt 节点对象；当前 allocator 负责关闭释放 | callback/userdata 往返、allocator 替换、初始化分配失败、协程创建每一实际分配点、protected-call/GC object/payload 运行期失败、长字符串内容、Table/SETLIST 与 Proto 真实 realloc、Stack/CallInfo、宽 `__call`、VM concat、`table.concat` 与 `table.sort` 的 fail-on-N/零余量 hard limit、loader/compiler fail-on-N、Token/AST allocator 对象外存活、old-size/关闭归零 | 原始 `api.lua` 的 `T.totalmem` 低内存循环 exact PASS | 长字符串、核心 Table/Proto、State stack/CallInfo、VM `__call`/concat、标准库 `table.concat`/`table.sort`、GC worklist、reader source buffer、Lexer/Token buffer、Parser syntax-scope 与 AST 节点对象切片已形成 allocator hard-limit/事务证据；AST 内部字符串/向量载荷及其余 codegen、stdlib/I/O/package/debug 临时容器仍不支持全运行时 hard-limit 声明，详见内存合同 |
 | State/协程组移动 | `lua_xmove` | 同组双向顺序保持；拒绝独立 `EngineContext` State | `api.lua` 覆盖 remote/new-stack 语义，但不作为公开 `lua_xmove` 的替代证据 | 移动语义与独立所有权已直接测试 |
 | 原生 C 模块 | `package.loadlib` / C searcher 使用 context-owned `NativeModuleRegistry` | 纯 C `lua.h` fixture 由 `lua_app`、公开 API embedding host 和双-context host 动态加载；open/init 错误、per-state 状态、lease cache、关闭与重载；模块内 `__gc` 写入外部标记证明 finalizer 先于卸载 | 官方模块源码不作为本项目二进制 ABI 替代证据 | Windows CMake 已验证 host import table；Linux/Windows CI 均运行 `api-contract` / `native-module` CTest |
 | 官方 helper | 项目版 `T.testC`、`T.listcode` 及 state/userdata/ref/memory helpers 位于 `src/lib/testlib.cpp` | 独立 `official-testc` 通道实际打开 `T`，不再自跳过 | 原始 `api.lua` exact PASS；`code.lua` 的 5.1.5 oracle 来源已锁定，校正通用 5.1 fixture 后仍有一个编译器 parity XFAIL | API TestC 契约闭环；剩余 code XFAIL 已与 fixture 版本差异分离 |
 
 ## 当前证据
 
-2026-07-16 的直接门禁：
+2026-07-17 的直接门禁：
 
 ```powershell
 bin\lua_test.exe --filter "Lua C API"
 ```
 
-当前 Debug/Release strict 结果为 58 个测试、2492 个断言、0 failures。机器合同包含 123 个官方公共函数：123 个 `PASS`、0 个 `XFAIL`、0 个 `UNSUPPORTED`。项目头文件的当前公开面另由 131 个真实函数、57 个宏、24 个枚举常量和 11 个 typedef 的穷尽式编译合同保护。当前完整 Debug/Release strict 套件为 765 个测试、6177 个断言、0 failures；上一完整在线基线 [`599942b`](https://github.com/YanqingXu/lua/commit/599942bfecf292d539d831e0cab8450b2d6660e6) 已在 [Actions run 29495575432](https://github.com/YanqingXu/lua/actions/runs/29495575432) 取得 10/10 jobs 全绿，本提交在线矩阵待验证。原始 `api.lua` 另以以下 exact TestC 门禁通过：
+当前 Debug/Release strict 结果为 58 个测试、2793 个断言、0 failures。机器合同包含 123 个官方公共函数：123 个 `PASS`、0 个 `XFAIL`、0 个 `UNSUPPORTED`。项目头文件的当前公开面另由 131 个真实函数、57 个宏、24 个枚举常量和 11 个 typedef 的穷尽式编译合同保护。当前完整 Debug/Release strict 套件为 766 个测试、6482 个断言、0 failures；上一完整在线基线 [`7e95938`](https://github.com/YanqingXu/lua/commit/7e95938979c82b2f5f2ad9f415bb45f4b83c9a7f) 已在 [Actions run 29505951352](https://github.com/YanqingXu/lua/actions/runs/29505951352) 取得 10/10 jobs 全绿，本提交在线矩阵待验证。原始 `api.lua` 另以以下 exact TestC 门禁通过：
 
 ```powershell
 bin\lua_test.exe --filter "api.lua with T module"
@@ -64,6 +64,6 @@ ctest --test-dir build -C Debug -L native-module --output-on-failure
 
 ## 下一批失败驱动任务
 
-1. 将已经闭环的长字符串、Table/SETLIST、Proto、GC worklist、reader source buffer、Lexer/Token 与 Parser syntax-scope allocator 切片扩展到其余 AST/codegen 临时容器、Parser 诊断对象和标准库临时对象；在此之前保持全运行时 hard limit 为 `UNSUPPORTED`，由 [#5](https://github.com/YanqingXu/lua/issues/5) 跟踪。
+1. 将已经闭环的长字符串、Table/SETLIST、Proto、GC worklist、reader source buffer、Lexer/Token、Parser syntax-scope 与 AST 节点对象 allocator 切片扩展到 AST 内部字符串/向量载荷、其余 codegen 临时容器、Parser 诊断对象和标准库临时对象；在此之前保持全运行时 hard limit 为 `UNSUPPORTED`，由 [#5](https://github.com/YanqingXu/lua/issues/5) 跟踪。
 2. 扩展 coroutine 的嵌套 resume 与 Lua 5.1 不提供的 C yield continuation 边界，同时保持死协程 traceback 与关闭异常边界回归。
 3. 保持原始 `api.lua` exact 门禁；`code.lua` 保持 upstream 文件字节不变，运行时只应用清单登记的 5.1.5 oracle 校正，剩余 repeat-condition 编译器 parity gap 继续按精确诊断收敛。

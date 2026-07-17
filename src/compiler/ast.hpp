@@ -3,15 +3,15 @@
 /**
  * @file ast.hpp
  * @brief Lua抽象语法树（AST）节点定义
- * 
+ *
  * 实现Lua 5.1的抽象语法树节点类型，用于表示解析后的程序结构。
- * 
+ *
  * 核心功能：
  * - 定义所有语句类型（赋值、控制结构、函数定义等）
  * - 定义所有表达式类型（字面量、运算符、函数调用等）
  * - 使用智能指针管理节点内存
  * - 支持访问者模式进行AST遍历
- * 
+ *
  * 设计原则：
  * - 使用std::variant实现类型安全的多态
  * - 使用std::unique_ptr管理节点生命周期
@@ -20,6 +20,7 @@
  */
 
 #include "common/types.hpp"
+#include "runtime/lua_allocator.hpp"
 
 namespace Lua {
 
@@ -28,8 +29,8 @@ struct Expr;
 struct Stmt;
 
 // 智能指针类型别名
-using ExprPtr = UPtr<Expr>;
-using StmtPtr = UPtr<Stmt>;
+using ExprPtr = LuaOwnedPtr<Expr>;
+using StmtPtr = LuaOwnedPtr<Stmt>;
 
 // =====================================================================
 // 源代码位置信息基类
@@ -42,8 +43,8 @@ using StmtPtr = UPtr<Stmt>;
  * 用于错误报告、调试和代码生成时的位置追踪。
  */
 struct SourceLocation {
-    i32 line;    ///< 行号（从1开始）
-    i32 column;  ///< 列号（从1开始）
+    i32 line;   ///< 行号（从1开始）
+    i32 column; ///< 列号（从1开始）
 
     /**
      * @brief 默认构造函数
@@ -65,8 +66,7 @@ struct SourceLocation {
 /**
  * @brief nil字面量
  */
-struct NilExpr : SourceLocation {
-};
+struct NilExpr : SourceLocation {};
 
 /**
  * @brief 布尔字面量
@@ -92,8 +92,7 @@ struct StringExpr : SourceLocation {
 /**
  * @brief 变长参数 ...
  */
-struct VarargExpr : SourceLocation {
-};
+struct VarargExpr : SourceLocation {};
 
 /**
  * @brief 标识符（变量名）
@@ -108,11 +107,22 @@ struct NameExpr : SourceLocation {
 struct BinaryExpr : SourceLocation {
     enum class Op {
         // 算术运算
-        Add, Sub, Mul, Div, Mod, Pow,
+        Add,
+        Sub,
+        Mul,
+        Div,
+        Mod,
+        Pow,
         // 比较运算
-        Eq, Ne, Lt, Le, Gt, Ge,
+        Eq,
+        Ne,
+        Lt,
+        Le,
+        Gt,
+        Ge,
         // 逻辑运算
-        And, Or,
+        And,
+        Or,
         // 字符串连接
         Concat
     };
@@ -127,9 +137,9 @@ struct BinaryExpr : SourceLocation {
  */
 struct UnaryExpr : SourceLocation {
     enum class Op {
-        Not,    // not
-        Neg,    // -
-        Len     // #
+        Not, // not
+        Neg, // -
+        Len  // #
     };
 
     Op op;
@@ -140,7 +150,7 @@ struct UnaryExpr : SourceLocation {
  * @brief 表构造器
  */
 struct TableField {
-    ExprPtr key;    // nil表示数组部分
+    ExprPtr key; // nil表示数组部分
     ExprPtr value;
 };
 
@@ -158,7 +168,7 @@ struct TableExpr : SourceLocation {
 struct CallExpr : SourceLocation {
     ExprPtr func;
     Vec<ExprPtr> args;
-    bool isMethodCall = false;  // 是否为方法调用（使用冒号语法）
+    bool isMethodCall = false; // 是否为方法调用（使用冒号语法）
 };
 
 /**
@@ -200,22 +210,8 @@ struct ParenExpr : SourceLocation {
 /**
  * @brief 表达式的variant类型
  */
-using ExprVariant = std::variant<
-    NilExpr,
-    BoolExpr,
-    NumberExpr,
-    StringExpr,
-    VarargExpr,
-    NameExpr,
-    BinaryExpr,
-    UnaryExpr,
-    TableExpr,
-    CallExpr,
-    IndexExpr,
-    MemberExpr,
-    FunctionExpr,
-    ParenExpr
->;
+using ExprVariant = std::variant<NilExpr, BoolExpr, NumberExpr, StringExpr, VarargExpr, NameExpr, BinaryExpr, UnaryExpr,
+                                 TableExpr, CallExpr, IndexExpr, MemberExpr, FunctionExpr, ParenExpr>;
 
 inline constexpr usize kExprNodeCount = 14;
 static_assert(std::variant_size_v<ExprVariant> == kExprNodeCount,
@@ -227,8 +223,7 @@ static_assert(std::variant_size_v<ExprVariant> == kExprNodeCount,
 struct Expr {
     ExprVariant variant;
 
-    template<typename T>
-    explicit Expr(T&& v) : variant(std::forward<T>(v)) {}
+    template <typename T> explicit Expr(T&& v) : variant(std::forward<T>(v)) {}
 
     i32 getLine() const;
     i32 getColumn() const;
@@ -241,15 +236,14 @@ struct Expr {
 /**
  * @brief 空语句
  */
-struct EmptyStmt : SourceLocation {
-};
+struct EmptyStmt : SourceLocation {};
 
 /**
  * @brief 赋值语句
  */
 struct AssignStmt : SourceLocation {
-    Vec<ExprPtr> targets;  // 左值列表
-    Vec<ExprPtr> values;   // 右值列表
+    Vec<ExprPtr> targets; // 左值列表
+    Vec<ExprPtr> values;  // 右值列表
 };
 
 /**
@@ -276,8 +270,8 @@ struct IfStmt : SourceLocation {
         Vec<StmtPtr> body;
     };
 
-    Vec<Branch> branches;  // if和elseif分支
-    Vec<StmtPtr> elseBranch;  // else分支
+    Vec<Branch> branches;    // if和elseif分支
+    Vec<StmtPtr> elseBranch; // else分支
     i32 endLine = 0;
 };
 
@@ -306,7 +300,7 @@ struct ForNumStmt : SourceLocation {
     Str var;
     ExprPtr init;
     ExprPtr limit;
-    ExprPtr step;  // 可选，默认为1
+    ExprPtr step; // 可选，默认为1
     Vec<StmtPtr> body;
     i32 endLine = 0;
 };
@@ -330,9 +324,9 @@ struct ForInStmt : SourceLocation {
  * - function t:method() end             -- 方法定义（自动添加self参数）
  */
 struct FunctionStmt : SourceLocation {
-    Str name;                    // 基础函数名
-    Vec<Str> tablePath;          // 表路径，例如 t.a.b.c 中的 ["t", "a", "b", "c"]
-    bool isMethod;               // 是否为方法定义（使用冒号语法）
+    Str name;           // 基础函数名
+    Vec<Str> tablePath; // 表路径，例如 t.a.b.c 中的 ["t", "a", "b", "c"]
+    bool isMethod;      // 是否为方法定义（使用冒号语法）
     Vec<Str> params;
     bool isVararg;
     Vec<StmtPtr> body;
@@ -350,8 +344,7 @@ struct ReturnStmt : SourceLocation {
 /**
  * @brief break语句
  */
-struct BreakStmt : SourceLocation {
-};
+struct BreakStmt : SourceLocation {};
 
 /**
  * @brief do-end块
@@ -364,21 +357,8 @@ struct DoStmt : SourceLocation {
 /**
  * @brief 语句的variant类型
  */
-using StmtVariant = std::variant<
-    EmptyStmt,
-    AssignStmt,
-    LocalStmt,
-    CallStmt,
-    IfStmt,
-    WhileStmt,
-    RepeatStmt,
-    ForNumStmt,
-    ForInStmt,
-    FunctionStmt,
-    ReturnStmt,
-    BreakStmt,
-    DoStmt
->;
+using StmtVariant = std::variant<EmptyStmt, AssignStmt, LocalStmt, CallStmt, IfStmt, WhileStmt, RepeatStmt, ForNumStmt,
+                                 ForInStmt, FunctionStmt, ReturnStmt, BreakStmt, DoStmt>;
 
 inline constexpr usize kStmtNodeCount = 13;
 static_assert(std::variant_size_v<StmtVariant> == kStmtNodeCount,
@@ -390,8 +370,7 @@ static_assert(std::variant_size_v<StmtVariant> == kStmtNodeCount,
 struct Stmt {
     StmtVariant variant;
 
-    template<typename T>
-    explicit Stmt(T&& v) : variant(std::forward<T>(v)) {}
+    template <typename T> explicit Stmt(T&& v) : variant(std::forward<T>(v)) {}
 
     i32 getLine() const;
     i32 getColumn() const;
@@ -406,4 +385,3 @@ struct Chunk {
 };
 
 } // namespace Lua
-

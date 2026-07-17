@@ -255,6 +255,38 @@ private:
 template <typename T> using LuaVector = std::vector<T, LuaStdAllocator<T>>;
 template <typename T> using LuaOwnedVector = std::vector<T, LuaSnapshotStdAllocator<T>>;
 
+template <typename T> class LuaOwnedObjectDeleter {
+public:
+    LuaOwnedObjectDeleter() noexcept = default;
+    explicit LuaOwnedObjectDeleter(const LuaAllocator* allocator) noexcept : allocator_(allocator) {}
+
+    void operator()(T* pointer) noexcept {
+        if (pointer == nullptr) {
+            return;
+        }
+        std::destroy_at(pointer);
+        allocator_.deallocate(pointer, 1);
+    }
+
+private:
+    LuaSnapshotStdAllocator<T> allocator_;
+};
+
+template <typename T> using LuaOwnedPtr = std::unique_ptr<T, LuaOwnedObjectDeleter<T>>;
+
+template <typename T, typename... Args>
+[[nodiscard]] LuaOwnedPtr<T> makeLuaOwned(const LuaAllocator* allocator, Args&&... args) {
+    LuaSnapshotStdAllocator<T> storage(allocator);
+    T* memory = storage.allocate(1);
+    try {
+        std::construct_at(memory, std::forward<Args>(args)...);
+    } catch (...) {
+        storage.deallocate(memory, 1);
+        throw;
+    }
+    return LuaOwnedPtr<T>(memory, LuaOwnedObjectDeleter<T>(allocator));
+}
+
 /**
  * Mutable string with a fixed inline buffer and exact allocator byte counts.
  *

@@ -52,7 +52,8 @@ const Vec<ParseError>& Parser::diagnostics() const noexcept {
 }
 
 Parser::Impl::Impl(const Str& source, ParserOptions options)
-    : tokenStream_(source), functionScopes_(LuaSnapshotStdAllocator<FunctionSyntaxScope>(&allocator_)),
+    : tokenStream_(source), astFactory_(&allocator_),
+      functionScopes_(LuaSnapshotStdAllocator<FunctionSyntaxScope>(&allocator_)),
       recoveryStrategy_(makeRecoveryStrategy(options.recoveryMode)) {
     diagnosticObservers_.push_back(&diagnosticCollector_);
 }
@@ -60,7 +61,7 @@ Parser::Impl::Impl(const Str& source, ParserOptions options)
 Parser::Impl::Impl(const Str& source, RuntimeServices& services, ParserOptions options)
     : allocator_(services.globalState.getAllocator() != nullptr ? *services.globalState.getAllocator()
                                                                 : LuaAllocator{}),
-      tokenStream_(source, &allocator_), services_(&services),
+      tokenStream_(source, &allocator_), services_(&services), astFactory_(&allocator_),
       functionScopes_(LuaSnapshotStdAllocator<FunctionSyntaxScope>(&allocator_)),
       recoveryStrategy_(makeRecoveryStrategy(options.recoveryMode)) {
     diagnosticObservers_.push_back(&diagnosticCollector_);

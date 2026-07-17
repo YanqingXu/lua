@@ -198,6 +198,11 @@ struct AllocatorLedger {
 };
 
 struct AllocatorProbe {
+    struct AllocationSizeObservation {
+        size_t size = 0;
+        size_t attempts = 0;
+    };
+
     AllocatorLedger* ledger = nullptr;
     size_t calls = 0;
     size_t allocations = 0;
@@ -207,8 +212,7 @@ struct AllocatorProbe {
     size_t allocationAttempts = 0;
     size_t failOnAllocation = 0;
     size_t failFromAllocation = 0;
-    size_t observedAllocationSize = 0;
-    size_t observedAllocationAttempts = 0;
+    std::array<AllocationSizeObservation, 3> allocationSizeObservations{};
 };
 
 void* trackingLuaAllocator(void* userData, void* pointer, size_t oldSize, size_t newSize) {
@@ -238,8 +242,10 @@ void* trackingLuaAllocator(void* userData, void* pointer, size_t oldSize, size_t
     }
 
     ++probe->allocationAttempts;
-    if (probe->observedAllocationSize != 0 && newSize == probe->observedAllocationSize) {
-        ++probe->observedAllocationAttempts;
+    for (AllocatorProbe::AllocationSizeObservation& observation : probe->allocationSizeObservations) {
+        if (observation.size != 0 && newSize == observation.size) {
+            ++observation.attempts;
+        }
     }
     if (probe->failOnAllocation != 0 && probe->allocationAttempts == probe->failOnAllocation) {
         return nullptr;
@@ -3978,15 +3984,24 @@ void testLoadBufferAllocatorFailures(TestSuite& suite) {
     AllocatorProbe baselineProbe{&baselineLedger};
     lua_State* baseline = lua_newstate(trackingLuaAllocator, &baselineProbe);
     ASSERT_TRUE(suite, baseline != nullptr, "loadbuffer failure scan creates baseline state");
-    baselineProbe.observedAllocationSize = sizeof("parser_scope_identifier_name");
+    AllocatorProbe::AllocationSizeObservation& parserNameObservation = baselineProbe.allocationSizeObservations[0];
+    AllocatorProbe::AllocationSizeObservation& expressionObservation = baselineProbe.allocationSizeObservations[1];
+    AllocatorProbe::AllocationSizeObservation& statementObservation = baselineProbe.allocationSizeObservations[2];
+    parserNameObservation.size = sizeof("parser_scope_identifier_name");
+    expressionObservation.size = sizeof(Lua::Expr);
+    statementObservation.size = sizeof(Lua::Stmt);
     const size_t attemptsBeforeLoad = baselineProbe.allocationAttempts;
     ASSERT_EQ(suite, LUA_OK, luaL_loadbuffer(baseline, source, std::strlen(source), "=oom-loadbuffer"),
               "baseline loadbuffer succeeds");
     const size_t loadAllocationAttempts = baselineProbe.allocationAttempts - attemptsBeforeLoad;
     ASSERT_TRUE(suite, loadAllocationAttempts > 0, "loadbuffer baseline observes allocator traffic");
-    ASSERT_TRUE(suite, baselineProbe.observedAllocationAttempts >= 8,
+    ASSERT_TRUE(suite, parserNameObservation.attempts >= 8,
                 "loadbuffer baseline routes parser scope names through lua_Alloc (" +
-                    std::to_string(baselineProbe.observedAllocationAttempts) + " exact-size allocations)");
+                    std::to_string(parserNameObservation.attempts) + " exact-size allocations)");
+    ASSERT_TRUE(suite, expressionObservation.attempts >= 21 && statementObservation.attempts >= 9,
+                "loadbuffer baseline routes AST nodes through lua_Alloc (" +
+                    std::to_string(expressionObservation.attempts) + " Expr, " +
+                    std::to_string(statementObservation.attempts) + " Stmt allocations)");
     lua_close(baseline);
     ASSERT_TRUE(suite, baselineLedger.blocks.empty(), "baseline loadbuffer state closes without leaks");
 

@@ -14,6 +14,7 @@
 #include "compiler/ast.hpp"
 #include "compiler/lexer/lexer.hpp"
 #include "compiler/parser/parser_utils.hpp"
+#include "runtime/runtime_services.hpp"
 
 #include <algorithm>
 #include <cstring>
@@ -418,6 +419,31 @@ void testTokenAllocatorSnapshotOutlivesSourceAllocator(TestSuite& suite) {
               "token allocator snapshot releases every callback-owned byte");
 }
 
+void testAstAllocatorSnapshotOutlivesRuntimeContext(TestSuite& suite) {
+    TokenAllocatorLedger ledger;
+    Chunk survivor;
+
+    {
+        EngineContext context(tokenSnapshotAllocator, &ledger);
+        RuntimeServices services = context.services();
+        Parser parser("return 1 + 2", services);
+        auto parsed = parser.parse();
+        ASSERT_TRUE(suite, parsed.has_value(), "allocator-backed parser returns an AST chunk");
+        if (!parsed) {
+            return;
+        }
+        survivor = std::move(*parsed);
+    }
+
+    ASSERT_TRUE(suite, ledger.liveBytes > 0, "AST nodes retain callback ownership after the runtime context dies");
+    ASSERT_TRUE(suite, survivor.statements.size() == 1 && asStmt<ReturnStmt>(survivor.statements[0]) != nullptr,
+                "AST nodes remain readable through their allocator snapshots");
+
+    survivor.statements.clear();
+    ASSERT_EQ(suite, static_cast<usize>(0), ledger.liveBytes,
+              "AST allocator snapshots release every callback-owned node byte");
+}
+
 } // namespace
 
 void registerParserBoundaryTests() {
@@ -434,4 +460,6 @@ void registerParserBoundaryTests() {
     registry.registerTest(kSuiteName, "tokenString returns borrowed view", testTokenStringReturnsBorrowedView);
     registry.registerTest(kSuiteName, "token allocator snapshot lifetime",
                           testTokenAllocatorSnapshotOutlivesSourceAllocator);
+    registry.registerTest(kSuiteName, "AST allocator snapshot lifetime",
+                          testAstAllocatorSnapshotOutlivesRuntimeContext);
 }
