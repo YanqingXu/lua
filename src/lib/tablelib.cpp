@@ -22,6 +22,7 @@
 #include <format>
 #include <algorithm>
 #include <array>
+#include <limits>
 #include <new>
 #include <sstream>
 #include <string>
@@ -92,6 +93,7 @@ static bool callSortComparator(LuaState* L, Function* comparator, const Value& l
     i32 originalTop = L->getTop();
     usize savedCI = L->getCurrentCI();
     usize savedTop = L->getAbsoluteTop();
+    L->consumeNativeWork(savedTop == 0 ? 1 : static_cast<u64>(savedTop));
     LuaVector<Value> savedStack(LuaStdAllocator<Value>(L->getGlobalState().getAllocator()));
     savedStack.reserve(savedTop);
     for (usize i = 0; i < savedTop; ++i) {
@@ -131,10 +133,97 @@ static bool callSortComparator(LuaState* L, Function* comparator, const Value& l
     return result;
 }
 
+static i32 getIntegerArg(LuaState* L, i32 idx, const char* funcName,
+                         IntegerConversion mode = IntegerConversion::Truncate) {
+    const auto converted = checkedLuaInteger(getNumberArg(L, idx, funcName), mode);
+    if (!converted) {
+        const char* detail = converted.error() == IntegerConversionError::NotFinite
+                                 ? "finite number expected"
+                             : converted.error() == IntegerConversionError::NotIntegral
+                                 ? "integer expected"
+                                 : "number out of range";
+        L->error(std::format("bad argument #{} to 'table.{}' ({})", idx, funcName, detail).c_str());
+    }
+    return *converted;
+}
+
+static bool checkedSortLess(LuaState* L, Function* comparator, const Value& left, const Value& right,
+                            usize& comparisons) {
+    const usize comparisonLimit = L->getGlobalState().getResourcePolicy().maxSortComparisons;
+    if (comparisons >= comparisonLimit) {
+        L->error("table.sort: comparison limit exceeded");
+    }
+    ++comparisons;
+    L->consumeNativeWork();
+    const bool result = comparator != nullptr ? callSortComparator(L, comparator, left, right)
+                                              : defaultSortLess(L, left, right);
+    if (result && comparator != nullptr) {
+        if (comparisons >= comparisonLimit) {
+            L->error("table.sort: comparison limit exceeded");
+        }
+        ++comparisons;
+        L->consumeNativeWork();
+        if (callSortComparator(L, comparator, right, left)) {
+            L->error("invalid order function for sorting");
+        }
+    }
+    return result;
+}
+
+static void safeMergeSort(LuaState* L, LuaVector<Value>& values, Function* comparator) {
+    const usize size = values.size();
+    usize comparisons = 0;
+    if (size < 2) {
+        if (size == 1 && comparator != nullptr && checkedSortLess(L, comparator, values[0], values[0], comparisons)) {
+            L->error("invalid order function for sorting");
+        }
+        return;
+    }
+
+    // Reject the two most common invalid comparators before sorting. The
+    // merge implementation below remains memory-safe even if a stateful
+    // comparator changes its answer after these checks.
+    if (comparator != nullptr) {
+        for (const Value& value : values) {
+            if (checkedSortLess(L, comparator, value, value, comparisons)) {
+                L->error("invalid order function for sorting");
+            }
+        }
+    }
+
+    LuaVector<Value> scratch(values.get_allocator());
+    scratch.resize(size);
+    for (usize width = 1; width < size; width = width > size / 2 ? size : width * 2) {
+        for (usize left = 0; left < size; left += width * 2) {
+            const usize middle = std::min(left + width, size);
+            const usize right = std::min(left + width * 2, size);
+            usize first = left;
+            usize second = middle;
+            usize output = left;
+
+            while (first < middle && second < right) {
+                if (checkedSortLess(L, comparator, values[second], values[first], comparisons)) {
+                    scratch[output++] = values[second++];
+                } else {
+                    scratch[output++] = values[first++];
+                }
+            }
+            while (first < middle) {
+                scratch[output++] = values[first++];
+            }
+            while (second < right) {
+                scratch[output++] = values[second++];
+            }
+        }
+        values.swap(scratch);
+    }
+}
+
 static Value callForeachCallback(LuaState* L, Function* callback, const Value& key, const Value& value) {
     usize savedCI = L->getCurrentCI();
     usize savedTop = L->getAbsoluteTop();
-    Vec<Value> savedStack;
+    L->consumeNativeWork(savedTop == 0 ? 1 : static_cast<u64>(savedTop));
+    LuaVector<Value> savedStack(LuaStdAllocator<Value>(L->getGlobalState().getAllocator()));
     savedStack.reserve(savedTop);
     for (usize i = 0; i < savedTop; ++i) {
         savedStack.push_back(L->getStack().at(i));
@@ -182,13 +271,20 @@ i32 table_insert(LuaState* L) {
     if (nargs == 2) {
         // table.insert(table, value) - 在末尾插入
         i32 len = getTableLength(table);
+        L->consumeNativeWork();
         Value value = L->at(2);
         table->set(Value(static_cast<f64>(len + 1)), value);
     } else {
         // table.insert(table, pos, value) - 在指定位置插入
-        i32 pos = static_cast<i32>(getNumberArg(L, 2, "insert"));
+        i32 pos = getIntegerArg(L, 2, "insert");
         Value value = L->at(3);
         i32 len = getTableLength(table);
+        if (pos < 1 || pos > len + 1) {
+            L->error("bad argument #2 to 'table.insert' (position out of bounds)");
+        }
+
+        const u64 shifts = static_cast<u64>(len - pos + 1);
+        L->consumeNativeWork(shifts + 1);
 
         // 将 pos 到 len 的元素后移
         for (i32 i = len; i >= pos; i--) {
@@ -220,6 +316,7 @@ i32 table_foreach(LuaState* L) {
     Value nextKey;
     Value nextValue;
     while (table->next(key, nextKey, nextValue)) {
+        L->consumeNativeWork();
         Value result = callForeachCallback(L, callback, nextKey, nextValue);
         if (!result.isNil()) {
             L->pushValue(result);
@@ -242,6 +339,7 @@ i32 table_foreachi(LuaState* L) {
     i32 len = getTableLength(table);
 
     for (i32 i = 1; i <= len; ++i) {
+        L->consumeNativeWork();
         Value key(static_cast<f64>(i));
         Value value = table->get(key);
         Value result = callForeachCallback(L, callback, key, value);
@@ -267,7 +365,7 @@ i32 table_remove(LuaState* L) {
     Table* table = getTableArg(L, 1, "remove");
     i32 len = getTableLength(table);
 
-    i32 pos = (nargs >= 2) ? static_cast<i32>(getNumberArg(L, 2, "remove")) : len;
+    i32 pos = (nargs >= 2) ? getIntegerArg(L, 2, "remove") : len;
 
     if (pos < 1 || pos > len) {
         L->pushNil();
@@ -276,6 +374,8 @@ i32 table_remove(LuaState* L) {
 
     // 获取要移除的值
     Value removed = table->get(Value(static_cast<f64>(pos)));
+
+    L->consumeNativeWork(static_cast<u64>(len - pos + 1));
 
     // 将 pos+1 到 len 的元素前移
     for (i32 i = pos; i < len; i++) {
@@ -312,14 +412,24 @@ i32 table_concat(LuaState* L) {
     }
 
     // 获取起始和结束索引
-    i32 i = (nargs >= 3) ? static_cast<i32>(getNumberArg(L, 3, "concat")) : 1;
-    i32 j = (nargs >= 4) ? static_cast<i32>(getNumberArg(L, 4, "concat")) : getTableLength(table);
+    i32 i = (nargs >= 3) ? getIntegerArg(L, 3, "concat") : 1;
+    i32 j = (nargs >= 4) ? getIntegerArg(L, 4, "concat") : getTableLength(table);
 
     // 连接字符串
     LuaVector<char> result(LuaStdAllocator<char>(L->getGlobalState().getAllocator()));
-    for (i32 idx = i; idx <= j; idx++) {
+    const ResourcePolicy& resources = L->getGlobalState().getResourcePolicy();
+    const usize outputLimit = std::min(resources.maxStringBytes, resources.maxOutputBytes);
+    const auto append = [&](StrView text) {
+        if (text.size() > outputLimit || result.size() > outputLimit - text.size()) {
+            L->error("table.concat: result exceeds resource limit");
+        }
+        L->consumeNativeWork(text.empty() ? 1 : static_cast<u64>(text.size()));
+        result.insert(result.end(), text.begin(), text.end());
+    };
+
+    for (i32 idx = i; idx <= j;) {
         if (idx > i && !separator.view.empty()) {
-            result.insert(result.end(), separator.view.begin(), separator.view.end());
+            append(separator.view);
         }
 
         const Value value = table->get(Value(static_cast<f64>(idx)));
@@ -327,7 +437,11 @@ i32 table_concat(LuaState* L) {
         if (!tableConcatText(value, text)) {
             L->error("table.concat: invalid value (must be string or number)");
         }
-        result.insert(result.end(), text.view.begin(), text.view.end());
+        append(text.view);
+        if (idx == j) {
+            break;
+        }
+        ++idx;
     }
 
     // 返回连接后的字符串
@@ -348,6 +462,9 @@ i32 table_sort(LuaState* L) {
 
     Table* table = getTableArg(L, 1, "sort");
     i32 len = getTableLength(table);
+    if (static_cast<usize>(len) > L->getGlobalState().getResourcePolicy().maxSortElements) {
+        L->error("table.sort: element limit exceeded");
+    }
     Function* comparator = nullptr;
 
     if (nargs >= 2) {
@@ -361,15 +478,19 @@ i32 table_sort(LuaState* L) {
     LuaVector<Value> arr(LuaStdAllocator<Value>(L->getGlobalState().getAllocator()));
     arr.reserve(len);
     for (i32 i = 1; i <= len; i++) {
+        if ((i & 255) == 1) {
+            L->consumeNativeWork(static_cast<u64>(std::min(256, len - i + 1)));
+        }
         arr.push_back(table->get(Value(static_cast<f64>(i))));
     }
 
-    std::sort(arr.begin(), arr.end(), [&](const Value& left, const Value& right) {
-        return comparator != nullptr ? callSortComparator(L, comparator, left, right) : defaultSortLess(L, left, right);
-    });
+    safeMergeSort(L, arr, comparator);
 
     // 将排序后的值写回表
     for (i32 i = 0; i < len; i++) {
+        if ((i & 255) == 0) {
+            L->consumeNativeWork(static_cast<u64>(std::min(256, len - i)));
+        }
         table->set(Value(static_cast<f64>(i + 1)), arr[i]);
     }
 
@@ -392,6 +513,7 @@ i32 table_maxn(LuaState* L) {
     Value nextKey;
     Value nextValue;
     while (table->next(key, nextKey, nextValue)) {
+        L->consumeNativeWork();
         if (nextKey.isNumber()) {
             LuaNumber n = nextKey.asNumber();
             if (n > maxIndex) {
@@ -426,6 +548,8 @@ i32 table_getn(LuaState* L) {
 i32 table_pack(LuaState* L) {
     i32 nargs = L->getTop();
 
+    L->consumeNativeWork(nargs == 0 ? 1 : static_cast<u64>(nargs));
+
     // 创建新表
     Table* result = L->getGlobalState().getGC().create<Table>();
 
@@ -455,15 +579,28 @@ i32 table_unpack(LuaState* L) {
     Table* table = getTableArg(L, 1, "unpack");
 
     // 获取起始和结束索引
-    i32 i = (nargs >= 2 && !L->at(2).isNil()) ? static_cast<i32>(getNumberArg(L, 2, "unpack")) : 1;
-    i32 j = (nargs >= 3 && !L->at(3).isNil()) ? static_cast<i32>(getNumberArg(L, 3, "unpack")) : getTableLength(table);
+    i32 i = (nargs >= 2 && !L->at(2).isNil()) ? getIntegerArg(L, 2, "unpack") : 1;
+    i32 j = (nargs >= 3 && !L->at(3).isNil()) ? getIntegerArg(L, 3, "unpack") : getTableLength(table);
+
+    const i64 count64 = j >= i ? static_cast<i64>(j) - static_cast<i64>(i) + 1 : 0;
+    const usize returnLimit = L->getGlobalState().getResourcePolicy().maxReturnValues;
+    if (count64 > static_cast<i64>(std::numeric_limits<i32>::max()) ||
+        static_cast<u64>(count64) > static_cast<u64>(returnLimit)) {
+        L->error("table.unpack: result count exceeds resource limit");
+    }
+    const usize countSlots = static_cast<usize>(count64);
+    if (countSlots > std::numeric_limits<usize>::max() - L->getAbsoluteTop()) {
+        throw StackOverflowError("stack overflow: resource stack slot limit exceeded");
+    }
+    L->getStack().checkLimit(L->getAbsoluteTop() + countSlots);
+    L->consumeNativeWork(count64 == 0 ? 1 : static_cast<u64>(count64));
 
     // 将表元素压入栈
-    i32 count = 0;
-    for (i32 idx = i; idx <= j; idx++) {
+    const i32 count = static_cast<i32>(count64);
+    for (i64 offset = 0; offset < count64; ++offset) {
+        const i32 idx = static_cast<i32>(static_cast<i64>(i) + offset);
         Value v = table->get(Value(static_cast<f64>(idx)));
         L->pushValue(v);
-        count++;
     }
 
     return count;
@@ -480,27 +617,34 @@ i32 table_move(LuaState* L) {
     }
 
     Table* a1 = getTableArg(L, 1, "move");
-    i32 f = static_cast<i32>(getNumberArg(L, 2, "move"));
-    i32 e = static_cast<i32>(getNumberArg(L, 3, "move"));
-    i32 t = static_cast<i32>(getNumberArg(L, 4, "move"));
+    i32 f = getIntegerArg(L, 2, "move");
+    i32 e = getIntegerArg(L, 3, "move");
+    i32 t = getIntegerArg(L, 4, "move");
 
     // 获取目标表（默认为源表）
     Table* a2 = (nargs >= 5 && L->isTable(5)) ? L->at(5).asTable() : a1;
 
     // 移动元素
     if (f <= e) {
+        const i64 count = static_cast<i64>(e) - static_cast<i64>(f) + 1;
+        const i64 targetEnd = static_cast<i64>(t) + count - 1;
+        if (targetEnd > std::numeric_limits<i32>::max() || targetEnd < std::numeric_limits<i32>::min()) {
+            L->error("table.move: destination range out of bounds");
+        }
+        L->consumeNativeWork(static_cast<u64>(count));
+
         // 正向移动
-        if (t > f) {
+        if (a1 == a2 && t > f && t <= e) {
             // 从后向前复制，避免覆盖
-            for (i32 i = e - f; i >= 0; i--) {
-                Value v = a1->get(Value(static_cast<f64>(f + i)));
-                a2->set(Value(static_cast<f64>(t + i)), v);
+            for (i64 offset = count; offset-- > 0;) {
+                Value v = a1->get(Value(static_cast<f64>(static_cast<i64>(f) + offset)));
+                a2->set(Value(static_cast<f64>(static_cast<i64>(t) + offset)), v);
             }
         } else {
             // 从前向后复制
-            for (i32 i = 0; i <= e - f; i++) {
-                Value v = a1->get(Value(static_cast<f64>(f + i)));
-                a2->set(Value(static_cast<f64>(t + i)), v);
+            for (i64 offset = 0; offset < count; ++offset) {
+                Value v = a1->get(Value(static_cast<f64>(static_cast<i64>(f) + offset)));
+                a2->set(Value(static_cast<f64>(static_cast<i64>(t) + offset)), v);
             }
         }
     }

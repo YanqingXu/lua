@@ -53,13 +53,14 @@ void dispatchCallHook(LuaState* L);
 void dispatchReturnHook(LuaState* L);
 void dispatchCountHook(LuaState* L);
 void dispatchLineHook(LuaState* L, Proto* proto, usize pc);
-bool shouldDumpBytecode();
-void emitInstructionTrace(Proto* proto, Value* base, usize instructionPc, Instruction inst, i32 callDepth);
+bool shouldDumpBytecode(LuaState* L);
+void emitInstructionTrace(LuaState* L, Proto* proto, Value* base, usize instructionPc, Instruction inst,
+                          i32 callDepth);
 Vec<Value> captureTraceRegisters(LuaState* L, usize frameBase, i32 maxStack);
 void emitInstructionTraceDiff(Proto* proto, LuaState* L, usize frameBase, usize instructionPc, Instruction inst,
                               i32 callDepth, const Vec<Value>& before);
-void emitCallTrace(Proto* proto, Value* base, usize instructionPc, i32 registerIndex, i32 callDepth);
-void emitReturnTrace(Proto* proto, usize instructionPc, i32 callDepth);
+void emitCallTrace(LuaState* L, Proto* proto, Value* base, usize instructionPc, i32 registerIndex, i32 callDepth);
+void emitReturnTrace(LuaState* L, Proto* proto, usize instructionPc, i32 callDepth);
 
 void gettable(LuaState* L, Value t, const Value& key, Value& result);
 void settable(LuaState* L, Value t, const Value& key, const Value& val);

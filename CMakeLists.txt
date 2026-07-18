@@ -16,20 +16,41 @@ set(CMAKE_C_EXTENSIONS OFF)
 option(LUA_CPP_BUILD_TOOLS "Build the interpreter and bytecode tools" ON)
 option(LUA_CPP_BUILD_TESTS "Build the unit test runner" ON)
 option(LUA_CPP_BUILD_BENCHMARKS "Build the runtime benchmark driver" OFF)
-set(LUA_CPP_SANITIZER "" CACHE STRING "Enable a runtime sanitizer: address or undefined")
-set_property(CACHE LUA_CPP_SANITIZER PROPERTY STRINGS "" address undefined)
+option(LUA_CPP_BUILD_FUZZERS "Build libFuzzer security-boundary targets" OFF)
+option(LUA_CPP_ENABLE_COVERAGE "Enable Clang source-based coverage instrumentation" OFF)
+set(LUA_CPP_SANITIZER "" CACHE STRING "Enable a runtime sanitizer: address, undefined, or thread")
+set_property(CACHE LUA_CPP_SANITIZER PROPERTY STRINGS "" address undefined thread)
 
 if(LUA_CPP_SANITIZER)
     if(MSVC)
         message(FATAL_ERROR "LUA_CPP_SANITIZER is supported only by GCC and Clang builds")
     elseif(NOT CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
         message(FATAL_ERROR "Unsupported compiler for LUA_CPP_SANITIZER: ${CMAKE_CXX_COMPILER_ID}")
-    elseif(NOT LUA_CPP_SANITIZER MATCHES "^(address|undefined)$")
-        message(FATAL_ERROR "LUA_CPP_SANITIZER must be 'address' or 'undefined'")
+    elseif(NOT LUA_CPP_SANITIZER MATCHES "^(address|undefined|thread)$")
+        message(FATAL_ERROR "LUA_CPP_SANITIZER must be 'address', 'undefined', or 'thread'")
     endif()
 
     add_compile_options(-fsanitize=${LUA_CPP_SANITIZER} -fno-omit-frame-pointer)
     add_link_options(-fsanitize=${LUA_CPP_SANITIZER} -fno-omit-frame-pointer)
+endif()
+
+if(LUA_CPP_ENABLE_COVERAGE)
+    if(NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+        message(FATAL_ERROR "LUA_CPP_ENABLE_COVERAGE requires Clang or AppleClang")
+    endif()
+    add_compile_options(-fprofile-instr-generate -fcoverage-mapping)
+    add_link_options(-fprofile-instr-generate -fcoverage-mapping)
+endif()
+
+if(LUA_CPP_BUILD_FUZZERS)
+    if(NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+        message(FATAL_ERROR "LUA_CPP_BUILD_FUZZERS requires Clang or AppleClang")
+    endif()
+    if(LUA_CPP_SANITIZER STREQUAL "thread")
+        message(FATAL_ERROR "libFuzzer's address/undefined instrumentation is incompatible with TSan")
+    endif()
+    add_compile_options(-fsanitize=fuzzer-no-link,address,undefined -fno-omit-frame-pointer)
+    add_link_options(-fsanitize=address,undefined -fno-omit-frame-pointer)
 endif()
 
 function(lua_configure_target_warnings target_name)
@@ -120,6 +141,7 @@ set(LUA_CORE_SOURCES
     src/debug/json_trace_sink.cpp
     src/compiler/codegen/function_compiler.cpp
     src/runtime/native_module_registry.cpp
+    src/runtime/bytecode_verifier.cpp
 )
 
 set(LUA_REPL_SOURCES
@@ -211,6 +233,16 @@ if(CMAKE_DL_LIBS)
 endif()
 
 lua_configure_target_warnings(lua_core)
+
+if(LUA_CPP_BUILD_FUZZERS)
+    foreach(fuzzer_name IN ITEMS undump bytecode_verifier parser stdlib_numeric_arguments)
+        add_executable(fuzz_${fuzzer_name} tests/fuzz/fuzz_${fuzzer_name}.cpp)
+        target_link_libraries(fuzz_${fuzzer_name} PRIVATE lua_core)
+        target_include_directories(fuzz_${fuzzer_name} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+        target_link_options(fuzz_${fuzzer_name} PRIVATE -fsanitize=fuzzer,address,undefined)
+        lua_configure_target_warnings(fuzz_${fuzzer_name})
+    endforeach()
+endif()
 
 if(LUA_CPP_BUILD_BENCHMARKS)
     add_executable(lua_runtime_bench benchmarks/runtime_bench.cpp)

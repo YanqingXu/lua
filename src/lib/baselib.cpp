@@ -25,6 +25,8 @@
 #include "vm/state/call_info.hpp"
 #include "vm/vm.hpp"
 #include "runtime/runtime_services.hpp"
+#include "runtime/bytecode_verifier.hpp"
+#include "runtime/chunk_reader_limits.hpp"
 #include "compiler/parser/parser.hpp"
 #include "compiler/codegen/codegen.hpp"
 #include <format>
@@ -48,6 +50,23 @@ namespace Lua {
 
 static Str makeLuaChunkId(StrView chunkName);
 
+static i32 checkedIntegerArgument(LuaState* L, i32 index, const char* functionName,
+                                  IntegerConversion mode = IntegerConversion::Truncate) {
+    if (!L->isNumber(index)) {
+        L->error(std::format("bad argument #{} to '{}' (number expected)", index, functionName).c_str());
+    }
+    const auto converted = checkedLuaInteger(L->toNumber(index), mode);
+    if (!converted) {
+        const char* detail = converted.error() == IntegerConversionError::NotFinite
+                                 ? "finite number expected"
+                             : converted.error() == IntegerConversionError::NotIntegral
+                                 ? "integer expected"
+                                 : "number out of range";
+        L->error(std::format("bad argument #{} to '{}' ({})", index, functionName, detail).c_str());
+    }
+    return *converted;
+}
+
 static bool shouldReadStdinChunk() {
     std::streamsize available = std::cin.rdbuf()->in_avail();
     if (available > 0) {
@@ -67,6 +86,7 @@ static bool shouldReadStdinChunk() {
 
 i32 luaB_print(LuaState* L) {
     i32 n = L->getTop(); // 参数数量
+    L->consumeNativeWork(n == 0 ? 1 : static_cast<u64>(n));
 
     for (i32 i = 1; i <= n; i++) {
         const char* s = nullptr;
@@ -203,7 +223,7 @@ i32 luaB_tonumber(LuaState* L) {
         if (!L->isNumber(2)) {
             L->error("tonumber: base must be a number");
         }
-        base = static_cast<i32>(L->toNumber(2));
+        base = checkedIntegerArgument(L, 2, "tonumber");
         if (base < 2 || base > 36) {
             L->error("tonumber: base out of range");
         }
@@ -369,7 +389,7 @@ i32 luaB_error(LuaState* L) {
 
     i32 level = 1;
     if (L->getTop() >= 2 && L->isNumber(2)) {
-        level = static_cast<i32>(L->toNumber(2));
+        level = checkedIntegerArgument(L, 2, "error");
     }
 
     if (level > 0) {
@@ -608,11 +628,14 @@ static i32 ipairsIter(LuaState* L) {
     }
 
     Table* table = tableVal.asTable();
-    i32 index = static_cast<i32>(indexVal.asNumber());
-    i32 nextIndex = index + 1;
+    const LuaNumber index = indexVal.asNumber();
+    if (!std::isfinite(index) || std::trunc(index) != index) {
+        return 0;
+    }
+    const LuaNumber nextIndex = index + 1.0;
 
     // 获取下一个元素
-    Value nextValue = table->getArray(nextIndex);
+    Value nextValue = table->get(Value(nextIndex));
     if (nextValue.isNil()) {
         return 0; // 结束迭代
     }
@@ -773,7 +796,7 @@ i32 luaB_select(LuaState* L) {
         L->error("select: index must be a number or '#'");
     }
 
-    i32 index = static_cast<i32>(L->toNumber(1));
+    i32 index = checkedIntegerArgument(L, 1, "select");
 
     // 处理负数索引
     if (index < 0) {
@@ -788,6 +811,11 @@ i32 luaB_select(LuaState* L) {
 
     // 返回从 index+1 到 n 的所有参数
     i32 count = n - index;
+    if (static_cast<usize>(count) > L->getGlobalState().getResourcePolicy().maxReturnValues) {
+        L->error("select: too many results");
+    }
+    L->getStack().checkLimit(L->getAbsoluteTop() + static_cast<usize>(count));
+    L->consumeNativeWork(count == 0 ? 1 : static_cast<u64>(count));
     for (i32 i = index + 1; i <= n; i++) {
         L->pushValue(L->at(i));
     }
@@ -856,11 +884,15 @@ i32 luaB_xpcall(LuaState* L) {
 
 class DumpReader {
 public:
-    DumpReader(StrView data, StringPool& pool, GarbageCollector& gc) : data_(data), pool_(pool), gc_(gc) {}
+    DumpReader(StrView data, StringPool& pool, GarbageCollector& gc, const ChunkReaderLimits& limits)
+        : data_(data), pool_(pool), gc_(gc), limits_(limits) {}
 
     Proto* readChunk() {
+        if (data_.size() > limits_.maxInputBytes) {
+            throw std::runtime_error("binary chunk input limit exceeded");
+        }
         readHeader();
-        Proto* proto = readProto();
+        Proto* proto = readProto(1);
         if (pos_ != data_.size()) {
             throw std::runtime_error("binary chunk has trailing data");
         }
@@ -871,9 +903,22 @@ private:
     StrView data_;
     StringPool& pool_;
     GarbageCollector& gc_;
+    const ChunkReaderLimits& limits_;
     usize pos_ = 0;
     bool projectLocal_ = false;
     u8 sizeTSize_ = static_cast<u8>(sizeof(usize));
+    usize protoCount_ = 0;
+    usize instructionCount_ = 0;
+    usize constantCount_ = 0;
+    usize stringBytes_ = 0;
+    usize debugEntries_ = 0;
+
+    static void consumeCount(usize count, usize& total, usize limit, const char* message) {
+        if (count > limit || total > limit - count) {
+            throw std::runtime_error(message);
+        }
+        total += count;
+    }
 
     void require(usize count) const {
         if (count > data_.size() || pos_ > data_.size() - count) {
@@ -966,6 +1011,8 @@ private:
             if (len == std::numeric_limits<u32>::max()) {
                 return {};
             }
+            consumeCount(static_cast<usize>(len), stringBytes_, limits_.maxStringBytes,
+                         "binary chunk string-byte limit exceeded");
             require(len);
             GCString* str = pool_.intern(data_.data() + pos_, static_cast<usize>(len));
             pos_ += static_cast<usize>(len);
@@ -976,6 +1023,7 @@ private:
         if (len == 0) {
             return {};
         }
+        consumeCount(len, stringBytes_, limits_.maxStringBytes, "binary chunk string-byte limit exceeded");
         require(len);
         usize textLen = len;
         if (textLen > 0 && data_[pos_ + textLen - 1] == '\0') {
@@ -1002,7 +1050,13 @@ private:
         }
     }
 
-    Proto* readProto() {
+    Proto* readProto(usize depth) {
+        if (depth > limits_.maxProtoDepth) {
+            throw std::runtime_error("binary chunk Proto depth limit exceeded");
+        }
+        if (++protoCount_ > limits_.maxProtoCount) {
+            throw std::runtime_error("binary chunk Proto count limit exceeded");
+        }
         Proto* proto = gc_.create<Proto>();
         proto->setSource(readMaybeString());
         proto->setLineDefined(readI32());
@@ -1020,26 +1074,37 @@ private:
         }
 
         usize instructionCount = readSize();
+        consumeCount(instructionCount, instructionCount_, limits_.maxInstructionCount,
+                     "binary chunk instruction limit exceeded");
         for (usize i = 0; i < instructionCount; ++i) {
             proto->addInstruction(readU32());
         }
 
         usize constantCount = readSize();
+        consumeCount(constantCount, constantCount_, limits_.maxConstantCount,
+                     "binary chunk constant limit exceeded");
         for (usize i = 0; i < constantCount; ++i) {
             proto->appendConstantSlot(readConstant());
         }
 
         usize subProtoCount = readSize();
+        if (subProtoCount > limits_.maxProtoCount - protoCount_) {
+            throw std::runtime_error("binary chunk Proto count limit exceeded");
+        }
         for (usize i = 0; i < subProtoCount; ++i) {
-            proto->addProto(readProto());
+            proto->addProto(readProto(depth + 1));
         }
 
         usize lineInfoCount = readSize();
+        consumeCount(lineInfoCount, debugEntries_, limits_.maxDebugEntries,
+                     "binary chunk debug-entry limit exceeded");
         for (usize i = 0; i < lineInfoCount; ++i) {
             proto->addLineInfo(readI32());
         }
 
         usize locVarCount = readSize();
+        consumeCount(locVarCount, debugEntries_, limits_.maxDebugEntries,
+                     "binary chunk debug-entry limit exceeded");
         for (usize i = 0; i < locVarCount; ++i) {
             GCString* name = readMaybeString();
             i32 startpc = readI32();
@@ -1049,6 +1114,8 @@ private:
         }
 
         usize upvalueNameCount = readSize();
+        consumeCount(upvalueNameCount, debugEntries_, limits_.maxDebugEntries,
+                     "binary chunk debug-entry limit exceeded");
         for (usize i = 0; i < upvalueNameCount; ++i) {
             proto->addUpvalueName(readMaybeString());
         }
@@ -1145,8 +1212,20 @@ static void settleLoadGC(LuaState* L) {
 }
 
 static Function* loadBinaryChunk(LuaState* L, StrView source) {
-    DumpReader reader(source, L->getGlobalState().getStringPool(), L->getGlobalState().getGC());
+    const ChunkReaderLimits limits =
+        ChunkReaderLimits::fromResourcePolicy(L->getGlobalState().getResourcePolicy());
+    DumpReader reader(source, L->getGlobalState().getStringPool(), L->getGlobalState().getGC(), limits);
     Proto* proto = reader.readChunk();
+    BytecodeVerifierLimits verifierLimits;
+    verifierLimits.maxProtoDepth = limits.maxProtoDepth;
+    verifierLimits.maxProtoCount = limits.maxProtoCount;
+    verifierLimits.maxInstructionCount = limits.maxInstructionCount;
+    verifierLimits.maxConstantCount = limits.maxConstantCount;
+    verifierLimits.maxDebugEntries = limits.maxDebugEntries;
+    const auto verified = BytecodeVerifier::verify(*proto, verifierLimits);
+    if (!verified) {
+        throw std::runtime_error(verified.error());
+    }
     return createLuaFunctionFromProto(L, proto);
 }
 
@@ -1243,17 +1322,30 @@ i32 luaB_loadstring(LuaState* L) {
         return 2;
     }
 
-    Str code(codeVal.asString()->getData());
+    const StrView codeView = codeVal.asString()->view();
+    const ResourcePolicy& resources = L->getGlobalState().getResourcePolicy();
+    const usize inputLimit = isProjectBinaryChunk(codeView) ? resources.maxProtoBytes : resources.maxSourceBytes;
+    if (codeView.size() > inputLimit) {
+        L->setTop(0);
+        L->pushNil();
+        L->pushString(pool.intern("loadstring: input exceeds resource limit"));
+        return 2;
+    }
+
+    Str code(codeView);
     Str chunkname = (nargs >= 2 && L->at(2).isString()) ? Str(L->at(2).asString()->getData()) : code;
 
     try {
         if (isProjectBinaryChunk(StrView(code.data(), code.size()))) {
+            L->requireSandboxCapability(SandboxCapability::BinaryChunks);
             Function* func = loadBinaryChunk(L, StrView(code.data(), code.size()));
             L->setTop(0);
             L->pushValue(Value(func));
             settleLoadGC(L);
             return 1;
         }
+
+        L->requireSandboxCapability(SandboxCapability::RuntimeCompilation);
 
         RuntimeServices services(L->getGlobalState());
 
@@ -1289,6 +1381,8 @@ i32 luaB_loadstring(LuaState* L) {
     } catch (const MemoryError&) {
         throw;
     } catch (const std::bad_alloc&) {
+        throw;
+    } catch (const RuntimeError&) {
         throw;
     } catch (const ParseError& e) {
         L->setTop(0);
@@ -1376,6 +1470,13 @@ i32 luaB_loadfile(LuaState* L) {
                 L->pushString(pool.intern(errorMsg.c_str()));
                 return 2;
             }
+            const usize inputLimit = L->getGlobalState().getResourcePolicy().maxSourceBytes;
+            if (static_cast<u64>(size) > static_cast<u64>(inputLimit)) {
+                L->setTop(0);
+                L->pushNil();
+                L->pushString(pool.intern("loadfile: input exceeds resource limit"));
+                return 2;
+            }
             file.seekg(0, std::ios::beg);
             if (!file) {
                 L->setTop(0);
@@ -1395,14 +1496,24 @@ i32 luaB_loadfile(LuaState* L) {
             }
         }
 
+        if (source.size() > L->getGlobalState().getResourcePolicy().maxSourceBytes) {
+            L->setTop(0);
+            L->pushNil();
+            L->pushString(pool.intern("loadfile: input exceeds resource limit"));
+            return 2;
+        }
+
         StrView loadSource(source.data(), source.size());
         StrView binarySource = skipInitialHashCommentLine(loadSource);
         if (isProjectBinaryChunk(binarySource)) {
+            L->requireSandboxCapability(SandboxCapability::BinaryChunks);
             Function* func = loadBinaryChunk(L, binarySource);
             L->setTop(0);
             L->pushValue(Value(func));
             return 1;
         }
+
+        L->requireSandboxCapability(SandboxCapability::RuntimeCompilation);
 
         RuntimeServices services(L->getGlobalState());
 
@@ -1437,6 +1548,8 @@ i32 luaB_loadfile(LuaState* L) {
     } catch (const MemoryError&) {
         throw;
     } catch (const std::bad_alloc&) {
+        throw;
+    } catch (const RuntimeError&) {
         throw;
     } catch (const ParseError& e) {
         L->setTop(0);
@@ -1584,7 +1697,7 @@ i32 luaB_getfenv(LuaState* L) {
         Value v = L->at(1);
         func = v.asFunction();
     } else if (nargs >= 1 && L->isNumber(1)) {
-        i32 level = static_cast<i32>(L->toNumber(1));
+        i32 level = checkedIntegerArgument(L, 1, "getfenv");
         if (level == 0) {
             L->pushTable(L->getGlobalTable());
             return 1;
@@ -1656,7 +1769,7 @@ i32 luaB_setfenv(LuaState* L) {
         Value funcVal = L->at(1);
         func = funcVal.asFunction();
     } else if (L->isNumber(1)) {
-        i32 level = static_cast<i32>(L->toNumber(1));
+        i32 level = checkedIntegerArgument(L, 1, "setfenv");
         if (level == 0) {
             Table* newEnv = L->at(2).asTable();
             if (!newEnv) {
@@ -1704,8 +1817,14 @@ static i32 collectGarbageControlArgument(LuaState* L) {
     LuaNumber number = 0.0;
     if (value.isNumber()) {
         number = value.asNumber();
-    } else if (!value.isString() || !luaStringToNumber(value.asString()->view(), number)) {
+    } else if (!value.isString()) {
         L->error("bad argument #2 to 'collectgarbage' (number expected)");
+    } else {
+        GCString* string = value.asString();
+        L->consumeNativeWork(string->getLength());
+        if (!luaStringToNumber(string->view(), number, L->getGlobalState().getAllocator())) {
+            L->error("bad argument #2 to 'collectgarbage' (number expected)");
+        }
     }
 
     if (!std::isfinite(number)) {
@@ -1742,6 +1861,8 @@ static i32 collectGarbageControlArgument(LuaState* L) {
  * - "setstepmul"：设置 step 工作量倍数，返回旧值
  */
 i32 luaB_collectgarbage(LuaState* L) {
+    L->requireSandboxCapability(SandboxCapability::GCControl);
+
     // 获取GC引用
     auto& gc = L->getGlobalState().getGC();
 
@@ -1824,19 +1945,34 @@ static i32 luaB_unpack(LuaState* L) {
     }
 
     Table* table = L->at(1).asTable();
-    i32 i = (L->getTop() >= 2 && !L->at(2).isNil()) ? static_cast<i32>(L->toNumber(2)) : 1;
-    i32 j =
-        (L->getTop() >= 3 && !L->at(3).isNil()) ? static_cast<i32>(L->toNumber(3)) : static_cast<i32>(table->length());
+    i32 i = (L->getTop() >= 2 && !L->at(2).isNil()) ? checkedIntegerArgument(L, 2, "unpack") : 1;
+    i32 j = (L->getTop() >= 3 && !L->at(3).isNil())
+                ? checkedIntegerArgument(L, 3, "unpack")
+                : static_cast<i32>(table->length());
 
     if (i > j)
         return 0; // empty range
 
-    i32 n = j - i + 1;
-    for (i32 k = i; k <= j; k++) {
+    const u64 count = static_cast<u64>(static_cast<i64>(j) - static_cast<i64>(i)) + 1U;
+    if (count > L->getGlobalState().getResourcePolicy().maxReturnValues ||
+        count > static_cast<u64>(std::numeric_limits<i32>::max())) {
+        L->error("unpack: too many results");
+    }
+    const usize resultCount = static_cast<usize>(count);
+    if (resultCount > std::numeric_limits<usize>::max() - L->getAbsoluteTop()) {
+        throw StackOverflowError("stack overflow: resource stack slot limit exceeded");
+    }
+    L->getStack().checkLimit(L->getAbsoluteTop() + resultCount);
+    L->consumeNativeWork(count == 0 ? 1 : count);
+    for (i32 k = i; k <= j;) {
         Value v = table->getArray(k);
         L->pushValue(v);
+        if (k == j) {
+            break;
+        }
+        ++k;
     }
-    return n;
+    return static_cast<i32>(count);
 }
 
 // =====================================================================
@@ -1865,6 +2001,11 @@ private:
 
 static i32 luaB_load(LuaState* L) {
     auto& pool = L->getGlobalState().getStringPool();
+    const SandboxPolicy& sandbox = L->getGlobalState().getSandboxPolicy();
+    if (!sandbox.allows(SandboxCapability::RuntimeCompilation) &&
+        !sandbox.allows(SandboxCapability::BinaryChunks)) {
+        L->requireSandboxCapability(SandboxCapability::RuntimeCompilation);
+    }
     ScopedAutomaticGCStop gcStop(L->getGlobalState().getGC());
 
     if (L->getTop() < 1 || !L->isFunction(1)) {
@@ -1881,6 +2022,7 @@ static i32 luaB_load(LuaState* L) {
     // Use VM::call instead of L->pcall to preserve the stack (keeps upvalues valid)
     RuntimeServices services(L->getGlobalState());
     Str source;
+    usize readerPieces = 0;
     for (;;) {
         usize savedCI = L->getCurrentCI();
         L->pushValue(loaderFunc);
@@ -1922,7 +2064,19 @@ static i32 luaB_load(LuaState* L) {
             break;
         }
 
+        const ResourcePolicy& resources = L->getGlobalState().getResourcePolicy();
+        ++readerPieces;
+        if (readerPieces > resources.maxReaderPieces || piece->getLength() > resources.maxSourceBytes ||
+            source.size() > resources.maxSourceBytes - piece->getLength()) {
+            L->setTop(0);
+            L->pushNil();
+            L->pushString(pool.intern("load: input exceeds resource limit"));
+            settleLoadGC(L);
+            return 2;
+        }
+
         source.append(piece->c_str(), piece->getLength());
+        L->consumeNativeWork(piece->getLength());
         L->pop();
 
         if (stopOnDefinitiveReaderSyntaxError(L, pool, services, source)) {
@@ -1933,12 +2087,15 @@ static i32 luaB_load(LuaState* L) {
 
     try {
         if (isProjectBinaryChunk(StrView(source.data(), source.size()))) {
+            L->requireSandboxCapability(SandboxCapability::BinaryChunks);
             Function* func = loadBinaryChunk(L, StrView(source.data(), source.size()));
             L->setTop(0);
             L->pushValue(Value(func));
             settleLoadGC(L);
             return 1;
         }
+
+        L->requireSandboxCapability(SandboxCapability::RuntimeCompilation);
 
         // Compile the collected source
         Parser parser(source, services);
@@ -1969,6 +2126,8 @@ static i32 luaB_load(LuaState* L) {
     } catch (const MemoryError&) {
         throw;
     } catch (const std::bad_alloc&) {
+        throw;
+    } catch (const RuntimeError&) {
         throw;
     } catch (const ParseError& e) {
         L->setTop(0);
@@ -2015,8 +2174,13 @@ void BaseLibModule::registerFunctions(LuaState* L) {
         .addGlobal("rawequal", luaB_rawequal)
         .addGlobal("select", luaB_select)
         .addGlobal("pcall", luaB_pcall)
-        .addGlobal("xpcall", luaB_xpcall)
-        .addGlobal("loadstring", luaB_loadstring);
+        .addGlobal("xpcall", luaB_xpcall);
+
+    const SandboxPolicy& sandbox = L->getGlobalState().getSandboxPolicy();
+    if (sandbox.allows(SandboxCapability::RuntimeCompilation) ||
+        sandbox.allows(SandboxCapability::BinaryChunks)) {
+        registrar.addGlobal("loadstring", luaB_loadstring).addGlobal("load", luaB_load);
+    }
 
     if (L->getGlobalState().getSandboxPolicy().allows(SandboxCapability::Filesystem)) {
         registrar.addGlobal("loadfile", luaB_loadfile).addGlobal("dofile", luaB_dofile);
@@ -2025,10 +2189,11 @@ void BaseLibModule::registerFunctions(LuaState* L) {
     registrar.addGlobal("gcinfo", luaB_gcinfo)
         .addGlobal("getfenv", luaB_getfenv)
         .addGlobal("setfenv", luaB_setfenv)
-        .addGlobal("collectgarbage", luaB_collectgarbage)
-        .addGlobal("unpack", luaB_unpack)
-        .addGlobal("load", luaB_load)
-        .commit();
+        .addGlobal("unpack", luaB_unpack);
+    if (sandbox.allows(SandboxCapability::GCControl)) {
+        registrar.addGlobal("collectgarbage", luaB_collectgarbage);
+    }
+    registrar.commit();
 }
 
 void BaseLibModule::initialize(LuaState* L) {

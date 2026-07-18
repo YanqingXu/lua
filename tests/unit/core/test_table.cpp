@@ -10,8 +10,10 @@
 #include "core/table.hpp"
 #include "core/value.hpp"
 #include "core/gc_string.hpp"
+#include "runtime/runtime_services.hpp"
 
 #include <limits>
+#include <unordered_set>
 
 using namespace Lua;
 using namespace LuaTest;
@@ -133,6 +135,68 @@ void testTableRejectsNaNKey(TestSuite& suite) {
     delete table;
 }
 
+void testSparseIntegerKeysStayInHashPart(TestSuite& suite) {
+    EngineContext context;
+    context.resourcePolicy().maxTableArraySlots = 16;
+    context.resourcePolicy().maxTableHashEntries = 2;
+    Table* table = context.gc().createRoot<Table>();
+
+    table->set(Value(1'000'000.0), Value(7.0));
+    ASSERT_EQ(suite, static_cast<usize>(0), table->getArraySize(),
+              "sparse integer does not amplify the array part");
+    ASSERT_EQ(suite, static_cast<usize>(1), table->getHashSize(),
+              "sparse integer is stored in the hash part");
+    ASSERT_EQ(suite, 7.0, table->get(Value(1'000'000.0)).asNumber(),
+              "sparse integer lookup preserves its value");
+
+    table->set(Value(2'000'000.0), Value(8.0));
+    bool hashLimitRejected = false;
+    try {
+        table->set(Value(3'000'000.0), Value(9.0));
+    } catch (const ResourceLimitError&) {
+        hashLimitRejected = true;
+    }
+    ASSERT_TRUE(suite, hashLimitRejected, "hash entry policy rejects growth before allocation");
+    ASSERT_EQ(suite, static_cast<usize>(2), table->getHashSize(),
+              "rejected hash growth commits no entry");
+
+    bool arrayLimitRejected = false;
+    try {
+        table->setArray(17, Value(17.0));
+    } catch (const ResourceLimitError&) {
+        arrayLimitRejected = true;
+    }
+    ASSERT_TRUE(suite, arrayLimitRejected, "explicit array growth obeys the array slot policy");
+    ASSERT_EQ(suite, static_cast<usize>(0), table->getArraySize(),
+              "rejected array growth leaves the array unchanged");
+}
+
+void testNextContinuesAfterDeletingCurrentHashKey(TestSuite& suite) {
+    Table table;
+    GCString first("first");
+    GCString second("second");
+    GCString third("third");
+    table.set(Value(&first), Value(1.0));
+    table.set(Value(&second), Value(2.0));
+    table.set(Value(&third), Value(3.0));
+
+    std::unordered_set<GCString*> visited;
+    Value current;
+    Value nextKey;
+    Value nextValue;
+    while (table.next(current, nextKey, nextValue)) {
+        ASSERT_TRUE(suite, nextKey.isString(), "hash traversal returns a string key");
+        visited.insert(nextKey.asString());
+        current = nextKey;
+        table.remove(current);
+    }
+
+    ASSERT_EQ(suite, static_cast<usize>(3), visited.size(),
+              "deleting the current hash key visits each original entry once");
+    ASSERT_EQ(suite, static_cast<usize>(0), table.getHashSize(),
+              "deleted traversal leaves no live hash entries");
+}
+
 void registerTableTests() {
     auto& registry = TestRegistry::getInstance();
     
@@ -142,5 +206,7 @@ void registerTableTests() {
     registry.registerTest("Table", "Metatable", testTableMetatable);
     registry.registerTest("Table", "Mixed Storage", testTableMixedStorage);
     registry.registerTest("Table", "Rejects NaN Key", testTableRejectsNaNKey);
+    registry.registerTest("Table", "Sparse Integer Resource Policy", testSparseIntegerKeysStayInHashPart);
+    registry.registerTest("Table", "Dead Key Traversal", testNextContinuesAfterDeletingCurrentHashKey);
 }
 

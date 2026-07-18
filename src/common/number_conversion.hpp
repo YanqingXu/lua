@@ -1,18 +1,52 @@
 #pragma once
 
 #include "common/types.hpp"
+#include "runtime/lua_allocator.hpp"
 
 #include <array>
 #include <cerrno>
 #include <cctype>
 #include <charconv>
 #include <cstdlib>
+#include <cmath>
+#include <expected>
+#include <limits>
 #include <system_error>
 
 namespace Lua {
 
-inline bool luaStringToNumber(StrView text, LuaNumber& out) {
-    Str copy(text);
+enum class IntegerConversion : u8 {
+    Truncate,
+    Exact,
+};
+
+enum class IntegerConversionError : u8 {
+    NotFinite,
+    NotIntegral,
+    OutOfRange,
+};
+
+[[nodiscard]] inline std::expected<i32, IntegerConversionError>
+checkedLuaInteger(LuaNumber value, IntegerConversion mode = IntegerConversion::Truncate) noexcept {
+    if (!std::isfinite(value)) {
+        return std::unexpected(IntegerConversionError::NotFinite);
+    }
+
+    const LuaNumber truncated = std::trunc(value);
+    if (mode == IntegerConversion::Exact && truncated != value) {
+        return std::unexpected(IntegerConversionError::NotIntegral);
+    }
+
+    if (truncated < static_cast<LuaNumber>(std::numeric_limits<i32>::min()) ||
+        truncated > static_cast<LuaNumber>(std::numeric_limits<i32>::max())) {
+        return std::unexpected(IntegerConversionError::OutOfRange);
+    }
+
+    return static_cast<i32>(truncated);
+}
+
+inline bool luaStringToNumber(StrView text, LuaNumber& out, LuaAllocator* allocator = nullptr) {
+    LuaString copy(text.begin(), text.end(), LuaStdAllocator<char>(allocator));
     const char* start = copy.c_str();
     char* end = nullptr;
 

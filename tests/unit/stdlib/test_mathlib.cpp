@@ -5,9 +5,12 @@
 #include "core/string_pool.hpp"
 #include "core/table.hpp"
 #include "core/function.hpp"
+#include "runtime/runtime_services.hpp"
 
 #include <cmath>
 #include <functional>
+#include <limits>
+#include <vector>
 
 using namespace Lua;
 using namespace LuaTest;
@@ -180,6 +183,59 @@ void testMathFunctionsAcceptNumericStrings(TestSuite& suite) {
     }
 }
 
+void testMathRandomIsIsolatedAndDeterministicPerContext(TestSuite& suite) {
+    EngineContext firstContext;
+    EngineContext secondContext;
+    UPtr<LuaState> first = LuaState::create(firstContext);
+    UPtr<LuaState> second = LuaState::create(secondContext);
+    openMathLib(first.get());
+    openMathLib(second.get());
+
+    const auto seed = [](LuaState* state, i32 value) {
+        return callMathFunc(state, "randomseed", [=](LuaState* s) { s->pushNumber(value); });
+    };
+    const auto next = [](LuaState* state) {
+        (void)callMathFunc(state, "random", [](LuaState* s) {
+            s->pushNumber(-1000000);
+            s->pushNumber(1000000);
+        });
+        return state->top().asNumber();
+    };
+
+    ASSERT_EQ(suite, 0, seed(first.get(), 12345), "first context accepts an explicit seed");
+    ASSERT_EQ(suite, 0, seed(second.get(), 12345), "second context accepts the same explicit seed");
+    for (i32 i = 0; i < 8; ++i) {
+        ASSERT_EQ(suite, next(first.get()), next(second.get()), "equal per-context seeds reproduce the same sequence");
+    }
+
+    (void)seed(first.get(), 777);
+    const RuntimeRandom::State saved = secondContext.random().state();
+    const LuaNumber expected = next(second.get());
+    secondContext.random().restore(saved);
+    ASSERT_EQ(suite, expected, next(second.get()), "context RNG state can be snapshotted and restored");
+}
+
+void testMathIntegerArgumentsRejectUndefinedConversions(TestSuite& suite) {
+    const auto rejectsRandomBound = [](LuaNumber value) {
+        LuaStdLibTestContext ctx(openMathLib);
+        try {
+            (void)callMathFunc(ctx.getState(), "random", [=](LuaState* state) { state->pushNumber(value); });
+        } catch (const LuaError&) {
+            return true;
+        }
+        return false;
+    };
+
+    ASSERT_TRUE(suite, rejectsRandomBound(std::numeric_limits<LuaNumber>::quiet_NaN()),
+                "math.random rejects NaN before integer conversion");
+    ASSERT_TRUE(suite, rejectsRandomBound(std::numeric_limits<LuaNumber>::infinity()),
+                "math.random rejects positive infinity before integer conversion");
+    ASSERT_TRUE(suite, rejectsRandomBound(-std::numeric_limits<LuaNumber>::infinity()),
+                "math.random rejects negative infinity before integer conversion");
+    ASSERT_TRUE(suite, rejectsRandomBound(std::numeric_limits<LuaNumber>::max()),
+                "math.random rejects out-of-range values before integer conversion");
+}
+
 void registerMathLibTests() {
     auto& registry = TestRegistry::getInstance();
 
@@ -188,4 +244,7 @@ void registerMathLibTests() {
     registry.registerTest(kSuiteName, "mod alias", testMathModAlias);
     registry.registerTest(kSuiteName, "argument error names", testMathArgumentErrorUsesFunctionName);
     registry.registerTest(kSuiteName, "numeric string arguments", testMathFunctionsAcceptNumericStrings);
+    registry.registerTest(kSuiteName, "per-context deterministic random", testMathRandomIsIsolatedAndDeterministicPerContext);
+    registry.registerTest(kSuiteName, "integer arguments reject undefined conversions",
+                          testMathIntegerArgumentsRejectUndefinedConversions);
 }

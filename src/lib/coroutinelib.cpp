@@ -176,6 +176,7 @@ static i32 wrap_iterator(LuaState* L) {
 
     // 成功：把 bool 之后的结果值搬到栈帧起点
     i32 nresults = static_cast<i32>(pushed) - 1; // 减去 bool
+    L->consumeNativeWork(nresults == 0 ? 1 : static_cast<u64>(nresults));
     usize dst = resultBase;
     for (i32 i = 0; i < nresults; i++) {
         L->getStack().at(dst + static_cast<usize>(i)) = L->getStack().at(resultBase + 1 + static_cast<usize>(i));

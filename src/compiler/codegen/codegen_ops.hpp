@@ -94,6 +94,14 @@ public:
         return state_.bytecode.addStringConstant(value);
     }
 
+    [[nodiscard]] i32 boolConstant(bool value) {
+        return state_.bytecode.addBoolConstant(value);
+    }
+
+    [[nodiscard]] i32 nilConstant() {
+        return state_.bytecode.addNilConstant();
+    }
+
     [[nodiscard]] Instruction instruction(i32 pc) const {
         return state_.bytecode.instruction(pc);
     }

@@ -9,6 +9,7 @@
 #include "compiler/parser/parser.hpp"
 #include "core/function.hpp"
 #include "debug/json_trace_sink.hpp"
+#include "debug/ring_trace_sink.hpp"
 #include "debug/trace_sink.hpp"
 #include "debug/trace_types.hpp"
 #include "runtime/runtime_services.hpp"
@@ -70,16 +71,16 @@ bool runLuaChunk(RuntimeServices& services, LuaState* L, const char* source,
         services.gc.registerObject(func);
         func->setEnv(L->getGlobalTable());
 
-        VM::setTraceDiffEnabled(traceDiff);
-        VM::setTraceSink(traceSink);
+        VM::setTraceDiffEnabled(services, traceDiff);
+        VM::setTraceSink(services, traceSink);
         VM::execute(services, L, func);
-        VM::setTraceSink(nullptr);
-        VM::setTraceDiffEnabled(false);
+        VM::setTraceSink(services, nullptr);
+        VM::setTraceDiffEnabled(services, false);
 
         return true;
     } catch (...) {
-        VM::setTraceSink(nullptr);
-        VM::setTraceDiffEnabled(false);
+        VM::setTraceSink(services, nullptr);
+        VM::setTraceDiffEnabled(services, false);
         return false;
     }
 }
@@ -440,6 +441,51 @@ void testTraceJsonlDiffGolden(TestSuite& suite) {
     std::filesystem::remove(path);
 }
 
+void testTraceConfigurationIsIsolatedPerContext(TestSuite& suite) {
+    EngineContext firstContext;
+    EngineContext secondContext;
+    RuntimeServices first = firstContext.services();
+    RuntimeServices second = secondContext.services();
+    RecordingTraceSink firstSink;
+    RecordingTraceSink secondSink;
+
+    VM::setTraceSink(first, &firstSink);
+    VM::setTraceDiffEnabled(first, true);
+    ASSERT_TRUE(suite, VM::getTraceSink(first) == &firstSink,
+                "first context retains its trace sink");
+    ASSERT_TRUE(suite, VM::getTraceSink(second) == nullptr,
+                "second context does not inherit another context trace sink");
+    ASSERT_TRUE(suite, VM::isTraceDiffEnabled(first),
+                "first context retains its trace diff switch");
+    ASSERT_FALSE(suite, VM::isTraceDiffEnabled(second),
+                 "second context does not inherit another context trace switch");
+
+    VM::setTraceSink(second, &secondSink);
+    ASSERT_TRUE(suite, VM::getTraceSink(first) == &firstSink && VM::getTraceSink(second) == &secondSink,
+                "contexts can hold distinct sinks concurrently");
+    ASSERT_EQ(suite, static_cast<u64>(0), firstContext.trace().nextSequence(),
+              "first context sequence starts independently");
+    ASSERT_EQ(suite, static_cast<u64>(0), secondContext.trace().nextSequence(),
+              "second context sequence starts independently");
+}
+
+void testRingTraceSinkIsCapacityBounded(TestSuite& suite) {
+    RingTraceSink sink(3);
+    for (u64 sequence = 0; sequence < 5; ++sequence) {
+        TraceEvent event;
+        event.seq = sequence;
+        sink.onInstruction(event);
+    }
+    ASSERT_EQ(suite, static_cast<usize>(3), sink.size(),
+              "trace ring never grows beyond its configured capacity");
+    ASSERT_EQ(suite, static_cast<u64>(5), sink.totalEvents(),
+              "trace ring reports all observed events");
+    ASSERT_EQ(suite, static_cast<u64>(2), sink.at(0).seq,
+              "trace ring evicts the oldest event first");
+    ASSERT_EQ(suite, static_cast<u64>(4), sink.at(2).seq,
+              "trace ring preserves chronological order");
+}
+
 void registerVMTraceDebugTests() {
     auto& registry = TestRegistry::getInstance();
 
@@ -455,5 +501,9 @@ void registerVMTraceDebugTests() {
                           testTraceJsonlPlainGolden);
     registry.registerTest(kSuiteName, "Trace JSONL Diff Golden",
                           testTraceJsonlDiffGolden);
+    registry.registerTest(kSuiteName, "Trace Configuration Context Isolation",
+                          testTraceConfigurationIsIsolatedPerContext);
+    registry.registerTest(kSuiteName, "Ring Trace Sink Capacity",
+                          testRingTraceSinkIsCapacityBounded);
 }
 

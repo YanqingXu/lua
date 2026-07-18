@@ -96,7 +96,7 @@ void postcall(LuaState* L, i32 funcPos, i32 wantedResults, usize firstResult) {
             for (i32 i = 0; i < copyCount; ++i) {
                 const usize src = firstResult + static_cast<usize>(i);
                 const usize dst = resultDestination + static_cast<usize>(i);
-                if (shouldDumpBytecode()) {
+                if (shouldDumpBytecode(L)) {
                     std::fprintf(stderr, "[POSTCALL] copy stack[%zu] -> stack[%zu] val=", src, dst);
                     if (stack[src].isNumber())
                         std::fprintf(stderr, "%g", stack[src].asNumber());

@@ -51,6 +51,12 @@ class StringPool;
  * 
  * 负责将AST转换为字节码。
  */
+#if defined(NDEBUG)
+#define LUA_CODEGEN_COMPAT_DEPRECATED(message) [[deprecated(message)]]
+#else
+#define LUA_CODEGEN_COMPAT_DEPRECATED(message)
+#endif
+
 class CodeGenerator {
     friend class FunctionCompiler;
     friend class ScopeManager;
@@ -62,7 +68,7 @@ public:
      * @brief 构造函数
      * @param pool 字符串池（用于创建字符串常量）
      */
-    explicit CodeGenerator(StringPool* pool);
+    LUA_CODEGEN_COMPAT_DEPRECATED("pass RuntimeServices explicitly") explicit CodeGenerator(StringPool* pool);
 
     /**
      * @brief 构造函数
@@ -143,6 +149,8 @@ private:
     StatementEmitter statements_;
     FunctionCompiler functions_;
 };
+
+#undef LUA_CODEGEN_COMPAT_DEPRECATED
 
 }  // namespace Lua
 

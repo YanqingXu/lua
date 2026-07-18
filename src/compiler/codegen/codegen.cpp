@@ -68,6 +68,12 @@ std::expected<Proto*, CodegenError> CodeGenerator::tryGenerate(const Chunk& chun
 
 Proto* CodeGenerator::generateUnchecked(const Chunk& chunk, StrView sourceName) {
     // 创建新的Proto对象
+    if (state_.parent == nullptr) {
+        state_.compilationBudget = std::make_shared<CompilationBudget>(
+            state_.services.globalState.getCompilationPolicy(),
+            &state_.services.globalState.getExecutionPolicy());
+    }
+    state_.compilationBudget->consumeFunction();
     GCAllocationGuard<Proto> protoGuard(state_.services.gc, state_.proto);
     state_.resetForProto(*state_.proto, true);
     state_.bytecode.setSource(sourceName);

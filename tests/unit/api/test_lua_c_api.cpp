@@ -103,6 +103,7 @@ static_assert(!noexcept(lua_setfenv(nullptr, 0)));
 static_assert(noexcept(lua_cpcall(nullptr, nullptr, nullptr)));
 static_assert(!noexcept(lua_setlevel(nullptr, nullptr)));
 static_assert(noexcept(lua_close(nullptr)));
+static_assert(noexcept(lua_tryclose(nullptr)));
 static_assert(noexcept(lua_checkstack(nullptr, 0)));
 static_assert(!noexcept(lua_checkexecution(nullptr)));
 static_assert(noexcept(lua_pcall(nullptr, 0, 0, 0)));
@@ -176,6 +177,10 @@ size_t gConcatFailureOffset = 0;
 size_t gConcatAllocationStart = 0;
 size_t gConcatHardLimit = 0;
 bool gConcatUseHardLimit = false;
+size_t gStringReverseFailureOffset = 0;
+size_t gStringReverseAllocationStart = 0;
+size_t gStringReverseHardLimit = 0;
+bool gStringReverseUseHardLimit = false;
 size_t gTableConcatFailureOffset = 0;
 size_t gTableConcatAllocationStart = 0;
 size_t gTableConcatHardLimit = 0;
@@ -1661,17 +1666,21 @@ void testCloseFinalizerSemantics(TestSuite& suite) {
         ASSERT_TRUE(suite, L != nullptr, "owner-thread close test creates allocator-backed state");
 
         bool foreignCloseReturned = false;
+        int foreignTryCloseStatus = LUA_OK;
         std::thread foreign([&] {
+            foreignTryCloseStatus = lua_tryclose(L);
             lua_close(L);
             foreignCloseReturned = true;
         });
         foreign.join();
 
         ASSERT_TRUE(suite, foreignCloseReturned, "foreign lua_close is rejected without throwing");
+        ASSERT_EQ(suite, LUA_ERRTHREAD, foreignTryCloseStatus,
+                  "lua_tryclose reports an explicit foreign-thread status");
         ASSERT_TRUE(suite, !ledger.blocks.empty(), "foreign lua_close does not destroy owner-thread storage");
         ASSERT_EQ(suite, 0, lua_gettop(L), "owner can still access the state after rejected foreign close");
 
-        lua_close(L);
+        ASSERT_EQ(suite, LUA_OK, lua_tryclose(L), "owner-thread lua_tryclose reports successful teardown");
         ASSERT_TRUE(suite, ledger.blocks.empty(), "owner-thread lua_close releases every allocator block");
         ASSERT_EQ(suite, static_cast<size_t>(0), ledger.liveBytes,
                   "owner-thread close returns allocator live bytes to zero");
@@ -1680,6 +1689,37 @@ void testCloseFinalizerSemantics(TestSuite& suite) {
         ASSERT_EQ(suite, static_cast<size_t>(0), ledger.unknownFrees,
                   "owner-thread close frees each allocator block once");
     }
+
+    {
+        lua_State* L = lua_open();
+        lua_pushcclosure(L, [](lua_State* active) -> int {
+            lua_pushnumber(active, static_cast<lua_Number>(lua_tryclose(active)));
+            return 1;
+        }, 0);
+        ASSERT_EQ(suite, LUA_OK, lua_pcall(L, 0, 1, 0),
+                  "lua_tryclose busy probe returns through the active callback");
+        ASSERT_EQ(suite, static_cast<lua_Number>(LUA_ERRBUSY), lua_tonumber(L, -1),
+                  "lua_tryclose reports an active runtime as busy");
+        lua_pop(L, 1);
+        ASSERT_EQ(suite, LUA_OK, lua_tryclose(L),
+                  "lua_tryclose succeeds after the active call unwinds");
+    }
+}
+
+int armStringReverseAllocatorFailure(lua_State*) {
+    AllocatorProbe* probe = gAllocatorFailureProbe;
+    gStringReverseAllocationStart = probe != nullptr ? probe->allocationAttempts : 0;
+    if (probe != nullptr) {
+        probe->failOnAllocation = gStringReverseFailureOffset == 0
+                                      ? 0
+                                      : probe->allocationAttempts + gStringReverseFailureOffset;
+        if (gStringReverseUseHardLimit) {
+            probe->ledger->hardLimit = probe->ledger->liveBytes;
+            probe->ledger->peakBytes = probe->ledger->liveBytes;
+            gStringReverseHardLimit = probe->ledger->hardLimit;
+        }
+    }
+    return 0;
 }
 
 void testProtectedCallRestoresStackAndPreservesErrorObject(TestSuite& suite) {
@@ -3318,6 +3358,121 @@ void prepareConcatAllocatorFixture(lua_State* L) {
     }
 }
 
+constexpr const char* kStringReverseAllocatorSource =
+    "__arm_string_reverse_allocator(); return string.reverse(__string_reverse_allocator_input)";
+
+void prepareStringReverseAllocatorFixture(lua_State* L) {
+    lua_settop(L, 0);
+    (void)luaopen_string(L);
+    lua_pop(L, 1);
+    lua_pushcclosure(L, armStringReverseAllocatorFailure, 0);
+    lua_setglobal(L, "__arm_string_reverse_allocator");
+    const std::string input(96, 'a');
+    lua_pushlstring(L, input.data(), input.size());
+    lua_setglobal(L, "__string_reverse_allocator_input");
+    if (luaL_loadstring(L, kStringReverseAllocatorSource) != LUA_OK) {
+        throw std::runtime_error("failed to compile string.reverse allocator fixture");
+    }
+}
+
+bool stringReverseAllocatorResultMatches(lua_State* L) {
+    size_t length = 0;
+    const char* text = lua_tolstring(L, -1, &length);
+    return text != nullptr && length == 96 && std::string_view(text, length) == std::string(96, 'a');
+}
+
+void testStringReverseAllocatorTransactions(TestSuite& suite) {
+    size_t allocationAttempts = 0;
+    {
+        AllocatorLedger ledger;
+        AllocatorProbe probe{&ledger};
+        lua_State* L = lua_newstate(trackingLuaAllocator, &probe);
+        ASSERT_TRUE(suite, L != nullptr, "string.reverse allocator baseline creates a state");
+        prepareStringReverseAllocatorFixture(L);
+        gAllocatorFailureProbe = &probe;
+        gStringReverseFailureOffset = 0;
+        gStringReverseUseHardLimit = false;
+
+        ASSERT_EQ(suite, LUA_OK, lua_pcall(L, 0, 1, 0), "string.reverse allocator baseline executes");
+        allocationAttempts = probe.allocationAttempts - gStringReverseAllocationStart;
+        ASSERT_TRUE(suite, allocationAttempts > 0,
+                    "string.reverse temporary storage uses the callback allocator");
+        ASSERT_TRUE(suite, stringReverseAllocatorResultMatches(L),
+                    "string.reverse allocator baseline preserves content");
+
+        gAllocatorFailureProbe = nullptr;
+        lua_close(L);
+        ASSERT_TRUE(suite, ledger.blocks.empty() && ledger.liveBytes == 0 && ledger.sizeMismatches == 0 &&
+                               ledger.unknownFrees == 0,
+                    "string.reverse allocator baseline closes with valid ownership");
+    }
+
+    for (size_t offset = 1; offset <= allocationAttempts; ++offset) {
+        AllocatorLedger ledger;
+        AllocatorProbe probe{&ledger};
+        lua_State* L = lua_newstate(trackingLuaAllocator, &probe);
+        ASSERT_TRUE(suite, L != nullptr, "string.reverse fail-on-N test creates a state");
+        prepareStringReverseAllocatorFixture(L);
+        gAllocatorFailureProbe = &probe;
+        gStringReverseFailureOffset = offset;
+        gStringReverseUseHardLimit = false;
+
+        ASSERT_EQ(suite, LUA_ERRMEM, lua_pcall(L, 0, 1, 0),
+                  "string.reverse temporary allocation failure becomes LUA_ERRMEM");
+        ASSERT_EQ(suite, gStringReverseAllocationStart + offset, probe.allocationAttempts,
+                  "string.reverse fail-on-N reaches the selected allocator attempt");
+
+        probe.failOnAllocation = 0;
+        gStringReverseFailureOffset = 0;
+        gAllocatorFailureProbe = nullptr;
+        lua_settop(L, 0);
+        prepareStringReverseAllocatorFixture(L);
+        ASSERT_EQ(suite, LUA_OK, lua_pcall(L, 0, 1, 0),
+                  "string.reverse succeeds after disarming fail-on-N");
+        ASSERT_TRUE(suite, stringReverseAllocatorResultMatches(L),
+                    "string.reverse retry preserves exact content");
+
+        lua_close(L);
+        ASSERT_TRUE(suite, ledger.blocks.empty() && ledger.liveBytes == 0 && ledger.sizeMismatches == 0 &&
+                               ledger.unknownFrees == 0,
+                    "string.reverse fail-on-N rollback closes with valid ownership");
+    }
+
+    AllocatorLedger ledger;
+    AllocatorProbe probe{&ledger};
+    lua_State* L = lua_newstate(trackingLuaAllocator, &probe);
+    ASSERT_TRUE(suite, L != nullptr, "string.reverse hard-limit test creates a state");
+    prepareStringReverseAllocatorFixture(L);
+    gAllocatorFailureProbe = &probe;
+    gStringReverseFailureOffset = 0;
+    gStringReverseUseHardLimit = true;
+
+    ASSERT_EQ(suite, LUA_ERRMEM, lua_pcall(L, 0, 1, 0),
+              "zero-headroom hard limit rejects string.reverse temporary growth");
+    ASSERT_TRUE(suite, ledger.liveBytes <= gStringReverseHardLimit && ledger.peakBytes <= gStringReverseHardLimit,
+                "string.reverse temporary growth never exceeds the allocator hard limit");
+
+    ledger.hardLimit = std::numeric_limits<size_t>::max();
+    gStringReverseUseHardLimit = false;
+    gAllocatorFailureProbe = nullptr;
+    lua_settop(L, 0);
+    prepareStringReverseAllocatorFixture(L);
+    ASSERT_EQ(suite, LUA_OK, lua_pcall(L, 0, 1, 0),
+              "string.reverse succeeds after lifting the allocator hard limit");
+    ASSERT_TRUE(suite, stringReverseAllocatorResultMatches(L),
+                "string.reverse hard-limit retry preserves exact content");
+
+    lua_close(L);
+    ASSERT_TRUE(suite, ledger.blocks.empty() && ledger.liveBytes == 0 && ledger.sizeMismatches == 0 &&
+                           ledger.unknownFrees == 0,
+                "string.reverse hard-limit rollback closes with valid ownership");
+
+    gAllocatorFailureProbe = nullptr;
+    gStringReverseFailureOffset = 0;
+    gStringReverseUseHardLimit = false;
+    gStringReverseHardLimit = 0;
+}
+
 bool concatAllocatorResultMatches(lua_State* L) {
     size_t length = 0;
     const char* text = lua_tolstring(L, -1, &length);
@@ -4928,6 +5083,8 @@ void registerLuaCApiTests() {
                           testStateStackAndCallInfoAllocatorTransactions);
     registry.registerTest(kSuiteName, "__call argument allocator transactions",
                           testMetacallArgumentAllocatorTransactions);
+    registry.registerTest(kSuiteName, "string.reverse allocator transactions",
+                          testStringReverseAllocatorTransactions);
     registry.registerTest(kSuiteName, "concat allocator transactions", testConcatAllocatorTransactions);
     registry.registerTest(kSuiteName, "table.concat allocator transactions", testTableConcatAllocatorTransactions);
     registry.registerTest(kSuiteName, "table.sort allocator transactions", testTableSortAllocatorTransactions);

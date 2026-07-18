@@ -6,6 +6,7 @@
 #include "compiler/codegen/statement_emitter.hpp"
 #include "compiler/codegen/codegen.hpp"
 
+#include <algorithm>
 #include <stdexcept>
 #include <type_traits>
 
@@ -523,17 +524,38 @@ void StatementEmitter::emitStmt(const AssignStmt& s) {
         }
     }
 
+    HashSet<Str> assignedLocalNames;
+    for (const ExprPtr& targetExpr : s.targets) {
+        if (const auto* name = std::get_if<NameExpr>(&targetExpr->variant);
+            name != nullptr && scopes_.findLocalVar(name->name) >= 0) {
+            assignedLocalNames.insert(name->name);
+        }
+    }
+
+    const auto stableLocalName = [&](const Expr* expression) {
+        const auto* name = expression != nullptr ? std::get_if<NameExpr>(&expression->variant) : nullptr;
+        return name != nullptr && scopes_.findLocalVar(name->name) >= 0 &&
+               !assignedLocalNames.contains(name->name);
+    };
+
     auto freezeLValue = [&](const Expr& targetExpr) -> LValueRef {
         LValueRef target = emitLValue(targetExpr);
         if (target.kind == LValueRef::Kind::Indexed) {
             const Str* receiverName = nullptr;
             const bool simpleReceiver = receiverTableName(targetExpr, receiverName);
-            (void)receiverName;
-            const bool multiAssignNeedsFrozenTarget = nvars > 1;
-            if (multiAssignNeedsFrozenTarget || rhsHasCall || !simpleReceiver) {
+            const bool stableReceiver = simpleReceiver && receiverName != nullptr &&
+                                        scopes_.findLocalVar(*receiverName) >= 0 &&
+                                        !assignedLocalNames.contains(*receiverName);
+            if (rhsHasCall || !stableReceiver) {
                 target.tableReg = freezeRegister(target.tableReg);
             }
-            if ((multiAssignNeedsFrozenTarget || rhsHasCall) && !ISK(target.key)) {
+
+            const Expr* keyExpr = nullptr;
+            if (const auto* index = std::get_if<IndexExpr>(&targetExpr.variant)) {
+                keyExpr = index->index.get();
+            }
+            const bool stableKey = ISK(target.key) || (!rhsHasCall && stableLocalName(keyExpr));
+            if (!stableKey) {
                 target.key = freezeRegister(target.key);
             }
         }
@@ -598,7 +620,10 @@ void StatementEmitter::emitStmt(const AssignStmt& s) {
         ops_.setFreeRegAndCheck(targetReg);
         ValueResult val = emitValue(expr);
         val = forceSingleValue(val);
-        if (assignmentNeedsFrozenValues) {
+        const auto* valueName = std::get_if<NameExpr>(&expr.variant);
+        const bool borrowsStableLocal = i == directValues - 1 && valueName != nullptr &&
+                                        scopes_.findLocalVar(valueName->name) >= 0;
+        if (assignmentNeedsFrozenValues && !borrowsStableLocal) {
             materializeValue(val, targetReg);
             valuesForStore.push_back(ValueResult::makeRegister(targetReg, false));
         } else {
@@ -612,7 +637,7 @@ void StatementEmitter::emitStmt(const AssignStmt& s) {
         discardExpression(*s.values[i]);
     }
 
-    for (i32 i = 0; i < nvars; i++) {
+    for (i32 i = nvars; i-- > 0;) {
         if (i < assignedValues) {
             if (static_cast<usize>(i) < valuesForStore.size()) {
                 emitStore(targets[i], valuesForStore[static_cast<usize>(i)]);
@@ -634,8 +659,8 @@ void StatementEmitter::emitStmt(const LocalStmt& s) {
 
     ops_.setFreeReg(base);
 
-    bool allVarsInitialized = false;
-    if (futureReads_ != nullptr && nexps == 0 && nvars > 0) {
+    bool allVarsInitialized = nexps == 0 && nvars > 0 && !forceNilLocalInitialization_ && getLabel() == 0;
+    if (!allVarsInitialized && !forceNilLocalInitialization_ && futureReads_ != nullptr && nexps == 0 && nvars > 0) {
         allVarsInitialized = true;
         for (const Str& name : s.names) {
             if (isFutureRead(futureReads_, name)) {
@@ -895,11 +920,31 @@ void StatementEmitter::emitStmt(const RepeatStmt& s) {
 
     i32 bodyActiveVarCount = scopes_.activeLocalCount();
 
-    for (const auto& stmt : s.body) {
-        statement(*stmt);
+    // Function-entry registers start nil, but repeat-body registers are reused
+    // on later iterations and therefore require explicit LOADNIL reset.
+    const bool savedForceNilLocalInitialization = forceNilLocalInitialization_;
+    forceNilLocalInitialization_ = true;
+    try {
+        for (const auto& stmt : s.body) {
+            statement(*stmt);
+        }
+    } catch (...) {
+        forceNilLocalInitialization_ = savedForceNilLocalInitialization;
+        throw;
+    }
+    forceNilLocalInitialization_ = savedForceNilLocalInitialization;
+
+    if (const auto* boolean = std::get_if<BoolExpr>(&s.condition->variant); boolean != nullptr && boolean->value) {
+        removeLocalVars(bodyActiveVarCount);
+        leaveBlock();
+        return;
     }
 
-    ValueResult cond = emitValue(*s.condition);
+    // Lua 5.1 lowers a literal nil used as a repeat condition through a
+    // boolean false temporary (LOADBOOL), rather than a value LOADNIL.
+    ValueResult cond = std::holds_alternative<NilExpr>(s.condition->variant)
+                           ? ValueResult::makeBoolean(false)
+                           : emitValue(*s.condition);
     cond = forceSingleValue(cond);
     i32 condReg = valueToAnyReg(cond);
 

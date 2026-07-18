@@ -21,10 +21,7 @@
 #include <limits>
 #include <numbers>
 #include <format>
-#include <cstdlib>
-#include <cerrno>
 #include <cctype>
-#include <ctime>
 
 namespace Lua {
 
@@ -54,13 +51,30 @@ static inline f64 getNumberArg(LuaState* L, i32 idx, const char* argName) {
         const Value& value = L->at(idx);
         if (value.isString()) {
             LuaNumber number = 0.0;
-            if (luaStringToNumber(value.asString()->view(), number)) {
+            GCString* string = value.asString();
+            L->consumeNativeWork(string->getLength());
+            if (luaStringToNumber(string->view(), number, L->getGlobalState().getAllocator())) {
                 return number;
             }
         }
     }
 
     { L->error(std::format("bad argument #{} to '{}' (number expected)", idx, argName).c_str()); }
+}
+
+static i32 getIntegerArg(LuaState* L, i32 idx, const char* argName,
+                         IntegerConversion mode = IntegerConversion::Truncate) {
+    const LuaNumber value = getNumberArg(L, idx, argName);
+    const auto converted = checkedLuaInteger(value, mode);
+    if (!converted) {
+        const char* detail = converted.error() == IntegerConversionError::NotFinite
+                                 ? "finite number expected"
+                             : converted.error() == IntegerConversionError::NotIntegral
+                                 ? "integer expected"
+                                 : "number out of range";
+        L->error(std::format("bad argument #{} to '{}' ({})", idx, argName, detail).c_str());
+    }
+    return *converted;
 }
 
 /**
@@ -245,8 +259,7 @@ i32 math_log10(LuaState* L) {
 i32 math_ldexp(LuaState* L) {
     checkArgCount(L, 2, "ldexp");
     f64 m = getNumberArg(L, 1, "ldexp");
-    f64 eVal = getNumberArg(L, 2, "ldexp");
-    i32 e = static_cast<i32>(eVal);
+    i32 e = getIntegerArg(L, 2, "ldexp");
     L->pushNumber(std::ldexp(m, e));
     return 1;
 }
@@ -270,6 +283,7 @@ i32 math_min(LuaState* L) {
     if (n == 0) {
         L->error("math.min: expected at least 1 argument");
     }
+    L->consumeNativeWork(static_cast<u64>(n));
 
     f64 minVal = getNumberArg(L, 1, "min");
     for (i32 i = 2; i <= n; i++) {
@@ -288,6 +302,7 @@ i32 math_max(LuaState* L) {
     if (n == 0) {
         L->error("math.max: expected at least 1 argument");
     }
+    L->consumeNativeWork(static_cast<u64>(n));
 
     f64 maxVal = getNumberArg(L, 1, "max");
     for (i32 i = 2; i <= n; i++) {
@@ -306,39 +321,26 @@ i32 math_max(LuaState* L) {
 // =====================================================================
 
 i32 math_random(LuaState* L) {
-    // 使用静态变量确保只初始化一次（如果未设置种子）
-    static bool seeded = false;
-    if (!seeded) {
-        std::srand(static_cast<unsigned int>(std::time(nullptr)));
-        seeded = true;
-    }
-
+    RuntimeRandom& random = L->getGlobalState().getRandom();
     i32 n = L->getTop();
 
     if (n == 0) {
-        // math.random() - 返回 [0, 1) 之间的浮点数
-        f64 r = static_cast<f64>(std::rand()) / (static_cast<f64>(RAND_MAX) + 1.0);
-        L->pushNumber(r);
+        L->pushNumber(random.unitInterval());
     } else if (n == 1) {
-        // math.random(m) - 返回 [1, m] 之间的整数
-        f64 mVal = getNumberArg(L, 1, "random");
-        i32 m = static_cast<i32>(mVal);
+        const i32 m = getIntegerArg(L, 1, "random");
         if (m < 1) {
             L->error("math.random: interval is empty");
         }
-        i32 r = (std::rand() % m) + 1;
-        L->pushNumber(static_cast<f64>(r));
+        L->pushNumber(static_cast<LuaNumber>(random.bounded(static_cast<u64>(m)) + 1U));
     } else {
-        // math.random(m, n) - 返回 [m, n] 之间的整数
-        f64 mVal = getNumberArg(L, 1, "random");
-        f64 nVal = getNumberArg(L, 2, "random");
-        i32 m = static_cast<i32>(mVal);
-        i32 n_int = static_cast<i32>(nVal);
-        if (m > n_int) {
+        const i32 lower = getIntegerArg(L, 1, "random");
+        const i32 upper = getIntegerArg(L, 2, "random");
+        if (lower > upper) {
             L->error("math.random: interval is empty");
         }
-        i32 r = (std::rand() % (n_int - m + 1)) + m;
-        L->pushNumber(static_cast<f64>(r));
+        const u64 span = static_cast<u64>(static_cast<i64>(upper) - static_cast<i64>(lower)) + 1U;
+        const i64 result = static_cast<i64>(lower) + static_cast<i64>(random.bounded(span));
+        L->pushNumber(static_cast<LuaNumber>(result));
     }
 
     return 1;
@@ -346,9 +348,8 @@ i32 math_random(LuaState* L) {
 
 i32 math_randomseed(LuaState* L) {
     checkArgCount(L, 1, "randomseed");
-    f64 seedVal = getNumberArg(L, 1, "randomseed");
-    unsigned int seed = static_cast<unsigned int>(seedVal);
-    std::srand(seed);
+    const i32 seed = getIntegerArg(L, 1, "randomseed");
+    L->getGlobalState().getRandom().seed(static_cast<u32>(seed));
     return 0;
 }
 

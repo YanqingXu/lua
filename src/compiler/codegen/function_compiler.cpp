@@ -135,6 +135,7 @@ CompiledFunction FunctionCompiler::compile(const Vec<Str>& params, bool isVararg
                                            i32 linedefined, i32 lastlinedefined) {
     CodeGenerator child(owner_.state_.services);
     child.state_.parent = &owner_;
+    child.state_.compilationBudget = owner_.state_.compilationBudget;
 
     const bool needsCompatArg = isVararg && !stmtListUsesDirectVararg(body);
     u8 varargFlags = 0;
@@ -145,6 +146,7 @@ CompiledFunction FunctionCompiler::compile(const Vec<Str>& params, bool isVararg
         }
     }
 
+    owner_.state_.compilationBudget->consumeFunction();
     GCAllocationGuard<Proto> protoGuard(owner_.state_.services.gc);
     Proto* newProto = protoGuard.get();
     newProto->setNumParams(static_cast<u8>(params.size()));

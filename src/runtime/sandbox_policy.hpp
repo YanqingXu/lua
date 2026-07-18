@@ -18,6 +18,9 @@ enum class SandboxCapability : u8 {
     Filesystem,
     Process,
     NativeModules,
+    RuntimeCompilation,
+    BinaryChunks,
+    GCControl,
 };
 
 /**
@@ -55,6 +58,9 @@ struct SandboxProfile {
     bool filesystem = true;
     bool process = true;
     bool nativeModules = true;
+    bool runtimeCompilation = true;
+    bool binaryChunks = true;
+    bool gcControl = true;
 
     /**
      * @brief Lua 5.1-compatible unrestricted behavior.
@@ -70,6 +76,9 @@ struct SandboxProfile {
         return {
             StandardLibrarySet::Base | StandardLibrarySet::Math | StandardLibrarySet::String |
                 StandardLibrarySet::Table | StandardLibrarySet::Coroutine | StandardLibrarySet::Package,
+            false,
+            false,
+            false,
             false,
             false,
             false,
@@ -113,6 +122,12 @@ public:
             return profile_.process;
         case SandboxCapability::NativeModules:
             return profile_.nativeModules;
+        case SandboxCapability::RuntimeCompilation:
+            return profile_.runtimeCompilation;
+        case SandboxCapability::BinaryChunks:
+            return profile_.binaryChunks;
+        case SandboxCapability::GCControl:
+            return profile_.gcControl;
         }
         return false;
     }
@@ -125,6 +140,12 @@ public:
             return "sandbox: process access denied";
         case SandboxCapability::NativeModules:
             return "sandbox: native module access denied";
+        case SandboxCapability::RuntimeCompilation:
+            return "sandbox: runtime compilation denied";
+        case SandboxCapability::BinaryChunks:
+            return "sandbox: binary chunk loading denied";
+        case SandboxCapability::GCControl:
+            return "sandbox: GC control denied";
         }
         return "sandbox: access denied";
     }

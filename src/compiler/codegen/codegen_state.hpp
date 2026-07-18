@@ -10,6 +10,8 @@
 #include "core/string_pool.hpp"
 #include "runtime/runtime_services.hpp"
 
+#include <memory>
+
 namespace Lua {
 
 class CodeGenerator;
@@ -34,18 +36,25 @@ struct CodegenState {
     BlockManager blockManager;
     UpvalueContext upvalueContext;
     BytecodeBuilder bytecode;
+    std::shared_ptr<CompilationBudget> compilationBudget;
 
     explicit CodegenState(RuntimeServices runtimeServices)
         : services(runtimeServices)
-        , pool(&runtimeServices.strings) {}
+        , pool(&runtimeServices.strings)
+        , compilationBudget(std::make_shared<CompilationBudget>(
+              runtimeServices.globalState.getCompilationPolicy(),
+              &runtimeServices.globalState.getExecutionPolicy())) {}
 
     CodegenState(RuntimeServices runtimeServices, StringPool* stringPool)
         : services(runtimeServices)
-        , pool(stringPool) {}
+        , pool(stringPool)
+        , compilationBudget(std::make_shared<CompilationBudget>(
+              runtimeServices.globalState.getCompilationPolicy(),
+              &runtimeServices.globalState.getExecutionPolicy())) {}
 
     void resetForProto(Proto& nextProto, bool isVararg, StrView sourceName = {}) {
         proto = &nextProto;
-        bytecode.bind(nextProto, *pool);
+        bytecode.bind(nextProto, *pool, compilationBudget.get());
         registers.bind(proto);
         proto->setMaxStackSize(2);
         proto->setVararg(isVararg);

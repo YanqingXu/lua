@@ -334,13 +334,14 @@ LuaState::LuaState(CtorToken, GlobalState& globalState, bool allocatorOwnedSelf)
 
 LuaState::LuaState(CtorToken, EngineContext* ownedContext, bool allocatorOwnedContext, bool allocatorOwnedSelf)
     : ownedContext_(ownedContext, EngineContextDeleter{allocatorOwnedContext}), allocatorOwnedSelf_(allocatorOwnedSelf),
-      globalState_(ownedContext_->globalState()), stack_(INITIAL_STACK_SIZE, globalState_.getAllocator()), top_(0),
+      globalState_(ownedContext_->globalState()),
+      stack_(INITIAL_STACK_SIZE, globalState_.getAllocator(), &globalState_.getResourcePolicy()), top_(0),
       callStack_(INITIAL_CI_SIZE, LuaStdAllocator<CallInfo>(globalState_.getAllocator())), currentCI_(0),
       globalTable_(nullptr), status_(ThreadStatus::OK), openUpvalues_(nullptr) {}
 
 LuaState::LuaState(GlobalState& globalState)
     : ownedContext_(nullptr, EngineContextDeleter{}), allocatorOwnedSelf_(false), globalState_(globalState),
-      stack_(INITIAL_STACK_SIZE, globalState_.getAllocator()), top_(0),
+      stack_(INITIAL_STACK_SIZE, globalState_.getAllocator(), &globalState_.getResourcePolicy()), top_(0),
       callStack_(INITIAL_CI_SIZE, LuaStdAllocator<CallInfo>(globalState_.getAllocator())), currentCI_(0),
       globalTable_(nullptr), status_(ThreadStatus::OK), openUpvalues_(nullptr) {}
 
@@ -660,25 +661,27 @@ void LuaState::setTop(i32 idx) {
         base = callStack_[currentCI_].base;
     }
 
-    i32 newTop;
+    i64 newTop;
     if (idx >= 0) {
         // 正索引：相对于当前 base
-        newTop = static_cast<i32>(base) + idx;
+        newTop = static_cast<i64>(base) + static_cast<i64>(idx);
     } else {
         // 负索引：相对于当前 top_
-        newTop = static_cast<i32>(top_) + idx + 1;
+        newTop = static_cast<i64>(top_) + static_cast<i64>(idx) + 1;
     }
 
-    if (newTop < static_cast<i32>(base)) {
+    if (newTop < static_cast<i64>(base)) {
         throw RuntimeError("invalid stack index");
     }
+
+    stack_.checkLimit(static_cast<usize>(newTop));
 
     const usize oldTop = top_;
 
     // Fill every newly exposed logical slot with nil. The backing Stack can
     // already contain reserved frame registers beyond top_, so merely growing
     // its physical size would leak stale register values through lua_settop.
-    while (static_cast<i32>(stack_.size()) < newTop) {
+    while (static_cast<i64>(stack_.size()) < newTop) {
         stack_.push(Value()); // nil
     }
     for (usize i = oldTop; i < static_cast<usize>(newTop); ++i) {
@@ -1075,7 +1078,7 @@ bool LuaState::isNumber(i32 idx) const {
         }
         if (v.isString()) {
             LuaNumber number = 0.0;
-            return luaStringToNumber(v.asString()->view(), number);
+            return luaStringToNumber(v.asString()->view(), number, globalState_.getAllocator());
         }
         return false;
     } catch (...) {
@@ -1177,7 +1180,9 @@ LuaNumber LuaState::toNumber(i32 idx) const {
         }
         if (v.isString()) {
             LuaNumber number = 0.0;
-            if (luaStringToNumber(v.asString()->view(), number)) {
+            GCString* string = v.asString();
+            const_cast<LuaState*>(this)->consumeNativeWork(string->getLength());
+            if (luaStringToNumber(string->view(), number, globalState_.getAllocator())) {
                 return number;
             }
         }
@@ -1306,6 +1311,14 @@ void LuaState::requireSandboxCapability(SandboxCapability capability) {
     if (!globalState_.getSandboxPolicy().allows(capability)) {
         setStatus(ThreadStatus::ErrRun);
         throw RuntimeError(Value(globalState_.getSandboxCapabilityErrorMessage(capability)));
+    }
+}
+
+void LuaState::consumeNativeWork(ExecutionPolicy::NativeWorkCount units) {
+    const ExecutionStopReason reason = globalState_.getExecutionPolicy().consumeNativeWork(units);
+    if (reason != ExecutionStopReason::None) [[unlikely]] {
+        setStatus(ThreadStatus::ErrRun);
+        throw RuntimeError(Value(globalState_.getExecutionPolicyErrorMessage(reason)));
     }
 }
 

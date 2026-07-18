@@ -47,22 +47,6 @@ constexpr const char* kCodeLuaUpstreamRepeatNilOracle = R"lua(check(function () 
 'LOADNIL', 'JMP', 'RETURN'))lua";
 constexpr const char* kCodeLua515RepeatNilOracle = R"lua(check(function () repeat local x until nil end,
 'LOADNIL', 'LOADBOOL', 'TEST', 'JMP', 'RETURN'))lua";
-constexpr const char* kCodeLuaCompilerGapDiagnostic =
-    "code.lua Lua 5.1.5 compiler parity gap: expected - LOADBOOL *%d; actual 2 - TEST 2";
-constexpr const char* kCodeLuaCompilerGapProbe = R"lua(
-do
-  local originalFind = string.find
-  string.find = function(subject, pattern, ...)
-    local first, last = originalFind(subject, pattern, ...)
-    if first == nil then
-      error('code.lua Lua 5.1.5 compiler parity gap: expected ' .. pattern ..
-            '; actual ' .. tostring(subject), 0)
-    end
-    return first, last
-  end
-end
-)lua";
-
 struct RunResult {
     bool ok = false;
     std::string message;
@@ -638,13 +622,6 @@ RunResult runOfficialTestCScript(const char* scriptName, bool applyCodeLuaOracle
         return prelude;
     }
 
-    if (applyCodeLuaOracle) {
-        RunResult probe = runLuaChunk(L.get(), kCodeLuaCompilerGapProbe, "official_testc_code_oracle_probe");
-        if (!probe.ok) {
-            return probe;
-        }
-    }
-
     std::string source = readWholeFile(scriptName);
     if (applyCodeLuaOracle) {
         try {
@@ -727,8 +704,7 @@ void testOfficialSuiteClosureThenGlobalCleanupTail(TestSuite& suite) {
 
 void testOfficialTestCCodeLua(TestSuite& suite) {
     const RunResult result = runOfficialTestCScript("code.lua", true);
-    const bool expectedFailure = !result.ok && result.message.find(kCodeLuaCompilerGapDiagnostic) != std::string::npos;
-    ASSERT_TRUE(suite, expectedFailure, result.message);
+    ASSERT_TRUE(suite, result.ok, result.message);
 }
 
 void testOfficialTestCApiLua(TestSuite& suite) {
@@ -753,6 +729,6 @@ void registerOfficialSuiteTests() {
     registry.registerTest(kSuiteName, "global cleanup tail", testOfficialSuiteGlobalCleanupTail);
     registry.registerTest(kSuiteName, "closure then global cleanup tail execution",
                           testOfficialSuiteClosureThenGlobalCleanupTail);
-    registry.registerTest("Lua 5.1 Official TestC", "code.lua with Lua 5.1.5 oracle XFAIL", testOfficialTestCCodeLua);
+    registry.registerTest("Lua 5.1 Official TestC", "code.lua with Lua 5.1.5 oracle", testOfficialTestCCodeLua);
     registry.registerTest("Lua 5.1 Official TestC", "api.lua with T module", testOfficialTestCApiLua);
 }

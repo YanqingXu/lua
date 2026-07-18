@@ -15,6 +15,7 @@
 #include "compiler/codegen/codegen.hpp"
 #include "compiler/opcode.hpp"
 #include "compiler/parser/parser.hpp"
+#include "common/number_conversion.hpp"
 #include "core/function.hpp"
 #include "core/gc_string.hpp"
 #include "core/table.hpp"
@@ -722,12 +723,19 @@ Function* checkFunctionArg(LuaState* L, i32 idx, const char* message) {
     return L->at(idx).asFunction();
 }
 
-i32 checkPositiveIndex(LuaState* L, i32 idx, const char* message) {
+i32 checkInteger(LuaState* L, i32 idx, const char* message) {
     if (!L->isNumber(idx)) {
         L->error(message);
     }
+    const auto converted = checkedLuaInteger(L->toNumber(idx));
+    if (!converted) {
+        L->error(message);
+    }
+    return *converted;
+}
 
-    i32 value = static_cast<i32>(L->toNumber(idx));
+i32 checkPositiveIndex(LuaState* L, i32 idx, const char* message) {
+    i32 value = checkInteger(L, idx, message);
     if (value <= 0) {
         L->error(message);
     }
@@ -735,11 +743,7 @@ i32 checkPositiveIndex(LuaState* L, i32 idx, const char* message) {
 }
 
 i32 checkNonNegativeLevel(LuaState* L, i32 idx, const char* message) {
-    if (!L->isNumber(idx)) {
-        L->error(message);
-    }
-
-    i32 value = static_cast<i32>(L->toNumber(idx));
+    i32 value = checkInteger(L, idx, message);
     if (value < 0) {
         L->error(message);
     }
@@ -831,10 +835,7 @@ i32 luaDebug_getregistry(LuaState* L) {
 
 i32 luaDebug_getupvalue(LuaState* L) {
     Function* func = checkFunctionArg(L, 1, "bad argument #1 to 'getupvalue' (function expected)");
-    if (!L->isNumber(2)) {
-        L->error("bad argument #2 to 'getupvalue' (number expected)");
-    }
-    i32 upIndex = static_cast<i32>(L->toNumber(2));
+    i32 upIndex = checkInteger(L, 2, "bad argument #2 to 'getupvalue' (valid integer expected)");
     if (upIndex <= 0) {
         L->pushNil();
         return 1;
@@ -858,10 +859,7 @@ i32 luaDebug_getupvalue(LuaState* L) {
 
 i32 luaDebug_setupvalue(LuaState* L) {
     Function* func = checkFunctionArg(L, 1, "bad argument #1 to 'setupvalue' (function expected)");
-    if (!L->isNumber(2)) {
-        L->error("bad argument #2 to 'setupvalue' (number expected)");
-    }
-    i32 upIndex = static_cast<i32>(L->toNumber(2));
+    i32 upIndex = checkInteger(L, 2, "bad argument #2 to 'setupvalue' (valid integer expected)");
     if (upIndex <= 0) {
         L->pushNil();
         return 1;
@@ -982,10 +980,7 @@ i32 luaDebug_getlocal(LuaState* L) {
         L->error("bad argument to 'getlocal' (value and local index expected)");
     }
 
-    if (!L->isNumber(argBase + 1)) {
-        L->error("bad argument to 'getlocal' (local index expected)");
-    }
-    i32 localIndex = static_cast<i32>(L->toNumber(argBase + 1));
+    i32 localIndex = checkInteger(L, argBase + 1, "bad argument to 'getlocal' (local index expected)");
     if (localIndex <= 0) {
         L->pushNil();
         return 1;
@@ -1161,10 +1156,7 @@ i32 luaDebug_traceback(LuaState* L) {
 
     i32 level = (ownerL == L) ? 1 : 0;
     if (L->getTop() >= argBase + 1) {
-        if (!L->isNumber(argBase + 1)) {
-            L->error("bad argument to 'traceback' (number expected)");
-        }
-        level = std::max(0, static_cast<i32>(L->toNumber(argBase + 1)));
+        level = std::max(0, checkInteger(L, argBase + 1, "bad argument to 'traceback' (valid integer expected)"));
     }
 
     Str traceback;
@@ -1222,10 +1214,7 @@ i32 luaDebug_sethook(LuaState* L) {
         }
 
         if (L->getTop() >= argBase + 2) {
-            if (!L->isNumber(argBase + 2)) {
-                L->error("bad argument to 'sethook' (count expected)");
-            }
-            count = std::max(0, static_cast<i32>(L->toNumber(argBase + 2)));
+            count = std::max(0, checkInteger(L, argBase + 2, "bad argument to 'sethook' (valid count expected)"));
         }
     }
 

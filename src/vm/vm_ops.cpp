@@ -25,14 +25,15 @@
 namespace Lua {
 namespace {
 
-bool tryToNumber(const Value& val, f64& result) {
+bool tryToNumber(LuaState* L, const Value& val, f64& result) {
     if (val.isNumber()) {
         result = val.asNumber();
         return true;
     }
     if (val.isString()) {
         GCString* str = val.asString();
-        return luaStringToNumber(str->view(), result);
+        L->consumeNativeWork(str->getLength());
+        return luaStringToNumber(str->view(), result, L->getGlobalState().getAllocator());
     }
     return false;
 }
@@ -169,7 +170,7 @@ void settable(LuaState* L, Value t, const Value& key, const Value& val) {
 
 void arith(LuaState* L, Value& result, const Value& left, const Value& right, OpCode op) {
     f64 lval, rval;
-    if (tryToNumber(left, lval) && tryToNumber(right, rval)) {
+    if (tryToNumber(L, left, lval) && tryToNumber(L, right, rval)) {
         f64 res = 0.0;
         switch (op) {
         case OpCode::ADD:
@@ -308,7 +309,7 @@ bool lessEqual(LuaState* L, const Value& left, const Value& right) {
 
 void unaryMinus(LuaState* L, Value& result, const Value& val) {
     f64 num;
-    if (tryToNumber(val, num)) {
+    if (tryToNumber(L, val, num)) {
         result = Value(-num);
         return;
     }

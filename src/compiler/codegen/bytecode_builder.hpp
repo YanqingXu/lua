@@ -9,6 +9,7 @@
 #include "core/function.hpp"
 #include "core/string_pool.hpp"
 #include "core/value.hpp"
+#include "runtime/compilation_policy.hpp"
 
 #include <stdexcept>
 
@@ -24,9 +25,10 @@ class BytecodeBuilder {
 public:
     BytecodeBuilder() = default;
 
-    void bind(Proto& proto, StringPool& pool) noexcept {
+    void bind(Proto& proto, StringPool& pool, CompilationBudget* budget = nullptr) noexcept {
         proto_ = &proto;
         pool_ = &pool;
+        budget_ = budget;
     }
 
     bool isBound() const noexcept {
@@ -91,6 +93,9 @@ public:
     }
 
     i32 addStringConstant(StrView value) {
+        if (budget_ != nullptr) {
+            budget_->consumeStringBytes(value.size());
+        }
         return addConstant(Value(requirePool().intern(value)));
     }
 
@@ -116,6 +121,9 @@ public:
 
 private:
     i32 emit(i32 line, Instruction inst) {
+        if (budget_ != nullptr) {
+            budget_->consumeInstruction();
+        }
         Proto& current = requireProto();
         i32 pc = static_cast<i32>(current.addInstruction(inst));
         current.addLineInfo(line);
@@ -123,6 +131,9 @@ private:
     }
 
     i32 addConstant(const Value& value) {
+        if (budget_ != nullptr) {
+            budget_->consumeConstant();
+        }
         return static_cast<i32>(requireProto().addConstant(value));
     }
 
@@ -142,6 +153,7 @@ private:
 
     Proto* proto_ = nullptr;
     StringPool* pool_ = nullptr;
+    CompilationBudget* budget_ = nullptr;
 };
 
 }  // namespace Lua

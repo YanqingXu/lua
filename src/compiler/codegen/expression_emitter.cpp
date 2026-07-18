@@ -61,6 +61,35 @@ Opt<bool> literalTruthiness(const Expr& expr) {
     return std::nullopt;
 }
 
+bool producesBoolean(const Expr& expr) {
+    if (std::holds_alternative<BoolExpr>(expr.variant)) {
+        return true;
+    }
+    if (const auto* paren = std::get_if<ParenExpr>(&expr.variant)) {
+        return producesBoolean(*paren->expression);
+    }
+    if (const auto* unary = std::get_if<UnaryExpr>(&expr.variant)) {
+        return unary->op == UnaryExpr::Op::Not;
+    }
+    if (const auto* binary = std::get_if<BinaryExpr>(&expr.variant)) {
+        switch (binary->op) {
+            case BinaryExpr::Op::Eq:
+            case BinaryExpr::Op::Ne:
+            case BinaryExpr::Op::Lt:
+            case BinaryExpr::Op::Le:
+            case BinaryExpr::Op::Gt:
+            case BinaryExpr::Op::Ge:
+                return true;
+            case BinaryExpr::Op::And:
+            case BinaryExpr::Op::Or:
+                return producesBoolean(*binary->left) && producesBoolean(*binary->right);
+            default:
+                break;
+        }
+    }
+    return false;
+}
+
 Opt<f64> immediateNumber(const ValueResult& value) {
     return value.visit(ValueResultVisitor{
         [](const ValueResult::Immediate& immediate) -> Opt<f64> {
@@ -241,6 +270,10 @@ CondResult ExpressionEmitter::emitCondResult(const Expr& e) {
     LineGuard line(state_, e.getLine());
     CondResult result;
 
+    if (const auto* paren = std::get_if<ParenExpr>(&e.variant)) {
+        return emitCondResult(*paren->expression);
+    }
+
     if (const auto* binary = std::get_if<BinaryExpr>(&e.variant)) {
         switch (binary->op) {
             case BinaryExpr::Op::And: {
@@ -308,6 +341,10 @@ CondResult ExpressionEmitter::emitCondResult(const Expr& e) {
 CondResult ExpressionEmitter::emitCondResultTrue(const Expr& e) {
     LineGuard line(state_, e.getLine());
     CondResult result;
+
+    if (const auto* paren = std::get_if<ParenExpr>(&e.variant)) {
+        return emitCondResultTrue(*paren->expression);
+    }
 
     if (const auto* binary = std::get_if<BinaryExpr>(&e.variant)) {
         switch (binary->op) {
@@ -454,6 +491,14 @@ ValueResult ExpressionEmitter::visitNode(const FunctionExpr& e) {
 ValueResult ExpressionEmitter::visitNode(const ParenExpr& e) {
     ValueResult inner = emitValue(*e.expression);
     inner = forceSingleValue(inner);
+    const bool isImmediate = inner.visit(ValueResultVisitor{
+        [](const ValueResult::Immediate&) { return true; },
+        [](const ValueResult::ConstantRef&) { return true; },
+        [](const auto&) { return false; },
+    });
+    if (isImmediate) {
+        return inner;
+    }
     i32 reg = valueToAnyReg(inner);
 
     return ValueResult::makeRegister(reg, true);
@@ -539,10 +584,21 @@ void ExpressionEmitter::materializeValue(const ValueResult& val, i32 reg) {
 i32 ExpressionEmitter::valueToRK(const ValueResult& val) {
     Opt<i32> encoded = val.visit(ValueResultVisitor{
         [&](const ValueResult::Immediate& immediate) -> Opt<i32> {
-            if (immediate.kind != ValueResult::ImmediateKind::Number) {
+            i32 k = -1;
+            switch (immediate.kind) {
+            case ValueResult::ImmediateKind::Number:
+                k = numberConstant(immediate.numberValue);
+                break;
+            case ValueResult::ImmediateKind::Boolean:
+                k = ops_.boolConstant(immediate.boolValue);
+                break;
+            case ValueResult::ImmediateKind::Nil:
+                k = ops_.nilConstant();
+                break;
+            case ValueResult::ImmediateKind::None:
+            default:
                 return std::nullopt;
             }
-            i32 k = numberConstant(immediate.numberValue);
             if (k <= MAXINDEXRK) {
                 return RKASK(k);
             }
@@ -657,6 +713,23 @@ ValueResult ExpressionEmitter::emitValueBinary(const BinaryExpr& e) {
 
     // === And/Or: 短路求值 ===
     if (op == BinaryExpr::Op::And || op == BinaryExpr::Op::Or) {
+        if (producesBoolean(*e.left) && producesBoolean(*e.right)) {
+            CondResult cond;
+            if (op == BinaryExpr::Op::And) {
+                CondResult left = emitCondResult(*e.left);
+                CondResult right = emitCondResultTrue(*e.right);
+                patchtohere(left.falseList);
+                cond.trueList = std::move(right.trueList);
+            } else {
+                CondResult left = emitCondResultTrue(*e.left);
+                CondResult right = emitCondResultTrue(*e.right);
+                cond.trueList = PatchList::merge(std::move(left.trueList), right.trueList);
+            }
+            i32 resultReg = allocReg();
+            materializeCondResult(cond, resultReg, false);
+            return ValueResult::makeRegister(resultReg, true);
+        }
+
         ValueResult left = emitValue(*e.left);
         left = forceSingleValue(left);
         i32 resultReg = -1;

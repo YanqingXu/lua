@@ -31,6 +31,8 @@
 #include "runtime/runtime_services.hpp"
 #include "compiler/opcode.hpp"
 
+#include <cassert>
+
 namespace Lua {
 
 // =====================================================================
@@ -68,6 +70,13 @@ namespace {
 
 ExecResult executeProtoUnchecked(RuntimeServices& services, LuaState* L, Proto* proto, i32 nexeccalls) {
     services.globalState.requireOwnerThread();
+    if (L == nullptr) {
+        throw RuntimeError("VM::executeProto: null state");
+    }
+    assert(&L->getGlobalState() == &services.globalState);
+    if (&L->getGlobalState() != &services.globalState) {
+        throw RuntimeError("VM::executeProto: runtime services do not own state");
+    }
     if (!proto)
         throw RuntimeError("VM::executeProto: null proto");
     if (nexeccalls >= MAX_CALLS)
@@ -82,7 +91,10 @@ ExecResult executeProtoUnchecked(RuntimeServices& services, LuaState* L, Proto* 
 } // namespace
 
 ExecResult executeProto(LuaState* L, Proto* proto, i32 nexeccalls) {
-    RuntimeServices services = RuntimeServices::fromSingletons();
+    if (L == nullptr) {
+        throw RuntimeError("VM::executeProto: null state");
+    }
+    RuntimeServices services(L->getGlobalState());
     return executeProto(services, L, proto, nexeccalls);
 }
 
@@ -91,7 +103,10 @@ ExecResult executeProto(RuntimeServices& services, LuaState* L, Proto* proto, i3
 }
 
 std::expected<ExecResult, RuntimeError> tryExecuteProto(LuaState* L, Proto* proto, i32 nexeccalls) {
-    RuntimeServices services = RuntimeServices::fromSingletons();
+    if (L == nullptr) {
+        return std::unexpected(RuntimeError("VM::executeProto: null state"));
+    }
+    RuntimeServices services(L->getGlobalState());
     return tryExecuteProto(services, L, proto, nexeccalls);
 }
 
@@ -160,7 +175,7 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
     pc = ci.savedpc ? static_cast<usize>(ci.savedpc - entryCode.data()) : 0;
 
     // dump bytecode at entry
-    if (VM::detail::shouldDumpBytecode()) {
+    if (VM::detail::shouldDumpBytecode(L)) {
         const auto dcode = proto->getInstructionSpan();
         std::fprintf(stderr, "[BCDUMP] proto(%p) %zu instructions, pc=%zu\n", static_cast<const void*>(proto),
                      dcode.size(), pc);
@@ -202,14 +217,14 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
             VM::detail::dispatchLineHook(L, proto, instructionPc);
             base = refreshBase(L);
 
-            const bool traceDiff = VM::isTraceDiffEnabled() && VM::getTraceSink() != nullptr;
+            const bool traceDiff = VM::isTraceDiffEnabled(services) && VM::getTraceSink(services) != nullptr;
             const usize traceFrameBase = L->getCurrentCallInfo().base;
             const i32 traceCallDepth = nexeccalls;
             Vec<Value> traceBefore;
             if (traceDiff) {
                 traceBefore = VM::detail::captureTraceRegisters(L, traceFrameBase, proto->getMaxStackSize());
             } else {
-                VM::detail::emitInstructionTrace(proto, base, instructionPc, inst, nexeccalls);
+                VM::detail::emitInstructionTrace(L, proto, base, instructionPc, inst, nexeccalls);
             }
 
             if (backend == DispatchBackend::Table) {

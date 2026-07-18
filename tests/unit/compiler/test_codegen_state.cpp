@@ -131,6 +131,70 @@ void testGenerateKeepsThrowingForCompatibility(TestSuite& suite) {
     ASSERT_TRUE(suite, threwCodegenError, "legacy generate should still throw on codegen failure");
 }
 
+void testCompilationPolicyBoundsCodeGeneration(TestSuite& suite) {
+    const auto generateWith = [&](StrView source, const auto& configure) {
+        EngineContext context;
+        RuntimeServices services = context.services();
+        Parser parser{Str(source), services};
+        auto parsed = parser.parse();
+        if (!parsed) {
+            return false;
+        }
+        configure(context.compilationPolicy());
+        CodeGenerator codegen(services);
+        return codegen.tryGenerate(*parsed).has_value();
+    };
+
+    ASSERT_FALSE(suite, generateWith("return 1", [](CompilationPolicy& policy) {
+                     policy.maxInstructions = 0;
+                 }),
+                 "instruction budget rejects before Proto code growth");
+    ASSERT_FALSE(suite, generateWith("return 1", [](CompilationPolicy& policy) {
+                     policy.maxConstants = 0;
+                 }),
+                 "constant budget rejects before Proto constant growth");
+    ASSERT_FALSE(suite, generateWith("return 'x'", [](CompilationPolicy& policy) {
+                     policy.maxStringBytes = 0;
+                 }),
+                 "string budget rejects before codegen string interning");
+    ASSERT_FALSE(suite, generateWith("return function() return 1 end", [](CompilationPolicy& policy) {
+                     policy.maxFunctions = 1;
+                 }),
+                 "function budget is shared by root and child Protos");
+
+    {
+        EngineContext context;
+        RuntimeServices services = context.services();
+        ExecutionPolicy::Limits limits;
+        limits.nativeWorkBudget = 1;
+        context.executionPolicy().configure(limits);
+        bool parserStopped = false;
+        try {
+            Parser parser{"return 1", services};
+            parserStopped = !parser.parse().has_value();
+        } catch (const CompilationLimitError& error) {
+            parserStopped = std::string(error.what()) == "compilation interrupted by execution policy";
+        }
+        ASSERT_TRUE(suite, parserStopped, "parser source work consumes the shared native-work budget");
+    }
+
+    {
+        EngineContext context;
+        RuntimeServices services = context.services();
+        Parser parser{"return 1", services};
+        auto parsed = parser.parse();
+        ASSERT_TRUE(suite, parsed.has_value(), "native-work codegen fixture parses before arming its budget");
+        if (parsed) {
+            ExecutionPolicy::Limits limits;
+            limits.nativeWorkBudget = 0;
+            context.executionPolicy().configure(limits);
+            CodeGenerator codegen(services);
+            ASSERT_FALSE(suite, codegen.tryGenerate(*parsed).has_value(),
+                         "code generation consumes the shared native-work budget");
+        }
+    }
+}
+
 }  // namespace
 
 void registerCodegenStateTests() {
@@ -143,4 +207,6 @@ void registerCodegenStateTests() {
                           testTryGenerateReturnsCodegenErrorOnFailure);
     registry.registerTest(kSuiteName, "generate keeps throwing for compatibility",
                           testGenerateKeepsThrowingForCompatibility);
+    registry.registerTest(kSuiteName, "compilation policy codegen limits",
+                          testCompilationPolicyBoundsCodeGeneration);
 }

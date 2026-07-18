@@ -28,6 +28,10 @@ void StringPool::setGarbageCollector(GarbageCollector* collector) {
  * @brief 驻留字符串 - 获取或创建字符串对象
  */
 GCString* StringPool::intern(StrView str) {
+    if (resourcePolicy_ != nullptr && str.size() > resourcePolicy_->maxStringBytes) {
+        throw ResourceLimitError("resource limit exceeded: string bytes");
+    }
+
     // 在池中查找是否已存在
     auto it = pool_.find(str);
     if (it != pool_.end()) {

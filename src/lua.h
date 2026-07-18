@@ -27,7 +27,17 @@ extern "C" {
 
 #define lua_upvalueindex(i) (LUA_GLOBALSINDEX - (i))
 
-enum { LUA_OK = 0, LUA_YIELD = 1, LUA_ERRRUN = 2, LUA_ERRSYNTAX = 3, LUA_ERRMEM = 4, LUA_ERRERR = 5 };
+enum {
+    LUA_OK = 0,
+    LUA_YIELD = 1,
+    LUA_ERRRUN = 2,
+    LUA_ERRSYNTAX = 3,
+    LUA_ERRMEM = 4,
+    LUA_ERRERR = 5,
+    /* Project extension statuses returned by lua_tryclose. */
+    LUA_ERRTHREAD = 6,
+    LUA_ERRBUSY = 7
+};
 
 enum {
     LUA_TNONE = -1,
@@ -92,6 +102,8 @@ struct lua_Debug {
 lua_State* lua_newstate(lua_Alloc f, void* ud) LUA_CXX_MAY_THROW;
 lua_State* lua_open(void) LUA_CXX_MAY_THROW;
 void lua_close(lua_State* L) LUA_CXX_NOEXCEPT;
+/* Project extension: observable owner-thread runtime teardown. */
+int lua_tryclose(lua_State* L) LUA_CXX_NOEXCEPT;
 lua_CFunction lua_atpanic(lua_State* L, lua_CFunction panicf) LUA_CXX_MAY_THROW;
 lua_Alloc lua_getallocf(lua_State* L, void** ud) LUA_CXX_MAY_THROW;
 void lua_setallocf(lua_State* L, lua_Alloc f, void* ud) LUA_CXX_MAY_THROW;

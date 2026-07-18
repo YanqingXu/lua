@@ -13,6 +13,14 @@ namespace Lua {
 
 class SandboxPolicy;
 
+struct NativeModulePolicy {
+    bool requireAbsolutePath = true;
+    bool requireAbiHandshake = false;
+    u32 expectedAbiVersion = 1;
+    Str abiVersionSymbol = "lua_cpp_module_abi_version";
+    Vec<Str> allowedCanonicalPaths;
+};
+
 /**
  * @brief Owns the operating-system leases for native modules used by one runtime.
  *
@@ -46,6 +54,12 @@ public:
      */
     [[nodiscard]] std::expected<void*, Str> findSymbol(Handle handle, const Str& symbolName) const;
 
+    NativeModulePolicy& policy() noexcept { return policy_; }
+    const NativeModulePolicy& policy() const noexcept { return policy_; }
+
+    /** Add one canonical path to the allowlist. An empty allowlist allows all absolute paths. */
+    void allowPath(const Str& filename);
+
     [[nodiscard]] usize loadedCount() const noexcept {
         return entries_.size();
     }
@@ -65,10 +79,13 @@ private:
 
     [[nodiscard]] static Str normalizedPath(const Str& filename);
     [[nodiscard]] static bool isCurrentExecutable(const Str& filename);
+    [[nodiscard]] bool pathAllowed(const Str& normalized) const;
+    [[nodiscard]] std::expected<void, Str> verifyAbi(Handle handle) const;
     static void close(Handle handle, bool owned) noexcept;
 
     Vec<Entry> entries_;
     const SandboxPolicy* sandboxPolicy_;
+    NativeModulePolicy policy_;
 };
 
 } // namespace Lua

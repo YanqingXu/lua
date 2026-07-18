@@ -422,6 +422,136 @@ void testTableSortUsesLtMetamethodByDefault(TestSuite& suite) {
     delete L;
 }
 
+void testTableSortRejectsHostileComparatorsSafely(TestSuite& suite) {
+    LuaState* L = createFullState();
+    const bool ok = runLua(L, R"(
+        local function rejected(comparator)
+            local values = {4, 3, 2, 1}
+            local success, message = pcall(table.sort, values, comparator)
+            return not success and string.find(message, "invalid order function for sorting", 1, true) ~= nil
+        end
+
+        gSortAlwaysTrueRejected = rejected(function() return true end)
+        gSortEqualityRejected = rejected(function(a, b) return a == b end)
+
+        local flip = false
+        gSortFlippingRejected = rejected(function()
+            flip = not flip
+            return flip
+        end)
+
+        local randomValues = {8, 7, 6, 5, 4, 3, 2, 1}
+        pcall(table.sort, randomValues, function() return math.random() > 0.5 end)
+        gSortRandomComparatorReturned = true
+    )");
+
+    ASSERT_TRUE(suite, ok, "hostile comparator probes complete without escaping the protected call");
+    ASSERT_TRUE(suite, L->getGlobal("gSortAlwaysTrueRejected").isTrue(),
+                "always-true comparator receives the stable invalid-order error");
+    ASSERT_TRUE(suite, L->getGlobal("gSortEqualityRejected").isTrue(),
+                "equality comparator receives the stable invalid-order error");
+    ASSERT_TRUE(suite, L->getGlobal("gSortFlippingRejected").isTrue(),
+                "obviously stateful comparator receives the stable invalid-order error");
+    ASSERT_TRUE(suite, L->getGlobal("gSortRandomComparatorReturned").isTrue(),
+                "random comparator cannot make the bounded sort overrun storage");
+    delete L;
+}
+
+void testTableSortConsumesNativeWorkBudget(TestSuite& suite) {
+    LuaStdLibTestContext ctx(openTableLib);
+    LuaState* L = ctx.getState();
+    ScopedGCRoots roots(L);
+    Table* values = roots.create<Table>();
+    for (i32 i = 1; i <= 32; ++i) {
+        values->set(Value(static_cast<LuaNumber>(i)), Value(static_cast<LuaNumber>(33 - i)));
+    }
+
+
+    L->getGlobalState().getResourcePolicy().maxSortElements = 8;
+    bool elementLimitStopped = false;
+    try {
+        (void)callTableFunc(L, "sort", [&](LuaState* state) { state->pushTable(values); });
+    } catch (const RuntimeError& error) {
+        elementLimitStopped = std::string(error.what()) == "table.sort: element limit exceeded";
+    }
+    L->getGlobalState().getResourcePolicy().maxSortElements = 1'000'000;
+    ASSERT_TRUE(suite, elementLimitStopped, "table.sort rejects oversized input before temporary allocation");
+
+    ExecutionPolicy::Limits limits;
+    limits.nativeWorkBudget = 4;
+    L->getGlobalState().getExecutionPolicy().configure(limits);
+    bool stopped = false;
+    try {
+        (void)callTableFunc(L, "sort", [&](LuaState* state) { state->pushTable(values); });
+    } catch (const RuntimeError& error) {
+        stopped = std::string(error.what()) == "execution native work budget exceeded";
+    }
+    L->getGlobalState().getExecutionPolicy().reset();
+
+    ASSERT_TRUE(suite, stopped, "table.sort stops at the independent native-work budget");
+}
+
+void testTableResourcePolicyCoversLinearOperations(TestSuite& suite) {
+    LuaStdLibTestContext ctx(openTableLib);
+    LuaState* L = ctx.getState();
+    ScopedGCRoots roots(L);
+    Table* values = roots.create<Table>();
+    for (i32 i = 1; i <= 8; ++i) {
+        values->set(Value(static_cast<LuaNumber>(i)), Value(static_cast<LuaNumber>(i * 10)));
+    }
+
+    const usize oldReturnLimit = L->getGlobalState().getResourcePolicy().maxReturnValues;
+    L->getGlobalState().getResourcePolicy().maxReturnValues = 2;
+    bool unpackStopped = false;
+    try {
+        (void)callTableFunc(L, "unpack", [&](LuaState* state) { state->pushTable(values); });
+    } catch (const RuntimeError& error) {
+        unpackStopped = std::string(error.what()) == "table.unpack: result count exceeds resource limit";
+    }
+    L->getGlobalState().getResourcePolicy().maxReturnValues = oldReturnLimit;
+    ASSERT_TRUE(suite, unpackStopped, "table.unpack checks the return-count limit before pushing values");
+
+    ExecutionPolicy::Limits limits;
+    limits.nativeWorkBudget = 2;
+    L->getGlobalState().getExecutionPolicy().configure(limits);
+    bool insertStopped = false;
+    try {
+        (void)callTableFunc(L, "insert", [&](LuaState* state) {
+            state->pushTable(values);
+            state->pushNumber(1);
+            state->pushNumber(99);
+        });
+    } catch (const RuntimeError& error) {
+        insertStopped = std::string(error.what()) == "execution native work budget exceeded";
+    }
+    L->getGlobalState().getExecutionPolicy().reset();
+    ASSERT_TRUE(suite, insertStopped, "table.insert charges its complete shift before mutation");
+    ASSERT_EQ(suite, 10.0, values->get(Value(1.0)).asNumber(),
+              "budget rejection leaves table.insert input unchanged");
+    ASSERT_TRUE(suite, values->get(Value(9.0)).isNil(),
+                "budget rejection does not append a partial table.insert result");
+
+    Table* destination = roots.create<Table>();
+    limits.nativeWorkBudget = 2;
+    L->getGlobalState().getExecutionPolicy().configure(limits);
+    bool moveStopped = false;
+    try {
+        (void)callTableFunc(L, "move", [&](LuaState* state) {
+            state->pushTable(values);
+            state->pushNumber(1);
+            state->pushNumber(8);
+            state->pushNumber(1);
+            state->pushTable(destination);
+        });
+    } catch (const RuntimeError& error) {
+        moveStopped = std::string(error.what()) == "execution native work budget exceeded";
+    }
+    L->getGlobalState().getExecutionPolicy().reset();
+    ASSERT_TRUE(suite, moveStopped, "table.move charges its complete copy before mutation");
+    ASSERT_TRUE(suite, destination->get(Value(1.0)).isNil(),
+                "budget rejection leaves table.move destination unchanged");
+}
+
 // =====================================================================
 // table.maxn 测试
 // =====================================================================
@@ -697,6 +827,12 @@ void registerTableLibTests() {
     registry.registerTest(kSuiteName, "table.sort comparator complexity",
                           testTableSortComparatorDoesNotUseQuadraticComparisons);
     registry.registerTest(kSuiteName, "table.sort default __lt", testTableSortUsesLtMetamethodByDefault);
+    registry.registerTest(kSuiteName, "table.sort rejects hostile comparators",
+                          testTableSortRejectsHostileComparatorsSafely);
+    registry.registerTest(kSuiteName, "table.sort consumes native work budget",
+                          testTableSortConsumesNativeWorkBudget);
+    registry.registerTest(kSuiteName, "resource policy covers linear operations",
+                          testTableResourcePolicyCoversLinearOperations);
     registry.registerTest(kSuiteName, "table.maxn", testTableMaxn);
     registry.registerTest(kSuiteName, "table.getn compatibility", testTableGetnCompatibility);
     registry.registerTest(kSuiteName, "table.pack", testTablePack);

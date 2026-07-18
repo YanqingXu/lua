@@ -54,12 +54,18 @@ enum class ExecResult : u8 {
  */
 namespace VM {
 
+#if defined(NDEBUG)
+#define LUA_VM_COMPAT_DEPRECATED(message) [[deprecated(message)]]
+#else
+#define LUA_VM_COMPAT_DEPRECATED(message)
+#endif
+
     /**
      * @brief 执行Lua函数
      * @param L Lua状态指针
      * @param func 要执行的函数对象
      */
-    void execute(LuaState* L, Function* func);
+    LUA_VM_COMPAT_DEPRECATED("pass RuntimeServices explicitly") void execute(LuaState* L, Function* func);
 
     /**
      * @brief 使用显式运行时服务执行Lua函数
@@ -73,6 +79,7 @@ namespace VM {
      * @param nexeccalls 嵌套调用计数（用于检测栈溢出）
      * @return ExecResult::Returned 或 ExecResult::Yielded
      */
+    LUA_VM_COMPAT_DEPRECATED("pass RuntimeServices explicitly")
     ExecResult executeProto(LuaState* L, Proto* proto, i32 nexeccalls = 1);
 
     /**
@@ -83,7 +90,7 @@ namespace VM {
     /**
      * @brief 执行字节码块（Proto），以 expected 返回运行期错误
      */
-    [[nodiscard]] std::expected<ExecResult, RuntimeError> tryExecuteProto(
+    LUA_VM_COMPAT_DEPRECATED("pass RuntimeServices explicitly") [[nodiscard]] std::expected<ExecResult, RuntimeError> tryExecuteProto(
         LuaState* L, Proto* proto, i32 nexeccalls = 1);
 
     /**
@@ -102,7 +109,7 @@ namespace VM {
      * @param nargs 参数个数（不含函数本身）
      * @param nresults 期望的返回值数量（-1 = MULTRET）
      */
-    void call(LuaState* L, i32 nargs, i32 nresults);
+    LUA_VM_COMPAT_DEPRECATED("pass RuntimeServices explicitly") void call(LuaState* L, i32 nargs, i32 nresults);
 
     /**
      * @brief 使用显式运行时服务从CFunction内部调用栈上的函数
@@ -114,22 +121,30 @@ namespace VM {
      */
     void setTraceSink(ITraceSink* sink);
 
+    /// Context-local trace configuration for isolated runtimes.
+    void setTraceSink(RuntimeServices& services, ITraceSink* sink);
+
     /**
      * @brief 获取当前 Trace Sink
      */
     ITraceSink* getTraceSink();
+    ITraceSink* getTraceSink(RuntimeServices& services);
 
     /**
      * @brief 开关 trace 差异模式；开启后 instruction 事件包含 changedRegisters。
      */
     void setTraceDiffEnabled(bool enabled);
+    void setTraceDiffEnabled(RuntimeServices& services, bool enabled);
 
     /**
      * @brief 查询 trace 差异模式是否开启。
      */
     bool isTraceDiffEnabled();
+    bool isTraceDiffEnabled(RuntimeServices& services);
 
 } // namespace VM
+
+#undef LUA_VM_COMPAT_DEPRECATED
 
 } // namespace Lua
 

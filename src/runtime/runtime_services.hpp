@@ -135,8 +135,48 @@ public:
         return globalState_.getSandboxPolicy();
     }
 
+    [[nodiscard]] RuntimeRandom& random() {
+        globalState_.requireOwnerThread();
+        return globalState_.getRandom();
+    }
+
+    [[nodiscard]] const RuntimeRandom& random() const {
+        globalState_.requireOwnerThread();
+        return globalState_.getRandom();
+    }
+
+    [[nodiscard]] ResourcePolicy& resourcePolicy() {
+        globalState_.requireOwnerThread();
+        return globalState_.getResourcePolicy();
+    }
+
+    [[nodiscard]] const ResourcePolicy& resourcePolicy() const {
+        globalState_.requireOwnerThread();
+        return globalState_.getResourcePolicy();
+    }
+
+    [[nodiscard]] CompilationPolicy& compilationPolicy() {
+        globalState_.requireOwnerThread();
+        return globalState_.getCompilationPolicy();
+    }
+
+    [[nodiscard]] const CompilationPolicy& compilationPolicy() const {
+        globalState_.requireOwnerThread();
+        return globalState_.getCompilationPolicy();
+    }
+
+    [[nodiscard]] TraceRuntime& trace() {
+        globalState_.requireOwnerThread();
+        return globalState_.getTraceRuntime();
+    }
+
+    [[nodiscard]] const TraceRuntime& trace() const {
+        globalState_.requireOwnerThread();
+        return globalState_.getTraceRuntime();
+    }
+
     /**
-     * @brief Create a non-owning handle whose only cross-thread action is cancel.
+     * @brief Create a teardown-safe handle whose only cross-thread action is cancel.
      */
     [[nodiscard]] ExecutionCancellationHandle cancellationHandle() {
         return executionPolicy().cancellationHandle();

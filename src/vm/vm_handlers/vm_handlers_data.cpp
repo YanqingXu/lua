@@ -16,7 +16,7 @@ HandlerStatus handleMove(OpExecutionContext& context, Instruction inst) {
     i32 a = GETARG_A(inst);
     i32 b = GETARG_B(inst);
 
-    if (detail::shouldDumpBytecode()) {
+    if (detail::shouldDumpBytecode(context.state)) {
         std::fprintf(stderr, "[MOVE] pc=%zu a=%d b=%d base[b]=", context.instructionPc, a, b);
         if (context.base[b].isNumber()) std::fprintf(stderr, "%g", context.base[b].asNumber());
         else if (context.base[b].isNil()) std::fprintf(stderr, "nil");

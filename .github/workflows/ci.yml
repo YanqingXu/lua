@@ -7,6 +7,9 @@ on:
       - main
       - master
 
+permissions:
+  contents: read
+
 jobs:
   windows-msbuild:
     name: Windows MSBuild (${{ matrix.configuration }})
@@ -20,12 +23,12 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
 
       - name: Setup MSBuild
-        uses: microsoft/setup-msbuild@v2
+        uses: microsoft/setup-msbuild@30375c66a4eea26614e0d39710365f22f8b0af57 # v3.0.0
 
       - name: Build tests
         shell: powershell
@@ -105,7 +108,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Install Clang C++ standard library
         if: matrix.compiler == 'Clang'
@@ -151,7 +154,7 @@ jobs:
 
       - name: Upload differential evidence
         if: always() && matrix.compiler == 'Clang' && matrix.build_type == 'Debug'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: lua51-differential-evidence
           path: |
@@ -187,7 +190,7 @@ jobs:
 
       - name: Upload official strict evidence
         if: always() && matrix.compiler == 'Clang' && matrix.build_type == 'Release'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: official-strict-evidence
           path: build/official-strict.json
@@ -198,7 +201,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        sanitizer: [address, undefined]
+        sanitizer: [address, undefined, thread]
     env:
       CC: clang-18
       CXX: clang++-18
@@ -207,11 +210,12 @@ jobs:
       # operator-new/free boundary. Keep every other ASan/LSan check enabled.
       ASAN_OPTIONS: detect_leaks=1:halt_on_error=1:alloc_dealloc_mismatch=0
       UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+      TSAN_OPTIONS: halt_on_error=1:history_size=7
       LUA_TEST_DISABLE_MEMORY_LIMIT: 1
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Install Clang C++ standard library
         run: sudo apt-get update && sudo apt-get install --yes libc++-18-dev libc++abi-18-dev
@@ -226,7 +230,173 @@ jobs:
         run: cmake --build build --parallel 2
 
       - name: Test sanitizer
-        run: ctest --test-dir build --output-on-failure --timeout 600
+        run: ctest --test-dir build --output-on-failure --timeout 900
+
+  allocator-failure-contract:
+    name: Allocator failure contract (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Configure allocator contract
+        run: >-
+          cmake -S . -B build/allocator -G Ninja
+          -DCMAKE_BUILD_TYPE=Debug
+          -DLUA_CPP_BUILD_TOOLS=OFF
+
+      - name: Build allocator contract
+        run: cmake --build build/allocator --parallel 2 --target lua_test
+
+      - name: Run with process memory limit and fail-on-N enabled
+        shell: pwsh
+        run: |
+          Remove-Item Env:LUA_TEST_DISABLE_MEMORY_LIMIT -ErrorAction SilentlyContinue
+          $executable = if ($IsWindows) { "build/allocator/lua_test.exe" } else { "build/allocator/lua_test" }
+          & $executable --exclude-filter "Lua 5.1 Official"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+  linux-fuzzers:
+    name: Linux libFuzzer security boundaries
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CC: clang-18
+      CXX: clang++-18
+      ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+      UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install Clang
+        run: sudo apt-get update && sudo apt-get install --yes clang-18
+
+      - name: Configure fuzzers
+        run: >-
+          cmake -S . -B build/fuzz
+          -DCMAKE_BUILD_TYPE=Debug
+          -DLUA_CPP_BUILD_FUZZERS=ON
+          -DLUA_CPP_BUILD_TESTS=OFF
+          -DLUA_CPP_BUILD_TOOLS=OFF
+
+      - name: Build fuzzers
+        run: >-
+          cmake --build build/fuzz --parallel 2 --target
+          fuzz_undump
+          fuzz_bytecode_verifier
+          fuzz_parser
+          fuzz_stdlib_numeric_arguments
+
+      - name: Run bounded fuzz smoke
+        shell: bash
+        run: |
+          mkdir -p build/fuzz-artifacts
+          targets=(undump bytecode_verifier parser stdlib_numeric_arguments)
+          for target in "${targets[@]}"; do
+            "build/fuzz/fuzz_${target}" "tests/fuzz/corpus/${target}" \
+              -max_total_time=30 \
+              -timeout=5 \
+              -max_len=1048576 \
+              -rss_limit_mb=2048 \
+              -artifact_prefix="build/fuzz-artifacts/${target}-"
+          done
+
+      - name: Upload fuzzer artifacts
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: libfuzzer-crash-artifacts
+          path: build/fuzz-artifacts/
+          if-no-files-found: ignore
+
+  portability:
+    name: Portability (${{ matrix.name }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux ARM64
+            runner: ubuntu-24.04-arm
+          - name: macOS ARM64
+            runner: macos-15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Configure
+        run: cmake -S . -B build/portability -DCMAKE_BUILD_TYPE=Debug
+
+      - name: Build
+        run: cmake --build build/portability --parallel 2
+
+      - name: Test
+        run: ctest --test-dir build/portability --output-on-failure --timeout 600
+
+  linux-coverage:
+    name: Linux component coverage
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CC: clang-18
+      CXX: clang++-18
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install LLVM coverage tools
+        run: sudo apt-get update && sudo apt-get install --yes clang-18 llvm-18
+
+      - name: Configure coverage
+        run: >-
+          cmake -S . -B build/coverage
+          -DCMAKE_BUILD_TYPE=Debug
+          -DLUA_CPP_ENABLE_COVERAGE=ON
+          -DLUA_CPP_BUILD_TOOLS=OFF
+
+      - name: Build coverage runner
+        run: cmake --build build/coverage --parallel 2 --target lua_test
+
+      - name: Run coverage suites
+        shell: bash
+        run: |
+          mkdir -p build/coverage/profiles
+          export LLVM_PROFILE_FILE="$PWD/build/coverage/profiles/%p-%m.profraw"
+          build/coverage/lua_test --exclude-filter "Lua 5.1 Official"
+          build/coverage/lua_test --filter "Lua 5.1 Official Smoke"
+          build/coverage/lua_test --filter "Lua 5.1 Official TestC"
+
+      - name: Export and summarize coverage
+        shell: bash
+        run: |
+          llvm-profdata-18 merge -sparse build/coverage/profiles/*.profraw -o build/coverage/merged.profdata
+          llvm-cov-18 export build/coverage/lua_test \
+            -instr-profile=build/coverage/merged.profdata \
+            > build/coverage/coverage.json
+          python3 tools/summarize_coverage.py \
+            build/coverage/coverage.json \
+            build/coverage/coverage-components.json
+          llvm-cov-18 show build/coverage/lua_test \
+            -instr-profile=build/coverage/merged.profdata \
+            -format=html \
+            -output-dir=build/coverage/html
+
+      - name: Upload coverage evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: component-coverage
+          path: |
+            build/coverage/coverage-components.json
+            build/coverage/html/
 
   linux-runtime-benchmark:
     name: Linux runtime benchmark contract
@@ -235,7 +405,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
 
@@ -290,7 +460,7 @@ jobs:
 
       - name: Upload benchmark evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: runtime-benchmark-evidence
           path: build/benchmark-comparison/
@@ -301,7 +471,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
 

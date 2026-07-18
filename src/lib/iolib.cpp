@@ -12,6 +12,7 @@
 #include "lib/iolib.hpp"
 #include "lib/lib_registry.hpp"
 #include "lib/lib_manager.hpp"
+#include "common/number_conversion.hpp"
 #include "core/gc_string.hpp"
 #include "core/function.hpp"
 #include "core/table.hpp"
@@ -35,6 +36,17 @@
 #endif
 
 namespace Lua {
+
+static i32 checkedIOInteger(LuaState* L, i32 index, const char* message) {
+    if (!L->isNumber(index)) {
+        L->error(message);
+    }
+    const auto converted = checkedLuaInteger(L->toNumber(index));
+    if (!converted) {
+        L->error(message);
+    }
+    return *converted;
+}
 
 // =====================================================================
 // 常量定义
@@ -1040,7 +1052,7 @@ i32 f_seek(LuaState* L) {
     // 获取 offset 参数
     long offset = 0;
     if (L->getTop() >= 3 && L->isNumber(3)) {
-        offset = static_cast<long>(L->toNumber(3));
+        offset = static_cast<long>(checkedIOInteger(L, 3, "seek offset has no valid integer representation"));
     }
 
     // 执行 seek
@@ -1080,7 +1092,11 @@ i32 f_setvbuf(LuaState* L) {
 
     usize size = BUFSIZ;
     if (L->getTop() >= 3 && L->isNumber(3)) {
-        size = static_cast<usize>(L->toNumber(3));
+        const i32 requestedSize = checkedIOInteger(L, 3, "buffer size has no valid integer representation");
+        if (requestedSize < 0) {
+            L->error("buffer size must be non-negative");
+        }
+        size = static_cast<usize>(requestedSize);
     }
 
     i32 result = std::setvbuf(handle->get(), nullptr, m, size);

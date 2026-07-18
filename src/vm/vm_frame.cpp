@@ -90,7 +90,7 @@ void vararg(LuaState* L, Value*& base, Proto* proto, i32 a, i32 b) {
             base = refreshBase(L);
         }
         L->setAbsoluteTop(neededTop);
-        if (shouldDumpBytecode()) {
+        if (shouldDumpBytecode(L)) {
             std::fprintf(stderr, "[VARARG] open multret: wanted=%d neededTop=%zu absTop=%zu stackTop=%zu\n",
                          wanted, neededTop, neededTop, stack.size());
         }
@@ -101,7 +101,7 @@ void vararg(LuaState* L, Value*& base, Proto* proto, i32 a, i32 b) {
     for (i32 j = 0; j < wanted; j++) {
         if (j < n) {
             usize srcIndex = ci.base - static_cast<usize>(n) + static_cast<usize>(j);
-            if (shouldDumpBytecode()) {
+            if (shouldDumpBytecode(L)) {
                 std::fprintf(stderr, "[VARARG] copy j=%d srcIdx=%zu val=%s\n",
                              j, srcIndex, stack[srcIndex].isNumber()
                                               ? std::to_string(stack[srcIndex].asNumber()).c_str()

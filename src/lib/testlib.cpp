@@ -33,6 +33,23 @@ namespace Lua {
 
 namespace {
 
+i32 checkedTestInteger(LuaState* L, LuaNumber value, const char* message) {
+    const auto converted = checkedLuaInteger(value);
+    if (!converted) {
+        L->error(message);
+    }
+    return *converted;
+}
+
+std::uintptr_t checkedAddress(LuaState* L, i32 index) {
+    const LuaNumber value = L->toNumber(index);
+    constexpr i32 bits = std::numeric_limits<std::uintptr_t>::digits;
+    if (!std::isfinite(value) || value < 0 || std::trunc(value) != value || value >= std::ldexp(1.0, bits)) {
+        L->error("address has no valid integer representation");
+    }
+    return static_cast<std::uintptr_t>(value);
+}
+
 struct Command {
     Str op;
     Vec<Str> args;
@@ -157,7 +174,7 @@ Vec<Command> parseCommands(StrView program) {
 
 i32 readNumber(LuaState* L, const Str& text) {
     if (text == ".") {
-        const i32 value = static_cast<i32>(L->toNumber(-1));
+        const i32 value = checkedTestInteger(L, L->toNumber(-1), "testC number has no valid integer representation");
         (void)L->pop();
         return value;
     }
@@ -587,7 +604,8 @@ LuaNumber checkTestLibNumber(LuaState* L, i32 index, const char* functionName) {
     if (value.isNumber()) {
         return value.asNumber();
     }
-    if (value.isString() && luaStringToNumber(value.asString()->view(), number)) {
+    if (value.isString() &&
+        luaStringToNumber(value.asString()->view(), number, L->getGlobalState().getAllocator())) {
         return number;
     }
     L->error(std::format("bad argument #{} to '{}' (number expected)", index, functionName).c_str());
@@ -643,7 +661,7 @@ i32 t_upvalue(LuaState* L) {
     if (L->getTop() < 2 || !L->at(1).isFunction()) {
         L->error("bad arguments to 'upvalue'");
     }
-    const i32 index = static_cast<i32>(L->toNumber(2));
+    const i32 index = checkedTestInteger(L, L->toNumber(2), "upvalue index has no valid integer representation");
     lua_State* state = reinterpret_cast<lua_State*>(L);
     if (L->getTop() < 3) {
         const char* name = lua_getupvalue(state, 1, index);
@@ -670,13 +688,13 @@ i32 t_ref(LuaState* L) {
 }
 
 i32 t_getref(LuaState* L) {
-    const int reference = static_cast<int>(L->toNumber(1));
+    const int reference = checkedTestInteger(L, L->toNumber(1), "reference has no valid integer representation");
     luaL_getref(reinterpret_cast<lua_State*>(L), reference);
     return 1;
 }
 
 i32 t_unref(LuaState* L) {
-    const int reference = static_cast<int>(L->toNumber(1));
+    const int reference = checkedTestInteger(L, L->toNumber(1), "reference has no valid integer representation");
     luaL_unref(reinterpret_cast<lua_State*>(L), LUA_REGISTRYINDEX, reference);
     return 0;
 }
@@ -695,7 +713,7 @@ i32 t_udataval(LuaState* L) {
 }
 
 i32 t_pushuserdata(LuaState* L) {
-    const auto address = static_cast<std::uintptr_t>(L->toNumber(1));
+    const auto address = checkedAddress(L, 1);
     L->pushValue(Value(reinterpret_cast<void*>(address)));
     return 1;
 }
@@ -727,7 +745,7 @@ lua_State* remoteStateArgument(LuaState* L) {
     if (L->getTop() < 1 || !L->at(1).isNumber()) {
         L->error("remote state handle expected");
     }
-    const auto address = static_cast<std::uintptr_t>(L->toNumber(1));
+    const auto address = checkedAddress(L, 1);
     return reinterpret_cast<lua_State*>(address);
 }
 

@@ -23,6 +23,7 @@
 
 #include <string>
 #include <functional>
+#include <limits>
 
 using namespace Lua;
 using namespace LuaTest;
@@ -1030,6 +1031,141 @@ void testStringDump(TestSuite& suite) {
     delete L;
 }
 
+void testStringResourceAndIntegerBoundaries(TestSuite& suite) {
+    {
+        LuaStdLibTestContext ctx(openStringLib);
+        LuaState* L = ctx.getState();
+        GCString* input = L->getGlobalState().getStringPool().intern("ab");
+        const usize oldOutputLimit = L->getGlobalState().getResourcePolicy().maxOutputBytes;
+        L->getGlobalState().getResourcePolicy().maxOutputBytes = 5;
+        bool rejected = false;
+        try {
+            (void)callStringFunc(L, "rep", [&](LuaState* state) {
+                state->pushString(input);
+                state->pushNumber(3);
+            });
+        } catch (const std::exception& error) {
+            rejected = std::string(error.what()).find("result exceeds resource limit") != std::string::npos;
+        }
+        L->getGlobalState().getResourcePolicy().maxOutputBytes = oldOutputLimit;
+        ASSERT_TRUE(suite, rejected, "string.rep checks multiplication and output limit before allocation");
+    }
+
+    {
+        LuaStdLibTestContext ctx(openStringLib);
+        LuaState* L = ctx.getState();
+        StringPool& pool = L->getGlobalState().getStringPool();
+        const usize oldPatternLimit = L->getGlobalState().getResourcePolicy().maxPatternSteps;
+        L->getGlobalState().getResourcePolicy().maxPatternSteps = 4;
+        bool rejected = false;
+        try {
+            (void)callStringFunc(L, "find", [&](LuaState* state) {
+                state->pushString(pool.intern("aaaaaaaaaaaaaaaa"));
+                state->pushString(pool.intern("a*a*a*a*b"));
+            });
+        } catch (const RuntimeError& error) {
+            rejected = std::string(error.what()).find("pattern step limit exceeded") != std::string::npos;
+        }
+        L->getGlobalState().getResourcePolicy().maxPatternSteps = oldPatternLimit;
+        ASSERT_TRUE(suite, rejected, "pattern matching stops at the per-context step limit");
+    }
+
+    {
+        LuaStdLibTestContext ctx(openStringLib);
+        LuaState* L = ctx.getState();
+        ExecutionPolicy::Limits limits;
+        limits.nativeWorkBudget = 4;
+        L->getGlobalState().getExecutionPolicy().configure(limits);
+        bool stopped = false;
+        try {
+            (void)callStringFunc(L, "upper", [&](LuaState* state) {
+                state->pushString(state->getGlobalState().getStringPool().intern("native-work"));
+            });
+        } catch (const RuntimeError& error) {
+            stopped = std::string(error.what()) == "execution native work budget exceeded";
+        }
+        L->getGlobalState().getExecutionPolicy().reset();
+        ASSERT_TRUE(suite, stopped, "string transforms consume the independent native-work budget");
+    }
+
+    {
+        LuaStdLibTestContext ctx(openStringLib);
+        LuaState* L = ctx.getState();
+        StringPool& pool = L->getGlobalState().getStringPool();
+        const usize oldOutputLimit = L->getGlobalState().getResourcePolicy().maxOutputBytes;
+        L->getGlobalState().getResourcePolicy().maxOutputBytes = 5;
+
+        std::string gsubError;
+        try {
+            (void)callStringFunc(L, "gsub", [&](LuaState* state) {
+                state->pushString(pool.intern("aaaa"));
+                state->pushString(pool.intern("a"));
+                state->pushString(pool.intern("bb"));
+            });
+        } catch (const RuntimeError& error) {
+            gsubError = error.what();
+        }
+
+        bool formatRejected = false;
+        try {
+            (void)callStringFunc(L, "format", [&](LuaState* state) {
+                state->pushString(pool.intern("%s%s"));
+                state->pushString(pool.intern("abc"));
+                state->pushString(pool.intern("abc"));
+            });
+        } catch (const RuntimeError& error) {
+            formatRejected = std::string(error.what()).find("result exceeds resource limit") != std::string::npos;
+        }
+
+        L->getGlobalState().getResourcePolicy().maxOutputBytes = oldOutputLimit;
+
+        ASSERT_TRUE(suite, !gsubError.empty(), "string.gsub rejects output growth beyond the configured limit");
+        ASSERT_TRUE(suite, gsubError.find("result exceeds resource limit") != std::string::npos,
+                    std::string("string.gsub reports its stable resource error; actual: ") + gsubError);
+        ASSERT_TRUE(suite, formatRejected, "string.format checks the output limit before append growth");
+    }
+
+    const auto rejects = [](const char* functionName, const std::function<void(LuaState*)>& args) {
+        LuaStdLibTestContext ctx(openStringLib);
+        try {
+            (void)callStringFunc(ctx.getState(), functionName, args);
+        } catch (const std::exception&) {
+            return true;
+        }
+        return false;
+    };
+
+    ASSERT_TRUE(suite,
+                rejects("sub", [](LuaState* state) {
+                    state->pushString(state->getGlobalState().getStringPool().intern("abc"));
+                    state->pushNumber(std::numeric_limits<LuaNumber>::quiet_NaN());
+                }),
+                "string.sub rejects NaN indices before conversion");
+    ASSERT_TRUE(suite,
+                rejects("rep", [](LuaState* state) {
+                    state->pushString(state->getGlobalState().getStringPool().intern("a"));
+                    state->pushNumber(std::numeric_limits<LuaNumber>::infinity());
+                }),
+                "string.rep rejects infinite counts before conversion");
+    ASSERT_TRUE(suite,
+                rejects("byte", [](LuaState* state) {
+                    state->pushString(state->getGlobalState().getStringPool().intern("a"));
+                    state->pushNumber(std::numeric_limits<LuaNumber>::max());
+                }),
+                "string.byte rejects out-of-range indices before conversion");
+    ASSERT_TRUE(suite,
+                rejects("char", [](LuaState* state) {
+                    state->pushNumber(-std::numeric_limits<LuaNumber>::infinity());
+                }),
+                "string.char rejects infinite values before conversion");
+    ASSERT_TRUE(suite,
+                rejects("format", [](LuaState* state) {
+                    state->pushString(state->getGlobalState().getStringPool().intern("%d"));
+                    state->pushNumber(std::numeric_limits<LuaNumber>::quiet_NaN());
+                }),
+                "string.format integer specifiers reject NaN before conversion");
+}
+
 // =====================================================================
 // Test Registration
 // =====================================================================
@@ -1057,4 +1193,5 @@ void registerStringLibTests() {
     registry.registerTest(kSuiteName, "string.gsub function replacement", testStringGsubFunctionReplacement);
     registry.registerTest(kSuiteName, "string binary safety", testStringBinarySafety);
     registry.registerTest(kSuiteName, "string.dump", testStringDump);
+    registry.registerTest(kSuiteName, "resource and integer boundaries", testStringResourceAndIntegerBoundaries);
 }

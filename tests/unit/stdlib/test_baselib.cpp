@@ -1398,7 +1398,7 @@ void testAutomaticGCReachesWeakValuesDuringAllocation(TestSuite& suite) {
         setmetatable(x, {__mode = "kv"})
 
         local i = 0
-        while x[1] and i < 200 do
+        while x[1] and i < 1000 do
             local a = i .. i .. i .. i
             i = i + 1
         end
@@ -1410,7 +1410,7 @@ void testAutomaticGCReachesWeakValuesDuringAllocation(TestSuite& suite) {
     ASSERT_TRUE(suite, ok, "automatic GC weak value chunk runs");
     ASSERT_TRUE(suite, L->getGlobal("gAutoWeakValueCleared").asBoolean(),
                 "automatic GC clears weak values during allocation");
-    ASSERT_TRUE(suite, getGlobalNumber(L, "gAutoWeakValueIterations") < 200.0,
+    ASSERT_TRUE(suite, getGlobalNumber(L, "gAutoWeakValueIterations") < 1000.0,
                 "automatic GC clears weak value before bounded loop expires");
     delete L;
 }

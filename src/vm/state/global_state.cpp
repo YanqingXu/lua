@@ -31,9 +31,13 @@ GlobalState& GlobalState::getInstance() {
 GlobalState::GlobalState(StringPool& stringPool, LuaAllocator* allocator)
     : ownerThread_(std::this_thread::get_id()), sandboxPolicy_(), nativeModules_(&sandboxPolicy_), gc_(allocator),
       stringPool_(stringPool), registry_(nullptr), mainThread_(nullptr), memerrmsg_(nullptr),
-      apiExceptionMessage_(nullptr), instructionBudgetErrorMessage_(nullptr), deadlineErrorMessage_(nullptr),
+      apiExceptionMessage_(nullptr), instructionBudgetErrorMessage_(nullptr), nativeWorkBudgetErrorMessage_(nullptr),
+      deadlineErrorMessage_(nullptr),
       cancellationErrorMessage_(nullptr), sandboxLibraryErrorMessage_(nullptr), sandboxFilesystemErrorMessage_(nullptr),
-      sandboxProcessErrorMessage_(nullptr), sandboxNativeModuleErrorMessage_(nullptr) {
+      sandboxProcessErrorMessage_(nullptr), sandboxNativeModuleErrorMessage_(nullptr),
+      sandboxRuntimeCompilationErrorMessage_(nullptr), sandboxBinaryChunksErrorMessage_(nullptr),
+      sandboxGCControlErrorMessage_(nullptr) {
+    stringPool_.setResourcePolicy(&resourcePolicy_);
     stringPool_.setGarbageCollector(&gc_);
 
     // 子任务1.1：调整字符串池大小到初始值
@@ -57,6 +61,10 @@ GlobalState::GlobalState(StringPool& stringPool, LuaAllocator* allocator)
     instructionBudgetErrorMessage_ = stringPool_.intern("execution instruction budget exceeded");
     gc_.registerObject(instructionBudgetErrorMessage_);
     instructionBudgetErrorMessage_->markFixed();
+
+    nativeWorkBudgetErrorMessage_ = stringPool_.intern("execution native work budget exceeded");
+    gc_.registerObject(nativeWorkBudgetErrorMessage_);
+    nativeWorkBudgetErrorMessage_->markFixed();
 
     deadlineErrorMessage_ = stringPool_.intern("execution deadline exceeded");
     gc_.registerObject(deadlineErrorMessage_);
@@ -83,6 +91,21 @@ GlobalState::GlobalState(StringPool& stringPool, LuaAllocator* allocator)
     gc_.registerObject(sandboxNativeModuleErrorMessage_);
     sandboxNativeModuleErrorMessage_->markFixed();
 
+    sandboxRuntimeCompilationErrorMessage_ =
+        stringPool_.intern(SandboxPolicy::deniedMessage(SandboxCapability::RuntimeCompilation));
+    gc_.registerObject(sandboxRuntimeCompilationErrorMessage_);
+    sandboxRuntimeCompilationErrorMessage_->markFixed();
+
+    sandboxBinaryChunksErrorMessage_ =
+        stringPool_.intern(SandboxPolicy::deniedMessage(SandboxCapability::BinaryChunks));
+    gc_.registerObject(sandboxBinaryChunksErrorMessage_);
+    sandboxBinaryChunksErrorMessage_->markFixed();
+
+    sandboxGCControlErrorMessage_ =
+        stringPool_.intern(SandboxPolicy::deniedMessage(SandboxCapability::GCControl));
+    gc_.registerObject(sandboxGCControlErrorMessage_);
+    sandboxGCControlErrorMessage_->markFixed();
+
     // 创建注册表
     registry_ = gc_.createFixedRoot<Table>(); // 注册表永远不被回收
 
@@ -103,6 +126,7 @@ GlobalState::~GlobalState() {
         gc_.removeRoot(registry_);
     }
     stringPool_.setGarbageCollector(nullptr);
+    stringPool_.setResourcePolicy(nullptr);
 }
 
 // =====================================================================
@@ -139,12 +163,16 @@ void GlobalState::markRoots(GarbageCollector& gc, LuaState* currentState) const 
     gc.markObject(memerrmsg_);
     gc.markObject(apiExceptionMessage_);
     gc.markObject(instructionBudgetErrorMessage_);
+    gc.markObject(nativeWorkBudgetErrorMessage_);
     gc.markObject(deadlineErrorMessage_);
     gc.markObject(cancellationErrorMessage_);
     gc.markObject(sandboxLibraryErrorMessage_);
     gc.markObject(sandboxFilesystemErrorMessage_);
     gc.markObject(sandboxProcessErrorMessage_);
     gc.markObject(sandboxNativeModuleErrorMessage_);
+    gc.markObject(sandboxRuntimeCompilationErrorMessage_);
+    gc.markObject(sandboxBinaryChunksErrorMessage_);
+    gc.markObject(sandboxGCControlErrorMessage_);
 
     for (GCString* name : tmname_) {
         gc.markObject(name);
@@ -169,6 +197,8 @@ GCString* GlobalState::getExecutionPolicyErrorMessage(ExecutionStopReason reason
     switch (reason) {
     case ExecutionStopReason::InstructionBudgetExceeded:
         return instructionBudgetErrorMessage_;
+    case ExecutionStopReason::NativeWorkBudgetExceeded:
+        return nativeWorkBudgetErrorMessage_;
     case ExecutionStopReason::DeadlineExceeded:
         return deadlineErrorMessage_;
     case ExecutionStopReason::Cancelled:
@@ -188,6 +218,12 @@ GCString* GlobalState::getSandboxCapabilityErrorMessage(SandboxCapability capabi
         return sandboxProcessErrorMessage_;
     case SandboxCapability::NativeModules:
         return sandboxNativeModuleErrorMessage_;
+    case SandboxCapability::RuntimeCompilation:
+        return sandboxRuntimeCompilationErrorMessage_;
+    case SandboxCapability::BinaryChunks:
+        return sandboxBinaryChunksErrorMessage_;
+    case SandboxCapability::GCControl:
+        return sandboxGCControlErrorMessage_;
     }
     return sandboxLibraryErrorMessage_;
 }

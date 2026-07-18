@@ -124,6 +124,7 @@ private:
     NameBinder& binder_;
     ExpressionEmitter& expressions_;
     const HashSet<Str>* futureReads_ = nullptr;
+    bool forceNilLocalInitialization_ = false;
 };
 
 }  // namespace Lua

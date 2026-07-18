@@ -9,9 +9,11 @@
 
 #include "parser.hpp"
 #include "compiler/lexer/lexer.hpp"
+#include "runtime/compilation_policy.hpp"
 #include "token.hpp"
 
 #include <algorithm>
+#include <limits>
 #include <utility>
 
 namespace Lua {
@@ -27,14 +29,16 @@ public:
 private:
     class AstFactory {
     public:
-        explicit AstFactory(const LuaAllocator* allocator) noexcept
-            : allocator_(allocator != nullptr ? *allocator : LuaAllocator{}) {}
+        AstFactory(const LuaAllocator* allocator, CompilationBudget* budget) noexcept
+            : allocator_(allocator != nullptr ? *allocator : LuaAllocator{}), budget_(budget) {}
 
         template <typename T, typename... Args> ExprPtr makeExpr(Args&&... args) {
+            budget_->consumeAstNode();
             return makeLuaOwned<Expr>(&allocator_, T(std::forward<Args>(args)...));
         }
 
         template <typename T, typename... Args> StmtPtr makeStmt(Args&&... args) {
+            budget_->consumeAstNode();
             return makeLuaOwned<Stmt>(&allocator_, T(std::forward<Args>(args)...));
         }
 
@@ -59,12 +63,13 @@ private:
 
     private:
         LuaAllocator allocator_;
+        CompilationBudget* budget_;
     };
 
     class TokenStream {
     public:
-        explicit TokenStream(const Str& source, LuaAllocator* allocator = nullptr)
-            : lexer_(source, allocator), current_(lexer_.nextToken()), previous_(current_) {}
+        TokenStream(const Str& source, LuaAllocator* allocator, CompilationBudget* budget)
+            : lexer_(source, allocator), budget_(budget), current_(next(lexer_, *budget_)), previous_(current_) {}
 
         [[nodiscard]] const Token& current() const noexcept {
             return current_;
@@ -72,7 +77,7 @@ private:
 
         void advance() {
             previous_ = current_;
-            current_ = lexer_.nextToken();
+            current_ = next(lexer_, *budget_);
         }
 
         [[nodiscard]] const Token& previous() const noexcept {
@@ -88,7 +93,13 @@ private:
         }
 
     private:
+        static Token next(Lexer& lexer, CompilationBudget& budget) {
+            budget.consumeToken();
+            return lexer.nextToken();
+        }
+
         Lexer lexer_;
+        CompilationBudget* budget_;
         Token current_;
         Token previous_;
     };
@@ -266,7 +277,10 @@ private:
     class RecursionGuard {
     public:
         explicit RecursionGuard(Impl& parser, i32 maxDepth = MAX_RECURSION_DEPTH)
-            : parser_(parser), maxDepth_(maxDepth) {
+            : parser_(parser),
+              maxDepth_(std::min<i32>(maxDepth, static_cast<i32>(std::min<usize>(
+                                                parser.compilationBudget_.maxNesting(),
+                                                static_cast<usize>(std::numeric_limits<i32>::max()))))) {
             entered_ = true;
             if (parser_.parseState_.enterSyntaxLevel() > maxDepth_) {
                 parser_.parseState_.leaveSyntaxLevel();
@@ -293,6 +307,8 @@ private:
 
 private:
     LuaAllocator allocator_;
+    CompilationPolicy compilationPolicy_;
+    CompilationBudget compilationBudget_;
     TokenStream tokenStream_;
     RuntimeServices* services_ = nullptr;
     ParseState parseState_;

@@ -125,6 +125,20 @@ static Table* getPackageSubTable(LuaState* L, const char* fieldName) {
     return nullptr;
 }
 
+static LuaString makePackageBuffer(LuaState* L) {
+    return LuaString(LuaStdAllocator<char>(L->getGlobalState().getAllocator()));
+}
+
+static void appendPackageBuffer(LuaState* L, LuaString& output, StrView text) {
+    const ResourcePolicy& policy = L->getGlobalState().getResourcePolicy();
+    const usize limit = (std::min)(policy.maxStringBytes, policy.maxOutputBytes);
+    if (text.size() > limit || output.size() > limit - text.size()) {
+        L->error("package: diagnostic exceeds resource limit");
+    }
+    L->consumeNativeWork(text.empty() ? 1 : static_cast<u64>(text.size()));
+    output.append(text.data(), text.size());
+}
+
 // =====================================================================
 // Helper: get a string field from the package table
 // =====================================================================
@@ -209,19 +223,22 @@ static Table* createPackageTableObject(LuaState* L) {
     return L->getGlobalState().getGC().create<Table>();
 }
 
-[[noreturn]] static void moduleNameConflict(LuaState* L, const Str& modname) {
-    Str msg = "name conflict for module '" + modname + "'";
+[[noreturn]] static void moduleNameConflict(LuaState* L, StrView modname) {
+    LuaString msg = makePackageBuffer(L);
+    appendPackageBuffer(L, msg, "name conflict for module '");
+    appendPackageBuffer(L, msg, modname);
+    appendPackageBuffer(L, msg, "'");
     L->error(msg.c_str());
 }
 
-static Str modulePackagePrefix(const Str& modname) {
+static StrView modulePackagePrefix(StrView modname) {
     usize pos = modname.rfind('.');
-    return pos == Str::npos ? Str() : modname.substr(0, pos + 1);
+    return pos == StrView::npos ? StrView() : modname.substr(0, pos + 1);
 }
 
-static Table* ensureChildTable(LuaState* L, Table* parent, const Str& field, const Str& modname) {
+static Table* ensureChildTable(LuaState* L, Table* parent, StrView field, StrView modname) {
     auto& pool = L->getGlobalState().getStringPool();
-    GCString* key = pool.intern(field.c_str());
+    GCString* key = pool.intern(field);
     Value existing = parent->get(Value(key));
     if (existing.isTable()) {
         return existing.asTable();
@@ -235,21 +252,21 @@ static Table* ensureChildTable(LuaState* L, Table* parent, const Str& field, con
     return child;
 }
 
-static Table* findOrCreateGlobalModuleTable(LuaState* L, const Str& modname) {
+static Table* findOrCreateGlobalModuleTable(LuaState* L, StrView modname) {
     auto& pool = L->getGlobalState().getStringPool();
     Table* parent = L->getGlobalTable();
 
     usize start = 0;
     while (start <= modname.size()) {
         usize dot = modname.find('.', start);
-        bool isLast = dot == Str::npos;
-        Str field = isLast ? modname.substr(start) : modname.substr(start, dot - start);
+        bool isLast = dot == StrView::npos;
+        StrView field = isLast ? modname.substr(start) : modname.substr(start, dot - start);
         if (field.empty()) {
             moduleNameConflict(L, modname);
         }
 
         if (isLast) {
-            GCString* key = pool.intern(field.c_str());
+            GCString* key = pool.intern(field);
             Value existing = parent->get(Value(key));
             if (existing.isTable()) {
                 return existing.asTable();
@@ -270,20 +287,20 @@ static Table* findOrCreateGlobalModuleTable(LuaState* L, const Str& modname) {
     moduleNameConflict(L, modname);
 }
 
-static void setGlobalModulePath(LuaState* L, const Str& modname, Table* modTable) {
+static void setGlobalModulePath(LuaState* L, StrView modname, Table* modTable) {
     auto& pool = L->getGlobalState().getStringPool();
     Table* parent = L->getGlobalTable();
 
     usize start = 0;
     while (start <= modname.size()) {
         usize dot = modname.find('.', start);
-        bool isLast = dot == Str::npos;
-        Str field = isLast ? modname.substr(start) : modname.substr(start, dot - start);
+        bool isLast = dot == StrView::npos;
+        StrView field = isLast ? modname.substr(start) : modname.substr(start, dot - start);
         if (field.empty()) {
             moduleNameConflict(L, modname);
         }
 
-        GCString* key = pool.intern(field.c_str());
+        GCString* key = pool.intern(field);
         if (isLast) {
             parent->set(Value(key), Value(modTable));
             return;
@@ -503,7 +520,8 @@ i32 loader_preload(LuaState* L) {
         return 1;
     }
 
-    Str modname = L->at(1).asString()->c_str();
+    GCString* modKey = L->at(1).asString();
+    const StrView modname = modKey->view();
     auto& pool = L->getGlobalState().getStringPool();
 
     // Look up package.preload[modname]
@@ -514,8 +532,7 @@ i32 loader_preload(LuaState* L) {
         return 1;
     }
 
-    GCString* key = pool.intern(modname.c_str());
-    Value loaderVal = preload->get(Value(key));
+    Value loaderVal = preload->get(Value(modKey));
 
     if (loaderVal.isFunction()) {
         L->setTop(0);
@@ -524,9 +541,12 @@ i32 loader_preload(LuaState* L) {
     }
 
     // Not found — return error string (not a hard error)
-    Str msg = "\n\tno field package.preload['" + modname + "']";
+    LuaString msg = makePackageBuffer(L);
+    appendPackageBuffer(L, msg, "\n\tno field package.preload['");
+    appendPackageBuffer(L, msg, modname);
+    appendPackageBuffer(L, msg, "']");
     L->setTop(0);
-    L->pushString(pool.intern(msg.c_str()));
+    L->pushString(pool.intern(msg.data(), msg.size()));
     return 1;
 }
 
@@ -679,8 +699,8 @@ i32 luaP_require(LuaState* L) {
         L->error("bad argument #1 to 'require' (string expected)");
     }
 
-    Str modname = L->at(1).asString()->c_str();
-    auto& pool = L->getGlobalState().getStringPool();
+    GCString* modKey = L->at(1).asString();
+    const StrView modname = modKey->view();
 
     // 1. Check package.loaded[modname]
     Table* loaded = getPackageSubTable(L, "loaded");
@@ -688,7 +708,6 @@ i32 luaP_require(LuaState* L) {
         L->error("'package.loaded' table is missing");
     }
 
-    GCString* modKey = pool.intern(modname.c_str());
     Value cachedVal = loaded->get(Value(modKey));
 
     if (cachedVal.isTrue()) {
@@ -704,10 +723,14 @@ i32 luaP_require(LuaState* L) {
         L->error("'package.loaders' table is missing");
     }
 
-    Str errorAccum = "module '" + modname + "' not found:";
+    LuaString errorAccum = makePackageBuffer(L);
+    appendPackageBuffer(L, errorAccum, "module '");
+    appendPackageBuffer(L, errorAccum, modname);
+    appendPackageBuffer(L, errorAccum, "' not found:");
 
     // Iterate loaders[1], loaders[2], ...
     for (i32 i = 1;; i++) {
+        L->consumeNativeWork();
         Value loaderEntry = loaders->get(Value(static_cast<f64>(i)));
         if (loaderEntry.isNil()) {
             break; // No more loaders
@@ -748,7 +771,11 @@ i32 luaP_require(LuaState* L) {
                         moduleResult = L->at(1);
                     }
                 } catch (const std::exception& e) {
-                    Str msg = "error loading module '" + modname + "': " + e.what();
+                    LuaString msg = makePackageBuffer(L);
+                    appendPackageBuffer(L, msg, "error loading module '");
+                    appendPackageBuffer(L, msg, modname);
+                    appendPackageBuffer(L, msg, "': ");
+                    appendPackageBuffer(L, msg, e.what());
                     L->error(msg.c_str());
                 }
 
@@ -773,7 +800,7 @@ i32 luaP_require(LuaState* L) {
 
             } else if (result.isString()) {
                 // Searcher returned an error string
-                errorAccum += result.asString()->c_str();
+                appendPackageBuffer(L, errorAccum, result.asString()->view());
             }
             // else: unexpected type, skip
         }
@@ -797,10 +824,13 @@ i32 luaP_module(LuaState* L) {
         L->error("bad argument #1 to 'module' (string expected)");
     }
 
-    Str modname = L->at(1).asString()->c_str();
+    GCString* modKey = L->at(1).asString();
+    const StrView modname = modKey->view();
     auto& pool = L->getGlobalState().getStringPool();
-    Vec<Value> options;
-    options.reserve(nargs > 1 ? static_cast<usize>(nargs - 1) : 0);
+    const usize optionCount = nargs > 1 ? static_cast<usize>(nargs - 1) : 0;
+    L->consumeNativeWork(optionCount == 0 ? 1 : static_cast<u64>(optionCount));
+    LuaVector<Value> options(LuaStdAllocator<Value>(L->getGlobalState().getAllocator()));
+    options.reserve(optionCount);
     for (i32 i = 2; i <= nargs; ++i) {
         options.push_back(L->at(i));
     }
@@ -811,7 +841,6 @@ i32 luaP_module(LuaState* L) {
         L->error("'package.loaded' table is missing");
     }
 
-    GCString* modKey = pool.intern(modname.c_str());
     Value existingVal = loaded->get(Value(modKey));
 
     Table* modTable = nullptr;
@@ -832,9 +861,9 @@ i32 luaP_module(LuaState* L) {
     GCString* mKey = pool.intern("_M");
     modTable->set(Value(mKey), Value(modTable));
 
-    Str packagePrefix = modulePackagePrefix(modname);
+    StrView packagePrefix = modulePackagePrefix(modname);
     GCString* packageKey = pool.intern("_PACKAGE");
-    GCString* packageVal = pool.intern(packagePrefix.c_str());
+    GCString* packageVal = pool.intern(packagePrefix);
     modTable->set(Value(packageKey), Value(packageVal));
 
     // 3. Switch the calling Lua function to the module environment

@@ -441,6 +441,19 @@ public:
         data_[size_] = '\0';
     }
 
+    void append(size_type count, char value) {
+        if (count == 0) {
+            return;
+        }
+        if (size_ > std::numeric_limits<size_type>::max() - count) {
+            throw std::bad_array_new_length();
+        }
+        ensureCapacity(size_ + count);
+        std::memset(data_ + size_, static_cast<unsigned char>(value), count);
+        size_ += count;
+        data_[size_] = '\0';
+    }
+
     template <typename InputIt> void assign(InputIt first, InputIt last) {
         LuaBasicString replacement(first, last, allocator_);
         *this = std::move(replacement);

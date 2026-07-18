@@ -229,6 +229,9 @@
     <ClCompile Include="src\runtime\native_module_registry.cpp">
       <Filter>src\runtime</Filter>
     </ClCompile>
+    <ClCompile Include="src\runtime\bytecode_verifier.cpp">
+      <Filter>src\runtime</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\compiler\ast.hpp">
@@ -429,6 +432,9 @@
     <ClInclude Include="src\debug\json_trace_sink.hpp">
       <Filter>src\debug</Filter>
     </ClInclude>
+    <ClInclude Include="src\debug\ring_trace_sink.hpp">
+      <Filter>src\debug</Filter>
+    </ClInclude>
     <ClInclude Include="src\lib\coroutinelib.hpp">
       <Filter>src\lib</Filter>
     </ClInclude>
@@ -460,6 +466,24 @@
       <Filter>src\runtime</Filter>
     </ClInclude>
     <ClInclude Include="src\runtime\native_module_registry.hpp">
+      <Filter>src\runtime</Filter>
+    </ClInclude>
+    <ClInclude Include="src\runtime\bytecode_verifier.hpp">
+      <Filter>src\runtime</Filter>
+    </ClInclude>
+    <ClInclude Include="src\runtime\chunk_reader_limits.hpp">
+      <Filter>src\runtime</Filter>
+    </ClInclude>
+    <ClInclude Include="src\runtime\compilation_policy.hpp">
+      <Filter>src\runtime</Filter>
+    </ClInclude>
+    <ClInclude Include="src\runtime\resource_policy.hpp">
+      <Filter>src\runtime</Filter>
+    </ClInclude>
+    <ClInclude Include="src\runtime\runtime_random.hpp">
+      <Filter>src\runtime</Filter>
+    </ClInclude>
+    <ClInclude Include="src\runtime\trace_runtime.hpp">
       <Filter>src\runtime</Filter>
     </ClInclude>
   </ItemGroup>

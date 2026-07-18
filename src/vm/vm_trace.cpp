@@ -21,11 +21,6 @@ namespace Lua {
 
 namespace {
 
-ITraceSink* g_traceSink = nullptr;
-u64 g_traceSeq = 0;
-bool g_dumpBytecode = false;
-bool g_traceDiffEnabled = false;
-
 const char* sourceName(Proto* proto) {
     return proto != nullptr && proto->getSource() != nullptr
                ? proto->getSource()->c_str()
@@ -76,10 +71,10 @@ Value registerValueAt(LuaState* L, usize frameBase, i32 slot) {
     return stack[index];
 }
 
-TraceEvent makeInstructionEvent(Proto* proto, Value* base, usize instructionPc,
+TraceEvent makeInstructionEvent(TraceRuntime& runtime, Proto* proto, Value* base, usize instructionPc,
                                 Instruction inst, i32 callDepth) {
     TraceEvent event;
-    event.seq = g_traceSeq++;
+    event.seq = runtime.nextSequence();
     event.kind = TraceEventKind::Instruction;
     event.pc = static_cast<i32>(instructionPc);
     event.op = GET_OPCODE(inst);
@@ -103,20 +98,35 @@ TraceEvent makeInstructionEvent(Proto* proto, Value* base, usize instructionPc,
 namespace VM {
 
 void setTraceSink(ITraceSink* sink) {
-    g_traceSink = sink;
-    g_traceSeq = 0;
+    GlobalState::getInstance().getTraceRuntime().setSink(sink);
+}
+
+void setTraceSink(RuntimeServices& services, ITraceSink* sink) {
+    services.globalState.getTraceRuntime().setSink(sink);
 }
 
 ITraceSink* getTraceSink() {
-    return g_traceSink;
+    return GlobalState::getInstance().getTraceRuntime().sink();
+}
+
+ITraceSink* getTraceSink(RuntimeServices& services) {
+    return services.globalState.getTraceRuntime().sink();
 }
 
 void setTraceDiffEnabled(bool enabled) {
-    g_traceDiffEnabled = enabled;
+    GlobalState::getInstance().getTraceRuntime().setDiffEnabled(enabled);
+}
+
+void setTraceDiffEnabled(RuntimeServices& services, bool enabled) {
+    services.globalState.getTraceRuntime().setDiffEnabled(enabled);
 }
 
 bool isTraceDiffEnabled() {
-    return g_traceDiffEnabled;
+    return GlobalState::getInstance().getTraceRuntime().diffEnabled();
+}
+
+bool isTraceDiffEnabled(RuntimeServices& services) {
+    return services.globalState.getTraceRuntime().diffEnabled();
 }
 
 }  // namespace VM
@@ -171,19 +181,24 @@ void dispatchLineHook(LuaState* L, Proto* proto, usize pc) {
     L->callDebugHook(DebugHookEvent::Line, line);
 }
 
-bool shouldDumpBytecode() {
-    return g_dumpBytecode;
+bool shouldDumpBytecode(LuaState* L) {
+    return L != nullptr && L->getGlobalState().getTraceRuntime().dumpBytecode();
 }
 
-void emitInstructionTrace(Proto* proto, Value* base, usize instructionPc,
+void emitInstructionTrace(LuaState* L, Proto* proto, Value* base, usize instructionPc,
                           Instruction inst, i32 callDepth) {
-    if (g_traceSink == nullptr || proto == nullptr) {
+    if (L == nullptr || proto == nullptr) {
+        return;
+    }
+    TraceRuntime& runtime = L->getGlobalState().getTraceRuntime();
+    ITraceSink* sink = runtime.sink();
+    if (sink == nullptr) {
         return;
     }
 
-    TraceEvent event = makeInstructionEvent(proto, base, instructionPc, inst, callDepth);
+    TraceEvent event = makeInstructionEvent(runtime, proto, base, instructionPc, inst, callDepth);
 
-    g_traceSink->onInstruction(event);
+    sink->onInstruction(event);
 }
 
 Vec<Value> captureTraceRegisters(LuaState* L, usize frameBase, i32 maxStack) {
@@ -201,11 +216,16 @@ Vec<Value> captureTraceRegisters(LuaState* L, usize frameBase, i32 maxStack) {
 
 void emitInstructionTraceDiff(Proto* proto, LuaState* L, usize frameBase, usize instructionPc,
                               Instruction inst, i32 callDepth, const Vec<Value>& before) {
-    if (g_traceSink == nullptr || proto == nullptr || L == nullptr) {
+    if (proto == nullptr || L == nullptr) {
+        return;
+    }
+    TraceRuntime& runtime = L->getGlobalState().getTraceRuntime();
+    ITraceSink* sink = runtime.sink();
+    if (sink == nullptr) {
         return;
     }
 
-    TraceEvent event = makeInstructionEvent(proto, nullptr, instructionPc, inst, callDepth);
+    TraceEvent event = makeInstructionEvent(runtime, proto, nullptr, instructionPc, inst, callDepth);
     event.includeChangedRegisters = true;
 
     i32 maxStack = proto->getMaxStackSize();
@@ -234,17 +254,22 @@ void emitInstructionTraceDiff(Proto* proto, LuaState* L, usize frameBase, usize 
         event.changedRegisters.push_back(std::move(change));
     }
 
-    g_traceSink->onInstruction(event);
+    sink->onInstruction(event);
 }
 
-void emitCallTrace(Proto* proto, Value* base, usize instructionPc,
+void emitCallTrace(LuaState* L, Proto* proto, Value* base, usize instructionPc,
                    i32 registerIndex, i32 callDepth) {
-    if (g_traceSink == nullptr || proto == nullptr || base == nullptr) {
+    if (L == nullptr || proto == nullptr || base == nullptr) {
+        return;
+    }
+    TraceRuntime& runtime = L->getGlobalState().getTraceRuntime();
+    ITraceSink* sink = runtime.sink();
+    if (sink == nullptr) {
         return;
     }
 
     TraceEvent event;
-    event.seq = g_traceSeq++;
+    event.seq = runtime.nextSequence();
     event.kind = TraceEventKind::Call;
     event.line = proto->getLine(instructionPc);
     event.source = sourceName(proto);
@@ -253,23 +278,28 @@ void emitCallTrace(Proto* proto, Value* base, usize instructionPc,
     Value& callee = base[registerIndex];
     event.funcName = functionNameFromValue(callee);
 
-    g_traceSink->onCall(event);
+    sink->onCall(event);
 }
 
-void emitReturnTrace(Proto* proto, usize instructionPc, i32 callDepth) {
-    if (g_traceSink == nullptr || proto == nullptr) {
+void emitReturnTrace(LuaState* L, Proto* proto, usize instructionPc, i32 callDepth) {
+    if (L == nullptr || proto == nullptr) {
+        return;
+    }
+    TraceRuntime& runtime = L->getGlobalState().getTraceRuntime();
+    ITraceSink* sink = runtime.sink();
+    if (sink == nullptr) {
         return;
     }
 
     TraceEvent event;
-    event.seq = g_traceSeq++;
+    event.seq = runtime.nextSequence();
     event.kind = TraceEventKind::Return;
     event.line = proto->getLine(instructionPc);
     event.source = sourceName(proto);
     event.callDepth = callDepth;
     event.funcName = protoFunctionName(proto);
 
-    g_traceSink->onReturn(event);
+    sink->onReturn(event);
 }
 
 }  // namespace VM::detail

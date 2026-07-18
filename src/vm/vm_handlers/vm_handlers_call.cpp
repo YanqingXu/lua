@@ -42,7 +42,7 @@ HandlerStatus handleCall(OpExecutionContext& context, Instruction inst) {
     i32 nArgs = b - 1;
     i32 nResults = c - 1;
 
-    if (detail::shouldDumpBytecode()) {
+    if (detail::shouldDumpBytecode(state)) {
         CallInfo& dbgCI = state->getCurrentCallInfo();
         std::fprintf(stderr, "[CALL] pc=%zu a=%d B=%d C=%d nArgs=%d nRes=%d base=%zu absTop=%zu\n",
                      context.instructionPc, a, b, c, nArgs, nResults, dbgCI.base,
@@ -61,7 +61,7 @@ HandlerStatus handleCall(OpExecutionContext& context, Instruction inst) {
         }
     }
 
-    detail::emitCallTrace(proto, context.base, context.instructionPc, a, context.nexeccalls + 1);
+    detail::emitCallTrace(state, proto, context.base, context.instructionPc, a, context.nexeccalls + 1);
 
     const auto code = proto->getInstructionSpan();
     state->getCurrentCallInfo().savedpc = code.data() + context.pc;
@@ -133,7 +133,7 @@ HandlerStatus handleReturn(OpExecutionContext& context, Instruction inst) {
     i32 a = GETARG_A(inst);
     i32 b = GETARG_B(inst);
 
-    detail::emitReturnTrace(proto, context.instructionPc, context.nexeccalls);
+    detail::emitReturnTrace(state, proto, context.instructionPc, context.nexeccalls);
     detail::dispatchReturnHook(state);
     context.base = refreshBase(state);
 

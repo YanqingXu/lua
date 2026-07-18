@@ -19,6 +19,7 @@
 
 #include "core/gc_string.hpp"
 #include "runtime/lua_allocator.hpp"
+#include "runtime/resource_policy.hpp"
 #include <unordered_map>
 #include <string_view>
 #include <memory>
@@ -133,6 +134,10 @@ public:
         return collector_;
     }
 
+    void setResourcePolicy(const ResourcePolicy* policy) noexcept {
+        resourcePolicy_ = policy;
+    }
+
     // =====================================================================
     // 查找接口
     // =====================================================================
@@ -227,6 +232,7 @@ private:
 
     PoolMap pool_;
     GarbageCollector* collector_ = nullptr;
+    const ResourcePolicy* resourcePolicy_ = nullptr;
 };
 
 } // namespace Lua

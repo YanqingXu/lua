@@ -10,6 +10,7 @@
 #include <array>
 #include <cctype>
 #include <cstdlib>
+#include <filesystem>
 #include <utility>
 
 #ifdef _WIN32
@@ -138,7 +139,15 @@ std::expected<NativeModuleRegistry::Handle, Str> NativeModuleRegistry::load(cons
         return std::unexpected(Str("empty dynamic library path"));
     }
 
+    const std::filesystem::path requested(filename);
+    if (policy_.requireAbsolutePath && !requested.is_absolute()) {
+        return std::unexpected(Str("dynamic library path must be absolute"));
+    }
+
     const Str key = normalizedPath(filename);
+    if (!pathAllowed(key)) {
+        return std::unexpected(Str("dynamic library path is not allowlisted"));
+    }
     const auto hasPath = [&key](const Entry& entry) {
         return entry.normalizedPath == key ||
                std::find(entry.aliases.begin(), entry.aliases.end(), key) != entry.aliases.end();
@@ -156,21 +165,26 @@ std::expected<NativeModuleRegistry::Handle, Str> NativeModuleRegistry::load(cons
         // GetModuleHandle does not increment the module reference count.
         owned = false;
     } else {
-        // Preserve the platform loader's ordinary search semantics. The
-        // normalized absolute path is only a per-context comparison key.
-        handle = reinterpret_cast<Handle>(LoadLibraryA(filename.c_str()));
+        const std::wstring widePath = std::filesystem::path(key).wstring();
+        handle = reinterpret_cast<Handle>(LoadLibraryExW(
+            widePath.c_str(), nullptr, LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_DEFAULT_DIRS));
     }
 #else
     dlerror();
     if (isCurrentExecutable(filename)) {
         handle = dlopen(nullptr, RTLD_NOW | RTLD_LOCAL);
     } else {
-        handle = dlopen(filename.c_str(), RTLD_NOW | RTLD_LOCAL);
+        handle = dlopen(key.c_str(), RTLD_NOW | RTLD_LOCAL);
     }
 #endif
 
     if (handle == nullptr) {
         return std::unexpected(lastModuleError());
+    }
+
+    if (auto abi = verifyAbi(handle); !abi) {
+        close(handle, owned);
+        return std::unexpected(abi.error());
     }
 
     try {
@@ -226,6 +240,17 @@ bool NativeModuleRegistry::contains(const Str& filename) const {
     });
 }
 
+void NativeModuleRegistry::allowPath(const Str& filename) {
+    if (filename.empty()) {
+        return;
+    }
+    const Str path = normalizedPath(filename);
+    if (std::find(policy_.allowedCanonicalPaths.begin(), policy_.allowedCanonicalPaths.end(), path) ==
+        policy_.allowedCanonicalPaths.end()) {
+        policy_.allowedCanonicalPaths.push_back(path);
+    }
+}
+
 Str NativeModuleRegistry::normalizedPath(const Str& filename) {
     return platformPathKey(absolutePath(filename));
 }
@@ -233,6 +258,35 @@ Str NativeModuleRegistry::normalizedPath(const Str& filename) {
 bool NativeModuleRegistry::isCurrentExecutable(const Str& filename) {
     const Str current = executablePath();
     return !current.empty() && normalizedPath(filename) == normalizedPath(current);
+}
+
+bool NativeModuleRegistry::pathAllowed(const Str& normalized) const {
+    return policy_.allowedCanonicalPaths.empty() ||
+           std::find(policy_.allowedCanonicalPaths.begin(), policy_.allowedCanonicalPaths.end(), normalized) !=
+               policy_.allowedCanonicalPaths.end();
+}
+
+std::expected<void, Str> NativeModuleRegistry::verifyAbi(Handle handle) const {
+    if (!policy_.requireAbiHandshake) {
+        return {};
+    }
+    using AbiVersionFunction = u32 (*)();
+    void* rawSymbol = nullptr;
+#ifdef _WIN32
+    rawSymbol = reinterpret_cast<void*>(
+        GetProcAddress(reinterpret_cast<HMODULE>(handle), policy_.abiVersionSymbol.c_str()));
+#else
+    dlerror();
+    rawSymbol = dlsym(handle, policy_.abiVersionSymbol.c_str());
+#endif
+    if (rawSymbol == nullptr) {
+        return std::unexpected(Str("dynamic library is missing ABI version handshake"));
+    }
+    const auto versionFunction = reinterpret_cast<AbiVersionFunction>(rawSymbol);
+    if (versionFunction() != policy_.expectedAbiVersion) {
+        return std::unexpected(Str("dynamic library ABI version mismatch"));
+    }
+    return {};
 }
 
 void NativeModuleRegistry::close(Handle handle, bool owned) noexcept {

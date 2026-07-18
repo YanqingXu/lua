@@ -1,6 +1,7 @@
 #include "lib/oslib.hpp"
 #include "lib/iolib.hpp"
 #include "lib/lib_registry.hpp"
+#include "common/number_conversion.hpp"
 #include "core/table.hpp"
 #include "core/gc_string.hpp"
 #include "vm/state/global_state.hpp"
@@ -59,6 +60,21 @@ static i32 pushFileErrorResult(LuaState* L, const char* filename, int err) {
     return 3;
 }
 
+static i32 checkedOSInteger(LuaState* L, LuaNumber value, const char* message) {
+    const auto converted = checkedLuaInteger(value);
+    if (!converted) {
+        L->error(message);
+    }
+    return *converted;
+}
+
+static i32 checkedOSInteger(LuaState* L, i32 index, const char* message) {
+    if (!L->isNumber(index)) {
+        L->error(message);
+    }
+    return checkedOSInteger(L, L->toNumber(index), message);
+}
+
 /**
  * @brief 设置日期表的整数字段
  */
@@ -84,7 +100,7 @@ static i32 getfield(LuaState* L, Table* t, const char* key, i32 defaultValue) {
     GCString* keyStr = L->getGlobalState().getStringPool().intern(key);
     Value v = t->get(Value(keyStr));
     if (v.isNumber()) {
-        return static_cast<i32>(v.asNumber());
+        return checkedOSInteger(L, v.asNumber(), "date table field has no valid integer representation");
     }
     if (defaultValue < 0) {
         L->error(std::format("field '{}' missing in date table", key).c_str());
@@ -126,8 +142,8 @@ i32 luaOS_difftime(LuaState* L) {
         L->error("difftime: arguments must be numbers");
     }
 
-    std::time_t t2 = static_cast<std::time_t>(L->toNumber(1));
-    std::time_t t1 = static_cast<std::time_t>(L->toNumber(2));
+    std::time_t t2 = static_cast<std::time_t>(checkedOSInteger(L, 1, "difftime: invalid first timestamp"));
+    std::time_t t1 = static_cast<std::time_t>(checkedOSInteger(L, 2, "difftime: invalid second timestamp"));
 
     f64 diff = std::difftime(t2, t1);
     L->pushNumber(diff);
@@ -167,7 +183,7 @@ i32 luaOS_exit(LuaState* L) {
     L->requireSandboxCapability(SandboxCapability::Process);
     i32 exitCode = 0;
     if (L->getTop() >= 1 && L->isNumber(1)) {
-        exitCode = static_cast<i32>(L->toNumber(1));
+        exitCode = checkedOSInteger(L, 1, "exit: invalid status code");
     }
     std::exit(exitCode);
 }
@@ -379,7 +395,7 @@ i32 luaOS_date(LuaState* L) {
     // 获取时间戳（默认为当前时间）
     std::time_t t = std::time(nullptr);
     if (L->getTop() >= 2 && L->isNumber(2)) {
-        t = static_cast<std::time_t>(L->toNumber(2));
+        t = static_cast<std::time_t>(checkedOSInteger(L, 2, "date: invalid timestamp"));
     }
 
     // 检查是否使用UTC时间

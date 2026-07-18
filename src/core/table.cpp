@@ -8,6 +8,7 @@
 #include "core/gc_string.hpp"
 #include "core/function.hpp"
 #include "gc/garbage_collector.hpp"
+#include "vm/state/global_state.hpp"
 #include <cmath>
 #include <limits>
 
@@ -73,7 +74,7 @@ usize ValueHash::operator()(const Value& val) const noexcept {
 Table::Table() : Table(nullptr) {}
 
 Table::Table(LuaAllocator* allocator)
-    : GCObject(GCObjectType::Table), array_(allocator), hash_(0, ValueHash{}, ValueEqual{}, HashAllocator(allocator)),
+    : GCObject(GCObjectType::Table), array_(allocator), hashNodes_(allocator), allocator_(allocator),
       metatable_(nullptr), flags_(0) // 初始化标志位为0（所有元方法都可能存在）
 {}
 
@@ -92,14 +93,17 @@ Table::~Table() {
 Value Table::get(const Value& key) const {
     // 检查是否是数组索引
     i32 index;
-    if (isArrayIndex(key, index)) {
-        return getArray(index);
+    if (isPositiveIntegerKey(key, index) && static_cast<usize>(index) <= array_.size()) {
+        Value value = getArray(index);
+        if (!value.isNil()) {
+            return value;
+        }
     }
 
     // 从哈希部分查找
-    auto it = hash_.find(key);
-    if (it != hash_.end()) {
-        return it->second;
+    const usize node = findHashNode(key, false);
+    if (node != NoHashNode) {
+        return hashNodes_[node].value;
     }
 
     // 键不存在，返回nil
@@ -125,42 +129,26 @@ void Table::set(const Value& key, const Value& value) {
 
     // 检查是否是数组索引
     i32 index;
-    if (isArrayIndex(key, index)) {
+    if (isPositiveIntegerKey(key, index) && shouldStoreInArray(index)) {
         setArray(index, value);
         return;
     }
-
-    const Value stableKey = key;
-    const Value stableValue = value;
-    if (GarbageCollector* gc = getOwnerCollector()) {
-        gc->writeBarrier(this, stableKey);
-        gc->writeBarrier(this, stableValue);
-    }
-
-    // try_emplace has a strong allocation guarantee; replacement assignment
-    // is non-throwing for Value's closed tagged-pointer/number alternatives.
-    auto [entry, inserted] = hash_.try_emplace(stableKey, stableValue);
-    if (!inserted) {
-        entry->second = stableValue;
-    }
-    if (GarbageCollector* gc = getOwnerCollector()) {
-        gc->accountObjectSizeChange(this);
-    }
+    setHash(key, value);
 }
 
 bool Table::has(const Value& key) const {
     // 检查是否是数组索引
     i32 index;
-    if (isArrayIndex(key, index)) {
+    if (isPositiveIntegerKey(key, index) && static_cast<usize>(index) <= array_.size()) {
         if (index >= 1 && static_cast<usize>(index) <= array_.size()) {
-            return !array_[index - 1].isNil();
+            if (!array_[index - 1].isNil()) {
+                return true;
+            }
         }
-        return false;
     }
 
     // 检查哈希部分
-    auto it = hash_.find(key);
-    return it != hash_.end() && !it->second.isNil();
+    return findHashNode(key, false) != NoHashNode;
 }
 
 void Table::remove(const Value& key) {
@@ -168,15 +156,15 @@ void Table::remove(const Value& key) {
 
     // 检查是否是数组索引
     i32 index;
-    if (isArrayIndex(key, index)) {
+    if (isPositiveIntegerKey(key, index) && static_cast<usize>(index) <= array_.size() &&
+        !array_[static_cast<usize>(index - 1)].isNil()) {
         if (index >= 1 && static_cast<usize>(index) <= array_.size()) {
             array_[index - 1] = Value(); // 默认构造函数创建nil
         }
-        return;
     }
 
     // 从哈希部分删除
-    hash_.erase(key);
+    removeHash(key);
     if (GarbageCollector* gc = getOwnerCollector()) {
         gc->accountObjectSizeChange(this);
     }
@@ -184,7 +172,9 @@ void Table::remove(const Value& key) {
 
 void Table::clear() {
     array_.clear();
-    hash_.clear();
+    hashNodes_ = LuaReallocVector<HashNode>(allocator_);
+    hashLiveCount_ = 0;
+    hashUsedCount_ = 0;
     metatable_ = nullptr;
     flags_ = 0;
     if (GarbageCollector* gc = getOwnerCollector()) {
@@ -218,6 +208,10 @@ void Table::setArray(i32 index, const Value& value) {
         return;
     }
 
+    if (value.isNil() && static_cast<usize>(index) > array_.size()) {
+        removeHash(Value(static_cast<f64>(index)));
+        return;
+    }
     const Value stableValue = value;
     setArrayRange(index, std::span<const Value>(&stableValue, 1));
 }
@@ -241,12 +235,16 @@ void Table::setArrayRange(i32 firstIndex, std::span<const Value> values) {
     }
 
     const usize requiredSize = first + values.size();
+    if (requiredSize > resourcePolicy().maxTableArraySlots) {
+        throw ResourceLimitError("table array slot limit exceeded");
+    }
     if (requiredSize > array_.size()) {
         array_.resize(requiredSize, Value());
     }
     flags_ = 0;
     for (usize offset = 0; offset < values.size(); ++offset) {
         array_[first + offset] = values[offset];
+        removeHash(Value(static_cast<f64>(first + offset + 1)));
     }
     if (GarbageCollector* gc = getOwnerCollector()) {
         gc->accountObjectSizeChange(this);
@@ -269,13 +267,12 @@ usize Table::length() const {
 
         Value key(static_cast<f64>(index));
         i32 arrayIndex = 0;
-        if (isArrayIndex(key, arrayIndex)) {
-            return static_cast<usize>(arrayIndex) <= array_.size() &&
-                   !array_[static_cast<usize>(arrayIndex - 1)].isNil();
+        if (isPositiveIntegerKey(key, arrayIndex) && static_cast<usize>(arrayIndex) <= array_.size() &&
+            !array_[static_cast<usize>(arrayIndex - 1)].isNil()) {
+            return true;
         }
 
-        auto it = hash_.find(key);
-        return it != hash_.end() && !it->second.isNil();
+        return findHashNode(key, false) != NoHashNode;
     };
 
     usize arraySize = array_.size();
@@ -344,12 +341,15 @@ void Table::markContents(GarbageCollector& gc, bool weakKeys, bool weakValues) {
     }
 
     // 标记哈希部分中的GC对象
-    for (const auto& [key, val] : hash_) {
-        if (!weakKeys || key.isString()) {
-            gc.markValue(key);
+    for (const HashNode& node : hashNodes_) {
+        if (node.state != HashNodeState::Live) {
+            continue;
         }
-        if (!weakValues || val.isString()) {
-            gc.markValue(val);
+        if (!weakKeys || node.key.isString()) {
+            gc.markValue(node.key);
+        }
+        if (!weakValues || node.value.isString()) {
+            gc.markValue(node.value);
         }
     }
 
@@ -370,19 +370,22 @@ void Table::removeWeakEntries(const GarbageCollector& gc, bool weakKeys, bool we
         }
     }
 
-    for (auto it = hash_.begin(); it != hash_.end();) {
+    for (HashNode& node : hashNodes_) {
+        if (node.state != HashNodeState::Live) {
+            continue;
+        }
         bool removeEntry = false;
-        if (weakKeys && gc.isValueDead(it->first)) {
+        if (weakKeys && gc.isValueDead(node.key)) {
             removeEntry = true;
         }
-        if (weakValues && gc.isWeakValueDead(it->second)) {
+        if (weakValues && gc.isWeakValueDead(node.value)) {
             removeEntry = true;
         }
 
         if (removeEntry) {
-            it = hash_.erase(it);
-        } else {
-            ++it;
+            node.value = Value();
+            node.state = HashNodeState::Dead;
+            --hashLiveCount_;
         }
     }
 
@@ -398,9 +401,8 @@ usize Table::getSize() const {
     // 数组部分的容量
     size += array_.capacity() * sizeof(Value);
 
-    // 哈希部分的容量（估算）
-    // unordered_map的内存布局比较复杂，这里简化估算
-    size += hash_.size() * (sizeof(Value) * 2 + sizeof(void*));
+    // 开放寻址节点数组由 lua_Alloc 精确按 capacity 计账。
+    size += hashNodes_.capacity() * sizeof(HashNode);
 
     return size;
 }
@@ -425,10 +427,10 @@ bool Table::next(const Value& key, Value& nextKey, Value& nextValue) const {
         }
 
         // 数组部分为空或全是nil，检查哈希部分
-        if (!hash_.empty()) {
-            auto it = hash_.begin();
-            nextKey = it->first;
-            nextValue = it->second;
+        const usize firstNode = nextLiveHashNode(0);
+        if (firstNode != NoHashNode) {
+            nextKey = hashNodes_[firstNode].key;
+            nextValue = hashNodes_[firstNode].value;
             return true;
         }
 
@@ -438,7 +440,8 @@ bool Table::next(const Value& key, Value& nextKey, Value& nextValue) const {
 
     // 查找当前键的位置
     i32 arrayIndex;
-    if (isArrayIndex(key, arrayIndex)) {
+    if (isPositiveIntegerKey(key, arrayIndex) && static_cast<usize>(arrayIndex) <= array_.size() &&
+        (!array_[static_cast<usize>(arrayIndex - 1)].isNil() || findHashNode(key, true) == NoHashNode)) {
         // 当前键在数组部分
         // 继续遍历数组部分
         for (usize i = arrayIndex; i < array_.size(); i++) {
@@ -450,10 +453,10 @@ bool Table::next(const Value& key, Value& nextKey, Value& nextValue) const {
         }
 
         // 数组部分遍历完毕，转到哈希部分
-        if (!hash_.empty()) {
-            auto it = hash_.begin();
-            nextKey = it->first;
-            nextValue = it->second;
+        const usize firstNode = nextLiveHashNode(0);
+        if (firstNode != NoHashNode) {
+            nextKey = hashNodes_[firstNode].key;
+            nextValue = hashNodes_[firstNode].value;
             return true;
         }
 
@@ -461,25 +464,15 @@ bool Table::next(const Value& key, Value& nextKey, Value& nextValue) const {
     }
 
     // 当前键在哈希部分
-    auto it = hash_.find(key);
-    if (it == hash_.end()) {
-        // Lua 5.1 permits deleting the current key during traversal. In that
-        // case the iterator key no longer exists, so continue from any
-        // remaining hash entry instead of terminating the traversal.
-        if (!hash_.empty()) {
-            auto restart = hash_.begin();
-            nextKey = restart->first;
-            nextValue = restart->second;
-            return true;
-        }
-        return false;
+    const usize currentNode = findHashNode(key, true);
+    if (currentNode == NoHashNode) {
+        throw RuntimeError("invalid key to 'next'");
     }
 
-    // 移动到下一个元素
-    ++it;
-    if (it != hash_.end()) {
-        nextKey = it->first;
-        nextValue = it->second;
+    const usize followingNode = nextLiveHashNode(currentNode + 1);
+    if (followingNode != NoHashNode) {
+        nextKey = hashNodes_[followingNode].key;
+        nextValue = hashNodes_[followingNode].value;
         return true;
     }
 
@@ -491,7 +484,7 @@ bool Table::next(const Value& key, Value& nextKey, Value& nextValue) const {
 // 内部辅助方法
 // =====================================================================
 
-bool Table::isArrayIndex(const Value& key, i32& outIndex) const {
+bool Table::isPositiveIntegerKey(const Value& key, i32& outIndex) const {
     // 必须是数字类型
     if (!key.isNumber()) {
         return false;
@@ -504,9 +497,7 @@ bool Table::isArrayIndex(const Value& key, i32& outIndex) const {
         return false;
     }
 
-    // 检查范围（避免过大的索引）
-    // 这里设置一个合理的上限，比如1000000
-    if (num < 1 || num > 1000000) {
+    if (num > static_cast<f64>(std::numeric_limits<i32>::max())) {
         return false;
     }
 
@@ -515,6 +506,174 @@ bool Table::isArrayIndex(const Value& key, i32& outIndex) const {
 
     outIndex = index;
     return true;
+}
+
+bool Table::shouldStoreInArray(i32 index) const {
+    if (index < 1) {
+        return false;
+    }
+    const usize candidate = static_cast<usize>(index);
+    if (candidate > resourcePolicy().maxTableArraySlots) {
+        return false;
+    }
+    // Only contiguous growth is dense by construction. Sparse positive
+    // integers remain in the node array instead of amplifying one value into
+    // a large nil-filled allocation.
+    return candidate <= array_.size() || candidate == array_.size() + 1;
+}
+
+const ResourcePolicy& Table::resourcePolicy() const noexcept {
+    if (const GarbageCollector* gc = getOwnerCollector()) {
+        if (const GlobalState* global = gc->getGlobalState()) {
+            return global->getResourcePolicy();
+        }
+    }
+    static const ResourcePolicy defaults;
+    return defaults;
+}
+
+usize Table::findHashNode(const Value& key, bool includeDead) const noexcept {
+    if (hashNodes_.empty()) {
+        return NoHashNode;
+    }
+
+    const usize hash = ValueHash{}(key);
+    const usize mask = hashNodes_.size() - 1;
+    usize index = hash & mask;
+    for (usize probes = 0; probes < hashNodes_.size(); ++probes) {
+        const HashNode& node = hashNodes_[index];
+        if (node.state == HashNodeState::Empty) {
+            return NoHashNode;
+        }
+        if (node.hash == hash && node.key == key &&
+            (node.state == HashNodeState::Live || includeDead)) {
+            return index;
+        }
+        index = (index + 1) & mask;
+    }
+    return NoHashNode;
+}
+
+usize Table::nextLiveHashNode(usize first) const noexcept {
+    for (usize index = first; index < hashNodes_.size(); ++index) {
+        if (hashNodes_[index].state == HashNodeState::Live) {
+            return index;
+        }
+    }
+    return NoHashNode;
+}
+
+void Table::setHash(const Value& key, const Value& value) {
+    usize nodeIndex = findHashNode(key, true);
+    if (nodeIndex != NoHashNode && hashNodes_[nodeIndex].state == HashNodeState::Live) {
+        if (GarbageCollector* gc = getOwnerCollector()) {
+            gc->writeBarrier(this, value);
+        }
+        hashNodes_[nodeIndex].value = value;
+        if (GarbageCollector* gc = getOwnerCollector()) {
+            gc->accountObjectSizeChange(this);
+        }
+        return;
+    }
+
+    if (hashLiveCount_ >= resourcePolicy().maxTableHashEntries) {
+        throw ResourceLimitError("table hash entry limit exceeded");
+    }
+    if (GarbageCollector* gc = getOwnerCollector()) {
+        gc->writeBarrier(this, key);
+        gc->writeBarrier(this, value);
+    }
+
+    if (nodeIndex != NoHashNode) {
+        HashNode& node = hashNodes_[nodeIndex];
+        node.value = value;
+        node.state = HashNodeState::Live;
+        ++hashLiveCount_;
+    } else {
+        ensureHashInsertCapacity();
+        const usize hash = ValueHash{}(key);
+        const usize mask = hashNodes_.size() - 1;
+        usize index = hash & mask;
+        usize firstDead = NoHashNode;
+        for (;;) {
+            HashNode& node = hashNodes_[index];
+            if (node.state == HashNodeState::Dead && firstDead == NoHashNode) {
+                firstDead = index;
+            } else if (node.state == HashNodeState::Empty) {
+                const usize destination = firstDead == NoHashNode ? index : firstDead;
+                HashNode& target = hashNodes_[destination];
+                target.key = key;
+                target.value = value;
+                target.hash = hash;
+                target.state = HashNodeState::Live;
+                ++hashLiveCount_;
+                if (firstDead == NoHashNode) {
+                    ++hashUsedCount_;
+                }
+                break;
+            }
+            index = (index + 1) & mask;
+        }
+    }
+
+    if (GarbageCollector* gc = getOwnerCollector()) {
+        gc->accountObjectSizeChange(this);
+    }
+}
+
+void Table::removeHash(const Value& key) noexcept {
+    const usize index = findHashNode(key, false);
+    if (index == NoHashNode) {
+        return;
+    }
+    HashNode& node = hashNodes_[index];
+    node.value = Value();
+    node.state = HashNodeState::Dead;
+    --hashLiveCount_;
+}
+
+void Table::ensureHashInsertCapacity() {
+    if (hashNodes_.empty()) {
+        rehash(8);
+        return;
+    }
+    if (hashUsedCount_ + 1 <= hashNodes_.size() - hashNodes_.size() / 4) {
+        return;
+    }
+    if (hashLiveCount_ * 2 < hashUsedCount_) {
+        rehash(hashNodes_.size());
+        return;
+    }
+    if (hashNodes_.size() > std::numeric_limits<usize>::max() / 2) {
+        throw std::bad_array_new_length();
+    }
+    rehash(hashNodes_.size() * 2);
+}
+
+void Table::rehash(usize requestedCapacity) {
+    usize capacity = 8;
+    while (capacity < requestedCapacity) {
+        if (capacity > std::numeric_limits<usize>::max() / 2) {
+            throw std::bad_array_new_length();
+        }
+        capacity *= 2;
+    }
+
+    LuaReallocVector<HashNode> replacement(allocator_);
+    replacement.resize(capacity, HashNode{});
+    const usize mask = capacity - 1;
+    for (const HashNode& old : hashNodes_) {
+        if (old.state != HashNodeState::Live) {
+            continue;
+        }
+        usize index = old.hash & mask;
+        while (replacement[index].state == HashNodeState::Live) {
+            index = (index + 1) & mask;
+        }
+        replacement[index] = old;
+    }
+    hashNodes_ = std::move(replacement);
+    hashUsedCount_ = hashLiveCount_;
 }
 
 } // namespace Lua

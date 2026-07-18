@@ -52,7 +52,9 @@ const Vec<ParseError>& Parser::diagnostics() const noexcept {
 }
 
 Parser::Impl::Impl(const Str& source, ParserOptions options)
-    : tokenStream_(source), astFactory_(&allocator_),
+    : compilationPolicy_(), compilationBudget_(compilationPolicy_),
+      tokenStream_((compilationBudget_.checkSource(source.size()), source), &allocator_, &compilationBudget_),
+      astFactory_(&allocator_, &compilationBudget_),
       functionScopes_(LuaSnapshotStdAllocator<FunctionSyntaxScope>(&allocator_)),
       recoveryStrategy_(makeRecoveryStrategy(options.recoveryMode)) {
     diagnosticObservers_.push_back(&diagnosticCollector_);
@@ -61,7 +63,10 @@ Parser::Impl::Impl(const Str& source, ParserOptions options)
 Parser::Impl::Impl(const Str& source, RuntimeServices& services, ParserOptions options)
     : allocator_(services.globalState.getAllocator() != nullptr ? *services.globalState.getAllocator()
                                                                 : LuaAllocator{}),
-      tokenStream_(source, &allocator_), services_(&services), astFactory_(&allocator_),
+      compilationPolicy_(services.globalState.getCompilationPolicy()),
+      compilationBudget_(compilationPolicy_, &services.globalState.getExecutionPolicy()),
+      tokenStream_((compilationBudget_.checkSource(source.size()), source), &allocator_, &compilationBudget_),
+      services_(&services), astFactory_(&allocator_, &compilationBudget_),
       functionScopes_(LuaSnapshotStdAllocator<FunctionSyntaxScope>(&allocator_)),
       recoveryStrategy_(makeRecoveryStrategy(options.recoveryMode)) {
     diagnosticObservers_.push_back(&diagnosticCollector_);
@@ -155,6 +160,7 @@ void Parser::Impl::recoverAfterError() {
 }
 
 void Parser::Impl::enterFunctionSyntaxScope(i32 line, const Vec<Str>& params) {
+    compilationBudget_.consumeFunction();
     FunctionSyntaxScope scope(line, &allocator_);
     for (const Str& param : params) {
         if (param != "...") {
@@ -225,9 +231,9 @@ UPtr<Parser::Impl::ErrorRecoveryStrategy> Parser::Impl::makeRecoveryStrategy(Par
 std::expected<Chunk, ParseError> Parser::Impl::parse() {
     diagnosticCollector_.clear();
     functionScopes_.clear();
-    enterFunctionSyntaxScope(1);
 
     try {
+        enterFunctionSyntaxScope(1);
         Chunk chunk;
 
         chunk.statements = parseBlock();
@@ -243,6 +249,8 @@ std::expected<Chunk, ParseError> Parser::Impl::parse() {
         return chunk;
     } catch (const ParseError& error) {
         return std::unexpected(error);
+    } catch (const CompilationLimitError& error) {
+        return std::unexpected(ParseError(error.what(), current().line, current().column));
     }
 }
 

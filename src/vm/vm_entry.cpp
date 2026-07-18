@@ -13,6 +13,8 @@
 #include "vm/state/lua_state.hpp"
 #include "vm/vm_internal.hpp"
 
+#include <cassert>
+
 namespace Lua::VM {
 
 namespace {
@@ -41,12 +43,19 @@ private:
 } // namespace
 
 void call(LuaState* L, i32 nargs, i32 nresults) {
-    RuntimeServices services = RuntimeServices::fromSingletons();
+    if (L == nullptr) {
+        throw RuntimeError("VM::call: null state");
+    }
+    RuntimeServices services(L->getGlobalState());
     call(services, L, nargs, nresults);
 }
 
 void call(RuntimeServices& services, LuaState* L, i32 nargs, i32 nresults) {
     services.globalState.requireOwnerThread();
+    assert(L != nullptr && &L->getGlobalState() == &services.globalState);
+    if (L == nullptr || &L->getGlobalState() != &services.globalState) {
+        throw RuntimeError("VM::call: runtime services do not own state");
+    }
     HostCallGuard hostCall(L);
 
     usize absTop = L->getAbsoluteTop();
@@ -70,12 +79,19 @@ void call(RuntimeServices& services, LuaState* L, i32 nargs, i32 nresults) {
 }
 
 void execute(LuaState* L, Function* func) {
-    RuntimeServices services = RuntimeServices::fromSingletons();
+    if (L == nullptr) {
+        throw RuntimeError("VM::execute: null state");
+    }
+    RuntimeServices services(L->getGlobalState());
     execute(services, L, func);
 }
 
 void execute(RuntimeServices& services, LuaState* L, Function* func) {
     services.globalState.requireOwnerThread();
+    assert(L != nullptr && &L->getGlobalState() == &services.globalState);
+    if (L == nullptr || &L->getGlobalState() != &services.globalState) {
+        throw RuntimeError("VM::execute: runtime services do not own state");
+    }
     if (!func) {
         throw RuntimeError("VM::execute: null function");
     }

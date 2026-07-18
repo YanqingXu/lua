@@ -33,6 +33,7 @@
 #include "common/types.hpp"
 #include "core/value.hpp"
 #include "runtime/lua_allocator.hpp"
+#include "runtime/resource_policy.hpp"
 #include "vm/vm_constants.hpp"
 
 namespace Lua {
@@ -70,7 +71,8 @@ public:
      * @brief 构造函数
      * @param initialSize 初始栈大小（默认为INITIAL_STACK_SIZE）
      */
-    explicit Stack(usize initialSize = INITIAL_STACK_SIZE, LuaAllocator* allocator = nullptr);
+    explicit Stack(usize initialSize = INITIAL_STACK_SIZE, LuaAllocator* allocator = nullptr,
+                   const ResourcePolicy* resourcePolicy = nullptr);
 
     /**
      * @brief 析构函数
@@ -105,6 +107,9 @@ public:
      * ```
      */
     void checkSpace(usize needed);
+
+    /** Check an absolute logical/physical top against the current policy. */
+    void checkLimit(usize newTop) const;
 
     /**
      * @brief 压入值到栈顶（✅ 新增 - 无检查版本，性能优化）
@@ -221,6 +226,9 @@ private:
 
     /// 栈顶位置（指向下一个可用位置）
     usize top_;
+
+    /// Borrowed from the owning GlobalState; policy fields remain mutable per context.
+    const ResourcePolicy* resourcePolicy_;
 };
 
 } // namespace Lua

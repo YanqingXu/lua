@@ -1,15 +1,5 @@
 {
   "schemaVersion": 1,
   "channel": "official-testc",
-  "xfails": [
-    {
-      "id": "code.lua-lua515-compiler-parity",
-      "expectedDiagnostic": "code.lua Lua 5.1.5 compiler parity gap: expected - LOADBOOL *%d; actual 2 - TEST 2",
-      "trackingIssue": "https://github.com/YanqingXu/lua/issues/4",
-      "trackingStatus": "open after fixture/oracle provenance closure",
-      "responsibleModule": "compiler repeat-condition constant lowering and Lua 5.1.5 bytecode parity",
-      "minimalReproduction": "bin/lua_test.exe --filter \"code.lua with Lua 5.1.5 oracle XFAIL\"",
-      "reason": "The generic lua5.1-tests archive has three opcode expectations that do not match released Lua 5.1.5; those are corrected in memory from a SHA-locked luac oracle while the upstream file stays byte-for-byte unchanged. After those corrections, the first project-only gap is repeat-until-nil lowering: Lua 5.1.5 emits LOADNIL/LOADBOOL/TEST/JMP/RETURN, while this compiler omits LOADBOOL and begins the condition with TEST."
-    }
-  ]
+  "xfails": []
 }

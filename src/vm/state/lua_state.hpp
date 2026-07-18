@@ -264,6 +264,7 @@ public:
      * 这可能与 Stack::top_ 不同（当使用 setAbsoluteTop 调整栈顶后）。
      */
     void pushValue(const Value& v) {
+        stack_.checkLimit(top_ + 1);
         // Keep one already-allocated slot out of the ordinary push path.  A
         // protected C API boundary can then publish the fixed memory-error
         // object even when growing the stack is the allocation that failed.
@@ -384,7 +385,8 @@ public:
      *
      * 设置栈顶的绝对索引（用于 VM 内部）
      */
-    void setAbsoluteTop(usize top) noexcept {
+    void setAbsoluteTop(usize top) {
+        stack_.checkLimit(top);
         top_ = top;
     }
 
@@ -392,6 +394,7 @@ public:
      * @brief 增加栈顶
      */
     void incrTop() {
+        stack_.checkLimit(top_ + 1);
         if (top_ >= stack_.size()) {
             stack_.push(Value());
         }
@@ -549,6 +552,11 @@ public:
      * @brief Reject a privileged Lua operation disabled by this context.
      */
     void requireSandboxCapability(SandboxCapability capability);
+
+    /**
+     * @brief Charge work performed inside a native standard-library loop.
+     */
+    void consumeNativeWork(ExecutionPolicy::NativeWorkCount units = 1);
 
     /**
      * @brief Reject explicit opening of a disabled standard library.

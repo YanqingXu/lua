@@ -29,6 +29,7 @@
 #include "core/gc_object.hpp"
 #include "core/value.hpp"
 #include "runtime/lua_allocator.hpp"
+#include "runtime/resource_policy.hpp"
 #include <span>
 
 namespace Lua {
@@ -328,7 +329,7 @@ public:
      * @return 哈希部分的元素数量
      */
     usize getHashSize() const noexcept {
-        return hash_.size();
+        return hashLiveCount_;
     }
 
     /**
@@ -337,7 +338,7 @@ public:
      * @return 数组部分 + 哈希部分的元素总数
      */
     usize getTotalSize() const noexcept {
-        return array_.size() + hash_.size();
+        return array_.size() + hashLiveCount_;
     }
 
 private:
@@ -348,12 +349,24 @@ private:
     /// 数组部分：存储连续的正整数键（索引从1开始）
     LuaReallocVector<Value> array_;
 
-    /// 哈希部分：存储其他类型的键或非连续的整数键
-    /// 注意：std::unordered_map需要4个模板参数：Key, Value, Hash, KeyEqual
-    using HashValue = std::pair<const Value, Value>;
-    using HashAllocator = LuaStdAllocator<HashValue>;
-    using HashPart = std::unordered_map<Value, Value, ValueHash, ValueEqual, HashAllocator>;
-    HashPart hash_;
+    enum class HashNodeState : u8 {
+        Empty,
+        Live,
+        Dead,
+    };
+
+    struct HashNode {
+        Value key;
+        Value value;
+        usize hash = 0;
+        HashNodeState state = HashNodeState::Empty;
+    };
+
+    /// Lua-style node array: open addressing plus retained dead-key slots.
+    LuaReallocVector<HashNode> hashNodes_;
+    usize hashLiveCount_ = 0;
+    usize hashUsedCount_ = 0;
+    LuaAllocator* allocator_ = nullptr;
 
     /// 元表指针：用于元编程
     Table* metatable_;
@@ -379,7 +392,18 @@ private:
      * @param outIndex 输出参数，如果是有效索引则存储索引值
      * @return true 如果是有效的数组索引
      */
-    bool isArrayIndex(const Value& key, i32& outIndex) const;
+    bool isPositiveIntegerKey(const Value& key, i32& outIndex) const;
+    bool shouldStoreInArray(i32 index) const;
+
+    [[nodiscard]] const ResourcePolicy& resourcePolicy() const noexcept;
+    [[nodiscard]] usize findHashNode(const Value& key, bool includeDead) const noexcept;
+    [[nodiscard]] usize nextLiveHashNode(usize first) const noexcept;
+    void setHash(const Value& key, const Value& value);
+    void removeHash(const Value& key) noexcept;
+    void ensureHashInsertCapacity();
+    void rehash(usize requestedCapacity);
+
+    static constexpr usize NoHashNode = static_cast<usize>(-1);
 };
 
 } // namespace Lua

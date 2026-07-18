@@ -444,6 +444,59 @@ void testAstAllocatorSnapshotOutlivesRuntimeContext(TestSuite& suite) {
               "AST allocator snapshots release every callback-owned node byte");
 }
 
+void testCompilationPolicyBoundsParserGrowth(TestSuite& suite) {
+    {
+        EngineContext context;
+        context.compilationPolicy().maxSourceBytes = 4;
+        RuntimeServices services = context.services();
+        bool rejected = false;
+        try {
+            Parser parser("return 1", services);
+            (void)parser;
+        } catch (const CompilationLimitError&) {
+            rejected = true;
+        }
+        ASSERT_TRUE(suite, rejected, "source limit is checked before lexer construction");
+    }
+    {
+        EngineContext context;
+        context.compilationPolicy().maxTokens = 2;
+        RuntimeServices services = context.services();
+        Parser parser("return 1", services);
+        auto parsed = parser.parse();
+        ASSERT_FALSE(suite, parsed.has_value(), "token budget rejects before scanning an excess token");
+    }
+    {
+        EngineContext context;
+        context.compilationPolicy().maxAstNodes = 0;
+        RuntimeServices services = context.services();
+        Parser parser("return 1", services);
+        auto parsed = parser.parse();
+        ASSERT_FALSE(suite, parsed.has_value(), "AST budget rejects before allocating an excess node");
+    }
+    {
+        EngineContext context;
+        context.compilationPolicy().maxFunctions = 0;
+        RuntimeServices services = context.services();
+        Parser parser("return 1", services);
+        auto parsed = parser.parse();
+        ASSERT_FALSE(suite, parsed.has_value(), "function budget rejects the root syntax scope");
+    }
+    {
+        EngineContext context;
+        context.compilationPolicy().deadline = CompilationPolicy::Clock::now();
+        RuntimeServices services = context.services();
+        bool rejected = false;
+        try {
+            Parser parser("return 1", services);
+            (void)parser;
+        } catch (const CompilationLimitError&) {
+            rejected = true;
+        }
+        ASSERT_TRUE(suite, rejected, "expired compilation deadline rejects before source copying");
+    }
+}
+
 } // namespace
 
 void registerParserBoundaryTests() {
@@ -462,4 +515,6 @@ void registerParserBoundaryTests() {
                           testTokenAllocatorSnapshotOutlivesSourceAllocator);
     registry.registerTest(kSuiteName, "AST allocator snapshot lifetime",
                           testAstAllocatorSnapshotOutlivesRuntimeContext);
+    registry.registerTest(kSuiteName, "compilation policy parser limits",
+                          testCompilationPolicyBoundsParserGrowth);
 }

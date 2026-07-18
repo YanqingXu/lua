@@ -72,12 +72,27 @@ static inline f64 getNumberArg(LuaState* L, i32 idx, const char* funcName) {
     if (value.isString()) {
         GCString* str = value.asString();
         LuaNumber number = 0.0;
-        if (luaStringToNumber(str->view(), number)) {
+        L->consumeNativeWork(str->getLength());
+        if (luaStringToNumber(str->view(), number, L->getGlobalState().getAllocator())) {
             return number;
         }
     }
 
     { L->error(std::format("bad argument #{} to 'string.{}' (number expected)", idx, funcName).c_str()); }
+}
+
+static i32 getIntegerArg(LuaState* L, i32 idx, const char* funcName,
+                         IntegerConversion mode = IntegerConversion::Truncate) {
+    const auto converted = checkedLuaInteger(getNumberArg(L, idx, funcName), mode);
+    if (!converted) {
+        const char* detail = converted.error() == IntegerConversionError::NotFinite
+                                 ? "finite number expected"
+                             : converted.error() == IntegerConversionError::NotIntegral
+                                 ? "integer expected"
+                                 : "number out of range";
+        L->error(std::format("bad argument #{} to 'string.{}' ({})", idx, funcName, detail).c_str());
+    }
+    return *converted;
 }
 
 static inline const char* getStringLikeArg(LuaState* L, i32 idx, const char* funcName, usize* len = nullptr) {
@@ -127,19 +142,53 @@ static inline bool isSupportedFormatSpecifier(char ch) {
     formatError(L, message.c_str());
 }
 
-template <typename T> static void appendPrintfFormatted(Str& out, const Str& format, T value) {
+static usize stringOutputLimit(LuaState* L) {
+    const ResourcePolicy& policy = L->getGlobalState().getResourcePolicy();
+    return std::min(policy.maxStringBytes, policy.maxOutputBytes);
+}
+
+static void ensureStringOutput(LuaState* L, usize current, usize addition, const char* functionName) {
+    const usize limit = stringOutputLimit(L);
+    if (addition > limit || current > limit - addition) {
+        L->error(std::format("string.{}: result exceeds resource limit", functionName).c_str());
+    }
+    L->consumeNativeWork(addition == 0 ? 1 : addition);
+}
+
+template <typename String>
+static void appendStringOutput(LuaState* L, String& output, const char* bytes, usize count,
+                               const char* functionName) {
+    ensureStringOutput(L, output.size(), count, functionName);
+    output.append(bytes, count);
+}
+
+template <typename String>
+static void pushStringOutput(LuaState* L, String& output, char byte, const char* functionName) {
+    ensureStringOutput(L, output.size(), 1, functionName);
+    output.push_back(byte);
+}
+
+template <typename String, typename Format, typename T>
+static void appendPrintfFormatted(LuaState* L, String& out, const Format& format, T value) {
     i32 required = std::snprintf(nullptr, 0, format.c_str(), value);
     if (required < 0) {
         throw std::runtime_error("string.format: snprintf failed");
     }
 
-    Str buffer(static_cast<usize>(required) + 1, '\0');
+    ensureStringOutput(L, out.size(), static_cast<usize>(required), "format");
+    LuaString buffer(LuaStdAllocator<char>(L->getGlobalState().getAllocator()));
+    buffer.resize(static_cast<usize>(required) + 1, '\0');
     std::snprintf(buffer.data(), buffer.size(), format.c_str(), value);
     out.append(buffer.data(), static_cast<usize>(required));
 }
 
-static Str quoteLuaString(const char* str, usize len) {
-    Str quoted;
+static LuaString quoteLuaString(LuaState* L, const char* str, usize len) {
+    const usize limit = stringOutputLimit(L);
+    if (limit < 2 || len > (limit - 2) / 4) {
+        L->error("string.format: result exceeds resource limit");
+    }
+    L->consumeNativeWork(len == 0 ? 1 : len);
+    LuaString quoted(LuaStdAllocator<char>(L->getGlobalState().getAllocator()));
     quoted.reserve(len + 2);
     quoted.push_back('"');
 
@@ -153,7 +202,7 @@ static Str quoteLuaString(const char* str, usize len) {
             quoted.push_back(static_cast<char>(ch));
             break;
         case '\0':
-            quoted.append("\\000");
+            quoted.append("\\000", 4);
             break;
         default:
             quoted.push_back(static_cast<char>(ch));
@@ -220,8 +269,8 @@ i32 str_sub(LuaState* L) {
 
     usize len;
     const char* s = getStringArg(L, 1, "sub", &len);
-    i32 start = static_cast<i32>(getNumberArg(L, 2, "sub"));
-    i32 end = (L->getTop() >= 3) ? static_cast<i32>(getNumberArg(L, 3, "sub")) : static_cast<i32>(len);
+    i32 start = getIntegerArg(L, 2, "sub");
+    i32 end = (L->getTop() >= 3) ? getIntegerArg(L, 3, "sub") : static_cast<i32>(len);
 
     i32 startPos = luaStringPosition(start, len);
     i32 endPos = luaStringPosition(end, len);
@@ -239,9 +288,11 @@ i32 str_sub(LuaState* L) {
     // Extract substring
     usize startIndex = static_cast<usize>(startPos - 1);
     usize subLen = static_cast<usize>(endPos - startPos + 1);
-    Str result(s + startIndex, subLen);
+    ensureStringOutput(L, 0, subLen, "sub");
+    LuaString result(s + startIndex, s + startIndex + subLen,
+                     LuaStdAllocator<char>(L->getGlobalState().getAllocator()));
 
-    GCString* str = L->getGlobalState().getStringPool().intern(result);
+    GCString* str = L->getGlobalState().getStringPool().intern(result.data(), result.size());
     L->pushString(str);
     return 1;
 }
@@ -253,12 +304,12 @@ i32 str_upper(LuaState* L) {
 
     usize len;
     const char* s = getStringArg(L, 1, "upper", &len);
-
-    Str result(s, len);
+    ensureStringOutput(L, 0, len, "upper");
+    LuaString result(s, s + len, LuaStdAllocator<char>(L->getGlobalState().getAllocator()));
     std::transform(result.begin(), result.end(), result.begin(),
                    [](unsigned char c) { return static_cast<char>(std::toupper(c)); });
 
-    GCString* str = L->getGlobalState().getStringPool().intern(result);
+    GCString* str = L->getGlobalState().getStringPool().intern(result.data(), result.size());
     L->pushString(str);
     return 1;
 }
@@ -270,12 +321,12 @@ i32 str_lower(LuaState* L) {
 
     usize len;
     const char* s = getStringArg(L, 1, "lower", &len);
-
-    Str result(s, len);
+    ensureStringOutput(L, 0, len, "lower");
+    LuaString result(s, s + len, LuaStdAllocator<char>(L->getGlobalState().getAllocator()));
     std::transform(result.begin(), result.end(), result.begin(),
                    [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
 
-    GCString* str = L->getGlobalState().getStringPool().intern(result);
+    GCString* str = L->getGlobalState().getStringPool().intern(result.data(), result.size());
     L->pushString(str);
     return 1;
 }
@@ -287,11 +338,11 @@ i32 str_reverse(LuaState* L) {
 
     usize len;
     const char* s = getStringArg(L, 1, "reverse", &len);
-
-    Str result(s, len);
+    ensureStringOutput(L, 0, len, "reverse");
+    LuaString result(s, s + len, LuaStdAllocator<char>(L->getGlobalState().getAllocator()));
     std::reverse(result.begin(), result.end());
 
-    GCString* str = L->getGlobalState().getStringPool().intern(result);
+    GCString* str = L->getGlobalState().getStringPool().intern(result.data(), result.size());
     L->pushString(str);
     return 1;
 }
@@ -303,21 +354,35 @@ i32 str_rep(LuaState* L) {
 
     usize len;
     const char* s = getStringArg(L, 1, "rep", &len);
-    i32 n = static_cast<i32>(getNumberArg(L, 2, "rep"));
+    i32 n = getIntegerArg(L, 2, "rep");
 
     if (n <= 0) {
         L->pushString(L->getGlobalState().getStringPool().intern(""));
         return 1;
     }
 
+    const ResourcePolicy& resources = L->getGlobalState().getResourcePolicy();
+    const usize outputLimit = std::min(resources.maxStringBytes, resources.maxOutputBytes);
+    if (len != 0 && static_cast<usize>(n) > outputLimit / len) {
+        L->error("string.rep: result exceeds resource limit");
+    }
+
+    if (len == 0) {
+        L->consumeNativeWork();
+        L->pushString(L->getGlobalState().getStringPool().intern(""));
+        return 1;
+    }
+    const usize outputSize = len * static_cast<usize>(n);
+
     // Build repeated string
-    Str result;
-    result.reserve(len * n);
+    ensureStringOutput(L, 0, outputSize, "rep");
+    LuaString result(LuaStdAllocator<char>(L->getGlobalState().getAllocator()));
+    result.reserve(outputSize);
     for (i32 i = 0; i < n; i++) {
         result.append(s, len);
     }
 
-    GCString* str = L->getGlobalState().getStringPool().intern(result);
+    GCString* str = L->getGlobalState().getStringPool().intern(result.data(), result.size());
     L->pushString(str);
     return 1;
 }
@@ -330,9 +395,9 @@ i32 str_byte(LuaState* L) {
     usize len;
     const char* s = getStringArg(L, 1, "byte", &len);
 
-    i32 start = (L->getTop() >= 2) ? static_cast<i32>(getNumberArg(L, 2, "byte")) : 1;
+    i32 start = (L->getTop() >= 2) ? getIntegerArg(L, 2, "byte") : 1;
     i32 startPos = luaStringPosition(start, len);
-    i32 endPos = (L->getTop() >= 3) ? luaStringPosition(static_cast<i32>(getNumberArg(L, 3, "byte")), len) : startPos;
+    i32 endPos = (L->getTop() >= 3) ? luaStringPosition(getIntegerArg(L, 3, "byte"), len) : startPos;
 
     if (startPos <= 0)
         startPos = 1;
@@ -342,6 +407,16 @@ i32 str_byte(LuaState* L) {
     if (startPos > endPos) {
         return 0; // Return no values
     }
+
+    const usize returnCount = static_cast<usize>(endPos - startPos + 1);
+    if (returnCount > L->getGlobalState().getResourcePolicy().maxReturnValues) {
+        L->error("string.byte: return value limit exceeded");
+    }
+    if (returnCount > std::numeric_limits<usize>::max() - L->getAbsoluteTop()) {
+        throw StackOverflowError("stack overflow: resource stack slot limit exceeded");
+    }
+    L->getStack().checkLimit(L->getAbsoluteTop() + returnCount);
+    L->consumeNativeWork(returnCount);
 
     // Push byte values
     i32 count = 0;
@@ -356,12 +431,12 @@ i32 str_byte(LuaState* L) {
 i32 str_char(LuaState* L) {
     i32 n = L->getTop();
 
-    Str result;
+    ensureStringOutput(L, 0, static_cast<usize>(n), "char");
+    LuaString result(LuaStdAllocator<char>(L->getGlobalState().getAllocator()));
     result.reserve(n);
 
     for (i32 i = 1; i <= n; i++) {
-        f64 val = getNumberArg(L, i, "char");
-        i32 c = static_cast<i32>(val);
+        i32 c = getIntegerArg(L, i, "char");
 
         if (c < 0 || c > 255) {
             L->error(std::format("bad argument #{} to 'string.char' (value out of range)", i).c_str());
@@ -370,7 +445,7 @@ i32 str_char(LuaState* L) {
         result.push_back(static_cast<char>(c));
     }
 
-    GCString* str = L->getGlobalState().getStringPool().intern(result);
+    GCString* str = L->getGlobalState().getStringPool().intern(result.data(), result.size());
     L->pushString(str);
     return 1;
 }
@@ -380,12 +455,18 @@ i32 str_char(LuaState* L) {
 // =====================================================================
 
 /// Plain text search (used by string.find with plain=true)
-static i32 plainFind(const char* s, usize slen, const char* pattern, usize plen, usize init) {
+static i32 plainFind(LuaState* L, const char* s, usize slen, const char* pattern, usize plen, usize init) {
     if (plen == 0)
         return static_cast<i32>(init);
     if (init + plen > slen)
         return -1;
+    usize steps = 0;
+    const usize stepLimit = L->getGlobalState().getResourcePolicy().maxPatternSteps;
     for (usize i = init; i <= slen - plen; i++) {
+        if (++steps > stepLimit) {
+            L->error("string.find: pattern step limit exceeded");
+        }
+        L->consumeNativeWork(plen == 0 ? 1 : plen);
         if (std::memcmp(s + i, pattern, plen) == 0)
             return static_cast<i32>(i);
     }
@@ -408,8 +489,18 @@ struct MatchState {
     const char* p_end;
     LuaState* L;
     i32 level;
+    usize steps;
+    usize stepLimit;
     MatchCapture capture[LUA_MAXCAPTURES];
 };
+
+static void patternStep(MatchState* ms, usize units = 1) {
+    if (units > ms->stepLimit || ms->steps > ms->stepLimit - units) {
+        ms->L->error("string pattern step limit exceeded");
+    }
+    ms->steps += units;
+    ms->L->consumeNativeWork(units);
+}
 
 struct PatternCursor {
     const char* current = nullptr;
@@ -422,6 +513,7 @@ using MatchResult = Opt<const char*>;
 static const char* lmatch(MatchState* ms, const char* s, const char* p);
 
 static MatchResult tryMatch(MatchState* ms, PatternCursor source, const char* pattern) {
+    patternStep(ms);
     if (source.current == nullptr || source.current > source.end) {
         return std::nullopt;
     }
@@ -542,6 +634,7 @@ static const char* matchbalance(MatchState* ms, const char* s, const char* p) {
     i32 e = *(p + 1);
     i32 cont = 1;
     while (++s < ms->src_end) {
+        patternStep(ms);
         if (*s == e) {
             if (--cont == 0)
                 return s + 1;
@@ -572,9 +665,12 @@ static const char* match_capture(MatchState* ms, const char* s, i32 l) {
 
 static const char* max_expand(MatchState* ms, const char* s, const char* p, const char* ep) {
     i32 i = 0;
-    while (s + i < ms->src_end && singlematch(static_cast<unsigned char>(*(s + i)), p, ep))
+    while (s + i < ms->src_end && singlematch(static_cast<unsigned char>(*(s + i)), p, ep)) {
+        patternStep(ms);
         i++;
+    }
     while (i >= 0) {
+        patternStep(ms);
         const char* res = lmatch(ms, s + i, ep + 1);
         if (res)
             return res;
@@ -585,6 +681,7 @@ static const char* max_expand(MatchState* ms, const char* s, const char* p, cons
 
 static const char* min_expand(MatchState* ms, const char* s, const char* p, const char* ep) {
     for (;;) {
+        patternStep(ms);
         const char* res = lmatch(ms, s, ep + 1);
         if (res)
             return res;
@@ -623,6 +720,7 @@ static const char* end_capture(MatchState* ms, const char* s, const char* p) {
 
 static const char* lmatch(MatchState* ms, const char* s, const char* p) {
 init:
+    patternStep(ms);
     if (p >= ms->p_end)
         return s;
     switch (*p) {
@@ -709,8 +807,7 @@ static void push_onecapture(MatchState* ms, i32 i, const char* s, const char* e)
     LuaState* L = ms->L;
     if (i >= ms->level) {
         if (i == 0) {
-            Str match(s, static_cast<usize>(e - s));
-            L->pushString(L->getGlobalState().getStringPool().intern(match));
+            L->pushString(L->getGlobalState().getStringPool().intern(s, static_cast<usize>(e - s)));
         } else {
             L->error("invalid capture index");
         }
@@ -721,8 +818,8 @@ static void push_onecapture(MatchState* ms, i32 i, const char* s, const char* e)
         } else if (cl == CAP_POSITION) {
             L->pushNumber(static_cast<f64>(ms->capture[i].init - ms->src_init + 1));
         } else {
-            Str cap(ms->capture[i].init, static_cast<usize>(cl));
-            L->pushString(L->getGlobalState().getStringPool().intern(cap));
+            L->pushString(L->getGlobalState().getStringPool().intern(ms->capture[i].init,
+                                                                     static_cast<usize>(cl)));
         }
     }
 }
@@ -730,6 +827,7 @@ static void push_onecapture(MatchState* ms, i32 i, const char* s, const char* e)
 /// Return how many captures to push (at least 1)
 static i32 push_captures(MatchState* ms, const char* s, const char* e) {
     i32 nlevels = (ms->level == 0) ? 1 : ms->level;
+    ms->L->getStack().checkLimit(ms->L->getAbsoluteTop() + static_cast<usize>(nlevels));
     for (i32 i = 0; i < nlevels; i++)
         push_onecapture(ms, i, s, e);
     return nlevels;
@@ -742,6 +840,8 @@ static void prepareMatchState(MatchState* ms, LuaState* L, const char* s, usize 
     ms->src_end = s + slen;
     ms->p_end = p + plen;
     ms->level = 0;
+    ms->steps = 0;
+    ms->stepLimit = L->getGlobalState().getResourcePolicy().maxPatternSteps;
 }
 
 // =====================================================================
@@ -757,7 +857,7 @@ i32 str_find(LuaState* L) {
     const char* s = getStringArg(L, 1, "find", &slen);
     const char* pattern = getStringArg(L, 2, "find", &plen);
 
-    i32 init = (L->getTop() >= 3) ? static_cast<i32>(getNumberArg(L, 3, "find")) : 1;
+    i32 init = (L->getTop() >= 3) ? getIntegerArg(L, 3, "find") : 1;
     bool plain = (L->getTop() >= 4) ? L->toBoolean(4) : false;
 
     usize initPos = adjustPosition(init, slen);
@@ -765,7 +865,7 @@ i32 str_find(LuaState* L) {
         initPos = slen;
 
     if (plain) {
-        i32 pos = plainFind(s, slen, pattern, plen, initPos);
+        i32 pos = plainFind(L, s, slen, pattern, plen, initPos);
         if (pos >= 0) {
             L->pushNumber(static_cast<f64>(pos + 1));
             L->pushNumber(static_cast<f64>(pos + static_cast<i32>(plen)));
@@ -818,7 +918,7 @@ i32 str_match(LuaState* L) {
     const char* s = getStringArg(L, 1, "match", &slen);
     const char* pattern = getStringArg(L, 2, "match", &plen);
 
-    i32 init = (L->getTop() >= 3) ? static_cast<i32>(getNumberArg(L, 3, "match")) : 1;
+    i32 init = (L->getTop() >= 3) ? getIntegerArg(L, 3, "match") : 1;
     usize initPos = adjustPosition(init, slen);
     if (initPos > slen)
         initPos = slen;
@@ -872,31 +972,34 @@ static Value captureToValue(MatchState* ms, i32 i, const char* s, const char* e,
     return Value(L->getGlobalState().getStringPool().intern(ms->capture[i].init, static_cast<usize>(cl)));
 }
 
-static void addStringReplacement(MatchState* ms, Str& result, const char* s, const char* e, const char* repl,
+static void addStringReplacement(MatchState* ms, LuaString& result, const char* s, const char* e, const char* repl,
                                  usize rlen) {
     for (usize i = 0; i < rlen; i++) {
         if (repl[i] != L_ESC) {
-            result.push_back(repl[i]);
+            pushStringOutput(ms->L, result, repl[i], "gsub");
         } else {
             i++;
             if (i >= rlen)
                 break;
             if (!std::isdigit(static_cast<unsigned char>(repl[i]))) {
-                result.push_back(repl[i]);
+                pushStringOutput(ms->L, result, repl[i], "gsub");
             } else if (repl[i] == '0') {
-                result.append(s, static_cast<usize>(e - s));
+                appendStringOutput(ms->L, result, s, static_cast<usize>(e - s), "gsub");
             } else {
                 i32 ci = repl[i] - '1';
                 if (ci >= ms->level) {
                     if (ci == 0) {
-                        result.append(s, static_cast<usize>(e - s));
+                        appendStringOutput(ms->L, result, s, static_cast<usize>(e - s), "gsub");
                     } else {
                         ms->L->error("invalid capture index");
                     }
                 } else if (ms->capture[ci].len == CAP_POSITION) {
-                    result.append(luaNumberToString(static_cast<f64>(ms->capture[ci].init - ms->src_init + 1)));
+                    const Str position = luaNumberToString(
+                        static_cast<f64>(ms->capture[ci].init - ms->src_init + 1));
+                    appendStringOutput(ms->L, result, position.data(), position.size(), "gsub");
                 } else if (ms->capture[ci].len >= 0) {
-                    result.append(ms->capture[ci].init, static_cast<usize>(ms->capture[ci].len));
+                    appendStringOutput(ms->L, result, ms->capture[ci].init,
+                                       static_cast<usize>(ms->capture[ci].len), "gsub");
                 } else {
                     ms->L->error("unfinished capture");
                 }
@@ -905,19 +1008,20 @@ static void addStringReplacement(MatchState* ms, Str& result, const char* s, con
     }
 }
 
-static bool addValueReplacement(LuaState* L, Str& result, const Value& value) {
+static bool addValueReplacement(LuaState* L, LuaString& result, const Value& value) {
     if (value.isNil() || (value.isBoolean() && !value.asBoolean())) {
         return false;
     }
 
     if (value.isString()) {
         GCString* str = value.asString();
-        result.append(str->c_str(), str->getLength());
+        appendStringOutput(L, result, str->c_str(), str->getLength(), "gsub");
         return true;
     }
 
     if (value.isNumber()) {
-        result.append(luaNumberToString(value.asNumber()));
+        const Str number = luaNumberToString(value.asNumber());
+        appendStringOutput(L, result, number.data(), number.size(), "gsub");
         return true;
     }
 
@@ -972,7 +1076,7 @@ i32 str_gsub(LuaState* L) {
         replKind = GsubReplacementKind::String;
     }
 
-    i32 maxn = (L->getTop() >= 4) ? static_cast<i32>(getNumberArg(L, 4, "gsub")) : static_cast<i32>(slen + 1);
+    i32 maxn = (L->getTop() >= 4) ? getIntegerArg(L, 4, "gsub") : static_cast<i32>(slen + 1);
 
     const char* p = pattern;
     bool anchor = false;
@@ -985,8 +1089,8 @@ i32 str_gsub(LuaState* L) {
     MatchState ms;
     prepareMatchState(&ms, L, s, slen, p, plen);
 
-    Str result;
-    result.reserve(slen);
+    LuaString result(LuaStdAllocator<char>(L->getGlobalState().getAllocator()));
+    result.reserve(std::min(slen, stringOutputLimit(L)));
     i32 count = 0;
     usize srcPos = 0;
 
@@ -1011,12 +1115,13 @@ i32 str_gsub(LuaState* L) {
                 break;
             }
             if (!replaced) {
-                result.append(s + srcPos, static_cast<usize>(matchEnd - (s + srcPos)));
+                appendStringOutput(L, result, s + srcPos,
+                                   static_cast<usize>(matchEnd - (s + srcPos)), "gsub");
             }
             // If empty match, advance by one
             if (matchEnd == s + srcPos) {
                 if (srcPos < slen) {
-                    result.push_back(s[srcPos]);
+                    pushStringOutput(L, result, s[srcPos], "gsub");
                     srcPos++;
                 } else {
                     break;
@@ -1026,7 +1131,7 @@ i32 str_gsub(LuaState* L) {
             }
         } else {
             if (srcPos < slen) {
-                result.push_back(s[srcPos]);
+                pushStringOutput(L, result, s[srcPos], "gsub");
                 srcPos++;
             } else {
                 break;
@@ -1038,10 +1143,10 @@ i32 str_gsub(LuaState* L) {
 
     // Append remaining
     if (srcPos < slen) {
-        result.append(s + srcPos, slen - srcPos);
+        appendStringOutput(L, result, s + srcPos, slen - srcPos, "gsub");
     }
 
-    GCString* str = L->getGlobalState().getStringPool().intern(result);
+    GCString* str = L->getGlobalState().getStringPool().intern(result.data(), result.size());
     L->pushString(str);
     L->pushNumber(static_cast<f64>(count));
     return 2;
@@ -1095,7 +1200,11 @@ static i32 gmatch_aux(LuaState* L) {
     usize slen = subject->getLength();
     const char* pattern = patString->c_str();
     usize plen = patString->getLength();
-    usize pos = static_cast<usize>(posVal.asNumber());
+    const auto convertedPosition = checkedLuaInteger(posVal.asNumber(), IntegerConversion::Exact);
+    if (!convertedPosition.has_value() || *convertedPosition < 0) {
+        return 0;
+    }
+    usize pos = static_cast<usize>(*convertedPosition);
 
     MatchState ms;
     prepareMatchState(&ms, L, s, slen, pattern, plen);
@@ -1115,7 +1224,7 @@ static i32 gmatch_aux(LuaState* L) {
 }
 
 /// Helper: create C closure with closed upvalues (same pattern as iolib)
-static Function* createClosureWithUpvalues(LuaState* L, CFunction func, const Vec<Value>& upvalues) {
+static Function* createClosureWithUpvalues(LuaState* L, CFunction func, const LuaVector<Value>& upvalues) {
     Function* closure = L->getGlobalState().getGC().create<Function>(func);
     for (const Value& v : upvalues) {
         Upvalue* uv = L->getGlobalState().getGC().create<Upvalue>(v);
@@ -1143,7 +1252,7 @@ i32 str_gmatch(LuaState* L) {
 
     auto& pool = L->getGlobalState().getStringPool();
 
-    Vec<Value> upvalues;
+    LuaVector<Value> upvalues(LuaStdAllocator<Value>(L->getGlobalState().getAllocator()));
     upvalues.push_back(Value(pool.intern(s, slen)));
     upvalues.push_back(Value(pool.intern(pat, patLen)));
     upvalues.push_back(Value(0.0));
@@ -1161,8 +1270,12 @@ i32 str_format(LuaState* L) {
     usize fmtLen = 0;
     const char* fmt = getStringArg(L, 1, "format", &fmtLen);
 
-    Str result;
-    result.reserve(fmtLen + 32);
+    const LuaStdAllocator<char> stringAllocator(L->getGlobalState().getAllocator());
+    LuaString result(stringAllocator);
+    if (fmtLen > stringOutputLimit(L)) {
+        L->error("string.format: result exceeds resource limit");
+    }
+    result.reserve(fmtLen);
 
     i32 argIdx = 2;
     const char* p = fmt;
@@ -1172,7 +1285,7 @@ i32 str_format(LuaState* L) {
         if (*p == '%') {
             p++;
             if (p < fmtEnd && *p == '%') {
-                result.push_back('%');
+                pushStringOutput(L, result, '%', "format");
                 p++;
                 continue;
             }
@@ -1181,21 +1294,21 @@ i32 str_format(LuaState* L) {
                 formatError(L, '\0');
             }
 
-            Str flags;
+            LuaString flags(stringAllocator);
             while (p < fmtEnd && isFormatFlag(*p)) {
-                if (flags.find(*p) == Str::npos) {
+                if (std::find(flags.begin(), flags.end(), *p) == flags.end()) {
                     flags.push_back(*p);
                 }
                 p++;
             }
 
-            Str width;
+            LuaString width(stringAllocator);
             while (p < fmtEnd && std::isdigit(static_cast<unsigned char>(*p)) != 0) {
                 width.push_back(*p);
                 p++;
             }
 
-            Str precision;
+            LuaString precision(stringAllocator);
             if (p < fmtEnd && *p == '.') {
                 precision.push_back(*p++);
                 while (p < fmtEnd && std::isdigit(static_cast<unsigned char>(*p)) != 0) {
@@ -1220,17 +1333,18 @@ i32 str_format(LuaState* L) {
             if (spec == 'q') {
                 usize len = 0;
                 const char* arg = getStringLikeArg(L, argIdx++, "format", &len);
-                result.append(quoteLuaString(arg, len));
+                const LuaString quoted = quoteLuaString(L, arg, len);
+                appendStringOutput(L, result, quoted.data(), quoted.size(), "format");
                 p++;
                 continue;
             }
 
-            Str printfFormat;
+            LuaString printfFormat(stringAllocator);
             printfFormat.reserve(flags.size() + width.size() + precision.size() + 2);
             printfFormat.push_back('%');
-            printfFormat.append(flags);
-            printfFormat.append(width);
-            printfFormat.append(precision);
+            printfFormat.append(flags.data(), flags.size());
+            printfFormat.append(width.data(), width.size());
+            printfFormat.append(precision.data(), precision.size());
             printfFormat.push_back(spec);
 
             switch (spec) {
@@ -1248,7 +1362,8 @@ i32 str_format(LuaState* L) {
                 usize padding = fieldWidth > static_cast<i32>(outLen)
                                     ? static_cast<usize>(fieldWidth - static_cast<i32>(outLen))
                                     : 0;
-                bool leftJustify = flags.find('-') != Str::npos;
+                bool leftJustify = std::find(flags.begin(), flags.end(), '-') != flags.end();
+                ensureStringOutput(L, result.size(), padding + outLen, "format");
                 if (!leftJustify)
                     result.append(padding, ' ');
                 result.append(arg, outLen);
@@ -1257,24 +1372,22 @@ i32 str_format(LuaState* L) {
                 break;
             }
             case 'c': {
-                f64 val = getNumberArg(L, argIdx++, "format");
-                i32 ch = static_cast<i32>(val);
-                appendPrintfFormatted(result, printfFormat, ch);
+                i32 ch = getIntegerArg(L, argIdx++, "format");
+                appendPrintfFormatted(L, result, printfFormat, ch);
                 break;
             }
             case 'd':
             case 'i': {
-                f64 val = getNumberArg(L, argIdx++, "format");
-                appendPrintfFormatted(result, printfFormat, static_cast<long long>(val));
+                i32 value = getIntegerArg(L, argIdx++, "format");
+                appendPrintfFormatted(L, result, printfFormat, value);
                 break;
             }
             case 'u':
             case 'o':
             case 'x':
             case 'X': {
-                f64 val = getNumberArg(L, argIdx++, "format");
-                auto unsignedVal = static_cast<unsigned long long>(static_cast<long long>(val));
-                appendPrintfFormatted(result, printfFormat, unsignedVal);
+                u32 unsignedVal = static_cast<u32>(getIntegerArg(L, argIdx++, "format"));
+                appendPrintfFormatted(L, result, printfFormat, unsignedVal);
                 break;
             }
             case 'e':
@@ -1283,7 +1396,7 @@ i32 str_format(LuaState* L) {
             case 'g':
             case 'G': {
                 f64 val = getNumberArg(L, argIdx++, "format");
-                appendPrintfFormatted(result, printfFormat, val);
+                appendPrintfFormatted(L, result, printfFormat, val);
                 break;
             }
             default:
@@ -1292,119 +1405,133 @@ i32 str_format(LuaState* L) {
 
             p++;
         } else {
-            result.push_back(*p);
+            pushStringOutput(L, result, *p, "format");
             p++;
         }
     }
 
-    GCString* str = L->getGlobalState().getStringPool().intern(result);
+    GCString* str = L->getGlobalState().getStringPool().intern(result.data(), result.size());
     L->pushString(str);
     return 1;
 }
 
-static void dumpByte(Str& out, u8 value) {
-    out.push_back(static_cast<char>(value));
-}
-
-static void dumpU32(Str& out, u32 value) {
-    for (i32 i = 0; i < 4; ++i) {
-        out.push_back(static_cast<char>((value >> (i * 8)) & 0xffu));
-    }
-}
-
-static void dumpI32(Str& out, i32 value) {
-    dumpU32(out, static_cast<u32>(value));
-}
-
-static void dumpU64(Str& out, u64 value) {
-    for (i32 i = 0; i < 8; ++i) {
-        out.push_back(static_cast<char>((value >> (i * 8)) & 0xffu));
-    }
-}
-
-static void dumpNumber(Str& out, LuaNumber value) {
-    u64 bits = 0;
-    static_assert(sizeof(bits) == sizeof(value), "LuaNumber dumping expects 64-bit double");
-    std::memcpy(&bits, &value, sizeof(bits));
-    dumpU64(out, bits);
-}
-
-static void dumpSize(Str& out, usize value) {
-    if (value > static_cast<usize>(std::numeric_limits<u32>::max())) {
-        throw std::runtime_error("string.dump: chunk too large");
-    }
-    dumpU32(out, static_cast<u32>(value));
-}
-
-static void dumpMaybeString(Str& out, GCString* str) {
-    if (str == nullptr) {
-        dumpU32(out, std::numeric_limits<u32>::max());
-        return;
-    }
-    dumpSize(out, str->getLength());
-    out.append(str->c_str(), str->getLength());
-}
-
-static void dumpConstant(Str& out, const Value& value) {
-    if (value.isNil()) {
-        dumpByte(out, 0);
-    } else if (value.isBoolean()) {
-        dumpByte(out, 1);
-        dumpByte(out, value.asBoolean() ? 1 : 0);
-    } else if (value.isNumber()) {
-        dumpByte(out, 3);
-        dumpNumber(out, value.asNumber());
-    } else if (value.isString()) {
-        dumpByte(out, 4);
-        dumpMaybeString(out, value.asString());
-    } else {
-        dumpByte(out, 0);
-    }
-}
-
-static void dumpProto(Str& out, Proto* proto) {
-    dumpMaybeString(out, proto->getSource());
-    dumpI32(out, proto->getLineDefined());
-    dumpI32(out, proto->getLastLineDefined());
-    dumpByte(out, proto->getNumParams());
-    dumpByte(out, proto->getVarargFlags());
-    dumpByte(out, proto->getMaxStackSize());
-    dumpByte(out, proto->getNumUpvalues());
-
-    dumpSize(out, proto->getInstructionCount());
-    for (Instruction inst : proto->getCode()) {
-        dumpU32(out, inst);
+class BoundedDumpWriter {
+public:
+    BoundedDumpWriter(LuaState* state, LuaString& output) : state_(state), output_(output) {
+        const ResourcePolicy& policy = state_->getGlobalState().getResourcePolicy();
+        limit_ = std::min({policy.maxStringBytes, policy.maxOutputBytes, policy.maxProtoBytes});
+        maxDepth_ = state_->getGlobalState().getCompilationPolicy().maxNesting;
     }
 
-    dumpSize(out, proto->getConstantCount());
-    for (usize i = 0; i < proto->getConstantCount(); ++i) {
-        dumpConstant(out, proto->getConstant(i));
+    void bytes(const char* data, usize count) {
+        if (count > limit_ || output_.size() > limit_ - count) {
+            state_->error("string.dump: result exceeds resource limit");
+        }
+        state_->consumeNativeWork(count == 0 ? 1 : count);
+        output_.append(data, count);
     }
 
-    dumpSize(out, proto->getSubProtoCount());
-    for (usize i = 0; i < proto->getSubProtoCount(); ++i) {
-        dumpProto(out, proto->getSubProto(i));
+    void byte(u8 value) {
+        const char encoded = static_cast<char>(value);
+        bytes(&encoded, 1);
     }
 
-    dumpSize(out, proto->getLineInfo().size());
-    for (i32 line : proto->getLineInfo()) {
-        dumpI32(out, line);
+    void u32Value(u32 value) {
+        char encoded[4];
+        for (i32 i = 0; i < 4; ++i) {
+            encoded[i] = static_cast<char>((value >> (i * 8)) & 0xffu);
+        }
+        bytes(encoded, sizeof(encoded));
     }
 
-    dumpSize(out, proto->getLocVarCount());
-    for (usize i = 0; i < proto->getLocVarCount(); ++i) {
-        const LocVar& loc = proto->getLocVar(i);
-        dumpMaybeString(out, loc.varname);
-        dumpI32(out, loc.startpc);
-        dumpI32(out, loc.endpc);
-        dumpI32(out, loc.reg);
+    void i32Value(i32 value) { u32Value(static_cast<u32>(value)); }
+
+    void u64Value(u64 value) {
+        char encoded[8];
+        for (i32 i = 0; i < 8; ++i) {
+            encoded[i] = static_cast<char>((value >> (i * 8)) & 0xffu);
+        }
+        bytes(encoded, sizeof(encoded));
     }
 
-    dumpSize(out, proto->getUpvalueNameCount());
-    for (usize i = 0; i < proto->getUpvalueNameCount(); ++i) {
-        dumpMaybeString(out, proto->getUpvalueName(i));
+    void number(LuaNumber value) {
+        u64 bits = 0;
+        static_assert(sizeof(bits) == sizeof(value), "LuaNumber dumping expects 64-bit double");
+        std::memcpy(&bits, &value, sizeof(bits));
+        u64Value(bits);
     }
-}
+
+    void size(usize value) {
+        if (value > static_cast<usize>(std::numeric_limits<u32>::max())) {
+            state_->error("string.dump: chunk too large");
+        }
+        u32Value(static_cast<u32>(value));
+    }
+
+    void maybeString(GCString* string) {
+        if (string == nullptr) {
+            u32Value(std::numeric_limits<u32>::max());
+            return;
+        }
+        size(string->getLength());
+        bytes(string->c_str(), string->getLength());
+    }
+
+    void constant(const Value& value) {
+        if (value.isNil()) {
+            byte(0);
+        } else if (value.isBoolean()) {
+            byte(1);
+            byte(value.asBoolean() ? 1 : 0);
+        } else if (value.isNumber()) {
+            byte(3);
+            number(value.asNumber());
+        } else if (value.isString()) {
+            byte(4);
+            maybeString(value.asString());
+        } else {
+            byte(0);
+        }
+    }
+
+    void proto(Proto* function, usize depth = 1) {
+        if (function == nullptr || depth > maxDepth_) {
+            state_->error("string.dump: Proto nesting limit exceeded");
+        }
+        maybeString(function->getSource());
+        i32Value(function->getLineDefined());
+        i32Value(function->getLastLineDefined());
+        byte(function->getNumParams());
+        byte(function->getVarargFlags());
+        byte(function->getMaxStackSize());
+        byte(function->getNumUpvalues());
+
+        size(function->getInstructionCount());
+        for (Instruction instruction : function->getCode()) u32Value(instruction);
+        size(function->getConstantCount());
+        for (usize i = 0; i < function->getConstantCount(); ++i) constant(function->getConstant(i));
+        size(function->getSubProtoCount());
+        for (usize i = 0; i < function->getSubProtoCount(); ++i) proto(function->getSubProto(i), depth + 1);
+        size(function->getLineInfo().size());
+        for (i32 line : function->getLineInfo()) i32Value(line);
+        size(function->getLocVarCount());
+        for (usize i = 0; i < function->getLocVarCount(); ++i) {
+            const LocVar& local = function->getLocVar(i);
+            maybeString(local.varname);
+            i32Value(local.startpc);
+            i32Value(local.endpc);
+            i32Value(local.reg);
+        }
+        size(function->getUpvalueNameCount());
+        for (usize i = 0; i < function->getUpvalueNameCount(); ++i) maybeString(function->getUpvalueName(i));
+    }
+
+private:
+    LuaState* state_;
+    LuaString& output_;
+    usize limit_ = 0;
+    usize maxDepth_ = 0;
+};
 
 i32 str_dump(LuaState* L) {
     if (L->getTop() < 1 || !L->at(1).isFunction() || L->at(1).asFunction()->isCFunction()) {
@@ -1417,19 +1544,19 @@ i32 str_dump(LuaState* L) {
         L->error("bad argument #1 to 'string.dump' (Lua function expected)");
     }
 
-    Str chunk;
-    chunk.reserve(128 + proto->getInstructionCount() * sizeof(Instruction));
-    chunk.append("\x1bLua", 4);
-    dumpByte(chunk, 0x51); // Lua 5.1 version marker.
-    dumpByte(chunk, 0);    // Project-local Lua 5.1 payload.
-    dumpByte(chunk, 1);    // Little-endian payload.
-    dumpByte(chunk, static_cast<u8>(sizeof(i32)));
-    dumpByte(chunk, static_cast<u8>(sizeof(usize)));
-    dumpByte(chunk, static_cast<u8>(sizeof(Instruction)));
-    dumpByte(chunk, static_cast<u8>(sizeof(LuaNumber)));
-    dumpByte(chunk, 0); // LuaNumber is floating point.
-    chunk.append("LC++", 4);
-    dumpProto(chunk, proto);
+    LuaString chunk(LuaStdAllocator<char>(L->getGlobalState().getAllocator()));
+    BoundedDumpWriter writer(L, chunk);
+    writer.bytes("\x1bLua", 4);
+    writer.byte(0x51); // Lua 5.1 version marker.
+    writer.byte(0);    // Project-local Lua 5.1 payload.
+    writer.byte(1);    // Little-endian payload.
+    writer.byte(static_cast<u8>(sizeof(i32)));
+    writer.byte(static_cast<u8>(sizeof(usize)));
+    writer.byte(static_cast<u8>(sizeof(Instruction)));
+    writer.byte(static_cast<u8>(sizeof(LuaNumber)));
+    writer.byte(0); // LuaNumber is floating point.
+    writer.bytes("LC++", 4);
+    writer.proto(proto);
 
     L->pushString(L->getGlobalState().getStringPool().intern(chunk.data(), chunk.size()));
     return 1;

@@ -3,6 +3,7 @@
 #include "lualib.h"
 
 #include "common/lua_error.hpp"
+#include "common/number_conversion.hpp"
 #include "core/function.hpp"
 #include "core/gc_string.hpp"
 #include "core/table.hpp"
@@ -23,6 +24,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <limits>
 #include <new>
 #include <optional>
 #include <string>
@@ -405,9 +407,16 @@ lua_State* lua_open(void) LUA_CXX_MAY_THROW {
 }
 
 void lua_close(lua_State* L) LUA_CXX_NOEXCEPT {
-    Lua::LuaState* state = fromCNoexcept(L);
+    (void)lua_tryclose(L);
+}
+
+int lua_tryclose(lua_State* L) LUA_CXX_NOEXCEPT {
+    Lua::LuaState* state = fromCUnchecked(L);
     if (state == nullptr) {
-        return;
+        return LUA_OK;
+    }
+    if (!state->getGlobalState().isOwnerThread()) {
+        return LUA_ERRTHREAD;
     }
 
     Lua::GlobalState& globalState = state->getGlobalState();
@@ -415,12 +424,17 @@ void lua_close(lua_State* L) LUA_CXX_NOEXCEPT {
     if (mainState == nullptr) {
         mainState = state;
     }
+    if (globalState.getRunningThread() != nullptr || mainState->getCurrentCI() != 0 ||
+        state->getCurrentCI() != 0) {
+        return LUA_ERRBUSY;
+    }
 
     // Lua 5.1 closes the whole runtime even when the caller supplies a
     // coroutine state.  Run every remaining __gc while the main state and
     // native module registry are still alive, then release the root owner.
     globalState.getGC().finalizeAll(mainState);
     Lua::LuaState::destroyState(mainState);
+    return LUA_OK;
 }
 
 lua_CFunction lua_atpanic(lua_State* L, lua_CFunction panicFunction) LUA_CXX_MAY_THROW {
@@ -1572,14 +1586,20 @@ int luaL_ref(lua_State* L, int tableIndex) LUA_CXX_MAY_THROW {
     const int absoluteTable =
         tableIndex < 0 && tableIndex > LUA_REGISTRYINDEX ? lua_gettop(L) + tableIndex + 1 : tableIndex;
     lua_rawgeti(L, absoluteTable, 0);
-    int reference = static_cast<int>(lua_tonumber(L, -1));
+    const auto convertedReference =
+        Lua::checkedLuaInteger(lua_tonumber(L, -1), Lua::IntegerConversion::Exact);
+    int reference = convertedReference.has_value() && *convertedReference > 0 ? *convertedReference : 0;
     lua_pop(L, 1);
 
     if (reference != 0) {
         lua_rawgeti(L, absoluteTable, reference);
         lua_rawseti(L, absoluteTable, 0);
     } else {
-        reference = static_cast<int>(lua_objlen(L, absoluteTable)) + 1;
+        const size_t length = lua_objlen(L, absoluteTable);
+        if (length >= static_cast<size_t>(std::numeric_limits<int>::max())) {
+            return luaL_error(L, "reference table is too large");
+        }
+        reference = static_cast<int>(length) + 1;
     }
     lua_rawseti(L, absoluteTable, reference);
     return reference;

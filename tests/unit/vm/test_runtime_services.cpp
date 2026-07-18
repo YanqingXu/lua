@@ -21,6 +21,7 @@
 #include <atomic>
 #include <chrono>
 #include <expected>
+#include <filesystem>
 #include <new>
 #include <stdexcept>
 #include <string>
@@ -344,6 +345,93 @@ void testExecutionPolicyAllowsAtomicExternalCancellation(TestSuite& suite) {
     context.executionPolicy().reset();
 }
 
+void testCancellationHandleIsSafeAfterContextTeardown(TestSuite& suite) {
+    ExecutionCancellationHandle lateHandle;
+    {
+        EngineContext context;
+        lateHandle = context.cancellationHandle();
+        ASSERT_TRUE(suite, static_cast<bool>(lateHandle), "cancellation handle is live while context exists");
+    }
+
+    ASSERT_TRUE(suite, !static_cast<bool>(lateHandle), "cancellation handle expires with its context");
+    std::thread lateRequester([lateHandle] { lateHandle.requestCancellation(); });
+    lateRequester.join();
+    ASSERT_TRUE(suite, true, "late cross-thread cancellation is a safe no-op");
+}
+
+void testResourcePolicyIsIsolatedPerContext(TestSuite& suite) {
+    EngineContext restricted;
+    EngineContext ordinary;
+    restricted.resourcePolicy().maxStringBytes = 4;
+
+    bool rejected = false;
+    try {
+        (void)restricted.strings().intern("12345");
+    } catch (const ResourceLimitError& error) {
+        rejected = std::string(error.what()) == "resource limit exceeded: string bytes";
+    }
+
+    ASSERT_TRUE(suite, rejected, "context string pool enforces the canonical byte limit");
+    ASSERT_TRUE(suite, ordinary.strings().intern("12345") != nullptr,
+                "resource limits in one context do not affect another context");
+}
+
+void testResourcePolicyBoundsEveryStackGrowthPath(TestSuite& suite) {
+    EngineContext context;
+    UPtr<LuaState> L = LuaState::create(context);
+    const usize initialTop = L->getAbsoluteTop();
+    const usize limit = initialTop + 2;
+    context.resourcePolicy().maxStackSlots = limit;
+
+    L->pushNumber(1);
+    L->pushNumber(2);
+    bool pushRejected = false;
+    try {
+        L->pushNumber(3);
+    } catch (const StackOverflowError& error) {
+        pushRejected = std::string(error.what()) == "stack overflow: resource stack slot limit exceeded";
+    }
+    ASSERT_TRUE(suite, pushRejected, "logical pushes stop at the per-context stack-slot limit");
+    ASSERT_EQ(suite, limit, L->getAbsoluteTop(), "rejected logical push leaves the top unchanged");
+
+    bool physicalTopRejected = false;
+    try {
+        L->getStack().setTop(limit + 1);
+    } catch (const StackOverflowError&) {
+        physicalTopRejected = true;
+    }
+    ASSERT_TRUE(suite, physicalTopRejected, "direct VM stack reservation uses the same stack-slot limit");
+
+    bool absoluteTopRejected = false;
+    try {
+        L->setAbsoluteTop(limit + 1);
+    } catch (const StackOverflowError&) {
+        absoluteTopRejected = true;
+    }
+    ASSERT_TRUE(suite, absoluteTopRejected, "absolute top changes cannot bypass the stack-slot limit");
+}
+
+void testNativeModulePolicyHardensHostLoader(TestSuite& suite) {
+    EngineContext context;
+    auto relative = context.nativeModules().load("relative-native-module.dll");
+    ASSERT_FALSE(suite, relative.has_value(), "native loader rejects relative paths by default");
+    ASSERT_TRUE(suite, !relative && relative.error() == "dynamic library path must be absolute",
+                "relative-path rejection has a stable diagnostic");
+
+    const Str allowed = (std::filesystem::current_path() / "allowed-native-module.dll").string();
+    const Str denied = (std::filesystem::current_path() / "denied-native-module.dll").string();
+    context.nativeModules().allowPath(allowed);
+    auto deniedLoad = context.nativeModules().load(denied);
+    ASSERT_FALSE(suite, deniedLoad.has_value(), "non-empty native allowlist rejects other canonical paths");
+    ASSERT_TRUE(suite, !deniedLoad && deniedLoad.error() == "dynamic library path is not allowlisted",
+                "allowlist rejection occurs before the OS loader");
+
+    context.nativeModules().policy().requireAbiHandshake = true;
+    context.nativeModules().policy().expectedAbiVersion = 9;
+    ASSERT_TRUE(suite, context.nativeModules().policy().abiVersionSymbol == "lua_cpp_module_abi_version",
+                "native ABI handshake uses the documented host symbol");
+}
+
 void testRuntimeOwnerThreadRejectsForeignStateAccess(TestSuite& suite) {
     EngineContext context;
     RuntimeServices services = context.services();
@@ -440,6 +528,12 @@ void testGameServerSandboxProfileControlsLibraryExposure(TestSuite& suite) {
     ASSERT_TRUE(suite, !policy.allows(SandboxCapability::Filesystem), "game-server profile denies filesystem access");
     ASSERT_TRUE(suite, !policy.allows(SandboxCapability::Process), "game-server profile denies process access");
     ASSERT_TRUE(suite, !policy.allows(SandboxCapability::NativeModules), "game-server profile denies native modules");
+    ASSERT_TRUE(suite, !policy.allows(SandboxCapability::RuntimeCompilation),
+                "game-server profile denies runtime compilation");
+    ASSERT_TRUE(suite, !policy.allows(SandboxCapability::BinaryChunks),
+                "game-server profile denies binary chunks");
+    ASSERT_TRUE(suite, !policy.allows(SandboxCapability::GCControl),
+                "game-server profile denies script GC control");
 
     ASSERT_TRUE(suite, restrictedState->getGlobal("math").isTable(), "allowed math library is published");
     ASSERT_TRUE(suite, restrictedState->getGlobal("string").isTable(), "allowed string library is published");
@@ -450,6 +544,11 @@ void testGameServerSandboxProfileControlsLibraryExposure(TestSuite& suite) {
     ASSERT_TRUE(suite, restrictedState->getGlobal("debug").isNil(), "disabled debug library is not published");
     ASSERT_TRUE(suite, restrictedState->getGlobal("loadfile").isNil(), "filesystem base helper is not published");
     ASSERT_TRUE(suite, restrictedState->getGlobal("dofile").isNil(), "filesystem executor is not published");
+    ASSERT_TRUE(suite, restrictedState->getGlobal("loadstring").isNil(),
+                "runtime compiler is not published");
+    ASSERT_TRUE(suite, restrictedState->getGlobal("load").isNil(), "reader compiler is not published");
+    ASSERT_TRUE(suite, restrictedState->getGlobal("collectgarbage").isNil(),
+                "shared GC control is not published");
 
     Value packageValue = restrictedState->getGlobal("package");
     ASSERT_TRUE(suite, packageValue.isTable(), "preload-only package table is published");
@@ -597,6 +696,9 @@ void testSandboxCapabilitiesRejectCapturedPrivilegedFunctions(TestSuite& suite) 
         sandbox_os_setlocale = os.setlocale
         sandbox_os_tmpname = os.tmpname
         sandbox_package_loadlib = package.loadlib
+        sandbox_loadstring = loadstring
+        sandbox_load = load
+        sandbox_collectgarbage = collectgarbage
         sandbox_file = assert(io.tmpfile())
         sandbox_file:write("x")
         sandbox_file:seek("set", 0)
@@ -613,6 +715,9 @@ void testSandboxCapabilitiesRejectCapturedPrivilegedFunctions(TestSuite& suite) 
     restricted.filesystem = false;
     restricted.process = false;
     restricted.nativeModules = false;
+    restricted.runtimeCompilation = false;
+    restricted.binaryChunks = false;
+    restricted.gcControl = false;
     context.sandboxPolicy().configure(restricted);
 
     Proto* probe = compileChunk(services, R"(
@@ -624,6 +729,9 @@ void testSandboxCapabilitiesRejectCapturedPrivilegedFunctions(TestSuite& suite) 
         local filesystem = "sandbox: filesystem access denied"
         local process = "sandbox: process access denied"
         local native = "sandbox: native module access denied"
+        local compilation = "sandbox: runtime compilation denied"
+        local binary = "sandbox: binary chunk loading denied"
+        local gc_control = "sandbox: GC control denied"
 
         sandbox_denied_loadfile = denied(filesystem, sandbox_loadfile, "sandbox_missing.lua")
         sandbox_denied_dofile = denied(filesystem, sandbox_dofile, "sandbox_missing.lua")
@@ -639,6 +747,11 @@ void testSandboxCapabilitiesRejectCapturedPrivilegedFunctions(TestSuite& suite) 
         sandbox_denied_os_getenv = denied(process, sandbox_os_getenv, "PATH")
         sandbox_denied_os_setlocale = denied(process, sandbox_os_setlocale, nil)
         sandbox_denied_loadlib = denied(native, sandbox_package_loadlib, "sandbox_missing", "*")
+        sandbox_denied_loadstring_text = denied(compilation, sandbox_loadstring, "return 1")
+        sandbox_denied_load_reader = denied(compilation, sandbox_load, function() return "return 1" end)
+        sandbox_denied_loadstring_binary = denied(binary, sandbox_loadstring,
+            string.char(27) .. "Lua" .. string.rep(string.char(0), 24))
+        sandbox_denied_gc_control = denied(gc_control, sandbox_collectgarbage, "stop")
 
         sandbox_preload_after_restrict = require("sandbox_after_restrict").ok
         local require_ok, require_error = pcall(require, "sandbox_missing_module")
@@ -649,12 +762,14 @@ void testSandboxCapabilitiesRejectCapturedPrivilegedFunctions(TestSuite& suite) 
     ASSERT_EQ(suite, Lua::LUA_OK, runProtectedChunk(services, state.get(), probe),
               "captured privileged functions fail inside protected Lua calls");
 
-    static constexpr std::array<StrView, 15> expectedTrue = {
+    static constexpr std::array<StrView, 19> expectedTrue = {
         "sandbox_denied_loadfile",   "sandbox_denied_dofile",          "sandbox_denied_io_open",
         "sandbox_denied_io_tmpfile", "sandbox_denied_file_read",       "sandbox_denied_os_remove",
         "sandbox_denied_os_rename",  "sandbox_denied_os_tmpname",      "sandbox_denied_io_popen",
         "sandbox_denied_os_execute", "sandbox_denied_os_getenv",       "sandbox_denied_os_setlocale",
-        "sandbox_denied_loadlib",    "sandbox_preload_after_restrict", "sandbox_require_file_denied",
+        "sandbox_denied_loadlib",    "sandbox_denied_loadstring_text", "sandbox_denied_load_reader",
+        "sandbox_denied_loadstring_binary", "sandbox_denied_gc_control",
+        "sandbox_preload_after_restrict", "sandbox_require_file_denied",
     };
     for (StrView name : expectedTrue) {
         ASSERT_TRUE(suite, state->getGlobal(Str(name)).isTrue(), Str(name) + " is enforced by the active sandbox");
@@ -871,6 +986,14 @@ void registerRuntimeServicesTests() {
                           testExecutionPolicyUsesMonotonicDeadline);
     registry.registerTest(kSuiteName, "Execution policy allows atomic external cancellation",
                           testExecutionPolicyAllowsAtomicExternalCancellation);
+    registry.registerTest(kSuiteName, "Cancellation handle is safe after context teardown",
+                          testCancellationHandleIsSafeAfterContextTeardown);
+    registry.registerTest(kSuiteName, "Resource policy is isolated per context",
+                          testResourcePolicyIsIsolatedPerContext);
+    registry.registerTest(kSuiteName, "Resource policy bounds every stack growth path",
+                          testResourcePolicyBoundsEveryStackGrowthPath);
+    registry.registerTest(kSuiteName, "Native module host policy",
+                          testNativeModulePolicyHardensHostLoader);
     registry.registerTest(kSuiteName, "Runtime owner thread rejects foreign state access",
                           testRuntimeOwnerThreadRejectsForeignStateAccess);
     registry.registerTest(kSuiteName, "Game-server sandbox profile controls library exposure",

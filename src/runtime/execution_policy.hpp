@@ -10,6 +10,7 @@
 #include <atomic>
 #include <chrono>
 #include <limits>
+#include <memory>
 
 namespace Lua {
 
@@ -19,6 +20,7 @@ namespace Lua {
 enum class ExecutionStopReason : u8 {
     None,
     InstructionBudgetExceeded,
+    NativeWorkBudgetExceeded,
     DeadlineExceeded,
     Cancelled,
 };
@@ -26,28 +28,33 @@ enum class ExecutionStopReason : u8 {
 /**
  * @brief The only thread-safe execution control exposed to non-owner threads.
  *
- * The handle is non-owning and must not outlive its EngineContext. It deliberately
- * exposes only a one-way atomic request: configuring or clearing policy remains an
- * owner-thread operation performed while that context is not executing Lua code.
+ * A handle exposes only a one-way atomic request: configuring or clearing policy
+ * remains an owner-thread operation. The shared state below makes a late request
+ * after EngineContext teardown a safe no-op instead of a dangling-pointer access.
  */
+struct ExecutionCancellationState {
+    std::atomic<bool> requested{false};
+};
+
 class ExecutionCancellationHandle {
 public:
     ExecutionCancellationHandle() noexcept = default;
 
     void requestCancellation() const noexcept {
-        if (requested_ != nullptr) {
-            requested_->store(true, std::memory_order_relaxed);
+        if (const std::shared_ptr<ExecutionCancellationState> state = state_.lock()) {
+            state->requested.store(true, std::memory_order_relaxed);
         }
     }
 
     [[nodiscard]] explicit operator bool() const noexcept {
-        return requested_ != nullptr;
+        return !state_.expired();
     }
 
 private:
-    explicit ExecutionCancellationHandle(std::atomic<bool>* requested) noexcept : requested_(requested) {}
+    explicit ExecutionCancellationHandle(const std::shared_ptr<ExecutionCancellationState>& state) noexcept
+        : state_(state) {}
 
-    std::atomic<bool>* requested_ = nullptr;
+    std::weak_ptr<ExecutionCancellationState> state_;
 
     friend class ExecutionPolicy;
 };
@@ -60,24 +67,29 @@ private:
  * clock adjustments cannot extend or shorten an armed run. A per-drain finalizer
  * budget bounds entry into user __gc callbacks without changing the unlimited
  * default. Policy configuration is owner-thread-only; cancellation is the sole
- * cross-thread operation.
+ * cross-thread operation. Cancellation handles retain only a weak reference to
+ * an independently allocated state, so a request arriving after context
+ * teardown is a safe no-op.
  */
 class ExecutionPolicy {
 public:
     using Clock = std::chrono::steady_clock;
     using InstructionCount = u64;
+    using NativeWorkCount = u64;
     using FinalizerCount = u64;
 
     static constexpr InstructionCount UnlimitedInstructions = std::numeric_limits<InstructionCount>::max();
+    static constexpr NativeWorkCount UnlimitedNativeWork = std::numeric_limits<NativeWorkCount>::max();
     static constexpr FinalizerCount UnlimitedFinalizers = std::numeric_limits<FinalizerCount>::max();
 
     struct Limits {
         InstructionCount instructionBudget = UnlimitedInstructions;
         Clock::time_point deadline = Clock::time_point::max();
         FinalizerCount finalizerBudgetPerDrain = UnlimitedFinalizers;
+        NativeWorkCount nativeWorkBudget = UnlimitedNativeWork;
     };
 
-    ExecutionPolicy() noexcept = default;
+    ExecutionPolicy() = default;
     ExecutionPolicy(const ExecutionPolicy&) = delete;
     ExecutionPolicy& operator=(const ExecutionPolicy&) = delete;
     ExecutionPolicy(ExecutionPolicy&&) = delete;
@@ -92,7 +104,9 @@ public:
         remainingInstructions_ = limits.instructionBudget;
         deadline_ = limits.deadline;
         finalizerBudgetPerDrain_ = limits.finalizerBudgetPerDrain;
-        cancellationRequested_.store(false, std::memory_order_relaxed);
+        initialNativeWork_ = limits.nativeWorkBudget;
+        remainingNativeWork_ = limits.nativeWorkBudget;
+        cancellationState_->requested.store(false, std::memory_order_relaxed);
     }
 
     /**
@@ -108,11 +122,11 @@ public:
      * @note Owner-thread-only; do not call concurrently with Lua execution.
      */
     void clearCancellation() noexcept {
-        cancellationRequested_.store(false, std::memory_order_relaxed);
+        cancellationState_->requested.store(false, std::memory_order_relaxed);
     }
 
     [[nodiscard]] ExecutionCancellationHandle cancellationHandle() noexcept {
-        return ExecutionCancellationHandle(&cancellationRequested_);
+        return ExecutionCancellationHandle(cancellationState_);
     }
 
     [[nodiscard]] InstructionCount initialInstructionBudget() const noexcept {
@@ -142,6 +156,17 @@ public:
         return deadline_ != Clock::time_point::max();
     }
 
+    [[nodiscard]] NativeWorkCount remainingNativeWork() const noexcept {
+        return remainingNativeWork_;
+    }
+
+    [[nodiscard]] NativeWorkCount consumedNativeWork() const noexcept {
+        if (initialNativeWork_ == UnlimitedNativeWork) {
+            return 0;
+        }
+        return initialNativeWork_ - remainingNativeWork_;
+    }
+
     /**
      * @brief Maximum __gc callbacks entered by one collector/finalize drain.
      *
@@ -159,7 +184,7 @@ public:
     }
 
     [[nodiscard]] bool isCancellationRequested() const noexcept {
-        return cancellationRequested_.load(std::memory_order_relaxed);
+        return cancellationState_->requested.load(std::memory_order_relaxed);
     }
 
     /**
@@ -170,7 +195,7 @@ public:
      * slices; only VM opcode dispatch accounts Lua instructions.
      */
     [[nodiscard]] ExecutionStopReason pollStop() const noexcept {
-        if (cancellationRequested_.load(std::memory_order_relaxed)) [[unlikely]] {
+        if (cancellationState_->requested.load(std::memory_order_relaxed)) [[unlikely]] {
             return ExecutionStopReason::Cancelled;
         }
 
@@ -203,10 +228,36 @@ public:
         return ExecutionStopReason::None;
     }
 
+    /**
+     * @brief Charge bounded work performed inside native library code.
+     *
+     * This budget is deliberately independent from VM instructions. A native
+     * operation either receives all requested units or exhausts the remaining
+     * allowance and reports a stable stop reason.
+     */
+    [[nodiscard]] ExecutionStopReason consumeNativeWork(NativeWorkCount units = 1) noexcept {
+        const ExecutionStopReason stop = pollStop();
+        if (stop != ExecutionStopReason::None) [[unlikely]] {
+            return stop;
+        }
+
+        if (remainingNativeWork_ != UnlimitedNativeWork) {
+            if (units > remainingNativeWork_) [[unlikely]] {
+                remainingNativeWork_ = 0;
+                return ExecutionStopReason::NativeWorkBudgetExceeded;
+            }
+            remainingNativeWork_ -= units;
+        }
+        return ExecutionStopReason::None;
+    }
+
 private:
-    std::atomic<bool> cancellationRequested_{false};
+    std::shared_ptr<ExecutionCancellationState> cancellationState_ =
+        std::make_shared<ExecutionCancellationState>();
     InstructionCount initialInstructions_ = UnlimitedInstructions;
     InstructionCount remainingInstructions_ = UnlimitedInstructions;
+    NativeWorkCount initialNativeWork_ = UnlimitedNativeWork;
+    NativeWorkCount remainingNativeWork_ = UnlimitedNativeWork;
     Clock::time_point deadline_ = Clock::time_point::max();
     FinalizerCount finalizerBudgetPerDrain_ = UnlimitedFinalizers;
 };

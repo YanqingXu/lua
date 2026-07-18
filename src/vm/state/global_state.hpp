@@ -28,8 +28,12 @@
 #include "core/metatable.hpp"
 #include "gc/garbage_collector.hpp"
 #include "runtime/native_module_registry.hpp"
+#include "runtime/compilation_policy.hpp"
 #include "runtime/execution_policy.hpp"
+#include "runtime/runtime_random.hpp"
+#include "runtime/resource_policy.hpp"
 #include "runtime/sandbox_policy.hpp"
+#include "runtime/trace_runtime.hpp"
 
 #include <array>
 #include <stdexcept>
@@ -174,6 +178,38 @@ public:
 
     const SandboxPolicy& getSandboxPolicy() const noexcept {
         return sandboxPolicy_;
+    }
+
+    RuntimeRandom& getRandom() noexcept {
+        return random_;
+    }
+
+    const RuntimeRandom& getRandom() const noexcept {
+        return random_;
+    }
+
+    ResourcePolicy& getResourcePolicy() noexcept {
+        return resourcePolicy_;
+    }
+
+    const ResourcePolicy& getResourcePolicy() const noexcept {
+        return resourcePolicy_;
+    }
+
+    CompilationPolicy& getCompilationPolicy() noexcept {
+        return compilationPolicy_;
+    }
+
+    const CompilationPolicy& getCompilationPolicy() const noexcept {
+        return compilationPolicy_;
+    }
+
+    TraceRuntime& getTraceRuntime() noexcept {
+        return traceRuntime_;
+    }
+
+    const TraceRuntime& getTraceRuntime() const noexcept {
+        return traceRuntime_;
     }
 
     NativeModuleRegistry& getNativeModules() noexcept {
@@ -347,6 +383,18 @@ private:
     /// Runtime-wide limits shared by the main state and all coroutines.
     ExecutionPolicy executionPolicy_;
 
+    /// Deterministic random stream isolated to this runtime context.
+    RuntimeRandom random_;
+
+    /// Canonical limits applied to script-controlled resource growth.
+    ResourcePolicy resourcePolicy_;
+
+    /// Canonical limits applied while lexing, parsing, and generating code.
+    CompilationPolicy compilationPolicy_;
+
+    /// Trace sink, sequence, and debug switches owned by this context.
+    TraceRuntime traceRuntime_;
+
     /// 垃圾回收器（由GlobalState拥有）
     GarbageCollector gc_;
 
@@ -379,6 +427,7 @@ private:
 
     /// Fixed execution-policy errors remain available during allocator failure.
     GCString* instructionBudgetErrorMessage_;
+    GCString* nativeWorkBudgetErrorMessage_;
     GCString* deadlineErrorMessage_;
     GCString* cancellationErrorMessage_;
 
@@ -387,6 +436,9 @@ private:
     GCString* sandboxFilesystemErrorMessage_;
     GCString* sandboxProcessErrorMessage_;
     GCString* sandboxNativeModuleErrorMessage_;
+    GCString* sandboxRuntimeCompilationErrorMessage_;
+    GCString* sandboxBinaryChunksErrorMessage_;
+    GCString* sandboxGCControlErrorMessage_;
 };
 
 } // namespace Lua
