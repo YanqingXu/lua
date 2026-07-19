@@ -535,6 +535,8 @@ Assert-FileContains "tools/check_runtime_bench_comparison.ps1" @(
     'alternating-base-head-on-the-same-runner',
     'runnerPid',
     'gc_pause_p99_us',
+    'median-of-run-medians',
+    'pooled-nearest-rank-p99',
     'maximumRegressionRatio',
     'regressionRatio',
     'success\s*=\s*\$failures\.Count -eq 0'
@@ -542,6 +544,8 @@ Assert-FileContains "tools/check_runtime_bench_comparison.ps1" @(
 
 Assert-FileContains "tests/compatibility/runtime-benchmark-regression-policy.json" @(
     '"minimumRunsPerRevision": 3',
+    '"sampleAggregation": "median-of-run-medians"',
+    '"gcPauseAggregation": "pooled-nearest-rank-p99"',
     '"vm_instructions_per_second"',
     '"cpp_to_lua_ns_per_call"',
     '"lua_to_cpp_ns_per_call"',
@@ -630,6 +634,24 @@ function Invoke-RuntimeBenchmarkComparisonSmokeTest {
         $comparison = Get-Content -Raw -LiteralPath $comparisonPath | ConvertFrom-Json
         if ($comparison.success -ne $true -or $comparison.metrics.Count -ne 6) {
             throw "base-vs-head benchmark checker rejected stable synthetic evidence"
+        }
+
+        for ($run = 0; $run -lt $headPaths.Count; $run++) {
+            $report = New-SyntheticBenchmarkReport -Sha "head-sha" -CppToLua 100.0
+            $metric = $report.metrics | Where-Object { $_.name -eq "cpp_to_lua_ns_per_call" }
+            $metric.samples = if ($run -eq 1) { @(300.0, 300.0, 300.0) } else { @(160.0, 100.0, 100.0) }
+            $report | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $headPaths[$run] -Encoding utf8
+        }
+        & (Join-RepoPath "tools/check_runtime_bench_comparison.ps1") `
+            -BaseResultPath $basePaths `
+            -HeadResultPath $headPaths `
+            -RunManifestPath $manifestPath `
+            -PolicyPath (Join-RepoPath "tests/compatibility/runtime-benchmark-regression-policy.json") `
+            -OutputPath $comparisonPath
+        $comparison = Get-Content -Raw -LiteralPath $comparisonPath | ConvertFrom-Json
+        $cppToLua = $comparison.metrics | Where-Object { $_.name -eq "cpp_to_lua_ns_per_call" }
+        if ($comparison.success -ne $true -or $cppToLua.head -ne 100.0 -or $cppToLua.headSampleCount -ne 3) {
+            throw "base-vs-head benchmark checker did not isolate one noisy run with a median of run medians"
         }
 
         foreach ($headPath in $headPaths) {

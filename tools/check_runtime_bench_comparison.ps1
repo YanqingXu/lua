@@ -99,7 +99,9 @@ function Get-AggregatedMetric {
         Assert-Comparison ($matches.Count -eq 1) "metric '$Name' must occur exactly once per result"
         Assert-Comparison ($matches[0].direction -eq $Direction) `
             "metric '$Name' direction differs from policy"
-        $samples += @($matches[0].samples | ForEach-Object { [double]$_ })
+        [double[]]$runSamples = @($matches[0].samples | ForEach-Object { [double]$_ })
+        Assert-Comparison ($runSamples.Count -gt 0) "metric '$Name' has no samples in one result"
+        $samples += Get-Median -Values $runSamples
     }
     $value = Get-Median -Values $samples
     return [pscustomobject]@{ Value = $value; SampleCount = $samples.Count }
@@ -109,6 +111,10 @@ $policy = Get-Content -Raw -LiteralPath (Resolve-Path -LiteralPath $PolicyPath).
 Assert-Comparison ($policy.schemaVersion -eq 1) "policy schemaVersion must be 1"
 Assert-Comparison ($policy.executionOrder -eq "alternating-base-head-on-the-same-runner") `
     "policy must require alternating execution on one runner"
+Assert-Comparison ($policy.sampleAggregation -eq "median-of-run-medians") `
+    "policy must require median-of-run-medians sample aggregation"
+Assert-Comparison ($policy.gcPauseAggregation -eq "pooled-nearest-rank-p99") `
+    "policy must require pooled nearest-rank GC P99 aggregation"
 $minimumRuns = [int]$policy.minimumRunsPerRevision
 Assert-Comparison ($minimumRuns -ge 3) "policy must require at least three runs per revision"
 
@@ -221,16 +227,18 @@ foreach ($metricPolicy in @($policy.metrics)) {
 }
 
 $evidence = [ordered]@{
-    schemaVersion   = 1
-    success         = $failures.Count -eq 0
-    baseSha         = $baseSha
-    headSha         = $headSha
-    compiler        = $referenceCompiler
-    os              = $referenceOs
-    runsPerRevision = $baseReports.Count
-    executionOrder  = $policy.executionOrder
-    metrics         = $metricResults
-    failures        = $failures
+    schemaVersion      = 1
+    success            = $failures.Count -eq 0
+    baseSha            = $baseSha
+    headSha            = $headSha
+    compiler           = $referenceCompiler
+    os                 = $referenceOs
+    runsPerRevision    = $baseReports.Count
+    executionOrder     = $policy.executionOrder
+    sampleAggregation  = $policy.sampleAggregation
+    gcPauseAggregation = $policy.gcPauseAggregation
+    metrics            = $metricResults
+    failures           = $failures
 }
 $outputParent = Split-Path -Parent $OutputPath
 if (-not [string]::IsNullOrWhiteSpace($outputParent)) {

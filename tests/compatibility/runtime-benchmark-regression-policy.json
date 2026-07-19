@@ -2,6 +2,8 @@
   "schemaVersion": 1,
   "minimumRunsPerRevision": 3,
   "executionOrder": "alternating-base-head-on-the-same-runner",
+  "sampleAggregation": "median-of-run-medians",
+  "gcPauseAggregation": "pooled-nearest-rank-p99",
   "metrics": [
     {
       "name": "vm_instructions_per_second",

@@ -312,7 +312,7 @@ using ValueData = std::variant<
 
 质量门统一编排 `clang-format`、`clang-tidy`、文档漂移检查和测试执行，并由 GitHub Actions 在持续集成中复用；`tools/run_quality_gate.ps1` 是本地与 CI 的共同入口。
 本地发布前应使用 `-Strict`：环境中缺少 `git`、格式/静态分析工具、MSBuild 或测试产物时会立即失败；`-SkipBuild`、`-SkipClangTidy` 和 `-FormatScope Off` 仍是调用者可见的显式裁剪，不会被误报为环境完整。
-仓库已定义 Windows Debug/Release、Linux GCC/Clang Debug/Release、ASan/UBSan、严格兼容性和 Release benchmark 检查。性能门在同一 runner 上按 `base/head`、`head/base`、`base/head` 交错执行，针对 VM 指令吞吐、C++↔Lua、coroutine、closure/upvalue 和 GC P99 使用版本化相对回归预算；其中 VM 指令吞吐直接约束默认关闭的 `ExecutionPolicy` 热路径成本，不依赖 Hosted Runner 的绝对数字。私有仓库当前套餐无法启用 required-check 分支保护；2026-07-15 通过 branch-protection 与 rulesets API 复核均返回需升级 GitHub Pro 或公开仓库，该平台限制由 [#6](https://github.com/YanqingXu/lua/issues/6) 跟踪。
+仓库已定义 Windows Debug/Release、Linux GCC/Clang Debug/Release、ASan/UBSan、严格兼容性和 Release benchmark 检查。性能门在同一 runner 上按 `base/head`、`head/base`、`base/head` 交错执行，普通指标先计算每次独立运行的样本中位数、再计算三次运行中位数的中位数，GC P99 则池化三次运行的 pause 样本后使用最近秩；VM 指令吞吐、C++↔Lua、coroutine、closure/upvalue 和 GC P99 均使用版本化相对回归预算。其中 VM 指令吞吐直接约束默认关闭的 `ExecutionPolicy` 热路径成本，不依赖 Hosted Runner 的绝对数字。私有仓库当前套餐无法启用 required-check 分支保护；2026-07-15 通过 branch-protection 与 rulesets API 复核均返回需升级 GitHub Pro 或公开仓库，该平台限制由 [#6](https://github.com/YanqingXu/lua/issues/6) 跟踪。
 [Actions run 29418126316](https://github.com/YanqingXu/lua/actions/runs/29418126316) 为提交 `7ed27b2` 保留了同 SHA 的 10/10 jobs 全绿证据：Windows 2、Linux 编译器矩阵 4、ASan/UBSan、lint 和 benchmark 全部成功，并上传 official strict、Lua/C API differential 与 runtime benchmark 三组 artifact。
 
 ```powershell
