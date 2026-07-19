@@ -3148,7 +3148,7 @@
     {
       "rule": "C allocator free",
       "path": "src\\runtime\\lua_allocator.hpp",
-      "line": 430,
+      "line": 687,
       "textHash": "d7690a05ce7d7b2fd6880195c277c98936008b9c22524adc26e2053427993f21",
       "rationale": "Existing product compatibility baseline; remove or modernize when the location is touched."
     },
@@ -4093,14 +4093,14 @@
     {
       "rule": "return nullptr",
       "path": "src\\runtime\\lua_allocator.hpp",
-      "line": 68,
+      "line": 71,
       "textHash": "0e4bce8ffb90a54f87dd1e313212d256102e9e3c73e8525feeb9faddd27faf05",
       "rationale": "Existing product compatibility baseline; remove or modernize when the location is touched."
     },
     {
       "rule": "return nullptr",
       "path": "src\\runtime\\lua_allocator.hpp",
-      "line": 76,
+      "line": 79,
       "textHash": "0e4bce8ffb90a54f87dd1e313212d256102e9e3c73e8525feeb9faddd27faf05",
       "rationale": "Existing product compatibility baseline; remove or modernize when the location is touched."
     },

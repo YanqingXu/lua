@@ -25,7 +25,7 @@ applies_to: GC managed-size accounting、lua_Alloc callback 与宿主内存上�
 - Table 数组和 Proto 的 constants/code/subProto/lineInfo/LocVar/upvalue-name 数组使用 `LuaReallocVector`，扩容发出真正的 `(ptr, osize, nsize)` realloc 请求；
 - Table 数组单值和 `SETLIST` 范围写入在 realloc 失败时不改变逻辑大小与旧值；Table hash 插入使用强保证的 `try_emplace`，raw C API 与 VM `SETTABLE` 都逐点证明失败时不发布目标 entry；
 - `lua_load` 用 `LuaStdAllocator<char>` 支撑的 source buffer 聚合 reader 分片，缓冲增长 OOM 会恢复调用者栈并发布 fixed memory error；
-- services-backed Parser 把同一 callback 的值快照传给 Lexer；Lexer 的整源副本与词素缓冲、Token 的 lexeme/decoded-value/error 字符串使用按值快照 callback 的 `LuaOwnedString`，`InputCursor` 源码重放缓存使用 `LuaVector<i32>`；这些缓存的 OOM 与 reader source buffer OOM 进入相同的 protected `LUA_ERRMEM` 回滚边界；
+- services-backed Parser 把同一 callback 的值快照传给 Lexer；Lexer 的整源副本与词素缓冲、Token 的 lexeme/decoded-value/error 字符串使用按值快照 callback、23 字节内联且外部容量精确记账的 `LuaBasicString` / `LuaOwnedString`，`InputCursor` 源码重放缓存使用 `LuaVector<i32>`；这些缓存的 OOM 与 reader source buffer OOM 进入相同的 protected `LUA_ERRMEM` 回滚边界；
 - State value stack 与 CallInfo 数组使用同一 callback 的 `LuaVector`；`lua_checkstack` 分配失败不改变逻辑栈，protected CallInfo 扩容失败恢复原调用深度并发布 fixed `LUA_ERRMEM`；
 - VM 调用非函数值的 `__call` 元方法时，插入 callable self 前的宽实参暂存使用 State callback 支撑的 `LuaVector<Value>`，分配失败发生在参数搬移前；
 - VM `OP_CONCAT` 直接借用字符串操作数、在栈上格式化数字，并用直接维护 callback 容量与精确 deallocation 字节数的 `LuaReallocVector<char>` 建立最终拼接缓冲，再以 view 交给 allocator-backed StringPool；
