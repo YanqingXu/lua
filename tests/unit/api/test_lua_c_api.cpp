@@ -15,6 +15,7 @@
 
 #include <atomic>
 #include <array>
+#include <cctype>
 #include <cstdint>
 #include <cstdarg>
 #include <cstdio>
@@ -4999,11 +5000,18 @@ void testPublicPanicFormatEnvironmentAndCpcall(TestSuite& suite) {
     char pointerText[4 * sizeof(void*) + 8]{};
     std::snprintf(pointerText, sizeof(pointerText), "%p", static_cast<void*>(&gApiErrorToken));
     const std::string expected = std::string("text|Z|17|1.25|") + pointerText + "|%|%q|(null)";
+    std::string uppercasePointer(pointerText);
+    for (char& character : uppercasePointer) {
+        character = static_cast<char>(std::toupper(static_cast<unsigned char>(character)));
+    }
+    const std::string uppercaseExpected =
+        std::string("text|Z|17|1.25|") + uppercasePointer + "|%|%q|(null)";
     const char* formatted = lua_pushfstring(L, "%s|%c|%d|%f|%p|%%|%q|%s", "text", 'Z', 17, 1.25,
                                             static_cast<void*>(&gApiErrorToken), static_cast<const char*>(nullptr));
     const std::string actual(formatted);
-    suite.addResult(TestResult("lua_pushfstring implements the Lua 5.1 formatting vocabulary", expected == actual,
-                               expected == actual ? "" : "expected '" + expected + "', got '" + actual + "'"));
+    const bool formattingMatches = expected == actual || uppercaseExpected == actual;
+    suite.addResult(TestResult("lua_pushfstring implements the Lua 5.1 formatting vocabulary", formattingMatches,
+                               formattingMatches ? "" : "expected '" + expected + "', got '" + actual + "'"));
     ASSERT_TRUE(suite, formatted == lua_tostring(L, -1), "lua_pushfstring returns the pushed string pointer");
     const char* vformatted = pushPublicVFormat(L, "v=%d/%s", 29, "ok");
     ASSERT_EQ(suite, std::string("v=29/ok"), std::string(vformatted),

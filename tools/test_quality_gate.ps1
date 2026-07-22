@@ -499,9 +499,9 @@ Assert-FileNotContains "src/core/userdata.cpp" @(
 )
 
 Assert-FileContains "benchmarks/runtime_bench.cpp" @(
-    'TraceScope\(lua_State\* state, Lua::ITraceSink\* sink\)',
-    'setTraceSink\(services_, sink\)',
-    'TraceScope trace\(state, &sink\)'
+    'countVmInstructionHook\(lua_State\*, lua_Debug\*\)',
+    'lua_sethook\(state_, countVmInstructionHook, LUA_MASKCOUNT, 1\)',
+    'InstructionCountScope counter\(state\)'
 )
 
 Assert-FileContains "tools/run_clang_tidy.py" @(
