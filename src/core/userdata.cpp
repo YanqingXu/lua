@@ -8,27 +8,18 @@
 #include "gc/garbage_collector.hpp"
 #include "runtime/lua_allocator.hpp"
 #include <algorithm>
+#include <cstddef>
 #include <cstdlib>
 #include <cstring>
 #include <limits>
 #include <new>
 #include <stdexcept>
 
-// MSVC特定的对齐内存分配函数
-#ifdef _MSC_VER
-#include <malloc.h> // _aligned_malloc, _aligned_free
-#endif
-
 namespace Lua {
 
 namespace {
 
 constexpr usize kUserdataAlignment = 8;
-
-usize alignedAllocationSize(usize size) noexcept {
-    const usize remainder = size % kUserdataAlignment;
-    return remainder == 0 ? size : size + (kUserdataAlignment - remainder);
-}
 
 usize checkedUserdataBufferSize(usize size) {
     if (size > std::numeric_limits<usize>::max() - sizeof(Userdata)) {
@@ -52,11 +43,8 @@ std::byte* allocateUserdataBuffer(LuaAllocator* allocator, usize size) {
         return static_cast<std::byte*>(data);
     }
 
-#ifdef _MSC_VER
-    void* data = _aligned_malloc(allocationSize, kUserdataAlignment);
-#else
-    void* data = std::aligned_alloc(kUserdataAlignment, alignedAllocationSize(allocationSize));
-#endif
+    static_assert(alignof(std::max_align_t) >= kUserdataAlignment);
+    void* data = std::malloc(allocationSize);
 
     if (data == nullptr) {
         throw std::bad_alloc();
@@ -77,11 +65,7 @@ void UserdataBufferDeleter::operator()(std::byte* data) const noexcept {
         return;
     }
 
-#ifdef _MSC_VER
-    _aligned_free(data);
-#else
     std::free(data);
-#endif
 }
 
 // =====================================================================

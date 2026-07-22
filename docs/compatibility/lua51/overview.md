@@ -65,19 +65,19 @@ finalizer 的队列与执行时机、弱表清理顺序和字符串驻留都可�
 
 - `official-smoke` 通过 `lua_test --filter "Lua 5.1 Official Smoke"` 执行受控、分阶段的快速验证。它会缩减压力并拆分脚本，全部改写登记在 `tests/compatibility/lua51-official-smoke-deviations.json`；“外部 skip 表为 0”不代表 upstream 原样全量通过。
 - `official-strict` 通过 `tools/run_lua51_official_strict.ps1` 在临时目录执行 SHA-256 清单锁定的原样 `all.lua`。该通道禁止源码改写，并已提升为 Linux Clang Release 的 required PASS；runner 在不改脚本的前提下把 stdout banner 记录为 `stageProfile`，保留每个官方脚本的开始时间和到下一阶段的耗时。`tests/compatibility/lua51-official-strict-xfails.json` 现在是合法空清单。
-- `official-testc` 显式打开项目内部 `T` 模块，`api.lua` 原样 exact PASS。仓库中的 `code.lua` 仍由 upstream SHA 清单逐字节锁定；执行前只在内存中应用三项由 Lua 5.1.5 `luac` 证明的 opcode oracle 校正，再评估项目编译器。校正后的首个项目 parity gap 是该通道唯一 XFAIL，登记在 `lua51-official-testc-xfails.json`。
+- `official-testc` 显式打开项目内部 `T` 模块，`api.lua` 原样 exact PASS。仓库中的 `code.lua` 仍由 upstream SHA 清单逐字节锁定；执行前只在内存中应用三项由 Lua 5.1.5 `luac` 证明的 opcode oracle 校正，再评估项目编译器。校正后的 `code.lua` 现为 required PASS，`lua51-official-testc-xfails.json` 是合法空清单。
 - `official-slow` 单独运行未经改写的 `sort.lua` 与 `verybig.lua`，两者现在都是 CI required gate；`lua51-official-slow-xfails.json` 保留合法空清单，防止已修复的超时被重新接受为 XFAIL。
 - `lua51-differential` 使用官方 Lua 5.1 和本解释器运行同一批 Lua 探针，比较 stdout、stderr、退出码，并在 stdout 中编码返回类型、错误类别与 GC 弱引用副作用；`lua51-c-api-differential` 另将同一纯 C probe 分别链接两套 Runtime，覆盖核心表、遍历、比较、拼接、类型/线程/GC、auxlib、stack/info/local/hook 调试入口，以及 8 个 `luaopen_*` 标准库入口。
 
-因此当前准确结论是：Lua 5.1 官方套件 staged smoke 在受控改写和压力缩减条件下通过，原始 TestC `api.lua` 已完整执行到 `OK`，slow `sort.lua`/`verybig.lua` 均为必过门禁且没有 XFAIL；Release strict `all.lua` 也已从 timeout XFAIL 提升为 upstream 原样全量 PASS。
+因此当前准确结论是：Lua 5.1 官方套件 staged smoke 在受控改写和压力缩减条件下通过，原始 TestC `api.lua` 与经 5.1.5 oracle 校正的 `code.lua` 均完整通过，slow `sort.lua`/`verybig.lua` 均为必过门禁且没有 XFAIL；Release strict `all.lua` 也已从 timeout XFAIL 提升为 upstream 原样全量 PASS。
 
 ### TestC 当前差异
 
 Lua.org 对 5.1 发布的是通用 `lua5.1-tests.tar.gz`（2016-01-18，SHA-256 `49e4ca…f18ad`），而不是 5.1.5 专用测试包；Lua 5.1.5 源码包 SHA-256 为 `2640fc…95333`。`lua51-official-sources.json` 同时锁定两个官方 URL/哈希、最小 fixture 哈希和 `luac -l -p` 结果，`check_lua51_official_sources.ps1 -LuacPath <5.1.5-luac>` 会实际核验三组 nested Proto：`LOADNIL/LOADNIL/RETURN`、`LOADK/LOADBOOL/TEST/JMP/RETURN`、`LOADNIL/LOADBOOL/TEST/JMP/RETURN`。这三处与通用 suite 的旧期望不同，因此测试保持 upstream `code.lua` 字节不变，只做精确且唯一匹配的内存 oracle 校正。
 
-校正 fixture 后，XFAIL 已重分类为 `code.lua-lua515-compiler-parity`：`repeat ... until nil` 在 Lua 5.1.5 中发射 `LOADNIL/LOADBOOL/TEST/JMP/RETURN`，本项目当前省略 `LOADBOOL`，首个精确诊断为 `expected LOADBOOL / actual TEST`。这是真实编译器 parity gap，不再把实现差异误报成 fixture 来源问题；其他断言不能冒充该 XFAIL。
+校正 fixture 后曾暴露 `repeat ... until nil` 的项目编译器 parity gap：Lua 5.1.5 发射 `LOADNIL/LOADBOOL/TEST/JMP/RETURN`，项目旧实现省略了 `LOADBOOL`。该 lowering 差异已修复，校正后的 `code.lua` 现完整通过，因此 TestC 通道不再接受编译器 XFAIL。
 
-截至 2026-07-15，[#3](https://github.com/YanqingXu/lua/issues/3) 的 strict timeout 已闭环：profile 证明前置脚本均快速完成，但 `gc.lua` 的 stop 状态被错误保留，使 `closure.lua` 的弱表等待循环无法推进；无参数完整 `collectgarbage()` 恢复 Lua 5.1 的自动 GC 重启语义后，原样 `all.lua` 完整执行到 `final OK !!!`。[#4](https://github.com/YanqingXu/lua/issues/4) 的 fixture/oracle 来源问题也已闭环并转为追踪校正后暴露的 repeat-condition 编译器 gap；`api.lua` 过去的 stack-shape XFAIL 已因 exact PASS 从清单移除。
+截至 2026-07-22，[#3](https://github.com/YanqingXu/lua/issues/3) 的 strict timeout 已闭环：profile 证明前置脚本均快速完成，但 `gc.lua` 的 stop 状态被错误保留，使 `closure.lua` 的弱表等待循环无法推进；无参数完整 `collectgarbage()` 恢复 Lua 5.1 的自动 GC 重启语义后，原样 `all.lua` 完整执行到 `final OK !!!`。[#4](https://github.com/YanqingXu/lua/issues/4) 的 fixture/oracle 来源问题及随后暴露的 repeat-condition 编译器 gap 均已闭环；`api.lua` 过去的 stack-shape XFAIL 也已因 exact PASS 从清单移除。
 
 1. strict official Lua 脚本验证规范行为，不修改预期来迎合实现；smoke 的任何改写必须登记 deviation。
 2. unit tests 锁定 C++ 内部不变量，如 opcode 双向覆盖、frame 窗口与错误对象保留。

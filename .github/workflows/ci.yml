@@ -266,8 +266,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
-      CC: clang-18
-      CXX: clang++-18
+      CC: clang-19
+      CXX: clang++-19
       ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
       UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
 
@@ -276,7 +276,9 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Install Clang
-        run: sudo apt-get update && sudo apt-get install --yes clang-18
+        run: >-
+          sudo apt-get update && sudo apt-get install --yes
+          clang-19 libfuzzer-19-dev
 
       - name: Configure fuzzers
         run: >-
@@ -325,8 +327,15 @@ jobs:
         include:
           - name: Linux ARM64
             runner: ubuntu-24.04-arm
+            disable_memory_limit: 0
           - name: macOS ARM64
             runner: macos-15
+            disable_memory_limit: 1
+
+    env:
+      # Darwin does not implement RLIMIT_AS as a usable process cap. The
+      # allocator contract jobs retain the hard-cap evidence on Linux/Windows.
+      LUA_TEST_DISABLE_MEMORY_LIMIT: ${{ matrix.disable_memory_limit }}
 
     steps:
       - name: Checkout
@@ -348,29 +357,32 @@ jobs:
     env:
       CC: clang-18
       CXX: clang++-18
+      CXXFLAGS: -stdlib=libc++
 
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Install LLVM coverage tools
-        run: sudo apt-get update && sudo apt-get install --yes clang-18 llvm-18
+        run: >-
+          sudo apt-get update && sudo apt-get install --yes
+          clang-18 llvm-18 libc++-18-dev libc++abi-18-dev
 
       - name: Configure coverage
         run: >-
           cmake -S . -B build/coverage
           -DCMAKE_BUILD_TYPE=Debug
           -DLUA_CPP_ENABLE_COVERAGE=ON
-          -DLUA_CPP_BUILD_TOOLS=OFF
 
       - name: Build coverage runner
-        run: cmake --build build/coverage --parallel 2 --target lua_test
+        run: cmake --build build/coverage --parallel 2 --target lua_test lua_app
 
       - name: Run coverage suites
         shell: bash
         run: |
           mkdir -p build/coverage/profiles
           export LLVM_PROFILE_FILE="$PWD/build/coverage/profiles/%p-%m.profraw"
+          export LUA_TEST_APP_PATH="$PWD/build/coverage/lua_app"
           build/coverage/lua_test --exclude-filter "Lua 5.1 Official"
           build/coverage/lua_test --filter "Lua 5.1 Official Smoke"
           build/coverage/lua_test --filter "Lua 5.1 Official TestC"
@@ -424,6 +436,7 @@ jobs:
           echo "base_sha=$base_sha" >> "$GITHUB_OUTPUT"
           echo "head_sha=$GITHUB_SHA" >> "$GITHUB_OUTPUT"
           git worktree add --detach build/benchmark-base-source "$base_sha"
+          cp benchmarks/runtime_bench.cpp build/benchmark-base-source/benchmarks/runtime_bench.cpp
 
       - name: Configure base Release benchmark
         run: >-

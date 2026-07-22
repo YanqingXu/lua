@@ -24,6 +24,7 @@ extern "C" int lua_public_c_header_probe(void);
 REQUIRE_SIGNATURE(lua_newstate, lua_State* (*)(lua_Alloc, void*) noexcept(false));
 REQUIRE_SIGNATURE(lua_open, lua_State* (*)() noexcept(false));
 REQUIRE_SIGNATURE(lua_close, void (*)(lua_State*) noexcept);
+REQUIRE_SIGNATURE(lua_tryclose, int (*)(lua_State*) noexcept);
 REQUIRE_SIGNATURE(lua_atpanic, lua_CFunction (*)(lua_State*, lua_CFunction) noexcept(false));
 REQUIRE_SIGNATURE(lua_getallocf, lua_Alloc (*)(lua_State*, void**) noexcept(false));
 REQUIRE_SIGNATURE(lua_setallocf, void (*)(lua_State*, lua_Alloc, void*) noexcept(false));
@@ -166,6 +167,7 @@ REQUIRE_PUBLIC_MACRO(lua_upvalueindex);
 REQUIRE_PUBLIC_MACRO(lua_pop);
 REQUIRE_PUBLIC_MACRO(lua_newtable);
 REQUIRE_PUBLIC_MACRO(lua_tostring);
+REQUIRE_PUBLIC_MACRO(lua_pushliteral);
 REQUIRE_PUBLIC_MACRO(lua_isfunction);
 REQUIRE_PUBLIC_MACRO(lua_istable);
 REQUIRE_PUBLIC_MACRO(lua_isnil);
@@ -217,6 +219,8 @@ REQUIRE_PUBLIC_CONSTANT(LUA_ERRRUN);
 REQUIRE_PUBLIC_CONSTANT(LUA_ERRSYNTAX);
 REQUIRE_PUBLIC_CONSTANT(LUA_ERRMEM);
 REQUIRE_PUBLIC_CONSTANT(LUA_ERRERR);
+REQUIRE_PUBLIC_CONSTANT(LUA_ERRTHREAD);
+REQUIRE_PUBLIC_CONSTANT(LUA_ERRBUSY);
 REQUIRE_PUBLIC_CONSTANT(LUA_TNONE);
 REQUIRE_PUBLIC_CONSTANT(LUA_TNIL);
 REQUIRE_PUBLIC_CONSTANT(LUA_TBOOLEAN);
@@ -260,6 +264,7 @@ static_assert(LUA_GLOBALSINDEX == -10002);
 static_assert(lua_upvalueindex(1) == LUA_GLOBALSINDEX - 1);
 static_assert(LUA_OK == 0 && LUA_YIELD == 1 && LUA_ERRRUN == 2 && LUA_ERRSYNTAX == 3 && LUA_ERRMEM == 4 &&
               LUA_ERRERR == 5 && LUA_ERRFILE == 6);
+static_assert(LUA_ERRTHREAD == 6 && LUA_ERRBUSY == 7);
 static_assert(LUA_TNONE == -1 && LUA_TNIL == 0 && LUA_TBOOLEAN == 1 && LUA_TLIGHTUSERDATA == 2 && LUA_TNUMBER == 3 &&
               LUA_TSTRING == 4 && LUA_TTABLE == 5 && LUA_TFUNCTION == 6 && LUA_TUSERDATA == 7 && LUA_TTHREAD == 8);
 static_assert(LUA_GCSTOP == 0 && LUA_GCRESTART == 1 && LUA_GCCOLLECT == 2 && LUA_GCCOUNT == 3 && LUA_GCCOUNTB == 4 &&
@@ -375,6 +380,7 @@ int main() {
     static_assert(!noexcept(lua_newthread(nullptr)));
     static_assert(noexcept(lua_trynewthread(nullptr)));
     static_assert(noexcept(lua_close(nullptr)));
+    static_assert(noexcept(lua_tryclose(nullptr)));
     static_assert(noexcept(lua_resume(nullptr, 0)));
     static_assert(noexcept(lua_load(nullptr, nullptr, nullptr, nullptr)));
     static_assert(noexcept(lua_dump(nullptr, nullptr, nullptr)));
@@ -384,7 +390,7 @@ int main() {
     static_assert(!noexcept(lua_call(nullptr, 0, 0)));
     static_assert(!noexcept(lua_error(nullptr)));
 
-    if (lua_public_c_header_probe() != 131) {
+    if (lua_public_c_header_probe() != 132) {
         return 1;
     }
 

@@ -33,10 +33,14 @@
 
 #include <fstream>
 #include <string>
+#include <vector>
 
 #ifdef _WIN32
 #include <windows.h>
 #else
+#ifdef __APPLE__
+#include <mach-o/dyld.h>
+#endif
 #include <unistd.h>
 #endif
 
@@ -117,8 +121,8 @@ bool runLuaChunk(LuaState* L, const char* source, const char* chunkName = "test"
             throw parsed.error();
         }
         Chunk chunk = std::move(*parsed);
-        StringPool& pool = StringPool::getInstance();
-        CodeGenerator codegen(&pool);
+        RuntimeServices services = RuntimeServices::fromSingletons();
+        CodeGenerator codegen(services);
         Proto* proto = codegen.generate(chunk, chunkName);
         if (!proto)
             return false;
@@ -126,7 +130,7 @@ bool runLuaChunk(LuaState* L, const char* source, const char* chunkName = "test"
         Function* func = new Function(proto);
         L->getGlobalState().getGC().registerObject(func);
         func->setEnv(L->getGlobalTable());
-        VM::execute(L, func);
+        VM::execute(services, L, func);
         return true;
     } catch (...) {
         return false;
@@ -156,6 +160,16 @@ std::string currentExecutablePath() {
         return "";
     }
     return std::string(buffer, len);
+#elif defined(__APPLE__)
+    uint32_t capacity = 4096;
+    std::vector<char> buffer(static_cast<std::size_t>(capacity) + 1, '\0');
+    if (_NSGetExecutablePath(buffer.data(), &capacity) != 0) {
+        buffer.assign(static_cast<std::size_t>(capacity) + 1, '\0');
+        if (_NSGetExecutablePath(buffer.data(), &capacity) != 0) {
+            return "";
+        }
+    }
+    return std::string(buffer.data());
 #else
     char buffer[4096];
     ssize_t len = readlink("/proc/self/exe", buffer, sizeof(buffer) - 1);

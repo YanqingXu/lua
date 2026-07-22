@@ -4,7 +4,10 @@ if(POLICY CMP0184)
     cmake_policy(SET CMP0184 NEW)
 endif()
 
-project(lua_cpp LANGUAGES C CXX)
+project(lua_cpp VERSION 0.1.0 LANGUAGES C CXX)
+
+include(GNUInstallDirs)
+include(CMakePackageConfigHelpers)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -17,6 +20,7 @@ option(LUA_CPP_BUILD_TOOLS "Build the interpreter and bytecode tools" ON)
 option(LUA_CPP_BUILD_TESTS "Build the unit test runner" ON)
 option(LUA_CPP_BUILD_BENCHMARKS "Build the runtime benchmark driver" OFF)
 option(LUA_CPP_BUILD_FUZZERS "Build libFuzzer security-boundary targets" OFF)
+option(LUA_CPP_BUILD_SHARED "Build the public C API shared library" ON)
 option(LUA_CPP_ENABLE_COVERAGE "Enable Clang source-based coverage instrumentation" OFF)
 set(LUA_CPP_SANITIZER "" CACHE STRING "Enable a runtime sanitizer: address, undefined, or thread")
 set_property(CACHE LUA_CPP_SANITIZER PROPERTY STRINGS "" address undefined thread)
@@ -225,14 +229,120 @@ set(LUA_TEST_SOURCES
 )
 
 add_library(lua_core STATIC ${LUA_CORE_SOURCES})
+add_library(LuaCpp::Lua ALIAS lua_core)
 target_include_directories(lua_core PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
+if(LUA_CPP_SANITIZER)
+    # Static-library consumers must link the same sanitizer runtime that
+    # instrumented lua_core. Keep this requirement on the exported target.
+    target_link_options(lua_core INTERFACE -fsanitize=${LUA_CPP_SANITIZER})
+endif()
+if(LUA_CPP_ENABLE_COVERAGE)
+    target_link_options(lua_core INTERFACE -fprofile-instr-generate -fcoverage-mapping)
+endif()
+set_target_properties(lua_core PROPERTIES EXPORT_NAME Lua)
 if(CMAKE_DL_LIBS)
     target_link_libraries(lua_core PUBLIC ${CMAKE_DL_LIBS})
 endif()
 
 lua_configure_target_warnings(lua_core)
+
+if(LUA_CPP_BUILD_SHARED)
+    # Keep the public C ABI available as a production target, independent of
+    # the test tree. The export manifests are also checked by the API contract.
+    add_library(lua_public_api_shared SHARED ${LUA_CORE_SOURCES})
+    add_library(LuaCpp::Shared ALIAS lua_public_api_shared)
+    target_include_directories(lua_public_api_shared PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
+        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+    )
+    if(LUA_CPP_SANITIZER)
+        target_link_options(lua_public_api_shared INTERFACE -fsanitize=${LUA_CPP_SANITIZER})
+    endif()
+    if(LUA_CPP_ENABLE_COVERAGE)
+        target_link_options(lua_public_api_shared INTERFACE -fprofile-instr-generate -fcoverage-mapping)
+    endif()
+    if(CMAKE_DL_LIBS)
+        target_link_libraries(lua_public_api_shared PRIVATE ${CMAKE_DL_LIBS})
+    endif()
+    if(WIN32)
+        target_sources(lua_public_api_shared PRIVATE tests/compatibility/lua_public_api_exports.def)
+    elseif(APPLE)
+        # Mach-O prefixes C symbols with an underscore. Derive its export list
+        # from the Windows manifest so the API contract has one symbol source.
+        file(STRINGS tests/compatibility/lua_public_api_exports.def lua_public_api_export_lines)
+        set(lua_public_api_apple_exports "")
+        foreach(export_line IN LISTS lua_public_api_export_lines)
+            string(STRIP "${export_line}" export_line)
+            if(export_line STREQUAL "" OR export_line STREQUAL "EXPORTS")
+                continue()
+            endif()
+            string(REGEX MATCH "^[A-Za-z_][A-Za-z0-9_]*" export_symbol "${export_line}")
+            if(export_symbol)
+                string(APPEND lua_public_api_apple_exports "_${export_symbol}\n")
+            endif()
+        endforeach()
+        set(lua_public_api_apple_export_file "${CMAKE_CURRENT_BINARY_DIR}/lua_public_api_exports.apple")
+        file(WRITE "${lua_public_api_apple_export_file}" "${lua_public_api_apple_exports}")
+        target_link_options(lua_public_api_shared PRIVATE
+            "SHELL:-Wl,-exported_symbols_list,${lua_public_api_apple_export_file}"
+        )
+    elseif(UNIX AND NOT APPLE)
+        target_link_options(lua_public_api_shared PRIVATE
+            "SHELL:-Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/tests/compatibility/lua_public_api_exports.map"
+        )
+    endif()
+    set_target_properties(lua_public_api_shared PROPERTIES
+        EXPORT_NAME Shared
+        OUTPUT_NAME lua_public_api
+        VERSION ${PROJECT_VERSION}
+        SOVERSION ${PROJECT_VERSION_MAJOR}
+    )
+    lua_configure_target_warnings(lua_public_api_shared)
+endif()
+
+set(lua_cpp_install_targets lua_core)
+if(TARGET lua_public_api_shared)
+    list(APPEND lua_cpp_install_targets lua_public_api_shared)
+endif()
+
+install(TARGETS ${lua_cpp_install_targets}
+    EXPORT LuaCppTargets
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+)
+install(FILES
+    src/lua.h
+    src/lauxlib.h
+    src/lualib.h
+    src/lua_cpp_version.h
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+)
+install(FILES LICENSE DESTINATION ${CMAKE_INSTALL_DATADIR}/lua_cpp)
+
+configure_package_config_file(
+    cmake/LuaCppConfig.cmake.in
+    ${CMAKE_CURRENT_BINARY_DIR}/LuaCppConfig.cmake
+    INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/LuaCpp
+)
+write_basic_package_version_file(
+    ${CMAKE_CURRENT_BINARY_DIR}/LuaCppConfigVersion.cmake
+    VERSION ${PROJECT_VERSION}
+    COMPATIBILITY SameMinorVersion
+)
+install(EXPORT LuaCppTargets
+    FILE LuaCppTargets.cmake
+    NAMESPACE LuaCpp::
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/LuaCpp
+)
+install(FILES
+    ${CMAKE_CURRENT_BINARY_DIR}/LuaCppConfig.cmake
+    ${CMAKE_CURRENT_BINARY_DIR}/LuaCppConfigVersion.cmake
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/LuaCpp
+)
 
 if(LUA_CPP_BUILD_FUZZERS)
     foreach(fuzzer_name IN ITEMS undump bytecode_verifier parser stdlib_numeric_arguments)
@@ -326,24 +436,6 @@ if(BUILD_TESTING AND LUA_CPP_BUILD_TESTS)
         target_link_options(lua_test PRIVATE -rdynamic)
     endif()
 
-    # Build the public API as an actual shared library. The static consumer
-    # remains useful for embedding, while this target catches DLL/shared-object
-    # export omissions and import-library failures.
-    add_library(lua_public_api_shared SHARED ${LUA_CORE_SOURCES})
-    target_include_directories(lua_public_api_shared PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
-    if(CMAKE_DL_LIBS)
-        target_link_libraries(lua_public_api_shared PRIVATE ${CMAKE_DL_LIBS})
-    endif()
-    if(WIN32)
-        target_sources(lua_public_api_shared PRIVATE tests/compatibility/lua_public_api_exports.def)
-    elseif(UNIX AND NOT APPLE)
-        target_link_options(lua_public_api_shared PRIVATE
-            "SHELL:-Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/tests/compatibility/lua_public_api_exports.map"
-        )
-    endif()
-    set_target_properties(lua_public_api_shared PROPERTIES OUTPUT_NAME lua_public_api)
-    lua_configure_target_warnings(lua_public_api_shared)
-
     add_executable(lua_public_api_consumer
         tests/compatibility/public_api_c_compile.c
         tests/compatibility/public_api_cpp_consumer.cpp
@@ -376,35 +468,37 @@ if(BUILD_TESTING AND LUA_CPP_BUILD_TESTS)
     endif()
     lua_configure_runtime_stack(lua_public_api_consumer)
 
-    add_executable(lua_public_api_shared_consumer
-        tests/compatibility/public_api_c_compile.c
-        tests/compatibility/public_api_cpp_consumer.cpp
-    )
-    target_link_libraries(lua_public_api_shared_consumer PRIVATE lua_public_api_shared)
-    target_include_directories(lua_public_api_shared_consumer PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
-    if(MSVC)
-        set_property(TARGET lua_public_api_shared_consumer PROPERTY MSVC_RUNTIME_CHECKS "")
-        target_compile_options(lua_public_api_shared_consumer PRIVATE
-            $<$<COMPILE_LANGUAGE:C>:/W4>
-            $<$<COMPILE_LANGUAGE:CXX>:/W4>
-            $<$<COMPILE_LANGUAGE:CXX>:/permissive->
-            $<$<COMPILE_LANGUAGE:CXX>:/utf-8>
-            $<$<COMPILE_LANGUAGE:CXX>:/O2>
-            $<$<COMPILE_LANGUAGE:CXX>:/EHsc>
+    if(TARGET lua_public_api_shared)
+        add_executable(lua_public_api_shared_consumer
+            tests/compatibility/public_api_c_compile.c
+            tests/compatibility/public_api_cpp_consumer.cpp
         )
-    else()
-        target_compile_options(lua_public_api_shared_consumer PRIVATE
-            $<$<COMPILE_LANGUAGE:C>:-Wall>
-            $<$<COMPILE_LANGUAGE:C>:-Wextra>
-            $<$<COMPILE_LANGUAGE:C>:-Wpedantic>
-            $<$<COMPILE_LANGUAGE:CXX>:-Wall>
-            $<$<COMPILE_LANGUAGE:CXX>:-Wextra>
-            $<$<COMPILE_LANGUAGE:CXX>:-Wpedantic>
-            $<$<COMPILE_LANGUAGE:CXX>:-Wconversion>
-            $<$<COMPILE_LANGUAGE:CXX>:-O2>
-        )
+        target_link_libraries(lua_public_api_shared_consumer PRIVATE lua_public_api_shared)
+        target_include_directories(lua_public_api_shared_consumer PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+        if(MSVC)
+            set_property(TARGET lua_public_api_shared_consumer PROPERTY MSVC_RUNTIME_CHECKS "")
+            target_compile_options(lua_public_api_shared_consumer PRIVATE
+                $<$<COMPILE_LANGUAGE:C>:/W4>
+                $<$<COMPILE_LANGUAGE:CXX>:/W4>
+                $<$<COMPILE_LANGUAGE:CXX>:/permissive->
+                $<$<COMPILE_LANGUAGE:CXX>:/utf-8>
+                $<$<COMPILE_LANGUAGE:CXX>:/O2>
+                $<$<COMPILE_LANGUAGE:CXX>:/EHsc>
+            )
+        else()
+            target_compile_options(lua_public_api_shared_consumer PRIVATE
+                $<$<COMPILE_LANGUAGE:C>:-Wall>
+                $<$<COMPILE_LANGUAGE:C>:-Wextra>
+                $<$<COMPILE_LANGUAGE:C>:-Wpedantic>
+                $<$<COMPILE_LANGUAGE:CXX>:-Wall>
+                $<$<COMPILE_LANGUAGE:CXX>:-Wextra>
+                $<$<COMPILE_LANGUAGE:CXX>:-Wpedantic>
+                $<$<COMPILE_LANGUAGE:CXX>:-Wconversion>
+                $<$<COMPILE_LANGUAGE:CXX>:-O2>
+            )
+        endif()
+        lua_configure_runtime_stack(lua_public_api_shared_consumer)
     endif()
-    lua_configure_runtime_stack(lua_public_api_shared_consumer)
 
     add_executable(lua51_c_api_differential_probe tests/compatibility/lua51_c_api_differential_probe.c)
     target_link_libraries(lua51_c_api_differential_probe PRIVATE lua_core)
@@ -455,10 +549,26 @@ if(BUILD_TESTING AND LUA_CPP_BUILD_TESTS)
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     )
 
-    add_test(NAME lua_public_api_shared_consumer COMMAND $<TARGET_FILE:lua_public_api_shared_consumer>)
-    set_tests_properties(lua_public_api_shared_consumer PROPERTIES
-        LABELS "api-contract;shared-library"
+    if(TARGET lua_public_api_shared_consumer)
+        add_test(NAME lua_public_api_shared_consumer COMMAND $<TARGET_FILE:lua_public_api_shared_consumer>)
+        set_tests_properties(lua_public_api_shared_consumer PROPERTIES
+            LABELS "api-contract;shared-library"
+            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        )
+    endif()
+
+    add_test(
+        NAME cmake_package_consumer
+        COMMAND ${CMAKE_COMMAND}
+            -DPROJECT_BUILD_DIR=${CMAKE_CURRENT_BINARY_DIR}
+            -DPROJECT_SOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}
+            -DTEST_CONFIGURATION=$<CONFIG>
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/packaging/verify_package.cmake
+    )
+    set_tests_properties(cmake_package_consumer PROPERTIES
+        LABELS "api-contract;package"
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        TIMEOUT 180
     )
 
     add_test(NAME lua51_c_api_differential_probe COMMAND $<TARGET_FILE:lua51_c_api_differential_probe>)

@@ -20,7 +20,7 @@ using namespace LuaTest;
 namespace {
 
 Proto* generateProto(const char* code) {
-    StringPool& pool = StringPool::getInstance();
+    RuntimeServices services = RuntimeServices::fromSingletons();
     Parser parser(code);
     auto parsed = parser.parse();
     if (!parsed) {
@@ -28,7 +28,7 @@ Proto* generateProto(const char* code) {
     }
     Chunk chunk = std::move(*parsed);
 
-    CodeGenerator codegen(&pool);
+    CodeGenerator codegen(services);
     return codegen.generate(chunk);
 }
 
@@ -105,15 +105,9 @@ bool matchesExactComparisonBooleanSequence(const Proto* proto, OpCode compareOp)
     Instruction falseInst = proto->getInstruction(2);
     Instruction trueInst = proto->getInstruction(3);
 
-    return GET_OPCODE(compareInst) == compareOp
-        && GET_OPCODE(jmpInst) == OpCode::JMP
-        && GETARG_sBx(jmpInst) == 1
-        && GET_OPCODE(falseInst) == OpCode::LOADBOOL
-        && GETARG_B(falseInst) == 0
-        && GETARG_C(falseInst) == 1
-        && GET_OPCODE(trueInst) == OpCode::LOADBOOL
-        && GETARG_B(trueInst) == 1
-        && GETARG_C(trueInst) == 0;
+    return GET_OPCODE(compareInst) == compareOp && GET_OPCODE(jmpInst) == OpCode::JMP && GETARG_sBx(jmpInst) == 1 &&
+           GET_OPCODE(falseInst) == OpCode::LOADBOOL && GETARG_B(falseInst) == 0 && GETARG_C(falseInst) == 1 &&
+           GET_OPCODE(trueInst) == OpCode::LOADBOOL && GETARG_B(trueInst) == 1 && GETARG_C(trueInst) == 0;
 }
 
 } // namespace
@@ -126,7 +120,6 @@ void testBinaryArithmetic(TestSuite& suite) {
     // 验证生成的字节码
     ASSERT_TRUE(suite, proto != nullptr, "Proto generated");
     ASSERT_TRUE(suite, proto->getInstructionCount() > 0, "Has instructions");
-
 }
 
 void testBinaryComparison(TestSuite& suite) {
@@ -139,7 +132,6 @@ void testBinaryComparison(TestSuite& suite) {
     ASSERT_TRUE(suite, hasOpcode(proto, OpCode::LT), "Has LT instruction");
     ASSERT_TRUE(suite, hasComparisonMaterializationPattern(proto, OpCode::LT), "Comparison materializes to booleans");
     ASSERT_FALSE(suite, hasSelfLoopJump(proto), "Comparison has no self-loop JMP");
-
 }
 
 void testComparisonOperatorsMaterializeToBoolean(TestSuite& suite) {
@@ -152,9 +144,12 @@ void testComparisonOperatorsMaterializeToBoolean(TestSuite& suite) {
     };
 
     const std::array<Case, 3> cases{{
-        {"local x = 1 <= 2", OpCode::LE, "Has LE instruction for <=", "Comparison <= materializes to booleans", "<= has no self-loop JMP"},
-        {"local x = 1 ~= 2", OpCode::EQ, "Has EQ instruction for ~=", "Comparison ~= materializes to booleans", "~= has no self-loop JMP"},
-        {"local x = 1 == 1", OpCode::EQ, "Has EQ instruction for ==", "Comparison == materializes to booleans", "== has no self-loop JMP"},
+        {"local x = 1 <= 2", OpCode::LE, "Has LE instruction for <=", "Comparison <= materializes to booleans",
+         "<= has no self-loop JMP"},
+        {"local x = 1 ~= 2", OpCode::EQ, "Has EQ instruction for ~=", "Comparison ~= materializes to booleans",
+         "~= has no self-loop JMP"},
+        {"local x = 1 == 1", OpCode::EQ, "Has EQ instruction for ==", "Comparison == materializes to booleans",
+         "== has no self-loop JMP"},
     }};
 
     for (const auto& testCase : cases) {
@@ -165,7 +160,6 @@ void testComparisonOperatorsMaterializeToBoolean(TestSuite& suite) {
         ASSERT_TRUE(suite, hasOpcode(proto, testCase.compareOp), testCase.opcodeMessage);
         ASSERT_TRUE(suite, hasComparisonMaterializationPattern(proto, testCase.compareOp), testCase.patternMessage);
         ASSERT_FALSE(suite, hasSelfLoopJump(proto), testCase.jumpMessage);
-
     }
 }
 
@@ -175,9 +169,9 @@ void testGreaterComparisonsMaterializeToBoolean(TestSuite& suite) {
 
         ASSERT_TRUE(suite, proto != nullptr, "> proto generated");
         ASSERT_TRUE(suite, proto->getInstructionCount() >= 5, "> proto has expected instruction count");
-        ASSERT_TRUE(suite, matchesExactComparisonBooleanSequence(proto, OpCode::LT), "> lowers to LT + boolean materialization");
+        ASSERT_TRUE(suite, matchesExactComparisonBooleanSequence(proto, OpCode::LT),
+                    "> lowers to LT + boolean materialization");
         ASSERT_FALSE(suite, hasSelfLoopJump(proto), "> has no self-loop JMP");
-
     }
 
     {
@@ -185,19 +179,18 @@ void testGreaterComparisonsMaterializeToBoolean(TestSuite& suite) {
 
         ASSERT_TRUE(suite, proto != nullptr, ">= proto generated");
         ASSERT_TRUE(suite, proto->getInstructionCount() >= 5, ">= proto has expected instruction count");
-        ASSERT_TRUE(suite, matchesExactComparisonBooleanSequence(proto, OpCode::LE), ">= lowers to LE + boolean materialization");
+        ASSERT_TRUE(suite, matchesExactComparisonBooleanSequence(proto, OpCode::LE),
+                    ">= lowers to LE + boolean materialization");
         ASSERT_FALSE(suite, hasSelfLoopJump(proto), ">= has no self-loop JMP");
-
     }
 }
 
 void testBinaryLogical(TestSuite& suite) {
-    const char* code =
-        "local a = ...\n"
-        "local b = ...\n"
-        "local x = a and b\n"
-        "local y = a or b\n"
-        "local z = not a\n";
+    const char* code = "local a = ...\n"
+                       "local b = ...\n"
+                       "local x = a and b\n"
+                       "local y = a or b\n"
+                       "local z = not a\n";
     Proto* proto = generateProto(code);
 
     ASSERT_TRUE(suite, proto != nullptr, "Proto generated");
@@ -206,7 +199,6 @@ void testBinaryLogical(TestSuite& suite) {
     ASSERT_TRUE(suite, hasResolvedTestJumpPattern(proto), "Logical short-circuit jump is resolved");
     ASSERT_FALSE(suite, hasOpcode(proto, OpCode::NOT), "Logical not now avoids OP_NOT");
     ASSERT_FALSE(suite, hasSelfLoopJump(proto), "Logical expressions have no self-loop JMP");
-
 }
 
 void testLogicalValueExpressions(TestSuite& suite) {
@@ -218,7 +210,6 @@ void testLogicalValueExpressions(TestSuite& suite) {
         ASSERT_TRUE(suite, hasOpcode(proto, OpCode::TEST), "and expression uses TEST");
         ASSERT_TRUE(suite, hasResolvedTestJumpPattern(proto), "and expression TEST/JMP pattern is resolved");
         ASSERT_FALSE(suite, hasSelfLoopJump(proto), "and expression has no self-loop JMP");
-
     }
 
     {
@@ -229,7 +220,6 @@ void testLogicalValueExpressions(TestSuite& suite) {
         ASSERT_TRUE(suite, hasOpcode(proto, OpCode::TEST), "or expression uses TEST");
         ASSERT_TRUE(suite, hasResolvedTestJumpPattern(proto), "or expression TEST/JMP pattern is resolved");
         ASSERT_FALSE(suite, hasSelfLoopJump(proto), "or expression has no self-loop JMP");
-
     }
 
     {
@@ -240,7 +230,6 @@ void testLogicalValueExpressions(TestSuite& suite) {
         ASSERT_TRUE(suite, hasOpcode(proto, OpCode::TEST), "not expression uses condition TEST");
         ASSERT_FALSE(suite, hasOpcode(proto, OpCode::NOT), "not expression avoids OP_NOT");
         ASSERT_FALSE(suite, hasSelfLoopJump(proto), "not expression has no self-loop JMP");
-
     }
 }
 
@@ -251,7 +240,6 @@ void testUnaryExpressions(TestSuite& suite) {
 
     ASSERT_TRUE(suite, proto != nullptr, "Proto generated");
     ASSERT_TRUE(suite, proto->getInstructionCount() > 0, "Has instructions");
-
 }
 
 void testComplexExpression(TestSuite& suite) {
@@ -261,7 +249,6 @@ void testComplexExpression(TestSuite& suite) {
 
     ASSERT_TRUE(suite, proto != nullptr, "Proto generated");
     ASSERT_TRUE(suite, proto->getInstructionCount() > 0, "Has instructions");
-
 }
 
 void registerBinaryUnaryExprTests() {
@@ -269,12 +256,12 @@ void registerBinaryUnaryExprTests() {
 
     registry.registerTest("Binary/Unary Expressions", "Binary Arithmetic", testBinaryArithmetic);
     registry.registerTest("Binary/Unary Expressions", "Binary Comparison", testBinaryComparison);
-    registry.registerTest("Binary/Unary Expressions", "Comparison Operators Materialize To Boolean", testComparisonOperatorsMaterializeToBoolean);
-    registry.registerTest("Binary/Unary Expressions", "Greater Comparisons Materialize To Boolean", testGreaterComparisonsMaterializeToBoolean);
+    registry.registerTest("Binary/Unary Expressions", "Comparison Operators Materialize To Boolean",
+                          testComparisonOperatorsMaterializeToBoolean);
+    registry.registerTest("Binary/Unary Expressions", "Greater Comparisons Materialize To Boolean",
+                          testGreaterComparisonsMaterializeToBoolean);
     registry.registerTest("Binary/Unary Expressions", "Binary Logical", testBinaryLogical);
     registry.registerTest("Binary/Unary Expressions", "Logical Value Expressions", testLogicalValueExpressions);
     registry.registerTest("Binary/Unary Expressions", "Unary Expressions", testUnaryExpressions);
     registry.registerTest("Binary/Unary Expressions", "Complex Expression", testComplexExpression);
 }
-
-

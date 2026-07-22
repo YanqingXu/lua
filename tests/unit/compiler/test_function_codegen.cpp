@@ -18,7 +18,7 @@ using namespace LuaTest;
 
 void testSimpleFunctionDef(TestSuite& suite) {
     // 使用单例获取StringPool
-    StringPool& pool = StringPool::getInstance();
+    RuntimeServices services = RuntimeServices::fromSingletons();
 
     // 测试: function add(a, b) return a + b end
     const char* code = "function add(a, b) return a + b end";
@@ -29,7 +29,7 @@ void testSimpleFunctionDef(TestSuite& suite) {
     }
     Chunk chunk = std::move(*parsed);
 
-    CodeGenerator codegen(&pool);
+    CodeGenerator codegen(services);
     Proto* proto = codegen.generate(chunk);
 
     // 验证生成的字节码
@@ -43,12 +43,11 @@ void testSimpleFunctionDef(TestSuite& suite) {
     Proto* subProto = proto->getSubProto(0);
     ASSERT_TRUE(suite, subProto != nullptr, "Sub-proto exists");
     ASSERT_EQ(suite, (int)subProto->getNumParams(), 2, "Sub-proto has 2 params");
-
 }
 
 void testLocalFunctionDef(TestSuite& suite) {
     // 使用单例获取StringPool
-    StringPool& pool = StringPool::getInstance();
+    RuntimeServices services = RuntimeServices::fromSingletons();
 
     // 测试: local function foo() end
     const char* code = "local function foo() end";
@@ -59,17 +58,16 @@ void testLocalFunctionDef(TestSuite& suite) {
     }
     Chunk chunk = std::move(*parsed);
 
-    CodeGenerator codegen(&pool);
+    CodeGenerator codegen(services);
     Proto* proto = codegen.generate(chunk);
 
     ASSERT_TRUE(suite, proto != nullptr, "Proto generated");
     ASSERT_EQ(suite, proto->getSubProtoCount(), 1, "Has one sub-function");
-
 }
 
 void testFunctionExpr(TestSuite& suite) {
     // 使用单例获取StringPool
-    StringPool& pool = StringPool::getInstance();
+    RuntimeServices services = RuntimeServices::fromSingletons();
 
     // 测试: local f = function(x) return x * 2 end
     const char* code = "local f = function(x) return x * 2 end";
@@ -80,7 +78,7 @@ void testFunctionExpr(TestSuite& suite) {
     }
     Chunk chunk = std::move(*parsed);
 
-    CodeGenerator codegen(&pool);
+    CodeGenerator codegen(services);
     Proto* proto = codegen.generate(chunk);
 
     ASSERT_TRUE(suite, proto != nullptr, "Proto generated");
@@ -88,12 +86,11 @@ void testFunctionExpr(TestSuite& suite) {
 
     Proto* subProto = proto->getSubProto(0);
     ASSERT_EQ(suite, (int)subProto->getNumParams(), 1, "Sub-proto has 1 param");
-
 }
 
 void testFunctionCall(TestSuite& suite) {
     // 使用单例获取StringPool
-    StringPool& pool = StringPool::getInstance();
+    RuntimeServices services = RuntimeServices::fromSingletons();
 
     // 测试: local result = add(1, 2)
     const char* code = "local result = add(1, 2)";
@@ -104,7 +101,7 @@ void testFunctionCall(TestSuite& suite) {
     }
     Chunk chunk = std::move(*parsed);
 
-    CodeGenerator codegen(&pool);
+    CodeGenerator codegen(services);
     Proto* proto = codegen.generate(chunk);
 
     ASSERT_TRUE(suite, proto != nullptr, "Proto generated");
@@ -120,12 +117,11 @@ void testFunctionCall(TestSuite& suite) {
         }
     }
     ASSERT_TRUE(suite, hasCall, "Has CALL instruction");
-
 }
 
 void testVarargFunction(TestSuite& suite) {
     // 使用单例获取StringPool
-    StringPool& pool = StringPool::getInstance();
+    RuntimeServices services = RuntimeServices::fromSingletons();
 
     // 测试: function foo(...) end
     const char* code = "function foo(...) end";
@@ -136,7 +132,7 @@ void testVarargFunction(TestSuite& suite) {
     }
     Chunk chunk = std::move(*parsed);
 
-    CodeGenerator codegen(&pool);
+    CodeGenerator codegen(services);
     Proto* proto = codegen.generate(chunk);
 
     ASSERT_TRUE(suite, proto != nullptr, "Proto generated");
@@ -144,11 +140,10 @@ void testVarargFunction(TestSuite& suite) {
 
     Proto* subProto = proto->getSubProto(0);
     ASSERT_TRUE(suite, subProto->isVararg(), "Sub-proto is vararg");
-
 }
 
 void testDebugMetadata(TestSuite& suite) {
-    StringPool& pool = StringPool::getInstance();
+    RuntimeServices services = RuntimeServices::fromSingletons();
 
     const char* code = "local x = 42\nprint(x)\n";
     Parser parser(code);
@@ -158,13 +153,14 @@ void testDebugMetadata(TestSuite& suite) {
     }
     Chunk chunk = std::move(*parsed);
 
-    CodeGenerator codegen(&pool);
+    CodeGenerator codegen(services);
     Proto* proto = codegen.generate(chunk, "test_debug_metadata.lua");
 
     ASSERT_TRUE(suite, proto != nullptr, "Proto generated with debug metadata");
     ASSERT_TRUE(suite, proto->getSource() != nullptr, "Proto source populated");
     if (proto->getSource() != nullptr) {
-        ASSERT_TRUE(suite, std::string(proto->getSource()->c_str()) == "test_debug_metadata.lua", "Proto source matches");
+        ASSERT_TRUE(suite, std::string(proto->getSource()->c_str()) == "test_debug_metadata.lua",
+                    "Proto source matches");
     }
 
     ASSERT_TRUE(suite, proto->getInstructionCount() > 0, "Has instructions for debug metadata");
@@ -173,15 +169,13 @@ void testDebugMetadata(TestSuite& suite) {
     if (proto->getLocVarCount() >= 1) {
         ASSERT_TRUE(suite, std::string(proto->getLocVar(0).varname->c_str()) == "x", "Local variable name recorded");
     }
-
 }
 
 void testAssignMultiReturnCall(TestSuite& suite) {
-    StringPool& pool = StringPool::getInstance();
+    RuntimeServices services = RuntimeServices::fromSingletons();
 
-    const char* code =
-        "local ok, err\n"
-        "ok, err = pcall(function() error('boom') end)\n";
+    const char* code = "local ok, err\n"
+                       "ok, err = pcall(function() error('boom') end)\n";
     Parser parser(code);
     auto parsed = parser.parse();
     if (!parsed) {
@@ -189,7 +183,7 @@ void testAssignMultiReturnCall(TestSuite& suite) {
     }
     Chunk chunk = std::move(*parsed);
 
-    CodeGenerator codegen(&pool);
+    CodeGenerator codegen(services);
     Proto* proto = codegen.generate(chunk, "test_assign_multret.lua");
 
     ASSERT_TRUE(suite, proto != nullptr, "Proto generated for multi-return assignment");
@@ -210,7 +204,6 @@ void testAssignMultiReturnCall(TestSuite& suite) {
 
     ASSERT_TRUE(suite, sawPcallCall, "Found CALL used by assignment");
     ASSERT_FALSE(suite, sawErrLoadNil, "Multi-return assignment no longer nils second target");
-
 }
 
 void registerFunctionCodegenTests() {
@@ -224,5 +217,3 @@ void registerFunctionCodegenTests() {
     registry.registerTest("Function Codegen", "Debug Metadata", testDebugMetadata);
     registry.registerTest("Function Codegen", "Assign Multi Return Call", testAssignMultiReturnCall);
 }
-
-

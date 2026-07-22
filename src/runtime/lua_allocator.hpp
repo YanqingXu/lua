@@ -23,32 +23,45 @@ namespace Lua {
 
 namespace AllocatorDetail {
 
-inline std::mutex& implementationAllocationMutex() {
-    static std::mutex mutex;
-    return mutex;
-}
+#ifdef _MSC_VER
+struct ImplementationAllocationRegistry {
+    std::mutex mutex;
+    std::vector<void*> allocations;
+};
 
-inline std::vector<void*>& implementationAllocations() {
-    static std::vector<void*> allocations;
-    return allocations;
+inline ImplementationAllocationRegistry& implementationAllocationRegistry() {
+    static auto* registry = new ImplementationAllocationRegistry();
+    return *registry;
 }
 
 inline void trackImplementationAllocation(void* pointer) {
-    std::scoped_lock lock(implementationAllocationMutex());
-    implementationAllocations().push_back(pointer);
+    auto& registry = implementationAllocationRegistry();
+    std::scoped_lock lock(registry.mutex);
+    registry.allocations.push_back(pointer);
 }
 
 inline bool releaseImplementationAllocation(void* pointer) noexcept {
-    std::scoped_lock lock(implementationAllocationMutex());
-    auto& allocations = implementationAllocations();
-    for (auto it = allocations.begin(); it != allocations.end(); ++it) {
-        if (*it == pointer) {
-            allocations.erase(it);
-            return true;
+    try {
+        auto& registry = implementationAllocationRegistry();
+        std::scoped_lock lock(registry.mutex);
+        for (auto it = registry.allocations.begin(); it != registry.allocations.end(); ++it) {
+            if (*it == pointer) {
+                registry.allocations.erase(it);
+                return true;
+            }
         }
+    } catch (...) {
+        return false;
     }
     return false;
 }
+#else
+inline void trackImplementationAllocation(void*) {}
+
+inline bool releaseImplementationAllocation(void*) noexcept {
+    return false;
+}
+#endif
 
 } // namespace AllocatorDetail
 

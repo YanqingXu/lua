@@ -40,15 +40,16 @@ bool runLua(LuaState* L, const char* code) {
             throw parsed.error();
         }
         Chunk chunk = std::move(*parsed);
-        StringPool& pool = StringPool::getInstance();
-        CodeGenerator codegen(&pool);
+        RuntimeServices services = RuntimeServices::fromSingletons();
+        CodeGenerator codegen(services);
         Proto* proto = codegen.generate(chunk, "test_lvalue_pipeline");
-        if (proto == nullptr) return false;
+        if (proto == nullptr)
+            return false;
 
         Function* func = new Function(proto);
         L->getGlobalState().getGC().registerObject(func);
         func->setEnv(L->getGlobalTable());
-        VM::execute(L, func);
+        VM::execute(services, L, func);
         return true;
     } catch (...) {
         return false;
@@ -57,14 +58,14 @@ bool runLua(LuaState* L, const char* code) {
 
 // Helper: compile and count occurrences of an opcode
 int countOpcode(const char* code, OpCode op) {
-    StringPool& pool = StringPool::getInstance();
+    RuntimeServices services = RuntimeServices::fromSingletons();
     Parser parser(code);
     auto parsed = parser.parse();
     if (!parsed) {
         throw parsed.error();
     }
     Chunk chunk = std::move(*parsed);
-    CodeGenerator codegen(&pool);
+    CodeGenerator codegen(services);
     Proto* proto = codegen.generate(chunk);
     int count = 0;
     for (size_t i = 0; i < proto->getInstructionCount(); i++) {
@@ -81,13 +82,11 @@ int countOpcode(const char* code, OpCode op) {
 // =====================================================================
 
 void testLValueLocalBytecode(TestSuite& suite) {
-    ASSERT_TRUE(suite, countOpcode("local x\n x = 10", OpCode::LOADK) >= 1,
-                "Local assignment generates LOADK");
+    ASSERT_TRUE(suite, countOpcode("local x\n x = 10", OpCode::LOADK) >= 1, "Local assignment generates LOADK");
 }
 
 void testLValueGlobalBytecode(TestSuite& suite) {
-    ASSERT_TRUE(suite, countOpcode("g = 20", OpCode::SETGLOBAL) >= 1,
-                "Global assignment generates SETGLOBAL");
+    ASSERT_TRUE(suite, countOpcode("g = 20", OpCode::SETGLOBAL) >= 1, "Global assignment generates SETGLOBAL");
 }
 
 void testLValueTableIndexBytecode(TestSuite& suite) {
@@ -96,8 +95,7 @@ void testLValueTableIndexBytecode(TestSuite& suite) {
 }
 
 void testLValueMemberBytecode(TestSuite& suite) {
-    ASSERT_TRUE(suite, countOpcode("t.field = 40", OpCode::SETTABLE) >= 1,
-                "Member assignment generates SETTABLE");
+    ASSERT_TRUE(suite, countOpcode("t.field = 40", OpCode::SETTABLE) >= 1, "Member assignment generates SETTABLE");
 }
 
 void testLValueMultiAssignBytecode(TestSuite& suite) {
@@ -302,4 +300,3 @@ void registerLValuePipelineTests() {
     registry.registerTest("LValue Pipeline", "Table Multi-Index Runtime", testLValueTableMultiIndexRuntime);
     registry.registerTest("LValue Pipeline", "Mixed Table+Global MultiRet", testLValueMixedTableAndGlobalMultiReturn);
 }
-

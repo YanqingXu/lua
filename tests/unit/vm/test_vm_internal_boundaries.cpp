@@ -24,83 +24,65 @@ namespace {
 constexpr const char* kSuiteName = "VM Internal Boundaries";
 
 void testOperationHelpersExposeStableSignatures(TestSuite& suite) {
-    static_assert(std::is_same_v<decltype(&VM::detail::gettable),
-                                 void (*)(LuaState*, Value, const Value&, Value&)>);
-    static_assert(std::is_same_v<decltype(&VM::detail::settable),
-                                 void (*)(LuaState*, Value, const Value&, const Value&)>);
-    static_assert(std::is_same_v<decltype(&VM::detail::arith),
-                                 void (*)(LuaState*, Value&, const Value&, const Value&, OpCode)>);
+    static_assert(std::is_same_v<decltype(&VM::detail::gettable), void (*)(LuaState*, Value, const Value&, Value&)>);
+    static_assert(
+        std::is_same_v<decltype(&VM::detail::settable), void (*)(LuaState*, Value, const Value&, const Value&)>);
+    static_assert(
+        std::is_same_v<decltype(&VM::detail::arith), void (*)(LuaState*, Value&, const Value&, const Value&, OpCode)>);
     static_assert(std::is_same_v<decltype(&VM::detail::execArithmetic),
                                  void (*)(LuaState*, Proto*, Value*&, i32, i32, i32, OpCode)>);
-    static_assert(std::is_same_v<decltype(&VM::detail::equal),
-                                 bool (*)(LuaState*, const Value&, const Value&)>);
-    static_assert(std::is_same_v<decltype(&VM::detail::lessThan),
-                                 bool (*)(LuaState*, const Value&, const Value&)>);
-    static_assert(std::is_same_v<decltype(&VM::detail::lessEqual),
-                                 bool (*)(LuaState*, const Value&, const Value&)>);
-    static_assert(std::is_same_v<decltype(&VM::detail::unaryMinus),
-                                 void (*)(LuaState*, Value&, const Value&)>);
-    static_assert(std::is_same_v<decltype(&VM::detail::length),
-                                 void (*)(LuaState*, Value&, const Value&)>);
-    static_assert(std::is_same_v<decltype(&VM::detail::concat),
-                                 void (*)(RuntimeServices&, LuaState*, Value*, i32, i32, i32)>);
+    static_assert(std::is_same_v<decltype(&VM::detail::equal), bool (*)(LuaState*, const Value&, const Value&)>);
+    static_assert(std::is_same_v<decltype(&VM::detail::lessThan), bool (*)(LuaState*, const Value&, const Value&)>);
+    static_assert(std::is_same_v<decltype(&VM::detail::lessEqual), bool (*)(LuaState*, const Value&, const Value&)>);
+    static_assert(std::is_same_v<decltype(&VM::detail::unaryMinus), void (*)(LuaState*, Value&, const Value&)>);
+    static_assert(std::is_same_v<decltype(&VM::detail::length), void (*)(LuaState*, Value&, const Value&)>);
+    static_assert(
+        std::is_same_v<decltype(&VM::detail::concat), void (*)(RuntimeServices&, LuaState*, Value*, i32, i32, i32)>);
 
     ASSERT_TRUE(suite, true, "operation helper signatures are stable");
 }
 
 void testCallHelpersExposeStableSignatures(TestSuite& suite) {
-    static_assert(std::is_same_v<decltype(&VM::detail::precall),
-                                 bool (*)(LuaState*, i32, i32, i32)>);
-    static_assert(std::is_same_v<decltype(&VM::detail::postcall),
-                                 void (*)(LuaState*, i32, i32, usize)>);
-    static_assert(std::is_same_v<decltype(&VM::detail::reuseCurrentFrameForTailCall),
-                                 void (*)(LuaState*, usize, usize, i32)>);
-    static_assert(std::is_same_v<decltype(&VM::detail::dispatchCallHook),
-                                 void (*)(LuaState*)>);
-    static_assert(std::is_same_v<decltype(&VM::detail::dispatchReturnHook),
-                                 void (*)(LuaState*)>);
-    static_assert(std::is_same_v<decltype(&VM::detail::shouldDumpBytecode),
-                                 bool (*)(LuaState*)>);
+    static_assert(std::is_same_v<decltype(&VM::detail::precall), bool (*)(LuaState*, i32, i32, i32)>);
+    static_assert(std::is_same_v<decltype(&VM::detail::postcall), void (*)(LuaState*, i32, i32, usize)>);
+    static_assert(
+        std::is_same_v<decltype(&VM::detail::reuseCurrentFrameForTailCall), void (*)(LuaState*, usize, usize, i32)>);
+    static_assert(std::is_same_v<decltype(&VM::detail::dispatchCallHook), void (*)(LuaState*)>);
+    static_assert(std::is_same_v<decltype(&VM::detail::dispatchReturnHook), void (*)(LuaState*)>);
+    static_assert(std::is_same_v<decltype(&VM::detail::shouldDumpBytecode), bool (*)(LuaState*)>);
 
     ASSERT_TRUE(suite, true, "call helper signatures are stable");
 }
 
 void testTraceAndDebugHelpersExposeStableSignatures(TestSuite& suite) {
-    static_assert(std::is_same_v<decltype(&VM::detail::dispatchCountHook),
-                                 void (*)(LuaState*)>);
-    static_assert(std::is_same_v<decltype(&VM::detail::dispatchLineHook),
-                                 void (*)(LuaState*, Proto*, usize)>);
+    static_assert(std::is_same_v<decltype(&VM::detail::dispatchCountHook), void (*)(LuaState*)>);
+    static_assert(std::is_same_v<decltype(&VM::detail::dispatchLineHook), void (*)(LuaState*, Proto*, usize)>);
     static_assert(std::is_same_v<decltype(&VM::detail::emitInstructionTrace),
                                  void (*)(LuaState*, Proto*, Value*, usize, Instruction, i32)>);
-    static_assert(std::is_same_v<decltype(&VM::detail::captureTraceRegisters),
-                                 Vec<Value> (*)(LuaState*, usize, i32)>);
+    static_assert(std::is_same_v<decltype(&VM::detail::captureTraceRegisters), Vec<Value> (*)(LuaState*, usize, i32)>);
     static_assert(std::is_same_v<decltype(&VM::detail::emitInstructionTraceDiff),
-                                 void (*)(Proto*, LuaState*, usize, usize, Instruction, i32,
-                                          const Vec<Value>&)>);
-    static_assert(std::is_same_v<decltype(&VM::detail::emitCallTrace),
-                                 void (*)(LuaState*, Proto*, Value*, usize, i32, i32)>);
-    static_assert(std::is_same_v<decltype(&VM::detail::emitReturnTrace),
-                                 void (*)(LuaState*, Proto*, usize, i32)>);
+                                 void (*)(Proto*, LuaState*, usize, usize, Instruction, i32, const Vec<Value>&)>);
+    static_assert(
+        std::is_same_v<decltype(&VM::detail::emitCallTrace), void (*)(LuaState*, Proto*, Value*, usize, i32, i32)>);
+    static_assert(std::is_same_v<decltype(&VM::detail::emitReturnTrace), void (*)(LuaState*, Proto*, usize, i32)>);
 
     ASSERT_TRUE(suite, true, "trace and debug helper signatures are stable");
 }
 
 void testRemainingHelperSignatures(TestSuite& suite) {
-    static_assert(std::is_same_v<decltype(&VM::detail::setList),
-                                 void (*)(LuaState*, Value*, i32, i32, i32)>);
+    static_assert(std::is_same_v<decltype(&VM::detail::setList), void (*)(LuaState*, Value*, i32, i32, i32)>);
     static_assert(std::is_same_v<decltype(&VM::detail::closure),
                                  void (*)(LuaState*, Value*, Proto*, Function*, usize&, i32, i32)>);
-    static_assert(std::is_same_v<decltype(&VM::detail::vararg),
-                                 void (*)(LuaState*, Value*&, Proto*, i32, i32)>);
-    static_assert(std::is_same_v<decltype(&VM::detail::tforLoop),
-                                 void (*)(LuaState*, Value*&, Proto*, usize&, i32, i32)>);
+    static_assert(std::is_same_v<decltype(&VM::detail::vararg), void (*)(LuaState*, Value*&, Proto*, i32, i32)>);
+    static_assert(
+        std::is_same_v<decltype(&VM::detail::tforLoop), void (*)(LuaState*, Value*&, Proto*, usize&, i32, i32)>);
 
     ASSERT_TRUE(suite, true, "remaining VM helper signatures are stable");
 }
 
 void testProtoInstructionSpanBoundary(TestSuite& suite) {
-    static_assert(std::is_same_v<decltype(std::declval<const Proto&>().getInstructionSpan()),
-                                 std::span<const Instruction>>);
+    static_assert(
+        std::is_same_v<decltype(std::declval<const Proto&>().getInstructionSpan()), std::span<const Instruction>>);
 
     ASSERT_TRUE(suite, true, "proto instruction stream exposes a read-only span");
 }
@@ -240,6 +222,22 @@ void testBytecodeVerifierPseudoInstructions(TestSuite& suite) {
                 "verifier accepts CLOSURE and SETLIST pseudo instructions");
 }
 
+void testBytecodeVerifierAcceptsOpenVarargAtFrameTop(TestSuite& suite) {
+    Proto proto;
+    proto.setNumParams(1);
+    proto.setVararg(true);
+    proto.setMaxStackSize(3);
+    proto.addInstruction(CREATE_ABC(OpCode::MOVE, 1, 0, 0));
+    proto.addInstruction(CREATE_ABC(OpCode::NEWTABLE, 2, 0, 0));
+    proto.addInstruction(CREATE_ABC(OpCode::VARARG, 3, 0, 0));
+    proto.addInstruction(CREATE_ABC(OpCode::SETLIST, 2, 0, 1));
+    proto.addInstruction(CREATE_ABC(OpCode::RETURN, 1, 3, 0));
+    proto.addInstruction(CREATE_ABC(OpCode::RETURN, 0, 1, 0));
+
+    ASSERT_TRUE(suite, BytecodeVerifier::verify(proto).has_value(),
+                "verifier accepts open VARARG beginning at the declared frame top");
+}
+
 void testBytecodeVerifierRejectsMalformedCode(TestSuite& suite) {
     const auto initializeProto = [](Proto& proto) {
         proto.setMaxStackSize(2);
@@ -301,7 +299,7 @@ void testBytecodeVerifierRejectsMalformedCode(TestSuite& suite) {
     }
 }
 
-}  // namespace
+} // namespace
 
 void registerVMInternalBoundaryTests() {
     auto& registry = TestRegistry::getInstance();
@@ -312,10 +310,9 @@ void registerVMInternalBoundaryTests() {
                           testTraceAndDebugHelpersExposeStableSignatures);
     registry.registerTest(kSuiteName, "Remaining Helper Signatures", testRemainingHelperSignatures);
     registry.registerTest(kSuiteName, "Proto Instruction Span Boundary", testProtoInstructionSpanBoundary);
-    registry.registerTest(kSuiteName, "Bytecode Verifier Opcode Coverage",
-                          testBytecodeVerifierCoversEveryOpcode);
-    registry.registerTest(kSuiteName, "Bytecode Verifier Pseudo Instructions",
-                          testBytecodeVerifierPseudoInstructions);
-    registry.registerTest(kSuiteName, "Bytecode Verifier Malformed Code",
-                          testBytecodeVerifierRejectsMalformedCode);
+    registry.registerTest(kSuiteName, "Bytecode Verifier Opcode Coverage", testBytecodeVerifierCoversEveryOpcode);
+    registry.registerTest(kSuiteName, "Bytecode Verifier Pseudo Instructions", testBytecodeVerifierPseudoInstructions);
+    registry.registerTest(kSuiteName, "Bytecode Verifier Open Vararg Frame Top",
+                          testBytecodeVerifierAcceptsOpenVarargAtFrameTop);
+    registry.registerTest(kSuiteName, "Bytecode Verifier Malformed Code", testBytecodeVerifierRejectsMalformedCode);
 }

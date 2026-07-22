@@ -38,7 +38,7 @@ FILE* openTrackedTestFile(const char* path) {
 }
 
 LuaState* executeChunk(const char* code, const char* chunkName, Proto*& outProto) {
-    StringPool& pool = StringPool::getInstance();
+    RuntimeServices services = RuntimeServices::fromSingletons();
     Parser parser(code);
     auto parsed = parser.parse();
     if (!parsed) {
@@ -46,7 +46,7 @@ LuaState* executeChunk(const char* code, const char* chunkName, Proto*& outProto
     }
     Chunk chunk = std::move(*parsed);
 
-    CodeGenerator codegen(&pool);
+    CodeGenerator codegen(services);
     outProto = codegen.generate(chunk, chunkName);
 
     LuaState* L = LuaState::newState();
@@ -54,7 +54,7 @@ LuaState* executeChunk(const char* code, const char* chunkName, Proto*& outProto
     chunkFunc->setEnv(L->getGlobalTable());
     L->getGlobalState().getGC().registerObject(chunkFunc);
 
-    VM::execute(L, chunkFunc);
+    VM::execute(services, L, chunkFunc);
     return L;
 }
 
@@ -258,7 +258,8 @@ void testSelfDispatchOnUserdata(TestSuite& suite) {
     const char* code = "return obj:ping()";
 
     try {
-        StringPool& pool = StringPool::getInstance();
+        RuntimeServices services = RuntimeServices::fromSingletons();
+        StringPool& pool = services.strings;
         Parser parser(code);
         auto parsed = parser.parse();
         if (!parsed) {
@@ -266,7 +267,7 @@ void testSelfDispatchOnUserdata(TestSuite& suite) {
         }
         Chunk chunk = std::move(*parsed);
 
-        CodeGenerator codegen(&pool);
+        CodeGenerator codegen(services);
         Proto* proto = codegen.generate(chunk, "=(userdata_self)");
 
         ASSERT_TRUE(suite, proto != nullptr, "Proto generated for userdata SELF");
@@ -292,7 +293,7 @@ void testSelfDispatchOnUserdata(TestSuite& suite) {
         chunkFunc->setEnv(L->getGlobalTable());
         L->getGlobalState().getGC().registerObject(chunkFunc);
 
-        VM::execute(L, chunkFunc);
+        VM::execute(services, L, chunkFunc);
 
         ASSERT_TRUE(suite, L->getTop() > 0, "userdata SELF has return value");
         ASSERT_TRUE(suite, L->top().isNumber(), "userdata SELF returns number");
@@ -311,7 +312,7 @@ void testTailReturnFromCFunctionKeepsLogicalTop(TestSuite& suite) {
     const char* code = "return ping()";
 
     try {
-        StringPool& pool = StringPool::getInstance();
+        RuntimeServices services = RuntimeServices::fromSingletons();
         Parser parser(code);
         auto parsed = parser.parse();
         if (!parsed) {
@@ -319,7 +320,7 @@ void testTailReturnFromCFunctionKeepsLogicalTop(TestSuite& suite) {
         }
         Chunk chunk = std::move(*parsed);
 
-        CodeGenerator codegen(&pool);
+        CodeGenerator codegen(services);
         Proto* proto = codegen.generate(chunk, "=(tail_c_return)");
 
         ASSERT_TRUE(suite, proto != nullptr, "Proto generated for C return");
@@ -333,7 +334,7 @@ void testTailReturnFromCFunctionKeepsLogicalTop(TestSuite& suite) {
         chunkFunc->setEnv(L->getGlobalTable());
         L->getGlobalState().getGC().registerObject(chunkFunc);
 
-        VM::execute(L, chunkFunc);
+        VM::execute(services, L, chunkFunc);
 
         ASSERT_EQ(suite, static_cast<usize>(2), L->getAbsoluteTop(),
                   "tail C return keeps virtual slot plus one logical result");

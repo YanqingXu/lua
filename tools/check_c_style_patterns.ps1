@@ -228,7 +228,8 @@ if ($UpdateBaseline) {
         entries = $entries
     }
     $json = $document | ConvertTo-Json -Depth 5
-    [System.IO.File]::WriteAllText($resolvedBaselinePath, $json + [Environment]::NewLine, [System.Text.UTF8Encoding]::new($false))
+    # Keep the generated baseline byte-stable across Windows and Unix runners.
+    [System.IO.File]::WriteAllText($resolvedBaselinePath, $json + "`n", [System.Text.UTF8Encoding]::new($false))
     Write-Host "[UPDATED] C-style position baseline: $($entries.Count) entries"
     return
 }

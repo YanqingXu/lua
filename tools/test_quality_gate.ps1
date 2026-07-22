@@ -463,7 +463,11 @@ Assert-FileContains ".github/workflows/ci.yml" @(
     "lua_public_native_module_embedding",
     "-L api-contract",
     "LUA_CPP_SANITIZER",
-    "sanitizer: \[address, undefined\]",
+    "sanitizer: \[address, undefined, thread\]",
+    "Linux libFuzzer security boundaries",
+    "Linux component coverage",
+    "CXXFLAGS: -stdlib=libc\+\+",
+    "disable_memory_limit: 1",
     "ASAN_OPTIONS: detect_leaks=1:halt_on_error=1",
     "UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1",
     "clang-format --dry-run --Werror",
@@ -484,6 +488,22 @@ Assert-FileContains ".github/workflows/ci.yml" @(
     "bin\\lua_test\.exe"
 )
 
+Assert-FileContains "src/core/userdata.cpp" @(
+    'alignof\(std::max_align_t\) >= kUserdataAlignment',
+    'std::malloc\(allocationSize\)'
+)
+
+Assert-FileNotContains "src/core/userdata.cpp" @(
+    'aligned_alloc',
+    '_aligned_malloc'
+)
+
+Assert-FileContains "benchmarks/runtime_bench.cpp" @(
+    'countVmInstructionHook\(lua_State\*, lua_Debug\*\)',
+    'lua_sethook\(state_, countVmInstructionHook, LUA_MASKCOUNT, 1\)',
+    'InstructionCountScope counter\(state\)'
+)
+
 Assert-FileContains "tools/run_clang_tidy.py" @(
     "compile_commands\.json",
     "PROJECT_ROOTS",
@@ -494,6 +514,9 @@ Assert-FileContains "tools/run_clang_tidy.py" @(
 )
 
 Assert-FileContains "CMakeLists.txt" @(
+    "project\(lua_cpp VERSION 0\.1\.0",
+    "LUA_CPP_BUILD_SHARED",
+    "exported_symbols_list",
     "LUA_CPP_SANITIZER",
     "-fsanitize=\$\{LUA_CPP_SANITIZER\}",
     "-fno-omit-frame-pointer",
@@ -503,9 +526,41 @@ Assert-FileContains "CMakeLists.txt" @(
     "lua_embedding_example",
     "example_embedding",
     "lua51_public_api_contract",
+    "NAME cmake_package_consumer",
+    "install\(EXPORT LuaCppTargets",
+    "install\(FILES LICENSE",
+    "configure_package_config_file",
+    "write_basic_package_version_file",
+    "COMPATIBILITY SameMinorVersion",
     "lua_public_native_module_host",
     "lua_public_native_module_app",
     "lua_public_native_module_embedding"
+)
+
+Assert-FileContains "src/lua_cpp_version.h" @(
+    'LUA_CPP_VERSION "0\.1\.0"',
+    'LUA_CPP_ABI_VERSION 0'
+)
+
+Assert-FileContains "tests/packaging/consumer/CMakeLists.txt" @(
+    'project\(lua_cpp_package_consumer LANGUAGES C CXX\)',
+    'find_package\(LuaCpp 0\.1 CONFIG REQUIRED\)',
+    'LuaCpp::Lua',
+    'LuaCpp::Shared'
+)
+
+Assert-FileContains "src/lib/iolib.cpp" @(
+    'LuaString line\(LuaStdAllocator<char>',
+    'LuaString buffer\(LuaStdAllocator<char>',
+    'LuaString content\(LuaStdAllocator<char>',
+    'LuaString token\(LuaStdAllocator<char>'
+)
+
+Assert-FileNotContains "src/lib/iolib.cpp" @(
+    'std::string line;',
+    'std::string buffer;',
+    'std::string content;',
+    'std::string token;'
 )
 
 Assert-FileContains "tools/check_runtime_bench.ps1" @(
@@ -808,25 +863,20 @@ if (@($slowXfails.xfails).Count -ne 0) {
 Assert-FileContains "tests/compatibility/lua51-official-testc-xfails.json" @(
     '"schemaVersion":\s*1',
     '"channel":\s*"official-testc"',
-    'code.lua-lua515-compiler-parity',
-    'code.lua Lua 5.1.5 compiler parity gap: expected - LOADBOOL \*%d; actual 2 - TEST 2',
-    'repeat-until-nil lowering'
+    '"xfails":\s*\[\s*\]'
 )
 
 Assert-FileNotContains "tests/compatibility/lua51-official-testc-xfails.json" @(
     'api.lua-stack-shape',
-    'code.lua-opcode-sequence'
+    'code.lua-opcode-sequence',
+    'code.lua-lua515-compiler-parity'
 )
 
 $testCXfails = Get-Content -LiteralPath (Join-RepoPath "tests/compatibility/lua51-official-testc-xfails.json") `
     -Raw | ConvertFrom-Json
 $testCXfailEntries = @($testCXfails.xfails)
-if ($testCXfailEntries.Count -ne 1 -or $testCXfailEntries[0].id -ne "code.lua-lua515-compiler-parity") {
-    throw "official-testc must retain only the post-oracle code.lua compiler parity XFAIL"
-}
-$expectedCodeLuaDiagnostic = "code.lua Lua 5.1.5 compiler parity gap: expected - LOADBOOL *%d; actual 2 - TEST 2"
-if ($testCXfailEntries[0].expectedDiagnostic -ne $expectedCodeLuaDiagnostic) {
-    throw "official-testc code.lua XFAIL must lock the exact first project-only compiler parity gap"
+if ($testCXfailEntries.Count -ne 0) {
+    throw "official-testc must remain a required PASS with no accepted XFAIL entries"
 }
 
 Assert-FileContains "tests/unit/official/test_official_suite.cpp" @(
@@ -835,7 +885,7 @@ Assert-FileContains "tests/unit/official/test_official_suite.cpp" @(
     'runOfficialTestCScript\("code\.lua", true\)',
     'runOfficialTestCScript\("api\.lua"\)',
     'ASSERT_TRUE\(suite, result\.ok, result\.message\)',
-    '"code\.lua with Lua 5\.1\.5 oracle XFAIL"',
+    '"code\.lua with Lua 5\.1\.5 oracle"',
     '"api\.lua with T module"'
 )
 

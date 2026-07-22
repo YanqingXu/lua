@@ -35,7 +35,7 @@ void testSimpleFunctionCall(TestSuite& suite) {
     )";
 
     try {
-        StringPool& pool = StringPool::getInstance();
+        RuntimeServices services = RuntimeServices::fromSingletons();
         Parser parser(code);
         auto parsed = parser.parse();
         if (!parsed) {
@@ -43,7 +43,7 @@ void testSimpleFunctionCall(TestSuite& suite) {
         }
         Chunk chunk = std::move(*parsed);
 
-        CodeGenerator codegen(&pool);
+        CodeGenerator codegen(services);
         Proto* proto = codegen.generate(chunk);
 
         ASSERT_TRUE(suite, proto != nullptr, "Proto generated");
@@ -55,7 +55,7 @@ void testSimpleFunctionCall(TestSuite& suite) {
         Function* func = new Function(proto);
         L->getGlobalState().getGC().registerObject(func);
 
-        VM::execute(L, func);
+        VM::execute(services, L, func);
 
         // 检查结果
         ASSERT_TRUE(suite, L->getTop() > 0, "Has return value");
@@ -86,7 +86,7 @@ void testFactorialRecursion(TestSuite& suite) {
     )";
 
     try {
-        StringPool& pool = StringPool::getInstance();
+        RuntimeServices services = RuntimeServices::fromSingletons();
         Parser parser(code);
         auto parsed = parser.parse();
         if (!parsed) {
@@ -94,7 +94,7 @@ void testFactorialRecursion(TestSuite& suite) {
         }
         Chunk chunk = std::move(*parsed);
 
-        CodeGenerator codegen(&pool);
+        CodeGenerator codegen(services);
         Proto* proto = codegen.generate(chunk);
 
         ASSERT_TRUE(suite, proto != nullptr, "Proto generated");
@@ -102,18 +102,18 @@ void testFactorialRecursion(TestSuite& suite) {
         // 创建Lua状态并执行
         LuaState* L = LuaState::newState();
         openBaseLib(L);
-        
+
         Function* func = new Function(proto);
         L->getGlobalState().getGC().registerObject(func);
-        
-        VM::execute(L, func);
+
+        VM::execute(services, L, func);
 
         // 检查结果
         ASSERT_TRUE(suite, L->getTop() > 0, "Has return value");
         Value& retval = L->getStack().top();
         ASSERT_TRUE(suite, retval.isNumber(), "Result is number");
         ASSERT_EQ(suite, static_cast<i32>(retval.asNumber()), 120, "factorial(5) == 120");
-        
+
         delete L;
     } catch (const std::exception& e) {
         std::cout << "  [ERROR] Exception: " << e.what() << std::endl;
@@ -133,33 +133,33 @@ void testMultipleReturnValues(TestSuite& suite) {
         local a, b, c = multi_return()
         return a, b, c
     )";
-    
+
     try {
-        StringPool& pool = StringPool::getInstance();
+        RuntimeServices services = RuntimeServices::fromSingletons();
         Parser parser(code);
         auto parsed = parser.parse();
         if (!parsed) {
             throw parsed.error();
         }
         Chunk chunk = std::move(*parsed);
-        
-        CodeGenerator codegen(&pool);
+
+        CodeGenerator codegen(services);
         Proto* proto = codegen.generate(chunk);
-        
+
         ASSERT_TRUE(suite, proto != nullptr, "Proto generated");
-        
+
         // 创建Lua状态并执行
         LuaState* L = LuaState::newState();
         openBaseLib(L);
-        
+
         Function* func = new Function(proto);
         L->getGlobalState().getGC().registerObject(func);
-        
-        VM::execute(L, func);
-        
+
+        VM::execute(services, L, func);
+
         // 检查结果（应该有3个返回值）
         ASSERT_TRUE(suite, L->getTop() >= 3, "Has at least 3 return values");
-        
+
         delete L;
     } catch (const std::exception& e) {
         std::cout << "  [ERROR] Exception: " << e.what() << std::endl;
@@ -186,36 +186,36 @@ void testNestedFunctionCalls(TestSuite& suite) {
         
         return compute()
     )";
-    
+
     try {
-        StringPool& pool = StringPool::getInstance();
+        RuntimeServices services = RuntimeServices::fromSingletons();
         Parser parser(code);
         auto parsed = parser.parse();
         if (!parsed) {
             throw parsed.error();
         }
         Chunk chunk = std::move(*parsed);
-        
-        CodeGenerator codegen(&pool);
+
+        CodeGenerator codegen(services);
         Proto* proto = codegen.generate(chunk);
-        
+
         ASSERT_TRUE(suite, proto != nullptr, "Proto generated");
-        
+
         // 创建Lua状态并执行
         LuaState* L = LuaState::newState();
         openBaseLib(L);
-        
+
         Function* func = new Function(proto);
         L->getGlobalState().getGC().registerObject(func);
-        
-        VM::execute(L, func);
+
+        VM::execute(services, L, func);
 
         // 检查结果：(1+2) * (3+4) = 3 * 7 = 21
         ASSERT_TRUE(suite, L->getTop() > 0, "Has return value");
         Value& retval = L->getStack().top();
         ASSERT_TRUE(suite, retval.isNumber(), "Result is number");
         ASSERT_EQ(suite, static_cast<i32>(retval.asNumber()), 21, "compute() == 21");
-        
+
         delete L;
     } catch (const std::exception& e) {
         std::cout << "  [ERROR] Exception: " << e.what() << std::endl;
@@ -233,5 +233,3 @@ void registerFunctionCallTests() {
     // registry.registerTest(kSuiteName, "Multiple Return Values", testMultipleReturnValues);
     // registry.registerTest(kSuiteName, "Nested Function Calls", testNestedFunctionCalls);
 }
-
-

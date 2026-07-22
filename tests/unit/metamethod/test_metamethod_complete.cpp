@@ -18,6 +18,7 @@
 #include "core/metatable.hpp"
 #include "core/table.hpp"
 #include "core/function.hpp"
+#include "runtime/runtime_services.hpp"
 #include "vm/state/lua_state.hpp"
 #include "vm/state/global_state.hpp"
 #include "vm/vm.hpp"
@@ -404,6 +405,7 @@ void testComparisonMetamethods(TestSuite& suite) {
 void testOtherMetamethods(TestSuite& suite) {
     UPtr<LuaState> state = LuaState::create();
     LuaState* L = state.get();
+    RuntimeServices services(L->getGlobalState());
     ScopedGCRoots roots(L);
     StringPool& pool = GlobalState::getInstance().getStringPool();
 
@@ -414,7 +416,7 @@ void testOtherMetamethods(TestSuite& suite) {
     L->pushFunction(lenFunc);
     L->pushTable(v1);
 
-    VM::call(L, 1, 1);
+    VM::call(services, L, 1, 1);
     bool hasResult = (L->getAbsoluteTop() > 1);
     ASSERT_TRUE(suite, hasResult, "__len should return a result");
 

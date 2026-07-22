@@ -1,13 +1,11 @@
 #include "compiler/codegen/codegen.hpp"
 #include "compiler/parser/parser.hpp"
-#include "debug/trace_sink.hpp"
 #include "gc/garbage_collector.hpp"
 #include "lauxlib.h"
 #include "lua.h"
 #include "lualib.h"
 #include "runtime/runtime_services.hpp"
 #include "vm/state/lua_state.hpp"
-#include "vm/vm.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -303,39 +301,40 @@ void benchmarkParseCompile(Report& report) {
     addMetric(report, "parse_compile_mib_per_second", "MiB/s", "higher", std::move(throughput));
 }
 
-class CountingTraceSink final : public Lua::ITraceSink {
-public:
-    void onInstruction(const Lua::TraceEvent&) override {
-        ++instructions;
-    }
-    void onCall(const Lua::TraceEvent&) override {}
-    void onReturn(const Lua::TraceEvent&) override {}
-    void onError(const Lua::TraceEvent&) override {}
-    void flush() override {}
+thread_local std::uint64_t gVmInstructionCount = 0;
 
-    std::uint64_t instructions = 0;
-};
+void countVmInstructionHook(lua_State*, lua_Debug*) {
+    ++gVmInstructionCount;
+}
 
-class TraceScope {
+class InstructionCountScope {
 public:
-    explicit TraceScope(Lua::ITraceSink* sink) {
-        Lua::VM::setTraceDiffEnabled(false);
-        Lua::VM::setTraceSink(sink);
+    explicit InstructionCountScope(lua_State* state) : state_(state) {
+        gVmInstructionCount = 0;
+        lua_sethook(state_, countVmInstructionHook, LUA_MASKCOUNT, 1);
     }
-    ~TraceScope() {
-        Lua::VM::setTraceSink(nullptr);
+    ~InstructionCountScope() {
+        lua_sethook(state_, nullptr, 0, 0);
     }
+
+    [[nodiscard]] std::uint64_t count() const noexcept {
+        return gVmInstructionCount;
+    }
+
+private:
+    lua_State* state_;
 };
 
 std::uint64_t countVmInstructions(lua_State* state, int reference, std::size_t iterations) {
-    CountingTraceSink sink;
+    std::uint64_t instructions = 0;
     {
-        TraceScope trace(&sink);
+        InstructionCountScope counter(state);
         const double result =
             invokeNumberFunction(state, reference, static_cast<double>(iterations), "VM instruction calibration");
         require(result == expectedVmChecksum(iterations), "VM instruction calibration checksum mismatch");
+        instructions = counter.count();
     }
-    return sink.instructions;
+    return instructions;
 }
 
 void benchmarkVmDispatch(Report& report) {

@@ -54,9 +54,13 @@
 #include <memory>
 #include <span>
 #include <sstream>
+#include <vector>
 #ifdef _WIN32
 #include <windows.h>
 #else
+#ifdef __APPLE__
+#include <mach-o/dyld.h>
+#endif
 #include <limits.h>
 #include <unistd.h>
 #endif
@@ -305,6 +309,17 @@ Str executableDirectory() {
     }
 
     Str path(buffer.data(), static_cast<usize>(len));
+#elif defined(__APPLE__)
+    uint32_t capacity = PATH_MAX;
+    std::vector<char> buffer(static_cast<std::size_t>(capacity) + 1, '\0');
+    if (_NSGetExecutablePath(buffer.data(), &capacity) != 0) {
+        buffer.assign(static_cast<std::size_t>(capacity) + 1, '\0');
+        if (_NSGetExecutablePath(buffer.data(), &capacity) != 0) {
+            return ".";
+        }
+    }
+
+    Str path(buffer.data());
 #else
     std::array<char, PATH_MAX> buffer{};
     ssize_t len = readlink("/proc/self/exe", buffer.data(), buffer.size() - 1);
